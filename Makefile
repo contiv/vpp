@@ -11,7 +11,7 @@ define generate_sources
 	$(call install_generators)
 	@echo "# generating sources"
 	@cd plugins/contiv && go generate
-	@cd plugins/reflector && go generate
+	@cd plugins/k8s && go generate
 	@echo "# done"
 endef
 
@@ -19,8 +19,8 @@ endef
 define install_only
 	@echo "# installing contiv agent"
 	@cd cmd/contiv-agent && go install -v ${LDFLAGS}
-	@echo "# installing contiv-reflector"
-	@cd cmd/contiv-reflector && go install -v ${LDFLAGS}
+	@echo "# installing contiv-k8s"
+	@cd cmd/contiv-k8s && go install -v ${LDFLAGS}
 	@echo "# installing contiv-cni"
 	@cd cmd/contiv-cni && go install -v ${LDFLAGS}
 	@echo "# done"
@@ -81,10 +81,10 @@ define build_contiv_agent_only
     @echo "# done"
 endef
 
-# build contiv-reflector only
-define build_contiv_reflector_only
-    @echo "# building contiv-reflector"
-    @cd cmd/contiv-reflector && go build -v -i ${LDFLAGS}
+# build contiv-k8s only
+define build_contiv_k8s_only
+    @echo "# building contiv-k8s"
+    @cd cmd/contiv-k8s && go build -v -i ${LDFLAGS}
     @echo "# done"
 endef
 
@@ -109,15 +109,15 @@ endef
 build:
 	$(call build_contiv_agent_only)
 	$(call build_contiv_cni_only)
-	$(call build_contiv_reflector_only)
+	$(call build_contiv_k8s_only)
 
 # build vpp
 vpp:
 	$(call build_contiv_vpp_only)
 
-# build contiv-reflector
-contiv-reflector:
-	$(call build_contiv_reflector_only)
+# build contiv-k8s
+contiv-k8s:
+	$(call build_contiv_k8s_only)
 
 # build contiv-cni
 contiv-cni:
@@ -175,7 +175,7 @@ check_links:
 clean:
 	rm -f cmd/contiv-agent/contiv-agent
 	rm -f cmd/contiv-cni/contiv-cni
-	rm -f cmd/contiv-reflector/contiv-reflector
+	rm -f cmd/contiv-k8s/contiv-k8s
 	@echo "# cleanup completed"
 
 # run all targets

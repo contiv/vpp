@@ -16,6 +16,7 @@ package contiv
 
 import (
 	"github.com/contiv/vpp/plugins/contiv/model/cni"
+	"github.com/contiv/vpp/plugins/kvdbproxy"
 	"github.com/ligato/cn-infra/logging/logroot"
 	"github.com/onsi/gomega"
 	"testing"
@@ -31,7 +32,7 @@ var req = cni.CNIRequest{
 func TestVeth1NameFromRequest(t *testing.T) {
 	gomega.RegisterTestingT(t)
 
-	server := newRemoteCNIServer(logroot.StandardLogger())
+	server := newRemoteCNIServer(logroot.StandardLogger(), &kvdbproxy.Plugin{})
 
 	hostIfName := server.veth1HostIfNameFromRequest(&req)
 	gomega.Expect(hostIfName).To(gomega.BeEquivalentTo("eth0"))

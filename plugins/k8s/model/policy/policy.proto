@@ -101,15 +101,18 @@ message Policy {
 
       // Numerical or named port.
       message PortNameOrNumber {
+        // Port reference type.
         enum Type {
           NUMBER = 0;
           NAME = 1;
         }
+        Type type = 1;
+
         // Port number from the range: 0 < x < 65536.
-        int32 number = 1;
+        int32 number = 2;
 
         // Port name as defined by containers in the pod.
-        string name = 2;
+        string name = 3;
       }
       // If specified, the port on the given protocol.
       // This can either be a numerical or named port on a pod.

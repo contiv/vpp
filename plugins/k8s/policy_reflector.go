@@ -1,4 +1,4 @@
-package reflector
+package k8s
 
 import (
 	"sync"
@@ -10,9 +10,12 @@ import (
 	clientapi_v1beta1 "k8s.io/client-go/pkg/apis/extensions/v1beta1"
 	"k8s.io/client-go/tools/cache"
 
-	proto "github.com/contiv/vpp/plugins/reflector/model/policy"
+	proto "github.com/contiv/vpp/plugins/k8s/model/policy"
 )
 
+// PolicyReflector subscribes to K8s cluster to watch for changes
+// in the configuration of k8s network policies.
+// Protobuf-modelled changes are published into the selected key-value store.
 type PolicyReflector struct {
 	ReflectorDeps
 
@@ -23,6 +26,9 @@ type PolicyReflector struct {
 	k8sPolicyController cache.Controller
 }
 
+// Init subscribes to K8s cluster to watch for changes in the configuration
+// of k8s network policies. The subscription does not become active until Start()
+// is called.
 func (pr *PolicyReflector) Init(stopCh2 <-chan struct{}, wg *sync.WaitGroup) error {
 	pr.stopCh = stopCh2
 	pr.wg = wg
@@ -64,41 +70,50 @@ func (pr *PolicyReflector) Init(stopCh2 <-chan struct{}, wg *sync.WaitGroup) err
 	return nil
 }
 
+// Start activates the K8s subscription.
 func (pr *PolicyReflector) Start() {
 	pr.wg.Add(1)
 	go pr.run()
 }
 
+// addPolicy adds state data of a newly created K8s pod into the data
+// store.
 func (pr *PolicyReflector) addPolicy(policy *clientapi_v1beta1.NetworkPolicy) {
 	pr.Log.WithField("policy", policy).Info("Policy added")
 	policyProto := pr.policyToProto(policy)
-	key := proto.PolicyKey(policy.GetName(), policy.GetNamespace())
+	key := proto.Key(policy.GetName(), policy.GetNamespace())
 	err := pr.Publish.Put(key, policyProto)
 	if err != nil {
 		pr.Log.WithField("err", err).Warn("Failed to add policy state data into the data store")
 	}
 }
 
+// deletePolicy deletes state data of a removed K8s network policy from the data
+// store.
 func (pr *PolicyReflector) deletePolicy(policy *clientapi_v1beta1.NetworkPolicy) {
 	pr.Log.WithField("policy", policy).Info("Policy removed")
 	// TODO (Delete not yet supported by kvdbsync)
-	//key := proto.PolicyKey(policy.GetName(), policy.GetNamespace())
+	//key := proto.Key(policy.GetName(), policy.GetNamespace())
 	//err := pr.Publish.Delete(key)
 	//if err != nil {
 	//	pr.Log.WithField("err", err).Warn("Failed to remove policy state data from the data store")
 	//}
 }
 
+// updatePolicy updates state data of a changes K8s network policy in the data
+// store.
 func (pr *PolicyReflector) updatePolicy(policyNew, policyOld *clientapi_v1beta1.NetworkPolicy) {
 	pr.Log.WithFields(map[string]interface{}{"policy-old": policyOld, "policy-new": policyNew}).Info("Policy updated")
 	policyProto := pr.policyToProto(policyNew)
-	key := proto.PolicyKey(policyNew.GetName(), policyNew.GetNamespace())
+	key := proto.Key(policyNew.GetName(), policyNew.GetNamespace())
 	err := pr.Publish.Put(key, policyProto)
 	if err != nil {
 		pr.Log.WithField("err", err).Warn("Failed to update policy state data in the data store")
 	}
 }
 
+// policyToProto converts pod state data from the k8s representation into
+// our protobuf-modelled data structure.
 func (pr *PolicyReflector) policyToProto(policy *clientapi_v1beta1.NetworkPolicy) *proto.Policy {
 	policyProto := &proto.Policy{}
 	// Name
@@ -168,6 +183,8 @@ func (pr *PolicyReflector) policyToProto(policy *clientapi_v1beta1.NetworkPolicy
 	return policyProto
 }
 
+// labelSelectorToProto converts label selector from the k8s representation into
+// our protobuf-modelled data structure.
 func (pr *PolicyReflector) labelSelectorToProto(selector *clientapi_metav1.LabelSelector) *proto.Policy_LabelSelector {
 	selectorProto := &proto.Policy_LabelSelector{}
 	// MatchLabels
@@ -207,6 +224,7 @@ func (pr *PolicyReflector) labelSelectorToProto(selector *clientapi_metav1.Label
 	return selectorProto
 }
 
+// run runs k8s subscription in a separate go routine.
 func (pr *PolicyReflector) run() {
 	defer pr.wg.Done()
 
@@ -215,6 +233,7 @@ func (pr *PolicyReflector) run() {
 	pr.Log.Info("Stopping Policy reflector")
 }
 
+// Close does nothing for this particular reflector.
 func (pr *PolicyReflector) Close() error {
 	return nil
 }

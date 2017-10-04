@@ -25,16 +25,16 @@ const (
 	NamespacePrefix = "k8s/namespace/"
 )
 
-// NamespaceKeyPrefix returns the key prefix used in the data-store to save
+// KeyPrefix returns the key prefix used in the data-store to save
 // the current state of every known K8s namespace.
-func NamespaceKeyPrefix() string {
+func KeyPrefix() string {
 	return NamespacePrefix
 }
 
 // ParseNamespaceFromKey parses namespace id from the associated data-store key.
 func ParseNamespaceFromKey(key string) (namespace string, err error) {
-	if strings.HasPrefix(key, NamespaceKeyPrefix()) {
-		suffix := strings.TrimPrefix(key, NamespaceKeyPrefix())
+	if strings.HasPrefix(key, KeyPrefix()) {
+		suffix := strings.TrimPrefix(key, KeyPrefix())
 		components := strings.Split(suffix, "/")
 		if len(components) == 1 {
 			return components[0], nil
@@ -43,8 +43,8 @@ func ParseNamespaceFromKey(key string) (namespace string, err error) {
 	return "", fmt.Errorf("invalid format of the key %s", key)
 }
 
-// NamespaceKey returns the key under which a configuration for the given
+// Key returns the key under which a configuration for the given
 // namespace should be stored in the data-store.
-func NamespaceKey(namespace string) string {
+func Key(namespace string) string {
 	return NamespacePrefix + namespace
 }

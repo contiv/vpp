@@ -18,7 +18,7 @@ import (
 	"fmt"
 	"strings"
 
-	ns "github.com/contiv/vpp/plugins/reflector/model/namespace"
+	ns "github.com/contiv/vpp/plugins/k8s/model/namespace"
 )
 
 const (
@@ -27,17 +27,17 @@ const (
 	PodPrefix = "k8s/namespace/{namespace}/pod/"
 )
 
-// PodKeyPrefix returns the key prefix *template* used in the data-store
+// KeyPrefix returns the key prefix *template* used in the data-store
 // to save the current state of every known K8s pod.
-func PodKeyPrefix() string {
+func KeyPrefix() string {
 	return PodPrefix
 }
 
 // ParsePodFromKey parses pod and namespace ids from the associated data-store
 // key.
 func ParsePodFromKey(key string) (pod string, namespace string, err error) {
-	if strings.HasPrefix(key, ns.NamespaceKeyPrefix()) {
-		suffix := strings.TrimPrefix(key, ns.NamespaceKeyPrefix())
+	if strings.HasPrefix(key, ns.KeyPrefix()) {
+		suffix := strings.TrimPrefix(key, ns.KeyPrefix())
 		components := strings.Split(suffix, "/")
 		if len(components) == 3 && components[1] == "pod" {
 			return components[2], components[0], nil
@@ -46,8 +46,8 @@ func ParsePodFromKey(key string) (pod string, namespace string, err error) {
 	return "", "", fmt.Errorf("invalid format of the key %s", key)
 }
 
-// PodKey returns the key under which a configuration for the given K8s pod
+// Key returns the key under which a configuration for the given K8s pod
 // should be stored in the data-store.
-func PodKey(pod string, namespace string) string {
+func Key(pod string, namespace string) string {
 	return strings.Replace(PodPrefix, "{namespace}", namespace, 1) + pod
 }

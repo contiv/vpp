@@ -18,7 +18,7 @@ import (
 	"fmt"
 	"strings"
 
-	ns "github.com/contiv/vpp/plugins/reflector/model/namespace"
+	ns "github.com/contiv/vpp/plugins/k8s/model/namespace"
 )
 
 const (
@@ -27,17 +27,17 @@ const (
 	PolicyPrefix = "k8s/namespace/{namespace}/policy/"
 )
 
-// PolicyKeyPrefix returns the key prefix *template* used in the data-store
+// KeyPrefix returns the key prefix *template* used in the data-store
 // to save the current state of every known K8s network policy.
-func PolicyKeyPrefix() string {
+func KeyPrefix() string {
 	return PolicyPrefix
 }
 
 // ParsePolicyFromKey parses policy and namespace ids from the associated
 // data-store key.
 func ParsePolicyFromKey(key string) (policy string, namespace string, err error) {
-	if strings.HasPrefix(key, ns.NamespaceKeyPrefix()) {
-		suffix := strings.TrimPrefix(key, ns.NamespaceKeyPrefix())
+	if strings.HasPrefix(key, ns.KeyPrefix()) {
+		suffix := strings.TrimPrefix(key, ns.KeyPrefix())
 		components := strings.Split(suffix, "/")
 		if len(components) == 3 && components[1] == "policy" {
 			return components[2], components[0], nil
@@ -46,8 +46,8 @@ func ParsePolicyFromKey(key string) (policy string, namespace string, err error)
 	return "", "", fmt.Errorf("invalid format of the key %s", key)
 }
 
-// PolicyKey returns the key under which a configuration for the given
+// Key returns the key under which a configuration for the given
 // network policy should be stored in the data-store.
-func PolicyKey(policy string, namespace string) string {
+func Key(policy string, namespace string) string {
 	return strings.Replace(PolicyPrefix, "{namespace}", namespace, 1) + policy
 }

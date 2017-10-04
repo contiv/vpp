@@ -16,7 +16,7 @@
 //go:generate protoc -I ./model/namespace --go_out=plugins=grpc:./model/namespace ./model/namespace/namespace.proto
 //go:generate protoc -I ./model/policy --go_out=plugins=grpc:./model/policy ./model/policy/policy.proto
 
-package reflector
+package k8s
 
 import (
 	"fmt"
@@ -32,9 +32,10 @@ import (
 	"github.com/ligato/cn-infra/utils/safeclose"
 )
 
+// Plugin watches K8s resources and causes allchanges to be reflected in the ETCD
+// data store.
 type Plugin struct {
 	Deps
-	*Config
 
 	stopCh chan struct{}
 	wg     sync.WaitGroup
@@ -47,43 +48,35 @@ type Plugin struct {
 	policyReflector *PolicyReflector
 }
 
+// Deps defines dependencies of k8s plugin.
 type Deps struct {
 	local.PluginInfraDeps
+	// Publish is used to propagate changes into a key-value datastore.
+	// contiv-k8s uses ETCD as datastore.
 	Publish *kvdbsync.Plugin
 }
 
+// ReflectorDeps lists dependencies of a reflector regardless of the reflected
+// k8s resource type.
 type ReflectorDeps struct {
-	*Config
+	// Each reflector gets a separate child logger.
 	Log          logging.Logger
+	// A K8s client is used to subscribe for watching.
 	K8sClientset *kubernetes.Clientset
+	// Publish is used to propagate changes into a datastore.
 	Publish      *kvdbsync.Plugin
 }
 
-// Config holds the settings for the Reflector.
-type Config struct {
-	// Path to a kubeconfig file to use for accessing the k8s API.
-	Kubeconfig string `default:"" split_words:"false" json:"kubeconfig"`
-}
-
+// Init builds K8s client-set based on the supplied kubeconfig and initializes
+// all reflectors.
 func (plugin *Plugin) Init() error {
+	var err error
 	plugin.Log.SetLevel(logging.DebugLevel)
 	plugin.stopCh = make(chan struct{})
 
-	if plugin.Config == nil {
-		plugin.Config = &Config{}
-	}
-
-	found, err := plugin.PluginConfig.GetValue(plugin.Config)
-	if err != nil {
-		return fmt.Errorf("error loading Reflector configuration file: %s", err)
-	} else if found {
-		plugin.Log.WithField("filename", plugin.PluginConfig.GetConfigName()).Info(
-			"Loaded Reflector configuration file")
-	} else {
-		plugin.Log.Info("Using default Reflector configuration")
-	}
-
-	plugin.k8sClientConfig, err = clientcmd.BuildConfigFromFlags("", plugin.Kubeconfig)
+	kubeconfig := plugin.PluginConfig.GetConfigName()
+	plugin.Log.WithField("kubeconfig", kubeconfig).Info("Loading kubernetes client config")
+	plugin.k8sClientConfig, err = clientcmd.BuildConfigFromFlags("", kubeconfig)
 	if err != nil {
 		return fmt.Errorf("failed to build kubernetes client config: %s", err)
 	}
@@ -96,12 +89,11 @@ func (plugin *Plugin) Init() error {
 	plugin.nsReflector = &NamespaceReflector{
 		ReflectorDeps: ReflectorDeps{
 			Log:          plugin.Log.NewLogger("-namespace"),
-			Config:       plugin.Config,
 			K8sClientset: plugin.k8sClientset,
 			Publish:      plugin.Publish,
 		},
 	}
-	plugin.nsReflector.ReflectorDeps.Log.SetLevel(logging.DebugLevel)
+	//plugin.nsReflector.ReflectorDeps.Log.SetLevel(logging.DebugLevel)
 	err = plugin.nsReflector.Init(plugin.stopCh, &plugin.wg)
 	if err != nil {
 		plugin.Log.WithField("err", err).Error("Failed to initialize Namespace reflector")
@@ -111,13 +103,12 @@ func (plugin *Plugin) Init() error {
 	plugin.podReflector = &PodReflector{
 		ReflectorDeps: ReflectorDeps{
 			Log:          plugin.Log.NewLogger("-pod"),
-			Config:       plugin.Config,
 			K8sClientset: plugin.k8sClientset,
 			Publish:      plugin.Publish,
 		},
 	}
-	plugin.podReflector.ReflectorDeps.Log.SetLevel(logging.DebugLevel)
 	err = plugin.podReflector.Init(plugin.stopCh, &plugin.wg)
+	//plugin.podReflector.ReflectorDeps.Log.SetLevel(logging.DebugLevel)
 	if err != nil {
 		plugin.Log.WithField("err", err).Error("Failed to initialize Pod reflector")
 		return err
@@ -126,12 +117,11 @@ func (plugin *Plugin) Init() error {
 	plugin.policyReflector = &PolicyReflector{
 		ReflectorDeps: ReflectorDeps{
 			Log:          plugin.Log.NewLogger("-policy"),
-			Config:       plugin.Config,
 			K8sClientset: plugin.k8sClientset,
 			Publish:      plugin.Publish,
 		},
 	}
-	plugin.policyReflector.ReflectorDeps.Log.SetLevel(logging.DebugLevel)
+	//plugin.policyReflector.ReflectorDeps.Log.SetLevel(logging.DebugLevel)
 	err = plugin.policyReflector.Init(plugin.stopCh, &plugin.wg)
 	if err != nil {
 		plugin.Log.WithField("err", err).Error("Failed to initialize Policy reflector")
@@ -140,6 +130,9 @@ func (plugin *Plugin) Init() error {
 	return nil
 }
 
+// AfterInit starts all reflectors. They have to be started in AfterInit so that
+// the kvdbsync is fully initialized and ready for publishing when a k8s
+// notification comes.
 func (plugin *Plugin) AfterInit() error {
 	plugin.nsReflector.Start()
 	plugin.podReflector.Start()
@@ -147,6 +140,7 @@ func (plugin *Plugin) AfterInit() error {
 	return nil
 }
 
+// Close stops all reflectors.
 func (plugin *Plugin) Close() error {
 	close(plugin.stopCh)
 	safeclose.CloseAll(plugin.nsReflector, plugin.podReflector, plugin.policyReflector)

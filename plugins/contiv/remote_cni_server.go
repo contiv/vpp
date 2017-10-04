@@ -25,7 +25,6 @@ import (
 	"github.com/contiv/vpp/plugins/kvdbproxy"
 	"github.com/gogo/protobuf/proto"
 	"github.com/ligato/cn-infra/datasync"
-	"github.com/prometheus/common/log"
 	"golang.org/x/net/context"
 	"strconv"
 	"sync"
@@ -81,6 +80,12 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 	s.Lock()
 	defer s.Unlock()
 
+	var (
+		res        = resultOk
+		errMsg     = ""
+		createdIfs []*cni.CNIReply_Interface
+	)
+
 	changes := map[string]proto.Message{}
 	s.counter++
 
@@ -88,16 +93,12 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 	veth2 := s.veth2FromRequest(request)
 	afpacket := s.afpacketFromRequest(request)
 
-	log.Info("veth1", veth1)
-	log.Info("veth2", veth2)
-	log.Info("afpacket", afpacket)
-
 	// create entry in the afpacket map => add afpacket into bridge domain
 	s.afPackets[afpacket.Name] = nil
 
 	bd := s.bridgeDomain()
 
-	log.Info("Bridge domain", *bd)
+	s.WithFields(logging.Fields{"veth1": veth1, "veth2": veth2, "afpacket": afpacket, "bd": bd}).Info("Configuring")
 
 	txn := localclient.DataChangeRequest("CNI").
 		Put().
@@ -114,8 +115,6 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 	err := txn.BD(bd).
 		Send().ReceiveReply()
 
-	res := resultOk
-	errMsg := ""
 	if err == nil {
 		s.bdCreated = true
 
@@ -125,6 +124,8 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 		changes[l2.BridgeDomainKey(bd.Name)] = bd
 		s.persistPutChanges(changes)
 
+		createdIfs = s.createdInterfaces(veth1)
+
 	} else {
 		res = resultErr
 		errMsg = err.Error()
@@ -132,21 +133,9 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 	}
 
 	reply := &cni.CNIReply{
-		Result: res,
-		Error:  errMsg,
-		Interfaces: []*cni.CNIReply_Interface{
-			{
-				Name:    veth1.Name,
-				Sandbox: veth1.Namespace.Name,
-				IpAddresses: []*cni.CNIReply_Interface_IP{
-					{
-						Version: cni.CNIReply_Interface_IP_IPV4,
-						Address: veth1.IpAddresses[0],
-						Gateway: bviIP,
-					},
-				},
-			},
-		},
+		Result:     res,
+		Error:      errMsg,
+		Interfaces: createdIfs,
 		Routes: []*cni.CNIReply_Route{
 			{
 				Dst: "0.0.0.0/0",
@@ -161,6 +150,11 @@ func (s *remoteCNIserver) unconfigureContainerConnectivity(request *cni.CNIReque
 	s.Lock()
 	defer s.Unlock()
 
+	var (
+		res    = resultOk
+		errMsg = ""
+	)
+
 	veth1 := s.veth1NameFromRequest(request)
 	veth2 := s.veth2NameFromRequest(request)
 	afpacket := s.afpacketNameFromRequest(request)
@@ -170,8 +164,6 @@ func (s *remoteCNIserver) unconfigureContainerConnectivity(request *cni.CNIReque
 
 	bd := s.bridgeDomain()
 
-	log.Info("Bridge domain", *bd)
-
 	err := localclient.DataChangeRequest("CNI").
 		Delete().
 		LinuxInterface(veth1).
@@ -180,11 +172,12 @@ func (s *remoteCNIserver) unconfigureContainerConnectivity(request *cni.CNIReque
 		Put().BD(bd).
 		Send().ReceiveReply()
 
-	res := resultOk
-	errMsg := ""
 	if err == nil {
-		s.persistDeleteChanges([]string{veth1, veth2, afpacket})
-		s.persistPutChanges(map[string]proto.Message{bd.Name: bd})
+		s.persistDeleteChanges([]string{linux_intf.InterfaceKey(veth1),
+			linux_intf.InterfaceKey(veth2),
+			vpp_intf.InterfaceKey(afpacket),
+		})
+		s.persistPutChanges(map[string]proto.Message{l2.BridgeDomainKey(bd.Name): bd})
 	} else {
 		res = resultErr
 		errMsg = err.Error()
@@ -205,9 +198,27 @@ func (s *remoteCNIserver) persistPutChanges(changes map[string]proto.Message) {
 }
 
 func (s *remoteCNIserver) persistDeleteChanges(removedKeys []string) {
-	for _, k := range removedKeys {
-		s.proxy.AddIgnoreEntry(k, datasync.Delete)
-		s.proxy.Delete(k)
+	for _, key := range removedKeys {
+		s.proxy.AddIgnoreEntry(key, datasync.Delete)
+		s.proxy.Delete(key)
+	}
+}
+
+// createdInterfaces fills the structure containing data of created interfaces
+// that is a part of reply to Add request
+func (s *remoteCNIserver) createdInterfaces(veth *linux_intf.LinuxInterfaces_Interface) []*cni.CNIReply_Interface {
+	return []*cni.CNIReply_Interface{
+		{
+			Name:    veth.Name,
+			Sandbox: veth.Namespace.Name,
+			IpAddresses: []*cni.CNIReply_Interface_IP{
+				{
+					Version: cni.CNIReply_Interface_IP_IPV4,
+					Address: veth.IpAddresses[0],
+					Gateway: bviIP,
+				},
+			},
+		},
 	}
 }
 

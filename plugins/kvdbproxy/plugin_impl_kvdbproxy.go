@@ -14,7 +14,7 @@ import (
 //   - a plugin watches configuration in key-value datastore and processes the changes in a "standard" way
 //   - a part of the configuration is processed "alternatively" and it
 // 	   is persisted into key-value datastore afterwards
-//   - the change events caused by persisting need to be ignore since the change is already applied
+//   - the change events caused by persisting need to be ignored since the change is already applied
 // The limitations:
 // 	 - it is not possible to define multiple ignored events for the key.
 type Plugin struct {

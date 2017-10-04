@@ -29,20 +29,24 @@ import (
 	cninb "github.com/contiv/vpp/plugins/contiv/model/cni"
 )
 
-type CNIConfig struct {
+// cniConfig represents the CNI configuration, usually located in the /etc/cni/net.d/
+// folder, automatically picked by the executor of the CNI plugin and passed in via the standard input.
+type cniConfig struct {
 	// common CNI config
 	types.NetConf
 
-	// previous result, when called in the context of a chained plugin
+	// PrevResult contains previous plugin's result, used only when called in the context of a chained plugin.
 	PrevResult *map[string]interface{} `json:"prevResult"`
 
-	// plugin-specific config
+	// GrpcServer is a plugin-specific config, contains location of the gRPC server
+	// where the CNI requests are being forwarded to (server:port tuple, e.g. "localhost:9111").
 	GrpcServer string `json:"grpcServer"`
 }
 
-func loadCNIConfig(bytes []byte) (*CNIConfig, error) {
-	// unmarshall the config
-	conf := &CNIConfig{}
+// parseCNIConfig parses CNI config from JSON (in bytes) to cniConfig struct.
+func parseCNIConfig(bytes []byte) (*cniConfig, error) {
+	// unmarshal the config
+	conf := &cniConfig{}
 	if err := json.Unmarshal(bytes, conf); err != nil {
 		return nil, fmt.Errorf("failed to load plugin config: %v", err)
 	}
@@ -60,24 +64,26 @@ func loadCNIConfig(bytes []byte) (*CNIConfig, error) {
 	return conf, nil
 }
 
+// grpcConnect sets up a connection to the gRPC server specified in grpcServer argument
+// as a server:port tuple (e.g. "localhost:9111").
 func grpcConnect(grpcServer string) (*grpc.ClientConn, cninb.RemoteCNIClient, error) {
-	// Set up a connection to the server.
 	conn, err := grpc.Dial(grpcServer, grpc.WithInsecure())
 	if err != nil {
 		return nil, nil, err
 	}
-
 	return conn, cninb.NewRemoteCNIClient(conn), nil
 }
 
+// cmdAdd implements the CNI request to add a container to network.
+// It forwards the request to he remote gRPC server and prints the result recieved from gRPC.
 func cmdAdd(args *skel.CmdArgs) error {
-	// load CNI config
-	cfg, err := loadCNIConfig(args.StdinData)
+	// parse CNI config
+	cfg, err := parseCNIConfig(args.StdinData)
 	if err != nil {
 		return err
 	}
 
-	// connect to remote CNI handler over gRPC
+	// connect to the remote CNI handler over gRPC
 	conn, c, err := grpcConnect(cfg.GrpcServer)
 	if err != nil {
 		return err
@@ -121,13 +127,13 @@ func cmdAdd(args *skel.CmdArgs) error {
 					return err
 				}
 			}
-			version := "4"
+			ver := "4"
 			if ip.Version == cninb.CNIReply_Interface_IP_IPV6 {
-				version = "6"
+				ver = "6"
 			}
 			result.IPs = append(result.IPs, &cnisb.IPConfig{
 				Address:   *ipAddr,
-				Version:   version,
+				Version:   ver,
 				Interface: &ifidx,
 				Gateway:   gwAddr,
 			})
@@ -161,9 +167,11 @@ func cmdAdd(args *skel.CmdArgs) error {
 	return result.Print()
 }
 
+// cmdDel implements the CNI request to delete a container from network.
+// It forwards the request to he remote gRPC server and returns the result recieved from gRPC.
 func cmdDel(args *skel.CmdArgs) error {
-	// load CNI config
-	n, err := loadCNIConfig(args.StdinData)
+	// parse CNI config
+	n, err := parseCNIConfig(args.StdinData)
 	if err != nil {
 		return err
 	}
@@ -189,7 +197,8 @@ func cmdDel(args *skel.CmdArgs) error {
 	return nil
 }
 
+// main routine of the CNI plugin
 func main() {
-	// execute the CNI plugin
+	// execute the CNI plugin logic
 	skel.PluginMain(cmdAdd, cmdDel, version.All)
 }

@@ -22,7 +22,6 @@ import (
 
 	"github.com/containernetworking/cni/pkg/skel"
 	"github.com/contiv/vpp/plugins/contiv/model/cni"
-	"github.com/onsi/gomega"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 
@@ -30,14 +29,17 @@ import (
 )
 
 const (
-	testServerPort = ":59111"
+	testServerPort = 59111 // port where the testing gRPC server is running
 )
 
+// testCNIServer represents testing CNI gRPC server. Implements CNI Add and Delete operations.
 type testCNIServer struct{}
 
-// The request to add a container to network.
+// Add implements the CNI request to add a container to network.
 func (s *testCNIServer) Add(context.Context, *cni.CNIRequest) (*cni.CNIReply, error) {
 	fmt.Println("ADD called")
+
+	// return a mocked reply
 	return &cni.CNIReply{
 		Result: 0,
 		Error:  "",
@@ -76,43 +78,60 @@ func (s *testCNIServer) Add(context.Context, *cni.CNIRequest) (*cni.CNIReply, er
 	}, nil
 }
 
-// The request to delete a container from network.
+// Delete implements the CNI request to delete a container from network.
 func (s *testCNIServer) Delete(context.Context, *cni.CNIRequest) (*cni.CNIReply, error) {
 	fmt.Println("DELETE called")
+
+	// return a mocked rely
 	return &cni.CNIReply{
 		Result: 0,
 		Error:  "",
 	}, nil
 }
 
-func runTestGrpcServer() {
-	lis, err := net.Listen("tcp", testServerPort)
+// runTestGrpcServer starts a testing gRPC server with testCNIServer implementation.
+func runTestGrpcServer() *grpc.Server {
+	// initialize the gRPC server
+	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", testServerPort))
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)
 	}
 	s := grpc.NewServer()
 	cni.RegisterRemoteCNIServer(s, &testCNIServer{})
 
-	if err := s.Serve(lis); err != nil {
-		log.Fatalf("failed to serve: %v", err)
-	}
+	// start serving the clients
+	go func() {
+		if err := s.Serve(lis); err != nil {
+			log.Fatalf("failed to serve: %v", err)
+		}
+	}()
+
+	return s
 }
 
+// TestCNIAddDelete tests CNI Add and Delete operations of the CNI plugin.
 func TestCNIAddDelete(t *testing.T) {
-	gomega.RegisterTestingT(t)
+	RegisterTestingT(t)
 
-	go runTestGrpcServer()
+	// start testing gRPC server
+	grpcServer := runTestGrpcServer()
+	defer grpcServer.Stop()
 
+	// prepare CNI config
 	conf := `{
 	"cniVersion": "0.3.1",
 	"type": "contiv-cni",
-	"grpcServer": "localhost%s"
+	"grpcServer": "localhost:%d"
 }`
 	conf = fmt.Sprintf(conf, testServerPort)
 
+	// test ADD operation
 	err := cmdAdd(&skel.CmdArgs{StdinData: []byte(conf)})
 	Expect(err).ShouldNot(HaveOccurred())
 
+	// TODO: assert data printed to stdin
+
+	// test DEL operation
 	err = cmdDel(&skel.CmdArgs{StdinData: []byte(conf)})
 	Expect(err).ShouldNot(HaveOccurred())
 }

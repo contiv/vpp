@@ -17,8 +17,8 @@ endef
 
 # install-only binaries
 define install_only
-	@echo "# installing vpp"
-	@cd cmd/contiv-vpp && go install -v ${LDFLAGS}
+	@echo "# installing contiv agent"
+	@cd cmd/contiv-agent && go install -v ${LDFLAGS}
 	@echo "# installing contiv-reflector"
 	@cd cmd/contiv-reflector && go install -v ${LDFLAGS}
 	@echo "# installing contiv-cni"
@@ -74,10 +74,10 @@ define format_only
     @echo "# done"
 endef
 
-# build vpp only
-define build_contiv_vpp_only
+# build contiv agent
+define build_contiv_agent_only
     @echo "# building vpp"
-    @cd cmd/contiv-vpp && go build -v -i ${LDFLAGS}
+    @cd cmd/contiv-agent && go build -v -i ${LDFLAGS}
     @echo "# done"
 endef
 
@@ -107,7 +107,7 @@ endef
 
 # build all binaries
 build:
-	$(call build_contiv_vpp_only)
+	$(call build_contiv_agent_only)
 	$(call build_contiv_cni_only)
 	$(call build_contiv_reflector_only)
 
@@ -173,7 +173,7 @@ check_links:
 
 # clean
 clean:
-	rm -f cmd/contiv-vpp/contiv-vpp
+	rm -f cmd/contiv-agent/contiv-agent
 	rm -f cmd/contiv-cni/contiv-cni
 	rm -f cmd/contiv-reflector/contiv-reflector
 	@echo "# cleanup completed"

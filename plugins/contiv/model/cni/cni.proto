@@ -1,0 +1,120 @@
+// Copyright (c) 2017 Cisco and/or its affiliates.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at:
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+// Package cni provides remote CNI functionality over gRPC. It follows
+// the CNI specification at https://github.com/containernetworking/cni/blob/master/SPEC.md
+package cni;
+
+// The remote CNI service definition.
+service RemoteCNI {
+  // The request to add a container to network.
+  rpc Add (CNIRequest) returns (CNIReply) {}
+
+  // The request to delete a container from network.
+  rpc Delete (CNIRequest) returns (CNIReply) {}
+}
+
+// The request to add a container to network. Corresponds to the CNI specification
+// at https://github.com/containernetworking/cni/blob/master/SPEC.md#parameters
+message CNIRequest {
+  // The version of CNI spec that the caller is using (container management system or the invoking plugin).
+  string version = 1;
+
+  // Container ID unique across an administrative domain while the container is live.
+  string container_id = 2;
+
+  // Path to the network namespace to be added, i.e. /proc/[pid]/ns/net or a bind-mount/link to it.
+  string network_namespace = 3;
+
+  // Name of the interface inside the container. This is the name that should be assigned to the interface created inside the container (network namespace); consequently it must comply with the standard Linux restrictions on interface names.
+  string interface_name = 4;
+
+  // Network configuration. This is a JSON document describing a network to which a container can be joined. Optional.
+  string extra_nw_config = 5;
+
+  // Extra arguments passed to CNI plugin. Optional.
+  string extra_arguments = 6;
+}
+
+// The response to the CNIRequest. Corresponds to the CNI specification
+// at https://github.com/containernetworking/cni/blob/master/SPEC.md#parameters
+message CNIReply {
+  // Result code. 0 = success, non-zero = error.
+  uint32 result = 1;
+
+  // Error string in case that result != 0.
+  string error = 2;
+
+  // Interface details, as described in https://github.com/containernetworking/cni/blob/master/SPEC.md#result
+  message Interface {
+    // Name if the interface.
+    string name = 1;
+
+    // MAC address of the interface.
+    string mac = 2;
+
+    // Details about the sandbox (if any) the interface is in. Can be a netns path, empty/omitted for host interfaces.
+    string sandbox  = 3;
+
+    // IP address details, as described in https://github.com/containernetworking/cni/blob/master/SPEC.md#ips
+    message IP {
+      enum Version {
+        IPV4 = 0;
+        IPV6 = 1;
+      }
+      // IP version.
+      Version version = 1;
+
+      // IP address in CIDR notation (eg "192.168.1.3/24").
+      string address = 2;
+
+      // The default gateway for this subnet, if one exists.
+      string gateway = 3;
+    }
+    // List of IP addressess applied on the interface.
+    repeated IP ip_addresses = 4;
+  }
+  // List of interfaces connected to the container.
+  repeated Interface interfaces = 4;
+
+  // Route detials, as described in https://github.com/containernetworking/cni/blob/master/SPEC.md#routes
+  message Route {
+    // Destination subnet specified in CIDR notation.
+    string dst = 1;
+
+    // IP of the gateway. If omitted, a default gateway is assumed.
+    string gw = 2;
+  }
+  // List of routes configured in the container.
+  repeated Route routes = 5;
+
+  // DNS details, as described in https://github.com/containernetworking/cni/blob/master/SPEC.md#dns
+  message DNS {
+    // The local domain used for short hostname lookups.
+    string domain = 1;
+
+    // List of a priority-ordered list of DNS nameservers that this network is aware of.
+    repeated string nameservers = 2;
+
+    // List of priority ordered search domains for short hostname lookups. Will be preferred over domain by most resolvers.
+    repeated string search = 3;
+
+    // Listt of options that can be passed to the resolver.
+    repeated string options = 4;
+  }
+  // DNS entries. Repeated only because it is optional, normally there should be only one dns member.
+  repeated DNS dns = 6;
+}

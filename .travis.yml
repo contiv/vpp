@@ -1,0 +1,27 @@
+dist: trusty
+sudo: required
+language: go
+
+go_import_path: github.com/contiv/vpp
+
+go:
+  - 1.8.x
+
+cache:
+  directories:
+    - $HOME/build-cache
+
+before_install:
+  - go get -v github.com/golang/lint/golint
+  - go get github.com/mattn/goveralls
+  - sudo ./vendor/github.com/ligato/vpp-agent/scripts/build-vpp.sh
+  - sudo apt-get install npm && npm install -g markdown-link-check
+
+script:
+  - make check_links || true
+  - make lint
+  - make
+  - make test-cover
+
+after_success:
+  - goveralls -coverprofile=/tmp/coverage.out -service=travis-ci

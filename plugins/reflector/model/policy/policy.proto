@@ -1,0 +1,170 @@
+// Copyright (c) 2017 Cisco and/or its affiliates.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at:
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+// Package policy defines data model for Kubernetes Network Policy.
+package policy;
+
+// Policy describes what network traffic is allowed for a set of Pods.
+message Policy {
+  // Name of the policy unique within the namespace.
+  // Cannot be updated.
+  string name = 1;
+
+  // Namespace the policy is inserted into.
+  // An empty namespace is equivalent to the "default" namespace, but "default"
+  // is the canonical representation used in the key for a key-value store.
+  // Cannot be updated.
+  string namespace = 2;
+
+  // Label is a key/value pair attached to an object (namespace in this case).
+  // Labels are used to organize and to select subsets of objects.
+  message Label {
+    string key = 1;
+    string value = 2;
+  }
+  // A list of labels attached to this policy.
+  // +optional
+  repeated Label label = 3;
+
+  // A label selector is a label query over a set of resources.
+  // The result of match_label-s and match_expression-s are ANDed.
+  // An empty label selector matches all objects. A null label selector matches
+  // no objects.
+  message LabelSelector {
+    // A list of labels that a resource needs to have attached in order to get
+    // selected.
+    // +optional
+    repeated Label match_label = 1;
+
+    // An expression that contains values, a label key, and an operator that
+    // relates the key and values.
+    message LabelExpression {
+      // Key is the label key that the expression applies to.
+      string key = 1;
+
+      // Operator represents a key's relationship to a set of values.
+      enum Operator {
+        IN = 0;
+        NOT_IN = 1;
+        EXISTS = 2;
+        DOES_NOT_EXIST = 3;
+      }
+      Operator operator = 2;
+
+      // An array of string values.
+      // If the operator is IN or NOT_IN, the values array must be non-empty.
+      // If the operator is EXISTS or DOES_NOT_EXIST, the values array
+      // must be empty.
+      // +optional
+      repeated string value = 3;
+    }
+    // A list of key-value expressions applied to labels.
+    // For a given resource and its labels, all expressions must evaluate
+    // to TRUE for the resource to get selected.
+    repeated LabelExpression match_expression = 2;
+  }
+
+  // Pods to which this policy applies. The array of ingress rules is applied
+  // to all pods selected by this field. Multiple network policies can select
+  // the same set of pods. In such case, the ingress rules for each are combined
+  // additively.
+  // This field is NOT optional and follows standard label selector semantics.
+  // An empty selector matches all pods in this namespace.
+  LabelSelector pods = 4;
+
+  // Ingress rule matches traffic if and only if the traffic matches both port-s
+  // AND from.
+  message IngressRule  {
+    // A port selector.
+    message Port {
+      // The protocol (TCP or UDP) which traffic must match.
+      // If not specified, this field defaults to TCP.
+      // +optional
+      enum Protocol {
+        TCP = 0;
+        UDP = 1;
+      }
+      Protocol protocol = 3;
+
+      // Numerical or named port.
+      message PortNameOrNumber {
+        enum Type {
+          NUMBER = 0;
+          NAME = 1;
+        }
+        // Port number from the range: 0 < x < 65536.
+        int32 number = 1;
+
+        // Port name as defined by containers in the pod.
+        string name = 2;
+      }
+      // If specified, the port on the given protocol.
+      // This can either be a numerical or named port on a pod.
+      // If this field is not provided, the rule matches all port names and
+      // numbers.
+      // If present, only traffic on the specified protocol AND port
+      // will be matched.
+      // +optional
+      PortNameOrNumber port = 1;
+    }
+
+    // List of ports made accessible on the pods selected for this policy.
+    // Each item in this list is combined using a logical OR.
+    // If the array is empty or null, then this ingress rule matches all ports
+    // (traffic not restricted by port).
+    // If the array is non-empty, then this ingress rule allows traffic
+    // only if the traffic matches at least one port in the list.
+    // +optional
+    repeated Port port = 1;
+
+    // A selector for a set of pods / namespaces.
+    message Peer {
+      // Exactly one of the following must be specified.
+
+      // This is a label selector which selects Pods in this namespace.
+      // If present but empty, this selector selects all pods in this namespace.
+      // +optional
+      LabelSelector pods = 1;
+
+      // Selects namespaces using cluster scoped-labels.
+      // This matches all pods in all namespaces selected by this label selector.
+      // If present but empty, this selector selects all namespaces.
+      // +optional
+      LabelSelector namespaces = 2;
+    }
+
+    // List of sources which are able to access the pods selected for this
+    // policy.
+    // Items in this list are combined using a logical OR operation.
+    // If the array is empty or null, then this ingress rule matches all sources
+    // (traffic not restricted by source).
+    // If the array is non-empty, then this ingress rule allows traffic only
+    // if the traffic matches at least one item in the from list.
+    // +optional
+    repeated Peer from = 2;
+  }
+
+  // List of ingress rules applied to the selected pods.
+  // Traffic is allowed to a pod if there are no network policies selecting the pod
+  // OR if the traffic source is the pod's local node,
+  // OR if the traffic matches at least one ingress rule across all of the network
+  // policies applied to the pod.
+  // If there are no ingress rules then this network policy does not allow
+  // any traffic (and serves solely to ensure that the selected pods are isolated
+  // by default).
+  // +optional
+  repeated IngressRule ingress_rule = 5;
+}

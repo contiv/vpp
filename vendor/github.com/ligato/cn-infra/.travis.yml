@@ -1,0 +1,23 @@
+dist: trusty
+sudo: required
+language: go
+
+go_import_path: github.com/ligato/cn-infra
+
+go:
+  - 1.8.x
+
+before_install:
+  - go get -v github.com/golang/lint/golint
+  - go get github.com/mattn/goveralls
+  - sudo apt-get install npm && npm install -g markdown-link-check
+
+script:
+  - make check_links || true
+  - make lint
+  - make
+  - make test-cover
+  - make test-examples
+
+after_success:
+  - goveralls -coverprofile=/tmp/coverage.out -service=travis-ci

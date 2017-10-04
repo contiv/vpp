@@ -1,0 +1,102 @@
+// Copyright (c) 2017 Cisco and/or its affiliates.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at:
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+// Package pod defines data model for Kubernetes Pod.
+package pod;
+
+// Pod is a collection of containers that can run on a host.
+// This resource is created by clients and scheduled onto hosts.
+message Pod {
+  // Name of the pod unique within the namespace.
+  // Cannot be updated.
+  string name = 1;
+
+  // Namespace the pod is inserted into.
+  // An empty namespace is equivalent to the "default" namespace, but "default"
+  // is the canonical representation.
+  // Cannot be updated.
+  string namespace = 2;
+
+  // Label is a key/value pair attached to an object (pod in this case).
+  // Labels are used to organize and to select subsets of objects.
+  message Label {
+    string key = 1;
+    string value = 2;
+  }
+  // A list of labels attached to this pod.
+  // +optional
+  repeated Label label = 3;
+
+  // IP address allocated to the pod. Routable at least within the cluster.
+  // Empty if not yet allocated.
+  // +optional
+  string ip_address = 5;
+
+  // A single application container run within a pod.
+  message Container {
+    // Name of the container.
+    // Each container in a pod has a unique name.
+    // Cannot be updated.
+    string name = 1;
+
+    // Port represents a network port in a single container.
+    message Port {
+      // An IANA_SVC_NAME formatted port name, unique within the pod.
+      // The name can be referred to by services, policies, ...
+      // +optional
+      string name = 1;
+
+      // Port number to expose on the host.
+      // The port number is in the range: 0 < x < 65536.
+      // If pod is in the host network namespace, this must match container_port.
+      // Most containers do not need this.
+      // +optional
+      int32 host_port = 2;
+
+      // Port number to expose on the pod's IP address.
+      // The port number is in the range: 0 < x < 65536.
+      int32 container_port = 3;
+
+      // Protocol defines network protocols supported for container ports.
+      enum Protocol {
+        TCP = 0;
+        UDP = 1;
+      }
+      // Protocol for port. Must be UDP or TCP.
+      // Defaults to "TCP".
+      // +optional
+      Protocol protocol = 4;
+
+      // What host IP to bind the external port to.
+      // +optional
+      string host_ip_address = 5;
+    }
+    // List of ports to expose from the container. Exposing a port here gives
+    // the system additional information about the network connections a
+    // container uses, but it is primarily informational. Not specifying a port
+    // here DOES NOT prevent that port from being exposed. Any port which is
+    // listening on the default "0.0.0.0" address inside a container will be
+    // accessible from the network.
+    // Cannot be updated.
+    // +optional
+    repeated Port port = 2;
+  }
+  // List of containers belonging to the pod.
+  // Containers cannot currently be added or removed.
+  // There must be at least one container in a Pod.
+  // Cannot be updated.
+  repeated Container container = 4;
+}

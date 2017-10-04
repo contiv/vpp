@@ -1,0 +1,5 @@
+glide.lock
+.idea/*
+cmd/contiv-vpp/contiv-vpp
+cmd/contiv-cni/contiv-cni
+cmd/contiv-reflector/contiv-reflector

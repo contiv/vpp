@@ -24,7 +24,7 @@ import (
 const (
 	// PodPrefix is a key prefix *template* under which the current state
 	// of every known K8s pod is stored.
-	PodPrefix = "kaa/state/namespace/{namespace}/pod"
+	PodPrefix = "k8s/namespace/{namespace}/pod/"
 )
 
 // PodKeyPrefix returns the key prefix *template* used in the data-store
@@ -49,5 +49,5 @@ func ParsePodFromKey(key string) (pod string, namespace string, err error) {
 // PodKey returns the key under which a configuration for the given K8s pod
 // should be stored in the data-store.
 func PodKey(pod string, namespace string) string {
-	return PodPrefix + pod
+	return strings.Replace(PodPrefix, "{namespace}", namespace, 1) + pod
 }

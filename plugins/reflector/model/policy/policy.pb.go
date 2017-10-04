@@ -70,6 +70,7 @@ func (x Policy_IngressRule_Port_Protocol) String() string {
 	return proto.EnumName(Policy_IngressRule_Port_Protocol_name, int32(x))
 }
 
+// Port reference type.
 type Policy_IngressRule_Port_PortNameOrNumber_Type int32
 
 const (
@@ -275,10 +276,11 @@ func (m *Policy_IngressRule_Port) GetPort() *Policy_IngressRule_Port_PortNameOrN
 
 // Numerical or named port.
 type Policy_IngressRule_Port_PortNameOrNumber struct {
+	Type Policy_IngressRule_Port_PortNameOrNumber_Type `protobuf:"varint,1,opt,name=type,enum=policy.Policy_IngressRule_Port_PortNameOrNumber_Type" json:"type,omitempty"`
 	// Port number from the range: 0 < x < 65536.
-	Number int32 `protobuf:"varint,1,opt,name=number" json:"number,omitempty"`
+	Number int32 `protobuf:"varint,2,opt,name=number" json:"number,omitempty"`
 	// Port name as defined by containers in the pod.
-	Name string `protobuf:"bytes,2,opt,name=name" json:"name,omitempty"`
+	Name string `protobuf:"bytes,3,opt,name=name" json:"name,omitempty"`
 }
 
 func (m *Policy_IngressRule_Port_PortNameOrNumber) Reset() {

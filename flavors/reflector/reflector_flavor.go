@@ -55,7 +55,6 @@ func (f *FlavorReflector) Inject() (allReadyInjected bool) {
 	f.Reflector.Deps.PluginInfraDeps = *f.FlavorLocal.InfraDeps("reflector",
 		local.WithConf())
 	f.Reflector.Deps.Publish = &f.AllConnectorsFlavor.ETCDDataSync
-	f.Reflector.Deps.Watch = &f.AllConnectorsFlavor.ETCDDataSync
 
 	return true
 }

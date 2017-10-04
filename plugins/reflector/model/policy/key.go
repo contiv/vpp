@@ -24,7 +24,7 @@ import (
 const (
 	// PolicyPrefix is a key prefix *template* under which the current state
 	// of every known K8s network policy is stored.
-	PolicyPrefix = "kaa/state/namespace/{namespace}/policy"
+	PolicyPrefix = "k8s/namespace/{namespace}/policy/"
 )
 
 // PolicyKeyPrefix returns the key prefix *template* used in the data-store
@@ -49,5 +49,5 @@ func ParsePolicyFromKey(key string) (policy string, namespace string, err error)
 // PolicyKey returns the key under which a configuration for the given
 // network policy should be stored in the data-store.
 func PolicyKey(policy string, namespace string) string {
-	return PolicyPrefix + policy
+	return strings.Replace(PolicyPrefix, "{namespace}", namespace, 1) + policy
 }

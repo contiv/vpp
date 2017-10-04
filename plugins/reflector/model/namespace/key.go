@@ -22,7 +22,7 @@ import (
 const (
 	// NamespacePrefix is a key prefix under which the current state of every
 	// known K8s namespace is stored.
-	NamespacePrefix = "kaa/state/namespace/"
+	NamespacePrefix = "k8s/namespace/"
 )
 
 // NamespaceKeyPrefix returns the key prefix used in the data-store to save

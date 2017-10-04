@@ -142,8 +142,15 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 					{
 						Version: cni.CNIReply_Interface_IP_IPV4,
 						Address: veth1.IpAddresses[0],
+						Gateway: bviIP,
 					},
 				},
+			},
+		},
+		Routes: []*cni.CNIReply_Route{
+			{
+				Dst: "0.0.0.0/0",
+				Gw:  bviIP,
 			},
 		},
 	}

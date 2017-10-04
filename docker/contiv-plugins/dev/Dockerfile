@@ -1,4 +1,7 @@
-FROM ligato/dev-vpp-agent
+FROM golang:1.9.0-alpine3.6
+
+RUN apk add --update \
+    git make gcc
 
 # copy source files to the container
 COPY / /root/go/src/github.com/contiv/vpp
@@ -10,14 +13,11 @@ ENV PATH $PATH:$GOROOT/bin:$GOPATH/bin
 
 # build
 RUN cd $GOPATH/src/github.com/contiv/vpp && \
-    make && \
-    make install
-
-# add supervisor conf file
-COPY docker/contiv-agent/dev/supervisord.conf /etc/supervisord.conf
+    make contiv-cni && \
+    make contiv-reflector
 
 # set work directory
 WORKDIR /root/
 
-# run supervisor as the default executable
-CMD ["/usr/bin/supervisord", "-c", "/etc/supervisord.conf"]
+# run shell by default
+CMD ["/bin/sh"]

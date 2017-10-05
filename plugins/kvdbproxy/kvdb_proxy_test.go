@@ -6,7 +6,6 @@ import (
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/logging/logrus"
 	"github.com/onsi/gomega"
-	"gitlab.cisco.com/ctao/vnf-agent/agent/data"
 	"strings"
 	"testing"
 	"time"
@@ -33,7 +32,7 @@ func TestWatch(t *testing.T) {
 	select {
 	case change := <-ch:
 		gomega.Expect(change.GetKey()).To(gomega.BeEquivalentTo("/abc/prefix/something"))
-		gomega.Expect(change.GetChangeType()).To(gomega.BeEquivalentTo(data.Put))
+		gomega.Expect(change.GetChangeType()).To(gomega.BeEquivalentTo(datasync.Put))
 	case <-time.After(100 * time.Millisecond):
 		t.FailNow()
 	}
@@ -57,7 +56,7 @@ func TestWatch(t *testing.T) {
 	select {
 	case change := <-ch:
 		gomega.Expect(change.GetKey()).To(gomega.BeEquivalentTo("/abc/prefix/something"))
-		gomega.Expect(change.GetChangeType()).To(gomega.BeEquivalentTo(data.Delete))
+		gomega.Expect(change.GetChangeType()).To(gomega.BeEquivalentTo(datasync.Delete))
 	case <-time.After(100 * time.Millisecond):
 		t.FailNow()
 	}

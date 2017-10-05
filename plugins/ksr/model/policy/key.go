@@ -18,7 +18,7 @@ import (
 	"fmt"
 	"strings"
 
-	ns "github.com/contiv/vpp/plugins/k8s/model/namespace"
+	ns "github.com/contiv/vpp/plugins/ksr/model/namespace"
 )
 
 const (

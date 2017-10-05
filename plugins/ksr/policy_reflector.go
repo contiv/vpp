@@ -1,4 +1,4 @@
-package k8s
+package ksr
 
 import (
 	"sync"
@@ -10,7 +10,7 @@ import (
 	clientapi_v1beta1 "k8s.io/client-go/pkg/apis/extensions/v1beta1"
 	"k8s.io/client-go/tools/cache"
 
-	proto "github.com/contiv/vpp/plugins/k8s/model/policy"
+	proto "github.com/contiv/vpp/plugins/ksr/model/policy"
 )
 
 // PolicyReflector subscribes to K8s cluster to watch for changes

@@ -16,7 +16,7 @@
 //go:generate protoc -I ./model/namespace --go_out=plugins=grpc:./model/namespace ./model/namespace/namespace.proto
 //go:generate protoc -I ./model/policy --go_out=plugins=grpc:./model/policy ./model/policy/policy.proto
 
-package k8s
+package ksr
 
 import (
 	"fmt"
@@ -26,13 +26,14 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 
+	"github.com/ligato/cn-infra/config"
 	"github.com/ligato/cn-infra/datasync/kvdbsync"
 	"github.com/ligato/cn-infra/flavors/local"
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/utils/safeclose"
 )
 
-// Plugin watches K8s resources and causes allchanges to be reflected in the ETCD
+// Plugin watches K8s resources and causes all changes to be reflected in the ETCD
 // data store.
 type Plugin struct {
 	Deps
@@ -48,11 +49,13 @@ type Plugin struct {
 	policyReflector *PolicyReflector
 }
 
-// Deps defines dependencies of k8s plugin.
+// Deps defines dependencies of ksr plugin.
 type Deps struct {
 	local.PluginInfraDeps
+	// Kubeconfig with k8s cluster address and access credentials to use.
+	KubeConfig config.PluginConfig
 	// Publish is used to propagate changes into a key-value datastore.
-	// contiv-k8s uses ETCD as datastore.
+	// contiv-ksr uses ETCD as datastore.
 	Publish *kvdbsync.Plugin
 }
 
@@ -60,11 +63,11 @@ type Deps struct {
 // k8s resource type.
 type ReflectorDeps struct {
 	// Each reflector gets a separate child logger.
-	Log          logging.Logger
+	Log logging.Logger
 	// A K8s client is used to subscribe for watching.
 	K8sClientset *kubernetes.Clientset
 	// Publish is used to propagate changes into a datastore.
-	Publish      *kvdbsync.Plugin
+	Publish *kvdbsync.Plugin
 }
 
 // Init builds K8s client-set based on the supplied kubeconfig and initializes
@@ -74,7 +77,7 @@ func (plugin *Plugin) Init() error {
 	plugin.Log.SetLevel(logging.DebugLevel)
 	plugin.stopCh = make(chan struct{})
 
-	kubeconfig := plugin.PluginConfig.GetConfigName()
+	kubeconfig := plugin.KubeConfig.GetConfigName()
 	plugin.Log.WithField("kubeconfig", kubeconfig).Info("Loading kubernetes client config")
 	plugin.k8sClientConfig, err = clientcmd.BuildConfigFromFlags("", kubeconfig)
 	if err != nil {

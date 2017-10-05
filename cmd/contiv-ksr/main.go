@@ -17,18 +17,18 @@ package main
 import (
 	"time"
 
-	"github.com/contiv/vpp/flavors/k8s"
+	"github.com/contiv/vpp/flavors/ksr"
 	"github.com/ligato/cn-infra/core"
 )
 
-// Contiv-k8s main entry point.
+// contiv-ksr main entry point.
 func main() {
 
 	// Prepare a list of plugins to load.
-	flavor := k8s.FlavorK8s{}
+	flavor := ksr.FlavorKsr{}
 	plugins := flavor.Plugins()
 
-	// Contiv-k8s is a CN-infra based agent.
+	// contiv-ksr is a CN-infra based agent.
 	agentVar := core.NewAgent(flavor.LogRegistry().NewLogger("core"), 15*time.Second, plugins...)
 	core.EventLoopWithInterrupt(agentVar, nil)
 }

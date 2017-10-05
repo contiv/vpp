@@ -1,4 +1,4 @@
-package k8s
+package ksr
 
 import (
 	"sync"
@@ -7,7 +7,7 @@ import (
 	clientapi_v1 "k8s.io/client-go/pkg/api/v1"
 	"k8s.io/client-go/tools/cache"
 
-	proto "github.com/contiv/vpp/plugins/k8s/model/namespace"
+	proto "github.com/contiv/vpp/plugins/ksr/model/namespace"
 )
 
 // NamespaceReflector subscribes to K8s cluster to watch for changes

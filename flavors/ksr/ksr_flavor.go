@@ -12,11 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package k8s defines flavor used for the contiv-k8s agent.
-package k8s
+// Package ksr defines flavor used for the contiv-ksr agent.
+package ksr
 
 import (
-	"github.com/contiv/vpp/plugins/k8s"
+	"github.com/contiv/vpp/plugins/ksr"
+	"github.com/ligato/cn-infra/config"
 	"github.com/ligato/cn-infra/core"
 	"github.com/ligato/cn-infra/datasync/kvdbsync"
 	"github.com/ligato/cn-infra/db/keyval/etcdv3"
@@ -26,19 +27,19 @@ import (
 )
 
 const (
-	// MicroserviceLabel is the microservice label used by contiv-k8s.
-	MicroserviceLabel = "contiv-k8s"
+	// MicroserviceLabel is the microservice label used by contiv-ksr.
+	MicroserviceLabel = "contiv-ksr"
 
 	// KubeConfigAdmin is the default location of kubeconfig with admin credentials.
 	KubeConfigAdmin = "/etc/kubernetes/admin.conf"
 
-	// KubeConfigUsage explains the purpose of 'k8s-config' flag.
+	// KubeConfigUsage explains the purpose of 'kube-config' flag.
 	KubeConfigUsage = "Path to the kubeconfig file to use for the client connection to K8s cluster"
 )
 
-// FlavorK8s glues together multiple plugins to watch selected k8s
+// FlavorKsr glues together multiple plugins to watch selected k8s
 // resources and causes all changes to be reflected in a given store.
-type FlavorK8s struct {
+type FlavorKsr struct {
 	// Local flavor is used to access the Infra (logger, service label, status check)
 	*local.FlavorLocal
 	// RPC flavor for REST-based management.
@@ -46,14 +47,15 @@ type FlavorK8s struct {
 	// Plugins for access to ETCD data store.
 	ETCD         etcdv3.Plugin
 	ETCDDataSync kvdbsync.Plugin
-	// Kubernetes plugin works as a reflector for policies, pods and namespaces.
-	K8s k8s.Plugin
+	// Kubernetes State Reflector plugin works as a reflector for policies, pods
+	// and namespaces.
+	Ksr ksr.Plugin
 
 	injected bool
 }
 
 // Inject sets inter-plugin references.
-func (f *FlavorK8s) Inject() (allReadyInjected bool) {
+func (f *FlavorKsr) Inject() (allReadyInjected bool) {
 	if f.injected {
 		return false
 	}
@@ -72,15 +74,16 @@ func (f *FlavorK8s) Inject() (allReadyInjected bool) {
 	f.ETCD.Deps.PluginInfraDeps = *f.InfraDeps("etcdv3", local.WithConf())
 	connectors.InjectKVDBSync(&f.ETCDDataSync, &f.ETCD, f.ETCD.PluginName, f.FlavorLocal, nil)
 
-	f.K8s.Deps.PluginInfraDeps = *f.FlavorLocal.InfraDeps("k8s",
-		local.WithConf(KubeConfigAdmin, KubeConfigUsage))
-	f.K8s.Deps.Publish = &f.ETCDDataSync
+	f.Ksr.Deps.PluginInfraDeps = *f.FlavorLocal.InfraDeps("ksr")
+	// Reuse ForPlugin to define configuration file for 3rd party library (k8s client).
+	f.Ksr.Deps.KubeConfig = config.ForPlugin("kube", KubeConfigAdmin, KubeConfigUsage)
+	f.Ksr.Deps.Publish = &f.ETCDDataSync
 
 	return true
 }
 
 // Plugins combines all plugins in the flavor into a slice.
-func (f *FlavorK8s) Plugins() []*core.NamedPlugin {
+func (f *FlavorKsr) Plugins() []*core.NamedPlugin {
 	f.Inject()
 	return core.ListPluginsInFlavor(f)
 }

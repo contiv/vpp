@@ -8,4 +8,4 @@ set -e
 
 sudo docker build -t prod-contiv-cni --no-cache -f cni/Dockerfile .
 
-rm contiv.tar.gz
+rm -rf binaries

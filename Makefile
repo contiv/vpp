@@ -11,7 +11,7 @@ define generate_sources
 	$(call install_generators)
 	@echo "# generating sources"
 	@cd plugins/contiv && go generate
-	@cd plugins/k8s && go generate
+	@cd plugins/ksr && go generate
 	@echo "# done"
 endef
 
@@ -19,8 +19,8 @@ endef
 define install_only
 	@echo "# installing contiv agent"
 	@cd cmd/contiv-agent && go install -v ${LDFLAGS}
-	@echo "# installing contiv-k8s"
-	@cd cmd/contiv-k8s && go install -v ${LDFLAGS}
+	@echo "# installing contiv-ksr"
+	@cd cmd/contiv-ksr && go install -v ${LDFLAGS}
 	@echo "# installing contiv-cni"
 	@cd cmd/contiv-cni && go install -v ${LDFLAGS}
 	@echo "# done"
@@ -81,10 +81,10 @@ define build_contiv_agent_only
     @echo "# done"
 endef
 
-# build contiv-k8s only
-define build_contiv_k8s_only
-    @echo "# building contiv-k8s"
-    @cd cmd/contiv-k8s && go build -v -i ${LDFLAGS}
+# build contiv-ksr only
+define build_contiv_ksr_only
+    @echo "# building contiv-ksr"
+    @cd cmd/contiv-ksr && go build -v -i ${LDFLAGS}
     @echo "# done"
 endef
 
@@ -104,20 +104,26 @@ define check_links_only
     @echo "# done"
 endef
 
+define check_format_only
+    @echo "# checking go fmt"
+    @./scripts/check_fmt.sh
+    @echo "# done"
+endef
+
 
 # build all binaries
 build:
 	$(call build_contiv_agent_only)
 	$(call build_contiv_cni_only)
-	$(call build_contiv_k8s_only)
+	$(call build_contiv_ksr_only)
 
 # build vpp
 vpp:
 	$(call build_contiv_vpp_only)
 
-# build contiv-k8s
-contiv-k8s:
-	$(call build_contiv_k8s_only)
+# build contiv-ksr
+contiv-ksr:
+	$(call build_contiv_ksr_only)
 
 # build contiv-cni
 contiv-cni:
@@ -171,11 +177,16 @@ format:
 check_links:
 	$(call check_links_only)
 
+# check if the files are go formatted
+check_format:
+	$(call check_format_only)
+
+
 # clean
 clean:
 	rm -f cmd/contiv-agent/contiv-agent
 	rm -f cmd/contiv-cni/contiv-cni
-	rm -f cmd/contiv-k8s/contiv-k8s
+	rm -f cmd/contiv-ksr/contiv-ksr
 	@echo "# cleanup completed"
 
 # run all targets

@@ -22,6 +22,7 @@ spec:
            {"key":"CriticalAddonsOnly", "operator":"Exists"}]
     spec:
       hostNetwork: true
+      hostPID: true
       containers:
         # Runs contiv-agent container on each Kubernetes node.
         # It contains the vSwitch VPP and its management agent.

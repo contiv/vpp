@@ -14,7 +14,7 @@ ENV PATH $PATH:$GOROOT/bin:$GOPATH/bin
 # build
 RUN cd $GOPATH/src/github.com/contiv/vpp && \
     make contiv-cni && \
-    make contiv-k8s
+    make contiv-ksr
 
 # set work directory
 WORKDIR /root/

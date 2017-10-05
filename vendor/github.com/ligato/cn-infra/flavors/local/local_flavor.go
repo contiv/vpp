@@ -120,7 +120,7 @@ func (f *FlavorLocal) InfraDeps(pluginName string, opts ...InfraDepsOpts) *Plugi
 		if confOpt, ok := opts[0].(*ConfOpts); ok {
 			return &PluginInfraDeps{
 				*f.LogDeps(pluginName),
-				config.ForPlugin(pluginName, confOpt.confDefault, confOpt.confUsage),
+				config.ForPlugin(pluginName, confOpt.confUsage, confOpt.confDefault),
 				&f.StatusCheck,
 				&f.ServiceLabel}
 		}

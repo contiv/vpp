@@ -51,7 +51,7 @@ func TestWatch(t *testing.T) {
 
 	// expect message to be received
 	plugin.Delete("/abc/prefix/something")
-	// add dummy ignore etnries
+	// add dummy ignore entries
 	plugin.AddIgnoreEntry("/abc/prefix/dfafdasfadfadf", datasync.Delete)
 	plugin.AddIgnoreEntry("/abc/prefix/adfasfgasf", datasync.Put)
 	select {

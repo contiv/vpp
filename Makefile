@@ -104,6 +104,12 @@ define check_links_only
     @echo "# done"
 endef
 
+define check_format_only
+    @echo "# checking go fmt"
+    @./scripts/check_fmt.sh
+    @echo "# done"
+endef
+
 
 # build all binaries
 build:
@@ -170,6 +176,11 @@ format:
 # validate links in markdown files
 check_links:
 	$(call check_links_only)
+
+# check if the files are go formatted
+check_format:
+	$(call check_format_only)
+
 
 # clean
 clean:

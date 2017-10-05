@@ -19,6 +19,7 @@ before_install:
 
 script:
   - make check_links || true
+  - make check_format
   - make lint
   - make
   - make test-cover

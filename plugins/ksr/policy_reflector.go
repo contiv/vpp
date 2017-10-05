@@ -93,11 +93,11 @@ func (pr *PolicyReflector) addPolicy(policy *clientapi_v1beta1.NetworkPolicy) {
 func (pr *PolicyReflector) deletePolicy(policy *clientapi_v1beta1.NetworkPolicy) {
 	pr.Log.WithField("policy", policy).Info("Policy removed")
 	// TODO (Delete not yet supported by kvdbsync)
-	//key := proto.Key(policy.GetName(), policy.GetNamespace())
-	//err := pr.Publish.Delete(key)
-	//if err != nil {
-	//	pr.Log.WithField("err", err).Warn("Failed to remove policy state data from the data store")
-	//}
+	key := proto.Key(policy.GetName(), policy.GetNamespace())
+	_, err := pr.Publish.Delete(key)
+	if err != nil {
+		pr.Log.WithField("err", err).Warn("Failed to remove policy state data from the data store")
+	}
 }
 
 // updatePolicy updates state data of a changes K8s network policy in the data

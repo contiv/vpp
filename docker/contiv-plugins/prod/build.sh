@@ -6,6 +6,6 @@ set -e
 
 ./extract.sh
 
-sudo docker build -t prod-contiv-plugins --no-cache .
+sudo docker build -t prod-contiv-cni --no-cache -f cni/Dockerfile .
 
 rm contiv.tar.gz

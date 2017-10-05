@@ -34,7 +34,7 @@ on the localhost, port `22379` for client communication.
 Additionally, `contiv-ksr` reads kubeconfig to get the access credentials
 and the address of the K8s cluster that it should connect to.
 The location of kubeconfig is specified either with the `--kube-config`
-argument or through the `KSR_CONFIG` environment variable.
+argument or through the `KUBE_CONFIG` environment variable.
 If not specified, `contiv-ksr` will grab the default admin credentials
 from: `/etc/kubernetes/admin.conf`.
 

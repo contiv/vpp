@@ -1,7 +1,7 @@
 FROM golang:1.9.0-alpine3.6
 
 RUN apk add --update \
-    git make gcc
+    git build-base make gcc linux-headers
 
 # copy source files to the container
 COPY / /root/go/src/github.com/contiv/vpp
@@ -14,7 +14,7 @@ ENV PATH $PATH:$GOROOT/bin:$GOPATH/bin
 # build
 RUN cd $GOPATH/src/github.com/contiv/vpp && \
     make contiv-cni && \
-    make contiv-reflector
+    make contiv-ksr
 
 # set work directory
 WORKDIR /root/

@@ -1,0 +1,49 @@
+# Contiv-VPP default deployment YAML file
+
+kind: DaemonSet
+apiVersion: extensions/v1beta1
+metadata:
+  name: contiv-vpp
+  namespace: kube-system
+  labels:
+    k8s-app: contiv-vpp
+spec:
+  selector:
+    matchLabels:
+      k8s-app: contiv-vpp
+  template:
+    metadata:
+      labels:
+        k8s-app: contiv-vpp
+      annotations:
+        scheduler.alpha.kubernetes.io/critical-pod: ''
+        scheduler.alpha.kubernetes.io/tolerations: |
+          [{"key": "dedicated", "value": "master", "effect": "NoSchedule" },
+           {"key":"CriticalAddonsOnly", "operator":"Exists"}]
+    spec:
+      hostNetwork: true
+      hostPID: true
+      containers:
+        # Runs contiv-agent container on each Kubernetes node.
+        # It contains the vSwitch VPP and its management agent.
+        - name: contiv-agent
+          image: contivvpp/contiv-agent
+          securityContext:
+            privileged: true
+        # This container installs the Contiv CNI binaries
+        # and CNI network config file on each node.
+        - name: contiv-cni
+          image: contivvpp/contiv-cni
+          volumeMounts:
+            - mountPath: /opt/cni/bin
+              name: cni-bin-dir
+            - mountPath: /etc/cni/net.d
+              name: cni-net-dir
+      volumes:
+        # Used to install CNI.
+        - name: cni-bin-dir
+          hostPath:
+            path: /opt/cni/bin
+        - name: cni-net-dir
+          hostPath:
+            path: /etc/cni/net.d

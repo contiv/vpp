@@ -2,4 +2,4 @@ glide.lock
 .idea/*
 cmd/contiv-agent/contiv-agent
 cmd/contiv-cni/contiv-cni
-cmd/contiv-reflector/contiv-reflector
+cmd/contiv-ksr/contiv-ksr

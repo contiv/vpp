@@ -93,7 +93,7 @@ endef
 # build contiv-cni only
 define build_contiv_cni_only
     @echo "# building contiv-cni"
-    @cd cmd/contiv-cni && go build -v -i ${LDFLAGS}
+    @cd cmd/contiv-cni && go build -v -i -ldflags "-linkmode external -extldflags -static"
     @echo "# done"
 endef
 

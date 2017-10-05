@@ -24,7 +24,6 @@ Check the status of the deployment:
 $ kubectl get pods -n kube-system
 NAME                             READY     STATUS    RESTARTS   AGE
 contiv-vpp-whgb5                 2/2       Running   0          57m
-
 ```
 
 You can go ahead and deploy some PODs, e.g.:

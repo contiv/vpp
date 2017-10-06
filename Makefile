@@ -30,6 +30,7 @@ endef
 define test_only
 	@echo "# running unit tests"
 	@go test ./plugins/contiv
+	@go test ./plugins/kvdbproxy
 	@echo "# done"
 endef
 
@@ -37,9 +38,10 @@ endef
 define test_cover_only
 	@echo "# running unit tests with coverage analysis"
     @go test -covermode=count -coverprofile=${COVER_DIR}coverage_unit1.out ./plugins/contiv
+    @go test -covermode=count -coverprofile=${COVER_DIR}coverage_unit2.out ./plugins/kvdbproxy
     @echo "# merging coverage results"
     @cd vendor/github.com/wadey/gocovmerge && go install -v
-    @gocovmerge ${COVER_DIR}coverage_unit1.out  > ${COVER_DIR}coverage.out
+    @gocovmerge ${COVER_DIR}coverage_unit1.out ${COVER_DIR}coverage_unit2.out > ${COVER_DIR}coverage.out
     @echo "# coverage data generated into ${COVER_DIR}coverage.out"
     @echo "# done"
 endef

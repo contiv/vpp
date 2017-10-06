@@ -97,6 +97,7 @@ func cmdAdd(args *skel.CmdArgs) error {
 		InterfaceName:    args.IfName,
 		NetworkNamespace: args.Netns,
 		ExtraArguments:   args.Args,
+		ExtraNwConfig:    string(args.StdinData),
 	})
 	if err != nil {
 		return err
@@ -191,6 +192,7 @@ func cmdDel(args *skel.CmdArgs) error {
 		InterfaceName:    args.IfName,
 		NetworkNamespace: args.Netns,
 		ExtraArguments:   args.Args,
+		ExtraNwConfig:    string(args.StdinData),
 	})
 	if err != nil {
 		return err

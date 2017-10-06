@@ -4,7 +4,7 @@ set +e
 sudo docker rm -f extract 2>/dev/null
 set -e
 
-sudo docker run -itd --name extract dev-contiv-agent bash
+sudo docker run -itd --name extract dev-contiv-vswitch bash
 
 rm -rf contiv
 mkdir -p contiv

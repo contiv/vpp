@@ -13,8 +13,8 @@ RUN cd $GOPATH/src/github.com/contiv/vpp && \
     make && \
     make install
 
-# add supervisor conf file
-COPY docker/contiv-agent/dev/supervisord.conf /etc/supervisord.conf
+# add supervisor config file
+COPY docker/contiv-vswitch/dev/supervisord.conf /etc/supervisord.conf
 
 # set work directory
 WORKDIR /root/

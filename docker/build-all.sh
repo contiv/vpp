@@ -1,6 +1,6 @@
 #!/bin/bash
 
-cd contiv-agent/dev
+cd contiv-vswitch/dev
 ./build.sh
 
 cd ../prod

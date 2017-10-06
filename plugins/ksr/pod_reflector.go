@@ -88,11 +88,11 @@ func (pr *PodReflector) addPod(pod *clientapi_v1.Pod) {
 func (pr *PodReflector) deletePod(pod *clientapi_v1.Pod) {
 	pr.Log.WithField("pod", pod).Info("Pod removed")
 	// TODO (Delete not yet supported by kvdbsync)
-	//key := proto.Key(pod.GetName(), pod.GetNamespace())
-	//err := pr.Publish.Delete(key)
-	//if err != nil {
-	//	pr.Log.WithField("err", err).Warn("Failed to remove pod state data from the data store")
-	//}
+	key := proto.Key(pod.GetName(), pod.GetNamespace())
+	_, err := pr.Publish.Delete(key)
+	if err != nil {
+		pr.Log.WithField("err", err).Warn("Failed to remove pod state data from the data store")
+	}
 }
 
 // updatePod updates state data of a changes K8s pod in the data store.

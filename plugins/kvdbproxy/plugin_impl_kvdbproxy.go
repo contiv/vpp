@@ -3,7 +3,6 @@ package kvdbproxy
 import (
 	"github.com/golang/protobuf/proto"
 	"github.com/ligato/cn-infra/datasync"
-	"github.com/ligato/cn-infra/datasync/kvdbsync"
 	"github.com/ligato/cn-infra/flavors/local"
 	"github.com/ligato/cn-infra/utils/safeclose"
 	"sync"
@@ -24,11 +23,20 @@ type Plugin struct {
 	closeChan  chan interface{}
 }
 
+type kvsyncDelegate interface {
+	Watch(resyncName string, changeChan chan datasync.ChangeEvent,
+		resyncChan chan datasync.ResyncEvent, keyPrefixes ...string) (datasync.WatchRegistration, error)
+
+	Put(key string, data proto.Message, opts ...datasync.PutOption) error
+
+	Delete(key string, opts ...datasync.DelOption) (existed bool, err error)
+}
+
 // Deps group the dependencies of the Plugin
 type Deps struct {
 	local.PluginInfraDeps
 
-	KVDB *kvdbsync.Plugin
+	KVDB kvsyncDelegate
 }
 
 // Init initializes internal members of the plugin.
@@ -76,7 +84,7 @@ func (plugin *Plugin) Watch(resyncName string, changeChan chan datasync.ChangeEv
 					plugin.Log.Infof("Change for %v is ignored", m.GetKey())
 					delete(plugin.ignoreList, m.GetKey())
 				} else {
-					plugin.Log.Infof("Change for % is about to be applied", m.GetKey())
+					plugin.Log.Infof("Change for %v is about to be applied", m.GetKey())
 					changeChan <- m
 				}
 				plugin.Unlock()

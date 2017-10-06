@@ -91,12 +91,12 @@ func (nr *NamespaceReflector) addNamespace(ns *clientapi_v1.Namespace) {
 func (nr *NamespaceReflector) deleteNamespace(ns *clientapi_v1.Namespace) {
 	nr.Log.WithField("ns", ns).Info("K8s namespace removed")
 	// TODO (Delete not yet supported by kvdbsync)
-	//key := proto.Key(ns.GetName())
-	//err := nr.Publish.Delete(key)
-	//if err != nil {
-	//	nr.Log.WithField("err", err)
-	// 		.Warn("Failed to remove k8s namespace state data from the data store")
-	//}
+	key := proto.Key(ns.GetName())
+	_, err := nr.Publish.Delete(key)
+	if err != nil {
+		nr.Log.WithField("err", err).
+			Warn("Failed to remove k8s namespace state data from the data store")
+	}
 }
 
 // updateNamespace updates state data of a changes K8s namespace in the data

@@ -31,7 +31,7 @@ type Plugin struct {
 	cniServer *remoteCNIserver
 }
 
-// Deps group the dependencies of the Plugin
+// Deps groups the dependencies of the Plugin.
 type Deps struct {
 	local.PluginInfraDeps
 	GRPC  grpc.Server

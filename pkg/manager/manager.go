@@ -92,9 +92,9 @@ func (s *ContivshimManager) Version(ctx context.Context, req *kubeapi.VersionReq
 	}, nil
 }
 
-// RunPodSandbox creates and start a hyper Pod.
+// RunPodSandbox creates and start a Pod.
 func (s *ContivshimManager) RunPodSandbox(ctx context.Context, req *kubeapi.RunPodSandboxRequest) (*kubeapi.RunPodSandboxResponse, error) {
-	glog.V(3).Infof("RunPodSandbox from runtime service with request %s", req.String())
+	glog.V(1).Infof("RunPodSandbox from runtime service with request %s", req.String())
 	cli, err := newEtcdClient(s.etcdEndpoint)
 	if err != nil {
 		glog.V(3).Infof("Could create and connect with etcd Client")
@@ -102,7 +102,7 @@ func (s *ContivshimManager) RunPodSandbox(ctx context.Context, req *kubeapi.RunP
 	}
 	namespace := req.Config.Metadata.Namespace
 	reqvalue := &kubeapi.PodSandboxMetadata{Namespace: namespace}
-	cli.Put("conti/", reqvalue)
+	cli.Put("contiv", reqvalue)
 	resp, err := s.dockerRuntimeService.RunPodSandbox(req.Config)
 	if err != nil {
 		glog.Errorf("RunPodSandbox from dockershim failed: %v", err)
@@ -162,9 +162,14 @@ func (s *ContivshimManager) ListPodSandbox(ctx context.Context, req *kubeapi.Lis
 
 // CreateContainer creates a new container in specified PodSandbox
 func (s *ContivshimManager) CreateContainer(ctx context.Context, req *kubeapi.CreateContainerRequest) (*kubeapi.CreateContainerResponse, error) {
-	glog.V(3).Infof("CreateContainer with request %s", req.String())
-	// Add ENV variables logic here
-	// config := req.Config - > Envs []*KeyValue `protobuf:"bytes,6,rep,name=envs" json:"envs,omitempty"`
+	glog.V(1).Infof("CreateContainer with request %s", req.String())
+	env := &kubeapi.KeyValue{
+		Key:   "LD_PRELOAD",
+		Value: "/var/new",
+	}
+	req.Config.Envs = append(req.Config.Envs, env)
+
+	glog.V(1).Infoln("This is sparta: %v", req.Config)
 	containerID, err := s.dockerRuntimeService.CreateContainer(req.PodSandboxId, req.Config, req.SandboxConfig)
 
 	if err != nil {
@@ -176,7 +181,7 @@ func (s *ContivshimManager) CreateContainer(ctx context.Context, req *kubeapi.Cr
 
 // StartContainer starts the container.
 func (s *ContivshimManager) StartContainer(ctx context.Context, req *kubeapi.StartContainerRequest) (*kubeapi.StartContainerResponse, error) {
-	glog.V(3).Infof("StartContainer with request %s", req.String())
+	glog.V(1).Infof("StartContainer with request %s", req.String())
 
 	err := s.dockerRuntimeService.StartContainer(req.ContainerId)
 	if err != nil {
@@ -322,7 +327,6 @@ func (s *ContivshimManager) PortForward(ctx context.Context, req *kubeapi.PortFo
 // UpdateRuntimeConfig updates runtime configuration if specified
 func (s *ContivshimManager) UpdateRuntimeConfig(ctx context.Context, req *kubeapi.UpdateRuntimeConfigRequest) (*kubeapi.UpdateRuntimeConfigResponse, error) {
 	glog.V(3).Infof("Update docker runtime configure with request %s", req.String())
-	// TODO(resouer) only for hyper runtime update, so we cannot deal with handles podCIDR updates in docker.
 	err := s.dockerRuntimeService.UpdateRuntimeConfig(req.GetRuntimeConfig())
 	if err != nil {
 		glog.Errorf("UpdateRuntimeConfig from dockershim failed: %v", err)

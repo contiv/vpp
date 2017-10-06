@@ -24,16 +24,16 @@ spec:
       hostNetwork: true
       hostPID: true
       containers:
-        # Runs contiv-agent container on each Kubernetes node.
+        # Runs contiv-vswitch container on each Kubernetes node.
         # It contains the vSwitch VPP and its management agent.
-        - name: contiv-agent
-          image: contivvpp/contiv-agent
+        - name: contiv-vswitch
+          image: contivvpp/vswitch
           securityContext:
             privileged: true
         # This container installs the Contiv CNI binaries
         # and CNI network config file on each node.
         - name: contiv-cni
-          image: contivvpp/contiv-cni
+          image: contivvpp/cni
           volumeMounts:
             - mountPath: /opt/cni/bin
               name: cni-bin-dir

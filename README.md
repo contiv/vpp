@@ -8,6 +8,37 @@
 
 Please note that the content of this repository is currently **WORK IN PROGRESS**.
 
-Clone this repository to  `<GO-PATH>/contiv/vpp`.
+This Kubernetes network plugin uses FD.io VPP to provide the network connectivity between PODs.
+Currently, only one-node k8s cluster is supported, with no connection to the k8s services running on the host from the PODs.
 
-In order to test the implementation see the [README](cmd/contiv-cni/README.md)
+### Quickstart
+Given that you have your k8s cluster running, e.g. using [kubeadm](https://kubernetes.io/docs/setup/independent/create-cluster-kubeadm/).
+
+Deploy the Contiv-VPP network plugin:
+```
+kubectl apply -f https://raw.githubusercontent.com/contiv/vpp/master/k8s/contiv-vpp.yaml
+```
+
+Check the status of the deployment:
+```
+$ kubectl get pods -n kube-system
+NAME                             READY     STATUS    RESTARTS   AGE
+contiv-vpp-whgb5                 2/2       Running   0          57m
+```
+
+You can go ahead and deploy some PODs, e.g.:
+```
+$ kubectl apply -f ubuntu.yaml
+```
+
+Use `kubectl describe pod` to get the IP address of a POD, e.g.:
+```
+$ kubectl describe pod ubuntu | grep IP
+IP:		10.0.0.1
+```
+
+To check the connectivity, you can connect to VPP debug CLI and execute a ping:
+```
+telnet 0 5002
+vpp# ping 10.0.0.1
+```

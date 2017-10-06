@@ -1,7 +1,15 @@
 FROM golang:1.9.0-alpine3.6
 
 RUN apk add --update \
-    git build-base make gcc linux-headers
+    wget git build-base make gcc linux-headers
+
+# set work directory
+WORKDIR /root/
+
+# download CNI binaries
+RUN wget https://github.com/containernetworking/cni/releases/download/v0.3.0/cni-v0.3.0.tgz
+RUN mkdir cni
+RUN tar xvf cni-v0.3.0.tgz -C cni
 
 # copy source files to the container
 COPY / /root/go/src/github.com/contiv/vpp
@@ -15,9 +23,6 @@ ENV PATH $PATH:$GOROOT/bin:$GOPATH/bin
 RUN cd $GOPATH/src/github.com/contiv/vpp && \
     make contiv-cni && \
     make contiv-ksr
-
-# set work directory
-WORKDIR /root/
 
 # run shell by default
 CMD ["/bin/sh"]

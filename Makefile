@@ -78,7 +78,7 @@ endef
 
 # build contiv agent
 define build_contiv_agent_only
-    @echo "# building vpp"
+    @echo "# building contiv-agent"
     @cd cmd/contiv-agent && go build -v -i ${LDFLAGS}
     @echo "# done"
 endef
@@ -119,9 +119,9 @@ build:
 	$(call build_contiv_cni_only)
 	$(call build_contiv_ksr_only)
 
-# build vpp
-vpp:
-	$(call build_contiv_vpp_only)
+# build agent
+agent:
+	$(call build_contiv_agent_only)
 
 # build contiv-ksr
 contiv-ksr:

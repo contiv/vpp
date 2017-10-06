@@ -6,12 +6,10 @@ set -e
 
 sudo docker run -itd --name extract dev-contiv-plugins sh
 
-rm -rf contiv
-mkdir -p contiv
-#sudo docker cp extract:/root/go/bin/contiv-cni contiv/
-sudo docker cp extract:/root/go/src/github.com/contiv/vpp/cmd/contiv-cni/contiv-cni contiv/
+rm -rf binaries
+mkdir -p binaries
 
-tar -zcvf contiv.tar.gz contiv
+sudo docker cp extract:/root/go/src/github.com/contiv/vpp/cmd/contiv-cni/contiv-cni binaries/
+sudo docker cp extract:/root/cni/loopback binaries/
 
 sudo docker rm -f extract
-rm -rf contiv

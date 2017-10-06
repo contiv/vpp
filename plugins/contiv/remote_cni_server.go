@@ -122,9 +122,13 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 		changes[linux_intf.InterfaceKey(veth2.Name)] = veth2
 		changes[vpp_intf.InterfaceKey(afpacket.Name)] = afpacket
 		changes[l2.BridgeDomainKey(bd.Name)] = bd
-		s.persistPutChanges(changes)
-
-		createdIfs = s.createdInterfaces(veth1)
+		err = s.persistChanges(nil, changes)
+		if err != nil {
+			errMsg = err.Error()
+			res = resultErr
+		} else {
+			createdIfs = s.createdInterfaces(veth1)
+		}
 
 	} else {
 		res = resultErr
@@ -173,11 +177,17 @@ func (s *remoteCNIserver) unconfigureContainerConnectivity(request *cni.CNIReque
 		Send().ReceiveReply()
 
 	if err == nil {
-		s.persistDeleteChanges([]string{linux_intf.InterfaceKey(veth1),
-			linux_intf.InterfaceKey(veth2),
-			vpp_intf.InterfaceKey(afpacket),
-		})
-		s.persistPutChanges(map[string]proto.Message{l2.BridgeDomainKey(bd.Name): bd})
+		err = s.persistChanges(
+			[]string{linux_intf.InterfaceKey(veth1),
+				linux_intf.InterfaceKey(veth2),
+				vpp_intf.InterfaceKey(afpacket),
+			},
+			map[string]proto.Message{l2.BridgeDomainKey(bd.Name): bd},
+		)
+		if err != nil {
+			errMsg = err.Error()
+			res = resultErr
+		}
 	} else {
 		res = resultErr
 		errMsg = err.Error()
@@ -190,18 +200,26 @@ func (s *remoteCNIserver) unconfigureContainerConnectivity(request *cni.CNIReque
 	return reply, err
 }
 
-func (s *remoteCNIserver) persistPutChanges(changes map[string]proto.Message) {
-	for k, v := range changes {
-		s.proxy.AddIgnoreEntry(k, datasync.Put)
-		s.proxy.Put(k, v)
-	}
-}
+func (s *remoteCNIserver) persistChanges(removedKeys []string, putChanges map[string]proto.Message) error {
+	var err error
+	// TODO rollback in case of error
 
-func (s *remoteCNIserver) persistDeleteChanges(removedKeys []string) {
 	for _, key := range removedKeys {
 		s.proxy.AddIgnoreEntry(key, datasync.Delete)
-		s.proxy.Delete(key)
+		_, err = s.proxy.Delete(key)
+		if err != nil {
+			return err
+		}
 	}
+
+	for k, v := range putChanges {
+		s.proxy.AddIgnoreEntry(k, datasync.Put)
+		err = s.proxy.Put(k, v)
+		if err != nil {
+			return err
+		}
+	}
+	return err
 }
 
 // createdInterfaces fills the structure containing data of created interfaces

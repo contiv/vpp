@@ -75,7 +75,7 @@ func grpcConnect(grpcServer string) (*grpc.ClientConn, cninb.RemoteCNIClient, er
 }
 
 // cmdAdd implements the CNI request to add a container to network.
-// It forwards the request to he remote gRPC server and prints the result recieved from gRPC.
+// It forwards the request to he remote gRPC server and prints the result received from gRPC.
 func cmdAdd(args *skel.CmdArgs) error {
 	// parse CNI config
 	cfg, err := parseCNIConfig(args.StdinData)
@@ -96,6 +96,7 @@ func cmdAdd(args *skel.CmdArgs) error {
 		ContainerId:      args.ContainerID,
 		InterfaceName:    args.IfName,
 		NetworkNamespace: args.Netns,
+		ExtraArguments:   args.Args,
 	})
 	if err != nil {
 		return err
@@ -168,7 +169,7 @@ func cmdAdd(args *skel.CmdArgs) error {
 }
 
 // cmdDel implements the CNI request to delete a container from network.
-// It forwards the request to he remote gRPC server and returns the result recieved from gRPC.
+// It forwards the request to he remote gRPC server and returns the result received from gRPC.
 func cmdDel(args *skel.CmdArgs) error {
 	// parse CNI config
 	n, err := parseCNIConfig(args.StdinData)
@@ -189,6 +190,7 @@ func cmdDel(args *skel.CmdArgs) error {
 		ContainerId:      args.ContainerID,
 		InterfaceName:    args.IfName,
 		NetworkNamespace: args.Netns,
+		ExtraArguments:   args.Args,
 	})
 	if err != nil {
 		return err

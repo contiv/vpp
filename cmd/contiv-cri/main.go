@@ -15,8 +15,8 @@ import (
 )
 
 const (
-	contivshimVersion = "0.0.1"
-	// use port 24542 for dockershim streaming
+	contivshimVersion = "0.1.0"
+	// use port 25553 for dockershim streaming
 	dockerStreamingServerPort = 25553
 )
 
@@ -26,8 +26,6 @@ var (
 		"UNIX sockets to listen on, e.g. /var/run/contivshim.sock")
 	etcdEndpoint = pflag.String("etcd-endpoint", "127.0.0.1:25552",
 		"The endpoint for connecting to etcd data store grpc server, i.e. 127.0.0.1:25552")
-	dockershimEndpoint = pflag.String("dockershim-endpoint", "/var/run/dockershim.sock",
-		"The endpoint for connecting to dockershim grpc server, i.e. /var/run/dockershim.sock")
 	dockerRuntimeEndpoint = pflag.String("docker-endpoint", "unix:///var/run/docker.sock",
 		"Endpoint of Docker Runtime UNIX to communicate")
 	streamingServerAddress = pflag.String("streaming-server-addr", "0.0.0.0",
@@ -36,8 +34,9 @@ var (
 		"Directory of CNI configuration file")
 	cniPluginDir = pflag.String("cni-plugin-dir", "/opt/cni/bin",
 		"Directory of CNI binary file")
-	cgroupDriver = pflag.String("cgroup-driver", "cgroupfs", "Driver that the vppshim uses to manipulate cgroups on the host. *SHOULD BE SAME AS* kubelet cgroup driver configuration.  Possible values: 'cgroupfs', 'systemd'")
-	rootDir      = pflag.String("root-directory", "/var/lib/contivshim", "Path to the contivshim root directory")
+	cgroupDriver = pflag.String("cgroup-driver", "cgroupfs",
+		"Driver that the vppshim uses to manipulate cgroups on the host. Possible values: 'cgroupfs', 'systemd'")
+	rootDir = pflag.String("root-directory", "/var/lib/contivshim", "Path to the contivshim root directory")
 )
 
 func main() {
@@ -69,6 +68,7 @@ func main() {
 		os.Exit(1)
 	}
 	// 2. Create NewContivshimManager that manages passing the messages to Etcd and dockershim
+	// Returns pointer to the Grpc server
 	server, err := manager.NewContivshimManager(etcdEndpoint, dockershimRuntime, dockershimRuntime)
 	if err != nil {
 		glog.Errorf("Initialize contivshim server failed: %v", err)

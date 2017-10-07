@@ -1,19 +1,3 @@
-/*
-Copyright 2017 The Kubernetes Authors.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
 package docker
 
 import (
@@ -49,9 +33,8 @@ type DockerRuntime struct {
 	dockershim.DockerService
 }
 
-// NewDockerRuntime function is this
+// NewDockerRuntime initializes a docker runtime using CNI conifugration
 func NewDockerRuntime(dockerRuntimeEndpoint string, streamingConfig *streaming.Config, cniNetDir string, cniPluginDir string, cgroupDriver string, dockerRuntimeRootDir string) (*DockerRuntime, error) {
-	// For now we use docker as the only supported  runtime
 	glog.Infof("Initialize docker runtime: docker runtime\n")
 
 	kubeletScheme, _, err := kubeletscheme.NewSchemeAndCodecs()
@@ -73,7 +56,7 @@ func NewDockerRuntime(dockerRuntimeEndpoint string, streamingConfig *streaming.C
 		kubeCfg.RuntimeRequestTimeout.Duration,
 		crOption.ImagePullProgressDeadline.Duration,
 	)
-	// TODO(resouer) is it fine to reuse the CNI plug-in?
+	// CNI plugin setting
 	pluginSettings := dockershim.NetworkPluginSettings{
 		HairpinMode:       kubeletconfiginternal.HairpinMode(kubeCfg.HairpinMode),
 		NonMasqueradeCIDR: kubeCfg.NonMasqueradeCIDR,
@@ -115,7 +98,7 @@ func NewDockerRuntime(dockerRuntimeEndpoint string, streamingConfig *streaming.C
 	return &DockerRuntime{ds}, nil
 }
 
-// Serve starts gRPC server at tcp://addr
+// Serve starts dockershim gRPC server at unix://addr
 func (s *DockerRuntime) Serve(addr string) error {
 	glog.V(1).Infof("Start dockershim grpc server at %s", addr)
 	var server *grpc.Server
@@ -144,6 +127,7 @@ func startDockerStreamingServer(streamingConfig *streaming.Config, ds dockershim
 		Addr:    streamingConfig.Addr,
 		Handler: ds,
 	}
+	// TODO (brecode): handle TLS configuration.
 	go func() {
 		if err := httpServer.ListenAndServe(); err != nil {
 			glog.Errorf("Failed to start streaming server for docker runtime: %v", err)

@@ -33,7 +33,6 @@ import:
 - package: github.com/wadey/gocovmerge
   version: b5bfa59ec0adc420475f97f89b58045c721d761c
 - package: github.com/golang/glog
-- package: github.com/pborman/uuid
 - package: github.com/spf13/pflag
 - package: k8s.io/kubernetes
   subpackages:
@@ -50,7 +49,3 @@ import:
 - package: k8s.io/utils
   subpackages:
   - exec
-testImport:
-- package: github.com/stretchr/testify
-  subpackages:
-  - assert

@@ -95,14 +95,20 @@ func (s *ContivshimManager) Version(ctx context.Context, req *kubeapi.VersionReq
 // RunPodSandbox creates and start a Pod.
 func (s *ContivshimManager) RunPodSandbox(ctx context.Context, req *kubeapi.RunPodSandboxRequest) (*kubeapi.RunPodSandboxResponse, error) {
 	glog.V(1).Infof("RunPodSandbox from runtime service with request %s", req.String())
+	// This is where we push configuration to etcd
+	// TODO (brecode):
+	// 1. Decide on the info passed
+	// 2. Error handling if RunPodSandbox fails
+	// 3. Check if Close should be called
 	cli, err := newEtcdClient(s.etcdEndpoint)
 	if err != nil {
-		glog.V(3).Infof("Could create and connect with etcd Client")
+		glog.V(3).Infof("Could not create etcdClient and connect to etcd")
 		return nil, err
 	}
 	namespace := req.Config.Metadata.Namespace
 	reqvalue := &kubeapi.PodSandboxMetadata{Namespace: namespace}
 	cli.Put("contiv", reqvalue)
+	// req.Config holds additional POD information to be configureds
 	resp, err := s.dockerRuntimeService.RunPodSandbox(req.Config)
 	if err != nil {
 		glog.Errorf("RunPodSandbox from dockershim failed: %v", err)
@@ -126,7 +132,7 @@ func (s *ContivshimManager) StopPodSandbox(ctx context.Context, req *kubeapi.Sto
 // RemovePodSandbox deletes the sandbox.
 func (s *ContivshimManager) RemovePodSandbox(ctx context.Context, req *kubeapi.RemovePodSandboxRequest) (*kubeapi.RemovePodSandboxResponse, error) {
 	glog.V(3).Infof("RemovePodSandbox from runtime service with request %s", req.String())
-
+	// TODO (brecode): Delete associated etcd configuration from etcd
 	err := s.dockerRuntimeService.RemovePodSandbox(req.PodSandboxId)
 	if err != nil {
 		glog.Errorf("RemovePodSandbox from dockershim failed: %v", err)
@@ -163,9 +169,14 @@ func (s *ContivshimManager) ListPodSandbox(ctx context.Context, req *kubeapi.Lis
 // CreateContainer creates a new container in specified PodSandbox
 func (s *ContivshimManager) CreateContainer(ctx context.Context, req *kubeapi.CreateContainerRequest) (*kubeapi.CreateContainerResponse, error) {
 	glog.V(1).Infof("CreateContainer with request %s", req.String())
+	// This is where we push configuration to etcd
+	// TODO (brecode):
+	// 1. Decide on the info passed and create secrets
+	// 2. Error handling if CreateContainer fails
+	// 3. Check if Close should be called
 	env := &kubeapi.KeyValue{
 		Key:   "LD_PRELOAD",
-		Value: "/var/new",
+		Value: "/var/mount",
 	}
 	req.Config.Envs = append(req.Config.Envs, env)
 
@@ -206,7 +217,7 @@ func (s *ContivshimManager) StopContainer(ctx context.Context, req *kubeapi.Stop
 // RemoveContainer removes the container.
 func (s *ContivshimManager) RemoveContainer(ctx context.Context, req *kubeapi.RemoveContainerRequest) (*kubeapi.RemoveContainerResponse, error) {
 	glog.V(3).Infof("RemoveContainer with request %s", req.String())
-
+	// TODO (brecode): Delete associated etcd configuration from etcd
 	err := s.dockerRuntimeService.RemoveContainer(req.ContainerId)
 	if err != nil {
 		glog.Errorf("RemoveContainer from dockershim failed: %v", err)

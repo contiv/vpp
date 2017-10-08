@@ -7,8 +7,10 @@ The requests will then be forwarded to docker CRI transparently after injecting 
 To run Contiv CRI, configure kubelet to use remote CRI runtime. 
 Remember to change RUNTIME_ENDPOINT to your own value like: /var/run/{your_runtime}.sock. 
 
-The value defaults `/var/run/contivshim.sock` when running contiv-cri but you can also change that by using the _--listen_ flag. 
-For additional configuration flags use _contiv-cri -h_. To edit kubelet service configuration: 
+The value defaults to `/var/run/contivshim.sock` but you can be changed to a different value using the **--listen**flag. 
+For additional configuration flags use **contiv-cri -h**. 
+
+To edit kubelet service configuration: 
 
 ```
 $ vi /etc/systemd/system/kubelet.service.d/10-kubeadm.conf

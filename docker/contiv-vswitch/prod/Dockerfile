@@ -1,16 +1,14 @@
-FROM ligato/vpp-agent
+# update the version tag when moving to a new version of the vpp-agent
+FROM ligato/vpp-agent:v1.0.5
 
+# set work directory
 WORKDIR /root/
 
-# copy the binaries
-# use ADD instead of COPY, because ADD will uncompress automatically
-ADD contiv.tar.gz .
+# add the agent binary
+COPY binaries/contiv-agent /usr/bin/
 
-# copy binaries from root home to /usr/bin/
-RUN cp /root/contiv/* /usr/bin/
-
-# add supervisor conf file
+# add supervisord config file
 COPY supervisord.conf /etc/supervisord.conf
 
-# run supervisor as the default executable
+# run supervisord as the default executable
 CMD ["/usr/bin/supervisord", "-c", "/etc/supervisord.conf"]

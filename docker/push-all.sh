@@ -13,6 +13,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# obtain branch name as an optional argument
+BRANCH_NAME=${1:-master}
+
 # obtain the current git tag for tagging the Docker images
 TAG=`git describe --tags`
 
@@ -22,9 +25,17 @@ IMAGES=("vswitch" "cni" "ksr")
 # tag and push each image
 for IMAGE in "${IMAGES[@]}"
 do
-    sudo docker tag prod-contiv-${IMAGE} contivvpp/${IMAGE}:latest
-    sudo docker tag prod-contiv-${IMAGE} contivvpp/${IMAGE}:${TAG}
+    if [ "${BRANCH_NAME}" == "master" ]
+    then
+        # master branch - tag with the git tag + "latest"
+        sudo docker tag prod-contiv-${IMAGE} contivvpp/${IMAGE}:${TAG}
+        sudo docker tag prod-contiv-${IMAGE} contivvpp/${IMAGE}:latest
 
-    sudo docker push contivvpp/${IMAGE}:latest
-    sudo docker push contivvpp/${IMAGE}:${TAG}
+        sudo docker push contivvpp/${IMAGE}:${TAG}
+        sudo docker push contivvpp/${IMAGE}:latest
+    else
+        # other branch - tag with the branch name
+        sudo docker tag prod-contiv-${IMAGE} contivvpp/${IMAGE}:${BRANCH_NAME}
+        sudo docker push contivvpp/${IMAGE}:${BRANCH_NAME}
+    fi
 done

@@ -12,5 +12,5 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package contiv implements plugin providing GRPC-server that accepts requests configuring from CNI plugin.
+// Package contiv implements plugin providing GRPC-server that accepts requests from CNI plugin.
 package contiv

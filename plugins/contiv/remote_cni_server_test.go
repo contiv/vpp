@@ -32,7 +32,7 @@ var req = cni.CNIRequest{
 func TestVeth1NameFromRequest(t *testing.T) {
 	gomega.RegisterTestingT(t)
 
-	server := newRemoteCNIServer(logroot.StandardLogger(), &kvdbproxy.Plugin{})
+	server := newRemoteCNIServer(logroot.StandardLogger(), &kvdbproxy.Plugin{}, nil)
 
 	hostIfName := server.veth1HostIfNameFromRequest(&req)
 	gomega.Expect(hostIfName).To(gomega.BeEquivalentTo("eth0"))

@@ -19,16 +19,16 @@ sudo docker rm -f extract 2>/dev/null
 set -e
 
 # run the dev image as the "extract" container
-sudo docker run -itd --name extract dev-contiv-plugins sh
+CID=$(sudo docker run -itd dev-contiv-plugins sh)
 
 # prepare the folder with the binaries
 rm -rf binaries
 mkdir -p binaries
 
 # extract the binaries into the binaries/ folder
-sudo docker cp extract:/root/go/src/github.com/contiv/vpp/cmd/contiv-cni/contiv-cni binaries/
-sudo docker cp extract:/root/go/src/github.com/contiv/vpp/cmd/contiv-ksr/contiv-ksr binaries/
-sudo docker cp extract:/root/cni/loopback binaries/
+sudo docker cp ${CID}:/root/go/src/github.com/contiv/vpp/cmd/contiv-cni/contiv-cni binaries/
+sudo docker cp ${CID}:/root/go/src/github.com/contiv/vpp/cmd/contiv-ksr/contiv-ksr binaries/
+sudo docker cp ${CID}:/root/cni/loopback binaries/
 
 # delete the "extract" container
-sudo docker rm -f extract
+sudo docker rm -f ${CID}

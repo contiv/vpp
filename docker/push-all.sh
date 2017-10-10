@@ -16,14 +16,35 @@
 # fail in case of error
 set -e
 
-# obtain branch name as an optional argument
-BRANCH_NAME=${1:-master}
-
-# obtain the current git tag for tagging the Docker images
-TAG=`git describe --tags`
+# default values for "branch name" and "skip upload"
+BRANCH_NAME="master"
+SKIP_UPLOAD="false"
 
 # list of images we are tagging & pushing
 IMAGES=("vswitch" "cni" "ksr")
+
+# override defaults from arguments
+while [ "$1" != "" ]; do
+    case $1 in
+        -b | --branch-name )
+            shift
+            BRANCH_NAME=$1
+            echo "Using branch name: ${BRANCH_NAME}"
+            ;;
+        -s | --skip-upload )
+            shift
+            SKIP_UPLOAD="true"
+            echo "Using skip upload: ${SKIP_UPLOAD}"
+            ;;
+        * )
+            echo "Invalid parameter: "$1
+            exit 1
+    esac
+    shift
+done
+
+# obtain the current git tag for tagging the Docker images
+TAG=`git describe --tags`
 
 # tag and push each image
 for IMAGE in "${IMAGES[@]}"
@@ -31,14 +52,25 @@ do
     if [ "${BRANCH_NAME}" == "master" ]
     then
         # master branch - tag with the git tag + "latest"
+        echo "Tagging as contivvpp/${IMAGE}:${TAG} + contivvpp/${IMAGE}:latest"
         sudo docker tag prod-contiv-${IMAGE}:${TAG} contivvpp/${IMAGE}:${TAG}
         sudo docker tag prod-contiv-${IMAGE}:${TAG} contivvpp/${IMAGE}:latest
 
-        sudo docker push contivvpp/${IMAGE}:${TAG}
-        sudo docker push contivvpp/${IMAGE}:latest
+        # push the images
+        if [ "${SKIP_UPLOAD}" != "true" ]
+        then
+            sudo docker push contivvpp/${IMAGE}:${TAG}
+            sudo docker push contivvpp/${IMAGE}:latest
+        fi
     else
         # other branch - tag with the branch name
+        echo "Tagging as contivvpp/${IMAGE}:${BRANCH_NAME}"
         sudo docker tag prod-contiv-${IMAGE}:${TAG} contivvpp/${IMAGE}:${BRANCH_NAME}
-        sudo docker push contivvpp/${IMAGE}:${BRANCH_NAME}
+
+        # push the images
+        if [ "${SKIP_UPLOAD}" != "true" ]
+        then
+            sudo docker push contivvpp/${IMAGE}:${BRANCH_NAME}
+        fi
     fi
 done

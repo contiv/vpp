@@ -34,7 +34,7 @@ while [ "$1" != "" ]; do
             echo "Using VPP commit ID: ${VPP_COMMIT_ID}"
             ;;
         * )
-            echo "invalid parameter "$1
+            echo "Invalid parameter: "$1
             exit 1
     esac
     shift

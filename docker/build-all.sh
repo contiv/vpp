@@ -1,3 +1,4 @@
+#!/bin/bash
 # Copyright (c) 2017 Cisco and/or its affiliates.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -11,20 +12,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#!/bin/bash
 
-## builds contiv-vswitch
-# development image
-cd contiv-vswitch/dev
-./build.sh
-# production image
-cd ../prod
-./build.sh
+## builds contiv-vswitch (a specific VPP commit ID can be specified as the argument of the build.sh script)
+cd contiv-vswitch
+./build.sh 3eab064e3fadaf2a6a128f167ad04ca0319b4e17
 
 ## builds all contiv plugins
-# development image
-cd ../../contiv-plugins/dev
-./build.sh
-# all production images
-cd ../prod
+cd ../contiv-plugins
 ./build.sh

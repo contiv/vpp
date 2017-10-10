@@ -13,15 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# obtain the tag for tagging the Docker images from the argument (if not passed in, default to "latest")
-TAG=${1-latest}
+# leave only contivvpp images tagged as latest
+sudo docker images | grep contivvpp | grep -v latest | awk '{print $3}' | xargs sudo docker rmi
 
-# extract the binaries from the development image into the "binaries/" folder
-./extract.sh dev-contiv-plugins:${TAG}
-
-# build the production images
-sudo docker build -t prod-contiv-cni:${TAG} --no-cache --rm=true -f cni/Dockerfile .
-sudo docker build -t prod-contiv-ksr:${TAG} --no-cache --rm=true -f ksr/Dockerfile .
-
-# delete the extracted binaries
-rm -rf binaries
+# delete all build-only images
+sudo docker images | grep 'prod-contiv-\|dev-contiv-' | awk '{print $3}' | xargs sudo docker rmi

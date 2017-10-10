@@ -13,15 +13,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# obtain the tag for tagging the Docker images from the argument (if not passed in, default to "latest")
-TAG=${1-latest}
+# optional specific VPP commit ID can be passed as the 1st argument
+VPP_COMMIT_ID=${1}
 
-# extract the binaries from the development image into the "binaries/" folder
-./extract.sh dev-contiv-plugins:${TAG}
+# obtain the current git tag for tagging the Docker images
+TAG=`git describe --tags`
 
-# build the production images
-sudo docker build -t prod-contiv-cni:${TAG} --no-cache --rm=true -f cni/Dockerfile .
-sudo docker build -t prod-contiv-ksr:${TAG} --no-cache --rm=true -f ksr/Dockerfile .
+# build development image
+cd dev
+./build.sh ${TAG} ${VPP_COMMIT_ID}
 
-# delete the extracted binaries
-rm -rf binaries
+# build production image
+cd ../prod
+./build.sh ${TAG} ${VPP_COMMIT_ID}

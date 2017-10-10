@@ -14,17 +14,9 @@
 # limitations under the License.
 
 ## builds contiv-vswitch
-# development image
-cd contiv-vswitch/dev
-./build.sh
-# production image
-cd ../prod
+cd contiv-vswitch
 ./build.sh
 
 ## builds all contiv plugins
-# development image
-cd ../../contiv-plugins/dev
-./build.sh
-# all production images
-cd ../prod
+cd ../contiv-plugins
 ./build.sh

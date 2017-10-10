@@ -13,17 +13,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# delete the old prod container if it already exists
-set +e
-sudo docker rmi -f prod-contiv-plugins 2>/dev/null
-set -e
+# obtain the tag for tagging the Docker images from the argument (if not passed in, default to "latest")
+TAG=${1-latest}
 
 # extract the binaries from the development image into the "binaries/" folder
-./extract.sh
+./extract.sh dev-contiv-plugins:${TAG}
 
 # build the production images
-sudo docker build -t prod-contiv-cni --no-cache --rm=true -f cni/Dockerfile .
-sudo docker build -t prod-contiv-ksr --no-cache --rm=true -f ksr/Dockerfile .
+sudo docker build -t prod-contiv-cni:${TAG} --no-cache --rm=true -f cni/Dockerfile .
+sudo docker build -t prod-contiv-ksr:${TAG} --no-cache --rm=true -f ksr/Dockerfile .
 
 # delete the extracted binaries
 rm -rf binaries

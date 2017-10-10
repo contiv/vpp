@@ -13,16 +13,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# obtain the tag for tagging the Docker images from the argument (if not passed in, default to "latest")
+TAG=${1-latest}
+
 # delete the old prod container if it already exists
 set +e
-sudo docker rmi -f prod-contiv-vswitch 2>/dev/null
+sudo docker rmi -f prod-contiv-vswitch:${TAG}  2>/dev/null
 set -e
 
 # extract the binaries from the development image into the "binaries/" folder
-./extract.sh
+./extract.sh dev-contiv-vswitch:${TAG}
 
 # build the production image
-sudo docker build -t prod-contiv-vswitch --no-cache --rm=true .
+sudo docker build -t prod-contiv-vswitch:${TAG}  --no-cache --rm=true .
 
 # delete the extracted binaries
 rm -rf binaries/

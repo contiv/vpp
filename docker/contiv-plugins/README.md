@@ -14,18 +14,17 @@ The build is split into two phases:
 
 The containers are based on the Alpine Linux.
 
-To build the images, execute (in this order):
+To build the images, execute:
 ```
-cd dev
-./build.sh
-cd ../prod
 ./build.sh
 ```
 
-The result of this procedure is the following list of images:
+The result of this procedure is the set of container images similar to this:
 ```
 $ sudo docker images | grep contiv-
-prod-contiv-ksr          latest       e4401bf902eb        2 minutes ago       52.43 MB
-prod-contiv-cni          latest       4b29fd529ef2        2 minutes ago       19.17 MB
-dev-contiv-plugins       latest       6bc1d2fbafe7        2 minutes ago       932.6 MB
+prod-contiv-ksr          0.0.1-7-g46d22f7      d0b32d019b9b        About a minute ago   52.43 MB
+prod-contiv-cni          0.0.1-7-g46d22f7      5e5bdbe187c5        About a minute ago   19.17 MB
+dev-contiv-plugins       0.0.1-7-g46d22f7      f095b72c28f6        About a minute ago   932.7 MB
 ```
+
+Note that the images are tagged with the current git version (obtained using `git describe --tags`).

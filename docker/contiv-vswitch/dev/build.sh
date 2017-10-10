@@ -13,9 +13,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# obtain the tag for tagging the Docker images from the argument (if not passed in, default to "latest")
+TAG=${1-latest}
+
 # the build needs to be executed from the github repository root, so that we can add
 # all the source files without the need of cloning them:
 cd ../../../
 
 # execute the build
-sudo docker build -f docker/contiv-vswitch/dev/Dockerfile -t dev-contiv-vswitch --no-cache --rm=true .
+sudo docker build -f docker/contiv-vswitch/dev/Dockerfile -t dev-contiv-vswitch:${TAG} --no-cache --rm=true .

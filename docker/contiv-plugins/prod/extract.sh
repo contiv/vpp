@@ -13,13 +13,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# delete the "extract" container if it already exists
-set +e
-sudo docker rm -f extract 2>/dev/null
-set -e
+# takes dev docker image name + tag to extract from as the argument
+IMAGE=${1}
 
 # run the dev image as the "extract" container
-CID=$(sudo docker run -itd dev-contiv-plugins sh)
+echo "extracting binaries from ${IMAGE}"
+CID=$(sudo docker run -itd ${IMAGE} sh)
 
 # prepare the folder with the binaries
 rm -rf binaries

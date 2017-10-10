@@ -59,8 +59,8 @@ const (
 	ipPrefix                    = "10.0.0"
 	bviIP                       = ipPrefix + ".254/" + ipMask
 	afPacketNamePrefix          = "afpacket"
-	podNameExtraArg             = "K8S_POD_NAMESPACE"
-	podNamespaceExtraArg        = "K8S_POD_NAME"
+	podNameExtraArg             = "K8S_POD_NAME"
+	podNamespaceExtraArg        = "K8S_POD_NAMESPACE"
 )
 
 func newRemoteCNIServer(logger logging.Logger, proxy *kvdbproxy.Plugin, configuredContainers *containeridx.ConfigIndex) *remoteCNIserver {

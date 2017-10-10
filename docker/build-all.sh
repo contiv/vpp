@@ -23,7 +23,7 @@ export VPP_COMMIT_ID=""
 # override defaults from arguments
 while [ "$1" != "" ]; do
     case $1 in
-        -b | --build-args )
+        -d | --docker-build-args )
             shift
             export DOCKER_BUILD_ARGS=$1
             echo "Using Docker build args: ${DOCKER_BUILD_ARGS}"

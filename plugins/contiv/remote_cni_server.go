@@ -131,6 +131,7 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 		if err != nil {
 			errMsg = err.Error()
 			res = resultErr
+			s.Logger.Error(err)
 		} else {
 			createdIfs = s.createdInterfaces(veth1)
 
@@ -154,6 +155,7 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 		res = resultErr
 		errMsg = err.Error()
 		delete(s.afPackets, afpacket.Name)
+		s.Logger.Error(err)
 	}
 
 	reply := &cni.CNIReply{
@@ -207,6 +209,7 @@ func (s *remoteCNIserver) unconfigureContainerConnectivity(request *cni.CNIReque
 		if err != nil {
 			errMsg = err.Error()
 			res = resultErr
+			s.Logger.Error(err)
 		} else {
 			if s.configuredContainers != nil {
 				s.configuredContainers.UnregisterContainer(request.ContainerId)
@@ -215,6 +218,7 @@ func (s *remoteCNIserver) unconfigureContainerConnectivity(request *cni.CNIReque
 	} else {
 		res = resultErr
 		errMsg = err.Error()
+		s.Logger.Error(err)
 	}
 
 	reply := &cni.CNIReply{

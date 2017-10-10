@@ -13,6 +13,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# fail in case of error
+set -e
+
 # obtain the current git tag for tagging the Docker images
 TAG=`git describe --tags`
 

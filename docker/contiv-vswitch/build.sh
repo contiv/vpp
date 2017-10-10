@@ -13,16 +13,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# optional specific VPP commit ID can be passed as the 1st argument
-VPP_COMMIT_ID=${1}
+# fail in case of error
+set -e
 
 # obtain the current git tag for tagging the Docker images
 TAG=`git describe --tags`
 
 # build development image
 cd dev
-./build.sh ${TAG} ${VPP_COMMIT_ID}
+./build.sh ${TAG}
 
 # build production image
 cd ../prod
-./build.sh ${TAG} ${VPP_COMMIT_ID}
+./build.sh ${TAG}

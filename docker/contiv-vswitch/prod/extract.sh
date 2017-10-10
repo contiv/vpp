@@ -13,6 +13,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# fail in case of error
+set -e
+
 # takes dev docker image name + tag to extract from as the argument
 IMAGE=${1}
 

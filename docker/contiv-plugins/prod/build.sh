@@ -13,6 +13,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# fail in case of error
+set -e
+
 # obtain the tag for tagging the Docker images from the argument (if not passed in, default to "latest")
 TAG=${1-latest}
 
@@ -20,8 +23,8 @@ TAG=${1-latest}
 ./extract.sh dev-contiv-plugins:${TAG}
 
 # build the production images
-sudo docker build -t prod-contiv-cni:${TAG} --no-cache --rm=true -f cni/Dockerfile .
-sudo docker build -t prod-contiv-ksr:${TAG} --no-cache --rm=true -f ksr/Dockerfile .
+sudo docker build -t prod-contiv-cni:${TAG} ${DOCKER_BUILD_ARGS} --no-cache --rm=true -f cni/Dockerfile .
+sudo docker build -t prod-contiv-ksr:${TAG} ${DOCKER_BUILD_ARGS} --no-cache --rm=true -f ksr/Dockerfile .
 
 # delete the extracted binaries
 rm -rf binaries

@@ -22,11 +22,13 @@ import (
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/l2plugin/model/l2"
 	linux_intf "github.com/ligato/vpp-agent/plugins/linuxplugin/model/interfaces"
 
+	"github.com/contiv/vpp/plugins/contiv/containeridx"
 	"github.com/contiv/vpp/plugins/kvdbproxy"
 	"github.com/gogo/protobuf/proto"
 	"github.com/ligato/cn-infra/datasync"
 	"golang.org/x/net/context"
 	"strconv"
+	"strings"
 	"sync"
 )
 
@@ -34,7 +36,8 @@ type remoteCNIserver struct {
 	logging.Logger
 	sync.Mutex
 
-	proxy *kvdbproxy.Plugin
+	proxy                *kvdbproxy.Plugin
+	configuredContainers *containeridx.ConfigIndex
 
 	// bdCreated is true if the bridge domain on the vpp for apackets is configured
 	bdCreated bool
@@ -47,19 +50,21 @@ type remoteCNIserver struct {
 }
 
 const (
-	resultOk           uint32 = 0
-	resultErr          uint32 = 1
-	vethNameMaxLen            = 15
-	bdName                    = "bd1"
-	bviName                   = "loop1"
-	ipMask                    = "24"
-	ipPrefix                  = "10.0.0"
-	bviIP                     = ipPrefix + ".254/" + ipMask
-	afPacketNamePrefix        = "afpacket"
+	resultOk             uint32 = 0
+	resultErr            uint32 = 1
+	vethNameMaxLen              = 15
+	bdName                      = "bd1"
+	bviName                     = "loop1"
+	ipMask                      = "24"
+	ipPrefix                    = "10.0.0"
+	bviIP                       = ipPrefix + ".254/" + ipMask
+	afPacketNamePrefix          = "afpacket"
+	podNameExtraArg             = "K8S_POD_NAMESPACE"
+	podNamespaceExtraArg        = "K8S_POD_NAME"
 )
 
-func newRemoteCNIServer(logger logging.Logger, proxy *kvdbproxy.Plugin) *remoteCNIserver {
-	return &remoteCNIserver{Logger: logger, afPackets: map[string]interface{}{}, proxy: proxy}
+func newRemoteCNIServer(logger logging.Logger, proxy *kvdbproxy.Plugin, configuredContainers *containeridx.ConfigIndex) *remoteCNIserver {
+	return &remoteCNIserver{Logger: logger, afPackets: map[string]interface{}{}, proxy: proxy, configuredContainers: configuredContainers}
 }
 
 // Add connects the container to the network.
@@ -128,6 +133,21 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 			res = resultErr
 		} else {
 			createdIfs = s.createdInterfaces(veth1)
+
+			if s.configuredContainers != nil {
+				extraArgs := s.parseExtraArgs(request.ExtraArguments)
+				s.Logger.WithFields(logging.Fields{
+					"PodName":      extraArgs[podNameExtraArg],
+					"PodNamespace": extraArgs[podNamespaceExtraArg],
+				}).Info("Adding into configured container index")
+				s.configuredContainers.RegisterContainer(request.ContainerId, &containeridx.Config{
+					PodName:      extraArgs[podNameExtraArg],
+					PodNamespace: extraArgs[podNamespaceExtraArg],
+					Veth1:        veth1,
+					Veth2:        veth2,
+					Afpacket:     afpacket,
+				})
+			}
 		}
 
 	} else {
@@ -187,6 +207,10 @@ func (s *remoteCNIserver) unconfigureContainerConnectivity(request *cni.CNIReque
 		if err != nil {
 			errMsg = err.Error()
 			res = resultErr
+		} else {
+			if s.configuredContainers != nil {
+				s.configuredContainers.UnregisterContainer(request.ContainerId)
+			}
 		}
 	} else {
 		res = resultErr
@@ -238,6 +262,19 @@ func (s *remoteCNIserver) createdInterfaces(veth *linux_intf.LinuxInterfaces_Int
 			},
 		},
 	}
+}
+
+func (s *remoteCNIserver) parseExtraArgs(input string) map[string]string {
+	res := map[string]string{}
+
+	pairs := strings.Split(input, ";")
+	for i := range pairs {
+		kv := strings.Split(pairs[i], "=")
+		if len(kv) == 2 {
+			res[kv[0]] = kv[1]
+		}
+	}
+	return res
 }
 
 //

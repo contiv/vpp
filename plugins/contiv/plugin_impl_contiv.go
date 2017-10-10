@@ -17,10 +17,14 @@
 package contiv
 
 import (
+	"github.com/contiv/vpp/plugins/contiv/containeridx"
 	"github.com/contiv/vpp/plugins/contiv/model/cni"
 	"github.com/contiv/vpp/plugins/kvdbproxy"
 	"github.com/ligato/cn-infra/flavors/local"
+	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/rpc/grpc"
+	"github.com/ligato/vpp-agent/plugins/defaultplugins"
+	"github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/model/interfaces"
 )
 
 // Plugin transforms GRPC requests into configuration for the VPP in order
@@ -28,7 +32,8 @@ import (
 type Plugin struct {
 	Deps
 
-	cniServer *remoteCNIserver
+	configuredContainers *containeridx.ConfigIndex
+	cniServer            *remoteCNIserver
 }
 
 // Deps groups the dependencies of the Plugin.
@@ -36,11 +41,13 @@ type Deps struct {
 	local.PluginInfraDeps
 	GRPC  grpc.Server
 	Proxy *kvdbproxy.Plugin
+	VPP   *defaultplugins.Plugin
 }
 
 // Init initializes the grpc server handling the request from the CNI.
 func (plugin *Plugin) Init() error {
-	plugin.cniServer = newRemoteCNIServer(plugin.Log, plugin.Proxy)
+	plugin.configuredContainers = containeridx.NewConfigIndex(plugin.Log, plugin.PluginName, "containers")
+	plugin.cniServer = newRemoteCNIServer(plugin.Log, plugin.Proxy, plugin.configuredContainers)
 	cni.RegisterRemoteCNIServer(plugin.GRPC.Server(), plugin.cniServer)
 	return nil
 }
@@ -48,4 +55,19 @@ func (plugin *Plugin) Init() error {
 // Close cleans up the resources allocated by the plugin
 func (plugin *Plugin) Close() error {
 	return nil
+}
+
+// GetSwIfIndex looks up SwIfIndex that corresponds to an interface associated with the given podNamespace and the podName.
+func (plugin *Plugin) GetSwIfIndex(podNamespace string, podName string) (idx uint32, meta *interfaces.Interfaces_Interface, found bool) {
+	podNamesMatch := plugin.configuredContainers.LookupPodName(podName)
+	podNamespacesMatch := plugin.configuredContainers.LookupPodNamespace(podNamespace)
+
+	if len(podNamesMatch) == 1 && len(podNamespacesMatch) == 1 && podNamesMatch[0] == podNamespacesMatch[0] {
+		found, data := plugin.configuredContainers.LookupContainer(podNamesMatch[0])
+		if found && data != nil && data.Afpacket != nil {
+			return plugin.VPP.GetSwIfIndexes().LookupIdx(data.Afpacket.Name)
+		}
+	}
+	plugin.Log.WithFields(logging.Fields{"podNamespace": podNamespace, "podName": podName}).Warn("No matching result found")
+	return 0, nil, false
 }

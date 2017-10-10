@@ -82,15 +82,20 @@ func (ci *ConfigIndex) LookupPodName(podName string) (containerIDs []string) {
 	return ci.mapping.ListNames(podNameKey, podName)
 }
 
-// LookupPodNamespace performs lookup based on seconfary index podNamespace.
+// LookupPodNamespace performs lookup based on secondary index podNamespace.
 func (ci *ConfigIndex) LookupPodNamespace(podNamespace string) (containerIDs []string) {
 	return ci.mapping.ListNames(podNamespaceKey, podNamespace)
+}
+
+// ListAll returns all registered names in the mapping.
+func (ci *ConfigIndex) ListAll() (containerIDs []string) {
+	return ci.mapping.ListAllNames()
 }
 
 // IndexFunction creates secondary indexes. Currently podName and podNamespace fields are indexed.
 func IndexFunction(data interface{}) map[string][]string {
 	res := map[string][]string{}
-	if config, ok := data.(*Config); ok {
+	if config, ok := data.(*Config); ok && config != nil {
 		res[podNameKey] = []string{config.PodName}
 		res[podNamespaceKey] = []string{config.PodNamespace}
 	}

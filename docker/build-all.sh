@@ -15,7 +15,7 @@
 
 ## builds contiv-vswitch (a specific VPP commit ID can be specified as the argument of the build.sh script)
 cd contiv-vswitch
-./build.sh 3eab064e3fadaf2a6a128f167ad04ca0319b4e17
+./build.sh
 
 ## builds all contiv plugins
 cd ../contiv-plugins

@@ -27,5 +27,9 @@ mkdir -p binaries
 # extract the binaries into the binaries/ folder
 sudo docker cp ${CID}:/root/go/bin/contiv-agent binaries/
 
+# extract VPP binaries
+sudo docker exec ${CID} /bin/bash -c 'mkdir -p /root/vpp && cp /opt/vpp-agent/dev/vpp/build-root/*.deb /root/vpp/ && cd /root && tar -zcvf /root/vpp.tar.gz vpp/*'
+sudo docker cp ${CID}:/root/vpp.tar.gz binaries/
+
 # delete the "extract" container
 sudo docker rm -f ${CID}

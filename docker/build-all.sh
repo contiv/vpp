@@ -13,9 +13,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-## builds contiv-vswitch
+## builds contiv-vswitch (a specific VPP commit ID can be specified as the argument of the build.sh script)
 cd contiv-vswitch
-./build.sh
+./build.sh 3eab064e3fadaf2a6a128f167ad04ca0319b4e17
 
 ## builds all contiv plugins
 cd ../contiv-plugins

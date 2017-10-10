@@ -13,19 +13,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# obtain the tag for tagging the Docker images from the argument (if not passed in, default to "latest")
-TAG=${1-latest}
+# optional specific VPP commit ID can be passed as the 1st argument
+VPP_COMMIT_ID=${1}
 
-# delete the old prod container if it already exists
-set +e
-sudo docker rmi -f prod-contiv-vswitch:${TAG} 2>/dev/null
-set -e
+# obtain the current git tag for tagging the Docker images
+TAG=`git describe --tags`
 
-# extract the binaries from the development image into the "binaries/" folder
-./extract.sh dev-contiv-vswitch:${TAG}
+# build development image
+cd dev
+./build.sh ${TAG} ${VPP_COMMIT_ID}
 
-# build the production image
-sudo docker build -t prod-contiv-vswitch:${TAG} --no-cache --rm=true .
-
-# delete the extracted binaries
-rm -rf binaries/
+# build production image
+cd ../prod
+./build.sh ${TAG} ${VPP_COMMIT_ID}

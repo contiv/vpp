@@ -13,6 +13,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# fail in case of error
+set -e
+
 # obtain branch name as an optional argument
 BRANCH_NAME=${1:-master}
 

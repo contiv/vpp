@@ -1,3 +1,4 @@
+#!/bin/bash
 # Copyright (c) 2017 Cisco and/or its affiliates.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -11,11 +12,16 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#!/bin/bash
+
+# fail in case of error
+set -e
+
+# obtain the tag for tagging the Docker images from the argument (if not passed in, default to "latest")
+TAG=${1-latest}
 
 # the build needs to be executed from the github repository root, so that we can add
 # all the source files without the need of cloning them:
 cd ../../../
 
 # execute the build
-sudo docker build -f docker/contiv-plugins/dev/Dockerfile -t dev-contiv-plugins --no-cache --rm=true .
+sudo docker build -f docker/contiv-plugins/dev/Dockerfile -t dev-contiv-plugins:${TAG} ${DOCKER_BUILD_ARGS} --no-cache --rm=true .

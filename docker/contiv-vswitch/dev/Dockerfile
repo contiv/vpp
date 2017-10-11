@@ -1,8 +1,26 @@
 # update the version tag when moving to a new version of the vpp-agent
 FROM ligato/dev-vpp-agent:v1.0.5
 
+# optional argument - a specific VPP commit ID
+ARG VPP_COMMIT_ID="xxx"
+
 # set work directory
 WORKDIR /root/
+
+# if VPP comit ID is specified, update to specific VPP commit ID
+RUN /bin/bash -c "if [ '${VPP_COMMIT_ID}' != 'xxx' ]; then \
+        cd /opt/vpp-agent/dev/vpp && \
+        git checkout master && \
+        git pull && \
+        git checkout ${VPP_COMMIT_ID} && \
+        rm -rf build-root/ && \
+        git reset --hard HEAD && \
+        yes | make install-dep && \
+        make bootstrap && \
+        make pkg-deb && \
+        cd build-root && \
+        dpkg -i vpp_*.deb vpp-dev_*.deb vpp-lib_*.deb vpp-plugins_*.deb ; \
+    fi"
 
 # copy source files to the container
 COPY / /root/go/src/github.com/contiv/vpp

@@ -7,6 +7,11 @@ WORKDIR /root/
 # add the agent binary
 COPY binaries/contiv-agent /usr/bin/
 
+# add VPP binaries (add also extracts from .tar.gz)
+ADD binaries/vpp.tar.gz .
+RUN dpkg -i vpp/vpp-lib_*.deb vpp/vpp_*.deb vpp/vpp-plugins_*.deb && \
+    rm -rf vpp
+
 # add supervisord config file
 COPY supervisord.conf /etc/supervisord.conf
 

@@ -16,17 +16,16 @@ already contain VPP binaries.
 The `FROM` section in both of the [dev](dev/Dockerfile) and [prod](prod/Dockerfile)
 Dockerfiles need to be updated when moving to a new version of the ligato VPP agent.
 
-To build the images, execute (in this order):
+To build the images, execute:
 ```
-cd dev
-./build.sh
-cd ../prod
 ./build.sh
 ```
 
-The result of this procedure is the following list of images:
+The result of this procedure is the set of container images similar to this:
 ```
 $ sudo docker images | grep contiv-vswitch
-prod-contiv-vswitch      latest         e534d83db5c9        37 minutes ago      498.8 MB
-dev-contiv-vswitch       latest         888b4885fff5        37 minutes ago      5.252 GB
+prod-contiv-vswitch      0.0.1-7-g46d22f7        a18a66f3091f        20 seconds ago      473.9 MB
+dev-contiv-vswitch       0.0.1-7-g46d22f7        b494c8622263        23 seconds ago      5.252 GB
 ```
+
+Note that the images are tagged with the current git version (obtained using `git describe --tags`).

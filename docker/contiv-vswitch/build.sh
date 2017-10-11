@@ -16,15 +16,13 @@
 # fail in case of error
 set -e
 
-# obtain the tag for tagging the Docker images from the argument (if not passed in, default to "latest")
-TAG=${1-latest}
+# obtain the current git tag for tagging the Docker images
+TAG=`git describe --tags`
 
-# extract the binaries from the development image into the "binaries/" folder
-./extract.sh dev-contiv-plugins:${TAG}
+# build development image
+cd dev
+./build.sh ${TAG}
 
-# build the production images
-sudo docker build -t prod-contiv-cni:${TAG} ${DOCKER_BUILD_ARGS} --no-cache --rm=true -f cni/Dockerfile .
-sudo docker build -t prod-contiv-ksr:${TAG} ${DOCKER_BUILD_ARGS} --no-cache --rm=true -f ksr/Dockerfile .
-
-# delete the extracted binaries
-rm -rf binaries
+# build production image
+cd ../prod
+./build.sh ${TAG}

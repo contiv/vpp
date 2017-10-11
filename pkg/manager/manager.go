@@ -28,7 +28,7 @@ import (
 	"github.com/ligato/cn-infra/db/keyval/kvproto"
 	"github.com/ligato/cn-infra/logging/logroot"
 
-	"github.com/contiv/vpp/pkg/runtime"
+	"github.com/contiv/vpp/pkg/cri-runtime"
 	"github.com/golang/glog"
 	"google.golang.org/grpc"
 	kubeapi "k8s.io/kubernetes/pkg/kubelet/apis/cri/v1alpha1/runtime"
@@ -52,15 +52,15 @@ type ContivshimManager struct {
 	// The etcdv3 client
 	etcdEndpoint *string
 	// The runtime interface
-	dockerRuntimeService runtime.RuntimeService
-	dockerImageService   runtime.ImageManagerService
+	dockerRuntimeService criruntime.RuntimeService
+	dockerImageService   criruntime.ImageManagerService
 }
 
 // NewContivshimManager creates a new ContivshimManager
 func NewContivshimManager(
 	etcdEndpoint *string,
-	dockerRuntimeService runtime.RuntimeService,
-	dockerImageService runtime.ImageManagerService,
+	dockerRuntimeService criruntime.RuntimeService,
+	dockerImageService criruntime.ImageManagerService,
 ) (*ContivshimManager, error) {
 	s := &ContivshimManager{
 		server:               grpc.NewServer(),
@@ -360,7 +360,7 @@ func (s *ContivshimManager) UpdateRuntimeConfig(ctx context.Context, req *kubeap
 	return &kubeapi.UpdateRuntimeConfigResponse{}, nil
 }
 
-// Status returns the status of the runtime.
+// Status returns the status of the criruntime.
 func (s *ContivshimManager) Status(ctx context.Context, req *kubeapi.StatusRequest) (*kubeapi.StatusResponse, error) {
 	glog.V(3).Infof("Status docker runtime service with request %s", req.String())
 	resp, err := s.dockerRuntimeService.Status()

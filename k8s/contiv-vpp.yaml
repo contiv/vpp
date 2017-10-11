@@ -28,12 +28,14 @@ spec:
         # It contains the vSwitch VPP and its management agent.
         - name: contiv-vswitch
           image: contivvpp/vswitch
+          imagePullPolicy: IfNotPresent
           securityContext:
             privileged: true
         # This container installs the Contiv CNI binaries
         # and CNI network config file on each node.
         - name: contiv-cni
           image: contivvpp/cni
+          imagePullPolicy: IfNotPresent
           volumeMounts:
             - mountPath: /opt/cni/bin
               name: cni-bin-dir

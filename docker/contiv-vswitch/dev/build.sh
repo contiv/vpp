@@ -27,8 +27,8 @@ cd ../../../
 if [ -z "${VPP_COMMIT_ID}" ]
 then
     # no specific VPP commit ID
-    sudo docker build -f docker/contiv-vswitch/dev/Dockerfile -t dev-contiv-vswitch:${TAG} ${DOCKER_BUILD_ARGS} --no-cache --rm=true .
+    sudo docker build -f docker/contiv-vswitch/dev/Dockerfile -t dev-contiv-vswitch:${TAG} ${DOCKER_BUILD_ARGS} --no-cache --force-rm=true .
 else
     # specific VPP commit ID
-    sudo docker build -f docker/contiv-vswitch/dev/Dockerfile -t dev-contiv-vswitch:${TAG} --build-arg VPP_COMMIT_ID=${VPP_COMMIT_ID} ${DOCKER_BUILD_ARGS} --no-cache --rm=true .
+    sudo docker build -f docker/contiv-vswitch/dev/Dockerfile -t dev-contiv-vswitch:${TAG} --build-arg VPP_COMMIT_ID=${VPP_COMMIT_ID} ${DOCKER_BUILD_ARGS} --no-cache --force-rm=true .
 fi

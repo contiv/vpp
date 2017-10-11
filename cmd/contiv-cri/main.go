@@ -69,7 +69,7 @@ func main() {
 	}
 
 	// 1. Initialize docker runtime and start its own streaming server
-	dockershimRuntime, err := docker.NewDockerRuntime(
+	dockershimRuntime, err := docker.NewRuntimeDocker(
 		*dockerRuntimeEndpoint,
 		getDockerStreamingConfig(),
 		*cniNetDir,

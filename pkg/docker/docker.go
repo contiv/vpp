@@ -41,14 +41,14 @@ const (
 	networkPluginMTU  = 1460
 )
 
-// DockerRuntime serves the Contivshim gRPC api which will be
+// RuntimeDocker serves the Contivshim gRPC api which will be
 // consumed by contivshim
-type DockerRuntime struct {
+type RuntimeDocker struct {
 	dockershim.DockerService
 }
 
-// NewDockerRuntime initializes a docker runtime using CNI conifugration
-func NewDockerRuntime(dockerRuntimeEndpoint string, streamingConfig *streaming.Config, cniNetDir string, cniPluginDir string, cgroupDriver string, dockerRuntimeRootDir string) (*DockerRuntime, error) {
+// NewRuntimeDocker initializes a docker runtime using CNI conifugration
+func NewRuntimeDocker(dockerRuntimeEndpoint string, streamingConfig *streaming.Config, cniNetDir string, cniPluginDir string, cgroupDriver string, dockerRuntimeRootDir string) (*RuntimeDocker, error) {
 	glog.Infof("Initialize docker runtime: docker runtime\n")
 
 	kubeletScheme, _, err := kubeletscheme.NewSchemeAndCodecs()
@@ -109,11 +109,11 @@ func NewDockerRuntime(dockerRuntimeEndpoint string, streamingConfig *streaming.C
 	// start streaming server by using dockerService
 	startDockerStreamingServer(streamingConfig, ds)
 
-	return &DockerRuntime{ds}, nil
+	return &RuntimeDocker{ds}, nil
 }
 
 // Serve starts dockershim gRPC server at unix://addr
-func (s *DockerRuntime) Serve(addr string) error {
+func (s *RuntimeDocker) Serve(addr string) error {
 	glog.V(1).Infof("Start dockershim grpc server at %s", addr)
 	var server *grpc.Server
 	server = grpc.NewServer()
@@ -132,7 +132,7 @@ func (s *DockerRuntime) Serve(addr string) error {
 }
 
 // ServiceName prints the Service name
-func (s *DockerRuntime) ServiceName() string {
+func (s *RuntimeDocker) ServiceName() string {
 	return "Docker Runtime Service"
 }
 

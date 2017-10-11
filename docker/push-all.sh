@@ -1,0 +1,76 @@
+#!/bin/bash
+# Copyright (c) 2017 Cisco and/or its affiliates.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at:
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# fail in case of error
+set -e
+
+# default values for "branch name" and "skip upload"
+BRANCH_NAME="master"
+SKIP_UPLOAD="false"
+
+# list of images we are tagging & pushing
+IMAGES=("vswitch" "cni" "ksr")
+
+# override defaults from arguments
+while [ "$1" != "" ]; do
+    case $1 in
+        -b | --branch-name )
+            shift
+            BRANCH_NAME=$1
+            echo "Using branch name: ${BRANCH_NAME}"
+            ;;
+        -s | --skip-upload )
+            shift
+            SKIP_UPLOAD="true"
+            echo "Using skip upload: ${SKIP_UPLOAD}"
+            ;;
+        * )
+            echo "Invalid parameter: "$1
+            exit 1
+    esac
+    shift
+done
+
+# obtain the current git tag for tagging the Docker images
+TAG=`git describe --tags`
+
+# tag and push each image
+for IMAGE in "${IMAGES[@]}"
+do
+    if [ "${BRANCH_NAME}" == "master" ]
+    then
+        # master branch - tag with the git tag + "latest"
+        echo "Tagging as contivvpp/${IMAGE}:${TAG} + contivvpp/${IMAGE}:latest"
+        sudo docker tag prod-contiv-${IMAGE}:${TAG} contivvpp/${IMAGE}:${TAG}
+        sudo docker tag prod-contiv-${IMAGE}:${TAG} contivvpp/${IMAGE}:latest
+
+        # push the images
+        if [ "${SKIP_UPLOAD}" != "true" ]
+        then
+            sudo docker push contivvpp/${IMAGE}:${TAG}
+            sudo docker push contivvpp/${IMAGE}:latest
+        fi
+    else
+        # other branch - tag with the branch name
+        echo "Tagging as contivvpp/${IMAGE}:${BRANCH_NAME}"
+        sudo docker tag prod-contiv-${IMAGE}:${TAG} contivvpp/${IMAGE}:${BRANCH_NAME}
+
+        # push the images
+        if [ "${SKIP_UPLOAD}" != "true" ]
+        then
+            sudo docker push contivvpp/${IMAGE}:${BRANCH_NAME}
+        fi
+    fi
+done

@@ -114,8 +114,7 @@ func TestCNIAddDelete(t *testing.T) {
 	RegisterTestingT(t)
 
 	// start testing gRPC server
-	grpcServer := runTestGrpcServer()
-	defer grpcServer.Stop()
+	runTestGrpcServer()
 
 	// prepare CNI config
 	conf := `{

@@ -1,12 +1,24 @@
+// Copyright (c) 2017 Cisco and/or its affiliates.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at:
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package kvdbproxy
 
 import (
-	"github.com/golang/protobuf/proto"
 	"github.com/ligato/cn-infra/datasync"
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/logging/logrus"
 	"github.com/onsi/gomega"
-	"strings"
 	"testing"
 	"time"
 )
@@ -14,7 +26,7 @@ import (
 func TestWatch(t *testing.T) {
 	gomega.RegisterTestingT(t)
 
-	kvdbMock := newKvdbsyncMock()
+	kvdbMock := NewKvdbsyncMock()
 
 	plugin := Plugin{}
 	plugin.Deps.Log = logging.ForPlugin("proxy", logrus.NewLogRegistry())
@@ -76,78 +88,4 @@ func TestWatch(t *testing.T) {
 	gomega.Expect(err).To(gomega.BeNil())
 
 	close(ch)
-}
-
-type kvdbsyncMock struct {
-	subs map[string]chan datasync.ChangeEvent
-}
-
-func newKvdbsyncMock() *kvdbsyncMock {
-	return &kvdbsyncMock{subs: map[string]chan datasync.ChangeEvent{}}
-}
-
-func (kv *kvdbsyncMock) Watch(resyncName string, changeChan chan datasync.ChangeEvent,
-	resyncChan chan datasync.ResyncEvent, keyPrefixes ...string) (datasync.WatchRegistration, error) {
-
-	for _, k := range keyPrefixes {
-		kv.subs[k] = changeChan
-	}
-
-	return &regMock{}, nil
-}
-
-func (kv *kvdbsyncMock) Put(key string, data proto.Message, opts ...datasync.PutOption) error {
-	for k, ch := range kv.subs {
-		if strings.Contains(key, k) {
-			ch <- newChangeEventMock(key, datasync.Put)
-		}
-	}
-	return nil
-}
-
-func (kv *kvdbsyncMock) Delete(key string, opts ...datasync.DelOption) (existed bool, err error) {
-	for k, ch := range kv.subs {
-		if strings.Contains(key, k) {
-			ch <- newChangeEventMock(key, datasync.Delete)
-		}
-	}
-	return true, nil
-}
-
-type regMock struct {
-}
-
-func (r *regMock) Close() error {
-	return nil
-}
-
-type changeEventMock struct {
-	key        string
-	changeType datasync.PutDel
-}
-
-func newChangeEventMock(key string, change datasync.PutDel) *changeEventMock {
-	return &changeEventMock{key: key, changeType: change}
-}
-
-func (ce *changeEventMock) Done(err error) {}
-
-func (ce *changeEventMock) GetValue(value proto.Message) error {
-	return nil
-}
-
-func (ce *changeEventMock) GetKey() string {
-	return ce.key
-}
-
-func (ce *changeEventMock) GetPrevValue(value proto.Message) (prevExisted bool, err error) {
-	return false, nil
-}
-
-func (ce *changeEventMock) GetRevision() int64 {
-	return 0
-}
-
-func (ce *changeEventMock) GetChangeType() datasync.PutDel {
-	return ce.changeType
 }

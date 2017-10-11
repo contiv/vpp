@@ -1,13 +1,11 @@
 package ksr
 
 import (
-	"sync"
-
-	"k8s.io/apimachinery/pkg/fields"
-	clientapi_v1 "k8s.io/client-go/pkg/api/v1"
-	"k8s.io/client-go/tools/cache"
-
 	proto "github.com/contiv/vpp/plugins/ksr/model/namespace"
+	core_v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/fields"
+	"k8s.io/client-go/tools/cache"
+	"sync"
 )
 
 // NamespaceReflector subscribes to K8s cluster to watch for changes
@@ -34,11 +32,11 @@ func (nr *NamespaceReflector) Init(stopCh2 <-chan struct{}, wg *sync.WaitGroup) 
 	listWatch := cache.NewListWatchFromClient(restClient, "namespaces", "", fields.Everything())
 	nr.k8sNamespaceStore, nr.k8sNamespaceController = cache.NewInformer(
 		listWatch,
-		&clientapi_v1.Namespace{},
+		&core_v1.Namespace{},
 		0,
 		cache.ResourceEventHandlerFuncs{
 			AddFunc: func(obj interface{}) {
-				ns, ok := obj.(*clientapi_v1.Namespace)
+				ns, ok := obj.(*core_v1.Namespace)
 				if !ok {
 					nr.Log.Warn("Failed to cast newly created namespace object")
 				} else {
@@ -46,7 +44,7 @@ func (nr *NamespaceReflector) Init(stopCh2 <-chan struct{}, wg *sync.WaitGroup) 
 				}
 			},
 			DeleteFunc: func(obj interface{}) {
-				ns, ok := obj.(*clientapi_v1.Namespace)
+				ns, ok := obj.(*core_v1.Namespace)
 				if !ok {
 					nr.Log.Warn("Failed to cast removed namespace object")
 				} else {
@@ -54,8 +52,8 @@ func (nr *NamespaceReflector) Init(stopCh2 <-chan struct{}, wg *sync.WaitGroup) 
 				}
 			},
 			UpdateFunc: func(oldObj, newObj interface{}) {
-				nsOld, ok1 := oldObj.(*clientapi_v1.Namespace)
-				nsNew, ok2 := newObj.(*clientapi_v1.Namespace)
+				nsOld, ok1 := oldObj.(*core_v1.Namespace)
+				nsNew, ok2 := newObj.(*core_v1.Namespace)
 				if !ok1 || !ok2 {
 					nr.Log.Warn("Failed to cast changed namespace object")
 				} else {
@@ -75,7 +73,7 @@ func (nr *NamespaceReflector) Start() {
 
 // addNamespace adds state data of a newly created K8s namespace into the data
 // store.
-func (nr *NamespaceReflector) addNamespace(ns *clientapi_v1.Namespace) {
+func (nr *NamespaceReflector) addNamespace(ns *core_v1.Namespace) {
 	nr.Log.WithField("ns", ns).Info("K8s namespace added")
 	nsProto := nr.namespaceToProto(ns)
 	key := proto.Key(ns.GetName())
@@ -88,7 +86,7 @@ func (nr *NamespaceReflector) addNamespace(ns *clientapi_v1.Namespace) {
 
 // deleteNamespace deletes state data of a removed K8s namespace from the data
 // store.
-func (nr *NamespaceReflector) deleteNamespace(ns *clientapi_v1.Namespace) {
+func (nr *NamespaceReflector) deleteNamespace(ns *core_v1.Namespace) {
 	nr.Log.WithField("ns", ns).Info("K8s namespace removed")
 	// TODO (Delete not yet supported by kvdbsync)
 	key := proto.Key(ns.GetName())
@@ -101,7 +99,7 @@ func (nr *NamespaceReflector) deleteNamespace(ns *clientapi_v1.Namespace) {
 
 // updateNamespace updates state data of a changes K8s namespace in the data
 // store.
-func (nr *NamespaceReflector) updateNamespace(nsNew, nsOld *clientapi_v1.Namespace) {
+func (nr *NamespaceReflector) updateNamespace(nsNew, nsOld *core_v1.Namespace) {
 	nr.Log.WithFields(map[string]interface{}{"ns-old": nsOld, "ns-new": nsNew}).Info("Namespace updated")
 	nsProto := nr.namespaceToProto(nsNew)
 	key := proto.Key(nsNew.GetName())
@@ -114,7 +112,7 @@ func (nr *NamespaceReflector) updateNamespace(nsNew, nsOld *clientapi_v1.Namespa
 
 // namespaceToProto converts namespace state data from the k8s representation
 // into our protobuf-modelled data structure.
-func (nr *NamespaceReflector) namespaceToProto(ns *clientapi_v1.Namespace) *proto.Namespace {
+func (nr *NamespaceReflector) namespaceToProto(ns *core_v1.Namespace) *proto.Namespace {
 	nsProto := &proto.Namespace{}
 	nsProto.Name = ns.GetName()
 	labels := ns.GetLabels()

@@ -23,7 +23,7 @@ TAG=${1-latest}
 ./extract.sh dev-contiv-vswitch:${TAG}
 
 # build the production image
-sudo docker build -t prod-contiv-vswitch:${TAG} ${DOCKER_BUILD_ARGS} --no-cache --rm=true .
+sudo docker build -t prod-contiv-vswitch:${TAG} ${DOCKER_BUILD_ARGS} --no-cache --force-rm=true .
 
 # delete the extracted binaries
 rm -rf binaries/

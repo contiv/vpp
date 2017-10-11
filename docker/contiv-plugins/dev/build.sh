@@ -24,4 +24,4 @@ TAG=${1-latest}
 cd ../../../
 
 # execute the build
-sudo docker build -f docker/contiv-plugins/dev/Dockerfile -t dev-contiv-plugins:${TAG} ${DOCKER_BUILD_ARGS} --no-cache --rm=true .
+sudo docker build -f docker/contiv-plugins/dev/Dockerfile -t dev-contiv-plugins:${TAG} ${DOCKER_BUILD_ARGS} --no-cache --force-rm=true .

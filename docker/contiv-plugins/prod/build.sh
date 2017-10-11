@@ -23,8 +23,8 @@ TAG=${1-latest}
 ./extract.sh dev-contiv-plugins:${TAG}
 
 # build the production images
-sudo docker build -t prod-contiv-cni:${TAG} ${DOCKER_BUILD_ARGS} --no-cache --rm=true -f cni/Dockerfile .
-sudo docker build -t prod-contiv-ksr:${TAG} ${DOCKER_BUILD_ARGS} --no-cache --rm=true -f ksr/Dockerfile .
+sudo docker build -t prod-contiv-cni:${TAG} ${DOCKER_BUILD_ARGS} --no-cache --force-rm=true -f cni/Dockerfile .
+sudo docker build -t prod-contiv-ksr:${TAG} ${DOCKER_BUILD_ARGS} --no-cache --force-rm=true -f ksr/Dockerfile .
 
 # delete the extracted binaries
 rm -rf binaries

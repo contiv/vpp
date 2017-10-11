@@ -3,14 +3,16 @@ package ksr
 import (
 	"sync"
 
+	core_v1 "k8s.io/api/core/v1"
 	clientapi_metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/util/intstr"
-	clientapi_v1 "k8s.io/client-go/pkg/api/v1"
-	clientapi_v1beta1 "k8s.io/client-go/pkg/apis/extensions/v1beta1"
+
+
 	"k8s.io/client-go/tools/cache"
 
 	proto "github.com/contiv/vpp/plugins/ksr/model/policy"
+	core_v1beta1 "k8s.io/api/extensions/v1beta1"
 )
 
 // PolicyReflector subscribes to K8s cluster to watch for changes
@@ -37,11 +39,11 @@ func (pr *PolicyReflector) Init(stopCh2 <-chan struct{}, wg *sync.WaitGroup) err
 	listWatch := cache.NewListWatchFromClient(restClient, "networkpolicies", "", fields.Everything())
 	pr.k8sPolicyStore, pr.k8sPolicyController = cache.NewInformer(
 		listWatch,
-		&clientapi_v1beta1.NetworkPolicy{},
+		&core_v1beta1.NetworkPolicy{},
 		0,
 		cache.ResourceEventHandlerFuncs{
 			AddFunc: func(obj interface{}) {
-				policy, ok := obj.(*clientapi_v1beta1.NetworkPolicy)
+				policy, ok := obj.(*core_v1beta1.NetworkPolicy)
 				if !ok {
 					pr.Log.Warn("Failed to cast newly created policy object")
 				} else {
@@ -49,7 +51,7 @@ func (pr *PolicyReflector) Init(stopCh2 <-chan struct{}, wg *sync.WaitGroup) err
 				}
 			},
 			DeleteFunc: func(obj interface{}) {
-				policy, ok := obj.(*clientapi_v1beta1.NetworkPolicy)
+				policy, ok := obj.(*core_v1beta1.NetworkPolicy)
 				if !ok {
 					pr.Log.Warn("Failed to cast removed policy object")
 				} else {
@@ -57,8 +59,8 @@ func (pr *PolicyReflector) Init(stopCh2 <-chan struct{}, wg *sync.WaitGroup) err
 				}
 			},
 			UpdateFunc: func(oldObj, newObj interface{}) {
-				policyOld, ok1 := oldObj.(*clientapi_v1beta1.NetworkPolicy)
-				policyNew, ok2 := newObj.(*clientapi_v1beta1.NetworkPolicy)
+				policyOld, ok1 := oldObj.(*core_v1beta1.NetworkPolicy)
+				policyNew, ok2 := newObj.(*core_v1beta1.NetworkPolicy)
 				if !ok1 || !ok2 {
 					pr.Log.Warn("Failed to cast changed policy object")
 				} else {
@@ -78,7 +80,7 @@ func (pr *PolicyReflector) Start() {
 
 // addPolicy adds state data of a newly created K8s pod into the data
 // store.
-func (pr *PolicyReflector) addPolicy(policy *clientapi_v1beta1.NetworkPolicy) {
+func (pr *PolicyReflector) addPolicy(policy *core_v1beta1.NetworkPolicy) {
 	pr.Log.WithField("policy", policy).Info("Policy added")
 	policyProto := pr.policyToProto(policy)
 	key := proto.Key(policy.GetName(), policy.GetNamespace())
@@ -90,7 +92,7 @@ func (pr *PolicyReflector) addPolicy(policy *clientapi_v1beta1.NetworkPolicy) {
 
 // deletePolicy deletes state data of a removed K8s network policy from the data
 // store.
-func (pr *PolicyReflector) deletePolicy(policy *clientapi_v1beta1.NetworkPolicy) {
+func (pr *PolicyReflector) deletePolicy(policy *core_v1beta1.NetworkPolicy) {
 	pr.Log.WithField("policy", policy).Info("Policy removed")
 	// TODO (Delete not yet supported by kvdbsync)
 	key := proto.Key(policy.GetName(), policy.GetNamespace())
@@ -102,7 +104,7 @@ func (pr *PolicyReflector) deletePolicy(policy *clientapi_v1beta1.NetworkPolicy)
 
 // updatePolicy updates state data of a changes K8s network policy in the data
 // store.
-func (pr *PolicyReflector) updatePolicy(policyNew, policyOld *clientapi_v1beta1.NetworkPolicy) {
+func (pr *PolicyReflector) updatePolicy(policyNew, policyOld *core_v1beta1.NetworkPolicy) {
 	pr.Log.WithFields(map[string]interface{}{"policy-old": policyOld, "policy-new": policyNew}).Info("Policy updated")
 	policyProto := pr.policyToProto(policyNew)
 	key := proto.Key(policyNew.GetName(), policyNew.GetNamespace())
@@ -114,7 +116,7 @@ func (pr *PolicyReflector) updatePolicy(policyNew, policyOld *clientapi_v1beta1.
 
 // policyToProto converts pod state data from the k8s representation into
 // our protobuf-modelled data structure.
-func (pr *PolicyReflector) policyToProto(policy *clientapi_v1beta1.NetworkPolicy) *proto.Policy {
+func (pr *PolicyReflector) policyToProto(policy *core_v1beta1.NetworkPolicy) *proto.Policy {
 	policyProto := &proto.Policy{}
 	// Name
 	policyProto.Name = policy.GetName()
@@ -139,9 +141,9 @@ func (pr *PolicyReflector) policyToProto(policy *clientapi_v1beta1.NetworkPolicy
 					// Protocol
 					if port.Protocol != nil {
 						switch *port.Protocol {
-						case clientapi_v1.ProtocolTCP:
+						case core_v1.ProtocolTCP:
 							portProto.Protocol = proto.Policy_IngressRule_Port_TCP
-						case clientapi_v1.ProtocolUDP:
+						case core_v1.ProtocolUDP:
 							portProto.Protocol = proto.Policy_IngressRule_Port_UDP
 						}
 					}

@@ -3,8 +3,8 @@ package ksr
 import (
 	"sync"
 
+	core_v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/fields"
-	clientapi_v1 "k8s.io/client-go/pkg/api/v1"
 	"k8s.io/client-go/tools/cache"
 
 	proto "github.com/contiv/vpp/plugins/ksr/model/pod"
@@ -34,11 +34,11 @@ func (pr *PodReflector) Init(stopCh2 <-chan struct{}, wg *sync.WaitGroup) error 
 	listWatch := cache.NewListWatchFromClient(restClient, "pods", "", fields.Everything())
 	pr.k8sPodStore, pr.k8sPodController = cache.NewInformer(
 		listWatch,
-		&clientapi_v1.Pod{},
+		&core_v1.Pod{},
 		0,
 		cache.ResourceEventHandlerFuncs{
 			AddFunc: func(obj interface{}) {
-				pod, ok := obj.(*clientapi_v1.Pod)
+				pod, ok := obj.(*core_v1.Pod)
 				if !ok {
 					pr.Log.Warn("Failed to cast newly created pod object")
 				} else {
@@ -46,7 +46,7 @@ func (pr *PodReflector) Init(stopCh2 <-chan struct{}, wg *sync.WaitGroup) error 
 				}
 			},
 			DeleteFunc: func(obj interface{}) {
-				pod, ok := obj.(*clientapi_v1.Pod)
+				pod, ok := obj.(*core_v1.Pod)
 				if !ok {
 					pr.Log.Warn("Failed to cast removed pod object")
 				} else {
@@ -54,8 +54,8 @@ func (pr *PodReflector) Init(stopCh2 <-chan struct{}, wg *sync.WaitGroup) error 
 				}
 			},
 			UpdateFunc: func(oldObj, newObj interface{}) {
-				podOld, ok1 := oldObj.(*clientapi_v1.Pod)
-				podNew, ok2 := newObj.(*clientapi_v1.Pod)
+				podOld, ok1 := oldObj.(*core_v1.Pod)
+				podNew, ok2 := newObj.(*core_v1.Pod)
 				if !ok1 || !ok2 {
 					pr.Log.Warn("Failed to cast changed pod object")
 				} else {
@@ -74,7 +74,7 @@ func (pr *PodReflector) Start() {
 }
 
 // addPod adds state data of a newly created K8s pod into the data store.
-func (pr *PodReflector) addPod(pod *clientapi_v1.Pod) {
+func (pr *PodReflector) addPod(pod *core_v1.Pod) {
 	pr.Log.WithField("pod", pod).Info("Pod added")
 	podProto := pr.podToProto(pod)
 	key := proto.Key(pod.GetName(), pod.GetNamespace())
@@ -85,7 +85,7 @@ func (pr *PodReflector) addPod(pod *clientapi_v1.Pod) {
 }
 
 // deletePod deletes state data of a removed K8s pod from the data store.
-func (pr *PodReflector) deletePod(pod *clientapi_v1.Pod) {
+func (pr *PodReflector) deletePod(pod *core_v1.Pod) {
 	pr.Log.WithField("pod", pod).Info("Pod removed")
 	// TODO (Delete not yet supported by kvdbsync)
 	key := proto.Key(pod.GetName(), pod.GetNamespace())
@@ -96,7 +96,7 @@ func (pr *PodReflector) deletePod(pod *clientapi_v1.Pod) {
 }
 
 // updatePod updates state data of a changes K8s pod in the data store.
-func (pr *PodReflector) updatePod(podNew, podOld *clientapi_v1.Pod) {
+func (pr *PodReflector) updatePod(podNew, podOld *core_v1.Pod) {
 	pr.Log.WithFields(map[string]interface{}{"pod-old": podOld, "pod-new": podNew}).Info("Pod updated")
 	podProto := pr.podToProto(podNew)
 	key := proto.Key(podNew.GetName(), podNew.GetNamespace())
@@ -108,7 +108,7 @@ func (pr *PodReflector) updatePod(podNew, podOld *clientapi_v1.Pod) {
 
 // podToProto converts pod state data from the k8s representation into our
 // protobuf-modelled data structure.
-func (pr *PodReflector) podToProto(pod *clientapi_v1.Pod) *proto.Pod {
+func (pr *PodReflector) podToProto(pod *core_v1.Pod) *proto.Pod {
 	podProto := &proto.Pod{}
 	podProto.Name = pod.GetName()
 	podProto.Namespace = pod.GetNamespace()
@@ -129,7 +129,7 @@ func (pr *PodReflector) podToProto(pod *clientapi_v1.Pod) *proto.Pod {
 
 // containerToProto converts container state data from the k8s representation
 // into our protobuf-modelled data structure.
-func (pr *PodReflector) containerToProto(container *clientapi_v1.Container) *proto.Pod_Container {
+func (pr *PodReflector) containerToProto(container *core_v1.Container) *proto.Pod_Container {
 	containerProto := &proto.Pod_Container{}
 	containerProto.Name = container.Name
 	for _, port := range container.Ports {
@@ -138,9 +138,9 @@ func (pr *PodReflector) containerToProto(container *clientapi_v1.Container) *pro
 		portProto.HostPort = port.HostPort
 		portProto.ContainerPort = port.ContainerPort
 		switch port.Protocol {
-		case clientapi_v1.ProtocolTCP:
+		case core_v1.ProtocolTCP:
 			portProto.Protocol = proto.Pod_Container_Port_TCP
-		case clientapi_v1.ProtocolUDP:
+		case core_v1.ProtocolUDP:
 			portProto.Protocol = proto.Pod_Container_Port_UDP
 		}
 		portProto.HostIpAddress = port.HostIP

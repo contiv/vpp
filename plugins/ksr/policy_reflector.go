@@ -8,7 +8,6 @@ import (
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/util/intstr"
 
-
 	"k8s.io/client-go/tools/cache"
 
 	proto "github.com/contiv/vpp/plugins/ksr/model/policy"

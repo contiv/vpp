@@ -21,6 +21,8 @@ define install_only
 	@cd cmd/contiv-agent && go install -v ${LDFLAGS}
 	@echo "# installing contiv-ksr"
 	@cd cmd/contiv-ksr && go install -v ${LDFLAGS}
+	@echo "# installing contiv-cri"
+	@cd cmd/contiv-cri && go install -v ${LDFLAGS}
 	@echo "# installing contiv-cni"
 	@cd cmd/contiv-cni && go install -v ${LDFLAGS}
 	@echo "# done"
@@ -101,6 +103,13 @@ define build_contiv_cni_only
     @echo "# done"
 endef
 
+# build contiv-cri only
+define build_contiv_cri_only
+    @echo "# building contiv-cri"
+    @cd cmd/contiv-cri && go build -v -i ${LDFLAGS}
+    @echo "# done"
+endef
+
 
 # verify that links in markdown files are valid
 # requires npm install -g markdown-link-check
@@ -122,6 +131,7 @@ build:
 	$(call build_contiv_agent_only)
 	$(call build_contiv_cni_only)
 	$(call build_contiv_ksr_only)
+	$(call build_contiv_cri_only)
 
 # build agent
 agent:
@@ -134,6 +144,10 @@ contiv-ksr:
 # build contiv-cni
 contiv-cni:
 	$(call build_contiv_cni_only)
+
+# build contiv-cri
+contiv-cri:
+	$(call build_contiv_cri_only)
 
 # install binaries
 install:
@@ -193,6 +207,7 @@ clean:
 	rm -f cmd/contiv-agent/contiv-agent
 	rm -f cmd/contiv-cni/contiv-cni
 	rm -f cmd/contiv-ksr/contiv-ksr
+	rm -f cmd/contiv-ksr/contiv-cri
 	@echo "# cleanup completed"
 
 # run all targets

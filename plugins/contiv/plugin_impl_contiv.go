@@ -23,6 +23,8 @@ import (
 	"github.com/ligato/cn-infra/flavors/local"
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/rpc/grpc"
+	"github.com/ligato/vpp-agent/clientv1/linux"
+	"github.com/ligato/vpp-agent/clientv1/linux/localclient"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/model/interfaces"
 )
@@ -47,7 +49,10 @@ type Deps struct {
 // Init initializes the grpc server handling the request from the CNI.
 func (plugin *Plugin) Init() error {
 	plugin.configuredContainers = containeridx.NewConfigIndex(plugin.Log, plugin.PluginName, "containers")
-	plugin.cniServer = newRemoteCNIServer(plugin.Log, plugin.Proxy, plugin.configuredContainers)
+	plugin.cniServer = newRemoteCNIServer(plugin.Log,
+		func() linux.DataChangeDSL { return localclient.DataChangeRequest(plugin.PluginName) },
+		plugin.Proxy,
+		plugin.configuredContainers)
 	cni.RegisterRemoteCNIServer(plugin.GRPC.Server(), plugin.cniServer)
 	return nil
 }

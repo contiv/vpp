@@ -17,7 +17,6 @@ package contiv
 import (
 	"github.com/contiv/vpp/plugins/contiv/model/cni"
 	"github.com/ligato/cn-infra/logging"
-	"github.com/ligato/vpp-agent/clientv1/linux/localclient"
 	vpp_intf "github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/model/interfaces"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/l2plugin/model/l2"
 	linux_intf "github.com/ligato/vpp-agent/plugins/linuxplugin/model/interfaces"
@@ -26,6 +25,7 @@ import (
 	"github.com/contiv/vpp/plugins/kvdbproxy"
 	"github.com/gogo/protobuf/proto"
 	"github.com/ligato/cn-infra/datasync"
+	"github.com/ligato/vpp-agent/clientv1/linux"
 	"golang.org/x/net/context"
 	"strconv"
 	"strings"
@@ -36,7 +36,8 @@ type remoteCNIserver struct {
 	logging.Logger
 	sync.Mutex
 
-	proxy                *kvdbproxy.Plugin
+	vppTxnFactory        func() linux.DataChangeDSL
+	proxy                kvdbproxy.Proxy
 	configuredContainers *containeridx.ConfigIndex
 
 	// bdCreated is true if the bridge domain on the vpp for apackets is configured
@@ -63,8 +64,8 @@ const (
 	podNamespaceExtraArg        = "K8S_POD_NAMESPACE"
 )
 
-func newRemoteCNIServer(logger logging.Logger, proxy *kvdbproxy.Plugin, configuredContainers *containeridx.ConfigIndex) *remoteCNIserver {
-	return &remoteCNIserver{Logger: logger, afPackets: map[string]interface{}{}, proxy: proxy, configuredContainers: configuredContainers}
+func newRemoteCNIServer(logger logging.Logger, vppTxnFactory func() linux.DataChangeDSL, proxy kvdbproxy.Proxy, configuredContainers *containeridx.ConfigIndex) *remoteCNIserver {
+	return &remoteCNIserver{Logger: logger, vppTxnFactory: vppTxnFactory, afPackets: map[string]interface{}{}, proxy: proxy, configuredContainers: configuredContainers}
 }
 
 // Add connects the container to the network.
@@ -105,7 +106,7 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 
 	s.WithFields(logging.Fields{"veth1": veth1, "veth2": veth2, "afpacket": afpacket, "bd": bd}).Info("Configuring")
 
-	txn := localclient.DataChangeRequest("CNI").
+	txn := s.vppTxnFactory().
 		Put().
 		LinuxInterface(veth1).
 		LinuxInterface(veth2).
@@ -190,7 +191,7 @@ func (s *remoteCNIserver) unconfigureContainerConnectivity(request *cni.CNIReque
 
 	bd := s.bridgeDomain()
 
-	err := localclient.DataChangeRequest("CNI").
+	err := s.vppTxnFactory().
 		Delete().
 		LinuxInterface(veth1).
 		LinuxInterface(veth2).

@@ -3,3 +3,4 @@ glide.lock
 cmd/contiv-agent/contiv-agent
 cmd/contiv-cni/contiv-cni
 cmd/contiv-ksr/contiv-ksr
+cmd/contiv-cri/contiv-cri

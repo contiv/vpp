@@ -30,6 +30,7 @@ mkdir -p binaries
 # extract the binaries into the binaries/ folder
 sudo docker cp ${CID}:/root/go/src/github.com/contiv/vpp/cmd/contiv-cni/contiv-cni binaries/
 sudo docker cp ${CID}:/root/go/src/github.com/contiv/vpp/cmd/contiv-ksr/contiv-ksr binaries/
+sudo docker cp ${CID}:/root/go/src/github.com/contiv/vpp/cmd/contiv-cri/contiv-cri binaries/
 sudo docker cp ${CID}:/root/cni/loopback binaries/
 
 # delete the "extract" container

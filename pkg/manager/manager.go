@@ -190,21 +190,19 @@ func (s *ContivshimManager) CreateContainer(ctx context.Context, req *kubeapi.Cr
 	// 2. Error handling if CreateContainer fails
 	// 3. Check if Close should be called
 	labels := req.Config.Labels
-	envs := req.Config.Envs
-	mounts := req.Config.Mounts
 	for labelKey, labelValue := range labels {
 		if strings.HasPrefix(labelKey, "LD_PRELOAD_") {
 			env := &kubeapi.KeyValue{
 				Key:   labelKey,
 				Value: labelValue,
 			}
-			envs = append(envs, env)
+			req.Config.Envs = append(req.Config.Envs, env)
 		} else if strings.HasPrefix(labelKey, "HOST_PATH_") {
 			mount := &kubeapi.Mount{
 				ContainerPath: labelValue,
 				HostPath:      labelKey[10:],
 			}
-			mounts = append(mounts, mount)
+			req.Config.Mounts = append(req.Config.Mounts, mount)
 		}
 	}
 

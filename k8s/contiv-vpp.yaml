@@ -1,28 +1,105 @@
-# Contiv-VPP default deployment YAML file
+# Contiv-VPP deployment YAML file. This deploys Contiv VPP networking on a Kuberntes cluster.
+# The deployment consists of the following components:
+#   - contiv-etcd - deployed on k8s master
+#   - contiv-vswitch - deployed on each k8s node
+#   - contiv-ksr - deployed on k8s master
 
-kind: DaemonSet
+# This installs the contiv-etcd (ETCD server to be used by Contiv) on the master node in a Kubernetes cluster.
 apiVersion: extensions/v1beta1
+kind: DaemonSet
 metadata:
-  name: contiv-vpp
+  name: contiv-etcd
   namespace: kube-system
   labels:
-    k8s-app: contiv-vpp
+    k8s-app: contiv-etcd
 spec:
-  selector:
-    matchLabels:
-      k8s-app: contiv-vpp
   template:
     metadata:
       labels:
-        k8s-app: contiv-vpp
+        k8s-app: contiv-etcd
       annotations:
+        # Marks this pod as a critical add-on.
         scheduler.alpha.kubernetes.io/critical-pod: ''
-        scheduler.alpha.kubernetes.io/tolerations: |
-          [{"key": "dedicated", "value": "master", "effect": "NoSchedule" },
-           {"key":"CriticalAddonsOnly", "operator":"Exists"}]
     spec:
+      # Allow this pod to be rescheduled while the node is in "critical add-ons only" mode.
+      tolerations:
+      - key: node-role.kubernetes.io/master
+        effect: NoSchedule
+      - key: CriticalAddonsOnly
+        operator: Exists
+      # Only run this pod on the master.
+      nodeSelector:
+        node-role.kubernetes.io/master: ""
+      hostNetwork: true
+
+      containers:
+        - name: contiv-etcd
+          image: quay.io/coreos/etcd:v3.1.10
+          env:
+            - name: CONTIV_ETCD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+          command: ["/bin/sh","-c"]
+          args: ["/usr/local/bin/etcd --name=contiv --data-dir=/var/etcd/contiv-data --advertise-client-urls=http://$CONTIV_ETCD_IP:6666 --listen-client-urls=http://0.0.0.0:6666 --listen-peer-urls=http://0.0.0.0:6667"]
+          volumeMounts:
+            - name: var-etcd
+              mountPath: /var/etcd
+
+      volumes:
+        - name: var-etcd
+          hostPath:
+            path: /var/etcd
+
+---
+
+# This config map contains ETCD configuration for connecting to the contiv-etcd defined above.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: contiv-etcd-cfg
+  namespace: kube-system
+data:
+  etcd.conf: |
+    insecure-transport: true
+    dial-timeout: 1000000000
+    endpoints:
+      - "127.0.0.1:6666"
+
+---
+
+# This installs contiv-vswitch on each master and worker node in a Kubernetes cluster.
+# It consists of the following containers:
+#   - contiv-vswitch container: contains VPP and its management agent
+#   - contiv-cni container: installs CNI on the host
+apiVersion: extensions/v1beta1
+kind: DaemonSet
+metadata:
+  name: contiv-vswitch
+  namespace: kube-system
+  labels:
+    k8s-app: contiv-vswitch
+spec:
+  selector:
+    matchLabels:
+      k8s-app: contiv-vswitch
+  template:
+    metadata:
+      labels:
+        k8s-app: contiv-vswitch
+      annotations:
+        # Marks this pod as a critical add-on.
+        scheduler.alpha.kubernetes.io/critical-pod: ''
+    spec:
+      # Allow this pod to be rescheduled while the node is in "critical add-ons only" mode.
+      tolerations:
+      - key: node-role.kubernetes.io/master
+        effect: NoSchedule
+      - key: CriticalAddonsOnly
+        operator: Exists
       hostNetwork: true
       hostPID: true
+
       containers:
         # Runs contiv-vswitch container on each Kubernetes node.
         # It contains the vSwitch VPP and its management agent.
@@ -31,6 +108,13 @@ spec:
           imagePullPolicy: IfNotPresent
           securityContext:
             privileged: true
+          env:
+            - name: ETCDV3_CONFIG
+              value: "/etc/etcd/etcd.conf"
+          volumeMounts:
+            - name: etcd-cfg
+              mountPath: /etc/etcd
+
         # This container installs the Contiv CNI binaries
         # and CNI network config file on each node.
         - name: contiv-cni
@@ -41,7 +125,12 @@ spec:
               name: cni-bin-dir
             - mountPath: /etc/cni/net.d
               name: cni-net-dir
+
       volumes:
+        # Used to connect to contiv-etcd.
+        - name: etcd-cfg
+          configMap:
+            name: contiv-etcd-cfg
         # Used to install CNI.
         - name: cni-bin-dir
           hostPath:
@@ -49,3 +138,97 @@ spec:
         - name: cni-net-dir
           hostPath:
             path: /etc/cni/net.d
+
+---
+
+# This installs the contiv-ksr (Kubernetes State Reflector) on the master node in a Kubernetes cluster.
+apiVersion: extensions/v1beta1
+kind: DaemonSet
+metadata:
+  name: contiv-ksr
+  namespace: kube-system
+  labels:
+    k8s-app: contiv-ksr
+spec:
+  template:
+    metadata:
+      labels:
+        k8s-app: contiv-ksr
+      annotations:
+        # Marks this pod as a critical add-on.
+        scheduler.alpha.kubernetes.io/critical-pod: ''
+    spec:
+      # Allow this pod to be rescheduled while the node is in "critical add-ons only" mode.
+      tolerations:
+      - key: node-role.kubernetes.io/master
+        effect: NoSchedule
+      - key: CriticalAddonsOnly
+        operator: Exists
+      # Only run this pod on the master.
+      nodeSelector:
+        node-role.kubernetes.io/master: ""
+      hostNetwork: true
+      # This grants the required permissions to contiv-ksr.
+      serviceAccountName: contiv-ksr
+
+      containers:
+        - name: contiv-ksr
+          image: contivvpp/ksr
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: ETCDV3_CONFIG
+              value: "/etc/etcd/etcd.conf"
+          volumeMounts:
+            - name: etcd-cfg
+              mountPath: /etc/etcd
+
+      volumes:
+        # Used to connect to contiv-etcd.
+        - name: etcd-cfg
+          configMap:
+            name: contiv-etcd-cfg
+
+---
+
+# This cluster role defines a set of permissions required for contiv-ksr.
+apiVersion: rbac.authorization.k8s.io/v1beta1
+kind: ClusterRole
+metadata:
+  name: contiv-ksr
+  namespace: kube-system
+rules:
+  - apiGroups:
+    - ""
+    - extensions
+    resources:
+      - pods
+      - namespaces
+      - networkpolicies
+    verbs:
+      - watch
+      - list
+
+---
+
+# This defines a service account for contiv-ksr.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: contiv-ksr
+  namespace: kube-system
+
+---
+
+# This binds the contiv-ksr cluster role with contiv-ksr service account.
+apiVersion: rbac.authorization.k8s.io/v1beta1
+kind: ClusterRoleBinding
+metadata:
+  name: contiv-ksr
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: contiv-ksr
+subjects:
+- kind: ServiceAccount
+  name: contiv-ksr
+  namespace: kube-system

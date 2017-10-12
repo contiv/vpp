@@ -5,6 +5,8 @@
 #   - contiv-ksr - deployed on k8s master
 
 # This installs the contiv-etcd (ETCD server to be used by Contiv) on the master node in a Kubernetes cluster.
+# In odrer to dump the content of ETCD, you can use kubectl exec command similar to this:
+#   kubectl exec contiv-etcd-cxqhr -n kube-system etcdctl -- get --endpoints=[127.0.0.1:6666] --prefix="true" ""
 apiVersion: extensions/v1beta1
 kind: DaemonSet
 metadata:
@@ -40,6 +42,8 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: status.podIP
+            - name: ETCDCTL_API
+              value: "3"
           command: ["/bin/sh","-c"]
           args: ["/usr/local/bin/etcd --name=contiv --data-dir=/var/etcd/contiv-data --advertise-client-urls=http://$CONTIV_ETCD_IP:6666 --listen-client-urls=http://0.0.0.0:6666 --listen-peer-urls=http://0.0.0.0:6667"]
           volumeMounts:

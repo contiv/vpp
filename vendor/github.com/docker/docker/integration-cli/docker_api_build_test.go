@@ -12,8 +12,6 @@ import (
 	"strings"
 
 	"github.com/docker/docker/api/types"
-	"github.com/docker/docker/client/session"
-	"github.com/docker/docker/client/session/filesync"
 	"github.com/docker/docker/integration-cli/checker"
 	"github.com/docker/docker/integration-cli/cli/build/fakecontext"
 	"github.com/docker/docker/integration-cli/cli/build/fakegit"
@@ -21,6 +19,8 @@ import (
 	"github.com/docker/docker/integration-cli/request"
 	"github.com/docker/docker/pkg/testutil"
 	"github.com/go-check/check"
+	"github.com/moby/buildkit/session"
+	"github.com/moby/buildkit/session/filesync"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/net/context"
@@ -356,6 +356,50 @@ func (s *DockerRegistrySuite) TestBuildCopyFromForcePull(c *check.C) {
 
 	res, body, err := request.Post(
 		"/build?pull=1",
+		request.RawContent(ctx.AsTarReader(c)),
+		request.ContentType("application/x-tar"))
+	require.NoError(c, err)
+	assert.Equal(c, http.StatusOK, res.StatusCode)
+
+	out, err := testutil.ReadBody(body)
+	require.NoError(c, err)
+	assert.Contains(c, string(out), "Successfully built")
+}
+
+func (s *DockerSuite) TestBuildAddRemoteNoDecompress(c *check.C) {
+	buffer := new(bytes.Buffer)
+	tw := tar.NewWriter(buffer)
+	dt := []byte("contents")
+	err := tw.WriteHeader(&tar.Header{
+		Name:     "foo",
+		Size:     int64(len(dt)),
+		Mode:     0600,
+		Typeflag: tar.TypeReg,
+	})
+	require.NoError(c, err)
+	_, err = tw.Write(dt)
+	require.NoError(c, err)
+	err = tw.Close()
+	require.NoError(c, err)
+
+	server := fakestorage.New(c, "", fakecontext.WithBinaryFiles(map[string]*bytes.Buffer{
+		"test.tar": buffer,
+	}))
+	defer server.Close()
+
+	dockerfile := fmt.Sprintf(`
+		FROM busybox
+		ADD %s/test.tar /
+		RUN [ -f test.tar ]
+		`, server.URL())
+
+	ctx := fakecontext.New(c, "",
+		fakecontext.WithDockerfile(dockerfile),
+	)
+	defer ctx.Close()
+
+	res, body, err := request.Post(
+		"/build",
 		request.RawContent(ctx.AsTarReader(c)),
 		request.ContentType("application/x-tar"))
 	require.NoError(c, err)

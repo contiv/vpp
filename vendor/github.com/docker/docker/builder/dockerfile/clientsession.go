@@ -5,8 +5,8 @@ import (
 
 	"github.com/docker/docker/builder/fscache"
 	"github.com/docker/docker/builder/remotecontext"
-	"github.com/docker/docker/client/session"
-	"github.com/docker/docker/client/session/filesync"
+	"github.com/moby/buildkit/session"
+	"github.com/moby/buildkit/session/filesync"
 	"github.com/pkg/errors"
 	"golang.org/x/net/context"
 )
@@ -30,26 +30,25 @@ func (cst *ClientSessionTransport) Copy(ctx context.Context, id fscache.RemoteId
 	}
 
 	return filesync.FSSync(ctx, csi.caller, filesync.FSSendRequestOpt{
-		SrcPaths:     csi.srcPaths,
-		DestDir:      dest,
-		CacheUpdater: cu,
+		IncludePatterns: csi.includePatterns,
+		DestDir:         dest,
+		CacheUpdater:    cu,
 	})
 }
 
 // ClientSessionSourceIdentifier is an identifier that can be used for requesting
 // files from remote client
 type ClientSessionSourceIdentifier struct {
-	srcPaths  []string
-	caller    session.Caller
-	sharedKey string
-	uuid      string
+	includePatterns []string
+	caller          session.Caller
+	sharedKey       string
+	uuid            string
 }
 
 // NewClientSessionSourceIdentifier returns new ClientSessionSourceIdentifier instance
-func NewClientSessionSourceIdentifier(ctx context.Context, sg SessionGetter, uuid string, sources []string) (*ClientSessionSourceIdentifier, error) {
+func NewClientSessionSourceIdentifier(ctx context.Context, sg SessionGetter, uuid string) (*ClientSessionSourceIdentifier, error) {
 	csi := &ClientSessionSourceIdentifier{
-		uuid:     uuid,
-		srcPaths: sources,
+		uuid: uuid,
 	}
 	caller, err := sg.Get(ctx, uuid)
 	if err != nil {

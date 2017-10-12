@@ -12,10 +12,7 @@ func TestQueueSimple(t *testing.T) {
 		if q.Peek().(int) != i {
 			t.Error("peek", i, "had value", q.Peek())
 		}
-		x := q.Remove()
-		if x != i {
-			t.Error("remove", i, "had value", x)
-		}
+		q.Remove()
 	}
 }
 
@@ -72,19 +69,6 @@ func TestQueueGet(t *testing.T) {
 	}
 }
 
-func TestQueueGetNegative(t *testing.T) {
-	q := New()
-
-	for i := 0; i < 1000; i++ {
-		q.Add(i)
-		for j := 1; j <= q.Length(); j++ {
-			if q.Get(-j).(int) != q.Length()-j {
-				t.Errorf("index %d doesn't contain %d", -j, q.Length()-j)
-			}
-		}
-	}
-}
-
 func TestQueueGetOutOfRangePanics(t *testing.T) {
 	q := New()
 
@@ -93,7 +77,7 @@ func TestQueueGetOutOfRangePanics(t *testing.T) {
 	q.Add(3)
 
 	assertPanics(t, "should panic when negative index", func() {
-		q.Get(-4)
+		q.Get(-1)
 	})
 
 	assertPanics(t, "should panic when index greater than length", func() {

@@ -1,7 +1,11 @@
 package: github.com/contiv/vpp
 import:
 - package: github.com/ligato/cn-infra
-  version: d66be8a207563776f71280092a0aeef31bd1219d
+  subpackages:
+  - db/keyval
+  - db/keyval/etcdv3
+  - db/keyval/kvproto
+  - logging/logroot
 - package: github.com/ligato/vpp-agent
   version: 49790b64c5a91ff99355f2cf0cdbc75332f988f6
 - package: github.com/containernetworking/cni
@@ -30,3 +34,21 @@ import:
   version: v1.2.1 # this version is requested by etcd v3.2.0
 - package: github.com/wadey/gocovmerge
   version: b5bfa59ec0adc420475f97f89b58045c721d761c
+- package: github.com/golang/glog
+- package: github.com/spf13/pflag
+- package: k8s.io/kubernetes
+  version: v1.8.0
+  subpackages:
+  - cmd/kubelet/app/options
+  - pkg/kubelet
+  - pkg/kubelet/apis/cri
+  - pkg/kubelet/apis/cri/v1alpha1/runtime
+  - pkg/kubelet/apis/kubeletconfig
+  - pkg/kubelet/apis/kubeletconfig/scheme
+  - pkg/kubelet/apis/kubeletconfig/v1alpha1
+  - pkg/kubelet/dockershim
+  - pkg/kubelet/dockershim/libdocker
+  - pkg/kubelet/server/streaming
+- package: k8s.io/utils
+  subpackages:
+  - exec

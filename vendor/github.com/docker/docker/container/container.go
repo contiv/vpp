@@ -15,7 +15,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/Sirupsen/logrus"
 	containertypes "github.com/docker/docker/api/types/container"
 	mounttypes "github.com/docker/docker/api/types/mount"
 	networktypes "github.com/docker/docker/api/types/network"
@@ -44,6 +43,7 @@ import (
 	"github.com/docker/libnetwork/options"
 	"github.com/docker/libnetwork/types"
 	agentexec "github.com/docker/swarmkit/agent/exec"
+	"github.com/Sirupsen/logrus"
 	"golang.org/x/net/context"
 )
 
@@ -107,7 +107,8 @@ type Container struct {
 	NoNewPrivileges bool
 
 	// Fields here are specific to Windows
-	NetworkSharedContainerID string
+	NetworkSharedContainerID string   `json:"-"`
+	SharedEndpointList       []string `json:"-"`
 }
 
 // NewBaseContainer creates a new container with its
@@ -744,6 +745,9 @@ func (container *Container) BuildCreateEndpointOptions(n libnetwork.Network, epC
 		for _, alias := range epConfig.Aliases {
 			createOptions = append(createOptions, libnetwork.CreateOptionMyAlias(alias))
 		}
+		for k, v := range epConfig.DriverOpts {
+			createOptions = append(createOptions, libnetwork.EndpointOptionGeneric(options.Generic{k: v}))
+		}
 	}
 
 	if container.NetworkSettings.Service != nil {
@@ -788,9 +792,6 @@ func (container *Container) BuildCreateEndpointOptions(n libnetwork.Network, epC
 			}
 
 			createOptions = append(createOptions, libnetwork.EndpointOptionGeneric(genericOption))
-		}
-		for k, v := range epConfig.DriverOpts {
-			createOptions = append(createOptions, libnetwork.EndpointOptionGeneric(options.Generic{k: v}))
 		}
 
 	}
@@ -1038,7 +1039,7 @@ func (container *Container) CreateDaemonEnvironment(tty bool, linkedEnv []string
 		platform = runtime.GOOS
 	}
 	env := []string{}
-	if runtime.GOOS != "windows" || (runtime.GOOS == "windows" && system.LCOWSupported() && platform == "linux") {
+	if runtime.GOOS != "windows" || (system.LCOWSupported() && platform == "linux") {
 		env = []string{
 			"PATH=" + system.DefaultPathEnv(platform),
 			"HOSTNAME=" + container.Config.Hostname,
@@ -1052,7 +1053,6 @@ func (container *Container) CreateDaemonEnvironment(tty bool, linkedEnv []string
 	// because the env on the container can override certain default values
 	// we need to replace the 'env' keys where they match and append anything
 	// else.
-	//return ReplaceOrAppendEnvValues(linkedEnv, container.Config.Env)
-	foo := ReplaceOrAppendEnvValues(env, container.Config.Env)
-	return foo
+	env = ReplaceOrAppendEnvValues(env, container.Config.Env)
+	return env
 }

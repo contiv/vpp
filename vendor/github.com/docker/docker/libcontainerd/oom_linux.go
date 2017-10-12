@@ -5,8 +5,8 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/Sirupsen/logrus"
 	"github.com/opencontainers/runc/libcontainer/system"
+	"github.com/Sirupsen/logrus"
 )
 
 func setOOMScore(pid, score int) error {

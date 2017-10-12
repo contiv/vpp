@@ -10,7 +10,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Sirupsen/logrus"
 	"github.com/docker/distribution/reference"
 	apierrors "github.com/docker/docker/api/errors"
 	apitypes "github.com/docker/docker/api/types"
@@ -22,6 +21,7 @@ import (
 	swarmapi "github.com/docker/swarmkit/api"
 	gogotypes "github.com/gogo/protobuf/types"
 	"github.com/pkg/errors"
+	"github.com/Sirupsen/logrus"
 	"golang.org/x/net/context"
 )
 
@@ -50,14 +50,16 @@ func (c *Cluster) GetServices(options apitypes.ServiceListOptions) ([]types.Serv
 		return nil, err
 	}
 
+	if len(options.Filters.Get("runtime")) == 0 {
+		// Default to using the container runtime filter
+		options.Filters.Add("runtime", string(types.RuntimeContainer))
+	}
+
 	filters := &swarmapi.ListServicesRequest_Filters{
 		NamePrefixes: options.Filters.Get("name"),
 		IDPrefixes:   options.Filters.Get("id"),
 		Labels:       runconfigopts.ConvertKVStringsToMap(options.Filters.Get("label")),
-		// (ehazlett): hardcode runtime for now. eventually we will
-		// be able to filter for the desired runtimes once more
-		// are supported.
-		Runtimes: []string{string(types.RuntimeContainer)},
+		Runtimes:     options.Filters.Get("runtime"),
 	}
 
 	ctx, cancel := c.getRequestContext()
@@ -134,6 +136,20 @@ func (c *Cluster) CreateService(s types.ServiceSpec, encodedAuth string, queryRe
 
 		switch serviceSpec.Task.Runtime.(type) {
 		// handle other runtimes here
+		case *swarmapi.TaskSpec_Generic:
+			switch serviceSpec.Task.GetGeneric().Kind {
+			case string(types.RuntimePlugin):
+				if s.TaskTemplate.PluginSpec == nil {
+					return errors.New("plugin spec must be set")
+				}
+			}
+
+			r, err := state.controlClient.CreateService(ctx, &swarmapi.CreateServiceRequest{Spec: &serviceSpec})
+			if err != nil {
+				return err
+			}
+
+			resp.ID = r.Service.ID
 		case *swarmapi.TaskSpec_Container:
 			ctnr := serviceSpec.Task.GetContainer()
 			if ctnr == nil {
@@ -146,7 +162,9 @@ func (c *Cluster) CreateService(s types.ServiceSpec, encodedAuth string, queryRe
 			// retrieve auth config from encoded auth
 			authConfig := &apitypes.AuthConfig{}
 			if encodedAuth != "" {
-				if err := json.NewDecoder(base64.NewDecoder(base64.URLEncoding, strings.NewReader(encodedAuth))).Decode(authConfig); err != nil {
+				authReader := strings.NewReader(encodedAuth)
+				dec := json.NewDecoder(base64.NewDecoder(base64.URLEncoding, authReader))
+				if err := dec.Decode(authConfig); err != nil {
 					logrus.Warnf("invalid authconfig: %v", err)
 				}
 			}
@@ -216,75 +234,85 @@ func (c *Cluster) UpdateService(serviceIDOrName string, version uint64, spec typ
 			return err
 		}
 
-		newCtnr := serviceSpec.Task.GetContainer()
-		if newCtnr == nil {
-			return errors.New("service does not use container tasks")
-		}
-
-		encodedAuth := flags.EncodedRegistryAuth
-		if encodedAuth != "" {
-			newCtnr.PullOptions = &swarmapi.ContainerSpec_PullOptions{RegistryAuth: encodedAuth}
-		} else {
-			// this is needed because if the encodedAuth isn't being updated then we
-			// shouldn't lose it, and continue to use the one that was already present
-			var ctnr *swarmapi.ContainerSpec
-			switch flags.RegistryAuthFrom {
-			case apitypes.RegistryAuthFromSpec, "":
-				ctnr = currentService.Spec.Task.GetContainer()
-			case apitypes.RegistryAuthFromPreviousSpec:
-				if currentService.PreviousSpec == nil {
-					return errors.New("service does not have a previous spec")
-				}
-				ctnr = currentService.PreviousSpec.Task.GetContainer()
-			default:
-				return errors.New("unsupported registryAuthFrom value")
-			}
-			if ctnr == nil {
-				return errors.New("service does not use container tasks")
-			}
-			newCtnr.PullOptions = ctnr.PullOptions
-			// update encodedAuth so it can be used to pin image by digest
-			if ctnr.PullOptions != nil {
-				encodedAuth = ctnr.PullOptions.RegistryAuth
-			}
-		}
-
-		// retrieve auth config from encoded auth
-		authConfig := &apitypes.AuthConfig{}
-		if encodedAuth != "" {
-			if err := json.NewDecoder(base64.NewDecoder(base64.URLEncoding, strings.NewReader(encodedAuth))).Decode(authConfig); err != nil {
-				logrus.Warnf("invalid authconfig: %v", err)
-			}
-		}
-
 		resp = &apitypes.ServiceUpdateResponse{}
 
-		// pin image by digest for API versions < 1.30
-		// TODO(nishanttotla): The check on "DOCKER_SERVICE_PREFER_OFFLINE_IMAGE"
-		// should be removed in the future. Since integration tests only use the
-		// latest API version, so this is no longer required.
-		if os.Getenv("DOCKER_SERVICE_PREFER_OFFLINE_IMAGE") != "1" && queryRegistry {
-			digestImage, err := c.imageWithDigestString(ctx, newCtnr.Image, authConfig)
-			if err != nil {
-				logrus.Warnf("unable to pin image %s to digest: %s", newCtnr.Image, err.Error())
-				// warning in the client response should be concise
-				resp.Warnings = append(resp.Warnings, digestWarning(newCtnr.Image))
-			} else if newCtnr.Image != digestImage {
-				logrus.Debugf("pinning image %s by digest: %s", newCtnr.Image, digestImage)
-				newCtnr.Image = digestImage
-			} else {
-				logrus.Debugf("updating service using supplied digest reference %s", newCtnr.Image)
+		switch serviceSpec.Task.Runtime.(type) {
+		case *swarmapi.TaskSpec_Generic:
+			switch serviceSpec.Task.GetGeneric().Kind {
+			case string(types.RuntimePlugin):
+				if spec.TaskTemplate.PluginSpec == nil {
+					return errors.New("plugin spec must be set")
+				}
+			}
+		case *swarmapi.TaskSpec_Container:
+			newCtnr := serviceSpec.Task.GetContainer()
+			if newCtnr == nil {
+				return errors.New("service does not use container tasks")
 			}
 
-			// Replace the context with a fresh one.
-			// If we timed out while communicating with the
-			// registry, then "ctx" will already be expired, which
-			// would cause UpdateService below to fail. Reusing
-			// "ctx" could make it impossible to update a service
-			// if the registry is slow or unresponsive.
-			var cancel func()
-			ctx, cancel = c.getRequestContext()
-			defer cancel()
+			encodedAuth := flags.EncodedRegistryAuth
+			if encodedAuth != "" {
+				newCtnr.PullOptions = &swarmapi.ContainerSpec_PullOptions{RegistryAuth: encodedAuth}
+			} else {
+				// this is needed because if the encodedAuth isn't being updated then we
+				// shouldn't lose it, and continue to use the one that was already present
+				var ctnr *swarmapi.ContainerSpec
+				switch flags.RegistryAuthFrom {
+				case apitypes.RegistryAuthFromSpec, "":
+					ctnr = currentService.Spec.Task.GetContainer()
+				case apitypes.RegistryAuthFromPreviousSpec:
+					if currentService.PreviousSpec == nil {
+						return errors.New("service does not have a previous spec")
+					}
+					ctnr = currentService.PreviousSpec.Task.GetContainer()
+				default:
+					return errors.New("unsupported registryAuthFrom value")
+				}
+				if ctnr == nil {
+					return errors.New("service does not use container tasks")
+				}
+				newCtnr.PullOptions = ctnr.PullOptions
+				// update encodedAuth so it can be used to pin image by digest
+				if ctnr.PullOptions != nil {
+					encodedAuth = ctnr.PullOptions.RegistryAuth
+				}
+			}
+
+			// retrieve auth config from encoded auth
+			authConfig := &apitypes.AuthConfig{}
+			if encodedAuth != "" {
+				if err := json.NewDecoder(base64.NewDecoder(base64.URLEncoding, strings.NewReader(encodedAuth))).Decode(authConfig); err != nil {
+					logrus.Warnf("invalid authconfig: %v", err)
+				}
+			}
+
+			// pin image by digest for API versions < 1.30
+			// TODO(nishanttotla): The check on "DOCKER_SERVICE_PREFER_OFFLINE_IMAGE"
+			// should be removed in the future. Since integration tests only use the
+			// latest API version, so this is no longer required.
+			if os.Getenv("DOCKER_SERVICE_PREFER_OFFLINE_IMAGE") != "1" && queryRegistry {
+				digestImage, err := c.imageWithDigestString(ctx, newCtnr.Image, authConfig)
+				if err != nil {
+					logrus.Warnf("unable to pin image %s to digest: %s", newCtnr.Image, err.Error())
+					// warning in the client response should be concise
+					resp.Warnings = append(resp.Warnings, digestWarning(newCtnr.Image))
+				} else if newCtnr.Image != digestImage {
+					logrus.Debugf("pinning image %s by digest: %s", newCtnr.Image, digestImage)
+					newCtnr.Image = digestImage
+				} else {
+					logrus.Debugf("updating service using supplied digest reference %s", newCtnr.Image)
+				}
+
+				// Replace the context with a fresh one.
+				// If we timed out while communicating with the
+				// registry, then "ctx" will already be expired, which
+				// would cause UpdateService below to fail. Reusing
+				// "ctx" could make it impossible to update a service
+				// if the registry is slow or unresponsive.
+				var cancel func()
+				ctx, cancel = c.getRequestContext()
+				defer cancel()
+			}
 		}
 
 		var rollback swarmapi.UpdateServiceRequest_Rollback
@@ -430,22 +458,33 @@ func (c *Cluster) ServiceLogs(ctx context.Context, selector *backend.LogSelector
 			for _, msg := range subscribeMsg.Messages {
 				// make a new message
 				m := new(backend.LogMessage)
-				m.Attrs = make(backend.LogAttributes)
+				m.Attrs = make([]backend.LogAttr, 0, len(msg.Attrs)+3)
 				// add the timestamp, adding the error if it fails
 				m.Timestamp, err = gogotypes.TimestampFromProto(msg.Timestamp)
 				if err != nil {
 					m.Err = err
 				}
+
+				nodeKey := contextPrefix + ".node.id"
+				serviceKey := contextPrefix + ".service.id"
+				taskKey := contextPrefix + ".task.id"
+
 				// copy over all of the details
 				for _, d := range msg.Attrs {
-					m.Attrs[d.Key] = d.Value
+					switch d.Key {
+					case nodeKey, serviceKey, taskKey:
+						// we have the final say over context details (in case there
+						// is a conflict (if the user added a detail with a context's
+						// key for some reason))
+					default:
+						m.Attrs = append(m.Attrs, backend.LogAttr{Key: d.Key, Value: d.Value})
+					}
 				}
-				// we have the final say over context details (in case there
-				// is a conflict (if the user added a detail with a context's
-				// key for some reason))
-				m.Attrs[contextPrefix+".node.id"] = msg.Context.NodeID
-				m.Attrs[contextPrefix+".service.id"] = msg.Context.ServiceID
-				m.Attrs[contextPrefix+".task.id"] = msg.Context.TaskID
+				m.Attrs = append(m.Attrs,
+					backend.LogAttr{Key: nodeKey, Value: msg.Context.NodeID},
+					backend.LogAttr{Key: serviceKey, Value: msg.Context.ServiceID},
+					backend.LogAttr{Key: taskKey, Value: msg.Context.TaskID},
+				)
 
 				switch msg.Stream {
 				case swarmapi.LogStreamStdout:

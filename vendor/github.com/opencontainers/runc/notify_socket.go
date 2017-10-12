@@ -8,8 +8,9 @@ import (
 	"net"
 	"path/filepath"
 
-	"github.com/Sirupsen/logrus"
 	"github.com/opencontainers/runtime-spec/specs-go"
+
+	"github.com/Sirupsen/logrus"
 	"github.com/urfave/cli"
 )
 

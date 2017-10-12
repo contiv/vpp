@@ -7,13 +7,13 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/Sirupsen/logrus"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/container"
 	"github.com/docker/docker/image"
 	"github.com/docker/docker/volume"
 	"github.com/docker/go-connections/nat"
+	"github.com/Sirupsen/logrus"
 )
 
 var acceptedVolumeFilterTags = map[string]bool{
@@ -162,11 +162,13 @@ func (daemon *Daemon) filterByNameIDMatches(view container.View, ctx *listContex
 	cntrs := make([]container.Snapshot, 0, len(matches))
 	for id := range matches {
 		c, err := view.Get(id)
-		if err != nil {
-			return nil, err
-		}
-		if c != nil {
+		switch err.(type) {
+		case nil:
 			cntrs = append(cntrs, *c)
+		case container.NoSuchContainerError:
+			// ignore error
+		default:
+			return nil, err
 		}
 	}
 
@@ -180,7 +182,7 @@ func (daemon *Daemon) filterByNameIDMatches(view container.View, ctx *listContex
 // reduceContainers parses the user's filtering options and generates the list of containers to return based on a reducer.
 func (daemon *Daemon) reduceContainers(config *types.ContainerListOptions, reducer containerReducer) ([]*types.Container, error) {
 	var (
-		view       = daemon.containersReplica.Snapshot(daemon.nameIndex)
+		view       = daemon.containersReplica.Snapshot()
 		containers = []*types.Container{}
 	)
 
@@ -359,7 +361,7 @@ func (daemon *Daemon) foldFilter(view container.View, config *types.ContainerLis
 		publish:              publishFilter,
 		expose:               exposeFilter,
 		ContainerListOptions: config,
-		names:                daemon.nameIndex.GetAll(),
+		names:                view.GetAllNames(),
 	}, nil
 }
 func portOp(key string, filter map[nat.Port]bool) func(value string) error {

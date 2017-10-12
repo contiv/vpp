@@ -25,6 +25,16 @@ keywords: "API, Docker, rcli, REST, documentation"
 * `POST /session` is a new endpoint that can be used for running interactive long-running protocols between client and
   the daemon. This endpoint is experimental and only available if the daemon is started with experimental features
   enabled.
+* `GET /images/(name)/get` now includes an `ImageMetadata` field which contains image metadata that is local to the engine and not part of the image config.
+* `POST /services/create` now accepts a `PluginSpec` when `TaskTemplate.Runtime` is set to `plugin`
+* `GET /events` now supports config events `create`, `update` and `remove` that are emitted when users create, update or remove a config
+* `GET /volumes/` and `GET /volumes/{name}` now return a `CreatedAt` field,
+  containing the date/time the volume was created. This field is omitted if the
+  creation date/time for the volume is unknown. For volumes with scope "global",
+  this field represents the creation date/time of the local _instance_ of the
+  volume, which may differ from instances of the same volume on different nodes.
+* `GET /system/df` now returns a `CreatedAt` field for `Volumes`. Refer to the
+  `/volumes/` endpoint for a description of this field.
 
 ## v1.30 API changes
 
@@ -42,6 +52,11 @@ keywords: "API, Docker, rcli, REST, documentation"
  generate and rotate to a new CA certificate/key pair.
 * `POST /service/create` and `POST /services/(id or name)/update` now take the field `Platforms` as part of the service `Placement`, allowing to specify platforms supported by the service.
 * `POST /containers/(name)/wait` now accepts a `condition` query parameter to indicate which state change condition to wait for. Also, response headers are now returned immediately to acknowledge that the server has registered a wait callback for the client.
+* `POST /swarm/init` now accepts a `DataPathAddr` property to set the IP-address or network interface to use for data traffic
+* `POST /swarm/join` now accepts a `DataPathAddr` property to set the IP-address or network interface to use for data traffic
+* `GET /events` now supports service, node and secret events which are emmited when users create, update and remove service, node and secret 
+* `GET /events` now supports network remove event which is emmitted when users remove a swarm scoped network
+* `GET /events` now supports a filter type `scope` in which supported value could be swarm and local
 
 ## v1.29 API changes
 
@@ -54,6 +69,8 @@ keywords: "API, Docker, rcli, REST, documentation"
 * `POST /containers/create`, `POST /service/create` and `POST /services/(id or name)/update` now takes the field `StartPeriod` as a part of the `HealthConfig` allowing for specification of a period during which the container should not be considered unhealthy even if health checks do not pass.
 * `GET /services/(id)` now accepts an `insertDefaults` query-parameter to merge default values into the service inspect output.
 * `POST /containers/prune`, `POST /images/prune`, `POST /volumes/prune`, and `POST /networks/prune` now support a `label` filter to filter containers, images, volumes, or networks based on the label. The format of the label filter could be `label=<key>`/`label=<key>=<value>` to remove those with the specified labels, or `label!=<key>`/`label!=<key>=<value>` to remove those without the specified labels.
+* `POST /services/create` now accepts `Privileges` as part of `ContainerSpec`. Privileges currently include
+  `CredentialSpec` and `SELinuxContext`.
 
 ## v1.28 API changes
 

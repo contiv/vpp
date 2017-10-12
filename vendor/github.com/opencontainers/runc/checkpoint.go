@@ -6,11 +6,12 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
-	"syscall"
 
 	"github.com/opencontainers/runc/libcontainer"
 	"github.com/opencontainers/runtime-spec/specs-go"
 	"github.com/urfave/cli"
+
+	"golang.org/x/sys/unix"
 )
 
 var checkpointCommand = cli.Command{
@@ -34,6 +35,7 @@ checkpointed.`,
 		cli.BoolFlag{Name: "pre-dump", Usage: "dump container's memory information only, leave the container running after this"},
 		cli.StringFlag{Name: "manage-cgroups-mode", Value: "", Usage: "cgroups mode: 'soft' (default), 'full' and 'strict'"},
 		cli.StringSliceFlag{Name: "empty-ns", Usage: "create a namespace, but don't restore its properties"},
+		cli.BoolFlag{Name: "auto-dedup", Usage: "enable auto deduplication of memory images"},
 	},
 	Action: func(context *cli.Context) error {
 		if err := checkArgs(context, 1, exactArgs); err != nil {
@@ -113,7 +115,7 @@ func setManageCgroupsMode(context *cli.Context, options *libcontainer.CriuOpts) 
 }
 
 var namespaceMapping = map[specs.LinuxNamespaceType]int{
-	specs.NetworkNamespace: syscall.CLONE_NEWNET,
+	specs.NetworkNamespace: unix.CLONE_NEWNET,
 }
 
 func setEmptyNsMask(context *cli.Context, options *libcontainer.CriuOpts) error {

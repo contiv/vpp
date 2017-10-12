@@ -10,7 +10,6 @@ import (
 	"os"
 	"runtime"
 
-	"github.com/Sirupsen/logrus"
 	"github.com/docker/distribution"
 	"github.com/docker/distribution/manifest/manifestlist"
 	"github.com/docker/distribution/manifest/schema1"
@@ -31,6 +30,7 @@ import (
 	refstore "github.com/docker/docker/reference"
 	"github.com/docker/docker/registry"
 	"github.com/opencontainers/go-digest"
+	"github.com/Sirupsen/logrus"
 	"golang.org/x/net/context"
 )
 
@@ -491,7 +491,7 @@ func (p *v2Puller) pullSchema1(ctx context.Context, ref reference.Named, unverif
 	// the history does, but unfortunately that's a string, so search through
 	// all the history until hopefully we find one which indicates the os.
 	platform := runtime.GOOS
-	if runtime.GOOS == "windows" && system.LCOWSupported() {
+	if system.LCOWSupported() {
 		type config struct {
 			Os string `json:"os,omitempty"`
 		}

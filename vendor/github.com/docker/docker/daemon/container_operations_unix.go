@@ -9,10 +9,8 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
-	"syscall"
 	"time"
 
-	"github.com/Sirupsen/logrus"
 	"github.com/docker/docker/container"
 	"github.com/docker/docker/daemon/links"
 	"github.com/docker/docker/pkg/idtools"
@@ -22,6 +20,8 @@ import (
 	"github.com/docker/libnetwork"
 	"github.com/opencontainers/selinux/go-selinux/label"
 	"github.com/pkg/errors"
+	"github.com/Sirupsen/logrus"
+	"golang.org/x/sys/unix"
 )
 
 func (daemon *Daemon) setupLinkedContainers(container *container.Container) ([]string, error) {
@@ -125,7 +125,7 @@ func (daemon *Daemon) setupIpcDirs(c *container.Container) error {
 				shmSize = c.HostConfig.ShmSize
 			}
 			shmproperty := "mode=1777,size=" + strconv.FormatInt(shmSize, 10)
-			if err := syscall.Mount("shm", shmPath, "tmpfs", uintptr(syscall.MS_NOEXEC|syscall.MS_NOSUID|syscall.MS_NODEV), label.FormatMountLabel(shmproperty, c.GetMountLabel())); err != nil {
+			if err := unix.Mount("shm", shmPath, "tmpfs", uintptr(unix.MS_NOEXEC|unix.MS_NOSUID|unix.MS_NODEV), label.FormatMountLabel(shmproperty, c.GetMountLabel())); err != nil {
 				return fmt.Errorf("mounting shm tmpfs: %s", err)
 			}
 			if err := os.Chown(shmPath, rootIDs.UID, rootIDs.GID); err != nil {
@@ -301,8 +301,8 @@ func killProcessDirectly(cntr *container.Container) error {
 		// Ensure that we don't kill ourselves
 		if pid := cntr.GetPID(); pid != 0 {
 			logrus.Infof("Container %s failed to exit within 10 seconds of kill - trying direct SIGKILL", stringid.TruncateID(cntr.ID))
-			if err := syscall.Kill(pid, 9); err != nil {
-				if err != syscall.ESRCH {
+			if err := unix.Kill(pid, 9); err != nil {
+				if err != unix.ESRCH {
 					return err
 				}
 				e := errNoSuchProcess{pid, 9}
@@ -315,7 +315,7 @@ func killProcessDirectly(cntr *container.Container) error {
 }
 
 func detachMounted(path string) error {
-	return syscall.Unmount(path, syscall.MNT_DETACH)
+	return unix.Unmount(path, unix.MNT_DETACH)
 }
 
 func isLinkable(child *container.Container) bool {
@@ -349,8 +349,9 @@ func setupPathsAndSandboxOptions(container *container.Container, sboxOptions *[]
 	return nil
 }
 
-func initializeNetworkingPaths(container *container.Container, nc *container.Container) {
+func (daemon *Daemon) initializeNetworkingPaths(container *container.Container, nc *container.Container) error {
 	container.HostnamePath = nc.HostnamePath
 	container.HostsPath = nc.HostsPath
 	container.ResolvConfPath = nc.ResolvConfPath
+	return nil
 }

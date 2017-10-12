@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/Sirupsen/logrus"
 	"github.com/docker/docker/api/types/backend"
 	"github.com/docker/docker/builder"
 	"github.com/docker/docker/builder/dockerfile/parser"
@@ -17,6 +16,7 @@ import (
 	"github.com/docker/docker/pkg/symlink"
 	"github.com/docker/docker/pkg/urlutil"
 	"github.com/pkg/errors"
+	"github.com/Sirupsen/logrus"
 )
 
 // ClientSessionRemote is identifier for client-session context transport
@@ -131,6 +131,7 @@ func removeDockerfile(c modifiableContext, filesToRemove ...string) error {
 	}
 	excludes, err := dockerignore.ReadAll(f)
 	if err != nil {
+		f.Close()
 		return err
 	}
 	f.Close()

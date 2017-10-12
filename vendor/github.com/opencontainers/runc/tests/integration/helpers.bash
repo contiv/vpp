@@ -18,7 +18,7 @@ HELLO_IMAGE="$TESTDATA/hello-world.tar"
 HELLO_BUNDLE="$BATS_TMPDIR/hello-world"
 
 # CRIU PATH
-CRIU="$(which criu)"
+CRIU="$(which criu || true)"
 
 # Kernel version
 KERNEL_VERSION="$(uname -r)"
@@ -55,7 +55,7 @@ function runc() {
 
 # Raw wrapper for runc.
 function __runc() {
-	"$RUNC" --root "$ROOT" "$@"
+	"$RUNC" --log /proc/self/fd/2 --root "$ROOT" "$@"
 }
 
 # Wrapper for runc spec.
@@ -80,29 +80,29 @@ function fail() {
 function requires() {
 	for var in "$@"; do
 		case $var in
-			criu)
-				if [ ! -e "$CRIU" ]; then
-					skip "test requires ${var}"
-				fi
-				;;
-			root)
-				if [ "$ROOTLESS" -ne 0 ]; then
-					skip "test requires ${var}"
-				fi
-				;;
-			cgroups_kmem)
-				if [ ! -e "$KMEM" ]; then
-					skip "Test requires ${var}."
-				fi
-				;;
-			cgroups_rt)
-				if [ ! -e "$RT_PERIOD" ]; then
-					skip "Test requires ${var}."
-				fi
-				;;
-			*)
-				fail "BUG: Invalid requires ${var}."
-				;;
+		criu)
+			if [ ! -e "$CRIU" ]; then
+				skip "test requires ${var}"
+			fi
+			;;
+		root)
+			if [ "$ROOTLESS" -ne 0 ]; then
+				skip "test requires ${var}"
+			fi
+			;;
+		cgroups_kmem)
+			if [ ! -e "$KMEM" ]; then
+				skip "Test requires ${var}."
+			fi
+			;;
+		cgroups_rt)
+			if [ ! -e "$RT_PERIOD" ]; then
+				skip "Test requires ${var}."
+			fi
+			;;
+		*)
+			fail "BUG: Invalid requires ${var}."
+			;;
 		esac
 	done
 }

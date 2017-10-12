@@ -171,6 +171,7 @@ type LinkXdp struct {
 	Fd       int
 	Attached bool
 	Flags    uint32
+	ProgId   uint32
 }
 
 // Device links cannot be created via netlink. These links
@@ -339,6 +340,7 @@ type Vxlan struct {
 	UDPCSum      bool
 	NoAge        bool
 	GBP          bool
+	FlowBased    bool
 	Age          int
 	Limit        int
 	Port         int
@@ -593,7 +595,11 @@ type Bond struct {
 	LacpRate        BondLacpRate
 	AdSelect        BondAdSelect
 	// looking at iproute tool AdInfo can only be retrived. It can't be set.
-	AdInfo *BondAdInfo
+	AdInfo         *BondAdInfo
+	AdActorSysPrio int
+	AdUserPortKey  int
+	AdActorSystem  net.HardwareAddr
+	TlbDynamicLb   int
 }
 
 func NewLinkBond(atr LinkAttrs) *Bond {
@@ -621,6 +627,10 @@ func NewLinkBond(atr LinkAttrs) *Bond {
 		PackersPerSlave: -1,
 		LacpRate:        -1,
 		AdSelect:        -1,
+		AdActorSysPrio:  -1,
+		AdUserPortKey:   -1,
+		AdActorSystem:   nil,
+		TlbDynamicLb:    -1,
 	}
 }
 
@@ -676,6 +686,7 @@ type Gretap struct {
 	EncapType  uint16
 	EncapFlags uint16
 	Link       uint32
+	FlowBased  bool
 }
 
 func (gretap *Gretap) Attrs() *LinkAttrs {

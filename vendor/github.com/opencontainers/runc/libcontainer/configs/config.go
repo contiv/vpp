@@ -7,8 +7,9 @@ import (
 	"os/exec"
 	"time"
 
-	"github.com/Sirupsen/logrus"
 	"github.com/opencontainers/runtime-spec/specs-go"
+
+	"github.com/Sirupsen/logrus"
 )
 
 type Rlimit struct {

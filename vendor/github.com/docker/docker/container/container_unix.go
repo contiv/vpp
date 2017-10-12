@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/Sirupsen/logrus"
 	"github.com/docker/docker/api/types"
 	containertypes "github.com/docker/docker/api/types/container"
 	mounttypes "github.com/docker/docker/api/types/mount"
@@ -20,6 +19,7 @@ import (
 	"github.com/docker/docker/pkg/system"
 	"github.com/docker/docker/volume"
 	"github.com/opencontainers/selinux/go-selinux/label"
+	"github.com/Sirupsen/logrus"
 	"golang.org/x/sys/unix"
 )
 
@@ -269,7 +269,7 @@ func (container *Container) UpdateContainer(hostConfig *containertypes.HostConfi
 	cResources := &container.HostConfig.Resources
 
 	// validate NanoCPUs, CPUPeriod, and CPUQuota
-	// Becuase NanoCPU effectively updates CPUPeriod/CPUQuota,
+	// Because NanoCPU effectively updates CPUPeriod/CPUQuota,
 	// once NanoCPU is already set, updating CPUPeriod/CPUQuota will be blocked, and vice versa.
 	// In the following we make sure the intended update (resources) does not conflict with the existing (cResource).
 	if resources.NanoCPUs > 0 && cResources.CPUPeriod > 0 {

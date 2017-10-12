@@ -7,13 +7,14 @@ import (
 	"os"
 	"strconv"
 	"strings"
-	"syscall"
 	"testing"
 	"time"
 
 	"github.com/opencontainers/runc/libcontainer"
 	"github.com/opencontainers/runc/libcontainer/configs"
 	"github.com/opencontainers/runc/libcontainer/utils"
+
+	"golang.org/x/sys/unix"
 )
 
 func TestExecIn(t *testing.T) {
@@ -122,7 +123,7 @@ func testExecInRlimit(t *testing.T, userns bool) {
 		Stderr: buffers.Stderr,
 		Rlimits: []configs.Rlimit{
 			// increase process rlimit higher than container rlimit to test per-process limit
-			{Type: syscall.RLIMIT_NOFILE, Hard: 1026, Soft: 1026},
+			{Type: unix.RLIMIT_NOFILE, Hard: 1026, Soft: 1026},
 		},
 	}
 	err = container.Run(ps)
@@ -233,7 +234,7 @@ func TestExecInError(t *testing.T) {
 			Cwd:    "/",
 			Args:   []string{"unexistent"},
 			Env:    standardEnvironment,
-			Stdout: &out,
+			Stderr: &out,
 		}
 		err = container.Run(unexistent)
 		if err == nil {
@@ -299,6 +300,7 @@ func TestExecInTTY(t *testing.T) {
 				err: err,
 			}
 		}
+		libcontainer.SaneTerminal(f)
 		dc <- &cdata{
 			c: libcontainer.ConsoleFromFile(f),
 		}
@@ -429,7 +431,13 @@ func TestExecinPassExtraFiles(t *testing.T) {
 
 	var stdout bytes.Buffer
 	pipeout1, pipein1, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
 	pipeout2, pipein2, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
 	inprocess := &libcontainer.Process{
 		Cwd:        "/",
 		Args:       []string{"sh", "-c", "cd /proc/$$/fd; echo -n *; echo -n 1 >3; echo -n 2 >4"},

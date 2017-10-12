@@ -2,7 +2,6 @@ package specconv
 
 import (
 	"os"
-	"runtime"
 	"strings"
 
 	"github.com/opencontainers/runtime-spec/specs-go"
@@ -15,15 +14,11 @@ func sPtr(s string) *string { return &s }
 func Example() *specs.Spec {
 	return &specs.Spec{
 		Version: specs.Version,
-		Platform: specs.Platform{
-			OS:   runtime.GOOS,
-			Arch: runtime.GOARCH,
-		},
-		Root: specs.Root{
+		Root: &specs.Root{
 			Path:     "rootfs",
 			Readonly: true,
 		},
-		Process: specs.Process{
+		Process: &specs.Process{
 			Terminal: true,
 			User:     specs.User{},
 			Args: []string{
@@ -62,7 +57,7 @@ func Example() *specs.Spec {
 					"CAP_NET_BIND_SERVICE",
 				},
 			},
-			Rlimits: []specs.LinuxRlimit{
+			Rlimits: []specs.POSIXRlimit{
 				{
 					Type: "RLIMIT_NOFILE",
 					Hard: uint64(1024),

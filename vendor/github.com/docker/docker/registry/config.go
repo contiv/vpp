@@ -8,11 +8,11 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/Sirupsen/logrus"
 	"github.com/docker/distribution/reference"
 	registrytypes "github.com/docker/docker/api/types/registry"
 	"github.com/docker/docker/opts"
 	"github.com/pkg/errors"
+	"github.com/Sirupsen/logrus"
 	"github.com/spf13/pflag"
 )
 
@@ -252,7 +252,7 @@ skip:
 	return nil
 }
 
-// allowNondistributableArtifacts returns true if the provided hostname is part of the list of regsitries
+// allowNondistributableArtifacts returns true if the provided hostname is part of the list of registries
 // that allow push of nondistributable artifacts.
 //
 // The list can contain elements with CIDR notation to specify a whole subnet. If the subnet contains an IP

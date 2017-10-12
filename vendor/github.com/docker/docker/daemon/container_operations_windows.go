@@ -5,11 +5,11 @@ import (
 	"io/ioutil"
 	"os"
 
-	"github.com/Sirupsen/logrus"
 	"github.com/docker/docker/container"
 	"github.com/docker/docker/pkg/system"
 	"github.com/docker/libnetwork"
 	"github.com/pkg/errors"
+	"github.com/Sirupsen/logrus"
 )
 
 func (daemon *Daemon) setupLinkedContainers(container *container.Container) ([]string, error) {
@@ -160,6 +160,43 @@ func setupPathsAndSandboxOptions(container *container.Container, sboxOptions *[]
 	return nil
 }
 
-func initializeNetworkingPaths(container *container.Container, nc *container.Container) {
+func (daemon *Daemon) initializeNetworkingPaths(container *container.Container, nc *container.Container) error {
+
+	if nc.HostConfig.Isolation.IsHyperV() {
+		return fmt.Errorf("sharing of hyperv containers network is not supported")
+	}
+
 	container.NetworkSharedContainerID = nc.ID
+
+	if nc.NetworkSettings != nil {
+		for n := range nc.NetworkSettings.Networks {
+			sn, err := daemon.FindNetwork(n)
+			if err != nil {
+				continue
+			}
+
+			ep, err := nc.GetEndpointInNetwork(sn)
+			if err != nil {
+				continue
+			}
+
+			data, err := ep.DriverInfo()
+			if err != nil {
+				continue
+			}
+
+			if data["GW_INFO"] != nil {
+				gwInfo := data["GW_INFO"].(map[string]interface{})
+				if gwInfo["hnsid"] != nil {
+					container.SharedEndpointList = append(container.SharedEndpointList, gwInfo["hnsid"].(string))
+				}
+			}
+
+			if data["hnsid"] != nil {
+				container.SharedEndpointList = append(container.SharedEndpointList, data["hnsid"].(string))
+			}
+		}
+	}
+
+	return nil
 }

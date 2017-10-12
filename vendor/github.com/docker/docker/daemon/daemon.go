@@ -18,17 +18,19 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Sirupsen/logrus"
 	containerd "github.com/containerd/containerd/api/grpc/types"
 	"github.com/docker/docker/api"
 	"github.com/docker/docker/api/types"
 	containertypes "github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types/swarm"
 	"github.com/docker/docker/container"
 	"github.com/docker/docker/daemon/config"
 	"github.com/docker/docker/daemon/discovery"
 	"github.com/docker/docker/daemon/events"
 	"github.com/docker/docker/daemon/exec"
 	"github.com/docker/docker/daemon/logger"
+	"github.com/docker/docker/opts"
+	"github.com/Sirupsen/logrus"
 	// register graph drivers
 	_ "github.com/docker/docker/daemon/graphdriver/register"
 	"github.com/docker/docker/daemon/initlayer"
@@ -42,8 +44,6 @@ import (
 	"github.com/docker/docker/migrate/v1"
 	"github.com/docker/docker/pkg/idtools"
 	"github.com/docker/docker/pkg/plugingetter"
-	"github.com/docker/docker/pkg/registrar"
-	"github.com/docker/docker/pkg/signal"
 	"github.com/docker/docker/pkg/sysinfo"
 	"github.com/docker/docker/pkg/system"
 	"github.com/docker/docker/pkg/truncindex"
@@ -105,13 +105,13 @@ type Daemon struct {
 	stores                map[string]daemonStore // By container target platform
 	PluginStore           *plugin.Store          // todo: remove
 	pluginManager         *plugin.Manager
-	nameIndex             *registrar.Registrar
 	linkIndex             *linkIndex
 	containerd            libcontainerd.Client
 	containerdRemote      libcontainerd.Remote
 	defaultIsolation      containertypes.Isolation // Default isolation mode on Windows
 	clusterProvider       cluster.Provider
 	cluster               Cluster
+	genericResources      []swarm.GenericResource
 	metricsPluginListener net.Listener
 
 	machineMemory uint64
@@ -449,8 +449,8 @@ func (daemon *Daemon) parents(c *container.Container) map[string]*container.Cont
 
 func (daemon *Daemon) registerLink(parent, child *container.Container, alias string) error {
 	fullName := path.Join(parent.Name, alias)
-	if err := daemon.nameIndex.Reserve(fullName, child.ID); err != nil {
-		if err == registrar.ErrNameReserved {
+	if err := daemon.containersReplica.ReserveName(fullName, child.ID); err != nil {
+		if err == container.ErrNameReserved {
 			logrus.Warnf("error registering link for %s, to %s, as alias %s, ignoring: %v", parent.ID, child.ID, alias, err)
 			return nil
 		}
@@ -569,6 +569,9 @@ func NewDaemon(config *config.Config, registryService registry.Service, containe
 		}
 	}()
 
+	if err := d.setGenericResources(config); err != nil {
+		return nil, err
+	}
 	// set up SIGUSR1 handler on Unix-like systems, or a Win32 global event
 	// on Windows to dump Go routine stacks
 	stackDumpDir := config.Root
@@ -623,6 +626,8 @@ func NewDaemon(config *config.Config, registryService registry.Service, containe
 		driverName := os.Getenv("DOCKER_DRIVER")
 		if driverName == "" {
 			driverName = config.GraphDriver
+		} else {
+			logrus.Infof("Setting the storage driver from the $DOCKER_DRIVER environment variable (%s)", driverName)
 		}
 		d.stores[runtime.GOOS] = daemonStore{graphDriver: driverName} // May still be empty. Layerstore init determines instead.
 	}
@@ -781,7 +786,6 @@ func NewDaemon(config *config.Config, registryService registry.Service, containe
 	d.seccompEnabled = sysInfo.Seccomp
 	d.apparmorEnabled = sysInfo.AppArmor
 
-	d.nameIndex = registrar.NewRegistrar()
 	d.linkIndex = newLinkIndex()
 	d.containerdRemote = containerdRemote
 
@@ -838,42 +842,7 @@ func (daemon *Daemon) waitForStartupDone() {
 
 func (daemon *Daemon) shutdownContainer(c *container.Container) error {
 	stopTimeout := c.StopTimeout()
-	// TODO(windows): Handle docker restart with paused containers
-	if c.IsPaused() {
-		// To terminate a process in freezer cgroup, we should send
-		// SIGTERM to this process then unfreeze it, and the process will
-		// force to terminate immediately.
-		logrus.Debugf("Found container %s is paused, sending SIGTERM before unpausing it", c.ID)
-		sig, ok := signal.SignalMap["TERM"]
-		if !ok {
-			return errors.New("System does not support SIGTERM")
-		}
-		if err := daemon.kill(c, int(sig)); err != nil {
-			return fmt.Errorf("sending SIGTERM to container %s with error: %v", c.ID, err)
-		}
-		if err := daemon.containerUnpause(c); err != nil {
-			return fmt.Errorf("Failed to unpause container %s with error: %v", c.ID, err)
-		}
 
-		ctx, cancel := context.WithTimeout(context.Background(), time.Duration(stopTimeout)*time.Second)
-		defer cancel()
-
-		// Wait with timeout for container to exit.
-		if status := <-c.Wait(ctx, container.WaitConditionNotRunning); status.Err() != nil {
-			logrus.Debugf("container %s failed to exit in %d second of SIGTERM, sending SIGKILL to force", c.ID, stopTimeout)
-			sig, ok := signal.SignalMap["KILL"]
-			if !ok {
-				return errors.New("System does not support SIGKILL")
-			}
-			if err := daemon.kill(c, int(sig)); err != nil {
-				logrus.Errorf("Failed to SIGKILL container %s", c.ID)
-			}
-			// Wait for exit again without a timeout.
-			// Explicitly ignore the result.
-			_ = <-c.Wait(context.Background(), container.WaitConditionNotRunning)
-			return status.Err()
-		}
-	}
 	// If container failed to exit in stopTimeout seconds of SIGTERM, then using the force
 	if err := daemon.containerStop(c, stopTimeout); err != nil {
 		return fmt.Errorf("Failed to stop container %s with error: %v", c.ID, err)
@@ -1072,6 +1041,17 @@ func (daemon *Daemon) setupInitLayer(initPath string) error {
 	return initlayer.Setup(initPath, rootIDs)
 }
 
+func (daemon *Daemon) setGenericResources(conf *config.Config) error {
+	genericResources, err := opts.ParseGenericResources(conf.NodeGenericResources)
+	if err != nil {
+		return err
+	}
+
+	daemon.genericResources = genericResources
+
+	return nil
+}
+
 func setDefaultMtu(conf *config.Config) {
 	// do nothing if the config does not have the default 0 value.
 	if conf.Mtu != 0 {
@@ -1169,6 +1149,8 @@ func (daemon *Daemon) networkOptions(dconfig *config.Config, pg plugingetter.Plu
 		options = append(options, nwconfig.OptionPluginGetter(pg))
 	}
 
+	options = append(options, nwconfig.OptionNetworkControlPlaneMTU(dconfig.NetworkControlPlaneMTU))
+
 	return options, nil
 }
 
@@ -1242,4 +1224,12 @@ func (daemon *Daemon) checkpointAndSave(container *container.Container) error {
 		return fmt.Errorf("Error saving container state: %v", err)
 	}
 	return nil
+}
+
+// because the CLI sends a -1 when it wants to unset the swappiness value
+// we need to clear it on the server side
+func fixMemorySwappiness(resources *containertypes.Resources) {
+	if resources.MemorySwappiness != nil && *resources.MemorySwappiness == -1 {
+		resources.MemorySwappiness = nil
+	}
 }

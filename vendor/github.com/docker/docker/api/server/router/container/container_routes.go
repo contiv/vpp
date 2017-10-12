@@ -8,7 +8,6 @@ import (
 	"strconv"
 	"syscall"
 
-	"github.com/Sirupsen/logrus"
 	"github.com/docker/docker/api"
 	"github.com/docker/docker/api/server/httputils"
 	"github.com/docker/docker/api/types"
@@ -19,6 +18,7 @@ import (
 	containerpkg "github.com/docker/docker/container"
 	"github.com/docker/docker/pkg/ioutils"
 	"github.com/docker/docker/pkg/signal"
+	"github.com/Sirupsen/logrus"
 	"golang.org/x/net/context"
 	"golang.org/x/net/websocket"
 )
@@ -102,7 +102,7 @@ func (s *containerRouter) getContainersLogs(ctx context.Context, w http.Response
 	}
 
 	// doesn't matter what version the client is on, we're using this internally only
-	// also do we need size? i'm thinkin no we don't
+	// also do we need size? i'm thinking no we don't
 	raw, err := s.backend.ContainerInspect(containerName, false, api.DefaultVersion)
 	if err != nil {
 		return err

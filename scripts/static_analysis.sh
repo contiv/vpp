@@ -13,10 +13,12 @@ function static_analysis() {
   local CMD=$(${TOOL} "${PWD}/cmd${SELECTOR}")
   local FLAVORS=$(${TOOL} "${PWD}/flavors${SELECTOR}")
   local PLUGINS=$(${TOOL} "${PWD}/plugins${SELECTOR}")
+  local PKG=$(${TOOL} "${PWD}/pkg${SELECTOR}")
 
   local ALL="$CMD
 $PLUGINS
 $FLAVORS
+$PKG
 "
 
   local OUT=$(echo "${ALL}" | grep -F "${FILES}" | grep -v "${WHITELIST_ERRORS}")

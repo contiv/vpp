@@ -135,6 +135,7 @@ func execProcess(context *cli.Context) (int, error) {
 		consoleSocket:   context.String("console-socket"),
 		detach:          detach,
 		pidFile:         context.String("pid-file"),
+		action:          CT_ACT_RUN,
 	}
 	return r.run(p)
 }
@@ -207,5 +208,5 @@ func getProcess(context *cli.Context, bundle string) (*specs.Process, error) {
 		}
 		p.User.UID = uint32(uid)
 	}
-	return &p, nil
+	return p, nil
 }

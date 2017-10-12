@@ -17,8 +17,6 @@ function teardown() {
   [ "$status" -eq 0 ]
 
   # check state
-  wait_for_container 15 1 test_busybox
-
   testcontainer test_busybox running
 
   runc kill test_busybox KILL
@@ -40,8 +38,6 @@ function teardown() {
   [ "$status" -eq 0 ]
 
   # check state
-  wait_for_container 15 1 test_busybox
-
   testcontainer test_busybox running
 
   # force delete test_busybox
@@ -49,4 +45,9 @@ function teardown() {
 
   runc state test_busybox
   [ "$status" -ne 0 ]
+}
+
+@test "runc delete --force ignore not exist" {
+  runc delete --force notexists
+  [ "$status" -eq 0 ]
 }

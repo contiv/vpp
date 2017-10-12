@@ -7,7 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Sirupsen/logrus"
 	apierrors "github.com/docker/docker/api/errors"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/container"
@@ -15,6 +14,7 @@ import (
 	"github.com/docker/docker/pkg/system"
 	volumestore "github.com/docker/docker/volume/store"
 	"github.com/pkg/errors"
+	"github.com/Sirupsen/logrus"
 )
 
 // ContainerRm removes the container id from the filesystem. An error
@@ -60,7 +60,7 @@ func (daemon *Daemon) rmLink(container *container.Container, name string) error 
 	}
 
 	parent = strings.TrimSuffix(parent, "/")
-	pe, err := daemon.nameIndex.Get(parent)
+	pe, err := daemon.containersReplica.Snapshot().GetID(parent)
 	if err != nil {
 		return fmt.Errorf("Cannot get parent %s for name %s", parent, name)
 	}
@@ -119,7 +119,7 @@ func (daemon *Daemon) cleanupContainer(container *container.Container, forceRemo
 	if container.RWLayer != nil {
 		metadata, err := daemon.stores[container.Platform].layerStore.ReleaseRWLayer(container.RWLayer)
 		layer.LogReleaseMetadata(metadata)
-		if err != nil && err != layer.ErrMountDoesNotExist {
+		if err != nil && err != layer.ErrMountDoesNotExist && !os.IsNotExist(errors.Cause(err)) {
 			return errors.Wrapf(err, "driver %q failed to remove root filesystem for %s", daemon.GraphDriverName(container.Platform), container.ID)
 		}
 	}
@@ -128,7 +128,6 @@ func (daemon *Daemon) cleanupContainer(container *container.Container, forceRemo
 		return errors.Wrapf(err, "unable to remove filesystem for %s", container.ID)
 	}
 
-	daemon.nameIndex.Delete(container.ID)
 	daemon.linkIndex.delete(container)
 	selinuxFreeLxcContexts(container.ProcessLabel)
 	daemon.idIndex.Delete(container.ID)

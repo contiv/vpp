@@ -6,8 +6,8 @@ import (
 	"net"
 	"os"
 
-	"github.com/Sirupsen/logrus"
 	"github.com/docker/go-connections/sockets"
+	"github.com/Sirupsen/logrus"
 )
 
 // Init creates new listeners for the server.

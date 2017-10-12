@@ -5,13 +5,15 @@ import (
 	"bytes"
 	"io/ioutil"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
-	"syscall"
 	"testing"
 
 	"github.com/opencontainers/runc/libcontainer"
 	"github.com/opencontainers/runc/libcontainer/configs"
+
+	"golang.org/x/sys/unix"
 )
 
 func showFile(t *testing.T, fname string) error {
@@ -38,7 +40,22 @@ func showFile(t *testing.T, fname string) error {
 	return nil
 }
 
+func TestUsernsCheckpoint(t *testing.T) {
+	if _, err := os.Stat("/proc/self/ns/user"); os.IsNotExist(err) {
+		t.Skip("userns is unsupported")
+	}
+	cmd := exec.Command("criu", "check", "--feature", "userns")
+	if err := cmd.Run(); err != nil {
+		t.Skip("Unable to c/r a container with userns")
+	}
+	testCheckpoint(t, true)
+}
+
 func TestCheckpoint(t *testing.T) {
+	testCheckpoint(t, false)
+}
+
+func testCheckpoint(t *testing.T, userns bool) {
 	if testing.Short() {
 		return
 	}
@@ -59,8 +76,14 @@ func TestCheckpoint(t *testing.T) {
 	config.Mounts = append(config.Mounts, &configs.Mount{
 		Destination: "/sys/fs/cgroup",
 		Device:      "cgroup",
-		Flags:       defaultMountFlags | syscall.MS_RDONLY,
+		Flags:       defaultMountFlags | unix.MS_RDONLY,
 	})
+
+	if userns {
+		config.UidMappings = []configs.IDMap{{HostID: 0, ContainerID: 0, Size: 1000}}
+		config.GidMappings = []configs.IDMap{{HostID: 0, ContainerID: 0, Size: 1000}}
+		config.Namespaces = append(config.Namespaces, configs.Namespace{Type: configs.NEWUSER})
+	}
 
 	factory, err := libcontainer.New(root, libcontainer.Cgroupfs)
 
@@ -157,7 +180,7 @@ func TestCheckpoint(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if state != libcontainer.Running {
+	if state != libcontainer.Stopped {
 		t.Fatal("Unexpected state checkpoint: ", state)
 	}
 

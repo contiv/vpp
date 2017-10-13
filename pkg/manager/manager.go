@@ -189,24 +189,32 @@ func (s *ContivshimManager) CreateContainer(ctx context.Context, req *kubeapi.Cr
 	// 1. Decide on the info passed and create secrets
 	// 2. Error handling if CreateContainer fails
 	// 3. Check if Close should be called
-	labels := req.Config.Labels
+	labels := req.SandboxConfig.GetLabels()
 	for labelKey, labelValue := range labels {
 		if strings.HasPrefix(labelKey, "LD_PRELOAD_") {
+			labelValue = strings.Replace(labelValue, ".", "/", -1)
+			labelValue = "/" + labelValue
 			env := &kubeapi.KeyValue{
 				Key:   labelKey,
 				Value: labelValue,
 			}
 			req.Config.Envs = append(req.Config.Envs, env)
 		} else if strings.HasPrefix(labelKey, "HOST_PATH_") {
+			labelValue = labelValue[15:]
+			labelValue = strings.Replace(labelValue, ".", "/", -1)
+			labelValue = "/" + labelValue
+			labelKey = labelKey[10:]
+			labelKey = strings.Replace(labelKey, ".", "/", -1)
+			labelKey = "/" + labelKey
 			mount := &kubeapi.Mount{
 				ContainerPath: labelValue,
-				HostPath:      labelKey[10:],
+				HostPath:      labelKey,
 			}
 			req.Config.Mounts = append(req.Config.Mounts, mount)
 		}
 	}
 
-	glog.V(1).Infoln("This is sparta: %v", req.Config)
+	glog.V(1).Infof("CreateContainer cofig: %v", req.Config)
 	containerID, err := s.dockerRuntimeService.CreateContainer(req.PodSandboxId, req.Config, req.SandboxConfig)
 
 	if err != nil {

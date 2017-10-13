@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"strings"
 	"syscall"
 	"time"
 
@@ -51,6 +52,7 @@ type ContivshimManager struct {
 	server *grpc.Server
 	// The etcdv3 client
 	etcdEndpoint *string
+	etcdClient   keyval.ProtoBroker
 	// The runtime interface
 	dockerRuntimeService criruntime.RuntimeService
 	dockerImageService   criruntime.ImageManagerService
@@ -69,7 +71,11 @@ func NewContivshimManager(
 		dockerImageService:   dockerImageService,
 	}
 	s.registerServer()
-
+	cli, err := newEtcdClient(s.etcdEndpoint)
+	if err != nil {
+		glog.Errorf("Could not connect to ETCD instance %v", err)
+	}
+	s.etcdClient = cli
 	return s, nil
 }
 
@@ -114,14 +120,9 @@ func (s *ContivshimManager) RunPodSandbox(ctx context.Context, req *kubeapi.RunP
 	// 1. Decide on the info passed
 	// 2. Error handling if RunPodSandbox fails
 	// 3. Check if Close should be called
-	cli, err := newEtcdClient(s.etcdEndpoint)
-	if err != nil {
-		glog.V(3).Infof("Could not create etcdClient and connect to etcd")
-		return nil, err
-	}
 	namespace := req.Config.Metadata.Namespace
 	reqvalue := &kubeapi.PodSandboxMetadata{Namespace: namespace}
-	cli.Put("contiv", reqvalue)
+	s.etcdClient.Put("contiv", reqvalue)
 	// req.Config holds additional POD information to be configureds
 	resp, err := s.dockerRuntimeService.RunPodSandbox(req.Config)
 	if err != nil {
@@ -188,13 +189,32 @@ func (s *ContivshimManager) CreateContainer(ctx context.Context, req *kubeapi.Cr
 	// 1. Decide on the info passed and create secrets
 	// 2. Error handling if CreateContainer fails
 	// 3. Check if Close should be called
-	env := &kubeapi.KeyValue{
-		Key:   "LD_PRELOAD",
-		Value: "/var/mount",
+	labels := req.SandboxConfig.GetLabels()
+	for labelKey, labelValue := range labels {
+		if strings.HasPrefix(labelKey, "LD_PRELOAD_") {
+			labelValue = strings.Replace(labelValue, ".", "/", -1)
+			labelValue = "/" + labelValue
+			env := &kubeapi.KeyValue{
+				Key:   labelKey,
+				Value: labelValue,
+			}
+			req.Config.Envs = append(req.Config.Envs, env)
+		} else if strings.HasPrefix(labelKey, "HOST_PATH_") {
+			labelValue = labelValue[15:]
+			labelValue = strings.Replace(labelValue, ".", "/", -1)
+			labelValue = "/" + labelValue
+			labelKey = labelKey[10:]
+			labelKey = strings.Replace(labelKey, ".", "/", -1)
+			labelKey = "/" + labelKey
+			mount := &kubeapi.Mount{
+				ContainerPath: labelValue,
+				HostPath:      labelKey,
+			}
+			req.Config.Mounts = append(req.Config.Mounts, mount)
+		}
 	}
-	req.Config.Envs = append(req.Config.Envs, env)
 
-	glog.V(1).Infoln("This is sparta: %v", req.Config)
+	glog.V(1).Infof("CreateContainer config: %v", req.Config)
 	containerID, err := s.dockerRuntimeService.CreateContainer(req.PodSandboxId, req.Config, req.SandboxConfig)
 
 	if err != nil {
@@ -465,15 +485,20 @@ func newEtcdClient(etcdEndpoint *string) (keyval.ProtoBroker, error) {
 		Keyfile:               "",
 		CAfile:                "",
 	}
+	db := &etcdv3.BytesConnectionEtcd{}
+	ok := true
 	cfg, err := etcdv3.ConfigToClientv3(config)
 	if err != nil {
 		return nil, err
 	}
 
-	db, err := etcdv3.NewEtcdConnectionWithBytes(*cfg, logroot.StandardLogger())
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+	for ok {
+		db, err = etcdv3.NewEtcdConnectionWithBytes(*cfg, logroot.StandardLogger())
+		if err != nil {
+			glog.Errorf("Could not connect to etcd, retrying...: %v", err)
+		} else {
+			break
+		}
 	}
 
 	// Initialize proto decorator.

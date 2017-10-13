@@ -21,7 +21,7 @@ BRANCH_NAME="master"
 SKIP_UPLOAD="false"
 
 # list of images we are tagging & pushing
-IMAGES=("vswitch" "cni" "ksr")
+IMAGES=("vswitch" "cni" "ksr" "cri")
 
 # override defaults from arguments
 while [ "$1" != "" ]; do

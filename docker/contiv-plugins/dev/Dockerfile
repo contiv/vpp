@@ -23,7 +23,8 @@ ENV PATH $PATH:$GOROOT/bin:$GOPATH/bin
 # build
 RUN cd $GOPATH/src/github.com/contiv/vpp && \
     make contiv-cni && \
-    make contiv-ksr
+    make contiv-ksr && \
+    make contiv-cri
 
 # run shell by default
 CMD ["/bin/sh"]

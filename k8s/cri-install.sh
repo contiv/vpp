@@ -39,8 +39,8 @@ docker run -dit --restart always --name contiv-cri \
     -v /etc/kubernetes:/etc/kubernetes:ro \
     -v /etc/cni:/etc/cni \
     -v /opt/cni/bin:/opt/cni/bin \
-    dev-contiv-vswitch:0.0.1-68-ga8601bf \
-    /root/go/bin/contiv-cri --etcd-endpoint "127.0.0.1:6666"
+    contivvpp/cri \
+    /root/contiv-cri --etcd-endpoint "127.0.0.1:6666"
 
 
 if [ -f "${KUBELET_CFG_FILE}" ]; then

@@ -21,18 +21,16 @@ IMAGE=${1}
 
 # run the dev image as the "extract" container
 echo "extracting binaries from ${IMAGE}"
-CID=$(sudo docker run -itd ${IMAGE} bash)
+CID=$(sudo docker run -itd ${IMAGE} sh)
 
 # prepare the folder with the binaries
 rm -rf binaries
 mkdir -p binaries
 
 # extract the binaries into the binaries/ folder
-sudo docker cp ${CID}:/root/go/bin/contiv-agent binaries/
-
-# extract VPP binaries
-sudo docker exec ${CID} /bin/bash -c 'mkdir -p /root/vpp && cp /opt/vpp-agent/dev/vpp/build-root/*.deb /root/vpp/ && cd /root && tar -zcvf /root/vpp.tar.gz vpp/*'
-sudo docker cp ${CID}:/root/vpp.tar.gz binaries/
+sudo docker cp ${CID}:/root/go/src/github.com/contiv/vpp/cmd/contiv-cni/contiv-cni binaries/
+sudo docker cp ${CID}:/root/go/src/github.com/contiv/vpp/cmd/contiv-ksr/contiv-ksr binaries/
+sudo docker cp ${CID}:/root/cni/loopback binaries/
 
 # delete the "extract" container
 sudo docker rm -f ${CID}

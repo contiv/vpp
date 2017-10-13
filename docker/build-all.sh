@@ -40,10 +40,10 @@ while [ "$1" != "" ]; do
     shift
 done
 
-# builds contiv-vswitch (a specific VPP commit ID can be specified as the argument of the build.sh script)
-cd contiv-vswitch
+# builds all Ubuntu -based images
+cd ubuntu-based
 ./build.sh
 
-# builds all contiv plugins
-cd ../contiv-plugins
+# builds all Alpine Linux -based images
+cd ../alpine-based
 ./build.sh

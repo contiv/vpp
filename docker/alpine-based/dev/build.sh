@@ -16,13 +16,12 @@
 # fail in case of error
 set -e
 
-# obtain the current git tag for tagging the Docker images
-TAG=`git describe --tags`
+# obtain the tag for tagging the Docker images from the argument (if not passed in, default to "latest")
+TAG=${1-latest}
 
-# build development image
-cd dev
-./build.sh ${TAG}
+# the build needs to be executed from the github repository root, so that we can add
+# all the source files without the need of cloning them:
+cd ../../../
 
-# build production image
-cd ../prod
-./build.sh ${TAG}
+# execute the build
+sudo docker build -f docker/alpine-based/dev/Dockerfile -t dev-contiv-plugins:${TAG} ${DOCKER_BUILD_ARGS} --no-cache --force-rm=true .

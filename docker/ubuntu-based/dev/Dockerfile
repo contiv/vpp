@@ -36,7 +36,7 @@ RUN cd $GOPATH/src/github.com/contiv/vpp && \
     make install
 
 # add supervisord config file
-COPY docker/contiv-vswitch/dev/supervisord.conf /etc/supervisord.conf
+COPY docker/ubuntu-based/dev/supervisord.conf /etc/supervisord.conf
 
 # run supervisord as the default executable
 CMD ["/usr/bin/supervisord", "-c", "/etc/supervisord.conf"]

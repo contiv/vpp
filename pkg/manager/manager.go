@@ -71,11 +71,14 @@ func NewContivshimManager(
 		dockerImageService:   dockerImageService,
 	}
 	s.registerServer()
-	cli, err := newEtcdClient(s.etcdEndpoint)
-	if err != nil {
-		glog.Errorf("Could not connect to ETCD instance %v", err)
-	}
-	s.etcdClient = cli
+
+	// rastislavszabo: commenting ETCD stuff out for now...
+	//cli, err := newEtcdClient(s.etcdEndpoint)
+	//if err != nil {
+	//	glog.Errorf("Could not connect to ETCD instance %v", err)
+	//}
+	//s.etcdClient = cli
+
 	return s, nil
 }
 
@@ -120,9 +123,12 @@ func (s *ContivshimManager) RunPodSandbox(ctx context.Context, req *kubeapi.RunP
 	// 1. Decide on the info passed
 	// 2. Error handling if RunPodSandbox fails
 	// 3. Check if Close should be called
-	namespace := req.Config.Metadata.Namespace
-	reqvalue := &kubeapi.PodSandboxMetadata{Namespace: namespace}
-	s.etcdClient.Put("contiv", reqvalue)
+
+	// rastislavszabo: commenting ETCD stuff out for now...
+	//namespace := req.Config.Metadata.Namespace
+	//reqvalue := &kubeapi.PodSandboxMetadata{Namespace: namespace}
+	//s.etcdClient.Put("contiv", reqvalue)
+
 	// req.Config holds additional POD information to be configureds
 	resp, err := s.dockerRuntimeService.RunPodSandbox(req.Config)
 	if err != nil {

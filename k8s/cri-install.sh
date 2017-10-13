@@ -78,3 +78,5 @@ else
    echo "Unable to find Kubelet config file in ${KUBELET_CFG_DIR}. Please manually configure Kubelet to start with the following arguments:"
    echo "${KUBELET_CRI_CONFIG}"
 fi
+
+echo "Now, please continue with kubeadm init, or reboot the node."

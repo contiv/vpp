@@ -25,3 +25,5 @@ docker rm contiv-cri
 
 # TODO: unconfigure from Kubelet config file & restart Kubelet
 echo "Please unconfigure the CRI shim from Kubelet config file in /etc/systemd/system/kubelet.service.d/ manually"
+
+echo "Then, please continue with kubeadm init, or reboot the node."

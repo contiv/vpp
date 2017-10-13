@@ -214,7 +214,7 @@ func (s *ContivshimManager) CreateContainer(ctx context.Context, req *kubeapi.Cr
 		}
 	}
 
-	glog.V(1).Infof("CreateContainer cofig: %v", req.Config)
+	glog.V(1).Infof("CreateContainer config: %v", req.Config)
 	containerID, err := s.dockerRuntimeService.CreateContainer(req.PodSandboxId, req.Config, req.SandboxConfig)
 
 	if err != nil {

@@ -15,16 +15,17 @@
 
 CONTIVSHIM_SOCKET_FILE="/var/run/contivshim.sock"
 
-KUBELET_CFG_FILE="/etc/systemd/system/kubelet.service.d/10-kubeadm.conf"
+KUBELET_CFG_DIR="/etc/systemd/system/kubelet.service.d/"
+
 KUBELET_CRI_CONFIG="--container-runtime=remote --container-runtime-endpoint=${CONTIVSHIM_SOCKET_FILE} --runtime-request-timeout=30m"
 
 # Make sure only root can run this script
 if [[ $EUID -ne 0 ]]; then
-   echo "This script must be run as root." 1>&2
+   echo "ERROR: This script must be run as root." 1>&2
    exit 1
 fi
 
-echo "Starting contiv-cri container."
+echo "Starting contiv-cri Docker container:"
 docker run -dit --restart always --name contiv-cri \
     --privileged \
     --net=host \
@@ -43,6 +44,16 @@ docker run -dit --restart always --name contiv-cri \
     /root/contiv-cri --etcd-endpoint "127.0.0.1:6666"
 
 
+# look for config files in KUBELET_CFG_DIR
+KUBELET_CFG_FILE=""
+for file in ${KUBELET_CFG_DIR}*
+do
+    if [[ -f ${file} ]]; then
+        KUBELET_CFG_FILE=${file}
+    fi
+done
+
+# modify the Kubelet config file
 if [ -f "${KUBELET_CFG_FILE}" ]; then
    # Kubelet config file found
    echo "Processing Kubelet config in ${KUBELET_CFG_FILE}"
@@ -58,12 +69,12 @@ if [ -f "${KUBELET_CFG_FILE}" ]; then
             echo "Adding KUBELET_EXTRA_ARGS."
             sed -i '/Service/ a Environment="KUBELET_EXTRA_ARGS='"${KUBELET_CRI_CONFIG}"'"' "${KUBELET_CFG_FILE}"
         fi
-        echo "Contiv CRI shim configured. Reloading systemctl daemon."
+        echo "Contiv CRI shim configured. Restarting Kubelet."
         systemctl daemon-reload
-        #systemctl restart kubelet
+        systemctl restart kubelet
     fi
 else
     # Kubelet config file not found
-   echo "File ${KUBELET_CFG_FILE} does not exist. Please manually configure Kubelet to start with the following arguments:"
+   echo "Unable to find Kubelet config file in ${KUBELET_CFG_DIR}. Please manually configure Kubelet to start with the following arguments:"
    echo "${KUBELET_CRI_CONFIG}"
 fi

@@ -58,10 +58,13 @@ const (
 	bviName                     = "loop1"
 	ipMask                      = "24"
 	ipPrefix                    = "10.0.0"
-	bviIP                       = ipPrefix + ".254/" + ipMask
+	bviIP                       = ipPrefix + ".254"
+	bviIPWithPrefix             = bviIP + "/" + ipMask
 	afPacketNamePrefix          = "afpacket"
 	podNameExtraArg             = "K8S_POD_NAME"
 	podNamespaceExtraArg        = "K8S_POD_NAMESPACE"
+	vethHostEndIP               = "192.168.16.24"
+	vethVPPEndIP                = "192.168.16.25"
 )
 
 func newRemoteCNIServer(logger logging.Logger, vppTxnFactory func() linux.DataChangeDSL, proxy kvdbproxy.Proxy, configuredContainers *containeridx.ConfigIndex) *remoteCNIserver {
@@ -114,8 +117,19 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 
 	if !s.bdCreated {
 		bvi := s.bviInterface()
-		txn.VppInterface(bvi)
+		vethHost := s.interconnectVethHost()
+		vethVpp := s.interconnectVethVpp()
+		interconnectAF := s.interconnectAfpacket()
+
+		txn.VppInterface(bvi).
+			LinuxInterface(vethHost).
+			LinuxInterface(vethVpp).
+			VppInterface(interconnectAF)
+
 		changes[vpp_intf.InterfaceKey(bvi.Name)] = bvi
+		changes[vpp_intf.InterfaceKey(interconnectAF.Name)] = interconnectAF
+		changes[linux_intf.InterfaceKey(vethHost.Name)] = vethHost
+		changes[linux_intf.InterfaceKey(vethVpp.Name)] = vethVpp
 	}
 
 	err := txn.BD(bd).
@@ -167,6 +181,11 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 			{
 				Dst: "0.0.0.0/0",
 				Gw:  bviIP,
+			},
+		},
+		Dns: []*cni.CNIReply_DNS{
+			{
+				Nameservers: []string{vethHostEndIP},
 			},
 		},
 	}
@@ -407,7 +426,44 @@ func (s *remoteCNIserver) bviInterface() *vpp_intf.Interfaces_Interface {
 	return &vpp_intf.Interfaces_Interface{
 		Name:        bviName,
 		Enabled:     true,
-		IpAddresses: []string{bviIP},
+		IpAddresses: []string{bviIPWithPrefix},
 		Type:        vpp_intf.InterfaceType_SOFTWARE_LOOPBACK,
+	}
+}
+
+func (s *remoteCNIserver) interconnectVethHost() *linux_intf.LinuxInterfaces_Interface {
+	return &linux_intf.LinuxInterfaces_Interface{
+		Name:       "vppv1",
+		Type:       linux_intf.LinuxInterfaces_VETH,
+		Enabled:    true,
+		HostIfName: "v1",
+		Veth: &linux_intf.LinuxInterfaces_Interface_Veth{
+			PeerIfName: "vppv2",
+		},
+		IpAddresses: []string{vethHostEndIP + "/24"},
+	}
+}
+
+func (s *remoteCNIserver) interconnectVethVpp() *linux_intf.LinuxInterfaces_Interface {
+	return &linux_intf.LinuxInterfaces_Interface{
+		Name:       "vppv2",
+		Type:       linux_intf.LinuxInterfaces_VETH,
+		Enabled:    true,
+		HostIfName: "vppv2",
+		Veth: &linux_intf.LinuxInterfaces_Interface_Veth{
+			PeerIfName: "vppv1",
+		},
+	}
+}
+
+func (s *remoteCNIserver) interconnectAfpacket() *vpp_intf.Interfaces_Interface {
+	return &vpp_intf.Interfaces_Interface{
+		Name:    "afToHost",
+		Type:    vpp_intf.InterfaceType_AF_PACKET_INTERFACE,
+		Enabled: true,
+		Afpacket: &vpp_intf.Interfaces_Interface_Afpacket{
+			HostIfName: "vppv2",
+		},
+		IpAddresses: []string{vethVPPEndIP + "/24"},
 	}
 }

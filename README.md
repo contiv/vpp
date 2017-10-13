@@ -23,7 +23,10 @@ Check the status of the deployment:
 ```
 $ kubectl get pods -n kube-system
 NAME                             READY     STATUS    RESTARTS   AGE
-contiv-vpp-whgb5                 2/2       Running   0          57m
+NAMESPACE     NAME                             READY     STATUS             RESTARTS   AGE
+kube-system   contiv-etcd-cxqhr                1/1       Running            0          1h
+kube-system   contiv-ksr-h9vts                 1/1       Running            0          1h
+kube-system   contiv-vswitch-9nwwr             2/2       Running            0          1h
 ```
 
 You can go ahead and deploy some PODs, e.g.:

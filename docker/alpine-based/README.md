@@ -1,9 +1,8 @@
-## Contiv Plugins Docker Files
+## Alpine Linux-Based Contiv Docker Files
 
 This folder contains Docker files + scripts for building the following
-Contiv-VPP plugins Docker images:
+Contiv-VPP Docker images:
 
- - [CRI](https://hub.docker.com/r/contivvpp/cri/)
  - [CNI](https://hub.docker.com/r/contivvpp/cni/)
  - [KSR](https://hub.docker.com/r/contivvpp/ksr/)
 
@@ -18,11 +17,6 @@ To build the images, execute:
 ```
 ./build.sh
 ```
-
-Note that a specific VPP commit ID can be specified as an argument to the `build.sh` script.
-If specified, the exact version of VPP will be built as part of the Docker build,
-which may take longer time. Otherwise the already existing version of VPP present in the
-parent Docker image will be used.
 
 The result of this procedure is the set of container images similar to this:
 ```

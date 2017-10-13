@@ -1,7 +1,10 @@
-## Contiv vSwitch Docker Files
+## Ubuntu Linux-Based Contiv Docker Files
 
-This folder contains Docker files + scripts for building the
-[Contiv-VPP vSwitch](https://hub.docker.com/r/contivvpp/vswitch/) Docker images.
+This folder contains Docker files + scripts for building the following
+Contiv-VPP Docker images:
+
+ - [vSwitch](https://hub.docker.com/r/contivvpp/vswitch/)
+ - [CRI](https://hub.docker.com/r/contivvpp/cri/)
 
 The build is split into two phases:
  - building the binaries in the [dev](dev) container,

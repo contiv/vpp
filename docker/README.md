@@ -4,8 +4,8 @@ This folder contains Docker files + scripts for building Contiv-VPP Docker image
 (also available on [Dockerhub](https://hub.docker.com/u/contivvpp/)).
 It is organized into two subfolders:
 
- - [contiv-vswitch](contiv-vswitch) - contains scripts for building VPP vSwitch and its management agent,
- - [contiv-plugins](contiv-plugins) - contains scripts for building the rest of Contiv-VPP components: CNI, CRI, KSR.
+ - [ubuntu-based](ubuntu-based) - contains scripts for building containers based on Ubuntu Linux - VPP vSwitch and CRI,
+ - [alpine-based](alpine-based) - contains scripts for building containers based on Alpine Linux: CNI and KSR.
 
 To build all the images, execute:
 ```
@@ -15,4 +15,9 @@ To build all the images, execute:
 To tag and push the images into [Dockerhub](https://hub.docker.com/u/contivvpp/) execute:
 ```
 ./push-all.sh
+```
+
+To tag the images without pushing, execute:
+```
+./push-all.sh --skip-upload true
 ```

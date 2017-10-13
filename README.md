@@ -14,13 +14,13 @@ Currently, only one-node k8s cluster is supported, with no connection to the k8s
 ### Quickstart
 
 #### 1. (Optional) Install CRI Shim
-In case you plan to use fast TCP/UDP features of VPP, install the CRI shim on each host (prior to deploying a Kubernetes cluster, but after Kubernetes is installed). Run as root (not using sudo):
+In case you plan to use fast TCP/UDP features of VPP, install the CRI shim on each host (after Kubernetes has been installed). Run as root (not using sudo):
 ```
 bash <(curl -s https://raw.githubusercontent.com/contiv/vpp/master/k8s/cri-install.sh)
 ```
 Note that this installer has been tested only for
 [kubeadm](https://kubernetes.io/docs/setup/independent/create-cluster-kubeadm/)-managed
-clusters. After installing, please proceed with `kubeadm init` and `kubeadm join` workflow to deploy your Kubernetes cluster.
+clusters. After installing, please proceed with `kubeadm init` and `kubeadm join` workflow to deploy your Kubernetes cluster, or reboot the node if the cluster has been already initialized.
 
 #### 2. Deploy Kubernetes Cluster
 Now deploy your k8s cluster, e.g. using [kubeadm](https://kubernetes.io/docs/setup/independent/create-cluster-kubeadm/).

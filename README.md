@@ -18,7 +18,7 @@ bash <(curl -s https://raw.githubusercontent.com/rastislavszabo/vpp/master/k8s/c
 ```
 Note that this installer currently works only for
 [kubeadm](https://kubernetes.io/docs/setup/independent/create-cluster-kubeadm/)-managed
-clusters. Please proceed with `kubeadm init` and `kubeadm join` workflow to deploy your Kubernetes cluster.
+clusters. Now proceed with `kubeadm init` and `kubeadm join` workflow to deploy your Kubernetes cluster.
 
 Given that you now have your k8s cluster running, e.g. using [kubeadm](https://kubernetes.io/docs/setup/independent/create-cluster-kubeadm/).
 

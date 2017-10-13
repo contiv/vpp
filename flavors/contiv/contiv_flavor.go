@@ -19,8 +19,10 @@ import (
 	"github.com/ligato/cn-infra/core"
 	"github.com/ligato/cn-infra/flavors/local"
 
+	"github.com/contiv/vpp/flavors/ksr"
 	"github.com/contiv/vpp/plugins/contiv"
 	"github.com/contiv/vpp/plugins/kvdbproxy"
+	"github.com/contiv/vpp/plugins/policy"
 	"github.com/golang/protobuf/proto"
 	"github.com/ligato/cn-infra/datasync"
 	"github.com/ligato/cn-infra/datasync/kvdbsync"
@@ -40,8 +42,9 @@ import (
 type FlavorContiv struct {
 	*local.FlavorLocal
 
-	ETCD         etcdv3.Plugin
-	ETCDDataSync kvdbsync.Plugin
+	ETCD            etcdv3.Plugin
+	ETCDDataSync    kvdbsync.Plugin
+	KsrETCDDataSync kvdbsync.Plugin
 
 	KVProxy kvdbproxy.Plugin
 
@@ -51,6 +54,7 @@ type FlavorContiv struct {
 	VPP              defaultplugins.Plugin
 	GRPC             grpc.Plugin
 	Contiv           contiv.Plugin
+	Policy           policy.Plugin
 	ResyncOrch       resync.Plugin
 	injected         bool
 }
@@ -69,6 +73,7 @@ func (f *FlavorContiv) Inject() bool {
 
 	f.ETCD.Deps.PluginInfraDeps = *f.InfraDeps("etcdv3", local.WithConf())
 	connectors.InjectKVDBSync(&f.ETCDDataSync, &f.ETCD, f.ETCD.PluginName, f.FlavorLocal, &f.ResyncOrch)
+	f.KsrETCDDataSync = *f.ETCDDataSync.OfDifferentAgent(ksr.MicroserviceLabel, f)
 
 	f.KVProxy.Deps.PluginInfraDeps = *f.FlavorLocal.InfraDeps("kvproxy")
 	f.KVProxy.Deps.KVDB = &f.ETCDDataSync
@@ -92,6 +97,10 @@ func (f *FlavorContiv) Inject() bool {
 	f.Contiv.Deps.PluginInfraDeps = *f.FlavorLocal.InfraDeps("cni-grpc")
 	f.Contiv.Deps.GRPC = &f.GRPC
 	f.Contiv.Deps.Proxy = &f.KVProxy
+
+	f.Policy.Deps.PluginInfraDeps = *f.FlavorLocal.InfraDeps("policy")
+	f.Policy.Deps.Watcher = &f.KsrETCDDataSync
+	f.Policy.Deps.Contiv = &f.Contiv
 
 	f.ResyncOrch.PluginLogDeps = *f.LogDeps("resync-orch")
 

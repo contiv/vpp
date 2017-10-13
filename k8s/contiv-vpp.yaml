@@ -46,14 +46,6 @@ spec:
               value: "3"
           command: ["/bin/sh","-c"]
           args: ["/usr/local/bin/etcd --name=contiv --data-dir=/var/etcd/contiv-data --advertise-client-urls=http://$CONTIV_ETCD_IP:6666 --listen-client-urls=http://0.0.0.0:6666 --listen-peer-urls=http://0.0.0.0:6667"]
-          volumeMounts:
-            - name: var-etcd
-              mountPath: /var/etcd
-
-      volumes:
-        - name: var-etcd
-          hostPath:
-            path: /var/etcd
 
 ---
 

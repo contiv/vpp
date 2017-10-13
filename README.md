@@ -12,7 +12,15 @@ This Kubernetes network plugin uses FD.io VPP to provide the network connectivit
 Currently, only one-node k8s cluster is supported, with no connection to the k8s services running on the host from the PODs.
 
 ### Quickstart
-Given that you have your k8s cluster running, e.g. using [kubeadm](https://kubernetes.io/docs/setup/independent/create-cluster-kubeadm/).
+(optional) Install CRI shim on each host (prior to deploying a Kubernetes cluster). Run as root, not using sudo):
+```
+bash <(curl -s https://raw.githubusercontent.com/rastislavszabo/vpp/master/k8s/cri-install.sh)
+```
+Note that this installer currently works only for
+[kubeadm](https://kubernetes.io/docs/setup/independent/create-cluster-kubeadm/)-managed
+clusters. Please proceed with `kubeadm init` and `kubeadm join` workflow to deploy your Kubernetes cluster.
+
+Given that you now have your k8s cluster running, e.g. using [kubeadm](https://kubernetes.io/docs/setup/independent/create-cluster-kubeadm/).
 
 Deploy the Contiv-VPP network plugin:
 ```

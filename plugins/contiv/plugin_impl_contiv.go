@@ -76,3 +76,14 @@ func (plugin *Plugin) GetSwIfIndex(podNamespace string, podName string) (idx uin
 	plugin.Log.WithFields(logging.Fields{"podNamespace": podNamespace, "podName": podName}).Warn("No matching result found")
 	return 0, nil, false
 }
+
+// GetIfName looks up logical interface name that corresponds to an interface associated with the given podNamespace and the podName.
+// TODO: I think the policy plugin will need the interface name for use with the localclient (?)
+//        - consider removing GetSwIfIndex and implementing this without a lookup in VPP idxmap (metadata are also probably not needed)
+func (plugin *Plugin) GetIfName(podNamespace string, podName string) (name string, metadata *interfaces.Interfaces_Interface, exists bool) {
+	idx, _, found := plugin.GetSwIfIndex(podNamespace, podName)
+	if found {
+		return plugin.VPP.GetSwIfIndexes().LookupName(idx)
+	}
+	return "", nil, false
+}

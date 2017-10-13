@@ -1,4 +1,7 @@
-FROM alpine:3.6
+FROM ubuntu:16.04
+
+# install iproute2 - required by dockershim
+RUN apt-get update && apt-get install -y iproute2
 
 # set work directory
 WORKDIR /root/

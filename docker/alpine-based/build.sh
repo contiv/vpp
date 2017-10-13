@@ -22,6 +22,7 @@ TAG=`git describe --tags`
 # build development image
 cd dev
 ./build.sh ${TAG}
-# build production image
+
+# build production images
 cd ../prod
 ./build.sh ${TAG}

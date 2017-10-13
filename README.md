@@ -12,9 +12,20 @@ This Kubernetes network plugin uses FD.io VPP to provide the network connectivit
 Currently, only one-node k8s cluster is supported, with no connection to the k8s services running on the host from the PODs.
 
 ### Quickstart
-Given that you have your k8s cluster running, e.g. using [kubeadm](https://kubernetes.io/docs/setup/independent/create-cluster-kubeadm/).
 
-Deploy the Contiv-VPP network plugin:
+#### 1. (Optional) Install CRI Shim
+In case you plan to use fast TCP/UDP features of VPP, install the CRI shim on each host (after Kubernetes has been installed). Run as root (not using sudo):
+```
+bash <(curl -s https://raw.githubusercontent.com/contiv/vpp/master/k8s/cri-install.sh)
+```
+Note that this installer has been tested only for
+[kubeadm](https://kubernetes.io/docs/setup/independent/create-cluster-kubeadm/)-managed
+clusters. After installing, please proceed with `kubeadm init` and `kubeadm join` workflow to deploy your Kubernetes cluster, or reboot the node if the cluster has been already initialized.
+
+#### 2. Deploy Kubernetes Cluster
+Now deploy your k8s cluster, e.g. using [kubeadm](https://kubernetes.io/docs/setup/independent/create-cluster-kubeadm/).
+
+#### 3. Deploy the Contiv-VPP Network Plugin:
 ```
 kubectl apply -f https://raw.githubusercontent.com/contiv/vpp/master/k8s/contiv-vpp.yaml
 ```
@@ -29,6 +40,7 @@ kube-system   contiv-ksr-h9vts                 1/1       Running            0   
 kube-system   contiv-vswitch-9nwwr             2/2       Running            0          1h
 ```
 
+#### 4. Deploy PODs and Verify:
 You can go ahead and deploy some PODs, e.g.:
 ```
 $ kubectl apply -f ubuntu.yaml

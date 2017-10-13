@@ -13,7 +13,7 @@ RUN dpkg -i vpp/vpp-lib_*.deb vpp/vpp_*.deb vpp/vpp-plugins_*.deb && \
     rm -rf vpp
 
 # add supervisord config file
-COPY supervisord.conf /etc/supervisord.conf
+COPY vswitch/supervisord.conf /etc/supervisord.conf
 
 # run supervisord as the default executable
 CMD ["/usr/bin/supervisord", "-c", "/etc/supervisord.conf"]

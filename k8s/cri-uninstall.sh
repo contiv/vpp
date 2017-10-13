@@ -13,16 +13,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# fail in case of error
-set -e
+# Make sure only root can run this script
+if [[ $EUID -ne 0 ]]; then
+   echo "ERROR: This script must be run as root." 1>&2
+   exit 1
+fi
 
-# obtain the current git tag for tagging the Docker images
-TAG=`git describe --tags`
+docker update --restart=no contiv-cri
+docker stop contiv-cri
+docker rm contiv-cri
 
-# build development image
-cd dev
-./build.sh ${TAG}
+# TODO: unconfigure from Kubelet config file & restart Kubelet
+echo "Please unconfigure the CRI shim from Kubelet config file in /etc/systemd/system/kubelet.service.d/ manually"
 
-# build production image
-cd ../prod
-./build.sh ${TAG}
+echo "Then, please continue with kubeadm init, or reboot the node."

@@ -40,11 +40,11 @@ type Plugin struct {
 	cancel context.CancelFunc
 	wg     sync.WaitGroup
 
-	policyProcessor *PolicyProcessor
+	configProcessor *ConfigProcessor
 	/*
 		TODO (use VPP localclient directly from processor for now):
-		- reflector1 (standard VPP ACLs)
-		- reflector2 (TCP/IP VPP ACLs)
+		- policy reflector1 (standard VPP ACLs)
+		- policy  reflector2 (TCP/IP VPP ACLs)
 		- inject reflector(s) into the processor
 	*/
 }
@@ -56,6 +56,7 @@ type Deps struct {
 	Contiv  *contiv.Plugin              /* for GetIfName() */
 }
 
+// Init initializes policy processor and starts watching ETCD for K8s configuration.
 func (p *Plugin) Init() error {
 	var err error
 	p.Log.SetLevel(logging.DebugLevel)
@@ -63,14 +64,14 @@ func (p *Plugin) Init() error {
 	p.resyncChan = make(chan datasync.ResyncEvent)
 	p.changeChan = make(chan datasync.ChangeEvent)
 
-	p.policyProcessor = &PolicyProcessor{
+	p.configProcessor = &ConfigProcessor{
 		ProcessorDeps{
 			Log:        p.Log.NewLogger("-processor"),
 			PluginName: p.PluginName,
 			Contiv:     p.Contiv,
 		},
 	}
-	p.policyProcessor.Init()
+	p.configProcessor.Init()
 
 	var ctx context.Context
 	ctx, p.cancel = context.WithCancel(context.Background())
@@ -98,7 +99,7 @@ func (p *Plugin) watchEvents(ctx context.Context) {
 		select {
 		case resyncConfigEv := <-p.resyncChan:
 			event := p.resyncParseEvent(resyncConfigEv)
-			err := p.policyProcessor.Resync(event)
+			err := p.configProcessor.Resync(event)
 			resyncConfigEv.Done(err)
 
 		case dataChngEv := <-p.changeChan:
@@ -112,11 +113,11 @@ func (p *Plugin) watchEvents(ctx context.Context) {
 	}
 }
 
-// Close stops all watchers.
+// Close stops the processor and watching.
 func (p *Plugin) Close() error {
 	p.cancel()
 	p.wg.Wait()
 	safeclose.CloseAll(p.watchConfigReg, p.resyncChan, p.changeChan)
-	p.policyProcessor.Close()
+	p.configProcessor.Close()
 	return nil
 }

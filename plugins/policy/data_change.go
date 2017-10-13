@@ -10,7 +10,7 @@ import (
 	"github.com/contiv/vpp/plugins/ksr/model/policy"
 )
 
-// changePropagateEvent propagates CHANGE in the K8s configuration into the Policy Processor.
+// changePropagateEvent propagates CHANGE in the K8s configuration into the Config Processor.
 func (p *Plugin) changePropagateEvent(dataChngEv datasync.ChangeEvent) error {
 	var err error
 	var diff bool
@@ -29,11 +29,11 @@ func (p *Plugin) changePropagateEvent(dataChngEv datasync.ChangeEvent) error {
 				return err
 			}
 			if datasync.Delete == dataChngEv.GetChangeType() {
-				return p.policyProcessor.DelPolicy(&prevValue)
+				return p.configProcessor.DelPolicy(&prevValue)
 			} else if diff {
-				return p.policyProcessor.UpdatePolicy(&prevValue, &value)
+				return p.configProcessor.UpdatePolicy(&prevValue, &value)
 			}
-			return p.policyProcessor.AddPolicy(&value)
+			return p.configProcessor.AddPolicy(&value)
 		}
 
 		// Propagate Pod CHANGE event
@@ -47,11 +47,11 @@ func (p *Plugin) changePropagateEvent(dataChngEv datasync.ChangeEvent) error {
 				return err
 			}
 			if datasync.Delete == dataChngEv.GetChangeType() {
-				return p.policyProcessor.DelPod(&prevValue)
+				return p.configProcessor.DelPod(&prevValue)
 			} else if diff {
-				return p.policyProcessor.UpdatePod(&prevValue, &value)
+				return p.configProcessor.UpdatePod(&prevValue, &value)
 			}
-			return p.policyProcessor.AddPod(&value)
+			return p.configProcessor.AddPod(&value)
 		}
 
 		// Propagate Namespace CHANGE event
@@ -63,13 +63,13 @@ func (p *Plugin) changePropagateEvent(dataChngEv datasync.ChangeEvent) error {
 			return err
 		}
 		if datasync.Delete == dataChngEv.GetChangeType() {
-			return p.policyProcessor.DelNamespace(&prevValue)
+			return p.configProcessor.DelNamespace(&prevValue)
 		} else if diff {
-			return p.policyProcessor.UpdateNamespace(&prevValue, &value)
+			return p.configProcessor.UpdateNamespace(&prevValue, &value)
 		}
-		return p.policyProcessor.AddNamespace(&value)
-	} else {
-		p.Log.WithField("event", dataChngEv).Warn("Ignoring CHANGE event")
+		return p.configProcessor.AddNamespace(&value)
 	}
+
+	p.Log.WithField("event", dataChngEv).Warn("Ignoring CHANGE event")
 	return nil
 }

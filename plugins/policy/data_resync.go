@@ -11,12 +11,14 @@ import (
 	"github.com/contiv/vpp/plugins/ksr/model/policy"
 )
 
+// DataResyncEvent wraps an entire state of K8s that should be reflected into VPP.
 type DataResyncEvent struct {
 	Namespaces []*namespace.Namespace
 	Pods       []*pod.Pod
 	Policies   []*policy.Policy
 }
 
+// NewDataResyncEvent creates an empty instance of DataResyncEvent.
 func NewDataResyncEvent() *DataResyncEvent {
 	return &DataResyncEvent{
 		Namespaces: []*namespace.Namespace{},
@@ -25,7 +27,7 @@ func NewDataResyncEvent() *DataResyncEvent {
 	}
 }
 
-// resyncParseEvent parses K8s configuration RESYNC event for use by the Policy Processor.
+// resyncParseEvent parses K8s configuration RESYNC event for use by the Config Processor.
 func (p *Plugin) resyncParseEvent(resyncEv datasync.ResyncEvent) *DataResyncEvent {
 	var numNs int
 	var numPolicy int

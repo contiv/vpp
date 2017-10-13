@@ -15,14 +15,15 @@ import (
 	"github.com/contiv/vpp/plugins/ksr/model/policy"
 )
 
-type PolicyProcessor struct {
+// ConfigProcessor processes K8s config changes into VPP ACL changes.
+type ConfigProcessor struct {
 	ProcessorDeps
 
 	// internal fields...
 	//  - memory storage for policies, namespaces, pods (consider using cn-infra/idxmap)
 }
 
-// Deps defines dependencies of policy processor.
+// ProcessorDeps defines dependencies of the K8s Config processor.
 type ProcessorDeps struct {
 	Log        logging.Logger
 	PluginName core.PluginName
@@ -33,16 +34,18 @@ type ProcessorDeps struct {
 	// TODO: inject PolicyReflector(s)
 }
 
-func (pp *PolicyProcessor) Init() error {
+// Init initializes Config Processor.
+func (pp *ConfigProcessor) Init() error {
 	return nil
 }
 
-func (pp *PolicyProcessor) Resync(event *DataResyncEvent) error {
-	pp.Log.WithField("event", event).Info("RESYNC of Policy configuration BEGIN")
+// Resync processes an initial state of K8s config.
+func (pp *ConfigProcessor) Resync(event *DataResyncEvent) error {
+	pp.Log.WithField("event", event).Info("RESYNC of K8s configuration BEGIN")
 	startTime := time.Now()
 	defer func() {
 		duration := time.Since(startTime)
-		pp.Log.WithField("durationInNs", duration.Nanoseconds()).Info("RESYNC of Policy configuration END")
+		pp.Log.WithField("durationInNs", duration.Nanoseconds()).Info("RESYNC of K8s configuration END")
 	}()
 
 	// TODO: Process entire K8s config and create all ACLs from scratch.
@@ -58,9 +61,9 @@ func (pp *PolicyProcessor) Resync(event *DataResyncEvent) error {
 	return err
 }
 
-// 2. addPolicy stores k8s policy locally, gets the PodSelector label and does a lookup for all
+// AddPolicy stores k8s policy locally, gets the PodSelector label and does a lookup for all
 // pods with the same label. Then applies policy to the Pods.
-func (pp *PolicyProcessor) AddPolicy(policy *policy.Policy) error {
+func (pp *ConfigProcessor) AddPolicy(policy *policy.Policy) error {
 	pp.Log.WithField("policy", policy).Info("Add Policy")
 
 	// TODO
@@ -72,59 +75,66 @@ func (pp *PolicyProcessor) AddPolicy(policy *policy.Policy) error {
 	return err
 }
 
-// 3. delPolicy deletes local data of a removed K8s policy and removes ACL configuration
+// DelPolicy deletes local data of a removed K8s policy and removes ACL configuration
 // from Pod interfaces in VPP.
-func (pp *PolicyProcessor) DelPolicy(policy *policy.Policy) error {
+func (pp *ConfigProcessor) DelPolicy(policy *policy.Policy) error {
 	pp.Log.WithField("policy", policy).Info("Delete Policy")
 	// TODO
 	return nil
 }
 
-// 4. updatePolicy updates local data of the updated K8s policy and updates ACL configuration
+// UpdatePolicy updates local data of the updated K8s policy and updates ACL configuration
 // to Pod interfaces in VPP.
-func (pp *PolicyProcessor) UpdatePolicy(oldPolicy, newPolicy *policy.Policy) error {
+func (pp *ConfigProcessor) UpdatePolicy(oldPolicy, newPolicy *policy.Policy) error {
 	pp.Log.WithFields(logging.Fields{"old": oldPolicy, "new": newPolicy}).Info("Update Policy")
 	// TODO
 	return nil
 }
 
-func (pp *PolicyProcessor) AddPod(pod *pod.Pod) error {
+// AddPod ...
+func (pp *ConfigProcessor) AddPod(pod *pod.Pod) error {
 	pp.Log.WithField("pod", pod).Info("Add Pod")
 	// TODO
 
 	return nil
 }
 
-func (pp *PolicyProcessor) DelPod(pod *pod.Pod) error {
+// DelPod ...
+func (pp *ConfigProcessor) DelPod(pod *pod.Pod) error {
 	pp.Log.WithField("pod", pod).Info("Delete Pod")
 	// TODO
 	return nil
 }
 
-func (pp *PolicyProcessor) UpdatePod(oldPod, newPod *pod.Pod) error {
+// UpdatePod ...
+func (pp *ConfigProcessor) UpdatePod(oldPod, newPod *pod.Pod) error {
 	pp.Log.WithFields(logging.Fields{"old": oldPod, "new": newPod}).Info("Update Pod")
 	// TODO
 	return nil
 }
 
-func (pp *PolicyProcessor) AddNamespace(ns *namespace.Namespace) error {
+// AddNamespace ...
+func (pp *ConfigProcessor) AddNamespace(ns *namespace.Namespace) error {
 	pp.Log.WithField("namespace", ns).Info("Add Namespace")
 	// TODO
 	return nil
 }
 
-func (pp *PolicyProcessor) DelNamespace(ns *namespace.Namespace) error {
+// DelNamespace ...
+func (pp *ConfigProcessor) DelNamespace(ns *namespace.Namespace) error {
 	pp.Log.WithField("namespace", ns).Info("Delete Namespace")
 	// TODO
 	return nil
 }
 
-func (pp *PolicyProcessor) UpdateNamespace(oldNs, newNs *namespace.Namespace) error {
+// UpdateNamespace ...
+func (pp *ConfigProcessor) UpdateNamespace(oldNs, newNs *namespace.Namespace) error {
 	pp.Log.WithFields(logging.Fields{"old": oldNs, "new": newNs}).Info("Update Namespace")
 	// TODO
 	return nil
 }
 
-func (pp *PolicyProcessor) Close() error {
+// Close frees resources allocated by Config Processor.
+func (pp *ConfigProcessor) Close() error {
 	return nil
 }

@@ -26,7 +26,7 @@ import (
 	"github.com/opencontainers/runc/libcontainer/devices"
 	"github.com/opencontainers/runc/libcontainer/user"
 	specs "github.com/opencontainers/runtime-spec/specs-go"
-	"github.com/sirupsen/logrus"
+	"github.com/Sirupsen/logrus"
 )
 
 var (

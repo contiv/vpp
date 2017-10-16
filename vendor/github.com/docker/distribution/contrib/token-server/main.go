@@ -15,7 +15,7 @@ import (
 	_ "github.com/docker/distribution/registry/auth/htpasswd"
 	"github.com/docker/libtrust"
 	"github.com/gorilla/mux"
-	"github.com/sirupsen/logrus"
+	"github.com/Sirupsen/logrus"
 )
 
 var (

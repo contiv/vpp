@@ -28,7 +28,7 @@ import (
 	units "github.com/docker/go-units"
 	"github.com/opencontainers/selinux/go-selinux/label"
 	"github.com/pkg/errors"
-	"github.com/sirupsen/logrus"
+	"github.com/Sirupsen/logrus"
 	"golang.org/x/sys/unix"
 )
 

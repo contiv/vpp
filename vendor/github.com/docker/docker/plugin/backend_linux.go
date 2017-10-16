@@ -35,7 +35,7 @@ import (
 	refstore "github.com/docker/docker/reference"
 	"github.com/opencontainers/go-digest"
 	"github.com/pkg/errors"
-	"github.com/sirupsen/logrus"
+	"github.com/Sirupsen/logrus"
 	"golang.org/x/net/context"
 )
 

@@ -13,7 +13,7 @@ import (
 
 	"github.com/docker/docker/daemon/graphdriver/devmapper"
 	"github.com/docker/docker/pkg/devicemapper"
-	"github.com/sirupsen/logrus"
+	"github.com/Sirupsen/logrus"
 )
 
 func usage() {

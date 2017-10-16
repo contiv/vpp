@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/hashicorp/serf/serf"
-	"github.com/sirupsen/logrus"
+	"github.com/Sirupsen/logrus"
 )
 
 type ovNotify struct {

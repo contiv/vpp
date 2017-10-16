@@ -8,7 +8,7 @@ import (
 
 	"github.com/docker/docker/pkg/progress"
 	"github.com/docker/docker/pkg/streamformatter"
-	"github.com/sirupsen/logrus"
+	"github.com/Sirupsen/logrus"
 )
 
 // WriteDistributionProgress is a helper for writing progress from chan to JSON

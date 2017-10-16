@@ -7,7 +7,7 @@ import (
 
 	"github.com/docker/docker/pkg/signal"
 	"github.com/docker/docker/pkg/system"
-	"github.com/sirupsen/logrus"
+	"github.com/Sirupsen/logrus"
 )
 
 // Copied over from docker/daemon/debugtrap_windows.go

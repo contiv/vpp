@@ -35,7 +35,7 @@ import (
 	"github.com/docker/libnetwork/options"
 	"github.com/docker/libnetwork/types"
 	"github.com/gorilla/mux"
-	"github.com/sirupsen/logrus"
+	"github.com/Sirupsen/logrus"
 	"golang.org/x/net/context"
 )
 

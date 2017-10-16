@@ -10,7 +10,7 @@ import (
 
 	"github.com/docker/libnetwork/types"
 	"github.com/miekg/dns"
-	"github.com/sirupsen/logrus"
+	"github.com/Sirupsen/logrus"
 )
 
 // Resolver represents the embedded DNS server in Docker. It operates

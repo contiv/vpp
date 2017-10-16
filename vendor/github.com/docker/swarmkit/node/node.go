@@ -30,7 +30,7 @@ import (
 	"github.com/docker/swarmkit/xnet"
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/pkg/errors"
-	"github.com/sirupsen/logrus"
+	"github.com/Sirupsen/logrus"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"

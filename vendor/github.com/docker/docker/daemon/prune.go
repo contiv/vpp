@@ -19,7 +19,7 @@ import (
 	"github.com/docker/docker/volume"
 	"github.com/docker/libnetwork"
 	digest "github.com/opencontainers/go-digest"
-	"github.com/sirupsen/logrus"
+	"github.com/Sirupsen/logrus"
 	"golang.org/x/net/context"
 )
 

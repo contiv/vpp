@@ -8,7 +8,7 @@ import (
 	"github.com/docker/docker/container"
 	"github.com/docker/docker/pkg/namesgenerator"
 	"github.com/docker/docker/pkg/stringid"
-	"github.com/sirupsen/logrus"
+	"github.com/Sirupsen/logrus"
 )
 
 var (

@@ -20,7 +20,7 @@ import (
 	"github.com/docker/libnetwork/networkdb"
 	"github.com/docker/libnetwork/options"
 	"github.com/docker/libnetwork/types"
-	"github.com/sirupsen/logrus"
+	"github.com/Sirupsen/logrus"
 )
 
 // A Network represents a logical connectivity zone that containers may

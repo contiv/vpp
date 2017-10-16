@@ -37,7 +37,7 @@ import (
 	"github.com/docker/libtrust"
 	"github.com/garyburd/redigo/redis"
 	"github.com/gorilla/mux"
-	log "github.com/sirupsen/logrus"
+	log "github.com/Sirupsen/logrus"
 	"golang.org/x/net/context"
 )
 

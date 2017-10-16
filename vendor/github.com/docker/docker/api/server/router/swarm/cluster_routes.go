@@ -13,7 +13,7 @@ import (
 	"github.com/docker/docker/api/types/filters"
 	types "github.com/docker/docker/api/types/swarm"
 	"github.com/docker/docker/api/types/versions"
-	"github.com/sirupsen/logrus"
+	"github.com/Sirupsen/logrus"
 	"golang.org/x/net/context"
 )
 

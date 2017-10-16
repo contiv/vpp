@@ -20,7 +20,7 @@ import (
 	"unsafe"
 
 	"github.com/docker/docker/pkg/mount"
-	"github.com/sirupsen/logrus"
+	"github.com/Sirupsen/logrus"
 )
 
 const (

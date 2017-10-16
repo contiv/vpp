@@ -9,7 +9,7 @@ import (
 	"github.com/docker/libnetwork/ns"
 	"github.com/docker/libnetwork/osl"
 	"github.com/docker/libnetwork/types"
-	"github.com/sirupsen/logrus"
+	"github.com/Sirupsen/logrus"
 )
 
 // CreateEndpoint assigns the mac, ip and endpoint id for the new container

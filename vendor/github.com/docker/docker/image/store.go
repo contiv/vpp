@@ -12,7 +12,7 @@ import (
 	"github.com/docker/docker/pkg/system"
 	"github.com/opencontainers/go-digest"
 	"github.com/pkg/errors"
-	"github.com/sirupsen/logrus"
+	"github.com/Sirupsen/logrus"
 )
 
 // Store is an interface for creating and accessing images

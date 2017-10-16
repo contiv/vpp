@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/docker/libnetwork/ns"
-	"github.com/sirupsen/logrus"
+	"github.com/Sirupsen/logrus"
 	"github.com/vishvananda/netlink"
 )
 

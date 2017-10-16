@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/sirupsen/logrus"
+	"github.com/Sirupsen/logrus"
 )
 
 // DevmapperLogger defines methods required to register as a callback for

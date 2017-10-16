@@ -13,7 +13,7 @@ import (
 	"github.com/docker/swarmkit/api"
 	"github.com/gogo/protobuf/proto"
 	"github.com/pkg/errors"
-	"github.com/sirupsen/logrus"
+	"github.com/Sirupsen/logrus"
 	"golang.org/x/net/context"
 )
 

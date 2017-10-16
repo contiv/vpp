@@ -3,7 +3,7 @@ package dockerfile
 import (
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/builder"
-	"github.com/sirupsen/logrus"
+	"github.com/Sirupsen/logrus"
 )
 
 // ImageProber exposes an Image cache to the Builder. It supports resetting a

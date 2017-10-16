@@ -25,7 +25,7 @@ import (
 	"github.com/docker/docker/pkg/system"
 	"github.com/moby/buildkit/session"
 	"github.com/pkg/errors"
-	"github.com/sirupsen/logrus"
+	"github.com/Sirupsen/logrus"
 	"golang.org/x/net/context"
 	"golang.org/x/sync/syncmap"
 )

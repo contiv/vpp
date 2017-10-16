@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/sirupsen/logrus"
+	"github.com/Sirupsen/logrus"
 )
 
 var servicePort string

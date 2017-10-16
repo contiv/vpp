@@ -8,7 +8,7 @@ import (
 	"github.com/docker/swarmkit/connectionbroker"
 	"github.com/docker/swarmkit/log"
 	"github.com/pkg/errors"
-	"github.com/sirupsen/logrus"
+	"github.com/Sirupsen/logrus"
 	"golang.org/x/net/context"
 )
 

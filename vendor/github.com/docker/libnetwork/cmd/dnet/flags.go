@@ -5,7 +5,7 @@ import (
 	"os"
 
 	"github.com/codegangsta/cli"
-	"github.com/sirupsen/logrus"
+	"github.com/Sirupsen/logrus"
 )
 
 var (

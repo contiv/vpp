@@ -4,7 +4,7 @@ import (
 	"runtime"
 
 	"github.com/docker/docker/layer"
-	"github.com/sirupsen/logrus"
+	"github.com/Sirupsen/logrus"
 )
 
 // TypeLayers is used for RootFS.Type for filesystems organized into layers.

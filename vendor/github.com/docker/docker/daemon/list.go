@@ -13,7 +13,7 @@ import (
 	"github.com/docker/docker/image"
 	"github.com/docker/docker/volume"
 	"github.com/docker/go-connections/nat"
-	"github.com/sirupsen/logrus"
+	"github.com/Sirupsen/logrus"
 )
 
 var acceptedVolumeFilterTags = map[string]bool{

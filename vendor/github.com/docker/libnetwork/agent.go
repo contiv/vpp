@@ -19,7 +19,7 @@ import (
 	"github.com/docker/libnetwork/networkdb"
 	"github.com/docker/libnetwork/types"
 	"github.com/gogo/protobuf/proto"
-	"github.com/sirupsen/logrus"
+	"github.com/Sirupsen/logrus"
 )
 
 const (

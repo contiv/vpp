@@ -12,7 +12,7 @@ import (
 	"github.com/docker/docker/pkg/plugins/transport"
 	"github.com/docker/go-connections/sockets"
 	"github.com/docker/go-connections/tlsconfig"
-	"github.com/sirupsen/logrus"
+	"github.com/Sirupsen/logrus"
 )
 
 const (

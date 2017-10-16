@@ -6,7 +6,7 @@ import (
 
 	"github.com/docker/libnetwork/iptables"
 	"github.com/docker/libnetwork/types"
-	"github.com/sirupsen/logrus"
+	"github.com/Sirupsen/logrus"
 )
 
 type link struct {

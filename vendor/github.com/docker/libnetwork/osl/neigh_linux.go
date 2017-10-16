@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"net"
 
-	"github.com/sirupsen/logrus"
+	"github.com/Sirupsen/logrus"
 	"github.com/vishvananda/netlink"
 )
 

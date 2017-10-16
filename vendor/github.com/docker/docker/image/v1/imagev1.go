@@ -10,7 +10,7 @@ import (
 	"github.com/docker/docker/layer"
 	"github.com/docker/docker/pkg/stringid"
 	"github.com/opencontainers/go-digest"
-	"github.com/sirupsen/logrus"
+	"github.com/Sirupsen/logrus"
 )
 
 // noFallbackMinVersion is the minimum version for which v1compatibility

@@ -27,7 +27,7 @@ import (
 	"github.com/docker/swarmkit/manager/state/store"
 	"github.com/docker/swarmkit/testutils"
 	"github.com/pivotal-golang/clock/fakeclock"
-	"github.com/sirupsen/logrus"
+	"github.com/Sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

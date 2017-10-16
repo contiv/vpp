@@ -20,7 +20,7 @@ import (
 	"github.com/docker/libnetwork/ipamapi"
 	networktypes "github.com/docker/libnetwork/types"
 	"github.com/pkg/errors"
-	"github.com/sirupsen/logrus"
+	"github.com/Sirupsen/logrus"
 	"golang.org/x/net/context"
 )
 

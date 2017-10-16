@@ -8,7 +8,7 @@ import (
 	"github.com/docker/libnetwork/netutils"
 	"github.com/docker/libnetwork/ns"
 	"github.com/docker/libnetwork/osl"
-	"github.com/sirupsen/logrus"
+	"github.com/Sirupsen/logrus"
 )
 
 // Join method is invoked when a Sandbox is attached to an endpoint.

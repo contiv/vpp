@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/docker/libtrust"
-	log "github.com/sirupsen/logrus"
+	log "github.com/Sirupsen/logrus"
 
 	"github.com/docker/distribution/registry/auth"
 )

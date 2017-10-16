@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/sirupsen/logrus"
+	"github.com/Sirupsen/logrus"
 	"golang.org/x/sys/unix"
 )
 

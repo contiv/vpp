@@ -7,7 +7,7 @@ import (
 	"github.com/docker/docker/container/stream"
 	"github.com/docker/docker/libcontainerd"
 	"github.com/docker/docker/pkg/stringid"
-	"github.com/sirupsen/logrus"
+	"github.com/Sirupsen/logrus"
 )
 
 // Config holds the configurations for execs. The Daemon keeps

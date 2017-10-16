@@ -5,7 +5,7 @@ import (
 
 	"github.com/boltdb/bolt"
 	"github.com/pkg/errors"
-	"github.com/sirupsen/logrus"
+	"github.com/Sirupsen/logrus"
 )
 
 var volumeBucketName = []byte("volumes")

@@ -8,7 +8,7 @@ import (
 	"github.com/docker/swarmkit/identity"
 	"github.com/docker/swarmkit/log"
 	"github.com/docker/swarmkit/manager/state/store"
-	"github.com/sirupsen/logrus"
+	"github.com/Sirupsen/logrus"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"

@@ -7,7 +7,7 @@ import (
 
 	dockercontainer "github.com/docker/docker/container"
 	"github.com/docker/libnetwork"
-	"github.com/sirupsen/logrus"
+	"github.com/Sirupsen/logrus"
 )
 
 // ContainerRename changes the name of a container, using the oldName

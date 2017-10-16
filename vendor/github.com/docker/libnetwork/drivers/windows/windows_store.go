@@ -11,7 +11,7 @@ import (
 	"github.com/docker/libnetwork/discoverapi"
 	"github.com/docker/libnetwork/netlabel"
 	"github.com/docker/libnetwork/types"
-	"github.com/sirupsen/logrus"
+	"github.com/Sirupsen/logrus"
 )
 
 const (

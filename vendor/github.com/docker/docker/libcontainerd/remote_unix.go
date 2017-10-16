@@ -22,7 +22,7 @@ import (
 	"github.com/docker/docker/pkg/system"
 	"github.com/golang/protobuf/ptypes"
 	"github.com/golang/protobuf/ptypes/timestamp"
-	"github.com/sirupsen/logrus"
+	"github.com/Sirupsen/logrus"
 	"golang.org/x/net/context"
 	"golang.org/x/sys/unix"
 	"google.golang.org/grpc"

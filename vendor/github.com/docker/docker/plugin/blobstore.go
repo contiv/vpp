@@ -15,7 +15,7 @@ import (
 	"github.com/docker/docker/pkg/progress"
 	"github.com/opencontainers/go-digest"
 	"github.com/pkg/errors"
-	"github.com/sirupsen/logrus"
+	"github.com/Sirupsen/logrus"
 	"golang.org/x/net/context"
 )
 

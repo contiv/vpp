@@ -8,7 +8,7 @@ import (
 
 	"github.com/opencontainers/runc/libcontainer/cgroups"
 
-	"github.com/sirupsen/logrus"
+	"github.com/Sirupsen/logrus"
 )
 
 func blkioStatEntryEquals(expected, actual []cgroups.BlkioStatEntry) error {

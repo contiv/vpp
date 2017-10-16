@@ -13,7 +13,7 @@ import (
 	"github.com/docker/docker/pkg/plugins"
 	metrics "github.com/docker/go-metrics"
 	"github.com/pkg/errors"
-	"github.com/sirupsen/logrus"
+	"github.com/Sirupsen/logrus"
 	"golang.org/x/sys/unix"
 )
 

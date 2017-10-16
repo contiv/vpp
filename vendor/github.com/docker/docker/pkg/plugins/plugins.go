@@ -28,7 +28,7 @@ import (
 	"time"
 
 	"github.com/docker/go-connections/tlsconfig"
-	"github.com/sirupsen/logrus"
+	"github.com/Sirupsen/logrus"
 )
 
 var (

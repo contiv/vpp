@@ -17,7 +17,7 @@ import (
 	"github.com/docker/libnetwork/osl"
 	"github.com/docker/libnetwork/resolvconf"
 	"github.com/docker/libnetwork/types"
-	"github.com/sirupsen/logrus"
+	"github.com/Sirupsen/logrus"
 )
 
 var (

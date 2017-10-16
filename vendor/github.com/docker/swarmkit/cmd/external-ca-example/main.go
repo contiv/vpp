@@ -10,7 +10,7 @@ import (
 	"github.com/docker/swarmkit/ca"
 	"github.com/docker/swarmkit/ca/testutils"
 	"github.com/docker/swarmkit/identity"
-	"github.com/sirupsen/logrus"
+	"github.com/Sirupsen/logrus"
 )
 
 func main() {

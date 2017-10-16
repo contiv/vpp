@@ -27,7 +27,7 @@ import (
 	"github.com/docker/docker/pkg/stringid"
 	"github.com/docker/docker/pkg/tarsum"
 	"github.com/docker/docker/registry/resumable"
-	"github.com/sirupsen/logrus"
+	"github.com/Sirupsen/logrus"
 )
 
 var (

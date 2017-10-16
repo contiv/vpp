@@ -9,7 +9,7 @@ import (
 	"github.com/docker/swarmkit/log"
 	"github.com/docker/swarmkit/protobuf/ptypes"
 	"github.com/pkg/errors"
-	"github.com/sirupsen/logrus"
+	"github.com/Sirupsen/logrus"
 	"golang.org/x/net/context"
 )
 

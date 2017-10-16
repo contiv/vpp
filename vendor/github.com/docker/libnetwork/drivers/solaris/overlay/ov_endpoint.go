@@ -9,7 +9,7 @@ import (
 	"github.com/docker/libnetwork/driverapi"
 	"github.com/docker/libnetwork/netutils"
 	"github.com/docker/libnetwork/types"
-	"github.com/sirupsen/logrus"
+	"github.com/Sirupsen/logrus"
 )
 
 type endpointTable map[string]*endpoint

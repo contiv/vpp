@@ -14,7 +14,7 @@ import (
 	"github.com/docker/swarmkit/manager/state/store"
 	gogotypes "github.com/gogo/protobuf/types"
 	"github.com/pkg/errors"
-	"github.com/sirupsen/logrus"
+	"github.com/Sirupsen/logrus"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"

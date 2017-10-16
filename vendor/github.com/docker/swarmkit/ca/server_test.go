@@ -22,7 +22,7 @@ import (
 	"github.com/docker/swarmkit/testutils"
 	"github.com/opencontainers/go-digest"
 	"github.com/pkg/errors"
-	"github.com/sirupsen/logrus"
+	"github.com/Sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/net/context"

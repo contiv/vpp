@@ -10,7 +10,7 @@ import (
 	"github.com/docker/docker/distribution/metadata"
 	"github.com/docker/docker/pkg/progress"
 	"github.com/docker/docker/registry"
-	"github.com/sirupsen/logrus"
+	"github.com/Sirupsen/logrus"
 	"golang.org/x/net/context"
 )
 

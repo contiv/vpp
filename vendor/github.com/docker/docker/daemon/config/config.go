@@ -18,7 +18,7 @@ import (
 	"github.com/docker/docker/pkg/discovery"
 	"github.com/docker/docker/registry"
 	"github.com/imdario/mergo"
-	"github.com/sirupsen/logrus"
+	"github.com/Sirupsen/logrus"
 	"github.com/spf13/pflag"
 )
 

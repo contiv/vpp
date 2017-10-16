@@ -18,7 +18,7 @@ import (
 	"github.com/docker/docker/daemon/logger/loggerutils"
 	"github.com/docker/docker/pkg/urlutil"
 	"github.com/docker/go-connections/tlsconfig"
-	"github.com/sirupsen/logrus"
+	"github.com/Sirupsen/logrus"
 )
 
 const (

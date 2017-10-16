@@ -11,7 +11,7 @@ import (
 	"github.com/opencontainers/runc/libcontainer/system"
 	"github.com/opencontainers/runc/libcontainer/utils"
 
-	"github.com/sirupsen/logrus"
+	"github.com/Sirupsen/logrus"
 	"golang.org/x/sys/unix"
 )
 

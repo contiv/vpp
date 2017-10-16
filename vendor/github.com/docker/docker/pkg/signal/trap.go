@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
-	"github.com/sirupsen/logrus"
+	"github.com/Sirupsen/logrus"
 )
 
 // Trap sets up a simplified signal "trap", appropriate for common

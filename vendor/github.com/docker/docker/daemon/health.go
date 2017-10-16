@@ -15,7 +15,7 @@ import (
 	"github.com/docker/docker/api/types/strslice"
 	"github.com/docker/docker/container"
 	"github.com/docker/docker/daemon/exec"
-	"github.com/sirupsen/logrus"
+	"github.com/Sirupsen/logrus"
 )
 
 const (

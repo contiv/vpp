@@ -11,7 +11,7 @@ import (
 	"github.com/docker/libnetwork/drivers/windows"
 	"github.com/docker/libnetwork/netlabel"
 	"github.com/docker/libnetwork/types"
-	"github.com/sirupsen/logrus"
+	"github.com/Sirupsen/logrus"
 )
 
 type endpointTable map[string]*endpoint

@@ -9,7 +9,7 @@ import (
 	"github.com/docker/docker/pkg/plugins"
 	"github.com/docker/docker/plugin/v2"
 	"github.com/pkg/errors"
-	"github.com/sirupsen/logrus"
+	"github.com/Sirupsen/logrus"
 )
 
 /* allowV1PluginsFallback determines daemon's support for V1 plugins.

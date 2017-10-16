@@ -11,7 +11,7 @@ import (
 	"github.com/docker/docker/pkg/ioutils"
 	"github.com/docker/libnetwork/resolvconf/dns"
 	"github.com/docker/libnetwork/types"
-	"github.com/sirupsen/logrus"
+	"github.com/Sirupsen/logrus"
 )
 
 var (

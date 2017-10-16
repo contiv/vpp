@@ -27,7 +27,7 @@ import (
 	"github.com/docker/libnetwork/netlabel"
 	"github.com/docker/libnetwork/options"
 	blkiodev "github.com/opencontainers/runc/libcontainer/configs"
-	"github.com/Sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/windows"
 )
 

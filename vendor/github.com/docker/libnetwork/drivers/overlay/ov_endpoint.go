@@ -10,7 +10,7 @@ import (
 	"github.com/docker/libnetwork/netutils"
 	"github.com/docker/libnetwork/ns"
 	"github.com/docker/libnetwork/types"
-	"github.com/Sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 )
 
 type endpointTable map[string]*endpoint

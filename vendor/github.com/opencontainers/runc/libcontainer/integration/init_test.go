@@ -9,7 +9,7 @@ import (
 	"github.com/opencontainers/runc/libcontainer/cgroups/systemd"
 	_ "github.com/opencontainers/runc/libcontainer/nsenter"
 
-	"github.com/Sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 )
 
 // init runs the libcontainer initialization code because of the busybox style needs

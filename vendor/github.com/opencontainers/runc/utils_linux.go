@@ -18,7 +18,7 @@ import (
 	"github.com/opencontainers/runtime-spec/specs-go"
 
 	"github.com/coreos/go-systemd/activation"
-	"github.com/Sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli"
 	"golang.org/x/sys/unix"
 )

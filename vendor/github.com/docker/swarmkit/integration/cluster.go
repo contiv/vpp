@@ -14,7 +14,7 @@ import (
 	"github.com/docker/swarmkit/log"
 	"github.com/docker/swarmkit/node"
 	"github.com/docker/swarmkit/testutils"
-	"github.com/Sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/net/context"
 )
 

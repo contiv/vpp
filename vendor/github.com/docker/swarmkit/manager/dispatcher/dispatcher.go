@@ -23,7 +23,7 @@ import (
 	"github.com/docker/swarmkit/watch"
 	gogotypes "github.com/gogo/protobuf/types"
 	"github.com/pkg/errors"
-	"github.com/Sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/net/context"
 )
 

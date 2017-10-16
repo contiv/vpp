@@ -21,7 +21,7 @@ import (
 	"github.com/docker/swarmkit/watch"
 	"github.com/opencontainers/go-digest"
 	"github.com/pkg/errors"
-	"github.com/Sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc/credentials"
 
 	"golang.org/x/net/context"

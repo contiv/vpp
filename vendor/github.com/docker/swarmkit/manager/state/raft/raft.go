@@ -27,7 +27,7 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/pivotal-golang/clock"
 	"github.com/pkg/errors"
-	"github.com/Sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/net/context"
 	"golang.org/x/time/rate"
 	"google.golang.org/grpc"

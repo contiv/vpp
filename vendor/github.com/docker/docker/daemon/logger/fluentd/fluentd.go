@@ -17,7 +17,7 @@ import (
 	"github.com/docker/go-units"
 	"github.com/fluent/fluent-logger-golang/fluent"
 	"github.com/pkg/errors"
-	"github.com/Sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 )
 
 type fluentd struct {

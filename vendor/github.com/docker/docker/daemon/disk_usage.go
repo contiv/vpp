@@ -12,7 +12,7 @@ import (
 	"github.com/docker/docker/pkg/directory"
 	"github.com/docker/docker/volume"
 	"github.com/opencontainers/go-digest"
-	"github.com/Sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 )
 
 func (daemon *Daemon) getLayerRefs(platform string) map[layer.ChainID]int {

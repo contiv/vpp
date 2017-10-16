@@ -9,7 +9,8 @@ Open SSH Connection
     Open Connection     ${ip}      ${name}
     ${out}=             Run Keyword If      "${pswd}"!="rsa_id"   Login                              ${user}   ${pswd}
     ${out2}=            Run Keyword If      "${pswd}"=="rsa_id"   SSHLibrary.Login_With_Public_Key   ${user}   %{HOME}/.ssh/id_rsa   any
-    Append To File      ${RESULTS_FOLDER}/output_${name}.log    *** Command: Login${\n}${out}${out2}${\n}
+    Run Keyword If      """${out}"""!="None"    Append To File    ${RESULTS_FOLDER}/output_${name}.log    *** Command: Login${\n}${out}${\n}
+    Run Keyword If      """${out2}"""!="None"    Append To File    ${RESULTS_FOLDER}/output_${name}.log    *** Command: Login${\n}${out2}${\n}
 
 Execute On Machine     [Arguments]              ${machine}               ${command}               ${log}=true
                        [Documentation]          *Execute On Machine ${machine} ${command}*
@@ -35,35 +36,4 @@ Write To Machine       [Arguments]              ${machine}               ${comma
                        Log                      ${out}
                        Append To File           ${RESULTS_FOLDER}/output_${machine}.log    *** Command: ${command}${\n}${out}${\n}
                        [Return]                 ${out}
-
-Write To Machine Until Prompt
-                       [Arguments]              ${machine}    ${command}    ${prompt}=root@    ${delay}=${SSH_READ_DELAY}
-                       [Documentation]          *Write Machine ${machine} ${command}*
-                       ...                      Writing ${command} to connection with name ${machine} and reading until prompt
-                       ...                      Output log is added to machine output log
-                       Log                      Use 'Write To Container Until Prompt' instead of this kw    level=WARN
-                       Log Many                 ${machine}    ${command}    ${prompt}    ${delay}
-                       Switch Connection        ${machine}
-                       Write                    ${command}
-                       ${out}=                  Read Until               ${prompt}${${machine}_HOSTNAME}
-                       Log                      ${out}
-                       ${out2}=                 Read                     delay=${delay}
-                       Log                      ${out2}
-                       Append To File           ${RESULTS_FOLDER}/output_${machine}.log    *** Command: ${command}${\n}${out}${out2}${\n}
-                       [Return]                 ${out}${out2}
-
-Write To Machine Until String
-                       [Arguments]              ${machine}    ${command}    ${string}    ${delay}=${SSH_READ_DELAY}
-                       [Documentation]          *Write Machine ${machine} ${command}*
-                       ...                      Writing ${command} to connection with name ${machine} and reading until specified string
-                       ...                      Output log is added to machine output log
-                       Log Many                 ${machine}    ${command}    ${string     ${delay}
-                       Switch Connection        ${machine}
-                       Write                    ${command}
-                       ${out}=                  Read Until               ${string}
-                       Log                      ${out}
-                       ${out2}=                 Read                     delay=${delay}
-                       Log                      ${out2}
-                       Append To File           ${RESULTS_FOLDER}/output_${machine}.log    *** Command: ${command}${\n}${out}${out2}${\n}
-                       [Return]                 ${out}${out2}
 

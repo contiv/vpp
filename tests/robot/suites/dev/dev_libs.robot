@@ -10,8 +10,11 @@ ${VARIABLES}=          common
 ${ENV}=                common
 
 *** Test Cases ***
-No Op
-    No Operation
+Do ls on vm1
+    Execute On Machine    vm_1    ls
+
+Do ls on vm2
+    Write To Machine    vm_2    ls
 
 *** Keywords ***
 TestSetup

@@ -96,6 +96,29 @@ spec:
       hostNetwork: true
       hostPID: true
 
+      initContainers:
+      - name: vpp-init
+        image: contivvpp/vswitch
+        imagePullPolicy: IfNotPresent
+        command:
+        - /bin/sh
+        args:
+        - -c
+        - "cp -r $LD_PRELOAD_INSTALL/vpp/* /vpp &&
+          cp -r $LD_PRELOAD_INSTALL/vpp-lib64/* /vpp-lib64 &&
+          cp -r $LD_PRELOAD_INSTALL/vcl-ldpreload/* /vcl-ldpreload"
+        imagePullPolicy: IfNotPresent
+        resources: {}
+        securityContext:
+          privileged: true
+        volumeMounts:
+          - mountPath: /vpp/
+            name: vpp
+          - mountPath: /vpp-lib64/
+            name: vpp-lib64
+          - mountPath: /vcl-ldpreload/
+            name: vcl-ldpreload
+
       containers:
         # Runs contiv-vswitch container on each Kubernetes node.
         # It contains the vSwitch VPP and its management agent.
@@ -134,6 +157,19 @@ spec:
         - name: cni-net-dir
           hostPath:
             path: /etc/cni/net.d
+        # Used with LD_PRELOAD
+        - name: shm
+          hostPath:
+            path: /dev/shm
+        - name: vpp
+          hostPath:
+            path: /usr/libexec/ldpreload/vpp
+        - name: vpp-lib64
+          hostPath:
+            path: /usr/libexec/ldpreload/vpp-lib64
+        - name: vcl-ldpreload
+          hostPath:
+            path: /usr/libexec/ldpreload/vcl-ldpreload
 
 ---
 

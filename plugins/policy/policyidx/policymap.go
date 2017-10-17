@@ -27,12 +27,12 @@ const policyLabelSelectorKey = "policyLabelSelectorKey"
 
 // Config groups applied policy in a container
 type Config struct {
-	PolicyName      string
-	PolicyNamespace string
-	PolicyACL       []*acl.AccessLists_Acl
-	PolicyTypes     []string
-	PolicyLabel     []*policymodel.Policy_Label
-	PolicyIngress   []*policymodel.Policy_IngressRule
+	PolicyName        string
+	PolicyNamespace   string
+	PolicyACL         *acl.AccessLists_Acl
+	PolicyTypes       []string
+	PolicyLabel       []*policymodel.Policy_Label
+	PolicyIngressRule []*policymodel.Policy_IngressRule
 }
 
 // ConfigIndex implements a cache for configured policies. Primary index is PolicyName.

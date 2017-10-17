@@ -40,8 +40,8 @@ type ProcessorDeps struct {
 
 // Init initializes Config Processor.
 func (pp *ConfigProcessor) Init() error {
-	pp.configuredPolicies = policyidx.NewConfigIndex(pp.Log, pp.PluginName, "policies")
-	pp.configuredPods = podidx.NewConfigIndex(pp.Log, pp.PluginName, "pods")
+	// pp.configuredPolicies = policyidx.NewConfigIndex(pp.Log, pp.PluginName, "policies")
+	// pp.configuredPods = podidx.NewConfigIndex(pp.Log, pp.PluginName, "pods")
 	// todo plugin.configuredNamespaces = namespaceidx.NewConfigIndex(plugin.Log, plugin.PluginName, "namespace")
 	return nil
 }
@@ -71,42 +71,55 @@ func (pp *ConfigProcessor) Resync(event *DataResyncEvent) error {
 func (pp *ConfigProcessor) AddPolicy(policy *policy.Policy) error {
 	pp.Log.WithField("policy", policy).Info("Add Policy")
 	policyCfg := &policyidx.Config{
-		PolicyName:      policy.Name,
-		PolicyLabel:     policy.Label,
-		PolicyNamespace: policy.Namespace,
+		PolicyName:        policy.Name,
+		PolicyLabel:       policy.Label,
+		PolicyNamespace:   policy.Namespace,
+		PolicyIngressRule: policy.IngressRule,
 	}
+
 	var podIDs []string
 	var ingressPodIDs []string
-	var ingressInterfaces []string
 	var aclConfig *acl.AccessLists_Acl
 	var aclRules []*acl.AccessLists_Acl_Rule
 
-	ingressRules := policy.GetIngressRule()
+	// 0. Check if there are containers w/ podLabelSelector
+	podSelectors := policy.Pods.MatchLabel
+	for _, podSelector := range podSelectors {
+		label := podSelector.Key + podSelector.Value
+		podIDs = pp.configuredPods.LookupPodLabelSelector(label)
+		if podIDs == nil {
+			policyID := policy.Name + policy.Namespace
+			pp.configuredPolicies.RegisterPolicy(policyID, policyCfg)
+			return nil
+		}
+	}
+
+	// 1. Find all podLabelSelectors that match IngressFrom
+	ingressRules := policy.IngressRule
 	for _, ingressRule := range ingressRules {
-		ingressPorts := ingressRule.GetPort()
-		ingressFroms := ingressRule.GetFrom()
+		ingressPorts := ingressRule.Port
+		ingressFroms := ingressRule.From
 		for _, ingressFrom := range ingressFroms {
-			ingressPodSelectors := ingressFrom.GetPods().GetMatchLabel()
+			ingressPodSelectors := ingressFrom.Pods.MatchLabel
 			for _, ingressPodSelector := range ingressPodSelectors {
 				ingressPodLabel := ingressPodSelector.Key + ingressPodSelector.Value
-				ingressPodIDs := pp.configuredPods.LookupPodLabelSelector(ingressPodLabel)
+				ingressPodIDs = pp.configuredPods.LookupPodLabelSelector(ingressPodLabel)
 			}
 		}
 		for _, ingressPort := range ingressPorts {
 			for _, ingressPodID := range ingressPodIDs {
 				_, podData := pp.configuredPods.LookupPod(ingressPodID)
 				podIPAddress := podData.PodIPAddress
-				dstPort := ingressPort.GetPort().Number
+				dstPort := ingressPort.Port.Number
 				proto := ingressPort.Protocol
 				aclRules = append(aclRules, getaclRules(proto, dstPort, 0, podIPAddress))
 			}
 		}
 	}
-
-	podSelectors := policy.GetPods().GetMatchLabel()
+	// 2. Find all Pods that match policyLabelSelector and add them to the rules as destination
 	for _, podSelector := range podSelectors {
 		podSelectorLabel := podSelector.Key + podSelector.Value
-		podIDs := pp.configuredPods.LookupPodLabelSelector(podSelectorLabel)
+		podIDs = pp.configuredPods.LookupPodLabelSelector(podSelectorLabel)
 		for _, podID := range podIDs {
 			_, podData := pp.configuredPods.LookupPod(podID)
 			podIPAddress := podData.PodIPAddress
@@ -130,8 +143,14 @@ func (pp *ConfigProcessor) AddPolicy(policy *policy.Policy) error {
 			}
 		}
 	}
+	// 3. Save the policy rules
+	policyCfg = &policyidx.Config{
+		PolicyACL: aclConfig,
+	}
+	policyLabel := policy.Name + policy.Namespace
+	pp.configuredPolicies.RegisterPolicy(policyLabel, policyCfg)
 
-	//5. Apply ACLs to POD interfaces
+	// 4. Apply ACLs to POD interfaces
 	err := localclient.DataChangeRequest(pp.PluginName).
 		Put().
 		ACL(aclConfig).
@@ -169,15 +188,14 @@ func (pp *ConfigProcessor) AddPod(pod *pod.Pod) error {
 	pp.configuredPods.RegisterPod(podID, podCfg)
 
 	// 2. Check if there are policies for current Label
-	var policyIDs []string
-	for _, v := range pod.Label {
-		label := v.Key + v.Value
-		policyIDs := pp.configuredPolicies.LookupPolicyLabelSelector(label)
-	}
-
-	if policyIDs == nil {
-		pp.Log.WithField("pod", pod).Info("No policies matching labels were found")
-		return nil
+	for _, policySelector := range pod.Label {
+		policyLabel := policySelector.Key + policySelector.Value
+		policyIDs := pp.configuredPolicies.LookupPolicyLabelSelector(policyLabel)
+		if policyIDs == nil {
+			podID := pod.Name + pod.Namespace
+			pp.configuredPods.RegisterPod(podID, podCfg)
+			return nil
+		}
 	}
 
 	// 3. Apply ingress policy on pod interface

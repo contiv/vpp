@@ -20,7 +20,8 @@ bash <(curl -s https://raw.githubusercontent.com/contiv/vpp/master/k8s/cri-insta
 ```
 Note that this installer has been tested only for
 [kubeadm](https://kubernetes.io/docs/setup/independent/create-cluster-kubeadm/)-managed
-clusters. After installing, please proceed with `kubeadm init` and `kubeadm join` workflow to deploy your Kubernetes cluster, or reboot the node if the cluster has been already initialized.
+clusters. After installing, please proceed with `kubeadm reset`, `kubeadm init`
+and `kubeadm join` workflow to deploy your Kubernetes cluster, or reboot the node if the cluster has been already initialized.
 
 #### 2. Deploy Kubernetes Cluster
 Now deploy your k8s cluster, e.g. using [kubeadm](https://kubernetes.io/docs/setup/independent/create-cluster-kubeadm/).

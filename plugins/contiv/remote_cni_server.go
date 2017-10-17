@@ -21,12 +21,16 @@ import (
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/l2plugin/model/l2"
 	linux_intf "github.com/ligato/vpp-agent/plugins/linuxplugin/model/interfaces"
 
+	"github.com/containernetworking/plugins/pkg/ip"
+	"github.com/containernetworking/plugins/pkg/ns"
 	"github.com/contiv/vpp/plugins/contiv/containeridx"
 	"github.com/contiv/vpp/plugins/kvdbproxy"
 	"github.com/gogo/protobuf/proto"
 	"github.com/ligato/cn-infra/datasync"
 	"github.com/ligato/vpp-agent/clientv1/linux"
+	"github.com/vishvananda/netlink"
 	"golang.org/x/net/context"
+	"net"
 	"strconv"
 	"strings"
 	"sync"
@@ -136,6 +140,14 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 		Send().ReceiveReply()
 
 	if err == nil {
+		if !s.bdCreated {
+			err := s.configureRouteOnHost()
+			if err != nil {
+				s.Logger.Error(err)
+			} else {
+				s.Logger.Info("Host route configured")
+			}
+		}
 		s.bdCreated = true
 
 		changes[linux_intf.InterfaceKey(veth1.Name)] = veth1
@@ -172,6 +184,16 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 		delete(s.afPackets, afpacket.Name)
 		s.Logger.Error(err)
 	}
+
+	ns.WithNetNSPath(request.NetworkNamespace, func(netns ns.NetNS) error {
+		defaultNextHop := net.ParseIP(bviIP)
+		dev, err := netlink.LinkByName(request.InterfaceName)
+		if err != nil {
+			s.Logger.Error(err)
+			return err
+		}
+		return ip.AddDefaultRoute(defaultNextHop, dev)
+	})
 
 	reply := &cni.CNIReply{
 		Result:     res,
@@ -299,6 +321,26 @@ func (s *remoteCNIserver) parseExtraArgs(input string) map[string]string {
 		}
 	}
 	return res
+}
+
+func (s *remoteCNIserver) configureRouteOnHost() error {
+	dev, err := netlink.LinkByName("v1")
+	if err != nil {
+		s.Logger.Error(err)
+		return err
+	}
+	_, network, err := net.ParseCIDR(ipPrefix + ".0/" + ipMask)
+	if err != nil {
+		s.Logger.Error(err)
+		return err
+	}
+
+	return netlink.RouteAdd(&netlink.Route{
+		LinkIndex: dev.Attrs().Index,
+		Dst:       network,
+		Gw:        net.ParseIP(vethVPPEndIP),
+	})
+
 }
 
 //

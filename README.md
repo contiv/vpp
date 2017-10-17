@@ -8,16 +8,16 @@
 
 Please note that the content of this repository is currently **WORK IN PROGRESS**.
 
-This Kubernetes network plugin uses FD.io VPP to provide  network connectivity
-between PODs. Currently, only a single-node k8s cluster is supported, with no
+This Kubernetes network plugin uses FD.io VPP to provide network connectivity
+between PODs. Currently, only single-node k8s clusters are supported, with no
 connection to the k8s services running on the host from the PODs.
 
 
 ### Quickstart
 
 #### Step 1 (Optional): Installing CRI Shim on your hosts
-If you plan to use fast TCP/UDP features of VPP, install the CRI shim on 
-each host wherw the TCP/IP stack will be used. The CRI shim installation 
+If your pods will be using the VPP TCP/IP stack, you must first install the 
+CRI Shim on each host where the stack will be used. The CRI Shim installation 
 should only be performed after `kubelet`, `kubeadm` and `kubectl` have already
 been [installed][2]. 
 
@@ -26,19 +26,16 @@ Run as root (not using sudo):
 bash <(curl -s https://raw.githubusercontent.com/contiv/vpp/master/k8s/cri-install.sh)
 ```
 Note that the CRI Shim installer has only been tested  with the [kubeadm][1]
-K8s cluster creation tool. managed clusters. 
+K8s cluster creation tool. 
 
-After installing the CRI Shim, please proceed with cluster installation as 
-described in the following steps. Alternatively, if the cluster had already
+After installing the CRI Shim, please proceed with cluster initialization, 
+as described in the steps below. Alternatively, if the cluster had already
 been initialized before installing the CRI Shim, just reboot the node.
-
-`kubeadm reset`, `kubeadm init`
-and `kubeadm join` 
 
 
 #### Step 2: Initializing your master
 Before initializing the master, you may want to clean up any previously 
-installed versions:
+installed K8s components:
 ```bash
 sudo su
 rm -rf ~/.kube
@@ -73,8 +70,11 @@ kubectl taint nodes --all node-role.kubernetes.io/master-
 ``` 
 
 #### Step 4 (Optional): Joining your nodes
-If you have more than one workers, you can now join them into the cluster 
+If you have more than one worker nodes, you can now join them into the cluster 
 as described in the [kubeadm manual][5].
+
+NOTE: multi-node clusters are currently not supported. They will be available 
+shortly.
 
 #### Step 5: Verifying the installation
 You can go ahead and deploy some PODs, e.g.:

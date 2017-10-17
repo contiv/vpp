@@ -12,28 +12,47 @@ This Kubernetes network plugin uses FD.io VPP to provide  network connectivity
 between PODs. Currently, only a single-node k8s cluster is supported, with no
 connection to the k8s services running on the host from the PODs.
 
+
 ### Quickstart
 
-#### 1. (Optional) Install CRI Shim
+#### Step 1 (Optional): Installing CRI Shim on your hosts
 If you plan to use fast TCP/UDP features of VPP, install the CRI shim on 
-each host wherw the TCP/IP stack will be used. The CRI shim installation
-should be done after kubelet, kubeadm and kubectl have been installed. 
+each host wherw the TCP/IP stack will be used. The CRI shim installation 
+should only be performed after `kubelet`, `kubeadm` and `kubectl` have already
+been [installed][2]. 
 
 Run as root (not using sudo):
 ```
 bash <(curl -s https://raw.githubusercontent.com/contiv/vpp/master/k8s/cri-install.sh)
 ```
-Note that this installer has been tested only for
-[kubeadm](https://kubernetes.io/docs/setup/independent/create-cluster-kubeadm/)-managed
-clusters. After installing, please proceed with `kubeadm reset`, `kubeadm init`
-and `kubeadm join` workflow to deploy your Kubernetes cluster, or reboot the node if the 
-cluster has been already initialized.
+Note that the CRI Shim installer has only been tested  with the [kubeadm][1]
+K8s cluster creation tool. managed clusters. 
 
-#### 2. Deploy Kubernetes Cluster
-Now deploy your k8s cluster, e.g. using [kubeadm](https://kubernetes.io/docs/setup/independent/create-cluster-kubeadm/).
+After installing the CRI Shim, please proceed with cluster installation as 
+described in the following steps. Alternatively, if the cluster had already
+been initialized before installing the CRI Shim, just reboot the node.
 
-#### 3. Deploy the Contiv-VPP Network Plugin:
+`kubeadm reset`, `kubeadm init`
+and `kubeadm join` 
+
+
+#### Step 2: Initializing your master
+Before initializing the master, you may want to clean up any previously 
+installed versions:
+```bash
+sudo su
+rm -rf ~/.kube
+kubeadm reset
 ```
+After cleanup, proceed with master initialization as described in the 
+[kubeadm manual][3]:
+```bash
+kubeadm init
+```
+
+#### Step 3: Installing the Contiv-VPP pod network
+Install the Contiv-VPP network for your cluster as follows:
+```bash
 kubectl apply -f https://raw.githubusercontent.com/contiv/vpp/master/k8s/contiv-vpp.yaml
 ```
 
@@ -46,16 +65,26 @@ kube-system   contiv-etcd-cxqhr                1/1       Running            0   
 kube-system   contiv-ksr-h9vts                 1/1       Running            0          1h
 kube-system   contiv-vswitch-9nwwr             2/2       Running            0          1h
 ```
+More details about installing the pod network can be found in the 
+[kubeadm manual][4]. In particular, if you are installing everything on a
+single node, please remember to untaint it:
+```bash
+kubectl taint nodes --all node-role.kubernetes.io/master-
+``` 
 
-#### 4. Deploy PODs and Verify:
+#### Step 4 (Optional): Joining your nodes
+If you have more than one workers, you can now join them into the cluster 
+as described in the [kubeadm manual][5].
+
+#### Step 5: Verifying the installation
 You can go ahead and deploy some PODs, e.g.:
 ```
-$ kubectl apply -f ubuntu.yaml
+$ kubectl run nginx --image=nginx --replicas=2
 ```
 
 Use `kubectl describe pod` to get the IP address of a POD, e.g.:
 ```
-$ kubectl describe pod ubuntu | grep IP
+$ kubectl describe pod nginx | grep IP
 IP:		10.0.0.1
 ```
 
@@ -70,7 +99,7 @@ You should be able to ping the pod from the host as well.
 ping 10.0.0.1
 ```
 
-#### 5. Troubleshooting
+#### Troubleshooting
 Some of the issues that can occur during the installation are:
 
 - Forgetting to create and initialize the `.kube` directory in your home 
@@ -96,3 +125,9 @@ rm -rf ~/.kube
 kubeadm reset
 kubeadm init
 ```
+
+[1]: https://kubernetes.io/docs/setup/independent/create-cluster-kubeadm/
+[2]: https://kubernetes.io/docs/setup/independent/install-kubeadm/#installing-kubeadm-kubelet-and-kubectl
+[3]: https://kubernetes.io/docs/setup/independent/create-cluster-kubeadm/#initializing-your-master
+[4]: https://kubernetes.io/docs/setup/independent/create-cluster-kubeadm/#pod-network
+[5]: https://kubernetes.io/docs/setup/independent/create-cluster-kubeadm/#joining-your-nodes

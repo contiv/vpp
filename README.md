@@ -57,3 +57,8 @@ To check the connectivity, you can connect to VPP debug CLI and execute a ping:
 telnet 0 5002
 vpp# ping 10.0.0.1
 ```
+
+You should be able to ping the pod from the host as well.
+```
+ping 10.0.0.1
+```

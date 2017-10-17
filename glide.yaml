@@ -6,6 +6,8 @@ import:
   version: 49790b64c5a91ff99355f2cf0cdbc75332f988f6
 - package: github.com/containernetworking/cni
   version: v0.6.0
+- package: github.com/containernetworking/plugins
+  version: v0.6.0
 - package: k8s.io/client-go
   version: 82aa063804cf055e16e8911250f888bc216e8b61
 - package: k8s.io/apimachinery

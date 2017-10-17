@@ -33,6 +33,7 @@ import (
 	"github.com/onsi/gomega"
 	"net"
 	"testing"
+	"github.com/vishvananda/netlink"
 )
 
 const (
@@ -62,6 +63,16 @@ func TestVeth1NameFromRequest(t *testing.T) {
 
 func TestAdd(t *testing.T) {
 	gomega.RegisterTestingT(t)
+
+	veth := &netlink.Veth{
+		LinkAttrs: netlink.LinkAttrs{
+			Name:   vethHostEndName,
+			TxQLen: 0,
+		},
+		PeerName: "vppv2",
+	}
+	netlink.LinkAdd(veth)
+	defer netlink.LinkDel(veth)
 
 	txns := &txnTracker{}
 	configuredContainers := containeridx.NewConfigIndex(logroot.StandardLogger(), core.PluginName("Plugin-name"), "title")

@@ -21,7 +21,6 @@ import (
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/l2plugin/model/l2"
 	linux_intf "github.com/ligato/vpp-agent/plugins/linuxplugin/model/interfaces"
 
-	"github.com/containernetworking/plugins/pkg/ip"
 	"github.com/containernetworking/plugins/pkg/ns"
 	"github.com/contiv/vpp/plugins/contiv/containeridx"
 	"github.com/contiv/vpp/plugins/kvdbproxy"
@@ -43,6 +42,8 @@ type remoteCNIserver struct {
 	vppTxnFactory        func() linux.DataChangeDSL
 	proxy                kvdbproxy.Proxy
 	configuredContainers *containeridx.ConfigIndex
+	// hostCalls encapsulates calls for managing linux networking
+	hostCalls
 
 	// bdCreated is true if the bridge domain on the vpp for apackets is configured
 	bdCreated bool
@@ -73,7 +74,7 @@ const (
 )
 
 func newRemoteCNIServer(logger logging.Logger, vppTxnFactory func() linux.DataChangeDSL, proxy kvdbproxy.Proxy, configuredContainers *containeridx.ConfigIndex) *remoteCNIserver {
-	return &remoteCNIserver{Logger: logger, vppTxnFactory: vppTxnFactory, afPackets: map[string]interface{}{}, proxy: proxy, configuredContainers: configuredContainers}
+	return &remoteCNIserver{Logger: logger, vppTxnFactory: vppTxnFactory, afPackets: map[string]interface{}{}, proxy: proxy, configuredContainers: configuredContainers, hostCalls: &linuxCalls{}}
 }
 
 // Add connects the container to the network.
@@ -323,7 +324,7 @@ func (s *remoteCNIserver) parseExtraArgs(input string) map[string]string {
 }
 
 func (s *remoteCNIserver) configureRouteOnHost() error {
-	dev, err := netlink.LinkByName(vethHostEndName)
+	dev, err := s.LinkByName(vethHostEndName)
 	if err != nil {
 		s.Logger.Error(err)
 		return err
@@ -334,7 +335,7 @@ func (s *remoteCNIserver) configureRouteOnHost() error {
 		return err
 	}
 
-	return netlink.RouteAdd(&netlink.Route{
+	return s.RouteAdd(&netlink.Route{
 		LinkIndex: dev.Attrs().Index,
 		Dst:       network,
 		Gw:        net.ParseIP(vethVPPEndIP),
@@ -343,14 +344,14 @@ func (s *remoteCNIserver) configureRouteOnHost() error {
 }
 
 func (s *remoteCNIserver) configureRouteInContainer(request *cni.CNIRequest) error {
-	return ns.WithNetNSPath(request.NetworkNamespace, func(netns ns.NetNS) error {
+	return s.WithNetNSPath(request.NetworkNamespace, func(netns ns.NetNS) error {
 		defaultNextHop := net.ParseIP(bviIP)
-		dev, err := netlink.LinkByName(request.InterfaceName)
+		dev, err := s.LinkByName(request.InterfaceName)
 		if err != nil {
 			s.Logger.Error(err)
 			return err
 		}
-		return ip.AddDefaultRoute(defaultNextHop, dev)
+		return s.AddDefaultRoute(defaultNextHop, dev)
 	})
 }
 

@@ -5,7 +5,7 @@ import (
 	"net"
 
 	"github.com/hashicorp/memberlist"
-	"github.com/sirupsen/logrus"
+	"github.com/Sirupsen/logrus"
 )
 
 type eventDelegate struct {

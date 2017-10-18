@@ -4,7 +4,7 @@ import (
 	"crypto/x509"
 
 	"github.com/docker/libtrust"
-	"github.com/sirupsen/logrus"
+	"github.com/Sirupsen/logrus"
 )
 
 // Verify verifies the signature of the signed manifest returning the public

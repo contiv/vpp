@@ -8,7 +8,7 @@ import (
 	events "github.com/docker/go-events"
 	"github.com/docker/libnetwork/diagnose"
 	"github.com/docker/libnetwork/networkdb"
-	"github.com/sirupsen/logrus"
+	"github.com/Sirupsen/logrus"
 )
 
 // DummyClientPaths2Func exported paths for the client

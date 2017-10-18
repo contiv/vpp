@@ -9,7 +9,7 @@ import (
 	"github.com/docker/docker/builder/remotecontext"
 	dockerimage "github.com/docker/docker/image"
 	"github.com/pkg/errors"
-	"github.com/sirupsen/logrus"
+	"github.com/Sirupsen/logrus"
 	"golang.org/x/net/context"
 )
 

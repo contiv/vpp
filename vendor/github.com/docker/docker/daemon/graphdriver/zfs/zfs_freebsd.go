@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	"github.com/docker/docker/daemon/graphdriver"
-	"github.com/sirupsen/logrus"
+	"github.com/Sirupsen/logrus"
 	"golang.org/x/sys/unix"
 )
 

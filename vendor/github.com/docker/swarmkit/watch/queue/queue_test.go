@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/docker/go-events"
-	"github.com/sirupsen/logrus"
+	"github.com/Sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 )
 

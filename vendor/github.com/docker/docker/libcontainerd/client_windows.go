@@ -17,7 +17,7 @@ import (
 	"github.com/Microsoft/hcsshim"
 	"github.com/docker/docker/pkg/sysinfo"
 	specs "github.com/opencontainers/runtime-spec/specs-go"
-	"github.com/sirupsen/logrus"
+	"github.com/Sirupsen/logrus"
 )
 
 type client struct {

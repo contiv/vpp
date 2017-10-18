@@ -10,7 +10,7 @@ import (
 	"github.com/docker/libnetwork/drivers/windows"
 	"github.com/docker/libnetwork/ipamapi"
 	"github.com/docker/libnetwork/ipams/windowsipam"
-	"github.com/sirupsen/logrus"
+	"github.com/Sirupsen/logrus"
 )
 
 func executeInCompartment(compartmentID uint32, x func()) {

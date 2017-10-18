@@ -6,7 +6,7 @@ import (
 
 	"github.com/docker/libnetwork/test/networkDb/dbclient"
 	"github.com/docker/libnetwork/test/networkDb/dbserver"
-	"github.com/sirupsen/logrus"
+	"github.com/Sirupsen/logrus"
 )
 
 func main() {

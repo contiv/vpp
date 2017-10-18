@@ -7,7 +7,7 @@ import (
 
 	"github.com/docker/docker/dockerversion"
 	"github.com/docker/docker/pkg/homedir"
-	"github.com/sirupsen/logrus"
+	"github.com/Sirupsen/logrus"
 )
 
 // ensureHomeIfIAmStatic ensure $HOME to be set if dockerversion.IAmStatic is "true".

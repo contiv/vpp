@@ -20,7 +20,7 @@ import (
 	"github.com/cloudflare/cfssl/signer"
 	"github.com/docker/swarmkit/log"
 	"github.com/pkg/errors"
-	"github.com/sirupsen/logrus"
+	"github.com/Sirupsen/logrus"
 	"golang.org/x/net/context"
 	"golang.org/x/net/context/ctxhttp"
 )

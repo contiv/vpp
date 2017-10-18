@@ -13,7 +13,7 @@ import (
 	"github.com/docker/libnetwork/idm"
 	"github.com/docker/libnetwork/netlabel"
 	"github.com/docker/libnetwork/types"
-	"github.com/sirupsen/logrus"
+	"github.com/Sirupsen/logrus"
 )
 
 const (

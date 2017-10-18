@@ -7,7 +7,7 @@ import (
 	"os"
 	"syscall"
 
-	"github.com/sirupsen/logrus"
+	"github.com/Sirupsen/logrus"
 )
 
 // Enumeration type saying which versions of IP protocol to process.

@@ -10,7 +10,7 @@ import (
 
 	containerpkg "github.com/docker/docker/container"
 	"github.com/docker/docker/pkg/signal"
-	"github.com/sirupsen/logrus"
+	"github.com/Sirupsen/logrus"
 )
 
 type errNoSuchProcess struct {

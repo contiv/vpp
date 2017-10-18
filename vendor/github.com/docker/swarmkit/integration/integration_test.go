@@ -25,7 +25,7 @@ import (
 	"github.com/docker/swarmkit/manager"
 	"github.com/docker/swarmkit/testutils"
 	"github.com/pkg/errors"
-	"github.com/sirupsen/logrus"
+	"github.com/Sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 )
 

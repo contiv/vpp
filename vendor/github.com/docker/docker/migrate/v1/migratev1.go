@@ -21,7 +21,7 @@ import (
 	"github.com/docker/docker/pkg/ioutils"
 	refstore "github.com/docker/docker/reference"
 	"github.com/opencontainers/go-digest"
-	"github.com/sirupsen/logrus"
+	"github.com/Sirupsen/logrus"
 )
 
 type graphIDRegistrar interface {

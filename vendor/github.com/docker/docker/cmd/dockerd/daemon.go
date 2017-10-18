@@ -50,7 +50,7 @@ import (
 	swarmapi "github.com/docker/swarmkit/api"
 	"github.com/moby/buildkit/session"
 	"github.com/pkg/errors"
-	"github.com/sirupsen/logrus"
+	"github.com/Sirupsen/logrus"
 	"github.com/spf13/pflag"
 )
 

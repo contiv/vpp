@@ -9,7 +9,7 @@ import (
 	"github.com/docker/docker/pkg/system"
 	"github.com/docker/libnetwork"
 	"github.com/pkg/errors"
-	"github.com/sirupsen/logrus"
+	"github.com/Sirupsen/logrus"
 )
 
 func (daemon *Daemon) setupLinkedContainers(container *container.Container) ([]string, error) {

@@ -158,7 +158,7 @@ import (
 	"github.com/coreos/go-systemd/journal"
 	"github.com/docker/docker/api/types/backend"
 	"github.com/docker/docker/daemon/logger"
-	"github.com/sirupsen/logrus"
+	"github.com/Sirupsen/logrus"
 )
 
 func (s *journald) Close() error {

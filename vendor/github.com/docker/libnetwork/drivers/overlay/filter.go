@@ -5,7 +5,7 @@ import (
 	"sync"
 
 	"github.com/docker/libnetwork/iptables"
-	"github.com/sirupsen/logrus"
+	"github.com/Sirupsen/logrus"
 )
 
 const globalChain = "DOCKER-OVERLAY"

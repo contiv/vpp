@@ -20,7 +20,7 @@ import (
 	"github.com/docker/swarmkit/manager/state/raft/membership"
 	raftutils "github.com/docker/swarmkit/manager/state/raft/testutils"
 	"github.com/docker/swarmkit/testutils"
-	"github.com/sirupsen/logrus"
+	"github.com/Sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 )
 

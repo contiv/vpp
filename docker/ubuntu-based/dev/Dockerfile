@@ -1,5 +1,5 @@
 # update the version tag when moving to a new version of the vpp-agent
-FROM ligato/dev-vpp-agent:v1.0.5
+FROM ligato/dev-vpp-agent:v1.0.6
 
 # optional argument - a specific VPP commit ID
 ARG VPP_COMMIT_ID="xxx"

@@ -129,56 +129,56 @@ func (pr *PolicyReflector) policyToProto(policy *core_v1beta1.NetworkPolicy) *pr
 	}
 	// Pods
 	policyProto.Pods = pr.labelSelectorToProto(&policy.Spec.PodSelector)
+	// PolicyType
+	ingress := 0
+	egress := 0
+	for _, policyType := range policy.Spec.PolicyTypes {
+		switch policyType {
+		case core_v1beta1.PolicyTypeIngress:
+			ingress++
+		case core_v1beta1.PolicyTypeEgress:
+			egress++
+		}
+	}
+	if ingress > 0 && egress > 0 {
+		policyProto.PolicyType = proto.Policy_INGRESS_AND_EGRESS
+	} else if ingress > 0 {
+		policyProto.PolicyType = proto.Policy_INGRESS
+	} else if egress > 0 {
+		policyProto.PolicyType = proto.Policy_EGRESS
+	} else {
+		policyProto.PolicyType = proto.Policy_DEFAULT
+	}
 	// Ingress rules
 	if policy.Spec.Ingress != nil {
 		for _, ingress := range policy.Spec.Ingress {
 			ingressProto := &proto.Policy_IngressRule{}
 			// Ports
 			if ingress.Ports != nil {
-				for _, port := range ingress.Ports {
-					portProto := &proto.Policy_IngressRule_Port{}
-					// Protocol
-					if port.Protocol != nil {
-						switch *port.Protocol {
-						case core_v1.ProtocolTCP:
-							portProto.Protocol = proto.Policy_IngressRule_Port_TCP
-						case core_v1.ProtocolUDP:
-							portProto.Protocol = proto.Policy_IngressRule_Port_UDP
-						}
-					}
-					// Port number/name
-					if port.Port != nil {
-						portProto.Port = &proto.Policy_IngressRule_Port_PortNameOrNumber{}
-						switch port.Port.Type {
-						case intstr.Int:
-							portProto.Port.Type = proto.Policy_IngressRule_Port_PortNameOrNumber_NUMBER
-							portProto.Port.Number = port.Port.IntVal
-						case intstr.String:
-							portProto.Port.Type = proto.Policy_IngressRule_Port_PortNameOrNumber_NUMBER
-							portProto.Port.Number = port.Port.IntVal
-						}
-					}
-					// append port
-					ingressProto.Port = append(ingressProto.Port, portProto)
-				}
+				ingressProto.Port = pr.portsToProto(ingress.Ports)
 			}
 			// From
 			if ingress.From != nil {
-				for _, from := range ingress.From {
-					fromProto := &proto.Policy_IngressRule_Peer{}
-					// pod selectors
-					if from.PodSelector != nil {
-						fromProto.Pods = pr.labelSelectorToProto(from.PodSelector)
-					} else if from.NamespaceSelector != nil {
-						// namespace selectors
-						fromProto.Namespaces = pr.labelSelectorToProto(from.NamespaceSelector)
-					}
-					// append peer
-					ingressProto.From = append(ingressProto.From, fromProto)
-				}
+				ingressProto.From = pr.peersToProto(ingress.From)
 			}
 			// append rule
 			policyProto.IngressRule = append(policyProto.IngressRule, ingressProto)
+		}
+	}
+	// Egress rules
+	if policy.Spec.Egress != nil {
+		for _, egress := range policy.Spec.Egress {
+			egressProto := &proto.Policy_EgressRule{}
+			// Ports
+			if egress.Ports != nil {
+				egressProto.Port = pr.portsToProto(egress.Ports)
+			}
+			// From
+			if egress.To != nil {
+				egressProto.To = pr.peersToProto(egress.To)
+			}
+			// append rule
+			policyProto.EgressRule = append(policyProto.EgressRule, egressProto)
 		}
 	}
 	return policyProto
@@ -223,6 +223,63 @@ func (pr *PolicyReflector) labelSelectorToProto(selector *clientapi_metav1.Label
 		}
 	}
 	return selectorProto
+}
+
+// portsToProto converts a list of ports from the k8s representation into
+// our protobuf-modelled data structure.
+func (pr *PolicyReflector) portsToProto(ports []core_v1beta1.NetworkPolicyPort) (portsProto []*proto.Policy_Port) {
+	for _, port := range ports {
+		portProto := &proto.Policy_Port{}
+		// Protocol
+		if port.Protocol != nil {
+			switch *port.Protocol {
+			case core_v1.ProtocolTCP:
+				portProto.Protocol = proto.Policy_Port_TCP
+			case core_v1.ProtocolUDP:
+				portProto.Protocol = proto.Policy_Port_UDP
+			}
+		}
+		// Port number/name
+		if port.Port != nil {
+			portProto.Port = &proto.Policy_Port_PortNameOrNumber{}
+			switch port.Port.Type {
+			case intstr.Int:
+				portProto.Port.Type = proto.Policy_Port_PortNameOrNumber_NUMBER
+				portProto.Port.Number = port.Port.IntVal
+			case intstr.String:
+				portProto.Port.Type = proto.Policy_Port_PortNameOrNumber_NAME
+				portProto.Port.Name = port.Port.StrVal
+			}
+		}
+		// append port
+		portsProto = append(portsProto, portProto)
+	}
+	return portsProto
+}
+
+// peersToProto converts a list of peers from the k8s representation into
+// our protobuf-modelled data structure.
+func (pr *PolicyReflector) peersToProto(peers []core_v1beta1.NetworkPolicyPeer) (peersProto []*proto.Policy_Peer) {
+	for _, peer := range peers {
+		peerProto := &proto.Policy_Peer{}
+		if peer.PodSelector != nil {
+			// pod selector
+			peerProto.Pods = pr.labelSelectorToProto(peer.PodSelector)
+		} else if peer.NamespaceSelector != nil {
+			// namespace selector
+			peerProto.Namespaces = pr.labelSelectorToProto(peer.NamespaceSelector)
+		} else if peer.IPBlock != nil {
+			// IP block
+			peerProto.IpBlock = &proto.Policy_Peer_IPBlock{}
+			peerProto.IpBlock.Cidr = peer.IPBlock.CIDR
+			for _, except := range peer.IPBlock.Except {
+				peerProto.IpBlock.Except = append(peerProto.IpBlock.Except, except)
+			}
+		}
+		// append peer
+		peersProto = append(peersProto, peerProto)
+	}
+	return peersProto
 }
 
 // run runs k8s subscription in a separate go routine.

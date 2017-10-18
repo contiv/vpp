@@ -85,45 +85,97 @@ message Policy {
   // An empty selector matches all pods in this namespace.
   LabelSelector pods = 4;
 
+  // PolicyType selects the rule types that the network policy relates to.
+  // By default, rule types are determined based on the existence of Ingress or
+  // Egress rules: policies that contain an Egress section are assumed to affect
+  // Egress, and all policies (whether or not they contain an Ingress section)
+  // are assumed to affect Ingress.
+  // For example, policies are egress-only if and only if policyType is set
+  // to EGRESS.
+  // Likewise, policies blocking all egress traffic are either EGRESS
+  // or INGRESS_AND_EGRESS as they do not include an Egress section and would
+  // otherwise default to just INGRESS.
+  // This field is beta-level in Kubernetes 1.8.
+  // +optional
+  enum PolicyType {
+    DEFAULT = 0;
+    INGRESS = 1;
+    EGRESS = 2;
+    INGRESS_AND_EGRESS = 3;
+  }
+  PolicyType policy_type = 5;
+
+  // A port selector.
+  message Port {
+    // The protocol (TCP or UDP) which traffic must match.
+    // If not specified, this field defaults to TCP.
+    // +optional
+    enum Protocol {
+      TCP = 0;
+      UDP = 1;
+    }
+    Protocol protocol = 3;
+
+    // Numerical or named port.
+    message PortNameOrNumber {
+      // Port reference type.
+      enum Type {
+        NUMBER = 0;
+        NAME = 1;
+      }
+      Type type = 1;
+
+      // Port number from the range: 0 < x < 65536.
+      int32 number = 2;
+
+      // Port name as defined by containers in the pod.
+      string name = 3;
+    }
+    // If specified, the port on the given protocol.
+    // This can either be a numerical or named port on a pod.
+    // If this field is not provided, the rule matches all port names and
+    // numbers.
+    // If present, only traffic on the specified protocol AND port
+    // will be matched.
+    // +optional
+    PortNameOrNumber port = 1;
+  }
+
+  // A selector for a set of pods.
+  message Peer {
+    // Exactly one of the following is specified.
+
+    // This is a label selector which selects Pods in this namespace.
+    // If present but empty, this selector selects all pods in this namespace.
+    // +optional
+    LabelSelector pods = 1;
+
+    // Selects namespaces using cluster scoped-labels.
+    // This matches all pods in all namespaces selected by this label selector.
+    // If present but empty, this selector selects all namespaces.
+    // +optional
+    LabelSelector namespaces = 2;
+
+    // IPBlock describes a particular CIDR (Ex. "192.168.1.1/24") that is allowed
+    // to/from the pods selected for this network policy. The except entries
+    // describe CIDRs that should not be included within this rule.
+    message IPBlock {
+      // CIDR is a string representing the IP Block.
+      // Valid examples are "192.168.1.1/24".
+      string cidr = 1;
+
+      // Except is a slice of CIDRs that should not be included within an IP Block
+      // Valid examples are "192.168.1.1/24".
+      // Except values are inside the CIDR range.
+      // +optional
+      repeated string except = 2;
+    }
+    IPBlock ip_block = 3;
+  }
+
   // Ingress rule matches traffic if and only if the traffic matches both port-s
   // AND from.
   message IngressRule  {
-    // A port selector.
-    message Port {
-      // The protocol (TCP or UDP) which traffic must match.
-      // If not specified, this field defaults to TCP.
-      // +optional
-      enum Protocol {
-        TCP = 0;
-        UDP = 1;
-      }
-      Protocol protocol = 3;
-
-      // Numerical or named port.
-      message PortNameOrNumber {
-        // Port reference type.
-        enum Type {
-          NUMBER = 0;
-          NAME = 1;
-        }
-        Type type = 1;
-
-        // Port number from the range: 0 < x < 65536.
-        int32 number = 2;
-
-        // Port name as defined by containers in the pod.
-        string name = 3;
-      }
-      // If specified, the port on the given protocol.
-      // This can either be a numerical or named port on a pod.
-      // If this field is not provided, the rule matches all port names and
-      // numbers.
-      // If present, only traffic on the specified protocol AND port
-      // will be matched.
-      // +optional
-      PortNameOrNumber port = 1;
-    }
-
     // List of ports made accessible on the pods selected for this policy.
     // Each item in this list is combined using a logical OR.
     // If the array is empty or null, then this ingress rule matches all ports
@@ -132,22 +184,6 @@ message Policy {
     // only if the traffic matches at least one port in the list.
     // +optional
     repeated Port port = 1;
-
-    // A selector for a set of pods / namespaces.
-    message Peer {
-      // Exactly one of the following must be specified.
-
-      // This is a label selector which selects Pods in this namespace.
-      // If present but empty, this selector selects all pods in this namespace.
-      // +optional
-      LabelSelector pods = 1;
-
-      // Selects namespaces using cluster scoped-labels.
-      // This matches all pods in all namespaces selected by this label selector.
-      // If present but empty, this selector selects all namespaces.
-      // +optional
-      LabelSelector namespaces = 2;
-    }
 
     // List of sources which are able to access the pods selected for this
     // policy.
@@ -169,5 +205,39 @@ message Policy {
   // any traffic (and serves solely to ensure that the selected pods are isolated
   // by default).
   // +optional
-  repeated IngressRule ingress_rule = 5;
+  repeated IngressRule ingress_rule = 6;
+
+  // Egress rule matches traffic if and only if the traffic matches both port-s
+  // AND to.
+  // This field is beta-level in Kubernetes 1.8.
+  message EgressRule  {
+    // List of destination ports for outgoing traffic.
+    // Each item in this list is combined using a logical OR.
+    // If the array is empty or null, then this egress rule matches all ports
+    // (traffic not restricted by port).
+    // If the array is non-empty, then this egress rule allows traffic
+    // only if the traffic matches at least one port in the list.
+    // +optional
+    repeated Port port = 1;
+
+    // List of destinations for outgoing traffic of pods selected for this policy.
+    // Items in this list are combined using a logical OR operation.
+    // If the array is empty or null, this egress rule matches all destinations
+    // (traffic not restricted by destination).
+    // If the array is non-empty, then this egress rule allows traffic only
+    // if the traffic matches at least one item in the to list.
+    // +optional
+    repeated Peer to = 2;
+  }
+
+  // List of egress rules to be applied to the selected pods.
+  // Outgoing traffic is allowed if there are no network policies selecting
+  // the pod OR if the traffic matches at least one egress rule across
+  // all of the network policies applied to the pod.
+  // If there are no egress rules then this network policy does not allow
+  // any outgoing traffic (and serves solely to ensure that the selected pods
+  // are isolated by default).
+  // This field is beta-level in Kubernetes 1.8.
+  // +optional
+  repeated EgressRule egress_rule = 7;
 }

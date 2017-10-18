@@ -64,7 +64,7 @@ The interesting loggers for `contiv-ksr` are:
 
 #### Requirements
 
-To start `contiv-ksr` you have to have Kubernetes and (a separate) ETCD
+To start `contiv-ksr` you have to have Kubernetes 1.8+ and (a separate) ETCD
 running first.
 
 `kubeadm` can be used to easily and quickly install a Kubernetes cluster,

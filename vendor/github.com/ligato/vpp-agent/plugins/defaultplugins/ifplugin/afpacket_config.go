@@ -19,6 +19,8 @@ import (
 
 	govppapi "git.fd.io/govpp.git/api"
 	"github.com/ligato/cn-infra/logging"
+	"github.com/ligato/cn-infra/logging/measure"
+	"github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/bin_api/af_packet"
 	intf "github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/model/interfaces"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/vppcalls"
 )
@@ -27,7 +29,8 @@ import (
 // Most importantly it needs to ensure that Afpacket interface is create AFTER the associated host interface.
 type AFPacketConfigurator struct {
 	logging.Logger
-	Linux interface{} //just flag if nil
+	Linux     interface{}        //just flag if nil
+	Stopwatch *measure.Stopwatch // from InterfaceConfigurator
 
 	afPacketByHostIf map[string]*AfPacketConfig // host interface name -> Af Packet interface configuration
 	afPacketByName   map[string]*AfPacketConfig // af packet name -> Af Packet interface configuration
@@ -55,7 +58,6 @@ func (plugin *AFPacketConfigurator) Init(vppCh *govppapi.Channel) (err error) {
 
 // ConfigureAfPacketInterface creates a new Afpacket interface or marks it as pending if the target host interface doesn't exist yet.
 func (plugin *AFPacketConfigurator) ConfigureAfPacketInterface(afpacket *intf.Interfaces_Interface) (swIndex uint32, pending bool, err error) {
-
 	if afpacket.Type != intf.InterfaceType_AF_PACKET_INTERFACE {
 		return 0, false, errors.New("expecting AfPacket interface")
 	}
@@ -67,7 +69,7 @@ func (plugin *AFPacketConfigurator) ConfigureAfPacketInterface(afpacket *intf.In
 			return 0, true, nil
 		}
 	}
-	swIdx, err := vppcalls.AddAfPacketInterface(afpacket.Afpacket, plugin.vppCh)
+	swIdx, err := vppcalls.AddAfPacketInterface(afpacket.Afpacket, plugin.vppCh, measure.GetTimeLog(af_packet.AfPacketCreate{}, plugin.Stopwatch))
 	if err != nil {
 		plugin.addToCache(afpacket, true)
 		return 0, true, err
@@ -105,7 +107,7 @@ func (plugin *AFPacketConfigurator) DeleteAfPacketInterface(afpacket *intf.Inter
 
 	config, found := plugin.afPacketByName[afpacket.Name]
 	if !found || !config.pending {
-		err = vppcalls.DeleteAfPacketInterface(afpacket.GetAfpacket(), plugin.vppCh)
+		err = vppcalls.DeleteAfPacketInterface(afpacket.GetAfpacket(), plugin.vppCh, measure.GetTimeLog(af_packet.AfPacketDelete{}, plugin.Stopwatch))
 	}
 	plugin.removeFromCache(afpacket)
 	return err

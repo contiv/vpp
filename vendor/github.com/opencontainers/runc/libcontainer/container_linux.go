@@ -25,7 +25,7 @@ import (
 	"github.com/opencontainers/runc/libcontainer/utils"
 
 	"github.com/golang/protobuf/proto"
-	"github.com/Sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 	"github.com/syndtr/gocapability/capability"
 	"github.com/vishvananda/netlink/nl"
 	"golang.org/x/sys/unix"

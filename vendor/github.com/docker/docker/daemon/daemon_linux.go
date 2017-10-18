@@ -10,7 +10,7 @@ import (
 
 	"github.com/docker/docker/pkg/fileutils"
 	"github.com/docker/docker/pkg/mount"
-	"github.com/Sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 )
 
 // On Linux, plugins use a static path for storing execution state,

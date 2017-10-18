@@ -5,7 +5,7 @@ import (
 	"io/ioutil"
 
 	"github.com/docker/libnetwork/iptables"
-	"github.com/Sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 )
 
 const (

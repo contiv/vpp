@@ -5,7 +5,7 @@ import (
 	"net/http"
 
 	metrics "github.com/docker/go-metrics"
-	"github.com/Sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 )
 
 func startMetricsServer(addr string) error {

@@ -10,7 +10,7 @@ import (
 
 	"github.com/docker/distribution/uuid"
 	"github.com/gorilla/mux"
-	log "github.com/Sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 )
 
 // Common errors used with this package.

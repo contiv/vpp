@@ -24,7 +24,7 @@ import (
 	"github.com/docker/swarmkit/manager/state/store"
 	stateutils "github.com/docker/swarmkit/manager/state/testutils"
 	"github.com/docker/swarmkit/remotes"
-	"github.com/Sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/net/context"

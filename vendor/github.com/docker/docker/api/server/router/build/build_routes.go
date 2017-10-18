@@ -23,7 +23,7 @@ import (
 	"github.com/docker/docker/pkg/streamformatter"
 	units "github.com/docker/go-units"
 	"github.com/pkg/errors"
-	"github.com/Sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/net/context"
 )
 

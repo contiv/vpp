@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/docker/docker/pkg/discovery"
-	"github.com/Sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 
 	// Register the libkv backends for discovery.
 	_ "github.com/docker/docker/pkg/discovery/kv"

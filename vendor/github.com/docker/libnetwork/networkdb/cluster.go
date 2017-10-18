@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/hashicorp/memberlist"
-	"github.com/Sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 )
 
 const (

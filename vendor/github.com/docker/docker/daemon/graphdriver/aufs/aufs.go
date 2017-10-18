@@ -46,7 +46,7 @@ import (
 	rsystem "github.com/opencontainers/runc/libcontainer/system"
 	"github.com/opencontainers/selinux/go-selinux/label"
 	"github.com/pkg/errors"
-	"github.com/Sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 	"github.com/vbatts/tar-split/tar/storage"
 	"golang.org/x/sys/unix"
 )

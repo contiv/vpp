@@ -70,6 +70,7 @@ func TestAdd(t *testing.T) {
 		txns.newTxn,
 		kvdbproxy.NewKvdbsyncMock(),
 		configuredContainers)
+	server.hostCalls = &mockLinuxCall{}
 
 	reply, err := server.Add(context.Background(), &req)
 

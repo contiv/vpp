@@ -24,6 +24,7 @@ RUN /bin/bash -c "if [ '${VPP_URL}' == 'xxx' ]; then \
         git checkout ${VPP_COMMIT} && \
         yes | make install-dep && \
         make bootstrap && \
+        make dpdk-install-dev && \
         make pkg-deb && \
         cd build-root && \
         dpkg -i vpp_*.deb vpp-dev_*.deb vpp-lib_*.deb vpp-plugins_*.deb ; \
@@ -59,11 +60,19 @@ COPY etcd.conf .
 COPY kafka.conf .
 COPY govpp.conf .
 COPY vpp.conf /etc/vpp/vpp.conf
+COPY supervisord_kill.py /usr/bin/supervisord_kill.py
 
 WORKDIR /root/
 
 # add supervisor conf file
 COPY supervisord.conf /etc/supervisord/supervisord.conf
+
+# and default plugins conf
+COPY defaultplugins.conf /opt/vpp-agent/dev/defaultplugins.conf
+
+# and linux plugin conf
+COPY linuxplugin.conf /opt/vpp-agent/dev/linuxplugin.conf
+
 
 # run supervisor as the default executable
 #CMD ["/usr/bin/supervisord", "-c", "/etc/supervisord/supervisord.conf"]

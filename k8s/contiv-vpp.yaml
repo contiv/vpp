@@ -104,9 +104,9 @@ spec:
         - /bin/sh
         args:
         - -c
-        - "cp -r $LD_PRELOAD_INSTALL/vpp/* /vpp &&
-          cp -r $LD_PRELOAD_INSTALL/vpp-lib64/* /vpp-lib64 &&
-          cp -r $LD_PRELOAD_INSTALL/vcl-ldpreload/* /vcl-ldpreload"
+        - "cp -r $LD_PRELOAD_INSTALL_DIR/vpp/* /vpp &&
+          cp -r $LD_PRELOAD_INSTALL_DIR/vpp-lib64/* /vpp-lib64 &&
+          cp -r $LD_PRELOAD_INSTALL_DIR/vcl-ldpreload/* /vcl-ldpreload"
         imagePullPolicy: IfNotPresent
         resources: {}
         securityContext:

@@ -7,10 +7,8 @@ ARG VPP_COMMIT_ID="xxx"
 # set work directory
 WORKDIR /root/
 
+#
 ENV VPP_DIR /opt/vpp-agent/dev/vpp
-ENV LDP_DIR $VPP_DIR/extras
-ENV VCL_LDPRELOAD_LIB_DIR $LDP_DIR/vcl-ldpreload/src/.libs
-ENV LD_PRELOAD_INSTALL /opt/ldpreload
 
 # if VPP comit ID is specified, update to specific VPP commit ID
 RUN /bin/bash -c "if [ '${VPP_COMMIT_ID}' != 'xxx' ]; then \
@@ -22,6 +20,9 @@ RUN /bin/bash -c "if [ '${VPP_COMMIT_ID}' != 'xxx' ]; then \
         git reset --hard HEAD ; \
     fi"
 
+ENV LDP_DIR $VPP_DIR/extras/vcl-ldpreload
+ENV VCL_LDPRELOAD_LIB_DIR $LDP_DIR/src/.libs
+ENV LD_PRELOAD_INSTALL_DIR /opt/ldpreload
 # build vcl-ldpreload and uri dependency
 RUN /bin/bash -c " \
     cd ${VPP_DIR} && \
@@ -31,19 +32,19 @@ RUN /bin/bash -c " \
     make pkg-deb && \
     cd build-root && \
     dpkg -i vpp_*.deb vpp-dev_*.deb vpp-lib_*.deb vpp-plugins_*.deb && \
-    cd $LDP_DIR/vcl-ldpreload/src && \
+    cd $LDP_DIR/src && \
     autoreconf -i -f && \
     ./configure VPP_DIR=$VPP_DIR && \
     make"
 
 # copy vcl-ldpreload
 RUN /bin/bash -c " \
-    mkdir -p $LD_PRELOAD_INSTALL/vpp && \
-    mkdir -p $LD_PRELOAD_INSTALL/vpp-lib64 && \
-    mkdir -p $LD_PRELOAD_INSTALL/vcl-ldpreload && \
-    cp -r $VPP_DIR/build-root/install-vpp-native/vpp/bin/* $LD_PRELOAD_INSTALL/vpp && \
-    cp -r $VPP_DIR/build-root/install-vpp-native/vpp/lib64/* $LD_PRELOAD_INSTALL/vpp-lib64 && \
-    cp -r $VCL_LDPRELOAD_LIB_DIR/* $LD_PRELOAD_INSTALL/vcl-ldpreload"
+    mkdir -p $LD_PRELOAD_INSTALL_DIR/vpp && \
+    mkdir -p $LD_PRELOAD_INSTALL_DIR/vpp-lib64 && \
+    mkdir -p $LD_PRELOAD_INSTALL_DIR/vcl-ldpreload && \
+    cp -r $VPP_DIR/build-root/install-vpp-native/vpp/bin/* $LD_PRELOAD_INSTALL_DIR/vpp && \
+    cp -r $VPP_DIR/build-root/install-vpp-native/vpp/lib64/* $LD_PRELOAD_INSTALL_DIR/vpp-lib64 && \
+    cp -r $VCL_LDPRELOAD_LIB_DIR/* $LD_PRELOAD_INSTALL_DIR/vcl-ldpreload"
 
 # copy source files to the container
 COPY / /root/go/src/github.com/contiv/vpp

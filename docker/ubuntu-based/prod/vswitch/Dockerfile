@@ -13,7 +13,7 @@ RUN dpkg -i vpp/vpp-lib_*.deb vpp/vpp_*.deb vpp/vpp-plugins_*.deb && \
     rm -rf vpp
 
 # add ldpreload lib
-ENV LD_PRELOAD_INSTALL /opt/ldpreload
+ENV LD_PRELOAD_INSTALL_DIR /opt/ldpreload
 ADD binaries/ldpreload.tar.gz /
 
 # add supervisord config file

@@ -35,8 +35,8 @@ func (pr *PolicyReflector) Init(stopCh2 <-chan struct{}, wg *sync.WaitGroup) err
 	pr.wg = wg
 
 	restClient := pr.K8sClientset.ExtensionsV1beta1().RESTClient()
-	listWatch := cache.NewListWatchFromClient(restClient, "networkpolicies", "", fields.Everything())
-	pr.k8sPolicyStore, pr.k8sPolicyController = cache.NewInformer(
+	listWatch := pr.K8sListWatch.NewListWatchFromClient(restClient, "networkpolicies", "", fields.Everything())
+	pr.k8sPolicyStore, pr.k8sPolicyController = pr.K8sListWatch.NewInformer(
 		listWatch,
 		&core_v1beta1.NetworkPolicy{},
 		0,
@@ -93,7 +93,6 @@ func (pr *PolicyReflector) addPolicy(policy *core_v1beta1.NetworkPolicy) {
 // store.
 func (pr *PolicyReflector) deletePolicy(policy *core_v1beta1.NetworkPolicy) {
 	pr.Log.WithField("policy", policy).Info("Policy removed")
-	// TODO (Delete not yet supported by kvdbsync)
 	key := proto.Key(policy.GetName(), policy.GetNamespace())
 	_, err := pr.Publish.Delete(key)
 	if err != nil {

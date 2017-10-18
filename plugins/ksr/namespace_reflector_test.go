@@ -57,6 +57,6 @@ func testNewNamespace(t *testing.T) {
 	gomega.Expect(nsProto).NotTo(gomega.BeNil())
 	gomega.Expect(nsProto.Name).To(gomega.Equal(ns.GetName()))
 	gomega.Expect(nsProto.Label).To(gomega.HaveLen(2))
-	gomega.Expect(nsProto.Label).To(gomega.ContainElement(&proto.Namespace_Label{"role", "mgmt"}))
-	gomega.Expect(nsProto.Label).To(gomega.ContainElement(&proto.Namespace_Label{"privileged", "true"}))
+	gomega.Expect(nsProto.Label).To(gomega.ContainElement(&proto.Namespace_Label{Key: "role", Value: "mgmt"}))
+	gomega.Expect(nsProto.Label).To(gomega.ContainElement(&proto.Namespace_Label{Key: "privileged", Value: "true"}))
 }

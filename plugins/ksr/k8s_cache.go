@@ -26,13 +26,13 @@ type k8sCache struct {
 }
 
 // NewListWatchFromClient propagates the call to k8s client-go cache.
-func (cache *k8sCache) NewListWatchFromClient(c cache.Getter, resource string, namespace string,
+func (*k8sCache) NewListWatchFromClient(c cache.Getter, resource string, namespace string,
 	fieldSelector fields.Selector) *cache.ListWatch {
 	return cache.NewListWatchFromClient(c, resource, namespace, fieldSelector)
 }
 
 // NewInformer propagates the call to k8s client-go cache.
-func (cache *k8sCache) NewInformer(lw cache.ListerWatcher, objType runtime.Object,
+func (*k8sCache) NewInformer(lw cache.ListerWatcher, objType runtime.Object,
 	resyncPeriod time.Duration, h cache.ResourceEventHandler) (cache.Store, cache.Controller) {
 	return cache.NewInformer(lw, objType, resyncPeriod, h)
 }

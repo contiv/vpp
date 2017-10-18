@@ -131,6 +131,8 @@ spec:
             - name: ETCDV3_CONFIG
               value: "/etc/etcd/etcd.conf"
           volumeMounts:
+            - mountPath: /dev/shm
+              name: shm
             - name: etcd-cfg
               mountPath: /etc/etcd
 

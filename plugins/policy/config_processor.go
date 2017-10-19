@@ -28,7 +28,6 @@ type ConfigProcessor struct {
 	configuredPods     *podidx.ConfigIndex
 	configuredRules    *ruleidx.ConfigIndex
 	// - todo configuredNamespaces *namespaceidx.ConfigIndex
-	//  - memory storage for policies, namespaces, pods (consider using cn-infra/idxmap)
 }
 
 // ProcessorDeps defines dependencies of the K8s Config processor.
@@ -36,8 +35,6 @@ type ProcessorDeps struct {
 	Log        logging.Logger
 	PluginName core.PluginName
 	Contiv     *contiv.Plugin /* for GetIfName() */
-	// This is how you get the name of the VPP interface attached into the pod:
-	// ifName, meta, found := pp.Contiv.GetIfName(pod.Namespace, pod.Pod)
 
 	// TODO: inject PolicyReflector(s)
 }
@@ -183,7 +180,7 @@ func (pp *ConfigProcessor) AddPolicy(policy *policy.Policy) error {
 
 		for _, policyPodID := range policyPodIDs {
 			_, podData := pp.configuredPods.LookupPod(policyPodID)
-			ifName, _, _ := pp.Contiv.GetIfName(podData.PodNamespace, podData.PodName)
+			ifName, _ := pp.Contiv.GetIfName(podData.PodNamespace, podData.PodName)
 			pp.Log.WithField("ifName", ifName).Info("Interface Name: ")
 			podIngressInterfaces = append(podIngressInterfaces, ifName)
 		}
@@ -192,7 +189,7 @@ func (pp *ConfigProcessor) AddPolicy(policy *policy.Policy) error {
 		allPodIDs := pp.configuredPods.ListAll()
 		for _, allPodID := range allPodIDs {
 			_, podData := pp.configuredPods.LookupPod(allPodID)
-			ifName, _, _ := pp.Contiv.GetIfName(podData.PodNamespace, podData.PodName)
+			ifName, _ := pp.Contiv.GetIfName(podData.PodNamespace, podData.PodName)
 			pp.Log.WithField("ifName", ifName).Info("Interface Name: ")
 			podIngressInterfaces = append(podIngressInterfaces, ifName)
 		}
@@ -216,7 +213,7 @@ func (pp *ConfigProcessor) AddPolicy(policy *policy.Policy) error {
 	}
 
 	ruleCfg := &ruleidx.Config{
-		AclRule: aclConfig,
+		ACLRule: aclConfig,
 	}
 
 	policyID := policy.Name + policy.Namespace
@@ -360,7 +357,7 @@ func (pp *ConfigProcessor) Close() error {
 	return nil
 }
 
-func getIngressRule(proto policy.Policy_IngressRule_Port_Protocol, dstPort int32, srcIPAddr string, ruleName string) *acl.AccessLists_Acl_Rule {
+func getIngressRule(proto policy.Policy_Port_Protocol, dstPort int32, srcIPAddr string, ruleName string) *acl.AccessLists_Acl_Rule {
 
 	lowerDstPort := uint32(dstPort)
 	upperDstPort := uint32(dstPort)
@@ -405,7 +402,7 @@ func getIngressRule(proto policy.Policy_IngressRule_Port_Protocol, dstPort int32
 	}
 }
 
-func getIngressPortRule(proto policy.Policy_IngressRule_Port_Protocol, dstPort int32, ruleName string) *acl.AccessLists_Acl_Rule {
+func getIngressPortRule(proto policy.Policy_Port_Protocol, dstPort int32, ruleName string) *acl.AccessLists_Acl_Rule {
 
 	lowerDstPort := uint32(dstPort)
 	upperDstPort := uint32(dstPort)

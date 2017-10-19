@@ -24,7 +24,7 @@ import (
 
 // Config groups applied policy in a container
 type Config struct {
-	AclRule *acl.AccessLists_Acl // configuration sent to VPP
+	ACLRule *acl.AccessLists_Acl // configuration sent to VPP
 }
 
 // ConfigIndex implements a cache for configured policies. Primary index is ruleID.

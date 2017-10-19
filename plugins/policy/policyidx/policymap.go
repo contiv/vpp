@@ -115,7 +115,7 @@ func IndexFunction(data interface{}) map[string][]string {
 				}
 			}
 		}
-		// res[policyIngressLabelKey] = policyIngressLabels
+		res[policyIngressLabelKey] = policyIngressLabels
 		// for _, v1 := range config.PolicyEgressRule {
 		// 	for _, v2 := range v1.To {
 		// 		egressLabels := v2.Pods.MatchLabel

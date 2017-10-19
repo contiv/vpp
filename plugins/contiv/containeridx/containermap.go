@@ -20,6 +20,7 @@ import (
 	"github.com/ligato/cn-infra/idxmap/mem"
 	"github.com/ligato/cn-infra/logging"
 	vpp_intf "github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/model/interfaces"
+	"github.com/ligato/vpp-agent/plugins/defaultplugins/l3plugin/model/l3"
 	linux_intf "github.com/ligato/vpp-agent/plugins/linuxplugin/model/interfaces"
 )
 
@@ -38,6 +39,8 @@ type Config struct {
 	Veth2 *linux_intf.LinuxInterfaces_Interface
 	// Afpacket connects Veth2 into vpp
 	Afpacket *vpp_intf.Interfaces_Interface
+	// Route to the container
+	Route *l3.StaticRoutes_Route
 }
 
 // ConfigIndex implements a cache for configured containers. Primary index is containerID.

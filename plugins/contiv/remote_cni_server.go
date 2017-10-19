@@ -18,15 +18,22 @@ import (
 	"github.com/contiv/vpp/plugins/contiv/model/cni"
 	"github.com/ligato/cn-infra/logging"
 	vpp_intf "github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/model/interfaces"
-	"github.com/ligato/vpp-agent/plugins/defaultplugins/l2plugin/model/l2"
 	linux_intf "github.com/ligato/vpp-agent/plugins/linuxplugin/model/interfaces"
 
+	"fmt"
+	"git.fd.io/govpp.git/api"
 	"github.com/containernetworking/plugins/pkg/ns"
 	"github.com/contiv/vpp/plugins/contiv/containeridx"
 	"github.com/contiv/vpp/plugins/kvdbproxy"
 	"github.com/gogo/protobuf/proto"
 	"github.com/ligato/cn-infra/datasync"
+	"github.com/ligato/cn-infra/logging/logroot"
 	"github.com/ligato/vpp-agent/clientv1/linux"
+	"github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/bin_api/interfaces"
+	"github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/bin_api/ip"
+	"github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/ifaceidx"
+	"github.com/ligato/vpp-agent/plugins/defaultplugins/l3plugin/model/l3"
+	"github.com/ligato/vpp-agent/plugins/govppmux"
 	"github.com/vishvananda/netlink"
 	"golang.org/x/net/context"
 	"net"
@@ -41,40 +48,51 @@ type remoteCNIserver struct {
 
 	vppTxnFactory        func() linux.DataChangeDSL
 	proxy                kvdbproxy.Proxy
+	govppChan            *api.Channel
+	swIfIndex            ifaceidx.SwIfIndex
 	configuredContainers *containeridx.ConfigIndex
 	// hostCalls encapsulates calls for managing linux networking
 	hostCalls
 
-	// bdCreated is true if the bridge domain on the vpp for apackets is configured
-	bdCreated bool
+	// generalSetup is true if the config that needs to be applied once (with the first container)
+	// is configured
+	generalSetup bool
 	// counter of connected containers. It is used for generating afpacket names
 	// and assigned ip addresses.
 	counter int
-	// created afPacket that are in the bridge domain
-	// map is used to support quick removal
-	afPackets map[string]interface{}
 }
 
 const (
-	resultOk             uint32 = 0
-	resultErr            uint32 = 1
-	vethNameMaxLen              = 15
-	bdName                      = "bd1"
-	bviName                     = "loop1"
-	ipMask                      = "24"
-	ipPrefix                    = "10.0.0"
-	bviIP                       = ipPrefix + ".254"
-	bviIPWithPrefix             = bviIP + "/" + ipMask
-	afPacketNamePrefix          = "afpacket"
-	podNameExtraArg             = "K8S_POD_NAME"
-	podNamespaceExtraArg        = "K8S_POD_NAMESPACE"
-	vethHostEndIP               = "192.168.16.24"
-	vethVPPEndIP                = "192.168.16.25"
-	vethHostEndName             = "v1"
+	resultOk                  uint32 = 0
+	resultErr                 uint32 = 1
+	vethNameMaxLen                   = 15
+	ipMask                           = "24"
+	ipPrefix                         = "10.1.1"
+	afPacketNamePrefix               = "afpacket"
+	podNameExtraArg                  = "K8S_POD_NAME"
+	podNamespaceExtraArg             = "K8S_POD_NAMESPACE"
+	vethHostEndIP                    = "192.168.16.24"
+	vethVPPEndIP                     = "192.168.16.25"
+	vethHostEndName                  = "v1"
+	fakeContainerGw                  = ipPrefix + ".1"
+	fakeContainerGwWithPrefix        = fakeContainerGw + "/32"
+	afPacketIPPrefix                 = "127.0.0"
 )
 
-func newRemoteCNIServer(logger logging.Logger, vppTxnFactory func() linux.DataChangeDSL, proxy kvdbproxy.Proxy, configuredContainers *containeridx.ConfigIndex) *remoteCNIserver {
-	return &remoteCNIserver{Logger: logger, vppTxnFactory: vppTxnFactory, afPackets: map[string]interface{}{}, proxy: proxy, configuredContainers: configuredContainers, hostCalls: &linuxCalls{}}
+func newRemoteCNIServer(logger logging.Logger, vppTxnFactory func() linux.DataChangeDSL, proxy kvdbproxy.Proxy, configuredContainers *containeridx.ConfigIndex, govpp govppmux.API, index ifaceidx.SwIfIndex) *remoteCNIserver {
+	//TODO: remove once all features are supported in Vpp Agent
+	var govppChan *api.Channel
+	if govpp != nil {
+		govppChan, _ = govpp.NewAPIChannel()
+	}
+	return &remoteCNIserver{
+		Logger:               logger,
+		vppTxnFactory:        vppTxnFactory,
+		proxy:                proxy,
+		configuredContainers: configuredContainers,
+		hostCalls:            &linuxCalls{},
+		govppChan:            govppChan,
+		swIfIndex:            index}
 }
 
 // Add connects the container to the network.
@@ -107,13 +125,9 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 	veth1 := s.veth1FromRequest(request)
 	veth2 := s.veth2FromRequest(request)
 	afpacket := s.afpacketFromRequest(request)
+	route := s.vppRouteFromRequest(request)
 
-	// create entry in the afpacket map => add afpacket into bridge domain
-	s.afPackets[afpacket.Name] = nil
-
-	bd := s.bridgeDomain()
-
-	s.WithFields(logging.Fields{"veth1": veth1, "veth2": veth2, "afpacket": afpacket, "bd": bd}).Info("Configuring")
+	s.WithFields(logging.Fields{"veth1": veth1, "veth2": veth2, "afpacket": afpacket, "route": route}).Info("Configuring")
 
 	txn := s.vppTxnFactory().
 		Put().
@@ -121,43 +135,71 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 		LinuxInterface(veth2).
 		VppInterface(afpacket)
 
-	if !s.bdCreated {
-		bvi := s.bviInterface()
+	if !s.generalSetup {
 		vethHost := s.interconnectVethHost()
 		vethVpp := s.interconnectVethVpp()
 		interconnectAF := s.interconnectAfpacket()
 
-		txn.VppInterface(bvi).
-			LinuxInterface(vethHost).
+		txn.LinuxInterface(vethHost).
 			LinuxInterface(vethVpp).
 			VppInterface(interconnectAF)
 
-		changes[vpp_intf.InterfaceKey(bvi.Name)] = bvi
 		changes[vpp_intf.InterfaceKey(interconnectAF.Name)] = interconnectAF
 		changes[linux_intf.InterfaceKey(vethHost.Name)] = vethHost
 		changes[linux_intf.InterfaceKey(vethVpp.Name)] = vethVpp
 	}
 
-	err := txn.BD(bd).
-		Send().ReceiveReply()
+	err := txn.Send().ReceiveReply()
 
 	if err != nil {
-		delete(s.afPackets, afpacket.Name)
 		s.Logger.Error(err)
 		return s.generateErrorResponse(err)
 	}
 
-	if !s.bdCreated {
+	// adding route (container IP -> afPacket) in a separate transaction.
+	// afpacket must be already configured
+	err = s.vppTxnFactory().Put().StaticRoute(route).Send().ReceiveReply()
+	if err != nil {
+		s.Logger.Error(err)
+		return s.generateErrorResponse(err)
+	}
+
+	macAddr, err := s.retrieveContainerMacAddr(request)
+	if err != nil {
+		s.Logger.Error(err)
+		return s.generateErrorResponse(err)
+	}
+	s.Debug("Container mac: ", macAddr)
+
+	err = s.configureArpOnVpp(macAddr, request)
+	if err != nil {
+		s.Logger.Error(err)
+		return s.generateErrorResponse(err)
+	}
+
+	afMac, err := s.getAfPacketMac(request)
+	if err != nil {
+		s.Logger.Error(err)
+		return s.generateErrorResponse(err)
+	}
+	s.Logger.Debug("AfPacket mac", afMac.String())
+
+	err = s.configureArpInContainer(afMac, request)
+	if err != nil {
+		s.Logger.Error(err)
+		return s.generateErrorResponse(err)
+	}
+
+	if !s.generalSetup {
 		err := s.configureRouteOnHost()
 		if err != nil {
 			s.Logger.Error(err)
 			return s.generateErrorResponse(err)
 		}
 	}
+	s.generalSetup = true
 
-	s.bdCreated = true
-
-	err = s.configureRouteInContainer(request)
+	err = s.configureRoutesInContainer(request)
 	if err != nil {
 		s.Logger.Error(err)
 		return s.generateErrorResponse(err)
@@ -166,7 +208,6 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 	changes[linux_intf.InterfaceKey(veth1.Name)] = veth1
 	changes[linux_intf.InterfaceKey(veth2.Name)] = veth2
 	changes[vpp_intf.InterfaceKey(afpacket.Name)] = afpacket
-	changes[l2.BridgeDomainKey(bd.Name)] = bd
 	err = s.persistChanges(nil, changes)
 	if err != nil {
 		s.Logger.Error(err)
@@ -186,6 +227,7 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 			Veth1:        veth1,
 			Veth2:        veth2,
 			Afpacket:     afpacket,
+			Route:        route,
 		})
 	}
 
@@ -196,7 +238,7 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 		Routes: []*cni.CNIReply_Route{
 			{
 				Dst: "0.0.0.0/0",
-				Gw:  bviIP,
+				Gw:  fakeContainerGw,
 			},
 		},
 		Dns: []*cni.CNIReply_DNS{
@@ -221,18 +263,13 @@ func (s *remoteCNIserver) unconfigureContainerConnectivity(request *cni.CNIReque
 	veth2 := s.veth2NameFromRequest(request)
 	afpacket := s.afpacketNameFromRequest(request)
 	s.Info("Removing", []string{veth1, veth2, afpacket})
-	// remove afpacket from bridge domain
-	delete(s.afPackets, afpacket)
-
-	bd := s.bridgeDomain()
 
 	err := s.vppTxnFactory().
 		Delete().
 		LinuxInterface(veth1).
 		LinuxInterface(veth2).
 		VppInterface(afpacket).
-		Put().BD(bd).
-		Send().ReceiveReply()
+		Put().Send().ReceiveReply()
 
 	if err != nil {
 		s.Logger.Error(err)
@@ -244,7 +281,7 @@ func (s *remoteCNIserver) unconfigureContainerConnectivity(request *cni.CNIReque
 			linux_intf.InterfaceKey(veth2),
 			vpp_intf.InterfaceKey(afpacket),
 		},
-		map[string]proto.Message{l2.BridgeDomainKey(bd.Name): bd},
+		nil,
 	)
 	if err != nil {
 		s.Logger.Error(err)
@@ -303,7 +340,7 @@ func (s *remoteCNIserver) createdInterfaces(veth *linux_intf.LinuxInterfaces_Int
 				{
 					Version: cni.CNIReply_Interface_IP_IPV4,
 					Address: veth.IpAddresses[0],
-					Gateway: bviIP,
+					Gateway: fakeContainerGw,
 				},
 			},
 		},
@@ -343,10 +380,26 @@ func (s *remoteCNIserver) configureRouteOnHost() error {
 
 }
 
-func (s *remoteCNIserver) configureRouteInContainer(request *cni.CNIRequest) error {
+func (s *remoteCNIserver) configureRoutesInContainer(request *cni.CNIRequest) error {
 	return s.WithNetNSPath(request.NetworkNamespace, func(netns ns.NetNS) error {
-		defaultNextHop := net.ParseIP(bviIP)
+
+		_, linkNet, err := net.ParseCIDR(fakeContainerGwWithPrefix)
+		if err != nil {
+			s.Logger.Error(err)
+			return err
+		}
+
+		defaultNextHop := net.ParseIP(fakeContainerGw)
 		dev, err := s.LinkByName(request.InterfaceName)
+		if err != nil {
+			s.Logger.Error(err)
+			return err
+		}
+		err = s.RouteAdd(&netlink.Route{
+			LinkIndex: dev.Attrs().Index,
+			Dst:       linkNet,
+			Scope:     netlink.SCOPE_LINK,
+		})
 		if err != nil {
 			s.Logger.Error(err)
 			return err
@@ -355,13 +408,121 @@ func (s *remoteCNIserver) configureRouteInContainer(request *cni.CNIRequest) err
 	})
 }
 
+func (s *remoteCNIserver) retrieveContainerMacAddr(request *cni.CNIRequest) ([]byte, error) {
+
+	var macAddr []byte
+	err := s.WithNetNSPath(request.NetworkNamespace, func(netNS ns.NetNS) error {
+		link, err := s.LinkByName(request.InterfaceName)
+		logroot.StandardLogger().Debug("Container mac ", link.Attrs().HardwareAddr)
+		macAddr = link.Attrs().HardwareAddr
+		return err
+
+	})
+	return macAddr, err
+
+}
+
+func (s *remoteCNIserver) configureArpOnVpp(macAddr []byte, request *cni.CNIRequest) error {
+
+	ifName := s.afpacketNameFromRequest(request)
+	if s.swIfIndex == nil {
+		s.Logger.Warn("SwIfIndex is not available")
+		return nil
+	}
+	idx, _, exists := s.swIfIndex.LookupIdx(ifName)
+	if !exists {
+		return fmt.Errorf("afpacket %v doesn't exist", ifName)
+	}
+	stringIP := s.ipAddrForContainer()
+	containerIP, _, err := net.ParseCIDR(stringIP)
+	if err != nil {
+		s.Logger.Error(err)
+		return err
+	}
+
+	req := &ip.IPNeighborAddDel{
+		SwIfIndex:  idx,
+		IsAdd:      1,
+		MacAddress: macAddr,
+		IsNoAdjFib: 1,
+		DstAddress: []byte(containerIP.To4()),
+	}
+
+	reply := &ip.IPNeighborAddDelReply{}
+	err = s.govppChan.SendRequest(req).ReceiveReply(reply)
+	if reply.Retval != 0 {
+		return fmt.Errorf("Adding arp entry returned non zero error code (%v)", reply.Retval)
+	}
+
+	return err
+}
+
+func (s *remoteCNIserver) configureArpInContainer(macAddr net.HardwareAddr, request *cni.CNIRequest) error {
+
+	gw := net.ParseIP(fakeContainerGw)
+	return s.WithNetNSPath(request.NetworkNamespace, func(ns ns.NetNS) error {
+		link, err := s.LinkByName(request.InterfaceName)
+		if err != nil {
+			return err
+		}
+		return s.NeighAdd(&netlink.Neigh{
+			LinkIndex:    link.Attrs().Index,
+			Family:       netlink.FAMILY_V4,
+			State:        netlink.NUD_PERMANENT,
+			Type:         1,
+			IP:           gw,
+			HardwareAddr: macAddr,
+		})
+
+	})
+}
+
+func (s *remoteCNIserver) getAfPacketMac(request *cni.CNIRequest) (net.HardwareAddr, error) {
+	name := "host-" + s.veth2NameFromRequest(request)
+	req := &interfaces.SwInterfaceDump{
+		NameFilter:      []byte(name),
+		NameFilterValid: 1,
+	}
+	var mac net.HardwareAddr
+	found := false
+
+	if s.govppChan == nil {
+		s.Logger.Warn("GoVpp not available")
+		return mac, nil
+	}
+
+	ctx := s.govppChan.SendMultiRequest(req)
+
+	for {
+		ifDetails := &interfaces.SwInterfaceDetails{}
+		stop, err := ctx.ReceiveReply(ifDetails)
+		if stop {
+			break // break out of the loop
+		}
+		if err != nil {
+			s.Logger.Error(err)
+			return nil, err
+		}
+		if strings.HasPrefix(string(ifDetails.InterfaceName), name) {
+			mac = net.HardwareAddr(ifDetails.L2Address[:ifDetails.L2AddressLength])
+			found = true
+		}
+	}
+
+	if !found {
+		return nil, fmt.Errorf("unable to look up MAC for if %v", name)
+	}
+	return mac, nil
+
+}
+
 //
 // +-------------------------------------------------+
-// |                                                 |
-// |                         +----------------+      |
-// |                         |     Loop1      |      |
-// |      Bridge domain      |     BVI        |      |
-// |                         +----------------+      |
+// |   vSwitch VPP                                   |
+// |                             +--------------+    |       +--------------+
+// |                             |     vethVPP  |____________|   veth Host  |
+// |                             |              |    |       |              |
+// |                             +--------------+    |       +--------------+
 // |    +------+       +------+                      |
 // |    |  AF1 |       | AFn  |                      |
 // |    |      |  ...  |      |                      |
@@ -407,7 +568,11 @@ func (s *remoteCNIserver) afpacketNameFromRequest(request *cni.CNIRequest) strin
 }
 
 func (s *remoteCNIserver) ipAddrForContainer() string {
-	return ipPrefix + "." + strconv.Itoa(s.counter) + "/" + ipMask
+	return ipPrefix + "." + strconv.Itoa(s.counter+1) + "/32"
+}
+
+func (s *remoteCNIserver) ipAddrForAfPacket() string {
+	return afPacketIPPrefix + "." + strconv.Itoa(s.counter+1) + "/32"
 }
 
 func (s *remoteCNIserver) veth1FromRequest(request *cni.CNIRequest) *linux_intf.LinuxInterfaces_Interface {
@@ -447,41 +612,14 @@ func (s *remoteCNIserver) afpacketFromRequest(request *cni.CNIRequest) *vpp_intf
 		Afpacket: &vpp_intf.Interfaces_Interface_Afpacket{
 			HostIfName: s.veth2NameFromRequest(request),
 		},
+		IpAddresses: []string{s.ipAddrForAfPacket()},
 	}
 }
 
-func (s *remoteCNIserver) bridgeDomain() *l2.BridgeDomains_BridgeDomain {
-	var ifs = []*l2.BridgeDomains_BridgeDomain_Interfaces{
-		{
-			Name: bviName,
-			BridgedVirtualInterface: true,
-		}}
-
-	for af := range s.afPackets {
-		ifs = append(ifs, &l2.BridgeDomains_BridgeDomain_Interfaces{
-			Name: af,
-			BridgedVirtualInterface: false,
-		})
-	}
-
-	return &l2.BridgeDomains_BridgeDomain{
-		Name:                bdName,
-		Flood:               true,
-		UnknownUnicastFlood: true,
-		Forward:             true,
-		Learn:               true,
-		ArpTermination:      false,
-		MacAge:              0, /* means disable aging */
-		Interfaces:          ifs,
-	}
-}
-
-func (s *remoteCNIserver) bviInterface() *vpp_intf.Interfaces_Interface {
-	return &vpp_intf.Interfaces_Interface{
-		Name:        bviName,
-		Enabled:     true,
-		IpAddresses: []string{bviIPWithPrefix},
-		Type:        vpp_intf.InterfaceType_SOFTWARE_LOOPBACK,
+func (s *remoteCNIserver) vppRouteFromRequest(request *cni.CNIRequest) *l3.StaticRoutes_Route {
+	return &l3.StaticRoutes_Route{
+		DstIpAddr:         s.ipAddrForContainer(),
+		OutgoingInterface: s.afpacketNameFromRequest(request),
 	}
 }
 

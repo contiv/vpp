@@ -98,6 +98,8 @@ func (f *FlavorContiv) Inject() bool {
 	f.Contiv.Deps.PluginInfraDeps = *f.FlavorLocal.InfraDeps("cni-grpc")
 	f.Contiv.Deps.GRPC = &f.GRPC
 	f.Contiv.Deps.Proxy = &f.KVProxy
+	f.Contiv.GoVPP = &f.GoVPP
+	f.Contiv.VPP = &f.VPP
 
 	f.Policy.Deps.PluginInfraDeps = *f.FlavorLocal.InfraDeps("policy")
 	f.Policy.Deps.Watcher = &f.KsrETCDDataSync

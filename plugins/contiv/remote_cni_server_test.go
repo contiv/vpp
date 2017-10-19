@@ -54,6 +54,8 @@ func TestVeth1NameFromRequest(t *testing.T) {
 	server := newRemoteCNIServer(logroot.StandardLogger(),
 		func() linux.DataChangeDSL { return NewMockDataChangeDSL() },
 		&kvdbproxy.Plugin{},
+		nil,
+		nil,
 		nil)
 
 	hostIfName := server.veth1HostIfNameFromRequest(&req)
@@ -69,15 +71,17 @@ func TestAdd(t *testing.T) {
 	server := newRemoteCNIServer(logroot.StandardLogger(),
 		txns.newTxn,
 		kvdbproxy.NewKvdbsyncMock(),
-		configuredContainers)
-	server.hostCalls = &mockLinuxCall{}
+		configuredContainers,
+		nil,
+		nil)
+	server.hostCalls = &mockLinuxCalls{}
 
 	reply, err := server.Add(context.Background(), &req)
 
 	gomega.Expect(err).To(gomega.BeNil())
 	gomega.Expect(reply).NotTo(gomega.BeNil())
 
-	gomega.Expect(len(txns.txns)).To(gomega.BeEquivalentTo(1))
+	gomega.Expect(len(txns.txns)).To(gomega.BeEquivalentTo(2))
 	// TODO add asserts for txns
 
 	res := configuredContainers.LookupPodName(podName)

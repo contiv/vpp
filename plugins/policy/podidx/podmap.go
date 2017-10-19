@@ -47,8 +47,8 @@ func (ci *ConfigIndex) RegisterPod(podID string, data *Config) {
 	ci.mapping.Put(podID, data)
 }
 
-// UnregisterPolicy removes the entry from the mapping
-func (ci *ConfigIndex) UnregisterPolicy(podID string) (found bool, data *Config) {
+// UnregisterPod removes the entry from the mapping
+func (ci *ConfigIndex) UnregisterPod(podID string) (found bool, data *Config) {
 	d, found := ci.mapping.Delete(podID)
 	if found {
 		if data, ok := d.(*Config); ok {
@@ -82,11 +82,13 @@ func (ci *ConfigIndex) ListAll() (podIDs []string) {
 // IndexFunction creates secondary indexes. Currently podName and podNamespace fields are indexed.
 func IndexFunction(data interface{}) map[string][]string {
 	res := map[string][]string{}
+	labels := []string{}
 	if config, ok := data.(*Config); ok && config != nil {
 		for _, v := range config.PodLabelSelector {
 			labelSelector := v.Key + v.Value
-			res[podLabelSelectorKey] = []string{labelSelector}
+			labels = append(labels, labelSelector)
 		}
+		res[podLabelSelectorKey] = labels
 	}
 	return res
 }

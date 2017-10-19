@@ -45,7 +45,44 @@ spec:
             - name: ETCDCTL_API
               value: "3"
           command: ["/bin/sh","-c"]
-          args: ["/usr/local/bin/etcd --name=contiv --data-dir=/var/etcd/contiv-data --advertise-client-urls=http://$CONTIV_ETCD_IP:6666 --listen-client-urls=http://0.0.0.0:6666 --listen-peer-urls=http://0.0.0.0:6667"]
+          args: ["/usr/local/bin/etcd --name=contiv-etcd --data-dir=/var/etcd/contiv-data --advertise-client-urls=http://0.0.0.0:6666 --listen-client-urls=http://0.0.0.0:6666 --listen-peer-urls=http://0.0.0.0:6667"]
+
+---
+
+# TODO WIP
+#apiVersion: v1
+#kind: Service
+#metadata:
+#  name: contiv-etcd
+#  namespace: kube-system
+#spec:
+#  type: NodePort
+#  ports:
+#  - port: 6666
+#    nodePort: 30006
+#  selector:
+#    k8s-app: contiv-etcd
+
+
+# This manifest installs the Service which gets traffic to the Calico
+# etcd.
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    k8s-app: contiv-etcd
+  name: contiv-etcd
+  namespace: kube-system
+spec:
+  # Select the calico-etcd pod running on the master.
+  selector:
+    k8s-app: contiv-etcd
+  # This ClusterIP needs to be known in advance, since we cannot rely
+  # on DNS to get access to etcd.
+  clusterIP: 10.96.232.136
+  ports:
+    - port: 6666
+
 
 ---
 
@@ -60,7 +97,7 @@ data:
     insecure-transport: true
     dial-timeout: 1000000000
     endpoints:
-      - "127.0.0.1:6666"
+      - "10.96.232.136:6666"
 
 ---
 

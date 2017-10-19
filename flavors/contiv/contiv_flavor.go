@@ -80,6 +80,7 @@ func (f *FlavorContiv) Inject() bool {
 
 	f.GoVPP.Deps.PluginInfraDeps = *f.FlavorLocal.InfraDeps("govpp")
 	f.Linux.Watcher = &datasync.CompositeKVProtoWatcher{Adapters: []datasync.KeyValProtoWatcher{local_sync.Get()}}
+	f.Linux.Deps.PluginInfraDeps = *f.FlavorLocal.InfraDeps("linuxplugin")
 
 	f.VPP.Watch = &datasync.CompositeKVProtoWatcher{Adapters: []datasync.KeyValProtoWatcher{local_sync.Get(), &f.KVProxy}}
 	f.VPP.Deps.PluginInfraDeps = *f.FlavorLocal.InfraDeps("default-plugins")
@@ -97,6 +98,8 @@ func (f *FlavorContiv) Inject() bool {
 	f.Contiv.Deps.PluginInfraDeps = *f.FlavorLocal.InfraDeps("cni-grpc")
 	f.Contiv.Deps.GRPC = &f.GRPC
 	f.Contiv.Deps.Proxy = &f.KVProxy
+	f.Contiv.GoVPP = &f.GoVPP
+	f.Contiv.VPP = &f.VPP
 
 	f.Policy.Deps.PluginInfraDeps = *f.FlavorLocal.InfraDeps("policy")
 	f.Policy.Deps.Watcher = &f.KsrETCDDataSync

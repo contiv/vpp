@@ -26,6 +26,7 @@ import (
 	"github.com/ligato/vpp-agent/clientv1/linux"
 	"github.com/ligato/vpp-agent/clientv1/linux/localclient"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins"
+	"github.com/ligato/vpp-agent/plugins/govppmux"
 )
 
 // Plugin transforms GRPC requests into configuration for the VPP in order
@@ -43,6 +44,7 @@ type Deps struct {
 	GRPC  grpc.Server
 	Proxy *kvdbproxy.Plugin
 	VPP   *defaultplugins.Plugin
+	GoVPP govppmux.API
 }
 
 // Init initializes the grpc server handling the request from the CNI.
@@ -51,7 +53,9 @@ func (plugin *Plugin) Init() error {
 	plugin.cniServer = newRemoteCNIServer(plugin.Log,
 		func() linux.DataChangeDSL { return localclient.DataChangeRequest(plugin.PluginName) },
 		plugin.Proxy,
-		plugin.configuredContainers)
+		plugin.configuredContainers,
+		plugin.GoVPP,
+		plugin.VPP.GetSwIfIndexes())
 	cni.RegisterRemoteCNIServer(plugin.GRPC.Server(), plugin.cniServer)
 	return nil
 }

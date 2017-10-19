@@ -18,8 +18,11 @@ import (
 	"fmt"
 
 	"github.com/ligato/cn-infra/core"
+	"github.com/ligato/cn-infra/logging/measure"
 	"github.com/ligato/vpp-agent/idxvpp/nametoidx"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/ifaceidx"
+	l22 "github.com/ligato/vpp-agent/plugins/defaultplugins/l2plugin/bin_api/l2"
+	"github.com/ligato/vpp-agent/plugins/defaultplugins/l2plugin/bin_api/vpe"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/l2plugin/model/l2"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/l2plugin/vppcalls"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/l2plugin/vppdump"
@@ -28,9 +31,15 @@ import (
 // Resync writes BDs to the empty VPP
 func (plugin *BDConfigurator) Resync(nbBDs []*l2.BridgeDomains_BridgeDomain) error {
 	plugin.Log.WithField("cfg", plugin).Debug("RESYNC BDs begin.")
+	// Calculate and log bd resync
+	defer func() {
+		if plugin.Stopwatch != nil {
+			plugin.Stopwatch.PrintLog()
+		}
+	}()
 
 	// Step 0: Dump actual state of the VPP
-	vppBDs, err := vppdump.DumpBridgeDomains(plugin.Log, plugin.vppChan)
+	vppBDs, err := vppdump.DumpBridgeDomains(plugin.Log, plugin.vppChan, measure.GetTimeLog(l22.BridgeDomainDump{}, plugin.Stopwatch))
 	if err != nil {
 		return err
 	}
@@ -55,7 +64,7 @@ func (plugin *BDConfigurator) Resync(nbBDs []*l2.BridgeDomains_BridgeDomain) err
 		}
 
 		vppcalls.VppUnsetAllInterfacesFromBridgeDomain(&hackBD, vppIdx,
-			hackIfIndexes, plugin.Log, plugin.vppChan)
+			hackIfIndexes, plugin.Log, plugin.vppChan, measure.GetTimeLog(vpe.SwInterfaceSetL2Bridge{}, plugin.Stopwatch))
 		err := plugin.deleteBridgeDomain(&hackBD, vppIdx)
 		// TODO check if it is ok to delete the initial BD
 		if err != nil {
@@ -79,8 +88,15 @@ func (plugin *BDConfigurator) Resync(nbBDs []*l2.BridgeDomains_BridgeDomain) err
 // Resync writes FIBs to the empty VPP
 func (plugin *FIBConfigurator) Resync(fibConfig []*l2.FibTableEntries_FibTableEntry) error {
 	plugin.Log.WithField("cfg", plugin).Debug("RESYNC FIBs begin.")
+	// Calculate and log fib resync
+	defer func() {
+		if plugin.Stopwatch != nil {
+			plugin.Stopwatch.PrintLog()
+		}
+	}()
 
-	activeDomains, err := vppdump.DumpBridgeDomainIDs(plugin.Log, plugin.syncVppChannel)
+	activeDomains, err := vppdump.DumpBridgeDomainIDs(plugin.Log, plugin.syncVppChannel,
+		measure.GetTimeLog(l22.BridgeDomainDump{}, plugin.Stopwatch))
 	if err != nil {
 		return err
 	}
@@ -104,6 +120,12 @@ func (plugin *FIBConfigurator) Resync(fibConfig []*l2.FibTableEntries_FibTableEn
 // Resync writes XCons to the empty VPP
 func (plugin *XConnectConfigurator) Resync(xcConfig []*l2.XConnectPairs_XConnectPair) error {
 	plugin.Log.WithField("cfg", plugin).Debug("RESYNC XConnect begin.")
+	// Calculate and log xConnect resync
+	defer func() {
+		if plugin.Stopwatch != nil {
+			plugin.Stopwatch.PrintLog()
+		}
+	}()
 
 	err := plugin.LookupXConnectPairs()
 	if err != nil {

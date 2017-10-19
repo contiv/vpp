@@ -29,8 +29,8 @@ func (nr *NamespaceReflector) Init(stopCh2 <-chan struct{}, wg *sync.WaitGroup) 
 	nr.wg = wg
 
 	restClient := nr.K8sClientset.CoreV1().RESTClient()
-	listWatch := cache.NewListWatchFromClient(restClient, "namespaces", "", fields.Everything())
-	nr.k8sNamespaceStore, nr.k8sNamespaceController = cache.NewInformer(
+	listWatch := nr.K8sListWatch.NewListWatchFromClient(restClient, "namespaces", "", fields.Everything())
+	nr.k8sNamespaceStore, nr.k8sNamespaceController = nr.K8sListWatch.NewInformer(
 		listWatch,
 		&core_v1.Namespace{},
 		0,
@@ -88,7 +88,6 @@ func (nr *NamespaceReflector) addNamespace(ns *core_v1.Namespace) {
 // store.
 func (nr *NamespaceReflector) deleteNamespace(ns *core_v1.Namespace) {
 	nr.Log.WithField("ns", ns).Info("K8s namespace removed")
-	// TODO (Delete not yet supported by kvdbsync)
 	key := proto.Key(ns.GetName())
 	_, err := nr.Publish.Delete(key)
 	if err != nil {

@@ -18,7 +18,6 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"strings"
 	"syscall"
 	"time"
 
@@ -195,29 +194,36 @@ func (s *ContivshimManager) CreateContainer(ctx context.Context, req *kubeapi.Cr
 	// 1. Decide on the info passed and create secrets
 	// 2. Error handling if CreateContainer fails
 	// 3. Check if Close should be called
+
 	labels := req.SandboxConfig.GetLabels()
-	for labelKey, labelValue := range labels {
-		if strings.HasPrefix(labelKey, "LD_PRELOAD_") {
-			labelValue = strings.Replace(labelValue, ".", "/", -1)
-			labelValue = "/" + labelValue
-			env := &kubeapi.KeyValue{
-				Key:   labelKey,
-				Value: labelValue,
-			}
-			req.Config.Envs = append(req.Config.Envs, env)
-		} else if strings.HasPrefix(labelKey, "HOST_PATH_") {
-			labelValue = labelValue[15:]
-			labelValue = strings.Replace(labelValue, ".", "/", -1)
-			labelValue = "/" + labelValue
-			labelKey = labelKey[10:]
-			labelKey = strings.Replace(labelKey, ".", "/", -1)
-			labelKey = "/" + labelKey
-			mount := &kubeapi.Mount{
-				ContainerPath: labelValue,
-				HostPath:      labelKey,
-			}
-			req.Config.Mounts = append(req.Config.Mounts, mount)
+	if labels["ldpreload"] != "" {
+		mount := []*kubeapi.Mount{
+			{
+				HostPath:      "/dev/shm",
+				ContainerPath: "/dev/shm",
+			},
+			{
+				HostPath:      "/usr/libexec/ldpreload/vpp-lib64 ",
+				ContainerPath: "/vpp-lib64",
+			},
+			{
+				HostPath:      "/usr/libexec/ldpreload/vcl-ldpreload",
+				ContainerPath: "/vcl-ldpreload/",
+			},
 		}
+		req.Config.Mounts = append(req.Config.Mounts, mount...)
+
+		envs := []*kubeapi.KeyValue{
+			{
+				Key:   "LD_LIBRARY_PATH",
+				Value: "/vpp-lib64/:/vcl-ldpreload/",
+			},
+			{
+				Key:   "LD_PRELOAD",
+				Value: "/vcl-ldpreload/libvcl_ldpreload.so.0.0.0",
+			},
+		}
+		req.Config.Envs = append(req.Config.Envs, envs...)
 	}
 
 	glog.V(1).Infof("CreateContainer config: %v", req.Config)

@@ -21,12 +21,15 @@ import (
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/l2plugin/model/l2"
 	linux_intf "github.com/ligato/vpp-agent/plugins/linuxplugin/model/interfaces"
 
+	"github.com/containernetworking/plugins/pkg/ns"
 	"github.com/contiv/vpp/plugins/contiv/containeridx"
 	"github.com/contiv/vpp/plugins/kvdbproxy"
 	"github.com/gogo/protobuf/proto"
 	"github.com/ligato/cn-infra/datasync"
 	"github.com/ligato/vpp-agent/clientv1/linux"
+	"github.com/vishvananda/netlink"
 	"golang.org/x/net/context"
+	"net"
 	"strconv"
 	"strings"
 	"sync"
@@ -39,6 +42,8 @@ type remoteCNIserver struct {
 	vppTxnFactory        func() linux.DataChangeDSL
 	proxy                kvdbproxy.Proxy
 	configuredContainers *containeridx.ConfigIndex
+	// hostCalls encapsulates calls for managing linux networking
+	hostCalls
 
 	// bdCreated is true if the bridge domain on the vpp for apackets is configured
 	bdCreated bool
@@ -65,10 +70,11 @@ const (
 	podNamespaceExtraArg        = "K8S_POD_NAMESPACE"
 	vethHostEndIP               = "192.168.16.24"
 	vethVPPEndIP                = "192.168.16.25"
+	vethHostEndName             = "v1"
 )
 
 func newRemoteCNIServer(logger logging.Logger, vppTxnFactory func() linux.DataChangeDSL, proxy kvdbproxy.Proxy, configuredContainers *containeridx.ConfigIndex) *remoteCNIserver {
-	return &remoteCNIserver{Logger: logger, vppTxnFactory: vppTxnFactory, afPackets: map[string]interface{}{}, proxy: proxy, configuredContainers: configuredContainers}
+	return &remoteCNIserver{Logger: logger, vppTxnFactory: vppTxnFactory, afPackets: map[string]interface{}{}, proxy: proxy, configuredContainers: configuredContainers, hostCalls: &linuxCalls{}}
 }
 
 // Add connects the container to the network.
@@ -135,42 +141,52 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 	err := txn.BD(bd).
 		Send().ReceiveReply()
 
-	if err == nil {
-		s.bdCreated = true
-
-		changes[linux_intf.InterfaceKey(veth1.Name)] = veth1
-		changes[linux_intf.InterfaceKey(veth2.Name)] = veth2
-		changes[vpp_intf.InterfaceKey(afpacket.Name)] = afpacket
-		changes[l2.BridgeDomainKey(bd.Name)] = bd
-		err = s.persistChanges(nil, changes)
-		if err != nil {
-			errMsg = err.Error()
-			res = resultErr
-			s.Logger.Error(err)
-		} else {
-			createdIfs = s.createdInterfaces(veth1)
-
-			if s.configuredContainers != nil {
-				extraArgs := s.parseExtraArgs(request.ExtraArguments)
-				s.Logger.WithFields(logging.Fields{
-					"PodName":      extraArgs[podNameExtraArg],
-					"PodNamespace": extraArgs[podNamespaceExtraArg],
-				}).Info("Adding into configured container index")
-				s.configuredContainers.RegisterContainer(request.ContainerId, &containeridx.Config{
-					PodName:      extraArgs[podNameExtraArg],
-					PodNamespace: extraArgs[podNamespaceExtraArg],
-					Veth1:        veth1,
-					Veth2:        veth2,
-					Afpacket:     afpacket,
-				})
-			}
-		}
-
-	} else {
-		res = resultErr
-		errMsg = err.Error()
+	if err != nil {
 		delete(s.afPackets, afpacket.Name)
 		s.Logger.Error(err)
+		return s.generateErrorResponse(err)
+	}
+
+	if !s.bdCreated {
+		err := s.configureRouteOnHost()
+		if err != nil {
+			s.Logger.Error(err)
+			return s.generateErrorResponse(err)
+		}
+	}
+
+	s.bdCreated = true
+
+	err = s.configureRouteInContainer(request)
+	if err != nil {
+		s.Logger.Error(err)
+		return s.generateErrorResponse(err)
+	}
+
+	changes[linux_intf.InterfaceKey(veth1.Name)] = veth1
+	changes[linux_intf.InterfaceKey(veth2.Name)] = veth2
+	changes[vpp_intf.InterfaceKey(afpacket.Name)] = afpacket
+	changes[l2.BridgeDomainKey(bd.Name)] = bd
+	err = s.persistChanges(nil, changes)
+	if err != nil {
+		s.Logger.Error(err)
+		return s.generateErrorResponse(err)
+	}
+	createdIfs = s.createdInterfaces(veth1)
+
+	if s.configuredContainers != nil {
+		extraArgs := s.parseExtraArgs(request.ExtraArguments)
+		s.Logger.WithFields(logging.Fields{
+			"PodName":      extraArgs[podNameExtraArg],
+			"PodNamespace": extraArgs[podNamespaceExtraArg],
+		}).Info("Adding into configured container index")
+		s.configuredContainers.RegisterContainer(request.ContainerId, &containeridx.Config{
+			PodName:      extraArgs[podNameExtraArg],
+			PodNamespace: extraArgs[podNamespaceExtraArg],
+			Veth1:        veth1,
+			Veth2:        veth2,
+			Afpacket:     afpacket,
+		})
 	}
 
 	reply := &cni.CNIReply{
@@ -218,32 +234,38 @@ func (s *remoteCNIserver) unconfigureContainerConnectivity(request *cni.CNIReque
 		Put().BD(bd).
 		Send().ReceiveReply()
 
-	if err == nil {
-		err = s.persistChanges(
-			[]string{linux_intf.InterfaceKey(veth1),
-				linux_intf.InterfaceKey(veth2),
-				vpp_intf.InterfaceKey(afpacket),
-			},
-			map[string]proto.Message{l2.BridgeDomainKey(bd.Name): bd},
-		)
-		if err != nil {
-			errMsg = err.Error()
-			res = resultErr
-			s.Logger.Error(err)
-		} else {
-			if s.configuredContainers != nil {
-				s.configuredContainers.UnregisterContainer(request.ContainerId)
-			}
-		}
-	} else {
-		res = resultErr
-		errMsg = err.Error()
+	if err != nil {
 		s.Logger.Error(err)
+		return s.generateErrorResponse(err)
+	}
+
+	err = s.persistChanges(
+		[]string{linux_intf.InterfaceKey(veth1),
+			linux_intf.InterfaceKey(veth2),
+			vpp_intf.InterfaceKey(afpacket),
+		},
+		map[string]proto.Message{l2.BridgeDomainKey(bd.Name): bd},
+	)
+	if err != nil {
+		s.Logger.Error(err)
+		return s.generateErrorResponse(err)
+	}
+
+	if s.configuredContainers != nil {
+		s.configuredContainers.UnregisterContainer(request.ContainerId)
 	}
 
 	reply := &cni.CNIReply{
 		Result: res,
 		Error:  errMsg,
+	}
+	return reply, err
+}
+
+func (s *remoteCNIserver) generateErrorResponse(err error) (*cni.CNIReply, error) {
+	reply := &cni.CNIReply{
+		Result: resultErr,
+		Error:  err.Error(),
 	}
 	return reply, err
 }
@@ -299,6 +321,38 @@ func (s *remoteCNIserver) parseExtraArgs(input string) map[string]string {
 		}
 	}
 	return res
+}
+
+func (s *remoteCNIserver) configureRouteOnHost() error {
+	dev, err := s.LinkByName(vethHostEndName)
+	if err != nil {
+		s.Logger.Error(err)
+		return err
+	}
+	_, network, err := net.ParseCIDR(ipPrefix + ".0/" + ipMask)
+	if err != nil {
+		s.Logger.Error(err)
+		return err
+	}
+
+	return s.RouteAdd(&netlink.Route{
+		LinkIndex: dev.Attrs().Index,
+		Dst:       network,
+		Gw:        net.ParseIP(vethVPPEndIP),
+	})
+
+}
+
+func (s *remoteCNIserver) configureRouteInContainer(request *cni.CNIRequest) error {
+	return s.WithNetNSPath(request.NetworkNamespace, func(netns ns.NetNS) error {
+		defaultNextHop := net.ParseIP(bviIP)
+		dev, err := s.LinkByName(request.InterfaceName)
+		if err != nil {
+			s.Logger.Error(err)
+			return err
+		}
+		return s.AddDefaultRoute(defaultNextHop, dev)
+	})
 }
 
 //
@@ -436,7 +490,7 @@ func (s *remoteCNIserver) interconnectVethHost() *linux_intf.LinuxInterfaces_Int
 		Name:       "vppv1",
 		Type:       linux_intf.LinuxInterfaces_VETH,
 		Enabled:    true,
-		HostIfName: "v1",
+		HostIfName: vethHostEndName,
 		Veth: &linux_intf.LinuxInterfaces_Interface_Veth{
 			PeerIfName: "vppv2",
 		},

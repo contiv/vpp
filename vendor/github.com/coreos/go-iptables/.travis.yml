@@ -1,0 +1,27 @@
+language: go
+sudo: required
+dist: trusty
+
+go:
+  - 1.5.x
+  - 1.6.x
+  - 1.7.x
+  - 1.8.x
+  - 1.9.x
+  - tip
+
+env:
+  global:
+    - TOOLS_CMD=golang.org/x/tools/cmd
+    - PATH=$GOROOT/bin:$PATH
+    - SUDO_PERMITTED=1
+
+matrix:
+  allow_failures:
+    - go: tip
+
+install:
+ - go get golang.org/x/tools/cmd/cover
+
+script:
+ - ./test

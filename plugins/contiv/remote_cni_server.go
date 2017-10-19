@@ -15,29 +15,19 @@
 package contiv
 
 import (
-	"github.com/contiv/vpp/plugins/contiv/model/cni"
-	"github.com/ligato/cn-infra/logging"
-	vpp_intf "github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/model/interfaces"
-	linux_intf "github.com/ligato/vpp-agent/plugins/linuxplugin/model/interfaces"
-
-	"fmt"
 	"git.fd.io/govpp.git/api"
-	"github.com/containernetworking/plugins/pkg/ns"
 	"github.com/contiv/vpp/plugins/contiv/containeridx"
+	"github.com/contiv/vpp/plugins/contiv/model/cni"
 	"github.com/contiv/vpp/plugins/kvdbproxy"
 	"github.com/gogo/protobuf/proto"
 	"github.com/ligato/cn-infra/datasync"
-	"github.com/ligato/cn-infra/logging/logroot"
+	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/vpp-agent/clientv1/linux"
-	"github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/bin_api/interfaces"
-	"github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/bin_api/ip"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/ifaceidx"
-	"github.com/ligato/vpp-agent/plugins/defaultplugins/l3plugin/model/l3"
+	vpp_intf "github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/model/interfaces"
 	"github.com/ligato/vpp-agent/plugins/govppmux"
-	"github.com/vishvananda/netlink"
+	linux_intf "github.com/ligato/vpp-agent/plugins/linuxplugin/model/interfaces"
 	"golang.org/x/net/context"
-	"net"
-	"strconv"
 	"strings"
 	"sync"
 )
@@ -164,7 +154,7 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 		return s.generateErrorResponse(err)
 	}
 
-	macAddr, err := s.retrieveContainerMacAddr(request)
+	macAddr, err := s.retrieveContainerMacAddr(request.NetworkNamespace, request.InterfaceName)
 	if err != nil {
 		s.Logger.Error(err)
 		return s.generateErrorResponse(err)
@@ -177,7 +167,7 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 		return s.generateErrorResponse(err)
 	}
 
-	afMac, err := s.getAfPacketMac(request)
+	afMac, err := s.getAfPacketMac("host-" + afpacket.Afpacket.HostIfName)
 	if err != nil {
 		s.Logger.Error(err)
 		return s.generateErrorResponse(err)
@@ -358,304 +348,4 @@ func (s *remoteCNIserver) parseExtraArgs(input string) map[string]string {
 		}
 	}
 	return res
-}
-
-func (s *remoteCNIserver) configureRouteOnHost() error {
-	dev, err := s.LinkByName(vethHostEndName)
-	if err != nil {
-		s.Logger.Error(err)
-		return err
-	}
-	_, network, err := net.ParseCIDR(ipPrefix + ".0/" + ipMask)
-	if err != nil {
-		s.Logger.Error(err)
-		return err
-	}
-
-	return s.RouteAdd(&netlink.Route{
-		LinkIndex: dev.Attrs().Index,
-		Dst:       network,
-		Gw:        net.ParseIP(vethVPPEndIP),
-	})
-
-}
-
-func (s *remoteCNIserver) configureRoutesInContainer(request *cni.CNIRequest) error {
-	return s.WithNetNSPath(request.NetworkNamespace, func(netns ns.NetNS) error {
-
-		_, linkNet, err := net.ParseCIDR(fakeContainerGwWithPrefix)
-		if err != nil {
-			s.Logger.Error(err)
-			return err
-		}
-
-		defaultNextHop := net.ParseIP(fakeContainerGw)
-		dev, err := s.LinkByName(request.InterfaceName)
-		if err != nil {
-			s.Logger.Error(err)
-			return err
-		}
-		err = s.RouteAdd(&netlink.Route{
-			LinkIndex: dev.Attrs().Index,
-			Dst:       linkNet,
-			Scope:     netlink.SCOPE_LINK,
-		})
-		if err != nil {
-			s.Logger.Error(err)
-			return err
-		}
-		return s.AddDefaultRoute(defaultNextHop, dev)
-	})
-}
-
-func (s *remoteCNIserver) retrieveContainerMacAddr(request *cni.CNIRequest) ([]byte, error) {
-
-	var macAddr []byte
-	err := s.WithNetNSPath(request.NetworkNamespace, func(netNS ns.NetNS) error {
-		link, err := s.LinkByName(request.InterfaceName)
-		logroot.StandardLogger().Debug("Container mac ", link.Attrs().HardwareAddr)
-		macAddr = link.Attrs().HardwareAddr
-		return err
-
-	})
-	return macAddr, err
-
-}
-
-func (s *remoteCNIserver) configureArpOnVpp(macAddr []byte, request *cni.CNIRequest) error {
-
-	ifName := s.afpacketNameFromRequest(request)
-	if s.swIfIndex == nil {
-		s.Logger.Warn("SwIfIndex is not available")
-		return nil
-	}
-	idx, _, exists := s.swIfIndex.LookupIdx(ifName)
-	if !exists {
-		return fmt.Errorf("afpacket %v doesn't exist", ifName)
-	}
-	stringIP := s.ipAddrForContainer()
-	containerIP, _, err := net.ParseCIDR(stringIP)
-	if err != nil {
-		s.Logger.Error(err)
-		return err
-	}
-
-	req := &ip.IPNeighborAddDel{
-		SwIfIndex:  idx,
-		IsAdd:      1,
-		MacAddress: macAddr,
-		IsNoAdjFib: 1,
-		DstAddress: []byte(containerIP.To4()),
-	}
-
-	reply := &ip.IPNeighborAddDelReply{}
-	err = s.govppChan.SendRequest(req).ReceiveReply(reply)
-	if reply.Retval != 0 {
-		return fmt.Errorf("Adding arp entry returned non zero error code (%v)", reply.Retval)
-	}
-
-	return err
-}
-
-func (s *remoteCNIserver) configureArpInContainer(macAddr net.HardwareAddr, request *cni.CNIRequest) error {
-
-	gw := net.ParseIP(fakeContainerGw)
-	return s.WithNetNSPath(request.NetworkNamespace, func(ns ns.NetNS) error {
-		link, err := s.LinkByName(request.InterfaceName)
-		if err != nil {
-			return err
-		}
-		return s.NeighAdd(&netlink.Neigh{
-			LinkIndex:    link.Attrs().Index,
-			Family:       netlink.FAMILY_V4,
-			State:        netlink.NUD_PERMANENT,
-			Type:         1,
-			IP:           gw,
-			HardwareAddr: macAddr,
-		})
-
-	})
-}
-
-func (s *remoteCNIserver) getAfPacketMac(request *cni.CNIRequest) (net.HardwareAddr, error) {
-	name := "host-" + s.veth2NameFromRequest(request)
-	req := &interfaces.SwInterfaceDump{
-		NameFilter:      []byte(name),
-		NameFilterValid: 1,
-	}
-	var mac net.HardwareAddr
-	found := false
-
-	if s.govppChan == nil {
-		s.Logger.Warn("GoVpp not available")
-		return mac, nil
-	}
-
-	ctx := s.govppChan.SendMultiRequest(req)
-
-	for {
-		ifDetails := &interfaces.SwInterfaceDetails{}
-		stop, err := ctx.ReceiveReply(ifDetails)
-		if stop {
-			break // break out of the loop
-		}
-		if err != nil {
-			s.Logger.Error(err)
-			return nil, err
-		}
-		if strings.HasPrefix(string(ifDetails.InterfaceName), name) {
-			mac = net.HardwareAddr(ifDetails.L2Address[:ifDetails.L2AddressLength])
-			found = true
-		}
-	}
-
-	if !found {
-		return nil, fmt.Errorf("unable to look up MAC for if %v", name)
-	}
-	return mac, nil
-
-}
-
-//
-// +-------------------------------------------------+
-// |   vSwitch VPP                                   |
-// |                             +--------------+    |       +--------------+
-// |                             |     vethVPP  |____________|   veth Host  |
-// |                             |              |    |       |              |
-// |                             +--------------+    |       +--------------+
-// |    +------+       +------+                      |
-// |    |  AF1 |       | AFn  |                      |
-// |    |      |  ...  |      |                      |
-// |    +------+       +------+                      |
-// |      ^                                          |
-// |      |                                          |
-// +------|------------------------------------------+
-//        v
-// +------------+
-// |            |
-// | Veth2      |
-// |            |
-// +------------+
-//        ^
-//        |
-// +------|------------+
-// |  NS1 v            |
-// |  +------------+   |
-// |  |            |   |
-// |  | Veth1      |   |
-// |  |            |   |
-// |  +------------+   |
-// |                   |
-// +-------------------+
-
-func (s *remoteCNIserver) veth1NameFromRequest(request *cni.CNIRequest) string {
-	return request.InterfaceName + request.ContainerId
-}
-
-func (s *remoteCNIserver) veth1HostIfNameFromRequest(request *cni.CNIRequest) string {
-	return request.InterfaceName
-}
-
-func (s *remoteCNIserver) veth2NameFromRequest(request *cni.CNIRequest) string {
-	if len(request.ContainerId) > vethNameMaxLen {
-		return request.ContainerId[:vethNameMaxLen]
-	}
-	return request.ContainerId
-}
-
-func (s *remoteCNIserver) afpacketNameFromRequest(request *cni.CNIRequest) string {
-	return afPacketNamePrefix + s.veth2NameFromRequest(request)
-}
-
-func (s *remoteCNIserver) ipAddrForContainer() string {
-	return ipPrefix + "." + strconv.Itoa(s.counter+1) + "/32"
-}
-
-func (s *remoteCNIserver) ipAddrForAfPacket() string {
-	return afPacketIPPrefix + "." + strconv.Itoa(s.counter+1) + "/32"
-}
-
-func (s *remoteCNIserver) veth1FromRequest(request *cni.CNIRequest) *linux_intf.LinuxInterfaces_Interface {
-	return &linux_intf.LinuxInterfaces_Interface{
-		Name:       s.veth1NameFromRequest(request),
-		Type:       linux_intf.LinuxInterfaces_VETH,
-		Enabled:    true,
-		HostIfName: s.veth1HostIfNameFromRequest(request),
-		Veth: &linux_intf.LinuxInterfaces_Interface_Veth{
-			PeerIfName: s.veth2NameFromRequest(request),
-		},
-		IpAddresses: []string{s.ipAddrForContainer()},
-		Namespace: &linux_intf.LinuxInterfaces_Interface_Namespace{
-			Type:     linux_intf.LinuxInterfaces_Interface_Namespace_FILE_REF_NS,
-			Filepath: request.NetworkNamespace,
-		},
-	}
-}
-
-func (s *remoteCNIserver) veth2FromRequest(request *cni.CNIRequest) *linux_intf.LinuxInterfaces_Interface {
-	return &linux_intf.LinuxInterfaces_Interface{
-		Name:       s.veth2NameFromRequest(request),
-		Type:       linux_intf.LinuxInterfaces_VETH,
-		Enabled:    true,
-		HostIfName: s.veth2NameFromRequest(request),
-		Veth: &linux_intf.LinuxInterfaces_Interface_Veth{
-			PeerIfName: s.veth1NameFromRequest(request),
-		},
-	}
-}
-
-func (s *remoteCNIserver) afpacketFromRequest(request *cni.CNIRequest) *vpp_intf.Interfaces_Interface {
-	return &vpp_intf.Interfaces_Interface{
-		Name:    s.afpacketNameFromRequest(request),
-		Type:    vpp_intf.InterfaceType_AF_PACKET_INTERFACE,
-		Enabled: true,
-		Afpacket: &vpp_intf.Interfaces_Interface_Afpacket{
-			HostIfName: s.veth2NameFromRequest(request),
-		},
-		IpAddresses: []string{s.ipAddrForAfPacket()},
-	}
-}
-
-func (s *remoteCNIserver) vppRouteFromRequest(request *cni.CNIRequest) *l3.StaticRoutes_Route {
-	return &l3.StaticRoutes_Route{
-		DstIpAddr:         s.ipAddrForContainer(),
-		OutgoingInterface: s.afpacketNameFromRequest(request),
-	}
-}
-
-func (s *remoteCNIserver) interconnectVethHost() *linux_intf.LinuxInterfaces_Interface {
-	return &linux_intf.LinuxInterfaces_Interface{
-		Name:       "vppv1",
-		Type:       linux_intf.LinuxInterfaces_VETH,
-		Enabled:    true,
-		HostIfName: vethHostEndName,
-		Veth: &linux_intf.LinuxInterfaces_Interface_Veth{
-			PeerIfName: "vppv2",
-		},
-		IpAddresses: []string{vethHostEndIP + "/24"},
-	}
-}
-
-func (s *remoteCNIserver) interconnectVethVpp() *linux_intf.LinuxInterfaces_Interface {
-	return &linux_intf.LinuxInterfaces_Interface{
-		Name:       "vppv2",
-		Type:       linux_intf.LinuxInterfaces_VETH,
-		Enabled:    true,
-		HostIfName: "vppv2",
-		Veth: &linux_intf.LinuxInterfaces_Interface_Veth{
-			PeerIfName: "vppv1",
-		},
-	}
-}
-
-func (s *remoteCNIserver) interconnectAfpacket() *vpp_intf.Interfaces_Interface {
-	return &vpp_intf.Interfaces_Interface{
-		Name:    "afToHost",
-		Type:    vpp_intf.InterfaceType_AF_PACKET_INTERFACE,
-		Enabled: true,
-		Afpacket: &vpp_intf.Interfaces_Interface_Afpacket{
-			HostIfName: "vppv2",
-		},
-		IpAddresses: []string{vethVPPEndIP + "/24"},
-	}
 }

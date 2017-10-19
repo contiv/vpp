@@ -113,9 +113,10 @@ spec:
         operator: Exists
       hostNetwork: true
       hostPID: true
-      # Init containers are execute before regular containers and wait to finish sucessfuly
+
+      # Init containers are executed before regular containers, must finish successfully before regular ones are started.
       initContainers:
-      # Extract/copy ldpreload lib to the host.
+      # This init container extracts/copies VPP LD_PRELOAD libs to the host.
       - name: vpp-init
         image: contivvpp/vswitch
         imagePullPolicy: IfNotPresent
@@ -181,22 +182,22 @@ spec:
             path: /opt/cni/bin
         - name: cni-net-dir
           hostPath:
-            path: /etc/cni/net.d
-        # Used by VPP to communicate with LD_PRELOAD client, later it'll be replaced by socket
+          path: /etc/cni/net.d
+        # LD_PRELOAD library
+        - name: vcl-ldpreload
+          hostPath:
+            path: /usr/libexec/ldpreload/vcl-ldpreload
+        # Used by VPP to communicate with LD_PRELOAD client, later it'll be replaced by socket file directory mount.
         - name: shm
           hostPath:
             path: /dev/shm
-        # VPP binaries, used to test with socket_test_client/server tool
+        # VPP binaries, used to test with socket_test_client/server tool.
         - name: vpp
           hostPath:
             path: /usr/libexec/ldpreload/vpp
         - name: vpp-lib64
           hostPath:
             path: /usr/libexec/ldpreload/vpp-lib64
-        # LD_PRELOAD lib
-        - name: vcl-ldpreload
-          hostPath:
-            path: /usr/libexec/ldpreload/vcl-ldpreload
 
 ---
 

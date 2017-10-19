@@ -20,6 +20,44 @@ import proto "github.com/golang/protobuf/proto"
 // Reference imports to suppress errors if they are not otherwise used.
 var _ = proto.Marshal
 
+// PolicyType selects the rule types that the network policy relates to.
+// By default, rule types are determined based on the existence of Ingress or
+// Egress rules: policies that contain an Egress section are assumed to affect
+// Egress, and all policies (whether or not they contain an Ingress section)
+// are assumed to affect Ingress.
+// For example, policies are egress-only if and only if policyType is set
+// to EGRESS.
+// Likewise, policies blocking all egress traffic are either EGRESS
+// or INGRESS_AND_EGRESS as they do not include an Egress section and would
+// otherwise default to just INGRESS.
+// This field is beta-level in Kubernetes 1.8.
+// +optional
+type Policy_PolicyType int32
+
+const (
+	Policy_DEFAULT            Policy_PolicyType = 0
+	Policy_INGRESS            Policy_PolicyType = 1
+	Policy_EGRESS             Policy_PolicyType = 2
+	Policy_INGRESS_AND_EGRESS Policy_PolicyType = 3
+)
+
+var Policy_PolicyType_name = map[int32]string{
+	0: "DEFAULT",
+	1: "INGRESS",
+	2: "EGRESS",
+	3: "INGRESS_AND_EGRESS",
+}
+var Policy_PolicyType_value = map[string]int32{
+	"DEFAULT":            0,
+	"INGRESS":            1,
+	"EGRESS":             2,
+	"INGRESS_AND_EGRESS": 3,
+}
+
+func (x Policy_PolicyType) String() string {
+	return proto.EnumName(Policy_PolicyType_name, int32(x))
+}
+
 // Operator represents a key's relationship to a set of values.
 type Policy_LabelSelector_LabelExpression_Operator int32
 
@@ -50,45 +88,45 @@ func (x Policy_LabelSelector_LabelExpression_Operator) String() string {
 // The protocol (TCP or UDP) which traffic must match.
 // If not specified, this field defaults to TCP.
 // +optional
-type Policy_IngressRule_Port_Protocol int32
+type Policy_Port_Protocol int32
 
 const (
-	Policy_IngressRule_Port_TCP Policy_IngressRule_Port_Protocol = 0
-	Policy_IngressRule_Port_UDP Policy_IngressRule_Port_Protocol = 1
+	Policy_Port_TCP Policy_Port_Protocol = 0
+	Policy_Port_UDP Policy_Port_Protocol = 1
 )
 
-var Policy_IngressRule_Port_Protocol_name = map[int32]string{
+var Policy_Port_Protocol_name = map[int32]string{
 	0: "TCP",
 	1: "UDP",
 }
-var Policy_IngressRule_Port_Protocol_value = map[string]int32{
+var Policy_Port_Protocol_value = map[string]int32{
 	"TCP": 0,
 	"UDP": 1,
 }
 
-func (x Policy_IngressRule_Port_Protocol) String() string {
-	return proto.EnumName(Policy_IngressRule_Port_Protocol_name, int32(x))
+func (x Policy_Port_Protocol) String() string {
+	return proto.EnumName(Policy_Port_Protocol_name, int32(x))
 }
 
 // Port reference type.
-type Policy_IngressRule_Port_PortNameOrNumber_Type int32
+type Policy_Port_PortNameOrNumber_Type int32
 
 const (
-	Policy_IngressRule_Port_PortNameOrNumber_NUMBER Policy_IngressRule_Port_PortNameOrNumber_Type = 0
-	Policy_IngressRule_Port_PortNameOrNumber_NAME   Policy_IngressRule_Port_PortNameOrNumber_Type = 1
+	Policy_Port_PortNameOrNumber_NUMBER Policy_Port_PortNameOrNumber_Type = 0
+	Policy_Port_PortNameOrNumber_NAME   Policy_Port_PortNameOrNumber_Type = 1
 )
 
-var Policy_IngressRule_Port_PortNameOrNumber_Type_name = map[int32]string{
+var Policy_Port_PortNameOrNumber_Type_name = map[int32]string{
 	0: "NUMBER",
 	1: "NAME",
 }
-var Policy_IngressRule_Port_PortNameOrNumber_Type_value = map[string]int32{
+var Policy_Port_PortNameOrNumber_Type_value = map[string]int32{
 	"NUMBER": 0,
 	"NAME":   1,
 }
 
-func (x Policy_IngressRule_Port_PortNameOrNumber_Type) String() string {
-	return proto.EnumName(Policy_IngressRule_Port_PortNameOrNumber_Type_name, int32(x))
+func (x Policy_Port_PortNameOrNumber_Type) String() string {
+	return proto.EnumName(Policy_Port_PortNameOrNumber_Type_name, int32(x))
 }
 
 // Policy describes what network traffic is allowed for a set of Pods.
@@ -110,7 +148,8 @@ type Policy struct {
 	// additively.
 	// This field is NOT optional and follows standard label selector semantics.
 	// An empty selector matches all pods in this namespace.
-	Pods *Policy_LabelSelector `protobuf:"bytes,4,opt,name=pods" json:"pods,omitempty"`
+	Pods       *Policy_LabelSelector `protobuf:"bytes,4,opt,name=pods" json:"pods,omitempty"`
+	PolicyType Policy_PolicyType     `protobuf:"varint,5,opt,name=policy_type,enum=policy.Policy_PolicyType" json:"policy_type,omitempty"`
 	// List of ingress rules applied to the selected pods.
 	// Traffic is allowed to a pod if there are no network policies selecting the pod
 	// OR if the traffic source is the pod's local node,
@@ -120,7 +159,17 @@ type Policy struct {
 	// any traffic (and serves solely to ensure that the selected pods are isolated
 	// by default).
 	// +optional
-	IngressRule []*Policy_IngressRule `protobuf:"bytes,5,rep,name=ingress_rule" json:"ingress_rule,omitempty"`
+	IngressRule []*Policy_IngressRule `protobuf:"bytes,6,rep,name=ingress_rule" json:"ingress_rule,omitempty"`
+	// List of egress rules to be applied to the selected pods.
+	// Outgoing traffic is allowed if there are no network policies selecting
+	// the pod OR if the traffic matches at least one egress rule across
+	// all of the network policies applied to the pod.
+	// If there are no egress rules then this network policy does not allow
+	// any outgoing traffic (and serves solely to ensure that the selected pods
+	// are isolated by default).
+	// This field is beta-level in Kubernetes 1.8.
+	// +optional
+	EgressRule []*Policy_EgressRule `protobuf:"bytes,7,rep,name=egress_rule" json:"egress_rule,omitempty"`
 }
 
 func (m *Policy) Reset()         { *m = Policy{} }
@@ -144,6 +193,13 @@ func (m *Policy) GetPods() *Policy_LabelSelector {
 func (m *Policy) GetIngressRule() []*Policy_IngressRule {
 	if m != nil {
 		return m.IngressRule
+	}
+	return nil
+}
+
+func (m *Policy) GetEgressRule() []*Policy_EgressRule {
+	if m != nil {
+		return m.EgressRule
 	}
 	return nil
 }
@@ -210,6 +266,100 @@ func (m *Policy_LabelSelector_LabelExpression) Reset()         { *m = Policy_Lab
 func (m *Policy_LabelSelector_LabelExpression) String() string { return proto.CompactTextString(m) }
 func (*Policy_LabelSelector_LabelExpression) ProtoMessage()    {}
 
+// A port selector.
+type Policy_Port struct {
+	Protocol Policy_Port_Protocol `protobuf:"varint,3,opt,name=protocol,enum=policy.Policy_Port_Protocol" json:"protocol,omitempty"`
+	// If specified, the port on the given protocol.
+	// This can either be a numerical or named port on a pod.
+	// If this field is not provided, the rule matches all port names and
+	// numbers.
+	// If present, only traffic on the specified protocol AND port
+	// will be matched.
+	// +optional
+	Port *Policy_Port_PortNameOrNumber `protobuf:"bytes,1,opt,name=port" json:"port,omitempty"`
+}
+
+func (m *Policy_Port) Reset()         { *m = Policy_Port{} }
+func (m *Policy_Port) String() string { return proto.CompactTextString(m) }
+func (*Policy_Port) ProtoMessage()    {}
+
+func (m *Policy_Port) GetPort() *Policy_Port_PortNameOrNumber {
+	if m != nil {
+		return m.Port
+	}
+	return nil
+}
+
+// Numerical or named port.
+type Policy_Port_PortNameOrNumber struct {
+	Type Policy_Port_PortNameOrNumber_Type `protobuf:"varint,1,opt,name=type,enum=policy.Policy_Port_PortNameOrNumber_Type" json:"type,omitempty"`
+	// Port number from the range: 0 < x < 65536.
+	Number int32 `protobuf:"varint,2,opt,name=number" json:"number,omitempty"`
+	// Port name as defined by containers in the pod.
+	Name string `protobuf:"bytes,3,opt,name=name" json:"name,omitempty"`
+}
+
+func (m *Policy_Port_PortNameOrNumber) Reset()         { *m = Policy_Port_PortNameOrNumber{} }
+func (m *Policy_Port_PortNameOrNumber) String() string { return proto.CompactTextString(m) }
+func (*Policy_Port_PortNameOrNumber) ProtoMessage()    {}
+
+// A selector for a set of pods.
+type Policy_Peer struct {
+	// This is a label selector which selects Pods in this namespace.
+	// If present but empty, this selector selects all pods in this namespace.
+	// +optional
+	Pods *Policy_LabelSelector `protobuf:"bytes,1,opt,name=pods" json:"pods,omitempty"`
+	// Selects namespaces using cluster scoped-labels.
+	// This matches all pods in all namespaces selected by this label selector.
+	// If present but empty, this selector selects all namespaces.
+	// +optional
+	Namespaces *Policy_LabelSelector `protobuf:"bytes,2,opt,name=namespaces" json:"namespaces,omitempty"`
+	IpBlock    *Policy_Peer_IPBlock  `protobuf:"bytes,3,opt,name=ip_block" json:"ip_block,omitempty"`
+}
+
+func (m *Policy_Peer) Reset()         { *m = Policy_Peer{} }
+func (m *Policy_Peer) String() string { return proto.CompactTextString(m) }
+func (*Policy_Peer) ProtoMessage()    {}
+
+func (m *Policy_Peer) GetPods() *Policy_LabelSelector {
+	if m != nil {
+		return m.Pods
+	}
+	return nil
+}
+
+func (m *Policy_Peer) GetNamespaces() *Policy_LabelSelector {
+	if m != nil {
+		return m.Namespaces
+	}
+	return nil
+}
+
+func (m *Policy_Peer) GetIpBlock() *Policy_Peer_IPBlock {
+	if m != nil {
+		return m.IpBlock
+	}
+	return nil
+}
+
+// IPBlock describes a particular CIDR (Ex. "192.168.1.1/24") that is allowed
+// to/from the pods selected for this network policy. The except entries
+// describe CIDRs that should not be included within this rule.
+type Policy_Peer_IPBlock struct {
+	// CIDR is a string representing the IP Block.
+	// Valid examples are "192.168.1.1/24".
+	Cidr string `protobuf:"bytes,1,opt,name=cidr" json:"cidr,omitempty"`
+	// Except is a slice of CIDRs that should not be included within an IP Block
+	// Valid examples are "192.168.1.1/24".
+	// Except values are inside the CIDR range.
+	// +optional
+	Except []string `protobuf:"bytes,2,rep,name=except" json:"except,omitempty"`
+}
+
+func (m *Policy_Peer_IPBlock) Reset()         { *m = Policy_Peer_IPBlock{} }
+func (m *Policy_Peer_IPBlock) String() string { return proto.CompactTextString(m) }
+func (*Policy_Peer_IPBlock) ProtoMessage()    {}
+
 // Ingress rule matches traffic if and only if the traffic matches both port-s
 // AND from.
 type Policy_IngressRule struct {
@@ -220,7 +370,7 @@ type Policy_IngressRule struct {
 	// If the array is non-empty, then this ingress rule allows traffic
 	// only if the traffic matches at least one port in the list.
 	// +optional
-	Port []*Policy_IngressRule_Port `protobuf:"bytes,1,rep,name=port" json:"port,omitempty"`
+	Port []*Policy_Port `protobuf:"bytes,1,rep,name=port" json:"port,omitempty"`
 	// List of sources which are able to access the pods selected for this
 	// policy.
 	// Items in this list are combined using a logical OR operation.
@@ -229,99 +379,70 @@ type Policy_IngressRule struct {
 	// If the array is non-empty, then this ingress rule allows traffic only
 	// if the traffic matches at least one item in the from list.
 	// +optional
-	From []*Policy_IngressRule_Peer `protobuf:"bytes,2,rep,name=from" json:"from,omitempty"`
+	From []*Policy_Peer `protobuf:"bytes,2,rep,name=from" json:"from,omitempty"`
 }
 
 func (m *Policy_IngressRule) Reset()         { *m = Policy_IngressRule{} }
 func (m *Policy_IngressRule) String() string { return proto.CompactTextString(m) }
 func (*Policy_IngressRule) ProtoMessage()    {}
 
-func (m *Policy_IngressRule) GetPort() []*Policy_IngressRule_Port {
+func (m *Policy_IngressRule) GetPort() []*Policy_Port {
 	if m != nil {
 		return m.Port
 	}
 	return nil
 }
 
-func (m *Policy_IngressRule) GetFrom() []*Policy_IngressRule_Peer {
+func (m *Policy_IngressRule) GetFrom() []*Policy_Peer {
 	if m != nil {
 		return m.From
 	}
 	return nil
 }
 
-// A port selector.
-type Policy_IngressRule_Port struct {
-	Protocol Policy_IngressRule_Port_Protocol `protobuf:"varint,3,opt,name=protocol,enum=policy.Policy_IngressRule_Port_Protocol" json:"protocol,omitempty"`
-	// If specified, the port on the given protocol.
-	// This can either be a numerical or named port on a pod.
-	// If this field is not provided, the rule matches all port names and
-	// numbers.
-	// If present, only traffic on the specified protocol AND port
-	// will be matched.
+// Egress rule matches traffic if and only if the traffic matches both port-s
+// AND to.
+// This field is beta-level in Kubernetes 1.8.
+type Policy_EgressRule struct {
+	// List of destination ports for outgoing traffic.
+	// Each item in this list is combined using a logical OR.
+	// If the array is empty or null, then this egress rule matches all ports
+	// (traffic not restricted by port).
+	// If the array is non-empty, then this egress rule allows traffic
+	// only if the traffic matches at least one port in the list.
 	// +optional
-	Port *Policy_IngressRule_Port_PortNameOrNumber `protobuf:"bytes,1,opt,name=port" json:"port,omitempty"`
+	Port []*Policy_Port `protobuf:"bytes,1,rep,name=port" json:"port,omitempty"`
+	// List of destinations for outgoing traffic of pods selected for this policy.
+	// Items in this list are combined using a logical OR operation.
+	// If the array is empty or null, this egress rule matches all destinations
+	// (traffic not restricted by destination).
+	// If the array is non-empty, then this egress rule allows traffic only
+	// if the traffic matches at least one item in the to list.
+	// +optional
+	To []*Policy_Peer `protobuf:"bytes,2,rep,name=to" json:"to,omitempty"`
 }
 
-func (m *Policy_IngressRule_Port) Reset()         { *m = Policy_IngressRule_Port{} }
-func (m *Policy_IngressRule_Port) String() string { return proto.CompactTextString(m) }
-func (*Policy_IngressRule_Port) ProtoMessage()    {}
+func (m *Policy_EgressRule) Reset()         { *m = Policy_EgressRule{} }
+func (m *Policy_EgressRule) String() string { return proto.CompactTextString(m) }
+func (*Policy_EgressRule) ProtoMessage()    {}
 
-func (m *Policy_IngressRule_Port) GetPort() *Policy_IngressRule_Port_PortNameOrNumber {
+func (m *Policy_EgressRule) GetPort() []*Policy_Port {
 	if m != nil {
 		return m.Port
 	}
 	return nil
 }
 
-// Numerical or named port.
-type Policy_IngressRule_Port_PortNameOrNumber struct {
-	Type Policy_IngressRule_Port_PortNameOrNumber_Type `protobuf:"varint,1,opt,name=type,enum=policy.Policy_IngressRule_Port_PortNameOrNumber_Type" json:"type,omitempty"`
-	// Port number from the range: 0 < x < 65536.
-	Number int32 `protobuf:"varint,2,opt,name=number" json:"number,omitempty"`
-	// Port name as defined by containers in the pod.
-	Name string `protobuf:"bytes,3,opt,name=name" json:"name,omitempty"`
-}
-
-func (m *Policy_IngressRule_Port_PortNameOrNumber) Reset() {
-	*m = Policy_IngressRule_Port_PortNameOrNumber{}
-}
-func (m *Policy_IngressRule_Port_PortNameOrNumber) String() string { return proto.CompactTextString(m) }
-func (*Policy_IngressRule_Port_PortNameOrNumber) ProtoMessage()    {}
-
-// A selector for a set of pods / namespaces.
-type Policy_IngressRule_Peer struct {
-	// This is a label selector which selects Pods in this namespace.
-	// If present but empty, this selector selects all pods in this namespace.
-	// +optional
-	Pods *Policy_LabelSelector `protobuf:"bytes,1,opt,name=pods" json:"pods,omitempty"`
-	// Selects namespaces using cluster scoped-labels.
-	// This matches all pods in all namespaces selected by this label selector.
-	// If present but empty, this selector selects all namespaces.
-	// +optional
-	Namespaces *Policy_LabelSelector `protobuf:"bytes,2,opt,name=namespaces" json:"namespaces,omitempty"`
-}
-
-func (m *Policy_IngressRule_Peer) Reset()         { *m = Policy_IngressRule_Peer{} }
-func (m *Policy_IngressRule_Peer) String() string { return proto.CompactTextString(m) }
-func (*Policy_IngressRule_Peer) ProtoMessage()    {}
-
-func (m *Policy_IngressRule_Peer) GetPods() *Policy_LabelSelector {
+func (m *Policy_EgressRule) GetTo() []*Policy_Peer {
 	if m != nil {
-		return m.Pods
-	}
-	return nil
-}
-
-func (m *Policy_IngressRule_Peer) GetNamespaces() *Policy_LabelSelector {
-	if m != nil {
-		return m.Namespaces
+		return m.To
 	}
 	return nil
 }
 
 func init() {
+	proto.RegisterEnum("policy.Policy_PolicyType", Policy_PolicyType_name, Policy_PolicyType_value)
 	proto.RegisterEnum("policy.Policy_LabelSelector_LabelExpression_Operator", Policy_LabelSelector_LabelExpression_Operator_name, Policy_LabelSelector_LabelExpression_Operator_value)
-	proto.RegisterEnum("policy.Policy_IngressRule_Port_Protocol", Policy_IngressRule_Port_Protocol_name, Policy_IngressRule_Port_Protocol_value)
-	proto.RegisterEnum("policy.Policy_IngressRule_Port_PortNameOrNumber_Type", Policy_IngressRule_Port_PortNameOrNumber_Type_name, Policy_IngressRule_Port_PortNameOrNumber_Type_value)
+	proto.RegisterEnum("policy.Policy_Port_Protocol", Policy_Port_Protocol_name, Policy_Port_Protocol_value)
+	proto.RegisterEnum("policy.Policy_Port_PortNameOrNumber_Type", Policy_Port_PortNameOrNumber_Type_name, Policy_Port_PortNameOrNumber_Type_value)
 }

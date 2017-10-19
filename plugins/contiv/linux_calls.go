@@ -21,10 +21,14 @@ import (
 	"net"
 )
 
+// hostCalls allow to mock linux calls in test.
+// this will be removed once all features are supported by linux plugin
+// of Vpp Agent
 type hostCalls interface {
 	LinkByName(name string) (netlink.Link, error)
 	RouteAdd(route *netlink.Route) error
 	AddDefaultRoute(gw net.IP, dev netlink.Link) error
+	NeighAdd(*netlink.Neigh) error
 	WithNetNSPath(nspath string, toRun func(ns ns.NetNS) error) error
 }
 
@@ -47,21 +51,29 @@ func (l *linuxCalls) WithNetNSPath(nspath string, toRun func(ns ns.NetNS) error)
 	return ns.WithNetNSPath(nspath, toRun)
 }
 
-type mockLinuxCall struct {
+func (l *linuxCalls) NeighAdd(neigh *netlink.Neigh) error {
+	return netlink.NeighAdd(neigh)
 }
 
-func (m *mockLinuxCall) LinkByName(name string) (netlink.Link, error) {
+type mockLinuxCalls struct {
+}
+
+func (m *mockLinuxCalls) LinkByName(name string) (netlink.Link, error) {
 	return &netlink.Dummy{}, nil
 }
 
-func (m *mockLinuxCall) RouteAdd(route *netlink.Route) error {
+func (m *mockLinuxCalls) RouteAdd(route *netlink.Route) error {
 	return nil
 }
 
-func (m *mockLinuxCall) AddDefaultRoute(gw net.IP, dev netlink.Link) error {
+func (m *mockLinuxCalls) AddDefaultRoute(gw net.IP, dev netlink.Link) error {
 	return nil
 }
 
-func (m *mockLinuxCall) WithNetNSPath(nspath string, toRun func(ns ns.NetNS) error) error {
+func (m *mockLinuxCalls) WithNetNSPath(nspath string, toRun func(ns ns.NetNS) error) error {
+	return nil
+}
+
+func (m *mockLinuxCalls) NeighAdd(neigh *netlink.Neigh) error {
 	return nil
 }

@@ -18,7 +18,6 @@ import (
 	"github.com/contiv/vpp/plugins/contiv/model/cni"
 	"github.com/ligato/cn-infra/logging"
 	vpp_intf "github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/model/interfaces"
-	"github.com/ligato/vpp-agent/plugins/defaultplugins/l2plugin/model/l2"
 	linux_intf "github.com/ligato/vpp-agent/plugins/linuxplugin/model/interfaces"
 
 	"fmt"
@@ -61,21 +60,14 @@ type remoteCNIserver struct {
 	// counter of connected containers. It is used for generating afpacket names
 	// and assigned ip addresses.
 	counter int
-	// created afPacket that are in the bridge domain
-	// map is used to support quick removal
-	afPackets map[string]interface{}
 }
 
 const (
 	resultOk                  uint32 = 0
 	resultErr                 uint32 = 1
 	vethNameMaxLen                   = 15
-	bdName                           = "bd1"
-	bviName                          = "loop1"
 	ipMask                           = "24"
 	ipPrefix                         = "10.1.1"
-	bviIP                            = ipPrefix + ".254"
-	bviIPWithPrefix                  = bviIP + "/" + ipMask
 	afPacketNamePrefix               = "afpacket"
 	podNameExtraArg                  = "K8S_POD_NAME"
 	podNamespaceExtraArg             = "K8S_POD_NAMESPACE"
@@ -93,7 +85,14 @@ func newRemoteCNIServer(logger logging.Logger, vppTxnFactory func() linux.DataCh
 	if govpp != nil {
 		govppChan, _ = govpp.NewAPIChannel()
 	}
-	return &remoteCNIserver{Logger: logger, vppTxnFactory: vppTxnFactory, afPackets: map[string]interface{}{}, proxy: proxy, configuredContainers: configuredContainers, hostCalls: &linuxCalls{}, govppChan: govppChan, swIfIndex: index}
+	return &remoteCNIserver{
+		Logger:               logger,
+		vppTxnFactory:        vppTxnFactory,
+		proxy:                proxy,
+		configuredContainers: configuredContainers,
+		hostCalls:            &linuxCalls{},
+		govppChan:            govppChan,
+		swIfIndex:            index}
 }
 
 // Add connects the container to the network.
@@ -128,9 +127,6 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 	afpacket := s.afpacketFromRequest(request)
 	route := s.vppRouteFromRequest(request)
 
-	// create entry in the afpacket map => add afpacket into bridge domain
-	s.afPackets[afpacket.Name] = nil
-
 	s.WithFields(logging.Fields{"veth1": veth1, "veth2": veth2, "afpacket": afpacket, "route": route}).Info("Configuring")
 
 	txn := s.vppTxnFactory().
@@ -156,7 +152,6 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 	err := txn.Send().ReceiveReply()
 
 	if err != nil {
-		delete(s.afPackets, afpacket.Name)
 		s.Logger.Error(err)
 		return s.generateErrorResponse(err)
 	}
@@ -232,6 +227,7 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 			Veth1:        veth1,
 			Veth2:        veth2,
 			Afpacket:     afpacket,
+			Route:        route,
 		})
 	}
 
@@ -267,8 +263,6 @@ func (s *remoteCNIserver) unconfigureContainerConnectivity(request *cni.CNIReque
 	veth2 := s.veth2NameFromRequest(request)
 	afpacket := s.afpacketNameFromRequest(request)
 	s.Info("Removing", []string{veth1, veth2, afpacket})
-	// remove afpacket from bridge domain
-	delete(s.afPackets, afpacket)
 
 	err := s.vppTxnFactory().
 		Delete().
@@ -346,7 +340,7 @@ func (s *remoteCNIserver) createdInterfaces(veth *linux_intf.LinuxInterfaces_Int
 				{
 					Version: cni.CNIReply_Interface_IP_IPV4,
 					Address: veth.IpAddresses[0],
-					Gateway: bviIP,
+					Gateway: fakeContainerGw,
 				},
 			},
 		},
@@ -626,41 +620,6 @@ func (s *remoteCNIserver) vppRouteFromRequest(request *cni.CNIRequest) *l3.Stati
 	return &l3.StaticRoutes_Route{
 		DstIpAddr:         s.ipAddrForContainer(),
 		OutgoingInterface: s.afpacketNameFromRequest(request),
-	}
-}
-
-func (s *remoteCNIserver) bridgeDomain() *l2.BridgeDomains_BridgeDomain {
-	var ifs = []*l2.BridgeDomains_BridgeDomain_Interfaces{
-		{
-			Name: bviName,
-			BridgedVirtualInterface: true,
-		}}
-
-	for af := range s.afPackets {
-		ifs = append(ifs, &l2.BridgeDomains_BridgeDomain_Interfaces{
-			Name: af,
-			BridgedVirtualInterface: false,
-		})
-	}
-
-	return &l2.BridgeDomains_BridgeDomain{
-		Name:                bdName,
-		Flood:               true,
-		UnknownUnicastFlood: true,
-		Forward:             true,
-		Learn:               true,
-		ArpTermination:      false,
-		MacAge:              0, /* means disable aging */
-		Interfaces:          ifs,
-	}
-}
-
-func (s *remoteCNIserver) bviInterface() *vpp_intf.Interfaces_Interface {
-	return &vpp_intf.Interfaces_Interface{
-		Name:        bviName,
-		Enabled:     true,
-		IpAddresses: []string{bviIPWithPrefix},
-		Type:        vpp_intf.InterfaceType_SOFTWARE_LOOPBACK,
 	}
 }
 

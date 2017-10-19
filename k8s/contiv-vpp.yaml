@@ -182,7 +182,7 @@ spec:
             path: /opt/cni/bin
         - name: cni-net-dir
           hostPath:
-          path: /etc/cni/net.d
+            path: /etc/cni/net.d
         # LD_PRELOAD library
         - name: vcl-ldpreload
           hostPath:

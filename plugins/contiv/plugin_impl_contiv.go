@@ -26,7 +26,6 @@ import (
 	"github.com/ligato/vpp-agent/clientv1/linux"
 	"github.com/ligato/vpp-agent/clientv1/linux/localclient"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins"
-	"github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/model/interfaces"
 	"github.com/ligato/vpp-agent/plugins/govppmux"
 )
 
@@ -66,28 +65,22 @@ func (plugin *Plugin) Close() error {
 	return nil
 }
 
-// GetSwIfIndex looks up SwIfIndex that corresponds to an interface associated with the given podNamespace and the podName.
-func (plugin *Plugin) GetSwIfIndex(podNamespace string, podName string) (idx uint32, meta *interfaces.Interfaces_Interface, found bool) {
+// GetIfName looks up logical interface name that corresponds to the interface associated with the given pod.
+func (plugin *Plugin) GetIfName(podNamespace string, podName string) (name string, exists bool) {
 	podNamesMatch := plugin.configuredContainers.LookupPodName(podName)
 	podNamespacesMatch := plugin.configuredContainers.LookupPodNamespace(podNamespace)
 
-	if len(podNamesMatch) == 1 && len(podNamespacesMatch) == 1 && podNamesMatch[0] == podNamespacesMatch[0] {
-		found, data := plugin.configuredContainers.LookupContainer(podNamesMatch[0])
-		if found && data != nil && data.Afpacket != nil {
-			return plugin.VPP.GetSwIfIndexes().LookupIdx(data.Afpacket.Name)
+	for _, pod1 := range podNamespacesMatch {
+		for _, pod2 := range podNamesMatch {
+			if pod1 == pod2 {
+				found, data := plugin.configuredContainers.LookupContainer(pod1)
+				if found && data != nil && data.Afpacket != nil {
+					return data.Afpacket.Name, true
+				}
+			}
 		}
 	}
-	plugin.Log.WithFields(logging.Fields{"podNamespace": podNamespace, "podName": podName}).Warn("No matching result found")
-	return 0, nil, false
-}
 
-// GetIfName looks up logical interface name that corresponds to an interface associated with the given podNamespace and the podName.
-// TODO: I think the policy plugin will need the interface name for use with the localclient (?)
-//        - consider removing GetSwIfIndex and implementing this without a lookup in VPP idxmap (metadata are also probably not needed)
-func (plugin *Plugin) GetIfName(podNamespace string, podName string) (name string, metadata *interfaces.Interfaces_Interface, exists bool) {
-	idx, _, found := plugin.GetSwIfIndex(podNamespace, podName)
-	if found {
-		return plugin.VPP.GetSwIfIndexes().LookupName(idx)
-	}
-	return "", nil, false
+	plugin.Log.WithFields(logging.Fields{"podNamespace": podNamespace, "podName": podName}).Warn("No matching result found")
+	return "", false
 }

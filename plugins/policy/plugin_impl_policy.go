@@ -41,6 +41,7 @@ type Plugin struct {
 	wg     sync.WaitGroup
 
 	configProcessor *ConfigProcessor
+
 	/*
 		TODO (use VPP localclient directly from processor for now):
 		- policy reflector1 (standard VPP ACLs)
@@ -65,7 +66,7 @@ func (p *Plugin) Init() error {
 	p.changeChan = make(chan datasync.ChangeEvent)
 
 	p.configProcessor = &ConfigProcessor{
-		ProcessorDeps{
+		ProcessorDeps: ProcessorDeps{
 			Log:        p.Log.NewLogger("-processor"),
 			PluginName: p.PluginName,
 			Contiv:     p.Contiv,

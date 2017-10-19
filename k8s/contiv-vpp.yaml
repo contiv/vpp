@@ -105,6 +105,10 @@ spec:
           securityContext:
             privileged: true
           env:
+            - name: MICROSERVICE_LABEL
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
             - name: ETCDV3_CONFIG
               value: "/etc/etcd/etcd.conf"
           volumeMounts:

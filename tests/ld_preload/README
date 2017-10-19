@@ -1,0 +1,22 @@
+
+git clone https://gerrit.fd.io/r/vpp
+
+# in case pod is behind proxy
+cd vpp
+make -C dpdk download
+cd ..
+
+sudo docker build --tag dev-vpp-ldpreload .
+
+kubectl apply -f vpp.yaml
+kubectl apply -f iperf.yaml
+kubectl apply -f iperf-client.yaml
+
+kubectl get pods
+
+# get server IP
+kubectl describe pod iperf-xxx | grep IP:
+
+kubectl exec vpp-xxx -i -t -- vppctl
+
+kubectl exec iperf-client-xxx -i -t -- iperf3 -V4d -s IP

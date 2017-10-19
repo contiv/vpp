@@ -31,8 +31,8 @@ func (pr *PodReflector) Init(stopCh2 <-chan struct{}, wg *sync.WaitGroup) error 
 	pr.wg = wg
 
 	restClient := pr.K8sClientset.CoreV1().RESTClient()
-	listWatch := cache.NewListWatchFromClient(restClient, "pods", "", fields.Everything())
-	pr.k8sPodStore, pr.k8sPodController = cache.NewInformer(
+	listWatch := pr.K8sListWatch.NewListWatchFromClient(restClient, "pods", "", fields.Everything())
+	pr.k8sPodStore, pr.k8sPodController = pr.K8sListWatch.NewInformer(
 		listWatch,
 		&core_v1.Pod{},
 		0,
@@ -87,7 +87,6 @@ func (pr *PodReflector) addPod(pod *core_v1.Pod) {
 // deletePod deletes state data of a removed K8s pod from the data store.
 func (pr *PodReflector) deletePod(pod *core_v1.Pod) {
 	pr.Log.WithField("pod", pod).Info("Pod removed")
-	// TODO (Delete not yet supported by kvdbsync)
 	key := proto.Key(pod.GetName(), pod.GetNamespace())
 	_, err := pr.Publish.Delete(key)
 	if err != nil {

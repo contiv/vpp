@@ -64,10 +64,12 @@ type Deps struct {
 type ReflectorDeps struct {
 	// Each reflector gets a separate child logger.
 	Log logging.Logger
-	// A K8s client is used to subscribe for watching.
+	// A K8s client is used to get the appropriate REST client.
 	K8sClientset *kubernetes.Clientset
+	// K8s List-Watch is used to watch for Kubernetes config changes.
+	K8sListWatch K8sListWatcher
 	// Publish is used to propagate changes into a datastore.
-	Publish *kvdbsync.Plugin
+	Publish KeyProtoValWriter
 }
 
 // Init builds K8s client-set based on the supplied kubeconfig and initializes
@@ -93,6 +95,7 @@ func (plugin *Plugin) Init() error {
 		ReflectorDeps: ReflectorDeps{
 			Log:          plugin.Log.NewLogger("-namespace"),
 			K8sClientset: plugin.k8sClientset,
+			K8sListWatch: &k8sCache{},
 			Publish:      plugin.Publish,
 		},
 	}
@@ -107,6 +110,7 @@ func (plugin *Plugin) Init() error {
 		ReflectorDeps: ReflectorDeps{
 			Log:          plugin.Log.NewLogger("-pod"),
 			K8sClientset: plugin.k8sClientset,
+			K8sListWatch: &k8sCache{},
 			Publish:      plugin.Publish,
 		},
 	}
@@ -121,6 +125,7 @@ func (plugin *Plugin) Init() error {
 		ReflectorDeps: ReflectorDeps{
 			Log:          plugin.Log.NewLogger("-policy"),
 			K8sClientset: plugin.k8sClientset,
+			K8sListWatch: &k8sCache{},
 			Publish:      plugin.Publish,
 		},
 	}

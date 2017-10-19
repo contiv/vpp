@@ -20,7 +20,6 @@ import (
 	"github.com/ligato/cn-infra/idxmap"
 	"github.com/ligato/cn-infra/idxmap/mem"
 	"github.com/ligato/cn-infra/logging"
-	"github.com/ligato/vpp-agent/plugins/defaultplugins/aclplugin/model/acl"
 )
 
 const (
@@ -33,7 +32,6 @@ const (
 type Config struct {
 	PolicyName        string
 	PolicyNamespace   string
-	PolicyACL         *acl.AccessLists_Acl // configuration sent to VPP
 	PolicyType        []string
 	PolicyPodLabel    []*policymodel.Policy_Label
 	PolicyIngressRule []*policymodel.Policy_IngressRule

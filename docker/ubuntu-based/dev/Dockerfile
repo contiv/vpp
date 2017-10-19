@@ -7,7 +7,7 @@ ARG VPP_COMMIT_ID="xxx"
 # set work directory
 WORKDIR /root/
 
-#
+# Path to VPP ws root directory
 ENV VPP_DIR /opt/vpp-agent/dev/vpp
 
 # if VPP comit ID is specified, update to specific VPP commit ID
@@ -20,10 +20,15 @@ RUN /bin/bash -c "if [ '${VPP_COMMIT_ID}' != 'xxx' ]; then \
         git reset --hard HEAD ; \
     fi"
 
+# Path to LDPRELOAD root directory
 ENV LDP_DIR $VPP_DIR/extras/vcl-ldpreload
+# Path where the builded lib is
 ENV VCL_LDPRELOAD_LIB_DIR $LDP_DIR/src/.libs
 ENV LD_PRELOAD_INSTALL_DIR /opt/ldpreload
-# build vcl-ldpreload and uri dependency
+
+# build uri dependency
+# ldpreload requires URI to be enabled, so vpp must be recopiled and relinked
+# if not needed building of the packages should be doing only if VPP_COMMIT_ID specified
 RUN /bin/bash -c " \
     cd ${VPP_DIR} && \
     perl -pi -e 's/noinst_PROGRAMS/bin_PROGRAMS/g' $VPP_DIR/src/uri.am && \
@@ -31,13 +36,19 @@ RUN /bin/bash -c " \
     make bootstrap && \
     make pkg-deb && \
     cd build-root && \
-    dpkg -i vpp_*.deb vpp-dev_*.deb vpp-lib_*.deb vpp-plugins_*.deb && \
+    dpkg -i vpp_*.deb vpp-dev_*.deb vpp-lib_*.deb vpp-plugins_*.deb"
+
+# build vcl-ldpreload
+RUN /bin/bash -c " \
     cd $LDP_DIR/src && \
     autoreconf -i -f && \
     ./configure VPP_DIR=$VPP_DIR && \
     make"
 
 # copy vcl-ldpreload
+# vpp - vpp binaries, also contains socket_test tool
+# vpp-lib64 - libs for vpp
+# vcl-ldpreload - ldpreload library
 RUN /bin/bash -c " \
     mkdir -p $LD_PRELOAD_INSTALL_DIR/vpp && \
     mkdir -p $LD_PRELOAD_INSTALL_DIR/vpp-lib64 && \

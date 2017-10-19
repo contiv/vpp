@@ -35,7 +35,7 @@ sudo docker cp ${CID}:/root/go/bin/contiv-cri binaries/
 sudo docker exec ${CID} /bin/bash -c 'mkdir -p /root/vpp && cp /opt/vpp-agent/dev/vpp/build-root/*.deb /root/vpp/ && cd /root && tar -zcvf /root/vpp.tar.gz vpp/*'
 sudo docker cp ${CID}:/root/vpp.tar.gz binaries/
 
-# Copy ldpreload lib
+# extract ldpreload lib
 sudo docker exec ${CID} /bin/bash -c 'tar -zcvf ldpreload.tar.gz $LD_PRELOAD_INSTALL_DIR/*'
 sudo docker cp ${CID}:/root/ldpreload.tar.gz binaries/
 

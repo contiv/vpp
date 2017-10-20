@@ -162,6 +162,8 @@ spec:
               mountPath: /dev/shm
             - name: etcd-cfg
               mountPath: /etc/etcd
+            - name: vpp-cfg
+              mountPath: /etc/vpp
 
         # This container installs the Contiv CNI binaries
         # and CNI network config file on each node.

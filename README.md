@@ -47,7 +47,12 @@ After cleanup, proceed with master initialization as described in the
 kubeadm init
 ```
 
-#### Step 3: Installing the Contiv-VPP pod network
+#### Step 3: Installing the Contiv-VPP POD network
+If you have already used the Contiv-VPP plugin before, you may need to pull the most recent Docker images on each node:
+```
+bash <(curl -s https://raw.githubusercontent.com/contiv/vpp/master/k8s/pull-images.sh)
+```
+
 Install the Contiv-VPP network for your cluster as follows:
 ```bash
 kubectl apply -f https://raw.githubusercontent.com/contiv/vpp/master/k8s/contiv-vpp.yaml

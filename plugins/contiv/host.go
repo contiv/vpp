@@ -16,6 +16,7 @@ package contiv
 
 import (
 	vpp_intf "github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/model/interfaces"
+	"github.com/ligato/vpp-agent/plugins/defaultplugins/l3plugin/model/l3"
 	linux_intf "github.com/ligato/vpp-agent/plugins/linuxplugin/model/interfaces"
 	"github.com/vishvananda/netlink"
 	"net"
@@ -39,6 +40,13 @@ func (s *remoteCNIserver) configureRouteOnHost() error {
 		Gw:        net.ParseIP(vethVPPEndIP),
 	})
 
+}
+
+func (s *remoteCNIserver) defaultRouteToHost() *l3.StaticRoutes_Route {
+	return &l3.StaticRoutes_Route{
+		DstIpAddr:   "0.0.0.0/0",
+		NextHopAddr: vethHostEndIP,
+	}
 }
 
 func (s *remoteCNIserver) interconnectVethHost() *linux_intf.LinuxInterfaces_Interface {

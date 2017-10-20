@@ -129,10 +129,12 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 		vethHost := s.interconnectVethHost()
 		vethVpp := s.interconnectVethVpp()
 		interconnectAF := s.interconnectAfpacket()
+		route := s.defaultRouteToHost()
 
 		txn.LinuxInterface(vethHost).
 			LinuxInterface(vethVpp).
-			VppInterface(interconnectAF)
+			VppInterface(interconnectAF).
+			StaticRoute(route)
 
 		changes[vpp_intf.InterfaceKey(interconnectAF.Name)] = interconnectAF
 		changes[linux_intf.InterfaceKey(vethHost.Name)] = vethHost

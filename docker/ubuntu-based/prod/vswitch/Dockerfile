@@ -16,6 +16,9 @@ RUN dpkg -i vpp/vpp-lib_*.deb vpp/vpp_*.deb vpp/vpp-plugins_*.deb && \
 ENV LD_PRELOAD_INSTALL_DIR /opt/ldpreload
 ADD binaries/ldpreload.tar.gz /
 
+# rename defualt VPP startup config to contiv-vswitch.conf
+RUN mv /etc/vpp/vpp.conf /etc/vpp/contiv-vswitch.conf
+
 # add supervisord config file
 COPY vswitch/supervisord.conf /etc/supervisord.conf
 

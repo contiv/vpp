@@ -5,7 +5,7 @@
 #   - contiv-ksr - deployed on k8s master
 
 # This installs the contiv-etcd (ETCD server to be used by Contiv) on the master node in a Kubernetes cluster.
-# In odrer to dump the content of ETCD, you can use kubectl exec command similar to this:
+# In odrer to dump the content of ETCD, you can use the kubectl exec command similar to this:
 #   kubectl exec contiv-etcd-cxqhr -n kube-system etcdctl -- get --endpoints=[127.0.0.1:12379] --prefix="true" ""
 apiVersion: extensions/v1beta1
 kind: DaemonSet
@@ -116,7 +116,7 @@ spec:
 
       # Init containers are executed before regular containers, must finish successfully before regular ones are started.
       initContainers:
-      # This init container extracts/copies VPP LD_PRELOAD libs to the host.
+      # This init container extracts/copies VPP LD_PRELOAD libs and default VPP config to the host.
       - name: vpp-init
         image: contivvpp/vswitch
         imagePullPolicy: IfNotPresent
@@ -126,7 +126,8 @@ spec:
         - -c
         - "cp -r $LD_PRELOAD_INSTALL_DIR/vpp/* /vpp &&
           cp -r $LD_PRELOAD_INSTALL_DIR/vpp-lib64/* /vpp-lib64 &&
-          cp -r $LD_PRELOAD_INSTALL_DIR/vcl-ldpreload/* /vcl-ldpreload"
+          cp -r $LD_PRELOAD_INSTALL_DIR/vcl-ldpreload/* /vcl-ldpreload &&
+          if [ ! -e /host/etc/vpp/contiv-vswitch.conf ]; then cp /etc/vpp/contiv-vswitch.conf /host/etc/vpp; fi"
         imagePullPolicy: IfNotPresent
         resources: {}
         securityContext:
@@ -138,6 +139,8 @@ spec:
             name: vpp-lib64
           - mountPath: /vcl-ldpreload/
             name: vcl-ldpreload
+          - mountPath: /host/etc/vpp
+            name: vpp-cfg
 
       containers:
         # Runs contiv-vswitch container on each Kubernetes node.
@@ -183,15 +186,19 @@ spec:
         - name: cni-net-dir
           hostPath:
             path: /etc/cni/net.d
-        # LD_PRELOAD library
+        # VPP startup config folder.
+        - name: vpp-cfg
+          hostPath:
+            path: /etc/vpp
+        # LD_PRELOAD library.
         - name: vcl-ldpreload
           hostPath:
             path: /usr/libexec/ldpreload/vcl-ldpreload
-        # Used by VPP to communicate with LD_PRELOAD client, later it'll be replaced by socket file directory mount.
+        # Used by VPP to communicate with LD_PRELOAD clients, later it'll be replaced by socket file directory mount.
         - name: shm
           hostPath:
             path: /dev/shm
-        # VPP binaries, used to test with socket_test_client/server tool.
+        # VPP binaries, used to test with the socket_test_client/server tool.
         - name: vpp
           hostPath:
             path: /usr/libexec/ldpreload/vpp

@@ -1,5 +1,5 @@
 # update the version tag when moving to a new version of the vpp-agent
-FROM ligato/vpp-agent:v1.0.6-2-g4e8d427
+FROM ligato/vpp-agent:v1.0.6
 
 # set work directory
 WORKDIR /root/

@@ -16,7 +16,7 @@ The containers are based on the ligato VPP-Agent
 [production](https://hub.docker.com/r/ligato/vpp-agent/) images that
 already contain VPP binaries.
 
-The `FROM` section in both of the [dev](dev/Dockerfile) and [prod](prod/Dockerfile)
+The `FROM` section in both of the [dev](dev/Dockerfile) and [vswitch prod](prod/vswitch/Dockerfile)
 Dockerfiles need to be updated when moving to a new version of the ligato VPP agent.
 
 To build the images, execute:

@@ -5,8 +5,8 @@
 #   - contiv-ksr - deployed on k8s master
 
 # This installs the contiv-etcd (ETCD server to be used by Contiv) on the master node in a Kubernetes cluster.
-# In odrer to dump the content of ETCD, you can use kubectl exec command similar to this:
-#   kubectl exec contiv-etcd-cxqhr -n kube-system etcdctl -- get --endpoints=[127.0.0.1:6666] --prefix="true" ""
+# In odrer to dump the content of ETCD, you can use the kubectl exec command similar to this:
+#   kubectl exec contiv-etcd-cxqhr -n kube-system etcdctl -- get --endpoints=[127.0.0.1:12379] --prefix="true" ""
 apiVersion: extensions/v1beta1
 kind: DaemonSet
 metadata:
@@ -45,7 +45,25 @@ spec:
             - name: ETCDCTL_API
               value: "3"
           command: ["/bin/sh","-c"]
-          args: ["/usr/local/bin/etcd --name=contiv --data-dir=/var/etcd/contiv-data --advertise-client-urls=http://$CONTIV_ETCD_IP:6666 --listen-client-urls=http://0.0.0.0:6666 --listen-peer-urls=http://0.0.0.0:6667"]
+          args: ["/usr/local/bin/etcd --name=contiv-etcd --data-dir=/var/etcd/contiv-data --advertise-client-urls=http://0.0.0.0:12379 --listen-client-urls=http://0.0.0.0:12379 --listen-peer-urls=http://0.0.0.0:12380"]
+
+---
+
+# This service exposes a NodePort where contiv-etcd can be reached on any node.
+apiVersion: v1
+kind: Service
+metadata:
+  name: contiv-etcd
+  namespace: kube-system
+spec:
+  type: NodePort
+  # Match contiv-etcd DaemonSet.
+  selector:
+    k8s-app: contiv-etcd
+  ports:
+  # Our ETCD is running on port 12379 on the master node. Let's expose it as a service on port 32379 on each node.
+  - port: 12379
+    nodePort: 32379
 
 ---
 
@@ -60,7 +78,7 @@ data:
     insecure-transport: true
     dial-timeout: 1000000000
     endpoints:
-      - "127.0.0.1:6666"
+      - "127.0.0.1:32379"
 
 ---
 
@@ -96,6 +114,34 @@ spec:
       hostNetwork: true
       hostPID: true
 
+      # Init containers are executed before regular containers, must finish successfully before regular ones are started.
+      initContainers:
+      # This init container extracts/copies VPP LD_PRELOAD libs and default VPP config to the host.
+      - name: vpp-init
+        image: contivvpp/vswitch
+        imagePullPolicy: IfNotPresent
+        command:
+        - /bin/sh
+        args:
+        - -c
+        - "cp -r $LD_PRELOAD_INSTALL_DIR/vpp/* /vpp &&
+          cp -r $LD_PRELOAD_INSTALL_DIR/vpp-lib64/* /vpp-lib64 &&
+          cp -r $LD_PRELOAD_INSTALL_DIR/vcl-ldpreload/* /vcl-ldpreload &&
+          if [ ! -e /host/etc/vpp/contiv-vswitch.conf ]; then cp /etc/vpp/contiv-vswitch.conf /host/etc/vpp; fi"
+        imagePullPolicy: IfNotPresent
+        resources: {}
+        securityContext:
+          privileged: true
+        volumeMounts:
+          - mountPath: /vpp/
+            name: vpp
+          - mountPath: /vpp-lib64/
+            name: vpp-lib64
+          - mountPath: /vcl-ldpreload/
+            name: vcl-ldpreload
+          - mountPath: /host/etc/vpp
+            name: vpp-cfg
+
       containers:
         # Runs contiv-vswitch container on each Kubernetes node.
         # It contains the vSwitch VPP and its management agent.
@@ -105,11 +151,19 @@ spec:
           securityContext:
             privileged: true
           env:
+            - name: MICROSERVICE_LABEL
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
             - name: ETCDV3_CONFIG
               value: "/etc/etcd/etcd.conf"
           volumeMounts:
+            - name: shm
+              mountPath: /dev/shm
             - name: etcd-cfg
               mountPath: /etc/etcd
+            - name: vpp-cfg
+              mountPath: /etc/vpp
 
         # This container installs the Contiv CNI binaries
         # and CNI network config file on each node.
@@ -134,6 +188,25 @@ spec:
         - name: cni-net-dir
           hostPath:
             path: /etc/cni/net.d
+        # VPP startup config folder.
+        - name: vpp-cfg
+          hostPath:
+            path: /etc/vpp
+        # LD_PRELOAD library.
+        - name: vcl-ldpreload
+          hostPath:
+            path: /usr/libexec/ldpreload/vcl-ldpreload
+        # Used by VPP to communicate with LD_PRELOAD clients, later it'll be replaced by socket file directory mount.
+        - name: shm
+          hostPath:
+            path: /dev/shm
+        # VPP binaries, used to test with the socket_test_client/server tool.
+        - name: vpp
+          hostPath:
+            path: /usr/libexec/ldpreload/vpp
+        - name: vpp-lib64
+          hostPath:
+            path: /usr/libexec/ldpreload/vpp-lib64
 
 ---
 

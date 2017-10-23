@@ -57,7 +57,8 @@ func TestVeth1NameFromRequest(t *testing.T) {
 		&kvdbproxy.Plugin{},
 		nil,
 		nil,
-		nil)
+		nil,
+		"testlabel")
 
 	hostIfName := server.veth1HostIfNameFromRequest(&req)
 	gomega.Expect(hostIfName).To(gomega.BeEquivalentTo("eth0"))
@@ -74,7 +75,8 @@ func TestAdd(t *testing.T) {
 		kvdbproxy.NewKvdbsyncMock(),
 		configuredContainers,
 		nil,
-		nil)
+		nil,
+		"testlabel")
 	server.hostCalls = &mockLinuxCalls{}
 
 	reply, err := server.Add(context.Background(), &req)

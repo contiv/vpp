@@ -55,7 +55,8 @@ func (plugin *Plugin) Init() error {
 		plugin.Proxy,
 		plugin.configuredContainers,
 		plugin.GoVPP,
-		plugin.VPP.GetSwIfIndexes())
+		plugin.VPP.GetSwIfIndexes(),
+		plugin.ServiceLabel.GetAgentLabel())
 	cni.RegisterRemoteCNIServer(plugin.GRPC.Server(), plugin.cniServer)
 	return nil
 }

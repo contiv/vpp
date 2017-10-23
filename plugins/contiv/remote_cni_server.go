@@ -66,7 +66,7 @@ const (
 	vethHostEndName                  = "v1"
 	fakeContainerGw                  = ipPrefix + ".1"
 	fakeContainerGwWithPrefix        = fakeContainerGw + "/32"
-	afPacketIPPrefix                 = "127.0.0"
+	afPacketIPPrefix                 = "10.2.1"
 )
 
 func newRemoteCNIServer(logger logging.Logger, vppTxnFactory func() linux.DataChangeDSL, proxy kvdbproxy.Proxy, configuredContainers *containeridx.ConfigIndex, govpp govppmux.API, index ifaceidx.SwIfIndex) *remoteCNIserver {

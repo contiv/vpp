@@ -50,6 +50,7 @@ import (
 
 	"git.fd.io/govpp.git/api"
 	govpp "git.fd.io/govpp.git/core"
+	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/bin_api/ip"
 )
 
@@ -84,6 +85,7 @@ func TestVeth1NameFromRequest(t *testing.T) {
 }
 
 func TestAdd(t *testing.T) {
+	logroot.StandardLogger().SetLevel(logging.DebugLevel)
 	gomega.RegisterTestingT(t)
 
 	configuredContainers := containeridx.NewConfigIndex(logroot.StandardLogger(), core.PluginName("Plugin-name"), "title")

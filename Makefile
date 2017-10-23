@@ -32,7 +32,7 @@ endef
 define test_only
 	@echo "# running unit tests"
 	@go test ./cmd/contiv-cni
-	@go test ./plugins/contiv
+	@go test ./plugins/contiv -v
 	@go test ./plugins/contiv/containeridx
 	@go test ./plugins/kvdbproxy
 	@go test ./plugins/ksr

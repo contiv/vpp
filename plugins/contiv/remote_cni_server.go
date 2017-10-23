@@ -28,7 +28,6 @@ import (
 	"github.com/ligato/vpp-agent/clientv1/linux"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/ifaceidx"
 	vpp_intf "github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/model/interfaces"
-	"github.com/ligato/vpp-agent/plugins/govppmux"
 	linux_intf "github.com/ligato/vpp-agent/plugins/linuxplugin/model/interfaces"
 	"golang.org/x/net/context"
 )
@@ -75,12 +74,7 @@ const (
 )
 
 func newRemoteCNIServer(logger logging.Logger, vppTxnFactory func() linux.DataChangeDSL, proxy kvdbproxy.Proxy,
-	configuredContainers *containeridx.ConfigIndex, govpp govppmux.API, index ifaceidx.SwIfIndex, agentLabel string) *remoteCNIserver {
-	//TODO: remove once all features are supported in Vpp Agent
-	var govppChan *api.Channel
-	if govpp != nil {
-		govppChan, _ = govpp.NewAPIChannel()
-	}
+	configuredContainers *containeridx.ConfigIndex, govppChan *api.Channel, index ifaceidx.SwIfIndex, agentLabel string) *remoteCNIserver {
 	return &remoteCNIserver{
 		Logger:               logger,
 		vppTxnFactory:        vppTxnFactory,
@@ -98,9 +92,7 @@ func newRemoteCNIServer(logger logging.Logger, vppTxnFactory func() linux.DataCh
 func (s *remoteCNIserver) configureVswitchConnectivity() error {
 
 	s.Logger.Info("Applying basic vSwitch config.")
-	if s.swIfIndex != nil {
-		s.Logger.Info("Existing interfaces: ", s.swIfIndex.GetMapping().ListNames())
-	}
+	s.Logger.Info("Existing interfaces: ", s.swIfIndex.GetMapping().ListNames())
 
 	// TODO: only do this config if resync hasn't done it already
 

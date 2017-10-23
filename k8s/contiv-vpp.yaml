@@ -158,12 +158,16 @@ spec:
             - name: ETCDV3_CONFIG
               value: "/etc/etcd/etcd.conf"
           volumeMounts:
-            - name: shm
-              mountPath: /dev/shm
             - name: etcd-cfg
               mountPath: /etc/etcd
             - name: vpp-cfg
               mountPath: /etc/vpp
+            - name: shm
+              mountPath: /dev/shm
+            - name: uio0
+              mountPath: /dev/uio0
+            - name: uio1
+              mountPath: /dev/uio1
 
         # This container installs the Contiv CNI binaries
         # and CNI network config file on each node.
@@ -207,6 +211,13 @@ spec:
         - name: vpp-lib64
           hostPath:
             path: /usr/libexec/ldpreload/vpp-lib64
+        # /dev/uio0 mounts are required for DPDK-managed NICs on VPP.
+        - name: uio0
+          hostPath:
+            path: /dev/uio0
+        - name: uio1
+          hostPath:
+            path: /dev/uio1
 
 ---
 

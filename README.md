@@ -128,6 +128,20 @@ You can check the connectivity in one of the following ways:
   ping 10.1.1.3
 ```
 
+#### Uninstalling
+To uninstall the network plugin itself, use `kubectl`:
+```
+kubectl delete -f https://raw.githubusercontent.com/contiv/vpp/master/k8s/contiv-vpp.yaml
+```
+
+To uninstall the CRI shim, execute as root (not using sudo) on each node:
+```
+bash <(curl -s https://raw.githubusercontent.com/contiv/vpp/master/k8s/cri-install.sh) --uninstall
+```
+After uninstalling CRI, reboot each node, or re-initialize the Kubernetes cluster using
+`kubeadm reset` and `kubeadm init`.
+
+
 #### Troubleshooting
 Some of the issues that can occur during the installation are:
 

@@ -15,6 +15,9 @@
 package contiv
 
 import (
+	"strings"
+	"sync"
+
 	"git.fd.io/govpp.git/api"
 	"github.com/contiv/vpp/plugins/contiv/containeridx"
 	"github.com/contiv/vpp/plugins/contiv/model/cni"
@@ -28,8 +31,6 @@ import (
 	"github.com/ligato/vpp-agent/plugins/govppmux"
 	linux_intf "github.com/ligato/vpp-agent/plugins/linuxplugin/model/interfaces"
 	"golang.org/x/net/context"
-	"strings"
-	"sync"
 )
 
 type remoteCNIserver struct {
@@ -69,7 +70,8 @@ const (
 	afPacketIPPrefix                 = "10.2.1"
 )
 
-func newRemoteCNIServer(logger logging.Logger, vppTxnFactory func() linux.DataChangeDSL, proxy kvdbproxy.Proxy, configuredContainers *containeridx.ConfigIndex, govpp govppmux.API, index ifaceidx.SwIfIndex) *remoteCNIserver {
+func newRemoteCNIServer(logger logging.Logger, vppTxnFactory func() linux.DataChangeDSL, proxy kvdbproxy.Proxy,
+	configuredContainers *containeridx.ConfigIndex, govpp govppmux.API, index ifaceidx.SwIfIndex) *remoteCNIserver {
 	//TODO: remove once all features are supported in Vpp Agent
 	var govppChan *api.Channel
 	if govpp != nil {
@@ -83,6 +85,59 @@ func newRemoteCNIServer(logger logging.Logger, vppTxnFactory func() linux.DataCh
 		hostCalls:            &linuxCalls{},
 		govppChan:            govppChan,
 		swIfIndex:            index}
+}
+
+// configureVswitchConnectivity configures basic vSwitch VPP connectivity to the host IP stack and to the other hosts.
+func (s *remoteCNIserver) configureVswitchConnectivity() error {
+
+	s.Logger.Info("Applying basic vSwitch config.")
+	if s.swIfIndex != nil {
+		s.Logger.Info("Existing interfaces: ", s.swIfIndex.GetMapping().ListNames())
+	}
+
+	// TODO: only do this config if resync hasn't done it already
+
+	// used to persist the changes made by this function
+	changes := map[string]proto.Message{}
+
+	// configure veths to host IP stack + AF_PACKET + default route to host
+	vethHost := s.interconnectVethHost()
+	vethVpp := s.interconnectVethVpp()
+	interconnectAF := s.interconnectAfpacket()
+	route := s.defaultRouteToHost()
+
+	txn := s.vppTxnFactory().Put().
+		LinuxInterface(vethHost).
+		LinuxInterface(vethVpp).
+		VppInterface(interconnectAF).
+		StaticRoute(route)
+
+	err := txn.Send().ReceiveReply()
+	if err != nil {
+		s.Logger.Error(err)
+		return err
+	}
+
+	changes[vpp_intf.InterfaceKey(interconnectAF.Name)] = interconnectAF
+	changes[linux_intf.InterfaceKey(vethHost.Name)] = vethHost
+	changes[linux_intf.InterfaceKey(vethVpp.Name)] = vethVpp
+
+	// configure route to PODs on the host
+	// TODO: we should persist this too, once this functionality is implemented in linuxplugin
+	err = s.configureRouteOnHost()
+	if err != nil {
+		s.Logger.Error(err)
+		return err
+	}
+
+	// persist the changes made by this function in ETCD
+	err = s.persistChanges(nil, changes)
+	if err != nil {
+		s.Logger.Error(err)
+		return err
+	}
+
+	return nil
 }
 
 // Add connects the container to the network.
@@ -109,6 +164,16 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 		createdIfs []*cni.CNIReply_Interface
 	)
 
+	if !s.generalSetup {
+		// TODO: trigger this automatically after RESYNC is done
+		err := s.configureVswitchConnectivity()
+		if err != nil {
+			s.Logger.Error(err)
+			return s.generateErrorResponse(err)
+		}
+	}
+	s.generalSetup = true
+
 	changes := map[string]proto.Message{}
 	s.counter++
 
@@ -124,23 +189,6 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 		LinuxInterface(veth1).
 		LinuxInterface(veth2).
 		VppInterface(afpacket)
-
-	if !s.generalSetup {
-		vethHost := s.interconnectVethHost()
-		vethVpp := s.interconnectVethVpp()
-		interconnectAF := s.interconnectAfpacket()
-		route := s.defaultRouteToHost()
-
-		txn.LinuxInterface(vethHost).
-			LinuxInterface(vethVpp).
-			VppInterface(interconnectAF).
-			StaticRoute(route)
-
-		changes[vpp_intf.InterfaceKey(interconnectAF.Name)] = interconnectAF
-		changes[linux_intf.InterfaceKey(vethHost.Name)] = vethHost
-		changes[linux_intf.InterfaceKey(vethVpp.Name)] = vethVpp
-	}
-
 	err := txn.Send().ReceiveReply()
 
 	if err != nil {
@@ -181,15 +229,6 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 		s.Logger.Error(err)
 		return s.generateErrorResponse(err)
 	}
-
-	if !s.generalSetup {
-		err := s.configureRouteOnHost()
-		if err != nil {
-			s.Logger.Error(err)
-			return s.generateErrorResponse(err)
-		}
-	}
-	s.generalSetup = true
 
 	err = s.configureRoutesInContainer(request)
 	if err != nil {

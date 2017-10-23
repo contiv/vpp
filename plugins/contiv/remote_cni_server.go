@@ -91,7 +91,9 @@ func newRemoteCNIServer(logger logging.Logger, vppTxnFactory func() linux.DataCh
 func (s *remoteCNIserver) configureVswitchConnectivity() error {
 
 	s.Logger.Info("Applying basic vSwitch config.")
-	s.Logger.Info("Existing interfaces: ", s.swIfIndex.GetMapping().ListNames())
+	if s.swIfIndex != nil {
+		s.Logger.Info("Existing interfaces: ", s.swIfIndex.GetMapping().ListNames())
+	}
 
 	// TODO: only do this config if resync hasn't done it already
 

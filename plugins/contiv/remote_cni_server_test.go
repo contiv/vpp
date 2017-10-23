@@ -185,10 +185,12 @@ func vppChanMock() *api.Channel {
 		return reply, 0, false
 	})
 
-	conn, _, err := govpp.AsyncConnect(vppMock)
+	conn, connChan, err := govpp.AsyncConnect(vppMock)
 	if err != nil {
 		return nil
 	}
+	<-connChan
+
 	c, _ := conn.NewAPIChannel()
 	return c
 }

@@ -17,12 +17,14 @@
 package contiv
 
 import (
+	"git.fd.io/govpp.git/api"
 	"github.com/contiv/vpp/plugins/contiv/containeridx"
 	"github.com/contiv/vpp/plugins/contiv/model/cni"
 	"github.com/contiv/vpp/plugins/kvdbproxy"
 	"github.com/ligato/cn-infra/flavors/local"
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/rpc/grpc"
+	"github.com/ligato/cn-infra/utils/safeclose"
 	"github.com/ligato/vpp-agent/clientv1/linux"
 	"github.com/ligato/vpp-agent/clientv1/linux/localclient"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins"
@@ -33,6 +35,7 @@ import (
 // to connect a container into the network.
 type Plugin struct {
 	Deps
+	govppCh *api.Channel
 
 	configuredContainers *containeridx.ConfigIndex
 	cniServer            *remoteCNIserver
@@ -50,11 +53,18 @@ type Deps struct {
 // Init initializes the grpc server handling the request from the CNI.
 func (plugin *Plugin) Init() error {
 	plugin.configuredContainers = containeridx.NewConfigIndex(plugin.Log, plugin.PluginName, "containers")
+
+	var err error
+	plugin.govppCh, err = plugin.GoVPP.NewAPIChannel()
+	if err != nil {
+		return err
+	}
+
 	plugin.cniServer = newRemoteCNIServer(plugin.Log,
 		func() linux.DataChangeDSL { return localclient.DataChangeRequest(plugin.PluginName) },
 		plugin.Proxy,
 		plugin.configuredContainers,
-		plugin.GoVPP,
+		plugin.govppCh,
 		plugin.VPP.GetSwIfIndexes())
 	cni.RegisterRemoteCNIServer(plugin.GRPC.Server(), plugin.cniServer)
 	return nil
@@ -62,7 +72,7 @@ func (plugin *Plugin) Init() error {
 
 // Close cleans up the resources allocated by the plugin
 func (plugin *Plugin) Close() error {
-	return nil
+	return safeclose.Close(plugin.govppCh)
 }
 
 // GetIfName looks up logical interface name that corresponds to the interface associated with the given pod.

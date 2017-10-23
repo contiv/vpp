@@ -19,6 +19,9 @@ import (
 	"net"
 	"testing"
 
+	"git.fd.io/govpp.git/adapter/mock"
+	govppmock "git.fd.io/govpp.git/adapter/mock"
+	"git.fd.io/govpp.git/adapter/mock/binapi"
 	"github.com/contiv/vpp/plugins/contiv/containeridx"
 	"github.com/contiv/vpp/plugins/contiv/model/cni"
 	"github.com/contiv/vpp/plugins/kvdbproxy"
@@ -27,19 +30,35 @@ import (
 	"github.com/ligato/cn-infra/logging/logroot"
 	"github.com/ligato/vpp-agent/clientv1/defaultplugins"
 	"github.com/ligato/vpp-agent/clientv1/linux"
+	"github.com/ligato/vpp-agent/idxvpp/nametoidx"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/aclplugin/model/acl"
+	"github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/bin_api/af_packet"
+	interfaces_bin "github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/bin_api/interfaces"
+	"github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/bin_api/memif"
+	"github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/bin_api/tap"
+	"github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/bin_api/vpe"
+	"github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/bin_api/vxlan"
+	"github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/ifaceidx"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/model/bfd"
 	vpp_intf "github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/model/interfaces"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/l2plugin/model/l2"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/l3plugin/model/l3"
 	linux_intf "github.com/ligato/vpp-agent/plugins/linuxplugin/model/interfaces"
 	"github.com/onsi/gomega"
+	"reflect"
+	"strings"
+
+	"git.fd.io/govpp.git/api"
+	govpp "git.fd.io/govpp.git/core"
+	"github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/bin_api/ip"
 )
 
 const (
 	containerID = "sadfja813227wdhfjkh2319784dgh"
 	podName     = "ubuntu"
 )
+
+var swIfIndexSeq uint32
 
 var req = cni.CNIRequest{
 	Version:          "0.2.3",
@@ -53,7 +72,7 @@ func TestVeth1NameFromRequest(t *testing.T) {
 	gomega.RegisterTestingT(t)
 
 	server := newRemoteCNIServer(logroot.StandardLogger(),
-		func() linux.DataChangeDSL { return NewMockDataChangeDSL() },
+		func() linux.DataChangeDSL { return NewMockDataChangeDSL(nil) },
 		&kvdbproxy.Plugin{},
 		nil,
 		nil,
@@ -66,15 +85,16 @@ func TestVeth1NameFromRequest(t *testing.T) {
 func TestAdd(t *testing.T) {
 	gomega.RegisterTestingT(t)
 
-	txns := &txnTracker{}
 	configuredContainers := containeridx.NewConfigIndex(logroot.StandardLogger(), core.PluginName("Plugin-name"), "title")
+	swIfIdx := swIfIndexMock()
+	txns := &txnTracker{onSend: addIfsIntoTheIndex(swIfIdx)}
 
 	server := newRemoteCNIServer(logroot.StandardLogger(),
 		txns.newTxn,
 		kvdbproxy.NewKvdbsyncMock(),
 		configuredContainers,
-		nil,
-		nil)
+		vppChanMock(),
+		swIfIdx)
 	server.hostCalls = &mockLinuxCalls{}
 
 	reply, err := server.Add(context.Background(), &req)
@@ -97,25 +117,130 @@ func TestAdd(t *testing.T) {
 
 }
 
+func vppChanMock() *api.Channel {
+	vppMock := &mock.VppAdapter{}
+	vppMock.RegisterBinAPITypes(interfaces_bin.Types)
+	vppMock.RegisterBinAPITypes(memif.Types)
+	vppMock.RegisterBinAPITypes(tap.Types)
+	vppMock.RegisterBinAPITypes(af_packet.Types)
+	vppMock.RegisterBinAPITypes(vpe.Types)
+	vppMock.RegisterBinAPITypes(vxlan.Types)
+	vppMock.RegisterBinAPITypes(ip.Types)
+
+	vppMock.MockReplyHandler(func(request govppmock.MessageDTO) (reply []byte, msgID uint16, prepared bool) {
+		reqName, found := vppMock.GetMsgNameByID(request.MsgID)
+		if !found {
+			logroot.StandardLogger().Error("Not existing req msg name for MsgID=", request.MsgID)
+			return reply, 0, false
+		}
+		logroot.StandardLogger().Debug("MockReplyHandler ", request.MsgID, " ", reqName)
+
+		if reqName == "sw_interface_dump" {
+			codec := govpp.MsgCodec{}
+			ifDump := interfaces_bin.SwInterfaceDump{}
+			err := codec.DecodeMsg(request.Data, &ifDump)
+			if err != nil {
+				logroot.StandardLogger().Error(err)
+				return reply, 0, false
+			}
+			msgID, err := vppMock.GetMsgID("sw_interface_details", "")
+			if err != nil {
+				logroot.StandardLogger().Error(err)
+				return reply, 0, false
+			}
+
+			if ifDump.NameFilterValid == 1 {
+				ifDetail := interfaces_bin.SwInterfaceDetails{}
+				ifDetail.InterfaceName = ifDump.NameFilter
+				reply, err := vppMock.ReplyBytes(request, &ifDetail)
+				if err == nil {
+					return reply, msgID, true
+				}
+			}
+
+		} else if strings.HasSuffix(reqName, "_dump") {
+			//do nothing and let reply next time for control_ping
+		} else {
+			if replyMsg, msgID, ok := vppMock.ReplyFor(reqName); ok {
+				val := reflect.ValueOf(replyMsg)
+				valType := val.Type()
+				if binapi.HasSwIfIdx(valType) {
+					swIfIndexSeq++
+					logroot.StandardLogger().Debug("Succ default reply for ", reqName, " ", msgID, " sw_if_idx=", swIfIndexSeq)
+					binapi.SetSwIfIdx(val, swIfIndexSeq)
+				} else {
+					logroot.StandardLogger().Debug("Succ default reply for ", reqName, " ", msgID)
+				}
+
+				reply, err := vppMock.ReplyBytes(request, replyMsg)
+				if err == nil {
+					return reply, msgID, true
+				}
+				logroot.StandardLogger().Error("Error creating bytes ", err)
+			} else {
+				logroot.StandardLogger().Info("No default reply for ", reqName, ", ", request.MsgID)
+			}
+		}
+
+		return reply, 0, false
+	})
+
+	conn, _, err := govpp.AsyncConnect(vppMock)
+	if err != nil {
+		return nil
+	}
+	c, _ := conn.NewAPIChannel()
+	return c
+}
+
+func addIfsIntoTheIndex(mapping ifaceidx.SwIfIndexRW) func(*MockDataChangeDSL) error {
+	return func(dsl *MockDataChangeDSL) error {
+		var cnt uint32 = 1
+		for k, v := range dsl.performedPut {
+			if strings.HasPrefix(k, vpp_intf.InterfaceKeyPrefix()) {
+				name, err := vpp_intf.ParseNameFromKey(k)
+				if err != nil {
+					return err
+				}
+				if data, ok := v.(*vpp_intf.Interfaces_Interface); ok {
+					mapping.RegisterName(name, cnt, data)
+					cnt++
+				}
+
+			}
+		}
+		return nil
+	}
+}
+
+func swIfIndexMock() ifaceidx.SwIfIndexRW {
+	mapping := nametoidx.NewNameToIdx(logroot.StandardLogger(), "plugin", "swIf", ifaceidx.IndexMetadata)
+
+	return ifaceidx.NewSwIfIndex(mapping)
+}
+
 type txnTracker struct {
-	txns []*MockDataChangeDSL
+	txns   []*MockDataChangeDSL
+	onSend func(txn *MockDataChangeDSL) error
 }
 
 func (t *txnTracker) newTxn() linux.DataChangeDSL {
-	txn := NewMockDataChangeDSL()
+	txn := NewMockDataChangeDSL(t.onSend)
 	t.txns = append(t.txns, txn)
 	return txn
 }
 
 type MockDataChangeDSL struct {
+	onSend         func(txn *MockDataChangeDSL) error
 	expectedPut    map[string]interface{}
 	expectedDelete map[string]interface{}
 	performedPut   map[string]proto.Message
 	performedDel   []string
 }
 
-func NewMockDataChangeDSL() *MockDataChangeDSL {
-	return &MockDataChangeDSL{expectedPut: map[string]interface{}{},
+func NewMockDataChangeDSL(onSend func(*MockDataChangeDSL) error) *MockDataChangeDSL {
+	return &MockDataChangeDSL{onSend: onSend,
+		expectedPut:    map[string]interface{}{},
 		expectedDelete: map[string]interface{}{},
 		performedPut:   map[string]proto.Message{}}
 }
@@ -142,8 +267,11 @@ func (dsl *MockDataChangeDSL) Delete() linux.DeleteDSL {
 
 // Send propagates requested changes to the plugins.
 func (dsl *MockDataChangeDSL) Send() defaultplugins.Reply {
-
-	return &Reply{nil}
+	var err error
+	if dsl.onSend != nil {
+		err = dsl.onSend(dsl)
+	}
+	return &Reply{err}
 }
 
 // Interface adds a request to create or update VPP network interface.

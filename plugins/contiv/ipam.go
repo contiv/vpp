@@ -32,7 +32,7 @@ type IPAM struct {
 	podSeqID            uint32 // pod sequence number used to allocate an uniquie IP address to each POD
 }
 
-// newIPAM return new IPAM module to be used on the host.
+// newIPAM returns new IPAM module to be used on the host.
 func newIPAM(logger logging.Logger, podSubnetCIDR string, podNetworkPrefixLen uint32, agentLabel string) *IPAM {
 	ipam := &IPAM{
 		Logger:   logger,
@@ -63,7 +63,7 @@ func (i *IPAM) getPodNetworkCIDR() string {
 	return fmt.Sprintf("%s.%d/%d", i.podNetworkIPPrefix, 0, i.podNetworkPrefixLen)
 }
 
-// getPodGatewayIP returns gateway IP address for the pod subnet.
+// getPodGatewayIP returns gateway IP address for the pod network.
 func (i *IPAM) getPodGatewayIP() string {
 	return fmt.Sprintf("%s.%d", i.podNetworkIPPrefix, 1)
 }

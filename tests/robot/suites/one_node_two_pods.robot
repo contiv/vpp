@@ -7,7 +7,7 @@ Suite Setup       BuiltIn.Run_Keywords     Testsuite Setup    AND    Store_Initi
 Suite Teardown    Testsuite Teardown
 
 *** Variables ***
-${POD_FILE}    ${CURDIR}/../resources/ubuntu2.yaml
+${POD_FILE}    ${CURDIR}/../resources/ubuntu.yaml
 ${VARIABLES}          common
 ${ENV}                common
 ${PLUGIN_URL}    https://raw.githubusercontent.com/contiv/vpp/master/k8s/contiv-vpp.yaml
@@ -38,7 +38,7 @@ Apply Network Plugin
     BuiltIn.Set_Suite_Variable    ${vswitch_pod}    @{vswitch_pod_list}[0]
 
 Deploy_Pods
-    KubeCtl.Apply_F    ${testbed_connection}    ${CURDIR}/../resources/ubuntu.yaml
+    KubeCtl.Apply_F    ${testbed_connection}    ${POD_FILE}
     ${pods_dict} =     KubeCtl.Get_Pods    ${testbed_connection}
     BuiltIn.Log      ${pods_dict}
     BuiltIn.Length_Should_Be    ${pods_dict}    2
@@ -78,7 +78,7 @@ Tcp
 
 
 Delete_Pods
-    KubeCtl.Delete_F    ${testbed_connection}    ${CURDIR}/../resources/ubuntu.yaml
+    KubeCtl.Delete_F    ${testbed_connection}    ${POD_FILE}
     ${pods_dict} =     KubeCtl.Get_Pods    ${testbed_connection}
     Log      ${pods_dict}
     BuiltIn.Length_Should_Be    ${pods_dict}    2

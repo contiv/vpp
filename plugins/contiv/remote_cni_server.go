@@ -47,9 +47,6 @@ type remoteCNIserver struct {
 	// ipam module used by the CNI server
 	ipam *IPAM
 
-	// generalSetup is true if the config that needs to be applied once (with the first container)
-	// is configured
-	generalSetup bool
 	// counter of connected containers. It is used for generating afpacket names
 	// and assigned ip addresses.
 	counter int
@@ -70,6 +67,7 @@ const (
 	vethHostEndIP               = "192.168.16.24"
 	vethVPPEndIP                = "192.168.16.25"
 	vethHostEndName             = "v1"
+	vethVPPEndName              = "vppv2"
 	afPacketIPPrefix            = "10.2.1"
 )
 
@@ -88,13 +86,28 @@ func newRemoteCNIServer(logger logging.Logger, vppTxnFactory func() linux.DataCh
 	}
 }
 
+func (s *remoteCNIserver) resync() error {
+	s.Lock()
+	defer s.Unlock()
+
+	err := s.configureVswitchConnectivity()
+	if err != nil {
+		s.Logger.Error(err)
+	}
+	return err
+}
+
 // configureVswitchConnectivity configures basic vSwitch VPP connectivity to the host IP stack and to the other hosts.
 func (s *remoteCNIserver) configureVswitchConnectivity() error {
 
 	s.Logger.Info("Applying basic vSwitch config.")
 	s.Logger.Info("Existing interfaces: ", s.swIfIndex.GetMapping().ListNames())
 
-	// TODO: only do this config if resync hasn't done it already
+	// only apply the config if resync hasn't done it already
+	if _, _, found := s.swIfIndex.GetMapping().LookupIdx(vethVPPEndName); found {
+		s.Logger.Info("VSwitch connectivity considered as configured, skipping ...")
+		return nil
+	}
 
 	// used to persist the changes made by this function
 	changes := map[string]proto.Message{}
@@ -162,16 +175,6 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 		errMsg     = ""
 		createdIfs []*cni.CNIReply_Interface
 	)
-
-	if !s.generalSetup {
-		// TODO: trigger this automatically after RESYNC is done
-		err := s.configureVswitchConnectivity()
-		if err != nil {
-			s.Logger.Error(err)
-			return s.generateErrorResponse(err)
-		}
-	}
-	s.generalSetup = true
 
 	changes := map[string]proto.Message{}
 	s.counter++

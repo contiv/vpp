@@ -57,7 +57,7 @@ func (s *remoteCNIserver) interconnectVethHost() *linux_intf.LinuxInterfaces_Int
 		Enabled:    true,
 		HostIfName: vethHostEndName,
 		Veth: &linux_intf.LinuxInterfaces_Interface_Veth{
-			PeerIfName: "vppv2",
+			PeerIfName: vethVPPEndName,
 		},
 		IpAddresses: []string{vethHostEndIP + "/24"},
 	}
@@ -65,10 +65,10 @@ func (s *remoteCNIserver) interconnectVethHost() *linux_intf.LinuxInterfaces_Int
 
 func (s *remoteCNIserver) interconnectVethVpp() *linux_intf.LinuxInterfaces_Interface {
 	return &linux_intf.LinuxInterfaces_Interface{
-		Name:       "vppv2",
+		Name:       vethVPPEndName,
 		Type:       linux_intf.LinuxInterfaces_VETH,
 		Enabled:    true,
-		HostIfName: "vppv2",
+		HostIfName: vethVPPEndName,
 		Veth: &linux_intf.LinuxInterfaces_Interface_Veth{
 			PeerIfName: "vppv1",
 		},

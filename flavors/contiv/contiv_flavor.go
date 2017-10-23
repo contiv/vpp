@@ -43,8 +43,9 @@ import (
 // configuration using the local client.
 type FlavorContiv struct {
 	*local.FlavorLocal
-	HTTP      rest.Plugin
-	HealthRPC probe.Plugin
+	HTTP       rest.Plugin
+	HealthRPC  probe.Plugin
+	ResyncOrch resync.Plugin
 
 	ETCD            etcdv3.Plugin
 	ETCDDataSync    kvdbsync.Plugin
@@ -59,7 +60,6 @@ type FlavorContiv struct {
 	GRPC             grpc.Plugin
 	Contiv           contiv.Plugin
 	Policy           policy.Plugin
-	ResyncOrch       resync.Plugin
 	injected         bool
 }
 
@@ -114,8 +114,9 @@ func (f *FlavorContiv) Inject() bool {
 	f.Contiv.Deps.PluginInfraDeps = *f.FlavorLocal.InfraDeps("cni-grpc")
 	f.Contiv.Deps.GRPC = &f.GRPC
 	f.Contiv.Deps.Proxy = &f.KVProxy
-	f.Contiv.GoVPP = &f.GoVPP
-	f.Contiv.VPP = &f.VPP
+	f.Contiv.Deps.GoVPP = &f.GoVPP
+	f.Contiv.Deps.VPP = &f.VPP
+	f.Contiv.Deps.Resync = &f.ResyncOrch
 
 	f.Policy.Deps.PluginInfraDeps = *f.FlavorLocal.InfraDeps("policy")
 	f.Policy.Deps.Watcher = &f.KsrETCDDataSync

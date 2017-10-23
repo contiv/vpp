@@ -62,6 +62,9 @@ func (s *remoteCNIserver) retrieveContainerMacAddr(namespace string, ifname stri
 	var macAddr []byte
 	err := s.WithNetNSPath(namespace, func(netNS ns.NetNS) error {
 		link, err := s.LinkByName(ifname)
+		if err != nil {
+			return err
+		}
 		macAddr = link.Attrs().HardwareAddr
 		return err
 
@@ -84,7 +87,6 @@ func (s *remoteCNIserver) configureArpOnVpp(macAddr []byte, request *cni.CNIRequ
 	stringIP := s.ipAddrForContainer()
 	containerIP, _, err := net.ParseCIDR(stringIP)
 	if err != nil {
-		s.Logger.Error(err)
 		return err
 	}
 
@@ -101,7 +103,6 @@ func (s *remoteCNIserver) configureArpOnVpp(macAddr []byte, request *cni.CNIRequ
 	if reply.Retval != 0 {
 		return fmt.Errorf("Adding arp entry returned non zero error code (%v)", reply.Retval)
 	}
-
 	return err
 }
 
@@ -147,7 +148,6 @@ func (s *remoteCNIserver) getAfPacketMac(afPacket string) (net.HardwareAddr, err
 			break // break out of the loop
 		}
 		if err != nil {
-			s.Logger.Error(err)
 			return nil, err
 		}
 		if strings.HasPrefix(string(ifDetails.InterfaceName), afPacket) {

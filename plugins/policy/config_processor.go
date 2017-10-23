@@ -357,6 +357,13 @@ func (pp *ConfigProcessor) Close() error {
 	return nil
 }
 
+func getHostIPNet(ip string) string {
+	if ip == "" {
+		return ip
+	}
+	return ip + "/32"
+}
+
 func getIngressRule(proto policy.Policy_Port_Protocol, dstPort int32, srcIPAddr string, ruleName string) *acl.AccessLists_Acl_Rule {
 
 	lowerDstPort := uint32(dstPort)
@@ -368,7 +375,7 @@ func getIngressRule(proto policy.Policy_Port_Protocol, dstPort int32, srcIPAddr 
 		matches = &acl.AccessLists_Acl_Rule_Matches{
 			IpRule: &acl.AccessLists_Acl_Rule_Matches_IpRule{
 				Ip: &acl.AccessLists_Acl_Rule_Matches_IpRule_Ip{
-					SourceNetwork: srcIPAddr + "/32",
+					SourceNetwork: getHostIPNet(srcIPAddr),
 				},
 				Tcp: &acl.AccessLists_Acl_Rule_Matches_IpRule_Tcp{
 					DestinationPortRange: &acl.AccessLists_Acl_Rule_Matches_IpRule_Tcp_DestinationPortRange{
@@ -382,7 +389,7 @@ func getIngressRule(proto policy.Policy_Port_Protocol, dstPort int32, srcIPAddr 
 		matches = &acl.AccessLists_Acl_Rule_Matches{
 			IpRule: &acl.AccessLists_Acl_Rule_Matches_IpRule{
 				Ip: &acl.AccessLists_Acl_Rule_Matches_IpRule_Ip{
-					SourceNetwork: srcIPAddr + "/32",
+					SourceNetwork: getHostIPNet(srcIPAddr),
 				},
 				Udp: &acl.AccessLists_Acl_Rule_Matches_IpRule_Udp{
 					DestinationPortRange: &acl.AccessLists_Acl_Rule_Matches_IpRule_Udp_DestinationPortRange{
@@ -449,14 +456,14 @@ func getFromRule(srcIPAddr string, ruleName string) *acl.AccessLists_Acl_Rule {
 	matches = &acl.AccessLists_Acl_Rule_Matches{
 		IpRule: &acl.AccessLists_Acl_Rule_Matches_IpRule{
 			Ip: &acl.AccessLists_Acl_Rule_Matches_IpRule_Ip{
-				SourceNetwork: srcIPAddr + "/32",
+				SourceNetwork: getHostIPNet(srcIPAddr),
 			},
 		},
 	}
 	matches = &acl.AccessLists_Acl_Rule_Matches{
 		IpRule: &acl.AccessLists_Acl_Rule_Matches_IpRule{
 			Ip: &acl.AccessLists_Acl_Rule_Matches_IpRule_Ip{
-				SourceNetwork: srcIPAddr + "/32",
+				SourceNetwork: getHostIPNet(srcIPAddr),
 			},
 		},
 	}

@@ -36,15 +36,27 @@ been initialized before installing the CRI Shim, just reboot the node.
 #### Step 2: Initializing your master
 Before initializing the master, you may want to clean up any previously 
 installed K8s components:
-```bash
+```
 sudo su
 rm -rf ~/.kube
 kubeadm reset
 ```
 After cleanup, proceed with master initialization as described in the 
 [kubeadm manual][3]:
-```bash
+```
 kubeadm init
+```
+If Kubernetes was initialized successfully, it prints out this message:
+```
+Your Kubernetes master has initialized successfully!
+```
+
+After successful initialization, don't forget to set up your .kube directory
+as a regular user (as instructed by `kubeadm`):
+```bash
+mkdir -p $HOME/.kube
+sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+sudo chown $(id -u):$(id -g) $HOME/.kube/config
 ```
 
 #### Step 3: Installing the Contiv-VPP POD network
@@ -54,7 +66,7 @@ bash <(curl -s https://raw.githubusercontent.com/contiv/vpp/master/k8s/pull-imag
 ```
 
 Install the Contiv-VPP network for your cluster as follows:
-```bash
+```
 kubectl apply -f https://raw.githubusercontent.com/contiv/vpp/master/k8s/contiv-vpp.yaml
 ```
 
@@ -70,7 +82,7 @@ kube-system   contiv-vswitch-9nwwr             2/2       Running            0   
 More details about installing the pod network can be found in the 
 [kubeadm manual][4]. In particular, if you are installing everything on a
 single node, please remember to untaint it:
-```bash
+```
 kubectl taint nodes --all node-role.kubernetes.io/master-
 ``` 
 
@@ -90,18 +102,30 @@ $ kubectl run nginx --image=nginx --replicas=2
 Use `kubectl describe pod` to get the IP address of a POD, e.g.:
 ```
 $ kubectl describe pod nginx | grep IP
-IP:		10.0.0.1
+```
+You should see two ip addresses, for example:
+```
+IP:		10.1.1.3
+IP:		10.1.1.4
 ```
 
-To check the connectivity, you can connect to VPP debug CLI and execute a ping:
+You can check the connectivity in one of the following ways:
+* Connect to the VPP debug CLI and ping any pod:
 ```
-telnet 0 5002
-vpp# ping 10.0.0.1
+  telnet 0 5002
+  vpp# ping 10.1.1.3
 ```
+* Start busybox and ping any pod:
+```
+  kubectl run busybox --rm -ti --image=busybox /bin/sh
+  If you don't see a command prompt, try pressing enter.
+  / #  
+  / # ping 10.1.1.3
 
-You should be able to ping the pod from the host as well.
 ```
-ping 10.0.0.1
+* You should be able to ping any pod from the host:
+```
+  ping 10.1.1.3
 ```
 
 #### Troubleshooting
@@ -110,13 +134,13 @@ Some of the issues that can occur during the installation are:
 - Forgetting to create and initialize the `.kube` directory in your home 
   directory (As instructed by `kubeadm init`). This can manifest itself 
   as the following error:
-  ```bash
+  ```
   W1017 09:25:43.403159    2233 factory_object_mapping.go:423] Failed to download OpenAPI (Get https://192.168.209.128:6443/swagger-2.0.0.pb-v1: x509: certificate signed by unknown authority (possibly because of "crypto/rsa: verification error" while trying to verify candidate authority certificate "kubernetes")), falling back to swagger
   Unable to connect to the server: x509: certificate signed by unknown authority (possibly because of "crypto/rsa: verification error" while trying to verify candidate authority certificate "kubernetes")
   ``` 
 - Previous installation lingering on the file system. `'kubeadm init` fails 
   to initialize kubelet with one or more of the following error messages:
-  ```bash
+  ```
   ...
   [kubelet-check] It seems like the kubelet isn't running or healthy.
   [kubelet-check] The HTTP call equal to 'curl -sSL http://localhost:10255/healthz' failed with error: Get http://localhost:10255/healthz: dial tcp [::1]:10255: getsockopt: connection refused.
@@ -124,7 +148,7 @@ Some of the issues that can occur during the installation are:
   ```
    
 If you run into any of the above issues, try to clean up and reinstall as root:
-```bash
+```
 sudo su
 rm -rf ~/.kube
 kubeadm reset

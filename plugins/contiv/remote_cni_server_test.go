@@ -85,7 +85,6 @@ func TestVeth1NameFromRequest(t *testing.T) {
 }
 
 func TestAdd(t *testing.T) {
-	logroot.StandardLogger().SetLevel(logging.DebugLevel)
 	gomega.RegisterTestingT(t)
 
 	configuredContainers := containeridx.NewConfigIndex(logroot.StandardLogger(), core.PluginName("Plugin-name"), "title")
@@ -189,11 +188,10 @@ func vppChanMock() *api.Channel {
 		return reply, 0, false
 	})
 
-	conn, connChan, err := govpp.AsyncConnect(vppMock)
+	conn, err := govpp.Connect(vppMock)
 	if err != nil {
 		return nil
 	}
-	<-connChan
 
 	c, _ := conn.NewAPIChannel()
 	return c

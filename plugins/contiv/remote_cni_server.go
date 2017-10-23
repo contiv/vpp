@@ -44,41 +44,48 @@ type remoteCNIserver struct {
 	// hostCalls encapsulates calls for managing linux networking
 	hostCalls
 
+	// ipam module used by the CNI server
+	ipam *IPAM
+
 	// generalSetup is true if the config that needs to be applied once (with the first container)
 	// is configured
 	generalSetup bool
 	// counter of connected containers. It is used for generating afpacket names
 	// and assigned ip addresses.
 	counter int
+
+	// agent microservice label
+	agentLabel string
 }
 
 const (
-	resultOk                  uint32 = 0
-	resultErr                 uint32 = 1
-	vethNameMaxLen                   = 15
-	ipMask                           = "24"
-	ipPrefix                         = "10.1.1"
-	afPacketNamePrefix               = "afpacket"
-	podNameExtraArg                  = "K8S_POD_NAME"
-	podNamespaceExtraArg             = "K8S_POD_NAMESPACE"
-	vethHostEndIP                    = "192.168.16.24"
-	vethVPPEndIP                     = "192.168.16.25"
-	vethHostEndName                  = "v1"
-	fakeContainerGw                  = ipPrefix + ".1"
-	fakeContainerGwWithPrefix        = fakeContainerGw + "/32"
-	afPacketIPPrefix                 = "10.2.1"
+	resultOk             uint32 = 0
+	resultErr            uint32 = 1
+	vethNameMaxLen              = 15
+	podSubnetCIDR               = "10.1.0.0/16"
+	podNetworkPrefixLen         = 24
+	afPacketNamePrefix          = "afpacket"
+	podNameExtraArg             = "K8S_POD_NAME"
+	podNamespaceExtraArg        = "K8S_POD_NAMESPACE"
+	vethHostEndIP               = "192.168.16.24"
+	vethVPPEndIP                = "192.168.16.25"
+	vethHostEndName             = "v1"
+	afPacketIPPrefix            = "10.2.1"
 )
 
 func newRemoteCNIServer(logger logging.Logger, vppTxnFactory func() linux.DataChangeDSL, proxy kvdbproxy.Proxy,
-	configuredContainers *containeridx.ConfigIndex, govpp *api.Channel, index ifaceidx.SwIfIndex) *remoteCNIserver {
+	configuredContainers *containeridx.ConfigIndex, govppChan *api.Channel, index ifaceidx.SwIfIndex, agentLabel string) *remoteCNIserver {
 	return &remoteCNIserver{
 		Logger:               logger,
 		vppTxnFactory:        vppTxnFactory,
 		proxy:                proxy,
 		configuredContainers: configuredContainers,
 		hostCalls:            &linuxCalls{},
-		govppChan:            govpp,
-		swIfIndex:            index}
+		govppChan:            govppChan,
+		swIfIndex:            index,
+		agentLabel:           agentLabel,
+		ipam:                 newIPAM(logger, podSubnetCIDR, podNetworkPrefixLen, agentLabel),
+	}
 }
 
 // configureVswitchConnectivity configures basic vSwitch VPP connectivity to the host IP stack and to the other hosts.
@@ -169,10 +176,13 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 	changes := map[string]proto.Message{}
 	s.counter++
 
-	veth1 := s.veth1FromRequest(request)
+	// assign IP address for this POD
+	podIP := s.ipam.getNextPodIP() + "/32"
+
+	veth1 := s.veth1FromRequest(request, podIP)
 	veth2 := s.veth2FromRequest(request)
 	afpacket := s.afpacketFromRequest(request)
-	route := s.vppRouteFromRequest(request)
+	route := s.vppRouteFromRequest(request, podIP)
 
 	s.WithFields(logging.Fields{"veth1": veth1, "veth2": veth2, "afpacket": afpacket, "route": route}).Info("Configuring")
 
@@ -203,7 +213,7 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 	}
 	s.Debug("Container mac: ", macAddr)
 
-	err = s.configureArpOnVpp(macAddr, request)
+	err = s.configureArpOnVpp(request, macAddr, podIP)
 	if err != nil {
 		s.Logger.Error(err)
 		return s.generateErrorResponse(err)
@@ -261,7 +271,7 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 		Routes: []*cni.CNIReply_Route{
 			{
 				Dst: "0.0.0.0/0",
-				Gw:  fakeContainerGw,
+				Gw:  s.ipam.getPodGatewayIP(),
 			},
 		},
 		Dns: []*cni.CNIReply_DNS{
@@ -363,7 +373,7 @@ func (s *remoteCNIserver) createdInterfaces(veth *linux_intf.LinuxInterfaces_Int
 				{
 					Version: cni.CNIReply_Interface_IP_IPV4,
 					Address: veth.IpAddresses[0],
-					Gateway: fakeContainerGw,
+					Gateway: s.ipam.getPodGatewayIP(),
 				},
 			},
 		},

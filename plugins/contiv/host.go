@@ -15,11 +15,12 @@
 package contiv
 
 import (
+	"net"
+
 	vpp_intf "github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/model/interfaces"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/l3plugin/model/l3"
 	linux_intf "github.com/ligato/vpp-agent/plugins/linuxplugin/model/interfaces"
 	"github.com/vishvananda/netlink"
-	"net"
 )
 
 func (s *remoteCNIserver) configureRouteOnHost() error {
@@ -28,7 +29,7 @@ func (s *remoteCNIserver) configureRouteOnHost() error {
 		s.Logger.Error(err)
 		return err
 	}
-	_, network, err := net.ParseCIDR(ipPrefix + ".0/" + ipMask)
+	_, network, err := net.ParseCIDR(s.ipam.getPodNetworkCIDR())
 	if err != nil {
 		s.Logger.Error(err)
 		return err

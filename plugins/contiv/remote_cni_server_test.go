@@ -16,6 +16,9 @@ package contiv
 
 import (
 	"context"
+	"net"
+	"testing"
+
 	"github.com/contiv/vpp/plugins/contiv/containeridx"
 	"github.com/contiv/vpp/plugins/contiv/model/cni"
 	"github.com/contiv/vpp/plugins/kvdbproxy"
@@ -31,8 +34,6 @@ import (
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/l3plugin/model/l3"
 	linux_intf "github.com/ligato/vpp-agent/plugins/linuxplugin/model/interfaces"
 	"github.com/onsi/gomega"
-	"net"
-	"testing"
 )
 
 const (
@@ -81,7 +82,7 @@ func TestAdd(t *testing.T) {
 	gomega.Expect(err).To(gomega.BeNil())
 	gomega.Expect(reply).NotTo(gomega.BeNil())
 
-	gomega.Expect(len(txns.txns)).To(gomega.BeEquivalentTo(2))
+	gomega.Expect(len(txns.txns)).To(gomega.BeEquivalentTo(3))
 	// TODO add asserts for txns
 
 	res := configuredContainers.LookupPodName(podName)

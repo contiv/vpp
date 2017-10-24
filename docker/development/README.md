@@ -30,7 +30,7 @@ For example, if the contiv-vpp source code is located in the `go/src/` folder
 under your home folder on your host, the command to start the dev-* container
 will be:
 ```bash
-sudo docker run -v ~/go/src/github.com/contiv/vpp/:/root/go/src/github.com/contiv/vpp/ -it --name dev-contiv --rm dev-contiv-vswitch bash
+sudo docker run -v $GOPATH/src/github.com/contiv/vpp/:/root/go/src/github.com/contiv/vpp/ -it --name dev-contiv --rm dev-contiv-vswitch bash
 ```
 
 You can either download the development container from Dockerhub, or build it 

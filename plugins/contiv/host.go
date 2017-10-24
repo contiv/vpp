@@ -17,6 +17,8 @@ package contiv
 import (
 	"net"
 
+	"fmt"
+
 	vpp_intf "github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/model/interfaces"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/l3plugin/model/l3"
 	linux_intf "github.com/ligato/vpp-agent/plugins/linuxplugin/model/interfaces"
@@ -84,5 +86,14 @@ func (s *remoteCNIserver) interconnectAfpacket() *vpp_intf.Interfaces_Interface 
 			HostIfName: "vppv2",
 		},
 		IpAddresses: []string{vethVPPEndIP + "/24"},
+	}
+}
+
+func (s *remoteCNIserver) physicalInterface(name string) *vpp_intf.Interfaces_Interface {
+	return &vpp_intf.Interfaces_Interface{
+		Name:        name,
+		Type:        vpp_intf.InterfaceType_ETHERNET_CSMACD,
+		Enabled:     true,
+		IpAddresses: []string{fmt.Sprintf("%s%d/24", nicNetworkPerfix, s.ipam.getPodNetworkSubnetID())},
 	}
 }

@@ -68,8 +68,9 @@ const (
 	afPacketNamePrefix          = "afpacket"
 	podNameExtraArg             = "K8S_POD_NAME"
 	podNamespaceExtraArg        = "K8S_POD_NAMESPACE"
-	vethHostEndIP               = "192.168.16.24"
-	vethVPPEndIP                = "192.168.16.25"
+	nicNetworkPerfix            = "192.168.16."
+	vethHostEndIP               = "192.168.17.24"
+	vethVPPEndIP                = "192.168.17.25"
 	vethHostEndName             = "v1"
 	afPacketIPPrefix            = "10.2.1"
 )
@@ -98,9 +99,6 @@ func newRemoteCNIServer(logger logging.Logger, vppTxnFactory func() linux.DataCh
 func (s *remoteCNIserver) configureVswitchConnectivity() error {
 
 	s.Logger.Info("Applying basic vSwitch config.")
-	if s.swIfIndex != nil {
-		s.Logger.Info("Existing interfaces: ", s.swIfIndex.GetMapping().ListNames())
-	}
 
 	// TODO: only do this config if resync hasn't done it already
 
@@ -125,6 +123,7 @@ func (s *remoteCNIserver) configureVswitchConnectivity() error {
 		return err
 	}
 
+	// store changes for persisting
 	changes[vpp_intf.InterfaceKey(interconnectAF.Name)] = interconnectAF
 	changes[linux_intf.InterfaceKey(vethHost.Name)] = vethHost
 	changes[linux_intf.InterfaceKey(vethVpp.Name)] = vethVpp
@@ -135,6 +134,39 @@ func (s *remoteCNIserver) configureVswitchConnectivity() error {
 	if err != nil {
 		s.Logger.Error(err)
 		return err
+	}
+
+	// configure physical NIC
+	if s.swIfIndex != nil {
+		s.Logger.Debug("Existing interfaces: ", s.swIfIndex.GetMapping().ListNames())
+
+		// find physical NIC name
+		nicName := ""
+		for _, name := range s.swIfIndex.GetMapping().ListNames() {
+			if strings.HasPrefix(name, "local") || strings.HasPrefix(name, "host") || strings.HasPrefix(name, "loop") {
+				continue
+			} else {
+				nicName = name
+				break
+			}
+		}
+		if nicName != "" {
+			// configure the NIC
+			s.Logger.Debug("Configuring physical NIC ", nicName)
+			nic := s.physicalInterface(nicName)
+
+			txn := s.vppTxnFactory().Put().
+				VppInterface(nic)
+
+			err := txn.Send().ReceiveReply()
+			if err != nil {
+				s.Logger.Error(err)
+				return err
+			}
+
+			// store changes for persisting
+			changes[vpp_intf.InterfaceKey(nicName)] = nic
+		}
 	}
 
 	// persist the changes made by this function in ETCD

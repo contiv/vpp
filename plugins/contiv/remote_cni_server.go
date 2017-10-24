@@ -218,6 +218,8 @@ func (s *remoteCNIserver) configureVswitchConnectivity() error {
 				return err
 			}
 		}
+	} else {
+		s.Logger.Warn("swIfIndex is NULL")
 	}
 
 	// persist the changes made by this function in ETCD

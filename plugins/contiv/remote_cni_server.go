@@ -64,11 +64,12 @@ const (
 	resultErr            uint32 = 1
 	vethNameMaxLen              = 15
 	podSubnetCIDR               = "10.1.0.0/16"
+	podSubnetPrefix             = "10.1"
 	podNetworkPrefixLen         = 24
 	afPacketNamePrefix          = "afpacket"
 	podNameExtraArg             = "K8S_POD_NAME"
 	podNamespaceExtraArg        = "K8S_POD_NAMESPACE"
-	nicNetworkPerfix            = "192.168.16."
+	nicNetworkPerfix            = "192.168.16"
 	vethHostEndIP               = "192.168.17.24"
 	vethVPPEndIP                = "192.168.17.25"
 	vethHostEndName             = "v1"
@@ -151,21 +152,32 @@ func (s *remoteCNIserver) configureVswitchConnectivity() error {
 			}
 		}
 		if nicName != "" {
-			// configure the NIC
+			// configure the NIC and statc routes
 			s.Logger.Debug("Configuring physical NIC ", nicName)
+
+			txn := s.vppTxnFactory().Put()
+
+			// add the NIC config into the transaction
 			nic := s.physicalInterface(nicName)
+			txn.VppInterface(nic)
+			changes[vpp_intf.InterfaceKey(nicName)] = nic
 
-			txn := s.vppTxnFactory().Put().
-				VppInterface(nic)
+			// add static routes config into the transaction
+			var i uint8
+			for i = 0; i < 255; i++ {
+				if i != s.ipam.getPodNetworkSubnetID() {
+					r := s.routeToOtherHost(i)
+					txn.StaticRoute(r)
+					// TODO changes
+				}
+			}
 
+			// execute the config transaction
 			err := txn.Send().ReceiveReply()
 			if err != nil {
 				s.Logger.Error(err)
 				return err
 			}
-
-			// store changes for persisting
-			changes[vpp_intf.InterfaceKey(nicName)] = nic
 		}
 	}
 

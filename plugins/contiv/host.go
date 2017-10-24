@@ -94,6 +94,13 @@ func (s *remoteCNIserver) physicalInterface(name string) *vpp_intf.Interfaces_In
 		Name:        name,
 		Type:        vpp_intf.InterfaceType_ETHERNET_CSMACD,
 		Enabled:     true,
-		IpAddresses: []string{fmt.Sprintf("%s%d/24", nicNetworkPerfix, s.ipam.getPodNetworkSubnetID())},
+		IpAddresses: []string{fmt.Sprintf("%s.%d/24", nicNetworkPerfix, s.ipam.getPodNetworkSubnetID())},
+	}
+}
+
+func (s *remoteCNIserver) routeToOtherHost(hostID uint8) *l3.StaticRoutes_Route {
+	return &l3.StaticRoutes_Route{
+		DstIpAddr:   fmt.Sprintf("%s.%d.0/24", podSubnetPrefix, hostID),
+		NextHopAddr: fmt.Sprintf("%s.%d", nicNetworkPerfix, hostID),
 	}
 }

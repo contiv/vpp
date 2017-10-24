@@ -28,7 +28,8 @@ import (
 )
 
 // Plugin watches configuration of K8s resources (as reflected by KSR into ETCD)
-// for changes in policies, pods and namespaces and applies ACLs to VPP.
+// for changes in policies, pods and namespaces and applies rules into extendable
+// set of network stacks.
 type Plugin struct {
 	Deps
 
@@ -41,13 +42,6 @@ type Plugin struct {
 	wg     sync.WaitGroup
 
 	configProcessor *ConfigProcessor
-
-	/*
-		TODO (use VPP localclient directly from processor for now):
-		- policy reflector1 (standard VPP ACLs)
-		- policy  reflector2 (TCP/IP VPP ACLs)
-		- inject reflector(s) into the processor
-	*/
 }
 
 // Deps defines dependencies of policy plugin.

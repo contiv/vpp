@@ -13,77 +13,61 @@ type PolicyRendererAPI interface {
 	// to recover from an in-progress fail.
 	// If <resync> is enabled, the supplied configuration should completely
 	// replace the existing one. Otherwise, perform the changes incrementally,
-	// i.e. interfaces not mentioned in the transaction should remain untouched.
+	// i.e. interfaces not mentioned in the transaction should remain unaffected.
 	NewTxn(resync bool) Txn
 }
 
+// Txn defines API of PolicyRenderer transaction.
 type Txn interface {
-	// Render applies the set of rules for a given interface. The existing rules
-	// are replaced. ContivRuleCache can be used to calculate the minimal diff.
-	Render(ifName string, rules []*ContivRuleGroup) Txn
+	// Render applies the set of ingress & egress rules for a given interface.
+	// The existing rules are replaced.
+	// ContivRuleCache can be used to calculate the minimal diff and find
+	// interfaces with equivalent ingress and/or egress configuration.
+	Render(ifName string, ingress []ContivRule, egress []ContivRule) Txn
 
 	// Commit proceeds with the rendering. The changes are propagated into
 	// the destination network stack.
 	Commit() error
 }
 
-// ContivRuleGroup logically groups a list of Contiv Rules. Rules of the same
-// group are logically related: they are created and removed together and often
-// shared between interfaces. If the destination network stack supports it,
-// the renderer may install them as one higher-level policy with multiple rules
-// and minimize the size of the configuration.
-// The order of rules inside a group must be preserved.
-// Furthermore, rules of higher priority group must precede those from lower
-// priority groups. However, the order between groups of the same priority can
-// be arbitrary.
-type ContivRuleGroup struct {
-	// ID is unique for a pod. Typically it is the policy ID from which the rules
-	// where generated. But there are also some special groups for "ip-blocks"
-	// and deny-all rules.
-	ID       string
-
-	// Priority is used to order rules between groups.
-	// Lower the number higher the priority is.
-	// Rules of higher priority group must precede those from lower priority
-	// groups.
-	Priority int
-
-	// Rules is a list of rules in the group.
-	// The order of rules inside a group must be preserved.
-	Rules    []ContivRule
-}
-
 // ContivRule is an n-tuple with the most basic policy rule definition that the
 // destination network stack must support.
 type ContivRule struct {
-	ID          string
-	Type        RuleType
-	Action      ActionType
-	SrcNetwork  net.IPNet
-	DestNetwork net.IPNet
-	Protocol    ProtocolType
-	SrcPort     int16
-	DstPort     int16
+	// ID uniquely identifies the rule within the list of ingress or egress
+	// rules.
+	ID string
+
+	// Action to perform when traffic matches.
+	Action ActionType
+
+	// L3
+	SrcNetwork  net.IPNet // empty/nil = match all
+	DestNetwork net.IPNet // empty/nil = match all
+
+	// L4
+	Protocol ProtocolType
+	SrcPort  int16 // 0 = match all
+	DstPort  int16 // 0 = match all
 }
 
-type RuleType int
-
-const (
-	RULE_INGRESS RuleType = iota
-	RULE_EGRESS
-)
-
+// ActionType is either DENY or PERMIT.
 type ActionType int
 
 const (
-	ACTION_DENY ActionType = iota
-	ACTION_PERMIT
+	// ActionDeny tells the policy engine to block the matching traffic.
+	ActionDeny ActionType = iota
+
+	// ActionPermit tells the policy engine to block the matching traffic.
+	ActionPermit
 )
 
+// ProtocolType is either TCP or UDP.
 type ProtocolType int
 
 const (
+	// TCP protocol.
 	TCP ProtocolType = iota
+
+	// UDP protocol.
 	UDP
 )
-

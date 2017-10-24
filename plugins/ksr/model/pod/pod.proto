@@ -43,7 +43,12 @@ message Pod {
   // IP address allocated to the pod. Routable at least within the cluster.
   // Empty if not yet allocated.
   // +optional
-  string ip_address = 5;
+  string ip_address = 4;
+
+  // IP address of the host to which the pod is assigned.
+  // Empty if not yet scheduled.
+  // +optional
+  string host_ip_address = 5;
 
   // A single application container run within a pod.
   message Container {
@@ -98,5 +103,5 @@ message Pod {
   // Containers cannot currently be added or removed.
   // There must be at least one container in a Pod.
   // Cannot be updated.
-  repeated Container container = 4;
+  repeated Container container = 6;
 }

@@ -155,25 +155,34 @@ func (s *remoteCNIserver) configureVswitchConnectivity() error {
 			// configure the NIC and statc routes
 			s.Logger.Debug("Configuring physical NIC ", nicName)
 
-			txn := s.vppTxnFactory().Put()
+			txn1 := s.vppTxnFactory().Put()
 
 			// add the NIC config into the transaction
 			nic := s.physicalInterface(nicName)
-			txn.VppInterface(nic)
+			txn1.VppInterface(nic)
 			changes[vpp_intf.InterfaceKey(nicName)] = nic
+
+			// execute the config transaction
+			err := txn1.Send().ReceiveReply()
+			if err != nil {
+				s.Logger.Error(err)
+				return err
+			}
+
+			txn2 := s.vppTxnFactory().Put()
 
 			// add static routes config into the transaction
 			var i uint8
 			for i = 0; i < 255; i++ {
 				if i != s.ipam.getPodNetworkSubnetID() {
 					r := s.routeToOtherHost(i)
-					txn.StaticRoute(r)
+					txn2.StaticRoute(r)
 					// TODO changes
 				}
 			}
 
 			// execute the config transaction
-			err := txn.Send().ReceiveReply()
+			err = txn2.Send().ReceiveReply()
 			if err != nil {
 				s.Logger.Error(err)
 				return err

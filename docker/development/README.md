@@ -26,10 +26,10 @@ start it up as follows:
 ```bash
 sudo docker run -v <path-to-source-folder-on-host>:/root/go/src/github.com/contiv/vpp/ -it --name <dev-vontainer-name> --rm <dev-container-image> bash
 ``` 
-For example, if the contiv-vpp source code is located in the `go/src/` folder
-under your home folder on your host, the command to start the dev-* container
-will be:
-```bash
+For example, if the contiv-vpp source code is located in the `src/` folder
+under your Go path root folder on your host, the command to start the
+development container will be:
+```
 sudo docker run -v $GOPATH/src/github.com/contiv/vpp/:/root/go/src/github.com/contiv/vpp/ -it --name dev-contiv --rm dev-contiv-vswitch bash
 ```
 

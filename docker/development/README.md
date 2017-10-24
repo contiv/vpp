@@ -12,7 +12,7 @@ cd docker/development
 
 This will overwrite your `contivvpp/vswitch:latest` image tag with your 
 locally built container image. After that, you can proceed with 
-`kubectl apply k8s/contiv-vpp.yaml` to deploy the image.
+`kubectl apply -f k8s/contiv-vpp.yaml` to deploy the image.
 
 ### Using the development container for builds
 

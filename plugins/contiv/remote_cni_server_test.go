@@ -105,7 +105,7 @@ func TestAdd(t *testing.T) {
 	gomega.Expect(err).To(gomega.BeNil())
 	gomega.Expect(reply).NotTo(gomega.BeNil())
 
-	gomega.Expect(len(txns.txns)).To(gomega.BeEquivalentTo(4))
+	gomega.Expect(len(txns.txns)).To(gomega.BeEquivalentTo(5))
 	// TODO add asserts for txns
 
 	res := configuredContainers.LookupPodName(podName)

@@ -15,6 +15,7 @@
 package contiv
 
 import (
+	"net"
 	"strings"
 	"sync"
 
@@ -28,6 +29,7 @@ import (
 	"github.com/ligato/vpp-agent/clientv1/linux"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/ifaceidx"
 	vpp_intf "github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/model/interfaces"
+	"github.com/ligato/vpp-agent/plugins/defaultplugins/l3plugin/model/l3"
 	"github.com/ligato/vpp-agent/plugins/govppmux"
 	linux_intf "github.com/ligato/vpp-agent/plugins/linuxplugin/model/interfaces"
 	"golang.org/x/net/context"
@@ -97,6 +99,11 @@ func newRemoteCNIServer(logger logging.Logger, vppTxnFactory func() linux.DataCh
 }
 
 // configureVswitchConnectivity configures basic vSwitch VPP connectivity to the host IP stack and to the other hosts.
+// Namely, it configures:
+//  - veth pair to host IP stack + AF_PACKET on VPP side
+//  - default static route to the host via the veth pair
+//  - physical NIC interface + static routes to PODs on other hosts
+//  - loopback instead of physical NIC if NIC is not found
 func (s *remoteCNIserver) configureVswitchConnectivity() error {
 
 	s.Logger.Info("Applying basic vSwitch config.")
@@ -125,9 +132,11 @@ func (s *remoteCNIserver) configureVswitchConnectivity() error {
 	}
 
 	// store changes for persisting
-	changes[vpp_intf.InterfaceKey(interconnectAF.Name)] = interconnectAF
 	changes[linux_intf.InterfaceKey(vethHost.Name)] = vethHost
 	changes[linux_intf.InterfaceKey(vethVpp.Name)] = vethVpp
+	changes[vpp_intf.InterfaceKey(interconnectAF.Name)] = interconnectAF
+	_, dstNet, _ := net.ParseCIDR(route.DstIpAddr)
+	changes[l3.RouteKey(route.VrfId, dstNet, route.NextHopAddr)] = route
 
 	// configure route to PODs on the host
 	// TODO: we should persist this too, once this functionality is implemented in linuxplugin
@@ -144,7 +153,8 @@ func (s *remoteCNIserver) configureVswitchConnectivity() error {
 		// find physical NIC name
 		nicName := ""
 		for _, name := range s.swIfIndex.GetMapping().ListNames() {
-			if strings.HasPrefix(name, "local") || strings.HasPrefix(name, "host") || strings.HasPrefix(name, "loop") {
+			if strings.HasPrefix(name, "local") || strings.HasPrefix(name, "loop") ||
+				strings.HasPrefix(name, "host") || strings.HasPrefix(name, "tap") {
 				continue
 			} else {
 				nicName = name
@@ -152,12 +162,12 @@ func (s *remoteCNIserver) configureVswitchConnectivity() error {
 			}
 		}
 		if nicName != "" {
-			// configure the NIC and statc routes
+			// configure the physical NIC and static routes to other hosts
 			s.Logger.Debug("Configuring physical NIC ", nicName)
 
+			// add the NIC config into the transaction
 			txn1 := s.vppTxnFactory().Put()
 
-			// add the NIC config into the transaction
 			nic := s.physicalInterface(nicName)
 			txn1.VppInterface(nic)
 			changes[vpp_intf.InterfaceKey(nicName)] = nic
@@ -169,20 +179,40 @@ func (s *remoteCNIserver) configureVswitchConnectivity() error {
 				return err
 			}
 
+			// add static routes to other hosts into the transaction
 			txn2 := s.vppTxnFactory().Put()
 
-			// add static routes config into the transaction
 			var i uint8
 			for i = 0; i < 255; i++ {
+				// creates routes to all possible hosts
+				// TODO: after proper IPAM implementation, only routes to existing hosts should be added
 				if i != s.ipam.getPodNetworkSubnetID() {
 					r := s.routeToOtherHost(i)
 					txn2.StaticRoute(r)
-					// TODO changes
+					_, dstNet, _ := net.ParseCIDR(r.DstIpAddr)
+					changes[l3.RouteKey(r.VrfId, dstNet, r.NextHopAddr)] = r
 				}
 			}
 
 			// execute the config transaction
 			err = txn2.Send().ReceiveReply()
+			if err != nil {
+				s.Logger.Error(err)
+				return err
+			}
+		} else {
+			// configure loopback instead of physical NIC
+			s.Logger.Debug("Physical NIC not found, configuring loopback instead.")
+
+			// add the NIC config into the transaction
+			txn := s.vppTxnFactory().Put()
+
+			loop := s.physicalInterfaceLoopback()
+			txn.VppInterface(loop)
+			changes[vpp_intf.InterfaceKey(loop.Name)] = loop
+
+			// execute the config transaction
+			err := txn.Send().ReceiveReply()
 			if err != nil {
 				s.Logger.Error(err)
 				return err

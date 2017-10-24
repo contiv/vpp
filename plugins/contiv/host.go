@@ -98,6 +98,15 @@ func (s *remoteCNIserver) physicalInterface(name string) *vpp_intf.Interfaces_In
 	}
 }
 
+func (s *remoteCNIserver) physicalInterfaceLoopback() *vpp_intf.Interfaces_Interface {
+	return &vpp_intf.Interfaces_Interface{
+		Name:        "loopbackNIC",
+		Type:        vpp_intf.InterfaceType_SOFTWARE_LOOPBACK,
+		Enabled:     true,
+		IpAddresses: []string{fmt.Sprintf("%s.%d/24", nicNetworkPerfix, s.ipam.getPodNetworkSubnetID())},
+	}
+}
+
 func (s *remoteCNIserver) routeToOtherHost(hostID uint8) *l3.StaticRoutes_Route {
 	return &l3.StaticRoutes_Route{
 		DstIpAddr:   fmt.Sprintf("%s.%d.0/24", podSubnetPrefix, hostID),

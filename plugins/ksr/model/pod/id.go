@@ -16,5 +16,5 @@ func GetID(pod *Pod) ID {
 
 // String returns a string representation of a pod ID.
 func (id ID) String() string {
-	return id.Namespace + "/"  + id.Name
+	return id.Namespace + "/" + id.Name
 }

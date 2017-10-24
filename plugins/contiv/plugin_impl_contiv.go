@@ -63,6 +63,7 @@ func (plugin *Plugin) Init() error {
 
 // Close cleans up the resources allocated by the plugin
 func (plugin *Plugin) Close() error {
+	plugin.cniServer.close()
 	return nil
 }
 

@@ -71,8 +71,8 @@ type TxnChange struct {
 	//   - new list
 	//   - removed list
 	//   - changed assignment of interfaces
-	// List content itself is not mutable. Slightly different content is
-	// treated as a new list (and the original list may loose some interfaces
+	// List content itself is not mutable. Different content is treated
+	// as a new list (and the original list may loose some interfaces
 	// or all of them and get removed)
 	List *ContivRuleList
 

@@ -119,6 +119,7 @@ func (pr *PodReflector) podToProto(pod *core_v1.Pod) *proto.Pod {
 		}
 	}
 	podProto.IpAddress = pod.Status.PodIP
+	podProto.HostIpAddress = pod.Status.HostIP
 	for _, container := range pod.Spec.Containers {
 		podProto.Container = append(podProto.Container, pr.containerToProto(&container))
 	}

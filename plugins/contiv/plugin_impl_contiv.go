@@ -17,7 +17,6 @@
 package contiv
 
 import (
-	"context"
 	"git.fd.io/govpp.git/api"
 	"github.com/contiv/vpp/plugins/contiv/containeridx"
 	"github.com/contiv/vpp/plugins/contiv/model/cni"
@@ -31,6 +30,7 @@ import (
 	"github.com/ligato/vpp-agent/clientv1/linux/localclient"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins"
 	"github.com/ligato/vpp-agent/plugins/govppmux"
+	"context"
 )
 
 // Plugin transforms GRPC requests into configuration for the VPP in order
@@ -87,6 +87,7 @@ func (plugin *Plugin) Init() error {
 // Close cleans up the resources allocated by the plugin
 func (plugin *Plugin) Close() error {
 	plugin.ctxCancelFunc()
+	plugin.cniServer.close()
 	return safeclose.Close(plugin.govppCh)
 }
 

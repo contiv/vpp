@@ -58,12 +58,16 @@ type Pod struct {
 	// IP address allocated to the pod. Routable at least within the cluster.
 	// Empty if not yet allocated.
 	// +optional
-	IpAddress string `protobuf:"bytes,5,opt,name=ip_address" json:"ip_address,omitempty"`
+	IpAddress string `protobuf:"bytes,4,opt,name=ip_address" json:"ip_address,omitempty"`
+	// IP address of the host to which the pod is assigned.
+	// Empty if not yet scheduled.
+	// +optional
+	HostIpAddress string `protobuf:"bytes,5,opt,name=host_ip_address" json:"host_ip_address,omitempty"`
 	// List of containers belonging to the pod.
 	// Containers cannot currently be added or removed.
 	// There must be at least one container in a Pod.
 	// Cannot be updated.
-	Container []*Pod_Container `protobuf:"bytes,4,rep,name=container" json:"container,omitempty"`
+	Container []*Pod_Container `protobuf:"bytes,6,rep,name=container" json:"container,omitempty"`
 }
 
 func (m *Pod) Reset()         { *m = Pod{} }

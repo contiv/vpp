@@ -15,64 +15,89 @@
 package main
 
 import (
-	"math/rand"
+	"fmt"
 	"net"
-	"os/exec"
-	"path/filepath"
-	"strconv"
-	"strings"
+	"time"
 
 	"github.com/containernetworking/plugins/pkg/ns"
 
 	. "github.com/onsi/ginkgo"
-	"github.com/onsi/ginkgo/config"
 	. "github.com/onsi/gomega"
-	"github.com/onsi/gomega/gbytes"
-	"github.com/onsi/gomega/gexec"
 
 	"testing"
 )
 
 func TestPortmap(t *testing.T) {
-	rand.Seed(config.GinkgoConfig.RandomSeed)
-
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "portmap Suite")
 }
 
-var echoServerBinaryPath string
+// OpenEchoServer opens a server that listens until closeChan is closed.
+// It opens on a random port and sends the port number on portChan when
+// the server is up and running. If an error is encountered, closes portChan.
+// If closeChan is closed, closes the socket.
+func OpenEchoServer(portChan chan<- int, closeChan <-chan interface{}) error {
+	laddr, err := net.ResolveTCPAddr("tcp", "0.0.0.0:0")
+	if err != nil {
+		close(portChan)
+		return err
+	}
+	sock, err := net.ListenTCP("tcp", laddr)
+	if err != nil {
+		close(portChan)
+		return err
+	}
+	defer sock.Close()
 
-var _ = SynchronizedBeforeSuite(func() []byte {
-	binaryPath, err := gexec.Build("github.com/containernetworking/plugins/pkg/testutils/echosvr")
-	Expect(err).NotTo(HaveOccurred())
-	return []byte(binaryPath)
-}, func(data []byte) {
-	echoServerBinaryPath = string(data)
-})
+	switch addr := sock.Addr().(type) {
+	case *net.TCPAddr:
+		portChan <- addr.Port
+	default:
+		close(portChan)
+		return fmt.Errorf("addr cast failed!")
+	}
+	for {
+		select {
+		case <-closeChan:
+			break
+		default:
+		}
 
-var _ = SynchronizedAfterSuite(func() {}, func() {
-	gexec.CleanupBuildArtifacts()
-})
+		sock.SetDeadline(time.Now().Add(time.Second))
+		con, err := sock.AcceptTCP()
+		if err != nil {
+			if opErr, ok := err.(*net.OpError); ok && opErr.Timeout() {
+				continue
+			}
+			continue
+		}
 
-func startInNetNS(binPath string, netNS ns.NetNS) (*gexec.Session, error) {
-	baseName := filepath.Base(netNS.Path())
-	// we are relying on the netNS path living in /var/run/netns
-	// where `ip netns exec` can find it
-	cmd := exec.Command("ip", "netns", "exec", baseName, binPath)
-	session, err := gexec.Start(cmd, GinkgoWriter, GinkgoWriter)
-	return session, err
+		buf := make([]byte, 512)
+		con.Read(buf)
+		con.Write(buf)
+		con.Close()
+	}
 }
 
-func StartEchoServerInNamespace(netNS ns.NetNS) (int, *gexec.Session, error) {
-	session, err := startInNetNS(echoServerBinaryPath, netNS)
-	Expect(err).NotTo(HaveOccurred())
+func RunEchoServerInNS(netNS ns.NetNS) (int, chan interface{}, error) {
+	portChan := make(chan int)
+	closeChan := make(chan interface{})
 
-	// wait for it to print it's address on stdout
-	Eventually(session.Out).Should(gbytes.Say("\n"))
-	_, portString, err := net.SplitHostPort(strings.TrimSpace(string(session.Out.Contents())))
-	Expect(err).NotTo(HaveOccurred())
+	go func() {
+		err := netNS.Do(func(ns.NetNS) error {
+			OpenEchoServer(portChan, closeChan)
+			return nil
+		})
+		// Somehow the ns.Do failed
+		if err != nil {
+			close(portChan)
+		}
+	}()
 
-	port, err := strconv.Atoi(portString)
-	Expect(err).NotTo(HaveOccurred())
-	return port, session, nil
+	portNum := <-portChan
+	if portNum == 0 {
+		return 0, nil, fmt.Errorf("failed to execute server")
+	}
+
+	return portNum, closeChan, nil
 }

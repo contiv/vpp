@@ -91,9 +91,10 @@ func (d *DHCP) Release(args *skel.CmdArgs, reply *struct{}) error {
 
 	if l := d.getLease(args.ContainerID, conf.Name); l != nil {
 		l.Stop()
+		return nil
 	}
 
-	return nil
+	return fmt.Errorf("lease not found: %v/%v", args.ContainerID, conf.Name)
 }
 
 func (d *DHCP) getLease(contID, netName string) *DHCPLease {

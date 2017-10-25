@@ -19,9 +19,6 @@ import (
 	"net"
 	"testing"
 
-	"reflect"
-	"strings"
-
 	"git.fd.io/govpp.git/adapter/mock"
 	govppmock "git.fd.io/govpp.git/adapter/mock"
 	"git.fd.io/govpp.git/adapter/mock/binapi"
@@ -48,6 +45,8 @@ import (
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/l3plugin/model/l3"
 	linux_intf "github.com/ligato/vpp-agent/plugins/linuxplugin/model/interfaces"
 	"github.com/onsi/gomega"
+	"reflect"
+	"strings"
 
 	"git.fd.io/govpp.git/api"
 	govpp "git.fd.io/govpp.git/core"

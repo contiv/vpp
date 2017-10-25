@@ -75,16 +75,7 @@ func SetupIPMasq(ipn *net.IPNet, chain string, comment string) error {
 
 // TeardownIPMasq undoes the effects of SetupIPMasq
 func TeardownIPMasq(ipn *net.IPNet, chain string, comment string) error {
-	isV6 := ipn.IP.To4() == nil
-
-	var ipt *iptables.IPTables
-	var err error
-
-	if isV6 {
-		ipt, err = iptables.NewWithProtocol(iptables.ProtocolIPv6)
-	} else {
-		ipt, err = iptables.NewWithProtocol(iptables.ProtocolIPv4)
-	}
+	ipt, err := iptables.New()
 	if err != nil {
 		return fmt.Errorf("failed to locate iptables: %v", err)
 	}

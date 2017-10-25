@@ -181,8 +181,9 @@ func cmdDel(args *skel.CmdArgs) error {
 	}
 
 	err = ns.WithNetNSPath(args.Netns, func(_ ns.NetNS) error {
-		err = ip.DelLinkByName(args.IfName)
-		if err != nil && err != ip.ErrLinkNotFound {
+		_, err = ip.DelLinkByNameAddr(args.IfName, netlink.FAMILY_V4)
+		// FIXME: use ip.ErrLinkNotFound when cni is revendored
+		if err != nil && err.Error() == "Link not found" {
 			return nil
 		}
 		return err

@@ -43,15 +43,16 @@ import (
 // configuration using the local client.
 type FlavorContiv struct {
 	*local.FlavorLocal
-	HTTP       rest.Plugin
-	HealthRPC  probe.Plugin
-	ResyncOrch resync.Plugin
+	HTTP      rest.Plugin
+	HealthRPC probe.Plugin
 
 	ETCD            etcdv3.Plugin
 	ETCDDataSync    kvdbsync.Plugin
 	KsrETCDDataSync kvdbsync.Plugin
 
 	KVProxy kvdbproxy.Plugin
+
+	ResyncOrch resync.Plugin
 
 	LinuxLocalClient localclient.Plugin
 	GoVPP            govppmux.GOVPPPlugin
@@ -95,10 +96,10 @@ func (f *FlavorContiv) Inject() bool {
 	f.KVProxy.Deps.KVDB = &f.ETCDDataSync
 
 	f.GoVPP.Deps.PluginInfraDeps = *f.FlavorLocal.InfraDeps("govpp")
-	f.Linux.Watcher = &datasync.CompositeKVProtoWatcher{Adapters: []datasync.KeyValProtoWatcher{local_sync.Get()}}
+	f.Linux.Watcher = &datasync.CompositeKVProtoWatcher{Adapters: []datasync.KeyValProtoWatcher{&f.KVProxy, local_sync.Get()}}
 	f.Linux.Deps.PluginInfraDeps = *f.FlavorLocal.InfraDeps("linuxplugin")
 
-	f.VPP.Watch = &datasync.CompositeKVProtoWatcher{Adapters: []datasync.KeyValProtoWatcher{local_sync.Get(), &f.KVProxy}}
+	f.VPP.Watch = &datasync.CompositeKVProtoWatcher{Adapters: []datasync.KeyValProtoWatcher{&f.KVProxy, local_sync.Get()}}
 	f.VPP.Deps.PluginInfraDeps = *f.FlavorLocal.InfraDeps("default-plugins")
 	f.VPP.Deps.Linux = &f.Linux
 	f.VPP.Deps.GoVppmux = &f.GoVPP

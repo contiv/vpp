@@ -1,8 +1,8 @@
-// Copyright 2015 The go4 Authors
+// Copyright (c) 2017 Cisco and/or its affiliates.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
+// You may obtain a copy of the License at:
 //
 //     http://www.apache.org/licenses/LICENSE-2.0
 //
@@ -12,24 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// +build plan9
+package l4
 
-package osutil
+// Prefixes
+const (
+	// L4Prefix is the relative key prefix for VPP L4 plugin.
+	L4Prefix = "vpp/config/v1/l4/"
 
-import (
-	"fmt"
-	"os"
-	"path/filepath"
-	"syscall"
+	// L4FeaturesPrefix is the relative key prefix for VPP L4 features.
+	L4FeaturesPrefix = L4Prefix + "features"
+
+	// L4NamespacesPrefix is the relative key prefix for VPP L4 application namespaces.
+	L4NamespacesPrefix = L4Prefix + "namespaces/{id}"
 )
-
-func executable() (string, error) {
-	fn := fmt.Sprintf("/proc/%d/text", os.Getpid())
-	f, err := os.Open(fn)
-	if err != nil {
-		return "", err
-	}
-	defer f.Close()
-	p, err := syscall.Fd2path(int(f.Fd()))
-	return filepath.Clean(p), err
-}

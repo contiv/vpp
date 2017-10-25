@@ -74,6 +74,7 @@ const (
 	vethHostEndIP               = "192.168.17.24"
 	vethVPPEndIP                = "192.168.17.25"
 	vethHostEndName             = "v1"
+	vethVPPEndName              = "vppv2"
 	afPacketIPPrefix            = "10.2.1"
 )
 
@@ -96,6 +97,18 @@ func (s *remoteCNIserver) close() {
 	s.cleanupVswitchConnectivity()
 }
 
+func (s *remoteCNIserver) resync() error {
+	s.Lock()
+	defer s.Unlock()
+
+	/* TODO: not working yet
+	err := s.configureVswitchConnectivity()
+	if err != nil {
+		s.Logger.Error(err)
+	}*/
+	return nil
+}
+
 // configureVswitchConnectivity configures basic vSwitch VPP connectivity to the host IP stack and to the other hosts.
 // Namely, it configures:
 //  - veth pair to host IP stack + AF_PACKET on VPP side
@@ -105,6 +118,7 @@ func (s *remoteCNIserver) close() {
 func (s *remoteCNIserver) configureVswitchConnectivity() error {
 
 	s.Logger.Info("Applying basic vSwitch config.")
+	s.Logger.Info("Existing interfaces: ", s.swIfIndex.GetMapping().ListNames())
 
 	// TODO: only do this config if resync hasn't done it already
 
@@ -197,8 +211,7 @@ func (s *remoteCNIserver) configureVswitchConnectivity() error {
 	// configure linux interfaces + linux route in one transaction
 	txn1 := s.vppTxnFactory().Put().
 		LinuxInterface(vethHost).
-		LinuxInterface(vethVpp).
-		StaticRoute(route)
+		LinuxInterface(vethVpp)
 
 	err := txn1.Send().ReceiveReply()
 	if err != nil {
@@ -207,7 +220,7 @@ func (s *remoteCNIserver) configureVswitchConnectivity() error {
 	}
 
 	// configure AF_PACKET for the veth - this transaction must be successful in order to continue
-	txn2 := s.vppTxnFactory().Put().VppInterface(interconnectAF)
+	txn2 := s.vppTxnFactory().Put().VppInterface(interconnectAF).StaticRoute(route)
 
 	err = txn2.Send().ReceiveReply()
 	if err != nil {

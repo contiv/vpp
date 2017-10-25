@@ -52,6 +52,8 @@ type FlavorContiv struct {
 
 	KVProxy kvdbproxy.Plugin
 
+	ResyncOrch resync.Plugin
+
 	LinuxLocalClient localclient.Plugin
 	GoVPP            govppmux.GOVPPPlugin
 	Linux            linuxplugin.Plugin
@@ -59,7 +61,6 @@ type FlavorContiv struct {
 	GRPC             grpc.Plugin
 	Contiv           contiv.Plugin
 	Policy           policy.Plugin
-	ResyncOrch       resync.Plugin
 	injected         bool
 }
 
@@ -95,10 +96,10 @@ func (f *FlavorContiv) Inject() bool {
 	f.KVProxy.Deps.KVDB = &f.ETCDDataSync
 
 	f.GoVPP.Deps.PluginInfraDeps = *f.FlavorLocal.InfraDeps("govpp")
-	f.Linux.Watcher = &datasync.CompositeKVProtoWatcher{Adapters: []datasync.KeyValProtoWatcher{local_sync.Get()}}
+	f.Linux.Watcher = &datasync.CompositeKVProtoWatcher{Adapters: []datasync.KeyValProtoWatcher{&f.KVProxy, local_sync.Get()}}
 	f.Linux.Deps.PluginInfraDeps = *f.FlavorLocal.InfraDeps("linuxplugin")
 
-	f.VPP.Watch = &datasync.CompositeKVProtoWatcher{Adapters: []datasync.KeyValProtoWatcher{local_sync.Get(), &f.KVProxy}}
+	f.VPP.Watch = &datasync.CompositeKVProtoWatcher{Adapters: []datasync.KeyValProtoWatcher{&f.KVProxy, local_sync.Get()}}
 	f.VPP.Deps.PluginInfraDeps = *f.FlavorLocal.InfraDeps("default-plugins")
 	f.VPP.Deps.Linux = &f.Linux
 	f.VPP.Deps.GoVppmux = &f.GoVPP
@@ -114,8 +115,9 @@ func (f *FlavorContiv) Inject() bool {
 	f.Contiv.Deps.PluginInfraDeps = *f.FlavorLocal.InfraDeps("cni-grpc")
 	f.Contiv.Deps.GRPC = &f.GRPC
 	f.Contiv.Deps.Proxy = &f.KVProxy
-	f.Contiv.GoVPP = &f.GoVPP
-	f.Contiv.VPP = &f.VPP
+	f.Contiv.Deps.GoVPP = &f.GoVPP
+	f.Contiv.Deps.VPP = &f.VPP
+	f.Contiv.Deps.Resync = &f.ResyncOrch
 
 	f.Policy.Deps.PluginInfraDeps = *f.FlavorLocal.InfraDeps("policy")
 	f.Policy.Deps.Watcher = &f.KsrETCDDataSync

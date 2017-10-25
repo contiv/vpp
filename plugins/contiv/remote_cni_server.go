@@ -15,6 +15,7 @@
 package contiv
 
 import (
+	"net"
 	"strings"
 	"sync"
 
@@ -28,6 +29,7 @@ import (
 	"github.com/ligato/vpp-agent/clientv1/linux"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/ifaceidx"
 	vpp_intf "github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/model/interfaces"
+	"github.com/ligato/vpp-agent/plugins/defaultplugins/l3plugin/model/l3"
 	linux_intf "github.com/ligato/vpp-agent/plugins/linuxplugin/model/interfaces"
 	"golang.org/x/net/context"
 )
@@ -63,12 +65,14 @@ const (
 	resultErr            uint32 = 1
 	vethNameMaxLen              = 15
 	podSubnetCIDR               = "10.1.0.0/16"
+	podSubnetPrefix             = "10.1"
 	podNetworkPrefixLen         = 24
 	afPacketNamePrefix          = "afpacket"
 	podNameExtraArg             = "K8S_POD_NAME"
 	podNamespaceExtraArg        = "K8S_POD_NAMESPACE"
-	vethHostEndIP               = "192.168.16.24"
-	vethVPPEndIP                = "192.168.16.25"
+	nicNetworkPerfix            = "192.168.16"
+	vethHostEndIP               = "192.168.17.24"
+	vethVPPEndIP                = "192.168.17.25"
 	vethHostEndName             = "v1"
 	afPacketIPPrefix            = "10.2.1"
 )
@@ -88,16 +92,101 @@ func newRemoteCNIServer(logger logging.Logger, vppTxnFactory func() linux.DataCh
 	}
 }
 
+func (s *remoteCNIserver) close() {
+	s.cleanupVswitchConnectivity()
+}
+
 // configureVswitchConnectivity configures basic vSwitch VPP connectivity to the host IP stack and to the other hosts.
+// Namely, it configures:
+//  - veth pair to host IP stack + AF_PACKET on VPP side
+//  - default static route to the host via the veth pair
+//  - physical NIC interface + static routes to PODs on other hosts
+//  - loopback instead of physical NIC if NIC is not found
 func (s *remoteCNIserver) configureVswitchConnectivity() error {
 
 	s.Logger.Info("Applying basic vSwitch config.")
-	s.Logger.Info("Existing interfaces: ", s.swIfIndex.GetMapping().ListNames())
 
 	// TODO: only do this config if resync hasn't done it already
 
 	// used to persist the changes made by this function
 	changes := map[string]proto.Message{}
+
+	// configure physical NIC
+	// NOTE that needs to be done as the first step, before adding any other interfaces to VPP to properly fnd the physical NIC name.
+	if s.swIfIndex != nil {
+		s.Logger.Info("Existing interfaces: ", s.swIfIndex.GetMapping().ListNames())
+
+		// find physical NIC name
+		nicName := ""
+		for _, name := range s.swIfIndex.GetMapping().ListNames() {
+			if strings.HasPrefix(name, "local") || strings.HasPrefix(name, "loop") ||
+				strings.HasPrefix(name, "host") || strings.HasPrefix(name, "tap") {
+				continue
+			} else {
+				nicName = name
+				break
+			}
+		}
+		if nicName != "" {
+			// configure the physical NIC and static routes to other hosts
+			s.Logger.Info("Configuring physical NIC ", nicName)
+
+			// add the NIC config into the transaction
+			txn1 := s.vppTxnFactory().Put()
+
+			nic := s.physicalInterface(nicName)
+			txn1.VppInterface(nic)
+			changes[vpp_intf.InterfaceKey(nicName)] = nic
+
+			// execute the config transaction
+			err := txn1.Send().ReceiveReply()
+			if err != nil {
+				s.Logger.Error(err)
+				return err
+			}
+
+			// add static routes to other hosts into the transaction
+			txn2 := s.vppTxnFactory().Put()
+
+			var i uint8
+			for i = 0; i < 255; i++ {
+				// creates routes to all possible hosts
+				// TODO: after proper IPAM implementation, only routes to existing hosts should be added
+				if i != s.ipam.getPodNetworkSubnetID() {
+					r := s.routeToOtherHost(i)
+					txn2.StaticRoute(r)
+					_, dstNet, _ := net.ParseCIDR(r.DstIpAddr)
+					changes[l3.RouteKey(r.VrfId, dstNet, r.NextHopAddr)] = r
+				}
+			}
+
+			// execute the config transaction
+			err = txn2.Send().ReceiveReply()
+			if err != nil {
+				s.Logger.Error(err)
+				return err
+			}
+		} else {
+			// configure loopback instead of physical NIC
+			s.Logger.Debug("Physical NIC not found, configuring loopback instead.")
+
+			// add the NIC config into the transaction
+			txn := s.vppTxnFactory().Put()
+
+			loop := s.physicalInterfaceLoopback()
+			txn.VppInterface(loop)
+			changes[vpp_intf.InterfaceKey(loop.Name)] = loop
+
+			// execute the config transaction
+			err := txn.Send().ReceiveReply()
+			if err != nil {
+				s.Logger.Error(err)
+				return err
+			}
+		}
+	} else {
+		s.Logger.Warn("swIfIndex is NULL")
+	}
 
 	// configure veths to host IP stack + AF_PACKET + default route to host
 	vethHost := s.interconnectVethHost()
@@ -105,21 +194,33 @@ func (s *remoteCNIserver) configureVswitchConnectivity() error {
 	interconnectAF := s.interconnectAfpacket()
 	route := s.defaultRouteToHost()
 
-	txn := s.vppTxnFactory().Put().
+	// configure linux interfaces + linux route in one transaction
+	txn1 := s.vppTxnFactory().Put().
 		LinuxInterface(vethHost).
 		LinuxInterface(vethVpp).
-		VppInterface(interconnectAF).
 		StaticRoute(route)
 
-	err := txn.Send().ReceiveReply()
+	err := txn1.Send().ReceiveReply()
+	if err != nil {
+		// ths transaction may fail if interfaces/routes are already configured, log only
+		s.Logger.Warn(err)
+	}
+
+	// configure AF_PACKET for the veth - this transaction must be successful in order to continue
+	txn2 := s.vppTxnFactory().Put().VppInterface(interconnectAF)
+
+	err = txn2.Send().ReceiveReply()
 	if err != nil {
 		s.Logger.Error(err)
 		return err
 	}
 
-	changes[vpp_intf.InterfaceKey(interconnectAF.Name)] = interconnectAF
+	// store changes for persisting
 	changes[linux_intf.InterfaceKey(vethHost.Name)] = vethHost
 	changes[linux_intf.InterfaceKey(vethVpp.Name)] = vethVpp
+	changes[vpp_intf.InterfaceKey(interconnectAF.Name)] = interconnectAF
+	_, dstNet, _ := net.ParseCIDR(route.DstIpAddr)
+	changes[l3.RouteKey(route.VrfId, dstNet, route.NextHopAddr)] = route
 
 	// configure route to PODs on the host
 	// TODO: we should persist this too, once this functionality is implemented in linuxplugin
@@ -137,6 +238,21 @@ func (s *remoteCNIserver) configureVswitchConnectivity() error {
 	}
 
 	return nil
+}
+
+// cleanupVswitchConnectivity cleans up basic vSwitch VPP connectivity configuration in the host IP stack.
+func (s *remoteCNIserver) cleanupVswitchConnectivity() {
+	vethHost := s.interconnectVethHost()
+	vethVpp := s.interconnectVethVpp()
+
+	txn := s.vppTxnFactory().Delete().
+		LinuxInterface(vethHost.Name).
+		LinuxInterface(vethVpp.Name)
+
+	err := txn.Send().ReceiveReply()
+	if err != nil {
+		s.Logger.Warn(err)
+	}
 }
 
 // Add connects the container to the network.

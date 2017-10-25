@@ -19,6 +19,9 @@ import (
 	"net"
 	"testing"
 
+	"reflect"
+	"strings"
+
 	"git.fd.io/govpp.git/adapter/mock"
 	govppmock "git.fd.io/govpp.git/adapter/mock"
 	"git.fd.io/govpp.git/adapter/mock/binapi"
@@ -45,8 +48,6 @@ import (
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/l3plugin/model/l3"
 	linux_intf "github.com/ligato/vpp-agent/plugins/linuxplugin/model/interfaces"
 	"github.com/onsi/gomega"
-	"reflect"
-	"strings"
 
 	"git.fd.io/govpp.git/api"
 	govpp "git.fd.io/govpp.git/core"
@@ -104,7 +105,7 @@ func TestAdd(t *testing.T) {
 	gomega.Expect(err).To(gomega.BeNil())
 	gomega.Expect(reply).NotTo(gomega.BeNil())
 
-	gomega.Expect(len(txns.txns)).To(gomega.BeEquivalentTo(3))
+	gomega.Expect(len(txns.txns)).To(gomega.BeEquivalentTo(5))
 	// TODO add asserts for txns
 
 	res := configuredContainers.LookupPodName(podName)

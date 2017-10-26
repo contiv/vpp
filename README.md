@@ -59,7 +59,15 @@ sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
 sudo chown $(id -u):$(id -g) $HOME/.kube/config
 ```
 
-#### Step 3: Installing the Contiv-VPP POD network
+#### Step 3 (Optional): Joining your nodes
+If you have more than one worker nodes, you can now join them into the cluster 
+as described in the [kubeadm manual][5].
+
+See the [Multinode Deployment README](docs/MULTINODE.md) 
+for multi-node and DPDK-enabled deployment instructions before continuing with step 4.
+
+
+#### Step 4: Installing the Contiv-VPP POD network
 If you have already used the Contiv-VPP plugin before, you may need to pull the most recent Docker images on each node:
 ```
 bash <(curl -s https://raw.githubusercontent.com/contiv/vpp/master/k8s/pull-images.sh)
@@ -85,13 +93,6 @@ single node, please remember to untaint it:
 ```
 kubectl taint nodes --all node-role.kubernetes.io/master-
 ``` 
-
-#### Step 4 (Optional): Joining your nodes
-If you have more than one worker nodes, you can now join them into the cluster 
-as described in the [kubeadm manual][5].
-
-NOTE: multi-node clusters are currently not supported. They will be available 
-shortly.
 
 #### Step 5: Verifying the installation
 You can go ahead and deploy some PODs, e.g.:

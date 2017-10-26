@@ -69,11 +69,6 @@ func (plugin *Plugin) Init() error {
 		return err
 	}
 
-	if plugin.Resync != nil {
-		reg := plugin.Resync.Register(string(plugin.PluginName))
-		go plugin.handleResync(reg.StatusChan())
-	}
-
 	plugin.cniServer = newRemoteCNIServer(plugin.Log,
 		func() linux.DataChangeDSL { return localclient.DataChangeRequest(plugin.PluginName) },
 		plugin.Proxy,
@@ -82,6 +77,16 @@ func (plugin *Plugin) Init() error {
 		plugin.VPP.GetSwIfIndexes(),
 		plugin.ServiceLabel.GetAgentLabel())
 	cni.RegisterRemoteCNIServer(plugin.GRPC.Server(), plugin.cniServer)
+	return nil
+}
+
+// AfterInit registers to the ResyncOrchestrator. The registration is done in this phase
+// in order to trigger the resync for this plugin once the resync of defaultVPP plugins is finished.
+func (plugin *Plugin) AfterInit() error {
+	if plugin.Resync != nil {
+		reg := plugin.Resync.Register(string(plugin.PluginName))
+		go plugin.handleResync(reg.StatusChan())
+	}
 	return nil
 }
 

@@ -162,12 +162,8 @@ spec:
               mountPath: /etc/etcd
             - name: vpp-cfg
               mountPath: /etc/vpp
-            - name: shm
-              mountPath: /dev/shm
-#            - name: uio0
-#              mountPath: /dev/uio0
-#            - name: uio1
-#              mountPath: /dev/uio1
+            - name: dev
+              mountPath: /dev
 
         # This container installs the Contiv CNI binaries
         # and CNI network config file on each node.
@@ -200,10 +196,6 @@ spec:
         - name: vcl-ldpreload
           hostPath:
             path: /usr/libexec/ldpreload/vcl-ldpreload
-        # Used by VPP to communicate with LD_PRELOAD clients, later it'll be replaced by socket file directory mount.
-        - name: shm
-          hostPath:
-            path: /dev/shm
         # VPP binaries, used to test with the socket_test_client/server tool.
         - name: vpp
           hostPath:
@@ -211,13 +203,10 @@ spec:
         - name: vpp-lib64
           hostPath:
             path: /usr/libexec/ldpreload/vpp-lib64
-        # /dev/uio0 mounts are required for DPDK-managed NICs on VPP.
-#        - name: uio0
-#          hostPath:
-#            path: /dev/uio0
-#        - name: uio1
-#          hostPath:
-#            path: /dev/uio1
+        # /dev mount is required for DPDK-managed NICs on VPP (/dev/uio0) and for shared memory communication with VPP (/dev/shm)
+        - name: dev
+          hostPath:
+            path: /dev
 
 ---
 

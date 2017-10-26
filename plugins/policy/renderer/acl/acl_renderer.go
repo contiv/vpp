@@ -2,6 +2,7 @@ package acl
 
 import (
 	"github.com/ligato/cn-infra/logging"
+	"github.com/ligato/vpp-agent/clientv1/linux"
 
 	"github.com/contiv/vpp/plugins/policy/renderer"
 	"github.com/contiv/vpp/plugins/policy/renderer/cache"
@@ -12,6 +13,9 @@ import (
 // The configuration changes are transported into aclplugin via localclient.
 type Renderer struct {
 	Deps
+
+	aclTxnFactory       func() (dsl linux.DataChangeDSL)
+	aclResyncTxnFactory func() (dsl linux.DataResyncDSL)
 }
 
 // Deps lists dependencies of Renderer.
@@ -24,6 +28,14 @@ type Deps struct {
 type RendererTxn struct {
 	cacheTxn cache.Txn
 	resync   bool
+}
+
+// NewRenderer is a constructor for ACL Renderer.
+func NewRenderer(
+	aclTxnFactory func() (dsl linux.DataChangeDSL),
+	aclResyncTxnFactory func() (dsl linux.DataResyncDSL),
+) *Renderer {
+	return &Renderer{aclTxnFactory: aclTxnFactory, aclResyncTxnFactory: aclResyncTxnFactory}
 }
 
 // NewTxn starts a new transaction. The rendering executes only after Commit()

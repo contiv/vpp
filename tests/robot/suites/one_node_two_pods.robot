@@ -13,14 +13,8 @@ ${ENV}                common
 ${PLUGIN_URL}    https://raw.githubusercontent.com/contiv/vpp/master/k8s/contiv-vpp.yaml
 
 *** Test Cases ***
-Docker_Pull_Ksr
-    Execute_Command_And_Log_All    ${testbed_connection}    docker pull contivvpp/ksr:latest
-
-Docker_Pull_Cni
-    Execute_Command_And_Log_All    ${testbed_connection}    docker pull contivvpp/cni:latest
-
-Docker_Pull_Vswitch
-    Execute_Command_And_Log_All    ${testbed_connection}    docker pull contivvpp/vswitch:latest
+Docker_Pull_Contiv_Vpp
+    Execute_Command_And_Log_All    ${testbed_connection}    bash <(curl -s https://raw.githubusercontent.com/contiv/vpp/master/k8s/pull-images.sh)
 
 Apply Network Plugin
     KubeCtl.Apply_F_Url    ${testbed_connection}    ${PLUGIN_URL}

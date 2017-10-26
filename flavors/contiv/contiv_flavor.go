@@ -52,8 +52,6 @@ type FlavorContiv struct {
 
 	KVProxy kvdbproxy.Plugin
 
-	ResyncOrch resync.Plugin
-
 	LinuxLocalClient localclient.Plugin
 	GoVPP            govppmux.GOVPPPlugin
 	Linux            linuxplugin.Plugin
@@ -61,7 +59,12 @@ type FlavorContiv struct {
 	GRPC             grpc.Plugin
 	Contiv           contiv.Plugin
 	Policy           policy.Plugin
-	injected         bool
+
+	// resync should the last plugin in the flavor in order to give
+	// the others enough time to register
+	ResyncOrch resync.Plugin
+
+	injected bool
 }
 
 // Inject sets inter-plugin references.

@@ -68,11 +68,6 @@ func (plugin *Plugin) Init() error {
 		return err
 	}
 
-	if plugin.Resync != nil {
-		reg := plugin.Resync.Register(string(plugin.PluginName))
-		go plugin.handleResync(reg.StatusChan())
-	}
-
 	plugin.cniServer = newRemoteCNIServer(plugin.Log,
 		func() linux.DataChangeDSL { return localclient.DataChangeRequest(plugin.PluginName) },
 		plugin.Proxy,
@@ -81,6 +76,14 @@ func (plugin *Plugin) Init() error {
 		plugin.VPP.GetSwIfIndexes(),
 		plugin.ServiceLabel.GetAgentLabel())
 	cni.RegisterRemoteCNIServer(plugin.GRPC.Server(), plugin.cniServer)
+	return nil
+}
+
+func (plugin *Plugin) AfterInit() error {
+	if plugin.Resync != nil {
+		reg := plugin.Resync.Register(string(plugin.PluginName))
+		go plugin.handleResync(reg.StatusChan())
+	}
 	return nil
 }
 

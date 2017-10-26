@@ -79,6 +79,8 @@ func (plugin *Plugin) Init() error {
 	return nil
 }
 
+// AfterInit registers to the ResyncOrchestrator. The registration is done in this phase
+// in order to trigger the resync for this plugin once the resync of defaultVPP plugins is finished.
 func (plugin *Plugin) AfterInit() error {
 	if plugin.Resync != nil {
 		reg := plugin.Resync.Register(string(plugin.PluginName))

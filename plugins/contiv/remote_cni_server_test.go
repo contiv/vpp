@@ -109,7 +109,7 @@ func TestAdd(t *testing.T) {
 	gomega.Expect(len(res)).To(gomega.BeEquivalentTo(1))
 	gomega.Expect(res).To(gomega.ContainElement(containerID))
 
-	// TODO clear txnTracker
+	txns.Clear()
 
 	reply, err = server.Delete(context.Background(), &req)
 	gomega.Expect(err).To(gomega.BeNil())

@@ -45,10 +45,9 @@ type TxnOp struct {
 // NewTxnTracker is a constructor for TxnTracker.
 // It is the entry-point to the mock localclient for both linux and vpp.
 func NewTxnTracker(onCommit func(txn *Txn) error) *TxnTracker {
-	return &TxnTracker{
-		AppliedConfig: make(map[string]proto.Message),
-		onCommit:      onCommit,
-	}
+	tracker := &TxnTracker{onCommit: onCommit}
+	tracker.Clear()
+	return tracker
 }
 
 // NewDataChangeTxn is a factory for DataChange transactions.
@@ -67,6 +66,13 @@ func (t *TxnTracker) NewDataResyncTxn() linux.DataResyncDSL {
 	txn.DataResyncTxn = dsl
 	t.PendingTxns[txn] = struct{}{}
 	return dsl
+}
+
+// Clear clears the TxnTracker state. Already created transactions become invalid.
+func (t *TxnTracker) Clear() {
+	t.AppliedConfig = make(map[string]proto.Message)
+	t.CommittedTxns = []*Txn{}
+	t.PendingTxns = make(map[*Txn]struct{})
 }
 
 // commit applies a transaction.

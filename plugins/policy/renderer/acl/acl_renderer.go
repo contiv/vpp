@@ -14,7 +14,7 @@ import (
 type Renderer struct {
 	Deps
 
-	aclTxnFactory func() (dsl linux.DataChangeDSL)
+	aclTxnFactory       func() (dsl linux.DataChangeDSL)
 	aclResyncTxnFactory func() (dsl linux.DataResyncDSL)
 }
 
@@ -30,6 +30,7 @@ type RendererTxn struct {
 	resync   bool
 }
 
+// NewRenderer is a constructor for ACL Renderer.
 func NewRenderer(
 	aclTxnFactory func() (dsl linux.DataChangeDSL),
 	aclResyncTxnFactory func() (dsl linux.DataResyncDSL),

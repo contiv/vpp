@@ -1,3 +1,4 @@
+#!/bin/bash
 rm -rf $HOME/.kube
 sudo kubeadm reset
 sudo -E kubeadm init --token-ttl 0 --pod-network-cidr=192.168.0.0/16

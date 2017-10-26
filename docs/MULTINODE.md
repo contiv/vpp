@@ -72,6 +72,9 @@ vm5       NotReady   master    8m        v1.8.0
 vm6       NotReady   <none>    55s       v1.8.0
 ```
 
+In case that a worker is not able to join, review the Troubleshooting section at the end of this document.
+
+
 AFTER joining your workers, deploy the Contiv-VPP Network plugin, as described in the step 4 
 in the main [README](../README.md):
 
@@ -156,4 +159,21 @@ index.html           100% |*****************************************************
 / # wget 10.1.219.3
 Connecting to 10.1.219.3 (10.1.219.3:80)
 index.html           100% |*******************************************************************************************************************************************************************|   612   0:00:00 ETA
+```
+
+#### Troubleshooting
+In case that the interface you use for Kubernetes management traffic (IPs used e.g. for `kubeadm join`)
+is not the one that contains the default route out of the host, you need to configure 
+and initialize Kubernetes cluster specifically.
+
+1. Specify preferred node IP address in the Kubelet config file
+(`/etc/systemd/system/kubelet.service.d/10-kubeadm.conf`):
+```
+Environment="KUBELET_EXTRA_ARGS=--fail-swap-on=false --node-ip=192.168.56.101"
+```
+This needs to be done on each node.
+
+2. Specify the preferred IP address of the master in `kubeadm init`:
+```
+sudo kubeadm init --token-ttl 0  --apiserver-advertise-address=192.168.56.101
 ```

@@ -16,6 +16,10 @@ package contiv
 
 import (
 	"fmt"
+	"net"
+	"strconv"
+	"strings"
+
 	"github.com/containernetworking/plugins/pkg/ns"
 	"github.com/contiv/vpp/plugins/contiv/model/cni"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/bin_api/interfaces"
@@ -24,21 +28,18 @@ import (
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/l3plugin/model/l3"
 	linux_intf "github.com/ligato/vpp-agent/plugins/linuxplugin/model/interfaces"
 	"github.com/vishvananda/netlink"
-	"net"
-	"strconv"
-	"strings"
 )
 
 func (s *remoteCNIserver) configureRoutesInContainer(request *cni.CNIRequest) error {
 	return s.WithNetNSPath(request.NetworkNamespace, func(netns ns.NetNS) error {
 
-		_, linkNet, err := net.ParseCIDR(fakeContainerGwWithPrefix)
+		_, linkNet, err := net.ParseCIDR(s.ipam.getPodGatewayIP() + "/32")
 		if err != nil {
 			s.Logger.Error(err)
 			return err
 		}
 
-		defaultNextHop := net.ParseIP(fakeContainerGw)
+		defaultNextHop := net.ParseIP(s.ipam.getPodGatewayIP())
 		dev, err := s.LinkByName(request.InterfaceName)
 		if err != nil {
 			s.Logger.Error(err)
@@ -62,6 +63,9 @@ func (s *remoteCNIserver) retrieveContainerMacAddr(namespace string, ifname stri
 	var macAddr []byte
 	err := s.WithNetNSPath(namespace, func(netNS ns.NetNS) error {
 		link, err := s.LinkByName(ifname)
+		if err != nil {
+			return err
+		}
 		macAddr = link.Attrs().HardwareAddr
 		return err
 
@@ -70,7 +74,7 @@ func (s *remoteCNIserver) retrieveContainerMacAddr(namespace string, ifname stri
 
 }
 
-func (s *remoteCNIserver) configureArpOnVpp(macAddr []byte, request *cni.CNIRequest) error {
+func (s *remoteCNIserver) configureArpOnVpp(request *cni.CNIRequest, macAddr []byte, podIP string) error {
 
 	ifName := s.afpacketNameFromRequest(request)
 	if s.swIfIndex == nil {
@@ -81,10 +85,8 @@ func (s *remoteCNIserver) configureArpOnVpp(macAddr []byte, request *cni.CNIRequ
 	if !exists {
 		return fmt.Errorf("afpacket %v doesn't exist", ifName)
 	}
-	stringIP := s.ipAddrForContainer()
-	containerIP, _, err := net.ParseCIDR(stringIP)
+	containerIP, _, err := net.ParseCIDR(podIP)
 	if err != nil {
-		s.Logger.Error(err)
 		return err
 	}
 
@@ -101,13 +103,12 @@ func (s *remoteCNIserver) configureArpOnVpp(macAddr []byte, request *cni.CNIRequ
 	if reply.Retval != 0 {
 		return fmt.Errorf("Adding arp entry returned non zero error code (%v)", reply.Retval)
 	}
-
 	return err
 }
 
 func (s *remoteCNIserver) configureArpInContainer(macAddr net.HardwareAddr, request *cni.CNIRequest) error {
 
-	gw := net.ParseIP(fakeContainerGw)
+	gw := net.ParseIP(s.ipam.getPodGatewayIP())
 	return s.WithNetNSPath(request.NetworkNamespace, func(ns ns.NetNS) error {
 		link, err := s.LinkByName(request.InterfaceName)
 		if err != nil {
@@ -147,7 +148,6 @@ func (s *remoteCNIserver) getAfPacketMac(afPacket string) (net.HardwareAddr, err
 			break // break out of the loop
 		}
 		if err != nil {
-			s.Logger.Error(err)
 			return nil, err
 		}
 		if strings.HasPrefix(string(ifDetails.InterfaceName), afPacket) {
@@ -183,14 +183,14 @@ func (s *remoteCNIserver) afpacketNameFromRequest(request *cni.CNIRequest) strin
 }
 
 func (s *remoteCNIserver) ipAddrForContainer() string {
-	return ipPrefix + "." + strconv.Itoa(s.counter+1) + "/32"
+	return s.ipam.getNextPodIP() + "/32"
 }
 
 func (s *remoteCNIserver) ipAddrForAfPacket() string {
 	return afPacketIPPrefix + "." + strconv.Itoa(s.counter+1) + "/32"
 }
 
-func (s *remoteCNIserver) veth1FromRequest(request *cni.CNIRequest) *linux_intf.LinuxInterfaces_Interface {
+func (s *remoteCNIserver) veth1FromRequest(request *cni.CNIRequest, podIP string) *linux_intf.LinuxInterfaces_Interface {
 	return &linux_intf.LinuxInterfaces_Interface{
 		Name:       s.veth1NameFromRequest(request),
 		Type:       linux_intf.LinuxInterfaces_VETH,
@@ -199,7 +199,7 @@ func (s *remoteCNIserver) veth1FromRequest(request *cni.CNIRequest) *linux_intf.
 		Veth: &linux_intf.LinuxInterfaces_Interface_Veth{
 			PeerIfName: s.veth2NameFromRequest(request),
 		},
-		IpAddresses: []string{s.ipAddrForContainer()},
+		IpAddresses: []string{podIP},
 		Namespace: &linux_intf.LinuxInterfaces_Interface_Namespace{
 			Type:     linux_intf.LinuxInterfaces_Interface_Namespace_FILE_REF_NS,
 			Filepath: request.NetworkNamespace,
@@ -231,9 +231,9 @@ func (s *remoteCNIserver) afpacketFromRequest(request *cni.CNIRequest) *vpp_intf
 	}
 }
 
-func (s *remoteCNIserver) vppRouteFromRequest(request *cni.CNIRequest) *l3.StaticRoutes_Route {
+func (s *remoteCNIserver) vppRouteFromRequest(request *cni.CNIRequest, podIP string) *l3.StaticRoutes_Route {
 	return &l3.StaticRoutes_Route{
-		DstIpAddr:         s.ipAddrForContainer(),
+		DstIpAddr:         podIP,
 		OutgoingInterface: s.afpacketNameFromRequest(request),
 	}
 }

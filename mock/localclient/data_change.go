@@ -52,8 +52,8 @@ func (dsl *MockDataChangeDSL) Delete() linux.DeleteDSL {
 
 // Send commits the transaction into the mock DB.
 func (dsl *MockDataChangeDSL) Send() defaultplugins.Reply {
-	dsl.txnTracker.commit(dsl.txn)
-	return &Reply{nil}
+	err := dsl.txnTracker.commit(dsl.txn)
+	return &Reply{err}
 }
 
 // apply reflects the effect of transaction operations into the mock DB.

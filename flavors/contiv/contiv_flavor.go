@@ -30,7 +30,9 @@ import (
 	"github.com/ligato/cn-infra/datasync/resync"
 	"github.com/ligato/cn-infra/db/keyval/etcdv3"
 	"github.com/ligato/cn-infra/flavors/connectors"
+	"github.com/ligato/cn-infra/health/probe"
 	"github.com/ligato/cn-infra/rpc/grpc"
+	"github.com/ligato/cn-infra/rpc/rest"
 	"github.com/ligato/vpp-agent/clientv1/linux/localclient"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins"
 	"github.com/ligato/vpp-agent/plugins/govppmux"
@@ -41,12 +43,16 @@ import (
 // configuration using the local client.
 type FlavorContiv struct {
 	*local.FlavorLocal
+	HTTP      rest.Plugin
+	HealthRPC probe.Plugin
 
 	ETCD            etcdv3.Plugin
 	ETCDDataSync    kvdbsync.Plugin
 	KsrETCDDataSync kvdbsync.Plugin
 
 	KVProxy kvdbproxy.Plugin
+
+	ResyncOrch resync.Plugin
 
 	LinuxLocalClient localclient.Plugin
 	GoVPP            govppmux.GOVPPPlugin
@@ -55,7 +61,6 @@ type FlavorContiv struct {
 	GRPC             grpc.Plugin
 	Contiv           contiv.Plugin
 	Policy           policy.Plugin
-	ResyncOrch       resync.Plugin
 	injected         bool
 }
 
@@ -71,6 +76,18 @@ func (f *FlavorContiv) Inject() bool {
 	}
 	f.FlavorLocal.Inject()
 
+	rest.DeclareHTTPPortFlag("http")
+	httpPlugDeps := *f.InfraDeps("http", local.WithConf())
+	f.HTTP.Deps.Log = httpPlugDeps.Log
+	f.HTTP.Deps.PluginConfig = httpPlugDeps.PluginConfig
+	f.HTTP.Deps.PluginName = httpPlugDeps.PluginName
+
+	f.Logs.HTTP = &f.HTTP
+
+	f.HealthRPC.Deps.PluginInfraDeps = *f.InfraDeps("health-rpc")
+	f.HealthRPC.Deps.HTTP = &f.HTTP
+	f.HealthRPC.Deps.StatusCheck = &f.StatusCheck
+
 	f.ETCD.Deps.PluginInfraDeps = *f.InfraDeps("etcdv3", local.WithConf())
 	connectors.InjectKVDBSync(&f.ETCDDataSync, &f.ETCD, f.ETCD.PluginName, f.FlavorLocal, &f.ResyncOrch)
 	f.KsrETCDDataSync = *f.ETCDDataSync.OfDifferentAgent(ksr.MicroserviceLabel, f)
@@ -79,10 +96,10 @@ func (f *FlavorContiv) Inject() bool {
 	f.KVProxy.Deps.KVDB = &f.ETCDDataSync
 
 	f.GoVPP.Deps.PluginInfraDeps = *f.FlavorLocal.InfraDeps("govpp")
-	f.Linux.Watcher = &datasync.CompositeKVProtoWatcher{Adapters: []datasync.KeyValProtoWatcher{local_sync.Get()}}
+	f.Linux.Watcher = &datasync.CompositeKVProtoWatcher{Adapters: []datasync.KeyValProtoWatcher{&f.KVProxy, local_sync.Get()}}
 	f.Linux.Deps.PluginInfraDeps = *f.FlavorLocal.InfraDeps("linuxplugin")
 
-	f.VPP.Watch = &datasync.CompositeKVProtoWatcher{Adapters: []datasync.KeyValProtoWatcher{local_sync.Get(), &f.KVProxy}}
+	f.VPP.Watch = &datasync.CompositeKVProtoWatcher{Adapters: []datasync.KeyValProtoWatcher{&f.KVProxy, local_sync.Get()}}
 	f.VPP.Deps.PluginInfraDeps = *f.FlavorLocal.InfraDeps("default-plugins")
 	f.VPP.Deps.Linux = &f.Linux
 	f.VPP.Deps.GoVppmux = &f.GoVPP
@@ -98,8 +115,9 @@ func (f *FlavorContiv) Inject() bool {
 	f.Contiv.Deps.PluginInfraDeps = *f.FlavorLocal.InfraDeps("cni-grpc")
 	f.Contiv.Deps.GRPC = &f.GRPC
 	f.Contiv.Deps.Proxy = &f.KVProxy
-	f.Contiv.GoVPP = &f.GoVPP
-	f.Contiv.VPP = &f.VPP
+	f.Contiv.Deps.GoVPP = &f.GoVPP
+	f.Contiv.Deps.VPP = &f.VPP
+	f.Contiv.Deps.Resync = &f.ResyncOrch
 
 	f.Policy.Deps.PluginInfraDeps = *f.FlavorLocal.InfraDeps("policy")
 	f.Policy.Deps.Watcher = &f.KsrETCDDataSync

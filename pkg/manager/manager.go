@@ -203,7 +203,7 @@ func (s *ContivshimManager) CreateContainer(ctx context.Context, req *kubeapi.Cr
 				ContainerPath: "/dev/shm",
 			},
 			{
-				HostPath:      "/usr/libexec/ldpreload/vpp-lib64 ",
+				HostPath:      "/usr/libexec/ldpreload/vpp-lib64",
 				ContainerPath: "/vpp-lib64",
 			},
 			{

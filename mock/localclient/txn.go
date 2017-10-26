@@ -18,6 +18,8 @@ type TxnTracker struct {
 	CommittedTxns []*Txn
 	// PendingTxns is map of pending (uncommitted) transactions.
 	PendingTxns map[*Txn]struct{}
+	// onCommit if defined is executed inside the transaction commit.
+	onCommit func(txn *Txn) error
 }
 
 // ConfigSnapshot represents the current state of a mock DB.
@@ -42,9 +44,10 @@ type TxnOp struct {
 
 // NewTxnTracker is a constructor for TxnTracker.
 // It is the entry-point to the mock localclient for both linux and vpp.
-func NewTxnTracker() *TxnTracker {
+func NewTxnTracker(onCommit func(txn *Txn) error) *TxnTracker {
 	return &TxnTracker{
 		AppliedConfig: make(map[string]proto.Message),
+		onCommit:      onCommit,
 	}
 }
 
@@ -67,9 +70,13 @@ func (t *TxnTracker) NewDataResyncTxn() linux.DataResyncDSL {
 }
 
 // commit applies a transaction.
-func (t *TxnTracker) commit(txn *Txn) {
+func (t *TxnTracker) commit(txn *Txn) error {
+	var err error
 	t.lock.Lock()
 	defer t.lock.Unlock()
+	if t.onCommit != nil {
+		err = t.onCommit(txn)
+	}
 	if txn.DataChangeTxn != nil {
 		txn.DataChangeTxn.apply()
 	} else if txn.DataResyncTxn != nil {
@@ -77,4 +84,5 @@ func (t *TxnTracker) commit(txn *Txn) {
 	}
 	delete(t.PendingTxns, txn)
 	t.CommittedTxns = append(t.CommittedTxns, txn)
+	return err
 }

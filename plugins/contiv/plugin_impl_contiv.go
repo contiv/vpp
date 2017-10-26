@@ -17,12 +17,16 @@
 package contiv
 
 import (
+	"context"
+	"git.fd.io/govpp.git/api"
 	"github.com/contiv/vpp/plugins/contiv/containeridx"
 	"github.com/contiv/vpp/plugins/contiv/model/cni"
 	"github.com/contiv/vpp/plugins/kvdbproxy"
+	"github.com/ligato/cn-infra/datasync/resync"
 	"github.com/ligato/cn-infra/flavors/local"
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/rpc/grpc"
+	"github.com/ligato/cn-infra/utils/safeclose"
 	"github.com/ligato/vpp-agent/clientv1/linux"
 	"github.com/ligato/vpp-agent/clientv1/linux/localclient"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins"
@@ -33,36 +37,58 @@ import (
 // to connect a container into the network.
 type Plugin struct {
 	Deps
+	govppCh *api.Channel
 
 	configuredContainers *containeridx.ConfigIndex
 	cniServer            *remoteCNIserver
+
+	ctx           context.Context
+	ctxCancelFunc context.CancelFunc
 }
 
 // Deps groups the dependencies of the Plugin.
 type Deps struct {
 	local.PluginInfraDeps
-	GRPC  grpc.Server
-	Proxy *kvdbproxy.Plugin
-	VPP   *defaultplugins.Plugin
-	GoVPP govppmux.API
+	GRPC   grpc.Server
+	Proxy  *kvdbproxy.Plugin
+	VPP    *defaultplugins.Plugin
+	GoVPP  govppmux.API
+	Resync resync.Subscriber
 }
 
 // Init initializes the grpc server handling the request from the CNI.
 func (plugin *Plugin) Init() error {
 	plugin.configuredContainers = containeridx.NewConfigIndex(plugin.Log, plugin.PluginName, "containers")
+
+	plugin.ctx, plugin.ctxCancelFunc = context.WithCancel(context.Background())
+
+	var err error
+	plugin.govppCh, err = plugin.GoVPP.NewAPIChannel()
+	if err != nil {
+		return err
+	}
+
+	if plugin.Resync != nil {
+		reg := plugin.Resync.Register(string(plugin.PluginName))
+		go plugin.handleResync(reg.StatusChan())
+	}
+
 	plugin.cniServer = newRemoteCNIServer(plugin.Log,
 		func() linux.DataChangeDSL { return localclient.DataChangeRequest(plugin.PluginName) },
 		plugin.Proxy,
 		plugin.configuredContainers,
-		plugin.GoVPP,
-		plugin.VPP.GetSwIfIndexes())
+		plugin.govppCh,
+		plugin.VPP.GetSwIfIndexes(),
+		plugin.ServiceLabel.GetAgentLabel())
 	cni.RegisterRemoteCNIServer(plugin.GRPC.Server(), plugin.cniServer)
 	return nil
 }
 
 // Close cleans up the resources allocated by the plugin
 func (plugin *Plugin) Close() error {
-	return nil
+	plugin.ctxCancelFunc()
+	plugin.cniServer.close()
+	return safeclose.Close(plugin.govppCh)
 }
 
 // GetIfName looks up logical interface name that corresponds to the interface associated with the given pod.
@@ -83,4 +109,22 @@ func (plugin *Plugin) GetIfName(podNamespace string, podName string) (name strin
 
 	plugin.Log.WithFields(logging.Fields{"podNamespace": podNamespace, "podName": podName}).Warn("No matching result found")
 	return "", false
+}
+
+func (plugin *Plugin) handleResync(resyncChan chan resync.StatusEvent) {
+	for {
+		select {
+		case ev := <-resyncChan:
+			status := ev.ResyncStatus()
+			if status == resync.Started {
+				err := plugin.cniServer.resync()
+				if err != nil {
+					plugin.Log.Error(err)
+				}
+			}
+			ev.Ack()
+		case <-plugin.ctx.Done():
+			return
+		}
+	}
 }

@@ -113,6 +113,6 @@ func (dsl *MockDataResyncDSL) ACL(val *acl.AccessLists_Acl) linux.DataResyncDSL 
 
 // Send commits the transaction into the mock DB.
 func (dsl *MockDataResyncDSL) Send() defaultplugins.Reply {
-	dsl.txnTracker.commit(dsl.txn)
-	return &Reply{nil}
+	err := dsl.txnTracker.commit(dsl.txn)
+	return &Reply{err}
 }

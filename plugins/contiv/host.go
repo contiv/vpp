@@ -47,8 +47,9 @@ func (s *remoteCNIserver) configureRouteOnHost() error {
 
 func (s *remoteCNIserver) defaultRouteToHost() *l3.StaticRoutes_Route {
 	return &l3.StaticRoutes_Route{
-		DstIpAddr:   "0.0.0.0/0",
-		NextHopAddr: vethHostEndIP,
+		DstIpAddr:         "0.0.0.0/0",
+		NextHopAddr:       vethHostEndIP,
+		OutgoingInterface: vethVPPEndName,
 	}
 }
 

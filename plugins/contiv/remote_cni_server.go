@@ -32,6 +32,7 @@ import (
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/l3plugin/model/l3"
 	linux_intf "github.com/ligato/vpp-agent/plugins/linuxplugin/model/interfaces"
 	"golang.org/x/net/context"
+	"time"
 )
 
 type remoteCNIserver struct {
@@ -226,6 +227,15 @@ func (s *remoteCNIserver) configureVswitchConnectivity() error {
 	if err != nil {
 		s.Logger.Error(err)
 		return err
+	}
+
+	// wait until AF_PACKET is configured otherwise the route is ignored
+	// note: this is workaround this should be handled in vpp-agent
+	for i := 0; i < 10; i++ {
+		if _, _, found := s.swIfIndex.LookupIdx(vethVPPEndName); found {
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
 	}
 
 	txn3 := s.vppTxnFactory().Put().StaticRoute(route)

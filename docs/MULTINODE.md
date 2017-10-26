@@ -39,7 +39,7 @@ In our case, it would be the `ens4` interface with the PCI address `0000:00:04.0
 
 Now, make sure that the selected interface is shut down, otherwise VPP would not grab it:
 ```
-sudo sudo ip link set ens4 down
+sudo ip link set ens4 down
 ```
 
 Now, add, or modify the VPP startup config file in `/etc/vpp/contiv-vswitch.conf` 

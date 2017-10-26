@@ -1,3 +1,4 @@
+#!/bin/bash
 rm -rf $HOME/.kube
 sudo kubeadm reset
 sudo -E kubeadm init --token-ttl 0

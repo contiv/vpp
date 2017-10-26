@@ -7,10 +7,10 @@ network plugin on Kubernetes.
 The main deployment file that can be used to deploy Contiv-VPP network plugin using `kubeadm`:
 ```
 # deploy
-kubeadm apply -f contiv-vpp.yaml
+kubectl apply -f contiv-vpp.yaml
 
 # undeploy
-kubeadm delete -f contiv-vpp.yaml
+kubectl delete -f contiv-vpp.yaml
 ```
 
 #### cri-install.sh

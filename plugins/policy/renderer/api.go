@@ -1,3 +1,17 @@
+// Copyright (c) 2017 Cisco and/or its affiliates.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at:
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package renderer
 
 import "net"
@@ -23,7 +37,7 @@ type Txn interface {
 	// The existing rules are replaced.
 	// ContivRuleCache can be used to calculate the minimal diff and find
 	// interfaces with equivalent ingress and/or egress configuration.
-	Render(ifName string, ingress []ContivRule, egress []ContivRule) Txn
+	Render(ifName string, ingress []*ContivRule, egress []*ContivRule) Txn
 
 	// Commit proceeds with the rendering. The changes are propagated into
 	// the destination network stack.
@@ -41,13 +55,13 @@ type ContivRule struct {
 	Action ActionType
 
 	// L3
-	SrcNetwork  net.IPNet // empty/nil = match all
-	DestNetwork net.IPNet // empty/nil = match all
+	SrcNetwork  *net.IPNet // empty = match all
+	DestNetwork *net.IPNet // empty = match all
 
 	// L4
 	Protocol ProtocolType
 	SrcPort  int16 // 0 = match all
-	DstPort  int16 // 0 = match all
+	DestPort int16 // 0 = match all
 }
 
 // ActionType is either DENY or PERMIT.

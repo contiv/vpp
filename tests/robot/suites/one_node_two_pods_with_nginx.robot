@@ -9,19 +9,14 @@ Suite Teardown    Testsuite Teardown
 *** Variables ***
 ${UBUNTU_POD_FILE}    ${CURDIR}/../resources/one-ubuntu-istio.yaml
 ${NGINX_POD_FILE}    ${CURDIR}/../resources/nginx-istio.yaml
+${ISTIO_FILE}    ${CURDIR}/../resources/istio029.yaml
 ${VARIABLES}          common
 ${ENV}                common
 ${PLUGIN_URL}    https://raw.githubusercontent.com/contiv/vpp/master/k8s/contiv-vpp.yaml
 
 *** Test Cases ***
-Docker_Pull_Ksr
-    Execute_Command_And_Log_All    ${testbed_connection}    docker pull contivvpp/ksr:latest
-
-Docker_Pull_Cni
-    Execute_Command_And_Log_All    ${testbed_connection}    docker pull contivvpp/cni:latest
-
-Docker_Pull_Vswitch
-    Execute_Command_And_Log_All    ${testbed_connection}    docker pull contivvpp/vswitch:latest
+Docker_Pull_Contiv_Vpp
+    Execute_Command_And_Log_All    ${testbed_connection}    bash <(curl -s https://raw.githubusercontent.com/contiv/vpp/master/k8s/pull-images.sh)
 
 Apply Network Plugin
     KubeCtl.Apply_F_Url    ${testbed_connection}    ${PLUGIN_URL}
@@ -61,8 +56,7 @@ Ping
 Get_Web_Page
     [Setup]    Setup_Client_Pod_Session
     ${stdout} =    Run_Finite_Command    curl -vv http://${nginx_ip}    ssh_session=${client_connection}
-    BuiltIn.Fail    msg=Assert missing, to be added when plugin works well.
-    #BuiltIn.Should_Contain   ${stdout}    5 received, 0% packet loss
+    BuiltIn.Should_Contain   ${stdout}    Welcome to nginx
     [Teardown]    Teardown_Client_Pod_Session
 
 Delete_Nginx_Pod
@@ -72,6 +66,52 @@ Delete_Nginx_Pod
 Delete_Ubuntu_Pod
     KubeCtl.Delete_F    ${testbed_connection}    ${UBUNTU_POD_FILE}
     KubeCtl.Wait_Until_Pod_Removed    ${testbed_connection}    ${client_pod_name}
+
+Deploy_Istio_Itself
+    KubeCtl.Apply_F    ${testbed_connection}    ${ISTIO_FILE}
+    ${istio_list} =    KubeCtl.Get_Pod_Name_By_Prefix    ${testbed_connection}    istio-
+    : FOR    ${istio_item}    IN    @{istio_list}
+    \     KubeCtl.Wait_Until_Pod_Started    ${testbed_connection}    ${istio_item}    timeout=60s    namespace=istio-system
+
+Deploy_Ubuntu_Pod_Istio
+    KubeCtl.Apply_F    ${testbed_connection}    ${UBUNTU_POD_FILE}
+    ${ubuntu_list} =    KubeCtl.Get_Pod_Name_By_Prefix    ${testbed_connection}    ubuntu-
+    ${ubuntu_list} =    BuiltIn.Wait_Until_Keyword_Succeeds    10s    2s    Get_Pod_Name    ${testbed_connection}    ubuntu-    ${1}
+    BuiltIn.Set_Suite_Variable    ${client_pod_name}    @{ubuntu_list}[0]
+    KubeCtl.Wait_Until_Pod_Started    ${testbed_connection}    ${client_pod_name}    timeout=60s
+
+Deploy_Nginx_Pod_Istio
+    KubeCtl.Apply_F    ${testbed_connection}    ${NGINX_POD_FILE}
+    ${nginx_list} =    KubeCtl.Get_Pod_Name_By_Prefix    ${testbed_connection}    nginx-
+    ${nginx_list} =    BuiltIn.Wait_Until_Keyword_Succeeds    10s    2s    Get_Pod_Name    ${testbed_connection}    nginx-    ${1}
+    BuiltIn.Set_Suite_Variable    ${nginx_pod_name}    @{nginx_list}[0]
+    KubeCtl.Wait_Until_Pod_Started    ${testbed_connection}    ${nginx_pod_name}    timeout=60s
+
+Ping_Istio
+    [Setup]    Setup_Client_Pod_Session
+    ${stdout} =    Run_Finite_Command    ping -c 5 ${nginx_ip}    ssh_session=${client_connection}
+    BuiltIn.Should_Contain   ${stdout}    5 received, 0% packet loss
+    [Teardown]     Teardown_Client_Pod_Session
+
+Get_Web_Page_Istio
+    [Setup]    Setup_Client_Pod_Session
+    ${stdout} =    Run_Finite_Command    curl -vv http://${nginx_ip}    ssh_session=${client_connection}
+    BuiltIn.Should_Contain   ${stdout}    Welcome to nginx
+    [Teardown]    Teardown_Client_Pod_Session
+
+Delete_Nginx_Pod_Istio
+    KubeCtl.Delete_F    ${testbed_connection}    ${NGINX_POD_FILE}
+    KubeCtl.Wait_Until_Pod_Removed    ${testbed_connection}    ${nginx_pod_name}
+
+Delete_Ubuntu_Pod_Istio
+    KubeCtl.Delete_F    ${testbed_connection}    ${UBUNTU_POD_FILE}
+    KubeCtl.Wait_Until_Pod_Removed    ${testbed_connection}    ${client_pod_name}
+
+Delete_Istio_Itself
+    ${istio_list} =    KubeCtl.Get_Pod_Name_By_Prefix    ${testbed_connection}    istio-
+    BuiltIn.Run_Keyword_And_Ignore_Error    KubeCtl.Delete_F    ${testbed_connection}    ${ISTIO_FILE}
+    : FOR    ${istio_item}    IN    @{istio_list}
+    \     KubeCtl.Wait_Until_Pod_Removed    ${testbed_connection}    ${istio_item}
 
 Delete_Network_Plugin
     KubeCtl.Delete_F_Url    ${testbed_connection}    ${PLUGIN_URL}

@@ -196,7 +196,7 @@ func (s *ContivshimManager) CreateContainer(ctx context.Context, req *kubeapi.Cr
 	// 3. Check if Close should be called
 
 	labels := req.SandboxConfig.GetLabels()
-	if labels["ldpreload"] != "" {
+	if labels["ldpreload"] == "true" {
 		mount := []*kubeapi.Mount{
 			{
 				HostPath:      "/dev/shm",

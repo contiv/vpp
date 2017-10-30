@@ -67,6 +67,10 @@ func (pc *PolicyCache) Update(dataChngEv datasync.ChangeEvent) error {
 // subscribed watchers are notified.
 // The function will forward any error returned by a watcher.
 func (pc *PolicyCache) Resync(resyncEv datasync.ResyncEvent) error {
+	dataResyncEvent := pc.resyncParseEvent(resyncEv)
+	for _, watcher := range pc.watchers {
+		watcher.Resync(dataResyncEvent)
+	}
 	return nil
 }
 

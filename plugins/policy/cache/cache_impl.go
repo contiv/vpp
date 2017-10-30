@@ -1,6 +1,7 @@
 package cache
 
 import (
+	"github.com/ligato/cn-infra/core"
 	"github.com/ligato/cn-infra/datasync"
 	"github.com/ligato/cn-infra/logging"
 
@@ -24,16 +25,28 @@ import (
 type PolicyCache struct {
 	Deps
 
-	ConfiguredPolicies   *policyidx.ConfigIndex
-	ConfiguredPods       *podidx.ConfigIndex
-	ConfiguredRules      *ruleidx.ConfigIndex
-	ConfiguredNamespaces *namespaceidx.ConfigIndex
-	Watchers             []PolicyCacheWatcher
+	configuredPolicies   *policyidx.ConfigIndex
+	configuredPods       *podidx.ConfigIndex
+	configuredRules      *ruleidx.ConfigIndex
+	configuredNamespaces *namespaceidx.ConfigIndex
+	watchers             []PolicyCacheWatcher
 }
 
 // Deps lists dependencies of PolicyCache.
 type Deps struct {
-	Log logging.Logger
+	Log        logging.Logger
+	PluginName core.PluginName
+}
+
+// Init initializes policy cache.
+func (pc *PolicyCache) Init() error {
+	pc.configuredPolicies = policyidx.NewConfigIndex(pc.Log, pc.PluginName, "policies")
+	pc.configuredPods = podidx.NewConfigIndex(pc.Log, pc.PluginName, "pods")
+	pc.configuredRules = ruleidx.NewConfigIndex(pc.Log, pc.PluginName, "rules")
+	pc.configuredNamespaces = namespaceidx.NewConfigIndex(pc.Log, pc.PluginName, "namespaces")
+
+	pc.watchers = []PolicyCacheWatcher{}
+	return nil
 }
 
 // Update processes a datasync change event associated with K8s State data.
@@ -41,7 +54,7 @@ type Deps struct {
 // notified.
 // The function will forward any error returned by a watcher.
 func (pc *PolicyCache) Update(dataChngEv datasync.ChangeEvent) error {
-	err := pc.ChangePropagateEvent(dataChngEv)
+	err := pc.changePropagateEvent(dataChngEv)
 	if err != nil {
 		return err
 	}
@@ -59,7 +72,7 @@ func (pc *PolicyCache) Resync(resyncEv datasync.ResyncEvent) error {
 
 // Watch subscribes a new watcher.
 func (pc *PolicyCache) Watch(watcher PolicyCacheWatcher) error {
-	pc.Watchers = append(pc.Watchers, watcher)
+	pc.watchers = append(pc.watchers, watcher)
 	return nil
 }
 

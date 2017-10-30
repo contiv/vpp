@@ -61,7 +61,7 @@ func (ci *ConfigIndex) LookupPod(podID string) (found bool, data *podmodel.Pod) 
 	return false, nil
 }
 
-// LookupPodLabelSelector performs lookup based on secondary index podLabelSelector.
+// LookupPodsByLabelSelector performs lookup based on secondary index podLabelSelector.
 func (ci *ConfigIndex) LookupPodsByLabelSelector(podLabelSelector string) (podIDs []string) {
 	return ci.mapping.ListNames(podLabelSelectorKey, podLabelSelector)
 }

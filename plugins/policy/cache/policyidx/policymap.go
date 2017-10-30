@@ -65,7 +65,7 @@ func (ci *ConfigIndex) LookupPolicy(policyID string) (found bool, data *policymo
 	return false, nil
 }
 
-// LookupPolicyLabelSelector performs lookup based on secondary index policyLabelSelector.
+// LookupPolicyByLabelSelector performs lookup based on secondary index policyLabelSelector.
 func (ci *ConfigIndex) LookupPolicyByLabelSelector(policyLabelSelector string) (policyIDs []string) {
 	return ci.mapping.ListNames(policyPodLabelKey, policyLabelSelector)
 }

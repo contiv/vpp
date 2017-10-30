@@ -43,14 +43,6 @@ func (pp *PolicyProcessor) Init() error {
 	return nil
 }
 
-func NewPolicyProcessor(cache cache.PolicyCacheAPI) *PolicyProcessor {
-	return &PolicyProcessor{
-		Deps{
-			Cache: cache,
-		},
-	}
-}
-
 // Process re-calculates the set of Contiv policies for pods with outdated
 // configuration. The order at which the pods are reconfigured or the order
 // of policies listed for a given pod are all irrelevant.

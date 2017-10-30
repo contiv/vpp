@@ -27,7 +27,7 @@ import (
 )
 
 // changePropagateEvent propagates CHANGE in the K8s configuration into the Cache.
-func (pc *PolicyCache) ChangePropagateEvent(dataChngEv datasync.ChangeEvent) error {
+func (pc *PolicyCache) changePropagateEvent(dataChngEv datasync.ChangeEvent) error {
 	var err error
 	var diff bool
 	key := dataChngEv.GetKey()
@@ -47,23 +47,23 @@ func (pc *PolicyCache) ChangePropagateEvent(dataChngEv datasync.ChangeEvent) err
 				return err
 			}
 			if datasync.Delete == dataChngEv.GetChangeType() {
-				pc.ConfiguredPolicies.UnregisterPolicy(oldPolicyID)
-				for _, watcher := range pc.Watchers {
+				pc.configuredPolicies.UnregisterPolicy(oldPolicyID)
+				for _, watcher := range pc.watchers {
 					if err := watcher.DelPolicy(&value); err != nil {
 						return err
 					}
 				}
 			} else if diff {
-				pc.ConfiguredPolicies.UnregisterPolicy(oldPolicyID)
-				pc.ConfiguredPolicies.RegisterPolicy(policyID, &value)
-				for _, watcher := range pc.Watchers {
+				pc.configuredPolicies.UnregisterPolicy(oldPolicyID)
+				pc.configuredPolicies.RegisterPolicy(policyID, &value)
+				for _, watcher := range pc.watchers {
 					if err := watcher.UpdatePolicy(&prevValue, &value); err != nil {
 						return err
 					}
 				}
 			}
-			pc.ConfiguredPolicies.RegisterPolicy(policyID, &value)
-			for _, watcher := range pc.Watchers {
+			pc.configuredPolicies.RegisterPolicy(policyID, &value)
+			for _, watcher := range pc.watchers {
 				if err := watcher.AddPolicy(&value); err != nil {
 					return err
 				}
@@ -84,23 +84,23 @@ func (pc *PolicyCache) ChangePropagateEvent(dataChngEv datasync.ChangeEvent) err
 				return err
 			}
 			if datasync.Delete == dataChngEv.GetChangeType() {
-				pc.ConfiguredPods.UnregisterPod(oldPodID)
-				for _, watcher := range pc.Watchers {
+				pc.configuredPods.UnregisterPod(oldPodID)
+				for _, watcher := range pc.watchers {
 					if err := watcher.DelPod(&value); err != nil {
 						return err
 					}
 				}
 			} else if diff {
-				pc.ConfiguredPods.UnregisterPod(oldPodID)
-				pc.ConfiguredPods.RegisterPod(podID, &value)
-				for _, watcher := range pc.Watchers {
+				pc.configuredPods.UnregisterPod(oldPodID)
+				pc.configuredPods.RegisterPod(podID, &value)
+				for _, watcher := range pc.watchers {
 					if err := watcher.UpdatePod(&prevValue, &value); err != nil {
 						return err
 					}
 				}
 			}
-			pc.ConfiguredPods.RegisterPod(podID, &value)
-			for _, watcher := range pc.Watchers {
+			pc.configuredPods.RegisterPod(podID, &value)
+			for _, watcher := range pc.watchers {
 				if err := watcher.AddPod(&value); err != nil {
 					return err
 				}
@@ -119,23 +119,23 @@ func (pc *PolicyCache) ChangePropagateEvent(dataChngEv datasync.ChangeEvent) err
 			return err
 		}
 		if datasync.Delete == dataChngEv.GetChangeType() {
-			pc.ConfiguredNamespaces.UnRegisterNamespace(oldNamespaceID)
-			for _, watcher := range pc.Watchers {
+			pc.configuredNamespaces.UnRegisterNamespace(oldNamespaceID)
+			for _, watcher := range pc.watchers {
 				if err := watcher.DelNamespace(&value); err != nil {
 					return err
 				}
 			}
 		} else if diff {
-			pc.ConfiguredNamespaces.UnRegisterNamespace(oldNamespaceID)
-			pc.ConfiguredNamespaces.RegisterNamespace(namespaceID, &value)
-			for _, watcher := range pc.Watchers {
+			pc.configuredNamespaces.UnRegisterNamespace(oldNamespaceID)
+			pc.configuredNamespaces.RegisterNamespace(namespaceID, &value)
+			for _, watcher := range pc.watchers {
 				if err := watcher.UpdateNamespace(&prevValue, &value); err != nil {
 					return err
 				}
 			}
 		}
-		pc.ConfiguredNamespaces.RegisterNamespace(oldNamespaceID, &value)
-		for _, watcher := range pc.Watchers {
+		pc.configuredNamespaces.RegisterNamespace(oldNamespaceID, &value)
+		for _, watcher := range pc.watchers {
 			if err := watcher.AddNamespace(&value); err != nil {
 				return err
 			}

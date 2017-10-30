@@ -60,13 +60,13 @@ func (pc *PolicyConfigurator) Close() error {
 // Commit() is called. If <resync> is enabled, the supplied configuration will
 // completely replace the existing one, otherwise pods not mentioned in the
 // transaction are left unchanged.
-func (pc *PolicyConfigurator) NewTxn(resync bool) *PolicyConfiguratorTxn {
+func (pc *PolicyConfigurator) NewTxn(resync bool) Txn {
 	return &PolicyConfiguratorTxn{resync: resync}
 }
 
 // Configure applies the set of policies for a given pod. The existing policies
 // are replaced. The order of policies is not important (it is a set).
-func (pct *PolicyConfiguratorTxn) Configure(pod podmodel.ID, policies []*ContivPolicy) *PolicyConfiguratorTxn {
+func (pct *PolicyConfiguratorTxn) Configure(pod podmodel.ID, policies []*ContivPolicy) Txn {
 	return pct
 }
 

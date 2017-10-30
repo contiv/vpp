@@ -13,15 +13,14 @@ import (
 // The configuration changes are transported into aclplugin via localclient.
 type Renderer struct {
 	Deps
-
-	aclTxnFactory       func() (dsl linux.DataChangeDSL)
-	aclResyncTxnFactory func() (dsl linux.DataResyncDSL)
 }
 
 // Deps lists dependencies of Renderer.
 type Deps struct {
-	Log   logging.Logger
-	Cache cache.ContivRuleCacheAPI
+	Log                 logging.Logger
+	Cache               cache.ContivRuleCacheAPI
+	ACLTxnFactory       func() (dsl linux.DataChangeDSL)
+	ACLResyncTxnFactory func() (dsl linux.DataResyncDSL)
 }
 
 // RendererTxn represents a single transaction of Renderer.
@@ -30,12 +29,9 @@ type RendererTxn struct {
 	resync   bool
 }
 
-// NewRenderer is a constructor for ACL Renderer.
-func NewRenderer(
-	aclTxnFactory func() (dsl linux.DataChangeDSL),
-	aclResyncTxnFactory func() (dsl linux.DataResyncDSL),
-) *Renderer {
-	return &Renderer{aclTxnFactory: aclTxnFactory, aclResyncTxnFactory: aclResyncTxnFactory}
+// Init initializes the ACL Renderer.
+func (ar *Renderer) Init() error {
+	return nil
 }
 
 // NewTxn starts a new transaction. The rendering executes only after Commit()
@@ -43,14 +39,14 @@ func NewRenderer(
 // If <resync> is enabled, the supplied configuration will completely
 // replace the existing one. Otherwise, the change is performed incrementally,
 // i.e. interfaces not mentioned in the transaction are left unaffected.
-func (ar *Renderer) NewTxn(resync bool) *RendererTxn {
+func (ar *Renderer) NewTxn(resync bool) renderer.Txn {
 	return &RendererTxn{cacheTxn: ar.Cache.NewTxn(resync), resync: resync}
 }
 
 // Render applies the set of ingress & egress rules for a given VPP interface.
 // The existing rules are replaced.
 // Te actual change is performed only after the commit.
-func (art *RendererTxn) Render(ifName string, ingress []renderer.ContivRule, egress []renderer.ContivRule) *RendererTxn {
+func (art *RendererTxn) Render(ifName string, ingress []renderer.ContivRule, egress []renderer.ContivRule) renderer.Txn {
 	art.cacheTxn.Update(ifName, ingress, egress)
 	return art
 }

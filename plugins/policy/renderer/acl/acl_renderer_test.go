@@ -117,6 +117,6 @@ func TestSingleContivRuleOneInterface(t *testing.T) {
 	aclRenderer.NewTxn(false).Render("afpacket1", ingress, egress).Commit()
 
 	// Verify that the change had no further effect.
-	//gomega.Expect(txnTracker.PendingTxns).To(gomega.HaveLen(0))
-	//gomega.Expect(txnTracker.CommittedTxns).To(gomega.HaveLen(1))
+	gomega.Expect(txnTracker.PendingTxns).To(gomega.HaveLen(0))
+	gomega.Expect(txnTracker.CommittedTxns).To(gomega.HaveLen(1))
 }

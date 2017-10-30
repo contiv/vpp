@@ -24,14 +24,6 @@ import (
 
 const podLabelSelectorKey = "podLabelSelectorKey"
 
-// Config groups applied policy in a container
-type Config struct {
-	PodName          string
-	PodNamespace     string
-	PodIPAddress     string
-	PodLabelSelector []*podmodel.Pod_Label
-}
-
 // ConfigIndex implements a cache for configured policies. Primary index is PolicyName.
 type ConfigIndex struct {
 	mapping idxmap.NamedMappingRW
@@ -42,27 +34,27 @@ func NewConfigIndex(logger logging.Logger, owner core.PluginName, title string) 
 	return &ConfigIndex{mapping: mem.NewNamedMapping(logger, owner, title, IndexFunction)}
 }
 
-// RegisterPod adds new entry into the mapping
-func (ci *ConfigIndex) RegisterPod(podID string, data *Config) {
+// RegisterPod adds new pod entry into the mapping
+func (ci *ConfigIndex) RegisterPod(podID string, data *podmodel.Pod) {
 	ci.mapping.Put(podID, data)
 }
 
-// UnregisterPod removes the entry from the mapping
-func (ci *ConfigIndex) UnregisterPod(podID string) (found bool, data *Config) {
+// UnregisterPod removes a pod entry from the mapping
+func (ci *ConfigIndex) UnregisterPod(podID string) (found bool, data *podmodel.Pod) {
 	d, found := ci.mapping.Delete(podID)
 	if found {
-		if data, ok := d.(*Config); ok {
+		if data, ok := d.(*podmodel.Pod); ok {
 			return found, data
 		}
 	}
 	return false, nil
 }
 
-// LookupPod looks up entry in the.
-func (ci *ConfigIndex) LookupPod(podID string) (found bool, data *Config) {
+// LookupPod looks up an entry in the Pod map given a PodID
+func (ci *ConfigIndex) LookupPod(podID string) (found bool, data *podmodel.Pod) {
 	d, found := ci.mapping.GetValue(podID)
 	if found {
-		if data, ok := d.(*Config); ok {
+		if data, ok := d.(*podmodel.Pod); ok {
 			return found, data
 		}
 	}
@@ -70,7 +62,7 @@ func (ci *ConfigIndex) LookupPod(podID string) (found bool, data *Config) {
 }
 
 // LookupPodLabelSelector performs lookup based on secondary index podLabelSelector.
-func (ci *ConfigIndex) LookupPodLabelSelector(podLabelSelector string) (podIDs []string) {
+func (ci *ConfigIndex) LookupPodsByLabelSelector(podLabelSelector string) (podIDs []string) {
 	return ci.mapping.ListNames(podLabelSelectorKey, podLabelSelector)
 }
 
@@ -83,8 +75,8 @@ func (ci *ConfigIndex) ListAll() (podIDs []string) {
 func IndexFunction(data interface{}) map[string][]string {
 	res := map[string][]string{}
 	labels := []string{}
-	if config, ok := data.(*Config); ok && config != nil {
-		for _, v := range config.PodLabelSelector {
+	if config, ok := data.(*podmodel.Pod); ok && config != nil {
+		for _, v := range config.Label {
 			labelSelector := v.Key + v.Value
 			labels = append(labels, labelSelector)
 		}

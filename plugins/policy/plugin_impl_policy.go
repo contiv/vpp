@@ -25,6 +25,15 @@ import (
 
 	"github.com/contiv/vpp/plugins/contiv"
 	"github.com/contiv/vpp/plugins/ksr/model/namespace"
+	"github.com/contiv/vpp/plugins/policy/cache"
+
+	"github.com/contiv/vpp/plugins/policy/cache/namespaceidx"
+	"github.com/contiv/vpp/plugins/policy/cache/podidx"
+	"github.com/contiv/vpp/plugins/policy/cache/policyidx"
+	"github.com/contiv/vpp/plugins/policy/cache/ruleidx"
+	"github.com/contiv/vpp/plugins/policy/configurator"
+	"github.com/contiv/vpp/plugins/policy/processor"
+	aclrenderer "github.com/contiv/vpp/plugins/policy/renderer/acl"
 )
 
 // Plugin watches configuration of K8s resources (as reflected by KSR into ETCD)
@@ -41,17 +50,29 @@ type Plugin struct {
 	cancel context.CancelFunc
 	wg     sync.WaitGroup
 
-	configProcessor *ConfigProcessor
+	// Policy Plugin consists of the following "layers"
+	policyCache  *cache.PolicyCache
+	processor    *processor.PolicyProcessor
+	configurator *configurator.PolicyConfigurator
+	renderer     *aclrenderer.Renderer
+
+	configuredPolicies   *policyidx.ConfigIndex
+	configuredPods       *podidx.ConfigIndex
+	configuredRules      *ruleidx.ConfigIndex
+	configuredNamespaces *namespaceidx.ConfigIndex
+
+	watchers []cache.PolicyCacheWatcher
 }
 
 // Deps defines dependencies of policy plugin.
 type Deps struct {
 	local.PluginInfraDeps
-	Watcher datasync.KeyValProtoWatcher /* prefixed for KSR-published K8s state data */
-	Contiv  *contiv.Plugin              /* for GetIfName() */
+	Watcher        datasync.KeyValProtoWatcher /* prefixed for KSR-published K8s state data */
+	Contiv         *contiv.Plugin              /* for GetIfName() */
+	PolicyCacheAPI cache.PolicyCacheAPI
 }
 
-// Init initializes policy processor and starts watching ETCD for K8s configuration.
+// Init initializes policy layers and caches and starts watching ETCD for K8s configuration.
 func (p *Plugin) Init() error {
 	var err error
 	p.Log.SetLevel(logging.DebugLevel)
@@ -59,14 +80,49 @@ func (p *Plugin) Init() error {
 	p.resyncChan = make(chan datasync.ResyncEvent)
 	p.changeChan = make(chan datasync.ChangeEvent)
 
-	p.configProcessor = &ConfigProcessor{
-		ProcessorDeps: ProcessorDeps{
-			Log:        p.Log.NewLogger("-processor"),
-			PluginName: p.PluginName,
-			Contiv:     p.Contiv,
+	p.configuredPolicies = policyidx.NewConfigIndex(p.Log, p.PluginName, "policies")
+	p.configuredPods = podidx.NewConfigIndex(p.Log, p.PluginName, "pods")
+	p.configuredRules = ruleidx.NewConfigIndex(p.Log, p.PluginName, "rules")
+	p.configuredNamespaces = namespaceidx.NewConfigIndex(p.Log, p.PluginName, "namespaces")
+
+	p.watchers = []cache.PolicyCacheWatcher{}
+
+	p.policyCache = &cache.PolicyCache{
+		Deps: cache.Deps{
+			Log: p.Log.NewLogger("-policyCache"),
+		},
+		ConfiguredPolicies:   p.configuredPolicies,
+		ConfiguredPods:       p.configuredPods,
+		ConfiguredRules:      p.configuredRules,
+		ConfiguredNamespaces: p.configuredNamespaces,
+		Watchers:             p.watchers,
+	}
+
+	p.configurator = &configurator.PolicyConfigurator{
+		Deps: configurator.Deps{
+			Log:    p.Log.NewLogger("-policyConfigurator"),
+			Contiv: p.Contiv,
+			Cache:  p.policyCache,
 		},
 	}
-	p.configProcessor.Init()
+
+	p.processor = &processor.PolicyProcessor{
+		Deps: processor.Deps{
+			Log:          p.Log.NewLogger("-policyProcessor"),
+			Contiv:       p.Contiv,
+			Cache:        p.policyCache,
+			Configurator: p.configurator,
+		},
+	}
+
+	p.renderer = &aclrenderer.Renderer{
+		Deps: aclrenderer.Deps{
+			Log: p.Log.NewLogger("-policyRenderer"),
+		},
+	}
+
+	p.processor.Init()
+	p.configurator.Init()
 
 	var ctx context.Context
 	ctx, p.cancel = context.WithCancel(context.Background())
@@ -93,12 +149,11 @@ func (p *Plugin) watchEvents(ctx context.Context) {
 	for {
 		select {
 		case resyncConfigEv := <-p.resyncChan:
-			event := p.resyncParseEvent(resyncConfigEv)
-			err := p.configProcessor.Resync(event)
+			err := p.policyCache.Resync(resyncConfigEv)
 			resyncConfigEv.Done(err)
 
 		case dataChngEv := <-p.changeChan:
-			err := p.changePropagateEvent(dataChngEv)
+			err := p.policyCache.Update(dataChngEv)
 			dataChngEv.Done(err)
 
 		case <-ctx.Done():
@@ -113,6 +168,5 @@ func (p *Plugin) Close() error {
 	p.cancel()
 	p.wg.Wait()
 	safeclose.CloseAll(p.watchConfigReg, p.resyncChan, p.changeChan)
-	p.configProcessor.Close()
 	return nil
 }

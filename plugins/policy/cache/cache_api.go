@@ -30,7 +30,7 @@ type PolicyCacheAPI interface {
 	Resync(resyncEv datasync.ResyncEvent) error
 
 	// Watch subscribes a new watcher.
-	Watch(watcher *PolicyCacheWatcher)
+	Watch(watcher PolicyCacheWatcher)
 
 	// LookupPod returns data of a given Pod.
 	LookupPod(pod podmodel.ID) (found bool, data *podmodel.Pod)

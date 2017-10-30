@@ -28,15 +28,6 @@ const (
 	policyEgressLabelKey  = "policyEgressLabelKey"
 )
 
-// Config groups applied policy in a container
-type Config struct {
-	PolicyName        string
-	PolicyNamespace   string
-	PolicyType        []string
-	PolicyPodLabel    []*policymodel.Policy_Label
-	PolicyIngressRule []*policymodel.Policy_IngressRule
-}
-
 // ConfigIndex implements a cache for configured policies. Primary index is policyID.
 type ConfigIndex struct {
 	mapping idxmap.NamedMappingRW
@@ -47,27 +38,27 @@ func NewConfigIndex(logger logging.Logger, owner core.PluginName, title string) 
 	return &ConfigIndex{mapping: mem.NewNamedMapping(logger, owner, title, IndexFunction)}
 }
 
-// RegisterPolicy adds new entry into the mapping
-func (ci *ConfigIndex) RegisterPolicy(policyID string, data *Config) {
+// RegisterPolicy adds new entry into the Policy mapping
+func (ci *ConfigIndex) RegisterPolicy(policyID string, data *policymodel.Policy) {
 	ci.mapping.Put(policyID, data)
 }
 
-// UnregisterPolicy removes the entry from the mapping
-func (ci *ConfigIndex) UnregisterPolicy(policyID string) (found bool, data *Config) {
+// UnregisterPolicy removes an entry from the Policy mapping given a policyID
+func (ci *ConfigIndex) UnregisterPolicy(policyID string) (found bool, data *policymodel.Policy) {
 	d, found := ci.mapping.Delete(policyID)
 	if found {
-		if data, ok := d.(*Config); ok {
+		if data, ok := d.(*policymodel.Policy); ok {
 			return found, data
 		}
 	}
 	return false, nil
 }
 
-// LookupPolicy looks up entry in the policy based on policyName.
-func (ci *ConfigIndex) LookupPolicy(policyID string) (found bool, data *Config) {
+// LookupPolicy looks up entry in the Policy mapping given a policyID.
+func (ci *ConfigIndex) LookupPolicy(policyID string) (found bool, data *policymodel.Policy) {
 	d, found := ci.mapping.GetValue(policyID)
 	if found {
-		if data, ok := d.(*Config); ok {
+		if data, ok := d.(*policymodel.Policy); ok {
 			return found, data
 		}
 	}
@@ -75,16 +66,16 @@ func (ci *ConfigIndex) LookupPolicy(policyID string) (found bool, data *Config) 
 }
 
 // LookupPolicyLabelSelector performs lookup based on secondary index policyLabelSelector.
-func (ci *ConfigIndex) LookupPolicyLabelSelector(policyLabelSelector string) (policyIDs []string) {
+func (ci *ConfigIndex) LookupPolicyByLabelSelector(policyLabelSelector string) (policyIDs []string) {
 	return ci.mapping.ListNames(policyPodLabelKey, policyLabelSelector)
 }
 
-// LookupIngressLabelSelector performs lookup based on secondary index policyLabelSelector.
+// LookupIngressLabelSelector performs lookup based on secondary index ingressLabelSelector.
 func (ci *ConfigIndex) LookupIngressLabelSelector(ingressLabelSelector string) (policyIDs []string) {
 	return ci.mapping.ListNames(policyIngressLabelKey, ingressLabelSelector)
 }
 
-// LookupEgressLabelSelector performs lookup based on secondary index policyLabelSelector.
+// LookupEgressLabelSelector performs lookup based on secondary index egressLabelSelector.
 func (ci *ConfigIndex) LookupEgressLabelSelector(egressLabelSelector string) (policyIDs []string) {
 	return ci.mapping.ListNames(policyEgressLabelKey, egressLabelSelector)
 }
@@ -99,14 +90,15 @@ func IndexFunction(data interface{}) map[string][]string {
 	res := map[string][]string{}
 	policyPodLabels := []string{}
 	policyIngressLabels := []string{}
-	//policyEgressLabels := []string{}
-	if config, ok := data.(*Config); ok && config != nil {
-		for _, v := range config.PolicyPodLabel {
+	policyEgressLabels := []string{}
+
+	if config, ok := data.(*policymodel.Policy); ok && config != nil {
+		for _, v := range config.Label {
 			labelSelector := v.Key + v.Value
 			policyPodLabels = append(policyPodLabels, labelSelector)
 		}
 		res[policyPodLabelKey] = policyPodLabels
-		for _, v1 := range config.PolicyIngressRule {
+		for _, v1 := range config.IngressRule {
 			for _, v2 := range v1.From {
 				ingressLabels := v2.Pods.MatchLabel
 				for _, v3 := range ingressLabels {
@@ -116,16 +108,16 @@ func IndexFunction(data interface{}) map[string][]string {
 			}
 		}
 		res[policyIngressLabelKey] = policyIngressLabels
-		// for _, v1 := range config.PolicyEgressRule {
-		// 	for _, v2 := range v1.To {
-		// 		egressLabels := v2.Pods.MatchLabel
-		// 		for _, v3 := range egressLabels {
-		// 			labelSelector := v3.Key + v3.Value
-		// 			policyEgressLabels = append(policyEgressLabels, labelSelector)
-		// 		}
-		// 	}
-		// }
-		// res[policyEgressLabelKey] = policyEgressLabels
+		for _, v1 := range config.EgressRule {
+			for _, v2 := range v1.To {
+				egressLabels := v2.Pods.MatchLabel
+				for _, v3 := range egressLabels {
+					labelSelector := v3.Key + v3.Value
+					policyEgressLabels = append(policyEgressLabels, labelSelector)
+				}
+			}
+		}
+		res[policyEgressLabelKey] = policyEgressLabels
 	}
 	return res
 }

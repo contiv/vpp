@@ -7,6 +7,10 @@ import (
 	nsmodel "github.com/contiv/vpp/plugins/ksr/model/namespace"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	policymodel "github.com/contiv/vpp/plugins/ksr/model/policy"
+	"github.com/contiv/vpp/plugins/policy/cache/namespaceidx"
+	"github.com/contiv/vpp/plugins/policy/cache/podidx"
+	"github.com/contiv/vpp/plugins/policy/cache/policyidx"
+	"github.com/contiv/vpp/plugins/policy/cache/ruleidx"
 )
 
 // PolicyCache s used for a in-memory storage of K8s State data with fast
@@ -19,6 +23,12 @@ import (
 // The cache provides various fast lookup methods (e.g. by the label selector).
 type PolicyCache struct {
 	Deps
+
+	ConfiguredPolicies   *policyidx.ConfigIndex
+	ConfiguredPods       *podidx.ConfigIndex
+	ConfiguredRules      *ruleidx.ConfigIndex
+	ConfiguredNamespaces *namespaceidx.ConfigIndex
+	Watchers             []PolicyCacheWatcher
 }
 
 // Deps lists dependencies of PolicyCache.
@@ -31,6 +41,11 @@ type Deps struct {
 // notified.
 // The function will forward any error returned by a watcher.
 func (pc *PolicyCache) Update(dataChngEv datasync.ChangeEvent) error {
+	err := pc.ChangePropagateEvent(dataChngEv)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -43,7 +58,9 @@ func (pc *PolicyCache) Resync(resyncEv datasync.ResyncEvent) error {
 }
 
 // Watch subscribes a new watcher.
-func (pc *PolicyCache) Watch(watcher *PolicyCacheWatcher) {
+func (pc *PolicyCache) Watch(watcher PolicyCacheWatcher) error {
+	pc.Watchers = append(pc.Watchers, watcher)
+	return nil
 }
 
 // LookupPod returns data of a given Pod.

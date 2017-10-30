@@ -64,6 +64,8 @@ you can now join your worker nodes:
 $ sudo kubeadm join <... OUTPUT FROM KUBEADM INIT ON MASTER ...>
 ```
 
+Note that if clocks are out of sync between your nodes (as may be the case with bare metal setups) then the join may fail due to "x509: certificate has expired or is not yet valid".    The best approach is probably to sync all nodes using NTP.
+
 Verify that all nodes have successfully joined the cluster:
 ```
 $ kubectl get nodes

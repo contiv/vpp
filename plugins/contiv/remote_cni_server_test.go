@@ -20,8 +20,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/onsi/gomega"
-
 	"git.fd.io/govpp.git/adapter/mock"
 	govppmock "git.fd.io/govpp.git/adapter/mock"
 	"git.fd.io/govpp.git/adapter/mock/binapi"
@@ -35,7 +33,6 @@ import (
 
 	"github.com/ligato/cn-infra/core"
 	"github.com/ligato/cn-infra/logging/logroot"
-
 	"github.com/ligato/vpp-agent/idxvpp/nametoidx"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/bin_api/af_packet"
 	interfaces_bin "github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/bin_api/interfaces"
@@ -46,6 +43,8 @@ import (
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/bin_api/vxlan"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/ifaceidx"
 	vpp_intf "github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/model/interfaces"
+
+	"github.com/onsi/gomega"
 )
 
 const (
@@ -102,7 +101,7 @@ func TestAdd(t *testing.T) {
 	gomega.Expect(reply).NotTo(gomega.BeNil())
 
 	gomega.Expect(len(txns.PendingTxns)).To(gomega.BeEquivalentTo(0))
-	gomega.Expect(len(txns.CommittedTxns)).To(gomega.BeEquivalentTo(5))
+	gomega.Expect(len(txns.CommittedTxns)).To(gomega.BeEquivalentTo(2))
 	// TODO add asserts for txns / currently applied config
 
 	res := configuredContainers.LookupPodName(podName)

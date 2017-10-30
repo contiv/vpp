@@ -42,8 +42,12 @@ func TestSingleContivRuleOneInterface(t *testing.T) {
 	logger.Debug("TestSingleContivRuleOneInterface")
 
 	// Create an instance of ContivRuleCache
-	ruleCache := NewContivRuleCache()
-	ruleCache.Deps.Log = logger
+	ruleCache := &ContivRuleCache{
+		Deps: Deps {
+			Log: logger,
+		},
+	}
+	ruleCache.Init()
 
 	// Prepare input data.
 	rule := &renderer.ContivRule{
@@ -130,8 +134,12 @@ func TestSingleContivRuleMultipleInterfaces(t *testing.T) {
 	logger.Debug("TestSingleContivRuleMultipleInterfaces")
 
 	// Create an instance of ContivRuleCache
-	ruleCache := NewContivRuleCache()
-	ruleCache.Deps.Log = logger
+	ruleCache := &ContivRuleCache{
+		Deps: Deps {
+			Log: logger,
+		},
+	}
+	ruleCache.Init()
 
 	// Prepare input data.
 	rule := &renderer.ContivRule{
@@ -288,8 +296,12 @@ func TestMultipleContivRulesSingleInterface(t *testing.T) {
 	logger.Debug("TestMultipleContivRulesSingleInterface")
 
 	// Create an instance of ContivRuleCache
-	ruleCache := NewContivRuleCache()
-	ruleCache.Deps.Log = logger
+	ruleCache := &ContivRuleCache{
+		Deps: Deps {
+			Log: logger,
+		},
+	}
+	ruleCache.Init()
 
 	// Prepare input data.
 	egRule1 := &renderer.ContivRule{
@@ -453,8 +465,12 @@ func TestMultipleContivRulesMultipleInterfaces(t *testing.T) {
 	logger.Debug("TestMultipleContivRulesMultipleInterfaces")
 
 	// Create an instance of ContivRuleCache
-	ruleCache := NewContivRuleCache()
-	ruleCache.Deps.Log = logger
+	ruleCache := &ContivRuleCache{
+		Deps: Deps {
+			Log: logger,
+		},
+	}
+	ruleCache.Init()
 
 	// Prepare input data.
 	egRule1 := &renderer.ContivRule{
@@ -715,8 +731,12 @@ func TestMultipleContivRulesMultipleInterfacesWithResync(t *testing.T) {
 	logger.Debug("TestMultipleContivRulesMultipleInterfacesWithResync")
 
 	// Create an instance of ContivRuleCache
-	ruleCache := NewContivRuleCache()
-	ruleCache.Deps.Log = logger
+	ruleCache := &ContivRuleCache{
+		Deps: Deps {
+			Log: logger,
+		},
+	}
+	ruleCache.Init()
 
 	// Prepare input data.
 	egRule1 := &renderer.ContivRule{

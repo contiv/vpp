@@ -69,37 +69,34 @@ type ContivRuleCacheTxn struct {
 //  AssignInterface(ruleList, ifName)
 //  UnassignInterface(ruleList/nil, ifName)
 type ContivRuleLists struct {
-	cache *ContivRuleCache // for logging only
-
+	Log logging.Logger
 	ruleLists   []*ContivRuleList          /* ordered by rules */
 	numItems    int                        /* actual number of lists, the rest are nils */
 	byID        map[string]*ContivRuleList /* search by rule list ID */
 	byInterface map[string]*ContivRuleList /* search by assigned interface */
 }
 
-// NewContivRuleCache is a constructor for ContivRuleCache.
-func NewContivRuleCache() *ContivRuleCache {
-	cache := &ContivRuleCache{
-		interfaces: NewInterfaceSet(),
-		lastListID: make(map[string]uint64),
-	}
-	cache.ingress = NewContivRuleLists(cache, false)
-	cache.egress = NewContivRuleLists(cache, false)
-	return cache
-}
-
 // NewContivRuleLists is a constructor for ContivRuleLists.
-func NewContivRuleLists(cache *ContivRuleCache, dummy bool) *ContivRuleLists {
+func NewContivRuleLists(logger logging.Logger, dummy bool) *ContivRuleLists {
 	capacity := 0
 	if !dummy {
 		capacity = 100
 	}
 	return &ContivRuleLists{
-		cache:       cache,
+		Log: logger,
 		ruleLists:   make([]*ContivRuleList, 0, capacity),
 		byID:        make(map[string]*ContivRuleList),
 		byInterface: make(map[string]*ContivRuleList),
 	}
+}
+
+// Init initializes the ContivRule Cache.
+func (crc *ContivRuleCache) Init() error {
+	crc.interfaces = NewInterfaceSet()
+	crc.lastListID = make(map[string]uint64)
+	crc.ingress = NewContivRuleLists(crc.Log, false)
+	crc.egress = NewContivRuleLists(crc.Log, false)
+	return nil
 }
 
 // NewTxn starts a new transaction. The rendering executes only after Commit()
@@ -110,8 +107,8 @@ func (crc *ContivRuleCache) NewTxn(resync bool) Txn {
 	return &ContivRuleCacheTxn{
 		cache:      crc,
 		resync:     resync,
-		ingress:    NewContivRuleLists(crc, false),
-		egress:     NewContivRuleLists(crc, false),
+		ingress:    NewContivRuleLists(crc.Log, false),
+		egress:     NewContivRuleLists(crc.Log, false),
 		interfaces: NewInterfaceSet(),
 	}
 }
@@ -152,8 +149,8 @@ func (crct *ContivRuleCacheTxn) Update(ifName string, ingress []*renderer.Contiv
 	}).Debug("ContivRuleCacheTxn Update()")
 	crct.interfaces.Add(ifName)
 	if crct.resync == true {
-		crct.updateInterface(ifName, ingress, "ingress", crct.ingress, NewContivRuleLists(crct.cache, true))
-		crct.updateInterface(ifName, egress, "egress", crct.egress, NewContivRuleLists(crct.cache, true))
+		crct.updateInterface(ifName, ingress, "ingress", crct.ingress, NewContivRuleLists(crct.cache.Log, true))
+		crct.updateInterface(ifName, egress, "egress", crct.egress, NewContivRuleLists(crct.cache.Log, true))
 	} else {
 		crct.updateInterface(ifName, ingress, "ingress", crct.ingress, crct.cache.ingress)
 		crct.updateInterface(ifName, egress, "egress", crct.egress, crct.cache.egress)
@@ -239,8 +236,8 @@ func (crct *ContivRuleCacheTxn) updateInterface(ifName string, rules []*renderer
 // Must be run before Commit().
 func (crct *ContivRuleCacheTxn) Changes() (ingress, egress []*TxnChange) {
 	if crct.resync == true {
-		ingress = crct.getChanges(crct.ingress, NewContivRuleLists(crct.cache, true))
-		egress = crct.getChanges(crct.egress, NewContivRuleLists(crct.cache, true))
+		ingress = crct.getChanges(crct.ingress, NewContivRuleLists(crct.cache.Log, true))
+		egress = crct.getChanges(crct.egress, NewContivRuleLists(crct.cache.Log, true))
 	} else {
 		ingress = crct.getChanges(crct.ingress, crct.cache.ingress)
 		egress = crct.getChanges(crct.egress, crct.cache.egress)

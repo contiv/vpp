@@ -40,16 +40,27 @@ func ipNetwork(addr string) *net.IPNet {
 
 func TestSingleContivRuleOneInterface(t *testing.T) {
 	gomega.RegisterTestingT(t)
+	logger := logroot.StandardLogger()
+	logger.SetLevel(logging.DebugLevel)
+	logger.Debug("TestSingleContivRuleOneInterface")
 
 	// Prepare ACL Renderer and mock localclient.
 	txnTracker := localclient.NewTxnTracker(nil)
-	ruleCache := cache.NewContivRuleCache()
-	ruleCache.Deps.Log = logroot.StandardLogger()
-	ruleCache.Deps.Log.SetLevel(logging.DebugLevel)
-	aclRenderer := NewRenderer(txnTracker.NewDataChangeTxn, txnTracker.NewDataResyncTxn)
-	aclRenderer.Deps.Log = logroot.StandardLogger()
-	aclRenderer.Deps.Log.SetLevel(logging.DebugLevel)
-	aclRenderer.Deps.Cache = ruleCache
+	ruleCache := &cache.ContivRuleCache{
+		Deps: cache.Deps{
+			Log: logger,
+		},
+	}
+	ruleCache.Init()
+	aclRenderer := &Renderer{
+		Deps: Deps{
+			Log:                 logger,
+			Cache:               ruleCache,
+			ACLTxnFactory:       txnTracker.NewDataChangeTxn,
+			ACLResyncTxnFactory: txnTracker.NewDataResyncTxn,
+		},
+	}
+	aclRenderer.Init()
 
 	// Prepare input data.
 	rule := &renderer.ContivRule{

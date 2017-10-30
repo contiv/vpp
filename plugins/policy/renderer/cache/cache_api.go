@@ -88,7 +88,7 @@ type ContivRuleList struct {
 // String converts ContivRuleList (pointer) into a human-readable string
 // representation.
 func (crl *ContivRuleList) String() string {
-	return fmt.Sprintf("Rule List %s <rules: %s, ifs: %s>",
+	return fmt.Sprintf("Rule List %s <rules: %v, ifs: %s>",
 		crl.ID, crl.Rules, crl.Interfaces)
 }
 

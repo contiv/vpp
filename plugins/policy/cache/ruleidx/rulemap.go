@@ -22,7 +22,7 @@ import (
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/aclplugin/model/acl"
 )
 
-// Config groups applied policy in a container
+// Config groups rules applied to a Pod
 type Config struct {
 	ACLRule *acl.AccessLists_Acl // configuration sent to VPP
 }
@@ -37,12 +37,12 @@ func NewConfigIndex(logger logging.Logger, owner core.PluginName, title string) 
 	return &ConfigIndex{mapping: mem.NewNamedMapping(logger, owner, title, nil)}
 }
 
-// RegisterRule adds new entry into the mapping
+// RegisterRule adds a new entry into the Rule mapping
 func (ci *ConfigIndex) RegisterRule(ruleID string, data *Config) {
 	ci.mapping.Put(ruleID, data)
 }
 
-// UnregisterRule removes the entry from the mapping
+// UnregisterRule removes an entry from the Rule mapping
 func (ci *ConfigIndex) UnregisterRule(ruleID string) (found bool, data *Config) {
 	d, found := ci.mapping.Delete(ruleID)
 	if found {
@@ -53,7 +53,7 @@ func (ci *ConfigIndex) UnregisterRule(ruleID string) (found bool, data *Config) 
 	return false, nil
 }
 
-// LookupRule looks up entry in the rulemap.
+// LookupRule looks up entry in the Rule mapping given a ruleID.
 func (ci *ConfigIndex) LookupRule(ruleID string) (found bool, data *Config) {
 	d, found := ci.mapping.GetValue(ruleID)
 	if found {

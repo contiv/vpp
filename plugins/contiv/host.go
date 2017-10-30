@@ -47,8 +47,9 @@ func (s *remoteCNIserver) configureRouteOnHost() error {
 
 func (s *remoteCNIserver) defaultRouteToHost() *l3.StaticRoutes_Route {
 	return &l3.StaticRoutes_Route{
-		DstIpAddr:   "0.0.0.0/0",
-		NextHopAddr: vethHostEndIP,
+		DstIpAddr:         "0.0.0.0/0",
+		NextHopAddr:       vethHostEndIP,
+		OutgoingInterface: vethVPPEndName,
 	}
 }
 
@@ -59,7 +60,7 @@ func (s *remoteCNIserver) interconnectVethHost() *linux_intf.LinuxInterfaces_Int
 		Enabled:    true,
 		HostIfName: vethHostEndName,
 		Veth: &linux_intf.LinuxInterfaces_Interface_Veth{
-			PeerIfName: vethVPPEndName,
+			PeerIfName: "v2",
 		},
 		IpAddresses: []string{vethHostEndIP + "/24"},
 	}
@@ -67,7 +68,7 @@ func (s *remoteCNIserver) interconnectVethHost() *linux_intf.LinuxInterfaces_Int
 
 func (s *remoteCNIserver) interconnectVethVpp() *linux_intf.LinuxInterfaces_Interface {
 	return &linux_intf.LinuxInterfaces_Interface{
-		Name:       vethVPPEndName,
+		Name:       "v2",
 		Type:       linux_intf.LinuxInterfaces_VETH,
 		Enabled:    true,
 		HostIfName: vethVPPEndName,
@@ -79,11 +80,11 @@ func (s *remoteCNIserver) interconnectVethVpp() *linux_intf.LinuxInterfaces_Inte
 
 func (s *remoteCNIserver) interconnectAfpacket() *vpp_intf.Interfaces_Interface {
 	return &vpp_intf.Interfaces_Interface{
-		Name:    "afToHost",
+		Name:    vethVPPEndName,
 		Type:    vpp_intf.InterfaceType_AF_PACKET_INTERFACE,
 		Enabled: true,
 		Afpacket: &vpp_intf.Interfaces_Interface_Afpacket{
-			HostIfName: "vppv2",
+			HostIfName: vethVPPEndName,
 		},
 		IpAddresses: []string{vethVPPEndIP + "/24"},
 	}

@@ -28,15 +28,14 @@ import (
 // The configuration changes are transported into aclplugin via localclient.
 type Renderer struct {
 	Deps
-
-	aclTxnFactory       func() (dsl linux.DataChangeDSL)
-	aclResyncTxnFactory func() (dsl linux.DataResyncDSL)
 }
 
 // Deps lists dependencies of Renderer.
 type Deps struct {
-	Log   logging.Logger
-	Cache cache.ContivRuleCacheAPI
+	Log                 logging.Logger
+	Cache               cache.ContivRuleCacheAPI
+	ACLTxnFactory       func() (dsl linux.DataChangeDSL)
+	ACLResyncTxnFactory func() (dsl linux.DataResyncDSL)
 }
 
 // RendererTxn represents a single transaction of Renderer.
@@ -46,12 +45,9 @@ type RendererTxn struct {
 	resync   bool
 }
 
-// NewRenderer is a constructor for ACL Renderer.
-func NewRenderer(
-	aclTxnFactory func() (dsl linux.DataChangeDSL),
-	aclResyncTxnFactory func() (dsl linux.DataResyncDSL),
-) *Renderer {
-	return &Renderer{aclTxnFactory: aclTxnFactory, aclResyncTxnFactory: aclResyncTxnFactory}
+// Init initializes the ACL Renderer.
+func (r *Renderer) Init() error {
+	return nil
 }
 
 // NewTxn starts a new transaction. The rendering executes only after Commit()
@@ -90,7 +86,7 @@ func (art *RendererTxn) Commit() error {
 	}
 
 	if art.resync == true {
-		dsl := art.renderer.aclResyncTxnFactory()
+		dsl := art.renderer.ACLResyncTxnFactory()
 
 		art.renderResync(dsl, ingress, true)
 		art.renderResync(dsl, egress, false)
@@ -100,7 +96,7 @@ func (art *RendererTxn) Commit() error {
 			return err
 		}
 	} else {
-		dsl := art.renderer.aclTxnFactory()
+		dsl := art.renderer.ACLTxnFactory()
 		putDsl := dsl.Put()
 		deleteDsl := dsl.Delete()
 

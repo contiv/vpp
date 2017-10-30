@@ -34,9 +34,9 @@ const (
 )
 
 var (
-	invalidKeyErr         = fmt.Errorf("invalid key for nodeID")
-	unableToAllocateIDErr = fmt.Errorf("unable to allocate unique id for node (max attempt limit reached)")
-	noIDallocatedErr      = fmt.Errorf("there is no ID allocated for the node")
+	errInvalidKey         = fmt.Errorf("invalid key for nodeID")
+	errUnableToAllocateID = fmt.Errorf("unable to allocate unique id for node (max attempt limit reached)")
+	errNoIDallocated      = fmt.Errorf("there is no ID allocated for the node")
 )
 
 // idAllocator manages allocation/deallocation of unique number identifying a node in the k8s cluster.
@@ -106,7 +106,7 @@ func (ia *idAllocator) getID() (id uint32, err error) {
 		}
 
 		if attempts > maxAttempts {
-			return 0, unableToAllocateIDErr
+			return 0, errUnableToAllocateID
 		}
 
 	}
@@ -120,7 +120,7 @@ func (ia *idAllocator) releaseID() error {
 	defer ia.Unlock()
 
 	if !ia.allocated {
-		return noIDallocatedErr
+		return errNoIDallocated
 	}
 
 	_, err := ia.broker.Delete(createKey(ia.ID))
@@ -222,7 +222,7 @@ func extractIndexFromKey(key string) (int, error) {
 		return strconv.Atoi(strings.Replace(key, allocatedIDsKeyPrefix, "", 1))
 
 	}
-	return 0, invalidKeyErr
+	return 0, errInvalidKey
 }
 
 func createKey(index uint32) string {

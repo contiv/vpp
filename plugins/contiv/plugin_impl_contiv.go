@@ -104,7 +104,7 @@ func (plugin *Plugin) Init() error {
 		uid)
 	cni.RegisterRemoteCNIServer(plugin.GRPC.Server(), plugin.cniServer)
 
-	go plugin.cniServer.handleNodeEvents(plugin.nodeIDsresyncChan, plugin.nodeIDSchangeChan, plugin.ctx)
+	go plugin.cniServer.handleNodeEvents(plugin.ctx, plugin.nodeIDsresyncChan, plugin.nodeIDSchangeChan)
 
 	return nil
 }

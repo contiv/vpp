@@ -23,7 +23,7 @@ import (
 )
 
 // handleNodeEvents adjust VPP route configuration according to the node changes.
-func (s *remoteCNIserver) handleNodeEvents(resyncChan chan datasync.ResyncEvent, changeChan chan datasync.ChangeEvent, ctx context.Context) {
+func (s *remoteCNIserver) handleNodeEvents(ctx context.Context, resyncChan chan datasync.ResyncEvent, changeChan chan datasync.ChangeEvent) {
 	for {
 		select {
 		case resyncEv := <-resyncChan:

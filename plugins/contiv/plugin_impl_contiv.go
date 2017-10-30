@@ -19,6 +19,7 @@ package contiv
 
 import (
 	"context"
+
 	"git.fd.io/govpp.git/api"
 	"github.com/contiv/vpp/plugins/contiv/containeridx"
 	"github.com/contiv/vpp/plugins/contiv/model/cni"

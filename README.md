@@ -44,7 +44,7 @@ kubeadm reset
 After cleanup, proceed with master initialization as described in the 
 [kubeadm manual][3]:
 ```
-kubeadm init
+kubeadm init --token-ttl 0
 ```
 If Kubernetes was initialized successfully, it prints out this message:
 ```
@@ -59,7 +59,15 @@ sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
 sudo chown $(id -u):$(id -g) $HOME/.kube/config
 ```
 
-#### Step 3: Installing the Contiv-VPP POD network
+#### Step 3 (Optional): Joining your nodes
+If you have more than one worker nodes, you can now join them into the cluster 
+as described in the [kubeadm manual][5].
+
+See the [Multinode Deployment README](docs/MULTINODE.md) 
+for multi-node and DPDK-enabled deployment instructions before continuing with step 4.
+
+
+#### Step 4: Installing the Contiv-VPP POD network
 If you have already used the Contiv-VPP plugin before, you may need to pull the most recent Docker images on each node:
 ```
 bash <(curl -s https://raw.githubusercontent.com/contiv/vpp/master/k8s/pull-images.sh)
@@ -85,13 +93,6 @@ single node, please remember to untaint it:
 ```
 kubectl taint nodes --all node-role.kubernetes.io/master-
 ``` 
-
-#### Step 4 (Optional): Joining your nodes
-If you have more than one worker nodes, you can now join them into the cluster 
-as described in the [kubeadm manual][5].
-
-NOTE: multi-node clusters are currently not supported. They will be available 
-shortly.
 
 #### Step 5: Verifying the installation
 You can go ahead and deploy some PODs, e.g.:
@@ -139,20 +140,20 @@ To uninstall the CRI shim, execute as root (not using sudo) on each node:
 bash <(curl -s https://raw.githubusercontent.com/contiv/vpp/master/k8s/cri-install.sh) --uninstall
 ```
 After uninstalling CRI, reboot each node, or re-initialize the Kubernetes cluster using
-`kubeadm reset` and `kubeadm init`.
+`kubeadm reset` and `kubeadm init --token-ttl 0`.
 
 
 #### Troubleshooting
 Some of the issues that can occur during the installation are:
 
 - Forgetting to create and initialize the `.kube` directory in your home 
-  directory (As instructed by `kubeadm init`). This can manifest itself 
+  directory (As instructed by `kubeadm init --token-ttl 0`). This can manifest itself 
   as the following error:
   ```
   W1017 09:25:43.403159    2233 factory_object_mapping.go:423] Failed to download OpenAPI (Get https://192.168.209.128:6443/swagger-2.0.0.pb-v1: x509: certificate signed by unknown authority (possibly because of "crypto/rsa: verification error" while trying to verify candidate authority certificate "kubernetes")), falling back to swagger
   Unable to connect to the server: x509: certificate signed by unknown authority (possibly because of "crypto/rsa: verification error" while trying to verify candidate authority certificate "kubernetes")
   ``` 
-- Previous installation lingering on the file system. `'kubeadm init` fails 
+- Previous installation lingering on the file system. `'kubeadm init --token-ttl 0` fails 
   to initialize kubelet with one or more of the following error messages:
   ```
   ...
@@ -166,7 +167,7 @@ If you run into any of the above issues, try to clean up and reinstall as root:
 sudo su
 rm -rf ~/.kube
 kubeadm reset
-kubeadm init
+kubeadm init --token-ttl 0
 ```
 
 [1]: https://kubernetes.io/docs/setup/independent/create-cluster-kubeadm/

@@ -43,7 +43,7 @@ func TestSingleContivRuleOneInterface(t *testing.T) {
 
 	// Create an instance of ContivRuleCache
 	ruleCache := &ContivRuleCache{
-		Deps: Deps {
+		Deps: Deps{
 			Log: logger,
 		},
 	}
@@ -135,7 +135,7 @@ func TestSingleContivRuleMultipleInterfaces(t *testing.T) {
 
 	// Create an instance of ContivRuleCache
 	ruleCache := &ContivRuleCache{
-		Deps: Deps {
+		Deps: Deps{
 			Log: logger,
 		},
 	}
@@ -297,7 +297,7 @@ func TestMultipleContivRulesSingleInterface(t *testing.T) {
 
 	// Create an instance of ContivRuleCache
 	ruleCache := &ContivRuleCache{
-		Deps: Deps {
+		Deps: Deps{
 			Log: logger,
 		},
 	}
@@ -466,7 +466,7 @@ func TestMultipleContivRulesMultipleInterfaces(t *testing.T) {
 
 	// Create an instance of ContivRuleCache
 	ruleCache := &ContivRuleCache{
-		Deps: Deps {
+		Deps: Deps{
 			Log: logger,
 		},
 	}
@@ -732,7 +732,7 @@ func TestMultipleContivRulesMultipleInterfacesWithResync(t *testing.T) {
 
 	// Create an instance of ContivRuleCache
 	ruleCache := &ContivRuleCache{
-		Deps: Deps {
+		Deps: Deps{
 			Log: logger,
 		},
 	}

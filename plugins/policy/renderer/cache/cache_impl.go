@@ -69,7 +69,7 @@ type ContivRuleCacheTxn struct {
 //  AssignInterface(ruleList, ifName)
 //  UnassignInterface(ruleList/nil, ifName)
 type ContivRuleLists struct {
-	Log logging.Logger
+	Log         logging.Logger
 	ruleLists   []*ContivRuleList          /* ordered by rules */
 	numItems    int                        /* actual number of lists, the rest are nils */
 	byID        map[string]*ContivRuleList /* search by rule list ID */
@@ -83,7 +83,7 @@ func NewContivRuleLists(logger logging.Logger, dummy bool) *ContivRuleLists {
 		capacity = 100
 	}
 	return &ContivRuleLists{
-		Log: logger,
+		Log:         logger,
 		ruleLists:   make([]*ContivRuleList, 0, capacity),
 		byID:        make(map[string]*ContivRuleList),
 		byInterface: make(map[string]*ContivRuleList),

@@ -55,14 +55,14 @@ func (r *Renderer) Init() error {
 // If <resync> is enabled, the supplied configuration will completely
 // replace the existing one. Otherwise, the change is performed incrementally,
 // i.e. interfaces not mentioned in the transaction are left unaffected.
-func (r *Renderer) NewTxn(resync bool) *RendererTxn {
+func (r *Renderer) NewTxn(resync bool) renderer.Txn {
 	return &RendererTxn{cacheTxn: r.Cache.NewTxn(resync), renderer: r, resync: resync}
 }
 
 // Render applies the set of ingress & egress rules for a given VPP interface.
 // The existing rules are replaced.
 // Te actual change is performed only after the commit.
-func (art *RendererTxn) Render(ifName string, ingress []*renderer.ContivRule, egress []*renderer.ContivRule) *RendererTxn {
+func (art *RendererTxn) Render(ifName string, ingress []*renderer.ContivRule, egress []*renderer.ContivRule) renderer.Txn {
 	art.renderer.Log.WithFields(logging.Fields{
 		"ifName":  ifName,
 		"ingress": ingress,

@@ -22,7 +22,9 @@ import (
 	"github.com/contiv/vpp/plugins/contiv/containeridx"
 	"github.com/contiv/vpp/plugins/contiv/model/cni"
 	"github.com/contiv/vpp/plugins/kvdbproxy"
+	"github.com/ligato/cn-infra/datasync"
 	"github.com/ligato/cn-infra/datasync/resync"
+	"github.com/ligato/cn-infra/db/keyval/etcdv3"
 	"github.com/ligato/cn-infra/flavors/local"
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/rpc/grpc"
@@ -42,6 +44,11 @@ type Plugin struct {
 	configuredContainers *containeridx.ConfigIndex
 	cniServer            *remoteCNIserver
 
+	nodeIDAllocator   *idAllocator
+	nodeIDsresyncChan chan datasync.ResyncEvent
+	nodeIDSchangeChan chan datasync.ChangeEvent
+	nodeIDwatchReg    datasync.WatchRegistration
+
 	ctx           context.Context
 	ctxCancelFunc context.CancelFunc
 }
@@ -49,11 +56,13 @@ type Plugin struct {
 // Deps groups the dependencies of the Plugin.
 type Deps struct {
 	local.PluginInfraDeps
-	GRPC   grpc.Server
-	Proxy  *kvdbproxy.Plugin
-	VPP    *defaultplugins.Plugin
-	GoVPP  govppmux.API
-	Resync resync.Subscriber
+	GRPC    grpc.Server
+	Proxy   *kvdbproxy.Plugin
+	VPP     *defaultplugins.Plugin
+	GoVPP   govppmux.API
+	Resync  resync.Subscriber
+	ETCD    *etcdv3.Plugin
+	Watcher datasync.KeyValProtoWatcher
 }
 
 // Init initializes the grpc server handling the request from the CNI.
@@ -68,14 +77,32 @@ func (plugin *Plugin) Init() error {
 		return err
 	}
 
+	plugin.nodeIDAllocator = newIDAllocator(plugin.ETCD)
+	uid, err := plugin.nodeIDAllocator.getID()
+	if err != nil {
+		return err
+	}
+
+	plugin.nodeIDsresyncChan = make(chan datasync.ResyncEvent)
+	plugin.nodeIDSchangeChan = make(chan datasync.ChangeEvent)
+
+	plugin.nodeIDwatchReg, err = plugin.Watcher.Watch("contiv-plugin", plugin.nodeIDSchangeChan, plugin.nodeIDsresyncChan, allocatedIDsKeyPrefix)
+	if err != nil {
+		return err
+	}
+
 	plugin.cniServer = newRemoteCNIServer(plugin.Log,
 		func() linux.DataChangeDSL { return localclient.DataChangeRequest(plugin.PluginName) },
 		plugin.Proxy,
 		plugin.configuredContainers,
 		plugin.govppCh,
 		plugin.VPP.GetSwIfIndexes(),
-		plugin.ServiceLabel.GetAgentLabel())
+		plugin.ServiceLabel.GetAgentLabel(),
+		uid)
 	cni.RegisterRemoteCNIServer(plugin.GRPC.Server(), plugin.cniServer)
+
+	plugin.cniServer.handleNodeEvents(plugin.nodeIDsresyncChan, plugin.nodeIDSchangeChan)
+
 	return nil
 }
 
@@ -93,7 +120,9 @@ func (plugin *Plugin) AfterInit() error {
 func (plugin *Plugin) Close() error {
 	plugin.ctxCancelFunc()
 	plugin.cniServer.close()
-	return safeclose.Close(plugin.govppCh)
+	plugin.nodeIDAllocator.releaseID()
+	_, err := safeclose.CloseAll(plugin.govppCh, plugin.nodeIDwatchReg)
+	return err
 }
 
 // GetIfName looks up logical interface name that corresponds to the interface associated with the given pod.

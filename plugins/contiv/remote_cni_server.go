@@ -56,6 +56,8 @@ type remoteCNIserver struct {
 
 	// agent microservice label
 	agentLabel string
+
+	uid int
 }
 
 const (
@@ -77,7 +79,7 @@ const (
 )
 
 func newRemoteCNIServer(logger logging.Logger, vppTxnFactory func() linux.DataChangeDSL, proxy kvdbproxy.Proxy,
-	configuredContainers *containeridx.ConfigIndex, govppChan *api.Channel, index ifaceidx.SwIfIndex, agentLabel string) *remoteCNIserver {
+	configuredContainers *containeridx.ConfigIndex, govppChan *api.Channel, index ifaceidx.SwIfIndex, agentLabel string, uid int) *remoteCNIserver {
 	return &remoteCNIserver{
 		Logger:               logger,
 		vppTxnFactory:        vppTxnFactory,
@@ -87,7 +89,8 @@ func newRemoteCNIServer(logger logging.Logger, vppTxnFactory func() linux.DataCh
 		govppChan:            govppChan,
 		swIfIndex:            index,
 		agentLabel:           agentLabel,
-		ipam:                 newIPAM(logger, podSubnetCIDR, podNetworkPrefixLen, agentLabel),
+		uid:                  uid,
+		ipam:                 newIPAM(logger, uid, podSubnetCIDR, podNetworkPrefixLen, agentLabel),
 	}
 }
 

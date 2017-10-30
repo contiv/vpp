@@ -21,6 +21,7 @@ import (
 	"strings"
 
 	"github.com/contiv/vpp/plugins/policy/renderer"
+	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/logging/logroot"
 	"github.com/onsi/gomega"
 )
@@ -40,6 +41,7 @@ func TestSingleContivRuleOneInterface(t *testing.T) {
 	// Create an instance of ContivRuleCache
 	ruleCache := NewContivRuleCache()
 	ruleCache.Deps.Log = logroot.StandardLogger()
+	ruleCache.Deps.Log.SetLevel(logging.DebugLevel)
 
 	// Prepare input data.
 	rule := &renderer.ContivRule{
@@ -68,18 +70,26 @@ func TestSingleContivRuleOneInterface(t *testing.T) {
 
 	// Verify changes to be committed.
 	ingressChanges, egressChanges = txn.Changes()
-	gomega.Expect(ingressChanges).To(gomega.HaveLen(0))
+	gomega.Expect(ingressChanges).To(gomega.HaveLen(1))
 	gomega.Expect(egressChanges).To(gomega.HaveLen(1))
 
-	change := egressChanges[0]
+	change := ingressChanges[0]
+	gomega.Expect(change.List).ToNot(gomega.BeNil())
+	gomega.Expect(change.List.ID).ToNot(gomega.BeEmpty())
+	gomega.Expect(strings.HasPrefix(change.List.ID, "ingress")).To(gomega.BeTrue())
+	gomega.Expect(compareRuleLists(change.List.Rules, ingress)).To(gomega.BeEquivalentTo(0))
+	gomega.Expect(change.PreviousInterfaces).To(gomega.BeEmpty())
+	gomega.Expect(change.List.Interfaces).To(gomega.BeEquivalentTo(NewInterfaceSet("afpacket1")))
+	ingressListID := change.List.ID
+
+	change = egressChanges[0]
 	gomega.Expect(change.List).ToNot(gomega.BeNil())
 	gomega.Expect(change.List.ID).ToNot(gomega.BeEmpty())
 	gomega.Expect(strings.HasPrefix(change.List.ID, "egress")).To(gomega.BeTrue())
 	gomega.Expect(compareRuleLists(change.List.Rules, egress)).To(gomega.BeEquivalentTo(0))
 	gomega.Expect(change.PreviousInterfaces).To(gomega.BeEmpty())
-	gomega.Expect(change.List.Interfaces).To(gomega.HaveLen(1))
-	gomega.Expect(change.List.Interfaces.Has("afpacket1")).To(gomega.BeTrue())
-	listId := change.List.ID
+	gomega.Expect(change.List.Interfaces).To(gomega.BeEquivalentTo(NewInterfaceSet("afpacket1")))
+	egressListID := change.List.ID
 
 	// Changes should be applied only after the commit.
 	gomega.Expect(ruleCache.AllInterfaces()).To(gomega.BeEmpty())
@@ -99,9 +109,14 @@ func TestSingleContivRuleOneInterface(t *testing.T) {
 	// Verify cache content.
 	gomega.Expect(ruleCache.AllInterfaces()).To(gomega.BeEquivalentTo(NewInterfaceSet("afpacket1")))
 	ifIngress, ifEgress = ruleCache.LookupByInterface("afpacket1")
-	gomega.Expect(ifIngress).To(gomega.BeNil())
+	gomega.Expect(ifIngress).ToNot(gomega.BeNil())
 	gomega.Expect(ifEgress).ToNot(gomega.BeNil())
-	gomega.Expect(ifEgress.ID).To(gomega.BeEquivalentTo(listId))
-	gomega.Expect(ifEgress.Rules).To(gomega.BeEquivalentTo(egress))
+
+	gomega.Expect(ifIngress.ID).To(gomega.BeEquivalentTo(ingressListID))
+	gomega.Expect(compareRuleLists(ifIngress.Rules, ingress)).To(gomega.BeEquivalentTo(0))
+	gomega.Expect(ifIngress.Interfaces).To(gomega.BeEquivalentTo(NewInterfaceSet("afpacket1")))
+
+	gomega.Expect(ifEgress.ID).To(gomega.BeEquivalentTo(egressListID))
 	gomega.Expect(compareRuleLists(ifEgress.Rules, egress)).To(gomega.BeEquivalentTo(0))
+	gomega.Expect(ifEgress.Interfaces).To(gomega.BeEquivalentTo(NewInterfaceSet("afpacket1")))
 }

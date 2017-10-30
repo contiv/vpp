@@ -119,7 +119,7 @@ const (
 // Number=0 represents all ports for a given protocol.
 type Port struct {
 	Protocol ProtocolType
-	Number   int16
+	Number   uint16
 }
 
 // IPBlock selects a particular CIDR with possible exceptions.

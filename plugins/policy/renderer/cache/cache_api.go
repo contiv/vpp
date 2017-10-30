@@ -15,6 +15,8 @@
 package cache
 
 import (
+	"fmt"
+
 	"github.com/contiv/vpp/plugins/policy/renderer"
 )
 
@@ -83,6 +85,13 @@ type ContivRuleList struct {
 	Private interface{}
 }
 
+// String converts ContivRuleList (pointer) into a human-readable string
+// representation.
+func (crl *ContivRuleList) String() string {
+	return fmt.Sprintf("Rule List %s <rules: %s, ifs: %s>",
+		crl.ID, crl.Rules, crl.Interfaces)
+}
+
 // TxnChange represents change in the ContivRuleCache to be performed
 // by a transaction.
 type TxnChange struct {
@@ -99,6 +108,13 @@ type TxnChange struct {
 	// Set of interfaces previously assigned to the list.
 	// Empty for newly added list.
 	PreviousInterfaces InterfaceSet
+}
+
+// String converts TxnChange (pointer) into a human-readable string
+// representation.
+func (tch *TxnChange) String() string {
+	return fmt.Sprintf("Change <list: %s, prevIfs: %s>",
+		tch.List, tch.PreviousInterfaces)
 }
 
 // InterfaceSet is a set of interface names.

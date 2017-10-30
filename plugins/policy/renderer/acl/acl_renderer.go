@@ -67,6 +67,11 @@ func (r *Renderer) NewTxn(resync bool) *RendererTxn {
 // The existing rules are replaced.
 // Te actual change is performed only after the commit.
 func (art *RendererTxn) Render(ifName string, ingress []*renderer.ContivRule, egress []*renderer.ContivRule) *RendererTxn {
+	art.renderer.Log.WithFields(logging.Fields{
+		"ifName":  ifName,
+		"ingress": ingress,
+		"egress":  egress,
+	}).Debug("ACL RendererTxn Render()")
 	art.cacheTxn.Update(ifName, ingress, egress)
 	return art
 }
@@ -76,6 +81,13 @@ func (art *RendererTxn) Render(ifName string, ingress []*renderer.ContivRule, eg
 // localclient.
 func (art *RendererTxn) Commit() error {
 	ingress, egress := art.cacheTxn.Changes()
+	ingress = art.filterEmpty(ingress)
+	egress = art.filterEmpty(egress)
+
+	if len(ingress) == 0 && len(egress) == 0 {
+		art.renderer.Log.Debug("No changes to be rendered in a transaction")
+		return nil
+	}
 
 	if art.resync == true {
 		dsl := art.renderer.aclResyncTxnFactory()
@@ -105,6 +117,17 @@ func (art *RendererTxn) Commit() error {
 	return nil
 }
 
+// Remove lists with no rules since empty list of rules is equivalent to no ACL.
+func (art *RendererTxn) filterEmpty(changes []*cache.TxnChange) []*cache.TxnChange {
+	filtered := []*cache.TxnChange{}
+	for _, change := range changes {
+		if len(change.List.Rules) > 0 {
+			filtered = append(filtered, change)
+		}
+	}
+	return filtered
+}
+
 // render Contiv Rule changes into the equivalent ACL configuration changes.
 func (art *RendererTxn) renderChanges(putDsl linux.PutDSL, deleteDsl linux.DeleteDSL, changes []*cache.TxnChange, ingress bool) {
 	for _, change := range changes {
@@ -112,15 +135,28 @@ func (art *RendererTxn) renderChanges(putDsl linux.PutDSL, deleteDsl linux.Delet
 			// New ACL
 			acl := art.renderACL(change.List, ingress)
 			putDsl.ACL(acl)
+			art.renderer.Log.WithFields(logging.Fields{
+				"list": change.List,
+				"acl":  acl,
+			}).Debug("Put new ACL")
 		} else if len(change.List.Interfaces) != 0 {
 			// Changed interfaces
 			acl := change.List.Private.(*vpp_acl.AccessLists_Acl)
 			acl.Interfaces = art.renderInterfaces(change.List.Interfaces, ingress)
 			putDsl.ACL(acl)
+			art.renderer.Log.WithFields(logging.Fields{
+				"list":          change.List,
+				"oldInterfaces": change.PreviousInterfaces,
+				"acl":           acl,
+			}).Debug("Put updated ACL")
 		} else {
 			// Removed ACL
 			acl := change.List.Private.(*vpp_acl.AccessLists_Acl)
 			deleteDsl.ACL(acl.AclName)
+			art.renderer.Log.WithFields(logging.Fields{
+				"list": change.List,
+				"acl":  acl,
+			}).Debug("Removed ACL")
 		}
 	}
 }
@@ -131,6 +167,10 @@ func (art *RendererTxn) renderResync(dsl linux.DataResyncDSL, changes []*cache.T
 	for _, change := range changes {
 		acl := art.renderACL(change.List, ingress)
 		dsl.ACL(acl)
+		art.renderer.Log.WithFields(logging.Fields{
+			"list": change.List,
+			"acl":  acl,
+		}).Debug("Resync ACL")
 	}
 }
 

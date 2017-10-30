@@ -18,11 +18,11 @@ import (
 	"bytes"
 	"net"
 	"sort"
-
 	"strconv"
 
-	"github.com/contiv/vpp/plugins/policy/renderer"
 	"github.com/ligato/cn-infra/logging"
+
+	"github.com/contiv/vpp/plugins/policy/renderer"
 )
 
 // ContivRuleCache implements ContivRuleCacheAPI.
@@ -32,9 +32,9 @@ type ContivRuleCache struct {
 	ingress *ContivRuleLists
 	egress  *ContivRuleLists
 
-	interfaces InterfaceSet
+	interfaces InterfaceSet // a set of updated interfaces
 
-	lastListID uint64
+	lastListID map[string]uint64 // last ID per prefix (ingress & egress)
 }
 
 // Deps lists dependencies of ContivRuleCache.
@@ -54,8 +54,9 @@ type ContivRuleCacheTxn struct {
 	interfaces InterfaceSet
 }
 
-// ContivRuleLists is an ordered list of Contiv Rule lists with efficient lookups
-// (all logarithmic).
+// ContivRuleLists is an ordered list of Contiv Rule lists with efficient
+// operations (apart from Remove() and RemoveByPredicate() all with logarithmic
+// or constant complexity).
 //
 // API:
 //  Insert(ruleList)
@@ -80,6 +81,7 @@ func NewContivRuleCache() *ContivRuleCache {
 		ingress:    NewContivRuleLists(false),
 		egress:     NewContivRuleLists(false),
 		interfaces: NewInterfaceSet(),
+		lastListID: make(map[string]uint64),
 	}
 }
 
@@ -127,8 +129,11 @@ func (crc *ContivRuleCache) AllInterfaces() InterfaceSet {
 
 // Generator for ContivRuleList IDs.
 func (crc *ContivRuleCache) generateContivRuleListID(prefix string) string {
-	crc.lastListID++
-	return prefix + strconv.FormatUint(crc.lastListID, 10)
+	if _, exists := crc.lastListID[prefix]; !exists {
+		crc.lastListID[prefix] = 0
+	}
+	crc.lastListID[prefix]++
+	return prefix + strconv.FormatUint(crc.lastListID[prefix], 10)
 }
 
 // Update changes the list of ingress and egress rules for a given interface.
@@ -136,6 +141,11 @@ func (crc *ContivRuleCache) generateContivRuleListID(prefix string) string {
 // Run Changes() before Commit() to learn the set of pending updates (merged
 // to minimal diff).
 func (crct *ContivRuleCacheTxn) Update(ifName string, ingress []*renderer.ContivRule, egress []*renderer.ContivRule) error {
+	crct.cache.Log.WithFields(logging.Fields{
+		"ifName":  ifName,
+		"ingress": ingress,
+		"egress":  egress,
+	}).Debug("ContivRuleCacheTxn Update()")
 	crct.interfaces.Add(ifName)
 	if crct.resync == true {
 		crct.updateInterface(ifName, ingress, "ingress", crct.ingress, NewContivRuleLists(true))
@@ -161,17 +171,31 @@ func (crct *ContivRuleCacheTxn) updateInterface(ifName string, rules []*renderer
 			Private:    origRuleList.Private,
 		}
 		head.Insert(updatedOrigRuleList)
+		crct.cache.Log.WithFields(logging.Fields{
+			"category": category,
+			"ListID":   origRuleList.ID,
+		}).Debug("Created a shallow copy for the transaction")
 	}
 	// check if the ruleList was already created inside the transaction
 	ruleList := head.LookupByRules(rules)
 	if ruleList != nil {
 		head.AssignInterface(ruleList, ifName)
+		crct.cache.Log.WithFields(logging.Fields{
+			"category": category,
+			"ifName":   ifName,
+			"ListID":   ruleList.ID,
+		}).Debug("Found matching rule list in the transaction")
 		return
 	}
 	// check if the ruleList exists in the cache (but not in the head)
 	ruleList = base.LookupByRules(rules)
 	if ruleList != nil {
 		if _, assigned := ruleList.Interfaces[ifName]; assigned {
+			crct.cache.Log.WithFields(logging.Fields{
+				"category": category,
+				"ifName":   ifName,
+				"ListID":   ruleList.ID,
+			}).Debug("Nothing to update")
 			/* nothing to change */
 			return
 		}
@@ -184,6 +208,11 @@ func (crct *ContivRuleCacheTxn) updateInterface(ifName string, rules []*renderer
 		}
 		updatedRuleList.Interfaces.Add(ifName)
 		head.Insert(updatedRuleList)
+		crct.cache.Log.WithFields(logging.Fields{
+			"category": category,
+			"ListID":   ruleList.ID,
+			"ifName":   ifName,
+		}).Debug("Created a shallow copy for the transaction with added interface")
 		return
 	}
 	// create a new RuleList
@@ -194,6 +223,11 @@ func (crct *ContivRuleCacheTxn) updateInterface(ifName string, rules []*renderer
 		Private:    nil,
 	}
 	head.Insert(newRuleList)
+	crct.cache.Log.WithFields(logging.Fields{
+		"category": category,
+		"ListID":   newRuleList.ID,
+		"ifName":   ifName,
+	}).Debug("Created a new ContivRuleList")
 }
 
 // Changes calculates a minimalistic set of changes prepared in the transaction
@@ -207,6 +241,10 @@ func (crct *ContivRuleCacheTxn) Changes() (ingress, egress []*TxnChange) {
 		ingress = crct.getChanges(crct.ingress, crct.cache.ingress)
 		egress = crct.getChanges(crct.egress, crct.cache.egress)
 	}
+	crct.cache.Log.WithFields(logging.Fields{
+		"ingress": ingress,
+		"egress":  egress,
+	}).Debug("ContivRuleCacheTxn Changes()")
 	return ingress, egress
 }
 
@@ -220,11 +258,15 @@ func (crct *ContivRuleCacheTxn) getChanges(head *ContivRuleLists, base *ContivRu
 			// added and removed in the same transaction => skip
 			continue
 		}
+		if origRuleList != nil && ruleList.Interfaces.Equals(origRuleList.Interfaces) {
+			// nothing has really changed for this list
+			continue
+		}
 		change := &TxnChange{
 			List: ruleList,
 		}
 		if origRuleList != nil {
-			change.PreviousInterfaces = origRuleList.Interfaces.Copy()
+			change.PreviousInterfaces = origRuleList.Interfaces
 		} else {
 			change.PreviousInterfaces = NewInterfaceSet()
 		}
@@ -262,7 +304,15 @@ func (crct *ContivRuleCacheTxn) commit(head *ContivRuleLists, base *ContivRuleLi
 			if len(ruleList.Interfaces) == 0 {
 				// RuleList removed in the transaction.
 				base.Remove(ruleList)
-			} else {
+				crct.cache.Log.WithFields(logging.Fields{
+					"ListID": ruleList.ID,
+				}).Debug("ContivRuleList removed in the transaction")
+			} else if !ruleList.Interfaces.Equals(origRuleList.Interfaces) {
+				crct.cache.Log.WithFields(logging.Fields{
+					"ListID":         ruleList.ID,
+					"origInterfaces": origRuleList.Interfaces,
+					"newInterfaces":  ruleList.Interfaces,
+				}).Debug("ContivRuleList changed in the transaction")
 				// Update interfaces.
 				for iface := range origRuleList.Interfaces {
 					if !ruleList.Interfaces.Has(iface) {
@@ -281,66 +331,69 @@ func (crct *ContivRuleCacheTxn) commit(head *ContivRuleLists, base *ContivRuleLi
 			if len(ruleList.Interfaces) != 0 {
 				// New RuleList created in the transaction.
 				base.Insert(ruleList)
+				crct.cache.Log.WithFields(logging.Fields{
+					"ListID": ruleList.ID,
+				}).Debug("New ContivRuleList created in the transaction")
 			}
 		}
 	}
 }
 
-func (crl *ContivRuleLists) lookupIdxByRules(rules []*renderer.ContivRule) int {
-	return sort.Search(crl.numItems,
+func (crls *ContivRuleLists) lookupIdxByRules(rules []*renderer.ContivRule) int {
+	return sort.Search(crls.numItems,
 		func(i int) bool {
-			return compareRuleLists(rules, crl.ruleLists[i].Rules) < 0
+			return compareRuleLists(rules, crls.ruleLists[i].Rules) < 0
 		})
 }
 
 // Insert ContivRuleList into the list.
-func (crl *ContivRuleLists) Insert(ruleList *ContivRuleList) bool {
+func (crls *ContivRuleLists) Insert(ruleList *ContivRuleList) bool {
 	// Insert the list at the right index to keep the order
-	listIdx := crl.lookupIdxByRules(ruleList.Rules)
-	if listIdx < crl.numItems &&
-		compareRuleLists(ruleList.Rules, crl.ruleLists[listIdx].Rules) == 0 {
+	listIdx := crls.lookupIdxByRules(ruleList.Rules)
+	if listIdx < crls.numItems &&
+		compareRuleLists(ruleList.Rules, crls.ruleLists[listIdx].Rules) == 0 {
 		/* already added */
 		return false
 	}
-	if crl.numItems == len(crl.ruleLists) {
+	if crls.numItems == len(crls.ruleLists) {
 		/* just increase the size by one */
-		crl.ruleLists = append(crl.ruleLists, nil)
+		crls.ruleLists = append(crls.ruleLists, nil)
 	}
-	if listIdx < crl.numItems {
-		copy(crl.ruleLists[listIdx+1:], crl.ruleLists[listIdx:])
+	if listIdx < crls.numItems {
+		copy(crls.ruleLists[listIdx+1:], crls.ruleLists[listIdx:])
 	}
-	crl.ruleLists[listIdx] = ruleList
-	crl.numItems++
-	crl.byID[ruleList.ID] = ruleList
+	crls.ruleLists[listIdx] = ruleList
+	crls.numItems++
+	crls.byID[ruleList.ID] = ruleList
 	for iface := range ruleList.Interfaces {
-		crl.UnassignInterface(nil, iface)
-		crl.byInterface[iface] = ruleList
+		crls.UnassignInterface(nil, iface)
+		crls.byInterface[iface] = ruleList
 	}
 	return true
 }
 
 // Remove ContivRuleList from the list.
-func (crl *ContivRuleLists) Remove(ruleList *ContivRuleList) bool {
-	for listIdx, ruleList2 := range crl.ruleLists {
+func (crls *ContivRuleLists) Remove(ruleList *ContivRuleList) bool {
+	for listIdx, ruleList2 := range crls.ruleLists {
 		if ruleList2 == ruleList {
-			return crl.RemoveByIdx(listIdx)
+			return crls.RemoveByIdx(listIdx)
 		}
 	}
 	return false
 }
 
-// Remove ContivRuleList from the list.
-func (crl *ContivRuleLists) RemoveByIdx(idx int) bool {
-	if idx < crl.numItems {
-		ruleList := crl.ruleLists[idx]
-		if (idx < crl.numItems-1) && (crl.numItems > 1) {
-			copy(crl.ruleLists[idx:], crl.ruleLists[idx+1:])
+// RemoveByIdx removes ContivRuleList under a given index from the list.
+func (crls *ContivRuleLists) RemoveByIdx(idx int) bool {
+	if idx < crls.numItems {
+		ruleList := crls.ruleLists[idx]
+		if idx < crls.numItems-1 {
+			copy(crls.ruleLists[idx:], crls.ruleLists[idx+1:])
 		}
-		crl.numItems--
-		crl.ruleLists[crl.numItems] = nil
-		delete(crl.byID, ruleList.ID)
+		crls.numItems--
+		crls.ruleLists[crls.numItems] = nil
+		delete(crls.byID, ruleList.ID)
 		for iface := range ruleList.Interfaces {
-			delete(crl.byInterface, iface)
+			delete(crls.byInterface, iface)
 		}
 		return true
 	}
@@ -348,12 +401,12 @@ func (crl *ContivRuleLists) RemoveByIdx(idx int) bool {
 }
 
 // RemoveByPredicate removes ContivRuleLists that satisfy a given predicate.
-func (crl *ContivRuleLists) RemoveByPredicate(predicate func(ruleList *ContivRuleList) bool) int {
+func (crls *ContivRuleLists) RemoveByPredicate(predicate func(ruleList *ContivRuleList) bool) int {
 	listIdx := 0
 	count := 0
-	for listIdx < crl.numItems {
-		if predicate(crl.ruleLists[listIdx]) == true {
-			crl.RemoveByIdx(listIdx)
+	for listIdx < crls.numItems {
+		if predicate(crls.ruleLists[listIdx]) == true {
+			crls.RemoveByIdx(listIdx)
 			count++
 		} else {
 			listIdx++
@@ -363,26 +416,29 @@ func (crl *ContivRuleLists) RemoveByPredicate(predicate func(ruleList *ContivRul
 }
 
 // AssignInterface assigns interface into a list.
-func (crl *ContivRuleLists) AssignInterface(ruleList *ContivRuleList, ifName string) {
-	crl.UnassignInterface(nil, ifName)
+func (crls *ContivRuleLists) AssignInterface(ruleList *ContivRuleList, ifName string) {
+	crls.UnassignInterface(nil, ifName)
 	ruleList.Interfaces.Add(ifName)
-	crl.byInterface[ifName] = ruleList
+	crls.byInterface[ifName] = ruleList
 }
 
-// UnassignInterface removes previous assignment of an interface into a list.
+// UnassignInterface removes previous assignment of an interface from a list.
 // <ruleList> may be nil to match any list.
-func (crl *ContivRuleLists) UnassignInterface(ruleList *ContivRuleList, ifName string) {
-	if list, assigned := crl.byInterface[ifName]; assigned {
+func (crls *ContivRuleLists) UnassignInterface(ruleList *ContivRuleList, ifName string) {
+	if ruleList != nil {
+		ruleList.Interfaces.Remove(ifName)
+	}
+	if list, assigned := crls.byInterface[ifName]; assigned {
 		if ruleList == nil || ruleList == list {
 			list.Interfaces.Remove(ifName)
-			delete(crl.byInterface, ifName)
+			delete(crls.byInterface, ifName)
 		}
 	}
 }
 
 // LookupByID searches for ContivRuleList by ID.
-func (crl *ContivRuleLists) LookupByID(id string) *ContivRuleList {
-	list, exists := crl.byID[id]
+func (crls *ContivRuleLists) LookupByID(id string) *ContivRuleList {
+	list, exists := crls.byID[id]
 	if exists {
 		return list
 	}
@@ -390,18 +446,18 @@ func (crl *ContivRuleLists) LookupByID(id string) *ContivRuleList {
 }
 
 // LookupByRules searches for ContivRuleList by rules.
-func (crl *ContivRuleLists) LookupByRules(rules []*renderer.ContivRule) *ContivRuleList {
-	listIdx := crl.lookupIdxByRules(rules)
-	if listIdx < len(crl.ruleLists) &&
-		compareRuleLists(rules, crl.ruleLists[listIdx].Rules) == 0 {
-		return crl.ruleLists[listIdx]
+func (crls *ContivRuleLists) LookupByRules(rules []*renderer.ContivRule) *ContivRuleList {
+	listIdx := crls.lookupIdxByRules(rules)
+	if listIdx < crls.numItems &&
+		compareRuleLists(rules, crls.ruleLists[listIdx].Rules) == 0 {
+		return crls.ruleLists[listIdx]
 	}
 	return nil
 }
 
 // LookupByInterface searches for ContivRuleList by an assigned interface.
-func (crl *ContivRuleLists) LookupByInterface(ifname string) *ContivRuleList {
-	list, exists := crl.byInterface[ifname]
+func (crls *ContivRuleLists) LookupByInterface(ifname string) *ContivRuleList {
+	list, exists := crls.byInterface[ifname]
 	if exists {
 		return list
 	}
@@ -451,9 +507,37 @@ func (set InterfaceSet) Join(set2 InterfaceSet) {
 	}
 }
 
-// compareIpNets returns an integer comparing two IP network addresses
+// Equals compares two sets for equality.
+func (set InterfaceSet) Equals(set2 InterfaceSet) bool {
+	if len(set) != len(set2) {
+		return false
+	}
+	for ifName := range set {
+		if !set2.Has(ifName) {
+			return false
+		}
+	}
+	return true
+}
+
+// String returns a human-readable string representation of the set.
+func (set InterfaceSet) String() string {
+	str := "{"
+	count := 0
+	for ifName := range set {
+		count++
+		str += ifName
+		if count < len(set) {
+			str += ", "
+		}
+	}
+	str += "}"
+	return str
+}
+
+// compareIPNets returns an integer comparing two IP network addresses
 // lexicographically.
-func compareIpNets(a, b *net.IPNet) int {
+func compareIPNets(a, b *net.IPNet) int {
 	ipOrder := bytes.Compare(a.IP, b.IP)
 	if ipOrder == 0 {
 		return bytes.Compare(a.Mask, b.Mask)
@@ -484,11 +568,11 @@ func compareRules(a, b *renderer.ContivRule) int {
 	if actionOrder != 0 {
 		return actionOrder
 	}
-	srcIPOrder := compareIpNets(a.SrcNetwork, b.SrcNetwork)
+	srcIPOrder := compareIPNets(a.SrcNetwork, b.SrcNetwork)
 	if srcIPOrder != 0 {
 		return srcIPOrder
 	}
-	destIPOrder := compareIpNets(a.DestNetwork, b.DestNetwork)
+	destIPOrder := compareIPNets(a.DestNetwork, b.DestNetwork)
 	if destIPOrder != 0 {
 		return destIPOrder
 	}

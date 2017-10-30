@@ -13,6 +13,7 @@
 // limitations under the License.
 
 //go:generate protoc -I ./model/cni --go_out=plugins=grpc:./model/cni ./model/cni/cni.proto
+//go:generate protoc -I ./model/uid --go_out=plugins=grpc:./model/uid ./model/uid/uid.proto
 
 package contiv
 
@@ -77,11 +78,12 @@ func (plugin *Plugin) Init() error {
 		return err
 	}
 
-	plugin.nodeIDAllocator = newIDAllocator(plugin.ETCD)
+	plugin.nodeIDAllocator = newIDAllocator(plugin.ETCD, plugin.ServiceLabel.GetAgentLabel())
 	uid, err := plugin.nodeIDAllocator.getID()
 	if err != nil {
 		return err
 	}
+	plugin.Log.Infof("Uid of the node is %v", uid)
 
 	plugin.nodeIDsresyncChan = make(chan datasync.ResyncEvent)
 	plugin.nodeIDSchangeChan = make(chan datasync.ChangeEvent)
@@ -101,7 +103,7 @@ func (plugin *Plugin) Init() error {
 		uid)
 	cni.RegisterRemoteCNIServer(plugin.GRPC.Server(), plugin.cniServer)
 
-	plugin.cniServer.handleNodeEvents(plugin.nodeIDsresyncChan, plugin.nodeIDSchangeChan)
+	go plugin.cniServer.handleNodeEvents(plugin.nodeIDsresyncChan, plugin.nodeIDSchangeChan, plugin.ctx)
 
 	return nil
 }

@@ -14,8 +14,78 @@
 
 package contiv
 
-import "github.com/ligato/cn-infra/datasync"
+import (
+	"context"
+	"fmt"
+	"github.com/contiv/vpp/plugins/contiv/model/uid"
+	"github.com/ligato/cn-infra/datasync"
+	"strings"
+)
 
-func (s *remoteCNIserver) handleNodeEvents(resyncChan chan datasync.ResyncEvent, changeChan chan datasync.ChangeEvent) {
-	// TODO: add/remove routes according to the node changes
+// handleNodeEvents adjust VPP route configuration according to the node changes.
+func (s *remoteCNIserver) handleNodeEvents(resyncChan chan datasync.ResyncEvent, changeChan chan datasync.ChangeEvent, ctx context.Context) {
+	for {
+		select {
+		case resyncEv := <-resyncChan:
+
+			err := s.nodeResync(resyncEv)
+			resyncEv.Done(err)
+		case changeEv := <-changeChan:
+			err := s.nodeChangePropageteEvent(changeEv)
+			changeEv.Done(err)
+		case <-ctx.Done():
+			return
+		}
+	}
+}
+
+func (s *remoteCNIserver) nodeChangePropageteEvent(dataChngEv datasync.ChangeEvent) error {
+	var err error
+	key := dataChngEv.GetKey()
+
+	if strings.HasPrefix(key, allocatedIDsKeyPrefix) {
+		nodeID := &uid.Identifier{}
+		err = dataChngEv.GetValue(nodeID)
+		if err != nil {
+			return err
+		}
+
+		// route := s.getRouteToNode(conf, nodeID.Id)
+		if dataChngEv.GetChangeType() == datasync.Put {
+			// TODO: add route for nodeID.Id
+			//err = s.vppTxnFactory().Put().StaticRoute(route).Send().ReceiveReply()
+		} else {
+			// TODO: remove route for nodeID.Id
+			//err = s.vppTxnFactory().Delete().StaticRoute(route).Send().ReceiveReply()
+		}
+	} else {
+		return fmt.Errorf("Unknown key %v", key)
+	}
+	return err
+}
+
+func (s *remoteCNIserver) nodeResync(dataResyncEv datasync.ResyncEvent) error {
+	// TODO: implement proper resync (handle deleted routes as well)
+	var err error
+	txn := s.vppTxnFactory().Put()
+	data := dataResyncEv.GetValues()
+	for prefix, it := range data {
+		if prefix == allocatedIDsKeyPrefix {
+			for {
+				kv, stop := it.GetNext()
+				if stop {
+					break
+				}
+				nodeID := &uid.Identifier{}
+				err = kv.GetValue(nodeID)
+				if err != nil {
+					return err
+				}
+				// route := s.getRouteToNode(conf, nodeID.Id)
+				// txn.StaticRoute(route)
+			}
+		}
+	}
+
+	return txn.Send().ReceiveReply()
 }

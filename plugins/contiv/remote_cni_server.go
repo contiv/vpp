@@ -57,7 +57,8 @@ type remoteCNIserver struct {
 	// agent microservice label
 	agentLabel string
 
-	uid int
+	// unique identifier of the node
+	uid uint32
 }
 
 const (
@@ -79,7 +80,7 @@ const (
 )
 
 func newRemoteCNIServer(logger logging.Logger, vppTxnFactory func() linux.DataChangeDSL, proxy kvdbproxy.Proxy,
-	configuredContainers *containeridx.ConfigIndex, govppChan *api.Channel, index ifaceidx.SwIfIndex, agentLabel string, uid int) *remoteCNIserver {
+	configuredContainers *containeridx.ConfigIndex, govppChan *api.Channel, index ifaceidx.SwIfIndex, agentLabel string, uid uint32) *remoteCNIserver {
 	return &remoteCNIserver{
 		Logger:               logger,
 		vppTxnFactory:        vppTxnFactory,

@@ -7,14 +7,17 @@ WORKDIR /root/
 # add the agent binary
 COPY binaries/contiv-agent /usr/bin/
 
+#uninstall any VPP first before re-installing
+RUN /bin/bash -c "yes | apt remove vpp*"
+
 # add VPP binaries (add also extracts from .tar.gz)
 ADD binaries/vpp.tar.gz .
 RUN dpkg -i vpp/vpp-lib_*.deb vpp/vpp_*.deb vpp/vpp-plugins_*.deb && \
     rm -rf vpp
 
 # add ldpreload lib
-ENV LD_PRELOAD_INSTALL_DIR /opt/ldpreload
-ADD binaries/ldpreload.tar.gz /
+ENV LD_PRELOAD_LIB_DIR /opt/ldpreload/
+ADD binaries/ldpreload.tar.gz $LD_PRELOAD_LIB_DIR
 
 # rename defualt VPP startup config to contiv-vswitch.conf
 RUN mv /etc/vpp/vpp.conf /etc/vpp/contiv-vswitch.conf

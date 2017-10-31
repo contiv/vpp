@@ -31,7 +31,7 @@ func (s *remoteCNIserver) configureRouteOnHost() error {
 		s.Logger.Error(err)
 		return err
 	}
-	_, network, err := net.ParseCIDR(s.ipam.getPodNetworkCIDR())
+	_, network, err := net.ParseCIDR(s.ipam.getPodSubnetCIDR())
 	if err != nil {
 		s.Logger.Error(err)
 		return err
@@ -42,7 +42,6 @@ func (s *remoteCNIserver) configureRouteOnHost() error {
 		Dst:       network,
 		Gw:        net.ParseIP(vethVPPEndIP),
 	})
-
 }
 
 func (s *remoteCNIserver) defaultRouteToHost() *l3.StaticRoutes_Route {

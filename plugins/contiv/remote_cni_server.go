@@ -18,6 +18,7 @@ import (
 	"net"
 	"strings"
 	"sync"
+	"time"
 
 	"git.fd.io/govpp.git/api"
 	"github.com/contiv/vpp/plugins/contiv/containeridx"
@@ -32,7 +33,6 @@ import (
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/l3plugin/model/l3"
 	linux_intf "github.com/ligato/vpp-agent/plugins/linuxplugin/model/interfaces"
 	"golang.org/x/net/context"
-	"time"
 )
 
 type remoteCNIserver struct {
@@ -108,16 +108,16 @@ func (s *remoteCNIserver) resync() error {
 
 // configureVswitchConnectivity configures basic vSwitch VPP connectivity to the host IP stack and to the other hosts.
 // Namely, it configures:
-//  - veth pair to host IP stack + AF_PACKET on VPP side
-//  - default static route to the host via the veth pair
 //  - physical NIC interface + static routes to PODs on other hosts
 //  - loopback instead of physical NIC if NIC is not found
+//  - veth pair to host IP stack + AF_PACKET on VPP side
+//  - default static route to the host via the veth pair
 func (s *remoteCNIserver) configureVswitchConnectivity() error {
 
 	s.Logger.Info("Applying basic vSwitch config.")
 	s.Logger.Info("Existing interfaces: ", s.swIfIndex.GetMapping().ListNames())
 
-	//only apply the config if resync hasn't done it already
+	// only apply the config if resync hasn't done it already
 	if _, _, found := s.swIfIndex.LookupIdx(vethVPPEndName); found {
 		s.Logger.Info("VSwitch connectivity is considered configured, skipping...")
 		return nil
@@ -209,7 +209,7 @@ func (s *remoteCNIserver) configureVswitchConnectivity() error {
 	interconnectAF := s.interconnectAfpacket()
 	route := s.defaultRouteToHost()
 
-	// configure linux interfaces + linux route in one transaction
+	// configure linux interfaces
 	txn1 := s.vppTxnFactory().Put().
 		LinuxInterface(vethHost).
 		LinuxInterface(vethVpp)
@@ -238,6 +238,7 @@ func (s *remoteCNIserver) configureVswitchConnectivity() error {
 		time.Sleep(100 * time.Millisecond)
 	}
 
+	// default configure static route to the host
 	txn3 := s.vppTxnFactory().Put().StaticRoute(route)
 	err = txn3.Send().ReceiveReply()
 	if err != nil {

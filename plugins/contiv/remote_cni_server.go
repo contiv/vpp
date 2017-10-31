@@ -167,21 +167,38 @@ func (s *remoteCNIserver) configureVswitchConnectivity() error {
 
 			// add static routes to other hosts into the transaction
 			txn2 := s.vppTxnFactory().Put()
-
 			var i uint8
 			for i = 0; i < 255; i++ {
 				// creates routes to all possible hosts
 				// TODO: after proper IPAM implementation, only routes to existing hosts should be added
 				if i != s.ipam.getPodNetworkSubnetID() {
-					r := s.routeToOtherHost(i)
+					r := s.routeToOtherHostPods(i)
 					txn2.StaticRoute(r)
 					_, dstNet, _ := net.ParseCIDR(r.DstIpAddr)
 					changes[l3.RouteKey(r.VrfId, dstNet, r.NextHopAddr)] = r
 				}
 			}
-
 			// execute the config transaction
 			err = txn2.Send().ReceiveReply()
+			if err != nil {
+				s.Logger.Error(err)
+				return err
+			}
+
+			// configure static routes to VPP-host interconnects on all possible hosts
+			txn3 := s.vppTxnFactory().Put()
+			for i = 0; i < 255; i++ {
+				// creates routes to all possible hosts
+				// TODO: after proper IPAM implementation, only routes to existing hosts should be added
+				if i != s.ipam.getPodNetworkSubnetID() {
+					r := s.routeToOtherHostStack(i)
+					txn3.StaticRoute(r)
+					_, dstNet, _ := net.ParseCIDR(r.DstIpAddr)
+					changes[l3.RouteKey(r.VrfId, dstNet, r.NextHopAddr)] = r
+				}
+			}
+			// execute the config transaction
+			err = txn3.Send().ReceiveReply()
 			if err != nil {
 				s.Logger.Error(err)
 				return err
@@ -243,7 +260,7 @@ func (s *remoteCNIserver) configureVswitchConnectivity() error {
 		time.Sleep(100 * time.Millisecond)
 	}
 
-	// default configure static route to the host
+	// configure default static route to the host
 	txn3 := s.vppTxnFactory().Put().StaticRoute(route)
 	err = txn3.Send().ReceiveReply()
 	if err != nil {

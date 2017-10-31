@@ -107,9 +107,16 @@ func (s *remoteCNIserver) physicalInterfaceLoopback() *vpp_intf.Interfaces_Inter
 	}
 }
 
-func (s *remoteCNIserver) routeToOtherHost(hostID uint8) *l3.StaticRoutes_Route {
+func (s *remoteCNIserver) routeToOtherHostPods(hostID uint8) *l3.StaticRoutes_Route {
 	return &l3.StaticRoutes_Route{
 		DstIpAddr:   fmt.Sprintf("%s.%d.0/24", podSubnetPrefix, hostID),
+		NextHopAddr: fmt.Sprintf("%s.%d", nicNetworkPerfix, hostID),
+	}
+}
+
+func (s *remoteCNIserver) routeToOtherHostStack(hostID uint8) *l3.StaticRoutes_Route {
+	return &l3.StaticRoutes_Route{
+		DstIpAddr:   fmt.Sprintf("%s.%d.0/24", hostSubnetPrefix, hostID),
 		NextHopAddr: fmt.Sprintf("%s.%d", nicNetworkPerfix, hostID),
 	}
 }

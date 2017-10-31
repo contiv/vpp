@@ -36,7 +36,9 @@ type IPAM struct {
 }
 
 // newIPAM returns new IPAM module to be used on the host.
-func newIPAM(logger logging.Logger, podSubnetCIDR string, podNetworkPrefixLen uint32, agentLabel string) *IPAM {
+func newIPAM(logger logging.Logger, uid uint32, podSubnetCIDR string, podNetworkPrefixLen uint32, agentLabel string) *IPAM {
+	// TODO: use id to compute unique subnet instead of serviceLabel
+
 	ipam := &IPAM{
 		Logger:   logger,
 		podSeqID: 1, // .1 wil be the gateway address

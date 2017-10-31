@@ -42,11 +42,8 @@ type watcher struct {
 // WatchAndResyncBrokerKeys calls keyval watcher Watch() & resync Register()
 // This creates go routines for each tuple changeChan+resyncChan.
 func watchAndResyncBrokerKeys(resyncReg resync.Registration, changeChan chan datasync.ChangeEvent, resyncChan chan datasync.ResyncEvent,
-	adapter *watcher, keyPrefixes ...string) (*watchBrokerKeys, error) {
-
-	var wasError error
-
-	keys := &watchBrokerKeys{
+	closeChan chan string, adapter *watcher, keyPrefixes ...string) (keys *watchBrokerKeys, err error) {
+	keys = &watchBrokerKeys{
 		resyncReg:  resyncReg,
 		changeChan: changeChan,
 		resyncChan: resyncChan,
@@ -57,12 +54,9 @@ func watchAndResyncBrokerKeys(resyncReg resync.Registration, changeChan chan dat
 		go keys.watchResync(resyncReg)
 	}
 	if changeChan != nil {
-		err := keys.adapter.dbW.Watch(keys.watchChanges, keys.prefixes...)
-		if err != nil {
-			wasError = err
-		}
+		err = keys.adapter.dbW.Watch(keys.watchChanges, closeChan, keys.prefixes...)
 	}
-	return keys, wasError
+	return keys, err
 }
 
 func (keys *watchBrokerKeys) watchChanges(x keyval.ProtoWatchResp) {

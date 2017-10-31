@@ -56,6 +56,10 @@ func (kv *KvdbsyncMock) AddIgnoreEntry(key string, op datasync.PutDel) {
 type regMock struct {
 }
 
+func (r *regMock) Unregister(keyPrefix string) error {
+	return nil
+}
+
 func (r *regMock) Close() error {
 	return nil
 }

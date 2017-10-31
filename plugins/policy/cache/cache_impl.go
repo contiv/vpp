@@ -1,12 +1,17 @@
 package cache
 
 import (
+	"github.com/ligato/cn-infra/core"
 	"github.com/ligato/cn-infra/datasync"
 	"github.com/ligato/cn-infra/logging"
 
 	nsmodel "github.com/contiv/vpp/plugins/ksr/model/namespace"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	policymodel "github.com/contiv/vpp/plugins/ksr/model/policy"
+	"github.com/contiv/vpp/plugins/policy/cache/namespaceidx"
+	"github.com/contiv/vpp/plugins/policy/cache/podidx"
+	"github.com/contiv/vpp/plugins/policy/cache/policyidx"
+	"github.com/contiv/vpp/plugins/policy/cache/ruleidx"
 )
 
 // PolicyCache s used for a in-memory storage of K8s State data with fast
@@ -19,11 +24,29 @@ import (
 // The cache provides various fast lookup methods (e.g. by the label selector).
 type PolicyCache struct {
 	Deps
+
+	configuredPolicies   *policyidx.ConfigIndex
+	configuredPods       *podidx.ConfigIndex
+	configuredRules      *ruleidx.ConfigIndex
+	configuredNamespaces *namespaceidx.ConfigIndex
+	watchers             []PolicyCacheWatcher
 }
 
 // Deps lists dependencies of PolicyCache.
 type Deps struct {
-	Log logging.Logger
+	Log        logging.Logger
+	PluginName core.PluginName
+}
+
+// Init initializes policy cache.
+func (pc *PolicyCache) Init() error {
+	pc.configuredPolicies = policyidx.NewConfigIndex(pc.Log, pc.PluginName, "policies")
+	pc.configuredPods = podidx.NewConfigIndex(pc.Log, pc.PluginName, "pods")
+	pc.configuredRules = ruleidx.NewConfigIndex(pc.Log, pc.PluginName, "rules")
+	pc.configuredNamespaces = namespaceidx.NewConfigIndex(pc.Log, pc.PluginName, "namespaces")
+
+	pc.watchers = []PolicyCacheWatcher{}
+	return nil
 }
 
 // Update processes a datasync change event associated with K8s State data.
@@ -31,6 +54,11 @@ type Deps struct {
 // notified.
 // The function will forward any error returned by a watcher.
 func (pc *PolicyCache) Update(dataChngEv datasync.ChangeEvent) error {
+	err := pc.changePropagateEvent(dataChngEv)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -43,7 +71,9 @@ func (pc *PolicyCache) Resync(resyncEv datasync.ResyncEvent) error {
 }
 
 // Watch subscribes a new watcher.
-func (pc *PolicyCache) Watch(watcher *PolicyCacheWatcher) {
+func (pc *PolicyCache) Watch(watcher PolicyCacheWatcher) error {
+	pc.watchers = append(pc.watchers, watcher)
+	return nil
 }
 
 // LookupPod returns data of a given Pod.

@@ -121,6 +121,8 @@ func (f *FlavorContiv) Inject() bool {
 	f.Contiv.Deps.GoVPP = &f.GoVPP
 	f.Contiv.Deps.VPP = &f.VPP
 	f.Contiv.Deps.Resync = &f.ResyncOrch
+	f.Contiv.Deps.ETCD = &f.ETCD
+	f.Contiv.Deps.Watcher = &f.KsrETCDDataSync
 
 	f.Policy.Deps.PluginInfraDeps = *f.FlavorLocal.InfraDeps("policy")
 	f.Policy.Deps.Watcher = &f.KsrETCDDataSync

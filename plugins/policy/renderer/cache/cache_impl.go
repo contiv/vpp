@@ -20,11 +20,16 @@ type ContivRuleCacheTxn struct {
 	resync bool
 }
 
+// Init initializes the ContivRule Cache.
+func (crc *ContivRuleCache) Init() error {
+	return nil
+}
+
 // NewTxn starts a new transaction. The rendering executes only after Commit()
 // is called. If <resync> is enabled, the supplied configuration will completely
 // replace the existing one, otherwise pods not mentioned in the transaction
 // are left unchanged.
-func (crc *ContivRuleCache) NewTxn(resync bool) *ContivRuleCacheTxn {
+func (crc *ContivRuleCache) NewTxn(resync bool) Txn {
 	return &ContivRuleCacheTxn{resync: resync}
 }
 

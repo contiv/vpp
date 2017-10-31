@@ -17,15 +17,16 @@ package contiv
 import (
 	"encoding/json"
 	"fmt"
+	"sort"
+	"strconv"
+	"strings"
+	"sync"
+
 	"github.com/contiv/vpp/flavors/ksr"
 	"github.com/contiv/vpp/plugins/contiv/model/uid"
 	"github.com/ligato/cn-infra/db/keyval"
 	"github.com/ligato/cn-infra/db/keyval/etcdv3"
 	"github.com/ligato/cn-infra/servicelabel"
-	"sort"
-	"strconv"
-	"strings"
-	"sync"
 )
 
 const (

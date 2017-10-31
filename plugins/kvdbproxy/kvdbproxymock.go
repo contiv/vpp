@@ -1,9 +1,10 @@
 package kvdbproxy
 
 import (
+	"strings"
+
 	"github.com/golang/protobuf/proto"
 	"github.com/ligato/cn-infra/datasync"
-	"strings"
 )
 
 // KvdbsyncMock mocks the behavior of kvdbproxy plugin for test purposes

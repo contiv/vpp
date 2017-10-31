@@ -17,9 +17,10 @@ package contiv
 import (
 	"context"
 	"fmt"
+	"strings"
+
 	"github.com/contiv/vpp/plugins/contiv/model/uid"
 	"github.com/ligato/cn-infra/datasync"
-	"strings"
 )
 
 // handleNodeEvents adjust VPP route configuration according to the node changes.

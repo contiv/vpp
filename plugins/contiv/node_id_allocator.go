@@ -141,7 +141,7 @@ func (ia *idAllocator) writeIfNotExists(id uint32) (succeeded bool, err error) {
 		return false, err
 	}
 
-	succeeded, err = ia.etcd.PutIfNotExists(createKey(id), encoded)
+	succeeded, err = ia.etcd.PutIfNotExists(servicelabel.GetDifferentAgentPrefix(ksr.MicroserviceLabel)+createKey(id), encoded)
 
 	return succeeded, err
 

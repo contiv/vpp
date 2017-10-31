@@ -72,10 +72,11 @@ const (
 	podNameExtraArg             = "K8S_POD_NAME"
 	podNamespaceExtraArg        = "K8S_POD_NAMESPACE"
 	nicNetworkPerfix            = "192.168.16"
-	vethHostEndIP               = "192.168.17.24"
-	vethVPPEndIP                = "192.168.17.25"
-	vethHostEndName             = "v1"
-	vethVPPEndName              = "vppv2"
+	hostSubnetCIDR              = "172.30.0.0/16"
+	hostSubnetPrefix            = "172.30"
+	hostSubnetPrefixLen         = 24
+	vethHostEndName             = "vpp1"
+	vethVPPEndName              = "vpp2"
 	afPacketIPPrefix            = "10.2.1"
 )
 
@@ -413,11 +414,6 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 			{
 				Dst: "0.0.0.0/0",
 				Gw:  s.ipam.getPodGatewayIP(),
-			},
-		},
-		Dns: []*cni.CNIReply_DNS{
-			{
-				Nameservers: []string{vethHostEndIP},
 			},
 		},
 	}

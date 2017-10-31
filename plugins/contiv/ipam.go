@@ -15,91 +15,182 @@
 package contiv
 
 import (
-	"crypto/sha1"
 	"fmt"
-	"strings"
+	"net"
 	"sync"
 
 	"github.com/ligato/cn-infra/logging"
 )
 
+const (
+	gatewayPodSeqID = 1
+)
+
 // IPAM represents the basic Contiv IPAM module.
-// TODO: this is just an initial implementation, requires a lot of work.
 type IPAM struct {
 	logging.Logger
 	sync.RWMutex
 
-	podNetworkSubnetID  uint8  // unique ID of the pod subnet on this host, used to calculate podNetworkIPPrefix
-	podNetworkIPPrefix  string // prefix with pod network IP, ID of the pod can be appended to this to get the real pod IP
-	podNetworkPrefixLen uint32 // prefix length of pod network used on this host
-	podSeqID            uint32 // pod sequence number used to allocate an unique pod IP address to each POD
+	hostID                uint8           // identifier of host node for which this IPAM is created for
+	podNetworkIPPrefix    net.IPNet       // IPv4 subnet prefix for all pods of one host node (given by hostID)
+	allHostsPodSubnetMask net.IPMask      // mask for subnet for all pods across all host nodes
+	podNetworkGatewayIP   net.IP          // gateway IP address for pod network of one host node (given by hostID)
+	assignedIPs           map[uint32]bool // pool of assigned IP addresses
+}
+
+// IPAMConfig is configuration for IPAM module
+type IPAMConfig struct {
+	PodSubnetCIDR       string // subnet used for all pods across all nodes
+	PodNetworkPrefixLen uint8  // prefix length of subnet used for all pods of 1 host node (pod network = pod subnet for one 1 host node)
 }
 
 // newIPAM returns new IPAM module to be used on the host.
-func newIPAM(logger logging.Logger, podSubnetCIDR string, podNetworkPrefixLen uint32, agentLabel string) *IPAM {
+func newIPAM(logger logging.Logger, hostID uint8, config *IPAMConfig) (*IPAM, error) {
+	// create basic IPAM
 	ipam := &IPAM{
-		Logger:   logger,
-		podSeqID: 1, // .1 wil be the gateway address
+		Logger: logger,
+		hostID: hostID,
 	}
 
-	// calculate POD subnetID ID based on agentLabel
-	// TODO: implement proper allocation logic based on ETCD
-	h := sha1.New()
-	h.Write([]byte(agentLabel))
-	sum := h.Sum(nil)
-	ipam.podNetworkSubnetID = uint8(sum[0])
-	logger.Infof("Will use %d as the pod network subnet ID.", ipam.podNetworkSubnetID)
+	// computing IPAM struct variables from IPAM config
+	_, podSubnet, err := net.ParseCIDR(config.PodSubnetCIDR)
+	if err != nil {
+		return nil, fmt.Errorf("Can't parse PodSubnetCIDR \"%v\" : %v", config.PodSubnetCIDR, err)
+	}
+	podSubnetPrefix, err := ipv4ToUint32(podSubnet.IP)
+	if err != nil {
+		return nil, err
+	}
+	podSubnetPrefixLen, _ := podSubnet.Mask.Size()
+	if config.PodNetworkPrefixLen <= uint8(podSubnetPrefixLen) {
+		return nil, fmt.Errorf("Pod network prefix length (%v) must be higher than pod subnet prefix length (%v)", config.PodNetworkPrefixLen, podSubnetPrefixLen)
+	}
+	hostPartBitSize := config.PodNetworkPrefixLen - uint8(podSubnetPrefixLen)
+	hostIPPart := convertToHostIPPart(hostID, hostPartBitSize)
+	podNetworkPrefixUint32 := podSubnetPrefix + (uint32(hostIPPart) << (32 - config.PodNetworkPrefixLen))
 
-	// TODO: process podSubnetCIDR properly, for now this assumes pod subnet to be /16 and pod network /24
-	cidrArr := strings.Split(podSubnetCIDR, ".")
+	ipam.podNetworkIPPrefix = net.IPNet{
+		IP:   uint32ToIpv4(podNetworkPrefixUint32),
+		Mask: uint32ToIpv4Mask((1 << uint(config.PodNetworkPrefixLen)) - 1),
+	}
+	ipam.allHostsPodSubnetMask = uint32ToIpv4Mask((1 << uint(podSubnetPrefixLen)) - 1)
+	ipam.podNetworkGatewayIP = uint32ToIpv4(podNetworkPrefixUint32 + gatewayPodSeqID)
+	ipam.assignedIPs = make(map[uint32]bool) // TODO: load allocated IP addresses from ETCD (failover use case)
 
-	ipam.podNetworkIPPrefix = fmt.Sprintf("%s.%s.%d", cidrArr[0], cidrArr[1], ipam.podNetworkSubnetID)
-	ipam.podNetworkPrefixLen = podNetworkPrefixLen
+	logger.Infof("IPAM values loaded: %+v", ipam)
 
-	logger.Infof("POD network for this node will be %s.X/%d", ipam.podNetworkIPPrefix, ipam.podNetworkPrefixLen)
-
-	return ipam
+	return ipam, nil
 }
 
-// getPodNetworkCIDR returns pod network CIDR ("network_address/prefix_length").
-func (i *IPAM) getPodNetworkCIDR() string {
+// getPodNetwork returns pod network for current host (given by hostID given at IPAM creation)
+func (i *IPAM) getPodNetwork() *net.IPNet {
 	i.RLock()
 	defer i.RUnlock()
-	return fmt.Sprintf("%s.%d/%d", i.podNetworkIPPrefix, 0, i.podNetworkPrefixLen)
+	podNetwork := newIPNet(i.podNetworkIPPrefix) // defensive copy
+	return &podNetwork
 }
 
 // getPodGatewayIP returns gateway IP address for the pod network.
-func (i *IPAM) getPodGatewayIP() string {
+func (i *IPAM) getPodGatewayIP() net.IP {
 	i.RLock()
 	defer i.RUnlock()
-	return fmt.Sprintf("%s.%d", i.podNetworkIPPrefix, 1)
+	return newIP(i.podNetworkGatewayIP) // defensive copy
 }
 
-// getPodNetworkSubnetID returns unique ID of the pod subnet on this host, used to calculate the pod network CIDR.
-func (i *IPAM) getPodNetworkSubnetID() uint8 {
+// getHostID returns unique host ID used to calculate the pod network CIDR.
+func (i *IPAM) getHostID() uint8 {
 	i.RLock()
 	defer i.RUnlock()
-	return i.podNetworkSubnetID
+	return i.hostID
 }
 
 // getNextPodIP returns next available pod IP address.
-func (i *IPAM) getNextPodIP() string {
+func (i *IPAM) getNextPodIP() (net.IP, error) {
 	i.Lock()
 	defer i.Unlock()
 
-	// TODO: implement proper pool logic instead of sequence numbers
+	// get network prefix as uint32
+	networkPrefix, err := ipv4ToUint32(i.podNetworkIPPrefix.IP)
+	if err != nil {
+		return nil, err
+	}
 
-	// assign next available IP
-	i.podSeqID++
-	ip := fmt.Sprintf("%s.%d", i.podNetworkIPPrefix, i.podSeqID)
+	// iterate over all possible IP addresses for pod network prefix
+	// and take first not assigned IP
+	prefixBits, totalBits := i.podNetworkIPPrefix.Mask.Size()
+	maxAssignableIPs := 1 << uint(totalBits-prefixBits)
+	for j := 0; j < maxAssignableIPs; j++ {
+		if j == gatewayPodSeqID {
+			continue // gateway IP address can't be assigned as pod
+		}
+		if _, found := i.assignedIPs[networkPrefix+uint32(j)]; found {
+			continue // ignore already assigned IP addresses
+		}
+		i.assignedIPs[networkPrefix+uint32(j)] = true
+		//TODO set etcd for new assigned value
 
-	i.Logger.Infof("Assigned new pod IP %s", ip)
+		ipForAssign := uint32ToIpv4(networkPrefix + uint32(j))
+		i.Logger.Infof("Assigned new pod IP %s", ipForAssign)
+		return ipForAssign, nil
+	}
 
-	return ip
+	return nil, fmt.Errorf("No IP address is free for assignment. All IP addresses for pod network %v are already assigned", i.podNetworkIPPrefix)
 }
 
+//TODO use releasePodIP func to proper release pod IP addresses
 // releasePodIP releases the pod IP address, so that it can be reused by the next pods.
-func (i *IPAM) releasePodIP(ip string) error {
-	// TODO: implement
-	return fmt.Errorf("not yet implemented")
+func (i *IPAM) releasePodIP(ip net.IP) error {
+	i.Lock()
+	defer i.Unlock()
+
+	ipUint32, err := ipv4ToUint32(ip)
+	if err != nil {
+		return fmt.Errorf("Can't release pod IP: %v", err)
+	}
+	delete(i.assignedIPs, ipUint32)
+	//TODO remove from etcd (if inside etcd)
+	return nil
+}
+
+// convertToHostIPPart converts hostID to part of IP address that distinguishes pod network IP address prefix among
+// different hosts. The result don't have to be that whole hostID, because in IP address there can be allocated
+// less space than the size of hostID.
+func convertToHostIPPart(hostID uint8, expectedHostPartBitSize uint8) uint8 {
+	return hostID & ((1 << expectedHostPartBitSize) - 1) //TODO this is only trimming hostID to expected bit count, do we want to map hostID to some value from config?
+}
+
+// ipv4ToUint32 is simple utility function for conversion between IPv4 and uint32
+func ipv4ToUint32(ip net.IP) (uint32, error) {
+	ip = ip.To4()
+	if ip == nil {
+		return 0, fmt.Errorf("Ip address %v is not ipv4 address (or ipv6 convertible to ipv4 address)", ip)
+	}
+	var tmp uint32
+	for bytePart := range ip {
+		tmp = tmp<<8 + uint32(bytePart)
+	}
+	return tmp, nil
+}
+
+// uint32ToIpv4 is simple utility function for conversion between IPv4 and uint32
+func uint32ToIpv4(ip uint32) net.IP {
+	return net.IPv4(byte(ip>>24), byte(ip>>16), byte(ip>>8), byte(ip))
+}
+
+// uint32ToIpv4Mask is simple utility function for conversion between IPv4Mask and uint32
+func uint32ToIpv4Mask(ip uint32) net.IPMask {
+	return net.IPv4Mask(byte(ip>>24), byte(ip>>16), byte(ip>>8), byte(ip))
+}
+
+// newIPNet is simple utility function to create defend copy of net.IPNet
+func newIPNet(ipNet net.IPNet) net.IPNet {
+	return net.IPNet{
+		IP:   newIP(ipNet.IP),
+		Mask: net.IPv4Mask(ipNet.Mask[0], ipNet.Mask[1], ipNet.Mask[2], ipNet.Mask[3]),
+	}
+}
+
+// newIP is simple utility function to create defend copy of net.IP
+func newIP(ip net.IP) net.IP {
+	return net.IPv4(ip[0], ip[1], ip[2], ip[3])
 }

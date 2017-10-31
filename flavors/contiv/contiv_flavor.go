@@ -121,6 +121,13 @@ func (f *FlavorContiv) Inject() bool {
 	f.Contiv.Deps.GoVPP = &f.GoVPP
 	f.Contiv.Deps.VPP = &f.VPP
 	f.Contiv.Deps.Resync = &f.ResyncOrch
+	tmpConfig := contiv.Config{ //TODO remove after applying config
+		IPAMConfig: contiv.IPAMConfig{
+			PodSubnetCIDR:       "10.1.0.0/16",
+			PodNetworkPrefixLen: 24,
+		},
+	}
+	f.Contiv.Config = &tmpConfig
 
 	f.Policy.Deps.PluginInfraDeps = *f.FlavorLocal.InfraDeps("policy")
 	f.Policy.Deps.Watcher = &f.KsrETCDDataSync

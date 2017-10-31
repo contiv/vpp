@@ -31,15 +31,10 @@ func (s *remoteCNIserver) configureRouteOnHost() error {
 		s.Logger.Error(err)
 		return err
 	}
-	_, network, err := net.ParseCIDR(s.ipam.getPodNetworkCIDR())
-	if err != nil {
-		s.Logger.Error(err)
-		return err
-	}
 
 	return s.RouteAdd(&netlink.Route{
 		LinkIndex: dev.Attrs().Index,
-		Dst:       network,
+		Dst:       s.ipam.getPodNetwork(),
 		Gw:        net.ParseIP(vethVPPEndIP),
 	})
 
@@ -95,7 +90,7 @@ func (s *remoteCNIserver) physicalInterface(name string) *vpp_intf.Interfaces_In
 		Name:        name,
 		Type:        vpp_intf.InterfaceType_ETHERNET_CSMACD,
 		Enabled:     true,
-		IpAddresses: []string{fmt.Sprintf("%s.%d/24", nicNetworkPerfix, s.ipam.getPodNetworkSubnetID())},
+		IpAddresses: []string{fmt.Sprintf("%s.%d/24", nicNetworkPerfix, s.ipam.getHostID())},
 	}
 }
 
@@ -104,7 +99,7 @@ func (s *remoteCNIserver) physicalInterfaceLoopback() *vpp_intf.Interfaces_Inter
 		Name:        "loopbackNIC",
 		Type:        vpp_intf.InterfaceType_SOFTWARE_LOOPBACK,
 		Enabled:     true,
-		IpAddresses: []string{fmt.Sprintf("%s.%d/24", nicNetworkPerfix, s.ipam.getPodNetworkSubnetID())},
+		IpAddresses: []string{fmt.Sprintf("%s.%d/24", nicNetworkPerfix, s.ipam.getHostID())},
 	}
 }
 

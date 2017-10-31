@@ -19,6 +19,7 @@ import (
 	"strings"
 	"sync"
 
+	"fmt"
 	"git.fd.io/govpp.git/api"
 	"github.com/contiv/vpp/plugins/contiv/containeridx"
 	"github.com/contiv/vpp/plugins/contiv/model/cni"
@@ -59,25 +60,27 @@ type remoteCNIserver struct {
 }
 
 const (
-	resultOk             uint32 = 0
-	resultErr            uint32 = 1
-	vethNameMaxLen              = 15
-	podSubnetCIDR               = "10.1.0.0/16"
-	podSubnetPrefix             = "10.1"
-	podNetworkPrefixLen         = 24
-	afPacketNamePrefix          = "afpacket"
-	podNameExtraArg             = "K8S_POD_NAME"
-	podNamespaceExtraArg        = "K8S_POD_NAMESPACE"
-	nicNetworkPerfix            = "192.168.16"
-	vethHostEndIP               = "192.168.17.24"
-	vethVPPEndIP                = "192.168.17.25"
-	vethHostEndName             = "v1"
-	vethVPPEndName              = "vppv2"
-	afPacketIPPrefix            = "10.2.1"
+	resultOk       uint32 = 0
+	resultErr      uint32 = 1
+	vethNameMaxLen        = 15
+	//podSubnetCIDR               = "10.1.0.0/16"
+	podSubnetPrefix = "10.1"
+	//podNetworkPrefixLen         = 24
+	afPacketNamePrefix   = "afpacket"
+	podNameExtraArg      = "K8S_POD_NAME"
+	podNamespaceExtraArg = "K8S_POD_NAMESPACE"
+	nicNetworkPerfix     = "192.168.16"
+	vethHostEndIP        = "192.168.17.24"
+	vethVPPEndIP         = "192.168.17.25"
+	vethHostEndName      = "v1"
+	vethVPPEndName       = "vppv2"
+	afPacketIPPrefix     = "10.2.1"
 )
 
 func newRemoteCNIServer(logger logging.Logger, vppTxnFactory func() linux.DataChangeDSL, proxy kvdbproxy.Proxy,
-	configuredContainers *containeridx.ConfigIndex, govppChan *api.Channel, index ifaceidx.SwIfIndex, agentLabel string) *remoteCNIserver {
+	configuredContainers *containeridx.ConfigIndex, govppChan *api.Channel, index ifaceidx.SwIfIndex, agentLabel string, ipamConfig *IPAMConfig) *remoteCNIserver {
+	ipam, _ := newIPAM(logger, 1, ipamConfig) //TODO fix setting of host id
+	// TODO handle error
 	return &remoteCNIserver{
 		Logger:               logger,
 		vppTxnFactory:        vppTxnFactory,
@@ -87,7 +90,7 @@ func newRemoteCNIServer(logger logging.Logger, vppTxnFactory func() linux.DataCh
 		govppChan:            govppChan,
 		swIfIndex:            index,
 		agentLabel:           agentLabel,
-		ipam:                 newIPAM(logger, podSubnetCIDR, podNetworkPrefixLen, agentLabel),
+		ipam:                 ipam,
 	}
 }
 
@@ -167,7 +170,7 @@ func (s *remoteCNIserver) configureVswitchConnectivity() error {
 			for i = 0; i < 255; i++ {
 				// creates routes to all possible hosts
 				// TODO: after proper IPAM implementation, only routes to existing hosts should be added
-				if i != s.ipam.getPodNetworkSubnetID() {
+				if i != s.ipam.getHostID() {
 					r := s.routeToOtherHost(i)
 					txn2.StaticRoute(r)
 					_, dstNet, _ := net.ParseCIDR(r.DstIpAddr)
@@ -313,12 +316,16 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 	s.counter++
 
 	// assign IP address for this POD
-	podIP := s.ipam.getNextPodIP() + "/32"
+	podIP, err := s.ipam.getNextPodIP()
+	if err != nil {
+		return nil, fmt.Errorf("Can't get new IP address for pod: %v", err)
+	}
+	podIPCIDR := podIP.String() + "/32"
 
-	veth1 := s.veth1FromRequest(request, podIP)
+	veth1 := s.veth1FromRequest(request, podIPCIDR)
 	veth2 := s.veth2FromRequest(request)
 	afpacket := s.afpacketFromRequest(request)
-	route := s.vppRouteFromRequest(request, podIP)
+	route := s.vppRouteFromRequest(request, podIPCIDR)
 
 	s.WithFields(logging.Fields{"veth1": veth1, "veth2": veth2, "afpacket": afpacket, "route": route}).Info("Configuring")
 
@@ -327,7 +334,7 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 		LinuxInterface(veth1).
 		LinuxInterface(veth2).
 		VppInterface(afpacket)
-	err := txn.Send().ReceiveReply()
+	err = txn.Send().ReceiveReply()
 
 	if err != nil {
 		s.Logger.Error(err)
@@ -349,7 +356,7 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 	}
 	s.Debug("Container mac: ", macAddr)
 
-	err = s.configureArpOnVpp(request, macAddr, podIP)
+	err = s.configureArpOnVpp(request, macAddr, podIP.String())
 	if err != nil {
 		s.Logger.Error(err)
 		return s.generateErrorResponse(err)
@@ -407,7 +414,7 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 		Routes: []*cni.CNIReply_Route{
 			{
 				Dst: "0.0.0.0/0",
-				Gw:  s.ipam.getPodGatewayIP(),
+				Gw:  s.ipam.getPodGatewayIP().String(),
 			},
 		},
 		Dns: []*cni.CNIReply_DNS{
@@ -509,7 +516,7 @@ func (s *remoteCNIserver) createdInterfaces(veth *linux_intf.LinuxInterfaces_Int
 				{
 					Version: cni.CNIReply_Interface_IP_IPV4,
 					Address: veth.IpAddresses[0],
-					Gateway: s.ipam.getPodGatewayIP(),
+					Gateway: s.ipam.getPodGatewayIP().String(),
 				},
 			},
 		},

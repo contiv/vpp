@@ -19,6 +19,7 @@ package contiv
 import (
 	"context"
 
+	"fmt"
 	"git.fd.io/govpp.git/api"
 	"github.com/contiv/vpp/plugins/contiv/containeridx"
 	"github.com/contiv/vpp/plugins/contiv/model/cni"
@@ -45,6 +46,8 @@ type Plugin struct {
 
 	ctx           context.Context
 	ctxCancelFunc context.CancelFunc
+
+	config *Config
 }
 
 // Deps groups the dependencies of the Plugin.
@@ -55,6 +58,14 @@ type Deps struct {
 	VPP    *defaultplugins.Plugin
 	GoVPP  govppmux.API
 	Resync resync.Subscriber
+	Config *Config // optional inject (if not injected, it must be set using external config file)
+}
+
+// Config is configuration for Contiv plugin.
+// It can be injected or loaded from external config. Injection has priority to external config. To use external
+// config add `<Contiv plugin name> + "-config="<absolute path to config>` in go run command flags.
+type Config struct {
+	IPAMConfig IPAMConfig
 }
 
 // Init initializes the grpc server handling the request from the CNI.
@@ -62,6 +73,11 @@ func (plugin *Plugin) Init() error {
 	plugin.configuredContainers = containeridx.NewConfigIndex(plugin.Log, plugin.PluginName, "containers")
 
 	plugin.ctx, plugin.ctxCancelFunc = context.WithCancel(context.Background())
+	if plugin.Config == nil {
+		if err := plugin.applyExternalConfig(); err != nil {
+			return err
+		}
+	}
 
 	var err error
 	plugin.govppCh, err = plugin.GoVPP.NewAPIChannel()
@@ -75,8 +91,22 @@ func (plugin *Plugin) Init() error {
 		plugin.configuredContainers,
 		plugin.govppCh,
 		plugin.VPP.GetSwIfIndexes(),
-		plugin.ServiceLabel.GetAgentLabel())
+		plugin.ServiceLabel.GetAgentLabel(),
+		&plugin.Config.IPAMConfig)
 	cni.RegisterRemoteCNIServer(plugin.GRPC.Server(), plugin.cniServer)
+	return nil
+}
+
+func (plugin *Plugin) applyExternalConfig() error {
+	var externalCfg *Config
+	found, err := plugin.PluginConfig.GetValue(externalCfg) // It tries to lookup `PluginName + "-config"` in go run command flags.
+	if err != nil {
+		return fmt.Errorf("External Contiv plugin configuration could not load or other problem happened: %v", err)
+	}
+	if !found {
+		return fmt.Errorf("External Contiv plugin configuration was not found")
+	}
+	plugin.config = externalCfg
 	return nil
 }
 

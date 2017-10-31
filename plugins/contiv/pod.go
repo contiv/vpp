@@ -32,22 +32,17 @@ import (
 
 func (s *remoteCNIserver) configureRoutesInContainer(request *cni.CNIRequest) error {
 	return s.WithNetNSPath(request.NetworkNamespace, func(netns ns.NetNS) error {
-
-		_, linkNet, err := net.ParseCIDR(s.ipam.getPodGatewayIP() + "/32")
-		if err != nil {
-			s.Logger.Error(err)
-			return err
-		}
-
-		defaultNextHop := net.ParseIP(s.ipam.getPodGatewayIP())
+		destination := ipToIPNet(s.ipam.getPodGatewayIP())
+		defaultNextHop := s.ipam.getPodGatewayIP()
 		dev, err := s.LinkByName(request.InterfaceName)
 		if err != nil {
 			s.Logger.Error(err)
 			return err
 		}
+
 		err = s.RouteAdd(&netlink.Route{
 			LinkIndex: dev.Attrs().Index,
-			Dst:       linkNet,
+			Dst:       &destination,
 			Scope:     netlink.SCOPE_LINK,
 		})
 		if err != nil {
@@ -108,7 +103,7 @@ func (s *remoteCNIserver) configureArpOnVpp(request *cni.CNIRequest, macAddr []b
 
 func (s *remoteCNIserver) configureArpInContainer(macAddr net.HardwareAddr, request *cni.CNIRequest) error {
 
-	gw := net.ParseIP(s.ipam.getPodGatewayIP())
+	gw := s.ipam.getPodGatewayIP()
 	return s.WithNetNSPath(request.NetworkNamespace, func(ns ns.NetNS) error {
 		link, err := s.LinkByName(request.InterfaceName)
 		if err != nil {
@@ -182,8 +177,12 @@ func (s *remoteCNIserver) afpacketNameFromRequest(request *cni.CNIRequest) strin
 	return afPacketNamePrefix + s.veth2NameFromRequest(request)
 }
 
-func (s *remoteCNIserver) ipAddrForContainer() string {
-	return s.ipam.getNextPodIP() + "/32"
+func (s *remoteCNIserver) ipAddrForContainer() (string, error) {
+	newIP, err := s.ipam.getNextPodIP()
+	if err != nil {
+		return "", err
+	}
+	return newIP.String() + "/32", nil
 }
 
 func (s *remoteCNIserver) ipAddrForAfPacket() string {
@@ -236,4 +235,8 @@ func (s *remoteCNIserver) vppRouteFromRequest(request *cni.CNIRequest, podIP str
 		DstIpAddr:         podIP,
 		OutgoingInterface: s.afpacketNameFromRequest(request),
 	}
+}
+
+func ipToIPNet(ip net.IP) net.IPNet {
+	return net.IPNet{IP: ip, Mask: net.IPv4Mask(0xff, 0xff, 0xff, 0xff)}
 }

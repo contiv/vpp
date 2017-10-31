@@ -62,6 +62,11 @@ var req = cni.CNIRequest{
 	ExtraArguments:   "IgnoreUnknown=1;K8S_POD_NAMESPACE=default;K8S_POD_NAME=" + podName + ";K8S_POD_INFRA_CONTAINER_ID=7d673108b0ff9b2f59f977ca5f4cef347cb9ca66888614068882fbfaba4de752",
 }
 
+var ipamConfig = IPAMConfig{
+	PodSubnetCIDR:       "10.1.0.0/16",
+	PodNetworkPrefixLen: 24,
+}
+
 func TestVeth1NameFromRequest(t *testing.T) {
 	gomega.RegisterTestingT(t)
 
@@ -73,7 +78,8 @@ func TestVeth1NameFromRequest(t *testing.T) {
 		nil,
 		nil,
 		nil,
-		"testlabel")
+		"testlabel",
+		&ipamConfig)
 
 	hostIfName := server.veth1HostIfNameFromRequest(&req)
 	gomega.Expect(hostIfName).To(gomega.BeEquivalentTo("eth0"))
@@ -92,7 +98,8 @@ func TestAdd(t *testing.T) {
 		configuredContainers,
 		vppChanMock(),
 		swIfIdx,
-		"testLabel")
+		"testLabel",
+		&ipamConfig)
 	server.hostCalls = &mockLinuxCalls{}
 
 	reply, err := server.Add(context.Background(), &req)

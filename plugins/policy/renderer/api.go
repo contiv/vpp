@@ -1,6 +1,24 @@
+// Copyright (c) 2017 Cisco and/or its affiliates.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at:
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package renderer
 
-import "net"
+import (
+	"fmt"
+	"net"
+	"strconv"
+)
 
 // PolicyRendererAPI defines the API of Policy Renderer.
 // Policy Renderer implements rendering of Contiv rules for a specific network
@@ -23,7 +41,7 @@ type Txn interface {
 	// The existing rules are replaced.
 	// ContivRuleCache can be used to calculate the minimal diff and find
 	// interfaces with equivalent ingress and/or egress configuration.
-	Render(ifName string, ingress []ContivRule, egress []ContivRule) Txn
+	Render(ifName string, ingress []*ContivRule, egress []*ContivRule) Txn
 
 	// Commit proceeds with the rendering. The changes are propagated into
 	// the destination network stack.
@@ -41,13 +59,37 @@ type ContivRule struct {
 	Action ActionType
 
 	// L3
-	SrcNetwork  net.IPNet // empty/nil = match all
-	DestNetwork net.IPNet // empty/nil = match all
+	SrcNetwork  *net.IPNet // empty = match all
+	DestNetwork *net.IPNet // empty = match all
 
 	// L4
 	Protocol ProtocolType
-	SrcPort  int16 // 0 = match all
-	DstPort  int16 // 0 = match all
+	SrcPort  uint16 // 0 = match all
+	DestPort uint16 // 0 = match all
+}
+
+// String converts Contiv Rule (pointer) into a human-readable string
+// representation.
+func (cr *ContivRule) String() string {
+	const any = "ANY"
+	srcNet := any
+	dstNet := any
+	if len(cr.SrcNetwork.IP) > 0 {
+		srcNet = cr.SrcNetwork.String()
+	}
+	if len(cr.DestNetwork.IP) > 0 {
+		dstNet = cr.DestNetwork.String()
+	}
+	srcPort := any
+	dstPort := any
+	if cr.SrcPort != 0 {
+		srcPort = strconv.Itoa(int(cr.SrcPort))
+	}
+	if cr.DestPort != 0 {
+		dstPort = strconv.Itoa(int(cr.DestPort))
+	}
+	return fmt.Sprintf("Rule %s <%s %s[%s:%s] -> %s[%s:%s]>",
+		cr.ID, cr.Action, srcNet, cr.Protocol, srcPort, dstNet, cr.Protocol, dstPort)
 }
 
 // ActionType is either DENY or PERMIT.
@@ -61,6 +103,17 @@ const (
 	ActionPermit
 )
 
+// String converts ActionType into a human-readable string.
+func (at ActionType) String() string {
+	switch at {
+	case ActionDeny:
+		return "DENY"
+	case ActionPermit:
+		return "PERMIT"
+	}
+	return "INVALID"
+}
+
 // ProtocolType is either TCP or UDP.
 type ProtocolType int
 
@@ -71,3 +124,14 @@ const (
 	// UDP protocol.
 	UDP
 )
+
+// String converts ProtocolType into a human-readable string.
+func (at ProtocolType) String() string {
+	switch at {
+	case TCP:
+		return "TCP"
+	case UDP:
+		return "UDP"
+	}
+	return "INVALID"
+}

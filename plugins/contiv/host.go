@@ -40,14 +40,14 @@ func (s *remoteCNIserver) configureRouteOnHost() error {
 	return s.RouteAdd(&netlink.Route{
 		LinkIndex: dev.Attrs().Index,
 		Dst:       network,
-		Gw:        net.ParseIP(vethVPPEndIP),
+		Gw:        net.ParseIP(s.vethVPPEndIP()),
 	})
 }
 
 func (s *remoteCNIserver) defaultRouteToHost() *l3.StaticRoutes_Route {
 	return &l3.StaticRoutes_Route{
 		DstIpAddr:         "0.0.0.0/0",
-		NextHopAddr:       vethHostEndIP,
+		NextHopAddr:       s.vethHostEndIP(),
 		OutgoingInterface: vethVPPEndName,
 	}
 }
@@ -61,7 +61,7 @@ func (s *remoteCNIserver) interconnectVethHost() *linux_intf.LinuxInterfaces_Int
 		Veth: &linux_intf.LinuxInterfaces_Interface_Veth{
 			PeerIfName: "v2",
 		},
-		IpAddresses: []string{vethHostEndIP + "/24"},
+		IpAddresses: []string{s.vethHostEndIP() + "/24"},
 	}
 }
 
@@ -85,7 +85,7 @@ func (s *remoteCNIserver) interconnectAfpacket() *vpp_intf.Interfaces_Interface 
 		Afpacket: &vpp_intf.Interfaces_Interface_Afpacket{
 			HostIfName: vethVPPEndName,
 		},
-		IpAddresses: []string{vethVPPEndIP + "/24"},
+		IpAddresses: []string{s.vethVPPEndIP() + "/24"},
 	}
 }
 
@@ -107,9 +107,26 @@ func (s *remoteCNIserver) physicalInterfaceLoopback() *vpp_intf.Interfaces_Inter
 	}
 }
 
-func (s *remoteCNIserver) routeToOtherHost(hostID uint8) *l3.StaticRoutes_Route {
+func (s *remoteCNIserver) routeToOtherHostPods(hostID uint8) *l3.StaticRoutes_Route {
 	return &l3.StaticRoutes_Route{
 		DstIpAddr:   fmt.Sprintf("%s.%d.0/24", podSubnetPrefix, hostID),
 		NextHopAddr: fmt.Sprintf("%s.%d", nicNetworkPerfix, hostID),
 	}
+}
+
+func (s *remoteCNIserver) routeToOtherHostStack(hostID uint8) *l3.StaticRoutes_Route {
+	return &l3.StaticRoutes_Route{
+		DstIpAddr:   fmt.Sprintf("%s.%d.0/24", hostSubnetPrefix, hostID),
+		NextHopAddr: fmt.Sprintf("%s.%d", nicNetworkPerfix, hostID),
+	}
+}
+
+func (s *remoteCNIserver) vethVPPEndIP() string {
+	// TODO: replace with proper IPAM calls
+	return fmt.Sprintf("%s.%d.1", hostSubnetPrefix, s.ipam.podNetworkSubnetID)
+}
+
+func (s *remoteCNIserver) vethHostEndIP() string {
+	// TODO: replace with proper IPAM calls
+	return fmt.Sprintf("%s.%d.2", hostSubnetPrefix, s.ipam.podNetworkSubnetID)
 }

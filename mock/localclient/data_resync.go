@@ -3,6 +3,8 @@ package localclient
 import (
 	"net"
 
+	"github.com/golang/protobuf/proto"
+
 	"github.com/ligato/vpp-agent/clientv1/defaultplugins"
 	"github.com/ligato/vpp-agent/clientv1/linux"
 
@@ -30,7 +32,7 @@ func newMockDataResyncDSL(tracker *TxnTracker, transaction *Txn) *MockDataResync
 
 // apply reflects the effect of transaction operations into the mock DB.
 func (dsl *MockDataResyncDSL) apply() {
-	dsl.txnTracker.AppliedConfig = nil /* clear the previous configuration */
+	dsl.txnTracker.AppliedConfig = make(map[string]proto.Message) /* clear the previous configuration */
 	for _, op := range dsl.Ops {
 		dsl.txnTracker.AppliedConfig[op.Key] = op.Value
 	}

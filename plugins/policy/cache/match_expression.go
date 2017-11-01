@@ -17,17 +17,17 @@ func (pc *PolicyCache) getMatchExpressionPods(namespace string, expressions []*p
 		switch expression.Operator {
 		case In:
 			labels := constructLabels(expression.Key, expression.Value)
-			isMatch, podSet := pc.getMatchByNSLabelPods(namespace, labels)
+			isMatch, podSet := pc.getPodsByNSLabelSelector(namespace, labels)
 			if !isMatch {
 				return false, nil
 			}
 			inPodSet = append(inPodSet, podSet...)
 		//case NotIn:
-		//labels := constructLabels(expression.Key, expression.Value)
-
+		//	labels := constructLabels(expression.Key, expression.Value)
+		//	isMatch
 		case Exists:
 			labels := constructLabels(expression.Key, expression.Value)
-			isMatch, podSet := pc.getMatchByNSKeyPods(namespace, labels)
+			isMatch, podSet := pc.getPodsByNSKeyPods(namespace, labels)
 			if !isMatch {
 				return false, nil
 			}

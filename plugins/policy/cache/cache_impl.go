@@ -98,7 +98,7 @@ func (pc *PolicyCache) LookupPodsByNSLabelSelector(policyNamespace string, podLa
 	}
 
 	if len(matchLabels) > 0 && len(matchExpressions) == 0 {
-		found, pods := pc.getMatchByNSLabelPods(policyNamespace, matchLabels)
+		found, pods := pc.getPodsByNSLabelSelector(policyNamespace, matchLabels)
 		if !found {
 			return nil
 		}
@@ -110,7 +110,19 @@ func (pc *PolicyCache) LookupPodsByNSLabelSelector(policyNamespace string, podLa
 		}
 		return pods
 	} else if len(matchLabels) > 0 && len(matchExpressions) > 0 {
-
+		foundMlPods, mlPods := pc.getPodsByNSLabelSelector(policyNamespace, matchLabels)
+		if !foundMlPods {
+			return nil
+		}
+		foundMePods, mePods := pc.getMatchExpressionPods(policyNamespace, matchExpressions)
+		if !foundMePods {
+			return nil
+		}
+		pods := intersect(mlPods, mePods)
+		if pods == nil {
+			return nil
+		}
+		return pods
 	}
 
 	return nil

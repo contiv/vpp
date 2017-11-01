@@ -4,14 +4,14 @@ import (
 	policymodel "github.com/contiv/vpp/plugins/ksr/model/policy"
 )
 
-func (pc *PolicyCache) getMatchByNSLabelPods(namespace string, labels []*policymodel.Policy_Label) (bool, []string) {
+func (pc *PolicyCache) getPodsByNSLabelSelector(namespace string, labels []*policymodel.Policy_Label) (bool, []string) {
 	prevNSLabelSelector := namespace + labels[0].Key + labels[0].Value
-	prevPodSet := pc.configuredPods.LookupPodsByNSLabelKey(prevNSLabelSelector)
+	prevPodSet := pc.configuredPods.LookupPodsByNSLabelSelector(prevNSLabelSelector)
 	newPodSet := []string{}
 	for i := 1; i < len(labels); i++ {
 
 		newNSLabelSelector := namespace + labels[i].Key + labels[i].Value
-		newPodSet = pc.configuredPods.LookupPodsByNSLabelKey(newNSLabelSelector)
+		newPodSet = pc.configuredPods.LookupPodsByNSLabelSelector(newNSLabelSelector)
 
 		tmp := intersect(prevPodSet, newPodSet)
 		if len(tmp) == 0 {
@@ -24,7 +24,7 @@ func (pc *PolicyCache) getMatchByNSLabelPods(namespace string, labels []*policym
 	return true, newPodSet
 }
 
-func (pc *PolicyCache) getMatchByNSKeyPods(namespace string, labels []*policymodel.Policy_Label) (bool, []string) {
+func (pc *PolicyCache) getPodsByNSKeyPods(namespace string, labels []*policymodel.Policy_Label) (bool, []string) {
 	prevLabelSelector := namespace + labels[0].Key
 	prevPodSet := pc.configuredPods.LookupPodsByNSKey(prevLabelSelector)
 	newPodSet := []string{}

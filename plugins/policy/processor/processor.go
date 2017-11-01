@@ -8,6 +8,8 @@ import (
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	policymodel "github.com/contiv/vpp/plugins/ksr/model/policy"
 
+	"fmt"
+
 	"github.com/contiv/vpp/plugins/policy/cache"
 	config "github.com/contiv/vpp/plugins/policy/configurator"
 )
@@ -106,7 +108,7 @@ func (pp *PolicyProcessor) AddPolicy(policy *policymodel.Policy) error {
 	policyPods := pp.Cache.LookupPodsByNSLabelSelector(namespace, policyLabelSelectors)
 
 	pods = append(pods, policyPods...)
-
+	fmt.Println("THIS IS SPARTA: %+v", pods)
 	return pp.Process(false, pods)
 }
 

@@ -135,7 +135,8 @@ type CNIReply struct {
 	Interfaces []*CNIReply_Interface `protobuf:"bytes,4,rep,name=interfaces" json:"interfaces,omitempty"`
 	// List of routes configured in the container.
 	Routes []*CNIReply_Route `protobuf:"bytes,5,rep,name=routes" json:"routes,omitempty"`
-	Dns    []*CNIReply_DNS   `protobuf:"bytes,6,rep,name=dns" json:"dns,omitempty"`
+	// DNS entries. Repeated only because it is optional, normally there should be only one dns member.
+	Dns []*CNIReply_DNS `protobuf:"bytes,6,rep,name=dns" json:"dns,omitempty"`
 }
 
 func (m *CNIReply) Reset()                    { *m = CNIReply{} }
@@ -185,7 +186,8 @@ type CNIReply_Interface struct {
 	// MAC address of the interface.
 	Mac string `protobuf:"bytes,2,opt,name=mac" json:"mac,omitempty"`
 	// Details about the sandbox (if any) the interface is in. Can be a netns path, empty/omitted for host interfaces.
-	Sandbox     string                   `protobuf:"bytes,3,opt,name=sandbox" json:"sandbox,omitempty"`
+	Sandbox string `protobuf:"bytes,3,opt,name=sandbox" json:"sandbox,omitempty"`
+	// List of IP addressess applied on the interface.
 	IpAddresses []*CNIReply_Interface_IP `protobuf:"bytes,4,rep,name=ip_addresses,json=ipAddresses" json:"ip_addresses,omitempty"`
 }
 

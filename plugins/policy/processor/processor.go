@@ -8,8 +8,6 @@ import (
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	policymodel "github.com/contiv/vpp/plugins/ksr/model/policy"
 
-	"fmt"
-
 	"github.com/contiv/vpp/plugins/policy/cache"
 	config "github.com/contiv/vpp/plugins/policy/configurator"
 )
@@ -69,9 +67,9 @@ func (pp *PolicyProcessor) Resync(data *cache.K8sStateResyncData) error {
 // policy re-processing is triggered for each of them.
 func (pp *PolicyProcessor) AddPod(pod *podmodel.Pod) error {
 	pods := []podmodel.ID{}
-	fmt.Println(&pod)
 	// TODO: consider postponing the re-configuration until more data are available (e.g. pod ip address)
 	// TODO: determine the list of pods with outdated policy configuration
+
 	return pp.Process(false, pods)
 }
 
@@ -101,7 +99,10 @@ func (pp *PolicyProcessor) UpdatePod(oldPod, newPod *podmodel.Pod) error {
 func (pp *PolicyProcessor) AddPolicy(policy *policymodel.Policy) error {
 	pods := []podmodel.ID{}
 	// TODO: consider postponing the re-configuration until more data are available
+	// brecode: no need to postpone here. Policy can be used as is.
 	// TODO: determine the list of pods with outdated policy configuration
+	pp.Cache.LookupPodsByLabelSelector(policy.Pods)
+
 	return pp.Process(false, pods)
 }
 

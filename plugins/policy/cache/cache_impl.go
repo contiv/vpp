@@ -87,17 +87,41 @@ func (pc *PolicyCache) LookupPod(pod podmodel.ID) (found bool, data *podmodel.Po
 
 // LookupPodsByLabelSelector evaluates label selector (expression and/or match
 // labels) and returns IDs of matching pods.
-func (pc *PolicyCache) LookupPodsByLabelSelector(podLabelSelector *policymodel.Policy_LabelSelector) (pods []podmodel.ID) {
+func (pc *PolicyCache) LookupPodsByLabelSelector(policy *policymodel.Policy, podLabelSelector *policymodel.Policy_LabelSelector) (pods []string) {
+	matchLabels := podLabelSelector.MatchLabel
+	matchExpressions := podLabelSelector.MatchExpression
+
+	// An empty podSelector matches all pods in this namespace.
+	if podLabelSelector == nil {
+		policyNamespace := policy.Namespace
+		pods := pc.configuredPods.LookupPodByNamespace(policyNamespace)
+		return pods
+	}
+
+	if len(matchLabels) > 0 && len(matchExpressions) == 0 {
+		found, pods := pc.getMatchLabelPods(matchLabels)
+		if !found {
+			return nil
+		}
+		return pods
+	} else if len(matchLabels) == 0 && len(matchExpressions) > 0 {
+		found, pods := pc.getMatchExpressionPods(matchExpressions)
+		if !found {
+			return nil
+		}
+		return pods
+	}
+
 	return nil
 }
 
 // LookupPodsByNamespace returns IDs of all pods inside a given namespace.
-func (pc *PolicyCache) LookupPodsByNamespace(namespace nsmodel.ID) (pods []podmodel.ID) {
+func (pc *PolicyCache) LookupPodsByNamespace(namespace nsmodel.ID) (pods []string) {
 	return nil
 }
 
 // ListAllPods returns IDs of all known pods.
-func (pc *PolicyCache) ListAllPods() (pods []podmodel.ID) {
+func (pc *PolicyCache) ListAllPods() (pods []string) {
 	return nil
 }
 
@@ -107,12 +131,12 @@ func (pc *PolicyCache) LookupPolicy(policy podmodel.ID) (found bool, data *polic
 }
 
 // LookupPoliciesByPod returns IDs of all policies assigned to a given pod.
-func (pc *PolicyCache) LookupPoliciesByPod(pod podmodel.ID) (policies []policymodel.ID) {
+func (pc *PolicyCache) LookupPoliciesByPod(pod podmodel.ID) (policies []string) {
 	return nil
 }
 
 // ListAllPolicies returns IDs of all policies.
-func (pc *PolicyCache) ListAllPolicies() (policies []policymodel.ID) {
+func (pc *PolicyCache) ListAllPolicies() (policies []string) {
 	return nil
 }
 
@@ -123,11 +147,11 @@ func (pc *PolicyCache) LookupNamespace(namespace nsmodel.ID) (found bool, data *
 
 // LookupNamespacesByLabelSelector evaluates label selector (expression
 // and/or match labels) and returns IDs of matching namespaces.
-func (pc *PolicyCache) LookupNamespacesByLabelSelector(nsLabelSelector *policymodel.Policy_LabelSelector) (namespaces []nsmodel.ID) {
+func (pc *PolicyCache) LookupNamespacesByLabelSelector(nsLabelSelector *policymodel.Policy_LabelSelector) (namespaces []string) {
 	return nil
 }
 
 // ListAllNamespaces returns IDs of all known namespaces.
-func (pc *PolicyCache) ListAllNamespaces() (namespaces []nsmodel.ID) {
+func (pc *PolicyCache) ListAllNamespaces() (namespaces []string) {
 	return nil
 }

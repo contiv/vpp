@@ -22,7 +22,11 @@ import (
 	"github.com/ligato/cn-infra/logging"
 )
 
-const podLabelSelectorKey = "podLabelSelectorKey"
+const (
+	podLabelSelectorKey = "podLabelSelectorKey"
+	podKeySelectorKey   = "podKeySelectorKey"
+	podNamespaceKey     = "podNamespaceKey"
+)
 
 // ConfigIndex implements a cache for configured policies. Primary index is PolicyName.
 type ConfigIndex struct {
@@ -66,6 +70,16 @@ func (ci *ConfigIndex) LookupPodsByLabelSelector(podLabelSelector string) (podID
 	return ci.mapping.ListNames(podLabelSelectorKey, podLabelSelector)
 }
 
+// LookupPodsByLabelSelector performs lookup based on secondary index podLabelSelector.
+func (ci *ConfigIndex) LookupPodsByLabelKey(podKeySelector string) (podIDs []string) {
+	return ci.mapping.ListNames(podKeySelectorKey, podKeySelector)
+}
+
+// LookupPodNamespace performs lookup based on secondary index podNamespace.
+func (ci *ConfigIndex) LookupPodByNamespace(podNamespace string) (podIDs []string) {
+	return ci.mapping.ListNames(podNamespaceKey, podNamespace)
+}
+
 // ListAll returns all registered names in the mapping.
 func (ci *ConfigIndex) ListAll() (podIDs []string) {
 	return ci.mapping.ListAllNames()
@@ -75,12 +89,17 @@ func (ci *ConfigIndex) ListAll() (podIDs []string) {
 func IndexFunction(data interface{}) map[string][]string {
 	res := map[string][]string{}
 	labels := []string{}
+	keys := []string{}
+	namespace := []string{}
 	if config, ok := data.(*podmodel.Pod); ok && config != nil {
 		for _, v := range config.Label {
 			labelSelector := v.Key + v.Value
 			labels = append(labels, labelSelector)
+			keys = append(keys, v.Key)
 		}
 		res[podLabelSelectorKey] = labels
+		res[podKeySelectorKey] = keys
+		res[podNamespaceKey] = []string{config.Namespace}
 	}
 	return res
 }

@@ -37,32 +37,32 @@ type PolicyCacheAPI interface {
 
 	// LookupPodsByLabelSelector evaluates label selector (expression and/or match
 	// labels) and returns IDs of matching pods.
-	LookupPodsByLabelSelector(podLabelSelector *policymodel.Policy_LabelSelector) (pods []podmodel.ID)
+	LookupPodsByLabelSelector(policy *policymodel.ID, podLabelSelector *policymodel.Policy_LabelSelector) (pods []string)
 
 	// LookupPodsByNamespace returns IDs of all pods inside a given namespace.
-	LookupPodsByNamespace(namespace nsmodel.ID) (pods []podmodel.ID)
+	LookupPodsByNamespace(namespace nsmodel.ID) (pods []string)
 
 	// ListAllPods returns IDs of all known pods.
-	ListAllPods() (pods []podmodel.ID)
+	ListAllPods() (pods []string)
 
 	// LookupPolicy returns data of a given Policy.
 	LookupPolicy(policy podmodel.ID) (found bool, data *policymodel.Policy)
 
 	// LookupPoliciesByPod returns IDs of all policies assigned to a given pod.
-	LookupPoliciesByPod(pod podmodel.ID) (policies []policymodel.ID)
+	LookupPoliciesByPod(pod podmodel.ID) (policies []string)
 
 	// ListAllPolicies returns IDs of all policies.
-	ListAllPolicies() (policies []policymodel.ID)
+	ListAllPolicies() (policies []string)
 
 	// LookupNamespace returns data of a given namespace.
 	LookupNamespace(namespace nsmodel.ID) (found bool, data *nsmodel.Namespace)
 
 	// LookupNamespacesByLabelSelector evaluates label selector (expression
 	// and/or match labels) and returns IDs of matching namespaces.
-	LookupNamespacesByLabelSelector(nsLabelSelector *policymodel.Policy_LabelSelector) (namespaces []nsmodel.ID)
+	LookupNamespacesByLabelSelector(nsLabelSelector *policymodel.Policy_LabelSelector) (namespaces []string)
 
 	// ListAllNamespaces returns IDs of all known namespaces.
-	ListAllNamespaces() (namespaces []nsmodel.ID)
+	ListAllNamespaces() (namespaces []string)
 }
 
 // PolicyCacheWatcher defines interface that a PolicyCache watcher must implement.

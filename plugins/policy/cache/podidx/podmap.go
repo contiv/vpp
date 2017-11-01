@@ -23,9 +23,11 @@ import (
 )
 
 const (
-	podLabelSelectorKey = "podLabelSelectorKey"
-	podKeySelectorKey   = "podKeySelectorKey"
-	podNamespaceKey     = "podNamespaceKey"
+	podLabelSelectorKey  = "podLabelSelectorKey"
+	podKeySelectorKey    = "podKeySelectorKey"
+	podNamespaceKey      = "podNamespaceKey"
+	podNamespaceLabelKey = "podNamespaceLabelKey"
+	podNamespaceKey      = "podNamespaceKey"
 )
 
 // ConfigIndex implements a cache for configured policies. Primary index is PolicyName.
@@ -75,9 +77,19 @@ func (ci *ConfigIndex) LookupPodsByLabelKey(podKeySelector string) (podIDs []str
 	return ci.mapping.ListNames(podKeySelectorKey, podKeySelector)
 }
 
-// LookupPodNamespace performs lookup based on secondary index podNamespace.
-func (ci *ConfigIndex) LookupPodByNamespace(podNamespace string) (podIDs []string) {
+// LookupPodsByNamespace performs lookup based on secondary index podNamespace.
+func (ci *ConfigIndex) LookupPodsByNamespace(podNamespace string) (podIDs []string) {
 	return ci.mapping.ListNames(podNamespaceKey, podNamespace)
+}
+
+// LookupPodsByNSLabelKey performs lookup based on secondary index podNamespace + podLabelSelector.
+func (ci *ConfigIndex) LookupPodsByNSLabelSelector(podNSLabelSelector string) (podIDs []string) {
+	return ci.mapping.ListNames(podNamespaceLabelKey, podNSLabelSelector)
+}
+
+// LookupPodsByNSKey performs lookup based on secondary index podNamespace + podLabelKey.
+func (ci *ConfigIndex) LookupPodsByNSKey(podNSKeySelector string) (podIDs []string) {
+	return ci.mapping.ListNames(podNamespaceKey, podNSKeySelector)
 }
 
 // ListAll returns all registered names in the mapping.
@@ -90,16 +102,22 @@ func IndexFunction(data interface{}) map[string][]string {
 	res := map[string][]string{}
 	labels := []string{}
 	keys := []string{}
-	namespace := []string{}
+	nsLabels := []string{}
+	nsKeys := []string{}
 	if config, ok := data.(*podmodel.Pod); ok && config != nil {
 		for _, v := range config.Label {
 			labelSelector := v.Key + v.Value
+			nsLabelSelector := config.Namespace + labelSelector
+			nsKey := config.Namespace + v.Key
 			labels = append(labels, labelSelector)
 			keys = append(keys, v.Key)
+			nsLabels = append(nsLabels, nsLabelSelector)
+			nsKeys = append(nsKeys, nsKey)
 		}
 		res[podLabelSelectorKey] = labels
 		res[podKeySelectorKey] = keys
 		res[podNamespaceKey] = []string{config.Namespace}
+		res[podNamespaceLabelKey] = nsLabels
 	}
 	return res
 }

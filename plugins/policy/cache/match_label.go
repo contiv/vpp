@@ -4,14 +4,14 @@ import (
 	policymodel "github.com/contiv/vpp/plugins/ksr/model/policy"
 )
 
-func (pc *PolicyCache) getMatchLabelPods(labels []*policymodel.Policy_Label) (bool, []string) {
-	prevLabelSelector := labels[0].Key + labels[0].Value
-	prevPodSet := pc.configuredPods.LookupPodsByLabelSelector(prevLabelSelector)
+func (pc *PolicyCache) getMatchByNSLabelPods(namespace string, labels []*policymodel.Policy_Label) (bool, []string) {
+	prevNSLabelSelector := namespace + labels[0].Key + labels[0].Value
+	prevPodSet := pc.configuredPods.LookupPodsByNSLabelKey(prevNSLabelSelector)
 	newPodSet := []string{}
 	for i := 1; i < len(labels); i++ {
 
-		newPodLabelSelector := labels[i].Key + labels[i].Value
-		newPodSet = pc.configuredPods.LookupPodsByLabelSelector(newPodLabelSelector)
+		newNSLabelSelector := namespace + labels[i].Key + labels[i].Value
+		newPodSet = pc.configuredPods.LookupPodsByNSLabelKey(newNSLabelSelector)
 
 		tmp := intersect(prevPodSet, newPodSet)
 		if len(tmp) == 0 {
@@ -24,14 +24,14 @@ func (pc *PolicyCache) getMatchLabelPods(labels []*policymodel.Policy_Label) (bo
 	return true, newPodSet
 }
 
-func (pc *PolicyCache) getMatchLabelByKeyPods(labels []*policymodel.Policy_Label) (bool, []string) {
-	prevLabelSelector := labels[0].Key
-	prevPodSet := pc.configuredPods.LookupPodsByLabelKey(prevLabelSelector)
+func (pc *PolicyCache) getMatchByNSKeyPods(namespace string, labels []*policymodel.Policy_Label) (bool, []string) {
+	prevLabelSelector := namespace + labels[0].Key
+	prevPodSet := pc.configuredPods.LookupPodsByNSKey(prevLabelSelector)
 	newPodSet := []string{}
 	for i := 1; i < len(labels); i++ {
 
-		newPodLabelSelector := labels[i].Key
-		newPodSet = pc.configuredPods.LookupPodsByLabelSelector(newPodLabelSelector)
+		newPodLabelSelector := namespace + labels[i].Key
+		newPodSet = pc.configuredPods.LookupPodsByNSKey(newPodLabelSelector)
 
 		tmp := intersect(prevPodSet, newPodSet)
 		if len(tmp) == 0 {
@@ -60,22 +60,3 @@ func intersect(a []string, b []string) []string {
 	}
 	return set
 }
-
-//case "difference":
-//prevKeySelector := labels[0].Key
-//prevPodSet := pc.configuredPods.LookupPodsByLabelKey(prevKeySelector)
-//newPodSet := []string{}
-//for i := 1; i < len(labels); i++ {
-//
-//newPodLabelSelector := labels[i].Key + labels[i].Value
-//newPodSet = pc.configuredPods.LookupPodsByLabelSelector(newPodLabelSelector)
-//
-//tmp := difference(prevPodSet, newPodSet)
-//if len(tmp) == 0 {
-//return false, nil
-//}
-//
-//prevPodSet = newPodSet
-//newPodSet = tmp
-//}
-//return true, newPodSet

@@ -97,11 +97,15 @@ func (pp *PolicyProcessor) UpdatePod(oldPod, newPod *podmodel.Pod) error {
 // The list of pods with outdated policy configuration is determined and the
 // policy re-processing is triggered for each of them.
 func (pp *PolicyProcessor) AddPolicy(policy *policymodel.Policy) error {
-	pods := []podmodel.ID{}
+	pods := []string{}
 	// TODO: consider postponing the re-configuration until more data are available
-	// brecode: no need to postpone here. Policy can be used as is.
 	// TODO: determine the list of pods with outdated policy configuration
-	pp.Cache.LookupPodsByLabelSelector(policy.Pods)
+
+	namespace := policy.Namespace
+	policyLabelSelectors := policy.Pods
+	policyPods := pp.Cache.LookupPodsByNSLabelSelector(namespace, policyLabelSelectors)
+
+	pods = append(pods, policyPods...)
 
 	return pp.Process(false, pods)
 }

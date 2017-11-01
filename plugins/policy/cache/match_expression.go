@@ -11,13 +11,13 @@ const (
 	DoesNotExist = policymodel.Policy_LabelSelector_LabelExpression_DOES_NOT_EXIST
 )
 
-func (pc *PolicyCache) getMatchExpressionPods(expressions []*policymodel.Policy_LabelSelector_LabelExpression) (bool, []string) {
-	var inPodSet, notInPodSet, existsPodSet, dnExistPodSet []string
+func (pc *PolicyCache) getMatchExpressionPods(namespace string, expressions []*policymodel.Policy_LabelSelector_LabelExpression) (bool, []string) {
+	var inPodSet, notInPodSet []string
 	for _, expression := range expressions {
 		switch expression.Operator {
 		case In:
 			labels := constructLabels(expression.Key, expression.Value)
-			isMatch, podSet := pc.getMatchLabelPods(labels)
+			isMatch, podSet := pc.getMatchByNSLabelPods(namespace, labels)
 			if !isMatch {
 				return false, nil
 			}
@@ -27,7 +27,7 @@ func (pc *PolicyCache) getMatchExpressionPods(expressions []*policymodel.Policy_
 
 		case Exists:
 			labels := constructLabels(expression.Key, expression.Value)
-			isMatch, podSet := pc.getMatchLabelByKeyPods(labels)
+			isMatch, podSet := pc.getMatchByNSKeyPods(namespace, labels)
 			if !isMatch {
 				return false, nil
 			}

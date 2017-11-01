@@ -86,32 +86,39 @@ func (pc *PolicyCache) LookupPod(pod podmodel.ID) (found bool, data *podmodel.Po
 }
 
 // LookupPodsByLabelSelector evaluates label selector (expression and/or match
-// labels) and returns IDs of matching pods.
-func (pc *PolicyCache) LookupPodsByLabelSelector(policy *policymodel.Policy, podLabelSelector *policymodel.Policy_LabelSelector) (pods []string) {
+// labels) and returns IDs of matching pods in a namespace.
+func (pc *PolicyCache) LookupPodsByNSLabelSelector(policyNamespace string, podLabelSelector *policymodel.Policy_LabelSelector) (pods []string) {
 	matchLabels := podLabelSelector.MatchLabel
 	matchExpressions := podLabelSelector.MatchExpression
 
 	// An empty podSelector matches all pods in this namespace.
 	if podLabelSelector == nil {
-		policyNamespace := policy.Namespace
-		pods := pc.configuredPods.LookupPodByNamespace(policyNamespace)
+		pods := pc.configuredPods.LookupPodsByNamespace(policyNamespace)
 		return pods
 	}
 
 	if len(matchLabels) > 0 && len(matchExpressions) == 0 {
-		found, pods := pc.getMatchLabelPods(matchLabels)
+		found, pods := pc.getMatchByNSLabelPods(policyNamespace, matchLabels)
 		if !found {
 			return nil
 		}
 		return pods
 	} else if len(matchLabels) == 0 && len(matchExpressions) > 0 {
-		found, pods := pc.getMatchExpressionPods(matchExpressions)
+		found, pods := pc.getMatchExpressionPods(policyNamespace, matchExpressions)
 		if !found {
 			return nil
 		}
 		return pods
+	} else if len(matchLabels) > 0 && len(matchExpressions) > 0 {
+
 	}
 
+	return nil
+}
+
+// LookupPodsByLabelSelector evaluates label selector (expression and/or match
+// labels) and returns IDs of matching pods.
+func (pc *PolicyCache) LookupPodsByLabelSelector(namespace nsmodel.ID) (pods []string) {
 	return nil
 }
 

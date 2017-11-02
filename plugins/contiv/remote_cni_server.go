@@ -379,7 +379,7 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 	}
 	s.Debug("Container mac: ", macAddr)
 
-	err = s.configureArpOnVpp(request, macAddr, podIP.String())
+	err = s.configureArpOnVpp(request, macAddr, podIP)
 	if err != nil {
 		s.Logger.Error(err)
 		return s.generateErrorResponse(err)

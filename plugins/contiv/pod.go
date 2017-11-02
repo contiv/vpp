@@ -69,7 +69,7 @@ func (s *remoteCNIserver) retrieveContainerMacAddr(namespace string, ifname stri
 
 }
 
-func (s *remoteCNIserver) configureArpOnVpp(request *cni.CNIRequest, macAddr []byte, podIP string) error {
+func (s *remoteCNIserver) configureArpOnVpp(request *cni.CNIRequest, macAddr []byte, podIP net.IP) error {
 
 	ifName := s.afpacketNameFromRequest(request)
 	if s.swIfIndex == nil {
@@ -80,21 +80,17 @@ func (s *remoteCNIserver) configureArpOnVpp(request *cni.CNIRequest, macAddr []b
 	if !exists {
 		return fmt.Errorf("afpacket %v doesn't exist", ifName)
 	}
-	containerIP, _, err := net.ParseCIDR(podIP)
-	if err != nil {
-		return err
-	}
 
 	req := &ip.IPNeighborAddDel{
 		SwIfIndex:  idx,
 		IsAdd:      1,
 		MacAddress: macAddr,
 		IsNoAdjFib: 1,
-		DstAddress: []byte(containerIP.To4()),
+		DstAddress: []byte(podIP.To4()),
 	}
 
 	reply := &ip.IPNeighborAddDelReply{}
-	err = s.govppChan.SendRequest(req).ReceiveReply(reply)
+	err := s.govppChan.SendRequest(req).ReceiveReply(reply)
 	if reply.Retval != 0 {
 		return fmt.Errorf("Adding arp entry returned non zero error code (%v)", reply.Retval)
 	}

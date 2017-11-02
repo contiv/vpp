@@ -87,7 +87,6 @@ func (plugin *Plugin) Register(resyncName string) Registration {
 
 // call callback on plugins to create/delete/modify objects
 func (plugin *Plugin) startResync() {
-
 	plugin.Log.Info("Resync order", plugin.regOrder)
 	startTime := time.Now()
 	for _, regName := range plugin.regOrder {

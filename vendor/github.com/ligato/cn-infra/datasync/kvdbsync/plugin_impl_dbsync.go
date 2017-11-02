@@ -89,7 +89,7 @@ func (plugin *Plugin) AfterInit() error {
 		if plugin.ResyncOrch != nil {
 			for resyncName, sub := range plugin.registry.Subscriptions() {
 				resyncReg := plugin.ResyncOrch.Register(resyncName)
-				_, err := watchAndResyncBrokerKeys(resyncReg, sub.ChangeChan, sub.ResyncChan,
+				_, err := watchAndResyncBrokerKeys(resyncReg, sub.ChangeChan, sub.ResyncChan, sub.CloseChan,
 					plugin.adapter, sub.KeyPrefixes...)
 				if err != nil {
 					return err

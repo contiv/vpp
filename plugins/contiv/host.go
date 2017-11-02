@@ -31,15 +31,10 @@ func (s *remoteCNIserver) configureRouteOnHost() error {
 		s.Logger.Error(err)
 		return err
 	}
-	_, network, err := net.ParseCIDR(s.ipam.getPodSubnetCIDR())
-	if err != nil {
-		s.Logger.Error(err)
-		return err
-	}
 
 	return s.RouteAdd(&netlink.Route{
 		LinkIndex: dev.Attrs().Index,
-		Dst:       network,
+		Dst:       s.ipam.getPodSubnet(),
 		Gw:        net.ParseIP(s.vethVPPEndIP()),
 	})
 }

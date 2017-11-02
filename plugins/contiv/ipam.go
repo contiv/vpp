@@ -31,14 +31,11 @@ type IPAM struct {
 	logging.Logger
 	sync.RWMutex
 
-	//TODO apply podSubnetCIDR to IPAM structures properly
-	podSubnetCIDR string // subnet from which individual pod networks are allocated
-
-	hostID                uint8           // identifier of host node for which this IPAM is created for
-	podNetworkIPPrefix    net.IPNet       // IPv4 subnet prefix for all pods of one host node (given by hostID)
-	allHostsPodSubnetMask net.IPMask      // mask for subnet for all pods across all host nodes
-	podNetworkGatewayIP   net.IP          // gateway IP address for pod network of one host node (given by hostID)
-	assignedIPs           map[uint32]bool // pool of assigned IP addresses
+	podSubnetIPPrefix   net.IPNet       // IPv4 subnet from which individual pod networks are allocated, this is subnet for all pods across all host nodes
+	hostID              uint8           // identifier of host node for which this IPAM is created for
+	podNetworkIPPrefix  net.IPNet       // IPv4 subnet prefix for all pods of one host node (given by hostID), podSubnetIPPrefix + hostID ==<computation>==> podNetworkIPPrefix
+	podNetworkGatewayIP net.IP          // gateway IP address for pod network of one host node (given by hostID)
+	assignedIPs         map[uint32]bool // pool of assigned IP addresses
 }
 
 // IPAMConfig is configuration for IPAM module
@@ -51,9 +48,8 @@ type IPAMConfig struct {
 func newIPAM(logger logging.Logger, hostID uint8, config *IPAMConfig) (*IPAM, error) {
 	// create basic IPAM
 	ipam := &IPAM{
-		Logger:        logger,
-		hostID:        hostID,
-		podSubnetCIDR: config.PodSubnetCIDR,
+		Logger: logger,
+		hostID: hostID,
 	}
 
 	// computing IPAM struct variables from IPAM config
@@ -73,11 +69,11 @@ func newIPAM(logger logging.Logger, hostID uint8, config *IPAMConfig) (*IPAM, er
 	hostIPPart := convertToHostIPPart(hostID, hostPartBitSize)
 	podNetworkPrefixUint32 := podSubnetPrefix + (uint32(hostIPPart) << (32 - config.PodNetworkPrefixLen))
 
+	ipam.podSubnetIPPrefix = *podSubnet
 	ipam.podNetworkIPPrefix = net.IPNet{
 		IP:   uint32ToIpv4(podNetworkPrefixUint32),
 		Mask: uint32ToIpv4Mask((1 << uint(config.PodNetworkPrefixLen)) - 1),
 	}
-	ipam.allHostsPodSubnetMask = uint32ToIpv4Mask((1 << uint(podSubnetPrefixLen)) - 1)
 	ipam.podNetworkGatewayIP = uint32ToIpv4(podNetworkPrefixUint32 + gatewayPodSeqID)
 	ipam.assignedIPs = make(map[uint32]bool) // TODO: load allocated IP addresses from ETCD (failover use case)
 
@@ -86,11 +82,12 @@ func newIPAM(logger logging.Logger, hostID uint8, config *IPAMConfig) (*IPAM, er
 	return ipam, nil
 }
 
-// getPodSubnetCIDR returns pod subnet CIDR ("network_address/prefix_length").
-func (i *IPAM) getPodSubnetCIDR() string {
+// getPodSubnet returns pod subnet ("network_address/prefix_length") that is base subnet for all pods of all hosts.
+func (i *IPAM) getPodSubnet() *net.IPNet {
 	i.RLock()
 	defer i.RUnlock()
-	return i.podSubnetCIDR
+	podSubnet := newIPNet(i.podSubnetIPPrefix) // defensive copy
+	return &podSubnet
 }
 
 // getPodNetwork returns pod network for current host (given by hostID given at IPAM creation)

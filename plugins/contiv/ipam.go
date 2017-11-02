@@ -31,12 +31,16 @@ type IPAM struct {
 	logging.Logger
 	sync.RWMutex
 
-	podSubnetIPPrefix   net.IPNet       // IPv4 subnet from which individual pod networks are allocated, this is subnet for all pods across all host nodes
-	hostID              uint8           // identifier of host node for which this IPAM is created for
-	podNetworkIPPrefix  net.IPNet       // IPv4 subnet prefix for all pods of one host node (given by hostID), podSubnetIPPrefix + hostID ==<computation>==> podNetworkIPPrefix
-	podNetworkGatewayIP net.IP          // gateway IP address for pod network of one host node (given by hostID)
-	assignedIPs         map[uint32]bool // pool of assigned IP addresses
+	podSubnetIPPrefix   net.IPNet        // IPv4 subnet from which individual pod networks are allocated, this is subnet for all pods across all host nodes
+	hostID              uint8            // identifier of host node for which this IPAM is created for
+	podNetworkIPPrefix  net.IPNet        // IPv4 subnet prefix for all pods of one host node (given by hostID), podSubnetIPPrefix + hostID ==<computation>==> podNetworkIPPrefix
+	podNetworkGatewayIP net.IP           // gateway IP address for pod network of one host node (given by hostID)
+	assignedIPs         map[uintIP]podID // pool of assigned IP addresses
+
 }
+
+type uintIP = uint32
+type podID = string
 
 // IPAMConfig is configuration for IPAM module
 type IPAMConfig struct {
@@ -75,7 +79,7 @@ func newIPAM(logger logging.Logger, hostID uint8, config *IPAMConfig) (*IPAM, er
 		Mask: uint32ToIpv4Mask((1 << uint(config.PodNetworkPrefixLen)) - 1),
 	}
 	ipam.podNetworkGatewayIP = uint32ToIpv4(podNetworkPrefixUint32 + gatewayPodSeqID)
-	ipam.assignedIPs = make(map[uint32]bool) // TODO: load allocated IP addresses from ETCD (failover use case)
+	ipam.assignedIPs = make(map[uintIP]podID) // TODO: load allocated IP addresses from ETCD (failover use case)
 
 	logger.Infof("IPAM values loaded: %+v", ipam)
 
@@ -112,8 +116,8 @@ func (i *IPAM) getHostID() uint8 {
 	return i.hostID
 }
 
-// getNextPodIP returns next available pod IP address.
-func (i *IPAM) getNextPodIP() (net.IP, error) {
+// getNextPodIP returns next available pod IP address and remembers that this IP is meant to be used for pod with pod id <podID>
+func (i *IPAM) getNextPodIP(podID string) (net.IP, error) {
 	i.Lock()
 	defer i.Unlock()
 
@@ -134,7 +138,7 @@ func (i *IPAM) getNextPodIP() (net.IP, error) {
 		if _, found := i.assignedIPs[networkPrefix+uint32(j)]; found {
 			continue // ignore already assigned IP addresses
 		}
-		i.assignedIPs[networkPrefix+uint32(j)] = true
+		i.assignedIPs[networkPrefix+uint32(j)] = podID
 		//TODO set etcd for new assigned value
 
 		ipForAssign := uint32ToIpv4(networkPrefix + uint32(j))
@@ -145,19 +149,27 @@ func (i *IPAM) getNextPodIP() (net.IP, error) {
 	return nil, fmt.Errorf("No IP address is free for assignment. All IP addresses for pod network %v are already assigned", i.podNetworkIPPrefix)
 }
 
-//TODO use releasePodIP func to proper release pod IP addresses
-// releasePodIP releases the pod IP address, so that it can be reused by the next pods.
-func (i *IPAM) releasePodIP(ip net.IP) error {
+// releasePodIP releases the pod IP address remembered by pod ID string, so that it can be reused by the next pods.
+func (i *IPAM) releasePodIP(podID string) error {
 	i.Lock()
 	defer i.Unlock()
 
-	ipUint32, err := ipv4ToUint32(ip)
+	ip, err := i.findIP(podID)
 	if err != nil {
 		return fmt.Errorf("Can't release pod IP: %v", err)
 	}
-	delete(i.assignedIPs, ipUint32)
+	delete(i.assignedIPs, ip)
 	//TODO remove from etcd (if inside etcd)
 	return nil
+}
+
+func (i *IPAM) findIP(podID string) (uintIP, error) {
+	for ip, curPodID := range i.assignedIPs {
+		if curPodID == podID {
+			return ip, nil
+		}
+	}
+	return 0, fmt.Errorf("Can't find assigned pod IP address for pod ID \"%v\"", podID)
 }
 
 // convertToHostIPPart converts hostID to part of IP address that distinguishes pod network IP address prefix among

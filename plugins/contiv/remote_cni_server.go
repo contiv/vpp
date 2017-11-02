@@ -339,7 +339,7 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 	s.counter++
 
 	// assign IP address for this POD
-	podIP, err := s.ipam.getNextPodIP()
+	podIP, err := s.ipam.getNextPodIP(request.NetworkNamespace)
 	if err != nil {
 		return nil, fmt.Errorf("Can't get new IP address for pod: %v", err)
 	}
@@ -484,6 +484,12 @@ func (s *remoteCNIserver) unconfigureContainerConnectivity(request *cni.CNIReque
 
 	if s.configuredContainers != nil {
 		s.configuredContainers.UnregisterContainer(request.ContainerId)
+	}
+
+	err = s.ipam.releasePodIP(request.NetworkNamespace)
+	if err != nil {
+		s.Logger.Error(err)
+		return s.generateErrorResponse(err)
 	}
 
 	reply := &cni.CNIReply{

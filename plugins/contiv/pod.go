@@ -173,14 +173,6 @@ func (s *remoteCNIserver) afpacketNameFromRequest(request *cni.CNIRequest) strin
 	return afPacketNamePrefix + s.veth2NameFromRequest(request)
 }
 
-func (s *remoteCNIserver) ipAddrForContainer() (string, error) {
-	newIP, err := s.ipam.getNextPodIP()
-	if err != nil {
-		return "", err
-	}
-	return newIP.String() + "/32", nil
-}
-
 func (s *remoteCNIserver) ipAddrForAfPacket() string {
 	return afPacketIPPrefix + "." + strconv.Itoa(s.counter+1) + "/32"
 }

@@ -53,3 +53,5 @@ import:
   version: 4fe312863be2155a7b68acd2aff1c9221b24e68c
   subpackages:
   - exec
+- package: github.com/docker/swarmkit
+  version: 79381d0840be27f8b3f5c667b348a4467d866eeb

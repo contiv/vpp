@@ -254,7 +254,7 @@ func TestLoadSecurityConfigDownloadAllCerts(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestManagerRespectsDispatcherRootCAUpdate(t *testing.T) {
+func TestManagerIgnoresDispatcherRootCAUpdate(t *testing.T) {
 	tmpDir, err := ioutil.TempDir("", "manager-root-ca-update")
 	require.NoError(t, err)
 	defer os.RemoveAll(tmpDir)
@@ -278,34 +278,23 @@ func TestManagerRespectsDispatcherRootCAUpdate(t *testing.T) {
 		require.FailNow(t, "node did not ready in time")
 	}
 
-	// ensure that we have a second dispatcher that we can connect to when we shut down ours
-	paths := ca.NewConfigPaths(filepath.Join(tmpDir, certDirectory))
-	rootCA, err := ca.GetLocalRootCA(paths.RootCA)
+	certPath := filepath.Join(tmpDir, certDirectory, "swarm-root-ca.crt")
+	currentCACerts, err := ioutil.ReadFile(certPath)
 	require.NoError(t, err)
-	managerSecConfig, cancel, err := ca.LoadSecurityConfig(context.Background(), rootCA, ca.NewKeyReadWriter(paths.Node, nil, nil), false)
+	parsedCerts, err := helpers.ParseCertificatesPEM(currentCACerts)
 	require.NoError(t, err)
-	defer cancel()
+	require.Len(t, parsedCerts, 1)
 
-	mockDispatcher, cleanup := agentutils.NewMockDispatcher(t, managerSecConfig, false)
-	defer cleanup()
-	node.remotes.Observe(api.Peer{Addr: mockDispatcher.Addr}, 1)
-
-	currentCACerts := rootCA.Certs
-
-	// shut down our current manager so that when the root CA changes, the manager doesn't "fix" it.
-	node.manager.Stop(context.Background(), false)
-
-	// fake an update from a remote dispatcher
+	// fake an update from the dispatcher, because the dispatcher is actually the local manager
 	node.notifyNodeChange <- &agent.NodeChanges{
 		RootCert: append(currentCACerts, cautils.ECDSA256SHA256Cert...),
 	}
 
-	// the node root CA certificates have changed now
+	// the node root CA certificates do not change
 	time.Sleep(250 * time.Millisecond)
-	certPath := filepath.Join(tmpDir, certDirectory, "swarm-root-ca.crt")
 	caCerts, err := ioutil.ReadFile(certPath)
 	require.NoError(t, err)
-	require.NotEqual(t, currentCACerts, caCerts)
+	require.Equal(t, currentCACerts, caCerts)
 
 	require.NoError(t, node.Stop(context.Background()))
 }

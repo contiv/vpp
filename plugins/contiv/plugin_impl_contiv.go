@@ -68,7 +68,7 @@ type Deps struct {
 	Resync  resync.Subscriber
 	ETCD    *etcdv3.Plugin
 	Watcher datasync.KeyValProtoWatcher
-	Config *Config // optional inject (if not injected, it must be set using external config file)
+	Config  *Config // optional inject (if not injected, it must be set using external config file)
 }
 
 // Config is configuration for Contiv plugin.

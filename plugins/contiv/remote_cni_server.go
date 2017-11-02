@@ -59,30 +59,30 @@ type remoteCNIserver struct {
 	agentLabel string
 
 	// unique identifier of the node
-	uid uint32
+	uid uint8
 }
 
 const (
-	resultOk             uint32 = 0
-	resultErr            uint32 = 1
-	vethNameMaxLen              = 15
+	resultOk       uint32 = 0
+	resultErr      uint32 = 1
+	vethNameMaxLen        = 15
 	//podSubnetCIDR               = "10.1.0.0/16"
-	podSubnetPrefix             = "10.1"
+	podSubnetPrefix = "10.1"
 	//podNetworkPrefixLen         = 24
-	afPacketNamePrefix          = "afpacket"
-	podNameExtraArg             = "K8S_POD_NAME"
-	podNamespaceExtraArg        = "K8S_POD_NAMESPACE"
-	nicNetworkPerfix            = "192.168.16"
-	hostSubnetCIDR              = "172.30.0.0/16"
-	hostSubnetPrefix            = "172.30"
-	hostSubnetPrefixLen         = 24
-	vethHostEndName             = "vpp1"
-	vethVPPEndName              = "vpp2"
-	afPacketIPPrefix            = "10.2.1"
+	afPacketNamePrefix   = "afpacket"
+	podNameExtraArg      = "K8S_POD_NAME"
+	podNamespaceExtraArg = "K8S_POD_NAMESPACE"
+	nicNetworkPerfix     = "192.168.16"
+	hostSubnetCIDR       = "172.30.0.0/16"
+	hostSubnetPrefix     = "172.30"
+	hostSubnetPrefixLen  = 24
+	vethHostEndName      = "vpp1"
+	vethVPPEndName       = "vpp2"
+	afPacketIPPrefix     = "10.2.1"
 )
 
 func newRemoteCNIServer(logger logging.Logger, vppTxnFactory func() linux.DataChangeDSL, proxy kvdbproxy.Proxy,
-	configuredContainers *containeridx.ConfigIndex, govppChan *api.Channel, index ifaceidx.SwIfIndex, agentLabel string, ipamConfig *IPAMConfig, uid uint32) *remoteCNIserver {
+	configuredContainers *containeridx.ConfigIndex, govppChan *api.Channel, index ifaceidx.SwIfIndex, agentLabel string, ipamConfig *IPAMConfig, uid uint8) *remoteCNIserver {
 	ipam, _ := newIPAM(logger, uid, ipamConfig) //TODO check if host id is passed/remembered only to needed places (cleanup after hard merge session)
 	// TODO handle error
 	return &remoteCNIserver{

@@ -55,7 +55,7 @@ type Plugin struct {
 	ctx           context.Context
 	ctxCancelFunc context.CancelFunc
 
-	config *Config
+	Config *Config
 }
 
 // Deps groups the dependencies of the Plugin.
@@ -68,7 +68,6 @@ type Deps struct {
 	Resync  resync.Subscriber
 	ETCD    *etcdv3.Plugin
 	Watcher datasync.KeyValProtoWatcher
-	Config  *Config // optional inject (if not injected, it must be set using external config file)
 }
 
 // Config is configuration for Contiv plugin.
@@ -135,7 +134,7 @@ func (plugin *Plugin) applyExternalConfig() error {
 	if !found {
 		return fmt.Errorf("External Contiv plugin configuration was not found")
 	}
-	plugin.config = externalCfg
+	plugin.Config = externalCfg
 	return nil
 }
 

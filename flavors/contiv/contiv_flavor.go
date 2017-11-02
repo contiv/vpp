@@ -24,6 +24,7 @@ import (
 	"github.com/contiv/vpp/plugins/kvdbproxy"
 	"github.com/contiv/vpp/plugins/policy"
 	"github.com/golang/protobuf/proto"
+	"github.com/ligato/cn-infra/config"
 	"github.com/ligato/cn-infra/datasync"
 	"github.com/ligato/cn-infra/datasync/kvdbsync"
 	local_sync "github.com/ligato/cn-infra/datasync/kvdbsync/local"
@@ -37,6 +38,14 @@ import (
 	"github.com/ligato/vpp-agent/plugins/defaultplugins"
 	"github.com/ligato/vpp-agent/plugins/govppmux"
 	"github.com/ligato/vpp-agent/plugins/linuxplugin"
+)
+
+const (
+	// ContivConfigPath is the default location of Agent's Contiv plugin. This path reflects configuration in k8s/contiv-vpp.yaml.
+	ContivConfigPath = "/etc/agent/contiv.yaml"
+
+	// ContivConfigPathUsage explains the purpose of 'kube-config' flag.
+	ContivConfigPathUsage = "Path to the Agent's Contiv plugin configuration yaml file."
 )
 
 // FlavorContiv glues together multiple plugins to manage VPP and Linux
@@ -123,13 +132,14 @@ func (f *FlavorContiv) Inject() bool {
 	f.Contiv.Deps.Resync = &f.ResyncOrch
 	f.Contiv.Deps.ETCD = &f.ETCD
 	f.Contiv.Deps.Watcher = &f.KsrETCDDataSync
-	tmpConfig := contiv.Config{ //TODO remove after applying config
-		IPAMConfig: contiv.IPAMConfig{
-			PodSubnetCIDR:       "10.1.0.0/16",
-			PodNetworkPrefixLen: 24,
-		},
-	}
-	f.Contiv.Config = &tmpConfig
+	//tmpConfig := contiv.Config{ //TODO remove after applying config
+	//	IPAMConfig: contiv.IPAMConfig{
+	//		PodSubnetCIDR:       "10.1.0.0/16",
+	//		PodNetworkPrefixLen: 24,
+	//	},
+	//}
+	//f.Contiv.Config = &tmpConfig
+	f.Contiv.Deps.PluginConfig = config.ForPlugin("contiv", ContivConfigPath, ContivConfigPathUsage)
 
 	f.Policy.Deps.PluginInfraDeps = *f.FlavorLocal.InfraDeps("policy")
 	f.Policy.Deps.Watcher = &f.KsrETCDDataSync

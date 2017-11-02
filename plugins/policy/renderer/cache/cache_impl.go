@@ -144,6 +144,8 @@ func (crc *ContivRuleCache) Resync(ingress, egress []*ContivRuleList) error {
 	// In-progress failure should not affect the cache content.
 	interfaces := NewInterfaceSet()
 	allocatedListIDs := make(map[TrafficDirection]AllocatedIDs)
+	allocatedListIDs[Ingress] = make(AllocatedIDs)
+	allocatedListIDs[Egress] = make(AllocatedIDs)
 	ingressLists := NewContivRuleLists(crc.Log)
 	egressLists := NewContivRuleLists(crc.Log)
 	//  -> Ingress
@@ -220,8 +222,9 @@ func (crc *ContivRuleCache) generateListID(direction TrafficDirection) string {
 		// Generate random suffix, 10 characters long.
 		b := make([]byte, 5)
 		rand.Read(b)
-		suffix := fmt.Sprintf("%X", b)
+		suffix = fmt.Sprintf("%X", b)
 		if _, exists := crc.allocatedListIDs[direction][suffix]; !exists {
+			crc.allocatedListIDs[direction][suffix] = struct{}{}
 			break
 		}
 	}

@@ -814,7 +814,7 @@ func TestMultipleContivRulesMultipleInterfacesWithResync(t *testing.T) {
 	// Verify localclient transactions.
 	gomega.Expect(txnTracker.PendingTxns).To(gomega.HaveLen(0))
 	gomega.Expect(txnTracker.CommittedTxns).To(gomega.HaveLen(1))
-	txn = txnTracker.CommittedTxns[1]
+	txn = txnTracker.CommittedTxns[0]
 	gomega.Expect(txn.DataResyncTxn).To(gomega.BeNil())
 	gomega.Expect(txn.DataChangeTxn).ToNot(gomega.BeNil())
 
@@ -834,7 +834,7 @@ func TestMultipleContivRulesMultipleInterfacesWithResync(t *testing.T) {
 	// Verify the generated ACLs.
 	inACLC := verifyACL(putIngress.GetACL("afpacket1"), "", ifSetInC, cache.NewInterfaceSet(), ingressC...)
 	gomega.Expect(inACLC).ToNot(gomega.BeEquivalentTo(inACLA))
-	verifyACL(putIngress.GetACL("afpacket2"), egACLA, ifSetInA, cache.NewInterfaceSet(), ingressA...)
+	verifyACL(putIngress.GetACL("afpacket2"), inACLA, ifSetInA, cache.NewInterfaceSet(), ingressA...)
 	verifyACL(putEgress.GetACL("afpacket1"), egACLB, cache.NewInterfaceSet(), ifSetEgB, egressB...)
 	verifyACL(putEgress.GetACL("afpacket2"), egACLB, cache.NewInterfaceSet(), ifSetEgB, egressB...)
 }

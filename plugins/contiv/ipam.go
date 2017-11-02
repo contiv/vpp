@@ -31,6 +31,9 @@ type IPAM struct {
 	logging.Logger
 	sync.RWMutex
 
+	//TODO apply podSubnetCIDR to IPAM structures properly
+	podSubnetCIDR       string // subnet from which individual pod networks are allocated
+
 	hostID                uint8           // identifier of host node for which this IPAM is created for
 	podNetworkIPPrefix    net.IPNet       // IPv4 subnet prefix for all pods of one host node (given by hostID)
 	allHostsPodSubnetMask net.IPMask      // mask for subnet for all pods across all host nodes
@@ -44,12 +47,14 @@ type IPAMConfig struct {
 	PodNetworkPrefixLen uint8  // prefix length of subnet used for all pods of 1 host node (pod network = pod subnet for one 1 host node)
 }
 
+//TODO fix hostID from uint8 to uint32
 // newIPAM returns new IPAM module to be used on the host.
-func newIPAM(logger logging.Logger, hostID uint8, config *IPAMConfig) (*IPAM, error) {
+func newIPAM(logger logging.Logger, hostID uint32, config *IPAMConfig) (*IPAM, error) {
 	// create basic IPAM
 	ipam := &IPAM{
 		Logger: logger,
 		hostID: hostID,
+		podSubnetCIDR: config.PodSubnetCIDR,
 	}
 
 	// computing IPAM struct variables from IPAM config
@@ -80,6 +85,13 @@ func newIPAM(logger logging.Logger, hostID uint8, config *IPAMConfig) (*IPAM, er
 	logger.Infof("IPAM values loaded: %+v", ipam)
 
 	return ipam, nil
+}
+
+// getPodSubnetCIDR returns pod subnet CIDR ("network_address/prefix_length").
+func (i *IPAM) getPodSubnetCIDR() string {
+	i.RLock()
+	defer i.RUnlock()
+	return i.podSubnetCIDR
 }
 
 // getPodNetwork returns pod network for current host (given by hostID given at IPAM creation)

@@ -18,6 +18,7 @@ import (
 	"net"
 	"strings"
 	"sync"
+	"time"
 
 	"fmt"
 	"git.fd.io/govpp.git/api"
@@ -33,7 +34,6 @@ import (
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/l3plugin/model/l3"
 	linux_intf "github.com/ligato/vpp-agent/plugins/linuxplugin/model/interfaces"
 	"golang.org/x/net/context"
-	"time"
 )
 
 type remoteCNIserver struct {
@@ -57,29 +57,33 @@ type remoteCNIserver struct {
 
 	// agent microservice label
 	agentLabel string
+
+	// unique identifier of the node
+	uid uint32
 }
 
 const (
-	resultOk       uint32 = 0
-	resultErr      uint32 = 1
-	vethNameMaxLen        = 15
+	resultOk             uint32 = 0
+	resultErr            uint32 = 1
+	vethNameMaxLen              = 15
 	//podSubnetCIDR               = "10.1.0.0/16"
-	podSubnetPrefix = "10.1"
+	podSubnetPrefix             = "10.1"
 	//podNetworkPrefixLen         = 24
-	afPacketNamePrefix   = "afpacket"
-	podNameExtraArg      = "K8S_POD_NAME"
-	podNamespaceExtraArg = "K8S_POD_NAMESPACE"
-	nicNetworkPerfix     = "192.168.16"
-	vethHostEndIP        = "192.168.17.24"
-	vethVPPEndIP         = "192.168.17.25"
-	vethHostEndName      = "v1"
-	vethVPPEndName       = "vppv2"
-	afPacketIPPrefix     = "10.2.1"
+	afPacketNamePrefix          = "afpacket"
+	podNameExtraArg             = "K8S_POD_NAME"
+	podNamespaceExtraArg        = "K8S_POD_NAMESPACE"
+	nicNetworkPerfix            = "192.168.16"
+	hostSubnetCIDR              = "172.30.0.0/16"
+	hostSubnetPrefix            = "172.30"
+	hostSubnetPrefixLen         = 24
+	vethHostEndName             = "vpp1"
+	vethVPPEndName              = "vpp2"
+	afPacketIPPrefix            = "10.2.1"
 )
 
 func newRemoteCNIServer(logger logging.Logger, vppTxnFactory func() linux.DataChangeDSL, proxy kvdbproxy.Proxy,
-	configuredContainers *containeridx.ConfigIndex, govppChan *api.Channel, index ifaceidx.SwIfIndex, agentLabel string, ipamConfig *IPAMConfig) *remoteCNIserver {
-	ipam, _ := newIPAM(logger, 1, ipamConfig) //TODO fix setting of host id
+	configuredContainers *containeridx.ConfigIndex, govppChan *api.Channel, index ifaceidx.SwIfIndex, agentLabel string, ipamConfig *IPAMConfig, uid uint32) *remoteCNIserver {
+	ipam, _ := newIPAM(logger, uid, ipamConfig) //TODO check if host id is passed/remembered only to needed places (cleanup after hard merge session)
 	// TODO handle error
 	return &remoteCNIserver{
 		Logger:               logger,
@@ -90,6 +94,7 @@ func newRemoteCNIServer(logger logging.Logger, vppTxnFactory func() linux.DataCh
 		govppChan:            govppChan,
 		swIfIndex:            index,
 		agentLabel:           agentLabel,
+		uid:                  uid,
 		ipam:                 ipam,
 	}
 }
@@ -111,16 +116,16 @@ func (s *remoteCNIserver) resync() error {
 
 // configureVswitchConnectivity configures basic vSwitch VPP connectivity to the host IP stack and to the other hosts.
 // Namely, it configures:
-//  - veth pair to host IP stack + AF_PACKET on VPP side
-//  - default static route to the host via the veth pair
 //  - physical NIC interface + static routes to PODs on other hosts
 //  - loopback instead of physical NIC if NIC is not found
+//  - veth pair to host IP stack + AF_PACKET on VPP side
+//  - default static route to the host via the veth pair
 func (s *remoteCNIserver) configureVswitchConnectivity() error {
 
 	s.Logger.Info("Applying basic vSwitch config.")
 	s.Logger.Info("Existing interfaces: ", s.swIfIndex.GetMapping().ListNames())
 
-	//only apply the config if resync hasn't done it already
+	// only apply the config if resync hasn't done it already
 	if _, _, found := s.swIfIndex.LookupIdx(vethVPPEndName); found {
 		s.Logger.Info("VSwitch connectivity is considered configured, skipping...")
 		return nil
@@ -165,21 +170,38 @@ func (s *remoteCNIserver) configureVswitchConnectivity() error {
 
 			// add static routes to other hosts into the transaction
 			txn2 := s.vppTxnFactory().Put()
-
 			var i uint8
 			for i = 0; i < 255; i++ {
 				// creates routes to all possible hosts
 				// TODO: after proper IPAM implementation, only routes to existing hosts should be added
 				if i != s.ipam.getHostID() {
-					r := s.routeToOtherHost(i)
+					r := s.routeToOtherHostPods(i)
 					txn2.StaticRoute(r)
 					_, dstNet, _ := net.ParseCIDR(r.DstIpAddr)
 					changes[l3.RouteKey(r.VrfId, dstNet, r.NextHopAddr)] = r
 				}
 			}
-
 			// execute the config transaction
 			err = txn2.Send().ReceiveReply()
+			if err != nil {
+				s.Logger.Error(err)
+				return err
+			}
+
+			// configure static routes to VPP-host interconnects on all possible hosts
+			txn3 := s.vppTxnFactory().Put()
+			for i = 0; i < 255; i++ {
+				// creates routes to all possible hosts
+				// TODO: after proper IPAM implementation, only routes to existing hosts should be added
+				if i != s.ipam.getHostID() {
+					r := s.routeToOtherHostStack(i)
+					txn3.StaticRoute(r)
+					_, dstNet, _ := net.ParseCIDR(r.DstIpAddr)
+					changes[l3.RouteKey(r.VrfId, dstNet, r.NextHopAddr)] = r
+				}
+			}
+			// execute the config transaction
+			err = txn3.Send().ReceiveReply()
 			if err != nil {
 				s.Logger.Error(err)
 				return err
@@ -212,7 +234,7 @@ func (s *remoteCNIserver) configureVswitchConnectivity() error {
 	interconnectAF := s.interconnectAfpacket()
 	route := s.defaultRouteToHost()
 
-	// configure linux interfaces + linux route in one transaction
+	// configure linux interfaces
 	txn1 := s.vppTxnFactory().Put().
 		LinuxInterface(vethHost).
 		LinuxInterface(vethVpp)
@@ -241,6 +263,7 @@ func (s *remoteCNIserver) configureVswitchConnectivity() error {
 		time.Sleep(100 * time.Millisecond)
 	}
 
+	// configure default static route to the host
 	txn3 := s.vppTxnFactory().Put().StaticRoute(route)
 	err = txn3.Send().ReceiveReply()
 	if err != nil {
@@ -415,11 +438,6 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 			{
 				Dst: "0.0.0.0/0",
 				Gw:  s.ipam.getPodGatewayIP().String(),
-			},
-		},
-		Dns: []*cni.CNIReply_DNS{
-			{
-				Nameservers: []string{vethHostEndIP},
 			},
 		},
 	}

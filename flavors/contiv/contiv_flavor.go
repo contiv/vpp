@@ -121,6 +121,8 @@ func (f *FlavorContiv) Inject() bool {
 	f.Contiv.Deps.GoVPP = &f.GoVPP
 	f.Contiv.Deps.VPP = &f.VPP
 	f.Contiv.Deps.Resync = &f.ResyncOrch
+	f.Contiv.Deps.ETCD = &f.ETCD
+	f.Contiv.Deps.Watcher = &f.KsrETCDDataSync
 	tmpConfig := contiv.Config{ //TODO remove after applying config
 		IPAMConfig: contiv.IPAMConfig{
 			PodSubnetCIDR:       "10.1.0.0/16",

@@ -79,7 +79,8 @@ func TestVeth1NameFromRequest(t *testing.T) {
 		nil,
 		nil,
 		"testlabel",
-		&ipamConfig)
+		&ipamConfig,
+		0)
 
 	hostIfName := server.veth1HostIfNameFromRequest(&req)
 	gomega.Expect(hostIfName).To(gomega.BeEquivalentTo("eth0"))
@@ -99,7 +100,8 @@ func TestAdd(t *testing.T) {
 		vppChanMock(),
 		swIfIdx,
 		"testLabel",
-		&ipamConfig)
+		&ipamConfig,
+		0)
 	server.hostCalls = &mockLinuxCalls{}
 
 	reply, err := server.Add(context.Background(), &req)

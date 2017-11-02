@@ -124,21 +124,15 @@ spec:
         - /bin/sh
         args:
         - -c
-        - "cp -r $LD_PRELOAD_INSTALL_DIR/vpp/* /vpp &&
-          cp -r $LD_PRELOAD_INSTALL_DIR/vpp-lib64/* /vpp-lib64 &&
-          cp -r $LD_PRELOAD_INSTALL_DIR/vcl-ldpreload/* /vcl-ldpreload &&
+        - "cp -r $LD_PRELOAD_LIB_DIR/* /vpp-lib64/ &&
           if [ ! -e /host/etc/vpp/contiv-vswitch.conf ]; then cp /etc/vpp/contiv-vswitch.conf /host/etc/vpp; fi"
         imagePullPolicy: IfNotPresent
         resources: {}
         securityContext:
           privileged: true
         volumeMounts:
-          - mountPath: /vpp/
-            name: vpp
           - mountPath: /vpp-lib64/
             name: vpp-lib64
-          - mountPath: /vcl-ldpreload/
-            name: vcl-ldpreload
           - mountPath: /host/etc/vpp
             name: vpp-cfg
 
@@ -150,6 +144,22 @@ spec:
           imagePullPolicy: IfNotPresent
           securityContext:
             privileged: true
+          ports:
+            # VPP debug CLI
+            - containerPort: 5002
+            # readiness + liveness probe
+            - containerPort: 9191
+          readinessProbe:
+            httpGet:
+              path: /readiness
+              port: 9191
+            periodSeconds: 1
+          livenessProbe:
+            httpGet:
+              path: /liveness
+              port: 9191
+            periodSeconds: 1
+            initialDelaySeconds: 15
           env:
             - name: MICROSERVICE_LABEL
               valueFrom:
@@ -162,6 +172,8 @@ spec:
               mountPath: /etc/etcd
             - name: vpp-cfg
               mountPath: /etc/vpp
+            - name: shm
+              mountPath: /dev/shm
             - name: dev
               mountPath: /dev
 
@@ -193,20 +205,16 @@ spec:
           hostPath:
             path: /etc/vpp
         # LD_PRELOAD library.
-        - name: vcl-ldpreload
-          hostPath:
-            path: /usr/libexec/ldpreload/vcl-ldpreload
-        # VPP binaries, used to test with the socket_test_client/server tool.
-        - name: vpp
-          hostPath:
-            path: /usr/libexec/ldpreload/vpp
         - name: vpp-lib64
           hostPath:
-            path: /usr/libexec/ldpreload/vpp-lib64
+            path: /tmp/ldpreload/vpp-lib64
         # /dev mount is required for DPDK-managed NICs on VPP (/dev/uio0) and for shared memory communication with VPP (/dev/shm)
         - name: dev
           hostPath:
             path: /dev
+        - name: shm
+          hostPath:
+            path: /dev/shm
 
 ---
 

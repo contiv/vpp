@@ -99,7 +99,7 @@ func (art *RendererTxn) Render(ifName string, ingress []*renderer.ContivRule, eg
 func (art *RendererTxn) Commit() error {
 	if art.resync {
 		// Re-synchronize with VPP first.
-		dumpIngress, dumpEgress := art.dumpVppAclConfig()
+		dumpIngress, dumpEgress := art.dumpVppACLConfig()
 		err := art.cache.Resync(dumpIngress, dumpEgress)
 		if err != nil {
 			return err
@@ -164,9 +164,9 @@ func (art *RendererTxn) filterEmpty(changes []*cache.TxnChange) []*cache.TxnChan
 	return filtered
 }
 
-// dumpVppAclConfig dumps current ACL config is the format suitable for the resync
+// dumpVppACLConfig dumps current ACL config is the format suitable for the resync
 // of the cache.
-func (art *RendererTxn) dumpVppAclConfig() (ingress, egress []*cache.ContivRuleList) {
+func (art *RendererTxn) dumpVppACLConfig() (ingress, egress []*cache.ContivRuleList) {
 	var err error
 	ingress = []*cache.ContivRuleList{}
 	egress = []*cache.ContivRuleList{}

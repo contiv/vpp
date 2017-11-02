@@ -81,10 +81,10 @@ type ContivRuleLists struct {
 type TrafficDirection int
 
 const (
-	// Ingress.
+	// Ingress is the traffic direction from the outside to the inside network.
 	Ingress TrafficDirection = iota
 
-	// Egress.
+	// Egress is the traffic direction from the inside to the outside network.
 	Egress
 )
 
@@ -136,8 +136,8 @@ func (crc *ContivRuleCache) NewTxn() Txn {
 // data.
 func (crc *ContivRuleCache) Resync(ingress, egress []*ContivRuleList) error {
 	// Possible errors.
-	invalidIdPrefixFmt := "invalid ContivRuleList ID prefix: %s"
-	duplicateIdFmt := "duplicate ContivRuleList ID: %s"
+	invalidIDPrefixFmt := "invalid ContivRuleList ID prefix: %s"
+	duplicateIDFmt := "duplicate ContivRuleList ID: %s"
 	duplicateFmt := "duplicate ContivRuleList: %s"
 
 	// Re-synchronize outside of the cache first.
@@ -153,12 +153,12 @@ func (crc *ContivRuleCache) Resync(ingress, egress []*ContivRuleList) error {
 			continue
 		}
 		if !strings.HasPrefix(list.ID, Ingress.String()+"-") {
-			return fmt.Errorf(invalidIdPrefixFmt, list.ID)
+			return fmt.Errorf(invalidIDPrefixFmt, list.ID)
 		}
 		idSuffix := strings.TrimPrefix(list.ID, Ingress.String()+"-")
 		_, duplicity := allocatedListIDs[Ingress][idSuffix]
 		if duplicity {
-			return fmt.Errorf(duplicateIdFmt, list.ID)
+			return fmt.Errorf(duplicateIDFmt, list.ID)
 		}
 		allocatedListIDs[Ingress][idSuffix] = struct{}{}
 		if !ingressLists.Insert(list) {
@@ -173,12 +173,12 @@ func (crc *ContivRuleCache) Resync(ingress, egress []*ContivRuleList) error {
 			continue
 		}
 		if !strings.HasPrefix(list.ID, Egress.String()+"-") {
-			return fmt.Errorf(invalidIdPrefixFmt, list.ID)
+			return fmt.Errorf(invalidIDPrefixFmt, list.ID)
 		}
 		idSuffix := strings.TrimPrefix(list.ID, Egress.String()+"-")
 		_, duplicity := allocatedListIDs[Egress][idSuffix]
 		if duplicity {
-			return fmt.Errorf(duplicateIdFmt, list.ID)
+			return fmt.Errorf(duplicateIDFmt, list.ID)
 		}
 		allocatedListIDs[Egress][idSuffix] = struct{}{}
 		if !egressLists.Insert(list) {

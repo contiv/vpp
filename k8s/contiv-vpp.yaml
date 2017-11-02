@@ -144,6 +144,22 @@ spec:
           imagePullPolicy: IfNotPresent
           securityContext:
             privileged: true
+          ports:
+            # VPP debug CLI
+            - containerPort: 5002
+            # readiness + liveness probe
+            - containerPort: 9191
+          readinessProbe:
+            httpGet:
+              path: /readiness
+              port: 9191
+            periodSeconds: 1
+          livenessProbe:
+            httpGet:
+              path: /liveness
+              port: 9191
+            periodSeconds: 1
+            initialDelaySeconds: 15
           env:
             - name: MICROSERVICE_LABEL
               valueFrom:

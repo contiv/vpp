@@ -31,8 +31,29 @@ import (
 	"github.com/contiv/vpp/plugins/policy/renderer/cache"
 )
 
-type ACLSet map[string]struct{}                       // set ACL names
+type ACLSet map[string]struct{}                       // set of ACL names
 type ACLByIfMap map[string]*acl_model.AccessLists_Acl // interface -> ACL
+
+// MockVppPlugin is a mock for VPP plugin (defaultplugins).
+type MockVppPlugin struct {
+	ACLs []*acl_model.AccessLists_Acl
+}
+
+func NewMockVppPlugin() *MockVppPlugin {
+	return &MockVppPlugin{ACLs: []*acl_model.AccessLists_Acl{}}
+}
+
+func (mvp *MockVppPlugin) DumpACLs() []*acl_model.AccessLists_Acl {
+	return mvp.ACLs
+}
+
+func (mvp *MockVppPlugin) ClearACLs() {
+	mvp.ACLs = []*acl_model.AccessLists_Acl{}
+}
+
+func (mvp *MockVppPlugin) AddACL(acl *acl_model.AccessLists_Acl) {
+	mvp.ACLs = append(mvp.ACLs, acl)
+}
 
 func ipNetwork(addr string) *net.IPNet {
 	if addr == "" {
@@ -187,10 +208,10 @@ func TestSingleContivRuleOneInterface(t *testing.T) {
 	ruleCache.Init()
 	aclRenderer := &Renderer{
 		Deps: Deps{
-			Log:                 logger,
-			Cache:               ruleCache,
-			ACLTxnFactory:       txnTracker.NewDataChangeTxn,
-			ACLResyncTxnFactory: txnTracker.NewDataResyncTxn,
+			Log:           logger,
+			Cache:         ruleCache,
+			VPP:           NewMockVppPlugin(),
+			ACLTxnFactory: txnTracker.NewDataChangeTxn,
 		},
 	}
 	aclRenderer.Init()
@@ -250,10 +271,10 @@ func TestSingleContivRuleMultipleInterfaces(t *testing.T) {
 	ruleCache.Init()
 	aclRenderer := &Renderer{
 		Deps: Deps{
-			Log:                 logger,
-			Cache:               ruleCache,
-			ACLTxnFactory:       txnTracker.NewDataChangeTxn,
-			ACLResyncTxnFactory: txnTracker.NewDataResyncTxn,
+			Log:           logger,
+			Cache:         ruleCache,
+			VPP:           NewMockVppPlugin(),
+			ACLTxnFactory: txnTracker.NewDataChangeTxn,
 		},
 	}
 	aclRenderer.Init()
@@ -351,10 +372,10 @@ func TestMultipleContivRulesSingleInterface(t *testing.T) {
 	ruleCache.Init()
 	aclRenderer := &Renderer{
 		Deps: Deps{
-			Log:                 logger,
-			Cache:               ruleCache,
-			ACLTxnFactory:       txnTracker.NewDataChangeTxn,
-			ACLResyncTxnFactory: txnTracker.NewDataResyncTxn,
+			Log:           logger,
+			Cache:         ruleCache,
+			VPP:           NewMockVppPlugin(),
+			ACLTxnFactory: txnTracker.NewDataChangeTxn,
 		},
 	}
 	aclRenderer.Init()
@@ -499,10 +520,10 @@ func TestMultipleContivRulesMultipleInterfaces(t *testing.T) {
 	ruleCache.Init()
 	aclRenderer := &Renderer{
 		Deps: Deps{
-			Log:                 logger,
-			Cache:               ruleCache,
-			ACLTxnFactory:       txnTracker.NewDataChangeTxn,
-			ACLResyncTxnFactory: txnTracker.NewDataResyncTxn,
+			Log:           logger,
+			Cache:         ruleCache,
+			VPP:           NewMockVppPlugin(),
+			ACLTxnFactory: txnTracker.NewDataChangeTxn,
 		},
 	}
 	aclRenderer.Init()
@@ -651,6 +672,8 @@ func TestMultipleContivRulesMultipleInterfacesWithResync(t *testing.T) {
 	logger.SetLevel(logging.DebugLevel)
 	logger.Debug("TestMultipleContivRulesMultipleInterfacesWithResync")
 
+	mockVppPlugin := NewMockVppPlugin()
+
 	// Prepare ACL Renderer and mock localclient.
 	txnTracker := localclient.NewTxnTracker(nil)
 	ruleCache := &cache.ContivRuleCache{
@@ -661,10 +684,10 @@ func TestMultipleContivRulesMultipleInterfacesWithResync(t *testing.T) {
 	ruleCache.Init()
 	aclRenderer := &Renderer{
 		Deps: Deps{
-			Log:                 logger,
-			Cache:               ruleCache,
-			ACLTxnFactory:       txnTracker.NewDataChangeTxn,
-			ACLResyncTxnFactory: txnTracker.NewDataResyncTxn,
+			Log:           logger,
+			Cache:         ruleCache,
+			VPP:           mockVppPlugin,
+			ACLTxnFactory: txnTracker.NewDataChangeTxn,
 		},
 	}
 	aclRenderer.Init()
@@ -715,7 +738,7 @@ func TestMultipleContivRulesMultipleInterfacesWithResync(t *testing.T) {
 	ifSetEgA := cache.NewInterfaceSet("afpacket1")
 	ifSetEgB := cache.NewInterfaceSet("afpacket2", "afpacket3")
 
-	// Execute RESYNC Renderer transaction for 3 interfaces.
+	// Execute initial RESYNC Renderer transaction (from empty VPP state).
 	rendererTxn := aclRenderer.NewTxn(true)
 	rendererTxn.Render("afpacket1", ingressA, egressA)
 	rendererTxn.Render("afpacket2", ingressA, egressB)
@@ -727,11 +750,11 @@ func TestMultipleContivRulesMultipleInterfacesWithResync(t *testing.T) {
 	gomega.Expect(txnTracker.PendingTxns).To(gomega.HaveLen(0))
 	gomega.Expect(txnTracker.CommittedTxns).To(gomega.HaveLen(1))
 	txn := txnTracker.CommittedTxns[0]
-	gomega.Expect(txn.DataResyncTxn).ToNot(gomega.BeNil())
-	gomega.Expect(txn.DataChangeTxn).To(gomega.BeNil())
+	gomega.Expect(txn.DataResyncTxn).To(gomega.BeNil())
+	gomega.Expect(txn.DataChangeTxn).ToNot(gomega.BeNil())
 
 	// Verify transaction operations.
-	ops := txn.DataResyncTxn.Ops
+	ops := txn.DataChangeTxn.Ops
 	gomega.Expect(ops).To(gomega.HaveLen(3))
 	putIngress, putEgress, deleted := parseACLOps(ops)
 	gomega.Expect(deleted).To(gomega.HaveLen(0))
@@ -747,38 +770,60 @@ func TestMultipleContivRulesMultipleInterfacesWithResync(t *testing.T) {
 	// Verify the generated ACLs.
 	inACLA := verifyACL(putIngress.GetACL("afpacket1"), "", ifSetInA, cache.NewInterfaceSet(), ingressA...)
 	verifyACL(putIngress.GetACL("afpacket2"), inACLA, ifSetInA, cache.NewInterfaceSet(), ingressA...)
-	verifyACL(putEgress.GetACL("afpacket1"), "", cache.NewInterfaceSet(), ifSetEgA, egressA...)
+	egACLA := verifyACL(putEgress.GetACL("afpacket1"), "", cache.NewInterfaceSet(), ifSetEgA, egressA...)
 	egACLB := verifyACL(putEgress.GetACL("afpacket2"), "", cache.NewInterfaceSet(), ifSetEgB, egressB...)
 	verifyACL(putEgress.GetACL("afpacket3"), egACLB, cache.NewInterfaceSet(), ifSetEgB, egressB...)
 
-	// Resync: change change assignment of rules a bit and remove afpacket3.
-	ifSetInA = cache.NewInterfaceSet("afpacket1")
-	ifSetInB := cache.NewInterfaceSet("afpacket2")
-	ifSetEgA = cache.NewInterfaceSet("afpacket1", "afpacket2")
+	// Remember the current VPP configuration.
+	mockVppPlugin.AddACL(putIngress.GetACL("afpacket1"))
+	mockVppPlugin.AddACL(putEgress.GetACL("afpacket1"))
+	mockVppPlugin.AddACL(putEgress.GetACL("afpacket2"))
 
-	ingressA = []*renderer.ContivRule{inRule1}          // afpacket1
-	ingressB = []*renderer.ContivRule{inRule1, inRule2} // afpacket2
-	egressA = []*renderer.ContivRule{egRule1, egRule2}  // afpacket1,2
+	// Simulate Agent restart.
+	txnTracker = localclient.NewTxnTracker(nil)
+	ruleCache = &cache.ContivRuleCache{
+		Deps: cache.Deps{
+			Log: logger,
+		},
+	}
+	ruleCache.Init()
+	aclRenderer = &Renderer{
+		Deps: Deps{
+			Log:           logger,
+			Cache:         ruleCache,
+			VPP:           mockVppPlugin,
+			ACLTxnFactory: txnTracker.NewDataChangeTxn,
+		},
+	}
+	aclRenderer.Init()
 
-	// Run second RESYNC transaction.
+	// Resync: change assignment of rules a bit and remove afpacket3.
+	ifSetInC := cache.NewInterfaceSet("afpacket1")
+	ifSetInA = cache.NewInterfaceSet("afpacket2")
+	ifSetEgB = cache.NewInterfaceSet("afpacket1", "afpacket2")
+
+	ingressC := []*renderer.ContivRule{inRule1} // afpacket1
+
+	// Execute second RESYNC transaction (from non-empty VPP state).
 	rendererTxn = aclRenderer.NewTxn(true)
-	rendererTxn.Render("afpacket1", ingressA, egressA)
-	rendererTxn.Render("afpacket2", ingressB, egressA)
+	rendererTxn.Render("afpacket1", ingressC, egressB)
+	rendererTxn.Render("afpacket2", ingressA, egressB)
 	err = rendererTxn.Commit()
 	gomega.Expect(err).To(gomega.BeNil())
 
 	// Verify localclient transactions.
 	gomega.Expect(txnTracker.PendingTxns).To(gomega.HaveLen(0))
-	gomega.Expect(txnTracker.CommittedTxns).To(gomega.HaveLen(2))
+	gomega.Expect(txnTracker.CommittedTxns).To(gomega.HaveLen(1))
 	txn = txnTracker.CommittedTxns[1]
-	gomega.Expect(txn.DataResyncTxn).ToNot(gomega.BeNil())
-	gomega.Expect(txn.DataChangeTxn).To(gomega.BeNil())
+	gomega.Expect(txn.DataResyncTxn).To(gomega.BeNil())
+	gomega.Expect(txn.DataChangeTxn).ToNot(gomega.BeNil())
 
 	// Verify transaction operations.
-	ops = txn.DataResyncTxn.Ops
-	gomega.Expect(ops).To(gomega.HaveLen(3))
+	ops = txn.DataChangeTxn.Ops
+	gomega.Expect(ops).To(gomega.HaveLen(4))
 	putIngress, putEgress, deleted = parseACLOps(ops)
-	gomega.Expect(deleted).To(gomega.HaveLen(0))
+	gomega.Expect(deleted).To(gomega.HaveLen(1))
+	gomega.Expect(deleted.Has(egACLA)).To(gomega.BeTrue())
 	gomega.Expect(putIngress).To(gomega.HaveLen(2))
 	gomega.Expect(putIngress.GetACL("afpacket1")).ToNot(gomega.BeNil())
 	gomega.Expect(putIngress.GetACL("afpacket2")).ToNot(gomega.BeNil())
@@ -787,8 +832,9 @@ func TestMultipleContivRulesMultipleInterfacesWithResync(t *testing.T) {
 	gomega.Expect(putEgress.GetACL("afpacket2")).ToNot(gomega.BeNil())
 
 	// Verify the generated ACLs.
-	verifyACL(putIngress.GetACL("afpacket1"), "", ifSetInA, cache.NewInterfaceSet(), ingressA...)
-	verifyACL(putIngress.GetACL("afpacket2"), "", ifSetInB, cache.NewInterfaceSet(), ingressB...)
-	egACLA := verifyACL(putEgress.GetACL("afpacket1"), "", cache.NewInterfaceSet(), ifSetEgA, egressA...)
-	verifyACL(putEgress.GetACL("afpacket2"), egACLA, cache.NewInterfaceSet(), ifSetEgA, egressA...)
+	inACLC := verifyACL(putIngress.GetACL("afpacket1"), "", ifSetInC, cache.NewInterfaceSet(), ingressC...)
+	gomega.Expect(inACLC).ToNot(gomega.BeEquivalentTo(inACLA))
+	verifyACL(putIngress.GetACL("afpacket2"), egACLA, ifSetInA, cache.NewInterfaceSet(), ingressA...)
+	verifyACL(putEgress.GetACL("afpacket1"), egACLB, cache.NewInterfaceSet(), ifSetEgB, egressB...)
+	verifyACL(putEgress.GetACL("afpacket2"), egACLB, cache.NewInterfaceSet(), ifSetEgB, egressB...)
 }

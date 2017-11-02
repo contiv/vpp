@@ -17,6 +17,7 @@ package acl
 import (
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/vpp-agent/clientv1/linux"
+	"github.com/ligato/vpp-agent/plugins/defaultplugins"
 	vpp_acl "github.com/ligato/vpp-agent/plugins/defaultplugins/aclplugin/model/acl"
 
 	"github.com/contiv/vpp/plugins/policy/renderer"
@@ -32,17 +33,25 @@ type Renderer struct {
 
 // Deps lists dependencies of Renderer.
 type Deps struct {
-	Log                 logging.Logger
-	Cache               cache.ContivRuleCacheAPI
-	ACLTxnFactory       func() (dsl linux.DataChangeDSL)
-	ACLResyncTxnFactory func() (dsl linux.DataResyncDSL)
+	Log           logging.Logger
+	Cache         cache.ContivRuleCacheAPI
+	VPP           defaultplugins.API /* for DumpACLs() */
+	ACLTxnFactory func() (dsl linux.DataChangeDSL)
 }
 
 // RendererTxn represents a single transaction of Renderer.
 type RendererTxn struct {
-	cacheTxn cache.Txn
+	cache    cache.ContivRuleCacheAPI
 	renderer *Renderer
 	resync   bool
+	config   map[string]*InterfaceConfig // interface name -> config
+}
+
+// InterfaceConfig temporarily stores configuration for a single interface
+// until a transaction commit is called.
+type InterfaceConfig struct {
+	ingress []*renderer.ContivRule
+	egress  []*renderer.ContivRule
 }
 
 // Init initializes the ACL Renderer.
@@ -56,7 +65,13 @@ func (r *Renderer) Init() error {
 // replace the existing one. Otherwise, the change is performed incrementally,
 // i.e. interfaces not mentioned in the transaction are left unaffected.
 func (r *Renderer) NewTxn(resync bool) renderer.Txn {
-	return &RendererTxn{cacheTxn: r.Cache.NewTxn(resync), renderer: r, resync: resync}
+	txn := &RendererTxn{
+		cache:    r.Cache,
+		renderer: r,
+		resync:   resync,
+		config:   make(map[string]*InterfaceConfig),
+	}
+	return txn
 }
 
 // Render applies the set of ingress & egress rules for a given VPP interface.
@@ -68,7 +83,7 @@ func (art *RendererTxn) Render(ifName string, ingress []*renderer.ContivRule, eg
 		"ingress": ingress,
 		"egress":  egress,
 	}).Debug("ACL RendererTxn Render()")
-	art.cacheTxn.Update(ifName, ingress, egress)
+	art.config[ifName] = &InterfaceConfig{ingress: ingress, egress: egress}
 	return art
 }
 
@@ -76,7 +91,38 @@ func (art *RendererTxn) Render(ifName string, ingress []*renderer.ContivRule, eg
 // calculated using ContivRuleCache and applied as one transaction via the
 // localclient.
 func (art *RendererTxn) Commit() error {
-	ingress, egress := art.cacheTxn.Changes()
+	if art.resync {
+		// Re-synchronize with VPP first.
+		// TODO: get ACL dump from VPP, assume empty VPP for now.
+		zeroLists := []*cache.ContivRuleList{}
+		err := art.cache.Resync(zeroLists, zeroLists)
+		if err != nil {
+			return err
+		}
+	}
+
+	// Prepare a set of updates in a cache transaction.
+	txn := art.cache.NewTxn()
+	for ifName, config := range art.config {
+		err := txn.Update(ifName, config.ingress, config.egress)
+		if err != nil {
+			return err
+		}
+	}
+
+	if art.resync {
+		// Apply empty config for interfaces not present in the transaction.
+		txnInterfaces := txn.AllInterfaces()
+		emptyList := []*renderer.ContivRule{}
+		for ifName := range art.cache.AllInterfaces() {
+			if !txnInterfaces.Has(ifName) {
+				txn.Update(ifName, emptyList, emptyList)
+			}
+		}
+	}
+
+	// Get the minimalistic diff to be rendered.
+	ingress, egress := txn.Changes()
 	ingress = art.filterEmpty(ingress)
 	egress = art.filterEmpty(egress)
 
@@ -85,32 +131,21 @@ func (art *RendererTxn) Commit() error {
 		return nil
 	}
 
-	if art.resync == true {
-		dsl := art.renderer.ACLResyncTxnFactory()
+	// Render ACLs and propagate changes via localclient.
+	dsl := art.renderer.ACLTxnFactory()
+	putDsl := dsl.Put()
+	deleteDsl := dsl.Delete()
 
-		art.renderResync(dsl, ingress, true)
-		art.renderResync(dsl, egress, false)
+	art.renderChanges(putDsl, deleteDsl, ingress, true)
+	art.renderChanges(putDsl, deleteDsl, egress, false)
 
-		err := dsl.Send().ReceiveReply()
-		if err != nil {
-			return err
-		}
-	} else {
-		dsl := art.renderer.ACLTxnFactory()
-		putDsl := dsl.Put()
-		deleteDsl := dsl.Delete()
-
-		art.renderChanges(putDsl, deleteDsl, ingress, true)
-		art.renderChanges(putDsl, deleteDsl, egress, false)
-
-		err := dsl.Send().ReceiveReply()
-		if err != nil {
-			return err
-		}
+	err := dsl.Send().ReceiveReply()
+	if err != nil {
+		return err
 	}
 
-	art.cacheTxn.Commit()
-	return nil
+	// Save changes into the cache.
+	return txn.Commit()
 }
 
 // Remove lists with no rules since empty list of rules is equivalent to no ACL.
@@ -154,19 +189,6 @@ func (art *RendererTxn) renderChanges(putDsl linux.PutDSL, deleteDsl linux.Delet
 				"acl":  acl,
 			}).Debug("Removed ACL")
 		}
-	}
-}
-
-// render RESYNC event with Contiv Rules into the equivalent RESYNC event for
-// ACL configuration.
-func (art *RendererTxn) renderResync(dsl linux.DataResyncDSL, changes []*cache.TxnChange, ingress bool) {
-	for _, change := range changes {
-		acl := art.renderACL(change.List, ingress)
-		dsl.ACL(acl)
-		art.renderer.Log.WithFields(logging.Fields{
-			"list": change.List,
-			"acl":  acl,
-		}).Debug("Resync ACL")
 	}
 }
 

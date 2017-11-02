@@ -17,10 +17,21 @@
 package defaultplugins
 
 import (
+	"github.com/ligato/vpp-agent/plugins/defaultplugins/aclplugin/model/acl"
+
 	"github.com/ligato/vpp-agent/idxvpp"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/ifaceidx"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/l2plugin/bdidx"
 )
+
+type API interface {
+	DumpACLs() []*acl.AccessLists_Acl
+}
+
+func (plugin *Plugin) DumpACLs() []*acl.AccessLists_Acl {
+	// This will be implemented by Vlado.
+	return []*acl.AccessLists_Acl{}
+}
 
 // GetSwIfIndexes gives access to mapping of logical names (used in ETCD configuration) to sw_if_index.
 // This mapping is helpful if other plugins need to configure VPP by the Binary API that uses sw_if_index input.

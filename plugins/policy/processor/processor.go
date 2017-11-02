@@ -47,14 +47,14 @@ func (pp *PolicyProcessor) Init() error {
 // configuration. The order at which the pods are reconfigured or the order
 // of policies listed for a given pod are all irrelevant.
 func (pp *PolicyProcessor) Process(resync bool, pods []string) error {
-	//txn := pp.Configurator.NewTxn(false)
-	//for _, pod := range pods {
-	//policies := []*config.ContivPolicy{}
-	// TODO: get and pre-process policies currently assigned to the pod
-	// optimization: remember already evaluated policies between iterations
-	//txn.Configure(pod, policies)
-	//}
-	//return txn.Commit()
+	txn := pp.Configurator.NewTxn(false)
+	for _, pod := range pods {
+		policies := []*config.ContivPolicy{}
+		//TODO: get and pre-process policies currently assigned to the pod
+		//optimization: remember already evaluated policies between iterations
+		txn.Configure(pod, policies)
+	}
+	return txn.Commit()
 	return nil
 }
 
@@ -106,16 +106,16 @@ func (pp *PolicyProcessor) AddPolicy(policy *policymodel.Policy) error {
 
 	if policy == nil {
 		return fmt.Errorf("Policy was not read correctly, retrying")
-
 	}
 
 	pp.Log.Infof("This is the policy to be added: %+v", policy)
 	namespace := policy.Namespace
 	policyLabelSelectors := policy.Pods
-	policyPods := pp.Cache.LookupPodsByNSLabelSelector(namespace, policyLabelSelectors)
 
+	policyPods := pp.Cache.LookupPodsByNSLabelSelector(namespace, policyLabelSelectors)
 	pods = append(pods, policyPods...)
-	fmt.Println("THIS IS SPARTA: %+v", pods)
+	fmt.Println("These are the pods policy applies to: %+v", pods)
+
 	return pp.Process(false, pods)
 }
 

@@ -91,7 +91,7 @@ func (pc *PolicyCache) LookupPodsByNSLabelSelector(policyNamespace string, podLa
 	// If empty return all pods in all namespaces BUT kube-system
 	// todo - Always set a label for phase1, filter kube-system later
 	if podLabelSelector == nil {
-		pods := pc.configuredPods.ListAll()
+		pods := pc.configuredPods.LookupPodsByNamespace(policyNamespace)
 		return pods
 	}
 

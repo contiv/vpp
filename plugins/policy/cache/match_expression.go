@@ -12,7 +12,7 @@ const (
 )
 
 func (pc *PolicyCache) getMatchExpressionPods(namespace string, expressions []*policymodel.Policy_LabelSelector_LabelExpression) (bool, []string) {
-	var inPodSet, notInPodSet []string
+	var inPodSet, notInPodSet, existsPodSet, notExistPodSet []string
 	for _, expression := range expressions {
 		switch expression.Operator {
 		case In:
@@ -21,27 +21,80 @@ func (pc *PolicyCache) getMatchExpressionPods(namespace string, expressions []*p
 			if !isMatch {
 				return false, nil
 			}
+
 			inPodSet = append(inPodSet, podSet...)
-		//case NotIn:
-		//	labels := constructLabels(expression.Key, expression.Value)
-		//	isMatch
-		case Exists:
+
+		case NotIn:
 			labels := constructLabels(expression.Key, expression.Value)
-			isMatch, podSet := pc.getPodsByNSKeyPods(namespace, labels)
+			isMatch, podSet := pc.getPodsByNSLabelSelector(namespace, labels)
 			if !isMatch {
+				podNamespaceAll := pc.configuredPods.LookupPodsByNamespace(namespace)
+				if podNamespaceAll == nil {
+					return false, nil
+				}
+				notInPodSet = append(notInPodSet, podNamespaceAll...)
+				break
+			}
+
+			podNamespaceAll := pc.configuredPods.LookupPodsByNamespace(namespace)
+			pods := difference(podNamespaceAll, podSet)
+			notInPodSet = append(notInPodSet, pods...)
+			if notInPodSet == nil {
 				return false, nil
 			}
-			notInPodSet = append(notInPodSet, podSet...)
-			//case DoesNotExist:
+
+		case Exists:
+			podSet := pc.configuredPods.LookupPodsByNSKey(namespace + expression.Key)
+			if podSet == nil {
+				return false, nil
+			}
+
+			existsPodSet = append(existsPodSet, podSet...)
+
+		case DoesNotExist:
+			podSet := pc.configuredPods.LookupPodsByNSKey(namespace + expression.Key)
+			if podSet == nil {
+				podNamespaceAll := pc.configuredPods.LookupPodsByNamespace(namespace)
+				if podNamespaceAll == nil {
+					return false, nil
+				}
+
+				notExistPodSet = append(notExistPodSet, podNamespaceAll...)
+				break
+			}
+
+			podNamespaceAll := pc.configuredPods.LookupPodsByNamespace(namespace)
+			pods := difference(podNamespaceAll, podSet)
+			notExistPodSet = append(notExistPodSet, pods...)
+			if notExistPodSet == nil {
+				return false, nil
+			}
+
 		}
 	}
-	matcher := intersect(inPodSet, notInPodSet)
-	if matcher == nil {
+	// Remove duplicates from slices
+	inPodSet = removeDuplicates(inPodSet)
+	notInPodSet = removeDuplicates(inPodSet)
+	existsPodSet = removeDuplicates(inPodSet)
+	notExistPodSet = removeDuplicates(inPodSet)
+
+	inMatcher := intersect(inPodSet, notInPodSet)
+	if inMatcher == nil {
 		return false, nil
 	}
-	return true, matcher
+	existsMatcher := intersect(existsPodSet, notExistPodSet)
+	if existsMatcher == nil {
+		return false, nil
+	}
+
+	pods := intersect(inMatcher, existsMatcher)
+	if pods == nil {
+		return false, nil
+	}
+	return true, pods
 }
 
+// Constructs K/V labels given an expression
 func constructLabels(key string, values []string) []*policymodel.Policy_Label {
 	policyLabel := []*policymodel.Policy_Label{}
 	for _, label := range values {
@@ -68,4 +121,20 @@ func difference(a []string, b []string) []string {
 		}
 	}
 	return set
+}
+
+func removeDuplicates(el []string) []string {
+	found := map[string]bool{}
+
+	// Create a map of all unique elements.
+	for v := range el {
+		found[el[v]] = true
+	}
+
+	// Place all keys from the map into a slice.
+	result := []string{}
+	for key, _ := range found {
+		result = append(result, key)
+	}
+	return result
 }

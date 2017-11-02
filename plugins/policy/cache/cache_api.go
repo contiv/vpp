@@ -37,36 +37,36 @@ type PolicyCacheAPI interface {
 
 	// LookupPodsByLabelSelector evaluates label selector (expression and/or match
 	// labels) and returns IDs of matching pods.
-	LookupPodsByLabelSelector(podLabelSelector *policymodel.Policy_LabelSelector) (pods []string)
+	LookupPodsByLabelSelector(podLabelSelector *policymodel.Policy_LabelSelector) (pods []podmodel.ID)
 
 	// LookupPodsByLabelSelector evaluates label selector (expression and/or match
 	// labels) and returns IDs of matching pods in a namespace.
-	LookupPodsByNSLabelSelector(namespace string, podLabelSelector *policymodel.Policy_LabelSelector) (pods []string)
+	LookupPodsByNSLabelSelector(namespace string, podLabelSelector *policymodel.Policy_LabelSelector) (pods []podmodel.ID)
 
 	// LookupPodsByNamespace returns IDs of all pods inside a given namespace.
-	LookupPodsByNamespace(namespace nsmodel.ID) (pods []string)
+	LookupPodsByNamespace(namespace nsmodel.ID) (pods []podmodel.ID)
 
 	// ListAllPods returns IDs of all known pods.
-	ListAllPods() (pods []string)
+	ListAllPods() (pods []podmodel.ID)
 
 	// LookupPolicy returns data of a given Policy.
 	LookupPolicy(policy podmodel.ID) (found bool, data *policymodel.Policy)
 
 	// LookupPoliciesByPod returns IDs of all policies assigned to a given pod.
-	LookupPoliciesByPod(pod podmodel.ID) (policies []string)
+	LookupPoliciesByPod(pod podmodel.ID) (policies []policymodel.ID)
 
 	// ListAllPolicies returns IDs of all policies.
-	ListAllPolicies() (policies []string)
+	ListAllPolicies() (policies []policymodel.ID)
 
 	// LookupNamespace returns data of a given namespace.
 	LookupNamespace(namespace nsmodel.ID) (found bool, data *nsmodel.Namespace)
 
 	// LookupNamespacesByLabelSelector evaluates label selector (expression
 	// and/or match labels) and returns IDs of matching namespaces.
-	LookupNamespacesByLabelSelector(nsLabelSelector *policymodel.Policy_LabelSelector) (namespaces []string)
+	LookupNamespacesByLabelSelector(nsLabelSelector *policymodel.Policy_LabelSelector) (namespaces []nsmodel.ID)
 
 	// ListAllNamespaces returns IDs of all known namespaces.
-	ListAllNamespaces() (namespaces []string)
+	ListAllNamespaces() (namespaces []nsmodel.ID)
 }
 
 // PolicyCacheWatcher defines interface that a PolicyCache watcher must implement.

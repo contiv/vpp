@@ -42,6 +42,7 @@ func NewConfigIndex(logger logging.Logger, owner core.PluginName, title string) 
 
 // RegisterPod adds new pod entry into the mapping
 func (ci *ConfigIndex) RegisterPod(podID string, data *podmodel.Pod) {
+	// make the convertion here id -> string
 	ci.mapping.Put(podID, data)
 }
 
@@ -106,8 +107,8 @@ func IndexFunction(data interface{}) map[string][]string {
 	nsKeys := []string{}
 	if config, ok := data.(*podmodel.Pod); ok && config != nil {
 		for _, v := range config.Label {
-			labelSelector := v.Key + v.Value
-			nsLabelSelector := config.Namespace + labelSelector
+			labelSelector := v.Key + "/" + v.Value
+			nsLabelSelector := config.Namespace + "/" + labelSelector
 			nsKeySelector := config.Namespace + v.Key
 
 			labels = append(labels, labelSelector)
@@ -115,6 +116,10 @@ func IndexFunction(data interface{}) map[string][]string {
 			nsLabels = append(nsLabels, nsLabelSelector)
 			nsKeys = append(nsKeys, nsKeySelector)
 		}
+
+		keys = removeDuplicates(keys)
+		nsKeys = removeDuplicates(keys)
+
 		res[podLabelSelectorKey] = labels
 		res[podKeySelectorKey] = keys
 		res[podNamespace] = []string{config.Namespace}
@@ -122,4 +127,20 @@ func IndexFunction(data interface{}) map[string][]string {
 		res[podNSKeySelectorKey] = nsKeys
 	}
 	return res
+}
+
+func removeDuplicates(el []string) []string {
+	found := map[string]bool{}
+
+	// Create a map of all unique elements.
+	for v := range el {
+		found[el[v]] = true
+	}
+
+	// Place all keys from the map into a slice.
+	result := []string{}
+	for key, _ := range found {
+		result = append(result, key)
+	}
+	return result
 }

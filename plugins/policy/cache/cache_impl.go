@@ -1,6 +1,8 @@
 package cache
 
 import (
+	"strings"
+
 	"github.com/ligato/cn-infra/core"
 	"github.com/ligato/cn-infra/datasync"
 	"github.com/ligato/cn-infra/logging"
@@ -87,33 +89,29 @@ func (pc *PolicyCache) LookupPod(pod podmodel.ID) (found bool, data *podmodel.Po
 
 // LookupPodsByLabelSelector evaluates label selector (expression and/or match
 // labels) and returns IDs of matching pods in a namespace.
-func (pc *PolicyCache) LookupPodsByNSLabelSelector(policyNamespace string, podLabelSelector *policymodel.Policy_LabelSelector) (pods []string) {
-	// If empty return all pods in all namespaces BUT kube-system
+func (pc *PolicyCache) LookupPodsByNSLabelSelector(policyNamespace string, podLabelSelector *policymodel.Policy_LabelSelector) (pods []podmodel.ID) {
 	// todo - Always set a label for phase1, filter kube-system later
+	// An empty podSelector matches all pods in this namespace.
 	if podLabelSelector == nil {
 		pods := pc.configuredPods.LookupPodsByNamespace(policyNamespace)
-		return pods
+		return GetPodIDs(pods)
 	}
-
 	matchLabels := podLabelSelector.MatchLabel
 	matchExpressions := podLabelSelector.MatchExpression
-
-	pc.Log.Infof("PolicyLabels: %+v, PolicyExpressions: %+v", matchLabels, matchExpressions)
-
-	// An empty podSelector matches all pods in this namespace.
+	//pc.Log.Infof("PolicyLabels: %+v, PolicyExpressions: %+v", matchLabels, matchExpressions)
 
 	if len(matchLabels) > 0 && len(matchExpressions) == 0 {
 		found, pods := pc.getPodsByNSLabelSelector(policyNamespace, matchLabels)
 		if !found {
 			return nil
 		}
-		return pods
+		return GetPodIDs(pods)
 	} else if len(matchLabels) == 0 && len(matchExpressions) > 0 {
 		found, pods := pc.getMatchExpressionPods(policyNamespace, matchExpressions)
 		if !found {
 			return nil
 		}
-		return pods
+		return GetPodIDs(pods)
 	} else if len(matchLabels) > 0 && len(matchExpressions) > 0 {
 		foundMlPods, mlPods := pc.getPodsByNSLabelSelector(policyNamespace, matchLabels)
 		if !foundMlPods {
@@ -127,7 +125,7 @@ func (pc *PolicyCache) LookupPodsByNSLabelSelector(policyNamespace string, podLa
 		if pods == nil {
 			return nil
 		}
-		return pods
+		return GetPodIDs(pods)
 	}
 
 	return nil
@@ -178,4 +176,17 @@ func (pc *PolicyCache) LookupNamespacesByLabelSelector(nsLabelSelector *policymo
 // ListAllNamespaces returns IDs of all known namespaces.
 func (pc *PolicyCache) ListAllNamespaces() (namespaces []string) {
 	return nil
+}
+
+func GetPodIDs(pods []string) []podmodel.ID {
+	podIDs := []podmodel.ID{}
+	for _, pod := range pods {
+		parts := strings.Split(pod, "/")
+		podID := podmodel.ID{
+			Name:      parts[0],
+			Namespace: parts[1],
+		}
+		podIDs = append(podIDs, podID)
+	}
+	return podIDs
 }

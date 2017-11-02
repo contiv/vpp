@@ -11,6 +11,7 @@ const (
 	DoesNotExist = policymodel.Policy_LabelSelector_LabelExpression_DOES_NOT_EXIST
 )
 
+// getMatchExpressionPods returns all the pods that match a collection of expressions (expressions are ANDed)
 func (pc *PolicyCache) getMatchExpressionPods(namespace string, expressions []*policymodel.Policy_LabelSelector_LabelExpression) (bool, []string) {
 	var inPodSet, notInPodSet, existsPodSet, notExistPodSet []string
 	for _, expression := range expressions {
@@ -94,7 +95,7 @@ func (pc *PolicyCache) getMatchExpressionPods(namespace string, expressions []*p
 	return true, pods
 }
 
-// Constructs K/V labels given an expression
+// constructLabels returns a key-value pair as a label given an expression
 func constructLabels(key string, values []string) []*policymodel.Policy_Label {
 	policyLabel := []*policymodel.Policy_Label{}
 	for _, label := range values {
@@ -107,14 +108,15 @@ func constructLabels(key string, values []string) []*policymodel.Policy_Label {
 	return policyLabel
 }
 
+// difference returns the difference of two slices
 func difference(a []string, b []string) []string {
 	set := make([]string, 0)
 	hash := make(map[string]bool)
-
+	// Populate the map
 	for _, el := range a {
 		hash[el] = true
 	}
-
+	//Append to slice for every element that exists on the hash
 	for _, el := range b {
 		if _, found := hash[el]; !found {
 			set = append(set, el)

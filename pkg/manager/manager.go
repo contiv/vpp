@@ -203,12 +203,8 @@ func (s *ContivshimManager) CreateContainer(ctx context.Context, req *kubeapi.Cr
 				ContainerPath: "/dev/shm",
 			},
 			{
-				HostPath:      "/usr/libexec/ldpreload/vpp-lib64",
-				ContainerPath: "/vpp-lib64",
-			},
-			{
-				HostPath:      "/usr/libexec/ldpreload/vcl-ldpreload",
-				ContainerPath: "/vcl-ldpreload/",
+				HostPath:      "/tmp/ldpreload/vpp-lib64",
+				ContainerPath: "/ldp",
 			},
 		}
 		req.Config.Mounts = append(req.Config.Mounts, mount...)
@@ -216,11 +212,11 @@ func (s *ContivshimManager) CreateContainer(ctx context.Context, req *kubeapi.Cr
 		envs := []*kubeapi.KeyValue{
 			{
 				Key:   "LD_LIBRARY_PATH",
-				Value: "/vpp-lib64/:/vcl-ldpreload/",
+				Value: "/ldp/:/usr/local/lib:/usr/lib/:/lib",
 			},
 			{
 				Key:   "LD_PRELOAD",
-				Value: "/vcl-ldpreload/libvcl_ldpreload.so.0.0.0",
+				Value: "/ldp/libvcl_ldpreload.so.0.0.0",
 			},
 		}
 		req.Config.Envs = append(req.Config.Envs, envs...)

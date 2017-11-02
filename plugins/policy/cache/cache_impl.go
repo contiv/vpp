@@ -88,14 +88,19 @@ func (pc *PolicyCache) LookupPod(pod podmodel.ID) (found bool, data *podmodel.Po
 // LookupPodsByLabelSelector evaluates label selector (expression and/or match
 // labels) and returns IDs of matching pods in a namespace.
 func (pc *PolicyCache) LookupPodsByNSLabelSelector(policyNamespace string, podLabelSelector *policymodel.Policy_LabelSelector) (pods []string) {
+	// If empty return all pods in all namespaces BUT kube-system
+	// todo - Always set a label for phase1, filter kube-system later
+	if podLabelSelector == nil {
+		pods := pc.configuredPods.ListAll()
+		return pods
+	}
+
 	matchLabels := podLabelSelector.MatchLabel
 	matchExpressions := podLabelSelector.MatchExpression
 
+	pc.Log.Infof("PolicyLabels: %+v, PolicyExpressions: %+v", matchLabels, matchExpressions)
+
 	// An empty podSelector matches all pods in this namespace.
-	if podLabelSelector == nil {
-		pods := pc.configuredPods.LookupPodsByNamespace(policyNamespace)
-		return pods
-	}
 
 	if len(matchLabels) > 0 && len(matchExpressions) == 0 {
 		found, pods := pc.getPodsByNSLabelSelector(policyNamespace, matchLabels)
@@ -130,7 +135,7 @@ func (pc *PolicyCache) LookupPodsByNSLabelSelector(policyNamespace string, podLa
 
 // LookupPodsByLabelSelector evaluates label selector (expression and/or match
 // labels) and returns IDs of matching pods.
-func (pc *PolicyCache) LookupPodsByLabelSelector(namespace nsmodel.ID) (pods []string) {
+func (pc *PolicyCache) LookupPodsByLabelSelector(podLabelSelector *policymodel.Policy_LabelSelector) (pods []string) {
 	return nil
 }
 

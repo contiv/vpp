@@ -72,7 +72,7 @@ type PolicyCacheAPI interface {
 // PolicyCacheWatcher defines interface that a PolicyCache watcher must implement.
 type PolicyCacheWatcher interface {
 	// Resync is called by Policy Cache during a RESYNC event.
-	Resync(data *K8sStateResyncData) error
+	Resync(data *DataResyncEvent) error
 
 	// AddPod is called by Policy Cache when a new pod is created.
 	AddPod(pod *podmodel.Pod) error
@@ -102,12 +102,4 @@ type PolicyCacheWatcher interface {
 	// UpdateNamespace is called by Policy Cache when data of a namespace were
 	// modified.
 	UpdateNamespace(oldNs, newNs *nsmodel.Namespace) error
-}
-
-// K8sStateResyncData contains a complete snapshot of K8s State data which should
-// completely replace the currently installed configuration.
-type K8sStateResyncData struct {
-	Namespaces []*nsmodel.Namespace
-	Pods       []*podmodel.Pod
-	Policies   []*policymodel.Policy
 }

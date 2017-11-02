@@ -46,20 +46,21 @@ func (pp *PolicyProcessor) Init() error {
 // Process re-calculates the set of Contiv policies for pods with outdated
 // configuration. The order at which the pods are reconfigured or the order
 // of policies listed for a given pod are all irrelevant.
-func (pp *PolicyProcessor) Process(resync bool, pods []podmodel.ID) error {
-	txn := pp.Configurator.NewTxn(false)
-	for _, pod := range pods {
-		policies := []*config.ContivPolicy{}
-		// TODO: get and pre-process policies currently assigned to the pod
-		// optimization: remember already evaluated policies between iterations
-		txn.Configure(pod, policies)
-	}
-	return txn.Commit()
+func (pp *PolicyProcessor) Process(resync bool, pods []string) error {
+	//txn := pp.Configurator.NewTxn(false)
+	//for _, pod := range pods {
+	//policies := []*config.ContivPolicy{}
+	// TODO: get and pre-process policies currently assigned to the pod
+	// optimization: remember already evaluated policies between iterations
+	//txn.Configure(pod, policies)
+	//}
+	//return txn.Commit()
+	return nil
 }
 
 // Resync processes the RESYNC event by re-calculating the policies for all
 // known pods.
-func (pp *PolicyProcessor) Resync(data *cache.K8sStateResyncData) error {
+func (pp *PolicyProcessor) Resync(data *cache.DataResyncEvent) error {
 	return pp.Process(true, pp.Cache.ListAllPods())
 }
 
@@ -68,7 +69,7 @@ func (pp *PolicyProcessor) Resync(data *cache.K8sStateResyncData) error {
 // The list of pods with outdated policy configuration is determined and the
 // policy re-processing is triggered for each of them.
 func (pp *PolicyProcessor) AddPod(pod *podmodel.Pod) error {
-	pods := []podmodel.ID{}
+	pods := []string{}
 	// TODO: consider postponing the re-configuration until more data are available (e.g. pod ip address)
 	// TODO: determine the list of pods with outdated policy configuration
 
@@ -79,7 +80,7 @@ func (pp *PolicyProcessor) AddPod(pod *podmodel.Pod) error {
 // The list of pods with outdated policy configuration is determined and the
 // policy re-processing is triggered for each of them.
 func (pp *PolicyProcessor) DelPod(pod *podmodel.Pod) error {
-	pods := []podmodel.ID{}
+	pods := []string{}
 	// TODO: determine the list of pods with outdated policy configuration
 	return pp.Process(false, pods)
 }
@@ -88,7 +89,7 @@ func (pp *PolicyProcessor) DelPod(pod *podmodel.Pod) error {
 // The list of pods with outdated policy configuration is determined and the
 // policy re-processing is triggered for each of them.
 func (pp *PolicyProcessor) UpdatePod(oldPod, newPod *podmodel.Pod) error {
-	pods := []podmodel.ID{}
+	pods := []string{}
 	// TODO: determine the list of pods with outdated policy configuration
 	//       - also handle migration of pods across hosts
 	return pp.Process(false, pods)
@@ -103,6 +104,12 @@ func (pp *PolicyProcessor) AddPolicy(policy *policymodel.Policy) error {
 	// TODO: consider postponing the re-configuration until more data are available
 	// TODO: determine the list of pods with outdated policy configuration
 
+	if policy == nil {
+		return fmt.Errorf("Policy was not read correctly, retrying")
+
+	}
+
+	pp.Log.Infof("This is the policy to be added: %+v", policy)
 	namespace := policy.Namespace
 	policyLabelSelectors := policy.Pods
 	policyPods := pp.Cache.LookupPodsByNSLabelSelector(namespace, policyLabelSelectors)
@@ -116,7 +123,7 @@ func (pp *PolicyProcessor) AddPolicy(policy *policymodel.Policy) error {
 // The list of pods with outdated policy configuration is determined and the
 // policy re-processing is triggered for each of them.
 func (pp *PolicyProcessor) DelPolicy(policy *policymodel.Policy) error {
-	pods := []podmodel.ID{}
+	pods := []string{}
 	// TODO: determine the list of pods with outdated policy configuration
 	return pp.Process(false, pods)
 }
@@ -125,7 +132,7 @@ func (pp *PolicyProcessor) DelPolicy(policy *policymodel.Policy) error {
 // The list of pods with outdated policy configuration is determined and the
 // policy re-processing is triggered for each of them.
 func (pp *PolicyProcessor) UpdatePolicy(oldPolicy, newPolicy *policymodel.Policy) error {
-	pods := []podmodel.ID{}
+	pods := []string{}
 	// TODO: determine the list of pods with outdated policy configuration
 	return pp.Process(false, pods)
 }
@@ -135,7 +142,7 @@ func (pp *PolicyProcessor) UpdatePolicy(oldPolicy, newPolicy *policymodel.Policy
 // The list of pods with outdated policy configuration is determined and the
 // policy re-processing is triggered for each of them.
 func (pp *PolicyProcessor) AddNamespace(ns *nsmodel.Namespace) error {
-	pods := []podmodel.ID{}
+	pods := []string{}
 	// TODO: consider postponing the re-configuration until more data are available
 	//         - e.g. empty namespace has no effect
 	// TODO: determine the list of pods with outdated policy configuration
@@ -146,7 +153,7 @@ func (pp *PolicyProcessor) AddNamespace(ns *nsmodel.Namespace) error {
 // The list of pods with outdated policy configuration is determined and the
 // policy re-processing is triggered for each of them.
 func (pp *PolicyProcessor) DelNamespace(ns *nsmodel.Namespace) error {
-	pods := []podmodel.ID{}
+	pods := []string{}
 	// TODO: determine the list of pods with outdated policy configuration
 	return pp.Process(false, pods)
 }
@@ -155,7 +162,7 @@ func (pp *PolicyProcessor) DelNamespace(ns *nsmodel.Namespace) error {
 // The list of pods with outdated policy configuration is determined and the
 // policy re-processing is triggered for each of them.
 func (pp *PolicyProcessor) UpdateNamespace(oldNs, newNs *nsmodel.Namespace) error {
-	pods := []podmodel.ID{}
+	pods := []string{}
 	// TODO: determine the list of pods with outdated policy configuration
 	return pp.Process(false, pods)
 }

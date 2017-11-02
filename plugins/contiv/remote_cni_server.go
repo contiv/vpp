@@ -20,8 +20,6 @@ import (
 	"sync"
 	"time"
 
-	"time"
-
 	"git.fd.io/govpp.git/api"
 	"github.com/contiv/vpp/plugins/contiv/containeridx"
 	"github.com/contiv/vpp/plugins/contiv/model/cni"

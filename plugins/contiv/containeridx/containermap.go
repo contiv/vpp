@@ -66,7 +66,7 @@ func (ci *ConfigIndex) UnregisterContainer(containerID string) (data *Config, fo
 			return data, found
 		}
 	}
-	return false, nil
+	return nil, false
 }
 
 // LookupContainer looks up entry in the container based on containerID.

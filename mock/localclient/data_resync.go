@@ -14,6 +14,7 @@ import (
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/l2plugin/model/l2"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/l3plugin/model/l3"
 	linux_intf "github.com/ligato/vpp-agent/plugins/linuxplugin/ifplugin/model/interfaces"
+	linux_l3 "github.com/ligato/vpp-agent/plugins/linuxplugin/l3plugin/model/l3"
 )
 
 // MockDataResyncDSL is mock for DataResyncDSL.
@@ -41,6 +42,18 @@ func (dsl *MockDataResyncDSL) apply() {
 // LinuxInterface adds Linux interface to the mock RESYNC request.
 func (dsl *MockDataResyncDSL) LinuxInterface(val *linux_intf.LinuxInterfaces_Interface) linux.DataResyncDSL {
 	op := TxnOp{Key: linux_intf.InterfaceKey(val.Name), Value: val}
+	dsl.Ops = append(dsl.Ops, op)
+	return dsl
+}
+
+func (dsl *MockDataResyncDSL) LinuxArpEntry(val *linux_l3.LinuxStaticArpEntries_ArpEntry) linux.DataResyncDSL {
+	op := TxnOp{Key: linux_l3.StaticArpKey(val.Name), Value: val}
+	dsl.Ops = append(dsl.Ops, op)
+	return dsl
+}
+
+func (dsl *MockDataResyncDSL) LinuxRoute(val *linux_l3.LinuxStaticRoutes_Route) linux.DataResyncDSL {
+	op := TxnOp{Key: linux_l3.StaticRouteKey(val.Name), Value: val}
 	dsl.Ops = append(dsl.Ops, op)
 	return dsl
 }

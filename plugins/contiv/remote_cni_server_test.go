@@ -63,8 +63,10 @@ var req = cni.CNIRequest{
 }
 
 var ipamConfig = IPAMConfig{
-	PodSubnetCIDR:       "10.1.0.0/16",
-	PodNetworkPrefixLen: 24,
+	PodSubnetCIDR:           "10.1.0.0/16",
+	PodNetworkPrefixLen:     24,
+	VSwitchSubnetCIDR:       "172.30.0.0/16",
+	VSwitchNetworkPrefixLen: 24,
 }
 
 func TestVeth1NameFromRequest(t *testing.T) {

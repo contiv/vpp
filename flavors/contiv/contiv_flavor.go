@@ -133,10 +133,10 @@ func (f *FlavorContiv) Inject() bool {
 	f.Contiv.Deps.Watcher = &f.KsrETCDDataSync
 	tmpConfig := contiv.Config{ //TODO remove after applying config
 		IPAMConfig: contiv.IPAMConfig{
-			PodSubnetCIDR:        "10.1.0.0/16",
-			PodNetworkPrefixLen:  24,
-			HostSubnetCIDR:       "172.30.0.0/16",
-			HostNetworkPrefixLen: 24,
+			PodSubnetCIDR:           "10.1.0.0/16",
+			PodNetworkPrefixLen:     24,
+			VSwitchSubnetCIDR:       "172.30.0.0/16",
+			VSwitchNetworkPrefixLen: 24,
 		},
 	}
 	f.Contiv.Config = &tmpConfig

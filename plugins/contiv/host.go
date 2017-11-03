@@ -47,7 +47,7 @@ func (s *remoteCNIserver) defaultRouteToHost() *l3.StaticRoutes_Route {
 }
 
 func (s *remoteCNIserver) interconnectVethHost() *linux_intf.LinuxInterfaces_Interface {
-	size, _ := s.ipam.getHostNetwork().Mask.Size()
+	size, _ := s.ipam.getVSwitchNetwork().Mask.Size()
 	return &linux_intf.LinuxInterfaces_Interface{
 		Name:       "vppv1",
 		Type:       linux_intf.LinuxInterfaces_VETH,
@@ -73,7 +73,7 @@ func (s *remoteCNIserver) interconnectVethVpp() *linux_intf.LinuxInterfaces_Inte
 }
 
 func (s *remoteCNIserver) interconnectAfpacket() *vpp_intf.Interfaces_Interface {
-	size, _ := s.ipam.getHostNetwork().Mask.Size()
+	size, _ := s.ipam.getVSwitchNetwork().Mask.Size()
 	return &vpp_intf.Interfaces_Interface{
 		Name:    vethVPPEndName,
 		Type:    vpp_intf.InterfaceType_AF_PACKET_INTERFACE,
@@ -112,7 +112,7 @@ func (s *remoteCNIserver) routeToOtherHostPods(hostID uint8) *l3.StaticRoutes_Ro
 
 func (s *remoteCNIserver) routeToOtherHostStack(hostID uint8) *l3.StaticRoutes_Route {
 	return &l3.StaticRoutes_Route{
-		DstIpAddr:   s.ipam.getHostNetwork().String(),
+		DstIpAddr:   s.ipam.getVSwitchNetwork().String(),
 		NextHopAddr: fmt.Sprintf("%s.%d", nicNetworkPerfix, hostID),
 	}
 }

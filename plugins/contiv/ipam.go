@@ -41,10 +41,10 @@ type IPAM struct {
 	podNetworkGatewayIP net.IP           // gateway IP address for pod network of one host node (given by hostID)
 	assignedPodIPs      map[uintIP]podID // pool of assigned IP addresses
 
-	// host related variables
-	hostNetworkIPPrefix net.IPNet // IPv4 subnet used in one host (given by hostID) for vswitch-to-its-host connection
-	vethVPPEndIP        net.IP    // for given host(given by hostID), it is the IPv4 address for virtual ethernet's VPP end point
-	vethHostEndIP       net.IP    // for given host(given by hostID), it is the IPv4 address for virtual ethernet's host end point
+	// VSwitch related variables
+	vSwitchNetworkIPPrefix net.IPNet // IPv4 subnet used in one host (given by hostID) for vswitch-to-its-host connection
+	vethVPPEndIP           net.IP    // for given host(given by hostID), it is the IPv4 address for virtual ethernet's VPP end point
+	vethHostEndIP          net.IP    // for given host(given by hostID), it is the IPv4 address for virtual ethernet's host end point
 }
 
 type uintIP = uint32
@@ -52,10 +52,10 @@ type podID = string
 
 // IPAMConfig is configuration for IPAM module
 type IPAMConfig struct {
-	PodSubnetCIDR        string // subnet used for all pods across all nodes
-	PodNetworkPrefixLen  uint8  // prefix length of subnet used for all pods of 1 host node (pod network = pod subnet for one 1 host node)
-	HostSubnetCIDR       string // subnet used in all hosts for vswitch-to-its-host connection
-	HostNetworkPrefixLen uint8  // prefix length of subnet used for vswitch-to-its-host connection on 1 host node (host network = host subnet for one 1 host node)
+	PodSubnetCIDR           string // subnet used for all pods across all nodes
+	PodNetworkPrefixLen     uint8  // prefix length of subnet used for all pods of 1 host node (pod network = pod subnet for one 1 host node)
+	VSwitchSubnetCIDR       string // subnet used in each host for vswitch-to-its-host connection
+	VSwitchNetworkPrefixLen uint8  // prefix length of subnet used for vswitch-to-its-host connection on 1 host node (VSwitch network = VSwitch subnet for one 1 host node)
 }
 
 // newIPAM returns new IPAM module to be used on the host.
@@ -70,7 +70,7 @@ func newIPAM(logger logging.Logger, hostID uint8, config *IPAMConfig) (*IPAM, er
 	if err := initializePodsIPAM(ipam, config, hostID); err != nil {
 		return nil, err
 	}
-	if err := initializeHostIPAM(ipam, config, hostID); err != nil {
+	if err := initializeVSwitchIPAM(ipam, config, hostID); err != nil {
 		return nil, err
 	}
 	logger.Infof("IPAM values loaded: %+v", ipam)
@@ -78,19 +78,19 @@ func newIPAM(logger logging.Logger, hostID uint8, config *IPAMConfig) (*IPAM, er
 	return ipam, nil
 }
 
-// initializeHostIPAM initializes host related variables of IPAM
-func initializeHostIPAM(ipam *IPAM, config *IPAMConfig, hostID uint8) (err error) {
-	_, ipam.hostNetworkIPPrefix, err = convertConfigNotation(config.PodSubnetCIDR, config.PodNetworkPrefixLen, hostID)
+// initializeVSwitchIPAM initializes VSwitch related variables of IPAM
+func initializeVSwitchIPAM(ipam *IPAM, config *IPAMConfig, hostID uint8) (err error) {
+	_, ipam.vSwitchNetworkIPPrefix, err = convertConfigNotation(config.VSwitchSubnetCIDR, config.VSwitchNetworkPrefixLen, hostID)
 	if err != nil {
 		return
 	}
 
-	podNetworkPrefixUint32, err := ipv4ToUint32(ipam.hostNetworkIPPrefix.IP)
+	vSwitchNetworkPrefixUint32, err := ipv4ToUint32(ipam.vSwitchNetworkIPPrefix.IP)
 	if err != nil {
 		return
 	}
-	ipam.vethVPPEndIP = uint32ToIpv4(podNetworkPrefixUint32 + vethVPPEndIPHostSeqID)
-	ipam.vethHostEndIP = uint32ToIpv4(podNetworkPrefixUint32 + vethHostEndIPHostSeqID)
+	ipam.vethVPPEndIP = uint32ToIpv4(vSwitchNetworkPrefixUint32 + vethVPPEndIPHostSeqID)
+	ipam.vethHostEndIP = uint32ToIpv4(vSwitchNetworkPrefixUint32 + vethHostEndIPHostSeqID)
 
 	return
 }
@@ -148,7 +148,7 @@ func convertConfigNotation(subnetCIDR string, networkPrefixLen uint8, hostID uin
 func (i *IPAM) getVEthVPPEndIP() net.IP {
 	i.RLock()
 	defer i.RUnlock()
-	return newIP(i.vethHostEndIP) // defensive copy
+	return newIP(i.vethVPPEndIP) // defensive copy
 }
 
 // getVEthHostEndIP provides (for host given to IPAM) the IPv4 address for virtual ethernet's host end point
@@ -158,11 +158,12 @@ func (i *IPAM) getVEthHostEndIP() net.IP {
 	return newIP(i.vethHostEndIP) // defensive copy
 }
 
-func (i *IPAM) getHostNetwork() *net.IPNet {
+// getVSwitchNetwork returns vswitch network used to connect vswitch to its host (given by hostID given at IPAM creation)
+func (i *IPAM) getVSwitchNetwork() *net.IPNet {
 	i.RLock()
 	defer i.RUnlock()
-	hostNetwork := newIPNet(i.hostNetworkIPPrefix) // defensive copy
-	return &hostNetwork
+	vSwitchNetwork := newIPNet(i.vSwitchNetworkIPPrefix) // defensive copy
+	return &vSwitchNetwork
 }
 
 // getPodSubnet returns pod subnet ("network_address/prefix_length") that is base subnet for all pods of all hosts.

@@ -51,7 +51,7 @@ func (pp *PolicyProcessor) Process(resync bool, pods []podmodel.ID) error {
 	for _, pod := range pods {
 		policies := []*config.ContivPolicy{}
 		policiesByPod := pp.Cache.LookupPoliciesByPod(pod)
-
+		pp.Log.Infof("This are the policies: %+v for pod: %+v", policiesByPod, pod)
 		if policiesByPod != nil {
 			continue
 		}
@@ -91,7 +91,7 @@ func (pp *PolicyProcessor) Process(resync bool, pods []podmodel.ID) error {
 			}
 			policies = append(policies, policy)
 		}
-
+		pp.Log.Infof("Configurator Pod: %+v, Policies: %+v", pod, policies)
 		//TODO: get and pre-process policies currently assigned to the pod
 		//optimization: remember already evaluated policies between iterations
 		txn.Configure(pod, policies)
@@ -298,4 +298,5 @@ func (pp *PolicyProcessor) calculateMatches(policyData *policymodel.Policy) []co
 			})
 		}
 	}
+	return matches
 }

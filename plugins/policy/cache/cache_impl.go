@@ -148,7 +148,7 @@ func (pc *PolicyCache) ListAllPods() (pods []podmodel.ID) {
 }
 
 // LookupPolicy returns data of a given Policy.
-func (pc *PolicyCache) LookupPolicy(policy podmodel.ID) (found bool, data *policymodel.Policy) {
+func (pc *PolicyCache) LookupPolicy(policy policymodel.ID) (found bool, data *policymodel.Policy) {
 	return false, nil
 }
 

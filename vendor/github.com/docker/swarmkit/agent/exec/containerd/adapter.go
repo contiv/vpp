@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/containerd/containerd"
-	"github.com/containerd/containerd/errdefs"
 	"github.com/docker/docker/pkg/signal"
 	"github.com/docker/swarmkit/agent/exec"
 	"github.com/docker/swarmkit/api"
@@ -21,6 +20,8 @@ import (
 	"github.com/pkg/errors"
 	"github.com/Sirupsen/logrus"
 	"golang.org/x/net/context"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 )
 
 var (
@@ -76,7 +77,7 @@ func newContainerAdapter(client *containerd.Client, task *api.Task, secrets exec
 func (c *containerAdapter) reattach(ctx context.Context) error {
 	container, err := c.client.LoadContainer(ctx, c.name)
 	if err != nil {
-		if errdefs.IsNotFound(err) {
+		if grpc.Code(err) == codes.NotFound {
 			c.log(ctx).Debug("reattach: container not found")
 			return nil
 		}
@@ -96,7 +97,7 @@ func (c *containerAdapter) reattach(ctx context.Context) error {
 
 	task, err := container.Task(ctx, containerd.WithAttach(devNull, os.Stdout, os.Stderr))
 	if err != nil {
-		if errdefs.IsNotFound(err) {
+		if err == containerd.ErrNoRunningTask {
 			c.log(ctx).WithError(err).Info("reattach: no running task")
 			return nil
 		}
@@ -236,7 +237,7 @@ func (c *containerAdapter) prepare(ctx context.Context) error {
 
 	c.container, err = c.client.NewContainer(ctx, c.name,
 		containerd.WithSpec(spec),
-		containerd.WithNewSnapshot(c.name, c.image))
+		containerd.WithNewRootFS(c.name, c.image))
 	if err != nil {
 		return errors.Wrap(err, "creating container")
 	}
@@ -281,7 +282,7 @@ func (c *containerAdapter) wait(ctx context.Context) error {
 type status struct {
 	ID         string
 	Pid        uint32
-	Status     containerd.Status
+	Status     containerd.TaskStatus
 	ExitStatus error
 }
 

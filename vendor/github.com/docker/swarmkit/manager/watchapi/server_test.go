@@ -14,8 +14,6 @@ import (
 	stateutils "github.com/docker/swarmkit/manager/state/testutils"
 	"github.com/Sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/grpclog"
 )
@@ -32,7 +30,6 @@ type testServer struct {
 }
 
 func (ts *testServer) Stop() {
-	ts.Server.Stop()
 	ts.clientConn.Close()
 	ts.grpcServer.Stop()
 	ts.Store.Close()
@@ -50,8 +47,6 @@ func newTestServer(t *testing.T) *testServer {
 	assert.NotNil(t, ts.Store)
 	ts.Server = NewServer(ts.Store)
 	assert.NotNil(t, ts.Server)
-
-	require.NoError(t, ts.Server.Start(context.Background()))
 
 	temp, err := ioutil.TempFile("", "test-socket")
 	assert.NoError(t, err)

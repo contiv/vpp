@@ -155,7 +155,7 @@ func startDispatcher(c *Config) (*grpcDispatcher, error) {
 	s := grpc.NewServer(serverOpts...)
 	tc := newTestCluster(l.Addr().String(), tca.MemoryStore)
 	driverGetter := &mockPluginGetter{}
-	d := New(tc, c, drivers.New(driverGetter), managerSecurityConfig)
+	d := New(tc, c, drivers.New(driverGetter))
 
 	authorize := func(ctx context.Context, roles []string) error {
 		_, err := ca.AuthorizeForwardedRoleAndOrg(ctx, roles, []string{ca.ManagerRole}, tca.Organization, nil)
@@ -421,18 +421,10 @@ func TestAssignmentsSecretDriver(t *testing.T) {
 	t.Parallel()
 
 	const (
-		secretDriver        = "secret-driver"
-		existingSecretName  = "existing-secret"
-		serviceName         = "service-name"
-		serviceHostname     = "service-hostname"
-		serviceEndpointMode = 2
+		secretDriver       = "secret-driver"
+		existingSecretName = "existing-secret"
+		secretValue        = "custom-secret-value"
 	)
-	secretValue := []byte("custom-secret-value")
-	serviceLabels := map[string]string{
-		"label-name": "label-value",
-	}
-
-	portConfig := drivers.PortConfig{Name: "port", PublishMode: 5, TargetPort: 80, Protocol: 10, PublishedPort: 8080}
 
 	responses := map[string]*drivers.SecretsProviderResponse{
 		existingSecretName: {Value: secretValue},
@@ -445,13 +437,7 @@ func TestAssignmentsSecretDriver(t *testing.T) {
 		var request drivers.SecretsProviderRequest
 		assert.NoError(t, err)
 		assert.NoError(t, json.Unmarshal(body, &request))
-		response := responses[request.SecretName]
-		assert.Equal(t, serviceName, request.ServiceName)
-		assert.Equal(t, serviceHostname, request.ServiceHostname)
-		assert.Equal(t, int32(serviceEndpointMode), request.ServiceEndpointSpec.Mode)
-		assert.Len(t, request.ServiceEndpointSpec.Ports, 1)
-		assert.EqualValues(t, portConfig, request.ServiceEndpointSpec.Ports[0])
-		assert.EqualValues(t, serviceLabels, request.ServiceLabels)
+		response := responses[request.Name]
 		assert.NotNil(t, response)
 		resp, err := json.Marshal(response)
 		assert.NoError(t, err)
@@ -479,31 +465,12 @@ func TestAssignmentsSecretDriver(t *testing.T) {
 		},
 	}
 	spec := taskSpecFromDependencies(secret, config)
-	spec.GetContainer().Hostname = serviceHostname
 	task := &api.Task{
 		NodeID:       nodeID,
 		ID:           "secretTask",
 		Status:       api.TaskStatus{State: api.TaskStateReady},
 		DesiredState: api.TaskStateNew,
 		Spec:         spec,
-		Endpoint: &api.Endpoint{
-			Spec: &api.EndpointSpec{
-				Mode: serviceEndpointMode,
-				Ports: []*api.PortConfig{
-					{
-						Name:          portConfig.Name,
-						PublishedPort: portConfig.PublishedPort,
-						Protocol:      api.PortConfig_Protocol(portConfig.Protocol),
-						TargetPort:    portConfig.TargetPort,
-						PublishMode:   api.PortConfig_PublishMode(portConfig.PublishMode),
-					},
-				},
-			},
-		},
-		ServiceAnnotations: api.Annotations{
-			Name:   serviceName,
-			Labels: serviceLabels,
-		},
 	}
 
 	err = gd.Store.Update(func(tx store.Tx) error {
@@ -524,27 +491,15 @@ func TestAssignmentsSecretDriver(t *testing.T) {
 	_, _, secretChanges := splitChanges(resp.Changes)
 	assert.Len(t, secretChanges, 1)
 	for _, s := range secretChanges {
-		assert.Equal(t, secretValue, s.Spec.Data)
+		assert.Equal(t, secretValue, string(s.Spec.Data))
 	}
 }
 
-// When connecting to a dispatcher to get Assignments, if there are tasks already in the store,
 // Assignments will send down any existing node tasks > ASSIGNED, and any secrets
 // for said tasks that are <= RUNNING (if the secrets exist)
 func TestAssignmentsInitialNodeTasks(t *testing.T) {
 	t.Parallel()
-	testFuncs := []taskGeneratorFunc{
-		makeTasksAndDependenciesWithResourceReferences,
-		makeTasksAndDependenciesNoResourceReferences,
-		makeTasksAndDependenciesOnlyResourceReferences,
-		makeTasksAndDependenciesWithRedundantReferences,
-	}
-	for _, testFunc := range testFuncs {
-		testAssignmentsInitialNodeTasksWithGivenTasks(t, testFunc)
-	}
-}
 
-func testAssignmentsInitialNodeTasksWithGivenTasks(t *testing.T, genTasks taskGeneratorFunc) {
 	gd, err := startDispatcher(DefaultConfig())
 	assert.NoError(t, err)
 	defer gd.Close()
@@ -552,7 +507,8 @@ func testAssignmentsInitialNodeTasksWithGivenTasks(t *testing.T, genTasks taskGe
 	expectedSessionID, nodeID := getSessionAndNodeID(t, gd.Clients[0])
 
 	// create the relevant secrets and tasks
-	secrets, configs, resourceRefs, tasks := genTasks(t, nodeID)
+	secrets, configs, tasks := makeTasksAndDependencies(t, nodeID)
+
 	err = gd.Store.Update(func(tx store.Tx) error {
 		for _, secret := range secrets {
 			assert.NoError(t, store.CreateSecret(tx, secret))
@@ -560,11 +516,6 @@ func testAssignmentsInitialNodeTasksWithGivenTasks(t *testing.T, genTasks taskGe
 		for _, config := range configs {
 			assert.NoError(t, store.CreateConfig(tx, config))
 		}
-		// make dummy secrets and configs for resourceRefs
-		for _, resourceRef := range resourceRefs {
-			assert.NoError(t, makeMockResource(tx, resourceRef))
-		}
-
 		for _, task := range tasks {
 			assert.NoError(t, store.CreateTask(tx, task))
 		}
@@ -582,29 +533,22 @@ func testAssignmentsInitialNodeTasksWithGivenTasks(t *testing.T, genTasks taskGe
 	resp, err := stream.Recv()
 	assert.NoError(t, err)
 
-	assignedToRunningTasks := filterTasks(tasks, func(s api.TaskState) bool {
-		return s >= api.TaskStateAssigned && s <= api.TaskStateRunning
-	})
-	pastRunningTasks := filterTasks(tasks, func(s api.TaskState) bool {
-		return s > api.TaskStateRunning
-	})
-	atLeastAssignedTasks := filterTasks(tasks, func(s api.TaskState) bool {
-		return s >= api.TaskStateAssigned
-	})
+	// FIXME(aaronl): This is hard to maintain.
+	assert.Equal(t, 10+7+7, len(resp.Changes))
 
-	// dispatcher sends dependencies for all tasks >= ASSIGNED and <= RUNNING
-	referencedSecrets, referencedConfigs := getResourcesFromReferences(gd, resourceRefs)
-	secrets = append(secrets, referencedSecrets...)
-	configs = append(configs, referencedConfigs...)
-	updatedSecrets, updatedConfigs := filterDependencies(secrets, configs, assignedToRunningTasks, nil)
-	verifyChanges(t, resp.Changes, []changeExpectations{
-		{
-			action:  api.AssignmentChange_AssignmentActionUpdate,
-			tasks:   atLeastAssignedTasks, // dispatcher sends task updates for all tasks >= ASSIGNED
-			secrets: updatedSecrets,
-			configs: updatedConfigs,
-		},
-	})
+	taskChanges, configChanges, secretChanges := splitChanges(resp.Changes)
+	assert.Len(t, taskChanges, 10) // 10 types of task states >= assigned, 2 types < assigned
+	for _, task := range tasks[2:] {
+		assert.NotNil(t, taskChanges[idAndAction{id: task.ID, action: api.AssignmentChange_AssignmentActionUpdate}])
+	}
+	assert.Len(t, secretChanges, 7) // 6 different secrets for states between assigned and running inclusive plus secret12
+	for _, secret := range secrets[2:8] {
+		assert.NotNil(t, secretChanges[idAndAction{id: secret.ID, action: api.AssignmentChange_AssignmentActionUpdate}])
+	}
+	assert.Len(t, configChanges, 7) // 6 different configs for states between assigned and running inclusive plus config12
+	for _, config := range configs[2:8] {
+		assert.NotNil(t, configChanges[idAndAction{id: config.ID, action: api.AssignmentChange_AssignmentActionUpdate}])
+	}
 
 	// updating all the tasks will attempt to remove all the secrets for the tasks that are in state > running
 	err = gd.Store.Update(func(tx store.Tx) error {
@@ -616,24 +560,23 @@ func testAssignmentsInitialNodeTasksWithGivenTasks(t *testing.T, genTasks taskGe
 	})
 	assert.NoError(t, err)
 
+	// updates for all the tasks, remove secret sent for the 4 types of states > running
 	resp, err = stream.Recv()
 	assert.NoError(t, err)
 
-	// dependencies for tasks > RUNNING are removed, but only if they are not currently being used
-	// by a task >= ASSIGNED and <= RUNNING
-	updatedSecrets, updatedConfigs = filterDependencies(secrets, configs, pastRunningTasks, assignedToRunningTasks)
-	verifyChanges(t, resp.Changes, []changeExpectations{
-		{
-			// ASSIGNED tasks are always sent down even if they haven't changed
-			action: api.AssignmentChange_AssignmentActionUpdate,
-			tasks:  filterTasks(tasks, func(s api.TaskState) bool { return s == api.TaskStateAssigned }),
-		},
-		{
-			action:  api.AssignmentChange_AssignmentActionRemove,
-			secrets: updatedSecrets,
-			configs: updatedConfigs,
-		},
-	})
+	assert.Equal(t, 1+4+4, len(resp.Changes))
+	taskChanges, configChanges, secretChanges = splitChanges(resp.Changes)
+	assert.Len(t, taskChanges, 1)
+	assert.NotNil(t, taskChanges[idAndAction{id: tasks[2].ID, action: api.AssignmentChange_AssignmentActionUpdate}]) // this is the task in ASSIGNED
+
+	assert.Len(t, secretChanges, 4) // these are the secrets for states > running
+	for _, secret := range secrets[9 : len(secrets)-1] {
+		assert.NotNil(t, secretChanges[idAndAction{id: secret.ID, action: api.AssignmentChange_AssignmentActionRemove}])
+	}
+	assert.Len(t, configChanges, 4) // these are the configs for states > running
+	for _, config := range configs[9 : len(configs)-1] {
+		assert.NotNil(t, configChanges[idAndAction{id: config.ID, action: api.AssignmentChange_AssignmentActionRemove}])
+	}
 
 	// deleting the tasks removes all the secrets for every single task, no matter
 	// what state it's in
@@ -645,110 +588,33 @@ func testAssignmentsInitialNodeTasksWithGivenTasks(t *testing.T, genTasks taskGe
 	})
 	assert.NoError(t, err)
 
+	// updates for all the tasks >= ASSIGNMENT, and remove secrets for all of them,
+	// (there will be 2 tasks changes that won't be sent down)
 	resp, err = stream.Recv()
 	assert.NoError(t, err)
+	assert.Equal(t, len(tasks)-2+len(secrets)-2+len(configs)-2, len(resp.Changes))
+	taskChanges, configChanges, secretChanges = splitChanges(resp.Changes)
+	assert.Len(t, taskChanges, len(tasks)-2)
+	for _, task := range tasks[2:] {
+		assert.NotNil(t, taskChanges[idAndAction{id: task.ID, action: api.AssignmentChange_AssignmentActionRemove}])
+	}
 
-	// tasks >= ASSIGNED and their dependencies have all been removed;
-	// task < ASSIGNED and their dependencies were never sent in the first place, so don't need to be removed
-	updatedSecrets, updatedConfigs = filterDependencies(secrets, configs, atLeastAssignedTasks, nil)
-	verifyChanges(t, resp.Changes, []changeExpectations{
-		{
-			action:  api.AssignmentChange_AssignmentActionRemove,
-			tasks:   atLeastAssignedTasks,
-			secrets: updatedSecrets,
-			configs: updatedConfigs,
-		},
-	})
-}
+	assert.Len(t, secretChanges, len(secrets)-2)
+	for _, secret := range secrets[2:] {
+		assert.NotNil(t, secretChanges[idAndAction{id: secret.ID, action: api.AssignmentChange_AssignmentActionRemove}])
+	}
 
-func mockNumberedConfig(i int) *api.Config {
-	return &api.Config{
-		ID: fmt.Sprintf("IDconfig%d", i),
-		Spec: api.ConfigSpec{
-			Annotations: api.Annotations{
-				Name: fmt.Sprintf("config%d", i),
-			},
-			Data: []byte(fmt.Sprintf("config%d", i)),
-		},
+	assert.Len(t, configChanges, len(configs)-2)
+	for _, config := range configs[2:] {
+		assert.NotNil(t, configChanges[idAndAction{id: config.ID, action: api.AssignmentChange_AssignmentActionRemove}])
 	}
 }
 
-func mockNumberedSecret(i int) *api.Secret {
-	return &api.Secret{
-		ID: fmt.Sprintf("IDsecret%d", i),
-		Spec: api.SecretSpec{
-			Annotations: api.Annotations{
-				Name: fmt.Sprintf("secret%d", i),
-			},
-			Data: []byte(fmt.Sprintf("secret%d", i)),
-		},
-	}
-}
-
-func mockNumberedReadyTask(i int, nodeID string, taskState api.TaskState, spec api.TaskSpec) *api.Task {
-	return &api.Task{
-		NodeID:       nodeID,
-		ID:           fmt.Sprintf("testTask%d", i),
-		Status:       api.TaskStatus{State: taskState},
-		DesiredState: api.TaskStateReady,
-		Spec:         spec,
-	}
-}
-
-func makeMockResource(tx store.Tx, resourceRef *api.ResourceReference) error {
-	switch resourceRef.ResourceType {
-	case api.ResourceType_SECRET:
-		dummySecret := &api.Secret{
-			ID: resourceRef.ResourceID,
-			Spec: api.SecretSpec{
-				Annotations: api.Annotations{
-					Name: fmt.Sprintf("dummy_secret_%s", resourceRef.ResourceID),
-				},
-				Data: []byte(fmt.Sprintf("secret_%s", resourceRef.ResourceID)),
-			},
-		}
-		if store.GetSecret(tx, dummySecret.ID) == nil {
-			return store.CreateSecret(tx, dummySecret)
-		}
-		// the resource already exists
-		return nil
-	case api.ResourceType_CONFIG:
-		dummyConfig := &api.Config{
-			ID: resourceRef.ResourceID,
-			Spec: api.ConfigSpec{
-				Annotations: api.Annotations{
-					Name: fmt.Sprintf("dummy_config_%s", resourceRef.ResourceID),
-				},
-				Data: []byte(fmt.Sprintf("config_%s", resourceRef.ResourceID)),
-			},
-		}
-		if store.GetConfig(tx, dummyConfig.ID) == nil {
-			return store.CreateConfig(tx, dummyConfig)
-		}
-		// the resource already exists
-		return nil
-	default:
-		return fmt.Errorf("unsupported mock resource type")
-	}
-}
-
-// When connecting to a dispatcher with no tasks or assignments, when tasks are updated, assignments will send down
-// tasks > ASSIGNED, and any secrets for said tasks that are <= RUNNING (but only if the secrets/configs exist - if
-// they don't, even if they are referenced, the task is still sent down)
+// As tasks are added, assignments will send down tasks > ASSIGNED, and any secrets
+// for said tasks that are <= RUNNING (if the secrets exist)
 func TestAssignmentsAddingTasks(t *testing.T) {
 	t.Parallel()
-	testFuncs := []taskGeneratorFunc{
-		makeTasksAndDependenciesWithResourceReferences,
-		makeTasksAndDependenciesNoResourceReferences,
-		makeTasksAndDependenciesOnlyResourceReferences,
-		makeTasksAndDependenciesWithRedundantReferences,
-	}
-	for _, testFunc := range testFuncs {
-		testAssignmentsAddingTasksWithGivenTasks(t, testFunc)
-	}
-}
 
-func testAssignmentsAddingTasksWithGivenTasks(t *testing.T, genTasks taskGeneratorFunc) {
 	gd, err := startDispatcher(DefaultConfig())
 	assert.NoError(t, err)
 	defer gd.Close()
@@ -767,31 +633,14 @@ func testAssignmentsAddingTasksWithGivenTasks(t *testing.T, genTasks taskGenerat
 	assert.Empty(t, resp.Changes)
 
 	// create the relevant secrets, configs, and tasks and update the tasks
-	secrets, configs, resourceRefs, tasks := genTasks(t, nodeID)
-	var createdSecrets []*api.Secret
-	var createdConfigs []*api.Config
-	if len(secrets) > 0 {
-		createdSecrets = secrets[:len(secrets)-1]
-	}
-	if len(configs) > 0 {
-		createdConfigs = configs[:len(configs)-1]
-	}
+	secrets, configs, tasks := makeTasksAndDependencies(t, nodeID)
 	err = gd.Store.Update(func(tx store.Tx) error {
-		for _, secret := range createdSecrets {
-			if store.GetSecret(tx, secret.ID) == nil {
-				assert.NoError(t, store.CreateSecret(tx, secret))
-			}
+		for _, secret := range secrets[:len(secrets)-1] {
+			assert.NoError(t, store.CreateSecret(tx, secret))
 		}
-		for _, config := range createdConfigs {
-			if store.GetConfig(tx, config.ID) == nil {
-				assert.NoError(t, store.CreateConfig(tx, config))
-			}
+		for _, config := range configs[:len(configs)-1] {
+			assert.NoError(t, store.CreateConfig(tx, config))
 		}
-		// make dummy secrets and configs for resourceRefs
-		for _, resourceRef := range resourceRefs {
-			assert.NoError(t, makeMockResource(tx, resourceRef))
-		}
-
 		for _, task := range tasks {
 			assert.NoError(t, store.CreateTask(tx, task))
 		}
@@ -799,8 +648,8 @@ func testAssignmentsAddingTasksWithGivenTasks(t *testing.T, genTasks taskGenerat
 	})
 	assert.NoError(t, err)
 
-	// Nothing happens until we update.  Updating all the tasks will send updates for all the tasks >= ASSIGNED,
-	// and secrets for all the tasks >= ASSIGNED and <= RUNNING.
+	// Nothing happens until we update.  Updating all the tasks will send updates for all the tasks >= ASSIGNED (10),
+	// and secrets for all the tasks >= ASSIGNED and <= RUNNING (6).
 	err = gd.Store.Update(func(tx store.Tx) error {
 		for _, task := range tasks {
 			assert.NoError(t, store.UpdateTask(tx, task))
@@ -813,28 +662,25 @@ func testAssignmentsAddingTasksWithGivenTasks(t *testing.T, genTasks taskGenerat
 	resp, err = stream.Recv()
 	assert.NoError(t, err)
 
-	assignedToRunningTasks := filterTasks(tasks, func(s api.TaskState) bool {
-		return s >= api.TaskStateAssigned && s <= api.TaskStateRunning
-	})
-	atLeastAssignedTasks := filterTasks(tasks, func(s api.TaskState) bool {
-		return s >= api.TaskStateAssigned
-	})
+	// FIXME(aaronl): This is hard to maintain.
+	assert.Equal(t, 10+6+6, len(resp.Changes))
+	taskChanges, configChanges, secretChanges := splitChanges(resp.Changes)
+	assert.Len(t, taskChanges, 10)
+	for _, task := range tasks[2:] {
+		assert.NotNil(t, taskChanges[idAndAction{id: task.ID, action: api.AssignmentChange_AssignmentActionUpdate}])
+	}
 
-	// dispatcher sends dependencies for all tasks >= ASSIGNED and <= RUNNING, but only if they exist in
-	// the store - if a dependency is referenced by a task but does not exist, that's fine, it just won't be
-	// included in the changes
-	referencedSecrets, referencedConfigs := getResourcesFromReferences(gd, resourceRefs)
-	createdSecrets = append(createdSecrets, referencedSecrets...)
-	createdConfigs = append(createdConfigs, referencedConfigs...)
-	updatedSecrets, updatedConfigs := filterDependencies(createdSecrets, createdConfigs, assignedToRunningTasks, nil)
-	verifyChanges(t, resp.Changes, []changeExpectations{
-		{
-			action:  api.AssignmentChange_AssignmentActionUpdate,
-			tasks:   atLeastAssignedTasks, // dispatcher sends task updates for all tasks >= ASSIGNED
-			secrets: updatedSecrets,
-			configs: updatedConfigs,
-		},
-	})
+	assert.Len(t, secretChanges, 6)
+	// all the secrets for tasks >= ASSIGNED and <= RUNNING
+	for _, secret := range secrets[2:8] {
+		assert.NotNil(t, secretChanges[idAndAction{id: secret.ID, action: api.AssignmentChange_AssignmentActionUpdate}])
+	}
+
+	assert.Len(t, configChanges, 6)
+	// all the secrets for tasks >= ASSIGNED and <= RUNNING
+	for _, config := range configs[2:8] {
+		assert.NotNil(t, configChanges[idAndAction{id: config.ID, action: api.AssignmentChange_AssignmentActionUpdate}])
+	}
 
 	// deleting the tasks removes all the secrets for every single task, no matter
 	// what state it's in
@@ -847,39 +693,33 @@ func testAssignmentsAddingTasksWithGivenTasks(t *testing.T, genTasks taskGenerat
 	})
 	assert.NoError(t, err)
 
+	// updates for all the tasks >= ASSIGNMENT, and remove secrets for all of them, even ones that don't exist
+	// (there will be 2 tasks changes that won't be sent down)
 	resp, err = stream.Recv()
 	assert.NoError(t, err)
 
-	// tasks >= ASSIGNED and their dependencies have all been removed, even if they don't exist in the store;
-	// task < ASSIGNED and their dependencies were never sent in the first place, so don't need to be removed
-	secrets = append(secrets, referencedSecrets...)
-	configs = append(configs, referencedConfigs...)
-	updatedSecrets, updatedConfigs = filterDependencies(secrets, configs, atLeastAssignedTasks, nil)
-	verifyChanges(t, resp.Changes, []changeExpectations{
-		{
-			action:  api.AssignmentChange_AssignmentActionRemove,
-			tasks:   atLeastAssignedTasks,
-			secrets: updatedSecrets,
-			configs: updatedConfigs,
-		},
-	})
+	assert.Equal(t, len(tasks)-2+len(secrets)-2+len(configs)-2, len(resp.Changes))
+	taskChanges, configChanges, secretChanges = splitChanges(resp.Changes)
+	assert.Len(t, taskChanges, len(tasks)-2)
+	for _, task := range tasks[2:] {
+		assert.NotNil(t, taskChanges[idAndAction{id: task.ID, action: api.AssignmentChange_AssignmentActionRemove}])
+	}
+
+	assert.Len(t, secretChanges, len(secrets)-2)
+	for _, secret := range secrets[2:] {
+		assert.NotNil(t, secretChanges[idAndAction{id: secret.ID, action: api.AssignmentChange_AssignmentActionRemove}])
+	}
+
+	assert.Len(t, configChanges, len(configs)-2)
+	for _, config := range configs[2:] {
+		assert.NotNil(t, configChanges[idAndAction{id: config.ID, action: api.AssignmentChange_AssignmentActionRemove}])
+	}
 }
 
-// If a secret or config is updated or deleted, even if it's for an existing task, no changes will be sent down
-func TestAssignmentsDependencyUpdateAndDeletion(t *testing.T) {
+// If a secret is updated or deleted, even if it's for an existing task, no changes will be sent down
+func TestAssignmentsSecretUpdateAndDeletion(t *testing.T) {
 	t.Parallel()
-	testFuncs := []taskGeneratorFunc{
-		makeTasksAndDependenciesWithResourceReferences,
-		makeTasksAndDependenciesNoResourceReferences,
-		makeTasksAndDependenciesOnlyResourceReferences,
-		makeTasksAndDependenciesWithRedundantReferences,
-	}
-	for _, testFunc := range testFuncs {
-		testAssignmentsDependencyUpdateAndDeletionWithGivenTasks(t, testFunc)
-	}
-}
 
-func testAssignmentsDependencyUpdateAndDeletionWithGivenTasks(t *testing.T, genTasks taskGeneratorFunc) {
 	gd, err := startDispatcher(DefaultConfig())
 	assert.NoError(t, err)
 	defer gd.Close()
@@ -887,23 +727,14 @@ func testAssignmentsDependencyUpdateAndDeletionWithGivenTasks(t *testing.T, genT
 	expectedSessionID, nodeID := getSessionAndNodeID(t, gd.Clients[0])
 
 	// create the relevant secrets and tasks
-	secrets, configs, resourceRefs, tasks := genTasks(t, nodeID)
+	secrets, configs, tasks := makeTasksAndDependencies(t, nodeID)
 	err = gd.Store.Update(func(tx store.Tx) error {
-		for _, secret := range secrets {
-			if store.GetSecret(tx, secret.ID) == nil {
-				assert.NoError(t, store.CreateSecret(tx, secret))
-			}
+		for _, secret := range secrets[:len(secrets)-1] {
+			assert.NoError(t, store.CreateSecret(tx, secret))
 		}
-		for _, config := range configs {
-			if store.GetConfig(tx, config.ID) == nil {
-				assert.NoError(t, store.CreateConfig(tx, config))
-			}
+		for _, config := range configs[:len(configs)-1] {
+			assert.NoError(t, store.CreateConfig(tx, config))
 		}
-		// make dummy secrets and configs for resourceRefs
-		for _, resourceRef := range resourceRefs {
-			assert.NoError(t, makeMockResource(tx, resourceRef))
-		}
-
 		for _, task := range tasks {
 			assert.NoError(t, store.CreateTask(tx, task))
 		}
@@ -921,40 +752,31 @@ func testAssignmentsDependencyUpdateAndDeletionWithGivenTasks(t *testing.T, genT
 	resp, err := stream.Recv()
 	assert.NoError(t, err)
 
-	assignedToRunningTasks := filterTasks(tasks, func(s api.TaskState) bool {
-		return s >= api.TaskStateAssigned && s <= api.TaskStateRunning
-	})
-	atLeastAssignedTasks := filterTasks(tasks, func(s api.TaskState) bool {
-		return s >= api.TaskStateAssigned
-	})
+	// FIXME(aaronl): This is hard to maintain.
+	assert.Equal(t, 10+6+6, len(resp.Changes))
+	taskChanges, configChanges, secretChanges := splitChanges(resp.Changes)
+	assert.Len(t, taskChanges, 10) // 10 types of task states >= assigned, 2 types < assigned
+	for _, task := range tasks[2:] {
+		assert.NotNil(t, taskChanges[idAndAction{id: task.ID, action: api.AssignmentChange_AssignmentActionUpdate}])
+	}
+	assert.Len(t, secretChanges, 6) // 6 types of task states between assigned and running inclusive
+	for _, secret := range secrets[2:8] {
+		assert.NotNil(t, secretChanges[idAndAction{id: secret.ID, action: api.AssignmentChange_AssignmentActionUpdate}])
+	}
+	assert.Len(t, configChanges, 6) // 6 types of task states between assigned and running inclusive
+	for _, config := range configs[2:8] {
+		assert.NotNil(t, configChanges[idAndAction{id: config.ID, action: api.AssignmentChange_AssignmentActionUpdate}])
+	}
 
-	// dispatcher sends dependencies for all tasks >= ASSIGNED and <= RUNNING
-	referencedSecrets, referencedConfigs := getResourcesFromReferences(gd, resourceRefs)
-	secrets = append(secrets, referencedSecrets...)
-	configs = append(configs, referencedConfigs...)
-	updatedSecrets, updatedConfigs := filterDependencies(secrets, configs, assignedToRunningTasks, nil)
-	verifyChanges(t, resp.Changes, []changeExpectations{
-		{
-			action:  api.AssignmentChange_AssignmentActionUpdate,
-			tasks:   atLeastAssignedTasks, // dispatcher sends task updates for all tasks >= ASSIGNED
-			secrets: updatedSecrets,
-			configs: updatedConfigs,
-		},
-	})
-
-	// updating secrets and configs, used by tasks or not, do not cause any changes
-	uniqueSecrets := uniquifySecrets(secrets)
-	uniqueConfigs := uniquifyConfigs(configs)
+	// updating secrets, used by tasks or not, do not cause any changes
 	assert.NoError(t, gd.Store.Update(func(tx store.Tx) error {
-		for _, s := range uniqueSecrets {
+		for _, secret := range secrets[:len(secrets)-2] {
+			s := store.GetSecret(tx, secret.ID)
+			if s == nil {
+				return errors.New("no secret")
+			}
 			s.Spec.Data = []byte("new secret data")
 			if err := store.UpdateSecret(tx, s); err != nil {
-				return err
-			}
-		}
-		for _, c := range uniqueConfigs {
-			c.Spec.Data = []byte("new config data")
-			if err := store.UpdateConfig(tx, c); err != nil {
 				return err
 			}
 		}
@@ -973,13 +795,10 @@ func testAssignmentsDependencyUpdateAndDeletionWithGivenTasks(t *testing.T, genT
 	case <-time.After(250 * time.Millisecond):
 	}
 
-	// deleting secrets and configs, used by tasks or not, do not cause any changes
+	// deleting secrets, used by tasks or not, do not cause any changes
 	err = gd.Store.Update(func(tx store.Tx) error {
-		for _, secret := range uniqueSecrets {
+		for _, secret := range secrets[:len(secrets)-2] {
 			assert.NoError(t, store.DeleteSecret(tx, secret.ID))
-		}
-		for _, config := range uniqueConfigs {
-			assert.NoError(t, store.DeleteConfig(tx, config.ID))
 		}
 		return nil
 	})
@@ -1051,13 +870,13 @@ func TestTasksStatusChange(t *testing.T) {
 
 	resp, err = stream.Recv()
 	assert.NoError(t, err)
-
-	verifyChanges(t, resp.Changes, []changeExpectations{
-		{
-			action: api.AssignmentChange_AssignmentActionUpdate,
-			tasks:  []*api.Task{testTask1, testTask2},
-		},
-	})
+	assert.Equal(t, len(resp.Changes), 2)
+	tasks, configs, secrets := splitChanges(resp.Changes)
+	assert.Len(t, tasks, 2)
+	assert.Len(t, secrets, 0)
+	assert.Len(t, configs, 0)
+	assert.NotNil(t, tasks[idAndAction{id: "testTask1", action: api.AssignmentChange_AssignmentActionUpdate}])
+	assert.NotNil(t, tasks[idAndAction{id: "testTask2", action: api.AssignmentChange_AssignmentActionUpdate}])
 
 	assert.NoError(t, gd.Store.Update(func(tx store.Tx) error {
 		task := store.GetTask(tx, testTask1.ID)
@@ -1145,14 +964,14 @@ func TestTasksBatch(t *testing.T) {
 
 	resp, err = stream.Recv()
 	assert.NoError(t, err)
-
 	// all tasks have been deleted
-	verifyChanges(t, resp.Changes, []changeExpectations{
-		{
-			action: api.AssignmentChange_AssignmentActionRemove,
-			tasks:  []*api.Task{testTask1, testTask2},
-		},
-	})
+
+	tasks, configs, secrets := splitChanges(resp.Changes)
+	assert.Len(t, tasks, 2)
+	assert.Len(t, secrets, 0)
+	assert.Len(t, configs, 0)
+	assert.Equal(t, api.AssignmentChange_AssignmentActionRemove, resp.Changes[0].Action)
+	assert.Equal(t, api.AssignmentChange_AssignmentActionRemove, resp.Changes[1].Action)
 }
 
 func TestTasksNoCert(t *testing.T) {
@@ -1387,267 +1206,48 @@ func splitChanges(changes []*api.AssignmentChange) (map[idAndAction]*api.Task, m
 	return tasks, configs, secrets
 }
 
-type changeExpectations struct {
-	tasks   []*api.Task
-	secrets []*api.Secret
-	configs []*api.Config
-	action  api.AssignmentChange_AssignmentAction
-}
-
-// Ensures that the changes contain the following actions for the following tasks/secrets/configs
-func verifyChanges(t *testing.T, changes []*api.AssignmentChange, expectations []changeExpectations) {
-	taskChanges, configChanges, secretChanges := splitChanges(changes)
-
-	var expectedTasks, expectedSecrets, expectedConfigs int
-	for _, c := range expectations {
-		for _, task := range c.tasks {
-			expectedTasks++
-			index := idAndAction{id: task.ID, action: c.action}
-			require.NotNil(t, taskChanges[index], "missing task change %v", index)
-		}
-
-		for _, secret := range c.secrets {
-			expectedSecrets++
-			index := idAndAction{id: secret.ID, action: c.action}
-			require.NotNil(t, secretChanges[index], "missing secret change %v", index)
-		}
-
-		for _, config := range c.configs {
-			expectedConfigs++
-			index := idAndAction{id: config.ID, action: c.action}
-			require.NotNil(t, configChanges[index], "missing config change %v", index)
-		}
-	}
-
-	require.Len(t, taskChanges, expectedTasks)
-	require.Len(t, secretChanges, expectedSecrets)
-	require.Len(t, configChanges, expectedConfigs)
-	require.Len(t, changes, expectedTasks+expectedSecrets+expectedConfigs)
-}
-
-// filter all tasks by task state, which is given by a function because it's hard to take a range of constants
-func filterTasks(tasks []*api.Task, include func(api.TaskState) bool) []*api.Task {
-	var result []*api.Task
-	for _, t := range tasks {
-		if include(t.Status.State) {
-			result = append(result, t)
-		}
-	}
-	return result
-}
-
-func getResourcesFromReferences(gd *grpcDispatcher, resourceRefs []*api.ResourceReference) ([]*api.Secret, []*api.Config) {
+func makeTasksAndDependencies(t *testing.T, nodeID string) ([]*api.Secret, []*api.Config, []*api.Task) {
 	var (
-		referencedSecrets []*api.Secret
-		referencedConfigs []*api.Config
-	)
-	for _, ref := range resourceRefs {
-		switch ref.ResourceType {
-		case api.ResourceType_SECRET:
-			gd.Store.View(func(readTx store.ReadTx) {
-				referencedSecrets = append(referencedSecrets, store.GetSecret(readTx, ref.ResourceID))
-			})
-		case api.ResourceType_CONFIG:
-			gd.Store.View(func(readTx store.ReadTx) {
-				referencedConfigs = append(referencedConfigs, store.GetConfig(readTx, ref.ResourceID))
-			})
-		}
-	}
-	return referencedSecrets, referencedConfigs
-}
-
-// filters all dependencies (secrets, configs); dependencies should be in `inTasks`, but not be in `notInTasks``
-func filterDependencies(secrets []*api.Secret, configs []*api.Config, inTasks, notInTasks []*api.Task) ([]*api.Secret, []*api.Config) {
-	var (
-		wantSecrets, wantConfigs = make(map[string]struct{}), make(map[string]struct{})
-		filteredSecrets          []*api.Secret
-		filteredConfigs          []*api.Config
-	)
-	for _, t := range inTasks {
-		for _, s := range t.Spec.GetContainer().Secrets {
-			wantSecrets[s.SecretID] = struct{}{}
-		}
-		for _, s := range t.Spec.GetContainer().Configs {
-			wantConfigs[s.ConfigID] = struct{}{}
-		}
-		for _, ref := range t.Spec.ResourceReferences {
-			switch ref.ResourceType {
-			case api.ResourceType_SECRET:
-				wantSecrets[ref.ResourceID] = struct{}{}
-			case api.ResourceType_CONFIG:
-				wantConfigs[ref.ResourceID] = struct{}{}
-			}
-		}
-	}
-	for _, t := range notInTasks {
-		for _, s := range t.Spec.GetContainer().Secrets {
-			delete(wantSecrets, s.SecretID)
-		}
-		for _, s := range t.Spec.GetContainer().Configs {
-			delete(wantConfigs, s.ConfigID)
-		}
-		for _, ref := range t.Spec.ResourceReferences {
-			switch ref.ResourceType {
-			case api.ResourceType_SECRET:
-				delete(wantSecrets, ref.ResourceID)
-			case api.ResourceType_CONFIG:
-				delete(wantConfigs, ref.ResourceID)
-			}
-		}
-	}
-	for _, s := range secrets {
-		if _, ok := wantSecrets[s.ID]; ok {
-			filteredSecrets = append(filteredSecrets, s)
-		}
-	}
-	for _, c := range configs {
-		if _, ok := wantConfigs[c.ID]; ok {
-			filteredConfigs = append(filteredConfigs, c)
-		}
-	}
-	return uniquifySecrets(filteredSecrets), uniquifyConfigs(filteredConfigs)
-}
-
-func uniquifySecrets(secrets []*api.Secret) []*api.Secret {
-	uniqueSecrets := make(map[string]struct{})
-	var finalSecrets []*api.Secret
-	for _, secret := range secrets {
-		if _, ok := uniqueSecrets[secret.ID]; !ok {
-			uniqueSecrets[secret.ID] = struct{}{}
-			finalSecrets = append(finalSecrets, secret)
-		}
-	}
-	return finalSecrets
-}
-
-func uniquifyConfigs(configs []*api.Config) []*api.Config {
-	uniqueConfigs := make(map[string]struct{})
-	var finalConfigs []*api.Config
-	for _, config := range configs {
-		if _, ok := uniqueConfigs[config.ID]; !ok {
-			uniqueConfigs[config.ID] = struct{}{}
-			finalConfigs = append(finalConfigs, config)
-		}
-	}
-	return finalConfigs
-}
-
-type taskGeneratorFunc func(t *testing.T, nodeID string) ([]*api.Secret, []*api.Config, []*api.ResourceReference, []*api.Task)
-
-// Creates 1 task for every possible task state, so there are 12 tasks, ID=0-11 inclusive.
-// Creates 1 secret and 1 config for every single task state + 1, so there are 13 secrets, 13 configs, ID=0-12 inclusive
-// Creates 1 secret and 1 config per task by resource reference so there are an additional of each eventually created
-// For each task, the dependencies assigned to it are: secret, secret12, config, config12, resourceRefSecret, resourceRefConfig
-func makeTasksAndDependenciesWithResourceReferences(t *testing.T, nodeID string) ([]*api.Secret, []*api.Config, []*api.ResourceReference, []*api.Task) {
-	var (
-		secrets      []*api.Secret
-		configs      []*api.Config
-		resourceRefs []*api.ResourceReference
-		tasks        []*api.Task
+		secrets []*api.Secret
+		configs []*api.Config
+		tasks   []*api.Task
 	)
 	for i := 0; i <= len(taskStatesInOrder); i++ {
-		secrets = append(secrets, mockNumberedSecret(i))
-		configs = append(configs, mockNumberedConfig(i))
-
-		resourceRefs = append(resourceRefs, &api.ResourceReference{
-			ResourceID:   fmt.Sprintf("IDresourceRefSecret%d", i),
-			ResourceType: api.ResourceType_SECRET,
-		}, &api.ResourceReference{
-			ResourceID:   fmt.Sprintf("IDresourceRefConfig%d", i),
-			ResourceType: api.ResourceType_CONFIG,
+		secrets = append(secrets, &api.Secret{
+			ID: fmt.Sprintf("IDsecret%d", i),
+			Spec: api.SecretSpec{
+				Annotations: api.Annotations{
+					Name: fmt.Sprintf("secret%d", i),
+				},
+				Data: []byte(fmt.Sprintf("secret%d", i)),
+			},
 		})
-	}
-
-	for i, taskState := range taskStatesInOrder {
-		spec := taskSpecFromDependencies(secrets[i], secrets[len(secrets)-1], configs[i], configs[len(configs)-1], resourceRefs[2*i], resourceRefs[2*i+1])
-		tasks = append(tasks, mockNumberedReadyTask(i, nodeID, taskState, spec))
-	}
-	return secrets, configs, resourceRefs, tasks
-}
-
-// Creates 1 task for every possible task state, so there are 12 tasks, ID=0-11 inclusive.
-// Creates 1 secret and 1 config for every single task state + 1, so there are 13 secrets, 13 configs, ID=0-12 inclusive
-// For each task, the dependencies assigned to it are: secret<i>, secret12, config<i>, config12.
-// There are no ResourceReferences in these TaskSpecs
-func makeTasksAndDependenciesNoResourceReferences(t *testing.T, nodeID string) ([]*api.Secret, []*api.Config, []*api.ResourceReference, []*api.Task) {
-	var (
-		secrets      []*api.Secret
-		configs      []*api.Config
-		resourceRefs []*api.ResourceReference
-		tasks        []*api.Task
-	)
-	for i := 0; i <= len(taskStatesInOrder); i++ {
-		secrets = append(secrets, mockNumberedSecret(i))
-		configs = append(configs, mockNumberedConfig(i))
+		configs = append(configs, &api.Config{
+			ID: fmt.Sprintf("IDconfig%d", i),
+			Spec: api.ConfigSpec{
+				Annotations: api.Annotations{
+					Name: fmt.Sprintf("config%d", i),
+				},
+				Data: []byte(fmt.Sprintf("config%d", i)),
+			},
+		})
 	}
 	for i, taskState := range taskStatesInOrder {
 		spec := taskSpecFromDependencies(secrets[i], secrets[len(secrets)-1], configs[i], configs[len(configs)-1])
-		tasks = append(tasks, mockNumberedReadyTask(i, nodeID, taskState, spec))
-	}
-	return secrets, configs, resourceRefs, tasks
-}
-
-// Creates 1 secret and 1 config per task by resource reference
-// For each task, the dependencies assigned to it are: resourceRefSecret<i>, resourceRefConfig<i>,.
-func makeTasksAndDependenciesOnlyResourceReferences(t *testing.T, nodeID string) ([]*api.Secret, []*api.Config, []*api.ResourceReference, []*api.Task) {
-	var (
-		secrets      []*api.Secret
-		configs      []*api.Config
-		resourceRefs []*api.ResourceReference
-		tasks        []*api.Task
-	)
-	for i := 0; i <= len(taskStatesInOrder); i++ {
-		resourceRefs = append(resourceRefs, &api.ResourceReference{
-			ResourceID:   fmt.Sprintf("IDresourceRefSecret%d", i),
-			ResourceType: api.ResourceType_SECRET,
-		}, &api.ResourceReference{
-			ResourceID:   fmt.Sprintf("IDresourceRefConfig%d", i),
-			ResourceType: api.ResourceType_CONFIG,
+		tasks = append(tasks, &api.Task{
+			NodeID:       nodeID,
+			ID:           fmt.Sprintf("testTask%d", i),
+			Status:       api.TaskStatus{State: taskState},
+			DesiredState: api.TaskStateReady,
+			Spec:         spec,
 		})
 	}
-	for i, taskState := range taskStatesInOrder {
-		spec := taskSpecFromDependencies(resourceRefs[2*i], resourceRefs[2*i+1])
-		tasks = append(tasks, mockNumberedReadyTask(i, nodeID, taskState, spec))
-	}
-	return secrets, configs, resourceRefs, tasks
-}
-
-// Creates 1 task for every possible task state, so there are 12 tasks, ID=0-11 inclusive.
-// Creates 1 secret and 1 config for every single task state + 1, so there are 13 secrets, 13 configs, ID=0-12 inclusive
-// Creates 1 secret and 1 config per task by resource reference, however they point to existing ID=0-12 secrets and configs so they are not created
-// For each task, the dependencies assigned to it are: secret<i>, secret12, config<i>, config12.
-func makeTasksAndDependenciesWithRedundantReferences(t *testing.T, nodeID string) ([]*api.Secret, []*api.Config, []*api.ResourceReference, []*api.Task) {
-	var (
-		secrets      []*api.Secret
-		configs      []*api.Config
-		resourceRefs []*api.ResourceReference
-		tasks        []*api.Task
-	)
-	for i := 0; i <= len(taskStatesInOrder); i++ {
-		secrets = append(secrets, mockNumberedSecret(i))
-		configs = append(configs, mockNumberedConfig(i))
-
-		// Note that the IDs here will match the original secret and config reference IDs
-		resourceRefs = append(resourceRefs, &api.ResourceReference{
-			ResourceID:   fmt.Sprintf("IDsecret%d", i),
-			ResourceType: api.ResourceType_SECRET,
-		}, &api.ResourceReference{
-			ResourceID:   fmt.Sprintf("IDconfig%d", i),
-			ResourceType: api.ResourceType_CONFIG,
-		})
-	}
-
-	for i, taskState := range taskStatesInOrder {
-		spec := taskSpecFromDependencies(secrets[i], secrets[len(secrets)-1], configs[i], configs[len(configs)-1], resourceRefs[2*i], resourceRefs[2*i+1])
-		tasks = append(tasks, mockNumberedReadyTask(i, nodeID, taskState, spec))
-	}
-	return secrets, configs, resourceRefs, tasks
+	return secrets, configs, tasks
 }
 
 func taskSpecFromDependencies(dependencies ...interface{}) api.TaskSpec {
 	var secretRefs []*api.SecretReference
 	var configRefs []*api.ConfigReference
-	var resourceRefs []api.ResourceReference
 	for _, d := range dependencies {
 		switch v := d.(type) {
 		case *api.Secret:
@@ -1676,17 +1276,11 @@ func taskSpecFromDependencies(dependencies ...interface{}) api.TaskSpec {
 					},
 				},
 			})
-		case *api.ResourceReference:
-			resourceRefs = append(resourceRefs, api.ResourceReference{
-				ResourceID:   v.ResourceID,
-				ResourceType: v.ResourceType,
-			})
 		default:
 			panic("unexpected dependency type")
 		}
 	}
 	return api.TaskSpec{
-		ResourceReferences: resourceRefs,
 		Runtime: &api.TaskSpec_Container{
 			Container: &api.ContainerSpec{
 				Secrets: secretRefs,

@@ -15,6 +15,7 @@ import (
 	"github.com/docker/swarmkit/api"
 	"github.com/docker/swarmkit/ca"
 	"github.com/docker/swarmkit/ca/testutils"
+	"github.com/docker/swarmkit/manager/state/store"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -65,6 +66,8 @@ func getSecurityConfig(t *testing.T, localRootCA *ca.RootCA, cluster *api.Cluste
 	secConfig, cancel, err := localRootCA.CreateSecurityConfig(context.Background(), ca.NewKeyReadWriter(paths.Node, nil, nil), ca.CertificateRequestConfig{})
 	require.NoError(t, err)
 	cancel()
+
+	require.NoError(t, ca.NewServer(store.NewMemoryStore(nil), secConfig, paths.RootCA).UpdateRootCA(context.Background(), cluster))
 	return secConfig
 }
 

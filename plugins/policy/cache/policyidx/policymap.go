@@ -109,9 +109,6 @@ func IndexFunction(data interface{}) map[string][]string {
 		res[policyPodLabelKey] = policyPodLabels
 		res[policyPodNSLabelKey] = policyPodNSLabels
 
-		for _, v := range config.Pods.MatchExpression {
-			v.
-		}
 		for _, v1 := range config.IngressRule {
 			for _, v2 := range v1.From {
 				ingressLabels := v2.Pods.MatchLabel

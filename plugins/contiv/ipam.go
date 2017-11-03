@@ -23,7 +23,9 @@ import (
 )
 
 const (
-	gatewayPodSeqID = 1
+	gatewayPodSeqID        = 1
+	vethVPPEndIPHostSeqID  = 1
+	vethHostEndIPHostSeqID = 2
 )
 
 // IPAM represents the basic Contiv IPAM module.
@@ -31,12 +33,18 @@ type IPAM struct {
 	logging.Logger
 	sync.RWMutex
 
+	hostID uint8 // identifier of host node for which this IPAM is created for
+
+	// pods related variables
 	podSubnetIPPrefix   net.IPNet        // IPv4 subnet from which individual pod networks are allocated, this is subnet for all pods across all host nodes
-	hostID              uint8            // identifier of host node for which this IPAM is created for
 	podNetworkIPPrefix  net.IPNet        // IPv4 subnet prefix for all pods of one host node (given by hostID), podSubnetIPPrefix + hostID ==<computation>==> podNetworkIPPrefix
 	podNetworkGatewayIP net.IP           // gateway IP address for pod network of one host node (given by hostID)
-	assignedIPs         map[uintIP]podID // pool of assigned IP addresses
+	assignedPodIPs      map[uintIP]podID // pool of assigned IP addresses
 
+	// host related variables
+	hostNetworkIPPrefix net.IPNet // IPv4 subnet used in one host (given by hostID) for vswitch-to-its-host connection
+	vethVPPEndIP        net.IP    // for given host(given by hostID), it is the IPv4 address for virtual ethernet's VPP end point
+	vethHostEndIP       net.IP    // for given host(given by hostID), it is the IPv4 address for virtual ethernet's host end point
 }
 
 type uintIP = uint32
@@ -44,8 +52,10 @@ type podID = string
 
 // IPAMConfig is configuration for IPAM module
 type IPAMConfig struct {
-	PodSubnetCIDR       string // subnet used for all pods across all nodes
-	PodNetworkPrefixLen uint8  // prefix length of subnet used for all pods of 1 host node (pod network = pod subnet for one 1 host node)
+	PodSubnetCIDR        string // subnet used for all pods across all nodes
+	PodNetworkPrefixLen  uint8  // prefix length of subnet used for all pods of 1 host node (pod network = pod subnet for one 1 host node)
+	HostSubnetCIDR       string // subnet used in all hosts for vswitch-to-its-host connection
+	HostNetworkPrefixLen uint8  // prefix length of subnet used for vswitch-to-its-host connection on 1 host node (host network = host subnet for one 1 host node)
 }
 
 // newIPAM returns new IPAM module to be used on the host.
@@ -57,33 +67,102 @@ func newIPAM(logger logging.Logger, hostID uint8, config *IPAMConfig) (*IPAM, er
 	}
 
 	// computing IPAM struct variables from IPAM config
-	_, podSubnet, err := net.ParseCIDR(config.PodSubnetCIDR)
-	if err != nil {
-		return nil, fmt.Errorf("Can't parse PodSubnetCIDR \"%v\" : %v", config.PodSubnetCIDR, err)
-	}
-	podSubnetPrefix, err := ipv4ToUint32(podSubnet.IP)
-	if err != nil {
+	if err := initializePodsIPAM(ipam, config, hostID); err != nil {
 		return nil, err
 	}
-	podSubnetPrefixLen, _ := podSubnet.Mask.Size()
-	if config.PodNetworkPrefixLen <= uint8(podSubnetPrefixLen) {
-		return nil, fmt.Errorf("Pod network prefix length (%v) must be higher than pod subnet prefix length (%v)", config.PodNetworkPrefixLen, podSubnetPrefixLen)
+	if err := initializeHostIPAM(ipam, config, hostID); err != nil {
+		return nil, err
 	}
-	hostPartBitSize := config.PodNetworkPrefixLen - uint8(podSubnetPrefixLen)
-	hostIPPart := convertToHostIPPart(hostID, hostPartBitSize)
-	podNetworkPrefixUint32 := podSubnetPrefix + (uint32(hostIPPart) << (32 - config.PodNetworkPrefixLen))
-
-	ipam.podSubnetIPPrefix = *podSubnet
-	ipam.podNetworkIPPrefix = net.IPNet{
-		IP:   uint32ToIpv4(podNetworkPrefixUint32),
-		Mask: uint32ToIpv4Mask((1 << uint(config.PodNetworkPrefixLen)) - 1),
-	}
-	ipam.podNetworkGatewayIP = uint32ToIpv4(podNetworkPrefixUint32 + gatewayPodSeqID)
-	ipam.assignedIPs = make(map[uintIP]podID) // TODO: load allocated IP addresses from ETCD (failover use case)
-
 	logger.Infof("IPAM values loaded: %+v", ipam)
 
 	return ipam, nil
+}
+
+// initializeHostIPAM initializes host related variables of IPAM
+func initializeHostIPAM(ipam *IPAM, config *IPAMConfig, hostID uint8) (err error) {
+	_, ipam.hostNetworkIPPrefix, err = convertConfigNotation(config.PodSubnetCIDR, config.PodNetworkPrefixLen, hostID)
+	if err != nil {
+		return
+	}
+
+	podNetworkPrefixUint32, err := ipv4ToUint32(ipam.hostNetworkIPPrefix.IP)
+	if err != nil {
+		return
+	}
+	ipam.vethVPPEndIP = uint32ToIpv4(podNetworkPrefixUint32 + vethVPPEndIPHostSeqID)
+	ipam.vethHostEndIP = uint32ToIpv4(podNetworkPrefixUint32 + vethHostEndIPHostSeqID)
+
+	return
+}
+
+// initializePodsIPAM initializes pod related variables of IPAM
+func initializePodsIPAM(ipam *IPAM, config *IPAMConfig, hostID uint8) (err error) {
+	ipam.podSubnetIPPrefix, ipam.podNetworkIPPrefix, err = convertConfigNotation(config.PodSubnetCIDR, config.PodNetworkPrefixLen, hostID)
+	if err != nil {
+		return
+	}
+
+	podNetworkPrefixUint32, err := ipv4ToUint32(ipam.podNetworkIPPrefix.IP)
+	if err != nil {
+		return
+	}
+	ipam.podNetworkGatewayIP = uint32ToIpv4(podNetworkPrefixUint32 + gatewayPodSeqID)
+	ipam.assignedPodIPs = make(map[uintIP]podID) // TODO: load allocated IP addresses from ETCD (failover use case)
+	return
+}
+
+// convertConfigNotation converts config notation and given host ID to IPAM structure notation.
+// I.e: input 1.2.3.4/16 (string), /24 (uint8), 5 (uint8) results in 1.2.0.0/16 (IPNet), 1.2.5.0/24 (IPNet)
+func convertConfigNotation(subnetCIDR string, networkPrefixLen uint8, hostID uint8) (subnetIPPrefix net.IPNet, networkIPPrefix net.IPNet, err error) {
+	// convert subnetCIDR to net.IPNet
+	_, pSubnet, err := net.ParseCIDR(subnetCIDR)
+	if err != nil {
+		err = fmt.Errorf("Can't parse SubnetCIDR \"%v\" : %v", subnetCIDR, err)
+		return
+	}
+	subnetIPPrefix = *pSubnet
+
+	// computing host part of IP address/network
+	subnetPrefixLen, _ := subnetIPPrefix.Mask.Size()
+	if networkPrefixLen <= uint8(subnetPrefixLen) {
+		err = fmt.Errorf("Network prefix length (%v) must be higher than subnet prefix length (%v)", networkPrefixLen, subnetPrefixLen)
+		return
+	}
+	hostPartBitSize := networkPrefixLen - uint8(subnetPrefixLen)
+	hostIPPart := convertToHostIPPart(hostID, hostPartBitSize)
+
+	// composing network IP prefix from previously computed parts
+	subnetIPPartUint32, err := ipv4ToUint32(subnetIPPrefix.IP)
+	if err != nil {
+		return
+	}
+	networkPrefixUint32 := subnetIPPartUint32 + (uint32(hostIPPart) << (32 - networkPrefixLen))
+	networkIPPrefix = net.IPNet{
+		IP:   uint32ToIpv4(networkPrefixUint32),
+		Mask: uint32ToIpv4Mask((1 << uint(networkPrefixLen)) - 1),
+	}
+	return
+}
+
+// getVEthVPPEndIP provides (for host given to IPAM) the IPv4 address for virtual ethernet's VPP end point
+func (i *IPAM) getVEthVPPEndIP() net.IP {
+	i.RLock()
+	defer i.RUnlock()
+	return newIP(i.vethHostEndIP) // defensive copy
+}
+
+// getVEthHostEndIP provides (for host given to IPAM) the IPv4 address for virtual ethernet's host end point
+func (i *IPAM) getVEthHostEndIP() net.IP {
+	i.RLock()
+	defer i.RUnlock()
+	return newIP(i.vethHostEndIP) // defensive copy
+}
+
+func (i *IPAM) getHostNetwork() *net.IPNet {
+	i.RLock()
+	defer i.RUnlock()
+	hostNetwork := newIPNet(i.hostNetworkIPPrefix) // defensive copy
+	return &hostNetwork
 }
 
 // getPodSubnet returns pod subnet ("network_address/prefix_length") that is base subnet for all pods of all hosts.
@@ -135,10 +214,10 @@ func (i *IPAM) getNextPodIP(podID string) (net.IP, error) {
 		if j == gatewayPodSeqID {
 			continue // gateway IP address can't be assigned as pod
 		}
-		if _, found := i.assignedIPs[networkPrefix+uint32(j)]; found {
+		if _, found := i.assignedPodIPs[networkPrefix+uint32(j)]; found {
 			continue // ignore already assigned IP addresses
 		}
-		i.assignedIPs[networkPrefix+uint32(j)] = podID
+		i.assignedPodIPs[networkPrefix+uint32(j)] = podID
 		//TODO set etcd for new assigned value
 
 		ipForAssign := uint32ToIpv4(networkPrefix + uint32(j))
@@ -158,13 +237,13 @@ func (i *IPAM) releasePodIP(podID string) error {
 	if err != nil {
 		return fmt.Errorf("Can't release pod IP: %v", err)
 	}
-	delete(i.assignedIPs, ip)
+	delete(i.assignedPodIPs, ip)
 	//TODO remove from etcd (if inside etcd)
 	return nil
 }
 
 func (i *IPAM) findIP(podID string) (uintIP, error) {
-	for ip, curPodID := range i.assignedIPs {
+	for ip, curPodID := range i.assignedPodIPs {
 		if curPodID == podID {
 			return ip, nil
 		}

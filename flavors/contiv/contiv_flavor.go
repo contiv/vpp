@@ -24,7 +24,6 @@ import (
 	"github.com/contiv/vpp/plugins/kvdbproxy"
 	"github.com/contiv/vpp/plugins/policy"
 	"github.com/golang/protobuf/proto"
-	"github.com/ligato/cn-infra/config"
 	"github.com/ligato/cn-infra/datasync"
 	"github.com/ligato/cn-infra/datasync/kvdbsync"
 	local_sync "github.com/ligato/cn-infra/datasync/kvdbsync/local"
@@ -132,14 +131,16 @@ func (f *FlavorContiv) Inject() bool {
 	f.Contiv.Deps.Resync = &f.ResyncOrch
 	f.Contiv.Deps.ETCD = &f.ETCD
 	f.Contiv.Deps.Watcher = &f.KsrETCDDataSync
-	//tmpConfig := contiv.Config{ //TODO remove after applying config
-	//	IPAMConfig: contiv.IPAMConfig{
-	//		PodSubnetCIDR:       "10.1.0.0/16",
-	//		PodNetworkPrefixLen: 24,
-	//	},
-	//}
-	//f.Contiv.Config = &tmpConfig
-	f.Contiv.Deps.PluginConfig = config.ForPlugin("contiv", ContivConfigPath, ContivConfigPathUsage)
+	tmpConfig := contiv.Config{ //TODO remove after applying config
+		IPAMConfig: contiv.IPAMConfig{
+			PodSubnetCIDR:        "10.1.0.0/16",
+			PodNetworkPrefixLen:  24,
+			HostSubnetCIDR:       "172.30.0.0/16",
+			HostNetworkPrefixLen: 24,
+		},
+	}
+	f.Contiv.Config = &tmpConfig
+	//f.Contiv.Deps.PluginConfig = config.ForPlugin("contiv", ContivConfigPath, ContivConfigPathUsage)
 
 	f.Policy.Deps.PluginInfraDeps = *f.FlavorLocal.InfraDeps("policy")
 	f.Policy.Deps.Watcher = &f.KsrETCDDataSync

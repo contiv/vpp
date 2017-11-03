@@ -15,14 +15,13 @@
 package contiv
 
 import (
-	"net"
-
 	"fmt"
 
 	vpp_intf "github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/model/interfaces"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/l3plugin/model/l3"
 	linux_intf "github.com/ligato/vpp-agent/plugins/linuxplugin/model/interfaces"
 	"github.com/vishvananda/netlink"
+	"strconv"
 )
 
 func (s *remoteCNIserver) configureRouteOnHost() error {
@@ -35,19 +34,20 @@ func (s *remoteCNIserver) configureRouteOnHost() error {
 	return s.RouteAdd(&netlink.Route{
 		LinkIndex: dev.Attrs().Index,
 		Dst:       s.ipam.getPodSubnet(),
-		Gw:        net.ParseIP(s.vethVPPEndIP()),
+		Gw:        s.ipam.getVEthVPPEndIP(),
 	})
 }
 
 func (s *remoteCNIserver) defaultRouteToHost() *l3.StaticRoutes_Route {
 	return &l3.StaticRoutes_Route{
 		DstIpAddr:         "0.0.0.0/0",
-		NextHopAddr:       s.vethHostEndIP(),
+		NextHopAddr:       s.ipam.getVEthHostEndIP().String(),
 		OutgoingInterface: vethVPPEndName,
 	}
 }
 
 func (s *remoteCNIserver) interconnectVethHost() *linux_intf.LinuxInterfaces_Interface {
+	size, _ := s.ipam.getHostNetwork().Mask.Size()
 	return &linux_intf.LinuxInterfaces_Interface{
 		Name:       "vppv1",
 		Type:       linux_intf.LinuxInterfaces_VETH,
@@ -56,7 +56,7 @@ func (s *remoteCNIserver) interconnectVethHost() *linux_intf.LinuxInterfaces_Int
 		Veth: &linux_intf.LinuxInterfaces_Interface_Veth{
 			PeerIfName: "v2",
 		},
-		IpAddresses: []string{s.vethHostEndIP() + "/24"},
+		IpAddresses: []string{s.ipam.getVEthHostEndIP().String() + "/" + strconv.Itoa(size)},
 	}
 }
 
@@ -73,6 +73,7 @@ func (s *remoteCNIserver) interconnectVethVpp() *linux_intf.LinuxInterfaces_Inte
 }
 
 func (s *remoteCNIserver) interconnectAfpacket() *vpp_intf.Interfaces_Interface {
+	size, _ := s.ipam.getHostNetwork().Mask.Size()
 	return &vpp_intf.Interfaces_Interface{
 		Name:    vethVPPEndName,
 		Type:    vpp_intf.InterfaceType_AF_PACKET_INTERFACE,
@@ -80,7 +81,7 @@ func (s *remoteCNIserver) interconnectAfpacket() *vpp_intf.Interfaces_Interface 
 		Afpacket: &vpp_intf.Interfaces_Interface_Afpacket{
 			HostIfName: vethVPPEndName,
 		},
-		IpAddresses: []string{s.vethVPPEndIP() + "/24"},
+		IpAddresses: []string{s.ipam.getVEthVPPEndIP().String() + "/" + strconv.Itoa(size)},
 	}
 }
 
@@ -104,24 +105,14 @@ func (s *remoteCNIserver) physicalInterfaceLoopback() *vpp_intf.Interfaces_Inter
 
 func (s *remoteCNIserver) routeToOtherHostPods(hostID uint8) *l3.StaticRoutes_Route {
 	return &l3.StaticRoutes_Route{
-		DstIpAddr:   fmt.Sprintf("%s.%d.0/24", podSubnetPrefix, hostID),
+		DstIpAddr:   s.ipam.getPodNetwork().String(),
 		NextHopAddr: fmt.Sprintf("%s.%d", nicNetworkPerfix, hostID),
 	}
 }
 
 func (s *remoteCNIserver) routeToOtherHostStack(hostID uint8) *l3.StaticRoutes_Route {
 	return &l3.StaticRoutes_Route{
-		DstIpAddr:   fmt.Sprintf("%s.%d.0/24", hostSubnetPrefix, hostID),
+		DstIpAddr:   s.ipam.getHostNetwork().String(),
 		NextHopAddr: fmt.Sprintf("%s.%d", nicNetworkPerfix, hostID),
 	}
-}
-
-func (s *remoteCNIserver) vethVPPEndIP() string {
-	// TODO: replace with proper IPAM calls
-	return fmt.Sprintf("%s.%d.1", hostSubnetPrefix, s.ipam.getHostID())
-}
-
-func (s *remoteCNIserver) vethHostEndIP() string {
-	// TODO: replace with proper IPAM calls
-	return fmt.Sprintf("%s.%d.2", hostSubnetPrefix, s.ipam.getHostID())
 }

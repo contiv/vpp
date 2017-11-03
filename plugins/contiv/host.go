@@ -21,6 +21,7 @@ import (
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/l3plugin/model/l3"
 	linux_intf "github.com/ligato/vpp-agent/plugins/linuxplugin/model/interfaces"
 	"github.com/vishvananda/netlink"
+	"net"
 	"strconv"
 )
 
@@ -85,34 +86,47 @@ func (s *remoteCNIserver) interconnectAfpacket() *vpp_intf.Interfaces_Interface 
 	}
 }
 
-func (s *remoteCNIserver) physicalInterface(name string) *vpp_intf.Interfaces_Interface {
+func (s *remoteCNIserver) physicalInterface(name string) (*vpp_intf.Interfaces_Interface, error) {
+	hostNetwork, err := s.ipam.getHostIPNetwork(s.ipam.getHostID())
+	if err != nil {
+		return nil, err
+	}
 	return &vpp_intf.Interfaces_Interface{
 		Name:        name,
 		Type:        vpp_intf.InterfaceType_ETHERNET_CSMACD,
 		Enabled:     true,
-		IpAddresses: []string{fmt.Sprintf("%s.%d/24", nicNetworkPerfix, s.ipam.getHostID())},
-	}
+		IpAddresses: []string{hostNetwork.String()},
+	}, nil
 }
 
-func (s *remoteCNIserver) physicalInterfaceLoopback() *vpp_intf.Interfaces_Interface {
+func (s *remoteCNIserver) physicalInterfaceLoopback() (*vpp_intf.Interfaces_Interface, error) {
+	hostNetwork, err := s.ipam.getHostIPNetwork(s.ipam.getHostID())
+	if err != nil {
+		return nil, err
+	}
 	return &vpp_intf.Interfaces_Interface{
 		Name:        "loopbackNIC",
 		Type:        vpp_intf.InterfaceType_SOFTWARE_LOOPBACK,
 		Enabled:     true,
-		IpAddresses: []string{fmt.Sprintf("%s.%d/24", nicNetworkPerfix, s.ipam.getHostID())},
-	}
+		IpAddresses: []string{hostNetwork.String()},
+	}, nil
 }
 
-func (s *remoteCNIserver) routeToOtherHostPods(hostID uint8) *l3.StaticRoutes_Route {
-	return &l3.StaticRoutes_Route{
-		DstIpAddr:   s.ipam.getPodNetwork().String(),
-		NextHopAddr: fmt.Sprintf("%s.%d", nicNetworkPerfix, hostID),
-	}
+func (s *remoteCNIserver) routeToOtherHostPods(hostID uint8) (*l3.StaticRoutes_Route, error) {
+	return s.routeToOtherHostNetworks(hostID, s.ipam.getPodNetwork())
 }
 
-func (s *remoteCNIserver) routeToOtherHostStack(hostID uint8) *l3.StaticRoutes_Route {
-	return &l3.StaticRoutes_Route{
-		DstIpAddr:   s.ipam.getVSwitchNetwork().String(),
-		NextHopAddr: fmt.Sprintf("%s.%d", nicNetworkPerfix, hostID),
+func (s *remoteCNIserver) routeToOtherHostStack(hostID uint8) (*l3.StaticRoutes_Route, error) {
+	return s.routeToOtherHostNetworks(hostID, s.ipam.getVSwitchNetwork())
+}
+
+func (s *remoteCNIserver) routeToOtherHostNetworks(hostID uint8, destNetwork *net.IPNet) (*l3.StaticRoutes_Route, error) {
+	hostIP, err := s.ipam.getHostIPAddress(hostID)
+	if err != nil {
+		return nil, fmt.Errorf("Can't get Host IP address for host ID %v, error: %v", hostID, err)
 	}
+	return &l3.StaticRoutes_Route{
+		DstIpAddr:   destNetwork.String(),
+		NextHopAddr: hostIP.String(),
+	}, nil
 }

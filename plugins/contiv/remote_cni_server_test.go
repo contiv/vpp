@@ -67,6 +67,7 @@ var ipamConfig = IPAMConfig{
 	PodNetworkPrefixLen:     24,
 	VSwitchSubnetCIDR:       "172.30.0.0/16",
 	VSwitchNetworkPrefixLen: 24,
+	HostNodeSubnetCidr:      "192.168.16.0/24",
 }
 
 func TestVeth1NameFromRequest(t *testing.T) {

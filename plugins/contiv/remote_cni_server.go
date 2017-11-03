@@ -72,7 +72,7 @@ const (
 	afPacketNamePrefix   = "afpacket"
 	podNameExtraArg      = "K8S_POD_NAME"
 	podNamespaceExtraArg = "K8S_POD_NAMESPACE"
-	nicNetworkPerfix     = "192.168.16"
+	//nicNetworkPerfix     = "192.168.16"
 	//hostSubnetCIDR       = "172.30.0.0/16"
 	//hostSubnetPrefix     = "172.30"
 	//hostSubnetPrefixLen  = 24
@@ -157,12 +157,15 @@ func (s *remoteCNIserver) configureVswitchConnectivity() error {
 			// add the NIC config into the transaction
 			txn1 := s.vppTxnFactory().Put()
 
-			nic := s.physicalInterface(nicName)
+			nic, err := s.physicalInterface(nicName)
+			if err != nil {
+				return fmt.Errorf("Can't create structure for interface %v due to error: %v", nicName, err)
+			}
 			txn1.VppInterface(nic)
 			changes[vpp_intf.InterfaceKey(nicName)] = nic
 
 			// execute the config transaction
-			err := txn1.Send().ReceiveReply()
+			err = txn1.Send().ReceiveReply()
 			if err != nil {
 				s.Logger.Error(err)
 				return err
@@ -175,7 +178,11 @@ func (s *remoteCNIserver) configureVswitchConnectivity() error {
 				// creates routes to all possible hosts
 				// TODO: after proper IPAM implementation, only routes to existing hosts should be added
 				if i != s.ipam.getHostID() {
-					r := s.routeToOtherHostPods(i)
+					r, err := s.routeToOtherHostPods(i)
+					if err != nil {
+						s.Logger.Error(err)
+						return err
+					}
 					txn2.StaticRoute(r)
 					_, dstNet, _ := net.ParseCIDR(r.DstIpAddr)
 					changes[l3.RouteKey(r.VrfId, dstNet, r.NextHopAddr)] = r
@@ -194,7 +201,11 @@ func (s *remoteCNIserver) configureVswitchConnectivity() error {
 				// creates routes to all possible hosts
 				// TODO: after proper IPAM implementation, only routes to existing hosts should be added
 				if i != s.ipam.getHostID() {
-					r := s.routeToOtherHostStack(i)
+					r, err := s.routeToOtherHostStack(i)
+					if err != nil {
+						s.Logger.Error(err)
+						return err
+					}
 					txn3.StaticRoute(r)
 					_, dstNet, _ := net.ParseCIDR(r.DstIpAddr)
 					changes[l3.RouteKey(r.VrfId, dstNet, r.NextHopAddr)] = r
@@ -213,12 +224,15 @@ func (s *remoteCNIserver) configureVswitchConnectivity() error {
 			// add the NIC config into the transaction
 			txn := s.vppTxnFactory().Put()
 
-			loop := s.physicalInterfaceLoopback()
+			loop, err := s.physicalInterfaceLoopback()
+			if err != nil {
+				return fmt.Errorf("Can't create structure for loopback interface due to error: %v", err)
+			}
 			txn.VppInterface(loop)
 			changes[vpp_intf.InterfaceKey(loop.Name)] = loop
 
 			// execute the config transaction
-			err := txn.Send().ReceiveReply()
+			err = txn.Send().ReceiveReply()
 			if err != nil {
 				s.Logger.Error(err)
 				return err

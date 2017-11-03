@@ -45,6 +45,9 @@ type IPAM struct {
 	vSwitchNetworkIPPrefix net.IPNet // IPv4 subnet used in one host (given by hostID) for vswitch-to-its-host connection
 	vethVPPEndIP           net.IP    // for given host(given by hostID), it is the IPv4 address for virtual ethernet's VPP end point
 	vethHostEndIP          net.IP    // for given host(given by hostID), it is the IPv4 address for virtual ethernet's host end point
+
+	// host node related variables
+	hostNodeNetworkIPPrefix net.IPNet // IPv4 subnet used for all hosts node referencing IP addresses
 }
 
 type uintIP = uint32
@@ -56,6 +59,7 @@ type IPAMConfig struct {
 	PodNetworkPrefixLen     uint8  // prefix length of subnet used for all pods of 1 host node (pod network = pod subnet for one 1 host node)
 	VSwitchSubnetCIDR       string // subnet used in each host for vswitch-to-its-host connection
 	VSwitchNetworkPrefixLen uint8  // prefix length of subnet used for vswitch-to-its-host connection on 1 host node (VSwitch network = VSwitch subnet for one 1 host node)
+	HostNodeSubnetCidr      string // subnet used for all hosts node referencing IP addresses
 }
 
 // newIPAM returns new IPAM module to be used on the host.
@@ -73,9 +77,19 @@ func newIPAM(logger logging.Logger, hostID uint8, config *IPAMConfig) (*IPAM, er
 	if err := initializeVSwitchIPAM(ipam, config, hostID); err != nil {
 		return nil, err
 	}
+	if err := initializeHostNodeIPAM(ipam, config); err != nil {
+		return nil, err
+	}
 	logger.Infof("IPAM values loaded: %+v", ipam)
 
 	return ipam, nil
+}
+
+// initializeHostNodeIPAM initializes host nodes related variables of IPAM
+func initializeHostNodeIPAM(ipam *IPAM, config *IPAMConfig) error {
+	_, pSubnet, err := net.ParseCIDR(config.HostNodeSubnetCidr)
+	ipam.hostNodeNetworkIPPrefix = *pSubnet
+	return err
 }
 
 // initializeVSwitchIPAM initializes VSwitch related variables of IPAM
@@ -142,6 +156,42 @@ func convertConfigNotation(subnetCIDR string, networkPrefixLen uint8, hostID uin
 		Mask: uint32ToIpv4Mask((1 << uint(networkPrefixLen)) - 1),
 	}
 	return
+}
+
+func (i *IPAM) getHostIPAddress(hostID uint8) (net.IP, error) {
+	i.RLock()
+	defer i.RUnlock()
+	return i.computeHostIPAddress(hostID)
+}
+
+func (i *IPAM) computeHostIPAddress(hostID uint8) (net.IP, error) {
+	// trimming hostID if its place in IP address is narrower than actual uint8 size
+	subnetPrefixLen, _ := i.hostNodeNetworkIPPrefix.Mask.Size()
+	hostPartBitSize := 32 - uint8(subnetPrefixLen)
+	hostIPPart := convertToHostIPPart(hostID, hostPartBitSize)
+
+	//combining it to get result IP address
+	networkIPPartUint32, err := ipv4ToUint32(i.hostNodeNetworkIPPrefix.IP)
+	if err != nil {
+		return nil, err
+	}
+	return uint32ToIpv4(networkIPPartUint32 + uint32(hostIPPart)), nil
+}
+
+func (i *IPAM) getHostIPNetwork(hostID uint8) (*net.IPNet, error) {
+	i.RLock()
+	defer i.RUnlock()
+
+	hostIP, err := i.computeHostIPAddress(i.hostID)
+	if err != nil {
+		return nil, err
+	}
+	maskSize, _ := i.hostNodeNetworkIPPrefix.Mask.Size()
+	hostIPNetwork := net.IPNet{
+		IP:   hostIP,
+		Mask: uint32ToIpv4Mask((1 << uint(maskSize)) - 1), //TODO correct mask creation? should it be 11100 and not 00111?
+	}
+	return &hostIPNetwork, nil
 }
 
 // getVEthVPPEndIP provides (for host given to IPAM) the IPv4 address for virtual ethernet's VPP end point
@@ -243,6 +293,7 @@ func (i *IPAM) releasePodIP(podID string) error {
 	return nil
 }
 
+// findIP finds assignet IP address (in uint form) by pod id or returns error
 func (i *IPAM) findIP(podID string) (uintIP, error) {
 	for ip, curPodID := range i.assignedPodIPs {
 		if curPodID == podID {
@@ -252,7 +303,7 @@ func (i *IPAM) findIP(podID string) (uintIP, error) {
 	return 0, fmt.Errorf("Can't find assigned pod IP address for pod ID \"%v\"", podID)
 }
 
-// convertToHostIPPart converts hostID to part of IP address that distinguishes pod network IP address prefix among
+// convertToHostIPPart converts hostID to part of IP address that distinguishes network IP address prefix among
 // different hosts. The result don't have to be that whole hostID, because in IP address there can be allocated
 // less space than the size of hostID.
 func convertToHostIPPart(hostID uint8, expectedHostPartBitSize uint8) uint8 {

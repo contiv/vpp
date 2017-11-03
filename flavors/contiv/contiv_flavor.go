@@ -137,6 +137,7 @@ func (f *FlavorContiv) Inject() bool {
 			PodNetworkPrefixLen:     24,
 			VSwitchSubnetCIDR:       "172.30.0.0/16",
 			VSwitchNetworkPrefixLen: 24,
+			HostNodeSubnetCidr:      "192.168.16.0/24",
 		},
 	}
 	f.Contiv.Config = &tmpConfig

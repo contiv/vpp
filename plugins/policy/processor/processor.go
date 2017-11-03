@@ -48,14 +48,14 @@ func (pp *PolicyProcessor) Init() error {
 // of policies listed for a given pod are all irrelevant.
 func (pp *PolicyProcessor) Process(resync bool, pods []podmodel.ID) error {
 	txn := pp.Configurator.NewTxn(false)
-	//for _, pod := range pods {
-	//	policies := []*config.ContivPolicy{}
-	//	pp.Cache.LookupPoliciesByPod()
-	//
-	//	//TODO: get and pre-process policies currently assigned to the pod
-	//	//optimization: remember already evaluated policies between iterations
-	//	txn.Configure(pod, policies)
-	//}
+	for _, pod := range pods {
+		policies := []*config.ContivPolicy{}
+		pp.Cache.LookupPoliciesByPod(pod)
+
+		//TODO: get and pre-process policies currently assigned to the pod
+		//optimization: remember already evaluated policies between iterations
+		txn.Configure(pod, policies)
+	}
 	return txn.Commit()
 }
 
@@ -68,7 +68,8 @@ func (pp *PolicyProcessor) Resync(data *cache.DataResyncEvent) error {
 // AddPod processes the event of newly added pod. The processor may postpone
 // the reconfiguration until all needed data are available.
 // The list of pods with outdated policy configuration is determined and the
-// policy re-processing is triggered for each of them.
+// policy re-processing is triggered for each of
+// them.
 func (pp *PolicyProcessor) AddPod(pod *podmodel.Pod) error {
 	pods := []podmodel.ID{}
 	// TODO: consider postponing the re-configuration until more data are available (e.g. pod ip address)
@@ -102,6 +103,8 @@ func (pp *PolicyProcessor) UpdatePod(oldPod, newPod *podmodel.Pod) error {
 // policy re-processing is triggered for each of them.
 func (pp *PolicyProcessor) AddPolicy(policy *policymodel.Policy) error {
 	pods := []podmodel.ID{}
+	//ingressPods := []podmodel.ID{}
+	//egressPods := []podmodel.ID{}
 	// TODO: consider postponing the re-configuration until more data are available
 	// TODO: determine the list of pods with outdated policy configuration
 
@@ -112,10 +115,30 @@ func (pp *PolicyProcessor) AddPolicy(policy *policymodel.Policy) error {
 	pp.Log.Infof("This is the policy to be added: %+v", policy)
 	namespace := policy.Namespace
 	policyLabelSelectors := policy.Pods
-
 	policyPods := pp.Cache.LookupPodsByNSLabelSelector(namespace, policyLabelSelectors)
+	//
+	//policyIngressLabelSelectors := policy.IngressRule
+	//for _, policyIngressLabelSelector := range policyIngressLabelSelectors {
+	//	ingressLabelSelectorFrom := policyIngressLabelSelector.From
+	//	for _, ingressLabelSelector := range ingressLabelSelectorFrom {
+	//		ingressLabel := ingressLabelSelector.Pods
+	//		ingressPod := pp.Cache.LookupPodsByNSLabelSelector(namespace, ingressLabel)
+	//		ingressPods = append(ingressPods, ingressPod...)
+	//	}
+	//}
+	//
+	//policyEgressLabelSelectors := policy.EgressRule
+	//for _, policyEgressLabelSelector := range policyEgressLabelSelectors {
+	//	egressLabelSelectorFrom := policyEgressLabelSelector.From
+	//	for _, egressLabelSelector := range egressLabelSelectorFrom {
+	//		egressLabel := egressLabelSelector.Pods
+	//		egressPod := pp.Cache.LookupPodsByNSLabelSelector(namespace, egressLabel)
+	//		egressPods = append(egressPods, egressPod...)
+	//	}
+	//}
+
 	pods = append(pods, policyPods...)
-	fmt.Println("These are the pods policy applies to: %+v", pods)
+	fmt.Println("Pods policy applies to: %+v", pods)
 
 	return pp.Process(false, pods)
 }

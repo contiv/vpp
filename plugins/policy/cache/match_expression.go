@@ -45,7 +45,7 @@ func (pc *PolicyCache) getMatchExpressionPods(namespace string, expressions []*p
 			}
 
 		case Exists:
-			podSet := pc.configuredPods.LookupPodsByNSKey(namespace + expression.Key)
+			podSet := pc.configuredPods.LookupPodsByNSKey(namespace + "/" + expression.Key)
 			if podSet == nil {
 				return false, nil
 			}
@@ -53,7 +53,7 @@ func (pc *PolicyCache) getMatchExpressionPods(namespace string, expressions []*p
 			existsPodSet = append(existsPodSet, podSet...)
 
 		case DoesNotExist:
-			podSet := pc.configuredPods.LookupPodsByNSKey(namespace + expression.Key)
+			podSet := pc.configuredPods.LookupPodsByNSKey(namespace + "/" + expression.Key)
 			if podSet == nil {
 				podNamespaceAll := pc.configuredPods.LookupPodsByNamespace(namespace)
 				if podNamespaceAll == nil {

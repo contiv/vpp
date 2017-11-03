@@ -109,7 +109,7 @@ func IndexFunction(data interface{}) map[string][]string {
 		for _, v := range config.Label {
 			labelSelector := v.Key + "/" + v.Value
 			nsLabelSelector := config.Namespace + "/" + labelSelector
-			nsKeySelector := config.Namespace + v.Key
+			nsKeySelector := config.Namespace + "/" + v.Key
 
 			labels = append(labels, labelSelector)
 			keys = append(keys, v.Key)

@@ -50,7 +50,7 @@ type PolicyCacheAPI interface {
 	ListAllPods() (pods []podmodel.ID)
 
 	// LookupPolicy returns data of a given Policy.
-	LookupPolicy(policy podmodel.ID) (found bool, data *policymodel.Policy)
+	LookupPolicy(policy policymodel.ID) (found bool, data *policymodel.Policy)
 
 	// LookupPoliciesByPod returns IDs of all policies assigned to a given pod.
 	LookupPoliciesByPod(pod podmodel.ID) (policies []policymodel.ID)

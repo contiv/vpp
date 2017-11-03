@@ -153,8 +153,8 @@ func (pc *PolicyCache) LookupPolicy(policy podmodel.ID) (found bool, data *polic
 }
 
 // LookupPoliciesByPod returns IDs of all policies assigned to a given pod.
-func (pc *PolicyCache) LookupPoliciesByPod(pod podmodel.ID) []policymodel.ID {
-	policies := []policymodel.ID{}
+func (pc *PolicyCache) LookupPoliciesByPod(pod podmodel.ID) (policies []policymodel.ID) {
+	policies = []policymodel.ID{}
 	policyMap := make(map[string]*policymodel.Policy)
 
 	found, podData := pc.configuredPods.LookupPod(pod.String())

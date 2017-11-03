@@ -50,7 +50,47 @@ func (pp *PolicyProcessor) Process(resync bool, pods []podmodel.ID) error {
 	txn := pp.Configurator.NewTxn(false)
 	for _, pod := range pods {
 		policies := []*config.ContivPolicy{}
-		pp.Cache.LookupPoliciesByPod(pod)
+		policiesByPod := pp.Cache.LookupPoliciesByPod(pod)
+
+		if policiesByPod != nil {
+			continue
+		}
+
+		for _, policyByPod := range policiesByPod {
+			var policyType config.PolicyType
+			found, policyData := pp.Cache.LookupPolicy(policyByPod)
+
+			if !found {
+				continue
+			}
+
+			switch policyData.PolicyType {
+			case policymodel.Policy_INGRESS:
+				policyType = 1
+				break
+			case policymodel.Policy_EGRESS:
+				policyType = 2
+				break
+			case policymodel.Policy_INGRESS_AND_EGRESS:
+				policyType = 3
+				break
+			default:
+				policyType = 0
+				break
+			}
+
+			matches := pp.calculateMatches(policyData)
+
+			policy := &config.ContivPolicy{
+				ID: policymodel.ID{
+					Name:      policyData.Name,
+					Namespace: policyData.Namespace,
+				},
+				Type:    policyType,
+				Matches: matches,
+			}
+			policies = append(policies, policy)
+		}
 
 		//TODO: get and pre-process policies currently assigned to the pod
 		//optimization: remember already evaluated policies between iterations
@@ -116,26 +156,6 @@ func (pp *PolicyProcessor) AddPolicy(policy *policymodel.Policy) error {
 	namespace := policy.Namespace
 	policyLabelSelectors := policy.Pods
 	policyPods := pp.Cache.LookupPodsByNSLabelSelector(namespace, policyLabelSelectors)
-	//
-	//policyIngressLabelSelectors := policy.IngressRule
-	//for _, policyIngressLabelSelector := range policyIngressLabelSelectors {
-	//	ingressLabelSelectorFrom := policyIngressLabelSelector.From
-	//	for _, ingressLabelSelector := range ingressLabelSelectorFrom {
-	//		ingressLabel := ingressLabelSelector.Pods
-	//		ingressPod := pp.Cache.LookupPodsByNSLabelSelector(namespace, ingressLabel)
-	//		ingressPods = append(ingressPods, ingressPod...)
-	//	}
-	//}
-	//
-	//policyEgressLabelSelectors := policy.EgressRule
-	//for _, policyEgressLabelSelector := range policyEgressLabelSelectors {
-	//	egressLabelSelectorFrom := policyEgressLabelSelector.From
-	//	for _, egressLabelSelector := range egressLabelSelectorFrom {
-	//		egressLabel := egressLabelSelector.Pods
-	//		egressPod := pp.Cache.LookupPodsByNSLabelSelector(namespace, egressLabel)
-	//		egressPods = append(egressPods, egressPod...)
-	//	}
-	//}
 
 	pods = append(pods, policyPods...)
 	fmt.Println("Pods policy applies to: %+v", pods)
@@ -194,4 +214,88 @@ func (pp *PolicyProcessor) UpdateNamespace(oldNs, newNs *nsmodel.Namespace) erro
 // Close deallocates all resources held by the processor.
 func (pp *PolicyProcessor) Close() error {
 	return nil
+}
+
+func (pp *PolicyProcessor) calculateMatches(policyData *policymodel.Policy) []config.Match {
+	matches := []config.Match{}
+
+	ingressRules := policyData.IngressRule
+	egressRules := policyData.EgressRule
+	namespace := policyData.Namespace
+
+	if len(ingressRules) != 0 {
+
+		matchType := config.MatchIngress
+
+		for _, ingressRule := range ingressRules {
+			ingressPods := []podmodel.ID{}
+			ingressPorts := []config.Port{}
+
+			ingressRuleFrom := ingressRule.From
+			for _, ingressLabelSelector := range ingressRuleFrom {
+				ingressLabel := ingressLabelSelector.Pods
+				ingressPod := pp.Cache.LookupPodsByNSLabelSelector(namespace, ingressLabel)
+				ingressPods = append(ingressPods, ingressPod...)
+			}
+
+			// for namespaces, for ipblocks
+
+			ingressRulePorts := ingressRule.Port
+			for _, ingressRulePort := range ingressRulePorts {
+				ingressPortProtocol := config.TCP
+				if ingressRulePort.Protocol == policymodel.Policy_Port_UDP {
+					ingressPortProtocol = config.UDP
+				}
+				ingressPortNumber := uint16(ingressRulePort.Port.Number)
+				ingressPorts = append(ingressPorts, config.Port{
+					Protocol: ingressPortProtocol,
+					Number:   ingressPortNumber,
+				})
+			}
+
+			matches = append(matches, config.Match{
+				Type:  matchType,
+				Pods:  ingressPods,
+				Ports: ingressPorts,
+			})
+		}
+	}
+
+	if len(egressRules) != 0 {
+
+		matchType := config.MatchIngress
+
+		for _, egressRule := range egressRules {
+			egressPods := []podmodel.ID{}
+			egressPorts := []config.Port{}
+
+			egressRuleTo := egressRule.To
+			for _, egressLabelSelector := range egressRuleTo {
+				egressLabel := egressLabelSelector.Pods
+				egressPod := pp.Cache.LookupPodsByNSLabelSelector(namespace, egressLabel)
+				egressPods = append(egressPods, egressPod...)
+			}
+
+			// for namespaces, for ipblocks
+
+			egressRulePorts := egressRule.Port
+			for _, egressRulePort := range egressRulePorts {
+				egressPortProtocol := config.TCP
+				if egressRulePort.Protocol == policymodel.Policy_Port_UDP {
+					egressPortProtocol = config.UDP
+				}
+				egressPortNumber := uint16(egressRulePort.Port.Number)
+				egressPorts = append(egressPorts, config.Port{
+					Protocol: egressPortProtocol,
+					Number:   egressPortNumber,
+				})
+			}
+
+			matches = append(matches, config.Match{
+				Type:  matchType,
+				Pods:  egressPods,
+				Ports: egressPorts,
+			})
+		}
+	}
 }

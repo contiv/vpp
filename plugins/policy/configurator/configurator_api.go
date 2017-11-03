@@ -83,8 +83,11 @@ type Match struct {
 type PolicyType int
 
 const (
+	// PolicyDefault tells policy to apply Ingress only
+	PolicyDefault PolicyType = iota
+
 	// PolicyIngress tells policy to apply to ingress only.
-	PolicyIngress PolicyType = iota
+	PolicyIngress
 
 	// PolicyEgress tells policy to apply to egress only.
 	PolicyEgress

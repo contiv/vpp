@@ -54,6 +54,9 @@ type Txn interface {
 //   - evaluated label selectors
 //   - IP network addresses converted to net.IP
 // It is produced in this form and passed to Configurator by Policy Processor.
+// Traffic matched by a Contiv policy should by ALLOWED. Traffic not matched
+// by any policy from a **non-empty** set of policies assigned
+// to the source/destination pod should be DENIED.
 type ContivPolicy struct {
 	// ID should uniquely identify policy across all namespaces.
 	ID policymodel.ID
@@ -62,7 +65,7 @@ type ContivPolicy struct {
 	Type PolicyType
 
 	// Matches is an array of Match-es: predicates that select a subset of the
-	// traffic.
+	// traffic to be ALLOWED.
 	Matches []Match
 }
 
@@ -71,11 +74,20 @@ type Match struct {
 	// Type selects the direction of the traffic.
 	Type MatchType
 
-	// Layer 3: Pods and IPBlocks are ORed.
+	// Layer 3: destinations (egress) / sources (ingress)
+	// If both arrays are empty or nil, then this predicate matches all
+	// sources(ingress) / destinations(egress).
+	// If one or both arrays are non-empty, then this predicate applies
+	// to a given traffic only if the traffic matches at least one item in
+	// one of the lists.
 	Pods     []podmodel.ID
 	IPBlocks []IPBlock
 
-	// Layer 4: Ports are ORed
+	// Layer 4: destination ports
+	// If the array is empty or nil, then this predicate matches all ports
+	// (traffic not restricted by port).
+	// If the array is non-empty, then this applies to a given traffic only
+	// if the traffic matches at least one port in the list.
 	Ports []Port
 }
 
@@ -94,6 +106,7 @@ const (
 )
 
 // MatchType selects the direction of the traffic to apply a Match to.
+// The direction is from the Pod point of view!
 type MatchType int
 
 const (

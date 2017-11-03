@@ -6,6 +6,8 @@ import (
 	"github.com/contiv/vpp/plugins/contiv"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 
+	"fmt"
+
 	"github.com/contiv/vpp/plugins/policy/cache"
 	"github.com/contiv/vpp/plugins/policy/renderer"
 )
@@ -20,34 +22,46 @@ import (
 // always results in the same list of rules.
 type PolicyConfigurator struct {
 	Deps
+
+	renderers       map[string]renderer.PolicyRendererAPI
+	defaultRenderer renderer.PolicyRendererAPI
 }
 
 // Deps lists dependencies of PolicyConfigurator.
 type Deps struct {
 	Log    logging.Logger
 	Cache  cache.PolicyCacheAPI
-	Contiv *contiv.Plugin /* for GetIfName() */
+	Contiv contiv.API /* for GetIfName() */
 }
 
 // PolicyConfiguratorTxn represents a single transaction of policy configurator.
 type PolicyConfiguratorTxn struct {
-	resync bool
+	configurator *PolicyConfigurator
+	resync       bool
+	config       map[podmodel.ID][]*ContivPolicy
 }
 
 // Init initializes policy configurator.
 func (pc *PolicyConfigurator) Init() error {
+	pc.renderers = make(map[string]renderer.PolicyRendererAPI)
 	return nil
 }
 
 // RegisterRenderer registers renderer that will render rules for pods that
 // contain a given <label> (they are expected to be in a separate network stack).
 func (pc *PolicyConfigurator) RegisterRenderer(label string, renderer renderer.PolicyRendererAPI) error {
+	_, registered := pc.renderers[label]
+	if registered {
+		return fmt.Errorf("already registered renderer for label: %s", label)
+	}
+	pc.renderers[label] = renderer
 	return nil
 }
 
 // RegisterDefaultRenderer registers the renderer used for pods not included
 // by any other registered renderer.
 func (pc *PolicyConfigurator) RegisterDefaultRenderer(renderer renderer.PolicyRendererAPI) error {
+	pc.defaultRenderer = renderer
 	return nil
 }
 
@@ -61,12 +75,17 @@ func (pc *PolicyConfigurator) Close() error {
 // completely replace the existing one, otherwise pods not mentioned in the
 // transaction are left unchanged.
 func (pc *PolicyConfigurator) NewTxn(resync bool) Txn {
-	return &PolicyConfiguratorTxn{resync: resync}
+	return &PolicyConfiguratorTxn{
+		configurator: pc,
+		resync:       resync,
+		config:       make(map[podmodel.ID][]*ContivPolicy),
+	}
 }
 
 // Configure applies the set of policies for a given pod. The existing policies
 // are replaced. The order of policies is not important (it is a set).
 func (pct *PolicyConfiguratorTxn) Configure(pod podmodel.ID, policies []*ContivPolicy) Txn {
+	pct.config[pod] = policies
 	return pct
 }
 

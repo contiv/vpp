@@ -41,6 +41,9 @@ type Txn interface {
 	// The existing rules are replaced.
 	// ContivRuleCache can be used to calculate the minimal diff and find
 	// interfaces with equivalent ingress and/or egress configuration.
+	// The traffic direction (ingress, egress) is considered from the vswitch
+	// point of view!
+	// Empty set of rules should allow any traffic in that direction.
 	Render(ifName string, ingress []*ContivRule, egress []*ContivRule) Txn
 
 	// Commit proceeds with the rendering. The changes are propagated into

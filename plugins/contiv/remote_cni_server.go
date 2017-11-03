@@ -63,22 +63,15 @@ type remoteCNIserver struct {
 }
 
 const (
-	resultOk       uint32 = 0
-	resultErr      uint32 = 1
-	vethNameMaxLen        = 15
-	//podSubnetCIDR               = "10.1.0.0/16"
-	//podSubnetPrefix = "10.1"
-	//podNetworkPrefixLen         = 24
-	afPacketNamePrefix   = "afpacket"
-	podNameExtraArg      = "K8S_POD_NAME"
-	podNamespaceExtraArg = "K8S_POD_NAMESPACE"
-	//nicNetworkPerfix     = "192.168.16"
-	//hostSubnetCIDR       = "172.30.0.0/16"
-	//hostSubnetPrefix     = "172.30"
-	//hostSubnetPrefixLen  = 24
-	vethHostEndName  = "vpp1"
-	vethVPPEndName   = "vpp2"
-	afPacketIPPrefix = "10.2.1"
+	resultOk             uint32 = 0
+	resultErr            uint32 = 1
+	vethNameMaxLen              = 15
+	afPacketNamePrefix          = "afpacket"
+	podNameExtraArg             = "K8S_POD_NAME"
+	podNamespaceExtraArg        = "K8S_POD_NAMESPACE"
+	vethHostEndName             = "vpp1"
+	vethVPPEndName              = "vpp2"
+	afPacketIPPrefix            = "10.2.1"
 )
 
 func newRemoteCNIServer(logger logging.Logger, vppTxnFactory func() linux.DataChangeDSL, proxy kvdbproxy.Proxy,

@@ -222,8 +222,8 @@ func UnstringPodID(pods []string) []podmodel.ID {
 	for _, pod := range pods {
 		parts := strings.Split(pod, "/")
 		podID := podmodel.ID{
-			Name:      parts[0],
-			Namespace: parts[1],
+			Name:      parts[1],
+			Namespace: parts[0],
 		}
 		podIDs = append(podIDs, podID)
 	}
@@ -235,8 +235,8 @@ func UnstringPolicyID(policies []string) []policymodel.ID {
 	for _, policy := range policies {
 		parts := strings.Split(policy, "/")
 		policyID := policymodel.ID{
-			Name:      parts[0],
-			Namespace: parts[1],
+			Name:      parts[1],
+			Namespace: parts[0],
 		}
 		policyIDs = append(policyIDs, policyID)
 	}

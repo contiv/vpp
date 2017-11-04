@@ -156,17 +156,20 @@ func (pc *PolicyCache) LookupPolicy(policy policymodel.ID) (found bool, data *po
 func (pc *PolicyCache) LookupPoliciesByPod(pod podmodel.ID) (policies []policymodel.ID) {
 	policies = []policymodel.ID{}
 	policyMap := make(map[string]*policymodel.Policy)
-
+	pc.Log.Infof("This is the podLookup!!! : %+v", pod.String())
 	found, podData := pc.configuredPods.LookupPod(pod.String())
 	if !found {
 		return nil
 	}
+	pc.Log.Infof("Found POD!!! : %+v", podData)
 
 	podLabels := podData.Label
 
 	for _, podLabel := range podLabels {
-		nsLabel := podData.Namespace + podLabel.Key + "/" + podLabel.Value
+		nsLabel := podData.Namespace + "/" + podLabel.Key + "/" + podLabel.Value
 		policyIDs := pc.configuredPolicies.LookupPolicyByNSLabelSelector(nsLabel)
+
+		pc.Log.Infof("Found POLICY!!! : %+v", policyIDs)
 
 		for _, policyID := range policyIDs {
 			found, policyData := pc.configuredPolicies.LookupPolicy(policyID)

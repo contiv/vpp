@@ -149,7 +149,11 @@ func (pc *PolicyCache) ListAllPods() (pods []podmodel.ID) {
 
 // LookupPolicy returns data of a given Policy.
 func (pc *PolicyCache) LookupPolicy(policy policymodel.ID) (found bool, data *policymodel.Policy) {
-	return false, nil
+	found, data = pc.configuredPolicies.LookupPolicy(policy.String())
+	if !found {
+		return !found, nil
+	}
+	return found, data
 }
 
 // LookupPoliciesByPod returns IDs of all policies assigned to a given pod.

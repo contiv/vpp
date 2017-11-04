@@ -52,14 +52,14 @@ func (pp *PolicyProcessor) Process(resync bool, pods []podmodel.ID) error {
 		policies := []*config.ContivPolicy{}
 		policiesByPod := pp.Cache.LookupPoliciesByPod(pod)
 		pp.Log.Infof("This are the policies: %+v for pod: %+v", policiesByPod, pod)
-		if policiesByPod != nil {
+		if policiesByPod == nil {
 			continue
 		}
 
 		for _, policyByPod := range policiesByPod {
 			var policyType config.PolicyType
 			found, policyData := pp.Cache.LookupPolicy(policyByPod)
-
+			pp.Log.Infof("This policy info: %+v", policyData)
 			if !found {
 				continue
 			}

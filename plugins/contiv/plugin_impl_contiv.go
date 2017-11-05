@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"git.fd.io/govpp.git/api"
 	"github.com/contiv/vpp/plugins/contiv/containeridx"
+	"github.com/contiv/vpp/plugins/contiv/ipam"
 	"github.com/contiv/vpp/plugins/contiv/model/cni"
 	"github.com/contiv/vpp/plugins/kvdbproxy"
 	"github.com/ligato/cn-infra/datasync"
@@ -74,7 +75,7 @@ type Deps struct {
 // It can be injected or loaded from external config. Injection has priority to external config. To use external
 // config add `<Contiv plugin name> + "-config="<absolute path to config>` in go run command flags.
 type Config struct {
-	IPAMConfig IPAMConfig
+	IPAMConfig ipam.Config
 }
 
 // Init initializes the grpc server handling the request from the CNI.

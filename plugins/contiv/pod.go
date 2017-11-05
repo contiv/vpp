@@ -32,8 +32,8 @@ import (
 
 func (s *remoteCNIserver) configureRoutesInContainer(request *cni.CNIRequest) error {
 	return s.WithNetNSPath(request.NetworkNamespace, func(netns ns.NetNS) error {
-		destination := ipToIPNet(s.ipam.getPodGatewayIP())
-		defaultNextHop := s.ipam.getPodGatewayIP()
+		destination := ipToIPNet(s.ipam.PodGatewayIP())
+		defaultNextHop := s.ipam.PodGatewayIP()
 		dev, err := s.LinkByName(request.InterfaceName)
 		if err != nil {
 			s.Logger.Error(err)
@@ -99,7 +99,7 @@ func (s *remoteCNIserver) configureArpOnVpp(request *cni.CNIRequest, macAddr []b
 
 func (s *remoteCNIserver) configureArpInContainer(macAddr net.HardwareAddr, request *cni.CNIRequest) error {
 
-	gw := s.ipam.getPodGatewayIP()
+	gw := s.ipam.PodGatewayIP()
 	return s.WithNetNSPath(request.NetworkNamespace, func(ns ns.NetNS) error {
 		link, err := s.LinkByName(request.InterfaceName)
 		if err != nil {

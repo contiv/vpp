@@ -21,6 +21,7 @@ import (
 
 	"github.com/contiv/vpp/flavors/ksr"
 	"github.com/contiv/vpp/plugins/contiv"
+	"github.com/contiv/vpp/plugins/contiv/ipam"
 	"github.com/contiv/vpp/plugins/kvdbproxy"
 	"github.com/contiv/vpp/plugins/policy"
 	"github.com/golang/protobuf/proto"
@@ -132,7 +133,7 @@ func (f *FlavorContiv) Inject() bool {
 	f.Contiv.Deps.ETCD = &f.ETCD
 	f.Contiv.Deps.Watcher = &f.KsrETCDDataSync
 	tmpConfig := contiv.Config{ //TODO remove after applying config
-		IPAMConfig: contiv.IPAMConfig{
+		IPAMConfig: ipam.Config{
 			PodSubnetCIDR:           "10.1.0.0/16",
 			PodNetworkPrefixLen:     24,
 			VSwitchSubnetCIDR:       "172.30.0.0/16",

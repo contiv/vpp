@@ -44,6 +44,7 @@ import (
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/ifaceidx"
 	vpp_intf "github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/model/interfaces"
 
+	"github.com/contiv/vpp/plugins/contiv/ipam"
 	"github.com/onsi/gomega"
 )
 
@@ -62,7 +63,7 @@ var req = cni.CNIRequest{
 	ExtraArguments:   "IgnoreUnknown=1;K8S_POD_NAMESPACE=default;K8S_POD_NAME=" + podName + ";K8S_POD_INFRA_CONTAINER_ID=7d673108b0ff9b2f59f977ca5f4cef347cb9ca66888614068882fbfaba4de752",
 }
 
-var ipamConfig = IPAMConfig{
+var ipamConfig = ipam.Config{
 	PodSubnetCIDR:           "10.1.0.0/16",
 	PodNetworkPrefixLen:     24,
 	VSwitchSubnetCIDR:       "172.30.0.0/16",

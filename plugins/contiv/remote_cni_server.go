@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"git.fd.io/govpp.git/api"
 	"github.com/contiv/vpp/plugins/contiv/containeridx"
+	"github.com/contiv/vpp/plugins/contiv/ipam"
 	"github.com/contiv/vpp/plugins/contiv/model/cni"
 	"github.com/contiv/vpp/plugins/kvdbproxy"
 	"github.com/gogo/protobuf/proto"
@@ -49,7 +50,7 @@ type remoteCNIserver struct {
 	hostCalls
 
 	// ipam module used by the CNI server
-	ipam *IPAM
+	ipam *ipam.IPAM
 
 	// counter of connected containers. It is used for generating afpacket names
 	// and assigned ip addresses.
@@ -75,8 +76,8 @@ const (
 )
 
 func newRemoteCNIServer(logger logging.Logger, vppTxnFactory func() linux.DataChangeDSL, proxy kvdbproxy.Proxy,
-	configuredContainers *containeridx.ConfigIndex, govppChan *api.Channel, index ifaceidx.SwIfIndex, agentLabel string, ipamConfig *IPAMConfig, uid uint8) *remoteCNIserver {
-	ipam, _ := newIPAM(logger, uid, ipamConfig) //TODO check if host id is passed/remembered only to needed places (cleanup after hard merge session)
+	configuredContainers *containeridx.ConfigIndex, govppChan *api.Channel, index ifaceidx.SwIfIndex, agentLabel string, ipamConfig *ipam.Config, uid uint8) *remoteCNIserver {
+	ipam, _ := ipam.New(logger, uid, ipamConfig) //TODO check if host id is passed/remembered only to needed places (cleanup after hard merge session)
 	// TODO handle error
 	return &remoteCNIserver{
 		Logger:               logger,
@@ -170,7 +171,7 @@ func (s *remoteCNIserver) configureVswitchConnectivity() error {
 			for i = 0; i < 255; i++ {
 				// creates routes to all possible hosts
 				// TODO: after proper IPAM implementation, only routes to existing hosts should be added
-				if i != s.ipam.getHostID() {
+				if i != s.ipam.HostID() {
 					r, err := s.routeToOtherHostPods(i)
 					if err != nil {
 						s.Logger.Error(err)
@@ -193,7 +194,7 @@ func (s *remoteCNIserver) configureVswitchConnectivity() error {
 			for i = 0; i < 255; i++ {
 				// creates routes to all possible hosts
 				// TODO: after proper IPAM implementation, only routes to existing hosts should be added
-				if i != s.ipam.getHostID() {
+				if i != s.ipam.HostID() {
 					r, err := s.routeToOtherHostStack(i)
 					if err != nil {
 						s.Logger.Error(err)
@@ -346,7 +347,7 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 	s.counter++
 
 	// assign IP address for this POD
-	podIP, err := s.ipam.getNextPodIP(request.NetworkNamespace)
+	podIP, err := s.ipam.NextPodIP(request.NetworkNamespace)
 	if err != nil {
 		return nil, fmt.Errorf("Can't get new IP address for pod: %v", err)
 	}
@@ -444,7 +445,7 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 		Routes: []*cni.CNIReply_Route{
 			{
 				Dst: "0.0.0.0/0",
-				Gw:  s.ipam.getPodGatewayIP().String(),
+				Gw:  s.ipam.PodGatewayIP().String(),
 			},
 		},
 	}
@@ -493,7 +494,7 @@ func (s *remoteCNIserver) unconfigureContainerConnectivity(request *cni.CNIReque
 		s.configuredContainers.UnregisterContainer(request.ContainerId)
 	}
 
-	err = s.ipam.releasePodIP(request.NetworkNamespace)
+	err = s.ipam.ReleasePodIP(request.NetworkNamespace)
 	if err != nil {
 		s.Logger.Error(err)
 		return s.generateErrorResponse(err)
@@ -547,7 +548,7 @@ func (s *remoteCNIserver) createdInterfaces(veth *linux_intf.LinuxInterfaces_Int
 				{
 					Version: cni.CNIReply_Interface_IP_IPV4,
 					Address: veth.IpAddresses[0],
-					Gateway: s.ipam.getPodGatewayIP().String(),
+					Gateway: s.ipam.PodGatewayIP().String(),
 				},
 			},
 		},

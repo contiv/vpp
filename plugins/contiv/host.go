@@ -34,21 +34,21 @@ func (s *remoteCNIserver) configureRouteOnHost() error {
 
 	return s.RouteAdd(&netlink.Route{
 		LinkIndex: dev.Attrs().Index,
-		Dst:       s.ipam.getPodSubnet(),
-		Gw:        s.ipam.getVEthVPPEndIP(),
+		Dst:       s.ipam.PodSubnet(),
+		Gw:        s.ipam.VEthVPPEndIP(),
 	})
 }
 
 func (s *remoteCNIserver) defaultRouteToHost() *l3.StaticRoutes_Route {
 	return &l3.StaticRoutes_Route{
 		DstIpAddr:         "0.0.0.0/0",
-		NextHopAddr:       s.ipam.getVEthHostEndIP().String(),
+		NextHopAddr:       s.ipam.VEthHostEndIP().String(),
 		OutgoingInterface: vethVPPEndName,
 	}
 }
 
 func (s *remoteCNIserver) interconnectVethHost() *linux_intf.LinuxInterfaces_Interface {
-	size, _ := s.ipam.getVSwitchNetwork().Mask.Size()
+	size, _ := s.ipam.VSwitchNetwork().Mask.Size()
 	return &linux_intf.LinuxInterfaces_Interface{
 		Name:       "vppv1",
 		Type:       linux_intf.LinuxInterfaces_VETH,
@@ -57,7 +57,7 @@ func (s *remoteCNIserver) interconnectVethHost() *linux_intf.LinuxInterfaces_Int
 		Veth: &linux_intf.LinuxInterfaces_Interface_Veth{
 			PeerIfName: "v2",
 		},
-		IpAddresses: []string{s.ipam.getVEthHostEndIP().String() + "/" + strconv.Itoa(size)},
+		IpAddresses: []string{s.ipam.VEthHostEndIP().String() + "/" + strconv.Itoa(size)},
 	}
 }
 
@@ -74,7 +74,7 @@ func (s *remoteCNIserver) interconnectVethVpp() *linux_intf.LinuxInterfaces_Inte
 }
 
 func (s *remoteCNIserver) interconnectAfpacket() *vpp_intf.Interfaces_Interface {
-	size, _ := s.ipam.getVSwitchNetwork().Mask.Size()
+	size, _ := s.ipam.VSwitchNetwork().Mask.Size()
 	return &vpp_intf.Interfaces_Interface{
 		Name:    vethVPPEndName,
 		Type:    vpp_intf.InterfaceType_AF_PACKET_INTERFACE,
@@ -82,12 +82,12 @@ func (s *remoteCNIserver) interconnectAfpacket() *vpp_intf.Interfaces_Interface 
 		Afpacket: &vpp_intf.Interfaces_Interface_Afpacket{
 			HostIfName: vethVPPEndName,
 		},
-		IpAddresses: []string{s.ipam.getVEthVPPEndIP().String() + "/" + strconv.Itoa(size)},
+		IpAddresses: []string{s.ipam.VEthVPPEndIP().String() + "/" + strconv.Itoa(size)},
 	}
 }
 
 func (s *remoteCNIserver) physicalInterface(name string) (*vpp_intf.Interfaces_Interface, error) {
-	hostNetwork, err := s.ipam.getHostIPNetwork(s.ipam.getHostID())
+	hostNetwork, err := s.ipam.HostIPNetwork(s.ipam.HostID())
 	if err != nil {
 		return nil, err
 	}
@@ -100,7 +100,7 @@ func (s *remoteCNIserver) physicalInterface(name string) (*vpp_intf.Interfaces_I
 }
 
 func (s *remoteCNIserver) physicalInterfaceLoopback() (*vpp_intf.Interfaces_Interface, error) {
-	hostNetwork, err := s.ipam.getHostIPNetwork(s.ipam.getHostID())
+	hostNetwork, err := s.ipam.HostIPNetwork(s.ipam.HostID())
 	if err != nil {
 		return nil, err
 	}
@@ -113,15 +113,15 @@ func (s *remoteCNIserver) physicalInterfaceLoopback() (*vpp_intf.Interfaces_Inte
 }
 
 func (s *remoteCNIserver) routeToOtherHostPods(hostID uint8) (*l3.StaticRoutes_Route, error) {
-	return s.routeToOtherHostNetworks(hostID, s.ipam.getPodNetwork())
+	return s.routeToOtherHostNetworks(hostID, s.ipam.PodNetwork())
 }
 
 func (s *remoteCNIserver) routeToOtherHostStack(hostID uint8) (*l3.StaticRoutes_Route, error) {
-	return s.routeToOtherHostNetworks(hostID, s.ipam.getVSwitchNetwork())
+	return s.routeToOtherHostNetworks(hostID, s.ipam.VSwitchNetwork())
 }
 
 func (s *remoteCNIserver) routeToOtherHostNetworks(hostID uint8, destNetwork *net.IPNet) (*l3.StaticRoutes_Route, error) {
-	hostIP, err := s.ipam.getHostIPAddress(hostID)
+	hostIP, err := s.ipam.HostIPAddress(hostID)
 	if err != nil {
 		return nil, fmt.Errorf("Can't get Host IP address for host ID %v, error: %v", hostID, err)
 	}

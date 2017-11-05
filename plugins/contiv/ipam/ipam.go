@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package ipam is resposinble for IP addresses management
+// Package ipam is responsible for IP addresses management
 package ipam
 
 import (
@@ -154,7 +154,7 @@ func convertConfigNotation(subnetCIDR string, networkPrefixLen uint8, hostID uin
 	networkPrefixUint32 := subnetIPPartUint32 + (uint32(hostIPPart) << (32 - networkPrefixLen))
 	networkIPPrefix = net.IPNet{
 		IP:   uint32ToIpv4(networkPrefixUint32),
-		Mask: uint32ToIpv4Mask((1 << uint(networkPrefixLen)) - 1),
+		Mask: uint32ToIpv4Mask(((1 << uint(networkPrefixLen)) - 1) << (32 - networkPrefixLen)),
 	}
 	return
 }
@@ -178,7 +178,7 @@ func (i *IPAM) HostIPNetwork(hostID uint8) (*net.IPNet, error) {
 	maskSize, _ := i.hostNodeNetworkIPPrefix.Mask.Size()
 	hostIPNetwork := net.IPNet{
 		IP:   hostIP,
-		Mask: uint32ToIpv4Mask((1 << uint(maskSize)) - 1), //TODO correct mask creation? should it be 11100 and not 00111?
+		Mask: uint32ToIpv4Mask(((1 << uint(maskSize)) - 1) << (32 - uint8(maskSize))),
 	}
 	return &hostIPNetwork, nil
 }
@@ -321,7 +321,7 @@ func ipv4ToUint32(ip net.IP) (uint32, error) {
 		return 0, fmt.Errorf("Ip address %v is not ipv4 address (or ipv6 convertible to ipv4 address)", ip)
 	}
 	var tmp uint32
-	for bytePart := range ip {
+	for _, bytePart := range ip {
 		tmp = tmp<<8 + uint32(bytePart)
 	}
 	return tmp, nil
@@ -329,7 +329,7 @@ func ipv4ToUint32(ip net.IP) (uint32, error) {
 
 // uint32ToIpv4 is simple utility function for conversion between IPv4 and uint32
 func uint32ToIpv4(ip uint32) net.IP {
-	return net.IPv4(byte(ip>>24), byte(ip>>16), byte(ip>>8), byte(ip))
+	return net.IPv4(byte(ip>>24), byte(ip>>16), byte(ip>>8), byte(ip)).To4()
 }
 
 // uint32ToIpv4Mask is simple utility function for conversion between IPv4Mask and uint32
@@ -347,5 +347,5 @@ func newIPNet(ipNet net.IPNet) net.IPNet {
 
 // newIP is simple utility function to create defend copy of net.IP
 func newIP(ip net.IP) net.IP {
-	return net.IPv4(ip[0], ip[1], ip[2], ip[3])
+	return net.IPv4(ip[0], ip[1], ip[2], ip[3]).To4()
 }

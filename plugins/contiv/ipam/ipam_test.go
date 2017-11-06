@@ -47,13 +47,18 @@ var (
 	}
 )
 
-// TestStaticGetters tests exposed IPAM API that provides data that doesn't change in time (and are not dynamically
-// recomputed based on new input in form of API function parameters)
-func TestStaticGetters(t *testing.T) {
+func setup(t *testing.T) *ipam.IPAM {
 	RegisterTestingT(t)
 
 	i, err := ipam.New(logroot.StandardLogger(), uint8(hostID1), &config)
 	Expect(err).To(BeNil())
+	return i
+}
+
+// TestStaticGetters tests exposed IPAM API that provides data that doesn't change in time (and are not dynamically
+// recomputed based on new input in form of API function parameters)
+func TestStaticGetters(t *testing.T) {
+	i := setup(t)
 	Expect(i.HostID()).To(BeEquivalentTo(hostID1))
 
 	// pods addresses IPAM API
@@ -71,11 +76,7 @@ func TestStaticGetters(t *testing.T) {
 
 // TestDynamicGetters tests proper working IMAP API that provides data based on new input (func parameters)
 func TestDynamicGetters(t *testing.T) {
-	RegisterTestingT(t)
-
-	i, err := ipam.New(logroot.StandardLogger(), uint8(hostID1), &config)
-	Expect(err).To(BeNil())
-
+	i := setup(t)
 	ip, err := i.HostIPAddress(hostID2)
 	Expect(err).To(BeNil())
 	Expect(ip).To(BeEquivalentTo(net.IPv4(3, 4, 5, b11100101).To4()))
@@ -87,11 +88,7 @@ func TestDynamicGetters(t *testing.T) {
 
 // TestBasicAllocateReleasePodAddress test simple happy path scenario for getting 1 pod address and releasing it
 func TestBasicAllocateReleasePodAddress(t *testing.T) {
-	RegisterTestingT(t)
-
-	i, err := ipam.New(logroot.StandardLogger(), uint8(hostID1), &config)
-	Expect(err).To(BeNil())
-
+	i := setup(t)
 	ip, err := i.NextPodIP(podID)
 	Expect(err).To(BeNil())
 	Expect(ip).NotTo(BeNil())
@@ -103,33 +100,21 @@ func TestBasicAllocateReleasePodAddress(t *testing.T) {
 
 // TestBadInputForIPAllocation tests expected failure of IP allocation caused by bad input
 func TestBadInputForIPAllocation(t *testing.T) {
-	RegisterTestingT(t)
-
-	i, err := ipam.New(logroot.StandardLogger(), uint8(hostID1), &config)
-	Expect(err).To(BeNil())
-
-	_, err = i.NextPodIP(incorrectHostIDForIPAllocation)
+	i := setup(t)
+	_, err := i.NextPodIP(incorrectHostIDForIPAllocation)
 	Expect(err).NotTo(BeNil())
 }
 
 // TestIgnoringOfBadInputForIPRelease tests special case of ignored bad input for pod IP release that happens by kubernetes restart
 func TestIgnoringOfBadInputForIPRelease(t *testing.T) {
-	RegisterTestingT(t)
-
-	i, err := ipam.New(logroot.StandardLogger(), uint8(hostID1), &config)
-	Expect(err).To(BeNil())
-
-	err = i.ReleasePodIP(incorrectHostIDForIPAllocation)
+	i := setup(t)
+	err := i.ReleasePodIP(incorrectHostIDForIPAllocation)
 	Expect(err).To(BeNil())
 }
 
 // TestDistinctAllocations test whether all pod IP addresses are distinct to each other until exhaustion of the whole IP address pool
 func TestDistinctAllocations(t *testing.T) {
-	RegisterTestingT(t)
-
-	i, err := ipam.New(logroot.StandardLogger(), uint8(hostID1), &config)
-	Expect(err).To(BeNil())
-
+	i := setup(t)
 	allocated := make(map[string]bool)
 	maxIPCount := 6
 	for j := 1; j <= maxIPCount; j++ {
@@ -138,7 +123,7 @@ func TestDistinctAllocations(t *testing.T) {
 		Expect(allocated[ip.String()]).To(BeFalse(), "IP address %v is allocated second time", ip)
 		allocated[ip.String()] = true
 	}
-	_, err = i.NextPodIP(strconv.Itoa(maxIPCount + 1))
+	_, err := i.NextPodIP(strconv.Itoa(maxIPCount + 1))
 	Expect(err).NotTo(BeNil(), "Pool of free IP addresses should be empty, but IPAM allocation function didn't fail")
 }
 

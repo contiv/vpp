@@ -1,0 +1,42 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: server-vpp
+  labels:
+    app: test-server-vpp
+spec:
+  ports:
+  - name: test-server-vpp
+    port: 22000
+  selector:
+    app: test-server-vpp
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: test-server-vpp
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: test-server-vpp
+        ldpreload: "true"
+    spec:
+      containers:
+      - image: networkstatic/iperf3
+        imagePullPolicy: IfNotPresent
+        name: server-vpp
+        ports:
+        - containerPort: 22000
+        command: ["bash"]
+        args: ["-c", "/vpp/sock_test_server", "22000"]
+        securityContext:
+          privileged: true
+        volumeMounts:
+          - name: vpp
+            mountPath: /vpp/
+      volumes:
+      - name: vpp
+        hostPath:
+          path: /usr/libexec/ldpreload/vpp

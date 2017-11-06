@@ -72,7 +72,7 @@ func WatchShutdownTask(t *testing.T, watch chan events.Event) *api.Task {
 				assert.FailNow(t, "got EventCreateTask when expecting EventUpdateTask", fmt.Sprint(event))
 			}
 		case <-time.After(time.Second):
-			assert.FailNow(t, "no task shutdown")
+			assert.FailNow(t, "no task deletion")
 		}
 	}
 }
@@ -88,7 +88,7 @@ func Expect(t *testing.T, watch chan events.Event, specifiers ...api.Event) {
 			}
 			return
 		case <-time.After(time.Second):
-			assert.FailNow(t, "no matching event")
+			assert.FailNow(t, "no commit event")
 		}
 	}
 }

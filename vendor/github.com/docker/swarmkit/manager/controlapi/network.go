@@ -96,7 +96,11 @@ func validateNetworkSpec(spec *api.NetworkSpec, pg plugingetter.PluginGetter) er
 		return err
 	}
 
-	return validateIPAM(spec.IPAM, pg)
+	if err := validateIPAM(spec.IPAM, pg); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // CreateNetwork creates and returns a Network based on the provided NetworkSpec.

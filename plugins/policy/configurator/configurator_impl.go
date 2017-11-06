@@ -108,7 +108,7 @@ func (pc *PolicyConfigurator) NewTxn(resync bool) Txn {
 // are replaced. The order of policies is not important (it is a set).
 func (pct *PolicyConfiguratorTxn) Configure(pod podmodel.ID, policies []*ContivPolicy) Txn {
 	pct.Log.WithFields(logging.Fields{
-		"pod":  pod,
+		"pod":      pod,
 		"policies": policies,
 	}).Debug("PolicyConfigurator Configure()")
 	pct.config[pod] = policies
@@ -321,12 +321,7 @@ func (pct *PolicyConfiguratorTxn) generateRules(direction MatchType, policies Co
 							SrcNetwork:  &net.IPNet{},
 							DestNetwork: &net.IPNet{},
 							SrcPort:     0,
-							DestPort:    0,
-						}
-						if direction == MatchIngress {
-							rule.SrcPort = port.Number
-						} else {
-							rule.DestPort = port.Number
+							DestPort:    port.Number,
 						}
 						if port.Protocol == TCP {
 							rule.Protocol = renderer.TCP
@@ -381,14 +376,12 @@ func (pct *PolicyConfiguratorTxn) generateRules(direction MatchType, policies Co
 							SrcNetwork:  &net.IPNet{},
 							DestNetwork: &net.IPNet{},
 							SrcPort:     0,
-							DestPort:    0,
+							DestPort:    port.Number,
 						}
 						if direction == MatchIngress {
 							rule.SrcNetwork = peer.IPNet
-							rule.SrcPort = port.Number
 						} else {
 							rule.DestNetwork = peer.IPNet
-							rule.DestPort = port.Number
 						}
 						if port.Protocol == TCP {
 							rule.Protocol = renderer.TCP
@@ -473,14 +466,12 @@ func (pct *PolicyConfiguratorTxn) generateRules(direction MatchType, policies Co
 						SrcNetwork:  &net.IPNet{},
 						DestNetwork: &net.IPNet{},
 						SrcPort:     0,
-						DestPort:    0,
+						DestPort:    port.Number,
 					}
 					if direction == MatchIngress {
 						rule.SrcNetwork = &peerBlock.Block
-						rule.SrcPort = port.Number
 					} else {
 						rule.DestNetwork = &peerBlock.Block
-						rule.DestPort = port.Number
 					}
 					if port.Protocol == TCP {
 						rule.Protocol = renderer.TCP

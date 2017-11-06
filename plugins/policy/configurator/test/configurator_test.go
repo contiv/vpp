@@ -64,10 +64,10 @@ func TestSinglePolicySinglePod(t *testing.T) {
 	cache.AddPodConfig(pod1, pod1IP)
 	cache.AddPodConfig(pod2, pod2IP)
 
-	rendererA := NewMockRenderer()
-	rendererB := NewMockRenderer()
+	rendererA := NewMockRenderer(logger)
+	rendererB := NewMockRenderer(logger)
 
-	rendererDefault := NewMockRenderer()
+	rendererDefault := NewMockRenderer(logger)
 	rendererDefault.AddInterface(pod1IfName)
 
 	// Initialize configurator.

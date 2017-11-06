@@ -301,7 +301,7 @@ func (i *IPAM) logAssignedPodIPPool() {
 	if i.logger.GetLevel() <= logging.DebugLevel { //log only if debug level or more verbose
 		var buffer bytes.Buffer
 		for uintIP, podID := range i.assignedPodIPs {
-			buffer.WriteString(uint32ToIpv4(uintIP).String() + ":" + podID)
+			buffer.WriteString(" # " + uint32ToIpv4(uintIP).String() + ":" + podID)
 		}
 		i.logger.Debugf("Actual pool of assigned pod IP addresses: %v", buffer.String())
 	}

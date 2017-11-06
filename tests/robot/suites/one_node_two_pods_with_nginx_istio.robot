@@ -35,10 +35,12 @@ Get_Web_Page_From_Host
 OneNodeK8sSetup
     Testsuite Setup
     KubernetesEnv.Reinit_One_Node_Kube_Cluster
-    KubernetesEnv.Deploy_Client_And_Nginx_Pod_And_Verify_Running    ${testbed_connection}
+    KubernetesEnv.Deploy_Istio_And_Verify_Running    ${testbed_connection}
+    KubernetesEnv.Deploy_Client_And_Nginx_Pod_And_Verify_Running    ${testbed_connection}    client_file=${CLIENT_ISTIO_POD_FILE}    nginx_file=${NGINX_ISTIO_POD_FILE}
 
 OneNodeK8sTeardown
-    KubernetesEnv.Remove_Client_And_Nginx_Pod_And_Verify_Removed    ${testbed_connection}
+    KubernetesEnv.Remove_Client_And_Nginx_Pod_And_Verify_Removed    ${testbed_connection}    client_file=${CLIENT_ISTIO_POD_FILE}    nginx_file=${NGINX_ISTIO_POD_FILE}
+    KubernetesEnv.Remove_Istio_And_Verify_Removed    ${testbed_connection}
     Testsuite Teardown
 
 Setup_Client_Pod_Session

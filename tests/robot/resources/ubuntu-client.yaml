@@ -1,18 +1,18 @@
 apiVersion: extensions/v1beta1
 kind: Deployment
 metadata:
-  name: ubuntu
+  name: ubuntu-client
 spec:
-  replicas: 2
+  replicas: 1
   template:
     metadata:
       labels:
-        app: ubuntu
+        app: ubuntu-client
     spec:
       containers:
       - image: rastislavszabo/ubuntu
         imagePullPolicy: IfNotPresent
-        name: ubuntu
+        name: ubuntu-client
         # Just spin & wait forever
         command: [ "/bin/bash", "-c", "--" ]
         args: [ "while true; do sleep 30; done;" ]

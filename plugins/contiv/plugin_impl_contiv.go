@@ -127,7 +127,7 @@ func (plugin *Plugin) Init() error {
 }
 
 func (plugin *Plugin) applyExternalConfig() error {
-	var externalCfg *Config
+	externalCfg := &Config{}
 	found, err := plugin.PluginConfig.GetValue(externalCfg) // It tries to lookup `PluginName + "-config"` in go run command flags.
 	if err != nil {
 		return fmt.Errorf("External Contiv plugin configuration could not load or other problem happened: %v", err)

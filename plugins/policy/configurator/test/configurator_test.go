@@ -15,6 +15,11 @@ import (
 	"github.com/contiv/vpp/plugins/policy/renderer"
 )
 
+func parseIP(ip string) *net.IP {
+	netIP := net.ParseIP(ip)
+	return &netIP
+}
+
 func TestSinglePolicySinglePod(t *testing.T) {
 	gomega.RegisterTestingT(t)
 	logger := logroot.StandardLogger()
@@ -73,13 +78,14 @@ func TestSinglePolicySinglePod(t *testing.T) {
 			Cache:  cache,
 		},
 	}
+	configurator.Init()
 
 	// Register renderers.
 	err := configurator.RegisterDefaultRenderer(rendererDefault)
 	gomega.Expect(err).To(gomega.BeNil())
-	err = configurator.RegisterRenderer("labelA", rendererA)
+	err = configurator.RegisterRenderer(podmodel.Pod_Label{Key: "stack", Value: "A"}, rendererA)
 	gomega.Expect(err).To(gomega.BeNil())
-	err = configurator.RegisterRenderer("labelB", rendererB)
+	err = configurator.RegisterRenderer(podmodel.Pod_Label{Key: "stack", Value: "B"}, rendererB)
 	gomega.Expect(err).To(gomega.BeNil())
 
 	// Run single transaction.
@@ -94,26 +100,26 @@ func TestSinglePolicySinglePod(t *testing.T) {
 
 	// Allowed by policy1.
 	action := rendererDefault.TestTraffic(pod1IfName, EgressTraffic,
-		&net.ParseIP(pod2IP), &net.ParseIP(pod1IP), renderer.TCP, 123, 80)
+		parseIP(pod2IP), parseIP(pod1IP), renderer.TCP, 123, 80)
 	gomega.Expect(action).To(gomega.BeEquivalentTo(AllowedTraffic))
 
 	// Allowed by policy1.
 	action = rendererDefault.TestTraffic(pod1IfName, EgressTraffic,
-		&net.ParseIP(pod2IP), &net.ParseIP(pod1IP), renderer.TCP, 456, 443)
+		parseIP(pod2IP), parseIP(pod1IP), renderer.TCP, 456, 443)
 	gomega.Expect(action).To(gomega.BeEquivalentTo(AllowedTraffic))
 
 	// Not covered by any policy.
 	action = rendererDefault.TestTraffic(pod1IfName, IngressTraffic,
-		&net.ParseIP(pod1IP), &net.ParseIP(pod2IP), renderer.TCP, 123, 456)
+		parseIP(pod1IP), parseIP(pod2IP), renderer.TCP, 123, 456)
 	gomega.Expect(action).To(gomega.BeEquivalentTo(UnmatchedTraffic))
 
 	// Blocked by policy1.
 	action = rendererDefault.TestTraffic(pod1IfName, EgressTraffic,
-		&net.ParseIP(pod2IP), &net.ParseIP(pod1IP), renderer.TCP, 789, 100)
+		parseIP(pod2IP), parseIP(pod1IP), renderer.TCP, 789, 100)
 	gomega.Expect(action).To(gomega.BeEquivalentTo(DeniedTraffic))
 
 	// Blocked by policy1.
 	action = rendererDefault.TestTraffic(pod1IfName, EgressTraffic,
-		&net.ParseIP(pod2IP), &net.ParseIP(pod1IP), renderer.UDP, 123, 80)
+		parseIP(pod2IP), parseIP(pod1IP), renderer.UDP, 123, 80)
 	gomega.Expect(action).To(gomega.BeEquivalentTo(DeniedTraffic))
 }

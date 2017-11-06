@@ -5,6 +5,7 @@ import (
 	"net"
 
 	"github.com/contiv/vpp/plugins/policy/renderer"
+	"github.com/ligato/cn-infra/logging"
 )
 
 // TrafficDirection is one of: INGRESS, EGRESS.
@@ -41,11 +42,13 @@ const (
 // to simulate a traffic and test what the outcome would be with the rendered
 // configuration.
 type MockRenderer struct {
+	Log    logging.Logger
 	config map[string]*InterfaceConfig // interface name -> config
 }
 
 // MockRendererTxn is a mock implementation for the renderer's transaction.
 type MockRendererTxn struct {
+	Log      logging.Logger
 	renderer *MockRenderer
 	resync   bool
 	config   map[string]*InterfaceConfig // interface name -> config
@@ -58,8 +61,9 @@ type InterfaceConfig struct {
 }
 
 // NewMockRenderer is a constructor for MockRenderer.
-func NewMockRenderer() *MockRenderer {
+func NewMockRenderer(log logging.Logger) *MockRenderer {
 	return &MockRenderer{
+		Log:    log,
 		config: make(map[string]*InterfaceConfig),
 	}
 }
@@ -67,6 +71,7 @@ func NewMockRenderer() *MockRenderer {
 // NewTxn creates a new mock transaction.
 func (mr *MockRenderer) NewTxn(resync bool) renderer.Txn {
 	return &MockRendererTxn{
+		Log:      mr.Log,
 		renderer: mr,
 		resync:   resync,
 		config:   make(map[string]*InterfaceConfig),
@@ -132,6 +137,11 @@ func (mr *MockRenderer) TestTraffic(ifName string, direction TrafficDirection, s
 
 // Render just stores config to be rendered.
 func (mrt *MockRendererTxn) Render(ifName string, ingress []*renderer.ContivRule, egress []*renderer.ContivRule) renderer.Txn {
+	mrt.Log.WithFields(logging.Fields{
+		"ifName":  ifName,
+		"ingress": ingress,
+		"egress":  egress,
+	}).Debug("Mock RendererTxn Render()")
 	mrt.config[ifName] = &InterfaceConfig{ingress: ingress, egress: egress}
 	return mrt
 }

@@ -1,7 +1,9 @@
 package configurator
 
 import (
+	"fmt"
 	"net"
+	"strconv"
 
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	policymodel "github.com/contiv/vpp/plugins/ksr/model/policy"
@@ -21,7 +23,7 @@ type PolicyConfiguratorAPI interface {
 	// RegisterRenderer registers renderer that will render rules for pods
 	// that contain a given <label> (they are expected to be in a separate
 	// network stack)
-	RegisterRenderer(label string, renderer renderer.PolicyRendererAPI) error
+	RegisterRenderer(label podmodel.Pod_Label, renderer renderer.PolicyRendererAPI) error
 
 	// RegisterDefaultRenderer registers the renderer used for pods not included
 	// by any other registered renderer.
@@ -69,6 +71,19 @@ type ContivPolicy struct {
 	Matches []Match
 }
 
+// String converts ContivPolicy into a human-readable string.
+func (cp ContivPolicy) String() string {
+	matches := ""
+	for idx, match := range cp.Matches {
+		matches += match.String()
+		if idx < len(cp.Matches)-1 {
+			matches += ", "
+		}
+	}
+	return fmt.Sprintf("ContivPolicy %s <Type:%s, Matches:[%s]>",
+		cp.ID, cp.Type, matches)
+}
+
 // Match is a predicate that select a subset of the traffic.
 type Match struct {
 	// Type selects the direction of the traffic.
@@ -91,6 +106,33 @@ type Match struct {
 	Ports []Port
 }
 
+// String converts Match into a human-readable string.
+func (m Match) String() string {
+	pods := ""
+	for idx, pod := range m.Pods {
+		pods += pod.String()
+		if idx < len(m.Pods)-1 {
+			pods += ", "
+		}
+	}
+	blocks := ""
+	for idx, block := range m.IPBlocks {
+		blocks += block.String()
+		if idx < len(m.IPBlocks)-1 {
+			blocks += ", "
+		}
+	}
+	ports := ""
+	for idx, port := range m.Ports {
+		ports += port.String()
+		if idx < len(m.Ports)-1 {
+			ports += ", "
+		}
+	}
+	return fmt.Sprintf("<Type:%s, Pods:[%s], Blocks:[%s], Ports:[%s]>",
+		m.Type, pods, blocks, ports)
+}
+
 // PolicyType selects the rule types that the network policy relates to.
 type PolicyType int
 
@@ -105,6 +147,19 @@ const (
 	PolicyAll
 )
 
+// String converts PolicyType into a human-readable string.
+func (pt PolicyType) String() string {
+	switch pt {
+	case PolicyIngress:
+		return "INGRESS"
+	case PolicyEgress:
+		return "EGRESS"
+	case PolicyAll:
+		return "ALL"
+	}
+	return "INVALID"
+}
+
 // MatchType selects the direction of the traffic to apply a Match to.
 // The direction is from the Pod point of view!
 type MatchType int
@@ -117,6 +172,17 @@ const (
 	MatchEgress
 )
 
+// String converts MatchType into a human-readable string.
+func (mt MatchType) String() string {
+	switch mt {
+	case MatchIngress:
+		return "INGRESS"
+	case MatchEgress:
+		return "EGRESS"
+	}
+	return "INVALID"
+}
+
 // ProtocolType is either TCP or UDP.
 type ProtocolType int
 
@@ -128,6 +194,17 @@ const (
 	UDP
 )
 
+// String converts ProtocolType into a human-readable string.
+func (pt ProtocolType) String() string {
+	switch pt {
+	case TCP:
+		return "TCP"
+	case UDP:
+		return "UDP"
+	}
+	return "INVALID"
+}
+
 // Port represent a TCP or UDP port.
 // Number=0 represents all ports for a given protocol.
 type Port struct {
@@ -135,8 +212,34 @@ type Port struct {
 	Number   uint16
 }
 
+// String return a human-readable string representation of the Port.
+func (port Port) String() string {
+	protocol := "TCP"
+	if port.Protocol == UDP {
+		protocol = "UDP"
+	}
+	if port.Number == 0 {
+		return protocol + ":ANY"
+	}
+	return protocol + ":" + strconv.Itoa(int(port.Number))
+}
+
 // IPBlock selects a particular CIDR with possible exceptions.
 type IPBlock struct {
 	Network net.IPNet
 	Except  []net.IPNet
+}
+
+// String return a human-readable string representation of the IP Block.
+func (ipb IPBlock) String() string {
+	excepts := ""
+	for idx, except := range ipb.Except {
+		excepts += except.String()
+		if idx < len(ipb.Except)-1 {
+			excepts += ", "
+		}
+	}
+	return fmt.Sprintf("<Net:%s, Except:[%s]>",
+		ipb.Network, excepts)
+
 }

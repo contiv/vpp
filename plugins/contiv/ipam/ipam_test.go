@@ -13,7 +13,6 @@ import (
 
 /*
 TODO extended tests for pod ip allocating and releasing:
-    -allocation all ip addresses just once(no ip address allocated twice) and then exhaustion
 	-exhaust(no check) -> release all(no error check) -> exhaust again(no ip address allocated twice check) (checking proper releasing of all ip addresses)
 	-exhaust(no check) -> release half of ip address(no error check) -> exhaust again (check collision with 1-phase allocated ip addresses) (checking proper releasing of only those addresses that we want to release)
 	-check <8-bit,=8-bit,>8-bit pool allocation
@@ -122,6 +121,25 @@ func TestIgnoringOfBadInputForIPRelease(t *testing.T) {
 
 	err = i.ReleasePodIP(incorrectHostIDForIPAllocation)
 	Expect(err).To(BeNil())
+}
+
+// TestDistinctAllocations test whether all pod IP addresses are distinct to each other until exhaustion of the whole IP address pool
+func TestDistinctAllocations(t *testing.T) {
+	RegisterTestingT(t)
+
+	i, err := ipam.New(logroot.StandardLogger(), uint8(hostID1), &config)
+	Expect(err).To(BeNil())
+
+	allocated := make(map[string]bool)
+	maxIPCount := 6
+	for j := 1; j <= maxIPCount; j++ {
+		ip, err := i.NextPodIP(strconv.Itoa(j)) //TODO check for IPv4 vs IPv6 addresses because net.IP.Equals() considers them equal
+		Expect(err).To(BeNil(), "Can't successfully allocate %v. IP address out of %v possible IP addresses", j, maxIPCount)
+		Expect(allocated[ip.String()]).To(BeFalse(), "IP address %v is allocated second time", ip)
+		allocated[ip.String()] = true
+	}
+	_, err = i.NextPodIP(strconv.Itoa(maxIPCount + 1))
+	Expect(err).NotTo(BeNil(), "Pool of free IP addresses should be empty, but IPAM allocation function didn't fail")
 }
 
 func network(networkCIDR string) net.IPNet {

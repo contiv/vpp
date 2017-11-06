@@ -20,6 +20,7 @@ import (
 	"net"
 	"sync"
 
+	"bytes"
 	"github.com/ligato/cn-infra/logging"
 )
 
@@ -70,6 +71,7 @@ func New(logger logging.Logger, hostID uint8, config *Config) (*IPAM, error) {
 		logger: logger,
 		hostID: hostID,
 	}
+	//ipam.logger.SetLevel(logging.DebugLevel)
 
 	// computing IPAM struct variables from IPAM config
 	if err := initializePodsIPAM(ipam, config, hostID); err != nil {
@@ -266,6 +268,7 @@ func (i *IPAM) NextPodIP(podID string) (net.IP, error) {
 
 		ipForAssign := uint32ToIpv4(networkPrefix + uint32(j))
 		i.logger.Infof("Assigned new pod IP %s", ipForAssign)
+		i.logAssignedPodIPPool()
 		return ipForAssign, nil
 	}
 
@@ -288,7 +291,21 @@ func (i *IPAM) ReleasePodIP(podID string) error {
 	}
 	delete(i.assignedPodIPs, ip)
 	//TODO remove from etcd (if inside etcd)
+
+	i.logger.Infof("Released IP %v for pod ID %v", uint32ToIpv4(ip), podID)
+	i.logAssignedPodIPPool()
 	return nil
+}
+
+func (i *IPAM) logAssignedPodIPPool() {
+	if i.logger.GetLevel() <= logging.DebugLevel { //log only if debug level or more verbose
+		var buffer bytes.Buffer
+		for uintIP, podID := range i.assignedPodIPs {
+			buffer.WriteString(uint32ToIpv4(uintIP).String() + ":" + podID)
+		}
+		i.logger.Debugf("Actual pool of assigned pod IP addresses: %v", buffer.String())
+	}
+
 }
 
 // computeHostIPAddress computes IP address of host node based on host id

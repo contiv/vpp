@@ -12,6 +12,12 @@ kubectl apply -f contiv-vpp.yaml
 # undeploy
 kubectl delete -f contiv-vpp.yaml
 ```
+Optionaly you can edit `contiv-vpp.yaml` to deploy the dev-contiv-vswitch image, built
+in local environment with `../docker/build-all.sh`.
+```
+sed -i "s@image: contivvpp/vswitch@image: dev-contiv-vswitch:<your image version>@g" ./contiv-vpp.yaml
+```
+
 
 #### cri-install.sh
 Contiv-VPP CRI Shim installer / uninstaller, that can be used as follows:

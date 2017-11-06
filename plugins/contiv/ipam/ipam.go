@@ -171,7 +171,7 @@ func (i *IPAM) HostIPNetwork(hostID uint8) (*net.IPNet, error) {
 	i.mutex.RLock()
 	defer i.mutex.RUnlock()
 
-	hostIP, err := i.computeHostIPAddress(i.hostID)
+	hostIP, err := i.computeHostIPAddress(hostID)
 	if err != nil {
 		return nil, err
 	}

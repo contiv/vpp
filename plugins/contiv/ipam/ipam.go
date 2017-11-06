@@ -249,8 +249,8 @@ func (i *IPAM) NextPodIP(podID string) (net.IP, error) {
 	// iterate over all possible IP addresses for pod network prefix
 	// and take first not assigned IP
 	prefixBits, totalBits := i.podNetworkIPPrefix.Mask.Size()
-	maxAssignableIPs := 1 << uint(totalBits-prefixBits)
-	for j := 0; j < maxAssignableIPs; j++ {
+	maxSeqID := 1 << uint(totalBits-prefixBits) //max IP addresses in network range
+	for j := 1; j < maxSeqID; j++ {             // zero ending IP is reserved for network => skip seqID=0
 		if j == gatewayPodSeqID {
 			continue // gateway IP address can't be assigned as pod
 		}

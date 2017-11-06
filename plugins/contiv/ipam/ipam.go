@@ -240,6 +240,10 @@ func (i *IPAM) NextPodIP(podID string) (net.IP, error) {
 	i.mutex.Lock()
 	defer i.mutex.Unlock()
 
+	if len(podID) == 0 { // zero byte length <=> zero character size
+		return nil, fmt.Errorf("Pod ID can't be empty because it is used to release the assigned IP address")
+	}
+
 	// get network prefix as uint32
 	networkPrefix, err := ipv4ToUint32(i.podNetworkIPPrefix.IP)
 	if err != nil {
@@ -272,6 +276,11 @@ func (i *IPAM) NextPodIP(podID string) (net.IP, error) {
 func (i *IPAM) ReleasePodIP(podID string) error {
 	i.mutex.Lock()
 	defer i.mutex.Unlock()
+
+	if len(podID) == 0 {
+		i.logger.Warn("Ignoring pod IP releasing for pod ID that is empty string (possible echoes from restart?)")
+		return nil
+	}
 
 	ip, err := i.findIP(podID)
 	if err != nil {

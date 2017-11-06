@@ -29,6 +29,8 @@ const (
 	b10100001 = 1<<7 + 1<<5 + 1
 	b10100101 = 1<<7 + 1<<5 + 1<<2 + 1
 	b11100101 = 1<<7 + 1<<6 + 1<<5 + 1<<2 + 1
+
+	incorrectHostIDForIPAllocation = ""
 )
 
 var (
@@ -98,7 +100,28 @@ func TestBasicAllocateReleasePodAddress(t *testing.T) {
 
 	err = i.ReleasePodIP(podID)
 	Expect(err).To(BeNil())
+}
 
+// TestBadInputForIPAllocation tests expected failure of IP allocation caused by bad input
+func TestBadInputForIPAllocation(t *testing.T) {
+	RegisterTestingT(t)
+
+	i, err := ipam.New(logroot.StandardLogger(), uint8(hostID1), &config)
+	Expect(err).To(BeNil())
+
+	_, err = i.NextPodIP(incorrectHostIDForIPAllocation)
+	Expect(err).NotTo(BeNil())
+}
+
+// TestIgnoringOfBadInputForIPRelease tests special case of ignored bad input for pod IP release that happens by kubernetes restart
+func TestIgnoringOfBadInputForIPRelease(t *testing.T) {
+	RegisterTestingT(t)
+
+	i, err := ipam.New(logroot.StandardLogger(), uint8(hostID1), &config)
+	Expect(err).To(BeNil())
+
+	err = i.ReleasePodIP(incorrectHostIDForIPAllocation)
+	Expect(err).To(BeNil())
 }
 
 func network(networkCIDR string) net.IPNet {

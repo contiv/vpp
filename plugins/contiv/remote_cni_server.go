@@ -76,9 +76,11 @@ const (
 )
 
 func newRemoteCNIServer(logger logging.Logger, vppTxnFactory func() linux.DataChangeDSL, proxy kvdbproxy.Proxy,
-	configuredContainers *containeridx.ConfigIndex, govppChan *api.Channel, index ifaceidx.SwIfIndex, agentLabel string, ipamConfig *ipam.Config, uid uint8) *remoteCNIserver {
-	ipam, _ := ipam.New(logger, uid, ipamConfig) //TODO check if host id is passed/remembered only to needed places (cleanup after hard merge session)
-	// TODO handle error
+	configuredContainers *containeridx.ConfigIndex, govppChan *api.Channel, index ifaceidx.SwIfIndex, agentLabel string, ipamConfig *ipam.Config, uid uint8) (*remoteCNIserver, error) {
+	ipam, err := ipam.New(logger, uid, ipamConfig)
+	if err != nil {
+		return nil, err
+	}
 	return &remoteCNIserver{
 		Logger:               logger,
 		vppTxnFactory:        vppTxnFactory,
@@ -90,7 +92,7 @@ func newRemoteCNIServer(logger logging.Logger, vppTxnFactory func() linux.DataCh
 		agentLabel:           agentLabel,
 		uid:                  uid,
 		ipam:                 ipam,
-	}
+	}, nil
 }
 
 func (s *remoteCNIserver) close() {

@@ -76,7 +76,7 @@ func TestVeth1NameFromRequest(t *testing.T) {
 
 	txns := localclient.NewTxnTracker(nil)
 
-	server := newRemoteCNIServer(logroot.StandardLogger(),
+	server, err := newRemoteCNIServer(logroot.StandardLogger(),
 		txns.NewDataChangeTxn,
 		&kvdbproxy.Plugin{},
 		nil,
@@ -85,6 +85,7 @@ func TestVeth1NameFromRequest(t *testing.T) {
 		"testlabel",
 		&ipamConfig,
 		0)
+	gomega.Expect(err).To(gomega.BeNil())
 
 	hostIfName := server.veth1HostIfNameFromRequest(&req)
 	gomega.Expect(hostIfName).To(gomega.BeEquivalentTo("eth0"))
@@ -97,7 +98,7 @@ func TestAdd(t *testing.T) {
 	txns := localclient.NewTxnTracker(addIfsIntoTheIndex(swIfIdx))
 	configuredContainers := containeridx.NewConfigIndex(logroot.StandardLogger(), core.PluginName("Plugin-name"), "title")
 
-	server := newRemoteCNIServer(logroot.StandardLogger(),
+	server, err := newRemoteCNIServer(logroot.StandardLogger(),
 		txns.NewDataChangeTxn,
 		kvdbproxy.NewKvdbsyncMock(),
 		configuredContainers,
@@ -106,6 +107,7 @@ func TestAdd(t *testing.T) {
 		"testLabel",
 		&ipamConfig,
 		0)
+	gomega.Expect(err).To(gomega.BeNil())
 	server.hostCalls = &mockLinuxCalls{}
 
 	reply, err := server.Add(context.Background(), &req)

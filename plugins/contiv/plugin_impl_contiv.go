@@ -110,7 +110,7 @@ func (plugin *Plugin) Init() error {
 		return err
 	}
 
-	plugin.cniServer = newRemoteCNIServer(plugin.Log,
+	plugin.cniServer, err = newRemoteCNIServer(plugin.Log,
 		func() linux.DataChangeDSL { return localclient.DataChangeRequest(plugin.PluginName) },
 		plugin.Proxy,
 		plugin.configuredContainers,
@@ -119,6 +119,9 @@ func (plugin *Plugin) Init() error {
 		plugin.ServiceLabel.GetAgentLabel(),
 		&plugin.Config.IPAMConfig,
 		uid)
+	if err != nil {
+		return fmt.Errorf("Can't create new remote CNI server due to error: %v ", err)
+	}
 	cni.RegisterRemoteCNIServer(plugin.GRPC.Server(), plugin.cniServer)
 
 	go plugin.cniServer.handleNodeEvents(plugin.ctx, plugin.nodeIDsresyncChan, plugin.nodeIDSchangeChan)

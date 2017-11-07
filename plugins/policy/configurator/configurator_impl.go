@@ -89,6 +89,7 @@ func (pc *PolicyConfigurator) Close() error {
 // completely replace the existing one, otherwise pods not mentioned in the
 // transaction are left unchanged.
 func (pc *PolicyConfigurator) NewTxn(resync bool) Txn {
+	pc.Log.Info("I'm in")
 	pc.Log.Info("PRINT LOG: ", pc.Log)
 	pc.Log.Info("PRINT configurator: ", pc)
 	pc.Log.Info("PRINT RENDERERS: ", pc.renderers)

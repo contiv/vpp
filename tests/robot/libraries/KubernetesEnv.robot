@@ -1,6 +1,7 @@
 *** Settings ***
 Documentation     This is a library to handle actions related to kubernetes cluster,
 ...    such as kubernetes setup or rester, applying network plugin etc.
+Library     Collections
 Resource    ${CURDIR}/KubeCtl.robot
 Resource    ${CURDIR}/KubeAdm.robot
 
@@ -30,6 +31,36 @@ Reinit_One_Node_Kube_Cluster
     Apply_Contive_Vpp_Plugin    ${testbed_connection}
     # Verify k8s and plugin are running
     BuiltIn.Wait_Until_Keyword_Succeeds    240s    10s    Verify_K8s_With_Plugin_Running    ${testbed_connection}
+
+Reinit_Multinode_Kube_Cluster
+    # check integrity of k8s cluster settings
+    :FOR    ${index}    IN RANGE    1    ${KUBE_CLUSTER_${CLUSTER_ID}_NODES}+1
+    \    BuiltIn.Run_Keyword_If    """${index}""" == """${1}""" and """${KUBE_CLUSTER_${CLUSTER_ID}_VM_${index}_ROLE}""" != """master"""   FAIL    Node ${index} should be kubernetes master.
+    \    BuiltIn.Run_Keyword_If    """${index}""" != """${1}""" and """${KUBE_CLUSTER_${CLUSTER_ID}_VM_${index}_ROLE}""" != """slave"""   FAIL    Node ${index} should be kubernetes slave.
+    # reset all nodes
+    :FOR    ${index}    IN RANGE    1    ${KUBE_CLUSTER_${CLUSTER_ID}_NODES}+1
+    \    ${connection} =    BuiltIn.Set_Variable    ${VM_SSH_ALIAS_PREFIX}${index}
+    \    Execute_Command_And_Log_All    ${VM_SSH_ALIAS_PREFIX}${index}    sudo rm -rf ~/.kube
+    \    KubeAdm.Reset    ${connection}
+    \    Docker_Pull_Contiv_Vpp    ${connection}
+    # init master
+    ${connection} =    BuiltIn.Set_Variable    ${VM_SSH_ALIAS_PREFIX}1
+    ${init_stdout} =    KubeAdm.Init    ${connection}
+    BuiltIn.Should_Contain    ${init_stdout}    Your Kubernetes master has initialized successfully
+    Execute_Command_And_Log_All    ${connection}    mkdir -p $HOME/.kube
+    Execute_Command_And_Log_All    ${connection}    sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+    Execute_Command_And_Log_All    ${connection}    sudo chown $(id -u):$(id -g) $HOME/.kube/config
+    KubeCtl.Taint    ${connection}    nodes --all node-role.kubernetes.io/master-
+    Apply_Contive_Vpp_Plugin    ${connection}
+    # Verify k8s and plugin are running
+    BuiltIn.Wait_Until_Keyword_Succeeds    240s    10s    Verify_K8s_With_Plugin_Running    ${connection}
+    # join other nodes
+    ${join_cmd} =    kube_parser.get_join_from_kubeadm_init    ${init_stdout}
+    :FOR    ${index}    IN RANGE    2    ${KUBE_CLUSTER_${CLUSTER_ID}_NODES}+1
+    \    ${connection} =    BuiltIn.Set_Variable    ${VM_SSH_ALIAS_PREFIX}${index}
+    \    Execute_Command_And_Log_All    ${connection}    sudo ${join_cmd}    ignore_stderr=${True}
+    Wait_Until_Cluster_Ready    ${VM_SSH_ALIAS_PREFIX}1    ${KUBE_CLUSTER_${CLUSTER_ID}_NODES}
+    
 
 Docker_Pull_Contiv_Vpp
     [Arguments]    ${ssh_session}
@@ -71,7 +102,7 @@ Verify_K8s_With_Plugin_Running
 Get_Pod_Name_List_By_Prefix
     [Arguments]    ${ssh_session}    ${pod_prefix}
     ${stdout} =    KubeCtl__Execute_Command_And_Log    ${ssh_session}    kubectl get pods --all-namespaces
-    ${output} =     kubectl_parser.parse_kubectl_get_pods_and_get_pod_name    ${stdout}    ${pod_prefix}
+    ${output} =     kube_parser.parse_kubectl_get_pods_and_get_pod_name    ${stdout}    ${pod_prefix}
     BuiltIn.Return_From_Keyword    ${output}
 
 Deploy_Client_And_Server_Pod_And_Verify_Running
@@ -214,3 +245,22 @@ Leave_Container_Prompt_In_Pod
     SSHLibrary.Write    exit
     ${stdout} =     SSHLibrary.Read_Until_Prompt
     Log     ${stdout}
+
+Verify_Cluster_Node_Ready
+    [Arguments]     ${ssh_session}    ${node_name}
+    ${nodes} =    KubeCtl.Get_Nodes    ${ssh_session}
+    ${status} =    BuiltIn.Evaluate    &{nodes}[${node_name}]['STATUS']
+    BuiltIn.Should_Be_Equal    ${status}    Ready
+    BuiltIn.Return_From_Keyword    ${nodes}
+
+Verify_Cluster_Ready
+    [Arguments]     ${ssh_session}    ${nr_nodes}
+    ${nodes} =    KubeCtl.Get_Nodes    ${ssh_session}
+    BuiltIn.Length_Should_Be    ${nodes}    ${nr_nodes}
+    ${names} =     Collections.Get_Dictionary_Keys     ${nodes}
+    : FOR    ${name}    IN    @{names}
+    \    Verify_Cluster_Node_Ready    ${ssh_session}    ${name}
+
+Wait_Until_Cluster_Ready
+    [Arguments]    ${ssh_session}    ${nr_nodes}    ${timeout}=180s    ${check_period}=5s
+    BuiltIn.Wait_Until_Keyword_Succeeds    ${timeout}    ${check_period}    Verify_Cluster_Ready    ${ssh_session}    ${nr_nodes}

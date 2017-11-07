@@ -4,7 +4,7 @@ Documentation     This is a library to handle kubectl commands on the remote mac
 Library    Collections
 Library    SSHLibrary
 Library    String
-Library    ${CURDIR}/kubectl_parser.py
+Library    ${CURDIR}/kube_parser.py
 
 *** Keywords ***
 KubeCtl__Execute_Command_And_Log
@@ -44,26 +44,32 @@ Delete_F_Url
 Get_Pod
     [Arguments]    ${ssh_session}    ${pod_name}    ${namespace}=default
     ${stdout} =    KubeCtl__Execute_Command_And_Log    ${ssh_session}    kubectl get pod -n ${namespace} ${pod_name}
-    ${output} =     kubectl_parser.parse_kubectl_get_pods    ${stdout}
+    ${output} =     kube_parser.parse_kubectl_get_pods    ${stdout}
     BuiltIn.Return_From_Keyword    ${output}
    
 Get_Pods
     [Arguments]    ${ssh_session}    ${namespace}=default 
     ${status}    ${message} =    BuiltIn.Run_Keyword_And_Ignore_Error    KubeCtl__Execute_Command_And_Log    ${ssh_session}    kubectl get pods -n ${namespace}
     BuiltIn.Run_Keyword_If    """${status}""" == """FAIL""" and """No resources found""" not in """${message}"""    FAIL    msg=${message}
-    ${output} =     kubectl_parser.parse_kubectl_get_pods    ${message}
+    ${output} =     kube_parser.parse_kubectl_get_pods    ${message}
     BuiltIn.Return_From_Keyword    ${output}
 
 Get_Pods_Wide
     [Arguments]    ${ssh_session}
     ${stdout} =    KubeCtl__Execute_Command_And_Log    ${ssh_session}    kubectl get pods -o wide
-    ${output} =     kubectl_parser.parse_kubectl_get_pods    ${stdout}
+    ${output} =     kube_parser.parse_kubectl_get_pods    ${stdout}
     BuiltIn.Return_From_Keyword    ${output}
 
 Get_Pods_All_Namespaces
     [Arguments]    ${ssh_session}
     ${stdout} =    KubeCtl__Execute_Command_And_Log    ${ssh_session}    kubectl get pods --all-namespaces
-    ${output} =     kubectl_parser.parse_kubectl_get_pods    ${stdout}
+    ${output} =     kube_parser.parse_kubectl_get_pods    ${stdout}
+    BuiltIn.Return_From_Keyword    ${output}
+
+Get_Nodes
+    [Arguments]    ${ssh_session}
+    ${stdout} =    KubeCtl__Execute_Command_And_Log    ${ssh_session}    kubectl get nodes
+    ${output} =     kube_parser.parse_kubectl_get_nodes    ${stdout}
     BuiltIn.Return_From_Keyword    ${output}
 
 Logs
@@ -73,7 +79,7 @@ Logs
 Describe_Pod
     [Arguments]    ${ssh_session}    ${pod_name}
     ${output} =    KubeCtl__Execute_Command_And_Log    ${ssh_session}    kubectl describe pod ${pod_name}
-    ${details} =    kubectl_parser.parse_kubectl_describe_pod    ${output}
+    ${details} =    kube_parser.parse_kubectl_describe_pod    ${output}
     BuiltIn.Return_From_Keyword    ${details}
 
 Taint

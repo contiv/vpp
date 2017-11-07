@@ -255,7 +255,10 @@ func (pp *PolicyProcessor) AddPolicy(policy *policymodel.Policy) error {
 	policyPods := pp.Cache.LookupPodsByNSLabelSelector(namespace, policyLabelSelectors)
 	pods = append(pods, policyPods...)
 
-	return pp.Process(false, pods)
+	if len(pods) > 0 {
+		return pp.Process(false, pods)
+	}
+	return nil
 }
 
 // DelPolicy processes the event of a removed policy.

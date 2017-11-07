@@ -165,7 +165,7 @@ func (p *Plugin) watchEvents(ctx context.Context) {
 		case resyncConfigEv := <-p.resyncChan:
 			//err := p.policyCache.Resync(resyncConfigEv)
 			//resyncConfigEv.Done(err)
-			p.Log.Info()
+			p.Log.Info(resyncConfigEv)
 		case dataChngEv := <-p.changeChan:
 			err := p.policyCache.Update(dataChngEv)
 			dataChngEv.Done(err)

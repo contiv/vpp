@@ -285,6 +285,7 @@ func (pct *PolicyConfiguratorTxn) generateRules(direction MatchType, policies Co
 				peerBlocks = append(peerBlocks, peerBlock)
 				for _, except := range block.Except {
 					peerBlock = &PeerIPBlock{PolicyID: policy.ID, Block: except, Except: true}
+					peerBlocks = append(peerBlocks, peerBlock)
 				}
 			}
 

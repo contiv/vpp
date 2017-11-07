@@ -193,8 +193,8 @@ func (pc *PolicyCache) LookupPoliciesByPod(pod podmodel.ID) (policies []policymo
 			if podID == pod {
 				parts := strings.Split(k, "/")
 				policyID := policymodel.ID{
-					Name:      parts[0],
-					Namespace: parts[1],
+					Name:      parts[1],
+					Namespace: parts[0],
 				}
 				policies = append(policies, policyID)
 			}

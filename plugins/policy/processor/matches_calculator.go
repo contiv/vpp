@@ -92,3 +92,38 @@ func (pp *PolicyProcessor) calculateMatches(policyData *policymodel.Policy) []co
 	}
 	return matches
 }
+
+func (pp *PolicyProcessor) calculateLabelSelectorMatches(
+	newPod *podmodel.Pod,
+	matchLabels []*policymodel.Policy_Label,
+	matchExpressions []*policymodel.Policy_LabelSelector_LabelExpression,
+	policyNamespace string) bool {
+
+	if len(matchLabels) > 0 && len(matchExpressions) > 0 {
+		evalMatchLabels := pp.isMatchLabel(newPod, matchLabels, policyNamespace)
+		evalMatchExpressions := pp.isMatchExpression(newPod, matchExpressions, policyNamespace)
+
+		isMatch := evalMatchLabels && evalMatchExpressions
+
+		if !isMatch {
+			return false
+		}
+		return true
+
+	} else if len(matchLabels) == 0 && len(matchExpressions) > 0 {
+		evalMatchExpressions := pp.isMatchExpression(newPod, matchExpressions, policyNamespace)
+
+		if !evalMatchExpressions {
+			return false
+		}
+		return true
+	} else if len(matchLabels) > 0 && len(matchExpressions) == 0 {
+		evalMatchLabels := pp.isMatchLabel(newPod, matchLabels, policyNamespace)
+
+		if !evalMatchLabels {
+			return false
+		}
+		return true
+	}
+	return true
+}

@@ -10,6 +10,8 @@ import (
 
 	"fmt"
 
+	"errors"
+
 	"github.com/contiv/vpp/plugins/policy/cache"
 	"github.com/contiv/vpp/plugins/policy/cache/utils"
 	config "github.com/contiv/vpp/plugins/policy/configurator"
@@ -61,10 +63,12 @@ func (pp *PolicyProcessor) Process(resync bool, pods []podmodel.ID) error {
 			var policyType config.PolicyType
 			found, policyData := pp.Cache.LookupPolicy(policyByPod)
 
-			// Check here if Policy has been found before.
+			// todo - Check here if Policy has been found before.
 			if !found {
 				continue
 			}
+
+			pp.Log.Infof("Panic reason: ", policyData.PolicyType)
 
 			switch policyData.PolicyType {
 			case policymodel.Policy_INGRESS:
@@ -92,10 +96,10 @@ func (pp *PolicyProcessor) Process(resync bool, pods []podmodel.ID) error {
 				Matches: matches,
 			}
 
+			pp.Log.Infof("Pod: %+v and w/ Policies sent to configurator: %+v ", pods, policies)
 			policies = append(policies, policy)
 
 		}
-		pp.Log.Infof("POD: %+v SPARTA POLICIES: %+V", pod, policies)
 		txn.Configure(pod, policies)
 
 	}
@@ -119,6 +123,14 @@ func (pp *PolicyProcessor) AddPod(pod *podmodel.Pod) error {
 	// TODO: consider postponing the re-configuration until more data are available (e.g. pod ip address)
 	// TODO: determine the list of pods with outdated policy configuration
 
+	if pod.IpAddress == "" {
+		return errors.New("Waiting for Pod to get an IPAddress")
+	}
+
+	if pod.Namespace == "kube-system" {
+		return errors.New("Pods Kube-system are being ignored in Policies")
+	}
+
 	return pp.Process(false, pods)
 }
 
@@ -137,15 +149,24 @@ func (pp *PolicyProcessor) DelPod(pod *podmodel.Pod) error {
 func (pp *PolicyProcessor) UpdatePod(oldPod, newPod *podmodel.Pod) error {
 	// TODO: determine the list of pods with outdated policy configuration
 	//       - also handle migration of pods across hosts
-
 	pods := []podmodel.ID{}
+
+	if newPod.IpAddress == "" {
+		return errors.New("Waiting for Pod to get an IPAddress")
+	}
+
+	if newPod.Namespace == "kube-system" {
+		return errors.New("Pods Kube-system are being ignored in Policies")
+	}
+
 	addedPolicies := make(map[string]bool)
 	policies := []*policymodel.Policy{}
 
 	// Check if new Pod has policy attached
 	newPodID := podmodel.GetID(newPod)
 	podPolicies := pp.Cache.LookupPoliciesByPod(newPodID)
-	if podPolicies != nil {
+
+	if len(podPolicies) > 0 {
 		pods = append(pods, newPodID)
 	}
 
@@ -166,11 +187,7 @@ func (pp *PolicyProcessor) UpdatePod(oldPod, newPod *podmodel.Pod) error {
 				matchLabels := ingressRule.Pods.MatchLabel
 				matchExpressions := ingressRule.Pods.MatchExpression
 
-				evalMatchLabels := pp.isMatchLabel(newPod, matchLabels, dataPolicy.Namespace)
-				evalMatchExpressions := pp.isMatchExpression(newPod, matchExpressions, dataPolicy.Namespace)
-
-				isMatch := evalMatchLabels && evalMatchExpressions
-
+				isMatch := pp.calculateLabelSelectorMatches(newPod, matchLabels, matchExpressions, dataPolicy.Namespace)
 				if !isMatch {
 					continue
 				}
@@ -187,11 +204,7 @@ func (pp *PolicyProcessor) UpdatePod(oldPod, newPod *podmodel.Pod) error {
 				matchLabels := egressRule.Pods.MatchLabel
 				matchExpressions := egressRule.Pods.MatchExpression
 
-				evalMatchLabels := pp.isMatchLabel(newPod, matchLabels, dataPolicy.Namespace)
-				evalMatchExpressions := pp.isMatchExpression(newPod, matchExpressions, dataPolicy.Namespace)
-
-				isMatch := evalMatchLabels && evalMatchExpressions
-
+				isMatch := pp.calculateLabelSelectorMatches(newPod, matchLabels, matchExpressions, dataPolicy.Namespace)
 				if !isMatch {
 					continue
 				}
@@ -204,16 +217,20 @@ func (pp *PolicyProcessor) UpdatePod(oldPod, newPod *podmodel.Pod) error {
 		}
 	}
 
-	for _, policy := range policies {
-		namespace := policy.Namespace
-		policyLabelSelectors := policy.Pods
+	if len(policies) > 0 {
+		for _, policy := range policies {
+			namespace := policy.Namespace
+			policyLabelSelectors := policy.Pods
 
-		policyPods := pp.Cache.LookupPodsByNSLabelSelector(namespace, policyLabelSelectors)
-		pods = append(pods, policyPods...)
+			policyPods := pp.Cache.LookupPodsByNSLabelSelector(namespace, policyLabelSelectors)
+			pods = append(pods, policyPods...)
+		}
 	}
 
 	strPods := removeDuplicates(utils.StringPodID(pods))
 	pods = utils.UnstringPodID(strPods)
+
+	pp.Log.Infof("Pods affected by Pod Add: ", pods)
 
 	return pp.Process(false, pods)
 }

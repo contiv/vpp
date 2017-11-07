@@ -6,13 +6,13 @@ import (
 )
 
 const (
-	In           = policymodel.Policy_LabelSelector_LabelExpression_IN
-	NotIn        = policymodel.Policy_LabelSelector_LabelExpression_NOT_IN
-	Exists       = policymodel.Policy_LabelSelector_LabelExpression_EXISTS
-	DoesNotExist = policymodel.Policy_LabelSelector_LabelExpression_DOES_NOT_EXIST
+	in           In           = policymodel.Policy_LabelSelector_LabelExpression_IN
+	notIn        NotIn        = policymodel.Policy_LabelSelector_LabelExpression_NOT_IN
+	exists       Exists       = policymodel.Policy_LabelSelector_LabelExpression_EXISTS
+	doesNotExist DoesNotExist = policymodel.Policy_LabelSelector_LabelExpression_DOES_NOT_EXIST
 )
 
-// getMatchExpressionPods returns all the pods that match a collection of expressions (expressions are ANDed)
+// isMatchExpression returns all the pods that match a collection of expressions (expressions are ANDed)
 func (pp *PolicyProcessor) isMatchExpression(pod *podmodel.Pod,
 	expressions []*policymodel.Policy_LabelSelector_LabelExpression, policyNamespace string) bool {
 
@@ -27,27 +27,27 @@ func (pp *PolicyProcessor) isMatchExpression(pod *podmodel.Pod,
 
 	for _, expression := range expressions {
 		switch expression.Operator {
-		case In:
+		case in:
 			labels := constructLabels(expression.Key, expression.Value)
 			isMatch := pp.isMatchLabel(pod, labels, policyNamespace)
 			if !isMatch {
 				return false
 			}
 
-		case NotIn:
+		case notIn:
 			labels := constructLabels(expression.Key, expression.Value)
 			isMatch := pp.isMatchLabel(pod, labels, policyNamespace)
 			if isMatch {
 				return false
 			}
 
-		case Exists:
+		case exists:
 			expressionKey := policyNamespace + "/" + expression.Key
 			if podKeyMap[expressionKey] == true {
 				return true
 			}
 
-		case DoesNotExist:
+		case doesNotExist:
 			expressionKey := policyNamespace + "/" + expression.Key
 			if podKeyMap[expressionKey] != true {
 				return false

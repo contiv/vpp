@@ -6,10 +6,10 @@ import (
 )
 
 const (
-	In           = policymodel.Policy_LabelSelector_LabelExpression_IN
-	NotIn        = policymodel.Policy_LabelSelector_LabelExpression_NOT_IN
-	Exists       = policymodel.Policy_LabelSelector_LabelExpression_EXISTS
-	DoesNotExist = policymodel.Policy_LabelSelector_LabelExpression_DOES_NOT_EXIST
+	in           In           = policymodel.Policy_LabelSelector_LabelExpression_IN
+	notIn        NotIn        = policymodel.Policy_LabelSelector_LabelExpression_NOT_IN
+	exists       Exists       = policymodel.Policy_LabelSelector_LabelExpression_EXISTS
+	doesNotExist DoesNotExist = policymodel.Policy_LabelSelector_LabelExpression_DOES_NOT_EXIST
 )
 
 // getMatchExpressionPods returns all the pods that match a collection of expressions (expressions are ANDed)
@@ -17,7 +17,7 @@ func (pc *PolicyCache) getMatchExpressionPods(namespace string, expressions []*p
 	var inPodSet, notInPodSet, existsPodSet, notExistPodSet []string
 	for _, expression := range expressions {
 		switch expression.Operator {
-		case In:
+		case in:
 			labels := constructLabels(expression.Key, expression.Value)
 			isMatch, podSet := pc.getPodsByNSLabelSelector(namespace, labels)
 			if !isMatch {
@@ -26,7 +26,7 @@ func (pc *PolicyCache) getMatchExpressionPods(namespace string, expressions []*p
 
 			inPodSet = append(inPodSet, podSet...)
 
-		case NotIn:
+		case notIn:
 			labels := constructLabels(expression.Key, expression.Value)
 			isMatch, podSet := pc.getPodsByNSLabelSelector(namespace, labels)
 			if !isMatch {
@@ -45,7 +45,7 @@ func (pc *PolicyCache) getMatchExpressionPods(namespace string, expressions []*p
 				return false, nil
 			}
 
-		case Exists:
+		case exists:
 			podSet := pc.configuredPods.LookupPodsByNSKey(namespace + "/" + expression.Key)
 			if podSet == nil {
 				return false, nil
@@ -53,7 +53,7 @@ func (pc *PolicyCache) getMatchExpressionPods(namespace string, expressions []*p
 
 			existsPodSet = append(existsPodSet, podSet...)
 
-		case DoesNotExist:
+		case doesNotExist:
 			podSet := pc.configuredPods.LookupPodsByNSKey(namespace + "/" + expression.Key)
 			if podSet == nil {
 				podNamespaceAll := pc.configuredPods.LookupPodsByNamespace(namespace)

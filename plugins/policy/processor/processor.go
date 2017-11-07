@@ -338,7 +338,7 @@ func removeDuplicates(el []string) []string {
 
 	// Place all keys from the map into a slice.
 	result := []string{}
-	for key, _ := range found {
+	for key := range found {
 		result = append(result, key)
 	}
 	return result

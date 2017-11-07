@@ -22,6 +22,7 @@ import (
 	policymodel "github.com/contiv/vpp/plugins/ksr/model/policy"
 )
 
+// RemoveDuplicates removes duplicates entries for a slice of strings
 func RemoveDuplicates(el []string) []string {
 	found := map[string]bool{}
 
@@ -32,7 +33,7 @@ func RemoveDuplicates(el []string) []string {
 
 	// Place all keys from the map into a slice.
 	result := []string{}
-	for key, _ := range found {
+	for key := range found {
 		result = append(result, key)
 	}
 	return result
@@ -55,7 +56,7 @@ func Intersect(a []string, b []string) []string {
 	return set
 }
 
-// difference returns the difference of two slices
+// Difference returns the difference of two slices
 func Difference(a []string, b []string) []string {
 	set := make([]string, 0)
 	hash := make(map[string]bool)
@@ -72,6 +73,7 @@ func Difference(a []string, b []string) []string {
 	return set
 }
 
+// UnstringPodID converts string podIDs to podmodelIDs
 func UnstringPodID(pods []string) []podmodel.ID {
 	podIDs := []podmodel.ID{}
 	for _, pod := range pods {
@@ -85,6 +87,7 @@ func UnstringPodID(pods []string) []podmodel.ID {
 	return podIDs
 }
 
+// StringPodID converts  podmodelIDs to string podIDs
 func StringPodID(pods []podmodel.ID) []string {
 	podIDs := []string{}
 	for _, pod := range pods {
@@ -94,6 +97,7 @@ func StringPodID(pods []podmodel.ID) []string {
 	return podIDs
 }
 
+// UnstringPolicyID converts string policyIDs to policymodelIDs
 func UnstringPolicyID(policies []string) []policymodel.ID {
 	policyIDs := []policymodel.ID{}
 	for _, policy := range policies {
@@ -107,6 +111,7 @@ func UnstringPolicyID(policies []string) []policymodel.ID {
 	return policyIDs
 }
 
+// StringPolicyID converts policymodelIDs to string policyIDs
 func StringPolicyID(policies []policymodel.ID) []string {
 	policyIDs := []string{}
 	for _, policy := range policies {
@@ -116,6 +121,7 @@ func StringPolicyID(policies []policymodel.ID) []string {
 	return policyIDs
 }
 
+// UnstringNamespaceID converts string namespaceIDs to namespacemodelIDs
 func UnstringNamespaceID(namespaces []string) []namespacemodel.ID {
 	namespaceIDs := []namespacemodel.ID{}
 	for _, namespace := range namespaces {

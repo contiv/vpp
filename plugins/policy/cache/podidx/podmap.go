@@ -84,7 +84,7 @@ func (ci *ConfigIndex) LookupPodsByNamespace(podNamespace string) (podIDs []stri
 	return ci.mapping.ListNames(podNamespace, podNamespace)
 }
 
-// LookupPodsByNSLabelKey performs lookup based on secondary index podNamespace/podLabelSelector.
+// LookupPodsByNSLabelSelector performs lookup based on secondary index podNamespace/podLabelSelector.
 func (ci *ConfigIndex) LookupPodsByNSLabelSelector(podNSLabelSelector string) (podIDs []string) {
 	return ci.mapping.ListNames(podNSLabelSelectorKey, podNSLabelSelector)
 }

@@ -100,7 +100,6 @@ func (pc *PolicyConfigurator) NewTxn(resync bool) Txn {
 		config:       make(map[podmodel.ID]ContivPolicies),
 		rendererTxns: make(map[podmodel.Pod_Label]*RendererTxn),
 	}
-	pc.Log.Info("PRINT RENDERERS: ", pc.renderers)
 	for label, r := range pc.renderers {
 		txn.rendererTxns[label] = &RendererTxn{renderer: r, txn: nil}
 	}

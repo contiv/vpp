@@ -11,6 +11,7 @@ import (
 	"fmt"
 
 	"github.com/contiv/vpp/plugins/policy/cache"
+	"github.com/contiv/vpp/plugins/policy/cache/utils"
 	config "github.com/contiv/vpp/plugins/policy/configurator"
 )
 
@@ -203,6 +204,17 @@ func (pp *PolicyProcessor) UpdatePod(oldPod, newPod *podmodel.Pod) error {
 		}
 	}
 
+	for _, policy := range policies {
+		namespace := policy.Namespace
+		policyLabelSelectors := policy.Pods
+
+		policyPods := pp.Cache.LookupPodsByNSLabelSelector(namespace, policyLabelSelectors)
+		pods = append(pods, policyPods...)
+	}
+
+	strPods := removeDuplicates(utils.StringPodID(pods))
+	pods = utils.UnstringPodID(strPods)
+
 	return pp.Process(false, pods)
 }
 
@@ -297,4 +309,20 @@ func (pp *PolicyProcessor) UpdateNamespace(oldNs, newNs *nsmodel.Namespace) erro
 // Close deallocates all resources held by the processor.
 func (pp *PolicyProcessor) Close() error {
 	return nil
+}
+
+func removeDuplicates(el []string) []string {
+	found := map[string]bool{}
+
+	// Create a map of all unique elements.
+	for v := range el {
+		found[el[v]] = true
+	}
+
+	// Place all keys from the map into a slice.
+	result := []string{}
+	for key, _ := range found {
+		result = append(result, key)
+	}
+	return result
 }

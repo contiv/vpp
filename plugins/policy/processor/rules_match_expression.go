@@ -3,7 +3,6 @@ package processor
 import (
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	policymodel "github.com/contiv/vpp/plugins/ksr/model/policy"
-	"github.com/contiv/vpp/plugins/policy/cache/utils"
 )
 
 const (
@@ -15,97 +14,47 @@ const (
 
 // getMatchExpressionPods returns all the pods that match a collection of expressions (expressions are ANDed)
 func (pp *PolicyProcessor) isMatchExpression(pod *podmodel.Pod,
-	expressions []*policymodel.Policy_LabelSelector_LabelExpression, namespace string) bool {
+	expressions []*policymodel.Policy_LabelSelector_LabelExpression, policyNamespace string) bool {
 
-	namespace := pod.Namespace
+	podNamespace := pod.Namespace
 	podLabels := pod.Label
-	labelExists := make(map[string]bool)
+	podKeyMap := make(map[string]bool)
 
 	for _, podLabel := range podLabels {
-		label := namespace + podLabel.Key + "/" + podLabel.Value
-		labelExists[label] = true
+		podKey := podNamespace + "/" + podLabel.Key
+		podKeyMap[podKey] = true
 	}
 
-	var inPodSet, notInPodSet, existsPodSet, notExistPodSet []string
 	for _, expression := range expressions {
 		switch expression.Operator {
 		case In:
 			labels := constructLabels(expression.Key, expression.Value)
-			isMatch, podSet := pc.getPodsByNSLabelSelector(namespace, labels)
+			isMatch := pp.isMatchLabel(pod, labels, policyNamespace)
 			if !isMatch {
-				return false, nil
+				return false
 			}
-
-			inPodSet = append(inPodSet, podSet...)
 
 		case NotIn:
 			labels := constructLabels(expression.Key, expression.Value)
-			isMatch, podSet := pc.getPodsByNSLabelSelector(namespace, labels)
-			if !isMatch {
-				podNamespaceAll := pc.configuredPods.LookupPodsByNamespace(namespace)
-				if podNamespaceAll == nil {
-					return false, nil
-				}
-				notInPodSet = append(notInPodSet, podNamespaceAll...)
-				break
-			}
-
-			podNamespaceAll := pc.configuredPods.LookupPodsByNamespace(namespace)
-			pods := utils.Difference(podNamespaceAll, podSet)
-			notInPodSet = append(notInPodSet, pods...)
-			if notInPodSet == nil {
-				return false, nil
+			isMatch := pp.isMatchLabel(pod, labels, policyNamespace)
+			if isMatch {
+				return false
 			}
 
 		case Exists:
-			podSet := pc.configuredPods.LookupPodsByNSKey(namespace + "/" + expression.Key)
-			if podSet == nil {
-				return false, nil
+			expressionKey := policyNamespace + "/" + expression.Key
+			if podKeyMap[expressionKey] == true {
+				return true
 			}
-
-			existsPodSet = append(existsPodSet, podSet...)
 
 		case DoesNotExist:
-			podSet := pc.configuredPods.LookupPodsByNSKey(namespace + "/" + expression.Key)
-			if podSet == nil {
-				podNamespaceAll := pc.configuredPods.LookupPodsByNamespace(namespace)
-				if podNamespaceAll == nil {
-					return false, nil
-				}
-
-				notExistPodSet = append(notExistPodSet, podNamespaceAll...)
-				break
+			expressionKey := policyNamespace + "/" + expression.Key
+			if podKeyMap[expressionKey] != true {
+				return false
 			}
-
-			podNamespaceAll := pc.configuredPods.LookupPodsByNamespace(namespace)
-			pods := utils.Difference(podNamespaceAll, podSet)
-			notExistPodSet = append(notExistPodSet, pods...)
-			if notExistPodSet == nil {
-				return false, nil
-			}
-
 		}
 	}
-	// Remove duplicates from slices
-	inPodSet = utils.RemoveDuplicates(inPodSet)
-	notInPodSet = utils.RemoveDuplicates(inPodSet)
-	existsPodSet = utils.RemoveDuplicates(inPodSet)
-	notExistPodSet = utils.RemoveDuplicates(inPodSet)
-
-	inMatcher := utils.Intersect(inPodSet, notInPodSet)
-	if inMatcher == nil {
-		return false, nil
-	}
-	existsMatcher := utils.Intersect(existsPodSet, notExistPodSet)
-	if existsMatcher == nil {
-		return false, nil
-	}
-
-	pods := utils.Intersect(inMatcher, existsMatcher)
-	if pods == nil {
-		return false, nil
-	}
-	return true, pods
+	return true
 }
 
 // constructLabels returns a key-value pair as a label given an expression

@@ -138,8 +138,7 @@ func (pp *PolicyProcessor) UpdatePod(oldPod, newPod *podmodel.Pod) error {
 	//       - also handle migration of pods across hosts
 
 	pods := []podmodel.ID{}
-	podNamespace := newPod.Namespace
-
+	addedPolicies := make(map[string]bool)
 	policies := []*policymodel.Policy{}
 
 	// Check if new Pod has policy attached
@@ -174,7 +173,11 @@ func (pp *PolicyProcessor) UpdatePod(oldPod, newPod *podmodel.Pod) error {
 				if !isMatch {
 					continue
 				}
-				policies = append(policies, dataPolicy)
+
+				if addedPolicies[policymodel.GetID(dataPolicy).String()] != true {
+					addedPolicies[policymodel.GetID(dataPolicy).String()] = true
+					policies = append(policies, dataPolicy)
+				}
 			}
 		}
 		for _, egressRules := range dataPolicy.EgressRule {
@@ -191,7 +194,11 @@ func (pp *PolicyProcessor) UpdatePod(oldPod, newPod *podmodel.Pod) error {
 				if !isMatch {
 					continue
 				}
-				policies = append(policies, dataPolicy)
+
+				if addedPolicies[policymodel.GetID(dataPolicy).String()] != true {
+					addedPolicies[policymodel.GetID(dataPolicy).String()] = true
+					policies = append(policies, dataPolicy)
+				}
 			}
 		}
 	}

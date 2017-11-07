@@ -23,6 +23,13 @@ Contiv-VPP CRI Shim installer / uninstaller, that can be used as follows:
 ./cri-install.sh --uninstall
 ```
 
+#### proxy-install.sh
+Pre-installs custom version of Kube-Proxy that works with the Contiv-VPP. Needs to be done
+on each node, before initializing the cluster with `kubeadm init` or joining the cluster with `kubeadm join`.
+```
+./proxy-install.sh
+```
+
 #### pull-images.sh
 This script can be used to pull the newest version of the `:latest` tag of all Docker images 
 that Contiv-VPP plugin uses. This may be needed in case that you have already used Contiv-VPP plugin

@@ -119,7 +119,7 @@ func (pp *PolicyProcessor) Resync(data *cache.DataResyncEvent) error {
 // policy re-processing is triggered for each of
 // them.
 func (pp *PolicyProcessor) AddPod(pod *podmodel.Pod) error {
-	pods := []podmodel.ID{}
+	//pods := []podmodel.ID{}
 	// TODO: consider postponing the re-configuration until more data are available (e.g. pod ip address)
 	// TODO: determine the list of pods with outdated policy configuration
 
@@ -131,16 +131,17 @@ func (pp *PolicyProcessor) AddPod(pod *podmodel.Pod) error {
 		return errors.New("Pods Kube-system are being ignored in Policies")
 	}
 
-	return pp.Process(false, pods)
+	return nil
 }
 
 // DelPod processes the event of a removed pod.
 // The list of pods with outdated policy configuration is determined and the
 // policy re-processing is triggered for each of them.
 func (pp *PolicyProcessor) DelPod(pod *podmodel.Pod) error {
-	pods := []podmodel.ID{}
+	//pods := []podmodel.ID{}
 	// TODO: determine the list of pods with outdated policy configuration
-	return pp.Process(false, pods)
+	//return pp.Process(false, pods)
+	return nil
 }
 
 // UpdatePod processes the event of changed pod data.
@@ -231,8 +232,10 @@ func (pp *PolicyProcessor) UpdatePod(oldPod, newPod *podmodel.Pod) error {
 	pods = utils.UnstringPodID(strPods)
 
 	pp.Log.Infof("Pods affected by Pod Add: ", pods)
-
-	return pp.Process(false, pods)
+	if len(pods) > 0 {
+		return pp.Process(false, pods)
+	}
+	return nil
 }
 
 // AddPolicy processes the event of newly added policy. The processor may postpone
@@ -271,7 +274,10 @@ func (pp *PolicyProcessor) DelPolicy(policy *policymodel.Policy) error {
 	policyPods := pp.Cache.LookupPodsByNSLabelSelector(namespace, policyLabelSelectors)
 	pods = append(pods, policyPods...)
 
-	return pp.Process(false, pods)
+	if len(pods) > 0 {
+		return pp.Process(false, pods)
+	}
+	return nil
 }
 
 // UpdatePolicy processes the event of changed policy data.
@@ -290,7 +296,10 @@ func (pp *PolicyProcessor) UpdatePolicy(oldPolicy, newPolicy *policymodel.Policy
 	policyPods := pp.Cache.LookupPodsByNSLabelSelector(namespace, policyLabelSelectors)
 	pods = append(pods, policyPods...)
 
-	return pp.Process(false, pods)
+	if len(pods) > 0 {
+		return pp.Process(false, pods)
+	}
+	return nil
 }
 
 // AddNamespace processes the event of newly added namespace. The processor may

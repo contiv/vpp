@@ -89,10 +89,13 @@ func New(logger logging.Logger, hostID uint8, config *Config) (*IPAM, error) {
 }
 
 // initializeHostNodeIPAM initializes host nodes related variables of IPAM
-func initializeHostNodeIPAM(ipam *IPAM, config *Config) error {
+func initializeHostNodeIPAM(ipam *IPAM, config *Config) (err error) {
 	_, pSubnet, err := net.ParseCIDR(config.HostNodeSubnetCidr)
+	if err != nil {
+		return
+	}
 	ipam.hostNodeNetworkIPPrefix = *pSubnet
-	return err
+	return
 }
 
 // initializeVSwitchIPAM initializes VSwitch related variables of IPAM

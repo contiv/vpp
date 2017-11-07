@@ -60,7 +60,6 @@ func newMockRaft() (*mockRaft, error) {
 	cfg := &Config{
 		HeartbeatInterval: 3 * time.Second,
 		SendTimeout:       2 * time.Second,
-		LargeSendTimeout:  20 * time.Second,
 		Raft:              mr,
 	}
 	tr := New(cfg)

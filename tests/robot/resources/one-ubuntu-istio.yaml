@@ -4,7 +4,7 @@ metadata:
   annotations:
     sidecar.istio.io/status: injected-version-root@881c9704f303-0.2.9-48ce32e6909d120a8ecee58b6b7a84094da36b7c
   creationTimestamp: null
-  name: ubuntu
+  name: ubuntu-client
 spec:
   replicas: 1
   strategy: {}
@@ -14,7 +14,7 @@ spec:
         sidecar.istio.io/status: injected-version-root@881c9704f303-0.2.9-48ce32e6909d120a8ecee58b6b7a84094da36b7c
       creationTimestamp: null
       labels:
-        app: ubuntu
+        app: ubuntu-client
     spec:
       containers:
       - args:
@@ -25,7 +25,7 @@ spec:
         - --
         image: rastislavszabo/ubuntu
         imagePullPolicy: IfNotPresent
-        name: ubuntu
+        name: ubuntu-client
         resources: {}
       - args:
         - proxy
@@ -37,7 +37,7 @@ spec:
         - --binaryPath
         - /usr/local/bin/envoy
         - --serviceCluster
-        - ubuntu
+        - ubuntu-client
         - --drainDuration
         - 45s
         - --parentShutdownDuration

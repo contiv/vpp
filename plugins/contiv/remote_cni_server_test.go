@@ -44,6 +44,8 @@ import (
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/ifaceidx"
 	vpp_intf "github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/model/interfaces"
 
+	"github.com/contiv/vpp/plugins/contiv/bin_api/session"
+	"github.com/contiv/vpp/plugins/contiv/bin_api/stn"
 	"github.com/onsi/gomega"
 )
 
@@ -103,7 +105,7 @@ func TestAdd(t *testing.T) {
 	gomega.Expect(reply).NotTo(gomega.BeNil())
 
 	gomega.Expect(len(txns.PendingTxns)).To(gomega.BeEquivalentTo(0))
-	gomega.Expect(len(txns.CommittedTxns)).To(gomega.BeEquivalentTo(2))
+	gomega.Expect(len(txns.CommittedTxns)).To(gomega.BeEquivalentTo(1))
 	// TODO add asserts for txns / currently applied config
 
 	res := configuredContainers.LookupPodName(podName)
@@ -127,6 +129,8 @@ func vppChanMock() *api.Channel {
 	vppMock.RegisterBinAPITypes(vpe.Types)
 	vppMock.RegisterBinAPITypes(vxlan.Types)
 	vppMock.RegisterBinAPITypes(ip.Types)
+	vppMock.RegisterBinAPITypes(stn.Types)
+	vppMock.RegisterBinAPITypes(session.Types)
 
 	vppMock.MockReplyHandler(func(request govppmock.MessageDTO) (reply []byte, msgID uint16, prepared bool) {
 		reqName, found := vppMock.GetMsgNameByID(request.MsgID)

@@ -31,7 +31,7 @@ type ConfigIndex struct {
 
 // NewConfigIndex creates new instance of ConfigIndex
 func NewConfigIndex(logger logging.Logger, owner core.PluginName, title string) *ConfigIndex {
-	return &ConfigIndex{mapping: mem.NewNamedMapping(logger, owner, title, nil)}
+	return &ConfigIndex{mapping: mem.NewNamedMapping(logger, owner, title, IndexFunction)}
 }
 
 // RegisterNamespace adds new Namespace entry into the mapping
@@ -61,7 +61,28 @@ func (ci *ConfigIndex) LookupNamespace(namespaceID string) (found bool, data *na
 	return false, nil
 }
 
+// LookupNamespacesByLabelSelector performs lookup based on secondary index podLabelSelector.
+func (ci *ConfigIndex) LookupNamespacesByLabelSelector(namespaceLabelSelector string) (podIDs []string) {
+	return ci.mapping.ListNames(namespaceLabelSelectorKey, namespaceLabelSelector)
+}
+
 // ListAll returns all registered namespaces in the mapping.
 func (ci *ConfigIndex) ListAll() (namespaceIDs []string) {
 	return ci.mapping.ListAllNames()
+}
+
+// IndexFunction creates secondary indexes. Currently podName and podNamespace fields are indexed.
+func IndexFunction(data interface{}) map[string][]string {
+	res := map[string][]string{}
+	labels := []string{}
+
+	if config, ok := data.(*namespacemodel.Namespace); ok && config != nil {
+		for _, v := range config.Label {
+			namespaceSelector := v.Key + "/" + v.Value
+			labels = append(labels, namespaceSelector)
+		}
+
+		res[namespaceLabelSelectorKey] = labels
+	}
+	return res
 }

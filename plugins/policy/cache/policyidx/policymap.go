@@ -26,6 +26,7 @@ const (
 	policyPodLabelKey     = "policyPodLabelKey"
 	policyIngressLabelKey = "policyIngressLabelKey"
 	policyEgressLabelKey  = "policyEgressLabelKey"
+	policyPodNSLabelKey   = "policyPodNSLabelKey"
 )
 
 // ConfigIndex implements a cache for configured policies. Primary index is policyID.
@@ -70,14 +71,9 @@ func (ci *ConfigIndex) LookupPolicyByLabelSelector(policyLabelSelector string) (
 	return ci.mapping.ListNames(policyPodLabelKey, policyLabelSelector)
 }
 
-// LookupIngressLabelSelector performs lookup based on secondary index ingressLabelSelector.
-func (ci *ConfigIndex) LookupIngressLabelSelector(ingressLabelSelector string) (policyIDs []string) {
-	return ci.mapping.ListNames(policyIngressLabelKey, ingressLabelSelector)
-}
-
-// LookupEgressLabelSelector performs lookup based on secondary index egressLabelSelector.
-func (ci *ConfigIndex) LookupEgressLabelSelector(egressLabelSelector string) (policyIDs []string) {
-	return ci.mapping.ListNames(policyEgressLabelKey, egressLabelSelector)
+// LookupPolicyByNSLabelSelector performs lookup based on secondary index namespace + policyLabelSelector.
+func (ci *ConfigIndex) LookupPolicyByNSLabelSelector(policyNSLabelSelector string) (policyIDs []string) {
+	return ci.mapping.ListNames(policyPodNSLabelKey, policyNSLabelSelector)
 }
 
 // ListAll returns all registered names in the mapping.
@@ -89,35 +85,19 @@ func (ci *ConfigIndex) ListAll() (policyIDs []string) {
 func IndexFunction(data interface{}) map[string][]string {
 	res := map[string][]string{}
 	policyPodLabels := []string{}
-	policyIngressLabels := []string{}
-	policyEgressLabels := []string{}
+	policyPodNSLabels := []string{}
 
 	if config, ok := data.(*policymodel.Policy); ok && config != nil {
-		for _, v := range config.Label {
-			labelSelector := v.Key + v.Value
+		for _, v := range config.Pods.MatchLabel {
+			labelSelector := v.Key + "/" + v.Value
+			nsLabelSelector := config.Namespace + "/" + labelSelector
 			policyPodLabels = append(policyPodLabels, labelSelector)
+			policyPodNSLabels = append(policyPodNSLabels, nsLabelSelector)
 		}
 		res[policyPodLabelKey] = policyPodLabels
-		for _, v1 := range config.IngressRule {
-			for _, v2 := range v1.From {
-				ingressLabels := v2.Pods.MatchLabel
-				for _, v3 := range ingressLabels {
-					labelSelector := v3.Key + v3.Value
-					policyIngressLabels = append(policyIngressLabels, labelSelector)
-				}
-			}
-		}
-		res[policyIngressLabelKey] = policyIngressLabels
-		for _, v1 := range config.EgressRule {
-			for _, v2 := range v1.To {
-				egressLabels := v2.Pods.MatchLabel
-				for _, v3 := range egressLabels {
-					labelSelector := v3.Key + v3.Value
-					policyEgressLabels = append(policyEgressLabels, labelSelector)
-				}
-			}
-		}
-		res[policyEgressLabelKey] = policyEgressLabels
+		res[policyPodNSLabelKey] = policyPodNSLabels
+
 	}
+
 	return res
 }

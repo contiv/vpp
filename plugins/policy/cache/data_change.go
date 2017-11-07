@@ -38,8 +38,6 @@ func (pc *PolicyCache) changePropagateEvent(dataChngEv datasync.ChangeEvent) err
 		_, _, err = policymodel.ParsePolicyFromKey(key)
 		if err == nil {
 			var value, prevValue policymodel.Policy
-			policyID := policymodel.GetID(&value).String()
-			oldPolicyID := policymodel.GetID(&prevValue).String()
 			if err = dataChngEv.GetValue(&value); err != nil {
 				return err
 			}
@@ -47,13 +45,16 @@ func (pc *PolicyCache) changePropagateEvent(dataChngEv datasync.ChangeEvent) err
 				return err
 			}
 			if datasync.Delete == dataChngEv.GetChangeType() {
+				oldPolicyID := policymodel.GetID(&prevValue).String()
 				pc.configuredPolicies.UnregisterPolicy(oldPolicyID)
 				for _, watcher := range pc.watchers {
-					if err := watcher.DelPolicy(&value); err != nil {
+					if err := watcher.DelPolicy(&prevValue); err != nil {
 						return err
 					}
 				}
 			} else if diff {
+				policyID := policymodel.GetID(&value).String()
+				oldPolicyID := policymodel.GetID(&prevValue).String()
 				pc.configuredPolicies.UnregisterPolicy(oldPolicyID)
 				pc.configuredPolicies.RegisterPolicy(policyID, &value)
 				for _, watcher := range pc.watchers {
@@ -62,6 +63,7 @@ func (pc *PolicyCache) changePropagateEvent(dataChngEv datasync.ChangeEvent) err
 					}
 				}
 			}
+			policyID := policymodel.GetID(&value).String()
 			pc.configuredPolicies.RegisterPolicy(policyID, &value)
 			for _, watcher := range pc.watchers {
 				if err := watcher.AddPolicy(&value); err != nil {
@@ -75,8 +77,7 @@ func (pc *PolicyCache) changePropagateEvent(dataChngEv datasync.ChangeEvent) err
 		_, _, err = podmodel.ParsePodFromKey(key)
 		if err == nil {
 			var value, prevValue podmodel.Pod
-			podID := podmodel.GetID(&value).String()
-			oldPodID := podmodel.GetID(&prevValue).String()
+
 			if err = dataChngEv.GetValue(&value); err != nil {
 				return err
 			}
@@ -84,13 +85,16 @@ func (pc *PolicyCache) changePropagateEvent(dataChngEv datasync.ChangeEvent) err
 				return err
 			}
 			if datasync.Delete == dataChngEv.GetChangeType() {
+				oldPodID := podmodel.GetID(&prevValue).String()
 				pc.configuredPods.UnregisterPod(oldPodID)
 				for _, watcher := range pc.watchers {
-					if err := watcher.DelPod(&value); err != nil {
+					if err := watcher.DelPod(&prevValue); err != nil {
 						return err
 					}
 				}
 			} else if diff {
+				podID := podmodel.GetID(&value).String()
+				oldPodID := podmodel.GetID(&prevValue).String()
 				pc.configuredPods.UnregisterPod(oldPodID)
 				pc.configuredPods.RegisterPod(podID, &value)
 				for _, watcher := range pc.watchers {
@@ -99,6 +103,7 @@ func (pc *PolicyCache) changePropagateEvent(dataChngEv datasync.ChangeEvent) err
 					}
 				}
 			}
+			podID := podmodel.GetID(&value).String()
 			pc.configuredPods.RegisterPod(podID, &value)
 			for _, watcher := range pc.watchers {
 				if err := watcher.AddPod(&value); err != nil {
@@ -110,8 +115,6 @@ func (pc *PolicyCache) changePropagateEvent(dataChngEv datasync.ChangeEvent) err
 
 		// Propagate Namespace CHANGE event
 		var value, prevValue namespacemodel.Namespace
-		namespaceID := namespacemodel.GetID(&value).String()
-		oldNamespaceID := namespacemodel.GetID(&prevValue).String()
 		if err = dataChngEv.GetValue(&value); err != nil {
 			return err
 		}
@@ -119,13 +122,16 @@ func (pc *PolicyCache) changePropagateEvent(dataChngEv datasync.ChangeEvent) err
 			return err
 		}
 		if datasync.Delete == dataChngEv.GetChangeType() {
+			oldNamespaceID := prevValue.Name
 			pc.configuredNamespaces.UnRegisterNamespace(oldNamespaceID)
 			for _, watcher := range pc.watchers {
-				if err := watcher.DelNamespace(&value); err != nil {
+				if err := watcher.DelNamespace(&prevValue); err != nil {
 					return err
 				}
 			}
 		} else if diff {
+			namespaceID := value.Name
+			oldNamespaceID := prevValue.Name
 			pc.configuredNamespaces.UnRegisterNamespace(oldNamespaceID)
 			pc.configuredNamespaces.RegisterNamespace(namespaceID, &value)
 			for _, watcher := range pc.watchers {
@@ -134,7 +140,8 @@ func (pc *PolicyCache) changePropagateEvent(dataChngEv datasync.ChangeEvent) err
 				}
 			}
 		}
-		pc.configuredNamespaces.RegisterNamespace(oldNamespaceID, &value)
+		namespaceID := value.Name
+		pc.configuredNamespaces.RegisterNamespace(namespaceID, &value)
 		for _, watcher := range pc.watchers {
 			if err := watcher.AddNamespace(&value); err != nil {
 				return err

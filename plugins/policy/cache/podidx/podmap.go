@@ -16,13 +16,20 @@ package podidx
 
 import (
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
+	"github.com/contiv/vpp/plugins/policy/cache/utils"
 	"github.com/ligato/cn-infra/core"
 	"github.com/ligato/cn-infra/idxmap"
 	"github.com/ligato/cn-infra/idxmap/mem"
 	"github.com/ligato/cn-infra/logging"
 )
 
-const podLabelSelectorKey = "podLabelSelectorKey"
+const (
+	podLabelSelectorKey   = "podLabelSelectorKey"
+	podKeySelectorKey     = "podKeySelectorKey"
+	podNSKeySelectorKey   = "podNamespaceKey"
+	podNSLabelSelectorKey = "podNamespaceLabelKey"
+	podNamespace          = "podNamespace"
+)
 
 // ConfigIndex implements a cache for configured policies. Primary index is PolicyName.
 type ConfigIndex struct {
@@ -36,6 +43,7 @@ func NewConfigIndex(logger logging.Logger, owner core.PluginName, title string) 
 
 // RegisterPod adds new pod entry into the mapping
 func (ci *ConfigIndex) RegisterPod(podID string, data *podmodel.Pod) {
+	// make the convertion here id -> string
 	ci.mapping.Put(podID, data)
 }
 
@@ -66,6 +74,26 @@ func (ci *ConfigIndex) LookupPodsByLabelSelector(podLabelSelector string) (podID
 	return ci.mapping.ListNames(podLabelSelectorKey, podLabelSelector)
 }
 
+// LookupPodsByLabelKey performs lookup based on secondary index podKeySelector.
+func (ci *ConfigIndex) LookupPodsByLabelKey(podKeySelector string) (podIDs []string) {
+	return ci.mapping.ListNames(podKeySelectorKey, podKeySelector)
+}
+
+// LookupPodsByNamespace performs lookup based on secondary index podNamespace.
+func (ci *ConfigIndex) LookupPodsByNamespace(podNamespace string) (podIDs []string) {
+	return ci.mapping.ListNames(podNamespace, podNamespace)
+}
+
+// LookupPodsByNSLabelSelector performs lookup based on secondary index podNamespace/podLabelSelector.
+func (ci *ConfigIndex) LookupPodsByNSLabelSelector(podNSLabelSelector string) (podIDs []string) {
+	return ci.mapping.ListNames(podNSLabelSelectorKey, podNSLabelSelector)
+}
+
+// LookupPodsByNSKey performs lookup based on secondary index podNamespace/podLabelKey.
+func (ci *ConfigIndex) LookupPodsByNSKey(podNSKeySelector string) (podIDs []string) {
+	return ci.mapping.ListNames(podNSKeySelectorKey, podNSKeySelector)
+}
+
 // ListAll returns all registered names in the mapping.
 func (ci *ConfigIndex) ListAll() (podIDs []string) {
 	return ci.mapping.ListAllNames()
@@ -75,12 +103,29 @@ func (ci *ConfigIndex) ListAll() (podIDs []string) {
 func IndexFunction(data interface{}) map[string][]string {
 	res := map[string][]string{}
 	labels := []string{}
+	keys := []string{}
+	nsLabels := []string{}
+	nsKeys := []string{}
 	if config, ok := data.(*podmodel.Pod); ok && config != nil {
 		for _, v := range config.Label {
-			labelSelector := v.Key + v.Value
+			labelSelector := v.Key + "/" + v.Value
+			nsLabelSelector := config.Namespace + "/" + labelSelector
+			nsKeySelector := config.Namespace + "/" + v.Key
+
 			labels = append(labels, labelSelector)
+			keys = append(keys, v.Key)
+			nsLabels = append(nsLabels, nsLabelSelector)
+			nsKeys = append(nsKeys, nsKeySelector)
 		}
+
+		keys = utils.RemoveDuplicates(keys)
+		nsKeys = utils.RemoveDuplicates(keys)
+
 		res[podLabelSelectorKey] = labels
+		res[podKeySelectorKey] = keys
+		res[podNamespace] = []string{config.Namespace}
+		res[podNSLabelSelectorKey] = nsLabels
+		res[podNSKeySelectorKey] = nsKeys
 	}
 	return res
 }

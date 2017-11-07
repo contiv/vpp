@@ -195,8 +195,16 @@ func (s *ContivshimManager) CreateContainer(ctx context.Context, req *kubeapi.Cr
 	// 2. Error handling if CreateContainer fails
 	// 3. Check if Close should be called
 
+	const (
+		ldpreloadLabel = "ldpreload"
+		proxyTCPLabel  = "proxytcp"
+		proxyUDPLabel  = "proxyudp"
+		scopeGlobal    = "scopeglobal"
+		scopeLocal     = "scopelocal"
+	)
+
 	labels := req.SandboxConfig.GetLabels()
-	if labels["ldpreload"] == "true" {
+	if labels[ldpreloadLabel] == "true" {
 		mount := []*kubeapi.Mount{
 			{
 				HostPath:      "/dev/shm",
@@ -218,7 +226,40 @@ func (s *ContivshimManager) CreateContainer(ctx context.Context, req *kubeapi.Cr
 				Key:   "LD_PRELOAD",
 				Value: "/ldp/libvcl_ldpreload.so.0.0.0",
 			},
+			{
+				Key:   "VCL_APP_NAMESPACE_ID",
+				Value: req.PodSandboxId,
+			},
+			{
+				Key:   "VCL_APP_NAMESPACE_SECRET",
+				Value: "42",
+			},
 		}
+		if labels[proxyTCPLabel] == "true" {
+			envs = append(envs, &kubeapi.KeyValue{
+				Key:   "VCL_APP_PROXY_TRANSPORT_TCP",
+				Value: "",
+			})
+		}
+		if labels[proxyUDPLabel] == "true" {
+			envs = append(envs, &kubeapi.KeyValue{
+				Key:   "VCL_APP_PROXY_TRANSPORT_UDP",
+				Value: "",
+			})
+		}
+		if labels[scopeGlobal] == "true" {
+			envs = append(envs, &kubeapi.KeyValue{
+				Key:   "VCL_SESSION_SCOPE_GLOBAL",
+				Value: "",
+			})
+		}
+		if labels[scopeLocal] == "true" {
+			envs = append(envs, &kubeapi.KeyValue{
+				Key:   "VCL_SESSION_SCOPE_LOCAL",
+				Value: "",
+			})
+		}
+
 		req.Config.Envs = append(req.Config.Envs, envs...)
 	}
 

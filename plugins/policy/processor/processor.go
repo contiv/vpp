@@ -95,7 +95,7 @@ func (pp *PolicyProcessor) Process(resync bool, pods []podmodel.ID) error {
 			policies = append(policies, policy)
 
 		}
-
+		pp.Log.Infof("POD: %+v SPARTA POLICIES: %+V", pod, policies)
 		txn.Configure(pod, policies)
 
 	}
@@ -263,7 +263,7 @@ func (pp *PolicyProcessor) DelPolicy(policy *policymodel.Policy) error {
 func (pp *PolicyProcessor) UpdatePolicy(oldPolicy, newPolicy *policymodel.Policy) error {
 	pods := []podmodel.ID{}
 
-	if policy == nil {
+	if newPolicy == nil {
 		return fmt.Errorf("Policy was not read correctly, retrying")
 	}
 

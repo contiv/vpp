@@ -123,7 +123,7 @@ func (pc *PolicyCache) LookupPodsByNSLabelSelector(policyNamespace string, podLa
 		if !foundMePods {
 			return nil
 		}
-		pods := intersect(mlPods, mePods)
+		pods := utils.Intersect(mlPods, mePods)
 		if pods == nil {
 			return nil
 		}

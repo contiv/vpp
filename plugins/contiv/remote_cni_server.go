@@ -166,53 +166,6 @@ func (s *remoteCNIserver) configureVswitchConnectivity() error {
 				s.Logger.Error(err)
 				return err
 			}
-
-			// add static routes to other hosts into the transaction
-			txn2 := s.vppTxnFactory().Put()
-			var i uint8
-			for i = 0; i < 255; i++ {
-				// creates routes to all possible hosts
-				// TODO: after proper IPAM implementation, only routes to existing hosts should be added
-				if i != s.ipam.HostID() {
-					r, err := s.routeToOtherHostPods(i)
-					if err != nil {
-						s.Logger.Error(err)
-						return err
-					}
-					txn2.StaticRoute(r)
-					_, dstNet, _ := net.ParseCIDR(r.DstIpAddr)
-					changes[l3.RouteKey(r.VrfId, dstNet, r.NextHopAddr)] = r
-				}
-			}
-			// execute the config transaction
-			err = txn2.Send().ReceiveReply()
-			if err != nil {
-				s.Logger.Error(err)
-				return err
-			}
-
-			// configure static routes to VPP-host interconnects on all possible hosts
-			txn3 := s.vppTxnFactory().Put()
-			for i = 0; i < 255; i++ {
-				// creates routes to all possible hosts
-				// TODO: after proper IPAM implementation, only routes to existing hosts should be added
-				if i != s.ipam.HostID() {
-					r, err := s.routeToOtherHostStack(i)
-					if err != nil {
-						s.Logger.Error(err)
-						return err
-					}
-					txn3.StaticRoute(r)
-					_, dstNet, _ := net.ParseCIDR(r.DstIpAddr)
-					changes[l3.RouteKey(r.VrfId, dstNet, r.NextHopAddr)] = r
-				}
-			}
-			// execute the config transaction
-			err = txn3.Send().ReceiveReply()
-			if err != nil {
-				s.Logger.Error(err)
-				return err
-			}
 		} else {
 			// configure loopback instead of physical NIC
 			s.Logger.Debug("Physical NIC not found, configuring loopback instead.")

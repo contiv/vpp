@@ -26,6 +26,12 @@ ${KUBE_CLUSTER_3_VM_1_USER}        localadmin
 ${KUBE_CLUSTER_3_VM_1_PSWD}        cisco123
 ${KUBE_CLUSTER_3_DOCKER_COMMAND}   docker
 
+${KUBE_CLUSTER_4_NODES}            1
+${KUBE_CLUSTER_4_VM_1_PUBLIC_IP}   10.52.232.175
+${KUBE_CLUSTER_4_VM_1_LOCAL_IP}    192.168.252.105
+${KUBE_CLUSTER_4_VM_1_USER}        localadmin
+${KUBE_CLUSTER_4_VM_1_PSWD}        cisco123
+${KUBE_CLUSTER_4_DOCKER_COMMAND}   docker
 
 # Other variables
 ${RESULTS_FOLDER}                  results

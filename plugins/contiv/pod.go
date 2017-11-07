@@ -194,7 +194,7 @@ func (s *remoteCNIserver) setupStn(podIP string, ifname string) error {
 	err := s.govppChan.SendRequest(req).ReceiveReply(&reply)
 
 	if reply.Retval != 0 {
-		fmt.Errorf("adding stn rule returned non-zero return code")
+		return fmt.Errorf("adding stn rule returned non-zero return code")
 	}
 
 	return err

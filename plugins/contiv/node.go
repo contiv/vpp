@@ -107,7 +107,7 @@ func (s *remoteCNIserver) enableTCPSession() error {
 	err := s.govppChan.SendRequest(req).ReceiveReply(&reply)
 
 	if reply.Retval != 0 {
-		fmt.Errorf("enabling session returned non-zero return code")
+		return fmt.Errorf("enabling session returned non-zero return code")
 	}
 
 	return err

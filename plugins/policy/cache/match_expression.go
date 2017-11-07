@@ -6,10 +6,10 @@ import (
 )
 
 const (
-	in           In           = policymodel.Policy_LabelSelector_LabelExpression_IN
-	notIn        NotIn        = policymodel.Policy_LabelSelector_LabelExpression_NOT_IN
-	exists       Exists       = policymodel.Policy_LabelSelector_LabelExpression_EXISTS
-	doesNotExist DoesNotExist = policymodel.Policy_LabelSelector_LabelExpression_DOES_NOT_EXIST
+	in           = policymodel.Policy_LabelSelector_LabelExpression_IN
+	notIn        = policymodel.Policy_LabelSelector_LabelExpression_NOT_IN
+	exists       = policymodel.Policy_LabelSelector_LabelExpression_EXISTS
+	doesNotExist = policymodel.Policy_LabelSelector_LabelExpression_DOES_NOT_EXIST
 )
 
 // getMatchExpressionPods returns all the pods that match a collection of expressions (expressions are ANDed)

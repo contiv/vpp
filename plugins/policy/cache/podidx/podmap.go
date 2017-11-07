@@ -16,6 +16,7 @@ package podidx
 
 import (
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
+	"github.com/contiv/vpp/plugins/policy/cache/utils"
 	"github.com/ligato/cn-infra/core"
 	"github.com/ligato/cn-infra/idxmap"
 	"github.com/ligato/cn-infra/idxmap/mem"
@@ -83,12 +84,12 @@ func (ci *ConfigIndex) LookupPodsByNamespace(podNamespace string) (podIDs []stri
 	return ci.mapping.ListNames(podNamespace, podNamespace)
 }
 
-// LookupPodsByNSLabelKey performs lookup based on secondary index podNamespace + podLabelSelector.
+// LookupPodsByNSLabelKey performs lookup based on secondary index podNamespace/podLabelSelector.
 func (ci *ConfigIndex) LookupPodsByNSLabelSelector(podNSLabelSelector string) (podIDs []string) {
 	return ci.mapping.ListNames(podNSLabelSelectorKey, podNSLabelSelector)
 }
 
-// LookupPodsByNSKey performs lookup based on secondary index podNamespace + podLabelKey.
+// LookupPodsByNSKey performs lookup based on secondary index podNamespace/podLabelKey.
 func (ci *ConfigIndex) LookupPodsByNSKey(podNSKeySelector string) (podIDs []string) {
 	return ci.mapping.ListNames(podNSKeySelectorKey, podNSKeySelector)
 }
@@ -117,8 +118,8 @@ func IndexFunction(data interface{}) map[string][]string {
 			nsKeys = append(nsKeys, nsKeySelector)
 		}
 
-		keys = removeDuplicates(keys)
-		nsKeys = removeDuplicates(keys)
+		keys = utils.RemoveDuplicates(keys)
+		nsKeys = utils.RemoveDuplicates(keys)
 
 		res[podLabelSelectorKey] = labels
 		res[podKeySelectorKey] = keys
@@ -127,20 +128,4 @@ func IndexFunction(data interface{}) map[string][]string {
 		res[podNSKeySelectorKey] = nsKeys
 	}
 	return res
-}
-
-func removeDuplicates(el []string) []string {
-	found := map[string]bool{}
-
-	// Create a map of all unique elements.
-	for v := range el {
-		found[el[v]] = true
-	}
-
-	// Place all keys from the map into a slice.
-	result := []string{}
-	for key, _ := range found {
-		result = append(result, key)
-	}
-	return result
 }

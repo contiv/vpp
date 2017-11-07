@@ -2,6 +2,7 @@ package cache
 
 import (
 	policymodel "github.com/contiv/vpp/plugins/ksr/model/policy"
+	"github.com/contiv/vpp/plugins/policy/cache/utils"
 )
 
 // GetPodsByNSLabelSelector returns the pods that match a collection of Label Selectors in the same namespace
@@ -19,7 +20,7 @@ func (pc *PolicyCache) getPodsByNSLabelSelector(namespace string, labels []*poli
 		newNSLabelSelector := namespace + "/" + labels[i].Key + "/" + labels[i].Value
 		newPodSet = pc.configuredPods.LookupPodsByNSLabelSelector(newNSLabelSelector)
 
-		tmp := intersect(prevPodSet, newPodSet)
+		tmp := utils.Intersect(prevPodSet, newPodSet)
 		if len(tmp) == 0 {
 			return false, nil
 		}
@@ -34,7 +35,7 @@ func (pc *PolicyCache) getPodsByNSLabelSelector(namespace string, labels []*poli
 // GetPodsByNSLabelSelector returns the pods that match a collection of Label Selectors in the same namespace
 func (pc *PolicyCache) getPodsByLabelSelector(namespace string, labels []*policymodel.Policy_Label) (bool, []string) {
 
-	prevNSLabelSelector := namespace + "/" + labels[0].Key + "/" + labels[0].Value
+	prevNSLabelSelector := labels[0].Key + "/" + labels[0].Value
 	prevPodSet := pc.configuredPods.LookupPodsByLabelSelector(prevNSLabelSelector)
 	newPodSet := []string{}
 
@@ -46,7 +47,7 @@ func (pc *PolicyCache) getPodsByLabelSelector(namespace string, labels []*policy
 		newLabelSelector := labels[i].Key + "/" + labels[i].Value
 		newPodSet = pc.configuredPods.LookupPodsByLabelSelector(newLabelSelector)
 
-		tmp := intersect(prevPodSet, newPodSet)
+		tmp := utils.Intersect(prevPodSet, newPodSet)
 		if len(tmp) == 0 {
 			return false, nil
 		}
@@ -56,21 +57,4 @@ func (pc *PolicyCache) getPodsByLabelSelector(namespace string, labels []*policy
 	}
 
 	return true, newPodSet
-}
-
-// Intersect returns the common elements of two slices
-func intersect(a []string, b []string) []string {
-	set := make([]string, 0)
-	hash := make(map[string]bool)
-
-	for _, el := range a {
-		hash[el] = true
-	}
-
-	for _, el := range b {
-		if _, found := hash[el]; found {
-			set = append(set, el)
-		}
-	}
-	return set
 }

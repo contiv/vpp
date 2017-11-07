@@ -51,7 +51,7 @@ func (pp *PolicyProcessor) Process(resync bool, pods []podmodel.ID) error {
 	for _, pod := range pods {
 		policies := []*config.ContivPolicy{}
 		policiesByPod := pp.Cache.LookupPoliciesByPod(pod)
-		pp.Log.Infof("This are the policies: %+v for pod: %+v", policiesByPod, pod)
+
 		if policiesByPod == nil {
 			continue
 		}
@@ -59,7 +59,8 @@ func (pp *PolicyProcessor) Process(resync bool, pods []podmodel.ID) error {
 		for _, policyByPod := range policiesByPod {
 			var policyType config.PolicyType
 			found, policyData := pp.Cache.LookupPolicy(policyByPod)
-			pp.Log.Infof("This policy info: %+v", policyData)
+
+			// Check here if Policy has been found before.
 			if !found {
 				continue
 			}
@@ -89,13 +90,15 @@ func (pp *PolicyProcessor) Process(resync bool, pods []podmodel.ID) error {
 				Type:    policyType,
 				Matches: matches,
 			}
+
 			policies = append(policies, policy)
+
 		}
-		pp.Log.Infof("Configurator Pod: %+v, Policies: %+v", pod, policies)
-		//TODO: get and pre-process policies currently assigned to the pod
-		//optimization: remember already evaluated policies between iterations
+
 		txn.Configure(pod, policies)
+
 	}
+
 	return txn.Commit()
 }
 
@@ -131,9 +134,68 @@ func (pp *PolicyProcessor) DelPod(pod *podmodel.Pod) error {
 // The list of pods with outdated policy configuration is determined and the
 // policy re-processing is triggered for each of them.
 func (pp *PolicyProcessor) UpdatePod(oldPod, newPod *podmodel.Pod) error {
-	pods := []podmodel.ID{}
 	// TODO: determine the list of pods with outdated policy configuration
 	//       - also handle migration of pods across hosts
+
+	pods := []podmodel.ID{}
+	podNamespace := newPod.Namespace
+
+	policies := []*policymodel.Policy{}
+
+	// Check if new Pod has policy attached
+	newPodID := podmodel.GetID(newPod)
+	podPolicies := pp.Cache.LookupPoliciesByPod(newPodID)
+	if podPolicies != nil {
+		pods = append(pods, newPodID)
+	}
+
+	allPolicies := pp.Cache.ListAllPolicies()
+	dataPolicies := []*policymodel.Policy{}
+	for _, stringPolicy := range allPolicies {
+		found, policyData := pp.Cache.LookupPolicy(stringPolicy)
+		if !found {
+			continue
+		}
+		dataPolicies = append(dataPolicies, policyData)
+	}
+
+	for _, dataPolicy := range dataPolicies {
+		for _, ingressRules := range dataPolicy.IngressRule {
+			for _, ingressRule := range ingressRules.From {
+
+				matchLabels := ingressRule.Pods.MatchLabel
+				matchExpressions := ingressRule.Pods.MatchExpression
+
+				evalMatchLabels := pp.isMatchLabel(newPod, matchLabels, dataPolicy.Namespace)
+				evalMatchExpressions := pp.isMatchExpression(newPod, matchExpressions, dataPolicy.Namespace)
+
+				isMatch := evalMatchLabels && evalMatchExpressions
+
+				if !isMatch {
+					continue
+				}
+				policies = append(policies, dataPolicy)
+			}
+		}
+		for _, egressRules := range dataPolicy.EgressRule {
+			for _, egressRule := range egressRules.To {
+
+				matchLabels := egressRule.Pods.MatchLabel
+				matchExpressions := egressRule.Pods.MatchExpression
+
+				evalMatchLabels := pp.isMatchLabel(newPod, matchLabels, dataPolicy.Namespace)
+				evalMatchExpressions := pp.isMatchExpression(newPod, matchExpressions, dataPolicy.Namespace)
+
+				isMatch := evalMatchLabels && evalMatchExpressions
+
+				if !isMatch {
+					continue
+				}
+				policies = append(policies, dataPolicy)
+			}
+		}
+	}
+
 	return pp.Process(false, pods)
 }
 
@@ -143,22 +205,16 @@ func (pp *PolicyProcessor) UpdatePod(oldPod, newPod *podmodel.Pod) error {
 // policy re-processing is triggered for each of them.
 func (pp *PolicyProcessor) AddPolicy(policy *policymodel.Policy) error {
 	pods := []podmodel.ID{}
-	//ingressPods := []podmodel.ID{}
-	//egressPods := []podmodel.ID{}
-	// TODO: consider postponing the re-configuration until more data are available
-	// TODO: determine the list of pods with outdated policy configuration
-
+	// Check if policy was read correctly.
 	if policy == nil {
 		return fmt.Errorf("Policy was not read correctly, retrying")
 	}
 
-	pp.Log.Infof("This is the policy to be added: %+v", policy)
 	namespace := policy.Namespace
 	policyLabelSelectors := policy.Pods
-	policyPods := pp.Cache.LookupPodsByNSLabelSelector(namespace, policyLabelSelectors)
 
+	policyPods := pp.Cache.LookupPodsByNSLabelSelector(namespace, policyLabelSelectors)
 	pods = append(pods, policyPods...)
-	fmt.Println("Pods policy applies to: %+v", pods)
 
 	return pp.Process(false, pods)
 }
@@ -168,7 +224,17 @@ func (pp *PolicyProcessor) AddPolicy(policy *policymodel.Policy) error {
 // policy re-processing is triggered for each of them.
 func (pp *PolicyProcessor) DelPolicy(policy *policymodel.Policy) error {
 	pods := []podmodel.ID{}
-	// TODO: determine the list of pods with outdated policy configuration
+
+	if policy == nil {
+		return fmt.Errorf("Policy was not read correctly, retrying")
+	}
+
+	namespace := policy.Namespace
+	policyLabelSelectors := policy.Pods
+
+	policyPods := pp.Cache.LookupPodsByNSLabelSelector(namespace, policyLabelSelectors)
+	pods = append(pods, policyPods...)
+
 	return pp.Process(false, pods)
 }
 
@@ -177,7 +243,17 @@ func (pp *PolicyProcessor) DelPolicy(policy *policymodel.Policy) error {
 // policy re-processing is triggered for each of them.
 func (pp *PolicyProcessor) UpdatePolicy(oldPolicy, newPolicy *policymodel.Policy) error {
 	pods := []podmodel.ID{}
-	// TODO: determine the list of pods with outdated policy configuration
+
+	if policy == nil {
+		return fmt.Errorf("Policy was not read correctly, retrying")
+	}
+
+	namespace := newPolicy.Namespace
+	policyLabelSelectors := newPolicy.Pods
+
+	policyPods := pp.Cache.LookupPodsByNSLabelSelector(namespace, policyLabelSelectors)
+	pods = append(pods, policyPods...)
+
 	return pp.Process(false, pods)
 }
 
@@ -214,89 +290,4 @@ func (pp *PolicyProcessor) UpdateNamespace(oldNs, newNs *nsmodel.Namespace) erro
 // Close deallocates all resources held by the processor.
 func (pp *PolicyProcessor) Close() error {
 	return nil
-}
-
-func (pp *PolicyProcessor) calculateMatches(policyData *policymodel.Policy) []config.Match {
-	matches := []config.Match{}
-
-	ingressRules := policyData.IngressRule
-	egressRules := policyData.EgressRule
-	namespace := policyData.Namespace
-
-	if len(ingressRules) != 0 {
-
-		matchType := config.MatchIngress
-
-		for _, ingressRule := range ingressRules {
-			ingressPods := []podmodel.ID{}
-			ingressPorts := []config.Port{}
-
-			ingressRuleFrom := ingressRule.From
-			for _, ingressLabelSelector := range ingressRuleFrom {
-				ingressLabel := ingressLabelSelector.Pods
-				ingressPod := pp.Cache.LookupPodsByNSLabelSelector(namespace, ingressLabel)
-				ingressPods = append(ingressPods, ingressPod...)
-			}
-
-			// for namespaces, for ipblocks
-
-			ingressRulePorts := ingressRule.Port
-			for _, ingressRulePort := range ingressRulePorts {
-				ingressPortProtocol := config.TCP
-				if ingressRulePort.Protocol == policymodel.Policy_Port_UDP {
-					ingressPortProtocol = config.UDP
-				}
-				ingressPortNumber := uint16(ingressRulePort.Port.Number)
-				ingressPorts = append(ingressPorts, config.Port{
-					Protocol: ingressPortProtocol,
-					Number:   ingressPortNumber,
-				})
-			}
-
-			matches = append(matches, config.Match{
-				Type:  matchType,
-				Pods:  ingressPods,
-				Ports: ingressPorts,
-			})
-		}
-	}
-
-	if len(egressRules) != 0 {
-
-		matchType := config.MatchIngress
-
-		for _, egressRule := range egressRules {
-			egressPods := []podmodel.ID{}
-			egressPorts := []config.Port{}
-
-			egressRuleTo := egressRule.To
-			for _, egressLabelSelector := range egressRuleTo {
-				egressLabel := egressLabelSelector.Pods
-				egressPod := pp.Cache.LookupPodsByNSLabelSelector(namespace, egressLabel)
-				egressPods = append(egressPods, egressPod...)
-			}
-
-			// for namespaces, for ipblocks
-
-			egressRulePorts := egressRule.Port
-			for _, egressRulePort := range egressRulePorts {
-				egressPortProtocol := config.TCP
-				if egressRulePort.Protocol == policymodel.Policy_Port_UDP {
-					egressPortProtocol = config.UDP
-				}
-				egressPortNumber := uint16(egressRulePort.Port.Number)
-				egressPorts = append(egressPorts, config.Port{
-					Protocol: egressPortProtocol,
-					Number:   egressPortNumber,
-				})
-			}
-
-			matches = append(matches, config.Match{
-				Type:  matchType,
-				Pods:  egressPods,
-				Ports: egressPorts,
-			})
-		}
-	}
-	return matches
 }

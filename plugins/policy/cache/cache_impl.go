@@ -13,7 +13,7 @@ import (
 	"github.com/contiv/vpp/plugins/policy/cache/namespaceidx"
 	"github.com/contiv/vpp/plugins/policy/cache/podidx"
 	"github.com/contiv/vpp/plugins/policy/cache/policyidx"
-	"github.com/contiv/vpp/plugins/policy/cache/ruleidx"
+	"github.com/contiv/vpp/plugins/policy/cache/utils"
 )
 
 // PolicyCache s used for a in-memory storage of K8s State data with fast
@@ -29,7 +29,6 @@ type PolicyCache struct {
 
 	configuredPolicies   *policyidx.ConfigIndex
 	configuredPods       *podidx.ConfigIndex
-	configuredRules      *ruleidx.ConfigIndex
 	configuredNamespaces *namespaceidx.ConfigIndex
 	watchers             []PolicyCacheWatcher
 }
@@ -44,7 +43,6 @@ type Deps struct {
 func (pc *PolicyCache) Init() error {
 	pc.configuredPolicies = policyidx.NewConfigIndex(pc.Log, pc.PluginName, "policies")
 	pc.configuredPods = podidx.NewConfigIndex(pc.Log, pc.PluginName, "pods")
-	pc.configuredRules = ruleidx.NewConfigIndex(pc.Log, pc.PluginName, "rules")
 	pc.configuredNamespaces = namespaceidx.NewConfigIndex(pc.Log, pc.PluginName, "namespaces")
 
 	pc.watchers = []PolicyCacheWatcher{}
@@ -84,34 +82,38 @@ func (pc *PolicyCache) Watch(watcher PolicyCacheWatcher) error {
 
 // LookupPod returns data of a given Pod.
 func (pc *PolicyCache) LookupPod(pod podmodel.ID) (found bool, data *podmodel.Pod) {
-	return false, nil
+	found, data = pc.configuredPods.LookupPod(pod.String())
+	if !found {
+		return !found, nil
+	}
+	return found, data
 }
 
 // LookupPodsByLabelSelector evaluates label selector (expression and/or match
 // labels) and returns IDs of matching pods in a namespace.
 func (pc *PolicyCache) LookupPodsByNSLabelSelector(policyNamespace string, podLabelSelector *policymodel.Policy_LabelSelector) (pods []podmodel.ID) {
-	// todo - Always set a label for phase1, filter kube-system later
 	// An empty podSelector matches all pods in this namespace.
 	if podLabelSelector == nil {
 		pods := pc.configuredPods.LookupPodsByNamespace(policyNamespace)
-		return UnstringPodID(pods)
+		return utils.UnstringPodID(pods)
 	}
+
+	// List of match labels and match expressions.
 	matchLabels := podLabelSelector.MatchLabel
 	matchExpressions := podLabelSelector.MatchExpression
-	//pc.Log.Infof("PolicyLabels: %+v, PolicyExpressions: %+v", matchLabels, matchExpressions)
 
 	if len(matchLabels) > 0 && len(matchExpressions) == 0 {
 		found, pods := pc.getPodsByNSLabelSelector(policyNamespace, matchLabels)
 		if !found {
 			return nil
 		}
-		return UnstringPodID(pods)
+		return utils.UnstringPodID(pods)
 	} else if len(matchLabels) == 0 && len(matchExpressions) > 0 {
 		found, pods := pc.getMatchExpressionPods(policyNamespace, matchExpressions)
 		if !found {
 			return nil
 		}
-		return UnstringPodID(pods)
+		return utils.UnstringPodID(pods)
 	} else if len(matchLabels) > 0 && len(matchExpressions) > 0 {
 		foundMlPods, mlPods := pc.getPodsByNSLabelSelector(policyNamespace, matchLabels)
 		if !foundMlPods {
@@ -125,7 +127,7 @@ func (pc *PolicyCache) LookupPodsByNSLabelSelector(policyNamespace string, podLa
 		if pods == nil {
 			return nil
 		}
-		return UnstringPodID(pods)
+		return utils.UnstringPodID(pods)
 	}
 
 	return nil
@@ -139,12 +141,17 @@ func (pc *PolicyCache) LookupPodsByLabelSelector(podLabelSelector *policymodel.P
 
 // LookupPodsByNamespace returns IDs of all pods inside a given namespace.
 func (pc *PolicyCache) LookupPodsByNamespace(namespace nsmodel.ID) (pods []podmodel.ID) {
-	return nil
+	podsByNamespace := pc.configuredPods.LookupPodsByNamespace(namespace.String())
+	pods = utils.UnstringPodID(podsByNamespace)
+	return pods
 }
 
 // ListAllPods returns IDs of all known pods.
 func (pc *PolicyCache) ListAllPods() (pods []podmodel.ID) {
-	return nil
+	allPods := pc.configuredPods.ListAll()
+	pods = utils.UnstringPodID(allPods)
+
+	return pods
 }
 
 // LookupPolicy returns data of a given Policy.
@@ -160,20 +167,17 @@ func (pc *PolicyCache) LookupPolicy(policy policymodel.ID) (found bool, data *po
 func (pc *PolicyCache) LookupPoliciesByPod(pod podmodel.ID) (policies []policymodel.ID) {
 	policies = []policymodel.ID{}
 	policyMap := make(map[string]*policymodel.Policy)
-	pc.Log.Infof("This is the podLookup!!! : %+v", pod.String())
+
 	found, podData := pc.configuredPods.LookupPod(pod.String())
 	if !found {
 		return nil
 	}
-	pc.Log.Infof("Found POD!!! : %+v", podData)
 
 	podLabels := podData.Label
 
 	for _, podLabel := range podLabels {
 		nsLabel := podData.Namespace + "/" + podLabel.Key + "/" + podLabel.Value
 		policyIDs := pc.configuredPolicies.LookupPolicyByNSLabelSelector(nsLabel)
-
-		pc.Log.Infof("Found POLICY!!! : %+v", policyIDs)
 
 		for _, policyID := range policyIDs {
 			found, policyData := pc.configuredPolicies.LookupPolicy(policyID)
@@ -202,12 +206,19 @@ func (pc *PolicyCache) LookupPoliciesByPod(pod podmodel.ID) (policies []policymo
 
 // ListAllPolicies returns IDs of all policies.
 func (pc *PolicyCache) ListAllPolicies() (policies []policymodel.ID) {
-	return nil
+	allPolicies := pc.configuredPolicies.ListAll()
+	policies = utils.UnstringPolicyID(allPolicies)
+
+	return policies
 }
 
 // LookupNamespace returns data of a given namespace.
 func (pc *PolicyCache) LookupNamespace(namespace nsmodel.ID) (found bool, data *nsmodel.Namespace) {
-	return false, nil
+	found, data = pc.configuredNamespaces.LookupNamespace(namespace.String())
+	if !found {
+		return !found, nil
+	}
+	return found, data
 }
 
 // LookupNamespacesByLabelSelector evaluates label selector (expression
@@ -218,31 +229,8 @@ func (pc *PolicyCache) LookupNamespacesByLabelSelector(nsLabelSelector *policymo
 
 // ListAllNamespaces returns IDs of all known namespaces.
 func (pc *PolicyCache) ListAllNamespaces() (namespaces []nsmodel.ID) {
-	return nil
-}
+	allNamespaces := pc.configuredNamespaces.ListAll()
+	namespaces = utils.UnstringNamespaceID(allNamespaces)
 
-func UnstringPodID(pods []string) []podmodel.ID {
-	podIDs := []podmodel.ID{}
-	for _, pod := range pods {
-		parts := strings.Split(pod, "/")
-		podID := podmodel.ID{
-			Name:      parts[1],
-			Namespace: parts[0],
-		}
-		podIDs = append(podIDs, podID)
-	}
-	return podIDs
-}
-
-func UnstringPolicyID(policies []string) []policymodel.ID {
-	policyIDs := []policymodel.ID{}
-	for _, policy := range policies {
-		parts := strings.Split(policy, "/")
-		policyID := policymodel.ID{
-			Name:      parts[1],
-			Namespace: parts[0],
-		}
-		policyIDs = append(policyIDs, policyID)
-	}
-	return policyIDs
+	return namespaces
 }

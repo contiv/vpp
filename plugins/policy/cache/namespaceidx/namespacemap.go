@@ -80,7 +80,6 @@ func IndexFunction(data interface{}) map[string][]string {
 		for _, v := range config.Label {
 			namespaceSelector := v.Key + "/" + v.Value
 			labels = append(labels, namespaceSelector)
-
 		}
 
 		res[namespaceLabelSelectorKey] = labels

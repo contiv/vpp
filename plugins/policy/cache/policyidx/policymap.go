@@ -76,16 +76,6 @@ func (ci *ConfigIndex) LookupPolicyByNSLabelSelector(policyNSLabelSelector strin
 	return ci.mapping.ListNames(policyPodNSLabelKey, policyNSLabelSelector)
 }
 
-// LookupIngressLabelSelector performs lookup based on secondary index ingressLabelSelector.
-func (ci *ConfigIndex) LookupPolicyByIngressLabelSelector(ingressLabelSelector string) (policyIDs []string) {
-	return ci.mapping.ListNames(policyIngressLabelKey, ingressLabelSelector)
-}
-
-// LookupEgressLabelSelector performs lookup based on secondary index egressLabelSelector.
-func (ci *ConfigIndex) LookupPolicyByEgressLabelSelector(egressLabelSelector string) (policyIDs []string) {
-	return ci.mapping.ListNames(policyEgressLabelKey, egressLabelSelector)
-}
-
 // ListAll returns all registered names in the mapping.
 func (ci *ConfigIndex) ListAll() (policyIDs []string) {
 	return ci.mapping.ListAllNames()
@@ -95,8 +85,6 @@ func (ci *ConfigIndex) ListAll() (policyIDs []string) {
 func IndexFunction(data interface{}) map[string][]string {
 	res := map[string][]string{}
 	policyPodLabels := []string{}
-	policyIngressLabels := []string{}
-	policyEgressLabels := []string{}
 	policyPodNSLabels := []string{}
 
 	if config, ok := data.(*policymodel.Policy); ok && config != nil {
@@ -109,27 +97,6 @@ func IndexFunction(data interface{}) map[string][]string {
 		res[policyPodLabelKey] = policyPodLabels
 		res[policyPodNSLabelKey] = policyPodNSLabels
 
-		for _, v1 := range config.IngressRule {
-			for _, v2 := range v1.From {
-				ingressLabels := v2.Pods.MatchLabel
-				for _, v3 := range ingressLabels {
-					labelSelector := v3.Key + "/" + v3.Value
-					policyIngressLabels = append(policyIngressLabels, labelSelector)
-				}
-			}
-		}
-		res[policyIngressLabelKey] = policyIngressLabels
-
-		for _, v1 := range config.EgressRule {
-			for _, v2 := range v1.To {
-				egressLabels := v2.Pods.MatchLabel
-				for _, v3 := range egressLabels {
-					labelSelector := v3.Key + "/" + v3.Value
-					policyEgressLabels = append(policyEgressLabels, labelSelector)
-				}
-			}
-		}
-		res[policyEgressLabelKey] = policyEgressLabels
 	}
 
 	return res

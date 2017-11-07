@@ -1,6 +1,7 @@
-package cache
+package processor
 
 import (
+	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	policymodel "github.com/contiv/vpp/plugins/ksr/model/policy"
 	"github.com/contiv/vpp/plugins/policy/cache/utils"
 )
@@ -13,7 +14,18 @@ const (
 )
 
 // getMatchExpressionPods returns all the pods that match a collection of expressions (expressions are ANDed)
-func (pc *PolicyCache) getMatchExpressionPods(namespace string, expressions []*policymodel.Policy_LabelSelector_LabelExpression) (bool, []string) {
+func (pp *PolicyProcessor) isMatchExpression(pod *podmodel.Pod,
+	expressions []*policymodel.Policy_LabelSelector_LabelExpression, namespace string) bool {
+
+	namespace := pod.Namespace
+	podLabels := pod.Label
+	labelExists := make(map[string]bool)
+
+	for _, podLabel := range podLabels {
+		label := namespace + podLabel.Key + "/" + podLabel.Value
+		labelExists[label] = true
+	}
+
 	var inPodSet, notInPodSet, existsPodSet, notExistPodSet []string
 	for _, expression := range expressions {
 		switch expression.Operator {

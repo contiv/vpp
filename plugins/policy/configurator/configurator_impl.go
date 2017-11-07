@@ -1,7 +1,6 @@
 package configurator
 
 import (
-	"bytes"
 	"fmt"
 	"net"
 	"sort"
@@ -10,7 +9,6 @@ import (
 
 	"github.com/contiv/vpp/plugins/contiv"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
-	policymodel "github.com/contiv/vpp/plugins/ksr/model/policy"
 	"github.com/contiv/vpp/plugins/policy/cache"
 	"github.com/contiv/vpp/plugins/policy/renderer"
 )
@@ -220,23 +218,10 @@ type PeerPod struct {
 	IPNet *net.IPNet
 }
 
-// PeerIPBlock represents the IP block in the policy rule.
-type PeerIPBlock struct {
-	PolicyID policymodel.ID
-	Block    net.IPNet
-	Except   bool
-	Ports    []Port
-}
-
-// PeerIPBlocks is a list of PeerIPBlock that can be ordered by the size
-// of the subnet.
-type PeerIPBlocks []*PeerIPBlock
-
 // Generate a list of ingress or egress rules implementing a given list of policies.
 func (pct *PolicyConfiguratorTxn) generateRules(direction MatchType, policies ContivPolicies) []*renderer.ContivRule {
 	rules := []*renderer.ContivRule{}
 	hasPolicy := false
-	peerBlocks := PeerIPBlocks{}
 
 	for _, policy := range policies {
 		if (policy.Type == PolicyIngress && direction == MatchEgress) ||
@@ -279,19 +264,23 @@ func (pct *PolicyConfiguratorTxn) generateRules(direction MatchType, policies Co
 				peers = append(peers, PeerPod{ID: peer, IPNet: peerIPNet})
 			}
 
-			// Collect IP Blocks.
+			// Collect all subnets from IPBlocks.
+			allSubnets := []*net.IPNet{}
 			for _, block := range match.IPBlocks {
-				peerBlock := &PeerIPBlock{PolicyID: policy.ID, Block: block.Network, Except: false, Ports: match.Ports}
-				peerBlocks = append(peerBlocks, peerBlock)
+				subnets := []*net.IPNet{&block.Network}
 				for _, except := range block.Except {
-					peerBlock = &PeerIPBlock{PolicyID: policy.ID, Block: except, Except: true}
-					peerBlocks = append(peerBlocks, peerBlock)
+					subtracted := []*net.IPNet{}
+					for _, subnet := range subnets {
+						subtracted = append(subtracted, subtractSubnet(subnet, &except)...)
+					}
+					subnets = subtracted
 				}
+				allSubnets = append(allSubnets, subnets...)
 			}
 
 			// Handle empty set of pods and IP blocks.
 			// = match anything on L3
-			if len(peers) == 0 && len(match.IPBlocks) == 0 {
+			if len(peers) == 0 && len(allSubnets) == 0 {
 				if len(match.Ports) == 0 {
 					// = match anything on L3 & L4
 					ruleTCPAny := &renderer.ContivRule{
@@ -335,10 +324,10 @@ func (pct *PolicyConfiguratorTxn) generateRules(direction MatchType, policies Co
 			}
 
 			// Combine pod peers with ports.
-			if len(match.Ports) == 0 {
-				// = match by L3
-				for _, peer := range peers {
-					// match all ports
+			for _, peer := range peers {
+				if len(match.Ports) == 0 {
+					// Match all ports.
+					// = match by L3
 					ruleTCPAny := &renderer.ContivRule{
 						ID:          policy.ID.String() + "-" + peer.ID.String() + "-TCP:ANY",
 						Action:      renderer.ActionPermit,
@@ -365,11 +354,9 @@ func (pct *PolicyConfiguratorTxn) generateRules(direction MatchType, policies Co
 						ruleUDPAny.DestNetwork = peer.IPNet
 					}
 					rules = pct.appendRules(rules, ruleTCPAny, ruleUDPAny)
-				}
-			} else {
-				// Combine each port with each peer.
-				// = match by L3 & L4
-				for _, peer := range peers {
+				} else {
+					// Combine each port with the peer.
+					// = match by L3 & L4
 					for _, port := range match.Ports {
 						rule := &renderer.ContivRule{
 							ID:          policy.ID.String() + "-" + peer.ID.String() + "-" + port.String(),
@@ -393,93 +380,62 @@ func (pct *PolicyConfiguratorTxn) generateRules(direction MatchType, policies Co
 					}
 				}
 			}
-		}
-	}
 
-	// Apply IPBlocks in the order starting from the smallest subnets.
-	sort.Sort(peerBlocks)
-	for _, peerBlock := range peerBlocks {
-		if peerBlock.Except {
-			// Handle IP block exception.
-			ruleExceptTCP := &renderer.ContivRule{
-				ID:          peerBlock.PolicyID.String() + "-EXCEPT:" + peerBlock.Block.String() + "-TCP:ANY",
-				Action:      renderer.ActionDeny,
-				SrcNetwork:  &net.IPNet{},
-				DestNetwork: &net.IPNet{},
-				Protocol:    renderer.TCP,
-				SrcPort:     0,
-				DestPort:    0,
-			}
-			ruleExceptUDP := &renderer.ContivRule{
-				ID:          peerBlock.PolicyID.String() + "-EXCEPT:" + peerBlock.Block.String() + "-UDP:ANY",
-				Action:      renderer.ActionDeny,
-				SrcNetwork:  &net.IPNet{},
-				DestNetwork: &net.IPNet{},
-				Protocol:    renderer.UDP,
-				SrcPort:     0,
-				DestPort:    0,
-			}
-			if direction == MatchIngress {
-				ruleExceptTCP.SrcNetwork = &peerBlock.Block
-				ruleExceptUDP.SrcNetwork = &peerBlock.Block
-			} else {
-				ruleExceptTCP.DestNetwork = &peerBlock.Block
-				ruleExceptUDP.DestNetwork = &peerBlock.Block
-			}
-			rules = pct.appendRules(rules, ruleExceptTCP, ruleExceptUDP)
-		} else {
-			if len(peerBlock.Ports) == 0 {
-				// Handle IPBlock with no ports.
-				// = match by L3
-				ruleTCPAny := &renderer.ContivRule{
-					ID:          peerBlock.PolicyID.String() + "-" + peerBlock.Block.String() + "-TCP:ANY",
-					Action:      renderer.ActionPermit,
-					Protocol:    renderer.TCP,
-					SrcNetwork:  &net.IPNet{},
-					DestNetwork: &net.IPNet{},
-					SrcPort:     0,
-					DestPort:    0,
-				}
-				ruleUDPAny := &renderer.ContivRule{
-					ID:          peerBlock.PolicyID.String() + "-" + peerBlock.Block.String() + "-UDP:ANY",
-					Action:      renderer.ActionPermit,
-					Protocol:    renderer.UDP,
-					SrcNetwork:  &net.IPNet{},
-					DestNetwork: &net.IPNet{},
-					SrcPort:     0,
-					DestPort:    0,
-				}
-				if direction == MatchIngress {
-					ruleTCPAny.SrcNetwork = &peerBlock.Block
-					ruleUDPAny.SrcNetwork = &peerBlock.Block
-				} else {
-					ruleTCPAny.DestNetwork = &peerBlock.Block
-					ruleUDPAny.DestNetwork = &peerBlock.Block
-				}
-				rules = pct.appendRules(rules, ruleTCPAny, ruleUDPAny)
-			} else {
-				// Combine each port with the block.
-				// = match by L3 & L4
-				for _, port := range peerBlock.Ports {
-					rule := &renderer.ContivRule{
-						ID:          peerBlock.PolicyID.String() + "-" + peerBlock.Block.String() + "-" + port.String(),
+			// Combine IPBlocks with ports.
+			for _, subnet := range allSubnets {
+				if len(match.Ports) == 0 {
+					// Handle IPBlock with no ports.
+					// = match by L3
+					ruleTCPAny := &renderer.ContivRule{
+						ID:          policy.ID.String() + "-" + subnet.String() + "-TCP:ANY",
 						Action:      renderer.ActionPermit,
+						Protocol:    renderer.TCP,
 						SrcNetwork:  &net.IPNet{},
 						DestNetwork: &net.IPNet{},
 						SrcPort:     0,
-						DestPort:    port.Number,
+						DestPort:    0,
+					}
+					ruleUDPAny := &renderer.ContivRule{
+						ID:          policy.ID.String() + "-" + subnet.String() + "-UDP:ANY",
+						Action:      renderer.ActionPermit,
+						Protocol:    renderer.UDP,
+						SrcNetwork:  &net.IPNet{},
+						DestNetwork: &net.IPNet{},
+						SrcPort:     0,
+						DestPort:    0,
 					}
 					if direction == MatchIngress {
-						rule.SrcNetwork = &peerBlock.Block
+						ruleTCPAny.SrcNetwork = subnet
+						ruleUDPAny.SrcNetwork = subnet
 					} else {
-						rule.DestNetwork = &peerBlock.Block
+						ruleTCPAny.DestNetwork = subnet
+						ruleUDPAny.DestNetwork = subnet
 					}
-					if port.Protocol == TCP {
-						rule.Protocol = renderer.TCP
-					} else {
-						rule.Protocol = renderer.UDP
+					rules = pct.appendRules(rules, ruleTCPAny, ruleUDPAny)
+				} else {
+					// Combine each port with the block.
+					// = match by L3 & L4
+					for _, port := range match.Ports {
+						rule := &renderer.ContivRule{
+							ID:          policy.ID.String() + "-" + subnet.String() + "-" + port.String(),
+							Action:      renderer.ActionPermit,
+							SrcNetwork:  &net.IPNet{},
+							DestNetwork: &net.IPNet{},
+							SrcPort:     0,
+							DestPort:    port.Number,
+						}
+						if direction == MatchIngress {
+							rule.SrcNetwork = subnet
+						} else {
+							rule.DestNetwork = subnet
+						}
+						if port.Protocol == TCP {
+							rule.Protocol = renderer.TCP
+						} else {
+							rule.Protocol = renderer.UDP
+						}
+						rules = pct.appendRules(rules, rule)
 					}
-					rules = pct.appendRules(rules, rule)
 				}
 			}
 		}
@@ -573,16 +529,6 @@ func (cp ContivPolicies) Less(i, j int) bool {
 	return false
 }
 
-// Len return the number of blocks in the list.
-func (pb PeerIPBlocks) Len() int {
-	return len(pb)
-}
-
-// Swap replaces order of two blocks in the list.
-func (pb PeerIPBlocks) Swap(i, j int) {
-	pb[i], pb[j] = pb[j], pb[i]
-}
-
 // compareInts is a comparison function for two integers.
 func compareInts(a, b int) int {
 	if a < b {
@@ -594,34 +540,37 @@ func compareInts(a, b int) int {
 	return 0
 }
 
-// Less compares two IP blocks.
-func (pb PeerIPBlocks) Less(i, j int) bool {
-	// IPv4 before IPv6
-	versionOrder := compareInts(len(pb[i].Block.IP), len(pb[j].Block.IP))
-	if versionOrder < 0 {
-		return true
-	} else if versionOrder > 0 {
-		return false
+// Function returns a list subnets with IPs included in net1 but not included in net2.
+func subtractSubnet(net1, net2 *net.IPNet) []*net.IPNet {
+	result := []*net.IPNet{}
+	net1MaskSize, _ := net1.Mask.Size()
+	net2MaskSize, _ := net2.Mask.Size()
+	if net1MaskSize > net2MaskSize {
+		// net2 higher than net1 in the tree
+		if !net2.Contains(net1.IP) {
+			result = append(result, net1)
+		}
+	} else if net1MaskSize == net2MaskSize {
+		// same level in the tree
+		if !net1.IP.Equal(net2.IP) {
+			result = append(result, net1)
+		}
+	} else {
+		// net2 lower then net1 in the tree
+		if !net1.Contains(net2.IP) {
+			result = append(result, net1)
+		} else {
+			// net2 under net1
+			for bit := net1MaskSize; bit < net2MaskSize; bit++ {
+				subnet := &net.IPNet{}
+				subnet.Mask = net.CIDRMask(bit+1, len(net2.Mask)*8)
+				subnet.IP = net2.IP.Mask(subnet.Mask)
+				// flip the last bit of the IP
+				subnet.IP[bit/8] ^= byte(1 << uint(7-(bit%8)))
+				result = append(result, subnet)
+			}
+		}
 	}
-	// Smaller subnet first.
-	iOnes, _ := pb[i].Block.Mask.Size()
-	jOnes, _ := pb[j].Block.Mask.Size()
-	subnetOrder := compareInts(iOnes, jOnes)
-	if subnetOrder > 0 {
-		return true
-	} else if subnetOrder < 0 {
-		return false
-	}
-	// Compare IPs
-	ipOrder := bytes.Compare(pb[i].Block.IP, pb[j].Block.IP)
-	if ipOrder < 0 {
-		return true
-	} else if ipOrder > 0 {
-		return false
-	}
-	// Allow before Deny for the same network.
-	if !pb[i].Except && pb[j].Except {
-		return true
-	}
-	return false
+
+	return result
 }

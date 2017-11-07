@@ -508,9 +508,8 @@ func TestSinglePolicyWithNestedIPBlocksSinglePod(t *testing.T) {
 		parseIP("10.10.10.1"), parseIP(pod1IP), renderer.TCP, 789, 81)
 	gomega.Expect(action).To(gomega.BeEquivalentTo(DeniedTraffic))
 
-	// BUG: Allowed by policy1 - IP is not in the except range by the port number.
-	// TODO: implement proper subtracting of IP subnets
-	//action = rendererDefault.TestTraffic(pod1IfName, EgressTraffic,
-	//	parseIP("10.10.10.1"), parseIP(pod1IP), renderer.TCP, 789, 80)
-	//gomega.Expect(action).To(gomega.BeEquivalentTo(AllowedTraffic))
+	// Allowed by policy1 - IP is not in the except range by the port number.
+	action = rendererDefault.TestTraffic(pod1IfName, EgressTraffic,
+		parseIP("10.10.10.1"), parseIP(pod1IP), renderer.TCP, 789, 80)
+	gomega.Expect(action).To(gomega.BeEquivalentTo(AllowedTraffic))
 }

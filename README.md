@@ -9,8 +9,7 @@
 Please note that the content of this repository is currently **WORK IN PROGRESS**.
 
 This Kubernetes network plugin uses FD.io VPP to provide network connectivity
-between PODs. Currently, only single-node k8s clusters are supported, with no
-connection to the k8s services running on the host from the PODs.
+between PODs. Currently, only Kubernetes 1.8.X versions are supported.
 
 
 ## Quickstart
@@ -124,6 +123,13 @@ After installing the CRI Shim, please proceed with cluster initialization,
 as described in the steps below. Alternatively, if the cluster had already
 been initialized before installing the CRI Shim, just reboot the node.
 
+
+#### 1.5 (Optional): Installing custom version of Kube-Proxy to enable Kubernetes services
+If you plan to use Kubernetes services, you need to pre-install the custom version
+of Kube-Proxy that works with the Contiv-VPP network plugin on each node:
+```
+bash <(curl -s https://raw.githubusercontent.com/contiv/vpp/master/k8s/proxy-install.sh)
+```
 
 ### (2/4) Initializing your master
 Before initializing the master, you may want to [tear down][8] up any 

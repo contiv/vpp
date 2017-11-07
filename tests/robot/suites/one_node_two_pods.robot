@@ -41,14 +41,6 @@ Pod_To_Pod_Tcp
     ${client_stdout} =    KubernetesEnv.Stop_Infinite_Command_In_Pod    ssh_session=${client_connection}
     [Teardown]    Teardown_Hosts_Connections
 
-Pod_To_Pod_Dns
-    [Setup]    Setup_Hosts_Connections
-    ${stdout} =    KubernetesEnv.Run_Finite_Command_In_Pod    ping -c 5 ${server_pod_name}    ssh_session=${client_connection}
-    BuiltIn.Should_Contain   ${stdout}    5 received, 0% packet loss
-    ${stdout} =    KubernetesEnv.Run_Finite_Command_In_Pod    ping -c 5 ${client_pod_name}    ssh_session=${server_connection}
-    BuiltIn.Should_Contain   ${stdout}    5 received, 0% packet loss
-    [Teardown]    Teardown_Hosts_Connections
-
 Host_To_Pod_Ping
     [Setup]    Setup_Hosts_Connections
     ${stdout} =    KubernetesEnv.Execute_Command_And_Log_All    ${testbed_connection}    ping -c 5 ${server_ip}
@@ -78,12 +70,6 @@ Host_To_Pod_Tcp
     BuiltIn.Should_Contain   ${server_stdout}    ${text}
     ${client_stdout} =    KubernetesEnv.Stop_Infinite_Command_In_Pod    ssh_session=${testbed_connection}    prompt=$
     [Teardown]    Teardown_Hosts_Connections
-
-Host_To_Pod_Dns
-    ${stdout} =    KubernetesEnv.Execute_Command_And_Log_All    ${testbed_connection}    ping -c 5 ${server_pod_name}
-    BuiltIn.Should_Contain   ${stdout}    5 received, 0% packet loss
-    ${stdout} =    KubernetesEnv.Execute_Command_And_Log_All    ${testbed_connection}    ping -c 5 ${client_pod_name}
-    BuiltIn.Should_Contain   ${stdout}    5 received, 0% packet loss
 
 *** Keywords ***
 OneNodeK8sSetup

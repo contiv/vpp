@@ -66,7 +66,7 @@ Verify_K8s_With_Plugin_Running
     ...    more detailed asserts.
     ${all_pods_dict} =    KubeCtl.Get_Pods_All_Namespaces    ${ssh_session}
     BuiltIn.Length_Should_Be   ${all_pods_dict}     9
-    Verify_All_Pods_Running    ${ssh_session}    excluded_pod_prefix=kube-dns-
+    Verify_All_Pods_Running    ${ssh_session}
 
 Get_Pod_Name_List_By_Prefix
     [Arguments]    ${ssh_session}    ${pod_prefix}

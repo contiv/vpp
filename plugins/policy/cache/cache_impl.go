@@ -13,7 +13,7 @@ import (
 	"github.com/contiv/vpp/plugins/policy/cache/namespaceidx"
 	"github.com/contiv/vpp/plugins/policy/cache/podidx"
 	"github.com/contiv/vpp/plugins/policy/cache/policyidx"
-	"github.com/contiv/vpp/plugins/policy/cache/utils"
+	"github.com/contiv/vpp/plugins/policy/utils"
 )
 
 // PolicyCache s used for a in-memory storage of K8s State data with fast
@@ -68,9 +68,11 @@ func (pc *PolicyCache) Update(dataChngEv datasync.ChangeEvent) error {
 // The function will forward any error returned by a watcher.
 func (pc *PolicyCache) Resync(resyncEv datasync.ResyncEvent) error {
 	dataResyncEvent := pc.resyncParseEvent(resyncEv)
+
 	for _, watcher := range pc.watchers {
 		watcher.Resync(dataResyncEvent)
 	}
+
 	return nil
 }
 
@@ -83,15 +85,19 @@ func (pc *PolicyCache) Watch(watcher PolicyCacheWatcher) error {
 // LookupPod returns data of a given Pod.
 func (pc *PolicyCache) LookupPod(pod podmodel.ID) (found bool, data *podmodel.Pod) {
 	found, data = pc.configuredPods.LookupPod(pod.String())
+
 	if !found {
 		return !found, nil
 	}
+
 	return found, data
 }
 
 // LookupPodsByNSLabelSelector evaluates label selector (expression and/or match
 // labels) and returns IDs of matching pods in a namespace.
-func (pc *PolicyCache) LookupPodsByNSLabelSelector(policyNamespace string, podLabelSelector *policymodel.Policy_LabelSelector) (pods []podmodel.ID) {
+func (pc *PolicyCache) LookupPodsByNSLabelSelector(policyNamespace string,
+	podLabelSelector *policymodel.Policy_LabelSelector) (pods []podmodel.ID) {
+
 	// An empty podSelector matches all pods in this namespace.
 	if podLabelSelector == nil {
 		pods := pc.configuredPods.LookupPodsByNamespace(policyNamespace)
@@ -108,25 +114,30 @@ func (pc *PolicyCache) LookupPodsByNSLabelSelector(policyNamespace string, podLa
 			return nil
 		}
 		return utils.UnstringPodID(pods)
+
 	} else if len(matchLabels) == 0 && len(matchExpressions) > 0 {
 		found, pods := pc.getMatchExpressionPods(policyNamespace, matchExpressions)
 		if !found {
 			return nil
 		}
 		return utils.UnstringPodID(pods)
+
 	} else if len(matchLabels) > 0 && len(matchExpressions) > 0 {
 		foundMlPods, mlPods := pc.getPodsByNSLabelSelector(policyNamespace, matchLabels)
 		if !foundMlPods {
 			return nil
 		}
+
 		foundMePods, mePods := pc.getMatchExpressionPods(policyNamespace, matchExpressions)
 		if !foundMePods {
 			return nil
 		}
+
 		pods := utils.Intersect(mlPods, mePods)
 		if pods == nil {
 			return nil
 		}
+
 		return utils.UnstringPodID(pods)
 	}
 
@@ -135,7 +146,8 @@ func (pc *PolicyCache) LookupPodsByNSLabelSelector(policyNamespace string, podLa
 
 // LookupPodsByLabelSelector evaluates label selector (expression and/or match
 // labels) and returns IDs of matching pods.
-func (pc *PolicyCache) LookupPodsByLabelSelector(podLabelSelector *policymodel.Policy_LabelSelector) (pods []podmodel.ID) {
+func (pc *PolicyCache) LookupPodsByLabelSelector(
+	podLabelSelector *policymodel.Policy_LabelSelector) (pods []podmodel.ID) {
 	return nil
 }
 
@@ -143,6 +155,7 @@ func (pc *PolicyCache) LookupPodsByLabelSelector(podLabelSelector *policymodel.P
 func (pc *PolicyCache) LookupPodsByNamespace(namespace nsmodel.ID) (pods []podmodel.ID) {
 	podsByNamespace := pc.configuredPods.LookupPodsByNamespace(namespace.String())
 	pods = utils.UnstringPodID(podsByNamespace)
+
 	return pods
 }
 
@@ -215,15 +228,18 @@ func (pc *PolicyCache) ListAllPolicies() (policies []policymodel.ID) {
 // LookupNamespace returns data of a given namespace.
 func (pc *PolicyCache) LookupNamespace(namespace nsmodel.ID) (found bool, data *nsmodel.Namespace) {
 	found, data = pc.configuredNamespaces.LookupNamespace(namespace.String())
+
 	if !found {
 		return !found, nil
 	}
+
 	return found, data
 }
 
 // LookupNamespacesByLabelSelector evaluates label selector (expression
 // and/or match labels) and returns IDs of matching namespaces.
-func (pc *PolicyCache) LookupNamespacesByLabelSelector(nsLabelSelector *policymodel.Policy_LabelSelector) (namespaces []nsmodel.ID) {
+func (pc *PolicyCache) LookupNamespacesByLabelSelector(
+	nsLabelSelector *policymodel.Policy_LabelSelector) (namespaces []nsmodel.ID) {
 	return nil
 }
 

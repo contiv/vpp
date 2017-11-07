@@ -13,8 +13,8 @@ import (
 	"errors"
 
 	"github.com/contiv/vpp/plugins/policy/cache"
-	"github.com/contiv/vpp/plugins/policy/cache/utils"
 	config "github.com/contiv/vpp/plugins/policy/configurator"
+	"github.com/contiv/vpp/plugins/policy/utils"
 )
 
 // PolicyProcessor processes K8s State data and generates a set of Contiv
@@ -228,7 +228,7 @@ func (pp *PolicyProcessor) UpdatePod(oldPod, newPod *podmodel.Pod) error {
 		}
 	}
 
-	strPods := removeDuplicates(utils.StringPodID(pods))
+	strPods := utils.RemoveDuplicates(utils.StringPodID(pods))
 	pods = utils.UnstringPodID(strPods)
 
 	pp.Log.Infof("Pods affected by Pod Add: ", pods)
@@ -338,20 +338,4 @@ func (pp *PolicyProcessor) UpdateNamespace(oldNs, newNs *nsmodel.Namespace) erro
 // Close deallocates all resources held by the processor.
 func (pp *PolicyProcessor) Close() error {
 	return nil
-}
-
-func removeDuplicates(el []string) []string {
-	found := map[string]bool{}
-
-	// Create a map of all unique elements.
-	for v := range el {
-		found[el[v]] = true
-	}
-
-	// Place all keys from the map into a slice.
-	result := []string{}
-	for key := range found {
-		result = append(result, key)
-	}
-	return result
 }

@@ -2,7 +2,7 @@ package cache
 
 import (
 	policymodel "github.com/contiv/vpp/plugins/ksr/model/policy"
-	"github.com/contiv/vpp/plugins/policy/cache/utils"
+	"github.com/contiv/vpp/plugins/policy/utils"
 )
 
 const (
@@ -18,7 +18,7 @@ func (pc *PolicyCache) getMatchExpressionPods(namespace string, expressions []*p
 	for _, expression := range expressions {
 		switch expression.Operator {
 		case in:
-			labels := constructLabels(expression.Key, expression.Value)
+			labels := utils.ConstructLabels(expression.Key, expression.Value)
 			isMatch, podSet := pc.getPodsByNSLabelSelector(namespace, labels)
 			if !isMatch {
 				return false, nil
@@ -27,7 +27,7 @@ func (pc *PolicyCache) getMatchExpressionPods(namespace string, expressions []*p
 			inPodSet = append(inPodSet, podSet...)
 
 		case notIn:
-			labels := constructLabels(expression.Key, expression.Value)
+			labels := utils.ConstructLabels(expression.Key, expression.Value)
 			isMatch, podSet := pc.getPodsByNSLabelSelector(namespace, labels)
 			if !isMatch {
 				podNamespaceAll := pc.configuredPods.LookupPodsByNamespace(namespace)
@@ -94,17 +94,4 @@ func (pc *PolicyCache) getMatchExpressionPods(namespace string, expressions []*p
 		return false, nil
 	}
 	return true, pods
-}
-
-// constructLabels returns a key-value pair as a label given an expression
-func constructLabels(key string, values []string) []*policymodel.Policy_Label {
-	policyLabel := []*policymodel.Policy_Label{}
-	for _, label := range values {
-		policyLabel = append(policyLabel,
-			&policymodel.Policy_Label{
-				Key:   key,
-				Value: label,
-			})
-	}
-	return policyLabel
 }

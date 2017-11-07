@@ -61,7 +61,7 @@ func (ci *ConfigIndex) LookupNamespace(namespaceID string) (found bool, data *na
 	return false, nil
 }
 
-// LookupNamespacesByLabelSelector performs lookup based on secondary index podLabelSelector.
+// LookupNamespacesByLabelSelector performs lookup based on secondary index namespaceLabelSelector.
 func (ci *ConfigIndex) LookupNamespacesByLabelSelector(namespaceLabelSelector string) (podIDs []string) {
 	return ci.mapping.ListNames(namespaceLabelSelectorKey, namespaceLabelSelector)
 }

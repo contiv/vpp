@@ -35,13 +35,18 @@ func (pc *PolicyCache) resyncParseEvent(resyncEv datasync.ResyncEvent) *DataResy
 	var numPod int
 
 	event := NewDataResyncEvent()
+
 	for key := range resyncEv.GetValues() {
 		pc.Log.Debug("Received RESYNC key ", key)
 	}
+
 	for key, resyncData := range resyncEv.GetValues() {
+
 		if strings.HasPrefix(key, namespacemodel.KeyPrefix()) {
+
 			for {
 				evData, stop := resyncData.GetNext()
+
 				if stop {
 					break
 				}
@@ -79,6 +84,7 @@ func (pc *PolicyCache) resyncParseEvent(resyncEv datasync.ResyncEvent) *DataResy
 					numNs++
 				}
 			}
+
 			pc.Log.WithFields(logging.Fields{
 				"num-policies": numPolicy,
 				"num-pods":     numPod,
@@ -88,5 +94,7 @@ func (pc *PolicyCache) resyncParseEvent(resyncEv datasync.ResyncEvent) *DataResy
 			pc.Log.WithField("event", resyncEv).Warn("Ignoring RESYNC event")
 		}
 	}
+
 	return event
+
 }

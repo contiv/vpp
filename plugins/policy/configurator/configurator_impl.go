@@ -540,7 +540,7 @@ func compareInts(a, b int) int {
 	return 0
 }
 
-// Function returns a list subnets with IPs included in net1 but not included in net2.
+// Function returns a list of subnets with all IPs included in net1 and not included in net2.
 func subtractSubnet(net1, net2 *net.IPNet) []*net.IPNet {
 	result := []*net.IPNet{}
 	net1MaskSize, _ := net1.Mask.Size()

@@ -290,7 +290,9 @@ func (s *remoteCNIserver) configureVswitchConnectivity() error {
 		return err
 	}
 
-	return nil
+	err = s.enableTCPSession()
+
+	return err
 }
 
 // cleanupVswitchConnectivity cleans up basic vSwitch VPP connectivity configuration in the host IP stack.
@@ -336,20 +338,22 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 	s.counter++
 
 	// assign IP address for this POD
-	podIP := s.ipam.getNextPodIP() + "/32"
+	podIPWithoutSubnet := s.ipam.getNextPodIP()
+	podIP := podIPWithoutSubnet + "/32"
 
 	veth1 := s.veth1FromRequest(request, podIP)
 	veth2 := s.veth2FromRequest(request)
 	afpacket := s.afpacketFromRequest(request)
-	route := s.vppRouteFromRequest(request, podIP)
+	loop := s.loopbackFromRequest(request, podIP)
 
-	s.WithFields(logging.Fields{"veth1": veth1, "veth2": veth2, "afpacket": afpacket, "route": route}).Info("Configuring")
+	s.WithFields(logging.Fields{"veth1": veth1, "veth2": veth2, "afpacket": afpacket /*, "route": route*/}).Info("Configuring")
 
 	txn := s.vppTxnFactory().
 		Put().
 		LinuxInterface(veth1).
 		LinuxInterface(veth2).
-		VppInterface(afpacket)
+		VppInterface(afpacket).
+		VppInterface(loop)
 	err := txn.Send().ReceiveReply()
 
 	if err != nil {
@@ -357,13 +361,20 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 		return s.generateErrorResponse(err)
 	}
 
-	// adding route (container IP -> afPacket) in a separate transaction.
-	// afpacket must be already configured
-	err = s.vppTxnFactory().Put().StaticRoute(route).Send().ReceiveReply()
+	time.Sleep(500 * time.Millisecond)
+	err = s.setupStn(podIPWithoutSubnet, s.afpacketNameFromRequest(request))
 	if err != nil {
 		s.Logger.Error(err)
 		return s.generateErrorResponse(err)
 	}
+	s.Logger.Info("Stn configured")
+
+	err = s.addAppNamespace(request.ContainerId, s.loopbackNameFromRequest(request))
+	if err != nil {
+		s.Logger.Error(err)
+		return s.generateErrorResponse(err)
+	}
+	s.Logger.Info("Add app namespace configured")
 
 	macAddr, err := s.retrieveContainerMacAddr(request.NetworkNamespace, request.InterfaceName)
 	if err != nil {
@@ -378,7 +389,8 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 		return s.generateErrorResponse(err)
 	}
 
-	afMac, err := s.getAfPacketMac("host-" + afpacket.Afpacket.HostIfName)
+	afName := "host-" + afpacket.Afpacket.HostIfName
+	afMac, err := s.getAfPacketMac(afName)
 	if err != nil {
 		s.Logger.Error(err)
 		return s.generateErrorResponse(err)
@@ -396,6 +408,8 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 		s.Logger.Error(err)
 		return s.generateErrorResponse(err)
 	}
+
+	err = s.fixPodToPodCommunication(podIPWithoutSubnet, afName)
 
 	changes[linux_intf.InterfaceKey(veth1.Name)] = veth1
 	changes[linux_intf.InterfaceKey(veth2.Name)] = veth2
@@ -419,7 +433,6 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 			Veth1:        veth1,
 			Veth2:        veth2,
 			Afpacket:     afpacket,
-			Route:        route,
 		})
 	}
 
@@ -449,13 +462,15 @@ func (s *remoteCNIserver) unconfigureContainerConnectivity(request *cni.CNIReque
 	veth1 := s.veth1NameFromRequest(request)
 	veth2 := s.veth2NameFromRequest(request)
 	afpacket := s.afpacketNameFromRequest(request)
-	s.Info("Removing", []string{veth1, veth2, afpacket})
+	loop := s.loopbackNameFromRequest(request)
+	s.Info("Removing", []string{veth1, veth2, afpacket, loop})
 
 	err := s.vppTxnFactory().
 		Delete().
 		LinuxInterface(veth1).
 		LinuxInterface(veth2).
 		VppInterface(afpacket).
+		VppInterface(loop).
 		Put().Send().ReceiveReply()
 
 	if err != nil {

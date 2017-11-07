@@ -21,9 +21,12 @@ import (
 	"strings"
 
 	"github.com/containernetworking/plugins/pkg/ns"
+	"github.com/contiv/vpp/plugins/contiv/bin_api/session"
+	"github.com/contiv/vpp/plugins/contiv/bin_api/stn"
 	"github.com/contiv/vpp/plugins/contiv/model/cni"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/bin_api/interfaces"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/bin_api/ip"
+	"github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/bin_api/vpe"
 	vpp_intf "github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/model/interfaces"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/l3plugin/model/l3"
 	linux_intf "github.com/ligato/vpp-agent/plugins/linuxplugin/ifplugin/model/interfaces"
@@ -163,6 +166,100 @@ func (s *remoteCNIserver) getAfPacketMac(afPacket string) (net.HardwareAddr, err
 
 }
 
+func (s *remoteCNIserver) setupStn(podIP string, ifname string) error {
+	req := &stn.StnAddDelRule{
+		IsIP4:     1,
+		IsAdd:     1,
+		IPAddress: net.ParseIP(podIP).To4(),
+	}
+
+	if s.swIfIndex == nil {
+		return fmt.Errorf("unable to lookup interface %v", ifname)
+	}
+
+	idx, _, found := s.swIfIndex.LookupIdx(ifname)
+	if !found {
+		return fmt.Errorf("interface %v not found", ifname)
+	}
+
+	req.SwIfIndex = idx
+
+	if s.govppChan == nil {
+		s.Logger.Warn("GoVpp not available")
+		return nil
+	}
+
+	reply := stn.StnAddDelRuleReply{}
+
+	err := s.govppChan.SendRequest(req).ReceiveReply(&reply)
+
+	if reply.Retval != 0 {
+		fmt.Errorf("adding stn rule returned non-zero return code")
+	}
+
+	return err
+}
+
+func (s *remoteCNIserver) addAppNamespace(podNamespace string, ifname string) error {
+	req := &session.AppNamespaceAddDel{
+		Secret:         42,
+		NamespaceID:    []byte(podNamespace),
+		NamespaceIDLen: uint8(len(podNamespace)),
+	}
+
+	if s.swIfIndex == nil {
+		return fmt.Errorf("unable to lookup interface %v", ifname)
+	}
+
+	idx, _, found := s.swIfIndex.LookupIdx(ifname)
+	if !found {
+		return fmt.Errorf("interface %v not found", ifname)
+	}
+
+	req.SwIfIndex = idx
+
+	if s.govppChan == nil {
+		s.Logger.Warn("GoVpp not available")
+		return nil
+	}
+
+	reply := session.AppNamespaceAddDelReply{}
+
+	err := s.govppChan.SendRequest(req).ReceiveReply(&reply)
+
+	if reply.Retval != 0 {
+		return fmt.Errorf("adding stn rule returned non-zero return code")
+	}
+
+	return err
+}
+
+func (s *remoteCNIserver) fixPodToPodCommunication(podIP string, ifname string) error {
+	return s.executeCli("ip container " + podIP + " " + ifname)
+}
+
+func (s *remoteCNIserver) executeCli(command string) error {
+	if s.govppChan == nil {
+		s.Logger.Warn("GoVpp not available")
+		return nil
+	}
+
+	req := &vpe.CliInband{}
+	req.Length = uint32(len(command))
+	req.Cmd = []byte(command)
+
+	reply := &vpe.CliInbandReply{}
+	err := s.govppChan.SendRequest(req).ReceiveReply(reply)
+	if err != nil {
+		return err
+	}
+
+	if reply.Retval != 0 {
+		return fmt.Errorf("execution of cli command returned non-zero return code")
+	}
+	return nil
+}
+
 func (s *remoteCNIserver) veth1NameFromRequest(request *cni.CNIRequest) string {
 	return request.InterfaceName + request.ContainerId
 }
@@ -182,6 +279,10 @@ func (s *remoteCNIserver) afpacketNameFromRequest(request *cni.CNIRequest) strin
 	return afPacketNamePrefix + s.veth2NameFromRequest(request)
 }
 
+func (s *remoteCNIserver) loopbackNameFromRequest(request *cni.CNIRequest) string {
+	return "loop" + s.veth2NameFromRequest(request)
+}
+
 func (s *remoteCNIserver) ipAddrForContainer() string {
 	return s.ipam.getNextPodIP() + "/32"
 }
@@ -192,10 +293,11 @@ func (s *remoteCNIserver) ipAddrForAfPacket() string {
 
 func (s *remoteCNIserver) veth1FromRequest(request *cni.CNIRequest, podIP string) *linux_intf.LinuxInterfaces_Interface {
 	return &linux_intf.LinuxInterfaces_Interface{
-		Name:       s.veth1NameFromRequest(request),
-		Type:       linux_intf.LinuxInterfaces_VETH,
-		Enabled:    true,
-		HostIfName: s.veth1HostIfNameFromRequest(request),
+		Name:        s.veth1NameFromRequest(request),
+		Type:        linux_intf.LinuxInterfaces_VETH,
+		Enabled:     true,
+		HostIfName:  s.veth1HostIfNameFromRequest(request),
+		PhysAddress: "00:00:00:00:00:02",
 		Veth: &linux_intf.LinuxInterfaces_Interface_Veth{
 			PeerIfName: s.veth2NameFromRequest(request),
 		},
@@ -228,6 +330,15 @@ func (s *remoteCNIserver) afpacketFromRequest(request *cni.CNIRequest) *vpp_intf
 			HostIfName: s.veth2NameFromRequest(request),
 		},
 		IpAddresses: []string{s.ipAddrForAfPacket()},
+	}
+}
+
+func (s *remoteCNIserver) loopbackFromRequest(request *cni.CNIRequest, loopIP string) *vpp_intf.Interfaces_Interface {
+	return &vpp_intf.Interfaces_Interface{
+		Name:        s.loopbackNameFromRequest(request),
+		Type:        vpp_intf.InterfaceType_SOFTWARE_LOOPBACK,
+		Enabled:     true,
+		IpAddresses: []string{loopIP},
 	}
 }
 

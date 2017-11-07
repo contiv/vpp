@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/contiv/vpp/plugins/contiv/bin_api/session"
 	"github.com/contiv/vpp/plugins/contiv/model/uid"
 	"github.com/ligato/cn-infra/datasync"
 )
@@ -89,4 +90,25 @@ func (s *remoteCNIserver) nodeResync(dataResyncEv datasync.ResyncEvent) error {
 	}
 
 	return txn.Send().ReceiveReply()
+}
+
+func (s *remoteCNIserver) enableTCPSession() error {
+	req := &session.SessionEnableDisable{
+		IsEnable: 1,
+	}
+
+	if s.govppChan == nil {
+		s.Logger.Warn("GoVpp not available")
+		return nil
+	}
+
+	reply := session.SessionEnableDisableReply{}
+
+	err := s.govppChan.SendRequest(req).ReceiveReply(&reply)
+
+	if reply.Retval != 0 {
+		fmt.Errorf("enabling session returned non-zero return code")
+	}
+
+	return err
 }

@@ -3,6 +3,7 @@ package processor
 import (
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	policymodel "github.com/contiv/vpp/plugins/ksr/model/policy"
+	"github.com/contiv/vpp/plugins/policy/utils"
 )
 
 const (
@@ -28,14 +29,14 @@ func (pp *PolicyProcessor) isMatchExpression(pod *podmodel.Pod,
 	for _, expression := range expressions {
 		switch expression.Operator {
 		case in:
-			labels := constructLabels(expression.Key, expression.Value)
+			labels := utils.ConstructLabels(expression.Key, expression.Value)
 			isMatch := pp.isMatchLabel(pod, labels, policyNamespace)
 			if !isMatch {
 				return false
 			}
 
 		case notIn:
-			labels := constructLabels(expression.Key, expression.Value)
+			labels := utils.ConstructLabels(expression.Key, expression.Value)
 			isMatch := pp.isMatchLabel(pod, labels, policyNamespace)
 			if isMatch {
 				return false
@@ -55,17 +56,4 @@ func (pp *PolicyProcessor) isMatchExpression(pod *podmodel.Pod,
 		}
 	}
 	return true
-}
-
-// constructLabels returns a key-value pair as a label given an expression
-func constructLabels(key string, values []string) []*policymodel.Policy_Label {
-	policyLabel := []*policymodel.Policy_Label{}
-	for _, label := range values {
-		policyLabel = append(policyLabel,
-			&policymodel.Policy_Label{
-				Key:   key,
-				Value: label,
-			})
-	}
-	return policyLabel
 }

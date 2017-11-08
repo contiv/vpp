@@ -92,20 +92,20 @@ func (p *Plugin) Init() error {
 		},
 	}
 
+	p.configurator = &configurator.PolicyConfigurator{
+		Deps: configurator.Deps{
+			Log:    p.Log.NewLogger("-policyConfigurator"),
+			Contiv: p.Contiv,
+			Cache:  p.policyCache,
+		},
+	}
+
 	p.processor = &processor.PolicyProcessor{
 		Deps: processor.Deps{
 			Log:          p.Log.NewLogger("-policyProcessor"),
 			Contiv:       p.Contiv,
 			Cache:        p.policyCache,
 			Configurator: p.configurator,
-		},
-	}
-
-	p.configurator = &configurator.PolicyConfigurator{
-		Deps: configurator.Deps{
-			Log:    p.Log.NewLogger("-policyConfigurator"),
-			Contiv: p.Contiv,
-			Cache:  p.policyCache,
 		},
 	}
 

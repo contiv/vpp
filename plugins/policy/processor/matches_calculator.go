@@ -54,7 +54,7 @@ func (pp *PolicyProcessor) calculateMatches(policyData *policymodel.Policy) []co
 
 	if len(egressRules) != 0 {
 
-		matchType := config.MatchIngress
+		matchType := config.MatchEgress
 
 		for _, egressRule := range egressRules {
 			egressPods := []podmodel.ID{}

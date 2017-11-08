@@ -2,7 +2,7 @@ package cache
 
 import (
 	policymodel "github.com/contiv/vpp/plugins/ksr/model/policy"
-	"github.com/contiv/vpp/plugins/policy/cache/utils"
+	"github.com/contiv/vpp/plugins/policy/utils"
 )
 
 // GetPodsByNSLabelSelector returns the pods that match a collection of Label Selectors in the same namespace

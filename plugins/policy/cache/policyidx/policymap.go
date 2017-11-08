@@ -39,12 +39,12 @@ func NewConfigIndex(logger logging.Logger, owner core.PluginName, title string) 
 	return &ConfigIndex{mapping: mem.NewNamedMapping(logger, owner, title, IndexFunction)}
 }
 
-// RegisterPolicy adds new entry into the Policy mapping
+// RegisterPolicy adds new Policy entry into the Policy mapping
 func (ci *ConfigIndex) RegisterPolicy(policyID string, data *policymodel.Policy) {
 	ci.mapping.Put(policyID, data)
 }
 
-// UnregisterPolicy removes an entry from the Policy mapping given a policyID
+// UnregisterPolicy removes a Policy entry from the Policy mapping given a policyID
 func (ci *ConfigIndex) UnregisterPolicy(policyID string) (found bool, data *policymodel.Policy) {
 	d, found := ci.mapping.Delete(policyID)
 	if found {
@@ -55,7 +55,7 @@ func (ci *ConfigIndex) UnregisterPolicy(policyID string) (found bool, data *poli
 	return false, nil
 }
 
-// LookupPolicy looks up entry in the Policy mapping given a policyID.
+// LookupPolicy looks up a Policy entry given a policyID.
 func (ci *ConfigIndex) LookupPolicy(policyID string) (found bool, data *policymodel.Policy) {
 	d, found := ci.mapping.GetValue(policyID)
 	if found {
@@ -71,7 +71,7 @@ func (ci *ConfigIndex) LookupPolicyByLabelSelector(policyLabelSelector string) (
 	return ci.mapping.ListNames(policyPodLabelKey, policyLabelSelector)
 }
 
-// LookupPolicyByNSLabelSelector performs lookup based on secondary index namespace + policyLabelSelector.
+// LookupPolicyByNSLabelSelector performs lookup based on secondary index namespace/policyNSLabelSelector.
 func (ci *ConfigIndex) LookupPolicyByNSLabelSelector(policyNSLabelSelector string) (policyIDs []string) {
 	return ci.mapping.ListNames(policyPodNSLabelKey, policyNSLabelSelector)
 }

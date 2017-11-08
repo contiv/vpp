@@ -16,7 +16,7 @@ package podidx
 
 import (
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
-	"github.com/contiv/vpp/plugins/policy/cache/utils"
+	"github.com/contiv/vpp/plugins/policy/utils"
 	"github.com/ligato/cn-infra/core"
 	"github.com/ligato/cn-infra/idxmap"
 	"github.com/ligato/cn-infra/idxmap/mem"
@@ -94,7 +94,7 @@ func (ci *ConfigIndex) LookupPodsByNSKey(podNSKeySelector string) (podIDs []stri
 	return ci.mapping.ListNames(podNSKeySelectorKey, podNSKeySelector)
 }
 
-// ListAll returns all registered names in the mapping.
+// ListAll returns all registered Pods in the mapping.
 func (ci *ConfigIndex) ListAll() (podIDs []string) {
 	return ci.mapping.ListAllNames()
 }

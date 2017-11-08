@@ -130,3 +130,16 @@ func UnstringNamespaceID(namespaces []string) []namespacemodel.ID {
 	}
 	return namespaceIDs
 }
+
+// ConstructLabels returns a key-value pair as a label given an expression
+func ConstructLabels(key string, values []string) []*policymodel.Policy_Label {
+	policyLabel := []*policymodel.Policy_Label{}
+	for _, label := range values {
+		policyLabel = append(policyLabel,
+			&policymodel.Policy_Label{
+				Key:   key,
+				Value: label,
+			})
+	}
+	return policyLabel
+}

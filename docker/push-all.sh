@@ -19,6 +19,7 @@ set -e
 # default values for "branch name" and "skip upload"
 BRANCH_NAME="master"
 SKIP_UPLOAD="false"
+DEV_UPLOAD="false"
 
 # list of images we are tagging & pushing
 IMAGES=("vswitch" "cni" "ksr" "cri")
@@ -35,6 +36,11 @@ while [ "$1" != "" ]; do
             shift
             SKIP_UPLOAD="true"
             echo "Using skip upload: ${SKIP_UPLOAD}"
+            ;;
+        -d | --dev-upload )
+            shift
+            dev_UPLOAD="true"
+            echo "Using dev upload: ${DEV_UPLOAD}"
             ;;
         * )
             echo "Invalid parameter: "$1
@@ -74,3 +80,31 @@ do
         fi
     fi
 done
+
+if [ "${DEV_UPLOAD}" == "true" ]
+then
+    if [ "${BRANCH_NAME}" == "master" ]
+    then
+        # master branch - tag with the git tag + "latest"
+        echo "Tagging as contivvpp/dev-contiv-vswitch:${TAG} + contivvpp/dev-vswitch:latest"
+        sudo docker tag dev-contiv-vswitch:${TAG} contivvpp/dev-vswitch:${TAG}
+        sudo docker tag dev-contiv-vswitch:${TAG} contivvpp/dev-vswitch:latest
+
+        # push the images
+        if [ "${SKIP_UPLOAD}" != "true" ]
+        then
+            sudo docker push contivvpp/dev-vswitch:${TAG}
+            sudo docker push contivvpp/dev-vswitch:latest
+        fi
+    else
+        # other branch - tag with the branch name
+        echo "Tagging as contivvpp/dev-vswitch:${BRANCH_NAME}"
+        sudo docker tag dev-contiv-vswitch:${TAG} contivvpp/dev-vswitch:${BRANCH_NAME}
+
+        # push the images
+        if [ "${SKIP_UPLOAD}" != "true" ]
+        then
+            sudo docker push contivvpp/dev-vswitch:${BRANCH_NAME}
+        fi
+    fi
+fi

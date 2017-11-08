@@ -10,8 +10,6 @@ import (
 
 	"fmt"
 
-	"errors"
-
 	"github.com/contiv/vpp/plugins/policy/cache"
 	config "github.com/contiv/vpp/plugins/policy/configurator"
 	"github.com/contiv/vpp/plugins/policy/utils"
@@ -70,13 +68,13 @@ func (pp *PolicyProcessor) Process(resync bool, pods []podmodel.ID) error {
 
 			switch policyData.PolicyType {
 			case policymodel.Policy_INGRESS:
-				policyType = 1
+				policyType = 0
 				break
 			case policymodel.Policy_EGRESS:
-				policyType = 2
+				policyType = 1
 				break
 			case policymodel.Policy_INGRESS_AND_EGRESS:
-				policyType = 3
+				policyType = 2
 				break
 			default:
 				policyType = 0
@@ -117,16 +115,14 @@ func (pp *PolicyProcessor) Resync(data *cache.DataResyncEvent) error {
 // policy re-processing is triggered for each of
 // them.
 func (pp *PolicyProcessor) AddPod(pod *podmodel.Pod) error {
-	//pods := []podmodel.ID{}
-	// TODO: consider postponing the re-configuration until more data are available (e.g. pod ip address)
-	// TODO: determine the list of pods with outdated policy configuration
-
 	if pod.IpAddress == "" {
-		return errors.New("Waiting for Pod to get an IPAddress")
+		pp.Log.WithField("pod", pod).Warn("Pod does not have an IP Address assigned yet")
+		return nil
 	}
 
 	if pod.Namespace == "kube-system" {
-		return errors.New("Pods Kube-system are being ignored in Policies")
+		pp.Log.WithField("pod", pod).Warn("Pod belongs to kube-system namespace, ignoring")
+		return nil
 	}
 
 	return nil
@@ -136,9 +132,8 @@ func (pp *PolicyProcessor) AddPod(pod *podmodel.Pod) error {
 // The list of pods with outdated policy configuration is determined and the
 // policy re-processing is triggered for each of them.
 func (pp *PolicyProcessor) DelPod(pod *podmodel.Pod) error {
-	//pods := []podmodel.ID{}
-	// TODO: determine the list of pods with outdated policy configuration
-	//return pp.Process(false, pods)
+	pods := []podmodel.ID{}
+
 	return nil
 }
 
@@ -151,11 +146,13 @@ func (pp *PolicyProcessor) UpdatePod(oldPod, newPod *podmodel.Pod) error {
 	pods := []podmodel.ID{}
 
 	if newPod.IpAddress == "" {
-		return errors.New("Waiting for Pod to get an IPAddress")
+		pp.Log.WithField("pod", newPod).Warn("Pod does not have an IP Address assigned yet")
+		return nil
 	}
 
 	if newPod.Namespace == "kube-system" {
-		return errors.New("Pods Kube-system are being ignored in Policies")
+		pp.Log.WithField("pod", newPod).Warn("Pod belongs to kube-system namespace, ignoring")
+		return nil
 	}
 
 	addedPolicies := make(map[string]bool)
@@ -171,11 +168,14 @@ func (pp *PolicyProcessor) UpdatePod(oldPod, newPod *podmodel.Pod) error {
 
 	allPolicies := pp.Cache.ListAllPolicies()
 	dataPolicies := []*policymodel.Policy{}
+
 	for _, stringPolicy := range allPolicies {
 		found, policyData := pp.Cache.LookupPolicy(stringPolicy)
+
 		if !found {
 			continue
 		}
+
 		dataPolicies = append(dataPolicies, policyData)
 	}
 

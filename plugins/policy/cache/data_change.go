@@ -49,18 +49,17 @@ func (pc *PolicyCache) changePropagateEvent(dataChngEv datasync.ChangeEvent) err
 
 			if datasync.Delete == dataChngEv.GetChangeType() {
 				oldPolicyID := policymodel.GetID(&prevValue).String()
-				pc.configuredPolicies.UnregisterPolicy(oldPolicyID)
 
 				for _, watcher := range pc.watchers {
 					if err := watcher.DelPolicy(&prevValue); err != nil {
 						return err
 					}
 				}
+				pc.configuredPolicies.UnregisterPolicy(oldPolicyID)
 
 			} else if diff {
 				policyID := policymodel.GetID(&value).String()
 				oldPolicyID := policymodel.GetID(&prevValue).String()
-				pc.configuredPolicies.UnregisterPolicy(oldPolicyID)
 				pc.configuredPolicies.RegisterPolicy(policyID, &value)
 
 				for _, watcher := range pc.watchers {
@@ -68,6 +67,7 @@ func (pc *PolicyCache) changePropagateEvent(dataChngEv datasync.ChangeEvent) err
 						return err
 					}
 				}
+				pc.configuredPolicies.UnregisterPolicy(oldPolicyID)
 
 			}
 			policyID := policymodel.GetID(&value).String()
@@ -97,18 +97,17 @@ func (pc *PolicyCache) changePropagateEvent(dataChngEv datasync.ChangeEvent) err
 
 			if datasync.Delete == dataChngEv.GetChangeType() {
 				oldPodID := podmodel.GetID(&prevValue).String()
-				pc.configuredPods.UnregisterPod(oldPodID)
 
 				for _, watcher := range pc.watchers {
 					if err := watcher.DelPod(&prevValue); err != nil {
 						return err
 					}
 				}
+				pc.configuredPods.UnregisterPod(oldPodID)
 
 			} else if diff {
 				podID := podmodel.GetID(&value).String()
 				oldPodID := podmodel.GetID(&prevValue).String()
-				pc.configuredPods.UnregisterPod(oldPodID)
 				pc.configuredPods.RegisterPod(podID, &value)
 
 				for _, watcher := range pc.watchers {
@@ -116,6 +115,7 @@ func (pc *PolicyCache) changePropagateEvent(dataChngEv datasync.ChangeEvent) err
 						return err
 					}
 				}
+				pc.configuredPods.UnregisterPod(oldPodID)
 
 			}
 			podID := podmodel.GetID(&value).String()
@@ -144,19 +144,17 @@ func (pc *PolicyCache) changePropagateEvent(dataChngEv datasync.ChangeEvent) err
 
 		if datasync.Delete == dataChngEv.GetChangeType() {
 			oldNamespaceID := prevValue.Name
-			pc.configuredNamespaces.UnRegisterNamespace(oldNamespaceID)
 
 			for _, watcher := range pc.watchers {
 				if err := watcher.DelNamespace(&prevValue); err != nil {
 					return err
 				}
 			}
+			pc.configuredNamespaces.UnRegisterNamespace(oldNamespaceID)
 
 		} else if diff {
 			namespaceID := value.Name
 			oldNamespaceID := prevValue.Name
-
-			pc.configuredNamespaces.UnRegisterNamespace(oldNamespaceID)
 			pc.configuredNamespaces.RegisterNamespace(namespaceID, &value)
 
 			for _, watcher := range pc.watchers {
@@ -164,6 +162,7 @@ func (pc *PolicyCache) changePropagateEvent(dataChngEv datasync.ChangeEvent) err
 					return err
 				}
 			}
+			pc.configuredNamespaces.UnRegisterNamespace(oldNamespaceID)
 		}
 
 		namespaceID := value.Name

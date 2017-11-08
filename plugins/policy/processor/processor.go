@@ -68,8 +68,6 @@ func (pp *PolicyProcessor) Process(resync bool, pods []podmodel.ID) error {
 				continue
 			}
 
-			pp.Log.Infof("Panic reason: ", policyData.PolicyType)
-
 			switch policyData.PolicyType {
 			case policymodel.Policy_INGRESS:
 				policyType = 1
@@ -96,10 +94,10 @@ func (pp *PolicyProcessor) Process(resync bool, pods []podmodel.ID) error {
 				Matches: matches,
 			}
 
-			pp.Log.Infof("Pod: %+v and w/ Policies sent to configurator: %+v ", pods, policies)
 			policies = append(policies, policy)
 
 		}
+		pp.Log.Infof("Pod: %+v and w/ Policies sent to configurator: %+v ", pods, policies)
 		txn.Configure(pod, policies)
 
 	}

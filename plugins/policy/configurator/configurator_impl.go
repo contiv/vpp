@@ -89,10 +89,7 @@ func (pc *PolicyConfigurator) Close() error {
 // completely replace the existing one, otherwise pods not mentioned in the
 // transaction are left unchanged.
 func (pc *PolicyConfigurator) NewTxn(resync bool) Txn {
-	pc.Log.Info("I'm in")
-	pc.Log.Info("PRINT LOG: ", pc.Log)
-	pc.Log.Info("PRINT configurator: ", pc)
-	pc.Log.Info("PRINT RENDERERS: ", pc.renderers)
+
 	txn := &PolicyConfiguratorTxn{
 		Log:          pc.Log,
 		configurator: pc,
@@ -100,9 +97,11 @@ func (pc *PolicyConfigurator) NewTxn(resync bool) Txn {
 		config:       make(map[podmodel.ID]ContivPolicies),
 		rendererTxns: make(map[podmodel.Pod_Label]*RendererTxn),
 	}
+
 	for label, r := range pc.renderers {
 		txn.rendererTxns[label] = &RendererTxn{renderer: r, txn: nil}
 	}
+
 	return txn
 }
 

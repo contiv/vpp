@@ -72,7 +72,7 @@ type Plugin struct {
 type Deps struct {
 	local.PluginInfraDeps
 	Watcher        datasync.KeyValProtoWatcher /* prefixed for KSR-published K8s state data */
-	Contiv         *contiv.Plugin              /* for GetIfName() */
+	Contiv         contiv.API                  /* for GetIfName() */
 	PolicyCacheAPI cache.PolicyCacheAPI
 }
 

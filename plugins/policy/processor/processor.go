@@ -36,7 +36,7 @@ type PolicyProcessor struct {
 type Deps struct {
 	Log          logging.Logger
 	Cache        cache.PolicyCacheAPI
-	Contiv       *contiv.Plugin /* to get the Host IP */
+	Contiv       contiv.API /* to get the Host IP */
 	Configurator config.PolicyConfiguratorAPI
 }
 

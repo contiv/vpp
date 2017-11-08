@@ -5,6 +5,7 @@ Resource      ${ENV}_setup-teardown.robot
 
 *** Variables ***
 ${snapshot_num}       0
+${VM_SSH_ALIAS_PREFIX}     vm_
 
 *** Keywords ***
 Testsuite Setup
@@ -29,7 +30,7 @@ Log All SSH Outputs
     ...                       Logs all connections outputs
     [Timeout]                 120s
     :FOR    ${index}    IN RANGE    1    ${KUBE_CLUSTER_${CLUSTER_ID}_NODES}+1
-    \    Log vm_${index} Output
+    \    Log ${VM_SSH_ALIAS_PREFIX}${index} Output
 
 Log ${machine} Output
     [Documentation]         *Log ${machine} Output*
@@ -54,13 +55,13 @@ Get Machine Status
     Execute On Machine       ${machine}                export
     Execute On Machine       ${machine}                docker images
     Execute On Machine       ${machine}                docker ps -as
-    Run Keyword If           "${machine}"=="vm_1"      Execute On Machine    ${machine}    kubectl get nodes
-    Run Keyword If           "${machine}"=="vm_1"      Execute On Machine    ${machine}    kubectl get pods
+    Run Keyword If           "${machine}"=="${VM_SSH_ALIAS_PREFIX}1"      Execute On Machine    ${machine}    kubectl get nodes
+    Run Keyword If           "${machine}"=="${VM_SSH_ALIAS_PREFIX}1"      Execute On Machine    ${machine}    kubectl get pods
 
 Create Connections To Kube Cluster
     :FOR    ${index}    IN RANGE    1    ${KUBE_CLUSTER_${CLUSTER_ID}_NODES}+1
-    \    Open SSH Connection    vm_${index}    ${KUBE_CLUSTER_${CLUSTER_ID}_VM_${index}_PUBLIC_IP}    ${KUBE_CLUSTER_${CLUSTER_ID}_VM_${index}_USER}    ${KUBE_CLUSTER_${CLUSTER_ID}_VM_${index}_PSWD}
-    \    Get Machine Status    vm_${index}
+    \    Open SSH Connection    ${VM_SSH_ALIAS_PREFIX}${index}    ${KUBE_CLUSTER_${CLUSTER_ID}_VM_${index}_PUBLIC_IP}    ${KUBE_CLUSTER_${CLUSTER_ID}_VM_${index}_USER}    ${KUBE_CLUSTER_${CLUSTER_ID}_VM_${index}_PSWD}
+    \    Get Machine Status    ${VM_SSH_ALIAS_PREFIX}${index}
 
 Make Datastore Snapshots
     [Arguments]            ${tag}=notag

@@ -24,10 +24,15 @@ RUN /bin/bash -c "if [ '${VPP_COMMIT_ID}' != 'xxx' ]; then \
         git reset --hard HEAD && \
         yes | make install-dep && \
         make bootstrap && \
+        make build && \
         make pkg-deb && \
         cd build-root && \
         yes | apt remove vpp vpp-plugins vpp-lib vpp-dev || true && \
         dpkg -i vpp_*.deb vpp-dev_*.deb vpp-lib_*.deb vpp-plugins_*.deb ; \
+    else \
+        cd ${VPP_DIR} && \
+        make bootstrap && \
+        make build ; \
     fi"
 
 # copy source files to the container
@@ -45,6 +50,9 @@ RUN cd $GOPATH/src/github.com/contiv/vpp && \
 
 # add supervisord config file
 COPY docker/ubuntu-based/dev/supervisord.conf /etc/supervisord.conf
+
+# add debug govpp.conf with larger timeouts
+COPY docker/ubuntu-based/dev/govpp.conf /opt/vpp-agent/dev/govpp.conf
 
 # run supervisord as the default executable
 CMD ["/usr/bin/supervisord", "-c", "/etc/supervisord.conf"]

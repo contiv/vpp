@@ -28,6 +28,9 @@ var _ = math.Inf
 // proto package needs to be updated.
 const _ = proto.ProtoPackageIsVersion2 // please upgrade the proto package
 
+// identifier represents a record of assigning an ID to a name
+// the aim of these record is to track ID assigned to cluster nodes.
+// ID determines ipam for a givne node.
 type Identifier struct {
 	Id   uint32 `protobuf:"varint,1,opt,name=id" json:"id,omitempty"`
 	Name string `protobuf:"bytes,2,opt,name=name" json:"name,omitempty"`

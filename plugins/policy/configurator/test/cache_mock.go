@@ -77,7 +77,7 @@ func (mpc *MockPolicyCache) ListAllPods() (pods []podmodel.ID) {
 }
 
 // LookupPolicy is not implemented by the mock.
-func (mpc *MockPolicyCache) LookupPolicy(policy podmodel.ID) (found bool, data *policymodel.Policy) {
+func (mpc *MockPolicyCache) LookupPolicy(policy policymodel.ID) (found bool, data *policymodel.Policy) {
 	return false, nil
 }
 

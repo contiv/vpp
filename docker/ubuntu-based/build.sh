@@ -16,9 +16,9 @@
 # fail in case of error
 set -e
 
-# pull newest images
-sudo docker pull ligato/dev-vpp-agent:pantheon-dev
-sudo docker pull ligato/vpp-agent:pantheon-dev
+# uncomment to pull newest base images
+#sudo docker pull ligato/dev-vpp-agent:pantheon-dev
+#sudo docker pull ligato/vpp-agent:pantheon-dev
 
 # obtain the current git tag for tagging the Docker images
 TAG=`git describe --tags`

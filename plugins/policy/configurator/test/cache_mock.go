@@ -56,6 +56,11 @@ func (mpc *MockPolicyCache) LookupPod(pod podmodel.ID) (found bool, data *podmod
 	return found, data
 }
 
+// LookupPodsByNSLabelSelector
+func (mpc *MockPolicyCache) LookupPodsByNSLabelSelector(namespace string, podLabelSelector *policymodel.Policy_LabelSelector) (pods []podmodel.ID) {
+	return nil
+}
+
 // LookupPodsByLabelSelector is not implemented by the mock.
 func (mpc *MockPolicyCache) LookupPodsByLabelSelector(podLabelSelector *policymodel.Policy_LabelSelector) (pods []podmodel.ID) {
 	return nil

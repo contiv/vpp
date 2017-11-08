@@ -211,7 +211,7 @@ func (i *IPAM) VSwitchNetwork() *net.IPNet {
 	return &vSwitchNetwork
 }
 
-// OtherNodeVSwitchNetwork returns vswitch network used to connect vswitch to other host identified by hostID.
+// OtherHostVSwitchNetwork returns vswitch network used to connect vswitch to other host identified by hostID.
 func (i *IPAM) OtherHostVSwitchNetwork(hostID uint8) *net.IPNet {
 	i.mutex.RLock()
 	defer i.mutex.RUnlock()

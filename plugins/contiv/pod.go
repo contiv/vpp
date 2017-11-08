@@ -32,22 +32,17 @@ import (
 
 func (s *remoteCNIserver) configureRoutesInContainer(request *cni.CNIRequest) error {
 	return s.WithNetNSPath(request.NetworkNamespace, func(netns ns.NetNS) error {
-
-		_, linkNet, err := net.ParseCIDR(s.ipam.getPodGatewayIP() + "/32")
-		if err != nil {
-			s.Logger.Error(err)
-			return err
-		}
-
-		defaultNextHop := net.ParseIP(s.ipam.getPodGatewayIP())
+		destination := ipToIPNet(s.ipam.PodGatewayIP())
+		defaultNextHop := s.ipam.PodGatewayIP()
 		dev, err := s.LinkByName(request.InterfaceName)
 		if err != nil {
 			s.Logger.Error(err)
 			return err
 		}
+
 		err = s.RouteAdd(&netlink.Route{
 			LinkIndex: dev.Attrs().Index,
-			Dst:       linkNet,
+			Dst:       &destination,
 			Scope:     netlink.SCOPE_LINK,
 		})
 		if err != nil {
@@ -74,7 +69,7 @@ func (s *remoteCNIserver) retrieveContainerMacAddr(namespace string, ifname stri
 
 }
 
-func (s *remoteCNIserver) configureArpOnVpp(request *cni.CNIRequest, macAddr []byte, podIP string) error {
+func (s *remoteCNIserver) configureArpOnVpp(request *cni.CNIRequest, macAddr []byte, podIP net.IP) error {
 
 	ifName := s.afpacketNameFromRequest(request)
 	if s.swIfIndex == nil {
@@ -85,21 +80,17 @@ func (s *remoteCNIserver) configureArpOnVpp(request *cni.CNIRequest, macAddr []b
 	if !exists {
 		return fmt.Errorf("afpacket %v doesn't exist", ifName)
 	}
-	containerIP, _, err := net.ParseCIDR(podIP)
-	if err != nil {
-		return err
-	}
 
 	req := &ip.IPNeighborAddDel{
 		SwIfIndex:  idx,
 		IsAdd:      1,
 		MacAddress: macAddr,
 		IsNoAdjFib: 1,
-		DstAddress: []byte(containerIP.To4()),
+		DstAddress: []byte(podIP.To4()),
 	}
 
 	reply := &ip.IPNeighborAddDelReply{}
-	err = s.govppChan.SendRequest(req).ReceiveReply(reply)
+	err := s.govppChan.SendRequest(req).ReceiveReply(reply)
 	if reply.Retval != 0 {
 		return fmt.Errorf("Adding arp entry returned non zero error code (%v)", reply.Retval)
 	}
@@ -108,7 +99,7 @@ func (s *remoteCNIserver) configureArpOnVpp(request *cni.CNIRequest, macAddr []b
 
 func (s *remoteCNIserver) configureArpInContainer(macAddr net.HardwareAddr, request *cni.CNIRequest) error {
 
-	gw := net.ParseIP(s.ipam.getPodGatewayIP())
+	gw := s.ipam.PodGatewayIP()
 	return s.WithNetNSPath(request.NetworkNamespace, func(ns ns.NetNS) error {
 		link, err := s.LinkByName(request.InterfaceName)
 		if err != nil {
@@ -182,10 +173,6 @@ func (s *remoteCNIserver) afpacketNameFromRequest(request *cni.CNIRequest) strin
 	return afPacketNamePrefix + s.veth2NameFromRequest(request)
 }
 
-func (s *remoteCNIserver) ipAddrForContainer() string {
-	return s.ipam.getNextPodIP() + "/32"
-}
-
 func (s *remoteCNIserver) ipAddrForAfPacket() string {
 	return afPacketIPPrefix + "." + strconv.Itoa(s.counter+1) + "/32"
 }
@@ -236,4 +223,8 @@ func (s *remoteCNIserver) vppRouteFromRequest(request *cni.CNIRequest, podIP str
 		DstIpAddr:         podIP,
 		OutgoingInterface: s.afpacketNameFromRequest(request),
 	}
+}
+
+func ipToIPNet(ip net.IP) net.IPNet {
+	return net.IPNet{IP: ip, Mask: net.IPv4Mask(0xff, 0xff, 0xff, 0xff)}
 }

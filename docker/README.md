@@ -17,6 +17,11 @@ To tag and push the images into [Dockerhub](https://hub.docker.com/u/contivvpp/)
 ./push-all.sh
 ```
 
+To tag and push the devel vswitch image, execute:
+```
+./push-all.sh --dev-upload true
+```
+
 To tag the images without pushing, execute:
 ```
 ./push-all.sh --skip-upload true

@@ -35,9 +35,11 @@ import (
 	"github.com/ligato/cn-infra/rpc/grpc"
 	"github.com/ligato/cn-infra/rpc/rest"
 	"github.com/ligato/vpp-agent/clientv1/linux/localclient"
+	"github.com/ligato/vpp-agent/flavors/vpp"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins"
 	"github.com/ligato/vpp-agent/plugins/govppmux"
 	"github.com/ligato/vpp-agent/plugins/linuxplugin"
+	"github.com/namsral/flag"
 )
 
 const (
@@ -87,6 +89,8 @@ func (f *FlavorContiv) Inject() bool {
 		f.FlavorLocal = &local.FlavorLocal{}
 	}
 	f.FlavorLocal.Inject()
+
+	flag.String(vpp.GoVPPConfFlag, vpp.GoVPPConf, vpp.GoVPPConfUsage)
 
 	rest.DeclareHTTPPortFlag("http")
 	httpPlugDeps := *f.InfraDeps("http", local.WithConf())

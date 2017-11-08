@@ -44,6 +44,8 @@ import (
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/ifaceidx"
 	vpp_intf "github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/model/interfaces"
 
+	"github.com/contiv/vpp/plugins/contiv/bin_api/session"
+	"github.com/contiv/vpp/plugins/contiv/bin_api/stn"
 	"github.com/contiv/vpp/plugins/contiv/ipam"
 	"github.com/onsi/gomega"
 )
@@ -140,6 +142,8 @@ func vppChanMock() *api.Channel {
 	vppMock.RegisterBinAPITypes(vpe.Types)
 	vppMock.RegisterBinAPITypes(vxlan.Types)
 	vppMock.RegisterBinAPITypes(ip.Types)
+	vppMock.RegisterBinAPITypes(stn.Types)
+	vppMock.RegisterBinAPITypes(session.Types)
 
 	vppMock.MockReplyHandler(func(request govppmock.MessageDTO) (reply []byte, msgID uint16, prepared bool) {
 		reqName, found := vppMock.GetMsgNameByID(request.MsgID)

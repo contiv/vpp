@@ -58,15 +58,15 @@ func (ci *ConfigIndex) RegisterContainer(containerID string, data *Config) {
 	ci.mapping.Put(containerID, data)
 }
 
-// UnregisterContainer removes the entry from the mapping
-func (ci *ConfigIndex) UnregisterContainer(containerID string) (found bool, data *Config) {
+// UnregisterContainer removes the entry from the nbmapping
+func (ci *ConfigIndex) UnregisterContainer(containerID string) (data *Config, found bool) {
 	d, found := ci.mapping.Delete(containerID)
 	if found {
 		if data, ok := d.(*Config); ok {
-			return found, data
+			return data, found
 		}
 	}
-	return false, nil
+	return nil, false
 }
 
 // LookupContainer looks up entry in the container based on containerID.

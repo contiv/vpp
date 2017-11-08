@@ -71,7 +71,6 @@ func New(logger logging.Logger, hostID uint8, config *Config) (*IPAM, error) {
 		logger: logger,
 		hostID: hostID,
 	}
-	//ipam.logger.SetLevel(logging.DebugLevel)
 
 	// computing IPAM struct variables from IPAM config
 	if err := initializePodsIPAM(ipam, config, hostID); err != nil {

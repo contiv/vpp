@@ -15,10 +15,11 @@
 package contiv
 
 import (
+	"net"
+
 	"github.com/containernetworking/plugins/pkg/ip"
 	"github.com/containernetworking/plugins/pkg/ns"
 	"github.com/vishvananda/netlink"
-	"net"
 )
 
 // hostCalls allow to mock linux calls in test.

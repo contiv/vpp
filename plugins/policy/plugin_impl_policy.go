@@ -72,7 +72,7 @@ type Plugin struct {
 type Deps struct {
 	local.PluginInfraDeps
 	Watcher        datasync.KeyValProtoWatcher /* prefixed for KSR-published K8s state data */
-	Contiv         *contiv.Plugin              /* for GetIfName() */
+	Contiv         contiv.API                  /* for GetIfName() */
 	PolicyCacheAPI cache.PolicyCacheAPI
 }
 
@@ -92,20 +92,20 @@ func (p *Plugin) Init() error {
 		},
 	}
 
+	p.configurator = &configurator.PolicyConfigurator{
+		Deps: configurator.Deps{
+			Log:    p.Log.NewLogger("-policyConfigurator"),
+			Contiv: p.Contiv,
+			Cache:  p.policyCache,
+		},
+	}
+
 	p.processor = &processor.PolicyProcessor{
 		Deps: processor.Deps{
 			Log:          p.Log.NewLogger("-policyProcessor"),
 			Contiv:       p.Contiv,
 			Cache:        p.policyCache,
 			Configurator: p.configurator,
-		},
-	}
-
-	p.configurator = &configurator.PolicyConfigurator{
-		Deps: configurator.Deps{
-			Log:    p.Log.NewLogger("-policyConfigurator"),
-			Contiv: p.Contiv,
-			Cache:  p.policyCache,
 		},
 	}
 
@@ -163,9 +163,9 @@ func (p *Plugin) watchEvents(ctx context.Context) {
 	for {
 		select {
 		case resyncConfigEv := <-p.resyncChan:
-			err := p.policyCache.Resync(resyncConfigEv)
-			resyncConfigEv.Done(err)
-
+			//err := p.policyCache.Resync(resyncConfigEv)
+			//resyncConfigEv.Done(err)
+			p.Log.Info(resyncConfigEv)
 		case dataChngEv := <-p.changeChan:
 			err := p.policyCache.Update(dataChngEv)
 			dataChngEv.Done(err)

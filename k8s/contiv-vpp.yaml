@@ -82,6 +82,22 @@ data:
 
 ---
 
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: contiv-agent-plugin-cfg
+  namespace: kube-system
+data:
+  contiv.yaml: |
+    IPAMConfig:
+      PodSubnetCIDR: "10.1.0.0/16"
+      PodNetworkPrefixLen: 24
+      VSwitchSubnetCIDR: "172.30.0.0/16"
+      VSwitchNetworkPrefixLen: 24
+      HostNodeSubnetCidr: "192.168.16.0/24"
+
+---
+
 # This installs contiv-vswitch on each master and worker node in a Kubernetes cluster.
 # It consists of the following containers:
 #   - contiv-vswitch container: contains VPP and its management agent
@@ -180,6 +196,8 @@ spec:
               mountPath: /dev/shm
             - name: dev
               mountPath: /dev
+            - name: agent-plugin-cfg
+              mountPath: /etc/agent
 
         # This container installs the Contiv CNI binaries
         # and CNI network config file on each node.
@@ -219,6 +237,10 @@ spec:
         - name: shm
           hostPath:
             path: /dev/shm
+        # Used to configure contiv agent plugin.
+        - name: agent-plugin-cfg
+          configMap:
+            name: contiv-agent-plugin-cfg
 
 ---
 

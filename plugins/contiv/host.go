@@ -15,14 +15,14 @@
 package contiv
 
 import (
-	"net"
-
 	"fmt"
 
 	vpp_intf "github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/model/interfaces"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/l3plugin/model/l3"
 	linux_intf "github.com/ligato/vpp-agent/plugins/linuxplugin/ifplugin/model/interfaces"
 	"github.com/vishvananda/netlink"
+	"net"
+	"strconv"
 )
 
 func (s *remoteCNIserver) configureRouteOnHost() error {
@@ -31,28 +31,24 @@ func (s *remoteCNIserver) configureRouteOnHost() error {
 		s.Logger.Error(err)
 		return err
 	}
-	_, network, err := net.ParseCIDR(s.ipam.getPodSubnetCIDR())
-	if err != nil {
-		s.Logger.Error(err)
-		return err
-	}
 
 	return s.RouteAdd(&netlink.Route{
 		LinkIndex: dev.Attrs().Index,
-		Dst:       network,
-		Gw:        net.ParseIP(s.vethVPPEndIP()),
+		Dst:       s.ipam.PodSubnet(),
+		Gw:        s.ipam.VEthVPPEndIP(),
 	})
 }
 
 func (s *remoteCNIserver) defaultRouteToHost() *l3.StaticRoutes_Route {
 	return &l3.StaticRoutes_Route{
 		DstIpAddr:         "0.0.0.0/0",
-		NextHopAddr:       s.vethHostEndIP(),
+		NextHopAddr:       s.ipam.VEthHostEndIP().String(),
 		OutgoingInterface: vethVPPEndName,
 	}
 }
 
 func (s *remoteCNIserver) interconnectVethHost() *linux_intf.LinuxInterfaces_Interface {
+	size, _ := s.ipam.VSwitchNetwork().Mask.Size()
 	return &linux_intf.LinuxInterfaces_Interface{
 		Name:       "vppv1",
 		Type:       linux_intf.LinuxInterfaces_VETH,
@@ -61,7 +57,7 @@ func (s *remoteCNIserver) interconnectVethHost() *linux_intf.LinuxInterfaces_Int
 		Veth: &linux_intf.LinuxInterfaces_Interface_Veth{
 			PeerIfName: "v2",
 		},
-		IpAddresses: []string{s.vethHostEndIP() + "/24"},
+		IpAddresses: []string{s.ipam.VEthHostEndIP().String() + "/" + strconv.Itoa(size)},
 	}
 }
 
@@ -78,6 +74,7 @@ func (s *remoteCNIserver) interconnectVethVpp() *linux_intf.LinuxInterfaces_Inte
 }
 
 func (s *remoteCNIserver) interconnectAfpacket() *vpp_intf.Interfaces_Interface {
+	size, _ := s.ipam.VSwitchNetwork().Mask.Size()
 	return &vpp_intf.Interfaces_Interface{
 		Name:    vethVPPEndName,
 		Type:    vpp_intf.InterfaceType_AF_PACKET_INTERFACE,
@@ -85,48 +82,51 @@ func (s *remoteCNIserver) interconnectAfpacket() *vpp_intf.Interfaces_Interface 
 		Afpacket: &vpp_intf.Interfaces_Interface_Afpacket{
 			HostIfName: vethVPPEndName,
 		},
-		IpAddresses: []string{s.vethVPPEndIP() + "/24"},
+		IpAddresses: []string{s.ipam.VEthVPPEndIP().String() + "/" + strconv.Itoa(size)},
 	}
 }
 
-func (s *remoteCNIserver) physicalInterface(name string) *vpp_intf.Interfaces_Interface {
+func (s *remoteCNIserver) physicalInterface(name string) (*vpp_intf.Interfaces_Interface, error) {
+	hostNetwork, err := s.ipam.HostIPNetwork(s.ipam.HostID())
+	if err != nil {
+		return nil, err
+	}
 	return &vpp_intf.Interfaces_Interface{
 		Name:        name,
 		Type:        vpp_intf.InterfaceType_ETHERNET_CSMACD,
 		Enabled:     true,
-		IpAddresses: []string{fmt.Sprintf("%s.%d/24", nicNetworkPerfix, s.ipam.getPodNetworkSubnetID())},
-	}
+		IpAddresses: []string{hostNetwork.String()},
+	}, nil
 }
 
-func (s *remoteCNIserver) physicalInterfaceLoopback() *vpp_intf.Interfaces_Interface {
+func (s *remoteCNIserver) physicalInterfaceLoopback() (*vpp_intf.Interfaces_Interface, error) {
+	hostNetwork, err := s.ipam.HostIPNetwork(s.ipam.HostID())
+	if err != nil {
+		return nil, err
+	}
 	return &vpp_intf.Interfaces_Interface{
 		Name:        "loopbackNIC",
 		Type:        vpp_intf.InterfaceType_SOFTWARE_LOOPBACK,
 		Enabled:     true,
-		IpAddresses: []string{fmt.Sprintf("%s.%d/24", nicNetworkPerfix, s.ipam.getPodNetworkSubnetID())},
-	}
+		IpAddresses: []string{hostNetwork.String()},
+	}, nil
 }
 
-func (s *remoteCNIserver) routeToOtherHostPods(hostID uint8) *l3.StaticRoutes_Route {
+func (s *remoteCNIserver) routeToOtherHostPods(hostID uint8) (*l3.StaticRoutes_Route, error) {
+	return s.routeToOtherHostNetworks(hostID, s.ipam.PodNetwork())
+}
+
+func (s *remoteCNIserver) routeToOtherHostStack(hostID uint8) (*l3.StaticRoutes_Route, error) {
+	return s.routeToOtherHostNetworks(hostID, s.ipam.VSwitchNetwork())
+}
+
+func (s *remoteCNIserver) routeToOtherHostNetworks(hostID uint8, destNetwork *net.IPNet) (*l3.StaticRoutes_Route, error) {
+	hostIP, err := s.ipam.HostIPAddress(hostID)
+	if err != nil {
+		return nil, fmt.Errorf("Can't get Host IP address for host ID %v, error: %v", hostID, err)
+	}
 	return &l3.StaticRoutes_Route{
-		DstIpAddr:   fmt.Sprintf("%s.%d.0/24", podSubnetPrefix, hostID),
-		NextHopAddr: fmt.Sprintf("%s.%d", nicNetworkPerfix, hostID),
-	}
-}
-
-func (s *remoteCNIserver) routeToOtherHostStack(hostID uint8) *l3.StaticRoutes_Route {
-	return &l3.StaticRoutes_Route{
-		DstIpAddr:   fmt.Sprintf("%s.%d.0/24", hostSubnetPrefix, hostID),
-		NextHopAddr: fmt.Sprintf("%s.%d", nicNetworkPerfix, hostID),
-	}
-}
-
-func (s *remoteCNIserver) vethVPPEndIP() string {
-	// TODO: replace with proper IPAM calls
-	return fmt.Sprintf("%s.%d.1", hostSubnetPrefix, s.ipam.podNetworkSubnetID)
-}
-
-func (s *remoteCNIserver) vethHostEndIP() string {
-	// TODO: replace with proper IPAM calls
-	return fmt.Sprintf("%s.%d.2", hostSubnetPrefix, s.ipam.podNetworkSubnetID)
+		DstIpAddr:   destNetwork.String(),
+		NextHopAddr: hostIP.String(),
+	}, nil
 }

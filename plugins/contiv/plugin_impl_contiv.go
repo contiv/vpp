@@ -22,8 +22,10 @@ package contiv
 import (
 	"context"
 
+	"fmt"
 	"git.fd.io/govpp.git/api"
 	"github.com/contiv/vpp/plugins/contiv/containeridx"
+	"github.com/contiv/vpp/plugins/contiv/ipam"
 	"github.com/contiv/vpp/plugins/contiv/model/cni"
 	"github.com/contiv/vpp/plugins/kvdbproxy"
 	"github.com/ligato/cn-infra/datasync"
@@ -55,6 +57,8 @@ type Plugin struct {
 
 	ctx           context.Context
 	ctxCancelFunc context.CancelFunc
+
+	Config *Config
 }
 
 // Deps groups the dependencies of the Plugin.
@@ -69,11 +73,23 @@ type Deps struct {
 	Watcher datasync.KeyValProtoWatcher
 }
 
+// Config is configuration for Contiv plugin.
+// It can be injected or loaded from external config. Injection has priority to external config. To use external
+// config add `<Contiv plugin name> + "-config="<absolute path to config>` in go run command flags.
+type Config struct {
+	IPAMConfig ipam.Config
+}
+
 // Init initializes the grpc server handling the request from the CNI.
 func (plugin *Plugin) Init() error {
 	plugin.configuredContainers = containeridx.NewConfigIndex(plugin.Log, plugin.PluginName, "containers")
 
 	plugin.ctx, plugin.ctxCancelFunc = context.WithCancel(context.Background())
+	if plugin.Config == nil {
+		if err := plugin.applyExternalConfig(); err != nil {
+			return err
+		}
+	}
 
 	var err error
 	plugin.govppCh, err = plugin.GoVPP.NewAPIChannel()
@@ -96,18 +112,35 @@ func (plugin *Plugin) Init() error {
 		return err
 	}
 
-	plugin.cniServer = newRemoteCNIServer(plugin.Log,
+	plugin.cniServer, err = newRemoteCNIServer(plugin.Log,
 		func() linux.DataChangeDSL { return localclient.DataChangeRequest(plugin.PluginName) },
 		plugin.Proxy,
 		plugin.configuredContainers,
 		plugin.govppCh,
 		plugin.VPP.GetSwIfIndexes(),
 		plugin.ServiceLabel.GetAgentLabel(),
+		&plugin.Config.IPAMConfig,
 		uid)
+	if err != nil {
+		return fmt.Errorf("Can't create new remote CNI server due to error: %v ", err)
+	}
 	cni.RegisterRemoteCNIServer(plugin.GRPC.Server(), plugin.cniServer)
 
 	go plugin.cniServer.handleNodeEvents(plugin.ctx, plugin.nodeIDsresyncChan, plugin.nodeIDSchangeChan)
 
+	return nil
+}
+
+func (plugin *Plugin) applyExternalConfig() error {
+	externalCfg := &Config{}
+	found, err := plugin.PluginConfig.GetValue(externalCfg) // It tries to lookup `PluginName + "-config"` in go run command flags.
+	if err != nil {
+		return fmt.Errorf("External Contiv plugin configuration could not load or other problem happened: %v", err)
+	}
+	if !found {
+		return fmt.Errorf("External Contiv plugin configuration was not found")
+	}
+	plugin.Config = externalCfg
 	return nil
 }
 

@@ -21,6 +21,7 @@ import (
 	"context"
 
 	"fmt"
+
 	"git.fd.io/govpp.git/api"
 	"github.com/contiv/vpp/plugins/contiv/containeridx"
 	"github.com/contiv/vpp/plugins/contiv/ipam"

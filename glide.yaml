@@ -3,7 +3,7 @@ import:
 - package: github.com/ligato/cn-infra
   version: 31828788c07aa73521d83869714e994aae5cba2d
 - package: github.com/ligato/vpp-agent
-  version: e172d1f6fafd2863532f4d8612c1ab51d04981c0
+  version: dde9840771b6e59a72da20a83415c0453324c1f8 
 - package: github.com/containernetworking/cni
   version: v0.6.0
 - package: github.com/containernetworking/plugins
@@ -54,4 +54,5 @@ import:
   subpackages:
   - exec
 - package: github.com/docker/swarmkit
-  version: 79381d0840be27f8b3f5c667b348a4467d866eeb
+  repo: https://github.com/dmcgowan/swarmkit.git
+  version: 8bdecc57887ffc598b63d6433f58e0d2852112c3

@@ -124,17 +124,21 @@ spec:
         - /bin/sh
         args:
         - -c
-        - "cp -r $LD_PRELOAD_LIB_DIR/* /vpp-lib64/ &&
-          if [ ! -e /host/etc/vpp/contiv-vswitch.conf ]; then cp /etc/vpp/contiv-vswitch.conf /host/etc/vpp; fi"
+        - "rm -rf /dev/shm/db /dev/shm/global_vm /dev/shm/vpe-api || true && \
+           rm -rf /vpp-lib64/* || true && \
+           cp -r $LD_PRELOAD_LIB_DIR/* /vpp-lib64/ && \
+           if [ ! -e /host/etc/vpp/contiv-vswitch.conf ]; then cp /etc/vpp/contiv-vswitch.conf /host/etc/vpp; fi"
         imagePullPolicy: IfNotPresent
         resources: {}
         securityContext:
           privileged: true
         volumeMounts:
-          - mountPath: /vpp-lib64/
-            name: vpp-lib64
-          - mountPath: /host/etc/vpp
-            name: vpp-cfg
+          - name: vpp-lib64
+            mountPath: /vpp-lib64/
+          - name: vpp-cfg
+            mountPath: /host/etc/vpp
+          - name: shm
+            mountPath: /dev/shm
 
       containers:
         # Runs contiv-vswitch container on each Kubernetes node.

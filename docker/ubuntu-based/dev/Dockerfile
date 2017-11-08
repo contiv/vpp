@@ -9,6 +9,10 @@ WORKDIR /root/
 
 # Path to VPP ws root directory
 ENV VPP_DIR /opt/vpp-agent/dev/vpp
+ENV VPP_BIN_DIR $VPP_DIR/build-root/install-vpp-native/vpp/bin
+ENV VPP_LIB_DIR $VPP_DIR/build-root/install-vpp-native/vpp/lib64
+ENV VPP_BIN $VPP_BIN_DIR/vpp
+ENV LD_PRELOAD_LIB_DIR $VPP_LIB_DIR
 
 # if VPP comit ID is specified, update to specific VPP commit ID
 RUN /bin/bash -c "if [ '${VPP_COMMIT_ID}' != 'xxx' ]; then \
@@ -20,9 +24,15 @@ RUN /bin/bash -c "if [ '${VPP_COMMIT_ID}' != 'xxx' ]; then \
         git reset --hard HEAD && \
         yes | make install-dep && \
         make bootstrap && \
+        make build && \
         make pkg-deb && \
         cd build-root && \
+        yes | apt remove vpp vpp-plugins vpp-lib vpp-dev || true && \
         dpkg -i vpp_*.deb vpp-dev_*.deb vpp-lib_*.deb vpp-plugins_*.deb ; \
+    else \
+        cd ${VPP_DIR} && \
+        make bootstrap && \
+        make build ; \
     fi"
 
 # copy source files to the container

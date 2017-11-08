@@ -185,8 +185,8 @@ func (dsl *MockDeleteDSL) BfdSession(bfdSessionIfaceName string) linux.DeleteDSL
 
 // BfdAuthKeys adds a mock request to delete an existing bidirectional forwarding
 // detection key.
-func (dsl *MockDeleteDSL) BfdAuthKeys(bfdKeyName string) linux.DeleteDSL {
-	op := TxnOp{Key: bfd.AuthKeysKey(bfdKeyName)}
+func (dsl *MockDeleteDSL) BfdAuthKeys(bfdKey uint32) linux.DeleteDSL {
+	op := TxnOp{Key: bfd.AuthKeysKey(string(bfdKey))}
 	dsl.parent.Ops = append(dsl.parent.Ops, op)
 	return dsl
 }

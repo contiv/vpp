@@ -60,11 +60,8 @@ func (s *remoteCNIserver) nodeChangePropageteEvent(dataChngEv datasync.ChangeEve
 			if err != nil {
 				return err
 			}
-			if err = s.vppTxnFactory().Put().StaticRoute(podsRoute).Send().ReceiveReply(); err != nil {
-				return fmt.Errorf("Can't configure vpp to add route to pods of host %v : %v ", hostID, err)
-			}
-			if err = s.vppTxnFactory().Put().StaticRoute(hostRoute).Send().ReceiveReply(); err != nil {
-				return fmt.Errorf("Can't configure vpp to add route to host %v: %v ", hostID, err)
+			if err = s.vppTxnFactory().Put().StaticRoute(podsRoute).StaticRoute(hostRoute).Send().ReceiveReply(); err != nil {
+				return fmt.Errorf("Can't configure vpp to add route to host %v (and its pods): %v ", hostID, err)
 			}
 		} else { //Delete of host routes
 			podsRoute, hostRoute, err := s.computeRoutesForHost(hostID)
@@ -80,11 +77,12 @@ func (s *remoteCNIserver) nodeChangePropageteEvent(dataChngEv datasync.ChangeEve
 				return err
 			}
 
-			if err = s.vppTxnFactory().Delete().StaticRoute(podsRoute.VrfId, podDest, net.ParseIP(podsRoute.NextHopAddr)).Send().ReceiveReply(); err != nil {
-				return fmt.Errorf("Can't configure vpp to remove route to pods of host %v : %v ", hostID, err)
-			}
-			if err = s.vppTxnFactory().Delete().StaticRoute(hostRoute.VrfId, hostDest, net.ParseIP(hostRoute.NextHopAddr)).Send().ReceiveReply(); err != nil {
-				return fmt.Errorf("Can't configure vpp to remove route to host %v: %v ", hostID, err)
+			err = s.vppTxnFactory().Delete().
+				StaticRoute(podsRoute.VrfId, podDest, net.ParseIP(podsRoute.NextHopAddr)).
+				StaticRoute(hostRoute.VrfId, hostDest, net.ParseIP(hostRoute.NextHopAddr)).
+				Send().ReceiveReply()
+			if err != nil {
+				return fmt.Errorf("Can't configure vpp to remove route to host %v (and its pods): %v ", hostID, err)
 			}
 		}
 	} else {

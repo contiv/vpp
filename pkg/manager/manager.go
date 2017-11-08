@@ -249,16 +249,17 @@ func (s *ContivshimManager) CreateContainer(ctx context.Context, req *kubeapi.Cr
 		}
 		if labels[scopeGlobal] == "true" {
 			envs = append(envs, &kubeapi.KeyValue{
-				Key:   "VCL_SESSION_SCOPE_GLOBAL",
+				Key:   "VCL_APP_SCOPE_GLOBAL",
 				Value: "",
 			})
 		}
 		if labels[scopeLocal] == "true" {
 			envs = append(envs, &kubeapi.KeyValue{
-				Key:   "VCL_SESSION_SCOPE_LOCAL",
+				Key:   "VCL_APP_SCOPE_LOCAL",
 				Value: "",
 			})
 		}
+		logroot.StandardLogger().Infof("Setting %v %v", req.PodSandboxId, envs)
 
 		req.Config.Envs = append(req.Config.Envs, envs...)
 	}

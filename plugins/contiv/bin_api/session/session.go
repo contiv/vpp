@@ -6,7 +6,7 @@ package session
 import "git.fd.io/govpp.git/api"
 
 // VlApiVersion contains version of the API.
-const VlAPIVersion = 0x15333a72
+const VlAPIVersion = 0xf79118d2
 
 // ApplicationAttach represents the VPP binary API message 'application_attach'.
 // Generated from '/usr/share/vpp/api/session.api.json', line 6:
@@ -916,7 +916,7 @@ func NewAppNamespaceAddDel() api.Message {
 //            ["u32", "context"],
 //            ["i32", "retval"],
 //            {"crc" : "0x7c9b7424"}
-//        ]
+//        ],
 //
 type AppNamespaceAddDelReply struct {
 	Retval int32
@@ -933,4 +933,154 @@ func (*AppNamespaceAddDelReply) GetCrcString() string {
 }
 func NewAppNamespaceAddDelReply() api.Message {
 	return &AppNamespaceAddDelReply{}
+}
+
+// SessionRuleAddDel represents the VPP binary API message 'session_rule_add_del'.
+// Generated from '/usr/share/vpp/api/session.api.json', line 253:
+//
+//        ["session_rule_add_del",
+//            ["u16", "_vl_msg_id"],
+//            ["u32", "client_index"],
+//            ["u32", "context"],
+//            ["u8", "transport_proto"],
+//            ["u8", "is_ip4"],
+//            ["u8", "lcl_ip", 16],
+//            ["u8", "lcl_plen"],
+//            ["u8", "rmt_ip", 16],
+//            ["u8", "rmt_plen"],
+//            ["u16", "lcl_port"],
+//            ["u16", "rmt_port"],
+//            ["u32", "action_index"],
+//            ["u8", "is_add"],
+//            ["u32", "appns_index"],
+//            ["u8", "scope"],
+//            {"crc" : "0x250faca8"}
+//        ],
+//
+type SessionRuleAddDel struct {
+	TransportProto uint8
+	IsIP4          uint8
+	LclIP          []byte `struc:"[16]byte"`
+	LclPlen        uint8
+	RmtIP          []byte `struc:"[16]byte"`
+	RmtPlen        uint8
+	LclPort        uint16
+	RmtPort        uint16
+	ActionIndex    uint32
+	IsAdd          uint8
+	AppnsIndex     uint32
+	Scope          uint8
+}
+
+func (*SessionRuleAddDel) GetMessageName() string {
+	return "session_rule_add_del"
+}
+func (*SessionRuleAddDel) GetMessageType() api.MessageType {
+	return api.RequestMessage
+}
+func (*SessionRuleAddDel) GetCrcString() string {
+	return "250faca8"
+}
+func NewSessionRuleAddDel() api.Message {
+	return &SessionRuleAddDel{}
+}
+
+// SessionRuleAddDelReply represents the VPP binary API message 'session_rule_add_del_reply'.
+// Generated from '/usr/share/vpp/api/session.api.json', line 271:
+//
+//        ["session_rule_add_del_reply",
+//            ["u16", "_vl_msg_id"],
+//            ["u32", "context"],
+//            ["i32", "retval"],
+//            {"crc" : "0xa000e586"}
+//        ],
+//
+type SessionRuleAddDelReply struct {
+	Retval int32
+}
+
+func (*SessionRuleAddDelReply) GetMessageName() string {
+	return "session_rule_add_del_reply"
+}
+func (*SessionRuleAddDelReply) GetMessageType() api.MessageType {
+	return api.ReplyMessage
+}
+func (*SessionRuleAddDelReply) GetCrcString() string {
+	return "a000e586"
+}
+func NewSessionRuleAddDelReply() api.Message {
+	return &SessionRuleAddDelReply{}
+}
+
+// SessionRulesDump represents the VPP binary API message 'session_rules_dump'.
+// Generated from '/usr/share/vpp/api/session.api.json', line 277:
+//
+//        ["session_rules_dump",
+//            ["u16", "_vl_msg_id"],
+//            ["u32", "client_index"],
+//            ["u32", "context"],
+//            {"crc" : "0xcb37054a"}
+//        ],
+//
+type SessionRulesDump struct {
+}
+
+func (*SessionRulesDump) GetMessageName() string {
+	return "session_rules_dump"
+}
+func (*SessionRulesDump) GetMessageType() api.MessageType {
+	return api.RequestMessage
+}
+func (*SessionRulesDump) GetCrcString() string {
+	return "cb37054a"
+}
+func NewSessionRulesDump() api.Message {
+	return &SessionRulesDump{}
+}
+
+// SessionRulesDetails represents the VPP binary API message 'session_rules_details'.
+// Generated from '/usr/share/vpp/api/session.api.json', line 283:
+//
+//        ["session_rules_details",
+//            ["u16", "_vl_msg_id"],
+//            ["u32", "context"],
+//            ["u8", "transport_proto"],
+//            ["u8", "is_ip4"],
+//            ["u8", "lcl_ip", 16],
+//            ["u8", "lcl_plen"],
+//            ["u8", "rmt_ip", 16],
+//            ["u8", "rmt_plen"],
+//            ["u16", "lcl_port"],
+//            ["u16", "rmt_port"],
+//            ["u32", "action_index"],
+//            ["u32", "appns_index"],
+//            ["u8", "scope"],
+//            {"crc" : "0x4f7e4945"}
+//        ]
+//
+type SessionRulesDetails struct {
+	TransportProto uint8
+	IsIP4          uint8
+	LclIP          []byte `struc:"[16]byte"`
+	LclPlen        uint8
+	RmtIP          []byte `struc:"[16]byte"`
+	RmtPlen        uint8
+	LclPort        uint16
+	RmtPort        uint16
+	ActionIndex    uint32
+	AppnsIndex     uint32
+	Scope          uint8
+}
+
+func (*SessionRulesDetails) GetMessageName() string {
+	return "session_rules_details"
+}
+func (*SessionRulesDetails) GetMessageType() api.MessageType {
+	return api.ReplyMessage
+}
+func (*SessionRulesDetails) GetCrcString() string {
+	return "4f7e4945"
+}
+func NewSessionRulesDetails() api.Message {
+	return &SessionRulesDetails{}
 }

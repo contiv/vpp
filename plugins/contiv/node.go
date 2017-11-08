@@ -19,10 +19,11 @@ import (
 	"fmt"
 	"strings"
 
+	"net"
+
 	"github.com/contiv/vpp/plugins/contiv/model/uid"
 	"github.com/ligato/cn-infra/datasync"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/l3plugin/model/l3"
-	"net"
 )
 
 // handleNodeEvents adjust VPP route configuration according to the node changes.
@@ -52,18 +53,26 @@ func (s *remoteCNIserver) nodeChangePropageteEvent(dataChngEv datasync.ChangeEve
 		if err != nil {
 			return err
 		}
-		hostID := uint8(nodeID.Id) //idAllocator.getID() trims it to uint8
+		hostID := uint8(nodeID.Id)
 
 		// route := s.getRouteToNode(conf, nodeID.Id)
-		if dataChngEv.GetChangeType() == datasync.Put { // Addition of host routes
+		if dataChngEv.GetChangeType() == datasync.Put {
+			// Addition of host routes
+			s.Logger.Info("New node discovered: ", hostID)
+
 			podsRoute, hostRoute, err := s.computeRoutesForHost(hostID)
 			if err != nil {
 				return err
 			}
+			s.Logger.Info("Adding PODs route: ", podsRoute)
+			s.Logger.Info("Adding host route: ", hostRoute)
 			if err = s.vppTxnFactory().Put().StaticRoute(podsRoute).StaticRoute(hostRoute).Send().ReceiveReply(); err != nil {
 				return fmt.Errorf("Can't configure vpp to add route to host %v (and its pods): %v ", hostID, err)
 			}
-		} else { //Delete of host routes
+		} else {
+			// Delete of host routes
+			s.Logger.Info("Node removed: ", hostID)
+
 			podsRoute, hostRoute, err := s.computeRoutesForHost(hostID)
 			if err != nil {
 				return err
@@ -122,8 +131,21 @@ func (s *remoteCNIserver) nodeResync(dataResyncEv datasync.ResyncEvent) error {
 				if err != nil {
 					return err
 				}
-				// route := s.getRouteToNode(conf, nodeID.Id)
-				// txn.StaticRoute(route)
+
+				// add rhe route for this host
+				hostID := uint8(nodeID.Id)
+				if hostID != s.ipam.HostID() {
+					s.Logger.Info("Adding routes to host ", hostID)
+					podsRoute, hostRoute, err := s.computeRoutesForHost(hostID)
+					if err != nil {
+						return err
+					}
+					s.Logger.Info("Adding PODs route: ", podsRoute)
+					s.Logger.Info("Adding host route: ", hostRoute)
+					if err = s.vppTxnFactory().Put().StaticRoute(podsRoute).StaticRoute(hostRoute).Send().ReceiveReply(); err != nil {
+						return fmt.Errorf("Can't configure vpp to add route to host %v (and its pods): %v ", hostID, err)
+					}
+				}
 			}
 		}
 	}

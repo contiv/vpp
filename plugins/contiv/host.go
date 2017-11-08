@@ -114,11 +114,11 @@ func (s *remoteCNIserver) physicalInterfaceLoopback() (*vpp_intf.Interfaces_Inte
 }
 
 func (s *remoteCNIserver) routeToOtherHostPods(hostID uint8) (*l3.StaticRoutes_Route, error) {
-	return s.routeToOtherHostNetworks(hostID, s.ipam.PodNetwork())
+	return s.routeToOtherHostNetworks(hostID, s.ipam.OtherHostPodNetwork(hostID))
 }
 
 func (s *remoteCNIserver) routeToOtherHostStack(hostID uint8) (*l3.StaticRoutes_Route, error) {
-	return s.routeToOtherHostNetworks(hostID, s.ipam.VSwitchNetwork())
+	return s.routeToOtherHostNetworks(hostID, s.ipam.OtherHostVSwitchNetwork(hostID))
 }
 
 func (s *remoteCNIserver) routeToOtherHostNetworks(hostID uint8, destNetwork *net.IPNet) (*l3.StaticRoutes_Route, error) {

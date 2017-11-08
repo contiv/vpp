@@ -51,5 +51,8 @@ RUN cd $GOPATH/src/github.com/contiv/vpp && \
 # add supervisord config file
 COPY docker/ubuntu-based/dev/supervisord.conf /etc/supervisord.conf
 
+# add debug govpp.conf with larger timeouts
+COPY docker/ubuntu-based/dev/govpp.conf /opt/vpp-agent/dev/govpp.conf
+
 # run supervisord as the default executable
 CMD ["/usr/bin/supervisord", "-c", "/etc/supervisord.conf"]

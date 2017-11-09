@@ -21,6 +21,7 @@ import (
 	"sync"
 
 	"bytes"
+
 	"github.com/ligato/cn-infra/logging"
 )
 

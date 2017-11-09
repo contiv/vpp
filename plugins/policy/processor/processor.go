@@ -120,7 +120,7 @@ func (pp *PolicyProcessor) AddPod(pod *podmodel.Pod) error {
 		return nil
 	}
 
-	if pod.Namespace == "kube-system" {
+	if pod.Namespace == "kube-system"
 		pp.Log.WithField("pod", pod).Warn("Pod belongs to kube-system namespace, ignoring")
 		return nil
 	}

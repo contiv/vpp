@@ -18,6 +18,8 @@ in local environment with `../docker/build-all.sh`.
 sed -i "s@image: contivvpp/vswitch@image: dev-contiv-vswitch:<your image version>@g" ./contiv-vpp.yaml
 ```
 
+To use the development image for testing with specific version of VPP, see
+[DEVIMAGE.md](../docker/DEVIMAGE.md).
 
 #### cri-install.sh
 Contiv-VPP CRI Shim installer / uninstaller, that can be used as follows:

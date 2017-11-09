@@ -37,3 +37,6 @@ You can either download the development container from Dockerhub, or build it
 locally on your host from the contiv/vpp/docker directory as described [here][1].
 
 [1]: https://github.com/contiv/vpp/blob/master/docker/README.md
+
+To use the development image for testing with specific version of VPP, see
+[DEVIMAGE.md](../DEVIMAGE.md).

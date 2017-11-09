@@ -36,7 +36,8 @@ type IPAM struct {
 	logger logging.Logger
 	mutex  sync.RWMutex
 
-	hostID uint8 // identifier of host node for which this IPAM is created for
+	config *Config // IPAM module configuration
+	hostID uint8   // identifier of host node for which this IPAM is created for
 
 	// pods related variables
 	podSubnetIPPrefix   net.IPNet        // IPv4 subnet from which individual pod networks are allocated, this is subnet for all pods across all host nodes
@@ -70,6 +71,7 @@ func New(logger logging.Logger, hostID uint8, config *Config) (*IPAM, error) {
 	// create basic IPAM
 	ipam := &IPAM{
 		logger: logger,
+		config: config,
 		hostID: hostID,
 	}
 
@@ -210,6 +212,19 @@ func (i *IPAM) VSwitchNetwork() *net.IPNet {
 	return &vSwitchNetwork
 }
 
+// OtherHostVSwitchNetwork returns vswitch network used to connect vswitch to other host identified by hostID.
+func (i *IPAM) OtherHostVSwitchNetwork(hostID uint8) *net.IPNet {
+	i.mutex.RLock()
+	defer i.mutex.RUnlock()
+	_, vSwitchNetworkIPPrefix, err := convertConfigNotation(i.config.VSwitchSubnetCIDR, i.config.VSwitchNetworkPrefixLen, hostID)
+	if err != nil {
+		// TODO fixme
+		return nil
+	}
+	vSwitchNetwork := newIPNet(vSwitchNetworkIPPrefix) // defensive copy
+	return &vSwitchNetwork
+}
+
 // PodSubnet returns pod subnet ("network_address/prefix_length") that is base subnet for all pods of all hosts.
 func (i *IPAM) PodSubnet() *net.IPNet {
 	i.mutex.RLock()
@@ -223,6 +238,19 @@ func (i *IPAM) PodNetwork() *net.IPNet {
 	i.mutex.RLock()
 	defer i.mutex.RUnlock()
 	podNetwork := newIPNet(i.podNetworkIPPrefix) // defensive copy
+	return &podNetwork
+}
+
+// OtherHostPodNetwork returns pod network for other host identified by hostID.
+func (i *IPAM) OtherHostPodNetwork(hostID uint8) *net.IPNet {
+	i.mutex.RLock()
+	defer i.mutex.RUnlock()
+	_, podNetworkIPPrefix, err := convertConfigNotation(i.config.PodSubnetCIDR, i.config.PodNetworkPrefixLen, hostID)
+	if err != nil {
+		// TODO fixme
+		return nil
+	}
+	podNetwork := newIPNet(podNetworkIPPrefix) // defensive copy
 	return &podNetwork
 }
 

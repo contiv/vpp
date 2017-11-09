@@ -2,14 +2,16 @@
 package ipam_test
 
 import (
-	"github.com/ligato/cn-infra/logging/logroot"
-	. "github.com/onsi/gomega"
 	"testing"
 
+	"github.com/ligato/cn-infra/logging/logroot"
+	. "github.com/onsi/gomega"
+
 	"fmt"
-	"github.com/contiv/vpp/plugins/contiv/ipam"
 	"net"
 	"strconv"
+
+	"github.com/contiv/vpp/plugins/contiv/ipam"
 )
 
 //TODO maybe check multiple hosts IPAMs for no interconnection between them and that hostID is not hardwired into them somehow

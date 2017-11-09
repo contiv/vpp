@@ -264,3 +264,37 @@ Verify_Cluster_Ready
 Wait_Until_Cluster_Ready
     [Arguments]    ${ssh_session}    ${nr_nodes}    ${timeout}=180s    ${check_period}=5s
     BuiltIn.Wait_Until_Keyword_Succeeds    ${timeout}    ${check_period}    Verify_Cluster_Ready    ${ssh_session}    ${nr_nodes}
+
+Log_Contiv_Etcd
+    [Arguments]    ${ssh_session}
+    ${pod_list} =    Get_Pod_Name_List_By_Prefix    ${ssh_session}    contiv-etcd-
+    BuiltIn.Length_Should_Be    ${pod_list}    1
+    KubeCtl.Logs    ${ssh_session}    @{pod_list}[0]    namespace=kube-system
+
+Log_Contiv_Ksr
+    [Arguments]    ${ssh_session}
+    ${pod_list} =    Get_Pod_Name_List_By_Prefix    ${ssh_session}    contiv-ksr-
+    BuiltIn.Length_Should_Be    ${pod_list}    1
+    KubeCtl.Logs    ${ssh_session}    @{pod_list}[0]    namespace=kube-system
+
+Log_Contiv_Vswitch
+    [Arguments]    ${ssh_session}
+    ${pod_list} =    Get_Pod_Name_List_By_Prefix    ${ssh_session}    contiv-vswitch-
+    BuiltIn.Length_Should_Be    ${pod_list}    1
+    KubeCtl.Logs    ${ssh_session}    @{pod_list}[0]    namespace=kube-system    container=contiv-cni
+    KubeCtl.Logs    ${ssh_session}    @{pod_list}[0]    namespace=kube-system    container=contiv-vswitch
+
+Log_Kube_Dns
+    [Arguments]    ${ssh_session}
+    ${pod_list} =    Get_Pod_Name_List_By_Prefix    ${ssh_session}    kube-dns-
+    BuiltIn.Length_Should_Be    ${pod_list}    1
+    KubeCtl.Logs    ${ssh_session}    @{pod_list}[0]    namespace=kube-system    container=kubedns
+    KubeCtl.Logs    ${ssh_session}    @{pod_list}[0]    namespace=kube-system    container=dnsmasq
+    KubeCtl.Logs    ${ssh_session}    @{pod_list}[0]    namespace=kube-system    container=sidecar
+
+Log_Pods_For_Debug
+    [Arguments]    ${ssh_session}
+    Log_Contiv_Etcd    ${ssh_session}
+    Log_Contiv_Ksr    ${ssh_session}
+    Log_Contiv_Vswitch    ${ssh_session}
+    Log_Kube_Dns    ${ssh_session}

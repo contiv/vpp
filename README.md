@@ -74,8 +74,7 @@ to contain the proper PCI address:
 ```
 unix {
     nodaemon
-    cli-listen 0.0.0.0:5002
-    cli-no-pager
+    cli-listen /run/vpp/cli.sock
 }
 dpdk {
     dev 0000:00:04.0

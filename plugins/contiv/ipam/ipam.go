@@ -220,18 +220,17 @@ func (i *IPAM) VSwitchNetwork() *net.IPNet {
 }
 
 // OtherHostVSwitchNetwork returns vswitch network used to connect vswitch to other host identified by hostID.
-func (i *IPAM) OtherHostVSwitchNetwork(hostID uint8) *net.IPNet {
+func (i *IPAM) OtherHostVSwitchNetwork(hostID uint8) (*net.IPNet, error) {
 	i.mutex.RLock()
 	defer i.mutex.RUnlock()
 
 	networkSize, _ := i.vSwitchNetworkIPPrefix.Mask.Size()
 	vSwitchNetworkIPPrefix, err := applyHostID(i.vSwitchSubnetIPPrefix, hostID, uint8(networkSize))
 	if err != nil {
-		// TODO fixme
-		return nil
+		return nil, err
 	}
 	vSwitchNetwork := newIPNet(vSwitchNetworkIPPrefix) // defensive copy
-	return &vSwitchNetwork
+	return &vSwitchNetwork, nil
 }
 
 // PodSubnet returns pod subnet ("network_address/prefix_length") that is base subnet for all pods of all hosts.
@@ -251,18 +250,17 @@ func (i *IPAM) PodNetwork() *net.IPNet {
 }
 
 // OtherHostPodNetwork returns pod network for other host identified by hostID.
-func (i *IPAM) OtherHostPodNetwork(hostID uint8) *net.IPNet {
+func (i *IPAM) OtherHostPodNetwork(hostID uint8) (*net.IPNet, error) {
 	i.mutex.RLock()
 	defer i.mutex.RUnlock()
 
 	networkSize, _ := i.podNetworkIPPrefix.Mask.Size()
 	podNetworkIPPrefix, err := applyHostID(i.podSubnetIPPrefix, hostID, uint8(networkSize))
 	if err != nil {
-		// TODO fixme
-		return nil
+		return nil, err
 	}
 	podNetwork := newIPNet(podNetworkIPPrefix) // defensive copy
-	return &podNetwork
+	return &podNetwork, nil
 }
 
 // PodGatewayIP returns gateway IP address for the pod network.

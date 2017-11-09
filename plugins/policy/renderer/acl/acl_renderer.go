@@ -199,26 +199,16 @@ func (art *RendererTxn) renderACL(ruleList *cache.ContivRuleList, ingress bool) 
 			aclRule.Matches.IpRule.Tcp.SourcePortRange.LowerPort = uint32(rule.SrcPort)
 			aclRule.Matches.IpRule.Tcp.SourcePortRange.UpperPort = uint32(65535)
 			aclRule.Matches.IpRule.Tcp.DestinationPortRange = &vpp_acl.AccessLists_Acl_Rule_Matches_IpRule_Tcp_DestinationPortRange{}
-			if rule.DestPort == uint16(0) {
-				aclRule.Matches.IpRule.Tcp.DestinationPortRange.LowerPort = uint32(rule.DestPort)
-				aclRule.Matches.IpRule.Tcp.DestinationPortRange.UpperPort = uint32(65535)
-			} else {
-				aclRule.Matches.IpRule.Tcp.DestinationPortRange.LowerPort = uint32(rule.DestPort)
-				aclRule.Matches.IpRule.Tcp.DestinationPortRange.UpperPort = uint32(rule.DestPort)
-			}
+			aclRule.Matches.IpRule.Tcp.DestinationPortRange.LowerPort = uint32(rule.DestPort)
+			aclRule.Matches.IpRule.Tcp.DestinationPortRange.UpperPort = uint32(rule.DestPort)
 		} else {
 			aclRule.Matches.IpRule.Udp = &vpp_acl.AccessLists_Acl_Rule_Matches_IpRule_Udp{}
 			aclRule.Matches.IpRule.Udp.SourcePortRange = &vpp_acl.AccessLists_Acl_Rule_Matches_IpRule_Udp_SourcePortRange{}
 			aclRule.Matches.IpRule.Udp.SourcePortRange.LowerPort = uint32(rule.SrcPort)
 			aclRule.Matches.IpRule.Udp.SourcePortRange.UpperPort = uint32(65535)
 			aclRule.Matches.IpRule.Udp.DestinationPortRange = &vpp_acl.AccessLists_Acl_Rule_Matches_IpRule_Udp_DestinationPortRange{}
-			if rule.DestPort == uint16(0) {
-				aclRule.Matches.IpRule.Udp.DestinationPortRange.LowerPort = uint32(rule.DestPort)
-				aclRule.Matches.IpRule.Udp.DestinationPortRange.UpperPort = uint32(65535)
-			} else {
-				aclRule.Matches.IpRule.Udp.DestinationPortRange.LowerPort = uint32(rule.DestPort)
-				aclRule.Matches.IpRule.Udp.DestinationPortRange.UpperPort = uint32(rule.DestPort)
-			}
+			aclRule.Matches.IpRule.Udp.DestinationPortRange.LowerPort = uint32(rule.DestPort)
+			aclRule.Matches.IpRule.Udp.DestinationPortRange.UpperPort = uint32(rule.DestPort)
 		}
 		acl.Rules = append(acl.Rules, aclRule)
 	}

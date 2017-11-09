@@ -40,7 +40,7 @@ type Renderer struct {
 type Deps struct {
 	Log                 logging.Logger
 	LogFactory          logging.LogFactory /* optional */
-	Contiv              contiv.API /* for GetIfName() */
+	Contiv              contiv.API         /* for GetIfName() */
 	ACLTxnFactory       func() (dsl linux.DataChangeDSL)
 	ACLResyncTxnFactory func() (dsl linux.DataResyncDSL)
 }

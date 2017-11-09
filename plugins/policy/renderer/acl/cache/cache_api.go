@@ -20,7 +20,7 @@ import (
 	"github.com/contiv/vpp/plugins/policy/renderer"
 )
 
-// ContivRuleCacheAPI defines API of a cache used to store Contiv Rules.
+// ContivRuleCacheAPI defines API of a cache used to store Contiv Rules as *lists*.
 // The cache allows renderer to easily calculate the minimal set of changes
 // that need to be applied in a given transaction. Furthermore, the cache
 // automatically groups ingress/egress rules per-interface into lists

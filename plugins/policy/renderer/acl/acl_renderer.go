@@ -15,12 +15,16 @@
 package acl
 
 import (
+	"net"
+
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/vpp-agent/clientv1/linux"
 	vpp_acl "github.com/ligato/vpp-agent/plugins/defaultplugins/aclplugin/model/acl"
 
+	"github.com/contiv/vpp/plugins/contiv"
+	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	"github.com/contiv/vpp/plugins/policy/renderer"
-	"github.com/contiv/vpp/plugins/policy/renderer/cache"
+	"github.com/contiv/vpp/plugins/policy/renderer/acl/cache"
 )
 
 // Renderer renders Contiv Rules into VPP ACLs.
@@ -28,12 +32,15 @@ import (
 // The configuration changes are transported into aclplugin via localclient.
 type Renderer struct {
 	Deps
+
+	cache *cache.ContivRuleCache
 }
 
 // Deps lists dependencies of Renderer.
 type Deps struct {
 	Log                 logging.Logger
-	Cache               cache.ContivRuleCacheAPI
+	LogFactory          logging.LogFactory /* optional */
+	Contiv              contiv.API /* for GetIfName() */
 	ACLTxnFactory       func() (dsl linux.DataChangeDSL)
 	ACLResyncTxnFactory func() (dsl linux.DataResyncDSL)
 }
@@ -47,6 +54,13 @@ type RendererTxn struct {
 
 // Init initializes the ACL Renderer.
 func (r *Renderer) Init() error {
+	r.cache = &cache.ContivRuleCache{}
+	if r.LogFactory != nil {
+		r.cache.Log = r.LogFactory.NewLogger("-aclCache")
+	} else {
+		r.cache.Log = r.Log
+	}
+	r.cache.Init()
 	return nil
 }
 
@@ -56,18 +70,26 @@ func (r *Renderer) Init() error {
 // replace the existing one. Otherwise, the change is performed incrementally,
 // i.e. interfaces not mentioned in the transaction are left unaffected.
 func (r *Renderer) NewTxn(resync bool) renderer.Txn {
-	return &RendererTxn{cacheTxn: r.Cache.NewTxn(resync), renderer: r, resync: resync}
+	return &RendererTxn{cacheTxn: r.cache.NewTxn(resync), renderer: r, resync: resync}
 }
 
 // Render applies the set of ingress & egress rules for a given VPP interface.
 // The existing rules are replaced.
 // Te actual change is performed only after the commit.
-func (art *RendererTxn) Render(ifName string, ingress []*renderer.ContivRule, egress []*renderer.ContivRule) renderer.Txn {
+func (art *RendererTxn) Render(pod podmodel.ID, podIP *net.IPNet, ingress []*renderer.ContivRule, egress []*renderer.ContivRule) renderer.Txn {
 	art.renderer.Log.WithFields(logging.Fields{
-		"ifName":  ifName,
+		"pod":     pod,
 		"ingress": ingress,
 		"egress":  egress,
 	}).Debug("ACL RendererTxn Render()")
+
+	// Get the target interface.
+	ifName, found := art.renderer.Contiv.GetIfName(pod.Namespace, pod.Name)
+	if !found {
+		art.renderer.Log.WithField("pod", pod).Warn("Unable to get the interface assigned to the Pod")
+		return art
+	}
+
 	art.cacheTxn.Update(ifName, ingress, egress)
 	return art
 }

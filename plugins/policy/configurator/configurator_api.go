@@ -16,18 +16,18 @@ import (
 // rule definition) and applies them into the target vswitch via registered
 // renderers. Allows to register multiple renderers for different network stacks.
 // For the best performance, creates a shortest possible sequence of rules
-// that implement a given policy. Furthermore, to allow renderers share a list
-// of ingress or egress rules between interfaces, the same set of policies
-// always results in the same list of rules.
+// that implement a given policy.
+// For the sake of renderers that install rules into per-interface tables
+// (as opposed to one or more global tables), the configurator ensures that the
+// same set of policies always results in the same list of rules, allowing
+// renderers to group and share them across multiple interfaces (if supported
+// by the destination network stack)
 type PolicyConfiguratorAPI interface {
-	// RegisterRenderer registers renderer that will render rules for pods
-	// that contain a given <label> (they are expected to be in a separate
-	// network stack)
-	RegisterRenderer(label podmodel.Pod_Label, renderer renderer.PolicyRendererAPI) error
-
-	// RegisterDefaultRenderer registers the renderer used for pods not included
-	// by any other registered renderer.
-	RegisterDefaultRenderer(renderer renderer.PolicyRendererAPI) error
+	// RegisterRenderer registers a new renderer.
+	// The renderer will be receiving rules for all pods in this K8s node.
+	// It is up to the render to possibly filter out rules for pods without
+	// an inter-connection in the destination network stack.
+	RegisterRenderer(renderer renderer.PolicyRendererAPI) error
 
 	// NewTxn starts a new transaction. The re-configuration executes only
 	// after Commit() is called.

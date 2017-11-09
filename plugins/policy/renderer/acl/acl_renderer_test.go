@@ -26,9 +26,11 @@ import (
 
 	"strings"
 
+	. "github.com/contiv/vpp/mock/contiv"
 	"github.com/contiv/vpp/mock/localclient"
+	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	"github.com/contiv/vpp/plugins/policy/renderer"
-	"github.com/contiv/vpp/plugins/policy/renderer/cache"
+	"github.com/contiv/vpp/plugins/policy/renderer/acl/cache"
 )
 
 type ACLSet map[string]struct{}                       // set ACL names
@@ -177,25 +179,14 @@ func TestSingleContivRuleOneInterface(t *testing.T) {
 	logger.SetLevel(logging.DebugLevel)
 	logger.Debug("TestSingleContivRuleOneInterface")
 
-	// Prepare ACL Renderer and mock localclient.
-	txnTracker := localclient.NewTxnTracker(nil)
-	ruleCache := &cache.ContivRuleCache{
-		Deps: cache.Deps{
-			Log: logger,
-		},
-	}
-	ruleCache.Init()
-	aclRenderer := &Renderer{
-		Deps: Deps{
-			Log:                 logger,
-			Cache:               ruleCache,
-			ACLTxnFactory:       txnTracker.NewDataChangeTxn,
-			ACLResyncTxnFactory: txnTracker.NewDataResyncTxn,
-		},
-	}
-	aclRenderer.Init()
-
 	// Prepare input data.
+	const (
+		namespace  = "default"
+		pod1Name   = "pod1"
+		pod1IfName = "afpacket1"
+	)
+	pod1 := podmodel.ID{Name: pod1Name, Namespace: namespace}
+
 	rule := &renderer.ContivRule{
 		ID:          "deny-http",
 		Action:      renderer.ActionDeny,
@@ -208,8 +199,25 @@ func TestSingleContivRuleOneInterface(t *testing.T) {
 	ingress := []*renderer.ContivRule{}
 	egress := []*renderer.ContivRule{rule}
 
+	// Prepare mocks.
+	contiv := NewMockContiv()
+	contiv.SetPodIfName(pod1, pod1IfName)
+
+	txnTracker := localclient.NewTxnTracker(nil)
+
+	// Prepare ACL Renderer.
+	aclRenderer := &Renderer{
+		Deps: Deps{
+			Log:                 logger,
+			Contiv:              contiv,
+			ACLTxnFactory:       txnTracker.NewDataChangeTxn,
+			ACLResyncTxnFactory: txnTracker.NewDataResyncTxn,
+		},
+	}
+	aclRenderer.Init()
+
 	// Execute Renderer transaction.
-	aclRenderer.NewTxn(false).Render("afpacket1", ingress, egress).Commit()
+	aclRenderer.NewTxn(false).Render(pod1, nil, ingress, egress).Commit()
 
 	// Verify localclient transactions.
 	gomega.Expect(txnTracker.PendingTxns).To(gomega.HaveLen(0))
@@ -224,10 +232,10 @@ func TestSingleContivRuleOneInterface(t *testing.T) {
 	op := ops[0]
 
 	// Verify the single generated ACL.
-	verifyACLPut(op, "", cache.NewInterfaceSet(), cache.NewInterfaceSet("afpacket1"), rule)
+	verifyACLPut(op, "", cache.NewInterfaceSet(), cache.NewInterfaceSet(pod1IfName), rule)
 
 	// Try to execute the same change again.
-	aclRenderer.NewTxn(false).Render("afpacket1", ingress, egress).Commit()
+	aclRenderer.NewTxn(false).Render(pod1, nil, ingress, egress).Commit()
 
 	// Verify that the change had no further effect.
 	gomega.Expect(txnTracker.PendingTxns).To(gomega.HaveLen(0))
@@ -240,18 +248,41 @@ func TestSingleContivRuleMultipleInterfaces(t *testing.T) {
 	logger.SetLevel(logging.DebugLevel)
 	logger.Debug("TestSingleContivRuleMultipleInterfaces")
 
-	// Prepare ACL Renderer and mock localclient.
+	// Prepare input data.
+	const (
+		namespace  = "default"
+		pod1Name   = "pod1"
+		pod1IfName = "afpacket1"
+		pod2Name   = "pod2"
+		pod2IfName = "afpacket2"
+		pod3Name   = "pod3"
+		pod3IfName = "afpacket3"
+		pod4Name   = "pod4"
+		pod4IfName = "afpacket4"
+		pod5Name   = "pod5"
+		pod5IfName = "afpacket5"
+	)
+	pod1 := podmodel.ID{Name: pod1Name, Namespace: namespace}
+	pod2 := podmodel.ID{Name: pod2Name, Namespace: namespace}
+	pod3 := podmodel.ID{Name: pod3Name, Namespace: namespace}
+	pod4 := podmodel.ID{Name: pod4Name, Namespace: namespace}
+	pod5 := podmodel.ID{Name: pod5Name, Namespace: namespace}
+
+	// Prepare mocks.
+	contiv := NewMockContiv()
+	contiv.SetPodIfName(pod1, pod1IfName)
+	contiv.SetPodIfName(pod2, pod2IfName)
+	contiv.SetPodIfName(pod3, pod3IfName)
+	contiv.SetPodIfName(pod4, pod4IfName)
+	contiv.SetPodIfName(pod5, pod5IfName)
+
 	txnTracker := localclient.NewTxnTracker(nil)
-	ruleCache := &cache.ContivRuleCache{
-		Deps: cache.Deps{
-			Log: logger,
-		},
-	}
-	ruleCache.Init()
+
+	// Prepare ACL Renderer.
 	aclRenderer := &Renderer{
 		Deps: Deps{
 			Log:                 logger,
-			Cache:               ruleCache,
+			Contiv:              contiv,
 			ACLTxnFactory:       txnTracker.NewDataChangeTxn,
 			ACLResyncTxnFactory: txnTracker.NewDataResyncTxn,
 		},
@@ -273,9 +304,10 @@ func TestSingleContivRuleMultipleInterfaces(t *testing.T) {
 
 	// Execute Renderer transaction for 3 interfaces.
 	rendererTxn := aclRenderer.NewTxn(false)
-	ifSet := cache.NewInterfaceSet("afpacket1", "afpacket2", "afpacket3")
-	for ifName := range ifSet {
-		rendererTxn.Render(ifName, ingress, egress)
+	ifSet := cache.NewInterfaceSet(pod1IfName, pod2IfName, pod3IfName)
+	pods := []podmodel.ID{pod1, pod2, pod3}
+	for _, pod := range pods {
+		rendererTxn.Render(pod, nil, ingress, egress)
 	}
 	err := rendererTxn.Commit()
 	gomega.Expect(err).To(gomega.BeNil())
@@ -297,8 +329,8 @@ func TestSingleContivRuleMultipleInterfaces(t *testing.T) {
 
 	// Try to execute the same change again.
 	rendererTxn = aclRenderer.NewTxn(false)
-	for ifName := range ifSet {
-		rendererTxn.Render(ifName, ingress, egress)
+	for _, pod := range pods {
+		rendererTxn.Render(pod, nil, ingress, egress)
 	}
 	err = rendererTxn.Commit()
 	gomega.Expect(err).To(gomega.BeNil())
@@ -309,11 +341,10 @@ func TestSingleContivRuleMultipleInterfaces(t *testing.T) {
 
 	// Add two more interfaces.
 	rendererTxn = aclRenderer.NewTxn(false)
-	ifSet2 := cache.NewInterfaceSet()
-	ifSet2.Add("afpacket4")
-	ifSet2.Add("afpacket5")
-	for ifName := range ifSet2 {
-		rendererTxn.Render(ifName, ingress, egress)
+	ifSet2 := cache.NewInterfaceSet(pod4IfName, pod5IfName)
+	pods = []podmodel.ID{pod4, pod5}
+	for _, pod := range pods {
+		rendererTxn.Render(pod, nil, ingress, egress)
 	}
 	ifSet.Join(ifSet2)
 	err = rendererTxn.Commit()
@@ -341,18 +372,25 @@ func TestMultipleContivRulesSingleInterface(t *testing.T) {
 	logger.SetLevel(logging.DebugLevel)
 	logger.Debug("TestMultipleContivRulesSingleInterface")
 
-	// Prepare ACL Renderer and mock localclient.
+	// Prepare input data.
+	const (
+		namespace  = "default"
+		pod1Name   = "pod1"
+		pod1IfName = "afpacket1"
+	)
+	pod1 := podmodel.ID{Name: pod1Name, Namespace: namespace}
+
+	// Prepare mocks.
+	contiv := NewMockContiv()
+	contiv.SetPodIfName(pod1, pod1IfName)
+
 	txnTracker := localclient.NewTxnTracker(nil)
-	ruleCache := &cache.ContivRuleCache{
-		Deps: cache.Deps{
-			Log: logger,
-		},
-	}
-	ruleCache.Init()
+
+	// Prepare ACL Renderer.
 	aclRenderer := &Renderer{
 		Deps: Deps{
 			Log:                 logger,
-			Cache:               ruleCache,
+			Contiv:              contiv,
 			ACLTxnFactory:       txnTracker.NewDataChangeTxn,
 			ACLResyncTxnFactory: txnTracker.NewDataResyncTxn,
 		},
@@ -401,10 +439,8 @@ func TestMultipleContivRulesSingleInterface(t *testing.T) {
 
 	// Execute Renderer transaction for 3 interfaces.
 	rendererTxn := aclRenderer.NewTxn(false)
-	ifSet := cache.NewInterfaceSet("afpacket1")
-	for ifName := range ifSet {
-		rendererTxn.Render(ifName, ingress, egress)
-	}
+	ifSet := cache.NewInterfaceSet(pod1IfName)
+	rendererTxn.Render(pod1, nil, ingress, egress)
 	err := rendererTxn.Commit()
 	gomega.Expect(err).To(gomega.BeNil())
 
@@ -421,19 +457,17 @@ func TestMultipleContivRulesSingleInterface(t *testing.T) {
 	putIngress, putEgress, deleted := parseACLOps(ops)
 	gomega.Expect(deleted).To(gomega.HaveLen(0))
 	gomega.Expect(putIngress).To(gomega.HaveLen(1))
-	gomega.Expect(putIngress.GetACL("afpacket1")).ToNot(gomega.BeNil())
+	gomega.Expect(putIngress.GetACL(pod1IfName)).ToNot(gomega.BeNil())
 	gomega.Expect(putEgress).To(gomega.HaveLen(1))
-	gomega.Expect(putEgress.GetACL("afpacket1")).ToNot(gomega.BeNil())
+	gomega.Expect(putEgress.GetACL(pod1IfName)).ToNot(gomega.BeNil())
 
 	// Verify the generated ACLs.
-	inACL1 := verifyACL(putIngress.GetACL("afpacket1"), "", ifSet, cache.NewInterfaceSet(), ingress...)
-	verifyACL(putEgress.GetACL("afpacket1"), "", cache.NewInterfaceSet(), ifSet, egress...)
+	inACL1 := verifyACL(putIngress.GetACL(pod1IfName), "", ifSet, cache.NewInterfaceSet(), ingress...)
+	verifyACL(putEgress.GetACL(pod1IfName), "", cache.NewInterfaceSet(), ifSet, egress...)
 
 	// Try to execute the same change again.
 	rendererTxn = aclRenderer.NewTxn(false)
-	for ifName := range ifSet {
-		rendererTxn.Render(ifName, ingress, egress)
-	}
+	rendererTxn.Render(pod1, nil, ingress, egress)
 	err = rendererTxn.Commit()
 	gomega.Expect(err).To(gomega.BeNil())
 
@@ -455,9 +489,7 @@ func TestMultipleContivRulesSingleInterface(t *testing.T) {
 
 	// Update interface rules.
 	rendererTxn = aclRenderer.NewTxn(false)
-	for ifName := range ifSet {
-		rendererTxn.Render(ifName, ingress2, egress)
-	}
+	rendererTxn.Render(pod1, nil, ingress2, egress)
 	err = rendererTxn.Commit()
 	gomega.Expect(err).To(gomega.BeNil())
 
@@ -475,11 +507,11 @@ func TestMultipleContivRulesSingleInterface(t *testing.T) {
 	gomega.Expect(deleted).To(gomega.HaveLen(1))
 	gomega.Expect(deleted.Has(inACL1)).To(gomega.BeTrue())
 	gomega.Expect(putIngress).To(gomega.HaveLen(1))
-	gomega.Expect(putIngress.GetACL("afpacket1")).ToNot(gomega.BeNil())
+	gomega.Expect(putIngress.GetACL(pod1IfName)).ToNot(gomega.BeNil())
 	gomega.Expect(putEgress).To(gomega.HaveLen(0))
 
 	// Verify the new ACL.
-	inACL2 := verifyACL(putIngress.GetACL("afpacket1"), "", ifSet, cache.NewInterfaceSet(), ingress2...)
+	inACL2 := verifyACL(putIngress.GetACL(pod1IfName), "", ifSet, cache.NewInterfaceSet(), ingress2...)
 	gomega.Expect(inACL2).ToNot(gomega.BeEquivalentTo(inACL1))
 }
 
@@ -489,18 +521,33 @@ func TestMultipleContivRulesMultipleInterfaces(t *testing.T) {
 	logger.SetLevel(logging.DebugLevel)
 	logger.Debug("TestMultipleContivRulesMultipleInterfaces")
 
-	// Prepare ACL Renderer and mock localclient.
+	// Prepare input data.
+	const (
+		namespace  = "default"
+		pod1Name   = "pod1"
+		pod1IfName = "afpacket1"
+		pod2Name   = "pod2"
+		pod2IfName = "afpacket2"
+		pod3Name   = "pod3"
+		pod3IfName = "afpacket3"
+	)
+	pod1 := podmodel.ID{Name: pod1Name, Namespace: namespace}
+	pod2 := podmodel.ID{Name: pod2Name, Namespace: namespace}
+	pod3 := podmodel.ID{Name: pod3Name, Namespace: namespace}
+
+	// Prepare mocks.
+	contiv := NewMockContiv()
+	contiv.SetPodIfName(pod1, pod1IfName)
+	contiv.SetPodIfName(pod2, pod2IfName)
+	contiv.SetPodIfName(pod3, pod3IfName)
+
 	txnTracker := localclient.NewTxnTracker(nil)
-	ruleCache := &cache.ContivRuleCache{
-		Deps: cache.Deps{
-			Log: logger,
-		},
-	}
-	ruleCache.Init()
+
+	// Prepare ACL Renderer.
 	aclRenderer := &Renderer{
 		Deps: Deps{
 			Log:                 logger,
-			Cache:               ruleCache,
+			Contiv:              contiv,
 			ACLTxnFactory:       txnTracker.NewDataChangeTxn,
 			ACLResyncTxnFactory: txnTracker.NewDataResyncTxn,
 		},
@@ -549,15 +596,15 @@ func TestMultipleContivRulesMultipleInterfaces(t *testing.T) {
 	egressA := []*renderer.ContivRule{egRule2}           // afpacket1
 	egressB := []*renderer.ContivRule{egRule1, egRule2}  // afpacket2, afpacket3
 
-	ifSetInA := cache.NewInterfaceSet("afpacket1", "afpacket2")
-	ifSetEgA := cache.NewInterfaceSet("afpacket1")
-	ifSetEgB := cache.NewInterfaceSet("afpacket2", "afpacket3")
+	ifSetInA := cache.NewInterfaceSet(pod1IfName, pod2IfName)
+	ifSetEgA := cache.NewInterfaceSet(pod1IfName)
+	ifSetEgB := cache.NewInterfaceSet(pod2IfName, pod3IfName)
 
 	// Execute Renderer transaction for 3 interfaces.
 	rendererTxn := aclRenderer.NewTxn(false)
-	rendererTxn.Render("afpacket1", ingressA, egressA)
-	rendererTxn.Render("afpacket2", ingressA, egressB)
-	rendererTxn.Render("afpacket3", ingressB, egressB)
+	rendererTxn.Render(pod1, nil, ingressA, egressA)
+	rendererTxn.Render(pod2, nil, ingressA, egressB)
+	rendererTxn.Render(pod3, nil, ingressB, egressB)
 	err := rendererTxn.Commit()
 	gomega.Expect(err).To(gomega.BeNil())
 
@@ -574,26 +621,26 @@ func TestMultipleContivRulesMultipleInterfaces(t *testing.T) {
 	putIngress, putEgress, deleted := parseACLOps(ops)
 	gomega.Expect(deleted).To(gomega.HaveLen(0))
 	gomega.Expect(putIngress).To(gomega.HaveLen(2))
-	gomega.Expect(putIngress.GetACL("afpacket1")).ToNot(gomega.BeNil())
-	gomega.Expect(putIngress.GetACL("afpacket2")).ToNot(gomega.BeNil())
-	gomega.Expect(putIngress.GetACL("afpacket3")).To(gomega.BeNil())
+	gomega.Expect(putIngress.GetACL(pod1IfName)).ToNot(gomega.BeNil())
+	gomega.Expect(putIngress.GetACL(pod2IfName)).ToNot(gomega.BeNil())
+	gomega.Expect(putIngress.GetACL(pod3IfName)).To(gomega.BeNil())
 	gomega.Expect(putEgress).To(gomega.HaveLen(3))
-	gomega.Expect(putEgress.GetACL("afpacket1")).ToNot(gomega.BeNil())
-	gomega.Expect(putEgress.GetACL("afpacket2")).ToNot(gomega.BeNil())
-	gomega.Expect(putEgress.GetACL("afpacket3")).ToNot(gomega.BeNil())
+	gomega.Expect(putEgress.GetACL(pod1IfName)).ToNot(gomega.BeNil())
+	gomega.Expect(putEgress.GetACL(pod2IfName)).ToNot(gomega.BeNil())
+	gomega.Expect(putEgress.GetACL(pod3IfName)).ToNot(gomega.BeNil())
 
 	// Verify the generated ACLs.
-	inACLA := verifyACL(putIngress.GetACL("afpacket1"), "", ifSetInA, cache.NewInterfaceSet(), ingressA...)
-	verifyACL(putIngress.GetACL("afpacket2"), inACLA, ifSetInA, cache.NewInterfaceSet(), ingressA...)
-	egACLA := verifyACL(putEgress.GetACL("afpacket1"), "", cache.NewInterfaceSet(), ifSetEgA, egressA...)
-	egACLB := verifyACL(putEgress.GetACL("afpacket2"), "", cache.NewInterfaceSet(), ifSetEgB, egressB...)
-	verifyACL(putEgress.GetACL("afpacket3"), egACLB, cache.NewInterfaceSet(), ifSetEgB, egressB...)
+	inACLA := verifyACL(putIngress.GetACL(pod1IfName), "", ifSetInA, cache.NewInterfaceSet(), ingressA...)
+	verifyACL(putIngress.GetACL(pod2IfName), inACLA, ifSetInA, cache.NewInterfaceSet(), ingressA...)
+	egACLA := verifyACL(putEgress.GetACL(pod1IfName), "", cache.NewInterfaceSet(), ifSetEgA, egressA...)
+	egACLB := verifyACL(putEgress.GetACL(pod2IfName), "", cache.NewInterfaceSet(), ifSetEgB, egressB...)
+	verifyACL(putEgress.GetACL(pod3IfName), egACLB, cache.NewInterfaceSet(), ifSetEgB, egressB...)
 
 	// Try to execute the same changes again.
 	rendererTxn = aclRenderer.NewTxn(false)
-	rendererTxn.Render("afpacket1", ingressA, egressA)
-	rendererTxn.Render("afpacket2", ingressA, egressB)
-	rendererTxn.Render("afpacket3", ingressB, egressB)
+	rendererTxn.Render(pod1, nil, ingressA, egressA)
+	rendererTxn.Render(pod2, nil, ingressA, egressB)
+	rendererTxn.Render(pod3, nil, ingressB, egressB)
 	err = rendererTxn.Commit()
 	gomega.Expect(err).To(gomega.BeNil())
 
@@ -603,15 +650,15 @@ func TestMultipleContivRulesMultipleInterfaces(t *testing.T) {
 
 	// Change assignment of rules a bit.
 	ingressC := []*renderer.ContivRule{inRule1} // afpacket1, afpacket3
-	ifSetInA = cache.NewInterfaceSet("afpacket2")
-	ifSetInC := cache.NewInterfaceSet("afpacket1", "afpacket3")
-	ifSetEgB = cache.NewInterfaceSet("afpacket1", "afpacket2", "afpacket3")
+	ifSetInA = cache.NewInterfaceSet(pod2IfName)
+	ifSetInC := cache.NewInterfaceSet(pod1IfName, pod3IfName)
+	ifSetEgB = cache.NewInterfaceSet(pod1IfName, pod2IfName, pod3IfName)
 
 	// Run second transaction (with effect).
 	rendererTxn = aclRenderer.NewTxn(false)
-	rendererTxn.Render("afpacket1", ingressC, egressB)
-	rendererTxn.Render("afpacket2", ingressA, egressB)
-	rendererTxn.Render("afpacket3", ingressC, egressB)
+	rendererTxn.Render(pod1, nil, ingressC, egressB)
+	rendererTxn.Render(pod2, nil, ingressA, egressB)
+	rendererTxn.Render(pod3, nil, ingressC, egressB)
 	err = rendererTxn.Commit()
 	gomega.Expect(err).To(gomega.BeNil())
 
@@ -629,20 +676,20 @@ func TestMultipleContivRulesMultipleInterfaces(t *testing.T) {
 	gomega.Expect(deleted).To(gomega.HaveLen(1))
 	gomega.Expect(deleted.Has(egACLA)).To(gomega.BeTrue())
 	gomega.Expect(putIngress).To(gomega.HaveLen(3))
-	gomega.Expect(putIngress.GetACL("afpacket1")).ToNot(gomega.BeNil())
-	gomega.Expect(putIngress.GetACL("afpacket2")).ToNot(gomega.BeNil())
-	gomega.Expect(putIngress.GetACL("afpacket3")).ToNot(gomega.BeNil())
+	gomega.Expect(putIngress.GetACL(pod1IfName)).ToNot(gomega.BeNil())
+	gomega.Expect(putIngress.GetACL(pod2IfName)).ToNot(gomega.BeNil())
+	gomega.Expect(putIngress.GetACL(pod3IfName)).ToNot(gomega.BeNil())
 	gomega.Expect(putEgress).To(gomega.HaveLen(3))
-	gomega.Expect(putEgress.GetACL("afpacket1")).ToNot(gomega.BeNil())
-	gomega.Expect(putEgress.GetACL("afpacket2")).ToNot(gomega.BeNil())
-	gomega.Expect(putEgress.GetACL("afpacket3")).ToNot(gomega.BeNil())
+	gomega.Expect(putEgress.GetACL(pod1IfName)).ToNot(gomega.BeNil())
+	gomega.Expect(putEgress.GetACL(pod2IfName)).ToNot(gomega.BeNil())
+	gomega.Expect(putEgress.GetACL(pod3IfName)).ToNot(gomega.BeNil())
 
 	// Verify the generated ACLs.
-	verifyACL(putIngress.GetACL("afpacket1"), "", ifSetInC, cache.NewInterfaceSet(), ingressC...)
-	verifyACL(putIngress.GetACL("afpacket2"), inACLA, ifSetInA, cache.NewInterfaceSet(), ingressA...)
-	verifyACL(putEgress.GetACL("afpacket1"), egACLB, cache.NewInterfaceSet(), ifSetEgB, egressB...)
-	verifyACL(putEgress.GetACL("afpacket2"), egACLB, cache.NewInterfaceSet(), ifSetEgB, egressB...)
-	verifyACL(putEgress.GetACL("afpacket3"), egACLB, cache.NewInterfaceSet(), ifSetEgB, egressB...)
+	verifyACL(putIngress.GetACL(pod1IfName), "", ifSetInC, cache.NewInterfaceSet(), ingressC...)
+	verifyACL(putIngress.GetACL(pod2IfName), inACLA, ifSetInA, cache.NewInterfaceSet(), ingressA...)
+	verifyACL(putEgress.GetACL(pod1IfName), egACLB, cache.NewInterfaceSet(), ifSetEgB, egressB...)
+	verifyACL(putEgress.GetACL(pod2IfName), egACLB, cache.NewInterfaceSet(), ifSetEgB, egressB...)
+	verifyACL(putEgress.GetACL(pod3IfName), egACLB, cache.NewInterfaceSet(), ifSetEgB, egressB...)
 }
 
 func TestMultipleContivRulesMultipleInterfacesWithResync(t *testing.T) {
@@ -651,18 +698,33 @@ func TestMultipleContivRulesMultipleInterfacesWithResync(t *testing.T) {
 	logger.SetLevel(logging.DebugLevel)
 	logger.Debug("TestMultipleContivRulesMultipleInterfacesWithResync")
 
-	// Prepare ACL Renderer and mock localclient.
+	// Prepare input data.
+	const (
+		namespace  = "default"
+		pod1Name   = "pod1"
+		pod1IfName = "afpacket1"
+		pod2Name   = "pod2"
+		pod2IfName = "afpacket2"
+		pod3Name   = "pod3"
+		pod3IfName = "afpacket3"
+	)
+	pod1 := podmodel.ID{Name: pod1Name, Namespace: namespace}
+	pod2 := podmodel.ID{Name: pod2Name, Namespace: namespace}
+	pod3 := podmodel.ID{Name: pod3Name, Namespace: namespace}
+
+	// Prepare mocks.
+	contiv := NewMockContiv()
+	contiv.SetPodIfName(pod1, pod1IfName)
+	contiv.SetPodIfName(pod2, pod2IfName)
+	contiv.SetPodIfName(pod3, pod3IfName)
+
 	txnTracker := localclient.NewTxnTracker(nil)
-	ruleCache := &cache.ContivRuleCache{
-		Deps: cache.Deps{
-			Log: logger,
-		},
-	}
-	ruleCache.Init()
+
+	// Prepare ACL Renderer.
 	aclRenderer := &Renderer{
 		Deps: Deps{
 			Log:                 logger,
-			Cache:               ruleCache,
+			Contiv:              contiv,
 			ACLTxnFactory:       txnTracker.NewDataChangeTxn,
 			ACLResyncTxnFactory: txnTracker.NewDataResyncTxn,
 		},
@@ -711,15 +773,15 @@ func TestMultipleContivRulesMultipleInterfacesWithResync(t *testing.T) {
 	egressA := []*renderer.ContivRule{egRule2}           // afpacket1
 	egressB := []*renderer.ContivRule{egRule1, egRule2}  // afpacket2, afpacket3
 
-	ifSetInA := cache.NewInterfaceSet("afpacket1", "afpacket2")
-	ifSetEgA := cache.NewInterfaceSet("afpacket1")
-	ifSetEgB := cache.NewInterfaceSet("afpacket2", "afpacket3")
+	ifSetInA := cache.NewInterfaceSet(pod1IfName, pod2IfName)
+	ifSetEgA := cache.NewInterfaceSet(pod1IfName)
+	ifSetEgB := cache.NewInterfaceSet(pod2IfName, pod3IfName)
 
 	// Execute RESYNC Renderer transaction for 3 interfaces.
 	rendererTxn := aclRenderer.NewTxn(true)
-	rendererTxn.Render("afpacket1", ingressA, egressA)
-	rendererTxn.Render("afpacket2", ingressA, egressB)
-	rendererTxn.Render("afpacket3", ingressB, egressB)
+	rendererTxn.Render(pod1, nil, ingressA, egressA)
+	rendererTxn.Render(pod2, nil, ingressA, egressB)
+	rendererTxn.Render(pod3, nil, ingressB, egressB)
 	err := rendererTxn.Commit()
 	gomega.Expect(err).To(gomega.BeNil())
 
@@ -736,25 +798,25 @@ func TestMultipleContivRulesMultipleInterfacesWithResync(t *testing.T) {
 	putIngress, putEgress, deleted := parseACLOps(ops)
 	gomega.Expect(deleted).To(gomega.HaveLen(0))
 	gomega.Expect(putIngress).To(gomega.HaveLen(2))
-	gomega.Expect(putIngress.GetACL("afpacket1")).ToNot(gomega.BeNil())
-	gomega.Expect(putIngress.GetACL("afpacket2")).ToNot(gomega.BeNil())
-	gomega.Expect(putIngress.GetACL("afpacket3")).To(gomega.BeNil())
+	gomega.Expect(putIngress.GetACL(pod1IfName)).ToNot(gomega.BeNil())
+	gomega.Expect(putIngress.GetACL(pod2IfName)).ToNot(gomega.BeNil())
+	gomega.Expect(putIngress.GetACL(pod3IfName)).To(gomega.BeNil())
 	gomega.Expect(putEgress).To(gomega.HaveLen(3))
-	gomega.Expect(putEgress.GetACL("afpacket1")).ToNot(gomega.BeNil())
-	gomega.Expect(putEgress.GetACL("afpacket2")).ToNot(gomega.BeNil())
-	gomega.Expect(putEgress.GetACL("afpacket3")).ToNot(gomega.BeNil())
+	gomega.Expect(putEgress.GetACL(pod1IfName)).ToNot(gomega.BeNil())
+	gomega.Expect(putEgress.GetACL(pod2IfName)).ToNot(gomega.BeNil())
+	gomega.Expect(putEgress.GetACL(pod3IfName)).ToNot(gomega.BeNil())
 
 	// Verify the generated ACLs.
-	inACLA := verifyACL(putIngress.GetACL("afpacket1"), "", ifSetInA, cache.NewInterfaceSet(), ingressA...)
-	verifyACL(putIngress.GetACL("afpacket2"), inACLA, ifSetInA, cache.NewInterfaceSet(), ingressA...)
-	verifyACL(putEgress.GetACL("afpacket1"), "", cache.NewInterfaceSet(), ifSetEgA, egressA...)
-	egACLB := verifyACL(putEgress.GetACL("afpacket2"), "", cache.NewInterfaceSet(), ifSetEgB, egressB...)
-	verifyACL(putEgress.GetACL("afpacket3"), egACLB, cache.NewInterfaceSet(), ifSetEgB, egressB...)
+	inACLA := verifyACL(putIngress.GetACL(pod1IfName), "", ifSetInA, cache.NewInterfaceSet(), ingressA...)
+	verifyACL(putIngress.GetACL(pod2IfName), inACLA, ifSetInA, cache.NewInterfaceSet(), ingressA...)
+	verifyACL(putEgress.GetACL(pod1IfName), "", cache.NewInterfaceSet(), ifSetEgA, egressA...)
+	egACLB := verifyACL(putEgress.GetACL(pod2IfName), "", cache.NewInterfaceSet(), ifSetEgB, egressB...)
+	verifyACL(putEgress.GetACL(pod3IfName), egACLB, cache.NewInterfaceSet(), ifSetEgB, egressB...)
 
 	// Resync: change change assignment of rules a bit and remove afpacket3.
-	ifSetInA = cache.NewInterfaceSet("afpacket1")
-	ifSetInB := cache.NewInterfaceSet("afpacket2")
-	ifSetEgA = cache.NewInterfaceSet("afpacket1", "afpacket2")
+	ifSetInA = cache.NewInterfaceSet(pod1IfName)
+	ifSetInB := cache.NewInterfaceSet(pod2IfName)
+	ifSetEgA = cache.NewInterfaceSet(pod1IfName, pod2IfName)
 
 	ingressA = []*renderer.ContivRule{inRule1}          // afpacket1
 	ingressB = []*renderer.ContivRule{inRule1, inRule2} // afpacket2
@@ -762,8 +824,8 @@ func TestMultipleContivRulesMultipleInterfacesWithResync(t *testing.T) {
 
 	// Run second RESYNC transaction.
 	rendererTxn = aclRenderer.NewTxn(true)
-	rendererTxn.Render("afpacket1", ingressA, egressA)
-	rendererTxn.Render("afpacket2", ingressB, egressA)
+	rendererTxn.Render(pod1, nil, ingressA, egressA)
+	rendererTxn.Render(pod2, nil, ingressB, egressA)
 	err = rendererTxn.Commit()
 	gomega.Expect(err).To(gomega.BeNil())
 
@@ -780,15 +842,15 @@ func TestMultipleContivRulesMultipleInterfacesWithResync(t *testing.T) {
 	putIngress, putEgress, deleted = parseACLOps(ops)
 	gomega.Expect(deleted).To(gomega.HaveLen(0))
 	gomega.Expect(putIngress).To(gomega.HaveLen(2))
-	gomega.Expect(putIngress.GetACL("afpacket1")).ToNot(gomega.BeNil())
-	gomega.Expect(putIngress.GetACL("afpacket2")).ToNot(gomega.BeNil())
+	gomega.Expect(putIngress.GetACL(pod1IfName)).ToNot(gomega.BeNil())
+	gomega.Expect(putIngress.GetACL(pod2IfName)).ToNot(gomega.BeNil())
 	gomega.Expect(putEgress).To(gomega.HaveLen(2))
-	gomega.Expect(putEgress.GetACL("afpacket1")).ToNot(gomega.BeNil())
-	gomega.Expect(putEgress.GetACL("afpacket2")).ToNot(gomega.BeNil())
+	gomega.Expect(putEgress.GetACL(pod1IfName)).ToNot(gomega.BeNil())
+	gomega.Expect(putEgress.GetACL(pod2IfName)).ToNot(gomega.BeNil())
 
 	// Verify the generated ACLs.
-	verifyACL(putIngress.GetACL("afpacket1"), "", ifSetInA, cache.NewInterfaceSet(), ingressA...)
-	verifyACL(putIngress.GetACL("afpacket2"), "", ifSetInB, cache.NewInterfaceSet(), ingressB...)
-	egACLA := verifyACL(putEgress.GetACL("afpacket1"), "", cache.NewInterfaceSet(), ifSetEgA, egressA...)
-	verifyACL(putEgress.GetACL("afpacket2"), egACLA, cache.NewInterfaceSet(), ifSetEgA, egressA...)
+	verifyACL(putIngress.GetACL(pod1IfName), "", ifSetInA, cache.NewInterfaceSet(), ingressA...)
+	verifyACL(putIngress.GetACL(pod2IfName), "", ifSetInB, cache.NewInterfaceSet(), ingressB...)
+	egACLA := verifyACL(putEgress.GetACL(pod1IfName), "", cache.NewInterfaceSet(), ifSetEgA, egressA...)
+	verifyACL(putEgress.GetACL(pod2IfName), egACLA, cache.NewInterfaceSet(), ifSetEgA, egressA...)
 }

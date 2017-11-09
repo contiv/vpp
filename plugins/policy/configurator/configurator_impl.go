@@ -1,13 +1,11 @@
 package configurator
 
 import (
-	"fmt"
 	"net"
 	"sort"
 
 	"github.com/ligato/cn-infra/logging"
 
-	"github.com/contiv/vpp/plugins/contiv"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	"github.com/contiv/vpp/plugins/policy/cache"
 	"github.com/contiv/vpp/plugins/policy/renderer"
@@ -24,15 +22,13 @@ import (
 type PolicyConfigurator struct {
 	Deps
 
-	// empty label => default renderer
-	renderers map[podmodel.Pod_Label]renderer.PolicyRendererAPI
+	renderers []renderer.PolicyRendererAPI
 }
 
 // Deps lists dependencies of PolicyConfigurator.
 type Deps struct {
-	Log    logging.Logger
-	Cache  cache.PolicyCacheAPI
-	Contiv contiv.API /* for GetIfName() */
+	Log   logging.Logger
+	Cache cache.PolicyCacheAPI
 }
 
 // PolicyConfiguratorTxn represents a single transaction of the policy configurator.
@@ -40,42 +36,34 @@ type PolicyConfiguratorTxn struct {
 	Log          logging.Logger
 	configurator *PolicyConfigurator
 	resync       bool
-	config       map[podmodel.ID]ContivPolicies      // config to render
-	rendererTxns map[podmodel.Pod_Label]*RendererTxn // renderers with their transactions
-}
-
-// RendererTxn stores reference to a renderer and his transaction (or nil if there
-// is no active transaction).
-type RendererTxn struct {
-	renderer renderer.PolicyRendererAPI
-	txn      renderer.Txn
+	config       map[podmodel.ID]ContivPolicies // config to render
 }
 
 // ContivPolicies is a list of policies that can be ordered by policy ID.
 type ContivPolicies []*ContivPolicy
 
+// ProcessedPolicySet stores configuration already generated for a given
+// set of policies. It is used only temporarily for a duration of the commit
+// for a performance optimization.
+type ProcessedPolicySet struct {
+	policies ContivPolicies // ordered
+	ingress  ContivRules
+	egress   ContivRules
+}
+
+// ContivRules is a list of Contiv rules.
+type ContivRules []*renderer.ContivRule
+
 // Init initializes policy configurator.
 func (pc *PolicyConfigurator) Init() error {
-	pc.renderers = make(map[podmodel.Pod_Label]renderer.PolicyRendererAPI)
+	pc.renderers = []renderer.PolicyRendererAPI{}
 	return nil
 }
 
 // RegisterRenderer registers renderer that will render rules for pods that
 // contain a given <label> (they are expected to be in a separate network stack).
-func (pc *PolicyConfigurator) RegisterRenderer(label podmodel.Pod_Label, renderer renderer.PolicyRendererAPI) error {
-	_, registered := pc.renderers[label]
-	if registered {
-		return fmt.Errorf("already registered renderer for label: %+v", label)
-	}
-	pc.renderers[label] = renderer
-	return nil
-}
-
-// RegisterDefaultRenderer registers the renderer used for pods not included
-// by any other registered renderer.
-func (pc *PolicyConfigurator) RegisterDefaultRenderer(renderer renderer.PolicyRendererAPI) error {
-	// register under empty label
-	pc.RegisterRenderer(podmodel.Pod_Label{}, renderer)
+func (pc *PolicyConfigurator) RegisterRenderer(renderer renderer.PolicyRendererAPI) error {
+	pc.renderers = append(pc.renderers, renderer)
 	return nil
 }
 
@@ -94,10 +82,6 @@ func (pc *PolicyConfigurator) NewTxn(resync bool) Txn {
 		configurator: pc,
 		resync:       resync,
 		config:       make(map[podmodel.ID]ContivPolicies),
-		rendererTxns: make(map[podmodel.Pod_Label]*RendererTxn),
-	}
-	for label, r := range pc.renderers {
-		txn.rendererTxns[label] = &RendererTxn{renderer: r, txn: nil}
 	}
 	return txn
 }
@@ -113,24 +97,18 @@ func (pct *PolicyConfiguratorTxn) Configure(pod podmodel.ID, policies []*ContivP
 	return pct
 }
 
-// ProcessedPolicySet stores configuration already generated for a given
-// set of policies. It is used only temporarily for a duration of the commit
-// for a performance optimization.
-type ProcessedPolicySet struct {
-	policies ContivPolicies // ordered
-	ingress  []*renderer.ContivRule
-	egress   []*renderer.ContivRule
-}
-
 // Commit proceeds with the reconfiguration.
 func (pct *PolicyConfiguratorTxn) Commit() error {
 	// Remember processed sets of policies between iterations so that the same
 	// set will not be processed more than once.
 	processed := []ProcessedPolicySet{}
 
+	// Transactions of all registered renderers.
+	rendererTxns := []renderer.Txn{}
+
 	for pod, unorderedPolicies := range pct.config {
-		var ingress []*renderer.ContivRule
-		var egress []*renderer.ContivRule
+		var ingress ContivRules
+		var egress ContivRules
 
 		// Get target pod configuration.
 		found, podData := pct.configurator.Cache.LookupPod(pod)
@@ -139,24 +117,14 @@ func (pct *PolicyConfiguratorTxn) Commit() error {
 			continue
 		}
 
-		// Get the target renderer.
-		podRenderer := pct.rendererTxns[podmodel.Pod_Label{}]
-		for _, podLabel := range podData.Label {
-			rTxn, match := pct.rendererTxns[*podLabel]
-			if match {
-				podRenderer = rTxn
-				break
-			}
-		}
-		if podRenderer == nil {
-			pct.Log.WithField("pod", pod).Warn("No renderer associated with the pod")
+		// Get pod IP address (expressed as one-host subnet).
+		if podData.IpAddress == "" {
+			pct.Log.WithField("pod", pod).Warn("Pod has no IP address assigned")
 			continue
 		}
-
-		// Get the target interface.
-		ifName, found := pct.configurator.Contiv.GetIfName(pod.Namespace, pod.Name)
-		if !found {
-			pct.Log.WithField("pod", pod).Warn("Unable to get the interface assigned to the Pod")
+		podIPNet := getOneHostSubnet(podData.IpAddress)
+		if podIPNet == nil {
+			pct.Log.WithField("pod", pod).Warn("Pod has invalid IP address assigned")
 			continue
 		}
 
@@ -182,11 +150,17 @@ func (pct *PolicyConfiguratorTxn) Commit() error {
 			ingress = pct.generateRules(MatchEgress, policies)
 		}
 
-		// Add rules into the transaction.
-		if podRenderer.txn == nil {
-			podRenderer.txn = podRenderer.renderer.NewTxn(pct.resync)
+		// Start transaction on every renderer if they are not running already.
+		if len(rendererTxns) == 0 {
+			for _, renderer := range pct.configurator.renderers {
+				rendererTxns = append(rendererTxns, renderer.NewTxn(pct.resync))
+			}
 		}
-		podRenderer.txn.Render(ifName, ingress, egress)
+
+		// Add rules into the transaction.
+		for _, rTxn := range rendererTxns {
+			rTxn.Render(pod, podIPNet, ingress.Copy(), egress.Copy())
+		}
 
 		// Remember already processed set of policies.
 		if !alreadyProcessed {
@@ -199,13 +173,11 @@ func (pct *PolicyConfiguratorTxn) Commit() error {
 		}
 	}
 
-	// Commit all active renderer transactions.
-	for _, rTxn := range pct.rendererTxns {
-		if rTxn.txn != nil {
-			err := rTxn.txn.Commit()
-			if err != nil {
-				return err
-			}
+	// Commit all renderer transactions.
+	for _, rTxn := range rendererTxns {
+		err := rTxn.Commit()
+		if err != nil {
+			return err
 		}
 	}
 
@@ -219,8 +191,8 @@ type PeerPod struct {
 }
 
 // Generate a list of ingress or egress rules implementing a given list of policies.
-func (pct *PolicyConfiguratorTxn) generateRules(direction MatchType, policies ContivPolicies) []*renderer.ContivRule {
-	rules := []*renderer.ContivRule{}
+func (pct *PolicyConfiguratorTxn) generateRules(direction MatchType, policies ContivPolicies) ContivRules {
+	rules := ContivRules{}
 	hasPolicy := false
 
 	for _, policy := range policies {
@@ -248,18 +220,12 @@ func (pct *PolicyConfiguratorTxn) generateRules(direction MatchType, policies Co
 					pct.Log.WithField("peer", peer).Warn("Peer pod has no IP address assigned")
 					continue
 				}
-				peerIP := net.ParseIP(peerData.IpAddress)
-				if peerIP == nil {
+				peerIPNet := getOneHostSubnet(peerData.IpAddress)
+				if peerIPNet == nil {
 					pct.Log.WithFields(logging.Fields{
 						"peer": peer,
 						"ip":   peerData.IpAddress}).Warn("Peer pod has invalid IP address assigned")
 					continue
-				}
-				peerIPNet := &net.IPNet{IP: peerIP}
-				if len(peerIP) == net.IPv4len {
-					peerIPNet.Mask = net.CIDRMask(32, 32)
-				} else {
-					peerIPNet.Mask = net.CIDRMask(128, 128)
 				}
 				peers = append(peers, PeerPod{ID: peer, IPNet: peerIPNet})
 			}
@@ -486,7 +452,7 @@ func (pct *PolicyConfiguratorTxn) appendRules(rules []*renderer.ContivRule, newR
 	return rules
 }
 
-// Copy creates a copy of ContivPolicies.
+// Copy creates a shallow copy of ContivPolicies.
 func (cp ContivPolicies) Copy() ContivPolicies {
 	cpCopy := make(ContivPolicies, len(cp))
 	copy(cpCopy, cp)
@@ -529,6 +495,16 @@ func (cp ContivPolicies) Less(i, j int) bool {
 	return false
 }
 
+// Copy creates a deep copy of ContivRules.
+func (cr ContivRules) Copy() ContivRules {
+	crCopy := make(ContivRules, len(cr))
+	for idx, rule := range cr {
+		crCopy[idx] = &renderer.ContivRule{}
+		*(crCopy[idx]) = *rule
+	}
+	return crCopy
+}
+
 // compareInts is a comparison function for two integers.
 func compareInts(a, b int) int {
 	if a < b {
@@ -538,6 +514,22 @@ func compareInts(a, b int) int {
 		return 1
 	}
 	return 0
+}
+
+// Function returns the IP subnet that contains only the given host
+// (i.e. /32 for IPv4, /128 for IPv6).
+func getOneHostSubnet(hostAddr string) *net.IPNet {
+	ip := net.ParseIP(hostAddr)
+	if ip == nil {
+		return nil
+	}
+	ipNet := &net.IPNet{IP: ip}
+	if ip.To4() != nil {
+		ipNet.Mask = net.CIDRMask(net.IPv4len*8, net.IPv4len*8)
+	} else {
+		ipNet.Mask = net.CIDRMask(net.IPv6len*8, net.IPv6len*8)
+	}
+	return ipNet
 }
 
 // Function returns a list of subnets with all IPs included in net1 and not included in net2.

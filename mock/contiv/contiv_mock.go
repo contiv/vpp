@@ -1,4 +1,4 @@
-package test
+package contiv
 
 import (
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"

@@ -1,9 +1,9 @@
-package test
+package renderer
 
 import (
-	"fmt"
 	"net"
 
+	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	"github.com/contiv/vpp/plugins/policy/renderer"
 	"github.com/ligato/cn-infra/logging"
 )
@@ -32,10 +32,6 @@ const (
 	// UnmatchedTraffic is returned by the mock renderer when the traffic is not
 	// matched by any rule.
 	UnmatchedTraffic
-
-	// InvalidTraffic is returned by the mock renderer when the traffic went
-	// through an interface not handled by the renderer.
-	InvalidTraffic
 )
 
 // MockRenderer is a mock implementation of the PolicyRenderer that allows
@@ -43,7 +39,7 @@ const (
 // configuration.
 type MockRenderer struct {
 	Log    logging.Logger
-	config map[string]*InterfaceConfig // interface name -> config
+	config map[podmodel.ID]*PodConfig // Pod ID -> config
 }
 
 // MockRendererTxn is a mock implementation for the renderer's transaction.
@@ -51,11 +47,12 @@ type MockRendererTxn struct {
 	Log      logging.Logger
 	renderer *MockRenderer
 	resync   bool
-	config   map[string]*InterfaceConfig // interface name -> config
+	config   map[podmodel.ID]*PodConfig // Pod ID -> config
 }
 
-// InterfaceConfig stores configuration for a single interface.
-type InterfaceConfig struct {
+// PodConfig stores configuration for a single pod.
+type PodConfig struct {
+	ip      *net.IPNet
 	ingress []*renderer.ContivRule
 	egress  []*renderer.ContivRule
 }
@@ -64,7 +61,7 @@ type InterfaceConfig struct {
 func NewMockRenderer(log logging.Logger) *MockRenderer {
 	return &MockRenderer{
 		Log:    log,
-		config: make(map[string]*InterfaceConfig),
+		config: make(map[podmodel.ID]*PodConfig),
 	}
 }
 
@@ -74,33 +71,32 @@ func (mr *MockRenderer) NewTxn(resync bool) renderer.Txn {
 		Log:      mr.Log,
 		renderer: mr,
 		resync:   resync,
-		config:   make(map[string]*InterfaceConfig),
+		config:   make(map[podmodel.ID]*PodConfig),
 	}
 }
 
-// AddInterface tells that the given interface belongs under this renderer.
-func (mr *MockRenderer) AddInterface(ifName string) {
-	mr.config[ifName] = &InterfaceConfig{
-		ingress: []*renderer.ContivRule{},
-		egress:  []*renderer.ContivRule{},
+// GetPodIP returns the pod IP + masklen as provided by the configurator.
+func (mr *MockRenderer) GetPodIP(pod podmodel.ID) (ip string, masklen int) {
+	config, hasInterface := mr.config[pod]
+	if !hasInterface {
+		return "", 0
 	}
-}
-
-// HasInterface allows to test what has been set with AddInterface.
-func (mr *MockRenderer) HasInterface(ifName string) bool {
-	_, has := mr.config[ifName]
-	return has
+	if config.ip == nil {
+		return "", 0
+	}
+	masklen, _ = config.ip.Mask.Size()
+	return config.ip.IP.String(), masklen
 }
 
 // TestTraffic allows to simulate a traffic and test what the outcome would
 // be with the rendered configuration.
 // The direction is from the vswitch point of view!
-func (mr *MockRenderer) TestTraffic(ifName string, direction TrafficDirection, srcIP *net.IP,
+func (mr *MockRenderer) TestTraffic(pod podmodel.ID, direction TrafficDirection, srcIP *net.IP,
 	destIP *net.IP, protocol renderer.ProtocolType, srcPort uint16, destPort uint16) TrafficAction {
 
-	config, hasInterface := mr.config[ifName]
+	config, hasInterface := mr.config[pod]
 	if !hasInterface {
-		return InvalidTraffic
+		return UnmatchedTraffic
 	}
 
 	var rules []*renderer.ContivRule
@@ -136,23 +132,19 @@ func (mr *MockRenderer) TestTraffic(ifName string, direction TrafficDirection, s
 }
 
 // Render just stores config to be rendered.
-func (mrt *MockRendererTxn) Render(ifName string, ingress []*renderer.ContivRule, egress []*renderer.ContivRule) renderer.Txn {
+func (mrt *MockRendererTxn) Render(pod podmodel.ID, podIP *net.IPNet, ingress []*renderer.ContivRule, egress []*renderer.ContivRule) renderer.Txn {
 	mrt.Log.WithFields(logging.Fields{
-		"ifName":  ifName,
+		"pod":     pod,
+		"IP":      podIP,
 		"ingress": ingress,
 		"egress":  egress,
 	}).Debug("Mock RendererTxn Render()")
-	mrt.config[ifName] = &InterfaceConfig{ingress: ingress, egress: egress}
+	mrt.config[pod] = &PodConfig{ip: podIP, ingress: ingress, egress: egress}
 	return mrt
 }
 
 // Commit runs mock rendering. The configuration is just stored in-memory.
 func (mrt *MockRendererTxn) Commit() error {
-	for ifName := range mrt.config {
-		if !mrt.renderer.HasInterface(ifName) {
-			return fmt.Errorf("unhandled interface: %s", ifName)
-		}
-	}
 	if mrt.resync {
 		mrt.renderer.config = mrt.config
 	} else {

@@ -156,19 +156,35 @@ func verifyRule(aclRule *acl_model.AccessLists_Acl_Rule, contivRule *renderer.Co
 		gomega.Expect(aclRule.Matches.IpRule.Tcp).ToNot(gomega.BeNil())
 		gomega.Expect(aclRule.Matches.IpRule.Tcp.SourcePortRange).ToNot(gomega.BeNil())
 		gomega.Expect(aclRule.Matches.IpRule.Tcp.SourcePortRange.LowerPort).To(gomega.BeEquivalentTo(contivRule.SrcPort))
-		gomega.Expect(aclRule.Matches.IpRule.Tcp.SourcePortRange.UpperPort).To(gomega.BeEquivalentTo(contivRule.SrcPort))
+		if contivRule.SrcPort == 0 {
+			gomega.Expect(aclRule.Matches.IpRule.Tcp.SourcePortRange.UpperPort).To(gomega.BeEquivalentTo(65535))
+		} else {
+			gomega.Expect(aclRule.Matches.IpRule.Tcp.SourcePortRange.UpperPort).To(gomega.BeEquivalentTo(contivRule.SrcPort))
+		}
 		gomega.Expect(aclRule.Matches.IpRule.Tcp.DestinationPortRange).ToNot(gomega.BeNil())
 		gomega.Expect(aclRule.Matches.IpRule.Tcp.DestinationPortRange.LowerPort).To(gomega.BeEquivalentTo(contivRule.DestPort))
-		gomega.Expect(aclRule.Matches.IpRule.Tcp.DestinationPortRange.UpperPort).To(gomega.BeEquivalentTo(contivRule.DestPort))
+		if contivRule.DestPort == 0 {
+			gomega.Expect(aclRule.Matches.IpRule.Tcp.DestinationPortRange.UpperPort).To(gomega.BeEquivalentTo(65535))
+		} else {
+			gomega.Expect(aclRule.Matches.IpRule.Tcp.DestinationPortRange.UpperPort).To(gomega.BeEquivalentTo(contivRule.DestPort))
+		}
 	} else {
 		// UDP
 		gomega.Expect(aclRule.Matches.IpRule.Udp).ToNot(gomega.BeNil())
 		gomega.Expect(aclRule.Matches.IpRule.Udp.SourcePortRange).ToNot(gomega.BeNil())
 		gomega.Expect(aclRule.Matches.IpRule.Udp.SourcePortRange.LowerPort).To(gomega.BeEquivalentTo(contivRule.SrcPort))
-		gomega.Expect(aclRule.Matches.IpRule.Udp.SourcePortRange.UpperPort).To(gomega.BeEquivalentTo(contivRule.SrcPort))
+		if contivRule.SrcPort == 0 {
+			gomega.Expect(aclRule.Matches.IpRule.Udp.SourcePortRange.UpperPort).To(gomega.BeEquivalentTo(65535))
+		} else {
+			gomega.Expect(aclRule.Matches.IpRule.Udp.SourcePortRange.UpperPort).To(gomega.BeEquivalentTo(contivRule.SrcPort))
+		}
 		gomega.Expect(aclRule.Matches.IpRule.Udp.DestinationPortRange).ToNot(gomega.BeNil())
 		gomega.Expect(aclRule.Matches.IpRule.Udp.DestinationPortRange.LowerPort).To(gomega.BeEquivalentTo(contivRule.DestPort))
-		gomega.Expect(aclRule.Matches.IpRule.Udp.DestinationPortRange.UpperPort).To(gomega.BeEquivalentTo(contivRule.DestPort))
+		if contivRule.DestPort == 0 {
+			gomega.Expect(aclRule.Matches.IpRule.Udp.DestinationPortRange.UpperPort).To(gomega.BeEquivalentTo(65535))
+		} else {
+			gomega.Expect(aclRule.Matches.IpRule.Udp.DestinationPortRange.UpperPort).To(gomega.BeEquivalentTo(contivRule.DestPort))
+		}
 	}
 	gomega.Expect(aclRule.Matches.IpRule.Other).To(gomega.BeNil())
 }

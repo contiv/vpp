@@ -60,8 +60,10 @@ func (pc *PolicyConfigurator) Init() error {
 	return nil
 }
 
-// RegisterRenderer registers renderer that will render rules for pods that
-// contain a given <label> (they are expected to be in a separate network stack).
+// RegisterRenderer registers a new renderer.
+// The renderer will be receiving rules for all pods in this K8s node.
+// It is up to the render to possibly filter out rules for pods without
+// an inter-connection in the destination network stack.
 func (pc *PolicyConfigurator) RegisterRenderer(renderer renderer.PolicyRendererAPI) error {
 	pc.renderers = append(pc.renderers, renderer)
 	return nil

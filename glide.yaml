@@ -3,7 +3,7 @@ import:
 - package: github.com/ligato/cn-infra
   version: 799aaf9fe479b6e0ea24b91644dfeb2e45fba1da
 - package: github.com/ligato/vpp-agent
-  version: 7814a8bb7d497dddb3b14798c4249c487a241aa6
+  version: 14533e18dfd34d52dc065844cd752e1c439d86c9
 - package: github.com/containernetworking/cni
   version: v0.6.0
 - package: github.com/containernetworking/plugins

@@ -1,4 +1,4 @@
-package test
+package policycache
 
 import (
 	"github.com/ligato/cn-infra/datasync"

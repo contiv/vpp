@@ -120,7 +120,7 @@ func (pp *PolicyProcessor) AddPod(pod *podmodel.Pod) error {
 		return nil
 	}
 
-	if pod.Namespace == "kube-system"
+	if pod.Namespace == "kube-system" {
 		pp.Log.WithField("pod", pod).Warn("Pod belongs to kube-system namespace, ignoring")
 		return nil
 	}
@@ -132,7 +132,7 @@ func (pp *PolicyProcessor) AddPod(pod *podmodel.Pod) error {
 // The list of pods with outdated policy configuration is determined and the
 // policy re-processing is triggered for each of them.
 func (pp *PolicyProcessor) DelPod(pod *podmodel.Pod) error {
-	pods := []podmodel.ID{}
+	//pods := []podmodel.ID{}
 
 	return nil
 }

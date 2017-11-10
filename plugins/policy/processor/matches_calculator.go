@@ -1,6 +1,8 @@
 package processor
 
 import (
+	"net"
+
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	policymodel "github.com/contiv/vpp/plugins/ksr/model/policy"
 	config "github.com/contiv/vpp/plugins/policy/configurator"
@@ -20,15 +22,29 @@ func (pp *PolicyProcessor) calculateMatches(policyData *policymodel.Policy) []co
 		for _, ingressRule := range ingressRules {
 			ingressPods := []podmodel.ID{}
 			ingressPorts := []config.Port{}
+			ingressIPBlocks := []config.IPBlock{}
 
-			ingressRuleFrom := ingressRule.From
-			for _, ingressLabelSelector := range ingressRuleFrom {
-				ingressLabel := ingressLabelSelector.Pods
+			ingressRuleFroms := ingressRule.From
+			for _, ingressRuleFrom := range ingressRuleFroms {
+				ingressLabel := ingressRuleFrom.Pods
 				ingressPod := pp.Cache.LookupPodsByNSLabelSelector(namespace, ingressLabel)
 				ingressPods = append(ingressPods, ingressPod...)
-			}
 
-			// for namespaces, for ipblocks
+				ingressIPBlock := ingressRuleFrom.IpBlock
+				// todo - error handling
+				_, ingressCIDR, _ := net.ParseCIDR(ingressIPBlock.Cidr)
+
+				ingressIPBlockEx := []net.IPNet{}
+				ingressIPBlockExcepts := ingressIPBlock.Except
+				for _, ingressIPBlockExcept := range ingressIPBlockExcepts {
+					_, ingressExcept, _ := net.ParseCIDR(ingressIPBlockExcept)
+					ingressIPBlockEx = append(ingressIPBlockEx, *ingressExcept)
+				}
+				ingressIPBlocks = append(ingressIPBlocks, config.IPBlock{
+					Network: *ingressCIDR,
+					Except:  ingressIPBlockEx,
+				})
+			}
 
 			ingressRulePorts := ingressRule.Port
 			for _, ingressRulePort := range ingressRulePorts {
@@ -45,9 +61,10 @@ func (pp *PolicyProcessor) calculateMatches(policyData *policymodel.Policy) []co
 			}
 
 			matches = append(matches, config.Match{
-				Type:  matchType,
-				Pods:  ingressPods,
-				Ports: ingressPorts,
+				Type:     matchType,
+				Pods:     ingressPods,
+				Ports:    ingressPorts,
+				IPBlocks: ingressIPBlocks,
 			})
 		}
 	}
@@ -59,15 +76,29 @@ func (pp *PolicyProcessor) calculateMatches(policyData *policymodel.Policy) []co
 		for _, egressRule := range egressRules {
 			egressPods := []podmodel.ID{}
 			egressPorts := []config.Port{}
+			egressIPBlocks := []config.IPBlock{}
 
-			egressRuleTo := egressRule.To
-			for _, egressLabelSelector := range egressRuleTo {
-				egressLabel := egressLabelSelector.Pods
+			egressRulesTo := egressRule.To
+			for _, egressRuleTo := range egressRulesTo {
+				egressLabel := egressRuleTo.Pods
 				egressPod := pp.Cache.LookupPodsByNSLabelSelector(namespace, egressLabel)
 				egressPods = append(egressPods, egressPod...)
-			}
 
-			// for namespaces, for ipblocks
+				egressIPBlock := egressRuleTo.IpBlock
+				// todo - error handling
+				_, egressCIDR, _ := net.ParseCIDR(egressIPBlock.Cidr)
+
+				egressIPBlockEx := []net.IPNet{}
+				egressIPBlockExcepts := egressIPBlock.Except
+				for _, ingressIPBlockExcept := range egressIPBlockExcepts {
+					_, ingressExcept, _ := net.ParseCIDR(ingressIPBlockExcept)
+					egressIPBlockEx = append(egressIPBlockEx, *ingressExcept)
+				}
+				egressIPBlocks = append(egressIPBlocks, config.IPBlock{
+					Network: *egressCIDR,
+					Except:  egressIPBlockEx,
+				})
+			}
 
 			egressRulePorts := egressRule.Port
 			for _, egressRulePort := range egressRulePorts {
@@ -84,9 +115,10 @@ func (pp *PolicyProcessor) calculateMatches(policyData *policymodel.Policy) []co
 			}
 
 			matches = append(matches, config.Match{
-				Type:  matchType,
-				Pods:  egressPods,
-				Ports: egressPorts,
+				Type:     matchType,
+				Pods:     egressPods,
+				Ports:    egressPorts,
+				IPBlocks: egressIPBlocks,
 			})
 		}
 	}

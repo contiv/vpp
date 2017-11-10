@@ -54,8 +54,8 @@ type IPAM struct {
 	hostNodeNetworkIPPrefix net.IPNet // IPv4 subnet used for all hosts node referencing IP addresses
 }
 
-type uintIP uint32
-type podID string
+type uintIP = uint32
+type podID = string
 
 // Config is configuration for IPAM module
 type Config struct {

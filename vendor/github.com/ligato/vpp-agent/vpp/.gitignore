@@ -1,0 +1,100 @@
+*~
+*.sw[op]
+
+/build-root/.ccache
+/build-root/build-*/
+/build-root/install-*/
+/build-root/tools
+/build-root/dpdk-includes/
+/build-root/packages-vpp/
+/build-root/path_setup
+/build-root/build-config.mk
+/build-root/deb/debian/vpp-plugins/
+/build-root/deb/.pybuild/
+/build-root/*.deb
+/build-root/*.rpm
+/build-root/*.changes
+/build-root/test-doc/
+/build-root/test-cov/
+/build-root/python/
+/build-root/vapi_test/
+/build-root/vom_test/
+/build-config.mk
+/dpdk/*.tar.gz
+/dpdk/*.tar.xz
+/dpdk/vpp-dpdk*.deb
+/dpdk/vpp-dpdk*.changes
+/path_setup
+/tools/
+# start autotools ignore
+autom4te.cache/
+config/
+Makefile
+Makefile.in
+aclocal.m4
+app.info
+compile
+config.h
+config.h.in
+config.log
+config.guess
+config.sub
+config.status
+configure
+configure.scan
+coverage_report
+depcomp
+install-sh
+libtool
+m4
+missing
+stamp-h1
+ltmain.sh
+ylwrap
+test-driver
+
+*.iml
+.bootstrap.ok
+.settings
+.autotools
+# stop autotools ignore
+
+# OSX and some IDE
+.DS_Store
+.idea/
+.project
+.cproject
+.vscode/
+
+# cscope and ctags
+/cscope.*
+/tags
+ID
+TAGS
+# ggtags
+GPATH
+GRTAGS
+GTAGS
+# Generated documentation
+/build-root/docs
+/build-root/.doxygen-bootstrap.ok
+/build-root/.doxygen-siphon.dep
+
+# indent backup files
+*.BAK
+
+# Python bytecode
+*.pyc
+
+# Python api generator
+/src/vpp-api/python/build
+/src/vpp-api/python/dist
+/src/vpp-api/python/vpp_papi.egg-info
+/src/vpp-api/python/vpp_papi/memclnt.py
+/src/vpp-api/python/vpp_papi/vpe.py
+
+# Build files in the test directory
+/test/*.ok
+
+# vppctl command list
+/src/scripts/vppctl-cmd-list

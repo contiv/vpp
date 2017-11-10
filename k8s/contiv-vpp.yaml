@@ -174,12 +174,13 @@ spec:
               path: /readiness
               port: 9191
             periodSeconds: 1
+            initialDelaySeconds: 10
           livenessProbe:
             httpGet:
               path: /liveness
               port: 9191
             periodSeconds: 1
-            initialDelaySeconds: 15
+            initialDelaySeconds: 60
           env:
             - name: MICROSERVICE_LABEL
               valueFrom:

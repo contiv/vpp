@@ -8,8 +8,6 @@ import (
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	policymodel "github.com/contiv/vpp/plugins/ksr/model/policy"
 
-	"fmt"
-
 	"github.com/contiv/vpp/plugins/policy/cache"
 	config "github.com/contiv/vpp/plugins/policy/configurator"
 	"github.com/contiv/vpp/plugins/policy/utils"
@@ -244,7 +242,8 @@ func (pp *PolicyProcessor) AddPolicy(policy *policymodel.Policy) error {
 	pods := []podmodel.ID{}
 	// Check if policy was read correctly.
 	if policy == nil {
-		return fmt.Errorf("Policy was not read correctly, retrying")
+		pp.Log.WithField("policy", policy).Error("Error reading Policy")
+		return nil
 	}
 
 	namespace := policy.Namespace
@@ -266,7 +265,8 @@ func (pp *PolicyProcessor) DelPolicy(policy *policymodel.Policy) error {
 	pods := []podmodel.ID{}
 
 	if policy == nil {
-		return fmt.Errorf("Policy was not read correctly, retrying")
+		pp.Log.WithField("policy", policy).Error("Error reading Policy")
+		return nil
 	}
 
 	namespace := policy.Namespace
@@ -288,18 +288,31 @@ func (pp *PolicyProcessor) UpdatePolicy(oldPolicy, newPolicy *policymodel.Policy
 	pods := []podmodel.ID{}
 
 	if newPolicy == nil {
-		return fmt.Errorf("Policy was not read correctly, retrying")
+		pp.Log.WithField("policy", newPolicy).Error("Error reading New Policy")
+		return nil
 	}
 
-	namespace := newPolicy.Namespace
-	policyLabelSelectors := newPolicy.Pods
+	if oldPolicy == nil {
+		pp.Log.WithField("policy", oldPolicy).Error("Error reading Old Policy")
+		return nil
+	}
+	// Find pods that were using the old Policy
+	oldNamespace := oldPolicy.Namespace
+	oldPolicyLabelSelectors := oldPolicy.Pods
 
-	policyPods := pp.Cache.LookupPodsByNSLabelSelector(namespace, policyLabelSelectors)
-	pods = append(pods, policyPods...)
+	oldPolicyPods := pp.Cache.LookupPodsByNSLabelSelector(oldNamespace, oldPolicyLabelSelectors)
+	pods = append(pods, oldPolicyPods...)
+
+	newNamespace := newPolicy.Namespace
+	newPolicyLabelSelectors := newPolicy.Pods
+
+	newPolicyPods := pp.Cache.LookupPodsByNSLabelSelector(newNamespace, newPolicyLabelSelectors)
+	pods = append(pods, newPolicyPods...)
 
 	if len(pods) > 0 {
 		return pp.Process(false, pods)
 	}
+
 	return nil
 }
 

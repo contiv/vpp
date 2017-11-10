@@ -38,10 +38,12 @@ Reinit_One_Node_Kube_Cluster
     ${conn} =     SSHLibrary.Get_Connection
     Set_Suite_Variable    ${testbed_connection}    ${conn.index}
     SSHLibrary.Set_Client_Configuration    timeout=10    prompt=$
-    SshCommons.Switch_And_Execute_Command    ${testbed_connection}    sudo rm -rf ~/.kube
+    SshCommons.Switch_And_Execute_Command    ${testbed_connection}    sudo rm -rf $HOME/.kube
     KubeAdm.Reset    ${testbed_connection}
+    SshCommons.Switch_And_Execute_Command    ${testbed_connection}    curl -s https://raw.githubusercontent.com/contiv/vpp/master/k8s/cri-install.sh | sudo bash /dev/stdin -u    ignore_stderr=${True}    ignore_rc=${True}
     Docker_Pull_Contiv_Vpp    ${testbed_connection}
     Docker_Pull_Custom_Kube_Proxy    ${testbed_connection}
+    SshCommons.Switch_And_Execute_Command    ${testbed_connection}    curl -s https://raw.githubusercontent.com/contiv/vpp/master/k8s/cri-install.sh | sudo bash /dev/stdin
     ${stdout} =    KubeAdm.Init    ${testbed_connection}
     BuiltIn.Should_Contain    ${stdout}    Your Kubernetes master has initialized successfully
     SshCommons.Switch_And_Execute_Command    ${testbed_connection}    mkdir -p $HOME/.kube

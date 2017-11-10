@@ -15,8 +15,6 @@
 package main
 
 import (
-	"time"
-
 	"github.com/ligato/cn-infra/core"
 
 	"github.com/contiv/vpp/flavors/contiv"
@@ -32,10 +30,8 @@ func init() {
 
 // Start Agent plugins selected for this example
 func main() {
-
-	flavor := contiv.FlavorContiv{}
 	// Create new agent
-	agentVar := core.NewAgent(logroot.StandardLogger(), 15*time.Second, flavor.Plugins()...)
+	agentVar := contiv.NewAgent()
 
 	core.EventLoopWithInterrupt(agentVar, nil)
 }

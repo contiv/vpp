@@ -88,3 +88,7 @@ Taint
     [Arguments]    ${ssh_session}    ${cmd_parameters}
     ${stdout} =    KubeCtl__Execute_Command_And_Log    ${ssh_session}    kubectl taint ${cmd_parameters}
     BuiltIn.Return_From_Keyword    ${stdout}
+
+Label_Nodes
+    [Arguments]    ${ssh_session}    ${node_name}   ${label_key}    ${label_value}
+    ${stdout} =    KubeCtl__Execute_Command_And_Log    ${ssh_session}    kubectl label nodes ${node_name} ${label_key}=${label_value}

@@ -22,6 +22,7 @@ Reinit_One_Node_Kube_Cluster
     Execute_Command_And_Log_All    ${testbed_connection}    sudo rm -rf ~/.kube
     KubeAdm.Reset    ${testbed_connection}
     Docker_Pull_Contiv_Vpp    ${testbed_connection}
+    Docker_Pull_Custom_Kube_Proxy    ${testbed_connection}
     ${stdout} =    KubeAdm.Init    ${testbed_connection}
     BuiltIn.Should_Contain    ${stdout}    Your Kubernetes master has initialized successfully
     Execute_Command_And_Log_All    ${testbed_connection}    mkdir -p $HOME/.kube
@@ -60,11 +61,17 @@ Reinit_Multinode_Kube_Cluster
     \    ${connection} =    BuiltIn.Set_Variable    ${VM_SSH_ALIAS_PREFIX}${index}
     \    Execute_Command_And_Log_All    ${connection}    sudo ${join_cmd}    ignore_stderr=${True}
     Wait_Until_Cluster_Ready    ${VM_SSH_ALIAS_PREFIX}1    ${KUBE_CLUSTER_${CLUSTER_ID}_NODES}
-    
+    # label the nodes
+    :FOR    ${index}    IN RANGE    1    ${KUBE_CLUSTER_${CLUSTER_ID}_NODES}+1
+    \    KubeCtl.Label_Nodes    ${VM_SSH_ALIAS_PREFIX}1    ${KUBE_CLUSTER_${CLUSTER_ID}_VM_${index}_HOST_NAME}   location    ${KUBE_CLUSTER_${CLUSTER_ID}_VM_${index}_LABEL}
 
 Docker_Pull_Contiv_Vpp
     [Arguments]    ${ssh_session}
     Execute_Command_And_Log_All    ${ssh_session}    bash <(curl -s https://raw.githubusercontent.com/contiv/vpp/master/k8s/pull-images.sh)
+
+Docker_Pull_Custom_Kube_Proxy
+    [Arguments]    ${ssh_session}
+    Execute_Command_And_Log_All    ${ssh_session}    bash <(curl -s https://raw.githubusercontent.com/contiv/vpp/master/k8s/proxy-install.sh)
 
 Apply_Contive_Vpp_Plugin
     [Arguments]    ${ssh_session}

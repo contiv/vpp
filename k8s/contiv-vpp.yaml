@@ -169,18 +169,22 @@ spec:
             - containerPort: 5002
             # readiness + liveness probe
             - containerPort: 9191
-          readinessProbe:
-            httpGet:
-              path: /readiness
-              port: 9191
-            periodSeconds: 1
-            initialDelaySeconds: 10
-          livenessProbe:
-            httpGet:
-              path: /liveness
-              port: 9191
-            periodSeconds: 1
-            initialDelaySeconds: 60
+          # to be uncomented if env vpp has enough (cpu) resources
+          # while testing it keep restarting due to 
+          #  Warning  Unhealthy ... Liveness probe failed: HTTP probe failed with statuscode: 500
+          # TODO: increase tolerance
+         # readinessProbe:
+         #   httpGet:
+         #     path: /readiness
+         #     port: 9191
+         #   periodSeconds: 1
+         #   initialDelaySeconds: 10
+         # livenessProbe:
+         #   httpGet:
+         #     path: /liveness
+         #     port: 9191
+         #   periodSeconds: 1
+         #   initialDelaySeconds: 60
           env:
             - name: MICROSERVICE_LABEL
               valueFrom:

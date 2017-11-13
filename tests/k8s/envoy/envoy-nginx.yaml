@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: envoy-nginx
+spec:
+
+  restartPolicy: Never
+
+  containers:
+  - name: envoy
+    image: envoy-pod:v1
+    imagePullPolicy: IfNotPresent
+
+  - name: nginx
+    image: nginx
+    imagePullPolicy: IfNotPresent
+

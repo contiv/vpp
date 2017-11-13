@@ -12,8 +12,8 @@ spec:
         scopeglobal: "true"
     spec:
       # optional - deploy on preferred node
-      nodeSelector:
-        kubernetes.io/hostname: ubuntu
+#      nodeSelector:
+#        kubernetes.io/hostname: ubuntu
       containers:
       - image: networkstatic/iperf3
         imagePullPolicy: IfNotPresent

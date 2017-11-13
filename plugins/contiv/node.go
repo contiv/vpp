@@ -17,8 +17,8 @@ package contiv
 import (
 	"context"
 	"fmt"
-	"strings"
 	"net"
+	"strings"
 
 	"github.com/contiv/vpp/plugins/contiv/bin_api/session"
 	"github.com/contiv/vpp/plugins/contiv/model/uid"

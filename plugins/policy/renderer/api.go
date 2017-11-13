@@ -18,6 +18,8 @@ import (
 	"fmt"
 	"net"
 	"strconv"
+
+	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 )
 
 // PolicyRendererAPI defines the API of Policy Renderer.
@@ -31,20 +33,22 @@ type PolicyRendererAPI interface {
 	// to recover from an in-progress fail.
 	// If <resync> is enabled, the supplied configuration should completely
 	// replace the existing one. Otherwise, perform the changes incrementally,
-	// i.e. interfaces not mentioned in the transaction should remain unaffected.
+	// i.e. pods not mentioned in the transaction should remain unaffected.
 	NewTxn(resync bool) Txn
 }
 
 // Txn defines API of PolicyRenderer transaction.
 type Txn interface {
-	// Render applies the set of ingress & egress rules for a given interface.
+	// Render applies the set of ingress & egress rules for a given pod.
 	// The existing rules are replaced.
-	// ContivRuleCache can be used to calculate the minimal diff and find
-	// interfaces with equivalent ingress and/or egress configuration.
 	// The traffic direction (ingress, egress) is considered from the vswitch
 	// point of view!
+	// For ingress rules the source IP is unset, i.e. 0.0.0.0/ (match all).
+	// For egress rules the destination IP is unset, i.e. 0.0.0.0/ (match all).
+	// The renderer may use the provided pod IP to make the rules fully specific
+	// in case they are installed globally and not assigned to interfaces.
 	// Empty set of rules should allow any traffic in that direction.
-	Render(ifName string, ingress []*ContivRule, egress []*ContivRule) Txn
+	Render(pod podmodel.ID, podIP *net.IPNet /* one host subnet */, ingress []*ContivRule, egress []*ContivRule) Txn
 
 	// Commit proceeds with the rendering. The changes are propagated into
 	// the destination network stack.

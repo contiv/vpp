@@ -73,8 +73,10 @@ Get_Nodes
     BuiltIn.Return_From_Keyword    ${output}
 
 Logs
-    [Arguments]    ${ssh_session}    ${cmd_param}
-    BuiltIn.Run_Keyword_And_Return    KubeCtl__Execute_Command_And_Log    ${ssh_session}    kubectl logs ${cmd_param}
+    [Arguments]    ${ssh_session}    ${pod_name}    ${container}=${EMPTY}    ${namespace}=${EMPTY}
+    ${nsparam} =     BuiltIn.Set_Variable_If    """${namespace}""" != """${EMPTY}"""    --namespace ${namespace}    ${EMPTY}
+    ${cntparam} =    BuiltIn.Set_Variable_If    """${container}""" != """${EMPTY}"""    ${container}    ${EMPTY}
+    BuiltIn.Run_Keyword_And_Return    KubeCtl__Execute_Command_And_Log    ${ssh_session}    kubectl logs ${nsparam} ${pod_name} ${cntparam}
 
 Describe_Pod
     [Arguments]    ${ssh_session}    ${pod_name}
@@ -86,3 +88,7 @@ Taint
     [Arguments]    ${ssh_session}    ${cmd_parameters}
     ${stdout} =    KubeCtl__Execute_Command_And_Log    ${ssh_session}    kubectl taint ${cmd_parameters}
     BuiltIn.Return_From_Keyword    ${stdout}
+
+Label_Nodes
+    [Arguments]    ${ssh_session}    ${node_name}   ${label_key}    ${label_value}
+    ${stdout} =    KubeCtl__Execute_Command_And_Log    ${ssh_session}    kubectl label nodes ${node_name} ${label_key}=${label_value}

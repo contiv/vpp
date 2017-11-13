@@ -28,7 +28,7 @@ Get_Web_Page_From_Pod
     [Teardown]    Teardown_Client_Pod_Session
 
 Get_Web_Page_From_Host
-    ${stdout} =    KubernetesEnv.Execute_Command_And_Log_All    ${testbed_connection}    curl -v http://${nginx_ip}    ignore_stderr=${True}
+    ${stdout} =    KubernetesEnv.Execute_Command_And_Log_All    ${testbed_connection}    curl http://${nginx_ip} --noproxy ${nginx_ip}    ignore_stderr=${True}
     BuiltIn.Should_Contain   ${stdout}    If you see this page, the nginx web server is successfully installed
 
 *** Keywords ***
@@ -38,6 +38,7 @@ OneNodeK8sSetup
     KubernetesEnv.Deploy_Client_And_Nginx_Pod_And_Verify_Running    ${testbed_connection}
 
 OneNodeK8sTeardown
+    KubernetesEnv.Log_Pods_For_Debug    ${testbed_connection}
     KubernetesEnv.Remove_Client_And_Nginx_Pod_And_Verify_Removed    ${testbed_connection}
     Testsuite Teardown
 

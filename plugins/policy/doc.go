@@ -22,7 +22,7 @@
 //     - propagates datasync events into the Policy Cache without any processing
 //     - postpones RESYNC until the Contiv plugin has finalized its RESYNC
 //
-// 2. Policy Processor
+//  2. Policy Processor
 //     - implements the PolicyCacheWatcher interface
 //     - subscribes in the Policy Cache for watching changes and RESYNC events
 //     - for each change, decides if the re-configuration should be postponed
@@ -38,7 +38,7 @@
 //           * changed policy in any way
 //           * pod migrated between hosts
 //     - handles pod migration
-//        - learns host IP from the Contiv plugin
+//        - learns IP subnet assigned to the node from the Contiv plugin
 //        - unlike Policy Configurator, the processor is aware of the
 //          inter-host networking but not aware of the intra-host networking
 //          details
@@ -50,7 +50,7 @@
 //           * translates port names into numbers
 //           * expands namespaces into pods
 //
-// 3. Policy Configurator
+//  3. Policy Configurator
 //     - for a given pod, translates a set of Contiv Policies into ingress and
 //       egress lists of Contiv Rules (n-tuples with the most basic policy rule
 //       definition; order matters) and applies them into the target vswitch via
@@ -63,16 +63,14 @@
 //          details)
 //     - for the best performance, creates a shortest possible sequence of rules
 //       that implement a given policy
-//     - to allow renderers share a list of ingress or egress rules between
-//       interfaces, the same set of policies always results in the same list
-//       of rules
+//     - for the sake of renderers that install rules into per-interface tables
+//       (as opposed to one or more global tables), the configurator ensures
+//       that the same set of policies always results in the same list of rules,
+//       allowing renderers to group and share them across multiple interfaces
+//       (if supported by the destination network stack)
 //
-// 4. Policy Renderer
+//  4. Policy Renderer
 //     - applies a list of Contiv Rules into the destination network stack
-//     - may use prepared ContivRuleCache to easily calculate the minimal set
-//       of changes that need to be applied in a given transaction
-//       (especially useful if the target stack allows to share rules between
-//       interfaces)
 //
 // Caches
 // -------
@@ -86,12 +84,13 @@
 //      the PolicyCacheWatcher interface
 //    - provides various lookup methods (e.g. by the label selector)
 //
-// * Contiv-Rule Cache
-//    - can be used by renderer to easily calculate the minimal set of changes
-//      that need to be applied in a given transaction
-//    - furthermore it groups equal ingress/egress rule lists to allow renderer
-//      to install only one instance of the same list and share it among
-//      multiple interfaces (if supported by the destination stack)
+// * Renderer's own cache
+//    - to accomplish the task of (efficient) rule rendering, renderers often
+//      implement their own cache for rules (transparent for the layers above)
+//    - the selection of the data structure for the cache depends on the policy
+//      implementation in the destination network stack which limits
+//      re-usability of caches between renderers
+//
 //
 // Diagram
 // -------
@@ -128,12 +127,14 @@
 // |      |                     |      |  |                        |
 // +------|---------------------|------+  +------------------------+
 //        | Render Contiv Rules |
-// +------v--------+   +--------v------+  +------------------------+
-// |               |   |               |  |                        |
-// | 4. Policy     |   | 4. Policy  --update-->  Contiv-Rule Cache |
-// |   Renderer    |   |   Renderer  <--diff--                     |
-// |               |   |               |  |                        |
-// +-------|-------+   +-------|-------+  +------------------------+
+// +------v--------+   +--------v------+
+// |               |   |               |
+// | 4. Policy     |   | 4. Policy     |
+// |   Renderer    |   |   Renderer    |
+// |     +-------+ |   |     +-------+ |
+// |     | cache | |   |     | cache | |
+// |     +-------+ |   |     +-------+ |
+// +-------|-------+   +-------|-------+
 //      Render (via e.g. local client)
 // +-------|-------------------|-------+
 // |       v                   v       |

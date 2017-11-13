@@ -10,6 +10,9 @@ ${NV_PLUGIN_URL}    https://raw.githubusercontent.com/contiv/vpp/master/k8s/cont
 ${CLIENT_POD_FILE}    ${CURDIR}/../resources/ubuntu-client.yaml
 ${SERVER_POD_FILE}    ${CURDIR}/../resources/ubuntu-server.yaml
 ${NGINX_POD_FILE}    ${CURDIR}/../resources/nginx.yaml
+${CLIENT_POD_FILE_NODE1}    ${CURDIR}/../resources/ubuntu-client-node1.yaml
+${SERVER_POD_FILE_NODE2}    ${CURDIR}/../resources/ubuntu-server-node2.yaml
+${NGINX_POD_FILE_NODE2}    ${CURDIR}/../resources/nginx-node2.yaml
 ${CLIENT_ISTIO_POD_FILE}    ${CURDIR}/../resources/one-ubuntu-istio.yaml
 ${NGINX_ISTIO_POD_FILE}    ${CURDIR}/../resources/nginx-istio.yaml
 ${ISTIO_FILE}    ${CURDIR}/../resources/istio029.yaml
@@ -22,6 +25,7 @@ Reinit_One_Node_Kube_Cluster
     Execute_Command_And_Log_All    ${testbed_connection}    sudo rm -rf ~/.kube
     KubeAdm.Reset    ${testbed_connection}
     Docker_Pull_Contiv_Vpp    ${testbed_connection}
+    Docker_Pull_Custom_Kube_Proxy    ${testbed_connection}
     ${stdout} =    KubeAdm.Init    ${testbed_connection}
     BuiltIn.Should_Contain    ${stdout}    Your Kubernetes master has initialized successfully
     Execute_Command_And_Log_All    ${testbed_connection}    mkdir -p $HOME/.kube
@@ -60,11 +64,18 @@ Reinit_Multinode_Kube_Cluster
     \    ${connection} =    BuiltIn.Set_Variable    ${VM_SSH_ALIAS_PREFIX}${index}
     \    Execute_Command_And_Log_All    ${connection}    sudo ${join_cmd}    ignore_stderr=${True}
     Wait_Until_Cluster_Ready    ${VM_SSH_ALIAS_PREFIX}1    ${KUBE_CLUSTER_${CLUSTER_ID}_NODES}
-    
+    # label the nodes
+    :FOR    ${index}    IN RANGE    1    ${KUBE_CLUSTER_${CLUSTER_ID}_NODES}+1
+    \    KubeCtl.Label_Nodes    ${VM_SSH_ALIAS_PREFIX}1    ${KUBE_CLUSTER_${CLUSTER_ID}_VM_${index}_HOST_NAME}   location    ${KUBE_CLUSTER_${CLUSTER_ID}_VM_${index}_LABEL}
+    BuiltIn.Set_Suite_Variable    ${testbed_connection}    ${VM_SSH_ALIAS_PREFIX}1
 
 Docker_Pull_Contiv_Vpp
     [Arguments]    ${ssh_session}
     Execute_Command_And_Log_All    ${ssh_session}    bash <(curl -s https://raw.githubusercontent.com/contiv/vpp/master/k8s/pull-images.sh)
+
+Docker_Pull_Custom_Kube_Proxy
+    [Arguments]    ${ssh_session}
+    Execute_Command_And_Log_All    ${ssh_session}    bash <(curl -s https://raw.githubusercontent.com/contiv/vpp/master/k8s/proxy-install.sh)
 
 Apply_Contive_Vpp_Plugin
     [Arguments]    ${ssh_session}
@@ -106,18 +117,40 @@ Get_Pod_Name_List_By_Prefix
     BuiltIn.Return_From_Keyword    ${output}
 
 Deploy_Client_And_Server_Pod_And_Verify_Running
-    [Arguments]    ${ssh_session}
+    [Arguments]    ${ssh_session}    ${client_file}=${CLIENT_POD_FILE}    ${server_file}=${SERVER_POD_FILE}
     [Documentation]     Deploy two ubuntu pods and 
-    ${client_pod_name} =    Deploy_Pod_And_Verify_Running    ${ssh_session}    ${CLIENT_POD_FILE}    ubuntu-client-
-    ${server_pod_name} =    Deploy_Pod_And_Verify_Running    ${ssh_session}    ${SERVER_POD_FILE}    ubuntu-server-
+    ${client_pod_name} =    Deploy_Pod_And_Verify_Running    ${ssh_session}    ${client_file}    ubuntu-client-
+    ${server_pod_name} =    Deploy_Pod_And_Verify_Running    ${ssh_session}    ${server_file}    ubuntu-server-
     BuiltIn.Set_Suite_Variable    ${client_pod_name}
     BuiltIn.Set_Suite_Variable    ${server_pod_name}
 
+Deploy_Client_Pod_And_Verify_Running
+    [Arguments]    ${ssh_session}    ${client_file}=${CLIENT_POD_FILE}
+    [Documentation]     Deploy client ubuntu pod. Pod name in the yaml file is expectedt o be ubuntu-client
+    ${client_pod_name} =    Deploy_Pod_And_Verify_Running    ${ssh_session}    ${client_file}    ubuntu-client-
+    BuiltIn.Set_Suite_Variable    ${client_pod_name}
+
+Deploy_Server_Pod_And_Verify_Running
+    [Arguments]    ${ssh_session}    ${server_file}=${SERVER_POD_FILE}
+    [Documentation]     Deploy server ubuntu pod. Pod name in the yaml file is expectedt o be ubuntu-server
+    ${server_pod_name} =    Deploy_Pod_And_Verify_Running    ${ssh_session}    ${server_file}    ubuntu-server-
+    BuiltIn.Set_Suite_Variable    ${server_pod_name}
+
 Remove_Client_And_Server_Pod_And_Verify_Removed
-    [Arguments]    ${ssh_session}
-    KubeCtl.Delete_F    ${ssh_session}    ${CLIENT_POD_FILE}
-    KubeCtl.Delete_F    ${ssh_session}    ${SERVER_POD_FILE}
+    [Arguments]    ${ssh_session}    ${client_file}=${CLIENT_POD_FILE}    ${server_file}=${SERVER_POD_FILE}
+    KubeCtl.Delete_F    ${ssh_session}    ${client_file}
+    KubeCtl.Delete_F    ${ssh_session}    ${server_file}
     Wait_Until_Pod_Removed    ${ssh_session}    ${client_pod_name}
+    Wait_Until_Pod_Removed    ${ssh_session}    ${server_pod_name}
+
+Remove_Client_Pod_And_Verify_Removed
+    [Arguments]    ${ssh_session}    ${client_file}=${CLIENT_POD_FILE}
+    KubeCtl.Delete_F    ${ssh_session}    ${client_file}
+    Wait_Until_Pod_Removed    ${ssh_session}    ${client_pod_name}
+
+Remove_Server_Pod_And_Verify_Removed
+    [Arguments]    ${ssh_session}    ${server_file}=${SERVER_POD_FILE}
+    KubeCtl.Delete_F    ${ssh_session}    ${server_file}
     Wait_Until_Pod_Removed    ${ssh_session}    ${server_pod_name}
 
 Deploy_Client_And_Nginx_Pod_And_Verify_Running
@@ -128,11 +161,22 @@ Deploy_Client_And_Nginx_Pod_And_Verify_Running
     BuiltIn.Set_Suite_Variable    ${client_pod_name}
     BuiltIn.Set_Suite_Variable    ${nginx_pod_name}
 
+Deploy_Nginx_Pod_And_Verify_Running
+    [Arguments]    ${ssh_session}    ${nginx_file}=${NGINX_POD_FILE}
+    [Documentation]     Deploy one nginx pod
+    ${nginx_pod_name} =    Deploy_Pod_And_Verify_Running    ${ssh_session}    ${nginx_file}    nginx-
+    BuiltIn.Set_Suite_Variable    ${nginx_pod_name}
+
 Remove_Client_And_Nginx_Pod_And_Verify_Removed
     [Arguments]    ${ssh_session}    ${client_file}=${CLIENT_POD_FILE}    ${nginx_file}=${NGINX_POD_FILE}
     KubeCtl.Delete_F    ${ssh_session}    ${client_file}
     KubeCtl.Delete_F    ${ssh_session}    ${nginx_file}
     Wait_Until_Pod_Removed    ${ssh_session}    ${client_pod_name}
+    Wait_Until_Pod_Removed    ${ssh_session}    ${nginx_pod_name}
+
+Remove_Nginx_Pod_And_Verify_Removed
+    [Arguments]    ${ssh_session}    ${nginx_file}=${NGINX_POD_FILE}
+    KubeCtl.Delete_F    ${ssh_session}    ${nginx_file}
     Wait_Until_Pod_Removed    ${ssh_session}    ${nginx_pod_name}
 
 Verify_Istio_Running
@@ -264,3 +308,38 @@ Verify_Cluster_Ready
 Wait_Until_Cluster_Ready
     [Arguments]    ${ssh_session}    ${nr_nodes}    ${timeout}=180s    ${check_period}=5s
     BuiltIn.Wait_Until_Keyword_Succeeds    ${timeout}    ${check_period}    Verify_Cluster_Ready    ${ssh_session}    ${nr_nodes}
+
+Log_Contiv_Etcd
+    [Arguments]    ${ssh_session}
+    ${pod_list} =    Get_Pod_Name_List_By_Prefix    ${ssh_session}    contiv-etcd-
+    BuiltIn.Length_Should_Be    ${pod_list}    1
+    KubeCtl.Logs    ${ssh_session}    @{pod_list}[0]    namespace=kube-system
+
+Log_Contiv_Ksr
+    [Arguments]    ${ssh_session}
+    ${pod_list} =    Get_Pod_Name_List_By_Prefix    ${ssh_session}    contiv-ksr-
+    BuiltIn.Length_Should_Be    ${pod_list}    1
+    KubeCtl.Logs    ${ssh_session}    @{pod_list}[0]    namespace=kube-system
+
+Log_Contiv_Vswitch
+    [Arguments]    ${ssh_session}
+    ${pod_list} =    Get_Pod_Name_List_By_Prefix    ${ssh_session}    contiv-vswitch-
+    BuiltIn.Length_Should_Be    ${pod_list}    ${KUBE_CLUSTER_${CLUSTER_ID}_NODES}
+    : FOR    ${vswitch_pod}    IN    @{pod_list}
+    \    KubeCtl.Logs    ${ssh_session}    ${vswitch_pod}    namespace=kube-system    container=contiv-cni
+    \    KubeCtl.Logs    ${ssh_session}    ${vswitch_pod}    namespace=kube-system    container=contiv-vswitch
+
+Log_Kube_Dns
+    [Arguments]    ${ssh_session}
+    ${pod_list} =    Get_Pod_Name_List_By_Prefix    ${ssh_session}    kube-dns-
+    BuiltIn.Length_Should_Be    ${pod_list}    1
+    KubeCtl.Logs    ${ssh_session}    @{pod_list}[0]    namespace=kube-system    container=kubedns
+    KubeCtl.Logs    ${ssh_session}    @{pod_list}[0]    namespace=kube-system    container=dnsmasq
+    KubeCtl.Logs    ${ssh_session}    @{pod_list}[0]    namespace=kube-system    container=sidecar
+
+Log_Pods_For_Debug
+    [Arguments]    ${ssh_session}
+    Log_Contiv_Etcd    ${ssh_session}
+    Log_Contiv_Ksr    ${ssh_session}
+    Log_Contiv_Vswitch    ${ssh_session}
+    Log_Kube_Dns    ${ssh_session}

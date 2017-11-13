@@ -44,9 +44,9 @@ import (
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/model/interfaces"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/l2plugin/model/l2"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/l3plugin/model/l3"
+	"github.com/ligato/vpp-agent/plugins/defaultplugins/l4plugin/model/l4"
 	linuxIntf "github.com/ligato/vpp-agent/plugins/linuxplugin/ifplugin/model/interfaces"
 	l32 "github.com/ligato/vpp-agent/plugins/linuxplugin/l3plugin/model/l3"
-	"github.com/ligato/vpp-agent/plugins/defaultplugins/l4plugin/model/l4"
 )
 
 var (
@@ -173,9 +173,9 @@ func main() {
 			createVeth(db, veth2, veth1, "ns2", "92:c7:42:67:ab:cd", "192.168.22.2/24",
 				"2001:842:0:0:0:ff00:13c7:1245/48")
 		case "-dvth1":
-			delete(db, interfaces.InterfaceKey(veth1))
+			delete(db, linuxIntf.InterfaceKey(veth1))
 		case "-dvth2":
-			delete(db, interfaces.InterfaceKey(veth2))
+			delete(db, linuxIntf.InterfaceKey(veth2))
 		case "-ps":
 			printState(db)
 		case "-ierr":
@@ -237,8 +237,8 @@ func createACL(db keyval.ProtoBroker) {
 	// Ipv4Rule
 	accessList.Acl[0].Rules[0].Matches.IpRule = new(acl.AccessLists_Acl_Rule_Matches_IpRule)
 	accessList.Acl[0].Rules[0].Matches.IpRule.Ip = new(acl.AccessLists_Acl_Rule_Matches_IpRule_Ip)
-	accessList.Acl[0].Rules[0].Matches.IpRule.Ip.SourceNetwork = "192.168.1.2"
-	accessList.Acl[0].Rules[0].Matches.IpRule.Ip.DestinationNetwork = "10.20.0.1"
+	accessList.Acl[0].Rules[0].Matches.IpRule.Ip.SourceNetwork = "192.168.1.2/32"
+	accessList.Acl[0].Rules[0].Matches.IpRule.Ip.DestinationNetwork = "10.20.0.1/24"
 
 	//// Ipv6Rule
 	//accessList.Acl[0].Rules[0].Matches.IpRule = new(acl.AccessLists_Acl_Rule_Matches_IpRule)
@@ -736,7 +736,7 @@ func createBridgeDomain(db keyval.ProtoBroker, bdName string) {
 	bd.BridgeDomains = make([]*l2.BridgeDomains_BridgeDomain, 1)
 
 	bd.BridgeDomains[0] = new(l2.BridgeDomains_BridgeDomain)
-	bd.BridgeDomains[0].Name = "bd1"
+	bd.BridgeDomains[0].Name = "bd2"
 	bd.BridgeDomains[0].Learn = true
 	bd.BridgeDomains[0].ArpTermination = true
 	bd.BridgeDomains[0].Flood = true
@@ -745,7 +745,7 @@ func createBridgeDomain(db keyval.ProtoBroker, bdName string) {
 
 	bd.BridgeDomains[0].Interfaces = make([]*l2.BridgeDomains_BridgeDomain_Interfaces, 1)
 	bd.BridgeDomains[0].Interfaces[0] = new(l2.BridgeDomains_BridgeDomain_Interfaces)
-	bd.BridgeDomains[0].Interfaces[0].Name = "tap1"
+	bd.BridgeDomains[0].Interfaces[0].Name = "tap2"
 	bd.BridgeDomains[0].Interfaces[0].BridgedVirtualInterface = false
 
 	//bd.BridgeDomains[0].Interfaces[1] = new(l2.BridgeDomains_BridgeDomain_Interfaces)

@@ -37,6 +37,19 @@ const (
 	KubeConfigUsage = "Path to the kubeconfig file to use for the client connection to K8s cluster"
 )
 
+// NewAgent returns a new instance of the Agent with plugins.
+// It is an alias for core.NewAgent() to implicit use of the FlavorKsr
+func NewAgent(opts ...core.Option) *core.Agent {
+	return core.NewAgent(&FlavorKsr{}, opts...)
+}
+
+// WithPlugins for adding custom plugins to SFC Controller
+// <listPlugins> is a callback that uses flavor input to
+// inject dependencies for custom plugins that are in output
+func WithPlugins(listPlugins func(local *FlavorKsr) []*core.NamedPlugin) core.WithPluginsOpt {
+	return &withPluginsOpt{listPlugins}
+}
+
 // FlavorKsr glues together multiple plugins to watch selected k8s
 // resources and causes all changes to be reflected in a given store.
 type FlavorKsr struct {
@@ -86,4 +99,26 @@ func (f *FlavorKsr) Inject() (allReadyInjected bool) {
 func (f *FlavorKsr) Plugins() []*core.NamedPlugin {
 	f.Inject()
 	return core.ListPluginsInFlavor(f)
+}
+
+// withPluginsOpt is return value of vppLocal.WithPlugins() utility
+// to easily define new plugins for the agent based on FlavorKsr.
+type withPluginsOpt struct {
+	callback func(local *FlavorKsr) []*core.NamedPlugin
+}
+
+// OptionMarkerCore is just for marking implementation that it implements this interface
+func (opt *withPluginsOpt) OptionMarkerCore() {}
+
+// Plugins methods is here to implement core.WithPluginsOpt go interface
+// <flavor> is a callback that uses flavor input for dependency injection
+// for custom plugins (returned as NamedPlugin)
+func (opt *withPluginsOpt) Plugins(flavors ...core.Flavor) []*core.NamedPlugin {
+	for _, flavor := range flavors {
+		if f, ok := flavor.(*FlavorKsr); ok {
+			return opt.callback(f)
+		}
+	}
+
+	panic("wrong usage of ksr.WithPlugin() for other than FlavorKsr")
 }

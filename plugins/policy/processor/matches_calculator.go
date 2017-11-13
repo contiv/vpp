@@ -34,7 +34,7 @@ func (pp *PolicyProcessor) calculateMatches(policyData *policymodel.Policy) []co
 				if ingressIPBlock == nil {
 					continue
 				}
-				// todo - error handling
+				// todo - error handling Ipblocks after namespaces to continue
 				_, ingressCIDR, _ := net.ParseCIDR(ingressIPBlock.Cidr)
 
 				ingressIPBlockEx := []net.IPNet{}

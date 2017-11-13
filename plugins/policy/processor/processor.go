@@ -93,7 +93,8 @@ func (pp *PolicyProcessor) Process(resync bool, pods []podmodel.ID) error {
 			policies = append(policies, policy)
 
 		}
-		pp.Log.Infof("Pod: %+v and w/ Policies sent to configurator: %+v ", pods, policies)
+		pp.Log.WithField("process_resync", resync).
+			Infof("Pod: %+v and w/ Policies sent to configurator: %+v ", pods, policies)
 		txn.Configure(pod, policies)
 
 	}
@@ -119,7 +120,7 @@ func (pp *PolicyProcessor) AddPod(pod *podmodel.Pod) error {
 	}
 
 	if pod.Namespace == "kube-system" {
-		pp.Log.WithField("pod", pod).Warn("Pod belongs to kube-system namespace, ignoring")
+		pp.Log.WithField("pod", pod).Info("Pod belongs to kube-system namespace, ignoring")
 		return nil
 	}
 
@@ -130,7 +131,20 @@ func (pp *PolicyProcessor) AddPod(pod *podmodel.Pod) error {
 // The list of pods with outdated policy configuration is determined and the
 // policy re-processing is triggered for each of them.
 func (pp *PolicyProcessor) DelPod(pod *podmodel.Pod) error {
-	//pods := []podmodel.ID{}
+	pods := []podmodel.ID{}
+
+	if pod.Namespace == "kube-system" {
+		pp.Log.WithField("pod", pod).Info("Pod belongs to kube-system namespace, ignoring")
+		return nil
+	}
+
+	// Check if new Pod has policy attached
+	newPodID := podmodel.GetID(pod)
+	podPolicies := pp.Cache.LookupPoliciesByPod(newPodID)
+
+	if len(podPolicies) > 0 {
+		pods = append(pods, newPodID)
+	}
 
 	return nil
 }
@@ -149,11 +163,10 @@ func (pp *PolicyProcessor) UpdatePod(oldPod, newPod *podmodel.Pod) error {
 	}
 
 	if newPod.Namespace == "kube-system" {
-		pp.Log.WithField("pod", newPod).Warn("Pod belongs to kube-system namespace, ignoring")
+		pp.Log.WithField("pod", newPod).Info("Pod belongs to kube-system namespace, ignoring")
 		return nil
 	}
 
-	addedPolicies := make(map[string]bool)
 	policies := []*policymodel.Policy{}
 
 	// Check if new Pod has policy attached
@@ -162,6 +175,14 @@ func (pp *PolicyProcessor) UpdatePod(oldPod, newPod *podmodel.Pod) error {
 
 	if len(podPolicies) > 0 {
 		pods = append(pods, newPodID)
+	}
+
+	// Check if old Pod had policy attached
+	oldPodID := podmodel.GetID(oldPod)
+	oldPodPolicies := pp.Cache.LookupPoliciesByPod(oldPodID)
+
+	if len(oldPodPolicies) > 0 {
+		pods = append(pods, oldPodID)
 	}
 
 	allPolicies := pp.Cache.ListAllPolicies()
@@ -189,10 +210,8 @@ func (pp *PolicyProcessor) UpdatePod(oldPod, newPod *podmodel.Pod) error {
 					continue
 				}
 
-				if addedPolicies[policymodel.GetID(dataPolicy).String()] != true {
-					addedPolicies[policymodel.GetID(dataPolicy).String()] = true
-					policies = append(policies, dataPolicy)
-				}
+				policies = append(policies, dataPolicy)
+
 			}
 		}
 		for _, egressRules := range dataPolicy.EgressRule {
@@ -206,10 +225,8 @@ func (pp *PolicyProcessor) UpdatePod(oldPod, newPod *podmodel.Pod) error {
 					continue
 				}
 
-				if addedPolicies[policymodel.GetID(dataPolicy).String()] != true {
-					addedPolicies[policymodel.GetID(dataPolicy).String()] = true
-					policies = append(policies, dataPolicy)
-				}
+				policies = append(policies, dataPolicy)
+
 			}
 		}
 	}
@@ -296,7 +313,8 @@ func (pp *PolicyProcessor) UpdatePolicy(oldPolicy, newPolicy *policymodel.Policy
 		pp.Log.WithField("policy", oldPolicy).Error("Error reading Old Policy")
 		return nil
 	}
-	// Find pods that were using the old Policy
+
+	// Outdated pods using old Policy configuration
 	oldNamespace := oldPolicy.Namespace
 	oldPolicyLabelSelectors := oldPolicy.Pods
 
@@ -308,6 +326,9 @@ func (pp *PolicyProcessor) UpdatePolicy(oldPolicy, newPolicy *policymodel.Policy
 
 	newPolicyPods := pp.Cache.LookupPodsByNSLabelSelector(newNamespace, newPolicyLabelSelectors)
 	pods = append(pods, newPolicyPods...)
+
+	strPods := utils.RemoveDuplicates(utils.StringPodID(pods))
+	pods = utils.UnstringPodID(strPods)
 
 	if len(pods) > 0 {
 		return pp.Process(false, pods)
@@ -322,9 +343,10 @@ func (pp *PolicyProcessor) UpdatePolicy(oldPolicy, newPolicy *policymodel.Policy
 // policy re-processing is triggered for each of them.
 func (pp *PolicyProcessor) AddNamespace(ns *nsmodel.Namespace) error {
 	pods := []podmodel.ID{}
-	// TODO: consider postponing the re-configuration until more data are available
-	//         - e.g. empty namespace has no effect
-	// TODO: determine the list of pods with outdated policy configuration
+	if ns == nil {
+		pp.Log.WithField("namespace", ns).Error("Error reading Namespace")
+		return nil
+	}
 	return pp.Process(false, pods)
 }
 
@@ -333,7 +355,10 @@ func (pp *PolicyProcessor) AddNamespace(ns *nsmodel.Namespace) error {
 // policy re-processing is triggered for each of them.
 func (pp *PolicyProcessor) DelNamespace(ns *nsmodel.Namespace) error {
 	pods := []podmodel.ID{}
-	// TODO: determine the list of pods with outdated policy configuration
+	if ns == nil {
+		pp.Log.WithField("namespace", ns).Error("Error reading Namespace")
+		return nil
+	}
 	return pp.Process(false, pods)
 }
 
@@ -342,7 +367,10 @@ func (pp *PolicyProcessor) DelNamespace(ns *nsmodel.Namespace) error {
 // policy re-processing is triggered for each of them.
 func (pp *PolicyProcessor) UpdateNamespace(oldNs, newNs *nsmodel.Namespace) error {
 	pods := []podmodel.ID{}
-	// TODO: determine the list of pods with outdated policy configuration
+	if ns == nil {
+		pp.Log.WithField("namespace", ns).Error("Error reading Namespace")
+		return nil
+	}
 	return pp.Process(false, pods)
 }
 

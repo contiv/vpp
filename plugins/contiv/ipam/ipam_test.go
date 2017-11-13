@@ -84,6 +84,14 @@ func TestDynamicGetters(t *testing.T) {
 	ipNet, err := i.HostIPNetwork(hostID2)
 	Expect(err).To(BeNil())
 	Expect(*ipNet).To(BeEquivalentTo(ipWithNetworkMask("3.4.5." + str(b11100101) + "/26")))
+
+	ipNet, err = i.OtherHostPodNetwork(hostID2)
+	Expect(err).To(BeNil())
+	Expect(*ipNet).To(BeEquivalentTo(network("1.2." + str(b10000000+int(hostID2>>5)) + "." + str(int(hostID2<<3)) + "/29")))
+
+	ipNet, err = i.OtherHostVSwitchNetwork(hostID2)
+	Expect(err).To(BeNil())
+	Expect(*ipNet).To(BeEquivalentTo(network("2.3." + str(b11000000+int(hostID2>>6)) + "." + str(int(hostID2<<2)) + "/30")))
 }
 
 // TestBasicAllocateReleasePodAddress test simple happy path scenario for getting 1 pod address and releasing it

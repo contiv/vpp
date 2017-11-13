@@ -36,8 +36,7 @@ type IPAM struct {
 	logger logging.Logger
 	mutex  sync.RWMutex
 
-	config *Config // IPAM module configuration
-	hostID uint8   // identifier of host node for which this IPAM is created for
+	hostID uint8 // identifier of host node for which this IPAM is created for
 
 	// pods related variables
 	podSubnetIPPrefix   net.IPNet        // IPv4 subnet from which individual pod networks are allocated, this is subnet for all pods across all host nodes
@@ -46,7 +45,8 @@ type IPAM struct {
 	assignedPodIPs      map[uintIP]podID // pool of assigned IP addresses
 
 	// VSwitch related variables
-	vSwitchNetworkIPPrefix net.IPNet // IPv4 subnet used in one host (given by hostID) for vswitch-to-its-host connection
+	vSwitchSubnetIPPrefix  net.IPNet // IPv4 subnet used across all hostv for vswitch-to-its-host connection
+	vSwitchNetworkIPPrefix net.IPNet // IPv4 subnet used in one host (given by hostID) for vswitch-to-its-host connection, vSwitchSubnetIPPrefix + hostID ==<computation>==> vSwitchNetworkIPPrefix
 	vethVPPEndIP           net.IP    // for given host(given by hostID), it is the IPv4 address for virtual ethernet's VPP end point
 	vethHostEndIP          net.IP    // for given host(given by hostID), it is the IPv4 address for virtual ethernet's host end point
 
@@ -71,7 +71,6 @@ func New(logger logging.Logger, hostID uint8, config *Config) (*IPAM, error) {
 	// create basic IPAM
 	ipam := &IPAM{
 		logger: logger,
-		config: config,
 		hostID: hostID,
 	}
 
@@ -102,7 +101,7 @@ func initializeHostNodeIPAM(ipam *IPAM, config *Config) (err error) {
 
 // initializeVSwitchIPAM initializes VSwitch related variables of IPAM
 func initializeVSwitchIPAM(ipam *IPAM, config *Config, hostID uint8) (err error) {
-	_, ipam.vSwitchNetworkIPPrefix, err = convertConfigNotation(config.VSwitchSubnetCIDR, config.VSwitchNetworkPrefixLen, hostID)
+	ipam.vSwitchSubnetIPPrefix, ipam.vSwitchNetworkIPPrefix, err = convertConfigNotation(config.VSwitchSubnetCIDR, config.VSwitchNetworkPrefixLen, hostID)
 	if err != nil {
 		return
 	}
@@ -144,12 +143,21 @@ func convertConfigNotation(subnetCIDR string, networkPrefixLen uint8, hostID uin
 	}
 	subnetIPPrefix = *pSubnet
 
-	// computing host part of IP address/network
+	// checking correct prefix sizes
 	subnetPrefixLen, _ := subnetIPPrefix.Mask.Size()
 	if networkPrefixLen <= uint8(subnetPrefixLen) {
-		err = fmt.Errorf("Network prefix length (%v) must be higher than subnet prefix length (%v)", networkPrefixLen, subnetPrefixLen)
+		err = fmt.Errorf("Network prefix length (%v) must be higher than subnet prefix length (%v) ", networkPrefixLen, subnetPrefixLen)
 		return
 	}
+
+	networkIPPrefix, err = applyHostID(subnetIPPrefix, hostID, networkPrefixLen)
+	return
+}
+
+// applyHostID creates network (IPNet) from subnet by adding transformed host ID to it
+func applyHostID(subnetIPPrefix net.IPNet, hostID uint8, networkPrefixLen uint8) (networkIPPrefix net.IPNet, err error) {
+	// compute part of IP address representing host
+	subnetPrefixLen, _ := subnetIPPrefix.Mask.Size()
 	hostPartBitSize := networkPrefixLen - uint8(subnetPrefixLen)
 	hostIPPart := convertToHostIPPart(hostID, hostPartBitSize)
 
@@ -213,16 +221,17 @@ func (i *IPAM) VSwitchNetwork() *net.IPNet {
 }
 
 // OtherHostVSwitchNetwork returns vswitch network used to connect vswitch to other host identified by hostID.
-func (i *IPAM) OtherHostVSwitchNetwork(hostID uint8) *net.IPNet {
+func (i *IPAM) OtherHostVSwitchNetwork(hostID uint8) (*net.IPNet, error) {
 	i.mutex.RLock()
 	defer i.mutex.RUnlock()
-	_, vSwitchNetworkIPPrefix, err := convertConfigNotation(i.config.VSwitchSubnetCIDR, i.config.VSwitchNetworkPrefixLen, hostID)
+
+	networkSize, _ := i.vSwitchNetworkIPPrefix.Mask.Size()
+	vSwitchNetworkIPPrefix, err := applyHostID(i.vSwitchSubnetIPPrefix, hostID, uint8(networkSize))
 	if err != nil {
-		// TODO fixme
-		return nil
+		return nil, err
 	}
 	vSwitchNetwork := newIPNet(vSwitchNetworkIPPrefix) // defensive copy
-	return &vSwitchNetwork
+	return &vSwitchNetwork, nil
 }
 
 // PodSubnet returns pod subnet ("network_address/prefix_length") that is base subnet for all pods of all hosts.
@@ -242,16 +251,17 @@ func (i *IPAM) PodNetwork() *net.IPNet {
 }
 
 // OtherHostPodNetwork returns pod network for other host identified by hostID.
-func (i *IPAM) OtherHostPodNetwork(hostID uint8) *net.IPNet {
+func (i *IPAM) OtherHostPodNetwork(hostID uint8) (*net.IPNet, error) {
 	i.mutex.RLock()
 	defer i.mutex.RUnlock()
-	_, podNetworkIPPrefix, err := convertConfigNotation(i.config.PodSubnetCIDR, i.config.PodNetworkPrefixLen, hostID)
+
+	networkSize, _ := i.podNetworkIPPrefix.Mask.Size()
+	podNetworkIPPrefix, err := applyHostID(i.podSubnetIPPrefix, hostID, uint8(networkSize))
 	if err != nil {
-		// TODO fixme
-		return nil
+		return nil, err
 	}
 	podNetwork := newIPNet(podNetworkIPPrefix) // defensive copy
-	return &podNetwork
+	return &podNetwork, nil
 }
 
 // PodGatewayIP returns gateway IP address for the pod network.

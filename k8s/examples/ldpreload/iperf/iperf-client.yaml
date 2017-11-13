@@ -1,0 +1,24 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: iperf-client
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        # ldpreload-related labels
+        ldpreload: "true"
+        scopeglobal: "true"
+    spec:
+      # optional - deploy on preferred node
+      nodeSelector:
+        kubernetes.io/hostname: ubuntu
+      containers:
+      - image: networkstatic/iperf3
+        imagePullPolicy: IfNotPresent
+        name: client
+        command: ["bash"]
+        args: ["-c", "while true; do sleep 30; done;"]
+        securityContext:
+          privileged: true

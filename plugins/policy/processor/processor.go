@@ -132,20 +132,98 @@ func (pp *PolicyProcessor) AddPod(pod *podmodel.Pod) error {
 // policy re-processing is triggered for each of them.
 func (pp *PolicyProcessor) DelPod(pod *podmodel.Pod) error {
 	pods := []podmodel.ID{}
+	allPods := []podmodel.ID{}
+	policies := []*policymodel.Policy{}
 
+	// No action if Pod belongs to kube-system namespace
 	if pod.Namespace == "kube-system" {
 		pp.Log.WithField("pod", pod).Info("Pod belongs to kube-system namespace, ignoring")
 		return nil
 	}
 
 	// Check if new Pod has policy attached
-	newPodID := podmodel.GetID(pod)
-	podPolicies := pp.Cache.LookupPoliciesByPod(newPodID)
+	podID := podmodel.GetID(pod)
+	podPolicies := pp.Cache.LookupPoliciesByPod(podID)
 
 	if len(podPolicies) > 0 {
-		pods = append(pods, newPodID)
+		pods = append(pods, podID)
 	}
 
+	allPolicies := pp.Cache.ListAllPolicies()
+	dataPolicies := []*policymodel.Policy{}
+
+	for _, stringPolicy := range allPolicies {
+		found, policyData := pp.Cache.LookupPolicy(stringPolicy)
+
+		if !found {
+			continue
+		}
+
+		dataPolicies = append(dataPolicies, policyData)
+	}
+
+	for _, dataPolicy := range dataPolicies {
+		for _, ingressRules := range dataPolicy.IngressRule {
+			for _, ingressRule := range ingressRules.From {
+
+				matchLabels := ingressRule.Pods.MatchLabel
+				matchExpressions := ingressRule.Pods.MatchExpression
+
+				isMatch := pp.calculateLabelSelectorMatches(pod, matchLabels, matchExpressions, dataPolicy.Namespace)
+				if !isMatch {
+					continue
+				}
+
+				policies = append(policies, dataPolicy)
+
+			}
+		}
+		for _, egressRules := range dataPolicy.EgressRule {
+			for _, egressRule := range egressRules.To {
+
+				matchLabels := egressRule.Pods.MatchLabel
+				matchExpressions := egressRule.Pods.MatchExpression
+
+				isMatch := pp.calculateLabelSelectorMatches(pod, matchLabels, matchExpressions, dataPolicy.Namespace)
+				if !isMatch {
+					continue
+				}
+
+				policies = append(policies, dataPolicy)
+
+			}
+		}
+	}
+	if len(policies) > 0 {
+		for _, policy := range policies {
+			namespace := policy.Namespace
+			policyLabelSelectors := policy.Pods
+
+			policyPods := pp.Cache.LookupPodsByNSLabelSelector(namespace, policyLabelSelectors)
+			pods = append(pods, policyPods...)
+		}
+	}
+
+	for _, hostPod := range pods {
+		found, hostPodData := pp.Cache.LookupPod(hostPod)
+		if !found {
+			continue
+		}
+		// todo: error handling
+		hostIPAddr, _ := pp.Contiv.GetHostIPAddr()
+		if hostPodData.HostIpAddress != hostIPAddr {
+			continue
+		}
+		allPods = append(allPods, hostPod)
+	}
+
+	strPods := utils.RemoveDuplicates(utils.StringPodID(allPods))
+	allPods = utils.UnstringPodID(strPods)
+
+	pp.Log.Infof("Pods affected by Pod Add: ", allPods)
+	if len(allPods) > 0 {
+		return pp.Process(false, allPods)
+	}
 	return nil
 }
 
@@ -153,21 +231,21 @@ func (pp *PolicyProcessor) DelPod(pod *podmodel.Pod) error {
 // The list of pods with outdated policy configuration is determined and the
 // policy re-processing is triggered for each of them.
 func (pp *PolicyProcessor) UpdatePod(oldPod, newPod *podmodel.Pod) error {
-	// TODO: determine the list of pods with outdated policy configuration
-	//       - also handle migration of pods across hosts
 	pods := []podmodel.ID{}
+	allPods := []podmodel.ID{}
+	policies := []*policymodel.Policy{}
 
+	// No action if Pod has no IP Address
 	if newPod.IpAddress == "" {
 		pp.Log.WithField("pod", newPod).Warn("Pod does not have an IP Address assigned yet")
 		return nil
 	}
 
+	// No action if Pod belongs to kube-system namespace
 	if newPod.Namespace == "kube-system" {
 		pp.Log.WithField("pod", newPod).Info("Pod belongs to kube-system namespace, ignoring")
 		return nil
 	}
-
-	policies := []*policymodel.Policy{}
 
 	// Check if new Pod has policy attached
 	newPodID := podmodel.GetID(newPod)
@@ -230,7 +308,6 @@ func (pp *PolicyProcessor) UpdatePod(oldPod, newPod *podmodel.Pod) error {
 			}
 		}
 	}
-
 	if len(policies) > 0 {
 		for _, policy := range policies {
 			namespace := policy.Namespace
@@ -241,12 +318,25 @@ func (pp *PolicyProcessor) UpdatePod(oldPod, newPod *podmodel.Pod) error {
 		}
 	}
 
-	strPods := utils.RemoveDuplicates(utils.StringPodID(pods))
-	pods = utils.UnstringPodID(strPods)
+	for _, hostPod := range pods {
+		found, hostPodData := pp.Cache.LookupPod(hostPod)
+		if !found {
+			continue
+		}
+		// todo: error handling
+		hostIPAddr, _ := pp.Contiv.GetHostIPAddr()
+		if hostPodData.HostIpAddress != hostIPAddr {
+			continue
+		}
+		allPods = append(allPods, hostPod)
+	}
 
-	pp.Log.Infof("Pods affected by Pod Add: ", pods)
-	if len(pods) > 0 {
-		return pp.Process(false, pods)
+	strPods := utils.RemoveDuplicates(utils.StringPodID(allPods))
+	allPods = utils.UnstringPodID(strPods)
+
+	pp.Log.Infof("Pods affected by Pod Add: ", allPods)
+	if len(allPods) > 0 {
+		return pp.Process(false, allPods)
 	}
 	return nil
 }
@@ -367,8 +457,8 @@ func (pp *PolicyProcessor) DelNamespace(ns *nsmodel.Namespace) error {
 // policy re-processing is triggered for each of them.
 func (pp *PolicyProcessor) UpdateNamespace(oldNs, newNs *nsmodel.Namespace) error {
 	pods := []podmodel.ID{}
-	if ns == nil {
-		pp.Log.WithField("namespace", ns).Error("Error reading Namespace")
+	if newNs == nil {
+		pp.Log.WithField("namespace", newNs).Error("Error reading Namespace")
 		return nil
 	}
 	return pp.Process(false, pods)

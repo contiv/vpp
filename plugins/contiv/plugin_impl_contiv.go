@@ -182,6 +182,18 @@ func (plugin *Plugin) GetIfName(podNamespace string, podName string) (name strin
 	return "", false
 }
 
+func (plugin *Plugin) GetHostIPAddr() (string, error) {
+	hostID := plugin.cniServer.ipam.HostID()
+	hostIPAddress, err := plugin.cniServer.ipam.HostIPAddress(hostID)
+	if err != nil {
+		plugin.Log.Warn("Could not find Host IP Address")
+		return "", nil
+	}
+
+	strHostIPAddress := hostIPAddress.String()
+	return strHostIPAddress, nil
+}
+
 func (plugin *Plugin) handleResync(resyncChan chan resync.StatusEvent) {
 	for {
 		select {

@@ -205,7 +205,7 @@ func (art *RendererTxn) renderACL(ruleList *cache.ContivRuleList, ingress bool) 
 		if rule.Action == renderer.ActionDeny {
 			aclRule.Actions.AclAction = vpp_acl.AclAction_DENY
 		} else {
-			aclRule.Actions.AclAction = vpp_acl.AclAction_PERMIT
+			aclRule.Actions.AclAction = vpp_acl.AclAction_REFLECT
 		}
 		aclRule.Matches = &vpp_acl.AccessLists_Acl_Rule_Matches{}
 		aclRule.Matches.IpRule = &vpp_acl.AccessLists_Acl_Rule_Matches_IpRule{}

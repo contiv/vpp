@@ -31,6 +31,9 @@ func (pp *PolicyProcessor) calculateMatches(policyData *policymodel.Policy) []co
 				ingressPods = append(ingressPods, ingressPod...)
 
 				ingressIPBlock := ingressRuleFrom.IpBlock
+				if ingressIPBlock == nil {
+					continue
+				}
 				// todo - error handling
 				_, ingressCIDR, _ := net.ParseCIDR(ingressIPBlock.Cidr)
 
@@ -85,6 +88,9 @@ func (pp *PolicyProcessor) calculateMatches(policyData *policymodel.Policy) []co
 				egressPods = append(egressPods, egressPod...)
 
 				egressIPBlock := egressRuleTo.IpBlock
+				if egressIPBlock == nil {
+					continue
+				}
 				// todo - error handling
 				_, egressCIDR, _ := net.ParseCIDR(egressIPBlock.Cidr)
 

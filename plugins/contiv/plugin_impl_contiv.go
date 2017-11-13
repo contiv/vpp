@@ -182,6 +182,13 @@ func (plugin *Plugin) GetIfName(podNamespace string, podName string) (name strin
 	return "", false
 }
 
+// GetNsIndex returns the index of the VPP session namespace associated
+// with the given pod.
+func (plugin *Plugin) GetNsIndex(podNamespace string, podName string) (nsIndex int, exists bool) {
+	// TODO
+	return 0, false
+}
+
 func (plugin *Plugin) handleResync(resyncChan chan resync.StatusEvent) {
 	for {
 		select {

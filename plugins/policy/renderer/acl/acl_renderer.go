@@ -73,7 +73,7 @@ func (r *Renderer) NewTxn(resync bool) renderer.Txn {
 	return &RendererTxn{cacheTxn: r.cache.NewTxn(resync), renderer: r, resync: resync}
 }
 
-// Render applies the set of ingress & egress rules for a given VPP interface.
+// Render applies the set of ingress & egress rules for a given pod.
 // The existing rules are replaced.
 // Te actual change is performed only after the commit.
 func (art *RendererTxn) Render(pod podmodel.ID, podIP *net.IPNet, ingress []*renderer.ContivRule, egress []*renderer.ContivRule) renderer.Txn {

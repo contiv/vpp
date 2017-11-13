@@ -25,13 +25,15 @@ import (
 
 	"github.com/ligato/vpp-agent/clientv1/linux"
 	"github.com/ligato/vpp-agent/clientv1/linux/localclient"
+	"github.com/ligato/vpp-agent/plugins/govppmux"
 
 	"github.com/contiv/vpp/plugins/contiv"
 	"github.com/contiv/vpp/plugins/ksr/model/namespace"
 	"github.com/contiv/vpp/plugins/policy/cache"
 	"github.com/contiv/vpp/plugins/policy/configurator"
 	"github.com/contiv/vpp/plugins/policy/processor"
-	aclrenderer "github.com/contiv/vpp/plugins/policy/renderer/acl"
+	"github.com/contiv/vpp/plugins/policy/renderer/acl"
+	"github.com/contiv/vpp/plugins/policy/renderer/vpptcp"
 )
 
 // Plugin watches configuration of K8s resources (as reflected by KSR into ETCD)
@@ -62,16 +64,18 @@ type Plugin struct {
 
 	// Policy Renderers: layer 4
 	//  -> ACL Renderer
-	aclRenderer *aclrenderer.Renderer
+	aclRenderer *acl.Renderer
+	//  -> VPPTCP Renderer
+	vppTCPRenderer *vpptcp.Renderer
 	// New renderers should come here ...
 }
 
 // Deps defines dependencies of policy plugin.
 type Deps struct {
 	local.PluginInfraDeps
-	Watcher        datasync.KeyValProtoWatcher /* prefixed for KSR-published K8s state data */
-	Contiv         contiv.API                  /* for GetIfName() */
-	PolicyCacheAPI cache.PolicyCacheAPI
+	Watcher datasync.KeyValProtoWatcher /* prefixed for KSR-published K8s state data */
+	Contiv  contiv.API                  /* for GetIfName() */
+	GoVPP   govppmux.API                /* for VPPTCP Renderer */
 }
 
 // Init initializes policy layers and caches and starts watching ETCD for K8s configuration.
@@ -106,8 +110,8 @@ func (p *Plugin) Init() error {
 		},
 	}
 
-	p.aclRenderer = &aclrenderer.Renderer{
-		Deps: aclrenderer.Deps{
+	p.aclRenderer = &acl.Renderer{
+		Deps: acl.Deps{
 			Log:        p.Log.NewLogger("-aclRenderer"),
 			LogFactory: p.Log,
 			Contiv:     p.Contiv,
@@ -120,15 +124,29 @@ func (p *Plugin) Init() error {
 		},
 	}
 
+	goVppCh, err := p.GoVPP.NewAPIChannel()
+	if err != nil {
+		return err
+	}
+	p.vppTCPRenderer = &vpptcp.Renderer{
+		Deps: vpptcp.Deps{
+			Log:        p.Log.NewLogger("-vppTcpRenderer"),
+			LogFactory: p.Log,
+			Contiv:     p.Contiv,
+			GoVPPChan:  goVppCh,
+		},
+	}
+
 	// Initialize layers.
 	p.policyCache.Init()
 	p.processor.Init()
-	p.configurator.Init()
+	p.configurator.Init(false) // Do not render in parallel while we do lot of debugging.
 	p.aclRenderer.Init()
+	p.vppTCPRenderer.Init()
 
 	// Register renderers.
 	p.configurator.RegisterRenderer(p.aclRenderer)
-	// TODO: register VPPTCP renderer
+	p.configurator.RegisterRenderer(p.vppTCPRenderer)
 
 	var ctx context.Context
 	ctx, p.cancel = context.WithCancel(context.Background())

@@ -68,7 +68,7 @@ func TestSinglePolicySinglePod(t *testing.T) {
 	cache.AddPodConfig(pod1, pod1IP)
 	cache.AddPodConfig(pod2, pod2IP)
 
-	renderer := NewMockRenderer(logger)
+	renderer := NewMockRenderer("A", logger)
 
 	// Initialize configurator.
 	configurator := &PolicyConfigurator{
@@ -77,7 +77,7 @@ func TestSinglePolicySinglePod(t *testing.T) {
 			Cache: cache,
 		},
 	}
-	configurator.Init()
+	configurator.Init(false)
 
 	// Register one renderer.
 	err := configurator.RegisterRenderer(renderer)
@@ -169,7 +169,7 @@ func TestSinglePolicyWithIPBlockSinglePod(t *testing.T) {
 	cache.AddPodConfig(pod1, pod1IP)
 	cache.AddPodConfig(pod2, pod2IP)
 
-	renderer := NewMockRenderer(logger)
+	renderer := NewMockRenderer("A", logger)
 
 	// Initialize configurator.
 	configurator := &PolicyConfigurator{
@@ -178,7 +178,7 @@ func TestSinglePolicyWithIPBlockSinglePod(t *testing.T) {
 			Cache: cache,
 		},
 	}
-	configurator.Init()
+	configurator.Init(false)
 
 	// Register one renderer.
 	err := configurator.RegisterRenderer(renderer)
@@ -290,7 +290,7 @@ func TestSinglePolicyMultiplePods(t *testing.T) {
 	cache.AddPodConfig(pod2, pod2IP)
 	cache.AddPodConfig(pod3, pod3IP)
 
-	renderer := NewMockRenderer(logger)
+	renderer := NewMockRenderer("A", logger)
 
 	// Initialize configurator.
 	configurator := &PolicyConfigurator{
@@ -299,7 +299,7 @@ func TestSinglePolicyMultiplePods(t *testing.T) {
 			Cache: cache,
 		},
 	}
-	configurator.Init()
+	configurator.Init(false)
 
 	// Register renderers.
 	err := configurator.RegisterRenderer(renderer)
@@ -428,7 +428,7 @@ func TestSinglePolicyWithNestedIPBlocksSinglePod(t *testing.T) {
 	cache.AddPodConfig(pod1, pod1IP)
 	cache.AddPodConfig(pod2, pod2IP)
 
-	renderer := NewMockRenderer(logger)
+	renderer := NewMockRenderer("A", logger)
 
 	// Initialize configurator.
 	configurator := &PolicyConfigurator{
@@ -437,7 +437,7 @@ func TestSinglePolicyWithNestedIPBlocksSinglePod(t *testing.T) {
 			Cache: cache,
 		},
 	}
-	configurator.Init()
+	configurator.Init(false)
 
 	// Register renderers.
 	err := configurator.RegisterRenderer(renderer)
@@ -524,7 +524,7 @@ func TestSingleEgressPolicySinglePod(t *testing.T) {
 	cache.AddPodConfig(pod1, pod1IP)
 	cache.AddPodConfig(pod2, pod2IP)
 
-	renderer := NewMockRenderer(logger)
+	renderer := NewMockRenderer("A", logger)
 
 	// Initialize configurator.
 	configurator := &PolicyConfigurator{
@@ -533,7 +533,7 @@ func TestSingleEgressPolicySinglePod(t *testing.T) {
 			Cache: cache,
 		},
 	}
-	configurator.Init()
+	configurator.Init(false)
 
 	// Register one renderer.
 	err := configurator.RegisterRenderer(renderer)
@@ -625,7 +625,7 @@ func TestSingleEgressPolicyWithIPBlockSinglePod(t *testing.T) {
 	cache.AddPodConfig(pod1, pod1IP)
 	cache.AddPodConfig(pod2, pod2IP)
 
-	renderer := NewMockRenderer(logger)
+	renderer := NewMockRenderer("A", logger)
 
 	// Initialize configurator.
 	configurator := &PolicyConfigurator{
@@ -634,7 +634,7 @@ func TestSingleEgressPolicyWithIPBlockSinglePod(t *testing.T) {
 			Cache: cache,
 		},
 	}
-	configurator.Init()
+	configurator.Init(false)
 
 	// Register one renderer.
 	err := configurator.RegisterRenderer(renderer)
@@ -752,7 +752,7 @@ func TestSingleBothWaysPolicySinglePod(t *testing.T) {
 	cache.AddPodConfig(pod1, pod1IP)
 	cache.AddPodConfig(pod2, pod2IP)
 
-	renderer := NewMockRenderer(logger)
+	renderer := NewMockRenderer("A", logger)
 
 	// Initialize configurator.
 	configurator := &PolicyConfigurator{
@@ -761,7 +761,7 @@ func TestSingleBothWaysPolicySinglePod(t *testing.T) {
 			Cache: cache,
 		},
 	}
-	configurator.Init()
+	configurator.Init(false)
 
 	// Register one renderer.
 	err := configurator.RegisterRenderer(renderer)
@@ -893,9 +893,9 @@ func TestSinglePolicySinglePodMultipleRenderers(t *testing.T) {
 	cache.AddPodConfig(pod1, pod1IP)
 	cache.AddPodConfig(pod2, pod2IP)
 
-	renderer1 := NewMockRenderer(logger)
-	renderer2 := NewMockRenderer(logger)
-	renderer3 := NewMockRenderer(logger)
+	renderer1 := NewMockRenderer("A", logger)
+	renderer2 := NewMockRenderer("B", logger)
+	renderer3 := NewMockRenderer("C", logger)
 
 	// Initialize configurator.
 	configurator := &PolicyConfigurator{
@@ -904,7 +904,7 @@ func TestSinglePolicySinglePodMultipleRenderers(t *testing.T) {
 			Cache: cache,
 		},
 	}
-	configurator.Init()
+	configurator.Init(true)
 
 	// Register multiple renderers.
 	err := configurator.RegisterRenderer(renderer1)
@@ -1100,7 +1100,7 @@ func TestMultiplePoliciesSinglePod(t *testing.T) {
 	cache.AddPodConfig(pod1, pod1IP)
 	cache.AddPodConfig(pod2, pod2IP)
 
-	renderer := NewMockRenderer(logger)
+	renderer := NewMockRenderer("A", logger)
 
 	// Initialize configurator.
 	configurator := &PolicyConfigurator{
@@ -1109,7 +1109,7 @@ func TestMultiplePoliciesSinglePod(t *testing.T) {
 			Cache: cache,
 		},
 	}
-	configurator.Init()
+	configurator.Init(false)
 
 	// Register one renderer.
 	err := configurator.RegisterRenderer(renderer)

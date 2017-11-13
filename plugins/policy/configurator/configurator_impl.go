@@ -22,7 +22,8 @@ import (
 type PolicyConfigurator struct {
 	Deps
 
-	renderers []renderer.PolicyRendererAPI
+	renderers         []renderer.PolicyRendererAPI
+	parallelRendering bool
 }
 
 // Deps lists dependencies of PolicyConfigurator.
@@ -55,8 +56,9 @@ type ProcessedPolicySet struct {
 type ContivRules []*renderer.ContivRule
 
 // Init initializes policy configurator.
-func (pc *PolicyConfigurator) Init() error {
+func (pc *PolicyConfigurator) Init(parallelRendering bool) error {
 	pc.renderers = []renderer.PolicyRendererAPI{}
+	pc.parallelRendering = parallelRendering
 	return nil
 }
 
@@ -159,7 +161,7 @@ func (pct *PolicyConfiguratorTxn) Commit() error {
 			}
 		}
 
-		// Add rules into the transaction.
+		// Add rules into the transactions.
 		for _, rTxn := range rendererTxns {
 			rTxn.Render(pod, podIPNet, ingress.Copy(), egress.Copy())
 		}
@@ -176,10 +178,30 @@ func (pct *PolicyConfiguratorTxn) Commit() error {
 	}
 
 	// Commit all renderer transactions.
+	rndrChan := make(chan error)
 	for _, rTxn := range rendererTxns {
-		err := rTxn.Commit()
-		if err != nil {
-			return err
+		if pct.configurator.parallelRendering {
+			go func(txn renderer.Txn) {
+				err := txn.Commit()
+				rndrChan <- err
+			}(rTxn)
+		} else {
+			err := rTxn.Commit()
+			if err != nil {
+				return err
+			}
+		}
+	}
+	if pct.configurator.parallelRendering {
+		var wasError error
+		for i := 0; i < len(rendererTxns); i++ {
+			err := <-rndrChan
+			if err != nil {
+				wasError = err
+			}
+		}
+		if wasError != nil {
+			return wasError
 		}
 	}
 

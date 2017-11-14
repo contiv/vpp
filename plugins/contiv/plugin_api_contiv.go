@@ -8,5 +8,5 @@ type API interface {
 
 	// GetNsIndex returns the index of the VPP session namespace associated
 	// with the given pod.
-	GetNsIndex(podNamespace string, podName string) (nsIndex int, exists bool)
+	GetNsIndex(podNamespace string, podName string) (nsIndex uint32, exists bool)
 }

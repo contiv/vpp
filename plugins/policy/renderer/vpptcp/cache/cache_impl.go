@@ -26,8 +26,8 @@ import (
 type SessionRuleCache struct {
 	Deps
 
-	config   map[int]NamespaceConfig // namespace index -> namespace config
-	dumpClbk func() SessionRuleList
+	config   map[uint32]NamespaceConfig // namespace index -> namespace config
+	dumpClbk func() (SessionRuleList, error)
 }
 
 // Deps lists dependencies of SessionRuleCache.
@@ -41,7 +41,7 @@ type SessionRuleCacheTxn struct {
 	resync bool
 
 	// lists with changes from the transaction
-	config map[int]NamespaceConfig
+	config map[uint32]NamespaceConfig
 }
 
 // NamespaceConfig stores both ingress and egress rules associated with a VPP
@@ -53,14 +53,18 @@ type NamespaceConfig struct {
 
 // NewSessionRuleList is a constructor for SessionRuleList.
 func NewSessionRuleList(capacity int) SessionRuleList {
-	return make(SessionRuleList, 0, capacity)
+	if capacity > 0 {
+		return make(SessionRuleList, 0, capacity)
+	} else {
+		return make(SessionRuleList, 0)
+	}
 }
 
 // Init initializes the SessionRule Cache.
 // <dumpClbk> is a callback that the cache will use to dump currently
 // installed session rules in VPP.
-func (src *SessionRuleCache) Init(dumpClbk func() SessionRuleList) error {
-	src.config = make(map[int]NamespaceConfig)
+func (src *SessionRuleCache) Init(dumpClbk func() (SessionRuleList, error)) error {
+	src.config = make(map[uint32]NamespaceConfig)
 	src.dumpClbk = dumpClbk
 	return nil
 }
@@ -74,12 +78,12 @@ func (src *SessionRuleCache) NewTxn(resync bool) Txn {
 	return &SessionRuleCacheTxn{
 		cache:  src,
 		resync: resync,
-		config: make(map[int]NamespaceConfig),
+		config: make(map[uint32]NamespaceConfig),
 	}
 }
 
 // LookupByNamespace returns rules assigned to a given namespace.
-func (src *SessionRuleCache) LookupByNamespace(nsIndex int) (ingress, egress SessionRuleList) {
+func (src *SessionRuleCache) LookupByNamespace(nsIndex uint32) (ingress, egress SessionRuleList) {
 	nsConfig, exists := src.config[nsIndex]
 	if !exists {
 		return nil, nil
@@ -89,7 +93,7 @@ func (src *SessionRuleCache) LookupByNamespace(nsIndex int) (ingress, egress Ses
 
 // AllNamespaces returns set of indexes of all known VPP session namespaces
 // (already updated configuration).
-func (src *SessionRuleCache) AllNamespaces() (namespaces []int) {
+func (src *SessionRuleCache) AllNamespaces() (namespaces []uint32) {
 	for nsIndex := range src.config {
 		namespaces = append(namespaces, nsIndex)
 	}
@@ -100,7 +104,7 @@ func (src *SessionRuleCache) AllNamespaces() (namespaces []int) {
 // The change is applied into the cache during commit.
 // Run Changes() before Commit() to learn the set of pending updates (merged
 // to minimal diff).
-func (srct *SessionRuleCacheTxn) Update(nsIndex int, ingress SessionRuleList, egress SessionRuleList) {
+func (srct *SessionRuleCacheTxn) Update(nsIndex uint32, ingress SessionRuleList, egress SessionRuleList) {
 	srct.cache.Log.WithFields(logging.Fields{
 		"nsIndex": nsIndex,
 		"ingress": ingress,
@@ -112,9 +116,9 @@ func (srct *SessionRuleCacheTxn) Update(nsIndex int, ingress SessionRuleList, eg
 // Changes calculates a minimalistic set of changes prepared in the
 // transaction up to this point.
 // Must be run before Commit().
-func (srct *SessionRuleCacheTxn) Changes() (added, removed []*SessionRule) {
-	// Handle RESYNC
+func (srct *SessionRuleCacheTxn) Changes() (added, removed []*SessionRule, err error) {
 	if srct.resync {
+		// Handle RESYNC
 		// Put all rules to be configured into one big list.
 		newRulesLen := 0
 		for _, nsConfig := range srct.config {
@@ -126,24 +130,27 @@ func (srct *SessionRuleCacheTxn) Changes() (added, removed []*SessionRule) {
 			newRules = newRules.Insert(nsConfig.egress...)
 		}
 		// Get the list of rules currently installed in VPP.
-		currentRules := srct.cache.dumpClbk()
+		currentRules, err := srct.cache.dumpClbk()
+		if err != nil {
+			return nil, nil, err
+		}
 		// Compare.
-		return newRules.Diff(currentRules)
-	}
-
-	// Handle Config change.
-	for nsIndex := range srct.config {
-		oldConfig, hasOldConfig := srct.cache.config[nsIndex]
-		if hasOldConfig {
-			nsInAdded, nsInRemoved := srct.config[nsIndex].ingress.Diff(oldConfig.ingress)
-			nsEgAdded, nsEgRemoved := srct.config[nsIndex].egress.Diff(oldConfig.egress)
-			added = append(added, nsInAdded...)
-			added = append(added, nsEgAdded...)
-			removed = append(removed, nsInRemoved...)
-			removed = append(removed, nsEgRemoved...)
-		} else {
-			added = append(added, srct.config[nsIndex].ingress...)
-			added = append(added, srct.config[nsIndex].egress...)
+		added, removed = newRules.Diff(currentRules)
+	} else {
+		// Handle Config change.
+		for nsIndex := range srct.config {
+			oldConfig, hasOldConfig := srct.cache.config[nsIndex]
+			if hasOldConfig {
+				nsInAdded, nsInRemoved := srct.config[nsIndex].ingress.Diff(oldConfig.ingress)
+				nsEgAdded, nsEgRemoved := srct.config[nsIndex].egress.Diff(oldConfig.egress)
+				added = append(added, nsInAdded...)
+				added = append(added, nsEgAdded...)
+				removed = append(removed, nsInRemoved...)
+				removed = append(removed, nsEgRemoved...)
+			} else {
+				added = append(added, srct.config[nsIndex].ingress...)
+				added = append(added, srct.config[nsIndex].egress...)
+			}
 		}
 	}
 
@@ -151,7 +158,7 @@ func (srct *SessionRuleCacheTxn) Changes() (added, removed []*SessionRule) {
 		"added":   added,
 		"removed": removed,
 	}).Debug("SessionRuleCacheTxn Changes()")
-	return added, removed
+	return added, removed, nil
 }
 
 // Commit applies the changes into the underlying cache.

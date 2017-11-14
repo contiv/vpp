@@ -41,6 +41,8 @@ type Config struct {
 	Afpacket *vpp_intf.Interfaces_Interface
 	// Route to the container
 	Route *l3.StaticRoutes_Route
+	// Application namespace index
+	NsIndex uint32
 }
 
 // ConfigIndex implements a cache for configured containers. Primary index is containerID.

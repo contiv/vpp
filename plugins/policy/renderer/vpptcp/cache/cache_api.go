@@ -32,11 +32,11 @@ type SessionRuleCacheAPI interface {
 	NewTxn(resync bool) Txn
 
 	// LookupByNamespace returns rules assigned to a given namespace.
-	LookupByNamespace(nsIndex int) (ingress, egress SessionRuleList)
+	LookupByNamespace(nsIndex uint32) (ingress, egress SessionRuleList)
 
 	// AllNamespaces returns set of indexes of all known VPP session namespaces
 	// (already updated configuration).
-	AllNamespaces() []int
+	AllNamespaces() []uint32
 }
 
 // Txn defines API of SessionRuleCache transaction.
@@ -45,12 +45,12 @@ type Txn interface {
 	// The change is applied into the cache during commit.
 	// Run Changes() before Commit() to learn the set of pending updates (merged
 	// to minimal diff).
-	Update(nsIndex int, ingress SessionRuleList, egress SessionRuleList)
+	Update(nsIndex uint32, ingress SessionRuleList, egress SessionRuleList)
 
 	// Changes calculates a minimalistic set of changes prepared in the
 	// transaction up to this point.
 	// Must be run before Commit().
-	Changes() (added, removed []*SessionRule)
+	Changes() (added, removed []*SessionRule, err error)
 
 	// Commit applies the changes into the underlying cache.
 	Commit()
@@ -72,6 +72,18 @@ type SessionRule struct {
 	Tag            []byte
 }
 
+const (
+	RuleScopeGlobal = 1
+	RuleScopeLocal  = 2
+	RuleScopeBoth   = 3
+
+	RuleActionAllow = ^uint32(0)
+	RuleActionDeny  = ^uint32(0) - 1
+
+	RuleProtoTCP = 0
+	RuleProtoUDP = 1
+)
+
 // SessionRuleList is an ordered array of Session rules.
 // API:
 //  Insert(rule)
@@ -83,24 +95,25 @@ type SessionRuleList []*SessionRule
 func (sr *SessionRule) String() string {
 	var scope string
 	var action string
+	var l4Proto string
 
 	switch sr.Scope {
 	case 0:
 		scope = "global"
-	case 1:
+	case RuleScopeGlobal:
 		scope = "global"
-	case 2:
+	case RuleScopeLocal:
 		scope = "local"
-	case 3:
+	case RuleScopeBoth:
 		scope = "both"
 	default:
 		scope = "invalid"
 	}
 
 	switch sr.ActionIndex {
-	case ^uint32(0):
+	case RuleActionAllow:
 		action = "allow"
-	case ^uint32(0) - 1:
+	case RuleActionDeny:
 		action = "deny"
 	default:
 		action = fmt.Sprintf("fwd->%d", sr.ActionIndex)
@@ -119,9 +132,13 @@ func (sr *SessionRule) String() string {
 	rmt.IP = sr.RmtIP
 	rmt.Mask = net.CIDRMask(int(sr.RmtPlen), ipBits)
 
-	l4Proto := "TCP"
-	if sr.TransportProto == 1 {
+	switch sr.TransportProto {
+	case RuleProtoTCP:
+		l4Proto = "TCP"
+	case RuleProtoUDP:
 		l4Proto = "UDP"
+	default:
+		l4Proto = "invalid"
 	}
 
 	tagLen := bytes.IndexByte(sr.Tag, 0)

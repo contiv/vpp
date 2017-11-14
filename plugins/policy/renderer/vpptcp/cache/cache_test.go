@@ -44,7 +44,7 @@ func TestSomething(t *testing.T) {
 			Log: logger,
 		},
 	}
-	ruleCache.Init(func() SessionRuleList { return NewSessionRuleList(0) })
+	ruleCache.Init(func() (SessionRuleList, error) { return NewSessionRuleList(0), nil })
 
 	gomega.Expect(ruleCache.AllNamespaces()).To(gomega.BeEmpty())
 

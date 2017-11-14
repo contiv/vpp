@@ -32,3 +32,6 @@ else
     # specific VPP commit ID
     sudo docker build -f docker/ubuntu-based/dev/Dockerfile -t dev-contiv-vswitch:${TAG} --build-arg VPP_COMMIT_ID=${VPP_COMMIT_ID} ${DOCKER_BUILD_ARGS} --no-cache --force-rm=true .
 fi
+
+VPP=$(sudo docker run dev-contiv-vswitch:${TAG} bash -c "cd \$VPP_DIR && git rev-parse --short HEAD")
+sudo docker tag dev-contiv-vswitch:${TAG} dev-contiv-vswitch:${TAG}-${VPP}

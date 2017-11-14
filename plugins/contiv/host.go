@@ -114,17 +114,25 @@ func (s *remoteCNIserver) physicalInterfaceLoopback() (*vpp_intf.Interfaces_Inte
 }
 
 func (s *remoteCNIserver) routeToOtherHostPods(hostID uint8) (*l3.StaticRoutes_Route, error) {
-	return s.routeToOtherHostNetworks(hostID, s.ipam.OtherHostPodNetwork(hostID))
+	podNetwork, err := s.ipam.OtherHostPodNetwork(hostID)
+	if err != nil {
+		return nil, fmt.Errorf("Can't compute pod network for host ID %v, error: %v ", hostID, err)
+	}
+	return s.routeToOtherHostNetworks(hostID, podNetwork)
 }
 
 func (s *remoteCNIserver) routeToOtherHostStack(hostID uint8) (*l3.StaticRoutes_Route, error) {
-	return s.routeToOtherHostNetworks(hostID, s.ipam.OtherHostVSwitchNetwork(hostID))
+	vswitchNetwork, err := s.ipam.OtherHostVSwitchNetwork(hostID)
+	if err != nil {
+		return nil, fmt.Errorf("Can't compute vswitch network for host ID %v, error: %v ", hostID, err)
+	}
+	return s.routeToOtherHostNetworks(hostID, vswitchNetwork)
 }
 
 func (s *remoteCNIserver) routeToOtherHostNetworks(hostID uint8, destNetwork *net.IPNet) (*l3.StaticRoutes_Route, error) {
 	hostIP, err := s.ipam.HostIPAddress(hostID)
 	if err != nil {
-		return nil, fmt.Errorf("Can't get Host IP address for host ID %v, error: %v", hostID, err)
+		return nil, fmt.Errorf("Can't get Host IP address for host ID %v, error: %v ", hostID, err)
 	}
 	return &l3.StaticRoutes_Route{
 		DstIpAddr:   destNetwork.String(),

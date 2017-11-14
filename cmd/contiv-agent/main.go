@@ -20,6 +20,9 @@ import (
 	"github.com/contiv/vpp/flavors/contiv"
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/logging/logroot"
+	"os"
+	"os/signal"
+	"syscall"
 )
 
 // init sets the default logging level
@@ -32,6 +35,22 @@ func init() {
 func main() {
 	// Create new agent
 	agentVar := contiv.NewAgent()
+	core.EventLoopWithInterrupt(agentVar, closeChanFiredBySigterm())
+}
 
-	core.EventLoopWithInterrupt(agentVar, nil)
+//TODO apply graceful shutdown also to other usages of CN-infra agent plugins
+
+// closeChanFiredBySigterm creates close channel for CN-infra agent that will close when SIGTERM will be detected from surrounding OS
+func closeChanFiredBySigterm() chan struct{} {
+	// detect SIGTERM as part of pod delete
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGTERM)
+
+	// convert SIGTERM detection to start of plugin shutdown in agent
+	closeChan := make(chan struct{})
+	go func() {
+		<-sigChan
+		close(closeChan)
+	}()
+	return closeChan
 }

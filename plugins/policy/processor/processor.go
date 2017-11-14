@@ -233,7 +233,9 @@ func (pp *PolicyProcessor) DelPod(pod *podmodel.Pod) error {
 			continue
 		}
 		hostNetwork := pp.Contiv.GetPodNetwork()
-		podIPAddress := net.ParseIP(hostPodData.IpAddress)
+		hostPodID := podmodel.GetID(hostPodData).String()
+		removedPodIP := pp.podIPAddressMap[hostPodID]
+		podIPAddress := net.ParseIP(removedPodIP)
 		if !hostNetwork.Contains(podIPAddress) {
 			continue
 		}
@@ -274,6 +276,8 @@ func (pp *PolicyProcessor) UpdatePod(oldPod, newPod *podmodel.Pod) error {
 	pods = append(pods, newPodID)
 	oldPodID := podmodel.GetID(oldPod)
 	pods = append(pods, oldPodID)
+
+	pp.podIPAddressMap[newPodID.String()] = newPod.IpAddress
 
 	// List AllPolicies will fetch all the installed policies and append
 	// Policy Data in the dataPolicies slice

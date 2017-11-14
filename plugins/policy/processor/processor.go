@@ -51,11 +51,10 @@ func (pp *PolicyProcessor) Process(resync bool, pods []podmodel.ID) error {
 	txn := pp.Configurator.NewTxn(false)
 	for _, pod := range pods {
 		policies := []*config.ContivPolicy{}
-		policiesByPod := pp.Cache.LookupPoliciesByPod(pod)
 
+		// Find the policies every pod is associated with
+		policiesByPod := pp.Cache.LookupPoliciesByPod(pod)
 		if len(policiesByPod) == 0 {
-			pp.Log.WithField("process_resync", resync).
-				Infof("Pod: %+v and w/ Policies sent to configurator: %+v ", pods, policies)
 			txn.Configure(pod, policies)
 			continue
 		}
@@ -98,8 +97,6 @@ func (pp *PolicyProcessor) Process(resync bool, pods []podmodel.ID) error {
 			policies = append(policies, policy)
 
 		}
-		pp.Log.WithField("process_resync", resync).
-			Infof("Pod: %+v and w/ Policies sent to configurator: %+v ", pods, policies)
 		txn.Configure(pod, policies)
 
 	}
@@ -151,17 +148,19 @@ func (pp *PolicyProcessor) DelPod(pod *podmodel.Pod) error {
 	newPodID := podmodel.GetID(pod)
 	pods = append(pods, newPodID)
 
+	// List AllPolicies will fetch all the installed policies and append
+	// Policy Data in the dataPolicies slice
 	allPolicies := pp.Cache.ListAllPolicies()
 	for _, stringPolicy := range allPolicies {
 		found, policyData := pp.Cache.LookupPolicy(stringPolicy)
-
 		if !found {
 			continue
 		}
-
 		dataPolicies = append(dataPolicies, policyData)
 	}
 
+	// Check every policy for ingress and egress rules that match deleted Pod's labels
+	// and append them in a slice.
 	for _, dataPolicy := range dataPolicies {
 		for _, ingressRules := range dataPolicy.IngressRule {
 			for _, ingressRule := range ingressRules.From {
@@ -209,6 +208,7 @@ func (pp *PolicyProcessor) DelPod(pod *podmodel.Pod) error {
 		}
 	}
 
+	// For every matched policy find all the Pods that have the policy attached
 	if len(policies) > 0 {
 		for _, policy := range policies {
 			namespace := policy.Namespace
@@ -219,27 +219,26 @@ func (pp *PolicyProcessor) DelPod(pod *podmodel.Pod) error {
 		}
 	}
 
-	//allPods := []podmodel.ID{}
-	//for _, hostPod := range pods {
-	//	found, hostPodData := pp.Cache.LookupPod(hostPod)
-	//
-	//	if !found {
-	//		continue
-	//	}
-	//	// todo: error handling
-	//	hostIPAddr, _ := pp.Contiv.GetHostIPAddr()
-	//	if hostPodData.HostIpAddress != hostIPAddr {
-	//		continue
-	//	}
-	//	allPods = append(allPods, hostPod)
-	//}
+	// Find pods that belong to the current node.
+	hostPods := []podmodel.ID{}
+	for _, hostPod := range pods {
+		found, hostPodData := pp.Cache.LookupPod(hostPod)
 
-	strPods := utils.RemoveDuplicates(utils.StringPodID(pods))
-	pods = utils.UnstringPodID(strPods)
+		if !found {
+			continue
+		}
+		// todo: error handling
+		hostIPAddr, _ := pp.Contiv.GetHostIPAddr()
+		if hostPodData.HostIpAddress != hostIPAddr {
+			continue
+		}
+		hostPods = append(hostPods, hostPod)
+	}
+	strPods := utils.RemoveDuplicates(utils.StringPodID(hostPods))
+	hostPods = utils.UnstringPodID(strPods)
 
-	pp.Log.Infof("Pods affected by Pod Delete: ", pods)
-	if len(pods) > 0 {
-		return pp.Process(false, pods)
+	if len(hostPods) > 0 {
+		return pp.Process(false, hostPods)
 	}
 	return nil
 }
@@ -253,15 +252,15 @@ func (pp *PolicyProcessor) UpdatePod(oldPod, newPod *podmodel.Pod) error {
 	addedPolicies := make(map[string]bool)
 	dataPolicies := []*policymodel.Policy{}
 
-	// No action if Pod has no IP Address
-	if newPod.IpAddress == "" {
-		pp.Log.WithField("pod", newPod).Warn("Pod does not have an IP Address assigned yet")
-		return nil
-	}
-
 	// No action if Pod belongs to kube-system namespace
 	if newPod.Namespace == "kube-system" {
 		pp.Log.WithField("pod", newPod).Info("Pod belongs to kube-system namespace, ignoring")
+		return nil
+	}
+
+	// No action if Pod has no IP Address
+	if newPod.IpAddress == "" {
+		pp.Log.WithField("pod", newPod).Warn("Pod does not have an IP Address assigned yet")
 		return nil
 	}
 
@@ -271,6 +270,8 @@ func (pp *PolicyProcessor) UpdatePod(oldPod, newPod *podmodel.Pod) error {
 	oldPodID := podmodel.GetID(oldPod)
 	pods = append(pods, oldPodID)
 
+	// List AllPolicies will fetch all the installed policies and append
+	// Policy Data in the dataPolicies slice
 	allPolicies := pp.Cache.ListAllPolicies()
 	for _, stringPolicy := range allPolicies {
 		found, policyData := pp.Cache.LookupPolicy(stringPolicy)
@@ -282,6 +283,8 @@ func (pp *PolicyProcessor) UpdatePod(oldPod, newPod *podmodel.Pod) error {
 		dataPolicies = append(dataPolicies, policyData)
 	}
 
+	// Check every policy for ingress and egress rules that match deleted Pod's labels
+	// and append them in a slice.
 	for _, dataPolicy := range dataPolicies {
 		for _, ingressRules := range dataPolicy.IngressRule {
 			for _, ingressRule := range ingressRules.From {
@@ -330,6 +333,7 @@ func (pp *PolicyProcessor) UpdatePod(oldPod, newPod *podmodel.Pod) error {
 		}
 	}
 
+	// For every matched policy find all the Pods that have the policy attached.
 	if len(policies) > 0 {
 		for _, policy := range policies {
 			namespace := policy.Namespace
@@ -340,27 +344,26 @@ func (pp *PolicyProcessor) UpdatePod(oldPod, newPod *podmodel.Pod) error {
 		}
 	}
 
-	//allPods := []podmodel.ID{}
-	//for _, hostPod := range pods {
-	//	found, hostPodData := pp.Cache.LookupPod(hostPod)
-	//
-	//	if !found {
-	//		continue
-	//	}
-	//	// todo: error handling
-	//	hostIPAddr, _ := pp.Contiv.GetHostIPAddr()
-	//	if hostPodData.HostIpAddress != hostIPAddr {
-	//		continue
-	//	}
-	//	allPods = append(allPods, hostPod)
-	//}
+	// Find pods that belong to the current node.
+	hostPods := []podmodel.ID{}
+	for _, hostPod := range pods {
+		found, hostPodData := pp.Cache.LookupPod(hostPod)
 
-	strPods := utils.RemoveDuplicates(utils.StringPodID(pods))
-	pods = utils.UnstringPodID(strPods)
+		if !found {
+			continue
+		}
+		// todo: error handling
+		hostIPAddr, _ := pp.Contiv.GetHostIPAddr()
+		if hostPodData.HostIpAddress != hostIPAddr {
+			continue
+		}
+		hostPods = append(hostPods, hostPod)
+	}
+	strPods := utils.RemoveDuplicates(utils.StringPodID(hostPods))
+	hostPods = utils.UnstringPodID(strPods)
 
-	pp.Log.Infof("Pods affected by Pod Add: ", pods)
-	if len(pods) > 0 {
-		return pp.Process(false, pods)
+	if len(hostPods) > 0 {
+		return pp.Process(false, hostPods)
 	}
 	return nil
 }
@@ -380,26 +383,28 @@ func (pp *PolicyProcessor) AddPolicy(policy *policymodel.Policy) error {
 	namespace := policy.Namespace
 	policyLabelSelectors := policy.Pods
 
+	// Find all the pods that match Policy's Pod Label Selectors
 	policyPods := pp.Cache.LookupPodsByNSLabelSelector(namespace, policyLabelSelectors)
 	pods = append(pods, policyPods...)
 
-	//allPods := []podmodel.ID{}
-	//for _, hostPod := range pods {
-	//	found, hostPodData := pp.Cache.LookupPod(hostPod)
-	//
-	//	if !found {
-	//		continue
-	//	}
-	//	// todo: error handling
-	//	hostIPAddr, _ := pp.Contiv.GetHostIPAddr()
-	//	if hostPodData.HostIpAddress != hostIPAddr {
-	//		continue
-	//	}
-	//	allPods = append(allPods, hostPod)
-	//}
+	// Find pods that belong to the current node.
+	hostPods := []podmodel.ID{}
+	for _, hostPod := range pods {
+		found, hostPodData := pp.Cache.LookupPod(hostPod)
 
-	if len(pods) > 0 {
-		return pp.Process(false, pods)
+		if !found {
+			continue
+		}
+		// todo: error handling
+		hostIPAddr, _ := pp.Contiv.GetHostIPAddr()
+		if hostPodData.HostIpAddress != hostIPAddr {
+			continue
+		}
+		hostPods = append(hostPods, hostPod)
+	}
+
+	if len(hostPods) > 0 {
+		return pp.Process(false, hostPods)
 	}
 	return nil
 }
@@ -418,26 +423,28 @@ func (pp *PolicyProcessor) DelPolicy(policy *policymodel.Policy) error {
 	namespace := policy.Namespace
 	policyLabelSelectors := policy.Pods
 
+	// Find all the pods that match Policy's Pod Label Selectors
 	policyPods := pp.Cache.LookupPodsByNSLabelSelector(namespace, policyLabelSelectors)
 	pods = append(pods, policyPods...)
 
-	//allPods := []podmodel.ID{}
-	//for _, hostPod := range pods {
-	//	found, hostPodData := pp.Cache.LookupPod(hostPod)
-	//
-	//	if !found {
-	//		continue
-	//	}
-	//	// todo: error handling
-	//	hostIPAddr, _ := pp.Contiv.GetHostIPAddr()
-	//	if hostPodData.HostIpAddress != hostIPAddr {
-	//		continue
-	//	}
-	//	allPods = append(allPods, hostPod)
-	//}
+	// Find pods that belong to the current node.
+	hostPods := []podmodel.ID{}
+	for _, hostPod := range pods {
+		found, hostPodData := pp.Cache.LookupPod(hostPod)
+
+		if !found {
+			continue
+		}
+		// todo: error handling
+		hostIPAddr, _ := pp.Contiv.GetHostIPAddr()
+		if hostPodData.HostIpAddress != hostIPAddr {
+			continue
+		}
+		hostPods = append(hostPods, hostPod)
+	}
 
 	if len(pods) > 0 {
-		return pp.Process(false, pods)
+		return pp.Process(false, hostPods)
 	}
 	return nil
 }
@@ -464,6 +471,7 @@ func (pp *PolicyProcessor) UpdatePolicy(oldPolicy, newPolicy *policymodel.Policy
 	oldPolicyPods := pp.Cache.LookupPodsByNSLabelSelector(oldNamespace, oldPolicyLabelSelectors)
 	pods = append(pods, oldPolicyPods...)
 
+	// Pods using new Policy configuration
 	newNamespace := newPolicy.Namespace
 	newPolicyLabelSelectors := newPolicy.Pods
 	newPolicyPods := pp.Cache.LookupPodsByNSLabelSelector(newNamespace, newPolicyLabelSelectors)
@@ -472,25 +480,25 @@ func (pp *PolicyProcessor) UpdatePolicy(oldPolicy, newPolicy *policymodel.Policy
 	strPods := utils.RemoveDuplicates(utils.StringPodID(pods))
 	pods = utils.UnstringPodID(strPods)
 
-	//allPods := []podmodel.ID{}
-	//for _, hostPod := range pods {
-	//	found, hostPodData := pp.Cache.LookupPod(hostPod)
-	//
-	//	if !found {
-	//		continue
-	//	}
-	//	// todo: error handling
-	//	hostIPAddr, _ := pp.Contiv.GetHostIPAddr()
-	//	if hostPodData.HostIpAddress != hostIPAddr {
-	//		continue
-	//	}
-	//	allPods = append(allPods, hostPod)
-	//}
+	// Find pods that belong to the current node.
+	hostPods := []podmodel.ID{}
+	for _, hostPod := range pods {
+		found, hostPodData := pp.Cache.LookupPod(hostPod)
 
-	if len(pods) > 0 {
-		return pp.Process(false, pods)
+		if !found {
+			continue
+		}
+		// todo: error handling
+		hostIPAddr, _ := pp.Contiv.GetHostIPAddr()
+		if hostPodData.HostIpAddress != hostIPAddr {
+			continue
+		}
+		hostPods = append(hostPods, hostPod)
 	}
 
+	if len(pods) > 0 {
+		return pp.Process(false, hostPods)
+	}
 	return nil
 }
 

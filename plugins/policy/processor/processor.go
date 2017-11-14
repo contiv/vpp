@@ -137,7 +137,6 @@ func (pp *PolicyProcessor) AddPod(pod *podmodel.Pod) error {
 // policy re-processing is triggered for each of them.
 func (pp *PolicyProcessor) DelPod(pod *podmodel.Pod) error {
 	pods := []podmodel.ID{}
-	//allPods := []podmodel.ID{}
 	policies := []*policymodel.Policy{}
 	addedPolicies := make(map[string]bool)
 	dataPolicies := []*policymodel.Policy{}
@@ -148,9 +147,9 @@ func (pp *PolicyProcessor) DelPod(pod *podmodel.Pod) error {
 		return nil
 	}
 
-	// If pod had policy, it will be removed
-	podID := podmodel.GetID(pod)
-	pods = append(pods, podID)
+	// New Pod will be checked for attached policies
+	newPodID := podmodel.GetID(pod)
+	pods = append(pods, newPodID)
 
 	allPolicies := pp.Cache.ListAllPolicies()
 	for _, stringPolicy := range allPolicies {
@@ -220,17 +219,16 @@ func (pp *PolicyProcessor) DelPod(pod *podmodel.Pod) error {
 		}
 	}
 
+	//allPods := []podmodel.ID{}
 	//for _, hostPod := range pods {
 	//	found, hostPodData := pp.Cache.LookupPod(hostPod)
-	//	pp.Log.Infof("Reveal podInfo: %+v ", hostPodData)
 	//
 	//	if !found {
 	//		continue
 	//	}
 	//	// todo: error handling
 	//	hostIPAddr, _ := pp.Contiv.GetHostIPAddr()
-	//	pp.Log.Infof("Reveal hostIPADDR: %+v ", hostIPAddr)
-	//	if hostPodData.HostIpAddress != "172.21.174.35" {
+	//	if hostPodData.HostIpAddress != hostIPAddr {
 	//		continue
 	//	}
 	//	allPods = append(allPods, hostPod)
@@ -251,7 +249,6 @@ func (pp *PolicyProcessor) DelPod(pod *podmodel.Pod) error {
 // policy re-processing is triggered for each of them.
 func (pp *PolicyProcessor) UpdatePod(oldPod, newPod *podmodel.Pod) error {
 	pods := []podmodel.ID{}
-	allPods := []podmodel.ID{}
 	policies := []*policymodel.Policy{}
 	addedPolicies := make(map[string]bool)
 	dataPolicies := []*policymodel.Policy{}
@@ -268,19 +265,11 @@ func (pp *PolicyProcessor) UpdatePod(oldPod, newPod *podmodel.Pod) error {
 		return nil
 	}
 
-	// Check if new Pod has policy attached
+	// New and old Pod will be checked for attached policies
 	newPodID := podmodel.GetID(newPod)
-	podPolicies := pp.Cache.LookupPoliciesByPod(newPodID)
-	if len(podPolicies) > 0 {
-		pods = append(pods, newPodID)
-	}
-
-	// Check if old Pod had policy attached
+	pods = append(pods, newPodID)
 	oldPodID := podmodel.GetID(oldPod)
-	oldPodPolicies := pp.Cache.LookupPoliciesByPod(oldPodID)
-	if len(oldPodPolicies) > 0 {
-		pods = append(pods, oldPodID)
-	}
+	pods = append(pods, oldPodID)
 
 	allPolicies := pp.Cache.ListAllPolicies()
 	for _, stringPolicy := range allPolicies {
@@ -351,27 +340,27 @@ func (pp *PolicyProcessor) UpdatePod(oldPod, newPod *podmodel.Pod) error {
 		}
 	}
 
-	for _, hostPod := range pods {
-		found, hostPodData := pp.Cache.LookupPod(hostPod)
-		if !found {
-			continue
-		}
-		// todo: error handling
-		hostIPAddr, _ := pp.Contiv.GetHostIPAddr()
-		pp.Log.Infof("Reveal hostIPADDR: %+v ", hostIPAddr)
-		pp.podIPAddressMap[hostPod.Namespace+"/"+hostPod.Name] = hostPodData.HostIpAddress
-		if hostPodData.HostIpAddress != "172.21.174.35" {
-			continue
-		}
-		allPods = append(allPods, hostPod)
-	}
+	//allPods := []podmodel.ID{}
+	//for _, hostPod := range pods {
+	//	found, hostPodData := pp.Cache.LookupPod(hostPod)
+	//
+	//	if !found {
+	//		continue
+	//	}
+	//	// todo: error handling
+	//	hostIPAddr, _ := pp.Contiv.GetHostIPAddr()
+	//	if hostPodData.HostIpAddress != hostIPAddr {
+	//		continue
+	//	}
+	//	allPods = append(allPods, hostPod)
+	//}
 
-	strPods := utils.RemoveDuplicates(utils.StringPodID(allPods))
-	allPods = utils.UnstringPodID(strPods)
+	strPods := utils.RemoveDuplicates(utils.StringPodID(pods))
+	pods = utils.UnstringPodID(strPods)
 
-	pp.Log.Infof("Pods affected by Pod Add: ", allPods)
-	if len(allPods) > 0 {
-		return pp.Process(false, allPods)
+	pp.Log.Infof("Pods affected by Pod Add: ", pods)
+	if len(pods) > 0 {
+		return pp.Process(false, pods)
 	}
 	return nil
 }
@@ -382,7 +371,6 @@ func (pp *PolicyProcessor) UpdatePod(oldPod, newPod *podmodel.Pod) error {
 // policy re-processing is triggered for each of them.
 func (pp *PolicyProcessor) AddPolicy(policy *policymodel.Policy) error {
 	pods := []podmodel.ID{}
-	allPods := []podmodel.ID{}
 	// Check if policy was read correctly.
 	if policy == nil {
 		pp.Log.WithField("policy", policy).Error("Error reading Policy")
@@ -395,22 +383,23 @@ func (pp *PolicyProcessor) AddPolicy(policy *policymodel.Policy) error {
 	policyPods := pp.Cache.LookupPodsByNSLabelSelector(namespace, policyLabelSelectors)
 	pods = append(pods, policyPods...)
 
-	for _, hostPod := range pods {
-		found, hostPodData := pp.Cache.LookupPod(hostPod)
-		if !found {
-			continue
-		}
-		// todo: error handling
-		hostIPAddr, _ := pp.Contiv.GetHostIPAddr()
-		pp.Log.Infof("Reveal hostIPADDR: %+v ", hostIPAddr)
-		if hostPodData.HostIpAddress != "172.21.174.35" {
-			continue
-		}
-		allPods = append(allPods, hostPod)
-	}
+	//allPods := []podmodel.ID{}
+	//for _, hostPod := range pods {
+	//	found, hostPodData := pp.Cache.LookupPod(hostPod)
+	//
+	//	if !found {
+	//		continue
+	//	}
+	//	// todo: error handling
+	//	hostIPAddr, _ := pp.Contiv.GetHostIPAddr()
+	//	if hostPodData.HostIpAddress != hostIPAddr {
+	//		continue
+	//	}
+	//	allPods = append(allPods, hostPod)
+	//}
 
 	if len(pods) > 0 {
-		return pp.Process(false, allPods)
+		return pp.Process(false, pods)
 	}
 	return nil
 }
@@ -420,7 +409,6 @@ func (pp *PolicyProcessor) AddPolicy(policy *policymodel.Policy) error {
 // policy re-processing is triggered for each of them.
 func (pp *PolicyProcessor) DelPolicy(policy *policymodel.Policy) error {
 	pods := []podmodel.ID{}
-	allPods := []podmodel.ID{}
 
 	if policy == nil {
 		pp.Log.WithField("policy", policy).Error("Error reading Policy")
@@ -433,22 +421,23 @@ func (pp *PolicyProcessor) DelPolicy(policy *policymodel.Policy) error {
 	policyPods := pp.Cache.LookupPodsByNSLabelSelector(namespace, policyLabelSelectors)
 	pods = append(pods, policyPods...)
 
-	for _, hostPod := range pods {
-		found, hostPodData := pp.Cache.LookupPod(hostPod)
-		if !found {
-			continue
-		}
-		// todo: error handling
-		hostIPAddr, _ := pp.Contiv.GetHostIPAddr()
-		pp.Log.Infof("Reveal hostIPADDR: %+v ", hostIPAddr)
-		if hostPodData.HostIpAddress != "172.21.174.35" {
-			continue
-		}
-		allPods = append(allPods, hostPod)
-	}
+	//allPods := []podmodel.ID{}
+	//for _, hostPod := range pods {
+	//	found, hostPodData := pp.Cache.LookupPod(hostPod)
+	//
+	//	if !found {
+	//		continue
+	//	}
+	//	// todo: error handling
+	//	hostIPAddr, _ := pp.Contiv.GetHostIPAddr()
+	//	if hostPodData.HostIpAddress != hostIPAddr {
+	//		continue
+	//	}
+	//	allPods = append(allPods, hostPod)
+	//}
 
 	if len(pods) > 0 {
-		return pp.Process(false, allPods)
+		return pp.Process(false, pods)
 	}
 	return nil
 }
@@ -458,7 +447,6 @@ func (pp *PolicyProcessor) DelPolicy(policy *policymodel.Policy) error {
 // policy re-processing is triggered for each of them.
 func (pp *PolicyProcessor) UpdatePolicy(oldPolicy, newPolicy *policymodel.Policy) error {
 	pods := []podmodel.ID{}
-	allPods := []podmodel.ID{}
 
 	if newPolicy == nil {
 		pp.Log.WithField("policy", newPolicy).Error("Error reading New Policy")
@@ -484,22 +472,23 @@ func (pp *PolicyProcessor) UpdatePolicy(oldPolicy, newPolicy *policymodel.Policy
 	strPods := utils.RemoveDuplicates(utils.StringPodID(pods))
 	pods = utils.UnstringPodID(strPods)
 
-	for _, hostPod := range pods {
-		found, hostPodData := pp.Cache.LookupPod(hostPod)
-		if !found {
-			continue
-		}
-		// todo: error handling
-		hostIPAddr, _ := pp.Contiv.GetHostIPAddr()
-		pp.Log.Infof("Reveal hostIPADDR: %+v ", hostIPAddr)
-		if hostPodData.HostIpAddress != "172.21.174.35" {
-			continue
-		}
-		allPods = append(allPods, hostPod)
-	}
+	//allPods := []podmodel.ID{}
+	//for _, hostPod := range pods {
+	//	found, hostPodData := pp.Cache.LookupPod(hostPod)
+	//
+	//	if !found {
+	//		continue
+	//	}
+	//	// todo: error handling
+	//	hostIPAddr, _ := pp.Contiv.GetHostIPAddr()
+	//	if hostPodData.HostIpAddress != hostIPAddr {
+	//		continue
+	//	}
+	//	allPods = append(allPods, hostPod)
+	//}
 
 	if len(pods) > 0 {
-		return pp.Process(false, allPods)
+		return pp.Process(false, pods)
 	}
 
 	return nil

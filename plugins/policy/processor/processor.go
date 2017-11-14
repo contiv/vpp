@@ -57,7 +57,7 @@ func (pp *PolicyProcessor) Process(resync bool, pods []podmodel.ID) error {
 		// Find the policies every pod is associated with
 		policiesByPod := pp.Cache.LookupPoliciesByPod(pod)
 		if len(policiesByPod) == 0 {
-			//txn.Configure(pod, policies)
+			txn.Configure(pod, policies)
 			continue
 		}
 
@@ -148,7 +148,7 @@ func (pp *PolicyProcessor) DelPod(pod *podmodel.Pod) error {
 	}
 
 	// Deleted Pod will be checked for attached policies
-	delPodID := podmodel.GetID(pod)
+	//delPodID := podmodel.GetID(pod)
 
 	// List AllPolicies will fetch all the installed policies and append
 	// Policy Data in the dataPolicies slice
@@ -240,7 +240,6 @@ func (pp *PolicyProcessor) DelPod(pod *podmodel.Pod) error {
 		}
 		hostPods = append(hostPods, hostPod)
 	}
-	//hostPods = append(hostPods, delPodID)
 
 	if len(hostPods) > 0 {
 		pp.Log.WithField("del-pod", pod).
@@ -274,8 +273,6 @@ func (pp *PolicyProcessor) UpdatePod(oldPod, newPod *podmodel.Pod) error {
 	// New and old Pod will be checked for attached policies
 	newPodID := podmodel.GetID(newPod)
 	pods = append(pods, newPodID)
-	//oldPodID := podmodel.GetID(oldPod)
-	//pods = append(pods, oldPodID)
 
 	pp.podIPAddressMap[newPodID.String()] = newPod.IpAddress
 
@@ -420,7 +417,6 @@ func (pp *PolicyProcessor) UpdatePod(oldPod, newPod *podmodel.Pod) error {
 		}
 		hostPods = append(hostPods, hostPod)
 	}
-	hostPods = append(hostPods, newPodID)
 
 	if len(hostPods) > 0 {
 		pp.Log.WithField("update-pod", newPod).

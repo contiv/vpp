@@ -40,6 +40,7 @@ import (
 	"github.com/ligato/vpp-agent/clientv1/linux/localclient"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins"
 	"github.com/ligato/vpp-agent/plugins/govppmux"
+	"net"
 )
 
 // Plugin transforms GRPC requests into configuration for the VPP in order
@@ -182,6 +183,11 @@ func (plugin *Plugin) GetIfName(podNamespace string, podName string) (name strin
 
 	plugin.Log.WithFields(logging.Fields{"podNamespace": podNamespace, "podName": podName}).Warn("No matching result found")
 	return "", false
+}
+
+// GetPodNetwork provides subnet used for allocating pod IP addresses on this host node.
+func (plugin *Plugin) GetPodNetwork() *net.IPNet {
+	return plugin.cniServer.ipam.PodNetwork()
 }
 
 func (plugin *Plugin) handleResync(resyncChan chan resync.StatusEvent) {

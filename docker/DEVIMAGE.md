@@ -71,6 +71,7 @@ cd ~/go/src/github.com/contiv/vpp/
 rm -rf vendor/github.com/ligato/vpp-agent/
 cp -r ~/go/src/github.com/ligato/vpp-agent/ vendor/github.com/ligato/
 rm -rf vendor/github.com/ligato/vpp-agent/vendor/
+make generate
 make
 make install
 ```

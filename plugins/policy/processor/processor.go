@@ -8,6 +8,8 @@ import (
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	policymodel "github.com/contiv/vpp/plugins/ksr/model/policy"
 
+	"net"
+
 	"github.com/contiv/vpp/plugins/policy/cache"
 	config "github.com/contiv/vpp/plugins/policy/configurator"
 	"github.com/contiv/vpp/plugins/policy/utils"
@@ -227,9 +229,9 @@ func (pp *PolicyProcessor) DelPod(pod *podmodel.Pod) error {
 		if !found {
 			continue
 		}
-		// todo: error handling
-		hostIPAddr, _ := pp.Contiv.GetHostIPAddr()
-		if hostPodData.HostIpAddress != hostIPAddr {
+		hostNetwork := pp.Contiv.GetPodNetwork()
+		podIPAddress := net.ParseIP(hostPodData.HostIpAddress)
+		if !hostNetwork.Contains(podIPAddress) {
 			continue
 		}
 		hostPods = append(hostPods, hostPod)
@@ -352,9 +354,9 @@ func (pp *PolicyProcessor) UpdatePod(oldPod, newPod *podmodel.Pod) error {
 		if !found {
 			continue
 		}
-		// todo: error handling
-		hostIPAddr, _ := pp.Contiv.GetHostIPAddr()
-		if hostPodData.HostIpAddress != hostIPAddr {
+		hostNetwork := pp.Contiv.GetPodNetwork()
+		podIPAddress := net.ParseIP(hostPodData.HostIpAddress)
+		if !hostNetwork.Contains(podIPAddress) {
 			continue
 		}
 		hostPods = append(hostPods, hostPod)
@@ -395,9 +397,9 @@ func (pp *PolicyProcessor) AddPolicy(policy *policymodel.Policy) error {
 		if !found {
 			continue
 		}
-		// todo: error handling
-		hostIPAddr, _ := pp.Contiv.GetHostIPAddr()
-		if hostPodData.HostIpAddress != hostIPAddr {
+		hostNetwork := pp.Contiv.GetPodNetwork()
+		podIPAddress := net.ParseIP(hostPodData.HostIpAddress)
+		if !hostNetwork.Contains(podIPAddress) {
 			continue
 		}
 		hostPods = append(hostPods, hostPod)
@@ -435,9 +437,9 @@ func (pp *PolicyProcessor) DelPolicy(policy *policymodel.Policy) error {
 		if !found {
 			continue
 		}
-		// todo: error handling
-		hostIPAddr, _ := pp.Contiv.GetHostIPAddr()
-		if hostPodData.HostIpAddress != hostIPAddr {
+		hostNetwork := pp.Contiv.GetPodNetwork()
+		podIPAddress := net.ParseIP(hostPodData.HostIpAddress)
+		if !hostNetwork.Contains(podIPAddress) {
 			continue
 		}
 		hostPods = append(hostPods, hostPod)
@@ -488,9 +490,9 @@ func (pp *PolicyProcessor) UpdatePolicy(oldPolicy, newPolicy *policymodel.Policy
 		if !found {
 			continue
 		}
-		// todo: error handling
-		hostIPAddr, _ := pp.Contiv.GetHostIPAddr()
-		if hostPodData.HostIpAddress != hostIPAddr {
+		hostNetwork := pp.Contiv.GetPodNetwork()
+		podIPAddress := net.ParseIP(hostPodData.HostIpAddress)
+		if !hostNetwork.Contains(podIPAddress) {
 			continue
 		}
 		hostPods = append(hostPods, hostPod)

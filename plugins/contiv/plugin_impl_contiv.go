@@ -14,6 +14,8 @@
 
 //go:generate protoc -I ./model/cni --go_out=plugins=grpc:./model/cni ./model/cni/cni.proto
 //go:generate protoc -I ./model/uid --go_out=plugins=grpc:./model/uid ./model/uid/uid.proto
+//go:generate binapi-generator --input-file=/usr/share/vpp/api/stn.api.json --output-dir=bin_api
+//go:generate binapi-generator --input-file=/usr/share/vpp/api/session.api.json --output-dir=bin_api
 
 package contiv
 
@@ -21,6 +23,8 @@ import (
 	"context"
 
 	"fmt"
+
+	"net"
 
 	"git.fd.io/govpp.git/api"
 	"github.com/contiv/vpp/plugins/contiv/containeridx"
@@ -182,16 +186,9 @@ func (plugin *Plugin) GetIfName(podNamespace string, podName string) (name strin
 	return "", false
 }
 
-func (plugin *Plugin) GetHostIPAddr() (string, error) {
-	hostID := plugin.cniServer.ipam.HostID()
-	hostIPAddress, err := plugin.cniServer.ipam.HostIPAddress(hostID)
-	if err != nil {
-		plugin.Log.Warn("Could not find Host IP Address")
-		return "", nil
-	}
-
-	strHostIPAddress := hostIPAddress.String()
-	return strHostIPAddress, nil
+// GetPodNetwork provides subnet used for allocating pod IP addresses on this host node.
+func (plugin *Plugin) GetPodNetwork() *net.IPNet {
+	return plugin.cniServer.ipam.PodNetwork()
 }
 
 func (plugin *Plugin) handleResync(resyncChan chan resync.StatusEvent) {

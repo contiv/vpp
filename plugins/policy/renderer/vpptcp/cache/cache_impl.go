@@ -55,9 +55,8 @@ type NamespaceConfig struct {
 func NewSessionRuleList(capacity int) SessionRuleList {
 	if capacity > 0 {
 		return make(SessionRuleList, 0, capacity)
-	} else {
-		return make(SessionRuleList, 0)
 	}
+	return make(SessionRuleList, 0)
 }
 
 // Init initializes the SessionRule Cache.

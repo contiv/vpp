@@ -73,14 +73,26 @@ type SessionRule struct {
 }
 
 const (
+	// RuleScopeGlobal is a constant used to set the global scope for a session rule.
 	RuleScopeGlobal = 1
-	RuleScopeLocal  = 2
-	RuleScopeBoth   = 3
 
+	// RuleScopeLocal is a constant used to set the local scope for a session rule.
+	RuleScopeLocal = 2
+
+	// RuleScopeBoth is a constant used to set both the local and the global scope
+	// for a session rule.
+	RuleScopeBoth = 3
+
+	// RuleActionAllow is a constant used to set ALLOW action for a session rule.
 	RuleActionAllow = ^uint32(0)
-	RuleActionDeny  = ^uint32(0) - 1
 
+	// RuleActionDeny is a constant used to set DENY action for a session rule.
+	RuleActionDeny = ^uint32(0) - 1
+
+	// RuleProtoTCP is a constant used to set TCP protocol for a session rule.
 	RuleProtoTCP = 0
+
+	// RuleProtoUDP is a constant used to set UDP protocol for a session rule.
 	RuleProtoUDP = 1
 )
 

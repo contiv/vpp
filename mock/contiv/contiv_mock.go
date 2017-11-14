@@ -8,8 +8,8 @@ import (
 
 // MockContiv is a mock for the Contiv Plugin.
 type MockContiv struct {
-	podIf map[podmodel.ID]string
-	podNs map[podmodel.ID]uint32
+	podIf      map[podmodel.ID]string
+	podNs      map[podmodel.ID]uint32
 	podNetwork *net.IPNet
 }
 

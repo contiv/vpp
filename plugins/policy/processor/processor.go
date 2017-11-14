@@ -99,10 +99,11 @@ func (pp *PolicyProcessor) Process(resync bool, pods []podmodel.ID) error {
 			policies = append(policies, policy)
 
 		}
+		pp.Log.WithField("process-resync", resync).
+			Infof("Pod sent to Configurator: %+v, w/ Policies: %+v", pod, policies)
 		txn.Configure(pod, policies)
 
 	}
-
 	return txn.Commit()
 }
 
@@ -119,12 +120,12 @@ func (pp *PolicyProcessor) Resync(data *cache.DataResyncEvent) error {
 // them.
 func (pp *PolicyProcessor) AddPod(pod *podmodel.Pod) error {
 	if pod.IpAddress == "" {
-		pp.Log.WithField("pod", pod).Warn("Pod does not have an IP Address assigned yet")
+		pp.Log.WithField("add-pod", pod).Warn("Pod does not have an IP Address assigned yet")
 		return nil
 	}
 
 	if pod.Namespace == "kube-system" {
-		pp.Log.WithField("pod", pod).Info("Pod belongs to kube-system namespace, ignoring")
+		pp.Log.WithField("add-pod", pod).Info("Pod belongs to kube-system namespace, ignoring")
 		return nil
 	}
 
@@ -142,7 +143,7 @@ func (pp *PolicyProcessor) DelPod(pod *podmodel.Pod) error {
 
 	// No action if Pod belongs to kube-system namespace
 	if pod.Namespace == "kube-system" {
-		pp.Log.WithField("pod", pod).Info("Pod belongs to kube-system namespace, ignoring")
+		pp.Log.WithField("del-pod", pod).Info("Pod belongs to kube-system namespace, ignoring")
 		return nil
 	}
 
@@ -220,6 +221,8 @@ func (pp *PolicyProcessor) DelPod(pod *podmodel.Pod) error {
 			pods = append(pods, policyPods...)
 		}
 	}
+	strPods := utils.RemoveDuplicates(utils.StringPodID(pods))
+	pods = utils.UnstringPodID(strPods)
 
 	// Find pods that belong to the current node.
 	hostPods := []podmodel.ID{}
@@ -230,16 +233,16 @@ func (pp *PolicyProcessor) DelPod(pod *podmodel.Pod) error {
 			continue
 		}
 		hostNetwork := pp.Contiv.GetPodNetwork()
-		podIPAddress := net.ParseIP(hostPodData.HostIpAddress)
+		podIPAddress := net.ParseIP(hostPodData.IpAddress)
 		if !hostNetwork.Contains(podIPAddress) {
 			continue
 		}
 		hostPods = append(hostPods, hostPod)
 	}
-	strPods := utils.RemoveDuplicates(utils.StringPodID(hostPods))
-	hostPods = utils.UnstringPodID(strPods)
 
 	if len(hostPods) > 0 {
+		pp.Log.WithField("del-pod", pod).
+			Infof("Pods sent to Process: %+v")
 		return pp.Process(false, hostPods)
 	}
 	return nil
@@ -345,6 +348,8 @@ func (pp *PolicyProcessor) UpdatePod(oldPod, newPod *podmodel.Pod) error {
 			pods = append(pods, policyPods...)
 		}
 	}
+	strPods := utils.RemoveDuplicates(utils.StringPodID(pods))
+	pods = utils.UnstringPodID(strPods)
 
 	// Find pods that belong to the current node.
 	hostPods := []podmodel.ID{}
@@ -355,16 +360,16 @@ func (pp *PolicyProcessor) UpdatePod(oldPod, newPod *podmodel.Pod) error {
 			continue
 		}
 		hostNetwork := pp.Contiv.GetPodNetwork()
-		podIPAddress := net.ParseIP(hostPodData.HostIpAddress)
+		podIPAddress := net.ParseIP(hostPodData.IpAddress)
 		if !hostNetwork.Contains(podIPAddress) {
 			continue
 		}
 		hostPods = append(hostPods, hostPod)
 	}
-	strPods := utils.RemoveDuplicates(utils.StringPodID(hostPods))
-	hostPods = utils.UnstringPodID(strPods)
 
 	if len(hostPods) > 0 {
+		pp.Log.WithField("update-pod", newPod).
+			Infof("Pods sent to Process: %+v")
 		return pp.Process(false, hostPods)
 	}
 	return nil
@@ -398,7 +403,7 @@ func (pp *PolicyProcessor) AddPolicy(policy *policymodel.Policy) error {
 			continue
 		}
 		hostNetwork := pp.Contiv.GetPodNetwork()
-		podIPAddress := net.ParseIP(hostPodData.HostIpAddress)
+		podIPAddress := net.ParseIP(hostPodData.IpAddress)
 		if !hostNetwork.Contains(podIPAddress) {
 			continue
 		}
@@ -406,6 +411,8 @@ func (pp *PolicyProcessor) AddPolicy(policy *policymodel.Policy) error {
 	}
 
 	if len(hostPods) > 0 {
+		pp.Log.WithField("add-policy", policy).
+			Infof("Pods sent to Process: %+v", hostPods)
 		return pp.Process(false, hostPods)
 	}
 	return nil
@@ -438,7 +445,7 @@ func (pp *PolicyProcessor) DelPolicy(policy *policymodel.Policy) error {
 			continue
 		}
 		hostNetwork := pp.Contiv.GetPodNetwork()
-		podIPAddress := net.ParseIP(hostPodData.HostIpAddress)
+		podIPAddress := net.ParseIP(hostPodData.IpAddress)
 		if !hostNetwork.Contains(podIPAddress) {
 			continue
 		}
@@ -446,6 +453,8 @@ func (pp *PolicyProcessor) DelPolicy(policy *policymodel.Policy) error {
 	}
 
 	if len(pods) > 0 {
+		pp.Log.WithField("del-policy", policy).
+			Infof("Pods sent to Process: %+v", hostPods)
 		return pp.Process(false, hostPods)
 	}
 	return nil
@@ -491,7 +500,7 @@ func (pp *PolicyProcessor) UpdatePolicy(oldPolicy, newPolicy *policymodel.Policy
 			continue
 		}
 		hostNetwork := pp.Contiv.GetPodNetwork()
-		podIPAddress := net.ParseIP(hostPodData.HostIpAddress)
+		podIPAddress := net.ParseIP(hostPodData.IpAddress)
 		if !hostNetwork.Contains(podIPAddress) {
 			continue
 		}

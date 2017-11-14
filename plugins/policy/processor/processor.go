@@ -57,7 +57,7 @@ func (pp *PolicyProcessor) Process(resync bool, pods []podmodel.ID) error {
 		// Find the policies every pod is associated with
 		policiesByPod := pp.Cache.LookupPoliciesByPod(pod)
 		if len(policiesByPod) == 0 {
-			txn.Configure(pod, policies)
+			//txn.Configure(pod, policies)
 			continue
 		}
 
@@ -147,9 +147,8 @@ func (pp *PolicyProcessor) DelPod(pod *podmodel.Pod) error {
 		return nil
 	}
 
-	// New Pod will be checked for attached policies
-	newPodID := podmodel.GetID(pod)
-	pods = append(pods, newPodID)
+	// Deleted Pod will be checked for attached policies
+	delPodID := podmodel.GetID(pod)
 
 	// List AllPolicies will fetch all the installed policies and append
 	// Policy Data in the dataPolicies slice
@@ -241,10 +240,11 @@ func (pp *PolicyProcessor) DelPod(pod *podmodel.Pod) error {
 		}
 		hostPods = append(hostPods, hostPod)
 	}
+	//hostPods = append(hostPods, delPodID)
 
 	if len(hostPods) > 0 {
 		pp.Log.WithField("del-pod", pod).
-			Infof("Pods sent to Process: %+v")
+			Infof("Pods sent to Process: %+v", hostPods)
 		return pp.Process(false, hostPods)
 	}
 	return nil
@@ -274,8 +274,8 @@ func (pp *PolicyProcessor) UpdatePod(oldPod, newPod *podmodel.Pod) error {
 	// New and old Pod will be checked for attached policies
 	newPodID := podmodel.GetID(newPod)
 	pods = append(pods, newPodID)
-	oldPodID := podmodel.GetID(oldPod)
-	pods = append(pods, oldPodID)
+	//oldPodID := podmodel.GetID(oldPod)
+	//pods = append(pods, oldPodID)
 
 	pp.podIPAddressMap[newPodID.String()] = newPod.IpAddress
 
@@ -292,7 +292,57 @@ func (pp *PolicyProcessor) UpdatePod(oldPod, newPod *podmodel.Pod) error {
 		dataPolicies = append(dataPolicies, policyData)
 	}
 
-	// Check every policy for ingress and egress rules that match deleted Pod's labels
+	// Check every policy for ingress and egress rules that match old Pod's labels
+	// and append them in a slice.
+	for _, dataPolicy := range dataPolicies {
+		for _, ingressRules := range dataPolicy.IngressRule {
+			for _, ingressRule := range ingressRules.From {
+
+				matchLabels := []*policymodel.Policy_Label{}
+				matchExpressions := []*policymodel.Policy_LabelSelector_LabelExpression{}
+
+				if ingressRule.Pods != nil {
+					matchLabels = ingressRule.Pods.MatchLabel
+					matchExpressions = ingressRule.Pods.MatchExpression
+				}
+
+				isMatch := pp.calculateLabelSelectorMatches(oldPod, matchLabels, matchExpressions, dataPolicy.Namespace)
+				if !isMatch {
+					continue
+				}
+
+				if addedPolicies[policymodel.GetID(dataPolicy).String()] != true {
+					addedPolicies[policymodel.GetID(dataPolicy).String()] = true
+					policies = append(policies, dataPolicy)
+				}
+			}
+		}
+		for _, egressRules := range dataPolicy.EgressRule {
+			for _, egressRule := range egressRules.To {
+
+				matchLabels := []*policymodel.Policy_Label{}
+				matchExpressions := []*policymodel.Policy_LabelSelector_LabelExpression{}
+
+				if egressRule.Pods != nil {
+					matchLabels = egressRule.Pods.MatchLabel
+					matchExpressions = egressRule.Pods.MatchExpression
+				}
+
+				isMatch := pp.calculateLabelSelectorMatches(oldPod, matchLabels, matchExpressions, dataPolicy.Namespace)
+				if !isMatch {
+					continue
+				}
+
+				if addedPolicies[policymodel.GetID(dataPolicy).String()] != true {
+					addedPolicies[policymodel.GetID(dataPolicy).String()] = true
+					policies = append(policies, dataPolicy)
+				}
+
+			}
+		}
+	}
+
+	// Check every policy for ingress and egress rules that match new Pod's labels
 	// and append them in a slice.
 	for _, dataPolicy := range dataPolicies {
 		for _, ingressRules := range dataPolicy.IngressRule {
@@ -370,10 +420,11 @@ func (pp *PolicyProcessor) UpdatePod(oldPod, newPod *podmodel.Pod) error {
 		}
 		hostPods = append(hostPods, hostPod)
 	}
+	hostPods = append(hostPods, newPodID)
 
 	if len(hostPods) > 0 {
 		pp.Log.WithField("update-pod", newPod).
-			Infof("Pods sent to Process: %+v")
+			Infof("Pods sent to Process: %+v", hostPods)
 		return pp.Process(false, hostPods)
 	}
 	return nil

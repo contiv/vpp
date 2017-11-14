@@ -2,6 +2,7 @@ package contiv
 
 import (
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
+	"net"
 )
 
 // MockContiv is a mock for the Contiv Plugin.
@@ -23,4 +24,10 @@ func (mc *MockContiv) SetPodIfName(pod podmodel.ID, ifName string) {
 func (mc *MockContiv) GetIfName(podNamespace string, podName string) (name string, exists bool) {
 	name, exists = mc.podIfs[podmodel.ID{Name: podName, Namespace: podNamespace}]
 	return name, exists
+}
+
+// GetPodNetwork returns static subnet constant that should represent pod subnet for current host node
+func (mc *MockContiv) GetPodNetwork() (podNetwork *net.IPNet) {
+	_, podNetwork, _ = net.ParseCIDR("10.1.1.0/24")
+	return
 }

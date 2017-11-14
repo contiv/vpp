@@ -163,5 +163,6 @@ func (pp *PolicyProcessor) calculateLabelSelectorMatches(
 		}
 		return true
 	}
+	// empty labelselector selects all pods
 	return true
 }

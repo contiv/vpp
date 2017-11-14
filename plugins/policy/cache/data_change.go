@@ -98,13 +98,14 @@ func (pc *PolicyCache) changePropagateEvent(dataChngEv datasync.ChangeEvent) err
 
 			if datasync.Delete == dataChngEv.GetChangeType() {
 				oldPodID := podmodel.GetID(&prevValue).String()
-				pc.configuredPods.UnregisterPod(oldPodID)
 
 				for _, watcher := range pc.watchers {
 					if err := watcher.DelPod(&prevValue); err != nil {
 						return err
 					}
 				}
+				pc.configuredPods.UnregisterPod(oldPodID)
+
 				return nil
 
 			} else if diff {
@@ -153,6 +154,7 @@ func (pc *PolicyCache) changePropagateEvent(dataChngEv datasync.ChangeEvent) err
 					return err
 				}
 			}
+
 			return nil
 
 		} else if diff {
@@ -166,6 +168,7 @@ func (pc *PolicyCache) changePropagateEvent(dataChngEv datasync.ChangeEvent) err
 					return err
 				}
 			}
+
 		}
 
 		namespaceID := value.Name

@@ -80,6 +80,20 @@ type Deps struct {
 // config add `<Contiv plugin name> + "-config="<absolute path to config>` in go run command flags.
 type Config struct {
 	IPAMConfig ipam.Config
+	NodeConfig []OneNodeConfig
+}
+
+// OneNodeConfig represents configuration for one node. It contains only settings specific to given node.
+type OneNodeConfig struct {
+	NodeName         string
+	VppInterfaceName string
+	OtherInterfaces  []InterfaceWithIP // other configured interfaces get only ip address assigned in vpp
+}
+
+// InterfaceWithIP binds interface name with ip for configuration purposes.
+type InterfaceWithIP struct {
+	InterfaceName string
+	IP            string
 }
 
 // Init initializes the grpc server handling the request from the CNI.
@@ -121,7 +135,7 @@ func (plugin *Plugin) Init() error {
 		plugin.govppCh,
 		plugin.VPP.GetSwIfIndexes(),
 		plugin.ServiceLabel.GetAgentLabel(),
-		&plugin.Config.IPAMConfig,
+		plugin.Config,
 		uid)
 	if err != nil {
 		return fmt.Errorf("Can't create new remote CNI server due to error: %v ", err)

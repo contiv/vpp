@@ -1,0 +1,250 @@
+/*
+ * Copyright (c) 2015-2016 Cisco and/or its affiliates.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at:
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+vl_api_version 1.0.0
+
+/** \brief GPE locator structure
+    @param is_ip4 - whether addr is IPv4 or v6
+    @param weight - locator weight
+    @param addr - IPv4/6 address
+*/
+typeonly manual_print manual_endian define gpe_locator
+{
+  u8 is_ip4;
+  u8 weight;
+  u8 addr[16];
+};
+
+/** \brief add or delete GPE tunnel
+    @param client_index - opaque cookie to identify the sender
+    @param context - sender context, to match reply w/ request
+    @param is_add - add address if non-zero, else delete
+    @param eid_type -
+      0 : ipv4
+      1 : ipv6
+      2 : mac
+    @param rmt_eid - remote eid
+    @param lcl_eid - local eid
+    @param rmt_len - remote prefix len
+    @param lcl_len - local prefix len
+    @param vni - virtual network identifier
+    @param dp_table - vrf/bridge domain id
+    @param action - negative action when 0 locators configured
+    @param loc_num - number of locators
+    @param locs - array of remote locators
+*/
+manual_print manual_endian define gpe_add_del_fwd_entry
+{
+  u32 client_index;
+  u32 context;
+  u8 is_add;
+  u8 eid_type;
+  u8 rmt_eid[16];
+  u8 lcl_eid[16];
+  u8 rmt_len;
+  u8 lcl_len;
+  u32 vni;
+  u32 dp_table;
+  u8 action;
+  u32 loc_num;
+  vl_api_gpe_locator_t locs[loc_num];
+};
+
+define gpe_add_del_fwd_entry_reply
+{
+  i32 retval;
+  u32 context;
+  u32 fwd_entry_index;
+};
+
+/** \brief enable or disable gpe protocol
+    @param client_index - opaque cookie to identify the sender
+    @param context - sender context, to match reply w/ request
+    @param is_en - enable protocol if non-zero, else disable
+*/
+autoreply define gpe_enable_disable
+{
+  u32 client_index;
+  u32 context;
+  u8 is_en;
+};
+
+/** \brief add or delete gpe_iface
+    @param client_index - opaque cookie to identify the sender
+    @param context - sender context, to match reply w/ request
+    @param is_add - add address if non-zero, else delete
+*/
+autoreply define gpe_add_del_iface
+{
+  u32 client_index;
+  u32 context;
+  u8 is_add;
+  u8 is_l2;
+  u32 dp_table;
+  u32 vni;
+};
+
+define gpe_fwd_entry_vnis_get
+{
+  u32 client_index;
+  u32 context;
+};
+
+manual_print manual_endian define gpe_fwd_entry_vnis_get_reply
+{
+  u32 context;
+  i32 retval;
+  u32 count;
+  u32 vnis[count];
+};
+
+define gpe_fwd_entries_get
+{
+  u32 client_index;
+  u32 context;
+  u32 vni;
+};
+
+typeonly manual_print manual_endian define gpe_fwd_entry
+{
+  u32 fwd_entry_index;
+  u32 dp_table;
+  u8 eid_type;
+  u8 leid_prefix_len;
+  u8 reid_prefix_len;
+  u8 leid[16];
+  u8 reid[16];
+  u32 vni;
+  u8 action;
+};
+
+manual_print manual_endian define gpe_fwd_entries_get_reply
+{
+  u32 context;
+  i32 retval;
+  u32 count;
+  vl_api_gpe_fwd_entry_t entries[count];
+};
+
+define gpe_fwd_entry_path_dump
+{
+  u32 client_index;
+  u32 context;
+  u32 fwd_entry_index;
+};
+
+manual_endian manual_print define gpe_fwd_entry_path_details
+{
+  u32 client_index;
+  u32 context;
+  vl_api_gpe_locator_t lcl_loc;
+  vl_api_gpe_locator_t rmt_loc;
+};
+
+/** \brief Set GPE encapsulation mode
+    @param client_index - opaque cookie to identify the sender
+    @param context - sender context, to match reply w/ request
+    @param mode - LISP (value 0) or VXLAN (value 1)
+*/
+autoreply define gpe_set_encap_mode
+{
+  u32 client_index;
+  u32 context;
+  u8 mode;
+};
+
+/** \brief get GPE encapsulation mode
+    @param client_index - opaque cookie to identify the sender
+    @param context - sender context, to match reply w/ request
+    @param mode - LISP (value 0) or VXLAN (value 1)
+*/
+define gpe_get_encap_mode
+{
+  u32 client_index;
+  u32 context;
+};
+
+/** \brief Reply for set_encap_mode
+    @param context - returned sender context, to match reply w/ request
+    @param retval - return code
+    @param encap_mode - GPE encapsulation mode
+*/
+define gpe_get_encap_mode_reply
+{
+  u32 context;
+  i32 retval;
+  u8 encap_mode;
+};
+
+/** \brief Add native fwd rpath
+    @param context - returned sender context, to match reply w/ request
+    @param retval - return code
+    @param is_add - flag to indicate add or del
+    @param table_id - table id for route path
+    @param nh_sw_if_index - next-hop sw_if_index (~0 if not set)
+    @param is_ip4 - flag to indicate if nh is ip4
+    @param nh_addr - next hop ip address
+*/
+autoreply define gpe_add_del_native_fwd_rpath
+{
+  u32 client_index;
+  u32 context;
+  u8 is_add;
+  u32 table_id;
+  u32 nh_sw_if_index;
+  u8 is_ip4;
+  u8 nh_addr[16];
+};
+
+/** \brief get GPE native fwd rpath
+    @param client_index - opaque cookie to identify the sender
+    @param context - sender context, to match reply w/ request
+*/
+define gpe_native_fwd_rpaths_get
+{
+  u32 client_index;
+  u32 context;
+  u8 is_ip4;
+};
+
+/** \brief Reply for get native fwd rpath
+    @param context - returned sender context, to match reply w/ request
+    @param retval - return code
+    @param table_id - table id for route path
+    @param nh_sw_if_index - next-hop sw_if_index (~0 if not set)
+    @param nh_addr - next hop address
+*/
+typeonly manual_print manual_endian define gpe_native_fwd_rpath
+{
+  u32 fib_index;
+  u32 nh_sw_if_index;
+  u8 is_ip4;
+  u8 nh_addr[16];
+};
+
+manual_print manual_endian define gpe_native_fwd_rpaths_get_reply
+{
+  u32 context;
+  i32 retval;
+  u32 count;
+  vl_api_gpe_native_fwd_rpath_t entries[count];
+};
+
+/*
+ * Local Variables:
+ * eval: (c-set-style "gnu")
+ * End:
+ */
+ 

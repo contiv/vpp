@@ -16,7 +16,6 @@ package cache
 
 import (
 	"bytes"
-
 	"sort"
 
 	"github.com/ligato/cn-infra/logging"
@@ -55,12 +54,12 @@ type NamespaceConfig struct {
 func NewSessionRuleList(capacity int, rules ...*SessionRule) SessionRuleList {
 	var list SessionRuleList
 	if capacity > 0 {
-		list = make(SessionRuleList, len(rules), capacity)
+		list = make(SessionRuleList, 0, capacity)
 	} else {
-		list = make(SessionRuleList, len(rules))
+		list = make(SessionRuleList, 0, len(rules))
 	}
 	for _, rule := range rules {
-		list.Insert(rule)
+		list = list.Insert(rule)
 	}
 	return list
 }
@@ -258,12 +257,12 @@ func compareInts(a, b int) int {
 
 // compareIPNets returns an integer comparing two IP network addresses
 // lexicographically.
-func compareIPNets(aPrefixLen uint8, aIP []byte, bPrefixLen uint8, bIP []byte) int {
+func compareIPNets(aPrefixLen uint8, aIP [16]byte, bPrefixLen uint8, bIP [16]byte) int {
 	prefixOrder := compareInts(int(aPrefixLen), int(bPrefixLen))
 	if prefixOrder != 0 {
 		return prefixOrder
 	}
-	return bytes.Compare(aIP, bIP)
+	return bytes.Compare(aIP[:], bIP[:])
 }
 
 // compareSessionRules returns an integer comparing two Session rules lexicographically.
@@ -304,5 +303,5 @@ func compareSessionRules(a, b *SessionRule) int {
 	if rmtPortOrder != 0 {
 		return rmtPortOrder
 	}
-	return bytes.Compare(a.Tag, b.Tag)
+	return bytes.Compare(a.Tag[:], b.Tag[:])
 }

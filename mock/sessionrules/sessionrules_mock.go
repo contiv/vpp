@@ -24,6 +24,7 @@ type MockSessionRules struct {
 	tag string
 
 	vppMock     *govppmock.VppAdapter
+	vppConn     *govpp.Connection
 	localTable  map[uint32]SessionRules // namespace index -> rules
 	globalTable SessionRules
 	errCount    int
@@ -45,6 +46,7 @@ type SessionRules []*cache.SessionRule
 
 // NewMockSessionRules is a constructor for MockSessionRules.
 func NewMockSessionRules(log logging.Logger, tag string) *MockSessionRules {
+	var err error
 	mock := &MockSessionRules{
 		Log:         log,
 		tag:         tag,
@@ -54,17 +56,22 @@ func NewMockSessionRules(log logging.Logger, tag string) *MockSessionRules {
 	}
 	mock.vppMock.RegisterBinAPITypes(session.Types)
 	mock.vppMock.MockReplyHandler(mock.msgReplyHandler)
+	mock.vppConn, err = govpp.Connect(mock.vppMock)
+	if err != nil {
+		return nil
+	}
 	return mock
+}
+
+// Close closes the VPP connection.
+func (msr *MockSessionRules) Close() {
+	msr.vppConn.Disconnect()
 }
 
 // NewVPPChan creates a new mock VPP channel.
 func (msr *MockSessionRules) NewVPPChan() *govppapi.Channel {
-	conn, err := govpp.Connect(msr.vppMock)
-	if err != nil {
-		return nil
-	}
-	c, _ := conn.NewAPIChannel()
-	return c
+	channel, _ := msr.vppConn.NewAPIChannel()
+	return channel
 }
 
 // GetErrCount returns the number of errors that have occured so far.
@@ -122,7 +129,6 @@ func (msr *MockSessionRules) hasRule(table SessionRules, scope uint8, nsIndex ui
 		RmtPort:    rmtPort,
 		AppnsIndex: nsIndex,
 		Scope:      scope,
-		Tag:        []byte(msr.tag),
 	}
 
 	// Parse transport protocol.
@@ -157,7 +163,11 @@ func (msr *MockSessionRules) hasRule(table SessionRules, scope uint8, nsIndex ui
 				return false
 			}
 		}
-		rule.LclIP = lclIPNet.IP
+		if lclIPNet.IP.To4() != nil {
+			copy(rule.LclIP[:], lclIPNet.IP.To4())
+		} else {
+			copy(rule.LclIP[:], lclIPNet.IP.To16())
+		}
 		lclPlen, _ := lclIPNet.Mask.Size()
 		rule.LclPlen = uint8(lclPlen)
 		if lclIPNet.IP.To4() != nil {
@@ -174,7 +184,11 @@ func (msr *MockSessionRules) hasRule(table SessionRules, scope uint8, nsIndex ui
 				return false
 			}
 		}
-		rule.RmtIP = rmtIPNet.IP
+		if rmtIPNet.IP.To4() != nil {
+			copy(rule.RmtIP[:], rmtIPNet.IP.To4())
+		} else {
+			copy(rule.RmtIP[:], rmtIPNet.IP.To16())
+		}
 		rmtPlen, _ := rmtIPNet.Mask.Size()
 		rule.RmtPlen = uint8(rmtPlen)
 		if rmtIPNet.IP.To4() != nil {
@@ -185,6 +199,9 @@ func (msr *MockSessionRules) hasRule(table SessionRules, scope uint8, nsIndex ui
 		isIPv4 = 1
 	}
 	rule.IsIP4 = isIPv4
+
+	// Copy Tag.
+	copy(rule.Tag[:], msr.tag)
 
 	// Search for the rule.
 	for _, rule2 := range table {
@@ -238,7 +255,7 @@ func (msr *MockSessionRules) msgReplyHandler(request govppmock.MessageDTO) (repl
 		rule := makeSessionRule(&ruleAddDel)
 
 		// Check tag
-		tagLen := bytes.IndexByte(rule.Tag, 0)
+		tagLen := bytes.IndexByte(rule.Tag[:], 0)
 		tag := string(rule.Tag[:tagLen])
 		if tag != msr.tag {
 			msr.errCount++
@@ -310,16 +327,16 @@ func makeSessionRuleDetails(rule *cache.SessionRule) *session.SessionRulesDetail
 	details := &session.SessionRulesDetails{
 		TransportProto: rule.TransportProto,
 		IsIP4:          rule.IsIP4,
-		LclIP:          rule.LclIP,
+		LclIP:          rule.LclIP[:],
 		LclPlen:        rule.LclPlen,
-		RmtIP:          rule.RmtIP,
+		RmtIP:          rule.RmtIP[:],
 		RmtPlen:        rule.RmtPlen,
 		LclPort:        rule.LclPort,
 		RmtPort:        rule.RmtPort,
 		ActionIndex:    rule.ActionIndex,
 		AppnsIndex:     rule.AppnsIndex,
 		Scope:          rule.Scope,
-		Tag:            rule.Tag,
+		Tag:            rule.Tag[:],
 	}
 	return details
 }
@@ -328,17 +345,17 @@ func makeSessionRule(rule *session.SessionRuleAddDel) *cache.SessionRule {
 	sessionRule := &cache.SessionRule{
 		TransportProto: rule.TransportProto,
 		IsIP4:          rule.IsIP4,
-		LclIP:          rule.LclIP,
 		LclPlen:        rule.LclPlen,
-		RmtIP:          rule.RmtIP,
 		RmtPlen:        rule.RmtPlen,
 		LclPort:        rule.LclPort,
 		RmtPort:        rule.RmtPort,
 		ActionIndex:    rule.ActionIndex,
 		AppnsIndex:     rule.AppnsIndex,
 		Scope:          rule.Scope,
-		Tag:            rule.Tag,
 	}
+	copy(sessionRule.LclIP[:], rule.LclIP)
+	copy(sessionRule.RmtIP[:], rule.RmtIP)
+	copy(sessionRule.Tag[:], rule.Tag)
 	return sessionRule
 }
 

@@ -23,14 +23,25 @@ import (
 	"github.com/onsi/gomega"
 )
 
-func ipNetwork(addr string) (ip net.IP, maskLen uint8) {
+func ipNetwork(addr string) (ip [16]byte, maskLen uint8) {
 	if addr == "" {
-		return net.IP{}, 0
+		return ip, 0
 	}
 	_, network, error := net.ParseCIDR(addr)
 	maskSize, _ := network.Mask.Size()
 	gomega.Expect(error).To(gomega.BeNil())
-	return network.IP, uint8(maskSize)
+	if network.IP.To4() != nil {
+		copy(ip[:], network.IP.To4())
+	} else {
+		copy(ip[:], network.IP.To16())
+	}
+	return ip, uint8(maskSize)
+}
+
+func makeTag(tagStr string) [64]byte {
+	tag := [64]byte{}
+	copy(tag[:], tagStr)
+	return tag
 }
 
 func checkSessionRules(list []*SessionRule, rules ...*SessionRule) {
@@ -81,7 +92,7 @@ func TestSingleIngressRuleSingleNs(t *testing.T) {
 		ActionIndex:    RuleActionAllow,
 		AppnsIndex:     10,
 		Scope:          RuleScopeGlobal,
-		Tag:            []byte("test"),
+		Tag:            makeTag("test"),
 	}
 	ingress := NewSessionRuleList(0, rule)
 	egress := NewSessionRuleList(0)
@@ -140,7 +151,7 @@ func TestSingleEgressRuleSingleNs(t *testing.T) {
 		ActionIndex:    RuleActionAllow,
 		AppnsIndex:     10,
 		Scope:          RuleScopeLocal,
-		Tag:            []byte("test"),
+		Tag:            makeTag("test"),
 	}
 	ingress := NewSessionRuleList(0)
 	egress := NewSessionRuleList(0, rule)

@@ -85,13 +85,16 @@ func TestSingleEgressRuleSinglePod(t *testing.T) {
 	contiv := NewMockContiv()
 	contiv.SetPodNsIndex(pod1, pod1VPPNsIndex)
 	sessionRules := NewMockSessionRules(logger, SessionRuleTag)
+	defer sessionRules.Close()
+	vppChan := sessionRules.NewVPPChan()
+	gomega.Expect(vppChan).ToNot(gomega.BeNil())
 
 	// Prepare VPPTCP Renderer.
 	vppTCPRenderer := &Renderer{
 		Deps: Deps{
 			Log:       logger,
 			Contiv:    contiv,
-			GoVPPChan: sessionRules.NewVPPChan(),
+			GoVPPChan: vppChan,
 		},
 	}
 	vppTCPRenderer.Init()
@@ -137,13 +140,16 @@ func TestSingleIngressRuleSinglePod(t *testing.T) {
 	contiv := NewMockContiv()
 	contiv.SetPodNsIndex(pod1, pod1VPPNsIndex)
 	sessionRules := NewMockSessionRules(logger, SessionRuleTag)
+	defer sessionRules.Close()
+	vppChan := sessionRules.NewVPPChan()
+	gomega.Expect(vppChan).ToNot(gomega.BeNil())
 
 	// Prepare VPPTCP Renderer.
 	vppTCPRenderer := &Renderer{
 		Deps: Deps{
 			Log:       logger,
 			Contiv:    contiv,
-			GoVPPChan: sessionRules.NewVPPChan(),
+			GoVPPChan: vppChan,
 		},
 	}
 	vppTCPRenderer.Init()

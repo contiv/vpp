@@ -60,16 +60,16 @@ type Txn interface {
 type SessionRule struct {
 	TransportProto uint8
 	IsIP4          uint8
-	LclIP          []byte
+	LclIP          [16]byte
 	LclPlen        uint8
-	RmtIP          []byte
+	RmtIP          [16]byte
 	RmtPlen        uint8
 	LclPort        uint16
 	RmtPort        uint16
 	ActionIndex    uint32
 	AppnsIndex     uint32
 	Scope          uint8
-	Tag            []byte
+	Tag            [64]byte
 }
 
 const (
@@ -137,11 +137,13 @@ func (sr *SessionRule) String() string {
 	}
 
 	lcl := &net.IPNet{}
-	lcl.IP = sr.LclIP
+	lcl.IP = make([]byte, ipBits/8)
+	copy(lcl.IP, sr.LclIP[:])
 	lcl.Mask = net.CIDRMask(int(sr.LclPlen), ipBits)
 
 	rmt := &net.IPNet{}
-	rmt.IP = sr.RmtIP
+	rmt.IP = make([]byte, ipBits/8)
+	copy(rmt.IP, sr.RmtIP[:])
 	rmt.Mask = net.CIDRMask(int(sr.RmtPlen), ipBits)
 
 	switch sr.TransportProto {
@@ -153,7 +155,7 @@ func (sr *SessionRule) String() string {
 		l4Proto = "invalid"
 	}
 
-	tagLen := bytes.IndexByte(sr.Tag, 0)
+	tagLen := bytes.IndexByte(sr.Tag[:], 0)
 	tag := string(sr.Tag[:tagLen])
 
 	return fmt.Sprintf("Rule <ns:%d scope:%s action:%s lcl:%s[%s:%d] rmt:%s:[%s:%d] tag:%s>",

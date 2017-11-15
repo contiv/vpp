@@ -106,18 +106,18 @@ func (r *Renderer) dumpRules() (cache.SessionRuleList, error) {
 		sessionRule := &cache.SessionRule{
 			TransportProto: msg.TransportProto,
 			IsIP4:          msg.IsIP4,
-			LclIP:          msg.LclIP,
 			LclPlen:        msg.LclPlen,
-			RmtIP:          msg.RmtIP,
 			RmtPlen:        msg.RmtPlen,
 			LclPort:        msg.LclPort,
 			RmtPort:        msg.RmtPort,
 			ActionIndex:    msg.ActionIndex,
 			AppnsIndex:     msg.AppnsIndex,
 			Scope:          msg.Scope,
-			Tag:            msg.Tag,
 		}
-		rules.Insert(sessionRule)
+		copy(sessionRule.LclIP[:], msg.LclIP)
+		copy(sessionRule.RmtIP[:], msg.RmtIP)
+		copy(sessionRule.Tag[:], msg.Tag)
+		rules = rules.Insert(sessionRule)
 	}
 
 	return rules, nil
@@ -133,9 +133,9 @@ func (r *Renderer) makeSessionRuleAddDelReq(rule *cache.SessionRule, add bool) *
 	msg := &session.SessionRuleAddDel{
 		TransportProto: rule.TransportProto,
 		IsIP4:          rule.IsIP4,
-		LclIP:          rule.LclIP,
+		LclIP:          rule.LclIP[:],
 		LclPlen:        rule.LclPlen,
-		RmtIP:          rule.RmtIP,
+		RmtIP:          rule.RmtIP[:],
 		RmtPlen:        rule.RmtPlen,
 		LclPort:        rule.LclPort,
 		RmtPort:        rule.RmtPort,
@@ -143,7 +143,7 @@ func (r *Renderer) makeSessionRuleAddDelReq(rule *cache.SessionRule, add bool) *
 		IsAdd:          isAdd,
 		AppnsIndex:     rule.AppnsIndex,
 		Scope:          rule.Scope,
-		Tag:            rule.Tag,
+		Tag:            rule.Tag[:],
 	}
 	req := &govpp.VppRequest{
 		Message: msg,
@@ -237,7 +237,11 @@ func (art *RendererTxn) Render(pod podmodel.ID, podIP *net.IPNet, ingress []*ren
 		sessionRule.LclPort = rule.SrcPort /* it is any */
 		// Remote IP
 		if len(rule.DestNetwork.IP) > 0 {
-			sessionRule.RmtIP = rule.DestNetwork.IP
+			if rule.DestNetwork.IP.To4() != nil {
+				copy(sessionRule.RmtIP[:], rule.DestNetwork.IP.To4())
+			} else {
+				copy(sessionRule.RmtIP[:], rule.DestNetwork.IP.To16())
+			}
 			rmtPlen, _ := rule.DestNetwork.Mask.Size()
 			sessionRule.RmtPlen = uint8(rmtPlen)
 		}
@@ -256,9 +260,9 @@ func (art *RendererTxn) Render(pod podmodel.ID, podIP *net.IPNet, ingress []*ren
 		// Scope
 		sessionRule.Scope = cache.RuleScopeLocal
 		// Tag
-		sessionRule.Tag = []byte(SessionRuleTag)
+		copy(sessionRule.Tag[:], SessionRuleTag)
 		// Add rule into the list.
-		nsInRules.Insert(sessionRule)
+		nsInRules = nsInRules.Insert(sessionRule)
 	}
 
 	// Construct egress rules.
@@ -285,14 +289,22 @@ func (art *RendererTxn) Render(pod podmodel.ID, podIP *net.IPNet, ingress []*ren
 			}
 		}
 		// Local IP
-		sessionRule.LclIP = podIP.IP
+		if podIP.IP.To4() != nil {
+			copy(sessionRule.LclIP[:], podIP.IP.To4())
+		} else {
+			copy(sessionRule.LclIP[:], podIP.IP.To16())
+		}
 		lclPlen, _ := podIP.Mask.Size()
 		sessionRule.LclPlen = uint8(lclPlen)
 		// Local port
 		sessionRule.LclPort = rule.DestPort
 		// Remote IP
 		if len(rule.SrcNetwork.IP) > 0 {
-			sessionRule.RmtIP = rule.SrcNetwork.IP
+			if rule.SrcNetwork.IP.To4() != nil {
+				copy(sessionRule.RmtIP[:], rule.SrcNetwork.IP.To4())
+			} else {
+				copy(sessionRule.RmtIP[:], rule.SrcNetwork.IP.To16())
+			}
 			rmtPlen, _ := rule.SrcNetwork.Mask.Size()
 			sessionRule.RmtPlen = uint8(rmtPlen)
 		}
@@ -311,9 +323,9 @@ func (art *RendererTxn) Render(pod podmodel.ID, podIP *net.IPNet, ingress []*ren
 		// Scope
 		sessionRule.Scope = cache.RuleScopeGlobal
 		// Tag
-		sessionRule.Tag = []byte(SessionRuleTag)
+		copy(sessionRule.Tag[:], SessionRuleTag)
 		// Add rule into the list.
-		nsEgRules.Insert(sessionRule)
+		nsEgRules = nsEgRules.Insert(sessionRule)
 	}
 
 	// Add the rules into the transaction.

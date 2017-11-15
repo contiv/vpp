@@ -1,0 +1,194 @@
+/* Hey Emacs use -*- mode: C -*- */
+/*
+ * Copyright (c) 2015 Cisco and/or its affiliates.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at:
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+vl_api_version 1.0.0
+
+/*
+ * Create a client registration 
+ */
+manual_print 
+define memclnt_create {
+    i32 ctx_quota;              /* requested punt context quota */
+    u32 context;                /* opaque value to be returned in the reply */
+    u64 input_queue;            /* client's queue */
+    u8 name[64];                /* for show, find by name, whatever */
+    u32 api_versions[8];        /* client-server pairs use as desired */
+};
+
+define memclnt_create_reply {
+    i32 response;               /* Non-negative = success */
+    u64 handle;                 /* handle by which vlib knows this client */
+    u32 index;                  /* index, used e.g. by API trace replay */
+    u32 context;                /* opaque value from the create request */
+    u64 message_table;          /* serialized message table in shmem */
+};
+
+/*
+ * Delete a client registration 
+ */
+manual_print
+define memclnt_delete {
+    u32 index;                  /* index, used e.g. by API trace replay */
+    u64 handle;               /* handle by which vlib knows this client */
+};
+
+define memclnt_delete_reply {
+    i32 response;               /* Non-negative = success */
+    u64 handle;               /* in case the client wonders */
+};
+
+/*
+ * Client RX thread exit
+ */
+define rx_thread_exit {
+    u8 dummy;
+};
+
+/*
+ * Client RX thread suspend
+ */
+define memclnt_rx_thread_suspend {
+    u8 dummy;
+};
+
+/*
+ * Client read timeout
+ */
+define memclnt_read_timeout {
+    u8 dummy;
+};
+
+/*
+ * RPC
+ */
+autoreply define rpc_call {
+    u32 client_index;
+    u32 context;
+    u64 function;
+    u8 multicast;
+    u8 need_barrier_sync;
+    u8 send_reply;
+    u8 data[0];
+};
+
+/*
+ * Lookup message-ID base by name
+ */
+define get_first_msg_id {
+    u32 client_index;
+    u32 context;
+    u8 name[64];
+};
+
+define get_first_msg_id_reply {
+    u32 client_index;
+    u32 context;
+    i32 retval;
+    u16 first_msg_id;
+};
+
+/*
+ * Get API version table (includes built-in and plugins)
+ */
+typeonly define module_version {
+  u32 major;
+  u32 minor;
+  u32 patch;
+  u8 name[64];
+};
+define api_versions {
+  u32 client_index;
+  u32 context;
+};
+define api_versions_reply {
+  u32 client_index;
+  u32 context;
+  i32 retval;
+  u32 count;
+  vl_api_module_version_t api_versions[count];
+};
+
+/*
+ * Trace the plugin message-id allocator
+ * so we stand a chance of dealing with different sets of plugins
+ * at api trace replay time
+ */
+
+manual_print define trace_plugin_msg_ids
+{
+    u32 client_index;
+    u32 context;
+    u8 plugin_name[128];
+    u16 first_msg_id;
+    u16 last_msg_id;
+};
+
+/*
+ * Create a socket client registration. 
+ */
+define sockclnt_create {
+    u8 name[64];                /* for show, find by name, whatever */
+    u32 context;                /* opaque value to be returned in the reply */
+};
+
+define sockclnt_create_reply {
+    i32 response;               /* Non-negative = success */
+    u64 handle;           	/* handle by which vlib knows this client */
+    u32 index;                  /* index, used e.g. by API trace replay */
+    u32 context;                /* opaque value from the create request */
+};
+
+/*
+ * Delete a client registration 
+ */
+define sockclnt_delete {
+    u32 index;                  /* index, used e.g. by API trace replay */
+    u64 handle;               	/* handle by which vlib knows this client */
+};
+
+define sockclnt_delete_reply {
+    i32 response;               /* Non-negative = success */
+    u64 handle;               	/* in case the client wonders */
+};
+
+/*
+ * Ask vpp for a memfd shared segment
+ */
+define memfd_segment_create {
+    u32 client_index;
+    u32 context;
+    u64 requested_size;
+};
+
+/*
+ * Reply
+ */
+define memfd_segment_create_reply 
+{
+  u32 context;
+  i32 retval;
+  u32 master_fd;
+};
+
+/*
+ * Memory client ping / response
+ * Only sent on inactive connections
+ */
+autoreply define memclnt_keepalive
+{
+  u32 client_index;
+  u32 context;
+};

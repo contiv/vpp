@@ -130,7 +130,7 @@ func verifyRule(aclRule *acl_model.AccessLists_Acl_Rule, contivRule *renderer.Co
 	// Action
 	gomega.Expect(aclRule.Actions).ToNot(gomega.BeNil())
 	if contivRule.Action == renderer.ActionPermit {
-		gomega.Expect(aclRule.Actions.AclAction).To(gomega.BeEquivalentTo(acl_model.AclAction_PERMIT))
+		gomega.Expect(aclRule.Actions.AclAction).To(gomega.BeEquivalentTo(acl_model.AclAction_REFLECT))
 	} else {
 		gomega.Expect(aclRule.Actions.AclAction).To(gomega.BeEquivalentTo(acl_model.AclAction_DENY))
 	}

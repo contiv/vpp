@@ -68,6 +68,7 @@ Verify the deployment:
 $ kubectl get pods -o wide
 NAME                            READY     STATUS    RESTARTS   AGE       IP         NODE
 iperf-client-6f776fdc5c-62gj5   1/1       Running   0          5s        10.1.1.4   ubuntu
+iperf-server-5574dcc986-g8fbv   1/1       Running   0          8s        10.1.1.3   ubuntu
 ```
 
 Run bash in the container:
@@ -82,7 +83,7 @@ root@test-client-6ff7bf6d78-tgv9t:/#
 
 Test the connectivity:
 ```
-# iperf3 -V4 -c 10.1.1.3
+root@test-client-6ff7bf6d78-tgv9t:/# iperf3 -V4 -c 10.1.1.3
 
 [24] vcom_init...done!
 

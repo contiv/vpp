@@ -24,6 +24,8 @@ import (
 
 	"fmt"
 
+	"net"
+
 	"git.fd.io/govpp.git/api"
 	"github.com/contiv/vpp/plugins/contiv/containeridx"
 	"github.com/contiv/vpp/plugins/contiv/ipam"
@@ -40,7 +42,6 @@ import (
 	"github.com/ligato/vpp-agent/clientv1/linux/localclient"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins"
 	"github.com/ligato/vpp-agent/plugins/govppmux"
-	"net"
 )
 
 // Plugin transforms GRPC requests into configuration for the VPP in order

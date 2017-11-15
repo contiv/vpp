@@ -1,0 +1,13 @@
+changelog
+files
+*debhelper*
+*.substvars
+*.install
+vpp/
+vpp-dev/
+vpp-lib/
+vpp-dbg/
+vppctl/
+vpp-api-lua/
+vpp-api-java/
+vpp-api-python/

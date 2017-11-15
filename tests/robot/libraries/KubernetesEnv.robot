@@ -322,9 +322,9 @@ Log_Contiv_Ksr
     KubeCtl.Logs    ${ssh_session}    @{pod_list}[0]    namespace=kube-system
 
 Log_Contiv_Vswitch
-    [Arguments]    ${ssh_session}
+    [Arguments]    ${ssh_session}    ${exp_nr_vswitch}=${KUBE_CLUSTER_${CLUSTER_ID}_NODES}
     ${pod_list} =    Get_Pod_Name_List_By_Prefix    ${ssh_session}    contiv-vswitch-
-    BuiltIn.Length_Should_Be    ${pod_list}    ${KUBE_CLUSTER_${CLUSTER_ID}_NODES}
+    BuiltIn.Length_Should_Be    ${pod_list}    ${exp_nr_vswitch}
     : FOR    ${vswitch_pod}    IN    @{pod_list}
     \    KubeCtl.Logs    ${ssh_session}    ${vswitch_pod}    namespace=kube-system    container=contiv-cni
     \    KubeCtl.Logs    ${ssh_session}    ${vswitch_pod}    namespace=kube-system    container=contiv-vswitch
@@ -338,8 +338,8 @@ Log_Kube_Dns
     KubeCtl.Logs    ${ssh_session}    @{pod_list}[0]    namespace=kube-system    container=sidecar
 
 Log_Pods_For_Debug
-    [Arguments]    ${ssh_session}
+    [Arguments]    ${ssh_session}    ${exp_nr_vswitch}=${KUBE_CLUSTER_${CLUSTER_ID}_NODES}
     Log_Contiv_Etcd    ${ssh_session}
     Log_Contiv_Ksr    ${ssh_session}
-    Log_Contiv_Vswitch    ${ssh_session}
+    Log_Contiv_Vswitch    ${ssh_session}    ${exp_nr_vswitch}
     Log_Kube_Dns    ${ssh_session}

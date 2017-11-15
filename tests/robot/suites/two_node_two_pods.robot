@@ -121,7 +121,7 @@ TwoNodesK8sSetup
 
 
 TwoNodesK8sTeardown
-    KubernetesEnv.Log_Pods_For_Debug    ${testbed_connection}
+    KubernetesEnv.Log_Pods_For_Debug    ${testbed_connection}    exp_nr_vswitch=2
     KubernetesEnv.Remove_Nginx_Pod_And_Verify_Removed    ${testbed_connection}    nginx_file=${NGINX_POD_FILE_NODE2}
     KubernetesEnv.Remove_Client_Pod_And_Verify_Removed    ${testbed_connection}    client_file=${CLIENT_POD_FILE_NODE1}
     KubernetesEnv.Remove_Server_Pod_And_Verify_Removed    ${testbed_connection}    server_file=${SERVER_POD_FILE_NODE2}

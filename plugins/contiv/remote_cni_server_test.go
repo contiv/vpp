@@ -65,12 +65,14 @@ var req = cni.CNIRequest{
 	ExtraArguments:   "IgnoreUnknown=1;K8S_POD_NAMESPACE=default;K8S_POD_NAME=" + podName + ";K8S_POD_INFRA_CONTAINER_ID=7d673108b0ff9b2f59f977ca5f4cef347cb9ca66888614068882fbfaba4de752",
 }
 
-var ipamConfig = ipam.Config{
-	PodSubnetCIDR:           "10.1.0.0/16",
-	PodNetworkPrefixLen:     24,
-	VSwitchSubnetCIDR:       "172.30.0.0/16",
-	VSwitchNetworkPrefixLen: 24,
-	HostNodeSubnetCidr:      "192.168.16.0/24",
+var config = Config{
+	IPAMConfig: ipam.Config{
+		PodSubnetCIDR:           "10.1.0.0/16",
+		PodNetworkPrefixLen:     24,
+		VSwitchSubnetCIDR:       "172.30.0.0/16",
+		VSwitchNetworkPrefixLen: 24,
+		HostNodeSubnetCidr:      "192.168.16.0/24",
+	},
 }
 
 func TestVeth1NameFromRequest(t *testing.T) {
@@ -85,7 +87,7 @@ func TestVeth1NameFromRequest(t *testing.T) {
 		nil,
 		nil,
 		"testlabel",
-		&ipamConfig,
+		&config,
 		0)
 	gomega.Expect(err).To(gomega.BeNil())
 
@@ -107,7 +109,7 @@ func TestAdd(t *testing.T) {
 		vppChanMock(),
 		swIfIdx,
 		"testLabel",
-		&ipamConfig,
+		&config,
 		0)
 	gomega.Expect(err).To(gomega.BeNil())
 	server.hostCalls = &mockLinuxCalls{}

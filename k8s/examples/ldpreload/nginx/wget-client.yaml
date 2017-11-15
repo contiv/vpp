@@ -9,7 +9,6 @@ spec:
       labels:
         # ldpreload-related labels
         ldpreload: "true"
-        scopeglobal: "true"
     spec:
       # optional - deploy on preferred node
 #      nodeSelector:
@@ -22,3 +21,7 @@ spec:
         args: ["-c", "while true; do sleep 30; done;"]
         securityContext:
           privileged: true
+        env:
+          # ldpreload-related env vars
+          - name: VCL_APP_SCOPE_GLOBAL
+            value: ""

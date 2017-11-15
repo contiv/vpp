@@ -59,7 +59,8 @@ Get Machine Status
     Run Keyword If           "${machine}"=="${VM_SSH_ALIAS_PREFIX}1"      Execute On Machine    ${machine}    kubectl get pods
 
 Create Connections To Kube Cluster
-    :FOR    ${index}    IN RANGE    1    ${KUBE_CLUSTER_${CLUSTER_ID}_NODES}+1
+    [Documentation]    Create connection and log machine status for each node. Leave active connection pointing to the first node (master).
+    :FOR    ${index}    IN RANGE    ${KUBE_CLUSTER_${CLUSTER_ID}_NODES}    0    -1
     \    Open SSH Connection    ${VM_SSH_ALIAS_PREFIX}${index}    ${KUBE_CLUSTER_${CLUSTER_ID}_VM_${index}_PUBLIC_IP}    ${KUBE_CLUSTER_${CLUSTER_ID}_VM_${index}_USER}    ${KUBE_CLUSTER_${CLUSTER_ID}_VM_${index}_PSWD}
     \    Get Machine Status    ${VM_SSH_ALIAS_PREFIX}${index}
 

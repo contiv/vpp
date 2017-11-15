@@ -307,7 +307,7 @@ func (art *RendererTxn) Render(pod podmodel.ID, podIP *net.IPNet, ingress []*ren
 			sessionRule.ActionIndex = cache.RuleActionDeny
 		}
 		// Application namespace index
-		sessionRule.AppnsIndex = nsIndex /* probably irrelevant here */
+		sessionRule.AppnsIndex = 0
 		// Scope
 		sessionRule.Scope = cache.RuleScopeGlobal
 		// Tag

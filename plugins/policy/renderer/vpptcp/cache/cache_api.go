@@ -160,3 +160,9 @@ func (sr *SessionRule) String() string {
 		sr.AppnsIndex, scope, action, lcl.String(), l4Proto, sr.LclPort, rmt.String(), l4Proto,
 		sr.RmtPort, tag)
 }
+
+// Session rules have a total order defined on them.
+// Compare returns -1, 0, 1 if this<sr2, this==sr2, this>sr2 respectively.
+func (sr *SessionRule) Compare(sr2 *SessionRule) int {
+	return compareSessionRules(sr, sr2)
+}

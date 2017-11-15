@@ -52,11 +52,17 @@ type NamespaceConfig struct {
 }
 
 // NewSessionRuleList is a constructor for SessionRuleList.
-func NewSessionRuleList(capacity int) SessionRuleList {
+func NewSessionRuleList(capacity int, rules ...*SessionRule) SessionRuleList {
+	var list SessionRuleList
 	if capacity > 0 {
-		return make(SessionRuleList, 0, capacity)
+		list = make(SessionRuleList, len(rules), capacity)
+	} else {
+		list = make(SessionRuleList, len(rules))
 	}
-	return make(SessionRuleList, 0)
+	for _, rule := range rules {
+		list.Insert(rule)
+	}
+	return list
 }
 
 // Init initializes the SessionRule Cache.
@@ -174,7 +180,7 @@ func (srct *SessionRuleCacheTxn) Commit() {
 func (srl SessionRuleList) lookupIdxByRule(rule *SessionRule) int {
 	return sort.Search(len(srl),
 		func(i int) bool {
-			return compareSessionRules(rule, srl[i]) <= 0
+			return rule.Compare(srl[i]) <= 0
 		})
 }
 
@@ -192,7 +198,7 @@ func (srl SessionRuleList) insert(rule *SessionRule) SessionRuleList {
 	// Insert the rule at the right index to keep the order
 	idx := srl.lookupIdxByRule(rule)
 	if idx < len(srl) &&
-		compareSessionRules(rule, srl[idx]) == 0 {
+		rule.Compare(srl[idx]) == 0 {
 		/* already added */
 		return newSrl
 	}
@@ -215,7 +221,7 @@ func (srl SessionRuleList) Diff(srl2 SessionRuleList) (added, removed []*Session
 	for idx1 < len(srl) && idx2 < len(srl2) {
 		if idx1 < len(srl) {
 			if idx2 < len(srl2) {
-				order := compareSessionRules(srl[idx1], srl[idx2])
+				order := srl[idx1].Compare(srl[idx2])
 				switch order {
 				case 0:
 					idx1++
@@ -294,5 +300,9 @@ func compareSessionRules(a, b *SessionRule) int {
 	if lclPortOrder != 0 {
 		return lclPortOrder
 	}
-	return compareInts(int(a.RmtPort), int(b.RmtPort))
+	rmtPortOrder := compareInts(int(a.RmtPort), int(b.RmtPort))
+	if rmtPortOrder != 0 {
+		return rmtPortOrder
+	}
+	return bytes.Compare(a.Tag, b.Tag)
 }

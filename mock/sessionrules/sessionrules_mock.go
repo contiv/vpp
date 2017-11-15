@@ -29,11 +29,13 @@ type MockSessionRules struct {
 	errCount    int
 }
 
+// LocalTableCheck allows to check the content of a local table.
 type LocalTableCheck struct {
 	nsIndex uint32
 	session *MockSessionRules
 }
 
+// LocalTableCheck allows to check the content of the global table.
 type GlobalTableCheck struct {
 	session *MockSessionRules
 }
@@ -55,6 +57,7 @@ func NewMockSessionRules(log logging.Logger, tag string) *MockSessionRules {
 	return mock
 }
 
+// NewVPPChan creates a new mock VPP channel.
 func (msr *MockSessionRules) NewVPPChan() *govppapi.Channel {
 	conn, err := govpp.Connect(msr.vppMock)
 	if err != nil {
@@ -64,18 +67,22 @@ func (msr *MockSessionRules) NewVPPChan() *govppapi.Channel {
 	return c
 }
 
+// GetErrCount returns the number of errors that have occured so far.
 func (msr *MockSessionRules) GetErrCount() int {
 	return msr.errCount
 }
 
+// LocalTable allows to access checks for a local table.
 func (msr *MockSessionRules) LocalTable(nsIndex uint32) *LocalTableCheck {
 	return &LocalTableCheck{nsIndex: nsIndex, session: msr}
 }
 
+// GlobalTable allows to access checks for the global table.
 func (msr *MockSessionRules) GlobalTable() *GlobalTableCheck {
 	return &GlobalTableCheck{session: msr}
 }
 
+// NumOfRules returns the number of rules in the table.
 func (ltc *LocalTableCheck) NumOfRules() int {
 	table, exists := ltc.session.localTable[ltc.nsIndex]
 	if !exists {
@@ -84,10 +91,12 @@ func (ltc *LocalTableCheck) NumOfRules() int {
 	return len(table)
 }
 
+// NumOfRules returns the number of rules in the table.
 func (gtc *GlobalTableCheck) NumOfRules() int {
 	return len(gtc.session.globalTable)
 }
 
+// HasRule returns <true> if the given rule is present in the table.
 func (ltc *LocalTableCheck) HasRule(lclIP string, lclPort uint16, rmtIP string, rmtPort uint16, proto string, action string) bool {
 	table, exists := ltc.session.localTable[ltc.nsIndex]
 	if !exists {
@@ -96,10 +105,12 @@ func (ltc *LocalTableCheck) HasRule(lclIP string, lclPort uint16, rmtIP string, 
 	return ltc.session.hasRule(table, cache.RuleScopeLocal, ltc.nsIndex, lclIP, lclPort, rmtIP, rmtPort, proto, action)
 }
 
+// HasRule returns <true> if the given rule is present in the table.
 func (gtc *GlobalTableCheck) HasRule(lclIP string, lclPort uint16, rmtIP string, rmtPort uint16, proto string, action string) bool {
 	return gtc.session.hasRule(gtc.session.globalTable, cache.RuleScopeGlobal, 0, lclIP, lclPort, rmtIP, rmtPort, proto, action)
 }
 
+// hasRule returns <true> if the given rule is present in the given table.
 func (msr *MockSessionRules) hasRule(table SessionRules, scope uint8, nsIndex uint32,
 	lclIP string, lclPort uint16, rmtIP string, rmtPort uint16, proto string, action string) bool {
 
@@ -184,6 +195,7 @@ func (msr *MockSessionRules) hasRule(table SessionRules, scope uint8, nsIndex ui
 	return false
 }
 
+// msgReplyHandler handles binary API request.
 func (msr *MockSessionRules) msgReplyHandler(request govppmock.MessageDTO) (reply []byte, msgID uint16, prepared bool) {
 	reqName, found := msr.vppMock.GetMsgNameByID(request.MsgID)
 	if !found {
@@ -275,6 +287,7 @@ func (msr *MockSessionRules) msgReplyHandler(request govppmock.MessageDTO) (repl
 	return reply, 0, false
 }
 
+// addDelRule adds or removes rule to/from a table.
 func addDelRule(table SessionRules, rule *cache.SessionRule, isAdd uint8) (SessionRules, bool) {
 	for idx, rule2 := range table {
 		if rule.Compare(rule2) == 0 {

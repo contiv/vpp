@@ -93,6 +93,7 @@ func (p *Plugin) Init() error {
 			PluginName: p.PluginName,
 		},
 	}
+	p.policyCache.Log.SetLevel(logging.DebugLevel)
 
 	p.configurator = &configurator.PolicyConfigurator{
 		Deps: configurator.Deps{
@@ -100,6 +101,7 @@ func (p *Plugin) Init() error {
 			Cache: p.policyCache,
 		},
 	}
+	p.configurator.Log.SetLevel(logging.DebugLevel)
 
 	p.processor = &processor.PolicyProcessor{
 		Deps: processor.Deps{
@@ -109,6 +111,7 @@ func (p *Plugin) Init() error {
 			Configurator: p.configurator,
 		},
 	}
+	p.processor.Log.SetLevel(logging.DebugLevel)
 
 	p.aclRenderer = &acl.Renderer{
 		Deps: acl.Deps{
@@ -123,6 +126,7 @@ func (p *Plugin) Init() error {
 			},
 		},
 	}
+	p.aclRenderer.Log.SetLevel(logging.DebugLevel)
 
 	goVppCh, err := p.GoVPP.NewAPIChannel()
 	if err != nil {
@@ -136,6 +140,7 @@ func (p *Plugin) Init() error {
 			GoVPPChan:  goVppCh,
 		},
 	}
+	p.vppTCPRenderer.Log.SetLevel(logging.DebugLevel)
 
 	// Initialize layers.
 	p.policyCache.Init()

@@ -138,6 +138,10 @@ func (srct *SessionRuleCacheTxn) Changes() (added, removed []*SessionRule, err e
 		if err != nil {
 			return nil, nil, err
 		}
+		srct.cache.Log.WithFields(logging.Fields{
+			"currentRules": currentRules,
+			"newRules":     newRules,
+		}).Debug("RESYNC rules Diff")
 		// Compare.
 		added, removed = newRules.Diff(currentRules)
 	} else {
@@ -220,7 +224,7 @@ func (srl SessionRuleList) Diff(srl2 SessionRuleList) (added, removed []*Session
 	for idx1 < len(srl) && idx2 < len(srl2) {
 		if idx1 < len(srl) {
 			if idx2 < len(srl2) {
-				order := srl[idx1].Compare(srl[idx2])
+				order := srl[idx1].Compare(srl2[idx2])
 				switch order {
 				case 0:
 					idx1++

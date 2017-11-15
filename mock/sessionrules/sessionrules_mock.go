@@ -28,6 +28,7 @@ type MockSessionRules struct {
 	localTable  map[uint32]SessionRules // namespace index -> rules
 	globalTable SessionRules
 	errCount    int
+	reqCount    int
 }
 
 // LocalTableCheck allows to check the content of a local table.
@@ -45,6 +46,8 @@ type GlobalTableCheck struct {
 type SessionRules []*cache.SessionRule
 
 // NewMockSessionRules is a constructor for MockSessionRules.
+// Create only one in the entire test suite.
+// Clear state between tests using the Clear() method.
 func NewMockSessionRules(log logging.Logger, tag string) *MockSessionRules {
 	var err error
 	mock := &MockSessionRules{
@@ -56,6 +59,10 @@ func NewMockSessionRules(log logging.Logger, tag string) *MockSessionRules {
 	}
 	mock.vppMock.RegisterBinAPITypes(session.Types)
 	mock.vppMock.MockReplyHandler(mock.msgReplyHandler)
+	mock.vppMock.GetMsgID("session_rules_dump", "")
+	mock.vppMock.GetMsgID("session_rules_details", "")
+	mock.vppMock.GetMsgID("session_rule_add_del", "")
+	mock.vppMock.GetMsgID("session_rule_add_del_reply", "")
 	mock.vppConn, err = govpp.Connect(mock.vppMock)
 	if err != nil {
 		return nil
@@ -63,9 +70,12 @@ func NewMockSessionRules(log logging.Logger, tag string) *MockSessionRules {
 	return mock
 }
 
-// Close closes the VPP connection.
-func (msr *MockSessionRules) Close() {
-	msr.vppConn.Disconnect()
+// Clear clears the state of the mocked session.
+func (msr *MockSessionRules) Clear() {
+	msr.localTable = make(map[uint32]SessionRules)
+	msr.globalTable = SessionRules{}
+	msr.errCount = 0
+	msr.reqCount = 0
 }
 
 // NewVPPChan creates a new mock VPP channel.
@@ -77,6 +87,11 @@ func (msr *MockSessionRules) NewVPPChan() *govppapi.Channel {
 // GetErrCount returns the number of errors that have occured so far.
 func (msr *MockSessionRules) GetErrCount() int {
 	return msr.errCount
+}
+
+// GetReqCount returns the number of requests that have been received so far.
+func (msr *MockSessionRules) GetReqCount() int {
+	return msr.reqCount
 }
 
 // LocalTable allows to access checks for a local table.
@@ -214,6 +229,7 @@ func (msr *MockSessionRules) hasRule(table SessionRules, scope uint8, nsIndex ui
 
 // msgReplyHandler handles binary API request.
 func (msr *MockSessionRules) msgReplyHandler(request govppmock.MessageDTO) (reply []byte, msgID uint16, prepared bool) {
+	msr.reqCount++
 	reqName, found := msr.vppMock.GetMsgNameByID(request.MsgID)
 	if !found {
 		msr.errCount++
@@ -223,6 +239,7 @@ func (msr *MockSessionRules) msgReplyHandler(request govppmock.MessageDTO) (repl
 	msr.Log.Debug("MockSessionRules msgReplyHandler ", request.MsgID, " ", reqName)
 
 	if reqName == "session_rules_dump" {
+		// Session dump.
 		for _, localTable := range msr.localTable {
 			for _, rule := range localTable {
 				msr.vppMock.MockReply(makeSessionRuleDetails(rule))
@@ -231,10 +248,27 @@ func (msr *MockSessionRules) msgReplyHandler(request govppmock.MessageDTO) (repl
 		for _, rule := range msr.globalTable {
 			msr.vppMock.MockReply(makeSessionRuleDetails(rule))
 		}
-		msr.vppMock.MockReply(&vpe.ControlPingReply{})
-		return reply, 0, false
+
+	} else if reqName == "control_ping" {
+		// Control ping.
+		msgID, err := msr.vppMock.GetMsgID("control_ping_reply", "")
+		if err != nil {
+			msr.errCount++
+			msr.Log.Error(err)
+			return reply, 0, false
+		}
+		replyMsg := &vpe.ControlPingReply{}
+		replyMsg.Retval = 0
+		reply, err := msr.vppMock.ReplyBytes(request, replyMsg)
+		if err != nil {
+			msr.errCount++
+			msr.Log.Error(err)
+			return reply, 0, false
+		}
+		return reply, msgID, true
 
 	} else if reqName == "session_rule_add_del" {
+		// Session rule add/del.
 		var retval int32
 
 		// Decode rule.

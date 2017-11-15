@@ -18,7 +18,7 @@ set -e
 
 # default values for build args and VPP commit ID
 export DOCKER_BUILD_ARGS=""
-export VPP_COMMIT_ID=""
+export VPP_COMMIT_ID="10e7a9f8d8c8572be16f9b3f0395da6f8eff22ec"
 
 # override defaults from arguments
 while [ "$1" != "" ]; do

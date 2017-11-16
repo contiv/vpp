@@ -143,8 +143,9 @@ func (s *remoteCNIserver) configureVswitchConnectivity() error {
 		// find physical NIC name
 		nicName := ""
 		config := s.specificConfigForCurrentNode()
-		if config != nil {
+		if config != nil && strings.Trim(config.VppInterfaceName, " ") != "" {
 			nicName = config.VppInterfaceName
+			s.Logger.Debugf("Physical NIC name taken from config: %v ", nicName)
 		} else { //if not configured for this node -> use heuristic
 			for _, name := range s.swIfIndex.GetMapping().ListNames() {
 				if strings.HasPrefix(name, "local") || strings.HasPrefix(name, "loop") ||
@@ -155,6 +156,7 @@ func (s *remoteCNIserver) configureVswitchConnectivity() error {
 					break
 				}
 			}
+			s.Logger.Debugf("Physical NIC not taken from config, but heuristic was used: %v ", nicName)
 		}
 		if nicName != "" {
 			// configure the physical NIC and static routes to other hosts

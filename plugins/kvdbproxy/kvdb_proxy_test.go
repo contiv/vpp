@@ -15,12 +15,13 @@
 package kvdbproxy
 
 import (
+	"testing"
+	"time"
+
 	"github.com/ligato/cn-infra/datasync"
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/logging/logrus"
 	"github.com/onsi/gomega"
-	"testing"
-	"time"
 )
 
 func TestWatch(t *testing.T) {

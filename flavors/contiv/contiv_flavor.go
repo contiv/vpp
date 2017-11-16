@@ -151,6 +151,7 @@ func (f *FlavorContiv) Inject() bool {
 	f.Policy.Deps.Watcher = &f.KsrETCDDataSync
 	f.Policy.Deps.Contiv = &f.Contiv
 	f.Policy.Deps.GoVPP = &f.GoVPP
+	f.Policy.Deps.VPP = &f.VPP
 
 	f.ResyncOrch.PluginLogDeps = *f.LogDeps("resync-orch")
 

@@ -15,11 +15,12 @@
 package kvdbproxy
 
 import (
+	"sync"
+
 	"github.com/golang/protobuf/proto"
 	"github.com/ligato/cn-infra/datasync"
 	"github.com/ligato/cn-infra/flavors/local"
 	"github.com/ligato/cn-infra/utils/safeclose"
-	"sync"
 )
 
 // Plugin implements proxy for a kvdbsync with ability to skip selected change events.

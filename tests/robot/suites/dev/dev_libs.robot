@@ -1,25 +1,17 @@
 *** Settings ***
-Resource     ../../variables/${VARIABLES}_variables.robot
-Resource     ../../libraries/all_libs.robot
-
-Suite Setup       Testsuite Setup
-Suite Teardown    Testsuite Teardown
+Resource          ${CURDIR}/../../libraries/setup-teardown.robot
+Resource          ${CURDIR}/../../libraries/SshCommons.robot
+Resource          ${CURDIR}/../../variables/${VARIABLES}_variables.robot
+Suite Setup       setup-teardown.Testsuite_Setup
+Suite Teardown    setup-teardown.Testsuite_Teardown
 
 *** Variables ***
-${VARIABLES}=          common
-${ENV}=                common
+${VARIABLES}      common
+${ENV}            common
 
 *** Test Cases ***
-Do ls on vm1
-    Execute On Machine    vm_1    ls
+Do_ls_on_vm1
+    SshCommons.Switch_And_Execute_Command    vm_1    ls
 
-Do ls on vm2
-    Write To Machine    vm_2    ls
-
-*** Keywords ***
-TestSetup
-    Make Datastore Snapshots    ${TEST_NAME}_test_setup
-
-TestTeardown
-    Make Datastore Snapshots    ${TEST_NAME}_test_teardown
-
+Do_ls_on_vm2
+    SshCommons.Switch_And_Execute_Command    vm_2    ls

@@ -16,14 +16,16 @@ package defaultplugins
 
 import (
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/aclplugin/model/acl"
+	"github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/model/bfd"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/model/interfaces"
+	"github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/model/stn"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/l2plugin/model/l2"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/l3plugin/model/l3"
-	"github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/model/bfd"
+	"github.com/ligato/vpp-agent/plugins/defaultplugins/l4plugin/model/l4"
 	"net"
 )
 
-// DataChangeDSL defines the Domain Specific Language (DSL) for data change
+// DataChangeDSL defines Domain Specific Language (DSL) for data change.
 // of the VPP configuration.
 // Use this interface to make your implementation independent of the local
 // and any remote client.
@@ -31,26 +33,24 @@ import (
 // to change the scope of DSL), allowing the calls to be chained together
 // conveniently in a single statement.
 type DataChangeDSL interface {
-	// Put initiates a chained sequence of data change DSL statements declaring
-	// new or changing existing configurable objects, e.g:
+	// Put initiates a chained sequence of data change DSL statements, declaring
+	// new or changing existing configurable objects, e.g.:
 	//     Put().Interface(&memif).XConnect(&xconnect).BD(&BD) ... Send()
-	// The set of available objects to create or change is defined by PutDSL
-	// interface which the returned object implements.
+	// The set of available objects to be created or changed is defined by PutDSL.
 	Put() PutDSL
 
-	// Delete initiates a chained sequence of data change DSL statements
-	// removing existing configurable objects (by name), e.g:
+	// Delete initiates a chained sequence of data change DSL statements,
+	// removing existing configurable objects (by name), e.g.:
 	//     Delete().Interface(memifName).XConnect(xconnectName).BD(BDName) ... Send()
-	// The set of available objects to remove is defined by DeleteDSL
-	// interface which the returned object implements.
+	// The set of available objects to be removed is defined by DeleteDSL.
 	Delete() DeleteDSL
 
 	// Send propagates requested changes to the plugins.
 	Send() Reply
 }
 
-// PutDSL is a subset of data change DSL statements used to declare new
-// or change existing VPP configuration.
+// PutDSL is a subset of data change DSL statements, used to declare new
+// VPP configuration or to change an existing one.
 type PutDSL interface {
 	// Interface adds a request to create or update VPP network interface.
 	Interface(val *interfaces.Interfaces_Interface) PutDSL
@@ -73,6 +73,14 @@ type PutDSL interface {
 	StaticRoute(val *l3.StaticRoutes_Route) PutDSL
 	// ACL adds a request to create or update VPP Access Control List.
 	ACL(acl *acl.AccessLists_Acl) PutDSL
+	// Arp adds a request to create or update VPP L3 ARP.
+	Arp(arp *l3.ArpTable_ArpTableEntry) PutDSL
+	// L4Features adds a request to enable or disable L4 features
+	L4Features(val *l4.L4Features) PutDSL
+	// AppNamespace adds a request to create or update VPP Application namespace
+	AppNamespace(appNs *l4.AppNamespaces_AppNamespace) PutDSL
+	// StnRules adds a request to create or update Stn rule to the RESYNC request.
+	StnRules(stn *stn.StnRule) PutDSL
 
 	// Delete changes the DSL mode to allow removal of an existing configuration.
 	// See documentation for DataChangeDSL.Delete().
@@ -82,8 +90,8 @@ type PutDSL interface {
 	Send() Reply
 }
 
-// DeleteDSL is a subset of data change DSL statements used to remove
-// existing VPP configuration.
+// DeleteDSL is a subset of data change DSL statements, used to remove
+// an existing VPP configuration.
 type DeleteDSL interface {
 	// Interface adds a request to delete an existing VPP network interface.
 	Interface(ifaceName string) DeleteDSL
@@ -92,7 +100,7 @@ type DeleteDSL interface {
 	BfdSession(bfdSessionIfaceName string) DeleteDSL
 	// BfdAuthKeys adds a request to delete an existing bidirectional forwarding
 	// detection key.
-	BfdAuthKeys(bfdKeyName string) DeleteDSL
+	BfdAuthKeys(bfdKey uint32) DeleteDSL
 	// BfdEchoFunction adds a request to delete an existing bidirectional
 	// forwarding detection echo function.
 	BfdEchoFunction(bfdEchoName string) DeleteDSL
@@ -107,6 +115,15 @@ type DeleteDSL interface {
 	StaticRoute(vrf uint32, dstAddr *net.IPNet, nextHopAddr net.IP) DeleteDSL
 	// ACL adds a request to delete an existing VPP Access Control List.
 	ACL(aclName string) DeleteDSL
+	// L4Features adds a request to enable or disable L4 features
+	L4Features() DeleteDSL
+	// AppNamespace adds a request to delete VPP Application namespace
+	// Note: current version does not support application namespace deletion
+	AppNamespace(id string) DeleteDSL
+	// Arp adds a request to delete an existing VPP L3 ARP.
+	Arp(ifaceName string, ipAddr net.IP) DeleteDSL
+	// StnRules adds a request to delete an existing Stn rule to the RESYNC request.
+	StnRules(ruleName string) DeleteDSL
 
 	// Put changes the DSL mode to allow configuration editing.
 	// See documentation for DataChangeDSL.Put().

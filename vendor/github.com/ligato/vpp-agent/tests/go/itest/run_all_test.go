@@ -1,17 +1,17 @@
 package itest
 
 import (
+	"github.com/ligato/vpp-agent/clientv1/defaultplugins/localclient"
+	"github.com/ligato/vpp-agent/tests/go/itest/iftst"
+	"github.com/ligato/vpp-agent/tests/go/itest/testutil"
+	"os"
+	"os/signal"
 	"reflect"
 	"strings"
 	"testing"
-	"github.com/ligato/vpp-agent/tests/go/itest/testutil"
-	"github.com/ligato/vpp-agent/tests/go/itest/iftst"
-	"os"
-	"github.com/ligato/vpp-agent/clientv1/defaultplugins/localclient"
-	"os/signal"
 )
 
-// Test runs all TC methods of multiple test suites in sequence
+// Test runs all TC methods of multiple test suites in a sequence.
 func Test(t *testing.T) {
 	doneChan := make(chan struct{}, 1)
 
@@ -20,13 +20,12 @@ func Test(t *testing.T) {
 			When: testutil.When{
 				WhenIface: iftst.WhenIface{
 					Log:       testutil.NewLogger("WhenIface", t),
-					NewChange: localclient.DataChangeRequest,},
+					NewChange: localclient.DataChangeRequest},
 			},
-			Then:
-			testutil.Then{
+			Then: testutil.Then{
 				ThenIface: iftst.ThenIface{
 					Log:       testutil.NewLogger("ThenIface", t),
-					NewChange: localclient.DataChangeRequest,},
+					NewChange: localclient.DataChangeRequest},
 				/*TODO OperState
 				k := intf.InterfaceKey(data.Name)
 				found, _, err = etcdmux.NewRootBroker().GetValue(servicelabel.GetAgentPrefix()+k, ifState)*/
@@ -51,9 +50,9 @@ func Test(t *testing.T) {
 	}
 }
 
-// RunTestSuite use reflection to run each method prefixed with "TC"
+// RunTestSuite uses reflection to run each method prefixed with "TC".
 func RunTestSuite(testSuite interface{}, t *testing.T, teardowns ...func()) {
-	vppInstanceCounter := 0 //each test uses different ETCD subtree
+	vppInstanceCounter := 0 // Each test uses different ETCD subtree.
 
 	suite := reflect.ValueOf(testSuite)
 

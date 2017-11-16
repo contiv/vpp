@@ -120,7 +120,7 @@ func runSimpleExmple() {
 	}
 
 	respChan := make(chan keyval.BytesWatchResp, 10)
-	err = watcher.Watch(keyval.ToChan(respChan), keyPrefix)
+	err = watcher.Watch(keyval.ToChan(respChan), make(chan string), keyPrefix)
 	if err != nil {
 		log.Error(err.Error())
 	}
@@ -379,11 +379,11 @@ func generateSampleConfigs() {
 	var cfg interface{}
 
 	cfg = redis.NodeConfig{
-		Endpoint: "localhost:6379",
-		DB:       0,
+		Endpoint:               "localhost:6379",
+		DB:                     0,
 		EnableReadQueryOnSlave: false,
-		TLS:          redis.TLS{},
-		ClientConfig: clientConfig,
+		TLS:                    redis.TLS{},
+		ClientConfig:           clientConfig,
 	}
 	config.SaveConfigToYamlFile(cfg, "./node-client.yaml", 0644, makeTypeHeader(cfg))
 

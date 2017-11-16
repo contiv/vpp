@@ -126,8 +126,8 @@ func TestLogBrokerLogs(t *testing.T) {
 
 	wg.Wait()
 
-	// Make sure double Start throws an error
-	require.EqualError(t, broker.Start(ctx), errAlreadyRunning.Error())
+	// Make sure double Run throws an error
+	require.EqualError(t, broker.Run(ctx), errAlreadyRunning.Error())
 	// Stop should work
 	require.NoError(t, broker.Stop())
 	// Double stopping should fail
@@ -402,14 +402,18 @@ func TestLogBrokerNoFollow(t *testing.T) {
 			return err
 		}
 
-		return store.CreateTask(tx, &api.Task{
+		if err := store.CreateTask(tx, &api.Task{
 			ID:        "task2",
 			ServiceID: "service",
 			Status: api.TaskStatus{
 				State: api.TaskStateRunning,
 			},
 			NodeID: agent2Security.ServerTLSCreds.NodeID(),
-		})
+		}); err != nil {
+			return err
+		}
+
+		return nil
 	}))
 
 	// We need to sleep here to give ListenSubscriptions time to call
@@ -520,14 +524,18 @@ func TestLogBrokerNoFollowMissingNode(t *testing.T) {
 			return err
 		}
 
-		return store.CreateTask(tx, &api.Task{
+		if err := store.CreateTask(tx, &api.Task{
 			ID:        "task2",
 			ServiceID: "service",
 			NodeID:    "node-2",
 			Status: api.TaskStatus{
 				State: api.TaskStateRunning,
 			},
-		})
+		}); err != nil {
+			return err
+		}
+
+		return nil
 	}))
 
 	// We need to sleep here to give ListenSubscriptions time to call
@@ -647,14 +655,18 @@ func TestLogBrokerNoFollowDisconnect(t *testing.T) {
 			return err
 		}
 
-		return store.CreateTask(tx, &api.Task{
+		if err := store.CreateTask(tx, &api.Task{
 			ID:        "task2",
 			ServiceID: "service",
 			Status: api.TaskStatus{
 				State: api.TaskStateRunning,
 			},
 			NodeID: agent2Security.ServerTLSCreds.NodeID(),
-		})
+		}); err != nil {
+			return err
+		}
+
+		return nil
 	}))
 
 	// We need to sleep here to give ListenSubscriptions time to call
@@ -768,7 +780,7 @@ func testLogBrokerEnv(t *testing.T) (context.Context, *testutils.TestCA, *LogBro
 		}
 	}()
 
-	require.NoError(t, broker.Start(ctx))
+	go broker.Run(ctx)
 
 	return ctx, tca, broker, logListener.Addr().String(), brokerListener.Addr().String(), func() {
 		broker.Stop()

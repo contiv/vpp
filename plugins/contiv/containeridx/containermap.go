@@ -21,7 +21,7 @@ import (
 	"github.com/ligato/cn-infra/logging"
 	vpp_intf "github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/model/interfaces"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/l3plugin/model/l3"
-	linux_intf "github.com/ligato/vpp-agent/plugins/linuxplugin/model/interfaces"
+	linux_intf "github.com/ligato/vpp-agent/plugins/linuxplugin/ifplugin/model/interfaces"
 )
 
 const podNameKey = "podNameKey"
@@ -59,14 +59,14 @@ func (ci *ConfigIndex) RegisterContainer(containerID string, data *Config) {
 }
 
 // UnregisterContainer removes the entry from the mapping
-func (ci *ConfigIndex) UnregisterContainer(containerID string) (found bool, data *Config) {
+func (ci *ConfigIndex) UnregisterContainer(containerID string) (data *Config, found bool) {
 	d, found := ci.mapping.Delete(containerID)
 	if found {
 		if data, ok := d.(*Config); ok {
-			return found, data
+			return data, found
 		}
 	}
-	return false, nil
+	return nil, false
 }
 
 // LookupContainer looks up entry in the container based on containerID.

@@ -66,12 +66,12 @@ func newIDAllocator(etcd *etcdv3.Plugin, serviceLabel string) *idAllocator {
 }
 
 // getID returns unique number for the given node
-func (ia *idAllocator) getID() (id uint32, err error) {
+func (ia *idAllocator) getID() (id uint8, err error) {
 	ia.Lock()
 	defer ia.Unlock()
 
 	if ia.allocated {
-		return ia.ID, nil
+		return uint8(ia.ID), nil
 	}
 
 	// check if there is already assign ID for the serviceLabel
@@ -83,7 +83,7 @@ func (ia *idAllocator) getID() (id uint32, err error) {
 	if existingEntry != nil {
 		ia.allocated = true
 		ia.ID = existingEntry.Id
-		return ia.ID, nil
+		return uint8(ia.ID), nil
 	}
 
 	attempts := 0
@@ -112,7 +112,7 @@ func (ia *idAllocator) getID() (id uint32, err error) {
 
 	}
 
-	return ia.ID, nil
+	return uint8(ia.ID), nil
 }
 
 // releaseID returns allocated ID back to the pool

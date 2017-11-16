@@ -18,7 +18,6 @@ package main
 
 import (
 	"os"
-	"time"
 
 	"github.com/ligato/cn-infra/core"
 	"github.com/ligato/cn-infra/logging"
@@ -26,16 +25,16 @@ import (
 	vpp_flavor "github.com/ligato/vpp-agent/flavors/vpp"
 )
 
-// main is the main entry point into the VPP Agent. First, a new CN-Infra
-// Agent (app) is created using the set of plugins defined in vpp_flavor
-// (../../flavors/vpp). Second, the function calls EventLoopWithInterrupt()
+// main is the main entry point into the VPP Agent. Firstly, a new CN-Infra
+// Agent (app) is created, using the set of plugins defined in vpp_flavor
+// (../../flavors/vpp). Secondly, the function calls EventLoopWithInterrupt()
 // which initializes and starts all plugins and then waits for the user
 // to terminate the VPP Agent process with SIGINT. All VPP Agent's work between
 // the initialization and termination is performed by the plugins.
 func main() {
 
 	f := vpp_flavor.Flavor{}
-	agent := core.NewAgent(log.DefaultLogger(), 15*time.Second, f.Plugins()...)
+	agent := core.NewAgent(&f)
 
 	err := core.EventLoopWithInterrupt(agent, nil)
 	if err != nil {

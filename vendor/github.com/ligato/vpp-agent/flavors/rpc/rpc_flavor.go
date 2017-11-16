@@ -21,22 +21,41 @@ import (
 
 	"github.com/ligato/cn-infra/datasync"
 	local_sync "github.com/ligato/cn-infra/datasync/kvdbsync/local"
+	"github.com/ligato/cn-infra/flavors/rpc"
 	"github.com/ligato/vpp-agent/clientv1/linux/localclient"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins"
 	"github.com/ligato/vpp-agent/plugins/govppmux"
 	"github.com/ligato/vpp-agent/plugins/linuxplugin"
-	"github.com/ligato/cn-infra/flavors/rpc"
 )
 
 // checkImplemensPlugin is used to let compiler check if
 // a particular plugin implements go interface core.Plugin
 // (see following Inject() method).
-// It technique is done because following method Plugins()
+// This construct is used because the following method Plugins()
 // uses reflection rather than enumerating all field again.
 var checkImplemensPlugin core.Plugin
 
-// FlavorVppRPC glues together multiple plugins to mange VPP and linux interfaces configuration using 
-// GRPC service
+// NewAgent returns a new instance of the Agent with plugins.
+// It is an alias for core.NewAgent() to implicit use of the FlavorVppLocal
+func NewAgent(opts ...core.Option) *core.Agent {
+	return core.NewAgent(&FlavorVppRPC{}, opts...)
+}
+
+// WithPlugins for adding custom plugins to SFC Controller
+// <listPlugins> is a callback that uses flavor input to
+// inject dependencies for custom plugins that are in output
+//
+// Example:
+//
+//    NewAgent(vppFlavor.WithPlugins(func(flavor) {
+// 	       return []*core.NamedPlugin{{"my-plugin", &MyPlugin{DependencyXY: &flavor.FlavorXY}}}
+//    }))
+func WithPlugins(listPlugins func(local *FlavorVppRPC) []*core.NamedPlugin) core.WithPluginsOpt {
+	return &withPluginsOpt{listPlugins}
+}
+
+// FlavorVppRPC glues together multiple plugins to mange VPP and linux interfaces configuration using
+// GRPC service.
 type FlavorVppRPC struct {
 	*local.FlavorLocal
 	*rpc.FlavorRPC
@@ -50,7 +69,7 @@ type FlavorVppRPC struct {
 	injected bool
 }
 
-// Inject sets object references
+// Inject sets object references.
 func (f *FlavorVppRPC) Inject() bool {
 	if f.injected {
 		return false
@@ -67,10 +86,10 @@ func (f *FlavorVppRPC) Inject() bool {
 	f.FlavorRPC.Inject()
 
 	f.GoVPP.Deps.PluginInfraDeps = *f.FlavorLocal.InfraDeps("govpp")
-	f.Linux.Deps.PluginInfraDeps = *f.FlavorLocal.InfraDeps("linuxplugin")
+	f.Linux.Deps.PluginInfraDeps = *f.FlavorLocal.InfraDeps("linuxplugin", local.WithConf())
 	f.Linux.Watcher = &datasync.CompositeKVProtoWatcher{Adapters: []datasync.KeyValProtoWatcher{local_sync.Get()}}
 	f.VPP.Watch = &datasync.CompositeKVProtoWatcher{Adapters: []datasync.KeyValProtoWatcher{local_sync.Get()}}
-	f.VPP.Deps.PluginInfraDeps = *f.FlavorLocal.InfraDeps("default-plugins")
+	f.VPP.Deps.PluginInfraDeps = *f.FlavorLocal.InfraDeps("default-plugins", local.WithConf())
 	f.VPP.Deps.Linux = &f.Linux
 	f.VPP.Deps.GoVppmux = &f.GoVPP
 
@@ -81,8 +100,30 @@ func (f *FlavorVppRPC) Inject() bool {
 	return true
 }
 
-// Plugins combines Generic Plugins and Standard VPP Plugins
+// Plugins combine Generic Plugins and Standard VPP Plugins.
 func (f *FlavorVppRPC) Plugins() []*core.NamedPlugin {
 	f.Inject()
 	return core.ListPluginsInFlavor(f)
+}
+
+// withPluginsOpt is return value of vppLocal.WithPlugins() utility
+// to easily define new plugins for the agent based on FlavorVppRPC.
+type withPluginsOpt struct {
+	callback func(local *FlavorVppRPC) []*core.NamedPlugin
+}
+
+// OptionMarkerCore marks that the implementation implements this interface.
+func (opt *withPluginsOpt) OptionMarkerCore() {}
+
+// Plugins methods is here to implement core.WithPluginsOpt go interface
+// <flavor> is a callback that uses flavor input for dependency injection
+// for custom plugins (returned as NamedPlugin)
+func (opt *withPluginsOpt) Plugins(flavors ...core.Flavor) []*core.NamedPlugin {
+	for _, flavor := range flavors {
+		if f, ok := flavor.(*FlavorVppRPC); ok {
+			return opt.callback(f)
+		}
+	}
+
+	panic("wrong usage of vppRpc.WithPlugin() for other than FlavorVppRPC")
 }

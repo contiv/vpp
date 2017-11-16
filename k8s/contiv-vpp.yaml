@@ -82,6 +82,22 @@ data:
 
 ---
 
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: contiv-agent-plugin-cfg
+  namespace: kube-system
+data:
+  contiv.yaml: |
+    IPAMConfig:
+      PodSubnetCIDR: "10.1.0.0/16"
+      PodNetworkPrefixLen: 24
+      VSwitchSubnetCIDR: "172.30.0.0/16"
+      VSwitchNetworkPrefixLen: 24
+      HostNodeSubnetCidr: "192.168.16.0/24"
+
+---
+
 # This installs contiv-vswitch on each master and worker node in a Kubernetes cluster.
 # It consists of the following containers:
 #   - contiv-vswitch container: contains VPP and its management agent
@@ -124,17 +140,21 @@ spec:
         - /bin/sh
         args:
         - -c
-        - "cp -r $LD_PRELOAD_LIB_DIR/* /vpp-lib64/ &&
-          if [ ! -e /host/etc/vpp/contiv-vswitch.conf ]; then cp /etc/vpp/contiv-vswitch.conf /host/etc/vpp; fi"
+        - "rm -rf /dev/shm/db /dev/shm/global_vm /dev/shm/vpe-api || true && \
+           rm -rf /vpp-lib64/* || true && \
+           cp -r $LD_PRELOAD_LIB_DIR/* /vpp-lib64/ && \
+           if [ ! -e /host/etc/vpp/contiv-vswitch.conf ]; then cp /etc/vpp/contiv-vswitch.conf /host/etc/vpp; fi"
         imagePullPolicy: IfNotPresent
         resources: {}
         securityContext:
           privileged: true
         volumeMounts:
-          - mountPath: /vpp-lib64/
-            name: vpp-lib64
-          - mountPath: /host/etc/vpp
-            name: vpp-cfg
+          - name: vpp-lib64
+            mountPath: /vpp-lib64/
+          - name: vpp-cfg
+            mountPath: /host/etc/vpp
+          - name: shm
+            mountPath: /dev/shm
 
       containers:
         # Runs contiv-vswitch container on each Kubernetes node.
@@ -149,17 +169,22 @@ spec:
             - containerPort: 5002
             # readiness + liveness probe
             - containerPort: 9191
-          readinessProbe:
-            httpGet:
-              path: /readiness
-              port: 9191
-            periodSeconds: 1
-          livenessProbe:
-            httpGet:
-              path: /liveness
-              port: 9191
-            periodSeconds: 1
-            initialDelaySeconds: 15
+          # to be uncomented if env vpp has enough (cpu) resources
+          # while testing it keep restarting due to 
+          #  Warning  Unhealthy ... Liveness probe failed: HTTP probe failed with statuscode: 500
+          # TODO: increase tolerance
+         # readinessProbe:
+         #   httpGet:
+         #     path: /readiness
+         #     port: 9191
+         #   periodSeconds: 1
+         #   initialDelaySeconds: 10
+         # livenessProbe:
+         #   httpGet:
+         #     path: /liveness
+         #     port: 9191
+         #   periodSeconds: 1
+         #   initialDelaySeconds: 60
           env:
             - name: MICROSERVICE_LABEL
               valueFrom:
@@ -176,6 +201,8 @@ spec:
               mountPath: /dev/shm
             - name: dev
               mountPath: /dev
+            - name: agent-plugin-cfg
+              mountPath: /etc/agent
 
         # This container installs the Contiv CNI binaries
         # and CNI network config file on each node.
@@ -215,6 +242,10 @@ spec:
         - name: shm
           hostPath:
             path: /dev/shm
+        # Used to configure contiv agent plugin.
+        - name: agent-plugin-cfg
+          configMap:
+            name: contiv-agent-plugin-cfg
 
 ---
 

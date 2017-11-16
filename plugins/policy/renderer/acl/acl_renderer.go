@@ -15,15 +15,17 @@
 package acl
 
 import (
+	"net"
+
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/vpp-agent/clientv1/linux"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins"
 	vpp_acl "github.com/ligato/vpp-agent/plugins/defaultplugins/aclplugin/model/acl"
 
-	"net"
-
+	"github.com/contiv/vpp/plugins/contiv"
+	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	"github.com/contiv/vpp/plugins/policy/renderer"
-	"github.com/contiv/vpp/plugins/policy/renderer/cache"
+	"github.com/contiv/vpp/plugins/policy/renderer/acl/cache"
 )
 
 // Renderer renders Contiv Rules into VPP ACLs.
@@ -31,12 +33,15 @@ import (
 // The configuration changes are transported into aclplugin via localclient.
 type Renderer struct {
 	Deps
+
+	cache *cache.ContivRuleCache
 }
 
 // Deps lists dependencies of Renderer.
 type Deps struct {
 	Log           logging.Logger
-	Cache         cache.ContivRuleCacheAPI
+	LogFactory    logging.LogFactory /* optional */
+	Contiv        contiv.API         /* for GetIfName() */
 	VPP           defaultplugins.API /* for DumpACLs() */
 	ACLTxnFactory func() (dsl linux.DataChangeDSL)
 }
@@ -60,6 +65,13 @@ type InterfaceConfig struct {
 
 // Init initializes the ACL Renderer.
 func (r *Renderer) Init() error {
+	r.cache = &cache.ContivRuleCache{}
+	if r.LogFactory != nil {
+		r.cache.Log = r.LogFactory.NewLogger("-aclCache")
+	} else {
+		r.cache.Log = r.Log
+	}
+	r.cache.Init()
 	return nil
 }
 
@@ -71,7 +83,7 @@ func (r *Renderer) Init() error {
 func (r *Renderer) NewTxn(resync bool) renderer.Txn {
 	txn := &RendererTxn{
 		Log:      r.Log,
-		cache:    r.Cache,
+		cache:    r.cache,
 		vpp:      r.VPP,
 		renderer: r,
 		resync:   resync,
@@ -83,12 +95,20 @@ func (r *Renderer) NewTxn(resync bool) renderer.Txn {
 // Render applies the set of ingress & egress rules for a given VPP interface.
 // The existing rules are replaced.
 // Te actual change is performed only after the commit.
-func (art *RendererTxn) Render(ifName string, ingress []*renderer.ContivRule, egress []*renderer.ContivRule) renderer.Txn {
+func (art *RendererTxn) Render(pod podmodel.ID, podIP *net.IPNet, ingress []*renderer.ContivRule, egress []*renderer.ContivRule) renderer.Txn {
 	art.renderer.Log.WithFields(logging.Fields{
-		"ifName":  ifName,
+		"pod":     pod,
 		"ingress": ingress,
 		"egress":  egress,
 	}).Debug("ACL RendererTxn Render()")
+
+	// Get the target interface.
+	ifName, found := art.renderer.Contiv.GetIfName(pod.Namespace, pod.Name)
+	if !found {
+		art.renderer.Log.WithField("pod", pod).Warn("Unable to get the interface assigned to the Pod")
+		return art
+	}
+
 	art.config[ifName] = &InterfaceConfig{ingress: ingress, egress: egress}
 	return art
 }
@@ -171,7 +191,9 @@ func (art *RendererTxn) dumpVppACLConfig() (ingress, egress []*cache.ContivRuleL
 	ingress = []*cache.ContivRuleList{}
 	egress = []*cache.ContivRuleList{}
 
-	aclDump := art.vpp.DumpACLs()
+	// TODO: Use dump from acl-plugin once it is available
+	//aclDump := art.vpp.DumpACLs()
+	aclDump := []*vpp_acl.AccessLists_Acl{} /* assume empty VPP state for now */
 	for _, acl := range aclDump {
 		isIngress := true
 		ruleList := &cache.ContivRuleList{}
@@ -339,6 +361,7 @@ func (art *RendererTxn) renderChanges(putDsl linux.PutDSL, deleteDsl linux.Delet
 
 // renderInterfaces renders ContivRuleList into the equivalent ACL configuration.
 func (art *RendererTxn) renderACL(ruleList *cache.ContivRuleList, ingress bool) *vpp_acl.AccessLists_Acl {
+	const maxPortNum = ^uint16(0)
 	acl := &vpp_acl.AccessLists_Acl{}
 	acl.AclName = ruleList.ID
 	acl.Interfaces = art.renderInterfaces(ruleList.Interfaces, ingress)
@@ -349,7 +372,7 @@ func (art *RendererTxn) renderACL(ruleList *cache.ContivRuleList, ingress bool) 
 		if rule.Action == renderer.ActionDeny {
 			aclRule.Actions.AclAction = vpp_acl.AclAction_DENY
 		} else {
-			aclRule.Actions.AclAction = vpp_acl.AclAction_PERMIT
+			aclRule.Actions.AclAction = vpp_acl.AclAction_REFLECT
 		}
 		aclRule.Matches = &vpp_acl.AccessLists_Acl_Rule_Matches{}
 		aclRule.Matches.IpRule = &vpp_acl.AccessLists_Acl_Rule_Matches_IpRule{}
@@ -364,18 +387,34 @@ func (art *RendererTxn) renderACL(ruleList *cache.ContivRuleList, ingress bool) 
 			aclRule.Matches.IpRule.Tcp = &vpp_acl.AccessLists_Acl_Rule_Matches_IpRule_Tcp{}
 			aclRule.Matches.IpRule.Tcp.SourcePortRange = &vpp_acl.AccessLists_Acl_Rule_Matches_IpRule_Tcp_SourcePortRange{}
 			aclRule.Matches.IpRule.Tcp.SourcePortRange.LowerPort = uint32(rule.SrcPort)
-			aclRule.Matches.IpRule.Tcp.SourcePortRange.UpperPort = uint32(rule.SrcPort)
+			if rule.SrcPort == 0 {
+				aclRule.Matches.IpRule.Tcp.SourcePortRange.UpperPort = uint32(maxPortNum)
+			} else {
+				aclRule.Matches.IpRule.Tcp.SourcePortRange.UpperPort = uint32(rule.SrcPort)
+			}
 			aclRule.Matches.IpRule.Tcp.DestinationPortRange = &vpp_acl.AccessLists_Acl_Rule_Matches_IpRule_Tcp_DestinationPortRange{}
 			aclRule.Matches.IpRule.Tcp.DestinationPortRange.LowerPort = uint32(rule.DestPort)
-			aclRule.Matches.IpRule.Tcp.DestinationPortRange.UpperPort = uint32(rule.DestPort)
+			if rule.DestPort == 0 {
+				aclRule.Matches.IpRule.Tcp.DestinationPortRange.UpperPort = uint32(maxPortNum)
+			} else {
+				aclRule.Matches.IpRule.Tcp.DestinationPortRange.UpperPort = uint32(rule.DestPort)
+			}
 		} else {
 			aclRule.Matches.IpRule.Udp = &vpp_acl.AccessLists_Acl_Rule_Matches_IpRule_Udp{}
 			aclRule.Matches.IpRule.Udp.SourcePortRange = &vpp_acl.AccessLists_Acl_Rule_Matches_IpRule_Udp_SourcePortRange{}
 			aclRule.Matches.IpRule.Udp.SourcePortRange.LowerPort = uint32(rule.SrcPort)
-			aclRule.Matches.IpRule.Udp.SourcePortRange.UpperPort = uint32(rule.SrcPort)
+			if rule.SrcPort == 0 {
+				aclRule.Matches.IpRule.Udp.SourcePortRange.UpperPort = uint32(maxPortNum)
+			} else {
+				aclRule.Matches.IpRule.Udp.SourcePortRange.UpperPort = uint32(rule.SrcPort)
+			}
 			aclRule.Matches.IpRule.Udp.DestinationPortRange = &vpp_acl.AccessLists_Acl_Rule_Matches_IpRule_Udp_DestinationPortRange{}
 			aclRule.Matches.IpRule.Udp.DestinationPortRange.LowerPort = uint32(rule.DestPort)
-			aclRule.Matches.IpRule.Udp.DestinationPortRange.UpperPort = uint32(rule.DestPort)
+			if rule.DestPort == 0 {
+				aclRule.Matches.IpRule.Udp.DestinationPortRange.UpperPort = uint32(maxPortNum)
+			} else {
+				aclRule.Matches.IpRule.Udp.DestinationPortRange.UpperPort = uint32(rule.DestPort)
+			}
 		}
 		acl.Rules = append(acl.Rules, aclRule)
 	}

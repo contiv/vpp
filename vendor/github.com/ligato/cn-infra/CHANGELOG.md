@@ -1,25 +1,76 @@
+# Release v1.0.7 (2013-11-14)
+
+## Agent, Flavors
+Input arguments of `core.NewAgent()` were changed:
+  * it is possible to call NewAgent without options: `core.NewAgent(flavor)`
+  * you can pass options like this: `core.NewAgent(flavor, core.WithTimeout(1* time.Second))`
+  * there is `core.NewAgentDeprecated()` for backward compatibility
+
+This release contains utilities/options to avoid writing the new flavor go structures 
+(Inject, Plugins methods) for simple customizations:
+* if you just expose the RPCs you can write
+  ```
+  rpc.NewAgent(rpc.WithPlugins(func(flavor *rpc.FlavorRPC) []*core.NamedPlugin {
+    return []*core.NamedPlugin{{"myplugin1", &MyPlugin{&flavor.GRPC},
+                               {"myplugin2", &MyPlugin{&flavor.GRPC},}
+  }))
+  ```
+* if you want to use one simple plugin (without any client or a server) you can write:
+  ```
+  flavor := &local.FlavorLocal{}
+  core.NewAgent(core.Inject(flavor), core.WithPlugin("myplugin1", &MyPlugin{Deps: flavor.PluginInfraDeps("myplugin1")}))
+  ```
+* if you want to combine multiple flavors to inject their plugins to new MyPlugin
+  ```
+  loc := &local.FlavorLocal{}
+  rpcs := &rpc.FlavorRPC{FlavorLocal: loc}
+  cons := &connectors.AllConnectorsFlavor{FlavorLocal: loc}
+  core.NewAgent(core.Inject(rpcs, cons), core.WithPlugin("myplugin", &MyPlugin{Deps: Deps{&rpcs.GRPC, &cons.ETCD}}))
+  ```
+
+## ETCD/Datasync
+* GetPrevValue enabled in the proto watcher API. Etcdv3-lib/watcher example was updated to show 
+  the added functionality.
+* Fixed datasync internal state after resync causing that the resynced data were handled as created
+  after first modification.
+* Fixed issue where datasync plugin was stuck on close
+
+## Cassandra
+Added TLS support
+
+# Release v1.0.6 (2017-10-30)
+
+## ETCD/Datasync
+* etcd new feature PutIfNotExists adds key-value pair if the key doesn't exist.
+* feature GetPrevValue() used to obtain previous value from key-value database was returned to API
+* watcher registration object has a new method to close single subscribed key. Key can be un-subscribed in runtime.
+  See example usage in [examples/datasync-plugin](examples/datasync-plugin) for more details  
+
+## Documentation
+* improved documentation/code comments in datasync, config and core packages 
+
 # Release v1.0.5 (2017-10-17)
 
 ## Profiling
-* new [logging/measure](logging/measure) - time measurement utility to measure duration of binary api calls 
-  or linuxplugin netlink during resync. The feature is disabled by default and it can be enabled in 
+* new [logging/measure](logging/measure) - time measurement utility to measure duration of binary api calls
+  or linuxplugin netlink during resync. The feature is disabled by default and it can be enabled in
   defaultplugins.conf and linuxplugin.conf file (see plugin's readme)
 
 ## Kafka
-* proto_connection.go and bytes_connection.go consolidated, bytes_connection.go now mirrors all 
-  the functionality from proto_connection.go. 
+* proto_connection.go and bytes_connection.go consolidated, bytes_connection.go now mirrors all
+  the functionality from proto_connection.go.
   * mux can create two types of connection, standard bytes connection and bytes manual connection.
-    This enables to call only respective methods on them (to use manual partitioning, it is needed to 
+    This enables to call only respective methods on them (to use manual partitioning, it is needed to
     create manual connection, etc.)
   * method ConsumeTopicOnPartition renamed to ConsumeTopic (similar naming as in the proto_connection.go).
-    The rest of the signature is not changed.     
+    The rest of the signature is not changed.
 * post-init watcher enabled in bytes_connection.go api
 * added methods MarkOffset and CommitOffsets to both, proto and bytes connection. Automatic offset marking
   was removed
-* one instance of mux in kafka plugin 
-* new field `group-id` can be added to kafka.conf. This value is used as a Group ID in order to set it 
-  manually. In case the value is not provided, the service label is used instead (just like before). 
-      
+* one instance of mux in kafka plugin
+* new field `group-id` can be added to kafka.conf. This value is used as a Group ID in order to set it
+  manually. In case the value is not provided, the service label is used instead (just like before).
+
 # Release v1.0.4 (2017-9-25)
 
 ## Documentation
@@ -52,17 +103,17 @@
 * kafka.Plugin.Disabled() returned if there is no kafka.conf present
 * Connection in bytes_connection.go renamed to BytesConnection
 * kafka plugin initializes two multiplexers for dynamic mode (automatic partitions) and manual mode.
-  Every multiplexer can create its own connection and provides access to different set of methods 
+  Every multiplexer can create its own connection and provides access to different set of methods
   (publishing to partition, watching on partition/offset)
-* ProtoWatcher from API was changed - methods WatchPartition and StopWatchPartition were removed 
-  from the ProtoWatcher interface and added to newly created ProtoPartitionWatcher. There is also a new 
+* ProtoWatcher from API was changed - methods WatchPartition and StopWatchPartition were removed
+  from the ProtoWatcher interface and added to newly created ProtoPartitionWatcher. There is also a new
   method under Mux interface - NewPartitionWatcher(subscriber) which returns ProtoPartitionWatcher
   instance that allows to call partition-related methods
-* Offset mark is done for hash/default-partitioned messages only. Manually partitioned message's offset 
+* Offset mark is done for hash/default-partitioned messages only. Manually partitioned message's offset
   is not marked.
 * It is possible to start kafka consumer on partition after kafka plugin initialization procedure. New
-  example [post-init-consumer](examples/kafka-plugin/post-init-consumer) was created to show the 
-  functionality     
+  example [post-init-consumer](examples/kafka-plugin/post-init-consumer) was created to show the
+  functionality
 * fixes inside Mux.NewSyncPublisher() & Mux.NewAsyncPublisher() related to previous partition changes
 * Known Issues:
   * More than one network connection to Kafka (multiple instances of MUX)
@@ -74,12 +125,12 @@
 
 # Release v1.0.3 (2017-09-08)
 * [FlavorAllConnectors](flavors/connectors)
-    * Inlined plugins: ETCD, Kafka, Redis, Cassandra 
-* [Kafka Partitions](messaging/kafka) 
+    * Inlined plugins: ETCD, Kafka, Redis, Cassandra
+* [Kafka Partitions](messaging/kafka)
     * Implemented new methods that allow to specify partitions & offset parameters:
       * publish: Mux.NewSyncPublisherToPartition() & Mux.NewAsyncPublisherToPartition()
       * watch: ProtoWatcher.WatchPartition()
-    * Minimalistic examples & documentation for Kafka API will be improved in a later release. 
+    * Minimalistic examples & documentation for Kafka API will be improved in a later release.
 
 # Release v1.0.2 (2017-08-28)
 
@@ -93,24 +144,24 @@ The major themes for Release v1.0.2 are as follows:
     * [Redis](db/keyval/redis)
     * [Kafka](db/)
 * [Data Synchronization](datasync) plugin for watching and writing data asynchronously; it is currently implemented only for the [db/keyval API](db/keyval) API. It facilitates reading of data during startup or after reconnection to a data store and then watching incremental changes.
-* Agent [Core](core) that provides plugin lifecycle management 
+* Agent [Core](core) that provides plugin lifecycle management
 (initialization and graceful shutdown of plugins) is able to run
 different [flavors](flavors) (reusable collection of plugins):
-    * [local flavor](flavors/local) - a minimal collection of plugins: 
-      * [statuscheck](health/statuscheck) 
-      * [servicelabel](servicelabel) 
-      * [resync orch](datasync/restsync) 
+    * [local flavor](flavors/local) - a minimal collection of plugins:
+      * [statuscheck](health/statuscheck)
+      * [servicelabel](servicelabel)
+      * [resync orch](datasync/restsync)
       * [log registry](logging)
     * [RPC flavor](flavors/rpc) - exposes REST API for all plugins, especially for:
       * [statuscheck](health/statuscheck) (RPCs probed from systems such as K8s)
       * [logging](logging/logmanager) (for changing log level at runtime remotely)
-    * connector flavors: 
+    * connector flavors:
       * Cassandra flavor
       * etcdv3 flavor
       * Redis flavor
       * Kafka flavor
 * [Examples](examples)
-* [Docker](docker) container-based development environment 
+* [Docker](docker) container-based development environment
 * Helpers:
   * [IDX Map](idxmap) is a reusable thread-safe in memory data structure.
       This map is designed for sharing key value based data

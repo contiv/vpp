@@ -21,3 +21,11 @@ To tag the images without pushing, execute:
 ```
 ./push-all.sh --skip-upload true
 ```
+
+To tag and push the devel vswitch image, execute:
+```
+./push-all.sh --dev-upload true
+```
+
+To use the development image for testing with specific version of VPP, see
+[DEVIMAGE.md](DEVIMAGE.md).

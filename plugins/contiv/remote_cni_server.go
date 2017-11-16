@@ -20,8 +20,11 @@ import (
 	"sync"
 	"time"
 
+	"fmt"
+
 	"git.fd.io/govpp.git/api"
 	"github.com/contiv/vpp/plugins/contiv/containeridx"
+	"github.com/contiv/vpp/plugins/contiv/ipam"
 	"github.com/contiv/vpp/plugins/contiv/model/cni"
 	"github.com/contiv/vpp/plugins/kvdbproxy"
 	"github.com/gogo/protobuf/proto"
@@ -31,7 +34,7 @@ import (
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/ifaceidx"
 	vpp_intf "github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/model/interfaces"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/l3plugin/model/l3"
-	linux_intf "github.com/ligato/vpp-agent/plugins/linuxplugin/model/interfaces"
+	linux_intf "github.com/ligato/vpp-agent/plugins/linuxplugin/ifplugin/model/interfaces"
 	"golang.org/x/net/context"
 )
 
@@ -48,7 +51,7 @@ type remoteCNIserver struct {
 	hostCalls
 
 	// ipam module used by the CNI server
-	ipam *IPAM
+	ipam *ipam.IPAM
 
 	// counter of connected containers. It is used for generating afpacket names
 	// and assigned ip addresses.
@@ -58,30 +61,27 @@ type remoteCNIserver struct {
 	agentLabel string
 
 	// unique identifier of the node
-	uid uint32
+	uid uint8
 }
 
 const (
 	resultOk             uint32 = 0
 	resultErr            uint32 = 1
 	vethNameMaxLen              = 15
-	podSubnetCIDR               = "10.1.0.0/16"
-	podSubnetPrefix             = "10.1"
-	podNetworkPrefixLen         = 24
 	afPacketNamePrefix          = "afpacket"
 	podNameExtraArg             = "K8S_POD_NAME"
 	podNamespaceExtraArg        = "K8S_POD_NAMESPACE"
-	nicNetworkPerfix            = "192.168.16"
-	hostSubnetCIDR              = "172.30.0.0/16"
-	hostSubnetPrefix            = "172.30"
-	hostSubnetPrefixLen         = 24
 	vethHostEndName             = "vpp1"
 	vethVPPEndName              = "vpp2"
 	afPacketIPPrefix            = "10.2.1"
 )
 
 func newRemoteCNIServer(logger logging.Logger, vppTxnFactory func() linux.DataChangeDSL, proxy kvdbproxy.Proxy,
-	configuredContainers *containeridx.ConfigIndex, govppChan *api.Channel, index ifaceidx.SwIfIndex, agentLabel string, uid uint32) *remoteCNIserver {
+	configuredContainers *containeridx.ConfigIndex, govppChan *api.Channel, index ifaceidx.SwIfIndex, agentLabel string, ipamConfig *ipam.Config, uid uint8) (*remoteCNIserver, error) {
+	ipam, err := ipam.New(logger, uid, ipamConfig)
+	if err != nil {
+		return nil, err
+	}
 	return &remoteCNIserver{
 		Logger:               logger,
 		vppTxnFactory:        vppTxnFactory,
@@ -92,8 +92,8 @@ func newRemoteCNIServer(logger logging.Logger, vppTxnFactory func() linux.DataCh
 		swIfIndex:            index,
 		agentLabel:           agentLabel,
 		uid:                  uid,
-		ipam:                 newIPAM(logger, uid, podSubnetCIDR, podNetworkPrefixLen, agentLabel),
-	}
+		ipam:                 ipam,
+	}, nil
 }
 
 func (s *remoteCNIserver) close() {
@@ -154,51 +154,15 @@ func (s *remoteCNIserver) configureVswitchConnectivity() error {
 			// add the NIC config into the transaction
 			txn1 := s.vppTxnFactory().Put()
 
-			nic := s.physicalInterface(nicName)
+			nic, err := s.physicalInterface(nicName)
+			if err != nil {
+				return fmt.Errorf("Can't create structure for interface %v due to error: %v", nicName, err)
+			}
 			txn1.VppInterface(nic)
 			changes[vpp_intf.InterfaceKey(nicName)] = nic
 
 			// execute the config transaction
-			err := txn1.Send().ReceiveReply()
-			if err != nil {
-				s.Logger.Error(err)
-				return err
-			}
-
-			// add static routes to other hosts into the transaction
-			txn2 := s.vppTxnFactory().Put()
-			var i uint8
-			for i = 0; i < 255; i++ {
-				// creates routes to all possible hosts
-				// TODO: after proper IPAM implementation, only routes to existing hosts should be added
-				if i != s.ipam.getPodNetworkSubnetID() {
-					r := s.routeToOtherHostPods(i)
-					txn2.StaticRoute(r)
-					_, dstNet, _ := net.ParseCIDR(r.DstIpAddr)
-					changes[l3.RouteKey(r.VrfId, dstNet, r.NextHopAddr)] = r
-				}
-			}
-			// execute the config transaction
-			err = txn2.Send().ReceiveReply()
-			if err != nil {
-				s.Logger.Error(err)
-				return err
-			}
-
-			// configure static routes to VPP-host interconnects on all possible hosts
-			txn3 := s.vppTxnFactory().Put()
-			for i = 0; i < 255; i++ {
-				// creates routes to all possible hosts
-				// TODO: after proper IPAM implementation, only routes to existing hosts should be added
-				if i != s.ipam.getPodNetworkSubnetID() {
-					r := s.routeToOtherHostStack(i)
-					txn3.StaticRoute(r)
-					_, dstNet, _ := net.ParseCIDR(r.DstIpAddr)
-					changes[l3.RouteKey(r.VrfId, dstNet, r.NextHopAddr)] = r
-				}
-			}
-			// execute the config transaction
-			err = txn3.Send().ReceiveReply()
+			err = txn1.Send().ReceiveReply()
 			if err != nil {
 				s.Logger.Error(err)
 				return err
@@ -210,12 +174,15 @@ func (s *remoteCNIserver) configureVswitchConnectivity() error {
 			// add the NIC config into the transaction
 			txn := s.vppTxnFactory().Put()
 
-			loop := s.physicalInterfaceLoopback()
+			loop, err := s.physicalInterfaceLoopback()
+			if err != nil {
+				return fmt.Errorf("Can't create structure for loopback interface due to error: %v", err)
+			}
 			txn.VppInterface(loop)
 			changes[vpp_intf.InterfaceKey(loop.Name)] = loop
 
 			// execute the config transaction
-			err := txn.Send().ReceiveReply()
+			err = txn.Send().ReceiveReply()
 			if err != nil {
 				s.Logger.Error(err)
 				return err
@@ -290,7 +257,9 @@ func (s *remoteCNIserver) configureVswitchConnectivity() error {
 		return err
 	}
 
-	return nil
+	err = s.enableTCPSession()
+
+	return err
 }
 
 // cleanupVswitchConnectivity cleans up basic vSwitch VPP connectivity configuration in the host IP stack.
@@ -336,34 +305,46 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 	s.counter++
 
 	// assign IP address for this POD
-	podIP := s.ipam.getNextPodIP() + "/32"
+	podIP, err := s.ipam.NextPodIP(request.NetworkNamespace)
+	if err != nil {
+		return nil, fmt.Errorf("Can't get new IP address for pod: %v", err)
+	}
+	podIPCIDR := podIP.String() + "/32"
 
-	veth1 := s.veth1FromRequest(request, podIP)
+	veth1 := s.veth1FromRequest(request, podIPCIDR)
 	veth2 := s.veth2FromRequest(request)
 	afpacket := s.afpacketFromRequest(request)
-	route := s.vppRouteFromRequest(request, podIP)
+	loop := s.loopbackFromRequest(request, podIP.String())
 
-	s.WithFields(logging.Fields{"veth1": veth1, "veth2": veth2, "afpacket": afpacket, "route": route}).Info("Configuring")
+	s.WithFields(logging.Fields{"veth1": veth1, "veth2": veth2, "afpacket": afpacket /*, "route": route*/}).Info("Configuring")
 
 	txn := s.vppTxnFactory().
 		Put().
 		LinuxInterface(veth1).
 		LinuxInterface(veth2).
-		VppInterface(afpacket)
-	err := txn.Send().ReceiveReply()
+		VppInterface(afpacket).
+		VppInterface(loop)
+	err = txn.Send().ReceiveReply()
 
 	if err != nil {
 		s.Logger.Error(err)
 		return s.generateErrorResponse(err)
 	}
 
-	// adding route (container IP -> afPacket) in a separate transaction.
-	// afpacket must be already configured
-	err = s.vppTxnFactory().Put().StaticRoute(route).Send().ReceiveReply()
+	time.Sleep(500 * time.Millisecond)
+	err = s.setupStn(podIP.String(), s.afpacketNameFromRequest(request))
 	if err != nil {
 		s.Logger.Error(err)
 		return s.generateErrorResponse(err)
 	}
+	s.Logger.Info("Stn configured")
+
+	err = s.addAppNamespace(request.ContainerId, s.loopbackNameFromRequest(request))
+	if err != nil {
+		s.Logger.Error(err)
+		return s.generateErrorResponse(err)
+	}
+	s.Logger.Info("Add app namespace configured")
 
 	macAddr, err := s.retrieveContainerMacAddr(request.NetworkNamespace, request.InterfaceName)
 	if err != nil {
@@ -378,7 +359,8 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 		return s.generateErrorResponse(err)
 	}
 
-	afMac, err := s.getAfPacketMac("host-" + afpacket.Afpacket.HostIfName)
+	afName := "host-" + afpacket.Afpacket.HostIfName
+	afMac, err := s.getAfPacketMac(afName)
 	if err != nil {
 		s.Logger.Error(err)
 		return s.generateErrorResponse(err)
@@ -396,6 +378,8 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 		s.Logger.Error(err)
 		return s.generateErrorResponse(err)
 	}
+
+	err = s.fixPodToPodCommunication(podIP.String(), afName)
 
 	changes[linux_intf.InterfaceKey(veth1.Name)] = veth1
 	changes[linux_intf.InterfaceKey(veth2.Name)] = veth2
@@ -419,7 +403,6 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 			Veth1:        veth1,
 			Veth2:        veth2,
 			Afpacket:     afpacket,
-			Route:        route,
 		})
 	}
 
@@ -430,7 +413,7 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 		Routes: []*cni.CNIReply_Route{
 			{
 				Dst: "0.0.0.0/0",
-				Gw:  s.ipam.getPodGatewayIP(),
+				Gw:  s.ipam.PodGatewayIP().String(),
 			},
 		},
 	}
@@ -449,13 +432,15 @@ func (s *remoteCNIserver) unconfigureContainerConnectivity(request *cni.CNIReque
 	veth1 := s.veth1NameFromRequest(request)
 	veth2 := s.veth2NameFromRequest(request)
 	afpacket := s.afpacketNameFromRequest(request)
-	s.Info("Removing", []string{veth1, veth2, afpacket})
+	loop := s.loopbackNameFromRequest(request)
+	s.Info("Removing", []string{veth1, veth2, afpacket, loop})
 
 	err := s.vppTxnFactory().
 		Delete().
 		LinuxInterface(veth1).
 		LinuxInterface(veth2).
 		VppInterface(afpacket).
+		VppInterface(loop).
 		Put().Send().ReceiveReply()
 
 	if err != nil {
@@ -477,6 +462,12 @@ func (s *remoteCNIserver) unconfigureContainerConnectivity(request *cni.CNIReque
 
 	if s.configuredContainers != nil {
 		s.configuredContainers.UnregisterContainer(request.ContainerId)
+	}
+
+	err = s.ipam.ReleasePodIP(request.NetworkNamespace)
+	if err != nil {
+		s.Logger.Error(err)
+		return s.generateErrorResponse(err)
 	}
 
 	reply := &cni.CNIReply{
@@ -527,7 +518,7 @@ func (s *remoteCNIserver) createdInterfaces(veth *linux_intf.LinuxInterfaces_Int
 				{
 					Version: cni.CNIReply_Interface_IP_IPV4,
 					Address: veth.IpAddresses[0],
-					Gateway: s.ipam.getPodGatewayIP(),
+					Gateway: s.ipam.PodGatewayIP().String(),
 				},
 			},
 		},

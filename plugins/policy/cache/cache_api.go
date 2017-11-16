@@ -39,6 +39,10 @@ type PolicyCacheAPI interface {
 	// labels) and returns IDs of matching pods.
 	LookupPodsByLabelSelector(podLabelSelector *policymodel.Policy_LabelSelector) (pods []podmodel.ID)
 
+	// LookupPodsByNSLabelSelector evaluates label selector (expression and/or match
+	// labels and returns IDs of matching pods in a namespace.
+	LookupPodsByNSLabelSelector(namespace string, podLabelSelector *policymodel.Policy_LabelSelector) (pods []podmodel.ID)
+
 	// LookupPodsByNamespace returns IDs of all pods inside a given namespace.
 	LookupPodsByNamespace(namespace nsmodel.ID) (pods []podmodel.ID)
 
@@ -46,7 +50,7 @@ type PolicyCacheAPI interface {
 	ListAllPods() (pods []podmodel.ID)
 
 	// LookupPolicy returns data of a given Policy.
-	LookupPolicy(policy podmodel.ID) (found bool, data *policymodel.Policy)
+	LookupPolicy(policy policymodel.ID) (found bool, data *policymodel.Policy)
 
 	// LookupPoliciesByPod returns IDs of all policies assigned to a given pod.
 	LookupPoliciesByPod(pod podmodel.ID) (policies []policymodel.ID)
@@ -68,7 +72,7 @@ type PolicyCacheAPI interface {
 // PolicyCacheWatcher defines interface that a PolicyCache watcher must implement.
 type PolicyCacheWatcher interface {
 	// Resync is called by Policy Cache during a RESYNC event.
-	Resync(data *K8sStateResyncData) error
+	Resync(data *DataResyncEvent) error
 
 	// AddPod is called by Policy Cache when a new pod is created.
 	AddPod(pod *podmodel.Pod) error
@@ -98,12 +102,4 @@ type PolicyCacheWatcher interface {
 	// UpdateNamespace is called by Policy Cache when data of a namespace were
 	// modified.
 	UpdateNamespace(oldNs, newNs *nsmodel.Namespace) error
-}
-
-// K8sStateResyncData contains a complete snapshot of K8s State data which should
-// completely replace the currently installed configuration.
-type K8sStateResyncData struct {
-	Namespaces []*nsmodel.Namespace
-	Pods       []*podmodel.Pod
-	Policies   []*policymodel.Policy
 }

@@ -56,7 +56,10 @@ func validateResourceRequirements(r *api.ResourceRequirements) error {
 	if err := validateResources(r.Limits); err != nil {
 		return err
 	}
-	return validateResources(r.Reservations)
+	if err := validateResources(r.Reservations); err != nil {
+		return err
+	}
+	return nil
 }
 
 func validateRestartPolicy(rp *api.RestartPolicy) error {
@@ -158,7 +161,11 @@ func validateContainerSpec(taskSpec api.TaskSpec) error {
 		return err
 	}
 
-	return validateHealthCheck(container.Healthcheck)
+	if err := validateHealthCheck(container.Healthcheck); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // validateImage validates image name in containerSpec
@@ -474,7 +481,11 @@ func validateServiceSpec(spec *api.ServiceSpec) error {
 	if err := validateEndpointSpec(spec.Endpoint); err != nil {
 		return err
 	}
-	return validateMode(spec)
+	if err := validateMode(spec); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // checkPortConflicts does a best effort to find if the passed in spec has port

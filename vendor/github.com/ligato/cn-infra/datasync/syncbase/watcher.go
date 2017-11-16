@@ -34,14 +34,14 @@ func NewRegistry() *Registry {
 
 // Registry of subscriptions and latest revisions.
 // This structure contains extracted reusable code among various datasync implementations.
-// By having this code datasync plugins do not need to repeat code related management of subscriptions.
+// Because of this code, datasync plugins does not need to repeat code related management of subscriptions.
 type Registry struct {
 	subscriptions map[string]*Subscription
 	access        sync.Mutex
 	lastRev       *PrevRevisions
 }
 
-// WatchDataReg implements interface datasync.WatchDataRegistration
+// WatchDataReg implements interface datasync.WatchDataRegistration.
 type WatchDataReg struct {
 	ResyncName string
 	adapter    *Registry
@@ -53,10 +53,10 @@ func (reg *WatchDataReg) Close() error {
 	defer reg.adapter.access.Unlock()
 
 	for _, sub := range reg.adapter.subscriptions {
-		if sub.CloseChan != nil {
-			// close all goroutines under subscription
-			sub.CloseChan <- ""
-			// close the channel
+		// subscription should have also change channel, otherwise it is not registered
+		// for change events
+		if sub.ChangeChan != nil && sub.CloseChan != nil {
+			// close the channel with all goroutines under subscription
 			safeclose.Close(sub.CloseChan)
 		}
 	}
@@ -72,6 +72,12 @@ func (reg *WatchDataReg) Unregister(keyPrefix string) error {
 	defer reg.adapter.access.Unlock()
 
 	subs := reg.adapter.subscriptions[reg.ResyncName]
+	// verify if key is registered for change events
+	if subs.ChangeChan == nil {
+		// not an error
+		logroot.StandardLogger().Infof("key %v not registered for change events", keyPrefix)
+		return nil
+	}
 	if subs.CloseChan == nil {
 		return fmt.Errorf("unable to unregister key %v, close channel in subscription is nil", keyPrefix)
 	}
@@ -102,7 +108,7 @@ type Subscription struct {
 	KeyPrefixes []string
 }
 
-// WatchDataBase just appends channels
+// WatchDataBase only appends channels.
 func (adapter *Registry) WatchDataBase(resyncName string, changeChan chan datasync.ChangeEvent,
 	resyncChan chan datasync.ResyncEvent, keyPrefixes ...string) (*WatchDataReg, error) {
 
@@ -126,7 +132,7 @@ func (adapter *Registry) WatchDataBase(resyncName string, changeChan chan datasy
 	return reg, nil
 }
 
-// Watch just appends channels
+// Watch only appends channels.
 func (adapter *Registry) Watch(resyncName string, changeChan chan datasync.ChangeEvent,
 	resyncChan chan datasync.ResyncEvent, keyPrefixes ...string) (datasync.WatchRegistration, error) {
 	return adapter.WatchDataBase(resyncName, changeChan, resyncChan, keyPrefixes...)
@@ -137,12 +143,12 @@ func (adapter *Registry) Subscriptions() map[string]*Subscription {
 	return adapter.subscriptions
 }
 
-// LastRev is just getter
+// LastRev is only a getter.
 func (adapter *Registry) LastRev() *PrevRevisions {
 	return adapter.lastRev
 }
 
-// PropagateChanges fills registered channels with the data
+// PropagateChanges fills registered channels with the data.
 func (adapter *Registry) PropagateChanges(txData map[string] /*key*/ datasync.ChangeValue) error {
 	events := []func(done chan error){}
 
@@ -188,7 +194,7 @@ func (adapter *Registry) PropagateChanges(txData map[string] /*key*/ datasync.Ch
 	return nil
 }
 
-// PropagateResync fills registered channels with the data
+// PropagateResync fills registered channels with the data.
 func (adapter *Registry) PropagateResync(txData map[ /*key*/ string]datasync.ChangeValue) error {
 	for _, sub := range adapter.subscriptions {
 		resyncEv := NewResyncEventDB(map[string] /*keyPrefix*/ datasync.KeyValIterator{})

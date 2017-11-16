@@ -17,10 +17,13 @@ package contiv
 import (
 	"context"
 	"fmt"
+	"net"
 	"strings"
 
+	"github.com/contiv/vpp/plugins/contiv/bin_api/session"
 	"github.com/contiv/vpp/plugins/contiv/model/uid"
 	"github.com/ligato/cn-infra/datasync"
+	"github.com/ligato/vpp-agent/plugins/defaultplugins/l3plugin/model/l3"
 )
 
 // handleNodeEvents adjust VPP route configuration according to the node changes.
@@ -50,19 +53,65 @@ func (s *remoteCNIserver) nodeChangePropageteEvent(dataChngEv datasync.ChangeEve
 		if err != nil {
 			return err
 		}
+		hostID := uint8(nodeID.Id)
 
 		// route := s.getRouteToNode(conf, nodeID.Id)
 		if dataChngEv.GetChangeType() == datasync.Put {
-			// TODO: add route for nodeID.Id
-			//err = s.vppTxnFactory().Put().StaticRoute(route).Send().ReceiveReply()
+			// Addition of host routes
+			s.Logger.Info("New node discovered: ", hostID)
+
+			podsRoute, hostRoute, err := s.computeRoutesForHost(hostID)
+			if err != nil {
+				return err
+			}
+			s.Logger.Info("Adding PODs route: ", podsRoute)
+			s.Logger.Info("Adding host route: ", hostRoute)
+			if err = s.vppTxnFactory().Put().StaticRoute(podsRoute).StaticRoute(hostRoute).Send().ReceiveReply(); err != nil {
+				return fmt.Errorf("Can't configure vpp to add route to host %v (and its pods): %v ", hostID, err)
+			}
 		} else {
-			// TODO: remove route for nodeID.Id
-			//err = s.vppTxnFactory().Delete().StaticRoute(route).Send().ReceiveReply()
+			// Delete of host routes
+			s.Logger.Info("Node removed: ", hostID)
+
+			podsRoute, hostRoute, err := s.computeRoutesForHost(hostID)
+			if err != nil {
+				return err
+			}
+			_, podDest, err := net.ParseCIDR(podsRoute.DstIpAddr)
+			if err != nil {
+				return err
+			}
+			_, hostDest, err := net.ParseCIDR(hostRoute.DstIpAddr)
+			if err != nil {
+				return err
+			}
+
+			err = s.vppTxnFactory().Delete().
+				StaticRoute(podsRoute.VrfId, podDest, net.ParseIP(podsRoute.NextHopAddr)).
+				StaticRoute(hostRoute.VrfId, hostDest, net.ParseIP(hostRoute.NextHopAddr)).
+				Send().ReceiveReply()
+			if err != nil {
+				return fmt.Errorf("Can't configure vpp to remove route to host %v (and its pods): %v ", hostID, err)
+			}
 		}
 	} else {
 		return fmt.Errorf("Unknown key %v", key)
 	}
 	return err
+}
+
+func (s *remoteCNIserver) computeRoutesForHost(hostID uint8) (podsRoute *l3.StaticRoutes_Route, hostRoute *l3.StaticRoutes_Route, err error) {
+	podsRoute, err = s.routeToOtherHostPods(hostID)
+	if err != nil {
+		err = fmt.Errorf("Can't construct route to pods of host %v: %v ", hostID, err)
+		return
+	}
+	hostRoute, err = s.routeToOtherHostStack(hostID)
+	if err != nil {
+		err = fmt.Errorf("Can't construct route to host %v: %v ", hostID, err)
+		return
+	}
+	return
 }
 
 func (s *remoteCNIserver) nodeResync(dataResyncEv datasync.ResyncEvent) error {
@@ -82,11 +131,45 @@ func (s *remoteCNIserver) nodeResync(dataResyncEv datasync.ResyncEvent) error {
 				if err != nil {
 					return err
 				}
-				// route := s.getRouteToNode(conf, nodeID.Id)
-				// txn.StaticRoute(route)
+
+				// add rhe route for this host
+				hostID := uint8(nodeID.Id)
+				if hostID != s.ipam.HostID() {
+					s.Logger.Info("Adding routes to host ", hostID)
+					podsRoute, hostRoute, err := s.computeRoutesForHost(hostID)
+					if err != nil {
+						return err
+					}
+					s.Logger.Info("Adding PODs route: ", podsRoute)
+					s.Logger.Info("Adding host route: ", hostRoute)
+					if err = s.vppTxnFactory().Put().StaticRoute(podsRoute).StaticRoute(hostRoute).Send().ReceiveReply(); err != nil {
+						return fmt.Errorf("Can't configure vpp to add route to host %v (and its pods): %v ", hostID, err)
+					}
+				}
 			}
 		}
 	}
 
 	return txn.Send().ReceiveReply()
+}
+
+func (s *remoteCNIserver) enableTCPSession() error {
+	req := &session.SessionEnableDisable{
+		IsEnable: 1,
+	}
+
+	if s.govppChan == nil {
+		s.Logger.Warn("GoVpp not available")
+		return nil
+	}
+
+	reply := session.SessionEnableDisableReply{}
+
+	err := s.govppChan.SendRequest(req).ReceiveReply(&reply)
+
+	if reply.Retval != 0 {
+		return fmt.Errorf("enabling session returned non-zero return code")
+	}
+
+	return err
 }

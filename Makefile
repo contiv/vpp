@@ -11,6 +11,8 @@ define generate_sources
 	$(call install_generators)
 	@echo "# generating sources"
 	@cd plugins/contiv && go generate
+	@cd plugins/contiv/bin_api/session && pkgreflect
+	@cd plugins/contiv/bin_api/stn && pkgreflect
 	@cd plugins/ksr && go generate
 	@echo "# done"
 endef
@@ -33,11 +35,13 @@ define test_only
 	@echo "# running unit tests"
 	@go test ./cmd/contiv-cni
 	@go test ./plugins/contiv
+	@go test ./plugins/contiv/ipam
 	@go test ./plugins/contiv/containeridx
 	@go test ./plugins/kvdbproxy
 	@go test ./plugins/ksr
-	@go test ./plugins/policy/renderer/cache
+	@go test ./plugins/policy/renderer/acl/cache
 	@go test ./plugins/policy/renderer/acl
+	@go test ./plugins/policy/configurator
 	@echo "# done"
 endef
 
@@ -46,16 +50,18 @@ define test_cover_only
 	@echo "# running unit tests with coverage analysis"
 	@go test -covermode=count -coverprofile=${COVER_DIR}cov_u1.out ./cmd/contiv-cni
     @go test -covermode=count -coverprofile=${COVER_DIR}cov_u2.out ./plugins/contiv
-    @go test -covermode=count -coverprofile=${COVER_DIR}cov_u3.out ./plugins/contiv/containeridx
-    @go test -covermode=count -coverprofile=${COVER_DIR}cov_u4.out ./plugins/kvdbproxy
-    @go test -covermode=count -coverprofile=${COVER_DIR}cov_u5.out ./plugins/ksr
-    @go test -covermode=count -coverprofile=${COVER_DIR}cov_u6.out ./plugins/policy/renderer/cache
-    @go test -covermode=count -coverprofile=${COVER_DIR}cov_u7.out ./plugins/policy/renderer/acl
+    @go test -covermode=count -coverprofile=${COVER_DIR}cov_u3.out ./plugins/contiv/ipam
+    @go test -covermode=count -coverprofile=${COVER_DIR}cov_u4.out ./plugins/contiv/containeridx
+    @go test -covermode=count -coverprofile=${COVER_DIR}cov_u5.out ./plugins/kvdbproxy
+    @go test -covermode=count -coverprofile=${COVER_DIR}cov_u6.out ./plugins/ksr
+    @go test -covermode=count -coverprofile=${COVER_DIR}cov_u7.out ./plugins/policy/renderer/acl/cache
+    @go test -covermode=count -coverprofile=${COVER_DIR}cov_u8.out ./plugins/policy/renderer/acl
+    @go test -covermode=count -coverprofile=${COVER_DIR}cov_u9.out ./plugins/policy/configurator
     @echo "# merging coverage results"
     @cd vendor/github.com/wadey/gocovmerge && go install -v
     @gocovmerge ${COVER_DIR}cov_u1.out ${COVER_DIR}cov_u2.out ${COVER_DIR}cov_u3.out \
 		${COVER_DIR}cov_u4.out ${COVER_DIR}cov_u5.out ${COVER_DIR}cov_u6.out \
-		${COVER_DIR}cov_u7.out > ${COVER_DIR}coverage.out
+		${COVER_DIR}cov_u7.out ${COVER_DIR}cov_u8.out ${COVER_DIR}cov_u9.out > ${COVER_DIR}coverage.out
     @echo "# coverage data generated into ${COVER_DIR}coverage.out"
     @echo "# done"
 endef

@@ -6,7 +6,7 @@
 Open SSH Connection
     [Arguments]         ${name}    ${ip}    ${user}    ${pswd}
     Log Many            ${name}    ${ip}    ${user}    ${pswd}
-    Open Connection     ${ip}      ${name}
+    Open Connection     ${ip}      alias=${name}
     ${out}=             Run Keyword If      "${pswd}"!="rsa_id"   Login                              ${user}   ${pswd}
     ${out2}=            Run Keyword If      "${pswd}"=="rsa_id"   SSHLibrary.Login_With_Public_Key   ${user}   %{HOME}/.ssh/id_rsa   any
     Run Keyword If      """${out}"""!="None"    Append To File    ${RESULTS_FOLDER}/output_${name}.log    *** Command: Login${\n}${out}${\n}

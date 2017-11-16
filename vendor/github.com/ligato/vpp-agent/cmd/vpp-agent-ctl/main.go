@@ -13,7 +13,7 @@
 // limitations under the License.
 
 // package vpp-agent-ctl implements the vpp-agent-ctl test tool for testing
-// of VPP Agent plugins. In addition to testing, the vpp-agent-ctl tool can
+// VPP Agent plugins. In addition to testing, the vpp-agent-ctl tool can
 // be used to demonstrate the usage of VPP Agent plugins and their APIs.
 package main
 
@@ -42,9 +42,12 @@ import (
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/aclplugin/model/acl"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/model/bfd"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/model/interfaces"
+	"github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/model/stn"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/l2plugin/model/l2"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/l3plugin/model/l3"
-	linuxIntf "github.com/ligato/vpp-agent/plugins/linuxplugin/model/interfaces"
+	"github.com/ligato/vpp-agent/plugins/defaultplugins/l4plugin/model/l4"
+	linuxIntf "github.com/ligato/vpp-agent/plugins/linuxplugin/ifplugin/model/interfaces"
+	l32 "github.com/ligato/vpp-agent/plugins/linuxplugin/l3plugin/model/l3"
 )
 
 var (
@@ -171,15 +174,35 @@ func main() {
 			createVeth(db, veth2, veth1, "ns2", "92:c7:42:67:ab:cd", "192.168.22.2/24",
 				"2001:842:0:0:0:ff00:13c7:1245/48")
 		case "-dvth1":
-			delete(db, interfaces.InterfaceKey(veth1))
+			delete(db, linuxIntf.InterfaceKey(veth1))
 		case "-dvth2":
-			delete(db, interfaces.InterfaceKey(veth2))
+			delete(db, linuxIntf.InterfaceKey(veth2))
 		case "-ps":
 			printState(db)
 		case "-ierr":
 			reportIfaceErrorState(db)
 		case "-bderr":
 			reportBdErrorState(db)
+		case "-clarp":
+			createLinuxArp(db)
+		case "-dlarp":
+			delete(db, l32.StaticArpKey("arp1"))
+		case "-clrt":
+			createLinuxRoute(db)
+		case "-clrtdef":
+			createDefaultLinuxRoute(db)
+		case "-appns":
+			createAppNamespace(db)
+		case "-ef":
+			enableL4Features(db)
+		case "-df":
+			disableL4Features(db)
+		case "-dlrt":
+			delete(db, l32.StaticRouteKey("route1"))
+		case "-stna":
+			createStnRule(db, ifName1, "10.1.1.3/32")
+		case "-stnd":
+			delete(db, stn.Key("rule1"))
 		default:
 			usage()
 		}
@@ -187,9 +210,10 @@ func main() {
 		usage()
 	}
 }
+
 func usage() {
 	fmt.Println(os.Args[0], ": [etcd-config-file] <command>")
-	fmt.Println("\tcommands: -ct -mt -dt -ce -me -cl -ml -dl -cmm -dmm -cms -dms -cvx -dvx -cr -dr")
+	fmt.Println("\tcommands: -ct -mt -dt -ce -me -cl -ml -dl -cmm -dmm -cms -dms -cvx -dvx -cr -dr -stna -stnd")
 	fmt.Println(os.Args[0], ": [etcd-config-file] -put <etc_key> <json-file>")
 	fmt.Println(os.Args[0], ": [etcd-config-file] -get <etc_key>")
 }
@@ -219,8 +243,8 @@ func createACL(db keyval.ProtoBroker) {
 	// Ipv4Rule
 	accessList.Acl[0].Rules[0].Matches.IpRule = new(acl.AccessLists_Acl_Rule_Matches_IpRule)
 	accessList.Acl[0].Rules[0].Matches.IpRule.Ip = new(acl.AccessLists_Acl_Rule_Matches_IpRule_Ip)
-	accessList.Acl[0].Rules[0].Matches.IpRule.Ip.SourceNetwork = "192.168.1.2"
-	accessList.Acl[0].Rules[0].Matches.IpRule.Ip.DestinationNetwork = "10.20.0.1"
+	accessList.Acl[0].Rules[0].Matches.IpRule.Ip.SourceNetwork = "192.168.1.2/32"
+	accessList.Acl[0].Rules[0].Matches.IpRule.Ip.DestinationNetwork = "10.20.0.1/24"
 
 	//// Ipv6Rule
 	//accessList.Acl[0].Rules[0].Matches.IpRule = new(acl.AccessLists_Acl_Rule_Matches_IpRule)
@@ -718,7 +742,7 @@ func createBridgeDomain(db keyval.ProtoBroker, bdName string) {
 	bd.BridgeDomains = make([]*l2.BridgeDomains_BridgeDomain, 1)
 
 	bd.BridgeDomains[0] = new(l2.BridgeDomains_BridgeDomain)
-	bd.BridgeDomains[0].Name = "bd1"
+	bd.BridgeDomains[0].Name = "bd2"
 	bd.BridgeDomains[0].Learn = true
 	bd.BridgeDomains[0].ArpTermination = true
 	bd.BridgeDomains[0].Flood = true
@@ -727,7 +751,7 @@ func createBridgeDomain(db keyval.ProtoBroker, bdName string) {
 
 	bd.BridgeDomains[0].Interfaces = make([]*l2.BridgeDomains_BridgeDomain_Interfaces, 1)
 	bd.BridgeDomains[0].Interfaces[0] = new(l2.BridgeDomains_BridgeDomain_Interfaces)
-	bd.BridgeDomains[0].Interfaces[0].Name = "tap1"
+	bd.BridgeDomains[0].Interfaces[0].Name = "tap2"
 	bd.BridgeDomains[0].Interfaces[0].BridgedVirtualInterface = false
 
 	//bd.BridgeDomains[0].Interfaces[1] = new(l2.BridgeDomains_BridgeDomain_Interfaces)
@@ -939,4 +963,103 @@ func printState(db keyval.ProtoBroker) {
 
 		fmt.Println(entry)
 	}
+}
+
+func createLinuxArp(db keyval.ProtoBroker) {
+	linuxArpEntries := l32.LinuxStaticArpEntries{}
+	linuxArpEntries.ArpEntry = make([]*l32.LinuxStaticArpEntries_ArpEntry, 1)
+	linuxArpEntries.ArpEntry[0] = new(l32.LinuxStaticArpEntries_ArpEntry)
+	linuxArpEntries.ArpEntry[0].Name = "arp1"
+	linuxArpEntries.ArpEntry[0].Namespace = new(l32.LinuxStaticArpEntries_ArpEntry_Namespace)
+	linuxArpEntries.ArpEntry[0].Namespace.Type = l32.LinuxStaticArpEntries_ArpEntry_Namespace_NAMED_NS
+	linuxArpEntries.ArpEntry[0].Namespace.Name = "ns1"
+	linuxArpEntries.ArpEntry[0].Interface = "veth1"
+	linuxArpEntries.ArpEntry[0].IpAddr = "130.0.0.1"
+	linuxArpEntries.ArpEntry[0].HwAddress = "ab:cd:ef:01:02:03"
+	linuxArpEntries.ArpEntry[0].State = new(l32.LinuxStaticArpEntries_ArpEntry_NudState)
+	linuxArpEntries.ArpEntry[0].State.Type = l32.LinuxStaticArpEntries_ArpEntry_NudState_PERMANENT
+
+	log.Println(linuxArpEntries)
+
+	db.Put(l32.StaticArpKey(linuxArpEntries.ArpEntry[0].Name), linuxArpEntries.ArpEntry[0])
+}
+
+func createLinuxRoute(db keyval.ProtoBroker) {
+	linuxRoutes := l32.LinuxStaticRoutes{}
+	linuxRoutes.Route = make([]*l32.LinuxStaticRoutes_Route, 1)
+	linuxRoutes.Route[0] = new(l32.LinuxStaticRoutes_Route)
+	linuxRoutes.Route[0].Name = "route1"
+	linuxRoutes.Route[0].Namespace = new(l32.LinuxStaticRoutes_Route_Namespace)
+	linuxRoutes.Route[0].Namespace.Type = l32.LinuxStaticRoutes_Route_Namespace_NAMED_NS
+	linuxRoutes.Route[0].Namespace.Name = "ns1"
+	linuxRoutes.Route[0].DstIpAddr = "10.0.2.0/24"
+	//linuxRoutes.Route[0].SrcIpAddr = "128.0.0.10"
+	//linuxRoutes.Route[0].GwAddr = "128.0.0.1"
+	linuxRoutes.Route[0].Interface = "veth1"
+	linuxRoutes.Route[0].Metric = 100
+
+	log.Println(linuxRoutes)
+
+	db.Put(l32.StaticRouteKey(linuxRoutes.Route[0].Name), linuxRoutes.Route[0])
+}
+
+func createDefaultLinuxRoute(db keyval.ProtoBroker) {
+	linuxRoutes := l32.LinuxStaticRoutes{}
+	linuxRoutes.Route = make([]*l32.LinuxStaticRoutes_Route, 1)
+	linuxRoutes.Route[0] = new(l32.LinuxStaticRoutes_Route)
+	linuxRoutes.Route[0].Name = "defRoute"
+	linuxRoutes.Route[0].Namespace = new(l32.LinuxStaticRoutes_Route_Namespace)
+	linuxRoutes.Route[0].Namespace.Type = l32.LinuxStaticRoutes_Route_Namespace_NAMED_NS
+	linuxRoutes.Route[0].Namespace.Name = "ns1"
+	linuxRoutes.Route[0].Default = true
+	linuxRoutes.Route[0].Interface = "veth1"
+	linuxRoutes.Route[0].GwAddr = "10.0.2.2"
+	linuxRoutes.Route[0].Metric = 100
+
+	log.Println(linuxRoutes)
+
+	db.Put(l32.StaticRouteKey(linuxRoutes.Route[0].Name), linuxRoutes.Route[0])
+}
+
+func createAppNamespace(db keyval.ProtoBroker) {
+	appNamespace := l4.AppNamespaces{}
+	appNamespace.AppNamespaces = make([]*l4.AppNamespaces_AppNamespace, 1)
+	appNamespace.AppNamespaces[0] = new(l4.AppNamespaces_AppNamespace)
+	appNamespace.AppNamespaces[0].NamespaceId = "ns8"
+	appNamespace.AppNamespaces[0].Secret = 1
+	appNamespace.AppNamespaces[0].Interface = "tap1"
+
+	log.Println(appNamespace)
+
+	db.Put(l4.AppNamespacesKey(appNamespace.AppNamespaces[0].NamespaceId), appNamespace.AppNamespaces[0])
+}
+
+func enableL4Features(db keyval.ProtoBroker) {
+	l4Fatures := &l4.L4Features{}
+	l4Fatures.Enabled = true
+
+	log.Println(l4Fatures)
+
+	db.Put(l4.FeatureKey(), l4Fatures)
+}
+
+func disableL4Features(db keyval.ProtoBroker) {
+	l4Fatures := &l4.L4Features{}
+	l4Fatures.Enabled = false
+
+	log.Println(l4Fatures)
+
+	db.Put(l4.FeatureKey(), l4Fatures)
+}
+
+func createStnRule(db keyval.ProtoBroker, ifName string, ipAddress string) {
+	stnRule := stn.StnRule{
+		RuleName:  "rule1",
+		IpAddress: ipAddress,
+		Interface: ifName,
+	}
+
+	log.Println(stnRule)
+
+	db.Put(stn.Key(stnRule.RuleName), &stnRule)
 }

@@ -15,20 +15,13 @@
 package main
 
 import (
-	"time"
-
 	"github.com/contiv/vpp/flavors/ksr"
 	"github.com/ligato/cn-infra/core"
 )
 
 // contiv-ksr main entry point.
 func main() {
-
-	// Prepare a list of plugins to load.
-	flavor := ksr.FlavorKsr{}
-	plugins := flavor.Plugins()
-
 	// contiv-ksr is a CN-infra based agent.
-	agentVar := core.NewAgent(flavor.LogRegistry().NewLogger("core"), 15*time.Second, plugins...)
+	agentVar := ksr.NewAgent()
 	core.EventLoopWithInterrupt(agentVar, nil)
 }

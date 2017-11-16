@@ -1,9 +1,9 @@
 package: github.com/contiv/vpp
 import:
 - package: github.com/ligato/cn-infra
-  version: v1.0.5
+  version: 6f5d47be4b93f9ca76c78585e334f7952593d0d6
 - package: github.com/ligato/vpp-agent
-  version: c7e3269c820350b1537577011962396faf56a0ea
+  version: 1ed8a5f0b308a91617195c483e1ad4b12268cca8
 - package: github.com/containernetworking/cni
   version: v0.6.0
 - package: github.com/containernetworking/plugins
@@ -53,3 +53,6 @@ import:
   version: 4fe312863be2155a7b68acd2aff1c9221b24e68c
   subpackages:
   - exec
+- package: github.com/docker/swarmkit
+  repo: https://github.com/dmcgowan/swarmkit.git
+  version: 8bdecc57887ffc598b63d6433f58e0d2852112c3

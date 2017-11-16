@@ -8,7 +8,7 @@ WORKDIR /root/
 COPY binaries/contiv-agent /usr/bin/
 
 #uninstall any VPP first before re-installing
-RUN /bin/bash -c "yes | apt remove vpp*"
+RUN /bin/bash -c "yes | apt remove vpp* || true"
 
 # add VPP binaries (add also extracts from .tar.gz)
 ADD binaries/vpp.tar.gz .

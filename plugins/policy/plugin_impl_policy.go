@@ -33,7 +33,6 @@ import (
 	"github.com/contiv/vpp/plugins/policy/configurator"
 	"github.com/contiv/vpp/plugins/policy/processor"
 	aclrenderer "github.com/contiv/vpp/plugins/policy/renderer/acl"
-	renderercache "github.com/contiv/vpp/plugins/policy/renderer/cache"
 )
 
 // Plugin watches configuration of K8s resources (as reflected by KSR into ETCD)
@@ -64,7 +63,6 @@ type Plugin struct {
 
 	// Policy Renderers: layer 4
 	//  -> ACL Renderer
-	aclCache    *renderercache.ContivRuleCache
 	aclRenderer *aclrenderer.Renderer
 	// New renderers should come here ...
 }
@@ -73,7 +71,7 @@ type Plugin struct {
 type Deps struct {
 	local.PluginInfraDeps
 	Watcher        datasync.KeyValProtoWatcher /* prefixed for KSR-published K8s state data */
-	Contiv         *contiv.Plugin              /* for GetIfName() */
+	Contiv         contiv.API              /* for GetIfName() */
 	VPP            defaultplugins.API          /* for DumpACLs() */
 	PolicyCacheAPI cache.PolicyCacheAPI
 }
@@ -94,6 +92,13 @@ func (p *Plugin) Init() error {
 		},
 	}
 
+	p.configurator = &configurator.PolicyConfigurator{
+		Deps: configurator.Deps{
+			Log:   p.Log.NewLogger("-policyConfigurator"),
+			Cache: p.policyCache,
+		},
+	}
+
 	p.processor = &processor.PolicyProcessor{
 		Deps: processor.Deps{
 			Log:          p.Log.NewLogger("-policyProcessor"),
@@ -103,24 +108,11 @@ func (p *Plugin) Init() error {
 		},
 	}
 
-	p.configurator = &configurator.PolicyConfigurator{
-		Deps: configurator.Deps{
-			Log:    p.Log.NewLogger("-policyConfigurator"),
-			Contiv: p.Contiv,
-			Cache:  p.policyCache,
-		},
-	}
-
-	p.aclCache = &renderercache.ContivRuleCache{
-		Deps: renderercache.Deps{
-			Log: p.Log.NewLogger("-aclCache"),
-		},
-	}
-
 	p.aclRenderer = &aclrenderer.Renderer{
 		Deps: aclrenderer.Deps{
-			Log:   p.Log.NewLogger("-policyRenderer"),
-			Cache: p.aclCache,
+			Log:        p.Log.NewLogger("-aclRenderer"),
+			LogFactory: p.Log,
+			Contiv:     p.Contiv,
 			VPP:   p.VPP,
 			ACLTxnFactory: func() linux.DataChangeDSL {
 				return localclient.DataChangeRequest(p.PluginName)
@@ -132,11 +124,11 @@ func (p *Plugin) Init() error {
 	p.policyCache.Init()
 	p.processor.Init()
 	p.configurator.Init()
-	p.aclCache.Init()
 	p.aclRenderer.Init()
 
 	// Register renderers.
-	p.configurator.RegisterDefaultRenderer(p.aclRenderer)
+	p.configurator.RegisterRenderer(p.aclRenderer)
+	// TODO: register VPPTCP renderer
 
 	var ctx context.Context
 	ctx, p.cancel = context.WithCancel(context.Background())
@@ -163,9 +155,9 @@ func (p *Plugin) watchEvents(ctx context.Context) {
 	for {
 		select {
 		case resyncConfigEv := <-p.resyncChan:
-			err := p.policyCache.Resync(resyncConfigEv)
-			resyncConfigEv.Done(err)
-
+			//err := p.policyCache.Resync(resyncConfigEv)
+			//resyncConfigEv.Done(err)
+			p.Log.Info(resyncConfigEv)
 		case dataChngEv := <-p.changeChan:
 			err := p.policyCache.Update(dataChngEv)
 			dataChngEv.Done(err)

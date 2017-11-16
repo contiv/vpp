@@ -16,23 +16,25 @@ package dbadapter
 
 import (
 	"github.com/ligato/vpp-agent/clientv1/linux"
-	"github.com/ligato/vpp-agent/plugins/linuxplugin/model/interfaces"
+	"github.com/ligato/vpp-agent/plugins/linuxplugin/ifplugin/model/interfaces"
 
 	vpp_clientv1 "github.com/ligato/vpp-agent/clientv1/defaultplugins"
 	vpp_dbadapter "github.com/ligato/vpp-agent/clientv1/defaultplugins/dbadapter"
 	vpp_acl "github.com/ligato/vpp-agent/plugins/defaultplugins/aclplugin/model/acl"
+	vpp_bfd "github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/model/bfd"
 	vpp_intf "github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/model/interfaces"
 	vpp_l2 "github.com/ligato/vpp-agent/plugins/defaultplugins/l2plugin/model/l2"
 	vpp_l3 "github.com/ligato/vpp-agent/plugins/defaultplugins/l3plugin/model/l3"
-	vpp_bfd "github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/model/bfd"
+
+	"github.com/ligato/vpp-agent/plugins/linuxplugin/l3plugin/model/l3"
+	"net"
 
 	"github.com/ligato/cn-infra/db/keyval"
-	"net"
 )
 
 // NewDataChangeDSL returns a new instance of DataChangeDSL which implements
 // the data change DSL for both Linux and VPP config (inherits dbadapter
-// from defaultplugins)
+// from defaultplugins).
 // Transaction <txn> is used to propagate changes to plugins.
 func NewDataChangeDSL(txn keyval.ProtoTxn) *DataChangeDSL {
 	vppDbAdapter := vpp_dbadapter.NewDataChangeDSL(txn)
@@ -58,8 +60,8 @@ type DeleteDSL struct {
 	vppDelete vpp_clientv1.DeleteDSL
 }
 
-// Put initiates a chained sequence of data change DSL statements declaring
-// new or changing existing configurable objects.
+// Put initiates a chained sequence of data change DSL statements and declares
+// new configurable objects or changes existing ones.
 func (dsl *DataChangeDSL) Put() linux.PutDSL {
 	return &PutDSL{dsl, dsl.vppDataChange.Put()}
 }
@@ -78,6 +80,18 @@ func (dsl *DataChangeDSL) Send() vpp_clientv1.Reply {
 // LinuxInterface adds a request to create or update Linux network interface.
 func (dsl *PutDSL) LinuxInterface(val *interfaces.LinuxInterfaces_Interface) linux.PutDSL {
 	dsl.parent.txn.Put(interfaces.InterfaceKey(val.Name), val)
+	return dsl
+}
+
+// LinuxArpEntry adds a request to create or update Linux ARP entry.
+func (dsl *PutDSL) LinuxArpEntry(val *l3.LinuxStaticArpEntries_ArpEntry) linux.PutDSL {
+	dsl.parent.txn.Put(l3.StaticArpKey(val.Name), val)
+	return dsl
+}
+
+// LinuxRoute adds a request to create or update Linux route.
+func (dsl *PutDSL) LinuxRoute(val *l3.LinuxStaticRoutes_Route) linux.PutDSL {
+	dsl.parent.txn.Put(l3.StaticRouteKey(val.Name), val)
 	return dsl
 }
 
@@ -155,6 +169,18 @@ func (dsl *DeleteDSL) LinuxInterface(interfaceName string) linux.DeleteDSL {
 	return dsl
 }
 
+// LinuxArpEntry adds a request to delete Linux ARP entry.
+func (dsl *DeleteDSL) LinuxArpEntry(val *l3.LinuxStaticArpEntries_ArpEntry) linux.DeleteDSL {
+	dsl.parent.txn.Delete(l3.StaticArpKey(val.Name))
+	return dsl
+}
+
+// LinuxRoute adds a request to delete Linux route.
+func (dsl *DeleteDSL) LinuxRoute(val *l3.LinuxStaticRoutes_Route) linux.DeleteDSL {
+	dsl.parent.txn.Delete(l3.StaticRouteKey(val.Name))
+	return dsl
+}
+
 // VppInterface adds a request to delete an existing VPP network interface.
 func (dsl *DeleteDSL) VppInterface(ifaceName string) linux.DeleteDSL {
 	dsl.vppDelete.Interface(ifaceName)
@@ -170,8 +196,8 @@ func (dsl *DeleteDSL) BfdSession(bfdSessionIfaceName string) linux.DeleteDSL {
 
 // BfdAuthKeys adds a request to delete an existing VPP bidirectional forwarding
 // detection key.
-func (dsl *DeleteDSL) BfdAuthKeys(bfdKeyName string) linux.DeleteDSL {
-	dsl.vppDelete.BfdAuthKeys(bfdKeyName)
+func (dsl *DeleteDSL) BfdAuthKeys(bfdKey uint32) linux.DeleteDSL {
+	dsl.vppDelete.BfdAuthKeys(bfdKey)
 	return dsl
 }
 

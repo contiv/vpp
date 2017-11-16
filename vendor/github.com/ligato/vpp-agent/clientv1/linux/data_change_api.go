@@ -15,16 +15,17 @@
 package linux
 
 import (
-	"github.com/ligato/vpp-agent/plugins/linuxplugin/model/interfaces"
+	"github.com/ligato/vpp-agent/plugins/linuxplugin/ifplugin/model/interfaces"
 
 	"net"
 
 	vpp_clientv1 "github.com/ligato/vpp-agent/clientv1/defaultplugins"
 	vpp_acl "github.com/ligato/vpp-agent/plugins/defaultplugins/aclplugin/model/acl"
+	vpp_bfd "github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/model/bfd"
 	vpp_intf "github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/model/interfaces"
 	vpp_l2 "github.com/ligato/vpp-agent/plugins/defaultplugins/l2plugin/model/l2"
 	vpp_l3 "github.com/ligato/vpp-agent/plugins/defaultplugins/l3plugin/model/l3"
-	vpp_bfd "github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/model/bfd"
+	"github.com/ligato/vpp-agent/plugins/linuxplugin/l3plugin/model/l3"
 )
 
 // DataChangeDSL defines the Domain Specific Language (DSL) for data change
@@ -35,29 +36,31 @@ import (
 // to change the scope of DSL), allowing the calls to be chained together
 // conveniently in a single statement.
 type DataChangeDSL interface {
-	// Put initiates a chained sequence of data change DSL statements declaring
-	// new or changing existing configurable objects, e.g:
+	// Put initiates a chained sequence of data change DSL statements, declaring
+	// new configurable objects or changing existing ones, e.g.:
 	//     Put().LinuxInterface(&veth).VppInterface(&afpacket).BD(&BD) ... Send()
-	// The set of available objects to create or change is defined by PutDSL
-	// interface which the returned object implements.
+	// The set of available objects to be created or changed is defined by PutDSL.
 	Put() PutDSL
 
-	// Delete initiates a chained sequence of data change DSL statements
+	// Delete initiates a chained sequence of data change DSL statements,
 	// removing existing configurable objects (by name), e.g:
 	//     Delete().LinuxInterface(vethName).VppInterface(afpacketName).BD(BDName) ... Send()
-	// The set of available objects to remove is defined by DeleteDSL
-	// interface which the returned object implements.
+	// The set of available objects to be removed is defined by DeleteDSL.
 	Delete() DeleteDSL
 
 	// Send propagates requested changes to the plugins.
 	Send() vpp_clientv1.Reply
 }
 
-// PutDSL is a subset of data change DSL statements used to declare new
-// or change existing Linux or VPP configuration.
+// PutDSL is a subset of data change DSL statements, used to declare new
+// Linux or VPP configuration or change existing one.
 type PutDSL interface {
 	// LinuxInterface adds a request to create or update Linux network interface.
 	LinuxInterface(val *interfaces.LinuxInterfaces_Interface) PutDSL
+	// LinuxArpEntry adds a request to crete or update Linux ARP entry
+	LinuxArpEntry(val *l3.LinuxStaticArpEntries_ArpEntry) PutDSL
+	// LinuxRoute adds a request to crete or update Linux route
+	LinuxRoute(val *l3.LinuxStaticRoutes_Route) PutDSL
 
 	// VppInterface adds a request to create or update VPP network interface.
 	VppInterface(val *vpp_intf.Interfaces_Interface) PutDSL
@@ -81,7 +84,7 @@ type PutDSL interface {
 	// ACL adds a request to create or update VPP Access Control List.
 	ACL(acl *vpp_acl.AccessLists_Acl) PutDSL
 
-	// Delete changes the DSL mode to allow removal of an existing configuration.
+	// Delete changes the DSL mode to allow removing an existing configuration.
 	// See documentation for DataChangeDSL.Delete().
 	Delete() DeleteDSL
 
@@ -89,21 +92,25 @@ type PutDSL interface {
 	Send() vpp_clientv1.Reply
 }
 
-// DeleteDSL is a subset of data change DSL statements used to remove
+// DeleteDSL is a subset of data change DSL statements, used to remove
 // existing Linux or VPP configuration.
 type DeleteDSL interface {
 	// LinuxInterface adds a request to delete an existing Linux network
 	// interface.
 	LinuxInterface(ifaceName string) DeleteDSL
+	// LinuxArpEntry adds a request to crete or update Linux ARP entry
+	LinuxArpEntry(val *l3.LinuxStaticArpEntries_ArpEntry) DeleteDSL
+	// LinuxRoute adds a request to crete or update Linux route
+	LinuxRoute(val *l3.LinuxStaticRoutes_Route) DeleteDSL
 
 	// VppInterface adds a request to delete an existing VPP network interface.
 	VppInterface(ifaceName string) DeleteDSL
 	// BfdSession adds a request to delete an existing VPP bidirectional
-	// forwarding/ detection session.
+	// forwarding detection session.
 	BfdSession(bfdSessionIfaceName string) DeleteDSL
 	// BfdAuthKeys adds a request to delete an existing VPP bidirectional
 	// forwarding detection key.
-	BfdAuthKeys(bfdKeyName string) DeleteDSL
+	BfdAuthKeys(bfdKey uint32) DeleteDSL
 	// BfdEchoFunction adds a request to delete an existing VPP bidirectional
 	// forwarding detection echo function.
 	BfdEchoFunction(bfdEchoName string) DeleteDSL

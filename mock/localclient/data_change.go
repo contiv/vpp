@@ -11,7 +11,8 @@ import (
 	vpp_intf "github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/model/interfaces"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/l2plugin/model/l2"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/l3plugin/model/l3"
-	linux_intf "github.com/ligato/vpp-agent/plugins/linuxplugin/model/interfaces"
+	linux_intf "github.com/ligato/vpp-agent/plugins/linuxplugin/ifplugin/model/interfaces"
+	linux_l3 "github.com/ligato/vpp-agent/plugins/linuxplugin/l3plugin/model/l3"
 )
 
 // MockDataChangeDSL is mock for DataChangeDSL.
@@ -145,6 +146,18 @@ func (dsl *MockPutDSL) LinuxInterface(val *linux_intf.LinuxInterfaces_Interface)
 	return dsl
 }
 
+func (dsl *MockPutDSL) LinuxArpEntry(val *linux_l3.LinuxStaticArpEntries_ArpEntry) linux.PutDSL {
+	op := TxnOp{Key: linux_l3.StaticArpKey(val.Name), Value: val}
+	dsl.parent.Ops = append(dsl.parent.Ops, op)
+	return dsl
+}
+
+func (dsl *MockPutDSL) LinuxRoute(val *linux_l3.LinuxStaticRoutes_Route) linux.PutDSL {
+	op := TxnOp{Key: linux_l3.StaticRouteKey(val.Name), Value: val}
+	dsl.parent.Ops = append(dsl.parent.Ops, op)
+	return dsl
+}
+
 // Delete changes the DSL mode to allow removal of an existing configuration.
 func (dsl *MockPutDSL) Delete() linux.DeleteDSL {
 	return &MockDeleteDSL{dsl.parent}
@@ -172,8 +185,8 @@ func (dsl *MockDeleteDSL) BfdSession(bfdSessionIfaceName string) linux.DeleteDSL
 
 // BfdAuthKeys adds a mock request to delete an existing bidirectional forwarding
 // detection key.
-func (dsl *MockDeleteDSL) BfdAuthKeys(bfdKeyName string) linux.DeleteDSL {
-	op := TxnOp{Key: bfd.AuthKeysKey(bfdKeyName)}
+func (dsl *MockDeleteDSL) BfdAuthKeys(bfdKey uint32) linux.DeleteDSL {
+	op := TxnOp{Key: bfd.AuthKeysKey(string(bfdKey))}
 	dsl.parent.Ops = append(dsl.parent.Ops, op)
 	return dsl
 }
@@ -226,6 +239,18 @@ func (dsl *MockDeleteDSL) ACL(aclName string) linux.DeleteDSL {
 // interface.
 func (dsl *MockDeleteDSL) LinuxInterface(ifName string) linux.DeleteDSL {
 	op := TxnOp{Key: linux_intf.InterfaceKey(ifName)}
+	dsl.parent.Ops = append(dsl.parent.Ops, op)
+	return dsl
+}
+
+func (dsl *MockDeleteDSL) LinuxArpEntry(val *linux_l3.LinuxStaticArpEntries_ArpEntry) linux.DeleteDSL {
+	op := TxnOp{Key: linux_l3.StaticArpKey(val.Name), Value: val}
+	dsl.parent.Ops = append(dsl.parent.Ops, op)
+	return dsl
+}
+
+func (dsl *MockDeleteDSL) LinuxRoute(val *linux_l3.LinuxStaticRoutes_Route) linux.DeleteDSL {
+	op := TxnOp{Key: linux_l3.StaticRouteKey(val.Name), Value: val}
 	dsl.parent.Ops = append(dsl.parent.Ops, op)
 	return dsl
 }

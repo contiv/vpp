@@ -65,7 +65,7 @@ func TestSingleContivRuleOneInterface(t *testing.T) {
 	egress := []*renderer.ContivRule{rule}
 
 	// Run single transaction.
-	txn := ruleCache.NewTxn(false)
+	txn := ruleCache.NewTxn()
 
 	// Verify that initially there are no changes.
 	ingressChanges, egressChanges := txn.Changes()
@@ -75,6 +75,7 @@ func TestSingleContivRuleOneInterface(t *testing.T) {
 	// Perform single update.
 	err := txn.Update("afpacket1", ingress, egress)
 	gomega.Expect(err).To(gomega.BeNil())
+	gomega.Expect(txn.AllInterfaces()).To(gomega.BeEquivalentTo(NewInterfaceSet("afpacket1")))
 
 	// Verify changes to be committed.
 	ingressChanges, egressChanges = txn.Changes()
@@ -157,7 +158,7 @@ func TestSingleContivRuleMultipleInterfaces(t *testing.T) {
 	egress := []*renderer.ContivRule{rule}
 
 	// Run first transaction.
-	txn := ruleCache.NewTxn(false)
+	txn := ruleCache.NewTxn()
 
 	// Perform update of the same rules for multiple interfaces.
 	ifSet := NewInterfaceSet("afpacket1", "afpacket2", "afpacket3")
@@ -165,6 +166,7 @@ func TestSingleContivRuleMultipleInterfaces(t *testing.T) {
 		err := txn.Update(ifName, ingress, egress)
 		gomega.Expect(err).To(gomega.BeNil())
 	}
+	gomega.Expect(txn.AllInterfaces()).To(gomega.BeEquivalentTo(ifSet))
 
 	// Verify changes to be committed.
 	ingressChanges, egressChanges := txn.Changes()
@@ -220,7 +222,7 @@ func TestSingleContivRuleMultipleInterfaces(t *testing.T) {
 	gomega.Expect(ifEgress3.ID).To(gomega.BeEquivalentTo(ifEgress1.ID))
 
 	// Run second transaction.
-	txn = ruleCache.NewTxn(false)
+	txn = ruleCache.NewTxn()
 
 	// Add two more interfaces.
 	ifSet2 := ifSet.Copy()
@@ -230,6 +232,7 @@ func TestSingleContivRuleMultipleInterfaces(t *testing.T) {
 		err := txn.Update(ifName, ingress, egress)
 		gomega.Expect(err).To(gomega.BeNil())
 	}
+	gomega.Expect(txn.AllInterfaces()).To(gomega.BeEquivalentTo(ifSet2))
 
 	// Verify changes to be committed.
 	ingressChanges, egressChanges = txn.Changes()
@@ -346,7 +349,7 @@ func TestMultipleContivRulesSingleInterface(t *testing.T) {
 	egress := []*renderer.ContivRule{egRule1, egRule2}
 
 	// Run first transaction.
-	txn := ruleCache.NewTxn(false)
+	txn := ruleCache.NewTxn()
 
 	// Perform update for single interface.
 	ifSet := NewInterfaceSet("afpacket1")
@@ -354,6 +357,7 @@ func TestMultipleContivRulesSingleInterface(t *testing.T) {
 		err := txn.Update(ifName, ingress, egress)
 		gomega.Expect(err).To(gomega.BeNil())
 	}
+	gomega.Expect(txn.AllInterfaces()).To(gomega.BeEquivalentTo(ifSet))
 
 	// Verify changes to be committed.
 	ingressChanges, egressChanges := txn.Changes()
@@ -397,7 +401,7 @@ func TestMultipleContivRulesSingleInterface(t *testing.T) {
 	gomega.Expect(ifEgress.Interfaces).To(gomega.BeEquivalentTo(ifSet))
 
 	// Run second transaction.
-	txn = ruleCache.NewTxn(false)
+	txn = ruleCache.NewTxn()
 
 	// Add ingress rule.
 	inRule3 := &renderer.ContivRule{
@@ -417,6 +421,7 @@ func TestMultipleContivRulesSingleInterface(t *testing.T) {
 		err := txn.Update(ifName, ingress2, egress)
 		gomega.Expect(err).To(gomega.BeNil())
 	}
+	gomega.Expect(txn.AllInterfaces()).To(gomega.BeEquivalentTo(ifSet))
 
 	// Verify changes to be committed.
 	ingressChanges, egressChanges = txn.Changes()
@@ -521,7 +526,7 @@ func TestMultipleContivRulesMultipleInterfaces(t *testing.T) {
 	var egressBListID string
 
 	// Run first transaction.
-	txn := ruleCache.NewTxn(false)
+	txn := ruleCache.NewTxn()
 
 	// Perform update for multiple interfaces.
 	ifSet := NewInterfaceSet("afpacket1", "afpacket2", "afpacket3")
@@ -621,7 +626,7 @@ func TestMultipleContivRulesMultipleInterfaces(t *testing.T) {
 	gomega.Expect(ifEgress3.Interfaces).To(gomega.BeEquivalentTo(ifSetEgB))
 
 	// Run second transaction.
-	txn = ruleCache.NewTxn(false)
+	txn = ruleCache.NewTxn()
 
 	// Change assignment of rules a bit.
 	ingressC := []*renderer.ContivRule{inRule1} // afpacket1, afpacket3
@@ -638,6 +643,7 @@ func TestMultipleContivRulesMultipleInterfaces(t *testing.T) {
 	gomega.Expect(err).To(gomega.BeNil())
 	err = txn.Update("afpacket3", ingressC, egressB)
 	gomega.Expect(err).To(gomega.BeNil())
+	gomega.Expect(txn.AllInterfaces()).To(gomega.BeEquivalentTo(ifSet))
 
 	// Verify changes to be committed.
 	ingressChanges, egressChanges = txn.Changes()
@@ -777,75 +783,57 @@ func TestMultipleContivRulesMultipleInterfacesWithResync(t *testing.T) {
 		SrcPort:     1111,
 		DestPort:    2222,
 	}
+
 	ingressA := []*renderer.ContivRule{inRule1, inRule2} // afpacket1, afpacket2
 	ingressB := []*renderer.ContivRule{}                 // afpacket3
 	egressA := []*renderer.ContivRule{egRule2}           // afpacket1
 	egressB := []*renderer.ContivRule{egRule1, egRule2}  // afpacket2, afpacket3
-	var ingressAListID string
-	var ingressBListID string
-	var egressAListID string
-	var egressBListID string
 
-	// Run first transaction.
-	txn := ruleCache.NewTxn(true)
+	ingressAListID := "ingress-A"
+	ingressBListID := "ingress-B"
+	egressAListID := "egress-A"
+	egressBListID := "egress-B"
 
-	// Perform update for multiple interfaces.
 	ifSet := NewInterfaceSet("afpacket1", "afpacket2", "afpacket3")
 	ifSetInA := NewInterfaceSet("afpacket1", "afpacket2")
 	ifSetInB := NewInterfaceSet("afpacket3")
 	ifSetEgA := NewInterfaceSet("afpacket1")
 	ifSetEgB := NewInterfaceSet("afpacket2", "afpacket3")
 
-	err := txn.Update("afpacket1", ingressA, egressA)
-	gomega.Expect(err).To(gomega.BeNil())
-	err = txn.Update("afpacket2", ingressA, egressB)
-	gomega.Expect(err).To(gomega.BeNil())
-	err = txn.Update("afpacket3", ingressB, egressB)
-	gomega.Expect(err).To(gomega.BeNil())
+	ingressLists := []*ContivRuleList{}
+	ingressLists = append(ingressLists,
+		&ContivRuleList{
+			ID:         ingressAListID,
+			Rules:      ingressA,
+			Interfaces: ifSetInA,
+			Private:    nil,
+		})
+	ingressLists = append(ingressLists,
+		&ContivRuleList{
+			ID:         ingressBListID,
+			Rules:      ingressB,
+			Interfaces: ifSetInB,
+			Private:    nil,
+		})
 
-	// Verify changes to be committed.
-	ingressChanges, egressChanges := txn.Changes()
-	gomega.Expect(ingressChanges).To(gomega.HaveLen(2))
-	gomega.Expect(egressChanges).To(gomega.HaveLen(2))
+	egressLists := []*ContivRuleList{}
+	egressLists = append(egressLists,
+		&ContivRuleList{
+			ID:         egressAListID,
+			Rules:      egressA,
+			Interfaces: ifSetEgA,
+			Private:    nil,
+		})
+	egressLists = append(egressLists,
+		&ContivRuleList{
+			ID:         egressBListID,
+			Rules:      egressB,
+			Interfaces: ifSetEgB,
+			Private:    nil,
+		})
 
-	for _, change := range ingressChanges {
-		gomega.Expect(change.List).ToNot(gomega.BeNil())
-		if compareRuleLists(change.List.Rules, ingressA) == 0 {
-			gomega.Expect(change.List.ID).ToNot(gomega.BeEmpty())
-			gomega.Expect(strings.HasPrefix(change.List.ID, "ingress")).To(gomega.BeTrue())
-			gomega.Expect(change.PreviousInterfaces).To(gomega.BeEmpty())
-			gomega.Expect(change.List.Interfaces).To(gomega.BeEquivalentTo(ifSetInA))
-			ingressAListID = change.List.ID
-		} else {
-			gomega.Expect(change.List.ID).ToNot(gomega.BeEmpty())
-			gomega.Expect(strings.HasPrefix(change.List.ID, "ingress")).To(gomega.BeTrue())
-			gomega.Expect(compareRuleLists(change.List.Rules, ingressB)).To(gomega.BeEquivalentTo(0))
-			gomega.Expect(change.PreviousInterfaces).To(gomega.BeEmpty())
-			gomega.Expect(change.List.Interfaces).To(gomega.BeEquivalentTo(ifSetInB))
-			ingressBListID = change.List.ID
-		}
-	}
-
-	for _, change := range egressChanges {
-		gomega.Expect(change.List).ToNot(gomega.BeNil())
-		if compareRuleLists(change.List.Rules, egressA) == 0 {
-			gomega.Expect(change.List.ID).ToNot(gomega.BeEmpty())
-			gomega.Expect(strings.HasPrefix(change.List.ID, "egress")).To(gomega.BeTrue())
-			gomega.Expect(change.PreviousInterfaces).To(gomega.BeEmpty())
-			gomega.Expect(change.List.Interfaces).To(gomega.BeEquivalentTo(ifSetEgA))
-			egressAListID = change.List.ID
-		} else {
-			gomega.Expect(change.List.ID).ToNot(gomega.BeEmpty())
-			gomega.Expect(strings.HasPrefix(change.List.ID, "egress")).To(gomega.BeTrue())
-			gomega.Expect(compareRuleLists(change.List.Rules, egressB)).To(gomega.BeEquivalentTo(0))
-			gomega.Expect(change.PreviousInterfaces).To(gomega.BeEmpty())
-			gomega.Expect(change.List.Interfaces).To(gomega.BeEquivalentTo(ifSetEgB))
-			egressBListID = change.List.ID
-		}
-	}
-
-	// Commit changes into the cache.
-	err = txn.Commit()
+	// Perform Resync for multiple interfaces.
+	err := ruleCache.Resync(ingressLists, egressLists)
 	gomega.Expect(err).To(gomega.BeNil())
 
 	// Verify cache content.
@@ -886,55 +874,71 @@ func TestMultipleContivRulesMultipleInterfacesWithResync(t *testing.T) {
 	gomega.Expect(compareRuleLists(ifEgress3.Rules, egressB)).To(gomega.BeEquivalentTo(0))
 	gomega.Expect(ifEgress3.Interfaces).To(gomega.BeEquivalentTo(ifSetEgB))
 
-	// Run second transaction.
-	txn = ruleCache.NewTxn(true)
+	// Run first transaction after the resync.
+	txn := ruleCache.NewTxn()
 
-	// Resync: change change assignment of rules a bit and remove afpacket3.
-	ifSetInA = NewInterfaceSet("afpacket1")
-	ifSetInB = NewInterfaceSet("afpacket2")
-	ifSetEgA = NewInterfaceSet("afpacket1", "afpacket2")
+	// Change assignment of rules a bit.
+	ingressC := []*renderer.ContivRule{inRule1} // afpacket1, afpacket3
+	var ingressCListID string
+	ifSetInA = NewInterfaceSet("afpacket2")
+	ifSetInB = NewInterfaceSet()
+	ifSetInC := NewInterfaceSet("afpacket1", "afpacket3")
+	ifSetEgA = NewInterfaceSet()
+	ifSetEgB = NewInterfaceSet("afpacket1", "afpacket2", "afpacket3")
 
-	ingressA = []*renderer.ContivRule{inRule1}          // afpacket1
-	ingressB = []*renderer.ContivRule{inRule1, inRule2} // afpacket2
-	egressA = []*renderer.ContivRule{egRule1, egRule2}  // afpacket1,2
-
-	err = txn.Update("afpacket1", ingressA, egressA)
+	err = txn.Update("afpacket1", ingressC, egressB)
 	gomega.Expect(err).To(gomega.BeNil())
-	err = txn.Update("afpacket2", ingressB, egressA)
+	err = txn.Update("afpacket2", ingressA, egressB)
 	gomega.Expect(err).To(gomega.BeNil())
+	err = txn.Update("afpacket3", ingressC, egressB)
+	gomega.Expect(err).To(gomega.BeNil())
+	gomega.Expect(txn.AllInterfaces()).To(gomega.BeEquivalentTo(ifSet))
 
 	// Verify changes to be committed.
-	ingressChanges, egressChanges = txn.Changes()
-	gomega.Expect(ingressChanges).To(gomega.HaveLen(2))
-	gomega.Expect(egressChanges).To(gomega.HaveLen(1))
+	ingressChanges, egressChanges := txn.Changes()
+	gomega.Expect(ingressChanges).To(gomega.HaveLen(3))
+	gomega.Expect(egressChanges).To(gomega.HaveLen(2))
 
 	for _, change := range ingressChanges {
 		gomega.Expect(change.List).ToNot(gomega.BeNil())
-		if compareRuleLists(change.List.Rules, ingressA) == 0 {
-			// New list created for ingress afpacket1.
+		if compareRuleLists(change.List.Rules, ingressC) == 0 {
+			// New list created for ingress afpacket1+afpacket3.
 			gomega.Expect(change.List.ID).ToNot(gomega.BeEmpty())
 			gomega.Expect(strings.HasPrefix(change.List.ID, "ingress")).To(gomega.BeTrue())
 			gomega.Expect(change.PreviousInterfaces).To(gomega.BeEmpty())
+			gomega.Expect(change.List.Interfaces).To(gomega.BeEquivalentTo(ifSetInC))
+			ingressCListID = change.List.ID
+			gomega.Expect(ingressCListID).ToNot(gomega.BeEquivalentTo(ingressAListID))
+			gomega.Expect(ingressCListID).ToNot(gomega.BeEquivalentTo(ingressBListID))
+		} else if change.List.ID == ingressAListID {
+			// -afpacket1
+			gomega.Expect(compareRuleLists(change.List.Rules, ingressA)).To(gomega.BeEquivalentTo(0))
+			gomega.Expect(change.PreviousInterfaces).To(gomega.BeEquivalentTo(NewInterfaceSet("afpacket1", "afpacket2")))
 			gomega.Expect(change.List.Interfaces).To(gomega.BeEquivalentTo(ifSetInA))
-			ingressAListID = change.List.ID
 		} else {
-			// New list created for ingress afpacket2.
-			gomega.Expect(change.List.ID).ToNot(gomega.BeEmpty())
-			gomega.Expect(strings.HasPrefix(change.List.ID, "ingress")).To(gomega.BeTrue())
+			// -afpacket3 (removed)
 			gomega.Expect(compareRuleLists(change.List.Rules, ingressB)).To(gomega.BeEquivalentTo(0))
-			gomega.Expect(change.PreviousInterfaces).To(gomega.BeEmpty())
+			gomega.Expect(change.PreviousInterfaces).To(gomega.BeEquivalentTo(NewInterfaceSet("afpacket3")))
 			gomega.Expect(change.List.Interfaces).To(gomega.BeEquivalentTo(ifSetInB))
-			ingressBListID = change.List.ID
 		}
 	}
 
-	change := egressChanges[0]
-	gomega.Expect(change.List.ID).ToNot(gomega.BeEmpty())
-	gomega.Expect(strings.HasPrefix(change.List.ID, "egress")).To(gomega.BeTrue())
-	gomega.Expect(compareRuleLists(change.List.Rules, egressA)).To(gomega.BeEquivalentTo(0))
-	gomega.Expect(change.PreviousInterfaces).To(gomega.BeEmpty())
-	gomega.Expect(change.List.Interfaces).To(gomega.BeEquivalentTo(ifSetEgA))
-	egressAListID = change.List.ID
+	for _, change := range egressChanges {
+		gomega.Expect(change.List).ToNot(gomega.BeNil())
+		if change.List.ID == egressAListID {
+			// -afpacket1 (removed)
+			gomega.Expect(compareRuleLists(change.List.Rules, egressA)).To(gomega.BeEquivalentTo(0))
+			gomega.Expect(change.PreviousInterfaces).To(gomega.BeEquivalentTo(NewInterfaceSet("afpacket1")))
+			gomega.Expect(change.List.Interfaces).To(gomega.BeEquivalentTo(ifSetEgA))
+		} else {
+			// +afpacket1
+			gomega.Expect(change.List.ID).ToNot(gomega.BeEmpty())
+			gomega.Expect(strings.HasPrefix(change.List.ID, "egress")).To(gomega.BeTrue())
+			gomega.Expect(compareRuleLists(change.List.Rules, egressB)).To(gomega.BeEquivalentTo(0))
+			gomega.Expect(change.PreviousInterfaces).To(gomega.BeEquivalentTo(NewInterfaceSet("afpacket2", "afpacket3")))
+			gomega.Expect(change.List.Interfaces).To(gomega.BeEquivalentTo(ifSetEgB))
+		}
+	}
 
 	// Commit changes into the cache.
 	err = txn.Commit()
@@ -946,27 +950,35 @@ func TestMultipleContivRulesMultipleInterfacesWithResync(t *testing.T) {
 	gomega.Expect(ifIngress1).ToNot(gomega.BeNil())
 	gomega.Expect(ifEgress1).ToNot(gomega.BeNil())
 
-	gomega.Expect(ifIngress1.ID).To(gomega.BeEquivalentTo(ingressAListID))
-	gomega.Expect(compareRuleLists(ifIngress1.Rules, ingressA)).To(gomega.BeEquivalentTo(0))
-	gomega.Expect(ifIngress1.Interfaces).To(gomega.BeEquivalentTo(ifSetInA))
+	gomega.Expect(ifIngress1.ID).To(gomega.BeEquivalentTo(ingressCListID))
+	gomega.Expect(compareRuleLists(ifIngress1.Rules, ingressC)).To(gomega.BeEquivalentTo(0))
+	gomega.Expect(ifIngress1.Interfaces).To(gomega.BeEquivalentTo(ifSetInC))
 
-	gomega.Expect(ifEgress1.ID).To(gomega.BeEquivalentTo(egressAListID))
-	gomega.Expect(compareRuleLists(ifEgress1.Rules, egressA)).To(gomega.BeEquivalentTo(0))
-	gomega.Expect(ifEgress1.Interfaces).To(gomega.BeEquivalentTo(ifSetEgA))
+	gomega.Expect(ifEgress1.ID).To(gomega.BeEquivalentTo(egressBListID))
+	gomega.Expect(compareRuleLists(ifEgress1.Rules, egressB)).To(gomega.BeEquivalentTo(0))
+	gomega.Expect(ifEgress1.Interfaces).To(gomega.BeEquivalentTo(ifSetEgB))
 
 	ifIngress2, ifEgress2 = ruleCache.LookupByInterface("afpacket2")
 	gomega.Expect(ifIngress2).ToNot(gomega.BeNil())
 	gomega.Expect(ifEgress2).ToNot(gomega.BeNil())
 
-	gomega.Expect(ifIngress2.ID).To(gomega.BeEquivalentTo(ingressBListID))
-	gomega.Expect(compareRuleLists(ifIngress2.Rules, ingressB)).To(gomega.BeEquivalentTo(0))
-	gomega.Expect(ifIngress2.Interfaces).To(gomega.BeEquivalentTo(ifSetInB))
+	gomega.Expect(ifIngress2.ID).To(gomega.BeEquivalentTo(ingressAListID))
+	gomega.Expect(compareRuleLists(ifIngress2.Rules, ingressA)).To(gomega.BeEquivalentTo(0))
+	gomega.Expect(ifIngress2.Interfaces).To(gomega.BeEquivalentTo(ifSetInA))
 
-	gomega.Expect(ifEgress2.ID).To(gomega.BeEquivalentTo(egressAListID))
-	gomega.Expect(compareRuleLists(ifEgress2.Rules, egressA)).To(gomega.BeEquivalentTo(0))
-	gomega.Expect(ifEgress2.Interfaces).To(gomega.BeEquivalentTo(ifSetEgA))
+	gomega.Expect(ifEgress2.ID).To(gomega.BeEquivalentTo(egressBListID))
+	gomega.Expect(compareRuleLists(ifEgress2.Rules, egressB)).To(gomega.BeEquivalentTo(0))
+	gomega.Expect(ifEgress2.Interfaces).To(gomega.BeEquivalentTo(ifSetEgB))
 
 	ifIngress3, ifEgress3 = ruleCache.LookupByInterface("afpacket3")
-	gomega.Expect(ifIngress3).To(gomega.BeNil())
-	gomega.Expect(ifEgress3).To(gomega.BeNil())
+	gomega.Expect(ifIngress3).ToNot(gomega.BeNil())
+	gomega.Expect(ifEgress3).ToNot(gomega.BeNil())
+
+	gomega.Expect(ifIngress3.ID).To(gomega.BeEquivalentTo(ingressCListID))
+	gomega.Expect(compareRuleLists(ifIngress3.Rules, ingressC)).To(gomega.BeEquivalentTo(0))
+	gomega.Expect(ifIngress3.Interfaces).To(gomega.BeEquivalentTo(ifSetInC))
+
+	gomega.Expect(ifEgress3.ID).To(gomega.BeEquivalentTo(egressBListID))
+	gomega.Expect(compareRuleLists(ifEgress3.Rules, egressB)).To(gomega.BeEquivalentTo(0))
+	gomega.Expect(ifEgress3.Interfaces).To(gomega.BeEquivalentTo(ifSetEgB))
 }

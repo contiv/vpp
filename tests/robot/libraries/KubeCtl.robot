@@ -1,94 +1,105 @@
 *** Settings ***
 Documentation     This is a library to handle kubectl commands on the remote machine, towards which
-...    ssh connection is opened.
-Library    Collections
-Library    SSHLibrary
-Library    String
-Library    ${CURDIR}/kube_parser.py
+...               ssh connection is opened.
+Library           ${CURDIR}/kube_parser.py
+Resource          ${CURDIR}/SshCommons.robot
 
 *** Keywords ***
-KubeCtl__Execute_Command_And_Log
-    [Arguments]    ${ssh_session}    ${command}    ${expected_rc}=0    ${ignore_stderr}=${False}
-    SSHLibrary.Switch_Connection    ${ssh_session}
-    ${stdout}    ${stderr}    ${rc} =    SSHLibrary.Execute_Command    ${command}    return_stderr=True    return_rc=True
-    BuiltIn.Log    ${stdout}
-    BuiltIn.Log    ${stderr}
-    BuiltIn.Log    ${rc}
-    BuiltIn.Run_Keyword_Unless    ${ignore_stderr}    BuiltIn.Should_Be_Empty    ${stderr}
-    BuiltIn.Should_Be_Equal_As_Numbers    ${rc}    ${expected_rc}
-    BuiltIn.Return_From_Keyword    ${stdout}
-
-KubeCtl__Execute_Command_And_Log_With_File
-    [Arguments]    ${ssh_session}    ${file_path}    ${command_prefix}    ${expected_rc}=0    ${ignore_stderr}=${False}
-    SSHLibrary.Switch_Connection    ${ssh_session}
-    SSHLibrary.Put_File    ${file_path}    .
-    ${splitted_path} =    String.Split_String    ${file_path}    separator=${/}
-    BuiltIn.Run_Keyword_And_Return    KubeCtl__Execute_Command_And_Log    ${ssh_session}    ${command_prefix} @{splitted_path}[-1]    expected_rc=${expected_rc}    ignore_stderr=${ignore_stderr}
-
 Apply_F
     [Arguments]    ${ssh_session}    ${file_path}
-    KubeCtl__Execute_Command_And_Log_With_File    ${ssh_session}    ${file_path}    kubectl apply -f
+    [Documentation]    Execute "kubectl apply -f" with given local file.
+    BuiltIn.Log_Many    ${ssh_session}    ${file_path}
+    SshCommons.Switch_And_Execute_With_Copied_File    ${ssh_session}    ${file_path}    kubectl apply -f
 
 Apply_F_Url
     [Arguments]    ${ssh_session}    ${url}
-    KubeCtl__Execute_Command_And_Log    ${ssh_session}    kubectl apply -f ${url}
+    [Documentation]    Execute "kubectl apply -f" with given \${url}.
+    BuiltIn.Log_Many    ${ssh_session}    ${url}
+    SshCommons.Switch_And_Execute_Command    ${ssh_session}    kubectl apply -f ${url}
 
 Delete_F
     [Arguments]    ${ssh_session}    ${file_path}    ${expected_rc}=0    ${ignore_stderr}=${False}
-    KubeCtl__Execute_Command_And_Log_With_File    ${ssh_session}    ${file_path}    kubectl delete -f    expected_rc=${expected_rc}    ignore_stderr=${ignore_stderr}
+    [Documentation]    Execute "kubectl delete -f" with given local file.
+    BuiltIn.Log_Many    ${ssh_session}    ${file_path}    ${expected_rc}    ${ignore_stderr}
+    SshCommons.Switch_And_Execute_With_Copied_File    ${ssh_session}    ${file_path}    kubectl delete -f    expected_rc=${expected_rc}    ignore_stderr=${ignore_stderr}
 
 Delete_F_Url
     [Arguments]    ${ssh_session}    ${url}    ${expected_rc}=0    ${ignore_stderr}=${False}
-    KubeCtl__Execute_Command_And_Log    ${ssh_session}    kubectl delete -f ${url}    expected_rc=${expected_rc}    ignore_stderr=${ignore_stderr}
+    [Documentation]    Execute "kubectl delete -f" with given \${url}.
+    BuiltIn.Log_Many    ${ssh_session}    ${url}    ${expected_rc}    ${ignore_stderr}
+    SshCommons.Switch_And_Execute_Command    ${ssh_session}    kubectl delete -f ${url}    expected_rc=${expected_rc}    ignore_stderr=${ignore_stderr}
 
 Get_Pod
     [Arguments]    ${ssh_session}    ${pod_name}    ${namespace}=default
-    ${stdout} =    KubeCtl__Execute_Command_And_Log    ${ssh_session}    kubectl get pod -n ${namespace} ${pod_name}
-    ${output} =     kube_parser.parse_kubectl_get_pods    ${stdout}
-    BuiltIn.Return_From_Keyword    ${output}
-   
+    [Documentation]    Execute "kubectl get pod -n" for given \${namespace} and \${pod_name}, parse, log and return the parsed result.
+    Builtin.Log_Many    ${ssh_session}    ${pod_name}    ${namespace}
+    ${stdout} =    SshCommons.Switch_And_Execute_Command    ${ssh_session}    kubectl get pod -n ${namespace} ${pod_name}
+    ${output} =    kube_parser.parse_kubectl_get_pods    ${stdout}
+    BuiltIn.Log    ${output}
+    [Return]    ${output}
+
 Get_Pods
-    [Arguments]    ${ssh_session}    ${namespace}=default 
-    ${status}    ${message} =    BuiltIn.Run_Keyword_And_Ignore_Error    KubeCtl__Execute_Command_And_Log    ${ssh_session}    kubectl get pods -n ${namespace}
-    BuiltIn.Run_Keyword_If    """${status}""" == """FAIL""" and """No resources found""" not in """${message}"""    FAIL    msg=${message}
-    ${output} =     kube_parser.parse_kubectl_get_pods    ${message}
-    BuiltIn.Return_From_Keyword    ${output}
+    [Arguments]    ${ssh_session}    ${namespace}=default
+    [Documentation]    Execute "kubectl get pods -n" for given \${namespace} tolerating zero resources, parse, log and return the parsed output.
+    BuiltIn.Log_Many    ${ssh_session}    ${namespace}
+    ${status}    ${message} =    BuiltIn.Run_Keyword_And_Ignore_Error    SshCommons.Switch_And_Execute_Command    ${ssh_session}    kubectl get pods -n ${namespace}
+    BuiltIn.Run_Keyword_If    """${status}""" == """FAIL""" and """No resources found""" not in """${message}"""    BuiltIn.Fail    msg=${message}
+    ${output} =    kube_parser.parse_kubectl_get_pods    ${message}
+    BuiltIn.Log    ${output}
+    [Return]    ${output}
 
 Get_Pods_Wide
     [Arguments]    ${ssh_session}
-    ${stdout} =    KubeCtl__Execute_Command_And_Log    ${ssh_session}    kubectl get pods -o wide
-    ${output} =     kube_parser.parse_kubectl_get_pods    ${stdout}
-    BuiltIn.Return_From_Keyword    ${output}
+    [Documentation]    Execute "kubectl get pods -o wide", parse, log and return the parsed outpt.
+    Builtin.Log_Many    ${ssh_session}
+    ${stdout} =    SshCommons.Switch_And_Execute_Command    ${ssh_session}    kubectl get pods -o wide
+    ${output} =    kube_parser.parse_kubectl_get_pods    ${stdout}
+    BuiltIn.Log    ${output}
+    [Return]    ${output}
 
 Get_Pods_All_Namespaces
     [Arguments]    ${ssh_session}
-    ${stdout} =    KubeCtl__Execute_Command_And_Log    ${ssh_session}    kubectl get pods --all-namespaces
-    ${output} =     kube_parser.parse_kubectl_get_pods    ${stdout}
-    BuiltIn.Return_From_Keyword    ${output}
+    [Documentation]    Execute "kubectl get pods --all-namespaces", parse, log and return the parsed outpt.
+    Builtin.Log_Many    ${ssh_session}
+    ${stdout} =    SshCommons.Switch_And_Execute_Command    ${ssh_session}    kubectl get pods --all-namespaces
+    ${output} =    kube_parser.parse_kubectl_get_pods    ${stdout}
+    BuiltIn.Log    ${output}
+    [Return]    ${output}
 
 Get_Nodes
     [Arguments]    ${ssh_session}
-    ${stdout} =    KubeCtl__Execute_Command_And_Log    ${ssh_session}    kubectl get nodes
-    ${output} =     kube_parser.parse_kubectl_get_nodes    ${stdout}
-    BuiltIn.Return_From_Keyword    ${output}
+    [Documentation]    Execute "kubectl get nodes", parse, log and return the parsed outpt.
+    Builtin.Log_Many    ${ssh_session}
+    ${stdout} =    SshCommons.Switch_And_Execute_Command    ${ssh_session}    kubectl get nodes
+    ${output} =    kube_parser.parse_kubectl_get_nodes    ${stdout}
+    BuiltIn.Log    ${output}
+    [Return]    ${output}
 
 Logs
     [Arguments]    ${ssh_session}    ${pod_name}    ${container}=${EMPTY}    ${namespace}=${EMPTY}
+    [Documentation]    Execute "kubectl logs" with given params and return the result.
+    BuiltIn.Log_Many    ${ssh_session}    ${pod_name}    ${container}    ${namespace}
     ${nsparam} =     BuiltIn.Set_Variable_If    """${namespace}""" != """${EMPTY}"""    --namespace ${namespace}    ${EMPTY}
     ${cntparam} =    BuiltIn.Set_Variable_If    """${container}""" != """${EMPTY}"""    ${container}    ${EMPTY}
-    BuiltIn.Run_Keyword_And_Return    KubeCtl__Execute_Command_And_Log    ${ssh_session}    kubectl logs ${nsparam} ${pod_name} ${cntparam}
+    BuiltIn.Run_Keyword_And_Return    SshCommons.Switch_And_Execute_Command    ${ssh_session}    kubectl logs ${nsparam} ${pod_name} ${cntparam}
 
 Describe_Pod
     [Arguments]    ${ssh_session}    ${pod_name}
-    ${output} =    KubeCtl__Execute_Command_And_Log    ${ssh_session}    kubectl describe pod ${pod_name}
-    ${details} =    kube_parser.parse_kubectl_describe_pod    ${output}
-    BuiltIn.Return_From_Keyword    ${details}
+    [Documentation]    Execute "kubectl describe pod" with given \${pod_name}, parse, log and return the parsed details.
+    BuiltIn.Log_Many    ${ssh_session}    ${pod_name}
+    ${output} =    SshCommons.Switch_And_Execute_Command    ${ssh_session}    kubectl describe pod ${pod_name}
+    ${details} =   kube_parser.parse_kubectl_describe_pod    ${output}
+    BuiltIn.Log    ${details}
+    [Return]    ${details}
 
 Taint
     [Arguments]    ${ssh_session}    ${cmd_parameters}
-    ${stdout} =    KubeCtl__Execute_Command_And_Log    ${ssh_session}    kubectl taint ${cmd_parameters}
-    BuiltIn.Return_From_Keyword    ${stdout}
+    [Documentation]    Execute "kubectl taint" with given \${cmd_parameters}, return the result.
+    Builtin.Log_Many    ${ssh_session}    ${cmd_parameters}
+    BuiltIn.Run_Keyword_And_Return    SshCommons.Switch_And_Execute_Command    ${ssh_session}    kubectl taint ${cmd_parameters}
 
 Label_Nodes
     [Arguments]    ${ssh_session}    ${node_name}   ${label_key}    ${label_value}
-    ${stdout} =    KubeCtl__Execute_Command_And_Log    ${ssh_session}    kubectl label nodes ${node_name} ${label_key}=${label_value}
+    [Documentation]    Execute "kubectl label nodes" with given parameters, return the result.
+    Builtin.Log_Many    ${ssh_session}    ${node_name}   ${label_key}    ${label_value}
+    BuiltIn.Run_Keyword_And_Return    SshCommons.Switch_And_Execute_Command    ${ssh_session}    kubectl label nodes ${node_name} ${label_key}=${label_value}

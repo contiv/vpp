@@ -18,9 +18,11 @@ package cache
 
 import (
 	"bytes"
+	"crypto/rand"
+	"fmt"
 	"net"
 	"sort"
-	"strconv"
+	"strings"
 
 	"github.com/ligato/cn-infra/logging"
 
@@ -36,7 +38,7 @@ type ContivRuleCache struct {
 
 	interfaces InterfaceSet // a set of updated interfaces
 
-	lastListID map[string]uint64 // last ID per prefix (ingress & egress)
+	allocatedListIDs map[TrafficDirection]AllocatedIDs // ingress / egress -> used IDs
 }
 
 // Deps lists dependencies of ContivRuleCache.
@@ -46,8 +48,7 @@ type Deps struct {
 
 // ContivRuleCacheTxn represents a single transaction of ContivRuleCache.
 type ContivRuleCacheTxn struct {
-	cache  *ContivRuleCache
-	resync bool
+	cache *ContivRuleCache
 
 	// lists with changes from the transaction
 	ingress *ContivRuleLists
@@ -78,15 +79,36 @@ type ContivRuleLists struct {
 	byInterface map[string]*ContivRuleList /* search by assigned interface */
 }
 
-// NewContivRuleLists is a constructor for ContivRuleLists.
-func NewContivRuleLists(logger logging.Logger, dummy bool) *ContivRuleLists {
-	capacity := 0
-	if !dummy {
-		capacity = 100
+// TrafficDirection is one of: Ingress, Egress.
+type TrafficDirection int
+
+const (
+	// Ingress is the traffic direction from the outside to the inside network.
+	Ingress TrafficDirection = iota
+
+	// Egress is the traffic direction from the inside to the outside network.
+	Egress
+)
+
+// String converts TrafficDirection into a human-readable string.
+func (td TrafficDirection) String() string {
+	switch td {
+	case Ingress:
+		return "ingress"
+	case Egress:
+		return "egress"
 	}
+	return "INVALID"
+}
+
+// AllocatedIDs represents a set of all allocated IDs.
+type AllocatedIDs map[string]struct{}
+
+// NewContivRuleLists is a constructor for ContivRuleLists.
+func NewContivRuleLists(logger logging.Logger) *ContivRuleLists {
 	return &ContivRuleLists{
 		Log:         logger,
-		ruleLists:   make([]*ContivRuleList, 0, capacity),
+		ruleLists:   make([]*ContivRuleList, 0, 100),
 		byID:        make(map[string]*ContivRuleList),
 		byInterface: make(map[string]*ContivRuleList),
 	}
@@ -95,24 +117,86 @@ func NewContivRuleLists(logger logging.Logger, dummy bool) *ContivRuleLists {
 // Init initializes the ContivRule Cache.
 func (crc *ContivRuleCache) Init() error {
 	crc.interfaces = NewInterfaceSet()
-	crc.lastListID = make(map[string]uint64)
-	crc.ingress = NewContivRuleLists(crc.Log, false)
-	crc.egress = NewContivRuleLists(crc.Log, false)
+	crc.allocatedListIDs = make(map[TrafficDirection]AllocatedIDs)
+	crc.ingress = NewContivRuleLists(crc.Log)
+	crc.egress = NewContivRuleLists(crc.Log)
 	return nil
 }
 
 // NewTxn starts a new transaction. The rendering executes only after Commit()
-// is called. If <resync> is enabled, the supplied configuration will completely
-// replace the existing one, otherwise interfaces not mentioned in the transaction
-// are left unchanged.
-func (crc *ContivRuleCache) NewTxn(resync bool) Txn {
+// is called.
+func (crc *ContivRuleCache) NewTxn() Txn {
 	return &ContivRuleCacheTxn{
 		cache:      crc,
-		resync:     resync,
-		ingress:    NewContivRuleLists(crc.Log, false),
-		egress:     NewContivRuleLists(crc.Log, false),
+		ingress:    NewContivRuleLists(crc.Log),
+		egress:     NewContivRuleLists(crc.Log),
 		interfaces: NewInterfaceSet(),
 	}
+}
+
+// Resync completely replaces the existing cache content with the supplied
+// data.
+func (crc *ContivRuleCache) Resync(ingress, egress []*ContivRuleList) error {
+	// Possible errors.
+	invalidIDPrefixFmt := "invalid ContivRuleList ID prefix: %s"
+	duplicateIDFmt := "duplicate ContivRuleList ID: %s"
+	duplicateFmt := "duplicate ContivRuleList: %s"
+
+	// Re-synchronize outside of the cache first.
+	// In-progress failure should not affect the cache content.
+	interfaces := NewInterfaceSet()
+	allocatedListIDs := make(map[TrafficDirection]AllocatedIDs)
+	allocatedListIDs[Ingress] = make(AllocatedIDs)
+	allocatedListIDs[Egress] = make(AllocatedIDs)
+	ingressLists := NewContivRuleLists(crc.Log)
+	egressLists := NewContivRuleLists(crc.Log)
+	//  -> Ingress
+	for _, list := range ingress {
+		if len(list.Interfaces) == 0 {
+			// Skip unused lists.
+			continue
+		}
+		if !strings.HasPrefix(list.ID, Ingress.String()+"-") {
+			return fmt.Errorf(invalidIDPrefixFmt, list.ID)
+		}
+		idSuffix := strings.TrimPrefix(list.ID, Ingress.String()+"-")
+		_, duplicity := allocatedListIDs[Ingress][idSuffix]
+		if duplicity {
+			return fmt.Errorf(duplicateIDFmt, list.ID)
+		}
+		allocatedListIDs[Ingress][idSuffix] = struct{}{}
+		if !ingressLists.Insert(list) {
+			return fmt.Errorf(duplicateFmt, list.ID)
+		}
+		interfaces.Join(list.Interfaces)
+	}
+	//  -> Egress
+	for _, list := range egress {
+		if len(list.Interfaces) == 0 {
+			// Skip unused lists.
+			continue
+		}
+		if !strings.HasPrefix(list.ID, Egress.String()+"-") {
+			return fmt.Errorf(invalidIDPrefixFmt, list.ID)
+		}
+		idSuffix := strings.TrimPrefix(list.ID, Egress.String()+"-")
+		_, duplicity := allocatedListIDs[Egress][idSuffix]
+		if duplicity {
+			return fmt.Errorf(duplicateIDFmt, list.ID)
+		}
+		allocatedListIDs[Egress][idSuffix] = struct{}{}
+		if !egressLists.Insert(list) {
+			return fmt.Errorf(duplicateFmt, list.ID)
+		}
+		interfaces.Join(list.Interfaces)
+	}
+
+	// Replace the cache content.
+	crc.interfaces = interfaces
+	crc.allocatedListIDs = allocatedListIDs
+	crc.ingress = ingressLists
+	crc.egress = egressLists
+	return nil
 }
 
 // LookupByInterface returns rules assigned to a given interface grouped
@@ -131,12 +215,22 @@ func (crc *ContivRuleCache) AllInterfaces() InterfaceSet {
 }
 
 // Generator for ContivRuleList IDs.
-func (crc *ContivRuleCache) generateContivRuleListID(prefix string) string {
-	if _, exists := crc.lastListID[prefix]; !exists {
-		crc.lastListID[prefix] = 0
+func (crc *ContivRuleCache) generateListID(direction TrafficDirection) string {
+	var suffix string
+	if _, exists := crc.allocatedListIDs[direction]; !exists {
+		crc.allocatedListIDs[direction] = make(AllocatedIDs)
 	}
-	crc.lastListID[prefix]++
-	return prefix + strconv.FormatUint(crc.lastListID[prefix], 10)
+	for {
+		// Generate random suffix, 10 characters long.
+		b := make([]byte, 5)
+		rand.Read(b)
+		suffix = fmt.Sprintf("%X", b)
+		if _, exists := crc.allocatedListIDs[direction][suffix]; !exists {
+			crc.allocatedListIDs[direction][suffix] = struct{}{}
+			break
+		}
+	}
+	return direction.String() + "-" + suffix
 }
 
 // Update changes the list of ingress and egress rules for a given interface.
@@ -150,18 +244,13 @@ func (crct *ContivRuleCacheTxn) Update(ifName string, ingress []*renderer.Contiv
 		"egress":  egress,
 	}).Debug("ContivRuleCacheTxn Update()")
 	crct.interfaces.Add(ifName)
-	if crct.resync == true {
-		crct.updateInterface(ifName, ingress, "ingress", crct.ingress, NewContivRuleLists(crct.cache.Log, true))
-		crct.updateInterface(ifName, egress, "egress", crct.egress, NewContivRuleLists(crct.cache.Log, true))
-	} else {
-		crct.updateInterface(ifName, ingress, "ingress", crct.ingress, crct.cache.ingress)
-		crct.updateInterface(ifName, egress, "egress", crct.egress, crct.cache.egress)
-	}
+	crct.updateInterface(ifName, ingress, Ingress, crct.ingress, crct.cache.ingress)
+	crct.updateInterface(ifName, egress, Egress, crct.egress, crct.cache.egress)
 	return nil
 }
 
 // updateInterface changes the list of ingress or egress rules for a given interface.
-func (crct *ContivRuleCacheTxn) updateInterface(ifName string, rules []*renderer.ContivRule, category string,
+func (crct *ContivRuleCacheTxn) updateInterface(ifName string, rules []*renderer.ContivRule, direction TrafficDirection,
 	head *ContivRuleLists, base *ContivRuleLists) {
 	// Add orig list into the head if is not already there
 	origRuleList := base.LookupByInterface(ifName)
@@ -175,8 +264,8 @@ func (crct *ContivRuleCacheTxn) updateInterface(ifName string, rules []*renderer
 		}
 		head.Insert(updatedOrigRuleList)
 		crct.cache.Log.WithFields(logging.Fields{
-			"category": category,
-			"ListID":   origRuleList.ID,
+			"direction": direction,
+			"ListID":    origRuleList.ID,
 		}).Debug("Created a shallow copy for the transaction")
 	}
 	// check if the ruleList was already created inside the transaction
@@ -184,9 +273,9 @@ func (crct *ContivRuleCacheTxn) updateInterface(ifName string, rules []*renderer
 	if ruleList != nil {
 		head.AssignInterface(ruleList, ifName)
 		crct.cache.Log.WithFields(logging.Fields{
-			"category": category,
-			"ifName":   ifName,
-			"ListID":   ruleList.ID,
+			"direction": direction,
+			"ifName":    ifName,
+			"ListID":    ruleList.ID,
 		}).Debug("Found matching rule list in the transaction")
 		return
 	}
@@ -195,9 +284,9 @@ func (crct *ContivRuleCacheTxn) updateInterface(ifName string, rules []*renderer
 	if ruleList != nil {
 		if _, assigned := ruleList.Interfaces[ifName]; assigned {
 			crct.cache.Log.WithFields(logging.Fields{
-				"category": category,
-				"ifName":   ifName,
-				"ListID":   ruleList.ID,
+				"direction": direction,
+				"ifName":    ifName,
+				"ListID":    ruleList.ID,
 			}).Debug("Nothing to update")
 			/* nothing to change */
 			return
@@ -212,24 +301,24 @@ func (crct *ContivRuleCacheTxn) updateInterface(ifName string, rules []*renderer
 		updatedRuleList.Interfaces.Add(ifName)
 		head.Insert(updatedRuleList)
 		crct.cache.Log.WithFields(logging.Fields{
-			"category": category,
-			"ListID":   ruleList.ID,
-			"ifName":   ifName,
+			"direction": direction,
+			"ListID":    ruleList.ID,
+			"ifName":    ifName,
 		}).Debug("Created a shallow copy for the transaction with added interface")
 		return
 	}
 	// create a new RuleList
 	newRuleList := &ContivRuleList{
-		ID:         crct.cache.generateContivRuleListID(category),
+		ID:         crct.cache.generateListID(direction),
 		Rules:      rules,
 		Interfaces: NewInterfaceSet(ifName),
 		Private:    nil,
 	}
 	head.Insert(newRuleList)
 	crct.cache.Log.WithFields(logging.Fields{
-		"category": category,
-		"ListID":   newRuleList.ID,
-		"ifName":   ifName,
+		"direction": direction,
+		"ListID":    newRuleList.ID,
+		"ifName":    ifName,
 	}).Debug("Created a new ContivRuleList")
 }
 
@@ -237,13 +326,8 @@ func (crct *ContivRuleCacheTxn) updateInterface(ifName string, rules []*renderer
 // up to this point.
 // Must be run before Commit().
 func (crct *ContivRuleCacheTxn) Changes() (ingress, egress []*TxnChange) {
-	if crct.resync == true {
-		ingress = crct.getChanges(crct.ingress, NewContivRuleLists(crct.cache.Log, true))
-		egress = crct.getChanges(crct.egress, NewContivRuleLists(crct.cache.Log, true))
-	} else {
-		ingress = crct.getChanges(crct.ingress, crct.cache.ingress)
-		egress = crct.getChanges(crct.egress, crct.cache.egress)
-	}
+	ingress = crct.getChanges(crct.ingress, crct.cache.ingress)
+	egress = crct.getChanges(crct.egress, crct.cache.egress)
 	crct.cache.Log.WithFields(logging.Fields{
 		"ingress": ingress,
 		"egress":  egress,
@@ -278,23 +362,16 @@ func (crct *ContivRuleCacheTxn) getChanges(head *ContivRuleLists, base *ContivRu
 	return changes
 }
 
+// AllInterfaces returns set of all interfaces included in the transaction.
+func (crct *ContivRuleCacheTxn) AllInterfaces() InterfaceSet {
+	return crct.interfaces
+}
+
 // Commit applies the changes into the underlying cache.
 func (crct *ContivRuleCacheTxn) Commit() error {
-	if crct.resync == true {
-		// Remove unused lists.
-		unused := func(ruleList *ContivRuleList) bool {
-			return len(ruleList.Interfaces) == 0
-		}
-		crct.ingress.RemoveByPredicate(unused)
-		crct.egress.RemoveByPredicate(unused)
-		// Just replace the cache content with the changes from the transaction.
-		crct.cache.ingress = crct.ingress
-		crct.cache.egress = crct.egress
-	} else {
-		// Apply differences.
-		crct.commit(crct.ingress, crct.cache.ingress)
-		crct.commit(crct.egress, crct.cache.egress)
-	}
+	// Apply differences.
+	crct.commit(crct.ingress, crct.cache.ingress)
+	crct.commit(crct.egress, crct.cache.egress)
 	crct.cache.interfaces.Join(crct.interfaces)
 	return nil
 }

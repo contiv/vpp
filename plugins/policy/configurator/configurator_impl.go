@@ -218,6 +218,7 @@ type PeerPod struct {
 func (pct *PolicyConfiguratorTxn) generateRules(direction MatchType, policies ContivPolicies) ContivRules {
 	rules := ContivRules{}
 	hasPolicy := false
+	allAllowed := false
 
 	for _, policy := range policies {
 		if (policy.Type == PolicyIngress && direction == MatchEgress) ||
@@ -270,7 +271,7 @@ func (pct *PolicyConfiguratorTxn) generateRules(direction MatchType, policies Co
 
 			// Handle empty set of pods and IP blocks.
 			// = match anything on L3
-			if len(peers) == 0 && len(allSubnets) == 0 {
+			if len(match.Pods) == 0 && len(match.IPBlocks) == 0 {
 				if len(match.Ports) == 0 {
 					// = match anything on L3 & L4
 					ruleTCPAny := &renderer.ContivRule{
@@ -292,6 +293,7 @@ func (pct *PolicyConfiguratorTxn) generateRules(direction MatchType, policies Co
 						DestPort:    0,
 					}
 					rules = pct.appendRules(rules, ruleTCPAny, ruleUDPAny)
+					allAllowed = true
 				} else {
 					// = match by L4
 					for _, port := range match.Ports {
@@ -431,7 +433,7 @@ func (pct *PolicyConfiguratorTxn) generateRules(direction MatchType, policies Co
 		}
 	}
 
-	if hasPolicy {
+	if hasPolicy && !allAllowed {
 		// Deny the rest.
 		ruleTCPNone := &renderer.ContivRule{
 			ID:          "TCP:NONE",

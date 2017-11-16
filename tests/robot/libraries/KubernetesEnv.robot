@@ -31,6 +31,7 @@ ${NGINX_POD_FILE_NODE2}    ${CURDIR}/../resources/nginx-node2.yaml
 ${CLIENT_ISTIO_POD_FILE}    ${CURDIR}/../resources/one-ubuntu-istio.yaml
 ${NGINX_ISTIO_POD_FILE}    ${CURDIR}/../resources/nginx-istio.yaml
 ${ISTIO_FILE}    ${CURDIR}/../resources/istio029.yaml
+${NGINX_10_POD_FILE}    ${CURDIR}/../resources/nginx10.yaml
 
 *** Keywords ***
 Reinit_One_Node_Kube_Cluster
@@ -191,6 +192,34 @@ Deploy_Nginx_Pod_And_Verify_Running
     [Documentation]     Deploy one nginx pod
     ${nginx_pod_name} =    Deploy_Pod_And_Verify_Running    ${ssh_session}    ${nginx_file}    nginx-
     BuiltIn.Set_Suite_Variable    ${nginx_pod_name}
+
+Verify_Multireplica_Pods_Running
+    [Arguments]    ${ssh_session}    ${pod_prefix}    ${nr_replicas}    ${namespace}
+    [Documentation]     We check istio- pods are running
+    ${pods_list} =    Get_Pod_Name_List_By_Prefix    ${ssh_session}    ${pod_prefix}
+    BuiltIn.Length_Should_Be   ${pods_list}     ${nr_replicas}
+    : FOR    ${pod_name}    IN    @{pods_list}
+    \    Verify_Pod_Running_And_Ready    ${ssh_session}    ${pod_name}    namespace= ${namespace}
+    BuiltIn.Return_From_Keyword    ${pods_list}
+
+Deploy_Multireplica_Pods_And_Verify_Running
+    [Arguments]    ${ssh_session}    ${pod_file}    ${pod_prefix}    ${nr_replicas}    ${namespace}=default    ${setup_timeout}=30s
+    [Documentation]     Deploy pods from one provided yaml file with more replica specified
+    KubeCtl.Apply_F    ${ssh_session}    ${pod_file}
+    ${pods_details} =    BuiltIn.Wait_Until_Keyword_Succeeds    ${setup_timeout}   4s    Verify_Multireplica_Pods_Running    ${ssh_session}    ${pod_prefix}    ${nr_replicas}    ${namespace}
+    BuiltIn.Set_Suite_Variable    ${pods_details}
+
+Verify_Multireplica_Pods_Removed
+    [Arguments]    ${ssh_session}    ${pod_prefix}
+    [Documentation]     Check no pods are running with prefix: ${pod_prefix}
+    ${pods_list} =    Get_Pod_Name_List_By_Prefix    ${ssh_session}    ${pod_prefix}
+    BuiltIn.Length_Should_Be   ${pods_list}     0
+
+Remove_Multireplica_Pods_And_Verify_Removed
+    [Arguments]    ${ssh_session}    ${pod_file}    ${pod_prefix}
+    [Documentation]     Remove pods and verify they're removed.
+    KubeCtl.Delete_F    ${ssh_session}    ${pod_file}
+    BuiltIn.Wait_Until_Keyword_Succeeds    60s    5s    Verify_Multireplica_Pods_Removed    ${ssh_session}    ${pod_prefix}
 
 Remove_Client_And_Nginx_Pod_And_Verify_Removed
     [Arguments]    ${ssh_session}    ${client_file}=${CLIENT_POD_FILE}    ${nginx_file}=${NGINX_POD_FILE}

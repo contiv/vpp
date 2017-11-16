@@ -221,7 +221,7 @@ func (srl SessionRuleList) Diff(srl2 SessionRuleList) (added, removed []*Session
 	removed = []*SessionRule{}
 	idx1 := 0
 	idx2 := 0
-	for idx1 < len(srl) && idx2 < len(srl2) {
+	for idx1 < len(srl) || idx2 < len(srl2) {
 		if idx1 < len(srl) {
 			if idx2 < len(srl2) {
 				order := srl[idx1].Compare(srl2[idx2])

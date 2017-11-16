@@ -120,6 +120,9 @@ func (r *Renderer) dumpRules() (cache.SessionRuleList, error) {
 		rules = rules.Insert(sessionRule)
 	}
 
+	r.Log.WithFields(logging.Fields{
+		"rules": rules,
+	}).Debug("VPPTCP Renderer dumpRules()")
 	return rules, nil
 }
 

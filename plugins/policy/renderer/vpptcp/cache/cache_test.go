@@ -635,5 +635,4 @@ func TestMultipleRulesMultipleNsWithResync(t *testing.T) {
 	cacheIngress, cacheEgress = ruleCache.LookupByNamespace(15)
 	checkSessionRules(cacheIngress, inRule2, inRule3)
 	checkSessionRules(cacheEgress)
-
 }

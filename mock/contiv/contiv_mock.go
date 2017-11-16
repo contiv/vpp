@@ -1,8 +1,9 @@
 package contiv
 
 import (
-	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	"net"
+
+	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 )
 
 // MockContiv is a mock for the Contiv Plugin.

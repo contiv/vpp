@@ -19,6 +19,7 @@ import (
 
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/vpp-agent/clientv1/linux"
+	"github.com/ligato/vpp-agent/plugins/defaultplugins"
 	vpp_acl "github.com/ligato/vpp-agent/plugins/defaultplugins/aclplugin/model/acl"
 
 	"github.com/contiv/vpp/plugins/contiv"
@@ -38,18 +39,28 @@ type Renderer struct {
 
 // Deps lists dependencies of Renderer.
 type Deps struct {
-	Log                 logging.Logger
-	LogFactory          logging.LogFactory /* optional */
-	Contiv              contiv.API         /* for GetIfName() */
-	ACLTxnFactory       func() (dsl linux.DataChangeDSL)
-	ACLResyncTxnFactory func() (dsl linux.DataResyncDSL)
+	Log           logging.Logger
+	LogFactory    logging.LogFactory /* optional */
+	Contiv        contiv.API         /* for GetIfName() */
+	VPP           defaultplugins.API /* for DumpACLs() */
+	ACLTxnFactory func() (dsl linux.DataChangeDSL)
 }
 
 // RendererTxn represents a single transaction of Renderer.
 type RendererTxn struct {
-	cacheTxn cache.Txn
+	Log      logging.Logger
+	cache    cache.ContivRuleCacheAPI
+	vpp      defaultplugins.API
 	renderer *Renderer
 	resync   bool
+	config   map[string]*InterfaceConfig // interface name -> config
+}
+
+// InterfaceConfig temporarily stores configuration for a single interface
+// until a transaction commit is called.
+type InterfaceConfig struct {
+	ingress []*renderer.ContivRule
+	egress  []*renderer.ContivRule
 }
 
 // Init initializes the ACL Renderer.
@@ -70,7 +81,15 @@ func (r *Renderer) Init() error {
 // replace the existing one. Otherwise, the change is performed incrementally,
 // i.e. interfaces not mentioned in the transaction are left unaffected.
 func (r *Renderer) NewTxn(resync bool) renderer.Txn {
-	return &RendererTxn{cacheTxn: r.cache.NewTxn(resync), renderer: r, resync: resync}
+	txn := &RendererTxn{
+		Log:      r.Log,
+		cache:    r.cache,
+		vpp:      r.VPP,
+		renderer: r,
+		resync:   resync,
+		config:   make(map[string]*InterfaceConfig),
+	}
+	return txn
 }
 
 // Render applies the set of ingress & egress rules for a given VPP interface.
@@ -90,7 +109,7 @@ func (art *RendererTxn) Render(pod podmodel.ID, podIP *net.IPNet, ingress []*ren
 		return art
 	}
 
-	art.cacheTxn.Update(ifName, ingress, egress)
+	art.config[ifName] = &InterfaceConfig{ingress: ingress, egress: egress}
 	return art
 }
 
@@ -98,7 +117,37 @@ func (art *RendererTxn) Render(pod podmodel.ID, podIP *net.IPNet, ingress []*ren
 // calculated using ContivRuleCache and applied as one transaction via the
 // localclient.
 func (art *RendererTxn) Commit() error {
-	ingress, egress := art.cacheTxn.Changes()
+	if art.resync {
+		// Re-synchronize with VPP first.
+		dumpIngress, dumpEgress := art.dumpVppACLConfig()
+		err := art.cache.Resync(dumpIngress, dumpEgress)
+		if err != nil {
+			return err
+		}
+	}
+
+	// Prepare a set of updates in a cache transaction.
+	txn := art.cache.NewTxn()
+	for ifName, config := range art.config {
+		err := txn.Update(ifName, config.ingress, config.egress)
+		if err != nil {
+			return err
+		}
+	}
+
+	if art.resync {
+		// Apply empty config for interfaces not present in the transaction.
+		txnInterfaces := txn.AllInterfaces()
+		emptyList := []*renderer.ContivRule{}
+		for ifName := range art.cache.AllInterfaces() {
+			if !txnInterfaces.Has(ifName) {
+				txn.Update(ifName, emptyList, emptyList)
+			}
+		}
+	}
+
+	// Get the minimalistic diff to be rendered.
+	ingress, egress := txn.Changes()
 	ingress = art.filterEmpty(ingress)
 	egress = art.filterEmpty(egress)
 
@@ -107,32 +156,21 @@ func (art *RendererTxn) Commit() error {
 		return nil
 	}
 
-	if art.resync == true {
-		dsl := art.renderer.ACLResyncTxnFactory()
+	// Render ACLs and propagate changes via localclient.
+	dsl := art.renderer.ACLTxnFactory()
+	putDsl := dsl.Put()
+	deleteDsl := dsl.Delete()
 
-		art.renderResync(dsl, ingress, true)
-		art.renderResync(dsl, egress, false)
+	art.renderChanges(putDsl, deleteDsl, ingress, true)
+	art.renderChanges(putDsl, deleteDsl, egress, false)
 
-		err := dsl.Send().ReceiveReply()
-		if err != nil {
-			return err
-		}
-	} else {
-		dsl := art.renderer.ACLTxnFactory()
-		putDsl := dsl.Put()
-		deleteDsl := dsl.Delete()
-
-		art.renderChanges(putDsl, deleteDsl, ingress, true)
-		art.renderChanges(putDsl, deleteDsl, egress, false)
-
-		err := dsl.Send().ReceiveReply()
-		if err != nil {
-			return err
-		}
+	err := dsl.Send().ReceiveReply()
+	if err != nil {
+		return err
 	}
 
-	art.cacheTxn.Commit()
-	return nil
+	// Save changes into the cache.
+	return txn.Commit()
 }
 
 // Remove lists with no rules since empty list of rules is equivalent to no ACL.
@@ -144,6 +182,148 @@ func (art *RendererTxn) filterEmpty(changes []*cache.TxnChange) []*cache.TxnChan
 		}
 	}
 	return filtered
+}
+
+// dumpVppACLConfig dumps current ACL config is the format suitable for the resync
+// of the cache.
+func (art *RendererTxn) dumpVppACLConfig() (ingress, egress []*cache.ContivRuleList) {
+	var err error
+	ingress = []*cache.ContivRuleList{}
+	egress = []*cache.ContivRuleList{}
+
+	// TODO: Use dump from acl-plugin once it is available
+	//aclDump := art.vpp.DumpACLs()
+	aclDump := []*vpp_acl.AccessLists_Acl{} /* assume empty VPP state for now */
+	for _, acl := range aclDump {
+		isIngress := true
+		ruleList := &cache.ContivRuleList{}
+		// ID
+		ruleList.ID = acl.AclName
+		// Interfaces
+		ruleList.Interfaces = make(cache.InterfaceSet)
+		if acl.Interfaces == nil {
+			// invalid, skip
+			art.Log.WithField("aclName", acl.AclName).Warn("Skipping ACL without 'Interfaces'")
+			continue
+		}
+		if len(acl.Interfaces.Ingress) > 0 {
+			isIngress = true
+			for _, ifName := range acl.Interfaces.Ingress {
+				ruleList.Interfaces.Add(ifName)
+			}
+		} else if len(acl.Interfaces.Egress) > 0 {
+			isIngress = false
+			for _, ifName := range acl.Interfaces.Egress {
+				ruleList.Interfaces.Add(ifName)
+			}
+		} else {
+			// unused, skip
+			art.Log.WithField("aclName", acl.AclName).Warn("Skipping ACL without assigned interfaces")
+			continue
+		}
+		// Rules
+		ruleList.Rules = []*renderer.ContivRule{}
+		for _, aclRule := range acl.Rules {
+			rule := &renderer.ContivRule{}
+			// Rule ID
+			rule.ID = aclRule.RuleName
+			// Rule Action
+			if aclRule.Actions == nil {
+				// invalid, skip
+				art.Log.WithField("ruleName", aclRule.RuleName).Warn("Skipping ACL rule without 'Actions'")
+				continue
+			}
+			if aclRule.Actions.AclAction == vpp_acl.AclAction_PERMIT {
+				rule.Action = renderer.ActionPermit
+			} else {
+				rule.Action = renderer.ActionDeny
+			}
+			// Rule IPs
+			if aclRule.Matches == nil {
+				// invalid, skip
+				art.Log.WithField("ruleName", aclRule.RuleName).Warn("Skipping ACL rule without 'Matches'")
+				continue
+			}
+			if aclRule.Matches.IpRule == nil {
+				// unhandled, skip
+				art.Log.WithField("ruleName", aclRule.RuleName).Warn("Skipping ACL MAC-IP rule")
+				continue
+			}
+			rule.SrcNetwork = &net.IPNet{}
+			rule.DestNetwork = &net.IPNet{}
+			if aclRule.Matches.IpRule.Ip != nil {
+				if aclRule.Matches.IpRule.Ip.SourceNetwork != "" {
+					_, rule.SrcNetwork, err = net.ParseCIDR(aclRule.Matches.IpRule.Ip.SourceNetwork)
+					if err != nil {
+						art.Log.WithField("err", err).Warn("Failed to parse source IP address")
+						continue
+					}
+				}
+				if aclRule.Matches.IpRule.Ip.DestinationNetwork != "" {
+					_, rule.DestNetwork, err = net.ParseCIDR(aclRule.Matches.IpRule.Ip.DestinationNetwork)
+					if err != nil {
+						art.Log.WithField("err", err).Warn("Failed to parse destination IP address")
+						continue
+					}
+				}
+			}
+			// L4
+			if aclRule.Matches.IpRule.Icmp != nil || aclRule.Matches.IpRule.Other != nil {
+				// unhandled, skip
+				art.Log.WithField("ruleName", aclRule.RuleName).Warn("Skipping ICMP/Other ACL rule")
+				continue
+			}
+			if aclRule.Matches.IpRule.Tcp != nil {
+				rule.Protocol = renderer.TCP
+				if aclRule.Matches.IpRule.Tcp.SourcePortRange != nil {
+					if aclRule.Matches.IpRule.Tcp.SourcePortRange.LowerPort != aclRule.Matches.IpRule.Tcp.SourcePortRange.UpperPort {
+						// unhandled, skip
+						art.Log.WithField("ruleName", aclRule.RuleName).Warn("Skipping ACL rule with TCP port range")
+						continue
+					}
+					rule.SrcPort = uint16(aclRule.Matches.IpRule.Tcp.SourcePortRange.LowerPort)
+				}
+				if aclRule.Matches.IpRule.Tcp.DestinationPortRange != nil {
+					if aclRule.Matches.IpRule.Tcp.DestinationPortRange.LowerPort != aclRule.Matches.IpRule.Tcp.DestinationPortRange.UpperPort {
+						// unhandled, skip
+						art.Log.WithField("ruleName", aclRule.RuleName).Warn("Skipping ACL rule with TCP port range")
+						continue
+					}
+					rule.DestPort = uint16(aclRule.Matches.IpRule.Tcp.DestinationPortRange.LowerPort)
+				}
+			} else {
+				rule.Protocol = renderer.UDP
+				if aclRule.Matches.IpRule.Udp.SourcePortRange != nil {
+					if aclRule.Matches.IpRule.Udp.SourcePortRange.LowerPort != aclRule.Matches.IpRule.Udp.SourcePortRange.UpperPort {
+						// unhandled, skip
+						art.Log.WithField("ruleName", aclRule.RuleName).Warn("Skipping ACL rule with UDP port range")
+						continue
+					}
+					rule.SrcPort = uint16(aclRule.Matches.IpRule.Udp.SourcePortRange.LowerPort)
+				}
+				if aclRule.Matches.IpRule.Udp.DestinationPortRange != nil {
+					if aclRule.Matches.IpRule.Udp.DestinationPortRange.LowerPort != aclRule.Matches.IpRule.Udp.DestinationPortRange.UpperPort {
+						// unhandled, skip
+						art.Log.WithField("ruleName", aclRule.RuleName).Warn("Skipping ACL rule with UDP port range")
+						continue
+					}
+					rule.DestPort = uint16(aclRule.Matches.IpRule.Udp.DestinationPortRange.LowerPort)
+				}
+			}
+			// Add rule to the list.
+			ruleList.Rules = append(ruleList.Rules, rule)
+		}
+		// Private
+		ruleList.Private = acl
+		// Add to the list.
+		if isIngress {
+			ingress = append(ingress, ruleList)
+		} else {
+			egress = append(egress, ruleList)
+		}
+	}
+
+	return ingress, egress
 }
 
 // render Contiv Rule changes into the equivalent ACL configuration changes.
@@ -179,19 +359,6 @@ func (art *RendererTxn) renderChanges(putDsl linux.PutDSL, deleteDsl linux.Delet
 	}
 }
 
-// render RESYNC event with Contiv Rules into the equivalent RESYNC event for
-// ACL configuration.
-func (art *RendererTxn) renderResync(dsl linux.DataResyncDSL, changes []*cache.TxnChange, ingress bool) {
-	for _, change := range changes {
-		acl := art.renderACL(change.List, ingress)
-		dsl.ACL(acl)
-		art.renderer.Log.WithFields(logging.Fields{
-			"list": change.List,
-			"acl":  acl,
-		}).Debug("Resync ACL")
-	}
-}
-
 // renderInterfaces renders ContivRuleList into the equivalent ACL configuration.
 func (art *RendererTxn) renderACL(ruleList *cache.ContivRuleList, ingress bool) *vpp_acl.AccessLists_Acl {
 	const maxPortNum = ^uint16(0)
@@ -205,7 +372,7 @@ func (art *RendererTxn) renderACL(ruleList *cache.ContivRuleList, ingress bool) 
 		if rule.Action == renderer.ActionDeny {
 			aclRule.Actions.AclAction = vpp_acl.AclAction_DENY
 		} else {
-			aclRule.Actions.AclAction = vpp_acl.AclAction_PERMIT
+			aclRule.Actions.AclAction = vpp_acl.AclAction_REFLECT
 		}
 		aclRule.Matches = &vpp_acl.AccessLists_Acl_Rule_Matches{}
 		aclRule.Matches.IpRule = &vpp_acl.AccessLists_Acl_Rule_Matches_IpRule{}

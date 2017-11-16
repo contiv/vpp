@@ -56,6 +56,7 @@ func (pc *PolicyCache) changePropagateEvent(dataChngEv datasync.ChangeEvent) err
 						return err
 					}
 				}
+				return nil
 
 			} else if diff {
 				policyID := policymodel.GetID(&value).String()
@@ -105,6 +106,8 @@ func (pc *PolicyCache) changePropagateEvent(dataChngEv datasync.ChangeEvent) err
 					}
 				}
 
+				return nil
+
 			} else if diff {
 				podID := podmodel.GetID(&value).String()
 				oldPodID := podmodel.GetID(&prevValue).String()
@@ -152,10 +155,11 @@ func (pc *PolicyCache) changePropagateEvent(dataChngEv datasync.ChangeEvent) err
 				}
 			}
 
+			return nil
+
 		} else if diff {
 			namespaceID := value.Name
 			oldNamespaceID := prevValue.Name
-
 			pc.configuredNamespaces.UnRegisterNamespace(oldNamespaceID)
 			pc.configuredNamespaces.RegisterNamespace(namespaceID, &value)
 
@@ -164,6 +168,7 @@ func (pc *PolicyCache) changePropagateEvent(dataChngEv datasync.ChangeEvent) err
 					return err
 				}
 			}
+
 		}
 
 		namespaceID := value.Name

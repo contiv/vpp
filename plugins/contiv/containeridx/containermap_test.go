@@ -15,10 +15,11 @@
 package containeridx
 
 import (
+	"testing"
+
 	"github.com/ligato/cn-infra/core"
 	"github.com/ligato/cn-infra/logging/logroot"
 	"github.com/onsi/gomega"
-	"testing"
 )
 
 func TestNewConfigIndex(t *testing.T) {

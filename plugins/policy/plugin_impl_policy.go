@@ -25,6 +25,7 @@ import (
 
 	"github.com/ligato/vpp-agent/clientv1/linux"
 	"github.com/ligato/vpp-agent/clientv1/linux/localclient"
+	"github.com/ligato/vpp-agent/plugins/defaultplugins"
 
 	"github.com/contiv/vpp/plugins/contiv"
 	"github.com/contiv/vpp/plugins/ksr/model/namespace"
@@ -71,6 +72,7 @@ type Deps struct {
 	local.PluginInfraDeps
 	Watcher        datasync.KeyValProtoWatcher /* prefixed for KSR-published K8s state data */
 	Contiv         contiv.API                  /* for GetIfName() */
+	VPP            defaultplugins.API          /* for DumpACLs() */
 	PolicyCacheAPI cache.PolicyCacheAPI
 }
 
@@ -111,9 +113,7 @@ func (p *Plugin) Init() error {
 			Log:        p.Log.NewLogger("-aclRenderer"),
 			LogFactory: p.Log,
 			Contiv:     p.Contiv,
-			ACLResyncTxnFactory: func() linux.DataResyncDSL {
-				return localclient.DataResyncRequest(p.PluginName)
-			},
+			VPP:        p.VPP,
 			ACLTxnFactory: func() linux.DataChangeDSL {
 				return localclient.DataChangeRequest(p.PluginName)
 			},

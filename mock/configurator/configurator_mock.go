@@ -22,7 +22,6 @@ import (
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	policymodel "github.com/contiv/vpp/plugins/ksr/model/policy"
 
-	"github.com/contiv/vpp/plugins/policy/configurator"
 	"github.com/ligato/cn-infra/logging"
 )
 
@@ -74,24 +73,6 @@ func NewMockPolicyConfigurator(log logging.Logger) *MockPolicyConfigurator {
 	}
 }
 
-func (mpct *MockPolicyConfiguratorTxn) Configure(pod podmodel.ID, policies []*ContivPolicy) configurator.Txn {
-	mpct.Log.WithFields(logging.Fields{
-		"pod":      pod,
-		"policies": policies,
-	}).Debug("PolicyConfigurator Configure()")
-	mpct.config[pod] = policies
-	return mpct
-}
-
 func (mpc *MockPolicyConfigurator) Commit() error {
 	return nil
-}
-
-func (mpc *MockPolicyConfigurator) NewTxn(resync bool) configurator.Txn {
-	return &MockPolicyConfiguratorTxn{
-		Log:          mpc.Log,
-		resync:       resync,
-		configurator: mpc,
-		config:       make(map[podmodel.ID]ContivPolicies),
-	}
 }

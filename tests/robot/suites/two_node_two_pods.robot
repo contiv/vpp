@@ -1,14 +1,9 @@
 *** Settings ***
 Documentation     Test suite to test basic ping, udp, tcp and dns functionality of the network plugin in 2 host setup.
 Resource          ${CURDIR}/../libraries/KubernetesEnv.robot
-Resource          ${CURDIR}/../variables/${VARIABLES}_variables.robot
 Resource          ${CURDIR}/../libraries/setup-teardown.robot
 Suite Setup       TwoNodesK8sSetup
 Suite Teardown    TwoNodesK8sTeardown
-
-*** Variables ***
-${VARIABLES}          common
-${ENV}                common
 
 *** Test Cases ***
 Pod_To_Pod_Ping

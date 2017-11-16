@@ -165,6 +165,6 @@ func (sr *SessionRule) String() string {
 
 // Compare returns -1, 0, 1 if this<sr2, this==sr2, this>sr2 respectively.
 // Session rules have a total order defined on them.
-func (sr *SessionRule) Compare(sr2 *SessionRule) int {
-	return compareSessionRules(sr, sr2)
+func (sr *SessionRule) Compare(sr2 *SessionRule, compareTag bool) int {
+	return compareSessionRules(sr, sr2, compareTag)
 }

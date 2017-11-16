@@ -183,7 +183,7 @@ func (srct *SessionRuleCacheTxn) Commit() {
 func (srl SessionRuleList) lookupIdxByRule(rule *SessionRule) int {
 	return sort.Search(len(srl),
 		func(i int) bool {
-			return rule.Compare(srl[i]) <= 0
+			return rule.Compare(srl[i], false) <= 0
 		})
 }
 
@@ -201,7 +201,7 @@ func (srl SessionRuleList) insert(rule *SessionRule) SessionRuleList {
 	// Insert the rule at the right index to keep the order
 	idx := srl.lookupIdxByRule(rule)
 	if idx < len(srl) &&
-		rule.Compare(srl[idx]) == 0 {
+		rule.Compare(srl[idx], false) == 0 {
 		/* already added */
 		return newSrl
 	}
@@ -224,7 +224,7 @@ func (srl SessionRuleList) Diff(srl2 SessionRuleList) (added, removed []*Session
 	for idx1 < len(srl) || idx2 < len(srl2) {
 		if idx1 < len(srl) {
 			if idx2 < len(srl2) {
-				order := srl[idx1].Compare(srl2[idx2])
+				order := srl[idx1].Compare(srl2[idx2], true)
 				switch order {
 				case 0:
 					idx1++
@@ -270,7 +270,7 @@ func compareIPNets(aPrefixLen uint8, aIP [16]byte, bPrefixLen uint8, bIP [16]byt
 }
 
 // compareSessionRules returns an integer comparing two Session rules lexicographically.
-func compareSessionRules(a, b *SessionRule) int {
+func compareSessionRules(a, b *SessionRule, compareTag bool) int {
 	nsOrder := compareInts(int(a.AppnsIndex), int(b.AppnsIndex))
 	if nsOrder != 0 {
 		return nsOrder
@@ -307,5 +307,8 @@ func compareSessionRules(a, b *SessionRule) int {
 	if rmtPortOrder != 0 {
 		return rmtPortOrder
 	}
-	return bytes.Compare(a.Tag[:], b.Tag[:])
+	if compareTag {
+		return bytes.Compare(a.Tag[:], b.Tag[:])
+	}
+	return 0
 }

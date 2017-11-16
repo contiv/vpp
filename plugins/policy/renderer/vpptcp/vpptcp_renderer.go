@@ -18,8 +18,11 @@ package vpptcp
 
 import (
 	"bytes"
+	"crypto/md5"
+	"encoding/hex"
 	"errors"
 	"net"
+	"strings"
 
 	govpp "git.fd.io/govpp.git/api"
 	"github.com/ligato/cn-infra/logging"
@@ -31,9 +34,9 @@ import (
 	"github.com/contiv/vpp/plugins/policy/renderer/vpptcp/cache"
 )
 
-// SessionRuleTag is used to tag session rules created for the implementation of
-// K8s policies.
-const SessionRuleTag = "contiv/vpp-policy"
+// SessionRuleTagPrefix is used to tag session rules created for the implementation
+// of K8s policies.
+const SessionRuleTagPrefix = "contiv/vpp-policy-"
 
 // Renderer renders Contiv Rules into VPP Session rules.
 // Session rules are configured into VPP directly via binary API using govpp.
@@ -64,6 +67,7 @@ func (r *Renderer) Init() error {
 	r.cache = &cache.SessionRuleCache{}
 	if r.LogFactory != nil {
 		r.cache.Log = r.LogFactory.NewLogger("-vpptcpCache")
+		r.cache.Log.SetLevel(logging.DebugLevel)
 	} else {
 		r.cache.Log = r.Log
 	}
@@ -99,7 +103,7 @@ func (r *Renderer) dumpRules() (cache.SessionRuleList, error) {
 		}
 		tagLen := bytes.IndexByte(msg.Tag, 0)
 		tag := string(msg.Tag[:tagLen])
-		if tag != SessionRuleTag {
+		if !strings.HasPrefix(tag, SessionRuleTagPrefix) {
 			// Skip rules not installed by this renderer.
 			continue
 		}
@@ -148,6 +152,7 @@ func (r *Renderer) makeSessionRuleAddDelReq(rule *cache.SessionRule, add bool) *
 		Scope:          rule.Scope,
 		Tag:            rule.Tag[:],
 	}
+	r.Log.WithField("msg:", *msg).Debug("Sending BIN API Request to VPP.")
 	req := &govpp.VppRequest{
 		Message: msg,
 	}
@@ -160,11 +165,11 @@ func (r *Renderer) updateRules(add, remove []*cache.SessionRule) error {
 
 	// Prepare VPP requests.
 	requests := []*govpp.VppRequest{}
-	for _, addRule := range add {
-		requests = append(requests, r.makeSessionRuleAddDelReq(addRule, true))
-	}
 	for _, delRule := range remove {
 		requests = append(requests, r.makeSessionRuleAddDelReq(delRule, false))
+	}
+	for _, addRule := range add {
+		requests = append(requests, r.makeSessionRuleAddDelReq(addRule, true))
 	}
 
 	// Send all VPP requests at once.
@@ -201,18 +206,19 @@ func (r *Renderer) updateRules(add, remove []*cache.SessionRule) error {
 // The existing rules are replaced.
 // Te actual change is performed only after the commit.
 func (art *RendererTxn) Render(pod podmodel.ID, podIP *net.IPNet, ingress []*renderer.ContivRule, egress []*renderer.ContivRule) renderer.Txn {
-	art.renderer.Log.WithFields(logging.Fields{
-		"pod":     pod,
-		"ingress": ingress,
-		"egress":  egress,
-	}).Debug("VPPTCP RendererTxn Render()")
-
 	// Get the target namespace index.
 	nsIndex, found := art.renderer.Contiv.GetNsIndex(pod.Namespace, pod.Name)
 	if !found {
 		art.renderer.Log.WithField("pod", pod).Warn("Unable to get the namespace index of the Pod")
 		return art
 	}
+
+	art.renderer.Log.WithFields(logging.Fields{
+		"pod":     pod,
+		"nsIndex": nsIndex,
+		"ingress": ingress,
+		"egress":  egress,
+	}).Debug("VPPTCP RendererTxn Render()")
 
 	// Construct ingress rules.
 	nsInRules := cache.NewSessionRuleList(len(ingress))
@@ -263,7 +269,11 @@ func (art *RendererTxn) Render(pod podmodel.ID, podIP *net.IPNet, ingress []*ren
 		// Scope
 		sessionRule.Scope = cache.RuleScopeLocal
 		// Tag
-		copy(sessionRule.Tag[:], SessionRuleTag)
+		ruleID := pod.String() + "-ingress-" + rule.ID
+		if len(ruleID) >= 64-len(SessionRuleTagPrefix) {
+			ruleID = getMD5Hash(ruleID)
+		}
+		copy(sessionRule.Tag[:], SessionRuleTagPrefix+ruleID)
 		// Add rule into the list.
 		nsInRules = nsInRules.Insert(sessionRule)
 	}
@@ -326,7 +336,11 @@ func (art *RendererTxn) Render(pod podmodel.ID, podIP *net.IPNet, ingress []*ren
 		// Scope
 		sessionRule.Scope = cache.RuleScopeGlobal
 		// Tag
-		copy(sessionRule.Tag[:], SessionRuleTag)
+		ruleID := pod.String() + "-egress-" + rule.ID
+		if len(ruleID) >= 64-len(SessionRuleTagPrefix) {
+			ruleID = getMD5Hash(ruleID)
+		}
+		copy(sessionRule.Tag[:], SessionRuleTagPrefix+ruleID)
 		// Add rule into the list.
 		nsEgRules = nsEgRules.Insert(sessionRule)
 	}
@@ -343,10 +357,20 @@ func (art *RendererTxn) Commit() error {
 	if err != nil {
 		return err
 	}
+	if len(added) == 0 && len(removed) == 0 {
+		art.renderer.Log.Debug("No changes to be rendered in the transaction")
+		return nil
+	}
 	err = art.renderer.updateRules(added, removed)
 	if err != nil {
 		return err
 	}
 	art.cacheTxn.Commit()
 	return nil
+}
+
+func getMD5Hash(text string) string {
+	hasher := md5.New()
+	hasher.Write([]byte(text))
+	return hex.EncodeToString(hasher.Sum(nil))
 }

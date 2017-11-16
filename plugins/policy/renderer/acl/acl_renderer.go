@@ -152,7 +152,7 @@ func (art *RendererTxn) Commit() error {
 	egress = art.filterEmpty(egress)
 
 	if len(ingress) == 0 && len(egress) == 0 {
-		art.renderer.Log.Debug("No changes to be rendered in a transaction")
+		art.renderer.Log.Debug("No changes to be rendered in the transaction")
 		return nil
 	}
 

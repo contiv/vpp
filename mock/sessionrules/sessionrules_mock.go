@@ -20,13 +20,14 @@ import (
 // The installed rules are only stored locally and can be queried for testing
 // purposes.
 type MockSessionRules struct {
-	Log logging.Logger
-	tag string
+	Log       logging.Logger
+	tagPrefix string
 
 	vppMock     *govppmock.VppAdapter
 	vppConn     *govpp.Connection
 	localTable  map[uint32]SessionRules // namespace index -> rules
 	globalTable SessionRules
+	tags        map[string]struct{}
 	errCount    int
 	reqCount    int
 }
@@ -48,14 +49,15 @@ type SessionRules []*cache.SessionRule
 // NewMockSessionRules is a constructor for MockSessionRules.
 // Create only one in the entire test suite.
 // Clear state between tests using the Clear() method.
-func NewMockSessionRules(log logging.Logger, tag string) *MockSessionRules {
+func NewMockSessionRules(log logging.Logger, tagPrefix string) *MockSessionRules {
 	var err error
 	mock := &MockSessionRules{
 		Log:         log,
-		tag:         tag,
+		tagPrefix:   tagPrefix,
 		vppMock:     &govppmock.VppAdapter{},
 		localTable:  make(map[uint32]SessionRules),
 		globalTable: SessionRules{},
+		tags:        make(map[string]struct{}),
 	}
 	mock.vppMock.RegisterBinAPITypes(session.Types)
 	mock.vppMock.MockReplyHandler(mock.msgReplyHandler)
@@ -74,6 +76,7 @@ func NewMockSessionRules(log logging.Logger, tag string) *MockSessionRules {
 func (msr *MockSessionRules) Clear() {
 	msr.localTable = make(map[uint32]SessionRules)
 	msr.globalTable = SessionRules{}
+	msr.tags = make(map[string]struct{})
 	msr.errCount = 0
 	msr.reqCount = 0
 }
@@ -215,12 +218,9 @@ func (msr *MockSessionRules) hasRule(table SessionRules, scope uint8, nsIndex ui
 	}
 	rule.IsIP4 = isIPv4
 
-	// Copy Tag.
-	copy(rule.Tag[:], msr.tag)
-
 	// Search for the rule.
 	for _, rule2 := range table {
-		if rule.Compare(rule2) == 0 {
+		if rule.Compare(rule2, false) == 0 {
 			return true
 		}
 	}
@@ -291,10 +291,18 @@ func (msr *MockSessionRules) msgReplyHandler(request govppmock.MessageDTO) (repl
 		// Check tag
 		tagLen := bytes.IndexByte(rule.Tag[:], 0)
 		tag := string(rule.Tag[:tagLen])
-		if tag != msr.tag {
+		if !strings.HasPrefix(tag, msr.tagPrefix) {
 			msr.errCount++
 			msr.Log.WithField("rule", rule).Warn("Invalid tag")
 			retval = 1
+		}
+		if ruleAddDel.IsAdd == 1 {
+			_, alreadyExists := msr.tags[tag]
+			if alreadyExists {
+				msr.errCount++
+				msr.Log.WithField("rule", rule).Warn("Duplicate tag")
+				retval = 1
+			}
 		}
 
 		// Add/Delete rule.
@@ -321,6 +329,15 @@ func (msr *MockSessionRules) msgReplyHandler(request govppmock.MessageDTO) (repl
 			}
 		}
 
+		// Update the set of used tags.
+		if retval == 0 {
+			if ruleAddDel.IsAdd == 1 {
+				msr.tags[tag] = struct{}{}
+			} else {
+				delete(msr.tags, tag)
+			}
+		}
+
 		// Send response.
 		replyMsg := session.SessionRuleAddDelReply{}
 		replyMsg.Retval = retval
@@ -340,8 +357,12 @@ func (msr *MockSessionRules) msgReplyHandler(request govppmock.MessageDTO) (repl
 
 // addDelRule adds or removes rule to/from a table.
 func addDelRule(table SessionRules, rule *cache.SessionRule, isAdd uint8) (SessionRules, bool) {
+	compareTag := false
+	if isAdd == 0 {
+		compareTag = true /* exact match for removal */
+	}
 	for idx, rule2 := range table {
-		if rule.Compare(rule2) == 0 {
+		if rule.Compare(rule2, compareTag) == 0 {
 			if isAdd == 1 {
 				/* already added */
 				return table, false

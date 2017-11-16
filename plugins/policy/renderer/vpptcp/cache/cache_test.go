@@ -50,7 +50,7 @@ func checkSessionRules(list []*SessionRule, rules ...*SessionRule) {
 	for _, rule := range rules {
 		found := false
 		for _, rule2 := range list {
-			if rule.Compare(rule2) == 0 {
+			if rule.Compare(rule2, true) == 0 {
 				found = true
 				break
 			}
@@ -207,7 +207,7 @@ func TestMultipleRulesSingleNsWithDataChange(t *testing.T) {
 		ActionIndex:    RuleActionAllow,
 		AppnsIndex:     10,
 		Scope:          RuleScopeLocal,
-		Tag:            makeTag("test"),
+		Tag:            makeTag("test1"),
 	}
 	rmtIP2, rmtPlen2 := ipNetwork("192.168.2.0/24")
 	inRule2 := &SessionRule{
@@ -219,7 +219,7 @@ func TestMultipleRulesSingleNsWithDataChange(t *testing.T) {
 		ActionIndex:    RuleActionAllow,
 		AppnsIndex:     10,
 		Scope:          RuleScopeLocal,
-		Tag:            makeTag("test"),
+		Tag:            makeTag("test2"),
 	}
 	lclIP3, lclPlen3 := ipNetwork("192.168.3.1/32")
 	rmtIP3, rmtPlen3 := ipNetwork("10.0.0.0/8")
@@ -234,7 +234,7 @@ func TestMultipleRulesSingleNsWithDataChange(t *testing.T) {
 		ActionIndex:    RuleActionAllow,
 		AppnsIndex:     10,
 		Scope:          RuleScopeGlobal,
-		Tag:            makeTag("test"),
+		Tag:            makeTag("test3"),
 	}
 	lclIP4, lclPlen4 := ipNetwork("192.168.3.1/32")
 	egRule2 := &SessionRule{
@@ -246,7 +246,7 @@ func TestMultipleRulesSingleNsWithDataChange(t *testing.T) {
 		ActionIndex:    RuleActionDeny,
 		AppnsIndex:     10,
 		Scope:          RuleScopeGlobal,
-		Tag:            makeTag("test"),
+		Tag:            makeTag("test4"),
 	}
 	lclIP5, lclPlen5 := ipNetwork("192.168.3.1/32")
 	egRule3 := &SessionRule{
@@ -258,7 +258,7 @@ func TestMultipleRulesSingleNsWithDataChange(t *testing.T) {
 		ActionIndex:    RuleActionDeny,
 		AppnsIndex:     10,
 		Scope:          RuleScopeGlobal,
-		Tag:            makeTag("test"),
+		Tag:            makeTag("test5"),
 	}
 
 	ingress := NewSessionRuleList(0, inRule1, inRule2)
@@ -312,7 +312,7 @@ func TestMultipleRulesSingleNsWithDataChange(t *testing.T) {
 		ActionIndex:    RuleActionDeny,
 		AppnsIndex:     10,
 		Scope:          RuleScopeLocal,
-		Tag:            makeTag("test"),
+		Tag:            makeTag("test6"),
 	}
 	lclIP6, lclPlen6 := ipNetwork("2001:db8:a0b:12f0::1/128")
 	rmtIP6, rmtPlen6 := ipNetwork("2001:0000:6dcd:8c74:76cc:63bf:ac32:6a1/64")
@@ -327,7 +327,7 @@ func TestMultipleRulesSingleNsWithDataChange(t *testing.T) {
 		ActionIndex:    RuleActionDeny,
 		AppnsIndex:     10,
 		Scope:          RuleScopeGlobal,
-		Tag:            makeTag("test"),
+		Tag:            makeTag("test7"),
 	}
 
 	ingress2 := NewSessionRuleList(0, inRule3)
@@ -367,7 +367,7 @@ func TestMultipleRulesMultipleNsWithDataChange(t *testing.T) {
 		ActionIndex:    RuleActionAllow,
 		AppnsIndex:     10,
 		Scope:          RuleScopeLocal,
-		Tag:            makeTag("test"),
+		Tag:            makeTag("test1"),
 	}
 	rmtIP2, rmtPlen2 := ipNetwork("192.168.2.0/24")
 	inRule2 := &SessionRule{
@@ -379,7 +379,7 @@ func TestMultipleRulesMultipleNsWithDataChange(t *testing.T) {
 		ActionIndex:    RuleActionAllow,
 		AppnsIndex:     15,
 		Scope:          RuleScopeLocal,
-		Tag:            makeTag("test"),
+		Tag:            makeTag("test2"),
 	}
 	lclIP3, lclPlen3 := ipNetwork("192.168.3.1/32")
 	rmtIP3, rmtPlen3 := ipNetwork("10.0.0.0/8")
@@ -394,7 +394,7 @@ func TestMultipleRulesMultipleNsWithDataChange(t *testing.T) {
 		ActionIndex:    RuleActionAllow,
 		AppnsIndex:     0,
 		Scope:          RuleScopeGlobal,
-		Tag:            makeTag("test"),
+		Tag:            makeTag("test3"),
 	}
 	lclIP4, lclPlen4 := ipNetwork("192.168.3.2/32")
 	egRule2 := &SessionRule{
@@ -406,7 +406,7 @@ func TestMultipleRulesMultipleNsWithDataChange(t *testing.T) {
 		ActionIndex:    RuleActionDeny,
 		AppnsIndex:     0,
 		Scope:          RuleScopeGlobal,
-		Tag:            makeTag("test"),
+		Tag:            makeTag("test4"),
 	}
 	lclIP5, lclPlen5 := ipNetwork("192.168.3.2/32")
 	egRule3 := &SessionRule{
@@ -418,7 +418,7 @@ func TestMultipleRulesMultipleNsWithDataChange(t *testing.T) {
 		ActionIndex:    RuleActionDeny,
 		AppnsIndex:     0,
 		Scope:          RuleScopeGlobal,
-		Tag:            makeTag("test"),
+		Tag:            makeTag("test5"),
 	}
 
 	ingressNs10 := NewSessionRuleList(0, inRule1)
@@ -479,7 +479,7 @@ func TestMultipleRulesMultipleNsWithDataChange(t *testing.T) {
 		ActionIndex:    RuleActionDeny,
 		AppnsIndex:     15,
 		Scope:          RuleScopeLocal,
-		Tag:            makeTag("test"),
+		Tag:            makeTag("test6"),
 	}
 
 	ingressNs10 = NewSessionRuleList(0)
@@ -526,7 +526,7 @@ func TestMultipleRulesMultipleNsWithResync(t *testing.T) {
 		ActionIndex:    RuleActionAllow,
 		AppnsIndex:     10,
 		Scope:          RuleScopeLocal,
-		Tag:            makeTag("test"),
+		Tag:            makeTag("test1"),
 	}
 	rmtIP2, rmtPlen2 := ipNetwork("192.168.2.0/24")
 	inRule2 := &SessionRule{
@@ -538,7 +538,7 @@ func TestMultipleRulesMultipleNsWithResync(t *testing.T) {
 		ActionIndex:    RuleActionAllow,
 		AppnsIndex:     15,
 		Scope:          RuleScopeLocal,
-		Tag:            makeTag("test"),
+		Tag:            makeTag("test2"),
 	}
 	lclIP3, lclPlen3 := ipNetwork("192.168.3.1/32")
 	rmtIP3, rmtPlen3 := ipNetwork("10.0.0.0/8")
@@ -553,7 +553,7 @@ func TestMultipleRulesMultipleNsWithResync(t *testing.T) {
 		ActionIndex:    RuleActionAllow,
 		AppnsIndex:     0,
 		Scope:          RuleScopeGlobal,
-		Tag:            makeTag("test"),
+		Tag:            makeTag("test3"),
 	}
 	lclIP4, lclPlen4 := ipNetwork("192.168.3.2/32")
 	egRule2 := &SessionRule{
@@ -565,7 +565,7 @@ func TestMultipleRulesMultipleNsWithResync(t *testing.T) {
 		ActionIndex:    RuleActionDeny,
 		AppnsIndex:     0,
 		Scope:          RuleScopeGlobal,
-		Tag:            makeTag("test"),
+		Tag:            makeTag("test4"),
 	}
 	lclIP5, lclPlen5 := ipNetwork("192.168.3.2/32")
 	egRule3 := &SessionRule{
@@ -577,7 +577,7 @@ func TestMultipleRulesMultipleNsWithResync(t *testing.T) {
 		ActionIndex:    RuleActionDeny,
 		AppnsIndex:     0,
 		Scope:          RuleScopeGlobal,
-		Tag:            makeTag("test"),
+		Tag:            makeTag("test5"),
 	}
 
 	// Create an instance of SessionRuleCache
@@ -606,7 +606,7 @@ func TestMultipleRulesMultipleNsWithResync(t *testing.T) {
 		ActionIndex:    RuleActionDeny,
 		AppnsIndex:     15,
 		Scope:          RuleScopeLocal,
-		Tag:            makeTag("test"),
+		Tag:            makeTag("test6"),
 	}
 
 	ingressNs10 := NewSessionRuleList(0)

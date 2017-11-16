@@ -71,7 +71,7 @@ type Plugin struct {
 type Deps struct {
 	local.PluginInfraDeps
 	Watcher        datasync.KeyValProtoWatcher /* prefixed for KSR-published K8s state data */
-	Contiv         contiv.API              /* for GetIfName() */
+	Contiv         contiv.API                  /* for GetIfName() */
 	VPP            defaultplugins.API          /* for DumpACLs() */
 	PolicyCacheAPI cache.PolicyCacheAPI
 }
@@ -113,7 +113,7 @@ func (p *Plugin) Init() error {
 			Log:        p.Log.NewLogger("-aclRenderer"),
 			LogFactory: p.Log,
 			Contiv:     p.Contiv,
-			VPP:   p.VPP,
+			VPP:        p.VPP,
 			ACLTxnFactory: func() linux.DataChangeDSL {
 				return localclient.DataChangeRequest(p.PluginName)
 			},

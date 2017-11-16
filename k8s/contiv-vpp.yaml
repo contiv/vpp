@@ -36,21 +36,22 @@ data:
       VSwitchSubnetCIDR: "172.30.0.0/16"
       VSwitchNetworkPrefixLen: 24
       HostNodeSubnetCidr: "192.168.16.0/24"
-    NodeConfig:
-    - NodeName: vm1
-      VppInterfaceName: GigabitEthernet0/4/0
-      OtherInterfaces:
-      - InterfaceName: GigabitEthernet0/5/0
-        IP: 1.2.3.4/24
-      - InterfaceName: GigabitEthernet0/6/0
-        IP: 2.3.4.5/24
-    - NodeName: vm2
-      VppInterfaceName: GigabitEthernet0/9/0
-      OtherInterfaces:
-      - InterfaceName: GigabitEthernet0/7/0
-        IP: 3.4.5.6/24
-      - InterfaceName: GigabitEthernet0/7/0
-        IP: 5.6.7.8/24
+### example of node configuration for VPP interfaces
+#    NodeConfig:
+#    - NodeName: "vm1"
+#      MainVppInterfaceName: "GigabitEthernet0/4/0"
+#      OtherVPPInterfaces:
+#      - InterfaceName: "GigabitEthernet0/5/0"
+#        IP: "1.2.3.4/24"
+#      - InterfaceName: "GigabitEthernet0/6/0"
+#        IP: "2.3.4.5/24"
+#    - NodeName: "vm2"
+#      MainVppInterfaceName: "GigabitEthernet0/9/0"
+#      OtherVPPInterfaces:
+#      - InterfaceName: "GigabitEthernet0/7/0"
+#        IP: "3.4.5.6/24"
+#      - InterfaceName: "GigabitEthernet0/7/0"
+#        IP: "5.6.7.8/24"
 
 ---
 

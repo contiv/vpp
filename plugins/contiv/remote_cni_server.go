@@ -143,8 +143,8 @@ func (s *remoteCNIserver) configureVswitchConnectivity() error {
 		// find physical NIC name
 		nicName := ""
 		config := s.specificConfigForCurrentNode()
-		if config != nil && strings.Trim(config.VppInterfaceName, " ") != "" {
-			nicName = config.VppInterfaceName
+		if config != nil && strings.Trim(config.MainVppInterfaceName, " ") != "" {
+			nicName = config.MainVppInterfaceName
 			s.Logger.Debugf("Physical NIC name taken from config: %v ", nicName)
 		} else { //if not configured for this node -> use heuristic
 			for _, name := range s.swIfIndex.GetMapping().ListNames() {
@@ -200,13 +200,13 @@ func (s *remoteCNIserver) configureVswitchConnectivity() error {
 			}
 		}
 		// configure VPP for other interfaces that were configured in contiv plugin yaml configuration
-		if config != nil && len(config.OtherInterfaces) > 0 {
+		if config != nil && len(config.OtherVPPInterfaces) > 0 {
 			s.Logger.Debug("Configuring VPP for additional interfaces")
 
 			// match existing interfaces and configuration settings and create VPP configuration objects
 			interfaces := make(map[string]*vpp_intf.Interfaces_Interface)
 			for _, name := range s.swIfIndex.GetMapping().ListNames() {
-				for _, intIP := range config.OtherInterfaces {
+				for _, intIP := range config.OtherVPPInterfaces {
 					if intIP.InterfaceName == name {
 						interfaces[name] = s.physicalInterfaceWithCustomIPAddress(name, intIP.IP)
 					}

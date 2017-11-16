@@ -85,9 +85,9 @@ type Config struct {
 
 // OneNodeConfig represents configuration for one node. It contains only settings specific to given node.
 type OneNodeConfig struct {
-	NodeName         string
-	VppInterfaceName string
-	OtherInterfaces  []InterfaceWithIP // other configured interfaces get only ip address assigned in vpp
+	NodeName             string
+	MainVppInterfaceName string
+	OtherVPPInterfaces   []InterfaceWithIP // other configured interfaces get only ip address assigned in vpp
 }
 
 // InterfaceWithIP binds interface name with ip for configuration purposes.

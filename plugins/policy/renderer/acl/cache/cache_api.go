@@ -30,8 +30,8 @@ import (
 // a list of ingress/egress rules only once and share it among multiple
 // associated interfaces.
 type ContivRuleCacheAPI interface {
-	// NewTxn starts a new transaction. The rendering executes only after
-	// Commit() is called.
+	// NewTxn starts a new transaction. The changes are reflected in the cache
+	// only after Commit() is called.
 	NewTxn() Txn
 
 	// Resync completely replaces the existing cache content with the supplied

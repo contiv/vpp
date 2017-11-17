@@ -190,7 +190,7 @@ func (s *remoteCNIserver) setupStn(podIP string, ifname string) error {
 	return err
 }
 
-func (s *remoteCNIserver) addAppNamespace(podNamespace string, ifname string) error {
+func (s *remoteCNIserver) addAppNamespace(podNamespace string, ifname string) (nsIndex uint32, err error) {
 	req := &session.AppNamespaceAddDel{
 		Secret:         42,
 		NamespaceID:    []byte(podNamespace),
@@ -198,30 +198,30 @@ func (s *remoteCNIserver) addAppNamespace(podNamespace string, ifname string) er
 	}
 
 	if s.swIfIndex == nil {
-		return fmt.Errorf("unable to lookup interface %v", ifname)
+		return 0, fmt.Errorf("unable to lookup interface %v", ifname)
 	}
 
 	idx, _, found := s.swIfIndex.LookupIdx(ifname)
 	if !found {
-		return fmt.Errorf("interface %v not found", ifname)
+		return 0, fmt.Errorf("interface %v not found", ifname)
 	}
 
 	req.SwIfIndex = idx
 
 	if s.govppChan == nil {
 		s.Logger.Warn("GoVpp not available")
-		return nil
+		return 0, nil
 	}
 
 	reply := session.AppNamespaceAddDelReply{}
 
-	err := s.govppChan.SendRequest(req).ReceiveReply(&reply)
+	err = s.govppChan.SendRequest(req).ReceiveReply(&reply)
 
 	if reply.Retval != 0 {
-		return fmt.Errorf("adding stn rule returned non-zero return code")
+		return 0, fmt.Errorf("adding stn rule returned non-zero return code")
 	}
 
-	return err
+	return reply.AppnsIndex, err
 }
 
 func (s *remoteCNIserver) fixPodToPodCommunication(podIP string, ifname string) error {

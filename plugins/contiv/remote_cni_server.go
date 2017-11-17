@@ -339,7 +339,7 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 	}
 	s.Logger.Info("Stn configured")
 
-	err = s.addAppNamespace(request.ContainerId, s.loopbackNameFromRequest(request))
+	nsIndex, err := s.addAppNamespace(request.ContainerId, s.loopbackNameFromRequest(request))
 	if err != nil {
 		s.Logger.Error(err)
 		return s.generateErrorResponse(err)
@@ -403,6 +403,7 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 			Veth1:        veth1,
 			Veth2:        veth2,
 			Afpacket:     afpacket,
+			NsIndex:      nsIndex,
 		})
 	}
 

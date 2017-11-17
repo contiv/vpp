@@ -3,6 +3,8 @@ package renderer
 import (
 	"net"
 
+	"sync"
+
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	"github.com/contiv/vpp/plugins/policy/renderer"
 	"github.com/ligato/cn-infra/logging"
@@ -38,6 +40,8 @@ const (
 // to simulate a traffic and test what the outcome would be with the rendered
 // configuration.
 type MockRenderer struct {
+	lock   sync.Mutex
+	name   string
 	Log    logging.Logger
 	config map[podmodel.ID]*PodConfig // Pod ID -> config
 }
@@ -58,8 +62,9 @@ type PodConfig struct {
 }
 
 // NewMockRenderer is a constructor for MockRenderer.
-func NewMockRenderer(log logging.Logger) *MockRenderer {
+func NewMockRenderer(name string, log logging.Logger) *MockRenderer {
 	return &MockRenderer{
+		name:   name,
 		Log:    log,
 		config: make(map[podmodel.ID]*PodConfig),
 	}
@@ -77,6 +82,12 @@ func (mr *MockRenderer) NewTxn(resync bool) renderer.Txn {
 
 // GetPodIP returns the pod IP + masklen as provided by the configurator.
 func (mr *MockRenderer) GetPodIP(pod podmodel.ID) (ip string, masklen int) {
+	mr.Log.WithFields(logging.Fields{
+		"renderer": mr.name,
+	}).Debug("Mock RendererTxn GetPodIP()")
+
+	mr.lock.Lock()
+	defer mr.lock.Unlock()
 	config, hasInterface := mr.config[pod]
 	if !hasInterface {
 		return "", 0
@@ -93,6 +104,8 @@ func (mr *MockRenderer) GetPodIP(pod podmodel.ID) (ip string, masklen int) {
 // The direction is from the vswitch point of view!
 func (mr *MockRenderer) TestTraffic(pod podmodel.ID, direction TrafficDirection, srcIP *net.IP,
 	destIP *net.IP, protocol renderer.ProtocolType, srcPort uint16, destPort uint16) TrafficAction {
+	mr.lock.Lock()
+	defer mr.lock.Unlock()
 
 	config, hasInterface := mr.config[pod]
 	if !hasInterface {
@@ -134,10 +147,11 @@ func (mr *MockRenderer) TestTraffic(pod podmodel.ID, direction TrafficDirection,
 // Render just stores config to be rendered.
 func (mrt *MockRendererTxn) Render(pod podmodel.ID, podIP *net.IPNet, ingress []*renderer.ContivRule, egress []*renderer.ContivRule) renderer.Txn {
 	mrt.Log.WithFields(logging.Fields{
-		"pod":     pod,
-		"IP":      podIP,
-		"ingress": ingress,
-		"egress":  egress,
+		"renderer": mrt.renderer.name,
+		"pod":      pod,
+		"IP":       podIP,
+		"ingress":  ingress,
+		"egress":   egress,
 	}).Debug("Mock RendererTxn Render()")
 	mrt.config[pod] = &PodConfig{ip: podIP, ingress: ingress, egress: egress}
 	return mrt
@@ -145,6 +159,12 @@ func (mrt *MockRendererTxn) Render(pod podmodel.ID, podIP *net.IPNet, ingress []
 
 // Commit runs mock rendering. The configuration is just stored in-memory.
 func (mrt *MockRendererTxn) Commit() error {
+	mrt.Log.WithFields(logging.Fields{
+		"renderer": mrt.renderer.name,
+	}).Debug("Mock RendererTxn Commit()")
+
+	mrt.renderer.lock.Lock()
+	defer mrt.renderer.lock.Unlock()
 	if mrt.resync {
 		mrt.renderer.config = mrt.config
 	} else {

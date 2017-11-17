@@ -164,16 +164,16 @@ func TestSecondaryIndexLookup(t *testing.T) {
 	idx.RegisterNamespace(namespaceIDthree, namespaceDataThree)
 
 	all := idx.ListAll()
-	gomega.Expect(all).To(gomega.ContainElement(namespaceDataOne))
-	gomega.Expect(all).To(gomega.ContainElement(namespaceDataTwo))
-	gomega.Expect(all).To(gomega.ContainElement(namespaceDataThree))
+	gomega.Expect(all).To(gomega.ContainElement(namespaceIDone))
+	gomega.Expect(all).To(gomega.ContainElement(namespaceIDtwo))
+	gomega.Expect(all).To(gomega.ContainElement(namespaceIDthree))
 
-	ls1Match := idx.LookupNamespacesByLabelSelector(label1)
-	gomega.Expect(ls1Match).To(gomega.ContainElement(namespaceDataOne))
-	gomega.Expect(ls1Match).To(gomega.ContainElement(namespaceDataTwo))
+	lsMatch := idx.LookupNamespacesByLabelSelector(label1)
+	gomega.Expect(lsMatch).To(gomega.ContainElement(namespaceIDone))
+	gomega.Expect(lsMatch).To(gomega.ContainElement(namespaceIDtwo))
 
-	ls2Match := idx.LookupNamespacesByLabelSelector(label2)
-	gomega.Expect(ls1Match).To(gomega.ContainElement(namespaceDataOne))
-	gomega.Expect(ls2Match).To(gomega.ContainElement(namespaceDataThree))
+	lsMatch = idx.LookupNamespacesByLabelSelector(label2)
+	gomega.Expect(lsMatch).To(gomega.ContainElement(namespaceIDone))
+	gomega.Expect(lsMatch).To(gomega.ContainElement(namespaceIDthree))
 
 }

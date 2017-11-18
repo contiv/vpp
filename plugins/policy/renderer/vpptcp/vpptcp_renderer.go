@@ -269,10 +269,7 @@ func (art *RendererTxn) Render(pod podmodel.ID, podIP *net.IPNet, ingress []*ren
 		// Scope
 		sessionRule.Scope = cache.RuleScopeLocal
 		// Tag
-		ruleID := pod.String() + "-ingress-" + rule.ID
-		if len(ruleID) >= 64-len(SessionRuleTagPrefix) {
-			ruleID = getMD5Hash(ruleID)
-		}
+		ruleID := getMD5Hash(pod.String() + "-ingress-" + rule.ID)
 		copy(sessionRule.Tag[:], SessionRuleTagPrefix+ruleID)
 		// Add rule into the list.
 		nsInRules = nsInRules.Insert(sessionRule)
@@ -336,10 +333,7 @@ func (art *RendererTxn) Render(pod podmodel.ID, podIP *net.IPNet, ingress []*ren
 		// Scope
 		sessionRule.Scope = cache.RuleScopeGlobal
 		// Tag
-		ruleID := pod.String() + "-egress-" + rule.ID
-		if len(ruleID) >= 64-len(SessionRuleTagPrefix) {
-			ruleID = getMD5Hash(ruleID)
-		}
+		ruleID := getMD5Hash(pod.String() + "-egress-" + rule.ID)
 		copy(sessionRule.Tag[:], SessionRuleTagPrefix+ruleID)
 		// Add rule into the list.
 		nsEgRules = nsEgRules.Insert(sessionRule)

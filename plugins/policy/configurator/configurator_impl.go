@@ -38,7 +38,8 @@ import (
 type PolicyConfigurator struct {
 	Deps
 
-	renderers []renderer.PolicyRendererAPI
+	renderers         []renderer.PolicyRendererAPI
+	parallelRendering bool
 }
 
 // Deps lists dependencies of PolicyConfigurator.
@@ -71,8 +72,9 @@ type ProcessedPolicySet struct {
 type ContivRules []*renderer.ContivRule
 
 // Init initializes policy configurator.
-func (pc *PolicyConfigurator) Init() error {
+func (pc *PolicyConfigurator) Init(parallelRendering bool) error {
 	pc.renderers = []renderer.PolicyRendererAPI{}
+	pc.parallelRendering = parallelRendering
 	return nil
 }
 
@@ -175,7 +177,7 @@ func (pct *PolicyConfiguratorTxn) Commit() error {
 			}
 		}
 
-		// Add rules into the transaction.
+		// Add rules into the transactions.
 		for _, rTxn := range rendererTxns {
 			rTxn.Render(pod, podIPNet, ingress.Copy(), egress.Copy())
 		}
@@ -192,10 +194,30 @@ func (pct *PolicyConfiguratorTxn) Commit() error {
 	}
 
 	// Commit all renderer transactions.
+	rndrChan := make(chan error)
 	for _, rTxn := range rendererTxns {
-		err := rTxn.Commit()
-		if err != nil {
-			return err
+		if pct.configurator.parallelRendering {
+			go func(txn renderer.Txn) {
+				err := txn.Commit()
+				rndrChan <- err
+			}(rTxn)
+		} else {
+			err := rTxn.Commit()
+			if err != nil {
+				return err
+			}
+		}
+	}
+	if pct.configurator.parallelRendering {
+		var wasError error
+		for i := 0; i < len(rendererTxns); i++ {
+			err := <-rndrChan
+			if err != nil {
+				wasError = err
+			}
+		}
+		if wasError != nil {
+			return wasError
 		}
 	}
 
@@ -212,6 +234,7 @@ type PeerPod struct {
 func (pct *PolicyConfiguratorTxn) generateRules(direction MatchType, policies ContivPolicies) ContivRules {
 	rules := ContivRules{}
 	hasPolicy := false
+	allAllowed := false
 
 	for _, policy := range policies {
 		if (policy.Type == PolicyIngress && direction == MatchEgress) ||
@@ -264,7 +287,7 @@ func (pct *PolicyConfiguratorTxn) generateRules(direction MatchType, policies Co
 
 			// Handle empty set of pods and IP blocks.
 			// = match anything on L3
-			if len(peers) == 0 && len(allSubnets) == 0 {
+			if len(match.Pods) == 0 && len(match.IPBlocks) == 0 {
 				if len(match.Ports) == 0 {
 					// = match anything on L3 & L4
 					ruleTCPAny := &renderer.ContivRule{
@@ -286,6 +309,7 @@ func (pct *PolicyConfiguratorTxn) generateRules(direction MatchType, policies Co
 						DestPort:    0,
 					}
 					rules = pct.appendRules(rules, ruleTCPAny, ruleUDPAny)
+					allAllowed = true
 				} else {
 					// = match by L4
 					for _, port := range match.Ports {
@@ -425,7 +449,7 @@ func (pct *PolicyConfiguratorTxn) generateRules(direction MatchType, policies Co
 		}
 	}
 
-	if hasPolicy {
+	if hasPolicy && !allAllowed {
 		// Deny the rest.
 		ruleTCPNone := &renderer.ContivRule{
 			ID:          "TCP:NONE",

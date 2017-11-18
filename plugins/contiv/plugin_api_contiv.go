@@ -8,6 +8,10 @@ type API interface {
 	// associated with the given pod.
 	GetIfName(podNamespace string, podName string) (name string, exists bool)
 
+	// GetNsIndex returns the index of the VPP session namespace associated
+	// with the given pod.
+	GetNsIndex(podNamespace string, podName string) (nsIndex uint32, exists bool)
+
 	// GetPodNetwork provides subnet used for allocating pod IP addresses on this host node.
 	GetPodNetwork() *net.IPNet
 }

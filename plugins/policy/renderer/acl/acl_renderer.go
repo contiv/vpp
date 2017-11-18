@@ -94,7 +94,7 @@ func (r *Renderer) NewTxn(resync bool) renderer.Txn {
 	return txn
 }
 
-// Render applies the set of ingress & egress rules for a given VPP interface.
+// Render applies the set of ingress & egress rules for a given pod.
 // The existing rules are replaced.
 // Te actual change is performed only after the commit.
 func (art *RendererTxn) Render(pod podmodel.ID, podIP *net.IPNet, ingress []*renderer.ContivRule, egress []*renderer.ContivRule) renderer.Txn {
@@ -154,7 +154,7 @@ func (art *RendererTxn) Commit() error {
 	egress = art.filterEmpty(egress)
 
 	if len(ingress) == 0 && len(egress) == 0 {
-		art.renderer.Log.Debug("No changes to be rendered in a transaction")
+		art.renderer.Log.Debug("No changes to be rendered in the transaction")
 		return nil
 	}
 

@@ -100,6 +100,15 @@ func (s *remoteCNIserver) physicalInterface(name string) (*vpp_intf.Interfaces_I
 	}, nil
 }
 
+func (s *remoteCNIserver) physicalInterfaceWithCustomIPAddress(name string, ipAddress string) *vpp_intf.Interfaces_Interface {
+	return &vpp_intf.Interfaces_Interface{
+		Name:        name,
+		Type:        vpp_intf.InterfaceType_ETHERNET_CSMACD,
+		Enabled:     true,
+		IpAddresses: []string{ipAddress},
+	}
+}
+
 func (s *remoteCNIserver) physicalInterfaceLoopback() (*vpp_intf.Interfaces_Interface, error) {
 	hostNetwork, err := s.ipam.HostIPNetwork(s.ipam.HostID())
 	if err != nil {

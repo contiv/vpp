@@ -62,6 +62,9 @@ type remoteCNIserver struct {
 
 	// unique identifier of the node
 	uid uint8
+
+	// node specific configuration
+	nodeConfigs []OneNodeConfig
 }
 
 const (
@@ -77,8 +80,8 @@ const (
 )
 
 func newRemoteCNIServer(logger logging.Logger, vppTxnFactory func() linux.DataChangeDSL, proxy kvdbproxy.Proxy,
-	configuredContainers *containeridx.ConfigIndex, govppChan *api.Channel, index ifaceidx.SwIfIndex, agentLabel string, ipamConfig *ipam.Config, uid uint8) (*remoteCNIserver, error) {
-	ipam, err := ipam.New(logger, uid, ipamConfig)
+	configuredContainers *containeridx.ConfigIndex, govppChan *api.Channel, index ifaceidx.SwIfIndex, agentLabel string, config *Config, uid uint8) (*remoteCNIserver, error) {
+	ipam, err := ipam.New(logger, uid, &config.IPAMConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -93,6 +96,7 @@ func newRemoteCNIServer(logger logging.Logger, vppTxnFactory func() linux.DataCh
 		agentLabel:           agentLabel,
 		uid:                  uid,
 		ipam:                 ipam,
+		nodeConfigs:          config.NodeConfig,
 	}, nil
 }
 
@@ -138,14 +142,21 @@ func (s *remoteCNIserver) configureVswitchConnectivity() error {
 
 		// find physical NIC name
 		nicName := ""
-		for _, name := range s.swIfIndex.GetMapping().ListNames() {
-			if strings.HasPrefix(name, "local") || strings.HasPrefix(name, "loop") ||
-				strings.HasPrefix(name, "host") || strings.HasPrefix(name, "tap") {
-				continue
-			} else {
-				nicName = name
-				break
+		config := s.specificConfigForCurrentNode()
+		if config != nil && strings.Trim(config.MainVppInterfaceName, " ") != "" {
+			nicName = config.MainVppInterfaceName
+			s.Logger.Debugf("Physical NIC name taken from config: %v ", nicName)
+		} else { //if not configured for this node -> use heuristic
+			for _, name := range s.swIfIndex.GetMapping().ListNames() {
+				if strings.HasPrefix(name, "local") || strings.HasPrefix(name, "loop") ||
+					strings.HasPrefix(name, "host") || strings.HasPrefix(name, "tap") {
+					continue
+				} else {
+					nicName = name
+					break
+				}
 			}
+			s.Logger.Debugf("Physical NIC not taken from config, but heuristic was used: %v ", nicName)
 		}
 		if nicName != "" {
 			// configure the physical NIC and static routes to other hosts
@@ -186,6 +197,34 @@ func (s *remoteCNIserver) configureVswitchConnectivity() error {
 			if err != nil {
 				s.Logger.Error(err)
 				return err
+			}
+		}
+		// configure VPP for other interfaces that were configured in contiv plugin yaml configuration
+		if config != nil && len(config.OtherVPPInterfaces) > 0 {
+			s.Logger.Debug("Configuring VPP for additional interfaces")
+
+			// match existing interfaces and configuration settings and create VPP configuration objects
+			interfaces := make(map[string]*vpp_intf.Interfaces_Interface)
+			for _, name := range s.swIfIndex.GetMapping().ListNames() {
+				for _, intIP := range config.OtherVPPInterfaces {
+					if intIP.InterfaceName == name {
+						interfaces[name] = s.physicalInterfaceWithCustomIPAddress(name, intIP.IP)
+					}
+				}
+			}
+
+			// send created configuration to VPP
+			if len(interfaces) > 0 {
+				tx := s.vppTxnFactory().Put()
+				for intfName, intf := range interfaces {
+					tx.VppInterface(intf)
+					changes[vpp_intf.InterfaceKey(intfName)] = intf
+				}
+				err := tx.Send().ReceiveReply()
+				if err != nil {
+					s.Logger.Error(err)
+					return err
+				}
 			}
 		}
 	} else {
@@ -260,6 +299,15 @@ func (s *remoteCNIserver) configureVswitchConnectivity() error {
 	err = s.enableTCPSession()
 
 	return err
+}
+
+func (s *remoteCNIserver) specificConfigForCurrentNode() *OneNodeConfig {
+	for _, oneNodeConfig := range s.nodeConfigs {
+		if oneNodeConfig.NodeName == s.agentLabel {
+			return &oneNodeConfig
+		}
+	}
+	return nil
 }
 
 // cleanupVswitchConnectivity cleans up basic vSwitch VPP connectivity configuration in the host IP stack.

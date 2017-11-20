@@ -17,8 +17,10 @@ sudo docker pull contivvpp/kube-proxy:v1.8.0
 sudo docker pull contivvpp/kube-proxy:v1.8.1
 sudo docker pull contivvpp/kube-proxy:v1.8.2
 sudo docker pull contivvpp/kube-proxy:v1.8.3
+sudo docker pull contivvpp/kube-proxy:v1.8.4
 
 sudo docker tag contivvpp/kube-proxy:v1.8.0 gcr.io/google_containers/kube-proxy-amd64:v1.8.0
 sudo docker tag contivvpp/kube-proxy:v1.8.1 gcr.io/google_containers/kube-proxy-amd64:v1.8.1
 sudo docker tag contivvpp/kube-proxy:v1.8.2 gcr.io/google_containers/kube-proxy-amd64:v1.8.2
 sudo docker tag contivvpp/kube-proxy:v1.8.3 gcr.io/google_containers/kube-proxy-amd64:v1.8.3
+sudo docker tag contivvpp/kube-proxy:v1.8.4 gcr.io/google_containers/kube-proxy-amd64:v1.8.4

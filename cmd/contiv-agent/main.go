@@ -17,12 +17,13 @@ package main
 import (
 	"github.com/ligato/cn-infra/core"
 
-	"github.com/contiv/vpp/flavors/contiv"
-	"github.com/ligato/cn-infra/logging"
-	"github.com/ligato/cn-infra/logging/logroot"
 	"os"
 	"os/signal"
 	"syscall"
+
+	"github.com/contiv/vpp/flavors/contiv"
+	"github.com/ligato/cn-infra/logging"
+	"github.com/ligato/cn-infra/logging/logroot"
 )
 
 // init sets the default logging level

@@ -254,7 +254,7 @@ spec:
               mountPath: /dev/shm
             - name: dev
               mountPath: /dev
-            - name: agent-plugin-cfg
+            - name: contiv-plugin-cfg
               mountPath: /etc/agent
             - name: govpp-plugin-cfg
               mountPath: /etc/govpp
@@ -297,8 +297,8 @@ spec:
         - name: shm
           hostPath:
             path: /dev/shm
-        # Used to configure contiv agent plugin.
-        - name: agent-plugin-cfg
+        # Used to configure contiv plugin.
+        - name: contiv-plugin-cfg
           configMap:
             name: contiv-agent-cfg
         # Used to configure govpp plugin.

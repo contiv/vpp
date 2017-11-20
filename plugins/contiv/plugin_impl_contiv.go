@@ -24,6 +24,8 @@ import (
 
 	"fmt"
 
+	"net"
+
 	"git.fd.io/govpp.git/api"
 	"github.com/contiv/vpp/plugins/contiv/containeridx"
 	"github.com/contiv/vpp/plugins/contiv/ipam"
@@ -79,6 +81,20 @@ type Deps struct {
 // config add `<Contiv plugin name> + "-config="<absolute path to config>` in go run command flags.
 type Config struct {
 	IPAMConfig ipam.Config
+	NodeConfig []OneNodeConfig
+}
+
+// OneNodeConfig represents configuration for one node. It contains only settings specific to given node.
+type OneNodeConfig struct {
+	NodeName             string
+	MainVppInterfaceName string
+	OtherVPPInterfaces   []InterfaceWithIP // other configured interfaces get only ip address assigned in vpp
+}
+
+// InterfaceWithIP binds interface name with ip for configuration purposes.
+type InterfaceWithIP struct {
+	InterfaceName string
+	IP            string
 }
 
 // Init initializes the grpc server handling the request from the CNI.
@@ -120,7 +136,7 @@ func (plugin *Plugin) Init() error {
 		plugin.govppCh,
 		plugin.VPP.GetSwIfIndexes(),
 		plugin.ServiceLabel.GetAgentLabel(),
-		&plugin.Config.IPAMConfig,
+		plugin.Config,
 		uid)
 	if err != nil {
 		return fmt.Errorf("Can't create new remote CNI server due to error: %v ", err)
@@ -164,8 +180,9 @@ func (plugin *Plugin) Close() error {
 	return err
 }
 
-// GetIfName looks up logical interface name that corresponds to the interface associated with the given pod.
-func (plugin *Plugin) GetIfName(podNamespace string, podName string) (name string, exists bool) {
+// getContainerConfig return the configuration of the container associated
+// with the given pod.
+func (plugin *Plugin) getContainerConfig(podNamespace string, podName string) *containeridx.Config {
 	podNamesMatch := plugin.configuredContainers.LookupPodName(podName)
 	podNamespacesMatch := plugin.configuredContainers.LookupPodNamespace(podNamespace)
 
@@ -173,15 +190,40 @@ func (plugin *Plugin) GetIfName(podNamespace string, podName string) (name strin
 		for _, pod2 := range podNamesMatch {
 			if pod1 == pod2 {
 				found, data := plugin.configuredContainers.LookupContainer(pod1)
-				if found && data != nil && data.Afpacket != nil {
-					return data.Afpacket.Name, true
+				if found {
+					return data
 				}
 			}
 		}
 	}
 
+	return nil
+}
+
+// GetIfName looks up logical interface name that corresponds to the interface associated with the given pod.
+func (plugin *Plugin) GetIfName(podNamespace string, podName string) (name string, exists bool) {
+	config := plugin.getContainerConfig(podNamespace, podName)
+	if config != nil && config.Afpacket != nil {
+		return config.Afpacket.Name, true
+	}
 	plugin.Log.WithFields(logging.Fields{"podNamespace": podNamespace, "podName": podName}).Warn("No matching result found")
 	return "", false
+}
+
+// GetNsIndex returns the index of the VPP session namespace associated
+// with the given pod.
+func (plugin *Plugin) GetNsIndex(podNamespace string, podName string) (nsIndex uint32, exists bool) {
+	config := plugin.getContainerConfig(podNamespace, podName)
+	if config != nil {
+		return config.NsIndex, true
+	}
+	plugin.Log.WithFields(logging.Fields{"podNamespace": podNamespace, "podName": podName}).Warn("No matching result found")
+	return 0, false
+}
+
+// GetPodNetwork provides subnet used for allocating pod IP addresses on this host node.
+func (plugin *Plugin) GetPodNetwork() *net.IPNet {
+	return plugin.cniServer.ipam.PodNetwork()
 }
 
 func (plugin *Plugin) handleResync(resyncChan chan resync.StatusEvent) {

@@ -137,11 +137,9 @@ func (m Match) String() string {
 type PolicyType int
 
 const (
-	// PolicyDefault tells policy to apply Ingress only
-	PolicyDefault PolicyType = iota
 
 	// PolicyIngress tells policy to apply to ingress only.
-	PolicyIngress
+	PolicyIngress = iota
 
 	// PolicyEgress tells policy to apply to egress only.
 	PolicyEgress

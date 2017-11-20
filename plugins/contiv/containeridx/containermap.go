@@ -41,6 +41,8 @@ type Config struct {
 	Afpacket *vpp_intf.Interfaces_Interface
 	// Route to the container
 	Route *l3.StaticRoutes_Route
+	// Application namespace index
+	NsIndex uint32
 }
 
 // ConfigIndex implements a cache for configured containers. Primary index is containerID.
@@ -58,7 +60,7 @@ func (ci *ConfigIndex) RegisterContainer(containerID string, data *Config) {
 	ci.mapping.Put(containerID, data)
 }
 
-// UnregisterContainer removes the entry from the nbmapping
+// UnregisterContainer removes the entry from the mapping
 func (ci *ConfigIndex) UnregisterContainer(containerID string) (data *Config, found bool) {
 	d, found := ci.mapping.Delete(containerID)
 	if found {

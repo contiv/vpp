@@ -268,14 +268,19 @@ Remove_Istio_And_Verify_Removed
     KubeCtl.Delete_F    ${ssh_session}    ${ISTIO_FILE}    expected_rc=${1}    ignore_stderr=${True}
     BuiltIn.Wait_Until_Keyword_Succeeds    60s    5s    Verify_Istio_Removed    ${ssh_session}
 
+Get_Deployed_Pod_Name
+    [Arguments]    ${ssh_session}    ${pod_prefix}
+    ${pod_name_list} =   Get_Pod_Name_List_By_Prefix    ${ssh_session}    ${pod_prefix}
+    BuiltIn.Length_Should_Be    ${pod_name_list}    1
+    ${pod_name} =    BuiltIn.Evaluate     ${pod_name_list}[0]
+    [Return]    ${pod_name}
+
 Deploy_Pod_And_Verify_Running
     [Arguments]    ${ssh_session}    ${pod_file}    ${pod_prefix}
     [Documentation]    Deploy pod defined by \${pod_file}, wait until a pod matching \${pod_prefix} appears, check it was only 1 such pod, extract its name, wait until it is running, log and return the name.
     Builtin.Log_Many    ${ssh_session}    ${pod_file}    ${pod_prefix}
     KubeCtl.Apply_F    ${ssh_session}    ${pod_file}
-    ${pod_name_list} =    BuiltIn.Wait_Until_Keyword_Succeeds    10s    2s    Get_Pod_Name_List_By_Prefix    ${ssh_session}    ${pod_prefix}
-    BuiltIn.Length_Should_Be    ${pod_name_list}    1
-    ${pod_name} =    BuiltIn.Evaluate     ${pod_name_list}[0]
+    ${pod_name} =    BuiltIn.Wait_Until_Keyword_Succeeds    10s    2s    Get_Deployed_Pod_Name    ${ssh_session}    ${pod_prefix}
     Wait_Until_Pod_Running    ${ssh_session}    ${pod_name}
     BuiltIn.Log    ${pod_name}
     [Return]    ${pod_name}

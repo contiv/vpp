@@ -1,14 +1,25 @@
 *** Settings ***
 Documentation     Keywords for testsuite setup and teardown.
+...
+...               Each suite should depend on this, so that some settings are centralized here,
+...               mainly concerning lab environment details.
+...
+...               Currently lab details are hardwired in robot files.
+...               Several setups are available, users can chose by overriding
+...               \${ENV} (or also \${VARIABLES}).
+...
 ...               TODO: Describe \${snapshot_num} (or remove it).
 Library           OperatingSystem
 Library           SSHLibrary
 Resource          ${CURDIR}/SshCommons.robot
 Resource          ${CURDIR}/${ENV}_setup-teardown.robot
+Resource          ${CURDIR}/../variables/${VARIABLES}_variables.robot
 
 *** Variables ***
-${snapshot_num}       0
+${ENV}            common
+${VARIABLES}      ${ENV}
 ${VM_SSH_ALIAS_PREFIX}     vm_
+${snapshot_num}    0
 
 *** Keywords ***
 Testsuite_Setup

@@ -8,21 +8,6 @@
 #  Configuration
 ###########################################################
 
-# This config map contains ETCD configuration for connecting to the contiv-etcd defined above.
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: contiv-etcd-cfg
-  namespace: kube-system
-data:
-  etcd.conf: |
-    insecure-transport: true
-    dial-timeout: 1000000000
-    endpoints:
-      - "127.0.0.1:32379"
-
----
-
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -55,8 +40,8 @@ data:
 
 ---
 
-# !!! DO NOT EDIT THINGS BELOW !!!
-# FOR CONFIGURABLE THINGS TRY TO USE CONFIGURATION
+# !!! DO NOT EDIT THINGS BELOW THIS LINE !!!
+# FOR CONFIGURABLE THINGS TRY TO USE THE CONFIGURATION ABOVE
 
 ###########################################################
 #  Components and other resources
@@ -122,6 +107,21 @@ spec:
   # Our ETCD is running on port 12379 on the master node. Let's expose it as a service on port 32379 on each node.
   - port: 12379
     nodePort: 32379
+
+---
+
+# This config map contains ETCD configuration for connecting to the contiv-etcd defined above.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: contiv-etcd-cfg
+  namespace: kube-system
+data:
+  etcd.conf: |
+    insecure-transport: true
+    dial-timeout: 1000000000
+    endpoints:
+      - "127.0.0.1:32379"
 
 ---
 

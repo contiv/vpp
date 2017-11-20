@@ -31,6 +31,7 @@ ${NGINX_POD_FILE_NODE2}    ${CURDIR}/../resources/nginx-node2.yaml
 ${CLIENT_ISTIO_POD_FILE}    ${CURDIR}/../resources/one-ubuntu-istio.yaml
 ${NGINX_ISTIO_POD_FILE}    ${CURDIR}/../resources/nginx-istio.yaml
 ${ISTIO_FILE}    ${CURDIR}/../resources/istio029.yaml
+${NGINX_10_POD_FILE}    ${CURDIR}/../resources/nginx10.yaml
 
 *** Keywords ***
 Reinit_One_Node_Kube_Cluster
@@ -38,10 +39,12 @@ Reinit_One_Node_Kube_Cluster
     ${conn} =     SSHLibrary.Get_Connection
     Set_Suite_Variable    ${testbed_connection}    ${conn.index}
     SSHLibrary.Set_Client_Configuration    timeout=10    prompt=$
-    SshCommons.Switch_And_Execute_Command    ${testbed_connection}    sudo rm -rf ~/.kube
+    SshCommons.Switch_And_Execute_Command    ${testbed_connection}    sudo rm -rf $HOME/.kube
     KubeAdm.Reset    ${testbed_connection}
+    SshCommons.Switch_And_Execute_Command    ${testbed_connection}    curl -s https://raw.githubusercontent.com/contiv/vpp/master/k8s/cri-install.sh | sudo bash /dev/stdin -u    ignore_stderr=${True}    ignore_rc=${True}
     Docker_Pull_Contiv_Vpp    ${testbed_connection}
     Docker_Pull_Custom_Kube_Proxy    ${testbed_connection}
+    SshCommons.Switch_And_Execute_Command    ${testbed_connection}    curl -s https://raw.githubusercontent.com/contiv/vpp/master/k8s/cri-install.sh | sudo bash /dev/stdin
     ${stdout} =    KubeAdm.Init    ${testbed_connection}
     BuiltIn.Should_Contain    ${stdout}    Your Kubernetes master has initialized successfully
     SshCommons.Switch_And_Execute_Command    ${testbed_connection}    mkdir -p $HOME/.kube
@@ -190,6 +193,34 @@ Deploy_Nginx_Pod_And_Verify_Running
     ${nginx_pod_name} =    Deploy_Pod_And_Verify_Running    ${ssh_session}    ${nginx_file}    nginx-
     BuiltIn.Set_Suite_Variable    ${nginx_pod_name}
 
+Verify_Multireplica_Pods_Running
+    [Arguments]    ${ssh_session}    ${pod_prefix}    ${nr_replicas}    ${namespace}
+    [Documentation]     We check istio- pods are running
+    ${pods_list} =    Get_Pod_Name_List_By_Prefix    ${ssh_session}    ${pod_prefix}
+    BuiltIn.Length_Should_Be   ${pods_list}     ${nr_replicas}
+    : FOR    ${pod_name}    IN    @{pods_list}
+    \    Verify_Pod_Running_And_Ready    ${ssh_session}    ${pod_name}    namespace= ${namespace}
+    BuiltIn.Return_From_Keyword    ${pods_list}
+
+Deploy_Multireplica_Pods_And_Verify_Running
+    [Arguments]    ${ssh_session}    ${pod_file}    ${pod_prefix}    ${nr_replicas}    ${namespace}=default    ${setup_timeout}=30s
+    [Documentation]     Deploy pods from one provided yaml file with more replica specified
+    KubeCtl.Apply_F    ${ssh_session}    ${pod_file}
+    ${pods_details} =    BuiltIn.Wait_Until_Keyword_Succeeds    ${setup_timeout}   4s    Verify_Multireplica_Pods_Running    ${ssh_session}    ${pod_prefix}    ${nr_replicas}    ${namespace}
+    BuiltIn.Set_Suite_Variable    ${pods_details}
+
+Verify_Multireplica_Pods_Removed
+    [Arguments]    ${ssh_session}    ${pod_prefix}
+    [Documentation]     Check no pods are running with prefix: ${pod_prefix}
+    ${pods_list} =    Get_Pod_Name_List_By_Prefix    ${ssh_session}    ${pod_prefix}
+    BuiltIn.Length_Should_Be   ${pods_list}     0
+
+Remove_Multireplica_Pods_And_Verify_Removed
+    [Arguments]    ${ssh_session}    ${pod_file}    ${pod_prefix}
+    [Documentation]     Remove pods and verify they're removed.
+    KubeCtl.Delete_F    ${ssh_session}    ${pod_file}
+    BuiltIn.Wait_Until_Keyword_Succeeds    60s    5s    Verify_Multireplica_Pods_Removed    ${ssh_session}    ${pod_prefix}
+
 Remove_Client_And_Nginx_Pod_And_Verify_Removed
     [Arguments]    ${ssh_session}    ${client_file}=${CLIENT_POD_FILE}    ${nginx_file}=${NGINX_POD_FILE}
     [Documentation]    Issue delete commands for pods defined by \${client_file} and \${nginx_file}, wait for the pods to get removed.
@@ -237,14 +268,19 @@ Remove_Istio_And_Verify_Removed
     KubeCtl.Delete_F    ${ssh_session}    ${ISTIO_FILE}    expected_rc=${1}    ignore_stderr=${True}
     BuiltIn.Wait_Until_Keyword_Succeeds    60s    5s    Verify_Istio_Removed    ${ssh_session}
 
+Get_Deployed_Pod_Name
+    [Arguments]    ${ssh_session}    ${pod_prefix}
+    ${pod_name_list} =   Get_Pod_Name_List_By_Prefix    ${ssh_session}    ${pod_prefix}
+    BuiltIn.Length_Should_Be    ${pod_name_list}    1
+    ${pod_name} =    BuiltIn.Evaluate     ${pod_name_list}[0]
+    [Return]    ${pod_name}
+
 Deploy_Pod_And_Verify_Running
     [Arguments]    ${ssh_session}    ${pod_file}    ${pod_prefix}
     [Documentation]    Deploy pod defined by \${pod_file}, wait until a pod matching \${pod_prefix} appears, check it was only 1 such pod, extract its name, wait until it is running, log and return the name.
     Builtin.Log_Many    ${ssh_session}    ${pod_file}    ${pod_prefix}
     KubeCtl.Apply_F    ${ssh_session}    ${pod_file}
-    ${pod_name_list} =    BuiltIn.Wait_Until_Keyword_Succeeds    10s    2s    Get_Pod_Name_List_By_Prefix    ${ssh_session}    ${pod_prefix}
-    BuiltIn.Length_Should_Be    ${pod_name_list}    1
-    ${pod_name} =    BuiltIn.Evaluate     ${pod_name_list}[0]
+    ${pod_name} =    BuiltIn.Wait_Until_Keyword_Succeeds    10s    2s    Get_Deployed_Pod_Name    ${ssh_session}    ${pod_prefix}
     Wait_Until_Pod_Running    ${ssh_session}    ${pod_name}
     BuiltIn.Log    ${pod_name}
     [Return]    ${pod_name}
@@ -379,18 +415,27 @@ Wait_Until_Cluster_Ready
 
 Log_Contiv_Etcd
     [Arguments]    ${ssh_session}
+    [Documentation]    Check there is exactly one etcd pod, get its logs
+    ...    (and do nothing with them, except the implicit Log).
+    Builtin.Log_Many    ${ssh_session}
     ${pod_list} =    Get_Pod_Name_List_By_Prefix    ${ssh_session}    contiv-etcd-
     BuiltIn.Length_Should_Be    ${pod_list}    1
     KubeCtl.Logs    ${ssh_session}    @{pod_list}[0]    namespace=kube-system
 
 Log_Contiv_Ksr
     [Arguments]    ${ssh_session}
+    [Documentation]    Check there is exactly one ksr pod, get its logs
+    ...    (and do nothing with them, except the implicit Log).
+    Builtin.Log_Many    ${ssh_session}
     ${pod_list} =    Get_Pod_Name_List_By_Prefix    ${ssh_session}    contiv-ksr-
     BuiltIn.Length_Should_Be    ${pod_list}    1
     KubeCtl.Logs    ${ssh_session}    @{pod_list}[0]    namespace=kube-system
 
 Log_Contiv_Vswitch
     [Arguments]    ${ssh_session}    ${exp_nr_vswitch}=${KUBE_CLUSTER_${CLUSTER_ID}_NODES}
+    [Documentation]    Check there is expected number of vswitch pods, get logs from them an cni containers
+    ...    (and do nothing except the implicit Log).
+    Builtin.Log_Many    ${ssh_session}    ${exp_nr_vswitch}
     ${pod_list} =    Get_Pod_Name_List_By_Prefix    ${ssh_session}    contiv-vswitch-
     BuiltIn.Length_Should_Be    ${pod_list}    ${exp_nr_vswitch}
     : FOR    ${vswitch_pod}    IN    @{pod_list}
@@ -399,6 +444,9 @@ Log_Contiv_Vswitch
 
 Log_Kube_Dns
     [Arguments]    ${ssh_session}
+    [Documentation]    Check there is exactly one dns pod, get logs from kubedns, dnsmasq and sidecar containers
+    ...    (and do nothing with them, except the implicit Log).
+    Builtin.Log_Many    ${ssh_session}
     ${pod_list} =    Get_Pod_Name_List_By_Prefix    ${ssh_session}    kube-dns-
     BuiltIn.Length_Should_Be    ${pod_list}    1
     KubeCtl.Logs    ${ssh_session}    @{pod_list}[0]    namespace=kube-system    container=kubedns
@@ -407,6 +455,9 @@ Log_Kube_Dns
 
 Log_Pods_For_Debug
     [Arguments]    ${ssh_session}    ${exp_nr_vswitch}=${KUBE_CLUSTER_${CLUSTER_ID}_NODES}
+    [Documentation]    Call multiple keywords to get various logs
+    ...    (and do nothing with them, except the implicit Log).
+    Builtin.Log_Many    ${ssh_session}    ${exp_nr_vswitch}
     Log_Contiv_Etcd    ${ssh_session}
     Log_Contiv_Ksr    ${ssh_session}
     Log_Contiv_Vswitch    ${ssh_session}    ${exp_nr_vswitch}

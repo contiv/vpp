@@ -1,18 +1,15 @@
 apiVersion: extensions/v1beta1
 kind: Deployment
 metadata:
-  name: iperf-client
+  name: test-client
 spec:
   replicas: 1
   template:
     metadata:
       labels:
-        # ldpreload-related labels
+        app: test-client
         ldpreload: "true"
     spec:
-      # optional - deploy on preferred node
-#      nodeSelector:
-#        kubernetes.io/hostname: ubuntu
       containers:
       - image: networkstatic/iperf3
         imagePullPolicy: IfNotPresent

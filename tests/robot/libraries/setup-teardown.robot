@@ -1,14 +1,25 @@
 *** Settings ***
 Documentation     Keywords for testsuite setup and teardown.
+...
+...               Each suite should depend on this, so that some settings are centralized here,
+...               mainly concerning lab environment details.
+...
+...               Currently lab details are hardwired in robot files.
+...               Several setups are available, users can chose by overriding
+...               \${ENV} (or also \${VARIABLES}).
+...
 ...               TODO: Describe \${snapshot_num} (or remove it).
 Library           OperatingSystem
 Library           SSHLibrary
 Resource          ${CURDIR}/SshCommons.robot
 Resource          ${CURDIR}/${ENV}_setup-teardown.robot
+Resource          ${CURDIR}/../variables/${VARIABLES}_variables.robot
 
 *** Variables ***
-${snapshot_num}       0
+${ENV}            common
+${VARIABLES}      ${ENV}
 ${VM_SSH_ALIAS_PREFIX}     vm_
+${snapshot_num}    0
 
 *** Keywords ***
 Testsuite_Setup
@@ -56,8 +67,8 @@ Get_Machine_Status
     SshCommons.Execute_Command_And_Log    docker images
     SshCommons.Execute_Command_And_Log    docker ps -as
     BuiltIn.Return_From_Keyword_If    """${machine}""" != """${VM_SSH_ALIAS_PREFIX}1"""
-    SshCommons.Execute_Command_And_Log    kubectl get nodes
-    SshCommons.Execute_Command_And_Log    kubectl get pods    ignore_stderr=True
+    SshCommons.Execute_Command_And_Log    kubectl get nodes    ignore_stderr=True    ignore_rc=True
+    SshCommons.Execute_Command_And_Log    kubectl get pods    ignore_stderr=True    ignore_rc=True
 
 Create_Connections_To_Kube_Cluster
     [Documentation]    Create connection and log machine status for each node. Leave active connection pointing to the first node (master).

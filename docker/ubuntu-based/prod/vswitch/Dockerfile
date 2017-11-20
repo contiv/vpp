@@ -25,5 +25,8 @@ RUN mv /etc/vpp/vpp.conf /etc/vpp/contiv-vswitch.conf
 # add supervisord config file
 COPY vswitch/supervisord.conf /etc/supervisord.conf
 
+# add govpp config file
+COPY govpp.conf /etc/govpp/govpp.conf
+
 # run supervisord as the default executable
 CMD ["/usr/bin/supervisord", "-c", "/etc/supervisord.conf"]

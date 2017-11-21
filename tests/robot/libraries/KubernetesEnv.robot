@@ -36,7 +36,7 @@ ${NGINX_10_POD_FILE}    ${CURDIR}/../resources/nginx10.yaml
 *** Keywords ***
 Reinit_One_Node_Kube_Cluster
     [Documentation]    Assuming active SSH connection, store its index, execute multiple commands to reinstall and restart 1node cluster, wait to see it running.
-    ${conn} =     SSHLibrary.Get_Connection
+    ${conn} =     SSHLibrary.Get_Connection    ${VM_SSH_ALIAS_PREFIX}1
     Set_Suite_Variable    ${testbed_connection}    ${conn.index}
     SSHLibrary.Set_Client_Configuration    timeout=10    prompt=$
     SshCommons.Switch_And_Execute_Command    ${testbed_connection}    sudo rm -rf $HOME/.kube

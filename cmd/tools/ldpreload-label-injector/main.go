@@ -60,7 +60,7 @@ func processFile(inputFile string, outputFile string) (err error) {
 	if err != nil {
 		return
 	}
-	converted, err := ConvertFileContent(string(content))
+	converted, err := inject(string(content))
 	if err != nil {
 		return
 	}
@@ -68,7 +68,8 @@ func processFile(inputFile string, outputFile string) (err error) {
 	return
 }
 
-func ConvertFileContent(content string) (string, error) {
+// inject injects yaml file content with ldpreload labels
+func inject(content string) (string, error) {
 	eol, err := detectEOLString(content)
 	if err != nil {
 		return "", err
@@ -85,14 +86,15 @@ func ConvertFileContent(content string) (string, error) {
 	return converted.String(), nil
 }
 
-type Insertion struct {
+// insertion is complete information needed for injection of one string into yaml file content string
+type insertion struct {
 	insertionPoint int
 	text           string
 }
 
 func insertLDPreloadTrue(document string, eol string) string {
 	insertLines := []string{"# ldpreload-related labels", "ldpreload: \"true\""}
-	var insertions = &[]Insertion{}
+	var insertions = &[]insertion{}
 	visitInsertionPlaces(document, []string{"spec:", "template:", "metadata:", "labels:"}, []string{},
 		func(index int, unresolvedPath []string, resolvedPath []string, block string, parentBlockIntend int) {
 			intendDelta := defaultIntendLength // just guess in case we don't have enough information to compute it
@@ -114,7 +116,7 @@ func insertLDPreloadTrue(document string, eol string) string {
 				buffer.WriteString(strings.Repeat(" ", parentBlockIntend+intendDelta) + line + eol)
 			}
 
-			insertions = prepend(Insertion{index, buffer.String()}, insertions) // using this order doesn't invalidate indexes of insertions by applying them sequentially
+			insertions = prepend(insertion{index, buffer.String()}, insertions) // using this order doesn't invalidate indexes of insertions by applying them sequentially
 			return
 		},
 		0, len(document), eol, 0, 0)
@@ -126,8 +128,8 @@ func insertLDPreloadTrue(document string, eol string) string {
 	return document
 }
 
-func prepend(item Insertion, slice *[]Insertion) *[]Insertion {
-	newSlice := append([]Insertion{item}, *slice...)
+func prepend(item insertion, slice *[]insertion) *[]insertion {
+	newSlice := append([]insertion{item}, *slice...)
 	return &newSlice
 }
 

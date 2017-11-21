@@ -17,8 +17,9 @@ limitations under the License.
 package authorizer
 
 import (
-	"k8s.io/kubernetes/pkg/kubeapiserver/authorizer/modes"
 	"testing"
+
+	"k8s.io/kubernetes/pkg/kubeapiserver/authorizer/modes"
 )
 
 // New has multiple return possibilities. This test

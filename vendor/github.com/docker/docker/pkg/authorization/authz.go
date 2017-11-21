@@ -8,8 +8,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/docker/docker/pkg/ioutils"
 	"github.com/Sirupsen/logrus"
+	"github.com/docker/docker/pkg/ioutils"
 )
 
 const maxBodySize = 1048576 // 1MB

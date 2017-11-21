@@ -27,7 +27,6 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/evanphx/json-patch"
 	"github.com/golang/glog"
 	"github.com/spf13/cobra"
 

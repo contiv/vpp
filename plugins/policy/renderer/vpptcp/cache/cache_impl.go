@@ -15,13 +15,12 @@
 package cache
 
 import (
-	"bytes"
 	"crypto/md5"
 	"encoding/hex"
 	"net"
 	"sort"
 	"strconv"
-
+	
 	"github.com/contiv/vpp/plugins/policy/renderer"
 	"github.com/ligato/cn-infra/logging"
 )
@@ -322,7 +321,9 @@ func (srct *SessionRuleCacheTxn) getCombinedIngressRules(nsIndex uint32) []*rend
 				newRule := &renderer.ContivRule{
 					ID:          ruleID,
 					Action:      renderer.ActionPermit,
+					SrcNetwork:  &net.IPNet{},
 					DestNetwork: rmtNsConfig.ipAddr,
+					SrcPort:     AnyPort,
 					DestPort:    tcpPort,
 					Protocol:    renderer.TCP,
 				}
@@ -334,7 +335,10 @@ func (srct *SessionRuleCacheTxn) getCombinedIngressRules(nsIndex uint32) []*rend
 			newRule := &renderer.ContivRule{
 				ID:          ruleID,
 				Action:      renderer.ActionDeny,
+				SrcNetwork:  &net.IPNet{},
 				DestNetwork: rmtNsConfig.ipAddr,
+				SrcPort:     AnyPort,
+				DestPort:    AnyPort,
 				Protocol:    renderer.TCP,
 			}
 			rules = append(rules, newRule)
@@ -368,7 +372,7 @@ func (srct *SessionRuleCacheTxn) getCombinedIngressRules(nsIndex uint32) []*rend
 					Action:      renderer.ActionPermit,
 					DestNetwork: rmtNsConfig.ipAddr,
 					DestPort:    udpPort,
-					Protocol:    renderer.TCP,
+					Protocol:    renderer.UDP,
 				}
 				rules = append(rules, newRule)
 			}
@@ -478,6 +482,7 @@ func (srl *SessionRuleList) Diff(srl2 *SessionRuleList) (added, removed []*Sessi
 // Added/Removed is from these tables point of view.
 func (st *SessionTables) Diff(st2 *SessionTables) (added, removed []*SessionRule) {
 	added, removed = st.global.Diff(st2.global)
+
 	for nsIndex, nsRules := range st.local {
 		nsRules2, hasNs := st2.local[nsIndex]
 		if hasNs {
@@ -717,71 +722,6 @@ func convertIngressRules(nsIndex uint32, ingress []*renderer.ContivRule, tagPref
 		sessionRules = append(sessionRules, sessionRule)
 	}
 	return sessionRules
-}
-
-// compareInts is a comparison function for two integers.
-func compareInts(a, b int) int {
-	if a < b {
-		return -1
-	}
-	if a > b {
-		return 1
-	}
-	return 0
-}
-
-// compareIPNets returns an integer comparing two IP network addresses
-// lexicographically.
-func compareIPNets(aPrefixLen uint8, aIP [16]byte, bPrefixLen uint8, bIP [16]byte) int {
-	prefixOrder := compareInts(int(aPrefixLen), int(bPrefixLen))
-	if prefixOrder != 0 {
-		return prefixOrder
-	}
-	return bytes.Compare(aIP[:], bIP[:])
-}
-
-// compareSessionRules returns an integer comparing two Session rules lexicographically.
-func compareSessionRules(a, b *SessionRule, compareTag bool) int {
-	nsOrder := compareInts(int(a.AppnsIndex), int(b.AppnsIndex))
-	if nsOrder != 0 {
-		return nsOrder
-	}
-	scopeOrder := compareInts(int(a.Scope), int(b.Scope))
-	if scopeOrder != 0 {
-		return scopeOrder
-	}
-	actionOrder := compareInts(int(a.ActionIndex), int(b.ActionIndex))
-	if actionOrder != 0 {
-		return actionOrder
-	}
-	ipVerOrder := compareInts(int(a.IsIP4), int(b.IsIP4))
-	if ipVerOrder != 0 {
-		return ipVerOrder
-	}
-	lclOrder := compareIPNets(a.LclPlen, a.LclIP, b.LclPlen, b.LclIP)
-	if lclOrder != 0 {
-		return lclOrder
-	}
-	rmtOrder := compareIPNets(a.RmtPlen, a.RmtIP, b.RmtPlen, b.RmtIP)
-	if rmtOrder != 0 {
-		return rmtOrder
-	}
-	protocolOrder := compareInts(int(a.TransportProto), int(b.TransportProto))
-	if protocolOrder != 0 {
-		return protocolOrder
-	}
-	lclPortOrder := compareInts(int(a.LclPort), int(b.LclPort))
-	if lclPortOrder != 0 {
-		return lclPortOrder
-	}
-	rmtPortOrder := compareInts(int(a.RmtPort), int(b.RmtPort))
-	if rmtPortOrder != 0 {
-		return rmtPortOrder
-	}
-	if compareTag {
-		return bytes.Compare(a.Tag[:], b.Tag[:])
-	}
-	return 0
 }
 
 func getMD5Hash(text string) string {

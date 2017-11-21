@@ -25,6 +25,7 @@ import (
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	"github.com/contiv/vpp/plugins/policy/cache"
 	"github.com/contiv/vpp/plugins/policy/renderer"
+	"github.com/contiv/vpp/plugins/policy/utils"
 )
 
 // PolicyConfigurator translates a set of Contiv Policies into ingress and
@@ -142,7 +143,7 @@ func (pct *PolicyConfiguratorTxn) Commit() error {
 			pct.Log.WithField("pod", pod).Warn("Pod has no IP address assigned")
 			continue
 		}
-		podIPNet := getOneHostSubnet(podData.IpAddress)
+		podIPNet := utils.GetOneHostSubnet(podData.IpAddress)
 		if podIPNet == nil {
 			pct.Log.WithField("pod", pod).Warn("Pod has invalid IP address assigned")
 			continue
@@ -261,7 +262,7 @@ func (pct *PolicyConfiguratorTxn) generateRules(direction MatchType, policies Co
 					pct.Log.WithField("peer", peer).Warn("Peer pod has no IP address assigned")
 					continue
 				}
-				peerIPNet := getOneHostSubnet(peerData.IpAddress)
+				peerIPNet := utils.GetOneHostSubnet(peerData.IpAddress)
 				if peerIPNet == nil {
 					pct.Log.WithFields(logging.Fields{
 						"peer": peer,
@@ -545,33 +546,6 @@ func (cr ContivRules) Copy() ContivRules {
 		*(crCopy[idx]) = *rule
 	}
 	return crCopy
-}
-
-// compareInts is a comparison function for two integers.
-func compareInts(a, b int) int {
-	if a < b {
-		return -1
-	}
-	if a > b {
-		return 1
-	}
-	return 0
-}
-
-// Function returns the IP subnet that contains only the given host
-// (i.e. /32 for IPv4, /128 for IPv6).
-func getOneHostSubnet(hostAddr string) *net.IPNet {
-	ip := net.ParseIP(hostAddr)
-	if ip == nil {
-		return nil
-	}
-	ipNet := &net.IPNet{IP: ip}
-	if ip.To4() != nil {
-		ipNet.Mask = net.CIDRMask(net.IPv4len*8, net.IPv4len*8)
-	} else {
-		ipNet.Mask = net.CIDRMask(net.IPv6len*8, net.IPv6len*8)
-	}
-	return ipNet
 }
 
 // Function returns a list of subnets with all IPs included in net1 and not included in net2.

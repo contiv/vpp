@@ -20,6 +20,7 @@ import (
 	"net"
 
 	"github.com/contiv/vpp/plugins/policy/renderer"
+	"github.com/contiv/vpp/plugins/policy/utils"
 )
 
 // SessionRuleCacheAPI defines API of a cache used to store VPP Session rules.
@@ -170,7 +171,46 @@ func (sr *SessionRule) String() string {
 // Compare returns -1, 0, 1 if this<sr2 or this==sr2 or this>sr2, respectively.
 // Session rules have a total order defined on them.
 func (sr *SessionRule) Compare(sr2 *SessionRule, compareTag bool) int {
-	return compareSessionRules(sr, sr2, compareTag)
+	nsOrder := utils.CompareInts(int(sr.AppnsIndex), int(sr2.AppnsIndex))
+	if nsOrder != 0 {
+		return nsOrder
+	}
+	scopeOrder := utils.CompareInts(int(sr.Scope), int(sr2.Scope))
+	if scopeOrder != 0 {
+		return scopeOrder
+	}
+	actionOrder := utils.CompareInts(int(sr.ActionIndex), int(sr2.ActionIndex))
+	if actionOrder != 0 {
+		return actionOrder
+	}
+	ipVerOrder := utils.CompareInts(int(sr.IsIP4), int(sr2.IsIP4))
+	if ipVerOrder != 0 {
+		return ipVerOrder
+	}
+	lclOrder := utils.CompareIPNetsBytes(sr.LclPlen, sr.LclIP, sr2.LclPlen, sr2.LclIP)
+	if lclOrder != 0 {
+		return lclOrder
+	}
+	rmtOrder := utils.CompareIPNetsBytes(sr.RmtPlen, sr.RmtIP, sr2.RmtPlen, sr2.RmtIP)
+	if rmtOrder != 0 {
+		return rmtOrder
+	}
+	protocolOrder := utils.CompareInts(int(sr.TransportProto), int(sr2.TransportProto))
+	if protocolOrder != 0 {
+		return protocolOrder
+	}
+	lclPortOrder := utils.CompareInts(int(sr.LclPort), int(sr2.LclPort))
+	if lclPortOrder != 0 {
+		return lclPortOrder
+	}
+	rmtPortOrder := utils.CompareInts(int(sr.RmtPort), int(sr2.RmtPort))
+	if rmtPortOrder != 0 {
+		return rmtPortOrder
+	}
+	if compareTag {
+		return bytes.Compare(sr.Tag[:], sr2.Tag[:])
+	}
+	return 0
 }
 
 // Copy creates a deep copy of the Session rule.

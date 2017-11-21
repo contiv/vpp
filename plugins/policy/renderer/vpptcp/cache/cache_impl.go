@@ -20,7 +20,7 @@ import (
 	"net"
 	"sort"
 	"strconv"
-	
+
 	"github.com/contiv/vpp/plugins/policy/renderer"
 	"github.com/ligato/cn-infra/logging"
 )

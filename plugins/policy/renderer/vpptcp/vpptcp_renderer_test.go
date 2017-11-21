@@ -28,8 +28,8 @@ import (
 	. "github.com/contiv/vpp/mock/contiv"
 	. "github.com/contiv/vpp/mock/sessionrules"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
-	. "github.com/contiv/vpp/plugins/policy/utils"
 	"github.com/contiv/vpp/plugins/policy/renderer"
+	. "github.com/contiv/vpp/plugins/policy/utils"
 )
 
 var mockSessionRules *MockSessionRules

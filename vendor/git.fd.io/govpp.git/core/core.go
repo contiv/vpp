@@ -39,8 +39,8 @@ const (
 
 var (
 	healthCheckProbeInterval = time.Second * 1        // default health check probe interval
-	healthCheckReplyTimeout  = time.Millisecond * 500 // timeout for reply to a health check probe
-	healthCheckThreshold     = 3                      // number of failed healthProbe until the error is reported
+	healthCheckReplyTimeout  = time.Millisecond * 100 // timeout for reply to a health check probe
+	healthCheckThreshold     = 1                      // number of failed healthProbe until the error is reported
 )
 
 // ConnectionState holds the current state of the connection to VPP.

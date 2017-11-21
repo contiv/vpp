@@ -17,6 +17,7 @@ package contiv
 import (
 	"fmt"
 	"net"
+	"os/exec"
 	"strconv"
 	"strings"
 
@@ -226,6 +227,52 @@ func (s *remoteCNIserver) addAppNamespace(podNamespace string, ifname string) (n
 
 func (s *remoteCNIserver) fixPodToPodCommunication(podIP string, ifname string) error {
 	return s.executeCli("ip container " + podIP + " " + ifname)
+}
+
+// disableTCPChecksumOffload disables TCP checksum offload on the eth0 in the container
+func (s *remoteCNIserver) disableTCPChecksumOffload(request *cni.CNIRequest) error {
+	// parse PID from the network namespace
+	pid, err := s.getPIDFromNwNsPath(request.NetworkNamespace)
+	if err != nil {
+		return err
+	}
+
+	// execute the ethtool in the namespace of given PID
+	cmdStr := fmt.Sprintf("nsenter -t %d -n ethtool --offload eth0 rx off tx off", pid)
+	s.Logger.Infof("Executing CMD: %s", cmdStr)
+
+	cmdArr := strings.Split(cmdStr, " ")
+	cmd := exec.Command("nsenter", cmdArr[1:]...)
+
+	// check the output of the exec
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		s.Logger.Errorf("CMD exec returned error: %v", err)
+		return err
+	}
+	s.Logger.Infof("CMD output: %s", output)
+
+	return nil
+}
+
+// getPIDFromNwNsPath returns PID of the main process of the given network namespace path
+func (s *remoteCNIserver) getPIDFromNwNsPath(ns string) (int, error) {
+	strArr := strings.Split(ns, "/")
+	if len(strArr) == 0 {
+		return -1, fmt.Errorf("invalid network namespace - no slash char detected in %s", ns)
+	}
+	pid := -1
+	for _, str := range strArr {
+		if i, err := strconv.Atoi(str); err == nil {
+			pid = i
+			s.Logger.Infof("Container PID derived from NS %s: %d", ns, pid)
+			break
+		}
+	}
+	if pid == -1 {
+		return -1, fmt.Errorf("unable to detect container PID from NS %s", ns)
+	}
+	return pid, nil
 }
 
 func (s *remoteCNIserver) executeCli(command string) error {

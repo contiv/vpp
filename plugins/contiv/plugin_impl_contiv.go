@@ -80,8 +80,9 @@ type Deps struct {
 // It can be injected or loaded from external config. Injection has priority to external config. To use external
 // config add `<Contiv plugin name> + "-config="<absolute path to config>` in go run command flags.
 type Config struct {
-	IPAMConfig ipam.Config
-	NodeConfig []OneNodeConfig
+	TCPChecksumOffloadDisabled bool
+	IPAMConfig                 ipam.Config
+	NodeConfig                 []OneNodeConfig
 }
 
 // OneNodeConfig represents configuration for one node. It contains only settings specific to given node.

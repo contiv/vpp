@@ -182,15 +182,13 @@ func (msr *MockSessionRules) hasRule(table SessionRules, scope uint8, nsIndex ui
 			}
 		}
 		if lclIPNet.IP.To4() != nil {
+			isIPv4 = 1
 			copy(rule.LclIP[:], lclIPNet.IP.To4())
 		} else {
 			copy(rule.LclIP[:], lclIPNet.IP.To16())
 		}
 		lclPlen, _ := lclIPNet.Mask.Size()
 		rule.LclPlen = uint8(lclPlen)
-		if lclIPNet.IP.To4() != nil {
-			isIPv4 = 1
-		}
 	}
 	if rmtIP != "" {
 		var rmtIPNet *net.IPNet
@@ -203,15 +201,13 @@ func (msr *MockSessionRules) hasRule(table SessionRules, scope uint8, nsIndex ui
 			}
 		}
 		if rmtIPNet.IP.To4() != nil {
+			isIPv4 = 1
 			copy(rule.RmtIP[:], rmtIPNet.IP.To4())
 		} else {
 			copy(rule.RmtIP[:], rmtIPNet.IP.To16())
 		}
 		rmtPlen, _ := rmtIPNet.Mask.Size()
 		rule.RmtPlen = uint8(rmtPlen)
-		if rmtIPNet.IP.To4() != nil {
-			isIPv4 = 1
-		}
 	}
 	if lclIP == "" && rmtIP == "" {
 		isIPv4 = 1

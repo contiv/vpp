@@ -65,6 +65,9 @@ type remoteCNIserver struct {
 
 	// node specific configuration
 	nodeConfigs []OneNodeConfig
+
+	// other configuration
+	tcpChecksumOffloadDisabled bool
 }
 
 const (
@@ -86,17 +89,18 @@ func newRemoteCNIServer(logger logging.Logger, vppTxnFactory func() linux.DataCh
 		return nil, err
 	}
 	return &remoteCNIserver{
-		Logger:               logger,
-		vppTxnFactory:        vppTxnFactory,
-		proxy:                proxy,
-		configuredContainers: configuredContainers,
-		hostCalls:            &linuxCalls{},
-		govppChan:            govppChan,
-		swIfIndex:            index,
-		agentLabel:           agentLabel,
-		uid:                  uid,
-		ipam:                 ipam,
-		nodeConfigs:          config.NodeConfig,
+		Logger:                     logger,
+		vppTxnFactory:              vppTxnFactory,
+		proxy:                      proxy,
+		configuredContainers:       configuredContainers,
+		hostCalls:                  &linuxCalls{},
+		govppChan:                  govppChan,
+		swIfIndex:                  index,
+		agentLabel:                 agentLabel,
+		uid:                        uid,
+		ipam:                       ipam,
+		nodeConfigs:                config.NodeConfig,
+		tcpChecksumOffloadDisabled: config.TCPChecksumOffloadDisabled,
 	}, nil
 }
 
@@ -379,7 +383,9 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 		return s.generateErrorResponse(err)
 	}
 
+	// TODO get rid of this sleep
 	time.Sleep(500 * time.Millisecond)
+
 	err = s.setupStn(podIP.String(), s.afpacketNameFromRequest(request))
 	if err != nil {
 		s.Logger.Error(err)
@@ -392,7 +398,7 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 		s.Logger.Error(err)
 		return s.generateErrorResponse(err)
 	}
-	s.Logger.Info("Add app namespace configured")
+	s.Logger.Info("App namespace configured")
 
 	macAddr, err := s.retrieveContainerMacAddr(request.NetworkNamespace, request.InterfaceName)
 	if err != nil {
@@ -428,6 +434,20 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 	}
 
 	err = s.fixPodToPodCommunication(podIP.String(), afName)
+	if err != nil {
+		s.Logger.Error(err)
+		return s.generateErrorResponse(err)
+	}
+
+	// disable TCP checksum offload on the eth0 veth interface in container
+	// TODO: this is a temporary workaround, should be reverted once TCP checksum offload issues are resolved on VPP
+	if s.tcpChecksumOffloadDisabled {
+		err = s.disableTCPChecksumOffload(request)
+		if err != nil {
+			s.Logger.Error(err)
+			return s.generateErrorResponse(err)
+		}
+	}
 
 	changes[linux_intf.InterfaceKey(veth1.Name)] = veth1
 	changes[linux_intf.InterfaceKey(veth2.Name)] = veth2

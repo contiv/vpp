@@ -18,11 +18,17 @@ import (
 	"bytes"
 	"fmt"
 	"net"
+
+	"github.com/contiv/vpp/plugins/policy/renderer"
+	"github.com/contiv/vpp/plugins/policy/utils"
 )
 
 // SessionRuleCacheAPI defines API of a cache used to store VPP Session rules.
 // The cache allows renderer to easily calculate the minimal set of changes
 // that need to be applied in a given transaction.
+// The cache furthermore converts the Contiv's own per-interface ingress/egress
+// rules into the equivalent VPP Session rules distributed among the global table
+// and per-namespace local tables.
 type SessionRuleCacheAPI interface {
 	// NewTxn starts a new transaction. The changes are reflected in the cache
 	// only after Commit() is called.
@@ -31,24 +37,24 @@ type SessionRuleCacheAPI interface {
 	// in the transaction are left unchanged.
 	NewTxn(resync bool) Txn
 
-	// LookupByNamespace returns rules assigned to a given namespace.
-	LookupByNamespace(nsIndex uint32) (ingress, egress SessionRuleList)
+	// LookupByNamespace returns Contiv rules assigned to a given namespace.
+	LookupByNamespace(nsIndex uint32) (ingress, egress []*renderer.ContivRule)
 
-	// AllNamespaces returns set of indexes of all known VPP session namespaces
-	// (already updated configuration).
+	// AllNamespaces returns the set of indexes of all known VPP session
+	// namespaces (already updated configuration).
 	AllNamespaces() []uint32
 }
 
 // Txn defines API of SessionRuleCache transaction.
 type Txn interface {
-	// Update changes the list of rules for a given session namespace.
-	// The change is applied into the cache during commit.
+	// Update changes the list of Contiv rules for a given session namespace.
+	// The change is applied into the cache during the commit.
 	// Run Changes() before Commit() to learn the set of pending updates (merged
-	// to minimal diff).
-	Update(nsIndex uint32, ingress SessionRuleList, egress SessionRuleList)
+	// to a minimal diff).
+	Update(nsIndex uint32, ipAddr *net.IPNet, ingress []*renderer.ContivRule, egress []*renderer.ContivRule)
 
-	// Changes calculates a minimalistic set of changes prepared in the
-	// transaction up to this point.
+	// Changes calculates a minimalistic set of changes, represented as Session
+	// rules, prepared in the transaction up to this point.
 	// Must be run before Commit().
 	Changes() (added, removed []*SessionRule, err error)
 
@@ -83,11 +89,15 @@ const (
 	// for a session rule.
 	RuleScopeBoth = 3
 
-	// RuleActionAllow is a constant used to set ALLOW action for a session rule.
-	RuleActionAllow = ^uint32(0)
+	// RuleActionDoNothing is a constant used to set DO-NOTHING action for a session
+	// rule.
+	RuleActionDoNothing = ^uint32(0)
 
 	// RuleActionDeny is a constant used to set DENY action for a session rule.
 	RuleActionDeny = ^uint32(0) - 1
+
+	// RuleActionAllow is a constant used to set ALLOW action for a session rule.
+	RuleActionAllow = ^uint32(0) - 2
 
 	// RuleProtoTCP is a constant used to set TCP protocol for a session rule.
 	RuleProtoTCP = 0
@@ -95,13 +105,6 @@ const (
 	// RuleProtoUDP is a constant used to set UDP protocol for a session rule.
 	RuleProtoUDP = 1
 )
-
-// SessionRuleList is an ordered array of Session rules.
-// API:
-//  Insert(rule)
-//  Diff(ruleList) -> (added, removed []*SessionRule)
-// Use NewSessionRuleList(capacity) to initialize a new list.
-type SessionRuleList []*SessionRule
 
 // String converts Session Rule into a human-readable string representation.
 func (sr *SessionRule) String() string {
@@ -123,6 +126,8 @@ func (sr *SessionRule) String() string {
 	}
 
 	switch sr.ActionIndex {
+	case RuleActionDoNothing:
+		action = "do-nothing"
 	case RuleActionAllow:
 		action = "allow"
 	case RuleActionDeny:
@@ -163,8 +168,54 @@ func (sr *SessionRule) String() string {
 		sr.RmtPort, tag)
 }
 
-// Compare returns -1, 0, 1 if this<sr2, this==sr2, this>sr2 respectively.
+// Compare returns -1, 0, 1 if this<sr2 or this==sr2 or this>sr2, respectively.
 // Session rules have a total order defined on them.
 func (sr *SessionRule) Compare(sr2 *SessionRule, compareTag bool) int {
-	return compareSessionRules(sr, sr2, compareTag)
+	nsOrder := utils.CompareInts(int(sr.AppnsIndex), int(sr2.AppnsIndex))
+	if nsOrder != 0 {
+		return nsOrder
+	}
+	scopeOrder := utils.CompareInts(int(sr.Scope), int(sr2.Scope))
+	if scopeOrder != 0 {
+		return scopeOrder
+	}
+	actionOrder := utils.CompareInts(int(sr.ActionIndex), int(sr2.ActionIndex))
+	if actionOrder != 0 {
+		return actionOrder
+	}
+	ipVerOrder := utils.CompareInts(int(sr.IsIP4), int(sr2.IsIP4))
+	if ipVerOrder != 0 {
+		return ipVerOrder
+	}
+	lclOrder := utils.CompareIPNetsBytes(sr.LclPlen, sr.LclIP, sr2.LclPlen, sr2.LclIP)
+	if lclOrder != 0 {
+		return lclOrder
+	}
+	rmtOrder := utils.CompareIPNetsBytes(sr.RmtPlen, sr.RmtIP, sr2.RmtPlen, sr2.RmtIP)
+	if rmtOrder != 0 {
+		return rmtOrder
+	}
+	protocolOrder := utils.CompareInts(int(sr.TransportProto), int(sr2.TransportProto))
+	if protocolOrder != 0 {
+		return protocolOrder
+	}
+	lclPortOrder := utils.CompareInts(int(sr.LclPort), int(sr2.LclPort))
+	if lclPortOrder != 0 {
+		return lclPortOrder
+	}
+	rmtPortOrder := utils.CompareInts(int(sr.RmtPort), int(sr2.RmtPort))
+	if rmtPortOrder != 0 {
+		return rmtPortOrder
+	}
+	if compareTag {
+		return bytes.Compare(sr.Tag[:], sr2.Tag[:])
+	}
+	return 0
+}
+
+// Copy creates a deep copy of the Session rule.
+func (sr *SessionRule) Copy() *SessionRule {
+	srCopy := &SessionRule{}
+	*(srCopy) = *sr
+	return srCopy
 }

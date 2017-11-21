@@ -22,6 +22,7 @@ import (
 	"strconv"
 
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
+	"github.com/contiv/vpp/plugins/policy/utils"
 )
 
 // PolicyRendererAPI defines the API of Policy Renderer.
@@ -99,6 +100,45 @@ func (cr *ContivRule) String() string {
 	}
 	return fmt.Sprintf("Rule %s <%s %s[%s:%s] -> %s[%s:%s]>",
 		cr.ID, cr.Action, srcNet, cr.Protocol, srcPort, dstNet, cr.Protocol, dstPort)
+}
+
+// Copy creates a deep copy of the Contiv rule.
+func (cr *ContivRule) Copy() *ContivRule {
+	crCopy := &ContivRule{}
+	*(crCopy) = *cr
+	return crCopy
+}
+
+// Compare returns -1, 0, 1 if this<cr2 or this==cr2 or this>cr2, respectively.
+// Contiv rules have a total order defined on them.
+func (cr *ContivRule) Compare(cr2 *ContivRule) int {
+	if cr.ID < cr2.ID {
+		return -1
+	}
+	if cr.ID > cr2.ID {
+		return 1
+	}
+	actionOrder := utils.CompareInts(int(cr.Action), int(cr2.Action))
+	if actionOrder != 0 {
+		return actionOrder
+	}
+	srcIPOrder := utils.CompareIPNets(cr.SrcNetwork, cr2.SrcNetwork)
+	if srcIPOrder != 0 {
+		return srcIPOrder
+	}
+	destIPOrder := utils.CompareIPNets(cr.DestNetwork, cr2.DestNetwork)
+	if destIPOrder != 0 {
+		return destIPOrder
+	}
+	protocolOrder := utils.CompareInts(int(cr.Protocol), int(cr2.Protocol))
+	if protocolOrder != 0 {
+		return protocolOrder
+	}
+	srcPortOrder := utils.CompareInts(int(cr.SrcPort), int(cr2.SrcPort))
+	if srcPortOrder != 0 {
+		return srcPortOrder
+	}
+	return utils.CompareInts(int(cr.DestPort), int(cr2.DestPort))
 }
 
 // ActionType is either DENY or PERMIT.

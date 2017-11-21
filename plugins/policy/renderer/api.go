@@ -101,6 +101,13 @@ func (cr *ContivRule) String() string {
 		cr.ID, cr.Action, srcNet, cr.Protocol, srcPort, dstNet, cr.Protocol, dstPort)
 }
 
+// Copy creates a deep copy of the Contiv rule.
+func (cr *ContivRule) Copy() *ContivRule {
+	crCopy := &ContivRule{}
+	*(crCopy) = *cr
+	return crCopy
+}
+
 // ActionType is either DENY or PERMIT.
 type ActionType int
 

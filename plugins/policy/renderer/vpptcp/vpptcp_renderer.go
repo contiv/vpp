@@ -18,8 +18,6 @@ package vpptcp
 
 import (
 	"bytes"
-	"crypto/md5"
-	"encoding/hex"
 	"errors"
 	"net"
 	"strings"
@@ -71,7 +69,7 @@ func (r *Renderer) Init() error {
 	} else {
 		r.cache.Log = r.Log
 	}
-	r.cache.Init(r.dumpRules)
+	r.cache.Init(r.dumpRules, SessionRuleTagPrefix)
 	return nil
 }
 
@@ -85,8 +83,8 @@ func (r *Renderer) NewTxn(resync bool) renderer.Txn {
 }
 
 // dumpRules queries VPP to get the currently installed set of rules.
-func (r *Renderer) dumpRules() (cache.SessionRuleList, error) {
-	rules := cache.NewSessionRuleList(0)
+func (r *Renderer) dumpRules() ([]*cache.SessionRule, error) {
+	rules := []*cache.SessionRule{}
 	// Send request to dump all installed rules.
 	req := &session.SessionRulesDump{}
 	reqContext := r.GoVPPChan.SendMultiRequest(req)
@@ -121,7 +119,7 @@ func (r *Renderer) dumpRules() (cache.SessionRuleList, error) {
 		copy(sessionRule.LclIP[:], msg.LclIP)
 		copy(sessionRule.RmtIP[:], msg.RmtIP)
 		copy(sessionRule.Tag[:], msg.Tag)
-		rules = rules.Insert(sessionRule)
+		rules = append(rules, sessionRule)
 	}
 
 	r.Log.WithFields(logging.Fields{
@@ -220,127 +218,8 @@ func (art *RendererTxn) Render(pod podmodel.ID, podIP *net.IPNet, ingress []*ren
 		"egress":  egress,
 	}).Debug("VPPTCP RendererTxn Render()")
 
-	// Construct ingress rules.
-	nsInRules := cache.NewSessionRuleList(len(ingress))
-	for _, rule := range ingress {
-		sessionRule := &cache.SessionRule{}
-		// Transport Protocol
-		switch rule.Protocol {
-		case renderer.TCP:
-			sessionRule.TransportProto = cache.RuleProtoTCP
-		case renderer.UDP:
-			sessionRule.TransportProto = cache.RuleProtoUDP
-		default:
-			sessionRule.TransportProto = cache.RuleProtoTCP
-		}
-		// Is IPv4
-		if len(rule.DestNetwork.IP) != 0 {
-			if rule.DestNetwork.IP.To4() != nil {
-				sessionRule.IsIP4 = 1
-			}
-		} else {
-			sessionRule.IsIP4 = 1
-		}
-		// Local IP = 0/0
-		// Local port
-		sessionRule.LclPort = rule.SrcPort /* it is any */
-		// Remote IP
-		if len(rule.DestNetwork.IP) > 0 {
-			if rule.DestNetwork.IP.To4() != nil {
-				copy(sessionRule.RmtIP[:], rule.DestNetwork.IP.To4())
-			} else {
-				copy(sessionRule.RmtIP[:], rule.DestNetwork.IP.To16())
-			}
-			rmtPlen, _ := rule.DestNetwork.Mask.Size()
-			sessionRule.RmtPlen = uint8(rmtPlen)
-		}
-		// Remote port
-		sessionRule.RmtPort = rule.DestPort
-		// Action Index
-		if rule.Action == renderer.ActionPermit {
-			// Action
-			sessionRule.ActionIndex = cache.RuleActionAllow
-		} else {
-			// Action
-			sessionRule.ActionIndex = cache.RuleActionDeny
-		}
-		// Application namespace index
-		sessionRule.AppnsIndex = nsIndex
-		// Scope
-		sessionRule.Scope = cache.RuleScopeLocal
-		// Tag
-		ruleID := getMD5Hash(pod.String() + "-ingress-" + rule.ID)
-		copy(sessionRule.Tag[:], SessionRuleTagPrefix+ruleID)
-		// Add rule into the list.
-		nsInRules = nsInRules.Insert(sessionRule)
-	}
-
-	// Construct egress rules.
-	nsEgRules := cache.NewSessionRuleList(len(egress))
-	for _, rule := range egress {
-		sessionRule := &cache.SessionRule{}
-		// Transport Protocol
-		switch rule.Protocol {
-		case renderer.TCP:
-			sessionRule.TransportProto = cache.RuleProtoTCP
-		case renderer.UDP:
-			sessionRule.TransportProto = cache.RuleProtoUDP
-		default:
-			sessionRule.TransportProto = cache.RuleProtoTCP
-		}
-		// Is IPv4
-		if len(rule.SrcNetwork.IP) != 0 {
-			if rule.SrcNetwork.IP.To4() != nil {
-				sessionRule.IsIP4 = 1
-			}
-		} else {
-			if podIP.IP.To4() != nil {
-				sessionRule.IsIP4 = 1
-			}
-		}
-		// Local IP
-		if podIP.IP.To4() != nil {
-			copy(sessionRule.LclIP[:], podIP.IP.To4())
-		} else {
-			copy(sessionRule.LclIP[:], podIP.IP.To16())
-		}
-		lclPlen, _ := podIP.Mask.Size()
-		sessionRule.LclPlen = uint8(lclPlen)
-		// Local port
-		sessionRule.LclPort = rule.DestPort
-		// Remote IP
-		if len(rule.SrcNetwork.IP) > 0 {
-			if rule.SrcNetwork.IP.To4() != nil {
-				copy(sessionRule.RmtIP[:], rule.SrcNetwork.IP.To4())
-			} else {
-				copy(sessionRule.RmtIP[:], rule.SrcNetwork.IP.To16())
-			}
-			rmtPlen, _ := rule.SrcNetwork.Mask.Size()
-			sessionRule.RmtPlen = uint8(rmtPlen)
-		}
-		// Remote port
-		sessionRule.RmtPort = rule.SrcPort /* it is any */
-		// Action Index
-		if rule.Action == renderer.ActionPermit {
-			// Action
-			sessionRule.ActionIndex = cache.RuleActionAllow
-		} else {
-			// Action
-			sessionRule.ActionIndex = cache.RuleActionDeny
-		}
-		// Application namespace index
-		sessionRule.AppnsIndex = 0
-		// Scope
-		sessionRule.Scope = cache.RuleScopeGlobal
-		// Tag
-		ruleID := getMD5Hash(pod.String() + "-egress-" + rule.ID)
-		copy(sessionRule.Tag[:], SessionRuleTagPrefix+ruleID)
-		// Add rule into the list.
-		nsEgRules = nsEgRules.Insert(sessionRule)
-	}
-
 	// Add the rules into the transaction.
-	art.cacheTxn.Update(nsIndex, nsInRules, nsEgRules)
+	art.cacheTxn.Update(nsIndex, podIP, ingress, egress)
 	return art
 }
 
@@ -361,10 +240,4 @@ func (art *RendererTxn) Commit() error {
 	}
 	art.cacheTxn.Commit()
 	return nil
-}
-
-func getMD5Hash(text string) string {
-	hasher := md5.New()
-	hasher.Write([]byte(text))
-	return hex.EncodeToString(hasher.Sum(nil))
 }

@@ -103,3 +103,12 @@ Label_Nodes
     [Documentation]    Execute "kubectl label nodes" with given parameters, return the result.
     Builtin.Log_Many    ${ssh_session}    ${node_name}   ${label_key}    ${label_value}
     BuiltIn.Run_Keyword_And_Return    SshCommons.Switch_And_Execute_Command    ${ssh_session}    kubectl label nodes ${node_name} ${label_key}=${label_value}
+
+Execute_On_Pod
+    [Arguments]    ${ssh_session}    ${pod_name}    ${cmd}    ${container}=${EMPTY}    ${tty}=${False}    ${stdin}=${False}    ${ignore_stderr}=${False}    ${ignore_rc}=${False}
+    [Documentation]    Execute "kubectl exec" with given parameters, return the result.
+    Builtin.Log_Many    ${ssh_session}    ${pod_name}    ${cmd}    ${container}    ${tty}    ${stdin}    ${ignore_stderr}    ${ignore_rc}
+    ${c_param} =    BuiltIn.Set_Variable_If    """${container}""" != """${EMPTY}"""    -c ${container}    ${EMPTY}
+    ${t_param} =    BuiltIn.Set_Variable_If    ${tty}                                  -t                 ${EMPTY}
+    ${i_param} =    BuiltIn.Set_Variable_If    ${stdin}                                -i                 ${EMPTY}
+    BuiltIn.Run_Keyword_And_Return    SshCommons.Switch_And_Execute_Command    ${ssh_session}    kubectl exec ${pod_name} ${c_param} ${t_param} ${i_param} -- ${cmd}    ignore_stderr=${ignore_stderr}    ignore_rc=${ignore_rc}

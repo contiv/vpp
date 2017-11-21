@@ -13,20 +13,23 @@ ${CLIENT_FILE}   ${CURDIR}/../resources/one-ldpreload-client-iperf.yaml
 ${SERVER_FILE}   ${CURDIR}/../resources/one-ldpreload-server-iperf.yaml
 
 *** Test Cases ***
-
-Host_To_Pod_Iperf
-    [Setup]    Setup_Hosts_Connections
-    ${stdout} =    SshCommons.Switch_And_Execute_Command    ${testbed_connection}    iperf3 -V4d -c ${server_ip}    ignore_stderr=${True}
-    [Teardown]    Teardown_Hosts_Connections
-
 Pod_To_Pod_Iperf
     [Setup]    Setup_Hosts_Connections
-    ${stdout} =    SshCommons.Switch_And_Execute_Command    ${testbed_connection}    kubectl exec ${client_pod_name} -- iperf3 -V4d -c ${server_ip}    ignore_stderr=${True}
+    ${stdout} =    KubeCtl.Execute_On_Pod    ${testbed_connection}    ${client_pod_name}    iperf3 -V4d -c ${server_ip}    ignore_stderr=${True}
+    Log    ${stdout}
     [Teardown]    Teardown_Hosts_Connections
 
 Pod_To_Pod_Iperf_Loop
     [Setup]    Setup_Hosts_Connections
-    Repeat Keyword    2    SshCommons.Switch_And_Execute_Command    ${testbed_connection}    kubectl exec ${client_pod_name} -- iperf3 -V4d -c ${server_ip}    ignore_stderr=${True}
+    [Timeout]    5 minutes
+    Repeat Keyword    15    KubeCtl.Execute_On_Pod    ${testbed_connection}    ${client_pod_name}    iperf3 -V4d -c ${server_ip}    ignore_stderr=${True}
+    [Teardown]    Teardown_Hosts_Connections
+
+Host_To_Pod_Iperf
+    [Setup]    Setup_Hosts_Connections
+    [Timeout]    5 minutes
+    ${stdout} =    SshCommons.Switch_And_Execute_Command    ${testbed_connection}    iperf3 -V4d -c ${server_ip}    ignore_stderr=${True}
+    Log    ${stdout}
     [Teardown]    Teardown_Hosts_Connections
 
 
@@ -43,7 +46,10 @@ OneNodeK8sSetup
 OneNodeK8sTeardown
     [Documentation]    Log leftover output from pods, remove pods, execute common teardown.
     KubernetesEnv.Log_Pods_For_Debug    ${testbed_connection}    exp_nr_vswitch=1
-    KubernetesEnv.Remove_Client_And_Server_Pod_And_Verify_Removed    ${testbed_connection}
+    KubeCtl.Delete_F    ${testbed_connection}    ${CLIENT_FILE}
+    KubeCtl.Delete_F    ${testbed_connection}    ${SERVER_FILE}
+    Wait_Until_Pod_Removed    ${testbed_connection}    ${client_pod_name}
+    Wait_Until_Pod_Removed    ${testbed_connection}    ${server_pod_name}
     setup-teardown.Testsuite Teardown
 
 Setup_Hosts_Connections

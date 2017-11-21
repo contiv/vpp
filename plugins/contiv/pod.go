@@ -184,7 +184,7 @@ func (s *remoteCNIserver) setupStn(podIP string, ifname string) error {
 	err := s.govppChan.SendRequest(req).ReceiveReply(&reply)
 
 	if reply.Retval != 0 {
-		return fmt.Errorf("adding stn rule returned non-zero return code")
+		return fmt.Errorf("adding stn rule returned non-zero return code: %d", reply.Retval)
 	}
 
 	return err
@@ -218,7 +218,7 @@ func (s *remoteCNIserver) addAppNamespace(podNamespace string, ifname string) (n
 	err = s.govppChan.SendRequest(req).ReceiveReply(&reply)
 
 	if reply.Retval != 0 {
-		return 0, fmt.Errorf("adding stn rule returned non-zero return code")
+		return 0, fmt.Errorf("adding app namespace returned non-zero return code: %d", reply.Retval)
 	}
 
 	return reply.AppnsIndex, err
@@ -245,7 +245,7 @@ func (s *remoteCNIserver) executeCli(command string) error {
 	}
 
 	if reply.Retval != 0 {
-		return fmt.Errorf("execution of cli command returned non-zero return code")
+		return fmt.Errorf("execution of cli command returned non-zero return code: %d", reply.Retval)
 	}
 	return nil
 }

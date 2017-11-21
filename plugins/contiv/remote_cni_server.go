@@ -379,7 +379,9 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 		return s.generateErrorResponse(err)
 	}
 
+	// TODO get rid of this sleep
 	time.Sleep(500 * time.Millisecond)
+
 	err = s.setupStn(podIP.String(), s.afpacketNameFromRequest(request))
 	if err != nil {
 		s.Logger.Error(err)
@@ -392,7 +394,7 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 		s.Logger.Error(err)
 		return s.generateErrorResponse(err)
 	}
-	s.Logger.Info("Add app namespace configured")
+	s.Logger.Info("App namespace configured")
 
 	macAddr, err := s.retrieveContainerMacAddr(request.NetworkNamespace, request.InterfaceName)
 	if err != nil {

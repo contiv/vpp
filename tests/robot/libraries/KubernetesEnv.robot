@@ -64,9 +64,13 @@ Reinit_Multinode_Kube_Cluster
     # reset all nodes
     :FOR    ${index}    IN RANGE    1    ${KUBE_CLUSTER_${CLUSTER_ID}_NODES}+1
     \    ${connection} =    BuiltIn.Set_Variable    ${VM_SSH_ALIAS_PREFIX}${index}
-    \    SshCommons.Switch_And_Execute_Command    ${VM_SSH_ALIAS_PREFIX}${index}    sudo rm -rf ~/.kube
+    \    SshCommons.Switch_And_Execute_Command    ${connection}    sudo rm -rf ~/.kube
     \    KubeAdm.Reset    ${connection}
+    \    SshCommons.Switch_And_Execute_Command    ${connection}    sudo modprobe uio_pci_generic
+    \    SshCommons.Switch_And_Execute_Command    ${connection}    curl -s https://raw.githubusercontent.com/contiv/vpp/master/k8s/cri-install.sh | sudo bash /dev/stdin -u    ignore_stderr=${True}    ignore_rc=${True}
     \    Docker_Pull_Contiv_Vpp    ${connection}
+    \    Docker_Pull_Custom_Kube_Proxy    ${connection}
+    \    SshCommons.Switch_And_Execute_Command    ${connection}    curl -s https://raw.githubusercontent.com/contiv/vpp/master/k8s/cri-install.sh | sudo bash /dev/stdin
     # init master
     ${connection} =    BuiltIn.Set_Variable    ${VM_SSH_ALIAS_PREFIX}1
     ${init_stdout} =    KubeAdm.Init    ${connection}

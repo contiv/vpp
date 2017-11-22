@@ -25,11 +25,11 @@ Check_Allow_TCP_Port
 Get_Traffic_Status
     [Arguments]    ${tcp_port}=4444    ${udp_port}=7000
     ${ping_client_server}    ${ping_server_client}=    Pod_To_Pod_Ping
-    BuiltIt.Set_Suite_Variable    ${ping_client_server}
-    BuiltIt.Set_Suite_Variable    ${ping_server_client}
+    BuiltIn.Set_Suite_Variable    ${ping_client_server}
+    BuiltIn.Set_Suite_Variable    ${ping_server_client}
     ${udp_client_server}    ${udp_server_client}=    Pod_To_Pod_Udp    ${udp_port}
-    BuiltIt.Set_Suite_Variable    ${udp_client_server}
-    BuiltIt.Set_Suite_Variable    ${udp_server_client}
+    BuiltIn.Set_Suite_Variable    ${udp_client_server}
+    BuiltIn.Set_Suite_Variable    ${udp_server_client}
 
 
 Pod_To_Pod_Ping

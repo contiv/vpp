@@ -203,7 +203,7 @@ func newTraversingInfo(document string, path []string, visitor func(traversingIn
 
 		unresolvedPath:    path,
 		resolvedPath:      []string{},
-		blocks:            []block{block{0, len(document)}},
+		blocks:            []block{{0, len(document)}},
 		parentBlockIntend: 0,
 	}
 }

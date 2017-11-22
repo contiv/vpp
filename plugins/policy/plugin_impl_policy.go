@@ -241,6 +241,8 @@ func (p *Plugin) handleResync(resyncChan chan resync.StatusEvent) {
 							break
 						}
 					}
+					p.pendingResync = nil
+					p.pendingChanges = []datasync.ChangeEvent{}
 				}
 				p.resyncLock.Unlock()
 			}

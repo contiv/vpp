@@ -1,7 +1,6 @@
 *** Settings ***
 Documentation     This suite test getting the web page from nginx (without istio).
-Resource          ${CURDIR}/../libraries/KubernetesEnv.robot
-Resource          ${CURDIR}/../libraries/setup-teardown.robot
+Resource          ${CURDIR}/../libraries/all_libs.robot
 Suite Setup       OneNodeK8sSetup
 Suite Teardown    OneNodeK8sTeardown
 

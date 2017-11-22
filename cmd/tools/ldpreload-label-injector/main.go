@@ -11,10 +11,12 @@ var (
 	outputFile    = flag.String("o", "", "Output file override.")
 	help          = flag.Bool("h", false, "Switch to show help")
 	useDebugLabel = flag.Bool("d", false, "Switch to used debug ldpreload label")
+	proxyName     = flag.String("p", "", "Name of proxy container that should be used.")
 )
 
 type injectParams struct {
 	useDebugLabel bool
+	proxyName     string
 }
 
 func main() {
@@ -32,6 +34,7 @@ func main() {
 	}
 	injectParams := injectParams{
 		useDebugLabel: *useDebugLabel,
+		proxyName:     *proxyName,
 	}
 	if err := processFile(inputFile, *outputFile, injectParams); err != nil {
 		panic(fmt.Errorf("Can't process file %v : %v ", inputFile, err))

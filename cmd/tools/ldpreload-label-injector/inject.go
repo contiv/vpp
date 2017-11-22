@@ -33,7 +33,7 @@ func inject(content string, params injectParams) (string, error) {
 	for _, document := range strings.Split(content, "---") {
 		if isPod(document) || isDeployment(document) {
 			document = insertLDPreloadTrue(document, eol)
-			document = insertAppScope(document, eol)
+			document = insertAppScope(document, eol, params)
 			if params.useDebugLabel {
 				document = insertDebug(document, eol)
 			}
@@ -62,16 +62,53 @@ func insertLDPreloadTrue(document string, eol string) string {
 		eol)
 }
 
-func insertAppScope(document string, eol string) string {
-	return insertLines(
+func insertAppScope(document string, eol string, params injectParams) string {
+	if params.proxyName == "" { // no proxy -> scope is global for all containers
+		return insertLines(
+			document,
+			[]string{"spec:", "template:", "spec:", "containers:", "-", "env:"},
+			[]string{
+				"# ldpreload-related env vars",
+				"- name: VCL_APP_SCOPE_GLOBAL",
+				"  value: \"\"",
+			},
+			eol)
+	}
+
+	// proxy used
+	return insertLinesConditioned(
 		document,
 		[]string{"spec:", "template:", "spec:", "containers:", "-", "env:"},
-		[]string{
+		isProxyContainer(params.proxyName),
+		[]string{ // proxy container settings
 			"# ldpreload-related env vars",
 			"- name: VCL_APP_SCOPE_GLOBAL",
 			"  value: \"\"",
+			"- name: VCL_APP_SCOPE_LOCAL",
+			"  value: \"\"",
+			"- name: VCL_APP_PROXY_TRANSPORT_TCP",
+			"  value: \"\"",
 		},
-		eol)
+		[]string{ // non-proxy container settings
+			"# ldpreload-related env vars",
+			"- name: VCL_APP_SCOPE_LOCAL",
+			"  value: \"\"",
+		},
+		eol,
+	)
+}
+
+// isProxyContainer checks if we are inside proxy image or not. This impl is tightly relying on path in insertAppScope() method.
+func isProxyContainer(proxyName string) conditionFunc {
+	return func(info traversingInfo) bool {
+		if len(info.unresolvedPath) > 1 { //TODO handle no container situation
+			return false // should not happen, because it would mean that there are no containers at all
+		}
+
+		imageBlockStr := info.blockStr(len(info.blocks) - (2 - len(info.unresolvedPath)))
+		return regexp.MustCompile("name: *"+proxyName+" *"+info.eol).
+			FindStringIndex(imageBlockStr) != nil
+	}
 }
 
 func insertDebug(document string, eol string) string {
@@ -87,30 +124,23 @@ func insertDebug(document string, eol string) string {
 }
 
 func insertLines(document string, path []string, insertLines []string, eol string) string {
+	return insertLinesConditioned(document, path, func(traversingInfo) bool { return true }, insertLines, []string{}, eol)
+}
+
+type conditionFunc func(traversingInfo) bool
+
+func insertLinesConditioned(document string, path []string, condition conditionFunc, insertLines []string, elseInsertLines []string, eol string) string {
 	var insertions = &[]insertion{}
 	visitInsertionPlaces(newTraversingInfo(document, path,
-		func(index int, unresolvedPath []string, resolvedPath []string, block string, parentBlockIntend int) {
-			intendDelta := defaultIntendLength // just guess in case we don't have enough information to compute it
-			if len(resolvedPath) > 1 {
-				intendDelta = round(float64(parentBlockIntend) / float64(len(resolvedPath)-1))
+		func(i traversingInfo) {
+			lines := insertLines
+			if !condition(i) {
+				lines = elseInsertLines
 			}
-
-			var buffer bytes.Buffer
-			if len(unresolvedPath) > 0 {
-				if len(resolvedPath) == 0 {
-					parentBlockIntend = -intendDelta // if there is no top level block then we must start with no intend
-				}
-				for _, pathPart := range unresolvedPath {
-					buffer.WriteString(strings.Repeat(" ", parentBlockIntend+intendDelta) + pathPart + eol)
-					parentBlockIntend = parentBlockIntend + intendDelta
-				}
-			}
-			for _, line := range insertLines {
-				buffer.WriteString(strings.Repeat(" ", parentBlockIntend+intendDelta) + line + eol)
-			}
-
+			insertStr := createIntendedInsertionString(i, eol, lines)
 			//TODO check existence before inserting
-			insertions = prepend(insertion{index, buffer.String()}, insertions) // using this order doesn't invalidate indexes of insertions by applying them sequentially
+			insertPoint := strings.Index(i.curBlockStr(), eol) + len(eol) + i.curBlockStart()
+			insertions = prepend(insertion{insertPoint, insertStr}, insertions) // using this order doesn't invalidate indexes of insertions by applying them sequentially
 			return
 		}, eol))
 
@@ -119,6 +149,27 @@ func insertLines(document string, path []string, insertLines []string, eol strin
 		document = document[:insert.insertionPoint] + insert.text + document[insert.insertionPoint:]
 	}
 	return document
+}
+func createIntendedInsertionString(i traversingInfo, eol string, insertLines []string) string {
+	intendDelta := defaultIntendLength
+	// just guess in case we don't have enough information to compute it
+	if len(i.resolvedPath) > 1 {
+		intendDelta = round(float64(i.parentBlockIntend) / float64(len(i.resolvedPath)-1))
+	}
+	var buffer bytes.Buffer
+	if len(i.unresolvedPath) > 0 {
+		if len(i.resolvedPath) == 0 {
+			i.parentBlockIntend = -intendDelta // if there is no top level block then we must start with no intend
+		}
+		for _, pathPart := range i.unresolvedPath {
+			buffer.WriteString(strings.Repeat(" ", i.parentBlockIntend+intendDelta) + pathPart + eol)
+			i.parentBlockIntend = i.parentBlockIntend + intendDelta
+		}
+	}
+	for _, line := range insertLines {
+		buffer.WriteString(strings.Repeat(" ", i.parentBlockIntend+intendDelta) + line + eol)
+	}
+	return buffer.String()
 }
 
 func prepend(item insertion, slice *[]insertion) *[]insertion {
@@ -129,15 +180,32 @@ func prepend(item insertion, slice *[]insertion) *[]insertion {
 type traversingInfo struct {
 	// static info that doesn't change by traversing
 	document string
-	visitor  func(int, []string, []string, string, int)
+	visitor  func(traversingInfo) //passing copy only (slices can still refer back to original array)
 	eol      string
 
 	// dynamic info changed by traversing
 	unresolvedPath    []string
 	resolvedPath      []string
-	blockStart        int
-	blockEnd          int
+	blocks            []block
 	parentBlockIntend int
+}
+
+type block struct {
+	start int
+	end   int
+}
+
+func newTraversingInfo(document string, path []string, visitor func(traversingInfo), eol string) traversingInfo {
+	return traversingInfo{
+		document: document,
+		visitor:  visitor,
+		eol:      eol,
+
+		unresolvedPath:    path,
+		resolvedPath:      []string{},
+		blocks:            []block{block{0, len(document)}},
+		parentBlockIntend: 0,
+	}
 }
 
 func (t *traversingInfo) newDescending(blockStart int, blockEnd int, parentBlockIntend int) traversingInfo {
@@ -148,51 +216,53 @@ func (t *traversingInfo) newDescending(blockStart int, blockEnd int, parentBlock
 
 		unresolvedPath:    t.unresolvedPath[1:],
 		resolvedPath:      append(t.resolvedPath, t.unresolvedPath[0]),
-		blockStart:        blockStart,
-		blockEnd:          blockEnd,
+		blocks:            append(t.blocks, block{blockStart, blockEnd}),
 		parentBlockIntend: parentBlockIntend,
 	}
 }
 
-func (t *traversingInfo) curBlock() string {
-	return t.document[t.blockStart:t.blockEnd]
+func (t *traversingInfo) curBlock() block {
+	return t.blocks[len(t.blocks)-1]
 }
 
-func newTraversingInfo(document string, path []string, visitor func(int, []string, []string, string, int), eol string) traversingInfo {
-	return traversingInfo{
-		document:          document,
-		visitor:           visitor,
-		eol:               eol,
-		unresolvedPath:    path,
-		resolvedPath:      []string{},
-		blockStart:        0,
-		blockEnd:          len(document),
-		parentBlockIntend: 0,
-	}
+func (t *traversingInfo) curBlockStart() int {
+	return t.curBlock().start
+}
+
+func (t *traversingInfo) curBlockEnd() int {
+	return t.curBlock().end
+}
+
+func (t *traversingInfo) curBlockStr() string {
+	return t.document[t.curBlockStart():t.curBlockEnd()]
+}
+
+func (t *traversingInfo) blockStr(blockIndex int) string {
+	return t.document[t.blocks[blockIndex].start:t.blocks[blockIndex].end]
 }
 
 func visitInsertionPlaces(i traversingInfo) {
 	if len(i.unresolvedPath) == 0 {
-		i.visitor(strings.Index(i.curBlock(), i.eol)+len(i.eol)+i.blockStart, i.unresolvedPath, i.resolvedPath, i.curBlock(), i.parentBlockIntend)
+		i.visitor(i)
 		return
 	}
 
 	if i.unresolvedPath[0] == "-" { // compact nested mapping
-		blockIntend := computeMappingBlockIntend(i.curBlock(), i.eol)
+		blockIntend := computeMappingBlockIntend(i.curBlockStr(), i.eol)
 		mappingItemPrefixes := regexp.
 			MustCompile(i.eol+"["+spaceIntendCharacter+"]{"+strconv.Itoa(blockIntend)+"}"+minusIntendCharacter).
-			FindAllStringIndex(i.curBlock(), -1)
+			FindAllStringIndex(i.curBlockStr(), -1)
 		for _, prefixIndexes := range mappingItemPrefixes {
-			itemBlockStart, itemBlockEnd := computeItemBlockPosition(i.curBlock(), prefixIndexes, blockIntend, i.eol)
+			itemBlockStart, itemBlockEnd := computeItemBlockPosition(i.curBlockStr(), prefixIndexes, blockIntend, i.eol)
 
 			// recursive call would not handle map item block correctly => handling 1 recursive call here (recursive calls
 			// can continue when in mapping items are normal blocks again)
 			// Expecting that unresolved paths can't end with "-"
-			childBlockIntend := computeItemBlockIntend(i.curBlock(), i.eol)
-			handleBasicBlock(i.newDescending(i.blockStart+itemBlockStart, i.blockStart+itemBlockEnd, blockIntend), childBlockIntend)
+			childBlockIntend := computeItemBlockIntend(i.curBlockStr(), i.eol)
+			handleBasicBlock(i.newDescending(i.curBlockStart()+itemBlockStart, i.curBlockStart()+itemBlockEnd, blockIntend), childBlockIntend)
 		}
 	} else { // basic blocks
-		blockIntend := computeNormalBlockIntend(i.curBlock(), i.eol)
+		blockIntend := computeNormalBlockIntend(i.curBlockStr(), i.eol)
 		handleBasicBlock(i, blockIntend)
 	}
 }
@@ -200,14 +270,14 @@ func visitInsertionPlaces(i traversingInfo) {
 func handleBasicBlock(i traversingInfo, blockIntend int) {
 	matchedBlockPrefixes := regexp.
 		MustCompile(i.eol+"["+intendCharacters+"]{"+strconv.Itoa(blockIntend)+"}"+i.unresolvedPath[0]).
-		FindAllStringIndex(i.curBlock(), -1)
+		FindAllStringIndex(i.curBlockStr(), -1)
 	if len(matchedBlockPrefixes) == 0 { //next block doesn't exist
-		i.visitor(strings.Index(i.curBlock(), i.eol)+len(i.eol)+i.blockStart, i.unresolvedPath, i.resolvedPath, i.curBlock(), i.parentBlockIntend)
+		i.visitor(i)
 		return
 	}
 	for _, prefixIndexes := range matchedBlockPrefixes {
-		childBlockStart, childBlockEnd := computeChildBlockPosition(i.curBlock(), prefixIndexes, blockIntend, i.eol)
-		visitInsertionPlaces(i.newDescending(i.blockStart+childBlockStart, i.blockStart+childBlockEnd, blockIntend))
+		childBlockStart, childBlockEnd := computeChildBlockPosition(i.curBlockStr(), prefixIndexes, blockIntend, i.eol)
+		visitInsertionPlaces(i.newDescending(i.curBlockStart()+childBlockStart, i.curBlockStart()+childBlockEnd, blockIntend))
 	}
 }
 

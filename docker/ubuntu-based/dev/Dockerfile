@@ -4,6 +4,9 @@ FROM ligato/dev-vpp-agent:pantheon-dev
 # optional argument - a specific VPP commit ID
 ARG VPP_COMMIT_ID="xxx"
 
+# install ethtool - required for disabling TCP checksum offload in containers
+RUN apt-get update && apt-get install -y ethtool
+
 # set work directory
 WORKDIR /root/
 

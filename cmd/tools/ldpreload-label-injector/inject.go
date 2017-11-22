@@ -33,7 +33,7 @@ func inject(content string) (string, error) {
 	for _, document := range strings.Split(content, "---") {
 		if isPod(document) || isDeployment(document) {
 			document = insertLDPreloadTrue(document, eol)
-			//document = insertAppScope(document, eol)
+			document = insertAppScope(document, eol)
 			converted.WriteString(document)
 		} else {
 			converted.WriteString(document)
@@ -49,13 +49,35 @@ type insertion struct {
 }
 
 func insertLDPreloadTrue(document string, eol string) string {
-	insertLines := []string{"# ldpreload-related labels", "ldpreload: \"true\""}
+	return insertLines(
+		document,
+		[]string{"spec:", "template:", "metadata:", "labels:"},
+		[]string{
+			"# ldpreload-related labels",
+			"ldpreload: \"true\"",
+		},
+		eol)
+}
+
+func insertAppScope(document string, eol string) string {
+	return insertLines(
+		document,
+		[]string{"spec:", "template:", "spec:", "containers:", "-", "env:"},
+		[]string{
+			"# ldpreload-related env vars",
+			"- name: VCL_APP_SCOPE_GLOBAL",
+			"  value: \"\"",
+		},
+		eol)
+}
+
+func insertLines(document string, path []string, insertLines []string, eol string) string {
 	var insertions = &[]insertion{}
-	visitInsertionPlaces(newTraversingInfo(document, []string{"spec:", "template:", "metadata:", "labels:"},
+	visitInsertionPlaces(newTraversingInfo(document, path,
 		func(index int, unresolvedPath []string, resolvedPath []string, block string, parentBlockIntend int) {
 			intendDelta := defaultIntendLength // just guess in case we don't have enough information to compute it
 			if len(resolvedPath) > 1 {
-				intendDelta = parentBlockIntend / (len(resolvedPath) - 1)
+				intendDelta = round(float64(parentBlockIntend) / float64(len(resolvedPath)-1))
 			}
 
 			var buffer bytes.Buffer
@@ -81,17 +103,6 @@ func insertLDPreloadTrue(document string, eol string) string {
 	for _, insert := range *insertions {
 		document = document[:insert.insertionPoint] + insert.text + document[insert.insertionPoint:]
 	}
-	return document
-}
-
-func insertAppScope(document string, eol string) string {
-	visitInsertionPlaces(newTraversingInfo(document, []string{"spec:", "template:", "spec:", "containers:", "-", "env:"},
-		func(index int, unresolvedPath []string, resolvedPath []string, block string, parentBlockIntend int) {
-			fmt.Println("========================================")
-			fmt.Print(block)
-			fmt.Println("========================================")
-		}, eol))
-
 	return document
 }
 
@@ -154,38 +165,50 @@ func visitInsertionPlaces(i traversingInfo) {
 	if i.unresolvedPath[0] == "-" { // compact nested mapping
 		blockIntend := computeMappingBlockIntend(i.curBlock(), i.eol)
 		mappingItemPrefixes := regexp.
-			MustCompile(i.eol+"["+strconv.Itoa(blockIntend)+"]+"+minusIntendCharacter).
+			MustCompile(i.eol+"["+spaceIntendCharacter+"]{"+strconv.Itoa(blockIntend)+"}"+minusIntendCharacter).
 			FindAllStringIndex(i.curBlock(), -1)
 		for _, prefixIndexes := range mappingItemPrefixes {
-			//itemBlockStart, itemBlockEnd := computeItemBlockPosition(i.curBlock(), prefixIndexes, blockIntend, i.eol)
-			_, _ = computeItemBlockPosition(i.curBlock(), prefixIndexes, blockIntend, i.eol)
+			itemBlockStart, itemBlockEnd := computeItemBlockPosition(i.curBlock(), prefixIndexes, blockIntend, i.eol)
+
+			// recursive call would not handle map item block correctly => handling 1 recursive call here (recursive calls
+			// can continue when in mapping items are normal blocks again)
+			// Expecting that unresolved paths can't end with "-"
+			childBlockIntend := computeItemBlockIntend(i.curBlock(), i.eol)
+			handleBasicBlock(i.newDescending(i.blockStart+itemBlockStart, i.blockStart+itemBlockEnd, childBlockIntend), childBlockIntend)
 		}
 	} else { // basic blocks
 		blockIntend := computeNormalBlockIntend(i.curBlock(), i.eol)
-		matchedBlockPrefixes := regexp.
-			MustCompile(i.eol+"["+intendCharacters+"]{"+strconv.Itoa(blockIntend)+"}"+i.unresolvedPath[0]).
-			FindAllStringIndex(i.curBlock(), -1)
-		if len(matchedBlockPrefixes) == 0 { //next block doesn't exist
-			i.visitor(strings.Index(i.curBlock(), i.eol)+len(i.eol)+i.blockStart, i.unresolvedPath, i.resolvedPath, i.curBlock(), i.parentBlockIntend)
-			return
-		}
-		for _, prefixIndexes := range matchedBlockPrefixes {
-			childBlockStart, childBlockEnd := computeChildBlockPosition(i.curBlock(), prefixIndexes, blockIntend, i.eol)
-			visitInsertionPlaces(i.newDescending(i.blockStart+childBlockStart, i.blockStart+childBlockEnd, blockIntend))
-		}
+		handleBasicBlock(i, blockIntend)
+	}
+}
+
+func handleBasicBlock(i traversingInfo, blockIntend int) {
+	matchedBlockPrefixes := regexp.
+		MustCompile(i.eol+"["+intendCharacters+"]{"+strconv.Itoa(blockIntend)+"}"+i.unresolvedPath[0]).
+		FindAllStringIndex(i.curBlock(), -1)
+	if len(matchedBlockPrefixes) == 0 { //next block doesn't exist
+		i.visitor(strings.Index(i.curBlock(), i.eol)+len(i.eol)+i.blockStart, i.unresolvedPath, i.resolvedPath, i.curBlock(), i.parentBlockIntend)
+		return
+	}
+	for _, prefixIndexes := range matchedBlockPrefixes {
+		childBlockStart, childBlockEnd := computeChildBlockPosition(i.curBlock(), prefixIndexes, blockIntend, i.eol)
+		visitInsertionPlaces(i.newDescending(i.blockStart+childBlockStart, i.blockStart+childBlockEnd, blockIntend))
 	}
 }
 
 func computeNormalBlockIntend(curBlock string, eol string) int {
-	return computeBlockIntend(curBlock, eol, "[^"+intendCharacters+commentCharacters+"]{1}")
+	return computeBlockIntend(curBlock, eol, eol+"["+spaceIntendCharacter+"]*[^"+intendCharacters+commentCharacters+"]{1}") //TODO convert intendCharacters to regexp? for "- " is it the same
 }
 
 func computeMappingBlockIntend(curBlock string, eol string) int {
-	return computeBlockIntend(curBlock, eol, minusIntendCharacter)
+	return computeBlockIntend(curBlock, eol, eol+"["+spaceIntendCharacter+"]*"+minusIntendCharacter) //TODO convert intendCharacters to regexp? for "- " is it the same
 }
 
-func computeBlockIntend(curBlock string, eol string, lastCharacterRegExp string) int {
-	intendRegExp := eol + "[" + spaceIntendCharacter + "]*" + lastCharacterRegExp //TODO convert intendCharacters to regexp? for "- " is it the same
+func computeItemBlockIntend(curBlock string, eol string) int {
+	return computeBlockIntend(curBlock, eol, eol+"["+intendCharacters+"]*[^"+intendCharacters+commentCharacters+"]{1}") //TODO convert intendCharacters to regexp? for "- " is it the same
+}
+
+func computeBlockIntend(curBlock string, eol string, intendRegExp string) int {
 	intend := regexp.MustCompile(intendRegExp).FindString(curBlock)
 	if intend == "" { //block has no child blocks
 		return -1
@@ -227,4 +250,14 @@ func isDeployment(document string) bool {
 
 func isPod(document string) bool {
 	return len(podKind.FindString(document)) != 0
+}
+
+func round(f float64) int {
+	if f < -0.5 {
+		return int(f - 0.5)
+	}
+	if f > 0.5 {
+		return int(f + 0.5)
+	}
+	return 0
 }

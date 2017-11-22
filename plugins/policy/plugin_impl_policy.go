@@ -19,6 +19,7 @@ import (
 	"sync"
 
 	"github.com/ligato/cn-infra/datasync"
+	"github.com/ligato/cn-infra/datasync/resync"
 	"github.com/ligato/cn-infra/flavors/local"
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/utils/safeclose"
@@ -48,8 +49,14 @@ type Plugin struct {
 
 	watchConfigReg datasync.WatchRegistration
 
-	cancel context.CancelFunc
-	wg     sync.WaitGroup
+	resyncLock sync.Mutex
+	ctx        context.Context
+	cancel     context.CancelFunc
+	wg         sync.WaitGroup
+
+	// delay resync until the contiv plugin has been re-synchronized.
+	pendingResync  datasync.ResyncEvent
+	pendingChanges []datasync.ChangeEvent
 
 	// Policy Plugin consists of multiple layers.
 	// The plugin itself is layer 1.
@@ -74,6 +81,7 @@ type Plugin struct {
 // Deps defines dependencies of policy plugin.
 type Deps struct {
 	local.PluginInfraDeps
+	Resync  resync.Subscriber
 	Watcher datasync.KeyValProtoWatcher /* prefixed for KSR-published K8s state data */
 	Contiv  contiv.API                  /* for GetIfName() */
 	VPP     defaultplugins.API          /* for DumpACLs() */
@@ -153,15 +161,25 @@ func (p *Plugin) Init() error {
 	p.configurator.RegisterRenderer(p.aclRenderer)
 	p.configurator.RegisterRenderer(p.vppTCPRenderer)
 
-	var ctx context.Context
-	ctx, p.cancel = context.WithCancel(context.Background())
+	p.ctx, p.cancel = context.WithCancel(context.Background())
 
-	go p.watchEvents(ctx)
+	go p.watchEvents()
 	err = p.subscribeWatcher()
 	if err != nil {
 		return err
 	}
 
+	return nil
+}
+
+// AfterInit registers to the ResyncOrchestrator. The registration is done in this phase
+// in order to ensure that the resync for this plugin is triggered only after
+// resync of the Contiv plugin has finished.
+func (p *Plugin) AfterInit() error {
+	if p.Resync != nil {
+		reg := p.Resync.Register(string(p.PluginName))
+		go p.handleResync(reg.StatusChan())
+	}
 	return nil
 }
 
@@ -171,22 +189,66 @@ func (p *Plugin) subscribeWatcher() (err error) {
 	return err
 }
 
-func (p *Plugin) watchEvents(ctx context.Context) {
+func (p *Plugin) watchEvents() {
 	p.wg.Add(1)
 	defer p.wg.Done()
 
 	for {
 		select {
 		case resyncConfigEv := <-p.resyncChan:
-			err := p.policyCache.Resync(resyncConfigEv)
-			resyncConfigEv.Done(err)
-			p.Log.Info(resyncConfigEv)
-		case dataChngEv := <-p.changeChan:
-			err := p.policyCache.Update(dataChngEv)
-			dataChngEv.Done(err)
+			p.resyncLock.Lock()
+			p.pendingResync = resyncConfigEv
+			p.pendingChanges = []datasync.ChangeEvent{}
+			resyncConfigEv.Done(nil)
+			p.Log.WithField("config", resyncConfigEv).Info("Delaying RESYNC config")
+			p.resyncLock.Unlock()
 
-		case <-ctx.Done():
+		case dataChngEv := <-p.changeChan:
+			p.resyncLock.Lock()
+			if p.pendingResync != nil {
+				p.pendingChanges = append(p.pendingChanges, dataChngEv)
+				dataChngEv.Done(nil)
+				p.Log.WithField("config", dataChngEv).Info("Delaying data-change")
+			} else {
+				err := p.policyCache.Update(dataChngEv)
+				dataChngEv.Done(err)
+			}
+			p.resyncLock.Unlock()
+
+		case <-p.ctx.Done():
 			p.Log.Debug("Stop watching events")
+			return
+		}
+	}
+}
+
+func (p *Plugin) handleResync(resyncChan chan resync.StatusEvent) {
+	for {
+		select {
+		case ev := <-resyncChan:
+			var err error
+			status := ev.ResyncStatus()
+			if status == resync.Started {
+				p.resyncLock.Lock()
+				if p.pendingResync != nil {
+					p.Log.WithField("config", p.pendingResync).Info("Applying delayed RESYNC config")
+					err = p.policyCache.Resync(p.pendingResync)
+					for i := 0; err == nil && i < len(p.pendingChanges); i++ {
+						dataChngEv := p.pendingChanges[i]
+						p.Log.WithField("config", dataChngEv).Info("Applying delayed data-change")
+						err = p.policyCache.Update(dataChngEv)
+						if err != nil {
+							break
+						}
+					}
+				}
+				p.resyncLock.Unlock()
+			}
+			if err != nil {
+				p.Log.Error(err)
+			}
+			ev.Ack()
+		case <-p.ctx.Done():
 			return
 		}
 	}

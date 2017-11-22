@@ -321,7 +321,7 @@ Verify_Pod_Not_Present
     Collections.Dictionary_Should_Not_Contain_Key     ${pods}    ${pod_name}
 
 Wait_Until_Pod_Removed
-    [Arguments]    ${ssh_session}    ${pod_name}    ${timeout}=90s    ${check_period}=5s    ${namespace}=default
+    [Arguments]    ${ssh_session}    ${pod_name}    ${timeout}=120s    ${check_period}=5s    ${namespace}=default
     [Documentation]    WUKS around Verify_Pod_Not_Present.
     BuiltIn.Log_Many    ${ssh_session}    ${pod_name}    ${timeout}    ${check_period}    ${namespace}
     BuiltIn.Wait_Until_Keyword_Succeeds    ${timeout}    ${check_period}    Verify_Pod_Not_Present    ${ssh_session}    ${pod_name}    namespace=${namespace}

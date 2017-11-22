@@ -1,17 +1,12 @@
 *** Settings ***
 Documentation     Test suite to test plugin by using ldpreloaded nginx.
-Resource          ${CURDIR}/../libraries/KubernetesEnv.robot
-Resource          ${CURDIR}/../libraries/setup-teardown.robot
+Resource          ${CURDIR}/../libraries/all_libs.robot
 Suite Setup       TwoNodesK8sSetup
-Suite Teardown     TwoNodesK8sTeardown
+Suite Teardown    TwoNodesK8sTeardown
 
 *** Variables ***
-${VARIABLES}          common
-${ENV}                common
 ${NGNIX_FILE}         ${CURDIR}/../resources/nginx-ldpreload-node2.yaml
 ${CLIENT_FILE}        ${CURDIR}/../resources/ubuntu-client-ldpreload-node1.yaml
-
-
 
 *** Test Cases ***
 Pod_To_Nginx

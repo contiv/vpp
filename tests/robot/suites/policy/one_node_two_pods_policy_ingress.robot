@@ -27,19 +27,37 @@ Get_Traffic_Status
     ${ping_client_server}    ${ping_server_client}=    Pod_To_Pod_Ping
     BuiltIn.Set_Suite_Variable    ${ping_client_server}
     BuiltIn.Set_Suite_Variable    ${ping_server_client}
+
     ${udp_client_server}    ${udp_server_client}=    Pod_To_Pod_Udp    ${udp_port}
     BuiltIn.Set_Suite_Variable    ${udp_client_server}
     BuiltIn.Set_Suite_Variable    ${udp_server_client}
 
+    ${tcp_client_server}    ${tcp_server_client}=    Pod_To_Pod_Tcp    ${tcp_port}
+    BuiltIn.Set_Suite_Variable    ${tcp_client_server}
+    BuiltIn.Set_Suite_Variable    ${tcp_server_client}
+
+    ${ping_host_server}    ${ping_host_client}=    Host_To_Pod_Ping
+    BuiltIn.Set_Suite_Variable    ${ping_host_server}
+    BuiltIn.Set_Suite_Variable    ${ping_host_client}
+
+    ${udp_host_server}    ${udp_host_client}=    Host_To_Pod_Udp    ${udp_port}
+    BuiltIn.Set_Suite_Variable    ${udp_host_server}
+    BuiltIn.Set_Suite_Variable    ${udp_host_client}
+
+    ${tcp_host_server}    ${tcp_host_client}=    Host_To_Pod_Tcp    ${tcp_port}
+    BuiltIn.Set_Suite_Variable    ${tcp_host_server}
+    BuiltIn.Set_Suite_Variable    ${tcp_host_client}
+
+
+
+
 
 Pod_To_Pod_Ping
     [Documentation]    Execute "ping -c 5" command between pods (both ways), require no packet loss.
-#    [Setup]    Setup_Hosts_Connections
     ${ping_client_server} =    KubernetesEnv.Run_Finite_Command_In_Pod    ping -c 5 ${server_ip}    ssh_session=${client_connection}
 #    BuiltIn.Should_Contain   ${stdout}    5 received, 0% packet loss
     ${ping_server_client} =    KubernetesEnv.Run_Finite_Command_In_Pod    ping -c 5 ${client_ip}    ssh_session=${server_connection}
 #    BuiltIn.Should_Contain   ${stdout}    5 received, 0% packet loss
-#    [Teardown]    Teardown_Hosts_Connections
     [Return]    ${ping_client_server}    ${ping_server_client}
 
 Pod_To_Pod_Udp
@@ -52,55 +70,73 @@ Pod_To_Pod_Udp
     ${stdout} =    KubernetesEnv.Stop_Infinite_Command_In_Pod    ssh_session=${client_connection}
     ${udp_client_server} =    KubernetesEnv.Stop_Infinite_Command_In_Pod    ssh_session=${server_connection}
     KubernetesEnv.Init_Infinite_Command_in_Pod    nc -ul -p ${udp_port}    ssh_session=${client_connection}
-    KubernetesEnv.Init_Infinite_Command_in_Pod    nc -u ${server_ip} ${udp_port}    ssh_session=${server_connection}
+    KubernetesEnv.Init_Infinite_Command_in_Pod    nc -u ${client_ip} ${udp_port}    ssh_session=${server_connection}
     SSHLibrary.Write    ${text}
     ${stdout} =    KubernetesEnv.Stop_Infinite_Command_In_Pod    ssh_session=${server_connection}
     ${udp_server_client} =    KubernetesEnv.Stop_Infinite_Command_In_Pod    ssh_session=${client_connection}
 #    BuiltIn.Should_Contain   ${server_stdout}    ${text}
     [Return]    ${udp_client_server}    ${udp_server_client}
 
-
-
-
-
-
-
 Pod_To_Pod_Tcp
     [Documentation]    Start TCP server, start client sending the message, stop server, check message has been received, stop client.
+    [Arguments]    ${tcp_port}=4444
     ${text} =    BuiltIn.Set_Variable    Text to be received
     KubernetesEnv.Run_Finite_Command_In_Pod    cd; echo "${text}" > some.file    ssh_session=${client_connection}
-    KubernetesEnv.Init_Infinite_Command_in_Pod    nc -l -p 4444    ssh_session=${server_connection}
-    KubernetesEnv.Init_Infinite_Command_in_Pod    cd; nc ${server_ip} 4444 < some.file    ssh_session=${client_connection}
-    ${server_stdout} =    KubernetesEnv.Stop_Infinite_Command_In_Pod    ssh_session=${server_connection}
-    BuiltIn.Should_Contain   ${server_stdout}    ${text}
-    ${client_stdout} =    KubernetesEnv.Stop_Infinite_Command_In_Pod    ssh_session=${client_connection}
+    KubernetesEnv.Init_Infinite_Command_in_Pod    nc -l -p ${tcp_port}    ssh_session=${server_connection}
+    KubernetesEnv.Init_Infinite_Command_in_Pod    cd; nc ${server_ip} ${tcp_port} < some.file    ssh_session=${client_connection}
+    ${tcp_client_server} =    KubernetesEnv.Stop_Infinite_Command_In_Pod    ssh_session=${server_connection}
+#    BuiltIn.Should_Contain   ${server_stdout}    ${text}
+    ${stdout} =    KubernetesEnv.Stop_Infinite_Command_In_Pod    ssh_session=${client_connection}
+    KubernetesEnv.Run_Finite_Command_In_Pod    cd; echo "${text}" > some.file    ssh_session=${server_connection}
+    KubernetesEnv.Init_Infinite_Command_in_Pod    nc -l -p ${tcp_port}    ssh_session=${client_connection}
+    KubernetesEnv.Init_Infinite_Command_in_Pod    cd; nc ${client_ip} ${tcp_port} < some.file    ssh_session=${server_connection}
+    ${tcp_server_client} =    KubernetesEnv.Stop_Infinite_Command_In_Pod    ssh_session=${client_connection}
+#    BuiltIn.Should_Contain   ${server_stdout}    ${text}
+    ${stdout} =    KubernetesEnv.Stop_Infinite_Command_In_Pod    ssh_session=${server_connection}
+    [Return]    ${tcp_client_server}    ${tcp_server_client}
 
 Host_To_Pod_Ping
     [Documentation]    Execute "ping -c 5" command from host to both pods, require no packet loss.
-    ${stdout} =    SshCommons.Switch_And_Execute_Command    ${testbed_connection}    ping -c 5 ${server_ip}
-    BuiltIn.Should_Contain   ${stdout}    5 received, 0% packet loss
-    ${stdout} =    SshCommons.Switch_And_Execute_Command    ${testbed_connection}    ping -c 5 ${client_ip}
-    BuiltIn.Should_Contain   ${stdout}    5 received, 0% packet loss
+    ${ping_host_server} =    SshCommons.Switch_And_Execute_Command    ${testbed_connection}    ping -c 5 ${server_ip}
+#    BuiltIn.Should_Contain   ${stdout}    5 received, 0% packet loss
+    ${ping_host_client} =    SshCommons.Switch_And_Execute_Command    ${testbed_connection}    ping -c 5 ${client_ip}
+#    BuiltIn.Should_Contain   ${stdout}    5 received, 0% packet loss
+    [Return]    ${ping_host_server}    ${ping_host_client}
 
 Host_To_Pod_Udp
     [Documentation]    The same as Pod_To_Pod_Udp but client is on host instead of pod.
-    KubernetesEnv.Init_Infinite_Command_in_Pod    nc -ul -p 7000    ssh_session=${server_connection}
-    KubernetesEnv.Init_Infinite_Command_in_Pod    nc -u ${server_ip} 7000    ssh_session=${testbed_connection}
+    [Arguments]    ${udp_port}=7000
     ${text} =    BuiltIn.Set_Variable    Text to be received
+    KubernetesEnv.Init_Infinite_Command_in_Pod    nc -ul -p ${udp_port}    ssh_session=${server_connection}
+    KubernetesEnv.Init_Infinite_Command_in_Pod    nc -u ${server_ip} ${udp_port}    ssh_session=${testbed_connection}
     SSHLibrary.Write    ${text}
-    ${client_stdout} =    KubernetesEnv.Stop_Infinite_Command_In_Pod    ssh_session=${testbed_connection}    prompt=$
-    ${server_stdout} =    KubernetesEnv.Stop_Infinite_Command_In_Pod    ssh_session=${server_connection}
-    BuiltIn.Should_Contain   ${server_stdout}    ${text}
+    ${stdout} =    KubernetesEnv.Stop_Infinite_Command_In_Pod    ssh_session=${testbed_connection}    prompt=$
+    ${udp_host_server} =    KubernetesEnv.Stop_Infinite_Command_In_Pod    ssh_session=${server_connection}
+#    BuiltIn.Should_Contain   ${server_stdout}    ${text}
+    KubernetesEnv.Init_Infinite_Command_in_Pod    nc -ul -p ${udp_port}    ssh_session=${client_connection}
+    KubernetesEnv.Init_Infinite_Command_in_Pod    nc -u ${client_ip} ${udp_port}    ssh_session=${testbed_connection}
+    SSHLibrary.Write    ${text}
+    ${stdout} =    KubernetesEnv.Stop_Infinite_Command_In_Pod    ssh_session=${testbed_connection}    prompt=$
+    ${udp_host_client} =    KubernetesEnv.Stop_Infinite_Command_In_Pod    ssh_session=${client_connection}
+    [Return]    ${udp_host_server}    ${udp_host_client}
 
 Host_To_Pod_Tcp
     [Documentation]    The same as Pod_To_Pod_Tcp but client is on host instead of pod.
+    [Arguments]    ${tcp_port}=4444
     ${text} =    BuiltIn.Set_Variable    Text to be received
     KubernetesEnv.Run_Finite_Command_In_Pod    cd; echo "${text}" > some.file    ssh_session=${testbed_connection}
-    KubernetesEnv.Init_Infinite_Command_in_Pod    nc -l -p 4444    ssh_session=${server_connection}
-    KubernetesEnv.Init_Infinite_Command_in_Pod    cd; nc ${server_ip} 4444 < some.file    ssh_session=${testbed_connection}
-    ${server_stdout} =    KubernetesEnv.Stop_Infinite_Command_In_Pod    ssh_session=${server_connection}
-    BuiltIn.Should_Contain   ${server_stdout}    ${text}
-    ${client_stdout} =    KubernetesEnv.Stop_Infinite_Command_In_Pod    ssh_session=${testbed_connection}    prompt=$
+    KubernetesEnv.Init_Infinite_Command_in_Pod    nc -l -p ${tcp_port}    ssh_session=${server_connection}
+    KubernetesEnv.Init_Infinite_Command_in_Pod    cd; nc ${server_ip} ${tcp_port} < some.file    ssh_session=${testbed_connection}
+    ${tcp_host_server} =    KubernetesEnv.Stop_Infinite_Command_In_Pod    ssh_session=${server_connection}
+#    BuiltIn.Should_Contain   ${server_stdout}    ${text}
+    ${stdout} =    KubernetesEnv.Stop_Infinite_Command_In_Pod    ssh_session=${testbed_connection}    prompt=$
+    KubernetesEnv.Run_Finite_Command_In_Pod    cd; echo "${text}" > some.file    ssh_session=${testbed_connection}
+    KubernetesEnv.Init_Infinite_Command_in_Pod    nc -l -p ${tcp_port}    ssh_session=${client_connection}
+    KubernetesEnv.Init_Infinite_Command_in_Pod    cd; nc ${client_ip} ${tcp_port} < some.file    ssh_session=${testbed_connection}
+    ${tcp_host_client} =    KubernetesEnv.Stop_Infinite_Command_In_Pod    ssh_session=${client_connection}
+#    BuiltIn.Should_Contain   ${server_stdout}    ${text}
+    ${stdout} =    KubernetesEnv.Stop_Infinite_Command_In_Pod    ssh_session=${testbed_connection}    prompt=$
+    [Return]    ${tcp_host_server}    ${tcp_host_client}
 
 OneNodeK8sSetup
     [Documentation]    Execute common setup, reinit 1node cluster, deploy client and server pods.

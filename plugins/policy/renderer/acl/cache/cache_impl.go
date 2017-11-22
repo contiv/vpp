@@ -1,30 +1,31 @@
-// Copyright (c) 2017 Cisco and/or its affiliates.
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at:
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * // Copyright (c) 2017 Cisco and/or its affiliates.
+ * //
+ * // Licensed under the Apache License, Version 2.0 (the "License");
+ * // you may not use this file except in compliance with the License.
+ * // You may obtain a copy of the License at:
+ * //
+ * //     http://www.apache.org/licenses/LICENSE-2.0
+ * //
+ * // Unless required by applicable law or agreed to in writing, software
+ * // distributed under the License is distributed on an "AS IS" BASIS,
+ * // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * // See the License for the specific language governing permissions and
+ * // limitations under the License.
+ */
 
 package cache
 
 import (
-	"bytes"
 	"crypto/rand"
 	"fmt"
-	"net"
 	"sort"
 	"strings"
 
 	"github.com/ligato/cn-infra/logging"
 
 	"github.com/contiv/vpp/plugins/policy/renderer"
+	"github.com/contiv/vpp/plugins/policy/utils"
 )
 
 // ContivRuleCache implements ContivRuleCacheAPI.
@@ -613,58 +614,6 @@ func (set InterfaceSet) String() string {
 	return str
 }
 
-// compareIPNets returns an integer comparing two IP network addresses
-// lexicographically.
-func compareIPNets(a, b *net.IPNet) int {
-	ipOrder := bytes.Compare(a.IP, b.IP)
-	if ipOrder == 0 {
-		return bytes.Compare(a.Mask, b.Mask)
-	}
-	return ipOrder
-}
-
-// compareInts is a comparison function for two integers.
-func compareInts(a, b int) int {
-	if a < b {
-		return -1
-	}
-	if a > b {
-		return 1
-	}
-	return 0
-}
-
-// compareRules returns an integer comparing two Contiv rules lexicographically.
-func compareRules(a, b *renderer.ContivRule) int {
-	if a.ID < b.ID {
-		return -1
-	}
-	if a.ID > b.ID {
-		return 1
-	}
-	actionOrder := compareInts(int(a.Action), int(b.Action))
-	if actionOrder != 0 {
-		return actionOrder
-	}
-	srcIPOrder := compareIPNets(a.SrcNetwork, b.SrcNetwork)
-	if srcIPOrder != 0 {
-		return srcIPOrder
-	}
-	destIPOrder := compareIPNets(a.DestNetwork, b.DestNetwork)
-	if destIPOrder != 0 {
-		return destIPOrder
-	}
-	protocolOrder := compareInts(int(a.Protocol), int(b.Protocol))
-	if protocolOrder != 0 {
-		return protocolOrder
-	}
-	srcPortOrder := compareInts(int(a.SrcPort), int(b.SrcPort))
-	if srcPortOrder != 0 {
-		return srcPortOrder
-	}
-	return compareInts(int(a.DestPort), int(b.DestPort))
-}
-
 // compareRuleLists returns an integer comparing two lists of Contiv rules
 // lexicographically.
 func compareRuleLists(a, b []*renderer.ContivRule) int {
@@ -677,12 +626,12 @@ func compareRuleLists(a, b []*renderer.ContivRule) int {
 	if b == nil {
 		return 1
 	}
-	lenOrder := compareInts(len(a), len(b))
+	lenOrder := utils.CompareInts(len(a), len(b))
 	if lenOrder != 0 {
 		return lenOrder
 	}
 	for i := range a {
-		ruleOrder := compareRules(a[i], b[i])
+		ruleOrder := a[i].Compare(b[i])
 		if ruleOrder != 0 {
 			return ruleOrder
 		}

@@ -19,6 +19,10 @@ limitations under the License.
 package internalversion
 
 import (
+	reflect "reflect"
+	sync "sync"
+	time "time"
+
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	cache "k8s.io/client-go/tools/cache"
@@ -37,9 +41,6 @@ import (
 	scheduling "k8s.io/kubernetes/pkg/client/informers/informers_generated/internalversion/scheduling"
 	settings "k8s.io/kubernetes/pkg/client/informers/informers_generated/internalversion/settings"
 	storage "k8s.io/kubernetes/pkg/client/informers/informers_generated/internalversion/storage"
-	reflect "reflect"
-	sync "sync"
-	time "time"
 )
 
 type sharedInformerFactory struct {

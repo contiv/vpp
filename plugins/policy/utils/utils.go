@@ -15,6 +15,8 @@
 package utils
 
 import (
+	"bytes"
+	"net"
 	"strings"
 
 	namespacemodel "github.com/contiv/vpp/plugins/ksr/model/namespace"
@@ -142,4 +144,51 @@ func ConstructLabels(key string, values []string) []*policymodel.Policy_Label {
 			})
 	}
 	return policyLabel
+}
+
+// CompareInts is a comparison function for two integers.
+func CompareInts(a, b int) int {
+	if a < b {
+		return -1
+	}
+	if a > b {
+		return 1
+	}
+	return 0
+}
+
+// CompareIPNets returns an integer comparing two IP network addresses
+// lexicographically.
+func CompareIPNets(a, b *net.IPNet) int {
+	ipOrder := bytes.Compare(a.IP, b.IP)
+	if ipOrder == 0 {
+		return bytes.Compare(a.Mask, b.Mask)
+	}
+	return ipOrder
+}
+
+// CompareIPNetsBytes returns an integer comparing two IP network addresses
+// represented as raw bytes lexicographically.
+func CompareIPNetsBytes(aPrefixLen uint8, aIP [16]byte, bPrefixLen uint8, bIP [16]byte) int {
+	prefixOrder := CompareInts(int(aPrefixLen), int(bPrefixLen))
+	if prefixOrder != 0 {
+		return prefixOrder
+	}
+	return bytes.Compare(aIP[:], bIP[:])
+}
+
+// GetOneHostSubnet returns the IP subnet that contains only the given host
+// (i.e. /32 for IPv4, /128 for IPv6).
+func GetOneHostSubnet(hostAddr string) *net.IPNet {
+	ip := net.ParseIP(hostAddr)
+	if ip == nil {
+		return nil
+	}
+	ipNet := &net.IPNet{IP: ip}
+	if ip.To4() != nil {
+		ipNet.Mask = net.CIDRMask(net.IPv4len*8, net.IPv4len*8)
+	} else {
+		ipNet.Mask = net.CIDRMask(net.IPv6len*8, net.IPv6len*8)
+	}
+	return ipNet
 }

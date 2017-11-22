@@ -32,14 +32,14 @@ Execute_Command_With_Copied_File
     BuiltIn.Run_Keyword_And_Return    Execute_Command_And_Log    ${command_prefix} @{splitted_path}[-1]    expected_rc=${expected_rc}    ignore_stderr=${ignore_stderr}
 
 Switch_And_Execute_Command
-    [Arguments]    ${ssh_session}    ${command}    ${expected_rc}=0    ${ignore_stderr}=${False}
+    [Arguments]    ${ssh_session}    ${command}    ${expected_rc}=0    ${ignore_stderr}=${False}    ${ignore_rc}=${False}
     [Documentation]    Switch to \${ssh_session}, and continue with Execute_Command_And_Log.
-    BuiltIn.Log_Many    ${ssh_session}    ${command}    ${expected_rc}    ${ignore_stderr}
+    BuiltIn.Log_Many    ${ssh_session}    ${command}    ${expected_rc}    ${ignore_stderr}    ${ignore_rc}=${False}
     SSHLibrary.Switch_Connection    ${ssh_session}
-    BuiltIn.Run_Keyword_And_Return    Execute_Command_And_Log    ${command}    expected_rc=${expected_rc}    ignore_stderr=${ignore_stderr}
+    BuiltIn.Run_Keyword_And_Return    Execute_Command_And_Log    ${command}    expected_rc=${expected_rc}    ignore_stderr=${ignore_stderr}    ignore_rc=${ignore_rc}
 
 Execute_Command_And_Log
-    [Arguments]    ${command}    ${expected_rc}=0    ${ignore_stderr}=${False}
+    [Arguments]    ${command}    ${expected_rc}=0    ${ignore_stderr}=${False}    ${ignore_rc}=${False}
     [Documentation]    Execute \${command} on current SSH session, log results, maybe fail on nonempty stderr, check \${expected_rc}, return stdout.
     BuiltIn.Log_Many    ${command}    ${expected_rc}    ${ignore_stderr}
     BuiltIn.Comment    TODO: Add logging to file. See https://github.com/contiv/vpp/issues/200
@@ -48,5 +48,5 @@ Execute_Command_And_Log
     BuiltIn.Log    ${stderr}
     BuiltIn.Log    ${rc}
     BuiltIn.Run_Keyword_Unless    ${ignore_stderr}    BuiltIn.Should_Be_Empty    ${stderr}
-    BuiltIn.Should_Be_Equal_As_Numbers    ${rc}    ${expected_rc}
+    BuiltIn.Run_Keyword_Unless    ${ignore_rc}    BuiltIn.Should_Be_Equal_As_Numbers    ${rc}    ${expected_rc}
     [Return]    ${stdout}

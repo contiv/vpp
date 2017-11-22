@@ -37,7 +37,6 @@ import (
 	tokens3 "github.com/gophercloud/gophercloud/openstack/identity/v3/tokens"
 	"github.com/gophercloud/gophercloud/pagination"
 	"github.com/mitchellh/mapstructure"
-	"gopkg.in/gcfg.v1"
 
 	"github.com/golang/glog"
 	"k8s.io/api/core/v1"

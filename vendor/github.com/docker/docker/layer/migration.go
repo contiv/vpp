@@ -7,8 +7,8 @@ import (
 	"io"
 	"os"
 
-	"github.com/opencontainers/go-digest"
 	"github.com/Sirupsen/logrus"
+	"github.com/opencontainers/go-digest"
 	"github.com/vbatts/tar-split/tar/asm"
 	"github.com/vbatts/tar-split/tar/storage"
 )

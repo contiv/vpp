@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Sirupsen/logrus"
 	containerd "github.com/containerd/containerd/api/grpc/types"
 	containerd_runtime_types "github.com/containerd/containerd/runtime"
 	"github.com/docker/docker/pkg/ioutils"
@@ -14,7 +15,6 @@ import (
 	"github.com/golang/protobuf/ptypes"
 	"github.com/golang/protobuf/ptypes/timestamp"
 	specs "github.com/opencontainers/runtime-spec/specs-go"
-	"github.com/Sirupsen/logrus"
 	"golang.org/x/net/context"
 	"golang.org/x/sys/unix"
 )

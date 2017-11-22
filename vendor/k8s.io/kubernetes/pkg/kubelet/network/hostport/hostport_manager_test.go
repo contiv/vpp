@@ -21,10 +21,11 @@ import (
 	"net"
 	"testing"
 
+	"strings"
+
 	"github.com/stretchr/testify/assert"
 	"k8s.io/api/core/v1"
 	utiliptables "k8s.io/kubernetes/pkg/util/iptables"
-	"strings"
 )
 
 func NewFakeHostportManager() HostPortManager {

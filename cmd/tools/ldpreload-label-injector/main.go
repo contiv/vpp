@@ -8,9 +8,14 @@ import (
 )
 
 var (
-	outputFile = flag.String("o", "", "Output file override.")
-	help       = flag.Bool("h", false, "Switch to show help")
+	outputFile    = flag.String("o", "", "Output file override.")
+	help          = flag.Bool("h", false, "Switch to show help")
+	useDebugLabel = flag.Bool("d", false, "Switch to used debug ldpreload label")
 )
+
+type injectParams struct {
+	useDebugLabel bool
+}
 
 func main() {
 	// handle initial tasks and simple cases
@@ -25,7 +30,10 @@ func main() {
 	if len(*outputFile) == 0 {
 		outputFile = &inputFile
 	}
-	if err := processFile(inputFile, *outputFile); err != nil {
+	injectParams := injectParams{
+		useDebugLabel: *useDebugLabel,
+	}
+	if err := processFile(inputFile, *outputFile, injectParams); err != nil {
 		panic(fmt.Errorf("Can't process file %v : %v ", inputFile, err))
 	}
 }
@@ -37,17 +45,18 @@ Usage:
 
 Flags:
   -o [output file]  Sets output for modified kubernetes yaml file. This overrides default behaviour that takes input file as output file and modifies input file in-place.
+  -d                Adds ldpreload debug label to yaml kubernetes files
   -h                Prints this help
 `)
 }
 
-func processFile(inputFile string, outputFile string) (err error) {
+func processFile(inputFile string, outputFile string, params injectParams) (err error) {
 	fmt.Printf("Processing file %v (to output %v)", inputFile, outputFile)
 	content, err := ioutil.ReadFile(inputFile)
 	if err != nil {
 		return
 	}
-	converted, err := inject(string(content))
+	converted, err := inject(string(content), params)
 	if err != nil {
 		return
 	}

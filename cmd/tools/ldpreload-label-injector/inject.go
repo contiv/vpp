@@ -23,7 +23,7 @@ var (
 )
 
 // inject injects yaml file content with ldpreload labels
-func inject(content string) (string, error) {
+func inject(content string, params injectParams) (string, error) {
 	eol, err := detectEOLString(content)
 	if err != nil {
 		return "", err
@@ -34,6 +34,9 @@ func inject(content string) (string, error) {
 		if isPod(document) || isDeployment(document) {
 			document = insertLDPreloadTrue(document, eol)
 			document = insertAppScope(document, eol)
+			if params.useDebugLabel {
+				document = insertDebug(document, eol)
+			}
 			converted.WriteString(document)
 		} else {
 			converted.WriteString(document)
@@ -67,6 +70,18 @@ func insertAppScope(document string, eol string) string {
 			"# ldpreload-related env vars",
 			"- name: VCL_APP_SCOPE_GLOBAL",
 			"  value: \"\"",
+		},
+		eol)
+}
+
+func insertDebug(document string, eol string) string {
+	return insertLines(
+		document,
+		[]string{"spec:", "template:", "spec:", "containers:", "-", "env:"},
+		[]string{
+			"# enable verbose VCL debugs, do not use for production",
+			"- name: VCL_DEBUG",
+			"  value: \"3\"",
 		},
 		eol)
 }

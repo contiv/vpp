@@ -237,9 +237,6 @@ func (p *Plugin) handleResync(resyncChan chan resync.StatusEvent) {
 						dataChngEv := p.pendingChanges[i]
 						p.Log.WithField("config", dataChngEv).Info("Applying delayed data-change")
 						err = p.policyCache.Update(dataChngEv)
-						if err != nil {
-							break
-						}
 					}
 					p.pendingResync = nil
 					p.pendingChanges = []datasync.ChangeEvent{}

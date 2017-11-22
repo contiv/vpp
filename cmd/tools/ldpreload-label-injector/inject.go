@@ -174,7 +174,7 @@ func visitInsertionPlaces(i traversingInfo) {
 			// can continue when in mapping items are normal blocks again)
 			// Expecting that unresolved paths can't end with "-"
 			childBlockIntend := computeItemBlockIntend(i.curBlock(), i.eol)
-			handleBasicBlock(i.newDescending(i.blockStart+itemBlockStart, i.blockStart+itemBlockEnd, childBlockIntend), childBlockIntend)
+			handleBasicBlock(i.newDescending(i.blockStart+itemBlockStart, i.blockStart+itemBlockEnd, blockIntend), childBlockIntend)
 		}
 	} else { // basic blocks
 		blockIntend := computeNormalBlockIntend(i.curBlock(), i.eol)

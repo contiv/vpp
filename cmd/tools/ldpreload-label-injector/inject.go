@@ -70,7 +70,7 @@ func insertAppScope(document string, eol string, params injectParams) string {
 	if params.proxyName == "" { // no proxy -> scope is global for all containers
 		return insertLines(
 			document,
-			[]string{"spec:", "template:", "spec:", "containers:", "-", "env:"},
+			[]string{"spec:", "template:", "spec:", "containers:", minusIndentationCharacter, "env:"},
 			[]string{
 				"# ldpreload-related env vars",
 				"- name: VCL_APP_SCOPE_GLOBAL",
@@ -84,7 +84,7 @@ func insertAppScope(document string, eol string, params injectParams) string {
 	// proxy used
 	return insertLinesConditioned(
 		document,
-		[]string{"spec:", "template:", "spec:", "containers:", "-", "env:"},
+		[]string{"spec:", "template:", "spec:", "containers:", minusIndentationCharacter, "env:"},
 		isProxyContainer(params.proxyName),
 		[]string{ // proxy container settings
 			"# ldpreload-related env vars",
@@ -107,7 +107,7 @@ func insertAppScope(document string, eol string, params injectParams) string {
 // isProxyContainer checks if we are inside proxy image or not. This impl is tightly relying on path in insertAppScope() method.
 func isProxyContainer(proxyName string) conditionFunc {
 	return func(info traversingInfo) bool {
-		if len(info.unresolvedPath) > 1 { //TODO handle no container situation
+		if len(info.unresolvedPath) > 1 {
 			return false // should not happen, because it would mean that there are no containers at all
 		}
 
@@ -120,7 +120,7 @@ func isProxyContainer(proxyName string) conditionFunc {
 func insertDebug(document string, eol string) string {
 	return insertLines(
 		document,
-		[]string{"spec:", "template:", "spec:", "containers:", "-", "env:"},
+		[]string{"spec:", "template:", "spec:", "containers:", minusIndentationCharacter, "env:"},
 		[]string{
 			"# enable verbose VCL debugs, do not use for production",
 			"- name: VCL_DEBUG",
@@ -139,12 +139,14 @@ func insertLinesConditioned(document string, path []string, condition conditionF
 	var insertions = &[]insertion{}
 	visitInsertionPlaces(newTraversingInfo(document, path,
 		func(i traversingInfo) {
+			if hasMappingInUresolvedPath(i) {
+				return //if there is empty mapping we don't create mapping items just to add labels to it (i.e. we don't create new container to add label to it)
+			}
 			lines := insertLines
 			if !condition(i) {
 				lines = elseInsertLines
 			}
 			insertStr := createIndentationedInsertionString(i, eol, lines)
-			//TODO check existence before inserting
 			insertPoint := strings.Index(i.curBlockStr(), eol) + len(eol) + i.curBlockStart()
 			insertions = prepend(insertion{insertPoint, insertStr}, insertions) // using this order doesn't invalidate indexes of insertions by applying them sequentially
 			return
@@ -156,6 +158,16 @@ func insertLinesConditioned(document string, path []string, condition conditionF
 	}
 	return document
 }
+
+func hasMappingInUresolvedPath(i traversingInfo) bool {
+	for _, pathPart := range i.unresolvedPath {
+		if pathPart == minusIndentationCharacter {
+			return true
+		}
+	}
+	return false
+}
+
 func createIndentationedInsertionString(i traversingInfo, eol string, insertLines []string) string {
 	//computing indentation delta additions to define inner block indentation
 	indentationDelta := defaultIndentationLength // just guess in case we don't have enough information to compute it
@@ -269,7 +281,7 @@ func visitInsertionPlaces(i traversingInfo) {
 		return
 	}
 
-	if i.unresolvedPath[0] == "-" { // compact nested mapping
+	if i.unresolvedPath[0] == minusIndentationCharacter { // compact nested mapping
 		blockIndentation := computeMappingBlockIndentation(i.curBlockStr(), i.eol)
 		mappingItemPrefixes := regexp.
 			MustCompile(i.eol+"["+spaceIndentationCharacter+"]{"+strconv.Itoa(blockIndentation)+"}"+minusIndentationCharacter).
@@ -279,7 +291,7 @@ func visitInsertionPlaces(i traversingInfo) {
 
 			// recursive call would not handle map item block correctly => handling 1 recursive call here (recursive calls
 			// can continue when in mapping items are normal blocks again)
-			// Expecting that unresolved paths can't end with "-"
+			// Expecting that unresolved paths can't end with minusIndentationCharacter
 			childBlockIndentation := computeItemBlockIndentation(i.curBlockStr(), i.eol)
 			handleBasicBlock(i.newDescending(i.curBlockStart()+itemBlockStart, i.curBlockStart()+itemBlockEnd, blockIndentation), childBlockIndentation)
 		}
@@ -304,15 +316,15 @@ func handleBasicBlock(i traversingInfo, blockIndentation int) {
 }
 
 func computeNormalBlockIndentation(curBlock string, eol string) int {
-	return computeBlockIndentation(curBlock, eol, eol+"["+spaceIndentationCharacter+"]*[^"+indentationCharacters+commentCharacters+"]{1}") //TODO convert indentationCharacters to regexp? for "- " is it the same
+	return computeBlockIndentation(curBlock, eol, eol+"["+spaceIndentationCharacter+"]*[^"+indentationCharacters+commentCharacters+"]{1}")
 }
 
 func computeMappingBlockIndentation(curBlock string, eol string) int {
-	return computeBlockIndentation(curBlock, eol, eol+"["+spaceIndentationCharacter+"]*"+minusIndentationCharacter) //TODO convert indentationCharacters to regexp? for "- " is it the same
+	return computeBlockIndentation(curBlock, eol, eol+"["+spaceIndentationCharacter+"]*"+minusIndentationCharacter)
 }
 
 func computeItemBlockIndentation(curBlock string, eol string) int {
-	return computeBlockIndentation(curBlock, eol, eol+"["+indentationCharacters+"]*[^"+indentationCharacters+commentCharacters+"]{1}") //TODO convert indentationCharacters to regexp? for "- " is it the same
+	return computeBlockIndentation(curBlock, eol, eol+"["+indentationCharacters+"]*[^"+indentationCharacters+commentCharacters+"]{1}")
 }
 
 func computeBlockIndentation(curBlock string, eol string, indentationRegExp string) int {
@@ -321,7 +333,7 @@ func computeBlockIndentation(curBlock string, eol string, indentationRegExp stri
 		return -1
 	}
 	_, lastRuneSize := utf8.DecodeLastRuneInString(indentation)
-	return len(indentation) - len(eol) - lastRuneSize //TODO convert byte length to rune length? for " " and "-" it is the same length
+	return len(indentation) - len(eol) - lastRuneSize
 }
 
 func computeChildBlockPosition(curBlock string, childBlockPrefixIndexes []int, blockIndentation int, eol string) (int, int) {
@@ -333,9 +345,9 @@ func computeItemBlockPosition(curBlock string, itemBlockPrefixIndexes []int, blo
 }
 
 func computeInnerBlockPosition(curBlock string, innerBlockPrefixIndexes []int, blockIndentation int, eol string, lastCharacterRegExp string) (int, int) {
-	start := innerBlockPrefixIndexes[0] + len(eol)                                                                           //without eol from previous block
-	nextSibling := eol + "[" + spaceIndentationCharacter + "]{" + strconv.Itoa(blockIndentation) + "}" + lastCharacterRegExp //TODO convert indentationCharacters to regexp? for "- " is it the same
-	nextSiblingIdx := regexp.MustCompile(nextSibling).FindStringIndex(curBlock[innerBlockPrefixIndexes[0]+len(eol):])        // shifted search by len(eol) to not match start of block
+	start := innerBlockPrefixIndexes[0] + len(eol) //without eol from previous block
+	nextSibling := eol + "[" + spaceIndentationCharacter + "]{" + strconv.Itoa(blockIndentation) + "}" + lastCharacterRegExp
+	nextSiblingIdx := regexp.MustCompile(nextSibling).FindStringIndex(curBlock[innerBlockPrefixIndexes[0]+len(eol):]) // shifted search by len(eol) to not match start of block
 	if nextSiblingIdx != nil {
 		return start, innerBlockPrefixIndexes[0] + nextSiblingIdx[0] + len(eol) /*shifted sibling search*/ + len(eol) /*include block ending eol (matched by sibling search) */
 	}

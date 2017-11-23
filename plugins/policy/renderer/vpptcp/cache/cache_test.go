@@ -85,6 +85,8 @@ func checkSessionRule(list []*SessionRule, scope string, nsIndex uint32,
 	// Parse action.
 	var actionIndex uint32
 	switch action {
+	case "NOTHING":
+		actionIndex = RuleActionDoNothing
 	case "ALLOW":
 		actionIndex = RuleActionAllow
 	case "DENY":
@@ -136,10 +138,13 @@ func checkSessionRule(list []*SessionRule, scope string, nsIndex uint32,
 	for _, rule2 := range list {
 		if rule.Compare(rule2, false) == 0 {
 			gomega.Expect(found).To(gomega.BeFalse())
-			/* check tag prefix */
-			tagLen := bytes.IndexByte(rule2.Tag[:], 0)
-			tag := string(rule2.Tag[:tagLen])
-			gomega.Expect(strings.HasPrefix(tag, tagPrefix)).To(gomega.BeTrue())
+			if rule2.Scope != RuleScopeLocal || rule2.RmtPlen != 0 || rule2.RmtPort != 0 ||
+				rule.ActionIndex != RuleActionDoNothing {
+				/* check tag prefix */
+				tagLen := bytes.IndexByte(rule2.Tag[:], 0)
+				tag := string(rule2.Tag[:tagLen])
+				gomega.Expect(strings.HasPrefix(tag, tagPrefix)).To(gomega.BeTrue())
+			}
 			found = true
 		}
 	}
@@ -364,9 +369,10 @@ func TestMultipleRulesSingleNsWithDataChange(t *testing.T) {
 	added, removed, err = txn.Changes()
 	gomega.Expect(err).To(gomega.BeNil())
 	gomega.Expect(len(added)).To(gomega.BeEquivalentTo(2))
-	gomega.Expect(len(removed)).To(gomega.BeEquivalentTo(3))
+	gomega.Expect(len(removed)).To(gomega.BeEquivalentTo(4))
 	checkSessionRule(added, "LOCAL", nsIndex, "", 0, "", 0, "TCP", "DENY")
 	checkSessionRule(added, "GLOBAL", 0, podIP, 0, "", 0, "TCP", "ALLOW")
+	checkSessionRule(removed, "LOCAL", nsIndex, "", 0, "", 0, "TCP", "NOTHING") /* removed VPP-installed rule */
 	checkSessionRule(removed, "LOCAL", nsIndex, "", 0, "192.168.1.0/24", 80, "TCP", "ALLOW")
 	checkSessionRule(removed, "LOCAL", nsIndex, "", 0, "192.168.2.0/24", 22, "TCP", "ALLOW")
 	checkSessionRule(removed, "GLOBAL", 0, podIP, 0, "", 0, "TCP", "DENY")
@@ -447,7 +453,7 @@ func TestMultipleRulesMultipleNsWithDataChange(t *testing.T) {
 	added, removed, err = txn.Changes()
 	gomega.Expect(err).To(gomega.BeNil())
 	gomega.Expect(len(added)).To(gomega.BeEquivalentTo(21))
-	gomega.Expect(len(removed)).To(gomega.BeEquivalentTo(0))
+	gomega.Expect(len(removed)).To(gomega.BeEquivalentTo(4))
 	// - Pod1
 	checkSessionRule(added, "LOCAL", nsIndex1, "", 0, "192.168.2.40/32", 200, "TCP", "ALLOW") /* combined */
 	checkSessionRule(added, "LOCAL", nsIndex1, "", 0, "192.168.2.40/32", 400, "TCP", "ALLOW") /* combined */
@@ -472,6 +478,13 @@ func TestMultipleRulesMultipleNsWithDataChange(t *testing.T) {
 	checkSessionRule(added, "GLOBAL", 0, pod2IP, 400, "192.168.1.1/32", 0, "TCP", "ALLOW")
 	checkSessionRule(added, "GLOBAL", 0, pod2IP, 0, "", 0, "TCP", "DENY")
 	checkSessionRule(added, "GLOBAL", 0, pod2IP, 0, "", 0, "UDP", "DENY")
+	// removed VPP default rules:
+	// - Pod1
+	checkSessionRule(removed, "LOCAL", nsIndex1, "", 0, "", 0, "TCP", "NOTHING")
+	checkSessionRule(removed, "LOCAL", nsIndex1, "", 0, "", 0, "UDP", "NOTHING")
+	// - Pod2
+	checkSessionRule(removed, "LOCAL", nsIndex2, "", 0, "", 0, "TCP", "NOTHING")
+	checkSessionRule(removed, "LOCAL", nsIndex2, "", 0, "", 0, "UDP", "NOTHING")
 
 	// Commit the transaction.
 	txn.Commit()
@@ -608,7 +621,7 @@ func TestMultipleRulesMultipleNsWithResync(t *testing.T) {
 	txn = ruleCache.NewTxn(true)
 	added2, removed2, err := txn.Changes()
 	gomega.Expect(err).To(gomega.BeNil())
-	gomega.Expect(len(added2)).To(gomega.BeEquivalentTo(0))
+	gomega.Expect(len(added2)).To(gomega.BeEquivalentTo(4))
 	gomega.Expect(len(removed2)).To(gomega.BeEquivalentTo(21))
 	// - Pod1
 	checkSessionRule(removed2, "LOCAL", nsIndex1, "", 0, "192.168.2.40/32", 200, "TCP", "ALLOW") /* combined */
@@ -633,6 +646,11 @@ func TestMultipleRulesMultipleNsWithResync(t *testing.T) {
 	checkSessionRule(removed2, "GLOBAL", 0, pod2IP, 400, "192.168.1.1/32", 0, "TCP", "ALLOW")
 	checkSessionRule(removed2, "GLOBAL", 0, pod2IP, 0, "", 0, "TCP", "DENY")
 	checkSessionRule(removed2, "GLOBAL", 0, pod2IP, 0, "", 0, "UDP", "DENY")
+	// get back the VPP-installed default rules
+	checkSessionRule(added2, "LOCAL", nsIndex1, "", 0, "", 0, "TCP", "NOTHING")
+	checkSessionRule(added2, "LOCAL", nsIndex1, "", 0, "", 0, "UDP", "NOTHING")
+	checkSessionRule(added2, "LOCAL", nsIndex2, "", 0, "", 0, "TCP", "NOTHING")
+	checkSessionRule(added2, "LOCAL", nsIndex2, "", 0, "", 0, "UDP", "NOTHING")
 
 	// Updated config.
 	inRule13 := newContivRule("deny-all-TCP-all", renderer.ActionDeny, &net.IPNet{}, &net.IPNet{}, renderer.TCP, 0)

@@ -155,7 +155,9 @@ func TestSingleIngressRuleSinglePod(t *testing.T) {
 	// Verify output
 	gomega.Expect(mockSessionRules.GetErrCount()).To(gomega.BeEquivalentTo(0))
 	gomega.Expect(mockSessionRules.GetReqCount()).To(gomega.BeEquivalentTo(1))
-	gomega.Expect(mockSessionRules.LocalTable(pod1VPPNsIndex).NumOfRules()).To(gomega.BeEquivalentTo(1))
+	gomega.Expect(mockSessionRules.LocalTable(pod1VPPNsIndex).NumOfRules()).To(gomega.BeEquivalentTo(3))
+	gomega.Expect(mockSessionRules.LocalTable(pod1VPPNsIndex).HasRule("", 0, "", 0, "TCP", "NOTHING")).To(gomega.BeTrue())
+	gomega.Expect(mockSessionRules.LocalTable(pod1VPPNsIndex).HasRule("", 0, "", 0, "UDP", "NOTHING")).To(gomega.BeTrue())
 	gomega.Expect(mockSessionRules.LocalTable(pod1VPPNsIndex).HasRule("", 0, "10.0.0.0/8", 22, "TCP", "DENY")).To(gomega.BeTrue())
 	gomega.Expect(mockSessionRules.GlobalTable().NumOfRules()).To(gomega.BeEquivalentTo(0))
 }
@@ -238,7 +240,9 @@ func TestMultipleRulesSinglePodWithDataChange(t *testing.T) {
 	// Verify output
 	gomega.Expect(mockSessionRules.GetErrCount()).To(gomega.BeEquivalentTo(0))
 	gomega.Expect(mockSessionRules.GetReqCount()).To(gomega.BeEquivalentTo(4))
-	gomega.Expect(mockSessionRules.LocalTable(pod1VPPNsIndex).NumOfRules()).To(gomega.BeEquivalentTo(2))
+	gomega.Expect(mockSessionRules.LocalTable(pod1VPPNsIndex).NumOfRules()).To(gomega.BeEquivalentTo(4))
+	gomega.Expect(mockSessionRules.LocalTable(pod1VPPNsIndex).HasRule("", 0, "", 0, "TCP", "NOTHING")).To(gomega.BeTrue())
+	gomega.Expect(mockSessionRules.LocalTable(pod1VPPNsIndex).HasRule("", 0, "", 0, "UDP", "NOTHING")).To(gomega.BeTrue())
 	gomega.Expect(mockSessionRules.LocalTable(pod1VPPNsIndex).HasRule("", 0, "10.0.0.0/8", 22, "TCP", "DENY")).To(gomega.BeTrue())
 	gomega.Expect(mockSessionRules.LocalTable(pod1VPPNsIndex).HasRule("", 0, "10.1.0.0/16", 80, "TCP", "DENY")).To(gomega.BeTrue())
 	gomega.Expect(mockSessionRules.GlobalTable().NumOfRules()).To(gomega.BeEquivalentTo(2))
@@ -264,10 +268,11 @@ func TestMultipleRulesSinglePodWithDataChange(t *testing.T) {
 
 	// Verify output
 	gomega.Expect(mockSessionRules.GetErrCount()).To(gomega.BeEquivalentTo(0))
-	gomega.Expect(mockSessionRules.GetReqCount()).To(gomega.BeEquivalentTo(7))
-	gomega.Expect(mockSessionRules.LocalTable(pod1VPPNsIndex).NumOfRules()).To(gomega.BeEquivalentTo(2))
-	gomega.Expect(mockSessionRules.LocalTable(pod1VPPNsIndex).HasRule("", 0, "10.0.0.0/8", 22, "TCP", "DENY")).To(gomega.BeTrue())
+	gomega.Expect(mockSessionRules.GetReqCount()).To(gomega.BeEquivalentTo(8))
+	gomega.Expect(mockSessionRules.LocalTable(pod1VPPNsIndex).NumOfRules()).To(gomega.BeEquivalentTo(3))
 	gomega.Expect(mockSessionRules.LocalTable(pod1VPPNsIndex).HasRule("", 0, "", 0, "TCP", "DENY")).To(gomega.BeTrue())
+	gomega.Expect(mockSessionRules.LocalTable(pod1VPPNsIndex).HasRule("", 0, "", 0, "UDP", "NOTHING")).To(gomega.BeTrue())
+	gomega.Expect(mockSessionRules.LocalTable(pod1VPPNsIndex).HasRule("", 0, "10.0.0.0/8", 22, "TCP", "DENY")).To(gomega.BeTrue())
 	gomega.Expect(mockSessionRules.GlobalTable().NumOfRules()).To(gomega.BeEquivalentTo(1))
 	gomega.Expect(mockSessionRules.GlobalTable().HasRule(pod1IP, 0, "", 0, "UDP", "DENY")).To(gomega.BeTrue())
 }
@@ -361,10 +366,14 @@ func TestMultipleRulesMultiplePodsWithDataChange(t *testing.T) {
 	// Verify output
 	gomega.Expect(mockSessionRules.GetErrCount()).To(gomega.BeEquivalentTo(0))
 	gomega.Expect(mockSessionRules.GetReqCount()).To(gomega.BeEquivalentTo(6))
-	gomega.Expect(mockSessionRules.LocalTable(pod1VPPNsIndex).NumOfRules()).To(gomega.BeEquivalentTo(2))
+	gomega.Expect(mockSessionRules.LocalTable(pod1VPPNsIndex).NumOfRules()).To(gomega.BeEquivalentTo(4))
+	gomega.Expect(mockSessionRules.LocalTable(pod1VPPNsIndex).HasRule("", 0, "", 0, "TCP", "NOTHING")).To(gomega.BeTrue())
+	gomega.Expect(mockSessionRules.LocalTable(pod1VPPNsIndex).HasRule("", 0, "", 0, "UDP", "NOTHING")).To(gomega.BeTrue())
 	gomega.Expect(mockSessionRules.LocalTable(pod1VPPNsIndex).HasRule("", 0, "10.0.0.0/8", 22, "TCP", "DENY")).To(gomega.BeTrue())
 	gomega.Expect(mockSessionRules.LocalTable(pod1VPPNsIndex).HasRule("", 0, "10.1.0.0/16", 80, "TCP", "DENY")).To(gomega.BeTrue())
-	gomega.Expect(mockSessionRules.LocalTable(pod2VPPNsIndex).NumOfRules()).To(gomega.BeEquivalentTo(1))
+	gomega.Expect(mockSessionRules.LocalTable(pod2VPPNsIndex).NumOfRules()).To(gomega.BeEquivalentTo(3))
+	gomega.Expect(mockSessionRules.LocalTable(pod2VPPNsIndex).HasRule("", 0, "", 0, "TCP", "NOTHING")).To(gomega.BeTrue())
+	gomega.Expect(mockSessionRules.LocalTable(pod2VPPNsIndex).HasRule("", 0, "", 0, "UDP", "NOTHING")).To(gomega.BeTrue())
 	gomega.Expect(mockSessionRules.LocalTable(pod2VPPNsIndex).HasRule("", 0, "10.0.0.0/8", 22, "TCP", "DENY")).To(gomega.BeTrue())
 	gomega.Expect(mockSessionRules.GlobalTable().NumOfRules()).To(gomega.BeEquivalentTo(3))
 	gomega.Expect(mockSessionRules.GlobalTable().HasRule(pod1IP, 23, "192.168.2.0/24", 0, "TCP", "ALLOW")).To(gomega.BeTrue())
@@ -396,12 +405,15 @@ func TestMultipleRulesMultiplePodsWithDataChange(t *testing.T) {
 
 	// Verify output
 	gomega.Expect(mockSessionRules.GetErrCount()).To(gomega.BeEquivalentTo(0))
-	gomega.Expect(mockSessionRules.GetReqCount()).To(gomega.BeEquivalentTo(10))
-	gomega.Expect(mockSessionRules.LocalTable(pod1VPPNsIndex).NumOfRules()).To(gomega.BeEquivalentTo(1))
+	gomega.Expect(mockSessionRules.GetReqCount()).To(gomega.BeEquivalentTo(11))
+	gomega.Expect(mockSessionRules.LocalTable(pod1VPPNsIndex).NumOfRules()).To(gomega.BeEquivalentTo(3))
+	gomega.Expect(mockSessionRules.LocalTable(pod1VPPNsIndex).HasRule("", 0, "", 0, "TCP", "NOTHING")).To(gomega.BeTrue())
+	gomega.Expect(mockSessionRules.LocalTable(pod1VPPNsIndex).HasRule("", 0, "", 0, "UDP", "NOTHING")).To(gomega.BeTrue())
 	gomega.Expect(mockSessionRules.LocalTable(pod1VPPNsIndex).HasRule("", 0, "10.0.0.0/8", 22, "TCP", "DENY")).To(gomega.BeTrue())
-	gomega.Expect(mockSessionRules.LocalTable(pod2VPPNsIndex).NumOfRules()).To(gomega.BeEquivalentTo(2))
-	gomega.Expect(mockSessionRules.LocalTable(pod2VPPNsIndex).HasRule("", 0, "10.0.0.0/8", 22, "TCP", "DENY")).To(gomega.BeTrue())
+	gomega.Expect(mockSessionRules.LocalTable(pod2VPPNsIndex).NumOfRules()).To(gomega.BeEquivalentTo(3))
 	gomega.Expect(mockSessionRules.LocalTable(pod2VPPNsIndex).HasRule("", 0, "", 0, "TCP", "DENY")).To(gomega.BeTrue())
+	gomega.Expect(mockSessionRules.LocalTable(pod2VPPNsIndex).HasRule("", 0, "", 0, "UDP", "NOTHING")).To(gomega.BeTrue())
+	gomega.Expect(mockSessionRules.LocalTable(pod2VPPNsIndex).HasRule("", 0, "10.0.0.0/8", 22, "TCP", "DENY")).To(gomega.BeTrue())
 	gomega.Expect(mockSessionRules.GlobalTable().NumOfRules()).To(gomega.BeEquivalentTo(1))
 	gomega.Expect(mockSessionRules.GlobalTable().HasRule(pod1IP, 0, "", 0, "UDP", "DENY")).To(gomega.BeTrue())
 }
@@ -495,10 +507,14 @@ func TestMultipleRulesMultiplePodsWithResync(t *testing.T) {
 	// Verify output
 	gomega.Expect(mockSessionRules.GetErrCount()).To(gomega.BeEquivalentTo(0))
 	gomega.Expect(mockSessionRules.GetReqCount()).To(gomega.BeEquivalentTo(6))
-	gomega.Expect(mockSessionRules.LocalTable(pod1VPPNsIndex).NumOfRules()).To(gomega.BeEquivalentTo(2))
+	gomega.Expect(mockSessionRules.LocalTable(pod1VPPNsIndex).NumOfRules()).To(gomega.BeEquivalentTo(4))
+	gomega.Expect(mockSessionRules.LocalTable(pod1VPPNsIndex).HasRule("", 0, "", 0, "TCP", "NOTHING")).To(gomega.BeTrue())
+	gomega.Expect(mockSessionRules.LocalTable(pod1VPPNsIndex).HasRule("", 0, "", 0, "UDP", "NOTHING")).To(gomega.BeTrue())
 	gomega.Expect(mockSessionRules.LocalTable(pod1VPPNsIndex).HasRule("", 0, "10.0.0.0/8", 22, "TCP", "DENY")).To(gomega.BeTrue())
 	gomega.Expect(mockSessionRules.LocalTable(pod1VPPNsIndex).HasRule("", 0, "10.1.0.0/16", 80, "TCP", "DENY")).To(gomega.BeTrue())
-	gomega.Expect(mockSessionRules.LocalTable(pod2VPPNsIndex).NumOfRules()).To(gomega.BeEquivalentTo(1))
+	gomega.Expect(mockSessionRules.LocalTable(pod2VPPNsIndex).NumOfRules()).To(gomega.BeEquivalentTo(3))
+	gomega.Expect(mockSessionRules.LocalTable(pod2VPPNsIndex).HasRule("", 0, "", 0, "TCP", "NOTHING")).To(gomega.BeTrue())
+	gomega.Expect(mockSessionRules.LocalTable(pod2VPPNsIndex).HasRule("", 0, "", 0, "UDP", "NOTHING")).To(gomega.BeTrue())
 	gomega.Expect(mockSessionRules.LocalTable(pod2VPPNsIndex).HasRule("", 0, "10.0.0.0/8", 22, "TCP", "DENY")).To(gomega.BeTrue())
 	gomega.Expect(mockSessionRules.GlobalTable().NumOfRules()).To(gomega.BeEquivalentTo(3))
 	gomega.Expect(mockSessionRules.GlobalTable().HasRule(pod1IP, 23, "192.168.2.0/24", 0, "TCP", "ALLOW")).To(gomega.BeTrue())
@@ -540,12 +556,15 @@ func TestMultipleRulesMultiplePodsWithResync(t *testing.T) {
 
 	// Verify output
 	gomega.Expect(mockSessionRules.GetErrCount()).To(gomega.BeEquivalentTo(0))
-	gomega.Expect(mockSessionRules.GetReqCount()).To(gomega.BeEquivalentTo(12))
-	gomega.Expect(mockSessionRules.LocalTable(pod1VPPNsIndex).NumOfRules()).To(gomega.BeEquivalentTo(1))
+	gomega.Expect(mockSessionRules.GetReqCount()).To(gomega.BeEquivalentTo(13))
+	gomega.Expect(mockSessionRules.LocalTable(pod1VPPNsIndex).NumOfRules()).To(gomega.BeEquivalentTo(3))
+	gomega.Expect(mockSessionRules.LocalTable(pod1VPPNsIndex).HasRule("", 0, "", 0, "TCP", "NOTHING")).To(gomega.BeTrue())
+	gomega.Expect(mockSessionRules.LocalTable(pod1VPPNsIndex).HasRule("", 0, "", 0, "UDP", "NOTHING")).To(gomega.BeTrue())
 	gomega.Expect(mockSessionRules.LocalTable(pod1VPPNsIndex).HasRule("", 0, "10.0.0.0/8", 22, "TCP", "DENY")).To(gomega.BeTrue())
-	gomega.Expect(mockSessionRules.LocalTable(pod2VPPNsIndex).NumOfRules()).To(gomega.BeEquivalentTo(2))
-	gomega.Expect(mockSessionRules.LocalTable(pod2VPPNsIndex).HasRule("", 0, "10.0.0.0/8", 22, "TCP", "DENY")).To(gomega.BeTrue())
+	gomega.Expect(mockSessionRules.LocalTable(pod2VPPNsIndex).NumOfRules()).To(gomega.BeEquivalentTo(3))
 	gomega.Expect(mockSessionRules.LocalTable(pod2VPPNsIndex).HasRule("", 0, "", 0, "TCP", "DENY")).To(gomega.BeTrue())
+	gomega.Expect(mockSessionRules.LocalTable(pod2VPPNsIndex).HasRule("", 0, "", 0, "UDP", "NOTHING")).To(gomega.BeTrue())
+	gomega.Expect(mockSessionRules.LocalTable(pod2VPPNsIndex).HasRule("", 0, "10.0.0.0/8", 22, "TCP", "DENY")).To(gomega.BeTrue())
 	gomega.Expect(mockSessionRules.GlobalTable().NumOfRules()).To(gomega.BeEquivalentTo(1))
 	gomega.Expect(mockSessionRules.GlobalTable().HasRule(pod1IP, 0, "", 0, "UDP", "DENY")).To(gomega.BeTrue())
 }
@@ -619,7 +638,9 @@ func TestSinglePodWithResync(t *testing.T) {
 	// Verify output
 	gomega.Expect(mockSessionRules.GetErrCount()).To(gomega.BeEquivalentTo(0))
 	gomega.Expect(mockSessionRules.GetReqCount()).To(gomega.BeEquivalentTo(3))
-	gomega.Expect(mockSessionRules.LocalTable(pod1VPPNsIndex).NumOfRules()).To(gomega.BeEquivalentTo(2))
+	gomega.Expect(mockSessionRules.LocalTable(pod1VPPNsIndex).NumOfRules()).To(gomega.BeEquivalentTo(4))
+	gomega.Expect(mockSessionRules.LocalTable(pod1VPPNsIndex).HasRule("", 0, "", 0, "TCP", "NOTHING")).To(gomega.BeTrue())
+	gomega.Expect(mockSessionRules.LocalTable(pod1VPPNsIndex).HasRule("", 0, "", 0, "UDP", "NOTHING")).To(gomega.BeTrue())
 	gomega.Expect(mockSessionRules.LocalTable(pod1VPPNsIndex).HasRule("", 0, "10.0.0.0/8", 22, "TCP", "ALLOW")).To(gomega.BeTrue())
 	gomega.Expect(mockSessionRules.LocalTable(pod1VPPNsIndex).HasRule("", 0, "10.0.0.0/8", 23, "TCP", "ALLOW")).To(gomega.BeTrue())
 	gomega.Expect(mockSessionRules.GlobalTable().NumOfRules()).To(gomega.BeEquivalentTo(1))
@@ -641,7 +662,9 @@ func TestSinglePodWithResync(t *testing.T) {
 	// Verify output
 	gomega.Expect(mockSessionRules.GetErrCount()).To(gomega.BeEquivalentTo(0))
 	gomega.Expect(mockSessionRules.GetReqCount()).To(gomega.BeEquivalentTo(5)) // + dump + ping
-	gomega.Expect(mockSessionRules.LocalTable(pod1VPPNsIndex).NumOfRules()).To(gomega.BeEquivalentTo(2))
+	gomega.Expect(mockSessionRules.LocalTable(pod1VPPNsIndex).NumOfRules()).To(gomega.BeEquivalentTo(4))
+	gomega.Expect(mockSessionRules.LocalTable(pod1VPPNsIndex).HasRule("", 0, "", 0, "TCP", "NOTHING")).To(gomega.BeTrue())
+	gomega.Expect(mockSessionRules.LocalTable(pod1VPPNsIndex).HasRule("", 0, "", 0, "UDP", "NOTHING")).To(gomega.BeTrue())
 	gomega.Expect(mockSessionRules.LocalTable(pod1VPPNsIndex).HasRule("", 0, "10.0.0.0/8", 22, "TCP", "ALLOW")).To(gomega.BeTrue())
 	gomega.Expect(mockSessionRules.LocalTable(pod1VPPNsIndex).HasRule("", 0, "10.0.0.0/8", 23, "TCP", "ALLOW")).To(gomega.BeTrue())
 	gomega.Expect(mockSessionRules.GlobalTable().NumOfRules()).To(gomega.BeEquivalentTo(1))
@@ -658,6 +681,15 @@ func TestSinglePodWithResync(t *testing.T) {
 	vppTCPRenderer.Init()
 
 	// Prepare new data.
+	inRule3 := &renderer.ContivRule{
+		ID:          "deny-UDP",
+		Action:      renderer.ActionDeny,
+		SrcNetwork:  ipNetwork(""),
+		DestNetwork: ipNetwork(""),
+		Protocol:    renderer.UDP,
+		SrcPort:     0,
+		DestPort:    0,
+	}
 	egRule2 := &renderer.ContivRule{
 		ID:          "allow-UDP",
 		Action:      renderer.ActionPermit,
@@ -668,7 +700,7 @@ func TestSinglePodWithResync(t *testing.T) {
 		DestPort:    0,
 	}
 
-	ingress2 := []*renderer.ContivRule{inRule2}
+	ingress2 := []*renderer.ContivRule{inRule2, inRule3}
 	egress2 := []*renderer.ContivRule{egRule1, egRule2}
 
 	// Execute Renderer transaction.
@@ -676,8 +708,10 @@ func TestSinglePodWithResync(t *testing.T) {
 
 	// Verify output
 	gomega.Expect(mockSessionRules.GetErrCount()).To(gomega.BeEquivalentTo(0))
-	gomega.Expect(mockSessionRules.GetReqCount()).To(gomega.BeEquivalentTo(9)) // + dump + ping + one removed + one added
-	gomega.Expect(mockSessionRules.LocalTable(pod1VPPNsIndex).NumOfRules()).To(gomega.BeEquivalentTo(1))
+	gomega.Expect(mockSessionRules.GetReqCount()).To(gomega.BeEquivalentTo(11)) // + dump + ping + two removed + two added
+	gomega.Expect(mockSessionRules.LocalTable(pod1VPPNsIndex).NumOfRules()).To(gomega.BeEquivalentTo(3))
+	gomega.Expect(mockSessionRules.LocalTable(pod1VPPNsIndex).HasRule("", 0, "", 0, "TCP", "NOTHING")).To(gomega.BeTrue())
+	gomega.Expect(mockSessionRules.LocalTable(pod1VPPNsIndex).HasRule("", 0, "", 0, "UDP", "DENY")).To(gomega.BeTrue())
 	gomega.Expect(mockSessionRules.LocalTable(pod1VPPNsIndex).HasRule("", 0, "10.0.0.0/8", 23, "TCP", "ALLOW")).To(gomega.BeTrue())
 	gomega.Expect(mockSessionRules.GlobalTable().NumOfRules()).To(gomega.BeEquivalentTo(2))
 	gomega.Expect(mockSessionRules.GlobalTable().HasRule(pod1IP, 80, "192.168.2.0/24", 0, "TCP", "DENY")).To(gomega.BeTrue())

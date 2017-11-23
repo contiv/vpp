@@ -200,6 +200,28 @@ func (srct *SessionRuleCacheTxn) Changes() (added, removed []*SessionRule, err e
 				currentTables.global.Insert(rule)
 			}
 		}
+		// Add rules automatically installed by VPP that could have been
+		// but were not overwritten by the filtering rules.
+		for nsIndex := range currentTables.local {
+			hasAllTCP := false
+			hasAllUDP := false
+			for i := 0; i < currentTables.local[nsIndex].numItems; i++ {
+				rule := currentTables.local[nsIndex].rules[i]
+				if rule.RmtPlen == 0 && rule.RmtPort == 0 {
+					if rule.TransportProto == RuleProtoTCP {
+						hasAllTCP = true
+					} else {
+						hasAllUDP = true
+					}
+				}
+			}
+			if !hasAllTCP {
+				currentTables.local[nsIndex].Insert(defaultDoNothingRule(nsIndex, RuleProtoTCP))
+			}
+			if !hasAllUDP {
+				currentTables.local[nsIndex].Insert(defaultDoNothingRule(nsIndex, RuleProtoUDP))
+			}
+		}
 		// Compare currently installed tables with those from the transaction.
 		added, removed = srct.tables.Diff(currentTables)
 	} else {
@@ -490,12 +512,24 @@ func (st *SessionTables) Diff(st2 *SessionTables) (added, removed []*SessionRule
 			added = append(added, nsAdded...)
 			removed = append(removed, nsRemoved...)
 		} else {
-			added = append(added, nsRules.rules...)
+			nsRules2 = NewSessionRuleList()
+			// these rules are installed by VPP by default.
+			nsRules2.Insert(defaultDoNothingRule(nsIndex, RuleProtoTCP))
+			nsRules2.Insert(defaultDoNothingRule(nsIndex, RuleProtoUDP))
+			nsAdded, nsRemoved := nsRules.Diff(nsRules2)
+			added = append(added, nsAdded...)
+			removed = append(removed, nsRemoved...)
 		}
 	}
 	for nsIndex, nsRules2 := range st2.local {
 		if _, hasNs := st.local[nsIndex]; !hasNs {
-			removed = append(removed, nsRules2.rules...)
+			nsRules := NewSessionRuleList()
+			// these rules are installed by VPP by default.
+			nsRules.Insert(defaultDoNothingRule(nsIndex, RuleProtoTCP))
+			nsRules.Insert(defaultDoNothingRule(nsIndex, RuleProtoUDP))
+			nsAdded, nsRemoved := nsRules.Diff(nsRules2)
+			added = append(added, nsAdded...)
+			removed = append(removed, nsRemoved...)
 		}
 	}
 	return added, removed
@@ -667,9 +701,19 @@ func convertEgressRules(nsIndex uint32, ipAddr *net.IPNet, egress []*renderer.Co
 // convertIngressRules constructs ingress session rules for a given namespace
 // to be installed into the local table.
 func convertIngressRules(nsIndex uint32, ingress []*renderer.ContivRule, tagPrefix string) []*SessionRule {
+	hasAllTCP := false
+	hasAllUDP := false
 	// Construct ingress Session rules.
 	sessionRules := []*SessionRule{}
 	for _, rule := range ingress {
+		// is this rule for all dst IP and ports?
+		if len(rule.DestNetwork.IP) == 0 && rule.DestPort == 0 {
+			if rule.Protocol == renderer.TCP {
+				hasAllTCP = true
+			} else {
+				hasAllUDP = true
+			}
+		}
 		sessionRule := &SessionRule{}
 		// Transport Protocol
 		switch rule.Protocol {
@@ -721,7 +765,29 @@ func convertIngressRules(nsIndex uint32, ingress []*renderer.ContivRule, tagPref
 		// Add rule into the list.
 		sessionRules = append(sessionRules, sessionRule)
 	}
+	if !hasAllTCP {
+		// Add rule "0/0 0 0/0 0 TCP -1" normally installed by VPP and needed
+		// for non-filtered traffic transfer.
+		sessionRules = append(sessionRules, defaultDoNothingRule(nsIndex, RuleProtoTCP))
+	}
+	if !hasAllUDP {
+		// Add rule "0/0 0 0/0 0 UDP -1" normally installed by VPP and needed for
+		// non-filtered traffic transfer.
+		sessionRules = append(sessionRules, defaultDoNothingRule(nsIndex, RuleProtoUDP))
+	}
 	return sessionRules
+}
+
+// This is the only rule installed automatically by VPP that may be overwritten
+// by the agent for traffic filtering.
+func defaultDoNothingRule(nsIndex uint32, protocol uint8) *SessionRule {
+	sessionRule := &SessionRule{}
+	sessionRule.TransportProto = protocol
+	sessionRule.ActionIndex = RuleActionDoNothing
+	sessionRule.AppnsIndex = nsIndex
+	sessionRule.Scope = RuleScopeLocal
+	sessionRule.IsIP4 = uint8(1)
+	return sessionRule
 }
 
 func getMD5Hash(text string) string {

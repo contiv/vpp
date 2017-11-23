@@ -56,7 +56,7 @@ metadata:
   name: govpp-cfg
   namespace: kube-system
 data:
-  contiv.yaml: |
+  govpp.yaml: |
     health-check-probe-interval: 1000000000
     health-check-reply-timeout: 500000000
     health-check-threshold: 3
@@ -224,7 +224,7 @@ spec:
             # readiness + liveness probe
             - containerPort: 9191
           # to be uncomented if env vpp has enough (cpu) resources
-          # while testing it keep restarting due to 
+          # while testing it keep restarting due to
           #  Warning  Unhealthy ... Liveness probe failed: HTTP probe failed with statuscode: 500
           # TODO: increase tolerance
          # readinessProbe:

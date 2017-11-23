@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"io/ioutil"
+	"os"
 )
 
 var (
@@ -63,7 +64,19 @@ func processFile(inputFile string, outputFile string, params injectParams) (err 
 	if err != nil {
 		return
 	}
-	err = ioutil.WriteFile(outputFile, []byte(converted), 0644) //TODO fixme: file permissions should be the same of input file (even more important in case when inputFile==outputFile)
+
+	err = ioutil.WriteFile(outputFile, []byte(converted), fileMode(inputFile))
 	fmt.Println("Done")
 	return
+}
+
+func fileMode(inputFile string) os.FileMode {
+	fileMode := os.FileMode(0644) //default permissions
+	inputFileInfo, err := os.Stat(inputFile)
+	if err == nil {
+		fileMode = inputFileInfo.Mode()
+	} else {
+		fmt.Printf("\n  Can't detect file permissions for input file. Using permissions %v for output file. Error: %v \n", fileMode, err)
+	}
+	return fileMode
 }

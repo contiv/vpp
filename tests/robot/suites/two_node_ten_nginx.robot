@@ -5,12 +5,12 @@ Suite Setup       TwoNodesK8sSetup
 Suite Teardown    TwoNodesK8sTeardown
 
 *** Test Cases ***
-#Pod_To_Ten_Nginxs
-#    [Documentation]    Curl from one pod to another. Pods are on different nodes.
-#    [Setup]    Setup_Hosts_Connections
-#    ${stdout} =    KubernetesEnv.Run_Finite_Command_In_Pod    curl http://${nginx_ip}    ssh_session=${client_connection}
-#    BuiltIn.Should_Contain   ${stdout}    If you see this page, the nginx web server is successfully installed
-#    [Teardown]    Teardown_Hosts_Connections
+Pod_To_Ten_Nginxs
+    [Documentation]    Curl from one pod to another. Pods are on different nodes.
+    [Setup]    Setup_Hosts_Connections
+    ${stdout} =    KubernetesEnv.Run_Finite_Command_In_Pod    curl http://${nginx_ip}    ssh_session=${client_connection}
+    BuiltIn.Should_Contain   ${stdout}    If you see this page, the nginx web server is successfully installed
+    [Teardown]    Teardown_Hosts_Connections
 
 Host_To_Ten_Nginxs
     [Documentation]    Curl from linux host pod to another on the same node

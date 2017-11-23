@@ -64,9 +64,13 @@ Reinit_Multinode_Kube_Cluster
     # reset all nodes
     :FOR    ${index}    IN RANGE    1    ${KUBE_CLUSTER_${CLUSTER_ID}_NODES}+1
     \    ${connection} =    BuiltIn.Set_Variable    ${VM_SSH_ALIAS_PREFIX}${index}
-    \    SshCommons.Switch_And_Execute_Command    ${VM_SSH_ALIAS_PREFIX}${index}    sudo rm -rf ~/.kube
+    \    SshCommons.Switch_And_Execute_Command    ${connection}    sudo rm -rf ~/.kube
     \    KubeAdm.Reset    ${connection}
+    \    SshCommons.Switch_And_Execute_Command    ${connection}    sudo modprobe uio_pci_generic
+    \    SshCommons.Switch_And_Execute_Command    ${connection}    curl -s https://raw.githubusercontent.com/contiv/vpp/master/k8s/cri-install.sh | sudo bash /dev/stdin -u    ignore_stderr=${True}    ignore_rc=${True}
     \    Docker_Pull_Contiv_Vpp    ${connection}
+    \    Docker_Pull_Custom_Kube_Proxy    ${connection}
+    \    SshCommons.Switch_And_Execute_Command    ${connection}    curl -s https://raw.githubusercontent.com/contiv/vpp/master/k8s/cri-install.sh | sudo bash /dev/stdin
     # init master
     ${connection} =    BuiltIn.Set_Variable    ${VM_SSH_ALIAS_PREFIX}1
     ${init_stdout} =    KubeAdm.Init    ${connection}
@@ -317,7 +321,7 @@ Verify_Pod_Not_Present
     Collections.Dictionary_Should_Not_Contain_Key     ${pods}    ${pod_name}
 
 Wait_Until_Pod_Removed
-    [Arguments]    ${ssh_session}    ${pod_name}    ${timeout}=90s    ${check_period}=5s    ${namespace}=default
+    [Arguments]    ${ssh_session}    ${pod_name}    ${timeout}=120s    ${check_period}=5s    ${namespace}=default
     [Documentation]    WUKS around Verify_Pod_Not_Present.
     BuiltIn.Log_Many    ${ssh_session}    ${pod_name}    ${timeout}    ${check_period}    ${namespace}
     BuiltIn.Wait_Until_Keyword_Succeeds    ${timeout}    ${check_period}    Verify_Pod_Not_Present    ${ssh_session}    ${pod_name}    namespace=${namespace}

@@ -25,11 +25,11 @@ import (
 	"time"
 
 	v3 "github.com/coreos/etcd/clientv3"
+	pb "github.com/coreos/etcd/mvcc/mvccpb"
 	"github.com/coreos/etcd/pkg/report"
 
 	"github.com/spf13/cobra"
 	"golang.org/x/time/rate"
-	"gopkg.in/cheggaaa/pb.v1"
 )
 
 var (

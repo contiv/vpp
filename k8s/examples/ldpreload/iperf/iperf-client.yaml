@@ -25,6 +25,5 @@ spec:
           # ldpreload-related env vars
           - name: VCL_APP_SCOPE_GLOBAL
             value: ""
-          # enable verbose VCL debugs, do not use for production
-          - name: VCL_DEBUG
-            value: "3"
+          - name: VCL_APP_SCOPE_LOCAL
+            value: ""

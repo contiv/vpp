@@ -8,10 +8,11 @@ import (
 	"bytes"
 	"encoding/hex"
 	"fmt"
-	"golang.org/x/crypto/openpgp/errors"
 	"io"
 	"io/ioutil"
 	"testing"
+
+	"golang.org/x/crypto/openpgp/errors"
 )
 
 func TestReadFull(t *testing.T) {

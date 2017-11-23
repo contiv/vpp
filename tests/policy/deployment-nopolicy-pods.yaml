@@ -1,0 +1,22 @@
+apiVersion: apps/v1beta2
+kind: Deployment
+metadata:
+  name: busybox-deployment-no-policy
+  labels:
+    app: nginx
+spec:
+  replicas: 20
+  selector:
+    matchLabels:
+      role: backend
+  template:
+    metadata:
+      labels:
+        role: backend
+    spec:
+      containers:
+      - name: busybox
+        image: busybox
+        command:
+          - sleep
+          - "3600"

@@ -21,9 +21,10 @@ limitations under the License.
 package admissionregistration
 
 import (
+	reflect "reflect"
+
 	conversion "k8s.io/apimachinery/pkg/conversion"
 	runtime "k8s.io/apimachinery/pkg/runtime"
-	reflect "reflect"
 )
 
 func init() {

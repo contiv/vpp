@@ -21,12 +21,13 @@ limitations under the License.
 package v1alpha1
 
 import (
+	unsafe "unsafe"
+
 	v1alpha1 "k8s.io/api/admission/v1alpha1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	conversion "k8s.io/apimachinery/pkg/conversion"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	admission "k8s.io/kubernetes/pkg/apis/admission"
-	unsafe "unsafe"
 )
 
 func init() {

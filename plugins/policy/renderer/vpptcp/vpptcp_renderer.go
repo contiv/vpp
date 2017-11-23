@@ -232,11 +232,11 @@ func (art *RendererTxn) Commit() error {
 	}
 	if len(added) == 0 && len(removed) == 0 {
 		art.renderer.Log.Debug("No changes to be rendered in the transaction")
-		return nil
-	}
-	err = art.renderer.updateRules(added, removed)
-	if err != nil {
-		return err
+	} else {
+		err = art.renderer.updateRules(added, removed)
+		if err != nil {
+			return err
+		}
 	}
 	art.cacheTxn.Commit()
 	return nil

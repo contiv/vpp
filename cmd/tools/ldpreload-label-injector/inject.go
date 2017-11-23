@@ -75,6 +75,8 @@ func insertAppScope(document string, eol string, params injectParams) string {
 				"# ldpreload-related env vars",
 				"- name: VCL_APP_SCOPE_GLOBAL",
 				"  value: \"\"",
+				"- name: VCL_APP_SCOPE_LOCAL",
+				"  value: \"\"",
 			},
 			eol)
 	}

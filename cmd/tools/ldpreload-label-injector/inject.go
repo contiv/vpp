@@ -10,11 +10,12 @@ import (
 )
 
 const (
-	minusIntendCharacter = "-"
-	spaceIntendCharacter = " "
-	intendCharacters     = minusIntendCharacter + spaceIntendCharacter
-	commentCharacters    = "#"
-	defaultIntendLength  = 2 //used only when heuristic fails to provide intend lengths used in input file
+	documentDelimiter         = "---"
+	minusIndentationCharacter = "-"
+	spaceIndentationCharacter = " "
+	indentationCharacters     = minusIndentationCharacter + spaceIndentationCharacter
+	commentCharacters         = "#"
+	defaultIndentationLength  = 2 //used only when heuristic fails to provide indentation lengths used in input file
 )
 
 var (
@@ -30,7 +31,10 @@ func inject(content string, params injectParams) (string, error) {
 	}
 
 	var converted bytes.Buffer
-	for _, document := range strings.Split(content, "---") {
+	for _, document := range strings.Split(content, documentDelimiter) {
+		if converted.Len() != 0 {
+			converted.WriteString(documentDelimiter)
+		}
 		if isPod(document) || isDeployment(document) {
 			document = insertLDPreloadTrue(document, eol)
 			document = insertAppScope(document, eol, params)
@@ -137,7 +141,7 @@ func insertLinesConditioned(document string, path []string, condition conditionF
 			if !condition(i) {
 				lines = elseInsertLines
 			}
-			insertStr := createIntendedInsertionString(i, eol, lines)
+			insertStr := createIndentationedInsertionString(i, eol, lines)
 			//TODO check existence before inserting
 			insertPoint := strings.Index(i.curBlockStr(), eol) + len(eol) + i.curBlockStart()
 			insertions = prepend(insertion{insertPoint, insertStr}, insertions) // using this order doesn't invalidate indexes of insertions by applying them sequentially
@@ -150,25 +154,41 @@ func insertLinesConditioned(document string, path []string, condition conditionF
 	}
 	return document
 }
-func createIntendedInsertionString(i traversingInfo, eol string, insertLines []string) string {
-	intendDelta := defaultIntendLength
-	// just guess in case we don't have enough information to compute it
+func createIndentationedInsertionString(i traversingInfo, eol string, insertLines []string) string {
+	//computing indentation delta additions to define inner block indentation
+	indentationDelta := defaultIndentationLength // just guess in case we don't have enough information to compute it
 	if len(i.resolvedPath) > 1 {
-		intendDelta = round(float64(i.parentBlockIntend) / float64(len(i.resolvedPath)-1))
+		indentationDelta = round(float64(i.parentBlockIndentation) / float64(len(i.resolvedPath)-1))
 	}
+
+	//compute indentation of inner block
+	indentation := 0 //default is for case when len(i.resolvedPath) == 0
+	if len(i.resolvedPath) > 0 {
+		// checking indentation of siblings
+		match := regexp.
+			MustCompile(i.eol + "([" + spaceIndentationCharacter + "]*?)[^" + spaceIndentationCharacter + commentCharacters + "]{1}").
+			FindStringSubmatch(i.curBlockStr())
+		if match != nil {
+			indentation = len(match[1])
+		} else { //no siblings -> using heuristic
+			indentation = i.parentBlockIndentation + indentationDelta
+		}
+	}
+
+	//creating missing path if necessary
 	var buffer bytes.Buffer
 	if len(i.unresolvedPath) > 0 {
-		if len(i.resolvedPath) == 0 {
-			i.parentBlockIntend = -intendDelta // if there is no top level block then we must start with no intend
-		}
 		for _, pathPart := range i.unresolvedPath {
-			buffer.WriteString(strings.Repeat(" ", i.parentBlockIntend+intendDelta) + pathPart + eol)
-			i.parentBlockIntend = i.parentBlockIntend + intendDelta
+			buffer.WriteString(strings.Repeat(" ", indentation) + pathPart + eol)
+			indentation = indentation + indentationDelta
 		}
 	}
+
+	//creating insertion lines with proper indentation
 	for _, line := range insertLines {
-		buffer.WriteString(strings.Repeat(" ", i.parentBlockIntend+intendDelta) + line + eol)
+		buffer.WriteString(strings.Repeat(" ", indentation) + line + eol)
 	}
+
 	return buffer.String()
 }
 
@@ -184,10 +204,10 @@ type traversingInfo struct {
 	eol      string
 
 	// dynamic info changed by traversing
-	unresolvedPath    []string
-	resolvedPath      []string
-	blocks            []block
-	parentBlockIntend int
+	unresolvedPath         []string
+	resolvedPath           []string
+	blocks                 []block
+	parentBlockIndentation int
 }
 
 type block struct {
@@ -201,23 +221,23 @@ func newTraversingInfo(document string, path []string, visitor func(traversingIn
 		visitor:  visitor,
 		eol:      eol,
 
-		unresolvedPath:    path,
-		resolvedPath:      []string{},
-		blocks:            []block{{0, len(document)}},
-		parentBlockIntend: 0,
+		unresolvedPath:         path,
+		resolvedPath:           []string{},
+		blocks:                 []block{{0, len(document)}},
+		parentBlockIndentation: 0,
 	}
 }
 
-func (t *traversingInfo) newDescending(blockStart int, blockEnd int, parentBlockIntend int) traversingInfo {
+func (t *traversingInfo) newDescending(blockStart int, blockEnd int, parentBlockIndentation int) traversingInfo {
 	return traversingInfo{
 		document: t.document,
 		visitor:  t.visitor,
 		eol:      t.eol,
 
-		unresolvedPath:    t.unresolvedPath[1:],
-		resolvedPath:      append(t.resolvedPath, t.unresolvedPath[0]),
-		blocks:            append(t.blocks, block{blockStart, blockEnd}),
-		parentBlockIntend: parentBlockIntend,
+		unresolvedPath:         t.unresolvedPath[1:],
+		resolvedPath:           append(t.resolvedPath, t.unresolvedPath[0]),
+		blocks:                 append(t.blocks, block{blockStart, blockEnd}),
+		parentBlockIndentation: parentBlockIndentation,
 	}
 }
 
@@ -248,72 +268,72 @@ func visitInsertionPlaces(i traversingInfo) {
 	}
 
 	if i.unresolvedPath[0] == "-" { // compact nested mapping
-		blockIntend := computeMappingBlockIntend(i.curBlockStr(), i.eol)
+		blockIndentation := computeMappingBlockIndentation(i.curBlockStr(), i.eol)
 		mappingItemPrefixes := regexp.
-			MustCompile(i.eol+"["+spaceIntendCharacter+"]{"+strconv.Itoa(blockIntend)+"}"+minusIntendCharacter).
+			MustCompile(i.eol+"["+spaceIndentationCharacter+"]{"+strconv.Itoa(blockIndentation)+"}"+minusIndentationCharacter).
 			FindAllStringIndex(i.curBlockStr(), -1)
 		for _, prefixIndexes := range mappingItemPrefixes {
-			itemBlockStart, itemBlockEnd := computeItemBlockPosition(i.curBlockStr(), prefixIndexes, blockIntend, i.eol)
+			itemBlockStart, itemBlockEnd := computeItemBlockPosition(i.curBlockStr(), prefixIndexes, blockIndentation, i.eol)
 
 			// recursive call would not handle map item block correctly => handling 1 recursive call here (recursive calls
 			// can continue when in mapping items are normal blocks again)
 			// Expecting that unresolved paths can't end with "-"
-			childBlockIntend := computeItemBlockIntend(i.curBlockStr(), i.eol)
-			handleBasicBlock(i.newDescending(i.curBlockStart()+itemBlockStart, i.curBlockStart()+itemBlockEnd, blockIntend), childBlockIntend)
+			childBlockIndentation := computeItemBlockIndentation(i.curBlockStr(), i.eol)
+			handleBasicBlock(i.newDescending(i.curBlockStart()+itemBlockStart, i.curBlockStart()+itemBlockEnd, blockIndentation), childBlockIndentation)
 		}
 	} else { // basic blocks
-		blockIntend := computeNormalBlockIntend(i.curBlockStr(), i.eol)
-		handleBasicBlock(i, blockIntend)
+		blockIndentation := computeNormalBlockIndentation(i.curBlockStr(), i.eol)
+		handleBasicBlock(i, blockIndentation)
 	}
 }
 
-func handleBasicBlock(i traversingInfo, blockIntend int) {
+func handleBasicBlock(i traversingInfo, blockIndentation int) {
 	matchedBlockPrefixes := regexp.
-		MustCompile(i.eol+"["+intendCharacters+"]{"+strconv.Itoa(blockIntend)+"}"+i.unresolvedPath[0]).
+		MustCompile(i.eol+"["+indentationCharacters+"]{"+strconv.Itoa(blockIndentation)+"}"+i.unresolvedPath[0]).
 		FindAllStringIndex(i.curBlockStr(), -1)
 	if len(matchedBlockPrefixes) == 0 { //next block doesn't exist
 		i.visitor(i)
 		return
 	}
 	for _, prefixIndexes := range matchedBlockPrefixes {
-		childBlockStart, childBlockEnd := computeChildBlockPosition(i.curBlockStr(), prefixIndexes, blockIntend, i.eol)
-		visitInsertionPlaces(i.newDescending(i.curBlockStart()+childBlockStart, i.curBlockStart()+childBlockEnd, blockIntend))
+		childBlockStart, childBlockEnd := computeChildBlockPosition(i.curBlockStr(), prefixIndexes, blockIndentation, i.eol)
+		visitInsertionPlaces(i.newDescending(i.curBlockStart()+childBlockStart, i.curBlockStart()+childBlockEnd, blockIndentation))
 	}
 }
 
-func computeNormalBlockIntend(curBlock string, eol string) int {
-	return computeBlockIntend(curBlock, eol, eol+"["+spaceIntendCharacter+"]*[^"+intendCharacters+commentCharacters+"]{1}") //TODO convert intendCharacters to regexp? for "- " is it the same
+func computeNormalBlockIndentation(curBlock string, eol string) int {
+	return computeBlockIndentation(curBlock, eol, eol+"["+spaceIndentationCharacter+"]*[^"+indentationCharacters+commentCharacters+"]{1}") //TODO convert indentationCharacters to regexp? for "- " is it the same
 }
 
-func computeMappingBlockIntend(curBlock string, eol string) int {
-	return computeBlockIntend(curBlock, eol, eol+"["+spaceIntendCharacter+"]*"+minusIntendCharacter) //TODO convert intendCharacters to regexp? for "- " is it the same
+func computeMappingBlockIndentation(curBlock string, eol string) int {
+	return computeBlockIndentation(curBlock, eol, eol+"["+spaceIndentationCharacter+"]*"+minusIndentationCharacter) //TODO convert indentationCharacters to regexp? for "- " is it the same
 }
 
-func computeItemBlockIntend(curBlock string, eol string) int {
-	return computeBlockIntend(curBlock, eol, eol+"["+intendCharacters+"]*[^"+intendCharacters+commentCharacters+"]{1}") //TODO convert intendCharacters to regexp? for "- " is it the same
+func computeItemBlockIndentation(curBlock string, eol string) int {
+	return computeBlockIndentation(curBlock, eol, eol+"["+indentationCharacters+"]*[^"+indentationCharacters+commentCharacters+"]{1}") //TODO convert indentationCharacters to regexp? for "- " is it the same
 }
 
-func computeBlockIntend(curBlock string, eol string, intendRegExp string) int {
-	intend := regexp.MustCompile(intendRegExp).FindString(curBlock)
-	if intend == "" { //block has no child blocks
+func computeBlockIndentation(curBlock string, eol string, indentationRegExp string) int {
+	indentation := regexp.MustCompile(indentationRegExp).FindString(curBlock)
+	if indentation == "" { //block has no child blocks
 		return -1
 	}
-	_, lastRuneSize := utf8.DecodeLastRuneInString(intend)
-	return len(intend) - len(eol) - lastRuneSize //TODO convert byte length to rune length? for " " and "-" it is the same length
+	_, lastRuneSize := utf8.DecodeLastRuneInString(indentation)
+	return len(indentation) - len(eol) - lastRuneSize //TODO convert byte length to rune length? for " " and "-" it is the same length
 }
 
-func computeChildBlockPosition(curBlock string, childBlockPrefixIndexes []int, blockIntend int, eol string) (int, int) {
-	return computeInnerBlockPosition(curBlock, childBlockPrefixIndexes, blockIntend, eol, "[^"+intendCharacters+commentCharacters+"]{1}")
+func computeChildBlockPosition(curBlock string, childBlockPrefixIndexes []int, blockIndentation int, eol string) (int, int) {
+	return computeInnerBlockPosition(curBlock, childBlockPrefixIndexes, blockIndentation, eol, "[^"+indentationCharacters+commentCharacters+"]{1}")
 }
 
-func computeItemBlockPosition(curBlock string, itemBlockPrefixIndexes []int, blockIntend int, eol string) (int, int) {
-	return computeInnerBlockPosition(curBlock, itemBlockPrefixIndexes, blockIntend, eol, minusIntendCharacter)
+func computeItemBlockPosition(curBlock string, itemBlockPrefixIndexes []int, blockIndentation int, eol string) (int, int) {
+	return computeInnerBlockPosition(curBlock, itemBlockPrefixIndexes, blockIndentation, eol, minusIndentationCharacter)
 }
 
-func computeInnerBlockPosition(curBlock string, innerBlockPrefixIndexes []int, blockIntend int, eol string, lastCharacterRegExp string) (int, int) {
-	start := innerBlockPrefixIndexes[0] + len(eol)                                                                    //without eol from previous block
-	nextSibling := eol + "[" + spaceIntendCharacter + "]{" + strconv.Itoa(blockIntend) + "}" + lastCharacterRegExp    //TODO convert intendCharacters to regexp? for "- " is it the same
-	nextSiblingIdx := regexp.MustCompile(nextSibling).FindStringIndex(curBlock[innerBlockPrefixIndexes[0]+len(eol):]) // shifted search by len(eol) to not match start of block
+func computeInnerBlockPosition(curBlock string, innerBlockPrefixIndexes []int, blockIndentation int, eol string, lastCharacterRegExp string) (int, int) {
+	start := innerBlockPrefixIndexes[0] + len(eol)                                                                           //without eol from previous block
+	nextSibling := eol + "[" + spaceIndentationCharacter + "]{" + strconv.Itoa(blockIndentation) + "}" + lastCharacterRegExp //TODO convert indentationCharacters to regexp? for "- " is it the same
+	nextSiblingIdx := regexp.MustCompile(nextSibling).FindStringIndex(curBlock[innerBlockPrefixIndexes[0]+len(eol):])        // shifted search by len(eol) to not match start of block
 	if nextSiblingIdx != nil {
 		return start, innerBlockPrefixIndexes[0] + nextSiblingIdx[0] + len(eol) /*shifted sibling search*/ + len(eol) /*include block ending eol (matched by sibling search) */
 	}

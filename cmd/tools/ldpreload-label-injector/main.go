@@ -54,7 +54,7 @@ Flags:
 }
 
 func processFile(inputFile string, outputFile string, params injectParams) (err error) {
-	fmt.Printf("Processing file %v (to output %v)", inputFile, outputFile)
+	fmt.Printf("Processing file %v (to output %v)... ", inputFile, outputFile)
 	content, err := ioutil.ReadFile(inputFile)
 	if err != nil {
 		return
@@ -64,5 +64,6 @@ func processFile(inputFile string, outputFile string, params injectParams) (err 
 		return
 	}
 	err = ioutil.WriteFile(outputFile, []byte(converted), 0644) //TODO fixme: file permissions should be the same of input file (even more important in case when inputFile==outputFile)
+	fmt.Println("Done")
 	return
 }

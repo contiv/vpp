@@ -54,7 +54,7 @@ Usage:
 Flags:
   -o [output file]  Sets output for modified kubernetes yaml file. This overrides default behaviour that takes input file as output file and modifies input file in-place.
   -d                Adds ldpreload debug label to yaml kubernetes files
-  -p                Sets the name for proxy that should be used. If not set, proxy is not used.
+  -p                Sets the name of container that should be used as proxy. If not set, proxy is not used.
   -h                Prints this help
 `)
 }

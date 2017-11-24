@@ -29,6 +29,8 @@ define install_only
 	@cd cmd/contiv-cri && go install -v ${LDFLAGS}
 	@echo "# installing contiv-cni"
 	@cd cmd/contiv-cni && go install -v ${LDFLAGS}
+	@echo "# installing ldpreload-label-injector"
+	@cd cmd/tools/ldpreload-label-injector && go install -v
 	@echo "# done"
 endef
 
@@ -131,6 +133,13 @@ define build_contiv_cri_only
     @echo "# done"
 endef
 
+# build ldpreload-inject-tool only
+define build_ldpreload_inject_tool_only
+    @echo "# building ldpreload inject tool"
+    @cd cmd/tools/ldpreload-label-injector && go build -v -i
+    @echo "# done"
+endef
+
 
 # verify that links in markdown files are valid
 # requires npm install -g markdown-link-check
@@ -153,6 +162,7 @@ build:
 	$(call build_contiv_cni_only)
 	$(call build_contiv_ksr_only)
 	$(call build_contiv_cri_only)
+	$(call build_ldpreload_inject_tool_only)
 
 # build agent
 agent:
@@ -169,6 +179,9 @@ contiv-cni:
 # build contiv-cri
 contiv-cri:
 	$(call build_contiv_cri_only)
+
+ldpreload-inject-tool:
+	$(call build_ldpreload_inject_tool_only)
 
 # install binaries
 install:
@@ -229,6 +242,7 @@ clean:
 	rm -f cmd/contiv-cni/contiv-cni
 	rm -f cmd/contiv-ksr/contiv-ksr
 	rm -f cmd/contiv-ksr/contiv-cri
+	rm -f cmd/tools/ldpreload-label-injector/ldpreload-label-injector
 	@echo "# cleanup completed"
 
 # run all targets

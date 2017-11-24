@@ -28,10 +28,11 @@ Usage:
   ldpreload-label-injector [input file]
 
 Flags:
-  -o [output file]  Sets output for modified kubernetes yaml file. This overrides default behaviour that takes input file as output file and modifies input file in-place.
-  -d                Adds ldpreload debug label to yaml kubernetes files
-  -p                Sets the name of container that should be used as proxy. If not set, proxy is not used.
-  -h                Prints this help
+  -f [input file | "-" ] Sets tool input. You can choose to set tool input from file or from standard input.
+  -o [output file]       Sets tool output to file. If this parameter is ommited, the tool output is standard (terminal/console) output
+  -d                     Adds ldpreload debug label to yaml kubernetes files
+  -p                     Sets the name of container that should be used as proxy. If not set, proxy is not used.
+  -h                     Prints this help
 `
 
 // main is the main method for ldpreload label injector
@@ -73,6 +74,7 @@ func main() {
 	}
 }
 
+// readInput reads input based on tool command paramers/flags
 func readInput() (content string, err error) {
 	if *inputFile == "" {
 		err = fmt.Errorf("Input is not specified, please use -f parameter.\n" + helpContent)
@@ -91,6 +93,7 @@ func readInput() (content string, err error) {
 	return
 }
 
+// writeOutput writes output based on tool command paramers/flags
 func writeOutput(content string) error {
 	if *outputFile == "" {
 		fmt.Print(content)

@@ -1,13 +1,7 @@
 *** Settings ***
-Resource          ${CURDIR}/../../libraries/setup-teardown.robot
-Resource          ${CURDIR}/../../libraries/SshCommons.robot
-Resource          ${CURDIR}/../../variables/${VARIABLES}_variables.robot
+Resource          ${CURDIR}/../../libraries/all_libs.robot
 Suite Setup       setup-teardown.Testsuite_Setup
 Suite Teardown    setup-teardown.Testsuite_Teardown
-
-*** Variables ***
-${VARIABLES}      common
-${ENV}            common
 
 *** Test Cases ***
 Do_ls_on_vm1

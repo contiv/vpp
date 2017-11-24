@@ -1,14 +1,8 @@
 *** Settings ***
 Documentation     This suite test getting the web page from nginx (with istio).
-Resource          ${CURDIR}/../libraries/KubernetesEnv.robot
-Resource          ${CURDIR}/../variables/${VARIABLES}_variables.robot
-Resource          ${CURDIR}/../libraries/setup-teardown.robot
+Resource          ${CURDIR}/../libraries/all_libs.robot
 Suite Setup       OneNodeK8sSetup
 Suite Teardown    OneNodeK8sTeardown
-
-*** Variables ***
-${VARIABLES}      common
-${ENV}            common
 
 *** Test Cases ***
 Pod_To_Nginx_Ping

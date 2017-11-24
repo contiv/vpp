@@ -15,44 +15,151 @@
 package cache
 
 import (
+	"bytes"
 	"net"
+	"strings"
 	"testing"
 
+	"github.com/onsi/gomega"
+
+	"github.com/contiv/vpp/plugins/policy/renderer"
+	. "github.com/contiv/vpp/plugins/policy/utils"
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/logging/logroot"
-	"github.com/onsi/gomega"
 )
 
-func ipNetwork(addr string) (ip [16]byte, maskLen uint8) {
+const tagPrefix = "cache-tests-"
+
+func ipNetwork(addr string) *net.IPNet {
 	if addr == "" {
-		return ip, 0
+		return &net.IPNet{}
 	}
 	_, network, error := net.ParseCIDR(addr)
-	maskSize, _ := network.Mask.Size()
 	gomega.Expect(error).To(gomega.BeNil())
-	if network.IP.To4() != nil {
-		copy(ip[:], network.IP.To4())
-	} else {
-		copy(ip[:], network.IP.To16())
+	return network
+}
+
+func newContivRule(ID string, action renderer.ActionType, src *net.IPNet, dst *net.IPNet,
+	proto renderer.ProtocolType, port uint16) *renderer.ContivRule {
+
+	rule := &renderer.ContivRule{
+		ID:          ID,
+		Action:      action,
+		SrcNetwork:  src,
+		DestNetwork: dst,
+		Protocol:    proto,
+		SrcPort:     0,
+		DestPort:    port,
 	}
-	return ip, uint8(maskSize)
+	return rule
 }
 
-func makeTag(tagStr string) [64]byte {
-	tag := [64]byte{}
-	copy(tag[:], tagStr)
-	return tag
+func checkSessionRule(list []*SessionRule, scope string, nsIndex uint32,
+	lclIP string, lclPort uint16, rmtIP string, rmtPort uint16, proto string, action string) {
+
+	// Construct SessionRule.
+	rule := SessionRule{
+		LclPort:    lclPort,
+		RmtPort:    rmtPort,
+		AppnsIndex: nsIndex,
+	}
+
+	// Parse scope
+	switch scope {
+	case "LOCAL":
+		rule.Scope = RuleScopeLocal
+	case "GLOBAL":
+		rule.Scope = RuleScopeGlobal
+	}
+
+	// Parse transport protocol.
+	var transportProto uint8
+	switch proto {
+	case "TCP":
+		transportProto = RuleProtoTCP
+	case "UDP":
+		transportProto = RuleProtoUDP
+	}
+	rule.TransportProto = transportProto
+
+	// Parse action.
+	var actionIndex uint32
+	switch action {
+	case "ALLOW":
+		actionIndex = RuleActionAllow
+	case "DENY":
+		actionIndex = RuleActionDeny
+	}
+	rule.ActionIndex = actionIndex
+
+	// Parse IP addresses.
+	isIPv4 := uint8(0)
+	if lclIP != "" {
+		var lclIPNet *net.IPNet
+		if !strings.Contains(lclIP, "/") {
+			lclIPNet = GetOneHostSubnet(lclIP)
+		} else {
+			lclIPNet = ipNetwork(lclIP)
+		}
+		if lclIPNet.IP.To4() != nil {
+			isIPv4 = 1
+			copy(rule.LclIP[:], lclIPNet.IP.To4())
+		} else {
+			copy(rule.LclIP[:], lclIPNet.IP.To16())
+		}
+		lclPlen, _ := lclIPNet.Mask.Size()
+		rule.LclPlen = uint8(lclPlen)
+	}
+	if rmtIP != "" {
+		var rmtIPNet *net.IPNet
+		if !strings.Contains(rmtIP, "/") {
+			rmtIPNet = GetOneHostSubnet(rmtIP)
+		} else {
+			rmtIPNet = ipNetwork(rmtIP)
+		}
+		if rmtIPNet.IP.To4() != nil {
+			isIPv4 = 1
+			copy(rule.RmtIP[:], rmtIPNet.IP.To4())
+		} else {
+			copy(rule.RmtIP[:], rmtIPNet.IP.To16())
+		}
+		rmtPlen, _ := rmtIPNet.Mask.Size()
+		rule.RmtPlen = uint8(rmtPlen)
+	}
+	if lclIP == "" && rmtIP == "" {
+		isIPv4 = 1
+	}
+	rule.IsIP4 = isIPv4
+
+	// Search for the rule.
+	found := false
+	for _, rule2 := range list {
+		if rule.Compare(rule2, false) == 0 {
+			gomega.Expect(found).To(gomega.BeFalse())
+			/* check tag prefix */
+			tagLen := bytes.IndexByte(rule2.Tag[:], 0)
+			tag := string(rule2.Tag[:tagLen])
+			gomega.Expect(strings.HasPrefix(tag, tagPrefix)).To(gomega.BeTrue())
+			found = true
+		}
+	}
+	gomega.Expect(found).To(gomega.BeTrue())
 }
 
-func checkSessionRules(list []*SessionRule, rules ...*SessionRule) {
-	gomega.Expect(len(list)).To(gomega.BeEquivalentTo(len(rules)))
+func checkContivRules(a, b []*renderer.ContivRule) {
+	if a == nil && b == nil {
+		return
+	}
+	gomega.Expect(a).ToNot(gomega.BeNil())
+	gomega.Expect(b).ToNot(gomega.BeNil())
+	gomega.Expect(len(a)).To(gomega.BeEquivalentTo(len(b)))
 
-	for _, rule := range rules {
+	for _, ruleA := range a {
 		found := false
-		for _, rule2 := range list {
-			if rule.Compare(rule2, true) == 0 {
+		for _, ruleB := range b {
+			if ruleA.Compare(ruleB) == 0 {
+				gomega.Expect(found).To(gomega.BeFalse())
 				found = true
-				break
 			}
 		}
 		gomega.Expect(found).To(gomega.BeTrue())
@@ -82,20 +189,15 @@ func TestSingleIngressRuleSingleNs(t *testing.T) {
 	logger.Debug("TestSingleIngressRuleSingleNs")
 
 	// Prepare input data.
-	rmtIP, rmtPlen := ipNetwork("192.168.1.0/24")
-	rule := &SessionRule{
-		TransportProto: RuleProtoTCP,
-		IsIP4:          1,
-		RmtIP:          rmtIP,
-		RmtPlen:        rmtPlen,
-		LclPort:        80,
-		ActionIndex:    RuleActionAllow,
-		AppnsIndex:     10,
-		Scope:          RuleScopeLocal,
-		Tag:            makeTag("test"),
-	}
-	ingress := NewSessionRuleList(0, rule)
-	egress := NewSessionRuleList(0)
+	const (
+		nsIndex = 10
+		podIP   = "192.168.2.1"
+	)
+
+	rule := newContivRule("allow-http", renderer.ActionPermit, &net.IPNet{}, ipNetwork("192.168.1.0/24"), renderer.TCP, 80)
+
+	ingress := []*renderer.ContivRule{rule}
+	egress := []*renderer.ContivRule{}
 
 	// Create an instance of SessionRuleCache
 	ruleCache := &SessionRuleCache{
@@ -103,7 +205,7 @@ func TestSingleIngressRuleSingleNs(t *testing.T) {
 			Log: logger,
 		},
 	}
-	ruleCache.Init(func() (SessionRuleList, error) { return NewSessionRuleList(0), nil })
+	ruleCache.Init(func() ([]*SessionRule, error) { return []*SessionRule{}, nil }, tagPrefix)
 	checkNamespaces(ruleCache)
 
 	// Run single transaction.
@@ -114,12 +216,13 @@ func TestSingleIngressRuleSingleNs(t *testing.T) {
 	gomega.Expect(removed).To(gomega.BeEmpty())
 
 	// Change config for one namespace
-	txn.Update(10, ingress, egress)
-	checkNamespaces(ruleCache) /* not yet commited */
+	txn.Update(nsIndex, GetOneHostSubnet(podIP), ingress, egress)
+	checkNamespaces(ruleCache) // not yet committed
 	added, removed, err = txn.Changes()
 	gomega.Expect(err).To(gomega.BeNil())
-	checkSessionRules(added, rule)
-	checkSessionRules(removed)
+	gomega.Expect(len(added)).To(gomega.BeEquivalentTo(1))
+	gomega.Expect(len(removed)).To(gomega.BeEquivalentTo(0))
+	checkSessionRule(added, "LOCAL", nsIndex, "", 0, "192.168.1.0/24", 80, "TCP", "ALLOW")
 
 	// Commit the transaction.
 	txn.Commit()
@@ -127,8 +230,8 @@ func TestSingleIngressRuleSingleNs(t *testing.T) {
 
 	// Verify cache content.
 	cacheIngress, cacheEgress := ruleCache.LookupByNamespace(10)
-	checkSessionRules(cacheIngress, rule)
-	checkSessionRules(cacheEgress)
+	checkContivRules(cacheIngress, ingress)
+	checkContivRules(cacheEgress, egress)
 }
 
 func TestSingleEgressRuleSingleNs(t *testing.T) {
@@ -138,23 +241,15 @@ func TestSingleEgressRuleSingleNs(t *testing.T) {
 	logger.Debug("TestSingleEgressRuleSingleNs")
 
 	// Prepare input data.
-	lclIP, lclPlen := ipNetwork("192.168.1.1/32")
-	rmtIP, rmtPlen := ipNetwork("192.168.2.0/24")
-	rule := &SessionRule{
-		TransportProto: RuleProtoTCP,
-		IsIP4:          1,
-		LclIP:          lclIP,
-		LclPlen:        lclPlen,
-		RmtIP:          rmtIP,
-		RmtPlen:        rmtPlen,
-		LclPort:        80,
-		ActionIndex:    RuleActionAllow,
-		AppnsIndex:     10,
-		Scope:          RuleScopeGlobal,
-		Tag:            makeTag("test"),
-	}
-	ingress := NewSessionRuleList(0)
-	egress := NewSessionRuleList(0, rule)
+	const (
+		nsIndex = 10
+		podIP   = "192.168.2.1"
+	)
+
+	rule := newContivRule("allow-http", renderer.ActionPermit, ipNetwork("192.168.1.0/24"), &net.IPNet{}, renderer.TCP, 80)
+
+	ingress := []*renderer.ContivRule{}
+	egress := []*renderer.ContivRule{rule}
 
 	// Create an instance of SessionRuleCache
 	ruleCache := &SessionRuleCache{
@@ -162,7 +257,7 @@ func TestSingleEgressRuleSingleNs(t *testing.T) {
 			Log: logger,
 		},
 	}
-	ruleCache.Init(func() (SessionRuleList, error) { return NewSessionRuleList(0), nil })
+	ruleCache.Init(func() ([]*SessionRule, error) { return []*SessionRule{}, nil }, tagPrefix)
 	checkNamespaces(ruleCache)
 
 	// Run single transaction.
@@ -173,12 +268,13 @@ func TestSingleEgressRuleSingleNs(t *testing.T) {
 	gomega.Expect(removed).To(gomega.BeEmpty())
 
 	// Change config for one namespace
-	txn.Update(10, ingress, egress)
-	checkNamespaces(ruleCache) /* not yet commited */
+	txn.Update(nsIndex, GetOneHostSubnet(podIP), ingress, egress)
+	checkNamespaces(ruleCache) // not yet commited
 	added, removed, err = txn.Changes()
 	gomega.Expect(err).To(gomega.BeNil())
-	checkSessionRules(added, rule)
-	checkSessionRules(removed)
+	gomega.Expect(len(added)).To(gomega.BeEquivalentTo(1))
+	gomega.Expect(len(removed)).To(gomega.BeEquivalentTo(0))
+	checkSessionRule(added, "GLOBAL", 0, podIP, 80, "192.168.1.0/24", 0, "TCP", "ALLOW")
 
 	// Commit the transaction.
 	txn.Commit()
@@ -186,8 +282,8 @@ func TestSingleEgressRuleSingleNs(t *testing.T) {
 
 	// Verify cache content.
 	cacheIngress, cacheEgress := ruleCache.LookupByNamespace(10)
-	checkSessionRules(cacheIngress)
-	checkSessionRules(cacheEgress, rule)
+	checkContivRules(cacheIngress, ingress)
+	checkContivRules(cacheEgress, egress)
 }
 
 func TestMultipleRulesSingleNsWithDataChange(t *testing.T) {
@@ -197,72 +293,19 @@ func TestMultipleRulesSingleNsWithDataChange(t *testing.T) {
 	logger.Debug("TestMultipleRulesSingleNsWithDataChange")
 
 	// Prepare input data.
-	rmtIP1, rmtPlen1 := ipNetwork("192.168.1.0/24")
-	inRule1 := &SessionRule{
-		TransportProto: RuleProtoTCP,
-		IsIP4:          1,
-		RmtIP:          rmtIP1,
-		RmtPlen:        rmtPlen1,
-		LclPort:        80,
-		ActionIndex:    RuleActionAllow,
-		AppnsIndex:     10,
-		Scope:          RuleScopeLocal,
-		Tag:            makeTag("test1"),
-	}
-	rmtIP2, rmtPlen2 := ipNetwork("192.168.2.0/24")
-	inRule2 := &SessionRule{
-		TransportProto: RuleProtoTCP,
-		IsIP4:          1,
-		RmtIP:          rmtIP2,
-		RmtPlen:        rmtPlen2,
-		LclPort:        22,
-		ActionIndex:    RuleActionAllow,
-		AppnsIndex:     10,
-		Scope:          RuleScopeLocal,
-		Tag:            makeTag("test2"),
-	}
-	lclIP3, lclPlen3 := ipNetwork("192.168.3.1/32")
-	rmtIP3, rmtPlen3 := ipNetwork("10.0.0.0/8")
-	egRule1 := &SessionRule{
-		TransportProto: RuleProtoUDP,
-		IsIP4:          1,
-		LclIP:          lclIP3,
-		LclPlen:        lclPlen3,
-		RmtIP:          rmtIP3,
-		RmtPlen:        rmtPlen3,
-		LclPort:        777,
-		ActionIndex:    RuleActionAllow,
-		AppnsIndex:     10,
-		Scope:          RuleScopeGlobal,
-		Tag:            makeTag("test3"),
-	}
-	lclIP4, lclPlen4 := ipNetwork("192.168.3.1/32")
-	egRule2 := &SessionRule{
-		TransportProto: RuleProtoTCP,
-		IsIP4:          1,
-		LclIP:          lclIP4,
-		LclPlen:        lclPlen4,
-		LclPort:        0,
-		ActionIndex:    RuleActionDeny,
-		AppnsIndex:     10,
-		Scope:          RuleScopeGlobal,
-		Tag:            makeTag("test4"),
-	}
-	lclIP5, lclPlen5 := ipNetwork("192.168.3.1/32")
-	egRule3 := &SessionRule{
-		TransportProto: RuleProtoUDP,
-		IsIP4:          1,
-		LclIP:          lclIP5,
-		LclPlen:        lclPlen5,
-		LclPort:        0,
-		ActionIndex:    RuleActionDeny,
-		AppnsIndex:     10,
-		Scope:          RuleScopeGlobal,
-		Tag:            makeTag("test5"),
-	}
+	const (
+		nsIndex = 10
+		podIP   = "192.168.2.1"
+	)
 
-	ingress := NewSessionRuleList(0, inRule1, inRule2)
-	egress := NewSessionRuleList(0, egRule1, egRule2, egRule3)
+	inRule1 := newContivRule("allow-http", renderer.ActionPermit, &net.IPNet{}, ipNetwork("192.168.1.0/24"), renderer.TCP, 80)
+	inRule2 := newContivRule("allow-ssh", renderer.ActionPermit, &net.IPNet{}, ipNetwork("192.168.2.0/24"), renderer.TCP, 22)
+	egRule1 := newContivRule("allow-UDP:777", renderer.ActionPermit, ipNetwork("192.168.3.1/32"), &net.IPNet{}, renderer.UDP, 777)
+	egRule2 := newContivRule("deny-all-TCP", renderer.ActionDeny, &net.IPNet{}, &net.IPNet{}, renderer.TCP, 0)
+	egRule3 := newContivRule("deny-all-UDP", renderer.ActionDeny, &net.IPNet{}, &net.IPNet{}, renderer.UDP, 0)
+
+	ingress := []*renderer.ContivRule{inRule1, inRule2}
+	egress := []*renderer.ContivRule{egRule1, egRule2, egRule3}
 
 	// Create an instance of SessionRuleCache
 	ruleCache := &SessionRuleCache{
@@ -270,7 +313,7 @@ func TestMultipleRulesSingleNsWithDataChange(t *testing.T) {
 			Log: logger,
 		},
 	}
-	ruleCache.Init(func() (SessionRuleList, error) { return NewSessionRuleList(0), nil })
+	ruleCache.Init(func() ([]*SessionRule, error) { return []*SessionRule{}, nil }, tagPrefix)
 	checkNamespaces(ruleCache)
 
 	// Run single transaction.
@@ -281,12 +324,17 @@ func TestMultipleRulesSingleNsWithDataChange(t *testing.T) {
 	gomega.Expect(removed).To(gomega.BeEmpty())
 
 	// Change config for one namespace
-	txn.Update(10, ingress, egress)
-	checkNamespaces(ruleCache) /* not yet commited */
+	txn.Update(nsIndex, GetOneHostSubnet(podIP), ingress, egress)
+	checkNamespaces(ruleCache) // not yet commited
 	added, removed, err = txn.Changes()
 	gomega.Expect(err).To(gomega.BeNil())
-	checkSessionRules(added, inRule1, inRule2, egRule1, egRule2, egRule3)
-	checkSessionRules(removed)
+	gomega.Expect(len(added)).To(gomega.BeEquivalentTo(5))
+	gomega.Expect(len(removed)).To(gomega.BeEquivalentTo(0))
+	checkSessionRule(added, "LOCAL", nsIndex, "", 0, "192.168.1.0/24", 80, "TCP", "ALLOW")
+	checkSessionRule(added, "LOCAL", nsIndex, "", 0, "192.168.2.0/24", 22, "TCP", "ALLOW")
+	checkSessionRule(added, "GLOBAL", 0, podIP, 777, "192.168.3.1/32", 0, "UDP", "ALLOW")
+	checkSessionRule(added, "GLOBAL", 0, podIP, 0, "", 0, "TCP", "DENY")
+	checkSessionRule(added, "GLOBAL", 0, podIP, 0, "", 0, "UDP", "DENY")
 
 	// Commit the transaction.
 	txn.Commit()
@@ -294,8 +342,8 @@ func TestMultipleRulesSingleNsWithDataChange(t *testing.T) {
 
 	// Verify cache content.
 	cacheIngress, cacheEgress := ruleCache.LookupByNamespace(10)
-	checkSessionRules(cacheIngress, inRule1, inRule2)
-	checkSessionRules(cacheEgress, egRule1, egRule2, egRule3)
+	checkContivRules(cacheIngress, ingress)
+	checkContivRules(cacheEgress, egress)
 
 	// Run second transaction with a config change.
 	txn = ruleCache.NewTxn(false)
@@ -305,40 +353,23 @@ func TestMultipleRulesSingleNsWithDataChange(t *testing.T) {
 	gomega.Expect(removed).To(gomega.BeEmpty())
 
 	// Updated config.
-	inRule3 := &SessionRule{
-		TransportProto: RuleProtoTCP,
-		IsIP4:          0,
-		LclPort:        0,
-		ActionIndex:    RuleActionDeny,
-		AppnsIndex:     10,
-		Scope:          RuleScopeLocal,
-		Tag:            makeTag("test6"),
-	}
-	lclIP6, lclPlen6 := ipNetwork("2001:db8:a0b:12f0::1/128")
-	rmtIP6, rmtPlen6 := ipNetwork("2001:0000:6dcd:8c74:76cc:63bf:ac32:6a1/64")
-	egRule4 := &SessionRule{
-		TransportProto: RuleProtoUDP,
-		IsIP4:          0,
-		LclIP:          lclIP6,
-		LclPlen:        lclPlen6,
-		RmtIP:          rmtIP6,
-		RmtPlen:        rmtPlen6,
-		LclPort:        0,
-		ActionIndex:    RuleActionDeny,
-		AppnsIndex:     10,
-		Scope:          RuleScopeGlobal,
-		Tag:            makeTag("test7"),
-	}
+	inRule3 := newContivRule("deny-all-TCP", renderer.ActionDeny, &net.IPNet{}, &net.IPNet{}, renderer.TCP, 0)
+	egRule4 := newContivRule("allow-all-TCP", renderer.ActionPermit, &net.IPNet{}, &net.IPNet{}, renderer.TCP, 0)
 
-	ingress2 := NewSessionRuleList(0, inRule3)
-	egress2 := NewSessionRuleList(0, egRule1, egRule3, egRule4)
+	ingress2 := []*renderer.ContivRule{inRule3}
+	egress2 := []*renderer.ContivRule{egRule1, egRule3, egRule4}
 
 	// Change config for one namespace
-	txn.Update(10, ingress2, egress2)
+	txn.Update(nsIndex, GetOneHostSubnet(podIP), ingress2, egress2)
 	added, removed, err = txn.Changes()
 	gomega.Expect(err).To(gomega.BeNil())
-	checkSessionRules(added, inRule3, egRule4)
-	checkSessionRules(removed, inRule1, inRule2, egRule2)
+	gomega.Expect(len(added)).To(gomega.BeEquivalentTo(2))
+	gomega.Expect(len(removed)).To(gomega.BeEquivalentTo(3))
+	checkSessionRule(added, "LOCAL", nsIndex, "", 0, "", 0, "TCP", "DENY")
+	checkSessionRule(added, "GLOBAL", 0, podIP, 0, "", 0, "TCP", "ALLOW")
+	checkSessionRule(removed, "LOCAL", nsIndex, "", 0, "192.168.1.0/24", 80, "TCP", "ALLOW")
+	checkSessionRule(removed, "LOCAL", nsIndex, "", 0, "192.168.2.0/24", 22, "TCP", "ALLOW")
+	checkSessionRule(removed, "GLOBAL", 0, podIP, 0, "", 0, "TCP", "DENY")
 
 	// Commit the transaction.
 	txn.Commit()
@@ -346,8 +377,8 @@ func TestMultipleRulesSingleNsWithDataChange(t *testing.T) {
 
 	// Verify cache content.
 	cacheIngress, cacheEgress = ruleCache.LookupByNamespace(10)
-	checkSessionRules(cacheIngress, inRule3)
-	checkSessionRules(cacheEgress, egRule1, egRule3, egRule4)
+	checkContivRules(cacheIngress, ingress2)
+	checkContivRules(cacheEgress, egress2)
 }
 
 func TestMultipleRulesMultipleNsWithDataChange(t *testing.T) {
@@ -357,75 +388,41 @@ func TestMultipleRulesMultipleNsWithDataChange(t *testing.T) {
 	logger.Debug("TestMultipleRulesMultipleNsWithDataChange")
 
 	// Prepare input data.
-	rmtIP1, rmtPlen1 := ipNetwork("192.168.1.0/24")
-	inRule1 := &SessionRule{
-		TransportProto: RuleProtoTCP,
-		IsIP4:          1,
-		RmtIP:          rmtIP1,
-		RmtPlen:        rmtPlen1,
-		LclPort:        80,
-		ActionIndex:    RuleActionAllow,
-		AppnsIndex:     10,
-		Scope:          RuleScopeLocal,
-		Tag:            makeTag("test1"),
-	}
-	rmtIP2, rmtPlen2 := ipNetwork("192.168.2.0/24")
-	inRule2 := &SessionRule{
-		TransportProto: RuleProtoTCP,
-		IsIP4:          1,
-		RmtIP:          rmtIP2,
-		RmtPlen:        rmtPlen2,
-		LclPort:        22,
-		ActionIndex:    RuleActionAllow,
-		AppnsIndex:     15,
-		Scope:          RuleScopeLocal,
-		Tag:            makeTag("test2"),
-	}
-	lclIP3, lclPlen3 := ipNetwork("192.168.3.1/32")
-	rmtIP3, rmtPlen3 := ipNetwork("10.0.0.0/8")
-	egRule1 := &SessionRule{
-		TransportProto: RuleProtoUDP,
-		IsIP4:          1,
-		LclIP:          lclIP3,
-		LclPlen:        lclPlen3,
-		RmtIP:          rmtIP3,
-		RmtPlen:        rmtPlen3,
-		LclPort:        777,
-		ActionIndex:    RuleActionAllow,
-		AppnsIndex:     0,
-		Scope:          RuleScopeGlobal,
-		Tag:            makeTag("test3"),
-	}
-	lclIP4, lclPlen4 := ipNetwork("192.168.3.2/32")
-	egRule2 := &SessionRule{
-		TransportProto: RuleProtoTCP,
-		IsIP4:          1,
-		LclIP:          lclIP4,
-		LclPlen:        lclPlen4,
-		LclPort:        0,
-		ActionIndex:    RuleActionDeny,
-		AppnsIndex:     0,
-		Scope:          RuleScopeGlobal,
-		Tag:            makeTag("test4"),
-	}
-	lclIP5, lclPlen5 := ipNetwork("192.168.3.2/32")
-	egRule3 := &SessionRule{
-		TransportProto: RuleProtoUDP,
-		IsIP4:          1,
-		LclIP:          lclIP5,
-		LclPlen:        lclPlen5,
-		LclPort:        0,
-		ActionIndex:    RuleActionDeny,
-		AppnsIndex:     0,
-		Scope:          RuleScopeGlobal,
-		Tag:            makeTag("test5"),
-	}
+	const (
+		nsIndex1 = 10
+		pod1IP   = "192.168.1.1"
+		nsIndex2 = 15
+		pod2IP   = "192.168.2.40"
+	)
 
-	ingressNs10 := NewSessionRuleList(0, inRule1)
-	egressNs10 := NewSessionRuleList(0, egRule1)
+	// - Pod1 rules
+	//   - ingress
+	inRule11 := newContivRule("allow-all-TCP-all", renderer.ActionPermit, &net.IPNet{}, &net.IPNet{}, renderer.TCP, 0)
+	inRule12 := newContivRule("allow-all-UDP-all", renderer.ActionPermit, &net.IPNet{}, &net.IPNet{}, renderer.UDP, 0)
+	//   - egress
+	egRule11 := newContivRule("allow-all-UDP-for-pod2", renderer.ActionPermit, ipNetwork("192.168.2.0/26"), &net.IPNet{}, renderer.UDP, 0)
+	egRule12 := newContivRule("allow-TCP80-for-pod2", renderer.ActionPermit, ipNetwork("192.168.2.40/32"), &net.IPNet{}, renderer.TCP, 80)
+	egRule13 := newContivRule("allow-TCP22-for-pod2", renderer.ActionPermit, ipNetwork("192.168.2.40/32"), &net.IPNet{}, renderer.TCP, 22)
+	egRule14 := newContivRule("deny-all-TCP-all", renderer.ActionDeny, &net.IPNet{}, &net.IPNet{}, renderer.TCP, 0)
+	egRule15 := newContivRule("deny-all-UDP-all", renderer.ActionDeny, &net.IPNet{}, &net.IPNet{}, renderer.UDP, 0)
+	// - Pod2 rules
+	//   - ingress
+	inRule21 := newContivRule("allow-TCP80-all", renderer.ActionPermit, &net.IPNet{}, &net.IPNet{}, renderer.TCP, 80)
+	inRule22 := newContivRule("allow-TCP8080-pod1", renderer.ActionPermit, &net.IPNet{}, ipNetwork("192.168.1.1/32"), renderer.TCP, 8080)
+	inRule23 := newContivRule("deny-all-TCP-all", renderer.ActionDeny, &net.IPNet{}, &net.IPNet{}, renderer.TCP, 0)
+	inRule24 := newContivRule("deny-all-UDP-all", renderer.ActionDeny, &net.IPNet{}, &net.IPNet{}, renderer.UDP, 0)
+	//   - egress
+	egRule21 := newContivRule("deny-all-TCP-all", renderer.ActionDeny, &net.IPNet{}, &net.IPNet{}, renderer.TCP, 0)
+	egRule22 := newContivRule("deny-all-UDP-all", renderer.ActionDeny, &net.IPNet{}, &net.IPNet{}, renderer.UDP, 0)
+	egRule23 := newContivRule("allow-UDP100-not-for-pod1", renderer.ActionPermit, ipNetwork("192.168.2.0/24"), &net.IPNet{}, renderer.UDP, 100)
+	egRule24 := newContivRule("allow-TCP200-for-pod1", renderer.ActionPermit, ipNetwork("192.168.1.0/24"), &net.IPNet{}, renderer.TCP, 200)
+	egRule25 := newContivRule("allow-TCP400-for-pod1", renderer.ActionPermit, ipNetwork("192.168.1.1/32"), &net.IPNet{}, renderer.TCP, 400)
 
-	ingressNs15 := NewSessionRuleList(0, inRule2)
-	egressNs15 := NewSessionRuleList(0, egRule2, egRule3)
+	ingressPod1 := []*renderer.ContivRule{inRule11, inRule12}
+	egressPod1 := []*renderer.ContivRule{egRule11, egRule12, egRule13, egRule14, egRule15}
+
+	ingressPod2 := []*renderer.ContivRule{inRule21, inRule22, inRule23, inRule24}
+	egressPod2 := []*renderer.ContivRule{egRule21, egRule22, egRule23, egRule24, egRule25}
 
 	// Create an instance of SessionRuleCache
 	ruleCache := &SessionRuleCache{
@@ -433,7 +430,7 @@ func TestMultipleRulesMultipleNsWithDataChange(t *testing.T) {
 			Log: logger,
 		},
 	}
-	ruleCache.Init(func() (SessionRuleList, error) { return NewSessionRuleList(0), nil })
+	ruleCache.Init(func() ([]*SessionRule, error) { return []*SessionRule{}, nil }, tagPrefix)
 	checkNamespaces(ruleCache)
 
 	// Run single transaction.
@@ -444,25 +441,49 @@ func TestMultipleRulesMultipleNsWithDataChange(t *testing.T) {
 	gomega.Expect(removed).To(gomega.BeEmpty())
 
 	// Change config for two namespaces
-	txn.Update(10, ingressNs10, egressNs10)
-	txn.Update(15, ingressNs15, egressNs15)
-	checkNamespaces(ruleCache) /* not yet commited */
+	txn.Update(nsIndex1, GetOneHostSubnet(pod1IP), ingressPod1, egressPod1)
+	txn.Update(nsIndex2, GetOneHostSubnet(pod2IP), ingressPod2, egressPod2)
+	checkNamespaces(ruleCache) // not yet commited
 	added, removed, err = txn.Changes()
 	gomega.Expect(err).To(gomega.BeNil())
-	checkSessionRules(added, inRule1, inRule2, egRule1, egRule2, egRule3)
-	checkSessionRules(removed)
+	gomega.Expect(len(added)).To(gomega.BeEquivalentTo(21))
+	gomega.Expect(len(removed)).To(gomega.BeEquivalentTo(0))
+	// - Pod1
+	checkSessionRule(added, "LOCAL", nsIndex1, "", 0, "192.168.2.40/32", 200, "TCP", "ALLOW") /* combined */
+	checkSessionRule(added, "LOCAL", nsIndex1, "", 0, "192.168.2.40/32", 400, "TCP", "ALLOW") /* combined */
+	checkSessionRule(added, "LOCAL", nsIndex1, "", 0, "192.168.2.40/32", 0, "TCP", "DENY")    /* combined */
+	checkSessionRule(added, "LOCAL", nsIndex1, "", 0, "192.168.2.40/32", 0, "UDP", "DENY")    /* combined */
+	checkSessionRule(added, "LOCAL", nsIndex1, "", 0, "", 0, "TCP", "ALLOW")
+	checkSessionRule(added, "LOCAL", nsIndex1, "", 0, "", 0, "UDP", "ALLOW")
+	checkSessionRule(added, "GLOBAL", 0, pod1IP, 0, "192.168.2.0/26", 0, "UDP", "ALLOW")
+	checkSessionRule(added, "GLOBAL", 0, pod1IP, 80, "192.168.2.40/32", 0, "TCP", "ALLOW")
+	checkSessionRule(added, "GLOBAL", 0, pod1IP, 22, "192.168.2.40/32", 0, "TCP", "ALLOW")
+	checkSessionRule(added, "GLOBAL", 0, pod1IP, 0, "", 0, "TCP", "DENY")
+	checkSessionRule(added, "GLOBAL", 0, pod1IP, 0, "", 0, "UDP", "DENY")
+	// - Pod2
+	/* allow-TCP8080-pod1 removed */
+	checkSessionRule(added, "LOCAL", nsIndex2, "", 0, "192.168.1.1/32", 80, "TCP", "ALLOW") /* combined */
+	checkSessionRule(added, "LOCAL", nsIndex2, "", 0, "192.168.1.1/32", 0, "TCP", "DENY")   /* combined */
+	checkSessionRule(added, "LOCAL", nsIndex2, "", 0, "", 80, "TCP", "ALLOW")
+	checkSessionRule(added, "LOCAL", nsIndex2, "", 0, "", 0, "TCP", "DENY")
+	checkSessionRule(added, "LOCAL", nsIndex2, "", 0, "", 0, "UDP", "DENY")
+	checkSessionRule(added, "GLOBAL", 0, pod2IP, 100, "192.168.2.0/24", 0, "UDP", "ALLOW")
+	checkSessionRule(added, "GLOBAL", 0, pod2IP, 200, "192.168.1.0/24", 0, "TCP", "ALLOW")
+	checkSessionRule(added, "GLOBAL", 0, pod2IP, 400, "192.168.1.1/32", 0, "TCP", "ALLOW")
+	checkSessionRule(added, "GLOBAL", 0, pod2IP, 0, "", 0, "TCP", "DENY")
+	checkSessionRule(added, "GLOBAL", 0, pod2IP, 0, "", 0, "UDP", "DENY")
 
 	// Commit the transaction.
 	txn.Commit()
 	checkNamespaces(ruleCache, 10, 15)
 
 	// Verify cache content.
-	cacheIngress, cacheEgress := ruleCache.LookupByNamespace(10)
-	checkSessionRules(cacheIngress, inRule1)
-	checkSessionRules(cacheEgress, egRule1)
-	cacheIngress, cacheEgress = ruleCache.LookupByNamespace(15)
-	checkSessionRules(cacheIngress, inRule2)
-	checkSessionRules(cacheEgress, egRule2, egRule3)
+	cacheIngress, cacheEgress := ruleCache.LookupByNamespace(nsIndex1)
+	checkContivRules(cacheIngress, ingressPod1)
+	checkContivRules(cacheEgress, egressPod1)
+	cacheIngress, cacheEgress = ruleCache.LookupByNamespace(nsIndex2)
+	checkContivRules(cacheIngress, ingressPod2)
+	checkContivRules(cacheEgress, egressPod2)
 
 	// Run second transaction with a config change.
 	txn = ruleCache.NewTxn(false)
@@ -472,41 +493,47 @@ func TestMultipleRulesMultipleNsWithDataChange(t *testing.T) {
 	gomega.Expect(removed).To(gomega.BeEmpty())
 
 	// Updated config.
-	inRule3 := &SessionRule{
-		TransportProto: RuleProtoTCP,
-		IsIP4:          0,
-		LclPort:        0,
-		ActionIndex:    RuleActionDeny,
-		AppnsIndex:     15,
-		Scope:          RuleScopeLocal,
-		Tag:            makeTag("test6"),
-	}
+	inRule13 := newContivRule("deny-all-TCP-all", renderer.ActionDeny, &net.IPNet{}, &net.IPNet{}, renderer.TCP, 0)
+	inRule25 := newContivRule("allow-all-UDP-for-pod1", renderer.ActionPermit, &net.IPNet{}, ipNetwork("192.168.1.1/32"), renderer.UDP, 0)
+	egRule26 := newContivRule("allow-UDP100-for-pod1", renderer.ActionPermit, ipNetwork("192.168.1.0/24"), &net.IPNet{}, renderer.UDP, 100)
 
-	ingressNs10 = NewSessionRuleList(0)
-	egressNs10 = NewSessionRuleList(0)
+	ingressPod1 = []*renderer.ContivRule{inRule12, inRule13}
+	egressPod1 = []*renderer.ContivRule{egRule12, egRule13, egRule14, egRule15}
 
-	ingressNs15 = NewSessionRuleList(0, inRule2, inRule3)
-	egressNs15 = NewSessionRuleList(0)
+	ingressPod2 = []*renderer.ContivRule{inRule21, inRule22, inRule23, inRule24, inRule25}
+	egressPod2 = []*renderer.ContivRule{egRule21, egRule22, egRule24, egRule25, egRule26}
 
 	// Change config for both namespaces
-	txn.Update(10, ingressNs10, egressNs10)
-	txn.Update(15, ingressNs15, egressNs15)
+	txn.Update(nsIndex1, GetOneHostSubnet(pod1IP), ingressPod1, egressPod1)
+	txn.Update(nsIndex2, GetOneHostSubnet(pod2IP), ingressPod2, egressPod2)
 	added, removed, err = txn.Changes()
 	gomega.Expect(err).To(gomega.BeNil())
-	checkSessionRules(added, inRule3)
-	checkSessionRules(removed, inRule1, egRule1, egRule2, egRule3)
+	gomega.Expect(len(added)).To(gomega.BeEquivalentTo(4))
+	gomega.Expect(len(removed)).To(gomega.BeEquivalentTo(6))
+	// - Pod1
+	checkSessionRule(added, "LOCAL", nsIndex1, "", 0, "192.168.2.40/32", 100, "UDP", "ALLOW") /* combined */
+	checkSessionRule(added, "LOCAL", nsIndex1, "", 0, "", 0, "TCP", "DENY")
+	checkSessionRule(removed, "LOCAL", nsIndex1, "", 0, "192.168.2.40/32", 200, "TCP", "ALLOW") /* combined */
+	checkSessionRule(removed, "LOCAL", nsIndex1, "", 0, "192.168.2.40/32", 400, "TCP", "ALLOW") /* combined */
+	checkSessionRule(removed, "LOCAL", nsIndex1, "", 0, "192.168.2.40/32", 0, "TCP", "DENY")    /* combined */
+	checkSessionRule(removed, "LOCAL", nsIndex1, "", 0, "", 0, "TCP", "ALLOW")
+	checkSessionRule(removed, "GLOBAL", 0, pod1IP, 0, "192.168.2.0/26", 0, "UDP", "ALLOW")
+	// - Pod2
+	checkSessionRule(added, "LOCAL", nsIndex2, "", 0, "192.168.1.1/32", 0, "UDP", "DENY") /* combined */
+	checkSessionRule(added, "GLOBAL", 0, pod2IP, 100, "192.168.1.0/24", 0, "UDP", "ALLOW")
+	checkSessionRule(removed, "GLOBAL", 0, pod2IP, 100, "192.168.2.0/24", 0, "UDP", "ALLOW")
 
 	// Commit the transaction.
 	txn.Commit()
-	checkNamespaces(ruleCache, 10, 15)
+	checkNamespaces(ruleCache, nsIndex1, nsIndex2)
 
 	// Verify cache content.
-	cacheIngress, cacheEgress = ruleCache.LookupByNamespace(10)
-	checkSessionRules(cacheIngress)
-	checkSessionRules(cacheEgress)
-	cacheIngress, cacheEgress = ruleCache.LookupByNamespace(15)
-	checkSessionRules(cacheIngress, inRule2, inRule3)
-	checkSessionRules(cacheEgress)
+	cacheIngress, cacheEgress = ruleCache.LookupByNamespace(nsIndex1)
+	checkContivRules(cacheIngress, ingressPod1)
+	checkContivRules(cacheEgress, egressPod1)
+	cacheIngress, cacheEgress = ruleCache.LookupByNamespace(nsIndex2)
+	checkContivRules(cacheIngress, ingressPod2)
+	checkContivRules(cacheEgress, egressPod2)
 }
 
 func TestMultipleRulesMultipleNsWithResync(t *testing.T) {
@@ -516,69 +543,41 @@ func TestMultipleRulesMultipleNsWithResync(t *testing.T) {
 	logger.Debug("TestMultipleRulesMultipleNsWithResync")
 
 	// Prepare input data.
-	rmtIP1, rmtPlen1 := ipNetwork("192.168.1.0/24")
-	inRule1 := &SessionRule{
-		TransportProto: RuleProtoTCP,
-		IsIP4:          1,
-		RmtIP:          rmtIP1,
-		RmtPlen:        rmtPlen1,
-		LclPort:        80,
-		ActionIndex:    RuleActionAllow,
-		AppnsIndex:     10,
-		Scope:          RuleScopeLocal,
-		Tag:            makeTag("test1"),
-	}
-	rmtIP2, rmtPlen2 := ipNetwork("192.168.2.0/24")
-	inRule2 := &SessionRule{
-		TransportProto: RuleProtoTCP,
-		IsIP4:          1,
-		RmtIP:          rmtIP2,
-		RmtPlen:        rmtPlen2,
-		LclPort:        22,
-		ActionIndex:    RuleActionAllow,
-		AppnsIndex:     15,
-		Scope:          RuleScopeLocal,
-		Tag:            makeTag("test2"),
-	}
-	lclIP3, lclPlen3 := ipNetwork("192.168.3.1/32")
-	rmtIP3, rmtPlen3 := ipNetwork("10.0.0.0/8")
-	egRule1 := &SessionRule{
-		TransportProto: RuleProtoUDP,
-		IsIP4:          1,
-		LclIP:          lclIP3,
-		LclPlen:        lclPlen3,
-		RmtIP:          rmtIP3,
-		RmtPlen:        rmtPlen3,
-		LclPort:        777,
-		ActionIndex:    RuleActionAllow,
-		AppnsIndex:     0,
-		Scope:          RuleScopeGlobal,
-		Tag:            makeTag("test3"),
-	}
-	lclIP4, lclPlen4 := ipNetwork("192.168.3.2/32")
-	egRule2 := &SessionRule{
-		TransportProto: RuleProtoTCP,
-		IsIP4:          1,
-		LclIP:          lclIP4,
-		LclPlen:        lclPlen4,
-		LclPort:        0,
-		ActionIndex:    RuleActionDeny,
-		AppnsIndex:     0,
-		Scope:          RuleScopeGlobal,
-		Tag:            makeTag("test4"),
-	}
-	lclIP5, lclPlen5 := ipNetwork("192.168.3.2/32")
-	egRule3 := &SessionRule{
-		TransportProto: RuleProtoUDP,
-		IsIP4:          1,
-		LclIP:          lclIP5,
-		LclPlen:        lclPlen5,
-		LclPort:        0,
-		ActionIndex:    RuleActionDeny,
-		AppnsIndex:     0,
-		Scope:          RuleScopeGlobal,
-		Tag:            makeTag("test5"),
-	}
+	const (
+		nsIndex1 = 10
+		pod1IP   = "192.168.1.1"
+		nsIndex2 = 15
+		pod2IP   = "192.168.2.40"
+	)
+
+	// - Pod1 rules
+	//   - ingress
+	inRule11 := newContivRule("allow-all-TCP-all", renderer.ActionPermit, &net.IPNet{}, &net.IPNet{}, renderer.TCP, 0)
+	inRule12 := newContivRule("allow-all-UDP-all", renderer.ActionPermit, &net.IPNet{}, &net.IPNet{}, renderer.UDP, 0)
+	//   - egress
+	egRule11 := newContivRule("allow-all-UDP-for-pod2", renderer.ActionPermit, ipNetwork("192.168.2.0/26"), &net.IPNet{}, renderer.UDP, 0)
+	egRule12 := newContivRule("allow-TCP80-for-pod2", renderer.ActionPermit, ipNetwork("192.168.2.40/32"), &net.IPNet{}, renderer.TCP, 80)
+	egRule13 := newContivRule("allow-TCP22-for-pod2", renderer.ActionPermit, ipNetwork("192.168.2.40/32"), &net.IPNet{}, renderer.TCP, 22)
+	egRule14 := newContivRule("deny-all-TCP-all", renderer.ActionDeny, &net.IPNet{}, &net.IPNet{}, renderer.TCP, 0)
+	egRule15 := newContivRule("deny-all-UDP-all", renderer.ActionDeny, &net.IPNet{}, &net.IPNet{}, renderer.UDP, 0)
+	// - Pod2 rules
+	//   - ingress
+	inRule21 := newContivRule("allow-TCP80-all", renderer.ActionPermit, &net.IPNet{}, &net.IPNet{}, renderer.TCP, 80)
+	inRule22 := newContivRule("allow-TCP8080-pod1", renderer.ActionPermit, &net.IPNet{}, ipNetwork("192.168.1.1/32"), renderer.TCP, 8080)
+	inRule23 := newContivRule("deny-all-TCP-all", renderer.ActionDeny, &net.IPNet{}, &net.IPNet{}, renderer.TCP, 0)
+	inRule24 := newContivRule("deny-all-UDP-all", renderer.ActionDeny, &net.IPNet{}, &net.IPNet{}, renderer.UDP, 0)
+	//   - egress
+	egRule21 := newContivRule("deny-all-TCP-all", renderer.ActionDeny, &net.IPNet{}, &net.IPNet{}, renderer.TCP, 0)
+	egRule22 := newContivRule("deny-all-UDP-all", renderer.ActionDeny, &net.IPNet{}, &net.IPNet{}, renderer.UDP, 0)
+	egRule23 := newContivRule("allow-UDP100-not-for-pod1", renderer.ActionPermit, ipNetwork("192.168.2.0/24"), &net.IPNet{}, renderer.UDP, 100)
+	egRule24 := newContivRule("allow-TCP200-for-pod1", renderer.ActionPermit, ipNetwork("192.168.1.0/24"), &net.IPNet{}, renderer.TCP, 200)
+	egRule25 := newContivRule("allow-TCP400-for-pod1", renderer.ActionPermit, ipNetwork("192.168.1.1/32"), &net.IPNet{}, renderer.TCP, 400)
+
+	ingressPod1 := []*renderer.ContivRule{inRule11, inRule12}
+	egressPod1 := []*renderer.ContivRule{egRule11, egRule12, egRule13, egRule14, egRule15}
+
+	ingressPod2 := []*renderer.ContivRule{inRule21, inRule22, inRule23, inRule24}
+	egressPod2 := []*renderer.ContivRule{egRule21, egRule22, egRule23, egRule24, egRule25}
 
 	// Create an instance of SessionRuleCache
 	ruleCache := &SessionRuleCache{
@@ -586,53 +585,95 @@ func TestMultipleRulesMultipleNsWithResync(t *testing.T) {
 			Log: logger,
 		},
 	}
-	ruleCache.Init(func() (SessionRuleList, error) {
-		return NewSessionRuleList(0, inRule1, inRule2, egRule1, egRule2, egRule3), nil
-	})
+	ruleCache.Init(func() ([]*SessionRule, error) { return []*SessionRule{}, nil }, tagPrefix)
 	checkNamespaces(ruleCache)
 
-	// Run single RESYNC transaction.
-	txn := ruleCache.NewTxn(true)
-	added, removed, err := txn.Changes()
-	gomega.Expect(err).To(gomega.BeNil())
-	gomega.Expect(added).To(gomega.BeEmpty())
-	checkSessionRules(removed, inRule1, inRule2, egRule1, egRule2, egRule3)
+	// Run single transaction to get an initial dump.
+	txn := ruleCache.NewTxn(false)
+	txn.Update(nsIndex1, GetOneHostSubnet(pod1IP), ingressPod1, egressPod1)
+	txn.Update(nsIndex2, GetOneHostSubnet(pod2IP), ingressPod2, egressPod2)
+	added, _, _ := txn.Changes()
+	txn.Commit()
 
-	// Prepare new config.
-	inRule3 := &SessionRule{
-		TransportProto: RuleProtoTCP,
-		IsIP4:          0,
-		LclPort:        0,
-		ActionIndex:    RuleActionDeny,
-		AppnsIndex:     15,
-		Scope:          RuleScopeLocal,
-		Tag:            makeTag("test6"),
+	// Simulate cache restart.
+	ruleCache = &SessionRuleCache{
+		Deps: Deps{
+			Log: logger,
+		},
 	}
+	ruleCache.Init(func() ([]*SessionRule, error) { return added, nil }, tagPrefix)
+	checkNamespaces(ruleCache)
 
-	ingressNs10 := NewSessionRuleList(0)
-	egressNs10 := NewSessionRuleList(0, egRule1)
+	// Run RESYNC transaction with a changed config.
+	txn = ruleCache.NewTxn(true)
+	added2, removed2, err := txn.Changes()
+	gomega.Expect(err).To(gomega.BeNil())
+	gomega.Expect(len(added2)).To(gomega.BeEquivalentTo(0))
+	gomega.Expect(len(removed2)).To(gomega.BeEquivalentTo(21))
+	// - Pod1
+	checkSessionRule(removed2, "LOCAL", nsIndex1, "", 0, "192.168.2.40/32", 200, "TCP", "ALLOW") /* combined */
+	checkSessionRule(removed2, "LOCAL", nsIndex1, "", 0, "192.168.2.40/32", 400, "TCP", "ALLOW") /* combined */
+	checkSessionRule(removed2, "LOCAL", nsIndex1, "", 0, "192.168.2.40/32", 0, "TCP", "DENY")    /* combined */
+	checkSessionRule(removed2, "LOCAL", nsIndex1, "", 0, "192.168.2.40/32", 0, "UDP", "DENY")    /* combined */
+	checkSessionRule(removed2, "LOCAL", nsIndex1, "", 0, "", 0, "TCP", "ALLOW")
+	checkSessionRule(removed2, "LOCAL", nsIndex1, "", 0, "", 0, "UDP", "ALLOW")
+	checkSessionRule(removed2, "GLOBAL", 0, pod1IP, 0, "192.168.2.0/26", 0, "UDP", "ALLOW")
+	checkSessionRule(removed2, "GLOBAL", 0, pod1IP, 80, "192.168.2.40/32", 0, "TCP", "ALLOW")
+	checkSessionRule(removed2, "GLOBAL", 0, pod1IP, 22, "192.168.2.40/32", 0, "TCP", "ALLOW")
+	checkSessionRule(removed2, "GLOBAL", 0, pod1IP, 0, "", 0, "TCP", "DENY")
+	checkSessionRule(removed2, "GLOBAL", 0, pod1IP, 0, "", 0, "UDP", "DENY")
+	// - Pod2
+	checkSessionRule(removed2, "LOCAL", nsIndex2, "", 0, "192.168.1.1/32", 80, "TCP", "ALLOW") /* combined */
+	checkSessionRule(removed2, "LOCAL", nsIndex2, "", 0, "192.168.1.1/32", 0, "TCP", "DENY")   /* combined */
+	checkSessionRule(removed2, "LOCAL", nsIndex2, "", 0, "", 80, "TCP", "ALLOW")
+	checkSessionRule(removed2, "LOCAL", nsIndex2, "", 0, "", 0, "TCP", "DENY")
+	checkSessionRule(removed2, "LOCAL", nsIndex2, "", 0, "", 0, "UDP", "DENY")
+	checkSessionRule(removed2, "GLOBAL", 0, pod2IP, 100, "192.168.2.0/24", 0, "UDP", "ALLOW")
+	checkSessionRule(removed2, "GLOBAL", 0, pod2IP, 200, "192.168.1.0/24", 0, "TCP", "ALLOW")
+	checkSessionRule(removed2, "GLOBAL", 0, pod2IP, 400, "192.168.1.1/32", 0, "TCP", "ALLOW")
+	checkSessionRule(removed2, "GLOBAL", 0, pod2IP, 0, "", 0, "TCP", "DENY")
+	checkSessionRule(removed2, "GLOBAL", 0, pod2IP, 0, "", 0, "UDP", "DENY")
 
-	ingressNs15 := NewSessionRuleList(0, inRule2, inRule3)
-	egressNs15 := NewSessionRuleList(0)
+	// Updated config.
+	inRule13 := newContivRule("deny-all-TCP-all", renderer.ActionDeny, &net.IPNet{}, &net.IPNet{}, renderer.TCP, 0)
+	inRule25 := newContivRule("allow-all-UDP-for-pod1", renderer.ActionPermit, &net.IPNet{}, ipNetwork("192.168.1.1/32"), renderer.UDP, 0)
+	egRule26 := newContivRule("allow-UDP100-for-pod1", renderer.ActionPermit, ipNetwork("192.168.1.0/24"), &net.IPNet{}, renderer.UDP, 100)
+
+	ingressPod1 = []*renderer.ContivRule{inRule12, inRule13}
+	egressPod1 = []*renderer.ContivRule{egRule12, egRule13, egRule14, egRule15}
+
+	ingressPod2 = []*renderer.ContivRule{inRule21, inRule22, inRule23, inRule24, inRule25}
+	egressPod2 = []*renderer.ContivRule{egRule21, egRule22, egRule24, egRule25, egRule26}
 
 	// Change config for both namespaces
-	txn.Update(10, ingressNs10, egressNs10)
-	txn.Update(15, ingressNs15, egressNs15)
-	checkNamespaces(ruleCache) /* not yet commited */
-	added, removed, err = txn.Changes()
+	txn.Update(nsIndex1, GetOneHostSubnet(pod1IP), ingressPod1, egressPod1)
+	txn.Update(nsIndex2, GetOneHostSubnet(pod2IP), ingressPod2, egressPod2)
+	added2, removed2, err = txn.Changes()
 	gomega.Expect(err).To(gomega.BeNil())
-	checkSessionRules(added, inRule3)
-	checkSessionRules(removed, inRule1, egRule2, egRule3)
+	gomega.Expect(len(added2)).To(gomega.BeEquivalentTo(4))
+	gomega.Expect(len(removed2)).To(gomega.BeEquivalentTo(6))
+	// - Pod1
+	checkSessionRule(added2, "LOCAL", nsIndex1, "", 0, "192.168.2.40/32", 100, "UDP", "ALLOW") /* combined */
+	checkSessionRule(added2, "LOCAL", nsIndex1, "", 0, "", 0, "TCP", "DENY")
+	checkSessionRule(removed2, "LOCAL", nsIndex1, "", 0, "192.168.2.40/32", 200, "TCP", "ALLOW") /* combined */
+	checkSessionRule(removed2, "LOCAL", nsIndex1, "", 0, "192.168.2.40/32", 400, "TCP", "ALLOW") /* combined */
+	checkSessionRule(removed2, "LOCAL", nsIndex1, "", 0, "192.168.2.40/32", 0, "TCP", "DENY")    /* combined */
+	checkSessionRule(removed2, "LOCAL", nsIndex1, "", 0, "", 0, "TCP", "ALLOW")
+	checkSessionRule(removed2, "GLOBAL", 0, pod1IP, 0, "192.168.2.0/26", 0, "UDP", "ALLOW")
+	// - Pod2
+	checkSessionRule(added2, "LOCAL", nsIndex2, "", 0, "192.168.1.1/32", 0, "UDP", "DENY") /* combined */
+	checkSessionRule(added2, "GLOBAL", 0, pod2IP, 100, "192.168.1.0/24", 0, "UDP", "ALLOW")
+	checkSessionRule(removed2, "GLOBAL", 0, pod2IP, 100, "192.168.2.0/24", 0, "UDP", "ALLOW")
 
 	// Commit the transaction.
 	txn.Commit()
-	checkNamespaces(ruleCache, 10, 15)
+	checkNamespaces(ruleCache, nsIndex1, nsIndex2)
 
 	// Verify cache content.
-	cacheIngress, cacheEgress := ruleCache.LookupByNamespace(10)
-	checkSessionRules(cacheIngress)
-	checkSessionRules(cacheEgress, egRule1)
-	cacheIngress, cacheEgress = ruleCache.LookupByNamespace(15)
-	checkSessionRules(cacheIngress, inRule2, inRule3)
-	checkSessionRules(cacheEgress)
+	cacheIngress, cacheEgress := ruleCache.LookupByNamespace(nsIndex1)
+	checkContivRules(cacheIngress, ingressPod1)
+	checkContivRules(cacheEgress, egressPod1)
+	cacheIngress, cacheEgress = ruleCache.LookupByNamespace(nsIndex2)
+	checkContivRules(cacheIngress, ingressPod2)
+	checkContivRules(cacheEgress, egressPod2)
 }

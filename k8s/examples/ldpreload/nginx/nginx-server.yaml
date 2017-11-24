@@ -9,7 +9,6 @@ spec:
       labels:
         # ldpreload-related labels
         ldpreload: "true"
-        scopeglobal: "true"
     spec:
       # optional - deploy on preferred node
 #      nodeSelector:
@@ -22,3 +21,12 @@ spec:
             - containerPort: 80
           securityContext:
             privileged: true
+          env:
+            # ldpreload-related env vars
+            - name: VCL_APP_SCOPE_GLOBAL
+              value: ""
+            - name: VCL_APP_SCOPE_LOCAL
+              value: ""
+            # enable verbose VCL debugs, do not use for production
+            - name: VCL_DEBUG
+              value: "3"

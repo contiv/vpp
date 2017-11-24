@@ -62,6 +62,17 @@ type remoteCNIserver struct {
 
 	// unique identifier of the node
 	uid uint8
+
+	// node specific configuration
+	nodeConfigs []OneNodeConfig
+
+	// other configuration
+	tcpChecksumOffloadDisabled bool
+
+	// the variables ensures that add/del requests are processed
+	// only when vswitch connectivity is configured
+	vswitchConnectivityConfigured bool
+	vswitchCond                   *sync.Cond
 }
 
 const (
@@ -77,23 +88,27 @@ const (
 )
 
 func newRemoteCNIServer(logger logging.Logger, vppTxnFactory func() linux.DataChangeDSL, proxy kvdbproxy.Proxy,
-	configuredContainers *containeridx.ConfigIndex, govppChan *api.Channel, index ifaceidx.SwIfIndex, agentLabel string, ipamConfig *ipam.Config, uid uint8) (*remoteCNIserver, error) {
-	ipam, err := ipam.New(logger, uid, ipamConfig)
+	configuredContainers *containeridx.ConfigIndex, govppChan *api.Channel, index ifaceidx.SwIfIndex, agentLabel string, config *Config, uid uint8) (*remoteCNIserver, error) {
+	ipam, err := ipam.New(logger, uid, &config.IPAMConfig)
 	if err != nil {
 		return nil, err
 	}
-	return &remoteCNIserver{
-		Logger:               logger,
-		vppTxnFactory:        vppTxnFactory,
-		proxy:                proxy,
-		configuredContainers: configuredContainers,
-		hostCalls:            &linuxCalls{},
-		govppChan:            govppChan,
-		swIfIndex:            index,
-		agentLabel:           agentLabel,
-		uid:                  uid,
-		ipam:                 ipam,
-	}, nil
+	server := &remoteCNIserver{
+		Logger:                     logger,
+		vppTxnFactory:              vppTxnFactory,
+		proxy:                      proxy,
+		configuredContainers:       configuredContainers,
+		hostCalls:                  &linuxCalls{},
+		govppChan:                  govppChan,
+		swIfIndex:                  index,
+		agentLabel:                 agentLabel,
+		uid:                        uid,
+		ipam:                       ipam,
+		nodeConfigs:                config.NodeConfig,
+		tcpChecksumOffloadDisabled: config.TCPChecksumOffloadDisabled,
+	}
+	server.vswitchCond = sync.NewCond(&server.Mutex)
+	return server, nil
 }
 
 func (s *remoteCNIserver) close() {
@@ -125,6 +140,8 @@ func (s *remoteCNIserver) configureVswitchConnectivity() error {
 	// only apply the config if resync hasn't done it already
 	if _, _, found := s.swIfIndex.LookupIdx(vethVPPEndName); found {
 		s.Logger.Info("VSwitch connectivity is considered configured, skipping...")
+		s.vswitchConnectivityConfigured = true
+		s.vswitchCond.Broadcast()
 		return nil
 	}
 
@@ -138,14 +155,21 @@ func (s *remoteCNIserver) configureVswitchConnectivity() error {
 
 		// find physical NIC name
 		nicName := ""
-		for _, name := range s.swIfIndex.GetMapping().ListNames() {
-			if strings.HasPrefix(name, "local") || strings.HasPrefix(name, "loop") ||
-				strings.HasPrefix(name, "host") || strings.HasPrefix(name, "tap") {
-				continue
-			} else {
-				nicName = name
-				break
+		config := s.specificConfigForCurrentNode()
+		if config != nil && strings.Trim(config.MainVppInterfaceName, " ") != "" {
+			nicName = config.MainVppInterfaceName
+			s.Logger.Debugf("Physical NIC name taken from config: %v ", nicName)
+		} else { //if not configured for this node -> use heuristic
+			for _, name := range s.swIfIndex.GetMapping().ListNames() {
+				if strings.HasPrefix(name, "local") || strings.HasPrefix(name, "loop") ||
+					strings.HasPrefix(name, "host") || strings.HasPrefix(name, "tap") {
+					continue
+				} else {
+					nicName = name
+					break
+				}
 			}
+			s.Logger.Debugf("Physical NIC not taken from config, but heuristic was used: %v ", nicName)
 		}
 		if nicName != "" {
 			// configure the physical NIC and static routes to other hosts
@@ -186,6 +210,34 @@ func (s *remoteCNIserver) configureVswitchConnectivity() error {
 			if err != nil {
 				s.Logger.Error(err)
 				return err
+			}
+		}
+		// configure VPP for other interfaces that were configured in contiv plugin yaml configuration
+		if config != nil && len(config.OtherVPPInterfaces) > 0 {
+			s.Logger.Debug("Configuring VPP for additional interfaces")
+
+			// match existing interfaces and configuration settings and create VPP configuration objects
+			interfaces := make(map[string]*vpp_intf.Interfaces_Interface)
+			for _, name := range s.swIfIndex.GetMapping().ListNames() {
+				for _, intIP := range config.OtherVPPInterfaces {
+					if intIP.InterfaceName == name {
+						interfaces[name] = s.physicalInterfaceWithCustomIPAddress(name, intIP.IP)
+					}
+				}
+			}
+
+			// send created configuration to VPP
+			if len(interfaces) > 0 {
+				tx := s.vppTxnFactory().Put()
+				for intfName, intf := range interfaces {
+					tx.VppInterface(intf)
+					changes[vpp_intf.InterfaceKey(intfName)] = intf
+				}
+				err := tx.Send().ReceiveReply()
+				if err != nil {
+					s.Logger.Error(err)
+					return err
+				}
 			}
 		}
 	} else {
@@ -259,7 +311,19 @@ func (s *remoteCNIserver) configureVswitchConnectivity() error {
 
 	err = s.enableTCPSession()
 
+	s.vswitchConnectivityConfigured = true
+	s.vswitchCond.Broadcast()
+
 	return err
+}
+
+func (s *remoteCNIserver) specificConfigForCurrentNode() *OneNodeConfig {
+	for _, oneNodeConfig := range s.nodeConfigs {
+		if oneNodeConfig.NodeName == s.agentLabel {
+			return &oneNodeConfig
+		}
+	}
+	return nil
 }
 
 // cleanupVswitchConnectivity cleans up basic vSwitch VPP connectivity configuration in the host IP stack.
@@ -293,6 +357,9 @@ func (s *remoteCNIserver) Delete(ctx context.Context, request *cni.CNIRequest) (
 // the end in default namespace is connected to VPP using afpacket.
 func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest) (*cni.CNIReply, error) {
 	s.Lock()
+	for !s.vswitchConnectivityConfigured {
+		s.vswitchCond.Wait()
+	}
 	defer s.Unlock()
 
 	var (
@@ -331,7 +398,9 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 		return s.generateErrorResponse(err)
 	}
 
+	// TODO get rid of this sleep
 	time.Sleep(500 * time.Millisecond)
+
 	err = s.setupStn(podIP.String(), s.afpacketNameFromRequest(request))
 	if err != nil {
 		s.Logger.Error(err)
@@ -344,7 +413,7 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 		s.Logger.Error(err)
 		return s.generateErrorResponse(err)
 	}
-	s.Logger.Info("Add app namespace configured")
+	s.Logger.Info("App namespace configured")
 
 	macAddr, err := s.retrieveContainerMacAddr(request.NetworkNamespace, request.InterfaceName)
 	if err != nil {
@@ -380,6 +449,20 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 	}
 
 	err = s.fixPodToPodCommunication(podIP.String(), afName)
+	if err != nil {
+		s.Logger.Error(err)
+		return s.generateErrorResponse(err)
+	}
+
+	// disable TCP checksum offload on the eth0 veth interface in container
+	// TODO: this is a temporary workaround, should be reverted once TCP checksum offload issues are resolved on VPP
+	if s.tcpChecksumOffloadDisabled {
+		err = s.disableTCPChecksumOffload(request)
+		if err != nil {
+			s.Logger.Error(err)
+			return s.generateErrorResponse(err)
+		}
+	}
 
 	changes[linux_intf.InterfaceKey(veth1.Name)] = veth1
 	changes[linux_intf.InterfaceKey(veth2.Name)] = veth2
@@ -423,6 +506,9 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 
 func (s *remoteCNIserver) unconfigureContainerConnectivity(request *cni.CNIRequest) (*cni.CNIReply, error) {
 	s.Lock()
+	for !s.vswitchConnectivityConfigured {
+		s.vswitchCond.Wait()
+	}
 	defer s.Unlock()
 
 	var (

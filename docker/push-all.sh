@@ -52,7 +52,7 @@ done
 
 # obtain the current git tag for tagging the Docker images
 TAG=`git describe --tags`
-VPP=$(docker run dev-contiv-vswitch:$TAG bash -c "cd \$VPP_DIR && git rev-parse --short HEAD")
+VPP=$(docker run --rm dev-contiv-vswitch:$TAG bash -c "cd \$VPP_DIR && git rev-parse --short HEAD")
 
 # tag and push each image
 for IMAGE in "${IMAGES[@]}"

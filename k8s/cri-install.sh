@@ -101,7 +101,7 @@ if [ -f "${KUBELET_CFG_FILE}" ]; then
         else
             # Uninstall.
             echo "Unconfiguring Contiv CRI shim."
-            sed -i 's|'"${KUBELET_CRI_CONFIG}"' ||' "${KUBELET_CFG_FILE}"
+            sed -i 's|'"${KUBELET_CRI_CONFIG}"'||' "${KUBELET_CFG_FILE}"
             echo "Contiv CRI shim unconfigured. Restarting Kubelet."
             systemctl daemon-reload
             systemctl restart kubelet

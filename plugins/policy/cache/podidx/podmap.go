@@ -119,7 +119,7 @@ func IndexFunction(data interface{}) map[string][]string {
 		}
 
 		keys = utils.RemoveDuplicates(keys)
-		nsKeys = utils.RemoveDuplicates(keys)
+		nsKeys = utils.RemoveDuplicates(nsKeys)
 
 		res[podLabelSelectorKey] = labels
 		res[podKeySelectorKey] = keys

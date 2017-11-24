@@ -1,14 +1,10 @@
 *** Settings ***
 Documentation    Test suite to test ldpreload functionality with 2 iperf server pods.
-Resource         ${CURDIR}/../libraries/KubernetesEnv.robot
-Resource         ${CURDIR}/../variables/${VARIABLES}_variables.robot
-Resource         ${CURDIR}/../libraries/setup-teardown.robot
+Resource         ${CURDIR}/../libraries/all_libs.robot
 Suite Setup      OneNodeK8sSetup
 Suite Teardown   OneNodeK8sTeardown
 
 *** Variables ***
-${VARIABLES}      common
-${ENV}            common
 ${CLIENT_FILE}    ${CURDIR}/../resources/one-ldpreload-client-iperf.yaml
 ${SERVER1_FILE}   ${CURDIR}/../resources/one-ldpreload-server-iperf.yaml
 ${SERVER2_FILE}   ${CURDIR}/../resources/one-ldpreload-server2-iperf.yaml

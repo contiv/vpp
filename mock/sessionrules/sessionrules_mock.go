@@ -162,6 +162,8 @@ func (msr *MockSessionRules) hasRule(table SessionRules, scope uint8, nsIndex ui
 	// Parse action.
 	var actionIndex uint32
 	switch action {
+	case "NOTHING":
+		actionIndex = cache.RuleActionDoNothing
 	case "ALLOW":
 		actionIndex = cache.RuleActionAllow
 	case "DENY":
@@ -238,7 +240,11 @@ func (msr *MockSessionRules) msgReplyHandler(request govppmock.MessageDTO) (repl
 		// Session dump.
 		for _, localTable := range msr.localTable {
 			for _, rule := range localTable {
-				msr.vppMock.MockReply(makeSessionRuleDetails(rule))
+				tagLen := bytes.IndexByte(rule.Tag[:], 0)
+				tag := string(rule.Tag[:tagLen])
+				if strings.HasPrefix(tag, msr.tagPrefix) {
+					msr.vppMock.MockReply(makeSessionRuleDetails(rule))
+				}
 			}
 		}
 		for _, rule := range msr.globalTable {
@@ -287,17 +293,20 @@ func (msr *MockSessionRules) msgReplyHandler(request govppmock.MessageDTO) (repl
 		// Check tag
 		tagLen := bytes.IndexByte(rule.Tag[:], 0)
 		tag := string(rule.Tag[:tagLen])
-		if !strings.HasPrefix(tag, msr.tagPrefix) {
-			msr.errCount++
-			msr.Log.WithField("rule", rule).Warn("Invalid tag")
-			retval = 1
-		}
-		if ruleAddDel.IsAdd == 1 {
-			_, alreadyExists := msr.tags[tag]
-			if alreadyExists {
+		if rule.Scope != cache.RuleScopeLocal || rule.RmtPlen != 0 || rule.RmtPort != 0 ||
+			rule.ActionIndex != cache.RuleActionDoNothing {
+			if !strings.HasPrefix(tag, msr.tagPrefix) {
 				msr.errCount++
-				msr.Log.WithField("rule", rule).Warn("Duplicate tag")
+				msr.Log.WithField("rule", rule).Warn("Invalid tag")
 				retval = 1
+			}
+			if ruleAddDel.IsAdd == 1 {
+				_, alreadyExists := msr.tags[tag]
+				if alreadyExists {
+					msr.errCount++
+					msr.Log.WithField("rule", rule).Warn("Duplicate tag")
+					retval = 1
+				}
 			}
 		}
 
@@ -308,6 +317,9 @@ func (msr *MockSessionRules) msgReplyHandler(request govppmock.MessageDTO) (repl
 				_, exists := msr.localTable[rule.AppnsIndex]
 				if !exists {
 					msr.localTable[rule.AppnsIndex] = SessionRules{}
+					// Add rules created by VPP by default.
+					msr.localTable[rule.AppnsIndex], _ = addDelRule(msr.localTable[rule.AppnsIndex], defaultDoNothingRule(rule.AppnsIndex, cache.RuleProtoTCP), 1)
+					msr.localTable[rule.AppnsIndex], _ = addDelRule(msr.localTable[rule.AppnsIndex], defaultDoNothingRule(rule.AppnsIndex, cache.RuleProtoUDP), 1)
 				}
 				msr.localTable[rule.AppnsIndex], ok = addDelRule(msr.localTable[rule.AppnsIndex], rule, ruleAddDel.IsAdd)
 				if !ok {
@@ -326,7 +338,7 @@ func (msr *MockSessionRules) msgReplyHandler(request govppmock.MessageDTO) (repl
 		}
 
 		// Update the set of used tags.
-		if retval == 0 {
+		if retval == 0 && len(tag) > 0 {
 			if ruleAddDel.IsAdd == 1 {
 				msr.tags[tag] = struct{}{}
 			} else {
@@ -424,4 +436,16 @@ func getOneHostSubnet(hostAddr string) *net.IPNet {
 		ipNet.Mask = net.CIDRMask(net.IPv6len*8, net.IPv6len*8)
 	}
 	return ipNet
+}
+
+// This is the only rule installed automatically by VPP that may be overwritten
+// by the agent for traffic filtering.
+func defaultDoNothingRule(nsIndex uint32, protocol uint8) *cache.SessionRule {
+	sessionRule := &cache.SessionRule{}
+	sessionRule.TransportProto = protocol
+	sessionRule.ActionIndex = cache.RuleActionDoNothing
+	sessionRule.AppnsIndex = nsIndex
+	sessionRule.Scope = cache.RuleScopeLocal
+	sessionRule.IsIP4 = uint8(1)
+	return sessionRule
 }

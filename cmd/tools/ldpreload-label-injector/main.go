@@ -23,6 +23,17 @@ type injectParams struct {
 }
 
 // main is the main method for ldpreload label injector
+// This tool parses block structure of yaml file and currently support only these type of structures:
+// 1. basic yaml blocks, i.e.
+// ....root:
+//....   block1:
+//........block2:
+// 2.the compact nested mapping, i.e.
+//.... mapping:
+//.... - item1attribute1:
+//....   item1attribute2:
+//.... - item2attribute1:
+//....   item2attribute2:
 func main() {
 	// handle initial tasks and simple cases
 	flag.Parse() //can't be in init()

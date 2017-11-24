@@ -303,17 +303,7 @@ func (t *traversingInfo) blockStr(blockIndex int) string {
 // visitInsertionPlaces traverse block-based document(<i.document>) by following block-based path(<i.path>) and in the
 // destination block visitor function (<i.visitor>) is called. Visitor function should not change document by inserting
 // text into it, but merely use information provided to it to handle later the insertion of text itself.
-// This function support only:
-// 1. basic yaml blocks:
-// ....root:
-//....   block1:
-//........block2:
-// 2.the compact nested mapping:
-//.... mapping:
-//.... - item1attribute1:
-//....   item1attribute2:
-//.... - item2attribute1:
-//....   item2attribute2:
+// For supported yaml structures see documentation of main method of ldpreload inject tool.
 func visitInsertionPlaces(i traversingInfo) {
 	if len(i.unresolvedPath) == 0 {
 		i.visitor(i)

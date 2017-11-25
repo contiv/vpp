@@ -53,19 +53,10 @@ nginx-server-7686d857c-x922b   1/1       Running   0          2m        10.1.1.3
 wget-client-845877549-lql7z    1/1       Running   0          3s        10.1.1.4   vm7
 ```
 
-Run bash in the container:
+Test the connectivity by running wget in the container:
 ```
-$ kubectl exec -it wget-client-845877549-lql7z bash
+$ kubectl exec -it wget-client-845877549-lql7z wget 10.1.1.3
 
-[12] vcom_init...done!
-
-[12] vcom_constructor...done!
-root@wget-client-845877549-lql7z:/#
-```
-
-Test the connectivity:
-```
-root@wget-client-845877549-lql7z:/# wget 10.1.1.3
 
 [30] vcom_init...done!
 

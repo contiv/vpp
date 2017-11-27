@@ -359,11 +359,12 @@ Stop_Infinite_Command_In_Pod
     BuiltIn.Run_Keyword_If    """${ssh_session}""" != """${EMPTY}"""     SSHLibrary.Switch_Connection    ${ssh_session}
     BuiltIn.Run_Keyword_If    """${prompt}""" != """${EMPTY}"""    SSHLibrary.Set_Client_Configuration    prompt=${prompt}
     Write_Bare_Ctrl_C
-    ${output} =     SSHLibrary.Read_Until_Prompt
-    Log     ${output}
+    ${output1} =     SSHLibrary.Read_Until    ^C
+    ${output2} =     SSHLibrary.Read_Until_Prompt
+    Log Many     ${output1}    ${output2}
     ${connection}=    SSHLibrary.Get_Connection
-    Append To File    ${RESULTS_FOLDER}/output_${connection.alias}.log    *** Command: ^C${\n}${output}${\n}
-    [Return]    ${output}
+    Append To File    ${RESULTS_FOLDER}/output_${connection.alias}.log    *** Command: ^C${\n}${output1}${output2}${\n}
+    [Return]    ${output1}${output2}
 
 Write_Bare_Ctrl_C
     [Documentation]    Construct ctrl+c character and SSH-write it (without endline) to the current SSH connection.

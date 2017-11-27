@@ -27,11 +27,11 @@ confirm () {
 
 #loads uio_pci_generic driver and setup the loading on each boot up if requested
 installPCIUIO() {
-   sudo modprobe uio_pci_generic
+   modprobe uio_pci_generic
    if [[ $(confirm "Do you want the PCI UIO driver to be loaded on boot up?") -eq 1 ]]; then
       # check if the driver is not already added into the file
       if ! grep -q "uio_pci_generic" /etc/modules; then
-         sudo sh -c "echo uio_pci_generic >> /etc/modules"
+         echo uio_pci_generic >> /etc/modules
          echo "Module uio_pci_generic was added into /etc/modules"
       fi
    fi
@@ -39,7 +39,7 @@ installPCIUIO() {
 
 #selects an interface that will be used for node interconnect
 selectNodeIntreconnectIf() {
-   interfaces=`sudo lshw -class network -businfo | grep pci`
+   interfaces=`lshw -class network -businfo | grep pci`
    if [[ -z "$interfaces" ]]; then
       echo "No network devices found."
       exit 1
@@ -96,10 +96,10 @@ dpdk {
    fi
 
    #create vpp startup config
-   sudo sh -c "echo '$startup' > /etc/vpp/contiv-vswitch.conf "
+   echo '$startup' > /etc/vpp/contiv-vswitch.conf
 
    #shutdown interface
-   sudo ip link set "$device" down
+   ip link set "$device" down
 }
 
 ## Setup begins
@@ -107,6 +107,13 @@ dpdk {
 echo "#########################################"
 echo "#   Contiv - VPP                        #"
 echo "#########################################"
+
+# Make sure only root can run this script
+if [[ $EUID -ne 0 ]]; then
+   echo "ERROR: This script must be run as root." 1>&2
+   exit 1
+fi
+
 
 if [[ $(confirm "Do you want to setup multinode cluster?") -eq 1 ]]; then
 
@@ -132,6 +139,10 @@ fi
 
 if [[ $(confirm "In order to use Kuberenetes services custom Kube-proxy is required, do you want to install it?") -eq 1 ]]; then
     bash <(curl -s https://raw.githubusercontent.com/contiv/vpp/master/k8s/proxy-install.sh)
+fi
+
+if [[ $(confirm "Do you want to install cri-shim?") -eq 1 ]]; then
+    bash <(curl -s https://raw.githubusercontent.com/contiv/vpp/master/k8s/cri-install.sh)
 fi
 
 echo "Configuration of the node finished successfully."

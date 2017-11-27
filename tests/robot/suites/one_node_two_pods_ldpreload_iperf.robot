@@ -9,25 +9,35 @@ ${CLIENT_FILE}   ${CURDIR}/../resources/one-ldpreload-client-iperf.yaml
 ${SERVER_FILE}   ${CURDIR}/../resources/one-ldpreload-server-iperf.yaml
 
 *** Test Cases ***
-Pod_To_Pod_Iperf
+Host_To_Pod_Iperf
+    [Documentation]    Execute iperf3 comand from host towards server pod, checking return code is zero.
     [Setup]    Setup_Hosts_Connections
-    ${stdout} =    KubeCtl.Execute_On_Pod    ${testbed_connection}    ${client_pod_name}    iperf3 -V4d -c ${server_ip}    ignore_stderr=${True}
-    Log    ${stdout}
+    [Timeout]    5 minutes
+    SshCommons.Switch_And_Execute_Command    ${testbed_connection}    iperf3 -V4d -c ${server_ip}    ignore_stderr=${True}
+    [Teardown]    Teardown_Hosts_Connections
+
+Pod_To_Pod_Iperf
+    [Documentation]    Execute iperf3 comand from client pod towards server pod, checking return code is zero.
+    [Setup]    Setup_Hosts_Connections
+    [Timeout]    5 minutes
+    KubeCtl.Execute_On_Pod    ${testbed_connection}    ${client_pod_name}    iperf3 -V4d -c ${server_ip}    ignore_stderr=${True}
+    [Teardown]    Teardown_Hosts_Connections
+
+Host_To_Pod_Iperf_Again
+    [Documentation]    Execute iperf3 comand from host towards server pod, checking return code is zero.
+    ...    This is to show whether the previous test case changes the result of this repeated test.
+    [Setup]    Setup_Hosts_Connections
+    [Timeout]    5 minutes
+    SshCommons.Switch_And_Execute_Command    ${testbed_connection}    iperf3 -V4d -c ${server_ip}    ignore_stderr=${True}
     [Teardown]    Teardown_Hosts_Connections
 
 Pod_To_Pod_Iperf_Loop
+    [Documentation]    Execute multiple iperf3 comands from client pod towards server pod sequentially,
+    ...    checking return codes are zero.
     [Setup]    Setup_Hosts_Connections
     [Timeout]    5 minutes
     Repeat Keyword    15    KubeCtl.Execute_On_Pod    ${testbed_connection}    ${client_pod_name}    iperf3 -V4d -c ${server_ip}    ignore_stderr=${True}
     [Teardown]    Teardown_Hosts_Connections
-
-Host_To_Pod_Iperf
-    [Setup]    Setup_Hosts_Connections
-    [Timeout]    5 minutes
-    ${stdout} =    SshCommons.Switch_And_Execute_Command    ${testbed_connection}    iperf3 -V4d -c ${server_ip}    ignore_stderr=${True}
-    Log    ${stdout}
-    [Teardown]    Teardown_Hosts_Connections
-
 
 *** Keywords ***
 OneNodeK8sSetup

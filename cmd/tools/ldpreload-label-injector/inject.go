@@ -150,7 +150,7 @@ func insertLinesConditioned(document string, path []string, condition conditionF
 	// build insertion information (where and what should be inserted)
 	// When text for insertion is constructed, it is not inserted right away because that would invalidate some
 	// indexes (navigation in document is index based, block are remembered as <startindex, endindex>)
-	var insertions = &[]insertion{}
+	var insertions = make([]insertion, 0)
 	visitInsertionPlaces(newTraversingInfo(document, path,
 		func(i traversingInfo) {
 			if hasMappingInUresolvedPath(i) {
@@ -167,7 +167,7 @@ func insertLinesConditioned(document string, path []string, condition conditionF
 		}, eol))
 
 	//use collected insertion informations and make real insert
-	for _, insert := range *insertions {
+	for _, insert := range insertions {
 		document = document[:insert.insertionPoint] + insert.text + document[insert.insertionPoint:]
 	}
 	return document
@@ -419,7 +419,6 @@ func round(f float64) int {
 }
 
 // prepend is helper function for creating insertion slice in reverted order as we got items for the slice
-func prepend(item insertion, slice *[]insertion) *[]insertion {
-	newSlice := append([]insertion{item}, *slice...)
-	return &newSlice
+func prepend(item insertion, slice []insertion) []insertion {
+	return append([]insertion{item}, slice...)
 }

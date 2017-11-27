@@ -137,7 +137,7 @@ if [[ $(confirm "Do you want to pull the latest images?") -eq 1 ]]; then
     bash <(curl -s https://raw.githubusercontent.com/contiv/vpp/master/k8s/pull-images.sh)
 fi
 
-if [[ $(confirm "In order to use Kuberenetes services custom Kube-proxy is required, do you want to install it?") -eq 1 ]]; then
+if [[ $(confirm "In order to use Kubernetes services custom Kube-proxy is required, do you want to install it?") -eq 1 ]]; then
     bash <(curl -s https://raw.githubusercontent.com/contiv/vpp/master/k8s/proxy-install.sh)
 fi
 

@@ -71,33 +71,40 @@ Get_Traffic_Status
     ${ping_client_server}    ${ping_server_client}=    Pod_To_Pod_Ping
     BuiltIn.Set_Suite_Variable    ${ping_client_server}
     BuiltIn.Set_Suite_Variable    ${ping_server_client}
-    ${report}=    Set Variable If    "5 received, 0% packet loss" in ${ping_client_server}    ${report}PING client -> server OK${\n}    ${report}PING client -> server ERROR${\n}
-    ${report}=    Set Variable If    "5 received, 0% packet loss" in ${ping_server_client}    ${report}PING client -> server OK${\n}    ${report}PING client -> server ERROR${\n}
+    ${report}=    Set Variable If    "5 received, 0% packet loss" in """${ping_client_server}"""    ${report}PING client -> server OK${\n}    ${report}PING client -> server ERROR${\n}
+    ${report}=    Set Variable If    "5 received, 0% packet loss" in """${ping_server_client}"""    ${report}PING server -> client OK${\n}    ${report}PING server -> client ERROR${\n}
 
     ${udp_client_server}    ${udp_server_client}=    Pod_To_Pod_Udp    ${udp_port}
     BuiltIn.Set_Suite_Variable    ${udp_client_server}
     BuiltIn.Set_Suite_Variable    ${udp_server_client}
+    ${report}=    Set Variable If    "Text to be received" in """${udp_client_server}"""    ${report}UDP client -> server OK${\n}    ${report}UDP client -> server ERROR${\n}
+    ${report}=    Set Variable If    "Text to be received" in """${udp_server_client}"""    ${report}UDP server -> client OK${\n}    ${report}UDP server -> client ERROR${\n}
 
     ${tcp_client_server}    ${tcp_server_client}=    Pod_To_Pod_Tcp    ${tcp_port}
     BuiltIn.Set_Suite_Variable    ${tcp_client_server}
     BuiltIn.Set_Suite_Variable    ${tcp_server_client}
+    ${report}=    Set Variable If    "Text to be received" in """${tcp_client_server}"""    ${report}TCP client -> server OK${\n}    ${report}TCP client -> server ERROR${\n}
+    ${report}=    Set Variable If    "Text to be received" in """${tcp_server_client}"""    ${report}TCP server -> client OK${\n}    ${report}TCP server -> client ERROR${\n}
 
     ${ping_host_server}    ${ping_host_client}=    Host_To_Pod_Ping
     BuiltIn.Set_Suite_Variable    ${ping_host_server}
     BuiltIn.Set_Suite_Variable    ${ping_host_client}
+    ${report}=    Set Variable If    "5 received, 0% packet loss" in """${ping_host_server}"""    ${report}PING host -> server OK${\n}    ${report}PING host -> server ERROR${\n}
+    ${report}=    Set Variable If    "5 received, 0% packet loss" in """${ping_host_client}"""    ${report}PING host -> client OK${\n}    ${report}PING host -> client ERROR${\n}
 
     ${udp_host_server}    ${udp_host_client}=    Host_To_Pod_Udp    ${udp_port}
     BuiltIn.Set_Suite_Variable    ${udp_host_server}
     BuiltIn.Set_Suite_Variable    ${udp_host_client}
+    ${report}=    Set Variable If    "Text to be received" in """${udp_host_server}"""    ${report}UDP host -> server OK${\n}    ${report}UDP host -> server ERROR${\n}
+    ${report}=    Set Variable If    "Text to be received" in """${udp_host_client}"""    ${report}UDP host -> client OK${\n}    ${report}UDP host -> client ERROR${\n}
 
     ${tcp_host_server}    ${tcp_host_client}=    Host_To_Pod_Tcp    ${tcp_port}
     BuiltIn.Set_Suite_Variable    ${tcp_host_server}
     BuiltIn.Set_Suite_Variable    ${tcp_host_client}
+    ${report}=    Set Variable If    "Text to be received" in """${tcp_host_server}"""    ${report}TCP host -> server OK${\n}    ${report}TCP host -> server ERROR${\n}
+    ${report}=    Set Variable If    "Text to be received" in """${tcp_host_client}"""    ${report}TCP host -> client OK${\n}    ${report}TCP host -> client ERROR${\n}
 
     Log    ${report}
-
-
-
 
 Pod_To_Pod_Ping
     [Documentation]    Execute "ping -c 5" command between pods (both ways), require no packet loss.

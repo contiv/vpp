@@ -336,6 +336,8 @@ Run_Finite_Command_In_Pod
     SSHLibrary.Write    ${command}
     ${output} =     SSHLibrary.Read_Until_Prompt
     Log     ${output}
+    ${connection}=    SSHLibrary.Get_Connection
+    Append To File    ${RESULTS_FOLDER}/output_${connection.alias}.log    *** Command: ${command}${\n}${output}${\n}
     [Return]    ${output}
 
 Init_Infinite_Command_In_Pod
@@ -346,6 +348,8 @@ Init_Infinite_Command_In_Pod
     BuiltIn.Run_Keyword_If    """${ssh_session}""" != """${EMPTY}"""     SSHLibrary.Switch_Connection    ${ssh_session}
     BuiltIn.Run_Keyword_If    """${prompt}""" != """${EMPTY}"""    SSHLibrary.Set_Client_Configuration    prompt=${prompt}
     SSHLibrary.Write    ${command}
+    ${connection}=    SSHLibrary.Get_Connection
+    Append To File    ${RESULTS_FOLDER}/output_${connection.alias}.log    *** Command: ${command}${\n}
 
 Stop_Infinite_Command_In_Pod
     [Arguments]    ${ssh_session}=${EMPTY}     ${prompt}=${EMPTY}
@@ -357,6 +361,8 @@ Stop_Infinite_Command_In_Pod
     Write_Bare_Ctrl_C
     ${output} =     SSHLibrary.Read_Until_Prompt
     Log     ${output}
+    ${connection}=    SSHLibrary.Get_Connection
+    Append To File    ${RESULTS_FOLDER}/output_${connection.alias}.log    *** Command: ^C${\n}${output}${\n}
     [Return]    ${output}
 
 Write_Bare_Ctrl_C
@@ -373,9 +379,12 @@ Get_Into_Container_Prompt_In_Pod
     # TODO: PodBash.robot?
     SSHLibrary.Switch_Connection    ${ssh_session}
     BuiltIn.Run_Keyword_If    """${prompt}""" != """${EMPTY}"""    SSHLibrary.Set_Client_Configuration    prompt=${prompt}
-    SSHLibrary.Write    kubectl exec -it ${pod_name} -- /bin/bash
+    ${command}=    BuiltIn.Set_Variable    kubectl exec -it ${pod_name} -- /bin/bash
+    SSHLibrary.Write    ${command}
     ${output} =     SSHLibrary.Read_Until_Prompt
     Log     ${output}
+    ${connection}=    SSHLibrary.Get_Connection
+    Append To File    ${RESULTS_FOLDER}/output_${connection.alias}.log    *** Command: ${command}${\n}${output}${\n}
     [Return]    ${output}
 
 Leave_Container_Prompt_In_Pod
@@ -389,6 +398,8 @@ Leave_Container_Prompt_In_Pod
     SSHLibrary.Write    exit
     ${output} =     SSHLibrary.Read_Until_Prompt
     Log     ${output}
+    ${connection}=    SSHLibrary.Get_Connection
+    Append To File    ${RESULTS_FOLDER}/output_${connection.alias}.log    *** Command: ^C${\n}${output}${\n}
     [Return]    ${output}
 
 Verify_Cluster_Node_Ready

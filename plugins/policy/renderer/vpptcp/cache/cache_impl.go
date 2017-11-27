@@ -601,6 +601,10 @@ func convertEgressRules(nsIndex uint32, ipAddr *net.IPNet, egress []*renderer.Co
 	// Construct egress Session rules.
 	sessionRules := []*SessionRule{}
 	for _, rule := range egress {
+		if len(rule.SrcNetwork.IP) == 0 && rule.DestPort == 0 && rule.Action == renderer.ActionPermit {
+			/* do not install allow-all sources rules - it is the default behaviour in the stack */
+			continue
+		}
 		sessionRule := &SessionRule{}
 		// Transport Protocol
 		switch rule.Protocol {
@@ -612,17 +616,12 @@ func convertEgressRules(nsIndex uint32, ipAddr *net.IPNet, egress []*renderer.Co
 			sessionRule.TransportProto = RuleProtoTCP
 		}
 		// Is IPv4
-		if len(rule.SrcNetwork.IP) != 0 {
-			if rule.SrcNetwork.IP.To4() != nil {
-				sessionRule.IsIP4 = 1
-			}
-		} else {
-			if ipAddr.IP.To4() != nil {
-				sessionRule.IsIP4 = 1
-			}
+		if ipAddr.IP.To4() != nil &&
+			(len(rule.SrcNetwork.IP) == 0 || rule.SrcNetwork.IP.To4() != nil) {
+			sessionRule.IsIP4 = 1
 		}
 		// Local IP
-		if ipAddr.IP.To4() != nil {
+		if sessionRule.IsIP4 == 1 {
 			copy(sessionRule.LclIP[:], ipAddr.IP.To4())
 		} else {
 			copy(sessionRule.LclIP[:], ipAddr.IP.To16())
@@ -633,7 +632,7 @@ func convertEgressRules(nsIndex uint32, ipAddr *net.IPNet, egress []*renderer.Co
 		sessionRule.LclPort = rule.DestPort
 		// Remote IP
 		if len(rule.SrcNetwork.IP) > 0 {
-			if rule.SrcNetwork.IP.To4() != nil {
+			if sessionRule.IsIP4 == 1 {
 				copy(sessionRule.RmtIP[:], rule.SrcNetwork.IP.To4())
 			} else {
 				copy(sessionRule.RmtIP[:], rule.SrcNetwork.IP.To16())
@@ -655,11 +654,27 @@ func convertEgressRules(nsIndex uint32, ipAddr *net.IPNet, egress []*renderer.Co
 		sessionRule.AppnsIndex = 0
 		// Scope
 		sessionRule.Scope = RuleScopeGlobal
-		// Tag
-		ruleID := getMD5Hash(strconv.Itoa(int(nsIndex)) + "-egress-" + rule.ID)
-		copy(sessionRule.Tag[:], tagPrefix+ruleID)
-		// Add rule into the list.
-		sessionRules = append(sessionRules, sessionRule)
+		// Install deny-all as two rules with the all-IPs subnet split in half
+		// to avoid collisions with proxy rules.
+		if len(rule.SrcNetwork.IP) == 0 {
+			sessionRule.RmtPlen = 1
+			sessionRule2 := sessionRule.Copy()
+			// 1/1
+			rule1ID := getMD5Hash(strconv.Itoa(int(nsIndex)) + "-egress-" + rule.ID + "-1/2")
+			copy(sessionRule.Tag[:], tagPrefix+rule1ID)
+			sessionRules = append(sessionRules, sessionRule)
+			// 1/2
+			sessionRule2.RmtIP[0] = 1 << 7
+			rule2ID := getMD5Hash(strconv.Itoa(int(nsIndex)) + "-egress-" + rule.ID + "-2/2")
+			copy(sessionRule2.Tag[:], tagPrefix+rule2ID)
+			sessionRules = append(sessionRules, sessionRule2)
+		} else {
+			// Tag
+			ruleID := getMD5Hash(strconv.Itoa(int(nsIndex)) + "-egress-" + rule.ID)
+			copy(sessionRule.Tag[:], tagPrefix+ruleID)
+			// Add rule into the list.
+			sessionRules = append(sessionRules, sessionRule)
+		}
 	}
 	return sessionRules
 }
@@ -670,6 +685,10 @@ func convertIngressRules(nsIndex uint32, ingress []*renderer.ContivRule, tagPref
 	// Construct ingress Session rules.
 	sessionRules := []*SessionRule{}
 	for _, rule := range ingress {
+		if len(rule.DestNetwork.IP) == 0 && rule.DestPort == 0 && rule.Action == renderer.ActionPermit {
+			/* do not install allow-all destination rules - it is the default behaviour in the stack */
+			continue
+		}
 		sessionRule := &SessionRule{}
 		// Transport Protocol
 		switch rule.Protocol {
@@ -680,12 +699,8 @@ func convertIngressRules(nsIndex uint32, ingress []*renderer.ContivRule, tagPref
 		default:
 			sessionRule.TransportProto = RuleProtoTCP
 		}
-		// Is IPv4
-		if len(rule.DestNetwork.IP) != 0 {
-			if rule.DestNetwork.IP.To4() != nil {
-				sessionRule.IsIP4 = 1
-			}
-		} else {
+		// Is IPv4 (for specific dest. address)
+		if len(rule.DestNetwork.IP) != 0 && rule.DestNetwork.IP.To4() != nil {
 			sessionRule.IsIP4 = 1
 		}
 		// Local IP = 0/0
@@ -715,11 +730,42 @@ func convertIngressRules(nsIndex uint32, ingress []*renderer.ContivRule, tagPref
 		sessionRule.AppnsIndex = nsIndex
 		// Scope
 		sessionRule.Scope = RuleScopeLocal
-		// Tag
-		ruleID := getMD5Hash(strconv.Itoa(int(nsIndex)) + "-ingress-" + rule.ID)
-		copy(sessionRule.Tag[:], tagPrefix+ruleID)
-		// Add rule into the list.
-		sessionRules = append(sessionRules, sessionRule)
+		// Install deny-all as two rules with the all-IPs subnet split in half
+		// for both IPv4 and IPv6 to avoid collisions with proxy rules.
+		if len(rule.DestNetwork.IP) == 0 {
+			sessionRule.RmtPlen = 1
+			sessionRule2 := sessionRule.Copy()
+			sessionRule3 := sessionRule.Copy()
+			sessionRule4 := sessionRule.Copy()
+			// IPv4 1/2
+			sessionRule.IsIP4 = 1
+			ruleID := getMD5Hash(strconv.Itoa(int(nsIndex)) + "-ingress-" + rule.ID + "-IPv4-1/2")
+			copy(sessionRule.Tag[:], tagPrefix+ruleID)
+			sessionRules = append(sessionRules, sessionRule)
+			// IPv4 2/2
+			sessionRule2.IsIP4 = 1
+			sessionRule2.RmtIP[0] = 1 << 7
+			ruleID = getMD5Hash(strconv.Itoa(int(nsIndex)) + "-ingress-" + rule.ID + "-IPv4-2/2")
+			copy(sessionRule2.Tag[:], tagPrefix+ruleID)
+			// IPv6 1/2
+			ruleID = getMD5Hash(strconv.Itoa(int(nsIndex)) + "-ingress-" + rule.ID + "-IPv6-1/2")
+			copy(sessionRule3.Tag[:], tagPrefix+ruleID)
+			// IPv6 2/2
+			sessionRule4.RmtIP[0] = 1 << 7
+			ruleID = getMD5Hash(strconv.Itoa(int(nsIndex)) + "-ingress-" + rule.ID + "-IPv6-2/2")
+			copy(sessionRule4.Tag[:], tagPrefix+ruleID)
+			// Append all 4 rules.
+			sessionRules = append(sessionRules, sessionRule)
+			sessionRules = append(sessionRules, sessionRule2)
+			sessionRules = append(sessionRules, sessionRule3)
+			sessionRules = append(sessionRules, sessionRule4)
+		} else {
+			// Tag
+			ruleID := getMD5Hash(strconv.Itoa(int(nsIndex)) + "-ingress-" + rule.ID)
+			copy(sessionRule.Tag[:], tagPrefix+ruleID)
+			// Add single rule into the list.
+			sessionRules = append(sessionRules, sessionRule)
+		}
 	}
 	return sessionRules
 }

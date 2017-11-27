@@ -215,20 +215,20 @@ func (plugin *InterfaceConfigurator) ConfigureVPPInterface(iface *intf.Interface
 		}
 	}
 
-	// configure mtu
-	if iface.Type != intf.InterfaceType_VXLAN_TUNNEL {
-		var mtu uint32
-		if iface.Mtu != 0 {
-			mtu = iface.Mtu
-		} else {
-			mtu = plugin.mtu
-		}
-		err = vppcalls.SetInterfaceMtu(ifIdx, mtu, plugin.Log, plugin.vppCh,
-			measure.GetTimeLog(interfaces.SwInterfaceSetMtu{}, plugin.Stopwatch))
-		if err != nil {
-			wasError = err
-		}
-	}
+	//// configure mtu
+	//if iface.Type != intf.InterfaceType_VXLAN_TUNNEL {
+	//	var mtu uint32
+	//	if iface.Mtu != 0 {
+	//		mtu = iface.Mtu
+	//	} else {
+	//		mtu = plugin.mtu
+	//	}
+	//	err = vppcalls.SetInterfaceMtu(ifIdx, mtu, plugin.Log, plugin.vppCh,
+	//		measure.GetTimeLog(interfaces.SwInterfaceSetMtu{}, plugin.Stopwatch))
+	//	if err != nil {
+	//		wasError = err
+	//	}
+	//}
 
 	// register name to idx mapping
 	plugin.swIfIndexes.RegisterName(iface.Name, ifIdx, iface)
@@ -448,17 +448,17 @@ func (plugin *InterfaceConfigurator) modifyVPPInterface(newConfig *intf.Interfac
 	}
 
 	// mtu
-	if newConfig.Mtu == 0 {
-		err := vppcalls.SetInterfaceMtu(ifIdx, plugin.mtu, plugin.Log, plugin.vppCh, nil)
-		if err != nil {
-			wasError = err
-		}
-	} else if newConfig.Mtu != oldConfig.Mtu {
-		err := vppcalls.SetInterfaceMtu(ifIdx, newConfig.Mtu, plugin.Log, plugin.vppCh, nil)
-		if err != nil {
-			wasError = err
-		}
-	}
+	//if newConfig.Mtu == 0 {
+	//	err := vppcalls.SetInterfaceMtu(ifIdx, plugin.mtu, plugin.Log, plugin.vppCh, nil)
+	//	if err != nil {
+	//		wasError = err
+	//	}
+	//} else if newConfig.Mtu != oldConfig.Mtu {
+	//	err := vppcalls.SetInterfaceMtu(ifIdx, newConfig.Mtu, plugin.Log, plugin.vppCh, nil)
+	//	if err != nil {
+	//		wasError = err
+	//	}
+	//}
 
 	plugin.Log.WithFields(logging.Fields{"ifName": newConfig.Name, "ifIdx": ifIdx}).Debug("modifyVPPInterface end. ", err)
 

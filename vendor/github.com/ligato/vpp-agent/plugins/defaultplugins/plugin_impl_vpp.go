@@ -31,6 +31,7 @@ import (
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/ifaceidx"
 	intf "github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/model/interfaces"
+	"github.com/ligato/vpp-agent/plugins/defaultplugins/aclplugin/model/acl"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/l2plugin"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/l2plugin/bdidx"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/l3plugin"
@@ -223,6 +224,10 @@ func (plugin *Plugin) GetFIBIndexes() idxvpp.NameToIdx {
 // GetXConnectIndexes gives access to mapping of logical names (used in ETCD configuration) as xc_indexes.
 func (plugin *Plugin) GetXConnectIndexes() idxvpp.NameToIdx {
 	return plugin.xcIndexes
+}
+
+func (plugin *Plugin) DumpACL() (acls []*acl.AccessLists_Acl, err error) {
+	return plugin.aclConfigurator.DumpACL()
 }
 
 // Init gets handlers for ETCD and Messaging and delegates them to ifConfigurator & ifStateUpdater.

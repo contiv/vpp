@@ -207,7 +207,7 @@ Verify_Multireplica_Pods_Running
     BuiltIn.Return_From_Keyword    ${pods_list}
 
 Deploy_Multireplica_Pods_And_Verify_Running
-    [Arguments]    ${ssh_session}    ${pod_file}    ${pod_prefix}    ${nr_replicas}    ${namespace}=default    ${setup_timeout}=30s
+    [Arguments]    ${ssh_session}    ${pod_file}    ${pod_prefix}    ${nr_replicas}    ${namespace}=default    ${setup_timeout}=60s
     [Documentation]     Deploy pods from one provided yaml file with more replica specified
     KubeCtl.Apply_F    ${ssh_session}    ${pod_file}
     ${pods_details} =    BuiltIn.Wait_Until_Keyword_Succeeds    ${setup_timeout}   4s    Verify_Multireplica_Pods_Running    ${ssh_session}    ${pod_prefix}    ${nr_replicas}    ${namespace}
@@ -255,7 +255,7 @@ Deploy_Istio_And_Verify_Running
     [Documentation]     Deploy pod defined by ${ISTIO_FILE}, wait to see it running, store istio pod list.
     BuiltIn.Log_Many    ${ssh_session}
     KubeCtl.Apply_F    ${ssh_session}    ${ISTIO_FILE}
-    ${istio_pods} =    BuiltIn.Wait_Until_Keyword_Succeeds    30s    4s    Verify_Istio_Running    ${ssh_session}
+    ${istio_pods} =    BuiltIn.Wait_Until_Keyword_Succeeds    60s    4s    Verify_Istio_Running    ${ssh_session}
     BuiltIn.Set_Suite_Variable    ${istio_pods}
 
 Verify_Istio_Removed
@@ -308,7 +308,7 @@ Verify_Pod_Running_And_Ready
     BuiltIn.Should_Be_Equal_As_Strings    ${ready_containers}    ${out_of_containers}
 
 Wait_Until_Pod_Running
-    [Arguments]    ${ssh_session}    ${pod_name}    ${timeout}=30s    ${check_period}=5s    ${namespace}=default
+    [Arguments]    ${ssh_session}    ${pod_name}    ${timeout}=60s    ${check_period}=5s    ${namespace}=default
     [Documentation]    WUKS around Verify_Pod_Running_And_Ready.
     BuiltIn.Log_Many    ${ssh_session}    ${pod_name}    ${timeout}    ${check_period}    ${namespace}
     BuiltIn.Wait_Until_Keyword_Succeeds    ${timeout}    ${check_period}    Verify_Pod_Running_And_Ready    ${ssh_session}    ${pod_name}    namespace=${namespace}

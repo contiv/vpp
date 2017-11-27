@@ -176,9 +176,11 @@ func (r *Renderer) updateRules(add, remove []*cache.SessionRule) error {
 	}
 
 	// Wait for all VPP responses.
+	r.Log.WithField("count", len(requests)).Debug("Waiting for BIN API responses")
 	var wasError error
 	for i := 0; i < len(requests); i++ {
 		reply := <-r.GoVPPChan.ReplyChan
+		r.Log.WithField("reply", reply).Debug("Received BIN API response")
 		if reply.Error != nil {
 			r.Log.WithField("err", reply.Error).Error(errMsg)
 			wasError = reply.Error
@@ -197,6 +199,7 @@ func (r *Renderer) updateRules(add, remove []*cache.SessionRule) error {
 			break
 		}
 	}
+	r.Log.WithField("count", len(requests)).Debug("All BIN API responses were received")
 	return wasError
 }
 

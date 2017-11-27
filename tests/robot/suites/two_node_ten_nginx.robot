@@ -18,7 +18,7 @@ Host_To_Ten_Nginxs
     : FOR    ${nginx_node}     IN     @{nginx_list}
     \    ${nginx_node_details} =    KubeCtl.Describe_Pod    ${testbed_connection}    ${nginx_node}
     \    ${nginx_node_ip} =    BuiltIn.Evaluate    &{nginx_node_details}[${nginx_node}]["IP"]
-    \    ${stdout} =    KubernetesEnv.Execute_Command_And_Log_All    ${testbed_connection}    curl http://${nginx_node_ip} --noproxy ${nginx_node_ip}   ignore_stderr=${True}
+    \    ${stdout} =    SshCommons.Switch_And_Execute_Command    ${testbed_connection}    curl http://${nginx_node_ip} --noproxy ${nginx_node_ip}   ignore_stderr=${True}
     \    BuiltIn.Should_Contain   ${stdout}    If you see this page, the nginx web server is successfully installed
 
 *** Keywords ***

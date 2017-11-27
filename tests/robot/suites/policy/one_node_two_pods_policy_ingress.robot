@@ -66,9 +66,13 @@ Check_Allow_Port_5000_On_Server_From_Nginx
 
 Get_Traffic_Status
     [Arguments]    ${tcp_port}=4444    ${udp_port}=7000
+    Log Many    ${tcp_port}    ${udp_port}
+    ${report}=    Set Variable    ${EMPTY}
     ${ping_client_server}    ${ping_server_client}=    Pod_To_Pod_Ping
     BuiltIn.Set_Suite_Variable    ${ping_client_server}
     BuiltIn.Set_Suite_Variable    ${ping_server_client}
+    ${report}=    Set Variable If    "5 received, 0% packet loss" in ${ping_client_server}    ${report}PING client -> server OK${\n}    ${report}PING client -> server ERROR${\n}
+    ${report}=    Set Variable If    "5 received, 0% packet loss" in ${ping_server_client}    ${report}PING client -> server OK${\n}    ${report}PING client -> server ERROR${\n}
 
     ${udp_client_server}    ${udp_server_client}=    Pod_To_Pod_Udp    ${udp_port}
     BuiltIn.Set_Suite_Variable    ${udp_client_server}
@@ -90,6 +94,7 @@ Get_Traffic_Status
     BuiltIn.Set_Suite_Variable    ${tcp_host_server}
     BuiltIn.Set_Suite_Variable    ${tcp_host_client}
 
+    Log    ${report}
 
 
 

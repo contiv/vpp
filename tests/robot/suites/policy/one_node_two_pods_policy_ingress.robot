@@ -210,10 +210,10 @@ Setup_Hosts_Connections
     ...    pod shells to client and server pod, parse their IP addresses and store them.
     Builtin.Log_Many    ${user}    ${password}
     ${conn} =     SSHLibrary.Get_Connection    ${testbed_connection}
-    ${client_connection} =    SSHLibrary.Open_Connection    client    ${conn.host}    timeout=10
+    ${client_connection} =    SSHLibrary.Open_Connection    ${conn.host}    client    timeout=10
     SSHLibrary.Login    ${user}    ${password}
     BuiltIn.Set_Suite_Variable    ${client_connection}
-    ${server_connection} =    SSHLibrary.Open_Connection    server    ${conn.host}    timeout=10
+    ${server_connection} =    SSHLibrary.Open_Connection    ${conn.host}    server    timeout=10
     SSHLibrary.Login    ${user}    ${password}
     BuiltIn.Set_Suite_Variable    ${server_connection}
     KubernetesEnv.Get_Into_Container_Prompt_In_Pod    ${client_connection}    ${client_pod_name}    prompt=#

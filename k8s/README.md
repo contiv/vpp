@@ -44,7 +44,7 @@ that Contiv-VPP plugin uses. This may be needed in case that you have already us
 on the host before and have the old (outdated) versions of docker images stored locally.
 
 #### setup-node.sh
-This script simplifies the setup of multi-node cluster - installs DPDK kernel module and interactively creates startup config for vpp. It has to be
+This script simplifies the setup of multi-node cluster - installs DPDK kernel module, pull the images, interactively creates startup config for vpp,... It has to be
 executed on each node of the cluster.
 ```
 ./setup-node.sh

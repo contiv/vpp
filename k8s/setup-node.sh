@@ -141,8 +141,15 @@ if [[ $(confirm "In order to use Kuberenetes services custom Kube-proxy is requi
     bash <(curl -s https://raw.githubusercontent.com/contiv/vpp/master/k8s/proxy-install.sh)
 fi
 
-if [[ $(confirm "Do you want to install cri-shim?") -eq 1 ]]; then
-    bash <(curl -s https://raw.githubusercontent.com/contiv/vpp/master/k8s/cri-install.sh)
+if [[ $(docker ps  | grep contiv-cri | wc -l) -gt 0 ]]; then
+    echo "Cri-shim is already running"
+    if [[ $(confirm "Do you want to restart cri-shim?") -eq 1 ]]; then
+        docker stop contiv-cri
+        docker rm contiv-cri
+        bash <(curl -s https://raw.githubusercontent.com/contiv/vpp/master/k8s/cri-install.sh)
+    fi
+elif [[ $(confirm "Do you want to install cri-shim?") -eq 1 ]]; then
+     bash <(curl -s https://raw.githubusercontent.com/contiv/vpp/master/k8s/cri-install.sh)
 fi
 
 echo "Configuration of the node finished successfully."

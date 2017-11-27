@@ -73,7 +73,7 @@ if [ ${UNINSTALL} == 0 ] ; then
         /root/contiv-cri --etcd-endpoint "127.0.0.1:6666"
 else
     # Uninstall - stop the Docker container with CRI, disable autorestart.
-    echo "Sopping contiv-cri Docker container:"
+    echo "Stopping contiv-cri Docker container:"
     docker update --restart=no contiv-cri
     docker stop contiv-cri
     docker rm contiv-cri

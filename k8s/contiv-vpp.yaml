@@ -21,7 +21,7 @@ metadata:
 data:
   contiv.yaml: |
     TCPstackDisabled: False
-    TCPChecksumOffloadDisabled: True
+    TCPChecksumOffloadDisabled: False
     IPAMConfig:
       PodSubnetCIDR: "10.1.0.0/16"
       PodNetworkPrefixLen: 24

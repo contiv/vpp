@@ -387,9 +387,11 @@ Get_Into_Container_Prompt_In_Pod
     [Documentation]    Configure if prompt, execute interactive bash in ${pod_name}, read until prompt, log and return output.
     BuiltIn.Log_Many    ${ssh_session}    ${pod_name}    ${prompt}
     # TODO: PodBash.robot?
-    SSHLibrary.Switch_Connection    ${ssh_session}
+    ${docker} =    BuiltIn.Set_Variable    ${KUBE_CLUSTER_${CLUSTER_ID}_DOCKER_COMMAND}
+    ${container_id} =    KubeCtl.Get_Container_Id    ${ssh_session}    ${pod_name}
+    # That already switched the ssh session.
     BuiltIn.Run_Keyword_If    """${prompt}""" != """${EMPTY}"""    SSHLibrary.Set_Client_Configuration    prompt=${prompt}
-    SSHLibrary.Write    kubectl exec -it ${pod_name} -- /bin/bash
+    SSHLibrary.Write    ${docker} exec -i -t --privileged=true ${container_id} /bin/bash
     ${output} =     SSHLibrary.Read_Until_Prompt
     Log     ${output}
     [Return]    ${output}

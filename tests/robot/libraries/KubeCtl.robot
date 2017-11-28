@@ -77,11 +77,11 @@ Get_Nodes
 
 Logs
     [Arguments]    ${ssh_session}    ${pod_name}    ${container}=${EMPTY}    ${namespace}=${EMPTY}
-    [Documentation]    Execute "kubectl logs" with given params, and return the result while logging into separate file.
+    [Documentation]    Execute "kubectl logs" with given params, log output into a result file.
     BuiltIn.Log_Many    ${ssh_session}    ${pod_name}    ${container}    ${namespace}
     ${nsparam} =     BuiltIn.Set_Variable_If    """${namespace}""" != """${EMPTY}"""    --namespace ${namespace}    ${EMPTY}
     ${cntparam} =    BuiltIn.Set_Variable_If    """${container}""" != """${EMPTY}"""    ${container}    ${EMPTY}
-    BuiltIn.Run_Keyword_And_Return    SshCommons.Switch_Execute_And_Log_To_File    ${ssh_session}    kubectl logs ${nsparam} ${pod_name} ${cntparam}
+    SshCommons.Switch_Execute_And_Log_To_File    ${ssh_session}    kubectl logs ${nsparam} ${pod_name} ${cntparam}
 
 Describe_Pod
     [Arguments]    ${ssh_session}    ${pod_name}

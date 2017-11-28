@@ -155,11 +155,15 @@ func (p *Plugin) Init() error {
 	p.processor.Init()
 	p.configurator.Init(false) // Do not render in parallel while we do lot of debugging.
 	p.aclRenderer.Init()
-	p.vppTCPRenderer.Init()
+	if p.Contiv.IsTCPstackDisabled() {
+		p.vppTCPRenderer.Init()
+	}
 
 	// Register renderers.
 	p.configurator.RegisterRenderer(p.aclRenderer)
-	p.configurator.RegisterRenderer(p.vppTCPRenderer)
+	if p.Contiv.IsTCPstackDisabled() {
+		p.configurator.RegisterRenderer(p.vppTCPRenderer)
+	}
 
 	p.ctx, p.cancel = context.WithCancel(context.Background())
 

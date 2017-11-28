@@ -18,21 +18,33 @@ ENV VPP_BIN $VPP_BIN_DIR/vpp
 ENV LD_PRELOAD_LIB_DIR $VPP_LIB_DIR
 
 # if VPP comit ID is specified, update to specific VPP commit ID
-RUN /bin/bash -c "if [ '${VPP_COMMIT_ID}' != 'xxx' ]; then \
-        cd ${VPP_DIR} && \
-        git checkout master && \
-        git pull && \
-        git checkout ${VPP_COMMIT_ID} && \
-        rm -rf build-root/ && \
-        git reset --hard HEAD && \
-        yes | make install-dep && \
-        make bootstrap && \
-        make build && \
-        make pkg-deb && \
-        cd build-root && \
-        yes | apt remove vpp vpp-plugins vpp-lib vpp-dev || true && \
-        dpkg -i vpp_*.deb vpp-dev_*.deb vpp-lib_*.deb vpp-plugins_*.deb ; \
-    fi"
+#RUN /bin/bash -c "if [ '${VPP_COMMIT_ID}' != 'xxx' ]; then \
+#        cd ${VPP_DIR} && \
+#        git checkout master && \
+#        git pull && \
+#        git checkout ${VPP_COMMIT_ID} && \
+#        rm -rf build-root/ && \
+#        git reset --hard HEAD && \
+#        yes | make install-dep && \
+#        make bootstrap && \
+#        make build && \
+#        make pkg-deb && \
+#        cd build-root && \
+#        yes | apt remove vpp vpp-plugins vpp-lib vpp-dev || true && \
+#        dpkg -i vpp_*.deb vpp-dev_*.deb vpp-lib_*.deb vpp-plugins_*.deb ; \
+#    fi"
+
+RUN rm -rf /opt/vpp-agent/dev/vpp && \
+    cd /opt/vpp-agent/dev && \
+    git clone https://github.com/vpp-dev/vpp.git && \
+    cd vpp && \
+    yes | make install-dep && \
+    make bootstrap && \
+    make build && \
+    make pkg-deb && \
+    cd build-root && \
+    yes | apt remove vpp vpp-plugins vpp-lib vpp-dev || true && \
+    dpkg -i vpp_*.deb vpp-dev_*.deb vpp-lib_*.deb vpp-plugins_*.deb ;
 
 # copy source files to the container
 COPY / /root/go/src/github.com/contiv/vpp

@@ -58,7 +58,7 @@ Switch_And_Write_Command
     [Documentation]    Switch to \${ssh_session}, and continue with Write_Command_And_Log
     BuiltIn.Log_Many    ${ssh_session}    ${command}    ${prompt}
     SSHLibrary.Switch_Connection    ${ssh_session}
-    BuiltIn.Run_Keyword_And_Return    Write_Command_And_Log    ${command}    ${prompt}    ${delay}
+    BuiltIn.Run_Keyword_And_Return    Write_Command_And_Log    ${command}    ${prompt}
 
 Write_Command_And_Log
     [Arguments]    ${command}    ${prompt}=vpp#

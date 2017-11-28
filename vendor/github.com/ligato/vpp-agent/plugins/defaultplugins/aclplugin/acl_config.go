@@ -298,7 +298,7 @@ func (plugin *ACLConfigurator) DumpACL() (acls []*acl.AccessLists_Acl, err error
 	//	return nil
 	//}
 	//return acls
-	return []*acl.AccessLists_Acl{}, nil
+	return  []*acl.AccessLists_Acl{},nil
 }
 
 // Validate rules provided in ACL. Every rule has to contain actions and matches.

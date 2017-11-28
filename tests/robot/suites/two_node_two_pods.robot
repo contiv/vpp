@@ -21,6 +21,7 @@ Pod_To_Pod_Udp
     KubernetesEnv.Init_Infinite_Command_in_Pod    nc -u ${server_ip} 7000    ssh_session=${client_connection}
     ${text} =    BuiltIn.Set_Variable    Text to be received
     SSHLibrary.Write    ${text}
+    BuiltIn.Sleep    1
     ${client_stdout} =    KubernetesEnv.Stop_Infinite_Command_In_Pod    ssh_session=${client_connection}
     ${server_stdout} =    KubernetesEnv.Stop_Infinite_Command_In_Pod    ssh_session=${server_connection}
     BuiltIn.Should_Contain   ${server_stdout}    ${text}
@@ -33,6 +34,7 @@ Pod_To_Pod_Tcp
     KubernetesEnv.Run_Finite_Command_In_Pod    cd; echo "${text}" > some.file    ssh_session=${client_connection}
     KubernetesEnv.Init_Infinite_Command_in_Pod    nc -l -p 4444    ssh_session=${server_connection}
     KubernetesEnv.Init_Infinite_Command_in_Pod    cd; nc ${server_ip} 4444 < some.file    ssh_session=${client_connection}
+    BuiltIn.Sleep    1
     ${server_stdout} =    KubernetesEnv.Stop_Infinite_Command_In_Pod    ssh_session=${server_connection}
     BuiltIn.Should_Contain   ${server_stdout}    ${text}
     ${client_stdout} =    KubernetesEnv.Stop_Infinite_Command_In_Pod    ssh_session=${client_connection}
@@ -54,6 +56,7 @@ Host_To_Pod_Udp_Remote
     KubernetesEnv.Init_Infinite_Command_in_Pod    nc -u ${server_ip} 7000    ssh_session=${testbed_connection}
     ${text} =    BuiltIn.Set_Variable    Text to be received
     SSHLibrary.Write    ${text}
+    BuiltIn.Sleep    1
     ${client_stdout} =    KubernetesEnv.Stop_Infinite_Command_In_Pod    ssh_session=${testbed_connection}    prompt=$
     ${server_stdout} =    KubernetesEnv.Stop_Infinite_Command_In_Pod    ssh_session=${server_connection}
     BuiltIn.Should_Contain   ${server_stdout}    ${text}
@@ -66,6 +69,7 @@ Host_To_Pod_Tcp_Remote
     KubernetesEnv.Run_Finite_Command_In_Pod    cd; echo "${text}" > some.file    ssh_session=${testbed_connection}
     KubernetesEnv.Init_Infinite_Command_in_Pod    nc -l -p 4444    ssh_session=${server_connection}
     KubernetesEnv.Init_Infinite_Command_in_Pod    cd; nc ${server_ip} 4444 < some.file    ssh_session=${testbed_connection}
+    BuiltIn.Sleep    1
     ${server_stdout} =    KubernetesEnv.Stop_Infinite_Command_In_Pod    ssh_session=${server_connection}
     BuiltIn.Should_Contain   ${server_stdout}    ${text}
     ${client_stdout} =    KubernetesEnv.Stop_Infinite_Command_In_Pod    ssh_session=${testbed_connection}    prompt=$
@@ -131,14 +135,15 @@ Setup_Hosts_Connections
     ...    pod shell to client pod.
     Builtin.Log_Many    ${user}    ${password}
     ${conn} =     SSHLibrary.Get_Connection    ${testbed_connection}
-    ${client_connection} =    SSHLibrary.Open_Connection    ${conn.host}    timeout=10
+    ${client_connection} =    SSHLibrary.Open_Connection    ${conn.host}    timeout=60
     SSHLibrary.Login    ${user}    ${password}
     BuiltIn.Set_Suite_Variable    ${client_connection}
-    ${server_connection} =    SSHLibrary.Open_Connection    ${conn.host}    timeout=10
+    ${conn} =     SSHLibrary.Get_Connection    ${VM_SSH_ALIAS_PREFIX}2
+    ${server_connection} =    SSHLibrary.Open_Connection    ${conn.host}    timeout=60
     SSHLibrary.Login    ${user}    ${password}
     BuiltIn.Set_Suite_Variable    ${server_connection}
-    KubernetesEnv.Get_Into_Container_Prompt_In_Pod    ${client_connection}    ${client_pod_name}    prompt=\#
-    KubernetesEnv.Get_Into_Container_Prompt_In_Pod    ${server_connection}    ${server_pod_name}    prompt=\#
+    KubernetesEnv.Get_Into_Container_Prompt_In_Pod    ${client_connection}    ${client_pod_name}    prompt=#
+    KubernetesEnv.Get_Into_Container_Prompt_In_Pod    ${server_connection}    ${server_pod_name}    prompt=#
 
 Teardown_Hosts_Connections
     [Documentation]    Exit client pod shell, close both new SSH connections.

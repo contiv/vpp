@@ -30,6 +30,7 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/ligato/cn-infra/datasync"
 	"github.com/ligato/cn-infra/logging"
+	"github.com/ligato/vpp-agent/clientv1/defaultplugins"
 	"github.com/ligato/vpp-agent/clientv1/linux"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/ifaceidx"
 	vpp_intf "github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/model/interfaces"
@@ -42,11 +43,12 @@ type remoteCNIserver struct {
 	logging.Logger
 	sync.Mutex
 
-	vppTxnFactory        func() linux.DataChangeDSL
-	proxy                kvdbproxy.Proxy
-	govppChan            *api.Channel
-	swIfIndex            ifaceidx.SwIfIndex
-	configuredContainers *containeridx.ConfigIndex
+	vppLinuxTxnFactory          func() linux.DataChangeDSL
+	vppDefaultPluginsTxnFactory func() defaultplugins.DataChangeDSL
+	proxy                       kvdbproxy.Proxy
+	govppChan                   *api.Channel
+	swIfIndex                   ifaceidx.SwIfIndex
+	configuredContainers        *containeridx.ConfigIndex
 	// hostCalls encapsulates calls for managing linux networking
 	hostCalls
 
@@ -87,15 +89,18 @@ const (
 	afPacketIPPrefix            = "10.2.1"
 )
 
-func newRemoteCNIServer(logger logging.Logger, vppTxnFactory func() linux.DataChangeDSL, proxy kvdbproxy.Proxy,
-	configuredContainers *containeridx.ConfigIndex, govppChan *api.Channel, index ifaceidx.SwIfIndex, agentLabel string, config *Config, uid uint8) (*remoteCNIserver, error) {
+func newRemoteCNIServer(logger logging.Logger, vppLinuxTxnFactory func() linux.DataChangeDSL,
+	vppDefaultPluginsTxnFactory func() defaultplugins.DataChangeDSL, proxy kvdbproxy.Proxy,
+	configuredContainers *containeridx.ConfigIndex, govppChan *api.Channel, index ifaceidx.SwIfIndex, agentLabel string,
+	config *Config, uid uint8) (*remoteCNIserver, error) {
 	ipam, err := ipam.New(logger, uid, &config.IPAMConfig)
 	if err != nil {
 		return nil, err
 	}
 	server := &remoteCNIserver{
-		Logger:                     logger,
-		vppTxnFactory:              vppTxnFactory,
+		Logger:                      logger,
+		vppLinuxTxnFactory:          vppLinuxTxnFactory,
+		vppDefaultPluginsTxnFactory: vppDefaultPluginsTxnFactory,
 		proxy:                      proxy,
 		configuredContainers:       configuredContainers,
 		hostCalls:                  &linuxCalls{},
@@ -176,7 +181,7 @@ func (s *remoteCNIserver) configureVswitchConnectivity() error {
 			s.Logger.Info("Configuring physical NIC ", nicName)
 
 			// add the NIC config into the transaction
-			txn1 := s.vppTxnFactory().Put()
+			txn1 := s.vppLinuxTxnFactory().Put()
 
 			nic, err := s.physicalInterface(nicName)
 			if err != nil {
@@ -196,7 +201,7 @@ func (s *remoteCNIserver) configureVswitchConnectivity() error {
 			s.Logger.Debug("Physical NIC not found, configuring loopback instead.")
 
 			// add the NIC config into the transaction
-			txn := s.vppTxnFactory().Put()
+			txn := s.vppLinuxTxnFactory().Put()
 
 			loop, err := s.physicalInterfaceLoopback()
 			if err != nil {
@@ -228,7 +233,7 @@ func (s *remoteCNIserver) configureVswitchConnectivity() error {
 
 			// send created configuration to VPP
 			if len(interfaces) > 0 {
-				tx := s.vppTxnFactory().Put()
+				tx := s.vppLinuxTxnFactory().Put()
 				for intfName, intf := range interfaces {
 					tx.VppInterface(intf)
 					changes[vpp_intf.InterfaceKey(intfName)] = intf
@@ -251,7 +256,7 @@ func (s *remoteCNIserver) configureVswitchConnectivity() error {
 	route := s.defaultRouteToHost()
 
 	// configure linux interfaces
-	txn1 := s.vppTxnFactory().Put().
+	txn1 := s.vppLinuxTxnFactory().Put().
 		LinuxInterface(vethHost).
 		LinuxInterface(vethVpp)
 
@@ -262,7 +267,7 @@ func (s *remoteCNIserver) configureVswitchConnectivity() error {
 	}
 
 	// configure AF_PACKET for the veth - this transaction must be successful in order to continue
-	txn2 := s.vppTxnFactory().Put().VppInterface(interconnectAF)
+	txn2 := s.vppLinuxTxnFactory().Put().VppInterface(interconnectAF)
 
 	err = txn2.Send().ReceiveReply()
 	if err != nil {
@@ -280,7 +285,7 @@ func (s *remoteCNIserver) configureVswitchConnectivity() error {
 	}
 
 	// configure default static route to the host
-	txn3 := s.vppTxnFactory().Put().StaticRoute(route)
+	txn3 := s.vppLinuxTxnFactory().Put().StaticRoute(route)
 	err = txn3.Send().ReceiveReply()
 	if err != nil {
 		s.Logger.Error(err)
@@ -331,7 +336,7 @@ func (s *remoteCNIserver) cleanupVswitchConnectivity() {
 	vethHost := s.interconnectVethHost()
 	vethVpp := s.interconnectVethVpp()
 
-	txn := s.vppTxnFactory().Delete().
+	txn := s.vppLinuxTxnFactory().Delete().
 		LinuxInterface(vethHost.Name).
 		LinuxInterface(vethVpp.Name)
 
@@ -385,7 +390,7 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 
 	s.WithFields(logging.Fields{"veth1": veth1, "veth2": veth2, "afpacket": afpacket /*, "route": route*/}).Info("Configuring")
 
-	txn := s.vppTxnFactory().
+	txn := s.vppLinuxTxnFactory().
 		Put().
 		LinuxInterface(veth1).
 		LinuxInterface(veth2).
@@ -401,14 +406,18 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 	// TODO get rid of this sleep
 	time.Sleep(500 * time.Millisecond)
 
-	err = s.setupStn(podIP.String(), s.afpacketNameFromRequest(request))
+	err = s.vppDefaultPluginsTxnFactory().
+		Put().
+		StnRules(s.StnRule(podIP, s.afpacketNameFromRequest(request))).
+		Send().
+		ReceiveReply()
 	if err != nil {
 		s.Logger.Error(err)
 		return s.generateErrorResponse(err)
 	}
 	s.Logger.Info("Stn configured")
 
-	nsIndex, err := s.addAppNamespace(request.ContainerId, s.loopbackNameFromRequest(request))
+	nsIndex, err := s.addAppNamespace(request.ContainerId, s.loopbackNameFromRequest(request)) //can't be replaced by vpp-agent version(l4 default plugin) due to missing nsIndex return value
 	if err != nil {
 		s.Logger.Error(err)
 		return s.generateErrorResponse(err)
@@ -522,7 +531,7 @@ func (s *remoteCNIserver) unconfigureContainerConnectivity(request *cni.CNIReque
 	loop := s.loopbackNameFromRequest(request)
 	s.Info("Removing", []string{veth1, veth2, afpacket, loop})
 
-	err := s.vppTxnFactory().
+	err := s.vppLinuxTxnFactory().
 		Delete().
 		LinuxInterface(veth1).
 		LinuxInterface(veth2).

@@ -51,8 +51,8 @@ while [ "$1" != "" ]; do
 done
 
 # obtain the current git tag for tagging the Docker images
-TAG=`git describe --tags`
-VPP=$(docker run --rm dev-contiv-vswitch:$TAG bash -c "cd \$VPP_DIR && git rev-parse --short HEAD")
+export TAG=`git describe --tags`
+export VPP=$(docker run --rm dev-contiv-vswitch:$TAG bash -c "cd \$VPP_DIR && git rev-parse --short HEAD")
 
 # tag and push each image
 for IMAGE in "${IMAGES[@]}"

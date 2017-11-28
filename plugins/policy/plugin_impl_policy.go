@@ -136,16 +136,18 @@ func (p *Plugin) Init() error {
 	}
 	p.aclRenderer.Log.SetLevel(logging.DebugLevel)
 
-	goVppCh, err := p.GoVPP.NewAPIChannel()
+	const goVPPChanBufSize = 1 << 12
+	goVppCh, err := p.GoVPP.NewAPIChannelBuffered(goVPPChanBufSize, goVPPChanBufSize)
 	if err != nil {
 		return err
 	}
 	p.vppTCPRenderer = &vpptcp.Renderer{
 		Deps: vpptcp.Deps{
-			Log:        p.Log.NewLogger("-vppTcpRenderer"),
-			LogFactory: p.Log,
-			Contiv:     p.Contiv,
-			GoVPPChan:  goVppCh,
+			Log:              p.Log.NewLogger("-vppTcpRenderer"),
+			LogFactory:       p.Log,
+			Contiv:           p.Contiv,
+			GoVPPChan:        goVppCh,
+			GoVPPChanBufSize: goVPPChanBufSize,
 		},
 	}
 	p.vppTCPRenderer.Log.SetLevel(logging.DebugLevel)

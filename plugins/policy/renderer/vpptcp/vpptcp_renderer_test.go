@@ -87,9 +87,10 @@ func TestSingleEgressRuleSinglePod(t *testing.T) {
 	// Prepare VPPTCP Renderer.
 	vppTCPRenderer := &Renderer{
 		Deps: Deps{
-			Log:       logger,
-			Contiv:    contiv,
-			GoVPPChan: vppChan,
+			Log:              logger,
+			Contiv:           contiv,
+			GoVPPChan:        vppChan,
+			GoVPPChanBufSize: 20,
 		},
 	}
 	vppTCPRenderer.Init()
@@ -142,9 +143,10 @@ func TestSingleIngressRuleSinglePod(t *testing.T) {
 	// Prepare VPPTCP Renderer.
 	vppTCPRenderer := &Renderer{
 		Deps: Deps{
-			Log:       logger,
-			Contiv:    contiv,
-			GoVPPChan: vppChan,
+			Log:              logger,
+			Contiv:           contiv,
+			GoVPPChan:        vppChan,
+			GoVPPChanBufSize: 2,
 		},
 	}
 	vppTCPRenderer.Init()
@@ -225,9 +227,10 @@ func TestMultipleRulesSinglePodWithDataChange(t *testing.T) {
 	// Prepare VPPTCP Renderer.
 	vppTCPRenderer := &Renderer{
 		Deps: Deps{
-			Log:       logger,
-			Contiv:    contiv,
-			GoVPPChan: vppChan,
+			Log:              logger,
+			Contiv:           contiv,
+			GoVPPChan:        vppChan,
+			GoVPPChanBufSize: 5,
 		},
 	}
 	vppTCPRenderer.Init()
@@ -491,9 +494,10 @@ func TestMultipleRulesMultiplePodsWithResync(t *testing.T) {
 	// Prepare VPPTCP Renderer.
 	vppTCPRenderer := &Renderer{
 		Deps: Deps{
-			Log:       logger,
-			Contiv:    contiv,
-			GoVPPChan: vppChan,
+			Log:              logger,
+			Contiv:           contiv,
+			GoVPPChan:        vppChan,
+			GoVPPChanBufSize: 12,
 		},
 	}
 	vppTCPRenderer.Init()

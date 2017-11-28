@@ -60,4 +60,4 @@ ${KUBE_CLUSTER_5_DOCKER_COMMAND}   docker
 ${RESULTS_FOLDER}                  results
 ${TEST_DATA_FOLDER}                test_data
 ${SSH_READ_DELAY}                  3
-${SSH_TIMEOUT}                     600
+${SSH_TIMEOUT}                     30

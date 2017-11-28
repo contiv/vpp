@@ -7,62 +7,74 @@ Suite Teardown    OneNodeK8sTeardown
 *** Test Cases ***
 Check_Allow_TCP_Port_4444_On_Server_From_Client
     [Setup]    Setup_Hosts_Connections
-    KubeCtl.Apply_F    ${testbed_connection}    ${TEST_DATA_FOLDER}/allow_tcp_4444_server_from_client.yaml
+    KubeCtl.Apply_F    ${testbed_connection}    ${CURDIR}/${TEST_DATA_FOLDER}/allow_tcp_4444_server_from_client.yaml
     Sleep    3s
     Switch_And_Write_Command    ${vpp_connection}    show acl-plugin acl
     Get_Traffic_Status    tcp_port=4444    udp_port=7000
     Get_Traffic_Status    tcp_port=5000    udp_port=7000
-    KubeCtl.Delete_F    ${testbed_connection}    ${TEST_DATA_FOLDER}/allow_tcp_4444_server_from_client.yaml
+    KubeCtl.Delete_F    ${testbed_connection}    ${CURDIR}/${TEST_DATA_FOLDER}/allow_tcp_4444_server_from_client.yaml
+    Sleep    3s
+    Switch_And_Write_Command    ${vpp_connection}    show acl-plugin acl
     [Teardown]    Teardown_Hosts_Connections
 
 Check_Allow_UDP_Port_7000_On_Server_From_Client
     [Setup]    Setup_Hosts_Connections
-    KubeCtl.Apply_F    ${testbed_connection}    ${TEST_DATA_FOLDER}/allow_udp_7000_server_from_client.yaml
+    KubeCtl.Apply_F    ${testbed_connection}    ${CURDIR}/${TEST_DATA_FOLDER}/allow_udp_7000_server_from_client.yaml
     Sleep    3s
     Switch_And_Write_Command    ${vpp_connection}    show acl-plugin acl
     Get_Traffic_Status    tcp_port=4444    udp_port=7000
     Get_Traffic_Status    tcp_port=4444    udp_port=5000
-    KubeCtl.Delete_F    ${testbed_connection}    ${TEST_DATA_FOLDER}/allow_udp_7000_server_from_client.yaml
+    KubeCtl.Delete_F    ${testbed_connection}    ${CURDIR}/${TEST_DATA_FOLDER}/allow_udp_7000_server_from_client.yaml
+    Sleep    3s
+    Switch_And_Write_Command    ${vpp_connection}    show acl-plugin acl
     [Teardown]    Teardown_Hosts_Connections
 
 Check_Allow_Port_5000_On_Server_From_Client
     [Setup]    Setup_Hosts_Connections
-    KubeCtl.Apply_F    ${testbed_connection}    ${TEST_DATA_FOLDER}/allow_port_5000_server_from_client.yaml
+    KubeCtl.Apply_F    ${testbed_connection}    ${CURDIR}/${TEST_DATA_FOLDER}/allow_port_5000_server_from_client.yaml
     Sleep    3s
     Switch_And_Write_Command    ${vpp_connection}    show acl-plugin acl
     Get_Traffic_Status    tcp_port=4444    udp_port=5000
     Get_Traffic_Status    tcp_port=5000    udp_port=7000
-    KubeCtl.Delete_F    ${testbed_connection}    ${TEST_DATA_FOLDER}/allow_port_5000_server_from_client.yaml
+    KubeCtl.Delete_F    ${testbed_connection}    ${CURDIR}/${TEST_DATA_FOLDER}/allow_port_5000_server_from_client.yaml
+    Sleep    3s
+    Switch_And_Write_Command    ${vpp_connection}    show acl-plugin acl
     [Teardown]    Teardown_Hosts_Connections
 
 Check_Allow_TCP_Port_4444_On_Server_From_Nginx
     [Setup]    Setup_Hosts_Connections
-    KubeCtl.Apply_F    ${testbed_connection}    ${TEST_DATA_FOLDER}/allow_tcp_4444_server_from_nginx.yaml
+    KubeCtl.Apply_F    ${testbed_connection}    ${CURDIR}/${TEST_DATA_FOLDER}/allow_tcp_4444_server_from_nginx.yaml
     Sleep    3s
     Switch_And_Write_Command    ${vpp_connection}    show acl-plugin acl
     Get_Traffic_Status    tcp_port=4444    udp_port=7000
     Get_Traffic_Status    tcp_port=5000    udp_port=7000
-    KubeCtl.Delete_F    ${testbed_connection}    ${TEST_DATA_FOLDER}/allow_tcp_4444_server_from_nginx.yaml
+    KubeCtl.Delete_F    ${testbed_connection}    ${CURDIR}/${TEST_DATA_FOLDER}/allow_tcp_4444_server_from_nginx.yaml
+    Sleep    3s
+    Switch_And_Write_Command    ${vpp_connection}    show acl-plugin acl
     [Teardown]    Teardown_Hosts_Connections
 
 Check_Allow_UDP_Port_7000_On_Server_From_Nginx
     [Setup]    Setup_Hosts_Connections
-    KubeCtl.Apply_F    ${testbed_connection}    ${TEST_DATA_FOLDER}/allow_udp_7000_server_from_nginx.yaml
+    KubeCtl.Apply_F    ${testbed_connection}    ${CURDIR}/${TEST_DATA_FOLDER}/allow_udp_7000_server_from_nginx.yaml
     Sleep    3s
     Switch_And_Write_Command    ${vpp_connection}    show acl-plugin acl
     Get_Traffic_Status    tcp_port=4444    udp_port=7000
     Get_Traffic_Status    tcp_port=4444    udp_port=5000
-    KubeCtl.Delete_F    ${testbed_connection}    ${TEST_DATA_FOLDER}/allow_udp_7000_server_from_nginx.yaml
+    KubeCtl.Delete_F    ${testbed_connection}    ${CURDIR}/${TEST_DATA_FOLDER}/allow_udp_7000_server_from_nginx.yaml
+    Sleep    3s
+    Switch_And_Write_Command    ${vpp_connection}    show acl-plugin acl
     [Teardown]    Teardown_Hosts_Connections
 
 Check_Allow_Port_5000_On_Server_From_Nginx
     [Setup]    Setup_Hosts_Connections
-    KubeCtl.Apply_F    ${testbed_connection}    ${TEST_DATA_FOLDER}/allow_port_5000_server_from_nginx.yaml
+    KubeCtl.Apply_F    ${testbed_connection}    ${CURDIR}/${TEST_DATA_FOLDER}/allow_port_5000_server_from_nginx.yaml
     Sleep    3s
     Switch_And_Write_Command    ${vpp_connection}    show acl-plugin acl
     Get_Traffic_Status    tcp_port=4444    udp_port=5000
     Get_Traffic_Status    tcp_port=5000    udp_port=7000
-    KubeCtl.Delete_F    ${testbed_connection}    ${TEST_DATA_FOLDER}/allow_port_5000_server_from_nginx.yaml
+    KubeCtl.Delete_F    ${testbed_connection}    ${CURDIR}/${TEST_DATA_FOLDER}/allow_port_5000_server_from_nginx.yaml
+    Sleep    3s
+    Switch_And_Write_Command    ${vpp_connection}    show acl-plugin acl
     [Teardown]    Teardown_Hosts_Connections
 
 

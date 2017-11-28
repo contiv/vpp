@@ -21,7 +21,7 @@ Resource          ${CURDIR}/KubeCtl.robot
 Resource          ${CURDIR}/SshCommons.robot
 
 *** Variables ***
-${NV_PLUGIN_URL}    https://raw.githubusercontent.com/contiv/vpp/master/k8s/contiv-vpp.yaml
+${NV_PLUGIN_URL}    https://raw.githubusercontent.com/contiv/vpp/${BRANCH}/k8s/contiv-vpp.yaml
 ${CLIENT_POD_FILE}    ${CURDIR}/../resources/ubuntu-client.yaml
 ${SERVER_POD_FILE}    ${CURDIR}/../resources/ubuntu-server.yaml
 ${NGINX_POD_FILE}    ${CURDIR}/../resources/nginx.yaml
@@ -41,10 +41,10 @@ Reinit_One_Node_Kube_Cluster
     SSHLibrary.Set_Client_Configuration    timeout=10    prompt=$
     SshCommons.Switch_And_Execute_Command    ${testbed_connection}    sudo rm -rf $HOME/.kube
     KubeAdm.Reset    ${testbed_connection}
-    SshCommons.Switch_And_Execute_Command    ${testbed_connection}    curl -s https://raw.githubusercontent.com/contiv/vpp/master/k8s/cri-install.sh | sudo bash /dev/stdin -u    ignore_stderr=${True}    ignore_rc=${True}
+    SshCommons.Switch_And_Execute_Command    ${testbed_connection}    curl -s https://raw.githubusercontent.com/contiv/vpp/${BRANCH}/k8s/cri-install.sh | sudo bash /dev/stdin -u    ignore_stderr=${True}    ignore_rc=${True}
     Docker_Pull_Contiv_Vpp    ${testbed_connection}
     Docker_Pull_Custom_Kube_Proxy    ${testbed_connection}
-    SshCommons.Switch_And_Execute_Command    ${testbed_connection}    curl -s https://raw.githubusercontent.com/contiv/vpp/master/k8s/cri-install.sh | sudo bash /dev/stdin
+    SshCommons.Switch_And_Execute_Command    ${testbed_connection}    curl -s https://raw.githubusercontent.com/contiv/vpp/${BRANCH}/k8s/cri-install.sh | sudo bash /dev/stdin
     ${stdout} =    KubeAdm.Init    ${testbed_connection}
     BuiltIn.Should_Contain    ${stdout}    Your Kubernetes master has initialized successfully
     SshCommons.Switch_And_Execute_Command    ${testbed_connection}    mkdir -p $HOME/.kube
@@ -67,10 +67,10 @@ Reinit_Multinode_Kube_Cluster
     \    SshCommons.Switch_And_Execute_Command    ${connection}    sudo rm -rf ~/.kube
     \    KubeAdm.Reset    ${connection}
     \    SshCommons.Switch_And_Execute_Command    ${connection}    sudo modprobe uio_pci_generic
-    \    SshCommons.Switch_And_Execute_Command    ${connection}    curl -s https://raw.githubusercontent.com/contiv/vpp/master/k8s/cri-install.sh | sudo bash /dev/stdin -u    ignore_stderr=${True}    ignore_rc=${True}
+    \    SshCommons.Switch_And_Execute_Command    ${connection}    curl -s https://raw.githubusercontent.com/contiv/vpp/${BRANCH}/k8s/cri-install.sh | sudo bash /dev/stdin -u    ignore_stderr=${True}    ignore_rc=${True}
     \    Docker_Pull_Contiv_Vpp    ${connection}
     \    Docker_Pull_Custom_Kube_Proxy    ${connection}
-    \    SshCommons.Switch_And_Execute_Command    ${connection}    curl -s https://raw.githubusercontent.com/contiv/vpp/master/k8s/cri-install.sh | sudo bash /dev/stdin
+    \    SshCommons.Switch_And_Execute_Command    ${connection}    curl -s https://raw.githubusercontent.com/contiv/vpp/${BRANCH}/k8s/cri-install.sh | sudo bash /dev/stdin
     # init master
     ${connection} =    BuiltIn.Set_Variable    ${VM_SSH_ALIAS_PREFIX}1
     ${init_stdout} =    KubeAdm.Init    ${connection}
@@ -97,13 +97,13 @@ Docker_Pull_Contiv_Vpp
     [Arguments]    ${ssh_session}
     [Documentation]    Execute bash applying pull-images.sh from github.
     BuiltIn.Log_Many    ${ssh_session}
-    SshCommons.Switch_And_Execute_Command    ${ssh_session}    bash <(curl -s https://raw.githubusercontent.com/contiv/vpp/master/k8s/pull-images.sh)
+    SshCommons.Switch_And_Execute_Command    ${ssh_session}    bash <(curl -s https://raw.githubusercontent.com/contiv/vpp/${BRANCH}/k8s/pull-images.sh)
 
 Docker_Pull_Custom_Kube_Proxy
     [Arguments]    ${ssh_session}
     [Documentation]    Execute proxy-install.sh script.
     Builtin.Log_Many    ${ssh_session}
-    SshCommons.Switch_And_Execute_Command    ${ssh_session}    bash <(curl -s https://raw.githubusercontent.com/contiv/vpp/master/k8s/proxy-install.sh)
+    SshCommons.Switch_And_Execute_Command    ${ssh_session}    bash <(curl -s https://raw.githubusercontent.com/contiv/vpp/${BRANCH}/k8s/proxy-install.sh)
 
 Apply_Contive_Vpp_Plugin
     [Arguments]    ${ssh_session}

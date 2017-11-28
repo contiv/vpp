@@ -73,6 +73,9 @@ type remoteCNIserver struct {
 	// only when vswitch connectivity is configured
 	vswitchConnectivityConfigured bool
 	vswitchCond                   *sync.Cond
+
+	// if the flag is true only veth without stn and tcp stack is configured
+	disableTCPstack bool
 }
 
 const (
@@ -106,6 +109,7 @@ func newRemoteCNIServer(logger logging.Logger, vppTxnFactory func() linux.DataCh
 		ipam:                       ipam,
 		nodeConfigs:                config.NodeConfig,
 		tcpChecksumOffloadDisabled: config.TCPChecksumOffloadDisabled,
+		disableTCPstack:            config.TCPstackDisabled,
 	}
 	server.vswitchCond = sync.NewCond(&server.Mutex)
 	return server, nil
@@ -309,7 +313,9 @@ func (s *remoteCNIserver) configureVswitchConnectivity() error {
 		return err
 	}
 
-	err = s.enableTCPSession()
+	if !s.disableTCPstack {
+		err = s.enableTCPSession()
+	}
 
 	s.vswitchConnectivityConfigured = true
 	s.vswitchCond.Broadcast()
@@ -366,6 +372,7 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 		res        = resultOk
 		errMsg     = ""
 		createdIfs []*cni.CNIReply_Interface
+		nsIndex    uint32
 	)
 
 	changes := map[string]proto.Message{}
@@ -381,6 +388,7 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 	veth1 := s.veth1FromRequest(request, podIPCIDR)
 	veth2 := s.veth2FromRequest(request)
 	afpacket := s.afpacketFromRequest(request)
+	route := s.vppRouteFromRequest(request, podIPCIDR)
 	loop := s.loopbackFromRequest(request, podIP.String())
 
 	s.WithFields(logging.Fields{"veth1": veth1, "veth2": veth2, "afpacket": afpacket /*, "route": route*/}).Info("Configuring")
@@ -389,8 +397,12 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 		Put().
 		LinuxInterface(veth1).
 		LinuxInterface(veth2).
-		VppInterface(afpacket).
-		VppInterface(loop)
+		VppInterface(afpacket)
+
+	if !s.disableTCPstack {
+		txn.VppInterface(loop)
+	}
+
 	err = txn.Send().ReceiveReply()
 
 	if err != nil {
@@ -401,20 +413,29 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 	// TODO get rid of this sleep
 	time.Sleep(500 * time.Millisecond)
 
-	err = s.setupStn(podIP.String(), s.afpacketNameFromRequest(request))
-	if err != nil {
-		s.Logger.Error(err)
-		return s.generateErrorResponse(err)
-	}
-	s.Logger.Info("Stn configured")
+	if !s.disableTCPstack {
+		err = s.setupStn(podIP.String(), s.afpacketNameFromRequest(request))
+		if err != nil {
+			s.Logger.Error(err)
+			return s.generateErrorResponse(err)
+		}
+		s.Logger.Info("Stn configured")
 
-	nsIndex, err := s.addAppNamespace(request.ContainerId, s.loopbackNameFromRequest(request))
-	if err != nil {
-		s.Logger.Error(err)
-		return s.generateErrorResponse(err)
+		nsIndex, err = s.addAppNamespace(request.ContainerId, s.loopbackNameFromRequest(request))
+		if err != nil {
+			s.Logger.Error(err)
+			return s.generateErrorResponse(err)
+		}
+		s.Logger.Info("App namespace configured")
+	} else {
+		// adding route (container IP -> afPacket) in a separate transaction.
+		// afpacket must be already configured
+		err = s.vppTxnFactory().Put().StaticRoute(route).Send().ReceiveReply()
+		if err != nil {
+			s.Logger.Error(err)
+			return s.generateErrorResponse(err)
+		}
 	}
-	s.Logger.Info("App namespace configured")
-
 	macAddr, err := s.retrieveContainerMacAddr(request.NetworkNamespace, request.InterfaceName)
 	if err != nil {
 		s.Logger.Error(err)
@@ -448,12 +469,13 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 		return s.generateErrorResponse(err)
 	}
 
-	err = s.fixPodToPodCommunication(podIP.String(), afName)
-	if err != nil {
-		s.Logger.Error(err)
-		return s.generateErrorResponse(err)
+	if !s.disableTCPstack {
+		err = s.fixPodToPodCommunication(podIP.String(), afName)
+		if err != nil {
+			s.Logger.Error(err)
+			return s.generateErrorResponse(err)
+		}
 	}
-
 	// disable TCP checksum offload on the eth0 veth interface in container
 	// TODO: this is a temporary workaround, should be reverted once TCP checksum offload issues are resolved on VPP
 	if s.tcpChecksumOffloadDisabled {

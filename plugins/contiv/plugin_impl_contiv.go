@@ -81,6 +81,7 @@ type Deps struct {
 // config add `<Contiv plugin name> + "-config="<absolute path to config>` in go run command flags.
 type Config struct {
 	TCPChecksumOffloadDisabled bool
+	TCPstackDisabled           bool
 	IPAMConfig                 ipam.Config
 	NodeConfig                 []OneNodeConfig
 }
@@ -225,6 +226,11 @@ func (plugin *Plugin) GetNsIndex(podNamespace string, podName string) (nsIndex u
 // GetPodNetwork provides subnet used for allocating pod IP addresses on this host node.
 func (plugin *Plugin) GetPodNetwork() *net.IPNet {
 	return plugin.cniServer.ipam.PodNetwork()
+}
+
+// IsTCPstackDisabled returns true if the tcp stack is disabled and only veths are configured
+func (plugin *Plugin) IsTCPstackDisabled() bool {
+	return plugin.Config.TCPstackDisabled
 }
 
 func (plugin *Plugin) handleResync(resyncChan chan resync.StatusEvent) {

@@ -283,9 +283,9 @@ func (pct *PolicyConfiguratorTxn) generateRules(direction MatchType, policies Co
 				allSubnets = append(allSubnets, subnets...)
 			}
 
-			// Handle empty set of pods and IP blocks.
+			// Handle undefined set of pods and IP blocks.
 			// = match anything on L3
-			if len(match.Pods) == 0 && len(match.IPBlocks) == 0 {
+			if match.Pods == nil && match.IPBlocks == nil {
 				if len(match.Ports) == 0 {
 					// = match anything on L3 & L4
 					ruleTCPAny := &renderer.ContivRule{

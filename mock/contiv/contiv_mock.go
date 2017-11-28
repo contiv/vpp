@@ -8,9 +8,10 @@ import (
 
 // MockContiv is a mock for the Contiv Plugin.
 type MockContiv struct {
-	podIf      map[podmodel.ID]string
-	podNs      map[podmodel.ID]uint32
-	podNetwork *net.IPNet
+	podIf            map[podmodel.ID]string
+	podNs            map[podmodel.ID]uint32
+	podNetwork       *net.IPNet
+	tcpStackDisabled bool
 }
 
 // NewMockContiv is a constructor for MockContiv.
@@ -38,6 +39,11 @@ func (mc *MockContiv) SetPodNetwork(podNetwork string) {
 	_, mc.podNetwork, _ = net.ParseCIDR(podNetwork)
 }
 
+// SetTCPStackDisabled allows to set flag denoting if the tcpStack is disabled or not.
+func (mc *MockContiv) SetTCPStackDisabled(tcpStackDisabled bool) {
+	mc.tcpStackDisabled = tcpStackDisabled
+}
+
 // GetIfName returns pod's interface name as set previously using SetPodIfName.
 func (mc *MockContiv) GetIfName(podNamespace string, podName string) (name string, exists bool) {
 	name, exists = mc.podIf[podmodel.ID{Name: podName, Namespace: podNamespace}]
@@ -53,4 +59,9 @@ func (mc *MockContiv) GetNsIndex(podNamespace string, podName string) (nsIndex u
 // GetPodNetwork returns static subnet constant that should represent pod subnet for current host node
 func (mc *MockContiv) GetPodNetwork() (podNetwork *net.IPNet) {
 	return mc.podNetwork
+}
+
+// IsTCPstackDisabled returns true if the tcp stack is disabled and only veths are configured
+func (mc *MockContiv) IsTCPstackDisabled() bool {
+	return mc.tcpStackDisabled
 }

@@ -1,5 +1,8 @@
 """
 Library to parse output (stdout) of kubectl adn kubeadm command
+
+TODO: Do not use this, call the following (example):
+  kubectl get pod -l "app=test-server" -o jsonpath='{.items[0].status.podIP}'
 """
 
 def _general_parser(stdout):
@@ -55,6 +58,15 @@ def parse_kubectl_describe_pod(stdout):
                 result[item] = line.split(":")[-1].strip()
     name = result.pop("Name")
     return {name: result}
+
+_CID = "Container ID:"
+
+def parse_for_first_container_id(stdout):
+    lines = stdout.splitlines()
+    for line in lines:
+        stripline = line.strip()
+        if stripline.startswith(_CID):
+            return stripline[len(_CID):].strip().rpartition("//")[2]
 
 def get_join_from_kubeadm_init(stdout):
     """Parse kubeadm init output

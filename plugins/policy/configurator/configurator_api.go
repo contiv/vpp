@@ -106,11 +106,10 @@ type Match struct {
 	Type MatchType
 
 	// Layer 3: destinations (egress) / sources (ingress)
-	// If both arrays are empty or nil, then this predicate matches all
-	// sources(ingress) / destinations(egress).
-	// If one or both arrays are non-empty, then this predicate applies
-	// to a given traffic only if the traffic matches at least one item in
-	// one of the lists.
+	// If both arrays are nils, then this predicate matches all
+	// sources(ingress) / destinations(egress). Otherwise, this predicate
+	// applies to a given traffic only if the traffic matches at least one item
+	// in one of the lists.
 	Pods     []podmodel.ID
 	IPBlocks []IPBlock
 

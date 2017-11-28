@@ -154,6 +154,10 @@ define check_format_only
     @echo "# done"
 endef
 
+define describe_only
+    @./scripts/contiv_describe.sh
+endef
+
 
 # build all binaries
 build:
@@ -234,6 +238,8 @@ check_links:
 check_format:
 	$(call check_format_only)
 
+describe:
+	$(call describe_only)
 
 # clean
 clean:

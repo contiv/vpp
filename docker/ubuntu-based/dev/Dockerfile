@@ -34,10 +34,12 @@ ENV LD_PRELOAD_LIB_DIR $VPP_LIB_DIR
 #        dpkg -i vpp_*.deb vpp-dev_*.deb vpp-lib_*.deb vpp-plugins_*.deb ; \
 #    fi"
 
+# TODO: temporairly, always rebuild VPP from github, branch kubecon17
 RUN rm -rf /opt/vpp-agent/dev/vpp && \
     cd /opt/vpp-agent/dev && \
     git clone https://github.com/vpp-dev/vpp.git && \
     cd vpp && \
+    git checkout kubecon17 && \
     yes | make install-dep && \
     make bootstrap && \
     make build && \

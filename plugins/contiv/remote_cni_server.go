@@ -68,6 +68,11 @@ type remoteCNIserver struct {
 
 	// other configuration
 	tcpChecksumOffloadDisabled bool
+
+	// the variables ensures that add/del requests are processed
+	// only when vswitch connectivity is configured
+	vswitchConnectivityConfigured bool
+	vswitchCond                   *sync.Cond
 }
 
 const (
@@ -88,7 +93,7 @@ func newRemoteCNIServer(logger logging.Logger, vppTxnFactory func() linux.DataCh
 	if err != nil {
 		return nil, err
 	}
-	return &remoteCNIserver{
+	server := &remoteCNIserver{
 		Logger:                     logger,
 		vppTxnFactory:              vppTxnFactory,
 		proxy:                      proxy,
@@ -101,7 +106,9 @@ func newRemoteCNIServer(logger logging.Logger, vppTxnFactory func() linux.DataCh
 		ipam:                       ipam,
 		nodeConfigs:                config.NodeConfig,
 		tcpChecksumOffloadDisabled: config.TCPChecksumOffloadDisabled,
-	}, nil
+	}
+	server.vswitchCond = sync.NewCond(&server.Mutex)
+	return server, nil
 }
 
 func (s *remoteCNIserver) close() {
@@ -133,6 +140,8 @@ func (s *remoteCNIserver) configureVswitchConnectivity() error {
 	// only apply the config if resync hasn't done it already
 	if _, _, found := s.swIfIndex.LookupIdx(vethVPPEndName); found {
 		s.Logger.Info("VSwitch connectivity is considered configured, skipping...")
+		s.vswitchConnectivityConfigured = true
+		s.vswitchCond.Broadcast()
 		return nil
 	}
 
@@ -302,6 +311,9 @@ func (s *remoteCNIserver) configureVswitchConnectivity() error {
 
 	err = s.enableTCPSession()
 
+	s.vswitchConnectivityConfigured = true
+	s.vswitchCond.Broadcast()
+
 	return err
 }
 
@@ -345,6 +357,9 @@ func (s *remoteCNIserver) Delete(ctx context.Context, request *cni.CNIRequest) (
 // the end in default namespace is connected to VPP using afpacket.
 func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest) (*cni.CNIReply, error) {
 	s.Lock()
+	for !s.vswitchConnectivityConfigured {
+		s.vswitchCond.Wait()
+	}
 	defer s.Unlock()
 
 	var (
@@ -491,6 +506,9 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 
 func (s *remoteCNIserver) unconfigureContainerConnectivity(request *cni.CNIRequest) (*cni.CNIReply, error) {
 	s.Lock()
+	for !s.vswitchConnectivityConfigured {
+		s.vswitchCond.Wait()
+	}
 	defer s.Unlock()
 
 	var (

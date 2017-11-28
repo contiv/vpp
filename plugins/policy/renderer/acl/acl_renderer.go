@@ -121,8 +121,11 @@ func (art *RendererTxn) Render(pod podmodel.ID, podIP *net.IPNet, ingress []*ren
 func (art *RendererTxn) Commit() error {
 	if art.resync {
 		// Re-synchronize with VPP first.
-		dumpIngress, dumpEgress := art.dumpVppACLConfig()
-		err := art.cache.Resync(dumpIngress, dumpEgress)
+		dumpIngress, dumpEgress, err := art.dumpVppACLConfig()
+		if err != nil {
+			return err
+		}
+		err = art.cache.Resync(dumpIngress, dumpEgress)
 		if err != nil {
 			return err
 		}
@@ -188,14 +191,15 @@ func (art *RendererTxn) filterEmpty(changes []*cache.TxnChange) []*cache.TxnChan
 
 // dumpVppACLConfig dumps current ACL config is the format suitable for the resync
 // of the cache.
-func (art *RendererTxn) dumpVppACLConfig() (ingress, egress []*cache.ContivRuleList) {
-	var err error
+func (art *RendererTxn) dumpVppACLConfig() (ingress, egress []*cache.ContivRuleList, err error) {
+	const maxPortNum = uint32(^uint16(0))
 	ingress = []*cache.ContivRuleList{}
 	egress = []*cache.ContivRuleList{}
 
-	// TODO: Use dump from acl-plugin once it is available
-	//aclDump := art.vpp.DumpACLs()
-	aclDump := []*vpp_acl.AccessLists_Acl{} /* assume empty VPP state for now */
+	aclDump, err := art.vpp.DumpACL()
+	if err != nil {
+		return ingress, egress, err
+	}
 	for _, acl := range aclDump {
 		isIngress := true
 		ruleList := &cache.ContivRuleList{}
@@ -235,10 +239,14 @@ func (art *RendererTxn) dumpVppACLConfig() (ingress, egress []*cache.ContivRuleL
 				art.Log.WithField("ruleName", aclRule.RuleName).Warn("Skipping ACL rule without 'Actions'")
 				continue
 			}
-			if aclRule.Actions.AclAction == vpp_acl.AclAction_PERMIT {
+			switch aclRule.Actions.AclAction {
+			case vpp_acl.AclAction_REFLECT:
 				rule.Action = renderer.ActionPermit
-			} else {
+			case vpp_acl.AclAction_DENY:
 				rule.Action = renderer.ActionDeny
+			default:
+				art.Log.WithField("ruleName", aclRule.RuleName).Warn("Skipping ACL rule with unhandled action 'PERMIT'")
+				continue
 			}
 			// Rule IPs
 			if aclRule.Matches == nil {
@@ -279,17 +287,23 @@ func (art *RendererTxn) dumpVppACLConfig() (ingress, egress []*cache.ContivRuleL
 				rule.Protocol = renderer.TCP
 				if aclRule.Matches.IpRule.Tcp.SourcePortRange != nil {
 					if aclRule.Matches.IpRule.Tcp.SourcePortRange.LowerPort != aclRule.Matches.IpRule.Tcp.SourcePortRange.UpperPort {
-						// unhandled, skip
-						art.Log.WithField("ruleName", aclRule.RuleName).Warn("Skipping ACL rule with TCP port range")
-						continue
+						if aclRule.Matches.IpRule.Tcp.SourcePortRange.LowerPort != 0 ||
+							aclRule.Matches.IpRule.Tcp.SourcePortRange.UpperPort != maxPortNum {
+							// unhandled, skip
+							art.Log.WithField("ruleName", aclRule.RuleName).Warn("Skipping ACL rule with TCP port range")
+							continue
+						}
 					}
 					rule.SrcPort = uint16(aclRule.Matches.IpRule.Tcp.SourcePortRange.LowerPort)
 				}
 				if aclRule.Matches.IpRule.Tcp.DestinationPortRange != nil {
 					if aclRule.Matches.IpRule.Tcp.DestinationPortRange.LowerPort != aclRule.Matches.IpRule.Tcp.DestinationPortRange.UpperPort {
-						// unhandled, skip
-						art.Log.WithField("ruleName", aclRule.RuleName).Warn("Skipping ACL rule with TCP port range")
-						continue
+						if aclRule.Matches.IpRule.Tcp.DestinationPortRange.LowerPort != 0 ||
+							aclRule.Matches.IpRule.Tcp.DestinationPortRange.UpperPort != maxPortNum {
+							// unhandled, skip
+							art.Log.WithField("ruleName", aclRule.RuleName).Warn("Skipping ACL rule with TCP port range")
+							continue
+						}
 					}
 					rule.DestPort = uint16(aclRule.Matches.IpRule.Tcp.DestinationPortRange.LowerPort)
 				}
@@ -297,17 +311,23 @@ func (art *RendererTxn) dumpVppACLConfig() (ingress, egress []*cache.ContivRuleL
 				rule.Protocol = renderer.UDP
 				if aclRule.Matches.IpRule.Udp.SourcePortRange != nil {
 					if aclRule.Matches.IpRule.Udp.SourcePortRange.LowerPort != aclRule.Matches.IpRule.Udp.SourcePortRange.UpperPort {
-						// unhandled, skip
-						art.Log.WithField("ruleName", aclRule.RuleName).Warn("Skipping ACL rule with UDP port range")
-						continue
+						if aclRule.Matches.IpRule.Udp.SourcePortRange.LowerPort != 0 ||
+							aclRule.Matches.IpRule.Udp.SourcePortRange.UpperPort != maxPortNum {
+							// unhandled, skip
+							art.Log.WithField("ruleName", aclRule.RuleName).Warn("Skipping ACL rule with UDP port range")
+							continue
+						}
 					}
 					rule.SrcPort = uint16(aclRule.Matches.IpRule.Udp.SourcePortRange.LowerPort)
 				}
 				if aclRule.Matches.IpRule.Udp.DestinationPortRange != nil {
 					if aclRule.Matches.IpRule.Udp.DestinationPortRange.LowerPort != aclRule.Matches.IpRule.Udp.DestinationPortRange.UpperPort {
-						// unhandled, skip
-						art.Log.WithField("ruleName", aclRule.RuleName).Warn("Skipping ACL rule with UDP port range")
-						continue
+						if aclRule.Matches.IpRule.Udp.DestinationPortRange.LowerPort != 0 ||
+							aclRule.Matches.IpRule.Udp.DestinationPortRange.UpperPort != maxPortNum {
+							// unhandled, skip
+							art.Log.WithField("ruleName", aclRule.RuleName).Warn("Skipping ACL rule with UDP port range")
+							continue
+						}
 					}
 					rule.DestPort = uint16(aclRule.Matches.IpRule.Udp.DestinationPortRange.LowerPort)
 				}
@@ -325,7 +345,7 @@ func (art *RendererTxn) dumpVppACLConfig() (ingress, egress []*cache.ContivRuleL
 		}
 	}
 
-	return ingress, egress
+	return ingress, egress, nil
 }
 
 // render Contiv Rule changes into the equivalent ACL configuration changes.

@@ -17,9 +17,9 @@ func NewMockVppPlugin() *MockVppPlugin {
 	return &MockVppPlugin{ACLs: []*acl.AccessLists_Acl{}}
 }
 
-// DumpACLs dumps ACLs added with AddACL().
-func (mvp *MockVppPlugin) DumpACLs() []*acl.AccessLists_Acl {
-	return mvp.ACLs
+// DumpACL dumps ACLs added with AddACL().
+func (mvp *MockVppPlugin) DumpACL() (acls []*acl.AccessLists_Acl, err error) {
+	return mvp.ACLs, nil
 }
 
 // ClearACLs clears the list ACLs for the dump.

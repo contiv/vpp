@@ -64,9 +64,13 @@ Reinit_Multinode_Kube_Cluster
     # reset all nodes
     :FOR    ${index}    IN RANGE    1    ${KUBE_CLUSTER_${CLUSTER_ID}_NODES}+1
     \    ${connection} =    BuiltIn.Set_Variable    ${VM_SSH_ALIAS_PREFIX}${index}
-    \    SshCommons.Switch_And_Execute_Command    ${VM_SSH_ALIAS_PREFIX}${index}    sudo rm -rf ~/.kube
+    \    SshCommons.Switch_And_Execute_Command    ${connection}    sudo rm -rf ~/.kube
     \    KubeAdm.Reset    ${connection}
+    \    SshCommons.Switch_And_Execute_Command    ${connection}    sudo modprobe uio_pci_generic
+    \    SshCommons.Switch_And_Execute_Command    ${connection}    curl -s https://raw.githubusercontent.com/contiv/vpp/master/k8s/cri-install.sh | sudo bash /dev/stdin -u    ignore_stderr=${True}    ignore_rc=${True}
     \    Docker_Pull_Contiv_Vpp    ${connection}
+    \    Docker_Pull_Custom_Kube_Proxy    ${connection}
+    \    SshCommons.Switch_And_Execute_Command    ${connection}    curl -s https://raw.githubusercontent.com/contiv/vpp/master/k8s/cri-install.sh | sudo bash /dev/stdin
     # init master
     ${connection} =    BuiltIn.Set_Variable    ${VM_SSH_ALIAS_PREFIX}1
     ${init_stdout} =    KubeAdm.Init    ${connection}
@@ -203,7 +207,7 @@ Verify_Multireplica_Pods_Running
     BuiltIn.Return_From_Keyword    ${pods_list}
 
 Deploy_Multireplica_Pods_And_Verify_Running
-    [Arguments]    ${ssh_session}    ${pod_file}    ${pod_prefix}    ${nr_replicas}    ${namespace}=default    ${setup_timeout}=30s
+    [Arguments]    ${ssh_session}    ${pod_file}    ${pod_prefix}    ${nr_replicas}    ${namespace}=default    ${setup_timeout}=60s
     [Documentation]     Deploy pods from one provided yaml file with more replica specified
     KubeCtl.Apply_F    ${ssh_session}    ${pod_file}
     ${pods_details} =    BuiltIn.Wait_Until_Keyword_Succeeds    ${setup_timeout}   4s    Verify_Multireplica_Pods_Running    ${ssh_session}    ${pod_prefix}    ${nr_replicas}    ${namespace}
@@ -251,7 +255,7 @@ Deploy_Istio_And_Verify_Running
     [Documentation]     Deploy pod defined by ${ISTIO_FILE}, wait to see it running, store istio pod list.
     BuiltIn.Log_Many    ${ssh_session}
     KubeCtl.Apply_F    ${ssh_session}    ${ISTIO_FILE}
-    ${istio_pods} =    BuiltIn.Wait_Until_Keyword_Succeeds    30s    4s    Verify_Istio_Running    ${ssh_session}
+    ${istio_pods} =    BuiltIn.Wait_Until_Keyword_Succeeds    60s    4s    Verify_Istio_Running    ${ssh_session}
     BuiltIn.Set_Suite_Variable    ${istio_pods}
 
 Verify_Istio_Removed
@@ -304,7 +308,7 @@ Verify_Pod_Running_And_Ready
     BuiltIn.Should_Be_Equal_As_Strings    ${ready_containers}    ${out_of_containers}
 
 Wait_Until_Pod_Running
-    [Arguments]    ${ssh_session}    ${pod_name}    ${timeout}=30s    ${check_period}=5s    ${namespace}=default
+    [Arguments]    ${ssh_session}    ${pod_name}    ${timeout}=60s    ${check_period}=5s    ${namespace}=default
     [Documentation]    WUKS around Verify_Pod_Running_And_Ready.
     BuiltIn.Log_Many    ${ssh_session}    ${pod_name}    ${timeout}    ${check_period}    ${namespace}
     BuiltIn.Wait_Until_Keyword_Succeeds    ${timeout}    ${check_period}    Verify_Pod_Running_And_Ready    ${ssh_session}    ${pod_name}    namespace=${namespace}
@@ -317,7 +321,7 @@ Verify_Pod_Not_Present
     Collections.Dictionary_Should_Not_Contain_Key     ${pods}    ${pod_name}
 
 Wait_Until_Pod_Removed
-    [Arguments]    ${ssh_session}    ${pod_name}    ${timeout}=90s    ${check_period}=5s    ${namespace}=default
+    [Arguments]    ${ssh_session}    ${pod_name}    ${timeout}=120s    ${check_period}=5s    ${namespace}=default
     [Documentation]    WUKS around Verify_Pod_Not_Present.
     BuiltIn.Log_Many    ${ssh_session}    ${pod_name}    ${timeout}    ${check_period}    ${namespace}
     BuiltIn.Wait_Until_Keyword_Succeeds    ${timeout}    ${check_period}    Verify_Pod_Not_Present    ${ssh_session}    ${pod_name}    namespace=${namespace}

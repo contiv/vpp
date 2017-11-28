@@ -828,7 +828,7 @@ func TestMultipleContivRulesMultipleInterfacesWithResync(t *testing.T) {
 	// Verify the generated ACLs.
 	inACLA := verifyACL(putIngress.GetACL(pod1IfName), "", ifSetInA, cache.NewInterfaceSet(), ingressA...)
 	verifyACL(putIngress.GetACL(pod2IfName), inACLA, ifSetInA, cache.NewInterfaceSet(), ingressA...)
-	/*egACLA := */ verifyACL(putEgress.GetACL(pod1IfName), "", cache.NewInterfaceSet(), ifSetEgA, egressA...)
+	egACLA := verifyACL(putEgress.GetACL(pod1IfName), "", cache.NewInterfaceSet(), ifSetEgA, egressA...)
 	egACLB := verifyACL(putEgress.GetACL(pod2IfName), "", cache.NewInterfaceSet(), ifSetEgB, egressB...)
 	verifyACL(putEgress.GetACL(pod3IfName), egACLB, cache.NewInterfaceSet(), ifSetEgB, egressB...)
 
@@ -837,7 +837,6 @@ func TestMultipleContivRulesMultipleInterfacesWithResync(t *testing.T) {
 	mockVppPlugin.AddACL(putEgress.GetACL("afpacket1"))
 	mockVppPlugin.AddACL(putEgress.GetACL("afpacket2"))
 
-	/* TODO: waiting for ACLDump():
 	// Simulate Agent restart.
 	txnTracker = localclient.NewTxnTracker(nil)
 	aclRenderer = &Renderer{
@@ -867,7 +866,7 @@ func TestMultipleContivRulesMultipleInterfacesWithResync(t *testing.T) {
 	// Verify localclient transactions.
 	gomega.Expect(txnTracker.PendingTxns).To(gomega.HaveLen(0))
 	gomega.Expect(txnTracker.CommittedTxns).To(gomega.HaveLen(1))
-	txn = txnTracker.CommittedTxns[1]
+	txn = txnTracker.CommittedTxns[0]
 	gomega.Expect(txn.DataResyncTxn).To(gomega.BeNil())
 	gomega.Expect(txn.DataChangeTxn).ToNot(gomega.BeNil())
 
@@ -890,5 +889,4 @@ func TestMultipleContivRulesMultipleInterfacesWithResync(t *testing.T) {
 	verifyACL(putIngress.GetACL(pod2IfName), inACLA, ifSetInA, cache.NewInterfaceSet(), ingressA...)
 	verifyACL(putEgress.GetACL(pod1IfName), egACLB, cache.NewInterfaceSet(), ifSetEgB, egressB...)
 	verifyACL(putEgress.GetACL(pod2IfName), egACLB, cache.NewInterfaceSet(), ifSetEgB, egressB...)
-	*/
 }

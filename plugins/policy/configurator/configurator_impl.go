@@ -195,6 +195,7 @@ func (pct *PolicyConfiguratorTxn) Commit() error {
 	}
 
 	// Commit all renderer transactions.
+	var wasError error
 	rndrChan := make(chan error)
 	for _, rTxn := range rendererTxns {
 		if pct.configurator.parallelRendering {
@@ -205,24 +206,20 @@ func (pct *PolicyConfiguratorTxn) Commit() error {
 		} else {
 			err := rTxn.Commit()
 			if err != nil {
-				return err
+				wasError = err
 			}
 		}
 	}
 	if pct.configurator.parallelRendering {
-		var wasError error
 		for i := 0; i < len(rendererTxns); i++ {
 			err := <-rndrChan
 			if err != nil {
 				wasError = err
 			}
 		}
-		if wasError != nil {
-			return wasError
-		}
 	}
 
-	return nil
+	return wasError
 }
 
 // PeerPod represents the opposite pod in the policy rule.

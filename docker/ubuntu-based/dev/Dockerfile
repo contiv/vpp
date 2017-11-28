@@ -12,8 +12,8 @@ WORKDIR /root/
 
 # Path to VPP ws root directory
 ENV VPP_DIR /opt/vpp-agent/dev/vpp
-ENV VPP_BIN_DIR $VPP_DIR/build-root/install-vpp-native/vpp/bin
-ENV VPP_LIB_DIR $VPP_DIR/build-root/install-vpp-native/vpp/lib64
+ENV VPP_BIN_DIR $VPP_DIR/build-root/install-vpp_debug-native/vpp/bin
+ENV VPP_LIB_DIR $VPP_DIR/build-root/install-vpp_debug-native/vpp/lib64
 ENV VPP_BIN $VPP_BIN_DIR/vpp
 ENV LD_PRELOAD_LIB_DIR $VPP_LIB_DIR
 

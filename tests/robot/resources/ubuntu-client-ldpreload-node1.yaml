@@ -1,21 +1,22 @@
 apiVersion: extensions/v1beta1
 kind: Deployment
 metadata:
-  name: test-client
+  name: ubuntu-client
 spec:
   replicas: 1
   template:
     metadata:
       labels:
-        app: test-client
         ldpreload: "true"
     spec:
+      nodeSelector:
+        location: client_node
       containers:
-      - image: networkstatic/iperf3
+      - image: rastislavszabo/ubuntu
         imagePullPolicy: IfNotPresent
-        name: client
-        command: ["bash"]
-        args: ["-c", "while true; do sleep 30; done;"]
+        name: ubuntu-client
+        command: [ "/bin/bash", "-c", "--" ]
+        args: [ "while true; do sleep 30; done;" ]
         securityContext:
           privileged: true
         env:

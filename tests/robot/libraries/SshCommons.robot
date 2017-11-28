@@ -42,7 +42,6 @@ Execute_Command_And_Log
     [Arguments]    ${command}    ${expected_rc}=0    ${ignore_stderr}=${False}    ${ignore_rc}=${False}
     [Documentation]    Execute \${command} on current SSH session, log results, maybe fail on nonempty stderr, check \${expected_rc}, return stdout.
     BuiltIn.Log_Many    ${command}    ${expected_rc}    ${ignore_stderr}
-    BuiltIn.Comment    TODO: Add logging to file. See https://github.com/contiv/vpp/issues/200
     ${stdout}    ${stderr}    ${rc} =    SSHLibrary.Execute_Command    ${command}    return_stderr=True    return_rc=True
     BuiltIn.Log    ${stdout}
     BuiltIn.Log    ${stderr}
@@ -53,3 +52,22 @@ Execute_Command_And_Log
     ${time}=    Get Current Date    UTC    +1
     Append To File    ${RESULTS_FOLDER}/output_${connection.alias}.log    ${time}${\n}*** Command: ${command}${\n}${stdout}${\n}*** Error: ${stderr}${\n}*** Return code: ${rc}${\n}
     [Return]    ${stdout}
+
+Switch_And_Write_Command
+    [Arguments]    ${ssh_session}    ${command}    ${prompt}=vpp#
+    [Documentation]    Switch to \${ssh_session}, and continue with Write_Command_And_Log
+    BuiltIn.Log_Many    ${ssh_session}    ${command}    ${prompt}
+    SSHLibrary.Switch_Connection    ${ssh_session}
+    BuiltIn.Run_Keyword_And_Return    Write_Command_And_Log    ${command}    ${prompt}    ${delay}
+
+Write_Command_And_Log
+    [Arguments]    ${command}    ${prompt}=vpp#
+    [Documentation]    Write \${command} on current SSH session, wait for prompt, log output, return output.
+    BuiltIn.Log_Many    ${command}    ${prompt}
+    SSHLibrary.Write    ${command}
+    ${output}=    SSHLibrary.Read_Until    ${prompt}
+    BuiltIn.Log    ${output}
+    ${connection}=    SSHLibrary.Get_Connection
+    ${time}=    Get Current Date    UTC    +1
+    Append To File    ${RESULTS_FOLDER}/output_${connection.alias}.log    ${time}${\n}*** Command: ${command}${\n}${output}${\n}
+    [Return]    ${output}

@@ -13,7 +13,7 @@ Pod_To_Ten_Nginxs
     [Teardown]    Teardown_Hosts_Connections
 
 Host_To_Ten_Nginxs
-    [Documentation]    Curl from linux host pod to another on the same node
+    [Documentation]    Curl from linux host pod to another on the same node.
     Log    ${nginx_list}
     : FOR    ${nginx_node}     IN     @{nginx_list}
     \    ${nginx_node_details} =    KubeCtl.Describe_Pod    ${testbed_connection}    ${nginx_node}

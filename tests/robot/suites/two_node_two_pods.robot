@@ -103,7 +103,7 @@ TwoNodesK8sSetup
     setup-teardown.Testsuite_Setup
     KubernetesEnv.Reinit_Multi_Node_Kube_Cluster
     KubernetesEnv.Deploy_Client_Pod_And_Verify_Running    ${testbed_connection}    client_file=${CLIENT_POD_FILE_NODE1}
-    KubernetesEnv.Deploy_Server_Pod_And_Verify_Running    ${testbed_connection}    server_file=${SERVER_POD_FILE_NODE2}
+    KubernetesEnv.Deploy_Server_Pod_And_Verify_Running    ${testbed_connection}    server_file=${SERVER_POD_FILE_NODE2}    timeout=12m
     KubernetesEnv.Deploy_Nginx_Pod_And_Verify_Running    ${testbed_connection}    nginx_file=${NGINX_POD_FILE_NODE2}
     ${client_pod_details} =     KubeCtl.Describe_Pod    ${testbed_connection}    ${client_pod_name}
     ${server_pod_details} =     KubeCtl.Describe_Pod    ${testbed_connection}    ${server_pod_name}
@@ -118,6 +118,8 @@ TwoNodesK8sSetup
 TwoNodesK8sTeardown
     [Documentation]    Log leftover output from pods, remove pods, execute common teardown.
     KubernetesEnv.Log_Pods_For_Debug    ${testbed_connection}    exp_nr_vswitch=2
+    ${server_name} =    KubernetesEnv.Get_Deployed_Pod_Name    ${testbed_connection}    ubuntu-server-
+    KubeCtl.Logs    ${testbed_connection}    ${server_name}
     KubernetesEnv.Remove_Nginx_Pod_And_Verify_Removed    ${testbed_connection}    nginx_file=${NGINX_POD_FILE_NODE2}
     KubernetesEnv.Remove_Client_Pod_And_Verify_Removed    ${testbed_connection}    client_file=${CLIENT_POD_FILE_NODE1}
     KubernetesEnv.Remove_Server_Pod_And_Verify_Removed    ${testbed_connection}    server_file=${SERVER_POD_FILE_NODE2}

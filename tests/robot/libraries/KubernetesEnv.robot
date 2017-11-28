@@ -38,7 +38,7 @@ Reinit_One_Node_Kube_Cluster
     [Documentation]    Assuming active SSH connection, store its index, execute multiple commands to reinstall and restart 1node cluster, wait to see it running.
     ${conn} =     SSHLibrary.Get_Connection    ${VM_SSH_ALIAS_PREFIX}1
     Set_Suite_Variable    ${testbed_connection}    ${conn.index}
-    SSHLibrary.Set_Client_Configuration    timeout=10    prompt=$
+    SSHLibrary.Set_Client_Configuration    timeout=${SSH_TIMEOUT}    prompt=$
     SshCommons.Switch_And_Execute_Command    ${testbed_connection}    sudo rm -rf $HOME/.kube
     KubeAdm.Reset    ${testbed_connection}
     SshCommons.Switch_And_Execute_Command    ${testbed_connection}    curl -s https://raw.githubusercontent.com/contiv/vpp/master/k8s/cri-install.sh | sudo bash /dev/stdin -u    ignore_stderr=${True}    ignore_rc=${True}

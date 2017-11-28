@@ -1,8 +1,6 @@
 *** Settings ***
 Documentation     Test suite to test basic ping, udp, tcp and dns functionality of the network plugin.
-Resource          ${CURDIR}/../../libraries/KubernetesEnv.robot
-Resource          ${CURDIR}/../../variables/${VARIABLES}_variables.robot
-Resource          ${CURDIR}/../../libraries/setup-teardown.robot
+Resource          ${CURDIR}/../libraries/all_libs.robot
 Suite Setup       OneNodeK8sSetup
 Suite Teardown    OneNodeK8sTeardown
 

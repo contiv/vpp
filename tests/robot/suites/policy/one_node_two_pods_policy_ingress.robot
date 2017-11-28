@@ -1,12 +1,8 @@
 *** Settings ***
 Documentation     Test suite to test basic ping, udp, tcp and dns functionality of the network plugin.
-Resource          ${CURDIR}/../libraries/all_libs.robot
+Resource          ${CURDIR}/../../libraries/all_libs.robot
 Suite Setup       OneNodeK8sSetup
 Suite Teardown    OneNodeK8sTeardown
-
-*** Variables ***
-${VARIABLES}      common
-${ENV}            common
 
 *** Test Cases ***
 Check_Allow_TCP_Port_4444_On_Server_From_Client

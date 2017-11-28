@@ -39,6 +39,41 @@ on each node, before initializing the cluster with `kubeadm init` or joining the
 ```
 
 #### pull-images.sh
-This script can be used to pull the newest version of the `:latest` tag of all Docker images 
+This script can be used to pull the newest version of the `:latest` tag of all Docker images
 that Contiv-VPP plugin uses. This may be needed in case that you have already used Contiv-VPP plugin
 on the host before and have the old (outdated) versions of docker images stored locally.
+
+#### setup-node.sh
+This script simplifies the setup of multi-node cluster - installs DPDK kernel module, pull the images, interactively creates startup config for vpp,... It has to be
+executed on each node of the cluster.
+```
+./setup-node.sh
+#########################################
+#   Contiv - VPP                        #
+#########################################
+Do you want to setup multinode cluster? [Y/n] y
+PCI UIO driver is not loaded
+Do you want to load PCI UIO driver? [Y/n] y
+[sudo] password for lukas:
+Do you want the PCI UIO driver to be loaded on boot up? [Y/n] y
+Module uio_pci_generic was added into /etc/modules
+The following network devices were found
+1) eth0 0000:00:03.0
+2) eth1 0000:00:08.0
+3) eth2 0000:00:09.0
+Select interface for node interconnect [1-3]:3
+Device 'eth2' must be shutdown, do you want to proceed? [Y/n] y
+
+unix {
+   nodaemon
+   cli-listen 0.0.0.0:5002
+   cli-no-pager
+}
+dpdk {
+   dev 0000:00:09.0
+}
+
+File /etc/vpp/contiv-vswitch.conf will be modified, do you want to proceed? [Y/n] y
+Configuration of the node finished successfully.
+
+```

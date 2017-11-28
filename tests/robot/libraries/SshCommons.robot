@@ -49,7 +49,7 @@ Execute_Command_And_Log
     BuiltIn.Run_Keyword_Unless    ${ignore_stderr}    BuiltIn.Should_Be_Empty    ${stderr}
     BuiltIn.Run_Keyword_Unless    ${ignore_rc}    BuiltIn.Should_Be_Equal_As_Numbers    ${rc}    ${expected_rc}
     ${connection}=    SSHLibrary.Get_Connection
-    ${time}=    Get Current Date    UTC    +1
+    ${time}=    Get Current Date
     Append To File    ${RESULTS_FOLDER}/output_${connection.alias}.log    ${time}${\n}*** Command: ${command}${\n}${stdout}${\n}*** Error: ${stderr}${\n}*** Return code: ${rc}${\n}
     [Return]    ${stdout}
 
@@ -68,6 +68,6 @@ Write_Command_And_Log
     ${output}=    SSHLibrary.Read_Until    ${prompt}
     BuiltIn.Log    ${output}
     ${connection}=    SSHLibrary.Get_Connection
-    ${time}=    Get Current Date    UTC    +1
+    ${time}=    Get Current Date
     Append To File    ${RESULTS_FOLDER}/output_${connection.alias}.log    ${time}${\n}*** Command: ${command}${\n}${output}${\n}
     [Return]    ${output}

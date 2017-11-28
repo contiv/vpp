@@ -8,6 +8,7 @@ Library           Collections
 Library           OperatingSystem
 Library           SSHLibrary
 Library           String
+Library           DateTime
 # kube-parser should not be called directly.
 Resource          ${CURDIR}/KubeAdm.robot
 Resource          ${CURDIR}/KubeCtl.robot

@@ -225,6 +225,11 @@ Setup_Hosts_Connections
     BuiltIn.Set_Suite_Variable    ${server_ip}
     BuiltIn.Set_Suite_Variable    ${client_ip}
 
+    ${conn} =     SSHLibrary.Get_Connection    ${testbed_connection}
+    ${vpp_connection} =    SSHLibrary.Open_Connection    ${conn.host}    vpp    timeout=10
+    SSHLibrary.Login    ${user}    ${password}
+    BuiltIn.Set_Suite_Variable    ${vpp_connection}
+
 Teardown_Hosts_Connections
     [Documentation]    Exit pod shells, close corresponding SSH connections.
     KubernetesEnv.Leave_Container_Prompt_In_Pod    ${client_connection}

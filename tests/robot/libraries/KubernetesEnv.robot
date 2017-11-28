@@ -337,7 +337,8 @@ Run_Finite_Command_In_Pod
     ${output} =     SSHLibrary.Read_Until_Prompt
     Log     ${output}
     ${connection}=    SSHLibrary.Get_Connection
-    Append To File    ${RESULTS_FOLDER}/output_${connection.alias}.log    *** Command: ${command}${\n}${output}${\n}
+    ${time}=    Get Current Date    UTC    +1
+    Append To File    ${RESULTS_FOLDER}/output_${connection.alias}.log    ${time}${\n}*** Command: ${command}${\n}${output}${\n}
     [Return]    ${output}
 
 Init_Infinite_Command_In_Pod
@@ -349,7 +350,8 @@ Init_Infinite_Command_In_Pod
     BuiltIn.Run_Keyword_If    """${prompt}""" != """${EMPTY}"""    SSHLibrary.Set_Client_Configuration    prompt=${prompt}
     SSHLibrary.Write    ${command}
     ${connection}=    SSHLibrary.Get_Connection
-    Append To File    ${RESULTS_FOLDER}/output_${connection.alias}.log    *** Command: ${command}${\n}
+    ${time}=    Get Current Date    UTC    +1
+    Append To File    ${RESULTS_FOLDER}/output_${connection.alias}.log    ${time}${\n}*** Command: ${command}${\n}
 
 Stop_Infinite_Command_In_Pod
     [Arguments]    ${ssh_session}=${EMPTY}     ${prompt}=${EMPTY}
@@ -363,7 +365,8 @@ Stop_Infinite_Command_In_Pod
     ${output2} =     SSHLibrary.Read_Until_Prompt
     Log Many     ${output1}    ${output2}
     ${connection}=    SSHLibrary.Get_Connection
-    Append To File    ${RESULTS_FOLDER}/output_${connection.alias}.log    *** Command: ^C${\n}${output1}${output2}${\n}
+    ${time}=    Get Current Date    UTC    +1
+    Append To File    ${RESULTS_FOLDER}/output_${connection.alias}.log    ${time}${\n}*** Command: ^C${\n}${output1}${output2}${\n}
     [Return]    ${output1}${output2}
 
 Write_Bare_Ctrl_C

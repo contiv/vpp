@@ -157,13 +157,13 @@ func (p *Plugin) Init() error {
 	p.processor.Init()
 	p.configurator.Init(false) // Do not render in parallel while we do lot of debugging.
 	p.aclRenderer.Init()
-	if p.Contiv.IsTCPstackDisabled() {
+	if !p.Contiv.IsTCPstackDisabled() {
 		p.vppTCPRenderer.Init()
 	}
 
 	// Register renderers.
 	p.configurator.RegisterRenderer(p.aclRenderer)
-	if p.Contiv.IsTCPstackDisabled() {
+	if !p.Contiv.IsTCPstackDisabled() {
 		p.configurator.RegisterRenderer(p.vppTCPRenderer)
 	}
 

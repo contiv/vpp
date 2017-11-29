@@ -40,7 +40,7 @@ Reinit_One_Node_Kube_Cluster
     ${normal_tag}    ${vpp_tag} =    Get_Docker_Tags
     ${conn} =     SSHLibrary.Get_Connection    ${VM_SSH_ALIAS_PREFIX}1
     Set_Suite_Variable    ${testbed_connection}    ${conn.index}
-    SSHLibrary.Set_Client_Configuration    timeout=10    prompt=$
+    SSHLibrary.Set_Client_Configuration    timeout=${SSH_TIMEOUT}    prompt=$
     SshCommons.Switch_And_Execute_Command    ${testbed_connection}    sudo rm -rf $HOME/.kube
     KubeAdm.Reset    ${testbed_connection}
     Uninstall_Cri

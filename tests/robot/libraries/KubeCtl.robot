@@ -124,6 +124,6 @@ Execute_On_Pod
     ${container_id} =    Get_Container_Id    ${ssh_session}    ${pod_name}    ${container}
     ${t_param} =    BuiltIn.Set_Variable_If    ${tty}    -t    ${EMPTY}
     ${i_param} =    BuiltIn.Set_Variable_If    ${stdin}    -i    ${EMPTY}
-    ${p_param} =    BuiltIn.Set_Variable_If    ${privileged}    ---privileged=true    --privileged=false
+    ${p_param} =    BuiltIn.Set_Variable_If    ${privileged}    --privileged=true    --privileged=false
     ${docker} =    BuiltIn.Set_Variable    ${KUBE_CLUSTER_${CLUSTER_ID}_DOCKER_COMMAND}
     BuiltIn.Run_Keyword_And_Return    SshCommons.Switch_And_Execute_Command    ${ssh_session}    ${docker} exec ${i_param} ${t_param} ${p_param} ${container_id} ${cmd}    ignore_stderr=${ignore_stderr}    ignore_rc=${ignore_rc}

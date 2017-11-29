@@ -52,7 +52,9 @@ done
 
 # obtain the current git tag for tagging the Docker images
 export TAG=`git describe --tags`
+echo "exported TAG=$TAG"
 export VPP=$(docker run --rm dev-contiv-vswitch:$TAG bash -c "cd \$VPP_DIR && git rev-parse --short HEAD")
+echo "exported VPP=$VPP"
 
 # tag and push each image
 for IMAGE in "${IMAGES[@]}"
@@ -72,13 +74,15 @@ do
         fi
     else
         # other branch - tag with the branch name
-        echo "Tagging as contivvpp/${IMAGE}:${BRANCH_NAME}"
+        echo "Tagging as contivvpp/${IMAGE}:${BRANCH_NAME}-${TAG} + contivvpp/${IMAGE}:${BRANCH_NAME}"
         sudo docker tag prod-contiv-${IMAGE}:${TAG} contivvpp/${IMAGE}:${BRANCH_NAME}
+        sudo docker tag prod-contiv-${IMAGE}:${TAG} contivvpp/${IMAGE}:${BRANCH_NAME}-${TAG}
 
         # push the images
         if [ "${SKIP_UPLOAD}" != "true" ]
         then
             sudo docker push contivvpp/${IMAGE}:${BRANCH_NAME}
+            sudo docker push contivvpp/${IMAGE}:${BRANCH_NAME}-${TAG}
         fi
     fi
 done
@@ -100,13 +104,15 @@ do
         fi
     else
         # other branch - tag with the branch name
-        echo "Tagging as contivvpp/${IMAGE}:${BRANCH_NAME}"
+        echo "Tagging as contivvpp/${IMAGE}:${BRANCH_NAME}-${TAG}-${VPP} + contivvpp/${IMAGE}:${BRANCH_NAME}"
         sudo docker tag prod-contiv-${IMAGE}:${TAG} contivvpp/${IMAGE}:${BRANCH_NAME}
+        sudo docker tag prod-contiv-${IMAGE}:${TAG} contivvpp/${IMAGE}:${BRANCH_NAME}-${TAG}-${VPP}
 
         # push the images
         if [ "${SKIP_UPLOAD}" != "true" ]
         then
             sudo docker push contivvpp/${IMAGE}:${BRANCH_NAME}
+            sudo docker push contivvpp/${IMAGE}:${BRANCH_NAME}-${TAG}-${VPP}
         fi
     fi
 done
@@ -116,7 +122,7 @@ then
     if [ "${BRANCH_NAME}" == "master" ]
     then
         # master branch - tag with the git tag + "latest"
-        echo "Tagging as contivvpp/dev-contiv-vswitch:${TAG}-${VPP} + contivvpp/dev-vswitch:latest"
+        echo "Tagging as contivvpp/dev-vswitch:${TAG}-${VPP} + contivvpp/dev-vswitch:latest"
         sudo docker tag dev-contiv-vswitch:${TAG} contivvpp/dev-vswitch:${TAG}-${VPP}
         sudo docker tag dev-contiv-vswitch:${TAG} contivvpp/dev-vswitch:latest
 
@@ -128,13 +134,15 @@ then
         fi
     else
         # other branch - tag with the branch name
-        echo "Tagging as contivvpp/dev-vswitch:${BRANCH_NAME}"
+        echo "Tagging as contivvpp/dev-vswitch:${BRANCH_NAME}-${TAG}-${VPP} + contivvpp/dev-vswitch:${BRANCH_NAME}"
         sudo docker tag dev-contiv-vswitch:${TAG} contivvpp/dev-vswitch:${BRANCH_NAME}
+        sudo docker tag dev-contiv-vswitch:${TAG} contivvpp/dev-vswitch:${BRANCH_NAME}-${TAG}-${VPP}
 
         # push the images
         if [ "${SKIP_UPLOAD}" != "true" ]
         then
             sudo docker push contivvpp/dev-vswitch:${BRANCH_NAME}
+            sudo docker push contivvpp/dev-vswitch:${BRANCH_NAME}-${TAG}-${VPP}
         fi
     fi
 fi

@@ -21,7 +21,7 @@ Resource          ${CURDIR}/KubeCtl.robot
 Resource          ${CURDIR}/SshCommons.robot
 
 *** Variables ***
-${NV_PLUGIN_URL}    https://raw.githubusercontent.com/contiv/vpp/master/k8s/contiv-vpp.yaml
+${NV_PLUGIN_URL}    https://raw.githubusercontent.com/contiv/vpp/${BRANCH}/k8s/contiv-vpp.yaml
 ${CLIENT_POD_FILE}    ${CURDIR}/../resources/ubuntu-client.yaml
 ${SERVER_POD_FILE}    ${CURDIR}/../resources/ubuntu-server.yaml
 ${NGINX_POD_FILE}    ${CURDIR}/../resources/nginx.yaml
@@ -41,10 +41,10 @@ Reinit_One_Node_Kube_Cluster
     SSHLibrary.Set_Client_Configuration    timeout=${SSH_TIMEOUT}    prompt=$
     SshCommons.Switch_And_Execute_Command    ${testbed_connection}    sudo rm -rf $HOME/.kube
     KubeAdm.Reset    ${testbed_connection}
-    SshCommons.Switch_And_Execute_Command    ${testbed_connection}    curl -s https://raw.githubusercontent.com/contiv/vpp/master/k8s/cri-install.sh | sudo bash /dev/stdin -u    ignore_stderr=${True}    ignore_rc=${True}
+    SshCommons.Switch_And_Execute_Command    ${testbed_connection}    curl -s https://raw.githubusercontent.com/contiv/vpp/${BRANCH}/k8s/cri-install.sh | sudo bash /dev/stdin -u    ignore_stderr=${True}    ignore_rc=${True}
     Docker_Pull_Contiv_Vpp    ${testbed_connection}
     Docker_Pull_Custom_Kube_Proxy    ${testbed_connection}
-    SshCommons.Switch_And_Execute_Command    ${testbed_connection}    curl -s https://raw.githubusercontent.com/contiv/vpp/master/k8s/cri-install.sh | sudo bash /dev/stdin
+    SshCommons.Switch_And_Execute_Command    ${testbed_connection}    curl -s https://raw.githubusercontent.com/contiv/vpp/${BRANCH}/k8s/cri-install.sh | sudo bash /dev/stdin
     ${stdout} =    KubeAdm.Init    ${testbed_connection}
     BuiltIn.Should_Contain    ${stdout}    Your Kubernetes master has initialized successfully
     SshCommons.Switch_And_Execute_Command    ${testbed_connection}    mkdir -p $HOME/.kube
@@ -67,10 +67,10 @@ Reinit_Multinode_Kube_Cluster
     \    SshCommons.Switch_And_Execute_Command    ${connection}    sudo rm -rf ~/.kube
     \    KubeAdm.Reset    ${connection}
     \    SshCommons.Switch_And_Execute_Command    ${connection}    sudo modprobe uio_pci_generic
-    \    SshCommons.Switch_And_Execute_Command    ${connection}    curl -s https://raw.githubusercontent.com/contiv/vpp/master/k8s/cri-install.sh | sudo bash /dev/stdin -u    ignore_stderr=${True}    ignore_rc=${True}
+    \    SshCommons.Switch_And_Execute_Command    ${connection}    curl -s https://raw.githubusercontent.com/contiv/vpp/${BRANCH}/k8s/cri-install.sh | sudo bash /dev/stdin -u    ignore_stderr=${True}    ignore_rc=${True}
     \    Docker_Pull_Contiv_Vpp    ${connection}
     \    Docker_Pull_Custom_Kube_Proxy    ${connection}
-    \    SshCommons.Switch_And_Execute_Command    ${connection}    curl -s https://raw.githubusercontent.com/contiv/vpp/master/k8s/cri-install.sh | sudo bash /dev/stdin
+    \    SshCommons.Switch_And_Execute_Command    ${connection}    curl -s https://raw.githubusercontent.com/contiv/vpp/${BRANCH}/k8s/cri-install.sh | sudo bash /dev/stdin
     # init master
     ${connection} =    BuiltIn.Set_Variable    ${VM_SSH_ALIAS_PREFIX}1
     ${init_stdout} =    KubeAdm.Init    ${connection}
@@ -97,11 +97,13 @@ Docker_Pull_Contiv_Vpp
     [Arguments]    ${ssh_session}
     [Documentation]    Execute bash applying pull-images.sh from github.
     BuiltIn.Log_Many    ${ssh_session}
-    SshCommons.Switch_And_Execute_Command    ${ssh_session}    bash <(curl -s https://raw.githubusercontent.com/contiv/vpp/master/k8s/pull-images.sh)
+    SshCommons.Switch_And_Execute_Command    ${ssh_session}    bash <(curl -s https://raw.githubusercontent.com/contiv/vpp/${BRANCH}/k8s/pull-images.sh)
 
 Docker_Pull_Custom_Kube_Proxy
     [Arguments]    ${ssh_session}
-    SshCommons.Switch_And_Execute_Command    ${ssh_session}    bash <(curl -s https://raw.githubusercontent.com/contiv/vpp/master/k8s/proxy-install.sh)
+    [Documentation]    Execute proxy-install.sh script.
+    Builtin.Log_Many    ${ssh_session}
+    SshCommons.Switch_And_Execute_Command    ${ssh_session}    bash <(curl -s https://raw.githubusercontent.com/contiv/vpp/${BRANCH}/k8s/proxy-install.sh)
 
 Apply_Contive_Vpp_Plugin
     [Arguments]    ${ssh_session}
@@ -151,14 +153,16 @@ Deploy_Client_And_Server_Pod_And_Verify_Running
 
 Deploy_Client_Pod_And_Verify_Running
     [Arguments]    ${ssh_session}    ${client_file}=${CLIENT_POD_FILE}
-    [Documentation]     Deploy client ubuntu pod. Pod name in the yaml file is expectedt o be ubuntu-client
+    [Documentation]     Deploy client ubuntu pod. Pod name in the yaml file is expected to be ubuntu-client.
+    BuiltIn.Log_Many    ${ssh_session}    ${client_file}
     ${client_pod_name} =    Deploy_Pod_And_Verify_Running    ${ssh_session}    ${client_file}    ubuntu-client-
     BuiltIn.Set_Suite_Variable    ${client_pod_name}
 
 Deploy_Server_Pod_And_Verify_Running
-    [Arguments]    ${ssh_session}    ${server_file}=${SERVER_POD_FILE}
-    [Documentation]     Deploy server ubuntu pod. Pod name in the yaml file is expectedt o be ubuntu-server
-    ${server_pod_name} =    Deploy_Pod_And_Verify_Running    ${ssh_session}    ${server_file}    ubuntu-server-
+    [Arguments]    ${ssh_session}    ${server_file}=${SERVER_POD_FILE}    ${timeout}=60s
+    [Documentation]     Deploy server ubuntu pod. Pod name in the yaml file is expected to be ubuntu-server.
+    BuiltIn.Log_Many    ${ssh_session}    ${server_file}    ${timeout}
+    ${server_pod_name} =    Deploy_Pod_And_Verify_Running    ${ssh_session}    ${server_file}    ubuntu-server-    timeout=${timeout}
     BuiltIn.Set_Suite_Variable    ${server_pod_name}
 
 Remove_Client_And_Server_Pod_And_Verify_Removed
@@ -194,12 +198,15 @@ Deploy_Client_And_Nginx_Pod_And_Verify_Running
 Deploy_Nginx_Pod_And_Verify_Running
     [Arguments]    ${ssh_session}    ${nginx_file}=${NGINX_POD_FILE}
     [Documentation]     Deploy one nginx pod
+    BuiltIn.Log_Many    ${ssh_session}    ${nginx_file}
     ${nginx_pod_name} =    Deploy_Pod_And_Verify_Running    ${ssh_session}    ${nginx_file}    nginx-
     BuiltIn.Set_Suite_Variable    ${nginx_pod_name}
 
 Verify_Multireplica_Pods_Running
     [Arguments]    ${ssh_session}    ${pod_prefix}    ${nr_replicas}    ${namespace}
-    [Documentation]     We check istio- pods are running
+    [Documentation]     Check there is expected number of pods and they are running.
+    BuiltIn.Log_Many    ${ssh_session}    ${pod_prefix}    ${nr_replicas}    ${namespace}
+    BuiltIn.Comment    TODO: Join single- and multi- replica keywords.
     ${pods_list} =    Get_Pod_Name_List_By_Prefix    ${ssh_session}    ${pod_prefix}
     BuiltIn.Length_Should_Be   ${pods_list}     ${nr_replicas}
     : FOR    ${pod_name}    IN    @{pods_list}
@@ -207,8 +214,10 @@ Verify_Multireplica_Pods_Running
     BuiltIn.Return_From_Keyword    ${pods_list}
 
 Deploy_Multireplica_Pods_And_Verify_Running
-    [Arguments]    ${ssh_session}    ${pod_file}    ${pod_prefix}    ${nr_replicas}    ${namespace}=default    ${setup_timeout}=30s
-    [Documentation]     Deploy pods from one provided yaml file with more replica specified
+    [Arguments]    ${ssh_session}    ${pod_file}    ${pod_prefix}    ${nr_replicas}    ${namespace}=default    ${setup_timeout}=60s
+    [Documentation]     Apply the provided yaml file with more replica specified, wait until pods are running, return pods details.
+    BuiltIn.Log_Many    ${ssh_session}    ${pod_file}    ${pod_prefix}    ${nr_replicas}    ${namespace}    ${setup_timeout}
+    BuiltIn.Comment    TODO: Join single- and multi- replica keywords.
     KubeCtl.Apply_F    ${ssh_session}    ${pod_file}
     ${pods_details} =    BuiltIn.Wait_Until_Keyword_Succeeds    ${setup_timeout}   4s    Verify_Multireplica_Pods_Running    ${ssh_session}    ${pod_prefix}    ${nr_replicas}    ${namespace}
     BuiltIn.Set_Suite_Variable    ${pods_details}
@@ -216,12 +225,15 @@ Deploy_Multireplica_Pods_And_Verify_Running
 Verify_Multireplica_Pods_Removed
     [Arguments]    ${ssh_session}    ${pod_prefix}
     [Documentation]     Check no pods are running with prefix: ${pod_prefix}
+    BuiltIn.Log_Many    ${ssh_session}    ${pod_prefix}
+    BuiltIn.Comment    TODO: Join single- and multi- replica keywords.
     ${pods_list} =    Get_Pod_Name_List_By_Prefix    ${ssh_session}    ${pod_prefix}
     BuiltIn.Length_Should_Be   ${pods_list}     0
 
 Remove_Multireplica_Pods_And_Verify_Removed
     [Arguments]    ${ssh_session}    ${pod_file}    ${pod_prefix}
-    [Documentation]     Remove pods and verify they're removed.
+    [Documentation]     Remove pods and verify they are removed.
+    BuiltIn.Log_Many    ${ssh_session}    ${pod_file}    ${pod_prefix}
     KubeCtl.Delete_F    ${ssh_session}    ${pod_file}
     BuiltIn.Wait_Until_Keyword_Succeeds    60s    5s    Verify_Multireplica_Pods_Removed    ${ssh_session}    ${pod_prefix}
 
@@ -236,6 +248,8 @@ Remove_Client_And_Nginx_Pod_And_Verify_Removed
 
 Remove_Nginx_Pod_And_Verify_Removed
     [Arguments]    ${ssh_session}    ${nginx_file}=${NGINX_POD_FILE}
+    [Documentation]    Remove pod and verify removal, nginx being the default file.
+    BuiltIn.Log_Many    ${ssh_session}    ${nginx_file}
     KubeCtl.Delete_F    ${ssh_session}    ${nginx_file}
     Wait_Until_Pod_Removed    ${ssh_session}    ${nginx_pod_name}
 
@@ -255,7 +269,7 @@ Deploy_Istio_And_Verify_Running
     [Documentation]     Deploy pod defined by ${ISTIO_FILE}, wait to see it running, store istio pod list.
     BuiltIn.Log_Many    ${ssh_session}
     KubeCtl.Apply_F    ${ssh_session}    ${ISTIO_FILE}
-    ${istio_pods} =    BuiltIn.Wait_Until_Keyword_Succeeds    30s    4s    Verify_Istio_Running    ${ssh_session}
+    ${istio_pods} =    BuiltIn.Wait_Until_Keyword_Succeeds    60s    4s    Verify_Istio_Running    ${ssh_session}
     BuiltIn.Set_Suite_Variable    ${istio_pods}
 
 Verify_Istio_Removed
@@ -274,18 +288,20 @@ Remove_Istio_And_Verify_Removed
 
 Get_Deployed_Pod_Name
     [Arguments]    ${ssh_session}    ${pod_prefix}
+    [Documentation]    Get list of pod names matching the prefix, check tere is just one, return the name.
+    BuiltIn.Log_Many    ${ssh_session}    ${pod_prefix}
     ${pod_name_list} =   Get_Pod_Name_List_By_Prefix    ${ssh_session}    ${pod_prefix}
     BuiltIn.Length_Should_Be    ${pod_name_list}    1
     ${pod_name} =    BuiltIn.Evaluate     ${pod_name_list}[0]
     [Return]    ${pod_name}
 
 Deploy_Pod_And_Verify_Running
-    [Arguments]    ${ssh_session}    ${pod_file}    ${pod_prefix}
+    [Arguments]    ${ssh_session}    ${pod_file}    ${pod_prefix}    ${timeout}=60s
     [Documentation]    Deploy pod defined by \${pod_file}, wait until a pod matching \${pod_prefix} appears, check it was only 1 such pod, extract its name, wait until it is running, log and return the name.
     Builtin.Log_Many    ${ssh_session}    ${pod_file}    ${pod_prefix}
     KubeCtl.Apply_F    ${ssh_session}    ${pod_file}
     ${pod_name} =    BuiltIn.Wait_Until_Keyword_Succeeds    10s    2s    Get_Deployed_Pod_Name    ${ssh_session}    ${pod_prefix}
-    Wait_Until_Pod_Running    ${ssh_session}    ${pod_name}
+    Wait_Until_Pod_Running    ${ssh_session}    ${pod_name}    timeout=${timeout}
     BuiltIn.Log    ${pod_name}
     [Return]    ${pod_name}
 
@@ -308,7 +324,7 @@ Verify_Pod_Running_And_Ready
     BuiltIn.Should_Be_Equal_As_Strings    ${ready_containers}    ${out_of_containers}
 
 Wait_Until_Pod_Running
-    [Arguments]    ${ssh_session}    ${pod_name}    ${timeout}=30s    ${check_period}=5s    ${namespace}=default
+    [Arguments]    ${ssh_session}    ${pod_name}    ${timeout}=60s    ${check_period}=5s    ${namespace}=default
     [Documentation]    WUKS around Verify_Pod_Running_And_Ready.
     BuiltIn.Log_Many    ${ssh_session}    ${pod_name}    ${timeout}    ${check_period}    ${namespace}
     BuiltIn.Wait_Until_Keyword_Succeeds    ${timeout}    ${check_period}    Verify_Pod_Running_And_Ready    ${ssh_session}    ${pod_name}    namespace=${namespace}
@@ -381,10 +397,11 @@ Get_Into_Container_Prompt_In_Pod
     [Documentation]    Configure if prompt, execute interactive bash in ${pod_name}, read until prompt, log and return output.
     BuiltIn.Log_Many    ${ssh_session}    ${pod_name}    ${prompt}
     # TODO: PodBash.robot?
-    SSHLibrary.Switch_Connection    ${ssh_session}
+    ${docker} =    BuiltIn.Set_Variable    ${KUBE_CLUSTER_${CLUSTER_ID}_DOCKER_COMMAND}
+    ${container_id} =    KubeCtl.Get_Container_Id    ${ssh_session}    ${pod_name}
+    # That already switched the ssh session.
     BuiltIn.Run_Keyword_If    """${prompt}""" != """${EMPTY}"""    SSHLibrary.Set_Client_Configuration    prompt=${prompt}
-    ${command}=    BuiltIn.Set_Variable    kubectl exec -it ${pod_name} -- /bin/bash
-    SSHLibrary.Write    ${command}
+    SSHLibrary.Write    ${docker} exec -i -t --privileged=true ${container_id} /bin/bash
     ${output} =     SSHLibrary.Read_Until_Prompt
     Log     ${output}
     ${connection}=    SSHLibrary.Get_Connection

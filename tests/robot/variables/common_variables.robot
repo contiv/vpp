@@ -1,4 +1,6 @@
 *** Variables ***
+${BRANCH}         master    # Default value, to be overwritten if needed.
+
 ${KUBE_CLUSTER_1_NODES}            2
 ${KUBE_CLUSTER_1_VM_1_PUBLIC_IP}   192.168.251.101
 ${KUBE_CLUSTER_1_VM_1_LOCAL_IP}    192.168.251.101

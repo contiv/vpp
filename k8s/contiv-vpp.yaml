@@ -20,7 +20,8 @@ metadata:
   namespace: kube-system
 data:
   contiv.yaml: |
-    TCPChecksumOffloadDisabled: True
+    TCPstackDisabled: False
+    TCPChecksumOffloadDisabled: False
     IPAMConfig:
       PodSubnetCIDR: "10.1.0.0/16"
       PodNetworkPrefixLen: 24

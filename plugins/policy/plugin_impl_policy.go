@@ -136,16 +136,18 @@ func (p *Plugin) Init() error {
 	}
 	p.aclRenderer.Log.SetLevel(logging.DebugLevel)
 
-	goVppCh, err := p.GoVPP.NewAPIChannel()
+	const goVPPChanBufSize = 1 << 12
+	goVppCh, err := p.GoVPP.NewAPIChannelBuffered(goVPPChanBufSize, goVPPChanBufSize)
 	if err != nil {
 		return err
 	}
 	p.vppTCPRenderer = &vpptcp.Renderer{
 		Deps: vpptcp.Deps{
-			Log:        p.Log.NewLogger("-vppTcpRenderer"),
-			LogFactory: p.Log,
-			Contiv:     p.Contiv,
-			GoVPPChan:  goVppCh,
+			Log:              p.Log.NewLogger("-vppTcpRenderer"),
+			LogFactory:       p.Log,
+			Contiv:           p.Contiv,
+			GoVPPChan:        goVppCh,
+			GoVPPChanBufSize: goVPPChanBufSize,
 		},
 	}
 	p.vppTCPRenderer.Log.SetLevel(logging.DebugLevel)
@@ -155,11 +157,15 @@ func (p *Plugin) Init() error {
 	p.processor.Init()
 	p.configurator.Init(false) // Do not render in parallel while we do lot of debugging.
 	p.aclRenderer.Init()
-	p.vppTCPRenderer.Init()
+	if !p.Contiv.IsTCPstackDisabled() {
+		p.vppTCPRenderer.Init()
+	}
 
 	// Register renderers.
 	p.configurator.RegisterRenderer(p.aclRenderer)
-	p.configurator.RegisterRenderer(p.vppTCPRenderer)
+	if !p.Contiv.IsTCPstackDisabled() {
+		p.configurator.RegisterRenderer(p.vppTCPRenderer)
+	}
 
 	p.ctx, p.cancel = context.WithCancel(context.Background())
 

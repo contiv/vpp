@@ -28,7 +28,7 @@
     }],
     "admin": {
         "access_log_path": "/tmp/admin_access.log",
-        "address": "tcp://127.0.0.1:9901"
+        "address": "tcp://0.0.0.0:9901"
     },
     "cluster_manager": {
         "clusters": [{

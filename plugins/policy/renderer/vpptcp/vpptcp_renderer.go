@@ -46,10 +46,11 @@ type Renderer struct {
 
 // Deps lists dependencies of Renderer.
 type Deps struct {
-	Log        logging.Logger
-	LogFactory logging.LogFactory /* optional */
-	Contiv     contiv.API         /* for GetNsIndex() */
-	GoVPPChan  *govpp.Channel
+	Log              logging.Logger
+	LogFactory       logging.LogFactory /* optional */
+	Contiv           contiv.API         /* for GetNsIndex() */
+	GoVPPChan        *govpp.Channel
+	GoVPPChanBufSize int
 }
 
 // RendererTxn represents a single transaction of Renderer.
@@ -170,33 +171,50 @@ func (r *Renderer) updateRules(add, remove []*cache.SessionRule) error {
 		requests = append(requests, r.makeSessionRuleAddDelReq(addRule, true))
 	}
 
-	// Send all VPP requests at once.
-	for _, req := range requests {
-		r.GoVPPChan.ReqChan <- req
+	chanBufSize := 100
+	if r.GoVPPChanBufSize != 0 {
+		chanBufSize = r.GoVPPChanBufSize
 	}
 
-	// Wait for all VPP responses.
 	var wasError error
-	for i := 0; i < len(requests); i++ {
-		reply := <-r.GoVPPChan.ReplyChan
-		if reply.Error != nil {
-			r.Log.WithField("err", reply.Error).Error(errMsg)
-			wasError = reply.Error
-			break
+	for i := 0; i < len(requests); {
+		// Send multiple VPP requests at once, but no more than what govpp request
+		// reply channels can buffer.
+		j := 0
+		for ; i+j < len(requests) && j < chanBufSize; j++ {
+			r.GoVPPChan.ReqChan <- requests[i+j]
 		}
-		msg := &session.SessionRuleAddDelReply{}
-		err := r.GoVPPChan.MsgDecoder.DecodeMsg(reply.Data, msg)
-		if err != nil {
-			r.Log.WithField("err", err).Error(errMsg)
-			wasError = err
-			break
+		i += j
+
+		// Wait for VPP responses.
+		r.Log.WithField("count", j).Debug("Waiting for a bunch of BIN API responses")
+		for ; j > 0; j-- {
+			reply := <-r.GoVPPChan.ReplyChan
+			r.Log.WithField("reply", reply).Debug("Received BIN API response")
+			if reply.Error != nil {
+				r.Log.WithField("err", reply.Error).Error(errMsg)
+				wasError = reply.Error
+				break
+			}
+			msg := &session.SessionRuleAddDelReply{}
+			err := r.GoVPPChan.MsgDecoder.DecodeMsg(reply.Data, msg)
+			if err != nil {
+				r.Log.WithField("err", err).Error(errMsg)
+				wasError = err
+				break
+			}
+			if msg.Retval != 0 {
+				r.Log.WithField("retval", msg.Retval).Error(errMsg)
+				wasError = errors.New(errMsg)
+				break
+			}
 		}
-		if msg.Retval != 0 {
-			r.Log.WithField("retval", msg.Retval).Error(errMsg)
-			wasError = errors.New(errMsg)
+		if wasError != nil {
 			break
 		}
 	}
+
+	r.Log.WithField("count", len(requests)).Debug("All BIN API responses were received")
 	return wasError
 }
 

@@ -1,0 +1,22 @@
+apiVersion: apps/v1beta2
+kind: Deployment
+metadata:
+  name: wrkbench-deployment
+  labels:
+    project: test-policies
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      role: frontend
+  template:
+    metadata:
+      labels:
+        role: frontend
+    spec:
+      containers:
+      - image: wrk
+        imagePullPolicy: IfNotPresent
+        name: wrk
+        command: ["bash"]
+        args: ["-c", "while true; do sleep 30; done;"]

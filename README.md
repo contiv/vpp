@@ -392,8 +392,33 @@ To uninstall the CRI shim, execute as root (not using sudo) on each node:
 ```
 bash <(curl -s https://raw.githubusercontent.com/contiv/vpp/master/k8s/cri-install.sh) --uninstall
 ```
+
 After uninstalling CRI, reboot each node, or re-initialize the Kubernetes
 cluster using `kubeadm reset` and `kubeadm init --token-ttl 0`.
+
+### Tearing down Kubernetes
+* First, drain the node and make sure that the node is empty before 
+shutting it down:
+```
+  kubectl drain <node name> --delete-local-data --force --ignore-daemonsets
+  kubectl delete node <node name>
+```
+* Next, on the node being removed, reset all kubeadm installed state:
+```
+  rm -rf $HOME/.kube
+  sudo su
+  kubeadm reset
+```
+
+* If you added environment variable definitions into 
+  `/etc/systemd/system/kubelet.service.d/10-kubeadm.conf` (e.g. in
+   [Step 1.3][10]), clean them up now.
+
+
+* If you installed the CRI Shim as instructed in [Step 1.4][9], uninstall it now:
+```
+  bash <(curl -s https://raw.githubusercontent.com/contiv/vpp/master/k8s/cri-install.sh) --uninstall
+```
 
 ### Tearing down Kubernetes
 You should first drain the node and make sure that the node is empty before 
@@ -445,3 +470,5 @@ kubeadm init --token-ttl 0
 [6]: https://kubernetes.io/docs/setup/independent/install-kubeadm/
 [7]: docs/MULTINODE.md
 [8]: #tear-down
+[9]: #installing-the-cri-shim-on-your-hosts
+[10]: #setting-up-custom-management-network-on-multi-homed-nodes

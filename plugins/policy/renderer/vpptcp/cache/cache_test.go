@@ -94,7 +94,7 @@ func checkSessionRule(list []*SessionRule, scope string, nsIndex uint32,
 
 	// Parse IP addresses.
 	isIPv4 := uint8(0)
-	if lclIP != "" {
+	if lclIP != "" && lclIP != "::" {
 		var lclIPNet *net.IPNet
 		if !strings.Contains(lclIP, "/") {
 			lclIPNet = GetOneHostSubnet(lclIP)
@@ -110,7 +110,7 @@ func checkSessionRule(list []*SessionRule, scope string, nsIndex uint32,
 		lclPlen, _ := lclIPNet.Mask.Size()
 		rule.LclPlen = uint8(lclPlen)
 	}
-	if rmtIP != "" {
+	if rmtIP != "" && rmtIP != "::" {
 		var rmtIPNet *net.IPNet
 		if !strings.Contains(rmtIP, "/") {
 			rmtIPNet = GetOneHostSubnet(rmtIP)
@@ -328,13 +328,15 @@ func TestMultipleRulesSingleNsWithDataChange(t *testing.T) {
 	checkNamespaces(ruleCache) // not yet commited
 	added, removed, err = txn.Changes()
 	gomega.Expect(err).To(gomega.BeNil())
-	gomega.Expect(len(added)).To(gomega.BeEquivalentTo(5))
+	gomega.Expect(len(added)).To(gomega.BeEquivalentTo(7))
 	gomega.Expect(len(removed)).To(gomega.BeEquivalentTo(0))
 	checkSessionRule(added, "LOCAL", nsIndex, "", 0, "192.168.1.0/24", 80, "TCP", "ALLOW")
 	checkSessionRule(added, "LOCAL", nsIndex, "", 0, "192.168.2.0/24", 22, "TCP", "ALLOW")
 	checkSessionRule(added, "GLOBAL", 0, podIP, 777, "192.168.3.1/32", 0, "UDP", "ALLOW")
-	checkSessionRule(added, "GLOBAL", 0, podIP, 0, "", 0, "TCP", "DENY")
-	checkSessionRule(added, "GLOBAL", 0, podIP, 0, "", 0, "UDP", "DENY")
+	checkSessionRule(added, "GLOBAL", 0, podIP, 0, "0.0.0.0/1", 0, "TCP", "DENY")
+	checkSessionRule(added, "GLOBAL", 0, podIP, 0, "128.0.0.0/1", 0, "TCP", "DENY")
+	checkSessionRule(added, "GLOBAL", 0, podIP, 0, "0.0.0.0/1", 0, "UDP", "DENY")
+	checkSessionRule(added, "GLOBAL", 0, podIP, 0, "128.0.0.0/1", 0, "UDP", "DENY")
 
 	// Commit the transaction.
 	txn.Commit()
@@ -363,13 +365,17 @@ func TestMultipleRulesSingleNsWithDataChange(t *testing.T) {
 	txn.Update(nsIndex, GetOneHostSubnet(podIP), ingress2, egress2)
 	added, removed, err = txn.Changes()
 	gomega.Expect(err).To(gomega.BeNil())
-	gomega.Expect(len(added)).To(gomega.BeEquivalentTo(2))
-	gomega.Expect(len(removed)).To(gomega.BeEquivalentTo(3))
-	checkSessionRule(added, "LOCAL", nsIndex, "", 0, "", 0, "TCP", "DENY")
-	checkSessionRule(added, "GLOBAL", 0, podIP, 0, "", 0, "TCP", "ALLOW")
+	gomega.Expect(len(added)).To(gomega.BeEquivalentTo(4))
+	gomega.Expect(len(removed)).To(gomega.BeEquivalentTo(4))
+	checkSessionRule(added, "LOCAL", nsIndex, "", 0, "0.0.0.0/1", 0, "TCP", "DENY")
+	checkSessionRule(added, "LOCAL", nsIndex, "", 0, "128.0.0.0/1", 0, "TCP", "DENY")
+	checkSessionRule(added, "LOCAL", nsIndex, "", 0, "0000:0000:0000:0000:0000:0000:0000:0000/1", 0, "TCP", "DENY")
+	checkSessionRule(added, "LOCAL", nsIndex, "", 0, "8000:0000:0000:0000:0000:0000:0000:0000/1", 0, "TCP", "DENY")
+	/* allow all-TCP needs no extra rule */
 	checkSessionRule(removed, "LOCAL", nsIndex, "", 0, "192.168.1.0/24", 80, "TCP", "ALLOW")
 	checkSessionRule(removed, "LOCAL", nsIndex, "", 0, "192.168.2.0/24", 22, "TCP", "ALLOW")
-	checkSessionRule(removed, "GLOBAL", 0, podIP, 0, "", 0, "TCP", "DENY")
+	checkSessionRule(removed, "GLOBAL", 0, podIP, 0, "0.0.0.0/1", 0, "TCP", "DENY")
+	checkSessionRule(removed, "GLOBAL", 0, podIP, 0, "128.0.0.0/1", 0, "TCP", "DENY")
 
 	// Commit the transaction.
 	txn.Commit()
@@ -446,32 +452,43 @@ func TestMultipleRulesMultipleNsWithDataChange(t *testing.T) {
 	checkNamespaces(ruleCache) // not yet commited
 	added, removed, err = txn.Changes()
 	gomega.Expect(err).To(gomega.BeNil())
-	gomega.Expect(len(added)).To(gomega.BeEquivalentTo(21))
+	gomega.Expect(len(added)).To(gomega.BeEquivalentTo(32))
 	gomega.Expect(len(removed)).To(gomega.BeEquivalentTo(0))
 	// - Pod1
 	checkSessionRule(added, "LOCAL", nsIndex1, "", 0, "192.168.2.40/32", 200, "TCP", "ALLOW") /* combined */
 	checkSessionRule(added, "LOCAL", nsIndex1, "", 0, "192.168.2.40/32", 400, "TCP", "ALLOW") /* combined */
 	checkSessionRule(added, "LOCAL", nsIndex1, "", 0, "192.168.2.40/32", 0, "TCP", "DENY")    /* combined */
 	checkSessionRule(added, "LOCAL", nsIndex1, "", 0, "192.168.2.40/32", 0, "UDP", "DENY")    /* combined */
-	checkSessionRule(added, "LOCAL", nsIndex1, "", 0, "", 0, "TCP", "ALLOW")
-	checkSessionRule(added, "LOCAL", nsIndex1, "", 0, "", 0, "UDP", "ALLOW")
 	checkSessionRule(added, "GLOBAL", 0, pod1IP, 0, "192.168.2.0/26", 0, "UDP", "ALLOW")
 	checkSessionRule(added, "GLOBAL", 0, pod1IP, 80, "192.168.2.40/32", 0, "TCP", "ALLOW")
 	checkSessionRule(added, "GLOBAL", 0, pod1IP, 22, "192.168.2.40/32", 0, "TCP", "ALLOW")
-	checkSessionRule(added, "GLOBAL", 0, pod1IP, 0, "", 0, "TCP", "DENY")
-	checkSessionRule(added, "GLOBAL", 0, pod1IP, 0, "", 0, "UDP", "DENY")
+	checkSessionRule(added, "GLOBAL", 0, pod1IP, 0, "0.0.0.0/1", 0, "TCP", "DENY")
+	checkSessionRule(added, "GLOBAL", 0, pod1IP, 0, "128.0.0.0/1", 0, "TCP", "DENY")
+	checkSessionRule(added, "GLOBAL", 0, pod1IP, 0, "0.0.0.0/1", 0, "UDP", "DENY")
+	checkSessionRule(added, "GLOBAL", 0, pod1IP, 0, "128.0.0.0/1", 0, "UDP", "DENY")
 	// - Pod2
 	/* allow-TCP8080-pod1 removed */
 	checkSessionRule(added, "LOCAL", nsIndex2, "", 0, "192.168.1.1/32", 80, "TCP", "ALLOW") /* combined */
 	checkSessionRule(added, "LOCAL", nsIndex2, "", 0, "192.168.1.1/32", 0, "TCP", "DENY")   /* combined */
-	checkSessionRule(added, "LOCAL", nsIndex2, "", 0, "", 80, "TCP", "ALLOW")
-	checkSessionRule(added, "LOCAL", nsIndex2, "", 0, "", 0, "TCP", "DENY")
-	checkSessionRule(added, "LOCAL", nsIndex2, "", 0, "", 0, "UDP", "DENY")
+	checkSessionRule(added, "LOCAL", nsIndex2, "", 0, "0.0.0.0/1", 80, "TCP", "ALLOW")
+	checkSessionRule(added, "LOCAL", nsIndex2, "", 0, "128.0.0.0/1", 80, "TCP", "ALLOW")
+	checkSessionRule(added, "LOCAL", nsIndex2, "", 0, "0000:0000:0000:0000:0000:0000:0000:0000/1", 80, "TCP", "ALLOW")
+	checkSessionRule(added, "LOCAL", nsIndex2, "", 0, "8000:0000:0000:0000:0000:0000:0000:0000/1", 80, "TCP", "ALLOW")
+	checkSessionRule(added, "LOCAL", nsIndex2, "", 0, "0.0.0.0/1", 0, "TCP", "DENY")
+	checkSessionRule(added, "LOCAL", nsIndex2, "", 0, "128.0.0.0/1", 0, "TCP", "DENY")
+	checkSessionRule(added, "LOCAL", nsIndex2, "", 0, "0000:0000:0000:0000:0000:0000:0000:0000/1", 0, "TCP", "DENY")
+	checkSessionRule(added, "LOCAL", nsIndex2, "", 0, "8000:0000:0000:0000:0000:0000:0000:0000/1", 0, "TCP", "DENY")
+	checkSessionRule(added, "LOCAL", nsIndex2, "", 0, "0.0.0.0/1", 0, "UDP", "DENY")
+	checkSessionRule(added, "LOCAL", nsIndex2, "", 0, "128.0.0.0/1", 0, "UDP", "DENY")
+	checkSessionRule(added, "LOCAL", nsIndex2, "", 0, "0000:0000:0000:0000:0000:0000:0000:0000/1", 0, "UDP", "DENY")
+	checkSessionRule(added, "LOCAL", nsIndex2, "", 0, "8000:0000:0000:0000:0000:0000:0000:0000/1", 0, "UDP", "DENY")
 	checkSessionRule(added, "GLOBAL", 0, pod2IP, 100, "192.168.2.0/24", 0, "UDP", "ALLOW")
 	checkSessionRule(added, "GLOBAL", 0, pod2IP, 200, "192.168.1.0/24", 0, "TCP", "ALLOW")
 	checkSessionRule(added, "GLOBAL", 0, pod2IP, 400, "192.168.1.1/32", 0, "TCP", "ALLOW")
-	checkSessionRule(added, "GLOBAL", 0, pod2IP, 0, "", 0, "TCP", "DENY")
-	checkSessionRule(added, "GLOBAL", 0, pod2IP, 0, "", 0, "UDP", "DENY")
+	checkSessionRule(added, "GLOBAL", 0, pod2IP, 0, "0.0.0.0/1", 0, "TCP", "DENY")
+	checkSessionRule(added, "GLOBAL", 0, pod2IP, 0, "128.0.0.0/1", 0, "TCP", "DENY")
+	checkSessionRule(added, "GLOBAL", 0, pod2IP, 0, "0.0.0.0/1", 0, "UDP", "DENY")
+	checkSessionRule(added, "GLOBAL", 0, pod2IP, 0, "128.0.0.0/1", 0, "UDP", "DENY")
 
 	// Commit the transaction.
 	txn.Commit()
@@ -508,15 +525,17 @@ func TestMultipleRulesMultipleNsWithDataChange(t *testing.T) {
 	txn.Update(nsIndex2, GetOneHostSubnet(pod2IP), ingressPod2, egressPod2)
 	added, removed, err = txn.Changes()
 	gomega.Expect(err).To(gomega.BeNil())
-	gomega.Expect(len(added)).To(gomega.BeEquivalentTo(4))
-	gomega.Expect(len(removed)).To(gomega.BeEquivalentTo(6))
+	gomega.Expect(len(added)).To(gomega.BeEquivalentTo(7))
+	gomega.Expect(len(removed)).To(gomega.BeEquivalentTo(5))
 	// - Pod1
 	checkSessionRule(added, "LOCAL", nsIndex1, "", 0, "192.168.2.40/32", 100, "UDP", "ALLOW") /* combined */
-	checkSessionRule(added, "LOCAL", nsIndex1, "", 0, "", 0, "TCP", "DENY")
+	checkSessionRule(added, "LOCAL", nsIndex1, "", 0, "0.0.0.0/1", 0, "TCP", "DENY")
+	checkSessionRule(added, "LOCAL", nsIndex1, "", 0, "128.0.0.0/1", 0, "TCP", "DENY")
+	checkSessionRule(added, "LOCAL", nsIndex1, "", 0, "0000:0000:0000:0000:0000:0000:0000:0000/1", 0, "TCP", "DENY")
+	checkSessionRule(added, "LOCAL", nsIndex1, "", 0, "8000:0000:0000:0000:0000:0000:0000:0000/1", 0, "TCP", "DENY")
 	checkSessionRule(removed, "LOCAL", nsIndex1, "", 0, "192.168.2.40/32", 200, "TCP", "ALLOW") /* combined */
 	checkSessionRule(removed, "LOCAL", nsIndex1, "", 0, "192.168.2.40/32", 400, "TCP", "ALLOW") /* combined */
 	checkSessionRule(removed, "LOCAL", nsIndex1, "", 0, "192.168.2.40/32", 0, "TCP", "DENY")    /* combined */
-	checkSessionRule(removed, "LOCAL", nsIndex1, "", 0, "", 0, "TCP", "ALLOW")
 	checkSessionRule(removed, "GLOBAL", 0, pod1IP, 0, "192.168.2.0/26", 0, "UDP", "ALLOW")
 	// - Pod2
 	checkSessionRule(added, "LOCAL", nsIndex2, "", 0, "192.168.1.1/32", 0, "UDP", "DENY") /* combined */
@@ -609,30 +628,41 @@ func TestMultipleRulesMultipleNsWithResync(t *testing.T) {
 	added2, removed2, err := txn.Changes()
 	gomega.Expect(err).To(gomega.BeNil())
 	gomega.Expect(len(added2)).To(gomega.BeEquivalentTo(0))
-	gomega.Expect(len(removed2)).To(gomega.BeEquivalentTo(21))
+	gomega.Expect(len(removed2)).To(gomega.BeEquivalentTo(32))
 	// - Pod1
 	checkSessionRule(removed2, "LOCAL", nsIndex1, "", 0, "192.168.2.40/32", 200, "TCP", "ALLOW") /* combined */
 	checkSessionRule(removed2, "LOCAL", nsIndex1, "", 0, "192.168.2.40/32", 400, "TCP", "ALLOW") /* combined */
 	checkSessionRule(removed2, "LOCAL", nsIndex1, "", 0, "192.168.2.40/32", 0, "TCP", "DENY")    /* combined */
 	checkSessionRule(removed2, "LOCAL", nsIndex1, "", 0, "192.168.2.40/32", 0, "UDP", "DENY")    /* combined */
-	checkSessionRule(removed2, "LOCAL", nsIndex1, "", 0, "", 0, "TCP", "ALLOW")
-	checkSessionRule(removed2, "LOCAL", nsIndex1, "", 0, "", 0, "UDP", "ALLOW")
 	checkSessionRule(removed2, "GLOBAL", 0, pod1IP, 0, "192.168.2.0/26", 0, "UDP", "ALLOW")
 	checkSessionRule(removed2, "GLOBAL", 0, pod1IP, 80, "192.168.2.40/32", 0, "TCP", "ALLOW")
 	checkSessionRule(removed2, "GLOBAL", 0, pod1IP, 22, "192.168.2.40/32", 0, "TCP", "ALLOW")
-	checkSessionRule(removed2, "GLOBAL", 0, pod1IP, 0, "", 0, "TCP", "DENY")
-	checkSessionRule(removed2, "GLOBAL", 0, pod1IP, 0, "", 0, "UDP", "DENY")
+	checkSessionRule(removed2, "GLOBAL", 0, pod1IP, 0, "0.0.0.0/1", 0, "TCP", "DENY")
+	checkSessionRule(removed2, "GLOBAL", 0, pod1IP, 0, "128.0.0.0/1", 0, "TCP", "DENY")
+	checkSessionRule(removed2, "GLOBAL", 0, pod1IP, 0, "0.0.0.0/1", 0, "UDP", "DENY")
+	checkSessionRule(removed2, "GLOBAL", 0, pod1IP, 0, "128.0.0.0/1", 0, "UDP", "DENY")
 	// - Pod2
 	checkSessionRule(removed2, "LOCAL", nsIndex2, "", 0, "192.168.1.1/32", 80, "TCP", "ALLOW") /* combined */
 	checkSessionRule(removed2, "LOCAL", nsIndex2, "", 0, "192.168.1.1/32", 0, "TCP", "DENY")   /* combined */
-	checkSessionRule(removed2, "LOCAL", nsIndex2, "", 0, "", 80, "TCP", "ALLOW")
-	checkSessionRule(removed2, "LOCAL", nsIndex2, "", 0, "", 0, "TCP", "DENY")
-	checkSessionRule(removed2, "LOCAL", nsIndex2, "", 0, "", 0, "UDP", "DENY")
+	checkSessionRule(removed2, "LOCAL", nsIndex2, "", 0, "0.0.0.0/1", 80, "TCP", "ALLOW")
+	checkSessionRule(removed2, "LOCAL", nsIndex2, "", 0, "128.0.0.0/1", 80, "TCP", "ALLOW")
+	checkSessionRule(removed2, "LOCAL", nsIndex2, "", 0, "0000:0000:0000:0000:0000:0000:0000:0000/1", 80, "TCP", "ALLOW")
+	checkSessionRule(removed2, "LOCAL", nsIndex2, "", 0, "8000:0000:0000:0000:0000:0000:0000:0000/1", 80, "TCP", "ALLOW")
+	checkSessionRule(removed2, "LOCAL", nsIndex2, "", 0, "0.0.0.0/1", 0, "TCP", "DENY")
+	checkSessionRule(removed2, "LOCAL", nsIndex2, "", 0, "128.0.0.0/1", 0, "TCP", "DENY")
+	checkSessionRule(removed2, "LOCAL", nsIndex2, "", 0, "0000:0000:0000:0000:0000:0000:0000:0000/1", 0, "TCP", "DENY")
+	checkSessionRule(removed2, "LOCAL", nsIndex2, "", 0, "8000:0000:0000:0000:0000:0000:0000:0000/1", 0, "TCP", "DENY")
+	checkSessionRule(removed2, "LOCAL", nsIndex2, "", 0, "0.0.0.0/1", 0, "UDP", "DENY")
+	checkSessionRule(removed2, "LOCAL", nsIndex2, "", 0, "128.0.0.0/1", 0, "UDP", "DENY")
+	checkSessionRule(removed2, "LOCAL", nsIndex2, "", 0, "0000:0000:0000:0000:0000:0000:0000:0000/1", 0, "UDP", "DENY")
+	checkSessionRule(removed2, "LOCAL", nsIndex2, "", 0, "8000:0000:0000:0000:0000:0000:0000:0000/1", 0, "UDP", "DENY")
 	checkSessionRule(removed2, "GLOBAL", 0, pod2IP, 100, "192.168.2.0/24", 0, "UDP", "ALLOW")
 	checkSessionRule(removed2, "GLOBAL", 0, pod2IP, 200, "192.168.1.0/24", 0, "TCP", "ALLOW")
 	checkSessionRule(removed2, "GLOBAL", 0, pod2IP, 400, "192.168.1.1/32", 0, "TCP", "ALLOW")
-	checkSessionRule(removed2, "GLOBAL", 0, pod2IP, 0, "", 0, "TCP", "DENY")
-	checkSessionRule(removed2, "GLOBAL", 0, pod2IP, 0, "", 0, "UDP", "DENY")
+	checkSessionRule(removed2, "GLOBAL", 0, pod2IP, 0, "0.0.0.0/1", 0, "TCP", "DENY")
+	checkSessionRule(removed2, "GLOBAL", 0, pod2IP, 0, "128.0.0.0/1", 0, "TCP", "DENY")
+	checkSessionRule(removed2, "GLOBAL", 0, pod2IP, 0, "0.0.0.0/1", 0, "UDP", "DENY")
+	checkSessionRule(removed2, "GLOBAL", 0, pod2IP, 0, "128.0.0.0/1", 0, "UDP", "DENY")
 
 	// Updated config.
 	inRule13 := newContivRule("deny-all-TCP-all", renderer.ActionDeny, &net.IPNet{}, &net.IPNet{}, renderer.TCP, 0)
@@ -650,15 +680,17 @@ func TestMultipleRulesMultipleNsWithResync(t *testing.T) {
 	txn.Update(nsIndex2, GetOneHostSubnet(pod2IP), ingressPod2, egressPod2)
 	added2, removed2, err = txn.Changes()
 	gomega.Expect(err).To(gomega.BeNil())
-	gomega.Expect(len(added2)).To(gomega.BeEquivalentTo(4))
-	gomega.Expect(len(removed2)).To(gomega.BeEquivalentTo(6))
+	gomega.Expect(len(added2)).To(gomega.BeEquivalentTo(7))
+	gomega.Expect(len(removed2)).To(gomega.BeEquivalentTo(5))
 	// - Pod1
 	checkSessionRule(added2, "LOCAL", nsIndex1, "", 0, "192.168.2.40/32", 100, "UDP", "ALLOW") /* combined */
-	checkSessionRule(added2, "LOCAL", nsIndex1, "", 0, "", 0, "TCP", "DENY")
+	checkSessionRule(added2, "LOCAL", nsIndex1, "", 0, "0.0.0.0/1", 0, "TCP", "DENY")
+	checkSessionRule(added2, "LOCAL", nsIndex1, "", 0, "128.0.0.0/1", 0, "TCP", "DENY")
+	checkSessionRule(added2, "LOCAL", nsIndex1, "", 0, "0000:0000:0000:0000:0000:0000:0000:0000/1", 0, "TCP", "DENY")
+	checkSessionRule(added2, "LOCAL", nsIndex1, "", 0, "8000:0000:0000:0000:0000:0000:0000:0000/1", 0, "TCP", "DENY")
 	checkSessionRule(removed2, "LOCAL", nsIndex1, "", 0, "192.168.2.40/32", 200, "TCP", "ALLOW") /* combined */
 	checkSessionRule(removed2, "LOCAL", nsIndex1, "", 0, "192.168.2.40/32", 400, "TCP", "ALLOW") /* combined */
 	checkSessionRule(removed2, "LOCAL", nsIndex1, "", 0, "192.168.2.40/32", 0, "TCP", "DENY")    /* combined */
-	checkSessionRule(removed2, "LOCAL", nsIndex1, "", 0, "", 0, "TCP", "ALLOW")
 	checkSessionRule(removed2, "GLOBAL", 0, pod1IP, 0, "192.168.2.0/26", 0, "UDP", "ALLOW")
 	// - Pod2
 	checkSessionRule(added2, "LOCAL", nsIndex2, "", 0, "192.168.1.1/32", 0, "UDP", "DENY") /* combined */

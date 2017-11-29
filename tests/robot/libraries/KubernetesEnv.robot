@@ -119,7 +119,7 @@ Install_Cri
     # TODO: Add error checking for OperatingSystem calls.
     OperatingSystem.Run    curl -s ${CRI_INSTALL_URL} > ${file_path}
     OperatingSystem.Run    sed -i 's@contivvpp/cri@contivvpp/cri:${normal_tag}@g' ${file_path}
-    SshCommons.Execute_Command_With_Copied_File    ${file_path}    sudo bash
+    SshCommons.Execute_Command_With_Copied_File    ${file_path}    sudo bash    ${ignode_stderr}=${True}
 
 Docker_Pull_Contiv_Vpp
     [Arguments]    ${ssh_session}

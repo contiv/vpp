@@ -63,14 +63,9 @@ Execute_Command_And_Log
     [Documentation]    Execute \${command} on current SSH session, log results, maybe fail on nonempty stderr, check \${expected_rc}, return stdout.
     BuiltIn.Log_Many    ${command}    ${expected_rc}    ${ignore_stderr}    ${ignore_rc}
     ${stdout}    ${stderr}    ${rc} =    SSHLibrary.Execute_Command    ${command}    return_stderr=True    return_rc=True
-    BuiltIn.Log    ${stdout}
-    BuiltIn.Log    ${stderr}
-    BuiltIn.Log    ${rc}
+    Append_Command_Log    ${command}    ${stdout}    ${stderr}    ${rc}
     BuiltIn.Run_Keyword_Unless    ${ignore_stderr}    BuiltIn.Should_Be_Empty    ${stderr}
     BuiltIn.Run_Keyword_Unless    ${ignore_rc}    BuiltIn.Should_Be_Equal_As_Numbers    ${rc}    ${expected_rc}
-    ${connection}=    SSHLibrary.Get_Connection
-    ${time}=    Get Current Date
-    Append To File    ${RESULTS_FOLDER}/output_${connection.alias}.log    ${time}${\n}*** Command: ${command}${\n}${stdout}${\n}*** Error: ${stderr}${\n}*** Return code: ${rc}${\n}
     [Return]    ${stdout}
 
 Switch_And_Write_Command
@@ -85,9 +80,17 @@ Write_Command_And_Log
     [Documentation]    Write \${command} on current SSH session, wait for prompt, log output, return output.
     BuiltIn.Log_Many    ${command}    ${prompt}
     SSHLibrary.Write    ${command}
-    ${output}=    SSHLibrary.Read_Until    ${prompt}
-    BuiltIn.Log    ${output}
-    ${connection}=    SSHLibrary.Get_Connection
-    ${time}=    Get Current Date
-    Append To File    ${RESULTS_FOLDER}/output_${connection.alias}.log    ${time}${\n}*** Command: ${command}${\n}${output}${\n}
+    ${output} =    SSHLibrary.Read_Until    ${prompt}
+    Append_Command_Log    ${command}    ${output}
     [Return]    ${output}
+
+Append_Command_Log
+    [Arguments]    ${command}    ${output}=${EMPTY}    ${stderr}=${EMPTY}    ${rc}=${EMPTY}
+    [Documentation]    Detect connection alias and time, append line with command and output to appropriate log file.
+    Builtin.Log_Many    ${command}    ${output}    ${stderr}    ${rc}
+    ${connection} =    SSHLibrary.Get_Connection
+    ${time} =    DateTime.Get_Current_Date
+    ${if_output} =    BuiltIn.Set_Variable_If    """${output}"""    ${output}${\n}    ${EMPTY}
+    ${if_stderr} =    BuiltIn.Set_Variable_If    """${stderr}"""    *** Stderr: ${stderr}${\n}    ${EMPTY}
+    ${if_rc} =    BuiltIn.Set_Variable_If    """${rc}"""    *** Return code: ${rc}${\n}    ${EMPTY}
+    OperatingSystem.Append_To_File    ${RESULTS_FOLDER}/output_${connection.alias}.log    ${time}${\n}*** Command: ${command}${\n}${if_stderr}${if_rc}${if_output}

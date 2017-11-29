@@ -351,10 +351,7 @@ Run_Finite_Command_In_Pod
     BuiltIn.Run_Keyword_If    """${prompt}""" != """${EMPTY}"""    SSHLibrary.Set_Client_Configuration    prompt=${prompt}
     SSHLibrary.Write    ${command}
     ${output} =     SSHLibrary.Read_Until_Prompt
-    Log     ${output}
-    ${connection}=    SSHLibrary.Get_Connection
-    ${time}=    Get Current Date
-    Append To File    ${RESULTS_FOLDER}/output_${connection.alias}.log    ${time}${\n}*** Command: ${command}${\n}${output}${\n}
+    SshCommons.Append_Command_Log    ${command}    ${output}
     [Return]    ${output}
 
 Init_Infinite_Command_In_Pod
@@ -365,9 +362,7 @@ Init_Infinite_Command_In_Pod
     BuiltIn.Run_Keyword_If    """${ssh_session}""" != """${EMPTY}"""     SSHLibrary.Switch_Connection    ${ssh_session}
     BuiltIn.Run_Keyword_If    """${prompt}""" != """${EMPTY}"""    SSHLibrary.Set_Client_Configuration    prompt=${prompt}
     SSHLibrary.Write    ${command}
-    ${connection}=    SSHLibrary.Get_Connection
-    ${time}=    Get Current Date
-    Append To File    ${RESULTS_FOLDER}/output_${connection.alias}.log    ${time}${\n}*** Command: ${command}${\n}
+    SshCommons.Append_Command_Log    ${command}
 
 Stop_Infinite_Command_In_Pod
     [Arguments]    ${ssh_session}=${EMPTY}     ${prompt}=${EMPTY}
@@ -379,11 +374,10 @@ Stop_Infinite_Command_In_Pod
     Write_Bare_Ctrl_C
     ${output1} =     SSHLibrary.Read_Until    ^C
     ${output2} =     SSHLibrary.Read_Until_Prompt
-    Log Many     ${output1}    ${output2}
-    ${connection}=    SSHLibrary.Get_Connection
-    ${time}=    Get Current Date
-    Append To File    ${RESULTS_FOLDER}/output_${connection.alias}.log    ${time}${\n}*** Command: ^C${\n}${output1}${output2}${\n}
-    [Return]    ${output1}${output2}
+    BuiltIn.Log_Many     ${output1}    ${output2}
+    ${output} =    Builtin.Set_Variable    ${output1}${output2}
+    SshCommons.Append_Command_Log    ^C    ${output}
+    [Return]    ${output}
 
 Write_Bare_Ctrl_C
     [Documentation]    Construct ctrl+c character and SSH-write it (without endline) to the current SSH connection.
@@ -401,12 +395,10 @@ Get_Into_Container_Prompt_In_Pod
     ${container_id} =    KubeCtl.Get_Container_Id    ${ssh_session}    ${pod_name}
     # That already switched the ssh session.
     BuiltIn.Run_Keyword_If    """${prompt}""" != """${EMPTY}"""    SSHLibrary.Set_Client_Configuration    prompt=${prompt}
-    SSHLibrary.Write    ${docker} exec -i -t --privileged=true ${container_id} /bin/bash
+    ${command} =    BuiltIn.Set_Variable    ${docker} exec -i -t --privileged=true ${container_id} /bin/bash
+    SSHLibrary.Write    ${command}
     ${output} =     SSHLibrary.Read_Until_Prompt
-    Log     ${output}
-    ${connection}=    SSHLibrary.Get_Connection
-    ${time}=    Get Current Date
-    Append To File    ${RESULTS_FOLDER}/output_${connection.alias}.log    ${time}${\n}*** Command: ${command}${\n}${output}${\n}
+    SshCommons.Append_Command_Log    ${command}    ${output}
     [Return]    ${output}
 
 Leave_Container_Prompt_In_Pod
@@ -419,10 +411,7 @@ Leave_Container_Prompt_In_Pod
     Write_Bare_Ctrl_C
     SSHLibrary.Write    exit
     ${output} =     SSHLibrary.Read_Until_Prompt
-    Log     ${output}
-    ${connection}=    SSHLibrary.Get_Connection
-    ${time}=    Get Current Date
-    Append To File    ${RESULTS_FOLDER}/output_${connection.alias}.log    ${time}${\n}*** Command: ^C${\n}${output}${\n}
+    SshCommons.Append_Command_Log    ^Cexit    ${output}
     [Return]    ${output}
 
 Verify_Cluster_Node_Ready

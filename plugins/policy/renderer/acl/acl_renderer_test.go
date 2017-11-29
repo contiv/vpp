@@ -30,6 +30,7 @@ import (
 	. "github.com/contiv/vpp/mock/contiv"
 	. "github.com/contiv/vpp/mock/defaultplugins"
 	"github.com/contiv/vpp/mock/localclient"
+	"github.com/contiv/vpp/mock/localclient/dsl"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	"github.com/contiv/vpp/plugins/policy/renderer"
 	"github.com/contiv/vpp/plugins/policy/renderer/acl/cache"
@@ -60,7 +61,7 @@ func (as ACLSet) Has(aclName string) bool {
 	return has
 }
 
-func parseACLOps(ops []localclient.TxnOp) (putIngress ACLByIfMap, putEgress ACLByIfMap, deleted ACLSet) {
+func parseACLOps(ops []dsl.TxnOp) (putIngress ACLByIfMap, putEgress ACLByIfMap, deleted ACLSet) {
 	putIngress = make(ACLByIfMap)
 	putEgress = make(ACLByIfMap)
 	deleted = make(ACLSet)
@@ -84,7 +85,7 @@ func parseACLOps(ops []localclient.TxnOp) (putIngress ACLByIfMap, putEgress ACLB
 	return putIngress, putEgress, deleted
 }
 
-func verifyACLPut(op localclient.TxnOp, aclName string, ingress cache.InterfaceSet, egress cache.InterfaceSet,
+func verifyACLPut(op dsl.TxnOp, aclName string, ingress cache.InterfaceSet, egress cache.InterfaceSet,
 	contivRule ...*renderer.ContivRule) string {
 
 	// Type & key
@@ -229,7 +230,7 @@ func TestSingleContivRuleOneInterface(t *testing.T) {
 			Log:           logger,
 			Contiv:        contiv,
 			VPP:           NewMockVppPlugin(),
-			ACLTxnFactory: txnTracker.NewDataChangeTxn,
+			ACLTxnFactory: txnTracker.NewLinuxDataChangeTxn,
 		},
 	}
 	aclRenderer.Init()
@@ -241,11 +242,11 @@ func TestSingleContivRuleOneInterface(t *testing.T) {
 	gomega.Expect(txnTracker.PendingTxns).To(gomega.HaveLen(0))
 	gomega.Expect(txnTracker.CommittedTxns).To(gomega.HaveLen(1))
 	txn := txnTracker.CommittedTxns[0]
-	gomega.Expect(txn.DataResyncTxn).To(gomega.BeNil())
-	gomega.Expect(txn.DataChangeTxn).ToNot(gomega.BeNil())
+	gomega.Expect(txn.LinuxDataResyncTxn).To(gomega.BeNil())
+	gomega.Expect(txn.LinuxDataChangeTxn).ToNot(gomega.BeNil())
 
 	// Verify transaction operations.
-	ops := txn.DataChangeTxn.Ops
+	ops := txn.LinuxDataChangeTxn.Ops
 	gomega.Expect(ops).To(gomega.HaveLen(1))
 	op := ops[0]
 
@@ -302,7 +303,7 @@ func TestSingleContivRuleMultipleInterfaces(t *testing.T) {
 			Log:           logger,
 			Contiv:        contiv,
 			VPP:           NewMockVppPlugin(),
-			ACLTxnFactory: txnTracker.NewDataChangeTxn,
+			ACLTxnFactory: txnTracker.NewLinuxDataChangeTxn,
 		},
 	}
 	aclRenderer.Init()
@@ -334,11 +335,11 @@ func TestSingleContivRuleMultipleInterfaces(t *testing.T) {
 	gomega.Expect(txnTracker.PendingTxns).To(gomega.HaveLen(0))
 	gomega.Expect(txnTracker.CommittedTxns).To(gomega.HaveLen(1))
 	txn := txnTracker.CommittedTxns[0]
-	gomega.Expect(txn.DataResyncTxn).To(gomega.BeNil())
-	gomega.Expect(txn.DataChangeTxn).ToNot(gomega.BeNil())
+	gomega.Expect(txn.LinuxDataResyncTxn).To(gomega.BeNil())
+	gomega.Expect(txn.LinuxDataChangeTxn).ToNot(gomega.BeNil())
 
 	// Verify transaction operations.
-	ops := txn.DataChangeTxn.Ops
+	ops := txn.LinuxDataChangeTxn.Ops
 	gomega.Expect(ops).To(gomega.HaveLen(1))
 	op := ops[0]
 
@@ -372,11 +373,11 @@ func TestSingleContivRuleMultipleInterfaces(t *testing.T) {
 	gomega.Expect(txnTracker.PendingTxns).To(gomega.HaveLen(0))
 	gomega.Expect(txnTracker.CommittedTxns).To(gomega.HaveLen(2))
 	txn = txnTracker.CommittedTxns[1]
-	gomega.Expect(txn.DataResyncTxn).To(gomega.BeNil())
-	gomega.Expect(txn.DataChangeTxn).ToNot(gomega.BeNil())
+	gomega.Expect(txn.LinuxDataResyncTxn).To(gomega.BeNil())
+	gomega.Expect(txn.LinuxDataChangeTxn).ToNot(gomega.BeNil())
 
 	// Verify transaction operations.
-	ops = txn.DataChangeTxn.Ops
+	ops = txn.LinuxDataChangeTxn.Ops
 	gomega.Expect(ops).To(gomega.HaveLen(1))
 	op = ops[0]
 
@@ -410,7 +411,7 @@ func TestMultipleContivRulesSingleInterface(t *testing.T) {
 			Log:           logger,
 			Contiv:        contiv,
 			VPP:           NewMockVppPlugin(),
-			ACLTxnFactory: txnTracker.NewDataChangeTxn,
+			ACLTxnFactory: txnTracker.NewLinuxDataChangeTxn,
 		},
 	}
 	aclRenderer.Init()
@@ -466,11 +467,11 @@ func TestMultipleContivRulesSingleInterface(t *testing.T) {
 	gomega.Expect(txnTracker.PendingTxns).To(gomega.HaveLen(0))
 	gomega.Expect(txnTracker.CommittedTxns).To(gomega.HaveLen(1))
 	txn := txnTracker.CommittedTxns[0]
-	gomega.Expect(txn.DataResyncTxn).To(gomega.BeNil())
-	gomega.Expect(txn.DataChangeTxn).ToNot(gomega.BeNil())
+	gomega.Expect(txn.LinuxDataResyncTxn).To(gomega.BeNil())
+	gomega.Expect(txn.LinuxDataChangeTxn).ToNot(gomega.BeNil())
 
 	// Verify transaction operations.
-	ops := txn.DataChangeTxn.Ops
+	ops := txn.LinuxDataChangeTxn.Ops
 	gomega.Expect(ops).To(gomega.HaveLen(2))
 	putIngress, putEgress, deleted := parseACLOps(ops)
 	gomega.Expect(deleted).To(gomega.HaveLen(0))
@@ -515,11 +516,11 @@ func TestMultipleContivRulesSingleInterface(t *testing.T) {
 	gomega.Expect(txnTracker.PendingTxns).To(gomega.HaveLen(0))
 	gomega.Expect(txnTracker.CommittedTxns).To(gomega.HaveLen(2))
 	txn = txnTracker.CommittedTxns[1]
-	gomega.Expect(txn.DataResyncTxn).To(gomega.BeNil())
-	gomega.Expect(txn.DataChangeTxn).ToNot(gomega.BeNil())
+	gomega.Expect(txn.LinuxDataResyncTxn).To(gomega.BeNil())
+	gomega.Expect(txn.LinuxDataChangeTxn).ToNot(gomega.BeNil())
 
 	// Verify transaction operations.
-	ops = txn.DataChangeTxn.Ops
+	ops = txn.LinuxDataChangeTxn.Ops
 	gomega.Expect(ops).To(gomega.HaveLen(2))
 	putIngress, putEgress, deleted = parseACLOps(ops)
 	gomega.Expect(deleted).To(gomega.HaveLen(1))
@@ -567,7 +568,7 @@ func TestMultipleContivRulesMultipleInterfaces(t *testing.T) {
 			Log:           logger,
 			Contiv:        contiv,
 			VPP:           NewMockVppPlugin(),
-			ACLTxnFactory: txnTracker.NewDataChangeTxn,
+			ACLTxnFactory: txnTracker.NewLinuxDataChangeTxn,
 		},
 	}
 	aclRenderer.Init()
@@ -630,11 +631,11 @@ func TestMultipleContivRulesMultipleInterfaces(t *testing.T) {
 	gomega.Expect(txnTracker.PendingTxns).To(gomega.HaveLen(0))
 	gomega.Expect(txnTracker.CommittedTxns).To(gomega.HaveLen(1))
 	txn := txnTracker.CommittedTxns[0]
-	gomega.Expect(txn.DataResyncTxn).To(gomega.BeNil())
-	gomega.Expect(txn.DataChangeTxn).ToNot(gomega.BeNil())
+	gomega.Expect(txn.LinuxDataResyncTxn).To(gomega.BeNil())
+	gomega.Expect(txn.LinuxDataChangeTxn).ToNot(gomega.BeNil())
 
 	// Verify transaction operations.
-	ops := txn.DataChangeTxn.Ops
+	ops := txn.LinuxDataChangeTxn.Ops
 	gomega.Expect(ops).To(gomega.HaveLen(3))
 	putIngress, putEgress, deleted := parseACLOps(ops)
 	gomega.Expect(deleted).To(gomega.HaveLen(0))
@@ -684,11 +685,11 @@ func TestMultipleContivRulesMultipleInterfaces(t *testing.T) {
 	gomega.Expect(txnTracker.PendingTxns).To(gomega.HaveLen(0))
 	gomega.Expect(txnTracker.CommittedTxns).To(gomega.HaveLen(2))
 	txn = txnTracker.CommittedTxns[1]
-	gomega.Expect(txn.DataResyncTxn).To(gomega.BeNil())
-	gomega.Expect(txn.DataChangeTxn).ToNot(gomega.BeNil())
+	gomega.Expect(txn.LinuxDataResyncTxn).To(gomega.BeNil())
+	gomega.Expect(txn.LinuxDataChangeTxn).ToNot(gomega.BeNil())
 
 	// Verify transaction operations.
-	ops = txn.DataChangeTxn.Ops
+	ops = txn.LinuxDataChangeTxn.Ops
 	gomega.Expect(ops).To(gomega.HaveLen(4))
 	putIngress, putEgress, deleted = parseACLOps(ops)
 	gomega.Expect(deleted).To(gomega.HaveLen(1))
@@ -745,7 +746,7 @@ func TestMultipleContivRulesMultipleInterfacesWithResync(t *testing.T) {
 			Log:           logger,
 			Contiv:        contiv,
 			VPP:           mockVppPlugin,
-			ACLTxnFactory: txnTracker.NewDataChangeTxn,
+			ACLTxnFactory: txnTracker.NewLinuxDataChangeTxn,
 		},
 	}
 	aclRenderer.Init()
@@ -808,11 +809,11 @@ func TestMultipleContivRulesMultipleInterfacesWithResync(t *testing.T) {
 	gomega.Expect(txnTracker.PendingTxns).To(gomega.HaveLen(0))
 	gomega.Expect(txnTracker.CommittedTxns).To(gomega.HaveLen(1))
 	txn := txnTracker.CommittedTxns[0]
-	gomega.Expect(txn.DataResyncTxn).To(gomega.BeNil())
-	gomega.Expect(txn.DataChangeTxn).ToNot(gomega.BeNil())
+	gomega.Expect(txn.LinuxDataResyncTxn).To(gomega.BeNil())
+	gomega.Expect(txn.LinuxDataChangeTxn).ToNot(gomega.BeNil())
 
 	// Verify transaction operations.
-	ops := txn.DataChangeTxn.Ops
+	ops := txn.LinuxDataChangeTxn.Ops
 	gomega.Expect(ops).To(gomega.HaveLen(3))
 	putIngress, putEgress, deleted := parseACLOps(ops)
 	gomega.Expect(deleted).To(gomega.HaveLen(0))
@@ -844,7 +845,7 @@ func TestMultipleContivRulesMultipleInterfacesWithResync(t *testing.T) {
 			Log:           logger,
 			Contiv:        contiv,
 			VPP:           mockVppPlugin,
-			ACLTxnFactory: txnTracker.NewDataChangeTxn,
+			ACLTxnFactory: txnTracker.NewLinuxDataChangeTxn,
 		},
 	}
 	aclRenderer.Init()
@@ -867,11 +868,11 @@ func TestMultipleContivRulesMultipleInterfacesWithResync(t *testing.T) {
 	gomega.Expect(txnTracker.PendingTxns).To(gomega.HaveLen(0))
 	gomega.Expect(txnTracker.CommittedTxns).To(gomega.HaveLen(1))
 	txn = txnTracker.CommittedTxns[0]
-	gomega.Expect(txn.DataResyncTxn).To(gomega.BeNil())
-	gomega.Expect(txn.DataChangeTxn).ToNot(gomega.BeNil())
+	gomega.Expect(txn.LinuxDataResyncTxn).To(gomega.BeNil())
+	gomega.Expect(txn.LinuxDataChangeTxn).ToNot(gomega.BeNil())
 
 	// Verify transaction operations.
-	ops = txn.DataChangeTxn.Ops
+	ops = txn.LinuxDataChangeTxn.Ops
 	gomega.Expect(ops).To(gomega.HaveLen(4))
 	putIngress, putEgress, deleted = parseACLOps(ops)
 	gomega.Expect(deleted).To(gomega.HaveLen(1))

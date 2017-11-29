@@ -76,12 +76,12 @@ Get_Nodes
     [Return]    ${output}
 
 Logs
-    [Arguments]    ${ssh_session}    ${pod_name}    ${container}=${EMPTY}    ${namespace}=${EMPTY}
+    [Arguments]    ${ssh_session}    ${pod_name}    ${container}=${EMPTY}    ${namespace}=${EMPTY}    ${compress}=${True}
     [Documentation]    Execute "kubectl logs" with given params, log output into a result file.
-    BuiltIn.Log_Many    ${ssh_session}    ${pod_name}    ${container}    ${namespace}
+    BuiltIn.Log_Many    ${ssh_session}    ${pod_name}    ${container}    ${namespace}    ${compress}
     ${nsparam} =     BuiltIn.Set_Variable_If    """${namespace}""" != """${EMPTY}"""    --namespace ${namespace}    ${EMPTY}
     ${cntparam} =    BuiltIn.Set_Variable_If    """${container}""" != """${EMPTY}"""    ${container}    ${EMPTY}
-    SshCommons.Switch_Execute_And_Log_To_File    ${ssh_session}    kubectl logs ${nsparam} ${pod_name} ${cntparam}
+    SshCommons.Switch_Execute_And_Log_To_File    ${ssh_session}    kubectl logs ${nsparam} ${pod_name} ${cntparam}    compress=${compress}
 
 Describe_Pod
     [Arguments]    ${ssh_session}    ${pod_name}

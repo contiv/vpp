@@ -10,7 +10,7 @@ Open_Ssh_Connection
     [Documentation]    Create SSH connection to \{ip} aliased as \${name} and log in using \${user} and \${pswd} (or rsa).
     ...    Log to output file. The new connection is left active.
     BuiltIn.Log_Many    ${name}    ${ip}    ${user}    ${pswd}
-    SSHLibrary.Open_Connection    ${ip}    alias=${name}
+    SSHLibrary.Open_Connection    ${ip}    alias=${name}    timeout=${SSH_TIMEOUT}
     ${out} =    BuiltIn.Run_Keyword_If    """${pswd}""" != "rsa_id"    SSHLibrary.Login    ${user}    ${pswd}
     ${out2} =    BuiltIn.Run_Keyword_If    """${pswd}""" == "rsa_id"    SSHLibrary.Login_With_Public_Key    ${user}    %{HOME}/.ssh/id_rsa    any
     BuiltIn.Run_Keyword_If    """${out}""" != "None"    OperatingSystem.Append_To_File    ${RESULTS_FOLDER}/output_${name}.log    *** Command: Login${\n}${out}${\n}
@@ -33,11 +33,11 @@ Execute_Command_With_Copied_File
     BuiltIn.Run_Keyword_And_Return    Execute_Command_And_Log    ${command_prefix} @{splitted_path}[-1]    expected_rc=${expected_rc}    ignore_stderr=${ignore_stderr}
 
 Switch_Execute_And_Log_To_File
-    [Arguments]    ${ssh_session}    ${command}    ${expected_rc}=0    ${ignore_stderr}=${False}    ${ignore_rc}=${False}
+    [Arguments]    ${ssh_session}    ${command}    ${expected_rc}=0    ${ignore_stderr}=${False}    ${ignore_rc}=${False}    ${compress}=${False}
     [Documentation]    Call Switch_And_Execute_Command redirecting stdout to a remote file, download the file.
     ...    To distinguish separate invocations, suite name, test name, session alias
     ...    and full command are used to construct file name.
-    BuiltIn.Log_Many    ${ssh_session}    ${command}    ${expected_rc}    ${ignore_stderr}    ${ignore_rc}
+    BuiltIn.Log_Many    ${ssh_session}    ${command}    ${expected_rc}    ${ignore_stderr}    ${ignore_rc}    ${compress}
     SSHLibrary.Switch_Connection    ${ssh_session}
     ${connection} =    SSHLibrary.Get_Connection
     # In teardown, ${TEST_NAME} does not exist.
@@ -45,7 +45,9 @@ Switch_Execute_And_Log_To_File
     ${filename_with_spaces} =    BuiltIn.Set_Variable    ${testname}__${SUITE_NAME}__${connection.alias}__${command}.log
     ${filename} =    String.Replace_String    ${filename_with_spaces}    ${SPACE}    _
     BuiltIn.Log    ${filename}
-    Switch_And_Execute_Command    ${ssh_session}    ${command} > ${filename}    expected_rc=${expected_rc}    ignore_stderr=${ignore_stderr}    ignore_rc=${ignore_rc}
+    Execute_Command_And_Log    ${command} > ${filename}    expected_rc=${expected_rc}    ignore_stderr=${ignore_stderr}    ignore_rc=${ignore_rc}
+    BuiltIn.Run_Keyword_If    ${compress}    Execute_Command_And_Log    xz -9e ${filename}
+    ${filename} =    Builtin.Set_Variable_If    ${compress}    ${filename}.xz    ${filename}
     SSHLibrary.Get_File    ${filename}    ${RESULTS_FOLDER}/${filename}
     [Teardown]    Execute_Command_And_Log    rm ${filename}
 
@@ -66,4 +68,26 @@ Execute_Command_And_Log
     BuiltIn.Log    ${rc}
     BuiltIn.Run_Keyword_Unless    ${ignore_stderr}    BuiltIn.Should_Be_Empty    ${stderr}
     BuiltIn.Run_Keyword_Unless    ${ignore_rc}    BuiltIn.Should_Be_Equal_As_Numbers    ${rc}    ${expected_rc}
+    ${connection}=    SSHLibrary.Get_Connection
+    ${time}=    Get Current Date
+    Append To File    ${RESULTS_FOLDER}/output_${connection.alias}.log    ${time}${\n}*** Command: ${command}${\n}${stdout}${\n}*** Error: ${stderr}${\n}*** Return code: ${rc}${\n}
     [Return]    ${stdout}
+
+Switch_And_Write_Command
+    [Arguments]    ${ssh_session}    ${command}    ${prompt}=vpp#
+    [Documentation]    Switch to \${ssh_session}, and continue with Write_Command_And_Log
+    BuiltIn.Log_Many    ${ssh_session}    ${command}    ${prompt}
+    SSHLibrary.Switch_Connection    ${ssh_session}
+    BuiltIn.Run_Keyword_And_Return    Write_Command_And_Log    ${command}    ${prompt}
+
+Write_Command_And_Log
+    [Arguments]    ${command}    ${prompt}=vpp#
+    [Documentation]    Write \${command} on current SSH session, wait for prompt, log output, return output.
+    BuiltIn.Log_Many    ${command}    ${prompt}
+    SSHLibrary.Write    ${command}
+    ${output}=    SSHLibrary.Read_Until    ${prompt}
+    BuiltIn.Log    ${output}
+    ${connection}=    SSHLibrary.Get_Connection
+    ${time}=    Get Current Date
+    Append To File    ${RESULTS_FOLDER}/output_${connection.alias}.log    ${time}${\n}*** Command: ${command}${\n}${output}${\n}
+    [Return]    ${output}

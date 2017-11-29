@@ -1,8 +1,11 @@
+//Package localclient contains mocks for transactions created by DSL structures in localclient packages.
 package localclient
 
 import (
 	"sync"
 
+	"github.com/contiv/vpp/mock/localclient/dsl"
+	"github.com/contiv/vpp/mock/localclient/dsl/linuxplugin"
 	"github.com/golang/protobuf/proto"
 	"github.com/ligato/vpp-agent/clientv1/linux"
 )
@@ -29,17 +32,9 @@ type ConfigSnapshot map[string]proto.Message
 // Exactly one of the fields is non-nil.
 type Txn struct {
 	// DataResyncTxn is non-nil for RESYNC transaction.
-	DataResyncTxn *MockDataResyncDSL
+	DataResyncTxn *linuxplugin.MockDataResyncDSL
 	// DataChangeTxn is non-nil for Data Change transaction.
-	DataChangeTxn *MockDataChangeDSL
-}
-
-// TxnOp stores all information about a transaction operation.
-type TxnOp struct {
-	// Key under which the value is stored or from which the value was removed.
-	Key string
-	// Value stored under the key or nil if it was deleted.
-	Value proto.Message /* nil if deleted */
+	DataChangeTxn *linuxplugin.MockDataChangeDSL
 }
 
 // NewTxnTracker is a constructor for TxnTracker.
@@ -53,19 +48,41 @@ func NewTxnTracker(onCommit func(txn *Txn) error) *TxnTracker {
 // NewDataChangeTxn is a factory for DataChange transactions.
 func (t *TxnTracker) NewDataChangeTxn() linux.DataChangeDSL {
 	txn := &Txn{}
-	dsl := newMockDataChangeDSL(t, txn)
+	dsl := linuxplugin.NewMockDataChangeDSL(func(Ops []dsl.TxnOp) error { return t.commit(txn, t.applyDataChangeTxnOps, Ops) })
 	txn.DataChangeTxn = dsl
 	t.PendingTxns[txn] = struct{}{}
 	return dsl
 }
 
+// applyDataChangeTxnOps reflects the effect of data change transaction operations into the mock DB.
+func (t *TxnTracker) applyDataChangeTxnOps(ops []dsl.TxnOp) {
+	for _, op := range ops {
+		if op.Value != nil {
+			t.AppliedConfig[op.Key] = op.Value
+		} else {
+			_, exists := t.AppliedConfig[op.Key]
+			if exists {
+				delete(t.AppliedConfig, op.Key)
+			}
+		}
+	}
+}
+
 // NewDataResyncTxn is a factory for RESYNC transactions.
 func (t *TxnTracker) NewDataResyncTxn() linux.DataResyncDSL {
 	txn := &Txn{}
-	dsl := newMockDataResyncDSL(t, txn)
+	dsl := linuxplugin.NewMockDataResyncDSL(func(Ops []dsl.TxnOp) error { return t.commit(txn, t.applyDataResyncTxnOps, Ops) })
 	txn.DataResyncTxn = dsl
 	t.PendingTxns[txn] = struct{}{}
 	return dsl
+}
+
+// applyDataResyncTxnOps reflects the effect of data resync transaction operations into the mock DB.
+func (t *TxnTracker) applyDataResyncTxnOps(ops []dsl.TxnOp) {
+	t.AppliedConfig = make(map[string]proto.Message) /* clear the previous configuration */
+	for _, op := range ops {
+		t.AppliedConfig[op.Key] = op.Value
+	}
 }
 
 // Clear clears the TxnTracker state. Already created transactions become invalid.
@@ -75,19 +92,15 @@ func (t *TxnTracker) Clear() {
 	t.PendingTxns = make(map[*Txn]struct{})
 }
 
-// commit applies a transaction.
-func (t *TxnTracker) commit(txn *Txn) error {
+// commit applies a transaction (and transaction operations to current state of mock DB)
+func (t *TxnTracker) commit(txn *Txn, applyTxnOpsFunc func([]dsl.TxnOp), ops []dsl.TxnOp) error {
 	var err error
 	t.lock.Lock()
 	defer t.lock.Unlock()
 	if t.onCommit != nil {
 		err = t.onCommit(txn)
 	}
-	if txn.DataChangeTxn != nil {
-		txn.DataChangeTxn.apply()
-	} else if txn.DataResyncTxn != nil {
-		txn.DataResyncTxn.apply()
-	}
+	applyTxnOpsFunc(ops)
 	delete(t.PendingTxns, txn)
 	t.CommittedTxns = append(t.CommittedTxns, txn)
 	return err

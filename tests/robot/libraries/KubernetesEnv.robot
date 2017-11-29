@@ -99,8 +99,9 @@ Reinit_Multinode_Kube_Cluster
 Get_Docker_Tags
     [Documentation]    Depending on variables set, construct and return two docker tags to use.
     ${default} =    BuiltIn.Set_Variable_If    """${BRANCH}""" == "dev"    dev    latest
-    BuiltIn.Return_From_Keyword_Unless    """${TAG}"""    ${default}    ${default}
-    ${normal_tag} =    Builtin.Set_Variable    ${TAG}
+    # TODO: Contribute to BuiltIn so that Return_From_Keyword_Unless exists.
+    BuiltIn.Return_From_Keyword_If    not """${TAG}"""    ${default}    ${default}
+    ${normal_tag} =    Builtin.Set_Variable_If    """${BRANCH}""" == "master"    ${TAG}    ${BRANCH}-${TAG}
     Builtin.Log    ${normal_tag}
     ${vpp_tag} =    BuiltIn.Variable    ${TAG}-${VPP}
     Builtin.Log    ${vpp_tag}

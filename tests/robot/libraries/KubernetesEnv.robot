@@ -115,10 +115,11 @@ Install_Cri
     [Arguments]    ${normal_tag}
     [Documentation]    Download, edit and execute script on active connection.
     BuiltIn.Log_Many    ${normal_tag}
-    ${file} =    BuiltIn.Set_Variable    ${RESULTS_FOLDER}/cri-install.sh
-    SshCommons.Execute_Command_And_Log    curl -s ${CRI_INSTALL_URL} > ${file}
-    SshCommons.Execute_Command_And_Log    sed -i 's@contivvpp/cri@contivvpp/cri:${normal_tag}@g' ${file}
-    SshCommons.Execute_Command_And_Log    sudo bash ${file}
+    ${file_path} =    BuiltIn.Set_Variable    ${RESULTS_FOLDER}/cri-install.sh
+    # TODO: Add error checking for OperatingSystem calls.
+    OperatingSystem.Run    curl -s ${CRI_INSTALL_URL} > ${file_path}
+    OperatingSystem.Run    sed -i 's@contivvpp/cri@contivvpp/cri:${normal_tag}@g' ${file_path}
+    SshCommons.Execute_Command_With_Copied_File    ${file_path}    sudo bash
 
 Docker_Pull_Contiv_Vpp
     [Arguments]    ${ssh_session}

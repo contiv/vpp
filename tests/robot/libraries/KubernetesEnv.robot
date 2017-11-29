@@ -38,7 +38,7 @@ Reinit_One_Node_Kube_Cluster
     [Documentation]    Assuming active SSH connection, store its index, execute multiple commands to reinstall and restart 1node cluster, wait to see it running.
     ${conn} =     SSHLibrary.Get_Connection    ${VM_SSH_ALIAS_PREFIX}1
     Set_Suite_Variable    ${testbed_connection}    ${conn.index}
-    SSHLibrary.Set_Client_Configuration    timeout=10    prompt=$
+    SSHLibrary.Set_Client_Configuration    timeout=${SSH_TIMEOUT}    prompt=$
     SshCommons.Switch_And_Execute_Command    ${testbed_connection}    sudo rm -rf $HOME/.kube
     KubeAdm.Reset    ${testbed_connection}
     SshCommons.Switch_And_Execute_Command    ${testbed_connection}    curl -s https://raw.githubusercontent.com/contiv/vpp/${BRANCH}/k8s/cri-install.sh | sudo bash /dev/stdin -u    ignore_stderr=${True}    ignore_rc=${True}
@@ -352,6 +352,9 @@ Run_Finite_Command_In_Pod
     SSHLibrary.Write    ${command}
     ${output} =     SSHLibrary.Read_Until_Prompt
     Log     ${output}
+    ${connection}=    SSHLibrary.Get_Connection
+    ${time}=    Get Current Date
+    Append To File    ${RESULTS_FOLDER}/output_${connection.alias}.log    ${time}${\n}*** Command: ${command}${\n}${output}${\n}
     [Return]    ${output}
 
 Init_Infinite_Command_In_Pod
@@ -362,6 +365,9 @@ Init_Infinite_Command_In_Pod
     BuiltIn.Run_Keyword_If    """${ssh_session}""" != """${EMPTY}"""     SSHLibrary.Switch_Connection    ${ssh_session}
     BuiltIn.Run_Keyword_If    """${prompt}""" != """${EMPTY}"""    SSHLibrary.Set_Client_Configuration    prompt=${prompt}
     SSHLibrary.Write    ${command}
+    ${connection}=    SSHLibrary.Get_Connection
+    ${time}=    Get Current Date
+    Append To File    ${RESULTS_FOLDER}/output_${connection.alias}.log    ${time}${\n}*** Command: ${command}${\n}
 
 Stop_Infinite_Command_In_Pod
     [Arguments]    ${ssh_session}=${EMPTY}     ${prompt}=${EMPTY}
@@ -371,9 +377,13 @@ Stop_Infinite_Command_In_Pod
     BuiltIn.Run_Keyword_If    """${ssh_session}""" != """${EMPTY}"""     SSHLibrary.Switch_Connection    ${ssh_session}
     BuiltIn.Run_Keyword_If    """${prompt}""" != """${EMPTY}"""    SSHLibrary.Set_Client_Configuration    prompt=${prompt}
     Write_Bare_Ctrl_C
-    ${output} =     SSHLibrary.Read_Until_Prompt
-    Log     ${output}
-    [Return]    ${output}
+    ${output1} =     SSHLibrary.Read_Until    ^C
+    ${output2} =     SSHLibrary.Read_Until_Prompt
+    Log Many     ${output1}    ${output2}
+    ${connection}=    SSHLibrary.Get_Connection
+    ${time}=    Get Current Date
+    Append To File    ${RESULTS_FOLDER}/output_${connection.alias}.log    ${time}${\n}*** Command: ^C${\n}${output1}${output2}${\n}
+    [Return]    ${output1}${output2}
 
 Write_Bare_Ctrl_C
     [Documentation]    Construct ctrl+c character and SSH-write it (without endline) to the current SSH connection.
@@ -394,6 +404,9 @@ Get_Into_Container_Prompt_In_Pod
     SSHLibrary.Write    ${docker} exec -i -t --privileged=true ${container_id} /bin/bash
     ${output} =     SSHLibrary.Read_Until_Prompt
     Log     ${output}
+    ${connection}=    SSHLibrary.Get_Connection
+    ${time}=    Get Current Date
+    Append To File    ${RESULTS_FOLDER}/output_${connection.alias}.log    ${time}${\n}*** Command: ${command}${\n}${output}${\n}
     [Return]    ${output}
 
 Leave_Container_Prompt_In_Pod
@@ -407,6 +420,9 @@ Leave_Container_Prompt_In_Pod
     SSHLibrary.Write    exit
     ${output} =     SSHLibrary.Read_Until_Prompt
     Log     ${output}
+    ${connection}=    SSHLibrary.Get_Connection
+    ${time}=    Get Current Date
+    Append To File    ${RESULTS_FOLDER}/output_${connection.alias}.log    ${time}${\n}*** Command: ^C${\n}${output}${\n}
     [Return]    ${output}
 
 Verify_Cluster_Node_Ready

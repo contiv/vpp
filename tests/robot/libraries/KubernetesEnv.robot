@@ -103,7 +103,7 @@ Get_Docker_Tags
     BuiltIn.Return_From_Keyword_If    not """${TAG}"""    ${default}    ${default}
     ${normal_tag} =    Builtin.Set_Variable_If    """${BRANCH}""" == "master"    ${TAG}    ${BRANCH}-${TAG}
     Builtin.Log    ${normal_tag}
-    ${vpp_tag} =    BuiltIn.Variable    ${TAG}-${VPP}
+    ${vpp_tag} =    BuiltIn.Set_Variable    ${TAG}-${VPP}
     Builtin.Log    ${vpp_tag}
     [Return]    ${normal_tag}    ${vpp_tag}
 

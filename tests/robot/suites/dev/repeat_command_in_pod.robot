@@ -19,6 +19,12 @@ Repeat_Command_In_Server_Pod
     \    KubernetesEnv.Run_Finite_Command_In_Pod    whoami    ssh_session=${server_connection}
     \    KubernetesEnv.Run_Finite_Command_In_Pod    ls -al    ssh_session=${server_connection}
 
+Repeat_Command_On Host
+    :FOR    ${index}    IN RANGE    1000
+    \    KubernetesEnv.Run_Finite_Command_In_Pod    pwd    ssh_session=${testbed_connection}
+    \    KubernetesEnv.Run_Finite_Command_In_Pod    whoami    ssh_session=${testbed_connection}
+    \    KubernetesEnv.Run_Finite_Command_In_Pod    ls -al    ssh_session=${testbed_connection}
+
 
 *** Keywords ***
 Test_Case_Setup

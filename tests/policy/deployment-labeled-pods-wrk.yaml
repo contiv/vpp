@@ -1,24 +1,22 @@
 apiVersion: apps/v1beta2
 kind: Deployment
 metadata:
-  name: nginx-server-deployment
+  name: wrkbench-deployment
   labels:
-    app: nginx
+    project: test-policies
 spec:
   replicas: 1
   selector:
     matchLabels:
-      role: db
-      app: webapp
+      role: frontend
   template:
     metadata:
       labels:
-        role: db
-        app: webapp
+        role: frontend
     spec:
       containers:
-      - image: nginx
+      - image: wrk
         imagePullPolicy: IfNotPresent
-        name: nginx-server
-        ports:
-        - containerPort: 80
+        name: wrk
+        command: ["bash"]
+        args: ["-c", "while true; do sleep 30; done;"]

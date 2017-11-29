@@ -33,11 +33,11 @@ Execute_Command_With_Copied_File
     BuiltIn.Run_Keyword_And_Return    Execute_Command_And_Log    ${command_prefix} @{splitted_path}[-1]    expected_rc=${expected_rc}    ignore_stderr=${ignore_stderr}
 
 Switch_Execute_And_Log_To_File
-    [Arguments]    ${ssh_session}    ${command}    ${expected_rc}=0    ${ignore_stderr}=${False}    ${ignore_rc}=${False}
+    [Arguments]    ${ssh_session}    ${command}    ${expected_rc}=0    ${ignore_stderr}=${False}    ${ignore_rc}=${False}    ${compress}=${False}
     [Documentation]    Call Switch_And_Execute_Command redirecting stdout to a remote file, download the file.
     ...    To distinguish separate invocations, suite name, test name, session alias
     ...    and full command are used to construct file name.
-    BuiltIn.Log_Many    ${ssh_session}    ${command}    ${expected_rc}    ${ignore_stderr}    ${ignore_rc}
+    BuiltIn.Log_Many    ${ssh_session}    ${command}    ${expected_rc}    ${ignore_stderr}    ${ignore_rc}    ${compress}
     SSHLibrary.Switch_Connection    ${ssh_session}
     ${connection} =    SSHLibrary.Get_Connection
     # In teardown, ${TEST_NAME} does not exist.
@@ -45,7 +45,9 @@ Switch_Execute_And_Log_To_File
     ${filename_with_spaces} =    BuiltIn.Set_Variable    ${testname}__${SUITE_NAME}__${connection.alias}__${command}.log
     ${filename} =    String.Replace_String    ${filename_with_spaces}    ${SPACE}    _
     BuiltIn.Log    ${filename}
-    Switch_And_Execute_Command    ${ssh_session}    ${command} > ${filename}    expected_rc=${expected_rc}    ignore_stderr=${ignore_stderr}    ignore_rc=${ignore_rc}
+    Execute_Command_And_Log    ${command} > ${filename}    expected_rc=${expected_rc}    ignore_stderr=${ignore_stderr}    ignore_rc=${ignore_rc}
+    BuiltIn.Run_Keyword_If    ${compress}    Execute_Command_And_Log    xz -9e ${filename}
+    ${filename} =    Builtin.Set_Variable_If    ${compress}    ${filename}.xz    ${filename}
     SSHLibrary.Get_File    ${filename}    ${RESULTS_FOLDER}/${filename}
     [Teardown]    Execute_Command_And_Log    rm ${filename}
 

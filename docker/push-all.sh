@@ -20,6 +20,7 @@ set -e
 BRANCH_NAME="master"
 SKIP_UPLOAD="false"
 DEV_UPLOAD="false"
+CLEANUP="false"
 
 # list of images we are tagging & pushing
 IMAGES=("cni" "ksr" "cri")
@@ -42,6 +43,11 @@ while [ "$1" != "" ]; do
             shift
             DEV_UPLOAD="true"
             echo "Using dev upload: ${DEV_UPLOAD}"
+            ;;
+        -c | --cleanup )
+            shift
+            CLEANUP="true"
+            echo "Using cleanup: ${CLEANUP}"
             ;;
         * )
             echo "Invalid parameter: "$1
@@ -71,7 +77,6 @@ do
         then
             sudo docker push contivvpp/${IMAGE}:${TAG}
             sudo docker push contivvpp/${IMAGE}:latest
-        fi
     else
         # other branch - tag with the branch name
         echo "Tagging as contivvpp/${IMAGE}:${BRANCH_NAME}-${TAG} + contivvpp/${IMAGE}:${BRANCH_NAME}"
@@ -81,8 +86,8 @@ do
         # push the images
         if [ "${SKIP_UPLOAD}" != "true" ]
         then
-            sudo docker push contivvpp/${IMAGE}:${BRANCH_NAME}
             sudo docker push contivvpp/${IMAGE}:${BRANCH_NAME}-${TAG}
+            sudo docker push contivvpp/${IMAGE}:${BRANCH_NAME}
         fi
     fi
 done
@@ -145,4 +150,9 @@ then
             sudo docker push contivvpp/dev-vswitch:${BRANCH_NAME}-${TAG}-${VPP}
         fi
     fi
+fi
+
+if [ "${CLEANUP}" == "true" ]
+then
+    sudo docker images | fgrep "${TAG}" | awk '{print $3}' | uniq | xargs sudo docker rmi
 fi

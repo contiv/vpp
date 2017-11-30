@@ -74,6 +74,7 @@ do
         then
             sudo docker push contivvpp/${IMAGE}:${TAG}
             sudo docker push contivvpp/${IMAGE}:latest
+        fi
     else
         # other branch - tag with the branch name
         echo "Tagging as contivvpp/${IMAGE}:${BRANCH_NAME}-${TAG} + contivvpp/${IMAGE}:${BRANCH_NAME}"

@@ -120,7 +120,8 @@ Get_Traffic_Status
 
     Log    ${report}
     ${expected}=    OperatingSystem.Get_File    ${CURDIR}/${TEST_DATA_FOLDER}/${policy_name}_tcp_${tcp_port}_udp_${udp_port}_expected.txt
-    BuildIn.Should_Be_Equal    ${report}    ${expected}
+    Log    ${expected}
+    BuiltIn.Should_Be_Equal    ${report}    ${expected}
 
 Pod_To_Pod_Ping
     [Documentation]    Execute "ping -c 5" command between pods (both ways), require no packet loss.

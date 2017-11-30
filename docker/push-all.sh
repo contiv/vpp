@@ -35,17 +35,14 @@ while [ "$1" != "" ]; do
             echo "Using branch name: ${BRANCH_NAME}"
             ;;
         -s | --skip-upload )
-            shift
             SKIP_UPLOAD="true"
             echo "Using skip upload: ${SKIP_UPLOAD}"
             ;;
         -d | --dev-upload )
-            shift
             DEV_UPLOAD="true"
             echo "Using dev upload: ${DEV_UPLOAD}"
             ;;
         -c | --cleanup )
-            shift
             CLEANUP="true"
             echo "Using cleanup: ${CLEANUP}"
             ;;

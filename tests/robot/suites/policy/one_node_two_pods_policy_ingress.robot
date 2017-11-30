@@ -8,7 +8,7 @@ Test Teardown     Test_Case_Teardown
 
 *** Test Cases ***
 Check_Allow_TCP_Port_4444_On_Server_From_Client
-    ${policy_name}=    BuilIn.Set_Variable    allow_tcp_4444_server_from_client
+    ${policy_name}=    BuiltIn.Set_Variable    allow_tcp_4444_server_from_client
     KubeCtl.Apply_F    ${testbed_connection}    ${CURDIR}/${TEST_DATA_FOLDER}/${policy_name}.yaml
     Get_VPP_Status
     ${status1}=    BuiltIn.Run_Keyword_And_Return_Status    Get_Traffic_Status    ${policy_name}    tcp_port=4444    udp_port=7000
@@ -17,7 +17,7 @@ Check_Allow_TCP_Port_4444_On_Server_From_Client
     BuiltIn.Should_Be_True    ${status1} and ${status2}
 
 Check_Allow_UDP_Port_7000_On_Server_From_Client
-    ${policy_name}=    BuilIn.Set_Variable    allow_udp_7000_server_from_client
+    ${policy_name}=    BuiltIn.Set_Variable    allow_udp_7000_server_from_client
     KubeCtl.Apply_F    ${testbed_connection}    ${CURDIR}/${TEST_DATA_FOLDER}/${policy_name}.yaml
     Get_VPP_Status
     ${status1}=    BuiltIn.Run_Keyword_And_Return_Status    Get_Traffic_Status    ${policy_name}    tcp_port=4444    udp_port=7000
@@ -26,7 +26,7 @@ Check_Allow_UDP_Port_7000_On_Server_From_Client
     BuiltIn.Should_Be_True    ${status1} and ${status2}
 
 Check_Allow_Port_5000_On_Server_From_Client
-    ${policy_name}=    BuilIn.Set_Variable    allow_port_5000_server_from_client
+    ${policy_name}=    BuiltIn.Set_Variable    allow_port_5000_server_from_client
     KubeCtl.Apply_F    ${testbed_connection}    ${CURDIR}/${TEST_DATA_FOLDER}/${policy_name}.yaml
     Get_VPP_Status
     ${status1}=    BuiltIn.Run_Keyword_And_Return_Status    Get_Traffic_Status    ${policy_name}    tcp_port=4444    udp_port=5000
@@ -35,7 +35,7 @@ Check_Allow_Port_5000_On_Server_From_Client
     BuiltIn.Should_Be_True    ${status1} and ${status2}
 
 Check_Allow_TCP_Port_4444_On_Server_From_Nginx
-    ${policy_name}=    BuilIn.Set_Variable    allow_tcp_4444_server_from_nginx
+    ${policy_name}=    BuiltIn.Set_Variable    allow_tcp_4444_server_from_nginx
     KubeCtl.Apply_F    ${testbed_connection}    ${CURDIR}/${TEST_DATA_FOLDER}/${policy_name}.yaml
     Get_VPP_Status
     ${status1}=    BuiltIn.Run_Keyword_And_Return_Status    Get_Traffic_Status    ${policy_name}    tcp_port=4444    udp_port=7000
@@ -44,7 +44,7 @@ Check_Allow_TCP_Port_4444_On_Server_From_Nginx
     BuiltIn.Should_Be_True    ${status1} and ${status2}
 
 Check_Allow_UDP_Port_7000_On_Server_From_Nginx
-    ${policy_name}=    BuilIn.Set_Variable    allow_udp_7000_server_from_nginx
+    ${policy_name}=    BuiltIn.Set_Variable    allow_udp_7000_server_from_nginx
     KubeCtl.Apply_F    ${testbed_connection}    ${CURDIR}/${TEST_DATA_FOLDER}/${policy_name}.yaml
     Get_VPP_Status
     ${status1}=    BuiltIn.Run_Keyword_And_Return_Status    Get_Traffic_Status    ${policy_name}    tcp_port=4444    udp_port=7000
@@ -53,7 +53,7 @@ Check_Allow_UDP_Port_7000_On_Server_From_Nginx
     BuiltIn.Should_Be_True    ${status1} and ${status2}
 
 Check_Allow_Port_5000_On_Server_From_Nginx
-    ${policy_name}=    BuilIn.Set_Variable    allow_port_5000_server_from_nginx
+    ${policy_name}=    BuiltIn.Set_Variable    allow_port_5000_server_from_nginx
     KubeCtl.Apply_F    ${testbed_connection}    ${CURDIR}/${TEST_DATA_FOLDER}/${policy_name}.yaml
     Get_VPP_Status
     ${status1}=    BuiltIn.Run_Keyword_And_Return_Status    Get_Traffic_Status    ${policy_name}    tcp_port=4444    udp_port=5000

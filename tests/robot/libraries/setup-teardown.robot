@@ -9,9 +9,7 @@ Documentation     Keywords for testsuite setup and teardown.
 ...               \${ENV} (or also \${VARIABLES}).
 ...
 ...               TODO: Describe \${snapshot_num} (or remove it).
-Library           OperatingSystem
-Library           SSHLibrary
-Resource          ${CURDIR}/SshCommons.robot
+Resource          ${CURDIR}/all_libs.robot
 Resource          ${CURDIR}/${ENV}_setup-teardown.robot
 Resource          ${CURDIR}/../variables/${VARIABLES}_variables.robot
 

@@ -5,11 +5,11 @@ Documentation     Aggregate library for all suites to include.
 ...               As the amount of libraries is small, there should be no downsides,
 ...               long as Library.Keyword call format is used.
 Library           Collections
+Library           DateTime
 Library           OperatingSystem
 Library           SSHLibrary
 Library           String
-Library           DateTime
-Library           ${CURDIR}/kube-parser.py
+Library           ${CURDIR}/kube_parser.py
 Resource          ${CURDIR}/KubeAdm.robot
 Resource          ${CURDIR}/KubeCtl.robot
 Resource          ${CURDIR}/KubernetesEnv.robot

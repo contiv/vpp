@@ -14,11 +14,7 @@ Documentation     This is a library to handle actions related to kubernetes clus
 ...               ${server_pod_name} server pod name assigned by k8s in 1-node 2-pod scenario.
 ...               ${nginx_pod_name} nginx pod name assigned by k8s in 1-node 2-pod scenario.
 ...               ${istio_pods} list of pods matching istio prefix last seen running.
-Library           Collections
-Library           String
-Resource          ${CURDIR}/KubeAdm.robot
-Resource          ${CURDIR}/KubeCtl.robot
-Resource          ${CURDIR}/SshCommons.robot
+Resource          ${CURDIR}/all_libs.robot
 
 *** Variables ***
 ${NV_PLUGIN_URL}    https://raw.githubusercontent.com/contiv/vpp/${BRANCH}/k8s/contiv-vpp.yaml

@@ -1,12 +1,12 @@
 PING client -> server OK
 PING server -> client OK
-UDP client -> server OK
+UDP client -> server ERROR
 UDP server -> client OK
 TCP client -> server OK
-TCP server -> client ERROR
+TCP server -> client OK
 PING host -> server OK
 PING host -> client OK
-UDP host -> server OK
+UDP host -> server ERROR
 UDP host -> client OK
 TCP host -> server ERROR
 TCP host -> client OK

@@ -134,12 +134,13 @@ Apply_Contive_Vpp_Plugin
     [Documentation]    Apply file from URL ${NV_PLUGIN_URL} after editing in specific docker tags.
     BuiltIn.Log_Many    ${ssh_session}    ${normal_tag}    ${vpp_tag}
     SSHLibrary.Switch_Connection    ${ssh_session}
-    ${file} =    BuiltIn.Set_Variable    ${RESULTS_FOLDER}/contiv-vpp.yaml
-    SshCommons.Execute_Command_And_Log    curl -s ${NV_PLUGIN_URL} > ${file}
-    SshCommons.Execute_Command_And_Log    sed -i 's@image: contivvpp/cni@image: contivvpp/cni:${normal_tag}@g' ${file}
-    SshCommons.Execute_Command_And_Log    sed -i 's@image: contivvpp/ksr@image: contivvpp/ksr:${normal_tag}@g' ${file}
-    SshCommons.Execute_Command_And_Log    sed -i 's@image: contivvpp/vswitch@image: contivvpp/vswitch:${vpp_tag}@g' ${file}
-    KubeCtl.Apply_F    ${ssh_session}    ${file}
+    ${file_path} =    BuiltIn.Set_Variable    ${RESULTS_FOLDER}/contiv-vpp.yaml
+    # TODO: Add error checking for OperatingSystem calls.
+    OperatingSystem.Run    curl -s ${NV_PLUGIN_URL} > ${file_path}
+    OperatingSystem.Run    sed -i 's@image: contivvpp/cni@image: contivvpp/cni:${normal_tag}@g' ${file_path}
+    OperatingSystem.Run    sed -i 's@image: contivvpp/ksr@image: contivvpp/ksr:${normal_tag}@g' ${file_path}
+    OperatingSystem.Run    sed -i 's@image: contivvpp/vswitch@image: contivvpp/vswitch:${vpp_tag}@g' ${file_path}
+    KubeCtl.Apply_F    ${ssh_session}    ${file_path}
 
 Verify_All_Pods_Running
     [Arguments]    ${ssh_session}    ${excluded_pod_prefix}=invalid-pod-prefix-

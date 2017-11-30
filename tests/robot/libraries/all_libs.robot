@@ -8,7 +8,8 @@ Library           Collections
 Library           OperatingSystem
 Library           SSHLibrary
 Library           String
-# kube-parser should not be called directly.
+Library           DateTime
+Library           ${CURDIR}/kube-parser.py
 Resource          ${CURDIR}/KubeAdm.robot
 Resource          ${CURDIR}/KubeCtl.robot
 Resource          ${CURDIR}/KubernetesEnv.robot

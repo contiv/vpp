@@ -82,6 +82,8 @@ type Deps struct {
 type Config struct {
 	TCPChecksumOffloadDisabled bool
 	TCPstackDisabled           bool
+	UseTAPInterfaces           bool
+	TAPInterfaceVersion        uint8
 	IPAMConfig                 ipam.Config
 	NodeConfig                 []OneNodeConfig
 }
@@ -205,8 +207,8 @@ func (plugin *Plugin) getContainerConfig(podNamespace string, podName string) *c
 // GetIfName looks up logical interface name that corresponds to the interface associated with the given pod.
 func (plugin *Plugin) GetIfName(podNamespace string, podName string) (name string, exists bool) {
 	config := plugin.getContainerConfig(podNamespace, podName)
-	if config != nil && config.Afpacket != nil {
-		return config.Afpacket.Name, true
+	if config != nil && config.PodVppIf != nil {
+		return config.PodVppIf.Name, true
 	}
 	plugin.Log.WithFields(logging.Fields{"podNamespace": podNamespace, "podName": podName}).Warn("No matching result found")
 	return "", false

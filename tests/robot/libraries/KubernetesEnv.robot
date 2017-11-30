@@ -53,6 +53,7 @@ Reinit_One_Node_Kube_Cluster
 
 Reinit_Multinode_Kube_Cluster
     [Documentation]    Assuming SSH connections with known aliases are created, check roles, reset nodes, init master, wait to see it running, join other nodes, wait until cluster is ready.
+    BuiltIn.Set_Suite_Variable    ${testbed_connection}    ${VM_SSH_ALIAS_PREFIX}1
     # check integrity of k8s cluster settings
     :FOR    ${index}    IN RANGE    1    ${KUBE_CLUSTER_${CLUSTER_ID}_NODES}+1
     \    BuiltIn.Run_Keyword_If    """${index}""" == """${1}""" and """${KUBE_CLUSTER_${CLUSTER_ID}_VM_${index}_ROLE}""" != """master"""   BuiltIn.Fail    Node ${index} should be kubernetes master.
@@ -68,26 +69,24 @@ Reinit_Multinode_Kube_Cluster
     \    Docker_Pull_Custom_Kube_Proxy    ${connection}
     \    SshCommons.Switch_And_Execute_Command    ${connection}    curl -s https://raw.githubusercontent.com/contiv/vpp/${BRANCH}/k8s/cri-install.sh | sudo bash /dev/stdin
     # init master
-    ${connection} =    BuiltIn.Set_Variable    ${VM_SSH_ALIAS_PREFIX}1
-    ${init_stdout} =    KubeAdm.Init    ${connection}
+    ${init_stdout} =    KubeAdm.Init    ${testbed_connection}
     BuiltIn.Should_Contain    ${init_stdout}    Your Kubernetes master has initialized successfully
-    SshCommons.Switch_And_Execute_Command    ${connection}    mkdir -p $HOME/.kube
-    SshCommons.Switch_And_Execute_Command    ${connection}    sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
-    SshCommons.Switch_And_Execute_Command    ${connection}    sudo chown $(id -u):$(id -g) $HOME/.kube/config
-    KubeCtl.Taint    ${connection}    nodes --all node-role.kubernetes.io/master-
-    Apply_Contive_Vpp_Plugin    ${connection}
+    SshCommons.Switch_And_Execute_Command    ${testbed_connection}    mkdir -p $HOME/.kube
+    SshCommons.Switch_And_Execute_Command    ${testbed_connection}    sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+    SshCommons.Switch_And_Execute_Command    ${testbed_connection}    sudo chown $(id -u):$(id -g) $HOME/.kube/config
+    KubeCtl.Taint    ${testbed_connection}    nodes --all node-role.kubernetes.io/master-
+    Apply_Contive_Vpp_Plugin    ${testbed_connection}
     # Verify k8s and plugin are running
-    BuiltIn.Wait_Until_Keyword_Succeeds    240s    10s    Verify_K8s_With_Plugin_Running    ${connection}
+    BuiltIn.Wait_Until_Keyword_Succeeds    240s    10s    Verify_K8s_With_Plugin_Running    ${testbed_connection}
     # join other nodes
     ${join_cmd} =    kube_parser.get_join_from_kubeadm_init    ${init_stdout}
     :FOR    ${index}    IN RANGE    2    ${KUBE_CLUSTER_${CLUSTER_ID}_NODES}+1
     \    ${connection} =    BuiltIn.Set_Variable    ${VM_SSH_ALIAS_PREFIX}${index}
     \    SshCommons.Switch_And_Execute_Command    ${connection}    sudo ${join_cmd}    ignore_stderr=${True}
-    Wait_Until_Cluster_Ready    ${VM_SSH_ALIAS_PREFIX}1    ${KUBE_CLUSTER_${CLUSTER_ID}_NODES}
+    Wait_Until_Cluster_Ready    ${testbed_connection}    ${KUBE_CLUSTER_${CLUSTER_ID}_NODES}
     # label the nodes
     :FOR    ${index}    IN RANGE    1    ${KUBE_CLUSTER_${CLUSTER_ID}_NODES}+1
-    \    KubeCtl.Label_Nodes    ${VM_SSH_ALIAS_PREFIX}1    ${KUBE_CLUSTER_${CLUSTER_ID}_VM_${index}_HOST_NAME}   location    ${KUBE_CLUSTER_${CLUSTER_ID}_VM_${index}_LABEL}
-    BuiltIn.Set_Suite_Variable    ${testbed_connection}    ${VM_SSH_ALIAS_PREFIX}1
+    \    KubeCtl.Label_Nodes    ${testbed_connection}    ${KUBE_CLUSTER_${CLUSTER_ID}_VM_${index}_HOST_NAME}   location    ${KUBE_CLUSTER_${CLUSTER_ID}_VM_${index}_LABEL}
 
 Docker_Pull_Contiv_Vpp
     [Arguments]    ${ssh_session}

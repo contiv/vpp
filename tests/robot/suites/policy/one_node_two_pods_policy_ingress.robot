@@ -8,40 +8,58 @@ Test Teardown     Test_Case_Teardown
 
 *** Test Cases ***
 Check_Allow_TCP_Port_4444_On_Server_From_Client
-    KubeCtl.Apply_F    ${testbed_connection}    ${CURDIR}/${TEST_DATA_FOLDER}/allow_tcp_4444_server_from_client.yaml
-    Get_Traffic_Status    tcp_port=4444    udp_port=7000
-    Get_Traffic_Status    tcp_port=5000    udp_port=7000
-    KubeCtl.Delete_F    ${testbed_connection}    ${CURDIR}/${TEST_DATA_FOLDER}/allow_tcp_4444_server_from_client.yaml
+    ${policy_name}=    BuilIn.Set_Variable    allow_tcp_4444_server_from_client
+    KubeCtl.Apply_F    ${testbed_connection}    ${CURDIR}/${TEST_DATA_FOLDER}/${policy_name}.yaml
+    Get_VPP_Status
+    ${status1}=    BuiltIn.Run_Keyword_And_Return_Status    Get_Traffic_Status    ${policy_name}    tcp_port=4444    udp_port=7000
+    ${status2}=    BuiltIn.Run_Keyword_And_Return_Status    Get_Traffic_Status    ${policy_name}    tcp_port=5000    udp_port=7000
+    KubeCtl.Delete_F    ${testbed_connection}    ${CURDIR}/${TEST_DATA_FOLDER}/${policy_name}.yaml
+    BuiltIn.Should_Be_True    ${status1} and ${status2}
 
 Check_Allow_UDP_Port_7000_On_Server_From_Client
-    KubeCtl.Apply_F    ${testbed_connection}    ${CURDIR}/${TEST_DATA_FOLDER}/allow_udp_7000_server_from_client.yaml
-    Get_Traffic_Status    tcp_port=4444    udp_port=7000
-    Get_Traffic_Status    tcp_port=4444    udp_port=5000
-    KubeCtl.Delete_F    ${testbed_connection}    ${CURDIR}/${TEST_DATA_FOLDER}/allow_udp_7000_server_from_client.yaml
+    ${policy_name}=    BuilIn.Set_Variable    allow_udp_7000_server_from_client
+    KubeCtl.Apply_F    ${testbed_connection}    ${CURDIR}/${TEST_DATA_FOLDER}/${policy_name}.yaml
+    Get_VPP_Status
+    ${status1}=    BuiltIn.Run_Keyword_And_Return_Status    Get_Traffic_Status    ${policy_name}    tcp_port=4444    udp_port=7000
+    ${status2}=    BuiltIn.Run_Keyword_And_Return_Status    Get_Traffic_Status    ${policy_name}    tcp_port=4444    udp_port=5000
+    KubeCtl.Delete_F    ${testbed_connection}    ${CURDIR}/${TEST_DATA_FOLDER}/${policy_name}.yaml
+    BuiltIn.Should_Be_True    ${status1} and ${status2}
 
 Check_Allow_Port_5000_On_Server_From_Client
-    KubeCtl.Apply_F    ${testbed_connection}    ${CURDIR}/${TEST_DATA_FOLDER}/allow_port_5000_server_from_client.yaml
-    Get_Traffic_Status    tcp_port=4444    udp_port=5000
-    Get_Traffic_Status    tcp_port=5000    udp_port=7000
-    KubeCtl.Delete_F    ${testbed_connection}    ${CURDIR}/${TEST_DATA_FOLDER}/allow_port_5000_server_from_client.yaml
+    ${policy_name}=    BuilIn.Set_Variable    allow_port_5000_server_from_client
+    KubeCtl.Apply_F    ${testbed_connection}    ${CURDIR}/${TEST_DATA_FOLDER}/${policy_name}.yaml
+    Get_VPP_Status
+    ${status1}=    BuiltIn.Run_Keyword_And_Return_Status    Get_Traffic_Status    ${policy_name}    tcp_port=4444    udp_port=5000
+    ${status2}=    BuiltIn.Run_Keyword_And_Return_Status    Get_Traffic_Status    ${policy_name}    tcp_port=5000    udp_port=7000
+    KubeCtl.Delete_F    ${testbed_connection}    ${CURDIR}/${TEST_DATA_FOLDER}/${policy_name}.yaml
+    BuiltIn.Should_Be_True    ${status1} and ${status2}
 
 Check_Allow_TCP_Port_4444_On_Server_From_Nginx
-    KubeCtl.Apply_F    ${testbed_connection}    ${CURDIR}/${TEST_DATA_FOLDER}/allow_tcp_4444_server_from_nginx.yaml
-    Get_Traffic_Status    tcp_port=4444    udp_port=7000
-    Get_Traffic_Status    tcp_port=5000    udp_port=7000
-    KubeCtl.Delete_F    ${testbed_connection}    ${CURDIR}/${TEST_DATA_FOLDER}/allow_tcp_4444_server_from_nginx.yaml
+    ${policy_name}=    BuilIn.Set_Variable    allow_tcp_4444_server_from_nginx
+    KubeCtl.Apply_F    ${testbed_connection}    ${CURDIR}/${TEST_DATA_FOLDER}/${policy_name}.yaml
+    Get_VPP_Status
+    ${status1}=    BuiltIn.Run_Keyword_And_Return_Status    Get_Traffic_Status    ${policy_name}    tcp_port=4444    udp_port=7000
+    ${status2}=    BuiltIn.Run_Keyword_And_Return_Status    Get_Traffic_Status    ${policy_name}    tcp_port=5000    udp_port=7000
+    KubeCtl.Delete_F    ${testbed_connection}    ${CURDIR}/${TEST_DATA_FOLDER}/${policy_name}.yaml
+    BuiltIn.Should_Be_True    ${status1} and ${status2}
 
 Check_Allow_UDP_Port_7000_On_Server_From_Nginx
-    KubeCtl.Apply_F    ${testbed_connection}    ${CURDIR}/${TEST_DATA_FOLDER}/allow_udp_7000_server_from_nginx.yaml
-    Get_Traffic_Status    tcp_port=4444    udp_port=7000
-    Get_Traffic_Status    tcp_port=4444    udp_port=5000
-    KubeCtl.Delete_F    ${testbed_connection}    ${CURDIR}/${TEST_DATA_FOLDER}/allow_udp_7000_server_from_nginx.yaml
+    ${policy_name}=    BuilIn.Set_Variable    allow_udp_7000_server_from_nginx
+    KubeCtl.Apply_F    ${testbed_connection}    ${CURDIR}/${TEST_DATA_FOLDER}/${policy_name}.yaml
+    Get_VPP_Status
+    ${status1}=    BuiltIn.Run_Keyword_And_Return_Status    Get_Traffic_Status    ${policy_name}    tcp_port=4444    udp_port=7000
+    ${status2}=    BuiltIn.Run_Keyword_And_Return_Status    Get_Traffic_Status    ${policy_name}    tcp_port=4444    udp_port=5000
+    KubeCtl.Delete_F    ${testbed_connection}    ${CURDIR}/${TEST_DATA_FOLDER}/${policy_name}.yaml
+    BuiltIn.Should_Be_True    ${status1} and ${status2}
 
 Check_Allow_Port_5000_On_Server_From_Nginx
-    KubeCtl.Apply_F    ${testbed_connection}    ${CURDIR}/${TEST_DATA_FOLDER}/allow_port_5000_server_from_nginx.yaml
-    Get_Traffic_Status    tcp_port=4444    udp_port=5000
-    Get_Traffic_Status    tcp_port=5000    udp_port=7000
-    KubeCtl.Delete_F    ${testbed_connection}    ${CURDIR}/${TEST_DATA_FOLDER}/allow_port_5000_server_from_nginx.yaml
+    ${policy_name}=    BuilIn.Set_Variable    allow_port_5000_server_from_nginx
+    KubeCtl.Apply_F    ${testbed_connection}    ${CURDIR}/${TEST_DATA_FOLDER}/${policy_name}.yaml
+    Get_VPP_Status
+    ${status1}=    BuiltIn.Run_Keyword_And_Return_Status    Get_Traffic_Status    ${policy_name}    tcp_port=4444    udp_port=5000
+    ${status2}=    BuiltIn.Run_Keyword_And_Return_Status    Get_Traffic_Status    ${policy_name}    tcp_port=5000    udp_port=7000
+    KubeCtl.Delete_F    ${testbed_connection}    ${CURDIR}/${TEST_DATA_FOLDER}/${policy_name}.yaml
+    BuiltIn.Should_Be_True    ${status1} and ${status2}
 
 
 
@@ -49,7 +67,6 @@ Check_Allow_Port_5000_On_Server_From_Nginx
 *** Keywords ***
 Test_Case_Setup
     Setup_Hosts_Connections
-    Get_VPP_Status
 
 Test_Case_Teardown
     Get_VPP_Status
@@ -62,7 +79,7 @@ Get_VPP_Status
     Switch_And_Write_Command    ${vpp_connection}    show session rules udp
 
 Get_Traffic_Status
-    [Arguments]    ${tcp_port}=4444    ${udp_port}=7000
+    [Arguments]    ${policy_name}    ${tcp_port}=4444    ${udp_port}=7000
     Log Many    ${tcp_port}    ${udp_port}
     ${report}=    Set Variable    ${EMPTY}
     ${ping_client_server}    ${ping_server_client}=    Pod_To_Pod_Ping
@@ -102,6 +119,8 @@ Get_Traffic_Status
     ${report}=    Set Variable If    "Text to be received" in """${tcp_host_client}"""    ${report}TCP host -> client OK${\n}    ${report}TCP host -> client ERROR${\n}
 
     Log    ${report}
+    ${expected}=    OperatingSystem.Get_File    ${CURDIR}/${TEST_DATA_FOLDER}/${policy_name}_tcp_${tcp_port}_udp_${udp_port}_expected.txt
+    BuildIn.Should_Be_Equal    ${report}    ${expected}
 
 Pod_To_Pod_Ping
     [Documentation]    Execute "ping -c 5" command between pods (both ways), require no packet loss.

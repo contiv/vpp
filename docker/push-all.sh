@@ -152,5 +152,5 @@ fi
 
 if [ "${CLEANUP}" == "true" ]
 then
-    sudo docker images | fgrep "${TAG}" | awk '{print $3}' | uniq | xargs sudo docker rmi
+    sudo docker images | fgrep "${TAG}" | awk '{print $3}' | uniq | xargs sudo docker rmi || true
 fi

@@ -1,4 +1,8 @@
 *** Variables ***
+${BRANCH}         master    # Default value, to be overwritten if needed.
+${TAG}            ${EMPTY}    # Example: 0.0.1-749-gbc2599c
+${VPP}            ${EMPTY}    # Example: 32c783a
+
 ${KUBE_CLUSTER_1_NODES}            2
 ${KUBE_CLUSTER_1_VM_1_PUBLIC_IP}   192.168.251.101
 ${KUBE_CLUSTER_1_VM_1_LOCAL_IP}    192.168.251.101
@@ -60,3 +64,4 @@ ${KUBE_CLUSTER_5_DOCKER_COMMAND}   docker
 ${RESULTS_FOLDER}                  results
 ${TEST_DATA_FOLDER}                test_data
 ${SSH_READ_DELAY}                  3
+${SSH_TIMEOUT}                     30

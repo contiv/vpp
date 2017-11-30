@@ -1,0 +1,22 @@
+apiVersion: apps/v1beta2
+kind: Deployment
+metadata:
+  name: apachebench-deployment
+  labels:
+    project: test-policies
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      role: frontend
+  template:
+    metadata:
+      labels:
+        role: frontend
+    spec:
+      containers:
+      - image: ab
+        imagePullPolicy: IfNotPresent
+        name: ab
+        command: ["/bin/sh"]
+        args: ["-c", "while true; do sleep 30; done;"]

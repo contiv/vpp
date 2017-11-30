@@ -1,9 +1,9 @@
 apiVersion: apps/v1beta2
 kind: Deployment
 metadata:
-  name: iperf-server-deployment
+  name: nginx-server-deployment
   labels:
-    app: iperf
+    app: nginx
 spec:
   replicas: 1
   selector:
@@ -17,12 +17,8 @@ spec:
         app: webapp
     spec:
       containers:
-      - image: networkstatic/iperf3
+      - image: nginx
         imagePullPolicy: IfNotPresent
-        name: iperf-server
+        name: nginx-server
         ports:
-        - containerPort: 8000
-        command: ["iperf3"]
-        args: ["-V4d", "-s", "-p", "8000"]
-        securityContext:
-          privileged: true
+        - containerPort: 80

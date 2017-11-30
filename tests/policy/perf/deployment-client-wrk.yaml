@@ -1,9 +1,9 @@
 apiVersion: apps/v1beta2
 kind: Deployment
 metadata:
-  name: busybox-deployment
+  name: wrkbench-deployment
   labels:
-    project: test-polic
+    project: test-policies
 spec:
   replicas: 1
   selector:
@@ -15,10 +15,8 @@ spec:
         role: frontend
     spec:
       containers:
-      - image: networkstatic/iperf3
+      - image: wrk
         imagePullPolicy: IfNotPresent
-        name: client
+        name: wrk
         command: ["bash"]
         args: ["-c", "while true; do sleep 30; done;"]
-        securityContext:
-          privileged: true

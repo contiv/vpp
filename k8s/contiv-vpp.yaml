@@ -20,7 +20,9 @@ metadata:
   namespace: kube-system
 data:
   contiv.yaml: |
-    TCPstackDisabled: False
+    TCPstackDisabled: True
+    UseTAPInterfaces: True
+    TAPInterfaceVersion: 1  # 1 = original VPP TAP, 2 = new virtio-based TAP
     TCPChecksumOffloadDisabled: False
     IPAMConfig:
       PodSubnetCIDR: "10.1.0.0/16"

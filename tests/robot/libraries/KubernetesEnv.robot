@@ -17,8 +17,10 @@ Documentation     This is a library to handle actions related to kubernetes clus
 Resource          ${CURDIR}/all_libs.robot
 
 *** Variables ***
-${NV_PLUGIN_URL}    https://raw.githubusercontent.com/contiv/vpp/${BRANCH}/k8s/contiv-vpp.yaml
-${CRI_INSTALL_URL}    https://raw.githubusercontent.com/contiv/vpp/${BRANCH}/k8s/cri-install.sh
+${NV_PLUGIN_PATH}    ${CURDIR}/../../../k8s/contiv-vpp.yaml
+${CRI_INSTALL_PATH}    ${CURDIR}/../../../k8s/cri-install.sh
+${PULL_IMAGES_PATH}    ${CURDIR}/../../../k8s/pull-images.sh
+${PROXY_INSTALL_PATH}    ${CURDIR}/../../../k8s/proxy-install.sh
 ${CLIENT_POD_FILE}    ${CURDIR}/../resources/ubuntu-client.yaml
 ${SERVER_POD_FILE}    ${CURDIR}/../resources/ubuntu-server.yaml
 ${NGINX_POD_FILE}    ${CURDIR}/../resources/nginx.yaml
@@ -31,6 +33,8 @@ ${ISTIO_FILE}    ${CURDIR}/../resources/istio029.yaml
 ${NGINX_10_POD_FILE}    ${CURDIR}/../resources/nginx10.yaml
 
 *** Keywords ***
+# TODO: Passing ${ssh_session} around is annoying. Make keywords assume the correct SSH session is already active.
+
 Reinit_One_Node_Kube_Cluster
     [Documentation]    Assuming active SSH connection, store its index, execute multiple commands to reinstall and restart 1node cluster, wait to see it running.
     ${normal_tag}    ${vpp_tag} =    Get_Docker_Tags
@@ -39,17 +43,17 @@ Reinit_One_Node_Kube_Cluster
     SSHLibrary.Set_Client_Configuration    timeout=${SSH_TIMEOUT}    prompt=$
     SshCommons.Switch_And_Execute_Command    ${testbed_connection}    sudo rm -rf $HOME/.kube
     KubeAdm.Reset    ${testbed_connection}
-    Uninstall_Cri
-    Docker_Pull_Contiv_Vpp    ${testbed_connection}
-    Docker_Pull_Custom_Kube_Proxy    ${testbed_connection}
+    Uninstall_Cri    ${normal_tag}
+    Docker_Pull_Contiv_Vpp    ${normal_tag}    ${vpp_tag}
+    Docker_Pull_Custom_Kube_Proxy
     Install_Cri    ${normal_tag}
     ${stdout} =    KubeAdm.Init    ${testbed_connection}
     BuiltIn.Should_Contain    ${stdout}    Your Kubernetes master has initialized successfully
-    SshCommons.Switch_And_Execute_Command    ${testbed_connection}    mkdir -p $HOME/.kube
-    SshCommons.Switch_And_Execute_Command    ${testbed_connection}    sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
-    SshCommons.Switch_And_Execute_Command    ${testbed_connection}    sudo chown $(id -u):$(id -g) $HOME/.kube/config
+    SshCommons.Execute_Command_And_Log    mkdir -p $HOME/.kube
+    SshCommons.Execute_Command_And_Log    sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+    SshCommons.Execute_Command_And_Log    sudo chown $(id -u):$(id -g) $HOME/.kube/config
     KubeCtl.Taint    ${testbed_connection}    nodes --all node-role.kubernetes.io/master-
-    Apply_Contive_Vpp_Plugin    ${testbed_connection}    ${normal_tag}    ${vpp_tag}
+    Apply_Contiv_Vpp_Plugin    ${testbed_connection}    ${normal_tag}    ${vpp_tag}
     # Verify k8s and plugin are running
     BuiltIn.Wait_Until_Keyword_Succeeds    240s    10s    Verify_K8s_With_Plugin_Running    ${testbed_connection}
 
@@ -64,21 +68,22 @@ Reinit_Multinode_Kube_Cluster
     # reset all nodes
     :FOR    ${index}    IN RANGE    1    ${KUBE_CLUSTER_${CLUSTER_ID}_NODES}+1
     \    ${connection} =    BuiltIn.Set_Variable    ${VM_SSH_ALIAS_PREFIX}${index}
-    \    SshCommons.Switch_And_Execute_Command    ${connection}    sudo rm -rf ~/.kube
+    \    SSHLibrary.Switch_Connection    ${connection}
+    \    SshCommons.Execute_Command_And_Log    sudo rm -rf ~/.kube
     \    KubeAdm.Reset    ${connection}
-    \    SshCommons.Switch_And_Execute_Command    ${connection}    sudo modprobe uio_pci_generic
-    \    Uninstall_Cri
-    \    Docker_Pull_Contiv_Vpp    ${connection}
-    \    Docker_Pull_Custom_Kube_Proxy    ${connection}
+    \    SshCommons.Execute_Command_And_Log    sudo modprobe uio_pci_generic
+    \    Uninstall_Cri    ${normal_tag}
+    \    Docker_Pull_Contiv_Vpp    ${normal_tag}    ${vpp_tag}
+    \    Docker_Pull_Custom_Kube_Proxy
     \    Install_Cri    ${normal_tag}
     # init master
     ${init_stdout} =    KubeAdm.Init    ${testbed_connection}
     BuiltIn.Should_Contain    ${init_stdout}    Your Kubernetes master has initialized successfully
-    SshCommons.Switch_And_Execute_Command    ${testbed_connection}    mkdir -p $HOME/.kube
-    SshCommons.Switch_And_Execute_Command    ${testbed_connection}    sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
-    SshCommons.Switch_And_Execute_Command    ${testbed_connection}    sudo chown $(id -u):$(id -g) $HOME/.kube/config
+    SshCommons.Execute_Command_And_Log    mkdir -p $HOME/.kube
+    SshCommons.Execute_Command_And_Log    sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+    SshCommons.Execute_Command_And_Log    sudo chown $(id -u):$(id -g) $HOME/.kube/config
     KubeCtl.Taint    ${testbed_connection}    nodes --all node-role.kubernetes.io/master-
-    Apply_Contive_Vpp_Plugin    ${testbed_connection}    ${normal_tag}    ${vpp_tag}
+    Apply_Contiv_Vpp_Plugin    ${testbed_connection}    ${normal_tag}    ${vpp_tag}
     # Verify k8s and plugin are running
     BuiltIn.Wait_Until_Keyword_Succeeds    240s    10s    Verify_K8s_With_Plugin_Running    ${testbed_connection}
     # join other nodes
@@ -102,40 +107,55 @@ Get_Docker_Tags
     Builtin.Log    ${vpp_tag}
     [Return]    ${normal_tag}    ${vpp_tag}
 
+Prepare_Cri_Script
+    [Arguments]    ${normal_tag}
+    [Documentation]    Copy cri-install.sh to result folder and perform docker image tag edit.
+    ...    Return path to the edited script.
+    Builtin.Log_Many    ${normal_tag}
+    ${file_path} =    BuiltIn.Set_Variable    ${RESULTS_FOLDER}/cri-install.sh
+    # TODO: Add error checking for OperatingSystem calls.
+    OperatingSystem.Run    cp -f ${CRI_INSTALL_PATH} ${file_path}
+    OperatingSystem.Run    sed -i 's@contivvpp/cri@contivvpp/cri:${normal_tag}@g' ${file_path}
+    [Return]    ${file_path}
+
 Uninstall_Cri
-    [Documentation]    Download and execute script with uninstall flag on active connection.
-    SshCommons.Execute_Command_And_Log    curl -s ${CRI_INSTALL_URL} | sudo bash /dev/stdin -u    ignore_stderr=${True}    ignore_rc=${True}
+    [Arguments]    ${normal_tag}
+    [Documentation]    Prepare and execute script with uninstall flag on active connection.
+    BuiltIn.Log_Many    ${normal_tag}
+    ${file_path} =    Prepare_Cri_Script    ${normal_tag}
+    # A hack to move -u flag after the uploaded file name.
+    SshCommons.Execute_Command_With_Copied_File    ${file_path}    bash -c 'cat $0 | sudo bash /dev/stdin -u'    ignore_stderr=${True}    ignore_rc=${True}
 
 Install_Cri
     [Arguments]    ${normal_tag}
-    [Documentation]    Download, edit and execute script on active connection.
+    [Documentation]    Prepare and execute script on active connection.
     BuiltIn.Log_Many    ${normal_tag}
-    ${file_path} =    BuiltIn.Set_Variable    ${RESULTS_FOLDER}/cri-install.sh
-    # TODO: Add error checking for OperatingSystem calls.
-    OperatingSystem.Run    curl -s ${CRI_INSTALL_URL} > ${file_path}
-    OperatingSystem.Run    sed -i 's@contivvpp/cri@contivvpp/cri:${normal_tag}@g' ${file_path}
+    ${file_path} =    Prepare_Cri_Script    ${normal_tag}
     SshCommons.Execute_Command_With_Copied_File    ${file_path}    sudo bash    ignore_stderr=${True}
 
 Docker_Pull_Contiv_Vpp
-    [Arguments]    ${ssh_session}
-    [Documentation]    Execute bash applying pull-images.sh from github.
-    BuiltIn.Log_Many    ${ssh_session}
-    SshCommons.Switch_And_Execute_Command    ${ssh_session}    bash <(curl -s https://raw.githubusercontent.com/contiv/vpp/${BRANCH}/k8s/pull-images.sh)
+    [Arguments]    ${normal_tag}    ${vpp_tag}
+    [Documentation]    Execute bash after applying edits to pull-images.sh.
+    BuiltIn.Log_Many    ${normal_tag}    ${vpp_tag}
+    ${file_path} =    BuiltIn.Set_Variable    ${RESULTS_FOLDER}/pull-images.sh
+    # TODO: Add error checking for OperatingSystem calls.
+    OperatingSystem.Run    cp -f ${PULL_IMAGES_PATH} ${file_path}
+    OperatingSystem.Run    sed -i 's@vswitch:latest@vswitch:${vpp_tag}@g' ${file_path}
+    OperatingSystem.Run    sed -i 's@:latest@:${normal_tag}@g' ${file_path}
+    SshCommons.Execute_Command_With_Copied_File    ${file_path}    bash
 
 Docker_Pull_Custom_Kube_Proxy
-    [Arguments]    ${ssh_session}
     [Documentation]    Execute proxy-install.sh script.
-    Builtin.Log_Many    ${ssh_session}
-    SshCommons.Switch_And_Execute_Command    ${ssh_session}    bash <(curl -s https://raw.githubusercontent.com/contiv/vpp/${BRANCH}/k8s/proxy-install.sh)
+    SshCommons.Execute_Command_With_Copied_File    ${PROXY_INSTALL_PATH}    bash
 
-Apply_Contive_Vpp_Plugin
+Apply_Contiv_Vpp_Plugin
     [Arguments]    ${ssh_session}    ${normal_tag}    ${vpp_tag}
-    [Documentation]    Apply file from URL ${NV_PLUGIN_URL} after editing in specific docker tags.
+    [Documentation]    Apply contiv yaml after editing in specific docker tags.
     BuiltIn.Log_Many    ${ssh_session}    ${normal_tag}    ${vpp_tag}
     SSHLibrary.Switch_Connection    ${ssh_session}
     ${file_path} =    BuiltIn.Set_Variable    ${RESULTS_FOLDER}/contiv-vpp.yaml
     # TODO: Add error checking for OperatingSystem calls.
-    OperatingSystem.Run    curl -s ${NV_PLUGIN_URL} > ${file_path}
+    OperatingSystem.Run    cp -f ${NV_PLUGIN_PATH} ${file_path}
     OperatingSystem.Run    sed -i 's@image: contivvpp/cni@image: contivvpp/cni:${normal_tag}@g' ${file_path}
     OperatingSystem.Run    sed -i 's@image: contivvpp/ksr@image: contivvpp/ksr:${normal_tag}@g' ${file_path}
     OperatingSystem.Run    sed -i 's@image: contivvpp/vswitch@image: contivvpp/vswitch:${vpp_tag}@g' ${file_path}

@@ -548,6 +548,7 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 	} else {
 		// Adding route (container IP -> afPacket) in a separate transaction.
 		// afpacket/tap must be already configured.
+		s.Logger.Info("Configuring static route:", route)
 		err = s.vppTxnFactory().Put().StaticRoute(route).Send().ReceiveReply()
 		if err != nil {
 			s.Logger.Error(err)

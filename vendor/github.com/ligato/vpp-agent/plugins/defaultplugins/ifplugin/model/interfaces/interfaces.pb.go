@@ -4,8 +4,10 @@
 
 /*
 Package interfaces is a generated protocol buffer package.
+
 It is generated from these files:
 	interfaces.proto
+
 It has these top-level messages:
 	Interfaces
 	InterfacesState
@@ -268,7 +270,9 @@ func (m *Interfaces_Interface_Afpacket) String() string { return proto.CompactTe
 func (*Interfaces_Interface_Afpacket) ProtoMessage()    {}
 
 type Interfaces_Interface_Tap struct {
-	HostIfName string `protobuf:"bytes,1,opt,name=host_if_name,proto3" json:"host_if_name,omitempty"`
+	Version    uint32 `protobuf:"varint,1,opt,name=version,proto3" json:"version,omitempty"`
+	HostIfName string `protobuf:"bytes,2,opt,name=host_if_name,proto3" json:"host_if_name,omitempty"`
+	Namespace  string `protobuf:"bytes,3,opt,name=namespace,proto3" json:"namespace,omitempty"`
 }
 
 func (m *Interfaces_Interface_Tap) Reset()         { *m = Interfaces_Interface_Tap{} }

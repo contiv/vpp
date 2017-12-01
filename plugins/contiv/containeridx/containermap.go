@@ -37,8 +37,8 @@ type Config struct {
 	Veth1 *linux_intf.LinuxInterfaces_Interface
 	// Veth2 is the other end of veth pair in the default namespace
 	Veth2 *linux_intf.LinuxInterfaces_Interface
-	// Afpacket connects Veth2 into vpp
-	Afpacket *vpp_intf.Interfaces_Interface
+	// Afpacket/TAP interface connecting pod to VPP
+	PodVppIf *vpp_intf.Interfaces_Interface
 	// Route to the container
 	Route *l3.StaticRoutes_Route
 	// Application namespace index

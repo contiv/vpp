@@ -123,6 +123,7 @@ func (s *remoteCNIserver) getVppInterfaceDetails(intfNamePrefix string, ifIndex 
 
 	ctx := s.govppChan.SendMultiRequest(req)
 
+	var res *interfaces.SwInterfaceDetails
 	for {
 		ifDetails := &interfaces.SwInterfaceDetails{}
 		stop, err := ctx.ReceiveReply(ifDetails)
@@ -133,11 +134,15 @@ func (s *remoteCNIserver) getVppInterfaceDetails(intfNamePrefix string, ifIndex 
 			return nil, err
 		}
 		if ifDetails.SwIfIndex == ifIndex {
-			return ifDetails, nil
+			res = ifDetails
 		}
 	}
 
-	return nil, fmt.Errorf("unable to look up details for if %v", intfNamePrefix)
+	if res != nil {
+		return res, nil
+	} else {
+		return nil, fmt.Errorf("unable to look up details for if %v", intfNamePrefix)
+	}
 }
 
 func (s *remoteCNIserver) setupStn(podIP string, ifIndex uint32) error {

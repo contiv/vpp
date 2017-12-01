@@ -500,6 +500,7 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 	// Get index of the VPP interface connected to the Pod.
 	var vppIfIndex uint32
 	var vppIfFound bool
+	err = nil
 	if s.useTAPInterfaces {
 		vppIfIndex, _, vppIfFound = s.swIfIndex.LookupIdx(tap.Name)
 		if !vppIfFound {
@@ -524,6 +525,11 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 	}
 	vppIfNameLen := bytes.IndexByte(vppIfDetails.InterfaceName, 0)
 	vppIfName := string(vppIfDetails.InterfaceName[:vppIfNameLen])
+
+	s.Logger.WithFields(logging.Fields{
+		"ifIndex": vppIfIndex,
+		"ifName":  vppIfName,
+	}).Info("Found interface connecting Pod with VPP")
 
 	if !s.disableTCPstack {
 		err = s.setupStn(podIP.String(), vppIfIndex)

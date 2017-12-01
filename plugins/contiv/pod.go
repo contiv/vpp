@@ -72,22 +72,12 @@ func (s *remoteCNIserver) retrieveContainerMacAddr(namespace string, ifname stri
 
 }
 
-func (s *remoteCNIserver) configureArpOnVpp(request *cni.CNIRequest, macAddr []byte, podIP net.IP) error {
-
-	ifName := s.afpacketNameFromRequest(request)
-	if s.swIfIndex == nil {
-		s.Logger.Warn("SwIfIndex is not available")
-		return nil
-	}
-	idx, _, exists := s.swIfIndex.LookupIdx(ifName)
-	if !exists {
-		return fmt.Errorf("afpacket %v doesn't exist", ifName)
-	}
+func (s *remoteCNIserver) configureArpOnVpp(request *cni.CNIRequest, ifIndex uint32, macAddr string, podIP net.IP) error {
 
 	req := &ip.IPNeighborAddDel{
-		SwIfIndex:  idx,
+		SwIfIndex:  ifIndex,
 		IsAdd:      1,
-		MacAddress: macAddr,
+		MacAddress: []byte(macAddr),
 		IsNoAdjFib: 1,
 		DstAddress: []byte(podIP.To4()),
 	}
@@ -95,7 +85,7 @@ func (s *remoteCNIserver) configureArpOnVpp(request *cni.CNIRequest, macAddr []b
 	reply := &ip.IPNeighborAddDelReply{}
 	err := s.govppChan.SendRequest(req).ReceiveReply(reply)
 	if reply.Retval != 0 {
-		return fmt.Errorf("Adding arp entry returned non zero error code (%v)", reply.Retval)
+		return fmt.Errorf("adding arp entry returned non zero error code (%v)", reply.Retval)
 	}
 	return err
 }
@@ -120,17 +110,15 @@ func (s *remoteCNIserver) configureArpInContainer(macAddr net.HardwareAddr, requ
 	})
 }
 
-func (s *remoteCNIserver) getAfPacketMac(afPacket string) (net.HardwareAddr, error) {
+func (s *remoteCNIserver) getVppInterfaceDetails(intfNamePrefix string, ifIndex uint32) (*interfaces.SwInterfaceDetails, error) {
 	req := &interfaces.SwInterfaceDump{
-		NameFilter:      []byte(afPacket),
+		NameFilter:      []byte(intfNamePrefix),
 		NameFilterValid: 1,
 	}
-	var mac net.HardwareAddr
-	found := false
 
 	if s.govppChan == nil {
-		s.Logger.Warn("GoVpp not available")
-		return mac, nil
+		s.Logger.Warn("GoVpp is not available")
+		return &interfaces.SwInterfaceDetails{}, nil
 	}
 
 	ctx := s.govppChan.SendMultiRequest(req)
@@ -144,36 +132,21 @@ func (s *remoteCNIserver) getAfPacketMac(afPacket string) (net.HardwareAddr, err
 		if err != nil {
 			return nil, err
 		}
-		if strings.HasPrefix(string(ifDetails.InterfaceName), afPacket) {
-			mac = net.HardwareAddr(ifDetails.L2Address[:ifDetails.L2AddressLength])
-			found = true
+		if ifDetails.SwIfIndex == ifIndex {
+			return ifDetails, nil
 		}
 	}
 
-	if !found {
-		return nil, fmt.Errorf("unable to look up MAC for if %v", afPacket)
-	}
-	return mac, nil
-
+	return nil, fmt.Errorf("unable to look up details for if %v", intfNamePrefix)
 }
 
-func (s *remoteCNIserver) setupStn(podIP string, ifname string) error {
+func (s *remoteCNIserver) setupStn(podIP string, ifIndex uint32) error {
 	req := &stn.StnAddDelRule{
 		IsIP4:     1,
 		IsAdd:     1,
 		IPAddress: net.ParseIP(podIP).To4(),
+		SwIfIndex: ifIndex,
 	}
-
-	if s.swIfIndex == nil {
-		return fmt.Errorf("unable to lookup interface %v", ifname)
-	}
-
-	idx, _, found := s.swIfIndex.LookupIdx(ifname)
-	if !found {
-		return fmt.Errorf("interface %v not found", ifname)
-	}
-
-	req.SwIfIndex = idx
 
 	if s.govppChan == nil {
 		s.Logger.Warn("GoVpp not available")
@@ -305,9 +278,20 @@ func (s *remoteCNIserver) veth1HostIfNameFromRequest(request *cni.CNIRequest) st
 	return request.InterfaceName
 }
 
+func (s *remoteCNIserver) tapHostNameFromRequest(request *cni.CNIRequest) string {
+	return request.InterfaceName
+}
+
 func (s *remoteCNIserver) veth2NameFromRequest(request *cni.CNIRequest) string {
-	if len(request.ContainerId) > vethNameMaxLen {
-		return request.ContainerId[:vethNameMaxLen]
+	if len(request.ContainerId) > linuxIfMaxLen {
+		return request.ContainerId[:linuxIfMaxLen]
+	}
+	return request.ContainerId
+}
+
+func (s *remoteCNIserver) tapTmpHostNameFromRequest(request *cni.CNIRequest) string {
+	if len(request.ContainerId) > linuxIfMaxLen {
+		return request.ContainerId[:linuxIfMaxLen]
 	}
 	return request.ContainerId
 }
@@ -316,12 +300,20 @@ func (s *remoteCNIserver) afpacketNameFromRequest(request *cni.CNIRequest) strin
 	return afPacketNamePrefix + s.veth2NameFromRequest(request)
 }
 
+func (s *remoteCNIserver) tapNameFromRequest(request *cni.CNIRequest) string {
+	return tapNamePrefix + s.tapTmpHostNameFromRequest(request)
+}
+
 func (s *remoteCNIserver) loopbackNameFromRequest(request *cni.CNIRequest) string {
 	return "loop" + s.veth2NameFromRequest(request)
 }
 
-func (s *remoteCNIserver) ipAddrForAfPacket() string {
-	return afPacketIPPrefix + "." + strconv.Itoa(s.counter+1) + "/32"
+func (s *remoteCNIserver) ipAddrForPodVPPIf() string {
+	return podIfIPPrefix + "." + strconv.Itoa(s.counter+1) + "/32"
+}
+
+func (s *remoteCNIserver) macAddrForContainer() string {
+	return "00:00:00:00:00:02"
 }
 
 func (s *remoteCNIserver) veth1FromRequest(request *cni.CNIRequest, podIP string) *linux_intf.LinuxInterfaces_Interface {
@@ -330,7 +322,7 @@ func (s *remoteCNIserver) veth1FromRequest(request *cni.CNIRequest, podIP string
 		Type:        linux_intf.LinuxInterfaces_VETH,
 		Enabled:     true,
 		HostIfName:  s.veth1HostIfNameFromRequest(request),
-		PhysAddress: "00:00:00:00:00:02",
+		PhysAddress: s.macAddrForContainer(),
 		Veth: &linux_intf.LinuxInterfaces_Interface_Veth{
 			PeerIfName: s.veth2NameFromRequest(request),
 		},
@@ -362,8 +354,25 @@ func (s *remoteCNIserver) afpacketFromRequest(request *cni.CNIRequest) *vpp_intf
 		Afpacket: &vpp_intf.Interfaces_Interface_Afpacket{
 			HostIfName: s.veth2NameFromRequest(request),
 		},
-		IpAddresses: []string{s.ipAddrForAfPacket()},
+		IpAddresses: []string{s.ipAddrForPodVPPIf()},
 	}
+}
+
+func (s *remoteCNIserver) tapFromRequest(request *cni.CNIRequest) *vpp_intf.Interfaces_Interface {
+	tap := &vpp_intf.Interfaces_Interface{
+		Name:    s.tapNameFromRequest(request),
+		Type:    vpp_intf.InterfaceType_TAP_INTERFACE,
+		Enabled: true,
+		Tap: &vpp_intf.Interfaces_Interface_Tap{
+			HostIfName: s.tapTmpHostNameFromRequest(request),
+		},
+		IpAddresses: []string{s.ipAddrForPodVPPIf()},
+	}
+	if s.tapVersion == 2 {
+		tap.Tap.Version = 2
+		tap.Tap.Namespace = request.NetworkNamespace
+	}
+	return tap
 }
 
 func (s *remoteCNIserver) loopbackFromRequest(request *cni.CNIRequest, loopIP string) *vpp_intf.Interfaces_Interface {
@@ -376,10 +385,15 @@ func (s *remoteCNIserver) loopbackFromRequest(request *cni.CNIRequest, loopIP st
 }
 
 func (s *remoteCNIserver) vppRouteFromRequest(request *cni.CNIRequest, podIP string) *l3.StaticRoutes_Route {
-	return &l3.StaticRoutes_Route{
-		DstIpAddr:         podIP,
-		OutgoingInterface: s.afpacketNameFromRequest(request),
+	route := &l3.StaticRoutes_Route{
+		DstIpAddr: podIP,
 	}
+	if s.useTAPInterfaces {
+		route.OutgoingInterface = s.tapNameFromRequest(request)
+	} else {
+		route.OutgoingInterface = s.afpacketNameFromRequest(request)
+	}
+	return route
 }
 
 func ipToIPNet(ip net.IP) net.IPNet {

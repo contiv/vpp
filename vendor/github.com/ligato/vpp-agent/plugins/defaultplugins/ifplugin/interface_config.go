@@ -592,7 +592,7 @@ func (plugin *InterfaceConfigurator) deleteVPPInterface(oldConfig *intf.Interfac
 	// let's try to do following even if previously error occurred
 	switch oldConfig.Type {
 	case intf.InterfaceType_TAP_INTERFACE:
-		err = vppcalls.DeleteTapInterface(ifIdx, plugin.vppCh, measure.GetTimeLog(tap.TapDelete{}, plugin.Stopwatch))
+		err = vppcalls.DeleteTapInterface(ifIdx, oldConfig.Tap.Version, plugin.vppCh, measure.GetTimeLog(tap.TapDelete{}, plugin.Stopwatch))
 	case intf.InterfaceType_MEMORY_INTERFACE:
 		err = vppcalls.DeleteMemifInterface(ifIdx, plugin.vppCh, measure.GetTimeLog(memif.MemifDelete{}, plugin.Stopwatch))
 	case intf.InterfaceType_VXLAN_TUNNEL:

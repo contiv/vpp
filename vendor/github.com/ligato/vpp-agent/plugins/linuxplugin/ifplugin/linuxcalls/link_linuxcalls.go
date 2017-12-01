@@ -56,3 +56,30 @@ func InterfaceExists(ifName string, timeLog measure.StopWatchEntry) (bool, error
 	}
 	return false, err
 }
+
+func RenameInterface(ifName string, newName string, timeLog measure.StopWatchEntry) error {
+	start := time.Now()
+	defer func() {
+		if timeLog != nil {
+			timeLog.LogTimeEntry(time.Since(start))
+		}
+	}()
+
+	link, err := netlink.LinkByName(ifName)
+	if err != nil {
+		return err
+	}
+	err = netlink.LinkSetDown(link)
+	if err != nil {
+		return err
+	}
+	err = netlink.LinkSetName(link, newName)
+	if err != nil {
+		return err
+	}
+	err = netlink.LinkSetUp(link)
+	if err != nil {
+		return err
+	}
+	return nil
+}

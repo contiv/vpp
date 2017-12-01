@@ -43,11 +43,12 @@ func AddTapInterface(tapIf *interfaces.Interfaces_Interface_Tap, vppChan *govppa
 	}
 
 	var (
-		retval int32
-	    swIfIndex uint32
+		retval    int32
+		swIfIndex uint32
 	)
 
 	if tapIf.Version == 2 {
+		fmt.Printf("Configuring TAP interface version 2: %+v\n", *tapIf)
 		// Configure fast virtio-based TAP interface
 		req := &tapv2.TapCreateV2{}
 		req.TapName = []byte(tapIf.HostIfName)
@@ -62,6 +63,7 @@ func AddTapInterface(tapIf *interfaces.Interfaces_Interface_Tap, vppChan *govppa
 		retval = reply.Retval
 		swIfIndex = reply.SwIfIndex
 	} else {
+		fmt.Printf("Configuring TAP interface version 1: %+v\n", *tapIf)
 		// Configure the original TAP interface
 		req := &tap.TapConnect{}
 		req.TapName = []byte(tapIf.HostIfName)
@@ -94,8 +96,8 @@ func DeleteTapInterface(idx uint32, version uint32, vppChan *govppapi.Channel, t
 	}()
 
 	var (
-		err       error
-		retval    int32
+		err    error
+		retval int32
 	)
 
 	if version == 2 {

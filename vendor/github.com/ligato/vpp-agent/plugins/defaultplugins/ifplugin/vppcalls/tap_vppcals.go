@@ -57,6 +57,8 @@ func AddTapInterface(tapIf *interfaces.Interfaces_Interface_Tap, vppChan *govppa
 			req.NetNs = []byte(tapIf.Namespace)
 			req.NetNsSet = 1
 		}
+		req.RxRingSz = 1024
+		req.TxRingSz = 1024
 
 		reply := &tapv2.TapCreateV2Reply{}
 		err = vppChan.SendRequest(req).ReceiveReply(reply)

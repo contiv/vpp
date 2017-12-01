@@ -450,17 +450,17 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 		}
 		nsMgmtCtx := linuxcalls.NewNamespaceMgmtCtx()
 
-		if s.tapVersion != 2 {
-			// Move TAP into the namespace of the container.
-			err = linuxcalls.SetInterfaceNamespace(nsMgmtCtx, tapTmpHostIfName,
-				containerNs, s.Logger, nil)
-			/* TODO: investigate the (non-fatal) error thrown here.
-			if err != nil {
-				s.Logger.Error(err)
-				return s.generateErrorResponse(err)
-			}
-			*/
+		//if s.tapVersion != 2 {
+		// Move TAP into the namespace of the container.
+		err = linuxcalls.SetInterfaceNamespace(nsMgmtCtx, tapTmpHostIfName,
+			containerNs, s.Logger, nil)
+		/* TODO: investigate the (non-fatal) error thrown here.
+		if err != nil {
+			s.Logger.Error(err)
+			return s.generateErrorResponse(err)
 		}
+		*/
+		//}
 
 		// Switch to the namespace of the container.
 		revertNs, err := linuxcalls.ToGenericNs(containerNs).SwitchNamespace(nsMgmtCtx, s.Logger)

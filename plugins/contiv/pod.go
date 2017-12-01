@@ -374,7 +374,7 @@ func (s *remoteCNIserver) tapFromRequest(request *cni.CNIRequest) *vpp_intf.Inte
 	}
 	if s.tapVersion == 2 {
 		tap.Tap.Version = 2
-		tap.Tap.Namespace = request.NetworkNamespace
+		//tap.Tap.Namespace = request.NetworkNamespace
 	}
 	return tap
 }

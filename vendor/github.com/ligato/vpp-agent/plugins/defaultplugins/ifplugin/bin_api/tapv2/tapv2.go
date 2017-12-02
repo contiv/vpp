@@ -6,7 +6,7 @@ package tapv2
 import "git.fd.io/govpp.git/api"
 
 // VlApiVersion contains version of the API.
-const VlAPIVersion = 0x09a66bf4
+const VlAPIVersion = 0xcbe1f022
 
 // TapCreateV2 represents the VPP binary API message 'tap_create_v2'.
 // Generated from '/usr/share/vpp/api/tapv2.api.json', line 6:
@@ -18,21 +18,37 @@ const VlAPIVersion = 0x09a66bf4
 //            ["u8", "use_random_mac"],
 //            ["u8", "tap_name", 64],
 //            ["u8", "mac_address", 6],
-//            ["u8", "net_ns_set"],
-//            ["u8", "net_ns", 64],
 //            ["u16", "tx_ring_sz"],
 //            ["u16", "rx_ring_sz"],
-//            {"crc" : "0x306d046b"}
+//            ["u8", "host_namespace_set"],
+//            ["u8", "host_namespace", 64],
+//            ["u8", "host_bridge_set"],
+//            ["u8", "host_bridge", 64],
+//            ["u8", "host_ip4_addr_set"],
+//            ["u8", "host_ip4_addr", 4],
+//            ["u8", "host_ip4_prefix_len"],
+//            ["u8", "host_ip6_addr_set"],
+//            ["u8", "host_ip6_addr", 16],
+//            ["u8", "host_ip6_prefix_len"],
+//            {"crc" : "0x59cb2245"}
 //        ],
 //
 type TapCreateV2 struct {
-	UseRandomMac uint8
-	TapName      []byte `struc:"[64]byte"`
-	MacAddress   []byte `struc:"[6]byte"`
-	NetNsSet     uint8
-	NetNs        []byte `struc:"[64]byte"`
-	TxRingSz     uint16
-	RxRingSz     uint16
+	UseRandomMac     uint8
+	TapName          []byte `struc:"[64]byte"`
+	MacAddress       []byte `struc:"[6]byte"`
+	TxRingSz         uint16
+	RxRingSz         uint16
+	HostNamespaceSet uint8
+	HostNamespace    []byte `struc:"[64]byte"`
+	HostBridgeSet    uint8
+	HostBridge       []byte `struc:"[64]byte"`
+	HostIP4AddrSet   uint8
+	HostIP4Addr      []byte `struc:"[4]byte"`
+	HostIP4PrefixLen uint8
+	HostIP6AddrSet   uint8
+	HostIP6Addr      []byte `struc:"[16]byte"`
+	HostIP6PrefixLen uint8
 }
 
 func (*TapCreateV2) GetMessageName() string {
@@ -42,14 +58,14 @@ func (*TapCreateV2) GetMessageType() api.MessageType {
 	return api.RequestMessage
 }
 func (*TapCreateV2) GetCrcString() string {
-	return "306d046b"
+	return "59cb2245"
 }
 func NewTapCreateV2() api.Message {
 	return &TapCreateV2{}
 }
 
 // TapCreateV2Reply represents the VPP binary API message 'tap_create_v2_reply'.
-// Generated from '/usr/share/vpp/api/tapv2.api.json', line 19:
+// Generated from '/usr/share/vpp/api/tapv2.api.json', line 27:
 //
 //        ["tap_create_v2_reply",
 //            ["u16", "_vl_msg_id"],
@@ -78,7 +94,7 @@ func NewTapCreateV2Reply() api.Message {
 }
 
 // TapDeleteV2 represents the VPP binary API message 'tap_delete_v2'.
-// Generated from '/usr/share/vpp/api/tapv2.api.json', line 26:
+// Generated from '/usr/share/vpp/api/tapv2.api.json', line 34:
 //
 //        ["tap_delete_v2",
 //            ["u16", "_vl_msg_id"],
@@ -106,7 +122,7 @@ func NewTapDeleteV2() api.Message {
 }
 
 // TapDeleteV2Reply represents the VPP binary API message 'tap_delete_v2_reply'.
-// Generated from '/usr/share/vpp/api/tapv2.api.json', line 33:
+// Generated from '/usr/share/vpp/api/tapv2.api.json', line 41:
 //
 //        ["tap_delete_v2_reply",
 //            ["u16", "_vl_msg_id"],
@@ -133,7 +149,7 @@ func NewTapDeleteV2Reply() api.Message {
 }
 
 // SwInterfaceTapV2Dump represents the VPP binary API message 'sw_interface_tap_v2_dump'.
-// Generated from '/usr/share/vpp/api/tapv2.api.json', line 39:
+// Generated from '/usr/share/vpp/api/tapv2.api.json', line 47:
 //
 //        ["sw_interface_tap_v2_dump",
 //            ["u16", "_vl_msg_id"],
@@ -159,7 +175,7 @@ func NewSwInterfaceTapV2Dump() api.Message {
 }
 
 // SwInterfaceTapV2Details represents the VPP binary API message 'sw_interface_tap_v2_details'.
-// Generated from '/usr/share/vpp/api/tapv2.api.json', line 45:
+// Generated from '/usr/share/vpp/api/tapv2.api.json', line 53:
 //
 //        ["sw_interface_tap_v2_details",
 //            ["u16", "_vl_msg_id"],

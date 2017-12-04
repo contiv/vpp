@@ -1,0 +1,18 @@
+kind: NetworkPolicy
+apiVersion: networking.k8s.io/v1
+metadata:
+  name: allow-port
+  namespace: default
+spec:
+  podSelector:
+    matchLabels:
+      app: webstore
+      role: db
+  ingress:
+  - ports:
+    - port: 8080
+    from:
+    - podSelector:
+        matchLabels:
+          role: frontend
+

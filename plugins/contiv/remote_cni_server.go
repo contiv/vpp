@@ -692,6 +692,31 @@ func (s *remoteCNIserver) unconfigureContainerConnectivity(request *cni.CNIReque
 		return s.generateErrorResponse(err)
 	}
 
+	// Check if the TAP interface was removed in the host stack as well.
+	if s.useTAPInterfaces {
+		tapHostIfName := s.tapHostNameFromRequest(request)
+		containerNs := &linux_intf.LinuxInterfaces_Interface_Namespace{
+			Type:     linux_intf.LinuxInterfaces_Interface_Namespace_FILE_REF_NS,
+			Filepath: request.NetworkNamespace,
+		}
+		nsMgmtCtx := linuxcalls.NewNamespaceMgmtCtx()
+
+		// Switch to the namespace of the container.
+		revertNs, err := linuxcalls.ToGenericNs(containerNs).SwitchNamespace(nsMgmtCtx, s.Logger)
+		if err != nil {
+			s.Logger.Error(err)
+			return s.generateErrorResponse(err)
+		}
+
+		err = linuxcalls.DeleteInterface(tapHostIfName, nil)
+		if err == nil {
+			s.WithField("tap", tapHostIfName).Warn("TAP interface was not removed in the host stack by VPP")
+		}
+
+		err = nil
+		revertNs()
+	}
+
 	if s.useTAPInterfaces {
 		err = s.persistChanges(
 			[]string{vpp_intf.InterfaceKey(tap)},

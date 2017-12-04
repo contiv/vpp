@@ -64,18 +64,10 @@ func AddTapInterface(tapIf *interfaces.Interfaces_Interface_Tap, vppChan *govppa
 			req.TxRingSz = uint16(tapIf.TxRingSize)
 		}
 
-		for i := 0; i < 30; i++ {
-			reply := &tapv2.TapCreateV2Reply{}
-			err = vppChan.SendRequest(req).ReceiveReply(reply)
-			retval = reply.Retval
-			swIfIndex = reply.SwIfIndex
-			if retval != 0 {
-				fmt.Printf("Attempt %d to create TAPv2 has failed with error: %d\n", i, retval)
-			} else {
-				fmt.Printf("Attempt %d to create TAPv2 has succeeded", i)
-				break
-			}
-		}
+		reply := &tapv2.TapCreateV2Reply{}
+		err = vppChan.SendRequest(req).ReceiveReply(reply)
+		retval = reply.Retval
+		swIfIndex = reply.SwIfIndex
 	} else {
 		fmt.Printf("Configuring TAP interface version 1: %+v\n", *tapIf)
 		// Configure the original TAP interface

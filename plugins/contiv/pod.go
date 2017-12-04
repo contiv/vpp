@@ -23,12 +23,12 @@ import (
 
 	"github.com/containernetworking/plugins/pkg/ns"
 	"github.com/contiv/vpp/plugins/contiv/bin_api/session"
-	"github.com/contiv/vpp/plugins/contiv/bin_api/stn"
 	"github.com/contiv/vpp/plugins/contiv/model/cni"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/bin_api/interfaces"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/bin_api/ip"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/bin_api/vpe"
 	vpp_intf "github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/model/interfaces"
+	"github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/model/stn"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/l3plugin/model/l3"
 	linux_intf "github.com/ligato/vpp-agent/plugins/linuxplugin/ifplugin/model/interfaces"
 	"github.com/vishvananda/netlink"
@@ -140,33 +140,16 @@ func (s *remoteCNIserver) getVppInterfaceDetails(intfNamePrefix string, ifIndex 
 
 	if res != nil {
 		return res, nil
-	} else {
-		return nil, fmt.Errorf("unable to look up details for if %v", intfNamePrefix)
 	}
+	return nil, fmt.Errorf("unable to look up details for if %v", intfNamePrefix)
 }
 
-func (s *remoteCNIserver) setupStn(podIP string, ifIndex uint32) error {
-	req := &stn.StnAddDelRule{
-		IsIP4:     1,
-		IsAdd:     1,
-		IPAddress: net.ParseIP(podIP).To4(),
-		SwIfIndex: ifIndex,
+func (s *remoteCNIserver) StnRule(ipAddress net.IP, ifname string) *stn.StnRule {
+	return &stn.StnRule{
+		RuleName:  "rule1",            //used as unique id for rules in etcd (managed by vpp-agent)
+		IpAddress: ipAddress.String(), //ipv4
+		Interface: ifname,
 	}
-
-	if s.govppChan == nil {
-		s.Logger.Warn("GoVpp not available")
-		return nil
-	}
-
-	reply := stn.StnAddDelRuleReply{}
-
-	err := s.govppChan.SendRequest(req).ReceiveReply(&reply)
-
-	if reply.Retval != 0 {
-		return fmt.Errorf("adding stn rule returned non-zero return code: %d", reply.Retval)
-	}
-
-	return err
 }
 
 func (s *remoteCNIserver) addAppNamespace(podNamespace string, ifname string) (nsIndex uint32, err error) {

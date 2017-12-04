@@ -38,8 +38,10 @@ import (
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/rpc/grpc"
 	"github.com/ligato/cn-infra/utils/safeclose"
+	clientv1defaultplugins "github.com/ligato/vpp-agent/clientv1/defaultplugins"
+	defaultpluginslocalclient "github.com/ligato/vpp-agent/clientv1/defaultplugins/localclient"
 	"github.com/ligato/vpp-agent/clientv1/linux"
-	"github.com/ligato/vpp-agent/clientv1/linux/localclient"
+	linuxlocalclient "github.com/ligato/vpp-agent/clientv1/linux/localclient"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins"
 	"github.com/ligato/vpp-agent/plugins/govppmux"
 )
@@ -134,7 +136,10 @@ func (plugin *Plugin) Init() error {
 	}
 
 	plugin.cniServer, err = newRemoteCNIServer(plugin.Log,
-		func() linux.DataChangeDSL { return localclient.DataChangeRequest(plugin.PluginName) },
+		func() linux.DataChangeDSL { return linuxlocalclient.DataChangeRequest(plugin.PluginName) },
+		func() clientv1defaultplugins.DataChangeDSL {
+			return defaultpluginslocalclient.DataChangeRequest(plugin.PluginName)
+		},
 		plugin.Proxy,
 		plugin.configuredContainers,
 		plugin.govppCh,

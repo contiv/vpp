@@ -45,7 +45,6 @@ import (
 	vpp_intf "github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/model/interfaces"
 
 	"github.com/contiv/vpp/plugins/contiv/bin_api/session"
-	"github.com/contiv/vpp/plugins/contiv/bin_api/stn"
 	"github.com/contiv/vpp/plugins/contiv/ipam"
 	"github.com/onsi/gomega"
 )
@@ -81,7 +80,8 @@ func TestVeth1NameFromRequest(t *testing.T) {
 	txns := localclient.NewTxnTracker(nil)
 
 	server, err := newRemoteCNIServer(logroot.StandardLogger(),
-		txns.NewDataChangeTxn,
+		txns.NewLinuxDataChangeTxn,
+		txns.NewDefaultPluginsDataChangeTxn,
 		&kvdbproxy.Plugin{},
 		nil,
 		nil,
@@ -103,7 +103,8 @@ func TestAdd(t *testing.T) {
 	configuredContainers := containeridx.NewConfigIndex(logroot.StandardLogger(), core.PluginName("Plugin-name"), "title")
 
 	server, err := newRemoteCNIServer(logroot.StandardLogger(),
-		txns.NewDataChangeTxn,
+		txns.NewLinuxDataChangeTxn,
+		txns.NewDefaultPluginsDataChangeTxn,
 		kvdbproxy.NewKvdbsyncMock(),
 		configuredContainers,
 		vppChanMock(),
@@ -123,8 +124,8 @@ func TestAdd(t *testing.T) {
 	gomega.Expect(reply).NotTo(gomega.BeNil())
 
 	gomega.Expect(len(txns.PendingTxns)).To(gomega.BeEquivalentTo(0))
-	gomega.Expect(len(txns.CommittedTxns)).To(gomega.BeEquivalentTo(1))
-	// TODO add asserts for txns / currently applied config
+	gomega.Expect(len(txns.CommittedTxns)).To(gomega.BeEquivalentTo(2))
+	// TODO add asserts for txns(one linux plugin txn and one default plugins txn) / currently applied config
 
 	res := configuredContainers.LookupPodName(podName)
 	gomega.Expect(len(res)).To(gomega.BeEquivalentTo(1))
@@ -147,7 +148,6 @@ func vppChanMock() *api.Channel {
 	vppMock.RegisterBinAPITypes(vpe.Types)
 	vppMock.RegisterBinAPITypes(vxlan.Types)
 	vppMock.RegisterBinAPITypes(ip.Types)
-	vppMock.RegisterBinAPITypes(stn.Types)
 	vppMock.RegisterBinAPITypes(session.Types)
 
 	vppMock.MockReplyHandler(func(request govppmock.MessageDTO) (reply []byte, msgID uint16, prepared bool) {
@@ -220,11 +220,11 @@ func vppChanMock() *api.Channel {
 func addIfsIntoTheIndex(mapping ifaceidx.SwIfIndexRW) func(txn *localclient.Txn) error {
 	return func(txn *localclient.Txn) error {
 		var cnt uint32 = 1
-		if txn.DataChangeTxn == nil {
+		if txn.LinuxDataChangeTxn == nil {
 			// RESYNC not handled
 			return nil
 		}
-		for _, op := range txn.DataChangeTxn.Ops {
+		for _, op := range txn.LinuxDataChangeTxn.Ops {
 			if op.Value != nil /* Put */ && strings.HasPrefix(op.Key, vpp_intf.InterfaceKeyPrefix()) {
 				name, err := vpp_intf.ParseNameFromKey(op.Key)
 				if err != nil {

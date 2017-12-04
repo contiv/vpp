@@ -8,19 +8,19 @@ Test Teardown     Test_Case_Teardown
 
 *** Test Cases ***
 Repeat_Command_In_Client_Pod
-    :FOR    ${index}    IN RANGE    1000
+    :FOR    ${index}    IN RANGE    10000
     \    KubernetesEnv.Run_Finite_Command_In_Pod    pwd    ssh_session=${client_connection}
     \    KubernetesEnv.Run_Finite_Command_In_Pod    whoami    ssh_session=${client_connection}
     \    KubernetesEnv.Run_Finite_Command_In_Pod    ls -al    ssh_session=${client_connection}
 
 Repeat_Command_In_Server_Pod
-    :FOR    ${index}    IN RANGE    1000
+    :FOR    ${index}    IN RANGE    10000
     \    KubernetesEnv.Run_Finite_Command_In_Pod    pwd    ssh_session=${server_connection}
     \    KubernetesEnv.Run_Finite_Command_In_Pod    whoami    ssh_session=${server_connection}
     \    KubernetesEnv.Run_Finite_Command_In_Pod    ls -al    ssh_session=${server_connection}
 
 Repeat_Command_On Host
-    :FOR    ${index}    IN RANGE    1000
+    :FOR    ${index}    IN RANGE    10000
     \    KubernetesEnv.Run_Finite_Command_In_Pod    pwd    ssh_session=${testbed_connection}
     \    KubernetesEnv.Run_Finite_Command_In_Pod    whoami    ssh_session=${testbed_connection}
     \    KubernetesEnv.Run_Finite_Command_In_Pod    ls -al    ssh_session=${testbed_connection}

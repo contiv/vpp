@@ -239,6 +239,7 @@ func dumpTapDetails(log logging.Logger, vppChan *govppapi.Channel, ifs map[uint3
 		}
 	}()
 
+	// Original TAP.
 	reqCtx := vppChan.SendMultiRequest(&tap.SwInterfaceTapDump{})
 	for {
 		tapDetails := &tap.SwInterfaceTapDetails{}
@@ -255,7 +256,25 @@ func dumpTapDetails(log logging.Logger, vppChan *govppapi.Channel, ifs map[uint3
 		}
 		ifs[tapDetails.SwIfIndex].Type = ifnb.InterfaceType_TAP_INTERFACE
 	}
-
+	/*
+		// TAP v.2
+		reqCtx = vppChan.SendMultiRequest(&tapv2.SwInterfaceTapV2Dump{})
+		for {
+			tapDetails := &tapv2.SwInterfaceTapV2Details{}
+			stop, err := reqCtx.ReceiveReply(tapDetails)
+			if stop {
+				break // Break from the loop.
+			}
+			if err != nil {
+				log.Error(err)
+				return err
+			}
+			ifs[tapDetails.SwIfIndex].Tap = &ifnb.Interfaces_Interface_Tap{
+				HostIfName: string(bytes.Trim(tapDetails.DevName, "\x00")),
+			}
+			ifs[tapDetails.SwIfIndex].Type = ifnb.InterfaceType_TAP_INTERFACE
+		}
+	*/
 	return nil
 }
 

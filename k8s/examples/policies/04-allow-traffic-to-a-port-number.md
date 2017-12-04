@@ -25,7 +25,7 @@ spec:
       role: db
   ingress:
   - ports:
-    - port: 8000
+    - port: 8080
     from:
     - podSelector:
         matchLabels:
@@ -35,7 +35,7 @@ spec:
 This network policy will:
 
 - Drop all non-whitelisted traffic to pods with labels "app: webstore" and "role: db".
-- Allow traffic on port `5000` from pods with label
+- Allow traffic on port `8080` from pods with label
   `role=frontend` in the same namespace.
 
 ### Example

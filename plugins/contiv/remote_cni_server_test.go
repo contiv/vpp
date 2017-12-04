@@ -175,12 +175,16 @@ func vppChanMock() *api.Channel {
 			if ifDump.NameFilterValid == 1 {
 				ifDetail := interfaces_bin.SwInterfaceDetails{}
 				ifDetail.InterfaceName = ifDump.NameFilter
+				// TODO: for more complex tests we have to track assigned swIfIndex to interfaces
+				ifDetail.SwIfIndex = 1
+				ifDetail.L2Address = []byte("abcdef")
+				ifDetail.L2AddressLength = 6
+
 				reply, err := vppMock.ReplyBytes(request, &ifDetail)
 				if err == nil {
 					return reply, msgID, true
 				}
 			}
-
 		} else if strings.HasSuffix(reqName, "_dump") {
 			//do nothing and let reply next time for control_ping
 		} else {

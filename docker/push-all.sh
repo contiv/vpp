@@ -35,17 +35,14 @@ while [ "$1" != "" ]; do
             echo "Using branch name: ${BRANCH_NAME}"
             ;;
         -s | --skip-upload )
-            shift
             SKIP_UPLOAD="true"
             echo "Using skip upload: ${SKIP_UPLOAD}"
             ;;
         -d | --dev-upload )
-            shift
             DEV_UPLOAD="true"
             echo "Using dev upload: ${DEV_UPLOAD}"
             ;;
         -c | --cleanup )
-            shift
             CLEANUP="true"
             echo "Using cleanup: ${CLEANUP}"
             ;;
@@ -77,6 +74,7 @@ do
         then
             sudo docker push contivvpp/${IMAGE}:${TAG}
             sudo docker push contivvpp/${IMAGE}:latest
+        fi
     else
         # other branch - tag with the branch name
         echo "Tagging as contivvpp/${IMAGE}:${BRANCH_NAME}-${TAG} + contivvpp/${IMAGE}:${BRANCH_NAME}"
@@ -154,5 +152,5 @@ fi
 
 if [ "${CLEANUP}" == "true" ]
 then
-    sudo docker images | fgrep "${TAG}" | awk '{print $3}' | uniq | xargs sudo docker rmi
+    sudo docker images | fgrep "${TAG}" | awk '{print $3}' | sort -u | xargs sudo docker rmi -f || true
 fi

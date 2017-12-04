@@ -140,9 +140,8 @@ func (s *remoteCNIserver) getVppInterfaceDetails(intfNamePrefix string, ifIndex 
 
 	if res != nil {
 		return res, nil
-	} else {
-		return nil, fmt.Errorf("unable to look up details for if %v", intfNamePrefix)
 	}
+	return nil, fmt.Errorf("unable to look up details for if %v", intfNamePrefix)
 }
 
 func (s *remoteCNIserver) StnRule(ipAddress net.IP, ifname string) *stn.StnRule {

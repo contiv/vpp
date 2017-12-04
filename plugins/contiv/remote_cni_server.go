@@ -85,6 +85,10 @@ type remoteCNIserver struct {
 
 	// version of the TAP interface to use (if useTAPInterfaces==true)
 	tapVersion uint8
+
+	// Rx/Tx ring size for TAPv2
+	tapV2RxRingSize uint16
+	tapV2TxRingSize uint16
 }
 
 const (
@@ -121,6 +125,8 @@ func newRemoteCNIServer(logger logging.Logger, vppTxnFactory func() linux.DataCh
 		tcpChecksumOffloadDisabled: config.TCPChecksumOffloadDisabled,
 		useTAPInterfaces:           config.UseTAPInterfaces,
 		tapVersion:                 config.TAPInterfaceVersion,
+		tapV2RxRingSize:            config.TAPv2RxRingSize,
+		tapV2TxRingSize:            config.TAPv2TxRingSize,
 		disableTCPstack:            config.TCPstackDisabled,
 	}
 	server.vswitchCond = sync.NewCond(&server.Mutex)

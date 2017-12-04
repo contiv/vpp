@@ -84,6 +84,8 @@ type Config struct {
 	TCPstackDisabled           bool
 	UseTAPInterfaces           bool
 	TAPInterfaceVersion        uint8
+	TAPv2RxRingSize            uint16
+	TAPv2TxRingSize            uint16
 	IPAMConfig                 ipam.Config
 	NodeConfig                 []OneNodeConfig
 }

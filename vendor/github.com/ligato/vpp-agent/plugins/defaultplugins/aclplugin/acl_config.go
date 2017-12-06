@@ -47,9 +47,8 @@ type ACLConfigurator struct {
 	SwIfIndexes    ifaceidx.SwIfIndex
 	Stopwatch      *measure.Stopwatch // timer used to measure and store time
 
-	vppcalls        *vppcalls.ACLInterfacesVppCalls
-	vppChannel      *api.Channel
-	asyncVppChannel *api.Channel
+	vppcalls   *vppcalls.ACLInterfacesVppCalls
+	vppChannel *api.Channel
 }
 
 // Init goroutines, channels and mappings.
@@ -61,18 +60,12 @@ func (plugin *ACLConfigurator) Init() (err error) {
 	if err != nil {
 		return err
 	}
-	// Init VPP API channel for asynchronous calls
-	plugin.asyncVppChannel, err = plugin.GoVppmux.NewAPIChannel()
-	if err != nil {
-		return err
-	}
 
 	err = vppcalls.CheckMsgCompatibilityForACL(plugin.Log, plugin.vppChannel)
 
 	// todo possibly check acl plugin version on vpp using bin api acl_plugin_get_version
 
-	plugin.vppcalls = vppcalls.NewACLInterfacesVppCalls(plugin.asyncVppChannel, plugin.vppChannel, plugin.SwIfIndexes, plugin.Stopwatch)
-	go plugin.vppcalls.WatchACLInterfacesReplies(plugin.Log)
+	plugin.vppcalls = vppcalls.NewACLInterfacesVppCalls(plugin.vppChannel, plugin.SwIfIndexes, plugin.Stopwatch)
 
 	return err
 }
@@ -83,7 +76,7 @@ func (plugin *ACLConfigurator) Close() {
 }
 
 // ConfigureACL creates access list with provided rules and sets this list to every relevant interface.
-func (plugin *ACLConfigurator) ConfigureACL(acl *acl.AccessLists_Acl, callback func(error)) error {
+func (plugin *ACLConfigurator) ConfigureACL(acl *acl.AccessLists_Acl) error {
 	plugin.Log.Infof("Configuring new ACL %v", acl.AclName)
 
 	if acl.Rules != nil && len(acl.Rules) > 0 {
@@ -117,19 +110,20 @@ func (plugin *ACLConfigurator) ConfigureACL(acl *acl.AccessLists_Acl, callback f
 		// Set ACL to interfaces.
 		if acl.Interfaces != nil {
 			if isL2MacIP {
-				err := vppcalls.SetMacIPAclToInterface(vppACLIndex, acl.Interfaces.Ingress, plugin.SwIfIndexes, plugin.Log, plugin.vppChannel,
-					measure.GetTimeLog(acl_api.MacipACLInterfaceAddDel{}, plugin.Stopwatch))
+				err := plugin.vppcalls.SetMacIPAclToInterface(vppACLIndex, acl.Interfaces.Ingress, plugin.Log)
 				if err != nil {
 					return err
 				}
 			} else {
-				err = plugin.vppcalls.SetACLToInterfacesAsIngress(vppACLIndex, acl.Interfaces.Ingress, func(err error) {
-					callback(err)
-				}, plugin.Log)
+				err = plugin.vppcalls.SetACLToInterfacesAsIngress(vppACLIndex, acl.Interfaces.Ingress, plugin.Log)
+				if err != nil {
+					return err
+				}
 
-				err = plugin.vppcalls.SetACLToInterfacesAsEgress(vppACLIndex, acl.Interfaces.Egress, func(err error) {
-					callback(err)
-				}, plugin.Log)
+				err = plugin.vppcalls.SetACLToInterfacesAsEgress(vppACLIndex, acl.Interfaces.Egress, plugin.Log)
+				if err != nil {
+					return err
+				}
 			}
 		} else {
 			plugin.Log.Infof("No interface configured for ACL %v", acl.AclName)
@@ -141,7 +135,7 @@ func (plugin *ACLConfigurator) ConfigureACL(acl *acl.AccessLists_Acl, callback f
 
 // ModifyACL modifies previously created access list. L2 access list is removed and recreated,
 // L3/L4 access list is modified directly. List of interfaces is refreshed as well.
-func (plugin *ACLConfigurator) ModifyACL(oldACL *acl.AccessLists_Acl, newACL *acl.AccessLists_Acl, callback func(error)) error {
+func (plugin *ACLConfigurator) ModifyACL(oldACL *acl.AccessLists_Acl, newACL *acl.AccessLists_Acl) error {
 	plugin.Log.Infof("Modifying ACL %v", oldACL.AclName)
 
 	var err error
@@ -194,16 +188,14 @@ func (plugin *ACLConfigurator) ModifyACL(oldACL *acl.AccessLists_Acl, newACL *ac
 		if isL2MacIP {
 			// Remove L2 ACL from old interfaces.
 			if oldACL.Interfaces != nil {
-				err := vppcalls.RemoveMacIPIngressACLFromInterfaces(vppACLIndex, oldACL.Interfaces.Ingress, plugin.SwIfIndexes,
-					plugin.Log, plugin.vppChannel, measure.GetTimeLog(acl_api.MacipACLInterfaceAddDel{}, plugin.Stopwatch))
+				err := plugin.vppcalls.RemoveMacIPIngressACLFromInterfaces(vppACLIndex, oldACL.Interfaces.Ingress, plugin.Log)
 				if err != nil {
 					return err
 				}
 			}
 			// Put L2 ACL to new interfaces.
 			if newACL.Interfaces != nil {
-				err := vppcalls.SetMacIPAclToInterface(vppACLIndex, newACL.Interfaces.Ingress, plugin.SwIfIndexes, plugin.Log,
-					plugin.vppChannel, measure.GetTimeLog(acl_api.MacipACLInterfaceAddDel{}, plugin.Stopwatch))
+				err := plugin.vppcalls.SetMacIPAclToInterface(vppACLIndex, newACL.Interfaces.Ingress, plugin.Log)
 				if err != nil {
 					return err
 				}
@@ -212,23 +204,27 @@ func (plugin *ACLConfigurator) ModifyACL(oldACL *acl.AccessLists_Acl, newACL *ac
 		} else {
 			// Remove L3/L4 ACL from old interfaces.
 			if oldACL.Interfaces != nil {
-				err = plugin.vppcalls.RemoveIPIngressACLFromInterfaces(vppACLIndex, oldACL.Interfaces.Ingress, func(err error) {
-					callback(err)
-				}, plugin.Log)
+				err = plugin.vppcalls.RemoveIPIngressACLFromInterfaces(vppACLIndex, oldACL.Interfaces.Ingress, plugin.Log)
+				if err != nil {
+					return err
+				}
 
-				err = plugin.vppcalls.RemoveIPEgressACLFromInterfaces(vppACLIndex, oldACL.Interfaces.Egress, func(err error) {
-					callback(err)
-				}, plugin.Log)
+				err = plugin.vppcalls.RemoveIPEgressACLFromInterfaces(vppACLIndex, oldACL.Interfaces.Egress, plugin.Log)
+				if err != nil {
+					return err
+				}
 			}
 			// Put L3/L4 ACL to new interfaces.
 			if newACL.Interfaces != nil {
-				err = plugin.vppcalls.SetACLToInterfacesAsIngress(vppACLIndex, newACL.Interfaces.Ingress, func(err error) {
-					callback(err)
-				}, plugin.Log)
+				err = plugin.vppcalls.SetACLToInterfacesAsIngress(vppACLIndex, newACL.Interfaces.Ingress, plugin.Log)
+				if err != nil {
+					return err
+				}
 
-				err = plugin.vppcalls.SetACLToInterfacesAsEgress(vppACLIndex, newACL.Interfaces.Egress, func(err error) {
-					callback(err)
-				}, plugin.Log)
+				err = plugin.vppcalls.SetACLToInterfacesAsEgress(vppACLIndex, newACL.Interfaces.Egress, plugin.Log)
+				if err != nil {
+					return err
+				}
 			}
 		}
 	}
@@ -237,7 +233,7 @@ func (plugin *ACLConfigurator) ModifyACL(oldACL *acl.AccessLists_Acl, newACL *ac
 }
 
 // DeleteACL removes existing ACL. To detach ACL from interfaces, list of interfaces has to be provided.
-func (plugin *ACLConfigurator) DeleteACL(acl *acl.AccessLists_Acl, callback func(error)) error {
+func (plugin *ACLConfigurator) DeleteACL(acl *acl.AccessLists_Acl) error {
 	plugin.Log.Infof("Deleting ACL %v", acl.AclName)
 
 	var err error
@@ -251,8 +247,7 @@ func (plugin *ACLConfigurator) DeleteACL(acl *acl.AccessLists_Acl, callback func
 		// Remove interfaces from L2 ACL.
 		vppACLIndex := agentL2AclIndex - 1
 		if acl.Interfaces != nil {
-			err := vppcalls.RemoveMacIPIngressACLFromInterfaces(vppACLIndex, acl.Interfaces.Ingress, plugin.SwIfIndexes, plugin.Log,
-				plugin.vppChannel, measure.GetTimeLog(acl_api.MacipACLInterfaceAddDel{}, plugin.Stopwatch))
+			err := plugin.vppcalls.RemoveMacIPIngressACLFromInterfaces(vppACLIndex, acl.Interfaces.Ingress, plugin.Log)
 			if err != nil {
 				return err
 			}
@@ -269,13 +264,15 @@ func (plugin *ACLConfigurator) DeleteACL(acl *acl.AccessLists_Acl, callback func
 		// Remove interfaces.
 		vppACLIndex := agentL3L4AclIndex - 1
 		if acl.Interfaces != nil {
-			err = plugin.vppcalls.RemoveIPIngressACLFromInterfaces(vppACLIndex, acl.Interfaces.Ingress, func(err error) {
-				callback(err)
-			}, plugin.Log)
+			err = plugin.vppcalls.RemoveIPIngressACLFromInterfaces(vppACLIndex, acl.Interfaces.Ingress, plugin.Log)
+			if err != nil {
+				return err
+			}
 
-			err = plugin.vppcalls.RemoveIPEgressACLFromInterfaces(vppACLIndex, acl.Interfaces.Egress, func(err error) {
-				callback(err)
-			}, plugin.Log)
+			err = plugin.vppcalls.RemoveIPEgressACLFromInterfaces(vppACLIndex, acl.Interfaces.Egress, plugin.Log)
+			if err != nil {
+				return err
+			}
 		}
 		// Remove ACL L3/L4.
 		err := vppcalls.DeleteIPAcl(vppACLIndex, plugin.Log, plugin.vppChannel, measure.GetTimeLog(acl_api.ACLDel{}, plugin.Stopwatch))
@@ -298,7 +295,7 @@ func (plugin *ACLConfigurator) DumpACL() (acls []*acl.AccessLists_Acl, err error
 	//	return nil
 	//}
 	//return acls
-	return  []*acl.AccessLists_Acl{},nil
+	return []*acl.AccessLists_Acl{}, nil
 }
 
 // Validate rules provided in ACL. Every rule has to contain actions and matches.

@@ -54,8 +54,14 @@ func AddTapInterface(tapIf *interfaces.Interfaces_Interface_Tap, vppChan *govppa
 		req.TapName = []byte(tapIf.HostIfName)
 		req.UseRandomMac = 1
 		if tapIf.Namespace != "" {
-			req.NetNs = []byte(tapIf.Namespace)
-			req.NetNsSet = 1
+			req.HostNamespace = []byte(tapIf.Namespace)
+			req.HostNamespaceSet = 1
+		}
+		if tapIf.RxRingSize != 0 {
+			req.RxRingSz = uint16(tapIf.RxRingSize)
+		}
+		if tapIf.TxRingSize != 0 {
+			req.TxRingSz = uint16(tapIf.TxRingSize)
 		}
 
 		reply := &tapv2.TapCreateV2Reply{}

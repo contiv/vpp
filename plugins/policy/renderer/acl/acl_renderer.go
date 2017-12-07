@@ -111,6 +111,17 @@ func (art *RendererTxn) Render(pod podmodel.ID, podIP *net.IPNet, ingress []*ren
 		return art
 	}
 
+	// Empty list of rules should allow all the traffic.
+	// We need to add allow-all rules explicitly so that for each allowed SYN packet
+	// a new contract entry is created and SYN-ACK is thus allowed as well.
+	// Not needed if the list of rules is empty for both sides.
+	if len(ingress) == 0 && len(egress) != 0 {
+		ingress = art.allowAllRules()
+	}
+	if len(egress) == 0 && len(ingress) != 0 {
+		egress = art.allowAllRules()
+	}
+
 	art.config[ifName] = &InterfaceConfig{ingress: ingress, egress: egress}
 	return art
 }
@@ -176,6 +187,29 @@ func (art *RendererTxn) Commit() error {
 
 	// Save changes into the cache.
 	return txn.Commit()
+}
+
+// allowAllRules returns Contiv rules that allow all the traffic.
+func (art *RendererTxn) allowAllRules() []*renderer.ContivRule {
+	ruleTCPAny := &renderer.ContivRule{
+		ID:          "TCP:ANY",
+		Action:      renderer.ActionPermit,
+		SrcNetwork:  &net.IPNet{},
+		DestNetwork: &net.IPNet{},
+		Protocol:    renderer.TCP,
+		SrcPort:     0,
+		DestPort:    0,
+	}
+	ruleUDPAny := &renderer.ContivRule{
+		ID:          "UDP:ANY",
+		Action:      renderer.ActionPermit,
+		SrcNetwork:  &net.IPNet{},
+		DestNetwork: &net.IPNet{},
+		Protocol:    renderer.UDP,
+		SrcPort:     0,
+		DestPort:    0,
+	}
+	return []*renderer.ContivRule{ruleTCPAny, ruleUDPAny}
 }
 
 // Remove lists with no rules since empty list of rules is equivalent to no ACL.

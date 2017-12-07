@@ -85,6 +85,10 @@ type remoteCNIserver struct {
 
 	// version of the TAP interface to use (if useTAPInterfaces==true)
 	tapVersion uint8
+
+	// Rx/Tx ring size for TAPv2
+	tapV2RxRingSize uint16
+	tapV2TxRingSize uint16
 }
 
 const (
@@ -121,6 +125,8 @@ func newRemoteCNIServer(logger logging.Logger, vppTxnFactory func() linux.DataCh
 		tcpChecksumOffloadDisabled: config.TCPChecksumOffloadDisabled,
 		useTAPInterfaces:           config.UseTAPInterfaces,
 		tapVersion:                 config.TAPInterfaceVersion,
+		tapV2RxRingSize:            config.TAPv2RxRingSize,
+		tapV2TxRingSize:            config.TAPv2TxRingSize,
 		disableTCPstack:            config.TCPstackDisabled,
 	}
 	server.vswitchCond = sync.NewCond(&server.Mutex)
@@ -450,17 +456,17 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 		}
 		nsMgmtCtx := linuxcalls.NewNamespaceMgmtCtx()
 
-		if s.tapVersion != 2 {
-			// Move TAP into the namespace of the container.
-			err = linuxcalls.SetInterfaceNamespace(nsMgmtCtx, tapTmpHostIfName,
-				containerNs, s.Logger, nil)
-			/* TODO: investigate the (non-fatal) error thrown here.
-			if err != nil {
-				s.Logger.Error(err)
-				return s.generateErrorResponse(err)
-			}
-			*/
+		//if s.tapVersion != 2 {
+		// Move TAP into the namespace of the container.
+		err = linuxcalls.SetInterfaceNamespace(nsMgmtCtx, tapTmpHostIfName,
+			containerNs, s.Logger, nil)
+		/* TODO: investigate the (non-fatal) error thrown here.
+		if err != nil {
+			s.Logger.Error(err)
+			return s.generateErrorResponse(err)
 		}
+		*/
+		//}
 
 		// Switch to the namespace of the container.
 		revertNs, err := linuxcalls.ToGenericNs(containerNs).SwitchNamespace(nsMgmtCtx, s.Logger)
@@ -684,6 +690,31 @@ func (s *remoteCNIserver) unconfigureContainerConnectivity(request *cni.CNIReque
 	if err != nil {
 		s.Logger.Error(err)
 		return s.generateErrorResponse(err)
+	}
+
+	// Check if the TAP interface was removed in the host stack as well.
+	if s.useTAPInterfaces {
+		tapHostIfName := s.tapHostNameFromRequest(request)
+		containerNs := &linux_intf.LinuxInterfaces_Interface_Namespace{
+			Type:     linux_intf.LinuxInterfaces_Interface_Namespace_FILE_REF_NS,
+			Filepath: request.NetworkNamespace,
+		}
+		nsMgmtCtx := linuxcalls.NewNamespaceMgmtCtx()
+
+		// Switch to the namespace of the container.
+		revertNs, err := linuxcalls.ToGenericNs(containerNs).SwitchNamespace(nsMgmtCtx, s.Logger)
+		if err != nil {
+			s.Logger.Error(err)
+			return s.generateErrorResponse(err)
+		}
+
+		err = linuxcalls.DeleteInterface(tapHostIfName, nil)
+		if err == nil {
+			s.WithField("tap", tapHostIfName).Warn("TAP interface was not removed in the host stack by VPP")
+		}
+
+		err = nil
+		revertNs()
 	}
 
 	if s.useTAPInterfaces {

@@ -21,6 +21,41 @@ sed -i "s@image: contivvpp/vswitch@image: dev-contiv-vswitch:<your image version
 To use the development image for testing with specific version of VPP, see
 [DEVIMAGE.md](../docker/DEVIMAGE.md).
 
+**contiv.yaml**
+
+  Configuration file for Contiv agent is deployed via the Config map `contiv-agent-cfg`
+  into the location `/etc/agent/contiv.yaml` of vSwitch. It includes several options
+  allowing to customize the network connectivity between pods, such as the configuration
+  of interfaces and allocation of IP addresses.
+
+  * Pod-to-VPP connectivity (top-level options)
+    - `TCPstackDisabled`: if the flag is set to `true`, neither VPP TCP stack nor STN is configured
+      and only VETHs or TAPs are used to connect Pods with VPP;
+    - `TCPChecksumOffloadDisabled`: disable checksum offloading for eth0 of every deployed pod;
+    - `UseTAPInterfaces`: use TAP interfaces instead of VETHs for Pod-to-VPP interconnection
+      (VETH is still used to connect VPP with the host stack);
+    - `TAPInterfaceVersion`: select `1` to use the standard VPP TAP interface (default) or `2`
+      for a faster, virtio-based, VPP TAPv2 interface (experimental);
+    - `TAPv2RxRingSize`: number of entries to allocate for TAPv2 Rx ring (default is 256);
+    - `TAPv2TxRingSize`: number of entries to allocate for TAPv2 Tx ring (default is 256).
+
+  * IPAM (section `IPAMConfig`)
+    - `PodSubnetCIDR`: subnet used for all pods across all nodes;
+    - `PodNetworkPrefixLen`: subnet prefix length used for all pods of 1 k8s node
+      (pod network = pod subnet for one k8s node);
+    - `VSwitchSubnetCIDR`: subnet used in each node for vSwitch-to-host connectivity;
+    - `VSwitchNetworkPrefixLen`: prefix length of the subnet used for vswitch-to-host connectivity
+      on 1 k8s node (vSwitch network = vSwitch subnet for one k8s node);
+    - `HostNodeSubnetCidr`: subnet used for main interfaces of all nodes.
+
+  * Node configuration (section `NodeConfig`; one entry for each node)
+    - `NodeName`: name of a Kubernetes node;
+    - `MainVppInterfaceName`: name of the interface to be used for node-to-node connectivity
+      (IP address is allocated from `HostNodeSubnetCidr` defined in the IPAM section);
+    - `OtherVPPInterfaces` (other configured interfaces only get IP address assigned in VPP)
+      - `InterfaceName`: name of the interface;
+      - `IP`: IP address to be attached to the interface.
+
 #### cri-install.sh
 Contiv-VPP CRI Shim installer / uninstaller, that can be used as follows:
 ```

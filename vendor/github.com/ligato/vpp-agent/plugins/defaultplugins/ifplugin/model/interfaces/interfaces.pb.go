@@ -273,6 +273,8 @@ type Interfaces_Interface_Tap struct {
 	Version    uint32 `protobuf:"varint,1,opt,name=version,proto3" json:"version,omitempty"`
 	HostIfName string `protobuf:"bytes,2,opt,name=host_if_name,proto3" json:"host_if_name,omitempty"`
 	Namespace  string `protobuf:"bytes,3,opt,name=namespace,proto3" json:"namespace,omitempty"`
+	RxRingSize uint32 `protobuf:"varint,4,opt,name=rx_ring_size,proto3" json:"rx_ring_size,omitempty"`
+	TxRingSize uint32 `protobuf:"varint,5,opt,name=tx_ring_size,proto3" json:"tx_ring_size,omitempty"`
 }
 
 func (m *Interfaces_Interface_Tap) Reset()         { *m = Interfaces_Interface_Tap{} }

@@ -17,7 +17,7 @@ package ifplugin
 import (
 	"github.com/ligato/cn-infra/core"
 	"github.com/ligato/cn-infra/logging"
-	"github.com/ligato/cn-infra/logging/logroot"
+	"github.com/ligato/cn-infra/logging/logrus"
 	"github.com/ligato/vpp-agent/idxvpp/nametoidx"
 	"github.com/ligato/vpp-agent/idxvpp/persist"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/model/bfd"
@@ -52,13 +52,13 @@ func (plugin *InterfaceConfigurator) Resync(nbIfaces []*intf.Interfaces_Interfac
 	// it means to find out names for vpp swIndexes
 	// (temporary: correlate using persisted sw_if_indexes)
 
-	corr := nametoidx.NewNameToIdx(logroot.StandardLogger(), core.PluginName("defaultvppplugins-ifplugin"), "iface resync corr", nil)
+	corr := nametoidx.NewNameToIdx(logrus.DefaultLogger(), core.PluginName("defaultvppplugins-ifplugin"), "iface resync corr", nil)
 
 	if !plugin.resyncDoneOnce { //probably shortly after startup
 		// we temporary load the last state from the file (in case the agent crashed)
 		// later we use the VPP Master ID to correlate
 
-		tmpCorr := nametoidx.NewNameToIdx(logroot.StandardLogger(), core.PluginName("defaultvppplugins-ifplugin"), "iface resync corr", nil)
+		tmpCorr := nametoidx.NewNameToIdx(logrus.DefaultLogger(), core.PluginName("defaultvppplugins-ifplugin"), "iface resync corr", nil)
 
 		err = persist.Marshalling(plugin.ServiceLabel.GetAgentLabel(), plugin.swIfIndexes.GetMapping(), tmpCorr)
 		if err != nil {
@@ -108,10 +108,6 @@ func (plugin *InterfaceConfigurator) Resync(nbIfaces []*intf.Interfaces_Interfac
 			err := plugin.modifyVPPInterface(nbIface, &vppIface.Interfaces_Interface, swIfIdx, vppIface.Type)
 			if err != nil {
 				wasError = err
-			}
-			if !plugin.afPacketConfigurator.IsPendingAfPacket(nbIface) {
-				// even if error occurred (because there is still swIfIndex)
-				plugin.swIfIndexes.RegisterName(nbIface.Name, swIfIdx, nbIface)
 			}
 		} else {
 			toBeConfigured = append(toBeConfigured, nbIface)

@@ -1,0 +1,658 @@
+/*
+ * Copyright (c) 2015-2016 Cisco and/or its affiliates.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at:
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+vl_api_version 1.0.0
+
+/** \brief IPsec: Add/delete Security Policy Database
+    @param client_index - opaque cookie to identify the sender
+    @param context - sender context, to match reply w/ request
+    @param is_add - add SPD if non-zero, else delete
+    @param spd_id - SPD instance id (control plane allocated)
+*/
+
+autoreply define ipsec_spd_add_del
+{
+  u32 client_index;
+  u32 context;
+  u8 is_add;
+  u32 spd_id;
+};
+
+/** \brief IPsec: Add/delete SPD from interface
+
+    @param client_index - opaque cookie to identify the sender
+    @param context - sender context, to match reply w/ request
+    @param is_add - add security mode if non-zero, else delete
+    @param sw_if_index - index of the interface
+    @param spd_id - SPD instance id to use for lookups
+*/
+
+
+autoreply define ipsec_interface_add_del_spd
+{
+  u32 client_index;
+  u32 context;
+
+  u8 is_add;
+  u32 sw_if_index;
+  u32 spd_id;
+};
+
+/** \brief IPsec: Add/delete Security Policy Database entry
+
+    See RFC 4301, 4.4.1.1 on how to match packet to selectors
+
+    @param client_index - opaque cookie to identify the sender
+    @param context - sender context, to match reply w/ request
+    @param is_add - add SPD if non-zero, else delete
+    @param spd_id - SPD instance id (control plane allocated)
+    @param priority - priority of SPD entry (non-unique value).  Used to order SPD matching - higher priorities match before lower
+    @param is_outbound - entry applies to outbound traffic if non-zero, otherwise applies to inbound traffic
+    @param is_ipv6 - remote/local address are IPv6 if non-zero, else IPv4
+    @param remote_address_start - start of remote address range to match
+    @param remote_address_stop - end of remote address range to match
+    @param local_address_start - start of local address range to match
+    @param local_address_stop - end of local address range to match
+    @param protocol - protocol type to match [0 means any]
+    @param remote_port_start - start of remote port range to match ...
+    @param remote_port_stop - end of remote port range to match [0 to 65535 means ANY, 65535 to 0 means OPAQUE]
+    @param local_port_start - start of local port range to match ...
+    @param local_port_stop - end of remote port range to match [0 to 65535 means ANY, 65535 to 0 means OPAQUE]
+    @param policy - 0 = bypass (no IPsec processing), 1 = discard (discard packet with ICMP processing), 2 = resolve (send request to control plane for SA resolving, and discard without ICMP processing), 3 = protect (apply IPsec policy using following parameters)
+    @param sa_id - SAD instance id (control plane allocated)
+
+*/
+
+autoreply define ipsec_spd_add_del_entry
+{
+  u32 client_index;
+  u32 context;
+  u8 is_add;
+
+  u32 spd_id;
+  i32 priority;
+  u8 is_outbound;
+
+  // Selector
+  u8 is_ipv6;
+  u8 is_ip_any;
+  u8 remote_address_start[16];
+  u8 remote_address_stop[16];
+  u8 local_address_start[16];
+  u8 local_address_stop[16];
+
+  u8 protocol;
+
+  u16 remote_port_start;
+  u16 remote_port_stop;
+  u16 local_port_start;
+  u16 local_port_stop;
+
+  // Policy
+  u8 policy;
+  u32 sa_id;
+};
+
+/** \brief IPsec: Add/delete Security Association Database entry
+    @param client_index - opaque cookie to identify the sender
+    @param context - sender context, to match reply w/ request
+    @param is_add - add SAD entry if non-zero, else delete
+
+    @param sad_id - sad id
+
+    @param spi - security parameter index
+
+    @param protocol - 0 = AH, 1 = ESP
+
+    @param crypto_algorithm - 0 = Null, 1 = AES-CBC-128, 2 = AES-CBC-192, 3 = AES-CBC-256, 4 = 3DES-CBC
+    @param crypto_key_length - length of crypto_key in bytes
+    @param crypto_key - crypto keying material
+
+    @param integrity_algorithm - 0 = None, 1 = MD5-96, 2 = SHA1-96, 3 = SHA-256, 4 = SHA-384, 5=SHA-512
+    @param integrity_key_length - length of integrity_key in bytes
+    @param integrity_key - integrity keying material
+
+    @param use_extended_sequence_number - use ESN when non-zero
+
+    @param is_tunnel - IPsec tunnel mode if non-zero, else transport mode
+    @param is_tunnel_ipv6 - IPsec tunnel mode is IPv6 if non-zero, else IPv4 tunnel only valid if is_tunnel is non-zero
+    @param tunnel_src_address - IPsec tunnel source address IPv6 if is_tunnel_ipv6 is non-zero, else IPv4. Only valid if is_tunnel is non-zero
+    @param tunnel_dst_address - IPsec tunnel destination address IPv6 if is_tunnel_ipv6 is non-zero, else IPv4. Only valid if is_tunnel is non-zero
+
+    To be added:
+     Anti-replay
+     IPsec tunnel address copy mode (to support GDOI)
+ */
+
+autoreply define ipsec_sad_add_del_entry
+{
+  u32 client_index;
+  u32 context;
+  u8 is_add;
+
+  u32 sad_id;
+
+  u32 spi;
+
+  u8 protocol;
+
+  u8 crypto_algorithm;
+  u8 crypto_key_length;
+  u8 crypto_key[128];
+
+  u8 integrity_algorithm;
+  u8 integrity_key_length;
+  u8 integrity_key[128];
+
+  u8 use_extended_sequence_number;
+  u8 use_anti_replay;
+
+  u8 is_tunnel;
+  u8 is_tunnel_ipv6;
+  u8 tunnel_src_address[16];
+  u8 tunnel_dst_address[16];
+};
+
+/** \brief IPsec: Update Security Association keys
+    @param client_index - opaque cookie to identify the sender
+    @param context - sender context, to match reply w/ request
+
+    @param sa_id - sa id
+
+    @param crypto_key_length - length of crypto_key in bytes
+    @param crypto_key - crypto keying material
+
+    @param integrity_key_length - length of integrity_key in bytes
+    @param integrity_key - integrity keying material
+*/
+
+autoreply define ipsec_sa_set_key
+{
+  u32 client_index;
+  u32 context;
+
+  u32 sa_id;
+
+  u8 crypto_key_length;
+  u8 crypto_key[128];
+
+  u8 integrity_key_length;
+  u8 integrity_key[128];
+};
+
+/** \brief IKEv2: Add/delete profile
+    @param client_index - opaque cookie to identify the sender
+    @param context - sender context, to match reply w/ request
+
+    @param name - IKEv2 profile name
+    @param is_add - Add IKEv2 profile if non-zero, else delete
+*/
+autoreply define ikev2_profile_add_del
+{
+  u32 client_index;
+  u32 context;
+
+  u8 name[64];
+  u8 is_add;
+};
+
+/** \brief IKEv2: Set IKEv2 profile authentication method
+    @param client_index - opaque cookie to identify the sender
+    @param context - sender context, to match reply w/ request
+
+    @param name - IKEv2 profile name
+    @param auth_method - IKEv2 authentication method (shared-key-mic/rsa-sig)
+    @param is_hex - Authentication data in hex format if non-zero, else string
+    @param data_len - Authentication data length
+    @param data - Authentication data (for rsa-sig cert file path)
+*/
+autoreply define ikev2_profile_set_auth
+{
+  u32 client_index;
+  u32 context;
+
+  u8 name[64];
+  u8 auth_method;
+  u8 is_hex;
+  u32 data_len;
+  u8 data[0];
+};
+
+/** \brief IKEv2: Set IKEv2 profile local/remote identification
+    @param client_index - opaque cookie to identify the sender
+    @param context - sender context, to match reply w/ request
+
+    @param name - IKEv2 profile name
+    @param is_local - Identification is local if non-zero, else remote
+    @param id_type - Identification type
+    @param data_len - Identification data length
+    @param data - Identification data
+*/
+autoreply define ikev2_profile_set_id
+{
+  u32 client_index;
+  u32 context;
+
+  u8 name[64];
+  u8 is_local;
+  u8 id_type;
+  u32 data_len;
+  u8 data[0];
+};
+
+/** \brief IKEv2: Set IKEv2 profile traffic selector parameters
+    @param client_index - opaque cookie to identify the sender
+    @param context - sender context, to match reply w/ request
+
+    @param name - IKEv2 profile name
+    @param is_local - Traffic selector is local if non-zero, else remote
+    @param proto - Traffic selector IP protocol (if zero not relevant)
+    @param start_port - The smallest port number allowed by traffic selector
+    @param end_port - The largest port number allowed by traffic selector
+    @param start_addr - The smallest address included in traffic selector
+    @param end_addr - The largest address included in traffic selector
+*/
+autoreply define ikev2_profile_set_ts
+{
+  u32 client_index;
+  u32 context;
+
+  u8 name[64];
+  u8 is_local;
+  u8 proto;
+  u16 start_port;
+  u16 end_port;
+  u32 start_addr;
+  u32 end_addr;
+};
+
+/** \brief IKEv2: Set IKEv2 local RSA private key
+    @param client_index - opaque cookie to identify the sender
+    @param context - sender context, to match reply w/ request
+
+    @param key_file - Key file absolute path
+*/
+autoreply define ikev2_set_local_key
+{
+  u32 client_index;
+  u32 context;
+
+  u8 key_file[256];
+};
+
+/** \brief IKEv2: Set IKEv2 responder interface and IP address
+    @param client_index - opaque cookie to identify the sender
+    @param context - sender context, to match reply w/ request
+
+    @param name - IKEv2 profile name
+    @param sw_if_index - interface index
+    @param address - interface address
+*/
+autoreply define ikev2_set_responder
+{
+  u32 client_index;
+  u32 context;
+
+  u8 name[64];
+  u32 sw_if_index;
+  u8 address[4];
+};
+
+/** \brief IKEv2: Set IKEv2 IKE transforms in SA_INIT proposal (RFC 7296)
+    @param client_index - opaque cookie to identify the sender
+    @param context - sender context, to match reply w/ request
+
+    @param name - IKEv2 profile name
+    @param crypto_alg - encryption algorithm
+    @param crypto_key_size - encryption key size
+    @param integ_alg - integrity algorithm
+    @param dh_group - Diffie-Hellman group
+    
+*/
+autoreply define ikev2_set_ike_transforms
+{
+  u32 client_index;
+  u32 context;
+
+  u8 name[64];
+  u32 crypto_alg;
+  u32 crypto_key_size;
+  u32 integ_alg;
+  u32 dh_group;
+};
+
+/** \brief IKEv2: Set IKEv2 ESP transforms in SA_INIT proposal (RFC 7296)
+    @param client_index - opaque cookie to identify the sender
+    @param context - sender context, to match reply w/ request
+
+    @param name - IKEv2 profile name
+    @param crypto_alg - encryption algorithm
+    @param crypto_key_size - encryption key size
+    @param integ_alg - integrity algorithm
+    @param dh_group - Diffie-Hellman group
+    
+*/
+autoreply define ikev2_set_esp_transforms
+{
+  u32 client_index;
+  u32 context;
+
+  u8 name[64];
+  u32 crypto_alg;
+  u32 crypto_key_size;
+  u32 integ_alg;
+  u32 dh_group;
+};
+
+/** \brief IKEv2: Set Child SA lifetime, limited by time and/or data
+    @param client_index - opaque cookie to identify the sender
+    @param context - sender context, to match reply w/ request
+
+    @param name - IKEv2 profile name
+    @param lifetime - SA maximum life time in seconds (0 to disable)
+    @param lifetime_jitter - Jitter added to prevent simultaneounus rekeying
+    @param handover - Hand over time
+    @param lifetime_maxdata - SA maximum life time in bytes (0 to disable)
+    
+*/
+autoreply define ikev2_set_sa_lifetime
+{
+  u32 client_index;
+  u32 context;
+
+  u8 name[64];
+  u64 lifetime;
+  u32 lifetime_jitter;
+  u32 handover;
+  u64 lifetime_maxdata;
+};
+
+/** \brief IKEv2: Initiate the SA_INIT exchange
+    @param client_index - opaque cookie to identify the sender
+    @param context - sender context, to match reply w/ request
+
+    @param name - IKEv2 profile name
+    
+*/
+autoreply define ikev2_initiate_sa_init
+{
+  u32 client_index;
+  u32 context;
+
+  u8 name[64];
+};
+
+/** \brief IKEv2: Initiate the delete IKE SA exchange
+    @param client_index - opaque cookie to identify the sender
+    @param context - sender context, to match reply w/ request
+
+    @param ispi - IKE SA initiator SPI
+    
+*/
+autoreply define ikev2_initiate_del_ike_sa
+{
+  u32 client_index;
+  u32 context;
+
+  u64 ispi;
+};
+
+/** \brief IKEv2: Initiate the delete Child SA exchange
+    @param client_index - opaque cookie to identify the sender
+    @param context - sender context, to match reply w/ request
+
+    @param ispi - Child SA initiator SPI
+    
+*/
+autoreply define ikev2_initiate_del_child_sa
+{
+  u32 client_index;
+  u32 context;
+
+  u32 ispi;
+};
+
+/** \brief IKEv2: Initiate the rekey Child SA exchange
+    @param client_index - opaque cookie to identify the sender
+    @param context - sender context, to match reply w/ request
+
+    @param ispi - Child SA initiator SPI
+    
+*/
+autoreply define ikev2_initiate_rekey_child_sa
+{
+  u32 client_index;
+  u32 context;
+
+  u32 ispi;
+};
+
+/** \brief Dump ipsec policy database data
+    @param client_index - opaque cookie to identify the sender
+    @param context - sender context, to match reply w/ request
+    @param spd_id - SPD instance id
+    @param sa_id - SA id, optional, set to ~0 to see all policies in SPD
+*/
+define ipsec_spd_dump {
+    u32 client_index;
+    u32 context;
+    u32 spd_id;
+    u32 sa_id;
+};
+
+/** \brief IPsec policy database response
+    @param context - sender context which was passed in the request
+    @param spd_id - SPD instance id
+    @param priority - numeric value to control policy evaluation order
+    @param is_outbound - [1|0] to indicate if direction is [out|in]bound
+    @param is_ipv6 - [1|0] to indicate if address family is ipv[6|4]
+    @param local_start_addr - first address in local traffic selector range
+    @param local_stop_addr - last address in local traffic selector range
+    @param local_start_port - first port in local traffic selector range
+    @param local_stop_port - last port in local traffic selector range
+    @param remote_start_addr - first address in remote traffic selector range
+    @param remote_stop_addr - last address in remote traffic selector range
+    @param remote_start_port - first port in remote traffic selector range
+    @param remote_stop_port - last port in remote traffic selector range
+    @param protocol - traffic selector protocol
+    @param policy - policy action
+    @param sa_id - SA id
+    @param bytes - byte count of packets matching this policy
+    @param packets - count of packets matching this policy
+*/
+define ipsec_spd_details {
+    u32 context;
+    u32 spd_id;
+    i32 priority;
+    u8 is_outbound;
+    u8 is_ipv6;
+    u8 local_start_addr[16];
+    u8 local_stop_addr[16];
+    u16 local_start_port;
+    u16 local_stop_port;
+    u8 remote_start_addr[16];
+    u8 remote_stop_addr[16];
+    u16 remote_start_port;
+    u16 remote_stop_port;
+    u8 protocol;
+    u8 policy;
+    u32 sa_id;
+    u64 bytes;
+    u64 packets;
+};
+
+/** \brief Add or delete IPsec tunnel interface
+    @param client_index - opaque cookie to identify the sender
+    @param context - sender context, to match reply w/ request
+    @param is_add - add IPsec tunnel interface if nonzero, else delete
+    @param esn - enable extended sequence numbers if nonzero, else disable
+    @param anti_replay - enable anti replay check if nonzero, else disable
+    @param local_ip - local IP address
+    @param remote_ip - IP address of remote IPsec peer
+    @param local_spi - SPI of outbound IPsec SA
+    @param remote_spi - SPI of inbound IPsec SA
+    @param crypto_alg - encryption algorithm ID
+    @param local_crypto_key_len - length of local crypto key in bytes
+    @param local_crypto_key - crypto key for outbound IPsec SA
+    @param remote_crypto_key_len - length of remote crypto key in bytes
+    @param remote_crypto_key - crypto key for inbound IPsec SA
+    @param integ_alg - integrity algorithm ID
+    @param local_integ_key_len - length of local integrity key in bytes
+    @param local_integ_key - integrity key for outbound IPsec SA
+    @param remote_integ_key_len - length of remote integrity key in bytes
+    @param remote_integ_key - integrity key for inbound IPsec SA
+*/
+define ipsec_tunnel_if_add_del {
+  u32 client_index;
+  u32 context;
+  u8 is_add;
+  u8 esn;
+  u8 anti_replay;
+  u8 local_ip[4];
+  u8 remote_ip[4];
+  u32 local_spi;
+  u32 remote_spi;
+  u8 crypto_alg;
+  u8 local_crypto_key_len;
+  u8 local_crypto_key[128];
+  u8 remote_crypto_key_len;
+  u8 remote_crypto_key[128];
+  u8 integ_alg;
+  u8 local_integ_key_len;
+  u8 local_integ_key[128];
+  u8 remote_integ_key_len;
+  u8 remote_integ_key[128];
+};
+
+/** \brief Add/delete IPsec tunnel interface response
+    @param context - sender context, to match reply w/ request
+    @param retval - return status
+    @param sw_if_index - sw_if_index of new interface (for successful add)
+*/
+define ipsec_tunnel_if_add_del_reply {
+  u32 context;
+  i32 retval;
+  u32 sw_if_index;
+};
+
+/** \brief Dump IPsec security association
+    @param client_index - opaque cookie to identify the sender
+    @param context - sender context, to match reply w/ request
+    @param sa_id - optional ID of an SA to dump, if ~0 dump all SAs in SAD
+*/
+define ipsec_sa_dump {
+  u32 client_index;
+  u32 context;
+  u32 sa_id;
+};
+
+/** \brief IPsec security association database response
+    @param context - sender context which was passed in the request
+    @param sa_id - SA ID, policy-based SAs >=0, tunnel interface SAs = 0 
+    @param sw_if_index - sw_if_index of tunnel interface, policy-based SAs = ~0
+    @param spi - security parameter index
+    @param protocol - IPsec protocol (value from ipsec_protocol_t)
+    @param crypto_alg - crypto algorithm (value from ipsec_crypto_alg_t)
+    @param crypto_key_len - length of crypto_key in bytes
+    @param crypto_key - crypto keying material
+    @param integ_alg - integrity algorithm (value from ipsec_integ_alg_t)
+    @param integ_key_len - length of integ_key in bytes
+    @param integ_key - integrity keying material
+    @param use_esn - using extended sequence numbers when non-zero
+    @param use_anti_replay - using anti-replay window when non-zero
+    @param is_tunnel - IPsec tunnel mode when non-zero, else transport mode
+    @param is_tunnel_ipv6 - If using tunnel mode, endpoints are IPv6
+    @param tunnel_src_addr - Tunnel source address if using tunnel mode
+    @param tunnel_dst_addr - Tunnel destination address is using tunnel mode
+    @param salt - 4 byte salt 
+    @param seq - current sequence number for outbound
+    @param seq_hi - high 32 bits of ESN for outbound 
+    @param last_seq - highest sequence number received inbound
+    @param last_seq_hi - high 32 bits of highest ESN received inbound
+    @param replay_window - bit map of seq nums received relative to last_seq if using anti-replay
+    @param total_data_size - total bytes sent or received
+*/
+define ipsec_sa_details {
+  u32 context;
+  u32 sa_id;
+  u32 sw_if_index;
+
+  u32 spi;
+  u8 protocol;
+
+  u8 crypto_alg;
+  u8 crypto_key_len;
+  u8 crypto_key[128];
+
+  u8 integ_alg;
+  u8 integ_key_len;
+  u8 integ_key[128];
+
+  u8 use_esn;
+  u8 use_anti_replay;
+
+  u8 is_tunnel;
+  u8 is_tunnel_ip6;
+  u8 tunnel_src_addr[16];
+  u8 tunnel_dst_addr[16];
+
+  u32 salt;
+  u64 seq_outbound;
+  u64 last_seq_inbound;
+  u64 replay_window;
+
+  u64 total_data_size;
+};
+
+/** \brief Set key on IPsec interface
+    @param client_index - opaque cookie to identify the sender
+    @param context - sender context, to match reply w/ request
+    @param sw_if_index - index of tunnel interface
+    @param key_type - type of key being set
+    @param alg - algorithm used with key
+    @param key_len - length key in bytes
+    @param key - key
+*/
+autoreply define ipsec_tunnel_if_set_key {
+  u32 client_index;
+  u32 context;
+  u32 sw_if_index;
+  u8 key_type;
+  u8 alg;
+  u8 key_len;
+  u8 key[128];
+};
+
+/** \brief Set new SA on IPsec interface
+    @param client_index - opaque cookie to identify the sender
+    @param context - sender context, to match reply w/ request
+    @param sw_if_index - index of tunnel interface
+    @param sa_id - ID of SA to use
+    @param is_outbound - 1 if outbound (local) SA, 0 if inbound (remote)
+*/
+autoreply define ipsec_tunnel_if_set_sa {
+  u32 client_index;
+  u32 context;
+  u32 sw_if_index;
+  u32 sa_id;
+  u8 is_outbound;
+};
+
+/*
+ * Local Variables:
+ * eval: (c-set-style "gnu")
+ * End:
+ */
+ 

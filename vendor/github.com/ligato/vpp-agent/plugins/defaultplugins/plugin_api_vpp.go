@@ -73,5 +73,6 @@ type API interface {
 	// for the transmit interface name.
 	GetXConnectIndexes() idxvpp.NameToIdx
 
+	// DumpACL returns a list of all configured ACLs.
 	DumpACL() (acls []*acl.AccessLists_Acl, err error)
 }

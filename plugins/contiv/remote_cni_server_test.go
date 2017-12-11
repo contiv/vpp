@@ -113,7 +113,6 @@ func TestAdd(t *testing.T) {
 		&config,
 		0)
 	gomega.Expect(err).To(gomega.BeNil())
-	server.hostCalls = &mockLinuxCalls{}
 
 	// unless we pretend that connectivity is configured requests are blocked
 	server.vswitchConnectivityConfigured = true

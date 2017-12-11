@@ -21,19 +21,16 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/containernetworking/plugins/pkg/ns"
 	"github.com/contiv/vpp/plugins/contiv/bin_api/session"
 	"github.com/contiv/vpp/plugins/contiv/model/cni"
-	"github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/bin_api/interfaces"
-	"github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/bin_api/ip"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/bin_api/vpe"
 	vpp_intf "github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/model/interfaces"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/model/stn"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/l3plugin/model/l3"
 	linux_intf "github.com/ligato/vpp-agent/plugins/linuxplugin/ifplugin/model/interfaces"
-	"github.com/vishvananda/netlink"
 )
 
+/* TODO: replace with vpp-agent
 func (s *remoteCNIserver) configureRoutesInContainer(request *cni.CNIRequest) error {
 	return s.WithNetNSPath(request.NetworkNamespace, func(netns ns.NetNS) error {
 		destination := ipToIPNet(s.ipam.PodGatewayIP())
@@ -54,22 +51,6 @@ func (s *remoteCNIserver) configureRoutesInContainer(request *cni.CNIRequest) er
 		}
 		return s.AddDefaultRoute(defaultNextHop, dev)
 	})
-}
-
-func (s *remoteCNIserver) retrieveContainerMacAddr(namespace string, ifname string) ([]byte, error) {
-
-	var macAddr []byte
-	err := s.WithNetNSPath(namespace, func(netNS ns.NetNS) error {
-		link, err := s.LinkByName(ifname)
-		if err != nil {
-			return err
-		}
-		macAddr = link.Attrs().HardwareAddr
-		return err
-
-	})
-	return macAddr, err
-
 }
 
 func (s *remoteCNIserver) configureArpOnVpp(request *cni.CNIRequest, ifIndex uint32, macAddr string, podIP net.IP) error {
@@ -143,6 +124,7 @@ func (s *remoteCNIserver) getVppInterfaceDetails(intfNamePrefix string, ifIndex 
 	}
 	return nil, fmt.Errorf("unable to look up details for if %v", intfNamePrefix)
 }
+*/
 
 func (s *remoteCNIserver) StnRule(ipAddress net.IP, ifname string) *stn.StnRule {
 	return &stn.StnRule{
@@ -152,6 +134,7 @@ func (s *remoteCNIserver) StnRule(ipAddress net.IP, ifname string) *stn.StnRule 
 	}
 }
 
+// TODO: Use localclient once ODPM-755 is done.
 func (s *remoteCNIserver) addAppNamespace(podNamespace string, ifname string) (nsIndex uint32, err error) {
 	req := &session.AppNamespaceAddDel{
 		Secret:         42,
@@ -176,13 +159,11 @@ func (s *remoteCNIserver) addAppNamespace(podNamespace string, ifname string) (n
 	}
 
 	reply := session.AppNamespaceAddDelReply{}
-
 	err = s.govppChan.SendRequest(req).ReceiveReply(&reply)
 
 	if reply.Retval != 0 {
 		return 0, fmt.Errorf("adding app namespace returned non-zero return code: %d", reply.Retval)
 	}
-
 	return reply.AppnsIndex, err
 }
 
@@ -266,18 +247,7 @@ func (s *remoteCNIserver) veth1HostIfNameFromRequest(request *cni.CNIRequest) st
 	return request.InterfaceName
 }
 
-func (s *remoteCNIserver) tapHostNameFromRequest(request *cni.CNIRequest) string {
-	return request.InterfaceName
-}
-
 func (s *remoteCNIserver) veth2NameFromRequest(request *cni.CNIRequest) string {
-	if len(request.ContainerId) > linuxIfMaxLen {
-		return request.ContainerId[:linuxIfMaxLen]
-	}
-	return request.ContainerId
-}
-
-func (s *remoteCNIserver) tapTmpHostNameFromRequest(request *cni.CNIRequest) string {
 	if len(request.ContainerId) > linuxIfMaxLen {
 		return request.ContainerId[:linuxIfMaxLen]
 	}
@@ -290,6 +260,17 @@ func (s *remoteCNIserver) afpacketNameFromRequest(request *cni.CNIRequest) strin
 
 func (s *remoteCNIserver) tapNameFromRequest(request *cni.CNIRequest) string {
 	return tapNamePrefix + s.tapTmpHostNameFromRequest(request)
+}
+
+func (s *remoteCNIserver) tapTmpHostNameFromRequest(request *cni.CNIRequest) string {
+	if len(request.ContainerId) > linuxIfMaxLen {
+		return request.ContainerId[:linuxIfMaxLen]
+	}
+	return request.ContainerId
+}
+
+func (s *remoteCNIserver) tapHostNameFromRequest(request *cni.CNIRequest) string {
+	return request.InterfaceName
 }
 
 func (s *remoteCNIserver) loopbackNameFromRequest(request *cni.CNIRequest) string {
@@ -358,7 +339,9 @@ func (s *remoteCNIserver) tapFromRequest(request *cni.CNIRequest) *vpp_intf.Inte
 	}
 	if s.tapVersion == 2 {
 		tap.Tap.Version = 2
-		//tap.Tap.Namespace = request.NetworkNamespace
+		/* TODO: Use TAPv2 namespace support once all the bugs are fixed on the VPP side.
+		tap.Tap.Namespace = request.NetworkNamespace
+		*/
 		tap.Tap.RxRingSize = uint32(s.tapV2RxRingSize)
 		tap.Tap.TxRingSize = uint32(s.tapV2TxRingSize)
 	}
@@ -384,8 +367,4 @@ func (s *remoteCNIserver) vppRouteFromRequest(request *cni.CNIRequest, podIP str
 		route.OutgoingInterface = s.afpacketNameFromRequest(request)
 	}
 	return route
-}
-
-func ipToIPNet(ip net.IP) net.IPNet {
-	return net.IPNet{IP: ip, Mask: net.IPv4Mask(0xff, 0xff, 0xff, 0xff)}
 }

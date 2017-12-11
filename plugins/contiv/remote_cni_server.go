@@ -51,8 +51,6 @@ type remoteCNIserver struct {
 	govppChan                   *api.Channel
 	swIfIndex                   ifaceidx.SwIfIndex
 	configuredContainers        *containeridx.ConfigIndex
-	// hostCalls encapsulates calls for managing linux networking
-	hostCalls
 
 	// ipam module used by the CNI server
 	ipam *ipam.IPAM
@@ -120,7 +118,6 @@ func newRemoteCNIServer(logger logging.Logger, vppLinuxTxnFactory func() linux.D
 		vppDefaultPluginsTxnFactory: vppDefaultPluginsTxnFactory,
 		proxy:                      proxy,
 		configuredContainers:       configuredContainers,
-		hostCalls:                  &linuxCalls{},
 		govppChan:                  govppChan,
 		swIfIndex:                  index,
 		agentLabel:                 agentLabel,

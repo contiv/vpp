@@ -43,7 +43,7 @@ var (
 // idAllocator manages allocation/deallocation of unique number identifying a node in the k8s cluster.
 // Retrieved identifier is used as input of IPAM module for the node.
 // (AllocatedID is represented by an entry in ETCD. The process of allocation leverages etcd transaction
-// to atomically check if the key exists  and if not, a new key-value pair representing
+// to atomically check if the key exists and if not, a new key-value pair representing
 // the allocation is inserted)
 type idAllocator struct {
 	sync.Mutex
@@ -109,7 +109,6 @@ func (ia *idAllocator) getID() (id uint8, err error) {
 		if attempts > maxAttempts {
 			return 0, errUnableToAllocateID
 		}
-
 	}
 
 	return uint8(ia.ID), nil

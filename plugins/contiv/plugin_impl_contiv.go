@@ -38,8 +38,8 @@ import (
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/rpc/grpc"
 	"github.com/ligato/cn-infra/utils/safeclose"
-	clientv1defaultplugins "github.com/ligato/vpp-agent/clientv1/defaultplugins"
-	defaultpluginslocalclient "github.com/ligato/vpp-agent/clientv1/defaultplugins/localclient"
+	vpp "github.com/ligato/vpp-agent/clientv1/defaultplugins"
+	vpplocalclient "github.com/ligato/vpp-agent/clientv1/defaultplugins/localclient"
 	"github.com/ligato/vpp-agent/clientv1/linux"
 	linuxlocalclient "github.com/ligato/vpp-agent/clientv1/linux/localclient"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins"
@@ -138,9 +138,11 @@ func (plugin *Plugin) Init() error {
 	}
 
 	plugin.cniServer, err = newRemoteCNIServer(plugin.Log,
-		func() linux.DataChangeDSL { return linuxlocalclient.DataChangeRequest(plugin.PluginName) },
-		func() clientv1defaultplugins.DataChangeDSL {
-			return defaultpluginslocalclient.DataChangeRequest(plugin.PluginName)
+		func() linux.DataChangeDSL {
+			return linuxlocalclient.DataChangeRequest(plugin.PluginName)
+		},
+		func() vpp.DataChangeDSL {
+			return vpplocalclient.DataChangeRequest(plugin.PluginName)
 		},
 		plugin.Proxy,
 		plugin.configuredContainers,
@@ -173,7 +175,7 @@ func (plugin *Plugin) applyExternalConfig() error {
 }
 
 // AfterInit registers to the ResyncOrchestrator. The registration is done in this phase
-// in order to trigger the resync for this plugin once the resync of defaultVPP plugins is finished.
+// in order to trigger the resync for this plugin once the resync of VPP plugins is finished.
 func (plugin *Plugin) AfterInit() error {
 	if plugin.Resync != nil {
 		reg := plugin.Resync.Register(string(plugin.PluginName))
@@ -237,7 +239,7 @@ func (plugin *Plugin) GetPodNetwork() *net.IPNet {
 	return plugin.cniServer.ipam.PodNetwork()
 }
 
-// IsTCPstackDisabled returns true if the tcp stack is disabled and only veths are configured
+// IsTCPstackDisabled returns true if the tcp stack is disabled and only VETHs/TAPs are configured
 func (plugin *Plugin) IsTCPstackDisabled() bool {
 	return plugin.Config.TCPstackDisabled
 }

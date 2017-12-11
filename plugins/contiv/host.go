@@ -17,15 +17,14 @@ package contiv
 import (
 	"fmt"
 
-	"net"
 	"strconv"
 
 	vpp_intf "github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/model/interfaces"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/l3plugin/model/l3"
 	linux_intf "github.com/ligato/vpp-agent/plugins/linuxplugin/ifplugin/model/interfaces"
-	"github.com/vishvananda/netlink"
 )
 
+/* TODO: replace with vpp-agent
 func (s *remoteCNIserver) configureRouteOnHost() error {
 	dev, err := s.LinkByName(vethHostEndName)
 	if err != nil {
@@ -39,6 +38,7 @@ func (s *remoteCNIserver) configureRouteOnHost() error {
 		Gw:        s.ipam.VEthVPPEndIP(),
 	})
 }
+*/
 
 func (s *remoteCNIserver) defaultRouteToHost() *l3.StaticRoutes_Route {
 	return &l3.StaticRoutes_Route{
@@ -138,6 +138,7 @@ func (s *remoteCNIserver) routeToOtherHostStack(hostID uint8) (*l3.StaticRoutes_
 	return s.routeToOtherHostNetworks(hostID, vswitchNetwork)
 }
 
+/* TODO: replace with vpp-agent
 func (s *remoteCNIserver) routeToOtherHostNetworks(hostID uint8, destNetwork *net.IPNet) (*l3.StaticRoutes_Route, error) {
 	hostIP, err := s.ipam.HostIPAddress(hostID)
 	if err != nil {
@@ -148,3 +149,4 @@ func (s *remoteCNIserver) routeToOtherHostNetworks(hostID uint8, destNetwork *ne
 		NextHopAddr: hostIP.String(),
 	}, nil
 }
+*/

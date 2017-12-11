@@ -31,7 +31,6 @@ func (s *remoteCNIserver) handleNodeEvents(ctx context.Context, resyncChan chan 
 	for {
 		select {
 		case resyncEv := <-resyncChan:
-
 			err := s.nodeResync(resyncEv)
 			resyncEv.Done(err)
 		case changeEv := <-changeChan:
@@ -164,9 +163,7 @@ func (s *remoteCNIserver) enableTCPSession() error {
 	}
 
 	reply := session.SessionEnableDisableReply{}
-
 	err := s.govppChan.SendRequest(req).ReceiveReply(&reply)
-
 	if reply.Retval != 0 {
 		return fmt.Errorf("enabling session returned non-zero return code")
 	}

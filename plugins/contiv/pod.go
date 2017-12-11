@@ -21,7 +21,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/contiv/vpp/plugins/contiv/bin_api/session"
 	"github.com/contiv/vpp/plugins/contiv/model/cni"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/bin_api/vpe"
 	vpp_intf "github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/model/interfaces"
@@ -124,17 +123,7 @@ func (s *remoteCNIserver) getVppInterfaceDetails(intfNamePrefix string, ifIndex 
 	}
 	return nil, fmt.Errorf("unable to look up details for if %v", intfNamePrefix)
 }
-*/
 
-func (s *remoteCNIserver) StnRule(ipAddress net.IP, ifname string) *stn.StnRule {
-	return &stn.StnRule{
-		RuleName:  "rule1",            //used as unique id for rules in etcd (managed by vpp-agent)
-		IpAddress: ipAddress.String(), //ipv4
-		Interface: ifname,
-	}
-}
-
-// TODO: Use localclient once ODPM-755 is done.
 func (s *remoteCNIserver) addAppNamespace(podNamespace string, ifname string) (nsIndex uint32, err error) {
 	req := &session.AppNamespaceAddDel{
 		Secret:         42,
@@ -166,6 +155,7 @@ func (s *remoteCNIserver) addAppNamespace(podNamespace string, ifname string) (n
 	}
 	return reply.AppnsIndex, err
 }
+*/
 
 func (s *remoteCNIserver) fixPodToPodCommunication(podIP string, ifname string) error {
 	return s.executeCli("ip container " + podIP + " " + ifname)
@@ -367,4 +357,12 @@ func (s *remoteCNIserver) vppRouteFromRequest(request *cni.CNIRequest, podIP str
 		route.OutgoingInterface = s.afpacketNameFromRequest(request)
 	}
 	return route
+}
+
+func (s *remoteCNIserver) stnRule(ipAddress net.IP, ifname string) *stn.StnRule {
+	return &stn.StnRule{
+		RuleName:  "rule1",            //used as unique id for rules in etcd (managed by vpp-agent)
+		IpAddress: ipAddress.String(), //ipv4
+		Interface: ifname,
+	}
 }

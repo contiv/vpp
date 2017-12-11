@@ -16,12 +16,11 @@ package contiv
 
 import (
 	"bytes"
+	"fmt"
 	"net"
 	"strings"
 	"sync"
 	"time"
-
-	"fmt"
 
 	"git.fd.io/govpp.git/api"
 	"github.com/contiv/vpp/plugins/contiv/containeridx"
@@ -35,9 +34,11 @@ import (
 	"github.com/ligato/vpp-agent/clientv1/linux"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/ifaceidx"
 	vpp_intf "github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/model/interfaces"
-	"github.com/ligato/vpp-agent/plugins/defaultplugins/l3plugin/model/l3"
+	vpp_l3 "github.com/ligato/vpp-agent/plugins/defaultplugins/l3plugin/model/l3"
+	vpp_l4 "github.com/ligato/vpp-agent/plugins/defaultplugins/l4plugin/model/l4"
 	"github.com/ligato/vpp-agent/plugins/linuxplugin/ifplugin/linuxcalls"
 	linux_intf "github.com/ligato/vpp-agent/plugins/linuxplugin/ifplugin/model/interfaces"
+	linux_l3 "github.com/ligato/vpp-agent/plugins/linuxplugin/l3plugin/model/l3"
 	"golang.org/x/net/context"
 )
 
@@ -220,17 +221,17 @@ func (s *remoteCNIserver) configureVswitchConnectivity() error {
 			s.Logger.Debug("Physical NIC not found, configuring loopback instead.")
 
 			// add the NIC config into the transaction
-			txn := s.vppLinuxTxnFactory().Put()
+			txn1 := s.vppLinuxTxnFactory().Put()
 
 			loop, err := s.physicalInterfaceLoopback()
 			if err != nil {
 				return fmt.Errorf("Can't create structure for loopback interface due to error: %v", err)
 			}
-			txn.VppInterface(loop)
+			txn1.VppInterface(loop)
 			changes[vpp_intf.InterfaceKey(loop.Name)] = loop
 
 			// execute the config transaction
-			err = txn.Send().ReceiveReply()
+			err = txn1.Send().ReceiveReply()
 			if err != nil {
 				s.Logger.Error(err)
 				return err
@@ -252,12 +253,12 @@ func (s *remoteCNIserver) configureVswitchConnectivity() error {
 
 			// send created configuration to VPP
 			if len(interfaces) > 0 {
-				tx := s.vppLinuxTxnFactory().Put()
+				txn2 := s.vppLinuxTxnFactory().Put()
 				for intfName, intf := range interfaces {
-					tx.VppInterface(intf)
+					txn2.VppInterface(intf)
 					changes[vpp_intf.InterfaceKey(intfName)] = intf
 				}
-				err := tx.Send().ReceiveReply()
+				err := txn2.Send().ReceiveReply()
 				if err != nil {
 					s.Logger.Error(err)
 					return err
@@ -272,69 +273,39 @@ func (s *remoteCNIserver) configureVswitchConnectivity() error {
 	vethHost := s.interconnectVethHost()
 	vethVpp := s.interconnectVethVpp()
 	interconnectAF := s.interconnectAfpacket()
-	route := s.defaultRouteToHost()
+	routeToHost := s.defaultRouteToHost()
+	routeFromHost := s.routeFromHost()
+	l4Features := s.l4Features(!s.disableTCPstack)
 
 	// configure linux interfaces
-	txn1 := s.vppLinuxTxnFactory().Put().
+	txn3 := s.vppLinuxTxnFactory().Put().
 		LinuxInterface(vethHost).
-		LinuxInterface(vethVpp)
+		LinuxInterface(vethVpp).
+		VppInterface(interconnectAF).
+		StaticRoute(routeToHost).
+		LinuxRoute(routeFromHost).
+		L4Features(l4Features)
 
-	err := txn1.Send().ReceiveReply()
+	err := txn3.Send().ReceiveReply()
 	if err != nil {
 		// ths transaction may fail if interfaces/routes are already configured, log only
 		s.Logger.Warn(err)
-	}
-
-	// configure AF_PACKET for the veth - this transaction must be successful in order to continue
-	txn2 := s.vppLinuxTxnFactory().Put().VppInterface(interconnectAF)
-
-	err = txn2.Send().ReceiveReply()
-	if err != nil {
-		s.Logger.Error(err)
-		return err
-	}
-
-	// wait until AF_PACKET is configured otherwise the route is ignored
-	// note: this is workaround this should be handled in vpp-agent
-	for i := 0; i < 10; i++ {
-		if _, _, found := s.swIfIndex.LookupIdx(vethVPPEndName); found {
-			break
-		}
-		time.Sleep(100 * time.Millisecond)
-	}
-
-	// configure default static route to the host
-	txn3 := s.vppLinuxTxnFactory().Put().StaticRoute(route)
-	err = txn3.Send().ReceiveReply()
-	if err != nil {
-		s.Logger.Error(err)
-		return err
 	}
 
 	// store changes for persisting
 	changes[linux_intf.InterfaceKey(vethHost.Name)] = vethHost
 	changes[linux_intf.InterfaceKey(vethVpp.Name)] = vethVpp
 	changes[vpp_intf.InterfaceKey(interconnectAF.Name)] = interconnectAF
-	_, dstNet, _ := net.ParseCIDR(route.DstIpAddr)
-	changes[l3.RouteKey(route.VrfId, dstNet, route.NextHopAddr)] = route
-
-	// configure route to PODs on the host
-	// TODO: we should persist this too, once this functionality is implemented in linuxplugin
-	err = s.configureRouteOnHost()
-	if err != nil {
-		s.Logger.Error(err)
-		return err
-	}
+	_, dstNet, _ := net.ParseCIDR(routeToHost.DstIpAddr)
+	changes[vpp_l3.RouteKey(routeToHost.VrfId, dstNet, routeToHost.NextHopAddr)] = routeToHost
+	changes[linux_l3.StaticRouteKey(routeFromHost.Name)] = routeFromHost
+	changes[vpp_l4.FeatureKey()] = l4Features
 
 	// persist the changes made by this function in ETCD
 	err = s.persistChanges(nil, changes)
 	if err != nil {
 		s.Logger.Error(err)
 		return err
-	}
-
-	if !s.disableTCPstack {
-		err = s.enableTCPSession()
 	}
 
 	s.vswitchConnectivityConfigured = true
@@ -542,7 +513,7 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 	if !s.disableTCPstack {
 		err = s.vppDefaultPluginsTxnFactory().
 			Put().
-			StnRules(s.StnRule(podIP, vppIfName)).
+			StnRule(s.stnRule(podIP, vppIfName)).
 			Send().
 			ReceiveReply()
 		if err != nil {

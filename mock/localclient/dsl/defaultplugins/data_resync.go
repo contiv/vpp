@@ -9,6 +9,7 @@ import (
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/aclplugin/model/acl"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/model/bfd"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/model/interfaces"
+	"github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/model/stn"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/l2plugin/model/l2"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/l3plugin/model/l3"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/l4plugin/model/l4"
@@ -109,6 +110,13 @@ func (d *MockDataResyncDSL) L4Features(val *l4.L4Features) defaultplugins.DataRe
 // AppNamespace adds VPP Application namespaces to the RESYNC request
 func (d *MockDataResyncDSL) AppNamespace(val *l4.AppNamespaces_AppNamespace) defaultplugins.DataResyncDSL {
 	op := dsl.TxnOp{Key: l4.AppNamespacesKey(val.NamespaceId), Value: val}
+	d.Ops = append(d.Ops, op)
+	return d
+}
+
+// StnRule adds Stn rule to the RESYNC request.
+func (d *MockDataResyncDSL) StnRule(val *stn.StnRule) defaultplugins.DataResyncDSL {
+	op := dsl.TxnOp{Key: stn.Key(val.RuleName), Value: val}
 	d.Ops = append(d.Ops, op)
 	return d
 }

@@ -7,11 +7,13 @@ import (
 	"github.com/ligato/vpp-agent/clientv1/linux"
 
 	"github.com/contiv/vpp/mock/localclient/dsl"
-	"github.com/ligato/vpp-agent/plugins/defaultplugins/aclplugin/model/acl"
-	"github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/model/bfd"
+	vpp_acl "github.com/ligato/vpp-agent/plugins/defaultplugins/aclplugin/model/acl"
+	vpp_bfd "github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/model/bfd"
 	vpp_intf "github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/model/interfaces"
-	"github.com/ligato/vpp-agent/plugins/defaultplugins/l2plugin/model/l2"
-	"github.com/ligato/vpp-agent/plugins/defaultplugins/l3plugin/model/l3"
+	vpp_stn "github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/model/stn"
+	vpp_l2 "github.com/ligato/vpp-agent/plugins/defaultplugins/l2plugin/model/l2"
+	vpp_l3 "github.com/ligato/vpp-agent/plugins/defaultplugins/l3plugin/model/l3"
+	vpp_l4 "github.com/ligato/vpp-agent/plugins/defaultplugins/l4plugin/model/l4"
 	linux_intf "github.com/ligato/vpp-agent/plugins/linuxplugin/ifplugin/model/interfaces"
 	linux_l3 "github.com/ligato/vpp-agent/plugins/linuxplugin/l3plugin/model/l3"
 )
@@ -63,61 +65,89 @@ func (d *MockPutDSL) VppInterface(val *vpp_intf.Interfaces_Interface) linux.PutD
 
 // BfdSession adds a mock request to create or update bidirectional forwarding
 // detection session.
-func (d *MockPutDSL) BfdSession(val *bfd.SingleHopBFD_Session) linux.PutDSL {
-	op := dsl.TxnOp{Key: bfd.SessionKey(val.Interface), Value: val}
+func (d *MockPutDSL) BfdSession(val *vpp_bfd.SingleHopBFD_Session) linux.PutDSL {
+	op := dsl.TxnOp{Key: vpp_bfd.SessionKey(val.Interface), Value: val}
 	d.parent.Ops = append(d.parent.Ops, op)
 	return d
 }
 
 // BfdAuthKeys adds a mock request to create or update bidirectional forwarding
 // detection key.
-func (d *MockPutDSL) BfdAuthKeys(val *bfd.SingleHopBFD_Key) linux.PutDSL {
-	op := dsl.TxnOp{Key: bfd.AuthKeysKey(string(val.Id)), Value: val}
+func (d *MockPutDSL) BfdAuthKeys(val *vpp_bfd.SingleHopBFD_Key) linux.PutDSL {
+	op := dsl.TxnOp{Key: vpp_bfd.AuthKeysKey(string(val.Id)), Value: val}
 	d.parent.Ops = append(d.parent.Ops, op)
 	return d
 }
 
 // BfdEchoFunction adds a mock request to create or update bidirectional
 // forwarding detection echo function.
-func (d *MockPutDSL) BfdEchoFunction(val *bfd.SingleHopBFD_EchoFunction) linux.PutDSL {
-	op := dsl.TxnOp{Key: bfd.EchoFunctionKey(val.EchoSourceInterface), Value: val}
+func (d *MockPutDSL) BfdEchoFunction(val *vpp_bfd.SingleHopBFD_EchoFunction) linux.PutDSL {
+	op := dsl.TxnOp{Key: vpp_bfd.EchoFunctionKey(val.EchoSourceInterface), Value: val}
 	d.parent.Ops = append(d.parent.Ops, op)
 	return d
 }
 
 // BD adds a mock request to create or update VPP Bridge Domain.
-func (d *MockPutDSL) BD(val *l2.BridgeDomains_BridgeDomain) linux.PutDSL {
-	op := dsl.TxnOp{Key: l2.BridgeDomainKey(val.Name), Value: val}
+func (d *MockPutDSL) BD(val *vpp_l2.BridgeDomains_BridgeDomain) linux.PutDSL {
+	op := dsl.TxnOp{Key: vpp_l2.BridgeDomainKey(val.Name), Value: val}
 	d.parent.Ops = append(d.parent.Ops, op)
 	return d
 }
 
 // BDFIB adds a mock request to create or update VPP L2 Forwarding Information
 // Base.
-func (d *MockPutDSL) BDFIB(val *l2.FibTableEntries_FibTableEntry) linux.PutDSL {
-	op := dsl.TxnOp{Key: l2.FibKey(val.BridgeDomain, val.PhysAddress), Value: val}
+func (d *MockPutDSL) BDFIB(val *vpp_l2.FibTableEntries_FibTableEntry) linux.PutDSL {
+	op := dsl.TxnOp{Key: vpp_l2.FibKey(val.BridgeDomain, val.PhysAddress), Value: val}
 	d.parent.Ops = append(d.parent.Ops, op)
 	return d
 }
 
 // XConnect adds a mock request to create or update VPP Cross Connect.
-func (d *MockPutDSL) XConnect(val *l2.XConnectPairs_XConnectPair) linux.PutDSL {
-	op := dsl.TxnOp{Key: l2.XConnectKey(val.ReceiveInterface), Value: val}
+func (d *MockPutDSL) XConnect(val *vpp_l2.XConnectPairs_XConnectPair) linux.PutDSL {
+	op := dsl.TxnOp{Key: vpp_l2.XConnectKey(val.ReceiveInterface), Value: val}
 	d.parent.Ops = append(d.parent.Ops, op)
 	return d
 }
 
 // StaticRoute adds a mock request to create or update VPP L3 Static Route.
-func (d *MockPutDSL) StaticRoute(val *l3.StaticRoutes_Route) linux.PutDSL {
+func (d *MockPutDSL) StaticRoute(val *vpp_l3.StaticRoutes_Route) linux.PutDSL {
 	_, dstAddr, _ := net.ParseCIDR(val.DstIpAddr)
-	op := dsl.TxnOp{Key: l3.RouteKey(val.VrfId, dstAddr, val.NextHopAddr), Value: val}
+	op := dsl.TxnOp{Key: vpp_l3.RouteKey(val.VrfId, dstAddr, val.NextHopAddr), Value: val}
 	d.parent.Ops = append(d.parent.Ops, op)
 	return d
 }
 
 // ACL adds a mock request to create or update VPP Access Control List.
-func (d *MockPutDSL) ACL(val *acl.AccessLists_Acl) linux.PutDSL {
-	op := dsl.TxnOp{Key: acl.Key(val.AclName), Value: val}
+func (d *MockPutDSL) ACL(val *vpp_acl.AccessLists_Acl) linux.PutDSL {
+	op := dsl.TxnOp{Key: vpp_acl.Key(val.AclName), Value: val}
+	d.parent.Ops = append(d.parent.Ops, op)
+	return d
+}
+
+// Arp adds a request to create or update VPP L3 ARP.
+func (d *MockPutDSL) Arp(val *vpp_l3.ArpTable_ArpTableEntry) linux.PutDSL {
+	op := dsl.TxnOp{Key: vpp_l3.ArpEntryKey(val.Interface, val.IpAddress), Value: val}
+	d.parent.Ops = append(d.parent.Ops, op)
+	return d
+}
+
+// L4Features adds a request to enable or disable L4 features
+func (d *MockPutDSL) L4Features(val *vpp_l4.L4Features) linux.PutDSL {
+	op := dsl.TxnOp{Key: vpp_l4.FeatureKey(), Value: val}
+	d.parent.Ops = append(d.parent.Ops, op)
+	return d
+}
+
+// AppNamespace adds a request to create or update VPP Application namespace
+func (d *MockPutDSL) AppNamespace(val *vpp_l4.AppNamespaces_AppNamespace) linux.PutDSL {
+	op := dsl.TxnOp{Key: vpp_l4.AppNamespacesKey(val.NamespaceId), Value: val}
+	d.parent.Ops = append(d.parent.Ops, op)
+	return d
+}
+
+// StnRule adds a request to create or update VPP Stn rule.
+func (d *MockPutDSL) StnRule(val *vpp_stn.StnRule) linux.PutDSL {
+	op := dsl.TxnOp{Key: vpp_stn.Key(val.RuleName), Value: val}
 	d.parent.Ops = append(d.parent.Ops, op)
 	return d
 }
@@ -161,7 +191,7 @@ func (d *MockDeleteDSL) VppInterface(interfaceName string) linux.DeleteDSL {
 // BfdSession adds a mock request to delete an existing bidirectional forwarding
 // detection session.
 func (d *MockDeleteDSL) BfdSession(bfdSessionIfaceName string) linux.DeleteDSL {
-	op := dsl.TxnOp{Key: bfd.SessionKey(bfdSessionIfaceName)}
+	op := dsl.TxnOp{Key: vpp_bfd.SessionKey(bfdSessionIfaceName)}
 	d.parent.Ops = append(d.parent.Ops, op)
 	return d
 }
@@ -169,7 +199,7 @@ func (d *MockDeleteDSL) BfdSession(bfdSessionIfaceName string) linux.DeleteDSL {
 // BfdAuthKeys adds a mock request to delete an existing bidirectional forwarding
 // detection key.
 func (d *MockDeleteDSL) BfdAuthKeys(bfdKey uint32) linux.DeleteDSL {
-	op := dsl.TxnOp{Key: bfd.AuthKeysKey(string(bfdKey))}
+	op := dsl.TxnOp{Key: vpp_bfd.AuthKeysKey(string(bfdKey))}
 	d.parent.Ops = append(d.parent.Ops, op)
 	return d
 }
@@ -177,14 +207,14 @@ func (d *MockDeleteDSL) BfdAuthKeys(bfdKey uint32) linux.DeleteDSL {
 // BfdEchoFunction adds a mock request to delete an existing bidirectional
 // forwarding detection echo function.
 func (d *MockDeleteDSL) BfdEchoFunction(bfdEchoName string) linux.DeleteDSL {
-	op := dsl.TxnOp{Key: bfd.EchoFunctionKey(bfdEchoName)}
+	op := dsl.TxnOp{Key: vpp_bfd.EchoFunctionKey(bfdEchoName)}
 	d.parent.Ops = append(d.parent.Ops, op)
 	return d
 }
 
 // BD adds a mock request to delete an existing VPP Bridge Domain.
 func (d *MockDeleteDSL) BD(bdName string) linux.DeleteDSL {
-	op := dsl.TxnOp{Key: l2.BridgeDomainKey(bdName)}
+	op := dsl.TxnOp{Key: vpp_l2.BridgeDomainKey(bdName)}
 	d.parent.Ops = append(d.parent.Ops, op)
 	return d
 }
@@ -192,28 +222,56 @@ func (d *MockDeleteDSL) BD(bdName string) linux.DeleteDSL {
 // BDFIB adds a mock request to delete an existing VPP L2 Forwarding Information
 // Base.
 func (d *MockDeleteDSL) BDFIB(bdName string, mac string) linux.DeleteDSL {
-	op := dsl.TxnOp{Key: l2.FibKey(bdName, mac)}
+	op := dsl.TxnOp{Key: vpp_l2.FibKey(bdName, mac)}
 	d.parent.Ops = append(d.parent.Ops, op)
 	return d
 }
 
 // XConnect adds a mock request to delete an existing VPP Cross Connect.
 func (d *MockDeleteDSL) XConnect(rxIfName string) linux.DeleteDSL {
-	op := dsl.TxnOp{Key: l2.XConnectKey(rxIfName)}
+	op := dsl.TxnOp{Key: vpp_l2.XConnectKey(rxIfName)}
 	d.parent.Ops = append(d.parent.Ops, op)
 	return d
 }
 
 // StaticRoute adds a mock request to delete an existing VPP L3 Static Route..
 func (d *MockDeleteDSL) StaticRoute(vrf uint32, dstAddrInput *net.IPNet, nextHopAddr net.IP) linux.DeleteDSL {
-	op := dsl.TxnOp{Key: l3.RouteKey(vrf, dstAddrInput, nextHopAddr.String())}
+	op := dsl.TxnOp{Key: vpp_l3.RouteKey(vrf, dstAddrInput, nextHopAddr.String())}
 	d.parent.Ops = append(d.parent.Ops, op)
 	return d
 }
 
 // ACL adds a mock request to delete an existing VPP Access Control List.
 func (d *MockDeleteDSL) ACL(aclName string) linux.DeleteDSL {
-	op := dsl.TxnOp{Key: acl.Key(aclName)}
+	op := dsl.TxnOp{Key: vpp_acl.Key(aclName)}
+	d.parent.Ops = append(d.parent.Ops, op)
+	return d
+}
+
+// L4Features delete request for the L4Features
+func (d *MockDeleteDSL) L4Features() linux.DeleteDSL {
+	op := dsl.TxnOp{Key: vpp_l4.FeatureKey()}
+	d.parent.Ops = append(d.parent.Ops, op)
+	return d
+}
+
+// Arp adds a request to delete an existing VPP L3 ARP entry.
+func (d *MockDeleteDSL) Arp(ifaceName string, ipAddr net.IP) linux.DeleteDSL {
+	op := dsl.TxnOp{Key: vpp_l3.ArpEntryKey(ifaceName, ipAddr.String())}
+	d.parent.Ops = append(d.parent.Ops, op)
+	return d
+}
+
+// AppNamespace adds a request to delete an existing VPP Application Namespace.
+func (d *MockDeleteDSL) AppNamespace(id string) linux.DeleteDSL {
+	op := dsl.TxnOp{Key: vpp_l4.AppNamespacesKey(id)}
+	d.parent.Ops = append(d.parent.Ops, op)
+	return d
+}
+
+// StnRule adds request to delete Stn rule.
+func (d *MockDeleteDSL) StnRule(ruleName string) linux.DeleteDSL {
+	op := dsl.TxnOp{Key: vpp_stn.Key(ruleName)}
 	d.parent.Ops = append(d.parent.Ops, op)
 	return d
 }

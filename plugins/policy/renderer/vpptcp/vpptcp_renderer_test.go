@@ -21,7 +21,7 @@ import (
 	"github.com/onsi/gomega"
 
 	"github.com/ligato/cn-infra/logging"
-	"github.com/ligato/cn-infra/logging/logroot"
+	"github.com/ligato/cn-infra/logging/logrus"
 
 	"os"
 
@@ -44,7 +44,7 @@ func ipNetwork(addr string) *net.IPNet {
 }
 
 func TestMain(m *testing.M) {
-	logger := logroot.StandardLogger()
+	logger := logrus.DefaultLogger()
 	logger.SetLevel(logging.DebugLevel)
 	mockSessionRules = NewMockSessionRules(logger, SessionRuleTagPrefix)
 	os.Exit(m.Run())
@@ -52,7 +52,7 @@ func TestMain(m *testing.M) {
 
 func TestSingleEgressRuleSinglePod(t *testing.T) {
 	gomega.RegisterTestingT(t)
-	logger := logroot.StandardLogger()
+	logger := logrus.DefaultLogger()
 	logger.SetLevel(logging.DebugLevel)
 	logger.Debug("TestSingleEgressRuleSinglePod")
 
@@ -108,7 +108,7 @@ func TestSingleEgressRuleSinglePod(t *testing.T) {
 
 func TestSingleIngressRuleSinglePod(t *testing.T) {
 	gomega.RegisterTestingT(t)
-	logger := logroot.StandardLogger()
+	logger := logrus.DefaultLogger()
 	logger.SetLevel(logging.DebugLevel)
 	logger.Debug("TestSingleIngressRuleSinglePod")
 
@@ -164,7 +164,7 @@ func TestSingleIngressRuleSinglePod(t *testing.T) {
 
 func TestMultipleRulesSinglePodWithDataChange(t *testing.T) {
 	gomega.RegisterTestingT(t)
-	logger := logroot.StandardLogger()
+	logger := logrus.DefaultLogger()
 	logger.SetLevel(logging.DebugLevel)
 	logger.Debug("TestMultipleRulesSinglePodWithDataChange")
 
@@ -283,7 +283,7 @@ func TestMultipleRulesSinglePodWithDataChange(t *testing.T) {
 
 func TestMultipleRulesMultiplePodsWithDataChange(t *testing.T) {
 	gomega.RegisterTestingT(t)
-	logger := logroot.StandardLogger()
+	logger := logrus.DefaultLogger()
 	logger.SetLevel(logging.DebugLevel)
 	logger.Debug("TestMultipleRulesMultiplePodsWithDataChange")
 
@@ -423,7 +423,7 @@ func TestMultipleRulesMultiplePodsWithDataChange(t *testing.T) {
 
 func TestMultipleRulesMultiplePodsWithResync(t *testing.T) {
 	gomega.RegisterTestingT(t)
-	logger := logroot.StandardLogger()
+	logger := logrus.DefaultLogger()
 	logger.SetLevel(logging.DebugLevel)
 	logger.Debug("TestMultipleRulesMultiplePodsWithResync")
 
@@ -574,7 +574,7 @@ func TestMultipleRulesMultiplePodsWithResync(t *testing.T) {
 
 func TestSinglePodWithResync(t *testing.T) {
 	gomega.RegisterTestingT(t)
-	logger := logroot.StandardLogger()
+	logger := logrus.DefaultLogger()
 	logger.SetLevel(logging.DebugLevel)
 	logger.Debug("TestSinglePodWithResync")
 
@@ -708,7 +708,7 @@ func TestSinglePodWithResync(t *testing.T) {
 
 func TestRuleIDChange(t *testing.T) {
 	gomega.RegisterTestingT(t)
-	logger := logroot.StandardLogger()
+	logger := logrus.DefaultLogger()
 	logger.SetLevel(logging.DebugLevel)
 	logger.Debug("TestTagChange")
 

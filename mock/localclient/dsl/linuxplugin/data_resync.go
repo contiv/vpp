@@ -10,8 +10,10 @@ import (
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/aclplugin/model/acl"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/model/bfd"
 	vpp_intf "github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/model/interfaces"
-	"github.com/ligato/vpp-agent/plugins/defaultplugins/l2plugin/model/l2"
-	"github.com/ligato/vpp-agent/plugins/defaultplugins/l3plugin/model/l3"
+	vpp_stn "github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/model/stn"
+	vpp_l2 "github.com/ligato/vpp-agent/plugins/defaultplugins/l2plugin/model/l2"
+	vpp_l3 "github.com/ligato/vpp-agent/plugins/defaultplugins/l3plugin/model/l3"
+	vpp_l4 "github.com/ligato/vpp-agent/plugins/defaultplugins/l4plugin/model/l4"
 	linux_intf "github.com/ligato/vpp-agent/plugins/linuxplugin/ifplugin/model/interfaces"
 	linux_l3 "github.com/ligato/vpp-agent/plugins/linuxplugin/l3plugin/model/l3"
 )
@@ -77,30 +79,30 @@ func (d *MockDataResyncDSL) BfdEchoFunction(val *bfd.SingleHopBFD_EchoFunction) 
 }
 
 // BD adds VPP Bridge Domain to the mock RESYNC request.
-func (d *MockDataResyncDSL) BD(val *l2.BridgeDomains_BridgeDomain) linux.DataResyncDSL {
-	op := dsl.TxnOp{Key: l2.BridgeDomainKey(val.Name), Value: val}
+func (d *MockDataResyncDSL) BD(val *vpp_l2.BridgeDomains_BridgeDomain) linux.DataResyncDSL {
+	op := dsl.TxnOp{Key: vpp_l2.BridgeDomainKey(val.Name), Value: val}
 	d.Ops = append(d.Ops, op)
 	return d
 }
 
 // BDFIB adds VPP L2 FIB to the mock RESYNC request.
-func (d *MockDataResyncDSL) BDFIB(val *l2.FibTableEntries_FibTableEntry) linux.DataResyncDSL {
-	op := dsl.TxnOp{Key: l2.FibKey(val.BridgeDomain, val.PhysAddress), Value: val}
+func (d *MockDataResyncDSL) BDFIB(val *vpp_l2.FibTableEntries_FibTableEntry) linux.DataResyncDSL {
+	op := dsl.TxnOp{Key: vpp_l2.FibKey(val.BridgeDomain, val.PhysAddress), Value: val}
 	d.Ops = append(d.Ops, op)
 	return d
 }
 
 // XConnect adds VPP Cross Connect to the mock RESYNC request.
-func (d *MockDataResyncDSL) XConnect(val *l2.XConnectPairs_XConnectPair) linux.DataResyncDSL {
-	op := dsl.TxnOp{Key: l2.XConnectKey(val.ReceiveInterface), Value: val}
+func (d *MockDataResyncDSL) XConnect(val *vpp_l2.XConnectPairs_XConnectPair) linux.DataResyncDSL {
+	op := dsl.TxnOp{Key: vpp_l2.XConnectKey(val.ReceiveInterface), Value: val}
 	d.Ops = append(d.Ops, op)
 	return d
 }
 
 // StaticRoute adds VPP L3 Static Route to the mock RESYNC request.
-func (d *MockDataResyncDSL) StaticRoute(val *l3.StaticRoutes_Route) linux.DataResyncDSL {
+func (d *MockDataResyncDSL) StaticRoute(val *vpp_l3.StaticRoutes_Route) linux.DataResyncDSL {
 	_, dstAddr, _ := net.ParseCIDR(val.DstIpAddr)
-	key := l3.RouteKey(val.VrfId, dstAddr, val.NextHopAddr)
+	key := vpp_l3.RouteKey(val.VrfId, dstAddr, val.NextHopAddr)
 	op := dsl.TxnOp{Key: key, Value: val}
 	d.Ops = append(d.Ops, op)
 	return d
@@ -109,6 +111,34 @@ func (d *MockDataResyncDSL) StaticRoute(val *l3.StaticRoutes_Route) linux.DataRe
 // ACL adds VPP Access Control List to the mock RESYNC request.
 func (d *MockDataResyncDSL) ACL(val *acl.AccessLists_Acl) linux.DataResyncDSL {
 	op := dsl.TxnOp{Key: acl.Key(val.AclName), Value: val}
+	d.Ops = append(d.Ops, op)
+	return d
+}
+
+// L4Features adds L4Features to the RESYNC request
+func (d *MockDataResyncDSL) L4Features(val *vpp_l4.L4Features) linux.DataResyncDSL {
+	op := dsl.TxnOp{Key: vpp_l4.FeatureKey(), Value: val}
+	d.Ops = append(d.Ops, op)
+	return d
+}
+
+// AppNamespace adds Application Namespace to the RESYNC request
+func (d *MockDataResyncDSL) AppNamespace(val *vpp_l4.AppNamespaces_AppNamespace) linux.DataResyncDSL {
+	op := dsl.TxnOp{Key: vpp_l4.AppNamespacesKey(val.NamespaceId), Value: val}
+	d.Ops = append(d.Ops, op)
+	return d
+}
+
+// Arp adds L3 ARP entry to the RESYNC request.
+func (d *MockDataResyncDSL) Arp(val *vpp_l3.ArpTable_ArpTableEntry) linux.DataResyncDSL {
+	op := dsl.TxnOp{Key: vpp_l3.ArpEntryKey(val.Interface, val.IpAddress), Value: val}
+	d.Ops = append(d.Ops, op)
+	return d
+}
+
+// StnRule adds Stn rule to the RESYNC request.
+func (d *MockDataResyncDSL) StnRule(val *vpp_stn.StnRule) linux.DataResyncDSL {
+	op := dsl.TxnOp{Key: vpp_stn.Key(val.RuleName), Value: val}
 	d.Ops = append(d.Ops, op)
 	return d
 }

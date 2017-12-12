@@ -24,7 +24,7 @@ import (
 	"github.com/onsi/gomega"
 
 	"github.com/ligato/cn-infra/logging"
-	"github.com/ligato/cn-infra/logging/logroot"
+	"github.com/ligato/cn-infra/logging/logrus"
 	acl_model "github.com/ligato/vpp-agent/plugins/defaultplugins/aclplugin/model/acl"
 
 	. "github.com/contiv/vpp/mock/contiv"
@@ -216,7 +216,7 @@ func allowAll() []*renderer.ContivRule {
 
 func TestSingleContivRuleOneInterface(t *testing.T) {
 	gomega.RegisterTestingT(t)
-	logger := logroot.StandardLogger()
+	logger := logrus.DefaultLogger()
 	logger.SetLevel(logging.DebugLevel)
 	logger.Debug("TestSingleContivRuleOneInterface")
 
@@ -292,7 +292,7 @@ func TestSingleContivRuleOneInterface(t *testing.T) {
 
 func TestSingleContivRuleMultipleInterfaces(t *testing.T) {
 	gomega.RegisterTestingT(t)
-	logger := logroot.StandardLogger()
+	logger := logrus.DefaultLogger()
 	logger.SetLevel(logging.DebugLevel)
 	logger.Debug("TestSingleContivRuleMultipleInterfaces")
 
@@ -445,7 +445,7 @@ func TestSingleContivRuleMultipleInterfaces(t *testing.T) {
 
 func TestMultipleContivRulesSingleInterface(t *testing.T) {
 	gomega.RegisterTestingT(t)
-	logger := logroot.StandardLogger()
+	logger := logrus.DefaultLogger()
 	logger.SetLevel(logging.DebugLevel)
 	logger.Debug("TestMultipleContivRulesSingleInterface")
 
@@ -594,7 +594,7 @@ func TestMultipleContivRulesSingleInterface(t *testing.T) {
 
 func TestMultipleContivRulesMultipleInterfaces(t *testing.T) {
 	gomega.RegisterTestingT(t)
-	logger := logroot.StandardLogger()
+	logger := logrus.DefaultLogger()
 	logger.SetLevel(logging.DebugLevel)
 	logger.Debug("TestMultipleContivRulesMultipleInterfaces")
 
@@ -774,7 +774,7 @@ func TestMultipleContivRulesMultipleInterfaces(t *testing.T) {
 
 func TestMultipleContivRulesMultipleInterfacesWithResync(t *testing.T) {
 	gomega.RegisterTestingT(t)
-	logger := logroot.StandardLogger()
+	logger := logrus.DefaultLogger()
 	logger.SetLevel(logging.DebugLevel)
 	logger.Debug("TestMultipleContivRulesMultipleInterfacesWithResync")
 

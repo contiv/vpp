@@ -384,7 +384,6 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 	tap := s.tapFromRequest(request)
 	vppRoute := s.vppRouteFromRequest(request, podIPCIDR)
 	loop := s.loopbackFromRequest(request, podIP.String())
-	stnRule := s.stnRule(podIP, vppIf.Name)
 	appNs := s.appNamespaceFromRequest(request)
 	if s.useTAPInterfaces {
 		// configure TAP-based pod-VPP connectivity
@@ -395,6 +394,7 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 		vppIf = afpacket
 		podIf = veth2
 	}
+	stnRule := s.stnRule(podIP, vppIf.Name)
 	vppArp := s.vppArpEntry(vppIf.Name, podIP, s.hwAddrForContainer())
 	podArp := s.podArpEntry(request, podIf.Name, vppIf.PhysAddress)
 	podLinkRoute := s.podLinkRouteFromRequest(request, podIf.Name)

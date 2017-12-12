@@ -19,21 +19,21 @@ import (
 
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	"github.com/ligato/cn-infra/core"
-	"github.com/ligato/cn-infra/logging/logroot"
+	"github.com/ligato/cn-infra/logging/logrus"
 	"github.com/onsi/gomega"
 )
 
 func TestNewConfigIndex(t *testing.T) {
 	gomega.RegisterTestingT(t)
 
-	idx := NewConfigIndex(logroot.StandardLogger(), core.PluginName("Plugin-name"), "title")
+	idx := NewConfigIndex(logrus.DefaultLogger(), core.PluginName("Plugin-name"), "title")
 	gomega.Expect(idx).NotTo(gomega.BeNil())
 }
 
 func TestRegisterUnregister(t *testing.T) {
 	gomega.RegisterTestingT(t)
 
-	idx := NewConfigIndex(logroot.StandardLogger(), core.PluginName("Plugin-name"), "title")
+	idx := NewConfigIndex(logrus.DefaultLogger(), core.PluginName("Plugin-name"), "title")
 	gomega.Expect(idx).NotTo(gomega.BeNil())
 
 	const (
@@ -140,7 +140,7 @@ func TestRegisterUnregister(t *testing.T) {
 func TestSecondaryIndexLookup(t *testing.T) {
 	gomega.RegisterTestingT(t)
 
-	idx := NewConfigIndex(logroot.StandardLogger(), core.PluginName("Plugin-name"), "title")
+	idx := NewConfigIndex(logrus.DefaultLogger(), core.PluginName("Plugin-name"), "title")
 	gomega.Expect(idx).NotTo(gomega.BeNil())
 
 	const (

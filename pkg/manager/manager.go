@@ -21,12 +21,12 @@ import (
 	"syscall"
 	"time"
 
-	context "golang.org/x/net/context"
+	"golang.org/x/net/context"
 
 	"github.com/ligato/cn-infra/db/keyval"
 	"github.com/ligato/cn-infra/db/keyval/etcdv3"
 	"github.com/ligato/cn-infra/db/keyval/kvproto"
-	"github.com/ligato/cn-infra/logging/logroot"
+	"github.com/ligato/cn-infra/logging/logrus"
 
 	"github.com/contiv/vpp/pkg/cri-runtime"
 	"github.com/golang/glog"
@@ -259,7 +259,7 @@ func (s *ContivshimManager) CreateContainer(ctx context.Context, req *kubeapi.Cr
 				Value: "",
 			})
 		}
-		logroot.StandardLogger().Infof("Setting %v %v", req.PodSandboxId, envs)
+		glog.Infof("Setting %v %v", req.PodSandboxId, envs)
 
 		req.Config.Envs = append(req.Config.Envs, envs...)
 	}
@@ -543,7 +543,7 @@ func newEtcdClient(etcdEndpoint *string) (keyval.ProtoBroker, error) {
 	}
 
 	for ok {
-		db, err = etcdv3.NewEtcdConnectionWithBytes(*cfg, logroot.StandardLogger())
+		db, err = etcdv3.NewEtcdConnectionWithBytes(*cfg, logrus.DefaultLogger())
 		if err != nil {
 			glog.Errorf("Could not connect to etcd, retrying...: %v", err)
 		} else {

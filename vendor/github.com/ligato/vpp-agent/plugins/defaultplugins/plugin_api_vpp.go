@@ -18,9 +18,10 @@ package defaultplugins
 
 import (
 	"github.com/ligato/vpp-agent/idxvpp"
+	"github.com/ligato/vpp-agent/plugins/defaultplugins/aclplugin/model/acl"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/ifaceidx"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/l2plugin/bdidx"
-	"github.com/ligato/vpp-agent/plugins/defaultplugins/aclplugin/model/acl"
+	"github.com/ligato/vpp-agent/plugins/defaultplugins/l4plugin/nsidx"
 )
 
 // API of VPP Plugin
@@ -73,5 +74,10 @@ type API interface {
 	// for the transmit interface name.
 	GetXConnectIndexes() idxvpp.NameToIdx
 
+	// GetAppNsIndexes gives access to mapping of app-namespace logical names (used in ETCD configuration)
+	// to their respective indices as assigned by VPP.
+	GetAppNsIndexes() nsidx.AppNsIndex
+
+	// DumpACL returns a list of all configured ACLs.
 	DumpACL() (acls []*acl.AccessLists_Acl, err error)
 }

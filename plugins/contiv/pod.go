@@ -16,178 +16,51 @@ package contiv
 
 import (
 	"fmt"
+	"math/rand"
 	"net"
 	"os/exec"
 	"strconv"
 	"strings"
 
-	"github.com/containernetworking/plugins/pkg/ns"
-	"github.com/contiv/vpp/plugins/contiv/bin_api/session"
+	"github.com/vishvananda/netlink"
+
 	"github.com/contiv/vpp/plugins/contiv/model/cni"
-	"github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/bin_api/interfaces"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/bin_api/ip"
-	"github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/bin_api/vpe"
 	vpp_intf "github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/model/interfaces"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/model/stn"
-	"github.com/ligato/vpp-agent/plugins/defaultplugins/l3plugin/model/l3"
+	vpp_l3 "github.com/ligato/vpp-agent/plugins/defaultplugins/l3plugin/model/l3"
+	vpp_l4 "github.com/ligato/vpp-agent/plugins/defaultplugins/l4plugin/model/l4"
+	"github.com/ligato/vpp-agent/plugins/linuxplugin/ifplugin/linuxcalls"
 	linux_intf "github.com/ligato/vpp-agent/plugins/linuxplugin/ifplugin/model/interfaces"
-	"github.com/vishvananda/netlink"
+	linux_l3 "github.com/ligato/vpp-agent/plugins/linuxplugin/l3plugin/model/l3"
 )
 
-func (s *remoteCNIserver) configureRoutesInContainer(request *cni.CNIRequest) error {
-	return s.WithNetNSPath(request.NetworkNamespace, func(netns ns.NetNS) error {
-		destination := ipToIPNet(s.ipam.PodGatewayIP())
-		defaultNextHop := s.ipam.PodGatewayIP()
-		dev, err := s.LinkByName(request.InterfaceName)
-		if err != nil {
-			s.Logger.Error(err)
-			return err
-		}
-		err = s.RouteAdd(&netlink.Route{
-			LinkIndex: dev.Attrs().Index,
-			Dst:       &destination,
-			Scope:     netlink.SCOPE_LINK,
-		})
-		if err != nil {
-			s.Logger.Error(err)
-			return err
-		}
-		return s.AddDefaultRoute(defaultNextHop, dev)
-	})
-}
-
-func (s *remoteCNIserver) retrieveContainerMacAddr(namespace string, ifname string) ([]byte, error) {
-
-	var macAddr []byte
-	err := s.WithNetNSPath(namespace, func(netNS ns.NetNS) error {
-		link, err := s.LinkByName(ifname)
-		if err != nil {
-			return err
-		}
-		macAddr = link.Attrs().HardwareAddr
-		return err
-
-	})
-	return macAddr, err
-
-}
-
-func (s *remoteCNIserver) configureArpOnVpp(request *cni.CNIRequest, ifIndex uint32, macAddr string, podIP net.IP) error {
-
-	req := &ip.IPNeighborAddDel{
-		SwIfIndex:  ifIndex,
-		IsAdd:      1,
-		MacAddress: []byte(macAddr),
-		IsNoAdjFib: 1,
-		DstAddress: []byte(podIP.To4()),
+func (s *remoteCNIserver) configureContainerProxy(podIP net.IP, ifName string) error {
+	ifIdx, _, found := s.swIfIndex.LookupIdx(ifName)
+	if !found {
+		return fmt.Errorf("cannot find interface index for: %s", ifName)
 	}
 
-	reply := &ip.IPNeighborAddDelReply{}
+	req := &ip.IPContainerProxyAddDel{
+		SwIfIndex: ifIdx,
+		IsAdd:     1,
+	}
+	if podIP.To4() != nil {
+		req.IP = podIP.To4()
+		req.IsIP4 = 1
+		req.Plen = net.IPv4len * 8
+	} else {
+		req.IP = podIP.To16()
+		req.IsIP4 = 0
+		req.Plen = net.IPv6len * 8
+	}
+
+	reply := &ip.IPContainerProxyAddDelReply{}
 	err := s.govppChan.SendRequest(req).ReceiveReply(reply)
 	if reply.Retval != 0 {
-		return fmt.Errorf("adding arp entry returned non zero error code (%v)", reply.Retval)
+		return fmt.Errorf("request to add container proxy returned non zero retval (%v)", reply.Retval)
 	}
 	return err
-}
-
-func (s *remoteCNIserver) configureArpInContainer(macAddr net.HardwareAddr, request *cni.CNIRequest) error {
-
-	gw := s.ipam.PodGatewayIP()
-	return s.WithNetNSPath(request.NetworkNamespace, func(ns ns.NetNS) error {
-		link, err := s.LinkByName(request.InterfaceName)
-		if err != nil {
-			return err
-		}
-		return s.NeighAdd(&netlink.Neigh{
-			LinkIndex:    link.Attrs().Index,
-			Family:       netlink.FAMILY_V4,
-			State:        netlink.NUD_PERMANENT,
-			Type:         1,
-			IP:           gw,
-			HardwareAddr: macAddr,
-		})
-
-	})
-}
-
-func (s *remoteCNIserver) getVppInterfaceDetails(intfNamePrefix string, ifIndex uint32) (*interfaces.SwInterfaceDetails, error) {
-	req := &interfaces.SwInterfaceDump{
-		NameFilter:      []byte(intfNamePrefix),
-		NameFilterValid: 1,
-	}
-
-	if s.govppChan == nil {
-		s.Logger.Warn("GoVpp is not available")
-		return &interfaces.SwInterfaceDetails{}, nil
-	}
-
-	ctx := s.govppChan.SendMultiRequest(req)
-
-	var res *interfaces.SwInterfaceDetails
-	for {
-		ifDetails := &interfaces.SwInterfaceDetails{}
-		stop, err := ctx.ReceiveReply(ifDetails)
-		if stop {
-			break // break out of the loop
-		}
-		if err != nil {
-			return nil, err
-		}
-		if ifDetails.SwIfIndex == ifIndex {
-			res = ifDetails
-		}
-	}
-
-	if res != nil {
-		return res, nil
-	}
-	return nil, fmt.Errorf("unable to look up details for if %v", intfNamePrefix)
-}
-
-func (s *remoteCNIserver) StnRule(ipAddress net.IP, ifname string) *stn.StnRule {
-	return &stn.StnRule{
-		RuleName:  "rule1",            //used as unique id for rules in etcd (managed by vpp-agent)
-		IpAddress: ipAddress.String(), //ipv4
-		Interface: ifname,
-	}
-}
-
-func (s *remoteCNIserver) addAppNamespace(podNamespace string, ifname string) (nsIndex uint32, err error) {
-	req := &session.AppNamespaceAddDel{
-		Secret:         42,
-		NamespaceID:    []byte(podNamespace),
-		NamespaceIDLen: uint8(len(podNamespace)),
-	}
-
-	if s.swIfIndex == nil {
-		return 0, fmt.Errorf("unable to lookup interface %v", ifname)
-	}
-
-	idx, _, found := s.swIfIndex.LookupIdx(ifname)
-	if !found {
-		return 0, fmt.Errorf("interface %v not found", ifname)
-	}
-
-	req.SwIfIndex = idx
-
-	if s.govppChan == nil {
-		s.Logger.Warn("GoVpp not available")
-		return 0, nil
-	}
-
-	reply := session.AppNamespaceAddDelReply{}
-
-	err = s.govppChan.SendRequest(req).ReceiveReply(&reply)
-
-	if reply.Retval != 0 {
-		return 0, fmt.Errorf("adding app namespace returned non-zero return code: %d", reply.Retval)
-	}
-
-	return reply.AppnsIndex, err
-}
-
-func (s *remoteCNIserver) fixPodToPodCommunication(podIP string, ifname string) error {
-	return s.executeCli("ip container " + podIP + " " + ifname)
 }
 
 // disableTCPChecksumOffload disables TCP checksum offload on the eth0 in the container
@@ -236,25 +109,78 @@ func (s *remoteCNIserver) getPIDFromNwNsPath(ns string) (int, error) {
 	return pid, nil
 }
 
-func (s *remoteCNIserver) executeCli(command string) error {
-	if s.govppChan == nil {
-		s.Logger.Warn("GoVpp not available")
-		return nil
+// configureHostTAP configures TAP interface created in the host by VPP.
+// TODO: move to the linuxplugin
+func (s *remoteCNIserver) configureHostTAP(request *cni.CNIRequest, podIPNet *net.IPNet) error {
+	tapTmpHostIfName := s.tapTmpHostNameFromRequest(request)
+	tapHostIfName := s.tapHostNameFromRequest(request)
+	containerNs := &linux_intf.LinuxInterfaces_Interface_Namespace{
+		Type:     linux_intf.LinuxInterfaces_Interface_Namespace_FILE_REF_NS,
+		Filepath: request.NetworkNamespace,
 	}
+	nsMgmtCtx := linuxcalls.NewNamespaceMgmtCtx()
 
-	req := &vpe.CliInband{}
-	req.Length = uint32(len(command))
-	req.Cmd = []byte(command)
+	// Move TAP into the namespace of the container.
+	err := linuxcalls.SetInterfaceNamespace(nsMgmtCtx, tapTmpHostIfName,
+		containerNs, s.Logger, nil)
+	/* TODO: investigate the (non-fatal) error thrown here.
+	if err != nil {
+		s.Logger.Error(err)
+		return s.generateErrorResponse(err)
+	}
+	*/
 
-	reply := &vpe.CliInbandReply{}
-	err := s.govppChan.SendRequest(req).ReceiveReply(reply)
+	// Switch to the namespace of the container.
+	revertNs, err := linuxcalls.ToGenericNs(containerNs).SwitchNamespace(nsMgmtCtx, s.Logger)
+	if err != nil {
+		return err
+	}
+	defer revertNs()
+
+	// Rename the interface from the temporary host-wide unique name to eth0.
+	err = linuxcalls.RenameInterface(tapTmpHostIfName, tapHostIfName, nil)
 	if err != nil {
 		return err
 	}
 
-	if reply.Retval != 0 {
-		return fmt.Errorf("execution of cli command returned non-zero return code: %d", reply.Retval)
+	// Set TAP interface MAC address to make it compatible with STN.
+	err = linuxcalls.SetInterfaceMac(tapHostIfName, s.hwAddrForContainer(), nil)
+	if err != nil {
+		return err
 	}
+
+	// Set TAP interface IP to that of the Pod.
+	err = linuxcalls.AddInterfaceIP(tapHostIfName, podIPNet, nil)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// unconfigureHostTAP removes TAP interface from the host stack if it wasn't
+// already done by VPP itself.
+// TODO: move to the linuxplugin
+func (s *remoteCNIserver) unconfigureHostTAP(request *cni.CNIRequest) error {
+	tapHostIfName := s.tapHostNameFromRequest(request)
+	containerNs := &linux_intf.LinuxInterfaces_Interface_Namespace{
+		Type:     linux_intf.LinuxInterfaces_Interface_Namespace_FILE_REF_NS,
+		Filepath: request.NetworkNamespace,
+	}
+	nsMgmtCtx := linuxcalls.NewNamespaceMgmtCtx()
+
+	// Switch to the namespace of the container.
+	revertNs, err := linuxcalls.ToGenericNs(containerNs).SwitchNamespace(nsMgmtCtx, s.Logger)
+	if err != nil {
+		return err
+	}
+	defer revertNs()
+
+	err = linuxcalls.DeleteInterface(tapHostIfName, nil)
+	if err == nil {
+		s.WithField("tap", tapHostIfName).Warn("TAP interface was not removed in the host stack by VPP")
+	}
+
 	return nil
 }
 
@@ -266,18 +192,7 @@ func (s *remoteCNIserver) veth1HostIfNameFromRequest(request *cni.CNIRequest) st
 	return request.InterfaceName
 }
 
-func (s *remoteCNIserver) tapHostNameFromRequest(request *cni.CNIRequest) string {
-	return request.InterfaceName
-}
-
 func (s *remoteCNIserver) veth2NameFromRequest(request *cni.CNIRequest) string {
-	if len(request.ContainerId) > linuxIfMaxLen {
-		return request.ContainerId[:linuxIfMaxLen]
-	}
-	return request.ContainerId
-}
-
-func (s *remoteCNIserver) tapTmpHostNameFromRequest(request *cni.CNIRequest) string {
 	if len(request.ContainerId) > linuxIfMaxLen {
 		return request.ContainerId[:linuxIfMaxLen]
 	}
@@ -292,6 +207,17 @@ func (s *remoteCNIserver) tapNameFromRequest(request *cni.CNIRequest) string {
 	return tapNamePrefix + s.tapTmpHostNameFromRequest(request)
 }
 
+func (s *remoteCNIserver) tapTmpHostNameFromRequest(request *cni.CNIRequest) string {
+	if len(request.ContainerId) > linuxIfMaxLen {
+		return request.ContainerId[:linuxIfMaxLen]
+	}
+	return request.ContainerId
+}
+
+func (s *remoteCNIserver) tapHostNameFromRequest(request *cni.CNIRequest) string {
+	return request.InterfaceName
+}
+
 func (s *remoteCNIserver) loopbackNameFromRequest(request *cni.CNIRequest) string {
 	return "loop" + s.veth2NameFromRequest(request)
 }
@@ -300,8 +226,16 @@ func (s *remoteCNIserver) ipAddrForPodVPPIf() string {
 	return podIfIPPrefix + "." + strconv.Itoa(s.counter+1) + "/32"
 }
 
-func (s *remoteCNIserver) macAddrForContainer() string {
+func (s *remoteCNIserver) hwAddrForContainer() string {
 	return "00:00:00:00:00:02"
+}
+
+func (s *remoteCNIserver) generateHwAddrForPodVPPIf() string {
+	hwAddr := make(net.HardwareAddr, 6)
+	rand.Read(hwAddr)
+	hwAddr[0] = 2
+	hwAddr[1] = 0xfe
+	return hwAddr.String()
 }
 
 func (s *remoteCNIserver) veth1FromRequest(request *cni.CNIRequest, podIP string) *linux_intf.LinuxInterfaces_Interface {
@@ -310,7 +244,7 @@ func (s *remoteCNIserver) veth1FromRequest(request *cni.CNIRequest, podIP string
 		Type:        linux_intf.LinuxInterfaces_VETH,
 		Enabled:     true,
 		HostIfName:  s.veth1HostIfNameFromRequest(request),
-		PhysAddress: s.macAddrForContainer(),
+		PhysAddress: s.hwAddrForContainer(),
 		Veth: &linux_intf.LinuxInterfaces_Interface_Veth{
 			PeerIfName: s.veth2NameFromRequest(request),
 		},
@@ -343,6 +277,7 @@ func (s *remoteCNIserver) afpacketFromRequest(request *cni.CNIRequest) *vpp_intf
 			HostIfName: s.veth2NameFromRequest(request),
 		},
 		IpAddresses: []string{s.ipAddrForPodVPPIf()},
+		PhysAddress: s.generateHwAddrForPodVPPIf(),
 	}
 }
 
@@ -355,10 +290,10 @@ func (s *remoteCNIserver) tapFromRequest(request *cni.CNIRequest) *vpp_intf.Inte
 			HostIfName: s.tapTmpHostNameFromRequest(request),
 		},
 		IpAddresses: []string{s.ipAddrForPodVPPIf()},
+		PhysAddress: s.generateHwAddrForPodVPPIf(),
 	}
 	if s.tapVersion == 2 {
 		tap.Tap.Version = 2
-		//tap.Tap.Namespace = request.NetworkNamespace
 		tap.Tap.RxRingSize = uint32(s.tapV2RxRingSize)
 		tap.Tap.TxRingSize = uint32(s.tapV2TxRingSize)
 	}
@@ -374,8 +309,8 @@ func (s *remoteCNIserver) loopbackFromRequest(request *cni.CNIRequest, loopIP st
 	}
 }
 
-func (s *remoteCNIserver) vppRouteFromRequest(request *cni.CNIRequest, podIP string) *l3.StaticRoutes_Route {
-	route := &l3.StaticRoutes_Route{
+func (s *remoteCNIserver) vppRouteFromRequest(request *cni.CNIRequest, podIP string) *vpp_l3.StaticRoutes_Route {
+	route := &vpp_l3.StaticRoutes_Route{
 		DstIpAddr: podIP,
 	}
 	if s.useTAPInterfaces {
@@ -386,6 +321,80 @@ func (s *remoteCNIserver) vppRouteFromRequest(request *cni.CNIRequest, podIP str
 	return route
 }
 
-func ipToIPNet(ip net.IP) net.IPNet {
-	return net.IPNet{IP: ip, Mask: net.IPv4Mask(0xff, 0xff, 0xff, 0xff)}
+func (s *remoteCNIserver) stnRule(ipAddress net.IP, ifname string) *stn.StnRule {
+	return &stn.StnRule{
+		RuleName:  "rule-" + ifname,   //used as unique id for rules in etcd (managed by vpp-agent)
+		IpAddress: ipAddress.String(), //ipv4
+		Interface: ifname,
+	}
+}
+
+func (s *remoteCNIserver) appNamespaceFromRequest(request *cni.CNIRequest) *vpp_l4.AppNamespaces_AppNamespace {
+	return &vpp_l4.AppNamespaces_AppNamespace{
+		NamespaceId: request.ContainerId,
+		Secret:      42,
+		Interface:   s.loopbackNameFromRequest(request),
+	}
+}
+
+func (s *remoteCNIserver) vppArpEntry(podIfName string, podIP net.IP, macAddr string) *vpp_l3.ArpTable_ArpTableEntry {
+	return &vpp_l3.ArpTable_ArpTableEntry{
+		Interface:   podIfName,
+		IpAddress:   podIP.String(),
+		PhysAddress: macAddr,
+		Static:      true,
+	}
+}
+
+func (s *remoteCNIserver) podArpEntry(request *cni.CNIRequest, ifName string, macAddr string) *linux_l3.LinuxStaticArpEntries_ArpEntry {
+	containerNs := &linux_l3.LinuxStaticArpEntries_ArpEntry_Namespace{
+		Type:     linux_l3.LinuxStaticArpEntries_ArpEntry_Namespace_FILE_REF_NS,
+		Filepath: request.NetworkNamespace,
+	}
+	return &linux_l3.LinuxStaticArpEntries_ArpEntry{
+		Name:      request.ContainerId,
+		Namespace: containerNs,
+		Interface: ifName,
+		Family:    netlink.FAMILY_V4, /* TODO: not nice, add enum to protobuf */
+		State: &linux_l3.LinuxStaticArpEntries_ArpEntry_NudState{
+			Type: linux_l3.LinuxStaticArpEntries_ArpEntry_NudState_PERMANENT,
+		},
+		IpAddr:    s.ipam.PodGatewayIP().String(),
+		HwAddress: macAddr,
+	}
+}
+
+func (s *remoteCNIserver) podLinkRouteFromRequest(request *cni.CNIRequest, ifName string) *linux_l3.LinuxStaticRoutes_Route {
+	containerNs := &linux_l3.LinuxStaticRoutes_Route_Namespace{
+		Type:     linux_l3.LinuxStaticRoutes_Route_Namespace_FILE_REF_NS,
+		Filepath: request.NetworkNamespace,
+	}
+	return &linux_l3.LinuxStaticRoutes_Route{
+		Name:      "LINK-" + request.ContainerId,
+		Default:   false,
+		Namespace: containerNs,
+		Interface: ifName,
+		Scope: &linux_l3.LinuxStaticRoutes_Route_Scope{
+			Type: linux_l3.LinuxStaticRoutes_Route_Scope_LINK,
+		},
+		DstIpAddr: s.ipam.PodGatewayIP().String(),
+	}
+}
+
+func (s *remoteCNIserver) podDefaultRouteFromRequest(request *cni.CNIRequest, ifName string) *linux_l3.LinuxStaticRoutes_Route {
+	containerNs := &linux_l3.LinuxStaticRoutes_Route_Namespace{
+		Type:     linux_l3.LinuxStaticRoutes_Route_Namespace_FILE_REF_NS,
+		Filepath: request.NetworkNamespace,
+	}
+	return &linux_l3.LinuxStaticRoutes_Route{
+		Name:      "DEFAULT-" + request.ContainerId,
+		Default:   true,
+		Namespace: containerNs,
+		Interface: ifName,
+		Scope: &linux_l3.LinuxStaticRoutes_Route_Scope{
+			Type: linux_l3.LinuxStaticRoutes_Route_Scope_GLOBAL,
+		},
+		DstIpAddr: "0.0.0.0/0",
+		GwAddr:    s.ipam.PodGatewayIP().String(),
+	}
 }

@@ -142,8 +142,8 @@ func (d *MockPutDSL) AppNamespace(val *l4.AppNamespaces_AppNamespace) defaultplu
 	return d
 }
 
-// StnRules adds a request to create or update Stn rule to the RESYNC request.
-func (d *MockPutDSL) StnRules(val *stn.StnRule) defaultplugins.PutDSL {
+// StnRule adds a request to create or update Stn rule to the RESYNC request.
+func (d *MockPutDSL) StnRule(val *stn.StnRule) defaultplugins.PutDSL {
 	op := dsl.TxnOp{Key: stn.Key(val.RuleName), Value: val}
 	d.parent.Ops = append(d.parent.Ops, op)
 	return d
@@ -248,8 +248,8 @@ func (d *MockDeleteDSL) Arp(ifaceName string, ipAddr net.IP) defaultplugins.Dele
 	return d
 }
 
-// StnRules adds a request to delete an existing Stn rule to the RESYNC request.
-func (d *MockDeleteDSL) StnRules(ruleName string) defaultplugins.DeleteDSL {
+// StnRule adds a request to delete an existing Stn rule to the RESYNC request.
+func (d *MockDeleteDSL) StnRule(ruleName string) defaultplugins.DeleteDSL {
 	op := dsl.TxnOp{Key: stn.Key(ruleName)}
 	d.parent.Ops = append(d.parent.Ops, op)
 	return d

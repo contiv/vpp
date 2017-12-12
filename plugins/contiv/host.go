@@ -16,28 +16,36 @@ package contiv
 
 import (
 	"fmt"
-
 	"net"
+
 	"strconv"
 
 	vpp_intf "github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/model/interfaces"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/l3plugin/model/l3"
+	vpp_l4 "github.com/ligato/vpp-agent/plugins/defaultplugins/l4plugin/model/l4"
 	linux_intf "github.com/ligato/vpp-agent/plugins/linuxplugin/ifplugin/model/interfaces"
-	"github.com/vishvananda/netlink"
+	linux_l3 "github.com/ligato/vpp-agent/plugins/linuxplugin/l3plugin/model/l3"
 )
 
-func (s *remoteCNIserver) configureRouteOnHost() error {
-	dev, err := s.LinkByName(vethHostEndName)
-	if err != nil {
-		s.Logger.Error(err)
-		return err
+func (s *remoteCNIserver) l4Features(enable bool) *vpp_l4.L4Features {
+	return &vpp_l4.L4Features{
+		Enabled: enable,
 	}
+}
 
-	return s.RouteAdd(&netlink.Route{
-		LinkIndex: dev.Attrs().Index,
-		Dst:       s.ipam.PodSubnet(),
-		Gw:        s.ipam.VEthVPPEndIP(),
-	})
+func (s *remoteCNIserver) routeFromHost() *linux_l3.LinuxStaticRoutes_Route {
+	return &linux_l3.LinuxStaticRoutes_Route{
+		Name:        "host-to-vpp",
+		Default:     false,
+		Namespace:   nil,
+		Interface:   vethHostEndName,
+		Description: "Route from host to VPP for this K8s node.",
+		Scope: &linux_l3.LinuxStaticRoutes_Route_Scope{
+			Type: linux_l3.LinuxStaticRoutes_Route_Scope_GLOBAL,
+		},
+		DstIpAddr: s.ipam.PodSubnet().String(),
+		GwAddr:    s.ipam.VEthVPPEndIP().String(),
+	}
 }
 
 func (s *remoteCNIserver) defaultRouteToHost() *l3.StaticRoutes_Route {

@@ -12,16 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package logroot contains the default global logger.
-package logroot
+package vppcalls
 
 import (
-	"github.com/ligato/cn-infra/logging"
-	"github.com/ligato/cn-infra/logging/logrus"
+	govppapi "git.fd.io/govpp.git/api"
 )
 
-// StandardLogger returns a global default logger. Please notice, that recommended
-// approach is to create a custom logger.
-func StandardLogger() logging.Logger {
-	return logrus.DefaultLogger()
+//VPPChannel is interface for send request to VPP channel
+type VPPChannel interface {
+	SendRequest(msg govppapi.Message) *govppapi.RequestCtx
 }
+

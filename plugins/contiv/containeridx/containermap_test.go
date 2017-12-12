@@ -18,21 +18,20 @@ import (
 	"testing"
 
 	"github.com/ligato/cn-infra/core"
-	"github.com/ligato/cn-infra/logging/logroot"
 	"github.com/onsi/gomega"
 )
 
 func TestNewConfigIndex(t *testing.T) {
 	gomega.RegisterTestingT(t)
 
-	idx := NewConfigIndex(logroot.StandardLogger(), core.PluginName("Plugin-name"), "title")
+	idx := NewConfigIndex(nil, core.PluginName("Plugin-name"), "title")
 	gomega.Expect(idx).NotTo(gomega.BeNil())
 }
 
 func TestRegisterUnregister(t *testing.T) {
 	gomega.RegisterTestingT(t)
 
-	idx := NewConfigIndex(logroot.StandardLogger(), core.PluginName("Plugin-name"), "title")
+	idx := NewConfigIndex(nil, core.PluginName("Plugin-name"), "title")
 	gomega.Expect(idx).NotTo(gomega.BeNil())
 
 	const (
@@ -46,15 +45,15 @@ func TestRegisterUnregister(t *testing.T) {
 	idx.RegisterContainer(containerIDOne, nil)
 	idx.RegisterContainer(containerIDTwo, nil)
 
-	found, _ := idx.LookupContainer(containerIDOne)
+	_, found := idx.LookupContainer(containerIDOne)
 	gomega.Expect(found).To(gomega.BeTrue())
 
-	found, _ = idx.LookupContainer(containerIDTwo)
+	_, found = idx.LookupContainer(containerIDTwo)
 	gomega.Expect(found).To(gomega.BeTrue())
 
 	idx.UnregisterContainer(containerIDOne)
 
-	found, _ = idx.LookupContainer(containerIDOne)
+	_, found = idx.LookupContainer(containerIDOne)
 	gomega.Expect(found).To(gomega.BeFalse())
 
 	// unregistering of non-existing item does nothing
@@ -64,7 +63,7 @@ func TestRegisterUnregister(t *testing.T) {
 func TestSecondaryIndexLookup(t *testing.T) {
 	gomega.RegisterTestingT(t)
 
-	idx := NewConfigIndex(logroot.StandardLogger(), core.PluginName("Plugin-name"), "title")
+	idx := NewConfigIndex(nil, core.PluginName("Plugin-name"), "title")
 	gomega.Expect(idx).NotTo(gomega.BeNil())
 
 	const (

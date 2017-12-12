@@ -24,7 +24,7 @@ import (
 	"sync"
 	"time"
 
-        "github.com/fsouza/go-dockerclient"
+	"github.com/fsouza/go-dockerclient"
 	"github.com/vishvananda/netlink"
 
 	log "github.com/ligato/cn-infra/logging/logrus"
@@ -111,7 +111,7 @@ type LinuxInterfaceConfigurator struct {
 
 // Init linuxplugin and start go routines.
 func (plugin *LinuxInterfaceConfigurator) Init(ifIndexes ifaceidx.LinuxIfIndexRW) error {
-	plugin.Log.Debug("Initializing LinuxInterfaceConfigurator")
+	plugin.Log.Debug("Initializing Linux Interface configurator")
 	plugin.ifIndexes = ifIndexes
 
 	// Allocate caches.
@@ -180,7 +180,7 @@ func (plugin *LinuxInterfaceConfigurator) LookupLinuxInterfaces() error {
 // the interface in the host network stack through Netlink API.
 func (plugin *LinuxInterfaceConfigurator) ConfigureLinuxInterface(iface *intf.LinuxInterfaces_Interface) error {
 	plugin.handleOptionalHostIfName(iface)
-	plugin.Log.Infof("Configuring Linux interface %v with host if-name %v", iface.Name, iface.HostIfName)
+	plugin.Log.Infof("Configuring new Linux interface %v with host if-name %v", iface.Name, iface.HostIfName)
 	var err error
 
 	if iface.Type != intf.LinuxInterfaces_VETH {
@@ -219,7 +219,14 @@ func (plugin *LinuxInterfaceConfigurator) ConfigureLinuxInterface(iface *intf.Li
 	if err != nil {
 		return err
 	}
-	return plugin.configureLinuxInterface(nsMgmtCtx, peer)
+	err = plugin.configureLinuxInterface(nsMgmtCtx, peer)
+	if err != nil {
+		return err
+	}
+
+	plugin.Log.Infof("Linux interface %v with host if-name %v configured", iface.Name, iface.HostIfName)
+
+	return nil
 }
 
 func (plugin *LinuxInterfaceConfigurator) configureLinuxInterface(nsMgmtCtx *linuxcalls.NamespaceMgmtCtx, iface *LinuxInterfaceConfig) error {
@@ -303,7 +310,7 @@ func (plugin *LinuxInterfaceConfigurator) configureLinuxInterface(nsMgmtCtx *lin
 		}
 	}
 
-	plugin.ifIndexes.RegisterName(iface.config.Name, uint32(idx), nil)
+	plugin.ifIndexes.RegisterName(iface.config.Name, uint32(idx), &intf.LinuxInterfaces_Interface{Name: iface.config.Name, HostIfName: iface.config.HostIfName})
 	plugin.Log.WithFields(log.Fields{"ifName": iface.config.Name, "ifIdx": idx}).Info("An entry added into ifState.")
 
 	return wasError
@@ -313,9 +320,11 @@ func (plugin *LinuxInterfaceConfigurator) configureLinuxInterface(nsMgmtCtx *lin
 // through Netlink API.
 func (plugin *LinuxInterfaceConfigurator) ModifyLinuxInterface(newConfig *intf.LinuxInterfaces_Interface,
 	oldConfig *intf.LinuxInterfaces_Interface) error {
+	plugin.Log.Infof("Modifying Linux interface %v", newConfig.Name)
+
 	plugin.handleOptionalHostIfName(newConfig)
 	plugin.handleOptionalHostIfName(oldConfig)
-	plugin.Log.Infof("'Modifying' Linux interface", newConfig.Name)
+
 	var err error
 	var ifName = newConfig.HostIfName
 
@@ -437,13 +446,15 @@ func (plugin *LinuxInterfaceConfigurator) ModifyLinuxInterface(newConfig *intf.L
 		}
 	}
 
+	plugin.Log.Infof("Linux interface %v modified", newConfig.Name)
+
 	return wasError
 }
 
 // DeleteLinuxInterface reacts to a removed NB configuration of a Linux interface.
 func (plugin *LinuxInterfaceConfigurator) DeleteLinuxInterface(iface *intf.LinuxInterfaces_Interface) error {
+	plugin.Log.Infof("Removing Linux interface %v with host if-name %v", iface.Name, iface.HostIfName)
 	plugin.handleOptionalHostIfName(iface)
-	plugin.Log.Infof("'Deleting' Linux interface", iface.Name, "with host if-name", iface.HostIfName)
 
 	if iface.Type != intf.LinuxInterfaces_VETH {
 		return errors.New("unsupported Linux interface type")
@@ -484,6 +495,9 @@ func (plugin *LinuxInterfaceConfigurator) DeleteLinuxInterface(iface *intf.Linux
 	// Unregister both VETH ends from the in-memory map (following triggers notifications for all subscribers).
 	plugin.ifIndexes.UnregisterName(iface.Name)
 	plugin.ifIndexes.UnregisterName(peer.config.Name)
+
+	plugin.Log.Infof("Linux Interface %v removed", iface.Name)
+
 	return nil
 }
 
@@ -681,6 +695,7 @@ func (plugin *LinuxInterfaceConfigurator) trackMicroservices(ctx context.Context
 			if err == nil {
 				plugin.Log.Info("Successfully established connection with the docker daemon.")
 			} else {
+				plugin.Log.Info("Trying to connect to the docker daemon ... ")
 				goto nextRefresh
 			}
 		}
@@ -704,6 +719,8 @@ func (plugin *LinuxInterfaceConfigurator) trackMicroservices(ctx context.Context
 				} else if details.State.Status == "created" {
 					nextCreated = append(nextCreated, container)
 				}
+			} else {
+				plugin.Log.Debugf("Inspect container ID %v failed: %v", container, err)
 			}
 		}
 		created = nextCreated
@@ -718,17 +735,21 @@ func (plugin *LinuxInterfaceConfigurator) trackMicroservices(ctx context.Context
 
 		containers, err = plugin.dockerClient.ListContainers(listOpts)
 		if err != nil {
-			if err, ok := err.(*docker.Error); ok && err.Status == 404 {
+			plugin.Log.Errorf("Error listing docker containers: %v", err)
+			if err, ok := err.(*docker.Error); ok && (err.Status == 500 || err.Status == 404) {
+				plugin.Log.Debugf("Clearing since: %v", since)
 				since = ""
 			}
 			goto nextRefresh
 		}
 
 		for _, container := range containers {
+			plugin.Log.Debugf("processing new container %v with state %v", container.ID, container.State)
 			if container.State == "running" && container.Created > lastInspected {
 				// Inspect the container to get the list of defined environment variables.
 				details, err := plugin.dockerClient.InspectContainer(container.ID)
 				if err != nil {
+					plugin.Log.Debugf("Inspect container %v failed: %v", container.ID, err)
 					continue
 				}
 				plugin.detectMicroservice(nsMgmtCtx, details)
@@ -805,7 +826,7 @@ func (plugin *LinuxInterfaceConfigurator) processNewMicroservice(nsMgmtCtx *linu
 				// VETH is ready to be created and configured
 				err := plugin.addVethInterface(nsMgmtCtx, intf.config, peer.config)
 				if err != nil {
-					plugin.Log.Warn(err.Error())
+					plugin.Log.Error(err.Error())
 					continue
 				}
 				err = plugin.configureLinuxInterface(nsMgmtCtx, intf)
@@ -813,7 +834,7 @@ func (plugin *LinuxInterfaceConfigurator) processNewMicroservice(nsMgmtCtx *linu
 					err = plugin.configureLinuxInterface(nsMgmtCtx, peer)
 				}
 				if err != nil {
-					plugin.Log.Warn("failed to configure VETH: %v", err)
+					plugin.Log.Error("failed to configure VETH: %v", err)
 				}
 			}
 		}

@@ -173,8 +173,7 @@ func DeleteIPAcl(aclIndex uint32, log logging.Logger, vppChannel *api.Channel, t
 		return fmt.Errorf("failed to remove L3/L4 ACL %v", aclIndex)
 	}
 	if 0 != reply.Retval {
-		log.Infof("Ignoring failed removal of L3/L4 ACL %v", aclIndex)
-		return nil
+		return fmt.Errorf("error %v while removing L3/L4 ACL %v", reply.Retval, aclIndex)
 	}
 	log.Infof("L3/L4 ACL %v removed", aclIndex)
 

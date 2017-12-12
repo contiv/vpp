@@ -20,8 +20,12 @@ import (
 	"github.com/ligato/cn-infra/idxmap/mem"
 	"github.com/ligato/cn-infra/logging"
 	vpp_intf "github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/model/interfaces"
+	"github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/model/stn"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/l3plugin/model/l3"
+	vpp_l3 "github.com/ligato/vpp-agent/plugins/defaultplugins/l3plugin/model/l3"
+	vpp_l4 "github.com/ligato/vpp-agent/plugins/defaultplugins/l4plugin/model/l4"
 	linux_intf "github.com/ligato/vpp-agent/plugins/linuxplugin/ifplugin/model/interfaces"
+	linux_l3 "github.com/ligato/vpp-agent/plugins/linuxplugin/l3plugin/model/l3"
 )
 
 const podNameKey = "podNameKey"
@@ -33,16 +37,33 @@ type Config struct {
 	PodName string
 	// PodNamespace from the CNI request
 	PodNamespace string
-	// Veth1 one end end of veth pair that is in the given container namespace
+	// Veth1 one end end of veth pair that is in the given container namespace.
+	// Nil if TAPs are used instead.
 	Veth1 *linux_intf.LinuxInterfaces_Interface
 	// Veth2 is the other end of veth pair in the default namespace
+	// Nil if TAPs are used instead.
 	Veth2 *linux_intf.LinuxInterfaces_Interface
-	// Afpacket/TAP interface connecting pod to VPP
-	PodVppIf *vpp_intf.Interfaces_Interface
-	// Route to the container
-	Route *l3.StaticRoutes_Route
-	// Application namespace index
-	NsIndex uint32
+	// VppIf is AF_PACKET/TAP interface connecting pod to VPP
+	VppIf *vpp_intf.Interfaces_Interface
+	// Loopback interface associated with the pod.
+	// Nil if VPP TCP stack is disabled.
+	Loopback *vpp_intf.Interfaces_Interface
+	// StnRule is STN rule used to "punt" any traffic via VETHs/TAPs with no match in VPP TCP stack.
+	// Nil if VPP TCP stack is disabled.
+	StnRule *stn.StnRule
+	// AppNamespace is the application namespace associated with the pod.
+	// Nil if VPP TCP stack is disabled.
+	AppNamespace *vpp_l4.AppNamespaces_AppNamespace
+	// VppARPEntry is ARP entry configured in VPP to route traffic from VPP to pod.
+	VppARPEntry *vpp_l3.ArpTable_ArpTableEntry
+	// PodARPEntry is ARP entry configured in the pod to route traffic from pod to VPP.
+	PodARPEntry *linux_l3.LinuxStaticArpEntries_ArpEntry
+	// VppRoute is the route from VPP to the container
+	VppRoute *l3.StaticRoutes_Route
+	// PodLinkRoute is the route from pod to the default gateway.
+	PodLinkRoute *linux_l3.LinuxStaticRoutes_Route
+	// PodDefaultRoute is the default gateway for the pod.
+	PodDefaultRoute *linux_l3.LinuxStaticRoutes_Route
 }
 
 // ConfigIndex implements a cache for configured containers. Primary index is containerID.
@@ -72,14 +93,14 @@ func (ci *ConfigIndex) UnregisterContainer(containerID string) (data *Config, fo
 }
 
 // LookupContainer looks up entry in the container based on containerID.
-func (ci *ConfigIndex) LookupContainer(containerID string) (found bool, data *Config) {
+func (ci *ConfigIndex) LookupContainer(containerID string) (data *Config, found bool) {
 	d, found := ci.mapping.GetValue(containerID)
 	if found {
 		if data, ok := d.(*Config); ok {
-			return found, data
+			return data, found
 		}
 	}
-	return false, nil
+	return nil, false
 }
 
 // LookupPodName performs lookup based on secondary index podName.

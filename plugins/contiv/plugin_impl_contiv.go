@@ -14,8 +14,6 @@
 
 //go:generate protoc -I ./model/cni --go_out=plugins=grpc:./model/cni ./model/cni/cni.proto
 //go:generate protoc -I ./model/uid --go_out=plugins=grpc:./model/uid ./model/uid/uid.proto
-//go:generate binapi-generator --input-file=/usr/share/vpp/api/stn.api.json --output-dir=bin_api
-//go:generate binapi-generator --input-file=/usr/share/vpp/api/session.api.json --output-dir=bin_api
 
 package contiv
 
@@ -202,7 +200,7 @@ func (plugin *Plugin) getContainerConfig(podNamespace string, podName string) *c
 	for _, pod1 := range podNamespacesMatch {
 		for _, pod2 := range podNamesMatch {
 			if pod1 == pod2 {
-				found, data := plugin.configuredContainers.LookupContainer(pod1)
+				data, found := plugin.configuredContainers.LookupContainer(pod1)
 				if found {
 					return data
 				}
@@ -216,8 +214,8 @@ func (plugin *Plugin) getContainerConfig(podNamespace string, podName string) *c
 // GetIfName looks up logical interface name that corresponds to the interface associated with the given pod.
 func (plugin *Plugin) GetIfName(podNamespace string, podName string) (name string, exists bool) {
 	config := plugin.getContainerConfig(podNamespace, podName)
-	if config != nil && config.PodVppIf != nil {
-		return config.PodVppIf.Name, true
+	if config != nil && config.VppIf != nil {
+		return config.VppIf.Name, true
 	}
 	plugin.Log.WithFields(logging.Fields{"podNamespace": podNamespace, "podName": podName}).Warn("No matching result found")
 	return "", false
@@ -228,7 +226,8 @@ func (plugin *Plugin) GetIfName(podNamespace string, podName string) (name strin
 func (plugin *Plugin) GetNsIndex(podNamespace string, podName string) (nsIndex uint32, exists bool) {
 	config := plugin.getContainerConfig(podNamespace, podName)
 	if config != nil {
-		return config.NsIndex, true
+		nsIndex, _, exists = plugin.VPP.GetAppNsIndexes().LookupIdx(config.AppNamespace.NamespaceId)
+		return nsIndex, exists
 	}
 	plugin.Log.WithFields(logging.Fields{"podNamespace": podNamespace, "podName": podName}).Warn("No matching result found")
 	return 0, false

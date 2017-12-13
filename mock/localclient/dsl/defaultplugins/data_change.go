@@ -1,8 +1,6 @@
 package defaultplugins
 
 import (
-	"net"
-
 	"github.com/ligato/vpp-agent/clientv1/defaultplugins"
 
 	"github.com/contiv/vpp/mock/localclient/dsl"
@@ -108,8 +106,7 @@ func (d *MockPutDSL) XConnect(val *l2.XConnectPairs_XConnectPair) defaultplugins
 
 // StaticRoute adds a mock request to create or update VPP L3 Static Route.
 func (d *MockPutDSL) StaticRoute(val *l3.StaticRoutes_Route) defaultplugins.PutDSL {
-	_, dstAddr, _ := net.ParseCIDR(val.DstIpAddr)
-	op := dsl.TxnOp{Key: l3.RouteKey(val.VrfId, dstAddr, val.NextHopAddr), Value: val}
+	op := dsl.TxnOp{Key: l3.RouteKey(val.VrfId, val.DstIpAddr, val.NextHopAddr), Value: val}
 	d.parent.Ops = append(d.parent.Ops, op)
 	return d
 }
@@ -213,8 +210,8 @@ func (d *MockDeleteDSL) XConnect(rxIfName string) defaultplugins.DeleteDSL {
 }
 
 // StaticRoute adds a mock request to delete an existing VPP L3 Static Route..
-func (d *MockDeleteDSL) StaticRoute(vrf uint32, dstAddrInput *net.IPNet, nextHopAddr net.IP) defaultplugins.DeleteDSL {
-	op := dsl.TxnOp{Key: l3.RouteKey(vrf, dstAddrInput, nextHopAddr.String())}
+func (d *MockDeleteDSL) StaticRoute(vrf uint32, dstAddr string, nextHopAddr string) defaultplugins.DeleteDSL {
+	op := dsl.TxnOp{Key: l3.RouteKey(vrf, dstAddr, nextHopAddr)}
 	d.parent.Ops = append(d.parent.Ops, op)
 	return d
 }
@@ -242,8 +239,8 @@ func (d *MockDeleteDSL) AppNamespace(id string) defaultplugins.DeleteDSL {
 }
 
 // Arp adds a request to delete an existing VPP L3 ARP.
-func (d *MockDeleteDSL) Arp(ifaceName string, ipAddr net.IP) defaultplugins.DeleteDSL {
-	op := dsl.TxnOp{Key: l3.ArpEntryKey(ifaceName, ipAddr.String())}
+func (d *MockDeleteDSL) Arp(ifaceName string, ipAddr string) defaultplugins.DeleteDSL {
+	op := dsl.TxnOp{Key: l3.ArpEntryKey(ifaceName, ipAddr)}
 	d.parent.Ops = append(d.parent.Ops, op)
 	return d
 }

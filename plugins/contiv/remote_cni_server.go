@@ -294,8 +294,7 @@ func (s *remoteCNIserver) configureVswitchConnectivity() error {
 	changes[linux_intf.InterfaceKey(vethHost.Name)] = vethHost
 	changes[linux_intf.InterfaceKey(vethVpp.Name)] = vethVpp
 	changes[vpp_intf.InterfaceKey(interconnectAF.Name)] = interconnectAF
-	_, dstNet, _ := net.ParseCIDR(routeToHost.DstIpAddr)
-	changes[vpp_l3.RouteKey(routeToHost.VrfId, dstNet, routeToHost.NextHopAddr)] = routeToHost
+	changes[vpp_l3.RouteKey(routeToHost.VrfId, routeToHost.DstIpAddr, routeToHost.NextHopAddr)] = routeToHost
 	changes[linux_l3.StaticRouteKey(routeFromHost.Name)] = routeFromHost
 	changes[vpp_l4.FeatureKey()] = l4Features
 
@@ -470,8 +469,7 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 		changes[stn.Key(stnRule.RuleName)] = stnRule
 		changes[vpp_l4.AppNamespacesKey(appNs.NamespaceId)] = appNs
 	} else {
-		_, dstNet, _ := net.ParseCIDR(vppRoute.DstIpAddr)
-		changes[vpp_l3.RouteKey(vppRoute.VrfId, dstNet, vppRoute.NextHopAddr)] = vppRoute
+		changes[vpp_l3.RouteKey(vppRoute.VrfId, vppRoute.DstIpAddr, vppRoute.NextHopAddr)] = vppRoute
 	}
 	changes[vpp_l3.ArpEntryKey(vppArp.Interface, vppArp.IpAddress)] = vppArp
 	changes[linux_l3.StaticArpKey(podArp.Name)] = podArp
@@ -569,15 +567,14 @@ func (s *remoteCNIserver) unconfigureContainerConnectivity(request *cni.CNIReque
 			StnRule(config.StnRule.RuleName).
 			AppNamespace(config.AppNamespace.NamespaceId)
 	} else {
-		_, dstNet, _ := net.ParseCIDR(config.VppRoute.DstIpAddr)
-		txn.StaticRoute(config.VppRoute.VrfId, dstNet, net.ParseIP(config.VppRoute.NextHopAddr))
+		txn.StaticRoute(config.VppRoute.VrfId, config.VppRoute.DstIpAddr, config.VppRoute.NextHopAddr)
 	}
 
-	txn.Arp(config.VppARPEntry.Interface, net.ParseIP(config.VppARPEntry.IpAddress)).
-		LinuxArpEntry(config.PodARPEntry)
+	txn.Arp(config.VppARPEntry.Interface, config.VppARPEntry.IpAddress).
+		LinuxArpEntry(config.PodARPEntry.Name)
 
-	txn.LinuxRoute(config.PodLinkRoute).
-		LinuxRoute(config.PodDefaultRoute)
+	txn.LinuxRoute(config.PodLinkRoute.Name).
+		LinuxRoute(config.PodDefaultRoute.Name)
 
 	err = txn.Send().ReceiveReply()
 	if err != nil {
@@ -608,9 +605,8 @@ func (s *remoteCNIserver) unconfigureContainerConnectivity(request *cni.CNIReque
 			stn.Key(config.StnRule.RuleName),
 			vpp_l4.AppNamespacesKey(config.AppNamespace.NamespaceId))
 	} else {
-		_, dstNet, _ := net.ParseCIDR(config.VppRoute.DstIpAddr)
 		removedKeys = append(removedKeys,
-			vpp_l3.RouteKey(config.VppRoute.VrfId, dstNet, config.VppRoute.NextHopAddr))
+			vpp_l3.RouteKey(config.VppRoute.VrfId, config.VppRoute.DstIpAddr, config.VppRoute.NextHopAddr))
 	}
 	removedKeys = append(removedKeys,
 		vpp_l3.ArpEntryKey(config.VppARPEntry.Interface, config.VppARPEntry.IpAddress),

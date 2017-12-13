@@ -17,7 +17,6 @@ package contiv
 import (
 	"context"
 	"fmt"
-	"net"
 	"strings"
 
 	"github.com/contiv/vpp/plugins/contiv/model/uid"
@@ -75,18 +74,10 @@ func (s *remoteCNIserver) nodeChangePropageteEvent(dataChngEv datasync.ChangeEve
 			if err != nil {
 				return err
 			}
-			_, podDest, err := net.ParseCIDR(podsRoute.DstIpAddr)
-			if err != nil {
-				return err
-			}
-			_, hostDest, err := net.ParseCIDR(hostRoute.DstIpAddr)
-			if err != nil {
-				return err
-			}
 
 			err = s.vppLinuxTxnFactory().Delete().
-				StaticRoute(podsRoute.VrfId, podDest, net.ParseIP(podsRoute.NextHopAddr)).
-				StaticRoute(hostRoute.VrfId, hostDest, net.ParseIP(hostRoute.NextHopAddr)).
+				StaticRoute(podsRoute.VrfId, podsRoute.DstIpAddr, podsRoute.NextHopAddr).
+				StaticRoute(hostRoute.VrfId, hostRoute.DstIpAddr, hostRoute.NextHopAddr).
 				Send().ReceiveReply()
 			if err != nil {
 				return fmt.Errorf("Can't configure vpp to remove route to host %v (and its pods): %v ", hostID, err)

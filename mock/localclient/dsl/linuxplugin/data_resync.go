@@ -1,8 +1,6 @@
 package linuxplugin
 
 import (
-	"net"
-
 	"github.com/ligato/vpp-agent/clientv1/defaultplugins"
 	"github.com/ligato/vpp-agent/clientv1/linux"
 
@@ -101,8 +99,7 @@ func (d *MockDataResyncDSL) XConnect(val *vpp_l2.XConnectPairs_XConnectPair) lin
 
 // StaticRoute adds VPP L3 Static Route to the mock RESYNC request.
 func (d *MockDataResyncDSL) StaticRoute(val *vpp_l3.StaticRoutes_Route) linux.DataResyncDSL {
-	_, dstAddr, _ := net.ParseCIDR(val.DstIpAddr)
-	key := vpp_l3.RouteKey(val.VrfId, dstAddr, val.NextHopAddr)
+	key := vpp_l3.RouteKey(val.VrfId, val.DstIpAddr, val.NextHopAddr)
 	op := dsl.TxnOp{Key: key, Value: val}
 	d.Ops = append(d.Ops, op)
 	return d

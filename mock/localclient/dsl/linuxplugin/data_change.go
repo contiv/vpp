@@ -1,8 +1,6 @@
 package linuxplugin
 
 import (
-	"net"
-
 	"github.com/ligato/vpp-agent/clientv1/defaultplugins"
 	"github.com/ligato/vpp-agent/clientv1/linux"
 
@@ -111,8 +109,7 @@ func (d *MockPutDSL) XConnect(val *vpp_l2.XConnectPairs_XConnectPair) linux.PutD
 
 // StaticRoute adds a mock request to create or update VPP L3 Static Route.
 func (d *MockPutDSL) StaticRoute(val *vpp_l3.StaticRoutes_Route) linux.PutDSL {
-	_, dstAddr, _ := net.ParseCIDR(val.DstIpAddr)
-	op := dsl.TxnOp{Key: vpp_l3.RouteKey(val.VrfId, dstAddr, val.NextHopAddr), Value: val}
+	op := dsl.TxnOp{Key: vpp_l3.RouteKey(val.VrfId, val.DstIpAddr, val.NextHopAddr), Value: val}
 	d.parent.Ops = append(d.parent.Ops, op)
 	return d
 }
@@ -235,8 +232,8 @@ func (d *MockDeleteDSL) XConnect(rxIfName string) linux.DeleteDSL {
 }
 
 // StaticRoute adds a mock request to delete an existing VPP L3 Static Route..
-func (d *MockDeleteDSL) StaticRoute(vrf uint32, dstAddrInput *net.IPNet, nextHopAddr net.IP) linux.DeleteDSL {
-	op := dsl.TxnOp{Key: vpp_l3.RouteKey(vrf, dstAddrInput, nextHopAddr.String())}
+func (d *MockDeleteDSL) StaticRoute(vrf uint32, dstAddr string, nextHopAddr string) linux.DeleteDSL {
+	op := dsl.TxnOp{Key: vpp_l3.RouteKey(vrf, dstAddr, nextHopAddr)}
 	d.parent.Ops = append(d.parent.Ops, op)
 	return d
 }
@@ -256,8 +253,8 @@ func (d *MockDeleteDSL) L4Features() linux.DeleteDSL {
 }
 
 // Arp adds a request to delete an existing VPP L3 ARP entry.
-func (d *MockDeleteDSL) Arp(ifaceName string, ipAddr net.IP) linux.DeleteDSL {
-	op := dsl.TxnOp{Key: vpp_l3.ArpEntryKey(ifaceName, ipAddr.String())}
+func (d *MockDeleteDSL) Arp(ifaceName string, ipAddr string) linux.DeleteDSL {
+	op := dsl.TxnOp{Key: vpp_l3.ArpEntryKey(ifaceName, ipAddr)}
 	d.parent.Ops = append(d.parent.Ops, op)
 	return d
 }
@@ -284,14 +281,14 @@ func (d *MockDeleteDSL) LinuxInterface(ifName string) linux.DeleteDSL {
 	return d
 }
 
-func (d *MockDeleteDSL) LinuxArpEntry(val *linux_l3.LinuxStaticArpEntries_ArpEntry) linux.DeleteDSL {
-	op := dsl.TxnOp{Key: linux_l3.StaticArpKey(val.Name), Value: val}
+func (d *MockDeleteDSL) LinuxArpEntry(entryName string) linux.DeleteDSL {
+	op := dsl.TxnOp{Key: linux_l3.StaticArpKey(entryName)}
 	d.parent.Ops = append(d.parent.Ops, op)
 	return d
 }
 
-func (d *MockDeleteDSL) LinuxRoute(val *linux_l3.LinuxStaticRoutes_Route) linux.DeleteDSL {
-	op := dsl.TxnOp{Key: linux_l3.StaticRouteKey(val.Name), Value: val}
+func (d *MockDeleteDSL) LinuxRoute(routeName string) linux.DeleteDSL {
+	op := dsl.TxnOp{Key: linux_l3.StaticRouteKey(routeName)}
 	d.parent.Ops = append(d.parent.Ops, op)
 	return d
 }

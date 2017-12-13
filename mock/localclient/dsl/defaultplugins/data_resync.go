@@ -1,8 +1,6 @@
 package defaultplugins
 
 import (
-	"net"
-
 	"github.com/ligato/vpp-agent/clientv1/defaultplugins"
 
 	"github.com/contiv/vpp/mock/localclient/dsl"
@@ -79,8 +77,7 @@ func (d *MockDataResyncDSL) XConnect(val *l2.XConnectPairs_XConnectPair) default
 
 // StaticRoute adds VPP L3 Static Route to the mock RESYNC request.
 func (d *MockDataResyncDSL) StaticRoute(val *l3.StaticRoutes_Route) defaultplugins.DataResyncDSL {
-	_, dstAddr, _ := net.ParseCIDR(val.DstIpAddr)
-	key := l3.RouteKey(val.VrfId, dstAddr, val.NextHopAddr)
+	key := l3.RouteKey(val.VrfId, val.DstIpAddr, val.NextHopAddr)
 	op := dsl.TxnOp{Key: key, Value: val}
 	d.Ops = append(d.Ops, op)
 	return d

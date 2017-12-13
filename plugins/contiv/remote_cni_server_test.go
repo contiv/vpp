@@ -74,7 +74,6 @@ var config = Config{
 }
 
 func TestVeth1NameFromRequest(t *testing.T) {
-	t.Skip("NEEDS REFACTORING")
 	gomega.RegisterTestingT(t)
 
 	txns := localclient.NewTxnTracker(nil)
@@ -96,7 +95,6 @@ func TestVeth1NameFromRequest(t *testing.T) {
 }
 
 func TestAdd(t *testing.T) {
-	t.Skip("NEEDS REFACTORING")
 	gomega.RegisterTestingT(t)
 
 	swIfIdx := swIfIndexMock()
@@ -124,7 +122,7 @@ func TestAdd(t *testing.T) {
 	gomega.Expect(reply).NotTo(gomega.BeNil())
 
 	gomega.Expect(len(txns.PendingTxns)).To(gomega.BeEquivalentTo(0))
-	gomega.Expect(len(txns.CommittedTxns)).To(gomega.BeEquivalentTo(2))
+	gomega.Expect(len(txns.CommittedTxns)).To(gomega.BeEquivalentTo(1))
 	// TODO add asserts for txns(one linux plugin txn and one default plugins txn) / currently applied config
 
 	res := configuredContainers.LookupPodName(podName)

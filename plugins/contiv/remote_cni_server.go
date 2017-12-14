@@ -416,15 +416,14 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 		txn.StaticRoute(vppRoute)
 	}
 
-	// Add ARP entries for both directions: VPP->container & container->VPP.
-	txn.Arp(vppArp).
-		LinuxArpEntry(podArp)
+	// Add ARP entry VPP->container.
+	txn.Arp(vppArp)
 
 	// Add routes for the container.
 	txn.LinuxRoute(podLinkRoute).
 		LinuxRoute(podDefaultRoute)
 
-	// Configure interfaces via vpp-agent.
+	// Configure connectivity via vpp-agent.
 	err = txn.Send().ReceiveReply()
 	if err != nil {
 		s.Logger.Error(err)
@@ -438,6 +437,16 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 			s.Logger.Error(err)
 			return s.generateErrorResponse(err)
 		}
+	}
+
+	// Add ARP entry container->VPP.
+	// TODO: merge txn and txn2 once linuxplugin supports TAPs.
+	txn2 := s.vppLinuxTxnFactory().Put()
+	txn2.LinuxArpEntry(podArp)
+	err = txn2.Send().ReceiveReply()
+	if err != nil {
+		s.Logger.Error(err)
+		return s.generateErrorResponse(err)
 	}
 
 	if !s.disableTCPstack {

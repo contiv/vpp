@@ -16,8 +16,8 @@ between PODs. Currently, only Kubernetes 1.8.X versions are supported.
 
 ### (1/4) Preparing your hosts
 
-#### 1.1: Installing kubeadm on your hosts 
-For first-time installation, see [Installing kubeadm][6]. To update an 
+#### 1.1: Installing kubeadm on your hosts
+For first-time installation, see [Installing kubeadm][6]. To update an
 existing installation,  you should do a `apt-get update && apt-get upgrade`
 or `yum update` to get the latest version of kubeadm.
 
@@ -49,7 +49,7 @@ uio_pci_generic
 ```
 
 Now you need to find out the PCI address of the network interface that
-you want VPP to use for multi-node pod interconnect. On Debian-based 
+you want VPP to use for multi-node pod interconnect. On Debian-based
 distributions, you can use `lshw`:
 
 ```
@@ -63,13 +63,13 @@ pci@0000:00:04.0  ens4        network    Virtio network device
 In our case, it would be the `ens4` interface with the PCI address
 `0000:00:04.0`.
 
-Now, make sure that the selected interface is shut down, otherwise VPP 
+Now, make sure that the selected interface is shut down, otherwise VPP
 would not grab it:
 ```
 sudo ip link set ens4 down
 ```
 
-Now, add, or modify the VPP startup config file in `/etc/vpp/contiv-vswitch.conf` 
+Now, add, or modify the VPP startup config file in `/etc/vpp/contiv-vswitch.conf`
 to contain the proper PCI address:
 ```
 unix {
@@ -81,19 +81,19 @@ dpdk {
     dev 0000:00:04.0
 }
 ```
-#### 1.3 (Optional): Setting up custom management network on multi-homed nodes 
+#### 1.3 (Optional): Setting up custom management network on multi-homed nodes
 If the interface you use for Kubernetes management traffic (for example, the
-IP address used for `kubeadm join`) is not the one that contains the default 
+IP address used for `kubeadm join`) is not the one that contains the default
 route out of the host, you need to specify the management node IP address in
-the Kubelet config file. Add the following line to 
+the Kubelet config file. Add the following line to
 (`/etc/systemd/system/kubelet.service.d/10-kubeadm.conf`):
 ```
 Environment="KUBELET_EXTRA_ARGS=--fail-swap-on=false --node-ip=<node-management-ip-address>"
 ```
 ##### Example:
-Consider a 2 node deployment where each node is connected to 2 networks - 
+Consider a 2 node deployment where each node is connected to 2 networks -
 `10.0.2.0/24` and `192.168.56.0/24`, and the default route on each node points
-to the interface connected to the `10.0.2.0/24` subnet. We want to use subnet 
+to the interface connected to the `10.0.2.0/24` subnet. We want to use subnet
 `192.168.56.0/24` for Kubernetes management traffic. Assume the addresses of
 nodes connected to `192.168.56.0/24` are `192.168.56.105` and `192.168.56.106`.
 
@@ -107,19 +107,19 @@ Environment="KUBELET_EXTRA_ARGS=--fail-swap-on=false --node-ip=192.168.56.106"
 ```
 
 #### 1.4 (Optional): Installing the CRI Shim on your hosts
-If your pods will be using the VPP TCP/IP stack, you must first install the 
-CRI Shim on each host where the stack will be used. The CRI Shim installation 
+If your pods will be using the VPP TCP/IP stack, you must first install the
+CRI Shim on each host where the stack will be used. The CRI Shim installation
 should only be performed after `kubelet`, `kubeadm` and `kubectl` have already
-been [installed][2]. 
+been [installed][2].
 
 Run as root (not using sudo):
 ```
 bash <(curl -s https://raw.githubusercontent.com/contiv/vpp/master/k8s/cri-install.sh)
 ```
 Note that the CRI Shim installer has only been tested  with the [kubeadm][1]
-K8s cluster creation tool. 
+K8s cluster creation tool.
 
-After installing the CRI Shim, please proceed with cluster initialization, 
+After installing the CRI Shim, please proceed with cluster initialization,
 as described in the steps below. Alternatively, if the cluster had already
 been initialized before installing the CRI Shim, just reboot the node.
 
@@ -131,18 +131,23 @@ of Kube-Proxy that works with the Contiv-VPP network plugin on each node:
 bash <(curl -s https://raw.githubusercontent.com/contiv/vpp/master/k8s/proxy-install.sh)
 ```
 
+The steps 1.2 - 1.5 can be set up interactively using [script](k8s/setup-node.sh).
+```
+bash <(curl https://raw.githubusercontent.com/contiv/vpp/master/k8s/setup-node.sh)
+```
+
 ### (2/4) Initializing your master
-Before initializing the master, you may want to [tear down][8] up any 
+Before initializing the master, you may want to [tear down][8] up any
 previously installed K8s components. Then, proceed with master initialization
-as described in the [kubeadm manual][3]. Execute the following command as 
+as described in the [kubeadm manual][3]. Execute the following command as
 root:
 ```
 kubeadm init --token-ttl 0
 ```
 Note that the above command will autodetect the network interface to advertise
-the master on as the interface with the default gateway. If you want to use a 
-different interface (i.e. a custom management network setup), specify the 
-`--apiserver-advertise-address=<ip-address>` argument to kubeadm init. For 
+the master on as the interface with the default gateway. If you want to use a
+different interface (i.e. a custom management network setup), specify the
+`--apiserver-advertise-address=<ip-address>` argument to kubeadm init. For
 example:
 ```
 kubeadm init --token-ttl 0  --apiserver-advertise-address=192.168.56.106
@@ -191,7 +196,7 @@ the VPP startup config (`GigabitEthernet0/4/0` in our case):
 ```
 $ telnet 0 5002
 vpp# sh inter
-              Name               Idx       State          Counter          Count     
+              Name               Idx       State          Counter          Count
 GigabitEthernet0/4/0              1         up       rx packets                  1294
                                                      rx bytes                  153850
                                                      tx packets                   512
@@ -212,22 +217,22 @@ host-vppv2                        2         up       rx packets                1
                                                      drops                         15
                                                      ip4                       132147
                                                      ip6                           14
-local0                            0        down      
+local0                            0        down
 ```
 
-You should also see the interface to kube-dns (`host-40df9b44c3d42f4`) and to the 
+You should also see the interface to kube-dns (`host-40df9b44c3d42f4`) and to the
 node's IP stack (`host-vppv2`).
 
 #### Master Isolation (Optional)
 By default, your cluster will not schedule pods on the master for security
-reasons. If you want to be able to schedule pods on the master, e.g. for a 
+reasons. If you want to be able to schedule pods on the master, e.g. for a
 single-machine Kubernetes cluster for development, run:
 
 ```
 kubectl taint nodes --all node-role.kubernetes.io/master-
-``` 
-More details about installing the pod network can be found in the 
-[kubeadm manual][4]. 
+```
+More details about installing the pod network can be found in the
+[kubeadm manual][4].
 
 ### (4/4) Joining your nodes
 To add a new node to your cluster, run as root the command that was output
@@ -254,20 +259,20 @@ kube-proxy-q8sv2               1/1       Running   0          14h       192.168.
 kube-proxy-s8kv9               1/1       Running   0          14h       192.168.56.105   cvpp-slave2
 kube-scheduler-cvpp            1/1       Running   0          14h       192.168.56.106   cvpp
 ```
-In particular, verify that a vswitch pod and a kube-proxy pod is running on 
+In particular, verify that a vswitch pod and a kube-proxy pod is running on
 each joined node, as shown above.
 
 On each joined node, verify that the VPP successfully grabbed the network
-interface specified in the VPP startup config (`GigabitEthernet0/4/0` in 
+interface specified in the VPP startup config (`GigabitEthernet0/4/0` in
 our case):
 ```
 $ telnet 0 5002
 vpp# sh inter
-              Name               Idx       State          Counter          Count     
-GigabitEthernet0/4/0              1         up                         
+              Name               Idx       State          Counter          Count
+GigabitEthernet0/4/0              1         up
 ...
 ```
-From the vpp CLI on a joined node you can also ping kube-dns to verify 
+From the vpp CLI on a joined node you can also ping kube-dns to verify
 node-to-node connectivity. For example:
 ```apple js
 vpp# ping 10.1.134.2
@@ -306,7 +311,7 @@ You can check the pods' connectivity in one of the following ways:
 ```
   kubectl run busybox --rm -ti --image=busybox /bin/sh
   If you don't see a command prompt, try pressing enter.
-  / #  
+  / #
   / # ping 10.1.1.3
 
 ```
@@ -322,10 +327,10 @@ kubectl taint nodes --all node-role.kubernetes.io/master-
 ```
 
 In order to verify inter-node pod connectivity, we need to tell Kubernetes
-to deploy one pod on the master node and one POD on the worker. For this, 
+to deploy one pod on the master node and one POD on the worker. For this,
 we can use node selectors.
 
-In your deployment YAMLs, add the `nodeSelector` sections that refer to 
+In your deployment YAMLs, add the `nodeSelector` sections that refer to
 preferred node hostnames, e.g.:
 ```
   nodeSelector:
@@ -375,7 +380,7 @@ kubectl run busybox --rm -it --image=busybox /bin/sh
 Connecting to 10.1.36.2 (10.1.36.2:80)
 index.html           100% |*******************************************************************************************************************************************************************|   612   0:00:00 ETA
 
-/ # rm index.html 
+/ # rm index.html
 
 / # wget 10.1.219.3
 Connecting to 10.1.219.3 (10.1.219.3:80)
@@ -397,7 +402,7 @@ After uninstalling CRI, reboot each node, or re-initialize the Kubernetes
 cluster using `kubeadm reset` and `kubeadm init --token-ttl 0`.
 
 ### Tearing down Kubernetes
-* First, drain the node and make sure that the node is empty before 
+* First, drain the node and make sure that the node is empty before
 shutting it down:
 ```
   kubectl drain <node name> --delete-local-data --force --ignore-daemonsets
@@ -410,7 +415,7 @@ shutting it down:
   kubeadm reset
 ```
 
-* If you added environment variable definitions into 
+* If you added environment variable definitions into
   `/etc/systemd/system/kubelet.service.d/10-kubeadm.conf` (e.g. in
    [Step 1.3][10]), clean them up now.
 
@@ -421,7 +426,7 @@ shutting it down:
 ```
 
 ### Tearing down Kubernetes
-You should first drain the node and make sure that the node is empty before 
+You should first drain the node and make sure that the node is empty before
 shutting it down:
 ```
 kubectl drain <node name> --delete-local-data --force --ignore-daemonsets
@@ -437,14 +442,14 @@ kubeadm reset
 ### Troubleshooting
 Some of the issues that can occur during the installation are:
 
-- Forgetting to create and initialize the `.kube` directory in your home 
+- Forgetting to create and initialize the `.kube` directory in your home
   directory (As instructed by `kubeadm init --token-ttl 0`). This can manifest
   itself as the following error:
   ```
   W1017 09:25:43.403159    2233 factory_object_mapping.go:423] Failed to download OpenAPI (Get https://192.168.209.128:6443/swagger-2.0.0.pb-v1: x509: certificate signed by unknown authority (possibly because of "crypto/rsa: verification error" while trying to verify candidate authority certificate "kubernetes")), falling back to swagger
   Unable to connect to the server: x509: certificate signed by unknown authority (possibly because of "crypto/rsa: verification error" while trying to verify candidate authority certificate "kubernetes")
-  ``` 
-- Previous installation lingering on the file system. 
+  ```
+- Previous installation lingering on the file system.
   `'kubeadm init --token-ttl 0` fails to initialize kubelet with one or more
   of the following error messages:
   ```
@@ -453,7 +458,7 @@ Some of the issues that can occur during the installation are:
   [kubelet-check] The HTTP call equal to 'curl -sSL http://localhost:10255/healthz' failed with error: Get http://localhost:10255/healthz: dial tcp [::1]:10255: getsockopt: connection refused.
   ...
   ```
-   
+
 If you run into any of the above issues, try to clean up and reinstall as root:
 ```
 sudo su

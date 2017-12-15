@@ -210,6 +210,7 @@ func (s *remoteCNIserver) configureVswitchConnectivity() error {
 
 			// execute the config transaction
 			err = txn1.Send().ReceiveReply()
+			s.Logger.Info("TXN")
 			if err != nil {
 				s.Logger.Error(err)
 				return err
@@ -230,6 +231,7 @@ func (s *remoteCNIserver) configureVswitchConnectivity() error {
 
 			// execute the config transaction
 			err = txn1.Send().ReceiveReply()
+			s.Logger.Info("TXN")
 			if err != nil {
 				s.Logger.Error(err)
 				return err
@@ -257,6 +259,7 @@ func (s *remoteCNIserver) configureVswitchConnectivity() error {
 					changes[vpp_intf.InterfaceKey(intfName)] = intf
 				}
 				err := txn2.Send().ReceiveReply()
+				s.Logger.Info("TXN")
 				if err != nil {
 					s.Logger.Error(err)
 					return err
@@ -285,6 +288,7 @@ func (s *remoteCNIserver) configureVswitchConnectivity() error {
 		L4Features(l4Features)
 
 	err := txn3.Send().ReceiveReply()
+	s.Logger.Info("TXN")
 	if err != nil {
 		// ths transaction may fail if interfaces/routes are already configured, log only
 		s.Logger.Warn(err)

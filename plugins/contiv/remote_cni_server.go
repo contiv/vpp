@@ -578,30 +578,41 @@ func (s *remoteCNIserver) unconfigureContainerConnectivity(request *cni.CNIReque
 		return reply, nil
 	}
 
-	// Delete all objects used for the pod connectivity in one transaction.
-	txn := s.vppLinuxTxnFactory().Delete()
-
-	txn.VppInterface(config.VppIf.Name)
-	if !s.useTAPInterfaces {
-		txn.LinuxInterface(config.Veth1.Name).
-			LinuxInterface(config.Veth2.Name)
-	}
+	// Delete ARPs, routes and STN rule.
+	txn1 := s.vppLinuxTxnFactory().Delete()
 
 	if !s.disableTCPstack {
-		txn.VppInterface(config.Loopback.Name).
-			StnRule(config.StnRule.RuleName).
+		txn1.StnRule(config.StnRule.RuleName).
 			AppNamespace(config.AppNamespace.NamespaceId)
 	} else {
-		txn.StaticRoute(config.VppRoute.VrfId, config.VppRoute.DstIpAddr, config.VppRoute.NextHopAddr)
+		txn1.StaticRoute(config.VppRoute.VrfId, config.VppRoute.DstIpAddr, config.VppRoute.NextHopAddr)
 	}
 
-	txn.Arp(config.VppARPEntry.Interface, config.VppARPEntry.IpAddress).
+	txn1.Arp(config.VppARPEntry.Interface, config.VppARPEntry.IpAddress).
 		LinuxArpEntry(config.PodARPEntry.Name)
 
-	txn.LinuxRoute(config.PodLinkRoute.Name).
+	txn1.LinuxRoute(config.PodLinkRoute.Name).
 		LinuxRoute(config.PodDefaultRoute.Name)
 
-	err = txn.Send().ReceiveReply()
+	err = txn1.Send().ReceiveReply()
+	if err != nil {
+		s.Logger.Error(err)
+		return s.generateErrorResponse(err)
+	}
+
+	// Delete interfaces.
+	txn2 := s.vppLinuxTxnFactory().Delete()
+
+	txn2.VppInterface(config.VppIf.Name)
+	if !s.useTAPInterfaces {
+		txn2.LinuxInterface(config.Veth1.Name).
+			LinuxInterface(config.Veth2.Name)
+	}
+	if !s.disableTCPstack {
+		txn2.VppInterface(config.Loopback.Name)
+	}
+
+	err = txn2.Send().ReceiveReply()
 	if err != nil {
 		s.Logger.Error(err)
 		return s.generateErrorResponse(err)
@@ -609,7 +620,6 @@ func (s *remoteCNIserver) unconfigureContainerConnectivity(request *cni.CNIReque
 
 	// Check if the TAP interface was removed in the host stack as well.
 	if s.useTAPInterfaces {
-		/* TODO: add TAP support to linuxplugin */
 		err = s.unconfigureHostTAP(request)
 		if err != nil {
 			s.Logger.Error(err)

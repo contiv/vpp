@@ -31,6 +31,11 @@ import (
 	"github.com/vishvananda/netlink"
 )
 
+const (
+	ipv4AddrAny = "0.0.0.0/0"
+	ipv6AddrAny = "::/0"
+)
+
 // LinuxRouteConfigurator watches for any changes in the configuration of static routes as modelled by the proto file
 // "model/l3/l3.proto" and stored in ETCD under the key "/vnf-agent/{vnf-agent}/linux/config/v1/route".
 // Updates received from the northbound API are compared with the Linux network configuration and differences
@@ -359,10 +364,15 @@ func (plugin *LinuxRouteConfigurator) ResolveDeletedInterface(name string, index
 // Create default route object with gateway address. Destination address has to be set in such a case
 func (plugin *LinuxRouteConfigurator) createDefaultRoute(netLinkRoute *netlink.Route, route *l3.LinuxStaticRoutes_Route) error {
 	// Destination address
-	if route.DstIpAddr != "" {
-		plugin.Log.Warnf("route marked as default has dst address set to %v. The address will be ignored", route.DstIpAddr)
+	dstIpAddr := route.DstIpAddr
+	if dstIpAddr == "" {
+		dstIpAddr = ipv4AddrAny
 	}
-	netLinkRoute.Dst = nil
+	if dstIpAddr != ipv4AddrAny && dstIpAddr != ipv6AddrAny {
+		plugin.Log.Warnf("route marked as default has dst address set to %v. The address will be ignored", dstIpAddr)
+		dstIpAddr = ipv4AddrAny
+	}
+	_, netLinkRoute.Dst, _ = net.ParseCIDR(dstIpAddr)
 	// Gateway
 	gateway := net.ParseIP(route.GwAddr)
 	if gateway == nil {

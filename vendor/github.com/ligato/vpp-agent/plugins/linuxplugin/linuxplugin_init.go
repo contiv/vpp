@@ -148,6 +148,7 @@ func (plugin *Plugin) initIF() error {
 
 	// Linux interface configurator
 	linuxLogger := plugin.Log.NewLogger("-if-conf")
+	linuxLogger.SetLevel(logging.Debug)
 	var stopwatch *measure.Stopwatch
 	if plugin.enableStopwatch {
 		stopwatch = measure.NewStopwatch("LinuxInterfaceConfigurator", linuxLogger)

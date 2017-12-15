@@ -193,6 +193,10 @@ func (s *remoteCNIserver) veth1HostIfNameFromRequest(request *cni.CNIRequest) st
 }
 
 func (s *remoteCNIserver) veth2NameFromRequest(request *cni.CNIRequest) string {
+	return request.ContainerId
+}
+
+func (s *remoteCNIserver) veth2HostIfNameFromRequest(request *cni.CNIRequest) string {
 	if len(request.ContainerId) > linuxIfMaxLen {
 		return request.ContainerId[:linuxIfMaxLen]
 	}
@@ -261,7 +265,7 @@ func (s *remoteCNIserver) veth2FromRequest(request *cni.CNIRequest) *linux_intf.
 		Name:       s.veth2NameFromRequest(request),
 		Type:       linux_intf.LinuxInterfaces_VETH,
 		Enabled:    true,
-		HostIfName: s.veth2NameFromRequest(request),
+		HostIfName: s.veth2HostIfNameFromRequest(request),
 		Veth: &linux_intf.LinuxInterfaces_Interface_Veth{
 			PeerIfName: s.veth1NameFromRequest(request),
 		},
@@ -274,7 +278,7 @@ func (s *remoteCNIserver) afpacketFromRequest(request *cni.CNIRequest) *vpp_intf
 		Type:    vpp_intf.InterfaceType_AF_PACKET_INTERFACE,
 		Enabled: true,
 		Afpacket: &vpp_intf.Interfaces_Interface_Afpacket{
-			HostIfName: s.veth2NameFromRequest(request),
+			HostIfName: s.veth2HostIfNameFromRequest(request),
 		},
 		IpAddresses: []string{s.ipAddrForPodVPPIf()},
 		PhysAddress: s.generateHwAddrForPodVPPIf(),
@@ -377,7 +381,7 @@ func (s *remoteCNIserver) podLinkRouteFromRequest(request *cni.CNIRequest, ifNam
 		Scope: &linux_l3.LinuxStaticRoutes_Route_Scope{
 			Type: linux_l3.LinuxStaticRoutes_Route_Scope_LINK,
 		},
-		DstIpAddr: s.ipam.PodGatewayIP().String(),
+		DstIpAddr: s.ipam.PodGatewayIP().String() + "/32",
 	}
 }
 
@@ -394,7 +398,6 @@ func (s *remoteCNIserver) podDefaultRouteFromRequest(request *cni.CNIRequest, if
 		Scope: &linux_l3.LinuxStaticRoutes_Route_Scope{
 			Type: linux_l3.LinuxStaticRoutes_Route_Scope_GLOBAL,
 		},
-		DstIpAddr: "0.0.0.0/0",
-		GwAddr:    s.ipam.PodGatewayIP().String(),
+		GwAddr: s.ipam.PodGatewayIP().String(),
 	}
 }

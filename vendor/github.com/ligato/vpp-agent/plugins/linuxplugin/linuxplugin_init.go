@@ -25,6 +25,7 @@ import (
 
 	"github.com/ligato/cn-infra/datasync"
 	"github.com/ligato/cn-infra/flavors/local"
+	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/logging/logrus"
 	"github.com/ligato/cn-infra/logging/measure"
 	"github.com/ligato/vpp-agent/idxvpp/nametoidx"
@@ -148,7 +149,7 @@ func (plugin *Plugin) initIF() error {
 
 	// Linux interface configurator
 	linuxLogger := plugin.Log.NewLogger("-if-conf")
-	linuxLogger.SetLevel(logging.Debug)
+	linuxLogger.SetLevel(logging.DebugLevel)
 	var stopwatch *measure.Stopwatch
 	if plugin.enableStopwatch {
 		stopwatch = measure.NewStopwatch("LinuxInterfaceConfigurator", linuxLogger)

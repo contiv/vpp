@@ -85,12 +85,14 @@ func (plugin *LinuxRouteConfigurator) ConfigureLinuxStaticRoute(route *l3.LinuxS
 	if route.Default {
 		err = plugin.createDefaultRoute(netLinkRoute, route)
 		if err != nil {
+			plugin.Log.Error(err)
 			return err
 		}
 	} else {
 		// static route
 		err = plugin.createStaticRoute(netLinkRoute, route)
 		if err != nil {
+			plugin.Log.Error(err)
 			return err
 		}
 	}
@@ -102,11 +104,16 @@ func (plugin *LinuxRouteConfigurator) ConfigureLinuxStaticRoute(route *l3.LinuxS
 	// route has to be created in the same namespace as the interface
 	revertNs, err := routeNs.SwitchNamespace(nsMgmtCtx, plugin.Log)
 	if err != nil {
+		plugin.Log.Error(err)
 		return err
 	}
 	defer revertNs()
 
 	err = linuxcalls.AddStaticRoute(route.Name, netLinkRoute, plugin.Log, measure.GetTimeLog("add-linux-route", plugin.Stopwatch))
+	if err != nil {
+		plugin.Log.Error(err)
+		return err
+	}
 
 	plugin.rtIndexes.RegisterName(routeIdentifier(netLinkRoute), plugin.RouteIdxSeq, route)
 	plugin.RouteIdxSeq++
@@ -179,15 +186,18 @@ func (plugin *LinuxRouteConfigurator) ModifyLinuxStaticRoute(newRoute *l3.LinuxS
 	// route has to be created in the same namespace as the interface
 	revertNs, err := routeNs.SwitchNamespace(nsMgmtCtx, plugin.Log)
 	if err != nil {
+		plugin.Log.Error(err)
 		return err
 	}
 	defer revertNs()
 
 	// Remove old route and create a new one
 	if err = plugin.DeleteLinuxStaticRoute(oldRoute); err != nil {
+		plugin.Log.Error(err)
 		return err
 	}
 	if err = linuxcalls.AddStaticRoute(newRoute.Name, netLinkRoute, plugin.Log, measure.GetTimeLog("add-linux-route", plugin.Stopwatch)); err != nil {
+		plugin.Log.Error(err)
 		return err
 	}
 
@@ -218,6 +228,7 @@ func (plugin *LinuxRouteConfigurator) DeleteLinuxStaticRoute(route *l3.LinuxStat
 		if len(addressWithPrefix) > 1 {
 			_, dstIPAddr, err = net.ParseCIDR(route.DstIpAddr)
 			if err != nil {
+				plugin.Log.Error(err)
 				return err
 			}
 		} else {
@@ -245,11 +256,16 @@ func (plugin *LinuxRouteConfigurator) DeleteLinuxStaticRoute(route *l3.LinuxStat
 	// route has to be created in the same namespace as the interface
 	revertNs, err := routeNs.SwitchNamespace(nsMgmtCtx, plugin.Log)
 	if err != nil {
+		plugin.Log.Error(err)
 		return err
 	}
 	defer revertNs()
 
 	err = linuxcalls.DeleteStaticRoute(route.Name, netLinkRoute, plugin.Log, measure.GetTimeLog("del-linux-route", plugin.Stopwatch))
+	if err != nil {
+		plugin.Log.Error(err)
+		return err
+	}
 
 	_, _, found := plugin.rtIndexes.UnregisterName(routeIdentifier(netLinkRoute))
 	if !found {
@@ -269,6 +285,7 @@ func (plugin *LinuxRouteConfigurator) LookupLinuxRoutes() error {
 	// read all routes
 	routes, err := linuxcalls.ReadStaticRoutes(nil, noFamilyFilter, plugin.Log, nil)
 	if err != nil {
+		plugin.Log.Error(err)
 		return err
 	}
 	for _, rt := range routes {
@@ -423,6 +440,7 @@ func (plugin *LinuxRouteConfigurator) updateLinuxStaticRoute(netLinkRoute *netli
 	// route has to be created in the same namespace as the interface
 	revertNs, err := routeNs.SwitchNamespace(nsMgmtCtx, plugin.Log)
 	if err != nil {
+		plugin.Log.Error(err)
 		return err
 	}
 	defer revertNs()

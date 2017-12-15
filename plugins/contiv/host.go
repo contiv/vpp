@@ -38,7 +38,7 @@ func (s *remoteCNIserver) routeFromHost() *linux_l3.LinuxStaticRoutes_Route {
 		Name:        "host-to-vpp",
 		Default:     false,
 		Namespace:   nil,
-		Interface:   vethHostEndName,
+		Interface:   vethHostEndLogicalName,
 		Description: "Route from host to VPP for this K8s node.",
 		Scope: &linux_l3.LinuxStaticRoutes_Route_Scope{
 			Type: linux_l3.LinuxStaticRoutes_Route_Scope_GLOBAL,
@@ -52,19 +52,19 @@ func (s *remoteCNIserver) defaultRouteToHost() *l3.StaticRoutes_Route {
 	return &l3.StaticRoutes_Route{
 		DstIpAddr:         "0.0.0.0/0",
 		NextHopAddr:       s.ipam.VEthHostEndIP().String(),
-		OutgoingInterface: vethVPPEndName,
+		OutgoingInterface: s.interconnectAfpacketName(),
 	}
 }
 
 func (s *remoteCNIserver) interconnectVethHost() *linux_intf.LinuxInterfaces_Interface {
 	size, _ := s.ipam.VSwitchNetwork().Mask.Size()
 	return &linux_intf.LinuxInterfaces_Interface{
-		Name:       "vppv1",
+		Name:       vethHostEndLogicalName,
 		Type:       linux_intf.LinuxInterfaces_VETH,
 		Enabled:    true,
 		HostIfName: vethHostEndName,
 		Veth: &linux_intf.LinuxInterfaces_Interface_Veth{
-			PeerIfName: "v2",
+			PeerIfName: vethVPPEndLogicalName,
 		},
 		IpAddresses: []string{s.ipam.VEthHostEndIP().String() + "/" + strconv.Itoa(size)},
 	}
@@ -72,20 +72,24 @@ func (s *remoteCNIserver) interconnectVethHost() *linux_intf.LinuxInterfaces_Int
 
 func (s *remoteCNIserver) interconnectVethVpp() *linux_intf.LinuxInterfaces_Interface {
 	return &linux_intf.LinuxInterfaces_Interface{
-		Name:       "v2",
+		Name:       vethVPPEndLogicalName,
 		Type:       linux_intf.LinuxInterfaces_VETH,
 		Enabled:    true,
 		HostIfName: vethVPPEndName,
 		Veth: &linux_intf.LinuxInterfaces_Interface_Veth{
-			PeerIfName: "vppv1",
+			PeerIfName: vethHostEndLogicalName,
 		},
 	}
+}
+
+func (s *remoteCNIserver) interconnectAfpacketName() string {
+	return afPacketNamePrefix + "-" + vethVPPEndName
 }
 
 func (s *remoteCNIserver) interconnectAfpacket() *vpp_intf.Interfaces_Interface {
 	size, _ := s.ipam.VSwitchNetwork().Mask.Size()
 	return &vpp_intf.Interfaces_Interface{
-		Name:    vethVPPEndName,
+		Name:    s.interconnectAfpacketName(),
 		Type:    vpp_intf.InterfaceType_AF_PACKET_INTERFACE,
 		Enabled: true,
 		Afpacket: &vpp_intf.Interfaces_Interface_Afpacket{

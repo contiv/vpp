@@ -164,7 +164,6 @@ func TestConfigureVswitch(t *testing.T) {
 	server.close()
 	gomega.Expect(len(txns.CommittedTxns)).To(gomega.BeEquivalentTo(3))
 
-
 }
 
 func vppChanMock() *api.Channel {

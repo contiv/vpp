@@ -159,10 +159,10 @@ func TestConfigureVswitch(t *testing.T) {
 	err = server.resync()
 	gomega.Expect(err).To(gomega.BeNil())
 
-	gomega.Expect(len(txns.CommittedTxns)).To(gomega.BeEquivalentTo(2))
+	gomega.Expect(len(txns.CommittedTxns)).To(gomega.BeEquivalentTo(3))
 
 	server.close()
-	gomega.Expect(len(txns.CommittedTxns)).To(gomega.BeEquivalentTo(3))
+	gomega.Expect(len(txns.CommittedTxns)).To(gomega.BeEquivalentTo(4))
 
 }
 

@@ -12,34 +12,33 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package service
+package endpoints
 
 import (
+	ns "github.com/contiv/vpp/plugins/ksr/model/namespace"
 	"fmt"
 	"strings"
-
-	ns "github.com/contiv/vpp/plugins/ksr/model/namespace"
 )
 
 const (
-	// ServicePrefix is a key prefix *template* under which the current state
+	// EndpointPrefix is a key prefix *template* under which the current state
 	// of every known K8s pod is stored.
-	ServicePrefix = "k8s/namespace/{namespace}/service/"
+	EndpointPrefix = "k8s/namespace/{namespace}/endpoints/"
 )
 
 // KeyPrefix returns the key prefix *template* used in the data-store
 // to save the current state of every known K8s pod.
 func KeyPrefix() string {
-	return ServicePrefix
+	return EndpointPrefix
 }
 
-// ParseServiceFromKey parses pod and namespace ids from the associated data-store
+// ParseEndpointsFromKey parses pod and namespace ids from the associated data-store
 // key.
-func ParseServiceFromKey(key string) (pod string, namespace string, err error) {
+func ParseEndpointsFromKey(key string) (pod string, namespace string, err error) {
 	if strings.HasPrefix(key, ns.KeyPrefix()) {
 		suffix := strings.TrimPrefix(key, ns.KeyPrefix())
 		components := strings.Split(suffix, "/")
-		if len(components) == 3 && components[1] == "service" {
+		if len(components) == 3 && components[1] == "endpoints" {
 			return components[2], components[0], nil
 		}
 	}
@@ -49,5 +48,5 @@ func ParseServiceFromKey(key string) (pod string, namespace string, err error) {
 // Key returns the key under which a configuration for the given K8s pod
 // should be stored in the data-store.
 func Key(pod string, namespace string) string {
-	return strings.Replace(ServicePrefix, "{namespace}", namespace, 1) + pod
+	return strings.Replace(EndpointPrefix, "{namespace}", namespace, 1) + pod
 }

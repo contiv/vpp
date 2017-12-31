@@ -15,8 +15,8 @@
 package ksr
 
 import (
-	"sync"
 	"reflect"
+	"sync"
 
 	coreV1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/fields"
@@ -120,15 +120,15 @@ func (sr *ServiceReflector) updateService(svcNew, svcOld *coreV1.Service) {
 	}
 }
 
-// podToProto converts pod state data from the k8s representation into our
-// protobuf-modelled data structure.
+// serviceToProto converts service state data from the k8s representation into
+// our protobuf-modelled data structure.
 func (sr *ServiceReflector) serviceToProto(svc *coreV1.Service) *proto.Service {
 	svcProto := &proto.Service{}
 	svcProto.Name = svc.GetName()
 	svcProto.Namespace = svc.GetNamespace()
 
-	svcPorts := make([]*proto.Service_ServicePort, 0)
-	loop:
+	var svcPorts []*proto.Service_ServicePort
+loop:
 	for _, port := range svc.Spec.Ports {
 		svcp := &proto.Service_ServicePort{}
 		svcp.Name = port.Name
@@ -145,7 +145,7 @@ func (sr *ServiceReflector) serviceToProto(svc *coreV1.Service) *proto.Service {
 			svcp.TargetPort.Type = proto.Service_ServicePort_IntOrString_STRING
 			svcp.TargetPort.StringVal = port.TargetPort.StrVal
 		default:
-			sr.Log.WithField("service", svc).Errorf("Unknown target port type %d", port.TargetPort.Type)
+			sr.Log.WithField("target port", port.TargetPort.Type).Error("Unknown target port type")
 			continue loop
 		}
 
@@ -166,7 +166,6 @@ func (sr *ServiceReflector) serviceToProto(svc *coreV1.Service) *proto.Service {
 	return svcProto
 }
 
-
 // Start activates the K8s subscription.
 func (sr *ServiceReflector) Start() {
 	sr.wg.Add(1)
@@ -185,5 +184,3 @@ func (sr *ServiceReflector) run() {
 func (sr *ServiceReflector) Close() error {
 	return nil
 }
-
-

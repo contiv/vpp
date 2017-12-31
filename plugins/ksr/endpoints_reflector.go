@@ -21,7 +21,7 @@ import (
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/client-go/tools/cache"
 
-	// proto "github.com/contiv/vpp/plugins/ksr/model/service"
+	proto "github.com/contiv/vpp/plugins/ksr/model/endpoints"
 )
 
 // EndpointsReflector subscribes to K8s cluster to watch for changes
@@ -85,12 +85,13 @@ func (epr *EndpointsReflector) Init(stopCh2 <-chan struct{}, wg *sync.WaitGroup)
 // addEndpoints adds state data of a newly created K8s endpoints into the data store.
 func (epr *EndpointsReflector) addEndpoints(eps *coreV1.Endpoints) {
 	epr.Log.WithField("endpoints", eps).Info("Endpoints added")
-	// endpointsProto := epr.endpointsToProto(eps)
-	// key := proto.Key(endpoints.GetName(), endpoints.GetNamespace())
-	// err := epr.Publish.Put(key, endpointsProto)
-	// if err != nil {
-	//	epr.Log.WithField("err", err).Warn("Failed to add endpoints state data into the data store")
-	//}
+	endpointsProto := epr.endpointsToProto(eps)
+	epr.Log.WithField("endpointsProto", endpointsProto).Info("Endpoints converted")
+	key := proto.Key(eps.GetName(), eps.GetNamespace())
+	err := epr.Publish.Put(key, endpointsProto)
+	if err != nil {
+		epr.Log.WithField("err", err).Warn("Failed to add endpoints state data into the data store")
+	}
 }
 
 // deleteEndpoints deletes state data of a removed K8s service from the data store.
@@ -114,6 +115,72 @@ func (epr *EndpointsReflector) updateEndpoints(epsNew, epsOld *coreV1.Endpoints)
 	// }
 }
 
+// endpointsToProto converts endpoints data from the k8s representation into
+// our protobuf-modelled data structure.
+func (epr *EndpointsReflector) endpointsToProto(eps *coreV1.Endpoints) *proto.Endpoints {
+	epsProto := &proto.Endpoints{}
+	epsProto.Name = eps.GetName()
+	epsProto.Namespace = eps.GetNamespace()
+
+	var subsets []*proto.EndpointSubset
+	for _, ss := range eps.Subsets {
+		pss := &proto.EndpointSubset{}
+
+		var addresses []*proto.EndpointSubset_EndpointAddress
+		for _, addr := range ss.Addresses {
+			addresses = append(addresses, addressToProto(&addr))
+		}
+		pss.Addresses = addresses
+
+		var notReadyAddresses []*proto.EndpointSubset_EndpointAddress
+		for _, addr := range ss.NotReadyAddresses {
+			notReadyAddresses = append(notReadyAddresses, addressToProto(&addr))
+		}
+		pss.NotReadyAddresses = notReadyAddresses
+
+		var ports []*proto.EndpointSubset_EndpointPort
+		for _, port := range ss.Ports {
+			ports = append(ports, &proto.EndpointSubset_EndpointPort{
+				Name:     port.Name,
+				Port:     port.Port,
+				Protocol: string(port.Protocol),
+			})
+		}
+		pss.Ports = ports
+
+		subsets = append(subsets, pss)
+	}
+
+	epsProto.EndpointSubsets = subsets
+
+	return epsProto
+}
+
+// addressToProto converts an endpoint address from the k8s representation
+// into our protobuf-modelled data structure.
+func addressToProto(addr *coreV1.EndpointAddress) *proto.EndpointSubset_EndpointAddress {
+	protoAddr := &proto.EndpointSubset_EndpointAddress{}
+	protoAddr.Ip = addr.IP
+	protoAddr.HostName = addr.Hostname
+
+	if addr.NodeName != nil {
+		protoAddr.NodeName = *addr.NodeName
+	}
+
+	if addr.TargetRef != nil {
+		protoAddr.TargetRef = &proto.ObjectReference{
+			Kind:            addr.TargetRef.Kind,
+			Namespace:       addr.TargetRef.Namespace,
+			Name:            addr.TargetRef.Name,
+			Uid:             string(addr.TargetRef.UID),
+			ApiVersion:      addr.TargetRef.APIVersion,
+			ResourceVersion: addr.TargetRef.ResourceVersion,
+		}
+	}
+
+	return protoAddr
+}
+
 // Start activates the K8s subscription.
 func (epr *EndpointsReflector) Start() {
 	epr.wg.Add(1)
@@ -132,6 +199,3 @@ func (epr *EndpointsReflector) run() {
 func (epr *EndpointsReflector) Close() error {
 	return nil
 }
-
-
-

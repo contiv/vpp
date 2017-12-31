@@ -112,6 +112,8 @@ func (sr *ServiceReflector) updateService(svcNew, svcOld *coreV1.Service) {
 	svcProtoNew := sr.serviceToProto(svcNew)
 
 	if !reflect.DeepEqual(svcProtoNew, svcProtoOld) {
+		sr.Log.WithFields(map[string]interface{}{"namespace": svcNew.Namespace, "name": svcNew.Name}).
+			Info("Service changed, updating in Etcd")
 		key := proto.Key(svcNew.GetName(), svcNew.GetNamespace())
 		err := sr.Publish.Put(key, svcProtoNew)
 		if err != nil {

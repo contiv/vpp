@@ -15,6 +15,7 @@
 package ksr
 
 import (
+	"reflect"
 	"sync"
 
 	coreV1 "k8s.io/api/core/v1"
@@ -97,22 +98,28 @@ func (epr *EndpointsReflector) addEndpoints(eps *coreV1.Endpoints) {
 // deleteEndpoints deletes state data of a removed K8s service from the data store.
 func (epr *EndpointsReflector) deleteEndpoints(eps *coreV1.Endpoints) {
 	epr.Log.WithField("endpoints", eps).Info("Endpoints removed")
-	// key := proto.Key(eps.GetName(), eps.GetNamespace())
-	// _, err := epr.Publish.Delete(key)
-	// if err != nil {
-	//	epr.Log.WithField("err", err).Warn("Failed to remove endpoints state data from the data store")
-	// }
+	key := proto.Key(eps.GetName(), eps.GetNamespace())
+	_, err := epr.Publish.Delete(key)
+	if err != nil {
+		epr.Log.WithField("err", err).Warn("Failed to remove endpoints state data from the data store")
+	}
 }
 
 // updateEndpoints updates state data of a changes K8s endpoints in the data store.
 func (epr *EndpointsReflector) updateEndpoints(epsNew, epsOld *coreV1.Endpoints) {
 	epr.Log.WithFields(map[string]interface{}{"endpoints-old": epsOld, "endpoints-new": epsNew}).Info("Endpoints updated")
-	// endpointsProto := epr.endpointsToProto(epsNew)
-	// key := proto.Key(epsNew.GetName(), epsNew.GetNamespace())
-	// err := epr.Publish.Put(key, endpointsProto)
-	// if err != nil {
-	//	epr.Log.WithField("err", err).Warn("Failed to update endpoints state data in the data store")
-	// }
+	epsProtoNew := epr.endpointsToProto(epsNew)
+	epsProtoOld := epr.endpointsToProto(epsOld)
+
+	if !reflect.DeepEqual(epsProtoNew, epsProtoOld) {
+		epr.Log.WithFields(map[string]interface{}{"namespace": epsNew.Namespace, "name": epsNew.Name}).
+			Info("Endpoints changed, updating in Etcd")
+		key := proto.Key(epsNew.GetName(), epsNew.GetNamespace())
+		err := epr.Publish.Put(key, epsProtoNew)
+		if err != nil {
+			epr.Log.WithField("err", err).Warn("Failed to update endpoints state data in the data store")
+		}
+	}
 }
 
 // endpointsToProto converts endpoints data from the k8s representation into

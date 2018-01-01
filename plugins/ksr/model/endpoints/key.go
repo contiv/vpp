@@ -15,8 +15,8 @@
 package endpoints
 
 import (
-	ns "github.com/contiv/vpp/plugins/ksr/model/namespace"
 	"fmt"
+	ns "github.com/contiv/vpp/plugins/ksr/model/namespace"
 	"strings"
 )
 

@@ -46,8 +46,8 @@ func ParseServiceFromKey(key string) (pod string, namespace string, err error) {
 	return "", "", fmt.Errorf("invalid format of the key %s", key)
 }
 
-// Key returns the key under which a configuration for the given K8s pod
+// Key returns the key under which a configuration for the given K8s service
 // should be stored in the data-store.
-func Key(pod string, namespace string) string {
-	return strings.Replace(ServicePrefix, "{namespace}", namespace, 1) + pod
+func Key(name string, namespace string) string {
+	return strings.Replace(ServicePrefix, "{namespace}", namespace, 1) + name
 }

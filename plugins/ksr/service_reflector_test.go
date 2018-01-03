@@ -102,21 +102,21 @@ func testUpdateService(t *testing.T) {
 	svcOld := *serviceTestVars.svc
 	svcNew := *serviceTestVars.svc
 
-	upd := serviceTestVars.svcReflector.GetStats().numUpdates
+	upd := serviceTestVars.svcReflector.GetStats().NumUpdates
 
 	serviceTestVars.k8sListWatch.Update(svcOld, svcNew)
 	// There should be no update if we pass bad data types into update function
-	gomega.Expect(upd).To(gomega.Equal(serviceTestVars.svcReflector.GetStats().numUpdates))
+	gomega.Expect(upd).To(gomega.Equal(serviceTestVars.svcReflector.GetStats().NumUpdates))
 
 	serviceTestVars.k8sListWatch.Update(&svcOld, &svcNew)
 	// There should be no update if old and new updates are the same
-	gomega.Expect(upd).To(gomega.Equal(serviceTestVars.svcReflector.GetStats().numUpdates))
+	gomega.Expect(upd).To(gomega.Equal(serviceTestVars.svcReflector.GetStats().NumUpdates))
 
 	svcNew.Spec.ClusterIP = "1.2.3.4"
 	gomega.Expect(svcOld).ShouldNot(gomega.BeEquivalentTo(svcNew))
 	serviceTestVars.k8sListWatch.Update(&svcOld, &svcNew)
 	// There should be exactly one update because old and new data are different
-	gomega.Expect(upd + 1).To(gomega.Equal(serviceTestVars.svcReflector.GetStats().numUpdates))
+	gomega.Expect(upd + 1).To(gomega.Equal(serviceTestVars.svcReflector.GetStats().NumUpdates))
 
 	// Check that new data was written properly
 	svcProto := &proto.Service{}
@@ -129,12 +129,12 @@ func testAddDeleteService(t *testing.T) {
 	svc := serviceTestVars.svc
 
 	// Check if we can add a service
-	add := serviceTestVars.svcReflector.GetStats().numAdds
+	add := serviceTestVars.svcReflector.GetStats().NumAdds
 	serviceTestVars.k8sListWatch.Add(svc)
 	svcProto := &proto.Service{}
 	err := serviceTestVars.mockKvWriter.GetValue(proto.Key(svc.GetName(), svc.GetNamespace()), svcProto)
 
-	gomega.Expect(add + 1).To(gomega.Equal(serviceTestVars.svcReflector.GetStats().numAdds))
+	gomega.Expect(add + 1).To(gomega.Equal(serviceTestVars.svcReflector.GetStats().NumAdds))
 
 	gomega.Expect(err).To(gomega.BeNil())
 	gomega.Expect(svcProto).NotTo(gomega.BeNil())
@@ -152,9 +152,9 @@ func testAddDeleteService(t *testing.T) {
 	gomega.Expect(svcProto.Port[0].TargetPort.IntVal).To(gomega.BeEquivalentTo(string(svc.Spec.Ports[0].TargetPort.IntVal)))
 
 	// Now check if we can delete the newly added service
-	del := serviceTestVars.svcReflector.GetStats().numDeletes
+	del := serviceTestVars.svcReflector.GetStats().NumDeletes
 	serviceTestVars.k8sListWatch.Delete(svc)
-	gomega.Expect(del + 1).To(gomega.Equal(serviceTestVars.svcReflector.GetStats().numDeletes))
+	gomega.Expect(del + 1).To(gomega.Equal(serviceTestVars.svcReflector.GetStats().NumDeletes))
 
 	svcProto = &proto.Service{}
 	key := proto.Key(svc.GetName(), svc.GetNamespace())

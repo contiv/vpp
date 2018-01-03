@@ -26,31 +26,17 @@ import (
 	proto "github.com/contiv/vpp/plugins/ksr/model/service"
 )
 
-// SrStats defines the usage statistics for the Service Reflector
-type SrStats struct {
-	numAdds    int
-	numDeletes int
-	numUpdates int
-
-	numArgErrors int
-	numAddErrors int
-	numDelErrors int
-	numUpdErrors int
-}
-
 // ServiceReflector subscribes to K8s cluster to watch for changes
 // in the configuration of k8s services.
 // Protobuf-modelled changes are published into the selected key-value store.
 type ServiceReflector struct {
 	ReflectorDeps
 
-	stopCh <-chan struct{}
-	wg     *sync.WaitGroup
-
+	stopCh               <-chan struct{}
+	wg                   *sync.WaitGroup
 	k8sServiceStore      cache.Store
 	k8sServiceController cache.Controller
-
-	stats SrStats
+	stats                ReflectorStats
 }
 
 // Init subscribes to K8s cluster to watch for changes in the configuration
@@ -71,7 +57,7 @@ func (sr *ServiceReflector) Init(stopCh2 <-chan struct{}, wg *sync.WaitGroup) er
 				svc, ok := obj.(*coreV1.Service)
 				if !ok {
 					sr.Log.Warn("Failed to cast newly created service object")
-					sr.stats.numArgErrors++
+					sr.stats.NumArgErrors++
 				} else {
 					sr.addService(svc)
 				}
@@ -80,7 +66,7 @@ func (sr *ServiceReflector) Init(stopCh2 <-chan struct{}, wg *sync.WaitGroup) er
 				svc, ok := obj.(*coreV1.Service)
 				if !ok {
 					sr.Log.Warn("Failed to cast removed service object")
-					sr.stats.numArgErrors++
+					sr.stats.NumArgErrors++
 				} else {
 					sr.deleteService(svc)
 				}
@@ -90,7 +76,7 @@ func (sr *ServiceReflector) Init(stopCh2 <-chan struct{}, wg *sync.WaitGroup) er
 				svcNew, ok2 := newObj.(*coreV1.Service)
 				if !ok1 || !ok2 {
 					sr.Log.Warn("Failed to cast changed service object")
-					sr.stats.numArgErrors++
+					sr.stats.NumArgErrors++
 				} else {
 					sr.updateService(svcNew, svcOld)
 				}
@@ -101,7 +87,7 @@ func (sr *ServiceReflector) Init(stopCh2 <-chan struct{}, wg *sync.WaitGroup) er
 }
 
 // GetStats returns the Service Reflector usage statistics
-func (sr *ServiceReflector) GetStats() *SrStats {
+func (sr *ServiceReflector) GetStats() *ReflectorStats {
 	return &sr.stats
 }
 
@@ -115,11 +101,11 @@ func (sr *ServiceReflector) addService(svc *coreV1.Service) {
 
 	if err != nil {
 		sr.Log.WithField("err", err).Warn("Failed to add service state data into the data store")
-		sr.stats.numAddErrors++
+		sr.stats.NumAddErrors++
 		return
 	}
 
-	sr.stats.numAdds++
+	sr.stats.NumAdds++
 }
 
 // deleteService deletes state data of a removed K8s service from the data store.
@@ -129,11 +115,11 @@ func (sr *ServiceReflector) deleteService(svc *coreV1.Service) {
 	_, err := sr.Publish.Delete(key)
 	if err != nil {
 		sr.Log.WithField("err", err).Warn("Failed to remove service state data from the data store")
-		sr.stats.numDelErrors++
+		sr.stats.NumDelErrors++
 		return
 	}
 
-	sr.stats.numDeletes++
+	sr.stats.NumDeletes++
 }
 
 // updateService updates state data of a changes K8s service in the data store.
@@ -150,11 +136,11 @@ func (sr *ServiceReflector) updateService(svcNew, svcOld *coreV1.Service) {
 
 		if err != nil {
 			sr.Log.WithField("err", err).Warn("Failed to update service state data in the data store")
-			sr.stats.numUpdErrors++
+			sr.stats.NumUpdErrors++
 			return
 		}
 
-		sr.stats.numUpdates++
+		sr.stats.NumUpdates++
 	}
 }
 

@@ -31,11 +31,11 @@ import (
 type EndpointsReflector struct {
 	ReflectorDeps
 
-	stopCh <-chan struct{}
-	wg     *sync.WaitGroup
-
+	stopCh                 <-chan struct{}
+	wg                     *sync.WaitGroup
 	k8sEndpointsStore      cache.Store
 	k8sEndpointsController cache.Controller
+	stats                  ReflectorStats
 }
 
 // Init subscribes to K8s cluster to watch for changes in the configuration
@@ -57,6 +57,7 @@ func (epr *EndpointsReflector) Init(stopCh2 <-chan struct{}, wg *sync.WaitGroup)
 				eps, ok := obj.(*coreV1.Endpoints)
 				if !ok {
 					epr.Log.Warn("Failed to cast newly created endpoints object")
+					epr.stats.NumArgErrors++
 				} else {
 					epr.addEndpoints(eps)
 				}
@@ -65,6 +66,7 @@ func (epr *EndpointsReflector) Init(stopCh2 <-chan struct{}, wg *sync.WaitGroup)
 				eps, ok := obj.(*coreV1.Endpoints)
 				if !ok {
 					epr.Log.Warn("Failed to cast removed endpoints object")
+					epr.stats.NumArgErrors++
 				} else {
 					epr.deleteEndpoints(eps)
 				}
@@ -74,6 +76,7 @@ func (epr *EndpointsReflector) Init(stopCh2 <-chan struct{}, wg *sync.WaitGroup)
 				epsNew, ok2 := newObj.(*coreV1.Endpoints)
 				if !ok1 || !ok2 {
 					epr.Log.Warn("Failed to cast changed endpoints object")
+					epr.stats.NumArgErrors++
 				} else {
 					epr.updateEndpoints(epsNew, epsOld)
 				}
@@ -81,6 +84,11 @@ func (epr *EndpointsReflector) Init(stopCh2 <-chan struct{}, wg *sync.WaitGroup)
 		},
 	)
 	return nil
+}
+
+// GetStats returns the Endpoints Reflector usage statistics
+func (sr *EndpointsReflector) GetStats() *ReflectorStats {
+	return &sr.stats
 }
 
 // addEndpoints adds state data of a newly created K8s endpoints into the data store.
@@ -92,7 +100,10 @@ func (epr *EndpointsReflector) addEndpoints(eps *coreV1.Endpoints) {
 	err := epr.Publish.Put(key, endpointsProto)
 	if err != nil {
 		epr.Log.WithField("err", err).Warn("Failed to add endpoints state data into the data store")
+		epr.stats.NumAddErrors++
+		return
 	}
+	epr.stats.NumAdds++
 }
 
 // deleteEndpoints deletes state data of a removed K8s service from the data store.
@@ -102,7 +113,10 @@ func (epr *EndpointsReflector) deleteEndpoints(eps *coreV1.Endpoints) {
 	_, err := epr.Publish.Delete(key)
 	if err != nil {
 		epr.Log.WithField("err", err).Warn("Failed to remove endpoints state data from the data store")
+		epr.stats.NumDelErrors++
+		return
 	}
+	epr.stats.NumDeletes++
 }
 
 // updateEndpoints updates state data of a changes K8s endpoints in the data store.
@@ -118,7 +132,10 @@ func (epr *EndpointsReflector) updateEndpoints(epsNew, epsOld *coreV1.Endpoints)
 		err := epr.Publish.Put(key, epsProtoNew)
 		if err != nil {
 			epr.Log.WithField("err", err).Warn("Failed to update endpoints state data in the data store")
+			epr.stats.NumUpdErrors++
+			return
 		}
+		epr.stats.NumUpdates++
 	}
 }
 

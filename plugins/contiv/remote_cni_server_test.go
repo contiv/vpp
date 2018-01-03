@@ -137,6 +137,35 @@ func TestAdd(t *testing.T) {
 
 }
 
+func TestConfigureVswitch(t *testing.T) {
+	gomega.RegisterTestingT(t)
+
+	swIfIdx := swIfIndexMock()
+	txns := localclient.NewTxnTracker(addIfsIntoTheIndex(swIfIdx))
+	configuredContainers := containeridx.NewConfigIndex(logrus.DefaultLogger(), core.PluginName("Plugin-name"), "title")
+
+	server, err := newRemoteCNIServer(logrus.DefaultLogger(),
+		txns.NewLinuxDataChangeTxn,
+		txns.NewDefaultPluginsDataChangeTxn,
+		kvdbproxy.NewKvdbsyncMock(),
+		configuredContainers,
+		vppChanMock(),
+		swIfIdx,
+		"testLabel",
+		&config,
+		0)
+
+	gomega.Expect(err).To(gomega.BeNil())
+	err = server.resync()
+	gomega.Expect(err).To(gomega.BeNil())
+
+	gomega.Expect(len(txns.CommittedTxns)).To(gomega.BeEquivalentTo(3))
+
+	server.close()
+	gomega.Expect(len(txns.CommittedTxns)).To(gomega.BeEquivalentTo(4))
+
+}
+
 func vppChanMock() *api.Channel {
 	vppMock := &mock.VppAdapter{}
 	vppMock.RegisterBinAPITypes(interfaces_bin.Types)

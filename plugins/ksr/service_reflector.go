@@ -108,33 +108,37 @@ func (sr *ServiceReflector) GetStats() *SrStats {
 // addService adds state data of a newly created K8s service into the data store.
 func (sr *ServiceReflector) addService(svc *coreV1.Service) {
 	sr.Log.WithField("service", svc).Info("Service added")
-	sr.stats.numAdds++
 	serviceProto := sr.serviceToProto(svc)
 	sr.Log.WithField("serviceProto", serviceProto).Info("Service converted")
 	key := proto.Key(svc.GetName(), svc.GetNamespace())
 	err := sr.Publish.Put(key, serviceProto)
+
 	if err != nil {
 		sr.Log.WithField("err", err).Warn("Failed to add service state data into the data store")
 		sr.stats.numAddErrors++
+		return
 	}
+
+	sr.stats.numAdds++
 }
 
 // deleteService deletes state data of a removed K8s service from the data store.
 func (sr *ServiceReflector) deleteService(svc *coreV1.Service) {
 	sr.Log.WithField("service", svc).Info("Service removed")
-	sr.stats.numDeletes++
 	key := proto.Key(svc.GetName(), svc.GetNamespace())
 	_, err := sr.Publish.Delete(key)
 	if err != nil {
 		sr.Log.WithField("err", err).Warn("Failed to remove service state data from the data store")
 		sr.stats.numDelErrors++
+		return
 	}
+
+	sr.stats.numDeletes++
 }
 
 // updateService updates state data of a changes K8s service in the data store.
 func (sr *ServiceReflector) updateService(svcNew, svcOld *coreV1.Service) {
 	sr.Log.WithFields(map[string]interface{}{"service-old": svcOld, "service-new": svcNew}).Info("Service updated")
-	sr.stats.numUpdates++
 	svcProtoOld := sr.serviceToProto(svcOld)
 	svcProtoNew := sr.serviceToProto(svcNew)
 
@@ -143,10 +147,14 @@ func (sr *ServiceReflector) updateService(svcNew, svcOld *coreV1.Service) {
 			Debug("Service changed, updating in Etcd")
 		key := proto.Key(svcNew.GetName(), svcNew.GetNamespace())
 		err := sr.Publish.Put(key, svcProtoNew)
+
 		if err != nil {
 			sr.Log.WithField("err", err).Warn("Failed to update service state data in the data store")
 			sr.stats.numUpdErrors++
+			return
 		}
+
+		sr.stats.numUpdates++
 	}
 }
 

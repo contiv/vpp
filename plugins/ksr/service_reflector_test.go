@@ -33,12 +33,11 @@ import (
 type ServiceTestVars struct {
 	k8sListWatch *mockK8sListWatch
 	mockKvWriter *mockKeyProtoValWriter
+	svcReflector *ServiceReflector
+	svc          *coreV1.Service
 }
 
-var serviceTestVars = ServiceTestVars{
-	k8sListWatch: &mockK8sListWatch{},
-	mockKvWriter: newMockKeyProtoValWriter(),
-}
+var serviceTestVars ServiceTestVars
 
 func TestServiceReflector(t *testing.T) {
 	gomega.RegisterTestingT(t)
@@ -46,7 +45,10 @@ func TestServiceReflector(t *testing.T) {
 	flavorLocal := &local.FlavorLocal{}
 	flavorLocal.Inject()
 
-	svcReflector := &ServiceReflector{
+	serviceTestVars.k8sListWatch = &mockK8sListWatch{}
+	serviceTestVars.mockKvWriter = newMockKeyProtoValWriter()
+
+	serviceTestVars.svcReflector = &ServiceReflector{
 		ReflectorDeps: ReflectorDeps{
 			Log:          flavorLocal.LoggerFor("service-reflector"),
 			K8sClientset: &kubernetes.Clientset{},
@@ -55,18 +57,7 @@ func TestServiceReflector(t *testing.T) {
 		},
 	}
 
-	stopCh := make(chan struct{})
-	var wg sync.WaitGroup
-	err := svcReflector.Init(stopCh, &wg)
-	gomega.Expect(err).To(gomega.BeNil())
-
-	t.Run("addDeleteService", testAddDeleteService)
-	serviceTestVars.mockKvWriter.ClearDs()
-	// TODO: add more
-}
-
-func testAddDeleteService(t *testing.T) {
-	svc := &coreV1.Service{
+	serviceTestVars.svc = &coreV1.Service{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:            "kubernetes",
 			Namespace:       "default",
@@ -95,11 +86,56 @@ func testAddDeleteService(t *testing.T) {
 			Type:      "ClusterIP",
 		},
 	}
-	// Check if we can add a service
-	serviceTestVars.k8sListWatch.Add(svc)
 
+	stopCh := make(chan struct{})
+	var wg sync.WaitGroup
+	err := serviceTestVars.svcReflector.Init(stopCh, &wg)
+	gomega.Expect(err).To(gomega.BeNil())
+
+	t.Run("addDeleteService", testAddDeleteService)
+	serviceTestVars.mockKvWriter.ClearDs()
+	// TODO: add more
+	t.Run("updateService", testUpdateService)
+}
+
+func testUpdateService(t *testing.T) {
+	svcOld := *serviceTestVars.svc
+	svcNew := *serviceTestVars.svc
+
+	upd := serviceTestVars.svcReflector.GetStats().numUpdates
+
+	serviceTestVars.k8sListWatch.Update(svcOld, svcNew)
+	// There should be no update if we pass bad data types into update function
+	gomega.Expect(upd).To(gomega.Equal(serviceTestVars.svcReflector.GetStats().numUpdates))
+
+	serviceTestVars.k8sListWatch.Update(&svcOld, &svcNew)
+	// There should be no update if old and new updates are the same
+	gomega.Expect(upd).To(gomega.Equal(serviceTestVars.svcReflector.GetStats().numUpdates))
+
+	svcNew.Spec.ClusterIP = "1.2.3.4"
+	gomega.Expect(svcOld).ShouldNot(gomega.BeEquivalentTo(svcNew))
+	serviceTestVars.k8sListWatch.Update(&svcOld, &svcNew)
+	// There should be exactly one update because old and new data are different
+	gomega.Expect(upd + 1).To(gomega.Equal(serviceTestVars.svcReflector.GetStats().numUpdates))
+
+	// Check that new data was written properly
+	svcProto := &proto.Service{}
+	err := serviceTestVars.mockKvWriter.GetValue(proto.Key(svcNew.GetName(), svcNew.GetNamespace()), svcProto)
+	gomega.Expect(err).To(gomega.BeNil())
+	gomega.Expect(svcProto.ClusterIp).To(gomega.Equal(svcNew.Spec.ClusterIP))
+}
+
+func testAddDeleteService(t *testing.T) {
+	svc := serviceTestVars.svc
+
+	// Check if we can add a service
+	add := serviceTestVars.svcReflector.GetStats().numAdds
+	serviceTestVars.k8sListWatch.Add(svc)
 	svcProto := &proto.Service{}
 	err := serviceTestVars.mockKvWriter.GetValue(proto.Key(svc.GetName(), svc.GetNamespace()), svcProto)
+
+	gomega.Expect(add + 1).To(gomega.Equal(serviceTestVars.svcReflector.GetStats().numAdds))
+
 	gomega.Expect(err).To(gomega.BeNil())
 	gomega.Expect(svcProto).NotTo(gomega.BeNil())
 	gomega.Expect(svcProto.Name).To(gomega.Equal(svc.GetName()))
@@ -116,7 +152,10 @@ func testAddDeleteService(t *testing.T) {
 	gomega.Expect(svcProto.Port[0].TargetPort.IntVal).To(gomega.BeEquivalentTo(string(svc.Spec.Ports[0].TargetPort.IntVal)))
 
 	// Now check if we can delete the newly added service
+	del := serviceTestVars.svcReflector.GetStats().numDeletes
 	serviceTestVars.k8sListWatch.Delete(svc)
+	gomega.Expect(del + 1).To(gomega.Equal(serviceTestVars.svcReflector.GetStats().numDeletes))
+
 	svcProto = &proto.Service{}
 	key := proto.Key(svc.GetName(), svc.GetNamespace())
 	err = serviceTestVars.mockKvWriter.GetValue(key, svcProto)

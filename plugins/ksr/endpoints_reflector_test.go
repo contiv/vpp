@@ -128,8 +128,110 @@ func testAddDeleteEndpoints(t *testing.T) {
 	gomega.Expect(add + 1).To(gomega.Equal(epTestVars.epsReflector.GetStats().NumAdds))
 
 	gomega.Expect(err).To(gomega.BeNil())
+	gomega.Expect(epsProto).NotTo(gomega.BeNil())
+	gomega.Expect(epsProto.Name).To(gomega.Equal(eps.GetName()))
+	gomega.Expect(epsProto.Namespace).To(gomega.Equal(eps.GetNamespace()))
+	gomega.Expect(epsProto.EndpointSubsets[0].Addresses[0].Ip).To(gomega.Equal(eps.Subsets[0].Addresses[0].IP))
 
+	gomega.Expect(epsProto.EndpointSubsets[0].Addresses[0].TargetRef.Namespace).
+		To(gomega.Equal(eps.Subsets[0].Addresses[0].TargetRef.Namespace))
+	gomega.Expect(epsProto.EndpointSubsets[0].Addresses[0].TargetRef.Name).
+		To(gomega.Equal(eps.Subsets[0].Addresses[0].TargetRef.Name))
+	gomega.Expect(epsProto.EndpointSubsets[0].Addresses[0].TargetRef.Kind).
+		To(gomega.Equal(eps.Subsets[0].Addresses[0].TargetRef.Kind))
+	gomega.Expect(epsProto.EndpointSubsets[0].Addresses[0].TargetRef.Uid).
+		Should(gomega.BeEquivalentTo(eps.Subsets[0].Addresses[0].TargetRef.UID))
+	gomega.Expect(epsProto.EndpointSubsets[0].Addresses[0].TargetRef.ResourceVersion).
+		To(gomega.Equal(eps.Subsets[0].Addresses[0].TargetRef.ResourceVersion))
+
+	gomega.Expect(epsProto.EndpointSubsets[0].Addresses[1].TargetRef.Namespace).
+		To(gomega.Equal(eps.Subsets[0].Addresses[1].TargetRef.Namespace))
+	gomega.Expect(epsProto.EndpointSubsets[0].Addresses[1].TargetRef.Name).
+		To(gomega.Equal(eps.Subsets[0].Addresses[1].TargetRef.Name))
+	gomega.Expect(epsProto.EndpointSubsets[0].Addresses[1].TargetRef.Kind).
+		To(gomega.Equal(eps.Subsets[0].Addresses[1].TargetRef.Kind))
+	gomega.Expect(epsProto.EndpointSubsets[0].Addresses[1].TargetRef.Uid).
+		Should(gomega.BeEquivalentTo(eps.Subsets[0].Addresses[1].TargetRef.UID))
+	gomega.Expect(epsProto.EndpointSubsets[0].Addresses[1].TargetRef.ResourceVersion).
+		To(gomega.Equal(eps.Subsets[0].Addresses[1].TargetRef.ResourceVersion))
+
+	gomega.Expect(epsProto.EndpointSubsets[0].Ports[0].Port).To(gomega.Equal(eps.Subsets[0].Ports[0].Port))
+	gomega.Expect(epsProto.EndpointSubsets[0].Ports[0].Protocol).
+		Should(gomega.BeEquivalentTo(eps.Subsets[0].Ports[0].Protocol))
+
+	// Now check if we can delete the newly added service
+	del := epTestVars.epsReflector.GetStats().NumDeletes
+	epTestVars.k8sListWatch.Delete(eps)
+	gomega.Expect(del + 1).To(gomega.Equal(epTestVars.epsReflector.GetStats().NumDeletes))
+
+	epsProto = &proto.Endpoints{}
+	key := proto.Key(eps.GetName(), eps.GetNamespace())
+	err = epTestVars.mockKvWriter.GetValue(key, epsProto)
+	gomega.Ω(err).ShouldNot(gomega.Succeed())
 }
 
 func testUpdateEndpoints(t *testing.T) {
+	nodeName := "cvpp"
+
+	epsOld := epTestVars.endpoints
+	epsNew := &coreV1.Endpoints{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:            "my-nginx",
+			Namespace:       "default",
+			SelfLink:        "/api/v1/namespaces/default/endpoints/my-nginx",
+			UID:             "cace7a27-eddf-11e7-9959-0800271d72be",
+			ResourceVersion: "85353",
+			Generation:      0,
+			CreationTimestamp: metav1.Date(2017, 12, 28, 19, 58, 37, 0,
+				time.FixedZone("PST", -800)),
+			Labels: map[string]string{"run": "my-nginx"},
+		},
+		Subsets: []coreV1.EndpointSubset{
+			{
+				Addresses: []coreV1.EndpointAddress{
+					{
+						IP:       "192.168.49.80",
+						NodeName: &nodeName,
+						TargetRef: &coreV1.ObjectReference{
+							Kind:            "Pod",
+							Namespace:       "default",
+							Name:            "my-nginx-9d5677d94-bmq98",
+							UID:             "a49c6175-edde-11e7-9959-0800271d72be",
+							ResourceVersion: "84938",
+						},
+					},
+				},
+				Ports: []coreV1.EndpointPort{
+					{
+						Port:     80,
+						Protocol: "TCP",
+					},
+				},
+			},
+		},
+	}
+
+	upd := epTestVars.epsReflector.GetStats().NumUpdates
+
+	epTestVars.k8sListWatch.Update(*epsOld, *epsNew)
+	// There should be no update if we pass bad data types into update function
+	gomega.Expect(upd).To(gomega.Equal(epTestVars.epsReflector.GetStats().NumUpdates))
+
+	epTestVars.k8sListWatch.Update(&epsOld, &epsNew)
+	// There should be no update if old and new updates are the same
+	gomega.Expect(upd).To(gomega.Equal(epTestVars.epsReflector.GetStats().NumUpdates))
+
+	gomega.Expect(epsOld).ShouldNot(gomega.BeEquivalentTo(epsNew))
+	epTestVars.k8sListWatch.Update(epsOld, epsNew)
+	// There should be exactly one update because old and new data are different
+	gomega.Expect(upd + 1).To(gomega.Equal(epTestVars.epsReflector.GetStats().NumUpdates))
+
+	// Check that new data was written properly
+	epsProto := &proto.Endpoints{}
+	err := epTestVars.mockKvWriter.GetValue(proto.Key(epsNew.GetName(), epsNew.GetNamespace()), epsProto)
+	gomega.Expect(err).To(gomega.BeNil())
+	gomega.Expect(epsProto.EndpointSubsets[0].Addresses[0].Ip).
+		To(gomega.Equal(epsNew.Subsets[0].Addresses[0].IP))
+	gomega.Expect(len(epsProto.EndpointSubsets[0].Addresses)).Should(gomega.BeNumerically("==", 1))
+
 }

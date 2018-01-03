@@ -142,14 +142,14 @@ func testAddDeleteService(t *testing.T) {
 	gomega.Expect(svcProto.Namespace).To(gomega.Equal(svc.GetNamespace()))
 	gomega.Expect(svcProto.ClusterIp).To(gomega.Equal(svc.Spec.ClusterIP))
 	gomega.Expect(len(svcProto.Selector)).To(gomega.Equal(len(svc.Spec.Selector)))
-	gomega.Expect(svcProto.ServiceType).To(gomega.Equal(string(svc.Spec.Type)))
+	gomega.Expect(svcProto.ServiceType).Should(gomega.BeEquivalentTo(svc.Spec.Type))
 	gomega.Expect(svcProto.LoadbalancerIp).To(gomega.Equal(svc.Spec.LoadBalancerIP))
 	gomega.Expect(len(svcProto.Port)).Should(gomega.BeNumerically("==", 1))
 	gomega.Expect(svcProto.Port[0].Name).To(gomega.Equal(svc.Spec.Ports[0].Name))
 	gomega.Expect(svcProto.Port[0].Port).To(gomega.Equal(svc.Spec.Ports[0].Port))
-	gomega.Expect(svcProto.Port[0].Protocol).To(gomega.Equal(string(svc.Spec.Ports[0].Protocol)))
+	gomega.Expect(svcProto.Port[0].Protocol).Should(gomega.BeEquivalentTo(svc.Spec.Ports[0].Protocol))
 	gomega.Expect(svcProto.Port[0].TargetPort.Type).To(gomega.BeEquivalentTo(svc.Spec.Ports[0].TargetPort.Type))
-	gomega.Expect(svcProto.Port[0].TargetPort.IntVal).To(gomega.BeEquivalentTo(string(svc.Spec.Ports[0].TargetPort.IntVal)))
+	gomega.Expect(svcProto.Port[0].TargetPort.IntVal).Should(gomega.BeEquivalentTo(svc.Spec.Ports[0].TargetPort.IntVal))
 
 	// Now check if we can delete the newly added service
 	del := serviceTestVars.svcReflector.GetStats().NumDeletes

@@ -21,7 +21,6 @@ import (
 
 	"github.com/contiv/vpp/plugins/contiv/model/uid"
 	"github.com/ligato/cn-infra/datasync"
-	"github.com/ligato/vpp-agent/plugins/defaultplugins/l3plugin/model/l3"
 )
 
 // handleNodeEvents adjust VPP route configuration according to the node changes.
@@ -87,20 +86,6 @@ func (s *remoteCNIserver) nodeChangePropageteEvent(dataChngEv datasync.ChangeEve
 		return fmt.Errorf("Unknown key %v", key)
 	}
 	return err
-}
-
-func (s *remoteCNIserver) computeRoutesForHost(hostID uint8) (podsRoute *l3.StaticRoutes_Route, hostRoute *l3.StaticRoutes_Route, err error) {
-	podsRoute, err = s.routeToOtherHostPods(hostID)
-	if err != nil {
-		err = fmt.Errorf("Can't construct route to pods of host %v: %v ", hostID, err)
-		return
-	}
-	hostRoute, err = s.routeToOtherHostStack(hostID)
-	if err != nil {
-		err = fmt.Errorf("Can't construct route to host %v: %v ", hostID, err)
-		return
-	}
-	return
 }
 
 func (s *remoteCNIserver) nodeResync(dataResyncEv datasync.ResyncEvent) error {

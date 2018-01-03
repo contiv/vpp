@@ -150,6 +150,20 @@ func (s *remoteCNIserver) routeToOtherHostStack(hostID uint8) (*l3.StaticRoutes_
 	return s.routeToOtherHostNetworks(hostID, vswitchNetwork)
 }
 
+func (s *remoteCNIserver) computeRoutesForHost(hostID uint8) (podsRoute *l3.StaticRoutes_Route, hostRoute *l3.StaticRoutes_Route, err error) {
+	podsRoute, err = s.routeToOtherHostPods(hostID)
+	if err != nil {
+		err = fmt.Errorf("Can't construct route to pods of host %v: %v ", hostID, err)
+		return
+	}
+	hostRoute, err = s.routeToOtherHostStack(hostID)
+	if err != nil {
+		err = fmt.Errorf("Can't construct route to host %v: %v ", hostID, err)
+		return
+	}
+	return
+}
+
 func (s *remoteCNIserver) routeToOtherHostNetworks(hostID uint8, destNetwork *net.IPNet) (*l3.StaticRoutes_Route, error) {
 	hostIP, err := s.ipam.HostIPAddress(hostID)
 	if err != nil {

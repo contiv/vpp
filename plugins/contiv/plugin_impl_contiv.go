@@ -76,9 +76,9 @@ type Deps struct {
 	Watcher datasync.KeyValProtoWatcher
 }
 
-// Config is configuration for Contiv plugin.
-// It can be injected or loaded from external config. Injection has priority to external config. To use external
-// config add `<Contiv plugin name> + "-config="<absolute path to config>` in go run command flags.
+// Config represents configuration for Contiv plugin.
+// It can be injected or loaded from external config file. Injection has priority to external config. To use external
+// config file, add `-contiv-config="<path to config>` argument when running the contiv-agent.
 type Config struct {
 	TCPChecksumOffloadDisabled bool
 	TCPstackDisabled           bool

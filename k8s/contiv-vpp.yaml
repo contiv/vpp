@@ -57,7 +57,7 @@ metadata:
   name: govpp-cfg
   namespace: kube-system
 data:
-  govpp.yaml: |
+  govpp.conf: |
     health-check-probe-interval: 1000000000
     health-check-reply-timeout: 500000000
     health-check-threshold: 3

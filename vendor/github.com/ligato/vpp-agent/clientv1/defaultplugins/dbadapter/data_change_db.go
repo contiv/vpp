@@ -15,8 +15,6 @@
 package dbadapter
 
 import (
-	"net"
-
 	"strconv"
 
 	"github.com/ligato/cn-infra/db/keyval"
@@ -119,8 +117,7 @@ func (dsl *PutDSL) XConnect(val *l2.XConnectPairs_XConnectPair) defaultplugins.P
 
 // StaticRoute adds a request to create or update VPP L3 Static Route.
 func (dsl *PutDSL) StaticRoute(val *l3.StaticRoutes_Route) defaultplugins.PutDSL {
-	_, dstAddr, _ := net.ParseCIDR(val.DstIpAddr)
-	dsl.parent.txn.Put(l3.RouteKey(val.VrfId, dstAddr, val.NextHopAddr), val)
+	dsl.parent.txn.Put(l3.RouteKey(val.VrfId, val.DstIpAddr, val.NextHopAddr), val)
 	return dsl
 }
 
@@ -150,8 +147,8 @@ func (dsl *PutDSL) Arp(arp *l3.ArpTable_ArpTableEntry) defaultplugins.PutDSL {
 	return dsl
 }
 
-// StnRules adds a request to create or update STN rule.
-func (dsl *PutDSL) StnRules(val *stn.StnRule) defaultplugins.PutDSL {
+// StnRule adds a request to create or update STN rule.
+func (dsl *PutDSL) StnRule(val *stn.StnRule) defaultplugins.PutDSL {
 	dsl.parent.txn.Put(stn.Key(val.RuleName), val)
 	return dsl
 }
@@ -213,8 +210,8 @@ func (dsl *DeleteDSL) XConnect(rxIfName string) defaultplugins.DeleteDSL {
 }
 
 // StaticRoute adds a request to delete an existing VPP L3 Static Route.
-func (dsl *DeleteDSL) StaticRoute(vrf uint32, dstAddrInput *net.IPNet, nextHopAddr net.IP) defaultplugins.DeleteDSL {
-	dsl.parent.txn.Delete(l3.RouteKey(vrf, dstAddrInput, nextHopAddr.String()))
+func (dsl *DeleteDSL) StaticRoute(vrf uint32, dstAddr string, nextHopAddr string) defaultplugins.DeleteDSL {
+	dsl.parent.txn.Delete(l3.RouteKey(vrf, dstAddr, nextHopAddr))
 	return dsl
 }
 
@@ -224,27 +221,27 @@ func (dsl *DeleteDSL) ACL(aclName string) defaultplugins.DeleteDSL {
 	return dsl
 }
 
-// StnRules adds Stn rules to the RESYNC request.
-func (dsl *DeleteDSL) StnRules(ruleName string) defaultplugins.DeleteDSL {
-	dsl.parent.txn.Delete(stn.Key(ruleName))
-	return dsl
-}
-
-// Arp adds a request to delete an existing VPP L3 ARP entry.
-func (dsl *DeleteDSL) Arp(ifaceName string, ipAddr net.IP) defaultplugins.DeleteDSL {
-	dsl.parent.txn.Delete(l3.ArpEntryKey(ifaceName, ipAddr.String()))
-	return dsl
-}
-
 // L4Features delete request for the L4Features
 func (dsl *DeleteDSL) L4Features() defaultplugins.DeleteDSL {
 	dsl.parent.txn.Delete(l4.FeatureKey())
 	return dsl
 }
 
+// Arp adds a request to delete an existing VPP L3 ARP entry.
+func (dsl *DeleteDSL) Arp(ifaceName string, ipAddr string) defaultplugins.DeleteDSL {
+	dsl.parent.txn.Delete(l3.ArpEntryKey(ifaceName, ipAddr))
+	return dsl
+}
+
 // AppNamespace adds a request to delete an existing VPP Application Namespace.
 func (dsl *DeleteDSL) AppNamespace(id string) defaultplugins.DeleteDSL {
 	dsl.parent.txn.Delete(l4.AppNamespacesKey(id))
+	return dsl
+}
+
+// StnRule adds request to delete Stn rule.
+func (dsl *DeleteDSL) StnRule(ruleName string) defaultplugins.DeleteDSL {
+	dsl.parent.txn.Delete(stn.Key(ruleName))
 	return dsl
 }
 

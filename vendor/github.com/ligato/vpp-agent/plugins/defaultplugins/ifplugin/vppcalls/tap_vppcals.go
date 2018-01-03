@@ -48,7 +48,6 @@ func AddTapInterface(tapIf *interfaces.Interfaces_Interface_Tap, vppChan *govppa
 	)
 
 	if tapIf.Version == 2 {
-		fmt.Printf("Configuring TAP interface version 2: %+v\n", *tapIf)
 		// Configure fast virtio-based TAP interface
 		req := &tapv2.TapCreateV2{}
 		req.TapName = []byte(tapIf.HostIfName)
@@ -57,19 +56,14 @@ func AddTapInterface(tapIf *interfaces.Interfaces_Interface_Tap, vppChan *govppa
 			req.HostNamespace = []byte(tapIf.Namespace)
 			req.HostNamespaceSet = 1
 		}
-		if tapIf.RxRingSize != 0 {
-			req.RxRingSz = uint16(tapIf.RxRingSize)
-		}
-		if tapIf.TxRingSize != 0 {
-			req.TxRingSz = uint16(tapIf.TxRingSize)
-		}
+		req.RxRingSz = uint16(tapIf.RxRingSize)
+		req.TxRingSz = uint16(tapIf.TxRingSize)
 
 		reply := &tapv2.TapCreateV2Reply{}
 		err = vppChan.SendRequest(req).ReceiveReply(reply)
 		retval = reply.Retval
 		swIfIndex = reply.SwIfIndex
 	} else {
-		fmt.Printf("Configuring TAP interface version 1: %+v\n", *tapIf)
 		// Configure the original TAP interface
 		req := &tap.TapConnect{}
 		req.TapName = []byte(tapIf.HostIfName)
@@ -110,7 +104,7 @@ func DeleteTapInterface(idx uint32, version uint32, vppChan *govppapi.Channel, t
 		req := &tapv2.TapDeleteV2{}
 		req.SwIfIndex = idx
 
-		reply := &tap.TapDeleteReply{}
+		reply := &tapv2.TapDeleteV2Reply{}
 		err = vppChan.SendRequest(req).ReceiveReply(reply)
 		retval = reply.Retval
 	} else {

@@ -4,7 +4,7 @@ package ipam_test
 import (
 	"testing"
 
-	"github.com/ligato/cn-infra/logging/logroot"
+	"github.com/ligato/cn-infra/logging/logrus"
 	. "github.com/onsi/gomega"
 
 	"fmt"
@@ -28,7 +28,7 @@ const (
 )
 
 var (
-	logger = logroot.StandardLogger()
+	logger = logrus.DefaultLogger()
 
 	hostID1                        uint8 = b10100001
 	hostID2                        uint8 = b10100101
@@ -52,7 +52,7 @@ func newDefaultConfig() *ipam.Config {
 func setup(t *testing.T, cfg *ipam.Config) *ipam.IPAM {
 	RegisterTestingT(t)
 
-	i, err := ipam.New(logroot.StandardLogger(), uint8(hostID1), cfg)
+	i, err := ipam.New(logrus.DefaultLogger(), uint8(hostID1), cfg)
 	Expect(err).To(BeNil())
 	return i
 }
@@ -194,17 +194,17 @@ func TestConfigWithBadCIRD(t *testing.T) {
 
 	customConfig := newDefaultConfig()
 	customConfig.PodSubnetCIDR = "1.2.3./19"
-	_, err := ipam.New(logroot.StandardLogger(), uint8(hostID1), customConfig)
+	_, err := ipam.New(logrus.DefaultLogger(), uint8(hostID1), customConfig)
 	Expect(err).NotTo(BeNil(), "Pod subnet CIDR is unparsable, but IPAM initialization didn't fail")
 
 	customConfig = newDefaultConfig()
 	customConfig.VSwitchSubnetCIDR = "1.2.3./19"
-	_, err = ipam.New(logroot.StandardLogger(), uint8(hostID1), customConfig)
+	_, err = ipam.New(logrus.DefaultLogger(), uint8(hostID1), customConfig)
 	Expect(err).NotTo(BeNil(), "VSwitch subnet CIDR is unparsable, but IPAM initialization didn't fail")
 
 	customConfig = newDefaultConfig()
 	customConfig.HostNodeSubnetCidr = "1.2.3./19"
-	_, err = ipam.New(logroot.StandardLogger(), uint8(hostID1), customConfig)
+	_, err = ipam.New(logrus.DefaultLogger(), uint8(hostID1), customConfig)
 	Expect(err).NotTo(BeNil(), "Host subnet CIDR is unparsable, but IPAM initialization didn't fail")
 }
 
@@ -215,13 +215,13 @@ func TestConfigWithBadPrefixSizes(t *testing.T) {
 	customConfig := newDefaultConfig()
 	customConfig.PodSubnetCIDR = "1.2.3.4/19"
 	customConfig.PodNetworkPrefixLen = 18
-	_, err := ipam.New(logroot.StandardLogger(), uint8(hostID1), customConfig)
+	_, err := ipam.New(logrus.DefaultLogger(), uint8(hostID1), customConfig)
 	Expect(err).NotTo(BeNil())
 
 	customConfig = newDefaultConfig()
 	customConfig.VSwitchSubnetCIDR = "1.2.3.4/19"
 	customConfig.VSwitchNetworkPrefixLen = 18
-	_, err = ipam.New(logroot.StandardLogger(), uint8(hostID1), customConfig)
+	_, err = ipam.New(logrus.DefaultLogger(), uint8(hostID1), customConfig)
 	Expect(err).NotTo(BeNil())
 }
 

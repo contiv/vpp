@@ -14,6 +14,7 @@ Add Agent Node
     Log Many       ${node}
     Open SSH Connection    ${node}    ${DOCKER_HOST_IP}    ${DOCKER_HOST_USER}    ${DOCKER_HOST_PSWD}
     Execute On Machine     ${node}    ${DOCKER_COMMAND} create -e MICROSERVICE_LABEL=${node} -it -p ${${node}_REST_API_HOST_PORT}:${${node}_REST_API_PORT} --name ${node} ${${node}_DOCKER_IMAGE}
+    #Execute On Machine     ${node}    ${DOCKER_COMMAND} create -e MICROSERVICE_LABEL=${node} -it -p ${${node}_PING_HOST_PORT}:${${node}_PING_PORT} -p ${${node}_REST_API_HOST_PORT}:${${node}_REST_API_PORT} --name ${node} ${${node}_DOCKER_IMAGE}
     Write To Machine       ${node}    ${DOCKER_COMMAND} start ${node}
     Append To List    ${NODES}    ${node}
     Create Session    ${node}    http://${DOCKER_HOST_IP}:${${node}_REST_API_HOST_PORT}
@@ -27,7 +28,7 @@ Add Agent VPP Node
     ${add_params}=    Set Variable If    ${vswitch}    --pid=host -v "/var/run/docker.sock:/var/run/docker.sock"    ${EMPTY}
     Log    ${add_params}
     Open SSH Connection    ${node}    ${DOCKER_HOST_IP}    ${DOCKER_HOST_USER}    ${DOCKER_HOST_PSWD}
-    Execute On Machine     ${node}    ${DOCKER_COMMAND} create -e MICROSERVICE_LABEL=${node} -it --privileged -v "${DOCKER_SOCKET_FOLDER}:${${node}_SOCKET_FOLDER}" -p ${${node}_VPP_HOST_PORT}:${${node}_VPP_PORT} -p ${${node}_REST_API_HOST_PORT}:${${node}_REST_API_PORT} --name ${node} ${add_params} ${${node}_DOCKER_IMAGE}
+    Execute On Machine     ${node}    ${DOCKER_COMMAND} create -e MICROSERVICE_LABEL=${node} -it --privileged -v "${VPP_AGENT_HOST_MEMIF_SOCKET_FOLDER}:${${node}_MEMIF_SOCKET_FOLDER}" -v "${DOCKER_SOCKET_FOLDER}:${${node}_SOCKET_FOLDER}" -p ${${node}_VPP_HOST_PORT}:${${node}_VPP_PORT} -p ${${node}_REST_API_HOST_PORT}:${${node}_REST_API_PORT} --name ${node} ${add_params} ${${node}_DOCKER_IMAGE}
     Write To Machine       ${node}    ${DOCKER_COMMAND} start ${node}
     Append To List    ${NODES}    ${node}
     Open SSH Connection    ${node}_term    ${DOCKER_HOST_IP}    ${DOCKER_HOST_USER}    ${DOCKER_HOST_PSWD}
@@ -38,6 +39,41 @@ Add Agent VPP Node
     ${hostname}=    Execute On Machine    docker    ${DOCKER_COMMAND} exec ${node} bash -c 'echo $HOSTNAME'
     Set Suite Variable    ${${node}_HOSTNAME}    ${hostname}
     Log List    ${NODES}
+
+
+Add Agent VPP Node With More Debug
+    [Arguments]    ${node}    ${vswitch}=${FALSE}
+    Log Many       ${node}    ${vswitch}
+    ${add_params}=    Set Variable If    ${vswitch}    --pid=host -v "/var/run/docker.sock:/var/run/docker.sock"    ${EMPTY}
+    Log    ${add_params}
+    Open SSH Connection    ${node}    ${DOCKER_HOST_IP}    ${DOCKER_HOST_USER}    ${DOCKER_HOST_PSWD}
+    Execute On Machine     ${node}    ${DOCKER_COMMAND} create -e MICROSERVICE_LABEL=${node} -e INITIAL_LOGLVL=debug -it --privileged -v "${VPP_AGENT_HOST_MEMIF_SOCKET_FOLDER}:${${node}_MEMIF_SOCKET_FOLDER}" -v "${DOCKER_SOCKET_FOLDER}:${${node}_SOCKET_FOLDER}" -p ${${node}_VPP_HOST_PORT}:${${node}_VPP_PORT} -p ${${node}_REST_API_HOST_PORT}:${${node}_REST_API_PORT} --name ${node} ${add_params} ${${node}_DOCKER_IMAGE}
+    Write To Machine       ${node}    ${DOCKER_COMMAND} start ${node}
+    Append To List    ${NODES}    ${node}
+    Open SSH Connection    ${node}_term    ${DOCKER_HOST_IP}    ${DOCKER_HOST_USER}    ${DOCKER_HOST_PSWD}
+    Open SSH Connection    ${node}_vat    ${DOCKER_HOST_IP}    ${DOCKER_HOST_USER}    ${DOCKER_HOST_PSWD}
+    vpp_term: Open VPP Terminal    ${node}
+    vat_term: Open VAT Terminal    ${node}
+    Create Session    ${node}    http://${DOCKER_HOST_IP}:${${node}_REST_API_HOST_PORT}
+    ${hostname}=    Execute On Machine    docker    ${DOCKER_COMMAND} exec ${node} bash -c 'echo $HOSTNAME'
+    Set Suite Variable    ${${node}_HOSTNAME}    ${hostname}
+    Log List    ${NODES}
+
+Add Agent Libmemif Node
+    [Arguments]    ${node}
+    Log Many       ${node}
+    Open SSH Connection    ${node}    ${DOCKER_HOST_IP}    ${DOCKER_HOST_USER}    ${DOCKER_HOST_PSWD}
+    Execute On Machine     ${node}    ${DOCKER_COMMAND} create -e MICROSERVICE_LABEL=${node} -it --privileged -v "${VPP_AGENT_HOST_MEMIF_SOCKET_FOLDER}:${${node}_MEMIF_SOCKET_FOLDER}" --name ${node} ${${node}_DOCKER_IMAGE} /bin/bash
+    Write To Machine       ${node}    ${DOCKER_COMMAND} start ${node}
+    Append To List    ${NODES}    ${node}
+    #${hostname}=    Execute On Machine    docker    ${DOCKER_COMMAND} exec ${node} bash -c 'echo $HOSTNAME'
+    Sleep     3s
+    ${hostname}=    Execute On Machine    docker    ${DOCKER_COMMAND} exec ${node} bash -c 'echo $HOSTNAME'
+    Set Suite Variable    ${${node}_HOSTNAME}    ${hostname}
+    Open SSH Connection    ${node}_lmterm    ${DOCKER_HOST_IP}    ${DOCKER_HOST_USER}    ${DOCKER_HOST_PSWD}
+    lmterm: Open LM Terminal    ${node}
+    Log List    ${NODES}
+
 
 Add Agent VPP Node With Physical Int
     [Arguments]    ${node}    ${int_nums}    ${vswitch}=${FALSE}
@@ -72,6 +108,12 @@ Remove All Nodes
     \    Remove Node    ${id}
     Execute On Machine    docker    ${DOCKER_COMMAND} ps -as
 
+Remove All VPP Nodes
+    Log List    ${NODES}
+    :FOR    ${id}    IN    @{NODES}
+    \   Run Keyword If    "vpp" in "${id}"       Remove Node    ${id}
+    Execute On Machine    docker    ${DOCKER_COMMAND} ps -as
+
 Remove Node
     [Arguments]    ${node}
     Log    ${node}
@@ -81,6 +123,7 @@ Remove Node
     Switch Connection    ${node}
     Close Connection
     Run Keyword If    "vpp" in "${node}"    Remove VPP Connections    ${node}
+    Run Keyword If    "libmemif" in "${node}"    Remove LM Connections    ${node}
     Remove Values From List    ${NODES}    ${node}
     Execute On Machine    docker    ${DOCKER_COMMAND} rm -f ${node}
 
@@ -93,7 +136,14 @@ Remove VPP Connections
     Log ${node}_vat Output
     Switch Connection    ${node}_vat
     Close Connection
-   
+
+Remove LM Connections
+    [Arguments]    ${node}
+    Log    ${node}
+    Log ${node}_lmterm Output
+    Switch Connection    ${node}_lmterm
+    Close Connection
+
 Check ETCD Running
     ${out}=   Write To Machine    docker     ${DOCKER_COMMAND} exec -it etcd etcdctl version
     Log Many    ${out}
@@ -126,6 +176,18 @@ Execute In Container
     Append To File           ${RESULTS_FOLDER}/output_${container}.log    *** Command: ${command}${\n}${out}${\n}*** Error: ${stderr}${\n}
     [Return]                 ${out}
 
+Execute In Container Background
+    [Arguments]              ${container}       ${command}
+    Log Many                 ${container}       ${command}
+    Switch Connection        docker
+    ${out}   ${stderr}=      Execute Command    ${DOCKER_COMMAND} exec -d ${container} ${command}    return_stderr=True
+    Log                      ${out}
+    Log                      ${stderr}
+    ${status}=               Run Keyword And Return Status    Should be Empty    ${stderr}
+    Run Keyword If           ${status}==False         Log     One or more error occured during execution of a command ${command} in container ${container}    level=WARN
+    Append To File           ${RESULTS_FOLDER}/output_${container}.log    *** Command: ${command}${\n}${out}${\n}*** Error: ${stderr}${\n}
+    [Return]                 ${out}
+
 Write To Container Until Prompt
                        [Arguments]              ${container}               ${command}               ${prompt}=root@    ${delay}=${SSH_READ_DELAY}
                        [Documentation]          *Write Container ${container} ${command}*
@@ -140,6 +202,23 @@ Write To Container Until Prompt
                        Log                      ${out2}
                        Append To File           ${RESULTS_FOLDER}/output_${container}.log    *** Command: ${command}${\n}${out}${out2}${\n}
                        [Return]                 ${out}${out2}
+
+Write Command to Container
+                       [Arguments]              ${container}      ${command}       ${delay}=${SSH_READ_DELAY}
+                       [Documentation]          *Write Container ${container} ${command}*
+                       ...                      Writing ${command} to connection with name ${container} and reading output
+                       ...                      Output log is added to container output log
+                       Log Many                 ${container}      ${command}     ${delay}
+                       Switch Connection        ${container}
+                       ${written}=              Write        ${command}
+                       Log                      ${written}
+                       ${out}=                  Read        delay=${delay}
+                       Should Not Contain       ${out}     ${written}               # Was consumed from the output
+                       ${out2}=                 Read        delay=${delay}
+                       Log                      ${out2}
+                       Append To File           ${RESULTS_FOLDER}/output_${container}.log    *** Command: ${command}${\n}${out}${out2}${\n}
+                       [Return]                 ${out}${out2}
+
 
 Start Dev Container
     [Arguments]            ${command}=bash
@@ -161,8 +240,6 @@ Update Agent In Dev Container
     Write To Container Until Prompt    dev    git pull
     Write To Container Until Prompt    dev    make
     Write To Container Until Prompt    dev    make install
-
-
 
 Start Kafka Server
     Open SSH Connection    kafka    ${DOCKER_HOST_IP}    ${DOCKER_HOST_USER}    ${DOCKER_HOST_PSWD}

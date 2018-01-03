@@ -23,7 +23,7 @@ import (
 	"github.com/onsi/gomega"
 
 	"github.com/ligato/cn-infra/logging"
-	"github.com/ligato/cn-infra/logging/logroot"
+	"github.com/ligato/cn-infra/logging/logrus"
 
 	. "github.com/contiv/vpp/mock/policycache"
 	. "github.com/contiv/vpp/mock/renderer"
@@ -46,7 +46,7 @@ func parseIPNet(addr string) net.IPNet {
 
 func TestSinglePolicySinglePod(t *testing.T) {
 	gomega.RegisterTestingT(t)
-	logger := logroot.StandardLogger()
+	logger := logrus.DefaultLogger()
 	logger.SetLevel(logging.DebugLevel)
 	logger.Debug("TestSinglePolicySinglePod")
 
@@ -142,7 +142,7 @@ func TestSinglePolicySinglePod(t *testing.T) {
 
 func TestSinglePolicyWithIPBlockSinglePod(t *testing.T) {
 	gomega.RegisterTestingT(t)
-	logger := logroot.StandardLogger()
+	logger := logrus.DefaultLogger()
 	logger.SetLevel(logging.DebugLevel)
 	logger.Debug("TestSinglePolicyWithIPBlockSinglePod")
 
@@ -253,7 +253,7 @@ func TestSinglePolicyWithIPBlockSinglePod(t *testing.T) {
 
 func TestSinglePolicyMultiplePods(t *testing.T) {
 	gomega.RegisterTestingT(t)
-	logger := logroot.StandardLogger()
+	logger := logrus.DefaultLogger()
 	logger.SetLevel(logging.DebugLevel)
 	logger.Debug("TestSinglePolicyMultiplePods")
 
@@ -391,7 +391,7 @@ func TestSinglePolicyMultiplePods(t *testing.T) {
 
 func TestSinglePolicyWithNestedIPBlocksSinglePod(t *testing.T) {
 	gomega.RegisterTestingT(t)
-	logger := logroot.StandardLogger()
+	logger := logrus.DefaultLogger()
 	logger.SetLevel(logging.DebugLevel)
 	logger.Debug("TestSinglePolicyWithNestedIPBlocksSinglePod")
 
@@ -502,7 +502,7 @@ func TestSinglePolicyWithNestedIPBlocksSinglePod(t *testing.T) {
 
 func TestSingleEgressPolicySinglePod(t *testing.T) {
 	gomega.RegisterTestingT(t)
-	logger := logroot.StandardLogger()
+	logger := logrus.DefaultLogger()
 	logger.SetLevel(logging.DebugLevel)
 	logger.Debug("TestSingleEgressPolicySinglePod")
 
@@ -598,7 +598,7 @@ func TestSingleEgressPolicySinglePod(t *testing.T) {
 
 func TestSingleEgressPolicyWithIPBlockSinglePod(t *testing.T) {
 	gomega.RegisterTestingT(t)
-	logger := logroot.StandardLogger()
+	logger := logrus.DefaultLogger()
 	logger.SetLevel(logging.DebugLevel)
 	logger.Debug("TestSingleEgressPolicyWithIPBlockSinglePod")
 
@@ -709,7 +709,7 @@ func TestSingleEgressPolicyWithIPBlockSinglePod(t *testing.T) {
 
 func TestSingleBothWaysPolicySinglePod(t *testing.T) {
 	gomega.RegisterTestingT(t)
-	logger := logroot.StandardLogger()
+	logger := logrus.DefaultLogger()
 	logger.SetLevel(logging.DebugLevel)
 	logger.Debug("TestSingleBothWaysPolicySinglePod")
 
@@ -871,7 +871,7 @@ func TestSingleBothWaysPolicySinglePod(t *testing.T) {
 
 func TestSinglePolicySinglePodMultipleRenderers(t *testing.T) {
 	gomega.RegisterTestingT(t)
-	logger := logroot.StandardLogger()
+	logger := logrus.DefaultLogger()
 	logger.SetLevel(logging.DebugLevel)
 	logger.Debug("TestSinglePolicySinglePodMultipleRenderers")
 
@@ -1035,7 +1035,7 @@ func TestSinglePolicySinglePodMultipleRenderers(t *testing.T) {
 
 func TestMultiplePoliciesSinglePod(t *testing.T) {
 	gomega.RegisterTestingT(t)
-	logger := logroot.StandardLogger()
+	logger := logrus.DefaultLogger()
 	logger.SetLevel(logging.DebugLevel)
 	logger.Debug("TestMultiplePoliciesSinglePod")
 
@@ -1224,7 +1224,7 @@ func TestMultiplePoliciesSinglePod(t *testing.T) {
 
 func TestMultiplePodsSpecialCases(t *testing.T) {
 	gomega.RegisterTestingT(t)
-	logger := logroot.StandardLogger()
+	logger := logrus.DefaultLogger()
 	logger.SetLevel(logging.DebugLevel)
 	logger.Debug("TestMultiplePodsSpecialCases")
 

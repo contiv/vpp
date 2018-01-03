@@ -17,10 +17,8 @@ package contiv
 import (
 	"context"
 	"fmt"
-	"net"
 	"strings"
 
-	"github.com/contiv/vpp/plugins/contiv/bin_api/session"
 	"github.com/contiv/vpp/plugins/contiv/model/uid"
 	"github.com/ligato/cn-infra/datasync"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/l3plugin/model/l3"
@@ -31,7 +29,6 @@ func (s *remoteCNIserver) handleNodeEvents(ctx context.Context, resyncChan chan 
 	for {
 		select {
 		case resyncEv := <-resyncChan:
-
 			err := s.nodeResync(resyncEv)
 			resyncEv.Done(err)
 		case changeEv := <-changeChan:
@@ -66,7 +63,7 @@ func (s *remoteCNIserver) nodeChangePropageteEvent(dataChngEv datasync.ChangeEve
 			}
 			s.Logger.Info("Adding PODs route: ", podsRoute)
 			s.Logger.Info("Adding host route: ", hostRoute)
-			if err = s.vppTxnFactory().Put().StaticRoute(podsRoute).StaticRoute(hostRoute).Send().ReceiveReply(); err != nil {
+			if err = s.vppLinuxTxnFactory().Put().StaticRoute(podsRoute).StaticRoute(hostRoute).Send().ReceiveReply(); err != nil {
 				return fmt.Errorf("Can't configure vpp to add route to host %v (and its pods): %v ", hostID, err)
 			}
 		} else {
@@ -77,18 +74,10 @@ func (s *remoteCNIserver) nodeChangePropageteEvent(dataChngEv datasync.ChangeEve
 			if err != nil {
 				return err
 			}
-			_, podDest, err := net.ParseCIDR(podsRoute.DstIpAddr)
-			if err != nil {
-				return err
-			}
-			_, hostDest, err := net.ParseCIDR(hostRoute.DstIpAddr)
-			if err != nil {
-				return err
-			}
 
-			err = s.vppTxnFactory().Delete().
-				StaticRoute(podsRoute.VrfId, podDest, net.ParseIP(podsRoute.NextHopAddr)).
-				StaticRoute(hostRoute.VrfId, hostDest, net.ParseIP(hostRoute.NextHopAddr)).
+			err = s.vppLinuxTxnFactory().Delete().
+				StaticRoute(podsRoute.VrfId, podsRoute.DstIpAddr, podsRoute.NextHopAddr).
+				StaticRoute(hostRoute.VrfId, hostRoute.DstIpAddr, hostRoute.NextHopAddr).
 				Send().ReceiveReply()
 			if err != nil {
 				return fmt.Errorf("Can't configure vpp to remove route to host %v (and its pods): %v ", hostID, err)
@@ -117,7 +106,7 @@ func (s *remoteCNIserver) computeRoutesForHost(hostID uint8) (podsRoute *l3.Stat
 func (s *remoteCNIserver) nodeResync(dataResyncEv datasync.ResyncEvent) error {
 	// TODO: implement proper resync (handle deleted routes as well)
 	var err error
-	txn := s.vppTxnFactory().Put()
+	txn := s.vppLinuxTxnFactory().Put()
 	data := dataResyncEv.GetValues()
 	for prefix, it := range data {
 		if prefix == allocatedIDsKeyPrefix {
@@ -142,7 +131,7 @@ func (s *remoteCNIserver) nodeResync(dataResyncEv datasync.ResyncEvent) error {
 					}
 					s.Logger.Info("Adding PODs route: ", podsRoute)
 					s.Logger.Info("Adding host route: ", hostRoute)
-					if err = s.vppTxnFactory().Put().StaticRoute(podsRoute).StaticRoute(hostRoute).Send().ReceiveReply(); err != nil {
+					if err = s.vppLinuxTxnFactory().Put().StaticRoute(podsRoute).StaticRoute(hostRoute).Send().ReceiveReply(); err != nil {
 						return fmt.Errorf("Can't configure vpp to add route to host %v (and its pods): %v ", hostID, err)
 					}
 				}
@@ -151,25 +140,4 @@ func (s *remoteCNIserver) nodeResync(dataResyncEv datasync.ResyncEvent) error {
 	}
 
 	return txn.Send().ReceiveReply()
-}
-
-func (s *remoteCNIserver) enableTCPSession() error {
-	req := &session.SessionEnableDisable{
-		IsEnable: 1,
-	}
-
-	if s.govppChan == nil {
-		s.Logger.Warn("GoVpp not available")
-		return nil
-	}
-
-	reply := session.SessionEnableDisableReply{}
-
-	err := s.govppChan.SendRequest(req).ReceiveReply(&reply)
-
-	if reply.Retval != 0 {
-		return fmt.Errorf("enabling session returned non-zero return code")
-	}
-
-	return err
 }

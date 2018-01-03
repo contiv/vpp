@@ -32,7 +32,7 @@ import (
 	"github.com/contiv/vpp/plugins/kvdbproxy"
 
 	"github.com/ligato/cn-infra/core"
-	"github.com/ligato/cn-infra/logging/logroot"
+	"github.com/ligato/cn-infra/logging/logrus"
 	"github.com/ligato/vpp-agent/idxvpp/nametoidx"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/bin_api/af_packet"
 	interfaces_bin "github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/bin_api/interfaces"
@@ -44,8 +44,6 @@ import (
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/ifaceidx"
 	vpp_intf "github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/model/interfaces"
 
-	"github.com/contiv/vpp/plugins/contiv/bin_api/session"
-	"github.com/contiv/vpp/plugins/contiv/bin_api/stn"
 	"github.com/contiv/vpp/plugins/contiv/ipam"
 	"github.com/onsi/gomega"
 )
@@ -80,8 +78,9 @@ func TestVeth1NameFromRequest(t *testing.T) {
 
 	txns := localclient.NewTxnTracker(nil)
 
-	server, err := newRemoteCNIServer(logroot.StandardLogger(),
-		txns.NewDataChangeTxn,
+	server, err := newRemoteCNIServer(logrus.DefaultLogger(),
+		txns.NewLinuxDataChangeTxn,
+		txns.NewDefaultPluginsDataChangeTxn,
 		&kvdbproxy.Plugin{},
 		nil,
 		nil,
@@ -100,10 +99,11 @@ func TestAdd(t *testing.T) {
 
 	swIfIdx := swIfIndexMock()
 	txns := localclient.NewTxnTracker(addIfsIntoTheIndex(swIfIdx))
-	configuredContainers := containeridx.NewConfigIndex(logroot.StandardLogger(), core.PluginName("Plugin-name"), "title")
+	configuredContainers := containeridx.NewConfigIndex(logrus.DefaultLogger(), core.PluginName("Plugin-name"), "title")
 
-	server, err := newRemoteCNIServer(logroot.StandardLogger(),
-		txns.NewDataChangeTxn,
+	server, err := newRemoteCNIServer(logrus.DefaultLogger(),
+		txns.NewLinuxDataChangeTxn,
+		txns.NewDefaultPluginsDataChangeTxn,
 		kvdbproxy.NewKvdbsyncMock(),
 		configuredContainers,
 		vppChanMock(),
@@ -112,7 +112,6 @@ func TestAdd(t *testing.T) {
 		&config,
 		0)
 	gomega.Expect(err).To(gomega.BeNil())
-	server.hostCalls = &mockLinuxCalls{}
 
 	// unless we pretend that connectivity is configured requests are blocked
 	server.vswitchConnectivityConfigured = true
@@ -123,8 +122,8 @@ func TestAdd(t *testing.T) {
 	gomega.Expect(reply).NotTo(gomega.BeNil())
 
 	gomega.Expect(len(txns.PendingTxns)).To(gomega.BeEquivalentTo(0))
-	gomega.Expect(len(txns.CommittedTxns)).To(gomega.BeEquivalentTo(1))
-	// TODO add asserts for txns / currently applied config
+	gomega.Expect(len(txns.CommittedTxns)).To(gomega.BeEquivalentTo(2))
+	// TODO add asserts for txns(one linux plugin txn and one default plugins txn) / currently applied config
 
 	res := configuredContainers.LookupPodName(podName)
 	gomega.Expect(len(res)).To(gomega.BeEquivalentTo(1))
@@ -138,6 +137,35 @@ func TestAdd(t *testing.T) {
 
 }
 
+func TestConfigureVswitch(t *testing.T) {
+	gomega.RegisterTestingT(t)
+
+	swIfIdx := swIfIndexMock()
+	txns := localclient.NewTxnTracker(addIfsIntoTheIndex(swIfIdx))
+	configuredContainers := containeridx.NewConfigIndex(logrus.DefaultLogger(), core.PluginName("Plugin-name"), "title")
+
+	server, err := newRemoteCNIServer(logrus.DefaultLogger(),
+		txns.NewLinuxDataChangeTxn,
+		txns.NewDefaultPluginsDataChangeTxn,
+		kvdbproxy.NewKvdbsyncMock(),
+		configuredContainers,
+		vppChanMock(),
+		swIfIdx,
+		"testLabel",
+		&config,
+		0)
+
+	gomega.Expect(err).To(gomega.BeNil())
+	err = server.resync()
+	gomega.Expect(err).To(gomega.BeNil())
+
+	gomega.Expect(len(txns.CommittedTxns)).To(gomega.BeEquivalentTo(3))
+
+	server.close()
+	gomega.Expect(len(txns.CommittedTxns)).To(gomega.BeEquivalentTo(4))
+
+}
+
 func vppChanMock() *api.Channel {
 	vppMock := &mock.VppAdapter{}
 	vppMock.RegisterBinAPITypes(interfaces_bin.Types)
@@ -147,28 +175,26 @@ func vppChanMock() *api.Channel {
 	vppMock.RegisterBinAPITypes(vpe.Types)
 	vppMock.RegisterBinAPITypes(vxlan.Types)
 	vppMock.RegisterBinAPITypes(ip.Types)
-	vppMock.RegisterBinAPITypes(stn.Types)
-	vppMock.RegisterBinAPITypes(session.Types)
 
 	vppMock.MockReplyHandler(func(request govppmock.MessageDTO) (reply []byte, msgID uint16, prepared bool) {
 		reqName, found := vppMock.GetMsgNameByID(request.MsgID)
 		if !found {
-			logroot.StandardLogger().Error("Not existing req msg name for MsgID=", request.MsgID)
+			logrus.DefaultLogger().Error("Not existing req msg name for MsgID=", request.MsgID)
 			return reply, 0, false
 		}
-		logroot.StandardLogger().Debug("MockReplyHandler ", request.MsgID, " ", reqName)
+		logrus.DefaultLogger().Debug("MockReplyHandler ", request.MsgID, " ", reqName)
 
 		if reqName == "sw_interface_dump" {
 			codec := govpp.MsgCodec{}
 			ifDump := interfaces_bin.SwInterfaceDump{}
 			err := codec.DecodeMsg(request.Data, &ifDump)
 			if err != nil {
-				logroot.StandardLogger().Error(err)
+				logrus.DefaultLogger().Error(err)
 				return reply, 0, false
 			}
 			msgID, err := vppMock.GetMsgID("sw_interface_details", "")
 			if err != nil {
-				logroot.StandardLogger().Error(err)
+				logrus.DefaultLogger().Error(err)
 				return reply, 0, false
 			}
 
@@ -193,19 +219,19 @@ func vppChanMock() *api.Channel {
 				valType := val.Type()
 				if binapi.HasSwIfIdx(valType) {
 					swIfIndexSeq++
-					logroot.StandardLogger().Debug("Succ default reply for ", reqName, " ", msgID, " sw_if_idx=", swIfIndexSeq)
+					logrus.DefaultLogger().Debug("Succ default reply for ", reqName, " ", msgID, " sw_if_idx=", swIfIndexSeq)
 					binapi.SetSwIfIdx(val, swIfIndexSeq)
 				} else {
-					logroot.StandardLogger().Debug("Succ default reply for ", reqName, " ", msgID)
+					logrus.DefaultLogger().Debug("Succ default reply for ", reqName, " ", msgID)
 				}
 
 				reply, err := vppMock.ReplyBytes(request, replyMsg)
 				if err == nil {
 					return reply, msgID, true
 				}
-				logroot.StandardLogger().Error("Error creating bytes ", err)
+				logrus.DefaultLogger().Error("Error creating bytes ", err)
 			} else {
-				logroot.StandardLogger().Info("No default reply for ", reqName, ", ", request.MsgID)
+				logrus.DefaultLogger().Info("No default reply for ", reqName, ", ", request.MsgID)
 			}
 		}
 
@@ -224,11 +250,11 @@ func vppChanMock() *api.Channel {
 func addIfsIntoTheIndex(mapping ifaceidx.SwIfIndexRW) func(txn *localclient.Txn) error {
 	return func(txn *localclient.Txn) error {
 		var cnt uint32 = 1
-		if txn.DataChangeTxn == nil {
+		if txn.LinuxDataChangeTxn == nil {
 			// RESYNC not handled
 			return nil
 		}
-		for _, op := range txn.DataChangeTxn.Ops {
+		for _, op := range txn.LinuxDataChangeTxn.Ops {
 			if op.Value != nil /* Put */ && strings.HasPrefix(op.Key, vpp_intf.InterfaceKeyPrefix()) {
 				name, err := vpp_intf.ParseNameFromKey(op.Key)
 				if err != nil {
@@ -245,7 +271,7 @@ func addIfsIntoTheIndex(mapping ifaceidx.SwIfIndexRW) func(txn *localclient.Txn)
 }
 
 func swIfIndexMock() ifaceidx.SwIfIndexRW {
-	mapping := nametoidx.NewNameToIdx(logroot.StandardLogger(), "plugin", "swIf", ifaceidx.IndexMetadata)
+	mapping := nametoidx.NewNameToIdx(logrus.DefaultLogger(), "plugin", "swIf", ifaceidx.IndexMetadata)
 
 	return ifaceidx.NewSwIfIndex(mapping)
 }

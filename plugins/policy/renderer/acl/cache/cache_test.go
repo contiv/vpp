@@ -24,7 +24,7 @@ import (
 
 	"github.com/contiv/vpp/plugins/policy/renderer"
 	"github.com/ligato/cn-infra/logging"
-	"github.com/ligato/cn-infra/logging/logroot"
+	"github.com/ligato/cn-infra/logging/logrus"
 	"github.com/onsi/gomega"
 )
 
@@ -39,7 +39,7 @@ func ipNetwork(addr string) *net.IPNet {
 
 func TestSingleContivRuleOneInterface(t *testing.T) {
 	gomega.RegisterTestingT(t)
-	logger := logroot.StandardLogger()
+	logger := logrus.DefaultLogger()
 	logger.SetLevel(logging.DebugLevel)
 	logger.Debug("TestSingleContivRuleOneInterface")
 
@@ -132,7 +132,7 @@ func TestSingleContivRuleOneInterface(t *testing.T) {
 
 func TestSingleContivRuleMultipleInterfaces(t *testing.T) {
 	gomega.RegisterTestingT(t)
-	logger := logroot.StandardLogger()
+	logger := logrus.DefaultLogger()
 	logger.SetLevel(logging.DebugLevel)
 	logger.Debug("TestSingleContivRuleMultipleInterfaces")
 
@@ -296,7 +296,7 @@ func TestSingleContivRuleMultipleInterfaces(t *testing.T) {
 
 func TestMultipleContivRulesSingleInterface(t *testing.T) {
 	gomega.RegisterTestingT(t)
-	logger := logroot.StandardLogger()
+	logger := logrus.DefaultLogger()
 	logger.SetLevel(logging.DebugLevel)
 	logger.Debug("TestMultipleContivRulesSingleInterface")
 
@@ -467,7 +467,7 @@ func TestMultipleContivRulesSingleInterface(t *testing.T) {
 
 func TestMultipleContivRulesMultipleInterfaces(t *testing.T) {
 	gomega.RegisterTestingT(t)
-	logger := logroot.StandardLogger()
+	logger := logrus.DefaultLogger()
 	logger.SetLevel(logging.DebugLevel)
 	logger.Debug("TestMultipleContivRulesMultipleInterfaces")
 
@@ -734,7 +734,7 @@ func TestMultipleContivRulesMultipleInterfaces(t *testing.T) {
 
 func TestMultipleContivRulesMultipleInterfacesWithResync(t *testing.T) {
 	gomega.RegisterTestingT(t)
-	logger := logroot.StandardLogger()
+	logger := logrus.DefaultLogger()
 	logger.SetLevel(logging.DebugLevel)
 	logger.Debug("TestMultipleContivRulesMultipleInterfacesWithResync")
 

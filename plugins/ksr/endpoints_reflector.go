@@ -87,8 +87,8 @@ func (epr *EndpointsReflector) Init(stopCh2 <-chan struct{}, wg *sync.WaitGroup)
 }
 
 // GetStats returns the Endpoints Reflector usage statistics
-func (sr *EndpointsReflector) GetStats() *ReflectorStats {
-	return &sr.stats
+func (epr *EndpointsReflector) GetStats() *ReflectorStats {
+	return &epr.stats
 }
 
 // addEndpoints adds state data of a newly created K8s endpoints into the data store.

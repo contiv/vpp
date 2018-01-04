@@ -135,7 +135,7 @@ func (epr *EndpointsReflector) deleteEndpoints(eps *coreV1.Endpoints) {
 
 // updateEndpoints updates state data of a changes K8s endpoints in the data store.
 func (epr *EndpointsReflector) updateEndpoints(epsNew, epsOld *coreV1.Endpoints) {
-	if eps.GetName() == epKubeCtlMgr || eps.GetName() == epKubeSched {
+	if epsOld.GetName() == epKubeCtlMgr || epsOld.GetName() == epKubeSched {
 		// Ignore notification.
 		return
 	}

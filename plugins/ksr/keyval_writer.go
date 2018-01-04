@@ -8,6 +8,11 @@ import (
 	"github.com/ligato/cn-infra/datasync"
 )
 
+// Error message if not data is found for a given key
+const (
+	noDataForKey = "No data assigned to key "
+)
+
 // KeyProtoValWriter allows reflectors to push their data changes to a data store.
 // This interface extends the same name interface from cn-infra/datasync with
 // the Delete() operation.
@@ -52,7 +57,7 @@ func (mock *mockKeyProtoValWriter) Delete(key string, opts ...datasync.DelOption
 func (mock *mockKeyProtoValWriter) GetValue(key string, out proto.Message) (err error) {
 	data, exists := mock.ds[key]
 	if !exists {
-		return errors.New("No data assigned to key " + key)
+		return errors.New(noDataForKey + key)
 	}
 	proto.Merge(out, data)
 	return nil

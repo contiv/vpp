@@ -22,6 +22,7 @@ import (
 	govppapi "git.fd.io/govpp.git/api"
 	"github.com/ligato/cn-infra/datasync"
 	"github.com/ligato/cn-infra/flavors/local"
+	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/logging/measure"
 	"github.com/ligato/cn-infra/messaging"
 	"github.com/ligato/cn-infra/utils/safeclose"
@@ -456,6 +457,7 @@ func (plugin *Plugin) initIF(ctx context.Context) error {
 func (plugin *Plugin) initACL(ctx context.Context) error {
 	// logger
 	aclLogger := plugin.Log.NewLogger("-acl-plugin")
+	aclLogger.SetLevel(logging.DebugLevel)
 	var err error
 	plugin.aclL3L4Indexes = nametoidx.NewNameToIdx(aclLogger, plugin.PluginName, "acl_l3_l4_indexes", nil)
 

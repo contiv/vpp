@@ -15,6 +15,8 @@
 //go:generate protoc -I ./model/pod --go_out=plugins=grpc:./model/pod ./model/pod/pod.proto
 //go:generate protoc -I ./model/namespace --go_out=plugins=grpc:./model/namespace ./model/namespace/namespace.proto
 //go:generate protoc -I ./model/policy --go_out=plugins=grpc:./model/policy ./model/policy/policy.proto
+//go:generate protoc -I ./model/service --go_out=plugins=grpc:./model/service ./model/service/service.proto
+//go:generate protoc -I ./model/endpoints --go_out=plugins=grpc:./model/endpoints ./model/endpoints/endpoints.proto
 
 package ksr
 
@@ -44,9 +46,11 @@ type Plugin struct {
 	k8sClientConfig *rest.Config
 	k8sClientset    *kubernetes.Clientset
 
-	nsReflector     *NamespaceReflector
-	podReflector    *PodReflector
-	policyReflector *PolicyReflector
+	nsReflector        *NamespaceReflector
+	podReflector       *PodReflector
+	policyReflector    *PolicyReflector
+	serviceReflector   *ServiceReflector
+	endpointsReflector *EndpointsReflector
 }
 
 // Deps defines dependencies of ksr plugin.
@@ -135,6 +139,37 @@ func (plugin *Plugin) Init() error {
 		plugin.Log.WithField("err", err).Error("Failed to initialize Policy reflector")
 		return err
 	}
+
+	plugin.serviceReflector = &ServiceReflector{
+		ReflectorDeps: ReflectorDeps{
+			Log:          plugin.Log.NewLogger("-service"),
+			K8sClientset: plugin.k8sClientset,
+			K8sListWatch: &k8sCache{},
+			Publish:      plugin.Publish,
+		},
+	}
+	err = plugin.serviceReflector.Init(plugin.stopCh, &plugin.wg)
+	//plugin.serviceReflector.ReflectorDeps.Log.SetLevel(logging.DebugLevel)
+	if err != nil {
+		plugin.Log.WithField("err", err).Error("Failed to initialize Service reflector")
+		return err
+	}
+
+	plugin.endpointsReflector = &EndpointsReflector{
+		ReflectorDeps: ReflectorDeps{
+			Log:          plugin.Log.NewLogger("-endpoints"),
+			K8sClientset: plugin.k8sClientset,
+			K8sListWatch: &k8sCache{},
+			Publish:      plugin.Publish,
+		},
+	}
+	err = plugin.endpointsReflector.Init(plugin.stopCh, &plugin.wg)
+	//plugin.endpointsReflector.ReflectorDeps.Log.SetLevel(logging.DebugLevel)
+	if err != nil {
+		plugin.Log.WithField("err", err).Error("Failed to initialize Endpoints reflector")
+		return err
+	}
+
 	return nil
 }
 
@@ -145,6 +180,8 @@ func (plugin *Plugin) AfterInit() error {
 	plugin.nsReflector.Start()
 	plugin.podReflector.Start()
 	plugin.policyReflector.Start()
+	plugin.serviceReflector.Start()
+	plugin.endpointsReflector.Start()
 	return nil
 }
 

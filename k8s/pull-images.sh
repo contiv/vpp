@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-sudo docker pull contivvpp/vswitch
-sudo docker pull contivvpp/cri
-sudo docker pull contivvpp/ksr
-sudo docker pull contivvpp/cni
+sudo docker pull contivvpp/vswitch:latest
+sudo docker pull contivvpp/cri:latest
+sudo docker pull contivvpp/ksr:latest
+sudo docker pull contivvpp/cni:latest

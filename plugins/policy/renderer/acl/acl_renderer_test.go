@@ -191,6 +191,28 @@ func verifyRule(aclRule *acl_model.AccessLists_Acl_Rule, contivRule *renderer.Co
 	gomega.Expect(aclRule.Matches.IpRule.Other).To(gomega.BeNil())
 }
 
+func allowAll() []*renderer.ContivRule {
+	ruleTCPAny := &renderer.ContivRule{
+		ID:          "TCP:ANY",
+		Action:      renderer.ActionPermit,
+		SrcNetwork:  &net.IPNet{},
+		DestNetwork: &net.IPNet{},
+		Protocol:    renderer.TCP,
+		SrcPort:     0,
+		DestPort:    0,
+	}
+	ruleUDPAny := &renderer.ContivRule{
+		ID:          "UDP:ANY",
+		Action:      renderer.ActionPermit,
+		SrcNetwork:  &net.IPNet{},
+		DestNetwork: &net.IPNet{},
+		Protocol:    renderer.UDP,
+		SrcPort:     0,
+		DestPort:    0,
+	}
+	return []*renderer.ContivRule{ruleTCPAny, ruleUDPAny}
+}
+
 func TestSingleContivRuleOneInterface(t *testing.T) {
 	gomega.RegisterTestingT(t)
 	logger := logroot.StandardLogger()
@@ -216,6 +238,7 @@ func TestSingleContivRuleOneInterface(t *testing.T) {
 	}
 	ingress := []*renderer.ContivRule{}
 	egress := []*renderer.ContivRule{rule}
+	ifSet := cache.NewInterfaceSet(pod1IfName)
 
 	// Prepare mocks.
 	contiv := NewMockContiv()
@@ -246,11 +269,17 @@ func TestSingleContivRuleOneInterface(t *testing.T) {
 
 	// Verify transaction operations.
 	ops := txn.DataChangeTxn.Ops
-	gomega.Expect(ops).To(gomega.HaveLen(1))
-	op := ops[0]
+	gomega.Expect(ops).To(gomega.HaveLen(2))
+	putIngress, putEgress, deleted := parseACLOps(ops)
+	gomega.Expect(deleted).To(gomega.HaveLen(0))
+	gomega.Expect(putIngress).To(gomega.HaveLen(1))
+	gomega.Expect(putIngress.GetACL(pod1IfName)).ToNot(gomega.BeNil())
+	gomega.Expect(putEgress).To(gomega.HaveLen(1))
+	gomega.Expect(putEgress.GetACL(pod1IfName)).ToNot(gomega.BeNil())
 
-	// Verify the single generated ACL.
-	verifyACLPut(op, "", cache.NewInterfaceSet(), cache.NewInterfaceSet(pod1IfName), rule)
+	// Verify the generated ACLs.
+	verifyACL(putIngress.GetACL(pod1IfName), "", ifSet, cache.NewInterfaceSet(), allowAll()...)
+	verifyACL(putEgress.GetACL(pod1IfName), "", cache.NewInterfaceSet(), ifSet, egress...)
 
 	// Try to execute the same change again.
 	aclRenderer.NewTxn(false).Render(pod1, nil, ingress, egress).Commit()
@@ -339,12 +368,27 @@ func TestSingleContivRuleMultipleInterfaces(t *testing.T) {
 
 	// Verify transaction operations.
 	ops := txn.DataChangeTxn.Ops
-	gomega.Expect(ops).To(gomega.HaveLen(1))
-	op := ops[0]
+	gomega.Expect(ops).To(gomega.HaveLen(2))
+	putIngress, putEgress, deleted := parseACLOps(ops)
+	gomega.Expect(deleted).To(gomega.HaveLen(0))
+	gomega.Expect(putIngress).To(gomega.HaveLen(3))
+	for iface := range ifSet {
+		gomega.Expect(putIngress.GetACL(iface)).ToNot(gomega.BeNil())
+	}
+	gomega.Expect(putEgress).To(gomega.HaveLen(3))
+	for iface := range ifSet {
+		gomega.Expect(putEgress.GetACL(iface)).ToNot(gomega.BeNil())
+	}
 
-	// Verify the single generated ACL.
-	aclName := verifyACLPut(op, "", cache.NewInterfaceSet(), ifSet, rule)
-
+	// Verify the generated ACLs.
+	inACL := verifyACL(putIngress.GetACL(pod1IfName), "", ifSet, cache.NewInterfaceSet(), allowAll()...)
+	for iface := range ifSet {
+		verifyACL(putIngress.GetACL(iface), inACL, ifSet, cache.NewInterfaceSet(), allowAll()...)
+	}
+	egACL := verifyACL(putEgress.GetACL(pod1IfName), "", cache.NewInterfaceSet(), ifSet, egress...)
+	for iface := range ifSet {
+		verifyACL(putEgress.GetACL(iface), egACL, cache.NewInterfaceSet(), ifSet, egress...)
+	}
 	// Try to execute the same change again.
 	rendererTxn = aclRenderer.NewTxn(false)
 	for _, pod := range pods {
@@ -377,11 +421,25 @@ func TestSingleContivRuleMultipleInterfaces(t *testing.T) {
 
 	// Verify transaction operations.
 	ops = txn.DataChangeTxn.Ops
-	gomega.Expect(ops).To(gomega.HaveLen(1))
-	op = ops[0]
+	gomega.Expect(ops).To(gomega.HaveLen(2))
+	putIngress, putEgress, deleted = parseACLOps(ops)
+	gomega.Expect(deleted).To(gomega.HaveLen(0))
+	gomega.Expect(putIngress).To(gomega.HaveLen(5))
+	for iface := range ifSet {
+		gomega.Expect(putIngress.GetACL(iface)).ToNot(gomega.BeNil())
+	}
+	gomega.Expect(putEgress).To(gomega.HaveLen(5))
+	for iface := range ifSet {
+		gomega.Expect(putEgress.GetACL(iface)).ToNot(gomega.BeNil())
+	}
 
-	// Verify the modified ACL.
-	verifyACLPut(op, aclName, cache.NewInterfaceSet(), ifSet, rule)
+	// Verify the modified ACLs.
+	for iface := range ifSet {
+		verifyACL(putIngress.GetACL(iface), inACL, ifSet, cache.NewInterfaceSet(), allowAll()...)
+	}
+	for iface := range ifSet {
+		verifyACL(putEgress.GetACL(iface), egACL, cache.NewInterfaceSet(), ifSet, egress...)
+	}
 }
 
 func TestMultipleContivRulesSingleInterface(t *testing.T) {
@@ -615,6 +673,7 @@ func TestMultipleContivRulesMultipleInterfaces(t *testing.T) {
 	egressB := []*renderer.ContivRule{egRule1, egRule2}  // afpacket2, afpacket3
 
 	ifSetInA := cache.NewInterfaceSet(pod1IfName, pod2IfName)
+	ifSetInB := cache.NewInterfaceSet(pod3IfName)
 	ifSetEgA := cache.NewInterfaceSet(pod1IfName)
 	ifSetEgB := cache.NewInterfaceSet(pod2IfName, pod3IfName)
 
@@ -635,13 +694,13 @@ func TestMultipleContivRulesMultipleInterfaces(t *testing.T) {
 
 	// Verify transaction operations.
 	ops := txn.DataChangeTxn.Ops
-	gomega.Expect(ops).To(gomega.HaveLen(3))
+	gomega.Expect(ops).To(gomega.HaveLen(4))
 	putIngress, putEgress, deleted := parseACLOps(ops)
 	gomega.Expect(deleted).To(gomega.HaveLen(0))
-	gomega.Expect(putIngress).To(gomega.HaveLen(2))
+	gomega.Expect(putIngress).To(gomega.HaveLen(3))
 	gomega.Expect(putIngress.GetACL(pod1IfName)).ToNot(gomega.BeNil())
 	gomega.Expect(putIngress.GetACL(pod2IfName)).ToNot(gomega.BeNil())
-	gomega.Expect(putIngress.GetACL(pod3IfName)).To(gomega.BeNil())
+	gomega.Expect(putIngress.GetACL(pod3IfName)).ToNot(gomega.BeNil())
 	gomega.Expect(putEgress).To(gomega.HaveLen(3))
 	gomega.Expect(putEgress.GetACL(pod1IfName)).ToNot(gomega.BeNil())
 	gomega.Expect(putEgress.GetACL(pod2IfName)).ToNot(gomega.BeNil())
@@ -650,6 +709,7 @@ func TestMultipleContivRulesMultipleInterfaces(t *testing.T) {
 	// Verify the generated ACLs.
 	inACLA := verifyACL(putIngress.GetACL(pod1IfName), "", ifSetInA, cache.NewInterfaceSet(), ingressA...)
 	verifyACL(putIngress.GetACL(pod2IfName), inACLA, ifSetInA, cache.NewInterfaceSet(), ingressA...)
+	inACLB := verifyACL(putIngress.GetACL(pod3IfName), "", ifSetInB, cache.NewInterfaceSet(), allowAll()...)
 	egACLA := verifyACL(putEgress.GetACL(pod1IfName), "", cache.NewInterfaceSet(), ifSetEgA, egressA...)
 	egACLB := verifyACL(putEgress.GetACL(pod2IfName), "", cache.NewInterfaceSet(), ifSetEgB, egressB...)
 	verifyACL(putEgress.GetACL(pod3IfName), egACLB, cache.NewInterfaceSet(), ifSetEgB, egressB...)
@@ -689,9 +749,10 @@ func TestMultipleContivRulesMultipleInterfaces(t *testing.T) {
 
 	// Verify transaction operations.
 	ops = txn.DataChangeTxn.Ops
-	gomega.Expect(ops).To(gomega.HaveLen(4))
+	gomega.Expect(ops).To(gomega.HaveLen(5))
 	putIngress, putEgress, deleted = parseACLOps(ops)
-	gomega.Expect(deleted).To(gomega.HaveLen(1))
+	gomega.Expect(deleted).To(gomega.HaveLen(2))
+	gomega.Expect(deleted.Has(inACLB)).To(gomega.BeTrue())
 	gomega.Expect(deleted.Has(egACLA)).To(gomega.BeTrue())
 	gomega.Expect(putIngress).To(gomega.HaveLen(3))
 	gomega.Expect(putIngress.GetACL(pod1IfName)).ToNot(gomega.BeNil())
@@ -793,6 +854,7 @@ func TestMultipleContivRulesMultipleInterfacesWithResync(t *testing.T) {
 	egressB := []*renderer.ContivRule{egRule1, egRule2}  // afpacket2, afpacket3
 
 	ifSetInA := cache.NewInterfaceSet(pod1IfName, pod2IfName)
+	ifSetInB := cache.NewInterfaceSet(pod3IfName)
 	ifSetEgA := cache.NewInterfaceSet(pod1IfName)
 	ifSetEgB := cache.NewInterfaceSet(pod2IfName, pod3IfName)
 
@@ -813,13 +875,13 @@ func TestMultipleContivRulesMultipleInterfacesWithResync(t *testing.T) {
 
 	// Verify transaction operations.
 	ops := txn.DataChangeTxn.Ops
-	gomega.Expect(ops).To(gomega.HaveLen(3))
+	gomega.Expect(ops).To(gomega.HaveLen(4))
 	putIngress, putEgress, deleted := parseACLOps(ops)
 	gomega.Expect(deleted).To(gomega.HaveLen(0))
-	gomega.Expect(putIngress).To(gomega.HaveLen(2))
+	gomega.Expect(putIngress).To(gomega.HaveLen(3))
 	gomega.Expect(putIngress.GetACL(pod1IfName)).ToNot(gomega.BeNil())
 	gomega.Expect(putIngress.GetACL(pod2IfName)).ToNot(gomega.BeNil())
-	gomega.Expect(putIngress.GetACL(pod3IfName)).To(gomega.BeNil())
+	gomega.Expect(putIngress.GetACL(pod3IfName)).ToNot(gomega.BeNil())
 	gomega.Expect(putEgress).To(gomega.HaveLen(3))
 	gomega.Expect(putEgress.GetACL(pod1IfName)).ToNot(gomega.BeNil())
 	gomega.Expect(putEgress.GetACL(pod2IfName)).ToNot(gomega.BeNil())
@@ -828,14 +890,16 @@ func TestMultipleContivRulesMultipleInterfacesWithResync(t *testing.T) {
 	// Verify the generated ACLs.
 	inACLA := verifyACL(putIngress.GetACL(pod1IfName), "", ifSetInA, cache.NewInterfaceSet(), ingressA...)
 	verifyACL(putIngress.GetACL(pod2IfName), inACLA, ifSetInA, cache.NewInterfaceSet(), ingressA...)
+	inACLB := verifyACL(putIngress.GetACL(pod3IfName), "", ifSetInB, cache.NewInterfaceSet(), allowAll()...)
 	egACLA := verifyACL(putEgress.GetACL(pod1IfName), "", cache.NewInterfaceSet(), ifSetEgA, egressA...)
 	egACLB := verifyACL(putEgress.GetACL(pod2IfName), "", cache.NewInterfaceSet(), ifSetEgB, egressB...)
 	verifyACL(putEgress.GetACL(pod3IfName), egACLB, cache.NewInterfaceSet(), ifSetEgB, egressB...)
 
 	// Remember the current VPP configuration.
-	mockVppPlugin.AddACL(putIngress.GetACL("afpacket1"))
-	mockVppPlugin.AddACL(putEgress.GetACL("afpacket1"))
-	mockVppPlugin.AddACL(putEgress.GetACL("afpacket2"))
+	mockVppPlugin.AddACL(putIngress.GetACL(pod1IfName))
+	mockVppPlugin.AddACL(putIngress.GetACL(pod3IfName))
+	mockVppPlugin.AddACL(putEgress.GetACL(pod1IfName))
+	mockVppPlugin.AddACL(putEgress.GetACL(pod2IfName))
 
 	// Simulate Agent restart.
 	txnTracker = localclient.NewTxnTracker(nil)
@@ -872,9 +936,10 @@ func TestMultipleContivRulesMultipleInterfacesWithResync(t *testing.T) {
 
 	// Verify transaction operations.
 	ops = txn.DataChangeTxn.Ops
-	gomega.Expect(ops).To(gomega.HaveLen(4))
+	gomega.Expect(ops).To(gomega.HaveLen(5))
 	putIngress, putEgress, deleted = parseACLOps(ops)
-	gomega.Expect(deleted).To(gomega.HaveLen(1))
+	gomega.Expect(deleted).To(gomega.HaveLen(2))
+	gomega.Expect(deleted.Has(inACLB)).To(gomega.BeTrue())
 	gomega.Expect(deleted.Has(egACLA)).To(gomega.BeTrue())
 	gomega.Expect(putIngress).To(gomega.HaveLen(2))
 	gomega.Expect(putIngress.GetACL(pod1IfName)).ToNot(gomega.BeNil())

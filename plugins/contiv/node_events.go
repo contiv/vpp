@@ -108,7 +108,7 @@ func (s *remoteCNIserver) nodeResync(dataResyncEv datasync.ResyncEvent) error {
 
 				// add rhe route for this host
 				hostID := uint8(nodeID.Id)
-				if hostID != s.ipam.HostID() {
+				if hostID != s.ipam.NodeID() {
 					s.Logger.Info("Adding routes to host ", hostID)
 					podsRoute, hostRoute, err := s.computeRoutesForHost(hostID)
 					if err != nil {

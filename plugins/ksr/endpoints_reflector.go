@@ -38,6 +38,12 @@ type EndpointsReflector struct {
 	stats                  ReflectorStats
 }
 
+// Ignored endpoints.
+const (
+	epKubeCtlMgr = "kube-controller-manager"
+	epKubeSched  = "kube-scheduler"
+)
+
 // Init subscribes to K8s cluster to watch for changes in the configuration
 // of k8s services. The subscription does not become active until Start()
 // is called.
@@ -93,6 +99,10 @@ func (epr *EndpointsReflector) GetStats() *ReflectorStats {
 
 // addEndpoints adds state data of a newly created K8s endpoints into the data store.
 func (epr *EndpointsReflector) addEndpoints(eps *coreV1.Endpoints) {
+	if eps.GetName() == epKubeCtlMgr || eps.GetName() == epKubeSched {
+		// Ignore notification.
+		return
+	}
 	epr.Log.WithField("endpoints", eps).Info("Endpoints added")
 	endpointsProto := epr.endpointsToProto(eps)
 	epr.Log.WithField("endpointsProto", endpointsProto).Info("Endpoints converted")
@@ -108,6 +118,10 @@ func (epr *EndpointsReflector) addEndpoints(eps *coreV1.Endpoints) {
 
 // deleteEndpoints deletes state data of a removed K8s service from the data store.
 func (epr *EndpointsReflector) deleteEndpoints(eps *coreV1.Endpoints) {
+	if eps.GetName() == epKubeCtlMgr || eps.GetName() == epKubeSched {
+		// Ignore notification.
+		return
+	}
 	epr.Log.WithField("endpoints", eps).Info("Endpoints removed")
 	key := proto.Key(eps.GetName(), eps.GetNamespace())
 	_, err := epr.Publish.Delete(key)
@@ -121,6 +135,10 @@ func (epr *EndpointsReflector) deleteEndpoints(eps *coreV1.Endpoints) {
 
 // updateEndpoints updates state data of a changes K8s endpoints in the data store.
 func (epr *EndpointsReflector) updateEndpoints(epsNew, epsOld *coreV1.Endpoints) {
+	if eps.GetName() == epKubeCtlMgr || eps.GetName() == epKubeSched {
+		// Ignore notification.
+		return
+	}
 	epr.Log.WithFields(map[string]interface{}{"endpoints-old": epsOld, "endpoints-new": epsNew}).Info("Endpoints updated")
 	epsProtoNew := epr.endpointsToProto(epsNew)
 	epsProtoOld := epr.endpointsToProto(epsOld)

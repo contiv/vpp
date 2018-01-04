@@ -10,7 +10,6 @@ Test Teardown     Test_Case_Teardown
 Check_Allow_TCP_Port_4444_On_Server_From_Client
     ${policy_name}=    BuiltIn.Set_Variable    allow_tcp_4444_server_from_client
     KubeCtl.Apply_F    ${testbed_connection}    ${CURDIR}/${TEST_DATA_FOLDER}/${policy_name}.yaml
-    Sleep    60m
     Get_VPP_Status
     ${status1}=    BuiltIn.Run_Keyword_And_Return_Status    Get_Traffic_Status    ${policy_name}    tcp_port=4444    udp_port=7000
     ${status2}=    BuiltIn.Run_Keyword_And_Return_Status    Get_Traffic_Status    ${policy_name}    tcp_port=5000    udp_port=7000

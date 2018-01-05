@@ -80,7 +80,6 @@ func TestVeth1NameFromRequest(t *testing.T) {
 
 	server, err := newRemoteCNIServer(logrus.DefaultLogger(),
 		txns.NewLinuxDataChangeTxn,
-		txns.NewDefaultPluginsDataChangeTxn,
 		&kvdbproxy.Plugin{},
 		nil,
 		nil,
@@ -103,7 +102,6 @@ func TestAdd(t *testing.T) {
 
 	server, err := newRemoteCNIServer(logrus.DefaultLogger(),
 		txns.NewLinuxDataChangeTxn,
-		txns.NewDefaultPluginsDataChangeTxn,
 		kvdbproxy.NewKvdbsyncMock(),
 		configuredContainers,
 		vppChanMock(),
@@ -146,7 +144,6 @@ func TestConfigureVswitch(t *testing.T) {
 
 	server, err := newRemoteCNIServer(logrus.DefaultLogger(),
 		txns.NewLinuxDataChangeTxn,
-		txns.NewDefaultPluginsDataChangeTxn,
 		kvdbproxy.NewKvdbsyncMock(),
 		configuredContainers,
 		vppChanMock(),

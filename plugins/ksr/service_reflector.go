@@ -17,6 +17,7 @@ package ksr
 import (
 	"reflect"
 	"sync"
+	"strings"
 
 	coreV1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/fields"
@@ -24,6 +25,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 
 	proto "github.com/contiv/vpp/plugins/ksr/model/service"
+	"time"
 )
 
 // ServiceReflector subscribes to K8s cluster to watch for changes
@@ -45,6 +47,35 @@ type ServiceReflector struct {
 func (sr *ServiceReflector) Init(stopCh2 <-chan struct{}, wg *sync.WaitGroup) error {
 	sr.stopCh = stopCh2
 	sr.wg = wg
+
+	// List everything in Etcd
+	pfx := sr.Publish.ServiceLabel.GetAgentPrefix()
+	sr.Log.Infof("Agent prefix: %s", pfx)
+	db := sr.Publish.Deps.KvPlugin.NewBroker("")
+	kvi, err := db.ListValues(pfx)
+	if err != nil {
+		sr.Log.Error("Can not get kv iterator, error: %", err)
+	} else {
+		for {
+			kv, stop := kvi.GetNext()
+			if stop {
+				break
+			}
+			sr.Log.Infof("kv key: %s, rev: %d", kv.GetKey(), kv.GetRevision())
+			pe := strings.Split(kv.GetKey(), "/")
+			dt := pe[len(pe) - 2]
+			sr.Log.Infof("type: %s", dt)
+			if dt == "service" {
+				svc := &proto.Service{}
+				err := kv.GetValue(svc)
+				if err != nil {
+					sr.Log.Error("Error reading value, ", err)
+				} else {
+					sr.Log.Infof("value: %+v", svc)
+				}
+			}
+		}
+	}
 
 	restClient := sr.K8sClientset.CoreV1().RESTClient()
 	listWatch := sr.K8sListWatch.NewListWatchFromClient(restClient, "services", "", fields.Everything())
@@ -83,6 +114,26 @@ func (sr *ServiceReflector) Init(stopCh2 <-chan struct{}, wg *sync.WaitGroup) er
 			},
 		},
 	)
+
+	// List everything in the local k8s cache *after* the cache is synced with K8s
+	go func() {
+		for {
+			if sr.k8sServiceController.HasSynced() {
+				break
+			}
+			time.Sleep(1*time.Second)
+		}
+
+		sr.Log.Infof("Listing %d services", len(sr.k8sServiceStore.List()))
+		for i, obj := range sr.k8sServiceStore.List() {
+			svc, ok := obj.(*coreV1.Service)
+			if ok {
+				sr.Log.Infof("Service %d: %+v", i, svc)
+			} else {
+				sr.Log.Warn("Failed to cast newly listed object")
+			}
+		}
+	}()
 	return nil
 }
 

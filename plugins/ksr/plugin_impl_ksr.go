@@ -73,7 +73,7 @@ type ReflectorDeps struct {
 	// K8s List-Watch is used to watch for Kubernetes config changes.
 	K8sListWatch K8sListWatcher
 	// Publish is used to propagate changes into a datastore.
-	Publish KeyProtoValWriter
+	Publish  *kvdbsync.Plugin
 }
 
 // Init builds K8s client-set based on the supplied kubeconfig and initializes
@@ -103,6 +103,7 @@ func (plugin *Plugin) Init() error {
 			Publish:      plugin.Publish,
 		},
 	}
+
 	//plugin.nsReflector.ReflectorDeps.Log.SetLevel(logging.DebugLevel)
 	err = plugin.nsReflector.Init(plugin.stopCh, &plugin.wg)
 	if err != nil {

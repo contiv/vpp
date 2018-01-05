@@ -24,6 +24,7 @@ import (
 	rktlib "github.com/coreos/rkt/lib"
 	rktflag "github.com/coreos/rkt/pkg/flag"
 	"github.com/coreos/rkt/store/imagestore"
+	"github.com/dustin/go-humanize"
 
 	"github.com/appc/spec/schema"
 	"github.com/appc/spec/schema/lastditch"

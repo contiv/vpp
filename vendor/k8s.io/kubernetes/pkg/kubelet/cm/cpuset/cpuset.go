@@ -19,12 +19,11 @@ package cpuset
 import (
 	"bytes"
 	"fmt"
+	"github.com/golang/glog"
 	"reflect"
 	"sort"
 	"strconv"
 	"strings"
-
-	"github.com/golang/glog"
 )
 
 // Builder is a mutable builder for CPUSet. Functions that mutate instances

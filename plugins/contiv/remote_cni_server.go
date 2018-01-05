@@ -417,6 +417,10 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 		txn1.LinuxInterface(veth1).
 			LinuxInterface(veth2)
 	}
+
+	// Link scope route must be added before default route
+	txn1.LinuxRoute(podLinkRoute)
+
 	err = txn1.Send().ReceiveReply()
 	if err != nil {
 		s.Logger.Error(err)
@@ -452,9 +456,8 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 	txn2.Arp(vppArp).
 		LinuxArpEntry(podArp)
 
-	// Add routes for the container.
-	txn2.LinuxRoute(podLinkRoute).
-		LinuxRoute(podDefaultRoute)
+	// Add default route for the container.
+	txn2.LinuxRoute(podDefaultRoute)
 
 	// Configure connectivity via vpp-agent.
 	err = txn2.Send().ReceiveReply()

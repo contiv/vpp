@@ -24,6 +24,7 @@ import (
 
 	"github.com/golang/glog"
 	"github.com/spf13/pflag"
+	"gopkg.in/natefinch/lumberjack.v2"
 
 	auditv1beta1 "k8s.io/apiserver/pkg/apis/audit/v1beta1"
 	"k8s.io/apiserver/pkg/audit"

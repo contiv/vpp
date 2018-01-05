@@ -24,7 +24,7 @@ import (
 )
 
 // handleNodeEvents handles changes in nodes within the k8s cluster (node add / delete) and
-// adjusts the vswitch config (routes to the other hosts) accordingly.
+// adjusts the vswitch config (routes to the other nodes) accordingly.
 func (s *remoteCNIserver) handleNodeEvents(ctx context.Context, resyncChan chan datasync.ResyncEvent, changeChan chan datasync.ChangeEvent) {
 	for {
 		select {
@@ -43,7 +43,7 @@ func (s *remoteCNIserver) handleNodeEvents(ctx context.Context, resyncChan chan 
 	}
 }
 
-// nodeResync processes all nodes data and configures vswitch (routes to the other hosts) accordingly.
+// nodeResync processes all nodes data and configures vswitch (routes to the other nodes) accordingly.
 func (s *remoteCNIserver) nodeResync(dataResyncEv datasync.ResyncEvent) error {
 
 	// TODO: implement proper resync (handle deleted routes as well)
@@ -59,25 +59,18 @@ func (s *remoteCNIserver) nodeResync(dataResyncEv datasync.ResyncEvent) error {
 				if stop {
 					break
 				}
-				nodeID := &uid.Identifier{}
-				err = kv.GetValue(nodeID)
+				nodeInfo := &uid.Identifier{}
+				err = kv.GetValue(nodeInfo)
 				if err != nil {
 					return err
 				}
+				nodeID := uint8(nodeInfo.Id)
 
-				// add rhe route for this host
-				hostID := uint8(nodeID.Id)
-				if hostID != s.ipam.NodeID() {
-					s.Logger.Info("Adding routes to host ", hostID)
-					podsRoute, hostRoute, err := s.computeRoutesForHost(hostID)
-					if err != nil {
-						return err
-					}
-					s.Logger.Info("Adding PODs route: ", podsRoute)
-					s.Logger.Info("Adding host route: ", hostRoute)
-					if err = s.vppTxnFactory().Put().StaticRoute(podsRoute).StaticRoute(hostRoute).Send().ReceiveReply(); err != nil {
-						return fmt.Errorf("Can't configure vpp to add route to host %v (and its pods): %v ", hostID, err)
-					}
+				if nodeID != s.ipam.NodeID() {
+					s.Logger.Info("Other node discovered: ", nodeID)
+
+					// add routes to the node
+					err = s.addRoutesToNode(nodeID)
 				}
 			}
 		}
@@ -87,52 +80,74 @@ func (s *remoteCNIserver) nodeResync(dataResyncEv datasync.ResyncEvent) error {
 }
 
 // nodeChangePropageteEvent handles change in nodes within the k8s cluster (node add / delete)
-// and configures vswitch (routes to the other hosts) accordingly.
+// and configures vswitch (routes to the other nodes) accordingly.
 func (s *remoteCNIserver) nodeChangePropageteEvent(dataChngEv datasync.ChangeEvent) error {
 	var err error
 	key := dataChngEv.GetKey()
 
 	if strings.HasPrefix(key, allocatedIDsKeyPrefix) {
-		nodeID := &uid.Identifier{}
-		err = dataChngEv.GetValue(nodeID)
+		nodeInfo := &uid.Identifier{}
+		err = dataChngEv.GetValue(nodeInfo)
 		if err != nil {
 			return err
 		}
-		hostID := uint8(nodeID.Id)
+		nodeID := uint8(nodeInfo.Id)
 
-		// route := s.getRouteToNode(conf, nodeID.Id)
+		// route := s.getRouteToNode(conf, nodeInfo.Id)
 		if dataChngEv.GetChangeType() == datasync.Put {
-			// Addition of host routes
-			s.Logger.Info("New node discovered: ", hostID)
+			s.Logger.Info("New node discovered: ", nodeID)
 
-			podsRoute, hostRoute, err := s.computeRoutesForHost(hostID)
-			if err != nil {
-				return err
-			}
-			s.Logger.Info("Adding PODs route: ", podsRoute)
-			s.Logger.Info("Adding host route: ", hostRoute)
-			if err = s.vppTxnFactory().Put().StaticRoute(podsRoute).StaticRoute(hostRoute).Send().ReceiveReply(); err != nil {
-				return fmt.Errorf("Can't configure vpp to add route to host %v (and its pods): %v ", hostID, err)
-			}
+			// add routes to the node
+			err = s.addRoutesToNode(nodeID)
 		} else {
-			// Delete of host routes
-			s.Logger.Info("Node removed: ", hostID)
+			s.Logger.Info("Node removed: ", nodeID)
 
-			podsRoute, hostRoute, err := s.computeRoutesForHost(hostID)
-			if err != nil {
-				return err
-			}
-
-			err = s.vppTxnFactory().Delete().
-				StaticRoute(podsRoute.VrfId, podsRoute.DstIpAddr, podsRoute.NextHopAddr).
-				StaticRoute(hostRoute.VrfId, hostRoute.DstIpAddr, hostRoute.NextHopAddr).
-				Send().ReceiveReply()
-			if err != nil {
-				return fmt.Errorf("Can't configure vpp to remove route to host %v (and its pods): %v ", hostID, err)
-			}
+			// delete routes to the node
+			err = s.deleteRoutesToNode(nodeID)
 		}
 	} else {
 		return fmt.Errorf("Unknown key %v", key)
 	}
+
 	return err
+}
+
+// addRoutesToNode add routes to the node specified by nodeID.
+func (s *remoteCNIserver) addRoutesToNode(nodeID uint8) error {
+	podsRoute, hostRoute, err := s.computeRoutesForHost(nodeID)
+	if err != nil {
+		return err
+	}
+	s.Logger.Info("Adding PODs route: ", podsRoute)
+	s.Logger.Info("Adding host route: ", hostRoute)
+
+	err = s.vppTxnFactory().Put().
+		StaticRoute(podsRoute).
+		StaticRoute(hostRoute).
+		Send().ReceiveReply()
+
+	if err != nil {
+		return fmt.Errorf("Can't configure vpp to add route to host %v (and its pods): %v ", nodeID, err)
+	}
+	return nil
+}
+
+// deleteRoutesToNode delete routes to the node specified by nodeID.
+func (s *remoteCNIserver) deleteRoutesToNode(nodeID uint8) error {
+	podsRoute, hostRoute, err := s.computeRoutesForHost(nodeID)
+	if err != nil {
+		return err
+	}
+	s.Logger.Info("Deleting PODs route: ", podsRoute)
+	s.Logger.Info("Deleting host route: ", hostRoute)
+
+	err = s.vppTxnFactory().Delete().
+		StaticRoute(podsRoute.VrfId, podsRoute.DstIpAddr, podsRoute.NextHopAddr).
+		StaticRoute(hostRoute.VrfId, hostRoute.DstIpAddr, hostRoute.NextHopAddr).
+		Send().ReceiveReply()
+
+	if err != nil {
+		return fmt.Errorf("Can't configure vpp to remove route to host %v (and its pods): %v ", nodeID, err)
+	}
+	return nil
 }

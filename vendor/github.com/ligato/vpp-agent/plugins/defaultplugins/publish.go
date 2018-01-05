@@ -17,6 +17,8 @@ package defaultplugins
 import (
 	"context"
 
+	"github.com/ligato/cn-infra/health/statuscheck"
+	"github.com/ligato/cn-infra/health/statuscheck/model/status"
 	intf "github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/model/interfaces"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/l2plugin/model/l2"
 )
@@ -70,6 +72,16 @@ func (plugin *Plugin) publishIfStateEvents(ctx context.Context) {
 				}
 			}
 
+			// Send interface state data to global agent status
+			if plugin.statusCheckReg {
+				plugin.StatusCheck.ReportStateChangeWithMeta(plugin.PluginName, statuscheck.OK, nil, &status.InterfaceStats_Interface{
+					InternalName: ifState.State.InternalName,
+					Index:        ifState.State.IfIndex,
+					Status:       ifState.State.AdminStatus.String(),
+					MacAddress:   ifState.State.PhysAddress,
+				})
+			}
+
 		case <-ctx.Done():
 			// Stop watching for state data updates.
 			return
@@ -86,7 +98,7 @@ func (plugin *Plugin) resyncBdStateEvents(keys []string) error {
 		}
 		_, _, found := plugin.bdIndexes.LookupIdx(bdName)
 		if !found {
-			err := plugin.Publish.Put(key, nil)
+			err := plugin.PublishStatistics.Put(key, nil)
 			if err != nil {
 				return err
 			}
@@ -111,11 +123,11 @@ func (plugin *Plugin) publishBdStateEvents(ctx context.Context) {
 				key := l2.BridgeDomainStateKey(bdState.State.InternalName)
 				// Remove BD state
 				if bdState.State.Index == 0 && bdState.State.InternalName != "" {
-					plugin.Publish.Put(key, nil)
+					plugin.PublishStatistics.Put(key, nil)
 					plugin.Log.Debugf("Bridge domain %v: state removed from ETCD", bdState.State.InternalName)
 					// Write/Update BD state
 				} else if bdState.State.Index != 0 {
-					plugin.Publish.Put(key, bdState.State)
+					plugin.PublishStatistics.Put(key, bdState.State)
 					plugin.Log.Debugf("Bridge domain %v: state stored in ETCD", bdState.State.InternalName)
 				} else {
 					plugin.Log.Warnf("Unable to process bridge domain state with Idx %v and Name %v",

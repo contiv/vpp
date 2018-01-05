@@ -27,6 +27,8 @@ import (
 	"regexp"
 	"time"
 
+	"gopkg.in/gcfg.v1"
+
 	"github.com/golang/glog"
 	"github.com/rackspace/gophercloud"
 	osvolumeattach "github.com/rackspace/gophercloud/openstack/compute/v2/extensions/volumeattach"

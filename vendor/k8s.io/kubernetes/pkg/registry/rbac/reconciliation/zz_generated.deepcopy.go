@@ -21,10 +21,9 @@ limitations under the License.
 package reconciliation
 
 import (
-	reflect "reflect"
-
 	conversion "k8s.io/apimachinery/pkg/conversion"
 	rbac "k8s.io/kubernetes/pkg/apis/rbac"
+	reflect "reflect"
 )
 
 // GetGeneratedDeepCopyFuncs returns the generated funcs, since we aren't registering them.

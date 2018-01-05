@@ -22,9 +22,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"os"
-
 	clientcmdutil "k8s.io/kubernetes/pkg/kubectl/cmd/util"
+	"os"
 )
 
 func TestLocalAndDryRunFlags(t *testing.T) {

@@ -21,11 +21,10 @@ limitations under the License.
 package audit
 
 import (
-	reflect "reflect"
-
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	conversion "k8s.io/apimachinery/pkg/conversion"
 	runtime "k8s.io/apimachinery/pkg/runtime"
+	reflect "reflect"
 )
 
 // GetGeneratedDeepCopyFuncs returns the generated funcs, since we aren't registering them.
@@ -72,6 +71,8 @@ func GetGeneratedDeepCopyFuncs() []conversion.GeneratedDeepCopyFunc {
 func (in *Event) DeepCopyInto(out *Event) {
 	*out = *in
 	out.TypeMeta = in.TypeMeta
+	in.ObjectMeta.DeepCopyInto(&out.ObjectMeta)
+	in.Timestamp.DeepCopyInto(&out.Timestamp)
 	in.User.DeepCopyInto(&out.User)
 	if in.ImpersonatedUser != nil {
 		in, out := &in.ImpersonatedUser, &out.ImpersonatedUser
@@ -123,8 +124,6 @@ func (in *Event) DeepCopyInto(out *Event) {
 			(*in).DeepCopyInto(*out)
 		}
 	}
-	in.RequestReceivedTimestamp.DeepCopyInto(&out.RequestReceivedTimestamp)
-	in.StageTimestamp.DeepCopyInto(&out.StageTimestamp)
 	return
 }
 

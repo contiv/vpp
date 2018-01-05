@@ -4,6 +4,8 @@ import:
   version: 5023e30145e53cf65a0a7475f05400896650bc61 
 - package: github.com/ligato/vpp-agent
   version: 3e8d31927c43aa08ca62da04c8cf915611a36787 
+- package: git.fd.io/govpp.git
+  version: 35fd2cc86d442dee6fa4c8adb46a6e4906a66ab3
 - package: github.com/containernetworking/cni
   version: v0.6.0
 - package: github.com/containernetworking/plugins

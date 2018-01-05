@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/evanphx/json-patch"
 	"github.com/golang/glog"
 
 	"k8s.io/apimachinery/pkg/util/mergepatch"

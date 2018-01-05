@@ -21,13 +21,12 @@ limitations under the License.
 package api
 
 import (
-	reflect "reflect"
-
 	resource "k8s.io/apimachinery/pkg/api/resource"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	conversion "k8s.io/apimachinery/pkg/conversion"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	types "k8s.io/apimachinery/pkg/types"
+	reflect "reflect"
 )
 
 func init() {

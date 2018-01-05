@@ -115,10 +115,6 @@ func (plugin *LinuxRouteConfigurator) ConfigureLinuxStaticRoute(route *l3.LinuxS
 	defer revertNs()
 
 	err = linuxcalls.AddStaticRoute(route.Name, netLinkRoute, plugin.Log, measure.GetTimeLog("add-linux-route", plugin.Stopwatch))
-	if err != nil {
-		plugin.Log.Error(err)
-		return err
-	}
 
 	plugin.rtIndexes.RegisterName(routeIdentifier(netLinkRoute), plugin.RouteIdxSeq, route)
 	plugin.RouteIdxSeq++
@@ -169,14 +165,16 @@ func (plugin *LinuxRouteConfigurator) ModifyLinuxStaticRoute(newRoute *l3.LinuxS
 			replace = false
 		}
 		if err = plugin.createDefaultRoute(netLinkRoute, newRoute); err != nil {
-			return nil
+			plugin.Log.Error(err)
+			return err
 		}
 	} else {
 		if oldRoute.DstIpAddr != newRoute.Interface {
 			replace = false
 		}
 		if err = plugin.createStaticRoute(netLinkRoute, newRoute); err != nil {
-			return nil
+			plugin.Log.Error(err)
+			return err
 		}
 	}
 
@@ -267,10 +265,6 @@ func (plugin *LinuxRouteConfigurator) DeleteLinuxStaticRoute(route *l3.LinuxStat
 	defer revertNs()
 
 	err = linuxcalls.DeleteStaticRoute(route.Name, netLinkRoute, plugin.Log, measure.GetTimeLog("del-linux-route", plugin.Stopwatch))
-	if err != nil {
-		plugin.Log.Error(err)
-		return err
-	}
 
 	_, _, found := plugin.rtIndexes.UnregisterName(routeIdentifier(netLinkRoute))
 	if !found {
@@ -299,7 +293,7 @@ func (plugin *LinuxRouteConfigurator) LookupLinuxRoutes() error {
 		if !found {
 			plugin.rtIndexes.RegisterName(routeIdentifier(&rt), plugin.RouteIdxSeq, nil)
 			plugin.RouteIdxSeq++
-			plugin.Log.Debug("route registered as %v", routeIdentifier(&rt))
+			plugin.Log.Debugf("route registered as %v", routeIdentifier(&rt))
 		}
 	}
 
@@ -363,16 +357,22 @@ func (plugin *LinuxRouteConfigurator) ResolveDeletedInterface(name string, index
 
 // Create default route object with gateway address. Destination address has to be set in such a case
 func (plugin *LinuxRouteConfigurator) createDefaultRoute(netLinkRoute *netlink.Route, route *l3.LinuxStaticRoutes_Route) error {
+	var err error
 	// Destination address
-	dstIpAddr := route.DstIpAddr
-	if dstIpAddr == "" {
-		dstIpAddr = ipv4AddrAny
+	dstIPAddr := route.DstIpAddr
+	if dstIPAddr == "" {
+		dstIPAddr = ipv4AddrAny
 	}
-	if dstIpAddr != ipv4AddrAny && dstIpAddr != ipv6AddrAny {
-		plugin.Log.Warnf("route marked as default has dst address set to %v. The address will be ignored", dstIpAddr)
-		dstIpAddr = ipv4AddrAny
+	if dstIPAddr != ipv4AddrAny && dstIPAddr != ipv6AddrAny {
+		plugin.Log.Warnf("route marked as default has dst address set to %v. The address will be ignored", dstIPAddr)
+		dstIPAddr = ipv4AddrAny
 	}
-	_, netLinkRoute.Dst, _ = net.ParseCIDR(dstIpAddr)
+	_, netLinkRoute.Dst, err = net.ParseCIDR(dstIPAddr)
+	if err != nil {
+		plugin.Log.Error(err)
+		return err
+	}
+
 	// Gateway
 	gateway := net.ParseIP(route.GwAddr)
 	if gateway == nil {
@@ -399,6 +399,7 @@ func (plugin *LinuxRouteConfigurator) createStaticRoute(netLinkRoute *netlink.Ro
 		if len(addressWithPrefix) > 1 {
 			_, dstIPAddr, err = net.ParseCIDR(route.DstIpAddr)
 			if err != nil {
+				plugin.Log.Error(err)
 				return err
 			}
 		} else {

@@ -274,11 +274,6 @@ func (a *VppAdapter) SendMsg(clientID uint32, data []byte) error {
 		}
 		if len(replies) > 0 {
 			replies = []api.Message{}
-			if len(replyHandlers) > 0 {
-				// Switch back to handlers once the queue is empty to revert back
-				// the fallthrough effect.
-				mode = useReplyHandlers
-			}
 			return nil
 		}
 

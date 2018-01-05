@@ -28,6 +28,8 @@ import (
 	"sync"
 	"time"
 
+	"gopkg.in/gcfg.v1"
+
 	"github.com/golang/glog"
 	"golang.org/x/net/context"
 	"k8s.io/api/core/v1"

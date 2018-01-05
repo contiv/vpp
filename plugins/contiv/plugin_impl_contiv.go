@@ -13,7 +13,7 @@
 // limitations under the License.
 
 //go:generate protoc -I ./model/cni --go_out=plugins=grpc:./model/cni ./model/cni/cni.proto
-//go:generate protoc -I ./model/nodeID --go_out=plugins=grpc:./model/nodeID ./model/nodeID/nodeID.proto
+//go:generate protoc -I ./model/uid --go_out=plugins=grpc:./model/uid ./model/uid/uid.proto
 
 package contiv
 

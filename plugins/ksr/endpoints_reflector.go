@@ -92,7 +92,7 @@ func (epr *EndpointsReflector) Init(stopCh2 <-chan struct{}, wg *sync.WaitGroup)
 	return nil
 }
 
-// GetStats returns the Endpoints Reflector usage statistics
+// GetStats returns the Endpoints KsrReflector usage statistics
 func (epr *EndpointsReflector) GetStats() *ReflectorStats {
 	return &epr.stats
 }
@@ -229,7 +229,7 @@ func (epr *EndpointsReflector) Start() {
 	go epr.run()
 }
 
-// run runs k8s subscription in a separate go routine.
+// ksrRun runs k8s subscription in a separate go routine.
 func (epr *EndpointsReflector) run() {
 	defer epr.wg.Done()
 	epr.Log.Info("Endpoints reflector is now running")

@@ -23,21 +23,16 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/tools/cache"
 
-	proto "github.com/contiv/vpp/plugins/ksr/model/service"
-	"time"
+	"github.com/golang/protobuf/proto"
+
+	"github.com/contiv/vpp/plugins/ksr/model/service"
 )
 
 // ServiceReflector subscribes to K8s cluster to watch for changes
 // in the configuration of k8s services.
 // Protobuf-modelled changes are published into the selected key-value store.
 type ServiceReflector struct {
-	ReflectorDeps
-
-	stopCh               <-chan struct{}
-	wg                   *sync.WaitGroup
-	k8sServiceStore      cache.Store
-	k8sServiceController cache.Controller
-	stats                ReflectorStats
+	KsrReflector
 }
 
 // Init subscribes to K8s cluster to watch for changes in the configuration
@@ -47,35 +42,20 @@ func (sr *ServiceReflector) Init(stopCh2 <-chan struct{}, wg *sync.WaitGroup) er
 	sr.stopCh = stopCh2
 	sr.wg = wg
 
-	// List everything in Etcd
-	kvi, err := sr.Lister.ListValues(proto.KeyPrefix())
-	if err != nil {
-		sr.Log.Error("Can not get kv iterator, error: %", err)
-	} else {
-		for {
-			kv, stop := kvi.GetNext()
-			if stop {
-				break
-			}
-			sr.Log.Infof("kv key: %s, rev: %d", kv.GetKey(), kv.GetRevision())
-			svc := &proto.Service{}
-			err := kv.GetValue(svc)
-			if err != nil {
-				sr.Log.Error("Error reading value, ", err)
-			} else {
-				sr.Log.Infof("value: %+v", svc)
-			}
-		}
-	}
-
 	restClient := sr.K8sClientset.CoreV1().RESTClient()
 	listWatch := sr.K8sListWatch.NewListWatchFromClient(restClient, "services", "", fields.Everything())
-	sr.k8sServiceStore, sr.k8sServiceController = sr.K8sListWatch.NewInformer(
+	sr.k8sStore, sr.k8sController = sr.K8sListWatch.NewInformer(
 		listWatch,
 		&coreV1.Service{},
 		0,
 		cache.ResourceEventHandlerFuncs{
 			AddFunc: func(obj interface{}) {
+				sr.dsMutex.Lock()
+				defer sr.dsMutex.Unlock()
+
+				if !sr.dsSynced {
+					return
+				}
 				svc, ok := obj.(*coreV1.Service)
 				if !ok {
 					sr.Log.Warn("Failed to cast newly created service object")
@@ -85,6 +65,12 @@ func (sr *ServiceReflector) Init(stopCh2 <-chan struct{}, wg *sync.WaitGroup) er
 				}
 			},
 			DeleteFunc: func(obj interface{}) {
+				sr.dsMutex.Lock()
+				defer sr.dsMutex.Unlock()
+
+				if !sr.dsSynced {
+					return
+				}
 				svc, ok := obj.(*coreV1.Service)
 				if !ok {
 					sr.Log.Warn("Failed to cast removed service object")
@@ -94,6 +80,13 @@ func (sr *ServiceReflector) Init(stopCh2 <-chan struct{}, wg *sync.WaitGroup) er
 				}
 			},
 			UpdateFunc: func(oldObj, newObj interface{}) {
+				sr.dsMutex.Lock()
+				defer sr.dsMutex.Unlock()
+
+				if !sr.dsSynced {
+					return
+				}
+
 				svcOld, ok1 := oldObj.(*coreV1.Service)
 				svcNew, ok2 := newObj.(*coreV1.Service)
 				if !ok1 || !ok2 {
@@ -106,29 +99,28 @@ func (sr *ServiceReflector) Init(stopCh2 <-chan struct{}, wg *sync.WaitGroup) er
 		},
 	)
 
-	// List everything in the local k8s cache *after* the cache is synced with K8s
-	go func() {
-		for {
-			if sr.k8sServiceController.HasSynced() {
-				break
-			}
-			time.Sleep(1*time.Second)
-		}
+	// Get all items currently stored in the data store
+	dsSvc, err := sr.listDataStoreItems(service.KeyPrefix(), func() proto.Message { return &service.Service{} })
+	if err != nil {
+		sr.Log.Error("Error listing services from data store: %s", err)
+	}
 
-		sr.Log.Infof("Listing %d services", len(sr.k8sServiceStore.List()))
-		for i, obj := range sr.k8sServiceStore.List() {
-			svc, ok := obj.(*coreV1.Service)
-			if ok {
-				sr.Log.Infof("Service %d: %+v", i, svc)
-			} else {
-				sr.Log.Warn("Failed to cast newly listed object")
-			}
+	// Sync up the data store with the local k8s cache *after* the cache
+	// is synced with K8s.
+	go sr.syncDataStore(dsSvc, func(k8sObj interface{}) (interface{}, string, bool) {
+		k8sSvc, ok := k8sObj.(*coreV1.Service)
+		if !ok {
+			sr.Log.Errorf("service syncDataStore: wrong object type %s, obj %+v",
+				reflect.TypeOf(k8sObj), k8sObj)
+			return nil, "", false
 		}
-	}()
+		return sr.serviceToProto(k8sSvc), service.Key(k8sSvc.Name, k8sSvc.Namespace), true
+	})
+
 	return nil
 }
 
-// GetStats returns the Service Reflector usage statistics
+// GetStats returns the Service KsrReflector usage statistics
 func (sr *ServiceReflector) GetStats() *ReflectorStats {
 	return &sr.stats
 }
@@ -138,29 +130,28 @@ func (sr *ServiceReflector) addService(svc *coreV1.Service) {
 	sr.Log.WithField("service", svc).Info("Service added")
 	serviceProto := sr.serviceToProto(svc)
 	sr.Log.WithField("serviceProto", serviceProto).Info("Service converted")
-	key := proto.Key(svc.GetName(), svc.GetNamespace())
-	err := sr.Writer.Put(key, serviceProto)
 
+	key := service.Key(svc.GetName(), svc.GetNamespace())
+	err := sr.Writer.Put(key, serviceProto)
 	if err != nil {
 		sr.Log.WithField("err", err).Warn("Failed to add service state data into the data store")
 		sr.stats.NumAddErrors++
 		return
 	}
-
 	sr.stats.NumAdds++
 }
 
 // deleteService deletes state data of a removed K8s service from the data store.
 func (sr *ServiceReflector) deleteService(svc *coreV1.Service) {
 	sr.Log.WithField("service", svc).Info("Service removed")
-	key := proto.Key(svc.GetName(), svc.GetNamespace())
+
+	key := service.Key(svc.GetName(), svc.GetNamespace())
 	_, err := sr.Writer.Delete(key)
 	if err != nil {
 		sr.Log.WithField("err", err).Warn("Failed to remove service state data from the data store")
 		sr.stats.NumDelErrors++
 		return
 	}
-
 	sr.stats.NumDeletes++
 }
 
@@ -173,9 +164,9 @@ func (sr *ServiceReflector) updateService(svcNew, svcOld *coreV1.Service) {
 	if !reflect.DeepEqual(svcProtoNew, svcProtoOld) {
 		sr.Log.WithFields(map[string]interface{}{"namespace": svcNew.Namespace, "name": svcNew.Name}).
 			Debug("Service changed, updating in Etcd")
-		key := proto.Key(svcNew.GetName(), svcNew.GetNamespace())
-		err := sr.Writer.Put(key, svcProtoNew)
 
+		key := service.Key(svcNew.GetName(), svcNew.GetNamespace())
+		err := sr.Writer.Put(key, svcProtoNew)
 		if err != nil {
 			sr.Log.WithField("err", err).Warn("Failed to update service state data in the data store")
 			sr.stats.NumUpdErrors++
@@ -188,27 +179,27 @@ func (sr *ServiceReflector) updateService(svcNew, svcOld *coreV1.Service) {
 
 // serviceToProto converts service state data from the k8s representation into
 // our protobuf-modelled data structure.
-func (sr *ServiceReflector) serviceToProto(svc *coreV1.Service) *proto.Service {
-	svcProto := &proto.Service{}
+func (sr *ServiceReflector) serviceToProto(svc *coreV1.Service) *service.Service {
+	svcProto := &service.Service{}
 	svcProto.Name = svc.GetName()
 	svcProto.Namespace = svc.GetNamespace()
 
-	var svcPorts []*proto.Service_ServicePort
+	var svcPorts []*service.Service_ServicePort
 loop:
 	for _, port := range svc.Spec.Ports {
-		svcp := &proto.Service_ServicePort{}
+		svcp := &service.Service_ServicePort{}
 		svcp.Name = port.Name
 		svcp.NodePort = port.NodePort
 		svcp.Port = port.Port
 		svcp.Protocol = string(port.Protocol)
 
-		svcp.TargetPort = &proto.Service_ServicePort_IntOrString{}
+		svcp.TargetPort = &service.Service_ServicePort_IntOrString{}
 		switch port.TargetPort.Type {
 		case intstr.Int:
-			svcp.TargetPort.Type = proto.Service_ServicePort_IntOrString_NUMBER
+			svcp.TargetPort.Type = service.Service_ServicePort_IntOrString_NUMBER
 			svcp.TargetPort.IntVal = port.TargetPort.IntVal
 		case intstr.String:
-			svcp.TargetPort.Type = proto.Service_ServicePort_IntOrString_STRING
+			svcp.TargetPort.Type = service.Service_ServicePort_IntOrString_STRING
 			svcp.TargetPort.StringVal = port.TargetPort.StrVal
 		default:
 			sr.Log.WithField("target port", port.TargetPort.Type).Error("Unknown target port type")
@@ -234,16 +225,7 @@ loop:
 
 // Start activates the K8s subscription.
 func (sr *ServiceReflector) Start() {
-	sr.wg.Add(1)
-	go sr.run()
-}
-
-// run runs k8s subscription in a separate go routine.
-func (sr *ServiceReflector) run() {
-	defer sr.wg.Done()
-	sr.Log.Info("Service reflector is now running")
-	sr.k8sServiceController.Run(sr.stopCh)
-	sr.Log.Info("Stopping Service reflector")
+	sr.ksrStart("Service")
 }
 
 // Close does nothing for this particular reflector.

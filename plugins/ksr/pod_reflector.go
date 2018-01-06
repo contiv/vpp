@@ -149,7 +149,7 @@ func (pr *PodReflector) containerToProto(container *core_v1.Container) *proto.Po
 	return containerProto
 }
 
-// run runs k8s subscription in a separate go routine.
+// ksrRun runs k8s subscription in a separate go routine.
 func (pr *PodReflector) run() {
 	defer pr.wg.Done()
 	pr.Log.Info("Pod reflector is now running")

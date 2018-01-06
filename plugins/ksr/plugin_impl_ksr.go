@@ -97,14 +97,14 @@ func (plugin *Plugin) Init() error {
 		return fmt.Errorf("failed to build kubernetes client: %s", err)
 	}
 
-	pfx := plugin.Publish.ServiceLabel.GetAgentPrefix()
+	ksrPrefix := plugin.Publish.ServiceLabel.GetAgentPrefix()
 	plugin.nsReflector = &NamespaceReflector{
 		ReflectorDeps: ReflectorDeps{
 			Log:          plugin.Log.NewLogger("-namespace"),
 			K8sClientset: plugin.k8sClientset,
 			K8sListWatch: &k8sCache{},
 			Writer:       plugin.Publish,
-			Lister:	plugin.Publish.Deps.KvPlugin.NewBroker(pfx),
+			Lister:       plugin.Publish.Deps.KvPlugin.NewBroker(ksrPrefix),
 		},
 	}
 
@@ -146,12 +146,15 @@ func (plugin *Plugin) Init() error {
 	}
 
 	plugin.serviceReflector = &ServiceReflector{
-		ReflectorDeps: ReflectorDeps{
-			Log:          plugin.Log.NewLogger("-service"),
-			K8sClientset: plugin.k8sClientset,
-			K8sListWatch: &k8sCache{},
-			Writer:       plugin.Publish,
-			Lister:	plugin.Publish.Deps.KvPlugin.NewBroker(pfx),
+		KsrReflector: KsrReflector{
+			ReflectorDeps: ReflectorDeps{
+				Log:          plugin.Log.NewLogger("-service"),
+				K8sClientset: plugin.k8sClientset,
+				K8sListWatch: &k8sCache{},
+				Writer:       plugin.Publish,
+				Lister:       plugin.Publish.Deps.KvPlugin.NewBroker(ksrPrefix),
+			},
+			dsSynced: false,
 		},
 	}
 	err = plugin.serviceReflector.Init(plugin.stopCh, &plugin.wg)

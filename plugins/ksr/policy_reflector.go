@@ -281,7 +281,7 @@ func (pr *PolicyReflector) peersToProto(peers []core_v1beta1.NetworkPolicyPeer) 
 	return peersProto
 }
 
-// run runs k8s subscription in a separate go routine.
+// ksrRun runs k8s subscription in a separate go routine.
 func (pr *PolicyReflector) run() {
 	defer pr.wg.Done()
 

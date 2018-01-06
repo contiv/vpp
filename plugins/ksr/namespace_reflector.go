@@ -125,7 +125,7 @@ func (nr *NamespaceReflector) namespaceToProto(ns *core_v1.Namespace) *proto.Nam
 	return nsProto
 }
 
-// run runs k8s subscription in a separate go routine.
+// ksrRun runs k8s subscription in a separate go routine.
 func (nr *NamespaceReflector) run() {
 	defer nr.wg.Done()
 	nr.Log.Info("Namespace reflector is now running")

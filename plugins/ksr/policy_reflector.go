@@ -83,7 +83,7 @@ func (pr *PolicyReflector) addPolicy(policy *core_v1beta1.NetworkPolicy) {
 	pr.Log.WithField("policy", policy).Info("Policy added")
 	policyProto := pr.policyToProto(policy)
 	key := proto.Key(policy.GetName(), policy.GetNamespace())
-	err := pr.Publish.Put(key, policyProto)
+	err := pr.Writer.Put(key, policyProto)
 	if err != nil {
 		pr.Log.WithField("err", err).Warn("Failed to add policy state data into the data store")
 	}
@@ -94,7 +94,7 @@ func (pr *PolicyReflector) addPolicy(policy *core_v1beta1.NetworkPolicy) {
 func (pr *PolicyReflector) deletePolicy(policy *core_v1beta1.NetworkPolicy) {
 	pr.Log.WithField("policy", policy).Info("Policy removed")
 	key := proto.Key(policy.GetName(), policy.GetNamespace())
-	_, err := pr.Publish.Delete(key)
+	_, err := pr.Writer.Delete(key)
 	if err != nil {
 		pr.Log.WithField("err", err).Warn("Failed to remove policy state data from the data store")
 	}
@@ -106,7 +106,7 @@ func (pr *PolicyReflector) updatePolicy(policyNew, policyOld *core_v1beta1.Netwo
 	pr.Log.WithFields(map[string]interface{}{"policy-old": policyOld, "policy-new": policyNew}).Info("Policy updated")
 	policyProto := pr.policyToProto(policyNew)
 	key := proto.Key(policyNew.GetName(), policyNew.GetNamespace())
-	err := pr.Publish.Put(key, policyProto)
+	err := pr.Writer.Put(key, policyProto)
 	if err != nil {
 		pr.Log.WithField("err", err).Warn("Failed to update policy state data in the data store")
 	}

@@ -17,7 +17,6 @@ package ksr
 import (
 	"reflect"
 	"sync"
-	"strings"
 
 	coreV1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/fields"
@@ -49,10 +48,7 @@ func (sr *ServiceReflector) Init(stopCh2 <-chan struct{}, wg *sync.WaitGroup) er
 	sr.wg = wg
 
 	// List everything in Etcd
-	pfx := sr.Publish.ServiceLabel.GetAgentPrefix()
-	sr.Log.Infof("Agent prefix: %s", pfx)
-	db := sr.Publish.Deps.KvPlugin.NewBroker("")
-	kvi, err := db.ListValues(pfx)
+	kvi, err := sr.Lister.ListValues(proto.KeyPrefix())
 	if err != nil {
 		sr.Log.Error("Can not get kv iterator, error: %", err)
 	} else {
@@ -62,17 +58,12 @@ func (sr *ServiceReflector) Init(stopCh2 <-chan struct{}, wg *sync.WaitGroup) er
 				break
 			}
 			sr.Log.Infof("kv key: %s, rev: %d", kv.GetKey(), kv.GetRevision())
-			pe := strings.Split(kv.GetKey(), "/")
-			dt := pe[len(pe) - 2]
-			sr.Log.Infof("type: %s", dt)
-			if dt == "service" {
-				svc := &proto.Service{}
-				err := kv.GetValue(svc)
-				if err != nil {
-					sr.Log.Error("Error reading value, ", err)
-				} else {
-					sr.Log.Infof("value: %+v", svc)
-				}
+			svc := &proto.Service{}
+			err := kv.GetValue(svc)
+			if err != nil {
+				sr.Log.Error("Error reading value, ", err)
+			} else {
+				sr.Log.Infof("value: %+v", svc)
 			}
 		}
 	}
@@ -148,7 +139,7 @@ func (sr *ServiceReflector) addService(svc *coreV1.Service) {
 	serviceProto := sr.serviceToProto(svc)
 	sr.Log.WithField("serviceProto", serviceProto).Info("Service converted")
 	key := proto.Key(svc.GetName(), svc.GetNamespace())
-	err := sr.Publish.Put(key, serviceProto)
+	err := sr.Writer.Put(key, serviceProto)
 
 	if err != nil {
 		sr.Log.WithField("err", err).Warn("Failed to add service state data into the data store")
@@ -163,7 +154,7 @@ func (sr *ServiceReflector) addService(svc *coreV1.Service) {
 func (sr *ServiceReflector) deleteService(svc *coreV1.Service) {
 	sr.Log.WithField("service", svc).Info("Service removed")
 	key := proto.Key(svc.GetName(), svc.GetNamespace())
-	_, err := sr.Publish.Delete(key)
+	_, err := sr.Writer.Delete(key)
 	if err != nil {
 		sr.Log.WithField("err", err).Warn("Failed to remove service state data from the data store")
 		sr.stats.NumDelErrors++
@@ -183,7 +174,7 @@ func (sr *ServiceReflector) updateService(svcNew, svcOld *coreV1.Service) {
 		sr.Log.WithFields(map[string]interface{}{"namespace": svcNew.Namespace, "name": svcNew.Name}).
 			Debug("Service changed, updating in Etcd")
 		key := proto.Key(svcNew.GetName(), svcNew.GetNamespace())
-		err := sr.Publish.Put(key, svcProtoNew)
+		err := sr.Writer.Put(key, svcProtoNew)
 
 		if err != nil {
 			sr.Log.WithField("err", err).Warn("Failed to update service state data in the data store")

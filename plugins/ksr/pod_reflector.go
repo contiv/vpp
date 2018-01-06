@@ -78,7 +78,7 @@ func (pr *PodReflector) addPod(pod *core_v1.Pod) {
 	pr.Log.WithField("pod", pod).Info("Pod added")
 	podProto := pr.podToProto(pod)
 	key := proto.Key(pod.GetName(), pod.GetNamespace())
-	err := pr.Publish.Put(key, podProto)
+	err := pr.Writer.Put(key, podProto)
 	if err != nil {
 		pr.Log.WithField("err", err).Warn("Failed to add pod state data into the data store")
 	}
@@ -88,7 +88,7 @@ func (pr *PodReflector) addPod(pod *core_v1.Pod) {
 func (pr *PodReflector) deletePod(pod *core_v1.Pod) {
 	pr.Log.WithField("pod", pod).Info("Pod removed")
 	key := proto.Key(pod.GetName(), pod.GetNamespace())
-	_, err := pr.Publish.Delete(key)
+	_, err := pr.Writer.Delete(key)
 	if err != nil {
 		pr.Log.WithField("err", err).Warn("Failed to remove pod state data from the data store")
 	}
@@ -99,7 +99,7 @@ func (pr *PodReflector) updatePod(podNew, podOld *core_v1.Pod) {
 	pr.Log.WithFields(map[string]interface{}{"pod-old": podOld, "pod-new": podNew}).Info("Pod updated")
 	podProto := pr.podToProto(podNew)
 	key := proto.Key(podNew.GetName(), podNew.GetNamespace())
-	err := pr.Publish.Put(key, podProto)
+	err := pr.Writer.Put(key, podProto)
 	if err != nil {
 		pr.Log.WithField("err", err).Warn("Failed to update pod state data in the data store")
 	}

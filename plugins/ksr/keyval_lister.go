@@ -1,4 +1,4 @@
-// Copyright (c) 2017 Cisco and/or its affiliates.
+// Copyright (c) 2018 Cisco and/or its affiliates.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,23 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package service
+package ksr
 
-// ID used to uniquely represent a K8s Service.
-type ID struct {
-	Name      string
-	Namespace string
+import "github.com/ligato/cn-infra/db/keyval"
+
+// KeyProtoValWriter allows a reflector to list values that the reflector
+// previously stored in in ETCD.
+type KeyProtoValLister interface {
+	// List values stored in etcd under the given prefix.
+	ListValues(prefix string) (keyval.ProtoKeyValIterator, error)
 }
 
-// GetID returns ID of a service.
-func GetID(service *Service) ID {
-	if service != nil {
-		return ID{Name: service.Name, Namespace: service.Namespace}
-	}
-	return ID{}
-}
-
-// String returns a string representation of a service ID.
-func (id ID) String() string {
-	return id.Namespace + "/" + id.Name
-}

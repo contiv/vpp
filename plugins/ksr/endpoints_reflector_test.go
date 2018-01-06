@@ -52,7 +52,7 @@ func TestEndpointsReflector(t *testing.T) {
 			Log:          flavorLocal.LoggerFor("endpoints-reflector"),
 			K8sClientset: &kubernetes.Clientset{},
 			K8sListWatch: epTestVars.k8sListWatch,
-			Publish:      epTestVars.mockKvWriter,
+			Writer:       epTestVars.mockKvWriter,
 		},
 	}
 

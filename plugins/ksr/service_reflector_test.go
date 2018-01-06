@@ -53,7 +53,7 @@ func TestServiceReflector(t *testing.T) {
 			Log:          flavorLocal.LoggerFor("service-reflector"),
 			K8sClientset: &kubernetes.Clientset{},
 			K8sListWatch: serviceTestVars.k8sListWatch,
-			Publish:      serviceTestVars.mockKvWriter,
+			Writer:       serviceTestVars.mockKvWriter,
 		},
 	}
 

@@ -60,7 +60,7 @@ type FlavorKsr struct {
 	// Plugins for access to ETCD data store.
 	ETCD         etcdv3.Plugin
 	ETCDDataSync kvdbsync.Plugin
-	// Kubernetes State KsrReflector plugin works as a reflector for policies, pods
+	// Kubernetes State Reflector plugin works as a reflector for policies, pods
 	// and namespaces.
 	Ksr ksr.Plugin
 

@@ -146,15 +146,14 @@ func (plugin *Plugin) Init() error {
 	}
 
 	plugin.serviceReflector = &ServiceReflector{
-		KsrReflector: KsrReflector{
-			ReflectorDeps: ReflectorDeps{
-				Log:          plugin.Log.NewLogger("-service"),
-				K8sClientset: plugin.k8sClientset,
-				K8sListWatch: &k8sCache{},
-				Writer:       plugin.Publish,
-				Lister:       plugin.Publish.Deps.KvPlugin.NewBroker(ksrPrefix),
-			},
-			dsSynced: false,
+		Reflector: Reflector{
+			Log:          plugin.Log.NewLogger("-service"),
+			K8sClientset: plugin.k8sClientset,
+			K8sListWatch: &k8sCache{},
+			Writer:       plugin.Publish,
+			Lister:       plugin.Publish.Deps.KvPlugin.NewBroker(ksrPrefix),
+			dsSynced:     false,
+			objType:      "Service",
 		},
 	}
 	err = plugin.serviceReflector.Init(plugin.stopCh, &plugin.wg)

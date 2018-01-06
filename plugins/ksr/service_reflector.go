@@ -32,7 +32,7 @@ import (
 // in the configuration of k8s services.
 // Protobuf-modelled changes are published into the selected key-value store.
 type ServiceReflector struct {
-	KsrReflector
+	Reflector
 }
 
 // Init subscribes to K8s cluster to watch for changes in the configuration
@@ -120,10 +120,11 @@ func (sr *ServiceReflector) Init(stopCh2 <-chan struct{}, wg *sync.WaitGroup) er
 	return nil
 }
 
-// GetStats returns the Service KsrReflector usage statistics
+// GetStats returns the Service Reflector usage statistics
 func (sr *ServiceReflector) GetStats() *ReflectorStats {
 	return &sr.stats
 }
+
 
 // addService adds state data of a newly created K8s service into the data store.
 func (sr *ServiceReflector) addService(svc *coreV1.Service) {

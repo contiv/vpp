@@ -19,7 +19,7 @@ import (
 )
 
 const (
-	// PolicyPrefix returns the key prefix identifying all K8s policies in the
+	// PolicyKeyword returns the key prefix identifying all K8s policies in the
 	// data store.
 	PolicyKeyword = "policy"
 )

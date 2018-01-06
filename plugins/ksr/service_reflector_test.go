@@ -49,7 +49,7 @@ func TestServiceReflector(t *testing.T) {
 	serviceTestVars.mockKvWriter = newMockKeyProtoValWriter()
 
 	serviceTestVars.svcReflector = &ServiceReflector{
-		KsrReflector: KsrReflector{
+		Reflector: Reflector{
 			ReflectorDeps: ReflectorDeps{
 				Log:          flavorLocal.LoggerFor("service-reflector"),
 				K8sClientset: &kubernetes.Clientset{},

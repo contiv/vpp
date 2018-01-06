@@ -19,7 +19,7 @@ import (
 )
 
 const (
-	// KeyPrefix returns the key prefix identifying all K8s services in the
+	// ServiceKeyword returns the key prefix identifying all K8s services in the
 	// data store.
 	ServiceKeyword = "service"
 )

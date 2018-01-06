@@ -16,10 +16,9 @@ package ksr
 
 import "github.com/ligato/cn-infra/db/keyval"
 
-// KeyProtoValWriter allows a reflector to list values that the reflector
+// KeyProtoValLister allows a reflector to list values that the reflector
 // previously stored in in ETCD.
 type KeyProtoValLister interface {
 	// List values stored in etcd under the given prefix.
 	ListValues(prefix string) (keyval.ProtoKeyValIterator, error)
 }
-

@@ -92,7 +92,7 @@ func (epr *EndpointsReflector) Init(stopCh2 <-chan struct{}, wg *sync.WaitGroup)
 	return nil
 }
 
-// GetStats returns the Endpoints KsrReflector usage statistics
+// GetStats returns the Endpoints Reflector usage statistics
 func (epr *EndpointsReflector) GetStats() *ReflectorStats {
 	return &epr.stats
 }

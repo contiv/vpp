@@ -15,7 +15,7 @@
 package pod
 
 import (
-"github.com/contiv/vpp/plugins/ksr/model/ksrkey"
+	"github.com/contiv/vpp/plugins/ksr/model/ksrkey"
 )
 
 const (

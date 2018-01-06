@@ -30,7 +30,7 @@ func KeyPrefix() string {
 	return ksrkey.KeyPrefix(EndpointsKeyword)
 }
 
-// ParseServiceFromKey parses pod and namespace ids from the associated
+// ParseEndpointsFromKey parses pod and namespace ids from the associated
 // data-store key.
 func ParseEndpointsFromKey(key string) (endpoints string, namespace string, err error) {
 	return ksrkey.ParseServiceFromKey(EndpointsKeyword, key)

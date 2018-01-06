@@ -23,8 +23,8 @@ const (
 	// KsrPrefix defines the common prefix for all K8s items that KSR stores
 	// in the data store.
 	KsrPrefix = "k8s"
-	// NamespaceId defines keyword identifying a given K8s item's namespace".
-	NamespaceId = "namespace"
+	// NamespaceID defines keyword identifying a given K8s item's namespace".
+	NamespaceID = "namespace"
 )
 
 // KeyPrefix returns the common prefix for all K8s items of a given data type.
@@ -35,14 +35,14 @@ func KeyPrefix(keyType string) string {
 // Key returns the key under which a configuration for a given K8s item
 // should be stored in the data-store.
 func Key(keyType string, name string, namespace string) string {
-	return KeyPrefix(keyType) + "/" + name + "/" + NamespaceId + "/" + namespace
+	return KeyPrefix(keyType) + "/" + name + "/" + NamespaceID + "/" + namespace
 }
 
 // ParseServiceFromKey parses pod and namespace ids from the associated
 // data-store key.
 func ParseServiceFromKey(keyType string, key string) (pod string, namespace string, err error) {
 	keywords := strings.Split(key, "/")
-	if len(keywords) == 5 && keywords[0] == KsrPrefix && keywords[1] == keyType && keywords[3] == NamespaceId {
+	if len(keywords) == 5 && keywords[0] == KsrPrefix && keywords[1] == keyType && keywords[3] == NamespaceID {
 		return keywords[2], keywords[4], nil
 	}
 	return "", "", fmt.Errorf("invalid format of the key %s", key)

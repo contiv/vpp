@@ -60,9 +60,9 @@ func (sr *ServiceReflector) Init(stopCh2 <-chan struct{}, wg *sync.WaitGroup) er
 				if !ok {
 					sr.Log.Warn("Failed to cast newly created service object")
 					sr.stats.NumArgErrors++
-				} else {
-					sr.addService(svc)
+					return
 				}
+				sr.addService(svc)
 			},
 			DeleteFunc: func(obj interface{}) {
 				sr.dsMutex.Lock()
@@ -124,7 +124,6 @@ func (sr *ServiceReflector) Init(stopCh2 <-chan struct{}, wg *sync.WaitGroup) er
 func (sr *ServiceReflector) GetStats() *ReflectorStats {
 	return &sr.stats
 }
-
 
 // addService adds state data of a newly created K8s service into the data store.
 func (sr *ServiceReflector) addService(svc *coreV1.Service) {
@@ -226,7 +225,7 @@ loop:
 
 // Start activates the K8s subscription.
 func (sr *ServiceReflector) Start() {
-	sr.ksrStart("Service")
+	sr.ksrStart()
 }
 
 // Close does nothing for this particular reflector.

@@ -38,9 +38,9 @@ func Key(keyType string, name string, namespace string) string {
 	return KeyPrefix(keyType) + "/" + name + "/" + NamespaceID + "/" + namespace
 }
 
-// ParseServiceFromKey parses pod and namespace ids from the associated
+// ParseNameFromKey parses pod and namespace ids from the associated
 // data-store key.
-func ParseServiceFromKey(keyType string, key string) (pod string, namespace string, err error) {
+func ParseNameFromKey(keyType string, key string) (pod string, namespace string, err error) {
 	keywords := strings.Split(key, "/")
 	if len(keywords) == 5 && keywords[0] == KsrPrefix && keywords[1] == keyType && keywords[3] == NamespaceID {
 		return keywords[2], keywords[4], nil

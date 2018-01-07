@@ -30,10 +30,10 @@ func KeyPrefix() string {
 	return ksrkey.KeyPrefix(PolicyKeyword)
 }
 
-// ParseServiceFromKey parses pod and namespace ids from the associated
+// ParsePolicyFromKey parses pod and namespace ids from the associated
 // data-store key.
 func ParsePolicyFromKey(key string) (service string, namespace string, err error) {
-	return ksrkey.ParseServiceFromKey(PolicyKeyword, key)
+	return ksrkey.ParseNameFromKey(PolicyKeyword, key)
 }
 
 // Key returns the key under which a given K8s policy is stored in the

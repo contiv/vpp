@@ -30,10 +30,10 @@ func KeyPrefix() string {
 	return ksrkey.KeyPrefix(PodKeyword)
 }
 
-// ParseServiceFromKey parses pod and namespace ids from the associated
+// ParsePodFromKey parses pod and namespace ids from the associated
 // data-store key.
 func ParsePodFromKey(key string) (service string, namespace string, err error) {
-	return ksrkey.ParseServiceFromKey(PodKeyword, key)
+	return ksrkey.ParseNameFromKey(PodKeyword, key)
 }
 
 // Key returns the key under which a given K8s service is stored in the

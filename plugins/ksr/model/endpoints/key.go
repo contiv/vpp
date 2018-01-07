@@ -33,7 +33,7 @@ func KeyPrefix() string {
 // ParseEndpointsFromKey parses pod and namespace ids from the associated
 // data-store key.
 func ParseEndpointsFromKey(key string) (endpoints string, namespace string, err error) {
-	return ksrkey.ParseServiceFromKey(EndpointsKeyword, key)
+	return ksrkey.ParseNameFromKey(EndpointsKeyword, key)
 }
 
 // Key returns the key under which the endpoints belonging to given K8s

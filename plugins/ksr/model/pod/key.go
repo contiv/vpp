@@ -32,7 +32,7 @@ func KeyPrefix() string {
 
 // ParseServiceFromKey parses pod and namespace ids from the associated
 // data-store key.
-func ParseServiceFromKey(key string) (service string, namespace string, err error) {
+func ParsePodFromKey(key string) (service string, namespace string, err error) {
 	return ksrkey.ParseServiceFromKey(PodKeyword, key)
 }
 

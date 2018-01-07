@@ -33,6 +33,7 @@ import (
 type ServiceTestVars struct {
 	k8sListWatch *mockK8sListWatch
 	mockKvWriter *mockKeyProtoValWriter
+	mockKvLister *mockKeyProtoValLister
 	svcReflector *ServiceReflector
 	svc          *coreV1.Service
 }
@@ -47,16 +48,17 @@ func TestServiceReflector(t *testing.T) {
 
 	serviceTestVars.k8sListWatch = &mockK8sListWatch{}
 	serviceTestVars.mockKvWriter = newMockKeyProtoValWriter()
+	serviceTestVars.mockKvLister = newMockKeyProtoValLister()
 
 	serviceTestVars.svcReflector = &ServiceReflector{
 		Reflector: Reflector{
-			ReflectorDeps: ReflectorDeps{
-				Log:          flavorLocal.LoggerFor("service-reflector"),
-				K8sClientset: &kubernetes.Clientset{},
-				K8sListWatch: serviceTestVars.k8sListWatch,
-				Writer:       serviceTestVars.mockKvWriter,
-			},
-			dsSynced: false,
+			Log:          flavorLocal.LoggerFor("service-reflector"),
+			K8sClientset: &kubernetes.Clientset{},
+			K8sListWatch: serviceTestVars.k8sListWatch,
+			Writer:       serviceTestVars.mockKvWriter,
+			Lister:       serviceTestVars.mockKvLister,
+			dsSynced:     true,
+			objType:      "Service",
 		},
 	}
 

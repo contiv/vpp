@@ -14,11 +14,52 @@
 
 package ksr
 
-import "github.com/ligato/cn-infra/db/keyval"
+import (
+	"github.com/ligato/cn-infra/db/keyval"
+)
 
 // KeyProtoValLister allows a reflector to list values that the reflector
 // previously stored in in ETCD.
 type KeyProtoValLister interface {
 	// List values stored in etcd under the given prefix.
 	ListValues(prefix string) (keyval.ProtoKeyValIterator, error)
+}
+
+// mockKeyProtoValLister is a mock implementation of mockKeyProtoValLister
+// used in unit tests.
+type mockKeyProtoValLister struct {
+	iter mockProtoKeyValIterator
+}
+
+type mockProtoKeyValIterator struct {
+	values []keyval.ProtoKeyVal
+	idx    int
+}
+
+// newMockKeyProtoValLister initializes a new instance of
+// newMockKeyProtoValLister.
+func newMockKeyProtoValLister() *mockKeyProtoValLister {
+	return &mockKeyProtoValLister{
+		iter: mockProtoKeyValIterator{
+			values: []keyval.ProtoKeyVal{},
+			idx:    0,
+		},
+	}
+}
+
+// ListValues returns the mockProtoKeyValIterator which will contain some
+// mock values down the road
+func (kvl *mockKeyProtoValLister) ListValues(prefix string) (keyval.ProtoKeyValIterator, error) {
+	return &kvl.iter, nil
+}
+
+// GetNext getting the next mocked keyval.ProtoKeyVal value from
+// mockProtoKeyValIterator
+func (it *mockProtoKeyValIterator) GetNext() (kv keyval.ProtoKeyVal, stop bool) {
+	return nil, true
+}
+
+// Close is a mock for mockProtoKeyValIterator
+func (it *mockProtoKeyValIterator) Close() error {
+	return nil
 }

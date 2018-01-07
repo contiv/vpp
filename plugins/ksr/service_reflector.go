@@ -19,7 +19,6 @@ import (
 	"sync"
 
 	coreV1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/tools/cache"
 
@@ -39,85 +38,34 @@ type ServiceReflector struct {
 // of k8s services. The subscription does not become active until Start()
 // is called.
 func (sr *ServiceReflector) Init(stopCh2 <-chan struct{}, wg *sync.WaitGroup) error {
-	sr.stopCh = stopCh2
-	sr.wg = wg
 
-	restClient := sr.K8sClientset.CoreV1().RESTClient()
-	listWatch := sr.K8sListWatch.NewListWatchFromClient(restClient, "services", "", fields.Everything())
-	sr.k8sStore, sr.k8sController = sr.K8sListWatch.NewInformer(
-		listWatch,
-		&coreV1.Service{},
-		0,
-		cache.ResourceEventHandlerFuncs{
+	serviceReflectorFuncs := ReflectorFunctions{
+		EventHdlrFunc: cache.ResourceEventHandlerFuncs{
 			AddFunc: func(obj interface{}) {
-				sr.dsMutex.Lock()
-				defer sr.dsMutex.Unlock()
-
-				if !sr.dsSynced {
-					return
-				}
-				svc, ok := obj.(*coreV1.Service)
-				if !ok {
-					sr.Log.Warn("Failed to cast newly created service object")
-					sr.stats.NumArgErrors++
-					return
-				}
-				sr.addService(svc)
+				sr.addService(obj)
 			},
 			DeleteFunc: func(obj interface{}) {
-				sr.dsMutex.Lock()
-				defer sr.dsMutex.Unlock()
-
-				if !sr.dsSynced {
-					return
-				}
-				svc, ok := obj.(*coreV1.Service)
-				if !ok {
-					sr.Log.Warn("Failed to cast removed service object")
-					sr.stats.NumArgErrors++
-				} else {
-					sr.deleteService(svc)
-				}
+				sr.deleteService(obj)
 			},
 			UpdateFunc: func(oldObj, newObj interface{}) {
-				sr.dsMutex.Lock()
-				defer sr.dsMutex.Unlock()
-
-				if !sr.dsSynced {
-					return
-				}
-
-				svcOld, ok1 := oldObj.(*coreV1.Service)
-				svcNew, ok2 := newObj.(*coreV1.Service)
-				if !ok1 || !ok2 {
-					sr.Log.Warn("Failed to cast changed service object")
-					sr.stats.NumArgErrors++
-				} else {
-					sr.updateService(svcNew, svcOld)
-				}
+				sr.updateService(oldObj, newObj)
 			},
 		},
-	)
-
-	// Get all items currently stored in the data store
-	dsSvc, err := sr.listDataStoreItems(service.KeyPrefix(), func() proto.Message { return &service.Service{} })
-	if err != nil {
-		sr.Log.Error("Error listing services from data store: %s", err)
+		ProtoAllocFunc: func() proto.Message {
+			return &service.Service{}
+		},
+		K8s2ProtoFunc: func(k8sObj interface{}) (interface{}, string, bool) {
+			k8sSvc, ok := k8sObj.(*coreV1.Service)
+			if !ok {
+				sr.Log.Errorf("service syncDataStore: wrong object type %s, obj %+v",
+					reflect.TypeOf(k8sObj), k8sObj)
+				return nil, "", false
+			}
+			return sr.serviceToProto(k8sSvc), service.Key(k8sSvc.Name, k8sSvc.Namespace), true
+		},
 	}
 
-	// Sync up the data store with the local k8s cache *after* the cache
-	// is synced with K8s.
-	go sr.syncDataStore(dsSvc, func(k8sObj interface{}) (interface{}, string, bool) {
-		k8sSvc, ok := k8sObj.(*coreV1.Service)
-		if !ok {
-			sr.Log.Errorf("service syncDataStore: wrong object type %s, obj %+v",
-				reflect.TypeOf(k8sObj), k8sObj)
-			return nil, "", false
-		}
-		return sr.serviceToProto(k8sSvc), service.Key(k8sSvc.Name, k8sSvc.Namespace), true
-	})
-
-	return nil
+	return sr.ksrInit(stopCh2, wg, service.KeyPrefix(), &coreV1.Service{}, serviceReflectorFuncs)
 }
 
 // GetStats returns the Service Reflector usage statistics
@@ -126,11 +74,17 @@ func (sr *ServiceReflector) GetStats() *ReflectorStats {
 }
 
 // addService adds state data of a newly created K8s service into the data store.
-func (sr *ServiceReflector) addService(svc *coreV1.Service) {
-	sr.Log.WithField("service", svc).Info("Service added")
-	serviceProto := sr.serviceToProto(svc)
-	sr.Log.WithField("serviceProto", serviceProto).Info("Service converted")
+func (sr *ServiceReflector) addService(obj interface{}) {
+	sr.Log.WithField("service", obj).Info("addService")
 
+	svc, ok := obj.(*coreV1.Service)
+	if !ok {
+		sr.Log.Warn("Failed to cast newly created service object")
+		sr.stats.NumArgErrors++
+		return
+	}
+
+	serviceProto := sr.serviceToProto(svc)
 	key := service.Key(svc.GetName(), svc.GetNamespace())
 	err := sr.Writer.Put(key, serviceProto)
 	if err != nil {
@@ -142,8 +96,15 @@ func (sr *ServiceReflector) addService(svc *coreV1.Service) {
 }
 
 // deleteService deletes state data of a removed K8s service from the data store.
-func (sr *ServiceReflector) deleteService(svc *coreV1.Service) {
-	sr.Log.WithField("service", svc).Info("Service removed")
+func (sr *ServiceReflector) deleteService(obj interface{}) {
+	sr.Log.WithField("service", obj).Info("deleteService")
+
+	svc, ok := obj.(*coreV1.Service)
+	if !ok {
+		sr.Log.Warn("Failed to cast removed service object")
+		sr.stats.NumArgErrors++
+		return
+	}
 
 	key := service.Key(svc.GetName(), svc.GetNamespace())
 	_, err := sr.Writer.Delete(key)
@@ -156,8 +117,16 @@ func (sr *ServiceReflector) deleteService(svc *coreV1.Service) {
 }
 
 // updateService updates state data of a changes K8s service in the data store.
-func (sr *ServiceReflector) updateService(svcNew, svcOld *coreV1.Service) {
-	sr.Log.WithFields(map[string]interface{}{"service-old": svcOld, "service-new": svcNew}).Info("Service updated")
+func (sr *ServiceReflector) updateService(oldObj, newObj interface{}) {
+	svcOld, ok1 := oldObj.(*coreV1.Service)
+	svcNew, ok2 := newObj.(*coreV1.Service)
+	if !ok1 || !ok2 {
+		sr.Log.Warn("Failed to cast changed service object")
+		sr.stats.NumArgErrors++
+		return
+	}
+	sr.Log.WithFields(map[string]interface{}{"service-old": svcOld, "service-new": svcNew}).
+		Info("Service updated")
 	svcProtoOld := sr.serviceToProto(svcOld)
 	svcProtoNew := sr.serviceToProto(svcNew)
 
@@ -168,7 +137,8 @@ func (sr *ServiceReflector) updateService(svcNew, svcOld *coreV1.Service) {
 		key := service.Key(svcNew.GetName(), svcNew.GetNamespace())
 		err := sr.Writer.Put(key, svcProtoNew)
 		if err != nil {
-			sr.Log.WithField("err", err).Warn("Failed to update service state data in the data store")
+			sr.Log.WithField("err", err).
+				Warn("Failed to update service state data in the data store")
 			sr.stats.NumUpdErrors++
 			return
 		}

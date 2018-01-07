@@ -23,6 +23,8 @@ import (
 	"github.com/golang/protobuf/proto"
 	"github.com/ligato/cn-infra/logging"
 
+	"k8s.io/apimachinery/pkg/fields"
+	k8sRuntime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
 )
@@ -40,7 +42,8 @@ type ReflectorStats struct {
 }
 
 // Reflector is used in all KSR reflectors to hold boiler plate data that
-// is common to all reflectors.
+// is common to all reflectors. This is the base structure used in all KSR
+// reflectors.
 type Reflector struct {
 	// Each reflector gets a separate child logger.
 	Log logging.Logger
@@ -52,16 +55,37 @@ type Reflector struct {
 	Writer KeyProtoValWriter
 	// Lister is used to list values from a datastore.
 	Lister KeyProtoValLister
-
-	objType       string
+	// objType defines the type of the object handled by a particular reflector
+	objType string
+	// stopCh is used to gracefully shutdown the Reflector
 	stopCh        <-chan struct{}
 	wg            *sync.WaitGroup
 	k8sStore      cache.Store
 	k8sController cache.Controller
-	stats         ReflectorStats
+	// Reflector statistics
+	stats ReflectorStats
 
 	dsSynced bool
 	dsMutex  sync.Mutex
+}
+
+// ProtoAllocator defines the signature for a protobuf message allocation
+// function
+type ProtoAllocator func() proto.Message
+
+// K8sToProtoConverter defines the signature for a function converting k8s
+// objects to KSR protobuf objects.
+type K8sToProtoConverter func(interface{}) (interface{}, string, bool)
+
+// DsItems defines the structure holding items listed from the data store.
+type DsItems map[string]interface{}
+
+// ReflectorFunctions defines the function types required in the KSR reflector
+type ReflectorFunctions struct {
+	EventHdlrFunc cache.ResourceEventHandlerFuncs
+
+	ProtoAllocFunc ProtoAllocator
+	K8s2ProtoFunc  K8sToProtoConverter
 }
 
 // ksrRun runs k8s subscription in a separate go routine.
@@ -77,13 +101,6 @@ func (kr *Reflector) ksrStart() {
 	kr.wg.Add(1)
 	go kr.ksrRun()
 }
-
-// DsItems defines the structure holding items listed from the data store.
-type DsItems map[string]interface{}
-
-// K8sToProtoConverter defines the function type for converting k8s objects
-// to KSR protobuf objects.
-type K8sToProtoConverter func(interface{}) (interface{}, string, bool)
 
 func (kr *Reflector) listDataStoreItems(pfx string, iaf func() proto.Message) (DsItems, error) {
 
@@ -176,4 +193,64 @@ func (kr *Reflector) syncDataStore(dsItems DsItems, oc K8sToProtoConverter) {
 	}
 	kr.markAndSweep(dsItems, oc)
 	kr.Log.Infof("Stats: %+v", kr.stats)
+}
+
+// Init subscribes to K8s cluster to watch for changes in the configuration
+// of k8s services. The subscription does not become active until Start()
+// is called.
+func (kr *Reflector) ksrInit(stopCh2 <-chan struct{}, wg *sync.WaitGroup,
+	prefix string, objType k8sRuntime.Object, ksrFuncs ReflectorFunctions) error {
+
+	kr.stopCh = stopCh2
+	kr.wg = wg
+
+	restClient := kr.K8sClientset.CoreV1().RESTClient()
+	listWatch := kr.K8sListWatch.NewListWatchFromClient(restClient,
+		"services", "", fields.Everything())
+	kr.k8sStore, kr.k8sController = kr.K8sListWatch.NewInformer(
+		listWatch,
+		objType,
+		0,
+		cache.ResourceEventHandlerFuncs{
+			AddFunc: func(obj interface{}) {
+				kr.dsMutex.Lock()
+				defer kr.dsMutex.Unlock()
+
+				if !kr.dsSynced {
+					return
+				}
+				ksrFuncs.EventHdlrFunc.AddFunc(obj)
+			},
+			DeleteFunc: func(obj interface{}) {
+				kr.dsMutex.Lock()
+				defer kr.dsMutex.Unlock()
+
+				if !kr.dsSynced {
+					return
+				}
+				ksrFuncs.EventHdlrFunc.DeleteFunc(obj)
+			},
+			UpdateFunc: func(oldObj, newObj interface{}) {
+				kr.dsMutex.Lock()
+				defer kr.dsMutex.Unlock()
+
+				if !kr.dsSynced {
+					return
+				}
+				ksrFuncs.EventHdlrFunc.UpdateFunc(oldObj, newObj)
+			},
+		},
+	)
+
+	// Get all items currently stored in the data store
+	dsSvc, err := kr.listDataStoreItems(prefix, ksrFuncs.ProtoAllocFunc)
+	if err != nil {
+		kr.Log.Error("Error listing services from data store: %s", err)
+	}
+
+	// Sync up the data store with the local k8s cache *after* the cache
+	// is synced with K8s.
+	go kr.syncDataStore(dsSvc, ksrFuncs.K8s2ProtoFunc)
+
+	return nil
 }

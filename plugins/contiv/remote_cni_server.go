@@ -111,6 +111,9 @@ const (
 	vethHostEndName               = "vpp1"
 	vethVPPEndLogicalName         = "veth-vpp2"
 	vethVPPEndName                = "vpp2"
+	tapHostEndName                = "vpp1"
+	tapVPPEndLogicalName          = "tap-vpp2"
+	tapVPPEndName                 = "vpp2"
 	podIfIPPrefix                 = "10.2.1"
 )
 
@@ -292,7 +295,8 @@ func (s *remoteCNIserver) configureVswitchConnectivity() error {
 		s.Logger.Warn("swIfIndex is NULL")
 	}
 
-	// configure veths to host IP stack + AF_PACKET + default route to host
+	// configure veths to host IP stack + AF_PACKET or Tap + default route to host
+	tapHost := s.interconnectTap()
 	vethHost := s.interconnectVethHost()
 	vethVpp := s.interconnectVethVpp()
 	interconnectAF := s.interconnectAfpacket()
@@ -301,9 +305,14 @@ func (s *remoteCNIserver) configureVswitchConnectivity() error {
 	l4Features := s.l4Features(!s.disableTCPstack)
 
 	// configure VETHs first
-	txn3 := s.vppTxnFactory().Put().
-		LinuxInterface(vethHost).
-		LinuxInterface(vethVpp)
+	txn3 := s.vppTxnFactory().Put()
+
+	if s.useTAPInterfaces {
+		txn3.VppInterface(tapHost)
+	} else {
+		txn3.LinuxInterface(vethHost).
+			LinuxInterface(vethVpp)
+	}
 
 	err := txn3.Send().ReceiveReply()
 	if err != nil {
@@ -311,12 +320,23 @@ func (s *remoteCNIserver) configureVswitchConnectivity() error {
 		return err
 	}
 
-	// configure AF_PACKET, routes and enable L4 features
+	if s.useTAPInterfaces {
+		err = s.configureInterfconnectHostTap()
+		if err != nil {
+			s.Logger.Error(err)
+			return err
+		}
+	}
+
+	// configure AF_PACKET (if host is interconnected using vEth is used), routes and enable L4 features
 	txn4 := s.vppTxnFactory().Put().
-		VppInterface(interconnectAF).
 		StaticRoute(routeToHost).
 		LinuxRoute(routeFromHost).
 		L4Features(l4Features)
+
+	if !s.useTAPInterfaces {
+		txn4.VppInterface(interconnectAF)
+	}
 
 	err = txn4.Send().ReceiveReply()
 	if err != nil {
@@ -325,9 +345,14 @@ func (s *remoteCNIserver) configureVswitchConnectivity() error {
 	}
 
 	// store changes for persisting
-	changes[linux_intf.InterfaceKey(vethHost.Name)] = vethHost
-	changes[linux_intf.InterfaceKey(vethVpp.Name)] = vethVpp
-	changes[vpp_intf.InterfaceKey(interconnectAF.Name)] = interconnectAF
+	if s.useTAPInterfaces {
+		changes[vpp_intf.InterfaceKey(tapHost.Name)] = tapHost
+	} else {
+		changes[linux_intf.InterfaceKey(vethHost.Name)] = vethHost
+		changes[linux_intf.InterfaceKey(vethVpp.Name)] = vethVpp
+		changes[vpp_intf.InterfaceKey(interconnectAF.Name)] = interconnectAF
+	}
+
 	changes[vpp_l3.RouteKey(routeToHost.VrfId, routeToHost.DstIpAddr, routeToHost.NextHopAddr)] = routeToHost
 	changes[linux_l3.StaticRouteKey(routeFromHost.Name)] = routeFromHost
 	changes[vpp_l4.FeatureKey()] = l4Features
@@ -349,11 +374,17 @@ func (s *remoteCNIserver) configureVswitchConnectivity() error {
 func (s *remoteCNIserver) cleanupVswitchConnectivity() {
 	vethHost := s.interconnectVethHost()
 	vethVpp := s.interconnectVethVpp()
+	tapHost := s.interconnectTap()
 
 	// unconfigure VPP-host interconnect veth interfaces
-	txn := s.vppTxnFactory().Delete().
-		LinuxInterface(vethHost.Name).
-		LinuxInterface(vethVpp.Name)
+	txn := s.vppTxnFactory().Delete()
+
+	if s.useTAPInterfaces {
+		txn.VppInterface(tapHost.Name)
+	} else {
+		txn.LinuxInterface(vethHost.Name).
+			LinuxInterface(vethVpp.Name)
+	}
 
 	err := txn.Send().ReceiveReply()
 	if err != nil {
@@ -469,7 +500,7 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 	err = txn2.Send().ReceiveReply()
 	if err != nil {
 		s.Logger.Error(err)
-		return s.generateCniErrorReply(err)
+		//return s.generateCniErrorReply(err)
 	}
 
 	// If requested, disable TCP checksum offload on the eth0 veth/tap interface in the container.

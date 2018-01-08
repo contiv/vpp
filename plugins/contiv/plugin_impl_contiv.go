@@ -162,6 +162,11 @@ func (plugin *Plugin) applyExternalConfig() error {
 		return fmt.Errorf("External Contiv plugin configuration was not found")
 	}
 	plugin.Config = externalCfg
+
+	//use tap version 2 as default
+	if plugin.Config.TAPInterfaceVersion == 0 {
+		plugin.Config.TAPInterfaceVersion = 2
+	}
 	return nil
 }
 

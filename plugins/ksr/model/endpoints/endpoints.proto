@@ -1,0 +1,160 @@
+// Copyright (c) 2017 Cisco and/or its affiliates.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at:
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+// Package endpoints defines data model for Kubernetes service endpoints.
+package endpoints;
+
+// ObjectReference contains enough information to let you inspect
+// or modify the referred object.
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+message ObjectReference {
+    // Kind of the referent.
+    // More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#types-kinds
+    // +optional
+    string kind = 1;
+
+    // Namespace of the referent.
+    // More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/namespaces/
+    // +optional
+    string namespace = 2;
+
+    // Name of the referent.
+    // More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+    // +optional
+    string name = 3;
+
+    // UID of the referent.
+    // More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#uids
+    // +optional
+    string uid = 4;
+
+    // API version of the referent.
+    // +optional
+    string api_version = 5;
+
+    // Specific resourceVersion to which this reference is made, if any.
+    // More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#concurrency-control-and-consistency
+    // +optional
+    string resource_version = 6;
+}
+
+// EndpointSubset is a group of addresses with a common set of ports. The
+// expanded set of endpoints is the Cartesian product of Addresses x Ports.
+// For example, given:
+//   {
+//     Addresses: [{"ip": "10.10.1.1"}, {"ip": "10.10.2.2"}],
+//     Ports:     [{"name": "a", "port": 8675}, {"name": "b", "port": 309}]
+//   }
+// The resulting set of endpoints can be viewed as:
+//     a: [ 10.10.1.1:8675, 10.10.2.2:8675 ],
+//     b: [ 10.10.1.1:309, 10.10.2.2:309 ]
+message EndpointSubset {
+
+    // EndpointAddress is a tuple that describes single IP address.
+    message EndpointAddress {
+        // The IP of this endpoint.
+        // May not be loopback (127.0.0.0/8), link-local (169.254.0.0/16),
+        // or link-local multicast ((224.0.0.0/24).
+        // IPv6 is also accepted but not fully supported on all platforms.
+        // Also, certain kubernetes components, like kube-proxy, are not
+        // IPv6 ready.
+        string ip = 1;
+
+        // The Hostname of this endpoint
+        // +optional
+        string host_name = 2;
+
+        // Optional: Node hosting this endpoint. This can be used to
+        // determine endpoints local to a node.
+        // +optional
+        string node_name = 3;
+
+
+        // Reference to object providing the endpoint.
+        ObjectReference target_ref = 4;
+    }
+
+    // IP addresses which offer the related ports that are marked as
+    // ready. These endpoints should be considered safe for load balancers
+    // and clients to utilize.
+    // +optional
+    repeated EndpointAddress addresses = 1;
+
+    // IP addresses which offer the related ports but are not currently
+    // marked as ready because they have not yet finished starting, have
+    // recently failed a readiness check, or have recently failed a
+    // liveness check.
+    // +optional
+    repeated EndpointAddress not_ready_addresses = 2;
+
+    // EndpointPort is a tuple that describes a single port.
+    message EndpointPort {
+        // The name of this port (corresponds to ServicePort.Name).
+        // Must be a DNS_LABEL.
+        // Optional only if one port is defined.
+        // +optional
+        string name = 1;
+
+        // The port number of the endpoint.
+        int32 port = 2;
+
+        // The IP protocol for this port.
+        // Must be UDP or TCP.
+        // Default is TCP.
+        // +optional
+        string protocol = 3;
+    }
+
+    // Port numbers available on the related IP addresses.
+    // +optional
+    repeated EndpointPort ports = 3;
+
+}
+
+// Endpoints is a collection of endpoints that implement the actual service. Example:
+//   Name: "mysvc",
+//   Subsets: [
+//     {
+//       Addresses: [{"ip": "10.10.1.1"}, {"ip": "10.10.2.2"}],
+//       Ports: [{"name": "a", "port": 8675}, {"name": "b", "port": 309}]
+//     },
+//     {
+//       Addresses: [{"ip": "10.10.3.3"}],
+//       Ports: [{"name": "a", "port": 93}, {"name": "b", "port": 76}]
+//     },
+//  ]
+message Endpoints {
+    // Name of the service unique within the namespace for which these
+    // Endpoint Subsets apply to.
+    // Cannot be updated.
+    string name = 1;
+
+    // Namespace for service for which these endpoint subsets apply to.
+    // An empty namespace is equivalent to the "default" namespace, but
+    // "default" is the canonical representation used in the key for a
+    // key-value store.
+    // Cannot be updated.
+    string namespace = 2;
+
+    // The set of all endpoints is the union of all subsets. Addresses are
+    // placed into subsets according to the IPs they share. A single address
+    // with multiple ports, some of which are ready and some of which are not
+    // (because they come from different containers) will result in the address
+    // being displayed in different subsets for the different ports. No address
+    // will appear in both Addresses and NotReadyAddresses in the same subset.
+    // Sets of addresses and ports that comprise a service.
+    repeated EndpointSubset endpoint_subsets = 3;
+}

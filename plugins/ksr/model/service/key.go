@@ -12,32 +12,32 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package policy
+package service
 
 import (
 	"github.com/contiv/vpp/plugins/ksr/model/ksrkey"
 )
 
 const (
-	// PolicyKeyword returns the key prefix identifying all K8s policies in the
+	// ServiceKeyword returns the key prefix identifying all K8s services in the
 	// data store.
-	PolicyKeyword = "policy"
+	ServiceKeyword = "service"
 )
 
-// KeyPrefix returns the key prefix identifying all K8s policies in the
-// data store.
+// KeyPrefix returns the key prefix *template* used in the data-store
+// to save the current state of every known K8s pod.
 func KeyPrefix() string {
-	return ksrkey.KeyPrefix(PolicyKeyword)
+	return ksrkey.KeyPrefix(ServiceKeyword)
 }
 
-// ParsePolicyFromKey parses pod and namespace ids from the associated
+// ParseServiceFromKey parses pod and namespace ids from the associated
 // data-store key.
-func ParsePolicyFromKey(key string) (service string, namespace string, err error) {
-	return ksrkey.ParseNameFromKey(PolicyKeyword, key)
+func ParseServiceFromKey(key string) (service string, namespace string, err error) {
+	return ksrkey.ParseNameFromKey(ServiceKeyword, key)
 }
 
-// Key returns the key under which a given K8s policy is stored in the
+// Key returns the key under which a given K8s service is stored in the
 // data store.
 func Key(name string, namespace string) string {
-	return ksrkey.Key(PolicyKeyword, name, namespace)
+	return ksrkey.Key(ServiceKeyword, name, namespace)
 }

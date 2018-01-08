@@ -12,32 +12,32 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package policy
+package endpoints
 
 import (
 	"github.com/contiv/vpp/plugins/ksr/model/ksrkey"
 )
 
 const (
-	// PolicyKeyword returns the key prefix identifying all K8s policies in the
-	// data store.
-	PolicyKeyword = "policy"
+	// EndpointsKeyword defines the data type keyword (i.e. service)
+	// keys identifying Endpoints data
+	EndpointsKeyword = "endpoints"
 )
 
-// KeyPrefix returns the key prefix identifying all K8s policies in the
+// KeyPrefix returns the key prefix identifying all K8s endpoints in the
 // data store.
 func KeyPrefix() string {
-	return ksrkey.KeyPrefix(PolicyKeyword)
+	return ksrkey.KeyPrefix(EndpointsKeyword)
 }
 
-// ParsePolicyFromKey parses pod and namespace ids from the associated
+// ParseEndpointsFromKey parses pod and namespace ids from the associated
 // data-store key.
-func ParsePolicyFromKey(key string) (service string, namespace string, err error) {
-	return ksrkey.ParseNameFromKey(PolicyKeyword, key)
+func ParseEndpointsFromKey(key string) (endpoints string, namespace string, err error) {
+	return ksrkey.ParseNameFromKey(EndpointsKeyword, key)
 }
 
-// Key returns the key under which a given K8s policy is stored in the
-// data store.
+// Key returns the key under which the endpoints belonging to given K8s
+// service are stored in the data-store.
 func Key(name string, namespace string) string {
-	return ksrkey.Key(PolicyKeyword, name, namespace)
+	return ksrkey.Key(EndpointsKeyword, name, namespace)
 }

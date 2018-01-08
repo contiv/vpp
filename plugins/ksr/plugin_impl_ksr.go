@@ -15,6 +15,8 @@
 //go:generate protoc -I ./model/pod --go_out=plugins=grpc:./model/pod ./model/pod/pod.proto
 //go:generate protoc -I ./model/namespace --go_out=plugins=grpc:./model/namespace ./model/namespace/namespace.proto
 //go:generate protoc -I ./model/policy --go_out=plugins=grpc:./model/policy ./model/policy/policy.proto
+//go:generate protoc -I ./model/service --go_out=plugins=grpc:./model/service ./model/service/service.proto
+//go:generate protoc -I ./model/endpoints --go_out=plugins=grpc:./model/endpoints ./model/endpoints/endpoints.proto
 
 package ksr
 
@@ -44,9 +46,11 @@ type Plugin struct {
 	k8sClientConfig *rest.Config
 	k8sClientset    *kubernetes.Clientset
 
-	nsReflector     *NamespaceReflector
-	podReflector    *PodReflector
-	policyReflector *PolicyReflector
+	nsReflector        *NamespaceReflector
+	podReflector       *PodReflector
+	policyReflector    *PolicyReflector
+	serviceReflector   *ServiceReflector
+	endpointsReflector *EndpointsReflector
 }
 
 // Deps defines dependencies of ksr plugin.
@@ -54,7 +58,7 @@ type Deps struct {
 	local.PluginInfraDeps
 	// Kubeconfig with k8s cluster address and access credentials to use.
 	KubeConfig config.PluginConfig
-	// Publish is used to propagate changes into a key-value datastore.
+	// Writer is used to propagate changes into a key-value datastore.
 	// contiv-ksr uses ETCD as datastore.
 	Publish *kvdbsync.Plugin
 }
@@ -68,8 +72,10 @@ type ReflectorDeps struct {
 	K8sClientset *kubernetes.Clientset
 	// K8s List-Watch is used to watch for Kubernetes config changes.
 	K8sListWatch K8sListWatcher
-	// Publish is used to propagate changes into a datastore.
-	Publish KeyProtoValWriter
+	// Writer is used to propagate changes into a datastore.
+	Writer KeyProtoValWriter
+	// Lister is used to list values from a datastore.
+	Lister KeyProtoValLister
 }
 
 // Init builds K8s client-set based on the supplied kubeconfig and initializes
@@ -91,14 +97,17 @@ func (plugin *Plugin) Init() error {
 		return fmt.Errorf("failed to build kubernetes client: %s", err)
 	}
 
+	ksrPrefix := plugin.Publish.ServiceLabel.GetAgentPrefix()
 	plugin.nsReflector = &NamespaceReflector{
 		ReflectorDeps: ReflectorDeps{
 			Log:          plugin.Log.NewLogger("-namespace"),
 			K8sClientset: plugin.k8sClientset,
 			K8sListWatch: &k8sCache{},
-			Publish:      plugin.Publish,
+			Writer:       plugin.Publish,
+			Lister:       plugin.Publish.Deps.KvPlugin.NewBroker(ksrPrefix),
 		},
 	}
+
 	//plugin.nsReflector.ReflectorDeps.Log.SetLevel(logging.DebugLevel)
 	err = plugin.nsReflector.Init(plugin.stopCh, &plugin.wg)
 	if err != nil {
@@ -111,7 +120,7 @@ func (plugin *Plugin) Init() error {
 			Log:          plugin.Log.NewLogger("-pod"),
 			K8sClientset: plugin.k8sClientset,
 			K8sListWatch: &k8sCache{},
-			Publish:      plugin.Publish,
+			Writer:       plugin.Publish,
 		},
 	}
 	err = plugin.podReflector.Init(plugin.stopCh, &plugin.wg)
@@ -126,7 +135,7 @@ func (plugin *Plugin) Init() error {
 			Log:          plugin.Log.NewLogger("-policy"),
 			K8sClientset: plugin.k8sClientset,
 			K8sListWatch: &k8sCache{},
-			Publish:      plugin.Publish,
+			Writer:       plugin.Publish,
 		},
 	}
 	//plugin.policyReflector.ReflectorDeps.Log.SetLevel(logging.DebugLevel)
@@ -135,6 +144,40 @@ func (plugin *Plugin) Init() error {
 		plugin.Log.WithField("err", err).Error("Failed to initialize Policy reflector")
 		return err
 	}
+
+	plugin.serviceReflector = &ServiceReflector{
+		Reflector: Reflector{
+			Log:          plugin.Log.NewLogger("-service"),
+			K8sClientset: plugin.k8sClientset,
+			K8sListWatch: &k8sCache{},
+			Writer:       plugin.Publish,
+			Lister:       plugin.Publish.Deps.KvPlugin.NewBroker(ksrPrefix),
+			dsSynced:     false,
+			objType:      "Service",
+		},
+	}
+	err = plugin.serviceReflector.Init(plugin.stopCh, &plugin.wg)
+	//plugin.serviceReflector.ReflectorDeps.Log.SetLevel(logging.DebugLevel)
+	if err != nil {
+		plugin.Log.WithField("err", err).Error("Failed to initialize Service reflector")
+		return err
+	}
+
+	plugin.endpointsReflector = &EndpointsReflector{
+		ReflectorDeps: ReflectorDeps{
+			Log:          plugin.Log.NewLogger("-endpoints"),
+			K8sClientset: plugin.k8sClientset,
+			K8sListWatch: &k8sCache{},
+			Writer:       plugin.Publish,
+		},
+	}
+	err = plugin.endpointsReflector.Init(plugin.stopCh, &plugin.wg)
+	//plugin.endpointsReflector.ReflectorDeps.Log.SetLevel(logging.DebugLevel)
+	if err != nil {
+		plugin.Log.WithField("err", err).Error("Failed to initialize Endpoints reflector")
+		return err
+	}
+
 	return nil
 }
 
@@ -145,6 +188,8 @@ func (plugin *Plugin) AfterInit() error {
 	plugin.nsReflector.Start()
 	plugin.podReflector.Start()
 	plugin.policyReflector.Start()
+	plugin.serviceReflector.Start()
+	plugin.endpointsReflector.Start()
 	return nil
 }
 

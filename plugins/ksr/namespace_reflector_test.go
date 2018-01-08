@@ -29,7 +29,7 @@ func TestNamespaceReflector(t *testing.T) {
 			Log:          flavorLocal.LoggerFor("ns-reflector"),
 			K8sClientset: &kubernetes.Clientset{},
 			K8sListWatch: k8sListWatch,
-			Publish:      keyProtoValWriter,
+			Writer:       keyProtoValWriter,
 		},
 	}
 

@@ -372,6 +372,8 @@ rules:
       - pods
       - namespaces
       - networkpolicies
+      - services
+      - endpoints
     verbs:
       - watch
       - list

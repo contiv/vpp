@@ -1,3 +1,17 @@
+// Copyright (c) 2018 Cisco and/or its affiliates.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at:
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package ksr
 
 import (
@@ -6,6 +20,11 @@ import (
 	"github.com/golang/protobuf/proto"
 
 	"github.com/ligato/cn-infra/datasync"
+)
+
+// Error message if not data is found for a given key
+const (
+	noDataForKey = "No data assigned to key "
 )
 
 // KeyProtoValWriter allows reflectors to push their data changes to a data store.
@@ -52,7 +71,7 @@ func (mock *mockKeyProtoValWriter) Delete(key string, opts ...datasync.DelOption
 func (mock *mockKeyProtoValWriter) GetValue(key string, out proto.Message) (err error) {
 	data, exists := mock.ds[key]
 	if !exists {
-		return errors.New("No data assigned to key " + key)
+		return errors.New(noDataForKey + key)
 	}
 	proto.Merge(out, data)
 	return nil

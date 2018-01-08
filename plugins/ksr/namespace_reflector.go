@@ -78,7 +78,7 @@ func (nr *NamespaceReflector) addNamespace(ns *core_v1.Namespace) {
 	nr.Log.WithField("ns", ns).Info("K8s namespace added")
 	nsProto := nr.namespaceToProto(ns)
 	key := proto.Key(ns.GetName())
-	err := nr.Publish.Put(key, nsProto)
+	err := nr.Writer.Put(key, nsProto)
 	if err != nil {
 		nr.Log.WithField("err", err).
 			Warn("Failed to add k8s namespace state data into the data store")
@@ -90,7 +90,7 @@ func (nr *NamespaceReflector) addNamespace(ns *core_v1.Namespace) {
 func (nr *NamespaceReflector) deleteNamespace(ns *core_v1.Namespace) {
 	nr.Log.WithField("ns", ns).Info("K8s namespace removed")
 	key := proto.Key(ns.GetName())
-	_, err := nr.Publish.Delete(key)
+	_, err := nr.Writer.Delete(key)
 	if err != nil {
 		nr.Log.WithField("err", err).
 			Warn("Failed to remove k8s namespace state data from the data store")
@@ -103,7 +103,7 @@ func (nr *NamespaceReflector) updateNamespace(nsNew, nsOld *core_v1.Namespace) {
 	nr.Log.WithFields(map[string]interface{}{"ns-old": nsOld, "ns-new": nsNew}).Info("Namespace updated")
 	nsProto := nr.namespaceToProto(nsNew)
 	key := proto.Key(nsNew.GetName())
-	err := nr.Publish.Put(key, nsProto)
+	err := nr.Writer.Put(key, nsProto)
 	if err != nil {
 		nr.Log.WithField("err", err).
 			Warn("Failed to update k8s namespace state data in the data store")
@@ -125,7 +125,7 @@ func (nr *NamespaceReflector) namespaceToProto(ns *core_v1.Namespace) *proto.Nam
 	return nsProto
 }
 
-// run runs k8s subscription in a separate go routine.
+// ksrRun runs k8s subscription in a separate go routine.
 func (nr *NamespaceReflector) run() {
 	defer nr.wg.Done()
 	nr.Log.Info("Namespace reflector is now running")

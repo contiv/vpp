@@ -69,8 +69,8 @@ Get_Machine_Status
     SshCommons.Execute_Command_And_Log    kubectl get pods    ignore_stderr=True    ignore_rc=True
 
 Create_Connections_To_Kube_Cluster
-    [Documentation]    Create connection and log machine status for each node. Leave active connection pointing to the first node (master).
-    : FOR    ${index}    IN RANGE    ${KUBE_CLUSTER_${CLUSTER_ID}_NODES}    0    -1
+    [Documentation]    Create connection and log machine status for each node.
+    : FOR    ${index}    IN RANGE    1    ${KUBE_CLUSTER_${CLUSTER_ID}_NODES}+1
     \    SshCommons.Open_Ssh_Connection    ${VM_SSH_ALIAS_PREFIX}${index}    ${KUBE_CLUSTER_${CLUSTER_ID}_VM_${index}_PUBLIC_IP}    ${KUBE_CLUSTER_${CLUSTER_ID}_VM_${index}_USER}    ${KUBE_CLUSTER_${CLUSTER_ID}_VM_${index}_PSWD}
     \    Get_Machine_Status    ${VM_SSH_ALIAS_PREFIX}${index}
 

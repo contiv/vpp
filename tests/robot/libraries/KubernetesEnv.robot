@@ -48,6 +48,7 @@ Reinit_One_Node_Kube_Cluster
     Docker_Pull_Custom_Kube_Proxy
     Install_Cri    ${normal_tag}
     ${stdout} =    KubeAdm.Init    ${testbed_connection}
+    BuiltIn.Log    ${stdout}
     BuiltIn.Should_Contain    ${stdout}    Your Kubernetes master has initialized successfully
     SshCommons.Execute_Command_And_Log    mkdir -p $HOME/.kube
     SshCommons.Execute_Command_And_Log    sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
@@ -55,7 +56,7 @@ Reinit_One_Node_Kube_Cluster
     KubeCtl.Taint    ${testbed_connection}    nodes --all node-role.kubernetes.io/master-
     Apply_Contiv_Vpp_Plugin    ${testbed_connection}    ${normal_tag}    ${vpp_tag}
     # Verify k8s and plugin are running
-    BuiltIn.Wait_Until_Keyword_Succeeds    240s    10s    Verify_K8s_With_Plugin_Running    ${testbed_connection}
+    BuiltIn.Wait_Until_Keyword_Succeeds    900s    10s    Verify_K8s_With_Plugin_Running    ${testbed_connection}
 
 Reinit_Multinode_Kube_Cluster
     [Documentation]    Assuming SSH connections with known aliases are created, check roles, reset nodes, init master, wait to see it running, join other nodes, wait until cluster is ready.
@@ -78,6 +79,7 @@ Reinit_Multinode_Kube_Cluster
     \    Install_Cri    ${normal_tag}
     # init master
     ${init_stdout} =    KubeAdm.Init    ${testbed_connection}
+    BuiltIn.Log    ${init_stdout}
     BuiltIn.Should_Contain    ${init_stdout}    Your Kubernetes master has initialized successfully
     SshCommons.Execute_Command_And_Log    mkdir -p $HOME/.kube
     SshCommons.Execute_Command_And_Log    sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
@@ -85,7 +87,7 @@ Reinit_Multinode_Kube_Cluster
     KubeCtl.Taint    ${testbed_connection}    nodes --all node-role.kubernetes.io/master-
     Apply_Contiv_Vpp_Plugin    ${testbed_connection}    ${normal_tag}    ${vpp_tag}
     # Verify k8s and plugin are running
-    BuiltIn.Wait_Until_Keyword_Succeeds    240s    10s    Verify_K8s_With_Plugin_Running    ${testbed_connection}
+    BuiltIn.Wait_Until_Keyword_Succeeds    900s    10s    Verify_K8s_With_Plugin_Running    ${testbed_connection}
     # join other nodes
     ${join_cmd} =    kube_parser.get_join_from_kubeadm_init    ${init_stdout}
     :FOR    ${index}    IN RANGE    2    ${KUBE_CLUSTER_${CLUSTER_ID}_NODES}+1
@@ -470,6 +472,7 @@ Verify_Cluster_Node_Ready
     BuiltIn.Log_Many    ${ssh_session}    ${node_name}
     BuiltIn.Comment    FIXME: Avoid repeated get_nodes when called from Verify_Cluster_Ready.
     ${nodes} =    KubeCtl.Get_Nodes    ${ssh_session}
+    BuiltIn.Log    ${nodes}
     ${status} =    BuiltIn.Evaluate    &{nodes}[${node_name}]['STATUS']
     BuiltIn.Should_Be_Equal    ${status}    Ready
     [Return]    ${nodes}
@@ -479,6 +482,7 @@ Verify_Cluster_Ready
     [Documentation]    Get nodes, check there are \${nr_nodes}, for each node Verify_Cluster_Node_Ready.
     BuiltIn.Log_Many     ${ssh_session}    ${nr_nodes}
     ${nodes} =    KubeCtl.Get_Nodes    ${ssh_session}
+    BuiltIn.Log    ${nodes}
     BuiltIn.Length_Should_Be    ${nodes}    ${nr_nodes}
     ${names} =     Collections.Get_Dictionary_Keys     ${nodes}
     : FOR    ${name}    IN    @{names}
@@ -496,6 +500,7 @@ Log_Contiv_Etcd
     ...    (and do nothing with them, except the implicit Log).
     Builtin.Log_Many    ${ssh_session}
     ${pod_list} =    Get_Pod_Name_List_By_Prefix    ${ssh_session}    contiv-etcd-
+    BuilIn.Log    ${pod_list}
     BuiltIn.Length_Should_Be    ${pod_list}    1
     KubeCtl.Logs    ${ssh_session}    @{pod_list}[0]    namespace=kube-system
 
@@ -505,6 +510,7 @@ Log_Contiv_Ksr
     ...    (and do nothing with them, except the implicit Log).
     Builtin.Log_Many    ${ssh_session}
     ${pod_list} =    Get_Pod_Name_List_By_Prefix    ${ssh_session}    contiv-ksr-
+    BuilIn.Log    ${pod_list}
     BuiltIn.Length_Should_Be    ${pod_list}    1
     KubeCtl.Logs    ${ssh_session}    @{pod_list}[0]    namespace=kube-system
 
@@ -514,6 +520,7 @@ Log_Contiv_Vswitch
     ...    (and do nothing except the implicit Log).
     Builtin.Log_Many    ${ssh_session}    ${exp_nr_vswitch}
     ${pod_list} =    Get_Pod_Name_List_By_Prefix    ${ssh_session}    contiv-vswitch-
+    BuilIn.Log    ${pod_list}
     BuiltIn.Length_Should_Be    ${pod_list}    ${exp_nr_vswitch}
     : FOR    ${vswitch_pod}    IN    @{pod_list}
     \    KubeCtl.Logs    ${ssh_session}    ${vswitch_pod}    namespace=kube-system    container=contiv-cni
@@ -525,6 +532,7 @@ Log_Kube_Dns
     ...    (and do nothing with them, except the implicit Log).
     Builtin.Log_Many    ${ssh_session}
     ${pod_list} =    Get_Pod_Name_List_By_Prefix    ${ssh_session}    kube-dns-
+    BuilIn.Log    ${pod_list}
     BuiltIn.Length_Should_Be    ${pod_list}    1
     KubeCtl.Logs    ${ssh_session}    @{pod_list}[0]    namespace=kube-system    container=kubedns
     KubeCtl.Logs    ${ssh_session}    @{pod_list}[0]    namespace=kube-system    container=dnsmasq

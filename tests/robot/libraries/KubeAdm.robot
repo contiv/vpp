@@ -17,6 +17,6 @@ Init
     Builtin.Log_Many    ${ssh_session}    ${arguments}
     BuiltIn.Comment    TODO: Take cidr from a global variable for user to override when needed.
 #    BuiltIn.Run_Keyword_And_Return    SshCommons.Switch_And_Execute_Command    ${ssh_session}    sudo -E kubeadm init ${arguments}    ignore_stderr=${True}
-    ${out}=    SshCommons.Switch_And_Execute_Command    ${ssh_session}    sudo -E kubeadm init ${arguments}
+    ${out}=    SshCommons.Switch_And_Execute_Command    ${ssh_session}    sudo -E kubeadm init ${arguments}    ignore_stderr=${True}
     BuiltIn.Log    ${out}
     [Return]    ${out}

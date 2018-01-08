@@ -500,7 +500,7 @@ Log_Contiv_Etcd
     ...    (and do nothing with them, except the implicit Log).
     Builtin.Log_Many    ${ssh_session}
     ${pod_list} =    Get_Pod_Name_List_By_Prefix    ${ssh_session}    contiv-etcd-
-    BuilIn.Log    ${pod_list}
+    BuiltIn.Log    ${pod_list}
     BuiltIn.Length_Should_Be    ${pod_list}    1
     KubeCtl.Logs    ${ssh_session}    @{pod_list}[0]    namespace=kube-system
 
@@ -510,7 +510,7 @@ Log_Contiv_Ksr
     ...    (and do nothing with them, except the implicit Log).
     Builtin.Log_Many    ${ssh_session}
     ${pod_list} =    Get_Pod_Name_List_By_Prefix    ${ssh_session}    contiv-ksr-
-    BuilIn.Log    ${pod_list}
+    BuiltIn.Log    ${pod_list}
     BuiltIn.Length_Should_Be    ${pod_list}    1
     KubeCtl.Logs    ${ssh_session}    @{pod_list}[0]    namespace=kube-system
 
@@ -520,7 +520,7 @@ Log_Contiv_Vswitch
     ...    (and do nothing except the implicit Log).
     Builtin.Log_Many    ${ssh_session}    ${exp_nr_vswitch}
     ${pod_list} =    Get_Pod_Name_List_By_Prefix    ${ssh_session}    contiv-vswitch-
-    BuilIn.Log    ${pod_list}
+    BuiltIn.Log    ${pod_list}
     BuiltIn.Length_Should_Be    ${pod_list}    ${exp_nr_vswitch}
     : FOR    ${vswitch_pod}    IN    @{pod_list}
     \    KubeCtl.Logs    ${ssh_session}    ${vswitch_pod}    namespace=kube-system    container=contiv-cni
@@ -532,7 +532,7 @@ Log_Kube_Dns
     ...    (and do nothing with them, except the implicit Log).
     Builtin.Log_Many    ${ssh_session}
     ${pod_list} =    Get_Pod_Name_List_By_Prefix    ${ssh_session}    kube-dns-
-    BuilIn.Log    ${pod_list}
+    BuiltIn.Log    ${pod_list}
     BuiltIn.Length_Should_Be    ${pod_list}    1
     KubeCtl.Logs    ${ssh_session}    @{pod_list}[0]    namespace=kube-system    container=kubedns
     KubeCtl.Logs    ${ssh_session}    @{pod_list}[0]    namespace=kube-system    container=dnsmasq

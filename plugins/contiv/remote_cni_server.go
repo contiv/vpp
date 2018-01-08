@@ -387,8 +387,8 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 	// Prepare objects to be configured by the vpp-agent.
 	veth1 := s.veth1FromRequest(request, podIPCIDR)
 	veth2 := s.veth2FromRequest(request)
-	afpacket := s.afpacketFromRequest(request)
-	tap := s.tapFromRequest(request)
+	afpacket := s.afpacketFromRequest(request, !s.disableTCPstack, podIPCIDR)
+	tap := s.tapFromRequest(request, !s.disableTCPstack, podIPCIDR)
 	vppRoute := s.vppRouteFromRequest(request, podIPCIDR)
 	loop := s.loopbackFromRequest(request, podIP.String())
 	appNs := s.appNamespaceFromRequest(request)
@@ -464,15 +464,6 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 	if err != nil {
 		s.Logger.Error(err)
 		return s.generateErrorResponse(err)
-	}
-
-	if !s.disableTCPstack {
-		// Configure container proxy.
-		err = s.configureContainerProxy(podIP, vppIf.Name)
-		if err != nil {
-			s.Logger.Error(err)
-			return s.generateErrorResponse(err)
-		}
 	}
 
 	// If requested, disable TCP checksum offload on the eth0 veth/tap interface in the container.

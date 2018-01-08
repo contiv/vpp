@@ -28,7 +28,6 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/ligato/cn-infra/datasync"
 	"github.com/ligato/cn-infra/logging"
-	"github.com/ligato/vpp-agent/clientv1/defaultplugins"
 	"github.com/ligato/vpp-agent/clientv1/linux"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/ifaceidx"
 	vpp_intf "github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/model/interfaces"
@@ -40,29 +39,39 @@ import (
 	"golang.org/x/net/context"
 )
 
+// remoteCNIserver represents the remote CNI server instance. It accepts the requests from the contiv-CNI
+// (acting as a GRPC-client) and configures the networking between VPP and the PODs.
 type remoteCNIserver struct {
 	logging.Logger
 	sync.Mutex
 
-	vppLinuxTxnFactory          func() linux.DataChangeDSL
-	vppDefaultPluginsTxnFactory func() defaultplugins.DataChangeDSL
-	proxy                       kvdbproxy.Proxy
-	govppChan                   *api.Channel
-	swIfIndex                   ifaceidx.SwIfIndex
-	configuredContainers        *containeridx.ConfigIndex
+	// VPP local client transaction factory
+	vppTxnFactory func() linux.DataChangeDSL
 
-	// ipam module used by the CNI server
+	// kvdbsync plugin with ability to filter the change events
+	proxy kvdbproxy.Proxy
+
+	// GoVPP channel for direct binary API calls (if needed)
+	govppChan *api.Channel
+
+	// VPP interface index map
+	swIfIndex ifaceidx.SwIfIndex
+
+	// map of configured containers
+	configuredContainers *containeridx.ConfigIndex
+
+	// IPAM module used by the CNI server
 	ipam *ipam.IPAM
 
-	// counter of connected containers. It is used for generating afpacket names
-	// and assigned ip addresses.
+	// counter of connected containers. It is used for generating afpacket names and assigned IP addresses.
+	// TODO: do not rely on counter, since it can overflow uint8 after many container add/remove transactions
 	counter int
 
 	// agent microservice label
 	agentLabel string
 
 	// unique identifier of the node
-	uid uint8
+	nodeID uint8
 
 	// node specific configuration
 	nodeConfigs []OneNodeConfig
@@ -105,24 +114,23 @@ const (
 	podIfIPPrefix                 = "10.2.1"
 )
 
-func newRemoteCNIServer(logger logging.Logger, vppLinuxTxnFactory func() linux.DataChangeDSL,
-	vppDefaultPluginsTxnFactory func() defaultplugins.DataChangeDSL, proxy kvdbproxy.Proxy,
+// newRemoteCNIServer initializes a new remote CNI server instance.
+func newRemoteCNIServer(logger logging.Logger, vppTxnFactory func() linux.DataChangeDSL, proxy kvdbproxy.Proxy,
 	configuredContainers *containeridx.ConfigIndex, govppChan *api.Channel, index ifaceidx.SwIfIndex, agentLabel string,
-	config *Config, uid uint8) (*remoteCNIserver, error) {
-	ipam, err := ipam.New(logger, uid, &config.IPAMConfig)
+	config *Config, nodeID uint8) (*remoteCNIserver, error) {
+	ipam, err := ipam.New(logger, nodeID, &config.IPAMConfig)
 	if err != nil {
 		return nil, err
 	}
 	server := &remoteCNIserver{
-		Logger:                      logger,
-		vppLinuxTxnFactory:          vppLinuxTxnFactory,
-		vppDefaultPluginsTxnFactory: vppDefaultPluginsTxnFactory,
+		Logger:                     logger,
+		vppTxnFactory:              vppTxnFactory,
 		proxy:                      proxy,
 		configuredContainers:       configuredContainers,
 		govppChan:                  govppChan,
 		swIfIndex:                  index,
 		agentLabel:                 agentLabel,
-		uid:                        uid,
+		nodeID:                     nodeID,
 		ipam:                       ipam,
 		nodeConfigs:                config.NodeConfig,
 		tcpChecksumOffloadDisabled: config.TCPChecksumOffloadDisabled,
@@ -136,10 +144,8 @@ func newRemoteCNIServer(logger logging.Logger, vppLinuxTxnFactory func() linux.D
 	return server, nil
 }
 
-func (s *remoteCNIserver) close() {
-	s.cleanupVswitchConnectivity()
-}
-
+// resync is called by the plugin infra when the state of the GRPC server needs to be resynchronized,
+// including the initialization phase
 func (s *remoteCNIserver) resync() error {
 	s.Lock()
 	defer s.Unlock()
@@ -148,18 +154,35 @@ func (s *remoteCNIserver) resync() error {
 	if err != nil {
 		s.Logger.Error(err)
 	}
+
 	return err
 }
 
-// configureVswitchConnectivity configures basic vSwitch VPP connectivity to the host IP stack and to the other hosts.
+// close is called by the plugin infra when the CNI server needs to be stopped.
+func (s *remoteCNIserver) close() {
+	s.cleanupVswitchConnectivity()
+}
+
+// Add handles CNI Add request, connects the container to the network.
+func (s *remoteCNIserver) Add(ctx context.Context, request *cni.CNIRequest) (*cni.CNIReply, error) {
+	s.Info("Add request received ", *request)
+	return s.configureContainerConnectivity(request)
+}
+
+// Delete handles CNI Delete request, disconnects the container from the network.
+func (s *remoteCNIserver) Delete(ctx context.Context, request *cni.CNIRequest) (*cni.CNIReply, error) {
+	s.Info("Delete request received ", *request)
+	return s.unconfigureContainerConnectivity(request)
+}
+
+// configureVswitchConnectivity configures base vSwitch VPP connectivity to the host IP stack and to the other hosts.
 // Namely, it configures:
 //  - physical NIC interface + static routes to PODs on other hosts
-//  - loopback instead of physical NIC if NIC is not found
 //  - veth pair to host IP stack + AF_PACKET on VPP side
 //  - default static route to the host via the veth pair
 func (s *remoteCNIserver) configureVswitchConnectivity() error {
 
-	s.Logger.Info("Applying basic vSwitch config.")
+	s.Logger.Info("Applying base vSwitch config.")
 	s.Logger.Info("Existing interfaces: ", s.swIfIndex.GetMapping().ListNames())
 
 	// only apply the config if resync hasn't done it already
@@ -180,7 +203,7 @@ func (s *remoteCNIserver) configureVswitchConnectivity() error {
 
 		// find physical NIC name
 		nicName := ""
-		config := s.specificConfigForCurrentNode()
+		config := s.loadNodeSpecificConfig()
 		if config != nil && strings.Trim(config.MainVppInterfaceName, " ") != "" {
 			nicName = config.MainVppInterfaceName
 			s.Logger.Debugf("Physical NIC name taken from config: %v ", nicName)
@@ -201,7 +224,7 @@ func (s *remoteCNIserver) configureVswitchConnectivity() error {
 			s.Logger.Info("Configuring physical NIC ", nicName)
 
 			// add the NIC config into the transaction
-			txn1 := s.vppLinuxTxnFactory().Put()
+			txn1 := s.vppTxnFactory().Put()
 
 			nic, err := s.physicalInterface(nicName)
 			if err != nil {
@@ -221,7 +244,7 @@ func (s *remoteCNIserver) configureVswitchConnectivity() error {
 			s.Logger.Debug("Physical NIC not found, configuring loopback instead.")
 
 			// add the NIC config into the transaction
-			txn1 := s.vppLinuxTxnFactory().Put()
+			txn1 := s.vppTxnFactory().Put()
 
 			loop, err := s.physicalInterfaceLoopback()
 			if err != nil {
@@ -253,7 +276,7 @@ func (s *remoteCNIserver) configureVswitchConnectivity() error {
 
 			// send created configuration to VPP
 			if len(interfaces) > 0 {
-				txn2 := s.vppLinuxTxnFactory().Put()
+				txn2 := s.vppTxnFactory().Put()
 				for intfName, intf := range interfaces {
 					txn2.VppInterface(intf)
 					changes[vpp_intf.InterfaceKey(intfName)] = intf
@@ -278,7 +301,7 @@ func (s *remoteCNIserver) configureVswitchConnectivity() error {
 	l4Features := s.l4Features(!s.disableTCPstack)
 
 	// configure VETHs first
-	txn3 := s.vppLinuxTxnFactory().Put().
+	txn3 := s.vppTxnFactory().Put().
 		LinuxInterface(vethHost).
 		LinuxInterface(vethVpp)
 
@@ -289,7 +312,7 @@ func (s *remoteCNIserver) configureVswitchConnectivity() error {
 	}
 
 	// configure AF_PACKET, routes and enable L4 features
-	txn4 := s.vppLinuxTxnFactory().Put().
+	txn4 := s.vppTxnFactory().Put().
 		VppInterface(interconnectAF).
 		StaticRoute(routeToHost).
 		LinuxRoute(routeFromHost).
@@ -322,21 +345,13 @@ func (s *remoteCNIserver) configureVswitchConnectivity() error {
 	return err
 }
 
-func (s *remoteCNIserver) specificConfigForCurrentNode() *OneNodeConfig {
-	for _, oneNodeConfig := range s.nodeConfigs {
-		if oneNodeConfig.NodeName == s.agentLabel {
-			return &oneNodeConfig
-		}
-	}
-	return nil
-}
-
-// cleanupVswitchConnectivity cleans up basic vSwitch VPP connectivity configuration in the host IP stack.
+// cleanupVswitchConnectivity cleans up base vSwitch VPP connectivity configuration in the host IP stack.
 func (s *remoteCNIserver) cleanupVswitchConnectivity() {
 	vethHost := s.interconnectVethHost()
 	vethVpp := s.interconnectVethVpp()
 
-	txn := s.vppLinuxTxnFactory().Delete().
+	// unconfigure VPP-host interconnect veth interfaces
+	txn := s.vppTxnFactory().Delete().
 		LinuxInterface(vethHost.Name).
 		LinuxInterface(vethVpp.Name)
 
@@ -346,21 +361,12 @@ func (s *remoteCNIserver) cleanupVswitchConnectivity() {
 	}
 }
 
-// Add connects the container to the network.
-func (s *remoteCNIserver) Add(ctx context.Context, request *cni.CNIRequest) (*cni.CNIReply, error) {
-	s.Info("Add request received ", *request)
-	return s.configureContainerConnectivity(request)
-}
-
-func (s *remoteCNIserver) Delete(ctx context.Context, request *cni.CNIRequest) (*cni.CNIReply, error) {
-	s.Info("Delete request received ", *request)
-	return s.unconfigureContainerConnectivity(request)
-}
-
-// configureContainerConnectivity creates veth pair where
-// one end is ns1 namespace, the other is in default namespace.
-// the end in default namespace is connected to VPP using afpacket.
+// configureContainerConnectivity connects the POD to vSwitch VPP based on the CNI server configuration:
+// either via virtual ethernet interface pair and AF_PACKET, or via TAP interface.
+// It also configures the VPP TCP stack for this container, in case it would be LD_PRELOAD-ed.
 func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest) (*cni.CNIReply, error) {
+
+	// do not connect any containers until the base vswitch config is successfully applied
 	s.Lock()
 	for !s.vswitchConnectivityConfigured {
 		s.vswitchCond.Wait()
@@ -410,7 +416,7 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 	// TODO: merge transactions into one once linuxplugin supports TAPs and all race-conditions are fixed.
 
 	// Configure host-side interfaces first.
-	txn1 := s.vppLinuxTxnFactory().Put()
+	txn1 := s.vppTxnFactory().Put()
 	if s.useTAPInterfaces {
 		txn1.VppInterface(tap)
 	} else {
@@ -424,19 +430,19 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 	err = txn1.Send().ReceiveReply()
 	if err != nil {
 		s.Logger.Error(err)
-		return s.generateErrorResponse(err)
+		return s.generateCniErrorReply(err)
 	}
 
 	if s.useTAPInterfaces {
 		s.configureHostTAP(request, podIPNet)
 		if err != nil {
 			s.Logger.Error(err)
-			return s.generateErrorResponse(err)
+			return s.generateCniErrorReply(err)
 		}
 	}
 
 	// Configure Pod-VPP connectivity.
-	txn2 := s.vppLinuxTxnFactory().Put()
+	txn2 := s.vppTxnFactory().Put()
 
 	if !s.useTAPInterfaces {
 		txn2.VppInterface(afpacket)
@@ -463,7 +469,7 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 	err = txn2.Send().ReceiveReply()
 	if err != nil {
 		s.Logger.Error(err)
-		return s.generateErrorResponse(err)
+		return s.generateCniErrorReply(err)
 	}
 
 	// If requested, disable TCP checksum offload on the eth0 veth/tap interface in the container.
@@ -471,7 +477,7 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 		err = s.disableTCPChecksumOffload(request)
 		if err != nil {
 			s.Logger.Error(err)
-			return s.generateErrorResponse(err)
+			return s.generateCniErrorReply(err)
 		}
 	}
 
@@ -497,12 +503,12 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 	err = s.persistChanges(nil, changes)
 	if err != nil {
 		s.Logger.Error(err)
-		return s.generateErrorResponse(err)
+		return s.generateCniErrorReply(err)
 	}
 
 	// Store configuration internally for other plugins to read.
 	if s.configuredContainers != nil {
-		extraArgs := s.parseExtraArgs(request.ExtraArguments)
+		extraArgs := s.parseCniExtraArgs(request.ExtraArguments)
 		s.Logger.WithFields(logging.Fields{
 			"PodName":      extraArgs[podNameExtraArg],
 			"PodNamespace": extraArgs[podNamespaceExtraArg],
@@ -535,7 +541,7 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 	}
 
 	// Prepare response for CNI.
-	createdIfs := s.createdInterfaces(vppIf.Name, request.NetworkNamespace, podIPCIDR)
+	createdIfs := s.generateCniInterfaceDetails(vppIf.Name, request.NetworkNamespace, podIPCIDR)
 	reply := &cni.CNIReply{
 		Result:     resultOk,
 		Interfaces: createdIfs,
@@ -549,6 +555,7 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 	return reply, err
 }
 
+// unconfigureContainerConnectivity disconnects the POD from vSwitch VPP.
 func (s *remoteCNIserver) unconfigureContainerConnectivity(request *cni.CNIRequest) (*cni.CNIReply, error) {
 	var err error
 	s.Lock()
@@ -560,7 +567,7 @@ func (s *remoteCNIserver) unconfigureContainerConnectivity(request *cni.CNIReque
 	if s.configuredContainers == nil { /* should not be nil unless this is a unit test */
 		err = fmt.Errorf("configuration was not stored for container: %s", request.ContainerId)
 		s.Logger.Error(err)
-		return s.generateErrorResponse(err)
+		return s.generateCniErrorReply(err)
 	}
 
 	config, found := s.configuredContainers.LookupContainer(request.ContainerId)
@@ -573,7 +580,7 @@ func (s *remoteCNIserver) unconfigureContainerConnectivity(request *cni.CNIReque
 	}
 
 	// Delete ARPs, routes and STN rule.
-	txn1 := s.vppLinuxTxnFactory().Delete()
+	txn1 := s.vppTxnFactory().Delete()
 
 	if !s.disableTCPstack {
 		txn1.StnRule(config.StnRule.RuleName).
@@ -591,11 +598,11 @@ func (s *remoteCNIserver) unconfigureContainerConnectivity(request *cni.CNIReque
 	err = txn1.Send().ReceiveReply()
 	if err != nil {
 		s.Logger.Error(err)
-		return s.generateErrorResponse(err)
+		return s.generateCniErrorReply(err)
 	}
 
 	// Delete interfaces.
-	txn2 := s.vppLinuxTxnFactory().Delete()
+	txn2 := s.vppTxnFactory().Delete()
 
 	txn2.VppInterface(config.VppIf.Name)
 	if !s.useTAPInterfaces {
@@ -609,7 +616,7 @@ func (s *remoteCNIserver) unconfigureContainerConnectivity(request *cni.CNIReque
 	err = txn2.Send().ReceiveReply()
 	if err != nil {
 		s.Logger.Error(err)
-		return s.generateErrorResponse(err)
+		return s.generateCniErrorReply(err)
 	}
 
 	// Check if the TAP interface was removed in the host stack as well.
@@ -617,7 +624,7 @@ func (s *remoteCNIserver) unconfigureContainerConnectivity(request *cni.CNIReque
 		err = s.unconfigureHostTAP(request)
 		if err != nil {
 			s.Logger.Error(err)
-			return s.generateErrorResponse(err)
+			return s.generateCniErrorReply(err)
 		}
 	}
 
@@ -647,7 +654,7 @@ func (s *remoteCNIserver) unconfigureContainerConnectivity(request *cni.CNIReque
 	err = s.persistChanges(removedKeys, nil)
 	if err != nil {
 		s.Logger.Error(err)
-		return s.generateErrorResponse(err)
+		return s.generateCniErrorReply(err)
 	}
 
 	if s.configuredContainers != nil {
@@ -657,7 +664,7 @@ func (s *remoteCNIserver) unconfigureContainerConnectivity(request *cni.CNIReque
 	err = s.ipam.ReleasePodIP(request.NetworkNamespace)
 	if err != nil {
 		s.Logger.Error(err)
-		return s.generateErrorResponse(err)
+		return s.generateCniErrorReply(err)
 	}
 
 	reply := &cni.CNIReply{
@@ -666,7 +673,32 @@ func (s *remoteCNIserver) unconfigureContainerConnectivity(request *cni.CNIReque
 	return reply, nil
 }
 
-func (s *remoteCNIserver) generateErrorResponse(err error) (*cni.CNIReply, error) {
+// loadNodeSpecificConfig loads config specific for this node (given by its name).
+func (s *remoteCNIserver) loadNodeSpecificConfig() *OneNodeConfig {
+	for _, oneNodeConfig := range s.nodeConfigs {
+		if oneNodeConfig.NodeName == s.agentLabel {
+			return &oneNodeConfig
+		}
+	}
+	return nil
+}
+
+// parseCniExtraArgs parses CNI extra arguments from a string into a map.
+func (s *remoteCNIserver) parseCniExtraArgs(input string) map[string]string {
+	res := map[string]string{}
+
+	pairs := strings.Split(input, ";")
+	for i := range pairs {
+		kv := strings.Split(pairs[i], "=")
+		if len(kv) == 2 {
+			res[kv[0]] = kv[1]
+		}
+	}
+	return res
+}
+
+// generateCniErrorReply generates CNI error reply with the proper result code and error message.
+func (s *remoteCNIserver) generateCniErrorReply(err error) (*cni.CNIReply, error) {
 	reply := &cni.CNIReply{
 		Result: resultErr,
 		Error:  err.Error(),
@@ -674,31 +706,8 @@ func (s *remoteCNIserver) generateErrorResponse(err error) (*cni.CNIReply, error
 	return reply, err
 }
 
-func (s *remoteCNIserver) persistChanges(removedKeys []string, putChanges map[string]proto.Message) error {
-	var err error
-	// TODO rollback in case of error
-
-	for _, key := range removedKeys {
-		s.proxy.AddIgnoreEntry(key, datasync.Delete)
-		_, err = s.proxy.Delete(key)
-		if err != nil {
-			return err
-		}
-	}
-
-	for k, v := range putChanges {
-		s.proxy.AddIgnoreEntry(k, datasync.Put)
-		err = s.proxy.Put(k, v)
-		if err != nil {
-			return err
-		}
-	}
-	return err
-}
-
-// createdInterfaces fills the structure containing data of created interfaces
-// that is a part of reply to Add request
-func (s *remoteCNIserver) createdInterfaces(ifName string, nsName string, podIP string) []*cni.CNIReply_Interface {
+// generateCniInterfaceDetails fills the CNI reply with the data of an interface.
+func (s *remoteCNIserver) generateCniInterfaceDetails(ifName string, nsName string, podIP string) []*cni.CNIReply_Interface {
 	return []*cni.CNIReply_Interface{
 		{
 			Name:    ifName,
@@ -714,15 +723,31 @@ func (s *remoteCNIserver) createdInterfaces(ifName string, nsName string, podIP 
 	}
 }
 
-func (s *remoteCNIserver) parseExtraArgs(input string) map[string]string {
-	res := map[string]string{}
+// persistChanges persists the changes passed as input arguments into ETCD.
+func (s *remoteCNIserver) persistChanges(removedKeys []string, putChanges map[string]proto.Message) error {
+	var err error
+	// TODO rollback in case of error
 
-	pairs := strings.Split(input, ";")
-	for i := range pairs {
-		kv := strings.Split(pairs[i], "=")
-		if len(kv) == 2 {
-			res[kv[0]] = kv[1]
+	for _, key := range removedKeys {
+		// ignore the next delete event on this key
+		s.proxy.AddIgnoreEntry(key, datasync.Delete)
+
+		// delete the key
+		_, err = s.proxy.Delete(key)
+		if err != nil {
+			return err
 		}
 	}
-	return res
+
+	for k, v := range putChanges {
+		// ignore the next put event on this key
+		s.proxy.AddIgnoreEntry(k, datasync.Put)
+
+		// put the key
+		err = s.proxy.Put(k, v)
+		if err != nil {
+			return err
+		}
+	}
+	return err
 }

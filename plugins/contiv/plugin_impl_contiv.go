@@ -19,9 +19,7 @@ package contiv
 
 import (
 	"context"
-
 	"fmt"
-
 	"net"
 
 	"git.fd.io/govpp.git/api"
@@ -36,8 +34,6 @@ import (
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/rpc/grpc"
 	"github.com/ligato/cn-infra/utils/safeclose"
-	vpp "github.com/ligato/vpp-agent/clientv1/defaultplugins"
-	vpplocalclient "github.com/ligato/vpp-agent/clientv1/defaultplugins/localclient"
 	"github.com/ligato/vpp-agent/clientv1/linux"
 	linuxlocalclient "github.com/ligato/vpp-agent/clientv1/linux/localclient"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins"
@@ -76,9 +72,9 @@ type Deps struct {
 	Watcher datasync.KeyValProtoWatcher
 }
 
-// Config is configuration for Contiv plugin.
-// It can be injected or loaded from external config. Injection has priority to external config. To use external
-// config add `<Contiv plugin name> + "-config="<absolute path to config>` in go run command flags.
+// Config represents configuration for Contiv plugin.
+// It can be injected or loaded from external config file. Injection has priority to external config. To use external
+// config file, add `-contiv-config="<path to config>` argument when running the contiv-agent.
 type Config struct {
 	TCPChecksumOffloadDisabled bool
 	TCPstackDisabled           bool
@@ -121,11 +117,11 @@ func (plugin *Plugin) Init() error {
 	}
 
 	plugin.nodeIDAllocator = newIDAllocator(plugin.ETCD, plugin.ServiceLabel.GetAgentLabel())
-	uid, err := plugin.nodeIDAllocator.getID()
+	nodeID, err := plugin.nodeIDAllocator.getID()
 	if err != nil {
 		return err
 	}
-	plugin.Log.Infof("Uid of the node is %v", uid)
+	plugin.Log.Infof("ID of the node is %v", nodeID)
 
 	plugin.nodeIDsresyncChan = make(chan datasync.ResyncEvent)
 	plugin.nodeIDSchangeChan = make(chan datasync.ChangeEvent)
@@ -139,16 +135,13 @@ func (plugin *Plugin) Init() error {
 		func() linux.DataChangeDSL {
 			return linuxlocalclient.DataChangeRequest(plugin.PluginName)
 		},
-		func() vpp.DataChangeDSL {
-			return vpplocalclient.DataChangeRequest(plugin.PluginName)
-		},
 		plugin.Proxy,
 		plugin.configuredContainers,
 		plugin.govppCh,
 		plugin.VPP.GetSwIfIndexes(),
 		plugin.ServiceLabel.GetAgentLabel(),
 		plugin.Config,
-		uid)
+		nodeID)
 	if err != nil {
 		return fmt.Errorf("Can't create new remote CNI server due to error: %v ", err)
 	}

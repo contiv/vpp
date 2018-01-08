@@ -57,7 +57,7 @@ func (s *remoteCNIserver) defaultRouteToHost() *l3.StaticRoutes_Route {
 }
 
 func (s *remoteCNIserver) interconnectVethHost() *linux_intf.LinuxInterfaces_Interface {
-	size, _ := s.ipam.VSwitchNetwork().Mask.Size()
+	size, _ := s.ipam.VPPHostNetwork().Mask.Size()
 	return &linux_intf.LinuxInterfaces_Interface{
 		Name:       vethHostEndLogicalName,
 		Type:       linux_intf.LinuxInterfaces_VETH,
@@ -87,7 +87,7 @@ func (s *remoteCNIserver) interconnectAfpacketName() string {
 }
 
 func (s *remoteCNIserver) interconnectAfpacket() *vpp_intf.Interfaces_Interface {
-	size, _ := s.ipam.VSwitchNetwork().Mask.Size()
+	size, _ := s.ipam.VPPHostNetwork().Mask.Size()
 	return &vpp_intf.Interfaces_Interface{
 		Name:    s.interconnectAfpacketName(),
 		Type:    vpp_intf.InterfaceType_AF_PACKET_INTERFACE,
@@ -100,7 +100,7 @@ func (s *remoteCNIserver) interconnectAfpacket() *vpp_intf.Interfaces_Interface 
 }
 
 func (s *remoteCNIserver) physicalInterface(name string) (*vpp_intf.Interfaces_Interface, error) {
-	hostNetwork, err := s.ipam.HostIPNetwork(s.ipam.HostID())
+	nodeNetwork, err := s.ipam.NodeIPNetwork(s.ipam.NodeID())
 	if err != nil {
 		return nil, err
 	}
@@ -108,7 +108,7 @@ func (s *remoteCNIserver) physicalInterface(name string) (*vpp_intf.Interfaces_I
 		Name:        name,
 		Type:        vpp_intf.InterfaceType_ETHERNET_CSMACD,
 		Enabled:     true,
-		IpAddresses: []string{hostNetwork.String()},
+		IpAddresses: []string{nodeNetwork.String()},
 	}, nil
 }
 
@@ -122,7 +122,7 @@ func (s *remoteCNIserver) physicalInterfaceWithCustomIPAddress(name string, ipAd
 }
 
 func (s *remoteCNIserver) physicalInterfaceLoopback() (*vpp_intf.Interfaces_Interface, error) {
-	hostNetwork, err := s.ipam.HostIPNetwork(s.ipam.HostID())
+	nodeNetwork, err := s.ipam.NodeIPNetwork(s.ipam.NodeID())
 	if err != nil {
 		return nil, err
 	}
@@ -130,12 +130,12 @@ func (s *remoteCNIserver) physicalInterfaceLoopback() (*vpp_intf.Interfaces_Inte
 		Name:        "loopbackNIC",
 		Type:        vpp_intf.InterfaceType_SOFTWARE_LOOPBACK,
 		Enabled:     true,
-		IpAddresses: []string{hostNetwork.String()},
+		IpAddresses: []string{nodeNetwork.String()},
 	}, nil
 }
 
 func (s *remoteCNIserver) routeToOtherHostPods(hostID uint8) (*l3.StaticRoutes_Route, error) {
-	podNetwork, err := s.ipam.OtherHostPodNetwork(hostID)
+	podNetwork, err := s.ipam.OtherNodePodNetwork(hostID)
 	if err != nil {
 		return nil, fmt.Errorf("Can't compute pod network for host ID %v, error: %v ", hostID, err)
 	}
@@ -143,20 +143,34 @@ func (s *remoteCNIserver) routeToOtherHostPods(hostID uint8) (*l3.StaticRoutes_R
 }
 
 func (s *remoteCNIserver) routeToOtherHostStack(hostID uint8) (*l3.StaticRoutes_Route, error) {
-	vswitchNetwork, err := s.ipam.OtherHostVSwitchNetwork(hostID)
+	hostNw, err := s.ipam.OtherNodeVPPHostNetwork(hostID)
 	if err != nil {
 		return nil, fmt.Errorf("Can't compute vswitch network for host ID %v, error: %v ", hostID, err)
 	}
-	return s.routeToOtherHostNetworks(hostID, vswitchNetwork)
+	return s.routeToOtherHostNetworks(hostID, hostNw)
+}
+
+func (s *remoteCNIserver) computeRoutesForHost(hostID uint8) (podsRoute *l3.StaticRoutes_Route, hostRoute *l3.StaticRoutes_Route, err error) {
+	podsRoute, err = s.routeToOtherHostPods(hostID)
+	if err != nil {
+		err = fmt.Errorf("Can't construct route to pods of host %v: %v ", hostID, err)
+		return
+	}
+	hostRoute, err = s.routeToOtherHostStack(hostID)
+	if err != nil {
+		err = fmt.Errorf("Can't construct route to host %v: %v ", hostID, err)
+		return
+	}
+	return
 }
 
 func (s *remoteCNIserver) routeToOtherHostNetworks(hostID uint8, destNetwork *net.IPNet) (*l3.StaticRoutes_Route, error) {
-	hostIP, err := s.ipam.HostIPAddress(hostID)
+	nodeIP, err := s.ipam.NodeIPAddress(hostID)
 	if err != nil {
 		return nil, fmt.Errorf("Can't get Host IP address for host ID %v, error: %v ", hostID, err)
 	}
 	return &l3.StaticRoutes_Route{
 		DstIpAddr:   destNetwork.String(),
-		NextHopAddr: hostIP.String(),
+		NextHopAddr: nodeIP.String(),
 	}, nil
 }

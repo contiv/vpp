@@ -348,7 +348,7 @@ Get_Deployed_Pod_Name
     [Return]    ${pod_name}
 
 Deploy_Pod_And_Verify_Running
-    [Arguments]    ${ssh_session}    ${pod_file}    ${pod_prefix}    ${timeout}=60s
+    [Arguments]    ${ssh_session}    ${pod_file}    ${pod_prefix}    ${timeout}=300s
     [Documentation]    Deploy pod defined by \${pod_file}, wait until a pod matching \${pod_prefix} appears, check it was only 1 such pod, extract its name, wait until it is running, log and return the name.
     Builtin.Log_Many    ${ssh_session}    ${pod_file}    ${pod_prefix}
     KubeCtl.Apply_F    ${ssh_session}    ${pod_file}

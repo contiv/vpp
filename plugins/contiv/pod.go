@@ -25,7 +25,6 @@ import (
 	"github.com/vishvananda/netlink"
 
 	"github.com/contiv/vpp/plugins/contiv/model/cni"
-	"github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/bin_api/ip"
 	vpp_intf "github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/model/interfaces"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/model/stn"
 	vpp_l3 "github.com/ligato/vpp-agent/plugins/defaultplugins/l3plugin/model/l3"
@@ -34,34 +33,6 @@ import (
 	linux_intf "github.com/ligato/vpp-agent/plugins/linuxplugin/ifplugin/model/interfaces"
 	linux_l3 "github.com/ligato/vpp-agent/plugins/linuxplugin/l3plugin/model/l3"
 )
-
-func (s *remoteCNIserver) configureContainerProxy(podIP net.IP, ifName string) error {
-	ifIdx, _, found := s.swIfIndex.LookupIdx(ifName)
-	if !found {
-		return fmt.Errorf("cannot find interface index for: %s", ifName)
-	}
-
-	req := &ip.IPContainerProxyAddDel{
-		SwIfIndex: ifIdx,
-		IsAdd:     1,
-	}
-	if podIP.To4() != nil {
-		req.IP = podIP.To4()
-		req.IsIP4 = 1
-		req.Plen = net.IPv4len * 8
-	} else {
-		req.IP = podIP.To16()
-		req.IsIP4 = 0
-		req.Plen = net.IPv6len * 8
-	}
-
-	reply := &ip.IPContainerProxyAddDelReply{}
-	err := s.govppChan.SendRequest(req).ReceiveReply(reply)
-	if reply.Retval != 0 {
-		return fmt.Errorf("request to add container proxy returned non zero retval (%v)", reply.Retval)
-	}
-	return err
-}
 
 // disableTCPChecksumOffload disables TCP checksum offload on the eth0 in the container
 func (s *remoteCNIserver) disableTCPChecksumOffload(request *cni.CNIRequest) error {
@@ -272,8 +243,8 @@ func (s *remoteCNIserver) veth2FromRequest(request *cni.CNIRequest) *linux_intf.
 	}
 }
 
-func (s *remoteCNIserver) afpacketFromRequest(request *cni.CNIRequest) *vpp_intf.Interfaces_Interface {
-	return &vpp_intf.Interfaces_Interface{
+func (s *remoteCNIserver) afpacketFromRequest(request *cni.CNIRequest, configureContainerProxy bool, containerProxyIP string) *vpp_intf.Interfaces_Interface {
+	af := &vpp_intf.Interfaces_Interface{
 		Name:    s.afpacketNameFromRequest(request),
 		Type:    vpp_intf.InterfaceType_AF_PACKET_INTERFACE,
 		Enabled: true,
@@ -283,9 +254,13 @@ func (s *remoteCNIserver) afpacketFromRequest(request *cni.CNIRequest) *vpp_intf
 		IpAddresses: []string{s.ipAddrForPodVPPIf()},
 		PhysAddress: s.generateHwAddrForPodVPPIf(),
 	}
+	if configureContainerProxy {
+		af.ContainerIpAddress = containerProxyIP
+	}
+	return af
 }
 
-func (s *remoteCNIserver) tapFromRequest(request *cni.CNIRequest) *vpp_intf.Interfaces_Interface {
+func (s *remoteCNIserver) tapFromRequest(request *cni.CNIRequest, configureContainerProxy bool, containerProxyIP string) *vpp_intf.Interfaces_Interface {
 	tap := &vpp_intf.Interfaces_Interface{
 		Name:    s.tapNameFromRequest(request),
 		Type:    vpp_intf.InterfaceType_TAP_INTERFACE,
@@ -300,6 +275,9 @@ func (s *remoteCNIserver) tapFromRequest(request *cni.CNIRequest) *vpp_intf.Inte
 		tap.Tap.Version = 2
 		tap.Tap.RxRingSize = uint32(s.tapV2RxRingSize)
 		tap.Tap.TxRingSize = uint32(s.tapV2TxRingSize)
+	}
+	if configureContainerProxy {
+		tap.ContainerIpAddress = containerProxyIP
 	}
 	return tap
 }

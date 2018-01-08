@@ -126,7 +126,7 @@ func (s *remoteCNIserver) configureHostTAP(request *cni.CNIRequest, podIPNet *ne
 	/* TODO: investigate the (non-fatal) error thrown here.
 	if err != nil {
 		s.Logger.Error(err)
-		return s.generateErrorResponse(err)
+		return s.generateCniErrorReply(err)
 	}
 	*/
 

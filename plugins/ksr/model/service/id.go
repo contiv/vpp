@@ -14,13 +14,13 @@
 
 package service
 
-// ID used to uniquely represent a K8s Policy.
+// ID used to uniquely represent a K8s Service.
 type ID struct {
 	Name      string
 	Namespace string
 }
 
-// GetID returns ID of a policy.
+// GetID returns ID of a service.
 func GetID(service *Service) ID {
 	if service != nil {
 		return ID{Name: service.Name, Namespace: service.Namespace}
@@ -28,7 +28,7 @@ func GetID(service *Service) ID {
 	return ID{}
 }
 
-// String returns a string representation of a policy ID.
+// String returns a string representation of a service ID.
 func (id ID) String() string {
 	return id.Namespace + "/" + id.Name
 }

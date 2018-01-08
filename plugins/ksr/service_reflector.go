@@ -19,71 +19,53 @@ import (
 	"sync"
 
 	coreV1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/tools/cache"
 
-	proto "github.com/contiv/vpp/plugins/ksr/model/service"
+	"github.com/golang/protobuf/proto"
+
+	"github.com/contiv/vpp/plugins/ksr/model/service"
 )
 
 // ServiceReflector subscribes to K8s cluster to watch for changes
 // in the configuration of k8s services.
 // Protobuf-modelled changes are published into the selected key-value store.
 type ServiceReflector struct {
-	ReflectorDeps
-
-	stopCh               <-chan struct{}
-	wg                   *sync.WaitGroup
-	k8sServiceStore      cache.Store
-	k8sServiceController cache.Controller
-	stats                ReflectorStats
+	Reflector
 }
 
 // Init subscribes to K8s cluster to watch for changes in the configuration
 // of k8s services. The subscription does not become active until Start()
 // is called.
 func (sr *ServiceReflector) Init(stopCh2 <-chan struct{}, wg *sync.WaitGroup) error {
-	sr.stopCh = stopCh2
-	sr.wg = wg
 
-	restClient := sr.K8sClientset.CoreV1().RESTClient()
-	listWatch := sr.K8sListWatch.NewListWatchFromClient(restClient, "services", "", fields.Everything())
-	sr.k8sServiceStore, sr.k8sServiceController = sr.K8sListWatch.NewInformer(
-		listWatch,
-		&coreV1.Service{},
-		0,
-		cache.ResourceEventHandlerFuncs{
+	serviceReflectorFuncs := ReflectorFunctions{
+		EventHdlrFunc: cache.ResourceEventHandlerFuncs{
 			AddFunc: func(obj interface{}) {
-				svc, ok := obj.(*coreV1.Service)
-				if !ok {
-					sr.Log.Warn("Failed to cast newly created service object")
-					sr.stats.NumArgErrors++
-				} else {
-					sr.addService(svc)
-				}
+				sr.addService(obj)
 			},
 			DeleteFunc: func(obj interface{}) {
-				svc, ok := obj.(*coreV1.Service)
-				if !ok {
-					sr.Log.Warn("Failed to cast removed service object")
-					sr.stats.NumArgErrors++
-				} else {
-					sr.deleteService(svc)
-				}
+				sr.deleteService(obj)
 			},
 			UpdateFunc: func(oldObj, newObj interface{}) {
-				svcOld, ok1 := oldObj.(*coreV1.Service)
-				svcNew, ok2 := newObj.(*coreV1.Service)
-				if !ok1 || !ok2 {
-					sr.Log.Warn("Failed to cast changed service object")
-					sr.stats.NumArgErrors++
-				} else {
-					sr.updateService(svcNew, svcOld)
-				}
+				sr.updateService(oldObj, newObj)
 			},
 		},
-	)
-	return nil
+		ProtoAllocFunc: func() proto.Message {
+			return &service.Service{}
+		},
+		K8s2ProtoFunc: func(k8sObj interface{}) (interface{}, string, bool) {
+			k8sSvc, ok := k8sObj.(*coreV1.Service)
+			if !ok {
+				sr.Log.Errorf("service syncDataStore: wrong object type %s, obj %+v",
+					reflect.TypeOf(k8sObj), k8sObj)
+				return nil, "", false
+			}
+			return sr.serviceToProto(k8sSvc), service.Key(k8sSvc.Name, k8sSvc.Namespace), true
+		},
+	}
+
+	return sr.ksrInit(stopCh2, wg, service.KeyPrefix(), &coreV1.Service{}, serviceReflectorFuncs)
 }
 
 // GetStats returns the Service Reflector usage statistics
@@ -92,81 +74,78 @@ func (sr *ServiceReflector) GetStats() *ReflectorStats {
 }
 
 // addService adds state data of a newly created K8s service into the data store.
-func (sr *ServiceReflector) addService(svc *coreV1.Service) {
-	sr.Log.WithField("service", svc).Info("Service added")
-	serviceProto := sr.serviceToProto(svc)
-	sr.Log.WithField("serviceProto", serviceProto).Info("Service converted")
-	key := proto.Key(svc.GetName(), svc.GetNamespace())
-	err := sr.Publish.Put(key, serviceProto)
+func (sr *ServiceReflector) addService(obj interface{}) {
+	sr.Log.WithField("service", obj).Info("addService")
 
-	if err != nil {
-		sr.Log.WithField("err", err).Warn("Failed to add service state data into the data store")
-		sr.stats.NumAddErrors++
+	svc, ok := obj.(*coreV1.Service)
+	if !ok {
+		sr.Log.Warn("Failed to cast newly created service object")
+		sr.stats.NumArgErrors++
 		return
 	}
 
-	sr.stats.NumAdds++
+	serviceProto := sr.serviceToProto(svc)
+	key := service.Key(svc.GetName(), svc.GetNamespace())
+	sr.ksrAdd(key, serviceProto)
 }
 
 // deleteService deletes state data of a removed K8s service from the data store.
-func (sr *ServiceReflector) deleteService(svc *coreV1.Service) {
-	sr.Log.WithField("service", svc).Info("Service removed")
-	key := proto.Key(svc.GetName(), svc.GetNamespace())
-	_, err := sr.Publish.Delete(key)
-	if err != nil {
-		sr.Log.WithField("err", err).Warn("Failed to remove service state data from the data store")
-		sr.stats.NumDelErrors++
+func (sr *ServiceReflector) deleteService(obj interface{}) {
+	sr.Log.WithField("service", obj).Info("deleteService")
+
+	svc, ok := obj.(*coreV1.Service)
+	if !ok {
+		sr.Log.Warn("Failed to cast removed service object")
+		sr.stats.NumArgErrors++
 		return
 	}
 
-	sr.stats.NumDeletes++
+	key := service.Key(svc.GetName(), svc.GetNamespace())
+	sr.ksrDelete(key)
 }
 
 // updateService updates state data of a changes K8s service in the data store.
-func (sr *ServiceReflector) updateService(svcNew, svcOld *coreV1.Service) {
-	sr.Log.WithFields(map[string]interface{}{"service-old": svcOld, "service-new": svcNew}).Info("Service updated")
+func (sr *ServiceReflector) updateService(oldObj, newObj interface{}) {
+	svcOld, ok1 := oldObj.(*coreV1.Service)
+	svcNew, ok2 := newObj.(*coreV1.Service)
+	if !ok1 || !ok2 {
+		sr.Log.Warn("Failed to cast changed service object")
+		sr.stats.NumArgErrors++
+		return
+	}
+	sr.Log.WithFields(map[string]interface{}{"service-old": svcOld, "service-new": svcNew}).
+		Info("Service updated")
+
 	svcProtoOld := sr.serviceToProto(svcOld)
 	svcProtoNew := sr.serviceToProto(svcNew)
+	key := service.Key(svcNew.GetName(), svcNew.GetNamespace())
 
-	if !reflect.DeepEqual(svcProtoNew, svcProtoOld) {
-		sr.Log.WithFields(map[string]interface{}{"namespace": svcNew.Namespace, "name": svcNew.Name}).
-			Debug("Service changed, updating in Etcd")
-		key := proto.Key(svcNew.GetName(), svcNew.GetNamespace())
-		err := sr.Publish.Put(key, svcProtoNew)
-
-		if err != nil {
-			sr.Log.WithField("err", err).Warn("Failed to update service state data in the data store")
-			sr.stats.NumUpdErrors++
-			return
-		}
-
-		sr.stats.NumUpdates++
-	}
+	sr.ksrUpdate(key, svcProtoOld, svcProtoNew)
 }
 
 // serviceToProto converts service state data from the k8s representation into
 // our protobuf-modelled data structure.
-func (sr *ServiceReflector) serviceToProto(svc *coreV1.Service) *proto.Service {
-	svcProto := &proto.Service{}
+func (sr *ServiceReflector) serviceToProto(svc *coreV1.Service) *service.Service {
+	svcProto := &service.Service{}
 	svcProto.Name = svc.GetName()
 	svcProto.Namespace = svc.GetNamespace()
 
-	var svcPorts []*proto.Service_ServicePort
+	var svcPorts []*service.Service_ServicePort
 loop:
 	for _, port := range svc.Spec.Ports {
-		svcp := &proto.Service_ServicePort{}
+		svcp := &service.Service_ServicePort{}
 		svcp.Name = port.Name
 		svcp.NodePort = port.NodePort
 		svcp.Port = port.Port
 		svcp.Protocol = string(port.Protocol)
 
-		svcp.TargetPort = &proto.Service_ServicePort_IntOrString{}
+		svcp.TargetPort = &service.Service_ServicePort_IntOrString{}
 		switch port.TargetPort.Type {
 		case intstr.Int:
-			svcp.TargetPort.Type = proto.Service_ServicePort_IntOrString_NUMBER
+			svcp.TargetPort.Type = service.Service_ServicePort_IntOrString_NUMBER
 			svcp.TargetPort.IntVal = port.TargetPort.IntVal
 		case intstr.String:
-			svcp.TargetPort.Type = proto.Service_ServicePort_IntOrString_STRING
+			svcp.TargetPort.Type = service.Service_ServicePort_IntOrString_STRING
 			svcp.TargetPort.StringVal = port.TargetPort.StrVal
 		default:
 			sr.Log.WithField("target port", port.TargetPort.Type).Error("Unknown target port type")
@@ -192,16 +171,7 @@ loop:
 
 // Start activates the K8s subscription.
 func (sr *ServiceReflector) Start() {
-	sr.wg.Add(1)
-	go sr.run()
-}
-
-// run runs k8s subscription in a separate go routine.
-func (sr *ServiceReflector) run() {
-	defer sr.wg.Done()
-	sr.Log.Info("Service reflector is now running")
-	sr.k8sServiceController.Run(sr.stopCh)
-	sr.Log.Info("Stopping Service reflector")
+	sr.ksrStart()
 }
 
 // Close does nothing for this particular reflector.

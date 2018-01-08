@@ -107,7 +107,7 @@ func (epr *EndpointsReflector) addEndpoints(eps *coreV1.Endpoints) {
 	endpointsProto := epr.endpointsToProto(eps)
 	epr.Log.WithField("endpointsProto", endpointsProto).Info("Endpoints converted")
 	key := proto.Key(eps.GetName(), eps.GetNamespace())
-	err := epr.Publish.Put(key, endpointsProto)
+	err := epr.Writer.Put(key, endpointsProto)
 	if err != nil {
 		epr.Log.WithField("err", err).Warn("Failed to add endpoints state data into the data store")
 		epr.stats.NumAddErrors++
@@ -124,7 +124,7 @@ func (epr *EndpointsReflector) deleteEndpoints(eps *coreV1.Endpoints) {
 	}
 	epr.Log.WithField("endpoints", eps).Info("Endpoints removed")
 	key := proto.Key(eps.GetName(), eps.GetNamespace())
-	_, err := epr.Publish.Delete(key)
+	_, err := epr.Writer.Delete(key)
 	if err != nil {
 		epr.Log.WithField("err", err).Warn("Failed to remove endpoints state data from the data store")
 		epr.stats.NumDelErrors++
@@ -147,7 +147,7 @@ func (epr *EndpointsReflector) updateEndpoints(epsNew, epsOld *coreV1.Endpoints)
 		epr.Log.WithFields(map[string]interface{}{"namespace": epsNew.Namespace, "name": epsNew.Name}).
 			Info("Endpoints changed, updating in Etcd")
 		key := proto.Key(epsNew.GetName(), epsNew.GetNamespace())
-		err := epr.Publish.Put(key, epsProtoNew)
+		err := epr.Writer.Put(key, epsProtoNew)
 		if err != nil {
 			epr.Log.WithField("err", err).Warn("Failed to update endpoints state data in the data store")
 			epr.stats.NumUpdErrors++
@@ -229,7 +229,7 @@ func (epr *EndpointsReflector) Start() {
 	go epr.run()
 }
 
-// run runs k8s subscription in a separate go routine.
+// ksrRun runs k8s subscription in a separate go routine.
 func (epr *EndpointsReflector) run() {
 	defer epr.wg.Done()
 	epr.Log.Info("Endpoints reflector is now running")

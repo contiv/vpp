@@ -58,7 +58,7 @@ type Deps struct {
 	local.PluginInfraDeps
 	// Kubeconfig with k8s cluster address and access credentials to use.
 	KubeConfig config.PluginConfig
-	// Publish is used to propagate changes into a key-value datastore.
+	// Writer is used to propagate changes into a key-value datastore.
 	// contiv-ksr uses ETCD as datastore.
 	Publish *kvdbsync.Plugin
 }
@@ -72,8 +72,10 @@ type ReflectorDeps struct {
 	K8sClientset *kubernetes.Clientset
 	// K8s List-Watch is used to watch for Kubernetes config changes.
 	K8sListWatch K8sListWatcher
-	// Publish is used to propagate changes into a datastore.
-	Publish KeyProtoValWriter
+	// Writer is used to propagate changes into a datastore.
+	Writer KeyProtoValWriter
+	// Lister is used to list values from a datastore.
+	Lister KeyProtoValLister
 }
 
 // Init builds K8s client-set based on the supplied kubeconfig and initializes
@@ -95,14 +97,17 @@ func (plugin *Plugin) Init() error {
 		return fmt.Errorf("failed to build kubernetes client: %s", err)
 	}
 
+	ksrPrefix := plugin.Publish.ServiceLabel.GetAgentPrefix()
 	plugin.nsReflector = &NamespaceReflector{
 		ReflectorDeps: ReflectorDeps{
 			Log:          plugin.Log.NewLogger("-namespace"),
 			K8sClientset: plugin.k8sClientset,
 			K8sListWatch: &k8sCache{},
-			Publish:      plugin.Publish,
+			Writer:       plugin.Publish,
+			Lister:       plugin.Publish.Deps.KvPlugin.NewBroker(ksrPrefix),
 		},
 	}
+
 	//plugin.nsReflector.ReflectorDeps.Log.SetLevel(logging.DebugLevel)
 	err = plugin.nsReflector.Init(plugin.stopCh, &plugin.wg)
 	if err != nil {
@@ -115,7 +120,7 @@ func (plugin *Plugin) Init() error {
 			Log:          plugin.Log.NewLogger("-pod"),
 			K8sClientset: plugin.k8sClientset,
 			K8sListWatch: &k8sCache{},
-			Publish:      plugin.Publish,
+			Writer:       plugin.Publish,
 		},
 	}
 	err = plugin.podReflector.Init(plugin.stopCh, &plugin.wg)
@@ -130,7 +135,7 @@ func (plugin *Plugin) Init() error {
 			Log:          plugin.Log.NewLogger("-policy"),
 			K8sClientset: plugin.k8sClientset,
 			K8sListWatch: &k8sCache{},
-			Publish:      plugin.Publish,
+			Writer:       plugin.Publish,
 		},
 	}
 	//plugin.policyReflector.ReflectorDeps.Log.SetLevel(logging.DebugLevel)
@@ -141,11 +146,14 @@ func (plugin *Plugin) Init() error {
 	}
 
 	plugin.serviceReflector = &ServiceReflector{
-		ReflectorDeps: ReflectorDeps{
+		Reflector: Reflector{
 			Log:          plugin.Log.NewLogger("-service"),
 			K8sClientset: plugin.k8sClientset,
 			K8sListWatch: &k8sCache{},
-			Publish:      plugin.Publish,
+			Writer:       plugin.Publish,
+			Lister:       plugin.Publish.Deps.KvPlugin.NewBroker(ksrPrefix),
+			dsSynced:     false,
+			objType:      "Service",
 		},
 	}
 	err = plugin.serviceReflector.Init(plugin.stopCh, &plugin.wg)
@@ -160,7 +168,7 @@ func (plugin *Plugin) Init() error {
 			Log:          plugin.Log.NewLogger("-endpoints"),
 			K8sClientset: plugin.k8sClientset,
 			K8sListWatch: &k8sCache{},
-			Publish:      plugin.Publish,
+			Writer:       plugin.Publish,
 		},
 	}
 	err = plugin.endpointsReflector.Init(plugin.stopCh, &plugin.wg)

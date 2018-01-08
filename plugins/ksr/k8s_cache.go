@@ -56,7 +56,7 @@ func (mock *mockK8sListWatch) NewListWatchFromClient(c cache.Getter, resource st
 func (mock *mockK8sListWatch) NewInformer(lw cache.ListerWatcher, objType runtime.Object,
 	resyncPeriod time.Duration, h cache.ResourceEventHandler) (cache.Store, cache.Controller) {
 	mock.resourceHandler = h
-	return nil, &mockK8sListWatchController{}
+	return &cache.FakeCustomStore{}, &mockK8sListWatchController{}
 }
 
 // Add simulates added K8s resource.

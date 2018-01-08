@@ -52,7 +52,7 @@ func TestEndpointsReflector(t *testing.T) {
 			Log:          flavorLocal.LoggerFor("endpoints-reflector"),
 			K8sClientset: &kubernetes.Clientset{},
 			K8sListWatch: epTestVars.k8sListWatch,
-			Publish:      epTestVars.mockKvWriter,
+			Writer:       epTestVars.mockKvWriter,
 		},
 	}
 
@@ -67,7 +67,7 @@ func TestEndpointsReflector(t *testing.T) {
 			Generation:      0,
 			CreationTimestamp: metav1.Date(2017, 12, 28, 19, 58, 37, 0,
 				time.FixedZone("PST", -800)),
-			Labels: map[string]string{"run": "my-nginx"},
+			Labels: map[string]string{"ksrRun": "my-nginx"},
 		},
 		Subsets: []coreV1.EndpointSubset{
 			{
@@ -184,7 +184,7 @@ func testUpdateEndpoints(t *testing.T) {
 			Generation:      0,
 			CreationTimestamp: metav1.Date(2017, 12, 28, 19, 58, 37, 0,
 				time.FixedZone("PST", -800)),
-			Labels: map[string]string{"run": "my-nginx"},
+			Labels: map[string]string{"ksrRun": "my-nginx"},
 		},
 		Subsets: []coreV1.EndpointSubset{
 			{

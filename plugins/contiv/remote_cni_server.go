@@ -373,186 +373,214 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 	}
 	defer s.Unlock()
 
-	var (
-		vppIf     *vpp_intf.Interfaces_Interface
-		podIfName string
-	)
-
-	changes := map[string]proto.Message{}
+	// increment request counter
 	s.counter++
 
-	// Assign IP address for this POD.
+	// prepare config details struct
+	extraArgs := s.parseCniExtraArgs(request.ExtraArguments)
+	config := &containeridx.Config{
+		PodName:      extraArgs[podNameExtraArg],
+		PodNamespace: extraArgs[podNamespaceExtraArg],
+	}
+
+	// assign an IP address for this POD
 	podIP, err := s.ipam.NextPodIP(request.NetworkNamespace)
 	if err != nil {
 		return nil, fmt.Errorf("Can't get new IP address for pod: %v", err)
 	}
 	podIPCIDR := podIP.String() + "/32"
-	podIPNet := &net.IPNet{IP: podIP}
-	podIPNet.Mask = net.CIDRMask(net.IPv4len*8, net.IPv4len*8)
-
-	// Prepare objects to be configured by the vpp-agent.
-	veth1 := s.veth1FromRequest(request, podIPCIDR)
-	veth2 := s.veth2FromRequest(request)
-	afpacket := s.afpacketFromRequest(request, !s.disableTCPstack, podIPCIDR)
-	tap := s.tapFromRequest(request, !s.disableTCPstack, podIPCIDR)
-	vppRoute := s.vppRouteFromRequest(request, podIPCIDR)
-	loop := s.loopbackFromRequest(request, podIP.String())
-	appNs := s.appNamespaceFromRequest(request)
-	if s.useTAPInterfaces {
-		// configure TAP-based pod-VPP connectivity
-		vppIf = tap
-		podIfName = "FIXME" /* TODO: add TAP support to linuxplugin */
-	} else {
-		// configure VETHs+AF_PACKET-based pod-VPP connectivity
-		vppIf = afpacket
-		podIfName = veth1.Name
-	}
-	stnRule := s.stnRule(podIP, vppIf.Name)
-	vppArp := s.vppArpEntry(vppIf.Name, podIP, s.hwAddrForContainer())
-	podArp := s.podArpEntry(request, podIfName, vppIf.PhysAddress)
-	podLinkRoute := s.podLinkRouteFromRequest(request, podIfName)
-	podDefaultRoute := s.podDefaultRouteFromRequest(request, podIfName)
 
 	// TODO: merge transactions into one once linuxplugin supports TAPs and all race-conditions are fixed.
 
-	// Configure host-side interfaces first.
-	txn1 := s.vppTxnFactory().Put()
-	if s.useTAPInterfaces {
-		txn1.VppInterface(tap)
-	} else {
-		txn1.LinuxInterface(veth1).
-			LinuxInterface(veth2)
+	// configure POD interface
+	err = s.configurePodInterface(request, podIP, config)
+	if err != nil {
+		s.Logger.Error(err)
+		return s.generateCniErrorReply(err)
 	}
 
-	// Link scope route must be added before default route
-	txn1.LinuxRoute(podLinkRoute)
+	// configure POD interface on VPP
+	err = s.configurePodVPPSide(request, podIP, config)
+	if err != nil {
+		s.Logger.Error(err)
+		return s.generateCniErrorReply(err)
+	}
 
+	// persist POD configuration in ETCD
+	err = s.persistPodConfig(config)
+	if err != nil {
+		s.Logger.Error(err)
+		return s.generateCniErrorReply(err)
+	}
+
+	// store configuration internally for other plugins in the internal map
+	if s.configuredContainers != nil {
+		s.configuredContainers.RegisterContainer(request.ContainerId, config)
+	}
+
+	// prepare response for CNI
+	reply := s.generateCniReply(config, request.NetworkNamespace, podIPCIDR)
+	return reply, err
+}
+
+// configurePodInterface configures POD's network interface and its routes + ARPs.
+func (s *remoteCNIserver) configurePodInterface(request *cni.CNIRequest, podIP net.IP, config *containeridx.Config) error {
+	var err error
+	podIPCIDR := podIP.String() + "/32"
+	podIPNet := &net.IPNet{
+		IP:   podIP,
+		Mask: net.CIDRMask(net.IPv4len*8, net.IPv4len*8),
+	}
+
+	// prepare the config transaction 1
+	txn1 := s.vppTxnFactory().Put()
+
+	podIfName := ""
+
+	// create VPP to POD interconnect interface
+	if s.useTAPInterfaces {
+		// TAP interface
+		config.VppIf = s.tapFromRequest(request, !s.disableTCPstack, podIPCIDR)
+
+		txn1.VppInterface(config.VppIf)
+	} else {
+		// veth pair + AF_PACKET
+		config.Veth1 = s.veth1FromRequest(request, podIPCIDR)
+		config.Veth2 = s.veth2FromRequest(request)
+		config.VppIf = s.afpacketFromRequest(request, !s.disableTCPstack, podIPCIDR)
+
+		txn1.LinuxInterface(config.Veth1).
+			LinuxInterface(config.Veth2).
+			VppInterface(config.VppIf)
+		podIfName = config.Veth1.Name
+	}
+
+	// link scope route - must be added before the default route
+	config.PodLinkRoute = s.podLinkRouteFromRequest(request, podIfName) // TODO check if this works for TAPs
+	txn1.LinuxRoute(config.PodLinkRoute)
+
+	// ARP to VPP
+	config.PodARPEntry = s.podArpEntry(request, podIfName, config.VppIf.PhysAddress) // TODO check if this works for TAPs
+	txn1.LinuxArpEntry(config.PodARPEntry)
+
+	// execute the config transaction
 	err = txn1.Send().ReceiveReply()
 	if err != nil {
 		s.Logger.Error(err)
-		return s.generateCniErrorReply(err)
+		return err
 	}
 
+	// finish the TAP interface configuration (rename, move to proper namespace, etc.)
 	if s.useTAPInterfaces {
-		s.configureHostTAP(request, podIPNet)
+		err = s.configureHostTAP(request, podIPNet)
+		// TODO: not stored in config, this will not be resynced in case of resync!!!
 		if err != nil {
 			s.Logger.Error(err)
-			return s.generateCniErrorReply(err)
+			return err
 		}
 	}
 
-	// Configure Pod-VPP connectivity.
+	// prepare the config transaction 2
+	// the default route needs to be configured after the first transaction,
+	// since it depends on the link-local route in the transaction 1
 	txn2 := s.vppTxnFactory().Put()
 
-	if !s.useTAPInterfaces {
-		txn2.VppInterface(afpacket)
-	}
+	// Add default route for the container
+	config.PodDefaultRoute = s.podDefaultRouteFromRequest(request, podIfName) // TODO check if this works for TAPs
+	txn2.LinuxRoute(config.PodDefaultRoute)
 
-	if !s.disableTCPstack {
-		// Configure VPPTCP stack.
-		txn2.VppInterface(loop).
-			StnRule(stnRule).
-			AppNamespace(appNs)
-	} else {
-		// Configure route PodIP -> AF_PACKET / TAP.
-		txn2.StaticRoute(vppRoute)
-	}
-
-	// Add ARP entries for both directions: VPP->container & container->VPP.
-	txn2.Arp(vppArp).
-		LinuxArpEntry(podArp)
-
-	// Add default route for the container.
-	txn2.LinuxRoute(podDefaultRoute)
-
-	// Configure connectivity via vpp-agent.
+	// execute the config transaction
 	err = txn2.Send().ReceiveReply()
 	if err != nil {
 		s.Logger.Error(err)
-		return s.generateCniErrorReply(err)
+		return err
 	}
 
-	// If requested, disable TCP checksum offload on the eth0 veth/tap interface in the container.
+	return nil
+}
+
+// configurePodVPPSide configures vswitch VPP part of the POD networking.
+func (s *remoteCNIserver) configurePodVPPSide(request *cni.CNIRequest, podIP net.IP, config *containeridx.Config) error {
+	var err error
+	podIPCIDR := podIP.String() + "/32"
+
+	// prepare the config transaction
+	txn := s.vppTxnFactory().Put()
+
+	if !s.disableTCPstack {
+		// VPP TCP stack config
+		config.Loopback = s.loopbackFromRequest(request, podIP.String())
+		config.AppNamespace = s.appNamespaceFromRequest(request)
+		config.StnRule = s.stnRule(podIP, config.VppIf.Name)
+
+		txn.VppInterface(config.Loopback).
+			AppNamespace(config.AppNamespace).
+			StnRule(config.StnRule)
+	} else {
+		// route to PodIP via AF_PACKET / TAP
+		config.VppRoute = s.vppRouteFromRequest(request, podIPCIDR)
+
+		txn.StaticRoute(config.VppRoute)
+	}
+
+	// ARP entry for POD IP
+	config.VppARPEntry = s.vppArpEntry(config.VppIf.Name, podIP, s.hwAddrForContainer())
+	txn.Arp(config.VppARPEntry)
+
+	// execute the config transaction
+	err = txn.Send().ReceiveReply()
+	if err != nil {
+		s.Logger.Error(err)
+		return err
+	}
+
+	// if requested, disable TCP checksum offload on the eth0 veth/TAP interface in the container.
 	if s.tcpChecksumOffloadDisabled {
 		err = s.disableTCPChecksumOffload(request)
 		if err != nil {
 			s.Logger.Error(err)
-			return s.generateCniErrorReply(err)
+			return err
 		}
 	}
 
-	// Store changes for persisting
-	changes[vpp_intf.InterfaceKey(vppIf.Name)] = vppIf
-	if !s.useTAPInterfaces {
-		changes[linux_intf.InterfaceKey(veth1.Name)] = veth1
-		changes[linux_intf.InterfaceKey(veth2.Name)] = veth2
-	}
-	if !s.disableTCPstack {
-		changes[vpp_intf.InterfaceKey(loop.Name)] = loop
-		changes[stn.Key(stnRule.RuleName)] = stnRule
-		changes[vpp_l4.AppNamespacesKey(appNs.NamespaceId)] = appNs
-	} else {
-		changes[vpp_l3.RouteKey(vppRoute.VrfId, vppRoute.DstIpAddr, vppRoute.NextHopAddr)] = vppRoute
-	}
-	changes[vpp_l3.ArpEntryKey(vppArp.Interface, vppArp.IpAddress)] = vppArp
-	changes[linux_l3.StaticArpKey(podArp.Name)] = podArp
-	changes[linux_l3.StaticRouteKey(podLinkRoute.Name)] = podLinkRoute
-	changes[linux_l3.StaticRouteKey(podDefaultRoute.Name)] = podDefaultRoute
+	return nil
+}
 
-	// Persist the configuration.
+// persistPodConfig persists POD configuration into ETCD.
+func (s *remoteCNIserver) persistPodConfig(config *containeridx.Config) error {
+	var err error
+	changes := map[string]proto.Message{}
+
+	// POD interface configuration
+	if s.useTAPInterfaces {
+		changes[vpp_intf.InterfaceKey(config.VppIf.Name)] = config.VppIf
+	} else {
+		changes[linux_intf.InterfaceKey(config.Veth1.Name)] = config.Veth1
+		changes[linux_intf.InterfaceKey(config.Veth2.Name)] = config.Veth2
+		changes[vpp_intf.InterfaceKey(config.VppIf.Name)] = config.VppIf
+	}
+	changes[linux_l3.StaticRouteKey(config.PodLinkRoute.Name)] = config.PodLinkRoute
+	changes[linux_l3.StaticArpKey(config.PodARPEntry.Name)] = config.PodARPEntry
+	changes[linux_l3.StaticRouteKey(config.PodDefaultRoute.Name)] = config.PodDefaultRoute
+
+	// VPP-side configuration
+	if !s.disableTCPstack {
+		changes[vpp_intf.InterfaceKey(config.Loopback.Name)] = config.Loopback
+		changes[stn.Key(config.StnRule.RuleName)] = config.StnRule
+		changes[vpp_l4.AppNamespacesKey(config.AppNamespace.NamespaceId)] = config.AppNamespace
+	} else {
+		changes[vpp_l3.RouteKey(config.VppRoute.VrfId, config.VppRoute.DstIpAddr, config.VppRoute.NextHopAddr)] = config.VppRoute
+	}
+	changes[vpp_l3.ArpEntryKey(config.VppARPEntry.Interface, config.VppARPEntry.IpAddress)] = config.VppARPEntry
+
+	// persist the configuration
 	err = s.persistChanges(nil, changes)
 	if err != nil {
 		s.Logger.Error(err)
-		return s.generateCniErrorReply(err)
+		return err
 	}
 
-	// Store configuration internally for other plugins to read.
-	if s.configuredContainers != nil {
-		extraArgs := s.parseCniExtraArgs(request.ExtraArguments)
-		s.Logger.WithFields(logging.Fields{
-			"PodName":      extraArgs[podNameExtraArg],
-			"PodNamespace": extraArgs[podNamespaceExtraArg],
-		}).Info("Adding into configured container index")
-
-		// Group configuration of all objects associated with the pod.
-		config := &containeridx.Config{
-			PodName:      extraArgs[podNameExtraArg],
-			PodNamespace: extraArgs[podNamespaceExtraArg],
-			VppIf:        vppIf,
-		}
-		if !s.useTAPInterfaces {
-			config.Veth1 = veth1
-			config.Veth2 = veth2
-		}
-		if !s.disableTCPstack {
-			config.Loopback = loop
-			config.StnRule = stnRule
-			config.AppNamespace = appNs
-		} else {
-			config.VppRoute = vppRoute
-		}
-		config.VppARPEntry = vppArp
-		config.PodARPEntry = podArp
-		config.PodLinkRoute = podLinkRoute
-		config.PodDefaultRoute = podDefaultRoute
-
-		// Register the container in the internal map.
-		s.configuredContainers.RegisterContainer(request.ContainerId, config)
-	}
-
-	// Prepare response for CNI.
-	createdIfs := s.generateCniInterfaceDetails(vppIf.Name, request.NetworkNamespace, podIPCIDR)
-	reply := &cni.CNIReply{
-		Result:     resultOk,
-		Interfaces: createdIfs,
-		Routes: []*cni.CNIReply_Route{
-			{
-				Dst: "0.0.0.0/0",
-				Gw:  s.ipam.PodGatewayIP().String(),
-			},
-		},
-	}
-	return reply, err
+	return nil
 }
 
 // unconfigureContainerConnectivity disconnects the POD from vSwitch VPP.
@@ -706,18 +734,27 @@ func (s *remoteCNIserver) generateCniErrorReply(err error) (*cni.CNIReply, error
 	return reply, err
 }
 
-// generateCniInterfaceDetails fills the CNI reply with the data of an interface.
-func (s *remoteCNIserver) generateCniInterfaceDetails(ifName string, nsName string, podIP string) []*cni.CNIReply_Interface {
-	return []*cni.CNIReply_Interface{
-		{
-			Name:    ifName,
-			Sandbox: nsName,
-			IpAddresses: []*cni.CNIReply_Interface_IP{
-				{
-					Version: cni.CNIReply_Interface_IP_IPV4,
-					Address: podIP,
-					Gateway: s.ipam.PodGatewayIP().String(),
+// generateCniReply fills the CNI reply with the data of an interface.
+func (s *remoteCNIserver) generateCniReply(config *containeridx.Config, nsName string, podIP string) *cni.CNIReply {
+	return &cni.CNIReply{
+		Result: resultOk,
+		Interfaces: []*cni.CNIReply_Interface{
+			{
+				Name:    config.VppIf.Name,
+				Sandbox: nsName,
+				IpAddresses: []*cni.CNIReply_Interface_IP{
+					{
+						Version: cni.CNIReply_Interface_IP_IPV4,
+						Address: podIP,
+						Gateway: s.ipam.PodGatewayIP().String(),
+					},
 				},
+			},
+		},
+		Routes: []*cni.CNIReply_Route{
+			{
+				Dst: "0.0.0.0/0",
+				Gw:  s.ipam.PodGatewayIP().String(),
 			},
 		},
 	}

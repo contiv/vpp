@@ -16,8 +16,9 @@ package namespace
 
 import (
 	"fmt"
-	"github.com/contiv/vpp/plugins/ksr/model/ksrkey"
 	"strings"
+
+	"github.com/contiv/vpp/plugins/ksr/model/ksrkey"
 )
 
 const (

@@ -43,10 +43,10 @@ To use the development image for testing with specific version of VPP, see
     - `PodSubnetCIDR`: subnet used for all pods across all nodes;
     - `PodNetworkPrefixLen`: subnet prefix length used for all pods of 1 k8s node
       (pod network = pod subnet for one k8s node);
-    - `VSwitchSubnetCIDR`: subnet used in each node for vSwitch-to-host connectivity;
-    - `VSwitchNetworkPrefixLen`: prefix length of the subnet used for vswitch-to-host connectivity
-      on 1 k8s node (vSwitch network = vSwitch subnet for one k8s node);
-    - `HostNodeSubnetCidr`: subnet used for main interfaces of all nodes.
+    - `VPPHostSubnetCIDR`: subnet used in each node for VPP-to-host connectivity;
+    - `VPPHostNetworkPrefixLen`: prefix length of the subnet used for VPP-to-host connectivity
+      on 1 k8s node (VPPHost network = VPPHost subnet for one k8s node);
+    - `NodeInterconnectCIDR`: subnet used for main interfaces of all nodes.
 
   * Node configuration (section `NodeConfig`; one entry for each node)
     - `NodeName`: name of a Kubernetes node;

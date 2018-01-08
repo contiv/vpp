@@ -500,7 +500,10 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 	err = txn2.Send().ReceiveReply()
 	if err != nil {
 		s.Logger.Error(err)
-		//return s.generateCniErrorReply(err)
+		//TODO: FIXME error should be return once agent is aware of created TAP interfaces
+		if !s.useTAPInterfaces {
+			return s.generateCniErrorReply(err)
+		}
 	}
 
 	// If requested, disable TCP checksum offload on the eth0 veth/tap interface in the container.

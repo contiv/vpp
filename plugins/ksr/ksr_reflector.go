@@ -41,9 +41,7 @@ type ReflectorStats struct {
 	NumUpdErrors int
 }
 
-// Reflector is used in all KSR reflectors to hold boiler plate data that
-// is common to all reflectors. This is the base structure used in all KSR
-// reflectors.
+// Reflector holds data that is common to all KSR reflectors.
 type Reflector struct {
 	// Each reflector gets a separate child logger.
 	Log logging.Logger
@@ -193,6 +191,42 @@ func (kr *Reflector) syncDataStore(dsItems DsItems, oc K8sToProtoConverter) {
 	}
 	kr.markAndSweep(dsItems, oc)
 	kr.Log.Infof("Stats: %+v", kr.stats)
+}
+
+func (kr *Reflector) ksrAdd(key string, item proto.Message) {
+	err := kr.Writer.Put(key, item)
+	if err != nil {
+		kr.Log.WithField("err", err).Warn("Failed to add service state data into the data store")
+		kr.stats.NumAddErrors++
+		return
+	}
+	kr.stats.NumAdds++
+}
+
+func (kr *Reflector) ksrUpdate(key string, itemOld, itemNew proto.Message) {
+	if !reflect.DeepEqual(itemOld, itemNew) {
+
+		kr.Log.WithField("key", key).Debug("Updating item in data store")
+
+		err := kr.Writer.Put(key, itemNew)
+		if err != nil {
+			kr.Log.WithField("err", err).
+				Warn("Failed to update service state data in the data store")
+			kr.stats.NumUpdErrors++
+			return
+		}
+		kr.stats.NumUpdates++
+	}
+}
+
+func (kr *Reflector) ksrDelete(key string) {
+	_, err := kr.Writer.Delete(key)
+	if err != nil {
+		kr.Log.WithField("err", err).Warn("Failed to remove service state data from the data store")
+		kr.stats.NumDelErrors++
+		return
+	}
+	kr.stats.NumDeletes++
 }
 
 // Init subscribes to K8s cluster to watch for changes in the configuration

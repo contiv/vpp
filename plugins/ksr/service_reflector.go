@@ -86,13 +86,7 @@ func (sr *ServiceReflector) addService(obj interface{}) {
 
 	serviceProto := sr.serviceToProto(svc)
 	key := service.Key(svc.GetName(), svc.GetNamespace())
-	err := sr.Writer.Put(key, serviceProto)
-	if err != nil {
-		sr.Log.WithField("err", err).Warn("Failed to add service state data into the data store")
-		sr.stats.NumAddErrors++
-		return
-	}
-	sr.stats.NumAdds++
+	sr.ksrAdd(key, serviceProto)
 }
 
 // deleteService deletes state data of a removed K8s service from the data store.
@@ -107,13 +101,7 @@ func (sr *ServiceReflector) deleteService(obj interface{}) {
 	}
 
 	key := service.Key(svc.GetName(), svc.GetNamespace())
-	_, err := sr.Writer.Delete(key)
-	if err != nil {
-		sr.Log.WithField("err", err).Warn("Failed to remove service state data from the data store")
-		sr.stats.NumDelErrors++
-		return
-	}
-	sr.stats.NumDeletes++
+	sr.ksrDelete(key)
 }
 
 // updateService updates state data of a changes K8s service in the data store.
@@ -127,24 +115,12 @@ func (sr *ServiceReflector) updateService(oldObj, newObj interface{}) {
 	}
 	sr.Log.WithFields(map[string]interface{}{"service-old": svcOld, "service-new": svcNew}).
 		Info("Service updated")
+
 	svcProtoOld := sr.serviceToProto(svcOld)
 	svcProtoNew := sr.serviceToProto(svcNew)
+	key := service.Key(svcNew.GetName(), svcNew.GetNamespace())
 
-	if !reflect.DeepEqual(svcProtoNew, svcProtoOld) {
-		sr.Log.WithFields(map[string]interface{}{"namespace": svcNew.Namespace, "name": svcNew.Name}).
-			Debug("Service changed, updating in Etcd")
-
-		key := service.Key(svcNew.GetName(), svcNew.GetNamespace())
-		err := sr.Writer.Put(key, svcProtoNew)
-		if err != nil {
-			sr.Log.WithField("err", err).
-				Warn("Failed to update service state data in the data store")
-			sr.stats.NumUpdErrors++
-			return
-		}
-
-		sr.stats.NumUpdates++
-	}
+	sr.ksrUpdate(key, svcProtoOld, svcProtoNew)
 }
 
 // serviceToProto converts service state data from the k8s representation into

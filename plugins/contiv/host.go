@@ -23,6 +23,7 @@ import (
 	vpp_intf "github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/model/interfaces"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/l3plugin/model/l3"
 	vpp_l4 "github.com/ligato/vpp-agent/plugins/defaultplugins/l4plugin/model/l4"
+	"github.com/ligato/vpp-agent/plugins/linuxplugin/ifplugin/linuxcalls"
 	linux_intf "github.com/ligato/vpp-agent/plugins/linuxplugin/ifplugin/model/interfaces"
 	linux_l3 "github.com/ligato/vpp-agent/plugins/linuxplugin/l3plugin/model/l3"
 )
@@ -34,7 +35,7 @@ func (s *remoteCNIserver) l4Features(enable bool) *vpp_l4.L4Features {
 }
 
 func (s *remoteCNIserver) routeFromHost() *linux_l3.LinuxStaticRoutes_Route {
-	return &linux_l3.LinuxStaticRoutes_Route{
+	route := &linux_l3.LinuxStaticRoutes_Route{
 		Name:        "host-to-vpp",
 		Default:     false,
 		Namespace:   nil,
@@ -46,14 +47,47 @@ func (s *remoteCNIserver) routeFromHost() *linux_l3.LinuxStaticRoutes_Route {
 		DstIpAddr: s.ipam.PodSubnet().String(),
 		GwAddr:    s.ipam.VEthVPPEndIP().String(),
 	}
+	if s.useTAPInterfaces {
+		route.Interface = tapHostEndName
+	}
+	return route
 }
 
 func (s *remoteCNIserver) defaultRouteToHost() *l3.StaticRoutes_Route {
-	return &l3.StaticRoutes_Route{
+	route := &l3.StaticRoutes_Route{
 		DstIpAddr:         "0.0.0.0/0",
 		NextHopAddr:       s.ipam.VEthHostEndIP().String(),
 		OutgoingInterface: s.interconnectAfpacketName(),
 	}
+	if s.useTAPInterfaces {
+		route.OutgoingInterface = tapVPPEndLogicalName
+	}
+	return route
+}
+
+func (s *remoteCNIserver) interconnectTap() *vpp_intf.Interfaces_Interface {
+	size, _ := s.ipam.VPPHostNetwork().Mask.Size()
+	tap := &vpp_intf.Interfaces_Interface{
+		Name:    tapVPPEndLogicalName,
+		Type:    vpp_intf.InterfaceType_TAP_INTERFACE,
+		Enabled: true,
+		Tap: &vpp_intf.Interfaces_Interface_Tap{
+			HostIfName: tapHostEndName,
+		},
+		IpAddresses: []string{s.ipam.VEthVPPEndIP().String() + "/" + strconv.Itoa(size)},
+	}
+	if s.tapVersion == 2 {
+		tap.Tap.Version = 2
+		tap.Tap.RxRingSize = uint32(s.tapV2RxRingSize)
+		tap.Tap.TxRingSize = uint32(s.tapV2TxRingSize)
+	}
+
+	return tap
+}
+
+func (s *remoteCNIserver) configureInterfconnectHostTap() error {
+	// Set TAP interface IP to that of the Pod.
+	return linuxcalls.AddInterfaceIP(tapHostEndName, &net.IPNet{IP: s.ipam.VEthHostEndIP(), Mask: s.ipam.VPPHostNetwork().Mask}, nil)
 }
 
 func (s *remoteCNIserver) interconnectVethHost() *linux_intf.LinuxInterfaces_Interface {

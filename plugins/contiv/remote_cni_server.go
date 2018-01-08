@@ -562,11 +562,7 @@ func (s *remoteCNIserver) configurePodVPPSide(request *cni.CNIRequest, podIP net
 	err = txn.Send().ReceiveReply()
 	if err != nil {
 		s.Logger.Error(err)
-
-		// TODO: skip errors by TAPs.. FIXME error should be returned once agent is aware of created TAP interfaces.
-		if !s.useTAPInterfaces {
-			return err
-		}
+		return err
 	}
 
 	// if requested, disable TCP checksum offload on the eth0 veth/TAP interface in the container.

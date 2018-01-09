@@ -25,9 +25,10 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/kubernetes"
 
+	"time"
+
 	proto "github.com/contiv/vpp/plugins/ksr/model/service"
 	"github.com/ligato/cn-infra/flavors/local"
-	"time"
 )
 
 type ServiceTestVars struct {

@@ -40,8 +40,8 @@ import (
 	"github.com/ligato/vpp-agent/plugins/govppmux"
 )
 
-// Plugin transforms GRPC requests into configuration for the VPP in order
-// to connect a container into the network.
+// Plugin represents the instance of the Contiv network plugin, that transforms CNI requests recieved over
+// GRPC into configuration for the vswitch VPP in order to connect/disconnect a container into/from the network.
 type Plugin struct {
 	Deps
 	govppCh *api.Channel
@@ -72,7 +72,7 @@ type Deps struct {
 	Watcher datasync.KeyValProtoWatcher
 }
 
-// Config represents configuration for Contiv plugin.
+// Config represents configuration for the Contiv plugin.
 // It can be injected or loaded from external config file. Injection has priority to external config. To use external
 // config file, add `-contiv-config="<path to config>` argument when running the contiv-agent.
 type Config struct {
@@ -93,19 +93,21 @@ type OneNodeConfig struct {
 	OtherVPPInterfaces   []InterfaceWithIP // other configured interfaces get only ip address assigned in vpp
 }
 
-// InterfaceWithIP binds interface name with ip for configuration purposes.
+// InterfaceWithIP binds interface name with IP address for configuration purposes.
 type InterfaceWithIP struct {
 	InterfaceName string
 	IP            string
 }
 
-// Init initializes the grpc server handling the request from the CNI.
+// Init initializes the Contiv plugin. Called automatically by plugin infra upon contiv-agent startup.
 func (plugin *Plugin) Init() error {
+	// init map with configured containers
 	plugin.configuredContainers = containeridx.NewConfigIndex(plugin.Log, plugin.PluginName, "containers")
 
+	// load config file
 	plugin.ctx, plugin.ctxCancelFunc = context.WithCancel(context.Background())
 	if plugin.Config == nil {
-		if err := plugin.applyExternalConfig(); err != nil {
+		if err := plugin.loadExternalConfig(); err != nil {
 			return err
 		}
 	}
@@ -116,6 +118,7 @@ func (plugin *Plugin) Init() error {
 		return err
 	}
 
+	// init node ID allocator
 	plugin.nodeIDAllocator = newIDAllocator(plugin.ETCD, plugin.ServiceLabel.GetAgentLabel())
 	nodeID, err := plugin.nodeIDAllocator.getID()
 	if err != nil {
@@ -131,6 +134,7 @@ func (plugin *Plugin) Init() error {
 		return err
 	}
 
+	// start the GRPC server handling the CNI requests
 	plugin.cniServer, err = newRemoteCNIServer(plugin.Log,
 		func() linux.DataChangeDSL {
 			return linuxlocalclient.DataChangeRequest(plugin.PluginName)
@@ -147,30 +151,14 @@ func (plugin *Plugin) Init() error {
 	}
 	cni.RegisterRemoteCNIServer(plugin.GRPC.Server(), plugin.cniServer)
 
+	// start goroutine handling changes in nodes within the k8s cluster
 	go plugin.cniServer.handleNodeEvents(plugin.ctx, plugin.nodeIDsresyncChan, plugin.nodeIDSchangeChan)
 
 	return nil
 }
 
-func (plugin *Plugin) applyExternalConfig() error {
-	externalCfg := &Config{}
-	found, err := plugin.PluginConfig.GetValue(externalCfg) // It tries to lookup `PluginName + "-config"` in go run command flags.
-	if err != nil {
-		return fmt.Errorf("External Contiv plugin configuration could not load or other problem happened: %v", err)
-	}
-	if !found {
-		return fmt.Errorf("External Contiv plugin configuration was not found")
-	}
-	plugin.Config = externalCfg
-
-	//use tap version 2 as default
-	if plugin.Config.TAPInterfaceVersion == 0 {
-		plugin.Config.TAPInterfaceVersion = 2
-	}
-	return nil
-}
-
-// AfterInit registers to the ResyncOrchestrator. The registration is done in this phase
+// AfterInit is called by the plugin infra after Init of all plugins is finished.
+// It registers to the ResyncOrchestrator. The registration is done in this phase
 // in order to trigger the resync for this plugin once the resync of VPP plugins is finished.
 func (plugin *Plugin) AfterInit() error {
 	if plugin.Resync != nil {
@@ -180,7 +168,7 @@ func (plugin *Plugin) AfterInit() error {
 	return nil
 }
 
-// Close cleans up the resources allocated by the plugin
+// Close is called by the plugin infra upon agent cleanup. It cleans up the resources allocated by the plugin.
 func (plugin *Plugin) Close() error {
 	plugin.ctxCancelFunc()
 	plugin.cniServer.close()
@@ -189,27 +177,7 @@ func (plugin *Plugin) Close() error {
 	return err
 }
 
-// getContainerConfig return the configuration of the container associated
-// with the given pod.
-func (plugin *Plugin) getContainerConfig(podNamespace string, podName string) *containeridx.Config {
-	podNamesMatch := plugin.configuredContainers.LookupPodName(podName)
-	podNamespacesMatch := plugin.configuredContainers.LookupPodNamespace(podNamespace)
-
-	for _, pod1 := range podNamespacesMatch {
-		for _, pod2 := range podNamesMatch {
-			if pod1 == pod2 {
-				data, found := plugin.configuredContainers.LookupContainer(pod1)
-				if found {
-					return data
-				}
-			}
-		}
-	}
-
-	return nil
-}
-
-// GetIfName looks up logical interface name that corresponds to the interface associated with the given pod.
+// GetIfName looks up logical interface name that corresponds to the interface associated with the given POD name.
 func (plugin *Plugin) GetIfName(podNamespace string, podName string) (name string, exists bool) {
 	config := plugin.getContainerConfig(podNamespace, podName)
 	if config != nil && config.VppIf != nil {
@@ -219,8 +187,7 @@ func (plugin *Plugin) GetIfName(podNamespace string, podName string) (name strin
 	return "", false
 }
 
-// GetNsIndex returns the index of the VPP session namespace associated
-// with the given pod.
+// GetNsIndex returns the index of the VPP session namespace associated with the given POD name.
 func (plugin *Plugin) GetNsIndex(podNamespace string, podName string) (nsIndex uint32, exists bool) {
 	config := plugin.getContainerConfig(podNamespace, podName)
 	if config != nil {
@@ -231,16 +198,17 @@ func (plugin *Plugin) GetNsIndex(podNamespace string, podName string) (nsIndex u
 	return 0, false
 }
 
-// GetPodNetwork provides subnet used for allocating pod IP addresses on this host node.
+// GetPodNetwork provides subnet used for allocating pod IP addresses on this node.
 func (plugin *Plugin) GetPodNetwork() *net.IPNet {
 	return plugin.cniServer.ipam.PodNetwork()
 }
 
-// IsTCPstackDisabled returns true if the tcp stack is disabled and only VETHs/TAPs are configured
+// IsTCPstackDisabled returns true if the VPP TCP stack is disabled and only VETHs/TAPs are configured.
 func (plugin *Plugin) IsTCPstackDisabled() bool {
 	return plugin.Config.TCPstackDisabled
 }
 
+// handleResync handles resync events of the plugin. Called automatically by the plugin infra.
 func (plugin *Plugin) handleResync(resyncChan chan resync.StatusEvent) {
 	for {
 		select {
@@ -257,4 +225,43 @@ func (plugin *Plugin) handleResync(resyncChan chan resync.StatusEvent) {
 			return
 		}
 	}
+}
+
+// loadExternalConfig attempts to load external configuration from a YAML file.
+func (plugin *Plugin) loadExternalConfig() error {
+	externalCfg := &Config{}
+	found, err := plugin.PluginConfig.GetValue(externalCfg) // It tries to lookup `PluginName + "-config"` in the executable arguments.
+	if err != nil {
+		return fmt.Errorf("External Contiv plugin configuration could not load or other problem happened: %v", err)
+	}
+	if !found {
+		return fmt.Errorf("External Contiv plugin configuration was not found")
+	}
+	plugin.Config = externalCfg
+
+	// use tap version 2 as default in case that TAPs are enabled
+	if plugin.Config.TAPInterfaceVersion == 0 {
+		plugin.Config.TAPInterfaceVersion = 2
+	}
+
+	return nil
+}
+
+// getContainerConfig returns the configuration of the container associated with the given POD name.
+func (plugin *Plugin) getContainerConfig(podNamespace string, podName string) *containeridx.Config {
+	podNamesMatch := plugin.configuredContainers.LookupPodName(podName)
+	podNamespacesMatch := plugin.configuredContainers.LookupPodNamespace(podNamespace)
+
+	for _, pod1 := range podNamespacesMatch {
+		for _, pod2 := range podNamesMatch {
+			if pod1 == pod2 {
+				data, found := plugin.configuredContainers.LookupContainer(pod1)
+				if found {
+					return data
+				}
+			}
+		}
+	}
+
+	return nil
 }

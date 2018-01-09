@@ -56,7 +56,7 @@ Reinit_One_Node_Kube_Cluster
     KubeCtl.Taint    ${testbed_connection}    nodes --all node-role.kubernetes.io/master-
     Apply_Contiv_Vpp_Plugin    ${testbed_connection}    ${normal_tag}    ${vpp_tag}
     # Verify k8s and plugin are running
-    BuiltIn.Wait_Until_Keyword_Succeeds    900s    10s    Verify_K8s_With_Plugin_Running    ${testbed_connection}
+    BuiltIn.Wait_Until_Keyword_Succeeds    ${K8S_WITH_PLUGIN_START_TIMEOUT}    10s    Verify_K8s_With_Plugin_Running    ${testbed_connection}
 
 Reinit_Multinode_Kube_Cluster
     [Documentation]    Assuming SSH connections with known aliases are created, check roles, reset nodes, init master, wait to see it running, join other nodes, wait until cluster is ready.
@@ -87,7 +87,7 @@ Reinit_Multinode_Kube_Cluster
     KubeCtl.Taint    ${testbed_connection}    nodes --all node-role.kubernetes.io/master-
     Apply_Contiv_Vpp_Plugin    ${testbed_connection}    ${normal_tag}    ${vpp_tag}
     # Verify k8s and plugin are running
-    BuiltIn.Wait_Until_Keyword_Succeeds    900s    10s    Verify_K8s_With_Plugin_Running    ${testbed_connection}
+    BuiltIn.Wait_Until_Keyword_Succeeds    ${K8S_WITH_PLUGIN_START_TIMEOUT}    10s    Verify_K8s_With_Plugin_Running    ${testbed_connection}
     # join other nodes
     ${join_cmd} =    kube_parser.get_join_from_kubeadm_init    ${init_stdout}
     :FOR    ${index}    IN RANGE    2    ${KUBE_CLUSTER_${CLUSTER_ID}_NODES}+1
@@ -198,20 +198,20 @@ Deploy_Client_And_Server_Pod_And_Verify_Running
     [Arguments]    ${ssh_session}    ${client_file}=${CLIENT_POD_FILE}    ${server_file}=${SERVER_POD_FILE}
     [Documentation]     Deploy and verify client and server ubuntu pods and store their names.
     BuiltIn.Log_Many    ${ssh_session}    ${client_file}    ${server_file}
-    ${client_pod_name} =    Deploy_Pod_And_Verify_Running    ${ssh_session}    ${client_file}    ubuntu-client-
-    ${server_pod_name} =    Deploy_Pod_And_Verify_Running    ${ssh_session}    ${server_file}    ubuntu-server-
+    ${client_pod_name} =    Deploy_Pod_And_Verify_Running    ${ssh_session}    ${client_file}    ubuntu-client-    timeout=${POD_DEPLOY_CLIENT_TIMEOUT}
+    ${server_pod_name} =    Deploy_Pod_And_Verify_Running    ${ssh_session}    ${server_file}    ubuntu-server-    timeout=${POD_DEPLOY_SERVER_TIMEOUT}
     BuiltIn.Set_Suite_Variable    ${client_pod_name}
     BuiltIn.Set_Suite_Variable    ${server_pod_name}
 
 Deploy_Client_Pod_And_Verify_Running
-    [Arguments]    ${ssh_session}    ${client_file}=${CLIENT_POD_FILE}
+    [Arguments]    ${ssh_session}    ${client_file}=${CLIENT_POD_FILE}    ${timeout}=${POD_DEPLOY_CLIENT_TIMEOUT}
     [Documentation]     Deploy client ubuntu pod. Pod name in the yaml file is expected to be ubuntu-client.
     BuiltIn.Log_Many    ${ssh_session}    ${client_file}
     ${client_pod_name} =    Deploy_Pod_And_Verify_Running    ${ssh_session}    ${client_file}    ubuntu-client-
     BuiltIn.Set_Suite_Variable    ${client_pod_name}
 
 Deploy_Server_Pod_And_Verify_Running
-    [Arguments]    ${ssh_session}    ${server_file}=${SERVER_POD_FILE}    ${timeout}=60s
+    [Arguments]    ${ssh_session}    ${server_file}=${SERVER_POD_FILE}    ${timeout}=${POD_DEPLOY_SERVER_TIMEOUT}
     [Documentation]     Deploy server ubuntu pod. Pod name in the yaml file is expected to be ubuntu-server.
     BuiltIn.Log_Many    ${ssh_session}    ${server_file}    ${timeout}
     ${server_pod_name} =    Deploy_Pod_And_Verify_Running    ${ssh_session}    ${server_file}    ubuntu-server-    timeout=${timeout}
@@ -266,7 +266,7 @@ Verify_Multireplica_Pods_Running
     BuiltIn.Return_From_Keyword    ${pods_list}
 
 Deploy_Multireplica_Pods_And_Verify_Running
-    [Arguments]    ${ssh_session}    ${pod_file}    ${pod_prefix}    ${nr_replicas}    ${namespace}=default    ${setup_timeout}=60s
+    [Arguments]    ${ssh_session}    ${pod_file}    ${pod_prefix}    ${nr_replicas}    ${namespace}=default    ${setup_timeout}=${POD_DEPLOY_MULTIREPLICA_TIMEOUT}
     [Documentation]     Apply the provided yaml file with more replica specified, wait until pods are running, return pods details.
     BuiltIn.Log_Many    ${ssh_session}    ${pod_file}    ${pod_prefix}    ${nr_replicas}    ${namespace}    ${setup_timeout}
     BuiltIn.Comment    TODO: Join single- and multi- replica keywords.
@@ -287,7 +287,7 @@ Remove_Multireplica_Pods_And_Verify_Removed
     [Documentation]     Remove pods and verify they are removed.
     BuiltIn.Log_Many    ${ssh_session}    ${pod_file}    ${pod_prefix}
     KubeCtl.Delete_F    ${ssh_session}    ${pod_file}
-    BuiltIn.Wait_Until_Keyword_Succeeds    60s    5s    Verify_Multireplica_Pods_Removed    ${ssh_session}    ${pod_prefix}
+    BuiltIn.Wait_Until_Keyword_Succeeds    ${POD_REMOVE_MULTIREPLICA_TIMEOUT}    5s    Verify_Multireplica_Pods_Removed    ${ssh_session}    ${pod_prefix}
 
 Remove_Client_And_Nginx_Pod_And_Verify_Removed
     [Arguments]    ${ssh_session}    ${client_file}=${CLIENT_POD_FILE}    ${nginx_file}=${NGINX_POD_FILE}
@@ -321,7 +321,7 @@ Deploy_Istio_And_Verify_Running
     [Documentation]     Deploy pod defined by ${ISTIO_FILE}, wait to see it running, store istio pod list.
     BuiltIn.Log_Many    ${ssh_session}
     KubeCtl.Apply_F    ${ssh_session}    ${ISTIO_FILE}
-    ${istio_pods} =    BuiltIn.Wait_Until_Keyword_Succeeds    60s    4s    Verify_Istio_Running    ${ssh_session}
+    ${istio_pods} =    BuiltIn.Wait_Until_Keyword_Succeeds    ${ISTIO_DEPLOY_TIMEOUT}    4s    Verify_Istio_Running    ${ssh_session}
     BuiltIn.Set_Suite_Variable    ${istio_pods}
 
 Verify_Istio_Removed
@@ -336,7 +336,7 @@ Remove_Istio_And_Verify_Removed
     [Documentation]     Remove pod defined by ${ISTIO_FILE} expecring rc=1, verify no istio pod remains.
     BuiltIn.Log_Many    ${ssh_session}
     KubeCtl.Delete_F    ${ssh_session}    ${ISTIO_FILE}    expected_rc=${1}    ignore_stderr=${True}
-    BuiltIn.Wait_Until_Keyword_Succeeds    60s    5s    Verify_Istio_Removed    ${ssh_session}
+    BuiltIn.Wait_Until_Keyword_Succeeds    ${ISTIO_REMOVE_TIMEOUT}    5s    Verify_Istio_Removed    ${ssh_session}
 
 Get_Deployed_Pod_Name
     [Arguments]    ${ssh_session}    ${pod_prefix}
@@ -348,11 +348,11 @@ Get_Deployed_Pod_Name
     [Return]    ${pod_name}
 
 Deploy_Pod_And_Verify_Running
-    [Arguments]    ${ssh_session}    ${pod_file}    ${pod_prefix}    ${timeout}=300s
+    [Arguments]    ${ssh_session}    ${pod_file}    ${pod_prefix}    ${timeout}=${POD_DEPLOY_DEFAULT_TIMEOUT}
     [Documentation]    Deploy pod defined by \${pod_file}, wait until a pod matching \${pod_prefix} appears, check it was only 1 such pod, extract its name, wait until it is running, log and return the name.
     Builtin.Log_Many    ${ssh_session}    ${pod_file}    ${pod_prefix}
     KubeCtl.Apply_F    ${ssh_session}    ${pod_file}
-    ${pod_name} =    BuiltIn.Wait_Until_Keyword_Succeeds    10s    2s    Get_Deployed_Pod_Name    ${ssh_session}    ${pod_prefix}
+    ${pod_name} =    BuiltIn.Wait_Until_Keyword_Succeeds    ${POD_DEPLOY_APPEARS_TIMEOUT}    2s    Get_Deployed_Pod_Name    ${ssh_session}    ${pod_prefix}
     Wait_Until_Pod_Running    ${ssh_session}    ${pod_name}    timeout=${timeout}
     BuiltIn.Log    ${pod_name}
     [Return]    ${pod_name}
@@ -376,7 +376,7 @@ Verify_Pod_Running_And_Ready
     BuiltIn.Should_Be_Equal_As_Strings    ${ready_containers}    ${out_of_containers}
 
 Wait_Until_Pod_Running
-    [Arguments]    ${ssh_session}    ${pod_name}    ${timeout}=60s    ${check_period}=5s    ${namespace}=default
+    [Arguments]    ${ssh_session}    ${pod_name}    ${timeout}=${POD_RUNNING_DEFAULT_TIMEOUT}    ${check_period}=5s    ${namespace}=default
     [Documentation]    WUKS around Verify_Pod_Running_And_Ready.
     BuiltIn.Log_Many    ${ssh_session}    ${pod_name}    ${timeout}    ${check_period}    ${namespace}
     BuiltIn.Wait_Until_Keyword_Succeeds    ${timeout}    ${check_period}    Verify_Pod_Running_And_Ready    ${ssh_session}    ${pod_name}    namespace=${namespace}
@@ -389,7 +389,7 @@ Verify_Pod_Not_Present
     Collections.Dictionary_Should_Not_Contain_Key     ${pods}    ${pod_name}
 
 Wait_Until_Pod_Removed
-    [Arguments]    ${ssh_session}    ${pod_name}    ${timeout}=120s    ${check_period}=5s    ${namespace}=default
+    [Arguments]    ${ssh_session}    ${pod_name}    ${timeout}=${POD_REMOVE_DEFAULT_TIMEOUT}    ${check_period}=5s    ${namespace}=default
     [Documentation]    WUKS around Verify_Pod_Not_Present.
     BuiltIn.Log_Many    ${ssh_session}    ${pod_name}    ${timeout}    ${check_period}    ${namespace}
     BuiltIn.Wait_Until_Keyword_Succeeds    ${timeout}    ${check_period}    Verify_Pod_Not_Present    ${ssh_session}    ${pod_name}    namespace=${namespace}
@@ -489,7 +489,7 @@ Verify_Cluster_Ready
     \    Verify_Cluster_Node_Ready    ${ssh_session}    ${name}
 
 Wait_Until_Cluster_Ready
-    [Arguments]    ${ssh_session}    ${nr_nodes}    ${timeout}=180s    ${check_period}=5s
+    [Arguments]    ${ssh_session}    ${nr_nodes}    ${timeout}=${CLUSTER_READY_TIMEOUT}    ${check_period}=5s
     [Documentation]    WUKS around Verify_Cluster_Ready.
     BuiltIn.Log_Many    ${ssh_session}    ${nr_nodes}    ${timeout}    ${check_period}
     BuiltIn.Wait_Until_Keyword_Succeeds    ${timeout}    ${check_period}    Verify_Cluster_Ready    ${ssh_session}    ${nr_nodes}

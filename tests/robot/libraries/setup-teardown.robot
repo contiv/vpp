@@ -38,7 +38,7 @@ Discard_Old_Results
 
 Log_All_Ssh_Outputs
     [Documentation]    Call Log_\${machine}_Output for every cluster node.
-    [Timeout]    120s
+    [Timeout]    ${SSH_LOG_OUTPUTS_TIMEOUT}
     : FOR    ${index}    IN RANGE    1    ${KUBE_CLUSTER_${CLUSTER_ID}_NODES}+1
     \    Log_${VM_SSH_ALIAS_PREFIX}${index}_Output
 

@@ -575,7 +575,7 @@ func (s *remoteCNIserver) configurePodInterface(request *cni.CNIRequest, podIP n
 
 	// finish the TAP interface configuration (rename, move to proper namespace, etc.)
 	if s.useTAPInterfaces {
-		err = s.configureHostTAP(request, podIPNet)
+		err = s.configureHostTAP(request, podIPNet, config.VppIf.PhysAddress)
 		// TODO: not stored in config, this will not be resynced in case of resync!!!
 		if err != nil {
 			s.Logger.Error(err)

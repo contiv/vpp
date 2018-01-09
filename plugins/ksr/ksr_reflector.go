@@ -27,7 +27,6 @@ import (
 	k8sRuntime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
-	"os"
 )
 
 // ReflectorStats defines the usage statistics for K8s State Reflectors

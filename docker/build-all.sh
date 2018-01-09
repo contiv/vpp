@@ -19,6 +19,7 @@ set -e
 # default values for build args and VPP commit ID
 export DOCKER_BUILD_ARGS=""
 export VPP_COMMIT_ID=""
+export SKIP_DEBUG_BUILD=0
 
 # override defaults from arguments
 while [ "$1" != "" ]; do
@@ -32,6 +33,10 @@ while [ "$1" != "" ]; do
             shift
             export VPP_COMMIT_ID=$1
             echo "Using VPP commit ID: ${VPP_COMMIT_ID}"
+            ;;
+        -s | --skip-debug )
+            export SKIP_DEBUG_BUILD=1
+            echo "Using SKIP_DEBUG_BUILD=1"
             ;;
         * )
             echo "Invalid parameter: "$1

@@ -31,6 +31,7 @@ import (
 	vpp_l4 "github.com/ligato/vpp-agent/plugins/defaultplugins/l4plugin/model/l4"
 	"github.com/ligato/vpp-agent/plugins/linuxplugin/ifplugin/linuxcalls"
 	linux_intf "github.com/ligato/vpp-agent/plugins/linuxplugin/ifplugin/model/interfaces"
+	l3_linux "github.com/ligato/vpp-agent/plugins/linuxplugin/l3plugin/linuxcalls"
 	linux_l3 "github.com/ligato/vpp-agent/plugins/linuxplugin/l3plugin/model/l3"
 )
 
@@ -82,7 +83,7 @@ func (s *remoteCNIserver) getPIDFromNwNsPath(ns string) (int, error) {
 
 // configureHostTAP configures TAP interface created in the host by VPP.
 // TODO: move to the linuxplugin
-func (s *remoteCNIserver) configureHostTAP(request *cni.CNIRequest, podIPNet *net.IPNet) error {
+func (s *remoteCNIserver) configureHostTAP(request *cni.CNIRequest, podIPNet *net.IPNet, vppHw string) error {
 	tapTmpHostIfName := s.tapTmpHostNameFromRequest(request)
 	tapHostIfName := s.tapHostNameFromRequest(request)
 	containerNs := &linux_intf.LinuxInterfaces_Interface_Namespace{
@@ -126,7 +127,49 @@ func (s *remoteCNIserver) configureHostTAP(request *cni.CNIRequest, podIPNet *ne
 		return err
 	}
 
-	return nil
+	// FIXME: following items ARP + link scope route + default route should be configured by linux plugin
+	dev, err := netlink.LinkByName(request.InterfaceName)
+	if err != nil {
+		return err
+	}
+
+	destination := net.IPNet{IP: s.ipam.PodGatewayIP(), Mask: net.IPv4Mask(0xff, 0xff, 0xff, 0xff)}
+	macAddr, err := net.ParseMAC(vppHw)
+	if err != nil {
+		return err
+	}
+
+	err = l3_linux.AddArpEntry("pod-vpp arp", &netlink.Neigh{
+		LinkIndex:    dev.Attrs().Index,
+		Family:       netlink.FAMILY_V4,
+		State:        netlink.NUD_PERMANENT,
+		Type:         1,
+		IP:           s.ipam.PodGatewayIP(),
+		HardwareAddr: macAddr,
+	}, s.Logger, nil)
+	if err != nil {
+		return err
+	}
+
+	err = l3_linux.AddStaticRoute("pod-link-scope", &netlink.Route{
+		LinkIndex: dev.Attrs().Index,
+		Dst:       &destination,
+		Scope:     netlink.SCOPE_LINK,
+	}, s.Logger, nil)
+	if err != nil {
+		return err
+	}
+
+	_, defaultDst, err := net.ParseCIDR("0.0.0.0/0")
+	if err != nil {
+		return err
+	}
+
+	return l3_linux.AddStaticRoute("pod default route", &netlink.Route{
+		LinkIndex: dev.Attrs().Index,
+		Dst:       defaultDst,
+		Gw:        s.ipam.PodGatewayIP(),
+	}, s.Logger, nil)
 }
 
 // unconfigureHostTAP removes TAP interface from the host stack if it wasn't

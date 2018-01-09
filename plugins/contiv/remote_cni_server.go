@@ -575,7 +575,7 @@ func (s *remoteCNIserver) configurePodInterface(request *cni.CNIRequest, podIP n
 
 	// finish the TAP interface configuration (rename, move to proper namespace, etc.)
 	if s.useTAPInterfaces {
-		err = s.configureHostTAP(request, podIPNet)
+		err = s.configureHostTAP(request, podIPNet, config.VppIf.PhysAddress)
 		// TODO: not stored in config, this will not be resynced in case of resync!!!
 		if err != nil {
 			s.Logger.Error(err)
@@ -731,10 +731,12 @@ func (s *remoteCNIserver) persistPodConfig(config *containeridx.Config) error {
 	if !s.useTAPInterfaces {
 		changes[linux_intf.InterfaceKey(config.Veth1.Name)] = config.Veth1
 		changes[linux_intf.InterfaceKey(config.Veth2.Name)] = config.Veth2
+
+		//FIXME: the following items should be persisted once arp and routes can be configured with TAPs
+		changes[linux_l3.StaticRouteKey(config.PodLinkRoute.Name)] = config.PodLinkRoute
+		changes[linux_l3.StaticRouteKey(config.PodDefaultRoute.Name)] = config.PodDefaultRoute
+		changes[linux_l3.StaticArpKey(config.PodARPEntry.Name)] = config.PodARPEntry
 	}
-	changes[linux_l3.StaticRouteKey(config.PodLinkRoute.Name)] = config.PodLinkRoute
-	changes[linux_l3.StaticRouteKey(config.PodDefaultRoute.Name)] = config.PodDefaultRoute
-	changes[linux_l3.StaticArpKey(config.PodARPEntry.Name)] = config.PodARPEntry
 
 	// VPP-side configuration
 	if !s.disableTCPstack {
@@ -766,12 +768,13 @@ func (s *remoteCNIserver) deletePersistedPodConfig(config *containeridx.Config) 
 	if !s.useTAPInterfaces {
 		removedKeys = append(removedKeys,
 			linux_intf.InterfaceKey(config.Veth1.Name),
-			linux_intf.InterfaceKey(config.Veth2.Name))
+			linux_intf.InterfaceKey(config.Veth2.Name),
+			//FIXME: the following items should be deleted once arp and routes can be configured with TAPs
+			linux_l3.StaticRouteKey(config.PodLinkRoute.Name),
+			linux_l3.StaticRouteKey(config.PodDefaultRoute.Name),
+			linux_l3.StaticArpKey(config.PodARPEntry.Name),
+		)
 	}
-	removedKeys = append(removedKeys,
-		linux_l3.StaticRouteKey(config.PodLinkRoute.Name),
-		linux_l3.StaticRouteKey(config.PodDefaultRoute.Name),
-		linux_l3.StaticArpKey(config.PodARPEntry.Name))
 
 	// VPP-side configuration
 	if !s.disableTCPstack {

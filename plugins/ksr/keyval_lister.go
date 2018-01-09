@@ -15,6 +15,8 @@
 package ksr
 
 import (
+	"encoding/json"
+	"github.com/golang/protobuf/proto"
 	"github.com/ligato/cn-infra/db/keyval"
 )
 
@@ -28,35 +30,75 @@ type KeyProtoValLister interface {
 // mockKeyProtoValLister is a mock implementation of mockKeyProtoValLister
 // used in unit tests.
 type mockKeyProtoValLister struct {
-	iter mockProtoKeyValIterator
+	ds map[string]proto.Message
 }
 
+// mockProtoKeyValIterator is a mock implementation of mockProtoKeyValIterator
+// used in unit tests.
 type mockProtoKeyValIterator struct {
 	values []keyval.ProtoKeyVal
 	idx    int
 }
 
+type mockProtoKeyval struct {
+	key string
+	msg proto.Message
+}
+
+func (pkv *mockProtoKeyval) GetKey() string {
+	return pkv.key
+}
+
+func (pkv *mockProtoKeyval) GetPrevValue(prevValue proto.Message) (prevValueExist bool, err error) {
+	return false, nil
+}
+
+func (pkv *mockProtoKeyval) GetValue(value proto.Message) error {
+	buf, err := json.Marshal(pkv.msg)
+	if err != nil {
+		return err
+	}
+	return json.Unmarshal(buf, value)
+}
+
+func (pkv *mockProtoKeyval) GetRevision() (rev int64) {
+	return 0
+}
+
 // newMockKeyProtoValLister initializes a new instance of
 // newMockKeyProtoValLister.
-func newMockKeyProtoValLister() *mockKeyProtoValLister {
+func newMockKeyProtoValLister(ds map[string]proto.Message) *mockKeyProtoValLister {
 	return &mockKeyProtoValLister{
-		iter: mockProtoKeyValIterator{
-			values: []keyval.ProtoKeyVal{},
-			idx:    0,
-		},
+		ds: ds,
 	}
 }
 
 // ListValues returns the mockProtoKeyValIterator which will contain some
 // mock values down the road
 func (kvl *mockKeyProtoValLister) ListValues(prefix string) (keyval.ProtoKeyValIterator, error) {
-	return &kvl.iter, nil
+	var values []keyval.ProtoKeyVal
+	for key, msg := range kvl.ds {
+		pkv := mockProtoKeyval{
+			key: key,
+			msg: msg,
+		}
+		values = append(values, &pkv)
+	}
+	return &mockProtoKeyValIterator{
+		values: values,
+		idx:    0,
+	}, nil
 }
 
 // GetNext getting the next mocked keyval.ProtoKeyVal value from
 // mockProtoKeyValIterator
 func (it *mockProtoKeyValIterator) GetNext() (kv keyval.ProtoKeyVal, stop bool) {
-	return nil, true
+	if it.idx == len(it.values) {
+		return nil, true
+	}
+	kv = it.values[it.idx]
+	it.idx++
+	return kv, stop
 }
 
 // Close is a mock for mockProtoKeyValIterator

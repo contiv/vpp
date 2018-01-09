@@ -25,8 +25,10 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/kubernetes"
 
-	proto "github.com/contiv/vpp/plugins/ksr/model/service"
+	"fmt"
+	"github.com/contiv/vpp/plugins/ksr/model/service"
 	"github.com/ligato/cn-infra/flavors/local"
+	"os"
 	"time"
 )
 
@@ -36,6 +38,7 @@ type ServiceTestVars struct {
 	mockKvLister *mockKeyProtoValLister
 	svcReflector *ServiceReflector
 	svc          *coreV1.Service
+	svcTestData  []coreV1.Service
 }
 
 var serviceTestVars ServiceTestVars
@@ -48,7 +51,7 @@ func TestServiceReflector(t *testing.T) {
 
 	serviceTestVars.k8sListWatch = &mockK8sListWatch{}
 	serviceTestVars.mockKvWriter = newMockKeyProtoValWriter()
-	serviceTestVars.mockKvLister = newMockKeyProtoValLister()
+	serviceTestVars.mockKvLister = newMockKeyProtoValLister(serviceTestVars.mockKvWriter.ds)
 
 	serviceTestVars.svcReflector = &ServiceReflector{
 		Reflector: Reflector{
@@ -57,45 +60,195 @@ func TestServiceReflector(t *testing.T) {
 			K8sListWatch: serviceTestVars.k8sListWatch,
 			Writer:       serviceTestVars.mockKvWriter,
 			Lister:       serviceTestVars.mockKvLister,
-			dsSynced:     true,
+			dsSynced:     false,
 			objType:      "Service",
 		},
 	}
 
-	serviceTestVars.svc = &coreV1.Service{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:            "kubernetes",
-			Namespace:       "default",
-			SelfLink:        "/api/v1/namespaces/default/services/kubernetes",
-			UID:             "8ca8bfdc-ec4c-11e7-9959-0800271d72be",
-			ResourceVersion: "16",
-			Generation:      0,
-			CreationTimestamp: metav1.Date(2017, 12, 28, 19, 58, 37, 0,
-				time.FixedZone("PST", -800)),
-			Labels: map[string]string{"component: apiserver": "provider: kubernetes"},
-		},
-		Spec: coreV1.ServiceSpec{
-			Ports: []coreV1.ServicePort{
-				{
-					Name:     "https",
-					Protocol: "TCP",
-					Port:     443,
-					TargetPort: intstr.IntOrString{
-						Type:   0,
-						IntVal: 6443,
+	serviceTestVars.svcTestData = []coreV1.Service{
+		{
+			// Test data 0: mocks a new object to be added or a "pre-existing"
+			// object that is updated during sync
+			ObjectMeta: metav1.ObjectMeta{
+				Name:            "kubernetes",
+				Namespace:       "default",
+				SelfLink:        "/api/v1/namespaces/default/services/kubernetes",
+				UID:             "8ca8bfdc-ec4c-11e7-9959-0800271d72be",
+				ResourceVersion: "16",
+				Generation:      0,
+				CreationTimestamp: metav1.Date(2017, 12, 28, 19, 58, 37, 0,
+					time.FixedZone("PST", -800)),
+				Labels: map[string]string{"component: apiserver": "provider: kubernetes"},
+			},
+			Spec: coreV1.ServiceSpec{
+				Ports: []coreV1.ServicePort{
+					{
+						Name:     "https",
+						Protocol: "TCP",
+						Port:     443,
+						TargetPort: intstr.IntOrString{
+							Type:   0,
+							IntVal: 6443,
+						},
 					},
 				},
+				Selector:  map[string]string{},
+				ClusterIP: "10.96.0.1",
+				Type:      "ClusterIP",
 			},
-			Selector:  map[string]string{},
-			ClusterIP: "10.96.0.1",
-			Type:      "ClusterIP",
+		},
+		// Test data 1: mocks an object that updates a "pre-existing" object
+		// during sync
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:            "kubernetes",
+				Namespace:       "default",
+				SelfLink:        "/api/v1/namespaces/default/services/kubernetes",
+				UID:             "8ca8bfdc-ec4c-11e7-9959-0800271d72be",
+				ResourceVersion: "16",
+				Generation:      0,
+				CreationTimestamp: metav1.Date(2017, 12, 28, 19, 58, 37, 0,
+					time.FixedZone("PST", -800)),
+				Labels: map[string]string{"component: apiserver": "provider: kubernetes"},
+			},
+			Spec: coreV1.ServiceSpec{
+				Ports: []coreV1.ServicePort{
+					{
+						Name:     "https",
+						Protocol: "TCP",
+						Port:     443,
+						TargetPort: intstr.IntOrString{
+							Type:   0,
+							IntVal: 6443,
+						},
+					},
+				},
+				Selector:  map[string]string{},
+				ClusterIP: "10.96.0.2", // <-- Updated IP address
+				Type:      "ClusterIP",
+			},
+		},
+		// Test data 2: mocks a new object that is to be added during sync
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:            "calico-etcd",
+				Namespace:       "kube-system",
+				SelfLink:        "/api/v1/namespaces/kube-system/services/calico-etcd",
+				UID:             "11401d89-ec4d-11e7-9959-0800271d72be",
+				ResourceVersion: "579",
+				Generation:      0,
+				CreationTimestamp: metav1.Date(2017, 12, 28, 19, 58, 37, 0,
+					time.FixedZone("PST", -800)),
+				Labels: map[string]string{"k8s-app": "calico-etcd"},
+			},
+			Spec: coreV1.ServiceSpec{
+				Ports: []coreV1.ServicePort{
+					{
+						Protocol: "TCP",
+						Port:     6666,
+						TargetPort: intstr.IntOrString{
+							Type:   0,
+							IntVal: 6666,
+						},
+					},
+				},
+				Selector: map[string]string{
+					"k8s-app": "calico-etcd",
+				},
+				ClusterIP: "10.96.232.136",
+				Type:      "ClusterIP",
+			},
+		},
+		// Test data 3: mocks a "stale" object that is to be deleted during
+		// sync
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:            "kube-dns",
+				Namespace:       "kube-system",
+				SelfLink:        "/api/v1/namespaces/kube-system/services/kube-dns",
+				UID:             "8ed7c31b-ec4c-11e7-9959-0800271d72be",
+				ResourceVersion: "184",
+				Generation:      0,
+				CreationTimestamp: metav1.Date(2017, 12, 28, 19, 58, 37, 0,
+					time.FixedZone("PST", -800)),
+				Labels: map[string]string{"k8s-app": "kube-dns"},
+			},
+			Spec: coreV1.ServiceSpec{
+				Ports: []coreV1.ServicePort{
+					{
+						Name:     "dns",
+						Protocol: "UDP",
+						Port:     53,
+						TargetPort: intstr.IntOrString{
+							Type:   0,
+							IntVal: 53,
+						},
+					},
+					{
+						Name:     "dns-tcp",
+						Protocol: "TCP",
+						Port:     53,
+						TargetPort: intstr.IntOrString{
+							Type:   0,
+							IntVal: 53,
+						},
+					},
+				},
+				Selector: map[string]string{
+					"k8s-app": "kube-dns",
+				},
+				ClusterIP: "10.96.0.10",
+				Type:      "ClusterIP",
+			},
 		},
 	}
+
+	// The mock function returns three services: a new service instance, a modified service instance
+	MockK8sCache.ListFunc = func() []interface{} {
+		return []interface{}{
+			// Updated value mock
+			&serviceTestVars.svcTestData[1],
+			// New value mock
+			&serviceTestVars.svcTestData[2],
+		}
+	}
+
+	// Pre-populate the mock data store with pre-existing data that is supposed
+	// to be updated during the test.
+	svc1 := &serviceTestVars.svcTestData[0]
+	serviceTestVars.mockKvWriter.
+		Put(service.Key(svc1.GetName(), svc1.GetNamespace()), serviceTestVars.svcReflector.serviceToProto(svc1))
+	// Pre-populate the mock data store with "stale" data that is supposed to
+	// be deleted during the test.
+	svc2 := &serviceTestVars.svcTestData[3]
+	serviceTestVars.mockKvWriter.
+		Put(service.Key(svc2.GetName(), svc2.GetNamespace()), serviceTestVars.svcReflector.serviceToProto(svc2))
+
+	statsBefore := *serviceTestVars.svcReflector.GetStats()
 
 	stopCh := make(chan struct{})
 	var wg sync.WaitGroup
 	err := serviceTestVars.svcReflector.Init(stopCh, &wg)
 	gomega.Expect(err).To(gomega.BeNil())
+
+	// Wait for the initial sync to finish
+	for {
+		if serviceTestVars.svcReflector.HasSynced() {
+			break
+		}
+		time.Sleep(time.Millisecond * 100)
+	}
+
+	statsAfter := *serviceTestVars.svcReflector.GetStats()
+
+	gomega.Expect(serviceTestVars.mockKvWriter.ds).Should(gomega.HaveLen(2))
+	gomega.Expect(statsBefore.NumAdds + 1).To(gomega.Equal(statsAfter.NumAdds))
+	gomega.Expect(statsBefore.NumUpdates + 1).Should(gomega.BeNumerically("==", statsAfter.NumUpdates))
+	gomega.Expect(statsBefore.NumDeletes + 1).Should(gomega.BeNumerically("==", statsAfter.NumDeletes))
+
+	serviceTestVars.mockKvWriter.ClearDs()
+
+	serviceTestVars.svc = &serviceTestVars.svcTestData[0]
 
 	t.Run("addDeleteService", testAddDeleteService)
 	serviceTestVars.mockKvWriter.ClearDs()
@@ -104,8 +257,8 @@ func TestServiceReflector(t *testing.T) {
 }
 
 func testUpdateService(t *testing.T) {
-	svcOld := *serviceTestVars.svc
-	svcNew := *serviceTestVars.svc
+	svcOld := serviceTestVars.svcTestData[0]
+	svcNew := serviceTestVars.svcTestData[1]
 
 	upd := serviceTestVars.svcReflector.GetStats().NumUpdates
 
@@ -113,7 +266,7 @@ func testUpdateService(t *testing.T) {
 	// There should be no update if we pass bad data types into update function
 	gomega.Expect(upd).To(gomega.Equal(serviceTestVars.svcReflector.GetStats().NumUpdates))
 
-	serviceTestVars.k8sListWatch.Update(&svcOld, &svcNew)
+	serviceTestVars.k8sListWatch.Update(&svcOld, &svcOld)
 	// There should be no update if old and new updates are the same
 	gomega.Expect(upd).To(gomega.Equal(serviceTestVars.svcReflector.GetStats().NumUpdates))
 
@@ -124,8 +277,8 @@ func testUpdateService(t *testing.T) {
 	gomega.Expect(upd + 1).To(gomega.Equal(serviceTestVars.svcReflector.GetStats().NumUpdates))
 
 	// Check that new data was written properly
-	svcProto := &proto.Service{}
-	err := serviceTestVars.mockKvWriter.GetValue(proto.Key(svcNew.GetName(), svcNew.GetNamespace()), svcProto)
+	svcProto := &service.Service{}
+	err := serviceTestVars.mockKvWriter.GetValue(service.Key(svcNew.GetName(), svcNew.GetNamespace()), svcProto)
 	gomega.Expect(err).To(gomega.BeNil())
 	gomega.Expect(svcProto.ClusterIp).To(gomega.Equal(svcNew.Spec.ClusterIP))
 }
@@ -135,12 +288,12 @@ func testAddDeleteService(t *testing.T) {
 
 	// Check if we can add a service
 	add := serviceTestVars.svcReflector.GetStats().NumAdds
+
 	serviceTestVars.k8sListWatch.Add(svc)
-	svcProto := &proto.Service{}
-	err := serviceTestVars.mockKvWriter.GetValue(proto.Key(svc.GetName(), svc.GetNamespace()), svcProto)
+	svcProto := &service.Service{}
+	err := serviceTestVars.mockKvWriter.GetValue(service.Key(svc.GetName(), svc.GetNamespace()), svcProto)
 
 	gomega.Expect(add + 1).To(gomega.Equal(serviceTestVars.svcReflector.GetStats().NumAdds))
-
 	gomega.Expect(err).To(gomega.BeNil())
 	gomega.Expect(svcProto).NotTo(gomega.BeNil())
 	gomega.Expect(svcProto.Name).To(gomega.Equal(svc.GetName()))
@@ -161,8 +314,8 @@ func testAddDeleteService(t *testing.T) {
 	serviceTestVars.k8sListWatch.Delete(svc)
 	gomega.Expect(del + 1).To(gomega.Equal(serviceTestVars.svcReflector.GetStats().NumDeletes))
 
-	svcProto = &proto.Service{}
-	key := proto.Key(svc.GetName(), svc.GetNamespace())
+	svcProto = &service.Service{}
+	key := service.Key(svc.GetName(), svc.GetNamespace())
 	err = serviceTestVars.mockKvWriter.GetValue(key, svcProto)
 	gomega.Ω(err).ShouldNot(gomega.Succeed())
 }

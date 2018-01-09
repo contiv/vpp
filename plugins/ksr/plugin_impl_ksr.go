@@ -164,11 +164,14 @@ func (plugin *Plugin) Init() error {
 	}
 
 	plugin.endpointsReflector = &EndpointsReflector{
-		ReflectorDeps: ReflectorDeps{
+		Reflector: Reflector{
 			Log:          plugin.Log.NewLogger("-endpoints"),
 			K8sClientset: plugin.k8sClientset,
 			K8sListWatch: &k8sCache{},
 			Writer:       plugin.Publish,
+			Lister:       plugin.Publish.Deps.KvPlugin.NewBroker(ksrPrefix),
+			dsSynced:     false,
+			objType:      "Endpoints",
 		},
 	}
 	err = plugin.endpointsReflector.Init(plugin.stopCh, &plugin.wg)

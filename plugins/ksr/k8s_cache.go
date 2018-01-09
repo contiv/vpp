@@ -25,6 +25,9 @@ type K8sListWatcher interface {
 type k8sCache struct {
 }
 
+// MockK8sCache holds the k8s mock cache
+var MockK8sCache = &cache.FakeCustomStore{}
+
 // NewListWatchFromClient propagates the call to k8s client-go cache.
 func (*k8sCache) NewListWatchFromClient(c cache.Getter, resource string, namespace string,
 	fieldSelector fields.Selector) *cache.ListWatch {
@@ -56,7 +59,7 @@ func (mock *mockK8sListWatch) NewListWatchFromClient(c cache.Getter, resource st
 func (mock *mockK8sListWatch) NewInformer(lw cache.ListerWatcher, objType runtime.Object,
 	resyncPeriod time.Duration, h cache.ResourceEventHandler) (cache.Store, cache.Controller) {
 	mock.resourceHandler = h
-	return &cache.FakeCustomStore{}, &mockK8sListWatchController{}
+	return MockK8sCache, &mockK8sListWatchController{}
 }
 
 // Add simulates added K8s resource.

@@ -32,6 +32,7 @@ import (
 type EndpointsTestVars struct {
 	k8sListWatch *mockK8sListWatch
 	mockKvWriter *mockKeyProtoValWriter
+	mockKvLister *mockKeyProtoValLister
 	epsReflector *EndpointsReflector
 	endpoints    *coreV1.Endpoints
 }
@@ -46,13 +47,17 @@ func TestEndpointsReflector(t *testing.T) {
 
 	epTestVars.k8sListWatch = &mockK8sListWatch{}
 	epTestVars.mockKvWriter = newMockKeyProtoValWriter()
+	epTestVars.mockKvLister = newMockKeyProtoValLister(epTestVars.mockKvWriter.ds)
 
 	epTestVars.epsReflector = &EndpointsReflector{
-		ReflectorDeps: ReflectorDeps{
+		Reflector: Reflector{
 			Log:          flavorLocal.LoggerFor("endpoints-reflector"),
 			K8sClientset: &kubernetes.Clientset{},
 			K8sListWatch: epTestVars.k8sListWatch,
 			Writer:       epTestVars.mockKvWriter,
+			Lister:       epTestVars.mockKvLister,
+			dsSynced:     true,
+			objType:      "Service",
 		},
 	}
 

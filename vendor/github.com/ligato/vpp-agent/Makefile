@@ -1,8 +1,9 @@
 include Makeroutines.mk
 
-VERSION=$(shell git rev-parse HEAD)
+VERSION=$(shell git describe --tags --dirty)
+COMMIT=$(shell git rev-parse HEAD)
 DATE=$(shell date +'%Y-%m-%dT%H:%M%:z')
-LDFLAGS=-ldflags '-X github.com/ligato/vpp-agent/vendor/github.com/ligato/cn-infra/core.BuildVersion=$(VERSION) -X github.com/ligato/vpp-agent/vendor/github.com/ligato/cn-infra/core.BuildDate=$(DATE)'
+LDFLAGS=-ldflags '-X github.com/ligato/vpp-agent/vendor/github.com/ligato/cn-infra/core.BuildVersion=$(VERSION) -X github.com/ligato/vpp-agent/vendor/github.com/ligato/cn-infra/core.CommitHash=$(COMMIT) -X github.com/ligato/vpp-agent/vendor/github.com/ligato/cn-infra/core.BuildDate=$(DATE)'
 COVER_DIR=/tmp/
 
 # generate go structures from proto files
@@ -27,7 +28,9 @@ define generate_sources
 	@cd plugins/defaultplugins/ifplugin/bin_api/interfaces && pkgreflect
 	@cd plugins/defaultplugins/ifplugin/bin_api/ip && pkgreflect
 	@cd plugins/defaultplugins/ifplugin/bin_api/memif && pkgreflect
+	@cd plugins/defaultplugins/ifplugin/bin_api/stats && pkgreflect
 	@cd plugins/defaultplugins/ifplugin/bin_api/tap && pkgreflect
+	@cd plugins/defaultplugins/ifplugin/bin_api/tapv2 && pkgreflect
 	@cd plugins/defaultplugins/ifplugin/bin_api/vpe && pkgreflect
 	@cd plugins/defaultplugins/ifplugin/bin_api/vxlan && pkgreflect
 	@cd plugins/defaultplugins/l2plugin/bin_api/l2 && pkgreflect

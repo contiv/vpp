@@ -547,3 +547,9 @@ Log_Pods_For_Debug
     Log_Contiv_Ksr    ${ssh_session}
     Log_Contiv_Vswitch    ${ssh_session}    ${exp_nr_vswitch}
     Log_Kube_Dns    ${ssh_session}
+
+Open_Connection_To_Node
+    [Arguments]    ${name}    ${node_index}
+    BuiltIn.Log_Many    ${name}    ${node_index}
+    ${connection}=    SshCommons.Open_Ssh_Connection    ${name}    ${KUBE_CLUSTER_${CLUSTER_ID}_VM_${node_index}_PUBLIC_IP}    ${KUBE_CLUSTER_${CLUSTER_ID}_VM_${node_index}_USER}    ${KUBE_CLUSTER_${CLUSTER_ID}_VM_${node_index}_PSWD}
+    [Return]    ${connection}

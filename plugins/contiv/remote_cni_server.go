@@ -36,7 +36,6 @@ import (
 	vpp_l4 "github.com/ligato/vpp-agent/plugins/defaultplugins/l4plugin/model/l4"
 	linux_intf "github.com/ligato/vpp-agent/plugins/linuxplugin/ifplugin/model/interfaces"
 	linux_l3 "github.com/ligato/vpp-agent/plugins/linuxplugin/l3plugin/model/l3"
-	"github.com/pkg/errors"
 	"golang.org/x/net/context"
 )
 
@@ -248,7 +247,7 @@ func (s *remoteCNIserver) configureVswitchConnectivity() error {
 func (s *remoteCNIserver) configureVswitchNICs(config *vswitchConfig) error {
 
 	if s.swIfIndex == nil {
-		return errors.New("no VPP interfaces found in the swIfIndex map")
+		return fmt.Errorf("no VPP interfaces found in the swIfIndex map")
 	}
 	s.Logger.Info("Existing interfaces: ", s.swIfIndex.GetMapping().ListNames())
 

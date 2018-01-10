@@ -107,7 +107,7 @@ endef
 # build contiv agent
 define build_contiv_agent_only
     @echo "# building contiv-agent"
-    @cd cmd/contiv-agent && go build -v -i ${LDFLAGS}
+    @cd cmd/contiv-agent && go build -v -i ${LDFLAGS} -tags="${GO_BUILD_TAGS}"
     @echo "# done"
 endef
 

@@ -32,7 +32,7 @@ type NamespaceTestVars struct {
 	k8sListWatch *mockK8sListWatch
 	mockKvWriter *mockKeyProtoValWriter
 	mockKvLister *mockKeyProtoValLister
-	svcReflector *ServiceReflector
+	nsReflector  *NamespaceReflector
 	svc          *coreV1.Service
 	svcTestData  []coreV1.Service
 }
@@ -47,9 +47,9 @@ func TestNamespaceReflector(t *testing.T) {
 
 	nsTestVars.k8sListWatch = &mockK8sListWatch{}
 	nsTestVars.mockKvWriter = newMockKeyProtoValWriter()
-	nsTestVars.mockKvLister = newMockKeyProtoValLister(serviceTestVars.mockKvWriter.ds)
+	nsTestVars.mockKvLister = newMockKeyProtoValLister(nsTestVars.mockKvWriter.ds)
 
-	nsReflector := &NamespaceReflector{
+	nsTestVars.nsReflector = &NamespaceReflector{
 		Reflector: Reflector{
 			Log:          flavorLocal.LoggerFor("namespace-reflector"),
 			K8sClientset: &kubernetes.Clientset{},
@@ -63,12 +63,12 @@ func TestNamespaceReflector(t *testing.T) {
 
 	stopCh := make(chan struct{})
 	var wg sync.WaitGroup
-	err := nsReflector.Init(stopCh, &wg)
+	err := nsTestVars.nsReflector.Init(stopCh, &wg)
 	gomega.Expect(err).To(gomega.BeNil())
 
 	// Wait for the initial sync to finish
 	for {
-		if serviceTestVars.svcReflector.HasSynced() {
+		if nsTestVars.nsReflector.HasSynced() {
 			break
 		}
 		time.Sleep(time.Millisecond * 100)

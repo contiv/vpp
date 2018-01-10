@@ -117,7 +117,7 @@ func TestEndpointsReflector(t *testing.T) {
 
 	// Wait for the initial sync to finish
 	for {
-		if serviceTestVars.svcReflector.HasSynced() {
+		if epTestVars.epsReflector.HasSynced() {
 			break
 		}
 		time.Sleep(time.Millisecond * 100)

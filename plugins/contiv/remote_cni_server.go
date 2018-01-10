@@ -36,7 +36,26 @@ import (
 	vpp_l4 "github.com/ligato/vpp-agent/plugins/defaultplugins/l4plugin/model/l4"
 	linux_intf "github.com/ligato/vpp-agent/plugins/linuxplugin/ifplugin/model/interfaces"
 	linux_l3 "github.com/ligato/vpp-agent/plugins/linuxplugin/l3plugin/model/l3"
+	"github.com/pkg/errors"
 	"golang.org/x/net/context"
+)
+
+const (
+	resultOk               uint32 = 0
+	resultErr              uint32 = 1
+	linuxIfMaxLen                 = 15
+	afPacketNamePrefix            = "afpacket"
+	tapNamePrefix                 = "tap"
+	podNameExtraArg               = "K8S_POD_NAME"
+	podNamespaceExtraArg          = "K8S_POD_NAMESPACE"
+	vethHostEndLogicalName        = "veth-vpp1"
+	vethHostEndName               = "vpp1"
+	vethVPPEndLogicalName         = "veth-vpp2"
+	vethVPPEndName                = "vpp2"
+	tapHostEndName                = "vpp1"
+	tapVPPEndLogicalName          = "tap-vpp2"
+	tapVPPEndName                 = "vpp2"
+	podIfIPPrefix                 = "10.2.1"
 )
 
 // remoteCNIserver represents the remote CNI server instance. It accepts the requests from the contiv-CNI
@@ -99,23 +118,19 @@ type remoteCNIserver struct {
 	tapV2TxRingSize uint16
 }
 
-const (
-	resultOk               uint32 = 0
-	resultErr              uint32 = 1
-	linuxIfMaxLen                 = 15
-	afPacketNamePrefix            = "afpacket"
-	tapNamePrefix                 = "tap"
-	podNameExtraArg               = "K8S_POD_NAME"
-	podNamespaceExtraArg          = "K8S_POD_NAMESPACE"
-	vethHostEndLogicalName        = "veth-vpp1"
-	vethHostEndName               = "vpp1"
-	vethVPPEndLogicalName         = "veth-vpp2"
-	vethVPPEndName                = "vpp2"
-	tapHostEndName                = "vpp1"
-	tapVPPEndLogicalName          = "tap-vpp2"
-	tapVPPEndName                 = "vpp2"
-	podIfIPPrefix                 = "10.2.1"
-)
+// vswitchConfig holds base vSwitch VPP configuration.
+type vswitchConfig struct {
+	nics []*vpp_intf.Interfaces_Interface
+
+	tapHost        *vpp_intf.Interfaces_Interface
+	vethHost       *linux_intf.LinuxInterfaces_Interface
+	vethVpp        *linux_intf.LinuxInterfaces_Interface
+	interconnectAF *vpp_intf.Interfaces_Interface
+
+	routeToHost   *vpp_l3.StaticRoutes_Route
+	routeFromHost *linux_l3.LinuxStaticRoutes_Route
+	l4Features    *vpp_l4.L4Features
+}
 
 // newRemoteCNIServer initializes a new remote CNI server instance.
 func newRemoteCNIServer(logger logging.Logger, vppTxnFactory func() linux.DataChangeDSL, proxy kvdbproxy.Proxy,
@@ -196,131 +211,192 @@ func (s *remoteCNIserver) configureVswitchConnectivity() error {
 		return nil
 	}
 
-	// used to persist the changes made by this function
-	changes := map[string]proto.Message{}
+	// prepare empty vswitch config struct to be filled in
+	config := &vswitchConfig{nics: []*vpp_intf.Interfaces_Interface{}}
 
 	// configure physical NIC
 	// NOTE that needs to be done as the first step, before adding any other interfaces to VPP to properly fnd the physical NIC name.
-	if s.swIfIndex != nil {
-		s.Logger.Info("Existing interfaces: ", s.swIfIndex.GetMapping().ListNames())
-
-		// find physical NIC name
-		nicName := ""
-		config := s.loadNodeSpecificConfig()
-		if config != nil && strings.Trim(config.MainVppInterfaceName, " ") != "" {
-			nicName = config.MainVppInterfaceName
-			s.Logger.Debugf("Physical NIC name taken from config: %v ", nicName)
-		} else { //if not configured for this node -> use heuristic
-			for _, name := range s.swIfIndex.GetMapping().ListNames() {
-				if strings.HasPrefix(name, "local") || strings.HasPrefix(name, "loop") ||
-					strings.HasPrefix(name, "host") || strings.HasPrefix(name, "tap") {
-					continue
-				} else {
-					nicName = name
-					break
-				}
-			}
-			s.Logger.Debugf("Physical NIC not taken from config, but heuristic was used: %v ", nicName)
-		}
-		if nicName != "" {
-			// configure the physical NIC and static routes to other hosts
-			s.Logger.Info("Configuring physical NIC ", nicName)
-
-			// add the NIC config into the transaction
-			txn1 := s.vppTxnFactory().Put()
-
-			nic, err := s.physicalInterface(nicName)
-			if err != nil {
-				return fmt.Errorf("Can't create structure for interface %v due to error: %v", nicName, err)
-			}
-			txn1.VppInterface(nic)
-			changes[vpp_intf.InterfaceKey(nicName)] = nic
-
-			// execute the config transaction
-			err = txn1.Send().ReceiveReply()
-			if err != nil {
-				s.Logger.Error(err)
-				return err
-			}
-		} else {
-			// configure loopback instead of physical NIC
-			s.Logger.Debug("Physical NIC not found, configuring loopback instead.")
-
-			// add the NIC config into the transaction
-			txn1 := s.vppTxnFactory().Put()
-
-			loop, err := s.physicalInterfaceLoopback()
-			if err != nil {
-				return fmt.Errorf("Can't create structure for loopback interface due to error: %v", err)
-			}
-			txn1.VppInterface(loop)
-			changes[vpp_intf.InterfaceKey(loop.Name)] = loop
-
-			// execute the config transaction
-			err = txn1.Send().ReceiveReply()
-			if err != nil {
-				s.Logger.Error(err)
-				return err
-			}
-		}
-		// configure VPP for other interfaces that were configured in contiv plugin yaml configuration
-		if config != nil && len(config.OtherVPPInterfaces) > 0 {
-			s.Logger.Debug("Configuring VPP for additional interfaces")
-
-			// match existing interfaces and configuration settings and create VPP configuration objects
-			interfaces := make(map[string]*vpp_intf.Interfaces_Interface)
-			for _, name := range s.swIfIndex.GetMapping().ListNames() {
-				for _, intIP := range config.OtherVPPInterfaces {
-					if intIP.InterfaceName == name {
-						interfaces[name] = s.physicalInterfaceWithCustomIPAddress(name, intIP.IP)
-					}
-				}
-			}
-
-			// send created configuration to VPP
-			if len(interfaces) > 0 {
-				txn2 := s.vppTxnFactory().Put()
-				for intfName, intf := range interfaces {
-					txn2.VppInterface(intf)
-					changes[vpp_intf.InterfaceKey(intfName)] = intf
-				}
-				err := txn2.Send().ReceiveReply()
-				if err != nil {
-					s.Logger.Error(err)
-					return err
-				}
-			}
-		}
-	} else {
-		s.Logger.Warn("swIfIndex is NULL")
-	}
-
-	// configure veths to host IP stack + AF_PACKET or Tap + default route to host
-	tapHost := s.interconnectTap()
-	vethHost := s.interconnectVethHost()
-	vethVpp := s.interconnectVethVpp()
-	interconnectAF := s.interconnectAfpacket()
-	routeToHost := s.defaultRouteToHost()
-	routeFromHost := s.routeFromHost()
-	l4Features := s.l4Features(!s.disableTCPstack)
-
-	// configure VETHs first
-	txn3 := s.vppTxnFactory().Put()
-
-	if s.useTAPInterfaces {
-		txn3.VppInterface(tapHost)
-	} else {
-		txn3.LinuxInterface(vethHost).
-			LinuxInterface(vethVpp)
-	}
-
-	err := txn3.Send().ReceiveReply()
+	err := s.configureVswitchNICs(config)
 	if err != nil {
 		s.Logger.Error(err)
 		return err
 	}
 
+	// configure vswitch to host connectivity
+	err = s.configureVswitchHostConnectivity(config)
+	if err != nil {
+		s.Logger.Error(err)
+		return err
+	}
+
+	// persist vswitch configuration in ETCD
+	err = s.persistVswitchConfig(config)
+	if err != nil {
+		s.Logger.Error(err)
+		return err
+	}
+
+	// set the state to configured and broadcast
+	s.vswitchConnectivityConfigured = true
+	s.vswitchCond.Broadcast()
+
+	return err
+}
+
+// configureVswitchNICs configures vswitch NICs - main NIC for node interconnect
+// and other NICs optionally specified in the contiv plugin YAML configuration.
+func (s *remoteCNIserver) configureVswitchNICs(config *vswitchConfig) error {
+
+	if s.swIfIndex == nil {
+		return errors.New("no VPP interfaces found in the swIfIndex map")
+	}
+	s.Logger.Info("Existing interfaces: ", s.swIfIndex.GetMapping().ListNames())
+
+	// load node-specific config from the config YAML
+	nodeConfig := s.loadNodeSpecificConfig()
+
+	// find name of the main VPP NIC interface
+	nicName := ""
+	if nodeConfig != nil && strings.Trim(nodeConfig.MainVppInterfaceName, " ") != "" {
+		// use name as as specified in node config YAML
+		nicName = nodeConfig.MainVppInterfaceName
+		s.Logger.Debugf("Physical NIC name taken from nodeConfig: %v ", nicName)
+	} else {
+		// name not specified in config, use heuristic - first non-virtual interface
+		for _, name := range s.swIfIndex.GetMapping().ListNames() {
+			if strings.HasPrefix(name, "local") || strings.HasPrefix(name, "loop") ||
+				strings.HasPrefix(name, "host") || strings.HasPrefix(name, "tap") {
+				continue
+			} else {
+				nicName = name
+				break
+			}
+		}
+		s.Logger.Debugf("Physical NIC not taken from nodeConfig, but heuristic was used: %v ", nicName)
+	}
+
+	// configure the main VPP NIC interface
+	err := s.configureMainVPPInterface(config, nicName)
+	if err != nil {
+		s.Logger.Error(err)
+		return err
+	}
+
+	// configure other interfaces that were configured in contiv plugin YAML configuration
+	if nodeConfig != nil && len(nodeConfig.OtherVPPInterfaces) > 0 {
+		s.Logger.Debug("Configuring VPP for additional interfaces")
+
+		err := s.configureOtherVPPInterfaces(config, nodeConfig)
+		if err != nil {
+			s.Logger.Error(err)
+			return err
+		}
+	}
+
+	return nil
+}
+
+// configureMainVPPInterface configures the main NIC used for node interconnect on vswitch VPP.
+func (s *remoteCNIserver) configureMainVPPInterface(config *vswitchConfig, nicName string) error {
+	txn1 := s.vppTxnFactory().Put()
+
+	if nicName != "" {
+		// configure the physical NIC
+		s.Logger.Info("Configuring physical NIC ", nicName)
+
+		nic, err := s.physicalInterface(nicName)
+		if err != nil {
+			return fmt.Errorf("Can't create structure for interface %v due to error: %v", nicName, err)
+		}
+		txn1.VppInterface(nic)
+		config.nics = append(config.nics, nic)
+	} else {
+		// configure loopback instead of the physical NIC
+		s.Logger.Debug("Physical NIC not found, configuring loopback instead.")
+
+		loop, err := s.physicalInterfaceLoopback()
+		if err != nil {
+			return fmt.Errorf("Can't create structure for loopback interface due to error: %v", err)
+		}
+		txn1.VppInterface(loop)
+		config.nics = append(config.nics, loop)
+	}
+
+	// execute the config transaction
+	err := txn1.Send().ReceiveReply()
+	if err != nil {
+		s.Logger.Error(err)
+		return err
+	}
+
+	return nil
+}
+
+// configureOtherVPPInterfaces other interfaces that were configured in contiv plugin YAML configuration.
+func (s *remoteCNIserver) configureOtherVPPInterfaces(config *vswitchConfig, nodeConfig *OneNodeConfig) error {
+
+	// match existing interfaces and configuration settings and create VPP configuration objects
+	interfaces := make(map[string]*vpp_intf.Interfaces_Interface)
+	for _, name := range s.swIfIndex.GetMapping().ListNames() {
+		for _, intIP := range nodeConfig.OtherVPPInterfaces {
+			if intIP.InterfaceName == name {
+				interfaces[name] = s.physicalInterfaceWithCustomIPAddress(name, intIP.IP)
+			}
+		}
+	}
+
+	// configure the interfaces on VPP
+	if len(interfaces) > 0 {
+		// prepare the config transaction
+		txn := s.vppTxnFactory().Put()
+
+		// add individual interfaces
+		for _, intf := range interfaces {
+			txn.VppInterface(intf)
+			config.nics = append(config.nics, intf)
+		}
+
+		// execute the config transaction
+		err := txn.Send().ReceiveReply()
+		if err != nil {
+			s.Logger.Error(err)
+			return err
+		}
+	}
+
+	return nil
+}
+
+// configureVswitchHostConnectivity configures vswitch VPP to Linux host interconnect.
+func (s *remoteCNIserver) configureVswitchHostConnectivity(config *vswitchConfig) error {
+	txn1 := s.vppTxnFactory().Put()
+
 	if s.useTAPInterfaces {
+		// TAP interface
+		config.tapHost = s.interconnectTap()
+
+		txn1.VppInterface(config.tapHost)
+	} else {
+		// veth + AF_PACKET
+		config.vethHost = s.interconnectVethHost()
+		config.vethVpp = s.interconnectVethVpp()
+		config.interconnectAF = s.interconnectAfpacket()
+
+		txn1.LinuxInterface(config.vethHost).
+			LinuxInterface(config.vethVpp).
+			VppInterface(config.interconnectAF)
+	}
+
+	// execute the config transaction
+	err := txn1.Send().ReceiveReply()
+	if err != nil {
+		s.Logger.Error(err)
+		return err
+	}
+
+	// finish TAP configuration
+	if s.useTAPInterfaces {
+		// TODO: this is not persited, will not work in resync case!
 		err = s.configureInterfconnectHostTap()
 		if err != nil {
 			s.Logger.Error(err)
@@ -328,46 +404,58 @@ func (s *remoteCNIserver) configureVswitchConnectivity() error {
 		}
 	}
 
-	// configure AF_PACKET (if host is interconnected using vEth is used), routes and enable L4 features
-	txn4 := s.vppTxnFactory().Put().
-		StaticRoute(routeToHost).
-		LinuxRoute(routeFromHost).
-		L4Features(l4Features)
+	// configure static routes and enable L4 features
+	config.routeToHost = s.defaultRouteToHost()
+	config.routeFromHost = s.routeFromHost()
+	config.l4Features = s.l4Features(!s.disableTCPstack)
 
-	if !s.useTAPInterfaces {
-		txn4.VppInterface(interconnectAF)
-	}
+	txn2 := s.vppTxnFactory().Put().
+		StaticRoute(config.routeToHost).
+		LinuxRoute(config.routeFromHost).
+		L4Features(config.l4Features)
 
-	err = txn4.Send().ReceiveReply()
+	// execute the config transaction
+	err = txn2.Send().ReceiveReply()
 	if err != nil {
 		s.Logger.Error(err)
 		return err
 	}
 
-	// store changes for persisting
-	if s.useTAPInterfaces {
-		changes[vpp_intf.InterfaceKey(tapHost.Name)] = tapHost
-	} else {
-		changes[linux_intf.InterfaceKey(vethHost.Name)] = vethHost
-		changes[linux_intf.InterfaceKey(vethVpp.Name)] = vethVpp
-		changes[vpp_intf.InterfaceKey(interconnectAF.Name)] = interconnectAF
+	return nil
+}
+
+// persistVswitchConfig persits vswitch configuration in ETCD
+func (s *remoteCNIserver) persistVswitchConfig(config *vswitchConfig) error {
+	var err error
+	changes := map[string]proto.Message{}
+
+	// physical NICs
+	for _, nic := range config.nics {
+		changes[vpp_intf.InterfaceKey(nic.Name)] = nic
 	}
 
-	changes[vpp_l3.RouteKey(routeToHost.VrfId, routeToHost.DstIpAddr, routeToHost.NextHopAddr)] = routeToHost
-	changes[linux_l3.StaticRouteKey(routeFromHost.Name)] = routeFromHost
-	changes[vpp_l4.FeatureKey()] = l4Features
+	// TAP / veths + AF_APCKET
+	if s.useTAPInterfaces {
+		changes[vpp_intf.InterfaceKey(config.tapHost.Name)] = config.tapHost
+	} else {
+		changes[linux_intf.InterfaceKey(config.vethHost.Name)] = config.vethHost
+		changes[linux_intf.InterfaceKey(config.vethVpp.Name)] = config.vethVpp
+		changes[vpp_intf.InterfaceKey(config.interconnectAF.Name)] = config.interconnectAF
+	}
 
-	// persist the changes made by this function in ETCD
+	// routes + l4 config
+	changes[vpp_l3.RouteKey(config.routeToHost.VrfId, config.routeToHost.DstIpAddr, config.routeToHost.NextHopAddr)] = config.routeToHost
+	changes[linux_l3.StaticRouteKey(config.routeFromHost.Name)] = config.routeFromHost
+	changes[vpp_l4.FeatureKey()] = config.l4Features
+
+	// persist the changes in ETCD
 	err = s.persistChanges(nil, changes)
 	if err != nil {
 		s.Logger.Error(err)
 		return err
 	}
 
-	s.vswitchConnectivityConfigured = true
-	s.vswitchCond.Broadcast()
-
-	return err
+	return nil
 }
 
 // cleanupVswitchConnectivity cleans up base vSwitch VPP connectivity configuration in the host IP stack.

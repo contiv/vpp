@@ -34,8 +34,8 @@ To use the development image for testing with specific version of VPP, see
     - `TCPChecksumOffloadDisabled`: disable checksum offloading for eth0 of every deployed pod;
     - `UseTAPInterfaces`: use TAP interfaces instead of VETHs for Pod-to-VPP interconnection
       (VETH is still used to connect VPP with the host stack);
-    - `TAPInterfaceVersion`: select `1` to use the standard VPP TAP interface (default) or `2`
-      for a faster, virtio-based, VPP TAPv2 interface (experimental);
+    - `TAPInterfaceVersion`: select `1` to use the standard VPP TAP interface or `2`
+      for a faster, virtio-based, VPP TAPv2 interface (default);
     - `TAPv2RxRingSize`: number of entries to allocate for TAPv2 Rx ring (default is 256);
     - `TAPv2TxRingSize`: number of entries to allocate for TAPv2 Tx ring (default is 256).
 

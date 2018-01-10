@@ -81,7 +81,6 @@ func TestNamespaceReflector(t *testing.T) {
 
 func testAddDeleteNamespace(t *testing.T) {
 
-
 	ns := &coreV1.Namespace{}
 	ns.Name = "namespace1"
 	ns.Labels = make(map[string]string)
@@ -91,12 +90,13 @@ func testAddDeleteNamespace(t *testing.T) {
 	adds := nsTestVars.nsReflector.GetStats().NumAdds
 	argErrs := nsTestVars.nsReflector.GetStats().NumArgErrors
 
-	// Test bad argument type in Add
+	// Test add with wrong argument type
 	nsTestVars.k8sListWatch.Add(&ns)
 
 	gomega.Expect(argErrs + 1).To(gomega.Equal(nsTestVars.nsReflector.GetStats().NumArgErrors))
 	gomega.Expect(adds).To(gomega.Equal(nsTestVars.nsReflector.GetStats().NumAdds))
 
+	// Test add where everything should be good
 	nsTestVars.k8sListWatch.Add(ns)
 
 	nsProto := &proto.Namespace{}
@@ -116,13 +116,12 @@ func testAddDeleteNamespace(t *testing.T) {
 
 	nsTestVars.k8sListWatch.Delete(&ns)
 
-	// Wrong data type in argument: NumArgErrors stat should roll and the
-	// delete should not happen
+	// Test delete with wrong argument type
 	gomega.Expect(argErrs + 1).To(gomega.Equal(nsTestVars.nsReflector.GetStats().NumArgErrors))
 	gomega.Expect(dels).To(gomega.Equal(nsTestVars.nsReflector.GetStats().NumDeletes))
 	gomega.Expect(len(nsTestVars.mockKvWriter.ds)).Should(gomega.BeNumerically("==", 1))
 
-	// Test delete
+	// Test delete where everything should be good
 	nsTestVars.k8sListWatch.Delete(ns)
 
 	// NumArgErrors stat should roll and the data store should be empty
@@ -137,6 +136,12 @@ func testUpdateeNamespace(t *testing.T) {
 	nsOld.Labels = make(map[string]string)
 	nsOld.Labels["role"] = "mgmt"
 	nsOld.Labels["privileged"] = "true"
+
+	nsNew := &coreV1.Namespace{}
+	nsNew.Name = nsOld.Name
+	nsNew.Labels = make(map[string]string)
+	nsNew.Labels["role"] = nsOld.Labels["role"]
+	nsNew.Labels["privileged"] = "false"		// <-- Different value for flag "privileged"
 
 	adds := nsTestVars.nsReflector.GetStats().NumAdds
 
@@ -153,12 +158,17 @@ func testUpdateeNamespace(t *testing.T) {
 
 	gomega.Expect(adds + 1).To(gomega.Equal(nsTestVars.nsReflector.GetStats().NumAdds))
 
-	nsNew := *nsOld
-	nsNew.Labels["privileged"] = "false"
 	updates := nsTestVars.nsReflector.GetStats().NumUpdates
+	argErrs := nsTestVars.nsReflector.GetStats().NumArgErrors
 
-	// Test update
+	// Test update with wrong argument type
 	nsTestVars.k8sListWatch.Update(nsOld, &nsNew)
+
+	gomega.Expect(argErrs + 1).To(gomega.Equal(nsTestVars.nsReflector.GetStats().NumArgErrors))
+	gomega.Expect(updates).To(gomega.Equal(nsTestVars.nsReflector.GetStats().NumUpdates))
+
+	// Test ypdate where everything should be good
+	nsTestVars.k8sListWatch.Update(nsOld, nsNew)
 
 	gomega.Expect(updates + 1).To(gomega.Equal(nsTestVars.nsReflector.GetStats().NumUpdates))
 
@@ -170,4 +180,3 @@ func testUpdateeNamespace(t *testing.T) {
 	gomega.Expect(nsProtoNew.Label).To(gomega.ContainElement(&proto.Namespace_Label{Key: "privileged", Value: "false"}))
 
 }
-

@@ -18,11 +18,11 @@ import (
 	"reflect"
 	"sync"
 
+	"github.com/golang/protobuf/proto"
+
 	coreV1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/tools/cache"
-
-	"github.com/golang/protobuf/proto"
 
 	"github.com/contiv/vpp/plugins/ksr/model/service"
 )
@@ -65,12 +65,7 @@ func (sr *ServiceReflector) Init(stopCh2 <-chan struct{}, wg *sync.WaitGroup) er
 		},
 	}
 
-	return sr.ksrInit(stopCh2, wg, service.KeyPrefix(), &coreV1.Service{}, serviceReflectorFuncs)
-}
-
-// GetStats returns the Service Reflector usage statistics
-func (sr *ServiceReflector) GetStats() *ReflectorStats {
-	return &sr.stats
+	return sr.ksrInit(stopCh2, wg, service.KeyPrefix(), "services", &coreV1.Service{}, serviceReflectorFuncs)
 }
 
 // addService adds state data of a newly created K8s service into the data store.
@@ -167,14 +162,4 @@ loop:
 	svcProto.HealthCheckNodePort = svc.Spec.HealthCheckNodePort
 
 	return svcProto
-}
-
-// Start activates the K8s subscription.
-func (sr *ServiceReflector) Start() {
-	sr.ksrStart()
-}
-
-// Close does nothing for this particular reflector.
-func (sr *ServiceReflector) Close() error {
-	return nil
 }

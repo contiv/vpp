@@ -1,5 +1,6 @@
 glide.lock
 .idea/*
+.DS_Store
 cmd/contiv-agent/contiv-agent
 cmd/contiv-cni/contiv-cni
 cmd/contiv-ksr/contiv-ksr

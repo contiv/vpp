@@ -21,7 +21,7 @@ endef
 # install-only binaries
 define install_only
 	@echo "# installing contiv agent"
-	@cd cmd/contiv-agent && go install -v ${LDFLAGS}
+	@cd cmd/contiv-agent && go install -v ${LDFLAGS} -tags="${GO_BUILD_TAGS}"
 	@echo "# installing contiv-ksr"
 	@cd cmd/contiv-ksr && go install -v ${LDFLAGS}
 	@echo "# installing contiv-cri"
@@ -54,7 +54,7 @@ endef
 define test_cover_only
 	@echo "# running unit tests with coverage analysis"
 	@go test -covermode=count -coverprofile=${COVER_DIR}cov_u1.out ./cmd/contiv-cni
-    @go test -covermode=count -coverprofile=${COVER_DIR}cov_u2.out ./plugins/contiv
+    @go test -covermode=count -coverprofile=${COVER_DIR}cov_u2.out ./plugins/contiv -tags="${GO_BUILD_TAGS}"
     @go test -covermode=count -coverprofile=${COVER_DIR}cov_u3.out ./plugins/contiv/ipam
     @go test -covermode=count -coverprofile=${COVER_DIR}cov_u4.out ./plugins/contiv/containeridx
     @go test -covermode=count -coverprofile=${COVER_DIR}cov_u5.out ./plugins/kvdbproxy

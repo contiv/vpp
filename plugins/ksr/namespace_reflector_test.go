@@ -141,7 +141,7 @@ func testUpdateeNamespace(t *testing.T) {
 	nsNew.Name = nsOld.Name
 	nsNew.Labels = make(map[string]string)
 	nsNew.Labels["role"] = nsOld.Labels["role"]
-	nsNew.Labels["privileged"] = "false"		// <-- Different value for flag "privileged"
+	nsNew.Labels["privileged"] = "false" // <-- Different value for flag "privileged"
 
 	adds := nsTestVars.nsReflector.GetStats().NumAdds
 

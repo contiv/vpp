@@ -207,7 +207,7 @@ Deploy_Client_Pod_And_Verify_Running
     [Arguments]    ${ssh_session}    ${client_file}=${CLIENT_POD_FILE}    ${timeout}=${POD_DEPLOY_CLIENT_TIMEOUT}
     [Documentation]     Deploy client ubuntu pod. Pod name in the yaml file is expected to be ubuntu-client.
     BuiltIn.Log_Many    ${ssh_session}    ${client_file}
-    ${client_pod_name} =    Deploy_Pod_And_Verify_Running    ${ssh_session}    ${client_file}    ubuntu-client-
+    ${client_pod_name} =    Deploy_Pod_And_Verify_Running    ${ssh_session}    ${client_file}    ubuntu-client-    timeout=${timeout}
     BuiltIn.Set_Suite_Variable    ${client_pod_name}
 
 Deploy_Server_Pod_And_Verify_Running
@@ -242,8 +242,8 @@ Deploy_Client_And_Nginx_Pod_And_Verify_Running
     [Arguments]    ${ssh_session}    ${client_file}=${CLIENT_POD_FILE}    ${nginx_file}=${NGINX_POD_FILE}
     [Documentation]     Deploy and verify one ubuntu client (from \${client_file}) and one nginx pod (from \${nginx_file}), store their names.
     BuiltIn.Log_Many    ${ssh_session}    ${client_file}    ${nginx_file}
-    ${client_pod_name} =    Deploy_Pod_And_Verify_Running    ${ssh_session}    ${client_file}    ubuntu-client-
-    ${nginx_pod_name} =    Deploy_Pod_And_Verify_Running    ${ssh_session}    ${nginx_file}    nginx-
+    ${client_pod_name} =    Deploy_Pod_And_Verify_Running    ${ssh_session}    ${client_file}    ubuntu-client-    timeout=${POD_DEPLOY_CLIENT_TIMEOUT}
+    ${nginx_pod_name} =    Deploy_Pod_And_Verify_Running    ${ssh_session}    ${nginx_file}    nginx-    timeout=${POD_DEPLOY_NGINX_TIMEOUT}
     BuiltIn.Set_Suite_Variable    ${client_pod_name}
     BuiltIn.Set_Suite_Variable    ${nginx_pod_name}
 
@@ -251,7 +251,7 @@ Deploy_Nginx_Pod_And_Verify_Running
     [Arguments]    ${ssh_session}    ${nginx_file}=${NGINX_POD_FILE}
     [Documentation]     Deploy one nginx pod
     BuiltIn.Log_Many    ${ssh_session}    ${nginx_file}
-    ${nginx_pod_name} =    Deploy_Pod_And_Verify_Running    ${ssh_session}    ${nginx_file}    nginx-
+    ${nginx_pod_name} =    Deploy_Pod_And_Verify_Running    ${ssh_session}    ${nginx_file}    nginx-    timeout=${POD_DEPLOY_NGINX_TIMEOUT}
     BuiltIn.Set_Suite_Variable    ${nginx_pod_name}
 
 Verify_Multireplica_Pods_Running

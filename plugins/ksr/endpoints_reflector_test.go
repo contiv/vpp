@@ -115,6 +115,14 @@ func TestEndpointsReflector(t *testing.T) {
 	err := epTestVars.epsReflector.Init(stopCh, &wg)
 	gomega.Expect(err).To(gomega.BeNil())
 
+	// Wait for the initial sync to finish
+	for {
+		if serviceTestVars.svcReflector.HasSynced() {
+			break
+		}
+		time.Sleep(time.Millisecond * 100)
+	}
+
 	t.Run("addDeleteEndpoints", testAddDeleteEndpoints)
 	epTestVars.mockKvWriter.ClearDs()
 	t.Run("updateEndpoints", testUpdateEndpoints)

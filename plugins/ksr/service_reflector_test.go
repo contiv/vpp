@@ -17,6 +17,7 @@ package ksr
 import (
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/onsi/gomega"
 
@@ -27,7 +28,6 @@ import (
 
 	"github.com/contiv/vpp/plugins/ksr/model/service"
 	"github.com/ligato/cn-infra/flavors/local"
-	"time"
 )
 
 type ServiceTestVars struct {

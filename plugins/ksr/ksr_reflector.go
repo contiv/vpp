@@ -26,6 +26,7 @@ import (
 	"k8s.io/apimachinery/pkg/fields"
 	k8sRuntime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 )
 
@@ -69,6 +70,9 @@ type Reflector struct {
 	dsMutex  sync.Mutex
 }
 
+// DsItems defines the structure holding items listed from the data store.
+type DsItems map[string]interface{}
+
 // ProtoAllocator defines the signature for a protobuf message allocation
 // function
 type ProtoAllocator func() proto.Message
@@ -77,8 +81,9 @@ type ProtoAllocator func() proto.Message
 // objects to KSR protobuf objects.
 type K8sToProtoConverter func(interface{}) (interface{}, string, bool)
 
-// DsItems defines the structure holding items listed from the data store.
-type DsItems map[string]interface{}
+// K8sClientGetter defines the signature for a function that allocates
+// a REST client for a given K8s data type
+type K8sClientGetter func(*kubernetes.Clientset) rest.Interface
 
 // ReflectorFunctions defines the function types required in the KSR reflector
 type ReflectorFunctions struct {
@@ -86,6 +91,7 @@ type ReflectorFunctions struct {
 
 	ProtoAllocFunc ProtoAllocator
 	K8s2ProtoFunc  K8sToProtoConverter
+	K8sClntGetFunc K8sClientGetter
 }
 
 // GetStats returns the Service Reflector usage statistics
@@ -141,7 +147,7 @@ func (r *Reflector) listDataStoreItems(pfx string, iaf func() proto.Message) (Ds
 		err := kv.GetValue(item)
 		if err != nil {
 			r.Log.WithField("Key", key).
-				Error("%s reflector failed to get object from data store, error %s", r.objType, err)
+				Errorf("%s reflector failed to get object from data store, error %s", r.objType, err)
 		} else {
 			dsDump[key] = item
 		}
@@ -150,7 +156,7 @@ func (r *Reflector) listDataStoreItems(pfx string, iaf func() proto.Message) (Ds
 	return dsDump, nil
 }
 
-// markAndSweep peforms the mark-and-sweep reconciliation between data in
+// markAndSweep performs the mark-and-sweep reconciliation between data in
 // the k8s cache and data in Etcd
 func (r *Reflector) markAndSweep(dsItems DsItems, oc K8sToProtoConverter) {
 	r.dsMutex.Lock()
@@ -267,7 +273,14 @@ func (r *Reflector) ksrInit(stopCh2 <-chan struct{}, wg *sync.WaitGroup, prefix 
 	r.stopCh = stopCh2
 	r.wg = wg
 
-	restClient := r.K8sClientset.CoreV1().RESTClient()
+	var restClient rest.Interface
+	if ksrFuncs.K8sClntGetFunc != nil {
+		restClient = ksrFuncs.K8sClntGetFunc(r.K8sClientset)
+	} else {
+		// If API version getter not specified, use CoreV1 by default
+		restClient = r.K8sClientset.CoreV1().RESTClient()
+	}
+
 	listWatch := r.K8sListWatch.NewListWatchFromClient(restClient, objType, "", fields.Everything())
 	r.k8sStore, r.k8sController = r.K8sListWatch.NewInformer(
 		listWatch,

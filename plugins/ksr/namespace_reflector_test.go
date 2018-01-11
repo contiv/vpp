@@ -87,6 +87,7 @@ func testAddDeleteNamespace(t *testing.T) {
 	ns.Labels["role"] = "mgmt"
 	ns.Labels["privileged"] = "true"
 
+	// Take a snapshot of counters
 	adds := nsTestVars.nsReflector.GetStats().NumAdds
 	argErrs := nsTestVars.nsReflector.GetStats().NumArgErrors
 
@@ -110,7 +111,7 @@ func testAddDeleteNamespace(t *testing.T) {
 
 	gomega.Expect(adds + 1).To(gomega.Equal(nsTestVars.nsReflector.GetStats().NumAdds))
 
-	// Test a bad argument type in Delete
+	// Take a snapshot of counters
 	dels := nsTestVars.nsReflector.GetStats().NumDeletes
 	argErrs = nsTestVars.nsReflector.GetStats().NumArgErrors
 
@@ -158,6 +159,7 @@ func testUpdateeNamespace(t *testing.T) {
 
 	gomega.Expect(adds + 1).To(gomega.Equal(nsTestVars.nsReflector.GetStats().NumAdds))
 
+	// Take a snapshot of counters
 	updates := nsTestVars.nsReflector.GetStats().NumUpdates
 	argErrs := nsTestVars.nsReflector.GetStats().NumArgErrors
 
@@ -167,7 +169,7 @@ func testUpdateeNamespace(t *testing.T) {
 	gomega.Expect(argErrs + 1).To(gomega.Equal(nsTestVars.nsReflector.GetStats().NumArgErrors))
 	gomega.Expect(updates).To(gomega.Equal(nsTestVars.nsReflector.GetStats().NumUpdates))
 
-	// Test ypdate where everything should be good
+	// Test update where everything should be good
 	nsTestVars.k8sListWatch.Update(nsOld, nsNew)
 
 	gomega.Expect(updates + 1).To(gomega.Equal(nsTestVars.nsReflector.GetStats().NumUpdates))

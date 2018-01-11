@@ -19,8 +19,10 @@ import (
 	"os"
 	"sync"
 
-	"github.com/Sirupsen/logrus"
+	"regexp"
+
 	"github.com/ligato/cn-infra/logging"
+	"github.com/Sirupsen/logrus"
 )
 
 var initialLogLvl = logrus.InfoLevel
@@ -29,9 +31,9 @@ func init() {
 	if lvl, err := logrus.ParseLevel(os.Getenv("INITIAL_LOGLVL")); err == nil {
 		initialLogLvl = lvl
 		if err := setLevel(defaultLogger, lvl); err != nil {
-			defaultLogger.Warnf("setting initialLogLvl = %q failed: %v", lvl.String(), err)
+			defaultLogger.Warnf("setting initial log level to %v failed: %v", lvl.String(), err)
 		} else {
-			defaultLogger.Debugf("initialLogLvl = %q", lvl.String())
+			defaultLogger.Debugf("initial log level: %v", lvl.String())
 		}
 	}
 }
@@ -58,11 +60,19 @@ type logRegistry struct {
 	defaultLevel logrus.Level
 }
 
+var validLoggerName = regexp.MustCompile(`^[a-zA-Z0-9.-]+$`).MatchString
+
+func checkLoggerName(name string) error {
+	if !validLoggerName(name) {
+		return fmt.Errorf("logger name can contain only alphanum characters, dash and comma")
+	}
+	return nil
+}
+
 // NewLogger creates new named Logger instance. Name can be subsequently used to
 // refer the logger in registry.
 func (lr *logRegistry) NewLogger(name string) logging.Logger {
-	existingLogger := lr.getLoggerFromMapping(name)
-	if existingLogger != nil {
+	if existingLogger := lr.getLoggerFromMapping(name); existingLogger != nil {
 		panic(fmt.Errorf("logger with name '%s' already exists", name))
 	}
 	if err := checkLoggerName(name); err != nil {
@@ -116,7 +126,6 @@ func setLevel(logVal logging.Logger, lvl logrus.Level) error {
 	if logVal == nil {
 		return fmt.Errorf("logger %q not found", logVal)
 	}
-	defaultLogger.Debugln("set logger level:", logVal.GetName(), "->", lvl.String())
 	switch lvl {
 	case logrus.DebugLevel:
 		logVal.SetLevel(logging.DebugLevel)
@@ -147,6 +156,7 @@ func (lr *logRegistry) SetLevel(logger, level string) error {
 	lr.logLevels[logger] = lvl
 	logVal := lr.getLoggerFromMapping(logger)
 	if logVal != nil {
+		defaultLogger.Debugf("setting logger level: %v -> %v", logVal.GetName(), lvl.String())
 		return setLevel(logVal, lvl)
 	}
 	return nil

@@ -29,7 +29,6 @@ import (
 	"github.com/vishvananda/netlink"
 
 	"github.com/ligato/cn-infra/logging"
-	log "github.com/ligato/cn-infra/logging/logrus"
 	"github.com/ligato/cn-infra/logging/measure"
 	"github.com/ligato/cn-infra/servicelabel"
 	"github.com/ligato/cn-infra/utils/addrs"
@@ -41,6 +40,7 @@ import (
 /* how often in seconds to refresh the microservice label -> docker container PID map */
 const (
 	dockerRefreshPeriod = 3 * time.Second
+	dockerRetryPeriod   = 5 * time.Second
 	vethConfigNamespace = "veth-cfg-ns"
 )
 
@@ -182,7 +182,7 @@ func (plugin *LinuxInterfaceConfigurator) LookupLinuxInterfaces() error {
 		if len(res) == 1 {
 			continue
 		}
-		plugin.Log.WithFields(log.Fields{"name": inter.Name, "idx": idx}).Debug("Found new Linux interface")
+		plugin.Log.WithFields(logging.Fields{"name": inter.Name, "idx": idx}).Debug("Found new Linux interface")
 		plugin.ifIndexes.RegisterName(inter.Name, uint32(idx), &interfaces.LinuxInterfaces_Interface{
 			Name: inter.Name, HostIfName: inter.Name})
 	}
@@ -283,7 +283,7 @@ func (plugin *LinuxInterfaceConfigurator) configureLinuxInterface(nsMgmtCtx *lin
 
 	// Configure optional mac address.
 	if iface.config.PhysAddress != "" {
-		plugin.Log.WithFields(log.Fields{"PhysAddress": iface.config.PhysAddress, "ifName": iface.config.Name}).
+		plugin.Log.WithFields(logging.Fields{"PhysAddress": iface.config.PhysAddress, "ifName": iface.config.Name}).
 			Debug("MAC address configured.")
 		err := linuxcalls.SetInterfaceMac(iface.config.HostIfName, iface.config.PhysAddress, measure.GetTimeLog("set_iface_mac", plugin.Stopwatch))
 		if err != nil {
@@ -297,7 +297,7 @@ func (plugin *LinuxInterfaceConfigurator) configureLinuxInterface(nsMgmtCtx *lin
 		return err
 	}
 	for i := range newAddrs {
-		plugin.Log.WithFields(log.Fields{"IPaddress": newAddrs[i], "ifName": iface.config.Name}).
+		plugin.Log.WithFields(logging.Fields{"IPaddress": newAddrs[i], "ifName": iface.config.Name}).
 			Debug("IP address added.")
 		err := linuxcalls.AddInterfaceIP(iface.config.HostIfName, newAddrs[i], measure.GetTimeLog("add_iface_ip", plugin.Stopwatch))
 		if nil != err {
@@ -308,7 +308,7 @@ func (plugin *LinuxInterfaceConfigurator) configureLinuxInterface(nsMgmtCtx *lin
 	// Configure MTU.
 	mtu := iface.config.Mtu
 	if mtu > 0 {
-		plugin.Log.WithFields(log.Fields{"MTU": mtu, "ifName": iface.config.Name}).Debug("MTU configured.")
+		plugin.Log.WithFields(logging.Fields{"MTU": mtu, "ifName": iface.config.Name}).Debug("MTU configured.")
 		err := linuxcalls.SetInterfaceMTU(iface.config.HostIfName, int(mtu), measure.GetTimeLog("set_iface_mtu", plugin.Stopwatch))
 		if nil != err {
 			wasError = fmt.Errorf("failed to set MTU of a Linux interface: %v", err)
@@ -321,7 +321,7 @@ func (plugin *LinuxInterfaceConfigurator) configureLinuxInterface(nsMgmtCtx *lin
 	}
 
 	plugin.ifIndexes.RegisterName(iface.config.Name, uint32(idx), &interfaces.LinuxInterfaces_Interface{Name: iface.config.Name, HostIfName: iface.config.HostIfName})
-	plugin.Log.WithFields(log.Fields{"ifName": iface.config.Name, "ifIdx": idx}).
+	plugin.Log.WithFields(logging.Fields{"ifName": iface.config.Name, "ifIdx": idx}).
 		Info("An entry added into ifState.")
 
 	return wasError
@@ -389,7 +389,7 @@ func (plugin *LinuxInterfaceConfigurator) ModifyLinuxInterface(newConfig *interf
 	// Verify that the interface exists in the Linux namespace.
 	idx := GetLinuxInterfaceIndex(ifName)
 	if idx < 0 {
-		plugin.Log.WithFields(log.Fields{"ifName": ifName}).Debug("Linux interface not found.")
+		plugin.Log.WithFields(logging.Fields{"ifName": ifName}).Debug("Linux interface not found.")
 		return nil
 	}
 
@@ -409,7 +409,7 @@ func (plugin *LinuxInterfaceConfigurator) ModifyLinuxInterface(newConfig *interf
 
 	// Configure new mac address if set.
 	if newConfig.PhysAddress != "" && newConfig.PhysAddress != oldConfig.PhysAddress {
-		plugin.Log.WithFields(log.Fields{"PhysAddress": newConfig.PhysAddress, "ifName": ifName}).
+		plugin.Log.WithFields(logging.Fields{"PhysAddress": newConfig.PhysAddress, "ifName": ifName}).
 			Debug("MAC address re-configured.")
 		err := linuxcalls.SetInterfaceMac(ifName, newConfig.PhysAddress, measure.GetTimeLog("set_iface_mac", plugin.Stopwatch))
 		if err != nil {
@@ -431,7 +431,7 @@ func (plugin *LinuxInterfaceConfigurator) ModifyLinuxInterface(newConfig *interf
 	del, add = addrs.DiffAddr(newAddrs, oldAddrs)
 
 	for i := range del {
-		plugin.Log.WithFields(log.Fields{"IPaddress": del[i], "ifName": ifName}).Debug("IP address deleted.")
+		plugin.Log.WithFields(logging.Fields{"IPaddress": del[i], "ifName": ifName}).Debug("IP address deleted.")
 		err := linuxcalls.DelInterfaceIP(ifName, del[i], measure.GetTimeLog("del_iface_ip", plugin.Stopwatch))
 		if nil != err {
 			wasError = fmt.Errorf("failed to unassign IPv4 address from a Linux interface: %v", err)
@@ -439,7 +439,7 @@ func (plugin *LinuxInterfaceConfigurator) ModifyLinuxInterface(newConfig *interf
 	}
 
 	for i := range add {
-		plugin.Log.WithFields(log.Fields{"IPaddress": add[i], "ifName": ifName}).Debug("IP address added.")
+		plugin.Log.WithFields(logging.Fields{"IPaddress": add[i], "ifName": ifName}).Debug("IP address added.")
 		err := linuxcalls.AddInterfaceIP(ifName, add[i], measure.GetTimeLog("add_iface_ip", plugin.Stopwatch))
 		if nil != err {
 			wasError = fmt.Errorf("failed to assign IPv4 address to a Linux interface: %v", err)
@@ -450,7 +450,7 @@ func (plugin *LinuxInterfaceConfigurator) ModifyLinuxInterface(newConfig *interf
 	if newConfig.Mtu != oldConfig.Mtu {
 		mtu := newConfig.Mtu
 		if mtu > 0 {
-			plugin.Log.WithFields(log.Fields{"MTU": mtu, "ifName": ifName}).Debug("MTU re-configured.")
+			plugin.Log.WithFields(logging.Fields{"MTU": mtu, "ifName": ifName}).Debug("MTU re-configured.")
 			err := linuxcalls.SetInterfaceMTU(ifName, int(mtu), measure.GetTimeLog("set_iface_mtu", plugin.Stopwatch))
 			if nil != err {
 				wasError = fmt.Errorf("failed to set MTU of a Linux interface: %v", err)
@@ -515,7 +515,7 @@ func (plugin *LinuxInterfaceConfigurator) DeleteLinuxInterface(iface *interfaces
 
 // removeObsoleteVeth deletes VETH interface which should no longer exist.
 func (plugin *LinuxInterfaceConfigurator) removeObsoleteVeth(nsMgmtCtx *linuxcalls.NamespaceMgmtCtx, vethName string, hostIfName string, ns *interfaces.LinuxInterfaces_Interface_Namespace) error {
-	plugin.Log.WithFields(log.Fields{"vethName": vethName, "ns": linuxcalls.NamespaceToStr(ns)}).
+	plugin.Log.WithFields(logging.Fields{"vethName": vethName, "hostIfName": hostIfName, "ns": linuxcalls.NamespaceToStr(ns)}).
 		Debug("Attempting to remove obsolete VETH")
 
 	revertNs, err := plugin.switchToNamespace(nsMgmtCtx, ns)
@@ -548,7 +548,7 @@ func (plugin *LinuxInterfaceConfigurator) removeObsoleteVeth(nsMgmtCtx *linuxcal
 		plugin.Log.Error(err)
 		return err
 	}
-	plugin.Log.WithFields(log.Fields{"ifName": vethName, "peerName": peerName}).
+	plugin.Log.WithFields(logging.Fields{"ifName": vethName, "peerName": peerName}).
 		Debug("Removing obsolete VETH interface")
 	err = linuxcalls.DelVethInterfacePair(hostIfName, peerName, plugin.Log, measure.GetTimeLog("del_veth_iface", plugin.Stopwatch))
 	if err != nil {
@@ -696,21 +696,28 @@ func (plugin *LinuxInterfaceConfigurator) trackMicroservices(ctx context.Context
 		nsMgmtCtx: linuxcalls.NewNamespaceMgmtCtx(),
 	}
 
-	var err error
+	timer := time.NewTimer(0)
+
 	for {
-		if plugin.dockerClient == nil {
-			if plugin.dockerClient, err = docker.NewClientFromEnv(); err == nil {
-				plugin.Log.Debugf("Successfully established connection with the docker daemon.")
-				plugin.microserviceChan <- msCtx
-			} else {
-				plugin.Log.Warnf("Failed to establish connection with the docker daemon: %v", err)
-				plugin.Log.Debugf("Retrying connect in few seconds..")
-			}
-		}
-		// Sleep before another refresh.
 		select {
-		case <-time.After(dockerRefreshPeriod):
-			continue
+		case <-timer.C:
+			if plugin.dockerClient == nil {
+				var err error
+				if plugin.dockerClient, err = docker.NewClientFromEnv(); err == nil {
+					plugin.Log.Debugf("Successfully established connection with the docker daemon.")
+				} else {
+					plugin.Log.Warnf("Failed to establish connection with the docker daemon: %v", err)
+					plugin.Log.Debugf("Retrying connect in few seconds..")
+					// Sleep before another retry.
+					timer.Reset(dockerRetryPeriod)
+					continue
+				}
+			}
+
+			plugin.microserviceChan <- msCtx
+
+			// Sleep before another refresh.
+			timer.Reset(dockerRefreshPeriod)
 		case <-plugin.ctx.Done():
 			return
 		}
@@ -827,10 +834,10 @@ func (plugin *LinuxInterfaceConfigurator) processNewMicroservice(nsMgmtCtx *linu
 	microservice, restarted := plugin.microserviceByLabel[microserviceLabel]
 	if restarted {
 		plugin.processTerminatedMicroservice(nsMgmtCtx, microservice.id)
-		plugin.Log.WithFields(log.Fields{"label": microserviceLabel, "new-pid": pid, "new-id": id}).
+		plugin.Log.WithFields(logging.Fields{"label": microserviceLabel, "new-pid": pid, "new-id": id}).
 			Warn("Microservice has been restarted")
 	} else {
-		plugin.Log.WithFields(log.Fields{"label": microserviceLabel, "pid": pid, "id": id}).
+		plugin.Log.WithFields(logging.Fields{"label": microserviceLabel, "pid": pid, "id": id}).
 			Debug("Discovered new microservice")
 	}
 
@@ -856,7 +863,7 @@ func (plugin *LinuxInterfaceConfigurator) processNewMicroservice(nsMgmtCtx *linu
 				continue
 			}
 
-			if err := plugin.configureLinuxInterface(nsMgmtCtx, iface); err == nil {
+			if err := plugin.configureLinuxInterface(nsMgmtCtx, iface); err != nil {
 				plugin.Log.Warnf("failed to configure VETH interface %s: %v", iface.config.Name, err)
 			} else if err := plugin.configureLinuxInterface(nsMgmtCtx, peer); err != nil {
 				plugin.Log.Warnf("failed to configure VETH interface %s: %v", peer.config.Name, err)
@@ -872,11 +879,11 @@ func (plugin *LinuxInterfaceConfigurator) processNewMicroservice(nsMgmtCtx *linu
 func (plugin *LinuxInterfaceConfigurator) processTerminatedMicroservice(nsMgmtCtx *linuxcalls.NamespaceMgmtCtx, id string) {
 	microservice, exists := plugin.microserviceByID[id]
 	if !exists {
-		plugin.Log.WithFields(log.Fields{"id": id}).
+		plugin.Log.WithFields(logging.Fields{"id": id}).
 			Warn("Detected removal of an unknown microservice")
 		return
 	}
-	plugin.Log.WithFields(log.Fields{"label": microservice.label, "pid": microservice.pid, "id": microservice.id}).
+	plugin.Log.WithFields(logging.Fields{"label": microservice.label, "pid": microservice.pid, "id": microservice.id}).
 		Debug("Microservice has terminated")
 
 	delete(plugin.microserviceByLabel, microservice.label)
@@ -925,13 +932,13 @@ func (plugin *LinuxInterfaceConfigurator) processLinkNotification(link netlink.L
 	plugin.cfgLock.Lock()
 	defer plugin.cfgLock.Unlock()
 
-	plugin.Log.WithFields(log.Fields{"name": linkAttrs.Name}).
+	plugin.Log.WithFields(logging.Fields{"name": linkAttrs.Name}).
 		Debugf("Processing Linux link update (%v) %+v", link.Type(), linkAttrs)
 
 	// Register newly added interface only if it is not already managed by this plugin.
 	_, _, known := plugin.ifIndexes.LookupIdx(linkAttrs.Name)
 	if !known {
-		plugin.Log.WithFields(log.Fields{"name": linkAttrs.Name, "idx": linkAttrs.Index}).
+		plugin.Log.WithFields(logging.Fields{"name": linkAttrs.Name, "idx": linkAttrs.Index}).
 			Debugf("Found new Linux interface")
 		plugin.ifIndexes.RegisterName(linkAttrs.Name, uint32(linkAttrs.Index), nil)
 	}

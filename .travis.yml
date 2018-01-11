@@ -11,10 +11,12 @@ cache:
   directories:
     - $HOME/build-cache
 
+env:
+  - GO_BUILD_TAGS=novpp    
+
 before_install:
   - go get -v github.com/golang/lint/golint
   - go get github.com/mattn/goveralls
-  - sudo ./vendor/github.com/ligato/vpp-agent/scripts/build-vpp.sh
   - sudo apt-get install npm && npm install -g markdown-link-check
 
 script:

@@ -40,12 +40,7 @@ TwoNodesK8sTeardown
     Testsuite Teardown
 
 Setup_Hosts_Connections
-    [Arguments]    ${user}=localadmin    ${password}=cisco123
-    ${conn} =     SSHLibrary.Get_Connection    ${testbed_connection}
-    ${client_connection} =    SSHLibrary.Open_Connection    ${conn.host}    timeout=10
-    SSHLibrary.Login    ${user}    ${password}
-    BuiltIn.Set_Suite_Variable    ${client_connection}
-    KubernetesEnv.Get_Into_Container_Prompt_In_Pod    ${client_connection}    ${client_pod_name}    prompt=#
+    EnvConnections.Open_Client_Connection
 
 Teardown_Hosts_Connections
     KubernetesEnv.Leave_Container_Prompt_In_Pod    ${client_connection}

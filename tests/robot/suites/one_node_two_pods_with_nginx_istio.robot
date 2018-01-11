@@ -48,9 +48,7 @@ Setup_Client_Pod_Session
     [Documentation]    Open and store one more SSH connection to master host, in it open
     ...    pod shell to client pod, parse IP addresses for client and nginx and store them.
     EnvConnections.Open_Client_Connection
-    ${nginx_pod_details} =     KubeCtl.Describe_Pod    ${testbed_connection}    ${nginx_pod_name}
-    ${nginx_ip} =     BuiltIn.Evaluate    &{nginx_pod_details}[${nginx_pod_name}]["IP"]
-    BuiltIn.Set_Suite_Variable    ${nginx_ip}
+    EnvConnections.Find_Nginx_IP
 
 Teardown_Client_Pod_Session
     [Documentation]    Exit client pod shell, close corresponding SSH connection.

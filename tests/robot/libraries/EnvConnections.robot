@@ -30,3 +30,8 @@ Open_VPP_Connection
     BuiltIn.Set_Suite_Variable    ${vpp_connection}
     SshCommons.Switch_And_Write_Command    ${vpp_connection}    telnet 0 5002
 
+Find_Nginx_IP
+    ${nginx_pod_details} =     KubeCtl.Describe_Pod    ${testbed_connection}    ${nginx_pod_name}
+    ${nginx_ip} =     BuiltIn.Evaluate    &{nginx_pod_details}[${nginx_pod_name}]["IP"]
+    BuiltIn.Set_Suite_Variable    ${nginx_ip}
+

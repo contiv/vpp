@@ -43,20 +43,10 @@ OneNodeK8sTeardown
     setup-teardown.Testsuite_Teardown
 
 Setup_Client_Pod_Session
-    [Arguments]    ${user}=localadmin    ${password}=cisco123
     [Documentation]    Open and store one more SSH connection to master host, in it open
     ...    pod shell to client pod, parse IP addresses for client and nginx and store them.
-    Builtin.Log_Many    ${user}    ${password}
-    Builtin.Comment    FIXME: De-duplicate into a Resource.
-    ${conn} =     SSHLibrary.Get_Connection    ${testbed_connection}
-    ${client_connection} =    SSHLibrary.Open_Connection    ${conn.host}    timeout=10
-    SSHLibrary.Login    ${user}    ${password}
-    BuiltIn.Set_Suite_Variable    ${client_connection}
-    KubernetesEnv.Get_Into_Container_Prompt_In_Pod    ${client_connection}    ${client_pod_name}    prompt=#
-    ${client_pod_details} =     KubeCtl.Describe_Pod    ${testbed_connection}    ${client_pod_name}
-    ${nginx_pod_details} =     KubeCtl.Describe_Pod    ${testbed_connection}    ${nginx_pod_name}
-    ${nginx_ip} =     BuiltIn.Evaluate    &{nginx_pod_details}[${nginx_pod_name}]["IP"]
-    BuiltIn.Set_Suite_Variable    ${nginx_ip}
+    EnvConnections.Open_Client_Connection
+    EnvConnections.Find_Nginx_IP
 
 Teardown_Client_Pod_Session
     [Documentation]    Exit client pod shell, close corresponding SSH connection.

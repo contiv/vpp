@@ -36,7 +36,7 @@
 //       any pre-processing
 //     - postpones RESYNC until the Contiv plugin has finalized its RESYNC
 //
-//  1. Service Processor
+//  2. Service Processor
 //     - receives RESYNC and data-change events for endpoints and services
 //       from the service plugin
 //     - internally caches the current state of the configuration (since the last
@@ -55,7 +55,7 @@
 //         * Contiv plugin is also used to convert pod IDs to their associated
 //           interfaces
 //
-//  2. Service Configurator
+//  3. Service Configurator
 //     - until we have NAT44 supported in the vpp-agent, the configurator
 //       installs the configuration directly via VPP/NAT plugin binary API
 //     - translates ContivService into the corresponding NAT configuration
@@ -116,6 +116,7 @@
 //   1. enable NAT44 forwarding
 //   2. get all *out* interfaces = physical interfaces + AF_PACKET/TAP to host
 //     2.1. add feature nat44-out2in to these interfaces
+//   3. Add Node IP for SNAT (twice-nat)
 //
 //  With every change in the endpoints/services:
 //  -- processor --

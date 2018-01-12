@@ -38,4 +38,4 @@ cd vagrant-scripts/
 ./vagrant-reload.sh
 ```
 
-From a suspended state, or after a reboot of the host machine, cluster can be brought up by running the vagrant-up.sh script:
+From a suspended state, or after a reboot of the host machine, cluster can be brought up by running the vagrant-up.sh script.

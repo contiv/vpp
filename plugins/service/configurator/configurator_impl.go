@@ -20,6 +20,7 @@ import (
 	govpp "git.fd.io/govpp.git/api"
 	"github.com/ligato/cn-infra/logging"
 
+	"github.com/contiv/vpp/plugins/contiv"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins"
 	//epmodel "github.com/contiv/vpp/plugins/ksr/model/endpoints"
 	//svcmodel "github.com/contiv/vpp/plugins/ksr/model/service"
@@ -33,6 +34,7 @@ type ServiceConfigurator struct {
 // Deps lists dependencies of ServiceConfigurator.
 type Deps struct {
 	Log       logging.Logger
+	Contiv    contiv.API         /* to get the Node IP */
 	VPP       defaultplugins.API /* interface indexes */
 	GoVPPChan *govpp.Channel     /* until supported in vpp-agent, we call NAT binary APIs directly */
 }
@@ -59,21 +61,21 @@ func (sc *ServiceConfigurator) DeleteService(service *ContivService) error {
 	return nil
 }
 
-// UpdateFrontends updates the list of interfaces with the enabled out2in
-// VPP/NAT feature.
-func (sc *ServiceConfigurator) UpdateFrontends(oldIfNames []string, newIfNames []string) error {
+// UpdateLocalFrontendIfs updates the list of interfaces connecting clients
+// with VPP (enabled out2in VPP/NAT feature).
+func (sc *ServiceConfigurator) UpdateLocalFrontendIfs(oldIfNames, newIfNames Interfaces) error {
 	return nil
 }
 
-// UpdateBackends updates the list of interfaces with the enabled in2out
-// VPP/NAT feature.
-func (sc *ServiceConfigurator) UpdateBackends(oldIfNames []string, newIfNames []string) error {
+// UpdateLocalBackendIfs updates the list of interfaces connecting service
+// backends with VPP (enabled in2out VPP/NAT feature).
+func (sc *ServiceConfigurator) UpdateLocalBackendIfs(oldIfNames, newIfNames Interfaces) error {
 	return nil
 }
 
 // Resync completely replaces the current NAT configuration with the provided
 // full state of K8s services.
-func (sc *ServiceConfigurator) Resync(services []*ContivService, frontends []string, backendIfs []string) error {
+func (sc *ServiceConfigurator) Resync(services []*ContivService, frontendIfs, backendIfs Interfaces) error {
 	return nil
 }
 

@@ -88,6 +88,7 @@ func (p *Plugin) Init() error {
 	p.configurator = &configurator.ServiceConfigurator{
 		Deps: configurator.Deps{
 			Log:       p.Log.NewLogger("-serviceConfigurator"),
+			Contiv:    p.Contiv,
 			VPP:       p.VPP,
 			GoVPPChan: goVppCh,
 		},

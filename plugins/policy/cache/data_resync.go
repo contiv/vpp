@@ -93,11 +93,14 @@ func (pc *PolicyCache) resyncParseEvent(resyncEv datasync.ResyncEvent) *DataResy
 				}
 
 				// Parse namespace RESYNC event
-				value := &namespacemodel.Namespace{}
-				err = evData.GetValue(value)
+				_, err = namespacemodel.ParseNamespaceFromKey(key)
 				if err == nil {
-					event.Namespaces = append(event.Namespaces, value)
-					numNs++
+					value := &namespacemodel.Namespace{}
+					err = evData.GetValue(value)
+					if err == nil {
+						event.Namespaces = append(event.Namespaces, value)
+						numNs++
+					}
 				}
 			}
 

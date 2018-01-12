@@ -149,6 +149,8 @@ else
 fi
 createVPPconfig
 
+echo "#auto enp0s8" >> /etc/network/interfaces
+
 # Pull the latest images
 bash <(curl -s https://raw.githubusercontent.com/contiv/vpp/master/k8s/pull-images.sh)
 
@@ -243,14 +245,14 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
     # Configure Master node
     config.vm.define "k8s-master" do |k8smaster|
         k8smaster.vm.host_name = "k8s-master"
-        k8smaster.vm.network "private_network", type: "dhcp"
+        k8smaster.vm.network :private_network, type: "dhcp", auto_config: false
         k8smaster.vm.network :private_network, ip: base_ip + "10", virtualbox__intnet: "true"
         k8smaster.vm.provider "virtualbox" do |v|
             v.memory = 4096
             v.cpus = 2
         end
         k8smaster_ip = base_ip + "51"
-        k8smaster.vm.provision :shell, inline: "sed 's/127\.0\.0\.1.*k8s.*/192\.169\.1\.10 k8s-master/' -i /etc/hosts"
+        k8smaster.vm.provision :shell, inline: "sed 's/127\.0\.0\.1.*k8s.*/"+base_ip +"10 k8s-master/' -i /etc/hosts"
         k8smaster.vm.provision "shell" do |s|
             s.inline = provision_every_node
             s.args = [ENV["http_proxy"] || "", ENV["https_proxy"] || ""]
@@ -268,16 +270,16 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
         config.vm.define node_name do |node|
             node.vm.hostname = node_name
             # Interface for K8s Cluster
-            node.vm.network "private_network", type: "dhcp"
+            node.vm.network :private_network, type: "dhcp", auto_config: false
             #node.vm.network :private_network, ip: "node_addr", virtualbox__intnet: "true"
-            node.vm.network :private_network, ip: "192.169.1.11", virtualbox__intnet: "true"
+            node.vm.network :private_network, ip: base_ip + "11", virtualbox__intnet: "true"
             node.vm.provider "virtualbox" do |v|
                 v.memory = 4096
                 v.cpus = 2
             end
             node_ip_last = n+10
             #node.vm.provision :shell, inline: "sed 's/127\.0\.0\.1.*k8s.*/192\.169\.1\.#{node_ip_last} #{node_name}/' -i /etc/hosts"
-            node.vm.provision :shell, inline: "sed 's/127\.0\.0\.1.*k8s.*/192\.169\.1\.11 k8s-worker1/' -i /etc/hosts"
+            node.vm.provision :shell, inline: "sed 's/127\.0\.0\.1.*k8s.*/"+base_ip+"11 k8s-worker1/' -i /etc/hosts"
             node.vm.provision "shell" do |s|
                 s.inline = provision_every_node
                 s.args = [ENV["http_proxy"] || "", ENV["https_proxy"] || ""]

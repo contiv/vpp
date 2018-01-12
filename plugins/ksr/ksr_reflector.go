@@ -26,6 +26,7 @@ import (
 	"k8s.io/apimachinery/pkg/fields"
 	k8sRuntime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 )
 
@@ -45,20 +46,22 @@ type ReflectorStats struct {
 type Reflector struct {
 	// Each reflector gets a separate child logger.
 	Log logging.Logger
-	// A K8s client is used to get the appropriate REST client.
+	// A K8s client gets the appropriate REST client.
 	K8sClientset *kubernetes.Clientset
-	// K8s List-Watch is used to watch for Kubernetes config changes.
+	// K8s List-Watch watches for Kubernetes config changes.
 	K8sListWatch K8sListWatcher
-	// Writer is used to propagate changes into a datastore.
+	// Writer propagates changes into a data store.
 	Writer KeyProtoValWriter
-	// Lister is used to list values from a datastore.
+	// Lister lists values from a data store.
 	Lister KeyProtoValLister
 	// objType defines the type of the object handled by a particular reflector
 	objType string
 	// stopCh is used to gracefully shutdown the Reflector
-	stopCh        <-chan struct{}
-	wg            *sync.WaitGroup
-	k8sStore      cache.Store
+	stopCh <-chan struct{}
+	wg     *sync.WaitGroup
+	// K8s cache
+	k8sStore cache.Store
+	// K8s controller
 	k8sController cache.Controller
 	// Reflector statistics
 	stats ReflectorStats
@@ -66,6 +69,9 @@ type Reflector struct {
 	dsSynced bool
 	dsMutex  sync.Mutex
 }
+
+// DsItems defines the structure holding items listed from the data store.
+type DsItems map[string]interface{}
 
 // ProtoAllocator defines the signature for a protobuf message allocation
 // function
@@ -75,8 +81,9 @@ type ProtoAllocator func() proto.Message
 // objects to KSR protobuf objects.
 type K8sToProtoConverter func(interface{}) (interface{}, string, bool)
 
-// DsItems defines the structure holding items listed from the data store.
-type DsItems map[string]interface{}
+// K8sClientGetter defines the signature for a function that allocates
+// a REST client for a given K8s data type
+type K8sClientGetter func(*kubernetes.Clientset) rest.Interface
 
 // ReflectorFunctions defines the function types required in the KSR reflector
 type ReflectorFunctions struct {
@@ -84,43 +91,63 @@ type ReflectorFunctions struct {
 
 	ProtoAllocFunc ProtoAllocator
 	K8s2ProtoFunc  K8sToProtoConverter
+	K8sClntGetFunc K8sClientGetter
+}
+
+// GetStats returns the Service Reflector usage statistics
+func (r *Reflector) GetStats() *ReflectorStats {
+	return &r.stats
+}
+
+// Start activates the K8s subscription.
+func (r *Reflector) Start() {
+	r.wg.Add(1)
+	go r.ksrRun()
+}
+
+// Close does nothing for this particular reflector.
+func (r *Reflector) Close() error {
+	return nil
+}
+
+// HasSynced returns the KSR Reflector's sync status.
+func (r *Reflector) HasSynced() bool {
+	r.dsMutex.Lock()
+	defer r.dsMutex.Unlock()
+	return r.dsSynced
 }
 
 // ksrRun runs k8s subscription in a separate go routine.
-func (kr *Reflector) ksrRun() {
-	defer kr.wg.Done()
-	kr.Log.Infof("%s reflector is now running", kr.objType)
-	kr.k8sController.Run(kr.stopCh)
-	kr.Log.Infof("%s reflector stopped", kr.objType)
+func (r *Reflector) ksrRun() {
+	defer r.wg.Done()
+	r.Log.Infof("%s reflector is now running", r.objType)
+	r.k8sController.Run(r.stopCh)
+	r.Log.Infof("%s reflector stopped", r.objType)
 }
 
-// ksrStart activates the K8s subscription.
-func (kr *Reflector) ksrStart() {
-	kr.wg.Add(1)
-	go kr.ksrRun()
-}
-
-func (kr *Reflector) listDataStoreItems(pfx string, iaf func() proto.Message) (DsItems, error) {
-
+// listDataStoreItems gets all items of a given type from Etcd
+func (r *Reflector) listDataStoreItems(pfx string, iaf func() proto.Message) (DsItems, error) {
 	dsDump := make(map[string]interface{})
-	// List everything in Etcd
-	kvi, err := kr.Lister.ListValues(pfx)
+
+	// Retrieve all data items for a given data type (i.e. key prefix)
+	kvi, err := r.Lister.ListValues(pfx)
 	if err != nil {
-		return dsDump, fmt.Errorf("can not get kv iterator, error: %s", err)
+		return dsDump, fmt.Errorf("%s reflector can not get kv iterator, error: %s", r.objType, err)
 	}
 
+	// Put the retrieved items to a map where an item can be addressed
+	// by its key
 	for {
 		kv, stop := kvi.GetNext()
 		if stop {
 			break
 		}
-
-		// sr.Log.Infof("kv key: %s, rev: %d", kv.GetKey(), kv.GetRevision())
 		key := kv.GetKey()
 		item := iaf()
 		err := kv.GetValue(item)
 		if err != nil {
-			kr.Log.WithField("Key", key).Error("failed to get object from data store, error", err)
+			r.Log.WithField("Key", key).
+				Errorf("%s reflector failed to get object from data store, error %s", r.objType, err)
 		} else {
 			dsDump[key] = item
 		}
@@ -129,146 +156,160 @@ func (kr *Reflector) listDataStoreItems(pfx string, iaf func() proto.Message) (D
 	return dsDump, nil
 }
 
-func (kr *Reflector) markAndSweep(dsItems DsItems, oc K8sToProtoConverter) {
-	kr.dsMutex.Lock()
-	defer kr.dsMutex.Unlock()
+// markAndSweep performs the mark-and-sweep reconciliation between data in
+// the k8s cache and data in Etcd
+func (r *Reflector) markAndSweep(dsItems DsItems, oc K8sToProtoConverter) {
+	r.dsMutex.Lock()
+	defer r.dsMutex.Unlock()
 
-	for _, obj := range kr.k8sStore.List() {
+	for _, obj := range r.k8sStore.List() {
 		k8sProtoObj, key, ok := oc(obj)
 		if ok {
 			dsProtoObj, exists := dsItems[key]
 			if exists {
 				if !reflect.DeepEqual(k8sProtoObj, dsProtoObj) {
-					// Object exists in the data store, but it changed in K8s;
-					// overwrite the data store
-					err := kr.Writer.Put(key, k8sProtoObj.(proto.Message))
+					// Object exists in the data store, but it changed in the
+					// K8s cache; overwrite the data store
+					err := r.Writer.Put(key, k8sProtoObj.(proto.Message))
 					if err != nil {
-						kr.Log.WithField("err", err).
-							Warn("Data Sync: failed to update object in the data store")
-						kr.stats.NumUpdErrors++
+						r.Log.WithField("err", err).
+							Warnf("%s data sync: failed to update object in the data store", r.objType)
+						r.stats.NumUpdErrors++
 					} else {
-						kr.stats.NumUpdates++
+						r.stats.NumUpdates++
 					}
 				}
-				delete(dsItems, key)
 			} else {
 				// Object does not exist in the data store, but it exists in
-				// K8s; create object in the data store
-				err := kr.Writer.Put(key, k8sProtoObj.(proto.Message))
+				// the K8s cache; create object in the data store
+				err := r.Writer.Put(key, k8sProtoObj.(proto.Message))
 				if err != nil {
-					kr.Log.WithField("err", err).
-						Warn("Data Sync: failed to add object into the data store")
-					kr.stats.NumAddErrors++
+					r.Log.WithField("err", err).
+						Warnf("%s data sync: failed to add object into the data store", r.objType)
+					r.stats.NumAddErrors++
 				} else {
-					kr.stats.NumAdds++
+					r.stats.NumAdds++
 				}
 			}
+			delete(dsItems, key)
 		}
 	}
 
-	// Delete from data store all objects that no longer exist in K8s.
+	// Delete from data store all objects that no longer exist in the K8s
+	// cache.
 	for key := range dsItems {
-		_, err := kr.Writer.Delete(key)
+		_, err := r.Writer.Delete(key)
 		if err != nil {
-			kr.Log.WithField("err", err).
-				Warn("Data Sync: failed to delete object from the data store")
-			kr.stats.NumDelErrors++
+			r.Log.WithField("err", err).
+				Warnf("%s data sync: failed to delete object from the data store", r.objType)
+			r.stats.NumDelErrors++
 		} else {
-			kr.stats.NumDeletes++
+			r.stats.NumDeletes++
 		}
 		delete(dsItems, key)
 	}
 
-	kr.dsSynced = true
+	r.dsSynced = true
 }
 
-func (kr *Reflector) syncDataStore(dsItems DsItems, oc K8sToProtoConverter) {
+// syncDataStore syncs data in etcd with data in KSR's k8s cache
+func (r *Reflector) syncDataStore(dsItems DsItems, oc K8sToProtoConverter) {
 	for {
-		if kr.k8sController.HasSynced() {
+		if r.k8sController.HasSynced() {
 			break
 		}
 		time.Sleep(1 * time.Second)
 	}
-	kr.markAndSweep(dsItems, oc)
-	kr.Log.Infof("Stats: %+v", kr.stats)
+	r.markAndSweep(dsItems, oc)
+	r.Log.Infof("%s stats: %+v", r.objType, r.stats)
 }
 
-func (kr *Reflector) ksrAdd(key string, item proto.Message) {
-	err := kr.Writer.Put(key, item)
+// ksrAdd adds an item to the Etcd data store
+func (r *Reflector) ksrAdd(key string, item proto.Message) {
+	err := r.Writer.Put(key, item)
 	if err != nil {
-		kr.Log.WithField("err", err).Warn("Failed to add service state data into the data store")
-		kr.stats.NumAddErrors++
+		r.Log.WithField("err", err).Warnf("%s: failed to add item to data store", r.objType)
+		r.stats.NumAddErrors++
 		return
 	}
-	kr.stats.NumAdds++
+	r.stats.NumAdds++
 }
 
-func (kr *Reflector) ksrUpdate(key string, itemOld, itemNew proto.Message) {
+// ksrUpdate updates an item to the Etcd data store
+func (r *Reflector) ksrUpdate(key string, itemOld, itemNew proto.Message) {
 	if !reflect.DeepEqual(itemOld, itemNew) {
 
-		kr.Log.WithField("key", key).Debug("Updating item in data store")
+		r.Log.WithField("key", key).Debugf("%s: updating item in data store", r.objType)
 
-		err := kr.Writer.Put(key, itemNew)
+		err := r.Writer.Put(key, itemNew)
 		if err != nil {
-			kr.Log.WithField("err", err).
-				Warn("Failed to update service state data in the data store")
-			kr.stats.NumUpdErrors++
+			r.Log.WithField("err", err).
+				Warnf("%s: failed to update item in data store", r.objType)
+			r.stats.NumUpdErrors++
 			return
 		}
-		kr.stats.NumUpdates++
+		r.stats.NumUpdates++
 	}
 }
 
-func (kr *Reflector) ksrDelete(key string) {
-	_, err := kr.Writer.Delete(key)
+// ksrDelete deletes an item from the Etcd data store
+func (r *Reflector) ksrDelete(key string) {
+	_, err := r.Writer.Delete(key)
 	if err != nil {
-		kr.Log.WithField("err", err).Warn("Failed to remove service state data from the data store")
-		kr.stats.NumDelErrors++
+		r.Log.WithField("err", err).
+			Warnf("%s: Failed to remove item from data store", r.objType)
+		r.stats.NumDelErrors++
 		return
 	}
-	kr.stats.NumDeletes++
+	r.stats.NumDeletes++
 }
 
 // Init subscribes to K8s cluster to watch for changes in the configuration
 // of k8s services. The subscription does not become active until Start()
 // is called.
-func (kr *Reflector) ksrInit(stopCh2 <-chan struct{}, wg *sync.WaitGroup,
-	prefix string, objType k8sRuntime.Object, ksrFuncs ReflectorFunctions) error {
+func (r *Reflector) ksrInit(stopCh2 <-chan struct{}, wg *sync.WaitGroup, prefix string,
+	objType string, k8sObjType k8sRuntime.Object, ksrFuncs ReflectorFunctions) error {
 
-	kr.stopCh = stopCh2
-	kr.wg = wg
+	r.stopCh = stopCh2
+	r.wg = wg
 
-	restClient := kr.K8sClientset.CoreV1().RESTClient()
-	listWatch := kr.K8sListWatch.NewListWatchFromClient(restClient,
-		"services", "", fields.Everything())
-	kr.k8sStore, kr.k8sController = kr.K8sListWatch.NewInformer(
+	var restClient rest.Interface
+	if ksrFuncs.K8sClntGetFunc != nil {
+		restClient = ksrFuncs.K8sClntGetFunc(r.K8sClientset)
+	} else {
+		// If API version getter not specified, use CoreV1 by default
+		restClient = r.K8sClientset.CoreV1().RESTClient()
+	}
+
+	listWatch := r.K8sListWatch.NewListWatchFromClient(restClient, objType, "", fields.Everything())
+	r.k8sStore, r.k8sController = r.K8sListWatch.NewInformer(
 		listWatch,
-		objType,
+		k8sObjType,
 		0,
 		cache.ResourceEventHandlerFuncs{
 			AddFunc: func(obj interface{}) {
-				kr.dsMutex.Lock()
-				defer kr.dsMutex.Unlock()
+				r.dsMutex.Lock()
+				defer r.dsMutex.Unlock()
 
-				if !kr.dsSynced {
+				if !r.dsSynced {
 					return
 				}
 				ksrFuncs.EventHdlrFunc.AddFunc(obj)
 			},
 			DeleteFunc: func(obj interface{}) {
-				kr.dsMutex.Lock()
-				defer kr.dsMutex.Unlock()
+				r.dsMutex.Lock()
+				defer r.dsMutex.Unlock()
 
-				if !kr.dsSynced {
+				if !r.dsSynced {
 					return
 				}
 				ksrFuncs.EventHdlrFunc.DeleteFunc(obj)
 			},
 			UpdateFunc: func(oldObj, newObj interface{}) {
-				kr.dsMutex.Lock()
-				defer kr.dsMutex.Unlock()
+				r.dsMutex.Lock()
+				defer r.dsMutex.Unlock()
 
-				if !kr.dsSynced {
+				if !r.dsSynced {
 					return
 				}
 				ksrFuncs.EventHdlrFunc.UpdateFunc(oldObj, newObj)
@@ -277,14 +318,14 @@ func (kr *Reflector) ksrInit(stopCh2 <-chan struct{}, wg *sync.WaitGroup,
 	)
 
 	// Get all items currently stored in the data store
-	dsSvc, err := kr.listDataStoreItems(prefix, ksrFuncs.ProtoAllocFunc)
+	dsSvc, err := r.listDataStoreItems(prefix, ksrFuncs.ProtoAllocFunc)
 	if err != nil {
-		kr.Log.Error("Error listing services from data store: %s", err)
+		r.Log.WithField("err", err).Errorf("%s: error listing items data store", r.objType)
 	}
 
 	// Sync up the data store with the local k8s cache *after* the cache
 	// is synced with K8s.
-	go kr.syncDataStore(dsSvc, ksrFuncs.K8s2ProtoFunc)
+	go r.syncDataStore(dsSvc, ksrFuncs.K8s2ProtoFunc)
 
 	return nil
 }

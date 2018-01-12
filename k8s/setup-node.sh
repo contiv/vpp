@@ -96,7 +96,7 @@ dpdk {
    fi
 
    #create vpp startup config
-   echo '$startup' > /etc/vpp/contiv-vswitch.conf
+   echo "$startup" > /etc/vpp/contiv-vswitch.conf
 
    #shutdown interface
    ip link set "$device" down

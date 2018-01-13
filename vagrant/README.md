@@ -1,4 +1,4 @@
-## Contiv-VPP Docker Files
+## Contiv-VPP Vagrant Installation
 
 This folder contains the Vagrantfile to create a single or multi-node 
 Kubernetes cluster using Contiv-VPP as a Network Plugin. 

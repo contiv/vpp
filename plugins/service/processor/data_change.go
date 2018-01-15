@@ -25,13 +25,12 @@ import (
 )
 
 func (sc *ServiceProcessor) propagateDataChangeEv(dataChngEv datasync.ChangeEvent) error {
-	var err error
 	var diff bool
 	key := dataChngEv.GetKey()
 	sc.Log.Debug("Received CHANGE key ", key)
 
 	// Process Pod CHANGE event
-	_, _, err = podmodel.ParsePodFromKey(key)
+	podName, podNs, err := podmodel.ParsePodFromKey(key)
 	if err == nil {
 		var value, prevValue podmodel.Pod
 
@@ -45,14 +44,13 @@ func (sc *ServiceProcessor) propagateDataChangeEv(dataChngEv datasync.ChangeEven
 
 		// Process notification about a new/updated or deleted pod (add/del frontend).
 		if datasync.Delete == dataChngEv.GetChangeType() {
-			podID := podmodel.GetID(&prevValue)
-			return sc.processDeletedPod(podID)
+			return sc.processDeletedPod(podmodel.ID{Name: podName, Namespace: podNs})
 		}
 		return sc.processUpdatedPod(&value)
 	}
 
 	// Process Endpoints CHANGE event
-	_, _, err = epmodel.ParseEndpointsFromKey(key)
+	epsName, epsNs, err := epmodel.ParseEndpointsFromKey(key)
 	if err == nil {
 		var value, prevValue epmodel.Endpoints
 
@@ -65,8 +63,7 @@ func (sc *ServiceProcessor) propagateDataChangeEv(dataChngEv datasync.ChangeEven
 		}
 
 		if datasync.Delete == dataChngEv.GetChangeType() {
-			epsID := epmodel.GetID(&prevValue)
-			return sc.processDeletedEndpoints(epsID)
+			return sc.processDeletedEndpoints(epmodel.ID{Name: epsName, Namespace: epsNs})
 		} else if diff {
 			return sc.processUpdatedEndpoints(&value)
 		}
@@ -74,7 +71,7 @@ func (sc *ServiceProcessor) propagateDataChangeEv(dataChngEv datasync.ChangeEven
 	}
 
 	// Process Service CHANGE event
-	_, _, err = svcmodel.ParseServiceFromKey(key)
+	svcName, svcNs, err := svcmodel.ParseServiceFromKey(key)
 	if err == nil {
 		var value, prevValue svcmodel.Service
 
@@ -87,8 +84,7 @@ func (sc *ServiceProcessor) propagateDataChangeEv(dataChngEv datasync.ChangeEven
 		}
 
 		if datasync.Delete == dataChngEv.GetChangeType() {
-			svcID := svcmodel.GetID(&prevValue)
-			return sc.processDeletedService(svcID)
+			return sc.processDeletedService(svcmodel.ID{Name: svcName, Namespace: svcNs})
 		} else if diff {
 			return sc.processUpdatedService(&value)
 		}

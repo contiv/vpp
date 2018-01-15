@@ -16,8 +16,9 @@ package endpoints
 
 import (
 	"fmt"
-	ns "github.com/contiv/vpp/plugins/ksr/model/namespace"
 	"strings"
+
+	ns "github.com/contiv/vpp/plugins/ksr/model/namespace"
 )
 
 const (
@@ -34,7 +35,7 @@ func KeyPrefix() string {
 
 // ParseEndpointsFromKey parses pod and namespace ids from the associated data-store
 // key.
-func ParseEndpointsFromKey(key string) (pod string, namespace string, err error) {
+func ParseEndpointsFromKey(key string) (eps string, namespace string, err error) {
 	if strings.HasPrefix(key, ns.KeyPrefix()) {
 		suffix := strings.TrimPrefix(key, ns.KeyPrefix())
 		components := strings.Split(suffix, "/")

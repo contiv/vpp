@@ -149,7 +149,7 @@ func (s *Service) Refresh() {
 				}).Warn("Failed to parse endpoint IP")
 				continue
 			}
-			if epAddr.GetNodeName() == s.sp.ServiceLabel.GetAgentLabel() {
+			if epAddr.GetNodeName() == "" || epAddr.GetNodeName() == s.sp.ServiceLabel.GetAgentLabel() {
 				local = true
 			}
 			for _, epPort := range epPorts {
@@ -164,8 +164,10 @@ func (s *Service) Refresh() {
 			if local {
 				// Get interface name and add it to the set of local backends.
 				targetPod := epAddr.GetTargetRef()
-				s.localBackends = append(s.localBackends,
-					podmodel.ID{Name: targetPod.GetName(), Namespace: targetPod.GetNamespace()})
+				if targetPod.Kind == "Pod" {
+					s.localBackends = append(s.localBackends,
+						podmodel.ID{Name: targetPod.GetName(), Namespace: targetPod.GetNamespace()})
+				}
 			}
 		}
 	}

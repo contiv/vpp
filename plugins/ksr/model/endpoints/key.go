@@ -19,8 +19,7 @@ import (
 )
 
 const (
-	// EndpointsKeyword defines the data type keyword (i.e. service)
-	// keys identifying Endpoints data
+	// EndpointsKeyword defines the keyword identifying Endpoints data.
 	EndpointsKeyword = "endpoints"
 )
 
@@ -30,7 +29,7 @@ func KeyPrefix() string {
 	return ksrkey.KeyPrefix(EndpointsKeyword)
 }
 
-// ParseEndpointsFromKey parses pod and namespace ids from the associated
+// ParseEndpointsFromKey parses endpoints and namespace ids from the associated
 // data-store key.
 func ParseEndpointsFromKey(key string) (endpoints string, namespace string, err error) {
 	return ksrkey.ParseNameFromKey(EndpointsKeyword, key)

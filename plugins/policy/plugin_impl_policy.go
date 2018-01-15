@@ -191,7 +191,7 @@ func (p *Plugin) AfterInit() error {
 
 func (p *Plugin) subscribeWatcher() (err error) {
 	p.watchConfigReg, err = p.Watcher.
-		Watch("K8s resources", p.changeChan, p.resyncChan, namespace.KeyPrefix())
+		Watch("K8s policies", p.changeChan, p.resyncChan, namespace.KeyPrefix())
 	return err
 }
 

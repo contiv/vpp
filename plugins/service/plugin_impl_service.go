@@ -131,7 +131,7 @@ func (p *Plugin) AfterInit() error {
 
 func (p *Plugin) subscribeWatcher() (err error) {
 	p.watchConfigReg, err = p.Watcher.
-		Watch("K8s endpoints & services & pods", p.changeChan, p.resyncChan,
+		Watch("K8s services", p.changeChan, p.resyncChan,
 			epmodel.KeyPrefix(), svcmodel.KeyPrefix(), podmodel.KeyPrefix())
 	return err
 }

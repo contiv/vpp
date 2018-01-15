@@ -62,6 +62,7 @@ func (sc *ServiceProcessor) parseResyncEv(resyncEv datasync.ResyncEvent) *Resync
 				break
 			}
 			key := evData.GetKey()
+			sc.Log.Debug("Received RESYNC key ", key)
 
 			// Parse pod RESYNC event
 			_, _, err = podmodel.ParsePodFromKey(key)
@@ -99,13 +100,13 @@ func (sc *ServiceProcessor) parseResyncEv(resyncEv datasync.ResyncEvent) *Resync
 				continue
 			}
 		}
-
-		sc.Log.WithFields(logging.Fields{
-			"num-pods":      numPod,
-			"num-endpoints": numEps,
-			"num-services":  numSvc,
-		}).Debug("Parsed RESYNC event")
 	}
+
+	sc.Log.WithFields(logging.Fields{
+		"num-pods":      numPod,
+		"num-endpoints": numEps,
+		"num-services":  numSvc,
+	}).Debug("Parsed RESYNC event")
 
 	return event
 }

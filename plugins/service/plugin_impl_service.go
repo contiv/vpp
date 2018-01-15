@@ -143,6 +143,7 @@ func (p *Plugin) watchEvents() {
 	for {
 		select {
 		case resyncConfigEv := <-p.resyncChan:
+			p.Log.WithField("config", resyncConfigEv).Info("Data RESYNC")
 			p.resyncLock.Lock()
 			p.pendingResync = resyncConfigEv
 			p.pendingChanges = []datasync.ChangeEvent{}
@@ -151,6 +152,7 @@ func (p *Plugin) watchEvents() {
 			p.resyncLock.Unlock()
 
 		case dataChngEv := <-p.changeChan:
+			p.Log.WithField("config", dataChngEv).Info("Data CHANGE")
 			p.resyncLock.Lock()
 			if p.pendingResync != nil {
 				p.pendingChanges = append(p.pendingChanges, dataChngEv)

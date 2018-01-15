@@ -16,6 +16,7 @@ define generate_sources
 	@cd plugins/ksr && go generate
 	@cd plugins/policy/renderer/vpptcp && go generate
 	@cd plugins/policy/renderer/vpptcp/bin_api/session && pkgreflect
+	@cd plugins/service/configurator && go generate
 	@echo "# done"
 endef
 

@@ -14,6 +14,8 @@
  * // limitations under the License.
  */
 
+//go:generate binapi-generator --input-file=/usr/share/vpp/api/nat.api.json --output-dir=bin_api
+
 package configurator
 
 import (

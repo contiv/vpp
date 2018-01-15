@@ -27,6 +27,7 @@ import (
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	svcmodel "github.com/contiv/vpp/plugins/ksr/model/service"
 	"github.com/contiv/vpp/plugins/service/configurator"
+	"github.com/ligato/cn-infra/servicelabel"
 )
 
 // ServiceProcessor implements ServiceProcessorAPI.
@@ -44,6 +45,7 @@ type ServiceProcessor struct {
 // Deps lists dependencies of ServiceProcessor.
 type Deps struct {
 	Log          logging.Logger
+	ServiceLabel servicelabel.ReaderAPI
 	Contiv       contiv.API /* to get all interface names and pod IP network */
 	Configurator configurator.ServiceConfiguratorAPI
 }

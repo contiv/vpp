@@ -149,7 +149,7 @@ func (s *Service) Refresh() {
 				}).Warn("Failed to parse endpoint IP")
 				continue
 			}
-			if s.sp.Contiv.GetPodNetwork().Contains(epIP) {
+			if epAddr.GetNodeName() == s.sp.ServiceLabel.GetAgentLabel() {
 				local = true
 			}
 			for _, epPort := range epPorts {

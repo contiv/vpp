@@ -14,6 +14,8 @@
 
 //go:generate protoc -I ./model/cni --go_out=plugins=grpc:./model/cni ./model/cni/cni.proto
 //go:generate protoc -I ./model/uid --go_out=plugins=grpc:./model/uid ./model/uid/uid.proto
+//go:generate binapi-generator --input-file=/usr/share/vpp/api/stn.api.json --output-dir=bin_api
+//go:generate binapi-generator --input-file=/usr/share/vpp/api/session.api.json --output-dir=bin_api
 
 package contiv
 
@@ -206,6 +208,25 @@ func (plugin *Plugin) GetPodNetwork() *net.IPNet {
 // IsTCPstackDisabled returns true if the VPP TCP stack is disabled and only VETHs/TAPs are configured.
 func (plugin *Plugin) IsTCPstackDisabled() bool {
 	return plugin.Config.TCPstackDisabled
+}
+
+// GetHostIPNetwork returns single-host subnet with the IP address of this node.
+func (plugin *Plugin) GetHostIPNetwork() *net.IPNet {
+	// TODO
+	return nil
+}
+
+// GetPhysicalIfNames returns a slice of names of all configured physical interfaces.
+func (plugin *Plugin) GetPhysicalIfNames() []string {
+	// TODO
+	return []string{}
+}
+
+// GetHostInterconnectIfName returns the name of the TAP/AF_PACKET interface
+// interconnecting VPP with the host stack.
+func (plugin *Plugin) GetHostInterconnectIfName() string {
+	// TODO
+	return ""
 }
 
 // handleResync handles resync events of the plugin. Called automatically by the plugin infra.

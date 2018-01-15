@@ -135,54 +135,56 @@ func (pc *PolicyCache) changePropagateEvent(dataChngEv datasync.ChangeEvent) err
 		}
 
 		// Propagate Namespace CHANGE event
-		var value, prevValue namespacemodel.Namespace
+		_, err = namespacemodel.ParseNamespaceFromKey(key)
+		if err == nil {
+			var value, prevValue namespacemodel.Namespace
 
-		if err = dataChngEv.GetValue(&value); err != nil {
-			return err
-		}
-
-		if diff, err = dataChngEv.GetPrevValue(&prevValue); err != nil {
-			return err
-		}
-
-		if datasync.Delete == dataChngEv.GetChangeType() {
-			oldNamespaceID := prevValue.Name
-			pc.configuredNamespaces.UnRegisterNamespace(oldNamespaceID)
-
-			for _, watcher := range pc.watchers {
-				if err := watcher.DelNamespace(&prevValue); err != nil {
-					return err
-				}
-			}
-
-			return nil
-
-		} else if diff {
-			namespaceID := value.Name
-			oldNamespaceID := prevValue.Name
-			pc.configuredNamespaces.UnRegisterNamespace(oldNamespaceID)
-			pc.configuredNamespaces.RegisterNamespace(namespaceID, &value)
-
-			for _, watcher := range pc.watchers {
-				if err := watcher.UpdateNamespace(&prevValue, &value); err != nil {
-					return err
-				}
-			}
-
-		}
-
-		namespaceID := value.Name
-		pc.configuredNamespaces.RegisterNamespace(namespaceID, &value)
-
-		for _, watcher := range pc.watchers {
-			if err := watcher.AddNamespace(&value); err != nil {
+			if err = dataChngEv.GetValue(&value); err != nil {
 				return err
 			}
 
+			if diff, err = dataChngEv.GetPrevValue(&prevValue); err != nil {
+				return err
+			}
+
+			if datasync.Delete == dataChngEv.GetChangeType() {
+				oldNamespaceID := prevValue.Name
+				pc.configuredNamespaces.UnRegisterNamespace(oldNamespaceID)
+
+				for _, watcher := range pc.watchers {
+					if err := watcher.DelNamespace(&prevValue); err != nil {
+						return err
+					}
+				}
+
+				return nil
+
+			} else if diff {
+				namespaceID := value.Name
+				oldNamespaceID := prevValue.Name
+				pc.configuredNamespaces.UnRegisterNamespace(oldNamespaceID)
+				pc.configuredNamespaces.RegisterNamespace(namespaceID, &value)
+
+				for _, watcher := range pc.watchers {
+					if err := watcher.UpdateNamespace(&prevValue, &value); err != nil {
+						return err
+					}
+				}
+
+			}
+
+			namespaceID := value.Name
+			pc.configuredNamespaces.RegisterNamespace(namespaceID, &value)
+
+			for _, watcher := range pc.watchers {
+				if err := watcher.AddNamespace(&value); err != nil {
+					return err
+				}
+
+			}
 		}
 
 		return nil
-
 	}
 
 	pc.Log.WithField("event", dataChngEv).Warn("Ignoring CHANGE event")

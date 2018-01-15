@@ -299,16 +299,16 @@ func testAddDeleteEndpoints(t *testing.T) {
 	epTestVars.k8sListWatch.Delete(eps)
 	gomega.Expect(del + 1).To(gomega.Equal(epTestVars.epsReflector.GetStats().NumDeletes))
 
-   epsProto = &endpoints.Endpoints{}
-   key := endpoints.Key(eps.GetName(), eps.GetNamespace())
-   err = epTestVars.mockKvWriter.GetValue(key, epsProto)
+	epsProto = &endpoints.Endpoints{}
+	key := endpoints.Key(eps.GetName(), eps.GetNamespace())
+	err = epTestVars.mockKvWriter.GetValue(key, epsProto)
 	gomega.Ω(err).ShouldNot(gomega.Succeed())
 }
 
 func testUpdateEndpoints(t *testing.T) {
 	nodeName := "cvpp"
 
-   epsOld := &epTestVars.epsTestData[0]
+	epsOld := &epTestVars.epsTestData[0]
 	epsNew := &coreV1.Endpoints{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:            "my-nginx",

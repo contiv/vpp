@@ -86,6 +86,7 @@ func TestVeth1NameFromRequest(t *testing.T) {
 		nil,
 		"testlabel",
 		&config,
+		nil,
 		0)
 	gomega.Expect(err).To(gomega.BeNil())
 
@@ -108,6 +109,7 @@ func TestAdd(t *testing.T) {
 		swIfIdx,
 		"testLabel",
 		&config,
+		nil,
 		0)
 	gomega.Expect(err).To(gomega.BeNil())
 
@@ -150,6 +152,7 @@ func TestConfigureVswitch(t *testing.T) {
 		swIfIdx,
 		"testLabel",
 		&config,
+		nil,
 		0)
 
 	gomega.Expect(err).To(gomega.BeNil())

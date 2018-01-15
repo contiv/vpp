@@ -134,7 +134,7 @@ func (s *remoteCNIserver) interconnectAfpacket() *vpp_intf.Interfaces_Interface 
 }
 
 func (s *remoteCNIserver) physicalInterface(name string) (*vpp_intf.Interfaces_Interface, error) {
-	nodeNetwork, err := s.ipam.NodeIPNetwork(s.ipam.NodeID())
+	nodeIP, err := s.ipam.NodeIPWithPrefix(s.ipam.NodeID())
 	if err != nil {
 		return nil, err
 	}
@@ -142,7 +142,7 @@ func (s *remoteCNIserver) physicalInterface(name string) (*vpp_intf.Interfaces_I
 		Name:        name,
 		Type:        vpp_intf.InterfaceType_ETHERNET_CSMACD,
 		Enabled:     true,
-		IpAddresses: []string{nodeNetwork.String()},
+		IpAddresses: []string{nodeIP.String()},
 	}, nil
 }
 
@@ -156,7 +156,7 @@ func (s *remoteCNIserver) physicalInterfaceWithCustomIPAddress(name string, ipAd
 }
 
 func (s *remoteCNIserver) physicalInterfaceLoopback() (*vpp_intf.Interfaces_Interface, error) {
-	nodeNetwork, err := s.ipam.NodeIPNetwork(s.ipam.NodeID())
+	nodeNetwork, err := s.ipam.NodeIPWithPrefix(s.ipam.NodeID())
 	if err != nil {
 		return nil, err
 	}
@@ -168,29 +168,25 @@ func (s *remoteCNIserver) physicalInterfaceLoopback() (*vpp_intf.Interfaces_Inte
 	}, nil
 }
 
-func (s *remoteCNIserver) routeToOtherHostPods(hostID uint8) (*l3.StaticRoutes_Route, error) {
-	podNetwork, err := s.ipam.OtherNodePodNetwork(hostID)
-	if err != nil {
-		return nil, fmt.Errorf("Can't compute pod network for host ID %v, error: %v ", hostID, err)
+func (s *remoteCNIserver) computeRoutesForHost(hostID uint8, hostIP string) (podsRoute *l3.StaticRoutes_Route, hostRoute *l3.StaticRoutes_Route, err error) {
+	// determine next hop IP - either use provided one, or calculate based on hostIP
+	var nextHopIP string
+	if hostIP != "" {
+		nextHopIP = hostIP
+	} else {
+		nodeIP, err := s.ipam.NodeIPAddress(hostID)
+		if err != nil {
+			return nil, nil, fmt.Errorf("Can't get Host IP address for host ID %v, error: %v ", hostID, err)
+		}
+		nextHopIP = nodeIP.String()
 	}
-	return s.routeToOtherHostNetworks(hostID, podNetwork)
-}
 
-func (s *remoteCNIserver) routeToOtherHostStack(hostID uint8) (*l3.StaticRoutes_Route, error) {
-	hostNw, err := s.ipam.OtherNodeVPPHostNetwork(hostID)
-	if err != nil {
-		return nil, fmt.Errorf("Can't compute vswitch network for host ID %v, error: %v ", hostID, err)
-	}
-	return s.routeToOtherHostNetworks(hostID, hostNw)
-}
-
-func (s *remoteCNIserver) computeRoutesForHost(hostID uint8) (podsRoute *l3.StaticRoutes_Route, hostRoute *l3.StaticRoutes_Route, err error) {
-	podsRoute, err = s.routeToOtherHostPods(hostID)
+	podsRoute, err = s.routeToOtherHostPods(hostID, nextHopIP)
 	if err != nil {
 		err = fmt.Errorf("Can't construct route to pods of host %v: %v ", hostID, err)
 		return
 	}
-	hostRoute, err = s.routeToOtherHostStack(hostID)
+	hostRoute, err = s.routeToOtherHostStack(hostID, nextHopIP)
 	if err != nil {
 		err = fmt.Errorf("Can't construct route to host %v: %v ", hostID, err)
 		return
@@ -198,13 +194,25 @@ func (s *remoteCNIserver) computeRoutesForHost(hostID uint8) (podsRoute *l3.Stat
 	return
 }
 
-func (s *remoteCNIserver) routeToOtherHostNetworks(hostID uint8, destNetwork *net.IPNet) (*l3.StaticRoutes_Route, error) {
-	nodeIP, err := s.ipam.NodeIPAddress(hostID)
+func (s *remoteCNIserver) routeToOtherHostPods(hostID uint8, nextHopIP string) (*l3.StaticRoutes_Route, error) {
+	podNetwork, err := s.ipam.OtherNodePodNetwork(hostID)
 	if err != nil {
-		return nil, fmt.Errorf("Can't get Host IP address for host ID %v, error: %v ", hostID, err)
+		return nil, fmt.Errorf("Can't compute pod network for host ID %v, error: %v ", hostID, err)
 	}
+	return s.routeToOtherHostNetworks(podNetwork, nextHopIP)
+}
+
+func (s *remoteCNIserver) routeToOtherHostStack(hostID uint8, nextHopIP string) (*l3.StaticRoutes_Route, error) {
+	hostNw, err := s.ipam.OtherNodeVPPHostNetwork(hostID)
+	if err != nil {
+		return nil, fmt.Errorf("Can't compute vswitch network for host ID %v, error: %v ", hostID, err)
+	}
+	return s.routeToOtherHostNetworks(hostNw, nextHopIP)
+}
+
+func (s *remoteCNIserver) routeToOtherHostNetworks(destNetwork *net.IPNet, nextHopIP string) (*l3.StaticRoutes_Route, error) {
 	return &l3.StaticRoutes_Route{
 		DstIpAddr:   destNetwork.String(),
-		NextHopAddr: nodeIP.String(),
+		NextHopAddr: nextHopIP,
 	}, nil
 }

@@ -81,7 +81,7 @@ func TestDynamicGetters(t *testing.T) {
 	Expect(err).To(BeNil())
 	Expect(ip).To(BeEquivalentTo(net.IPv4(3, 4, 5, b11100101).To4()))
 
-	ipNet, err := i.NodeIPNetwork(hostID2)
+	ipNet, err := i.NodeIPWithPrefix(hostID2)
 	Expect(err).To(BeNil())
 	Expect(*ipNet).To(BeEquivalentTo(ipWithNetworkMask("3.4.5." + str(b11100101) + "/26")))
 

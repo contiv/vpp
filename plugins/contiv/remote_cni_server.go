@@ -92,7 +92,7 @@ type remoteCNIserver struct {
 	nodeID uint8
 
 	// node specific configuration
-	nodeConfigs []OneNodeConfig
+	nodeConfig *OneNodeConfig
 
 	// other configuration
 	tcpChecksumOffloadDisabled bool
@@ -134,7 +134,7 @@ type vswitchConfig struct {
 // newRemoteCNIServer initializes a new remote CNI server instance.
 func newRemoteCNIServer(logger logging.Logger, vppTxnFactory func() linux.DataChangeDSL, proxy kvdbproxy.Proxy,
 	configuredContainers *containeridx.ConfigIndex, govppChan *api.Channel, index ifaceidx.SwIfIndex, agentLabel string,
-	config *Config, nodeID uint8) (*remoteCNIserver, error) {
+	config *Config, nodeConfig *OneNodeConfig, nodeID uint8) (*remoteCNIserver, error) {
 	ipam, err := ipam.New(logger, nodeID, &config.IPAMConfig)
 	if err != nil {
 		return nil, err
@@ -149,7 +149,7 @@ func newRemoteCNIServer(logger logging.Logger, vppTxnFactory func() linux.DataCh
 		agentLabel:                 agentLabel,
 		nodeID:                     nodeID,
 		ipam:                       ipam,
-		nodeConfigs:                config.NodeConfig,
+		nodeConfig:                 nodeConfig,
 		tcpChecksumOffloadDisabled: config.TCPChecksumOffloadDisabled,
 		useTAPInterfaces:           config.UseTAPInterfaces,
 		tapVersion:                 config.TAPInterfaceVersion,
@@ -251,14 +251,13 @@ func (s *remoteCNIserver) configureVswitchNICs(config *vswitchConfig) error {
 	}
 	s.Logger.Info("Existing interfaces: ", s.swIfIndex.GetMapping().ListNames())
 
-	// load node-specific config from the config YAML
-	nodeConfig := s.loadNodeSpecificConfig()
-
 	// find name of the main VPP NIC interface
 	nicName := ""
-	if nodeConfig != nil && strings.Trim(nodeConfig.MainVppInterfaceName, " ") != "" {
+	nicIP := ""
+	if s.nodeConfig != nil && strings.Trim(s.nodeConfig.MainVppInterface.InterfaceName, " ") != "" {
 		// use name as as specified in node config YAML
-		nicName = nodeConfig.MainVppInterfaceName
+		nicName = s.nodeConfig.MainVppInterface.InterfaceName
+		nicIP = s.nodeConfig.MainVppInterface.IP
 		s.Logger.Debugf("Physical NIC name taken from nodeConfig: %v ", nicName)
 	} else {
 		// name not specified in config, use heuristic - first non-virtual interface
@@ -275,17 +274,17 @@ func (s *remoteCNIserver) configureVswitchNICs(config *vswitchConfig) error {
 	}
 
 	// configure the main VPP NIC interface
-	err := s.configureMainVPPInterface(config, nicName)
+	err := s.configureMainVPPInterface(config, nicName, nicIP)
 	if err != nil {
 		s.Logger.Error(err)
 		return err
 	}
 
 	// configure other interfaces that were configured in contiv plugin YAML configuration
-	if nodeConfig != nil && len(nodeConfig.OtherVPPInterfaces) > 0 {
+	if s.nodeConfig != nil && len(s.nodeConfig.OtherVPPInterfaces) > 0 {
 		s.Logger.Debug("Configuring VPP for additional interfaces")
 
-		err := s.configureOtherVPPInterfaces(config, nodeConfig)
+		err := s.configureOtherVPPInterfaces(config, s.nodeConfig)
 		if err != nil {
 			s.Logger.Error(err)
 			return err
@@ -296,14 +295,20 @@ func (s *remoteCNIserver) configureVswitchNICs(config *vswitchConfig) error {
 }
 
 // configureMainVPPInterface configures the main NIC used for node interconnect on vswitch VPP.
-func (s *remoteCNIserver) configureMainVPPInterface(config *vswitchConfig, nicName string) error {
+func (s *remoteCNIserver) configureMainVPPInterface(config *vswitchConfig, nicName string, nicIP string) error {
+	var err error
 	txn1 := s.vppTxnFactory().Put()
 
 	if nicName != "" {
 		// configure the physical NIC
+		var nic *vpp_intf.Interfaces_Interface
 		s.Logger.Info("Configuring physical NIC ", nicName)
 
-		nic, err := s.physicalInterface(nicName)
+		if nicIP != "" {
+			nic = s.physicalInterfaceWithCustomIPAddress(nicName, nicIP)
+		} else {
+			nic, err = s.physicalInterface(nicName)
+		}
 		if err != nil {
 			return fmt.Errorf("Can't create structure for interface %v due to error: %v", nicName, err)
 		}
@@ -322,7 +327,7 @@ func (s *remoteCNIserver) configureMainVPPInterface(config *vswitchConfig, nicNa
 	}
 
 	// execute the config transaction
-	err := txn1.Send().ReceiveReply()
+	err = txn1.Send().ReceiveReply()
 	if err != nil {
 		s.Logger.Error(err)
 		return err
@@ -882,16 +887,6 @@ func (s *remoteCNIserver) deletePersistedPodConfig(config *containeridx.Config) 
 		return err
 	}
 
-	return nil
-}
-
-// loadNodeSpecificConfig loads config specific for this node (given by its name).
-func (s *remoteCNIserver) loadNodeSpecificConfig() *OneNodeConfig {
-	for _, oneNodeConfig := range s.nodeConfigs {
-		if oneNodeConfig.NodeName == s.agentLabel {
-			return &oneNodeConfig
-		}
-	}
 	return nil
 }
 

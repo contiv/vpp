@@ -30,14 +30,16 @@ data:
 ### example of node configuration for VPP interfaces
 #    NodeConfig:
 #    - NodeName: "vm1"
-#      MainVppInterfaceName: "GigabitEthernet0/4/0"
+#      MainVppInterface:
+#      - InterfaceName: "GigabitEthernet0/4/0"
 #      OtherVPPInterfaces:
 #      - InterfaceName: "GigabitEthernet0/5/0"
 #        IP: "1.2.3.4/24"
 #      - InterfaceName: "GigabitEthernet0/6/0"
 #        IP: "2.3.4.5/24"
 #    - NodeName: "vm2"
-#      MainVppInterfaceName: "GigabitEthernet0/9/0"
+#      MainVppInterface:
+#      - InterfaceName: "GigabitEthernet0/9/0"
 #      OtherVPPInterfaces:
 #      - InterfaceName: "GigabitEthernet0/7/0"
 #        IP: "3.4.5.6/24"

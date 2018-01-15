@@ -64,13 +64,14 @@ func (s *remoteCNIserver) nodeResync(dataResyncEv datasync.ResyncEvent) error {
 				if err != nil {
 					return err
 				}
+
 				nodeID := uint8(nodeInfo.Id)
 
 				if nodeID != s.ipam.NodeID() {
 					s.Logger.Info("Other node discovered: ", nodeID)
 
 					// add routes to the node
-					err = s.addRoutesToNode(nodeID)
+					err = s.addRoutesToNode(nodeInfo)
 				}
 			}
 		}
@@ -91,19 +92,17 @@ func (s *remoteCNIserver) nodeChangePropageteEvent(dataChngEv datasync.ChangeEve
 		if err != nil {
 			return err
 		}
-		nodeID := uint8(nodeInfo.Id)
 
-		// route := s.getRouteToNode(conf, nodeInfo.Id)
 		if dataChngEv.GetChangeType() == datasync.Put {
-			s.Logger.Info("New node discovered: ", nodeID)
+			s.Logger.Info("New node discovered: ", nodeInfo.Id)
 
 			// add routes to the node
-			err = s.addRoutesToNode(nodeID)
+			err = s.addRoutesToNode(nodeInfo)
 		} else {
-			s.Logger.Info("Node removed: ", nodeID)
+			s.Logger.Info("Node removed: ", nodeInfo.Id)
 
 			// delete routes to the node
-			err = s.deleteRoutesToNode(nodeID)
+			err = s.deleteRoutesToNode(nodeInfo)
 		}
 	} else {
 		return fmt.Errorf("Unknown key %v", key)
@@ -113,8 +112,8 @@ func (s *remoteCNIserver) nodeChangePropageteEvent(dataChngEv datasync.ChangeEve
 }
 
 // addRoutesToNode add routes to the node specified by nodeID.
-func (s *remoteCNIserver) addRoutesToNode(nodeID uint8) error {
-	podsRoute, hostRoute, err := s.computeRoutesForHost(nodeID)
+func (s *remoteCNIserver) addRoutesToNode(nodeInfo *node.NodeInfo) error {
+	podsRoute, hostRoute, err := s.computeRoutesForHost(uint8(nodeInfo.Id), nodeInfo.IpAddress)
 	if err != nil {
 		return err
 	}
@@ -127,14 +126,14 @@ func (s *remoteCNIserver) addRoutesToNode(nodeID uint8) error {
 		Send().ReceiveReply()
 
 	if err != nil {
-		return fmt.Errorf("Can't configure vpp to add route to host %v (and its pods): %v ", nodeID, err)
+		return fmt.Errorf("Can't configure vpp to add route to host %v (and its pods): %v ", nodeInfo.Id, err)
 	}
 	return nil
 }
 
 // deleteRoutesToNode delete routes to the node specified by nodeID.
-func (s *remoteCNIserver) deleteRoutesToNode(nodeID uint8) error {
-	podsRoute, hostRoute, err := s.computeRoutesForHost(nodeID)
+func (s *remoteCNIserver) deleteRoutesToNode(nodeInfo *node.NodeInfo) error {
+	podsRoute, hostRoute, err := s.computeRoutesForHost(uint8(nodeInfo.Id), nodeInfo.IpAddress)
 	if err != nil {
 		return err
 	}
@@ -147,7 +146,7 @@ func (s *remoteCNIserver) deleteRoutesToNode(nodeID uint8) error {
 		Send().ReceiveReply()
 
 	if err != nil {
-		return fmt.Errorf("Can't configure vpp to remove route to host %v (and its pods): %v ", nodeID, err)
+		return fmt.Errorf("Can't configure vpp to remove route to host %v (and its pods): %v ", nodeInfo.Id, err)
 	}
 	return nil
 }

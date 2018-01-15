@@ -94,8 +94,8 @@ func (i *IPAM) NodeIPAddress(nodeID uint8) (net.IP, error) {
 	return i.computeNodeIPAddress(nodeID)
 }
 
-// NodeIPNetwork computes node network address based on the provided node ID.
-func (i *IPAM) NodeIPNetwork(nodeID uint8) (*net.IPNet, error) {
+// NodeIPWithPrefix computes node address with prefix length based on the provided node ID.
+func (i *IPAM) NodeIPWithPrefix(nodeID uint8) (*net.IPNet, error) {
 	i.mutex.RLock()
 	defer i.mutex.RUnlock()
 

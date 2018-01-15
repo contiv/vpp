@@ -14,14 +14,16 @@
 
 syntax = "proto3";
 
-package uid;
+package node;
 
-// identifier represents a record of assigning an ID to a name
-// the aim of these record is to track ID assigned to cluster nodes.
-// ID determines ipam for a givne node.
-message identifier {
+// NodeInfo represents a node in the k8s cluster.
+// It records an unique node ID to identify the node within the cluster.
+// ID determines IPAM for the givne node.
+message NodeInfo {
 
     uint32 id = 1;
 
     string name = 2;
+
+    string ip_address = 3;
 }

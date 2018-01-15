@@ -13,9 +13,7 @@
 // limitations under the License.
 
 //go:generate protoc -I ./model/cni --go_out=plugins=grpc:./model/cni ./model/cni/cni.proto
-//go:generate protoc -I ./model/uid --go_out=plugins=grpc:./model/uid ./model/uid/uid.proto
-//go:generate binapi-generator --input-file=/usr/share/vpp/api/stn.api.json --output-dir=bin_api
-//go:generate binapi-generator --input-file=/usr/share/vpp/api/session.api.json --output-dir=bin_api
+//go:generate protoc -I ./model/node --go_out=plugins=grpc:./model/node ./model/node/node.proto
 
 package contiv
 

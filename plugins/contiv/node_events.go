@@ -19,7 +19,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/contiv/vpp/plugins/contiv/model/uid"
+	"github.com/contiv/vpp/plugins/contiv/model/node"
 	"github.com/ligato/cn-infra/datasync"
 )
 
@@ -59,7 +59,7 @@ func (s *remoteCNIserver) nodeResync(dataResyncEv datasync.ResyncEvent) error {
 				if stop {
 					break
 				}
-				nodeInfo := &uid.Identifier{}
+				nodeInfo := &node.NodeInfo{}
 				err = kv.GetValue(nodeInfo)
 				if err != nil {
 					return err
@@ -86,7 +86,7 @@ func (s *remoteCNIserver) nodeChangePropageteEvent(dataChngEv datasync.ChangeEve
 	key := dataChngEv.GetKey()
 
 	if strings.HasPrefix(key, allocatedIDsKeyPrefix) {
-		nodeInfo := &uid.Identifier{}
+		nodeInfo := &node.NodeInfo{}
 		err = dataChngEv.GetValue(nodeInfo)
 		if err != nil {
 			return err

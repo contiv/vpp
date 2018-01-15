@@ -23,7 +23,7 @@ import (
 	"sync"
 
 	"github.com/contiv/vpp/flavors/ksr"
-	"github.com/contiv/vpp/plugins/contiv/model/uid"
+	"github.com/contiv/vpp/plugins/contiv/model/node"
 	"github.com/ligato/cn-infra/db/keyval"
 	"github.com/ligato/cn-infra/db/keyval/etcdv3"
 	"github.com/ligato/cn-infra/servicelabel"
@@ -133,7 +133,7 @@ func (ia *idAllocator) releaseID() error {
 
 func (ia *idAllocator) writeIfNotExists(id uint32) (succeeded bool, err error) {
 
-	value := &uid.Identifier{Name: ia.serviceLabel, Id: id}
+	value := &node.NodeInfo{Name: ia.serviceLabel, Id: id}
 
 	encoded, err := json.Marshal(value)
 	if err != nil {
@@ -148,15 +148,15 @@ func (ia *idAllocator) writeIfNotExists(id uint32) (succeeded bool, err error) {
 
 // findExistingEntry lists all allocated entries and check if the etcd contains ID assigned
 // to the serviceLabel
-func (ia *idAllocator) findExistingEntry(broker keyval.ProtoBroker) (id *uid.Identifier, err error) {
-	var existingEntry *uid.Identifier
+func (ia *idAllocator) findExistingEntry(broker keyval.ProtoBroker) (id *node.NodeInfo, err error) {
+	var existingEntry *node.NodeInfo
 	it, err := broker.ListValues(allocatedIDsKeyPrefix)
 	if err != nil {
 		return nil, err
 	}
 
 	for {
-		item := &uid.Identifier{}
+		item := &node.NodeInfo{}
 		kv, stop := it.GetNext()
 
 		if stop {

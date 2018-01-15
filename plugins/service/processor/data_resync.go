@@ -17,6 +17,8 @@
 package processor
 
 import (
+	"fmt"
+
 	"github.com/ligato/cn-infra/datasync"
 	"github.com/ligato/cn-infra/logging"
 
@@ -42,6 +44,33 @@ func NewResyncEventData() *ResyncEventData {
 	}
 }
 
+// String converts ResyncEventData into a human-readable string.
+func (red ResyncEventData) String() string {
+	pods := ""
+	for idx, pod := range red.Pods {
+		pods += pod.String()
+		if idx < len(red.Pods)-1 {
+			pods += ", "
+		}
+	}
+	endpoints := ""
+	for idx, endpoint := range red.Endpoints {
+		endpoints += endpoint.String()
+		if idx < len(red.Endpoints)-1 {
+			endpoints += ", "
+		}
+	}
+	services := ""
+	for idx, service := range red.Services {
+		services += service.String()
+		if idx < len(red.Services)-1 {
+			services += ", "
+		}
+	}
+	return fmt.Sprintf("ResyncEventData <Pods:[%s] Endpoint:[%s] Services:[%s]>",
+		pods, endpoints, services)
+}
+
 func (sc *ServiceProcessor) parseResyncEv(resyncEv datasync.ResyncEvent) *ResyncEventData {
 	var (
 		numPod int
@@ -62,7 +91,6 @@ func (sc *ServiceProcessor) parseResyncEv(resyncEv datasync.ResyncEvent) *Resync
 				break
 			}
 			key := evData.GetKey()
-			sc.Log.Debug("Received RESYNC key ", key)
 
 			// Parse pod RESYNC event
 			_, _, err = podmodel.ParsePodFromKey(key)

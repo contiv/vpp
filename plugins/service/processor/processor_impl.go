@@ -90,6 +90,10 @@ func (sp *ServiceProcessor) Resync(resyncEv datasync.ResyncEvent) error {
 }
 
 func (sp *ServiceProcessor) processUpdatedPod(pod *podmodel.Pod) error {
+	sp.Log.WithFields(logging.Fields{
+		"pod": *pod,
+	}).Debug("ServiceProcessor - processUpdatedPod()")
+
 	if pod.IpAddress == "" {
 		return nil
 	}
@@ -129,6 +133,10 @@ func (sp *ServiceProcessor) processUpdatedPod(pod *podmodel.Pod) error {
 }
 
 func (sp *ServiceProcessor) processDeletedPod(podID podmodel.ID) error {
+	sp.Log.WithFields(logging.Fields{
+		"podID": podID,
+	}).Debug("ServiceProcessor - processDeletedPod()")
+
 	localEp, hasEntry := sp.localEps[podID]
 	if !hasEntry {
 		return nil
@@ -153,13 +161,21 @@ func (sp *ServiceProcessor) processDeletedPod(podID podmodel.ID) error {
 }
 
 func (sp *ServiceProcessor) processNewEndpoints(eps *epmodel.Endpoints) error {
+	sp.Log.WithFields(logging.Fields{
+		"eps": *eps,
+	}).Debug("ServiceProcessor - processNewEndpoints()")
+
 	svcID := svcmodel.ID{Namespace: eps.Namespace, Name: eps.Name}
 	svc := sp.getService(svcID)
 	svc.SetEndpoints(eps)
-	return sp.configureService(svc, configurator.NewContivService(), []podmodel.ID{})
+	return sp.configureService(svc, nil, []podmodel.ID{})
 }
 
 func (sp *ServiceProcessor) processUpdatedEndpoints(eps *epmodel.Endpoints) error {
+	sp.Log.WithFields(logging.Fields{
+		"eps": *eps,
+	}).Debug("ServiceProcessor - processUpdatedEndpoints()")
+
 	svcID := svcmodel.ID{Namespace: eps.Namespace, Name: eps.Name}
 	svc := sp.getService(svcID)
 	oldContivSvc := svc.GetContivService()
@@ -169,6 +185,10 @@ func (sp *ServiceProcessor) processUpdatedEndpoints(eps *epmodel.Endpoints) erro
 }
 
 func (sp *ServiceProcessor) processDeletedEndpoints(epsID epmodel.ID) error {
+	sp.Log.WithFields(logging.Fields{
+		"epsID": epsID,
+	}).Debug("ServiceProcessor - processDeletedEndpoints()")
+
 	svcID := svcmodel.ID{Namespace: epsID.Namespace, Name: epsID.Name}
 	svc := sp.getService(svcID)
 	oldContivSvc := svc.GetContivService()
@@ -178,13 +198,21 @@ func (sp *ServiceProcessor) processDeletedEndpoints(epsID epmodel.ID) error {
 }
 
 func (sp *ServiceProcessor) processNewService(service *svcmodel.Service) error {
+	sp.Log.WithFields(logging.Fields{
+		"service": *service,
+	}).Debug("ServiceProcessor - processNewService()")
+
 	svcID := svcmodel.ID{Namespace: service.Namespace, Name: service.Name}
 	svc := sp.getService(svcID)
 	svc.SetMetadata(service)
-	return sp.configureService(svc, configurator.NewContivService(), []podmodel.ID{})
+	return sp.configureService(svc, nil, []podmodel.ID{})
 }
 
 func (sp *ServiceProcessor) processUpdatedService(service *svcmodel.Service) error {
+	sp.Log.WithFields(logging.Fields{
+		"service": *service,
+	}).Debug("ServiceProcessor - processUpdatedService()")
+
 	svcID := svcmodel.ID{Namespace: service.Namespace, Name: service.Name}
 	svc := sp.getService(svcID)
 	oldContivSvc := svc.GetContivService()
@@ -194,6 +222,10 @@ func (sp *ServiceProcessor) processUpdatedService(service *svcmodel.Service) err
 }
 
 func (sp *ServiceProcessor) processDeletedService(serviceID svcmodel.ID) error {
+	sp.Log.WithFields(logging.Fields{
+		"serviceID": serviceID,
+	}).Debug("ServiceProcessor - processDeletedService()")
+
 	svcID := svcmodel.ID{Namespace: serviceID.Namespace, Name: serviceID.Name}
 	svc := sp.getService(svcID)
 	oldContivSvc := svc.GetContivService()
@@ -292,6 +324,10 @@ func (sp *ServiceProcessor) getLocalEndpoint(podID podmodel.ID) *LocalEndpoint {
 }
 
 func (sp *ServiceProcessor) processResyncEvent(resyncEv *ResyncEventData) error {
+	sp.Log.WithFields(logging.Fields{
+		"resyncEv": resyncEv,
+	}).Debug("ServiceProcessor - processResyncEvent()")
+
 	// Store the previous state of services before reset.
 	prevState := configurator.NewResyncEventData()
 	prevState.FrontendIfs = sp.frontendIfs.Copy()

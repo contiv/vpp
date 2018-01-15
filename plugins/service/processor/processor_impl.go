@@ -292,8 +292,20 @@ func (sp *ServiceProcessor) getLocalEndpoint(podID podmodel.ID) *LocalEndpoint {
 }
 
 func (sp *ServiceProcessor) processResyncEvent(resyncEv *ResyncEventData) error {
+	// Store the previous state of services before reset.
+	prevState := configurator.NewResyncEventData()
+	prevState.FrontendIfs = sp.frontendIfs.Copy()
+	prevState.BackendIfs = sp.backendIfs.Copy()
+	for _, svc := range sp.services {
+		contivSvc := svc.GetContivService()
+		if contivSvc != nil {
+			prevState.Services = append(prevState.Services, contivSvc)
+		}
+	}
 	sp.reset()
-	contivServices := []*configurator.ContivService{}
+
+	// Re-build the current state.
+	curState := configurator.NewResyncEventData()
 
 	// Fill up the set of frontends and local endpoints.
 	for _, physIf := range sp.Contiv.GetPhysicalIfNames() {
@@ -340,7 +352,7 @@ func (sp *ServiceProcessor) processResyncEvent(resyncEv *ResyncEventData) error 
 		contivSvc := svc.GetContivService()
 		backends := svc.GetLocalBackends()
 		if contivSvc != nil {
-			contivServices = append(contivServices, contivSvc)
+			curState.Services = append(curState.Services, contivSvc)
 		}
 		for _, backend := range backends {
 			localEp := sp.getLocalEndpoint(backend)
@@ -351,7 +363,9 @@ func (sp *ServiceProcessor) processResyncEvent(resyncEv *ResyncEventData) error 
 		}
 	}
 
-	return sp.Configurator.Resync(contivServices, sp.frontendIfs, sp.backendIfs)
+	curState.FrontendIfs = sp.frontendIfs
+	curState.BackendIfs = sp.backendIfs
+	return sp.Configurator.Resync(prevState, curState)
 }
 
 // Close deallocates resource held by the processor.

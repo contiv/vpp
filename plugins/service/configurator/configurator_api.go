@@ -54,7 +54,7 @@ type ServiceConfiguratorAPI interface {
 
 	// Resync completely replaces the current NAT configuration with the provided
 	// full state of K8s services.
-	Resync(services []*ContivService, frontendIfs, backendIfs Interfaces) error
+	Resync(prevState *ResyncEventData, curState *ResyncEventData) error
 }
 
 // ContivService is a less-abstract, free of indirect references representation
@@ -214,4 +214,38 @@ func (ifs Interfaces) String() string {
 	}
 	str += "}"
 	return str
+}
+
+// ResyncEventData wraps an entire state of K8s services.
+type ResyncEventData struct {
+	// Services is a list of all currently deployed services.
+	Services []*ContivService
+
+	// FrontendIfs is a set of all interfaces connecting clients with VPP.
+	FrontendIfs Interfaces
+
+	// BackendIfs is a set of all interfaces connecting service backends with VPP.
+	BackendIfs Interfaces
+}
+
+// NewResyncEventData is a constructor for ResyncEventData.
+func NewResyncEventData() *ResyncEventData {
+	return &ResyncEventData{
+		Services:    []*ContivService{},
+		FrontendIfs: NewInterfaces(),
+		BackendIfs:  NewInterfaces(),
+	}
+}
+
+// String converts ResyncEventData into a human-readable string.
+func (red ResyncEventData) String() string {
+	services := ""
+	for idx, service := range red.Services {
+		services += service.String()
+		if idx < len(red.Services)-1 {
+			services += ", "
+		}
+	}
+	return fmt.Sprintf("ResyncEventData <Services:[%s] FrontendIfs:%s BackendIfs:%s>",
+		services, red.FrontendIfs.String(), red.BackendIfs.String())
 }

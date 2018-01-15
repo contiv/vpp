@@ -46,36 +46,58 @@ func (sc *ServiceConfigurator) Init() error {
 
 // AddService installs NAT rules for a newly added service.
 func (sc *ServiceConfigurator) AddService(service *ContivService) error {
+	sc.Log.WithFields(logging.Fields{
+		"service": service,
+	}).Debug("ServiceConfigurator - AddService()")
 	return nil
 }
 
 // UpdateService reflects a change in the configuration of a service with
 // the smallest number of VPP/NAT binary API calls necessary.
 func (sc *ServiceConfigurator) UpdateService(oldService, newService *ContivService) error {
+	sc.Log.WithFields(logging.Fields{
+		"oldService": oldService,
+		"newService": newService,
+	}).Debug("ServiceConfigurator - UpdateService()")
 	return nil
 }
 
 // DeleteService removes NAT configuration associated with a newly undeployed
 // service.
 func (sc *ServiceConfigurator) DeleteService(service *ContivService) error {
+	sc.Log.WithFields(logging.Fields{
+		"service": service,
+	}).Debug("ServiceConfigurator - DeleteService()")
 	return nil
 }
 
 // UpdateLocalFrontendIfs updates the list of interfaces connecting clients
 // with VPP (enabled out2in VPP/NAT feature).
 func (sc *ServiceConfigurator) UpdateLocalFrontendIfs(oldIfNames, newIfNames Interfaces) error {
+	sc.Log.WithFields(logging.Fields{
+		"oldIfNames": oldIfNames,
+		"newIfNames": newIfNames,
+	}).Debug("ServiceConfigurator - UpdateLocalFrontendIfs()")
 	return nil
 }
 
 // UpdateLocalBackendIfs updates the list of interfaces connecting service
 // backends with VPP (enabled in2out VPP/NAT feature).
 func (sc *ServiceConfigurator) UpdateLocalBackendIfs(oldIfNames, newIfNames Interfaces) error {
+	sc.Log.WithFields(logging.Fields{
+		"oldIfNames": oldIfNames,
+		"newIfNames": newIfNames,
+	}).Debug("ServiceConfigurator - UpdateLocalBackendIfs()")
 	return nil
 }
 
 // Resync completely replaces the current NAT configuration with the provided
 // full state of K8s services.
-func (sc *ServiceConfigurator) Resync(services []*ContivService, frontendIfs, backendIfs Interfaces) error {
+func (sc *ServiceConfigurator) Resync(prevState *ResyncEventData, curState *ResyncEventData) error {
+	sc.Log.WithFields(logging.Fields{
+		"prevState": prevState,
+		"curState":  curState,
+	}).Debug("ServiceConfigurator - Resync()")
 	return nil
 }
 

@@ -164,7 +164,7 @@ func (s *Service) Refresh() {
 			if local {
 				// Get interface name and add it to the set of local backends.
 				targetPod := epAddr.GetTargetRef()
-				if targetPod.Kind == "Pod" {
+				if targetPod.GetKind() == "Pod" {
 					s.localBackends = append(s.localBackends,
 						podmodel.ID{Name: targetPod.GetName(), Namespace: targetPod.GetNamespace()})
 				}

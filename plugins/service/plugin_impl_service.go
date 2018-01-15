@@ -28,9 +28,7 @@ import (
 	"github.com/ligato/vpp-agent/plugins/govppmux"
 
 	"github.com/contiv/vpp/plugins/contiv"
-	epmodel "github.com/contiv/vpp/plugins/ksr/model/endpoints"
-	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
-	svcmodel "github.com/contiv/vpp/plugins/ksr/model/service"
+	nsmodel "github.com/contiv/vpp/plugins/ksr/model/endpoints"
 
 	"github.com/contiv/vpp/plugins/service/configurator"
 	"github.com/contiv/vpp/plugins/service/processor"
@@ -131,8 +129,7 @@ func (p *Plugin) AfterInit() error {
 
 func (p *Plugin) subscribeWatcher() (err error) {
 	p.watchConfigReg, err = p.Watcher.
-		Watch("K8s services", p.changeChan, p.resyncChan,
-			epmodel.KeyPrefix(), svcmodel.KeyPrefix(), podmodel.KeyPrefix())
+		Watch("K8s services", p.changeChan, p.resyncChan, nsmodel.KeyPrefix())
 	return err
 }
 

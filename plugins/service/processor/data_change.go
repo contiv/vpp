@@ -95,6 +95,5 @@ func (sc *ServiceProcessor) propagateDataChangeEv(dataChngEv datasync.ChangeEven
 		return sc.processNewService(&value)
 	}
 
-	sc.Log.WithField("event", dataChngEv).Warn("Ignoring CHANGE event")
 	return nil
 }

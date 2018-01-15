@@ -21,7 +21,6 @@ import (
 
 	"github.com/ligato/cn-infra/datasync"
 	"github.com/ligato/cn-infra/logging"
-	"github.com/ligato/cn-infra/servicelabel"
 
 	"github.com/contiv/vpp/plugins/contiv"
 	epmodel "github.com/contiv/vpp/plugins/ksr/model/endpoints"
@@ -45,7 +44,6 @@ type ServiceProcessor struct {
 // Deps lists dependencies of ServiceProcessor.
 type Deps struct {
 	Log          logging.Logger
-	ServiceLabel servicelabel.ReaderAPI
 	Contiv       contiv.API /* to get all interface names and pod IP network */
 	Configurator configurator.ServiceConfiguratorAPI
 }
@@ -156,7 +154,7 @@ func (sp *ServiceProcessor) processNewEndpoints(eps *epmodel.Endpoints) error {
 	svcID := svcmodel.ID{Namespace: eps.Namespace, Name: eps.Name}
 	svc := sp.getService(svcID)
 	svc.SetEndpoints(eps)
-	return sp.configureService(svc, nil, []podmodel.ID{})
+	return sp.configureService(svc, configurator.NewContivService(), []podmodel.ID{})
 }
 
 func (sp *ServiceProcessor) processUpdatedEndpoints(eps *epmodel.Endpoints) error {
@@ -181,7 +179,7 @@ func (sp *ServiceProcessor) processNewService(service *svcmodel.Service) error {
 	svcID := svcmodel.ID{Namespace: service.Namespace, Name: service.Name}
 	svc := sp.getService(svcID)
 	svc.SetMetadata(service)
-	return sp.configureService(svc, nil, []podmodel.ID{})
+	return sp.configureService(svc, configurator.NewContivService(), []podmodel.ID{})
 }
 
 func (sp *ServiceProcessor) processUpdatedService(service *svcmodel.Service) error {
@@ -229,7 +227,7 @@ func (sp *ServiceProcessor) configureService(svc *Service, oldContivSvc *configu
 		}
 	}
 
-	// Configure Backends.
+	// Configure local Backends.
 	newBackendIfs := sp.backendIfs.Copy()
 	updateBackends := false
 	for _, newBackend := range newBackends {
@@ -311,7 +309,10 @@ func (sp *ServiceProcessor) processResyncEvent(resyncEv *ResyncEventData) error 
 	for _, physIf := range sp.Contiv.GetPhysicalIfNames() {
 		sp.frontendIfs.Add(physIf)
 	}
-	sp.frontendIfs.Add(sp.Contiv.GetHostInterconnectIfName())
+	hostInterconnect := sp.Contiv.GetHostInterconnectIfName()
+	if hostInterconnect != "" {
+		sp.frontendIfs.Add(hostInterconnect)
+	}
 
 	for _, pod := range resyncEv.Pods {
 		podID := podmodel.ID{Name: pod.Name, Namespace: pod.Namespace}

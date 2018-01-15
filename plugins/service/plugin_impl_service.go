@@ -98,7 +98,6 @@ func (p *Plugin) Init() error {
 	p.processor = &processor.ServiceProcessor{
 		Deps: processor.Deps{
 			Log:          p.Log.NewLogger("-serviceProcessor"),
-			ServiceLabel: p.ServiceLabel,
 			Contiv:       p.Contiv,
 			Configurator: p.configurator,
 		},

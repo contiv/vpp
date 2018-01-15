@@ -81,10 +81,11 @@ func (s *Service) Refresh() {
 	if s.meta == nil || s.endpoints == nil {
 		s.contivSvc = nil
 		s.localBackends = []podmodel.ID{}
+		s.refreshed = true
 		return
 	}
 
-	s.contivSvc = &configurator.ContivService{}
+	s.contivSvc = configurator.NewContivService()
 	s.localBackends = []podmodel.ID{}
 
 	s.contivSvc.ID = svcmodel.GetID(s.meta)
@@ -93,7 +94,6 @@ func (s *Service) Refresh() {
 	}
 
 	// Collect all IP addresses on which the service should be exposed.
-	s.contivSvc.ExternalIPs = []net.IP{}
 	if s.meta.ClusterIp != "" && s.meta.ClusterIp != "None" {
 		clusterIP := net.ParseIP(s.meta.ClusterIp)
 		if clusterIP != nil {
@@ -119,7 +119,6 @@ func (s *Service) Refresh() {
 	}
 
 	// Fill up the map of service ports.
-	s.contivSvc.Ports = make(map[string]*configurator.ServicePort)
 	for _, port := range s.meta.Port {
 		sp := &configurator.ServicePort{
 			Port:     uint16(port.GetPort()),
@@ -134,7 +133,6 @@ func (s *Service) Refresh() {
 	}
 
 	// Fill up the map of service backends.
-	s.contivSvc.Backends = make(map[string][]*configurator.ServiceBackend)
 	for port := range s.contivSvc.Ports {
 		s.contivSvc.Backends[port] = []*configurator.ServiceBackend{}
 	}
@@ -151,7 +149,7 @@ func (s *Service) Refresh() {
 				}).Warn("Failed to parse endpoint IP")
 				continue
 			}
-			if epAddr.GetNodeName() == s.sp.ServiceLabel.GetAgentLabel() {
+			if s.sp.Contiv.GetPodNetwork().Contains(epIP) {
 				local = true
 			}
 			for _, epPort := range epPorts {

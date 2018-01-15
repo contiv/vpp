@@ -84,6 +84,15 @@ type ContivService struct {
 	Backends map[string] /*service port*/ []*ServiceBackend
 }
 
+// NewContivService is a constructor for ContivService.
+func NewContivService() *ContivService {
+	return &ContivService{
+		ExternalIPs: []net.IP{},
+		Ports:       make(map[string]*ServicePort),
+		Backends:    make(map[string][]*ServiceBackend),
+	}
+}
+
 // String converts ContivService into a human-readable string.
 func (cs ContivService) String() string {
 	externalIPs := ""
@@ -104,10 +113,10 @@ func (cs ContivService) String() string {
 			}
 		}
 		allBackends += fmt.Sprintf("%s->[%s]", cs.Ports[port].String(), backends)
-		idx++
-		if idx < len(cs.Backends) {
+		if idx < len(cs.Backends)-1 {
 			allBackends += ", "
 		}
+		idx++
 	}
 	return fmt.Sprintf("ContivService %s <SNAT:%t ExternalIPs:[%s] Backends:{%s}>",
 		cs.ID.String(), cs.SNAT, externalIPs, allBackends)
@@ -207,10 +216,10 @@ func (ifs Interfaces) String() string {
 	idx := 0
 	for ifName := range ifs {
 		str += ifName
-		idx++
-		if idx < len(ifs) {
+		if idx < len(ifs)-1 {
 			str += ", "
 		}
+		idx++
 	}
 	str += "}"
 	return str

@@ -14,8 +14,6 @@
  * // limitations under the License.
  */
 
-//go:generate binapi-generator --input-file=/usr/share/vpp/api/nat.api.json --output-dir=bin_api
-
 package configurator
 
 import (
@@ -24,25 +22,27 @@ import (
 
 	"github.com/contiv/vpp/plugins/contiv"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins"
-	//epmodel "github.com/contiv/vpp/plugins/ksr/model/endpoints"
-	//svcmodel "github.com/contiv/vpp/plugins/ksr/model/service"
 )
 
 // ServiceConfigurator implements ServiceConfiguratorAPI.
 type ServiceConfigurator struct {
 	Deps
+
+	firstResync bool
 }
 
 // Deps lists dependencies of ServiceConfigurator.
 type Deps struct {
-	Log       logging.Logger
-	Contiv    contiv.API         /* to get the Node IP */
-	VPP       defaultplugins.API /* interface indexes */
-	GoVPPChan *govpp.Channel     /* until supported in vpp-agent, we call NAT binary APIs directly */
+	Log              logging.Logger
+	Contiv           contiv.API         /* to get the Node IP */
+	VPP              defaultplugins.API /* interface indexes */
+	GoVPPChan        *govpp.Channel     /* until supported in vpp-agent, we call NAT binary APIs directly */
+	GoVPPChanBufSize int
 }
 
 // Init initializes service configurator.
 func (sc *ServiceConfigurator) Init() error {
+	sc.firstResync = true
 	return nil
 }
 
@@ -96,10 +96,23 @@ func (sc *ServiceConfigurator) UpdateLocalBackendIfs(oldIfNames, newIfNames Inte
 // Resync completely replaces the current NAT configuration with the provided
 // full state of K8s services.
 func (sc *ServiceConfigurator) Resync(prevState *ResyncEventData, curState *ResyncEventData) error {
+	var err error
 	sc.Log.WithFields(logging.Fields{
 		"prevState": prevState,
 		"curState":  curState,
 	}).Debug("ServiceConfigurator - Resync()")
+
+	if sc.firstResync {
+		// Enable NAT44 forwarding.
+		sc.firstResync = false
+		err = sc.enableNat44Forwarding()
+		if err != nil {
+			sc.Log.Error(err)
+			return err
+		}
+		sc.Log.Debug("NAT44 forwarding was enabled")
+	}
+
 	return nil
 }
 

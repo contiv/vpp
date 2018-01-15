@@ -16,29 +16,27 @@ package namespace
 
 import (
 	"fmt"
+	"github.com/contiv/vpp/plugins/ksr/model/ksrkey"
 	"strings"
 )
 
 const (
-	// NamespacePrefix is a key prefix under which the current state of every
+	// NamespaceKeyword is a key prefix under which the current state of every
 	// known K8s namespace is stored.
-	NamespacePrefix = "k8s/namespace/"
+	NamespaceKeyword = "namespace"
 )
 
 // KeyPrefix returns the key prefix used in the data-store to save
 // the current state of every known K8s namespace.
 func KeyPrefix() string {
-	return NamespacePrefix
+	return ksrkey.KsrPrefix + "/" + NamespaceKeyword
 }
 
 // ParseNamespaceFromKey parses namespace id from the associated data-store key.
 func ParseNamespaceFromKey(key string) (namespace string, err error) {
-	if strings.HasPrefix(key, KeyPrefix()) {
-		suffix := strings.TrimPrefix(key, KeyPrefix())
-		components := strings.Split(suffix, "/")
-		if len(components) == 1 {
-			return components[0], nil
-		}
+	keywords := strings.Split(key, "/")
+	if len(keywords) == 3 && keywords[0] == ksrkey.KsrPrefix && keywords[1] == NamespaceKeyword {
+		return keywords[2], nil
 	}
 	return "", fmt.Errorf("invalid format of the key %s", key)
 }
@@ -46,5 +44,5 @@ func ParseNamespaceFromKey(key string) (namespace string, err error) {
 // Key returns the key under which a configuration for the given
 // namespace should be stored in the data-store.
 func Key(namespace string) string {
-	return NamespacePrefix + namespace
+	return KeyPrefix() + "/" + namespace
 }

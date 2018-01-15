@@ -1,3 +1,17 @@
+// Copyright (c) 2018 Cisco and/or its affiliates.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at:
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package ksr
 
 import (
@@ -24,6 +38,9 @@ type K8sListWatcher interface {
 // k8sCache implements K8sListWatcher using k8s client-go cache.
 type k8sCache struct {
 }
+
+// MockK8sCache holds the k8s mock cache
+var MockK8sCache = &cache.FakeCustomStore{}
 
 // NewListWatchFromClient propagates the call to k8s client-go cache.
 func (*k8sCache) NewListWatchFromClient(c cache.Getter, resource string, namespace string,
@@ -56,7 +73,7 @@ func (mock *mockK8sListWatch) NewListWatchFromClient(c cache.Getter, resource st
 func (mock *mockK8sListWatch) NewInformer(lw cache.ListerWatcher, objType runtime.Object,
 	resyncPeriod time.Duration, h cache.ResourceEventHandler) (cache.Store, cache.Controller) {
 	mock.resourceHandler = h
-	return nil, &mockK8sListWatchController{}
+	return MockK8sCache, &mockK8sListWatchController{}
 }
 
 // Add simulates added K8s resource.

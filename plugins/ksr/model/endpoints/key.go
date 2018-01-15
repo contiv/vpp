@@ -15,39 +15,29 @@
 package endpoints
 
 import (
-	"fmt"
-	"strings"
-
-	ns "github.com/contiv/vpp/plugins/ksr/model/namespace"
+	"github.com/contiv/vpp/plugins/ksr/model/ksrkey"
 )
 
 const (
-	// EndpointPrefix is a key prefix *template* under which the current state
-	// of every known K8s pod is stored.
-	EndpointPrefix = "k8s/namespace/{namespace}/endpoints/"
+	// EndpointsKeyword defines the data type keyword (i.e. service)
+	// keys identifying Endpoints data
+	EndpointsKeyword = "endpoints"
 )
 
-// KeyPrefix returns the key prefix *template* used in the data-store
-// to save the current state of every known K8s pod.
+// KeyPrefix returns the key prefix identifying all K8s endpoints in the
+// data store.
 func KeyPrefix() string {
-	return EndpointPrefix
+	return ksrkey.KeyPrefix(EndpointsKeyword)
 }
 
-// ParseEndpointsFromKey parses pod and namespace ids from the associated data-store
-// key.
-func ParseEndpointsFromKey(key string) (eps string, namespace string, err error) {
-	if strings.HasPrefix(key, ns.KeyPrefix()) {
-		suffix := strings.TrimPrefix(key, ns.KeyPrefix())
-		components := strings.Split(suffix, "/")
-		if len(components) == 3 && components[1] == "endpoints" {
-			return components[2], components[0], nil
-		}
-	}
-	return "", "", fmt.Errorf("invalid format of the key %s", key)
+// ParseEndpointsFromKey parses pod and namespace ids from the associated
+// data-store key.
+func ParseEndpointsFromKey(key string) (endpoints string, namespace string, err error) {
+	return ksrkey.ParseNameFromKey(EndpointsKeyword, key)
 }
 
-// Key returns the key under which a configuration for the given K8s pod
-// should be stored in the data-store.
-func Key(pod string, namespace string) string {
-	return strings.Replace(EndpointPrefix, "{namespace}", namespace, 1) + pod
+// Key returns the key under which the endpoints belonging to given K8s
+// service are stored in the data-store.
+func Key(name string, namespace string) string {
+	return ksrkey.Key(EndpointsKeyword, name, namespace)
 }

@@ -19,23 +19,17 @@ import (
 	"sync"
 
 	coreV1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/client-go/tools/cache"
 
-	proto "github.com/contiv/vpp/plugins/ksr/model/endpoints"
+	"github.com/contiv/vpp/plugins/ksr/model/endpoints"
+	"github.com/golang/protobuf/proto"
 )
 
 // EndpointsReflector subscribes to K8s cluster to watch for changes
 // in the configuration of k8s service endpoints.
 // Protobuf-modelled changes are published into the selected key-value store.
 type EndpointsReflector struct {
-	ReflectorDeps
-
-	stopCh                 <-chan struct{}
-	wg                     *sync.WaitGroup
-	k8sEndpointsStore      cache.Store
-	k8sEndpointsController cache.Controller
-	stats                  ReflectorStats
+	Reflector
 }
 
 // Ignored endpoints.
@@ -48,141 +42,125 @@ const (
 // of k8s services. The subscription does not become active until Start()
 // is called.
 func (epr *EndpointsReflector) Init(stopCh2 <-chan struct{}, wg *sync.WaitGroup) error {
-	epr.Log.Info("EndpointsReflector Init()")
-	epr.stopCh = stopCh2
-	epr.wg = wg
-
-	restClient := epr.K8sClientset.CoreV1().RESTClient()
-	listWatch := epr.K8sListWatch.NewListWatchFromClient(restClient, "endpoints", "", fields.Everything())
-	epr.k8sEndpointsStore, epr.k8sEndpointsController = epr.K8sListWatch.NewInformer(
-		listWatch,
-		&coreV1.Endpoints{},
-		0,
-		cache.ResourceEventHandlerFuncs{
+	epsReflectorFuncs := ReflectorFunctions{
+		EventHdlrFunc: cache.ResourceEventHandlerFuncs{
 			AddFunc: func(obj interface{}) {
-				eps, ok := obj.(*coreV1.Endpoints)
-				if !ok {
-					epr.Log.Warn("Failed to cast newly created endpoints object")
-					epr.stats.NumArgErrors++
-				} else {
-					epr.addEndpoints(eps)
-				}
+				epr.addEndpoints(obj)
 			},
 			DeleteFunc: func(obj interface{}) {
-				eps, ok := obj.(*coreV1.Endpoints)
-				if !ok {
-					epr.Log.Warn("Failed to cast removed endpoints object")
-					epr.stats.NumArgErrors++
-				} else {
-					epr.deleteEndpoints(eps)
-				}
+				epr.deleteEndpoints(obj)
 			},
 			UpdateFunc: func(oldObj, newObj interface{}) {
-				epsOld, ok1 := oldObj.(*coreV1.Endpoints)
-				epsNew, ok2 := newObj.(*coreV1.Endpoints)
-				if !ok1 || !ok2 {
-					epr.Log.Warn("Failed to cast changed endpoints object")
-					epr.stats.NumArgErrors++
-				} else {
-					epr.updateEndpoints(epsNew, epsOld)
-				}
+				epr.updateEndpoints(oldObj, newObj)
 			},
 		},
-	)
-	return nil
-}
+		ProtoAllocFunc: func() proto.Message {
+			return &endpoints.Endpoints{}
+		},
+		K8s2ProtoFunc: func(k8sObj interface{}) (interface{}, string, bool) {
+			k8sEps, ok := k8sObj.(*coreV1.Endpoints)
+			if !ok {
+				epr.Log.Errorf("endpoints syncDataStore: wrong object type %s, obj %+v",
+					reflect.TypeOf(k8sObj), k8sObj)
+				return nil, "", false
+			}
+			return epr.endpointsToProto(k8sEps), endpoints.Key(k8sEps.Name, k8sEps.Namespace), true
+		},
+	}
 
-// GetStats returns the Endpoints Reflector usage statistics
-func (epr *EndpointsReflector) GetStats() *ReflectorStats {
-	return &epr.stats
+	return epr.ksrInit(stopCh2, wg, endpoints.KeyPrefix(), "endpoints", &coreV1.Endpoints{}, epsReflectorFuncs)
 }
 
 // addEndpoints adds state data of a newly created K8s endpoints into the data store.
-func (epr *EndpointsReflector) addEndpoints(eps *coreV1.Endpoints) {
+func (epr *EndpointsReflector) addEndpoints(obj interface{}) {
+	eps, ok := obj.(*coreV1.Endpoints)
+	if !ok {
+		epr.Log.Warn("Failed to cast newly created endpoints object")
+		epr.stats.NumArgErrors++
+		return
+	}
+
 	if eps.GetName() == epKubeCtlMgr || eps.GetName() == epKubeSched {
 		// Ignore notification.
 		return
 	}
-	epr.Log.WithField("endpoints", eps).Info("Endpoints added")
+
+	epr.Log.WithField("endpoints", obj).Info("addEndpoints")
 	endpointsProto := epr.endpointsToProto(eps)
-	epr.Log.WithField("endpointsProto", endpointsProto).Info("Endpoints converted")
-	key := proto.Key(eps.GetName(), eps.GetNamespace())
-	err := epr.Publish.Put(key, endpointsProto)
-	if err != nil {
-		epr.Log.WithField("err", err).Warn("Failed to add endpoints state data into the data store")
-		epr.stats.NumAddErrors++
-		return
-	}
-	epr.stats.NumAdds++
+	key := endpoints.Key(eps.GetName(), eps.GetNamespace())
+	epr.ksrAdd(key, endpointsProto)
 }
 
 // deleteEndpoints deletes state data of a removed K8s service from the data store.
-func (epr *EndpointsReflector) deleteEndpoints(eps *coreV1.Endpoints) {
+func (epr *EndpointsReflector) deleteEndpoints(obj interface{}) {
+	eps, ok := obj.(*coreV1.Endpoints)
+	if !ok {
+		epr.Log.Warn("Failed to cast newly created endpoints object")
+		epr.stats.NumArgErrors++
+		return
+	}
+
 	if eps.GetName() == epKubeCtlMgr || eps.GetName() == epKubeSched {
 		// Ignore notification.
 		return
 	}
-	epr.Log.WithField("endpoints", eps).Info("Endpoints removed")
-	key := proto.Key(eps.GetName(), eps.GetNamespace())
-	_, err := epr.Publish.Delete(key)
-	if err != nil {
-		epr.Log.WithField("err", err).Warn("Failed to remove endpoints state data from the data store")
-		epr.stats.NumDelErrors++
-		return
-	}
-	epr.stats.NumDeletes++
+
+	epr.Log.WithField("endpoints", obj).Info("deleteEndpoints")
+	key := endpoints.Key(eps.GetName(), eps.GetNamespace())
+	epr.ksrDelete(key)
 }
 
 // updateEndpoints updates state data of a changes K8s endpoints in the data store.
-func (epr *EndpointsReflector) updateEndpoints(epsNew, epsOld *coreV1.Endpoints) {
+func (epr *EndpointsReflector) updateEndpoints(oldObj, newObj interface{}) {
+	epsOld, ok1 := oldObj.(*coreV1.Endpoints)
+	epsNew, ok2 := newObj.(*coreV1.Endpoints)
+	if !ok1 || !ok2 {
+		epr.Log.Warn("Failed to cast changed service object")
+		epr.stats.NumArgErrors++
+		return
+	}
+
 	if epsOld.GetName() == epKubeCtlMgr || epsOld.GetName() == epKubeSched {
 		// Ignore notification.
 		return
 	}
-	epr.Log.WithFields(map[string]interface{}{"endpoints-old": epsOld, "endpoints-new": epsNew}).Info("Endpoints updated")
+
+	epr.Log.WithFields(map[string]interface{}{"endpoints-old": epsOld, "endpoints-new": epsNew}).
+		Info("Endpoints updated")
+
 	epsProtoNew := epr.endpointsToProto(epsNew)
 	epsProtoOld := epr.endpointsToProto(epsOld)
+	key := endpoints.Key(epsNew.GetName(), epsNew.GetNamespace())
 
-	if !reflect.DeepEqual(epsProtoNew, epsProtoOld) {
-		epr.Log.WithFields(map[string]interface{}{"namespace": epsNew.Namespace, "name": epsNew.Name}).
-			Info("Endpoints changed, updating in Etcd")
-		key := proto.Key(epsNew.GetName(), epsNew.GetNamespace())
-		err := epr.Publish.Put(key, epsProtoNew)
-		if err != nil {
-			epr.Log.WithField("err", err).Warn("Failed to update endpoints state data in the data store")
-			epr.stats.NumUpdErrors++
-			return
-		}
-		epr.stats.NumUpdates++
-	}
+	epr.ksrUpdate(key, epsProtoOld, epsProtoNew)
 }
 
 // endpointsToProto converts endpoints data from the k8s representation into
 // our protobuf-modelled data structure.
-func (epr *EndpointsReflector) endpointsToProto(eps *coreV1.Endpoints) *proto.Endpoints {
-	epsProto := &proto.Endpoints{}
+func (epr *EndpointsReflector) endpointsToProto(eps *coreV1.Endpoints) *endpoints.Endpoints {
+	epsProto := &endpoints.Endpoints{}
 	epsProto.Name = eps.GetName()
 	epsProto.Namespace = eps.GetNamespace()
 
-	var subsets []*proto.EndpointSubset
+	var subsets []*endpoints.EndpointSubset
 	for _, ss := range eps.Subsets {
-		pss := &proto.EndpointSubset{}
+		pss := &endpoints.EndpointSubset{}
 
-		var addresses []*proto.EndpointSubset_EndpointAddress
+		var addresses []*endpoints.EndpointSubset_EndpointAddress
 		for _, addr := range ss.Addresses {
 			addresses = append(addresses, addressToProto(&addr))
 		}
 		pss.Addresses = addresses
 
-		var notReadyAddresses []*proto.EndpointSubset_EndpointAddress
+		var notReadyAddresses []*endpoints.EndpointSubset_EndpointAddress
 		for _, addr := range ss.NotReadyAddresses {
 			notReadyAddresses = append(notReadyAddresses, addressToProto(&addr))
 		}
 		pss.NotReadyAddresses = notReadyAddresses
 
-		var ports []*proto.EndpointSubset_EndpointPort
+		var ports []*endpoints.EndpointSubset_EndpointPort
 		for _, port := range ss.Ports {
-			ports = append(ports, &proto.EndpointSubset_EndpointPort{
+			ports = append(ports, &endpoints.EndpointSubset_EndpointPort{
 				Name:     port.Name,
 				Port:     port.Port,
 				Protocol: string(port.Protocol),
@@ -200,8 +178,8 @@ func (epr *EndpointsReflector) endpointsToProto(eps *coreV1.Endpoints) *proto.En
 
 // addressToProto converts an endpoint address from the k8s representation
 // into our protobuf-modelled data structure.
-func addressToProto(addr *coreV1.EndpointAddress) *proto.EndpointSubset_EndpointAddress {
-	protoAddr := &proto.EndpointSubset_EndpointAddress{}
+func addressToProto(addr *coreV1.EndpointAddress) *endpoints.EndpointSubset_EndpointAddress {
+	protoAddr := &endpoints.EndpointSubset_EndpointAddress{}
 	protoAddr.Ip = addr.IP
 	protoAddr.HostName = addr.Hostname
 
@@ -210,7 +188,7 @@ func addressToProto(addr *coreV1.EndpointAddress) *proto.EndpointSubset_Endpoint
 	}
 
 	if addr.TargetRef != nil {
-		protoAddr.TargetRef = &proto.ObjectReference{
+		protoAddr.TargetRef = &endpoints.ObjectReference{
 			Kind:            addr.TargetRef.Kind,
 			Namespace:       addr.TargetRef.Namespace,
 			Name:            addr.TargetRef.Name,
@@ -221,23 +199,4 @@ func addressToProto(addr *coreV1.EndpointAddress) *proto.EndpointSubset_Endpoint
 	}
 
 	return protoAddr
-}
-
-// Start activates the K8s subscription.
-func (epr *EndpointsReflector) Start() {
-	epr.wg.Add(1)
-	go epr.run()
-}
-
-// run runs k8s subscription in a separate go routine.
-func (epr *EndpointsReflector) run() {
-	defer epr.wg.Done()
-	epr.Log.Info("Endpoints reflector is now running")
-	epr.k8sEndpointsController.Run(epr.stopCh)
-	epr.Log.Info("Stopping Endpoints reflector")
-}
-
-// Close does nothing for this particular reflector.
-func (epr *EndpointsReflector) Close() error {
-	return nil
 }

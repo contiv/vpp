@@ -38,7 +38,6 @@ func (sc *ServiceProcessor) propagateDataChangeEv(dataChngEv datasync.ChangeEven
 		if err = dataChngEv.GetValue(&value); err != nil {
 			return err
 		}
-		podID := podmodel.GetID(&value)
 
 		if diff, err = dataChngEv.GetPrevValue(&prevValue); err != nil {
 			return err
@@ -46,6 +45,7 @@ func (sc *ServiceProcessor) propagateDataChangeEv(dataChngEv datasync.ChangeEven
 
 		// Process notification about a new/updated or deleted pod (add/del frontend).
 		if datasync.Delete == dataChngEv.GetChangeType() {
+			podID := podmodel.GetID(&prevValue)
 			return sc.processDeletedPod(podID)
 		}
 		return sc.processUpdatedPod(&value)
@@ -59,13 +59,13 @@ func (sc *ServiceProcessor) propagateDataChangeEv(dataChngEv datasync.ChangeEven
 		if err = dataChngEv.GetValue(&value); err != nil {
 			return err
 		}
-		epsID := epmodel.GetID(&value)
 
 		if diff, err = dataChngEv.GetPrevValue(&prevValue); err != nil {
 			return err
 		}
 
 		if datasync.Delete == dataChngEv.GetChangeType() {
+			epsID := epmodel.GetID(&prevValue)
 			return sc.processDeletedEndpoints(epsID)
 		} else if diff {
 			return sc.processUpdatedEndpoints(&value)
@@ -81,13 +81,13 @@ func (sc *ServiceProcessor) propagateDataChangeEv(dataChngEv datasync.ChangeEven
 		if err = dataChngEv.GetValue(&value); err != nil {
 			return err
 		}
-		svcID := svcmodel.GetID(&value)
 
 		if diff, err = dataChngEv.GetPrevValue(&prevValue); err != nil {
 			return err
 		}
 
 		if datasync.Delete == dataChngEv.GetChangeType() {
+			svcID := svcmodel.GetID(&prevValue)
 			return sc.processDeletedService(svcID)
 		} else if diff {
 			return sc.processUpdatedService(&value)

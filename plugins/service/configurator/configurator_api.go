@@ -17,6 +17,7 @@
 package configurator
 
 import (
+	"fmt"
 	"net"
 
 	svcmodel "github.com/contiv/vpp/plugins/ksr/model/service"
@@ -43,17 +44,17 @@ type ServiceConfiguratorAPI interface {
 	// service.
 	DeleteService(service *ContivService) error
 
-	// UpdateFrontends updates the list of interfaces with the enabled out2in
-	// VPP/NAT feature.
-	UpdateFrontends(oldIfNames []string, newIfNames []string) error
+	// UpdateLocalFrontendIfs updates the list of interfaces connecting clients
+	// with VPP (enabled out2in VPP/NAT feature).
+	UpdateLocalFrontendIfs(oldIfNames, newIfNames Interfaces) error
 
-	// UpdateBackends updates the list of interfaces with the enabled in2out
-	// VPP/NAT feature.
-	UpdateBackends(oldIfNames []string, newIfNames []string) error
+	// UpdateLocalBackendIfs updates the list of interfaces connecting service
+	// backends with VPP (enabled in2out VPP/NAT feature).
+	UpdateLocalBackendIfs(oldIfNames, newIfNames Interfaces) error
 
 	// Resync completely replaces the current NAT configuration with the provided
 	// full state of K8s services.
-	Resync(services []*ContivService, frontends []string, backendIfs []string) error
+	Resync(prevState *ResyncEventData, curState *ResyncEventData) error
 }
 
 // ContivService is a less-abstract, free of indirect references representation
@@ -67,17 +68,95 @@ type ContivService struct {
 	// ID should uniquely identify service across all namespaces.
 	ID svcmodel.ID
 
+	// SNAT when enabled will make IPs of client acessing this service will
+	// get NAT-ed to the Node IP.
+	// Learn more about this subject here: https://kubernetes.io/docs/tutorials/services/source-ip/
+	SNAT bool
+
 	// ExternalIPs is a list of all IP addresses on which the service
 	// should be exposed on this node.
 	ExternalIPs []net.IP
 
+	// Ports is a map of all ports exposed for this service.
+	Ports map[string]*ServicePort
+
 	// Backends map external service ports with corresponding backends.
-	Backends map[uint16] /*service port*/ ServiceBackend
+	Backends map[string] /*service port*/ []*ServiceBackend
+}
+
+// NewContivService is a constructor for ContivService.
+func NewContivService() *ContivService {
+	return &ContivService{
+		ExternalIPs: []net.IP{},
+		Ports:       make(map[string]*ServicePort),
+		Backends:    make(map[string][]*ServiceBackend),
+	}
 }
 
 // String converts ContivService into a human-readable string.
 func (cs ContivService) String() string {
-	return "TODO"
+	externalIPs := ""
+	for idx, ip := range cs.ExternalIPs {
+		externalIPs += ip.String()
+		if idx < len(cs.ExternalIPs)-1 {
+			externalIPs += ", "
+		}
+	}
+	allBackends := ""
+	idx := 0
+	for port, svcBackends := range cs.Backends {
+		backends := ""
+		for idx2, svcBackend := range svcBackends {
+			backends += svcBackend.String()
+			if idx2 < len(svcBackends)-1 {
+				backends += ", "
+			}
+		}
+		allBackends += fmt.Sprintf("%s->[%s]", cs.Ports[port].String(), backends)
+		if idx < len(cs.Backends)-1 {
+			allBackends += ", "
+		}
+		idx++
+	}
+	return fmt.Sprintf("ContivService %s <SNAT:%t ExternalIPs:[%s] Backends:{%s}>",
+		cs.ID.String(), cs.SNAT, externalIPs, allBackends)
+}
+
+// ServicePort contains information on service's port.
+type ServicePort struct {
+	Protocol ProtocolType /* protocol type */
+	Port     uint16       /* port that will be exposed by this service */
+	NodePort uint16       /* port on which this service is exposed for Node IP (0 if none) */
+}
+
+// String converts ServicePort into a human-readable string.
+func (sp ServicePort) String() string {
+	if sp.NodePort == 0 {
+		return fmt.Sprintf("%d/%s", sp.Port, sp.Protocol.String())
+	}
+	return fmt.Sprintf("%d:%d/%s", sp.Port, sp.NodePort, sp.Protocol.String())
+}
+
+// ProtocolType is either TCP or UDP.
+type ProtocolType int
+
+const (
+	// TCP protocol.
+	TCP ProtocolType = iota
+
+	// UDP protocol.
+	UDP
+)
+
+// String converts ProtocolType into a human-readable string.
+func (pt ProtocolType) String() string {
+	switch pt {
+	case TCP:
+		return "TCP"
+	case UDP:
+		return "UDP"
+	}
+	return "INVALID"
 }
 
 // ServiceBackend represents a single service backend.
@@ -89,5 +168,93 @@ type ServiceBackend struct {
 
 // String converts Backend into a human-readable string.
 func (sb ServiceBackend) String() string {
-	return "TODO"
+	return fmt.Sprintf("<IP:%s Port:%d, Local:%t>", sb.IP, sb.Port, sb.Local)
+}
+
+// Interfaces is a set of interface names.
+type Interfaces map[string]struct{}
+
+// NewInterfaces is a constructor for Interfaces.
+func NewInterfaces(ifNames ...string) Interfaces {
+	interfaces := make(Interfaces)
+	for _, ifName := range ifNames {
+		interfaces.Add(ifName)
+	}
+	return interfaces
+}
+
+// Add interface name into the set.
+func (ifs Interfaces) Add(ifName string) {
+	ifs[ifName] = struct{}{}
+}
+
+// Del interface name from the set.
+func (ifs Interfaces) Del(ifName string) {
+	if ifs.Has(ifName) {
+		delete(ifs, ifName)
+	}
+}
+
+// Copy creates a deep copy of the set.
+func (ifs Interfaces) Copy() Interfaces {
+	ifsCopy := NewInterfaces()
+	for intf := range ifs {
+		ifsCopy.Add(intf)
+	}
+	return ifsCopy
+}
+
+// Has returns true if the given interface name is in the set.
+func (ifs Interfaces) Has(ifName string) bool {
+	_, has := ifs[ifName]
+	return has
+}
+
+// String converts a set of interface names into a human-readable string.
+func (ifs Interfaces) String() string {
+	str := "{"
+	idx := 0
+	for ifName := range ifs {
+		str += ifName
+		if idx < len(ifs)-1 {
+			str += ", "
+		}
+		idx++
+	}
+	str += "}"
+	return str
+}
+
+// ResyncEventData wraps an entire state of K8s services.
+type ResyncEventData struct {
+	// Services is a list of all currently deployed services.
+	Services []*ContivService
+
+	// FrontendIfs is a set of all interfaces connecting clients with VPP.
+	FrontendIfs Interfaces
+
+	// BackendIfs is a set of all interfaces connecting service backends with VPP.
+	BackendIfs Interfaces
+}
+
+// NewResyncEventData is a constructor for ResyncEventData.
+func NewResyncEventData() *ResyncEventData {
+	return &ResyncEventData{
+		Services:    []*ContivService{},
+		FrontendIfs: NewInterfaces(),
+		BackendIfs:  NewInterfaces(),
+	}
+}
+
+// String converts ResyncEventData into a human-readable string.
+func (red ResyncEventData) String() string {
+	services := ""
+	for idx, service := range red.Services {
+		services += service.String()
+		if idx < len(red.Services)-1 {
+			services += ", "
+		}
+	}
+	return fmt.Sprintf("ResyncEventData <Services:[%s] FrontendIfs:%s BackendIfs:%s>",
+		services, red.FrontendIfs.String(), red.BackendIfs.String())
 }

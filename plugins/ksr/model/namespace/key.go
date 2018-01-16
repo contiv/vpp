@@ -16,13 +16,13 @@ package namespace
 
 import (
 	"fmt"
-	"github.com/contiv/vpp/plugins/ksr/model/ksrkey"
 	"strings"
+
+	"github.com/contiv/vpp/plugins/ksr/model/ksrkey"
 )
 
 const (
-	// NamespaceKeyword is a key prefix under which the current state of every
-	// known K8s namespace is stored.
+	// NamespaceKeyword defines the keyword identifying Namespace data.
 	NamespaceKeyword = "namespace"
 )
 

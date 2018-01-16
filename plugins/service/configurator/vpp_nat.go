@@ -32,9 +32,8 @@ type NATMapping struct {
 	ExternalIP   net.IP
 	ExternalPort uint16
 	Protocol     ProtocolType
-	VrfID        uint32
 	TwiceNat     uint8
-	Locals       []NATMappingLocal
+	Locals       []*NATMappingLocal
 }
 
 // NATMappingLocal represents a single backend for VPP NAT mapping.
@@ -42,6 +41,52 @@ type NATMappingLocal struct {
 	Address     net.IP
 	Port        uint16
 	Probability uint8
+}
+
+// Equal compares this mapping with another for equality.
+func (nm *NATMapping) Equal(nm2 *NATMapping) bool {
+	// Compare locals.
+	if len(nm.Locals) != len(nm2.Locals) {
+		return false
+	}
+	// -> test nm.Locals is a subset of nm2.Locals
+	for _, local := range nm.Locals {
+		found := false
+		for _, local2 := range nm2.Locals {
+			if local.Equal(local2) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return false
+		}
+	}
+	// -> test nm2.Locals is a subset of nm.Locals
+	for _, local2 := range nm2.Locals {
+		found := false
+		for _, local := range nm.Locals {
+			if local.Equal(local2) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return false
+		}
+	}
+	// Compare the rest of the attributes.
+	return nm.ExternalIP.Equal(nm2.ExternalIP) &&
+		nm.ExternalPort == nm2.ExternalPort &&
+		nm.Protocol == nm2.Protocol &&
+		nm.TwiceNat == nm.TwiceNat
+}
+
+// Equal compares this local with another for equality.
+func (nml *NATMappingLocal) Equal(nml2 *NATMappingLocal) bool {
+	return nml.Address.Equal(nml2.Address) &&
+		nml.Port == nml2.Port &&
+		nml.Probability == nml2.Probability
 }
 
 // isNat44ForwardingEnabled checks with VPP if NAT44 forwarding is enabled.

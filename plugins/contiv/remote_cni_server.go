@@ -270,11 +270,9 @@ func (s *remoteCNIserver) configureVswitchNICs(config *vswitchConfig) error {
 
 	// find name of the main VPP NIC interface
 	nicName := ""
-	nicIP := ""
 	if s.nodeConfig != nil && strings.Trim(s.nodeConfig.MainVppInterface.InterfaceName, " ") != "" {
 		// use name as as specified in node config YAML
 		nicName = s.nodeConfig.MainVppInterface.InterfaceName
-		nicIP = s.nodeConfig.MainVppInterface.IP
 		s.Logger.Debugf("Physical NIC name taken from nodeConfig: %v ", nicName)
 	} else {
 		// name not specified in config, use heuristic - first non-virtual interface
@@ -288,6 +286,11 @@ func (s *remoteCNIserver) configureVswitchNICs(config *vswitchConfig) error {
 			}
 		}
 		s.Logger.Debugf("Physical NIC not taken from nodeConfig, but heuristic was used: %v ", nicName)
+	}
+	// IP of the main interface
+	nicIP := ""
+	if s.nodeConfig != nil && s.nodeConfig.MainVppInterface.IP != "" {
+		nicIP = s.nodeConfig.MainVppInterface.IP
 	}
 
 	// configure the main VPP NIC interface

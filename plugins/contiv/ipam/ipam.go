@@ -50,6 +50,7 @@ type IPAM struct {
 
 	// node related variables
 	nodeInterconnectCIDR net.IPNet // IPv4 subnet used for for inter-node connections
+	vxlanCIDR            net.IPNet // IPv4 subnet used for for inter-node VXLAN
 }
 
 type uintIP = uint32
@@ -62,6 +63,7 @@ type Config struct {
 	VPPHostSubnetCIDR       string // subnet used across all nodes for VPP to host Linux stack interconnect
 	VPPHostNetworkPrefixLen uint8  // prefix length of subnet used for for VPP to host Linux stack interconnect within 1 node (VPPHost network = VPPHost subnet for one 1 node)
 	NodeInterconnectCIDR    string // subnet used for for inter-node connections
+	VxlanCIDR               string // subnet used for for inter-node VXLAN
 }
 
 // New returns new IPAM module to be used on the node specified by the nodeID.
@@ -109,6 +111,30 @@ func (i *IPAM) NodeIPWithPrefix(nodeID uint8) (*net.IPNet, error) {
 		Mask: uint32ToIpv4Mask(((1 << uint(maskSize)) - 1) << (32 - uint8(maskSize))),
 	}
 	return &hostIPNetwork, nil
+}
+
+// VxlanIPAddress computes IP address of the VXLAN interface based on the provided node ID.
+func (i *IPAM) VxlanIPAddress(nodeID uint8) (net.IP, error) {
+	i.mutex.RLock()
+	defer i.mutex.RUnlock()
+	return i.computeVxlanIPAddress(nodeID)
+}
+
+// NodeIPWithPrefix computes VXLAN interface address with prefix length based on the provided node ID.
+func (i *IPAM) VxlanIPWithPrefix(nodeID uint8) (*net.IPNet, error) {
+	i.mutex.RLock()
+	defer i.mutex.RUnlock()
+
+	hostIP, err := i.computeVxlanIPAddress(nodeID)
+	if err != nil {
+		return nil, err
+	}
+	maskSize, _ := i.vxlanCIDR.Mask.Size()
+	vxlanNetwork := net.IPNet{
+		IP:   hostIP,
+		Mask: uint32ToIpv4Mask(((1 << uint(maskSize)) - 1) << (32 - uint8(maskSize))),
+	}
+	return &vxlanNetwork, nil
 }
 
 // VEthVPPEndIP provides the IPv4 address of the VPP-end of the VPP to host interconnect veth pair.
@@ -286,11 +312,17 @@ func initializeVPPHostIPAM(ipam *IPAM, config *Config, nodeID uint8) (err error)
 
 // initializeNodeInterconnectIPAM initializes node interconnect -related variables of IPAM.
 func initializeNodeInterconnectIPAM(ipam *IPAM, config *Config) (err error) {
-	_, pSubnet, err := net.ParseCIDR(config.NodeInterconnectCIDR)
+	_, nodeSubnet, err := net.ParseCIDR(config.NodeInterconnectCIDR)
 	if err != nil {
 		return
 	}
-	ipam.nodeInterconnectCIDR = *pSubnet
+	ipam.nodeInterconnectCIDR = *nodeSubnet
+
+	_, vxlanSubnet, err := net.ParseCIDR(config.VxlanCIDR)
+	if err != nil {
+		return
+	}
+	ipam.vxlanCIDR = *vxlanSubnet
 	return
 }
 
@@ -355,8 +387,23 @@ func (i *IPAM) computeNodeIPAddress(nodeID uint8) (net.IP, error) {
 	nodePartBitSize := 32 - uint8(subnetPrefixLen)
 	nodeIPPart := convertToNodeIPPart(nodeID, nodePartBitSize)
 
-	//combining it to get result IP address
+	// combining it to get result IP address
 	networkIPPartUint32, err := ipv4ToUint32(i.nodeInterconnectCIDR.IP)
+	if err != nil {
+		return nil, err
+	}
+	return uint32ToIpv4(networkIPPartUint32 + uint32(nodeIPPart)), nil
+}
+
+// computeVxlanIPAddress computes IP address of the VXLAN interface based on the given node ID.
+func (i *IPAM) computeVxlanIPAddress(nodeID uint8) (net.IP, error) {
+	// trimming nodeID if its place in IP address is narrower than actual uint8 size
+	subnetPrefixLen, _ := i.vxlanCIDR.Mask.Size()
+	nodePartBitSize := 32 - uint8(subnetPrefixLen)
+	nodeIPPart := convertToNodeIPPart(nodeID, nodePartBitSize)
+
+	// combining it to get result IP address
+	networkIPPartUint32, err := ipv4ToUint32(i.vxlanCIDR.IP)
 	if err != nil {
 		return nil, err
 	}

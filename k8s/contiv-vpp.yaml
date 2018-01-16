@@ -27,6 +27,7 @@ data:
       VPPHostSubnetCIDR: "172.30.0.0/16"
       VPPHostNetworkPrefixLen: 24
       NodeInterconnectCIDR: "192.168.16.0/24"
+      VxlanCIDR: "192.168.30.0/24"
 ### example of node configuration for VPP interfaces
 #    NodeConfig:
 #    - NodeName: "vm1"

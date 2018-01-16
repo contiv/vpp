@@ -17,15 +17,19 @@ package contiv
 import (
 	"fmt"
 	"net"
-
 	"strconv"
 
 	vpp_intf "github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/model/interfaces"
+	vpp_l2 "github.com/ligato/vpp-agent/plugins/defaultplugins/l2plugin/model/l2"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/l3plugin/model/l3"
 	vpp_l4 "github.com/ligato/vpp-agent/plugins/defaultplugins/l4plugin/model/l4"
 	"github.com/ligato/vpp-agent/plugins/linuxplugin/ifplugin/linuxcalls"
 	linux_intf "github.com/ligato/vpp-agent/plugins/linuxplugin/ifplugin/model/interfaces"
 	linux_l3 "github.com/ligato/vpp-agent/plugins/linuxplugin/l3plugin/model/l3"
+)
+
+const (
+	vxlanSplitHorizonGroup = 1 // As VXLAN tunnels are added to a BD, they must be configured with the same and non-zero Split Horizon Group (SHG) number. Otherwise, flood packet may loop among servers with the same VXLAN segment because VXLAN tunnels are fully meshed among servers.
 )
 
 func (s *remoteCNIserver) l4Features(enable bool) *vpp_l4.L4Features {
@@ -156,7 +160,7 @@ func (s *remoteCNIserver) physicalInterfaceWithCustomIPAddress(name string, ipAd
 }
 
 func (s *remoteCNIserver) physicalInterfaceLoopback() (*vpp_intf.Interfaces_Interface, error) {
-	nodeNetwork, err := s.ipam.NodeIPWithPrefix(s.ipam.NodeID())
+	nodeIP, err := s.ipam.NodeIPWithPrefix(s.ipam.NodeID())
 	if err != nil {
 		return nil, err
 	}
@@ -164,8 +168,43 @@ func (s *remoteCNIserver) physicalInterfaceLoopback() (*vpp_intf.Interfaces_Inte
 		Name:        "loopbackNIC",
 		Type:        vpp_intf.InterfaceType_SOFTWARE_LOOPBACK,
 		Enabled:     true,
-		IpAddresses: []string{nodeNetwork.String()},
+		IpAddresses: []string{nodeIP.String()},
 	}, nil
+}
+
+func (s *remoteCNIserver) vxlanBVILoopback() (*vpp_intf.Interfaces_Interface, error) {
+	vxlanIP, err := s.ipam.VxlanIPWithPrefix(s.ipam.NodeID())
+	if err != nil {
+		return nil, err
+	}
+	return &vpp_intf.Interfaces_Interface{
+		Name:        "vxlanBVI",
+		Type:        vpp_intf.InterfaceType_SOFTWARE_LOOPBACK,
+		Enabled:     true,
+		IpAddresses: []string{vxlanIP.String()},
+		PhysAddress: s.hwAddrForVXLAN(),
+	}, nil
+}
+
+func (s *remoteCNIserver) hwAddrForVXLAN() string {
+	return fmt.Sprintf("1a:2b:3c:4d:5e:%02x", s.ipam.NodeID())
+}
+
+func (s *remoteCNIserver) vxlanBridgeDomain(bviInterface string) *vpp_l2.BridgeDomains_BridgeDomain {
+	return &vpp_l2.BridgeDomains_BridgeDomain{
+		Name:                "vxlanBD",
+		Learn:               true,
+		Forward:             true,
+		Flood:               true,
+		UnknownUnicastFlood: true,
+		Interfaces: []*vpp_l2.BridgeDomains_BridgeDomain_Interfaces{
+			{
+				Name: bviInterface,
+				BridgedVirtualInterface: true,
+				SplitHorizonGroup:       vxlanSplitHorizonGroup,
+			},
+		},
+	}
 }
 
 func (s *remoteCNIserver) computeRoutesForHost(hostID uint8, hostIP string) (podsRoute *l3.StaticRoutes_Route, hostRoute *l3.StaticRoutes_Route, err error) {

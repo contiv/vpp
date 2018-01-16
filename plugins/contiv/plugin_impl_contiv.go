@@ -79,8 +79,8 @@ type Deps struct {
 type Config struct {
 	TCPChecksumOffloadDisabled bool
 	TCPstackDisabled           bool
+	UseL2Interconnect          bool
 	UseTAPInterfaces           bool
-	L2Interconnect             bool
 	TAPInterfaceVersion        uint8
 	TAPv2RxRingSize            uint16
 	TAPv2TxRingSize            uint16

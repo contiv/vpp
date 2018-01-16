@@ -32,6 +32,7 @@ import (
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/ifaceidx"
 	vpp_intf "github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/model/interfaces"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/model/stn"
+	vpp_l2 "github.com/ligato/vpp-agent/plugins/defaultplugins/l2plugin/model/l2"
 	vpp_l3 "github.com/ligato/vpp-agent/plugins/defaultplugins/l3plugin/model/l3"
 	vpp_l4 "github.com/ligato/vpp-agent/plugins/defaultplugins/l4plugin/model/l4"
 	linux_intf "github.com/ligato/vpp-agent/plugins/linuxplugin/ifplugin/model/interfaces"
@@ -115,6 +116,9 @@ type remoteCNIserver struct {
 	// Rx/Tx ring size for TAPv2
 	tapV2RxRingSize uint16
 	tapV2TxRingSize uint16
+
+	// use pure L2 node interconnect instead of VXLANs
+	useL2Interconnect bool
 }
 
 // vswitchConfig holds base vSwitch VPP configuration.
@@ -129,6 +133,9 @@ type vswitchConfig struct {
 	routeToHost   *vpp_l3.StaticRoutes_Route
 	routeFromHost *linux_l3.LinuxStaticRoutes_Route
 	l4Features    *vpp_l4.L4Features
+
+	vxlanBVI *vpp_intf.Interfaces_Interface
+	vxlanBD  *vpp_l2.BridgeDomains_BridgeDomain
 }
 
 // newRemoteCNIServer initializes a new remote CNI server instance.
@@ -156,6 +163,7 @@ func newRemoteCNIServer(logger logging.Logger, vppTxnFactory func() linux.DataCh
 		tapV2RxRingSize:            config.TAPv2RxRingSize,
 		tapV2TxRingSize:            config.TAPv2TxRingSize,
 		disableTCPstack:            config.TCPstackDisabled,
+		useL2Interconnect:          config.UseL2Interconnect,
 	}
 	server.vswitchCond = sync.NewCond(&server.Mutex)
 	return server, nil
@@ -226,6 +234,15 @@ func (s *remoteCNIserver) configureVswitchConnectivity() error {
 	if err != nil {
 		s.Logger.Error(err)
 		return err
+	}
+
+	if !s.useL2Interconnect {
+		// configure VXLAN tunnel bridge domain
+		err = s.configureVswitchVxlanBridgeDomain(config)
+		if err != nil {
+			s.Logger.Error(err)
+			return err
+		}
 	}
 
 	// persist vswitch configuration in ETCD
@@ -420,6 +437,33 @@ func (s *remoteCNIserver) configureVswitchHostConnectivity(config *vswitchConfig
 
 	// execute the config transaction
 	err = txn2.Send().ReceiveReply()
+	if err != nil {
+		s.Logger.Error(err)
+		return err
+	}
+
+	return nil
+}
+
+// configureVswitchVxlanBridgeDomain configures bridge domain for the VXLAN tunnels.
+func (s *remoteCNIserver) configureVswitchVxlanBridgeDomain(config *vswitchConfig) error {
+	var err error
+	txn := s.vppTxnFactory().Put()
+
+	// VXLAN BVI loopback
+	config.vxlanBVI, err = s.vxlanBVILoopback()
+	if err != nil {
+		s.Logger.Error(err)
+		return err
+	}
+	txn.VppInterface(config.vxlanBVI)
+
+	// bridge domain for the VXLAN tunnel
+	config.vxlanBD = s.vxlanBridgeDomain(config.vxlanBVI.Name)
+	txn.BD(config.vxlanBD)
+
+	// execute the config transaction
+	err = txn.Send().ReceiveReply()
 	if err != nil {
 		s.Logger.Error(err)
 		return err

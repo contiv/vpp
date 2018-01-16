@@ -59,7 +59,7 @@ OneNodeK8sTeardown
     setup-teardown.Testsuite Teardown
 
 Setup_Hosts_Connections
-    [Arguments]    ${user}=localadmin    ${password}=cisco123
+    [Arguments]    ${user}=${KUBE_CLUSTER_${CLUSTER_ID}_VM_1_USER}    ${password}=${KUBE_CLUSTER_${CLUSTER_ID}_VM_1_PSWD}
     [Documentation]    Open and store two more SSH connections to master host, in them open
     ...    pod shells to client and server pod, parse their IP addresses and store them.
     [Timeout]    5m

@@ -19,25 +19,23 @@ import (
 )
 
 const (
-	// ServiceKeyword returns the key prefix identifying all K8s services in the
-	// data store.
+	// ServiceKeyword defines the keyword identifying Service data.
 	ServiceKeyword = "service"
 )
 
-// KeyPrefix returns the key prefix *template* used in the data-store
-// to save the current state of every known K8s pod.
+// KeyPrefix returns the key prefix identifying all K8s services in the
+// data store.
 func KeyPrefix() string {
 	return ksrkey.KeyPrefix(ServiceKeyword)
 }
 
-// ParseServiceFromKey parses pod and namespace ids from the associated
+// ParseServiceFromKey parses service and namespace ids from the associated
 // data-store key.
 func ParseServiceFromKey(key string) (service string, namespace string, err error) {
 	return ksrkey.ParseNameFromKey(ServiceKeyword, key)
 }
 
-// Key returns the key under which a given K8s service is stored in the
-// data store.
+// Key returns the key under which the given service is stored in the data-store.
 func Key(name string, namespace string) string {
 	return ksrkey.Key(ServiceKeyword, name, namespace)
 }

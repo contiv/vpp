@@ -28,12 +28,12 @@ import (
 	"github.com/ligato/vpp-agent/plugins/govppmux"
 
 	"github.com/contiv/vpp/plugins/contiv"
+	"github.com/contiv/vpp/plugins/service/configurator"
+	"github.com/contiv/vpp/plugins/service/processor"
+
 	epmodel "github.com/contiv/vpp/plugins/ksr/model/endpoints"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	svcmodel "github.com/contiv/vpp/plugins/ksr/model/service"
-
-	"github.com/contiv/vpp/plugins/service/configurator"
-	"github.com/contiv/vpp/plugins/service/processor"
 )
 
 // Plugin watches configuration of K8s resources (as reflected by KSR into ETCD)
@@ -88,6 +88,7 @@ func (p *Plugin) Init() error {
 	p.configurator = &configurator.ServiceConfigurator{
 		Deps: configurator.Deps{
 			Log:       p.Log.NewLogger("-serviceConfigurator"),
+			Contiv:    p.Contiv,
 			VPP:       p.VPP,
 			GoVPPChan: goVppCh,
 		},
@@ -131,8 +132,8 @@ func (p *Plugin) AfterInit() error {
 
 func (p *Plugin) subscribeWatcher() (err error) {
 	p.watchConfigReg, err = p.Watcher.
-		Watch("K8s endpoints & services & pods", p.changeChan, p.resyncChan,
-			epmodel.KeyPrefix(), svcmodel.KeyPrefix(), podmodel.KeyPrefix())
+		Watch("K8s services", p.changeChan, p.resyncChan,
+			epmodel.KeyPrefix(), podmodel.KeyPrefix(), svcmodel.KeyPrefix())
 	return err
 }
 

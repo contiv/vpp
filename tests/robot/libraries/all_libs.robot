@@ -10,6 +10,7 @@ Library           OperatingSystem
 Library           SSHLibrary
 Library           String
 Library           ${CURDIR}/kube_parser.py
+Resource          ${CURDIR}/EnvConnections.robot
 Resource          ${CURDIR}/KubeAdm.robot
 Resource          ${CURDIR}/KubeCtl.robot
 Resource          ${CURDIR}/KubernetesEnv.robot

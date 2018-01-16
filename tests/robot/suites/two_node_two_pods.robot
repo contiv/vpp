@@ -130,20 +130,10 @@ TwoNodesK8sTeardown
     setup-teardown.Testsuite_Teardown
 
 Setup_Hosts_Connections
-    [Arguments]    ${user}=localadmin    ${password}=cisco123
     [Documentation]    Open and store two more SSH connections to master host, in one of them open
     ...    pod shell to client pod.
-    Builtin.Log_Many    ${user}    ${password}
-    ${conn} =     SSHLibrary.Get_Connection    ${testbed_connection}
-    ${client_connection} =    SSHLibrary.Open_Connection    ${conn.host}    timeout=60
-    SSHLibrary.Login    ${user}    ${password}
-    BuiltIn.Set_Suite_Variable    ${client_connection}
-    ${conn} =     SSHLibrary.Get_Connection    ${VM_SSH_ALIAS_PREFIX}2
-    ${server_connection} =    SSHLibrary.Open_Connection    ${conn.host}    timeout=60
-    SSHLibrary.Login    ${user}    ${password}
-    BuiltIn.Set_Suite_Variable    ${server_connection}
-    KubernetesEnv.Get_Into_Container_Prompt_In_Pod    ${client_connection}    ${client_pod_name}    prompt=#
-    KubernetesEnv.Get_Into_Container_Prompt_In_Pod    ${server_connection}    ${server_pod_name}    prompt=#
+    EnvConnections.Open_Client_Connection
+    EnvConnections.Open_Server_Connection    node_index=2
 
 Teardown_Hosts_Connections
     [Documentation]    Exit client pod shell, close both new SSH connections.

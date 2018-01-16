@@ -8,11 +8,12 @@ Open_Ssh_Connection
     [Documentation]    Create SSH connection to \{ip} aliased as \${name} and log in using \${user} and \${pswd} (or rsa).
     ...    Log to output file. The new connection is left active.
     BuiltIn.Log_Many    ${name}    ${ip}    ${user}    ${pswd}
-    SSHLibrary.Open_Connection    ${ip}    alias=${name}    timeout=${SSH_TIMEOUT}
+    ${connection}=    SSHLibrary.Open_Connection    ${ip}    alias=${name}    timeout=${SSH_TIMEOUT}
     ${out} =    BuiltIn.Run_Keyword_If    """${pswd}""" != "rsa_id"    SSHLibrary.Login    ${user}    ${pswd}
     ${out2} =    BuiltIn.Run_Keyword_If    """${pswd}""" == "rsa_id"    SSHLibrary.Login_With_Public_Key    ${user}    %{HOME}/.ssh/id_rsa    any
     BuiltIn.Run_Keyword_If    """${out}""" != "None"    OperatingSystem.Append_To_File    ${RESULTS_FOLDER}/output_${name}.log    *** Command: Login${\n}${out}${\n}
     BuiltIn.Run_Keyword_If    """${out2}""" != "None"    OperatingSystem.Append_To_File    ${RESULTS_FOLDER}/output_${name}.log    *** Command: Login${\n}${out2}${\n}
+    [Return]    ${connection}
 
 Switch_And_Execute_With_Copied_File
     [Arguments]    ${ssh_session}    ${file_path}    ${command_prefix}    ${expected_rc}=0    ${ignore_stderr}=${False}    ${ignore_rc}=${False}
@@ -54,13 +55,16 @@ Switch_And_Execute_Command
     [Documentation]    Switch to \${ssh_session}, and continue with Execute_Command_And_Log.
     BuiltIn.Log_Many    ${ssh_session}    ${command}    ${expected_rc}    ${ignore_stderr}    ${ignore_rc}
     SSHLibrary.Switch_Connection    ${ssh_session}
-    BuiltIn.Run_Keyword_And_Return    Execute_Command_And_Log    ${command}    expected_rc=${expected_rc}    ignore_stderr=${ignore_stderr}    ignore_rc=${ignore_rc}
+    ${out}=    Execute_Command_And_Log    ${command}    expected_rc=${expected_rc}    ignore_stderr=${ignore_stderr}    ignore_rc=${ignore_rc}
+    BuiltIn.Log    ${out}
+    [Return]    ${out}
 
 Execute_Command_And_Log
     [Arguments]    ${command}    ${expected_rc}=0    ${ignore_stderr}=${False}    ${ignore_rc}=${False}
     [Documentation]    Execute \${command} on current SSH session, log results, maybe fail on nonempty stderr, check \${expected_rc}, return stdout.
     BuiltIn.Log_Many    ${command}    ${expected_rc}    ${ignore_stderr}    ${ignore_rc}
     ${stdout}    ${stderr}    ${rc} =    SSHLibrary.Execute_Command    ${command}    return_stderr=True    return_rc=True
+    BuiltIn.Log_Many    ${stdout}    ${stderr}    ${rc}
     Append_Command_Log    ${command}    ${stdout}    ${stderr}    ${rc}
     BuiltIn.Run_Keyword_Unless    ${ignore_stderr}    BuiltIn.Should_Be_Empty    ${stderr}
     BuiltIn.Run_Keyword_Unless    ${ignore_rc}    BuiltIn.Should_Be_Equal_As_Numbers    ${rc}    ${expected_rc}

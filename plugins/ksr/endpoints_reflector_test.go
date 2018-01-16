@@ -217,9 +217,9 @@ func TestEndpointsReflector(t *testing.T) {
 
 	// Pre-populate the mock data store with "stale" data that is supposed to
 	// be deleted during the test.
-	eps2 := &epTestVars.epsTestData[2]
-	epTestVars.mockKvWriter.Put(endpoints.Key(eps2.GetName(),
-		eps2.GetNamespace()), epTestVars.epsReflector.endpointsToProto(eps2))
+	k8sEps2 := &epTestVars.epsTestData[2]
+	epTestVars.mockKvWriter.Put(endpoints.Key(k8sEps2.GetName(),
+		k8sEps2.GetNamespace()), epTestVars.epsReflector.endpointsToProto(k8sEps2))
 
 	statsBefore := *epTestVars.epsReflector.GetStats()
 
@@ -254,13 +254,22 @@ func TestEndpointsReflector(t *testing.T) {
 func testAddDeleteEndpoints(t *testing.T) {
 	eps := &epTestVars.epsTestData[0]
 
-	// Check if we can add an endpoint
-	add := epTestVars.epsReflector.GetStats().NumAdds
+	// Take a snapshot of counters
+	adds := epTestVars.epsReflector.GetStats().NumAdds
+	argErrs := epTestVars.epsReflector.GetStats().NumArgErrors
+
+	// Test add with wrong argument type
+	epTestVars.k8sListWatch.Add(&eps)
+
+	gomega.Expect(argErrs + 1).To(gomega.Equal(epTestVars.epsReflector.GetStats().NumArgErrors))
+	gomega.Expect(adds).To(gomega.Equal(epTestVars.epsReflector.GetStats().NumAdds))
+
+	// Test add where everything should be good
 	epTestVars.k8sListWatch.Add(eps)
 	epsProto := &endpoints.Endpoints{}
 	err := epTestVars.mockKvWriter.GetValue(endpoints.Key(eps.GetName(), eps.GetNamespace()), epsProto)
 
-	gomega.Expect(add + 1).To(gomega.Equal(epTestVars.epsReflector.GetStats().NumAdds))
+	gomega.Expect(adds + 1).To(gomega.Equal(epTestVars.epsReflector.GetStats().NumAdds))
 
 	gomega.Expect(err).To(gomega.BeNil())
 	gomega.Expect(epsProto).NotTo(gomega.BeNil())
@@ -294,10 +303,19 @@ func testAddDeleteEndpoints(t *testing.T) {
 	gomega.Expect(epsProto.EndpointSubsets[0].Ports[0].Protocol).
 		Should(gomega.BeEquivalentTo(eps.Subsets[0].Ports[0].Protocol))
 
-	// Now check if we can delete the newly added service
-	del := epTestVars.epsReflector.GetStats().NumDeletes
+	// Now check if we can delete the newly added endpoint
+	dels := epTestVars.epsReflector.GetStats().NumDeletes
+	argErrs = epTestVars.epsReflector.GetStats().NumArgErrors
+
+	// Test delete with wrong argument type
+	epTestVars.k8sListWatch.Delete(&eps)
+
+	gomega.Expect(argErrs + 1).To(gomega.Equal(epTestVars.epsReflector.GetStats().NumArgErrors))
+	gomega.Expect(dels).To(gomega.Equal(epTestVars.epsReflector.GetStats().NumDeletes))
+
+	// Test delete where everything should be good
 	epTestVars.k8sListWatch.Delete(eps)
-	gomega.Expect(del + 1).To(gomega.Equal(epTestVars.epsReflector.GetStats().NumDeletes))
+	gomega.Expect(dels + 1).To(gomega.Equal(epTestVars.epsReflector.GetStats().NumDeletes))
 
 	epsProto = &endpoints.Endpoints{}
 	key := endpoints.Key(eps.GetName(), eps.GetNamespace())
@@ -348,25 +366,24 @@ func testUpdateEndpoints(t *testing.T) {
 
 	upd := epTestVars.epsReflector.GetStats().NumUpdates
 
+	// Test update with wrong argument type
 	epTestVars.k8sListWatch.Update(*epsOld, *epsNew)
-	// There should be no update if we pass bad data types into update function
 	gomega.Expect(upd).To(gomega.Equal(epTestVars.epsReflector.GetStats().NumUpdates))
 
+	// Ensure that there is no update if old and new values are the same
 	epTestVars.k8sListWatch.Update(&epsOld, &epsNew)
-	// There should be no update if old and new updates are the same
 	gomega.Expect(upd).To(gomega.Equal(epTestVars.epsReflector.GetStats().NumUpdates))
 
 	gomega.Expect(epsOld).ShouldNot(gomega.BeEquivalentTo(epsNew))
+
+	// Test update where everything should be good
 	epTestVars.k8sListWatch.Update(epsOld, epsNew)
-	// There should be exactly one update because old and new data are different
 	gomega.Expect(upd + 1).To(gomega.Equal(epTestVars.epsReflector.GetStats().NumUpdates))
 
-	// Check that new data was written properly
 	epsProto := &endpoints.Endpoints{}
 	err := epTestVars.mockKvWriter.GetValue(endpoints.Key(epsNew.GetName(), epsNew.GetNamespace()), epsProto)
 	gomega.Expect(err).To(gomega.BeNil())
 	gomega.Expect(epsProto.EndpointSubsets[0].Addresses[0].Ip).
 		To(gomega.Equal(epsNew.Subsets[0].Addresses[0].IP))
 	gomega.Expect(len(epsProto.EndpointSubsets[0].Addresses)).Should(gomega.BeNumerically("==", 1))
-
 }

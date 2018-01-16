@@ -19,6 +19,8 @@ import (
 	"net"
 	"strconv"
 
+	"strings"
+
 	vpp_intf "github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/model/interfaces"
 	vpp_l2 "github.com/ligato/vpp-agent/plugins/defaultplugins/l2plugin/model/l2"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/l3plugin/model/l3"
@@ -211,8 +213,10 @@ func (s *remoteCNIserver) computeRoutesForHost(hostID uint8, hostIP string) (pod
 	// determine next hop IP - either use provided one, or calculate based on hostIP
 	var nextHopIP string
 	if hostIP != "" {
-		nextHopIP = hostIP
+		// hostIP defined, just trim prefix length
+		nextHopIP = hostIP[:strings.Index(hostIP, "/")]
 	} else {
+		// hostIP not defined, determine based on hostID
 		nodeIP, err := s.ipam.NodeIPAddress(hostID)
 		if err != nil {
 			return nil, nil, fmt.Errorf("Can't get Host IP address for host ID %v, error: %v ", hostID, err)

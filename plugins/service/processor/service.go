@@ -153,12 +153,13 @@ func (s *Service) Refresh() {
 				local = true
 			}
 			for _, epPort := range epPorts {
-				if _, exposedPort := s.contivSvc.Ports[epPort.GetName()]; exposedPort {
+				port := epPort.GetName()
+				if _, exposedPort := s.contivSvc.Ports[port]; exposedPort {
 					sb := &configurator.ServiceBackend{}
 					sb.IP = epIP
 					sb.Port = uint16(epPort.GetPort())
 					sb.Local = local
-					s.contivSvc.Backends[epPort.GetName()] = append(s.contivSvc.Backends[epPort.GetName()], sb)
+					s.contivSvc.Backends[port] = append(s.contivSvc.Backends[port], sb)
 				}
 			}
 			if local {

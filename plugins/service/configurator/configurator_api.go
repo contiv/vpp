@@ -44,6 +44,10 @@ type ServiceConfiguratorAPI interface {
 	// service.
 	DeleteService(service *ContivService) error
 
+	// UpdateFrontendAddrs updates the list of addresses on which services are
+	// exposed.
+	UpdateFrontendAddrs(oldAddrs, newAddrs IPAddresses) error
+
 	// UpdateLocalFrontendIfs updates the list of interfaces connecting clients
 	// with VPP (enabled out2in VPP/NAT feature).
 	UpdateLocalFrontendIfs(oldIfNames, newIfNames Interfaces) error
@@ -54,7 +58,7 @@ type ServiceConfiguratorAPI interface {
 
 	// Resync completely replaces the current NAT configuration with the provided
 	// full state of K8s services.
-	Resync(prevState *ResyncEventData, curState *ResyncEventData) error
+	Resync(resyncEv *ResyncEventData) error
 }
 
 // ContivService is a less-abstract, free of indirect references representation
@@ -68,8 +72,10 @@ type ContivService struct {
 	// ID should uniquely identify service across all namespaces.
 	ID svcmodel.ID
 
-	// SNAT when enabled will make IPs of client acessing this service will
-	// get NAT-ed to the Node IP.
+	// SNAT when enabled will make IPs of clients acessing this service NAT-ed
+	// to the Node IP and traffic routed cluster-wide.
+	// If disabled, the client IP will be preserved and traffic will be routed
+	// node-local only.
 	// Learn more about this subject here: https://kubernetes.io/docs/tutorials/services/source-ip/
 	SNAT bool
 
@@ -122,6 +128,16 @@ func (cs ContivService) String() string {
 		cs.ID.String(), cs.SNAT, externalIPs, allBackends)
 }
 
+// HasNodePort returns true if service is also exposed on the Node IP.
+func (cs ContivService) HasNodePort() bool {
+	for _, port := range cs.Ports {
+		if port.NodePort != 0 {
+			return true
+		}
+	}
+	return false
+}
+
 // ServicePort contains information on service's port.
 type ServicePort struct {
 	Protocol ProtocolType /* protocol type */
@@ -163,12 +179,80 @@ func (pt ProtocolType) String() string {
 type ServiceBackend struct {
 	IP    net.IP /* internal IP address of the backend */
 	Port  uint16 /* backend-local port on which the service listens */
-	Local bool   /* true if the backend is installed on this node */
+	Local bool   /* true if the backend is deployed on this node  */
 }
 
 // String converts Backend into a human-readable string.
 func (sb ServiceBackend) String() string {
 	return fmt.Sprintf("<IP:%s Port:%d, Local:%t>", sb.IP, sb.Port, sb.Local)
+}
+
+// IPAddresses is a set of IP addresses.
+type IPAddresses struct {
+	list []net.IP
+}
+
+// NewIPAddresses is a constructor for IPAddresses.
+func NewIPAddresses(addrs ...net.IP) IPAddresses {
+	ipAddresses := IPAddresses{
+		list: []net.IP{},
+	}
+	for _, addr := range addrs {
+		ipAddresses.list = append(ipAddresses.list, addr)
+	}
+	return ipAddresses
+}
+
+// Add IP address into the set.
+func (addrs IPAddresses) Add(addr net.IP) {
+	if !addrs.Has(addr) {
+		addrs.list = append(addrs.list, addr)
+	}
+}
+
+// Del IP address from the set.
+func (addrs IPAddresses) Del(addr net.IP) {
+	newAddrs := []net.IP{}
+	for _, addr2 := range addrs.list {
+		if !addr2.Equal(addr) {
+			newAddrs = append(newAddrs, addr2)
+		}
+	}
+	addrs.list = newAddrs
+}
+
+// Copy creates a deep copy of the set.
+func (addrs IPAddresses) Copy() IPAddresses {
+	addrsCopy := NewIPAddresses()
+	for _, addr := range addrs.list {
+		addrsCopy.list = append(addrsCopy.list, addr)
+	}
+	return addrsCopy
+}
+
+// Has returns true if the given IP address is in the set.
+func (addrs IPAddresses) Has(addr net.IP) bool {
+	for _, addr2 := range addrs.list {
+		if addr2.Equal(addr) {
+			return true
+		}
+	}
+	return false
+}
+
+// String converts a set of IP addresses into a human-readable string.
+func (addrs IPAddresses) String() string {
+	str := "{"
+	idx := 0
+	for _, addr := range addrs.list {
+		str += addr.String()
+		if idx < len(addrs.list)-1 {
+			str += ", "
+		}
+		idx++
+	}
+	str += "}"
+	return str
 }
 
 // Interfaces is a set of interface names.
@@ -230,6 +314,9 @@ type ResyncEventData struct {
 	// Services is a list of all currently deployed services.
 	Services []*ContivService
 
+	// FrontendAddrs is a set of all addresses on which services are exposed.
+	FrontendAddrs IPAddresses
+
 	// FrontendIfs is a set of all interfaces connecting clients with VPP.
 	FrontendIfs Interfaces
 
@@ -240,9 +327,10 @@ type ResyncEventData struct {
 // NewResyncEventData is a constructor for ResyncEventData.
 func NewResyncEventData() *ResyncEventData {
 	return &ResyncEventData{
-		Services:    []*ContivService{},
-		FrontendIfs: NewInterfaces(),
-		BackendIfs:  NewInterfaces(),
+		Services:      []*ContivService{},
+		FrontendAddrs: NewIPAddresses(),
+		FrontendIfs:   NewInterfaces(),
+		BackendIfs:    NewInterfaces(),
 	}
 }
 
@@ -255,6 +343,6 @@ func (red ResyncEventData) String() string {
 			services += ", "
 		}
 	}
-	return fmt.Sprintf("ResyncEventData <Services:[%s] FrontendIfs:%s BackendIfs:%s>",
-		services, red.FrontendIfs.String(), red.BackendIfs.String())
+	return fmt.Sprintf("ResyncEventData <Services:[%s] FrontendAddrs: %s, FrontendIfs:%s BackendIfs:%s>",
+		services, red.FrontendAddrs.String(), red.FrontendIfs.String(), red.BackendIfs.String())
 }

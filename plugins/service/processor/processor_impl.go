@@ -17,6 +17,7 @@
 package processor
 
 import (
+	"errors"
 	"net"
 
 	"github.com/ligato/cn-infra/datasync"
@@ -34,8 +35,13 @@ import (
 type ServiceProcessor struct {
 	Deps
 
-	services map[svcmodel.ID]*Service
-	localEps map[podmodel.ID]*LocalEndpoint
+	/* internal maps */
+	services      map[svcmodel.ID]*Service
+	localEps      map[podmodel.ID]*LocalEndpoint
+	externalAddrs map[string]*ExternalAddress
+
+	/* frontend addresses */
+	frontendAddrs configurator.IPAddresses
 
 	/* local frontend and backend interfaces */
 	frontendIfs configurator.Interfaces
@@ -53,7 +59,13 @@ type Deps struct {
 // LocalEndpoint represents a node-local endpoint.
 type LocalEndpoint struct {
 	ifName   string
-	svcCount uint /* number of services running on this endpoint. */
+	svcCount int /* number of services running on this endpoint. */
+}
+
+// ExternalAddress represents IP address on which service(s) is/are exposed.
+type ExternalAddress struct {
+	address  net.IP
+	svcCount int /* number of services exposed on this address */
 }
 
 // Init initializes service processor.
@@ -66,6 +78,8 @@ func (sp *ServiceProcessor) Init() error {
 func (sp *ServiceProcessor) reset() error {
 	sp.services = make(map[svcmodel.ID]*Service)
 	sp.localEps = make(map[podmodel.ID]*LocalEndpoint)
+	sp.externalAddrs = make(map[string]*ExternalAddress)
+	sp.frontendAddrs = configurator.NewIPAddresses()
 	sp.frontendIfs = configurator.NewInterfaces()
 	sp.backendIfs = configurator.NewInterfaces()
 	return nil
@@ -234,10 +248,83 @@ func (sp *ServiceProcessor) processDeletedService(serviceID svcmodel.ID) error {
 	return sp.configureService(svc, oldContivSvc, oldBackends)
 }
 
+// configureService makes all the calls to configurator necessary to get K8s state
+// data of a given service in-sync with VPP NAT configuration.
 func (sp *ServiceProcessor) configureService(svc *Service, oldContivSvc *configurator.ContivService, oldBackends []podmodel.ID) error {
 	var err error
 	newContivSvc := svc.GetContivService()
 	newBackends := svc.GetLocalBackends()
+
+	// Try to get Node IP.
+	nodeIPNet := sp.Contiv.GetHostIPNetwork()
+	if nodeIPNet == nil {
+		return errors.New("failed to get Node IP")
+	}
+	nodeIP := nodeIPNet.IP
+
+	// Configure frontend addresses.
+	newFrontendAddrs := sp.frontendAddrs.Copy()
+	updateFrontends := false
+	// -> handle change related to the NodePort type
+	newHasNodePort := (newContivSvc != nil && newContivSvc.HasNodePort())
+	oldHasNodePort := (oldContivSvc != nil && oldContivSvc.HasNodePort())
+	if newHasNodePort && !oldHasNodePort {
+		if sp.extAddrUsageIncAndFetch(nodeIP, 1) == 1 {
+			newFrontendAddrs.Add(nodeIP)
+			updateFrontends = true
+		}
+	}
+	if !newHasNodePort && oldHasNodePort {
+		if sp.extAddrUsageIncAndFetch(nodeIP, -1) == 0 {
+			newFrontendAddrs.Del(nodeIP)
+			updateFrontends = true
+		}
+	}
+	// -> handle new External IPs
+	if newContivSvc != nil {
+		for _, newAddr := range newContivSvc.ExternalIPs {
+			new := true
+			if oldContivSvc != nil {
+				for _, oldAddr := range oldContivSvc.ExternalIPs {
+					if newAddr.Equal(oldAddr) {
+						new = false
+						break
+					}
+				}
+			}
+			if new {
+				if sp.extAddrUsageIncAndFetch(newAddr, 1) == 1 {
+					newFrontendAddrs.Add(newAddr)
+					updateFrontends = true
+				}
+			}
+		}
+	}
+	// -> handle removed External IPs
+	if oldContivSvc != nil {
+		for _, oldAddr := range oldContivSvc.ExternalIPs {
+			removed := true
+			if newContivSvc != nil {
+				for _, newAddr := range newContivSvc.ExternalIPs {
+					if newAddr.Equal(oldAddr) {
+						removed = false
+						break
+					}
+				}
+			}
+			if removed {
+				if sp.extAddrUsageIncAndFetch(oldAddr, -1) == 0 {
+					newFrontendAddrs.Del(oldAddr)
+					updateFrontends = true
+				}
+			}
+		}
+	}
+	// -> update frontend addresses
+	if updateFrontends {
+		err = sp.Configurator.UpdateFrontendAddrs(sp.frontendAddrs, newFrontendAddrs)
+		sp.frontendAddrs = newFrontendAddrs
+	}
 
 	// Configure service.
 	if newContivSvc != nil {
@@ -264,6 +351,7 @@ func (sp *ServiceProcessor) configureService(svc *Service, oldContivSvc *configu
 	// Configure local Backends.
 	newBackendIfs := sp.backendIfs.Copy()
 	updateBackends := false
+	// -> handle new backend interfaces
 	for _, newBackend := range newBackends {
 		new := true
 		for _, oldBackend := range oldBackends {
@@ -281,7 +369,7 @@ func (sp *ServiceProcessor) configureService(svc *Service, oldContivSvc *configu
 			}
 		}
 	}
-
+	// -> handle removed backend interfaces
 	for _, oldBackend := range oldBackends {
 		removed := true
 		for _, newBackend := range newBackends {
@@ -299,59 +387,42 @@ func (sp *ServiceProcessor) configureService(svc *Service, oldContivSvc *configu
 			}
 		}
 	}
-
+	// -> update local backends
 	if updateBackends {
 		err = sp.Configurator.UpdateLocalBackendIfs(sp.backendIfs, newBackendIfs)
 		sp.backendIfs = newBackendIfs
 	}
+
 	return err
-}
-
-func (sp *ServiceProcessor) getService(svcID svcmodel.ID) *Service {
-	_, hasEntry := sp.services[svcID]
-	if !hasEntry {
-		sp.services[svcID] = NewService(sp)
-	}
-	return sp.services[svcID]
-}
-
-func (sp *ServiceProcessor) getLocalEndpoint(podID podmodel.ID) *LocalEndpoint {
-	_, hasEntry := sp.localEps[podID]
-	if !hasEntry {
-		sp.localEps[podID] = &LocalEndpoint{}
-	}
-	return sp.localEps[podID]
 }
 
 func (sp *ServiceProcessor) processResyncEvent(resyncEv *ResyncEventData) error {
 	sp.Log.WithFields(logging.Fields{
 		"resyncEv": resyncEv,
 	}).Debug("ServiceProcessor - processResyncEvent()")
-
-	// Store the previous state of services before reset.
-	prevState := configurator.NewResyncEventData()
-	prevState.FrontendIfs = sp.frontendIfs.Copy()
-	prevState.BackendIfs = sp.backendIfs.Copy()
-	for _, svc := range sp.services {
-		contivSvc := svc.GetContivService()
-		if contivSvc != nil {
-			prevState.Services = append(prevState.Services, contivSvc)
-		}
-	}
 	sp.reset()
 
-	// Re-build the current state.
-	curState := configurator.NewResyncEventData()
+	// Try to get Node IP.
+	nodeIPNet := sp.Contiv.GetHostIPNetwork()
+	if nodeIPNet == nil {
+		return errors.New("failed to get Node IP")
+	}
+	nodeIP := nodeIPNet.IP
 
-	// Fill up the set of frontends and local endpoints.
+	// Re-build the current state.
+	confResyncEv := configurator.NewResyncEventData()
+
+	// Fill up the set of frontend interfaces and local endpoints.
+	// -> physical interfaces
 	for _, physIf := range sp.Contiv.GetPhysicalIfNames() {
 		sp.frontendIfs.Add(physIf)
 	}
+	// -> host interconnect
 	hostInterconnect := sp.Contiv.GetHostInterconnectIfName()
 	if hostInterconnect != "" {
 		sp.frontendIfs.Add(hostInterconnect)
 	}
-
+	// -> pods
 	for _, pod := range resyncEv.Pods {
 		podID := podmodel.ID{Name: pod.Name, Namespace: pod.Namespace}
 		if pod.IpAddress == "" {
@@ -386,13 +457,15 @@ func (sp *ServiceProcessor) processResyncEvent(resyncEv *ResyncEventData) error 
 		svc.SetMetadata(service)
 	}
 
-	// Iterate over services with complete data.
+	// Iterate over services with complete data to get backend interfaces
+	// and frontend addresses.
 	for _, svc := range sp.services {
 		contivSvc := svc.GetContivService()
 		backends := svc.GetLocalBackends()
-		if contivSvc != nil {
-			curState.Services = append(curState.Services, contivSvc)
+		if contivSvc == nil {
+			continue
 		}
+		confResyncEv.Services = append(confResyncEv.Services, contivSvc)
 		for _, backend := range backends {
 			localEp := sp.getLocalEndpoint(backend)
 			localEp.svcCount++
@@ -400,14 +473,55 @@ func (sp *ServiceProcessor) processResyncEvent(resyncEv *ResyncEventData) error 
 				sp.backendIfs.Add(localEp.ifName)
 			}
 		}
+		// Add Node IP to the set of frontend IP addresses if service is of type NodePort.
+		if contivSvc.HasNodePort() {
+			sp.extAddrUsageIncAndFetch(nodeIP, 1)
+			sp.frontendAddrs.Add(nodeIP)
+		}
+		// Add external IPs to the set of frontend IP addresses.
+		for _, extAddr := range contivSvc.ExternalIPs {
+			sp.extAddrUsageIncAndFetch(extAddr, 1)
+			sp.frontendAddrs.Add(extAddr)
+		}
 	}
 
-	curState.FrontendIfs = sp.frontendIfs
-	curState.BackendIfs = sp.backendIfs
-	return sp.Configurator.Resync(prevState, curState)
+	confResyncEv.FrontendAddrs = sp.frontendAddrs
+	confResyncEv.FrontendIfs = sp.frontendIfs
+	confResyncEv.BackendIfs = sp.backendIfs
+	return sp.Configurator.Resync(confResyncEv)
 }
 
 // Close deallocates resource held by the processor.
 func (sp *ServiceProcessor) Close() error {
 	return nil
+}
+
+/**** Helper methods ****/
+
+func (sp *ServiceProcessor) getService(svcID svcmodel.ID) *Service {
+	_, hasEntry := sp.services[svcID]
+	if !hasEntry {
+		sp.services[svcID] = NewService(sp)
+	}
+	return sp.services[svcID]
+}
+
+func (sp *ServiceProcessor) getLocalEndpoint(podID podmodel.ID) *LocalEndpoint {
+	_, hasEntry := sp.localEps[podID]
+	if !hasEntry {
+		sp.localEps[podID] = &LocalEndpoint{}
+	}
+	return sp.localEps[podID]
+}
+
+func (sp *ServiceProcessor) extAddrUsageIncAndFetch(addr net.IP, increment int) int {
+	addrStr := addr.String()
+	if _, hasEntry := sp.externalAddrs[addrStr]; !hasEntry {
+		sp.externalAddrs[addrStr] = &ExternalAddress{
+			address:  addr,
+			svcCount: 0,
+		}
+	}
+	sp.externalAddrs[addrStr].svcCount += increment
+	return sp.externalAddrs[addrStr].svcCount
 }

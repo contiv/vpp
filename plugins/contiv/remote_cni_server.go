@@ -115,6 +115,12 @@ type remoteCNIserver struct {
 	// Rx/Tx ring size for TAPv2
 	tapV2RxRingSize uint16
 	tapV2TxRingSize uint16
+
+	// name of physical interfaces configured by the agent
+	physicalIfs []string
+
+	// name of the interface interconnecting VPP with the host stack
+	hostInterconnectIfName string
 }
 
 // vswitchConfig holds base vSwitch VPP configuration.
@@ -309,6 +315,7 @@ func (s *remoteCNIserver) configureMainVPPInterface(config *vswitchConfig, nicNa
 		}
 		txn1.VppInterface(nic)
 		config.nics = append(config.nics, nic)
+		s.physicalIfs = append(s.physicalIfs, nicName)
 	} else {
 		// configure loopback instead of the physical NIC
 		s.Logger.Debug("Physical NIC not found, configuring loopback instead.")
@@ -353,6 +360,7 @@ func (s *remoteCNIserver) configureOtherVPPInterfaces(config *vswitchConfig, nod
 		for _, intf := range interfaces {
 			txn.VppInterface(intf)
 			config.nics = append(config.nics, intf)
+			s.physicalIfs = append(s.physicalIfs, intf.Name)
 		}
 
 		// execute the config transaction
@@ -374,12 +382,16 @@ func (s *remoteCNIserver) configureVswitchHostConnectivity(config *vswitchConfig
 		// TAP interface
 		config.tapHost = s.interconnectTap()
 
+		s.hostInterconnectIfName = config.tapHost.Name
+
 		txn1.VppInterface(config.tapHost)
 	} else {
 		// veth + AF_PACKET
 		config.vethHost = s.interconnectVethHost()
 		config.vethVpp = s.interconnectVethVpp()
 		config.interconnectAF = s.interconnectAfpacket()
+
+		s.hostInterconnectIfName = config.interconnectAF.Name
 
 		txn1.LinuxInterface(config.vethHost).
 			LinuxInterface(config.vethVpp)
@@ -986,4 +998,21 @@ func (s *remoteCNIserver) persistChanges(removedKeys []string, putChanges map[st
 		}
 	}
 	return err
+}
+
+// GetPhysicalIfNames returns a slice of names of all configured physical interfaces.
+func (s *remoteCNIserver) GetPhysicalIfNames() []string {
+	s.Lock()
+	defer s.Unlock()
+
+	return s.physicalIfs
+}
+
+// GetHostInterconnectIfName returns the name of the TAP/AF_PACKET interface
+// interconnecting VPP with the host stack.
+func (s *remoteCNIserver) GetHostInterconnectIfName() string {
+	s.Lock()
+	defer s.Unlock()
+
+	return s.hostInterconnectIfName
 }

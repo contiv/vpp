@@ -216,15 +216,13 @@ func (plugin *Plugin) GetHostIPNetwork() *net.IPNet {
 
 // GetPhysicalIfNames returns a slice of names of all configured physical interfaces.
 func (plugin *Plugin) GetPhysicalIfNames() []string {
-	// TODO
-	return []string{}
+	return plugin.cniServer.GetPhysicalIfNames()
 }
 
 // GetHostInterconnectIfName returns the name of the TAP/AF_PACKET interface
 // interconnecting VPP with the host stack.
 func (plugin *Plugin) GetHostInterconnectIfName() string {
-	// TODO
-	return ""
+	return plugin.cniServer.GetHostInterconnectIfName()
 }
 
 // handleResync handles resync events of the plugin. Called automatically by the plugin infra.

@@ -19,8 +19,7 @@ import (
 )
 
 const (
-	// PolicyKeyword returns the key prefix identifying all K8s policies in the
-	// data store.
+	// PolicyKeyword defines the keyword identifying Network policy data.
 	PolicyKeyword = "policy"
 )
 
@@ -30,9 +29,9 @@ func KeyPrefix() string {
 	return ksrkey.KeyPrefix(PolicyKeyword)
 }
 
-// ParsePolicyFromKey parses pod and namespace ids from the associated
+// ParsePolicyFromKey parses policy and namespace ids from the associated
 // data-store key.
-func ParsePolicyFromKey(key string) (service string, namespace string, err error) {
+func ParsePolicyFromKey(key string) (policy string, namespace string, err error) {
 	return ksrkey.ParseNameFromKey(PolicyKeyword, key)
 }
 

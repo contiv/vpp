@@ -22,8 +22,7 @@ import (
 )
 
 const (
-	// NamespaceKeyword is a key prefix under which the current state of every
-	// known K8s namespace is stored.
+	// NamespaceKeyword defines the keyword identifying Namespace data.
 	NamespaceKeyword = "namespace"
 )
 

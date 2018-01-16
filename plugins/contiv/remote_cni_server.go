@@ -404,8 +404,7 @@ func (s *remoteCNIserver) configureVswitchHostConnectivity(config *vswitchConfig
 		config.interconnectAF = s.interconnectAfpacket()
 
 		txn1.LinuxInterface(config.vethHost).
-			LinuxInterface(config.vethVpp).
-			VppInterface(config.interconnectAF)
+			LinuxInterface(config.vethVpp)
 	}
 
 	// execute the config transaction
@@ -419,6 +418,15 @@ func (s *remoteCNIserver) configureVswitchHostConnectivity(config *vswitchConfig
 	if s.useTAPInterfaces {
 		// TODO: this is not persited, will not work in resync case!
 		err = s.configureInterfconnectHostTap()
+		if err != nil {
+			s.Logger.Error(err)
+			return err
+		}
+	} else {
+		// AFPacket is intentionally configured in a txn different from the one that configures veth.
+		// Otherwise if the veth exists before the first transaction (i.e. vEth pair was not deleted after last run)
+		// configuring AfPacket might return an error since linux plugin deletes the existing veth and creates a new one.
+		err = s.vppTxnFactory().Put().VppInterface(config.interconnectAF).Send().ReceiveReply()
 		if err != nil {
 			s.Logger.Error(err)
 			return err

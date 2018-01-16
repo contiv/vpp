@@ -17,8 +17,6 @@
 package cache
 
 import (
-	"strings"
-
 	"github.com/ligato/cn-infra/datasync"
 
 	namespacemodel "github.com/contiv/vpp/plugins/ksr/model/namespace"
@@ -33,44 +31,42 @@ func (pc *PolicyCache) changePropagateEvent(dataChngEv datasync.ChangeEvent) err
 	key := dataChngEv.GetKey()
 	pc.Log.Debug("Received CHANGE key ", key)
 
-	if strings.HasPrefix(key, namespacemodel.KeyPrefix()) {
-		// Propagate Policy CHANGE event
-		_, _, err = policymodel.ParsePolicyFromKey(key)
-		if err == nil {
-			var value, prevValue policymodel.Policy
+	// Propagate Policy CHANGE event
+	_, _, err = policymodel.ParsePolicyFromKey(key)
+	if err == nil {
+		var value, prevValue policymodel.Policy
 
-			if err = dataChngEv.GetValue(&value); err != nil {
-				return err
-			}
+		if err = dataChngEv.GetValue(&value); err != nil {
+			return err
+		}
 
-			if diff, err = dataChngEv.GetPrevValue(&prevValue); err != nil {
-				return err
-			}
+		if diff, err = dataChngEv.GetPrevValue(&prevValue); err != nil {
+			return err
+		}
 
-			if datasync.Delete == dataChngEv.GetChangeType() {
-				oldPolicyID := policymodel.GetID(&prevValue).String()
-				pc.configuredPolicies.UnregisterPolicy(oldPolicyID)
+		if datasync.Delete == dataChngEv.GetChangeType() {
+			oldPolicyID := policymodel.GetID(&prevValue).String()
+			pc.configuredPolicies.UnregisterPolicy(oldPolicyID)
 
-				for _, watcher := range pc.watchers {
-					if err := watcher.DelPolicy(&prevValue); err != nil {
-						return err
-					}
+			for _, watcher := range pc.watchers {
+				if err := watcher.DelPolicy(&prevValue); err != nil {
+					return err
 				}
-				return nil
-
-			} else if diff {
-				policyID := policymodel.GetID(&value).String()
-				oldPolicyID := policymodel.GetID(&prevValue).String()
-				pc.configuredPolicies.UnregisterPolicy(oldPolicyID)
-				pc.configuredPolicies.RegisterPolicy(policyID, &value)
-
-				for _, watcher := range pc.watchers {
-					if err := watcher.UpdatePolicy(&prevValue, &value); err != nil {
-						return err
-					}
-				}
-
 			}
+
+		} else if diff {
+			policyID := policymodel.GetID(&value).String()
+			oldPolicyID := policymodel.GetID(&prevValue).String()
+			pc.configuredPolicies.UnregisterPolicy(oldPolicyID)
+			pc.configuredPolicies.RegisterPolicy(policyID, &value)
+
+			for _, watcher := range pc.watchers {
+				if err := watcher.UpdatePolicy(&prevValue, &value); err != nil {
+					return err
+				}
+			}
+
+		} else {
 			policyID := policymodel.GetID(&value).String()
 			pc.configuredPolicies.RegisterPolicy(policyID, &value)
 
@@ -79,48 +75,46 @@ func (pc *PolicyCache) changePropagateEvent(dataChngEv datasync.ChangeEvent) err
 					return err
 				}
 			}
+		}
+		return nil
+	}
 
-			return nil
+	// Propagate Pod CHANGE event
+	_, _, err = podmodel.ParsePodFromKey(key)
+	if err == nil {
+		var value, prevValue podmodel.Pod
+
+		if err = dataChngEv.GetValue(&value); err != nil {
+			return err
 		}
 
-		// Propagate Pod CHANGE event
-		_, _, err = podmodel.ParsePodFromKey(key)
-		if err == nil {
-			var value, prevValue podmodel.Pod
+		if diff, err = dataChngEv.GetPrevValue(&prevValue); err != nil {
+			return err
+		}
 
-			if err = dataChngEv.GetValue(&value); err != nil {
-				return err
-			}
+		if datasync.Delete == dataChngEv.GetChangeType() {
+			oldPodID := podmodel.GetID(&prevValue).String()
+			pc.configuredPods.UnregisterPod(oldPodID)
 
-			if diff, err = dataChngEv.GetPrevValue(&prevValue); err != nil {
-				return err
-			}
-
-			if datasync.Delete == dataChngEv.GetChangeType() {
-				oldPodID := podmodel.GetID(&prevValue).String()
-				pc.configuredPods.UnregisterPod(oldPodID)
-
-				for _, watcher := range pc.watchers {
-					if err := watcher.DelPod(&prevValue); err != nil {
-						return err
-					}
+			for _, watcher := range pc.watchers {
+				if err := watcher.DelPod(&prevValue); err != nil {
+					return err
 				}
-
-				return nil
-
-			} else if diff {
-				podID := podmodel.GetID(&value).String()
-				oldPodID := podmodel.GetID(&prevValue).String()
-				pc.configuredPods.UnregisterPod(oldPodID)
-				pc.configuredPods.RegisterPod(podID, &value)
-
-				for _, watcher := range pc.watchers {
-					if err := watcher.UpdatePod(&prevValue, &value); err != nil {
-						return err
-					}
-				}
-
 			}
+
+		} else if diff {
+			podID := podmodel.GetID(&value).String()
+			oldPodID := podmodel.GetID(&prevValue).String()
+			pc.configuredPods.UnregisterPod(oldPodID)
+			pc.configuredPods.RegisterPod(podID, &value)
+
+			for _, watcher := range pc.watchers {
+				if err := watcher.UpdatePod(&prevValue, &value); err != nil {
+					return err
+				}
+			}
+
+		} else {
 			podID := podmodel.GetID(&value).String()
 			pc.configuredPods.RegisterPod(podID, &value)
 
@@ -129,50 +123,46 @@ func (pc *PolicyCache) changePropagateEvent(dataChngEv datasync.ChangeEvent) err
 					return err
 				}
 			}
+		}
+		return nil
+	}
 
-			return nil
+	// Propagate Namespace CHANGE event
+	_, err = namespacemodel.ParseNamespaceFromKey(key)
+	if err == nil {
+		var value, prevValue namespacemodel.Namespace
 
+		if err = dataChngEv.GetValue(&value); err != nil {
+			return err
 		}
 
-		// Propagate Namespace CHANGE event
-		_, err = namespacemodel.ParseNamespaceFromKey(key)
-		if err == nil {
-			var value, prevValue namespacemodel.Namespace
+		if diff, err = dataChngEv.GetPrevValue(&prevValue); err != nil {
+			return err
+		}
 
-			if err = dataChngEv.GetValue(&value); err != nil {
-				return err
-			}
+		if datasync.Delete == dataChngEv.GetChangeType() {
+			oldNamespaceID := prevValue.Name
+			pc.configuredNamespaces.UnRegisterNamespace(oldNamespaceID)
 
-			if diff, err = dataChngEv.GetPrevValue(&prevValue); err != nil {
-				return err
-			}
-
-			if datasync.Delete == dataChngEv.GetChangeType() {
-				oldNamespaceID := prevValue.Name
-				pc.configuredNamespaces.UnRegisterNamespace(oldNamespaceID)
-
-				for _, watcher := range pc.watchers {
-					if err := watcher.DelNamespace(&prevValue); err != nil {
-						return err
-					}
+			for _, watcher := range pc.watchers {
+				if err := watcher.DelNamespace(&prevValue); err != nil {
+					return err
 				}
-
-				return nil
-
-			} else if diff {
-				namespaceID := value.Name
-				oldNamespaceID := prevValue.Name
-				pc.configuredNamespaces.UnRegisterNamespace(oldNamespaceID)
-				pc.configuredNamespaces.RegisterNamespace(namespaceID, &value)
-
-				for _, watcher := range pc.watchers {
-					if err := watcher.UpdateNamespace(&prevValue, &value); err != nil {
-						return err
-					}
-				}
-
 			}
 
+		} else if diff {
+			namespaceID := value.Name
+			oldNamespaceID := prevValue.Name
+			pc.configuredNamespaces.UnRegisterNamespace(oldNamespaceID)
+			pc.configuredNamespaces.RegisterNamespace(namespaceID, &value)
+
+			for _, watcher := range pc.watchers {
+				if err := watcher.UpdateNamespace(&prevValue, &value); err != nil {
+					return err
+				}
+			}
+
+		} else {
 			namespaceID := value.Name
 			pc.configuredNamespaces.RegisterNamespace(namespaceID, &value)
 
@@ -183,10 +173,7 @@ func (pc *PolicyCache) changePropagateEvent(dataChngEv datasync.ChangeEvent) err
 
 			}
 		}
-
-		return nil
 	}
 
-	pc.Log.WithField("event", dataChngEv).Warn("Ignoring CHANGE event")
 	return nil
 }

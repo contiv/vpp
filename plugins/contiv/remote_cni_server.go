@@ -115,6 +115,15 @@ type remoteCNIserver struct {
 	// Rx/Tx ring size for TAPv2
 	tapV2RxRingSize uint16
 	tapV2TxRingSize uint16
+
+	// name of physical interfaces configured by the agent
+	physicalIfs []string
+
+	// name of the interface interconnecting VPP with the host stack
+	hostInterconnectIfName string
+
+	// ipAddress of the main VPP interface
+	mainIP *net.IPNet
 }
 
 // vswitchConfig holds base vSwitch VPP configuration.
@@ -297,6 +306,12 @@ func (s *remoteCNIserver) configureVswitchNICs(config *vswitchConfig) error {
 
 // configureMainVPPInterface configures the main NIC used for node interconnect on vswitch VPP.
 func (s *remoteCNIserver) configureMainVPPInterface(config *vswitchConfig, nicName string) error {
+	var err error
+	s.mainIP, err = s.ipam.NodeIPNetwork(s.ipam.NodeID())
+	if err != nil {
+		return err
+	}
+
 	txn1 := s.vppTxnFactory().Put()
 
 	if nicName != "" {
@@ -309,6 +324,7 @@ func (s *remoteCNIserver) configureMainVPPInterface(config *vswitchConfig, nicNa
 		}
 		txn1.VppInterface(nic)
 		config.nics = append(config.nics, nic)
+		s.physicalIfs = append(s.physicalIfs, nicName)
 	} else {
 		// configure loopback instead of the physical NIC
 		s.Logger.Debug("Physical NIC not found, configuring loopback instead.")
@@ -322,7 +338,7 @@ func (s *remoteCNIserver) configureMainVPPInterface(config *vswitchConfig, nicNa
 	}
 
 	// execute the config transaction
-	err := txn1.Send().ReceiveReply()
+	err = txn1.Send().ReceiveReply()
 	if err != nil {
 		s.Logger.Error(err)
 		return err
@@ -353,6 +369,7 @@ func (s *remoteCNIserver) configureOtherVPPInterfaces(config *vswitchConfig, nod
 		for _, intf := range interfaces {
 			txn.VppInterface(intf)
 			config.nics = append(config.nics, intf)
+			s.physicalIfs = append(s.physicalIfs, intf.Name)
 		}
 
 		// execute the config transaction
@@ -374,12 +391,16 @@ func (s *remoteCNIserver) configureVswitchHostConnectivity(config *vswitchConfig
 		// TAP interface
 		config.tapHost = s.interconnectTap()
 
+		s.hostInterconnectIfName = config.tapHost.Name
+
 		txn1.VppInterface(config.tapHost)
 	} else {
 		// veth + AF_PACKET
 		config.vethHost = s.interconnectVethHost()
 		config.vethVpp = s.interconnectVethVpp()
 		config.interconnectAF = s.interconnectAfpacket()
+
+		s.hostInterconnectIfName = config.interconnectAF.Name
 
 		txn1.LinuxInterface(config.vethHost).
 			LinuxInterface(config.vethVpp)
@@ -986,4 +1007,36 @@ func (s *remoteCNIserver) persistChanges(removedKeys []string, putChanges map[st
 		}
 	}
 	return err
+}
+
+// GetPhysicalIfNames returns a slice of names of all configured physical interfaces.
+func (s *remoteCNIserver) GetPhysicalIfNames() []string {
+	s.Lock()
+	defer s.Unlock()
+
+	return s.physicalIfs
+}
+
+// GetHostInterconnectIfName returns the name of the TAP/AF_PACKET interface
+// interconnecting VPP with the host stack.
+func (s *remoteCNIserver) GetHostInterconnectIfName() string {
+	s.Lock()
+	defer s.Unlock()
+
+	return s.hostInterconnectIfName
+}
+
+// GetHostIPNetwork returns single-host subnet with the IP address of this node.
+func (s *remoteCNIserver) GetHostIPNetwork() *net.IPNet {
+	s.Lock()
+	defer s.Unlock()
+
+	if s.mainIP == nil {
+		return nil
+	}
+
+	return &net.IPNet{
+		IP:   s.mainIP.IP,
+		Mask: s.mainIP.Mask,
+	}
 }

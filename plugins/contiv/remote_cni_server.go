@@ -493,6 +493,12 @@ func (s *remoteCNIserver) persistVswitchConfig(config *vswitchConfig) error {
 		changes[vpp_intf.InterfaceKey(nic.Name)] = nic
 	}
 
+	// VXLAN-related data
+	if !s.useL2Interconnect {
+		changes[vpp_intf.InterfaceKey(config.vxlanBVI.Name)] = config.vxlanBVI
+		changes[vpp_l2.BridgeDomainKey(config.vxlanBD.Name)] = config.vxlanBD
+	}
+
 	// TAP / veths + AF_APCKET
 	if s.useTAPInterfaces {
 		changes[vpp_intf.InterfaceKey(config.tapHost.Name)] = config.tapHost

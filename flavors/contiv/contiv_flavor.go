@@ -23,6 +23,7 @@ import (
 	"github.com/contiv/vpp/plugins/contiv"
 	"github.com/contiv/vpp/plugins/kvdbproxy"
 	"github.com/contiv/vpp/plugins/policy"
+	"github.com/contiv/vpp/plugins/service"
 	"github.com/golang/protobuf/proto"
 	"github.com/ligato/cn-infra/config"
 	"github.com/ligato/cn-infra/datasync"
@@ -81,6 +82,7 @@ type FlavorContiv struct {
 	GRPC             grpc.Plugin
 	Contiv           contiv.Plugin
 	Policy           policy.Plugin
+	Service          service.Plugin
 
 	// resync should the last plugin in the flavor in order to give
 	// the others enough time to register
@@ -153,6 +155,13 @@ func (f *FlavorContiv) Inject() bool {
 	f.Policy.Deps.Contiv = &f.Contiv
 	f.Policy.Deps.GoVPP = &f.GoVPP
 	f.Policy.Deps.VPP = &f.VPP
+
+	f.Service.Deps.PluginInfraDeps = *f.FlavorLocal.InfraDeps("service")
+	f.Service.Deps.Resync = &f.ResyncOrch
+	f.Service.Deps.Watcher = &f.KsrETCDDataSync
+	f.Service.Deps.Contiv = &f.Contiv
+	f.Service.Deps.GoVPP = &f.GoVPP
+	f.Service.Deps.VPP = &f.VPP
 
 	f.ResyncOrch.PluginLogDeps = *f.LogDeps("resync-orch")
 

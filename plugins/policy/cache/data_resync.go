@@ -17,8 +17,6 @@
 package cache
 
 import (
-	"strings"
-
 	"github.com/ligato/cn-infra/datasync"
 
 	namespacemodel "github.com/contiv/vpp/plugins/ksr/model/namespace"
@@ -52,64 +50,60 @@ func (pc *PolicyCache) resyncParseEvent(resyncEv datasync.ResyncEvent) *DataResy
 
 	event := NewDataResyncEvent()
 
-	for key := range resyncEv.GetValues() {
-		pc.Log.Debug("Received RESYNC key ", key)
-	}
-
 	for key, resyncData := range resyncEv.GetValues() {
+		pc.Log.Debug("Received RESYNC key ", key)
 
-		if strings.HasPrefix(key, namespacemodel.KeyPrefix()) {
+		for {
+			evData, stop := resyncData.GetNext()
 
-			for {
-				evData, stop := resyncData.GetNext()
+			if stop {
+				break
+			}
+			key := evData.GetKey()
 
-				if stop {
-					break
-				}
-				key := evData.GetKey()
-
-				// Parse policy RESYNC event
-				_, _, err := policymodel.ParsePolicyFromKey(key)
+			// Parse policy RESYNC event
+			_, _, err := policymodel.ParsePolicyFromKey(key)
+			if err == nil {
+				value := &policymodel.Policy{}
+				err := evData.GetValue(value)
 				if err == nil {
-					value := &policymodel.Policy{}
-					err := evData.GetValue(value)
-					if err == nil {
-						event.Policies = append(event.Policies, value)
-						numPolicy++
-					}
-					continue
+					event.Policies = append(event.Policies, value)
+					numPolicy++
 				}
+				continue
+			}
 
-				// Parse pod RESYNC event
-				_, _, err = podmodel.ParsePodFromKey(key)
+			// Parse pod RESYNC event
+			_, _, err = podmodel.ParsePodFromKey(key)
+			if err == nil {
+				value := &podmodel.Pod{}
+				err := evData.GetValue(value)
 				if err == nil {
-					value := &podmodel.Pod{}
-					err := evData.GetValue(value)
-					if err == nil {
-						event.Pods = append(event.Pods, value)
-						numPod++
-					}
-					continue
+					event.Pods = append(event.Pods, value)
+					numPod++
 				}
+				continue
+			}
 
-				// Parse namespace RESYNC event
+			// Parse namespace RESYNC event
+			_, err = namespacemodel.ParseNamespaceFromKey(key)
+			if err == nil {
 				value := &namespacemodel.Namespace{}
 				err = evData.GetValue(value)
 				if err == nil {
 					event.Namespaces = append(event.Namespaces, value)
 					numNs++
 				}
+				continue
 			}
-
-			pc.Log.WithFields(logging.Fields{
-				"num-policies": numPolicy,
-				"num-pods":     numPod,
-				"num-ns":       numNs,
-			}).Debug("Parsed RESYNC event")
-		} else {
-			pc.Log.WithField("event", resyncEv).Warn("Ignoring RESYNC event")
 		}
 	}
+
+	pc.Log.WithFields(logging.Fields{
+		"num-policies": numPolicy,
+		"num-pods":     numPod,
+		"num-ns":       numNs,
+	}).Debug("Parsed RESYNC event")
 
 	return event
 

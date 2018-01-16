@@ -1,4 +1,4 @@
-// Copyright (c) 2017 Cisco and/or its affiliates.
+// Copyright (c) 2018 Cisco and/or its affiliates.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package policy
+package service
 
 import (
 	"context"
@@ -24,26 +24,21 @@ import (
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/utils/safeclose"
 
-	"github.com/ligato/vpp-agent/clientv1/linux"
-	"github.com/ligato/vpp-agent/clientv1/linux/localclient"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins"
 	"github.com/ligato/vpp-agent/plugins/govppmux"
 
 	"github.com/contiv/vpp/plugins/contiv"
-	"github.com/contiv/vpp/plugins/policy/cache"
-	"github.com/contiv/vpp/plugins/policy/configurator"
-	"github.com/contiv/vpp/plugins/policy/processor"
-	"github.com/contiv/vpp/plugins/policy/renderer/acl"
-	"github.com/contiv/vpp/plugins/policy/renderer/vpptcp"
+	"github.com/contiv/vpp/plugins/service/configurator"
+	"github.com/contiv/vpp/plugins/service/processor"
 
-	nsmodel "github.com/contiv/vpp/plugins/ksr/model/namespace"
+	epmodel "github.com/contiv/vpp/plugins/ksr/model/endpoints"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
-	policymodel "github.com/contiv/vpp/plugins/ksr/model/policy"
+	svcmodel "github.com/contiv/vpp/plugins/ksr/model/service"
 )
 
 // Plugin watches configuration of K8s resources (as reflected by KSR into ETCD)
-// for changes in policies, pods and namespaces and applies rules into extendable
-// set of network stacks.
+// for changes in services, endpoints and pods and updates the NAT configuration
+// in the VPP accordingly.
 type Plugin struct {
 	Deps
 
@@ -61,37 +56,23 @@ type Plugin struct {
 	pendingResync  datasync.ResyncEvent
 	pendingChanges []datasync.ChangeEvent
 
-	// Policy Plugin consists of multiple layers.
-	// The plugin itself is layer 1.
-
-	// Policy Cache: layers 1-3
-	policyCache *cache.PolicyCache
-
-	// Policy Processor: layer 2
-	processor *processor.PolicyProcessor
-
-	// Policy Configurator: layer 3
-	configurator *configurator.PolicyConfigurator
-
-	// Policy Renderers: layer 4
-	//  -> ACL Renderer
-	aclRenderer *acl.Renderer
-	//  -> VPPTCP Renderer
-	vppTCPRenderer *vpptcp.Renderer
-	// New renderers should come here ...
+	processor    *processor.ServiceProcessor
+	configurator *configurator.ServiceConfigurator
 }
 
-// Deps defines dependencies of policy plugin.
+// Deps defines dependencies of the service plugin.
 type Deps struct {
 	local.PluginInfraDeps
 	Resync  resync.Subscriber
 	Watcher datasync.KeyValProtoWatcher /* prefixed for KSR-published K8s state data */
-	Contiv  contiv.API                  /* for GetIfName() */
-	VPP     defaultplugins.API          /* for DumpACLs() */
-	GoVPP   govppmux.API                /* for VPPTCP Renderer */
+	Contiv  contiv.API                  /* to get the Node IP and all interface names */
+
+	/* until supported in vpp-agent, we call NAT binary APIs directly */
+	VPP   defaultplugins.API /* interface indexes */
+	GoVPP govppmux.API       /* NAT binary APIs*/
 }
 
-// Init initializes policy layers and caches and starts watching ETCD for K8s configuration.
+// Init initializes the service plugin and starts watching ETCD for K8s configuration.
 func (p *Plugin) Init() error {
 	var err error
 	p.Log.SetLevel(logging.DebugLevel)
@@ -99,76 +80,33 @@ func (p *Plugin) Init() error {
 	p.resyncChan = make(chan datasync.ResyncEvent)
 	p.changeChan = make(chan datasync.ChangeEvent)
 
-	// Inject dependencies between layers.
-	p.policyCache = &cache.PolicyCache{
-		Deps: cache.Deps{
-			Log:        p.Log.NewLogger("-policyCache"),
-			PluginName: p.PluginName,
-		},
+	goVppCh, err := p.GoVPP.NewAPIChannel()
+	if err != nil {
+		return err
 	}
-	p.policyCache.Log.SetLevel(logging.DebugLevel)
 
-	p.configurator = &configurator.PolicyConfigurator{
+	p.configurator = &configurator.ServiceConfigurator{
 		Deps: configurator.Deps{
-			Log:   p.Log.NewLogger("-policyConfigurator"),
-			Cache: p.policyCache,
+			Log:       p.Log.NewLogger("-serviceConfigurator"),
+			Contiv:    p.Contiv,
+			VPP:       p.VPP,
+			GoVPPChan: goVppCh,
 		},
 	}
 	p.configurator.Log.SetLevel(logging.DebugLevel)
 
-	p.processor = &processor.PolicyProcessor{
+	p.processor = &processor.ServiceProcessor{
 		Deps: processor.Deps{
-			Log:          p.Log.NewLogger("-policyProcessor"),
+			Log:          p.Log.NewLogger("-serviceProcessor"),
+			ServiceLabel: p.ServiceLabel,
 			Contiv:       p.Contiv,
-			Cache:        p.policyCache,
 			Configurator: p.configurator,
 		},
 	}
 	p.processor.Log.SetLevel(logging.DebugLevel)
 
-	p.aclRenderer = &acl.Renderer{
-		Deps: acl.Deps{
-			Log:        p.Log.NewLogger("-aclRenderer"),
-			LogFactory: p.Log,
-			Contiv:     p.Contiv,
-			VPP:        p.VPP,
-			ACLTxnFactory: func() linux.DataChangeDSL {
-				return localclient.DataChangeRequest(p.PluginName)
-			},
-		},
-	}
-	p.aclRenderer.Log.SetLevel(logging.DebugLevel)
-
-	const goVPPChanBufSize = 1 << 12
-	goVppCh, err := p.GoVPP.NewAPIChannelBuffered(goVPPChanBufSize, goVPPChanBufSize)
-	if err != nil {
-		return err
-	}
-	p.vppTCPRenderer = &vpptcp.Renderer{
-		Deps: vpptcp.Deps{
-			Log:              p.Log.NewLogger("-vppTcpRenderer"),
-			LogFactory:       p.Log,
-			Contiv:           p.Contiv,
-			GoVPPChan:        goVppCh,
-			GoVPPChanBufSize: goVPPChanBufSize,
-		},
-	}
-	p.vppTCPRenderer.Log.SetLevel(logging.DebugLevel)
-
-	// Initialize layers.
-	p.policyCache.Init()
+	p.configurator.Init()
 	p.processor.Init()
-	p.configurator.Init(false) // Do not render in parallel while we do lot of debugging.
-	p.aclRenderer.Init()
-	if !p.Contiv.IsTCPstackDisabled() {
-		p.vppTCPRenderer.Init()
-	}
-
-	// Register renderers.
-	p.configurator.RegisterRenderer(p.aclRenderer)
-	if !p.Contiv.IsTCPstackDisabled() {
-		p.configurator.RegisterRenderer(p.vppTCPRenderer)
-	}
 
 	p.ctx, p.cancel = context.WithCancel(context.Background())
 
@@ -194,8 +132,8 @@ func (p *Plugin) AfterInit() error {
 
 func (p *Plugin) subscribeWatcher() (err error) {
 	p.watchConfigReg, err = p.Watcher.
-		Watch("K8s policies", p.changeChan, p.resyncChan,
-			nsmodel.KeyPrefix(), podmodel.KeyPrefix(), policymodel.KeyPrefix())
+		Watch("K8s services", p.changeChan, p.resyncChan,
+			epmodel.KeyPrefix(), podmodel.KeyPrefix(), svcmodel.KeyPrefix())
 	return err
 }
 
@@ -220,7 +158,7 @@ func (p *Plugin) watchEvents() {
 				dataChngEv.Done(nil)
 				p.Log.WithField("config", dataChngEv).Info("Delaying data-change")
 			} else {
-				err := p.policyCache.Update(dataChngEv)
+				err := p.processor.Update(dataChngEv)
 				dataChngEv.Done(err)
 			}
 			p.resyncLock.Unlock()
@@ -242,11 +180,11 @@ func (p *Plugin) handleResync(resyncChan chan resync.StatusEvent) {
 				p.resyncLock.Lock()
 				if p.pendingResync != nil {
 					p.Log.WithField("config", p.pendingResync).Info("Applying delayed RESYNC config")
-					err = p.policyCache.Resync(p.pendingResync)
+					err = p.processor.Resync(p.pendingResync)
 					for i := 0; err == nil && i < len(p.pendingChanges); i++ {
 						dataChngEv := p.pendingChanges[i]
 						p.Log.WithField("config", dataChngEv).Info("Applying delayed data-change")
-						err = p.policyCache.Update(dataChngEv)
+						err = p.processor.Update(dataChngEv)
 					}
 					p.pendingResync = nil
 					p.pendingChanges = []datasync.ChangeEvent{}
@@ -263,7 +201,7 @@ func (p *Plugin) handleResync(resyncChan chan resync.StatusEvent) {
 	}
 }
 
-// Close stops the processor and watching.
+// Close stops watching of KSR reflected data.
 func (p *Plugin) Close() error {
 	p.cancel()
 	p.wg.Wait()

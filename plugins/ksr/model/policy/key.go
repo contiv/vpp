@@ -15,39 +15,28 @@
 package policy
 
 import (
-	"fmt"
-	"strings"
-
-	ns "github.com/contiv/vpp/plugins/ksr/model/namespace"
+	"github.com/contiv/vpp/plugins/ksr/model/ksrkey"
 )
 
 const (
-	// PolicyPrefix is a key prefix *template* under which the current state
-	// of every known K8s network policy is stored.
-	PolicyPrefix = "k8s/namespace/{namespace}/policy/"
+	// PolicyKeyword defines the keyword identifying Network policy data.
+	PolicyKeyword = "policy"
 )
 
-// KeyPrefix returns the key prefix *template* used in the data-store
-// to save the current state of every known K8s network policy.
+// KeyPrefix returns the key prefix identifying all K8s policies in the
+// data store.
 func KeyPrefix() string {
-	return PolicyPrefix
+	return ksrkey.KeyPrefix(PolicyKeyword)
 }
 
 // ParsePolicyFromKey parses policy and namespace ids from the associated
 // data-store key.
 func ParsePolicyFromKey(key string) (policy string, namespace string, err error) {
-	if strings.HasPrefix(key, ns.KeyPrefix()) {
-		suffix := strings.TrimPrefix(key, ns.KeyPrefix())
-		components := strings.Split(suffix, "/")
-		if len(components) == 3 && components[1] == "policy" {
-			return components[2], components[0], nil
-		}
-	}
-	return "", "", fmt.Errorf("invalid format of the key %s", key)
+	return ksrkey.ParseNameFromKey(PolicyKeyword, key)
 }
 
-// Key returns the key under which a configuration for the given
-// network policy should be stored in the data-store.
-func Key(policy string, namespace string) string {
-	return strings.Replace(PolicyPrefix, "{namespace}", namespace, 1) + policy
+// Key returns the key under which a given K8s policy is stored in the
+// data store.
+func Key(name string, namespace string) string {
+	return ksrkey.Key(PolicyKeyword, name, namespace)
 }

@@ -21,13 +21,12 @@ metadata:
 data:
   contiv.yaml: |
     TCPstackDisabled: False
-    TCPChecksumOffloadDisabled: False
     IPAMConfig:
       PodSubnetCIDR: "10.1.0.0/16"
       PodNetworkPrefixLen: 24
-      VSwitchSubnetCIDR: "172.30.0.0/16"
-      VSwitchNetworkPrefixLen: 24
-      HostNodeSubnetCidr: "192.168.16.0/24"
+      VPPHostSubnetCIDR: "172.30.0.0/16"
+      VPPHostNetworkPrefixLen: 24
+      NodeInterconnectCIDR: "192.168.16.0/24"
 ### example of node configuration for VPP interfaces
 #    NodeConfig:
 #    - NodeName: "vm1"
@@ -57,7 +56,7 @@ metadata:
   name: govpp-cfg
   namespace: kube-system
 data:
-  govpp.yaml: |
+  govpp.conf: |
     health-check-probe-interval: 1000000000
     health-check-reply-timeout: 500000000
     health-check-threshold: 3

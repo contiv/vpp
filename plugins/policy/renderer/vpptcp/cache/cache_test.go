@@ -25,7 +25,7 @@ import (
 	"github.com/contiv/vpp/plugins/policy/renderer"
 	. "github.com/contiv/vpp/plugins/policy/utils"
 	"github.com/ligato/cn-infra/logging"
-	"github.com/ligato/cn-infra/logging/logroot"
+	"github.com/ligato/cn-infra/logging/logrus"
 )
 
 const tagPrefix = "cache-tests-"
@@ -184,7 +184,7 @@ func checkNamespaces(cache *SessionRuleCache, namespaces ...int) {
 
 func TestSingleIngressRuleSingleNs(t *testing.T) {
 	gomega.RegisterTestingT(t)
-	logger := logroot.StandardLogger()
+	logger := logrus.DefaultLogger()
 	logger.SetLevel(logging.DebugLevel)
 	logger.Debug("TestSingleIngressRuleSingleNs")
 
@@ -236,7 +236,7 @@ func TestSingleIngressRuleSingleNs(t *testing.T) {
 
 func TestSingleEgressRuleSingleNs(t *testing.T) {
 	gomega.RegisterTestingT(t)
-	logger := logroot.StandardLogger()
+	logger := logrus.DefaultLogger()
 	logger.SetLevel(logging.DebugLevel)
 	logger.Debug("TestSingleEgressRuleSingleNs")
 
@@ -288,7 +288,7 @@ func TestSingleEgressRuleSingleNs(t *testing.T) {
 
 func TestMultipleRulesSingleNsWithDataChange(t *testing.T) {
 	gomega.RegisterTestingT(t)
-	logger := logroot.StandardLogger()
+	logger := logrus.DefaultLogger()
 	logger.SetLevel(logging.DebugLevel)
 	logger.Debug("TestMultipleRulesSingleNsWithDataChange")
 
@@ -389,7 +389,7 @@ func TestMultipleRulesSingleNsWithDataChange(t *testing.T) {
 
 func TestMultipleRulesMultipleNsWithDataChange(t *testing.T) {
 	gomega.RegisterTestingT(t)
-	logger := logroot.StandardLogger()
+	logger := logrus.DefaultLogger()
 	logger.SetLevel(logging.DebugLevel)
 	logger.Debug("TestMultipleRulesMultipleNsWithDataChange")
 
@@ -557,7 +557,7 @@ func TestMultipleRulesMultipleNsWithDataChange(t *testing.T) {
 
 func TestMultipleRulesMultipleNsWithResync(t *testing.T) {
 	gomega.RegisterTestingT(t)
-	logger := logroot.StandardLogger()
+	logger := logrus.DefaultLogger()
 	logger.SetLevel(logging.DebugLevel)
 	logger.Debug("TestMultipleRulesMultipleNsWithResync")
 

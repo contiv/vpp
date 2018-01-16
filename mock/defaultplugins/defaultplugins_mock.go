@@ -5,6 +5,7 @@ import (
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/aclplugin/model/acl"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/ifaceidx"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/l2plugin/bdidx"
+	"github.com/ligato/vpp-agent/plugins/defaultplugins/l4plugin/nsidx"
 )
 
 // MockVppPlugin is a mock for VPP plugin (defaultplugins).
@@ -68,5 +69,10 @@ func (mvp *MockVppPlugin) GetFIBIndexes() idxvpp.NameToIdx {
 
 // GetXConnectIndexes does nothing here.
 func (mvp *MockVppPlugin) GetXConnectIndexes() idxvpp.NameToIdx {
+	return nil
+}
+
+// GetAppNsIndexes does nothing here.
+func (mvp *MockVppPlugin) GetAppNsIndexes() nsidx.AppNsIndex {
 	return nil
 }

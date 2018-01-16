@@ -17,14 +17,13 @@ limitations under the License.
 package kuberuntime
 
 import (
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/stretchr/testify/assert"
+	"k8s.io/kubernetes/pkg/kubelet/metrics"
 	"net"
 	"net/http"
 	"testing"
 	"time"
-
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/stretchr/testify/assert"
-	"k8s.io/kubernetes/pkg/kubelet/metrics"
 )
 
 func TestRecordOperation(t *testing.T) {

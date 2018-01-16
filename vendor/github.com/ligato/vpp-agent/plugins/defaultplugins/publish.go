@@ -17,6 +17,8 @@ package defaultplugins
 import (
 	"context"
 
+	"github.com/ligato/cn-infra/health/statuscheck"
+	"github.com/ligato/cn-infra/health/statuscheck/model/status"
 	intf "github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/model/interfaces"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/l2plugin/model/l2"
 )
@@ -50,6 +52,10 @@ func (plugin *Plugin) publishIfStateEvents(ctx context.Context) {
 	plugin.wg.Add(1)
 	defer plugin.wg.Done()
 
+	// store last errors to prevent repeating
+	var lastPublishErr error
+	var lastNotifErr error
+
 	for {
 		select {
 		case ifState := <-plugin.ifStateChan:
@@ -57,21 +63,29 @@ func (plugin *Plugin) publishIfStateEvents(ctx context.Context) {
 
 			if plugin.PublishStatistics != nil {
 				err := plugin.PublishStatistics.Put(key, ifState.State)
-				if err != nil {
+				if err != lastPublishErr {
 					plugin.Log.Error(err)
-				} else {
-					plugin.Log.Debug("Sending Messaging notification")
 				}
+				lastPublishErr = err
 			}
 
 			// Marshall data into JSON & send kafka message.
 			if plugin.ifStateNotifications != nil && ifState.Type == intf.UPDOWN {
 				err := plugin.ifStateNotifications.Put(key, ifState.State)
-				if err != nil {
+				if err != lastNotifErr {
 					plugin.Log.Error(err)
-				} else {
-					plugin.Log.Debug("Sending Messaging notification")
 				}
+				lastNotifErr = err
+			}
+
+			// Send interface state data to global agent status
+			if plugin.statusCheckReg {
+				plugin.StatusCheck.ReportStateChangeWithMeta(plugin.PluginName, statuscheck.OK, nil, &status.InterfaceStats_Interface{
+					InternalName: ifState.State.InternalName,
+					Index:        ifState.State.IfIndex,
+					Status:       ifState.State.AdminStatus.String(),
+					MacAddress:   ifState.State.PhysAddress,
+				})
 			}
 
 		case <-ctx.Done():
@@ -90,7 +104,7 @@ func (plugin *Plugin) resyncBdStateEvents(keys []string) error {
 		}
 		_, _, found := plugin.bdIndexes.LookupIdx(bdName)
 		if !found {
-			err := plugin.Publish.Put(key, nil)
+			err := plugin.PublishStatistics.Put(key, nil)
 			if err != nil {
 				return err
 			}
@@ -115,11 +129,11 @@ func (plugin *Plugin) publishBdStateEvents(ctx context.Context) {
 				key := l2.BridgeDomainStateKey(bdState.State.InternalName)
 				// Remove BD state
 				if bdState.State.Index == 0 && bdState.State.InternalName != "" {
-					plugin.Publish.Put(key, nil)
+					plugin.PublishStatistics.Put(key, nil)
 					plugin.Log.Debugf("Bridge domain %v: state removed from ETCD", bdState.State.InternalName)
 					// Write/Update BD state
 				} else if bdState.State.Index != 0 {
-					plugin.Publish.Put(key, bdState.State)
+					plugin.PublishStatistics.Put(key, bdState.State)
 					plugin.Log.Debugf("Bridge domain %v: state stored in ETCD", bdState.State.InternalName)
 				} else {
 					plugin.Log.Warnf("Unable to process bridge domain state with Idx %v and Name %v",

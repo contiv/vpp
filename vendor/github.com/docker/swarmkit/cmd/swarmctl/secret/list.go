@@ -9,6 +9,7 @@ import (
 
 	"github.com/docker/swarmkit/api"
 	"github.com/docker/swarmkit/cmd/swarmctl/common"
+	"github.com/dustin/go-humanize"
 	gogotypes "github.com/gogo/protobuf/types"
 	"github.com/spf13/cobra"
 )

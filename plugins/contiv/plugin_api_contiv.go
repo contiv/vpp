@@ -15,7 +15,7 @@ type API interface {
 	// GetPodNetwork provides subnet used for allocating pod IP addresses on this host node.
 	GetPodNetwork() *net.IPNet
 
-	// IsTCPstackDisabled returns true if the tcp stack is disabled and only veths are configured
+	// IsTCPstackDisabled returns true if the TCP stack is disabled and only VETHSs/TAPs are configured
 	IsTCPstackDisabled() bool
 
 	// GetHostIPNetwork returns single-host subnet with the IP address of this node.

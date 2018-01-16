@@ -134,15 +134,14 @@ func (s *remoteCNIserver) interconnectAfpacket() *vpp_intf.Interfaces_Interface 
 }
 
 func (s *remoteCNIserver) physicalInterface(name string) (*vpp_intf.Interfaces_Interface, error) {
-	nodeNetwork, err := s.ipam.NodeIPNetwork(s.ipam.NodeID())
-	if err != nil {
-		return nil, err
+	if s.mainIP == nil {
+		return nil, fmt.Errorf("IP address for physicalInterface is not defined")
 	}
 	return &vpp_intf.Interfaces_Interface{
 		Name:        name,
 		Type:        vpp_intf.InterfaceType_ETHERNET_CSMACD,
 		Enabled:     true,
-		IpAddresses: []string{nodeNetwork.String()},
+		IpAddresses: []string{s.mainIP.String()},
 	}, nil
 }
 
@@ -156,15 +155,14 @@ func (s *remoteCNIserver) physicalInterfaceWithCustomIPAddress(name string, ipAd
 }
 
 func (s *remoteCNIserver) physicalInterfaceLoopback() (*vpp_intf.Interfaces_Interface, error) {
-	nodeNetwork, err := s.ipam.NodeIPNetwork(s.ipam.NodeID())
-	if err != nil {
-		return nil, err
+	if s.mainIP == nil {
+		return nil, fmt.Errorf("IP address for physicalInterface is not defined")
 	}
 	return &vpp_intf.Interfaces_Interface{
 		Name:        "loopbackNIC",
 		Type:        vpp_intf.InterfaceType_SOFTWARE_LOOPBACK,
 		Enabled:     true,
-		IpAddresses: []string{nodeNetwork.String()},
+		IpAddresses: []string{s.mainIP.String()},
 	}, nil
 }
 

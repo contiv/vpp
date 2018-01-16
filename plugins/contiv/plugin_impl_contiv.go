@@ -210,8 +210,7 @@ func (plugin *Plugin) IsTCPstackDisabled() bool {
 
 // GetHostIPNetwork returns single-host subnet with the IP address of this node.
 func (plugin *Plugin) GetHostIPNetwork() *net.IPNet {
-	// TODO
-	return nil
+	return plugin.cniServer.GetHostIPNetwork()
 }
 
 // GetPhysicalIfNames returns a slice of names of all configured physical interfaces.

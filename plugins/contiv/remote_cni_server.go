@@ -121,6 +121,9 @@ type remoteCNIserver struct {
 
 	// name of the interface interconnecting VPP with the host stack
 	hostInterconnectIfName string
+
+	// ipAddress of the main VPP interface
+	mainIP *net.IPNet
 }
 
 // vswitchConfig holds base vSwitch VPP configuration.
@@ -303,6 +306,12 @@ func (s *remoteCNIserver) configureVswitchNICs(config *vswitchConfig) error {
 
 // configureMainVPPInterface configures the main NIC used for node interconnect on vswitch VPP.
 func (s *remoteCNIserver) configureMainVPPInterface(config *vswitchConfig, nicName string) error {
+	var err error
+	s.mainIP, err = s.ipam.NodeIPNetwork(s.ipam.NodeID())
+	if err != nil {
+		return err
+	}
+
 	txn1 := s.vppTxnFactory().Put()
 
 	if nicName != "" {
@@ -329,7 +338,7 @@ func (s *remoteCNIserver) configureMainVPPInterface(config *vswitchConfig, nicNa
 	}
 
 	// execute the config transaction
-	err := txn1.Send().ReceiveReply()
+	err = txn1.Send().ReceiveReply()
 	if err != nil {
 		s.Logger.Error(err)
 		return err
@@ -1015,4 +1024,19 @@ func (s *remoteCNIserver) GetHostInterconnectIfName() string {
 	defer s.Unlock()
 
 	return s.hostInterconnectIfName
+}
+
+// GetHostIPNetwork returns single-host subnet with the IP address of this node.
+func (s *remoteCNIserver) GetHostIPNetwork() *net.IPNet {
+	s.Lock()
+	defer s.Unlock()
+
+	if s.mainIP == nil {
+		return nil
+	}
+
+	return &net.IPNet{
+		IP:   s.mainIP.IP,
+		Mask: s.mainIP.Mask,
+	}
 }

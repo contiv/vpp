@@ -79,9 +79,9 @@ type ContivService struct {
 	// Learn more about this subject here: https://kubernetes.io/docs/tutorials/services/source-ip/
 	SNAT bool
 
-	// ExternalIPs is a list of all IP addresses on which the service
+	// ExternalIPs is a set of all IP addresses on which the service
 	// should be exposed on this node.
-	ExternalIPs []net.IP
+	ExternalIPs IPAddresses
 
 	// Ports is a map of all ports exposed for this service.
 	Ports map[string]*ServicePort
@@ -93,7 +93,7 @@ type ContivService struct {
 // NewContivService is a constructor for ContivService.
 func NewContivService() *ContivService {
 	return &ContivService{
-		ExternalIPs: []net.IP{},
+		ExternalIPs: NewIPAddresses(),
 		Ports:       make(map[string]*ServicePort),
 		Backends:    make(map[string][]*ServiceBackend),
 	}
@@ -102,9 +102,9 @@ func NewContivService() *ContivService {
 // String converts ContivService into a human-readable string.
 func (cs ContivService) String() string {
 	externalIPs := ""
-	for idx, ip := range cs.ExternalIPs {
+	for idx, ip := range cs.ExternalIPs.list {
 		externalIPs += ip.String()
-		if idx < len(cs.ExternalIPs)-1 {
+		if idx < len(cs.ExternalIPs.list)-1 {
 			externalIPs += ", "
 		}
 	}
@@ -203,6 +203,11 @@ func NewIPAddresses(addrs ...net.IP) IPAddresses {
 	return ipAddresses
 }
 
+// List returns the set as a slice which can be iterated through.
+func (addrs IPAddresses) List() []net.IP {
+	return addrs.list
+}
+
 // Add IP address into the set.
 func (addrs IPAddresses) Add(addr net.IP) {
 	if !addrs.Has(addr) {
@@ -243,13 +248,11 @@ func (addrs IPAddresses) Has(addr net.IP) bool {
 // String converts a set of IP addresses into a human-readable string.
 func (addrs IPAddresses) String() string {
 	str := "{"
-	idx := 0
-	for _, addr := range addrs.list {
+	for idx, addr := range addrs.list {
 		str += addr.String()
 		if idx < len(addrs.list)-1 {
 			str += ", "
 		}
-		idx++
 	}
 	str += "}"
 	return str

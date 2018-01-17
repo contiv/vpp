@@ -17,6 +17,9 @@
 package configurator
 
 import (
+	"errors"
+	"net"
+
 	govpp "git.fd.io/govpp.git/api"
 	"github.com/ligato/cn-infra/logging"
 
@@ -26,7 +29,7 @@ import (
 
 // LocalVsRemoteProbRatio tells how much more likely a local backend is to receive
 // traffic as opposed to a remote backend.
-const LocalVsRemoteProbRatio = 2
+const LocalVsRemoteProbRatio uint8 = 2
 
 // ServiceConfigurator implements ServiceConfiguratorAPI.
 type ServiceConfigurator struct {
@@ -124,15 +127,16 @@ func (sc *ServiceConfigurator) UpdateFrontendAddrs(oldAddrs, newAddrs IPAddresse
 	}).Debug("ServiceConfigurator - UpdateFrontendAddrs()")
 
 	// Configure new NAT external addresses.
-	for _, newAddr := range newAddrs.list {
+	for _, newAddr := range newAddrs.List() {
 		new := true
-		for _, oldAddr := range oldAddrs.list {
+		for _, oldAddr := range oldAddrs.List() {
 			if oldAddr.Equal(newAddr) {
 				new = false
+				break
 			}
 		}
 		if new {
-			err := sc.setExternalNATAddress(newAddr, true)
+			err := sc.setNATAddress(newAddr, false, true)
 			if err != nil {
 				sc.Log.Error(err)
 				return err
@@ -141,15 +145,16 @@ func (sc *ServiceConfigurator) UpdateFrontendAddrs(oldAddrs, newAddrs IPAddresse
 	}
 
 	// Unconfigure obsolete NAT external addresses.
-	for _, oldAddr := range oldAddrs.list {
+	for _, oldAddr := range oldAddrs.List() {
 		removed := true
-		for _, newAddr := range newAddrs.list {
+		for _, newAddr := range newAddrs.List() {
 			if oldAddr.Equal(newAddr) {
 				removed = false
+				break
 			}
 		}
 		if removed {
-			err := sc.setExternalNATAddress(oldAddr, false)
+			err := sc.setNATAddress(oldAddr, false, false)
 			if err != nil {
 				sc.Log.Error(err)
 				return err
@@ -173,6 +178,7 @@ func (sc *ServiceConfigurator) UpdateLocalFrontendIfs(oldIfNames, newIfNames Int
 		for oldIf := range oldIfNames {
 			if oldIf == newIf {
 				new = false
+				break
 			}
 		}
 		if new {
@@ -203,6 +209,7 @@ func (sc *ServiceConfigurator) UpdateLocalBackendIfs(oldIfNames, newIfNames Inte
 		for oldIf := range oldIfNames {
 			if oldIf == newIf {
 				new = false
+				break
 			}
 		}
 		if new {
@@ -220,12 +227,13 @@ func (sc *ServiceConfigurator) UpdateLocalBackendIfs(oldIfNames, newIfNames Inte
 		for newIf := range newIfNames {
 			if oldIf == newIf {
 				removed = false
+				break
 			}
 		}
 		if removed {
 			err := sc.setInterfaceNATFeature(oldIf, true, false)
 			if err != nil {
-				// Interface may have been already removed thus the error is ignored.
+				// Interface may have already been removed thus the error is ignored.
 				sc.Log.WithFields(logging.Fields{
 					"ifName": oldIf,
 					"err":    err,
@@ -244,15 +252,8 @@ func (sc *ServiceConfigurator) Resync(resyncEv *ResyncEventData) error {
 		"resyncEv": resyncEv,
 	}).Debug("ServiceConfigurator - Resync()")
 
-	// Enable NAT44 forwarding.
-	err = sc.enableNat44Forwarding()
-	if err != nil {
-		sc.Log.Error(err)
-		return err
-	}
-
-	// Add Node IP to the pool for SNAT.
-	err = sc.setNodeIPForSNAT()
+	// Try to get Node IP.
+	nodeIP, err := sc.getNodeIP()
 	if err != nil {
 		sc.Log.Error(err)
 		return err
@@ -265,29 +266,38 @@ func (sc *ServiceConfigurator) Resync(resyncEv *ResyncEventData) error {
 		return err
 	}
 
-	// Dump currently configured frontend addresses.
-	frontendAddrsDump, err := sc.dumpFrontendAddrs()
+	// Dump NAT address pools.
+	snatPoolDump, dnatPoolDump, err := sc.dumpAddressPools()
 	if err != nil {
 		sc.Log.Error(err)
 		return err
 	}
 
-	// Dump currently configured local backend interfaces.
-	backendIfsDump, err := sc.dumpLocalBackendIfs()
+	// Dump currently configured local frontend and backend interfaces.
+	frontendIfsDump, backendIfsDump, err := sc.dumpNATInterfaces()
 	if err != nil {
 		sc.Log.Error(err)
 		return err
 	}
 
-	// Dump currently configured local frontend interfaces.
-	frontendIfsDump, err := sc.dumpLocalFrontendIfs()
+	// Enable NAT44 forwarding.
+	err = sc.enableNat44Forwarding()
 	if err != nil {
 		sc.Log.Error(err)
 		return err
+	}
+
+	// Add Node IP to the pool for SNAT.
+	if !snatPoolDump.Has(nodeIP) {
+		err = sc.setNATAddress(nodeIP, true, true)
+		if err != nil {
+			sc.Log.Error(err)
+			return err
+		}
 	}
 
 	// Update frontend addresses.
-	err = sc.UpdateFrontendAddrs(frontendAddrsDump, resyncEv.FrontendAddrs)
+	err = sc.UpdateFrontendAddrs(dnatPoolDump, resyncEv.FrontendAddrs)
 	if err != nil {
 		sc.Log.Error(err)
 		return err
@@ -329,44 +339,109 @@ func (sc *ServiceConfigurator) Resync(resyncEv *ResyncEventData) error {
 // exportNATMappings exports the corresponding list of NAT mappings from a Contiv service.
 func (sc *ServiceConfigurator) exportNATMappings(service *ContivService) ([]*NATMapping, error) {
 	mappings := []*NATMapping{}
-	/* TODO */
-	return mappings, nil
-	/*
-		// Calculate probabilities for clients.
-		for port := range s.contivSvc.Ports {
-			if len(s.contivSvc.Backends[port]) == 0 {
+
+	// Export NAT mappings for NodePort services.
+	if service.HasNodePort() {
+		// Try to get Node IP.
+		nodeIP, err := sc.getNodeIP()
+		if err != nil {
+			sc.Log.Error(err)
+			return nil, err
+		}
+		// Add one mapping for each port.
+		for portName, port := range service.Ports {
+			if port.NodePort == 0 {
 				continue
 			}
-
-			// Get the factor by which 100% will be divided.
-			factor := 0
-			for epIdx := range s.contivSvc.Backends[port] {
-				if isLocal[port][epIdx]	{
-					factor += LocalVsRemoteProbRatio
-				} else {
-					factor += 1
+			mapping := NewNATMapping()
+			mapping.ExternalIP = nodeIP
+			mapping.ExternalPort = port.NodePort
+			mapping.Protocol = port.Protocol
+			mapping.TwiceNat = service.SNAT
+			for _, backend := range service.Backends[portName] {
+				if !service.SNAT && !backend.Local {
+					// Do not NAT+LB remote backends.
+					continue
 				}
-			}
-
-			// Calculate probability for each endpoint.
-			remoteProb := 100 / factor
-			remainder := 100
-			for epIdx := range s.contivSvc.Backends[port] {
-				if isLocal[port][epIdx]	{
-					s.contivSvc.Backends[port][epIdx].Probability = remoteProb * LocalVsRemoteProbRatio
-				} else {
-					s.contivSvc.Backends[port][epIdx].Probability = remoteProb
+				local := &NATMappingLocal{
+					Address: backend.IP,
+					Port:    backend.Port,
 				}
-				remainder -= s.contivSvc.Backends[port][epIdx].Probability
+				if backend.Local {
+					local.Probability = LocalVsRemoteProbRatio
+				} else {
+					local.Probability = 1
+				}
+				mapping.Locals = append(mapping.Locals, local)
 			}
-
-			// Add remainder to the first endpoint.
-			s.contivSvc.Backends[port][0] += remainder
+			if len(mapping.Locals) == 0 {
+				continue
+			}
+			if len(mapping.Locals) == 1 {
+				// For single backend we use "1" to represent the probability
+				// (not really configured).
+				mapping.Locals[0].Probability = 1
+			}
+			mappings = append(mappings, mapping)
 		}
-	*/
+	}
+
+	// Export NAT mappings for external IPs.
+	for _, externalIP := range service.ExternalIPs.List() {
+		// Add one mapping for each port.
+		for portName, port := range service.Ports {
+			if port.Port == 0 {
+				continue
+			}
+			mapping := NewNATMapping()
+			mapping.ExternalIP = externalIP
+			mapping.ExternalPort = port.Port
+			mapping.Protocol = port.Protocol
+			mapping.TwiceNat = service.SNAT
+			for _, backend := range service.Backends[portName] {
+				if !service.SNAT && !backend.Local {
+					// Do not NAT+LB remote backends.
+					continue
+				}
+				local := &NATMappingLocal{
+					Address: backend.IP,
+					Port:    backend.Port,
+				}
+				if backend.Local {
+					local.Probability = LocalVsRemoteProbRatio
+				} else {
+					local.Probability = 1
+				}
+				mapping.Locals = append(mapping.Locals, local)
+			}
+			if len(mapping.Locals) == 1 {
+				// For single backend we use "1" to represent the probability
+				// (not really configured).
+				mapping.Locals[0].Probability = 1
+			}
+			mappings = append(mappings, mapping)
+		}
+	}
+
+	return mappings, nil
 }
 
 // Close deallocates resources held by the configurator.
 func (sc *ServiceConfigurator) Close() error {
 	return nil
+}
+
+/**** Helper methods ****/
+
+func (sc *ServiceConfigurator) getNodeIP() (net.IP, error) {
+	nodeIPNet := sc.Contiv.GetHostIPNetwork()
+	if nodeIPNet == nil {
+		return nil, errors.New("failed to get Node IP")
+	}
+	nodeIP := nodeIPNet.IP.To4()
+	if nodeIP == nil {
+		// TODO: IPv6 support
+		return nil, errors.New("node IP is not IPv4 address")
+	}
+	return nodeIP, nil
 }

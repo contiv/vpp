@@ -282,10 +282,10 @@ func (sp *ServiceProcessor) configureService(svc *Service, oldContivSvc *configu
 	}
 	// -> handle new External IPs
 	if newContivSvc != nil {
-		for _, newAddr := range newContivSvc.ExternalIPs {
+		for _, newAddr := range newContivSvc.ExternalIPs.List() {
 			new := true
 			if oldContivSvc != nil {
-				for _, oldAddr := range oldContivSvc.ExternalIPs {
+				for _, oldAddr := range oldContivSvc.ExternalIPs.List() {
 					if newAddr.Equal(oldAddr) {
 						new = false
 						break
@@ -302,10 +302,10 @@ func (sp *ServiceProcessor) configureService(svc *Service, oldContivSvc *configu
 	}
 	// -> handle removed External IPs
 	if oldContivSvc != nil {
-		for _, oldAddr := range oldContivSvc.ExternalIPs {
+		for _, oldAddr := range oldContivSvc.ExternalIPs.List() {
 			removed := true
 			if newContivSvc != nil {
-				for _, newAddr := range newContivSvc.ExternalIPs {
+				for _, newAddr := range newContivSvc.ExternalIPs.List() {
 					if newAddr.Equal(oldAddr) {
 						removed = false
 						break
@@ -479,7 +479,7 @@ func (sp *ServiceProcessor) processResyncEvent(resyncEv *ResyncEventData) error 
 			sp.frontendAddrs.Add(nodeIP)
 		}
 		// Add external IPs to the set of frontend IP addresses.
-		for _, extAddr := range contivSvc.ExternalIPs {
+		for _, extAddr := range contivSvc.ExternalIPs.List() {
 			sp.extAddrUsageIncAndFetch(extAddr, 1)
 			sp.frontendAddrs.Add(extAddr)
 		}

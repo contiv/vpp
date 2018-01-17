@@ -64,7 +64,7 @@ func TestPolicyReflector(t *testing.T) {
 		},
 	}
 
-	var pprotTcp coreV1.Protocol = "TCP"
+	var pprotTCP coreV1.Protocol = "TCP"
 
 	policyTestVars.policyTestData = []coreV1Beta1.NetworkPolicy{
 		// Test data 0: mocks a new object to be added or a "pre-existing"
@@ -89,7 +89,7 @@ func TestPolicyReflector(t *testing.T) {
 					{
 						Ports: []coreV1Beta1.NetworkPolicyPort{
 							{
-								Protocol: &pprotTcp,
+								Protocol: &pprotTCP,
 								Port: &intstr.IntOrString{
 									Type:   intstr.Int,
 									IntVal: 6372,
@@ -125,7 +125,7 @@ func TestPolicyReflector(t *testing.T) {
 					{
 						Ports: []coreV1Beta1.NetworkPolicyPort{
 							{
-								Protocol: &pprotTcp,
+								Protocol: &pprotTCP,
 								Port: &intstr.IntOrString{
 									Type:   intstr.Int,
 									IntVal: 5978,
@@ -182,7 +182,7 @@ func TestPolicyReflector(t *testing.T) {
 					{
 						Ports: []coreV1Beta1.NetworkPolicyPort{
 							{
-								Protocol: &pprotTcp,
+								Protocol: &pprotTCP,
 								Port: &intstr.IntOrString{
 									Type:   intstr.Int,
 									IntVal: 5978,

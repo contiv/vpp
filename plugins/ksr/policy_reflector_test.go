@@ -567,6 +567,7 @@ func checkPolicyType(protoPtype policy.Policy_PolicyType, k8sPtypes []coreV1Beta
 		}, k8sPtypes)).To(gomega.BeTrue())
 
 	case policy.Policy_DEFAULT:
+		gomega.Expect(len(k8sPtypes)).To(gomega.Equal(0))
 	}
 }
 

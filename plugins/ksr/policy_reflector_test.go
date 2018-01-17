@@ -15,7 +15,7 @@
 package ksr
 
 import (
-	// "encoding/json"
+	"encoding/json"
 	"sync"
 	"testing"
 	"time"
@@ -323,7 +323,7 @@ func TestPolicyReflector(t *testing.T) {
 }
 
 func testAddDeletePolicy(t *testing.T) {
-	// Test policy add
+	// Test the policy add operation
 	for _, k8sPolicy := range policyTestVars.policyTestData {
 		// Take a snapshot of counters
 		adds := policyTestVars.policyReflector.GetStats().NumAdds
@@ -345,8 +345,11 @@ func testAddDeletePolicy(t *testing.T) {
 		gomega.Expect(adds + 1).To(gomega.Equal(policyTestVars.policyReflector.GetStats().NumAdds))
 		gomega.Expect(err).To(gomega.BeNil())
 		gomega.Expect(protoPolicy).NotTo(gomega.BeNil())
+
+		checkPolicyToProtoTranslation(t, protoPolicy, &k8sPolicy)
 	}
 
+	// Test the policy delete operation
 	for _, k8sPolicy := range policyTestVars.policyTestData {
 		// Take a snapshot of counters
 		dels := policyTestVars.policyReflector.GetStats().NumDeletes
@@ -370,6 +373,63 @@ func testAddDeletePolicy(t *testing.T) {
 }
 
 func testUpdatePolicy(t *testing.T) {
+	// Prepare test data
+	k8sPolicyOld := &policyTestVars.policyTestData[0]
+	tmpBuf, err := json.Marshal(k8sPolicyOld)
+	gomega.Ω(err).Should(gomega.Succeed())
+	k8sPolicyNew := &coreV1Beta1.NetworkPolicy{}
+	err = json.Unmarshal(tmpBuf, k8sPolicyNew)
+	gomega.Ω(err).Should(gomega.Succeed())
+
+	// Take a snapshot of counters
+	upds := policyTestVars.policyReflector.GetStats().NumUpdates
+	argErrs := policyTestVars.policyReflector.GetStats().NumArgErrors
+
+	// Test update with wrong argument type
+	policyTestVars.k8sListWatch.Update(*k8sPolicyOld, *k8sPolicyNew)
+
+	gomega.Expect(argErrs + 1).To(gomega.Equal(policyTestVars.policyReflector.GetStats().NumArgErrors))
+	gomega.Expect(upds).To(gomega.Equal(policyTestVars.policyReflector.GetStats().NumUpdates))
+
+	// Ensure that there is no update if old and new values are the same
+	policyTestVars.k8sListWatch.Update(k8sPolicyOld, k8sPolicyNew)
+	gomega.Expect(upds).To(gomega.Equal(policyTestVars.policyReflector.GetStats().NumUpdates))
+
+	// Test update where everything should be good
+	k8sPolicyNew.Spec.Egress = append(k8sPolicyNew.Spec.Egress, coreV1Beta1.NetworkPolicyEgressRule{
+		Ports: []coreV1Beta1.NetworkPolicyPort{
+			{
+				Port: &intstr.IntOrString{
+					Type:   intstr.String,
+					StrVal: "my_name",
+				},
+			},
+		},
+		To: []coreV1Beta1.NetworkPolicyPeer{
+			{
+				NamespaceSelector: &metaV1.LabelSelector{
+					MatchLabels:      map[string]string{"key1": "name1"},
+					MatchExpressions: []metaV1.LabelSelectorRequirement{},
+				},
+			},
+			{
+				PodSelector: &metaV1.LabelSelector{
+					MatchLabels:      map[string]string{"key2": "name2"},
+					MatchExpressions: []metaV1.LabelSelectorRequirement{},
+				},
+			},
+		},
+	})
+
+	policyTestVars.k8sListWatch.Update(k8sPolicyOld, k8sPolicyNew)
+	gomega.Expect(upds + 1).To(gomega.Equal(policyTestVars.policyReflector.GetStats().NumUpdates))
+
+	key := policy.Key(k8sPolicyOld.GetName(), k8sPolicyOld.GetNamespace())
+	protoPolicyNew := &policy.Policy{}
+	err = policyTestVars.mockKvWriter.GetValue(key, protoPolicyNew)
+	gomega.Ω(err).Should(gomega.Succeed())
+
+	checkPolicyToProtoTranslation(t, protoPolicyNew, k8sPolicyNew)
 }
 
 // checkPolicyToProtoTranslation checks whether the translation of K8s policy
@@ -387,6 +447,9 @@ func checkPolicyToProtoTranslation(t *testing.T, protoNp *policy.Policy, k8sNp *
 
 	// Check pod selectors
 	checkLabelSelector(protoNp.Pods, &k8sNp.Spec.PodSelector)
+
+	// Check policy type
+	checkPolicyType(protoNp.PolicyType, k8sNp.Spec.PolicyTypes)
 
 	// Check ingress rules
 	gomega.Expect(len(protoNp.IngressRule)).To(gomega.Equal(len(k8sNp.Spec.Ingress)))
@@ -443,7 +506,12 @@ func checkRulePorts(protoPorts []*policy.Policy_Port, k8sPorts []coreV1Beta1.Net
 		default:
 			gomega.Panic()
 		}
-		gomega.Expect(protoPort.Protocol.String()).To(gomega.BeEquivalentTo(*k8sPorts[j].Protocol))
+
+		if k8sPorts[j].Protocol == nil {
+			gomega.Expect(protoPort.Protocol).To(gomega.BeNumerically("==", policy.Policy_Port_TCP))
+		} else {
+			gomega.Expect(protoPort.Protocol.String()).To(gomega.BeEquivalentTo(*k8sPorts[j].Protocol))
+		}
 	}
 }
 
@@ -476,4 +544,43 @@ func checkRulePeers(protoPeers []*policy.Policy_Peer, k8sPeers []coreV1Beta1.Net
 			gomega.Expect(k8sPeer.IPBlock).Should(gomega.BeNil())
 		}
 	}
+}
+
+// checkPolicyType checks whether the translation of K8s policy type into
+// the Contiv-VPP protobuf format is correct.
+func checkPolicyType(protoPtype policy.Policy_PolicyType, k8sPtypes []coreV1Beta1.PolicyType) {
+	switch protoPtype {
+
+	case policy.Policy_INGRESS:
+		gomega.Expect(len(k8sPtypes)).To(gomega.Equal(1))
+		gomega.Expect(k8sPtypes[0]).To(gomega.BeEquivalentTo(coreV1Beta1.PolicyTypeIngress))
+
+	case policy.Policy_EGRESS:
+		gomega.Expect(len(k8sPtypes)).To(gomega.Equal(1))
+		gomega.Expect(k8sPtypes[0]).To(gomega.BeEquivalentTo(coreV1Beta1.PolicyTypeEgress))
+
+	case policy.Policy_INGRESS_AND_EGRESS:
+		gomega.Expect(len(k8sPtypes)).To(gomega.Equal(2))
+		gomega.Expect(stringsInSlice([]coreV1Beta1.PolicyType{
+			coreV1Beta1.PolicyTypeEgress,
+			coreV1Beta1.PolicyTypeIngress,
+		}, k8sPtypes)).To(gomega.BeTrue())
+
+	case policy.Policy_DEFAULT:
+	}
+}
+
+// stringsInSlice ensures that K8sPolicyTypes contains all policy types
+// listed in 'pd'.
+func stringsInSlice(pd []coreV1Beta1.PolicyType, K8sPolicyTypes []coreV1Beta1.PolicyType) bool {
+loop:
+	for _, s := range pd {
+		for _, v := range K8sPolicyTypes {
+			if v == s {
+				continue loop
+			}
+		}
+		return false
+	}
+	return true
 }

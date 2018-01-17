@@ -383,6 +383,7 @@ func testUpdatePod(t *testing.T) {
 	gomega.Ω(err).Should(gomega.Succeed())
 	k8sPodNew := &coreV1.Pod{}
 	err = json.Unmarshal(tmpBuf, k8sPodNew)
+	gomega.Ω(err).Should(gomega.Succeed())
 
 	// Take a snapshot of counters
 	upds := podTestVars.podReflector.GetStats().NumUpdates

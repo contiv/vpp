@@ -205,13 +205,16 @@ func NewIPAddresses(addrs ...net.IP) IPAddresses {
 
 // List returns the set as a slice which can be iterated through.
 func (addrs IPAddresses) List() []net.IP {
+	fmt.Printf("LIST content: %v\n", addrs.list)
 	return addrs.list
 }
 
 // Add IP address into the set.
 func (addrs IPAddresses) Add(addr net.IP) {
 	if !addrs.Has(addr) {
+		fmt.Printf("ADDING to list: %v\n", addrs.list)
 		addrs.list = append(addrs.list, addr)
+		fmt.Printf("ADDED to list: %v\n", addrs.list)
 	}
 }
 
@@ -239,9 +242,11 @@ func (addrs IPAddresses) Copy() IPAddresses {
 func (addrs IPAddresses) Has(addr net.IP) bool {
 	for _, addr2 := range addrs.list {
 		if addr2.Equal(addr) {
+			fmt.Println("HAS returns true")
 			return true
 		}
 	}
+	fmt.Println("HAS returns false")
 	return false
 }
 

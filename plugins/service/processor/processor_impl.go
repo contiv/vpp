@@ -477,6 +477,16 @@ func (sp *ServiceProcessor) processResyncEvent(resyncEv *ResyncEventData) error 
 		if contivSvc.HasNodePort() {
 			sp.extAddrUsageIncAndFetch(nodeIP, 1)
 			sp.frontendAddrs.Add(nodeIP)
+			sp.Log.WithFields(logging.Fields{
+				"nodeIP":            nodeIP,
+				"contivSvc":         contivSvc.ID,
+				"frontendAddrs-len": len(sp.frontendAddrs.List()),
+			}).Debug("HAS node port")
+		} else {
+			sp.Log.WithFields(logging.Fields{
+				"nodeIP":    nodeIP,
+				"contivSvc": contivSvc.ID,
+			}).Debug("DOES NOT HAVE node port")
 		}
 		// Add external IPs to the set of frontend IP addresses.
 		for _, extAddr := range contivSvc.ExternalIPs.List() {

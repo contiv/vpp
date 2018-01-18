@@ -195,6 +195,11 @@ func (sc *ServiceConfigurator) setInterfaceNATFeature(ifName string, isInside bo
 func (sc *ServiceConfigurator) setNATAddress(address net.IP, snat, isAdd bool) error {
 	var pool string
 
+	if address.To4() == nil {
+		// TODO: IPv6 support
+		return fmt.Errorf("'%s' is not IPv4 address", address.String())
+	}
+
 	req := &nat.Nat44AddDelAddressRange{
 		VrfID: ^uint32(0),
 	}
@@ -208,9 +213,9 @@ func (sc *ServiceConfigurator) setNATAddress(address net.IP, snat, isAdd bool) e
 		req.IsAdd = 1
 	}
 	req.FirstIPAddress = make([]byte, net.IPv4len)
-	copy(req.FirstIPAddress, address)
+	copy(req.FirstIPAddress, address.To4())
 	req.LastIPAddress = make([]byte, net.IPv4len)
-	copy(req.LastIPAddress, address)
+	copy(req.LastIPAddress, address.To4())
 	reply := &nat.Nat44AddDelAddressRangeReply{}
 
 	err := sc.GoVPPChan.SendRequest(req).ReceiveReply(reply)
@@ -243,7 +248,16 @@ func (sc *ServiceConfigurator) setNATMapping(mapping *NATMapping, isAdd bool) er
 		op = "remove"
 	}
 
+	if mapping.ExternalIP.To4() == nil {
+		// TODO: IPv6 support
+		return fmt.Errorf("'%s' is not IPv4 address", mapping.ExternalIP.String())
+	}
+
 	if len(mapping.Locals) == 1 {
+		if mapping.Locals[0].Address.To4() == nil {
+			// TODO: IPv6 support
+			return fmt.Errorf("'%s' is not IPv4 address", mapping.Locals[0].Address.String())
+		}
 		// Single-backend NAT mapping.
 		req := &nat.Nat44AddDelStaticMapping{
 			VrfID: ^uint32(0),
@@ -255,9 +269,9 @@ func (sc *ServiceConfigurator) setNATMapping(mapping *NATMapping, isAdd bool) er
 			LocalPort:         mapping.Locals[0].Port,
 		}
 		req.ExternalIPAddress = make([]byte, net.IPv4len)
-		copy(req.ExternalIPAddress, mapping.ExternalIP)
+		copy(req.ExternalIPAddress, mapping.ExternalIP.To4())
 		req.LocalIPAddress = make([]byte, net.IPv4len)
-		copy(req.LocalIPAddress, mapping.Locals[0].Address)
+		copy(req.LocalIPAddress, mapping.Locals[0].Address.To4())
 		if mapping.TwiceNat {
 			req.TwiceNat = 1
 		}
@@ -285,7 +299,7 @@ func (sc *ServiceConfigurator) setNATMapping(mapping *NATMapping, isAdd bool) er
 		Locals:       []nat.Nat44LbAddrPort{},
 	}
 	req.ExternalAddr = make([]byte, net.IPv4len)
-	copy(req.ExternalAddr, mapping.ExternalIP)
+	copy(req.ExternalAddr, mapping.ExternalIP.To4())
 	if mapping.TwiceNat {
 		req.TwiceNat = 1
 	}
@@ -293,12 +307,16 @@ func (sc *ServiceConfigurator) setNATMapping(mapping *NATMapping, isAdd bool) er
 		req.IsAdd = 1
 	}
 	for _, local := range mapping.Locals {
+		if local.Address.To4() == nil {
+			// TODO: IPv6 support
+			fmt.Errorf("'%s' is not IPv4 address", local.Address.String())
+		}
 		reqLocal := nat.Nat44LbAddrPort{
 			Port:        local.Port,
 			Probability: local.Probability,
 		}
 		reqLocal.Addr = make([]byte, net.IPv4len)
-		copy(reqLocal.Addr, local.Address)
+		copy(reqLocal.Addr, local.Address.To4())
 		req.Locals = append(req.Locals, reqLocal)
 	}
 

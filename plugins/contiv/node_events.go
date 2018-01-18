@@ -113,27 +113,42 @@ func (s *remoteCNIserver) nodeChangePropageteEvent(dataChngEv datasync.ChangeEve
 
 // addRoutesToNode add routes to the node specified by nodeID.
 func (s *remoteCNIserver) addRoutesToNode(nodeInfo *node.NodeInfo) error {
-	podsRoute, hostRoute, err := s.computeRoutesForHost(uint8(nodeInfo.Id), nodeInfo.IpAddress)
+	txn := s.vppTxnFactory().Put()
+
+	// VXLAN tunnel
+	if !s.useL2Interconnect {
+		vxlanIf, err := s.computeVxlanToHost(uint8(nodeInfo.Id), nodeInfo.IpAddress)
+		if err != nil {
+			return err
+		}
+		txn.VppInterface(vxlanIf)
+
+		// add the VXLAN interface into the VXLAN bridge domain
+		s.addInterfaceToVxlanBD(s.vxlanBD, vxlanIf.Name)
+		txn.BD(s.vxlanBD)
+	}
+
+	// static routes
+	podsRoute, hostRoute, err := s.computeRoutesToHost(uint8(nodeInfo.Id), nodeInfo.IpAddress)
 	if err != nil {
 		return err
 	}
+	txn.StaticRoute(podsRoute)
+	txn.StaticRoute(hostRoute)
 	s.Logger.Info("Adding PODs route: ", podsRoute)
 	s.Logger.Info("Adding host route: ", hostRoute)
 
-	err = s.vppTxnFactory().Put().
-		StaticRoute(podsRoute).
-		StaticRoute(hostRoute).
-		Send().ReceiveReply()
-
+	// send the config transaction
+	err = txn.Send().ReceiveReply()
 	if err != nil {
-		return fmt.Errorf("Can't configure vpp to add route to host %v (and its pods): %v ", nodeInfo.Id, err)
+		return fmt.Errorf("Can't configure VPP to add routes to node %v: %v ", nodeInfo.Id, err)
 	}
 	return nil
 }
 
 // deleteRoutesToNode delete routes to the node specified by nodeID.
 func (s *remoteCNIserver) deleteRoutesToNode(nodeInfo *node.NodeInfo) error {
-	podsRoute, hostRoute, err := s.computeRoutesForHost(uint8(nodeInfo.Id), nodeInfo.IpAddress)
+	podsRoute, hostRoute, err := s.computeRoutesToHost(uint8(nodeInfo.Id), nodeInfo.IpAddress)
 	if err != nil {
 		return err
 	}

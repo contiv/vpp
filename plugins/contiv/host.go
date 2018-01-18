@@ -31,7 +31,8 @@ import (
 )
 
 const (
-	vxlanSplitHorizonGroup = 1 // As VXLAN tunnels are added to a BD, they must be configured with the same and non-zero Split Horizon Group (SHG) number. Otherwise, flood packet may loop among servers with the same VXLAN segment because VXLAN tunnels are fully meshed among servers.
+	vxlanVNI               = 10 // VXLAN Network Identifier (or VXLAN Segment ID)
+	vxlanSplitHorizonGroup = 1  // As VXLAN tunnels are added to a BD, they must be configured with the same and non-zero Split Horizon Group (SHG) number. Otherwise, flood packet may loop among servers with the same VXLAN segment because VXLAN tunnels are fully meshed among servers.
 )
 
 func (s *remoteCNIserver) l4Features(enable bool) *vpp_l4.L4Features {
@@ -139,20 +140,7 @@ func (s *remoteCNIserver) interconnectAfpacket() *vpp_intf.Interfaces_Interface 
 	}
 }
 
-func (s *remoteCNIserver) physicalInterface(name string) (*vpp_intf.Interfaces_Interface, error) {
-	nodeIP, err := s.ipam.NodeIPWithPrefix(s.ipam.NodeID())
-	if err != nil {
-		return nil, err
-	}
-	return &vpp_intf.Interfaces_Interface{
-		Name:        name,
-		Type:        vpp_intf.InterfaceType_ETHERNET_CSMACD,
-		Enabled:     true,
-		IpAddresses: []string{nodeIP.String()},
-	}, nil
-}
-
-func (s *remoteCNIserver) physicalInterfaceWithCustomIPAddress(name string, ipAddress string) *vpp_intf.Interfaces_Interface {
+func (s *remoteCNIserver) physicalInterface(name string, ipAddress string) *vpp_intf.Interfaces_Interface {
 	return &vpp_intf.Interfaces_Interface{
 		Name:        name,
 		Type:        vpp_intf.InterfaceType_ETHERNET_CSMACD,
@@ -161,17 +149,13 @@ func (s *remoteCNIserver) physicalInterfaceWithCustomIPAddress(name string, ipAd
 	}
 }
 
-func (s *remoteCNIserver) physicalInterfaceLoopback() (*vpp_intf.Interfaces_Interface, error) {
-	nodeIP, err := s.ipam.NodeIPWithPrefix(s.ipam.NodeID())
-	if err != nil {
-		return nil, err
-	}
+func (s *remoteCNIserver) physicalInterfaceLoopback(ipAddress string) *vpp_intf.Interfaces_Interface {
 	return &vpp_intf.Interfaces_Interface{
 		Name:        "loopbackNIC",
 		Type:        vpp_intf.InterfaceType_SOFTWARE_LOOPBACK,
 		Enabled:     true,
-		IpAddresses: []string{nodeIP.String()},
-	}, nil
+		IpAddresses: []string{ipAddress},
+	}
 }
 
 func (s *remoteCNIserver) vxlanBVILoopback() (*vpp_intf.Interfaces_Interface, error) {
@@ -209,7 +193,7 @@ func (s *remoteCNIserver) vxlanBridgeDomain(bviInterface string) *vpp_l2.BridgeD
 	}
 }
 
-func (s *remoteCNIserver) computeRoutesForHost(hostID uint8, hostIP string) (podsRoute *l3.StaticRoutes_Route, hostRoute *l3.StaticRoutes_Route, err error) {
+func (s *remoteCNIserver) computeRoutesToHost(hostID uint8, hostIP string) (podsRoute *l3.StaticRoutes_Route, hostRoute *l3.StaticRoutes_Route, err error) {
 	// determine next hop IP - either use provided one, or calculate based on hostIP
 	var nextHopIP string
 	if hostIP != "" {
@@ -258,4 +242,42 @@ func (s *remoteCNIserver) routeToOtherHostNetworks(destNetwork *net.IPNet, nextH
 		DstIpAddr:   destNetwork.String(),
 		NextHopAddr: nextHopIP,
 	}, nil
+}
+
+func (s *remoteCNIserver) computeVxlanToHost(hostID uint8, hostIP string) (*vpp_intf.Interfaces_Interface, error) {
+	// determine next hop IP - either use provided one, or calculate based on hostIP
+	var dstIP string
+	if hostIP != "" {
+		// hostIP defined, just trim prefix length
+		dstIP = s.ipPrefixToAddress(hostIP)
+	} else {
+		// hostIP not defined, determine based on hostID
+		nodeIP, err := s.ipam.NodeIPAddress(hostID)
+		if err != nil {
+			return nil, fmt.Errorf("Can't get Host IP address for host ID %v, error: %v ", hostID, err)
+		}
+		dstIP = nodeIP.String()
+	}
+
+	return &vpp_intf.Interfaces_Interface{
+		Name:    fmt.Sprintf("vxlan%d", hostID),
+		Type:    vpp_intf.InterfaceType_VXLAN_TUNNEL,
+		Enabled: true,
+		Vxlan: &vpp_intf.Interfaces_Interface_Vxlan{
+			SrcAddress: s.ipPrefixToAddress(s.nodeIP),
+			DstAddress: dstIP,
+			Vni:        vxlanVNI,
+		},
+	}, nil
+}
+
+func (s *remoteCNIserver) addInterfaceToVxlanBD(bd *vpp_l2.BridgeDomains_BridgeDomain, ifName string) {
+	bd.Interfaces = append(bd.Interfaces, &vpp_l2.BridgeDomains_BridgeDomain_Interfaces{
+		Name:              ifName,
+		SplitHorizonGroup: vxlanSplitHorizonGroup,
+	})
+}
+
+func (s *remoteCNIserver) ipPrefixToAddress(ip string) string {
+	return ip[:strings.Index(ip, "/")]
 }

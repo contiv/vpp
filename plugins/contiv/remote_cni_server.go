@@ -92,6 +92,9 @@ type remoteCNIserver struct {
 	// unique identifier of the node
 	nodeID uint8
 
+	// this node's main IP address
+	nodeIP string
+
 	// node specific configuration
 	nodeConfig *OneNodeConfig
 
@@ -119,6 +122,9 @@ type remoteCNIserver struct {
 
 	// use pure L2 node interconnect instead of VXLANs
 	useL2Interconnect bool
+
+	// bridge domain used for VXLAN tunnels
+	vxlanBD *vpp_l2.BridgeDomains_BridgeDomain
 }
 
 // vswitchConfig holds base vSwitch VPP configuration.
@@ -319,29 +325,30 @@ func (s *remoteCNIserver) configureMainVPPInterface(config *vswitchConfig, nicNa
 	var err error
 	txn1 := s.vppTxnFactory().Put()
 
+	// determine main node IP address
+	if nicIP != "" {
+		nodeIP, err := s.ipam.NodeIPWithPrefix(s.ipam.NodeID())
+		if err != nil {
+			s.Logger.Error("Unable to generate node IP address.")
+			return err
+		}
+		s.nodeIP = nodeIP.String()
+	} else {
+		s.nodeIP = nicIP
+	}
+
 	if nicName != "" {
 		// configure the physical NIC
-		var nic *vpp_intf.Interfaces_Interface
 		s.Logger.Info("Configuring physical NIC ", nicName)
 
-		if nicIP != "" {
-			nic = s.physicalInterfaceWithCustomIPAddress(nicName, nicIP)
-		} else {
-			nic, err = s.physicalInterface(nicName)
-		}
-		if err != nil {
-			return fmt.Errorf("Can't create structure for interface %v due to error: %v", nicName, err)
-		}
+		nic := s.physicalInterface(nicName, s.nodeIP)
 		txn1.VppInterface(nic)
 		config.nics = append(config.nics, nic)
 	} else {
 		// configure loopback instead of the physical NIC
 		s.Logger.Debug("Physical NIC not found, configuring loopback instead.")
 
-		loop, err := s.physicalInterfaceLoopback()
-		if err != nil {
-			return fmt.Errorf("Can't create structure for loopback interface due to error: %v", err)
-		}
+		loop := s.physicalInterfaceLoopback(s.nodeIP)
 		txn1.VppInterface(loop)
 		config.nics = append(config.nics, loop)
 	}
@@ -364,7 +371,7 @@ func (s *remoteCNIserver) configureOtherVPPInterfaces(config *vswitchConfig, nod
 	for _, name := range s.swIfIndex.GetMapping().ListNames() {
 		for _, intIP := range nodeConfig.OtherVPPInterfaces {
 			if intIP.InterfaceName == name {
-				interfaces[name] = s.physicalInterfaceWithCustomIPAddress(name, intIP.IP)
+				interfaces[name] = s.physicalInterface(name, intIP.IP)
 			}
 		}
 	}
@@ -472,6 +479,8 @@ func (s *remoteCNIserver) configureVswitchVxlanBridgeDomain(config *vswitchConfi
 	// bridge domain for the VXLAN tunnel
 	config.vxlanBD = s.vxlanBridgeDomain(config.vxlanBVI.Name)
 	txn.BD(config.vxlanBD)
+	// remember the VXLAN config - needs to be reconfigured with each new VXLAN (each new node)
+	s.vxlanBD = config.vxlanBD
 
 	// execute the config transaction
 	err = txn.Send().ReceiveReply()

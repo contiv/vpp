@@ -20,7 +20,7 @@ metadata:
   namespace: kube-system
 data:
   contiv.yaml: |
-    TCPstackDisabled: False
+    TCPstackDisabled: True
     IPAMConfig:
       PodSubnetCIDR: "10.1.0.0/16"
       PodNetworkPrefixLen: 24
@@ -28,13 +28,6 @@ data:
       VPPHostNetworkPrefixLen: 24
       NodeInterconnectCIDR: "192.168.16.0/24"
       VxlanCIDR: "192.168.30.0/24"
-    NodeConfig:
-    - NodeName: "ubuntu-1"
-      MainVppInterface:
-        IP: 192.168.16.53/24
-    - NodeName: "ubuntu-2"
-      MainVppInterface:
-        IP: 192.168.16.101/24
 ### example of node configuration for VPP interfaces
 #    NodeConfig:
 #    - NodeName: "vm1"

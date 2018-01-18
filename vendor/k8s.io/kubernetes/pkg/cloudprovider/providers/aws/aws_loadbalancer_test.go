@@ -17,9 +17,8 @@ limitations under the License.
 package aws
 
 import (
-	"testing"
-
 	"github.com/aws/aws-sdk-go/aws"
+	"testing"
 )
 
 func TestElbProtocolsAreEqual(t *testing.T) {

@@ -1,5 +1,6 @@
 #!/bin/bash
 
+set -euo pipefail
 
 if [ -f ../config/init.sh ] ; then
     rm ../config/init.sh

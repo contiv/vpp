@@ -4,7 +4,7 @@ package ipam_test
 import (
 	"testing"
 
-	"github.com/ligato/cn-infra/logging/logroot"
+	"github.com/ligato/cn-infra/logging/logrus"
 	. "github.com/onsi/gomega"
 
 	"fmt"
@@ -28,7 +28,7 @@ const (
 )
 
 var (
-	logger = logroot.StandardLogger()
+	logger = logrus.DefaultLogger()
 
 	hostID1                        uint8 = b10100001
 	hostID2                        uint8 = b10100101
@@ -43,16 +43,16 @@ func newDefaultConfig() *ipam.Config {
 	return &ipam.Config{
 		PodSubnetCIDR:           "1.2." + str(b10000000) + ".2/17",
 		PodNetworkPrefixLen:     29, // 3 bits left -> 6 free IP addresses (gateway IP + zero ending IP is reserved)
-		VSwitchSubnetCIDR:       "2.3." + str(b11000000) + ".2/18",
-		VSwitchNetworkPrefixLen: 30, // 2 bit left -> 3 free IP addresses (zero ending IP is reserved)
-		HostNodeSubnetCidr:      "3.4.5." + str(b11000010) + "/26",
+		VPPHostSubnetCIDR:       "2.3." + str(b11000000) + ".2/18",
+		VPPHostNetworkPrefixLen: 30, // 2 bit left -> 3 free IP addresses (zero ending IP is reserved)
+		NodeInterconnectCIDR:    "3.4.5." + str(b11000010) + "/26",
 	}
 }
 
 func setup(t *testing.T, cfg *ipam.Config) *ipam.IPAM {
 	RegisterTestingT(t)
 
-	i, err := ipam.New(logroot.StandardLogger(), uint8(hostID1), cfg)
+	i, err := ipam.New(logrus.DefaultLogger(), uint8(hostID1), cfg)
 	Expect(err).To(BeNil())
 	return i
 }
@@ -61,7 +61,7 @@ func setup(t *testing.T, cfg *ipam.Config) *ipam.IPAM {
 // recomputed based on new input in form of API function parameters)
 func TestStaticGetters(t *testing.T) {
 	i := setup(t, newDefaultConfig())
-	Expect(i.HostID()).To(BeEquivalentTo(hostID1))
+	Expect(i.NodeID()).To(BeEquivalentTo(hostID1))
 
 	// pods addresses IPAM API
 	Expect(*i.PodSubnet()).To(BeEquivalentTo(network("1.2." + str(b10000000) + ".0/17")))
@@ -69,7 +69,7 @@ func TestStaticGetters(t *testing.T) {
 	Expect(expectedPodNetwork.Contains(i.PodGatewayIP())).To(BeTrue(), "Pod Gateway IP is not in range of network for pods for given host.")
 
 	// vSwitch addresses IPAM API
-	Expect(*i.VSwitchNetwork()).To(BeEquivalentTo(expectedVSwitchNetwork))
+	Expect(*i.VPPHostNetwork()).To(BeEquivalentTo(expectedVSwitchNetwork))
 	Expect(expectedVSwitchNetwork.Contains(i.VEthHostEndIP())).To(BeTrue(), "VEthHostEndIP is not in range of vSwitch network for given host.")
 	Expect(expectedVSwitchNetwork.Contains(i.VEthVPPEndIP())).To(BeTrue(), "VEthVPPEndIP is not in range of vSwitch network for given host.")
 }
@@ -77,19 +77,19 @@ func TestStaticGetters(t *testing.T) {
 // TestDynamicGetters tests proper working IMAP API that provides data based on new input (func parameters)
 func TestDynamicGetters(t *testing.T) {
 	i := setup(t, newDefaultConfig())
-	ip, err := i.HostIPAddress(hostID2)
+	ip, err := i.NodeIPAddress(hostID2)
 	Expect(err).To(BeNil())
 	Expect(ip).To(BeEquivalentTo(net.IPv4(3, 4, 5, b11100101).To4()))
 
-	ipNet, err := i.HostIPNetwork(hostID2)
+	ipNet, err := i.NodeIPNetwork(hostID2)
 	Expect(err).To(BeNil())
 	Expect(*ipNet).To(BeEquivalentTo(ipWithNetworkMask("3.4.5." + str(b11100101) + "/26")))
 
-	ipNet, err = i.OtherHostPodNetwork(hostID2)
+	ipNet, err = i.OtherNodePodNetwork(hostID2)
 	Expect(err).To(BeNil())
 	Expect(*ipNet).To(BeEquivalentTo(network("1.2." + str(b10000000+int(hostID2>>5)) + "." + str(int(hostID2<<3)) + "/29")))
 
-	ipNet, err = i.OtherHostVSwitchNetwork(hostID2)
+	ipNet, err = i.OtherNodeVPPHostNetwork(hostID2)
 	Expect(err).To(BeNil())
 	Expect(*ipNet).To(BeEquivalentTo(network("2.3." + str(b11000000+int(hostID2>>6)) + "." + str(int(hostID2<<2)) + "/30")))
 }
@@ -194,17 +194,17 @@ func TestConfigWithBadCIRD(t *testing.T) {
 
 	customConfig := newDefaultConfig()
 	customConfig.PodSubnetCIDR = "1.2.3./19"
-	_, err := ipam.New(logroot.StandardLogger(), uint8(hostID1), customConfig)
+	_, err := ipam.New(logrus.DefaultLogger(), uint8(hostID1), customConfig)
 	Expect(err).NotTo(BeNil(), "Pod subnet CIDR is unparsable, but IPAM initialization didn't fail")
 
 	customConfig = newDefaultConfig()
-	customConfig.VSwitchSubnetCIDR = "1.2.3./19"
-	_, err = ipam.New(logroot.StandardLogger(), uint8(hostID1), customConfig)
+	customConfig.VPPHostSubnetCIDR = "1.2.3./19"
+	_, err = ipam.New(logrus.DefaultLogger(), uint8(hostID1), customConfig)
 	Expect(err).NotTo(BeNil(), "VSwitch subnet CIDR is unparsable, but IPAM initialization didn't fail")
 
 	customConfig = newDefaultConfig()
-	customConfig.HostNodeSubnetCidr = "1.2.3./19"
-	_, err = ipam.New(logroot.StandardLogger(), uint8(hostID1), customConfig)
+	customConfig.NodeInterconnectCIDR = "1.2.3./19"
+	_, err = ipam.New(logrus.DefaultLogger(), uint8(hostID1), customConfig)
 	Expect(err).NotTo(BeNil(), "Host subnet CIDR is unparsable, but IPAM initialization didn't fail")
 }
 
@@ -215,13 +215,13 @@ func TestConfigWithBadPrefixSizes(t *testing.T) {
 	customConfig := newDefaultConfig()
 	customConfig.PodSubnetCIDR = "1.2.3.4/19"
 	customConfig.PodNetworkPrefixLen = 18
-	_, err := ipam.New(logroot.StandardLogger(), uint8(hostID1), customConfig)
+	_, err := ipam.New(logrus.DefaultLogger(), uint8(hostID1), customConfig)
 	Expect(err).NotTo(BeNil())
 
 	customConfig = newDefaultConfig()
-	customConfig.VSwitchSubnetCIDR = "1.2.3.4/19"
-	customConfig.VSwitchNetworkPrefixLen = 18
-	_, err = ipam.New(logroot.StandardLogger(), uint8(hostID1), customConfig)
+	customConfig.VPPHostSubnetCIDR = "1.2.3.4/19"
+	customConfig.VPPHostNetworkPrefixLen = 18
+	_, err = ipam.New(logrus.DefaultLogger(), uint8(hostID1), customConfig)
 	Expect(err).NotTo(BeNil())
 }
 

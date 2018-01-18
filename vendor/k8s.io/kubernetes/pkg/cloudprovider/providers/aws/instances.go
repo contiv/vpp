@@ -21,13 +21,12 @@ import (
 	"net/url"
 	"strings"
 
-	"sync"
-	"time"
-
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/golang/glog"
 	"k8s.io/api/core/v1"
+	"sync"
+	"time"
 )
 
 // awsInstanceID represents the ID of the instance in the AWS API, e.g. i-12345678

@@ -42,7 +42,7 @@ func (plugin *Plugin) changePropagateRequest(dataChng datasync.ChangeEvent, call
 			return false, err
 		}
 		if diff, err := dataChng.GetPrevValue(&prevValue); err == nil {
-			if err := plugin.dataChangeACL(diff, &value, &prevValue, dataChng.GetChangeType(), callback); err != nil {
+			if err := plugin.dataChangeACL(diff, &value, &prevValue, dataChng.GetChangeType()); err != nil {
 				return false, err
 			}
 		} else {
@@ -217,7 +217,7 @@ func (plugin *Plugin) changePropagateRequest(dataChng datasync.ChangeEvent, call
 
 // dataChangeACL propagates data change to the particular aclConfigurator.
 func (plugin *Plugin) dataChangeACL(diff bool, value *acl.AccessLists_Acl, prevValue *acl.AccessLists_Acl,
-	changeType datasync.PutDel, callback func(error)) error {
+	changeType datasync.PutDel) error {
 	plugin.Log.Debug("dataChangeAcl ", diff, " ", changeType, " ", value, " ", prevValue)
 
 	if datasync.Delete == changeType {
@@ -373,12 +373,12 @@ func (plugin *Plugin) dataChangeL4Features(value *l4.L4Features, prevValue *l4.L
 }
 
 func (plugin *Plugin) dataChangeStnRule(diff bool, value *stn.StnRule, prevValue *stn.StnRule, changeType datasync.PutDel) error {
-	plugin.Log.Debug("stnRuleChange ", diff, " ", changeType, " ", value, " ", prevValue)
+	plugin.Log.Debug("stnRuleChange diff->", diff, " changeType->", changeType, " value->", value, " prevValue->", prevValue)
 
 	if datasync.Delete == changeType {
 		return plugin.stnConfigurator.Delete(prevValue)
 	} else if diff {
-		return plugin.stnConfigurator.Modify(value, prevValue)
+		return plugin.stnConfigurator.Modify(prevValue, value)
 	}
 	return plugin.stnConfigurator.Add(value)
 }

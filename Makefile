@@ -12,7 +12,6 @@ define generate_sources
 	@echo "# generating sources"
 	@cd plugins/contiv && go generate
 	@cd plugins/contiv/bin_api/session && pkgreflect
-	@cd plugins/contiv/bin_api/stn && pkgreflect
 	@cd plugins/ksr && go generate
 	@cd plugins/policy/renderer/vpptcp && go generate
 	@cd plugins/policy/renderer/vpptcp/bin_api/session && pkgreflect
@@ -23,7 +22,7 @@ endef
 # install-only binaries
 define install_only
 	@echo "# installing contiv agent"
-	@cd cmd/contiv-agent && go install -v ${LDFLAGS}
+	@cd cmd/contiv-agent && go install -v ${LDFLAGS} -tags="${GO_BUILD_TAGS}"
 	@echo "# installing contiv-ksr"
 	@cd cmd/contiv-ksr && go install -v ${LDFLAGS}
 	@echo "# installing contiv-cri"
@@ -38,34 +37,34 @@ endef
 # run all tests
 define test_only
 	@echo "# running unit tests"
-	@go test ./cmd/contiv-cni
-	@go test ./plugins/contiv
-	@go test ./plugins/contiv/ipam
-	@go test ./plugins/contiv/containeridx
-	@go test ./plugins/kvdbproxy
-	@go test ./plugins/ksr
-	@go test ./plugins/policy/renderer/acl/cache
-	@go test ./plugins/policy/renderer/acl
-	@go test ./plugins/policy/configurator
-	@go test ./plugins/policy/renderer/vpptcp/cache
-	@go test ./plugins/policy/renderer/vpptcp
+	@go test ./cmd/contiv-cni -tags="${GO_BUILD_TAGS}"
+	@go test ./plugins/contiv -tags="${GO_BUILD_TAGS}"
+	@go test ./plugins/contiv/ipam -tags="${GO_BUILD_TAGS}"
+	@go test ./plugins/contiv/containeridx -tags="${GO_BUILD_TAGS}"
+	@go test ./plugins/kvdbproxy -tags="${GO_BUILD_TAGS}"
+	@go test ./plugins/ksr -tags="${GO_BUILD_TAGS}"
+	@go test ./plugins/policy/renderer/acl/cache -tags="${GO_BUILD_TAGS}"
+	@go test ./plugins/policy/renderer/acl -tags="${GO_BUILD_TAGS}"
+	@go test ./plugins/policy/configurator -tags="${GO_BUILD_TAGS}"
+	@go test ./plugins/policy/renderer/vpptcp/cache -tags="${GO_BUILD_TAGS}"
+	@go test ./plugins/policy/renderer/vpptcp -tags="${GO_BUILD_TAGS}"
 	@echo "# done"
 endef
 
 # run all tests with coverage
 define test_cover_only
 	@echo "# running unit tests with coverage analysis"
-	@go test -covermode=count -coverprofile=${COVER_DIR}cov_u1.out ./cmd/contiv-cni
-    @go test -covermode=count -coverprofile=${COVER_DIR}cov_u2.out ./plugins/contiv
-    @go test -covermode=count -coverprofile=${COVER_DIR}cov_u3.out ./plugins/contiv/ipam
-    @go test -covermode=count -coverprofile=${COVER_DIR}cov_u4.out ./plugins/contiv/containeridx
-    @go test -covermode=count -coverprofile=${COVER_DIR}cov_u5.out ./plugins/kvdbproxy
-    @go test -covermode=count -coverprofile=${COVER_DIR}cov_u6.out ./plugins/ksr
-    @go test -covermode=count -coverprofile=${COVER_DIR}cov_u7.out ./plugins/policy/renderer/acl/cache
-    @go test -covermode=count -coverprofile=${COVER_DIR}cov_u8.out ./plugins/policy/renderer/acl
-    @go test -covermode=count -coverprofile=${COVER_DIR}cov_u9.out ./plugins/policy/configurator
-    @go test -covermode=count -coverprofile=${COVER_DIR}cov_u10.out ./plugins/policy/renderer/vpptcp/cache
-    @go test -covermode=count -coverprofile=${COVER_DIR}cov_u11.out ./plugins/policy/renderer/vpptcp
+	@go test -covermode=count -coverprofile=${COVER_DIR}cov_u1.out ./cmd/contiv-cni -tags="${GO_BUILD_TAGS}"
+    @go test -covermode=count -coverprofile=${COVER_DIR}cov_u2.out ./plugins/contiv -tags="${GO_BUILD_TAGS}"
+    @go test -covermode=count -coverprofile=${COVER_DIR}cov_u3.out ./plugins/contiv/ipam -tags="${GO_BUILD_TAGS}"
+    @go test -covermode=count -coverprofile=${COVER_DIR}cov_u4.out ./plugins/contiv/containeridx -tags="${GO_BUILD_TAGS}"
+    @go test -covermode=count -coverprofile=${COVER_DIR}cov_u5.out ./plugins/kvdbproxy -tags="${GO_BUILD_TAGS}"
+    @go test -covermode=count -coverprofile=${COVER_DIR}cov_u6.out ./plugins/ksr -tags="${GO_BUILD_TAGS}"
+    @go test -covermode=count -coverprofile=${COVER_DIR}cov_u7.out ./plugins/policy/renderer/acl/cache -tags="${GO_BUILD_TAGS}"
+    @go test -covermode=count -coverprofile=${COVER_DIR}cov_u8.out ./plugins/policy/renderer/acl -tags="${GO_BUILD_TAGS}"
+    @go test -covermode=count -coverprofile=${COVER_DIR}cov_u9.out ./plugins/policy/configurator -tags="${GO_BUILD_TAGS}"
+    @go test -covermode=count -coverprofile=${COVER_DIR}cov_u10.out ./plugins/policy/renderer/vpptcp/cache -tags="${GO_BUILD_TAGS}"
+    @go test -covermode=count -coverprofile=${COVER_DIR}cov_u11.out ./plugins/policy/renderer/vpptcp -tags="${GO_BUILD_TAGS}"
     @echo "# merging coverage results"
     @cd vendor/github.com/wadey/gocovmerge && go install -v
     @gocovmerge ${COVER_DIR}cov_u1.out ${COVER_DIR}cov_u2.out ${COVER_DIR}cov_u3.out \
@@ -109,7 +108,7 @@ endef
 # build contiv agent
 define build_contiv_agent_only
     @echo "# building contiv-agent"
-    @cd cmd/contiv-agent && go build -v -i ${LDFLAGS}
+    @cd cmd/contiv-agent && go build -v -i ${LDFLAGS} -tags="${GO_BUILD_TAGS}"
     @echo "# done"
 endef
 

@@ -22,15 +22,7 @@ import (
 	"syscall"
 
 	"github.com/contiv/vpp/flavors/contiv"
-	"github.com/ligato/cn-infra/logging"
-	"github.com/ligato/cn-infra/logging/logroot"
 )
-
-// init sets the default logging level
-func init() {
-
-	logroot.StandardLogger().SetLevel(logging.DebugLevel)
-}
 
 // Start Agent plugins selected for this example
 func main() {

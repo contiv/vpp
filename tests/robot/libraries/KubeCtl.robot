@@ -75,7 +75,7 @@ Get_Nodes
     [Return]    ${output}
 
 Logs
-    [Arguments]    ${ssh_session}    ${pod_name}    ${container}=${EMPTY}    ${namespace}=${EMPTY}    ${compress}=${True}
+    [Arguments]    ${ssh_session}    ${pod_name}    ${container}=${EMPTY}    ${namespace}=${EMPTY}    ${compress}=${False}
     [Documentation]    Execute "kubectl logs" with given params, log output into a result file.
     BuiltIn.Log_Many    ${ssh_session}    ${pod_name}    ${container}    ${namespace}    ${compress}
     ${nsparam} =     BuiltIn.Set_Variable_If    """${namespace}""" != """${EMPTY}"""    --namespace ${namespace}    ${EMPTY}

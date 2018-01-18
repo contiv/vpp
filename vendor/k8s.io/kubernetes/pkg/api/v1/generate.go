@@ -18,7 +18,6 @@ package v1
 
 import (
 	"fmt"
-
 	"k8s.io/api/core/v1"
 
 	utilrand "k8s.io/apimachinery/pkg/util/rand"

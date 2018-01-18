@@ -30,8 +30,9 @@ func (s *remoteCNIserver) handleNodeEvents(ctx context.Context, resyncChan chan 
 		select {
 
 		case resyncEv := <-resyncChan:
-			err := s.nodeResync(resyncEv)
-			resyncEv.Done(err)
+			// resync needs to return done immediately, to not block resync of the remote cni server
+			go s.nodeResync(resyncEv)
+			resyncEv.Done(nil)
 
 		case changeEv := <-changeChan:
 			err := s.nodeChangePropageteEvent(changeEv)
@@ -45,6 +46,13 @@ func (s *remoteCNIserver) handleNodeEvents(ctx context.Context, resyncChan chan 
 
 // nodeResync processes all nodes data and configures vswitch (routes to the other nodes) accordingly.
 func (s *remoteCNIserver) nodeResync(dataResyncEv datasync.ResyncEvent) error {
+
+	// do not handle other nodes until the base vswitch config is successfully applied
+	s.Lock()
+	for !s.vswitchConnectivityConfigured {
+		s.vswitchCond.Wait()
+	}
+	defer s.Unlock()
 
 	// TODO: implement proper resync (handle deleted routes as well)
 
@@ -83,8 +91,16 @@ func (s *remoteCNIserver) nodeResync(dataResyncEv datasync.ResyncEvent) error {
 // nodeChangePropageteEvent handles change in nodes within the k8s cluster (node add / delete)
 // and configures vswitch (routes to the other nodes) accordingly.
 func (s *remoteCNIserver) nodeChangePropageteEvent(dataChngEv datasync.ChangeEvent) error {
-	var err error
+
+	// do not handle other nodes until the base vswitch config is successfully applied
+	s.Lock()
+	for !s.vswitchConnectivityConfigured {
+		s.vswitchCond.Wait()
+	}
+	defer s.Unlock()
+
 	key := dataChngEv.GetKey()
+	var err error
 
 	if strings.HasPrefix(key, allocatedIDsKeyPrefix) {
 		nodeInfo := &node.NodeInfo{}

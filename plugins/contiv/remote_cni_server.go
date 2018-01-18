@@ -131,9 +131,6 @@ type remoteCNIserver struct {
 
 	// name of the interface interconnecting VPP with the host stack
 	hostInterconnectIfName string
-
-	// ipAddress of the main VPP interface
-	mainIP *net.IPNet
 }
 
 // vswitchConfig holds base vSwitch VPP configuration.
@@ -337,7 +334,6 @@ func (s *remoteCNIserver) configureMainVPPInterface(config *vswitchConfig, nicNa
 	// determine main node IP address
 	if nicIP != "" {
 		s.nodeIP = nicIP
-		_, s.mainIP, _ = net.ParseCIDR(s.nodeIP) // TODO: remove the redundancy
 	} else {
 		nodeIP, err := s.ipam.NodeIPWithPrefix(s.ipam.NodeID())
 		if err != nil {
@@ -345,7 +341,6 @@ func (s *remoteCNIserver) configureMainVPPInterface(config *vswitchConfig, nicNa
 			return err
 		}
 		s.nodeIP = nodeIP.String()
-		s.mainIP = nodeIP // TODO: remove the redundancy
 	}
 
 	if nicName != "" {
@@ -1084,12 +1079,14 @@ func (s *remoteCNIserver) GetHostIPNetwork() *net.IPNet {
 	s.Lock()
 	defer s.Unlock()
 
-	if s.mainIP == nil {
+	if s.nodeIP == "" {
 		return nil
 	}
 
-	return &net.IPNet{
-		IP:   s.mainIP.IP,
-		Mask: s.mainIP.Mask,
+	_, nodeIP, err := net.ParseCIDR(s.nodeIP)
+	if err != nil {
+		return nil
 	}
+
+	return nodeIP
 }

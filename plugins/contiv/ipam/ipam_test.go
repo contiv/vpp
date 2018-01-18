@@ -46,6 +46,7 @@ func newDefaultConfig() *ipam.Config {
 		VPPHostSubnetCIDR:       "2.3." + str(b11000000) + ".2/18",
 		VPPHostNetworkPrefixLen: 30, // 2 bit left -> 3 free IP addresses (zero ending IP is reserved)
 		NodeInterconnectCIDR:    "3.4.5." + str(b11000010) + "/26",
+		VxlanCIDR:               "192.168.30.0/24",
 	}
 }
 

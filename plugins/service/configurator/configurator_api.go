@@ -239,11 +239,9 @@ func (addrs *IPAddresses) Copy() *IPAddresses {
 func (addrs *IPAddresses) Has(addr net.IP) bool {
 	for _, addr2 := range addrs.list {
 		if addr2.Equal(addr) {
-			fmt.Println("HAS returns true")
 			return true
 		}
 	}
-	fmt.Println("HAS returns false")
 	return false
 }
 

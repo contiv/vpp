@@ -414,6 +414,9 @@ func (sc *ServiceConfigurator) exportNATMappings(service *ContivService) ([]*NAT
 				}
 				mapping.Locals = append(mapping.Locals, local)
 			}
+			if len(mapping.Locals) == 0 {
+				continue
+			}
 			if len(mapping.Locals) == 1 {
 				// For single backend we use "1" to represent the probability
 				// (not really configured).

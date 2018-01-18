@@ -23,7 +23,7 @@ import (
 
 	vpp_intf "github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/model/interfaces"
 	vpp_l2 "github.com/ligato/vpp-agent/plugins/defaultplugins/l2plugin/model/l2"
-	"github.com/ligato/vpp-agent/plugins/defaultplugins/l3plugin/model/l3"
+	vpp_l3 "github.com/ligato/vpp-agent/plugins/defaultplugins/l3plugin/model/l3"
 	vpp_l4 "github.com/ligato/vpp-agent/plugins/defaultplugins/l4plugin/model/l4"
 	"github.com/ligato/vpp-agent/plugins/linuxplugin/ifplugin/linuxcalls"
 	linux_intf "github.com/ligato/vpp-agent/plugins/linuxplugin/ifplugin/model/interfaces"
@@ -60,8 +60,8 @@ func (s *remoteCNIserver) routeFromHost() *linux_l3.LinuxStaticRoutes_Route {
 	return route
 }
 
-func (s *remoteCNIserver) defaultRouteToHost() *l3.StaticRoutes_Route {
-	route := &l3.StaticRoutes_Route{
+func (s *remoteCNIserver) defaultRouteToHost() *vpp_l3.StaticRoutes_Route {
+	route := &vpp_l3.StaticRoutes_Route{
 		DstIpAddr:         "0.0.0.0/0",
 		NextHopAddr:       s.ipam.VEthHostEndIP().String(),
 		OutgoingInterface: s.interconnectAfpacketName(),
@@ -193,21 +193,7 @@ func (s *remoteCNIserver) vxlanBridgeDomain(bviInterface string) *vpp_l2.BridgeD
 	}
 }
 
-func (s *remoteCNIserver) computeRoutesToHost(hostID uint8, hostIP string) (podsRoute *l3.StaticRoutes_Route, hostRoute *l3.StaticRoutes_Route, err error) {
-	// determine next hop IP - either use provided one, or calculate based on hostIP
-	var nextHopIP string
-	if hostIP != "" {
-		// hostIP defined, just trim prefix length
-		nextHopIP = hostIP[:strings.Index(hostIP, "/")]
-	} else {
-		// hostIP not defined, determine based on hostID
-		nodeIP, err := s.ipam.NodeIPAddress(hostID)
-		if err != nil {
-			return nil, nil, fmt.Errorf("Can't get Host IP address for host ID %v, error: %v ", hostID, err)
-		}
-		nextHopIP = nodeIP.String()
-	}
-
+func (s *remoteCNIserver) computeRoutesToHost(hostID uint8, nextHopIP string) (podsRoute *vpp_l3.StaticRoutes_Route, hostRoute *vpp_l3.StaticRoutes_Route, err error) {
 	podsRoute, err = s.routeToOtherHostPods(hostID, nextHopIP)
 	if err != nil {
 		err = fmt.Errorf("Can't construct route to pods of host %v: %v ", hostID, err)
@@ -221,7 +207,7 @@ func (s *remoteCNIserver) computeRoutesToHost(hostID uint8, hostIP string) (pods
 	return
 }
 
-func (s *remoteCNIserver) routeToOtherHostPods(hostID uint8, nextHopIP string) (*l3.StaticRoutes_Route, error) {
+func (s *remoteCNIserver) routeToOtherHostPods(hostID uint8, nextHopIP string) (*vpp_l3.StaticRoutes_Route, error) {
 	podNetwork, err := s.ipam.OtherNodePodNetwork(hostID)
 	if err != nil {
 		return nil, fmt.Errorf("Can't compute pod network for host ID %v, error: %v ", hostID, err)
@@ -229,7 +215,7 @@ func (s *remoteCNIserver) routeToOtherHostPods(hostID uint8, nextHopIP string) (
 	return s.routeToOtherHostNetworks(podNetwork, nextHopIP)
 }
 
-func (s *remoteCNIserver) routeToOtherHostStack(hostID uint8, nextHopIP string) (*l3.StaticRoutes_Route, error) {
+func (s *remoteCNIserver) routeToOtherHostStack(hostID uint8, nextHopIP string) (*vpp_l3.StaticRoutes_Route, error) {
 	hostNw, err := s.ipam.OtherNodeVPPHostNetwork(hostID)
 	if err != nil {
 		return nil, fmt.Errorf("Can't compute vswitch network for host ID %v, error: %v ", hostID, err)
@@ -237,35 +223,21 @@ func (s *remoteCNIserver) routeToOtherHostStack(hostID uint8, nextHopIP string) 
 	return s.routeToOtherHostNetworks(hostNw, nextHopIP)
 }
 
-func (s *remoteCNIserver) routeToOtherHostNetworks(destNetwork *net.IPNet, nextHopIP string) (*l3.StaticRoutes_Route, error) {
-	return &l3.StaticRoutes_Route{
+func (s *remoteCNIserver) routeToOtherHostNetworks(destNetwork *net.IPNet, nextHopIP string) (*vpp_l3.StaticRoutes_Route, error) {
+	return &vpp_l3.StaticRoutes_Route{
 		DstIpAddr:   destNetwork.String(),
 		NextHopAddr: nextHopIP,
 	}, nil
 }
 
 func (s *remoteCNIserver) computeVxlanToHost(hostID uint8, hostIP string) (*vpp_intf.Interfaces_Interface, error) {
-	// determine next hop IP - either use provided one, or calculate based on hostIP
-	var dstIP string
-	if hostIP != "" {
-		// hostIP defined, just trim prefix length
-		dstIP = s.ipPrefixToAddress(hostIP)
-	} else {
-		// hostIP not defined, determine based on hostID
-		nodeIP, err := s.ipam.NodeIPAddress(hostID)
-		if err != nil {
-			return nil, fmt.Errorf("Can't get Host IP address for host ID %v, error: %v ", hostID, err)
-		}
-		dstIP = nodeIP.String()
-	}
-
 	return &vpp_intf.Interfaces_Interface{
 		Name:    fmt.Sprintf("vxlan%d", hostID),
 		Type:    vpp_intf.InterfaceType_VXLAN_TUNNEL,
 		Enabled: true,
 		Vxlan: &vpp_intf.Interfaces_Interface_Vxlan{
 			SrcAddress: s.ipPrefixToAddress(s.nodeIP),
-			DstAddress: dstIP,
+			DstAddress: hostIP,
 			Vni:        vxlanVNI,
 		},
 	}, nil
@@ -276,6 +248,22 @@ func (s *remoteCNIserver) addInterfaceToVxlanBD(bd *vpp_l2.BridgeDomains_BridgeD
 		Name:              ifName,
 		SplitHorizonGroup: vxlanSplitHorizonGroup,
 	})
+}
+
+func (s *remoteCNIserver) otherHostIP(hostID uint8, hostIPPrefix string) string {
+	// determine next hop IP - either use provided one, or calculate based on hostIPPrefix
+	if hostIPPrefix != "" {
+		// hostIPPrefix defined, just trim prefix length
+		return s.ipPrefixToAddress(hostIPPrefix)
+	} else {
+		// hostIPPrefix not defined, determine based on hostID
+		nodeIP, err := s.ipam.NodeIPAddress(hostID)
+		if err != nil {
+			s.Logger.Errorf("Can't get Host IP address for host ID %v, error: %v ", hostID, err)
+			return ""
+		}
+		return nodeIP.String()
+	}
 }
 
 func (s *remoteCNIserver) ipPrefixToAddress(ip string) string {

@@ -19,8 +19,11 @@ import (
 	"fmt"
 	"strings"
 
+	"net"
+
 	"github.com/contiv/vpp/plugins/contiv/model/node"
 	"github.com/ligato/cn-infra/datasync"
+	vpp_l3 "github.com/ligato/vpp-agent/plugins/defaultplugins/l3plugin/model/l3"
 )
 
 // handleNodeEvents handles changes in nodes within the k8s cluster (node add / delete) and
@@ -129,11 +132,13 @@ func (s *remoteCNIserver) nodeChangePropageteEvent(dataChngEv datasync.ChangeEve
 
 // addRoutesToNode add routes to the node specified by nodeID.
 func (s *remoteCNIserver) addRoutesToNode(nodeInfo *node.NodeInfo) error {
+
 	txn := s.vppTxnFactory().Put()
+	hostIP := s.otherHostIP(uint8(nodeInfo.Id), nodeInfo.IpAddress)
 
 	// VXLAN tunnel
 	if !s.useL2Interconnect {
-		vxlanIf, err := s.computeVxlanToHost(uint8(nodeInfo.Id), nodeInfo.IpAddress)
+		vxlanIf, err := s.computeVxlanToHost(uint8(nodeInfo.Id), hostIP)
 		if err != nil {
 			return err
 		}
@@ -145,7 +150,23 @@ func (s *remoteCNIserver) addRoutesToNode(nodeInfo *node.NodeInfo) error {
 	}
 
 	// static routes
-	podsRoute, hostRoute, err := s.computeRoutesToHost(uint8(nodeInfo.Id), nodeInfo.IpAddress)
+	var (
+		podsRoute    *vpp_l3.StaticRoutes_Route
+		hostRoute    *vpp_l3.StaticRoutes_Route
+		vxlanNextHop net.IP
+		err          error
+	)
+	if s.useL2Interconnect {
+		// static route directly to other node IP
+		podsRoute, hostRoute, err = s.computeRoutesToHost(uint8(nodeInfo.Id), hostIP)
+	} else {
+		// static route to other node VXLAN BVI
+		vxlanNextHop, err = s.ipam.VxlanIPAddress(uint8(nodeInfo.Id))
+		if err != nil {
+			return err
+		}
+		podsRoute, hostRoute, err = s.computeRoutesToHost(uint8(nodeInfo.Id), vxlanNextHop.String())
+	}
 	if err != nil {
 		return err
 	}

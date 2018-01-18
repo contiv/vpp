@@ -249,6 +249,7 @@ func (sc *ServiceConfigurator) setNATMapping(mapping *NATMapping, isAdd bool) er
 			VrfID: ^uint32(0),
 			/* Out2inOnly: 1, */
 			AddrOnly:          0,
+			Protocol:          uint8(mapping.Protocol),
 			ExternalPort:      mapping.ExternalPort,
 			ExternalSwIfIndex: ^uint32(0),
 			LocalPort:         mapping.Locals[0].Port,
@@ -257,9 +258,6 @@ func (sc *ServiceConfigurator) setNATMapping(mapping *NATMapping, isAdd bool) er
 		copy(req.ExternalIPAddress, mapping.ExternalIP)
 		req.LocalIPAddress = make([]byte, net.IPv4len)
 		copy(req.LocalIPAddress, mapping.Locals[0].Address)
-		if mapping.Protocol == TCP {
-			req.Protocol = 1
-		}
 		if mapping.TwiceNat {
 			req.TwiceNat = 1
 		}
@@ -281,15 +279,13 @@ func (sc *ServiceConfigurator) setNATMapping(mapping *NATMapping, isAdd bool) er
 	req := &nat.Nat44AddDelLbStaticMapping{
 		VrfID:        ^uint32(0),
 		Out2inOnly:   1,
+		Protocol:     uint8(mapping.Protocol),
 		ExternalPort: mapping.ExternalPort,
 		LocalNum:     uint8(len(mapping.Locals)),
 		Locals:       []nat.Nat44LbAddrPort{},
 	}
 	req.ExternalAddr = make([]byte, net.IPv4len)
 	copy(req.ExternalAddr, mapping.ExternalIP)
-	if mapping.Protocol == TCP {
-		req.Protocol = 1
-	}
 	if mapping.TwiceNat {
 		req.TwiceNat = 1
 	}
@@ -418,7 +414,7 @@ func (sc *ServiceConfigurator) dumpNATMappings() ([]*NATMapping, error) {
 		if stop {
 			break
 		}
-		if msg.Out2inOnly == 0 || msg.Protocol == 2 /* ICMP */ {
+		if msg.Out2inOnly == 0 || (msg.Protocol != uint8(TCP) && msg.Protocol != uint8(UDP)) {
 			// Mapping not installed by this plugin.
 			continue
 		}
@@ -427,11 +423,7 @@ func (sc *ServiceConfigurator) dumpNATMappings() ([]*NATMapping, error) {
 		mapping.ExternalIP = make([]byte, net.IPv4len)
 		copy(mapping.ExternalIP, msg.ExternalAddr)
 		mapping.ExternalPort = msg.ExternalPort
-		if msg.Protocol == 0 {
-			mapping.Protocol = UDP
-		} else {
-			mapping.Protocol = TCP
-		}
+		mapping.Protocol = ProtocolType(msg.Protocol)
 		if msg.TwiceNat == 1 {
 			mapping.TwiceNat = true
 		}
@@ -463,7 +455,7 @@ func (sc *ServiceConfigurator) dumpNATMappings() ([]*NATMapping, error) {
 			break
 		}
 		if /*msg.Out2inOnly == 0 || */ msg.AddrOnly == 1 || msg.ExternalSwIfIndex != ^uint32(0) ||
-			msg.Protocol == 2 /* ICMP */ {
+			(msg.Protocol != uint8(TCP) && msg.Protocol != uint8(UDP)) {
 			// Mapping not installed by this plugin.
 			continue
 		}
@@ -472,11 +464,7 @@ func (sc *ServiceConfigurator) dumpNATMappings() ([]*NATMapping, error) {
 		mapping.ExternalIP = make([]byte, net.IPv4len)
 		copy(mapping.ExternalIP, msg.ExternalIPAddress)
 		mapping.ExternalPort = msg.ExternalPort
-		if msg.Protocol == 0 {
-			mapping.Protocol = UDP
-		} else {
-			mapping.Protocol = TCP
-		}
+		mapping.Protocol = ProtocolType(msg.Protocol)
 		if msg.TwiceNat == 1 {
 			mapping.TwiceNat = true
 		}

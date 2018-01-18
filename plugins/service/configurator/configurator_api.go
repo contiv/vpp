@@ -158,10 +158,10 @@ type ProtocolType int
 
 const (
 	// TCP protocol.
-	TCP ProtocolType = iota
+	TCP ProtocolType = 6
 
 	// UDP protocol.
-	UDP
+	UDP ProtocolType = 17
 )
 
 // String converts ProtocolType into a human-readable string.

@@ -131,6 +131,9 @@ type remoteCNIserver struct {
 
 	// name of the interface interconnecting VPP with the host stack
 	hostInterconnectIfName string
+
+	// the name of an BVI interface facing towards VXLAN tunnels to other hosts
+	vxlanIfName string
 }
 
 // vswitchConfig holds base vSwitch VPP configuration.
@@ -487,6 +490,7 @@ func (s *remoteCNIserver) configureVswitchVxlanBridgeDomain(config *vswitchConfi
 		return err
 	}
 	txn.VppInterface(config.vxlanBVI)
+	s.vxlanIfName = config.vxlanBVI.Name
 
 	// bridge domain for the VXLAN tunnel
 	config.vxlanBD = s.vxlanBridgeDomain(config.vxlanBVI.Name)
@@ -1063,6 +1067,19 @@ func (s *remoteCNIserver) GetPhysicalIfNames() []string {
 	defer s.Unlock()
 
 	return s.physicalIfs
+}
+
+// GetVxlanIfName returns the name of an BVI interface facing towards VXLAN tunnels to other hosts.
+// Returns an empty string if VXLAN is not used (in L2 interconnect mode).
+func (s *remoteCNIserver) GetVxlanIfName() string {
+	s.Lock()
+	defer s.Unlock()
+
+	if s.useL2Interconnect {
+		return ""
+	}
+
+	return s.vxlanIfName
 }
 
 // GetHostInterconnectIfName returns the name of the TAP/AF_PACKET interface

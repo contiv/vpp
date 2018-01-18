@@ -64,7 +64,8 @@ func TestEndpointsReflector(t *testing.T) {
 	nodeName := "cvpp"
 	epTestVars.epsTestData = []coreV1.Endpoints{
 		{
-			// Test data 0: mocks a new object to be added
+			// Test data 0: mocks a new object to be added to the data store in
+			// add tests (mark-and-sweep synchronization test, add test)
 			ObjectMeta: metav1.ObjectMeta{
 				Name:            "my-nginx",
 				Namespace:       "default",
@@ -111,8 +112,9 @@ func TestEndpointsReflector(t *testing.T) {
 				},
 			},
 		},
-		// Test data 1: mocks an object that updates a "pre-existing" object
-		// during sync
+		// Test data 1: mocks a pre-existing object in the data store that is
+		// updated during the mark-and-sweep synchronization test because its
+		// counterpart in the K8s cache has changed.
 		{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:            "calico-etcd",
@@ -149,8 +151,9 @@ func TestEndpointsReflector(t *testing.T) {
 				},
 			},
 		},
-		// Test data 2: mocks a "stale" object that is to be deleted during
-		// sync
+		// Test data 2: mocks a pre-existing "stale" object in the data store
+		// that is deleted during the mark-and-sweep synchronization test
+		// because its counterpart no longer exists in the K8s cache.
 		{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:            "kube-dns",

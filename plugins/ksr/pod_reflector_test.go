@@ -64,6 +64,8 @@ func TestPodReflector(t *testing.T) {
 
 	timeout := int64(30)
 	podTestVars.podTestData = []coreV1.Pod{
+		// Test data 0: mocks a new object to be added to the data store add
+		// tests (mark-and-sweep synchronization test, add test)
 		{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:            "my-nginx-9d5677d94-ng9xg",
@@ -117,6 +119,9 @@ func TestPodReflector(t *testing.T) {
 				PodIP:  "192.168.49.92",
 			},
 		},
+		// Test data 1: mocks a pre-existing object in the data store that is
+		// updated during the mark-and-sweep synchronization test because its
+		// counterpart in the K8s cache has changed.
 		{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:            "kube-dns-6f4fd4bdf-lkpjr",
@@ -195,6 +200,9 @@ func TestPodReflector(t *testing.T) {
 				PodIP:  "192.168.49.91",
 			},
 		},
+		// Test data 2: mocks a pre-existing "stale" object in the data store
+		// that is deleted during the mark-and-sweep synchronization test
+		// because its counterpart no longer exists in the K8s cache.
 		{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:            "my-nginx-9d5677d94-kjmjw",
@@ -375,6 +383,7 @@ func testUpdatePod(t *testing.T) {
 	gomega.Ω(err).Should(gomega.Succeed())
 	k8sPodNew := &coreV1.Pod{}
 	err = json.Unmarshal(tmpBuf, k8sPodNew)
+	gomega.Ω(err).Should(gomega.Succeed())
 
 	// Take a snapshot of counters
 	upds := podTestVars.podReflector.GetStats().NumUpdates

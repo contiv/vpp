@@ -142,9 +142,10 @@ func (s *remoteCNIserver) interconnectAfpacket() *vpp_intf.Interfaces_Interface 
 
 func (s *remoteCNIserver) physicalInterface(name string, ipAddress string) *vpp_intf.Interfaces_Interface {
 	return &vpp_intf.Interfaces_Interface{
-		Name:        name,
-		Type:        vpp_intf.InterfaceType_ETHERNET_CSMACD,
-		Enabled:     true,
+		Name:    name,
+		Type:    vpp_intf.InterfaceType_ETHERNET_CSMACD,
+		Enabled: true,
+
 		IpAddresses: []string{ipAddress},
 	}
 }

@@ -85,25 +85,10 @@ OneNodeK8sTeardown
     setup-teardown.Testsuite Teardown
 
 Setup_Hosts_Connections
-    [Arguments]    ${user}=localadmin    ${password}=cisco123
     [Documentation]    Open and store two more SSH connections to master host, in them open
     ...    pod shells to client and server pod, parse their IP addresses and store them.
-    Builtin.Log_Many    ${user}    ${password}
-    ${conn} =     SSHLibrary.Get_Connection    ${testbed_connection}
-    ${client_connection} =    SSHLibrary.Open_Connection    ${conn.host}    timeout=10
-    SSHLibrary.Login    ${user}    ${password}
-    BuiltIn.Set_Suite_Variable    ${client_connection}
-    ${server_connection} =    SSHLibrary.Open_Connection    ${conn.host}    timeout=10
-    SSHLibrary.Login    ${user}    ${password}
-    BuiltIn.Set_Suite_Variable    ${server_connection}
-    KubernetesEnv.Get_Into_Container_Prompt_In_Pod    ${client_connection}    ${client_pod_name}    prompt=#
-    KubernetesEnv.Get_Into_Container_Prompt_In_Pod    ${server_connection}    ${server_pod_name}    prompt=#
-    ${client_pod_details} =     KubeCtl.Describe_Pod    ${testbed_connection}    ${client_pod_name}
-    ${server_pod_details} =     KubeCtl.Describe_Pod    ${testbed_connection}    ${server_pod_name}
-    ${server_ip} =     BuiltIn.Evaluate    &{server_pod_details}[${server_pod_name}]["IP"]
-    ${client_ip} =     BuiltIn.Evaluate    &{client_pod_details}[${client_pod_name}]["IP"]
-    BuiltIn.Set_Suite_Variable    ${server_ip}
-    BuiltIn.Set_Suite_Variable    ${client_ip}
+    EnvConnections.Open_Client_Connection
+    EnvConnections.Open_Server_Connection
 
 Teardown_Hosts_Connections
     [Documentation]    Exit pod shells, close corresponding SSH connections.

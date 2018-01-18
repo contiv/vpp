@@ -8,10 +8,12 @@ It is organized into two subfolders:
  - (config) - contains the files needed to share cluster information, used during the provisioning stage (master IP address, Certificates, hash-keys). Editing is not recommended!
  - (vagrant-scripts) - contains scripts for creating, destroying, rebooting and shuting down the VMs that host the K8s cluster.
 
-To define the cluster's size edit the value K8S_NODES found in vagrant-scripts/vagrant-up.sh script:
+If you wish to change the default number of nodes, set K8S_NODES before running vagrant-up.sh:
 ```
-export K8S_NODES=0, for a single-node setup
-export K8S_NODES=1, for a two-node setup
+# For a single node setup:
+export K8S_NODES=0
+# For a two node setup:
+export K8S_NODES=1
 ```
 
 To create and run the cluster run vagrant-up.sh script, located inside vagrant-scripts folder:

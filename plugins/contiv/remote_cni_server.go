@@ -327,14 +327,14 @@ func (s *remoteCNIserver) configureMainVPPInterface(config *vswitchConfig, nicNa
 
 	// determine main node IP address
 	if nicIP != "" {
+		s.nodeIP = nicIP
+	} else {
 		nodeIP, err := s.ipam.NodeIPWithPrefix(s.ipam.NodeID())
 		if err != nil {
 			s.Logger.Error("Unable to generate node IP address.")
 			return err
 		}
 		s.nodeIP = nodeIP.String()
-	} else {
-		s.nodeIP = nicIP
 	}
 
 	if nicName != "" {

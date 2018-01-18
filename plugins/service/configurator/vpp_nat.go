@@ -260,7 +260,7 @@ func (sc *ServiceConfigurator) setNATMapping(mapping *NATMapping, isAdd bool) er
 		}
 		// Single-backend NAT mapping.
 		req := &nat.Nat44AddDelStaticMapping{
-			VrfID: ^uint32(0),
+			VrfID: 0,
 			/* Out2inOnly: 1, */
 			AddrOnly:          0,
 			Protocol:          uint8(mapping.Protocol),
@@ -291,7 +291,7 @@ func (sc *ServiceConfigurator) setNATMapping(mapping *NATMapping, isAdd bool) er
 
 	// Multiple-backends NAT mapping.
 	req := &nat.Nat44AddDelLbStaticMapping{
-		VrfID:        ^uint32(0),
+		VrfID:        0,
 		Out2inOnly:   1,
 		Protocol:     uint8(mapping.Protocol),
 		ExternalPort: mapping.ExternalPort,

@@ -120,7 +120,7 @@ func (sc *ServiceConfigurator) DeleteService(service *ContivService) error {
 }
 
 // UpdateFrontendAddrs updates the list of addresses on which services are exposed.
-func (sc *ServiceConfigurator) UpdateFrontendAddrs(oldAddrs, newAddrs IPAddresses) error {
+func (sc *ServiceConfigurator) UpdateFrontendAddrs(oldAddrs, newAddrs *IPAddresses) error {
 	sc.Log.WithFields(logging.Fields{
 		"oldAddrs": oldAddrs,
 		"newAddrs": newAddrs,

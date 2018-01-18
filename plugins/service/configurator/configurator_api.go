@@ -46,7 +46,7 @@ type ServiceConfiguratorAPI interface {
 
 	// UpdateFrontendAddrs updates the list of addresses on which services are
 	// exposed.
-	UpdateFrontendAddrs(oldAddrs, newAddrs IPAddresses) error
+	UpdateFrontendAddrs(oldAddrs, newAddrs *IPAddresses) error
 
 	// UpdateLocalFrontendIfs updates the list of interfaces connecting clients
 	// with VPP (enabled out2in VPP/NAT feature).
@@ -81,7 +81,7 @@ type ContivService struct {
 
 	// ExternalIPs is a set of all IP addresses on which the service
 	// should be exposed on this node.
-	ExternalIPs IPAddresses
+	ExternalIPs *IPAddresses
 
 	// Ports is a map of all ports exposed for this service.
 	Ports map[string]*ServicePort
@@ -193,8 +193,8 @@ type IPAddresses struct {
 }
 
 // NewIPAddresses is a constructor for IPAddresses.
-func NewIPAddresses(addrs ...net.IP) IPAddresses {
-	ipAddresses := IPAddresses{
+func NewIPAddresses(addrs ...net.IP) *IPAddresses {
+	ipAddresses := &IPAddresses{
 		list: []net.IP{},
 	}
 	for _, addr := range addrs {
@@ -204,22 +204,19 @@ func NewIPAddresses(addrs ...net.IP) IPAddresses {
 }
 
 // List returns the set as a slice which can be iterated through.
-func (addrs IPAddresses) List() []net.IP {
-	fmt.Printf("LIST content: %v\n", addrs.list)
+func (addrs *IPAddresses) List() []net.IP {
 	return addrs.list
 }
 
 // Add IP address into the set.
-func (addrs IPAddresses) Add(addr net.IP) {
+func (addrs *IPAddresses) Add(addr net.IP) {
 	if !addrs.Has(addr) {
-		fmt.Printf("ADDING to list: %v\n", addrs.list)
 		addrs.list = append(addrs.list, addr)
-		fmt.Printf("ADDED to list: %v\n", addrs.list)
 	}
 }
 
 // Del IP address from the set.
-func (addrs IPAddresses) Del(addr net.IP) {
+func (addrs *IPAddresses) Del(addr net.IP) {
 	newAddrs := []net.IP{}
 	for _, addr2 := range addrs.list {
 		if !addr2.Equal(addr) {
@@ -230,7 +227,7 @@ func (addrs IPAddresses) Del(addr net.IP) {
 }
 
 // Copy creates a deep copy of the set.
-func (addrs IPAddresses) Copy() IPAddresses {
+func (addrs *IPAddresses) Copy() *IPAddresses {
 	addrsCopy := NewIPAddresses()
 	for _, addr := range addrs.list {
 		addrsCopy.list = append(addrsCopy.list, addr)
@@ -239,7 +236,7 @@ func (addrs IPAddresses) Copy() IPAddresses {
 }
 
 // Has returns true if the given IP address is in the set.
-func (addrs IPAddresses) Has(addr net.IP) bool {
+func (addrs *IPAddresses) Has(addr net.IP) bool {
 	for _, addr2 := range addrs.list {
 		if addr2.Equal(addr) {
 			fmt.Println("HAS returns true")
@@ -323,7 +320,7 @@ type ResyncEventData struct {
 	Services []*ContivService
 
 	// FrontendAddrs is a set of all addresses on which services are exposed.
-	FrontendAddrs IPAddresses
+	FrontendAddrs *IPAddresses
 
 	// FrontendIfs is a set of all interfaces connecting clients with VPP.
 	FrontendIfs Interfaces

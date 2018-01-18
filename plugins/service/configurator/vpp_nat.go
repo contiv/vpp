@@ -374,7 +374,7 @@ func (sc *ServiceConfigurator) syncNATMappings(have []*NATMapping, want []*NATMa
 
 // dumpAddressPool returns all addresses currently installed in the NAT plugin's
 // SNAT or DNAT address pool.
-func (sc *ServiceConfigurator) dumpAddressPools() (snat, dnat IPAddresses, err error) {
+func (sc *ServiceConfigurator) dumpAddressPools() (snat, dnat *IPAddresses, err error) {
 	snat = NewIPAddresses()
 	dnat = NewIPAddresses()
 	req := &nat.Nat44AddressDump{}

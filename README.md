@@ -31,8 +31,8 @@ a new issue and discuss your feature.
 
 In any case, before submitting your pull request please check the 
 [Coding style][3] and cover the newly added code with tests and 
-documentation. (Contiv-VPP adopted the coding style used in the [Ligato][5]
-project) Upon submission, each patch is run through the `go fmt` and 
+documentation (Contiv-VPP adopted the coding style used in the [Ligato][5]
+project). Upon submission, each patch is run through the `go fmt` and 
 `golint` tools.
 
 

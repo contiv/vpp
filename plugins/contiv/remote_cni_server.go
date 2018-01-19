@@ -32,6 +32,7 @@ import (
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/ifaceidx"
 	vpp_intf "github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/model/interfaces"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/model/stn"
+	vpp_l2 "github.com/ligato/vpp-agent/plugins/defaultplugins/l2plugin/model/l2"
 	vpp_l3 "github.com/ligato/vpp-agent/plugins/defaultplugins/l3plugin/model/l3"
 	vpp_l4 "github.com/ligato/vpp-agent/plugins/defaultplugins/l4plugin/model/l4"
 	linux_intf "github.com/ligato/vpp-agent/plugins/linuxplugin/ifplugin/model/interfaces"
@@ -91,8 +92,11 @@ type remoteCNIserver struct {
 	// unique identifier of the node
 	nodeID uint8
 
+	// this node's main IP address
+	nodeIP string
+
 	// node specific configuration
-	nodeConfigs []OneNodeConfig
+	nodeConfig *OneNodeConfig
 
 	// other configuration
 	tcpChecksumOffloadDisabled bool
@@ -116,14 +120,20 @@ type remoteCNIserver struct {
 	tapV2RxRingSize uint16
 	tapV2TxRingSize uint16
 
+	// use pure L2 node interconnect instead of VXLANs
+	useL2Interconnect bool
+
+	// bridge domain used for VXLAN tunnels
+	vxlanBD *vpp_l2.BridgeDomains_BridgeDomain
+
 	// name of physical interfaces configured by the agent
 	physicalIfs []string
 
 	// name of the interface interconnecting VPP with the host stack
 	hostInterconnectIfName string
 
-	// ipAddress of the main VPP interface
-	mainIP *net.IPNet
+	// the name of an BVI interface facing towards VXLAN tunnels to other hosts
+	vxlanBVIIfName string
 }
 
 // vswitchConfig holds base vSwitch VPP configuration.
@@ -138,12 +148,15 @@ type vswitchConfig struct {
 	routeToHost   *vpp_l3.StaticRoutes_Route
 	routeFromHost *linux_l3.LinuxStaticRoutes_Route
 	l4Features    *vpp_l4.L4Features
+
+	vxlanBVI *vpp_intf.Interfaces_Interface
+	vxlanBD  *vpp_l2.BridgeDomains_BridgeDomain
 }
 
 // newRemoteCNIServer initializes a new remote CNI server instance.
 func newRemoteCNIServer(logger logging.Logger, vppTxnFactory func() linux.DataChangeDSL, proxy kvdbproxy.Proxy,
 	configuredContainers *containeridx.ConfigIndex, govppChan *api.Channel, index ifaceidx.SwIfIndex, agentLabel string,
-	config *Config, nodeID uint8) (*remoteCNIserver, error) {
+	config *Config, nodeConfig *OneNodeConfig, nodeID uint8) (*remoteCNIserver, error) {
 	ipam, err := ipam.New(logger, nodeID, &config.IPAMConfig)
 	if err != nil {
 		return nil, err
@@ -158,13 +171,14 @@ func newRemoteCNIServer(logger logging.Logger, vppTxnFactory func() linux.DataCh
 		agentLabel:                 agentLabel,
 		nodeID:                     nodeID,
 		ipam:                       ipam,
-		nodeConfigs:                config.NodeConfig,
+		nodeConfig:                 nodeConfig,
 		tcpChecksumOffloadDisabled: config.TCPChecksumOffloadDisabled,
 		useTAPInterfaces:           config.UseTAPInterfaces,
 		tapVersion:                 config.TAPInterfaceVersion,
 		tapV2RxRingSize:            config.TAPv2RxRingSize,
 		tapV2TxRingSize:            config.TAPv2TxRingSize,
 		disableTCPstack:            config.TCPstackDisabled,
+		useL2Interconnect:          config.UseL2Interconnect,
 	}
 	server.vswitchCond = sync.NewCond(&server.Mutex)
 	return server, nil
@@ -237,6 +251,15 @@ func (s *remoteCNIserver) configureVswitchConnectivity() error {
 		return err
 	}
 
+	if !s.useL2Interconnect {
+		// configure VXLAN tunnel bridge domain
+		err = s.configureVswitchVxlanBridgeDomain(config)
+		if err != nil {
+			s.Logger.Error(err)
+			return err
+		}
+	}
+
 	// persist vswitch configuration in ETCD
 	err = s.persistVswitchConfig(config)
 	if err != nil {
@@ -260,14 +283,11 @@ func (s *remoteCNIserver) configureVswitchNICs(config *vswitchConfig) error {
 	}
 	s.Logger.Info("Existing interfaces: ", s.swIfIndex.GetMapping().ListNames())
 
-	// load node-specific config from the config YAML
-	nodeConfig := s.loadNodeSpecificConfig()
-
 	// find name of the main VPP NIC interface
 	nicName := ""
-	if nodeConfig != nil && strings.Trim(nodeConfig.MainVppInterfaceName, " ") != "" {
+	if s.nodeConfig != nil && strings.Trim(s.nodeConfig.MainVppInterface.InterfaceName, " ") != "" {
 		// use name as as specified in node config YAML
-		nicName = nodeConfig.MainVppInterfaceName
+		nicName = s.nodeConfig.MainVppInterface.InterfaceName
 		s.Logger.Debugf("Physical NIC name taken from nodeConfig: %v ", nicName)
 	} else {
 		// name not specified in config, use heuristic - first non-virtual interface
@@ -282,19 +302,24 @@ func (s *remoteCNIserver) configureVswitchNICs(config *vswitchConfig) error {
 		}
 		s.Logger.Debugf("Physical NIC not taken from nodeConfig, but heuristic was used: %v ", nicName)
 	}
+	// IP of the main interface
+	nicIP := ""
+	if s.nodeConfig != nil && s.nodeConfig.MainVppInterface.IP != "" {
+		nicIP = s.nodeConfig.MainVppInterface.IP
+	}
 
 	// configure the main VPP NIC interface
-	err := s.configureMainVPPInterface(config, nicName)
+	err := s.configureMainVPPInterface(config, nicName, nicIP)
 	if err != nil {
 		s.Logger.Error(err)
 		return err
 	}
 
 	// configure other interfaces that were configured in contiv plugin YAML configuration
-	if nodeConfig != nil && len(nodeConfig.OtherVPPInterfaces) > 0 {
+	if s.nodeConfig != nil && len(s.nodeConfig.OtherVPPInterfaces) > 0 {
 		s.Logger.Debug("Configuring VPP for additional interfaces")
 
-		err := s.configureOtherVPPInterfaces(config, nodeConfig)
+		err := s.configureOtherVPPInterfaces(config, s.nodeConfig)
 		if err != nil {
 			s.Logger.Error(err)
 			return err
@@ -305,23 +330,27 @@ func (s *remoteCNIserver) configureVswitchNICs(config *vswitchConfig) error {
 }
 
 // configureMainVPPInterface configures the main NIC used for node interconnect on vswitch VPP.
-func (s *remoteCNIserver) configureMainVPPInterface(config *vswitchConfig, nicName string) error {
+func (s *remoteCNIserver) configureMainVPPInterface(config *vswitchConfig, nicName string, nicIP string) error {
 	var err error
-	s.mainIP, err = s.ipam.NodeIPNetwork(s.ipam.NodeID())
-	if err != nil {
-		return err
-	}
-
 	txn1 := s.vppTxnFactory().Put()
+
+	// determine main node IP address
+	if nicIP != "" {
+		s.nodeIP = nicIP
+	} else {
+		nodeIP, err := s.ipam.NodeIPWithPrefix(s.ipam.NodeID())
+		if err != nil {
+			s.Logger.Error("Unable to generate node IP address.")
+			return err
+		}
+		s.nodeIP = nodeIP.String()
+	}
 
 	if nicName != "" {
 		// configure the physical NIC
 		s.Logger.Info("Configuring physical NIC ", nicName)
 
-		nic, err := s.physicalInterface(nicName)
-		if err != nil {
-			return fmt.Errorf("Can't create structure for interface %v due to error: %v", nicName, err)
-		}
+		nic := s.physicalInterface(nicName, s.nodeIP)
 		txn1.VppInterface(nic)
 		config.nics = append(config.nics, nic)
 		s.physicalIfs = append(s.physicalIfs, nicName)
@@ -329,10 +358,7 @@ func (s *remoteCNIserver) configureMainVPPInterface(config *vswitchConfig, nicNa
 		// configure loopback instead of the physical NIC
 		s.Logger.Debug("Physical NIC not found, configuring loopback instead.")
 
-		loop, err := s.physicalInterfaceLoopback()
-		if err != nil {
-			return fmt.Errorf("Can't create structure for loopback interface due to error: %v", err)
-		}
+		loop := s.physicalInterfaceLoopback(s.nodeIP)
 		txn1.VppInterface(loop)
 		config.nics = append(config.nics, loop)
 	}
@@ -355,7 +381,7 @@ func (s *remoteCNIserver) configureOtherVPPInterfaces(config *vswitchConfig, nod
 	for _, name := range s.swIfIndex.GetMapping().ListNames() {
 		for _, intIP := range nodeConfig.OtherVPPInterfaces {
 			if intIP.InterfaceName == name {
-				interfaces[name] = s.physicalInterfaceWithCustomIPAddress(name, intIP.IP)
+				interfaces[name] = s.physicalInterface(name, intIP.IP)
 			}
 		}
 	}
@@ -452,6 +478,36 @@ func (s *remoteCNIserver) configureVswitchHostConnectivity(config *vswitchConfig
 	return nil
 }
 
+// configureVswitchVxlanBridgeDomain configures bridge domain for the VXLAN tunnels.
+func (s *remoteCNIserver) configureVswitchVxlanBridgeDomain(config *vswitchConfig) error {
+	var err error
+	txn := s.vppTxnFactory().Put()
+
+	// VXLAN BVI loopback
+	config.vxlanBVI, err = s.vxlanBVILoopback()
+	if err != nil {
+		s.Logger.Error(err)
+		return err
+	}
+	txn.VppInterface(config.vxlanBVI)
+	s.vxlanBVIIfName = config.vxlanBVI.Name
+
+	// bridge domain for the VXLAN tunnel
+	config.vxlanBD = s.vxlanBridgeDomain(config.vxlanBVI.Name)
+	txn.BD(config.vxlanBD)
+	// remember the VXLAN config - needs to be reconfigured with each new VXLAN (each new node)
+	s.vxlanBD = config.vxlanBD
+
+	// execute the config transaction
+	err = txn.Send().ReceiveReply()
+	if err != nil {
+		s.Logger.Error(err)
+		return err
+	}
+
+	return nil
+}
+
 // persistVswitchConfig persits vswitch configuration in ETCD
 func (s *remoteCNIserver) persistVswitchConfig(config *vswitchConfig) error {
 	var err error
@@ -460,6 +516,12 @@ func (s *remoteCNIserver) persistVswitchConfig(config *vswitchConfig) error {
 	// physical NICs
 	for _, nic := range config.nics {
 		changes[vpp_intf.InterfaceKey(nic.Name)] = nic
+	}
+
+	// VXLAN-related data
+	if !s.useL2Interconnect {
+		changes[vpp_intf.InterfaceKey(config.vxlanBVI.Name)] = config.vxlanBVI
+		changes[vpp_l2.BridgeDomainKey(config.vxlanBD.Name)] = config.vxlanBD
 	}
 
 	// TAP / veths + AF_APCKET
@@ -914,16 +976,6 @@ func (s *remoteCNIserver) deletePersistedPodConfig(config *containeridx.Config) 
 	return nil
 }
 
-// loadNodeSpecificConfig loads config specific for this node (given by its name).
-func (s *remoteCNIserver) loadNodeSpecificConfig() *OneNodeConfig {
-	for _, oneNodeConfig := range s.nodeConfigs {
-		if oneNodeConfig.NodeName == s.agentLabel {
-			return &oneNodeConfig
-		}
-	}
-	return nil
-}
-
 // parseCniExtraArgs parses CNI extra arguments from a string into a map.
 func (s *remoteCNIserver) parseCniExtraArgs(input string) map[string]string {
 	res := map[string]string{}
@@ -1017,6 +1069,19 @@ func (s *remoteCNIserver) GetPhysicalIfNames() []string {
 	return s.physicalIfs
 }
 
+// GetVxlanBVIIfName returns the name of an BVI interface facing towards VXLAN tunnels to other hosts.
+// Returns an empty string if VXLAN is not used (in L2 interconnect mode).
+func (s *remoteCNIserver) GetVxlanBVIIfName() string {
+	s.Lock()
+	defer s.Unlock()
+
+	if s.useL2Interconnect {
+		return ""
+	}
+
+	return s.vxlanBVIIfName
+}
+
 // GetHostInterconnectIfName returns the name of the TAP/AF_PACKET interface
 // interconnecting VPP with the host stack.
 func (s *remoteCNIserver) GetHostInterconnectIfName() string {
@@ -1031,12 +1096,14 @@ func (s *remoteCNIserver) GetHostIPNetwork() *net.IPNet {
 	s.Lock()
 	defer s.Unlock()
 
-	if s.mainIP == nil {
+	if s.nodeIP == "" {
 		return nil
 	}
 
-	return &net.IPNet{
-		IP:   s.mainIP.IP,
-		Mask: s.mainIP.Mask,
+	_, nodeIP, err := net.ParseCIDR(s.nodeIP)
+	if err != nil {
+		return nil
 	}
+
+	return nodeIP
 }

@@ -32,6 +32,7 @@ To use the development image for testing with specific version of VPP, see
     - `TCPstackDisabled`: if the flag is set to `true`, neither VPP TCP stack nor STN is configured
       and only VETHs or TAPs are used to connect Pods with VPP;
     - `TCPChecksumOffloadDisabled`: disable checksum offloading for eth0 of every deployed pod;
+    - `UseL2Interconnect`: use pure L2 node interconnect instead of VXLANs;
     - `UseTAPInterfaces`: use TAP interfaces instead of VETHs for Pod-to-VPP interconnection
       (VETH is still used to connect VPP with the host stack);
     - `TAPInterfaceVersion`: select `1` to use the standard VPP TAP interface or `2`
@@ -46,7 +47,8 @@ To use the development image for testing with specific version of VPP, see
     - `VPPHostSubnetCIDR`: subnet used in each node for VPP-to-host connectivity;
     - `VPPHostNetworkPrefixLen`: prefix length of the subnet used for VPP-to-host connectivity
       on 1 k8s node (VPPHost network = VPPHost subnet for one k8s node);
-    - `NodeInterconnectCIDR`: subnet used for main interfaces of all nodes.
+    - `NodeInterconnectCIDR`: subnet used for main interfaces of all nodes;
+    - `VxlanCIDR`: subnet used for VXLAN addressing providing node-interconnect overlay.
 
   * Node configuration (section `NodeConfig`; one entry for each node)
     - `NodeName`: name of a Kubernetes node;

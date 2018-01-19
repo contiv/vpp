@@ -17,15 +17,22 @@ package contiv
 import (
 	"fmt"
 	"net"
-
 	"strconv"
 
+	"strings"
+
 	vpp_intf "github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/model/interfaces"
-	"github.com/ligato/vpp-agent/plugins/defaultplugins/l3plugin/model/l3"
+	vpp_l2 "github.com/ligato/vpp-agent/plugins/defaultplugins/l2plugin/model/l2"
+	vpp_l3 "github.com/ligato/vpp-agent/plugins/defaultplugins/l3plugin/model/l3"
 	vpp_l4 "github.com/ligato/vpp-agent/plugins/defaultplugins/l4plugin/model/l4"
 	"github.com/ligato/vpp-agent/plugins/linuxplugin/ifplugin/linuxcalls"
 	linux_intf "github.com/ligato/vpp-agent/plugins/linuxplugin/ifplugin/model/interfaces"
 	linux_l3 "github.com/ligato/vpp-agent/plugins/linuxplugin/l3plugin/model/l3"
+)
+
+const (
+	vxlanVNI               = 10 // VXLAN Network Identifier (or VXLAN Segment ID)
+	vxlanSplitHorizonGroup = 1  // As VXLAN tunnels are added to a BD, they must be configured with the same and non-zero Split Horizon Group (SHG) number. Otherwise, flood packet may loop among servers with the same VXLAN segment because VXLAN tunnels are fully meshed among servers.
 )
 
 func (s *remoteCNIserver) l4Features(enable bool) *vpp_l4.L4Features {
@@ -53,8 +60,8 @@ func (s *remoteCNIserver) routeFromHost() *linux_l3.LinuxStaticRoutes_Route {
 	return route
 }
 
-func (s *remoteCNIserver) defaultRouteToHost() *l3.StaticRoutes_Route {
-	route := &l3.StaticRoutes_Route{
+func (s *remoteCNIserver) defaultRouteToHost() *vpp_l3.StaticRoutes_Route {
+	route := &vpp_l3.StaticRoutes_Route{
 		DstIpAddr:         "0.0.0.0/0",
 		NextHopAddr:       s.ipam.VEthHostEndIP().String(),
 		OutgoingInterface: s.interconnectAfpacketName(),
@@ -133,62 +140,67 @@ func (s *remoteCNIserver) interconnectAfpacket() *vpp_intf.Interfaces_Interface 
 	}
 }
 
-func (s *remoteCNIserver) physicalInterface(name string) (*vpp_intf.Interfaces_Interface, error) {
-	if s.mainIP == nil {
-		return nil, fmt.Errorf("IP address for physicalInterface is not defined")
-	}
+func (s *remoteCNIserver) physicalInterface(name string, ipAddress string) *vpp_intf.Interfaces_Interface {
 	return &vpp_intf.Interfaces_Interface{
-		Name:        name,
-		Type:        vpp_intf.InterfaceType_ETHERNET_CSMACD,
-		Enabled:     true,
-		IpAddresses: []string{s.mainIP.String()},
-	}, nil
+		Name:    name,
+		Type:    vpp_intf.InterfaceType_ETHERNET_CSMACD,
+		Enabled: true,
+
+		IpAddresses: []string{ipAddress},
+	}
 }
 
-func (s *remoteCNIserver) physicalInterfaceWithCustomIPAddress(name string, ipAddress string) *vpp_intf.Interfaces_Interface {
+func (s *remoteCNIserver) physicalInterfaceLoopback(ipAddress string) *vpp_intf.Interfaces_Interface {
 	return &vpp_intf.Interfaces_Interface{
-		Name:        name,
-		Type:        vpp_intf.InterfaceType_ETHERNET_CSMACD,
+		Name:        "loopbackNIC",
+		Type:        vpp_intf.InterfaceType_SOFTWARE_LOOPBACK,
 		Enabled:     true,
 		IpAddresses: []string{ipAddress},
 	}
 }
 
-func (s *remoteCNIserver) physicalInterfaceLoopback() (*vpp_intf.Interfaces_Interface, error) {
-	if s.mainIP == nil {
-		return nil, fmt.Errorf("IP address for physicalInterface is not defined")
+func (s *remoteCNIserver) vxlanBVILoopback() (*vpp_intf.Interfaces_Interface, error) {
+	vxlanIP, err := s.ipam.VxlanIPWithPrefix(s.ipam.NodeID())
+	if err != nil {
+		return nil, err
 	}
 	return &vpp_intf.Interfaces_Interface{
-		Name:        "loopbackNIC",
+		Name:        "vxlanBVI",
 		Type:        vpp_intf.InterfaceType_SOFTWARE_LOOPBACK,
 		Enabled:     true,
-		IpAddresses: []string{s.mainIP.String()},
+		IpAddresses: []string{vxlanIP.String()},
+		PhysAddress: s.hwAddrForVXLAN(),
 	}, nil
 }
 
-func (s *remoteCNIserver) routeToOtherHostPods(hostID uint8) (*l3.StaticRoutes_Route, error) {
-	podNetwork, err := s.ipam.OtherNodePodNetwork(hostID)
-	if err != nil {
-		return nil, fmt.Errorf("Can't compute pod network for host ID %v, error: %v ", hostID, err)
-	}
-	return s.routeToOtherHostNetworks(hostID, podNetwork)
+func (s *remoteCNIserver) hwAddrForVXLAN() string {
+	return fmt.Sprintf("1a:2b:3c:4d:5e:%02x", s.ipam.NodeID())
 }
 
-func (s *remoteCNIserver) routeToOtherHostStack(hostID uint8) (*l3.StaticRoutes_Route, error) {
-	hostNw, err := s.ipam.OtherNodeVPPHostNetwork(hostID)
-	if err != nil {
-		return nil, fmt.Errorf("Can't compute vswitch network for host ID %v, error: %v ", hostID, err)
+func (s *remoteCNIserver) vxlanBridgeDomain(bviInterface string) *vpp_l2.BridgeDomains_BridgeDomain {
+	return &vpp_l2.BridgeDomains_BridgeDomain{
+		Name:                "vxlanBD",
+		Learn:               true,
+		Forward:             true,
+		Flood:               true,
+		UnknownUnicastFlood: true,
+		Interfaces: []*vpp_l2.BridgeDomains_BridgeDomain_Interfaces{
+			{
+				Name: bviInterface,
+				BridgedVirtualInterface: true,
+				SplitHorizonGroup:       vxlanSplitHorizonGroup,
+			},
+		},
 	}
-	return s.routeToOtherHostNetworks(hostID, hostNw)
 }
 
-func (s *remoteCNIserver) computeRoutesForHost(hostID uint8) (podsRoute *l3.StaticRoutes_Route, hostRoute *l3.StaticRoutes_Route, err error) {
-	podsRoute, err = s.routeToOtherHostPods(hostID)
+func (s *remoteCNIserver) computeRoutesToHost(hostID uint8, nextHopIP string) (podsRoute *vpp_l3.StaticRoutes_Route, hostRoute *vpp_l3.StaticRoutes_Route, err error) {
+	podsRoute, err = s.routeToOtherHostPods(hostID, nextHopIP)
 	if err != nil {
 		err = fmt.Errorf("Can't construct route to pods of host %v: %v ", hostID, err)
 		return
 	}
-	hostRoute, err = s.routeToOtherHostStack(hostID)
+	hostRoute, err = s.routeToOtherHostStack(hostID, nextHopIP)
 	if err != nil {
 		err = fmt.Errorf("Can't construct route to host %v: %v ", hostID, err)
 		return
@@ -196,13 +208,65 @@ func (s *remoteCNIserver) computeRoutesForHost(hostID uint8) (podsRoute *l3.Stat
 	return
 }
 
-func (s *remoteCNIserver) routeToOtherHostNetworks(hostID uint8, destNetwork *net.IPNet) (*l3.StaticRoutes_Route, error) {
+func (s *remoteCNIserver) routeToOtherHostPods(hostID uint8, nextHopIP string) (*vpp_l3.StaticRoutes_Route, error) {
+	podNetwork, err := s.ipam.OtherNodePodNetwork(hostID)
+	if err != nil {
+		return nil, fmt.Errorf("Can't compute pod network for host ID %v, error: %v ", hostID, err)
+	}
+	return s.routeToOtherHostNetworks(podNetwork, nextHopIP)
+}
+
+func (s *remoteCNIserver) routeToOtherHostStack(hostID uint8, nextHopIP string) (*vpp_l3.StaticRoutes_Route, error) {
+	hostNw, err := s.ipam.OtherNodeVPPHostNetwork(hostID)
+	if err != nil {
+		return nil, fmt.Errorf("Can't compute vswitch network for host ID %v, error: %v ", hostID, err)
+	}
+	return s.routeToOtherHostNetworks(hostNw, nextHopIP)
+}
+
+func (s *remoteCNIserver) routeToOtherHostNetworks(destNetwork *net.IPNet, nextHopIP string) (*vpp_l3.StaticRoutes_Route, error) {
+	return &vpp_l3.StaticRoutes_Route{
+		DstIpAddr:   destNetwork.String(),
+		NextHopAddr: nextHopIP,
+	}, nil
+}
+
+func (s *remoteCNIserver) computeVxlanToHost(hostID uint8, hostIP string) (*vpp_intf.Interfaces_Interface, error) {
+	return &vpp_intf.Interfaces_Interface{
+		Name:    fmt.Sprintf("vxlan%d", hostID),
+		Type:    vpp_intf.InterfaceType_VXLAN_TUNNEL,
+		Enabled: true,
+		Vxlan: &vpp_intf.Interfaces_Interface_Vxlan{
+			SrcAddress: s.ipPrefixToAddress(s.nodeIP),
+			DstAddress: hostIP,
+			Vni:        vxlanVNI,
+		},
+	}, nil
+}
+
+func (s *remoteCNIserver) addInterfaceToVxlanBD(bd *vpp_l2.BridgeDomains_BridgeDomain, ifName string) {
+	bd.Interfaces = append(bd.Interfaces, &vpp_l2.BridgeDomains_BridgeDomain_Interfaces{
+		Name:              ifName,
+		SplitHorizonGroup: vxlanSplitHorizonGroup,
+	})
+}
+
+func (s *remoteCNIserver) otherHostIP(hostID uint8, hostIPPrefix string) string {
+	// determine next hop IP - either use provided one, or calculate based on hostIPPrefix
+	if hostIPPrefix != "" {
+		// hostIPPrefix defined, just trim prefix length
+		return s.ipPrefixToAddress(hostIPPrefix)
+	}
+
+	// hostIPPrefix not defined, determine based on hostID
 	nodeIP, err := s.ipam.NodeIPAddress(hostID)
 	if err != nil {
-		return nil, fmt.Errorf("Can't get Host IP address for host ID %v, error: %v ", hostID, err)
+		s.Logger.Errorf("Can't get Host IP address for host ID %v, error: %v ", hostID, err)
+		return ""
 	}
-	return &l3.StaticRoutes_Route{
-		DstIpAddr:   destNetwork.String(),
-		NextHopAddr: nodeIP.String(),
-	}, nil
+	return nodeIP.String()
+}
+
+func (s *remoteCNIserver) ipPrefixToAddress(ip string) string {
+	return ip[:strings.Index(ip, "/")]
 }

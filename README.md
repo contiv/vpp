@@ -23,5 +23,24 @@ You can get started with Contiv-VPP in one of two ways:
   install Kubernetes with Contiv-VPP networking on one or more bare-metal
   or VM hosts.
 
+## Contributing
+
+Contributions to VPP-Agent are welcome. We use the standard pull request
+model. You can either pick an open issue and assign it to yourself or open
+a new issue and discuss your feature.
+
+In any case, before submitting your pull request please check the 
+[Coding style][3]( and cover the newly added code with tests 
+and documentation.
+
+The tool used for managing third-party dependencies is 
+[Glide][4]. After adding or updating a
+dependency in `glide.yaml` run `make install-dep` to download the specified
+dependencies into the vendor folder. Please make sure that each dependency 
+in the `glide.yaml` has a specific `version` defined (a specific commit ID
+or a git tag).
+
 [1]: vagrant/README.md
 [2]: docs/MANUAL_INSTALL.md
+[3]: https://github.com/ligato/cn-infra/blob/master/docs/guidelines/CODINGSTYLE.md
+[4]: https://github.com/Masterminds/glide

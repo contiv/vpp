@@ -30,17 +30,20 @@ model. You can either pick an open issue and assign it to yourself or open
 a new issue and discuss your feature.
 
 In any case, before submitting your pull request please check the 
-[Coding style][3]( and cover the newly added code with tests 
-and documentation.
+[Coding style][3] and cover the newly added code with tests and 
+documentation. (Contiv-VPP adopted the coding style used in the [Ligato][5]
+project) Upon submission, each patch is run through the `go fmt` and 
+`golint` tools.
 
-The tool used for managing third-party dependencies is 
-[Glide][4]. After adding or updating a
-dependency in `glide.yaml` run `make install-dep` to download the specified
-dependencies into the vendor folder. Please make sure that each dependency 
-in the `glide.yaml` has a specific `version` defined (a specific commit ID
-or a git tag).
+
+The tool used for managing third-party dependencies is [Glide][4]. After 
+adding or updating a dependency in `glide.yaml` run `make install-dep` to 
+download the specified dependencies into the vendor folder. Please make sure
+that each dependency in the `glide.yaml` has a specific `version` defined 
+(a specific commit ID or a git tag).
 
 [1]: vagrant/README.md
 [2]: docs/MANUAL_INSTALL.md
 [3]: https://github.com/ligato/cn-infra/blob/master/docs/guidelines/CODINGSTYLE.md
 [4]: https://github.com/Masterminds/glide
+[5]: https://github.com/ligato

@@ -120,7 +120,7 @@ func (i *IPAM) VxlanIPAddress(nodeID uint8) (net.IP, error) {
 	return i.computeVxlanIPAddress(nodeID)
 }
 
-// NodeIPWithPrefix computes VXLAN interface address with prefix length based on the provided node ID.
+// VxlanIPWithPrefix computes VXLAN interface address with prefix length based on the provided node ID.
 func (i *IPAM) VxlanIPWithPrefix(nodeID uint8) (*net.IPNet, error) {
 	i.mutex.RLock()
 	defer i.mutex.RUnlock()
@@ -312,6 +312,10 @@ func initializeVPPHostIPAM(ipam *IPAM, config *Config, nodeID uint8) (err error)
 
 // initializeNodeInterconnectIPAM initializes node interconnect -related variables of IPAM.
 func initializeNodeInterconnectIPAM(ipam *IPAM, config *Config) (err error) {
+	if config == nil || config.NodeInterconnectCIDR == "" || config.VxlanCIDR == "" {
+		return fmt.Errorf("missing NodeInterconnectCIDR or VxlanCIDR configuration")
+	}
+
 	_, nodeSubnet, err := net.ParseCIDR(config.NodeInterconnectCIDR)
 	if err != nil {
 		return

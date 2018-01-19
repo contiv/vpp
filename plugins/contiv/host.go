@@ -256,15 +256,15 @@ func (s *remoteCNIserver) otherHostIP(hostID uint8, hostIPPrefix string) string 
 	if hostIPPrefix != "" {
 		// hostIPPrefix defined, just trim prefix length
 		return s.ipPrefixToAddress(hostIPPrefix)
-	} else {
-		// hostIPPrefix not defined, determine based on hostID
-		nodeIP, err := s.ipam.NodeIPAddress(hostID)
-		if err != nil {
-			s.Logger.Errorf("Can't get Host IP address for host ID %v, error: %v ", hostID, err)
-			return ""
-		}
-		return nodeIP.String()
 	}
+
+	// hostIPPrefix not defined, determine based on hostID
+	nodeIP, err := s.ipam.NodeIPAddress(hostID)
+	if err != nil {
+		s.Logger.Errorf("Can't get Host IP address for host ID %v, error: %v ", hostID, err)
+		return ""
+	}
+	return nodeIP.String()
 }
 
 func (s *remoteCNIserver) ipPrefixToAddress(ip string) string {

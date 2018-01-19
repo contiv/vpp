@@ -70,6 +70,7 @@ var config = Config{
 		VPPHostSubnetCIDR:       "172.30.0.0/16",
 		VPPHostNetworkPrefixLen: 24,
 		NodeInterconnectCIDR:    "192.168.16.0/24",
+		VxlanCIDR:               "192.168.30.0/24",
 	},
 }
 
@@ -86,6 +87,7 @@ func TestVeth1NameFromRequest(t *testing.T) {
 		nil,
 		"testlabel",
 		&config,
+		nil,
 		0)
 	gomega.Expect(err).To(gomega.BeNil())
 
@@ -108,6 +110,7 @@ func TestAdd(t *testing.T) {
 		swIfIdx,
 		"testLabel",
 		&config,
+		nil,
 		0)
 	gomega.Expect(err).To(gomega.BeNil())
 
@@ -150,16 +153,17 @@ func TestConfigureVswitch(t *testing.T) {
 		swIfIdx,
 		"testLabel",
 		&config,
+		nil,
 		0)
 
 	gomega.Expect(err).To(gomega.BeNil())
 	err = server.resync()
 	gomega.Expect(err).To(gomega.BeNil())
 
-	gomega.Expect(len(txns.CommittedTxns)).To(gomega.BeEquivalentTo(4))
+	gomega.Expect(len(txns.CommittedTxns)).To(gomega.BeEquivalentTo(5))
 
 	server.close()
-	gomega.Expect(len(txns.CommittedTxns)).To(gomega.BeEquivalentTo(5))
+	gomega.Expect(len(txns.CommittedTxns)).To(gomega.BeEquivalentTo(6))
 
 }
 

@@ -50,6 +50,7 @@ func (p *Plugin) Close() error {
 	return nil
 }
 
+// PrintStats dumps stats to log
 func (p *Plugin) PrintStats() {
 	for {
 		select {

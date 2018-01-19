@@ -309,7 +309,7 @@ func (sc *ServiceConfigurator) setNATMapping(mapping *NATMapping, isAdd bool) er
 	for _, local := range mapping.Locals {
 		if local.Address.To4() == nil {
 			// TODO: IPv6 support
-			fmt.Errorf("'%s' is not IPv4 address", local.Address.String())
+			return fmt.Errorf("'%s' is not IPv4 address", local.Address.String())
 		}
 		reqLocal := nat.Nat44LbAddrPort{
 			Port:        local.Port,

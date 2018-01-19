@@ -30,4 +30,8 @@ type API interface {
 	// GetHostInterconnectIfName returns the name of the TAP/AF_PACKET interface
 	// interconnecting VPP with the host stack.
 	GetHostInterconnectIfName() string
+
+	// GetVxlanBVIIfName returns the name of an BVI interface facing towards VXLAN tunnels to other hosts.
+	// Returns an empty string if VXLAN is not used (in L2 interconnect mode).
+	GetVxlanBVIIfName() string
 }

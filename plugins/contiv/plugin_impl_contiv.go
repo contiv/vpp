@@ -246,6 +246,12 @@ func (plugin *Plugin) GetHostInterconnectIfName() string {
 	return plugin.cniServer.GetHostInterconnectIfName()
 }
 
+// GetVxlanBVIIfName returns the name of an BVI interface facing towards VXLAN tunnels to other hosts.
+// Returns an empty string if VXLAN is not used (in L2 interconnect mode).
+func (plugin *Plugin) GetVxlanBVIIfName() string {
+	return plugin.cniServer.GetVxlanBVIIfName()
+}
+
 // handleResync handles resync events of the plugin. Called automatically by the plugin infra.
 func (plugin *Plugin) handleResync(resyncChan chan resync.StatusEvent) {
 	for {

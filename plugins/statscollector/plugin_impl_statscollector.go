@@ -1,14 +1,15 @@
 package statscollector
 
 import (
+	"strings"
+	"sync"
+	"time"
+
 	"github.com/contiv/vpp/plugins/contiv"
 	"github.com/golang/protobuf/proto"
 	"github.com/ligato/cn-infra/datasync"
 	"github.com/ligato/cn-infra/flavors/local"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/model/interfaces"
-	"strings"
-	"sync"
-	"time"
 )
 
 // Plugin collects the statistics from vpp interfaces and publishes them to prometheus.

@@ -15,6 +15,7 @@ type MockContiv struct {
 	hostIPNetwork    *net.IPNet
 	physicalIfs      []string
 	hostInterconnect string
+	vxlanBVIIfName   string
 }
 
 // NewMockContiv is a constructor for MockContiv.
@@ -104,4 +105,10 @@ func (mc *MockContiv) GetPhysicalIfNames() []string {
 // interconnecting VPP with the host stack.
 func (mc *MockContiv) GetHostInterconnectIfName() string {
 	return mc.hostInterconnect
+}
+
+// GetVxlanBVIIfName returns the name of an BVI interface facing towards VXLAN tunnels to other hosts.
+// Returns an empty string if VXLAN is not used (in L2 interconnect mode).
+func (mc *MockContiv) GetVxlanBVIIfName() string {
+	return mc.vxlanBVIIfName
 }

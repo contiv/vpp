@@ -75,6 +75,11 @@ func (mc *MockContiv) GetNsIndex(podNamespace string, podName string) (nsIndex u
 	return nsIndex, exists
 }
 
+// GetPodByIf looks up podName and podNamespace that is associated with logical interface name.
+func (mc *MockContiv) GetPodByIf(ifname string) (podNamespace string, podName string, exists bool) {
+	return "", "", false
+}
+
 // GetPodNetwork returns static subnet constant that should represent pod subnet for current host node
 func (mc *MockContiv) GetPodNetwork() (podNetwork *net.IPNet) {
 	return mc.podNetwork

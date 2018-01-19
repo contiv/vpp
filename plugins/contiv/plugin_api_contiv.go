@@ -12,6 +12,9 @@ type API interface {
 	// with the given pod.
 	GetNsIndex(podNamespace string, podName string) (nsIndex uint32, exists bool)
 
+	// GetPodByIf looks up podName and podNamespace that is associated with logical interface name.
+	GetPodByIf(ifname string) (podNamespace string, podName string, exists bool)
+
 	// GetPodNetwork provides subnet used for allocating pod IP addresses on this host node.
 	GetPodNetwork() *net.IPNet
 

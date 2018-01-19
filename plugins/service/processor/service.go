@@ -152,11 +152,6 @@ func (s *Service) Refresh() {
 			if epAddr.GetNodeName() == "" || epAddr.GetNodeName() == s.sp.ServiceLabel.GetAgentLabel() {
 				local = true
 			}
-			s.sp.Log.WithFields(logging.Fields{
-				"ep-node-name":  epAddr.GetNodeName(),
-				"service-label": s.sp.ServiceLabel.GetAgentLabel(),
-				"local":         local,
-			}).Debug("Testing if endpoint is local")
 			for _, epPort := range epPorts {
 				port := epPort.GetName()
 				if _, exposedPort := s.contivSvc.Ports[port]; exposedPort {

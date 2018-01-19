@@ -24,6 +24,7 @@ import (
 	"github.com/contiv/vpp/plugins/kvdbproxy"
 	"github.com/contiv/vpp/plugins/policy"
 	"github.com/contiv/vpp/plugins/service"
+	"github.com/contiv/vpp/plugins/statscollector"
 	"github.com/golang/protobuf/proto"
 	"github.com/ligato/cn-infra/config"
 	"github.com/ligato/cn-infra/datasync"
@@ -74,6 +75,7 @@ type FlavorContiv struct {
 	KsrETCDDataSync kvdbsync.Plugin
 
 	KVProxy kvdbproxy.Plugin
+	Stats   statscollector.Plugin
 
 	LinuxLocalClient localclient.Plugin
 	GoVPP            govppmux.GOVPPPlugin
@@ -122,6 +124,9 @@ func (f *FlavorContiv) Inject() bool {
 	f.KVProxy.Deps.PluginInfraDeps = *f.FlavorLocal.InfraDeps("kvproxy")
 	f.KVProxy.Deps.KVDB = &f.ETCDDataSync
 
+	f.Stats.Deps.PluginInfraDeps = *f.FlavorLocal.InfraDeps("stats")
+	f.Stats.Deps.Contiv = &f.Contiv
+
 	f.GoVPP.Deps.PluginInfraDeps = *f.FlavorLocal.InfraDeps("govpp", local.WithConf())
 	f.Linux.Watcher = &datasync.CompositeKVProtoWatcher{Adapters: []datasync.KeyValProtoWatcher{&f.KVProxy, local_sync.Get()}}
 	f.Linux.Deps.PluginInfraDeps = *f.FlavorLocal.InfraDeps("linuxplugin", local.WithConf())
@@ -130,7 +135,7 @@ func (f *FlavorContiv) Inject() bool {
 	f.VPP.Deps.PluginInfraDeps = *f.FlavorLocal.InfraDeps("default-plugins", local.WithConf())
 	f.VPP.Deps.Linux = &f.Linux
 	f.VPP.Deps.GoVppmux = &f.GoVPP
-	f.VPP.Deps.PublishStatistics = &datasync.CompositeKVProtoWriter{Adapters: []datasync.KeyProtoValWriter{&devNullWriter{}}}
+	f.VPP.Deps.PublishStatistics = &datasync.CompositeKVProtoWriter{Adapters: []datasync.KeyProtoValWriter{&f.Stats}}
 	f.VPP.Deps.IfStatePub = &datasync.CompositeKVProtoWriter{Adapters: []datasync.KeyProtoValWriter{&devNullWriter{}}}
 
 	grpc.DeclareGRPCPortFlag("grpc")

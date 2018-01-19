@@ -185,6 +185,20 @@ func (plugin *Plugin) Close() error {
 	return err
 }
 
+// GetPodByIf looks up podName and podNamespace that is associated with logical interface name.
+func (plugin *Plugin) GetPodByIf(ifname string) (podNamespace string, podName string, exists bool) {
+	ids := plugin.configuredContainers.LookupPodIf(ifname)
+	if len(ids) != 1 {
+		return "", "", false
+	}
+	config, found := plugin.configuredContainers.LookupContainer(ids[0])
+	if !found {
+		return "", "", false
+	}
+	return config.PodNamespace, config.PodName, true
+
+}
+
 // GetIfName looks up logical interface name that corresponds to the interface associated with the given POD name.
 func (plugin *Plugin) GetIfName(podNamespace string, podName string) (name string, exists bool) {
 	config := plugin.getContainerConfig(podNamespace, podName)

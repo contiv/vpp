@@ -15,6 +15,7 @@ type MockContiv struct {
 	hostIPNetwork    *net.IPNet
 	physicalIfs      []string
 	hostInterconnect string
+	vxlanBVIIfName   string
 }
 
 // NewMockContiv is a constructor for MockContiv.
@@ -75,6 +76,11 @@ func (mc *MockContiv) GetNsIndex(podNamespace string, podName string) (nsIndex u
 	return nsIndex, exists
 }
 
+// GetPodByIf looks up podName and podNamespace that is associated with logical interface name.
+func (mc *MockContiv) GetPodByIf(ifname string) (podNamespace string, podName string, exists bool) {
+	return "", "", false
+}
+
 // GetPodNetwork returns static subnet constant that should represent pod subnet for current host node
 func (mc *MockContiv) GetPodNetwork() (podNetwork *net.IPNet) {
 	return mc.podNetwork
@@ -99,4 +105,10 @@ func (mc *MockContiv) GetPhysicalIfNames() []string {
 // interconnecting VPP with the host stack.
 func (mc *MockContiv) GetHostInterconnectIfName() string {
 	return mc.hostInterconnect
+}
+
+// GetVxlanBVIIfName returns the name of an BVI interface facing towards VXLAN tunnels to other hosts.
+// Returns an empty string if VXLAN is not used (in L2 interconnect mode).
+func (mc *MockContiv) GetVxlanBVIIfName() string {
+	return mc.vxlanBVIIfName
 }

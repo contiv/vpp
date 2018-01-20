@@ -12,6 +12,9 @@ type API interface {
 	// with the given pod.
 	GetNsIndex(podNamespace string, podName string) (nsIndex uint32, exists bool)
 
+	// GetPodByIf looks up podName and podNamespace that is associated with logical interface name.
+	GetPodByIf(ifname string) (podNamespace string, podName string, exists bool)
+
 	// GetPodNetwork provides subnet used for allocating pod IP addresses on this host node.
 	GetPodNetwork() *net.IPNet
 
@@ -27,4 +30,8 @@ type API interface {
 	// GetHostInterconnectIfName returns the name of the TAP/AF_PACKET interface
 	// interconnecting VPP with the host stack.
 	GetHostInterconnectIfName() string
+
+	// GetVxlanBVIIfName returns the name of an BVI interface facing towards VXLAN tunnels to other hosts.
+	// Returns an empty string if VXLAN is not used (in L2 interconnect mode).
+	GetVxlanBVIIfName() string
 }

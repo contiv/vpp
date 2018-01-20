@@ -57,7 +57,8 @@ type Plugin struct {
 	ctx           context.Context
 	ctxCancelFunc context.CancelFunc
 
-	Config *Config
+	Config       *Config
+	myNodeConfig *OneNodeConfig
 }
 
 // Deps groups the dependencies of the Plugin.
@@ -78,6 +79,7 @@ type Deps struct {
 type Config struct {
 	TCPChecksumOffloadDisabled bool
 	TCPstackDisabled           bool
+	UseL2Interconnect          bool
 	UseTAPInterfaces           bool
 	TAPInterfaceVersion        uint8
 	TAPv2RxRingSize            uint16
@@ -88,9 +90,9 @@ type Config struct {
 
 // OneNodeConfig represents configuration for one node. It contains only settings specific to given node.
 type OneNodeConfig struct {
-	NodeName             string
-	MainVppInterfaceName string
-	OtherVPPInterfaces   []InterfaceWithIP // other configured interfaces get only ip address assigned in vpp
+	NodeName           string
+	MainVppInterface   InterfaceWithIP
+	OtherVPPInterfaces []InterfaceWithIP // other configured interfaces get only ip address assigned in vpp
 }
 
 // InterfaceWithIP binds interface name with IP address for configuration purposes.
@@ -110,6 +112,7 @@ func (plugin *Plugin) Init() error {
 		if err := plugin.loadExternalConfig(); err != nil {
 			return err
 		}
+		plugin.myNodeConfig = plugin.loadNodeSpecificConfig()
 	}
 
 	var err error
@@ -119,7 +122,11 @@ func (plugin *Plugin) Init() error {
 	}
 
 	// init node ID allocator
-	plugin.nodeIDAllocator = newIDAllocator(plugin.ETCD, plugin.ServiceLabel.GetAgentLabel())
+	nodeIP := ""
+	if plugin.myNodeConfig != nil {
+		nodeIP = plugin.myNodeConfig.MainVppInterface.IP
+	}
+	plugin.nodeIDAllocator = newIDAllocator(plugin.ETCD, plugin.ServiceLabel.GetAgentLabel(), nodeIP)
 	nodeID, err := plugin.nodeIDAllocator.getID()
 	if err != nil {
 		return err
@@ -145,6 +152,7 @@ func (plugin *Plugin) Init() error {
 		plugin.VPP.GetSwIfIndexes(),
 		plugin.ServiceLabel.GetAgentLabel(),
 		plugin.Config,
+		plugin.myNodeConfig,
 		nodeID)
 	if err != nil {
 		return fmt.Errorf("Can't create new remote CNI server due to error: %v ", err)
@@ -175,6 +183,20 @@ func (plugin *Plugin) Close() error {
 	plugin.nodeIDAllocator.releaseID()
 	_, err := safeclose.CloseAll(plugin.govppCh, plugin.nodeIDwatchReg)
 	return err
+}
+
+// GetPodByIf looks up podName and podNamespace that is associated with logical interface name.
+func (plugin *Plugin) GetPodByIf(ifname string) (podNamespace string, podName string, exists bool) {
+	ids := plugin.configuredContainers.LookupPodIf(ifname)
+	if len(ids) != 1 {
+		return "", "", false
+	}
+	config, found := plugin.configuredContainers.LookupContainer(ids[0])
+	if !found {
+		return "", "", false
+	}
+	return config.PodNamespace, config.PodName, true
+
 }
 
 // GetIfName looks up logical interface name that corresponds to the interface associated with the given POD name.
@@ -224,6 +246,12 @@ func (plugin *Plugin) GetHostInterconnectIfName() string {
 	return plugin.cniServer.GetHostInterconnectIfName()
 }
 
+// GetVxlanBVIIfName returns the name of an BVI interface facing towards VXLAN tunnels to other hosts.
+// Returns an empty string if VXLAN is not used (in L2 interconnect mode).
+func (plugin *Plugin) GetVxlanBVIIfName() string {
+	return plugin.cniServer.GetVxlanBVIIfName()
+}
+
 // handleResync handles resync events of the plugin. Called automatically by the plugin infra.
 func (plugin *Plugin) handleResync(resyncChan chan resync.StatusEvent) {
 	for {
@@ -260,6 +288,16 @@ func (plugin *Plugin) loadExternalConfig() error {
 		plugin.Config.TAPInterfaceVersion = 2
 	}
 
+	return nil
+}
+
+// loadNodeSpecificConfig loads config specific for this node (given by its agent label).
+func (plugin *Plugin) loadNodeSpecificConfig() *OneNodeConfig {
+	for _, oneNodeConfig := range plugin.Config.NodeConfig {
+		if oneNodeConfig.NodeName == plugin.ServiceLabel.GetAgentLabel() {
+			return &oneNodeConfig
+		}
+	}
 	return nil
 }
 

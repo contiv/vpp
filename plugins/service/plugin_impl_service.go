@@ -80,17 +80,19 @@ func (p *Plugin) Init() error {
 	p.resyncChan = make(chan datasync.ResyncEvent)
 	p.changeChan = make(chan datasync.ChangeEvent)
 
-	goVppCh, err := p.GoVPP.NewAPIChannel()
+	const goVPPChanBufSize = 1 << 12
+	goVppCh, err := p.GoVPP.NewAPIChannelBuffered(goVPPChanBufSize, goVPPChanBufSize)
 	if err != nil {
 		return err
 	}
 
 	p.configurator = &configurator.ServiceConfigurator{
 		Deps: configurator.Deps{
-			Log:       p.Log.NewLogger("-serviceConfigurator"),
-			Contiv:    p.Contiv,
-			VPP:       p.VPP,
-			GoVPPChan: goVppCh,
+			Log:              p.Log.NewLogger("-serviceConfigurator"),
+			Contiv:           p.Contiv,
+			VPP:              p.VPP,
+			GoVPPChan:        goVppCh,
+			GoVPPChanBufSize: goVPPChanBufSize,
 		},
 	}
 	p.configurator.Log.SetLevel(logging.DebugLevel)

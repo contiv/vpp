@@ -23,7 +23,7 @@ import (
 	"github.com/contiv/vpp/plugins/contiv"
 	"github.com/contiv/vpp/plugins/kvdbproxy"
 	"github.com/contiv/vpp/plugins/policy"
-	"github.com/contiv/vpp/plugins/service"
+	"github.com/contiv/vpp/plugins/statscollector"
 	"github.com/golang/protobuf/proto"
 	"github.com/ligato/cn-infra/config"
 	"github.com/ligato/cn-infra/datasync"
@@ -74,6 +74,7 @@ type FlavorContiv struct {
 	KsrETCDDataSync kvdbsync.Plugin
 
 	KVProxy kvdbproxy.Plugin
+	Stats   statscollector.Plugin
 
 	LinuxLocalClient localclient.Plugin
 	GoVPP            govppmux.GOVPPPlugin
@@ -82,7 +83,7 @@ type FlavorContiv struct {
 	GRPC             grpc.Plugin
 	Contiv           contiv.Plugin
 	Policy           policy.Plugin
-	Service          service.Plugin
+	//Service          service.Plugin // TODO: temporary disabled
 
 	// resync should the last plugin in the flavor in order to give
 	// the others enough time to register
@@ -122,6 +123,9 @@ func (f *FlavorContiv) Inject() bool {
 	f.KVProxy.Deps.PluginInfraDeps = *f.FlavorLocal.InfraDeps("kvproxy")
 	f.KVProxy.Deps.KVDB = &f.ETCDDataSync
 
+	f.Stats.Deps.PluginInfraDeps = *f.FlavorLocal.InfraDeps("stats")
+	f.Stats.Deps.Contiv = &f.Contiv
+
 	f.GoVPP.Deps.PluginInfraDeps = *f.FlavorLocal.InfraDeps("govpp", local.WithConf())
 	f.Linux.Watcher = &datasync.CompositeKVProtoWatcher{Adapters: []datasync.KeyValProtoWatcher{&f.KVProxy, local_sync.Get()}}
 	f.Linux.Deps.PluginInfraDeps = *f.FlavorLocal.InfraDeps("linuxplugin", local.WithConf())
@@ -130,7 +134,7 @@ func (f *FlavorContiv) Inject() bool {
 	f.VPP.Deps.PluginInfraDeps = *f.FlavorLocal.InfraDeps("default-plugins", local.WithConf())
 	f.VPP.Deps.Linux = &f.Linux
 	f.VPP.Deps.GoVppmux = &f.GoVPP
-	f.VPP.Deps.PublishStatistics = &datasync.CompositeKVProtoWriter{Adapters: []datasync.KeyProtoValWriter{&devNullWriter{}}}
+	f.VPP.Deps.PublishStatistics = &datasync.CompositeKVProtoWriter{Adapters: []datasync.KeyProtoValWriter{&f.Stats}}
 	f.VPP.Deps.IfStatePub = &datasync.CompositeKVProtoWriter{Adapters: []datasync.KeyProtoValWriter{&devNullWriter{}}}
 
 	grpc.DeclareGRPCPortFlag("grpc")
@@ -156,12 +160,13 @@ func (f *FlavorContiv) Inject() bool {
 	f.Policy.Deps.GoVPP = &f.GoVPP
 	f.Policy.Deps.VPP = &f.VPP
 
-	f.Service.Deps.PluginInfraDeps = *f.FlavorLocal.InfraDeps("service")
-	f.Service.Deps.Resync = &f.ResyncOrch
-	f.Service.Deps.Watcher = &f.KsrETCDDataSync
-	f.Service.Deps.Contiv = &f.Contiv
-	f.Service.Deps.GoVPP = &f.GoVPP
-	f.Service.Deps.VPP = &f.VPP
+	// TODO: temporary disabled
+	//f.Service.Deps.PluginInfraDeps = *f.FlavorLocal.InfraDeps("service")
+	//f.Service.Deps.Resync = &f.ResyncOrch
+	//f.Service.Deps.Watcher = &f.KsrETCDDataSync
+	//f.Service.Deps.Contiv = &f.Contiv
+	//f.Service.Deps.GoVPP = &f.GoVPP
+	//f.Service.Deps.VPP = &f.VPP
 
 	f.ResyncOrch.PluginLogDeps = *f.LogDeps("resync-orch")
 

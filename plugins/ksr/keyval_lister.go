@@ -16,6 +16,7 @@ package ksr
 
 import (
 	"encoding/json"
+
 	"github.com/golang/protobuf/proto"
 	"github.com/ligato/cn-infra/db/keyval"
 )

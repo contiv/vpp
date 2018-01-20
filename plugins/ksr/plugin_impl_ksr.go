@@ -23,6 +23,7 @@ package ksr
 import (
 	"fmt"
 	"sync"
+	"time"
 
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -31,6 +32,7 @@ import (
 	"github.com/ligato/cn-infra/config"
 	"github.com/ligato/cn-infra/datasync/kvdbsync"
 	"github.com/ligato/cn-infra/flavors/local"
+	"github.com/ligato/cn-infra/health/statuscheck"
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/utils/safeclose"
 )
@@ -45,6 +47,8 @@ type Plugin struct {
 
 	k8sClientConfig *rest.Config
 	k8sClientset    *kubernetes.Clientset
+
+	StatusMonitor statuscheck.StatusReader
 
 	nsReflector        *NamespaceReflector
 	podReflector       *PodReflector
@@ -201,13 +205,32 @@ func (plugin *Plugin) AfterInit() error {
 	plugin.policyReflector.Start()
 	plugin.serviceReflector.Start()
 	plugin.endpointsReflector.Start()
+
+	go plugin.checkStatus(plugin.stopCh)
+
 	return nil
 }
 
 // Close stops all reflectors.
 func (plugin *Plugin) Close() error {
 	close(plugin.stopCh)
-	safeclose.CloseAll(plugin.nsReflector, plugin.podReflector, plugin.policyReflector)
+	safeclose.CloseAll(plugin.nsReflector, plugin.podReflector, plugin.policyReflector,
+		plugin.serviceReflector, plugin.endpointsReflector)
 	plugin.wg.Wait()
 	return nil
+}
+
+func (plugin *Plugin) checkStatus(closeCh chan struct{}) {
+	for {
+		select {
+		case <-closeCh:
+			plugin.Log.Info("Closing")
+			return
+		case <-time.After(1 * time.Second):
+			status := plugin.StatusMonitor.GetAllPluginStatus()
+			for k, v := range status {
+				plugin.Log.Infof("Status[%v] = %v", k, v)
+			}
+		}
+	}
 }

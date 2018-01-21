@@ -213,13 +213,28 @@ func (r *Reflector) markAndSweep(dsItems DsItems, oc K8sToProtoConverter) {
 }
 
 // syncDataStore syncs data in etcd with data in KSR's k8s cache
-func (r *Reflector) syncDataStore(dsItems DsItems, oc K8sToProtoConverter) {
+func (r *Reflector) syncDataStore(prefix string, oc K8sToProtoConverter, pa ProtoAllocator) {
+
+	// Wait until we can get a snapshot of the data store
+	var dsItems DsItems
+	for {
+		var err error
+		dsItems, err = r.listDataStoreItems(prefix, pa)
+		if err == nil {
+			break
+		}
+		time.Sleep(1 * time.Second)
+	}
+
+	// Wait until k8s cache has synced up with K8s
 	for {
 		if r.k8sController.HasSynced() {
 			break
 		}
 		time.Sleep(1 * time.Second)
 	}
+
+	// Reconcile data store with k8s cache using mark-and-sweep
 	r.markAndSweep(dsItems, oc)
 	r.Log.Infof("%s stats: %+v", r.objType, r.stats)
 }
@@ -317,15 +332,9 @@ func (r *Reflector) ksrInit(stopCh2 <-chan struct{}, wg *sync.WaitGroup, prefix 
 		},
 	)
 
-	// Get all items currently stored in the data store
-	dsSvc, err := r.listDataStoreItems(prefix, ksrFuncs.ProtoAllocFunc)
-	if err != nil {
-		r.Log.WithField("err", err).Errorf("%s: error listing items data store", r.objType)
-	}
-
 	// Sync up the data store with the local k8s cache *after* the cache
 	// is synced with K8s.
-	go r.syncDataStore(dsSvc, ksrFuncs.K8s2ProtoFunc)
+	go r.syncDataStore(prefix, ksrFuncs.K8s2ProtoFunc, ksrFuncs.ProtoAllocFunc)
 
 	return nil
 }

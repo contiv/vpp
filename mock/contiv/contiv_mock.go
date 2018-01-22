@@ -12,7 +12,7 @@ type MockContiv struct {
 	podNs            map[podmodel.ID]uint32
 	podNetwork       *net.IPNet
 	tcpStackDisabled bool
-	hostIPNetwork    *net.IPNet
+	nodeIP           net.IP
 	physicalIfs      []string
 	hostInterconnect string
 	vxlanBVIIfName   string
@@ -48,9 +48,9 @@ func (mc *MockContiv) SetTCPStackDisabled(tcpStackDisabled bool) {
 	mc.tcpStackDisabled = tcpStackDisabled
 }
 
-// SetHostIPNetwork allows to set what tests will assume the host IP is.
-func (mc *MockContiv) SetHostIPNetwork(hostIPNet *net.IPNet) {
-	mc.hostIPNetwork = hostIPNet
+// SetNodeIP allows to set what tests will assume the node IP is.
+func (mc *MockContiv) SetNodeIP(nodeIP net.IP) {
+	mc.nodeIP = nodeIP
 }
 
 // SetPhysicalIfNames allows to set what tests will assume the list of physical interface names is.
@@ -91,9 +91,9 @@ func (mc *MockContiv) IsTCPstackDisabled() bool {
 	return mc.tcpStackDisabled
 }
 
-// GetHostIPNetwork returns single-host subnet with the IP address of this node.
-func (mc *MockContiv) GetHostIPNetwork() *net.IPNet {
-	return mc.hostIPNetwork
+// GetNodeIP returns the IP address of this node.
+func (mc *MockContiv) GetNodeIP() net.IP {
+	return mc.nodeIP
 }
 
 // GetPhysicalIfNames returns a slice of names of all configured physical interfaces.

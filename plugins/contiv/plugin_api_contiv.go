@@ -21,8 +21,8 @@ type API interface {
 	// IsTCPstackDisabled returns true if the TCP stack is disabled and only VETHSs/TAPs are configured
 	IsTCPstackDisabled() bool
 
-	// GetHostIPNetwork returns single-host subnet with the IP address of this node.
-	GetHostIPNetwork() *net.IPNet
+	// GetNodeIP returns the IP address of this node.
+	GetNodeIP() net.IP
 
 	// GetPhysicalIfNames returns a slice of names of all configured physical interfaces.
 	GetPhysicalIfNames() []string

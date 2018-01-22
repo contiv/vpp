@@ -447,14 +447,14 @@ func (sc *ServiceConfigurator) Close() error {
 /**** Helper methods ****/
 
 func (sc *ServiceConfigurator) getNodeIP() (net.IP, error) {
-	nodeIPNet := sc.Contiv.GetHostIPNetwork()
-	if nodeIPNet == nil {
+	nodeIP := sc.Contiv.GetNodeIP()
+	if nodeIP == nil {
 		return nil, errors.New("failed to get Node IP")
 	}
-	nodeIP := nodeIPNet.IP.To4()
-	if nodeIP == nil {
+	nodeIPv4 := nodeIP.To4()
+	if nodeIPv4 == nil {
 		// TODO: IPv6 support
 		return nil, errors.New("node IP is not IPv4 address")
 	}
-	return nodeIP, nil
+	return nodeIPv4, nil
 }

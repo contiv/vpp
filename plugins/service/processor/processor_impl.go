@@ -258,11 +258,10 @@ func (sp *ServiceProcessor) configureService(svc *Service, oldContivSvc *configu
 	oldHasNodePort := (oldContivSvc != nil && oldContivSvc.HasNodePort())
 
 	// Try to get Node IP.
-	nodeIPNet := sp.Contiv.GetHostIPNetwork()
-	if nodeIPNet == nil {
+	nodeIP := sp.Contiv.GetNodeIP()
+	if nodeIP == nil {
 		return errors.New("failed to get Node IP")
 	}
-	nodeIP := nodeIPNet.IP
 
 	// Configure new frontend addresses.
 	// -> handle enabled NodePort
@@ -411,11 +410,10 @@ func (sp *ServiceProcessor) processResyncEvent(resyncEv *ResyncEventData) error 
 	sp.reset()
 
 	// Try to get Node IP.
-	nodeIPNet := sp.Contiv.GetHostIPNetwork()
-	if nodeIPNet == nil {
+	nodeIP := sp.Contiv.GetNodeIP()
+	if nodeIP == nil {
 		return errors.New("failed to get Node IP")
 	}
-	nodeIP := nodeIPNet.IP
 
 	// Re-build the current state.
 	confResyncEv := configurator.NewResyncEventData()

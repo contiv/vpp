@@ -230,9 +230,9 @@ func (plugin *Plugin) IsTCPstackDisabled() bool {
 	return plugin.Config.TCPstackDisabled
 }
 
-// GetHostIPNetwork returns single-host subnet with the IP address of this node.
-func (plugin *Plugin) GetHostIPNetwork() *net.IPNet {
-	return plugin.cniServer.GetHostIPNetwork()
+// GetNodeIP returns the IP address of this node.
+func (plugin *Plugin) GetNodeIP() net.IP {
+	return plugin.cniServer.GetNodeIP()
 }
 
 // GetPhysicalIfNames returns a slice of names of all configured physical interfaces.

@@ -66,6 +66,11 @@ type Reflector struct {
 	// Reflector statistics
 	stats ReflectorStats
 
+	prefix string
+	pa     ProtoAllocator
+	kpc    K8sToProtoConverter
+
+	// Data store sync status and the mutex that protects access to it
 	dsSynced bool
 	dsMutex  sync.Mutex
 }
@@ -117,6 +122,43 @@ func (r *Reflector) HasSynced() bool {
 	return r.dsSynced
 }
 
+// StopDataStoreUpdates marks the data store to be out of sync with the
+// K8s cache, which will stop any updates to the data store until proper
+// reconciliation is finished.
+func (r *Reflector) StopDataStoreUpdates() {
+	r.dsMutex.Lock()
+	defer r.dsMutex.Unlock()
+	r.dsSynced = false
+}
+
+// SyncDataStoreWithK8sCache starts the syncrhonization of the data store
+// with the relflector's K8s cache.
+func (r *Reflector) SyncDataStoreWithK8sCache() {
+	go func(r *Reflector) {
+		r.Log.Debug("%s data sync started", r.objType)
+
+		// Keep trying to reconcile until data sync succeeds.
+		for {
+			// Try to get a snapshot of the data store.
+			dsItems, err := r.listDataStoreItems(r.prefix, r.pa)
+			if err == nil {
+				for {
+					// Try to perform mark-and-sweep data sync
+					err := r.syncDataStoreWithK8sCache(dsItems)
+					if err == nil {
+						r.Log.Infof("%s data sync done, stats: %+v", r.objType, r.stats)
+						return
+					}
+					time.Sleep(100 * time.Millisecond)
+				}
+			} else {
+				r.Log.Debugf("%s data sync: error listing data store items, '%s'", r.objType, err)
+			}
+			time.Sleep(100 * time.Millisecond)
+		}
+	}(r)
+}
+
 // ksrRun runs k8s subscription in a separate go routine.
 func (r *Reflector) ksrRun() {
 	defer r.wg.Done()
@@ -158,10 +200,7 @@ func (r *Reflector) listDataStoreItems(pfx string, iaf func() proto.Message) (Ds
 
 // markAndSweep performs the mark-and-sweep reconciliation between data in
 // the k8s cache and data in Etcd
-func (r *Reflector) markAndSweep(dsItems DsItems, oc K8sToProtoConverter) {
-	r.dsMutex.Lock()
-	defer r.dsMutex.Unlock()
-
+func (r *Reflector) markAndSweep(dsItems DsItems, oc K8sToProtoConverter) error {
 	for _, obj := range r.k8sStore.List() {
 		k8sProtoObj, key, ok := oc(obj)
 		if ok {
@@ -172,24 +211,20 @@ func (r *Reflector) markAndSweep(dsItems DsItems, oc K8sToProtoConverter) {
 					// K8s cache; overwrite the data store
 					err := r.Writer.Put(key, k8sProtoObj.(proto.Message))
 					if err != nil {
-						r.Log.WithField("err", err).
-							Warnf("%s data sync: failed to update object in the data store", r.objType)
 						r.stats.NumUpdErrors++
-					} else {
-						r.stats.NumUpdates++
+						return fmt.Errorf("update for key '%s' failed", key)
 					}
+					r.stats.NumUpdates++
 				}
 			} else {
 				// Object does not exist in the data store, but it exists in
 				// the K8s cache; create object in the data store
 				err := r.Writer.Put(key, k8sProtoObj.(proto.Message))
 				if err != nil {
-					r.Log.WithField("err", err).
-						Warnf("%s data sync: failed to add object into the data store", r.objType)
 					r.stats.NumAddErrors++
-				} else {
-					r.stats.NumAdds++
+					return fmt.Errorf("add for key '%s' failed", key)
 				}
+				r.stats.NumAdds++
 			}
 			delete(dsItems, key)
 		}
@@ -200,43 +235,35 @@ func (r *Reflector) markAndSweep(dsItems DsItems, oc K8sToProtoConverter) {
 	for key := range dsItems {
 		_, err := r.Writer.Delete(key)
 		if err != nil {
-			r.Log.WithField("err", err).
-				Warnf("%s data sync: failed to delete object from the data store", r.objType)
 			r.stats.NumDelErrors++
-		} else {
-			r.stats.NumDeletes++
+			return fmt.Errorf("delete for key '%s' failed", key)
 		}
+		r.stats.NumDeletes++
+
 		delete(dsItems, key)
 	}
 
 	r.dsSynced = true
+	return nil
 }
 
-// syncDataStore syncs data in etcd with data in KSR's k8s cache
-func (r *Reflector) syncDataStore(prefix string, oc K8sToProtoConverter, pa ProtoAllocator) {
+// syncDataStoreWithK8sCache syncs data in etcd with data in KSR's
+// k8s cache. Returns ok if reconciliation is successful, error otherwise.
+func (r *Reflector) syncDataStoreWithK8sCache(dsItems DsItems) error {
+	r.dsMutex.Lock()
+	defer r.dsMutex.Unlock()
 
-	// Wait until we can get a snapshot of the data store
-	var dsItems DsItems
-	for {
-		var err error
-		dsItems, err = r.listDataStoreItems(prefix, pa)
-		if err == nil {
-			break
-		}
-		time.Sleep(1 * time.Second)
-	}
-
-	// Wait until k8s cache has synced up with K8s
-	for {
-		if r.k8sController.HasSynced() {
-			break
-		}
-		time.Sleep(1 * time.Second)
+	// don't do anything unless the K8s cache itself is synced
+	if !r.k8sController.HasSynced() {
+		return fmt.Errorf("%s data sync: k8sController not synced", r.objType)
 	}
 
 	// Reconcile data store with k8s cache using mark-and-sweep
-	r.markAndSweep(dsItems, oc)
-	r.Log.Infof("%s stats: %+v", r.objType, r.stats)
+	err := r.markAndSweep(dsItems, r.kpc)
+	if err != nil {
+		return fmt.Errorf("%s data sync: mark-and-sweep failed, '%s'", r.objType, err)
+	}
+	return nil
 }
 
 // ksrAdd adds an item to the Etcd data store
@@ -288,6 +315,10 @@ func (r *Reflector) ksrInit(stopCh2 <-chan struct{}, wg *sync.WaitGroup, prefix 
 	r.stopCh = stopCh2
 	r.wg = wg
 
+	r.prefix = prefix
+	r.pa = ksrFuncs.ProtoAllocFunc
+	r.kpc = ksrFuncs.K8s2ProtoFunc
+
 	var restClient rest.Interface
 	if ksrFuncs.K8sClntGetFunc != nil {
 		restClient = ksrFuncs.K8sClntGetFunc(r.K8sClientset)
@@ -331,10 +362,5 @@ func (r *Reflector) ksrInit(stopCh2 <-chan struct{}, wg *sync.WaitGroup, prefix 
 			},
 		},
 	)
-
-	// Sync up the data store with the local k8s cache *after* the cache
-	// is synced with K8s.
-	go r.syncDataStore(prefix, ksrFuncs.K8s2ProtoFunc, ksrFuncs.ProtoAllocFunc)
-
 	return nil
 }

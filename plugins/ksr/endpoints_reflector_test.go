@@ -231,6 +231,8 @@ func TestEndpointsReflector(t *testing.T) {
 	err := epTestVars.epsReflector.Init(stopCh, &wg)
 	gomega.Expect(err).To(gomega.BeNil())
 
+	epTestVars.epsReflector.SyncDataStoreWithK8sCache()
+
 	// Wait for the initial sync to finish
 	for {
 		if epTestVars.epsReflector.HasSynced() {

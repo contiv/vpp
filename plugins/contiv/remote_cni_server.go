@@ -1099,6 +1099,10 @@ func (s *remoteCNIserver) GetNodeIP() net.IP {
 	if s.nodeIP == "" {
 		return nil
 	}
+	nodeIP, _, err := net.ParseCIDR(s.nodeIP)
+	if err != nil {
+		return nil
+	}
 
-	return net.ParseIP(s.nodeIP)
+	return nodeIP
 }

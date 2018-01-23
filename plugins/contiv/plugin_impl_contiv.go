@@ -235,6 +235,12 @@ func (plugin *Plugin) GetNodeIP() net.IP {
 	return plugin.cniServer.GetNodeIP()
 }
 
+// GetVPPIP returns the IP address of this node's VPP.
+// (assigned to a loopback or to the host-interconnect interface)
+func (plugin *Plugin) GetVPPIP() net.IP {
+	return plugin.cniServer.GetVPPIP()
+}
+
 // GetPhysicalIfNames returns a slice of names of all configured physical interfaces.
 func (plugin *Plugin) GetPhysicalIfNames() []string {
 	return plugin.cniServer.GetPhysicalIfNames()

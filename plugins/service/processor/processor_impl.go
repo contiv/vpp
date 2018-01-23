@@ -418,20 +418,23 @@ func (sp *ServiceProcessor) processResyncEvent(resyncEv *ResyncEventData) error 
 	// Re-build the current state.
 	confResyncEv := configurator.NewResyncEventData()
 
-	// Fill up the set of frontend interfaces and local endpoints.
+	// Fill up the set of frontend/backend interfaces and local endpoints.
 	// -> physical interfaces
 	for _, physIf := range sp.Contiv.GetPhysicalIfNames() {
 		sp.frontendIfs.Add(physIf)
+		sp.backendIfs.Add(physIf)
 	}
 	// -> VXLAN BVI interface
 	vxlanBVIIf := sp.Contiv.GetVxlanBVIIfName()
 	if vxlanBVIIf != "" {
 		sp.frontendIfs.Add(vxlanBVIIf)
+		sp.backendIfs.Add(vxlanBVIIf)
 	}
 	// -> host interconnect
 	hostInterconnect := sp.Contiv.GetHostInterconnectIfName()
 	if hostInterconnect != "" {
 		sp.frontendIfs.Add(hostInterconnect)
+		sp.backendIfs.Add(hostInterconnect)
 	}
 	// -> pods
 	for _, pod := range resyncEv.Pods {

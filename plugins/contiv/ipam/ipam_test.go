@@ -46,7 +46,7 @@ func newDefaultConfig() *ipam.Config {
 		VPPHostSubnetCIDR:       "2.3." + str(b11000000) + ".2/18",
 		VPPHostNetworkPrefixLen: 30, // 2 bit left -> 3 free IP addresses (zero ending IP is reserved)
 		NodeInterconnectCIDR:    "3.4.5." + str(b11000010) + "/26",
-		VxlanCIDR:               "192.168.30.0/24",
+		VxlanCIDR:               "4.5.6." + str(b11000010) + "/26",
 	}
 }
 
@@ -85,6 +85,10 @@ func TestDynamicGetters(t *testing.T) {
 	ipNet, err := i.NodeIPWithPrefix(hostID2)
 	Expect(err).To(BeNil())
 	Expect(*ipNet).To(BeEquivalentTo(ipWithNetworkMask("3.4.5." + str(b11100101) + "/26")))
+
+	ipNet, err = i.VxlanIPWithPrefix(hostID2)
+	Expect(err).To(BeNil())
+	Expect(*ipNet).To(BeEquivalentTo(ipWithNetworkMask("4.5.6." + str(b11100101) + "/26")))
 
 	ipNet, err = i.OtherNodePodNetwork(hostID2)
 	Expect(err).To(BeNil())
@@ -189,8 +193,8 @@ func TestHostIDtrimming(t *testing.T) {
 	Expect(*i.PodNetwork()).To(BeEquivalentTo(network("1.2." + str(int(hostID1&(1<<5-1))) + ".0/24")))
 }
 
-//TestConfigWithBadCIRD test if IPAM detects incorrect unparsable CIDR string and handles it correctly (initialization returns error)
-func TestConfigWithBadCIRD(t *testing.T) {
+// TestConfigWithBadCIDR test if IPAM detects incorrect unparsable CIDR string and handles it correctly (initialization returns error)
+func TestConfigWithBadCIDR(t *testing.T) {
 	RegisterTestingT(t)
 
 	customConfig := newDefaultConfig()

@@ -135,7 +135,6 @@ func TestAdd(t *testing.T) {
 	reply, err = server.Delete(context.Background(), &req)
 	gomega.Expect(err).To(gomega.BeNil())
 	gomega.Expect(reply).NotTo(gomega.BeNil())
-
 }
 
 func TestConfigureVswitch(t *testing.T) {

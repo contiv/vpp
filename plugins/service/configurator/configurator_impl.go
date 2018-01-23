@@ -235,13 +235,6 @@ func (sc *ServiceConfigurator) Resync(resyncEv *ResyncEventData) error {
 		"resyncEv": resyncEv,
 	}).Debug("ServiceConfigurator - Resync()")
 
-	// Try to get Node IP.
-	nodeIP, err := sc.getNodeIP()
-	if err != nil {
-		sc.Log.Error(err)
-		return err
-	}
-
 	// Try to get VPP IP.
 	vppIP, err := sc.getVPPIP()
 	if err != nil {

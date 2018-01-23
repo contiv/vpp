@@ -260,8 +260,8 @@ func (sc *ServiceConfigurator) setNATMapping(mapping *NATMapping, isAdd bool) er
 		}
 		// Single-backend NAT mapping.
 		req := &nat.Nat44AddDelStaticMapping{
-			VrfID: 0,
-			/* Out2inOnly: 1, */
+			VrfID:             0,
+			Out2inOnly:        1,
 			AddrOnly:          0,
 			Protocol:          uint8(mapping.Protocol),
 			ExternalPort:      mapping.ExternalPort,
@@ -291,8 +291,8 @@ func (sc *ServiceConfigurator) setNATMapping(mapping *NATMapping, isAdd bool) er
 
 	// Multiple-backends NAT mapping.
 	req := &nat.Nat44AddDelLbStaticMapping{
-		VrfID: 0,
-		/*Out2inOnly:   1,*/
+		VrfID:        0,
+		Out2inOnly:   1,
 		Protocol:     uint8(mapping.Protocol),
 		ExternalPort: mapping.ExternalPort,
 		LocalNum:     uint8(len(mapping.Locals)),
@@ -432,7 +432,7 @@ func (sc *ServiceConfigurator) dumpNATMappings() ([]*NATMapping, error) {
 		if stop {
 			break
 		}
-		if /*msg.Out2inOnly == 0 || (*/ msg.Protocol != uint8(TCP) && msg.Protocol != uint8(UDP) {
+		if msg.Out2inOnly == 0 || (msg.Protocol != uint8(TCP) && msg.Protocol != uint8(UDP)) {
 			// Mapping not installed by this plugin.
 			continue
 		}
@@ -472,7 +472,7 @@ func (sc *ServiceConfigurator) dumpNATMappings() ([]*NATMapping, error) {
 		if stop {
 			break
 		}
-		if /*msg.Out2inOnly == 0 || */ msg.AddrOnly == 1 || msg.ExternalSwIfIndex != ^uint32(0) ||
+		if msg.Out2inOnly == 0 || msg.AddrOnly == 1 || msg.ExternalSwIfIndex != ^uint32(0) ||
 			(msg.Protocol != uint8(TCP) && msg.Protocol != uint8(UDP)) {
 			// Mapping not installed by this plugin.
 			continue

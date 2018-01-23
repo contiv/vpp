@@ -67,6 +67,12 @@ type Config struct {
 	PodDefaultRoute *linux_l3.LinuxStaticRoutes_Route
 }
 
+// ChangeEvent represents a notification about change in ConfigIndex delivered to subscribers
+type ChangeEvent struct {
+	idxmap.NamedMappingEvent
+	Value *Config
+}
+
 // ConfigIndex implements a cache for configured containers. Primary index is containerID.
 type ConfigIndex struct {
 	mapping idxmap.NamedMappingRW
@@ -122,6 +128,14 @@ func (ci *ConfigIndex) LookupPodIf(ifname string) (containerIDs []string) {
 // ListAll returns all registered names in the mapping.
 func (ci *ConfigIndex) ListAll() (containerIDs []string) {
 	return ci.mapping.ListAllNames()
+}
+
+func (ci *ConfigIndex) Watch(subscriber core.PluginName, callback func(ChangeEvent)) error {
+	return ci.mapping.Watch(subscriber, func(ev idxmap.NamedMappingGenericEvent) {
+		if cfg, ok := ev.Value.(*Config); ok {
+			callback(ChangeEvent{NamedMappingEvent: ev.NamedMappingEvent, Value: cfg})
+		}
+	})
 }
 
 // IndexFunction creates secondary indexes. Currently podName, podNamespace and name of the interfaces with pod are indexed.

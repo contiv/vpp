@@ -1091,8 +1091,8 @@ func (s *remoteCNIserver) GetHostInterconnectIfName() string {
 	return s.hostInterconnectIfName
 }
 
-// GetHostIPNetwork returns single-host subnet with the IP address of this node.
-func (s *remoteCNIserver) GetHostIPNetwork() *net.IPNet {
+// GetNodeIP returns the IP address of this node.
+func (s *remoteCNIserver) GetNodeIP() net.IP {
 	s.Lock()
 	defer s.Unlock()
 
@@ -1100,7 +1100,7 @@ func (s *remoteCNIserver) GetHostIPNetwork() *net.IPNet {
 		return nil
 	}
 
-	_, nodeIP, err := net.ParseCIDR(s.nodeIP)
+	nodeIP, _, err := net.ParseCIDR(s.nodeIP)
 	if err != nil {
 		return nil
 	}

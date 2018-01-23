@@ -38,9 +38,9 @@ import (
 	"github.com/ligato/cn-infra/utils/safeclose"
 )
 
-// PluginKsr watches K8s resources and causes all changes to be reflected in the ETCD
+// Plugin watches K8s resources and causes all changes to be reflected in the ETCD
 // data store.
-type PluginKsr struct {
+type Plugin struct {
 	Deps
 
 	stopCh chan struct{}
@@ -87,7 +87,7 @@ type ReflectorDeps struct {
 
 // Init builds K8s client-set based on the supplied kubeconfig and initializes
 // all reflectors.
-func (plugin *PluginKsr) Init() error {
+func (plugin *Plugin) Init() error {
 	var err error
 	plugin.Log.SetLevel(logging.DebugLevel)
 	plugin.stopCh = make(chan struct{})
@@ -202,7 +202,7 @@ func (plugin *PluginKsr) Init() error {
 // AfterInit starts all reflectors. They have to be started in AfterInit so that
 // the kvdbsync is fully initialized and ready for publishing when a k8s
 // notification comes.
-func (plugin *PluginKsr) AfterInit() error {
+func (plugin *Plugin) AfterInit() error {
 	plugin.nsReflector.Start()
 	plugin.podReflector.Start()
 	plugin.policyReflector.Start()
@@ -215,7 +215,7 @@ func (plugin *PluginKsr) AfterInit() error {
 }
 
 // Close stops all reflectors.
-func (plugin *PluginKsr) Close() error {
+func (plugin *Plugin) Close() error {
 	close(plugin.stopCh)
 	safeclose.CloseAll(plugin.nsReflector, plugin.podReflector, plugin.policyReflector,
 		plugin.serviceReflector, plugin.endpointsReflector)
@@ -225,7 +225,7 @@ func (plugin *PluginKsr) Close() error {
 
 // stopDataStoreUpdates triggers all Reflectors to stop updating the Etcd
 // data store.
-func (plugin *PluginKsr) stopDataStoreUpdates() {
+func (plugin *Plugin) stopDataStoreUpdates() {
 	plugin.Log.Info("stopDataStoreUpdates")
 
 	plugin.nsReflector.StopDataStoreUpdates()
@@ -237,7 +237,7 @@ func (plugin *PluginKsr) stopDataStoreUpdates() {
 
 // syncDataStoreWithK8sCache triggers all Reflectors to start the
 // reconciliation their respective K8s caches with the data store.
-func (plugin *PluginKsr) reconcileDataStoreWithK8sCache() {
+func (plugin *Plugin) reconcileDataStoreWithK8sCache() {
 	plugin.Log.Info("syncDataStoreWithK8sCache")
 
 	plugin.nsReflector.SyncDataStoreWithK8sCache()
@@ -248,7 +248,7 @@ func (plugin *PluginKsr) reconcileDataStoreWithK8sCache() {
 }
 
 // monitorEtcdStatus monitors the KSR's connection to the Etcd Data Store.
-func (plugin *PluginKsr) monitorEtcdStatus(closeCh chan struct{}) {
+func (plugin *Plugin) monitorEtcdStatus(closeCh chan struct{}) {
 	for {
 		select {
 		case <-closeCh:

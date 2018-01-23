@@ -242,6 +242,13 @@ func (sc *ServiceConfigurator) Resync(resyncEv *ResyncEventData) error {
 		return err
 	}
 
+	// Try to get VPP IP.
+	vppIP, err := sc.getVPPIP()
+	if err != nil {
+		sc.Log.Error(err)
+		return err
+	}
+
 	// Dump currently installed NAT mappings.
 	natMapDump, err := sc.dumpNATMappings()
 	if err != nil {
@@ -270,9 +277,9 @@ func (sc *ServiceConfigurator) Resync(resyncEv *ResyncEventData) error {
 		return err
 	}
 
-	// Add Node IP to the pool for SNAT.
-	if !snatPoolDump.Has(nodeIP) {
-		err = sc.setNATAddress(nodeIP, true, true)
+	// Add VPP IP to the pool for SNAT.
+	if !snatPoolDump.Has(vppIP) {
+		err = sc.setNATAddress(vppIP, true, true)
 		if err != nil {
 			sc.Log.Error(err)
 			return err
@@ -457,4 +464,17 @@ func (sc *ServiceConfigurator) getNodeIP() (net.IP, error) {
 		return nil, errors.New("node IP is not IPv4 address")
 	}
 	return nodeIPv4, nil
+}
+
+func (sc *ServiceConfigurator) getVPPIP() (net.IP, error) {
+	vppIP := sc.Contiv.GetVPPIP()
+	if vppIP == nil {
+		return nil, errors.New("failed to get VPP IP")
+	}
+	vppIPv4 := vppIP.To4()
+	if vppIPv4 == nil {
+		// TODO: IPv6 support
+		return nil, errors.New("vpp IP is not IPv4 address")
+	}
+	return vppIPv4, nil
 }

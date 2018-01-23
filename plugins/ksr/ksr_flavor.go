@@ -92,6 +92,7 @@ func (f *FlavorKsr) Inject() (allReadyInjected bool) {
 	f.Ksr.Deps.Publish = &f.ETCDDataSync
 	f.Ksr.StatusMonitor = &f.StatusCheck // Inject status check
 
+
 	return true
 }
 

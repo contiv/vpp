@@ -15,7 +15,7 @@
 package main
 
 import (
-	"github.com/contiv/vpp/flavors/ksr"
+	"github.com/contiv/vpp/plugins/ksr"
 	"github.com/ligato/cn-infra/core"
 )
 

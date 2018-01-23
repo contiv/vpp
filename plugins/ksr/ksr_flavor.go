@@ -16,7 +16,6 @@
 package ksr
 
 import (
-	"github.com/contiv/vpp/plugins/ksr"
 	"github.com/ligato/cn-infra/config"
 	"github.com/ligato/cn-infra/core"
 	"github.com/ligato/cn-infra/datasync/kvdbsync"
@@ -62,7 +61,7 @@ type FlavorKsr struct {
 	ETCDDataSync kvdbsync.Plugin
 	// Kubernetes State Reflector plugin works as a reflector for policies, pods
 	// and namespaces.
-	Ksr ksr.Plugin
+	Ksr PluginKsr
 
 	injected bool
 }
@@ -92,7 +91,6 @@ func (f *FlavorKsr) Inject() (allReadyInjected bool) {
 	f.Ksr.Deps.KubeConfig = config.ForPlugin("kube", KubeConfigAdmin, KubeConfigUsage)
 	f.Ksr.Deps.Publish = &f.ETCDDataSync
 	f.Ksr.StatusMonitor = &f.StatusCheck // Inject status check
-
 
 	return true
 }

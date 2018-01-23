@@ -1107,3 +1107,11 @@ func (s *remoteCNIserver) GetNodeIP() net.IP {
 
 	return nodeIP
 }
+
+// GetVPPIP returns the IP address of this node's VPP.
+// (assigned to a loopback or to the host-interconnect interface)
+func (s *remoteCNIserver) GetVPPIP() net.IP {
+	s.Lock()
+	defer s.Unlock()
+	return s.ipam.VEthVPPEndIP()
+}

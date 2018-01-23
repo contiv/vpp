@@ -118,6 +118,8 @@ func (p *Plugin) Init() error {
 
 	}
 
+	// TODO watch containerIDX and remove gauges of pods that have been deleted
+
 	go p.PrintStats()
 
 	return nil

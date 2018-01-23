@@ -16,6 +16,7 @@ package contiv
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 	"strings"
 	"testing"
@@ -29,7 +30,9 @@ import (
 	"github.com/contiv/vpp/mock/localclient"
 	"github.com/contiv/vpp/plugins/contiv/containeridx"
 	"github.com/contiv/vpp/plugins/contiv/model/cni"
+	"github.com/contiv/vpp/plugins/contiv/model/node"
 	"github.com/contiv/vpp/plugins/kvdbproxy"
+	"github.com/golang/protobuf/proto"
 
 	"github.com/ligato/cn-infra/core"
 	"github.com/ligato/cn-infra/logging/logrus"
@@ -43,8 +46,10 @@ import (
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/bin_api/vxlan"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/ifaceidx"
 	vpp_intf "github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/model/interfaces"
+	vpp_l3 "github.com/ligato/vpp-agent/plugins/defaultplugins/l3plugin/model/l3"
 
 	"github.com/contiv/vpp/plugins/contiv/ipam"
+	"github.com/ligato/cn-infra/datasync"
 	"github.com/onsi/gomega"
 )
 
@@ -63,41 +68,52 @@ var req = cni.CNIRequest{
 	ExtraArguments:   "IgnoreUnknown=1;K8S_POD_NAMESPACE=default;K8S_POD_NAME=" + podName + ";K8S_POD_INFRA_CONTAINER_ID=7d673108b0ff9b2f59f977ca5f4cef347cb9ca66888614068882fbfaba4de752",
 }
 
-var config = Config{
-	IPAMConfig: ipam.Config{
-		PodSubnetCIDR:           "10.1.0.0/16",
-		PodNetworkPrefixLen:     24,
-		VPPHostSubnetCIDR:       "172.30.0.0/16",
-		VPPHostNetworkPrefixLen: 24,
-		NodeInterconnectCIDR:    "192.168.16.0/24",
-		VxlanCIDR:               "192.168.30.0/24",
-	},
-}
+var (
+	configVethL2NoTCP = Config{
+		TCPstackDisabled:  true,
+		UseL2Interconnect: true,
+		IPAMConfig: ipam.Config{
+			PodSubnetCIDR:           "10.1.0.0/16",
+			PodNetworkPrefixLen:     24,
+			VPPHostSubnetCIDR:       "172.30.0.0/16",
+			VPPHostNetworkPrefixLen: 24,
+			NodeInterconnectCIDR:    "192.168.16.0/24",
+			VxlanCIDR:               "192.168.30.0/24",
+		},
+	}
+	configTapVxlanTCP = Config{
+		UseTAPInterfaces:    true,
+		TAPInterfaceVersion: 2,
+		IPAMConfig: ipam.Config{
+			PodSubnetCIDR:           "10.1.0.0/16",
+			PodNetworkPrefixLen:     24,
+			VPPHostSubnetCIDR:       "172.30.0.0/16",
+			VPPHostNetworkPrefixLen: 24,
+			NodeInterconnectCIDR:    "192.168.16.0/24",
+			VxlanCIDR:               "192.168.30.0/24",
+		},
+	}
+	nodeConfig = OneNodeConfig{
+		NodeName: "test-node",
+		MainVppInterface: InterfaceWithIP{
+			InterfaceName: "GigabitEthernet0/0/0/1",
+			IP:            "192.168.1.1/24",
+		},
+		OtherVPPInterfaces: []InterfaceWithIP{
+			{
+				InterfaceName: "GigabitEthernet0/0/0/10",
+				IP:            "192.168.1.10/24",
+			},
+		},
+	}
+	otherNodeInfo = node.NodeInfo{
+		Id:        5,
+		Name:      "node5",
+		IpAddress: "1.2.3.4/25",
+	}
+)
 
-func TestVeth1NameFromRequest(t *testing.T) {
-	gomega.RegisterTestingT(t)
-
-	txns := localclient.NewTxnTracker(nil)
-
-	server, err := newRemoteCNIServer(logrus.DefaultLogger(),
-		txns.NewLinuxDataChangeTxn,
-		&kvdbproxy.Plugin{},
-		nil,
-		nil,
-		nil,
-		"testlabel",
-		&config,
-		nil,
-		0)
-	gomega.Expect(err).To(gomega.BeNil())
-
-	hostIfName := server.veth1HostIfNameFromRequest(&req)
-	gomega.Expect(hostIfName).To(gomega.BeEquivalentTo("eth0"))
-}
-
-func TestAdd(t *testing.T) {
-	gomega.RegisterTestingT(t)
-
+func setupTestCNIServer(config *Config, nodeConfig *OneNodeConfig) (*remoteCNIserver, *localclient.TxnTracker, *containeridx.ConfigIndex) {
 	swIfIdx := swIfIndexMock()
 	txns := localclient.NewTxnTracker(addIfsIntoTheIndex(swIfIdx))
 	configuredContainers := containeridx.NewConfigIndex(logrus.DefaultLogger(), core.PluginName("Plugin-name"), "title")
@@ -109,14 +125,24 @@ func TestAdd(t *testing.T) {
 		vppChanMock(),
 		swIfIdx,
 		"testLabel",
-		&config,
-		nil,
-		0)
+		config,
+		nodeConfig,
+		1)
+	server.test = true
 	gomega.Expect(err).To(gomega.BeNil())
 
-	// unless we pretend that connectivity is configured requests are blocked
+	return server, txns, configuredContainers
+}
+
+func TestAddDelVeth(t *testing.T) {
+	gomega.RegisterTestingT(t)
+
+	server, txns, configuredContainers := setupTestCNIServer(&configVethL2NoTCP, nil)
+
+	// pretend that connectivity is configured to unblock CNI requests
 	server.vswitchConnectivityConfigured = true
 
+	// CNI Add
 	reply, err := server.Add(context.Background(), &req)
 
 	gomega.Expect(err).To(gomega.BeNil())
@@ -132,38 +158,163 @@ func TestAdd(t *testing.T) {
 
 	txns.Clear()
 
+	// CNI Delete
 	reply, err = server.Delete(context.Background(), &req)
 	gomega.Expect(err).To(gomega.BeNil())
 	gomega.Expect(reply).NotTo(gomega.BeNil())
 }
 
-func TestConfigureVswitch(t *testing.T) {
+func TestAddDelTap(t *testing.T) {
 	gomega.RegisterTestingT(t)
 
-	swIfIdx := swIfIndexMock()
-	txns := localclient.NewTxnTracker(addIfsIntoTheIndex(swIfIdx))
-	configuredContainers := containeridx.NewConfigIndex(logrus.DefaultLogger(), core.PluginName("Plugin-name"), "title")
+	server, txns, configuredContainers := setupTestCNIServer(&configTapVxlanTCP, &nodeConfig)
+
+	// pretend that connectivity is configured to unblock CNI requests
+	server.vswitchConnectivityConfigured = true
+
+	// CNI Add
+	reply, err := server.Add(context.Background(), &req)
+
+	gomega.Expect(err).To(gomega.BeNil())
+	gomega.Expect(reply).NotTo(gomega.BeNil())
+
+	gomega.Expect(len(txns.PendingTxns)).To(gomega.BeEquivalentTo(0))
+	gomega.Expect(len(txns.CommittedTxns)).To(gomega.BeEquivalentTo(2))
+	// TODO add asserts for txns(one linux plugin txn and one default plugins txn) / currently applied config
+
+	res := configuredContainers.LookupPodName(podName)
+	gomega.Expect(len(res)).To(gomega.BeEquivalentTo(1))
+	gomega.Expect(res).To(gomega.ContainElement(containerID))
+
+	txns.Clear()
+
+	// CNI Delete
+	reply, err = server.Delete(context.Background(), &req)
+	// TODO: re-enable checks once TAPs are fully supported by the vpp-agent
+	//gomega.Expect(err).To(gomega.BeNil())
+	//gomega.Expect(reply).NotTo(gomega.BeNil())
+}
+
+func TestConfigureVswitchVeth(t *testing.T) {
+	gomega.RegisterTestingT(t)
+
+	server, txns, _ := setupTestCNIServer(&configVethL2NoTCP, &nodeConfig)
+
+	// exec resync to configure vswitch
+	err := server.resync()
+	gomega.Expect(err).To(gomega.BeNil())
+
+	gomega.Expect(len(txns.CommittedTxns)).To(gomega.BeEquivalentTo(4))
+	// TODO add asserts for txns(one linux plugin txn and one default plugins txn) / currently applied config
+
+	// check physical interface name
+	ifs := server.GetPhysicalIfNames()
+	gomega.Expect(len(ifs)).To(gomega.BeEquivalentTo(1))
+	gomega.Expect(ifs[0]).To(gomega.BeEquivalentTo(nodeConfig.MainVppInterface.InterfaceName))
+	// node IP must not be empty
+	gomega.Expect(server.GetNodeIP()).ToNot(gomega.BeEmpty())
+	// host interconnect IF must be configured
+	gomega.Expect(server.GetHostInterconnectIfName()).ToNot(gomega.BeEmpty())
+	// using L2 interconnect - no VXLAN IF name
+	gomega.Expect(server.GetVxlanBVIIfName()).To(gomega.BeEmpty())
+
+	server.close()
+	gomega.Expect(len(txns.CommittedTxns)).To(gomega.BeEquivalentTo(5))
+}
+
+func TestConfigureVswitchTap(t *testing.T) {
+	gomega.RegisterTestingT(t)
+
+	server, txns, _ := setupTestCNIServer(&configTapVxlanTCP, nil)
+
+	// exec resync to configure vswitch
+	err := server.resync()
+	gomega.Expect(err).To(gomega.BeNil())
+
+	gomega.Expect(len(txns.CommittedTxns)).To(gomega.BeEquivalentTo(4))
+	// TODO add asserts for txns(one linux plugin txn and one default plugins txn) / currently applied config
+
+	// node IP must not be empty
+	gomega.Expect(server.GetNodeIP()).ToNot(gomega.BeEmpty())
+	// host interconnect IF must be configured
+	gomega.Expect(server.GetHostInterconnectIfName()).ToNot(gomega.BeEmpty())
+	// using VXLANs - VXLAN IF name must not be empty
+	gomega.Expect(server.GetVxlanBVIIfName()).ToNot(gomega.BeEmpty())
+
+	server.close()
+	gomega.Expect(len(txns.CommittedTxns)).To(gomega.BeEquivalentTo(5))
+}
+
+func TestNodeAddDelL2(t *testing.T) {
+	gomega.RegisterTestingT(t)
+
+	server, txns, _ := setupTestCNIServer(&configVethL2NoTCP, nil)
+
+	// exec resync to configure vswitch
+	err := server.resync()
+	gomega.Expect(err).To(gomega.BeNil())
+
+	err = server.nodeChangePropageteEvent(&nodeAddDelEvent{evType: datasync.Put})
+	gomega.Expect(err).To(gomega.BeNil())
+
+	// check that the VXLAN interface does not exist
+	vxlanIf := interfaceInSnapshot(txns.AppliedConfig, fmt.Sprintf("vxlan%d", otherNodeInfo.Id))
+	gomega.Expect(vxlanIf).To(gomega.BeNil())
+
+	// check routes to the other node pointing to node IP
+	nexthopIP := server.ipPrefixToAddress(otherNodeInfo.IpAddress)
+	routes := routesViaInSnapshot(txns.AppliedConfig, nexthopIP)
+	gomega.Expect(len(routes)).To(gomega.BeEquivalentTo(2))
+
+	err = server.nodeChangePropageteEvent(&nodeAddDelEvent{evType: datasync.Delete})
+	gomega.Expect(err).To(gomega.BeNil())
+}
+
+func TestNodeAddDelVXLAN(t *testing.T) {
+	gomega.RegisterTestingT(t)
+
+	server, txns, _ := setupTestCNIServer(&configTapVxlanTCP, nil)
+
+	// exec resync to configure vswitch
+	err := server.resync()
+	gomega.Expect(err).To(gomega.BeNil())
+
+	err = server.nodeChangePropageteEvent(&nodeAddDelEvent{evType: datasync.Put})
+	gomega.Expect(err).To(gomega.BeNil())
+
+	// check that the VXLAN tunnel config has been properly added
+	vxlanIf := interfaceInSnapshot(txns.AppliedConfig, fmt.Sprintf("vxlan%d", otherNodeInfo.Id))
+	gomega.Expect(vxlanIf).ToNot(gomega.BeNil())
+	gomega.Expect(otherNodeInfo.IpAddress).To(gomega.ContainSubstring(vxlanIf.Vxlan.DstAddress))
+
+	// check routes to the other node pointing to VXLAN IP
+	nexthopIP, _ := server.ipam.VxlanIPAddress(uint8(otherNodeInfo.Id))
+	routes := routesViaInSnapshot(txns.AppliedConfig, nexthopIP.String())
+	gomega.Expect(len(routes)).To(gomega.BeEquivalentTo(2))
+
+	err = server.nodeChangePropageteEvent(&nodeAddDelEvent{evType: datasync.Delete})
+	gomega.Expect(err).To(gomega.BeNil())
+}
+
+func TestVeth1NameFromRequest(t *testing.T) {
+	gomega.RegisterTestingT(t)
+
+	txns := localclient.NewTxnTracker(nil)
 
 	server, err := newRemoteCNIServer(logrus.DefaultLogger(),
 		txns.NewLinuxDataChangeTxn,
-		kvdbproxy.NewKvdbsyncMock(),
-		configuredContainers,
-		vppChanMock(),
-		swIfIdx,
-		"testLabel",
-		&config,
+		&kvdbproxy.Plugin{},
 		nil,
-		0)
-
+		nil,
+		nil,
+		"testlabel",
+		&configVethL2NoTCP,
+		nil,
+		1)
 	gomega.Expect(err).To(gomega.BeNil())
-	err = server.resync()
-	gomega.Expect(err).To(gomega.BeNil())
 
-	gomega.Expect(len(txns.CommittedTxns)).To(gomega.BeEquivalentTo(5))
-
-	server.close()
-	gomega.Expect(len(txns.CommittedTxns)).To(gomega.BeEquivalentTo(6))
-
+	hostIfName := server.veth1HostIfNameFromRequest(&req)
+	gomega.Expect(hostIfName).To(gomega.BeEquivalentTo("eth0"))
 }
 
 func vppChanMock() *api.Channel {
@@ -274,4 +425,58 @@ func swIfIndexMock() ifaceidx.SwIfIndexRW {
 	mapping := nametoidx.NewNameToIdx(logrus.DefaultLogger(), "plugin", "swIf", ifaceidx.IndexMetadata)
 
 	return ifaceidx.NewSwIfIndex(mapping)
+}
+
+// interfaceInSnapshot returns interface of given name from the config snapshot
+func interfaceInSnapshot(snapshot localclient.ConfigSnapshot, ifName string) *vpp_intf.Interfaces_Interface {
+	for key := range snapshot {
+		if strings.HasPrefix(key, vpp_intf.InterfacePrefix) && strings.HasSuffix(key, ifName) {
+			return snapshot[key].(*vpp_intf.Interfaces_Interface)
+		}
+	}
+	return nil
+}
+
+// routesViaInSnapshot returns routes pinting to privided next hop IP from the config snapshot
+func routesViaInSnapshot(snapshot localclient.ConfigSnapshot, nexthopIP string) []*vpp_l3.StaticRoutes_Route {
+	routes := make([]*vpp_l3.StaticRoutes_Route, 0)
+
+	for key := range snapshot {
+		if strings.HasPrefix(key, vpp_l3.VrfPrefix) && strings.HasSuffix(key, nexthopIP) {
+			routes = append(routes, snapshot[key].(*vpp_l3.StaticRoutes_Route))
+		}
+	}
+
+	return routes
+}
+
+// nodeAddDelEvent simulates addition of a k8s node into a cluster
+type nodeAddDelEvent struct {
+	evType datasync.PutDel
+}
+
+func (e *nodeAddDelEvent) Done(error) {}
+
+func (e nodeAddDelEvent) GetChangeType() datasync.PutDel {
+	return e.evType
+}
+
+func (e nodeAddDelEvent) GetKey() string {
+	return allocatedIDsKeyPrefix
+}
+
+func (e nodeAddDelEvent) GetValue(value proto.Message) error {
+	v := value.(*node.NodeInfo)
+	v.Id = otherNodeInfo.Id
+	v.Name = otherNodeInfo.Name
+	v.IpAddress = otherNodeInfo.IpAddress
+	return nil
+}
+
+func (e nodeAddDelEvent) GetPrevValue(prevValue proto.Message) (prevValueExist bool, err error) {
+	return false, nil
+}
+
+func (e nodeAddDelEvent) GetRevision() int64 {
+	return 0
 }

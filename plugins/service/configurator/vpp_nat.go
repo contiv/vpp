@@ -162,6 +162,21 @@ func (sc *ServiceConfigurator) setInterfaceNATFeature(ifName string, isInside bo
 		return fmt.Errorf("failed to get interface index corresponding to interface name: %s", ifName)
 	}
 
+	if isInside && isAdd {
+		// workaround for bug with nat44-classify
+		// -> remove out2in
+		req := &nat.Nat44InterfaceAddDelFeature{
+			SwIfIndex: ifIndex,
+			IsAdd:     0,
+			IsInside:  0,
+		}
+		reply := &nat.Nat44InterfaceAddDelFeatureReply{}
+		err := sc.GoVPPChan.SendRequest(req).ReceiveReply(reply)
+		if err != nil && reply.Retval == 0 {
+			sc.Log.Debugf("Feature out2in was disabled for interface '%s'", ifName)
+		} // else ignore error
+	}
+
 	req := &nat.Nat44InterfaceAddDelFeature{
 		SwIfIndex: ifIndex,
 	}
@@ -185,6 +200,21 @@ func (sc *ServiceConfigurator) setInterfaceNATFeature(ifName string, isInside bo
 	}
 	if err != nil {
 		return err
+	}
+
+	if isInside && !isAdd {
+		// workaround for bug with nat44-classify
+		// -> revert out2in
+		req := &nat.Nat44InterfaceAddDelFeature{
+			SwIfIndex: ifIndex,
+			IsAdd:     1,
+			IsInside:  0,
+		}
+		reply := &nat.Nat44InterfaceAddDelFeatureReply{}
+		err := sc.GoVPPChan.SendRequest(req).ReceiveReply(reply) // ignore error
+		if err != nil && reply.Retval == 0 {
+			sc.Log.Debugf("Feature out2in was enabled for interface '%s'", ifName)
+		} // else ignore error
 	}
 
 	sc.Log.Debugf("Feature '%s' was %sd for interface '%s'", feature, op, ifName)

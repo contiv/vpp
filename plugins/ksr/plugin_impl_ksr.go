@@ -258,7 +258,7 @@ func (plugin *Plugin) monitorEtcdStatus(closeCh chan struct{}) {
 			sts := plugin.StatusMonitor.GetAllPluginStatus()
 			for k, v := range sts {
 				if k != "etcdv3" {
-					return
+					continue
 				}
 				switch v.State {
 				case status.OperationalState_INIT:

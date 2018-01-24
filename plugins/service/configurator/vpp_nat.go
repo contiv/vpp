@@ -32,7 +32,6 @@ type NATMapping struct {
 	ExternalIP   net.IP
 	ExternalPort uint16
 	Protocol     ProtocolType
-	TwiceNat     bool
 	Locals       []*NATMappingLocal
 }
 
@@ -52,9 +51,8 @@ func (nm NATMapping) String() string {
 			locals += ", "
 		}
 	}
-	return fmt.Sprintf("NAT-Mapping <ExternalIP:%s ExternalPort:%d Protocol:%s TwiceNat:%t Locals:[%s]>",
-		nm.ExternalIP.String(), nm.ExternalPort, nm.Protocol.String(), nm.TwiceNat,
-		locals)
+	return fmt.Sprintf("NAT-Mapping <ExternalIP:%s ExternalPort:%d Protocol:%s Locals:[%s]>",
+		nm.ExternalIP.String(), nm.ExternalPort, nm.Protocol.String(), locals)
 }
 
 // NATMappingLocal represents a single backend for VPP NAT mapping.
@@ -105,8 +103,7 @@ func (nm *NATMapping) Equal(nm2 *NATMapping) bool {
 	// Compare the rest of the attributes.
 	return nm.ExternalIP.Equal(nm2.ExternalIP) &&
 		nm.ExternalPort == nm2.ExternalPort &&
-		nm.Protocol == nm2.Protocol &&
-		nm.TwiceNat == nm.TwiceNat
+		nm.Protocol == nm2.Protocol
 }
 
 // Equal compares this local with another for equality.
@@ -191,14 +188,9 @@ func (sc *ServiceConfigurator) setInterfaceNATFeature(ifName string, isInside bo
 	return nil
 }
 
-// setNATAddress adds or removes given IP to/from the pool of addresses for SNAT or DNAT.
-func (sc *ServiceConfigurator) setNATAddress(address net.IP, snat, isAdd bool) error {
+// setNATAddress adds or removes given IP to/from the pool of NAT addresses.
+func (sc *ServiceConfigurator) setNATAddress(address net.IP, isAdd bool) error {
 	var pool string
-
-	if !snat {
-		/* leave DNAT address pool empty */
-		return nil
-	}
 
 	if address.To4() == nil {
 		// TODO: IPv6 support
@@ -207,12 +199,7 @@ func (sc *ServiceConfigurator) setNATAddress(address net.IP, snat, isAdd bool) e
 
 	req := &nat.Nat44AddDelAddressRange{
 		VrfID: ^uint32(0),
-	}
-	if snat {
-		req.TwiceNat = 1
-		pool = "SNAT"
-	} else {
-		pool = "DNAT"
+		req.TwiceNat = 0,
 	}
 	if isAdd {
 		req.IsAdd = 1
@@ -226,20 +213,20 @@ func (sc *ServiceConfigurator) setNATAddress(address net.IP, snat, isAdd bool) e
 	err := sc.GoVPPChan.SendRequest(req).ReceiveReply(reply)
 	if reply.Retval != 0 {
 		if isAdd {
-			return fmt.Errorf("attempt to add '%s' into the %s address pool returned non zero error code (%v)",
-				address.String(), pool, reply.Retval)
+			return fmt.Errorf("attempt to add '%s' into the NAT address pool returned non zero error code (%v)",
+				address.String(), reply.Retval)
 		}
-		return fmt.Errorf("attempt to remove '%s' from the %s address pool returned non zero error code (%v)",
-			address.String(), pool, reply.Retval)
+		return fmt.Errorf("attempt to remove '%s' from the NAT address pool returned non zero error code (%v)",
+			address.String(), reply.Retval)
 	}
 	if err != nil {
 		return err
 	}
 
 	if isAdd {
-		sc.Log.Debugf("IP address '%s' was added into the %s address pool", address.String(), pool)
+		sc.Log.Debugf("IP address '%s' was added into the NAT address pool", address.String())
 	} else {
-		sc.Log.Debugf("IP address '%s' was removed from the %s address pool", address.String(), pool)
+		sc.Log.Debugf("IP address '%s' was removed from the NAT address pool", address.String())
 	}
 	return nil
 }
@@ -268,6 +255,7 @@ func (sc *ServiceConfigurator) setNATMapping(mapping *NATMapping, isAdd bool) er
 			VrfID:             0,
 			Out2inOnly:        1,
 			AddrOnly:          0,
+			TwiceNat:          0,
 			Protocol:          uint8(mapping.Protocol),
 			ExternalPort:      mapping.ExternalPort,
 			ExternalSwIfIndex: ^uint32(0),
@@ -277,9 +265,6 @@ func (sc *ServiceConfigurator) setNATMapping(mapping *NATMapping, isAdd bool) er
 		copy(req.ExternalIPAddress, mapping.ExternalIP.To4())
 		req.LocalIPAddress = make([]byte, net.IPv4len)
 		copy(req.LocalIPAddress, mapping.Locals[0].Address.To4())
-		if mapping.TwiceNat {
-			req.TwiceNat = 1
-		}
 		if isAdd {
 			req.IsAdd = 1
 		}
@@ -298,6 +283,7 @@ func (sc *ServiceConfigurator) setNATMapping(mapping *NATMapping, isAdd bool) er
 	req := &nat.Nat44AddDelLbStaticMapping{
 		VrfID:        0,
 		Out2inOnly:   1,
+		TwiceNat:     0,
 		Protocol:     uint8(mapping.Protocol),
 		ExternalPort: mapping.ExternalPort,
 		LocalNum:     uint8(len(mapping.Locals)),
@@ -305,9 +291,6 @@ func (sc *ServiceConfigurator) setNATMapping(mapping *NATMapping, isAdd bool) er
 	}
 	req.ExternalAddr = make([]byte, net.IPv4len)
 	copy(req.ExternalAddr, mapping.ExternalIP.To4())
-	if mapping.TwiceNat {
-		req.TwiceNat = 1
-	}
 	if isAdd {
 		req.IsAdd = 1
 	}
@@ -392,10 +375,9 @@ func (sc *ServiceConfigurator) syncNATMappings(have []*NATMapping, want []*NATMa
 /***** Dumps *****/
 
 // dumpAddressPool returns all addresses currently installed in the NAT plugin's
-// SNAT or DNAT address pool.
-func (sc *ServiceConfigurator) dumpAddressPools() (snat, dnat *IPAddresses, err error) {
-	snat = NewIPAddresses()
-	dnat = NewIPAddresses()
+// address pool.
+func (sc *ServiceConfigurator) dumpAddressPool() (pool *IPAddresses, err error) {
+	pool = NewIPAddresses()
 	req := &nat.Nat44AddressDump{}
 	reqContext := sc.GoVPPChan.SendMultiRequest(req)
 
@@ -412,12 +394,10 @@ func (sc *ServiceConfigurator) dumpAddressPools() (snat, dnat *IPAddresses, err 
 		addr := make(net.IP, net.IPv4len)
 		copy(addr, msg.IPAddress[:])
 		if msg.TwiceNat == 0 {
-			dnat.Add(addr)
-		} else {
-			snat.Add(addr)
+			pool.Add(addr)
 		}
 	}
-	return snat, dnat, nil
+	return pool, nil
 }
 
 // dumpServices returns a list of currently configured NAT mappings.
@@ -437,7 +417,8 @@ func (sc *ServiceConfigurator) dumpNATMappings() ([]*NATMapping, error) {
 		if stop {
 			break
 		}
-		if msg.Out2inOnly == 0 || (msg.Protocol != uint8(TCP) && msg.Protocol != uint8(UDP)) {
+		if msg.Out2inOnly == 0 || msg.TwiceNat == 1 ||
+		   (msg.Protocol != uint8(TCP) && msg.Protocol != uint8(UDP)) {
 			// Mapping not installed by this plugin.
 			continue
 		}
@@ -447,9 +428,6 @@ func (sc *ServiceConfigurator) dumpNATMappings() ([]*NATMapping, error) {
 		copy(mapping.ExternalIP, msg.ExternalAddr)
 		mapping.ExternalPort = msg.ExternalPort
 		mapping.Protocol = ProtocolType(msg.Protocol)
-		if msg.TwiceNat == 1 {
-			mapping.TwiceNat = true
-		}
 
 		// Construct the list of locals
 		for _, msgLocal := range msg.Locals {
@@ -478,7 +456,7 @@ func (sc *ServiceConfigurator) dumpNATMappings() ([]*NATMapping, error) {
 			break
 		}
 		if msg.Out2inOnly == 0 || msg.AddrOnly == 1 || msg.ExternalSwIfIndex != ^uint32(0) ||
-			(msg.Protocol != uint8(TCP) && msg.Protocol != uint8(UDP)) {
+			msg.TwiceNat == 1 || (msg.Protocol != uint8(TCP) && msg.Protocol != uint8(UDP)) {
 			// Mapping not installed by this plugin.
 			continue
 		}
@@ -488,9 +466,6 @@ func (sc *ServiceConfigurator) dumpNATMappings() ([]*NATMapping, error) {
 		copy(mapping.ExternalIP, msg.ExternalIPAddress)
 		mapping.ExternalPort = msg.ExternalPort
 		mapping.Protocol = ProtocolType(msg.Protocol)
-		if msg.TwiceNat == 1 {
-			mapping.TwiceNat = true
-		}
 
 		// Construct the single local.
 		local := &NATMappingLocal{

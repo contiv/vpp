@@ -44,14 +44,6 @@ type ServiceConfiguratorAPI interface {
 	// service.
 	DeleteService(service *ContivService) error
 
-	// AddFrontendAddr adds IP address to the pool of addresses on which services
-	// are exposed.
-	AddFrontendAddr(address net.IP) error
-
-	// DelFrontendAddr removes IP address from the pool of addresses on which services
-	// are exposed.
-	DelFrontendAddr(address net.IP) error
-
 	// UpdateLocalFrontendIfs updates the list of interfaces connecting clients
 	// with VPP (enabled out2in VPP/NAT feature).
 	UpdateLocalFrontendIfs(oldIfNames, newIfNames Interfaces) error
@@ -76,12 +68,8 @@ type ContivService struct {
 	// ID should uniquely identify service across all namespaces.
 	ID svcmodel.ID
 
-	// SNAT when enabled will make IPs of clients acessing this service NAT-ed
-	// to the Node IP and traffic routed cluster-wide.
-	// If disabled, the client IP will be preserved and traffic will be routed
-	// node-local only.
-	// Learn more about this subject here: https://kubernetes.io/docs/tutorials/services/source-ip/
-	SNAT bool
+	// TrafficPolicy decides if traffic is routed cluster-wide or node-local only.
+	TrafficPolicy TrafficPolicyType
 
 	// ExternalIPs is a set of all IP addresses on which the service
 	// should be exposed on this node.
@@ -93,6 +81,17 @@ type ContivService struct {
 	// Backends map external service ports with corresponding backends.
 	Backends map[string] /*service port*/ []*ServiceBackend
 }
+
+// TrafficPolicyType is either Cluster-wide routing or Node-local only routing.
+type TrafficPolicyType int
+
+const (
+	// ClusterWide allows to load-balance traffic across all backends.
+	ClusterWide TrafficPolicyType = 0
+
+	// NodeLocal allows to load-balance traffic only across node-local backends.
+	NodeLocal TrafficPolicyType = 1
+)
 
 // NewContivService is a constructor for ContivService.
 func NewContivService() *ContivService {
@@ -128,8 +127,19 @@ func (cs ContivService) String() string {
 		}
 		idx++
 	}
-	return fmt.Sprintf("ContivService %s <SNAT:%t ExternalIPs:[%s] Backends:{%s}>",
-		cs.ID.String(), cs.SNAT, externalIPs, allBackends)
+	return fmt.Sprintf("ContivService %s <Traffic-Policy:%s ExternalIPs:[%s] Backends:{%s}>",
+		cs.ID.String(), cs.TrafficPolicy.String(), externalIPs, allBackends)
+}
+
+// String converts TrafficPolicyType into a human-readable string.
+func (tpt TrafficPolicyType) String() string {
+	switch tpt {
+	case ClusterWide:
+		return "cluster-wide"
+	case NodeLocal:
+		return "node-local"
+	}
+	return "INVALID"
 }
 
 // HasNodePort returns true if service is also exposed on the Node IP.
@@ -321,9 +331,6 @@ type ResyncEventData struct {
 	// Services is a list of all currently deployed services.
 	Services []*ContivService
 
-	// FrontendAddrs is a set of all addresses on which services are exposed.
-	FrontendAddrs *IPAddresses
-
 	// FrontendIfs is a set of all interfaces connecting clients with VPP.
 	FrontendIfs Interfaces
 
@@ -334,10 +341,9 @@ type ResyncEventData struct {
 // NewResyncEventData is a constructor for ResyncEventData.
 func NewResyncEventData() *ResyncEventData {
 	return &ResyncEventData{
-		Services:      []*ContivService{},
-		FrontendAddrs: NewIPAddresses(),
-		FrontendIfs:   NewInterfaces(),
-		BackendIfs:    NewInterfaces(),
+		Services:    []*ContivService{},
+		FrontendIfs: NewInterfaces(),
+		BackendIfs:  NewInterfaces(),
 	}
 }
 
@@ -350,6 +356,6 @@ func (red ResyncEventData) String() string {
 			services += ", "
 		}
 	}
-	return fmt.Sprintf("ResyncEventData <Services:[%s] FrontendAddrs: %s, FrontendIfs:%s BackendIfs:%s>",
-		services, red.FrontendAddrs.String(), red.FrontendIfs.String(), red.BackendIfs.String())
+	return fmt.Sprintf("ResyncEventData <Services:[%s], FrontendIfs:%s BackendIfs:%s>",
+		services, red.FrontendIfs.String(), red.BackendIfs.String())
 }

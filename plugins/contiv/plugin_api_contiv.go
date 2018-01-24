@@ -24,10 +24,6 @@ type API interface {
 	// GetNodeIP returns the IP address of this node.
 	GetNodeIP() net.IP
 
-	// GetVPPIP returns the IP address of this node's VPP.
-	// (assigned to a loopback or to the host-interconnect interface)
-	GetVPPIP() net.IP
-
 	// GetPhysicalIfNames returns a slice of names of all configured physical interfaces.
 	GetPhysicalIfNames() []string
 

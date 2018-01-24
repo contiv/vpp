@@ -89,8 +89,10 @@ func (s *Service) Refresh() {
 	s.localBackends = []podmodel.ID{}
 
 	s.contivSvc.ID = svcmodel.GetID(s.meta)
-	if s.meta.ExternalTrafficPolicy != "Local" {
-		s.contivSvc.SNAT = true
+	if s.meta.ExternalTrafficPolicy == "Local" {
+		s.contivSvc.TrafficPolicy = configurator.NodeLocal
+	} else {
+		s.contivSvc.TrafficPolicy = configurator.ClusterWide
 	}
 
 	// Collect all IP addresses on which the service should be exposed.

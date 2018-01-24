@@ -23,7 +23,7 @@ import (
 
 	"github.com/contiv/vpp/plugins/contiv/model/node"
 	"github.com/ligato/cn-infra/datasync"
-	vpp_l3 "github.com/ligato/vpp-agent/plugins/defaultplugins/l3plugin/model/l3"
+	vpp_l3 "github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/l3"
 )
 
 // handleNodeEvents handles changes in nodes within the k8s cluster (node add / delete) and

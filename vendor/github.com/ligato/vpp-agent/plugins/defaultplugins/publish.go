@@ -19,8 +19,8 @@ import (
 
 	"github.com/ligato/cn-infra/health/statuscheck"
 	"github.com/ligato/cn-infra/health/statuscheck/model/status"
-	intf "github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/model/interfaces"
-	"github.com/ligato/vpp-agent/plugins/defaultplugins/l2plugin/model/l2"
+	intf "github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/interfaces"
+	"github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/l2"
 )
 
 // Resync deletes obsolete operation status of network interfaces in DB.
@@ -63,8 +63,10 @@ func (plugin *Plugin) publishIfStateEvents(ctx context.Context) {
 
 			if plugin.PublishStatistics != nil {
 				err := plugin.PublishStatistics.Put(key, ifState.State)
-				if err != lastPublishErr {
-					plugin.Log.Error(err)
+				if err != nil {
+					if lastPublishErr == nil || lastPublishErr.Error() != err.Error() {
+						plugin.Log.Error(err)
+					}
 				}
 				lastPublishErr = err
 			}
@@ -72,8 +74,10 @@ func (plugin *Plugin) publishIfStateEvents(ctx context.Context) {
 			// Marshall data into JSON & send kafka message.
 			if plugin.ifStateNotifications != nil && ifState.Type == intf.UPDOWN {
 				err := plugin.ifStateNotifications.Put(key, ifState.State)
-				if err != lastNotifErr {
-					plugin.Log.Error(err)
+				if err != nil {
+					if lastNotifErr == nil || lastNotifErr.Error() != err.Error() {
+						plugin.Log.Error(err)
+					}
 				}
 				lastNotifErr = err
 			}

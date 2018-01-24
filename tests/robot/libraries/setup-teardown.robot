@@ -72,6 +72,7 @@ Create_Connections_To_Kube_Cluster
     [Documentation]    Create connection and log machine status for each node.
     : FOR    ${index}    IN RANGE    1    ${KUBE_CLUSTER_${CLUSTER_ID}_NODES}+1
     \    SshCommons.Open_Ssh_Connection    ${VM_SSH_ALIAS_PREFIX}${index}    ${KUBE_CLUSTER_${CLUSTER_ID}_VM_${index}_PUBLIC_IP}    ${KUBE_CLUSTER_${CLUSTER_ID}_VM_${index}_USER}    ${KUBE_CLUSTER_${CLUSTER_ID}_VM_${index}_PSWD}
+    \    SSHLibrary.Set_Client_Configuration    prompt=${KUBE_CLUSTER_${CLUSTER_ID}_VM_${index}_PROMPT}
     \    Get_Machine_Status    ${VM_SSH_ALIAS_PREFIX}${index}
 
 Make_Datastore_Snapshots

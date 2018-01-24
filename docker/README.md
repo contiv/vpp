@@ -19,6 +19,12 @@ To build without building debug binaries of VPP, use:
 ./build-all.sh -s
 ```
 
+To shrink images after build:
+note: this will destroy all layers in images
+```
+./shrink.sh
+```
+
 To tag and push the images into [Dockerhub](https://hub.docker.com/u/contivvpp/) execute:
 ```
 ./push-all.sh

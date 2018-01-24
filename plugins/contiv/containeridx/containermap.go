@@ -26,6 +26,7 @@ import (
 	vpp_l4 "github.com/ligato/vpp-agent/plugins/defaultplugins/l4plugin/model/l4"
 	linux_intf "github.com/ligato/vpp-agent/plugins/linuxplugin/ifplugin/model/interfaces"
 	linux_l3 "github.com/ligato/vpp-agent/plugins/linuxplugin/l3plugin/model/l3"
+	"time"
 )
 
 const podNameKey = "podNameKey"
@@ -130,6 +131,7 @@ func (ci *ConfigIndex) ListAll() (containerIDs []string) {
 	return ci.mapping.ListAllNames()
 }
 
+// Watch subscribe to monitor changes in ConfigIndex
 func (ci *ConfigIndex) Watch(subscriber core.PluginName, callback func(ChangeEvent)) error {
 	return ci.mapping.Watch(subscriber, func(ev idxmap.NamedMappingGenericEvent) {
 		if cfg, ok := ev.Value.(*Config); ok {
@@ -152,4 +154,16 @@ func IndexFunction(data interface{}) map[string][]string {
 		}
 	}
 	return res
+}
+
+// ToChan creates a callback that can be passed to the Watch function
+// in order to receive notifications through a channel. If the notification
+// can not be delivered until timeout, it is dropped.
+func ToChan(ch chan ChangeEvent) func(dto ChangeEvent) {
+	return func(dto ChangeEvent) {
+		select {
+		case ch <- dto:
+		case <-time.After(time.Second):
+		}
+	}
 }

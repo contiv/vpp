@@ -18,10 +18,7 @@ vagrant ssh k8s-worker1
 #### Check the VPP graph nodes (input and output queues)
 
 ```
-vagrant@k8s-worker1:~$ telnet 0 5002
-Trying 0.0.0.0...
-Connected to 0.
-Escape character is '^]'.
+vagrant@k8s-worker1:~$ sudo nc -U /run/vpp/cli.sock
     _______    _        _   _____  ___ 
  __/ __/ _ \  (_)__    | | / / _ \/ _ \
  _/ _// // / / / _ \   | |/ / ___/ ___/

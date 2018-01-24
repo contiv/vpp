@@ -31,7 +31,7 @@ import (
 
 	"github.com/ligato/cn-infra/logging"
 	"github.com/satori/go.uuid"
-	lg "github.com/sirupsen/logrus"
+	lg "github.com/Sirupsen/logrus"
 )
 
 // DefaultLoggerName is logger name of global instance of logger

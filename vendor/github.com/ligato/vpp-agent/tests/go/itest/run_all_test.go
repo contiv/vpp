@@ -8,7 +8,7 @@ import (
 
 	govppcore "git.fd.io/govpp.git/core"
 	"github.com/onsi/gomega"
-	"github.com/sirupsen/logrus"
+	"github.com/Sirupsen/logrus"
 )
 
 func init() {

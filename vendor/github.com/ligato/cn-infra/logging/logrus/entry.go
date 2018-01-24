@@ -16,7 +16,7 @@ package logrus
 
 import (
 	"fmt"
-	lg "github.com/sirupsen/logrus"
+	lg "github.com/Sirupsen/logrus"
 )
 
 // Tag names for structured fields of log message

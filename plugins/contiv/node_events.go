@@ -19,8 +19,11 @@ import (
 	"fmt"
 	"strings"
 
+	"net"
+
 	"github.com/contiv/vpp/plugins/contiv/model/node"
 	"github.com/ligato/cn-infra/datasync"
+	vpp_l3 "github.com/ligato/vpp-agent/plugins/defaultplugins/l3plugin/model/l3"
 )
 
 // handleNodeEvents handles changes in nodes within the k8s cluster (node add / delete) and
@@ -30,8 +33,9 @@ func (s *remoteCNIserver) handleNodeEvents(ctx context.Context, resyncChan chan 
 		select {
 
 		case resyncEv := <-resyncChan:
-			err := s.nodeResync(resyncEv)
-			resyncEv.Done(err)
+			// resync needs to return done immediately, to not block resync of the remote cni server
+			go s.nodeResync(resyncEv)
+			resyncEv.Done(nil)
 
 		case changeEv := <-changeChan:
 			err := s.nodeChangePropageteEvent(changeEv)
@@ -45,6 +49,13 @@ func (s *remoteCNIserver) handleNodeEvents(ctx context.Context, resyncChan chan 
 
 // nodeResync processes all nodes data and configures vswitch (routes to the other nodes) accordingly.
 func (s *remoteCNIserver) nodeResync(dataResyncEv datasync.ResyncEvent) error {
+
+	// do not handle other nodes until the base vswitch config is successfully applied
+	s.Lock()
+	for !s.vswitchConnectivityConfigured {
+		s.vswitchCond.Wait()
+	}
+	defer s.Unlock()
 
 	// TODO: implement proper resync (handle deleted routes as well)
 
@@ -64,13 +75,14 @@ func (s *remoteCNIserver) nodeResync(dataResyncEv datasync.ResyncEvent) error {
 				if err != nil {
 					return err
 				}
+
 				nodeID := uint8(nodeInfo.Id)
 
 				if nodeID != s.ipam.NodeID() {
 					s.Logger.Info("Other node discovered: ", nodeID)
 
 					// add routes to the node
-					err = s.addRoutesToNode(nodeID)
+					err = s.addRoutesToNode(nodeInfo)
 				}
 			}
 		}
@@ -82,8 +94,16 @@ func (s *remoteCNIserver) nodeResync(dataResyncEv datasync.ResyncEvent) error {
 // nodeChangePropageteEvent handles change in nodes within the k8s cluster (node add / delete)
 // and configures vswitch (routes to the other nodes) accordingly.
 func (s *remoteCNIserver) nodeChangePropageteEvent(dataChngEv datasync.ChangeEvent) error {
-	var err error
+
+	// do not handle other nodes until the base vswitch config is successfully applied
+	s.Lock()
+	for !s.vswitchConnectivityConfigured {
+		s.vswitchCond.Wait()
+	}
+	defer s.Unlock()
+
 	key := dataChngEv.GetKey()
+	var err error
 
 	if strings.HasPrefix(key, allocatedIDsKeyPrefix) {
 		nodeInfo := &node.NodeInfo{}
@@ -91,19 +111,17 @@ func (s *remoteCNIserver) nodeChangePropageteEvent(dataChngEv datasync.ChangeEve
 		if err != nil {
 			return err
 		}
-		nodeID := uint8(nodeInfo.Id)
 
-		// route := s.getRouteToNode(conf, nodeInfo.Id)
 		if dataChngEv.GetChangeType() == datasync.Put {
-			s.Logger.Info("New node discovered: ", nodeID)
+			s.Logger.Info("New node discovered: ", nodeInfo.Id)
 
 			// add routes to the node
-			err = s.addRoutesToNode(nodeID)
+			err = s.addRoutesToNode(nodeInfo)
 		} else {
-			s.Logger.Info("Node removed: ", nodeID)
+			s.Logger.Info("Node removed: ", nodeInfo.Id)
 
 			// delete routes to the node
-			err = s.deleteRoutesToNode(nodeID)
+			err = s.deleteRoutesToNode(nodeInfo)
 		}
 	} else {
 		return fmt.Errorf("Unknown key %v", key)
@@ -113,28 +131,61 @@ func (s *remoteCNIserver) nodeChangePropageteEvent(dataChngEv datasync.ChangeEve
 }
 
 // addRoutesToNode add routes to the node specified by nodeID.
-func (s *remoteCNIserver) addRoutesToNode(nodeID uint8) error {
-	podsRoute, hostRoute, err := s.computeRoutesForHost(nodeID)
+func (s *remoteCNIserver) addRoutesToNode(nodeInfo *node.NodeInfo) error {
+
+	txn := s.vppTxnFactory().Put()
+	hostIP := s.otherHostIP(uint8(nodeInfo.Id), nodeInfo.IpAddress)
+
+	// VXLAN tunnel
+	if !s.useL2Interconnect {
+		vxlanIf, err := s.computeVxlanToHost(uint8(nodeInfo.Id), hostIP)
+		if err != nil {
+			return err
+		}
+		txn.VppInterface(vxlanIf)
+
+		// add the VXLAN interface into the VXLAN bridge domain
+		s.addInterfaceToVxlanBD(s.vxlanBD, vxlanIf.Name)
+		txn.BD(s.vxlanBD)
+	}
+
+	// static routes
+	var (
+		podsRoute    *vpp_l3.StaticRoutes_Route
+		hostRoute    *vpp_l3.StaticRoutes_Route
+		vxlanNextHop net.IP
+		err          error
+	)
+	if s.useL2Interconnect {
+		// static route directly to other node IP
+		podsRoute, hostRoute, err = s.computeRoutesToHost(uint8(nodeInfo.Id), hostIP)
+	} else {
+		// static route to other node VXLAN BVI
+		vxlanNextHop, err = s.ipam.VxlanIPAddress(uint8(nodeInfo.Id))
+		if err != nil {
+			return err
+		}
+		podsRoute, hostRoute, err = s.computeRoutesToHost(uint8(nodeInfo.Id), vxlanNextHop.String())
+	}
 	if err != nil {
 		return err
 	}
+	txn.StaticRoute(podsRoute)
+	txn.StaticRoute(hostRoute)
 	s.Logger.Info("Adding PODs route: ", podsRoute)
 	s.Logger.Info("Adding host route: ", hostRoute)
 
-	err = s.vppTxnFactory().Put().
-		StaticRoute(podsRoute).
-		StaticRoute(hostRoute).
-		Send().ReceiveReply()
-
+	// send the config transaction
+	err = txn.Send().ReceiveReply()
 	if err != nil {
-		return fmt.Errorf("Can't configure vpp to add route to host %v (and its pods): %v ", nodeID, err)
+		return fmt.Errorf("Can't configure VPP to add routes to node %v: %v ", nodeInfo.Id, err)
 	}
 	return nil
 }
 
 // deleteRoutesToNode delete routes to the node specified by nodeID.
-func (s *remoteCNIserver) deleteRoutesToNode(nodeID uint8) error {
-	podsRoute, hostRoute, err := s.computeRoutesForHost(nodeID)
+func (s *remoteCNIserver) deleteRoutesToNode(nodeInfo *node.NodeInfo) error {
+	podsRoute, hostRoute, err := s.computeRoutesToHost(uint8(nodeInfo.Id), nodeInfo.IpAddress)
 	if err != nil {
 		return err
 	}
@@ -147,7 +198,7 @@ func (s *remoteCNIserver) deleteRoutesToNode(nodeID uint8) error {
 		Send().ReceiveReply()
 
 	if err != nil {
-		return fmt.Errorf("Can't configure vpp to remove route to host %v (and its pods): %v ", nodeID, err)
+		return fmt.Errorf("Can't configure vpp to remove route to host %v (and its pods): %v ", nodeInfo.Id, err)
 	}
 	return nil
 }

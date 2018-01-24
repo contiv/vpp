@@ -47,21 +47,23 @@ var (
 // the allocation is inserted)
 type idAllocator struct {
 	sync.Mutex
-	etcd         *etcdv3.Plugin
-	serviceLabel string
-	broker       keyval.ProtoBroker
+	etcd   *etcdv3.Plugin
+	broker keyval.ProtoBroker
 
 	allocated bool
+	ID        uint32
 
-	ID uint32
+	nodeName string
+	nodeIP   string
 }
 
 // newIDAllocator creates new instance of idAllocator
-func newIDAllocator(etcd *etcdv3.Plugin, serviceLabel string) *idAllocator {
+func newIDAllocator(etcd *etcdv3.Plugin, nodeName string, nodeIP string) *idAllocator {
 	return &idAllocator{
-		etcd:         etcd,
-		serviceLabel: serviceLabel,
-		broker:       etcd.NewBroker(servicelabel.GetDifferentAgentPrefix(ksr.MicroserviceLabel)),
+		etcd:     etcd,
+		broker:   etcd.NewBroker(servicelabel.GetDifferentAgentPrefix(ksr.MicroserviceLabel)),
+		nodeName: nodeName,
+		nodeIP:   nodeIP,
 	}
 }
 
@@ -133,7 +135,11 @@ func (ia *idAllocator) releaseID() error {
 
 func (ia *idAllocator) writeIfNotExists(id uint32) (succeeded bool, err error) {
 
-	value := &node.NodeInfo{Name: ia.serviceLabel, Id: id}
+	value := &node.NodeInfo{
+		Id:        id,
+		Name:      ia.nodeName,
+		IpAddress: ia.nodeIP,
+	}
 
 	encoded, err := json.Marshal(value)
 	if err != nil {
@@ -146,7 +152,7 @@ func (ia *idAllocator) writeIfNotExists(id uint32) (succeeded bool, err error) {
 
 }
 
-// findExistingEntry lists all allocated entries and check if the etcd contains ID assigned
+// findExistingEntry lists all allocated entries and checks if the etcd contains ID assigned
 // to the serviceLabel
 func (ia *idAllocator) findExistingEntry(broker keyval.ProtoBroker) (id *node.NodeInfo, err error) {
 	var existingEntry *node.NodeInfo
@@ -168,7 +174,7 @@ func (ia *idAllocator) findExistingEntry(broker keyval.ProtoBroker) (id *node.No
 			return nil, err
 		}
 
-		if item.Name == ia.serviceLabel {
+		if item.Name == ia.nodeName {
 			existingEntry = item
 			break
 		}

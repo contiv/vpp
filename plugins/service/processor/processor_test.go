@@ -16,6 +16,14 @@
 
 package processor
 
+import (
+	"testing"
+
+	"github.com/ligato/cn-infra/logging"
+	"github.com/ligato/cn-infra/logging/logroot"
+	"github.com/onsi/gomega"
+)
+
 func TestSomething(t *testing.T) {
 	gomega.RegisterTestingT(t)
 	logger := logroot.StandardLogger()

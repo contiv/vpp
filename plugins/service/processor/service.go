@@ -97,7 +97,7 @@ func (s *Service) Refresh() {
 	if s.meta.ClusterIp != "" && s.meta.ClusterIp != "None" {
 		clusterIP := net.ParseIP(s.meta.ClusterIp)
 		if clusterIP != nil {
-			s.contivSvc.ExternalIPs = append(s.contivSvc.ExternalIPs, clusterIP)
+			s.contivSvc.ExternalIPs.Add(clusterIP)
 		} else {
 			s.sp.Log.WithFields(logging.Fields{
 				"service":   s.contivSvc.ID,
@@ -109,7 +109,7 @@ func (s *Service) Refresh() {
 	for _, externalIPStr := range s.meta.ExternalIps {
 		externalIP := net.ParseIP(externalIPStr)
 		if externalIP != nil {
-			s.contivSvc.ExternalIPs = append(s.contivSvc.ExternalIPs, externalIP)
+			s.contivSvc.ExternalIPs.Add(externalIP)
 		} else {
 			s.sp.Log.WithFields(logging.Fields{
 				"service":    s.contivSvc.ID,
@@ -153,12 +153,13 @@ func (s *Service) Refresh() {
 				local = true
 			}
 			for _, epPort := range epPorts {
-				if _, exposedPort := s.contivSvc.Ports[epPort.GetName()]; exposedPort {
+				port := epPort.GetName()
+				if _, exposedPort := s.contivSvc.Ports[port]; exposedPort {
 					sb := &configurator.ServiceBackend{}
 					sb.IP = epIP
 					sb.Port = uint16(epPort.GetPort())
 					sb.Local = local
-					s.contivSvc.Backends[epPort.GetName()] = append(s.contivSvc.Backends[epPort.GetName()], sb)
+					s.contivSvc.Backends[port] = append(s.contivSvc.Backends[port], sb)
 				}
 			}
 			if local {

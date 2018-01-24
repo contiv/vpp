@@ -190,16 +190,14 @@ func (sc *ServiceConfigurator) setInterfaceNATFeature(ifName string, isInside bo
 
 // setNATAddress adds or removes given IP to/from the pool of NAT addresses.
 func (sc *ServiceConfigurator) setNATAddress(address net.IP, isAdd bool) error {
-	var pool string
-
 	if address.To4() == nil {
 		// TODO: IPv6 support
 		return fmt.Errorf("'%s' is not IPv4 address", address.String())
 	}
 
 	req := &nat.Nat44AddDelAddressRange{
-		VrfID: ^uint32(0),
-		req.TwiceNat = 0,
+		VrfID:    ^uint32(0),
+		TwiceNat: 0,
 	}
 	if isAdd {
 		req.IsAdd = 1
@@ -386,7 +384,7 @@ func (sc *ServiceConfigurator) dumpAddressPool() (pool *IPAddresses, err error) 
 		stop, err := reqContext.ReceiveReply(msg)
 		if err != nil {
 			sc.Log.WithField("err", err).Error("Failed to get NAT44 address details")
-			return snat, dnat, err
+			return pool, err
 		}
 		if stop {
 			break
@@ -418,7 +416,7 @@ func (sc *ServiceConfigurator) dumpNATMappings() ([]*NATMapping, error) {
 			break
 		}
 		if msg.Out2inOnly == 0 || msg.TwiceNat == 1 ||
-		   (msg.Protocol != uint8(TCP) && msg.Protocol != uint8(UDP)) {
+			(msg.Protocol != uint8(TCP) && msg.Protocol != uint8(UDP)) {
 			// Mapping not installed by this plugin.
 			continue
 		}

@@ -241,8 +241,6 @@ func (sp *ServiceProcessor) configureService(svc *Service, oldContivSvc *configu
 	var err error
 	newContivSvc := svc.GetContivService()
 	newBackends := svc.GetLocalBackends()
-	newHasNodePort := (newContivSvc != nil && newContivSvc.HasNodePort())
-	oldHasNodePort := (oldContivSvc != nil && oldContivSvc.HasNodePort())
 
 	// Configure service.
 	if newContivSvc != nil {

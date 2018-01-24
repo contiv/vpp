@@ -268,5 +268,8 @@ func (s *remoteCNIserver) otherHostIP(hostID uint8, hostIPPrefix string) string 
 }
 
 func (s *remoteCNIserver) ipPrefixToAddress(ip string) string {
-	return ip[:strings.Index(ip, "/")]
+	if strings.Contains(ip, "/") {
+		return ip[:strings.Index(ip, "/")]
+	}
+	return ip
 }

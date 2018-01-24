@@ -195,6 +195,11 @@ func (sc *ServiceConfigurator) setInterfaceNATFeature(ifName string, isInside bo
 func (sc *ServiceConfigurator) setNATAddress(address net.IP, snat, isAdd bool) error {
 	var pool string
 
+	if !snat {
+		/* leave DNAT address pool empty */
+		return nil
+	}
+
 	if address.To4() == nil {
 		// TODO: IPv6 support
 		return fmt.Errorf("'%s' is not IPv4 address", address.String())

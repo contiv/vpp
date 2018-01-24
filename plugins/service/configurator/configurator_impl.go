@@ -353,7 +353,7 @@ func (sc *ServiceConfigurator) exportNATMappings(service *ContivService) ([]*NAT
 	// Export NAT mappings for NodePort services.
 	if service.HasNodePort() {
 		// Try to get Node IP.
-		nodeIP, err := sc.getNodeIP()
+		nodeIP, err := sc.getVPPIP() //sc.getNodeIP()
 		if err != nil {
 			sc.Log.Error(err)
 			return nil, err

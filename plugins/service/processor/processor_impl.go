@@ -258,7 +258,7 @@ func (sp *ServiceProcessor) configureService(svc *Service, oldContivSvc *configu
 	oldHasNodePort := (oldContivSvc != nil && oldContivSvc.HasNodePort())
 
 	// Try to get Node IP.
-	nodeIP := sp.Contiv.GetNodeIP()
+	nodeIP := sp.Contiv.GetVPPIP() //sp.Contiv.GetNodeIP()
 	if nodeIP == nil {
 		return errors.New("failed to get Node IP")
 	}
@@ -410,7 +410,7 @@ func (sp *ServiceProcessor) processResyncEvent(resyncEv *ResyncEventData) error 
 	sp.reset()
 
 	// Try to get Node IP.
-	nodeIP := sp.Contiv.GetNodeIP()
+	nodeIP := sp.Contiv.GetVPPIP() //sp.Contiv.GetNodeIP()
 	if nodeIP == nil {
 		return errors.New("failed to get Node IP")
 	}

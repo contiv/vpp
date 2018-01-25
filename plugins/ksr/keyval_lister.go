@@ -28,13 +28,13 @@ type KeyProtoValLister interface {
 	ListValues(prefix string) (keyval.ProtoKeyValIterator, error)
 }
 
-// mockKeyProtoValLister is a mock implementation of mockKeyProtoValLister
+// mockKeyProtoValLister is a mock implementation of KeyProtoValLister
 // used in unit tests.
 type mockKeyProtoValLister struct {
 	ds map[string]proto.Message
 }
 
-// mockProtoKeyValIterator is a mock implementation of mockProtoKeyValIterator
+// mockProtoKeyValIterator is a mock implementation of ProtoKeyValIterator
 // used in unit tests.
 type mockProtoKeyValIterator struct {
 	values []keyval.ProtoKeyVal

@@ -291,6 +291,8 @@ func TestPodReflector(t *testing.T) {
 	err := podTestVars.podReflector.Init(stopCh, &wg)
 	gomega.Expect(err).To(gomega.BeNil())
 
+	podTestVars.podReflector.SyncDataStoreWithK8sCache()
+
 	// Wait for the initial sync to finish
 	for {
 		if podTestVars.podReflector.HasSynced() {

@@ -60,7 +60,6 @@ func (s *remoteCNIserver) nodeResync(dataResyncEv datasync.ResyncEvent) error {
 	// TODO: implement proper resync (handle deleted routes as well)
 
 	var err error
-	txn := s.vppTxnFactory().Put()
 	data := dataResyncEv.GetValues()
 
 	for prefix, it := range data {
@@ -88,7 +87,7 @@ func (s *remoteCNIserver) nodeResync(dataResyncEv datasync.ResyncEvent) error {
 		}
 	}
 
-	return txn.Send().ReceiveReply()
+	return err
 }
 
 // nodeChangePropageteEvent handles change in nodes within the k8s cluster (node add / delete)

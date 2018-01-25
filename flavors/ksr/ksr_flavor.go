@@ -91,6 +91,7 @@ func (f *FlavorKsr) Inject() (allReadyInjected bool) {
 	// Reuse ForPlugin to define configuration file for 3rd party library (k8s client).
 	f.Ksr.Deps.KubeConfig = config.ForPlugin("kube", KubeConfigAdmin, KubeConfigUsage)
 	f.Ksr.Deps.Publish = &f.ETCDDataSync
+	f.Ksr.StatusMonitor = &f.StatusCheck // Inject status check
 
 	return true
 }

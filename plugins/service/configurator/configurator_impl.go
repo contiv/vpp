@@ -119,49 +119,32 @@ func (sc *ServiceConfigurator) DeleteService(service *ContivService) error {
 	return nil
 }
 
-// UpdateFrontendAddrs updates the list of addresses on which services are exposed.
-func (sc *ServiceConfigurator) UpdateFrontendAddrs(oldAddrs, newAddrs *IPAddresses) error {
+// AddFrontendAddr adds IP address to the pool of addresses on which services
+// are exposed.
+func (sc *ServiceConfigurator) AddFrontendAddr(address net.IP) error {
 	sc.Log.WithFields(logging.Fields{
-		"oldAddrs": oldAddrs,
-		"newAddrs": newAddrs,
-	}).Debug("ServiceConfigurator - UpdateFrontendAddrs()")
+		"address": address,
+	}).Debug("ServiceConfigurator - AddFrontendAddr()")
 
-	// Configure new NAT external addresses.
-	for _, newAddr := range newAddrs.List() {
-		new := true
-		for _, oldAddr := range oldAddrs.List() {
-			if oldAddr.Equal(newAddr) {
-				new = false
-				break
-			}
-		}
-		if new {
-			err := sc.setNATAddress(newAddr, false, true)
-			if err != nil {
-				sc.Log.Error(err)
-				return err
-			}
-		}
+	err := sc.setNATAddress(address, false, true)
+	if err != nil {
+		sc.Log.Error(err)
 	}
+	return err
+}
 
-	// Unconfigure obsolete NAT external addresses.
-	for _, oldAddr := range oldAddrs.List() {
-		removed := true
-		for _, newAddr := range newAddrs.List() {
-			if oldAddr.Equal(newAddr) {
-				removed = false
-				break
-			}
-		}
-		if removed {
-			err := sc.setNATAddress(oldAddr, false, false)
-			if err != nil {
-				sc.Log.Error(err)
-				return err
-			}
-		}
+// DelFrontendAddr removes IP address from the pool of addresses on which services
+// are exposed.
+func (sc *ServiceConfigurator) DelFrontendAddr(address net.IP) error {
+	sc.Log.WithFields(logging.Fields{
+		"address": address,
+	}).Debug("ServiceConfigurator - DelFrontendAddr()")
+
+	err := sc.setNATAddress(address, false, false)
+	if err != nil {
+		sc.Log.Error(err)
 	}
-	return nil
+	return err
 }
 
 // UpdateLocalFrontendIfs updates the list of interfaces connecting clients
@@ -252,8 +235,8 @@ func (sc *ServiceConfigurator) Resync(resyncEv *ResyncEventData) error {
 		"resyncEv": resyncEv,
 	}).Debug("ServiceConfigurator - Resync()")
 
-	// Try to get Node IP.
-	nodeIP, err := sc.getNodeIP()
+	// Try to get VPP IP.
+	vppIP, err := sc.getVPPIP()
 	if err != nil {
 		sc.Log.Error(err)
 		return err
@@ -287,20 +270,30 @@ func (sc *ServiceConfigurator) Resync(resyncEv *ResyncEventData) error {
 		return err
 	}
 
-	// Add Node IP to the pool for SNAT.
-	if !snatPoolDump.Has(nodeIP) {
-		err = sc.setNATAddress(nodeIP, true, true)
+	// Add VPP IP to the pool for SNAT.
+	if !snatPoolDump.Has(vppIP) {
+		err = sc.setNATAddress(vppIP, true, true)
 		if err != nil {
 			sc.Log.Error(err)
 			return err
 		}
 	}
 
-	// Update frontend addresses.
-	err = sc.UpdateFrontendAddrs(dnatPoolDump, resyncEv.FrontendAddrs)
-	if err != nil {
-		sc.Log.Error(err)
-		return err
+	// Configure new DNAT external addresses.
+	for _, newAddr := range resyncEv.FrontendAddrs.List() {
+		new := true
+		for _, oldAddr := range dnatPoolDump.List() {
+			if oldAddr.Equal(newAddr) {
+				new = false
+				break
+			}
+		}
+		if new {
+			err := sc.AddFrontendAddr(newAddr)
+			if err != nil {
+				return err
+			}
+		}
 	}
 
 	// Export and update NAT Mappings.
@@ -317,6 +310,23 @@ func (sc *ServiceConfigurator) Resync(resyncEv *ResyncEventData) error {
 	if err != nil {
 		sc.Log.Error(err)
 		return err
+	}
+
+	// Remove obsolete DNAT external addresses.
+	for _, oldAddr := range dnatPoolDump.List() {
+		removed := true
+		for _, newAddr := range resyncEv.FrontendAddrs.List() {
+			if oldAddr.Equal(newAddr) {
+				removed = false
+				break
+			}
+		}
+		if removed {
+			err := sc.DelFrontendAddr(oldAddr)
+			if err != nil {
+				return err
+			}
+		}
 	}
 
 	// Update local backend interfaces.
@@ -437,14 +447,27 @@ func (sc *ServiceConfigurator) Close() error {
 /**** Helper methods ****/
 
 func (sc *ServiceConfigurator) getNodeIP() (net.IP, error) {
-	nodeIPNet := sc.Contiv.GetHostIPNetwork()
-	if nodeIPNet == nil {
+	nodeIP := sc.Contiv.GetNodeIP()
+	if nodeIP == nil {
 		return nil, errors.New("failed to get Node IP")
 	}
-	nodeIP := nodeIPNet.IP.To4()
-	if nodeIP == nil {
+	nodeIPv4 := nodeIP.To4()
+	if nodeIPv4 == nil {
 		// TODO: IPv6 support
 		return nil, errors.New("node IP is not IPv4 address")
 	}
-	return nodeIP, nil
+	return nodeIPv4, nil
+}
+
+func (sc *ServiceConfigurator) getVPPIP() (net.IP, error) {
+	vppIP := sc.Contiv.GetVPPIP()
+	if vppIP == nil {
+		return nil, errors.New("failed to get VPP IP")
+	}
+	vppIPv4 := vppIP.To4()
+	if vppIPv4 == nil {
+		// TODO: IPv6 support
+		return nil, errors.New("vpp IP is not IPv4 address")
+	}
+	return vppIPv4, nil
 }

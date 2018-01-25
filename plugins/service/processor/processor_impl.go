@@ -254,30 +254,24 @@ func (sp *ServiceProcessor) configureService(svc *Service, oldContivSvc *configu
 	var err error
 	newContivSvc := svc.GetContivService()
 	newBackends := svc.GetLocalBackends()
-
-	// Try to get Node IP.
-	nodeIPNet := sp.Contiv.GetHostIPNetwork()
-	if nodeIPNet == nil {
-		return errors.New("failed to get Node IP")
-	}
-	nodeIP := nodeIPNet.IP
-
-	// Configure frontend addresses.
-	newFrontendAddrs := sp.frontendAddrs.Copy()
-	updateFrontends := false
-	// -> handle change related to the NodePort type
 	newHasNodePort := (newContivSvc != nil && newContivSvc.HasNodePort())
 	oldHasNodePort := (oldContivSvc != nil && oldContivSvc.HasNodePort())
+
+	// Try to get Node IP.
+	nodeIP := sp.Contiv.GetNodeIP()
+	if nodeIP == nil {
+		return errors.New("failed to get Node IP")
+	}
+
+	// Configure new frontend addresses.
+	// -> handle enabled NodePort
 	if newHasNodePort && !oldHasNodePort {
 		if sp.extAddrUsageIncAndFetch(nodeIP, 1) == 1 {
-			newFrontendAddrs.Add(nodeIP)
-			updateFrontends = true
-		}
-	}
-	if !newHasNodePort && oldHasNodePort {
-		if sp.extAddrUsageIncAndFetch(nodeIP, -1) == 0 {
-			newFrontendAddrs.Del(nodeIP)
-			updateFrontends = true
+			sp.frontendAddrs.Add(nodeIP)
+			err = sp.Configurator.AddFrontendAddr(nodeIP)
+			if err != nil {
+				return err
+			}
 		}
 	}
 	// -> handle new External IPs
@@ -294,36 +288,14 @@ func (sp *ServiceProcessor) configureService(svc *Service, oldContivSvc *configu
 			}
 			if new {
 				if sp.extAddrUsageIncAndFetch(newAddr, 1) == 1 {
-					newFrontendAddrs.Add(newAddr)
-					updateFrontends = true
-				}
-			}
-		}
-	}
-	// -> handle removed External IPs
-	if oldContivSvc != nil {
-		for _, oldAddr := range oldContivSvc.ExternalIPs.List() {
-			removed := true
-			if newContivSvc != nil {
-				for _, newAddr := range newContivSvc.ExternalIPs.List() {
-					if newAddr.Equal(oldAddr) {
-						removed = false
-						break
+					sp.frontendAddrs.Add(newAddr)
+					err = sp.Configurator.AddFrontendAddr(newAddr)
+					if err != nil {
+						return err
 					}
 				}
 			}
-			if removed {
-				if sp.extAddrUsageIncAndFetch(oldAddr, -1) == 0 {
-					newFrontendAddrs.Del(oldAddr)
-					updateFrontends = true
-				}
-			}
 		}
-	}
-	// -> update frontend addresses
-	if updateFrontends {
-		err = sp.Configurator.UpdateFrontendAddrs(sp.frontendAddrs, newFrontendAddrs)
-		sp.frontendAddrs = newFrontendAddrs
 	}
 
 	// Configure service.
@@ -344,6 +316,41 @@ func (sp *ServiceProcessor) configureService(svc *Service, oldContivSvc *configu
 			err = sp.Configurator.DeleteService(oldContivSvc)
 			if err != nil {
 				return err
+			}
+		}
+	}
+
+	// Unconfigure obsolete frontend addresses.
+	// -> handle disabled NodePort
+	if !newHasNodePort && oldHasNodePort {
+		if sp.extAddrUsageIncAndFetch(nodeIP, -1) == 0 {
+			sp.frontendAddrs.Del(nodeIP)
+			err = sp.Configurator.DelFrontendAddr(nodeIP)
+			if err != nil {
+				return err
+			}
+		}
+	}
+	// -> handle removed External IPs
+	if oldContivSvc != nil {
+		for _, oldAddr := range oldContivSvc.ExternalIPs.List() {
+			removed := true
+			if newContivSvc != nil {
+				for _, newAddr := range newContivSvc.ExternalIPs.List() {
+					if newAddr.Equal(oldAddr) {
+						removed = false
+						break
+					}
+				}
+			}
+			if removed {
+				if sp.extAddrUsageIncAndFetch(oldAddr, -1) == 0 {
+					sp.frontendAddrs.Del(oldAddr)
+					err = sp.Configurator.DelFrontendAddr(oldAddr)
+					if err != nil {
+						return err
+					}
+				}
 			}
 		}
 	}
@@ -403,24 +410,31 @@ func (sp *ServiceProcessor) processResyncEvent(resyncEv *ResyncEventData) error 
 	sp.reset()
 
 	// Try to get Node IP.
-	nodeIPNet := sp.Contiv.GetHostIPNetwork()
-	if nodeIPNet == nil {
+	nodeIP := sp.Contiv.GetNodeIP()
+	if nodeIP == nil {
 		return errors.New("failed to get Node IP")
 	}
-	nodeIP := nodeIPNet.IP
 
 	// Re-build the current state.
 	confResyncEv := configurator.NewResyncEventData()
 
-	// Fill up the set of frontend interfaces and local endpoints.
+	// Fill up the set of frontend/backend interfaces and local endpoints.
 	// -> physical interfaces
 	for _, physIf := range sp.Contiv.GetPhysicalIfNames() {
 		sp.frontendIfs.Add(physIf)
+		sp.backendIfs.Add(physIf)
+	}
+	// -> VXLAN BVI interface
+	vxlanBVIIf := sp.Contiv.GetVxlanBVIIfName()
+	if vxlanBVIIf != "" {
+		sp.frontendIfs.Add(vxlanBVIIf)
+		sp.backendIfs.Add(vxlanBVIIf)
 	}
 	// -> host interconnect
 	hostInterconnect := sp.Contiv.GetHostInterconnectIfName()
 	if hostInterconnect != "" {
 		sp.frontendIfs.Add(hostInterconnect)
+		sp.backendIfs.Add(hostInterconnect)
 	}
 	// -> pods
 	for _, pod := range resyncEv.Pods {

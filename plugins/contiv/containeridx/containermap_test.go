@@ -18,7 +18,9 @@ import (
 	"testing"
 
 	"github.com/ligato/cn-infra/core"
+	"github.com/ligato/cn-infra/logging/logrus"
 	"github.com/onsi/gomega"
+	"time"
 )
 
 func TestNewConfigIndex(t *testing.T) {
@@ -91,4 +93,54 @@ func TestSecondaryIndexLookup(t *testing.T) {
 	podMatch := idx.LookupPodName(podA)
 	gomega.Expect(podMatch).To(gomega.ContainElement(containerA))
 
+}
+
+func TestWatch(t *testing.T) {
+
+	gomega.RegisterTestingT(t)
+
+	idx := NewConfigIndex(logrus.DefaultLogger(), core.PluginName("Plugin-name"), "title")
+	gomega.Expect(idx).NotTo(gomega.BeNil())
+
+	const (
+		containerA = "AAA"
+		podNs      = "myNamespace"
+		podA       = "123"
+	)
+
+	ch := make(chan ChangeEvent, 10)
+	err := idx.Watch("subscriber", func(event ChangeEvent) {
+		select {
+		case ch <- event:
+		case <-time.After(1 * time.Second):
+			t.FailNow()
+		}
+	})
+	gomega.Expect(err).To(gomega.BeNil())
+
+	configA := &Config{PodNamespace: podNs, PodName: podA}
+
+	idx.RegisterContainer(containerA, configA)
+
+	select {
+	case notif := <-ch:
+		gomega.Expect(notif.RegistryTitle).To(gomega.BeEquivalentTo("title"))
+		gomega.Expect(notif.Del).To(gomega.BeFalse())
+		gomega.Expect(notif.Name).To(gomega.BeEquivalentTo(containerA))
+		gomega.Expect(notif.Value).To(gomega.BeEquivalentTo(configA))
+	case <-time.After(time.Second):
+		t.FailNow()
+	}
+
+	idx.UnregisterContainer(containerA)
+
+	select {
+	case notif := <-ch:
+		gomega.Expect(notif.RegistryTitle).To(gomega.BeEquivalentTo("title"))
+		gomega.Expect(notif.Del).To(gomega.BeTrue())
+		gomega.Expect(notif.Name).To(gomega.BeEquivalentTo(containerA))
+		gomega.Expect(notif.Value).To(gomega.BeEquivalentTo(configA))
+	case <-time.After(time.Second):
+		t.FailNow()
+	}
 }

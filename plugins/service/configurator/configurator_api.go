@@ -44,9 +44,13 @@ type ServiceConfiguratorAPI interface {
 	// service.
 	DeleteService(service *ContivService) error
 
-	// UpdateFrontendAddrs updates the list of addresses on which services are
-	// exposed.
-	UpdateFrontendAddrs(oldAddrs, newAddrs *IPAddresses) error
+	// AddFrontendAddr adds IP address to the pool of addresses on which services
+	// are exposed.
+	AddFrontendAddr(address net.IP) error
+
+	// DelFrontendAddr removes IP address from the pool of addresses on which services
+	// are exposed.
+	DelFrontendAddr(address net.IP) error
 
 	// UpdateLocalFrontendIfs updates the list of interfaces connecting clients
 	// with VPP (enabled out2in VPP/NAT feature).

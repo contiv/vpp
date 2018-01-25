@@ -34,6 +34,7 @@ import (
 	"github.com/ligato/cn-infra/flavors/connectors"
 	"github.com/ligato/cn-infra/health/probe"
 	"github.com/ligato/cn-infra/rpc/grpc"
+	"github.com/ligato/cn-infra/rpc/prometheus"
 	"github.com/ligato/cn-infra/rpc/rest"
 	"github.com/ligato/vpp-agent/clientv1/linux/localclient"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins"
@@ -66,8 +67,9 @@ func WithPlugins(listPlugins func(local *FlavorContiv) []*core.NamedPlugin) core
 // configuration using the local client.
 type FlavorContiv struct {
 	*local.FlavorLocal
-	HTTP      rest.Plugin
-	HealthRPC probe.Plugin
+	HTTP       rest.Plugin
+	HealthRPC  probe.Plugin
+	Prometheus prometheus.Plugin
 
 	ETCD            etcdv3.Plugin
 	ETCDDataSync    kvdbsync.Plugin
@@ -110,6 +112,9 @@ func (f *FlavorContiv) Inject() bool {
 	f.HTTP.Deps.PluginConfig = httpPlugDeps.PluginConfig
 	f.HTTP.Deps.PluginName = httpPlugDeps.PluginName
 
+	f.Prometheus.Deps.PluginInfraDeps = *f.InfraDeps("prometheus")
+	f.Prometheus.Deps.HTTP = &f.HTTP
+
 	f.Logs.HTTP = &f.HTTP
 
 	f.HealthRPC.Deps.PluginInfraDeps = *f.InfraDeps("health-rpc")
@@ -125,6 +130,7 @@ func (f *FlavorContiv) Inject() bool {
 
 	f.Stats.Deps.PluginInfraDeps = *f.FlavorLocal.InfraDeps("stats")
 	f.Stats.Deps.Contiv = &f.Contiv
+	f.Stats.Deps.Prometheus = &f.Prometheus
 
 	f.GoVPP.Deps.PluginInfraDeps = *f.FlavorLocal.InfraDeps("govpp", local.WithConf())
 	f.Linux.Watcher = &datasync.CompositeKVProtoWatcher{Adapters: []datasync.KeyValProtoWatcher{&f.KVProxy, local_sync.Get()}}

@@ -75,6 +75,9 @@ type Reflector struct {
 	dsMutex  sync.Mutex
 }
 
+// reflectors is the reflector registry
+var reflectors = make(map[string]*Reflector)
+
 // DsItems defines the structure holding items listed from the data store.
 type DsItems map[string]interface{}
 
@@ -99,6 +102,21 @@ type ReflectorFunctions struct {
 	K8sClntGetFunc K8sClientGetter
 }
 
+// StopDataStoreUpdates stops data store updates on all registered reflectors.
+func StopDataStoreUpdates() {
+	for _, r := range reflectors {
+		r.stopDataStoreUpdates()
+	}
+}
+
+// SyncDataStoresWithK8sCaches starts data store resync on all registered
+// reflectors.
+func SyncDataStoresWithK8sCaches() {
+	for _, r := range reflectors {
+		r.startDataStoreResync()
+	}
+}
+
 // GetStats returns the Service Reflector usage statistics
 func (r *Reflector) GetStats() *ReflectorStats {
 	return &r.stats
@@ -112,6 +130,11 @@ func (r *Reflector) Start() {
 
 // Close does nothing for this particular reflector.
 func (r *Reflector) Close() error {
+	if _, objExists := reflectors[r.objType]; !objExists {
+		return fmt.Errorf("%s reflector type does not exist", r.objType)
+	}
+	delete(reflectors, r.objType)
+
 	return nil
 }
 
@@ -122,18 +145,18 @@ func (r *Reflector) HasSynced() bool {
 	return r.dsSynced
 }
 
-// StopDataStoreUpdates marks the data store to be out of sync with the
+// stopDataStoreUpdates marks the data store to be out of sync with the
 // K8s cache, which will stop any updates to the data store until proper
 // reconciliation is finished.
-func (r *Reflector) StopDataStoreUpdates() {
+func (r *Reflector) stopDataStoreUpdates() {
 	r.dsMutex.Lock()
 	defer r.dsMutex.Unlock()
 	r.dsSynced = false
 }
 
-// SyncDataStoreWithK8sCache starts the syncrhonization of the data store
+// startDataStoreResync starts the syncrhonization of the data store
 // with the relflector's K8s cache.
-func (r *Reflector) SyncDataStoreWithK8sCache() {
+func (r *Reflector) startDataStoreResync() {
 	go func(r *Reflector) {
 		r.Log.Debug("%s data sync started", r.objType)
 
@@ -312,6 +335,10 @@ func (r *Reflector) ksrDelete(key string) {
 func (r *Reflector) ksrInit(stopCh2 <-chan struct{}, wg *sync.WaitGroup, prefix string,
 	objType string, k8sObjType k8sRuntime.Object, ksrFuncs ReflectorFunctions) error {
 
+	if _, objExists := reflectors[objType]; objExists {
+		return fmt.Errorf("%s reflector type already exists", r.objType)
+	}
+
 	r.stopCh = stopCh2
 	r.wg = wg
 
@@ -362,5 +389,6 @@ func (r *Reflector) ksrInit(stopCh2 <-chan struct{}, wg *sync.WaitGroup, prefix 
 			},
 		},
 	)
+	reflectors[objType] = r
 	return nil
 }

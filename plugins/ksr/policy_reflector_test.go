@@ -299,7 +299,7 @@ func TestPolicyReflector(t *testing.T) {
 	err := policyTestVars.policyReflector.Init(stopCh, &wg)
 	gomega.Expect(err).To(gomega.BeNil())
 
-	policyTestVars.policyReflector.SyncDataStoreWithK8sCache()
+	policyTestVars.policyReflector.startDataStoreResync()
 
 	// Wait for the initial sync to finish
 	for {

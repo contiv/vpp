@@ -223,30 +223,6 @@ func (plugin *Plugin) Close() error {
 	return nil
 }
 
-// stopDataStoreUpdates triggers all Reflectors to stop updating the Etcd
-// data store.
-func (plugin *Plugin) stopDataStoreUpdates() {
-	plugin.Log.Info("stopDataStoreUpdates")
-
-	plugin.nsReflector.StopDataStoreUpdates()
-	plugin.podReflector.StopDataStoreUpdates()
-	plugin.policyReflector.StopDataStoreUpdates()
-	plugin.serviceReflector.StopDataStoreUpdates()
-	plugin.endpointsReflector.StopDataStoreUpdates()
-}
-
-// syncDataStoreWithK8sCache triggers all Reflectors to start the
-// reconciliation their respective K8s caches with the data store.
-func (plugin *Plugin) reconcileDataStoreWithK8sCache() {
-	plugin.Log.Info("syncDataStoreWithK8sCache")
-
-	plugin.nsReflector.SyncDataStoreWithK8sCache()
-	plugin.podReflector.SyncDataStoreWithK8sCache()
-	plugin.policyReflector.SyncDataStoreWithK8sCache()
-	plugin.serviceReflector.SyncDataStoreWithK8sCache()
-	plugin.endpointsReflector.SyncDataStoreWithK8sCache()
-}
-
 // monitorEtcdStatus monitors the KSR's connection to the Etcd Data Store.
 func (plugin *Plugin) monitorEtcdStatus(closeCh chan struct{}) {
 	for {
@@ -263,16 +239,16 @@ func (plugin *Plugin) monitorEtcdStatus(closeCh chan struct{}) {
 				switch v.State {
 				case status.OperationalState_INIT:
 					if plugin.etcdStatus == status.OperationalState_OK {
-						plugin.stopDataStoreUpdates()
+						StopDataStoreUpdates()
 					}
 				case status.OperationalState_ERROR:
 					if plugin.etcdStatus == status.OperationalState_OK {
-						plugin.stopDataStoreUpdates()
+						StopDataStoreUpdates()
 					}
 				case status.OperationalState_OK:
 					if plugin.etcdStatus == status.OperationalState_INIT ||
 						plugin.etcdStatus == status.OperationalState_ERROR {
-						plugin.reconcileDataStoreWithK8sCache()
+						SyncDataStoresWithK8sCaches()
 					}
 				}
 				plugin.etcdStatus = v.State

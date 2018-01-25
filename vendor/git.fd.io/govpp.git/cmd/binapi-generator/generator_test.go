@@ -120,7 +120,7 @@ func TestReadJson(t *testing.T) {
 	result, err := parseJSON(inputData)
 	Expect(err).ShouldNot(HaveOccurred())
 	Expect(result).ToNot(BeNil())
-	Expect(result.Len()).To(BeEquivalentTo(5))
+	Expect(result.Len()).To(BeEquivalentTo(3))
 }
 
 func TestReadJsonError(t *testing.T) {
@@ -255,9 +255,8 @@ func TestGenerateMessageFieldTypes(t *testing.T) {
 
 func TestGenerateMessageFieldMessages(t *testing.T) {
 	// expected results according to acl.api.json in testdata
-	expectedFields := []string{"\tMajor uint32", "\tMinor uint32", "\tRetval int32",
-		"\tVpePid uint32", "\tACLIndex uint32", "\tTag []byte	`struc:\"[64]byte\"`",
-		"\tCount uint32"}
+	expectedTypes := []string{"\tMajor uint32", "\tMinor uint32", "\tACLIndex uint32",
+		"\tTag []byte	`struc:\"[64]byte\"`", "\tACLIndex uint32", "\tRetval int32", "\tACLIndex uint32"}
 	RegisterTestingT(t)
 	// prepare context
 	testCtx := new(context)
@@ -270,7 +269,7 @@ func TestGenerateMessageFieldMessages(t *testing.T) {
 	Expect(err).ShouldNot(HaveOccurred())
 	Expect(inFile).ToNot(BeNil())
 
-	// test message fields
+	// test types
 	messages := inFile.Map("messages")
 	customIndex := 0
 	fields := make([]string, 0)
@@ -285,12 +284,8 @@ func TestGenerateMessageFieldMessages(t *testing.T) {
 				}
 				err := processMessageField(testCtx, &fields, field, false)
 				Expect(err).ShouldNot(HaveOccurred())
-				Expect(fields[customIndex]).To(BeEquivalentTo(expectedFields[customIndex]))
+				Expect(fields[customIndex]).To(BeEquivalentTo(expectedTypes[customIndex]))
 				customIndex++
-				if customIndex >= len(expectedFields) {
-					/* there is too much fields now for one UT... */
-					return
-				}
 			}
 		}
 	}

@@ -6,62 +6,26 @@ package ip
 import "git.fd.io/govpp.git/api"
 
 // VlApiVersion contains version of the API.
-const VlAPIVersion = 0xb395c625
+const VlAPIVersion = 0x50fe2434
 
 // FibPath represents the VPP binary API data type 'fib_path'.
-// Generated from '../../bin_api/ip.api.json', line 2199:
+// Generated from '../../bin_api/ip.api.json', line 3:
 //
-//            "fib_path",
-//            [
-//                "u32",
-//                "sw_if_index"
-//            ],
-//            [
-//                "u32",
-//                "table_id"
-//            ],
-//            [
-//                "u8",
-//                "weight"
-//            ],
-//            [
-//                "u8",
-//                "preference"
-//            ],
-//            [
-//                "u8",
-//                "is_local"
-//            ],
-//            [
-//                "u8",
-//                "is_drop"
-//            ],
-//            [
-//                "u8",
-//                "is_unreach"
-//            ],
-//            [
-//                "u8",
-//                "is_prohibit"
-//            ],
-//            [
-//                "u8",
-//                "afi"
-//            ],
-//            [
-//                "u8",
-//                "next_hop",
-//                16
-//            ],
-//            {
-//                "crc": "0xcd899e0a"
-//            }
+//        ["fib_path",
+//            ["u32", "sw_if_index"],
+//            ["u32", "weight"],
+//            ["u8", "is_local"],
+//            ["u8", "is_drop"],
+//            ["u8", "is_unreach"],
+//            ["u8", "is_prohibit"],
+//            ["u8", "afi"],
+//            ["u8", "next_hop", 16],
+//            {"crc" : "0x315b1889"}
+//        ]
 //
 type FibPath struct {
 	SwIfIndex  uint32
-	TableID    uint32
-	Weight     uint8
-	Preference uint8
+	Weight     uint32
 	IsLocal    uint8
 	IsDrop     uint8
 	IsUnreach  uint8
@@ -74,122 +38,18 @@ func (*FibPath) GetTypeName() string {
 	return "fib_path"
 }
 func (*FibPath) GetCrcString() string {
-	return "cd899e0a"
-}
-
-// IPTableAddDel represents the VPP binary API message 'ip_table_add_del'.
-// Generated from '../../bin_api/ip.api.json', line 187:
-//
-//            "ip_table_add_del",
-//            [
-//                "u16",
-//                "_vl_msg_id"
-//            ],
-//            [
-//                "u32",
-//                "client_index"
-//            ],
-//            [
-//                "u32",
-//                "context"
-//            ],
-//            [
-//                "u32",
-//                "table_id"
-//            ],
-//            [
-//                "u8",
-//                "is_ipv6"
-//            ],
-//            [
-//                "u8",
-//                "is_add"
-//            ],
-//            [
-//                "u8",
-//                "name",
-//                64
-//            ],
-//            {
-//                "crc": "0x0240c89d"
-//            }
-//
-type IPTableAddDel struct {
-	TableID uint32
-	IsIpv6  uint8
-	IsAdd   uint8
-	Name    []byte `struc:"[64]byte"`
-}
-
-func (*IPTableAddDel) GetMessageName() string {
-	return "ip_table_add_del"
-}
-func (*IPTableAddDel) GetMessageType() api.MessageType {
-	return api.RequestMessage
-}
-func (*IPTableAddDel) GetCrcString() string {
-	return "0240c89d"
-}
-func NewIPTableAddDel() api.Message {
-	return &IPTableAddDel{}
-}
-
-// IPTableAddDelReply represents the VPP binary API message 'ip_table_add_del_reply'.
-// Generated from '../../bin_api/ip.api.json', line 222:
-//
-//            "ip_table_add_del_reply",
-//            [
-//                "u16",
-//                "_vl_msg_id"
-//            ],
-//            [
-//                "u32",
-//                "context"
-//            ],
-//            [
-//                "i32",
-//                "retval"
-//            ],
-//            {
-//                "crc": "0xe8d4e804"
-//            }
-//
-type IPTableAddDelReply struct {
-	Retval int32
-}
-
-func (*IPTableAddDelReply) GetMessageName() string {
-	return "ip_table_add_del_reply"
-}
-func (*IPTableAddDelReply) GetMessageType() api.MessageType {
-	return api.ReplyMessage
-}
-func (*IPTableAddDelReply) GetCrcString() string {
-	return "e8d4e804"
-}
-func NewIPTableAddDelReply() api.Message {
-	return &IPTableAddDelReply{}
+	return "315b1889"
 }
 
 // IPFibDump represents the VPP binary API message 'ip_fib_dump'.
-// Generated from '../../bin_api/ip.api.json', line 240:
+// Generated from '../../bin_api/ip.api.json', line 16:
 //
-//            "ip_fib_dump",
-//            [
-//                "u16",
-//                "_vl_msg_id"
-//            ],
-//            [
-//                "u32",
-//                "client_index"
-//            ],
-//            [
-//                "u32",
-//                "context"
-//            ],
-//            {
-//                "crc": "0x51077d14"
-//            }
+//        ["ip_fib_dump",
+//            ["u16", "_vl_msg_id"],
+//            ["u32", "client_index"],
+//            ["u32", "context"],
+//            {"crc" : "0x5fe56ca3"}
+//        ],
 //
 type IPFibDump struct {
 }
@@ -201,59 +61,28 @@ func (*IPFibDump) GetMessageType() api.MessageType {
 	return api.RequestMessage
 }
 func (*IPFibDump) GetCrcString() string {
-	return "51077d14"
+	return "5fe56ca3"
 }
 func NewIPFibDump() api.Message {
 	return &IPFibDump{}
 }
 
 // IPFibDetails represents the VPP binary API message 'ip_fib_details'.
-// Generated from '../../bin_api/ip.api.json', line 258:
+// Generated from '../../bin_api/ip.api.json', line 22:
 //
-//            "ip_fib_details",
-//            [
-//                "u16",
-//                "_vl_msg_id"
-//            ],
-//            [
-//                "u32",
-//                "context"
-//            ],
-//            [
-//                "u32",
-//                "table_id"
-//            ],
-//            [
-//                "u8",
-//                "table_name",
-//                64
-//            ],
-//            [
-//                "u8",
-//                "address_length"
-//            ],
-//            [
-//                "u8",
-//                "address",
-//                4
-//            ],
-//            [
-//                "u32",
-//                "count"
-//            ],
-//            [
-//                "vl_api_fib_path_t",
-//                "path",
-//                0,
-//                "count"
-//            ],
-//            {
-//                "crc": "0x99dfd73b"
-//            }
+//        ["ip_fib_details",
+//            ["u16", "_vl_msg_id"],
+//            ["u32", "context"],
+//            ["u32", "table_id"],
+//            ["u8", "address_length"],
+//            ["u8", "address", 4],
+//            ["u32", "count"],
+//            ["vl_api_fib_path_t", "path", 0, "count"],
+//            {"crc" : "0xfd8c6584"}
+//        ],
 //
 type IPFibDetails struct {
 	TableID       uint32
-	TableName     []byte `struc:"[64]byte"`
 	AddressLength uint8
 	Address       []byte `struc:"[4]byte"`
 	Count         uint32 `struc:"sizeof=Path"`
@@ -267,31 +96,21 @@ func (*IPFibDetails) GetMessageType() api.MessageType {
 	return api.ReplyMessage
 }
 func (*IPFibDetails) GetCrcString() string {
-	return "99dfd73b"
+	return "fd8c6584"
 }
 func NewIPFibDetails() api.Message {
 	return &IPFibDetails{}
 }
 
 // IP6FibDump represents the VPP binary API message 'ip6_fib_dump'.
-// Generated from '../../bin_api/ip.api.json', line 300:
+// Generated from '../../bin_api/ip.api.json', line 32:
 //
-//            "ip6_fib_dump",
-//            [
-//                "u16",
-//                "_vl_msg_id"
-//            ],
-//            [
-//                "u32",
-//                "client_index"
-//            ],
-//            [
-//                "u32",
-//                "context"
-//            ],
-//            {
-//                "crc": "0x51077d14"
-//            }
+//        ["ip6_fib_dump",
+//            ["u16", "_vl_msg_id"],
+//            ["u32", "client_index"],
+//            ["u32", "context"],
+//            {"crc" : "0x25c89676"}
+//        ],
 //
 type IP6FibDump struct {
 }
@@ -303,59 +122,28 @@ func (*IP6FibDump) GetMessageType() api.MessageType {
 	return api.RequestMessage
 }
 func (*IP6FibDump) GetCrcString() string {
-	return "51077d14"
+	return "25c89676"
 }
 func NewIP6FibDump() api.Message {
 	return &IP6FibDump{}
 }
 
 // IP6FibDetails represents the VPP binary API message 'ip6_fib_details'.
-// Generated from '../../bin_api/ip.api.json', line 318:
+// Generated from '../../bin_api/ip.api.json', line 38:
 //
-//            "ip6_fib_details",
-//            [
-//                "u16",
-//                "_vl_msg_id"
-//            ],
-//            [
-//                "u32",
-//                "context"
-//            ],
-//            [
-//                "u32",
-//                "table_id"
-//            ],
-//            [
-//                "u8",
-//                "table_name",
-//                64
-//            ],
-//            [
-//                "u8",
-//                "address_length"
-//            ],
-//            [
-//                "u8",
-//                "address",
-//                16
-//            ],
-//            [
-//                "u32",
-//                "count"
-//            ],
-//            [
-//                "vl_api_fib_path_t",
-//                "path",
-//                0,
-//                "count"
-//            ],
-//            {
-//                "crc": "0xabd0060e"
-//            }
+//        ["ip6_fib_details",
+//            ["u16", "_vl_msg_id"],
+//            ["u32", "context"],
+//            ["u32", "table_id"],
+//            ["u8", "address_length"],
+//            ["u8", "address", 16],
+//            ["u32", "count"],
+//            ["vl_api_fib_path_t", "path", 0, "count"],
+//            {"crc" : "0xe0825cb5"}
+//        ],
 //
 type IP6FibDetails struct {
 	TableID       uint32
-	TableName     []byte `struc:"[64]byte"`
 	AddressLength uint8
 	Address       []byte `struc:"[16]byte"`
 	Count         uint32 `struc:"sizeof=Path"`
@@ -369,39 +157,23 @@ func (*IP6FibDetails) GetMessageType() api.MessageType {
 	return api.ReplyMessage
 }
 func (*IP6FibDetails) GetCrcString() string {
-	return "abd0060e"
+	return "e0825cb5"
 }
 func NewIP6FibDetails() api.Message {
 	return &IP6FibDetails{}
 }
 
 // IPNeighborDump represents the VPP binary API message 'ip_neighbor_dump'.
-// Generated from '../../bin_api/ip.api.json', line 360:
+// Generated from '../../bin_api/ip.api.json', line 48:
 //
-//            "ip_neighbor_dump",
-//            [
-//                "u16",
-//                "_vl_msg_id"
-//            ],
-//            [
-//                "u32",
-//                "client_index"
-//            ],
-//            [
-//                "u32",
-//                "context"
-//            ],
-//            [
-//                "u32",
-//                "sw_if_index"
-//            ],
-//            [
-//                "u8",
-//                "is_ipv6"
-//            ],
-//            {
-//                "crc": "0x6b7bcd0a"
-//            }
+//        ["ip_neighbor_dump",
+//            ["u16", "_vl_msg_id"],
+//            ["u32", "client_index"],
+//            ["u32", "context"],
+//            ["u32", "sw_if_index"],
+//            ["u8", "is_ipv6"],
+//            {"crc" : "0x3289e160"}
+//        ],
 //
 type IPNeighborDump struct {
 	SwIfIndex uint32
@@ -415,52 +187,26 @@ func (*IPNeighborDump) GetMessageType() api.MessageType {
 	return api.RequestMessage
 }
 func (*IPNeighborDump) GetCrcString() string {
-	return "6b7bcd0a"
+	return "3289e160"
 }
 func NewIPNeighborDump() api.Message {
 	return &IPNeighborDump{}
 }
 
 // IPNeighborDetails represents the VPP binary API message 'ip_neighbor_details'.
-// Generated from '../../bin_api/ip.api.json', line 386:
+// Generated from '../../bin_api/ip.api.json', line 56:
 //
-//            "ip_neighbor_details",
-//            [
-//                "u16",
-//                "_vl_msg_id"
-//            ],
-//            [
-//                "u32",
-//                "context"
-//            ],
-//            [
-//                "u32",
-//                "sw_if_index"
-//            ],
-//            [
-//                "u8",
-//                "is_static"
-//            ],
-//            [
-//                "u8",
-//                "is_ipv6"
-//            ],
-//            [
-//                "u8",
-//                "mac_address",
-//                6
-//            ],
-//            [
-//                "u8",
-//                "ip_address",
-//                16
-//            ],
-//            {
-//                "crc": "0x85e32a72"
-//            }
+//        ["ip_neighbor_details",
+//            ["u16", "_vl_msg_id"],
+//            ["u32", "context"],
+//            ["u8", "is_static"],
+//            ["u8", "is_ipv6"],
+//            ["u8", "mac_address", 6],
+//            ["u8", "ip_address", 16],
+//            {"crc" : "0x3a00e32a"}
+//        ],
 //
 type IPNeighborDetails struct {
-	SwIfIndex  uint32
 	IsStatic   uint8
 	IsIpv6     uint8
 	MacAddress []byte `struc:"[6]byte"`
@@ -474,61 +220,28 @@ func (*IPNeighborDetails) GetMessageType() api.MessageType {
 	return api.ReplyMessage
 }
 func (*IPNeighborDetails) GetCrcString() string {
-	return "85e32a72"
+	return "3a00e32a"
 }
 func NewIPNeighborDetails() api.Message {
 	return &IPNeighborDetails{}
 }
 
 // IPNeighborAddDel represents the VPP binary API message 'ip_neighbor_add_del'.
-// Generated from '../../bin_api/ip.api.json', line 422:
+// Generated from '../../bin_api/ip.api.json', line 65:
 //
-//            "ip_neighbor_add_del",
-//            [
-//                "u16",
-//                "_vl_msg_id"
-//            ],
-//            [
-//                "u32",
-//                "client_index"
-//            ],
-//            [
-//                "u32",
-//                "context"
-//            ],
-//            [
-//                "u32",
-//                "sw_if_index"
-//            ],
-//            [
-//                "u8",
-//                "is_add"
-//            ],
-//            [
-//                "u8",
-//                "is_ipv6"
-//            ],
-//            [
-//                "u8",
-//                "is_static"
-//            ],
-//            [
-//                "u8",
-//                "is_no_adj_fib"
-//            ],
-//            [
-//                "u8",
-//                "mac_address",
-//                6
-//            ],
-//            [
-//                "u8",
-//                "dst_address",
-//                16
-//            ],
-//            {
-//                "crc": "0x4711eb25"
-//            }
+//        ["ip_neighbor_add_del",
+//            ["u16", "_vl_msg_id"],
+//            ["u32", "client_index"],
+//            ["u32", "context"],
+//            ["u32", "sw_if_index"],
+//            ["u8", "is_add"],
+//            ["u8", "is_ipv6"],
+//            ["u8", "is_static"],
+//            ["u8", "is_no_adj_fib"],
+//            ["u8", "mac_address", 6],
+//            ["u8", "dst_address", 16],
+//            {"crc" : "0x5a0d070b"}
+//        ],
 //
 type IPNeighborAddDel struct {
 	SwIfIndex  uint32
@@ -547,31 +260,21 @@ func (*IPNeighborAddDel) GetMessageType() api.MessageType {
 	return api.RequestMessage
 }
 func (*IPNeighborAddDel) GetCrcString() string {
-	return "4711eb25"
+	return "5a0d070b"
 }
 func NewIPNeighborAddDel() api.Message {
 	return &IPNeighborAddDel{}
 }
 
 // IPNeighborAddDelReply represents the VPP binary API message 'ip_neighbor_add_del_reply'.
-// Generated from '../../bin_api/ip.api.json', line 470:
+// Generated from '../../bin_api/ip.api.json', line 78:
 //
-//            "ip_neighbor_add_del_reply",
-//            [
-//                "u16",
-//                "_vl_msg_id"
-//            ],
-//            [
-//                "u32",
-//                "context"
-//            ],
-//            [
-//                "i32",
-//                "retval"
-//            ],
-//            {
-//                "crc": "0xe8d4e804"
-//            }
+//        ["ip_neighbor_add_del_reply",
+//            ["u16", "_vl_msg_id"],
+//            ["u32", "context"],
+//            ["i32", "retval"],
+//            {"crc" : "0xe5b0f318"}
+//        ],
 //
 type IPNeighborAddDelReply struct {
 	Retval int32
@@ -584,63 +287,29 @@ func (*IPNeighborAddDelReply) GetMessageType() api.MessageType {
 	return api.ReplyMessage
 }
 func (*IPNeighborAddDelReply) GetCrcString() string {
-	return "e8d4e804"
+	return "e5b0f318"
 }
 func NewIPNeighborAddDelReply() api.Message {
 	return &IPNeighborAddDelReply{}
 }
 
 // SetIPFlowHash represents the VPP binary API message 'set_ip_flow_hash'.
-// Generated from '../../bin_api/ip.api.json', line 488:
+// Generated from '../../bin_api/ip.api.json', line 84:
 //
-//            "set_ip_flow_hash",
-//            [
-//                "u16",
-//                "_vl_msg_id"
-//            ],
-//            [
-//                "u32",
-//                "client_index"
-//            ],
-//            [
-//                "u32",
-//                "context"
-//            ],
-//            [
-//                "u32",
-//                "vrf_id"
-//            ],
-//            [
-//                "u8",
-//                "is_ipv6"
-//            ],
-//            [
-//                "u8",
-//                "src"
-//            ],
-//            [
-//                "u8",
-//                "dst"
-//            ],
-//            [
-//                "u8",
-//                "sport"
-//            ],
-//            [
-//                "u8",
-//                "dport"
-//            ],
-//            [
-//                "u8",
-//                "proto"
-//            ],
-//            [
-//                "u8",
-//                "reverse"
-//            ],
-//            {
-//                "crc": "0x32ebf737"
-//            }
+//        ["set_ip_flow_hash",
+//            ["u16", "_vl_msg_id"],
+//            ["u32", "client_index"],
+//            ["u32", "context"],
+//            ["u32", "vrf_id"],
+//            ["u8", "is_ipv6"],
+//            ["u8", "src"],
+//            ["u8", "dst"],
+//            ["u8", "sport"],
+//            ["u8", "dport"],
+//            ["u8", "proto"],
+//            ["u8", "reverse"],
+//            {"crc" : "0x92ad3798"}
+//        ],
 //
 type SetIPFlowHash struct {
 	VrfID   uint32
@@ -660,31 +329,21 @@ func (*SetIPFlowHash) GetMessageType() api.MessageType {
 	return api.RequestMessage
 }
 func (*SetIPFlowHash) GetCrcString() string {
-	return "32ebf737"
+	return "92ad3798"
 }
 func NewSetIPFlowHash() api.Message {
 	return &SetIPFlowHash{}
 }
 
 // SetIPFlowHashReply represents the VPP binary API message 'set_ip_flow_hash_reply'.
-// Generated from '../../bin_api/ip.api.json', line 538:
+// Generated from '../../bin_api/ip.api.json', line 98:
 //
-//            "set_ip_flow_hash_reply",
-//            [
-//                "u16",
-//                "_vl_msg_id"
-//            ],
-//            [
-//                "u32",
-//                "context"
-//            ],
-//            [
-//                "i32",
-//                "retval"
-//            ],
-//            {
-//                "crc": "0xe8d4e804"
-//            }
+//        ["set_ip_flow_hash_reply",
+//            ["u16", "_vl_msg_id"],
+//            ["u32", "context"],
+//            ["i32", "retval"],
+//            {"crc" : "0x35a9e5eb"}
+//        ],
 //
 type SetIPFlowHashReply struct {
 	Retval int32
@@ -697,87 +356,35 @@ func (*SetIPFlowHashReply) GetMessageType() api.MessageType {
 	return api.ReplyMessage
 }
 func (*SetIPFlowHashReply) GetCrcString() string {
-	return "e8d4e804"
+	return "35a9e5eb"
 }
 func NewSetIPFlowHashReply() api.Message {
 	return &SetIPFlowHashReply{}
 }
 
 // SwInterfaceIP6ndRaConfig represents the VPP binary API message 'sw_interface_ip6nd_ra_config'.
-// Generated from '../../bin_api/ip.api.json', line 556:
+// Generated from '../../bin_api/ip.api.json', line 104:
 //
-//            "sw_interface_ip6nd_ra_config",
-//            [
-//                "u16",
-//                "_vl_msg_id"
-//            ],
-//            [
-//                "u32",
-//                "client_index"
-//            ],
-//            [
-//                "u32",
-//                "context"
-//            ],
-//            [
-//                "u32",
-//                "sw_if_index"
-//            ],
-//            [
-//                "u8",
-//                "suppress"
-//            ],
-//            [
-//                "u8",
-//                "managed"
-//            ],
-//            [
-//                "u8",
-//                "other"
-//            ],
-//            [
-//                "u8",
-//                "ll_option"
-//            ],
-//            [
-//                "u8",
-//                "send_unicast"
-//            ],
-//            [
-//                "u8",
-//                "cease"
-//            ],
-//            [
-//                "u8",
-//                "is_no"
-//            ],
-//            [
-//                "u8",
-//                "default_router"
-//            ],
-//            [
-//                "u32",
-//                "max_interval"
-//            ],
-//            [
-//                "u32",
-//                "min_interval"
-//            ],
-//            [
-//                "u32",
-//                "lifetime"
-//            ],
-//            [
-//                "u32",
-//                "initial_count"
-//            ],
-//            [
-//                "u32",
-//                "initial_interval"
-//            ],
-//            {
-//                "crc": "0xc3f02daa"
-//            }
+//        ["sw_interface_ip6nd_ra_config",
+//            ["u16", "_vl_msg_id"],
+//            ["u32", "client_index"],
+//            ["u32", "context"],
+//            ["u32", "sw_if_index"],
+//            ["u8", "suppress"],
+//            ["u8", "managed"],
+//            ["u8", "other"],
+//            ["u8", "ll_option"],
+//            ["u8", "send_unicast"],
+//            ["u8", "cease"],
+//            ["u8", "is_no"],
+//            ["u8", "default_router"],
+//            ["u32", "max_interval"],
+//            ["u32", "min_interval"],
+//            ["u32", "lifetime"],
+//            ["u32", "initial_count"],
+//            ["u32", "initial_interval"],
+//            {"crc" : "0xec4a29f6"}
+//        ],
 //
 type SwInterfaceIP6ndRaConfig struct {
 	SwIfIndex       uint32
@@ -803,31 +410,21 @@ func (*SwInterfaceIP6ndRaConfig) GetMessageType() api.MessageType {
 	return api.RequestMessage
 }
 func (*SwInterfaceIP6ndRaConfig) GetCrcString() string {
-	return "c3f02daa"
+	return "ec4a29f6"
 }
 func NewSwInterfaceIP6ndRaConfig() api.Message {
 	return &SwInterfaceIP6ndRaConfig{}
 }
 
 // SwInterfaceIP6ndRaConfigReply represents the VPP binary API message 'sw_interface_ip6nd_ra_config_reply'.
-// Generated from '../../bin_api/ip.api.json', line 630:
+// Generated from '../../bin_api/ip.api.json', line 124:
 //
-//            "sw_interface_ip6nd_ra_config_reply",
-//            [
-//                "u16",
-//                "_vl_msg_id"
-//            ],
-//            [
-//                "u32",
-//                "context"
-//            ],
-//            [
-//                "i32",
-//                "retval"
-//            ],
-//            {
-//                "crc": "0xe8d4e804"
-//            }
+//        ["sw_interface_ip6nd_ra_config_reply",
+//            ["u16", "_vl_msg_id"],
+//            ["u32", "context"],
+//            ["i32", "retval"],
+//            {"crc" : "0x16e25c5b"}
+//        ],
 //
 type SwInterfaceIP6ndRaConfigReply struct {
 	Retval int32
@@ -840,76 +437,32 @@ func (*SwInterfaceIP6ndRaConfigReply) GetMessageType() api.MessageType {
 	return api.ReplyMessage
 }
 func (*SwInterfaceIP6ndRaConfigReply) GetCrcString() string {
-	return "e8d4e804"
+	return "16e25c5b"
 }
 func NewSwInterfaceIP6ndRaConfigReply() api.Message {
 	return &SwInterfaceIP6ndRaConfigReply{}
 }
 
 // SwInterfaceIP6ndRaPrefix represents the VPP binary API message 'sw_interface_ip6nd_ra_prefix'.
-// Generated from '../../bin_api/ip.api.json', line 648:
+// Generated from '../../bin_api/ip.api.json', line 130:
 //
-//            "sw_interface_ip6nd_ra_prefix",
-//            [
-//                "u16",
-//                "_vl_msg_id"
-//            ],
-//            [
-//                "u32",
-//                "client_index"
-//            ],
-//            [
-//                "u32",
-//                "context"
-//            ],
-//            [
-//                "u32",
-//                "sw_if_index"
-//            ],
-//            [
-//                "u8",
-//                "address",
-//                16
-//            ],
-//            [
-//                "u8",
-//                "address_length"
-//            ],
-//            [
-//                "u8",
-//                "use_default"
-//            ],
-//            [
-//                "u8",
-//                "no_advertise"
-//            ],
-//            [
-//                "u8",
-//                "off_link"
-//            ],
-//            [
-//                "u8",
-//                "no_autoconfig"
-//            ],
-//            [
-//                "u8",
-//                "no_onlink"
-//            ],
-//            [
-//                "u8",
-//                "is_no"
-//            ],
-//            [
-//                "u32",
-//                "val_lifetime"
-//            ],
-//            [
-//                "u32",
-//                "pref_lifetime"
-//            ],
-//            {
-//                "crc": "0xca763c9a"
-//            }
+//        ["sw_interface_ip6nd_ra_prefix",
+//            ["u16", "_vl_msg_id"],
+//            ["u32", "client_index"],
+//            ["u32", "context"],
+//            ["u32", "sw_if_index"],
+//            ["u8", "address", 16],
+//            ["u8", "address_length"],
+//            ["u8", "use_default"],
+//            ["u8", "no_advertise"],
+//            ["u8", "off_link"],
+//            ["u8", "no_autoconfig"],
+//            ["u8", "no_onlink"],
+//            ["u8", "is_no"],
+//            ["u32", "val_lifetime"],
+//            ["u32", "pref_lifetime"],
+//            {"crc" : "0x5db6555c"}
+//        ],
 //
 type SwInterfaceIP6ndRaPrefix struct {
 	SwIfIndex     uint32
@@ -932,31 +485,21 @@ func (*SwInterfaceIP6ndRaPrefix) GetMessageType() api.MessageType {
 	return api.RequestMessage
 }
 func (*SwInterfaceIP6ndRaPrefix) GetCrcString() string {
-	return "ca763c9a"
+	return "5db6555c"
 }
 func NewSwInterfaceIP6ndRaPrefix() api.Message {
 	return &SwInterfaceIP6ndRaPrefix{}
 }
 
 // SwInterfaceIP6ndRaPrefixReply represents the VPP binary API message 'sw_interface_ip6nd_ra_prefix_reply'.
-// Generated from '../../bin_api/ip.api.json', line 711:
+// Generated from '../../bin_api/ip.api.json', line 147:
 //
-//            "sw_interface_ip6nd_ra_prefix_reply",
-//            [
-//                "u16",
-//                "_vl_msg_id"
-//            ],
-//            [
-//                "u32",
-//                "context"
-//            ],
-//            [
-//                "i32",
-//                "retval"
-//            ],
-//            {
-//                "crc": "0xe8d4e804"
-//            }
+//        ["sw_interface_ip6nd_ra_prefix_reply",
+//            ["u16", "_vl_msg_id"],
+//            ["u32", "context"],
+//            ["i32", "retval"],
+//            {"crc" : "0x8050adb3"}
+//        ],
 //
 type SwInterfaceIP6ndRaPrefixReply struct {
 	Retval int32
@@ -969,44 +512,24 @@ func (*SwInterfaceIP6ndRaPrefixReply) GetMessageType() api.MessageType {
 	return api.ReplyMessage
 }
 func (*SwInterfaceIP6ndRaPrefixReply) GetCrcString() string {
-	return "e8d4e804"
+	return "8050adb3"
 }
 func NewSwInterfaceIP6ndRaPrefixReply() api.Message {
 	return &SwInterfaceIP6ndRaPrefixReply{}
 }
 
 // IP6ndProxyAddDel represents the VPP binary API message 'ip6nd_proxy_add_del'.
-// Generated from '../../bin_api/ip.api.json', line 729:
+// Generated from '../../bin_api/ip.api.json', line 153:
 //
-//            "ip6nd_proxy_add_del",
-//            [
-//                "u16",
-//                "_vl_msg_id"
-//            ],
-//            [
-//                "u32",
-//                "client_index"
-//            ],
-//            [
-//                "u32",
-//                "context"
-//            ],
-//            [
-//                "u32",
-//                "sw_if_index"
-//            ],
-//            [
-//                "u8",
-//                "is_del"
-//            ],
-//            [
-//                "u8",
-//                "address",
-//                16
-//            ],
-//            {
-//                "crc": "0xd95f0fa0"
-//            }
+//        ["ip6nd_proxy_add_del",
+//            ["u16", "_vl_msg_id"],
+//            ["u32", "client_index"],
+//            ["u32", "context"],
+//            ["u32", "sw_if_index"],
+//            ["u8", "is_del"],
+//            ["u8", "address", 16],
+//            {"crc" : "0xc56f802d"}
+//        ],
 //
 type IP6ndProxyAddDel struct {
 	SwIfIndex uint32
@@ -1021,31 +544,21 @@ func (*IP6ndProxyAddDel) GetMessageType() api.MessageType {
 	return api.RequestMessage
 }
 func (*IP6ndProxyAddDel) GetCrcString() string {
-	return "d95f0fa0"
+	return "c56f802d"
 }
 func NewIP6ndProxyAddDel() api.Message {
 	return &IP6ndProxyAddDel{}
 }
 
 // IP6ndProxyAddDelReply represents the VPP binary API message 'ip6nd_proxy_add_del_reply'.
-// Generated from '../../bin_api/ip.api.json', line 760:
+// Generated from '../../bin_api/ip.api.json', line 162:
 //
-//            "ip6nd_proxy_add_del_reply",
-//            [
-//                "u16",
-//                "_vl_msg_id"
-//            ],
-//            [
-//                "u32",
-//                "context"
-//            ],
-//            [
-//                "i32",
-//                "retval"
-//            ],
-//            {
-//                "crc": "0xe8d4e804"
-//            }
+//        ["ip6nd_proxy_add_del_reply",
+//            ["u16", "_vl_msg_id"],
+//            ["u32", "context"],
+//            ["i32", "retval"],
+//            {"crc" : "0x00ddc2d5"}
+//        ],
 //
 type IP6ndProxyAddDelReply struct {
 	Retval int32
@@ -1058,40 +571,23 @@ func (*IP6ndProxyAddDelReply) GetMessageType() api.MessageType {
 	return api.ReplyMessage
 }
 func (*IP6ndProxyAddDelReply) GetCrcString() string {
-	return "e8d4e804"
+	return "00ddc2d5"
 }
 func NewIP6ndProxyAddDelReply() api.Message {
 	return &IP6ndProxyAddDelReply{}
 }
 
 // IP6ndProxyDetails represents the VPP binary API message 'ip6nd_proxy_details'.
-// Generated from '../../bin_api/ip.api.json', line 778:
+// Generated from '../../bin_api/ip.api.json', line 168:
 //
-//            "ip6nd_proxy_details",
-//            [
-//                "u16",
-//                "_vl_msg_id"
-//            ],
-//            [
-//                "u32",
-//                "client_index"
-//            ],
-//            [
-//                "u32",
-//                "context"
-//            ],
-//            [
-//                "u32",
-//                "sw_if_index"
-//            ],
-//            [
-//                "u8",
-//                "address",
-//                16
-//            ],
-//            {
-//                "crc": "0xd73bf1ab"
-//            }
+//        ["ip6nd_proxy_details",
+//            ["u16", "_vl_msg_id"],
+//            ["u32", "client_index"],
+//            ["u32", "context"],
+//            ["u32", "sw_if_index"],
+//            ["u8", "address", 16],
+//            {"crc" : "0xf805ccc1"}
+//        ],
 //
 type IP6ndProxyDetails struct {
 	SwIfIndex uint32
@@ -1105,31 +601,21 @@ func (*IP6ndProxyDetails) GetMessageType() api.MessageType {
 	return api.RequestMessage
 }
 func (*IP6ndProxyDetails) GetCrcString() string {
-	return "d73bf1ab"
+	return "f805ccc1"
 }
 func NewIP6ndProxyDetails() api.Message {
 	return &IP6ndProxyDetails{}
 }
 
 // IP6ndProxyDump represents the VPP binary API message 'ip6nd_proxy_dump'.
-// Generated from '../../bin_api/ip.api.json', line 805:
+// Generated from '../../bin_api/ip.api.json', line 176:
 //
-//            "ip6nd_proxy_dump",
-//            [
-//                "u16",
-//                "_vl_msg_id"
-//            ],
-//            [
-//                "u32",
-//                "client_index"
-//            ],
-//            [
-//                "u32",
-//                "context"
-//            ],
-//            {
-//                "crc": "0x51077d14"
-//            }
+//        ["ip6nd_proxy_dump",
+//            ["u16", "_vl_msg_id"],
+//            ["u32", "client_index"],
+//            ["u32", "context"],
+//            {"crc" : "0x21597d88"}
+//        ],
 //
 type IP6ndProxyDump struct {
 }
@@ -1141,39 +627,23 @@ func (*IP6ndProxyDump) GetMessageType() api.MessageType {
 	return api.RequestMessage
 }
 func (*IP6ndProxyDump) GetCrcString() string {
-	return "51077d14"
+	return "21597d88"
 }
 func NewIP6ndProxyDump() api.Message {
 	return &IP6ndProxyDump{}
 }
 
 // SwInterfaceIP6EnableDisable represents the VPP binary API message 'sw_interface_ip6_enable_disable'.
-// Generated from '../../bin_api/ip.api.json', line 823:
+// Generated from '../../bin_api/ip.api.json', line 182:
 //
-//            "sw_interface_ip6_enable_disable",
-//            [
-//                "u16",
-//                "_vl_msg_id"
-//            ],
-//            [
-//                "u32",
-//                "client_index"
-//            ],
-//            [
-//                "u32",
-//                "context"
-//            ],
-//            [
-//                "u32",
-//                "sw_if_index"
-//            ],
-//            [
-//                "u8",
-//                "enable"
-//            ],
-//            {
-//                "crc": "0xa36fadc0"
-//            }
+//        ["sw_interface_ip6_enable_disable",
+//            ["u16", "_vl_msg_id"],
+//            ["u32", "client_index"],
+//            ["u32", "context"],
+//            ["u32", "sw_if_index"],
+//            ["u8", "enable"],
+//            {"crc" : "0x4a4e5405"}
+//        ],
 //
 type SwInterfaceIP6EnableDisable struct {
 	SwIfIndex uint32
@@ -1187,31 +657,21 @@ func (*SwInterfaceIP6EnableDisable) GetMessageType() api.MessageType {
 	return api.RequestMessage
 }
 func (*SwInterfaceIP6EnableDisable) GetCrcString() string {
-	return "a36fadc0"
+	return "4a4e5405"
 }
 func NewSwInterfaceIP6EnableDisable() api.Message {
 	return &SwInterfaceIP6EnableDisable{}
 }
 
 // SwInterfaceIP6EnableDisableReply represents the VPP binary API message 'sw_interface_ip6_enable_disable_reply'.
-// Generated from '../../bin_api/ip.api.json', line 849:
+// Generated from '../../bin_api/ip.api.json', line 190:
 //
-//            "sw_interface_ip6_enable_disable_reply",
-//            [
-//                "u16",
-//                "_vl_msg_id"
-//            ],
-//            [
-//                "u32",
-//                "context"
-//            ],
-//            [
-//                "i32",
-//                "retval"
-//            ],
-//            {
-//                "crc": "0xe8d4e804"
-//            }
+//        ["sw_interface_ip6_enable_disable_reply",
+//            ["u16", "_vl_msg_id"],
+//            ["u32", "context"],
+//            ["i32", "retval"],
+//            {"crc" : "0xeb8b4a40"}
+//        ],
 //
 type SwInterfaceIP6EnableDisableReply struct {
 	Retval int32
@@ -1224,40 +684,23 @@ func (*SwInterfaceIP6EnableDisableReply) GetMessageType() api.MessageType {
 	return api.ReplyMessage
 }
 func (*SwInterfaceIP6EnableDisableReply) GetCrcString() string {
-	return "e8d4e804"
+	return "eb8b4a40"
 }
 func NewSwInterfaceIP6EnableDisableReply() api.Message {
 	return &SwInterfaceIP6EnableDisableReply{}
 }
 
 // SwInterfaceIP6SetLinkLocalAddress represents the VPP binary API message 'sw_interface_ip6_set_link_local_address'.
-// Generated from '../../bin_api/ip.api.json', line 867:
+// Generated from '../../bin_api/ip.api.json', line 196:
 //
-//            "sw_interface_ip6_set_link_local_address",
-//            [
-//                "u16",
-//                "_vl_msg_id"
-//            ],
-//            [
-//                "u32",
-//                "client_index"
-//            ],
-//            [
-//                "u32",
-//                "context"
-//            ],
-//            [
-//                "u32",
-//                "sw_if_index"
-//            ],
-//            [
-//                "u8",
-//                "address",
-//                16
-//            ],
-//            {
-//                "crc": "0xd73bf1ab"
-//            }
+//        ["sw_interface_ip6_set_link_local_address",
+//            ["u16", "_vl_msg_id"],
+//            ["u32", "client_index"],
+//            ["u32", "context"],
+//            ["u32", "sw_if_index"],
+//            ["u8", "address", 16],
+//            {"crc" : "0x3db6d52b"}
+//        ],
 //
 type SwInterfaceIP6SetLinkLocalAddress struct {
 	SwIfIndex uint32
@@ -1271,31 +714,21 @@ func (*SwInterfaceIP6SetLinkLocalAddress) GetMessageType() api.MessageType {
 	return api.RequestMessage
 }
 func (*SwInterfaceIP6SetLinkLocalAddress) GetCrcString() string {
-	return "d73bf1ab"
+	return "3db6d52b"
 }
 func NewSwInterfaceIP6SetLinkLocalAddress() api.Message {
 	return &SwInterfaceIP6SetLinkLocalAddress{}
 }
 
 // SwInterfaceIP6SetLinkLocalAddressReply represents the VPP binary API message 'sw_interface_ip6_set_link_local_address_reply'.
-// Generated from '../../bin_api/ip.api.json', line 894:
+// Generated from '../../bin_api/ip.api.json', line 204:
 //
-//            "sw_interface_ip6_set_link_local_address_reply",
-//            [
-//                "u16",
-//                "_vl_msg_id"
-//            ],
-//            [
-//                "u32",
-//                "context"
-//            ],
-//            [
-//                "i32",
-//                "retval"
-//            ],
-//            {
-//                "crc": "0xe8d4e804"
-//            }
+//        ["sw_interface_ip6_set_link_local_address_reply",
+//            ["u16", "_vl_msg_id"],
+//            ["u32", "context"],
+//            ["i32", "retval"],
+//            {"crc" : "0x0a781e17"}
+//        ],
 //
 type SwInterfaceIP6SetLinkLocalAddressReply struct {
 	Retval int32
@@ -1308,150 +741,51 @@ func (*SwInterfaceIP6SetLinkLocalAddressReply) GetMessageType() api.MessageType 
 	return api.ReplyMessage
 }
 func (*SwInterfaceIP6SetLinkLocalAddressReply) GetCrcString() string {
-	return "e8d4e804"
+	return "0a781e17"
 }
 func NewSwInterfaceIP6SetLinkLocalAddressReply() api.Message {
 	return &SwInterfaceIP6SetLinkLocalAddressReply{}
 }
 
 // IPAddDelRoute represents the VPP binary API message 'ip_add_del_route'.
-// Generated from '../../bin_api/ip.api.json', line 912:
+// Generated from '../../bin_api/ip.api.json', line 210:
 //
-//            "ip_add_del_route",
-//            [
-//                "u16",
-//                "_vl_msg_id"
-//            ],
-//            [
-//                "u32",
-//                "client_index"
-//            ],
-//            [
-//                "u32",
-//                "context"
-//            ],
-//            [
-//                "u32",
-//                "next_hop_sw_if_index"
-//            ],
-//            [
-//                "u32",
-//                "table_id"
-//            ],
-//            [
-//                "u32",
-//                "classify_table_index"
-//            ],
-//            [
-//                "u32",
-//                "next_hop_table_id"
-//            ],
-//            [
-//                "u32",
-//                "next_hop_id"
-//            ],
-//            [
-//                "u8",
-//                "is_add"
-//            ],
-//            [
-//                "u8",
-//                "is_drop"
-//            ],
-//            [
-//                "u8",
-//                "is_unreach"
-//            ],
-//            [
-//                "u8",
-//                "is_prohibit"
-//            ],
-//            [
-//                "u8",
-//                "is_ipv6"
-//            ],
-//            [
-//                "u8",
-//                "is_local"
-//            ],
-//            [
-//                "u8",
-//                "is_classify"
-//            ],
-//            [
-//                "u8",
-//                "is_multipath"
-//            ],
-//            [
-//                "u8",
-//                "is_resolve_host"
-//            ],
-//            [
-//                "u8",
-//                "is_resolve_attached"
-//            ],
-//            [
-//                "u8",
-//                "is_dvr"
-//            ],
-//            [
-//                "u8",
-//                "is_source_lookup"
-//            ],
-//            [
-//                "u8",
-//                "is_udp_encap"
-//            ],
-//            [
-//                "u8",
-//                "next_hop_weight"
-//            ],
-//            [
-//                "u8",
-//                "next_hop_preference"
-//            ],
-//            [
-//                "u8",
-//                "next_hop_proto"
-//            ],
-//            [
-//                "u8",
-//                "dst_address_length"
-//            ],
-//            [
-//                "u8",
-//                "dst_address",
-//                16
-//            ],
-//            [
-//                "u8",
-//                "next_hop_address",
-//                16
-//            ],
-//            [
-//                "u8",
-//                "next_hop_n_out_labels"
-//            ],
-//            [
-//                "u32",
-//                "next_hop_via_label"
-//            ],
-//            [
-//                "u32",
-//                "next_hop_out_label_stack",
-//                0,
-//                "next_hop_n_out_labels"
-//            ],
-//            {
-//                "crc": "0xc85f8290"
-//            }
+//        ["ip_add_del_route",
+//            ["u16", "_vl_msg_id"],
+//            ["u32", "client_index"],
+//            ["u32", "context"],
+//            ["u32", "next_hop_sw_if_index"],
+//            ["u32", "table_id"],
+//            ["u32", "classify_table_index"],
+//            ["u32", "next_hop_table_id"],
+//            ["u8", "create_vrf_if_needed"],
+//            ["u8", "is_add"],
+//            ["u8", "is_drop"],
+//            ["u8", "is_unreach"],
+//            ["u8", "is_prohibit"],
+//            ["u8", "is_ipv6"],
+//            ["u8", "is_local"],
+//            ["u8", "is_classify"],
+//            ["u8", "is_multipath"],
+//            ["u8", "is_resolve_host"],
+//            ["u8", "is_resolve_attached"],
+//            ["u8", "not_last"],
+//            ["u8", "next_hop_weight"],
+//            ["u8", "dst_address_length"],
+//            ["u8", "dst_address", 16],
+//            ["u8", "next_hop_address", 16],
+//            ["u8", "next_hop_n_out_labels"],
+//            ["u32", "next_hop_via_label"],
+//            ["u32", "next_hop_out_label_stack", 0, "next_hop_n_out_labels"],
+//            {"crc" : "0xa0ab24bf"}
+//        ],
 //
 type IPAddDelRoute struct {
 	NextHopSwIfIndex     uint32
 	TableID              uint32
 	ClassifyTableIndex   uint32
 	NextHopTableID       uint32
-	NextHopID            uint32
+	CreateVrfIfNeeded    uint8
 	IsAdd                uint8
 	IsDrop               uint8
 	IsUnreach            uint8
@@ -1462,12 +796,8 @@ type IPAddDelRoute struct {
 	IsMultipath          uint8
 	IsResolveHost        uint8
 	IsResolveAttached    uint8
-	IsDvr                uint8
-	IsSourceLookup       uint8
-	IsUDPEncap           uint8
+	NotLast              uint8
 	NextHopWeight        uint8
-	NextHopPreference    uint8
-	NextHopProto         uint8
 	DstAddressLength     uint8
 	DstAddress           []byte `struc:"[16]byte"`
 	NextHopAddress       []byte `struc:"[16]byte"`
@@ -1483,31 +813,21 @@ func (*IPAddDelRoute) GetMessageType() api.MessageType {
 	return api.RequestMessage
 }
 func (*IPAddDelRoute) GetCrcString() string {
-	return "c85f8290"
+	return "a0ab24bf"
 }
 func NewIPAddDelRoute() api.Message {
 	return &IPAddDelRoute{}
 }
 
 // IPAddDelRouteReply represents the VPP binary API message 'ip_add_del_route_reply'.
-// Generated from '../../bin_api/ip.api.json', line 1042:
+// Generated from '../../bin_api/ip.api.json', line 239:
 //
-//            "ip_add_del_route_reply",
-//            [
-//                "u16",
-//                "_vl_msg_id"
-//            ],
-//            [
-//                "u32",
-//                "context"
-//            ],
-//            [
-//                "i32",
-//                "retval"
-//            ],
-//            {
-//                "crc": "0xe8d4e804"
-//            }
+//        ["ip_add_del_route_reply",
+//            ["u16", "_vl_msg_id"],
+//            ["u32", "context"],
+//            ["i32", "retval"],
+//            {"crc" : "0xea57492b"}
+//        ],
 //
 type IPAddDelRouteReply struct {
 	Retval int32
@@ -1520,100 +840,47 @@ func (*IPAddDelRouteReply) GetMessageType() api.MessageType {
 	return api.ReplyMessage
 }
 func (*IPAddDelRouteReply) GetCrcString() string {
-	return "e8d4e804"
+	return "ea57492b"
 }
 func NewIPAddDelRouteReply() api.Message {
 	return &IPAddDelRouteReply{}
 }
 
 // IPMrouteAddDel represents the VPP binary API message 'ip_mroute_add_del'.
-// Generated from '../../bin_api/ip.api.json', line 1060:
+// Generated from '../../bin_api/ip.api.json', line 245:
 //
-//            "ip_mroute_add_del",
-//            [
-//                "u16",
-//                "_vl_msg_id"
-//            ],
-//            [
-//                "u32",
-//                "client_index"
-//            ],
-//            [
-//                "u32",
-//                "context"
-//            ],
-//            [
-//                "u32",
-//                "next_hop_sw_if_index"
-//            ],
-//            [
-//                "u32",
-//                "table_id"
-//            ],
-//            [
-//                "u32",
-//                "entry_flags"
-//            ],
-//            [
-//                "u32",
-//                "itf_flags"
-//            ],
-//            [
-//                "u32",
-//                "rpf_id"
-//            ],
-//            [
-//                "u32",
-//                "bier_imp"
-//            ],
-//            [
-//                "u16",
-//                "grp_address_length"
-//            ],
-//            [
-//                "u8",
-//                "next_hop_afi"
-//            ],
-//            [
-//                "u8",
-//                "is_add"
-//            ],
-//            [
-//                "u8",
-//                "is_ipv6"
-//            ],
-//            [
-//                "u8",
-//                "is_local"
-//            ],
-//            [
-//                "u8",
-//                "grp_address",
-//                16
-//            ],
-//            [
-//                "u8",
-//                "src_address",
-//                16
-//            ],
-//            {
-//                "crc": "0xc37112f7"
-//            }
+//        ["ip_mroute_add_del",
+//            ["u16", "_vl_msg_id"],
+//            ["u32", "client_index"],
+//            ["u32", "context"],
+//            ["u32", "next_hop_sw_if_index"],
+//            ["u32", "table_id"],
+//            ["u32", "entry_flags"],
+//            ["u32", "itf_flags"],
+//            ["u32", "rpf_id"],
+//            ["u16", "grp_address_length"],
+//            ["u8", "create_vrf_if_needed"],
+//            ["u8", "is_add"],
+//            ["u8", "is_ipv6"],
+//            ["u8", "is_local"],
+//            ["u8", "grp_address", 16],
+//            ["u8", "src_address", 16],
+//            {"crc" : "0x8f5f21a8"}
+//        ],
 //
 type IPMrouteAddDel struct {
-	NextHopSwIfIndex uint32
-	TableID          uint32
-	EntryFlags       uint32
-	ItfFlags         uint32
-	RpfID            uint32
-	BierImp          uint32
-	GrpAddressLength uint16
-	NextHopAfi       uint8
-	IsAdd            uint8
-	IsIpv6           uint8
-	IsLocal          uint8
-	GrpAddress       []byte `struc:"[16]byte"`
-	SrcAddress       []byte `struc:"[16]byte"`
+	NextHopSwIfIndex  uint32
+	TableID           uint32
+	EntryFlags        uint32
+	ItfFlags          uint32
+	RpfID             uint32
+	GrpAddressLength  uint16
+	CreateVrfIfNeeded uint8
+	IsAdd             uint8
+	IsIpv6            uint8
+	IsLocal           uint8
+	GrpAddress        []byte `struc:"[16]byte"`
+	SrcAddress        []byte `struc:"[16]byte"`
 }
 
 func (*IPMrouteAddDel) GetMessageName() string {
@@ -1623,31 +890,21 @@ func (*IPMrouteAddDel) GetMessageType() api.MessageType {
 	return api.RequestMessage
 }
 func (*IPMrouteAddDel) GetCrcString() string {
-	return "c37112f7"
+	return "8f5f21a8"
 }
 func NewIPMrouteAddDel() api.Message {
 	return &IPMrouteAddDel{}
 }
 
 // IPMrouteAddDelReply represents the VPP binary API message 'ip_mroute_add_del_reply'.
-// Generated from '../../bin_api/ip.api.json', line 1132:
+// Generated from '../../bin_api/ip.api.json', line 263:
 //
-//            "ip_mroute_add_del_reply",
-//            [
-//                "u16",
-//                "_vl_msg_id"
-//            ],
-//            [
-//                "u32",
-//                "context"
-//            ],
-//            [
-//                "i32",
-//                "retval"
-//            ],
-//            {
-//                "crc": "0xe8d4e804"
-//            }
+//        ["ip_mroute_add_del_reply",
+//            ["u16", "_vl_msg_id"],
+//            ["u32", "context"],
+//            ["i32", "retval"],
+//            {"crc" : "0x8cabe02c"}
+//        ],
 //
 type IPMrouteAddDelReply struct {
 	Retval int32
@@ -1660,31 +917,21 @@ func (*IPMrouteAddDelReply) GetMessageType() api.MessageType {
 	return api.ReplyMessage
 }
 func (*IPMrouteAddDelReply) GetCrcString() string {
-	return "e8d4e804"
+	return "8cabe02c"
 }
 func NewIPMrouteAddDelReply() api.Message {
 	return &IPMrouteAddDelReply{}
 }
 
 // IPMfibDump represents the VPP binary API message 'ip_mfib_dump'.
-// Generated from '../../bin_api/ip.api.json', line 1150:
+// Generated from '../../bin_api/ip.api.json', line 269:
 //
-//            "ip_mfib_dump",
-//            [
-//                "u16",
-//                "_vl_msg_id"
-//            ],
-//            [
-//                "u32",
-//                "client_index"
-//            ],
-//            [
-//                "u32",
-//                "context"
-//            ],
-//            {
-//                "crc": "0x51077d14"
-//            }
+//        ["ip_mfib_dump",
+//            ["u16", "_vl_msg_id"],
+//            ["u32", "client_index"],
+//            ["u32", "context"],
+//            {"crc" : "0xee61390e"}
+//        ],
 //
 type IPMfibDump struct {
 }
@@ -1696,63 +943,28 @@ func (*IPMfibDump) GetMessageType() api.MessageType {
 	return api.RequestMessage
 }
 func (*IPMfibDump) GetCrcString() string {
-	return "51077d14"
+	return "ee61390e"
 }
 func NewIPMfibDump() api.Message {
 	return &IPMfibDump{}
 }
 
 // IPMfibDetails represents the VPP binary API message 'ip_mfib_details'.
-// Generated from '../../bin_api/ip.api.json', line 1168:
+// Generated from '../../bin_api/ip.api.json', line 275:
 //
-//            "ip_mfib_details",
-//            [
-//                "u16",
-//                "_vl_msg_id"
-//            ],
-//            [
-//                "u32",
-//                "context"
-//            ],
-//            [
-//                "u32",
-//                "table_id"
-//            ],
-//            [
-//                "u32",
-//                "entry_flags"
-//            ],
-//            [
-//                "u32",
-//                "rpf_id"
-//            ],
-//            [
-//                "u8",
-//                "address_length"
-//            ],
-//            [
-//                "u8",
-//                "grp_address",
-//                4
-//            ],
-//            [
-//                "u8",
-//                "src_address",
-//                4
-//            ],
-//            [
-//                "u32",
-//                "count"
-//            ],
-//            [
-//                "vl_api_fib_path_t",
-//                "path",
-//                0,
-//                "count"
-//            ],
-//            {
-//                "crc": "0x5e530d5e"
-//            }
+//        ["ip_mfib_details",
+//            ["u16", "_vl_msg_id"],
+//            ["u32", "context"],
+//            ["u32", "table_id"],
+//            ["u32", "entry_flags"],
+//            ["u32", "rpf_id"],
+//            ["u8", "address_length"],
+//            ["u8", "grp_address", 4],
+//            ["u8", "src_address", 4],
+//            ["u32", "count"],
+//            ["vl_api_fib_path_t", "path", 0, "count"],
+//            {"crc" : "0x395e5699"}
+//        ],
 //
 type IPMfibDetails struct {
 	TableID       uint32
@@ -1772,31 +984,21 @@ func (*IPMfibDetails) GetMessageType() api.MessageType {
 	return api.ReplyMessage
 }
 func (*IPMfibDetails) GetCrcString() string {
-	return "5e530d5e"
+	return "395e5699"
 }
 func NewIPMfibDetails() api.Message {
 	return &IPMfibDetails{}
 }
 
 // IP6MfibDump represents the VPP binary API message 'ip6_mfib_dump'.
-// Generated from '../../bin_api/ip.api.json', line 1218:
+// Generated from '../../bin_api/ip.api.json', line 288:
 //
-//            "ip6_mfib_dump",
-//            [
-//                "u16",
-//                "_vl_msg_id"
-//            ],
-//            [
-//                "u32",
-//                "client_index"
-//            ],
-//            [
-//                "u32",
-//                "context"
-//            ],
-//            {
-//                "crc": "0x51077d14"
-//            }
+//        ["ip6_mfib_dump",
+//            ["u16", "_vl_msg_id"],
+//            ["u32", "client_index"],
+//            ["u32", "context"],
+//            {"crc" : "0x0839e143"}
+//        ],
 //
 type IP6MfibDump struct {
 }
@@ -1808,55 +1010,26 @@ func (*IP6MfibDump) GetMessageType() api.MessageType {
 	return api.RequestMessage
 }
 func (*IP6MfibDump) GetCrcString() string {
-	return "51077d14"
+	return "0839e143"
 }
 func NewIP6MfibDump() api.Message {
 	return &IP6MfibDump{}
 }
 
 // IP6MfibDetails represents the VPP binary API message 'ip6_mfib_details'.
-// Generated from '../../bin_api/ip.api.json', line 1236:
+// Generated from '../../bin_api/ip.api.json', line 294:
 //
-//            "ip6_mfib_details",
-//            [
-//                "u16",
-//                "_vl_msg_id"
-//            ],
-//            [
-//                "u32",
-//                "context"
-//            ],
-//            [
-//                "u32",
-//                "table_id"
-//            ],
-//            [
-//                "u8",
-//                "address_length"
-//            ],
-//            [
-//                "u8",
-//                "grp_address",
-//                16
-//            ],
-//            [
-//                "u8",
-//                "src_address",
-//                16
-//            ],
-//            [
-//                "u32",
-//                "count"
-//            ],
-//            [
-//                "vl_api_fib_path_t",
-//                "path",
-//                0,
-//                "count"
-//            ],
-//            {
-//                "crc": "0xe02dcb4b"
-//            }
+//        ["ip6_mfib_details",
+//            ["u16", "_vl_msg_id"],
+//            ["u32", "context"],
+//            ["u32", "table_id"],
+//            ["u8", "address_length"],
+//            ["u8", "grp_address", 16],
+//            ["u8", "src_address", 16],
+//            ["u32", "count"],
+//            ["vl_api_fib_path_t", "path", 0, "count"],
+//            {"crc" : "0x921b153f"}
+//        ],
 //
 type IP6MfibDetails struct {
 	TableID       uint32
@@ -1874,48 +1047,25 @@ func (*IP6MfibDetails) GetMessageType() api.MessageType {
 	return api.ReplyMessage
 }
 func (*IP6MfibDetails) GetCrcString() string {
-	return "e02dcb4b"
+	return "921b153f"
 }
 func NewIP6MfibDetails() api.Message {
 	return &IP6MfibDetails{}
 }
 
 // IPAddressDetails represents the VPP binary API message 'ip_address_details'.
-// Generated from '../../bin_api/ip.api.json', line 1278:
+// Generated from '../../bin_api/ip.api.json', line 305:
 //
-//            "ip_address_details",
-//            [
-//                "u16",
-//                "_vl_msg_id"
-//            ],
-//            [
-//                "u32",
-//                "client_index"
-//            ],
-//            [
-//                "u32",
-//                "context"
-//            ],
-//            [
-//                "u8",
-//                "ip",
-//                16
-//            ],
-//            [
-//                "u8",
-//                "prefix_length"
-//            ],
-//            [
-//                "u32",
-//                "sw_if_index"
-//            ],
-//            [
-//                "u8",
-//                "is_ipv6"
-//            ],
-//            {
-//                "crc": "0xbc7442f2"
-//            }
+//        ["ip_address_details",
+//            ["u16", "_vl_msg_id"],
+//            ["u32", "client_index"],
+//            ["u32", "context"],
+//            ["u8", "ip", 16],
+//            ["u8", "prefix_length"],
+//            ["u32", "sw_if_index"],
+//            ["u8", "is_ipv6"],
+//            {"crc" : "0x190d4266"}
+//        ],
 //
 type IPAddressDetails struct {
 	IP           []byte `struc:"[16]byte"`
@@ -1931,39 +1081,23 @@ func (*IPAddressDetails) GetMessageType() api.MessageType {
 	return api.RequestMessage
 }
 func (*IPAddressDetails) GetCrcString() string {
-	return "bc7442f2"
+	return "190d4266"
 }
 func NewIPAddressDetails() api.Message {
 	return &IPAddressDetails{}
 }
 
 // IPAddressDump represents the VPP binary API message 'ip_address_dump'.
-// Generated from '../../bin_api/ip.api.json', line 1313:
+// Generated from '../../bin_api/ip.api.json', line 315:
 //
-//            "ip_address_dump",
-//            [
-//                "u16",
-//                "_vl_msg_id"
-//            ],
-//            [
-//                "u32",
-//                "client_index"
-//            ],
-//            [
-//                "u32",
-//                "context"
-//            ],
-//            [
-//                "u32",
-//                "sw_if_index"
-//            ],
-//            [
-//                "u8",
-//                "is_ipv6"
-//            ],
-//            {
-//                "crc": "0x6b7bcd0a"
-//            }
+//        ["ip_address_dump",
+//            ["u16", "_vl_msg_id"],
+//            ["u32", "client_index"],
+//            ["u32", "context"],
+//            ["u32", "sw_if_index"],
+//            ["u8", "is_ipv6"],
+//            {"crc" : "0x632e859a"}
+//        ],
 //
 type IPAddressDump struct {
 	SwIfIndex uint32
@@ -1977,35 +1111,22 @@ func (*IPAddressDump) GetMessageType() api.MessageType {
 	return api.RequestMessage
 }
 func (*IPAddressDump) GetCrcString() string {
-	return "6b7bcd0a"
+	return "632e859a"
 }
 func NewIPAddressDump() api.Message {
 	return &IPAddressDump{}
 }
 
 // IPDetails represents the VPP binary API message 'ip_details'.
-// Generated from '../../bin_api/ip.api.json', line 1339:
+// Generated from '../../bin_api/ip.api.json', line 323:
 //
-//            "ip_details",
-//            [
-//                "u16",
-//                "_vl_msg_id"
-//            ],
-//            [
-//                "u32",
-//                "sw_if_index"
-//            ],
-//            [
-//                "u32",
-//                "context"
-//            ],
-//            [
-//                "u8",
-//                "is_ipv6"
-//            ],
-//            {
-//                "crc": "0x452ffc5a"
-//            }
+//        ["ip_details",
+//            ["u16", "_vl_msg_id"],
+//            ["u32", "sw_if_index"],
+//            ["u32", "context"],
+//            ["u8", "is_ipv6"],
+//            {"crc" : "0x695c8227"}
+//        ],
 //
 type IPDetails struct {
 	SwIfIndex uint32
@@ -2020,35 +1141,22 @@ func (*IPDetails) GetMessageType() api.MessageType {
 	return api.OtherMessage
 }
 func (*IPDetails) GetCrcString() string {
-	return "452ffc5a"
+	return "695c8227"
 }
 func NewIPDetails() api.Message {
 	return &IPDetails{}
 }
 
 // IPDump represents the VPP binary API message 'ip_dump'.
-// Generated from '../../bin_api/ip.api.json', line 1361:
+// Generated from '../../bin_api/ip.api.json', line 330:
 //
-//            "ip_dump",
-//            [
-//                "u16",
-//                "_vl_msg_id"
-//            ],
-//            [
-//                "u32",
-//                "client_index"
-//            ],
-//            [
-//                "u32",
-//                "context"
-//            ],
-//            [
-//                "u8",
-//                "is_ipv6"
-//            ],
-//            {
-//                "crc": "0xde883da4"
-//            }
+//        ["ip_dump",
+//            ["u16", "_vl_msg_id"],
+//            ["u32", "client_index"],
+//            ["u32", "context"],
+//            ["u8", "is_ipv6"],
+//            {"crc" : "0x3c1e33e0"}
+//        ],
 //
 type IPDump struct {
 	IsIpv6 uint8
@@ -2061,31 +1169,21 @@ func (*IPDump) GetMessageType() api.MessageType {
 	return api.RequestMessage
 }
 func (*IPDump) GetCrcString() string {
-	return "de883da4"
+	return "3c1e33e0"
 }
 func NewIPDump() api.Message {
 	return &IPDump{}
 }
 
 // MfibSignalDump represents the VPP binary API message 'mfib_signal_dump'.
-// Generated from '../../bin_api/ip.api.json', line 1383:
+// Generated from '../../bin_api/ip.api.json', line 337:
 //
-//            "mfib_signal_dump",
-//            [
-//                "u16",
-//                "_vl_msg_id"
-//            ],
-//            [
-//                "u32",
-//                "client_index"
-//            ],
-//            [
-//                "u32",
-//                "context"
-//            ],
-//            {
-//                "crc": "0x51077d14"
-//            }
+//        ["mfib_signal_dump",
+//            ["u16", "_vl_msg_id"],
+//            ["u32", "client_index"],
+//            ["u32", "context"],
+//            {"crc" : "0xbbbbd40d"}
+//        ],
 //
 type MfibSignalDump struct {
 }
@@ -2097,62 +1195,28 @@ func (*MfibSignalDump) GetMessageType() api.MessageType {
 	return api.RequestMessage
 }
 func (*MfibSignalDump) GetCrcString() string {
-	return "51077d14"
+	return "bbbbd40d"
 }
 func NewMfibSignalDump() api.Message {
 	return &MfibSignalDump{}
 }
 
 // MfibSignalDetails represents the VPP binary API message 'mfib_signal_details'.
-// Generated from '../../bin_api/ip.api.json', line 1401:
+// Generated from '../../bin_api/ip.api.json', line 343:
 //
-//            "mfib_signal_details",
-//            [
-//                "u16",
-//                "_vl_msg_id"
-//            ],
-//            [
-//                "u32",
-//                "client_index"
-//            ],
-//            [
-//                "u32",
-//                "context"
-//            ],
-//            [
-//                "u32",
-//                "sw_if_index"
-//            ],
-//            [
-//                "u32",
-//                "table_id"
-//            ],
-//            [
-//                "u16",
-//                "grp_address_len"
-//            ],
-//            [
-//                "u8",
-//                "grp_address",
-//                16
-//            ],
-//            [
-//                "u8",
-//                "src_address",
-//                16
-//            ],
-//            [
-//                "u16",
-//                "ip_packet_len"
-//            ],
-//            [
-//                "u8",
-//                "ip_packet_data",
-//                256
-//            ],
-//            {
-//                "crc": "0x791bbeab"
-//            }
+//        ["mfib_signal_details",
+//            ["u16", "_vl_msg_id"],
+//            ["u32", "client_index"],
+//            ["u32", "context"],
+//            ["u32", "sw_if_index"],
+//            ["u32", "table_id"],
+//            ["u16", "grp_address_len"],
+//            ["u8", "grp_address", 16],
+//            ["u8", "src_address", 16],
+//            ["u16", "ip_packet_len"],
+//            ["u8", "ip_packet_data", 256],
+//            {"crc" : "0x6ba92c72"}
+//        ]
 //
 type MfibSignalDetails struct {
 	SwIfIndex     uint32
@@ -2171,1332 +1235,8 @@ func (*MfibSignalDetails) GetMessageType() api.MessageType {
 	return api.RequestMessage
 }
 func (*MfibSignalDetails) GetCrcString() string {
-	return "791bbeab"
+	return "6ba92c72"
 }
 func NewMfibSignalDetails() api.Message {
 	return &MfibSignalDetails{}
-}
-
-// IPPuntPolice represents the VPP binary API message 'ip_punt_police'.
-// Generated from '../../bin_api/ip.api.json', line 1450:
-//
-//            "ip_punt_police",
-//            [
-//                "u16",
-//                "_vl_msg_id"
-//            ],
-//            [
-//                "u32",
-//                "client_index"
-//            ],
-//            [
-//                "u32",
-//                "context"
-//            ],
-//            [
-//                "u32",
-//                "policer_index"
-//            ],
-//            [
-//                "u8",
-//                "is_add"
-//            ],
-//            [
-//                "u8",
-//                "is_ip6"
-//            ],
-//            {
-//                "crc": "0x38691592"
-//            }
-//
-type IPPuntPolice struct {
-	PolicerIndex uint32
-	IsAdd        uint8
-	IsIP6        uint8
-}
-
-func (*IPPuntPolice) GetMessageName() string {
-	return "ip_punt_police"
-}
-func (*IPPuntPolice) GetMessageType() api.MessageType {
-	return api.RequestMessage
-}
-func (*IPPuntPolice) GetCrcString() string {
-	return "38691592"
-}
-func NewIPPuntPolice() api.Message {
-	return &IPPuntPolice{}
-}
-
-// IPPuntPoliceReply represents the VPP binary API message 'ip_punt_police_reply'.
-// Generated from '../../bin_api/ip.api.json', line 1480:
-//
-//            "ip_punt_police_reply",
-//            [
-//                "u16",
-//                "_vl_msg_id"
-//            ],
-//            [
-//                "u32",
-//                "context"
-//            ],
-//            [
-//                "i32",
-//                "retval"
-//            ],
-//            {
-//                "crc": "0xe8d4e804"
-//            }
-//
-type IPPuntPoliceReply struct {
-	Retval int32
-}
-
-func (*IPPuntPoliceReply) GetMessageName() string {
-	return "ip_punt_police_reply"
-}
-func (*IPPuntPoliceReply) GetMessageType() api.MessageType {
-	return api.ReplyMessage
-}
-func (*IPPuntPoliceReply) GetCrcString() string {
-	return "e8d4e804"
-}
-func NewIPPuntPoliceReply() api.Message {
-	return &IPPuntPoliceReply{}
-}
-
-// IPPuntRedirect represents the VPP binary API message 'ip_punt_redirect'.
-// Generated from '../../bin_api/ip.api.json', line 1498:
-//
-//            "ip_punt_redirect",
-//            [
-//                "u16",
-//                "_vl_msg_id"
-//            ],
-//            [
-//                "u32",
-//                "client_index"
-//            ],
-//            [
-//                "u32",
-//                "context"
-//            ],
-//            [
-//                "u32",
-//                "rx_sw_if_index"
-//            ],
-//            [
-//                "u32",
-//                "tx_sw_if_index"
-//            ],
-//            [
-//                "u8",
-//                "is_add"
-//            ],
-//            [
-//                "u8",
-//                "is_ip6"
-//            ],
-//            [
-//                "u8",
-//                "nh",
-//                16
-//            ],
-//            {
-//                "crc": "0x996b6603"
-//            }
-//
-type IPPuntRedirect struct {
-	RxSwIfIndex uint32
-	TxSwIfIndex uint32
-	IsAdd       uint8
-	IsIP6       uint8
-	Nh          []byte `struc:"[16]byte"`
-}
-
-func (*IPPuntRedirect) GetMessageName() string {
-	return "ip_punt_redirect"
-}
-func (*IPPuntRedirect) GetMessageType() api.MessageType {
-	return api.RequestMessage
-}
-func (*IPPuntRedirect) GetCrcString() string {
-	return "996b6603"
-}
-func NewIPPuntRedirect() api.Message {
-	return &IPPuntRedirect{}
-}
-
-// IPPuntRedirectReply represents the VPP binary API message 'ip_punt_redirect_reply'.
-// Generated from '../../bin_api/ip.api.json', line 1537:
-//
-//            "ip_punt_redirect_reply",
-//            [
-//                "u16",
-//                "_vl_msg_id"
-//            ],
-//            [
-//                "u32",
-//                "context"
-//            ],
-//            [
-//                "i32",
-//                "retval"
-//            ],
-//            {
-//                "crc": "0xe8d4e804"
-//            }
-//
-type IPPuntRedirectReply struct {
-	Retval int32
-}
-
-func (*IPPuntRedirectReply) GetMessageName() string {
-	return "ip_punt_redirect_reply"
-}
-func (*IPPuntRedirectReply) GetMessageType() api.MessageType {
-	return api.ReplyMessage
-}
-func (*IPPuntRedirectReply) GetCrcString() string {
-	return "e8d4e804"
-}
-func NewIPPuntRedirectReply() api.Message {
-	return &IPPuntRedirectReply{}
-}
-
-// IPContainerProxyAddDel represents the VPP binary API message 'ip_container_proxy_add_del'.
-// Generated from '../../bin_api/ip.api.json', line 1555:
-//
-//            "ip_container_proxy_add_del",
-//            [
-//                "u16",
-//                "_vl_msg_id"
-//            ],
-//            [
-//                "u32",
-//                "client_index"
-//            ],
-//            [
-//                "u32",
-//                "context"
-//            ],
-//            [
-//                "u8",
-//                "ip",
-//                16
-//            ],
-//            [
-//                "u8",
-//                "is_ip4"
-//            ],
-//            [
-//                "u8",
-//                "plen"
-//            ],
-//            [
-//                "u32",
-//                "sw_if_index"
-//            ],
-//            [
-//                "u8",
-//                "is_add"
-//            ],
-//            {
-//                "crc": "0x0a355d39"
-//            }
-//
-type IPContainerProxyAddDel struct {
-	IP        []byte `struc:"[16]byte"`
-	IsIP4     uint8
-	Plen      uint8
-	SwIfIndex uint32
-	IsAdd     uint8
-}
-
-func (*IPContainerProxyAddDel) GetMessageName() string {
-	return "ip_container_proxy_add_del"
-}
-func (*IPContainerProxyAddDel) GetMessageType() api.MessageType {
-	return api.RequestMessage
-}
-func (*IPContainerProxyAddDel) GetCrcString() string {
-	return "0a355d39"
-}
-func NewIPContainerProxyAddDel() api.Message {
-	return &IPContainerProxyAddDel{}
-}
-
-// IPContainerProxyAddDelReply represents the VPP binary API message 'ip_container_proxy_add_del_reply'.
-// Generated from '../../bin_api/ip.api.json', line 1594:
-//
-//            "ip_container_proxy_add_del_reply",
-//            [
-//                "u16",
-//                "_vl_msg_id"
-//            ],
-//            [
-//                "u32",
-//                "context"
-//            ],
-//            [
-//                "i32",
-//                "retval"
-//            ],
-//            {
-//                "crc": "0xe8d4e804"
-//            }
-//
-type IPContainerProxyAddDelReply struct {
-	Retval int32
-}
-
-func (*IPContainerProxyAddDelReply) GetMessageName() string {
-	return "ip_container_proxy_add_del_reply"
-}
-func (*IPContainerProxyAddDelReply) GetMessageType() api.MessageType {
-	return api.ReplyMessage
-}
-func (*IPContainerProxyAddDelReply) GetCrcString() string {
-	return "e8d4e804"
-}
-func NewIPContainerProxyAddDelReply() api.Message {
-	return &IPContainerProxyAddDelReply{}
-}
-
-// IPSourceAndPortRangeCheckAddDel represents the VPP binary API message 'ip_source_and_port_range_check_add_del'.
-// Generated from '../../bin_api/ip.api.json', line 1612:
-//
-//            "ip_source_and_port_range_check_add_del",
-//            [
-//                "u16",
-//                "_vl_msg_id"
-//            ],
-//            [
-//                "u32",
-//                "client_index"
-//            ],
-//            [
-//                "u32",
-//                "context"
-//            ],
-//            [
-//                "u8",
-//                "is_ipv6"
-//            ],
-//            [
-//                "u8",
-//                "is_add"
-//            ],
-//            [
-//                "u8",
-//                "mask_length"
-//            ],
-//            [
-//                "u8",
-//                "address",
-//                16
-//            ],
-//            [
-//                "u8",
-//                "number_of_ranges"
-//            ],
-//            [
-//                "u16",
-//                "low_ports",
-//                32
-//            ],
-//            [
-//                "u16",
-//                "high_ports",
-//                32
-//            ],
-//            [
-//                "u32",
-//                "vrf_id"
-//            ],
-//            {
-//                "crc": "0x03d6b03a"
-//            }
-//
-type IPSourceAndPortRangeCheckAddDel struct {
-	IsIpv6         uint8
-	IsAdd          uint8
-	MaskLength     uint8
-	Address        []byte `struc:"[16]byte"`
-	NumberOfRanges uint8
-	LowPorts       []uint16 `struc:"[32]uint16"`
-	HighPorts      []uint16 `struc:"[32]uint16"`
-	VrfID          uint32
-}
-
-func (*IPSourceAndPortRangeCheckAddDel) GetMessageName() string {
-	return "ip_source_and_port_range_check_add_del"
-}
-func (*IPSourceAndPortRangeCheckAddDel) GetMessageType() api.MessageType {
-	return api.RequestMessage
-}
-func (*IPSourceAndPortRangeCheckAddDel) GetCrcString() string {
-	return "03d6b03a"
-}
-func NewIPSourceAndPortRangeCheckAddDel() api.Message {
-	return &IPSourceAndPortRangeCheckAddDel{}
-}
-
-// IPSourceAndPortRangeCheckAddDelReply represents the VPP binary API message 'ip_source_and_port_range_check_add_del_reply'.
-// Generated from '../../bin_api/ip.api.json', line 1665:
-//
-//            "ip_source_and_port_range_check_add_del_reply",
-//            [
-//                "u16",
-//                "_vl_msg_id"
-//            ],
-//            [
-//                "u32",
-//                "context"
-//            ],
-//            [
-//                "i32",
-//                "retval"
-//            ],
-//            {
-//                "crc": "0xe8d4e804"
-//            }
-//
-type IPSourceAndPortRangeCheckAddDelReply struct {
-	Retval int32
-}
-
-func (*IPSourceAndPortRangeCheckAddDelReply) GetMessageName() string {
-	return "ip_source_and_port_range_check_add_del_reply"
-}
-func (*IPSourceAndPortRangeCheckAddDelReply) GetMessageType() api.MessageType {
-	return api.ReplyMessage
-}
-func (*IPSourceAndPortRangeCheckAddDelReply) GetCrcString() string {
-	return "e8d4e804"
-}
-func NewIPSourceAndPortRangeCheckAddDelReply() api.Message {
-	return &IPSourceAndPortRangeCheckAddDelReply{}
-}
-
-// IPSourceAndPortRangeCheckInterfaceAddDel represents the VPP binary API message 'ip_source_and_port_range_check_interface_add_del'.
-// Generated from '../../bin_api/ip.api.json', line 1683:
-//
-//            "ip_source_and_port_range_check_interface_add_del",
-//            [
-//                "u16",
-//                "_vl_msg_id"
-//            ],
-//            [
-//                "u32",
-//                "client_index"
-//            ],
-//            [
-//                "u32",
-//                "context"
-//            ],
-//            [
-//                "u8",
-//                "is_add"
-//            ],
-//            [
-//                "u32",
-//                "sw_if_index"
-//            ],
-//            [
-//                "u32",
-//                "tcp_in_vrf_id"
-//            ],
-//            [
-//                "u32",
-//                "tcp_out_vrf_id"
-//            ],
-//            [
-//                "u32",
-//                "udp_in_vrf_id"
-//            ],
-//            [
-//                "u32",
-//                "udp_out_vrf_id"
-//            ],
-//            {
-//                "crc": "0x6966bc44"
-//            }
-//
-type IPSourceAndPortRangeCheckInterfaceAddDel struct {
-	IsAdd       uint8
-	SwIfIndex   uint32
-	TCPInVrfID  uint32
-	TCPOutVrfID uint32
-	UDPInVrfID  uint32
-	UDPOutVrfID uint32
-}
-
-func (*IPSourceAndPortRangeCheckInterfaceAddDel) GetMessageName() string {
-	return "ip_source_and_port_range_check_interface_add_del"
-}
-func (*IPSourceAndPortRangeCheckInterfaceAddDel) GetMessageType() api.MessageType {
-	return api.RequestMessage
-}
-func (*IPSourceAndPortRangeCheckInterfaceAddDel) GetCrcString() string {
-	return "6966bc44"
-}
-func NewIPSourceAndPortRangeCheckInterfaceAddDel() api.Message {
-	return &IPSourceAndPortRangeCheckInterfaceAddDel{}
-}
-
-// IPSourceAndPortRangeCheckInterfaceAddDelReply represents the VPP binary API message 'ip_source_and_port_range_check_interface_add_del_reply'.
-// Generated from '../../bin_api/ip.api.json', line 1725:
-//
-//            "ip_source_and_port_range_check_interface_add_del_reply",
-//            [
-//                "u16",
-//                "_vl_msg_id"
-//            ],
-//            [
-//                "u32",
-//                "context"
-//            ],
-//            [
-//                "i32",
-//                "retval"
-//            ],
-//            {
-//                "crc": "0xe8d4e804"
-//            }
-//
-type IPSourceAndPortRangeCheckInterfaceAddDelReply struct {
-	Retval int32
-}
-
-func (*IPSourceAndPortRangeCheckInterfaceAddDelReply) GetMessageName() string {
-	return "ip_source_and_port_range_check_interface_add_del_reply"
-}
-func (*IPSourceAndPortRangeCheckInterfaceAddDelReply) GetMessageType() api.MessageType {
-	return api.ReplyMessage
-}
-func (*IPSourceAndPortRangeCheckInterfaceAddDelReply) GetCrcString() string {
-	return "e8d4e804"
-}
-func NewIPSourceAndPortRangeCheckInterfaceAddDelReply() api.Message {
-	return &IPSourceAndPortRangeCheckInterfaceAddDelReply{}
-}
-
-// WantIP4ArpEvents represents the VPP binary API message 'want_ip4_arp_events'.
-// Generated from '../../bin_api/ip.api.json', line 1743:
-//
-//            "want_ip4_arp_events",
-//            [
-//                "u16",
-//                "_vl_msg_id"
-//            ],
-//            [
-//                "u32",
-//                "client_index"
-//            ],
-//            [
-//                "u32",
-//                "context"
-//            ],
-//            [
-//                "u8",
-//                "enable_disable"
-//            ],
-//            [
-//                "u32",
-//                "pid"
-//            ],
-//            [
-//                "u32",
-//                "address"
-//            ],
-//            {
-//                "crc": "0x77e06379"
-//            }
-//
-type WantIP4ArpEvents struct {
-	EnableDisable uint8
-	Pid           uint32
-	Address       uint32
-}
-
-func (*WantIP4ArpEvents) GetMessageName() string {
-	return "want_ip4_arp_events"
-}
-func (*WantIP4ArpEvents) GetMessageType() api.MessageType {
-	return api.RequestMessage
-}
-func (*WantIP4ArpEvents) GetCrcString() string {
-	return "77e06379"
-}
-func NewWantIP4ArpEvents() api.Message {
-	return &WantIP4ArpEvents{}
-}
-
-// WantIP4ArpEventsReply represents the VPP binary API message 'want_ip4_arp_events_reply'.
-// Generated from '../../bin_api/ip.api.json', line 1773:
-//
-//            "want_ip4_arp_events_reply",
-//            [
-//                "u16",
-//                "_vl_msg_id"
-//            ],
-//            [
-//                "u32",
-//                "context"
-//            ],
-//            [
-//                "i32",
-//                "retval"
-//            ],
-//            {
-//                "crc": "0xe8d4e804"
-//            }
-//
-type WantIP4ArpEventsReply struct {
-	Retval int32
-}
-
-func (*WantIP4ArpEventsReply) GetMessageName() string {
-	return "want_ip4_arp_events_reply"
-}
-func (*WantIP4ArpEventsReply) GetMessageType() api.MessageType {
-	return api.ReplyMessage
-}
-func (*WantIP4ArpEventsReply) GetCrcString() string {
-	return "e8d4e804"
-}
-func NewWantIP4ArpEventsReply() api.Message {
-	return &WantIP4ArpEventsReply{}
-}
-
-// IP4ArpEvent represents the VPP binary API message 'ip4_arp_event'.
-// Generated from '../../bin_api/ip.api.json', line 1791:
-//
-//            "ip4_arp_event",
-//            [
-//                "u16",
-//                "_vl_msg_id"
-//            ],
-//            [
-//                "u32",
-//                "client_index"
-//            ],
-//            [
-//                "u32",
-//                "address"
-//            ],
-//            [
-//                "u32",
-//                "pid"
-//            ],
-//            [
-//                "u32",
-//                "sw_if_index"
-//            ],
-//            [
-//                "u8",
-//                "new_mac",
-//                6
-//            ],
-//            [
-//                "u8",
-//                "mac_ip"
-//            ],
-//            {
-//                "crc": "0xef7235f7"
-//            }
-//
-type IP4ArpEvent struct {
-	Address   uint32
-	Pid       uint32
-	SwIfIndex uint32
-	NewMac    []byte `struc:"[6]byte"`
-	MacIP     uint8
-}
-
-func (*IP4ArpEvent) GetMessageName() string {
-	return "ip4_arp_event"
-}
-func (*IP4ArpEvent) GetMessageType() api.MessageType {
-	return api.EventMessage
-}
-func (*IP4ArpEvent) GetCrcString() string {
-	return "ef7235f7"
-}
-func NewIP4ArpEvent() api.Message {
-	return &IP4ArpEvent{}
-}
-
-// WantIP6NdEvents represents the VPP binary API message 'want_ip6_nd_events'.
-// Generated from '../../bin_api/ip.api.json', line 1826:
-//
-//            "want_ip6_nd_events",
-//            [
-//                "u16",
-//                "_vl_msg_id"
-//            ],
-//            [
-//                "u32",
-//                "client_index"
-//            ],
-//            [
-//                "u32",
-//                "context"
-//            ],
-//            [
-//                "u8",
-//                "enable_disable"
-//            ],
-//            [
-//                "u32",
-//                "pid"
-//            ],
-//            [
-//                "u8",
-//                "address",
-//                16
-//            ],
-//            {
-//                "crc": "0x1cf65fbb"
-//            }
-//
-type WantIP6NdEvents struct {
-	EnableDisable uint8
-	Pid           uint32
-	Address       []byte `struc:"[16]byte"`
-}
-
-func (*WantIP6NdEvents) GetMessageName() string {
-	return "want_ip6_nd_events"
-}
-func (*WantIP6NdEvents) GetMessageType() api.MessageType {
-	return api.RequestMessage
-}
-func (*WantIP6NdEvents) GetCrcString() string {
-	return "1cf65fbb"
-}
-func NewWantIP6NdEvents() api.Message {
-	return &WantIP6NdEvents{}
-}
-
-// WantIP6NdEventsReply represents the VPP binary API message 'want_ip6_nd_events_reply'.
-// Generated from '../../bin_api/ip.api.json', line 1857:
-//
-//            "want_ip6_nd_events_reply",
-//            [
-//                "u16",
-//                "_vl_msg_id"
-//            ],
-//            [
-//                "u32",
-//                "context"
-//            ],
-//            [
-//                "i32",
-//                "retval"
-//            ],
-//            {
-//                "crc": "0xe8d4e804"
-//            }
-//
-type WantIP6NdEventsReply struct {
-	Retval int32
-}
-
-func (*WantIP6NdEventsReply) GetMessageName() string {
-	return "want_ip6_nd_events_reply"
-}
-func (*WantIP6NdEventsReply) GetMessageType() api.MessageType {
-	return api.ReplyMessage
-}
-func (*WantIP6NdEventsReply) GetCrcString() string {
-	return "e8d4e804"
-}
-func NewWantIP6NdEventsReply() api.Message {
-	return &WantIP6NdEventsReply{}
-}
-
-// IP6NdEvent represents the VPP binary API message 'ip6_nd_event'.
-// Generated from '../../bin_api/ip.api.json', line 1875:
-//
-//            "ip6_nd_event",
-//            [
-//                "u16",
-//                "_vl_msg_id"
-//            ],
-//            [
-//                "u32",
-//                "client_index"
-//            ],
-//            [
-//                "u32",
-//                "pid"
-//            ],
-//            [
-//                "u32",
-//                "sw_if_index"
-//            ],
-//            [
-//                "u8",
-//                "address",
-//                16
-//            ],
-//            [
-//                "u8",
-//                "new_mac",
-//                6
-//            ],
-//            [
-//                "u8",
-//                "mac_ip"
-//            ],
-//            {
-//                "crc": "0x96ab2fdd"
-//            }
-//
-type IP6NdEvent struct {
-	Pid       uint32
-	SwIfIndex uint32
-	Address   []byte `struc:"[16]byte"`
-	NewMac    []byte `struc:"[6]byte"`
-	MacIP     uint8
-}
-
-func (*IP6NdEvent) GetMessageName() string {
-	return "ip6_nd_event"
-}
-func (*IP6NdEvent) GetMessageType() api.MessageType {
-	return api.EventMessage
-}
-func (*IP6NdEvent) GetCrcString() string {
-	return "96ab2fdd"
-}
-func NewIP6NdEvent() api.Message {
-	return &IP6NdEvent{}
-}
-
-// ProxyArpAddDel represents the VPP binary API message 'proxy_arp_add_del'.
-// Generated from '../../bin_api/ip.api.json', line 1911:
-//
-//            "proxy_arp_add_del",
-//            [
-//                "u16",
-//                "_vl_msg_id"
-//            ],
-//            [
-//                "u32",
-//                "client_index"
-//            ],
-//            [
-//                "u32",
-//                "context"
-//            ],
-//            [
-//                "u32",
-//                "vrf_id"
-//            ],
-//            [
-//                "u8",
-//                "is_add"
-//            ],
-//            [
-//                "u8",
-//                "low_address",
-//                4
-//            ],
-//            [
-//                "u8",
-//                "hi_address",
-//                4
-//            ],
-//            {
-//                "crc": "0xc2442918"
-//            }
-//
-type ProxyArpAddDel struct {
-	VrfID      uint32
-	IsAdd      uint8
-	LowAddress []byte `struc:"[4]byte"`
-	HiAddress  []byte `struc:"[4]byte"`
-}
-
-func (*ProxyArpAddDel) GetMessageName() string {
-	return "proxy_arp_add_del"
-}
-func (*ProxyArpAddDel) GetMessageType() api.MessageType {
-	return api.RequestMessage
-}
-func (*ProxyArpAddDel) GetCrcString() string {
-	return "c2442918"
-}
-func NewProxyArpAddDel() api.Message {
-	return &ProxyArpAddDel{}
-}
-
-// ProxyArpAddDelReply represents the VPP binary API message 'proxy_arp_add_del_reply'.
-// Generated from '../../bin_api/ip.api.json', line 1947:
-//
-//            "proxy_arp_add_del_reply",
-//            [
-//                "u16",
-//                "_vl_msg_id"
-//            ],
-//            [
-//                "u32",
-//                "context"
-//            ],
-//            [
-//                "i32",
-//                "retval"
-//            ],
-//            {
-//                "crc": "0xe8d4e804"
-//            }
-//
-type ProxyArpAddDelReply struct {
-	Retval int32
-}
-
-func (*ProxyArpAddDelReply) GetMessageName() string {
-	return "proxy_arp_add_del_reply"
-}
-func (*ProxyArpAddDelReply) GetMessageType() api.MessageType {
-	return api.ReplyMessage
-}
-func (*ProxyArpAddDelReply) GetCrcString() string {
-	return "e8d4e804"
-}
-func NewProxyArpAddDelReply() api.Message {
-	return &ProxyArpAddDelReply{}
-}
-
-// ProxyArpIntfcEnableDisable represents the VPP binary API message 'proxy_arp_intfc_enable_disable'.
-// Generated from '../../bin_api/ip.api.json', line 1965:
-//
-//            "proxy_arp_intfc_enable_disable",
-//            [
-//                "u16",
-//                "_vl_msg_id"
-//            ],
-//            [
-//                "u32",
-//                "client_index"
-//            ],
-//            [
-//                "u32",
-//                "context"
-//            ],
-//            [
-//                "u32",
-//                "sw_if_index"
-//            ],
-//            [
-//                "u8",
-//                "enable_disable"
-//            ],
-//            {
-//                "crc": "0x69d24598"
-//            }
-//
-type ProxyArpIntfcEnableDisable struct {
-	SwIfIndex     uint32
-	EnableDisable uint8
-}
-
-func (*ProxyArpIntfcEnableDisable) GetMessageName() string {
-	return "proxy_arp_intfc_enable_disable"
-}
-func (*ProxyArpIntfcEnableDisable) GetMessageType() api.MessageType {
-	return api.RequestMessage
-}
-func (*ProxyArpIntfcEnableDisable) GetCrcString() string {
-	return "69d24598"
-}
-func NewProxyArpIntfcEnableDisable() api.Message {
-	return &ProxyArpIntfcEnableDisable{}
-}
-
-// ProxyArpIntfcEnableDisableReply represents the VPP binary API message 'proxy_arp_intfc_enable_disable_reply'.
-// Generated from '../../bin_api/ip.api.json', line 1991:
-//
-//            "proxy_arp_intfc_enable_disable_reply",
-//            [
-//                "u16",
-//                "_vl_msg_id"
-//            ],
-//            [
-//                "u32",
-//                "context"
-//            ],
-//            [
-//                "i32",
-//                "retval"
-//            ],
-//            {
-//                "crc": "0xe8d4e804"
-//            }
-//
-type ProxyArpIntfcEnableDisableReply struct {
-	Retval int32
-}
-
-func (*ProxyArpIntfcEnableDisableReply) GetMessageName() string {
-	return "proxy_arp_intfc_enable_disable_reply"
-}
-func (*ProxyArpIntfcEnableDisableReply) GetMessageType() api.MessageType {
-	return api.ReplyMessage
-}
-func (*ProxyArpIntfcEnableDisableReply) GetCrcString() string {
-	return "e8d4e804"
-}
-func NewProxyArpIntfcEnableDisableReply() api.Message {
-	return &ProxyArpIntfcEnableDisableReply{}
-}
-
-// ResetFib represents the VPP binary API message 'reset_fib'.
-// Generated from '../../bin_api/ip.api.json', line 2009:
-//
-//            "reset_fib",
-//            [
-//                "u16",
-//                "_vl_msg_id"
-//            ],
-//            [
-//                "u32",
-//                "client_index"
-//            ],
-//            [
-//                "u32",
-//                "context"
-//            ],
-//            [
-//                "u32",
-//                "vrf_id"
-//            ],
-//            [
-//                "u8",
-//                "is_ipv6"
-//            ],
-//            {
-//                "crc": "0x8553ebd9"
-//            }
-//
-type ResetFib struct {
-	VrfID  uint32
-	IsIpv6 uint8
-}
-
-func (*ResetFib) GetMessageName() string {
-	return "reset_fib"
-}
-func (*ResetFib) GetMessageType() api.MessageType {
-	return api.RequestMessage
-}
-func (*ResetFib) GetCrcString() string {
-	return "8553ebd9"
-}
-func NewResetFib() api.Message {
-	return &ResetFib{}
-}
-
-// ResetFibReply represents the VPP binary API message 'reset_fib_reply'.
-// Generated from '../../bin_api/ip.api.json', line 2035:
-//
-//            "reset_fib_reply",
-//            [
-//                "u16",
-//                "_vl_msg_id"
-//            ],
-//            [
-//                "u32",
-//                "context"
-//            ],
-//            [
-//                "i32",
-//                "retval"
-//            ],
-//            {
-//                "crc": "0xe8d4e804"
-//            }
-//
-type ResetFibReply struct {
-	Retval int32
-}
-
-func (*ResetFibReply) GetMessageName() string {
-	return "reset_fib_reply"
-}
-func (*ResetFibReply) GetMessageType() api.MessageType {
-	return api.ReplyMessage
-}
-func (*ResetFibReply) GetCrcString() string {
-	return "e8d4e804"
-}
-func NewResetFibReply() api.Message {
-	return &ResetFibReply{}
-}
-
-// SetArpNeighborLimit represents the VPP binary API message 'set_arp_neighbor_limit'.
-// Generated from '../../bin_api/ip.api.json', line 2053:
-//
-//            "set_arp_neighbor_limit",
-//            [
-//                "u16",
-//                "_vl_msg_id"
-//            ],
-//            [
-//                "u32",
-//                "client_index"
-//            ],
-//            [
-//                "u32",
-//                "context"
-//            ],
-//            [
-//                "u8",
-//                "is_ipv6"
-//            ],
-//            [
-//                "u32",
-//                "arp_neighbor_limit"
-//            ],
-//            {
-//                "crc": "0x97d01fd6"
-//            }
-//
-type SetArpNeighborLimit struct {
-	IsIpv6           uint8
-	ArpNeighborLimit uint32
-}
-
-func (*SetArpNeighborLimit) GetMessageName() string {
-	return "set_arp_neighbor_limit"
-}
-func (*SetArpNeighborLimit) GetMessageType() api.MessageType {
-	return api.RequestMessage
-}
-func (*SetArpNeighborLimit) GetCrcString() string {
-	return "97d01fd6"
-}
-func NewSetArpNeighborLimit() api.Message {
-	return &SetArpNeighborLimit{}
-}
-
-// SetArpNeighborLimitReply represents the VPP binary API message 'set_arp_neighbor_limit_reply'.
-// Generated from '../../bin_api/ip.api.json', line 2079:
-//
-//            "set_arp_neighbor_limit_reply",
-//            [
-//                "u16",
-//                "_vl_msg_id"
-//            ],
-//            [
-//                "u32",
-//                "context"
-//            ],
-//            [
-//                "i32",
-//                "retval"
-//            ],
-//            {
-//                "crc": "0xe8d4e804"
-//            }
-//
-type SetArpNeighborLimitReply struct {
-	Retval int32
-}
-
-func (*SetArpNeighborLimitReply) GetMessageName() string {
-	return "set_arp_neighbor_limit_reply"
-}
-func (*SetArpNeighborLimitReply) GetMessageType() api.MessageType {
-	return api.ReplyMessage
-}
-func (*SetArpNeighborLimitReply) GetCrcString() string {
-	return "e8d4e804"
-}
-func NewSetArpNeighborLimitReply() api.Message {
-	return &SetArpNeighborLimitReply{}
-}
-
-// IoamEnable represents the VPP binary API message 'ioam_enable'.
-// Generated from '../../bin_api/ip.api.json', line 2097:
-//
-//            "ioam_enable",
-//            [
-//                "u16",
-//                "_vl_msg_id"
-//            ],
-//            [
-//                "u32",
-//                "client_index"
-//            ],
-//            [
-//                "u32",
-//                "context"
-//            ],
-//            [
-//                "u16",
-//                "id"
-//            ],
-//            [
-//                "u8",
-//                "seqno"
-//            ],
-//            [
-//                "u8",
-//                "analyse"
-//            ],
-//            [
-//                "u8",
-//                "pot_enable"
-//            ],
-//            [
-//                "u8",
-//                "trace_enable"
-//            ],
-//            [
-//                "u32",
-//                "node_id"
-//            ],
-//            {
-//                "crc": "0x9392e032"
-//            }
-//
-type IoamEnable struct {
-	ID          uint16
-	Seqno       uint8
-	Analyse     uint8
-	PotEnable   uint8
-	TraceEnable uint8
-	NodeID      uint32
-}
-
-func (*IoamEnable) GetMessageName() string {
-	return "ioam_enable"
-}
-func (*IoamEnable) GetMessageType() api.MessageType {
-	return api.RequestMessage
-}
-func (*IoamEnable) GetCrcString() string {
-	return "9392e032"
-}
-func NewIoamEnable() api.Message {
-	return &IoamEnable{}
-}
-
-// IoamEnableReply represents the VPP binary API message 'ioam_enable_reply'.
-// Generated from '../../bin_api/ip.api.json', line 2139:
-//
-//            "ioam_enable_reply",
-//            [
-//                "u16",
-//                "_vl_msg_id"
-//            ],
-//            [
-//                "u32",
-//                "context"
-//            ],
-//            [
-//                "i32",
-//                "retval"
-//            ],
-//            {
-//                "crc": "0xe8d4e804"
-//            }
-//
-type IoamEnableReply struct {
-	Retval int32
-}
-
-func (*IoamEnableReply) GetMessageName() string {
-	return "ioam_enable_reply"
-}
-func (*IoamEnableReply) GetMessageType() api.MessageType {
-	return api.ReplyMessage
-}
-func (*IoamEnableReply) GetCrcString() string {
-	return "e8d4e804"
-}
-func NewIoamEnableReply() api.Message {
-	return &IoamEnableReply{}
-}
-
-// IoamDisable represents the VPP binary API message 'ioam_disable'.
-// Generated from '../../bin_api/ip.api.json', line 2157:
-//
-//            "ioam_disable",
-//            [
-//                "u16",
-//                "_vl_msg_id"
-//            ],
-//            [
-//                "u32",
-//                "client_index"
-//            ],
-//            [
-//                "u32",
-//                "context"
-//            ],
-//            [
-//                "u16",
-//                "id"
-//            ],
-//            {
-//                "crc": "0x6b16a45e"
-//            }
-//
-type IoamDisable struct {
-	ID uint16
-}
-
-func (*IoamDisable) GetMessageName() string {
-	return "ioam_disable"
-}
-func (*IoamDisable) GetMessageType() api.MessageType {
-	return api.RequestMessage
-}
-func (*IoamDisable) GetCrcString() string {
-	return "6b16a45e"
-}
-func NewIoamDisable() api.Message {
-	return &IoamDisable{}
-}
-
-// IoamDisableReply represents the VPP binary API message 'ioam_disable_reply'.
-// Generated from '../../bin_api/ip.api.json', line 2179:
-//
-//            "ioam_disable_reply",
-//            [
-//                "u16",
-//                "_vl_msg_id"
-//            ],
-//            [
-//                "u32",
-//                "context"
-//            ],
-//            [
-//                "i32",
-//                "retval"
-//            ],
-//            {
-//                "crc": "0xe8d4e804"
-//            }
-//
-type IoamDisableReply struct {
-	Retval int32
-}
-
-func (*IoamDisableReply) GetMessageName() string {
-	return "ioam_disable_reply"
-}
-func (*IoamDisableReply) GetMessageType() api.MessageType {
-	return api.ReplyMessage
-}
-func (*IoamDisableReply) GetCrcString() string {
-	return "e8d4e804"
-}
-func NewIoamDisableReply() api.Message {
-	return &IoamDisableReply{}
 }

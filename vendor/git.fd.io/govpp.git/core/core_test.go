@@ -22,7 +22,6 @@ import (
 	"git.fd.io/govpp.git/core"
 	"git.fd.io/govpp.git/core/bin_api/vpe"
 	"git.fd.io/govpp.git/examples/bin_api/interfaces"
-	"git.fd.io/govpp.git/examples/bin_api/stats"
 
 	. "github.com/onsi/gomega"
 )
@@ -223,11 +222,11 @@ func TestCodec(t *testing.T) {
 	codec := &core.MsgCodec{}
 
 	// request
-	data, err := codec.EncodeMsg(&interfaces.CreateLoopback{MacAddress: []byte{1, 2, 3, 4, 5, 6}}, 11)
+	data, err := codec.EncodeMsg(&vpe.CreateLoopback{MacAddress: []byte{1, 2, 3, 4, 5, 6}}, 11)
 	Expect(err).ShouldNot(HaveOccurred())
 	Expect(data).ShouldNot(BeEmpty())
 
-	msg1 := &interfaces.CreateLoopback{}
+	msg1 := &vpe.CreateLoopback{}
 	err = codec.DecodeMsg(data, msg1)
 	Expect(err).ShouldNot(HaveOccurred())
 	Expect(msg1.MacAddress).To(BeEquivalentTo([]byte{1, 2, 3, 4, 5, 6}))
@@ -243,11 +242,11 @@ func TestCodec(t *testing.T) {
 	Expect(msg2.Retval).To(BeEquivalentTo(55))
 
 	// other
-	data, err = codec.EncodeMsg(&stats.VnetIP4FibCounters{VrfID: 77}, 33)
+	data, err = codec.EncodeMsg(&vpe.VnetIP4FibCounters{VrfID: 77}, 33)
 	Expect(err).ShouldNot(HaveOccurred())
 	Expect(data).ShouldNot(BeEmpty())
 
-	msg3 := &stats.VnetIP4FibCounters{}
+	msg3 := &vpe.VnetIP4FibCounters{}
 	err = codec.DecodeMsg(data, msg3)
 	Expect(err).ShouldNot(HaveOccurred())
 	Expect(msg3.VrfID).To(BeEquivalentTo(77))

@@ -6,69 +6,27 @@ package acl
 import "git.fd.io/govpp.git/api"
 
 // VlApiVersion contains version of the API.
-const VlAPIVersion = 0x1db2ece9
+const VlAPIVersion = 0x1fd77287
 
 // ACLRule represents the VPP binary API data type 'acl_rule'.
-// Generated from '../../bin_api/acl.api.json', line 836:
+// Generated from '../../bin_api/acl.api.json', line 3:
 //
-//            "acl_rule",
-//            [
-//                "u8",
-//                "is_permit"
-//            ],
-//            [
-//                "u8",
-//                "is_ipv6"
-//            ],
-//            [
-//                "u8",
-//                "src_ip_addr",
-//                16
-//            ],
-//            [
-//                "u8",
-//                "src_ip_prefix_len"
-//            ],
-//            [
-//                "u8",
-//                "dst_ip_addr",
-//                16
-//            ],
-//            [
-//                "u8",
-//                "dst_ip_prefix_len"
-//            ],
-//            [
-//                "u8",
-//                "proto"
-//            ],
-//            [
-//                "u16",
-//                "srcport_or_icmptype_first"
-//            ],
-//            [
-//                "u16",
-//                "srcport_or_icmptype_last"
-//            ],
-//            [
-//                "u16",
-//                "dstport_or_icmpcode_first"
-//            ],
-//            [
-//                "u16",
-//                "dstport_or_icmpcode_last"
-//            ],
-//            [
-//                "u8",
-//                "tcp_flags_mask"
-//            ],
-//            [
-//                "u8",
-//                "tcp_flags_value"
-//            ],
-//            {
-//                "crc": "0x6f99bf4d"
-//            }
+//        ["acl_rule",
+//            ["u8", "is_permit"],
+//            ["u8", "is_ipv6"],
+//            ["u8", "src_ip_addr", 16],
+//            ["u8", "src_ip_prefix_len"],
+//            ["u8", "dst_ip_addr", 16],
+//            ["u8", "dst_ip_prefix_len"],
+//            ["u8", "proto"],
+//            ["u16", "srcport_or_icmptype_first"],
+//            ["u16", "srcport_or_icmptype_last"],
+//            ["u16", "dstport_or_icmpcode_first"],
+//            ["u16", "dstport_or_icmpcode_last"],
+//            ["u8", "tcp_flags_mask"],
+//            ["u8", "tcp_flags_value"],
+//            {"crc" : "0x2715e1c0"}
+//        ],
 //
 type ACLRule struct {
 	IsPermit               uint8
@@ -90,43 +48,21 @@ func (*ACLRule) GetTypeName() string {
 	return "acl_rule"
 }
 func (*ACLRule) GetCrcString() string {
-	return "6f99bf4d"
+	return "2715e1c0"
 }
 
 // MacipACLRule represents the VPP binary API data type 'macip_acl_rule'.
-// Generated from '../../bin_api/acl.api.json', line 896:
+// Generated from '../../bin_api/acl.api.json', line 19:
 //
-//            "macip_acl_rule",
-//            [
-//                "u8",
-//                "is_permit"
-//            ],
-//            [
-//                "u8",
-//                "is_ipv6"
-//            ],
-//            [
-//                "u8",
-//                "src_mac",
-//                6
-//            ],
-//            [
-//                "u8",
-//                "src_mac_mask",
-//                6
-//            ],
-//            [
-//                "u8",
-//                "src_ip_addr",
-//                16
-//            ],
-//            [
-//                "u8",
-//                "src_ip_prefix_len"
-//            ],
-//            {
-//                "crc": "0x70589f1e"
-//            }
+//        ["macip_acl_rule",
+//            ["u8", "is_permit"],
+//            ["u8", "is_ipv6"],
+//            ["u8", "src_mac", 6],
+//            ["u8", "src_mac_mask", 6],
+//            ["u8", "src_ip_addr", 16],
+//            ["u8", "src_ip_prefix_len"],
+//            {"crc" : "0x6723f13e"}
+//        ]
 //
 type MacipACLRule struct {
 	IsPermit       uint8
@@ -141,28 +77,18 @@ func (*MacipACLRule) GetTypeName() string {
 	return "macip_acl_rule"
 }
 func (*MacipACLRule) GetCrcString() string {
-	return "70589f1e"
+	return "6723f13e"
 }
 
 // ACLPluginGetVersion represents the VPP binary API message 'acl_plugin_get_version'.
-// Generated from '../../bin_api/acl.api.json', line 87:
+// Generated from '../../bin_api/acl.api.json', line 30:
 //
-//            "acl_plugin_get_version",
-//            [
-//                "u16",
-//                "_vl_msg_id"
-//            ],
-//            [
-//                "u32",
-//                "client_index"
-//            ],
-//            [
-//                "u32",
-//                "context"
-//            ],
-//            {
-//                "crc": "0x51077d14"
-//            }
+//        ["acl_plugin_get_version",
+//            ["u16", "_vl_msg_id"],
+//            ["u32", "client_index"],
+//            ["u32", "context"],
+//            {"crc" : "0xd7c07748"}
+//        ],
 //
 type ACLPluginGetVersion struct {
 }
@@ -174,35 +100,22 @@ func (*ACLPluginGetVersion) GetMessageType() api.MessageType {
 	return api.RequestMessage
 }
 func (*ACLPluginGetVersion) GetCrcString() string {
-	return "51077d14"
+	return "d7c07748"
 }
 func NewACLPluginGetVersion() api.Message {
 	return &ACLPluginGetVersion{}
 }
 
 // ACLPluginGetVersionReply represents the VPP binary API message 'acl_plugin_get_version_reply'.
-// Generated from '../../bin_api/acl.api.json', line 105:
+// Generated from '../../bin_api/acl.api.json', line 36:
 //
-//            "acl_plugin_get_version_reply",
-//            [
-//                "u16",
-//                "_vl_msg_id"
-//            ],
-//            [
-//                "u32",
-//                "context"
-//            ],
-//            [
-//                "u32",
-//                "major"
-//            ],
-//            [
-//                "u32",
-//                "minor"
-//            ],
-//            {
-//                "crc": "0x9b32cf86"
-//            }
+//        ["acl_plugin_get_version_reply",
+//            ["u16", "_vl_msg_id"],
+//            ["u32", "context"],
+//            ["u32", "major"],
+//            ["u32", "minor"],
+//            {"crc" : "0x43eb59a5"}
+//        ],
 //
 type ACLPluginGetVersionReply struct {
 	Major uint32
@@ -216,31 +129,21 @@ func (*ACLPluginGetVersionReply) GetMessageType() api.MessageType {
 	return api.ReplyMessage
 }
 func (*ACLPluginGetVersionReply) GetCrcString() string {
-	return "9b32cf86"
+	return "43eb59a5"
 }
 func NewACLPluginGetVersionReply() api.Message {
 	return &ACLPluginGetVersionReply{}
 }
 
 // ACLPluginControlPing represents the VPP binary API message 'acl_plugin_control_ping'.
-// Generated from '../../bin_api/acl.api.json', line 127:
+// Generated from '../../bin_api/acl.api.json', line 43:
 //
-//            "acl_plugin_control_ping",
-//            [
-//                "u16",
-//                "_vl_msg_id"
-//            ],
-//            [
-//                "u32",
-//                "client_index"
-//            ],
-//            [
-//                "u32",
-//                "context"
-//            ],
-//            {
-//                "crc": "0x51077d14"
-//            }
+//        ["acl_plugin_control_ping",
+//            ["u16", "_vl_msg_id"],
+//            ["u32", "client_index"],
+//            ["u32", "context"],
+//            {"crc" : "0xfc22c86e"}
+//        ],
 //
 type ACLPluginControlPing struct {
 }
@@ -252,39 +155,23 @@ func (*ACLPluginControlPing) GetMessageType() api.MessageType {
 	return api.RequestMessage
 }
 func (*ACLPluginControlPing) GetCrcString() string {
-	return "51077d14"
+	return "fc22c86e"
 }
 func NewACLPluginControlPing() api.Message {
 	return &ACLPluginControlPing{}
 }
 
 // ACLPluginControlPingReply represents the VPP binary API message 'acl_plugin_control_ping_reply'.
-// Generated from '../../bin_api/acl.api.json', line 145:
+// Generated from '../../bin_api/acl.api.json', line 49:
 //
-//            "acl_plugin_control_ping_reply",
-//            [
-//                "u16",
-//                "_vl_msg_id"
-//            ],
-//            [
-//                "u32",
-//                "context"
-//            ],
-//            [
-//                "i32",
-//                "retval"
-//            ],
-//            [
-//                "u32",
-//                "client_index"
-//            ],
-//            [
-//                "u32",
-//                "vpe_pid"
-//            ],
-//            {
-//                "crc": "0xf6b0b8ca"
-//            }
+//        ["acl_plugin_control_ping_reply",
+//            ["u16", "_vl_msg_id"],
+//            ["u32", "context"],
+//            ["i32", "retval"],
+//            ["u32", "client_index"],
+//            ["u32", "vpe_pid"],
+//            {"crc" : "0xe07e9231"}
+//        ],
 //
 type ACLPluginControlPingReply struct {
 	Retval      int32
@@ -299,50 +186,25 @@ func (*ACLPluginControlPingReply) GetMessageType() api.MessageType {
 	return api.ReplyMessage
 }
 func (*ACLPluginControlPingReply) GetCrcString() string {
-	return "f6b0b8ca"
+	return "e07e9231"
 }
 func NewACLPluginControlPingReply() api.Message {
 	return &ACLPluginControlPingReply{}
 }
 
 // ACLAddReplace represents the VPP binary API message 'acl_add_replace'.
-// Generated from '../../bin_api/acl.api.json', line 171:
+// Generated from '../../bin_api/acl.api.json', line 57:
 //
-//            "acl_add_replace",
-//            [
-//                "u16",
-//                "_vl_msg_id"
-//            ],
-//            [
-//                "u32",
-//                "client_index"
-//            ],
-//            [
-//                "u32",
-//                "context"
-//            ],
-//            [
-//                "u32",
-//                "acl_index"
-//            ],
-//            [
-//                "u8",
-//                "tag",
-//                64
-//            ],
-//            [
-//                "u32",
-//                "count"
-//            ],
-//            [
-//                "vl_api_acl_rule_t",
-//                "r",
-//                0,
-//                "count"
-//            ],
-//            {
-//                "crc": "0xe839997e"
-//            }
+//        ["acl_add_replace",
+//            ["u16", "_vl_msg_id"],
+//            ["u32", "client_index"],
+//            ["u32", "context"],
+//            ["u32", "acl_index"],
+//            ["u8", "tag", 64],
+//            ["u32", "count"],
+//            ["vl_api_acl_rule_t", "r", 0, "count"],
+//            {"crc" : "0x3c317936"}
+//        ],
 //
 type ACLAddReplace struct {
 	ACLIndex uint32
@@ -358,35 +220,22 @@ func (*ACLAddReplace) GetMessageType() api.MessageType {
 	return api.RequestMessage
 }
 func (*ACLAddReplace) GetCrcString() string {
-	return "e839997e"
+	return "3c317936"
 }
 func NewACLAddReplace() api.Message {
 	return &ACLAddReplace{}
 }
 
 // ACLAddReplaceReply represents the VPP binary API message 'acl_add_replace_reply'.
-// Generated from '../../bin_api/acl.api.json', line 208:
+// Generated from '../../bin_api/acl.api.json', line 67:
 //
-//            "acl_add_replace_reply",
-//            [
-//                "u16",
-//                "_vl_msg_id"
-//            ],
-//            [
-//                "u32",
-//                "context"
-//            ],
-//            [
-//                "u32",
-//                "acl_index"
-//            ],
-//            [
-//                "i32",
-//                "retval"
-//            ],
-//            {
-//                "crc": "0xac407b0c"
-//            }
+//        ["acl_add_replace_reply",
+//            ["u16", "_vl_msg_id"],
+//            ["u32", "context"],
+//            ["u32", "acl_index"],
+//            ["i32", "retval"],
+//            {"crc" : "0xa5e6d0cf"}
+//        ],
 //
 type ACLAddReplaceReply struct {
 	ACLIndex uint32
@@ -400,35 +249,22 @@ func (*ACLAddReplaceReply) GetMessageType() api.MessageType {
 	return api.ReplyMessage
 }
 func (*ACLAddReplaceReply) GetCrcString() string {
-	return "ac407b0c"
+	return "a5e6d0cf"
 }
 func NewACLAddReplaceReply() api.Message {
 	return &ACLAddReplaceReply{}
 }
 
 // ACLDel represents the VPP binary API message 'acl_del'.
-// Generated from '../../bin_api/acl.api.json', line 230:
+// Generated from '../../bin_api/acl.api.json', line 74:
 //
-//            "acl_del",
-//            [
-//                "u16",
-//                "_vl_msg_id"
-//            ],
-//            [
-//                "u32",
-//                "client_index"
-//            ],
-//            [
-//                "u32",
-//                "context"
-//            ],
-//            [
-//                "u32",
-//                "acl_index"
-//            ],
-//            {
-//                "crc": "0xef34fea4"
-//            }
+//        ["acl_del",
+//            ["u16", "_vl_msg_id"],
+//            ["u32", "client_index"],
+//            ["u32", "context"],
+//            ["u32", "acl_index"],
+//            {"crc" : "0x82cc30ed"}
+//        ],
 //
 type ACLDel struct {
 	ACLIndex uint32
@@ -441,31 +277,21 @@ func (*ACLDel) GetMessageType() api.MessageType {
 	return api.RequestMessage
 }
 func (*ACLDel) GetCrcString() string {
-	return "ef34fea4"
+	return "82cc30ed"
 }
 func NewACLDel() api.Message {
 	return &ACLDel{}
 }
 
 // ACLDelReply represents the VPP binary API message 'acl_del_reply'.
-// Generated from '../../bin_api/acl.api.json', line 252:
+// Generated from '../../bin_api/acl.api.json', line 81:
 //
-//            "acl_del_reply",
-//            [
-//                "u16",
-//                "_vl_msg_id"
-//            ],
-//            [
-//                "u32",
-//                "context"
-//            ],
-//            [
-//                "i32",
-//                "retval"
-//            ],
-//            {
-//                "crc": "0xe8d4e804"
-//            }
+//        ["acl_del_reply",
+//            ["u16", "_vl_msg_id"],
+//            ["u32", "context"],
+//            ["i32", "retval"],
+//            {"crc" : "0xbbb83d84"}
+//        ],
 //
 type ACLDelReply struct {
 	Retval int32
@@ -478,47 +304,25 @@ func (*ACLDelReply) GetMessageType() api.MessageType {
 	return api.ReplyMessage
 }
 func (*ACLDelReply) GetCrcString() string {
-	return "e8d4e804"
+	return "bbb83d84"
 }
 func NewACLDelReply() api.Message {
 	return &ACLDelReply{}
 }
 
 // ACLInterfaceAddDel represents the VPP binary API message 'acl_interface_add_del'.
-// Generated from '../../bin_api/acl.api.json', line 270:
+// Generated from '../../bin_api/acl.api.json', line 87:
 //
-//            "acl_interface_add_del",
-//            [
-//                "u16",
-//                "_vl_msg_id"
-//            ],
-//            [
-//                "u32",
-//                "client_index"
-//            ],
-//            [
-//                "u32",
-//                "context"
-//            ],
-//            [
-//                "u8",
-//                "is_add"
-//            ],
-//            [
-//                "u8",
-//                "is_input"
-//            ],
-//            [
-//                "u32",
-//                "sw_if_index"
-//            ],
-//            [
-//                "u32",
-//                "acl_index"
-//            ],
-//            {
-//                "crc": "0x0b2aedd1"
-//            }
+//        ["acl_interface_add_del",
+//            ["u16", "_vl_msg_id"],
+//            ["u32", "client_index"],
+//            ["u32", "context"],
+//            ["u8", "is_add"],
+//            ["u8", "is_input"],
+//            ["u32", "sw_if_index"],
+//            ["u32", "acl_index"],
+//            {"crc" : "0x98b53725"}
+//        ],
 //
 type ACLInterfaceAddDel struct {
 	IsAdd     uint8
@@ -534,31 +338,21 @@ func (*ACLInterfaceAddDel) GetMessageType() api.MessageType {
 	return api.RequestMessage
 }
 func (*ACLInterfaceAddDel) GetCrcString() string {
-	return "0b2aedd1"
+	return "98b53725"
 }
 func NewACLInterfaceAddDel() api.Message {
 	return &ACLInterfaceAddDel{}
 }
 
 // ACLInterfaceAddDelReply represents the VPP binary API message 'acl_interface_add_del_reply'.
-// Generated from '../../bin_api/acl.api.json', line 304:
+// Generated from '../../bin_api/acl.api.json', line 97:
 //
-//            "acl_interface_add_del_reply",
-//            [
-//                "u16",
-//                "_vl_msg_id"
-//            ],
-//            [
-//                "u32",
-//                "context"
-//            ],
-//            [
-//                "i32",
-//                "retval"
-//            ],
-//            {
-//                "crc": "0xe8d4e804"
-//            }
+//        ["acl_interface_add_del_reply",
+//            ["u16", "_vl_msg_id"],
+//            ["u32", "context"],
+//            ["i32", "retval"],
+//            {"crc" : "0xc1b3c077"}
+//        ],
 //
 type ACLInterfaceAddDelReply struct {
 	Retval int32
@@ -571,49 +365,25 @@ func (*ACLInterfaceAddDelReply) GetMessageType() api.MessageType {
 	return api.ReplyMessage
 }
 func (*ACLInterfaceAddDelReply) GetCrcString() string {
-	return "e8d4e804"
+	return "c1b3c077"
 }
 func NewACLInterfaceAddDelReply() api.Message {
 	return &ACLInterfaceAddDelReply{}
 }
 
 // ACLInterfaceSetACLList represents the VPP binary API message 'acl_interface_set_acl_list'.
-// Generated from '../../bin_api/acl.api.json', line 322:
+// Generated from '../../bin_api/acl.api.json', line 103:
 //
-//            "acl_interface_set_acl_list",
-//            [
-//                "u16",
-//                "_vl_msg_id"
-//            ],
-//            [
-//                "u32",
-//                "client_index"
-//            ],
-//            [
-//                "u32",
-//                "context"
-//            ],
-//            [
-//                "u32",
-//                "sw_if_index"
-//            ],
-//            [
-//                "u8",
-//                "count"
-//            ],
-//            [
-//                "u8",
-//                "n_input"
-//            ],
-//            [
-//                "u32",
-//                "acls",
-//                0,
-//                "count"
-//            ],
-//            {
-//                "crc": "0x8baece38"
-//            }
+//        ["acl_interface_set_acl_list",
+//            ["u16", "_vl_msg_id"],
+//            ["u32", "client_index"],
+//            ["u32", "context"],
+//            ["u32", "sw_if_index"],
+//            ["u8", "count"],
+//            ["u8", "n_input"],
+//            ["u32", "acls", 0, "count"],
+//            {"crc" : "0x7562419c"}
+//        ],
 //
 type ACLInterfaceSetACLList struct {
 	SwIfIndex uint32
@@ -629,31 +399,21 @@ func (*ACLInterfaceSetACLList) GetMessageType() api.MessageType {
 	return api.RequestMessage
 }
 func (*ACLInterfaceSetACLList) GetCrcString() string {
-	return "8baece38"
+	return "7562419c"
 }
 func NewACLInterfaceSetACLList() api.Message {
 	return &ACLInterfaceSetACLList{}
 }
 
 // ACLInterfaceSetACLListReply represents the VPP binary API message 'acl_interface_set_acl_list_reply'.
-// Generated from '../../bin_api/acl.api.json', line 358:
+// Generated from '../../bin_api/acl.api.json', line 113:
 //
-//            "acl_interface_set_acl_list_reply",
-//            [
-//                "u16",
-//                "_vl_msg_id"
-//            ],
-//            [
-//                "u32",
-//                "context"
-//            ],
-//            [
-//                "i32",
-//                "retval"
-//            ],
-//            {
-//                "crc": "0xe8d4e804"
-//            }
+//        ["acl_interface_set_acl_list_reply",
+//            ["u16", "_vl_msg_id"],
+//            ["u32", "context"],
+//            ["i32", "retval"],
+//            {"crc" : "0x435ddc2b"}
+//        ],
 //
 type ACLInterfaceSetACLListReply struct {
 	Retval int32
@@ -666,35 +426,22 @@ func (*ACLInterfaceSetACLListReply) GetMessageType() api.MessageType {
 	return api.ReplyMessage
 }
 func (*ACLInterfaceSetACLListReply) GetCrcString() string {
-	return "e8d4e804"
+	return "435ddc2b"
 }
 func NewACLInterfaceSetACLListReply() api.Message {
 	return &ACLInterfaceSetACLListReply{}
 }
 
 // ACLDump represents the VPP binary API message 'acl_dump'.
-// Generated from '../../bin_api/acl.api.json', line 376:
+// Generated from '../../bin_api/acl.api.json', line 119:
 //
-//            "acl_dump",
-//            [
-//                "u16",
-//                "_vl_msg_id"
-//            ],
-//            [
-//                "u32",
-//                "client_index"
-//            ],
-//            [
-//                "u32",
-//                "context"
-//            ],
-//            [
-//                "u32",
-//                "acl_index"
-//            ],
-//            {
-//                "crc": "0xef34fea4"
-//            }
+//        ["acl_dump",
+//            ["u16", "_vl_msg_id"],
+//            ["u32", "client_index"],
+//            ["u32", "context"],
+//            ["u32", "acl_index"],
+//            {"crc" : "0xc188156d"}
+//        ],
 //
 type ACLDump struct {
 	ACLIndex uint32
@@ -707,46 +454,24 @@ func (*ACLDump) GetMessageType() api.MessageType {
 	return api.RequestMessage
 }
 func (*ACLDump) GetCrcString() string {
-	return "ef34fea4"
+	return "c188156d"
 }
 func NewACLDump() api.Message {
 	return &ACLDump{}
 }
 
 // ACLDetails represents the VPP binary API message 'acl_details'.
-// Generated from '../../bin_api/acl.api.json', line 398:
+// Generated from '../../bin_api/acl.api.json', line 126:
 //
-//            "acl_details",
-//            [
-//                "u16",
-//                "_vl_msg_id"
-//            ],
-//            [
-//                "u32",
-//                "context"
-//            ],
-//            [
-//                "u32",
-//                "acl_index"
-//            ],
-//            [
-//                "u8",
-//                "tag",
-//                64
-//            ],
-//            [
-//                "u32",
-//                "count"
-//            ],
-//            [
-//                "vl_api_acl_rule_t",
-//                "r",
-//                0,
-//                "count"
-//            ],
-//            {
-//                "crc": "0x5bd895be"
-//            }
+//        ["acl_details",
+//            ["u16", "_vl_msg_id"],
+//            ["u32", "context"],
+//            ["u32", "acl_index"],
+//            ["u8", "tag", 64],
+//            ["u32", "count"],
+//            ["vl_api_acl_rule_t", "r", 0, "count"],
+//            {"crc" : "0x1c8916b7"}
+//        ],
 //
 type ACLDetails struct {
 	ACLIndex uint32
@@ -762,35 +487,22 @@ func (*ACLDetails) GetMessageType() api.MessageType {
 	return api.ReplyMessage
 }
 func (*ACLDetails) GetCrcString() string {
-	return "5bd895be"
+	return "1c8916b7"
 }
 func NewACLDetails() api.Message {
 	return &ACLDetails{}
 }
 
 // ACLInterfaceListDump represents the VPP binary API message 'acl_interface_list_dump'.
-// Generated from '../../bin_api/acl.api.json', line 431:
+// Generated from '../../bin_api/acl.api.json', line 135:
 //
-//            "acl_interface_list_dump",
-//            [
-//                "u16",
-//                "_vl_msg_id"
-//            ],
-//            [
-//                "u32",
-//                "client_index"
-//            ],
-//            [
-//                "u32",
-//                "context"
-//            ],
-//            [
-//                "u32",
-//                "sw_if_index"
-//            ],
-//            {
-//                "crc": "0x529cb13f"
-//            }
+//        ["acl_interface_list_dump",
+//            ["u16", "_vl_msg_id"],
+//            ["u32", "client_index"],
+//            ["u32", "context"],
+//            ["u32", "sw_if_index"],
+//            {"crc" : "0xadfe84b8"}
+//        ],
 //
 type ACLInterfaceListDump struct {
 	SwIfIndex uint32
@@ -803,45 +515,24 @@ func (*ACLInterfaceListDump) GetMessageType() api.MessageType {
 	return api.RequestMessage
 }
 func (*ACLInterfaceListDump) GetCrcString() string {
-	return "529cb13f"
+	return "adfe84b8"
 }
 func NewACLInterfaceListDump() api.Message {
 	return &ACLInterfaceListDump{}
 }
 
 // ACLInterfaceListDetails represents the VPP binary API message 'acl_interface_list_details'.
-// Generated from '../../bin_api/acl.api.json', line 453:
+// Generated from '../../bin_api/acl.api.json', line 142:
 //
-//            "acl_interface_list_details",
-//            [
-//                "u16",
-//                "_vl_msg_id"
-//            ],
-//            [
-//                "u32",
-//                "context"
-//            ],
-//            [
-//                "u32",
-//                "sw_if_index"
-//            ],
-//            [
-//                "u8",
-//                "count"
-//            ],
-//            [
-//                "u8",
-//                "n_input"
-//            ],
-//            [
-//                "u32",
-//                "acls",
-//                0,
-//                "count"
-//            ],
-//            {
-//                "crc": "0xd5e80809"
-//            }
+//        ["acl_interface_list_details",
+//            ["u16", "_vl_msg_id"],
+//            ["u32", "context"],
+//            ["u32", "sw_if_index"],
+//            ["u8", "count"],
+//            ["u8", "n_input"],
+//            ["u32", "acls", 0, "count"],
+//            {"crc" : "0xc8150656"}
+//        ],
 //
 type ACLInterfaceListDetails struct {
 	SwIfIndex uint32
@@ -857,46 +548,24 @@ func (*ACLInterfaceListDetails) GetMessageType() api.MessageType {
 	return api.ReplyMessage
 }
 func (*ACLInterfaceListDetails) GetCrcString() string {
-	return "d5e80809"
+	return "c8150656"
 }
 func NewACLInterfaceListDetails() api.Message {
 	return &ACLInterfaceListDetails{}
 }
 
 // MacipACLAdd represents the VPP binary API message 'macip_acl_add'.
-// Generated from '../../bin_api/acl.api.json', line 485:
+// Generated from '../../bin_api/acl.api.json', line 151:
 //
-//            "macip_acl_add",
-//            [
-//                "u16",
-//                "_vl_msg_id"
-//            ],
-//            [
-//                "u32",
-//                "client_index"
-//            ],
-//            [
-//                "u32",
-//                "context"
-//            ],
-//            [
-//                "u8",
-//                "tag",
-//                64
-//            ],
-//            [
-//                "u32",
-//                "count"
-//            ],
-//            [
-//                "vl_api_macip_acl_rule_t",
-//                "r",
-//                0,
-//                "count"
-//            ],
-//            {
-//                "crc": "0xb3d3d65a"
-//            }
+//        ["macip_acl_add",
+//            ["u16", "_vl_msg_id"],
+//            ["u32", "client_index"],
+//            ["u32", "context"],
+//            ["u8", "tag", 64],
+//            ["u32", "count"],
+//            ["vl_api_macip_acl_rule_t", "r", 0, "count"],
+//            {"crc" : "0x33356284"}
+//        ],
 //
 type MacipACLAdd struct {
 	Tag   []byte `struc:"[64]byte"`
@@ -911,35 +580,22 @@ func (*MacipACLAdd) GetMessageType() api.MessageType {
 	return api.RequestMessage
 }
 func (*MacipACLAdd) GetCrcString() string {
-	return "b3d3d65a"
+	return "33356284"
 }
 func NewMacipACLAdd() api.Message {
 	return &MacipACLAdd{}
 }
 
 // MacipACLAddReply represents the VPP binary API message 'macip_acl_add_reply'.
-// Generated from '../../bin_api/acl.api.json', line 518:
+// Generated from '../../bin_api/acl.api.json', line 160:
 //
-//            "macip_acl_add_reply",
-//            [
-//                "u16",
-//                "_vl_msg_id"
-//            ],
-//            [
-//                "u32",
-//                "context"
-//            ],
-//            [
-//                "u32",
-//                "acl_index"
-//            ],
-//            [
-//                "i32",
-//                "retval"
-//            ],
-//            {
-//                "crc": "0xac407b0c"
-//            }
+//        ["macip_acl_add_reply",
+//            ["u16", "_vl_msg_id"],
+//            ["u32", "context"],
+//            ["u32", "acl_index"],
+//            ["i32", "retval"],
+//            {"crc" : "0x472edb4c"}
+//        ],
 //
 type MacipACLAddReply struct {
 	ACLIndex uint32
@@ -953,136 +609,22 @@ func (*MacipACLAddReply) GetMessageType() api.MessageType {
 	return api.ReplyMessage
 }
 func (*MacipACLAddReply) GetCrcString() string {
-	return "ac407b0c"
+	return "472edb4c"
 }
 func NewMacipACLAddReply() api.Message {
 	return &MacipACLAddReply{}
 }
 
-// MacipACLAddReplace represents the VPP binary API message 'macip_acl_add_replace'.
-// Generated from '../../bin_api/acl.api.json', line 540:
-//
-//            "macip_acl_add_replace",
-//            [
-//                "u16",
-//                "_vl_msg_id"
-//            ],
-//            [
-//                "u32",
-//                "client_index"
-//            ],
-//            [
-//                "u32",
-//                "context"
-//            ],
-//            [
-//                "u32",
-//                "acl_index"
-//            ],
-//            [
-//                "u8",
-//                "tag",
-//                64
-//            ],
-//            [
-//                "u32",
-//                "count"
-//            ],
-//            [
-//                "vl_api_macip_acl_rule_t",
-//                "r",
-//                0,
-//                "count"
-//            ],
-//            {
-//                "crc": "0xa0e8c01b"
-//            }
-//
-type MacipACLAddReplace struct {
-	ACLIndex uint32
-	Tag      []byte `struc:"[64]byte"`
-	Count    uint32 `struc:"sizeof=R"`
-	R        []MacipACLRule
-}
-
-func (*MacipACLAddReplace) GetMessageName() string {
-	return "macip_acl_add_replace"
-}
-func (*MacipACLAddReplace) GetMessageType() api.MessageType {
-	return api.RequestMessage
-}
-func (*MacipACLAddReplace) GetCrcString() string {
-	return "a0e8c01b"
-}
-func NewMacipACLAddReplace() api.Message {
-	return &MacipACLAddReplace{}
-}
-
-// MacipACLAddReplaceReply represents the VPP binary API message 'macip_acl_add_replace_reply'.
-// Generated from '../../bin_api/acl.api.json', line 577:
-//
-//            "macip_acl_add_replace_reply",
-//            [
-//                "u16",
-//                "_vl_msg_id"
-//            ],
-//            [
-//                "u32",
-//                "context"
-//            ],
-//            [
-//                "u32",
-//                "acl_index"
-//            ],
-//            [
-//                "i32",
-//                "retval"
-//            ],
-//            {
-//                "crc": "0xac407b0c"
-//            }
-//
-type MacipACLAddReplaceReply struct {
-	ACLIndex uint32
-	Retval   int32
-}
-
-func (*MacipACLAddReplaceReply) GetMessageName() string {
-	return "macip_acl_add_replace_reply"
-}
-func (*MacipACLAddReplaceReply) GetMessageType() api.MessageType {
-	return api.ReplyMessage
-}
-func (*MacipACLAddReplaceReply) GetCrcString() string {
-	return "ac407b0c"
-}
-func NewMacipACLAddReplaceReply() api.Message {
-	return &MacipACLAddReplaceReply{}
-}
-
 // MacipACLDel represents the VPP binary API message 'macip_acl_del'.
-// Generated from '../../bin_api/acl.api.json', line 599:
+// Generated from '../../bin_api/acl.api.json', line 167:
 //
-//            "macip_acl_del",
-//            [
-//                "u16",
-//                "_vl_msg_id"
-//            ],
-//            [
-//                "u32",
-//                "client_index"
-//            ],
-//            [
-//                "u32",
-//                "context"
-//            ],
-//            [
-//                "u32",
-//                "acl_index"
-//            ],
-//            {
-//                "crc": "0xef34fea4"
-//            }
+//        ["macip_acl_del",
+//            ["u16", "_vl_msg_id"],
+//            ["u32", "client_index"],
+//            ["u32", "context"],
+//            ["u32", "acl_index"],
+//            {"crc" : "0xdde1141f"}
+//        ],
 //
 type MacipACLDel struct {
 	ACLIndex uint32
@@ -1095,31 +637,21 @@ func (*MacipACLDel) GetMessageType() api.MessageType {
 	return api.RequestMessage
 }
 func (*MacipACLDel) GetCrcString() string {
-	return "ef34fea4"
+	return "dde1141f"
 }
 func NewMacipACLDel() api.Message {
 	return &MacipACLDel{}
 }
 
 // MacipACLDelReply represents the VPP binary API message 'macip_acl_del_reply'.
-// Generated from '../../bin_api/acl.api.json', line 621:
+// Generated from '../../bin_api/acl.api.json', line 174:
 //
-//            "macip_acl_del_reply",
-//            [
-//                "u16",
-//                "_vl_msg_id"
-//            ],
-//            [
-//                "u32",
-//                "context"
-//            ],
-//            [
-//                "i32",
-//                "retval"
-//            ],
-//            {
-//                "crc": "0xe8d4e804"
-//            }
+//        ["macip_acl_del_reply",
+//            ["u16", "_vl_msg_id"],
+//            ["u32", "context"],
+//            ["i32", "retval"],
+//            {"crc" : "0xeeb60e0f"}
+//        ],
 //
 type MacipACLDelReply struct {
 	Retval int32
@@ -1132,43 +664,24 @@ func (*MacipACLDelReply) GetMessageType() api.MessageType {
 	return api.ReplyMessage
 }
 func (*MacipACLDelReply) GetCrcString() string {
-	return "e8d4e804"
+	return "eeb60e0f"
 }
 func NewMacipACLDelReply() api.Message {
 	return &MacipACLDelReply{}
 }
 
 // MacipACLInterfaceAddDel represents the VPP binary API message 'macip_acl_interface_add_del'.
-// Generated from '../../bin_api/acl.api.json', line 639:
+// Generated from '../../bin_api/acl.api.json', line 180:
 //
-//            "macip_acl_interface_add_del",
-//            [
-//                "u16",
-//                "_vl_msg_id"
-//            ],
-//            [
-//                "u32",
-//                "client_index"
-//            ],
-//            [
-//                "u32",
-//                "context"
-//            ],
-//            [
-//                "u8",
-//                "is_add"
-//            ],
-//            [
-//                "u32",
-//                "sw_if_index"
-//            ],
-//            [
-//                "u32",
-//                "acl_index"
-//            ],
-//            {
-//                "crc": "0x6a6be97c"
-//            }
+//        ["macip_acl_interface_add_del",
+//            ["u16", "_vl_msg_id"],
+//            ["u32", "client_index"],
+//            ["u32", "context"],
+//            ["u8", "is_add"],
+//            ["u32", "sw_if_index"],
+//            ["u32", "acl_index"],
+//            {"crc" : "0x03a4fab2"}
+//        ],
 //
 type MacipACLInterfaceAddDel struct {
 	IsAdd     uint8
@@ -1183,31 +696,21 @@ func (*MacipACLInterfaceAddDel) GetMessageType() api.MessageType {
 	return api.RequestMessage
 }
 func (*MacipACLInterfaceAddDel) GetCrcString() string {
-	return "6a6be97c"
+	return "03a4fab2"
 }
 func NewMacipACLInterfaceAddDel() api.Message {
 	return &MacipACLInterfaceAddDel{}
 }
 
 // MacipACLInterfaceAddDelReply represents the VPP binary API message 'macip_acl_interface_add_del_reply'.
-// Generated from '../../bin_api/acl.api.json', line 669:
+// Generated from '../../bin_api/acl.api.json', line 189:
 //
-//            "macip_acl_interface_add_del_reply",
-//            [
-//                "u16",
-//                "_vl_msg_id"
-//            ],
-//            [
-//                "u32",
-//                "context"
-//            ],
-//            [
-//                "i32",
-//                "retval"
-//            ],
-//            {
-//                "crc": "0xe8d4e804"
-//            }
+//        ["macip_acl_interface_add_del_reply",
+//            ["u16", "_vl_msg_id"],
+//            ["u32", "context"],
+//            ["i32", "retval"],
+//            {"crc" : "0x9e9ee485"}
+//        ],
 //
 type MacipACLInterfaceAddDelReply struct {
 	Retval int32
@@ -1220,35 +723,22 @@ func (*MacipACLInterfaceAddDelReply) GetMessageType() api.MessageType {
 	return api.ReplyMessage
 }
 func (*MacipACLInterfaceAddDelReply) GetCrcString() string {
-	return "e8d4e804"
+	return "9e9ee485"
 }
 func NewMacipACLInterfaceAddDelReply() api.Message {
 	return &MacipACLInterfaceAddDelReply{}
 }
 
 // MacipACLDump represents the VPP binary API message 'macip_acl_dump'.
-// Generated from '../../bin_api/acl.api.json', line 687:
+// Generated from '../../bin_api/acl.api.json', line 195:
 //
-//            "macip_acl_dump",
-//            [
-//                "u16",
-//                "_vl_msg_id"
-//            ],
-//            [
-//                "u32",
-//                "client_index"
-//            ],
-//            [
-//                "u32",
-//                "context"
-//            ],
-//            [
-//                "u32",
-//                "acl_index"
-//            ],
-//            {
-//                "crc": "0xef34fea4"
-//            }
+//        ["macip_acl_dump",
+//            ["u16", "_vl_msg_id"],
+//            ["u32", "client_index"],
+//            ["u32", "context"],
+//            ["u32", "acl_index"],
+//            {"crc" : "0xd38227cb"}
+//        ],
 //
 type MacipACLDump struct {
 	ACLIndex uint32
@@ -1261,46 +751,24 @@ func (*MacipACLDump) GetMessageType() api.MessageType {
 	return api.RequestMessage
 }
 func (*MacipACLDump) GetCrcString() string {
-	return "ef34fea4"
+	return "d38227cb"
 }
 func NewMacipACLDump() api.Message {
 	return &MacipACLDump{}
 }
 
 // MacipACLDetails represents the VPP binary API message 'macip_acl_details'.
-// Generated from '../../bin_api/acl.api.json', line 709:
+// Generated from '../../bin_api/acl.api.json', line 202:
 //
-//            "macip_acl_details",
-//            [
-//                "u16",
-//                "_vl_msg_id"
-//            ],
-//            [
-//                "u32",
-//                "context"
-//            ],
-//            [
-//                "u32",
-//                "acl_index"
-//            ],
-//            [
-//                "u8",
-//                "tag",
-//                64
-//            ],
-//            [
-//                "u32",
-//                "count"
-//            ],
-//            [
-//                "vl_api_macip_acl_rule_t",
-//                "r",
-//                0,
-//                "count"
-//            ],
-//            {
-//                "crc": "0xdd2b55ba"
-//            }
+//        ["macip_acl_details",
+//            ["u16", "_vl_msg_id"],
+//            ["u32", "context"],
+//            ["u32", "acl_index"],
+//            ["u8", "tag", 64],
+//            ["u32", "count"],
+//            ["vl_api_macip_acl_rule_t", "r", 0, "count"],
+//            {"crc" : "0xee1c50db"}
+//        ],
 //
 type MacipACLDetails struct {
 	ACLIndex uint32
@@ -1316,31 +784,21 @@ func (*MacipACLDetails) GetMessageType() api.MessageType {
 	return api.ReplyMessage
 }
 func (*MacipACLDetails) GetCrcString() string {
-	return "dd2b55ba"
+	return "ee1c50db"
 }
 func NewMacipACLDetails() api.Message {
 	return &MacipACLDetails{}
 }
 
 // MacipACLInterfaceGet represents the VPP binary API message 'macip_acl_interface_get'.
-// Generated from '../../bin_api/acl.api.json', line 742:
+// Generated from '../../bin_api/acl.api.json', line 211:
 //
-//            "macip_acl_interface_get",
-//            [
-//                "u16",
-//                "_vl_msg_id"
-//            ],
-//            [
-//                "u32",
-//                "client_index"
-//            ],
-//            [
-//                "u32",
-//                "context"
-//            ],
-//            {
-//                "crc": "0x51077d14"
-//            }
+//        ["macip_acl_interface_get",
+//            ["u16", "_vl_msg_id"],
+//            ["u32", "client_index"],
+//            ["u32", "context"],
+//            {"crc" : "0x317ce31c"}
+//        ],
 //
 type MacipACLInterfaceGet struct {
 }
@@ -1352,37 +810,22 @@ func (*MacipACLInterfaceGet) GetMessageType() api.MessageType {
 	return api.RequestMessage
 }
 func (*MacipACLInterfaceGet) GetCrcString() string {
-	return "51077d14"
+	return "317ce31c"
 }
 func NewMacipACLInterfaceGet() api.Message {
 	return &MacipACLInterfaceGet{}
 }
 
 // MacipACLInterfaceGetReply represents the VPP binary API message 'macip_acl_interface_get_reply'.
-// Generated from '../../bin_api/acl.api.json', line 760:
+// Generated from '../../bin_api/acl.api.json', line 217:
 //
-//            "macip_acl_interface_get_reply",
-//            [
-//                "u16",
-//                "_vl_msg_id"
-//            ],
-//            [
-//                "u32",
-//                "context"
-//            ],
-//            [
-//                "u32",
-//                "count"
-//            ],
-//            [
-//                "u32",
-//                "acls",
-//                0,
-//                "count"
-//            ],
-//            {
-//                "crc": "0xaccf9b05"
-//            }
+//        ["macip_acl_interface_get_reply",
+//            ["u16", "_vl_msg_id"],
+//            ["u32", "context"],
+//            ["u32", "count"],
+//            ["u32", "acls", 0, "count"],
+//            {"crc" : "0x6c86a56c"}
+//        ]
 //
 type MacipACLInterfaceGetReply struct {
 	Count uint32 `struc:"sizeof=Acls"`
@@ -1396,98 +839,8 @@ func (*MacipACLInterfaceGetReply) GetMessageType() api.MessageType {
 	return api.ReplyMessage
 }
 func (*MacipACLInterfaceGetReply) GetCrcString() string {
-	return "accf9b05"
+	return "6c86a56c"
 }
 func NewMacipACLInterfaceGetReply() api.Message {
 	return &MacipACLInterfaceGetReply{}
-}
-
-// MacipACLInterfaceListDump represents the VPP binary API message 'macip_acl_interface_list_dump'.
-// Generated from '../../bin_api/acl.api.json', line 784:
-//
-//            "macip_acl_interface_list_dump",
-//            [
-//                "u16",
-//                "_vl_msg_id"
-//            ],
-//            [
-//                "u32",
-//                "client_index"
-//            ],
-//            [
-//                "u32",
-//                "context"
-//            ],
-//            [
-//                "u32",
-//                "sw_if_index"
-//            ],
-//            {
-//                "crc": "0x529cb13f"
-//            }
-//
-type MacipACLInterfaceListDump struct {
-	SwIfIndex uint32
-}
-
-func (*MacipACLInterfaceListDump) GetMessageName() string {
-	return "macip_acl_interface_list_dump"
-}
-func (*MacipACLInterfaceListDump) GetMessageType() api.MessageType {
-	return api.RequestMessage
-}
-func (*MacipACLInterfaceListDump) GetCrcString() string {
-	return "529cb13f"
-}
-func NewMacipACLInterfaceListDump() api.Message {
-	return &MacipACLInterfaceListDump{}
-}
-
-// MacipACLInterfaceListDetails represents the VPP binary API message 'macip_acl_interface_list_details'.
-// Generated from '../../bin_api/acl.api.json', line 806:
-//
-//            "macip_acl_interface_list_details",
-//            [
-//                "u16",
-//                "_vl_msg_id"
-//            ],
-//            [
-//                "u32",
-//                "context"
-//            ],
-//            [
-//                "u32",
-//                "sw_if_index"
-//            ],
-//            [
-//                "u8",
-//                "count"
-//            ],
-//            [
-//                "u32",
-//                "acls",
-//                0,
-//                "count"
-//            ],
-//            {
-//                "crc": "0x29783fa0"
-//            }
-//
-type MacipACLInterfaceListDetails struct {
-	SwIfIndex uint32
-	Count     uint8 `struc:"sizeof=Acls"`
-	Acls      []uint32
-}
-
-func (*MacipACLInterfaceListDetails) GetMessageName() string {
-	return "macip_acl_interface_list_details"
-}
-func (*MacipACLInterfaceListDetails) GetMessageType() api.MessageType {
-	return api.ReplyMessage
-}
-func (*MacipACLInterfaceListDetails) GetCrcString() string {
-	return "29783fa0"
-}
-func NewMacipACLInterfaceListDetails() api.Message {
-	return &MacipACLInterfaceListDetails{}
 }

@@ -190,7 +190,7 @@ func TestSwarmJoinWithService(t *testing.T) {
 	serviceCreateOpts := docker.CreateServiceOptions{
 		ServiceSpec: swarm.ServiceSpec{
 			TaskTemplate: swarm.TaskSpec{
-				ContainerSpec: swarm.ContainerSpec{
+				ContainerSpec: &swarm.ContainerSpec{
 					Image: "test/test",
 				},
 			},
@@ -341,7 +341,7 @@ func TestServiceCreate(t *testing.T) {
 				Name: "test",
 			},
 			TaskTemplate: swarm.TaskSpec{
-				ContainerSpec: swarm.ContainerSpec{
+				ContainerSpec: &swarm.ContainerSpec{
 					Image:   "test/test",
 					Command: []string{"sh"},
 					Args:    []string{"--test"},
@@ -437,7 +437,7 @@ func TestServiceCreateDynamicPort(t *testing.T) {
 				Name: "test",
 			},
 			TaskTemplate: swarm.TaskSpec{
-				ContainerSpec: swarm.ContainerSpec{
+				ContainerSpec: &swarm.ContainerSpec{
 					Image:   "test/test",
 					Command: []string{"sh"},
 					Args:    []string{"--test"},
@@ -505,6 +505,34 @@ func TestServiceCreateMultipleServers(t *testing.T) {
 	}
 	if !compareTasks(server1.tasks[0], server2.tasks[0]) {
 		t.Fatalf("ServiceCreate: expected tasks to be equal in server1 and server2, got:\n%#v\n%#v", server1.tasks[0], server2.tasks[0])
+	}
+}
+
+func TestServiceCreateNoContainers(t *testing.T) {
+	server, unused := setUpSwarm(t)
+	defer server.Stop()
+	defer unused.Stop()
+	recorder := httptest.NewRecorder()
+	serviceCreateOpts := docker.CreateServiceOptions{
+		ServiceSpec: swarm.ServiceSpec{
+			Annotations: swarm.Annotations{
+				Name: "test",
+			},
+		},
+	}
+	buf, err := json.Marshal(serviceCreateOpts)
+	if err != nil {
+		t.Fatalf("ServiceCreate error: %s", err.Error())
+	}
+	var params io.Reader
+	params = bytes.NewBuffer(buf)
+	request, _ := http.NewRequest("POST", "/services/create", params)
+	server.ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("ServiceCreate: wrong status code. Want %d. Got %d.", http.StatusOK, recorder.Code)
+	}
+	if len(server.services) != 1 || len(server.tasks) != 0 || len(server.containers) != 0 {
+		t.Fatalf("ServiceCreate: wrong item count. Want 1 service and 0 tasks. Got services: %d, tasks: %d, containers: %d.", len(server.services), len(server.tasks), len(server.containers))
 	}
 }
 
@@ -993,7 +1021,7 @@ func TestServiceUpdate(t *testing.T) {
 			Name: "test",
 		},
 		TaskTemplate: swarm.TaskSpec{
-			ContainerSpec: swarm.ContainerSpec{
+			ContainerSpec: &swarm.ContainerSpec{
 				Image: "test/test2",
 				Args:  []string{"--test2"},
 				Env:   []string{"ENV=2"},
@@ -1050,7 +1078,12 @@ func TestServiceUpdate(t *testing.T) {
 			Spec:  *updateOpts.EndpointSpec,
 			Ports: []swarm.PortConfig{{Protocol: "tcp", TargetPort: 80, PublishedPort: 80}},
 		},
+		UpdateStatus: &swarm.UpdateStatus{
+			State: swarm.UpdateStateCompleted,
+		},
 	}
+	srv.UpdateStatus.CompletedAt = nil
+	srv.UpdateStatus.StartedAt = nil
 	if !reflect.DeepEqual(srv, expectedService) {
 		t.Fatalf("ServiceUpdate: wrong service. Want\n%#v\nGot\n%#v", expectedService, srv)
 	}
@@ -1088,7 +1121,7 @@ func TestServiceUpdateMoreReplicas(t *testing.T) {
 			Name: "test",
 		},
 		TaskTemplate: swarm.TaskSpec{
-			ContainerSpec: swarm.ContainerSpec{
+			ContainerSpec: &swarm.ContainerSpec{
 				Image: "test/test2",
 				Args:  []string{"--test2"},
 				Env:   []string{"ENV=2"},
@@ -1133,7 +1166,7 @@ func TestServiceUpdateNotFound(t *testing.T) {
 			Name: "test",
 		},
 		TaskTemplate: swarm.TaskSpec{
-			ContainerSpec: swarm.ContainerSpec{
+			ContainerSpec: &swarm.ContainerSpec{
 				Image: "test/test2",
 				Args:  []string{"--test2"},
 				Env:   []string{"ENV=2"},
@@ -1297,7 +1330,7 @@ func addTestService(server *DockerServer) (*swarm.Service, error) {
 				},
 			},
 			TaskTemplate: swarm.TaskSpec{
-				ContainerSpec: swarm.ContainerSpec{
+				ContainerSpec: &swarm.ContainerSpec{
 					Image: "test/test",
 					Args:  []string{"--test"},
 					Env:   []string{"ENV=1"},

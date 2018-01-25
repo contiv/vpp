@@ -50,8 +50,7 @@ const (
 // context is a structure storing details of a particular code generation task
 type context struct {
 	inputFile   string            // file with input JSON data
-	inputData   []byte            // contents of the input file
-	inputBuff   *bytes.Buffer     // contents of the input file currently being read
+	inputBuff   *bytes.Buffer     // contents of the input file
 	inputLine   int               // currently processed line in the input file
 	outputFile  string            // file with output data
 	packageName string            // name of the Go package being generated
@@ -118,13 +117,14 @@ func generateFromFile(inputFile, outputDir string) error {
 		return err
 	}
 	// read the file
-	ctx.inputData, err = readFile(inputFile)
+	inputData, err := readFile(inputFile)
 	if err != nil {
 		return err
 	}
+	ctx.inputBuff = bytes.NewBuffer(inputData)
 
 	// parse JSON
-	jsonRoot, err := parseJSON(ctx.inputData)
+	jsonRoot, err := parseJSON(inputData)
 	if err != nil {
 		return err
 	}
@@ -207,8 +207,6 @@ func generatePackage(ctx *context, w *bufio.Writer, jsonRoot *jsongo.JSONNode) e
 	generatePackageHeader(ctx, w, jsonRoot)
 
 	// generate data types
-	ctx.inputBuff = bytes.NewBuffer(ctx.inputData)
-	ctx.inputLine = 0
 	ctx.types = make(map[string]string)
 	types := jsonRoot.Map("types")
 	for i := 0; i < types.Len(); i++ {
@@ -220,8 +218,6 @@ func generatePackage(ctx *context, w *bufio.Writer, jsonRoot *jsongo.JSONNode) e
 	}
 
 	// generate messages
-	ctx.inputBuff = bytes.NewBuffer(ctx.inputData)
-	ctx.inputLine = 0
 	messages := jsonRoot.Map("messages")
 	for i := 0; i < messages.Len(); i++ {
 		msg := messages.At(i)
@@ -426,8 +422,6 @@ func generateMessageComment(ctx *context, w io.Writer, structName string, msgNam
 
 	// print out the source of the generated message - the JSON
 	msgFound := false
-	msgTitle := "\"" + msgName + "\","
-	var msgIndent int
 	for {
 		lineBuff, err := ctx.inputBuff.ReadBytes('\n')
 		if err != nil {
@@ -437,23 +431,17 @@ func generateMessageComment(ctx *context, w io.Writer, structName string, msgNam
 		line := string(lineBuff)
 
 		if !msgFound {
-			msgIndent = strings.Index(line, msgTitle)
-			if msgIndent > -1 {
-				prefix := line[:msgIndent]
-				suffix := line[msgIndent+len(msgTitle):]
-				// If no other non-whitespace character then we are at the message header.
-				if strings.IndexFunc(prefix, isNotSpace) == -1 && strings.IndexFunc(suffix, isNotSpace) == -1 {
-					fmt.Fprintf(w, "// Generated from '%s', line %d:\n", ctx.inputFile, ctx.inputLine)
-					fmt.Fprintln(w, "//")
-					fmt.Fprint(w, "//", line)
-					msgFound = true
-				}
+			if strings.Contains(line, msgName) {
+				fmt.Fprintf(w, "// Generated from '%s', line %d:\n", ctx.inputFile, ctx.inputLine)
+				fmt.Fprintln(w, "//")
+				fmt.Fprint(w, "//", line)
+				msgFound = true
 			}
 		} else {
-			if strings.IndexFunc(line, isNotSpace) < msgIndent {
+			fmt.Fprint(w, "//", line)
+			if len(strings.Trim(line, " ")) < 4 {
 				break // end of the message in JSON
 			}
-			fmt.Fprint(w, "//", line)
 		}
 	}
 	fmt.Fprintln(w, "//")
@@ -605,11 +593,6 @@ func camelCaseName(name string) (should string) {
 		w = i
 	}
 	return string(runes)
-}
-
-// isNotSpace returns true if the rune is NOT a whitespace character.
-func isNotSpace(r rune) bool {
-	return !unicode.IsSpace(r)
 }
 
 // commonInitialisms is a set of common initialisms that need to stay in upper case.

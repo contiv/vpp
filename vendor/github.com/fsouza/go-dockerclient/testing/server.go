@@ -196,6 +196,7 @@ func (s *DockerServer) buildMuxer() {
 	s.mux.Path("/networks/{id:.*}").Methods("GET").HandlerFunc(s.handlerWrapper(s.networkInfo))
 	s.mux.Path("/networks/{id:.*}").Methods("DELETE").HandlerFunc(s.handlerWrapper(s.removeNetwork))
 	s.mux.Path("/networks/create").Methods("POST").HandlerFunc(s.handlerWrapper(s.createNetwork))
+	s.mux.Path("/networks/{id:.*}/connect").Methods("POST").HandlerFunc(s.handlerWrapper(s.networksConnect))
 	s.mux.Path("/volumes").Methods("GET").HandlerFunc(s.handlerWrapper(s.listVolumes))
 	s.mux.Path("/volumes/create").Methods("POST").HandlerFunc(s.handlerWrapper(s.createVolume))
 	s.mux.Path("/volumes/{name:.*}").Methods("GET").HandlerFunc(s.handlerWrapper(s.inspectVolume))
@@ -639,6 +640,8 @@ func (s *DockerServer) topContainer(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
+	s.cMut.RLock()
+	defer s.cMut.RUnlock()
 	if !container.State.Running {
 		w.WriteHeader(http.StatusInternalServerError)
 		fmt.Fprintf(w, "Container %s is not running", id)
@@ -786,11 +789,13 @@ func (s *DockerServer) attachContainer(w http.ResponseWriter, r *http.Request) {
 		}()
 	}
 	outStream := stdcopy.NewStdWriter(conn, stdcopy.Stdout)
+	s.cMut.RLock()
 	if container.State.Running {
 		fmt.Fprintf(outStream, "Container is running\n")
 	} else {
 		fmt.Fprintf(outStream, "Container is not running\n")
 	}
+	s.cMut.RUnlock()
 	fmt.Fprintln(outStream, "What happened?")
 	fmt.Fprintln(outStream, "Something happened")
 	wg.Wait()
@@ -918,11 +923,13 @@ func (s *DockerServer) logContainer(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/vnd.docker.raw-stream")
 	w.WriteHeader(http.StatusOK)
+	s.cMut.RLock()
 	if container.State.Running {
 		fmt.Fprintf(w, "Container is running\n")
 	} else {
 		fmt.Fprintf(w, "Container is not running\n")
 	}
+	s.cMut.RUnlock()
 	fmt.Fprintln(w, "What happened?")
 	fmt.Fprintln(w, "Something happened")
 	if r.URL.Query().Get("follow") == "1" {
@@ -978,12 +985,6 @@ func (s *DockerServer) buildImage(w http.ResponseWriter, r *http.Request) {
 func (s *DockerServer) pullImage(w http.ResponseWriter, r *http.Request) {
 	fromImageName := r.URL.Query().Get("fromImage")
 	tag := r.URL.Query().Get("tag")
-	image := docker.Image{
-		ID:     s.generateID(),
-		Config: &docker.Config{},
-	}
-	s.iMut.Lock()
-	s.images = append(s.images, image)
 	if fromImageName != "" {
 		if tag != "" {
 			separator := ":"
@@ -992,7 +993,17 @@ func (s *DockerServer) pullImage(w http.ResponseWriter, r *http.Request) {
 			}
 			fromImageName = fmt.Sprintf("%s%s%s", fromImageName, separator, tag)
 		}
-		s.imgIDs[fromImageName] = image.ID
+	}
+	image := docker.Image{
+		ID:     s.generateID(),
+		Config: &docker.Config{},
+	}
+	s.iMut.Lock()
+	if _, exists := s.imgIDs[fromImageName]; fromImageName == "" || !exists {
+		s.images = append(s.images, image)
+		if fromImageName != "" {
+			s.imgIDs[fromImageName] = image.ID
+		}
 	}
 	s.iMut.Unlock()
 }
@@ -1016,13 +1027,11 @@ func (s *DockerServer) pushImage(w http.ResponseWriter, r *http.Request) {
 
 func (s *DockerServer) tagImage(w http.ResponseWriter, r *http.Request) {
 	name := mux.Vars(r)["name"]
-	s.iMut.RLock()
-	if _, ok := s.imgIDs[name]; !ok {
-		s.iMut.RUnlock()
+	id, err := s.findImage(name)
+	if err != nil {
 		http.Error(w, "No such image", http.StatusNotFound)
 		return
 	}
-	s.iMut.RUnlock()
 	s.iMut.Lock()
 	defer s.iMut.Unlock()
 	newRepo := r.URL.Query().Get("repo")
@@ -1030,7 +1039,7 @@ func (s *DockerServer) tagImage(w http.ResponseWriter, r *http.Request) {
 	if newTag != "" {
 		newRepo += ":" + newTag
 	}
-	s.imgIDs[newRepo] = s.imgIDs[name]
+	s.imgIDs[newRepo] = id
 	w.WriteHeader(http.StatusCreated)
 }
 
@@ -1070,13 +1079,14 @@ func (s *DockerServer) inspectImage(w http.ResponseWriter, r *http.Request) {
 	s.iMut.RLock()
 	defer s.iMut.RUnlock()
 	if id, ok := s.imgIDs[name]; ok {
-		for _, img := range s.images {
-			if img.ID == id {
-				w.Header().Set("Content-Type", "application/json")
-				w.WriteHeader(http.StatusOK)
-				json.NewEncoder(w).Encode(img)
-				return
-			}
+		name = id
+	}
+	for _, img := range s.images {
+		if img.ID == name {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			json.NewEncoder(w).Encode(img)
+			return
 		}
 	}
 	http.Error(w, "not found", http.StatusNotFound)
@@ -1293,9 +1303,10 @@ func (s *DockerServer) createNetwork(w http.ResponseWriter, r *http.Request) {
 
 	generatedID := s.generateID()
 	network := docker.Network{
-		Name:   config.Name,
-		ID:     generatedID,
-		Driver: config.Driver,
+		Name:       config.Name,
+		ID:         generatedID,
+		Driver:     config.Driver,
+		Containers: map[string]docker.Endpoint{},
 	}
 	s.netMut.Lock()
 	s.networks = append(s.networks, &network)
@@ -1317,6 +1328,35 @@ func (s *DockerServer) removeNetwork(w http.ResponseWriter, r *http.Request) {
 	s.networks[index] = s.networks[len(s.networks)-1]
 	s.networks = s.networks[:len(s.networks)-1]
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *DockerServer) networksConnect(w http.ResponseWriter, r *http.Request) {
+	id := mux.Vars(r)["id"]
+	var config *docker.NetworkConnectionOptions
+	defer r.Body.Close()
+	err := json.NewDecoder(r.Body).Decode(&config)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	network, index, _ := s.findNetwork(id)
+	container, _, _ := s.findContainer(config.Container)
+	if network == nil || container == nil {
+		http.Error(w, "network or container not found", http.StatusNotFound)
+		return
+	}
+
+	if _, found := network.Containers[container.ID]; found == true {
+		http.Error(w, "endpoint already exists in network", http.StatusBadRequest)
+		return
+	}
+
+	s.netMut.Lock()
+	s.networks[index].Containers[config.Container] = docker.Endpoint{}
+	s.netMut.Unlock()
+
+	w.WriteHeader(http.StatusOK)
 }
 
 func (s *DockerServer) listVolumes(w http.ResponseWriter, r *http.Request) {
@@ -1411,7 +1451,7 @@ func (s *DockerServer) removeVolume(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "volume in use and cannot be removed", http.StatusConflict)
 		return
 	}
-	s.volStore[vol.volume.Name] = nil
+	delete(s.volStore, vol.volume.Name)
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -1559,6 +1599,7 @@ func (s *DockerServer) initSwarmNode(listenAddr, advertiseAddr string) (swarm.No
 	return swarm.Node{
 		ID: s.nodeID,
 		Status: swarm.NodeStatus{
+			Addr:  hostPart,
 			State: swarm.NodeStateReady,
 		},
 		ManagerStatus: &swarm.ManagerStatus{

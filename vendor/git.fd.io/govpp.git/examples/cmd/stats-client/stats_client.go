@@ -27,8 +27,8 @@ import (
 	"git.fd.io/govpp.git"
 	"git.fd.io/govpp.git/api"
 	"git.fd.io/govpp.git/core"
+	"git.fd.io/govpp.git/core/bin_api/vpe"
 	"git.fd.io/govpp.git/examples/bin_api/interfaces"
-	"git.fd.io/govpp.git/examples/bin_api/stats"
 )
 
 func main() {
@@ -112,10 +112,10 @@ func subscribeNotifications(ch *api.Channel) (*api.NotifSubscription, *api.Notif
 
 // requestStatistics requests interface counters notifications from VPP.
 func requestStatistics(ch *api.Channel) {
-	ch.SendRequest(&stats.WantStats{
+	ch.SendRequest(&vpe.WantStats{
 		Pid:           uint32(os.Getpid()),
 		EnableDisable: 1,
-	}).ReceiveReply(&stats.WantStatsReply{})
+	}).ReceiveReply(&vpe.WantStatsReply{})
 }
 
 // processSimpleCounters processes simple counters received from VPP.

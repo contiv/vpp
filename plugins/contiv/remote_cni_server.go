@@ -797,12 +797,16 @@ func (s *remoteCNIserver) unconfigurePodInterface(request *cni.CNIRequest, confi
 			LinuxInterface(config.Veth2.Name)
 	}
 
-	// delete static routes
-	txn2.LinuxRoute(config.PodLinkRoute.Name).
-		LinuxRoute(config.PodDefaultRoute.Name)
+	if !s.useTAPInterfaces {
+		// TODO: temporary bypass this section for TAP interfaces
 
-		// delete the ARP entry
-	txn2.LinuxArpEntry(config.PodARPEntry.Name)
+		// delete static routes
+		txn2.LinuxRoute(config.PodLinkRoute.Name).
+			LinuxRoute(config.PodDefaultRoute.Name)
+
+			// delete the ARP entry
+		txn2.LinuxArpEntry(config.PodARPEntry.Name)
+	}
 
 	// execute the config transaction
 	err := txn2.Send().ReceiveReply()

@@ -7,7 +7,7 @@ import (
 	"github.com/docker/distribution"
 	"github.com/docker/docker/layer"
 	"github.com/docker/docker/pkg/progress"
-	"github.com/Sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/net/context"
 )
 

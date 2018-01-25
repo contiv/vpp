@@ -5,7 +5,7 @@ import (
 	"sync"
 
 	"github.com/docker/docker/pkg/plugingetter"
-	"github.com/Sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/net/context"
 )
 

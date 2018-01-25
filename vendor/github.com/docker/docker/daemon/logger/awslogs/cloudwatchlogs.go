@@ -24,7 +24,7 @@ import (
 	"github.com/docker/docker/dockerversion"
 	"github.com/docker/docker/pkg/templates"
 	"github.com/pkg/errors"
-	"github.com/Sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 )
 
 const (

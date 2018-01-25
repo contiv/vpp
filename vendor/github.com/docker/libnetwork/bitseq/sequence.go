@@ -12,7 +12,7 @@ import (
 
 	"github.com/docker/libnetwork/datastore"
 	"github.com/docker/libnetwork/types"
-	"github.com/Sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 )
 
 // block sequence constants

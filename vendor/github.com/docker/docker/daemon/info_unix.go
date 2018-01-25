@@ -11,7 +11,7 @@ import (
 	"github.com/docker/docker/dockerversion"
 	"github.com/docker/docker/pkg/sysinfo"
 	"github.com/pkg/errors"
-	"github.com/Sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 )
 
 // FillPlatformInfo fills the platform related info.

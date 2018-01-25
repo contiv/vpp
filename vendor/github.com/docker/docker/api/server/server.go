@@ -14,7 +14,7 @@ import (
 	"github.com/docker/docker/api/server/router/debug"
 	"github.com/docker/docker/dockerversion"
 	"github.com/gorilla/mux"
-	"github.com/Sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/net/context"
 )
 

@@ -11,7 +11,7 @@ import (
 	"github.com/docker/docker/runconfig"
 	swarmapi "github.com/docker/swarmkit/api"
 	"github.com/pkg/errors"
-	"github.com/Sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/net/context"
 )
 

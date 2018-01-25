@@ -22,7 +22,7 @@ import (
 	"github.com/docker/libnetwork/options"
 	"github.com/docker/libnetwork/portmapper"
 	"github.com/docker/libnetwork/types"
-	"github.com/Sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 )
 
 const (

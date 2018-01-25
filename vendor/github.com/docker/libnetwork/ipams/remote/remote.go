@@ -9,7 +9,7 @@ import (
 	"github.com/docker/libnetwork/ipamapi"
 	"github.com/docker/libnetwork/ipams/remote/api"
 	"github.com/docker/libnetwork/types"
-	"github.com/Sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 )
 
 type allocator struct {

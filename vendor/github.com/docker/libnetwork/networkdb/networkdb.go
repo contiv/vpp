@@ -15,7 +15,7 @@ import (
 	"github.com/docker/libnetwork/types"
 	"github.com/hashicorp/memberlist"
 	"github.com/hashicorp/serf/serf"
-	"github.com/Sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 )
 
 const (

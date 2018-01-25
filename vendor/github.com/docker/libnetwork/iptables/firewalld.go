@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	"github.com/godbus/dbus"
-	"github.com/Sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 )
 
 // IPV defines the table string

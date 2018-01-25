@@ -9,7 +9,7 @@ import (
 
 	"github.com/opencontainers/runtime-spec/specs-go"
 
-	"github.com/Sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 )
 
 type Rlimit struct {

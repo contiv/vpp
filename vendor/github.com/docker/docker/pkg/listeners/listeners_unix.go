@@ -11,7 +11,7 @@ import (
 
 	"github.com/coreos/go-systemd/activation"
 	"github.com/docker/go-connections/sockets"
-	"github.com/Sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 )
 
 // Init creates new listeners for the server.

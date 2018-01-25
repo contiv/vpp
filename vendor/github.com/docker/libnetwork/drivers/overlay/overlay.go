@@ -16,7 +16,7 @@ import (
 	"github.com/docker/libnetwork/osl"
 	"github.com/docker/libnetwork/types"
 	"github.com/hashicorp/serf/serf"
-	"github.com/Sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 )
 
 const (

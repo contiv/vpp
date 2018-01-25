@@ -12,7 +12,7 @@ import (
 	"github.com/coreos/go-systemd/journal"
 	"github.com/docker/docker/daemon/logger"
 	"github.com/docker/docker/daemon/logger/loggerutils"
-	"github.com/Sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 )
 
 const name = "journald"

@@ -20,13 +20,13 @@ import (
 	"testing"
 
 	"github.com/ligato/cn-infra/logging"
-	"github.com/ligato/cn-infra/logging/logroot"
+	"github.com/ligato/cn-infra/logging/logrus"
 	"github.com/onsi/gomega"
 )
 
 func TestSomething(t *testing.T) {
 	gomega.RegisterTestingT(t)
-	logger := logroot.StandardLogger()
+	logger := logrus.DefaultLogger()
 	logger.SetLevel(logging.DebugLevel)
 	logger.Debug("TestSomething")
 }

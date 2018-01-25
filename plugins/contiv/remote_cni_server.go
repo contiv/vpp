@@ -141,14 +141,14 @@ type remoteCNIserver struct {
 
 // vswitchConfig holds base vSwitch VPP configuration.
 type vswitchConfig struct {
-	nics []*vpp_intf.Interfaces_Interface
+	nics         []*vpp_intf.Interfaces_Interface
+	defaultRoute *vpp_l3.StaticRoutes_Route
 
 	tapHost        *vpp_intf.Interfaces_Interface
 	vethHost       *linux_intf.LinuxInterfaces_Interface
 	vethVpp        *linux_intf.LinuxInterfaces_Interface
 	interconnectAF *vpp_intf.Interfaces_Interface
 
-	routeToHost   *vpp_l3.StaticRoutes_Route
 	routeFromHost *linux_l3.LinuxStaticRoutes_Route
 	l4Features    *vpp_l4.L4Features
 
@@ -366,6 +366,12 @@ func (s *remoteCNIserver) configureMainVPPInterface(config *vswitchConfig, nicNa
 		config.nics = append(config.nics, loop)
 	}
 
+	if nicName != "" && s.nodeConfig != nil && s.nodeConfig.Gateway != "" {
+		// configure the default gateway
+		config.defaultRoute = s.defaultRoute(s.nodeConfig.Gateway, nicName)
+		txn1.StaticRoute(config.defaultRoute)
+	}
+
 	// execute the config transaction
 	err = txn1.Send().ReceiveReply()
 	if err != nil {
@@ -465,12 +471,10 @@ func (s *remoteCNIserver) configureVswitchHostConnectivity(config *vswitchConfig
 	}
 
 	// configure static routes and enable L4 features
-	config.routeToHost = s.defaultRouteToHost()
 	config.routeFromHost = s.routeFromHost()
 	config.l4Features = s.l4Features(!s.disableTCPstack)
 
 	txn2 := s.vppTxnFactory().Put().
-		StaticRoute(config.routeToHost).
 		LinuxRoute(config.routeFromHost).
 		L4Features(config.l4Features)
 
@@ -519,10 +523,11 @@ func (s *remoteCNIserver) persistVswitchConfig(config *vswitchConfig) error {
 	var err error
 	changes := map[string]proto.Message{}
 
-	// physical NICs
+	// physical NICs + default route
 	for _, nic := range config.nics {
 		changes[vpp_intf.InterfaceKey(nic.Name)] = nic
 	}
+	changes[vpp_l3.RouteKey(config.defaultRoute.VrfId, config.defaultRoute.DstIpAddr, config.defaultRoute.NextHopAddr)] = config.defaultRoute
 
 	// VXLAN-related data
 	if !s.useL2Interconnect {
@@ -540,7 +545,6 @@ func (s *remoteCNIserver) persistVswitchConfig(config *vswitchConfig) error {
 	}
 
 	// routes + l4 config
-	changes[vpp_l3.RouteKey(config.routeToHost.VrfId, config.routeToHost.DstIpAddr, config.routeToHost.NextHopAddr)] = config.routeToHost
 	changes[linux_l3.StaticRouteKey(config.routeFromHost.Name)] = config.routeFromHost
 	changes[vpp_l4.FeatureKey()] = config.l4Features
 

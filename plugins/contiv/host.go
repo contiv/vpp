@@ -60,14 +60,11 @@ func (s *remoteCNIserver) routeFromHost() *linux_l3.LinuxStaticRoutes_Route {
 	return route
 }
 
-func (s *remoteCNIserver) defaultRouteToHost() *vpp_l3.StaticRoutes_Route {
+func (s *remoteCNIserver) defaultRoute(gwIP string, outIfName string) *vpp_l3.StaticRoutes_Route {
 	route := &vpp_l3.StaticRoutes_Route{
 		DstIpAddr:         "0.0.0.0/0",
-		NextHopAddr:       s.ipam.VEthHostEndIP().String(),
-		OutgoingInterface: s.interconnectAfpacketName(),
-	}
-	if s.useTAPInterfaces {
-		route.OutgoingInterface = tapVPPEndLogicalName
+		NextHopAddr:       gwIP,
+		OutgoingInterface: outIfName,
 	}
 	return route
 }

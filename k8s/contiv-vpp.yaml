@@ -21,6 +21,8 @@ metadata:
 data:
   contiv.yaml: |
     TCPstackDisabled: True
+    UseTAPInterfaces: True
+    TAPInterfaceVersion: 1
     IPAMConfig:
       PodSubnetCIDR: "10.1.0.0/16"
       PodNetworkPrefixLen: 24

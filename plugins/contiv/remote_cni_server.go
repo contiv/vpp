@@ -527,7 +527,9 @@ func (s *remoteCNIserver) persistVswitchConfig(config *vswitchConfig) error {
 	for _, nic := range config.nics {
 		changes[vpp_intf.InterfaceKey(nic.Name)] = nic
 	}
-	changes[vpp_l3.RouteKey(config.defaultRoute.VrfId, config.defaultRoute.DstIpAddr, config.defaultRoute.NextHopAddr)] = config.defaultRoute
+	if config.defaultRoute != nil {
+		changes[vpp_l3.RouteKey(config.defaultRoute.VrfId, config.defaultRoute.DstIpAddr, config.defaultRoute.NextHopAddr)] = config.defaultRoute
+	}
 
 	// VXLAN-related data
 	if !s.useL2Interconnect {

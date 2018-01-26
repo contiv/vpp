@@ -13,7 +13,7 @@ import (
 	"strings"
 
 	"github.com/pkg/errors"
-	"github.com/Sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 )
 
 type directLVMConfig struct {

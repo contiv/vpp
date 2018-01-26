@@ -29,12 +29,12 @@ import (
 	"github.com/ligato/cn-infra/datasync"
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/vpp-agent/clientv1/linux"
+	vpp_intf "github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/interfaces"
+	vpp_l2 "github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/l2"
+	vpp_l3 "github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/l3"
+	vpp_l4 "github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/l4"
+	"github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/stn"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/ifaceidx"
-	vpp_intf "github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/model/interfaces"
-	"github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/model/stn"
-	vpp_l2 "github.com/ligato/vpp-agent/plugins/defaultplugins/l2plugin/model/l2"
-	vpp_l3 "github.com/ligato/vpp-agent/plugins/defaultplugins/l3plugin/model/l3"
-	vpp_l4 "github.com/ligato/vpp-agent/plugins/defaultplugins/l4plugin/model/l4"
 	linux_intf "github.com/ligato/vpp-agent/plugins/linuxplugin/ifplugin/model/interfaces"
 	linux_l3 "github.com/ligato/vpp-agent/plugins/linuxplugin/l3plugin/model/l3"
 	"golang.org/x/net/context"
@@ -806,16 +806,14 @@ func (s *remoteCNIserver) unconfigurePodInterface(request *cni.CNIRequest, confi
 			LinuxInterface(config.Veth2.Name)
 	}
 
-	// delete static routes
-	if !s.test {
-		// TODO: do not execute when testing until TAPs are fully supported by the vpp-agent
+	if !s.useTAPInterfaces && !s.test {
+		// TODO: temporary bypass this section for TAP interfaces
+
+		// delete static routes
 		txn2.LinuxRoute(config.PodLinkRoute.Name).
 			LinuxRoute(config.PodDefaultRoute.Name)
-	}
 
-	// delete the ARP entry
-	if !s.test {
-		// TODO: do not execute when testing until TAPs are fully supported by the vpp-agent
+		// delete the ARP entry
 		txn2.LinuxArpEntry(config.PodARPEntry.Name)
 	}
 
@@ -1121,12 +1119,4 @@ func (s *remoteCNIserver) GetNodeIP() net.IP {
 	}
 
 	return nodeIP
-}
-
-// GetVPPIP returns the IP address of this node's VPP.
-// (assigned to a loopback or to the host-interconnect interface)
-func (s *remoteCNIserver) GetVPPIP() net.IP {
-	s.Lock()
-	defer s.Unlock()
-	return s.ipam.VEthVPPEndIP()
 }

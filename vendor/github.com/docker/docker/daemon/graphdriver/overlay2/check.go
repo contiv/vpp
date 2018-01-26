@@ -11,7 +11,7 @@ import (
 
 	"github.com/docker/docker/pkg/system"
 	"github.com/pkg/errors"
-	"github.com/Sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
 )
 

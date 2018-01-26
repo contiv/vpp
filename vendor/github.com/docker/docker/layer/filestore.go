@@ -16,7 +16,7 @@ import (
 	"github.com/docker/distribution"
 	"github.com/docker/docker/pkg/ioutils"
 	"github.com/opencontainers/go-digest"
-	"github.com/Sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 )
 
 var (

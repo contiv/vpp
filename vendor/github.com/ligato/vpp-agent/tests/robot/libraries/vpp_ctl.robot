@@ -115,7 +115,7 @@ vpp_ctl: Put Bridge Domain
     vpp_ctl: Put Json     ${uri}    ${data}
 
 vpp_ctl: Put Loopback Interface
-    [Arguments]    ${node}    ${name}    ${mac}    ${mtu}=1500    ${enabled}=true
+    [Arguments]    ${node}    ${name}    ${mac}    ${mtu}=1500    ${enabled}=true   ${vrf}=0
     Log Many    ${node}    ${name}    ${mac}    ${mtu}    ${enabled}
     ${data}=              OperatingSystem.Get File      ${CURDIR}/../resources/loopback_interface.json
     ${uri}=               Set Variable                  /vnf-agent/${node}/vpp/config/v1/interface/${name}
@@ -567,13 +567,61 @@ vpp_ctl: Delete ARP
     Log Many     ${out}
     [Return]    ${out}
 
-vpp_ctl: Put Linux ARP
-    [Arguments]    ${node}    ${interface}    ${arp-name}    ${ipv4}    ${MAC}    ${static}
-    Log Many    ${node}    ${interface}      ${arp-name}   ${ipv4}    ${MAC}    ${static}
-    ${data}=              OperatingSystem.Get File      ${CURDIR}/../resources/arp.json
-    ${uri}=               Set Variable                  /vnf-agent/${node}/vnf-agent/vpp1/linux/config/v1/arp/${arp-name}
+vpp_ctl: Put Linux ARP With Namespace
+    [Arguments]    ${node}    ${interface}    ${arpname}    ${ipv4}    ${MAC}    ${nsname}    ${nstype}
+    Log Many    ${node}    ${interface}      ${arpname}   ${ipv4}    ${MAC}    ${nsname}       ${nstype}
+    ${data}=              OperatingSystem.Get File      ${CURDIR}/../resources/arp_linux.json
+    ${uri}=               Set Variable                  /vnf-agent/${node}/linux/config/v1/arp/${arpname}
     Log Many              ${data}                       ${uri}
     ${data}=              Replace Variables             ${data}
     Log                   ${data}
     vpp_ctl: Put Json     ${uri}    ${data}
 
+vpp_ctl: Put Linux ARP
+    [Arguments]    ${node}    ${interface}    ${arpname}    ${ipv4}    ${MAC}
+    Log Many    ${node}    ${interface}      ${arpname}   ${ipv4}    ${MAC}
+    ${data}=              OperatingSystem.Get File      ${CURDIR}/../resources/arp_linux.json
+    ${uri}=               Set Variable                  /vnf-agent/${node}/linux/config/v1/arp/${arpname}
+    Log Many              ${data}                       ${uri}
+    ${data}=              Replace Variables             ${data}
+    Log                   ${data}
+    vpp_ctl: Put Json     ${uri}    ${data}
+
+vpp_ctl: Delete Linux ARP
+    [Arguments]    ${node}    ${arpname}
+    Log Many    ${node}    ${arpname}
+    ${uri}=               Set Variable                  /vnf-agent/${node}/linux/config/v1/arp/${arpname}
+    ${out}=      vpp_ctl: Delete key    ${uri}
+    Log Many     ${out}
+    [Return]    ${out}
+
+vpp_ctl: Put L2XConnect
+    [Arguments]    ${node}    ${rx_if}    ${tx_if}
+    [Documentation]    Put L2 Xconnect config json to etcd.
+    Log Many              ${node}    ${rx_if}    ${tx_if}
+    ${data}=              OperatingSystem.Get File      ${CURDIR}/../resources/l2xconnect.json
+    ${uri}=               Set Variable                  /vnf-agent/${node}/vpp/config/v1/xconnect/${rx_if}
+    Log Many              ${data}                       ${uri}
+    ${data}=              Replace Variables             ${data}
+    Log                   ${data}
+    vpp_ctl: Put Json     ${uri}    ${data}
+
+vpp_ctl: Delete L2XConnect
+    [Arguments]    ${node}    ${rx_if}
+    [Documentation]    Delete L2 Xconnect config json from etcd.
+    Log Many    ${node}    ${rx_if}
+    ${uri}=               Set Variable                  /vnf-agent/${node}/vpp/config/v1/xconnect/${rx_if}
+    ${out}=      vpp_ctl: Delete key    ${uri}
+    Log Many     ${out}
+    [Return]    ${out}
+
+vpp_ctl: Put TAPv2 Interface With IP
+    [Arguments]    ${node}    ${name}    ${mac}    ${ip}    ${host_if_name}    ${prefix}=24    ${mtu}=1500    ${enabled}=true    ${vrf}=0
+    Log Many    ${node}    ${name}    ${mac}    ${ip}    ${host_if_name}    ${prefix}    ${mtu}    ${enabled}    ${vrf}
+    ${data}=              OperatingSystem.Get File      ${CURDIR}/../resources/tapv2_interface_with_ip.json
+    ${uri}=               Set Variable                  /vnf-agent/${node}/vpp/config/v1/interface/${name}
+    Log Many              ${data}                       ${uri}
+    ${data}=              Replace Variables             ${data}
+    Log                   ${data}
+    vpp_ctl: Put Json     ${uri}    ${data}
+    Sleep                 10s    Time to let etcd to get state of newly setup tap interface.

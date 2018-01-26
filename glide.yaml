@@ -1,9 +1,9 @@
 package: github.com/contiv/vpp
 import:
 - package: github.com/ligato/cn-infra
-  version: 67ab44b5392484bc870bb5a05b288e43220da784
+  version: 1.0.8
 - package: github.com/ligato/vpp-agent
-  version: 549733fbdb07d26a74afdfec89a9df5004ed4024
+  version: 2c907cf22e7a688f08f79e9438c62f183dd5f104
 - package: git.fd.io/govpp.git
   version: 35fd2cc86d442dee6fa4c8adb46a6e4906a66ab3
 - package: github.com/containernetworking/cni

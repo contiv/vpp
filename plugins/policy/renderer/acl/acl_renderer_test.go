@@ -25,7 +25,7 @@ import (
 
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/logging/logrus"
-	acl_model "github.com/ligato/vpp-agent/plugins/defaultplugins/aclplugin/model/acl"
+	acl_model "github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/acl"
 
 	. "github.com/contiv/vpp/mock/contiv"
 	. "github.com/contiv/vpp/mock/defaultplugins"

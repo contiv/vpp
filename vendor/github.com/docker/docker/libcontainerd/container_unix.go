@@ -14,7 +14,7 @@ import (
 	containerd "github.com/containerd/containerd/api/grpc/types"
 	"github.com/docker/docker/pkg/ioutils"
 	specs "github.com/opencontainers/runtime-spec/specs-go"
-	"github.com/Sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 	"github.com/tonistiigi/fifo"
 	"golang.org/x/net/context"
 	"golang.org/x/sys/unix"

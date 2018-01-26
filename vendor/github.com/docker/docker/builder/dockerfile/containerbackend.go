@@ -10,7 +10,7 @@ import (
 	containerpkg "github.com/docker/docker/container"
 	"github.com/docker/docker/pkg/stringid"
 	"github.com/pkg/errors"
-	"github.com/Sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/net/context"
 )
 

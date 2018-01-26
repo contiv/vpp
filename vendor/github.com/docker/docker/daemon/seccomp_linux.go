@@ -8,7 +8,7 @@ import (
 	"github.com/docker/docker/container"
 	"github.com/docker/docker/profiles/seccomp"
 	"github.com/opencontainers/runtime-spec/specs-go"
-	"github.com/Sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 )
 
 var supportsSeccomp = true

@@ -22,7 +22,7 @@ import (
 	"regexp"
 
 	"github.com/ligato/cn-infra/logging"
-	"github.com/Sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 )
 
 var initialLogLvl = logrus.InfoLevel

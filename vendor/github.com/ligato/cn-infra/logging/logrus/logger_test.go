@@ -24,7 +24,7 @@ import (
 
 	"github.com/ligato/cn-infra/logging"
 	. "github.com/onsi/gomega"
-	lg "github.com/Sirupsen/logrus"
+	lg "github.com/sirupsen/logrus"
 )
 
 func LogAndAssertJSON(t *testing.T, log func(*Logger), assertions func(fields lg.Fields)) {

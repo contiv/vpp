@@ -8,9 +8,10 @@ go:
   - 1.9.x
 
 before_install:
-  - go get -u -f "github.com/alecthomas/gometalinter"
+  - go get github.com/alecthomas/gometalinter
   - gometalinter --install
   - go get github.com/mattn/goveralls
+  - go get github.com/wadey/gocovmerge
   - sudo apt-get install npm && npm install -g markdown-link-check
 
 script:

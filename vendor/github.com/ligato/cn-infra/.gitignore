@@ -24,6 +24,7 @@ examples/redis-lib/airport/airport
 examples/redis-lib/simple/simple
 examples/redis-plugin/redis-plugin
 examples/simple-agent/simple-agent
+examples/statuscheck-plugin/statuscheck-plugin
 db/keyval/etcdv3/examples/phonebook/editor/editor
 db/keyval/etcdv3/examples/phonebook/view/view
 db/keyval/etcdv3/examples/phonebook/watcher/watcher

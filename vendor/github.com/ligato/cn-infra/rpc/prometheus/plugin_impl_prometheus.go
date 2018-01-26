@@ -80,7 +80,7 @@ func (p *Plugin) AfterInit() error {
 		p.Lock()
 		defer p.Unlock()
 		for path, reg := range p.regs {
-			p.HTTP.RegisterHTTPHandler(path, p.createHandlerHandler(reg.Gatherer,reg.httpOpts), "GET")
+			p.HTTP.RegisterHTTPHandler(path, p.createHandlerHandler(reg.Gatherer, reg.httpOpts), "GET")
 			p.Log.Infof("Serving %s on port %d", path, p.HTTP.GetPort())
 
 		}
@@ -135,7 +135,22 @@ func (p *Plugin) Register(registryPath string, collector prometheus.Collector) e
 	return reg.Register(collector)
 }
 
+// Unregister unregisters the given metric. The function
+// returns whether a Collector was unregistered.
+func (p *Plugin) Unregister(registryPath string, collector prometheus.Collector) bool {
+	p.Lock()
+	defer p.Unlock()
+
+	reg, found := p.regs[registryPath]
+	if !found {
+		return false
+	}
+	return reg.Unregister(collector)
+}
+
 // RegisterGaugeFunc registers custom gauge with specific valueFunc to report status when invoked.
+// This method simplifies using of Register for common use case. If you want create metric different from
+// GagugeFunc or you're adding a metric that will be unregister later on, use generic Register method instead.
 // RegistryPath identifies the registry where gauge is added.
 func (p *Plugin) RegisterGaugeFunc(registryPath string, namespace string, subsystem string, name string, help string,
 	labels prometheus.Labels, valueFunc func() float64) error {

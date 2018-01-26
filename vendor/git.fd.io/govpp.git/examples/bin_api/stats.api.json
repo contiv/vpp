@@ -1,90 +1,727 @@
 {
     "services": [
         {
-            "acl_interface_add_del": {
-                "reply": "acl_interface_add_del_reply"
+            "want_ip4_fib_stats": {
+                "reply": "want_ip4_fib_stats_reply"
             }
         },
         {
-            "acl_del": {
-                "reply": "acl_del_reply"
+            "want_ip4_mfib_stats": {
+                "reply": "want_ip4_mfib_stats_reply"
             }
         },
         {
-            "macip_acl_del": {
-                "reply": "macip_acl_del_reply"
+            "want_interface_combined_stats": {
+                "reply": "want_interface_combined_stats_reply"
             }
         },
         {
-            "acl_plugin_get_version": {
-                "reply": "acl_plugin_get_version_reply"
+            "want_ip6_fib_stats": {
+                "reply": "want_ip6_fib_stats_reply"
             }
         },
         {
-            "macip_acl_interface_add_del": {
-                "reply": "macip_acl_interface_add_del_reply"
+            "want_stats": {
+                "reply": "want_stats_reply"
             }
         },
         {
-            "acl_interface_set_acl_list": {
-                "reply": "acl_interface_set_acl_list_reply"
+            "want_per_interface_simple_stats": {
+                "reply": "want_per_interface_simple_stats_reply"
             }
         },
         {
-            "acl_dump": {
-                "reply": "acl_details",
-                "stream": true
+            "want_per_interface_combined_stats": {
+                "reply": "want_per_interface_combined_stats_reply"
             }
         },
         {
-            "acl_interface_list_dump": {
-                "reply": "acl_interface_list_details",
-                "stream": true
+            "vnet_get_summary_stats": {
+                "reply": "vnet_get_summary_stats_reply"
             }
         },
         {
-            "macip_acl_interface_list_dump": {
-                "reply": "macip_acl_interface_list_details",
-                "stream": true
+            "want_ip6_mfib_stats": {
+                "reply": "want_ip6_mfib_stats_reply"
             }
         },
         {
-            "acl_add_replace": {
-                "reply": "acl_add_replace_reply"
+            "want_interface_simple_stats": {
+                "reply": "want_interface_simple_stats_reply"
             }
         },
         {
-            "acl_plugin_control_ping": {
-                "reply": "acl_plugin_control_ping_reply"
+            "want_ip4_nbr_stats": {
+                "reply": "want_ip4_nbr_stats_reply"
             }
         },
         {
-            "macip_acl_interface_get": {
-                "reply": "macip_acl_interface_get_reply"
-            }
-        },
-        {
-            "macip_acl_add": {
-                "reply": "macip_acl_add_reply"
-            }
-        },
-        {
-            "macip_acl_add_replace": {
-                "reply": "macip_acl_add_replace_reply"
-            }
-        },
-        {
-            "macip_acl_dump": {
-                "reply": "macip_acl_details",
-                "stream": true
+            "want_ip6_nbr_stats": {
+                "reply": "want_ip6_nbr_stats_reply"
             }
         }
     ],
-    "vl_api_version": "0x1db2ece9",
+    "vl_api_version": "0x50890812",
     "enums": [],
     "messages": [
         [
-            "acl_plugin_get_version",
+            "want_stats",
+            [
+                "u16",
+                "_vl_msg_id"
+            ],
+            [
+                "u32",
+                "client_index"
+            ],
+            [
+                "u32",
+                "context"
+            ],
+            [
+                "u32",
+                "enable_disable"
+            ],
+            [
+                "u32",
+                "pid"
+            ],
+            {
+                "crc": "0x476f5a08"
+            }
+        ],
+        [
+            "want_stats_reply",
+            [
+                "u16",
+                "_vl_msg_id"
+            ],
+            [
+                "u32",
+                "context"
+            ],
+            [
+                "i32",
+                "retval"
+            ],
+            {
+                "crc": "0xe8d4e804"
+            }
+        ],
+        [
+            "want_interface_simple_stats",
+            [
+                "u16",
+                "_vl_msg_id"
+            ],
+            [
+                "u32",
+                "client_index"
+            ],
+            [
+                "u32",
+                "context"
+            ],
+            [
+                "u32",
+                "enable_disable"
+            ],
+            [
+                "u32",
+                "pid"
+            ],
+            {
+                "crc": "0x476f5a08"
+            }
+        ],
+        [
+            "want_interface_simple_stats_reply",
+            [
+                "u16",
+                "_vl_msg_id"
+            ],
+            [
+                "u32",
+                "context"
+            ],
+            [
+                "i32",
+                "retval"
+            ],
+            {
+                "crc": "0xe8d4e804"
+            }
+        ],
+        [
+            "want_per_interface_simple_stats",
+            [
+                "u16",
+                "_vl_msg_id"
+            ],
+            [
+                "u32",
+                "client_index"
+            ],
+            [
+                "u32",
+                "context"
+            ],
+            [
+                "u32",
+                "enable_disable"
+            ],
+            [
+                "u32",
+                "pid"
+            ],
+            [
+                "u32",
+                "num"
+            ],
+            [
+                "u32",
+                "sw_ifs",
+                0,
+                "num"
+            ],
+            {
+                "crc": "0x729d04f1"
+            }
+        ],
+        [
+            "want_per_interface_simple_stats_reply",
+            [
+                "u16",
+                "_vl_msg_id"
+            ],
+            [
+                "u32",
+                "context"
+            ],
+            [
+                "i32",
+                "retval"
+            ],
+            {
+                "crc": "0xe8d4e804"
+            }
+        ],
+        [
+            "want_interface_combined_stats",
+            [
+                "u16",
+                "_vl_msg_id"
+            ],
+            [
+                "u32",
+                "client_index"
+            ],
+            [
+                "u32",
+                "context"
+            ],
+            [
+                "u32",
+                "enable_disable"
+            ],
+            [
+                "u32",
+                "pid"
+            ],
+            {
+                "crc": "0x476f5a08"
+            }
+        ],
+        [
+            "want_interface_combined_stats_reply",
+            [
+                "u16",
+                "_vl_msg_id"
+            ],
+            [
+                "u32",
+                "context"
+            ],
+            [
+                "i32",
+                "retval"
+            ],
+            {
+                "crc": "0xe8d4e804"
+            }
+        ],
+        [
+            "want_per_interface_combined_stats",
+            [
+                "u16",
+                "_vl_msg_id"
+            ],
+            [
+                "u32",
+                "client_index"
+            ],
+            [
+                "u32",
+                "context"
+            ],
+            [
+                "u32",
+                "enable_disable"
+            ],
+            [
+                "u32",
+                "pid"
+            ],
+            [
+                "u32",
+                "num"
+            ],
+            [
+                "u32",
+                "sw_ifs",
+                0,
+                "num"
+            ],
+            {
+                "crc": "0x729d04f1"
+            }
+        ],
+        [
+            "want_per_interface_combined_stats_reply",
+            [
+                "u16",
+                "_vl_msg_id"
+            ],
+            [
+                "u32",
+                "context"
+            ],
+            [
+                "i32",
+                "retval"
+            ],
+            {
+                "crc": "0xe8d4e804"
+            }
+        ],
+        [
+            "want_ip4_fib_stats",
+            [
+                "u16",
+                "_vl_msg_id"
+            ],
+            [
+                "u32",
+                "client_index"
+            ],
+            [
+                "u32",
+                "context"
+            ],
+            [
+                "u32",
+                "enable_disable"
+            ],
+            [
+                "u32",
+                "pid"
+            ],
+            {
+                "crc": "0x476f5a08"
+            }
+        ],
+        [
+            "want_ip4_fib_stats_reply",
+            [
+                "u16",
+                "_vl_msg_id"
+            ],
+            [
+                "u32",
+                "context"
+            ],
+            [
+                "i32",
+                "retval"
+            ],
+            {
+                "crc": "0xe8d4e804"
+            }
+        ],
+        [
+            "want_ip6_fib_stats",
+            [
+                "u16",
+                "_vl_msg_id"
+            ],
+            [
+                "u32",
+                "client_index"
+            ],
+            [
+                "u32",
+                "context"
+            ],
+            [
+                "u32",
+                "enable_disable"
+            ],
+            [
+                "u32",
+                "pid"
+            ],
+            {
+                "crc": "0x476f5a08"
+            }
+        ],
+        [
+            "want_ip6_fib_stats_reply",
+            [
+                "u16",
+                "_vl_msg_id"
+            ],
+            [
+                "u32",
+                "context"
+            ],
+            [
+                "i32",
+                "retval"
+            ],
+            {
+                "crc": "0xe8d4e804"
+            }
+        ],
+        [
+            "want_ip4_mfib_stats",
+            [
+                "u16",
+                "_vl_msg_id"
+            ],
+            [
+                "u32",
+                "client_index"
+            ],
+            [
+                "u32",
+                "context"
+            ],
+            [
+                "u32",
+                "enable_disable"
+            ],
+            [
+                "u32",
+                "pid"
+            ],
+            {
+                "crc": "0x476f5a08"
+            }
+        ],
+        [
+            "want_ip4_mfib_stats_reply",
+            [
+                "u16",
+                "_vl_msg_id"
+            ],
+            [
+                "u32",
+                "context"
+            ],
+            [
+                "i32",
+                "retval"
+            ],
+            {
+                "crc": "0xe8d4e804"
+            }
+        ],
+        [
+            "want_ip6_mfib_stats",
+            [
+                "u16",
+                "_vl_msg_id"
+            ],
+            [
+                "u32",
+                "client_index"
+            ],
+            [
+                "u32",
+                "context"
+            ],
+            [
+                "u32",
+                "enable_disable"
+            ],
+            [
+                "u32",
+                "pid"
+            ],
+            {
+                "crc": "0x476f5a08"
+            }
+        ],
+        [
+            "want_ip6_mfib_stats_reply",
+            [
+                "u16",
+                "_vl_msg_id"
+            ],
+            [
+                "u32",
+                "context"
+            ],
+            [
+                "i32",
+                "retval"
+            ],
+            {
+                "crc": "0xe8d4e804"
+            }
+        ],
+        [
+            "want_ip4_nbr_stats",
+            [
+                "u16",
+                "_vl_msg_id"
+            ],
+            [
+                "u32",
+                "client_index"
+            ],
+            [
+                "u32",
+                "context"
+            ],
+            [
+                "u32",
+                "enable_disable"
+            ],
+            [
+                "u32",
+                "pid"
+            ],
+            {
+                "crc": "0x476f5a08"
+            }
+        ],
+        [
+            "want_ip4_nbr_stats_reply",
+            [
+                "u16",
+                "_vl_msg_id"
+            ],
+            [
+                "u32",
+                "context"
+            ],
+            [
+                "i32",
+                "retval"
+            ],
+            {
+                "crc": "0xe8d4e804"
+            }
+        ],
+        [
+            "want_ip6_nbr_stats",
+            [
+                "u16",
+                "_vl_msg_id"
+            ],
+            [
+                "u32",
+                "client_index"
+            ],
+            [
+                "u32",
+                "context"
+            ],
+            [
+                "u32",
+                "enable_disable"
+            ],
+            [
+                "u32",
+                "pid"
+            ],
+            {
+                "crc": "0x476f5a08"
+            }
+        ],
+        [
+            "want_ip6_nbr_stats_reply",
+            [
+                "u16",
+                "_vl_msg_id"
+            ],
+            [
+                "u32",
+                "context"
+            ],
+            [
+                "i32",
+                "retval"
+            ],
+            {
+                "crc": "0xe8d4e804"
+            }
+        ],
+        [
+            "vnet_ip4_fib_counters",
+            [
+                "u16",
+                "_vl_msg_id"
+            ],
+            [
+                "u32",
+                "vrf_id"
+            ],
+            [
+                "u32",
+                "count"
+            ],
+            [
+                "vl_api_ip4_fib_counter_t",
+                "c",
+                0,
+                "count"
+            ],
+            {
+                "crc": "0x57e3feec"
+            }
+        ],
+        [
+            "vnet_ip4_mfib_counters",
+            [
+                "u16",
+                "_vl_msg_id"
+            ],
+            [
+                "u32",
+                "vrf_id"
+            ],
+            [
+                "u32",
+                "count"
+            ],
+            [
+                "vl_api_ip4_mfib_counter_t",
+                "c",
+                0,
+                "count"
+            ],
+            {
+                "crc": "0x946eb588"
+            }
+        ],
+        [
+            "vnet_ip4_nbr_counters",
+            [
+                "u16",
+                "_vl_msg_id"
+            ],
+            [
+                "u32",
+                "count"
+            ],
+            [
+                "u32",
+                "sw_if_index"
+            ],
+            [
+                "u8",
+                "begin"
+            ],
+            [
+                "vl_api_ip4_nbr_counter_t",
+                "c",
+                0,
+                "count"
+            ],
+            {
+                "crc": "0x214c4811"
+            }
+        ],
+        [
+            "vnet_ip6_fib_counters",
+            [
+                "u16",
+                "_vl_msg_id"
+            ],
+            [
+                "u32",
+                "vrf_id"
+            ],
+            [
+                "u32",
+                "count"
+            ],
+            [
+                "vl_api_ip6_fib_counter_t",
+                "c",
+                0,
+                "count"
+            ],
+            {
+                "crc": "0x13aed73d"
+            }
+        ],
+        [
+            "vnet_ip6_mfib_counters",
+            [
+                "u16",
+                "_vl_msg_id"
+            ],
+            [
+                "u32",
+                "vrf_id"
+            ],
+            [
+                "u32",
+                "count"
+            ],
+            [
+                "vl_api_ip6_mfib_counter_t",
+                "c",
+                0,
+                "count"
+            ],
+            {
+                "crc": "0x65fe1ae3"
+            }
+        ],
+        [
+            "vnet_ip6_nbr_counters",
+            [
+                "u16",
+                "_vl_msg_id"
+            ],
+            [
+                "u32",
+                "count"
+            ],
+            [
+                "u32",
+                "sw_if_index"
+            ],
+            [
+                "u8",
+                "begin"
+            ],
+            [
+                "vl_api_ip6_nbr_counter_t",
+                "c",
+                0,
+                "count"
+            ],
+            {
+                "crc": "0x650161c0"
+            }
+        ],
+        [
+            "vnet_get_summary_stats",
             [
                 "u16",
                 "_vl_msg_id"
@@ -102,47 +739,7 @@
             }
         ],
         [
-            "acl_plugin_get_version_reply",
-            [
-                "u16",
-                "_vl_msg_id"
-            ],
-            [
-                "u32",
-                "context"
-            ],
-            [
-                "u32",
-                "major"
-            ],
-            [
-                "u32",
-                "minor"
-            ],
-            {
-                "crc": "0x9b32cf86"
-            }
-        ],
-        [
-            "acl_plugin_control_ping",
-            [
-                "u16",
-                "_vl_msg_id"
-            ],
-            [
-                "u32",
-                "client_index"
-            ],
-            [
-                "u32",
-                "context"
-            ],
-            {
-                "crc": "0x51077d14"
-            }
-        ],
-        [
-            "acl_plugin_control_ping_reply",
+            "vnet_get_summary_stats_reply",
             [
                 "u16",
                 "_vl_msg_id"
@@ -156,773 +753,169 @@
                 "retval"
             ],
             [
-                "u32",
-                "client_index"
+                "u64",
+                "total_pkts",
+                2
             ],
             [
-                "u32",
-                "vpe_pid"
-            ],
-            {
-                "crc": "0xf6b0b8ca"
-            }
-        ],
-        [
-            "acl_add_replace",
-            [
-                "u16",
-                "_vl_msg_id"
+                "u64",
+                "total_bytes",
+                2
             ],
             [
-                "u32",
-                "client_index"
-            ],
-            [
-                "u32",
-                "context"
-            ],
-            [
-                "u32",
-                "acl_index"
-            ],
-            [
-                "u8",
-                "tag",
-                64
-            ],
-            [
-                "u32",
-                "count"
-            ],
-            [
-                "vl_api_acl_rule_t",
-                "r",
-                0,
-                "count"
+                "f64",
+                "vector_rate"
             ],
             {
-                "crc": "0xe839997e"
-            }
-        ],
-        [
-            "acl_add_replace_reply",
-            [
-                "u16",
-                "_vl_msg_id"
-            ],
-            [
-                "u32",
-                "context"
-            ],
-            [
-                "u32",
-                "acl_index"
-            ],
-            [
-                "i32",
-                "retval"
-            ],
-            {
-                "crc": "0xac407b0c"
-            }
-        ],
-        [
-            "acl_del",
-            [
-                "u16",
-                "_vl_msg_id"
-            ],
-            [
-                "u32",
-                "client_index"
-            ],
-            [
-                "u32",
-                "context"
-            ],
-            [
-                "u32",
-                "acl_index"
-            ],
-            {
-                "crc": "0xef34fea4"
-            }
-        ],
-        [
-            "acl_del_reply",
-            [
-                "u16",
-                "_vl_msg_id"
-            ],
-            [
-                "u32",
-                "context"
-            ],
-            [
-                "i32",
-                "retval"
-            ],
-            {
-                "crc": "0xe8d4e804"
-            }
-        ],
-        [
-            "acl_interface_add_del",
-            [
-                "u16",
-                "_vl_msg_id"
-            ],
-            [
-                "u32",
-                "client_index"
-            ],
-            [
-                "u32",
-                "context"
-            ],
-            [
-                "u8",
-                "is_add"
-            ],
-            [
-                "u8",
-                "is_input"
-            ],
-            [
-                "u32",
-                "sw_if_index"
-            ],
-            [
-                "u32",
-                "acl_index"
-            ],
-            {
-                "crc": "0x0b2aedd1"
-            }
-        ],
-        [
-            "acl_interface_add_del_reply",
-            [
-                "u16",
-                "_vl_msg_id"
-            ],
-            [
-                "u32",
-                "context"
-            ],
-            [
-                "i32",
-                "retval"
-            ],
-            {
-                "crc": "0xe8d4e804"
-            }
-        ],
-        [
-            "acl_interface_set_acl_list",
-            [
-                "u16",
-                "_vl_msg_id"
-            ],
-            [
-                "u32",
-                "client_index"
-            ],
-            [
-                "u32",
-                "context"
-            ],
-            [
-                "u32",
-                "sw_if_index"
-            ],
-            [
-                "u8",
-                "count"
-            ],
-            [
-                "u8",
-                "n_input"
-            ],
-            [
-                "u32",
-                "acls",
-                0,
-                "count"
-            ],
-            {
-                "crc": "0x8baece38"
-            }
-        ],
-        [
-            "acl_interface_set_acl_list_reply",
-            [
-                "u16",
-                "_vl_msg_id"
-            ],
-            [
-                "u32",
-                "context"
-            ],
-            [
-                "i32",
-                "retval"
-            ],
-            {
-                "crc": "0xe8d4e804"
-            }
-        ],
-        [
-            "acl_dump",
-            [
-                "u16",
-                "_vl_msg_id"
-            ],
-            [
-                "u32",
-                "client_index"
-            ],
-            [
-                "u32",
-                "context"
-            ],
-            [
-                "u32",
-                "acl_index"
-            ],
-            {
-                "crc": "0xef34fea4"
-            }
-        ],
-        [
-            "acl_details",
-            [
-                "u16",
-                "_vl_msg_id"
-            ],
-            [
-                "u32",
-                "context"
-            ],
-            [
-                "u32",
-                "acl_index"
-            ],
-            [
-                "u8",
-                "tag",
-                64
-            ],
-            [
-                "u32",
-                "count"
-            ],
-            [
-                "vl_api_acl_rule_t",
-                "r",
-                0,
-                "count"
-            ],
-            {
-                "crc": "0x5bd895be"
-            }
-        ],
-        [
-            "acl_interface_list_dump",
-            [
-                "u16",
-                "_vl_msg_id"
-            ],
-            [
-                "u32",
-                "client_index"
-            ],
-            [
-                "u32",
-                "context"
-            ],
-            [
-                "u32",
-                "sw_if_index"
-            ],
-            {
-                "crc": "0x529cb13f"
-            }
-        ],
-        [
-            "acl_interface_list_details",
-            [
-                "u16",
-                "_vl_msg_id"
-            ],
-            [
-                "u32",
-                "context"
-            ],
-            [
-                "u32",
-                "sw_if_index"
-            ],
-            [
-                "u8",
-                "count"
-            ],
-            [
-                "u8",
-                "n_input"
-            ],
-            [
-                "u32",
-                "acls",
-                0,
-                "count"
-            ],
-            {
-                "crc": "0xd5e80809"
-            }
-        ],
-        [
-            "macip_acl_add",
-            [
-                "u16",
-                "_vl_msg_id"
-            ],
-            [
-                "u32",
-                "client_index"
-            ],
-            [
-                "u32",
-                "context"
-            ],
-            [
-                "u8",
-                "tag",
-                64
-            ],
-            [
-                "u32",
-                "count"
-            ],
-            [
-                "vl_api_macip_acl_rule_t",
-                "r",
-                0,
-                "count"
-            ],
-            {
-                "crc": "0xb3d3d65a"
-            }
-        ],
-        [
-            "macip_acl_add_reply",
-            [
-                "u16",
-                "_vl_msg_id"
-            ],
-            [
-                "u32",
-                "context"
-            ],
-            [
-                "u32",
-                "acl_index"
-            ],
-            [
-                "i32",
-                "retval"
-            ],
-            {
-                "crc": "0xac407b0c"
-            }
-        ],
-        [
-            "macip_acl_add_replace",
-            [
-                "u16",
-                "_vl_msg_id"
-            ],
-            [
-                "u32",
-                "client_index"
-            ],
-            [
-                "u32",
-                "context"
-            ],
-            [
-                "u32",
-                "acl_index"
-            ],
-            [
-                "u8",
-                "tag",
-                64
-            ],
-            [
-                "u32",
-                "count"
-            ],
-            [
-                "vl_api_macip_acl_rule_t",
-                "r",
-                0,
-                "count"
-            ],
-            {
-                "crc": "0xa0e8c01b"
-            }
-        ],
-        [
-            "macip_acl_add_replace_reply",
-            [
-                "u16",
-                "_vl_msg_id"
-            ],
-            [
-                "u32",
-                "context"
-            ],
-            [
-                "u32",
-                "acl_index"
-            ],
-            [
-                "i32",
-                "retval"
-            ],
-            {
-                "crc": "0xac407b0c"
-            }
-        ],
-        [
-            "macip_acl_del",
-            [
-                "u16",
-                "_vl_msg_id"
-            ],
-            [
-                "u32",
-                "client_index"
-            ],
-            [
-                "u32",
-                "context"
-            ],
-            [
-                "u32",
-                "acl_index"
-            ],
-            {
-                "crc": "0xef34fea4"
-            }
-        ],
-        [
-            "macip_acl_del_reply",
-            [
-                "u16",
-                "_vl_msg_id"
-            ],
-            [
-                "u32",
-                "context"
-            ],
-            [
-                "i32",
-                "retval"
-            ],
-            {
-                "crc": "0xe8d4e804"
-            }
-        ],
-        [
-            "macip_acl_interface_add_del",
-            [
-                "u16",
-                "_vl_msg_id"
-            ],
-            [
-                "u32",
-                "client_index"
-            ],
-            [
-                "u32",
-                "context"
-            ],
-            [
-                "u8",
-                "is_add"
-            ],
-            [
-                "u32",
-                "sw_if_index"
-            ],
-            [
-                "u32",
-                "acl_index"
-            ],
-            {
-                "crc": "0x6a6be97c"
-            }
-        ],
-        [
-            "macip_acl_interface_add_del_reply",
-            [
-                "u16",
-                "_vl_msg_id"
-            ],
-            [
-                "u32",
-                "context"
-            ],
-            [
-                "i32",
-                "retval"
-            ],
-            {
-                "crc": "0xe8d4e804"
-            }
-        ],
-        [
-            "macip_acl_dump",
-            [
-                "u16",
-                "_vl_msg_id"
-            ],
-            [
-                "u32",
-                "client_index"
-            ],
-            [
-                "u32",
-                "context"
-            ],
-            [
-                "u32",
-                "acl_index"
-            ],
-            {
-                "crc": "0xef34fea4"
-            }
-        ],
-        [
-            "macip_acl_details",
-            [
-                "u16",
-                "_vl_msg_id"
-            ],
-            [
-                "u32",
-                "context"
-            ],
-            [
-                "u32",
-                "acl_index"
-            ],
-            [
-                "u8",
-                "tag",
-                64
-            ],
-            [
-                "u32",
-                "count"
-            ],
-            [
-                "vl_api_macip_acl_rule_t",
-                "r",
-                0,
-                "count"
-            ],
-            {
-                "crc": "0xdd2b55ba"
-            }
-        ],
-        [
-            "macip_acl_interface_get",
-            [
-                "u16",
-                "_vl_msg_id"
-            ],
-            [
-                "u32",
-                "client_index"
-            ],
-            [
-                "u32",
-                "context"
-            ],
-            {
-                "crc": "0x51077d14"
-            }
-        ],
-        [
-            "macip_acl_interface_get_reply",
-            [
-                "u16",
-                "_vl_msg_id"
-            ],
-            [
-                "u32",
-                "context"
-            ],
-            [
-                "u32",
-                "count"
-            ],
-            [
-                "u32",
-                "acls",
-                0,
-                "count"
-            ],
-            {
-                "crc": "0xaccf9b05"
-            }
-        ],
-        [
-            "macip_acl_interface_list_dump",
-            [
-                "u16",
-                "_vl_msg_id"
-            ],
-            [
-                "u32",
-                "client_index"
-            ],
-            [
-                "u32",
-                "context"
-            ],
-            [
-                "u32",
-                "sw_if_index"
-            ],
-            {
-                "crc": "0x529cb13f"
-            }
-        ],
-        [
-            "macip_acl_interface_list_details",
-            [
-                "u16",
-                "_vl_msg_id"
-            ],
-            [
-                "u32",
-                "context"
-            ],
-            [
-                "u32",
-                "sw_if_index"
-            ],
-            [
-                "u8",
-                "count"
-            ],
-            [
-                "u32",
-                "acls",
-                0,
-                "count"
-            ],
-            {
-                "crc": "0x29783fa0"
+                "crc": "0x32b87c56"
             }
         ]
     ],
     "types": [
         [
-            "acl_rule",
+            "ip4_fib_counter",
             [
-                "u8",
-                "is_permit"
+                "u32",
+                "address"
             ],
             [
                 "u8",
-                "is_ipv6"
+                "address_length"
             ],
             [
-                "u8",
-                "src_ip_addr",
-                16
+                "u64",
+                "packets"
             ],
             [
-                "u8",
-                "src_ip_prefix_len"
-            ],
-            [
-                "u8",
-                "dst_ip_addr",
-                16
-            ],
-            [
-                "u8",
-                "dst_ip_prefix_len"
-            ],
-            [
-                "u8",
-                "proto"
-            ],
-            [
-                "u16",
-                "srcport_or_icmptype_first"
-            ],
-            [
-                "u16",
-                "srcport_or_icmptype_last"
-            ],
-            [
-                "u16",
-                "dstport_or_icmpcode_first"
-            ],
-            [
-                "u16",
-                "dstport_or_icmpcode_last"
-            ],
-            [
-                "u8",
-                "tcp_flags_mask"
-            ],
-            [
-                "u8",
-                "tcp_flags_value"
+                "u64",
+                "bytes"
             ],
             {
-                "crc": "0x6f99bf4d"
+                "crc": "0xa6ceb0c9"
             }
         ],
         [
-            "macip_acl_rule",
+            "ip4_mfib_counter",
             [
                 "u8",
-                "is_permit"
+                "source",
+                4
             ],
             [
                 "u8",
-                "is_ipv6"
+                "group",
+                4
             ],
             [
                 "u8",
-                "src_mac",
-                6
+                "group_length"
+            ],
+            [
+                "u64",
+                "packets"
+            ],
+            [
+                "u64",
+                "bytes"
+            ],
+            {
+                "crc": "0x2cee4721"
+            }
+        ],
+        [
+            "ip4_nbr_counter",
+            [
+                "u32",
+                "address"
             ],
             [
                 "u8",
-                "src_mac_mask",
-                6
+                "link_type"
+            ],
+            [
+                "u64",
+                "packets"
+            ],
+            [
+                "u64",
+                "bytes"
+            ],
+            {
+                "crc": "0xb9f974d6"
+            }
+        ],
+        [
+            "ip6_fib_counter",
+            [
+                "u64",
+                "address",
+                2
             ],
             [
                 "u8",
-                "src_ip_addr",
+                "address_length"
+            ],
+            [
+                "u64",
+                "packets"
+            ],
+            [
+                "u64",
+                "bytes"
+            ],
+            {
+                "crc": "0xf1197efb"
+            }
+        ],
+        [
+            "ip6_mfib_counter",
+            [
+                "u8",
+                "source",
                 16
             ],
             [
                 "u8",
-                "src_ip_prefix_len"
+                "group",
+                16
+            ],
+            [
+                "u8",
+                "group_length"
+            ],
+            [
+                "u64",
+                "packets"
+            ],
+            [
+                "u64",
+                "bytes"
             ],
             {
-                "crc": "0x70589f1e"
+                "crc": "0x90a9590e"
+            }
+        ],
+        [
+            "ip6_nbr_counter",
+            [
+                "u64",
+                "address",
+                2
+            ],
+            [
+                "u8",
+                "link_type"
+            ],
+            [
+                "u64",
+                "packets"
+            ],
+            [
+                "u64",
+                "bytes"
+            ],
+            {
+                "crc": "0x2d755474"
             }
         ]
     ]

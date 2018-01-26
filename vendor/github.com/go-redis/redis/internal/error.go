@@ -12,11 +12,24 @@ type RedisError string
 
 func (e RedisError) Error() string { return string(e) }
 
-func IsRetryableError(err error) bool {
-	return IsNetworkError(err) || err.Error() == "ERR max number of clients reached"
+func IsRetryableError(err error, retryNetError bool) bool {
+	if IsNetworkError(err) {
+		return retryNetError
+	}
+	s := err.Error()
+	if s == "ERR max number of clients reached" {
+		return true
+	}
+	if strings.HasPrefix(s, "LOADING ") {
+		return true
+	}
+	if strings.HasPrefix(s, "CLUSTERDOWN ") {
+		return true
+	}
+	return false
 }
 
-func IsInternalError(err error) bool {
+func IsRedisError(err error) bool {
 	_, ok := err.(RedisError)
 	return ok
 }
@@ -33,7 +46,7 @@ func IsBadConn(err error, allowTimeout bool) bool {
 	if err == nil {
 		return false
 	}
-	if IsInternalError(err) {
+	if IsRedisError(err) {
 		return false
 	}
 	if allowTimeout {
@@ -45,7 +58,7 @@ func IsBadConn(err error, allowTimeout bool) bool {
 }
 
 func IsMovedError(err error) (moved bool, ask bool, addr string) {
-	if !IsInternalError(err) {
+	if !IsRedisError(err) {
 		return
 	}
 
@@ -67,9 +80,5 @@ func IsMovedError(err error) (moved bool, ask bool, addr string) {
 }
 
 func IsLoadingError(err error) bool {
-	return strings.HasPrefix(err.Error(), "LOADING")
-}
-
-func IsExecAbortError(err error) bool {
-	return strings.HasPrefix(err.Error(), "EXECABORT")
+	return strings.HasPrefix(err.Error(), "LOADING ")
 }

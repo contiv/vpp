@@ -94,7 +94,7 @@ func createMiniRedisConnection() {
 		DB: nodeConfig.DB,
 
 		// Enables read only queries on slave nodes.
-		ReadOnly: nodeConfig.EnableReadQueryOnSlave,
+		/*ReadOnly: nodeConfig.EnableReadQueryOnSlave,*/
 
 		// TLS Config to use. When set, TLS will be negotiated.
 		TLSConfig: nil,

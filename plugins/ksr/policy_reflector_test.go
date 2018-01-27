@@ -607,12 +607,7 @@ func testResyncPolicySingleUpdateFail(t *testing.T) {
 		time.Sleep(time.Millisecond * 100)
 	}
 
-	// For test data 2, if data comes back from the ds in different order,
-	// reflect.DeepEqual will evaluate it as different data and thus trigger
-	// an update. So we may see one or two updates.
-	gomega.Expect(policyTestVars.policyReflector.GetStats().NumUpdates).
-		To(gomega.Or(gomega.Equal(upds+1), gomega.Equal(upds+2)))
-
+	gomega.Expect(policyTestVars.policyReflector.GetStats().NumUpdates).To(gomega.Equal(upds + 1))
 	gomega.Expect(updErrs + 1).To(gomega.Equal(policyTestVars.policyReflector.GetStats().NumUpdErrors))
 	gomega.Expect(policyTestVars.mockKvWriter.ds).Should(gomega.HaveLen(3))
 

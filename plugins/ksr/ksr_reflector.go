@@ -35,11 +35,13 @@ type ReflectorStats struct {
 	NumAdds    int
 	NumDeletes int
 	NumUpdates int
+	NumResyncs int
 
 	NumArgErrors int
 	NumAddErrors int
 	NumDelErrors int
 	NumUpdErrors int
+	NumResErrors int
 }
 
 // Reflector holds data that is common to all KSR reflectors.
@@ -289,6 +291,7 @@ func (r *Reflector) syncDataStoreWithK8sCache(dsItems DsItems) error {
 func (r *Reflector) startDataStoreResync() {
 	go func(r *Reflector) {
 		r.Log.Debug("%s: starting data sync", r.objType)
+		r.stats.NumResyncs++
 
 		// Keep trying to reconcile until data sync succeeds.
 		for {
@@ -305,6 +308,7 @@ func (r *Reflector) startDataStoreResync() {
 						return
 					}
 
+					r.stats.NumResErrors++
 					// Wait before attempting the resync again
 					select {
 					case <-r.ksrStopCh: // KSR is being terminated
@@ -320,6 +324,7 @@ func (r *Reflector) startDataStoreResync() {
 				r.Log.Debugf("%s data sync: error listing data store items, '%s'", r.objType, err)
 			}
 
+			r.stats.NumResErrors++
 			// Wait before attempting to list data store items again
 			select {
 			case <-r.ksrStopCh: // KSR is being aborted

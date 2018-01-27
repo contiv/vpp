@@ -41,24 +41,45 @@ type KeyProtoValWriter interface {
 
 // mockKeyProtoValWriter is a mock implementation of KeyProtoValWriter used in unit tests.
 type mockKeyProtoValWriter struct {
-	ds map[string]proto.Message
+	numErr int
+	err    error
+	ds     map[string]proto.Message
 }
 
 // newMockKeyProtoValWriter initializes a new instance of mockKeyProtoValWriter.
 func newMockKeyProtoValWriter() *mockKeyProtoValWriter {
-	mock := &mockKeyProtoValWriter{}
-	mock.ds = make(map[string]proto.Message)
-	return mock
+	return &mockKeyProtoValWriter{
+		numErr: 0,
+		err:    nil,
+		ds:     make(map[string]proto.Message),
+	}
+}
+
+// setError sets an error value to be returned by numErr subsequent data store
+// operations.
+func (mock *mockKeyProtoValWriter) setError(err error, numErr int) {
+	mock.numErr = numErr
+	mock.err = err
 }
 
 // Put puts data into an in-memory map simulating a key-value datastore.
 func (mock *mockKeyProtoValWriter) Put(key string, data proto.Message, opts ...datasync.PutOption) error {
+	if mock.numErr > 0 {
+		mock.numErr--
+		return mock.err
+	}
+
 	mock.ds[key] = data
 	return nil
 }
 
 // Delete removes data from an in-memory map simulating a key-value datastore.
 func (mock *mockKeyProtoValWriter) Delete(key string, opts ...datasync.DelOption) (existed bool, err error) {
+	if mock.numErr > 0 {
+		mock.numErr--
+		return false, mock.err
+	}
+
 	_, existed = mock.ds[key]
 	if !existed {
 		return false, nil
@@ -69,6 +90,11 @@ func (mock *mockKeyProtoValWriter) Delete(key string, opts ...datasync.DelOption
 
 // GetValue is a helper for unit tests to get value stored under a given key.
 func (mock *mockKeyProtoValWriter) GetValue(key string, out proto.Message) (err error) {
+	if mock.numErr > 0 {
+		mock.numErr--
+		return mock.err
+	}
+
 	data, exists := mock.ds[key]
 	if !exists {
 		return errors.New(noDataForKey + key)

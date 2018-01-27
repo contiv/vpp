@@ -239,16 +239,16 @@ func (plugin *Plugin) monitorEtcdStatus(closeCh chan struct{}) {
 				switch v.State {
 				case status.OperationalState_INIT:
 					if plugin.etcdStatus == status.OperationalState_OK {
-						StopDataStoreUpdates()
+						dataStoreDownEvent()
 					}
 				case status.OperationalState_ERROR:
 					if plugin.etcdStatus == status.OperationalState_OK {
-						StopDataStoreUpdates()
+						dataStoreDownEvent()
 					}
 				case status.OperationalState_OK:
 					if plugin.etcdStatus == status.OperationalState_INIT ||
 						plugin.etcdStatus == status.OperationalState_ERROR {
-						SyncDataStoresWithK8sCaches()
+						dataStoreUpEvent()
 					}
 				}
 				plugin.etcdStatus = v.State

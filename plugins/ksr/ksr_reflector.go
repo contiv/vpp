@@ -56,9 +56,9 @@ type Reflector struct {
 	Lister KeyProtoValLister
 	// objType defines the type of the object handled by a particular reflector
 	objType string
-	// stopCh is used to gracefully shutdown the Reflector
-	stopCh <-chan struct{}
-	wg     *sync.WaitGroup
+	// ksrStopCh is used to gracefully shutdown the Reflector
+	ksrStopCh <-chan struct{}
+	wg        *sync.WaitGroup
 	// K8s cache
 	k8sStore cache.Store
 	// K8s controller
@@ -73,6 +73,8 @@ type Reflector struct {
 	// Data store sync status and the mutex that protects access to it
 	dsSynced bool
 	dsMutex  sync.Mutex
+
+	syncStopCh chan bool
 }
 
 // reflectors is the reflector registry
@@ -102,17 +104,33 @@ type ReflectorFunctions struct {
 	K8sClntGetFunc K8sClientGetter
 }
 
-// StopDataStoreUpdates stops data store updates on all registered reflectors.
-func StopDataStoreUpdates() {
+// dataStoreDownEvent signals to all registered reflectors that the data store
+// is down. Reflectors should stop updates from the  respective K8s caches.
+// Optionally, if data store resync with the K8s cache is in progress, it will
+// be abort.
+func dataStoreDownEvent() {
 	for _, r := range reflectors {
+		select {
+		case r.syncStopCh <- true:
+			r.Log.Infof("%s: sent dataStoreResyncAbort signal", r.objType)
+		default:
+			r.Log.Infof("%s: syncStopCh full", r.objType)
+		}
 		r.stopDataStoreUpdates()
 	}
 }
 
-// SyncDataStoresWithK8sCaches starts data store resync on all registered
-// reflectors.
-func SyncDataStoresWithK8sCaches() {
+// dataStoreUpEvent signals to all registered reflectors that the data store
+// is back up. Reflectors should start the resync procedure between their
+// respective data stores with their respective K8s caches.
+func dataStoreUpEvent() {
 	for _, r := range reflectors {
+		select {
+		case <-r.syncStopCh:
+			r.Log.Infof("%s: syncStopCh flushed", r.objType)
+		default:
+			r.Log.Infof("%s: syncStopCh not flushed", r.objType)
+		}
 		r.startDataStoreResync()
 	}
 }
@@ -154,39 +172,11 @@ func (r *Reflector) stopDataStoreUpdates() {
 	r.dsSynced = false
 }
 
-// startDataStoreResync starts the syncrhonization of the data store
-// with the relflector's K8s cache.
-func (r *Reflector) startDataStoreResync() {
-	go func(r *Reflector) {
-		r.Log.Debug("%s data sync started", r.objType)
-
-		// Keep trying to reconcile until data sync succeeds.
-		for {
-			// Try to get a snapshot of the data store.
-			dsItems, err := r.listDataStoreItems(r.prefix, r.pa)
-			if err == nil {
-				for {
-					// Try to perform mark-and-sweep data sync
-					err := r.syncDataStoreWithK8sCache(dsItems)
-					if err == nil {
-						r.Log.Infof("%s data sync done, stats: %+v", r.objType, r.stats)
-						return
-					}
-					time.Sleep(100 * time.Millisecond)
-				}
-			} else {
-				r.Log.Debugf("%s data sync: error listing data store items, '%s'", r.objType, err)
-			}
-			time.Sleep(100 * time.Millisecond)
-		}
-	}(r)
-}
-
 // ksrRun runs k8s subscription in a separate go routine.
 func (r *Reflector) ksrRun() {
 	defer r.wg.Done()
 	r.Log.Infof("%s reflector is now running", r.objType)
-	r.k8sController.Run(r.stopCh)
+	r.k8sController.Run(r.ksrStopCh)
 	r.Log.Infof("%s reflector stopped", r.objType)
 }
 
@@ -222,7 +212,9 @@ func (r *Reflector) listDataStoreItems(pfx string, iaf func() proto.Message) (Ds
 }
 
 // markAndSweep performs the mark-and-sweep reconciliation between data in
-// the k8s cache and data in Etcd
+// the k8s cache and data in Etcd. This function must be called with dsMutex
+// locked, because it manipulates dsFlag and because no updates to the data
+// store can happen while the resync is in progress.
 func (r *Reflector) markAndSweep(dsItems DsItems, oc K8sToProtoConverter) error {
 	for _, obj := range r.k8sStore.List() {
 		k8sProtoObj, key, ok := oc(obj)
@@ -266,6 +258,7 @@ func (r *Reflector) markAndSweep(dsItems DsItems, oc K8sToProtoConverter) error 
 		delete(dsItems, key)
 	}
 
+	// This must be performed with r.dsMutex locked
 	r.dsSynced = true
 	return nil
 }
@@ -289,18 +282,74 @@ func (r *Reflector) syncDataStoreWithK8sCache(dsItems DsItems) error {
 	return nil
 }
 
-// ksrAdd adds an item to the Etcd data store
+// startDataStoreResync starts the synchronization of the data store with
+// the reflector's K8s cache. The resync will only stop if it's successful,
+// or until it's aborted because of a data store failure or a KSR process
+// termination notification.
+func (r *Reflector) startDataStoreResync() {
+	go func(r *Reflector) {
+		r.Log.Debug("%s: starting data sync", r.objType)
+
+		// Keep trying to reconcile until data sync succeeds.
+		for {
+			// Try to get a snapshot of the data store.
+			dsItems, err := r.listDataStoreItems(r.prefix, r.pa)
+			if err == nil {
+				// Now that we have a data store snapshot, keep trying to
+				// resync the cache with it
+				for {
+					// Try to perform mark-and-sweep data sync
+					err := r.syncDataStoreWithK8sCache(dsItems)
+					if err == nil {
+						r.Log.Infof("%s: data sync done, stats %+v", r.objType, r.stats)
+						return
+					}
+
+					// Wait before attempting the resync again
+					select {
+					case <-r.ksrStopCh: // KSR is being terminated
+						r.Log.Debug("Resync aborted due to KSR process termination")
+						return
+					case <-r.syncStopCh: // Data Store resync is aborted
+						r.Log.Debug("Resync aborted due to data store down")
+						return
+					case <-time.After(100 * time.Millisecond):
+					}
+				}
+			} else {
+				r.Log.Debugf("%s data sync: error listing data store items, '%s'", r.objType, err)
+			}
+
+			// Wait before attempting to list data store items again
+			select {
+			case <-r.ksrStopCh: // KSR is being aborted
+				r.Log.Debug("Resync aborted due to KSR process termination")
+				return
+			case <-r.syncStopCh: // Data Store resync is aborted
+				r.Log.Debug("Resync aborted due to data store down")
+				return
+			case <-time.After(100 * time.Millisecond):
+			}
+		}
+	}(r)
+}
+
+// ksrAdd adds an item to the Etcd data store. This function must be called
+// with dsMutex locked, since it manipulates the dsSynced flag.
 func (r *Reflector) ksrAdd(key string, item proto.Message) {
 	err := r.Writer.Put(key, item)
 	if err != nil {
 		r.Log.WithField("err", err).Warnf("%s: failed to add item to data store", r.objType)
 		r.stats.NumAddErrors++
+		r.dsSynced = false
+		r.startDataStoreResync()
 		return
 	}
 	r.stats.NumAdds++
 }
 
-// ksrUpdate updates an item to the Etcd data store
+// ksrUpdate updates an item to the Etcd data store. This function must be
+// called with dsMutex locked, since it manipulates the dsSynced flag.
 func (r *Reflector) ksrUpdate(key string, itemOld, itemNew proto.Message) {
 	if !reflect.DeepEqual(itemOld, itemNew) {
 
@@ -311,19 +360,24 @@ func (r *Reflector) ksrUpdate(key string, itemOld, itemNew proto.Message) {
 			r.Log.WithField("err", err).
 				Warnf("%s: failed to update item in data store", r.objType)
 			r.stats.NumUpdErrors++
+			r.dsSynced = false
+			r.startDataStoreResync()
 			return
 		}
 		r.stats.NumUpdates++
 	}
 }
 
-// ksrDelete deletes an item from the Etcd data store
+// ksrDelete deletes an item from the Etcd data store. This function must be
+// called with dsMutex locked, since it manipulates the dsSynced flag.
 func (r *Reflector) ksrDelete(key string) {
 	_, err := r.Writer.Delete(key)
 	if err != nil {
 		r.Log.WithField("err", err).
 			Warnf("%s: Failed to remove item from data store", r.objType)
 		r.stats.NumDelErrors++
+		r.dsSynced = false
+		r.startDataStoreResync()
 		return
 	}
 	r.stats.NumDeletes++
@@ -332,14 +386,16 @@ func (r *Reflector) ksrDelete(key string) {
 // Init subscribes to K8s cluster to watch for changes in the configuration
 // of k8s services. The subscription does not become active until Start()
 // is called.
-func (r *Reflector) ksrInit(stopCh2 <-chan struct{}, wg *sync.WaitGroup, prefix string,
+func (r *Reflector) ksrInit(stopCh <-chan struct{}, wg *sync.WaitGroup, prefix string,
 	objType string, k8sObjType k8sRuntime.Object, ksrFuncs ReflectorFunctions) error {
 
 	if _, objExists := reflectors[objType]; objExists {
 		return fmt.Errorf("%s reflector type already exists", r.objType)
 	}
 
-	r.stopCh = stopCh2
+	r.syncStopCh = make(chan bool, 1)
+
+	r.ksrStopCh = stopCh
 	r.wg = wg
 
 	r.prefix = prefix

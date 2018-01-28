@@ -307,7 +307,6 @@ func (r *Reflector) startDataStoreResync() {
 				// Now that we have a data store snapshot, keep trying to
 				// resync the cache with it
 				for {
-					r.stats.NumResyncs++
 					dsItemsCopy := make(DsItems)
 					for k, v := range dsItems {
 						dsItemsCopy[k] = v
@@ -317,10 +316,12 @@ func (r *Reflector) startDataStoreResync() {
 					err := r.syncDataStoreWithK8sCache(dsItemsCopy)
 					if err == nil {
 						r.Log.Infof("%s: data sync done, stats %+v", r.objType, r.stats)
+						r.stats.NumResyncs++
 						return
 					}
 
 					r.stats.NumResErrors++
+					r.stats.NumResyncs++
 					// Wait before attempting the resync again
 					select {
 					case <-r.ksrStopCh: // KSR is being terminated
@@ -337,6 +338,7 @@ func (r *Reflector) startDataStoreResync() {
 			}
 
 			r.stats.NumResErrors++
+			r.stats.NumResyncs++
 			// Wait before attempting to list data store items again
 			select {
 			case <-r.ksrStopCh: // KSR is being aborted

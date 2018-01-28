@@ -122,5 +122,3 @@ func (kvl *mockKeyProtoValLister) injectError(err error, numErr int) {
 	kvl.numErr = numErr
 	kvl.err = err
 }
-
-

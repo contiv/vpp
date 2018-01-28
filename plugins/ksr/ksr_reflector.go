@@ -266,9 +266,6 @@ func (r *Reflector) markAndSweep(dsItems DsItems, oc K8sToProtoConverter) error 
 
 		delete(dsItems, key)
 	}
-
-	// This must be performed with r.dsMutex locked
-	r.dsSynced = true
 	return nil
 }
 
@@ -277,6 +274,8 @@ func (r *Reflector) markAndSweep(dsItems DsItems, oc K8sToProtoConverter) error 
 func (r *Reflector) syncDataStoreWithK8sCache(dsItems DsItems) error {
 	r.dsMutex.Lock()
 	defer r.dsMutex.Unlock()
+
+	r.stats.NumResyncs++
 
 	// don't do anything unless the K8s cache itself is synced
 	if !r.k8sController.HasSynced() {
@@ -288,6 +287,8 @@ func (r *Reflector) syncDataStoreWithK8sCache(dsItems DsItems) error {
 	if err != nil {
 		return fmt.Errorf("%s data sync: mark-and-sweep failed, '%s'", r.objType, err)
 	}
+
+	r.dsSynced = true
 	return nil
 }
 
@@ -316,36 +317,34 @@ func (r *Reflector) startDataStoreResync() {
 					err := r.syncDataStoreWithK8sCache(dsItemsCopy)
 					if err == nil {
 						r.Log.Infof("%s: data sync done, stats %+v", r.objType, r.stats)
-						r.stats.NumResyncs++
 						return
 					}
+					r.Log.Infof("%s data sync: syncDataStoreWithK8sCache failed, '%s'", r.objType, err)
+					r.stats.NumResErrors++	// unprotected by dsMutex, but dsSync=false
 
-					r.stats.NumResErrors++
-					r.stats.NumResyncs++
 					// Wait before attempting the resync again
 					select {
 					case <-r.ksrStopCh: // KSR is being terminated
-						r.Log.Debug("Resync aborted due to KSR process termination")
+						r.Log.Info("Data sync aborted due to KSR process termination")
 						return
 					case <-r.syncStopCh: // Data Store resync is aborted
-						r.Log.Debug("Resync aborted due to data store down")
+						r.Log.Info("Data sync aborted due to data store down")
 						return
 					case <-time.After(100 * time.Millisecond):
 					}
 				}
-			} else {
-				r.Log.Debugf("%s data sync: error listing data store items, '%s'", r.objType, err)
 			}
+			r.Log.Infof("%s data sync: error listing data store items, '%s'", r.objType, err)
+			r.stats.NumResErrors++			// unprotected by dsMutex, but dsSync=false
+			r.stats.NumResyncs++			// unprotected by dsMutex, but dsSync=false
 
-			r.stats.NumResErrors++
-			r.stats.NumResyncs++
 			// Wait before attempting to list data store items again
 			select {
 			case <-r.ksrStopCh: // KSR is being aborted
-				r.Log.Debug("Resync aborted due to KSR process termination")
+				r.Log.Info("Data sync aborted due to KSR process termination")
 				return
 			case <-r.syncStopCh: // Data Store resync is aborted
-				r.Log.Debug("Resync aborted due to data store down")
+				r.Log.Info("Data sync aborted due to data store down")
 				return
 			case <-time.After(100 * time.Millisecond):
 			}

@@ -55,9 +55,9 @@ func newMockKeyProtoValWriter() *mockKeyProtoValWriter {
 	}
 }
 
-// setError sets an error value to be returned by numErr subsequent data store
+// injectError sets an error value to be returned by numErr subsequent data store
 // operations.
-func (mock *mockKeyProtoValWriter) setError(err error, numErr int) {
+func (mock *mockKeyProtoValWriter) injectError(err error, numErr int) {
 	mock.numErr = numErr
 	mock.err = err
 }

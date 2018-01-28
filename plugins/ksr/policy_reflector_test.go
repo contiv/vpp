@@ -324,13 +324,13 @@ func TestPolicyReflector(t *testing.T) {
 	t.Run("updatePolicy", testUpdatePolicy)
 
 	policyTestVars.mockKvWriter.ClearDs()
-	t.Run("testResyncPolicySingleAddFail", testResyncPolicySingleAddFail)
+	t.Run("testResyncPolicyAddFail", testResyncPolicyAddFail)
 
 	policyTestVars.mockKvWriter.ClearDs()
-	t.Run("testResyncPolicySingleDeleteFail", testResyncPolicySingleDeleteFail)
+	t.Run("testResyncPolicySingleDeleteFail", testResyncPolicyDeleteFail)
 
 	policyTestVars.mockKvWriter.ClearDs()
-	t.Run("testResyncPolicySingleUpdateFail", testResyncPolicySingleUpdateFail)
+	t.Run("testResyncPolicyUpdateFail", testResyncPolicyUpdateFail)
 }
 
 func testAddDeletePolicy(t *testing.T) {
@@ -381,6 +381,9 @@ func testAddDeletePolicy(t *testing.T) {
 		err := policyTestVars.mockKvWriter.GetValue(key, protoPolicy)
 		gomega.Ω(err).ShouldNot(gomega.Succeed())
 	}
+
+	policyTestVars.policyReflector.Log.Infof("%s: data sync done, stats %+v",
+		policyTestVars.policyReflector.objType, policyTestVars.policyReflector.stats)
 }
 
 func testUpdatePolicy(t *testing.T) {
@@ -441,9 +444,12 @@ func testUpdatePolicy(t *testing.T) {
 	gomega.Ω(err).Should(gomega.Succeed())
 
 	checkPolicyToProtoTranslation(t, protoPolicyNew, k8sPolicyNew)
+
+	policyTestVars.policyReflector.Log.Infof("%s: data sync done, stats %+v",
+		policyTestVars.policyReflector.objType, policyTestVars.policyReflector.stats)
 }
 
-func testResyncPolicySingleAddFail(t *testing.T) {
+func testResyncPolicyAddFail(t *testing.T) {
 
 	// Set the mock K8s cache to expect 3 values.
 	MockK8sCache.ListFunc = func() []interface{} {
@@ -467,7 +473,9 @@ func testResyncPolicySingleAddFail(t *testing.T) {
 	gomega.Expect(adds + 2).To(gomega.Equal(policyTestVars.policyReflector.GetStats().NumAdds))
 	gomega.Expect(addErrs).To(gomega.Equal(policyTestVars.policyReflector.GetStats().NumAddErrors))
 
-	policyTestVars.mockKvWriter.setError(fmt.Errorf("%s", "Test error"), 1)
+	// 2 errors will test both the resync good path and a put failure during
+	// resync. 
+	policyTestVars.mockKvWriter.injectError(fmt.Errorf("%s", "Test error"), 2)
 
 	policyTestVars.k8sListWatch.Add(&policyTestVars.policyTestData[2])
 
@@ -481,7 +489,7 @@ func testResyncPolicySingleAddFail(t *testing.T) {
 
 	gomega.Expect(adds + 3).To(gomega.Equal(policyTestVars.policyReflector.GetStats().NumAdds))
 	gomega.Expect(upds).To(gomega.Equal(policyTestVars.policyReflector.GetStats().NumUpdates))
-	gomega.Expect(addErrs + 1).To(gomega.Equal(policyTestVars.policyReflector.GetStats().NumAddErrors))
+	gomega.Expect(addErrs + 2).To(gomega.Equal(policyTestVars.policyReflector.GetStats().NumAddErrors))
 	gomega.Expect(policyTestVars.mockKvWriter.ds).Should(gomega.HaveLen(3))
 
 	key := policy.Key(policyTestVars.policyTestData[2].GetName(), policyTestVars.policyTestData[2].GetNamespace())
@@ -491,7 +499,7 @@ func testResyncPolicySingleAddFail(t *testing.T) {
 	checkPolicyToProtoTranslation(t, protoPolicy, &policyTestVars.policyTestData[2])
 }
 
-func testResyncPolicySingleDeleteFail(t *testing.T) {
+func testResyncPolicyDeleteFail(t *testing.T) {
 	// Set the mock K8s cache to expect 3 values.
 	MockK8sCache.ListFunc = func() []interface{} {
 		return []interface{}{
@@ -513,7 +521,7 @@ func testResyncPolicySingleDeleteFail(t *testing.T) {
 
 	gomega.Expect(adds + 3).To(gomega.Equal(policyTestVars.policyReflector.GetStats().NumAdds))
 
-	policyTestVars.mockKvWriter.setError(fmt.Errorf("%s", "Test error"), 1)
+	policyTestVars.mockKvWriter.injectError(fmt.Errorf("%s", "Test error"), 2)
 
 	// Delete an element, write error happens during delete
 	policyTestVars.k8sListWatch.Delete(&policyTestVars.policyTestData[1])
@@ -530,7 +538,7 @@ func testResyncPolicySingleDeleteFail(t *testing.T) {
 	// TODO: Resync doing an unexpected update of test data[2]
 	// gomega.Expect(upds + 1).To(gomega.Equal(policyTestVars.policyReflector.GetStats().NumUpdates))
 	gomega.Expect(dels + 1).To(gomega.Equal(policyTestVars.policyReflector.GetStats().NumDeletes))
-	gomega.Expect(delErrs + 1).To(gomega.Equal(policyTestVars.policyReflector.GetStats().NumDelErrors))
+	gomega.Expect(delErrs + 2).To(gomega.Equal(policyTestVars.policyReflector.GetStats().NumDelErrors))
 	gomega.Expect(policyTestVars.mockKvWriter.ds).Should(gomega.HaveLen(2))
 
 	key := policy.Key(policyTestVars.policyTestData[1].GetName(), policyTestVars.policyTestData[2].GetNamespace())
@@ -539,7 +547,7 @@ func testResyncPolicySingleDeleteFail(t *testing.T) {
 	gomega.Ω(err).ShouldNot(gomega.Succeed())
 }
 
-func testResyncPolicySingleUpdateFail(t *testing.T) {
+func testResyncPolicyUpdateFail(t *testing.T) {
 	k8sPolicyOld := &policyTestVars.policyTestData[0]
 	tmpBuf, err := json.Marshal(k8sPolicyOld)
 	gomega.Ω(err).Should(gomega.Succeed())
@@ -594,7 +602,7 @@ func testResyncPolicySingleUpdateFail(t *testing.T) {
 		}
 	}
 
-	policyTestVars.mockKvWriter.setError(fmt.Errorf("%s", "Test error"), 1)
+	policyTestVars.mockKvWriter.injectError(fmt.Errorf("%s", "Test error"), 2)
 
 	// Delete an element, write error happens during delete
 	policyTestVars.k8sListWatch.Update(k8sPolicyOld, k8sPolicyNew)
@@ -608,7 +616,7 @@ func testResyncPolicySingleUpdateFail(t *testing.T) {
 	}
 
 	gomega.Expect(policyTestVars.policyReflector.GetStats().NumUpdates).To(gomega.Equal(upds + 1))
-	gomega.Expect(updErrs + 1).To(gomega.Equal(policyTestVars.policyReflector.GetStats().NumUpdErrors))
+	gomega.Expect(updErrs + 2).To(gomega.Equal(policyTestVars.policyReflector.GetStats().NumUpdErrors))
 	gomega.Expect(policyTestVars.mockKvWriter.ds).Should(gomega.HaveLen(3))
 
 	key := policy.Key(k8sPolicyNew.GetName(), k8sPolicyNew.GetNamespace())

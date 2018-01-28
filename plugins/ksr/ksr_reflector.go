@@ -217,6 +217,13 @@ func (r *Reflector) listDataStoreItems(pfx string, iaf func() proto.Message) (Ds
 // the k8s cache and data in Etcd. This function must be called with dsMutex
 // locked, because it manipulates dsFlag and because no updates to the data
 // store can happen while the resync is in progress.
+//
+// dsItems is a map containing a snapshot of the data store. This function
+// will delete all elements from this map. oc is a function converting the
+// K8s policy data structure to the protobuf policy data structure.
+//
+// If data can not be written into the data store, mark-and-sweep is aborted
+// and the function returns an error.
 func (r *Reflector) markAndSweep(dsItems DsItems, oc K8sToProtoConverter) error {
 	for _, obj := range r.k8sStore.List() {
 		k8sProtoObj, key, ok := oc(obj)
@@ -302,7 +309,11 @@ func (r *Reflector) startDataStoreResync() {
 				// resync the cache with it
 				for {
 					// Try to perform mark-and-sweep data sync
-					err := r.syncDataStoreWithK8sCache(dsItems)
+					dsItemsCopy := make(DsItems)
+					for k, v := range dsItems {
+						dsItemsCopy[k] = v
+					}
+					err := r.syncDataStoreWithK8sCache(dsItemsCopy)
 					if err == nil {
 						r.Log.Infof("%s: data sync done, stats %+v", r.objType, r.stats)
 						return

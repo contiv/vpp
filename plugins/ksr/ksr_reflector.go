@@ -320,7 +320,7 @@ func (r *Reflector) startDataStoreResync() {
 						return
 					}
 					r.Log.Infof("%s data sync: syncDataStoreWithK8sCache failed, '%s'", r.objType, err)
-					r.stats.NumResErrors++	// unprotected by dsMutex, but dsSync=false
+					r.stats.NumResErrors++ // unprotected by dsMutex, but dsSync=false
 
 					// Wait before attempting the resync again
 					select {
@@ -335,8 +335,8 @@ func (r *Reflector) startDataStoreResync() {
 				}
 			}
 			r.Log.Infof("%s data sync: error listing data store items, '%s'", r.objType, err)
-			r.stats.NumResErrors++			// unprotected by dsMutex, but dsSync=false
-			r.stats.NumResyncs++			// unprotected by dsMutex, but dsSync=false
+			r.stats.NumResErrors++ // unprotected by dsMutex, but dsSync=false
+			r.stats.NumResyncs++   // unprotected by dsMutex, but dsSync=false
 
 			// Wait before attempting to list data store items again
 			select {

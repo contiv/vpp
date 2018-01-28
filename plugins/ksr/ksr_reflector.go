@@ -112,13 +112,13 @@ type ReflectorFunctions struct {
 // be abort.
 func dataStoreDownEvent() {
 	for _, r := range reflectors {
+		r.stopDataStoreUpdates()
 		select {
 		case r.syncStopCh <- true:
 			r.Log.Infof("%s: sent dataStoreResyncAbort signal", r.objType)
 		default:
 			r.Log.Infof("%s: syncStopCh full", r.objType)
 		}
-		r.stopDataStoreUpdates()
 	}
 }
 
@@ -298,7 +298,6 @@ func (r *Reflector) syncDataStoreWithK8sCache(dsItems DsItems) error {
 func (r *Reflector) startDataStoreResync() {
 	go func(r *Reflector) {
 		r.Log.Debug("%s: starting data sync", r.objType)
-		r.stats.NumResyncs++
 
 		// Keep trying to reconcile until data sync succeeds.
 		for {
@@ -308,11 +307,13 @@ func (r *Reflector) startDataStoreResync() {
 				// Now that we have a data store snapshot, keep trying to
 				// resync the cache with it
 				for {
-					// Try to perform mark-and-sweep data sync
+					r.stats.NumResyncs++
 					dsItemsCopy := make(DsItems)
 					for k, v := range dsItems {
 						dsItemsCopy[k] = v
 					}
+
+					// Try to perform mark-and-sweep data sync
 					err := r.syncDataStoreWithK8sCache(dsItemsCopy)
 					if err == nil {
 						r.Log.Infof("%s: data sync done, stats %+v", r.objType, r.stats)

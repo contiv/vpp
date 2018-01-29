@@ -90,11 +90,9 @@ type Config struct {
 
 // OneNodeConfig represents configuration for one node. It contains only settings specific to given node.
 type OneNodeConfig struct {
-	NodeName           string            // name of the node, should match withs the hostname
-	MainVppInterface   InterfaceWithIP   // main VPP interface used for the inter-node connectivity
-	OtherVPPInterfaces []InterfaceWithIP // other interfaces on VPP, not necessarily used for inter-node connectivity
-	Gateway            string            // IP address of the default gateway
-	StealHostInterface string            // interface in the host Linux (e.g. eth0) to be stolen and connected to VPP
+	NodeName           string
+	MainVppInterface   InterfaceWithIP
+	OtherVPPInterfaces []InterfaceWithIP // other configured interfaces get only ip address assigned in vpp
 }
 
 // InterfaceWithIP binds interface name with IP address for configuration purposes.

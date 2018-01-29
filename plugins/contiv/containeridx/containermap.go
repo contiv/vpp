@@ -33,6 +33,27 @@ const podNameKey = "podNameKey"
 const podNamespaceKey = "podNamespaceKey"
 const podRelatedIfsKey = "podRelatedIfsKey"
 
+// Reader provides read API to ConfigIndex
+type Reader interface {
+	// LookupContainer looks up entry in the container based on containerID.
+	LookupContainer(containerID string) (data *Config, found bool)
+
+	// LookupPodName performs lookup based on secondary index podName.
+	LookupPodName(podName string) (containerIDs []string)
+
+	// LookupPodNamespace performs lookup based on secondary index podNamespace.
+	LookupPodNamespace(podNamespace string) (containerIDs []string)
+
+	// LookupPodIf performs lookup based on secondary index podRelatedIfs.
+	LookupPodIf(ifname string) (containerIDs []string)
+
+	// ListAll returns all registered names in the mapping.
+	ListAll() (containerIDs []string)
+
+	// Watch subscribe to monitor changes in ConfigIndex
+	Watch(subscriber core.PluginName, callback func(ChangeEvent)) error
+}
+
 // Config groups applied configuration for a container
 type Config struct {
 	// PodName from the CNI request

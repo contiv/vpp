@@ -1,6 +1,9 @@
 package contiv
 
-import "net"
+import (
+	"github.com/contiv/vpp/plugins/contiv/containeridx"
+	"net"
+)
 
 // API for other plugins to query network-related information.
 type API interface {
@@ -17,6 +20,9 @@ type API interface {
 
 	// GetPodNetwork provides subnet used for allocating pod IP addresses on this host node.
 	GetPodNetwork() *net.IPNet
+
+	// GetContainerIndex exposes index of configured containers
+	GetContainerIndex() containeridx.Reader
 
 	// IsTCPstackDisabled returns true if the TCP stack is disabled and only VETHSs/TAPs are configured
 	IsTCPstackDisabled() bool

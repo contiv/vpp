@@ -232,7 +232,7 @@ func TestServiceReflector(t *testing.T) {
 	err := serviceTestVars.svcReflector.Init(stopCh, &wg)
 	gomega.Expect(err).To(gomega.BeNil())
 
-	serviceTestVars.svcReflector.SyncDataStoreWithK8sCache()
+	serviceTestVars.svcReflector.startDataStoreResync()
 
 	// Wait for the initial sync to finish
 	for {

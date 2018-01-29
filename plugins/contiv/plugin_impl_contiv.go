@@ -227,6 +227,11 @@ func (plugin *Plugin) GetPodNetwork() *net.IPNet {
 	return plugin.cniServer.ipam.PodNetwork()
 }
 
+// GetContainerIndex returns the index of configured containers/pods
+func (plugin *Plugin) GetContainerIndex() containeridx.Reader {
+	return plugin.configuredContainers
+}
+
 // IsTCPstackDisabled returns true if the VPP TCP stack is disabled and only VETHs/TAPs are configured.
 func (plugin *Plugin) IsTCPstackDisabled() bool {
 	return plugin.Config.TCPstackDisabled

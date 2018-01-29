@@ -53,8 +53,8 @@ type IPAM struct {
 	vxlanCIDR            net.IPNet // IPv4 subnet used for for inter-node VXLAN
 }
 
-type uintIP = uint32
-type podID = string
+type uintIP uint32
+type podID string
 
 // Config represents configuration of the IPAM module.
 type Config struct {

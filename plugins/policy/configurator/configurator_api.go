@@ -123,28 +123,42 @@ type Match struct {
 
 // String converts Match into a human-readable string.
 func (m Match) String() string {
-	pods := ""
-	for idx, pod := range m.Pods {
-		pods += pod.String()
-		if idx < len(m.Pods)-1 {
-			pods += ", "
+	pods := "<nil>"
+	if m.Pods != nil {
+		pods = "["
+		for idx, pod := range m.Pods {
+			pods += pod.String()
+			if idx < len(m.Pods)-1 {
+				pods += ", "
+			}
 		}
+		pods += "]"
 	}
-	blocks := ""
-	for idx, block := range m.IPBlocks {
-		blocks += block.String()
-		if idx < len(m.IPBlocks)-1 {
-			blocks += ", "
+
+	blocks := "<nil>"
+	if m.IPBlocks != nil {
+		blocks = "["
+		for idx, block := range m.IPBlocks {
+			blocks += block.String()
+			if idx < len(m.IPBlocks)-1 {
+				blocks += ", "
+			}
 		}
+		blocks += "]"
 	}
-	ports := ""
-	for idx, port := range m.Ports {
-		ports += port.String()
-		if idx < len(m.Ports)-1 {
-			ports += ", "
+
+	ports := "<nil>"
+	if m.Ports != nil {
+		ports = "["
+		for idx, port := range m.Ports {
+			ports += port.String()
+			if idx < len(m.Ports)-1 {
+				ports += ", "
+			}
 		}
+		ports += "]"
 	}
-	return fmt.Sprintf("<Type:%s, Pods:[%s], Blocks:[%s], Ports:[%s]>",
+	return fmt.Sprintf("<Type:%s, Pods:%s, Blocks:%s, Ports:%s>",
 		m.Type, pods, blocks, ports)
 }
 

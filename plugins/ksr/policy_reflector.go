@@ -85,7 +85,7 @@ func (pr *PolicyReflector) addPolicy(obj interface{}) {
 	k8sPolicy, ok := obj.(*coreV1Beta1.NetworkPolicy)
 	if !ok {
 		pr.Log.Warn("Failed to cast newly created policy object")
-		pr.stats.NumArgErrors++
+		pr.stats.ArgErrors++
 		return
 	}
 
@@ -102,7 +102,7 @@ func (pr *PolicyReflector) deletePolicy(obj interface{}) {
 	k8sPolicy, ok := obj.(*coreV1Beta1.NetworkPolicy)
 	if !ok {
 		pr.Log.Warn("Failed to cast newly created service object")
-		pr.stats.NumArgErrors++
+		pr.stats.ArgErrors++
 		return
 	}
 
@@ -117,7 +117,7 @@ func (pr *PolicyReflector) updatePolicy(oldObj, newObj interface{}) {
 	newK8sPolicy, ok2 := newObj.(*coreV1Beta1.NetworkPolicy)
 	if !ok1 || !ok2 {
 		pr.Log.Warn("Failed to cast changed service object")
-		pr.stats.NumArgErrors++
+		pr.stats.ArgErrors++
 		return
 	}
 	pr.Log.WithFields(map[string]interface{}{"policy-old": oldK8sPolicy, "policy-new": oldK8sPolicy}).

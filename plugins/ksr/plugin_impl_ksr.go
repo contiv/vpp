@@ -17,6 +17,7 @@
 //go:generate protoc -I ./model/policy --go_out=plugins=grpc:./model/policy ./model/policy/policy.proto
 //go:generate protoc -I ./model/service --go_out=plugins=grpc:./model/service ./model/service/service.proto
 //go:generate protoc -I ./model/endpoints --go_out=plugins=grpc:./model/endpoints ./model/endpoints/endpoints.proto
+//go:generate protoc -I ./model/ksrapi --go_out=plugins=grpc:./model/ksrapi ./model/ksrapi/ksr_nb_api.proto
 
 package ksr
 

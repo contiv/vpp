@@ -21,7 +21,7 @@ endef
 
 # Make all imports of sirupsen/logrus upper-case.
 define unify_sirupsen
-	@find . -type f -name '*.go' -exec sed -i 's/sirupsen\/logrus/Sirupsen\/logrus/' "{}" +;
+	@find . -type f -name '*.go' -exec sed -i 's/Sirupsen\/logrus/sirupsen\/logrus/' "{}" +;
 endef
 
 # install code generators

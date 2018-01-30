@@ -19,11 +19,11 @@ import (
 	"github.com/ligato/cn-infra/idxmap"
 	"github.com/ligato/cn-infra/idxmap/mem"
 	"github.com/ligato/cn-infra/logging"
-	vpp_intf "github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/model/interfaces"
-	"github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/model/stn"
-	"github.com/ligato/vpp-agent/plugins/defaultplugins/l3plugin/model/l3"
-	vpp_l3 "github.com/ligato/vpp-agent/plugins/defaultplugins/l3plugin/model/l3"
-	vpp_l4 "github.com/ligato/vpp-agent/plugins/defaultplugins/l4plugin/model/l4"
+	vpp_intf "github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/interfaces"
+	"github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/l3"
+	vpp_l3 "github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/l3"
+	vpp_l4 "github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/l4"
+	"github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/stn"
 	linux_intf "github.com/ligato/vpp-agent/plugins/linuxplugin/ifplugin/model/interfaces"
 	linux_l3 "github.com/ligato/vpp-agent/plugins/linuxplugin/l3plugin/model/l3"
 	"time"
@@ -32,6 +32,27 @@ import (
 const podNameKey = "podNameKey"
 const podNamespaceKey = "podNamespaceKey"
 const podRelatedIfsKey = "podRelatedIfsKey"
+
+// Reader provides read API to ConfigIndex
+type Reader interface {
+	// LookupContainer looks up entry in the container based on containerID.
+	LookupContainer(containerID string) (data *Config, found bool)
+
+	// LookupPodName performs lookup based on secondary index podName.
+	LookupPodName(podName string) (containerIDs []string)
+
+	// LookupPodNamespace performs lookup based on secondary index podNamespace.
+	LookupPodNamespace(podNamespace string) (containerIDs []string)
+
+	// LookupPodIf performs lookup based on secondary index podRelatedIfs.
+	LookupPodIf(ifname string) (containerIDs []string)
+
+	// ListAll returns all registered names in the mapping.
+	ListAll() (containerIDs []string)
+
+	// Watch subscribe to monitor changes in ConfigIndex
+	Watch(subscriber core.PluginName, callback func(ChangeEvent)) error
+}
 
 // Config groups applied configuration for a container
 type Config struct {

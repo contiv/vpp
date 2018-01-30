@@ -6,7 +6,7 @@ import (
 	"sync"
 
 	"github.com/docker/go-events"
-	"github.com/Sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 )
 
 // ErrQueueFull is returned by a Write operation when that Write causes the

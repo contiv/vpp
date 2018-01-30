@@ -66,7 +66,7 @@ func TestNamespaceReflector(t *testing.T) {
 	err := nsTestVars.nsReflector.Init(stopCh, &wg)
 	gomega.Expect(err).To(gomega.BeNil())
 
-	nsTestVars.nsReflector.SyncDataStoreWithK8sCache()
+	nsTestVars.nsReflector.startDataStoreResync()
 
 	// Wait for the initial sync to finish
 	for {

@@ -34,7 +34,6 @@ define test_cover_only
 	@go test -covermode=count -coverprofile=${COVER_DIR}coverage_unit9.out ./idxmap/mem
 	@go test -covermode=count -coverprofile=${COVER_DIR}coverage_unit10.out ./tests/gotests/itest
     @echo "# merging coverage results"
-    @cd vendor/github.com/wadey/gocovmerge && go install -v
     @gocovmerge ${COVER_DIR}coverage_unit1.out ${COVER_DIR}coverage_unit2.out ${COVER_DIR}coverage_unit3.out ${COVER_DIR}coverage_unit4.out ${COVER_DIR}coverage_unit5.out ${COVER_DIR}coverage_unit6.out ${COVER_DIR}coverage_unit7.out  ${COVER_DIR}coverage_unit8.out ${COVER_DIR}coverage_unit9.out ${COVER_DIR}coverage_unit10.out > ${COVER_DIR}coverage.out
     @echo "# coverage data generated into ${COVER_DIR}coverage.out"
     @echo "# done"
@@ -82,6 +81,7 @@ define build_plugin_examples_only
     @cd examples/logs-plugin && go build -i -v ${LDFLAGS}
     @cd examples/simple-agent && go build -i -v ${LDFLAGS}
     @cd examples/redis-plugin && go build -i -v ${LDFLAGS}
+    @cd examples/statuscheck-plugin && go build -i -v ${LDFLAGS}
     @echo "# done"
 endef
 
@@ -119,6 +119,7 @@ define clean_plugin_examples_only
     @rm -f examples/kafka-plugin/hash-partitioner/hash-partitioner
     @rm -f examples/logs-plugin/logs-plugin
     @rm -f examples/redis-plugin/redis-plugin
+    @rm -f examples/statuscheck-plugin/statuscheck-plugin
     @echo "# done"
 endef
 

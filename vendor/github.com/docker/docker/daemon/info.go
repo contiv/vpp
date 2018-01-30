@@ -21,7 +21,7 @@ import (
 	"github.com/docker/docker/registry"
 	"github.com/docker/docker/volume/drivers"
 	"github.com/docker/go-connections/sockets"
-	"github.com/Sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 )
 
 // SystemInfo returns information about the host server the daemon is running on.

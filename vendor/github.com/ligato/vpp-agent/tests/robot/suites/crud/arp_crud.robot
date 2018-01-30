@@ -44,6 +44,8 @@ Check That Veth1 And Veth2 Interfaces Are Created
     linux: Interface Is Created    node=agent_vpp_1    mac=${VETH2_MAC}
     linux: Check Veth Interface State     agent_vpp_1    vpp1_veth1    mac=${VETH1_MAC}    ipv4=10.10.1.1/24    mtu=1500    state=up
     linux: Check Veth Interface State     agent_vpp_1    vpp1_veth2    mac=${VETH2_MAC}    state=up
+    vpp_term: Show Interface Mode  agent_vpp_1    vpp1_veth1@vpp1_veth2
+    vpp_term: Show Interface Mode  agent_vpp_1    vpp1_veth2@vpp1_veth1
 
 
 Add Memif Interface
@@ -74,6 +76,9 @@ Add Tap Interface
 Check TAP Interface Created
     vpp_term: Interface Is Created    node=agent_vpp_1    mac=32:21:21:11:11:11
     vpp_term: Check TAP interface State    agent_vpp_1    vpp1_tap1    mac=32:21:21:11:11:11    ipv4=30.30.1.1/24    state=up
+
+Check Stuff
+    Show Interfaces And Other Objects
 
 Add ARPs
     vpp_ctl: Put ARP    agent_vpp_1    vpp1_memif1    155.155.155.155    32:51:51:51:51:51    false
@@ -216,6 +221,19 @@ Check Afpacket ARP After Modify
 
 
 *** Keywords ***
+Show Interfaces And Other Objects
+    vpp_term: Show Interfaces    agent_vpp_1
+    Write To Machine    agent_vpp_1_term    show int addr
+    Write To Machine    agent_vpp_1_term    show h
+    Write To Machine    agent_vpp_1_term    show br
+    Write To Machine    agent_vpp_1_term    show err
+    vat_term: Interfaces Dump    agent_vpp_1
+    Write To Machine    vpp_agent_ctl    vpp-agent-ctl ${AGENT_VPP_ETCD_CONF_PATH} -ps
+    Execute In Container    agent_vpp_1    ip a
+    Execute In Container    node_1    ip a
+    Make Datastore Snapshots    before_check stuff
+
+
 TestSetup
     Make Datastore Snapshots    ${TEST_NAME}_test_setup
 

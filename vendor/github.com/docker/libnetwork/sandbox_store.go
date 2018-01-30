@@ -7,7 +7,7 @@ import (
 
 	"github.com/docker/libnetwork/datastore"
 	"github.com/docker/libnetwork/osl"
-	"github.com/Sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 )
 
 const (

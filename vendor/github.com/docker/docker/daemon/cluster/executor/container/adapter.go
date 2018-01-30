@@ -27,7 +27,7 @@ import (
 	"github.com/docker/swarmkit/log"
 	gogotypes "github.com/gogo/protobuf/types"
 	"github.com/opencontainers/go-digest"
-	"github.com/Sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/net/context"
 	"golang.org/x/time/rate"
 )

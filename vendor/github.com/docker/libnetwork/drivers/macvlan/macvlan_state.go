@@ -5,7 +5,7 @@ import (
 
 	"github.com/docker/libnetwork/osl"
 	"github.com/docker/libnetwork/types"
-	"github.com/Sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 )
 
 func (d *driver) network(nid string) *network {

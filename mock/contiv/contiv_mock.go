@@ -3,7 +3,9 @@ package contiv
 import (
 	"net"
 
+	"github.com/contiv/vpp/plugins/contiv/containeridx"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
+	"github.com/ligato/cn-infra/logging/logrus"
 )
 
 // MockContiv is a mock for the Contiv Plugin.
@@ -13,17 +15,19 @@ type MockContiv struct {
 	podNetwork       *net.IPNet
 	tcpStackDisabled bool
 	nodeIP           net.IP
-	vppIP            net.IP
 	physicalIfs      []string
 	hostInterconnect string
 	vxlanBVIIfName   string
+	containerIndex   *containeridx.ConfigIndex
 }
 
 // NewMockContiv is a constructor for MockContiv.
 func NewMockContiv() *MockContiv {
+	ci := containeridx.NewConfigIndex(logrus.DefaultLogger(), "test", "title")
 	return &MockContiv{
-		podIf: make(map[podmodel.ID]string),
-		podNs: make(map[podmodel.ID]uint32),
+		podIf:          make(map[podmodel.ID]string),
+		podNs:          make(map[podmodel.ID]uint32),
+		containerIndex: ci,
 	}
 }
 
@@ -44,6 +48,11 @@ func (mc *MockContiv) SetPodNetwork(podNetwork string) {
 	_, mc.podNetwork, _ = net.ParseCIDR(podNetwork)
 }
 
+// SetContainerIndex allows to set index that contains configured containers
+func (mc *MockContiv) SetContainerIndex(ci *containeridx.ConfigIndex) {
+	mc.containerIndex = ci
+}
+
 // SetTCPStackDisabled allows to set flag denoting if the tcpStack is disabled or not.
 func (mc *MockContiv) SetTCPStackDisabled(tcpStackDisabled bool) {
 	mc.tcpStackDisabled = tcpStackDisabled
@@ -52,11 +61,6 @@ func (mc *MockContiv) SetTCPStackDisabled(tcpStackDisabled bool) {
 // SetNodeIP allows to set what tests will assume the node IP is.
 func (mc *MockContiv) SetNodeIP(nodeIP net.IP) {
 	mc.nodeIP = nodeIP
-}
-
-// SetVPPIP allows to set what tests will assume the node's VPP IP is.
-func (mc *MockContiv) SetVPPIP(vppIP net.IP) {
-	mc.vppIP = vppIP
 }
 
 // SetPhysicalIfNames allows to set what tests will assume the list of physical interface names is.
@@ -87,6 +91,11 @@ func (mc *MockContiv) GetPodByIf(ifname string) (podNamespace string, podName st
 	return "", "", false
 }
 
+// GetContainerIndex returns the index of configured containers/pods
+func (mc *MockContiv) GetContainerIndex() containeridx.Reader {
+	return mc.containerIndex
+}
+
 // GetPodNetwork returns static subnet constant that should represent pod subnet for current host node
 func (mc *MockContiv) GetPodNetwork() (podNetwork *net.IPNet) {
 	return mc.podNetwork
@@ -100,12 +109,6 @@ func (mc *MockContiv) IsTCPstackDisabled() bool {
 // GetNodeIP returns the IP address of this node.
 func (mc *MockContiv) GetNodeIP() net.IP {
 	return mc.nodeIP
-}
-
-// GetVPPIP returns the IP address of this node's VPP.
-// (assigned to a loopback or to the host-interconnect interface)
-func (mc *MockContiv) GetVPPIP() net.IP {
-	return mc.vppIP
 }
 
 // GetPhysicalIfNames returns a slice of names of all configured physical interfaces.

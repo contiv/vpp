@@ -14,7 +14,7 @@ import (
 	"github.com/docker/docker/pkg/system"
 	volumestore "github.com/docker/docker/volume/store"
 	"github.com/pkg/errors"
-	"github.com/Sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 )
 
 // ContainerRm removes the container id from the filesystem. An error

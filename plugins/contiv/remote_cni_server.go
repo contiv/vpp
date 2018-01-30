@@ -29,12 +29,12 @@ import (
 	"github.com/ligato/cn-infra/datasync"
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/vpp-agent/clientv1/linux"
+	vpp_intf "github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/interfaces"
+	vpp_l2 "github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/l2"
+	vpp_l3 "github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/l3"
+	vpp_l4 "github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/l4"
+	"github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/stn"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/ifaceidx"
-	vpp_intf "github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/model/interfaces"
-	"github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/model/stn"
-	vpp_l2 "github.com/ligato/vpp-agent/plugins/defaultplugins/l2plugin/model/l2"
-	vpp_l3 "github.com/ligato/vpp-agent/plugins/defaultplugins/l3plugin/model/l3"
-	vpp_l4 "github.com/ligato/vpp-agent/plugins/defaultplugins/l4plugin/model/l4"
 	linux_intf "github.com/ligato/vpp-agent/plugins/linuxplugin/ifplugin/model/interfaces"
 	linux_l3 "github.com/ligato/vpp-agent/plugins/linuxplugin/l3plugin/model/l3"
 	"golang.org/x/net/context"
@@ -141,14 +141,14 @@ type remoteCNIserver struct {
 
 // vswitchConfig holds base vSwitch VPP configuration.
 type vswitchConfig struct {
-	nics         []*vpp_intf.Interfaces_Interface
-	defaultRoute *vpp_l3.StaticRoutes_Route
+	nics []*vpp_intf.Interfaces_Interface
 
 	tapHost        *vpp_intf.Interfaces_Interface
 	vethHost       *linux_intf.LinuxInterfaces_Interface
 	vethVpp        *linux_intf.LinuxInterfaces_Interface
 	interconnectAF *vpp_intf.Interfaces_Interface
 
+	routeToHost   *vpp_l3.StaticRoutes_Route
 	routeFromHost *linux_l3.LinuxStaticRoutes_Route
 	l4Features    *vpp_l4.L4Features
 
@@ -366,12 +366,6 @@ func (s *remoteCNIserver) configureMainVPPInterface(config *vswitchConfig, nicNa
 		config.nics = append(config.nics, loop)
 	}
 
-	if nicName != "" && s.nodeConfig != nil && s.nodeConfig.Gateway != "" {
-		// configure the default gateway
-		config.defaultRoute = s.defaultRoute(s.nodeConfig.Gateway, nicName)
-		txn1.StaticRoute(config.defaultRoute)
-	}
-
 	// execute the config transaction
 	err = txn1.Send().ReceiveReply()
 	if err != nil {
@@ -471,10 +465,12 @@ func (s *remoteCNIserver) configureVswitchHostConnectivity(config *vswitchConfig
 	}
 
 	// configure static routes and enable L4 features
+	config.routeToHost = s.defaultRouteToHost()
 	config.routeFromHost = s.routeFromHost()
 	config.l4Features = s.l4Features(!s.disableTCPstack)
 
 	txn2 := s.vppTxnFactory().Put().
+		StaticRoute(config.routeToHost).
 		LinuxRoute(config.routeFromHost).
 		L4Features(config.l4Features)
 
@@ -523,12 +519,9 @@ func (s *remoteCNIserver) persistVswitchConfig(config *vswitchConfig) error {
 	var err error
 	changes := map[string]proto.Message{}
 
-	// physical NICs + default route
+	// physical NICs
 	for _, nic := range config.nics {
 		changes[vpp_intf.InterfaceKey(nic.Name)] = nic
-	}
-	if config.defaultRoute != nil {
-		changes[vpp_l3.RouteKey(config.defaultRoute.VrfId, config.defaultRoute.DstIpAddr, config.defaultRoute.NextHopAddr)] = config.defaultRoute
 	}
 
 	// VXLAN-related data
@@ -547,6 +540,7 @@ func (s *remoteCNIserver) persistVswitchConfig(config *vswitchConfig) error {
 	}
 
 	// routes + l4 config
+	changes[vpp_l3.RouteKey(config.routeToHost.VrfId, config.routeToHost.DstIpAddr, config.routeToHost.NextHopAddr)] = config.routeToHost
 	changes[linux_l3.StaticRouteKey(config.routeFromHost.Name)] = config.routeFromHost
 	changes[vpp_l4.FeatureKey()] = config.l4Features
 
@@ -812,16 +806,14 @@ func (s *remoteCNIserver) unconfigurePodInterface(request *cni.CNIRequest, confi
 			LinuxInterface(config.Veth2.Name)
 	}
 
-	// delete static routes
-	if !s.test {
-		// TODO: do not execute when testing until TAPs are fully supported by the vpp-agent
+	if !s.useTAPInterfaces && !s.test {
+		// TODO: temporary bypass this section for TAP interfaces
+
+		// delete static routes
 		txn2.LinuxRoute(config.PodLinkRoute.Name).
 			LinuxRoute(config.PodDefaultRoute.Name)
-	}
 
-	// delete the ARP entry
-	if !s.test {
-		// TODO: do not execute when testing until TAPs are fully supported by the vpp-agent
+		// delete the ARP entry
 		txn2.LinuxArpEntry(config.PodARPEntry.Name)
 	}
 
@@ -1127,12 +1119,4 @@ func (s *remoteCNIserver) GetNodeIP() net.IP {
 	}
 
 	return nodeIP
-}
-
-// GetVPPIP returns the IP address of this node's VPP.
-// (assigned to a loopback or to the host-interconnect interface)
-func (s *remoteCNIserver) GetVPPIP() net.IP {
-	s.Lock()
-	defer s.Unlock()
-	return s.ipam.VEthVPPEndIP()
 }

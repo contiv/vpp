@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/docker/docker/volume"
-	"github.com/Sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 )
 
 var (

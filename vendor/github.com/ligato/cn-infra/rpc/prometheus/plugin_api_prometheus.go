@@ -31,8 +31,12 @@ type API interface {
 	// to a specified registry
 	Register(registryPath string, collector prometheus.Collector) error
 
+	// Unregister unregisters the given metric. The function
+	// returns whether a Collector was unregistered.
+	Unregister(registryPath string, collector prometheus.Collector) bool
+
 	// RegisterGauge registers custom gauge with specific valueFunc to report status when invoked. RegistryPath identifies
-	// the registry
+	// the registry. The aim of this method is to simply common use case - adding Gauge with value func.
 	RegisterGaugeFunc(registryPath string, namespace string, subsystem string, name string, help string,
 		labels prometheus.Labels, valueFunc func() float64) error
 }

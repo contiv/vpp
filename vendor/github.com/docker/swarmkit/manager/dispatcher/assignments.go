@@ -8,7 +8,7 @@ import (
 	"github.com/docker/swarmkit/api/validation"
 	"github.com/docker/swarmkit/manager/drivers"
 	"github.com/docker/swarmkit/manager/state/store"
-	"github.com/Sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 )
 
 // Used as a key in tasksUsingDependency and changes. Only using the

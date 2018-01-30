@@ -90,11 +90,9 @@ type Config struct {
 
 // OneNodeConfig represents configuration for one node. It contains only settings specific to given node.
 type OneNodeConfig struct {
-	NodeName           string            // name of the node, should match withs the hostname
-	MainVppInterface   InterfaceWithIP   // main VPP interface used for the inter-node connectivity
-	OtherVPPInterfaces []InterfaceWithIP // other interfaces on VPP, not necessarily used for inter-node connectivity
-	Gateway            string            // IP address of the default gateway
-	StealHostInterface string            // interface in the host Linux (e.g. eth0) to be stolen and connected to VPP
+	NodeName           string
+	MainVppInterface   InterfaceWithIP
+	OtherVPPInterfaces []InterfaceWithIP // other configured interfaces get only ip address assigned in vpp
 }
 
 // InterfaceWithIP binds interface name with IP address for configuration purposes.
@@ -227,6 +225,11 @@ func (plugin *Plugin) GetPodNetwork() *net.IPNet {
 	return plugin.cniServer.ipam.PodNetwork()
 }
 
+// GetContainerIndex returns the index of configured containers/pods
+func (plugin *Plugin) GetContainerIndex() containeridx.Reader {
+	return plugin.configuredContainers
+}
+
 // IsTCPstackDisabled returns true if the VPP TCP stack is disabled and only VETHs/TAPs are configured.
 func (plugin *Plugin) IsTCPstackDisabled() bool {
 	return plugin.Config.TCPstackDisabled
@@ -235,12 +238,6 @@ func (plugin *Plugin) IsTCPstackDisabled() bool {
 // GetNodeIP returns the IP address of this node.
 func (plugin *Plugin) GetNodeIP() net.IP {
 	return plugin.cniServer.GetNodeIP()
-}
-
-// GetVPPIP returns the IP address of this node's VPP.
-// (assigned to a loopback or to the host-interconnect interface)
-func (plugin *Plugin) GetVPPIP() net.IP {
-	return plugin.cniServer.GetVPPIP()
 }
 
 // GetPhysicalIfNames returns a slice of names of all configured physical interfaces.

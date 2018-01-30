@@ -11,7 +11,7 @@ import (
 	"github.com/docker/docker/container"
 	"github.com/docker/docker/libcontainerd"
 	"github.com/docker/docker/restartmanager"
-	"github.com/Sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 )
 
 func (daemon *Daemon) setStateCounter(c *container.Container) {

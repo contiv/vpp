@@ -21,10 +21,10 @@ import (
 
 	"strings"
 
-	vpp_intf "github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/model/interfaces"
-	vpp_l2 "github.com/ligato/vpp-agent/plugins/defaultplugins/l2plugin/model/l2"
-	vpp_l3 "github.com/ligato/vpp-agent/plugins/defaultplugins/l3plugin/model/l3"
-	vpp_l4 "github.com/ligato/vpp-agent/plugins/defaultplugins/l4plugin/model/l4"
+	vpp_intf "github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/interfaces"
+	vpp_l2 "github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/l2"
+	vpp_l3 "github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/l3"
+	vpp_l4 "github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/l4"
 	"github.com/ligato/vpp-agent/plugins/linuxplugin/ifplugin/linuxcalls"
 	linux_intf "github.com/ligato/vpp-agent/plugins/linuxplugin/ifplugin/model/interfaces"
 	linux_l3 "github.com/ligato/vpp-agent/plugins/linuxplugin/l3plugin/model/l3"
@@ -60,11 +60,14 @@ func (s *remoteCNIserver) routeFromHost() *linux_l3.LinuxStaticRoutes_Route {
 	return route
 }
 
-func (s *remoteCNIserver) defaultRoute(gwIP string, outIfName string) *vpp_l3.StaticRoutes_Route {
+func (s *remoteCNIserver) defaultRouteToHost() *vpp_l3.StaticRoutes_Route {
 	route := &vpp_l3.StaticRoutes_Route{
 		DstIpAddr:         "0.0.0.0/0",
-		NextHopAddr:       gwIP,
-		OutgoingInterface: outIfName,
+		NextHopAddr:       s.ipam.VEthHostEndIP().String(),
+		OutgoingInterface: s.interconnectAfpacketName(),
+	}
+	if s.useTAPInterfaces {
+		route.OutgoingInterface = tapVPPEndLogicalName
 	}
 	return route
 }

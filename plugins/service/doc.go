@@ -72,6 +72,22 @@
 // +-----------------------------------+
 // |                                   |
 // |                                   |
+// |               K8s                 |
+// |                                   |
+// |                |                  |
+// +----------------|------------------+
+//           watch via K8s API
+// +----------------|------------------+
+// |                v                  |
+// |                                   |
+// |               KSR                 |
+// |                                   |
+// |                |                  |
+// +----------------|------------------+
+//                write
+// +----------------|------------------+
+// |                v                  |
+// |                                   |
 // |              ETCD                 |
 // |                                   |
 // |                |                  |
@@ -101,45 +117,14 @@
 // |      |                     |      |
 // +------|---------------------|------+
 //   Install NAT configuration (currently via binary APIs, later via vpp-agent)
-// +-------|--------------------|------+
-// |       v                    v      |
+// +------|---------------------|------+
+// |      v                     v      |
 // |                                   |
 // |                VPP                |
 // |                                   |
 // |                                   |
 // +-----------------------------------+
 //
-//
-// Algorithm (WORK IN-PROGRESS)
-// ============================
-//  First Resync:
-//   1. enable NAT44 forwarding
-//   2. get all *out* interfaces = physical interfaces + AF_PACKET/TAP to host
-//     2.1. add feature nat44-out2in to these interfaces
-//   3. Add Node IP for SNAT (twice-nat)
-//
-//  With every change in the endpoints/services:
-//  -- processor --
-//   1. Each new/update endpoint try to match with service by name+namespace.
-//   2. Extract data from service+endpoints model for NATing [1]
-//      2.1. serviceIPs = external IPs + clusterIP from service model + node IP if nodePort service type
-//      2.2  for each service port (name+protocol+port from service model) collect endpoints
-//           2.2.1 endpoint = address x targetPort (match port names in each endpoint subset)
-//   3. detect new backends and new/updated/deleted services
-//  -- configurator --
-//   3. Run diff with the previous service configuration:
-//      3.1. new service create from scratch
-//      3.2. completely wipe out NAT config of a removed service
-//      3.3. run minimal diff for "nat44 add address" and "nat44 add (load-balancing) static mapping" APIs
-//      3.4  Add in2out to pod interfaces which have newly became backends
-//      3.5  Remove in2out from pod interfaces which are no longer backends
-//
-//  [1] service struct as input to configurator = {
-//        name,
-//        namespace,
-//        externalIPs,
-//        backends: map servicePort -> [endpointPort-address(IP+port)]
-//      }
 
 // Package service implements support for Kubernetes services for VPP using
 // the VPP NAT plugin (https://wiki.fd.io/view/VPP/NAT).

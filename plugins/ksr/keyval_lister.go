@@ -31,7 +31,9 @@ type KeyProtoValLister interface {
 // mockKeyProtoValLister is a mock implementation of KeyProtoValLister
 // used in unit tests.
 type mockKeyProtoValLister struct {
-	ds map[string]proto.Message
+	numErr int
+	err    error
+	ds     map[string]proto.Message
 }
 
 // mockProtoKeyValIterator is a mock implementation of ProtoKeyValIterator
@@ -70,13 +72,20 @@ func (pkv *mockProtoKeyval) GetRevision() (rev int64) {
 // newMockKeyProtoValLister.
 func newMockKeyProtoValLister(ds map[string]proto.Message) *mockKeyProtoValLister {
 	return &mockKeyProtoValLister{
-		ds: ds,
+		err:    nil,
+		numErr: 0,
+		ds:     ds,
 	}
 }
 
 // ListValues returns the mockProtoKeyValIterator which will contain some
 // mock values down the road
 func (kvl *mockKeyProtoValLister) ListValues(prefix string) (keyval.ProtoKeyValIterator, error) {
+	if kvl.numErr > 0 {
+		kvl.numErr--
+		return nil, kvl.err
+	}
+
 	var values []keyval.ProtoKeyVal
 	for key, msg := range kvl.ds {
 		pkv := mockProtoKeyval{
@@ -105,4 +114,11 @@ func (it *mockProtoKeyValIterator) GetNext() (kv keyval.ProtoKeyVal, stop bool) 
 // Close is a mock for mockProtoKeyValIterator
 func (it *mockProtoKeyValIterator) Close() error {
 	return nil
+}
+
+// injectError sets the error value to be returned from 'numErr' subsequent
+// list operations.
+func (kvl *mockKeyProtoValLister) injectError(err error, numErr int) {
+	kvl.numErr = numErr
+	kvl.err = err
 }

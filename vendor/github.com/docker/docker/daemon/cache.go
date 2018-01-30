@@ -3,7 +3,7 @@ package daemon
 import (
 	"github.com/docker/docker/builder"
 	"github.com/docker/docker/image/cache"
-	"github.com/Sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 )
 
 // MakeImageCache creates a stateful image cache.

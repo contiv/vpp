@@ -99,8 +99,10 @@ func (pc *PolicyCache) LookupPodsByNSLabelSelector(policyNamespace string,
 	podLabelSelector *policymodel.Policy_LabelSelector) (pods []podmodel.ID) {
 
 	// An empty podSelector matches all pods in this namespace.
-	if podLabelSelector == nil {
+	if len(podLabelSelector.MatchExpression) == 0 && len(podLabelSelector.MatchLabel) == 0 {
 		pods := pc.configuredPods.LookupPodsByNamespace(policyNamespace)
+		pc.Log.WithField("LookupPodsByNSLabelSelector", policyNamespace).
+			Infof("Empty PodSelector returning pods: %+v", pods)
 		return utils.UnstringPodID(pods)
 	}
 
@@ -152,8 +154,8 @@ func (pc *PolicyCache) LookupPodsByLabelSelector(
 }
 
 // LookupPodsByNamespace returns IDs of all pods inside a given namespace.
-func (pc *PolicyCache) LookupPodsByNamespace(namespace nsmodel.ID) (pods []podmodel.ID) {
-	podsByNamespace := pc.configuredPods.LookupPodsByNamespace(namespace.String())
+func (pc *PolicyCache) LookupPodsByNamespace(namespace string) (pods []podmodel.ID) {
+	podsByNamespace := pc.configuredPods.LookupPodsByNamespace(namespace)
 	pods = utils.UnstringPodID(podsByNamespace)
 
 	return pods
@@ -180,6 +182,7 @@ func (pc *PolicyCache) LookupPolicy(policy policymodel.ID) (found bool, data *po
 func (pc *PolicyCache) LookupPoliciesByPod(pod podmodel.ID) (policies []policymodel.ID) {
 	policies = []policymodel.ID{}
 	policyMap := make(map[string]*policymodel.Policy)
+	dataPolicies := []*policymodel.Policy{}
 
 	found, podData := pc.configuredPods.LookupPod(pod.String())
 	if !found {
@@ -191,6 +194,21 @@ func (pc *PolicyCache) LookupPoliciesByPod(pod podmodel.ID) (policies []policymo
 	for _, podLabel := range podLabels {
 		nsLabel := podData.Namespace + "/" + podLabel.Key + "/" + podLabel.Value
 		policyIDs := pc.configuredPolicies.LookupPolicyByNSLabelSelector(nsLabel)
+		// Check if we have policies with empty podSelectors:
+		allPolicies := pc.ListAllPolicies()
+		for _, stringPolicy := range allPolicies {
+			found, policyData := pc.LookupPolicy(stringPolicy)
+			if !found {
+				continue
+			}
+			dataPolicies = append(dataPolicies, policyData)
+		}
+
+		for _, dataPolicy := range dataPolicies {
+			if len(dataPolicy.Pods.MatchLabel) == 0 && len(dataPolicy.Pods.MatchExpression) == 0 {
+				policyIDs = append(policyIDs, dataPolicy.Namespace+"/"+dataPolicy.Name)
+			}
+		}
 
 		for _, policyID := range policyIDs {
 			found, policyData := pc.configuredPolicies.LookupPolicy(policyID)

@@ -151,16 +151,18 @@ func TestSecondaryIndexLookup(t *testing.T) {
 	)
 
 	const (
-		label1 = "default/role/db"
-		label2 = "default/role/frontend"
-		label3 = "other/role/other"
-		label4 = "role/db"
-		label5 = "role/frontend"
-		label6 = "role/other"
-		nsKey1 = "default/role"
-		nsKey2 = "other/role"
-		key1   = "role"
-		key2   = "app"
+		label1     = "default/role/db"
+		label2     = "default/role/frontend"
+		label3     = "other/role/other"
+		label4     = "role/db"
+		label5     = "role/frontend"
+		label6     = "role/other"
+		nsKey1     = "default/role"
+		nsKey2     = "other/role"
+		key1       = "role"
+		key2       = "app"
+		namespace1 = "default"
+		namespace2 = "other"
 	)
 
 	podDataOne := &podmodel.Pod{
@@ -263,5 +265,13 @@ func TestSecondaryIndexLookup(t *testing.T) {
 	keyMatch = idx.LookupPodsByLabelKey(key2)
 	gomega.Expect(keyMatch).To(gomega.ContainElement(podIDthree))
 	gomega.Expect(keyMatch).To(gomega.ContainElement(podIDone))
+
+	namespaceMatch := idx.LookupPodsByNamespace(namespace1)
+	gomega.Expect(namespaceMatch).To(gomega.ContainElement(podIDone))
+	gomega.Expect(namespaceMatch).To(gomega.ContainElement(podIDtwo))
+	gomega.Expect(namespaceMatch).To(gomega.ContainElement(podIDthree))
+
+	namespaceMatch = idx.LookupPodsByNamespace(namespace2)
+	gomega.Expect(namespaceMatch).To(gomega.BeEquivalentTo([]string{podIDfour}))
 
 }

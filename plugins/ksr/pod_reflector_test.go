@@ -304,9 +304,9 @@ func TestPodReflector(t *testing.T) {
 	statsAfter := *podTestVars.podReflector.GetStats()
 
 	gomega.Expect(podTestVars.mockKvWriter.ds).Should(gomega.HaveLen(2))
-	gomega.Expect(statsBefore.NumAdds + 1).Should(gomega.BeNumerically("==", statsAfter.NumAdds))
-	gomega.Expect(statsBefore.NumUpdates + 1).Should(gomega.BeNumerically("==", statsAfter.NumUpdates))
-	gomega.Expect(statsBefore.NumDeletes + 1).Should(gomega.BeNumerically("==", statsAfter.NumDeletes))
+	gomega.Expect(statsBefore.Adds + 1).Should(gomega.BeNumerically("==", statsAfter.Adds))
+	gomega.Expect(statsBefore.Updates + 1).Should(gomega.BeNumerically("==", statsAfter.Updates))
+	gomega.Expect(statsBefore.Deletes + 1).Should(gomega.BeNumerically("==", statsAfter.Deletes))
 
 	podTestVars.mockKvWriter.ClearDs()
 
@@ -320,14 +320,14 @@ func testAddDeletePod(t *testing.T) {
 	k8sPod := &podTestVars.podTestData[0]
 
 	// Take a snapshot of counters
-	adds := podTestVars.podReflector.GetStats().NumAdds
-	argErrs := podTestVars.podReflector.GetStats().NumArgErrors
+	adds := podTestVars.podReflector.GetStats().Adds
+	argErrs := podTestVars.podReflector.GetStats().ArgErrors
 
 	// Test add with wrong argument type
 	podTestVars.k8sListWatch.Add(&k8sPod)
 
-	gomega.Expect(argErrs + 1).To(gomega.Equal(podTestVars.podReflector.GetStats().NumArgErrors))
-	gomega.Expect(adds).To(gomega.Equal(podTestVars.podReflector.GetStats().NumAdds))
+	gomega.Expect(argErrs + 1).To(gomega.Equal(podTestVars.podReflector.GetStats().ArgErrors))
+	gomega.Expect(adds).To(gomega.Equal(podTestVars.podReflector.GetStats().Adds))
 
 	// Test add where everything should be good
 	podTestVars.k8sListWatch.Add(k8sPod)
@@ -336,7 +336,7 @@ func testAddDeletePod(t *testing.T) {
 	protoPod := &pod.Pod{}
 	err := podTestVars.mockKvWriter.GetValue(key, protoPod)
 
-	gomega.Expect(adds + 1).To(gomega.Equal(podTestVars.podReflector.GetStats().NumAdds))
+	gomega.Expect(adds + 1).To(gomega.Equal(podTestVars.podReflector.GetStats().Adds))
 	gomega.Expect(err).To(gomega.BeNil())
 	gomega.Expect(protoPod).NotTo(gomega.BeNil())
 	gomega.Expect(protoPod.Name).To(gomega.Equal(k8sPod.GetName()))
@@ -360,18 +360,18 @@ func testAddDeletePod(t *testing.T) {
 		To(gomega.Equal(k8sPod.Spec.Containers[0].Ports[0].HostIP))
 
 	// Take a snapshot of counters
-	dels := podTestVars.podReflector.GetStats().NumDeletes
-	argErrs = podTestVars.podReflector.GetStats().NumArgErrors
+	dels := podTestVars.podReflector.GetStats().Deletes
+	argErrs = podTestVars.podReflector.GetStats().ArgErrors
 
 	// Test delete with wrong argument type
 	podTestVars.k8sListWatch.Delete(&k8sPod)
 
-	gomega.Expect(argErrs + 1).To(gomega.Equal(podTestVars.podReflector.GetStats().NumArgErrors))
-	gomega.Expect(dels).To(gomega.Equal(podTestVars.podReflector.GetStats().NumDeletes))
+	gomega.Expect(argErrs + 1).To(gomega.Equal(podTestVars.podReflector.GetStats().ArgErrors))
+	gomega.Expect(dels).To(gomega.Equal(podTestVars.podReflector.GetStats().Deletes))
 
 	// Test delete where everything should be good
 	podTestVars.k8sListWatch.Delete(k8sPod)
-	gomega.Expect(dels + 1).To(gomega.Equal(podTestVars.podReflector.GetStats().NumDeletes))
+	gomega.Expect(dels + 1).To(gomega.Equal(podTestVars.podReflector.GetStats().Deletes))
 
 	protoPod = &pod.Pod{}
 	err = podTestVars.mockKvWriter.GetValue(key, protoPod)
@@ -388,23 +388,23 @@ func testUpdatePod(t *testing.T) {
 	gomega.Ω(err).Should(gomega.Succeed())
 
 	// Take a snapshot of counters
-	upds := podTestVars.podReflector.GetStats().NumUpdates
-	argErrs := podTestVars.podReflector.GetStats().NumArgErrors
+	upds := podTestVars.podReflector.GetStats().Updates
+	argErrs := podTestVars.podReflector.GetStats().ArgErrors
 
 	// Test update with wrong argument type
 	podTestVars.k8sListWatch.Update(*k8sPodOld, *k8sPodNew)
 
-	gomega.Expect(argErrs + 1).To(gomega.Equal(podTestVars.podReflector.GetStats().NumArgErrors))
-	gomega.Expect(upds).To(gomega.Equal(podTestVars.podReflector.GetStats().NumUpdates))
+	gomega.Expect(argErrs + 1).To(gomega.Equal(podTestVars.podReflector.GetStats().ArgErrors))
+	gomega.Expect(upds).To(gomega.Equal(podTestVars.podReflector.GetStats().Updates))
 
 	// Ensure that there is no update if old and new values are the same
 	podTestVars.k8sListWatch.Update(k8sPodOld, k8sPodNew)
-	gomega.Expect(upds).To(gomega.Equal(podTestVars.podReflector.GetStats().NumUpdates))
+	gomega.Expect(upds).To(gomega.Equal(podTestVars.podReflector.GetStats().Updates))
 
 	// Test update where everything should be good
 	k8sPodNew.Status.HostIP = "1.2.3.4"
 	podTestVars.k8sListWatch.Update(k8sPodOld, k8sPodNew)
-	gomega.Expect(upds + 1).To(gomega.Equal(podTestVars.podReflector.GetStats().NumUpdates))
+	gomega.Expect(upds + 1).To(gomega.Equal(podTestVars.podReflector.GetStats().Updates))
 
 	key := pod.Key(k8sPodOld.GetName(), k8sPodOld.GetNamespace())
 	protoPodNew := &pod.Pod{}

@@ -16,6 +16,7 @@ package ksr
 
 import (
 	"reflect"
+	"sort"
 	"sync"
 
 	"github.com/golang/protobuf/proto"
@@ -132,18 +133,26 @@ func (pr *PolicyReflector) updatePolicy(oldObj, newObj interface{}) {
 // our protobuf-modelled data structure.
 func (pr *PolicyReflector) policyToProto(k8sPolicy *coreV1Beta1.NetworkPolicy) *policy.Policy {
 	policyProto := &policy.Policy{}
+
 	// Name
 	policyProto.Name = k8sPolicy.GetName()
 	policyProto.Namespace = k8sPolicy.GetNamespace()
+
 	// Labels
 	labels := k8sPolicy.GetLabels()
 	if labels != nil {
 		for key, val := range labels {
 			policyProto.Label = append(policyProto.Label, &policy.Policy_Label{Key: key, Value: val})
 		}
+		// Make sure that labels are always stored in the same order to avoid
+		// unnecessary updates during resync.
+		sort.Slice(policyProto.Label, func(i, j int) bool {
+			return policyProto.Label[i].Key < policyProto.Label[j].Key
+		})
 	}
 	// Pods
 	policyProto.Pods = pr.labelSelectorToProto(&k8sPolicy.Spec.PodSelector)
+
 	// PolicyType
 	ingress := 0
 	egress := 0
@@ -164,6 +173,7 @@ func (pr *PolicyReflector) policyToProto(k8sPolicy *coreV1Beta1.NetworkPolicy) *
 	} else {
 		policyProto.PolicyType = policy.Policy_DEFAULT
 	}
+
 	// Ingress rules
 	if k8sPolicy.Spec.Ingress != nil {
 		for _, ingress := range k8sPolicy.Spec.Ingress {
@@ -180,6 +190,7 @@ func (pr *PolicyReflector) policyToProto(k8sPolicy *coreV1Beta1.NetworkPolicy) *
 			policyProto.IngressRule = append(policyProto.IngressRule, ingressProto)
 		}
 	}
+
 	// Egress rules
 	if k8sPolicy.Spec.Egress != nil {
 		for _, egress := range k8sPolicy.Spec.Egress {
@@ -233,10 +244,17 @@ func (pr *PolicyReflector) labelSelectorToProto(selector *clientApiMetaV1.LabelS
 					expressionProto.Value = append(expressionProto.Value, val)
 				}
 			}
-			// append expression
+
 			selectorProto.MatchExpression = append(selectorProto.MatchExpression, expressionProto)
 		}
 	}
+
+	// Make sure that match labels are always stored in the same order to avoid
+	// unnecessary updates during resync.
+	sort.Slice(selectorProto.MatchLabel, func(i, j int) bool {
+		return selectorProto.MatchLabel[i].Key < selectorProto.MatchLabel[j].Key
+	})
+
 	return selectorProto
 }
 

@@ -244,9 +244,9 @@ func TestEndpointsReflector(t *testing.T) {
 	statsAfter := *epTestVars.epsReflector.GetStats()
 
 	gomega.Expect(epTestVars.mockKvWriter.ds).Should(gomega.HaveLen(2))
-	gomega.Expect(statsBefore.NumAdds + 1).Should(gomega.BeNumerically("==", statsAfter.NumAdds))
-	gomega.Expect(statsBefore.NumUpdates + 1).Should(gomega.BeNumerically("==", statsAfter.NumUpdates))
-	gomega.Expect(statsBefore.NumDeletes + 1).Should(gomega.BeNumerically("==", statsAfter.NumDeletes))
+	gomega.Expect(statsBefore.Adds + 1).Should(gomega.BeNumerically("==", statsAfter.Adds))
+	gomega.Expect(statsBefore.Updates + 1).Should(gomega.BeNumerically("==", statsAfter.Updates))
+	gomega.Expect(statsBefore.Deletes + 1).Should(gomega.BeNumerically("==", statsAfter.Deletes))
 
 	epTestVars.mockKvWriter.ClearDs()
 
@@ -260,21 +260,21 @@ func testAddDeleteEndpoints(t *testing.T) {
 	eps := &epTestVars.epsTestData[0]
 
 	// Take a snapshot of counters
-	adds := epTestVars.epsReflector.GetStats().NumAdds
-	argErrs := epTestVars.epsReflector.GetStats().NumArgErrors
+	adds := epTestVars.epsReflector.GetStats().Adds
+	argErrs := epTestVars.epsReflector.GetStats().ArgErrors
 
 	// Test add with wrong argument type
 	epTestVars.k8sListWatch.Add(&eps)
 
-	gomega.Expect(argErrs + 1).To(gomega.Equal(epTestVars.epsReflector.GetStats().NumArgErrors))
-	gomega.Expect(adds).To(gomega.Equal(epTestVars.epsReflector.GetStats().NumAdds))
+	gomega.Expect(argErrs + 1).To(gomega.Equal(epTestVars.epsReflector.GetStats().ArgErrors))
+	gomega.Expect(adds).To(gomega.Equal(epTestVars.epsReflector.GetStats().Adds))
 
 	// Test add where everything should be good
 	epTestVars.k8sListWatch.Add(eps)
 	epsProto := &endpoints.Endpoints{}
 	err := epTestVars.mockKvWriter.GetValue(endpoints.Key(eps.GetName(), eps.GetNamespace()), epsProto)
 
-	gomega.Expect(adds + 1).To(gomega.Equal(epTestVars.epsReflector.GetStats().NumAdds))
+	gomega.Expect(adds + 1).To(gomega.Equal(epTestVars.epsReflector.GetStats().Adds))
 
 	gomega.Expect(err).To(gomega.BeNil())
 	gomega.Expect(epsProto).NotTo(gomega.BeNil())
@@ -309,18 +309,18 @@ func testAddDeleteEndpoints(t *testing.T) {
 		Should(gomega.BeEquivalentTo(eps.Subsets[0].Ports[0].Protocol))
 
 	// Now check if we can delete the newly added endpoint
-	dels := epTestVars.epsReflector.GetStats().NumDeletes
-	argErrs = epTestVars.epsReflector.GetStats().NumArgErrors
+	dels := epTestVars.epsReflector.GetStats().Deletes
+	argErrs = epTestVars.epsReflector.GetStats().ArgErrors
 
 	// Test delete with wrong argument type
 	epTestVars.k8sListWatch.Delete(&eps)
 
-	gomega.Expect(argErrs + 1).To(gomega.Equal(epTestVars.epsReflector.GetStats().NumArgErrors))
-	gomega.Expect(dels).To(gomega.Equal(epTestVars.epsReflector.GetStats().NumDeletes))
+	gomega.Expect(argErrs + 1).To(gomega.Equal(epTestVars.epsReflector.GetStats().ArgErrors))
+	gomega.Expect(dels).To(gomega.Equal(epTestVars.epsReflector.GetStats().Deletes))
 
 	// Test delete where everything should be good
 	epTestVars.k8sListWatch.Delete(eps)
-	gomega.Expect(dels + 1).To(gomega.Equal(epTestVars.epsReflector.GetStats().NumDeletes))
+	gomega.Expect(dels + 1).To(gomega.Equal(epTestVars.epsReflector.GetStats().Deletes))
 
 	epsProto = &endpoints.Endpoints{}
 	key := endpoints.Key(eps.GetName(), eps.GetNamespace())
@@ -369,21 +369,21 @@ func testUpdateEndpoints(t *testing.T) {
 		},
 	}
 
-	upd := epTestVars.epsReflector.GetStats().NumUpdates
+	upd := epTestVars.epsReflector.GetStats().Updates
 
 	// Test update with wrong argument type
 	epTestVars.k8sListWatch.Update(*epsOld, *epsNew)
-	gomega.Expect(upd).To(gomega.Equal(epTestVars.epsReflector.GetStats().NumUpdates))
+	gomega.Expect(upd).To(gomega.Equal(epTestVars.epsReflector.GetStats().Updates))
 
 	// Ensure that there is no update if old and new values are the same
 	epTestVars.k8sListWatch.Update(&epsOld, &epsNew)
-	gomega.Expect(upd).To(gomega.Equal(epTestVars.epsReflector.GetStats().NumUpdates))
+	gomega.Expect(upd).To(gomega.Equal(epTestVars.epsReflector.GetStats().Updates))
 
 	gomega.Expect(epsOld).ShouldNot(gomega.BeEquivalentTo(epsNew))
 
 	// Test update where everything should be good
 	epTestVars.k8sListWatch.Update(epsOld, epsNew)
-	gomega.Expect(upd + 1).To(gomega.Equal(epTestVars.epsReflector.GetStats().NumUpdates))
+	gomega.Expect(upd + 1).To(gomega.Equal(epTestVars.epsReflector.GetStats().Updates))
 
 	epsProto := &endpoints.Endpoints{}
 	err := epTestVars.mockKvWriter.GetValue(endpoints.Key(epsNew.GetName(), epsNew.GetNamespace()), epsProto)

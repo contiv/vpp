@@ -73,7 +73,7 @@ func (pr *PodReflector) addPod(obj interface{}) {
 	k8sPod, ok := obj.(*coreV1.Pod)
 	if !ok {
 		pr.Log.Warn("Failed to cast newly created pod object")
-		pr.stats.NumArgErrors++
+		pr.stats.ArgErrors++
 		return
 	}
 
@@ -88,7 +88,7 @@ func (pr *PodReflector) deletePod(obj interface{}) {
 	k8sPod, ok := obj.(*coreV1.Pod)
 	if !ok {
 		pr.Log.Warn("Failed to cast newly created pod object")
-		pr.stats.NumArgErrors++
+		pr.stats.ArgErrors++
 		return
 	}
 
@@ -102,7 +102,7 @@ func (pr *PodReflector) updatePod(oldObj, newObj interface{}) {
 	newK8sPod, ok2 := newObj.(*coreV1.Pod)
 	if !ok1 || !ok2 {
 		pr.Log.Warn("Failed to cast changed pod object")
-		pr.stats.NumArgErrors++
+		pr.stats.ArgErrors++
 		return
 	}
 

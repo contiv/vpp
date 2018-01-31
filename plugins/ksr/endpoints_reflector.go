@@ -76,7 +76,7 @@ func (epr *EndpointsReflector) addEndpoints(obj interface{}) {
 	eps, ok := obj.(*coreV1.Endpoints)
 	if !ok {
 		epr.Log.Warn("Failed to cast newly created endpoints object")
-		epr.stats.NumArgErrors++
+		epr.stats.ArgErrors++
 		return
 	}
 
@@ -96,7 +96,7 @@ func (epr *EndpointsReflector) deleteEndpoints(obj interface{}) {
 	eps, ok := obj.(*coreV1.Endpoints)
 	if !ok {
 		epr.Log.Warn("Failed to cast newly created endpoints object")
-		epr.stats.NumArgErrors++
+		epr.stats.ArgErrors++
 		return
 	}
 
@@ -116,7 +116,7 @@ func (epr *EndpointsReflector) updateEndpoints(oldObj, newObj interface{}) {
 	epsNew, ok2 := newObj.(*coreV1.Endpoints)
 	if !ok1 || !ok2 {
 		epr.Log.Warn("Failed to cast changed service object")
-		epr.stats.NumArgErrors++
+		epr.stats.ArgErrors++
 		return
 	}
 

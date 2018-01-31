@@ -81,7 +81,6 @@ func (pp *PolicyProcessor) Process(resync bool, pods []podmodel.ID) error {
 			var policyType config.PolicyType
 			found, policyData := pp.Cache.LookupPolicy(policyByPod)
 
-			// todo - Check here if Policy has been found before.
 			if !found {
 				continue
 			}
@@ -163,9 +162,6 @@ func (pp *PolicyProcessor) DelPod(pod *podmodel.Pod) error {
 		return nil
 	}
 
-	// Deleted Pod will be checked for attached policies
-	//delPodID := podmodel.GetID(pod)
-
 	// List AllPolicies will fetch all the installed policies and append
 	// Policy Data in the dataPolicies slice
 	allPolicies := pp.Cache.ListAllPolicies()
@@ -180,47 +176,58 @@ func (pp *PolicyProcessor) DelPod(pod *podmodel.Pod) error {
 	// Check every policy for ingress and egress rules that match deleted Pod's labels
 	// and append them in a slice.
 	for _, dataPolicy := range dataPolicies {
-		for _, ingressRules := range dataPolicy.IngressRule {
-			for _, ingressRule := range ingressRules.From {
+		if len(dataPolicy.IngressRule) == 0 {
+			// If Ingress Rule is an empty array, policy matches the PodSelector
+			policies = append(policies, dataPolicy)
+		} else {
+			for _, ingressRules := range dataPolicy.IngressRule {
+				for _, ingressRule := range ingressRules.From {
 
-				matchLabels := []*policymodel.Policy_Label{}
-				matchExpressions := []*policymodel.Policy_LabelSelector_LabelExpression{}
+					matchLabels := []*policymodel.Policy_Label{}
+					matchExpressions := []*policymodel.Policy_LabelSelector_LabelExpression{}
 
-				if ingressRule.Pods != nil {
-					matchLabels = ingressRule.Pods.MatchLabel
-					matchExpressions = ingressRule.Pods.MatchExpression
-				}
+					if len(ingressRule.Pods.MatchExpression) != 0 || len(ingressRule.Pods.MatchLabel) != 0 {
+						matchLabels = ingressRule.Pods.MatchLabel
+						matchExpressions = ingressRule.Pods.MatchExpression
+					}
 
-				isMatch := pp.calculateLabelSelectorMatches(pod, matchLabels, matchExpressions, dataPolicy.Namespace)
-				if !isMatch {
-					continue
-				}
+					isMatch := pp.calculateLabelSelectorMatches(pod, matchLabels, matchExpressions, dataPolicy.Namespace)
+					if !isMatch {
+						continue
+					}
 
-				if addedPolicies[policymodel.GetID(dataPolicy).String()] != true {
-					addedPolicies[policymodel.GetID(dataPolicy).String()] = true
-					policies = append(policies, dataPolicy)
+					if addedPolicies[policymodel.GetID(dataPolicy).String()] != true {
+						addedPolicies[policymodel.GetID(dataPolicy).String()] = true
+						policies = append(policies, dataPolicy)
+					}
 				}
 			}
 		}
-		for _, egressRules := range dataPolicy.EgressRule {
-			for _, egressRule := range egressRules.To {
 
-				matchLabels := []*policymodel.Policy_Label{}
-				matchExpressions := []*policymodel.Policy_LabelSelector_LabelExpression{}
+		if len(dataPolicy.EgressRule) == 0 {
+			// If Egress Rule is an empty array, policy matches the PodSelector
+			policies = append(policies, dataPolicy)
+		} else {
+			for _, egressRules := range dataPolicy.EgressRule {
+				for _, egressRule := range egressRules.To {
 
-				if egressRule.Pods != nil {
-					matchLabels = egressRule.Pods.MatchLabel
-					matchExpressions = egressRule.Pods.MatchExpression
-				}
+					matchLabels := []*policymodel.Policy_Label{}
+					matchExpressions := []*policymodel.Policy_LabelSelector_LabelExpression{}
 
-				isMatch := pp.calculateLabelSelectorMatches(pod, matchLabels, matchExpressions, dataPolicy.Namespace)
-				if !isMatch {
-					continue
-				}
+					if len(egressRule.Pods.MatchExpression) != 0 || len(egressRule.Pods.MatchLabel) != 0 {
+						matchLabels = egressRule.Pods.MatchLabel
+						matchExpressions = egressRule.Pods.MatchExpression
+					}
 
-				if addedPolicies[policymodel.GetID(dataPolicy).String()] != true {
-					addedPolicies[policymodel.GetID(dataPolicy).String()] = true
-					policies = append(policies, dataPolicy)
+					isMatch := pp.calculateLabelSelectorMatches(pod, matchLabels, matchExpressions, dataPolicy.Namespace)
+					if !isMatch {
+						continue
+					}
+
+					if addedPolicies[policymodel.GetID(dataPolicy).String()] != true {
+						addedPolicies[policymodel.GetID(dataPolicy).String()] = true
+						policies = append(policies, dataPolicy)
+					}
 				}
 			}
 		}
@@ -231,9 +238,13 @@ func (pp *PolicyProcessor) DelPod(pod *podmodel.Pod) error {
 		for _, policy := range policies {
 			namespace := policy.Namespace
 			policyLabelSelectors := policy.Pods
-
-			policyPods := pp.Cache.LookupPodsByNSLabelSelector(namespace, policyLabelSelectors)
-			pods = append(pods, policyPods...)
+			if len(policyLabelSelectors.MatchExpression) == 0 && len(policyLabelSelectors.MatchLabel) == 0 {
+				policyPods := pp.Cache.LookupPodsByNamespace(namespace)
+				pods = append(pods, policyPods...)
+			} else {
+				policyPods := pp.Cache.LookupPodsByNSLabelSelector(namespace, policyLabelSelectors)
+				pods = append(pods, policyPods...)
+			}
 		}
 	}
 	strPods := utils.RemoveDuplicates(utils.StringPodID(pods))
@@ -257,11 +268,12 @@ func (pp *PolicyProcessor) DelPod(pod *podmodel.Pod) error {
 		hostPods = append(hostPods, hostPod)
 	}
 
+	pp.Log.WithField("del-pod", pod).
+		Infof("Pods sent to Process: %+v", hostPods)
 	if len(hostPods) > 0 {
-		pp.Log.WithField("del-pod", pod).
-			Infof("Pods sent to Process: %+v", hostPods)
 		return pp.Process(false, hostPods)
 	}
+
 	return nil
 }
 
@@ -308,49 +320,57 @@ func (pp *PolicyProcessor) UpdatePod(oldPod, newPod *podmodel.Pod) error {
 	// Check every policy for ingress and egress rules that match old Pod's labels
 	// and append them in a slice.
 	for _, dataPolicy := range dataPolicies {
-		for _, ingressRules := range dataPolicy.IngressRule {
-			for _, ingressRule := range ingressRules.From {
+		if len(dataPolicy.IngressRule) == 0 {
+			policies = append(policies, dataPolicy)
+		} else {
+			for _, ingressRules := range dataPolicy.IngressRule {
+				for _, ingressRule := range ingressRules.From {
 
-				matchLabels := []*policymodel.Policy_Label{}
-				matchExpressions := []*policymodel.Policy_LabelSelector_LabelExpression{}
+					matchLabels := []*policymodel.Policy_Label{}
+					matchExpressions := []*policymodel.Policy_LabelSelector_LabelExpression{}
 
-				if ingressRule.Pods != nil {
-					matchLabels = ingressRule.Pods.MatchLabel
-					matchExpressions = ingressRule.Pods.MatchExpression
-				}
+					if ingressRule.Pods != nil {
+						matchLabels = ingressRule.Pods.MatchLabel
+						matchExpressions = ingressRule.Pods.MatchExpression
+					}
 
-				isMatch := pp.calculateLabelSelectorMatches(oldPod, matchLabels, matchExpressions, dataPolicy.Namespace)
-				if !isMatch {
-					continue
-				}
+					isMatch := pp.calculateLabelSelectorMatches(oldPod, matchLabels, matchExpressions, dataPolicy.Namespace)
+					if !isMatch {
+						continue
+					}
 
-				if addedPolicies[policymodel.GetID(dataPolicy).String()] != true {
-					addedPolicies[policymodel.GetID(dataPolicy).String()] = true
-					policies = append(policies, dataPolicy)
+					if addedPolicies[policymodel.GetID(dataPolicy).String()] != true {
+						addedPolicies[policymodel.GetID(dataPolicy).String()] = true
+						policies = append(policies, dataPolicy)
+					}
 				}
 			}
 		}
-		for _, egressRules := range dataPolicy.EgressRule {
-			for _, egressRule := range egressRules.To {
+		if len(dataPolicy.EgressRule) == 0 {
+			policies = append(policies, dataPolicy)
+		} else {
+			for _, egressRules := range dataPolicy.EgressRule {
+				for _, egressRule := range egressRules.To {
 
-				matchLabels := []*policymodel.Policy_Label{}
-				matchExpressions := []*policymodel.Policy_LabelSelector_LabelExpression{}
+					matchLabels := []*policymodel.Policy_Label{}
+					matchExpressions := []*policymodel.Policy_LabelSelector_LabelExpression{}
 
-				if egressRule.Pods != nil {
-					matchLabels = egressRule.Pods.MatchLabel
-					matchExpressions = egressRule.Pods.MatchExpression
+					if egressRule.Pods != nil {
+						matchLabels = egressRule.Pods.MatchLabel
+						matchExpressions = egressRule.Pods.MatchExpression
+					}
+
+					isMatch := pp.calculateLabelSelectorMatches(oldPod, matchLabels, matchExpressions, dataPolicy.Namespace)
+					if !isMatch {
+						continue
+					}
+
+					if addedPolicies[policymodel.GetID(dataPolicy).String()] != true {
+						addedPolicies[policymodel.GetID(dataPolicy).String()] = true
+						policies = append(policies, dataPolicy)
+					}
+
 				}
-
-				isMatch := pp.calculateLabelSelectorMatches(oldPod, matchLabels, matchExpressions, dataPolicy.Namespace)
-				if !isMatch {
-					continue
-				}
-
-				if addedPolicies[policymodel.GetID(dataPolicy).String()] != true {
-					addedPolicies[policymodel.GetID(dataPolicy).String()] = true
-					policies = append(policies, dataPolicy)
-				}
-
 			}
 		}
 	}
@@ -358,49 +378,57 @@ func (pp *PolicyProcessor) UpdatePod(oldPod, newPod *podmodel.Pod) error {
 	// Check every policy for ingress and egress rules that match new Pod's labels
 	// and append them in a slice.
 	for _, dataPolicy := range dataPolicies {
-		for _, ingressRules := range dataPolicy.IngressRule {
-			for _, ingressRule := range ingressRules.From {
+		if len(dataPolicy.IngressRule) == 0 {
+			policies = append(policies, dataPolicy)
+		} else {
+			for _, ingressRules := range dataPolicy.IngressRule {
+				for _, ingressRule := range ingressRules.From {
 
-				matchLabels := []*policymodel.Policy_Label{}
-				matchExpressions := []*policymodel.Policy_LabelSelector_LabelExpression{}
+					matchLabels := []*policymodel.Policy_Label{}
+					matchExpressions := []*policymodel.Policy_LabelSelector_LabelExpression{}
 
-				if ingressRule.Pods != nil {
-					matchLabels = ingressRule.Pods.MatchLabel
-					matchExpressions = ingressRule.Pods.MatchExpression
-				}
+					if ingressRule.Pods != nil {
+						matchLabels = ingressRule.Pods.MatchLabel
+						matchExpressions = ingressRule.Pods.MatchExpression
+					}
 
-				isMatch := pp.calculateLabelSelectorMatches(newPod, matchLabels, matchExpressions, dataPolicy.Namespace)
-				if !isMatch {
-					continue
-				}
+					isMatch := pp.calculateLabelSelectorMatches(newPod, matchLabels, matchExpressions, dataPolicy.Namespace)
+					if !isMatch {
+						continue
+					}
 
-				if addedPolicies[policymodel.GetID(dataPolicy).String()] != true {
-					addedPolicies[policymodel.GetID(dataPolicy).String()] = true
-					policies = append(policies, dataPolicy)
+					if addedPolicies[policymodel.GetID(dataPolicy).String()] != true {
+						addedPolicies[policymodel.GetID(dataPolicy).String()] = true
+						policies = append(policies, dataPolicy)
+					}
 				}
 			}
 		}
-		for _, egressRules := range dataPolicy.EgressRule {
-			for _, egressRule := range egressRules.To {
+		if len(dataPolicy.EgressRule) == 0 {
+			policies = append(policies, dataPolicy)
+		} else {
+			for _, egressRules := range dataPolicy.EgressRule {
+				for _, egressRule := range egressRules.To {
 
-				matchLabels := []*policymodel.Policy_Label{}
-				matchExpressions := []*policymodel.Policy_LabelSelector_LabelExpression{}
+					matchLabels := []*policymodel.Policy_Label{}
+					matchExpressions := []*policymodel.Policy_LabelSelector_LabelExpression{}
 
-				if egressRule.Pods != nil {
-					matchLabels = egressRule.Pods.MatchLabel
-					matchExpressions = egressRule.Pods.MatchExpression
+					if egressRule.Pods != nil {
+						matchLabels = egressRule.Pods.MatchLabel
+						matchExpressions = egressRule.Pods.MatchExpression
+					}
+
+					isMatch := pp.calculateLabelSelectorMatches(newPod, matchLabels, matchExpressions, dataPolicy.Namespace)
+					if !isMatch {
+						continue
+					}
+
+					if addedPolicies[policymodel.GetID(dataPolicy).String()] != true {
+						addedPolicies[policymodel.GetID(dataPolicy).String()] = true
+						policies = append(policies, dataPolicy)
+					}
+
 				}
-
-				isMatch := pp.calculateLabelSelectorMatches(newPod, matchLabels, matchExpressions, dataPolicy.Namespace)
-				if !isMatch {
-					continue
-				}
-
-				if addedPolicies[policymodel.GetID(dataPolicy).String()] != true {
-					addedPolicies[policymodel.GetID(dataPolicy).String()] = true
-					policies = append(policies, dataPolicy)
-				}
-
 			}
 		}
 	}
@@ -410,13 +438,21 @@ func (pp *PolicyProcessor) UpdatePod(oldPod, newPod *podmodel.Pod) error {
 		for _, policy := range policies {
 			namespace := policy.Namespace
 			policyLabelSelectors := policy.Pods
-
-			policyPods := pp.Cache.LookupPodsByNSLabelSelector(namespace, policyLabelSelectors)
-			pods = append(pods, policyPods...)
+			if len(policyLabelSelectors.MatchExpression) == 0 && len(policyLabelSelectors.MatchLabel) == 0 {
+				policyPods := pp.Cache.LookupPodsByNamespace(namespace)
+				pods = append(pods, policyPods...)
+			} else {
+				policyPods := pp.Cache.LookupPodsByNSLabelSelector(namespace, policyLabelSelectors)
+				pods = append(pods, policyPods...)
+			}
 		}
 	}
+
 	strPods := utils.RemoveDuplicates(utils.StringPodID(pods))
 	pods = utils.UnstringPodID(strPods)
+
+	pp.Log.WithField("debug-pod-processor", newPod).
+		Infof("Pods sent to Process: %+v", pods)
 
 	// Find pods that belong to the current node.
 	hostPods := []podmodel.ID{}
@@ -434,11 +470,13 @@ func (pp *PolicyProcessor) UpdatePod(oldPod, newPod *podmodel.Pod) error {
 		hostPods = append(hostPods, hostPod)
 	}
 
+	pp.Log.WithField("update-pod", newPod).
+		Infof("Pods sent to Process: %+v", hostPods)
+
 	if len(hostPods) > 0 {
-		pp.Log.WithField("update-pod", newPod).
-			Infof("Pods sent to Process: %+v", hostPods)
 		return pp.Process(false, hostPods)
 	}
+
 	return nil
 }
 
@@ -458,8 +496,13 @@ func (pp *PolicyProcessor) AddPolicy(policy *policymodel.Policy) error {
 	policyLabelSelectors := policy.Pods
 
 	// Find all the pods that match Policy's Pod Label Selectors
-	policyPods := pp.Cache.LookupPodsByNSLabelSelector(namespace, policyLabelSelectors)
-	pods = append(pods, policyPods...)
+	if len(policyLabelSelectors.MatchExpression) == 0 && len(policyLabelSelectors.MatchLabel) == 0 {
+		policyPods := pp.Cache.LookupPodsByNamespace(namespace)
+		pods = append(pods, policyPods...)
+	} else {
+		policyPods := pp.Cache.LookupPodsByNSLabelSelector(namespace, policyLabelSelectors)
+		pods = append(pods, policyPods...)
+	}
 
 	// Find pods that belong to the current node.
 	hostPods := []podmodel.ID{}
@@ -500,8 +543,13 @@ func (pp *PolicyProcessor) DelPolicy(policy *policymodel.Policy) error {
 	policyLabelSelectors := policy.Pods
 
 	// Find all the pods that match Policy's Pod Label Selectors
-	policyPods := pp.Cache.LookupPodsByNSLabelSelector(namespace, policyLabelSelectors)
-	pods = append(pods, policyPods...)
+	if len(policyLabelSelectors.MatchExpression) == 0 && len(policyLabelSelectors.MatchLabel) == 0 {
+		policyPods := pp.Cache.LookupPodsByNamespace(namespace)
+		pods = append(pods, policyPods...)
+	} else {
+		policyPods := pp.Cache.LookupPodsByNSLabelSelector(namespace, policyLabelSelectors)
+		pods = append(pods, policyPods...)
+	}
 
 	// Find pods that belong to the current node.
 	hostPods := []podmodel.ID{}
@@ -546,14 +594,24 @@ func (pp *PolicyProcessor) UpdatePolicy(oldPolicy, newPolicy *policymodel.Policy
 	// Outdated pods using old Policy configuration
 	oldNamespace := oldPolicy.Namespace
 	oldPolicyLabelSelectors := oldPolicy.Pods
-	oldPolicyPods := pp.Cache.LookupPodsByNSLabelSelector(oldNamespace, oldPolicyLabelSelectors)
-	pods = append(pods, oldPolicyPods...)
+	if len(oldPolicyLabelSelectors.MatchExpression) == 0 && len(oldPolicyLabelSelectors.MatchLabel) == 0 {
+		oldPolicyPods := pp.Cache.LookupPodsByNamespace(oldNamespace)
+		pods = append(pods, oldPolicyPods...)
+	} else {
+		oldPolicyPods := pp.Cache.LookupPodsByNSLabelSelector(oldNamespace, oldPolicyLabelSelectors)
+		pods = append(pods, oldPolicyPods...)
+	}
 
 	// Pods using new Policy configuration
 	newNamespace := newPolicy.Namespace
 	newPolicyLabelSelectors := newPolicy.Pods
-	newPolicyPods := pp.Cache.LookupPodsByNSLabelSelector(newNamespace, newPolicyLabelSelectors)
-	pods = append(pods, newPolicyPods...)
+	if len(newPolicyLabelSelectors.MatchExpression) == 0 && len(newPolicyLabelSelectors.MatchLabel) == 0 {
+		newPolicyPods := pp.Cache.LookupPodsByNamespace(newNamespace)
+		pods = append(pods, newPolicyPods...)
+	} else {
+		oldPolicyPods := pp.Cache.LookupPodsByNSLabelSelector(oldNamespace, oldPolicyLabelSelectors)
+		pods = append(pods, oldPolicyPods...)
+	}
 
 	strPods := utils.RemoveDuplicates(utils.StringPodID(pods))
 	pods = utils.UnstringPodID(strPods)

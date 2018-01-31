@@ -57,11 +57,10 @@ type PolicyCacheAPI interface {
 
 	// LookupPodsByNSLabelSelector evaluates label selector (expression and/or match
 	// labels and returns IDs of matching pods in a namespace.
-	// todo - namespace to nsmodel.ID
-	LookupPodsByNSLabelSelector(namespace string, podLabelSelector *policymodel.Policy_LabelSelector) (pods []podmodel.ID)
+	LookupPodsByNSLabelSelector(policyNamespace string, podLabelSelector *policymodel.Policy_LabelSelector) (pods []podmodel.ID)
 
 	// LookupPodsByNamespace returns IDs of all pods inside a given namespace.
-	LookupPodsByNamespace(namespace string) (pods []podmodel.ID)
+	LookupPodsByNamespace(policyNamespace string) (pods []podmodel.ID)
 
 	// ListAllPods returns IDs of all known pods.
 	ListAllPods() (pods []podmodel.ID)

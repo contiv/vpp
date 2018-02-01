@@ -148,9 +148,10 @@ type vswitchConfig struct {
 	vethVpp        *linux_intf.LinuxInterfaces_Interface
 	interconnectAF *vpp_intf.Interfaces_Interface
 
-	routeToHost   *vpp_l3.StaticRoutes_Route
-	routeFromHost *linux_l3.LinuxStaticRoutes_Route
-	l4Features    *vpp_l4.L4Features
+	routeToHost      *vpp_l3.StaticRoutes_Route
+	routeFromHost    *linux_l3.LinuxStaticRoutes_Route
+	routeForServices *linux_l3.LinuxStaticRoutes_Route
+	l4Features       *vpp_l4.L4Features
 
 	vxlanBVI *vpp_intf.Interfaces_Interface
 	vxlanBD  *vpp_l2.BridgeDomains_BridgeDomain
@@ -467,11 +468,13 @@ func (s *remoteCNIserver) configureVswitchHostConnectivity(config *vswitchConfig
 	// configure static routes and enable L4 features
 	config.routeToHost = s.defaultRouteToHost()
 	config.routeFromHost = s.routeFromHost()
+	config.routeForServices = s.routeServicesFromHost()
 	config.l4Features = s.l4Features(!s.disableTCPstack)
 
 	txn2 := s.vppTxnFactory().Put().
 		StaticRoute(config.routeToHost).
 		LinuxRoute(config.routeFromHost).
+		LinuxRoute(config.routeForServices).
 		L4Features(config.l4Features)
 
 	// execute the config transaction
@@ -542,6 +545,7 @@ func (s *remoteCNIserver) persistVswitchConfig(config *vswitchConfig) error {
 	// routes + l4 config
 	changes[vpp_l3.RouteKey(config.routeToHost.VrfId, config.routeToHost.DstIpAddr, config.routeToHost.NextHopAddr)] = config.routeToHost
 	changes[linux_l3.StaticRouteKey(config.routeFromHost.Name)] = config.routeFromHost
+	changes[linux_l3.StaticRouteKey(config.routeForServices.Name)] = config.routeForServices
 	changes[vpp_l4.FeatureKey()] = config.l4Features
 
 	// persist the changes in ETCD

@@ -60,6 +60,25 @@ func (s *remoteCNIserver) routeFromHost() *linux_l3.LinuxStaticRoutes_Route {
 	return route
 }
 
+func (s *remoteCNIserver) routeServicesFromHost() *linux_l3.LinuxStaticRoutes_Route {
+	route := &linux_l3.LinuxStaticRoutes_Route{
+		Name:        "service-to-vpp",
+		Default:     false,
+		Namespace:   nil,
+		Interface:   vethHostEndLogicalName,
+		Description: "Services from host.",
+		Scope: &linux_l3.LinuxStaticRoutes_Route_Scope{
+			Type: linux_l3.LinuxStaticRoutes_Route_Scope_GLOBAL,
+		},
+		DstIpAddr: s.ipam.ServiceNetwork().String(),
+		GwAddr:    s.ipam.VEthVPPEndIP().String(),
+	}
+	if s.useTAPInterfaces {
+		route.Interface = tapHostEndName
+	}
+	return route
+}
+
 func (s *remoteCNIserver) defaultRouteToHost() *vpp_l3.StaticRoutes_Route {
 	route := &vpp_l3.StaticRoutes_Route{
 		DstIpAddr:         "0.0.0.0/0",

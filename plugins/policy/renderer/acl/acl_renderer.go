@@ -19,6 +19,8 @@ package acl
 import (
 	"net"
 
+	"github.com/golang/protobuf/proto"
+
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/vpp-agent/clientv1/linux"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins"
@@ -395,7 +397,8 @@ func (art *RendererTxn) renderChanges(putDsl linux.PutDSL, deleteDsl linux.Delet
 			}).Debug("Put new ACL")
 		} else if len(change.List.Interfaces) != 0 {
 			// Changed interfaces
-			acl := change.List.Private.(*vpp_acl.AccessLists_Acl)
+			aclPrivCopy := proto.Clone(change.List.Private.(*vpp_acl.AccessLists_Acl))
+			acl := aclPrivCopy.(*vpp_acl.AccessLists_Acl)
 			acl.Interfaces = art.renderInterfaces(change.List.Interfaces, ingress)
 			putDsl.ACL(acl)
 			art.renderer.Log.WithFields(logging.Fields{

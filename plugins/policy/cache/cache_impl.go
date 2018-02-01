@@ -84,13 +84,7 @@ func (pc *PolicyCache) Watch(watcher PolicyCacheWatcher) error {
 
 // LookupPod returns data of a given Pod.
 func (pc *PolicyCache) LookupPod(pod podmodel.ID) (found bool, data *podmodel.Pod) {
-	found, data = pc.configuredPods.LookupPod(pod.String())
-
-	if !found {
-		return !found, nil
-	}
-
-	return found, data
+	return pc.configuredPods.LookupPod(pod.String())
 }
 
 // LookupPodsByNSLabelSelector evaluates label selector (expression and/or match

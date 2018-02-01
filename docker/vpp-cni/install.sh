@@ -43,3 +43,4 @@ echo "Done installing CNI. SLEEP=$should_sleep"
 while [ "$should_sleep" == "true" ]; do
     sleep 10;
 done
+

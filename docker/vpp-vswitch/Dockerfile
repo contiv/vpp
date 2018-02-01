@@ -11,7 +11,7 @@ RUN apt-get update \
     && curl -L "https://golang.org/dl/go$GOLANG_VERSION.linux-amd64.tar.gz" | tar -C /usr/local -xzf - \
     && go get -u github.com/golang/lint/golint
 
-ADD . $GOPATH/src/github.com/contiv/vpp
+COPY . $GOPATH/src/github.com/contiv/vpp
 
 # lint and only build vpp-agent
 RUN cd $GOPATH/src/github.com/contiv/vpp \

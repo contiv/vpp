@@ -58,7 +58,8 @@ To use the development image for testing with specific version of VPP, see
       - `IP`: IP address to be attached to the main interface;
     - `OtherVPPInterfaces` (other configured interfaces only get IP address assigned in VPP)
       - `InterfaceName`: name of the interface;
-      - `IP`: IP address to be attached to the interface.
+      - `IP`: IP address to be attached to the interface;
+    - `Gateway`: IP address of the default gateway for external traffic, if it needs to be configured.
 
 #### cri-install.sh
 Contiv-VPP CRI Shim installer / uninstaller, that can be used as follows:

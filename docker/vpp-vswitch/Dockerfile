@@ -1,4 +1,5 @@
 # compile vpp-agent needs vpp libs
+# Update contiv/vpp-base version below if contiv/vpp-base-builder is changed
 FROM contiv/vpp-base-builder:b59bd659 as builder
 
 ENV GOLANG_VERSION 1.9.3
@@ -20,7 +21,8 @@ RUN cd $GOPATH/src/github.com/contiv/vpp \
 FROM contiv/vpp-base:b59bd659
 
 RUN apt-get update \
-    && apt-get install -y ethtool supervisor
+    && apt-get install -y ethtool supervisor \
+    && rm -rf /var/lib/apt/lists/*
 
 # copy binaries
 COPY --from=builder /root/go/src/github.com/contiv/vpp/cmd/contiv-agent/contiv-agent /usr/bin/contiv-agent

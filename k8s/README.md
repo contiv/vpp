@@ -49,6 +49,7 @@ To use the development image for testing with specific version of VPP, see
       on 1 k8s node (VPPHost network = VPPHost subnet for one k8s node);
     - `NodeInterconnectCIDR`: subnet used for main interfaces of all nodes;
     - `VxlanCIDR`: subnet used for VXLAN addressing providing node-interconnect overlay.
+    - `ServiceCIDR`: subnet used for allocation of Cluster IPs for services
 
   * Node configuration (section `NodeConfig`; one entry for each node)
     - `NodeName`: name of a Kubernetes node;

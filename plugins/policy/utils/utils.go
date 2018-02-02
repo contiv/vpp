@@ -60,19 +60,23 @@ func Intersect(a []string, b []string) []string {
 
 // Difference returns the difference of two slices
 func Difference(a []string, b []string) []string {
-	set := make([]string, 0)
-	hash := make(map[string]bool)
-	// Populate the map
-	for _, el := range a {
-		hash[el] = true
+	diffStr := []string{}
+	m := map[string]int{}
+
+	for _, aVal := range a {
+		m[aVal] = 1
 	}
-	//Append to slice for every element that exists on the hash
-	for _, el := range b {
-		if _, found := hash[el]; !found {
-			set = append(set, el)
+	for _, bVal := range b {
+		m[bVal] = m[bVal] + 1
+	}
+
+	for mKey, mVal := range m {
+		if mVal == 1 {
+			diffStr = append(diffStr, mKey)
 		}
 	}
-	return set
+
+	return diffStr
 }
 
 // UnstringPodID converts string podIDs to podmodelIDs

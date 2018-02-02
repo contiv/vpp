@@ -25,20 +25,30 @@ func (pp *PolicyProcessor) calculateMatches(policyData *policymodel.Policy) []co
 			ingressIPBlocks := []config.IPBlock{}
 
 			ingressRuleFroms := ingressRule.From
+
 			if len(ingressRuleFroms) == 0 {
 				ingressPods = nil
 				ingressIPBlocks = nil
 			}
+
 			for _, ingressRuleFrom := range ingressRuleFroms {
-				ingressLabel := ingressRuleFrom.Pods
-				ingressPod := pp.Cache.LookupPodsByNSLabelSelector(namespace, ingressLabel)
-				ingressPods = append(ingressPods, ingressPod...)
+
+				if ingressRuleFrom.Pods != nil {
+					ingressLabel := ingressRuleFrom.Pods
+					policyPods := pp.Cache.LookupPodsByNSLabelSelector(namespace, ingressLabel)
+					ingressPods = append(ingressPods, policyPods...)
+				}
+
+				if ingressRuleFrom.Namespaces != nil {
+					namespaceLabels := ingressRuleFrom.Namespaces
+					policyPods := pp.Cache.LookupPodsByLabelSelector(namespaceLabels)
+					ingressPods = append(ingressPods, policyPods...)
+				}
 
 				ingressIPBlock := ingressRuleFrom.IpBlock
 				if ingressIPBlock == nil {
 					continue
 				}
-				// todo - error handling Ipblocks after namespaces to continue
 				_, ingressCIDR, _ := net.ParseCIDR(ingressIPBlock.Cidr)
 
 				ingressIPBlockEx := []net.IPNet{}
@@ -67,6 +77,9 @@ func (pp *PolicyProcessor) calculateMatches(policyData *policymodel.Policy) []co
 				})
 			}
 
+			//strPods := utils.RemoveDuplicates(utils.StringPodID(pods))
+			//pods = utils.UnstringPodID(strPods)
+
 			matches = append(matches, config.Match{
 				Type:     matchType,
 				Pods:     ingressPods,
@@ -86,15 +99,24 @@ func (pp *PolicyProcessor) calculateMatches(policyData *policymodel.Policy) []co
 			egressIPBlocks := []config.IPBlock{}
 
 			egressRulesTo := egressRule.To
+
 			if len(egressRulesTo) == 0 {
 				egressPods = nil
 				egressIPBlocks = nil
 			}
-			for _, egressRuleTo := range egressRulesTo {
-				egressLabel := egressRuleTo.Pods
-				egressPod := pp.Cache.LookupPodsByNSLabelSelector(namespace, egressLabel)
-				egressPods = append(egressPods, egressPod...)
 
+			for _, egressRuleTo := range egressRulesTo {
+
+				if egressRuleTo.Pods != nil {
+					egressLabel := egressRuleTo.Pods
+					policyPods := pp.Cache.LookupPodsByNSLabelSelector(namespace, egressLabel)
+					egressPods = append(egressPods, policyPods...)
+				}
+
+				if egressRuleTo.Namespaces != nil {
+					policyPods := pp.Cache.LookupPodsByNamespace(namespace)
+					egressPods = append(egressPods, policyPods...)
+				}
 				egressIPBlock := egressRuleTo.IpBlock
 				if egressIPBlock == nil {
 					continue
@@ -140,14 +162,14 @@ func (pp *PolicyProcessor) calculateMatches(policyData *policymodel.Policy) []co
 }
 
 func (pp *PolicyProcessor) calculateLabelSelectorMatches(
-	newPod *podmodel.Pod,
+	pod *podmodel.Pod,
 	matchLabels []*policymodel.Policy_Label,
 	matchExpressions []*policymodel.Policy_LabelSelector_LabelExpression,
 	policyNamespace string) bool {
 
 	if len(matchLabels) > 0 && len(matchExpressions) > 0 {
-		evalMatchLabels := pp.isMatchLabel(newPod, matchLabels, policyNamespace)
-		evalMatchExpressions := pp.isMatchExpression(newPod, matchExpressions, policyNamespace)
+		evalMatchLabels := pp.isMatchLabel(pod, matchLabels, policyNamespace)
+		evalMatchExpressions := pp.isMatchExpression(pod, matchExpressions, policyNamespace)
 
 		isMatch := evalMatchLabels && evalMatchExpressions
 
@@ -157,14 +179,14 @@ func (pp *PolicyProcessor) calculateLabelSelectorMatches(
 		return true
 
 	} else if len(matchLabels) == 0 && len(matchExpressions) > 0 {
-		evalMatchExpressions := pp.isMatchExpression(newPod, matchExpressions, policyNamespace)
+		evalMatchExpressions := pp.isMatchExpression(pod, matchExpressions, policyNamespace)
 
 		if !evalMatchExpressions {
 			return false
 		}
 		return true
 	} else if len(matchLabels) > 0 && len(matchExpressions) == 0 {
-		evalMatchLabels := pp.isMatchLabel(newPod, matchLabels, policyNamespace)
+		evalMatchLabels := pp.isMatchLabel(pod, matchLabels, policyNamespace)
 
 		if !evalMatchLabels {
 			return false

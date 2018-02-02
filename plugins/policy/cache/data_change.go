@@ -80,9 +80,10 @@ func (pc *PolicyCache) changePropagateEvent(dataChngEv datasync.ChangeEvent) err
 	}
 
 	// Propagate Pod CHANGE event
-	_, _, err = podmodel.ParsePodFromKey(key)
+	podName, podNs, err := podmodel.ParsePodFromKey(key)
 	if err == nil {
 		var value, prevValue podmodel.Pod
+		podID := podmodel.ID{Name: podName, Namespace: podNs}
 
 		if err = dataChngEv.GetValue(&value); err != nil {
 			return err
@@ -93,33 +94,29 @@ func (pc *PolicyCache) changePropagateEvent(dataChngEv datasync.ChangeEvent) err
 		}
 
 		if datasync.Delete == dataChngEv.GetChangeType() {
-			oldPodID := podmodel.GetID(&prevValue).String()
-			pc.configuredPods.UnregisterPod(oldPodID)
+			pc.configuredPods.UnregisterPod(podID.String())
 
 			for _, watcher := range pc.watchers {
-				if err := watcher.DelPod(&prevValue); err != nil {
+				if err := watcher.DelPod(podID, &prevValue); err != nil {
 					return err
 				}
 			}
 
 		} else if diff {
-			podID := podmodel.GetID(&value).String()
-			oldPodID := podmodel.GetID(&prevValue).String()
-			pc.configuredPods.UnregisterPod(oldPodID)
-			pc.configuredPods.RegisterPod(podID, &value)
+			pc.configuredPods.UnregisterPod(podID.String())
+			pc.configuredPods.RegisterPod(podID.String(), &value)
 
 			for _, watcher := range pc.watchers {
-				if err := watcher.UpdatePod(&prevValue, &value); err != nil {
+				if err := watcher.UpdatePod(podID, &prevValue, &value); err != nil {
 					return err
 				}
 			}
 
 		} else {
-			podID := podmodel.GetID(&value).String()
-			pc.configuredPods.RegisterPod(podID, &value)
+			pc.configuredPods.RegisterPod(podID.String(), &value)
 
 			for _, watcher := range pc.watchers {
-				if err := watcher.AddPod(&value); err != nil {
+				if err := watcher.AddPod(podID, &value); err != nil {
 					return err
 				}
 			}

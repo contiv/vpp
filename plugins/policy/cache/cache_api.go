@@ -91,13 +91,13 @@ type PolicyCacheWatcher interface {
 	Resync(data *DataResyncEvent) error
 
 	// AddPod is called by Policy Cache when a new pod is created.
-	AddPod(pod *podmodel.Pod) error
+	AddPod(podID podmodel.ID, pod *podmodel.Pod) error
 
 	// DelPod is called by Policy Cache after a pod was removed.
-	DelPod(pod *podmodel.Pod) error
+	DelPod(podID podmodel.ID, pod *podmodel.Pod) error
 
 	// UpdatePod is called by Policy Cache when data of a pod were modified.
-	UpdatePod(oldPod, newPod *podmodel.Pod) error
+	UpdatePod(podID podmodel.ID, oldPod, newPod *podmodel.Pod) error
 
 	// AddPolicy is called by Policy Cache when a new policy is created.
 	AddPolicy(policy *policymodel.Policy) error

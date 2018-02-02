@@ -717,4 +717,3 @@ func (pp *PolicyProcessor) UpdateNamespace(oldNs, newNs *nsmodel.Namespace) erro
 func (pp *PolicyProcessor) Close() error {
 	return nil
 }
-

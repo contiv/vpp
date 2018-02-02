@@ -50,7 +50,7 @@ To use the development image for testing with specific version of VPP, see
     - `NodeInterconnectCIDR`: subnet used for main interfaces of all nodes;
     - `VxlanCIDR`: subnet used for VXLAN addressing providing node-interconnect overlay.
     - `ServiceCIDR`: subnet used for allocation of Cluster IPs for services. Default value
-    is default kubernetes service range `10.96.0.0/12`
+    is the default kubernetes service range `10.96.0.0/12`.
 
   * Node configuration (section `NodeConfig`; one entry for each node)
     - `NodeName`: name of a Kubernetes node;

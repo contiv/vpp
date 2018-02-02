@@ -143,8 +143,27 @@ func (pc *PolicyCache) LookupPodsByNSLabelSelector(policyNamespace string,
 // LookupPodsByLabelSelector evaluates label selector (expression and/or match
 // labels) and returns IDs of matching pods.
 func (pc *PolicyCache) LookupPodsByLabelSelector(
-	podLabelSelector *policymodel.Policy_LabelSelector) (pods []podmodel.ID) {
-	return nil
+	namespaceLabelSelector *policymodel.Policy_LabelSelector) (pods []podmodel.ID) {
+	// An empty namespace selector matches all namespaces.
+	if len(namespaceLabelSelector.MatchExpression) == 0 && len(namespaceLabelSelector.MatchLabel) == 0 {
+		allPods := pc.configuredPods.ListAll()
+		kubeSystemPods := pc.configuredPods.LookupPodsByNamespace("kube-system")
+		pods := utils.Difference(allPods, kubeSystemPods)
+
+		pc.Log.WithField("LookupPodsByNSLabelSelector", namespaceLabelSelector).
+			Infof("Empty namespace selector returning pods: %+v", pods)
+		return utils.UnstringPodID(pods)
+	}
+	pc.Log.WithField("LookupPodsByNSLabelSelector", namespaceLabelSelector).
+		Debugf("Namespace Label Selector is: %+v", namespaceLabelSelector)
+	// List of match labels and match expressions.
+	matchLabels := namespaceLabelSelector.MatchLabel
+
+	found, namespaceSelectorPods := pc.getPodsByLabelSelector(matchLabels)
+	if !found {
+		return []podmodel.ID{}
+	}
+	return utils.UnstringPodID(namespaceSelectorPods)
 }
 
 // LookupPodsByNamespace returns IDs of all pods inside a given namespace.
@@ -188,6 +207,7 @@ func (pc *PolicyCache) LookupPoliciesByPod(pod podmodel.ID) (policies []policymo
 	for _, podLabel := range podLabels {
 		nsLabel := podData.Namespace + "/" + podLabel.Key + "/" + podLabel.Value
 		policyIDs := pc.configuredPolicies.LookupPolicyByNSLabelSelector(nsLabel)
+
 		// Check if we have policies with empty podSelectors:
 		allPolicies := pc.ListAllPolicies()
 		for _, stringPolicy := range allPolicies {
@@ -251,8 +271,8 @@ func (pc *PolicyCache) LookupNamespace(namespace nsmodel.ID) (found bool, data *
 // LookupNamespacesByLabelSelector evaluates label selector (expression
 // and/or match labels) and returns IDs of matching namespaces.
 func (pc *PolicyCache) LookupNamespacesByLabelSelector(
-	nsLabelSelector *policymodel.Policy_LabelSelector) (namespaces []nsmodel.ID) {
-	return nil
+	nsLabelSelector string) []string {
+	return pc.configuredNamespaces.LookupNamespacesByLabelSelector(nsLabelSelector)
 }
 
 // ListAllNamespaces returns IDs of all known namespaces.

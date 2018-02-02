@@ -43,3 +43,32 @@ func (pp *PolicyProcessor) isMatchLabel(pod *podmodel.Pod, matchLabels []*policy
 	return isMatch
 
 }
+
+func (pp *PolicyProcessor) isNamespaceMatchLabel(pod *podmodel.Pod, matchLabels []*policymodel.Policy_Label) bool {
+
+	podNamespace := pod.Namespace
+	isMatch := false
+
+	for _, matchLabel := range matchLabels {
+		label := matchLabel.Key + "/" + matchLabel.Value
+		// Get all namespaces that match namespace label selector
+		namespaces := pp.Cache.LookupNamespacesByLabelSelector(label)
+		if len(namespaces) == 0 {
+			return isMatch
+		}
+		namespaceExists := false
+		// Check if matched namespaces include pod's namespace
+		for _, namespace := range namespaces {
+			if namespace == podNamespace {
+				namespaceExists = true
+			}
+		}
+		// Namespaces are AND'ed, if one is not a match then exit
+		if namespaceExists == false {
+			isMatch = false
+			break
+		}
+		isMatch = true
+	}
+	return isMatch
+}

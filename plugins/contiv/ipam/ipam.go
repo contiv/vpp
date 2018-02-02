@@ -24,9 +24,10 @@ import (
 )
 
 const (
-	podGatewaySeqID    = 1 // sequence ID reserved for the gateway in POD IP subnet (cannot be assigned to any POD)
-	vethVPPEndIPSeqID  = 1 // sequence ID reserved for VPP-end of the VPP to host interconnect
-	vethHostEndIPSeqID = 2 // sequence ID reserved for host-end of the VPP to host interconnect
+	podGatewaySeqID    = 1              // sequence ID reserved for the gateway in POD IP subnet (cannot be assigned to any POD)
+	vethVPPEndIPSeqID  = 1              // sequence ID reserved for VPP-end of the VPP to host interconnect
+	vethHostEndIPSeqID = 2              // sequence ID reserved for host-end of the VPP to host interconnect
+	defaultServiceCIDR = "10.96.0.0/12" // default subnet allocated by service
 )
 
 // IPAM represents the basic Contiv IPAM module.
@@ -51,6 +52,7 @@ type IPAM struct {
 	// node related variables
 	nodeInterconnectCIDR net.IPNet // IPv4 subnet used for for inter-node connections
 	vxlanCIDR            net.IPNet // IPv4 subnet used for for inter-node VXLAN
+	serviceCIDR          net.IPNet // IPv4 subnet used to allocate ClusterIPs for a service
 }
 
 type uintIP = uint32
@@ -64,6 +66,7 @@ type Config struct {
 	VPPHostNetworkPrefixLen uint8  // prefix length of subnet used for for VPP to host Linux stack interconnect within 1 node (VPPHost network = VPPHost subnet for one 1 node)
 	NodeInterconnectCIDR    string // subnet used for for inter-node connections
 	VxlanCIDR               string // subnet used for for inter-node VXLAN
+	ServiceCIDR             string // subnet used by services
 }
 
 // New returns new IPAM module to be used on the node specified by the nodeID.
@@ -203,6 +206,14 @@ func (i *IPAM) OtherNodePodNetwork(nodeID uint8) (*net.IPNet, error) {
 	return &podNetwork, nil
 }
 
+// ServiceNetwork returns range allocated for services.
+func (i *IPAM) ServiceNetwork() *net.IPNet {
+	i.mutex.RLock()
+	defer i.mutex.RUnlock()
+	serviceNetwork := newIPNet(i.serviceCIDR) // defensive copy
+	return &serviceNetwork
+}
+
 // PodGatewayIP returns gateway IP address of the POD network of this node.
 func (i *IPAM) PodGatewayIP() net.IP {
 	i.mutex.RLock()
@@ -306,6 +317,15 @@ func initializeVPPHostIPAM(ipam *IPAM, config *Config, nodeID uint8) (err error)
 	}
 	ipam.vethVPPEndIP = uint32ToIpv4(vSwitchNetworkPrefixUint32 + vethVPPEndIPSeqID)
 	ipam.vethHostEndIP = uint32ToIpv4(vSwitchNetworkPrefixUint32 + vethHostEndIPSeqID)
+
+	if config.ServiceCIDR == "" {
+		config.ServiceCIDR = defaultServiceCIDR
+	}
+	_, serviceSubnet, err := net.ParseCIDR(config.ServiceCIDR)
+	if err != nil {
+		return
+	}
+	ipam.serviceCIDR = *serviceSubnet
 
 	return
 }

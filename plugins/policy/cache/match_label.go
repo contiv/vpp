@@ -23,10 +23,10 @@ import (
 
 // GetPodsByNSLabelSelector returns the pods that match a collection of Label Selectors in the same namespace
 func (pc *PolicyCache) getPodsByNSLabelSelector(namespace string, labels []*policymodel.Policy_Label) (bool, []string) {
+	newPodSet := []string{}
 
 	prevNSLabelSelector := namespace + "/" + labels[0].Key + "/" + labels[0].Value
 	prevPodSet := pc.configuredPods.LookupPodsByNSLabelSelector(prevNSLabelSelector)
-	newPodSet := []string{}
 
 	if len(labels) == 1 {
 		return true, prevPodSet
@@ -48,29 +48,39 @@ func (pc *PolicyCache) getPodsByNSLabelSelector(namespace string, labels []*poli
 	return true, newPodSet
 }
 
-// GetPodsByNSLabelSelector returns the pods that match a collection of Label Selectors in the same namespace
-func (pc *PolicyCache) getPodsByLabelSelector(namespace string, labels []*policymodel.Policy_Label) (bool, []string) {
+// GetPodsByNSLabelSelector returns the pods that match a collection of Label Selectors
+func (pc *PolicyCache) getPodsByLabelSelector(labels []*policymodel.Policy_Label) (bool, []string) {
+	pods := []string{}
+	newNamespaceSet := []string{}
 
 	prevNSLabelSelector := labels[0].Key + "/" + labels[0].Value
-	prevPodSet := pc.configuredPods.LookupPodsByLabelSelector(prevNSLabelSelector)
-	newPodSet := []string{}
+	prevNamespaceSet := pc.configuredNamespaces.LookupNamespacesByLabelSelector(prevNSLabelSelector)
 
 	if len(labels) == 1 {
-		return true, prevPodSet
+		for _, namespace := range prevNamespaceSet {
+			pods = append(pods, pc.configuredPods.LookupPodsByNamespace(namespace)...)
+		}
+		if len(pods) == 0 {
+			return false, []string{}
+		}
+		return true, pods
 	}
 
 	for i := 1; i < len(labels); i++ {
-		newLabelSelector := labels[i].Key + "/" + labels[i].Value
-		newPodSet = pc.configuredPods.LookupPodsByLabelSelector(newLabelSelector)
+		newNSLabelSelector := labels[i].Key + "/" + labels[i].Value
+		newNamespaceSet = pc.configuredNamespaces.LookupNamespacesByLabelSelector(newNSLabelSelector)
 
-		tmp := utils.Intersect(prevPodSet, newPodSet)
+		tmp := utils.Intersect(prevNamespaceSet, newNamespaceSet)
 		if len(tmp) == 0 {
 			return false, nil
 		}
 
-		prevPodSet = newPodSet
-		newPodSet = tmp
+		prevNamespaceSet = newNamespaceSet
+		newNamespaceSet = tmp
+	}
+	for _, namespace := range newNamespaceSet {
+		pods = append(pods, pc.configuredPods.LookupPodsByNamespace(namespace)...)
 	}
 
-	return true, newPodSet
+	return true, pods
 }

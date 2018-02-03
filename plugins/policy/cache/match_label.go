@@ -23,6 +23,10 @@ import (
 
 // getPodsByNSLabelSelector returns the pods that match a collection of Label Selectors in the same namespace
 func (pc *PolicyCache) getPodsByNSLabelSelector(namespace string, labels []*policymodel.Policy_Label) []string {
+	// Check if we have empty labels
+	if len(labels) == 0 {
+		return []string{}
+	}
 	prevNSLabelSelector := namespace + "/" + labels[0].Key + "/" + labels[0].Value
 	prevPodSet := pc.configuredPods.LookupPodsByNSLabelSelector(prevNSLabelSelector)
 	current := prevPodSet
@@ -33,7 +37,7 @@ func (pc *PolicyCache) getPodsByNSLabelSelector(namespace string, labels []*poli
 		newPodSet := pc.configuredPods.LookupPodsByNSLabelSelector(newNSLabelSelector)
 		current := utils.Intersect(prevPodSet, newPodSet)
 		if len(current) == 0 {
-			return []string{}
+			break
 		}
 	}
 
@@ -42,6 +46,10 @@ func (pc *PolicyCache) getPodsByNSLabelSelector(namespace string, labels []*poli
 
 // getPodsByLabelSelector returns the pods that match a collection of Label Selectors
 func (pc *PolicyCache) getPodsByLabelSelector(labels []*policymodel.Policy_Label) []string {
+	// Check if we have empty labels
+	if len(labels) == 0 {
+		return []string{}
+	}
 	pods := []string{}
 	prevNSLabelSelector := labels[0].Key + "/" + labels[0].Value
 	prevNamespaceSet := pc.configuredNamespaces.LookupNamespacesByLabelSelector(prevNSLabelSelector)
@@ -53,7 +61,7 @@ func (pc *PolicyCache) getPodsByLabelSelector(labels []*policymodel.Policy_Label
 		newNamespaceSet := pc.configuredNamespaces.LookupNamespacesByLabelSelector(newNSLabelSelector)
 		current = utils.Intersect(prevNamespaceSet, newNamespaceSet)
 		if len(current) == 0 {
-			return []string{}
+			break
 		}
 	}
 	for _, namespace := range current {

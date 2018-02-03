@@ -31,6 +31,11 @@ const (
 // getMatchExpressionPods returns all the pods that match a collection of expressions (expressions are ANDed)
 func (pc *PolicyCache) getMatchExpressionPods(namespace string, expressions []*policymodel.Policy_LabelSelector_LabelExpression) []string {
 	var inPodSet, notInPodSet, existsPodSet, notExistPodSet []string
+	// Check if we have empty expressions
+	if len(expressions) == 0 {
+		return []string{}
+	}
+
 	for _, expression := range expressions {
 		switch expression.Operator {
 		case in:
@@ -90,21 +95,7 @@ func (pc *PolicyCache) getMatchExpressionPods(namespace string, expressions []*p
 
 		}
 	}
-	// Remove duplicates from slices
-	inPodSet = utils.RemoveDuplicates(inPodSet)
-	notInPodSet = utils.RemoveDuplicates(inPodSet)
-	existsPodSet = utils.RemoveDuplicates(inPodSet)
-	notExistPodSet = utils.RemoveDuplicates(inPodSet)
 
-	inMatcher := utils.Intersect(inPodSet, notInPodSet)
-	if len(inMatcher) == 0 {
-		return []string{}
-	}
-	existsMatcher := utils.Intersect(existsPodSet, notExistPodSet)
-	if len(existsMatcher) == 0 {
-		return []string{}
-	}
+	return utils.Intersect(inPodSet, notInPodSet, existsPodSet, notExistPodSet)
 
-	pods := utils.Intersect(inMatcher, existsMatcher)
-	return pods
 }

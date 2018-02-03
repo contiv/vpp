@@ -104,34 +104,11 @@ func (pc *PolicyCache) LookupPodsByNSLabelSelector(policyNamespace string,
 	matchLabels := podLabelSelector.MatchLabel
 	matchExpressions := podLabelSelector.MatchExpression
 
-	if len(matchLabels) > 0 && len(matchExpressions) == 0 {
-		pods := pc.getPodsByNSLabelSelector(policyNamespace, matchLabels)
-		return utils.UnstringPodID(pods)
+	mlPods := pc.getPodsByNSLabelSelector(policyNamespace, matchLabels)
+	mePods := pc.getMatchExpressionPods(policyNamespace, matchExpressions)
 
-	} else if len(matchLabels) == 0 && len(matchExpressions) > 0 {
-		pods := pc.getMatchExpressionPods(policyNamespace, matchExpressions)
-		return utils.UnstringPodID(pods)
+	return utils.UnstringPodID(utils.Intersect(mlPods, mePods))
 
-	} else if len(matchLabels) > 0 && len(matchExpressions) > 0 {
-		mlPods := pc.getPodsByNSLabelSelector(policyNamespace, matchLabels)
-		if len(mlPods) == 0 {
-			return []podmodel.ID{}
-		}
-
-		mePods := pc.getMatchExpressionPods(policyNamespace, matchExpressions)
-		if len(mePods) == 0 {
-			return []podmodel.ID{}
-		}
-
-		pods := utils.Intersect(mlPods, mePods)
-		if len(pods) == 0 {
-			return []podmodel.ID{}
-		}
-
-		return utils.UnstringPodID(pods)
-	}
-
-	return []podmodel.ID{}
 }
 
 // LookupPodsByLabelSelector evaluates label selector (expression and/or match

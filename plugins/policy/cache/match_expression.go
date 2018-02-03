@@ -29,26 +29,26 @@ const (
 )
 
 // getMatchExpressionPods returns all the pods that match a collection of expressions (expressions are ANDed)
-func (pc *PolicyCache) getMatchExpressionPods(namespace string, expressions []*policymodel.Policy_LabelSelector_LabelExpression) (bool, []string) {
+func (pc *PolicyCache) getMatchExpressionPods(namespace string, expressions []*policymodel.Policy_LabelSelector_LabelExpression) []string {
 	var inPodSet, notInPodSet, existsPodSet, notExistPodSet []string
 	for _, expression := range expressions {
 		switch expression.Operator {
 		case in:
 			labels := utils.ConstructLabels(expression.Key, expression.Value)
-			isMatch, podSet := pc.getPodsByNSLabelSelector(namespace, labels)
-			if !isMatch {
-				return false, nil
+			podSet := pc.getPodsByNSLabelSelector(namespace, labels)
+			if len(podSet) == 0 {
+				return []string{}
 			}
 
 			inPodSet = append(inPodSet, podSet...)
 
 		case notIn:
 			labels := utils.ConstructLabels(expression.Key, expression.Value)
-			isMatch, podSet := pc.getPodsByNSLabelSelector(namespace, labels)
-			if !isMatch {
+			podSet := pc.getPodsByNSLabelSelector(namespace, labels)
+			if len(podSet) == 0 {
 				podNamespaceAll := pc.configuredPods.LookupPodsByNamespace(namespace)
-				if podNamespaceAll == nil {
-					return false, nil
+				if len(podNamespaceAll) == 0 {
+					return []string{}
 				}
 				notInPodSet = append(notInPodSet, podNamespaceAll...)
 				break
@@ -57,24 +57,24 @@ func (pc *PolicyCache) getMatchExpressionPods(namespace string, expressions []*p
 			podNamespaceAll := pc.configuredPods.LookupPodsByNamespace(namespace)
 			pods := utils.Difference(podNamespaceAll, podSet)
 			notInPodSet = append(notInPodSet, pods...)
-			if notInPodSet == nil {
-				return false, nil
+			if len(notInPodSet) == 0 {
+				return []string{}
 			}
 
 		case exists:
 			podSet := pc.configuredPods.LookupPodsByNSKey(namespace + "/" + expression.Key)
-			if podSet == nil {
-				return false, nil
+			if len(podSet) == 0 {
+				return []string{}
 			}
 
 			existsPodSet = append(existsPodSet, podSet...)
 
 		case doesNotExist:
 			podSet := pc.configuredPods.LookupPodsByNSKey(namespace + "/" + expression.Key)
-			if podSet == nil {
+			if len(podSet) == 0 {
 				podNamespaceAll := pc.configuredPods.LookupPodsByNamespace(namespace)
-				if podNamespaceAll == nil {
-					return false, nil
+				if len(podNamespaceAll) == 0 {
+					return []string{}
 				}
 
 				notExistPodSet = append(notExistPodSet, podNamespaceAll...)
@@ -84,8 +84,8 @@ func (pc *PolicyCache) getMatchExpressionPods(namespace string, expressions []*p
 			podNamespaceAll := pc.configuredPods.LookupPodsByNamespace(namespace)
 			pods := utils.Difference(podNamespaceAll, podSet)
 			notExistPodSet = append(notExistPodSet, pods...)
-			if notExistPodSet == nil {
-				return false, nil
+			if len(notExistPodSet) == 0 {
+				return []string{}
 			}
 
 		}
@@ -97,17 +97,14 @@ func (pc *PolicyCache) getMatchExpressionPods(namespace string, expressions []*p
 	notExistPodSet = utils.RemoveDuplicates(inPodSet)
 
 	inMatcher := utils.Intersect(inPodSet, notInPodSet)
-	if inMatcher == nil {
-		return false, nil
+	if len(inMatcher) == 0 {
+		return []string{}
 	}
 	existsMatcher := utils.Intersect(existsPodSet, notExistPodSet)
-	if existsMatcher == nil {
-		return false, nil
+	if len(existsMatcher) == 0 {
+		return []string{}
 	}
 
 	pods := utils.Intersect(inMatcher, existsMatcher)
-	if pods == nil {
-		return false, nil
-	}
-	return true, pods
+	return pods
 }

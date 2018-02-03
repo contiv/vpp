@@ -21,66 +21,44 @@ import (
 	"github.com/contiv/vpp/plugins/policy/utils"
 )
 
-// GetPodsByNSLabelSelector returns the pods that match a collection of Label Selectors in the same namespace
-func (pc *PolicyCache) getPodsByNSLabelSelector(namespace string, labels []*policymodel.Policy_Label) (bool, []string) {
-	newPodSet := []string{}
-
+// getPodsByNSLabelSelector returns the pods that match a collection of Label Selectors in the same namespace
+func (pc *PolicyCache) getPodsByNSLabelSelector(namespace string, labels []*policymodel.Policy_Label) []string {
 	prevNSLabelSelector := namespace + "/" + labels[0].Key + "/" + labels[0].Value
 	prevPodSet := pc.configuredPods.LookupPodsByNSLabelSelector(prevNSLabelSelector)
-
-	if len(labels) == 1 {
-		return true, prevPodSet
-	}
+	current := prevPodSet
 
 	for i := 1; i < len(labels); i++ {
+		prevPodSet = current
 		newNSLabelSelector := namespace + "/" + labels[i].Key + "/" + labels[i].Value
-		newPodSet = pc.configuredPods.LookupPodsByNSLabelSelector(newNSLabelSelector)
-
-		tmp := utils.Intersect(prevPodSet, newPodSet)
-		if len(tmp) == 0 {
-			return false, nil
+		newPodSet := pc.configuredPods.LookupPodsByNSLabelSelector(newNSLabelSelector)
+		current := utils.Intersect(prevPodSet, newPodSet)
+		if len(current) == 0 {
+			return []string{}
 		}
-
-		prevPodSet = newPodSet
-		newPodSet = tmp
 	}
 
-	return true, newPodSet
+	return current
 }
 
-// GetPodsByNSLabelSelector returns the pods that match a collection of Label Selectors
-func (pc *PolicyCache) getPodsByLabelSelector(labels []*policymodel.Policy_Label) (bool, []string) {
+// getPodsByLabelSelector returns the pods that match a collection of Label Selectors
+func (pc *PolicyCache) getPodsByLabelSelector(labels []*policymodel.Policy_Label) []string {
 	pods := []string{}
-	newNamespaceSet := []string{}
-
 	prevNSLabelSelector := labels[0].Key + "/" + labels[0].Value
 	prevNamespaceSet := pc.configuredNamespaces.LookupNamespacesByLabelSelector(prevNSLabelSelector)
-
-	if len(labels) == 1 {
-		for _, namespace := range prevNamespaceSet {
-			pods = append(pods, pc.configuredPods.LookupPodsByNamespace(namespace)...)
-		}
-		if len(pods) == 0 {
-			return false, []string{}
-		}
-		return true, pods
-	}
+	current := prevNamespaceSet
 
 	for i := 1; i < len(labels); i++ {
+		prevNamespaceSet = current
 		newNSLabelSelector := labels[i].Key + "/" + labels[i].Value
-		newNamespaceSet = pc.configuredNamespaces.LookupNamespacesByLabelSelector(newNSLabelSelector)
-
-		tmp := utils.Intersect(prevNamespaceSet, newNamespaceSet)
-		if len(tmp) == 0 {
-			return false, nil
+		newNamespaceSet := pc.configuredNamespaces.LookupNamespacesByLabelSelector(newNSLabelSelector)
+		current = utils.Intersect(prevNamespaceSet, newNamespaceSet)
+		if len(current) == 0 {
+			return []string{}
 		}
-
-		prevNamespaceSet = newNamespaceSet
-		newNamespaceSet = tmp
 	}
-	for _, namespace := range newNamespaceSet {
+	for _, namespace := range current {
 		pods = append(pods, pc.configuredPods.LookupPodsByNamespace(namespace)...)
 	}
 
-	return true, pods
+	return pods
 }

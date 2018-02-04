@@ -66,7 +66,7 @@ type Deps struct {
 	local.PluginInfraDeps
 	// Kubeconfig with k8s cluster address and access credentials to use.
 	KubeConfig config.PluginConfig
-	// Writer is used to propagate changes into a key-value datastore.
+	// Broker is used to propagate changes into a key-value datastore.
 	// contiv-ksr uses ETCD as datastore.
 	Publish *kvdbsync.Plugin
 }
@@ -80,10 +80,8 @@ type ReflectorDeps struct {
 	K8sClientset *kubernetes.Clientset
 	// K8s List-Watch is used to watch for Kubernetes config changes.
 	K8sListWatch K8sListWatcher
-	// Writer is used to propagate changes into a datastore.
-	Writer KeyProtoValWriter
-	// Lister is used to list values from a datastore.
-	Lister KeyProtoValLister
+	// Broker is used to read and write items to/from a data store.
+	Writer KeyProtoValBroker
 }
 
 // Init builds K8s client-set based on the supplied kubeconfig and initializes
@@ -111,8 +109,7 @@ func (plugin *Plugin) Init() error {
 			Log:          plugin.Log.NewLogger("-namespace"),
 			K8sClientset: plugin.k8sClientset,
 			K8sListWatch: &k8sCache{},
-			Writer:       plugin.Publish,
-			Lister:       plugin.Publish.Deps.KvPlugin.NewBroker(ksrPrefix),
+			Broker:       plugin.Publish.Deps.KvPlugin.NewBroker(ksrPrefix),
 			dsSynced:     false,
 			objType:      "Namespace",
 		},
@@ -130,8 +127,7 @@ func (plugin *Plugin) Init() error {
 			Log:          plugin.Log.NewLogger("-pod"),
 			K8sClientset: plugin.k8sClientset,
 			K8sListWatch: &k8sCache{},
-			Writer:       plugin.Publish,
-			Lister:       plugin.Publish.Deps.KvPlugin.NewBroker(ksrPrefix),
+			Broker:       plugin.Publish.Deps.KvPlugin.NewBroker(ksrPrefix),
 			dsSynced:     false,
 			objType:      "Pod",
 		},
@@ -148,8 +144,7 @@ func (plugin *Plugin) Init() error {
 			Log:          plugin.Log.NewLogger("-policy"),
 			K8sClientset: plugin.k8sClientset,
 			K8sListWatch: &k8sCache{},
-			Writer:       plugin.Publish,
-			Lister:       plugin.Publish.Deps.KvPlugin.NewBroker(ksrPrefix),
+			Broker:       plugin.Publish.Deps.KvPlugin.NewBroker(ksrPrefix),
 			dsSynced:     false,
 			objType:      "Policy",
 		},
@@ -166,8 +161,7 @@ func (plugin *Plugin) Init() error {
 			Log:          plugin.Log.NewLogger("-service"),
 			K8sClientset: plugin.k8sClientset,
 			K8sListWatch: &k8sCache{},
-			Writer:       plugin.Publish,
-			Lister:       plugin.Publish.Deps.KvPlugin.NewBroker(ksrPrefix),
+			Broker:       plugin.Publish.Deps.KvPlugin.NewBroker(ksrPrefix),
 			dsSynced:     false,
 			objType:      "Service",
 		},
@@ -184,8 +178,7 @@ func (plugin *Plugin) Init() error {
 			Log:          plugin.Log.NewLogger("-endpoints"),
 			K8sClientset: plugin.k8sClientset,
 			K8sListWatch: &k8sCache{},
-			Writer:       plugin.Publish,
-			Lister:       plugin.Publish.Deps.KvPlugin.NewBroker(ksrPrefix),
+			Broker:       plugin.Publish.Deps.KvPlugin.NewBroker(ksrPrefix),
 			dsSynced:     false,
 			objType:      "Endpoints",
 		},

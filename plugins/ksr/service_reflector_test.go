@@ -32,8 +32,7 @@ import (
 
 type ServiceTestVars struct {
 	k8sListWatch *mockK8sListWatch
-	mockKvWriter *mockKeyProtoValWriter
-	mockKvLister *mockKeyProtoValLister
+	mockKvWriter *mockKeyProtoVaBroker
 	svcReflector *ServiceReflector
 	svc          *coreV1.Service
 	svcTestData  []coreV1.Service
@@ -48,16 +47,14 @@ func TestServiceReflector(t *testing.T) {
 	flavorLocal.Inject()
 
 	serviceTestVars.k8sListWatch = &mockK8sListWatch{}
-	serviceTestVars.mockKvWriter = newMockKeyProtoValWriter()
-	serviceTestVars.mockKvLister = newMockKeyProtoValLister(serviceTestVars.mockKvWriter.ds)
+	serviceTestVars.mockKvWriter = newMockKeyProtoValBroker()
 
 	serviceTestVars.svcReflector = &ServiceReflector{
 		Reflector: Reflector{
 			Log:          flavorLocal.LoggerFor("service-reflector"),
 			K8sClientset: &kubernetes.Clientset{},
 			K8sListWatch: serviceTestVars.k8sListWatch,
-			Writer:       serviceTestVars.mockKvWriter,
-			Lister:       serviceTestVars.mockKvLister,
+			Broker:       serviceTestVars.mockKvWriter,
 			dsSynced:     false,
 			objType:      "Service",
 		},
@@ -291,7 +288,7 @@ func testUpdateService(t *testing.T) {
 
 	// Check that new data was written properly
 	svcProto := &service.Service{}
-	err := serviceTestVars.mockKvWriter.GetValue(service.Key(svcNew.GetName(), svcNew.GetNamespace()), svcProto)
+	_, _, err := serviceTestVars.mockKvWriter.GetValue(service.Key(svcNew.GetName(), svcNew.GetNamespace()), svcProto)
 	gomega.Expect(err).To(gomega.BeNil())
 	gomega.Expect(svcProto.ClusterIp).To(gomega.Equal(svcNew.Spec.ClusterIP))
 
@@ -314,7 +311,7 @@ func testAddDeleteService(t *testing.T) {
 	serviceTestVars.k8sListWatch.Add(svc)
 
 	svcProto := &service.Service{}
-	err := serviceTestVars.mockKvWriter.GetValue(service.Key(svc.GetName(), svc.GetNamespace()), svcProto)
+	_, _, err := serviceTestVars.mockKvWriter.GetValue(service.Key(svc.GetName(), svc.GetNamespace()), svcProto)
 
 	gomega.Expect(adds + 1).To(gomega.Equal(serviceTestVars.svcReflector.GetStats().Adds))
 	gomega.Expect(err).To(gomega.BeNil())
@@ -348,6 +345,6 @@ func testAddDeleteService(t *testing.T) {
 
 	svcProto = &service.Service{}
 	key := service.Key(svc.GetName(), svc.GetNamespace())
-	err = serviceTestVars.mockKvWriter.GetValue(key, svcProto)
+	_, _, err = serviceTestVars.mockKvWriter.GetValue(key, svcProto)
 	gomega.Ω(err).ShouldNot(gomega.Succeed())
 }

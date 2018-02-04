@@ -32,8 +32,7 @@ import (
 
 type PodTestVars struct {
 	k8sListWatch *mockK8sListWatch
-	mockKvWriter *mockKeyProtoValWriter
-	mockKvLister *mockKeyProtoValLister
+	mockKvWriter *mockKeyProtoVaBroker
 	podReflector *PodReflector
 	podTestData  []coreV1.Pod
 }
@@ -47,16 +46,14 @@ func TestPodReflector(t *testing.T) {
 	flavorLocal.Inject()
 
 	podTestVars.k8sListWatch = &mockK8sListWatch{}
-	podTestVars.mockKvWriter = newMockKeyProtoValWriter()
-	podTestVars.mockKvLister = newMockKeyProtoValLister(podTestVars.mockKvWriter.ds)
+	podTestVars.mockKvWriter = newMockKeyProtoValBroker()
 
 	podTestVars.podReflector = &PodReflector{
 		Reflector: Reflector{
 			Log:          flavorLocal.LoggerFor("pod-reflector"),
 			K8sClientset: &kubernetes.Clientset{},
 			K8sListWatch: podTestVars.k8sListWatch,
-			Writer:       podTestVars.mockKvWriter,
-			Lister:       podTestVars.mockKvLister,
+			Broker:       podTestVars.mockKvWriter,
 			dsSynced:     false,
 			objType:      "Pod",
 		},
@@ -334,7 +331,7 @@ func testAddDeletePod(t *testing.T) {
 
 	key := pod.Key(k8sPod.GetName(), k8sPod.GetNamespace())
 	protoPod := &pod.Pod{}
-	err := podTestVars.mockKvWriter.GetValue(key, protoPod)
+	_, _, err := podTestVars.mockKvWriter.GetValue(key, protoPod)
 
 	gomega.Expect(adds + 1).To(gomega.Equal(podTestVars.podReflector.GetStats().Adds))
 	gomega.Expect(err).To(gomega.BeNil())
@@ -374,7 +371,7 @@ func testAddDeletePod(t *testing.T) {
 	gomega.Expect(dels + 1).To(gomega.Equal(podTestVars.podReflector.GetStats().Deletes))
 
 	protoPod = &pod.Pod{}
-	err = podTestVars.mockKvWriter.GetValue(key, protoPod)
+	_, _, err = podTestVars.mockKvWriter.GetValue(key, protoPod)
 	gomega.Ω(err).ShouldNot(gomega.Succeed())
 }
 
@@ -408,7 +405,7 @@ func testUpdatePod(t *testing.T) {
 
 	key := pod.Key(k8sPodOld.GetName(), k8sPodOld.GetNamespace())
 	protoPodNew := &pod.Pod{}
-	err = podTestVars.mockKvWriter.GetValue(key, protoPodNew)
+	_, _, err = podTestVars.mockKvWriter.GetValue(key, protoPodNew)
 	gomega.Ω(err).Should(gomega.Succeed())
 	gomega.Expect(protoPodNew.HostIpAddress).To(gomega.Equal(k8sPodNew.Status.HostIP))
 }

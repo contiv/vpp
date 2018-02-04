@@ -30,9 +30,9 @@ const (
 	noDataForKey = "No data assigned to key "
 )
 
-// KeyProtoValBroker allows reflectors to push their data changes to a data
-// store. This interface extends the same name interface from cn-infra/datasync
-// with the Delete() operation.
+// KeyProtoValBroker defines KSR's interface to the key-value data store. It
+// defines a subset of operations from a generic cn-infra Broker interface
+// (keyval.ProtoBroker in cn-infra).
 type KeyProtoValBroker interface {
 	// Put <data> to ETCD or to any other key-value based data source.
 	Put(key string, data proto.Message, opts ...datasync.PutOption) error
@@ -48,47 +48,65 @@ type KeyProtoValBroker interface {
 	ListValues(prefix string) (keyval.ProtoKeyValIterator, error)
 }
 
-// dataStoreItem defines the struture of the data store in the mock data store.
+// mockKeyProtoVaBroker is a mock implementation of KSR's interface to the
+// key-value data store.
+type mockKeyProtoVaBroker struct {
+	numRwErr   int
+	rwErr      error
+	numListErr int
+	listErr    error
+	ds         map[string]dataStoreItem
+}
+
+// dataStoreItem defines the structure of values stored in the key-value data
+// store mock.
 type dataStoreItem struct {
 	val proto.Message
 	rev int64
 }
 
-// mockKeyProtoVaBroker is a mock implementation of KeyProtoValBroker used
-// in unit tests.
-type mockKeyProtoVaBroker struct {
-	numErr int
-	err    error
-	ds     map[string]dataStoreItem
-}
-
 // newMockKeyProtoValBroker returns a new instance of mockKeyProtoVaBroker.
 func newMockKeyProtoValBroker() *mockKeyProtoVaBroker {
 	return &mockKeyProtoVaBroker{
-		numErr: 0,
-		err:    nil,
-		ds:     make(map[string]dataStoreItem),
+		numRwErr: 0,
+		rwErr:    nil,
+		ds:       make(map[string]dataStoreItem),
 	}
 }
 
-// injectError sets the error value to be returned from 'numErr' subsequent
-// data store operations to the specified value.
-func (mock *mockKeyProtoVaBroker) injectError(err error, numErr int) {
-	mock.numErr = numErr
-	mock.err = err
+// injectReadWriteError sets the error value to be returned from read and write
+// operations. The error will be returned from 'numRwErr' calls to Put, Delete,
+// and GetValue operations, then cleared.
+func (mock *mockKeyProtoVaBroker) injectReadWriteError(err error, numErr int) {
+	mock.numRwErr = numErr
+	mock.rwErr = err
 }
 
-// clearError resets the error value returned from data store operations
-// to nil.
-func (mock *mockKeyProtoVaBroker) clearError() {
-	mock.injectError(nil, 0)
+// injectListError sets the error value to be returned from list operations. The
+// operations. The error will be returned from 'numRwErr' calls to ListValues(),
+// and GetValue operations, then cleared.
+func (mock *mockKeyProtoVaBroker) injectListError(err error, numErr int) {
+	mock.numListErr = numErr
+	mock.listErr = err
+}
+
+// clearReadWriteError resets the error value returned from Put, Delete and
+// GetValue operations.
+func (mock *mockKeyProtoVaBroker) clearReadWriteError() {
+	mock.injectReadWriteError(nil, 0)
+}
+
+// clearListError resets the error value returned from Put, Delete and
+// GetValue operations.
+func (mock *mockKeyProtoVaBroker) clearListError() {
+	mock.injectListError(nil, 0)
 }
 
 // Put puts data into an in-memory map simulating a key-value datastore.
 func (mock *mockKeyProtoVaBroker) Put(key string, data proto.Message, opts ...datasync.PutOption) error {
-	if mock.numErr > 0 {
-		mock.numErr--
-		return mock.err
+	if mock.numRwErr > 0 {
+		mock.numRwErr--
+		return mock.rwErr
 	}
 
 	newData := dataStoreItem{val: data, rev: 1}
@@ -102,9 +120,9 @@ func (mock *mockKeyProtoVaBroker) Put(key string, data proto.Message, opts ...da
 
 // Delete removes data from an in-memory map simulating a key-value datastore.
 func (mock *mockKeyProtoVaBroker) Delete(key string, opts ...datasync.DelOption) (existed bool, err error) {
-	if mock.numErr > 0 {
-		mock.numErr--
-		return false, mock.err
+	if mock.numRwErr > 0 {
+		mock.numRwErr--
+		return false, mock.rwErr
 	}
 
 	_, existed = mock.ds[key]
@@ -117,9 +135,9 @@ func (mock *mockKeyProtoVaBroker) Delete(key string, opts ...datasync.DelOption)
 
 // GetValue is a helper for unit tests to get value stored under a given key.
 func (mock *mockKeyProtoVaBroker) GetValue(key string, out proto.Message) (found bool, revision int64, err error) {
-	if mock.numErr > 0 {
-		mock.numErr--
-		return false, 0, mock.err
+	if mock.numRwErr > 0 {
+		mock.numRwErr--
+		return false, 0, mock.rwErr
 	}
 
 	data, exists := mock.ds[key]
@@ -141,9 +159,9 @@ func (mock *mockKeyProtoVaBroker) ClearDs() {
 // ListValues returns the mockProtoKeyValIterator which will contain some
 // mock values down the road
 func (mock *mockKeyProtoVaBroker) ListValues(prefix string) (keyval.ProtoKeyValIterator, error) {
-	if mock.numErr > 0 {
-		mock.numErr--
-		return nil, mock.err
+	if mock.numListErr > 0 {
+		mock.numListErr--
+		return nil, mock.rwErr
 	}
 
 	var values []keyval.ProtoKeyVal

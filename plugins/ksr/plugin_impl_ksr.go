@@ -118,7 +118,7 @@ func (plugin *Plugin) Init() error {
 	//plugin.nsReflector.ReflectorDeps.Log.SetLevel(logging.DebugLevel)
 	err = plugin.nsReflector.Init(plugin.stopCh, &plugin.wg)
 	if err != nil {
-		plugin.Log.WithField("err", err).Error("Failed to initialize Namespace reflector")
+		plugin.Log.WithField("rwErr", err).Error("Failed to initialize Namespace reflector")
 		return err
 	}
 
@@ -135,7 +135,7 @@ func (plugin *Plugin) Init() error {
 	err = plugin.podReflector.Init(plugin.stopCh, &plugin.wg)
 	//plugin.podReflector.ReflectorDeps.Log.SetLevel(logging.DebugLevel)
 	if err != nil {
-		plugin.Log.WithField("err", err).Error("Failed to initialize Pod reflector")
+		plugin.Log.WithField("rwErr", err).Error("Failed to initialize Pod reflector")
 		return err
 	}
 
@@ -152,7 +152,7 @@ func (plugin *Plugin) Init() error {
 	//plugin.policyReflector.ReflectorDeps.Log.SetLevel(logging.DebugLevel)
 	err = plugin.policyReflector.Init(plugin.stopCh, &plugin.wg)
 	if err != nil {
-		plugin.Log.WithField("err", err).Error("Failed to initialize Policy reflector")
+		plugin.Log.WithField("rwErr", err).Error("Failed to initialize Policy reflector")
 		return err
 	}
 
@@ -169,7 +169,7 @@ func (plugin *Plugin) Init() error {
 	err = plugin.serviceReflector.Init(plugin.stopCh, &plugin.wg)
 	//plugin.serviceReflector.ReflectorDeps.Log.SetLevel(logging.DebugLevel)
 	if err != nil {
-		plugin.Log.WithField("err", err).Error("Failed to initialize Service reflector")
+		plugin.Log.WithField("rwErr", err).Error("Failed to initialize Service reflector")
 		return err
 	}
 
@@ -186,7 +186,7 @@ func (plugin *Plugin) Init() error {
 	err = plugin.endpointsReflector.Init(plugin.stopCh, &plugin.wg)
 	//plugin.endpointsReflector.ReflectorDeps.Log.SetLevel(logging.DebugLevel)
 	if err != nil {
-		plugin.Log.WithField("err", err).Error("Failed to initialize Endpoints reflector")
+		plugin.Log.WithField("rwErr", err).Error("Failed to initialize Endpoints reflector")
 		return err
 	}
 

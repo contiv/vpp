@@ -362,7 +362,7 @@ func (r *Reflector) startDataStoreResync() {
 func (r *Reflector) ksrAdd(key string, item proto.Message) {
 	err := r.Broker.Put(key, item)
 	if err != nil {
-		r.Log.WithField("err", err).Warnf("%s: failed to add item to data store", r.objType)
+		r.Log.WithField("rwErr", err).Warnf("%s: failed to add item to data store", r.objType)
 		r.stats.AddErrors++
 		r.dsSynced = false
 		r.startDataStoreResync()
@@ -380,7 +380,7 @@ func (r *Reflector) ksrUpdate(key string, itemOld, itemNew proto.Message) {
 
 		err := r.Broker.Put(key, itemNew)
 		if err != nil {
-			r.Log.WithField("err", err).
+			r.Log.WithField("rwErr", err).
 				Warnf("%s: failed to update item in data store", r.objType)
 			r.stats.UpdErrors++
 			r.dsSynced = false
@@ -396,7 +396,7 @@ func (r *Reflector) ksrUpdate(key string, itemOld, itemNew proto.Message) {
 func (r *Reflector) ksrDelete(key string) {
 	_, err := r.Broker.Delete(key)
 	if err != nil {
-		r.Log.WithField("err", err).
+		r.Log.WithField("rwErr", err).
 			Warnf("%s: Failed to remove item from data store", r.objType)
 		r.stats.DelErrors++
 		r.dsSynced = false

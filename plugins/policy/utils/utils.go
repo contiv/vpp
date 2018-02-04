@@ -41,8 +41,7 @@ func RemoveDuplicates(el []string) []string {
 	return result
 }
 
-// Intersect returns the common elements of or more slices
-// Intersect needs at least two lists
+// Intersect returns the common elements of two or more slices
 func Intersect(a []string, b []string, s ...[]string) []string {
 	if len(a) == 0 || len(b) == 0 {
 		return []string{}

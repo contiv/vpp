@@ -35,7 +35,7 @@ func (pc *PolicyCache) getPodsByNSLabelSelector(namespace string, labels []*poli
 		prevPodSet = current
 		newNSLabelSelector := namespace + "/" + labels[i].Key + "/" + labels[i].Value
 		newPodSet := pc.configuredPods.LookupPodsByNSLabelSelector(newNSLabelSelector)
-		current := utils.Intersect(prevPodSet, newPodSet)
+		current = utils.Intersect(prevPodSet, newPodSet)
 		if len(current) == 0 {
 			break
 		}

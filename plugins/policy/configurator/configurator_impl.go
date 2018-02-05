@@ -41,6 +41,7 @@ type PolicyConfigurator struct {
 
 	renderers         []renderer.PolicyRendererAPI
 	parallelRendering bool
+	podIPAddresses    PodIPAddresses
 }
 
 // Deps lists dependencies of PolicyConfigurator.
@@ -51,10 +52,11 @@ type Deps struct {
 
 // PolicyConfiguratorTxn represents a single transaction of the policy configurator.
 type PolicyConfiguratorTxn struct {
-	Log          logging.Logger
-	configurator *PolicyConfigurator
-	resync       bool
-	config       map[podmodel.ID]ContivPolicies // config to render
+	Log            logging.Logger
+	configurator   *PolicyConfigurator
+	resync         bool
+	config         map[podmodel.ID]ContivPolicies // config to render
+	podIPAddresses PodIPAddresses
 }
 
 // ContivPolicies is a list of policies that can be ordered by policy ID.
@@ -72,10 +74,14 @@ type ProcessedPolicySet struct {
 // ContivRules is a list of Contiv rules.
 type ContivRules []*renderer.ContivRule
 
+// PodIPAddresses is a map used to remember IP address for each configured pod.
+type PodIPAddresses map[podmodel.ID]*net.IPNet
+
 // Init initializes policy configurator.
 func (pc *PolicyConfigurator) Init(parallelRendering bool) error {
 	pc.renderers = []renderer.PolicyRendererAPI{}
 	pc.parallelRendering = parallelRendering
+	pc.podIPAddresses = make(PodIPAddresses)
 	return nil
 }
 
@@ -99,10 +105,11 @@ func (pc *PolicyConfigurator) Close() error {
 // transaction are left unchanged.
 func (pc *PolicyConfigurator) NewTxn(resync bool) Txn {
 	txn := &PolicyConfiguratorTxn{
-		Log:          pc.Log,
-		configurator: pc,
-		resync:       resync,
-		config:       make(map[podmodel.ID]ContivPolicies),
+		Log:            pc.Log,
+		configurator:   pc,
+		resync:         resync,
+		config:         make(map[podmodel.ID]ContivPolicies),
+		podIPAddresses: pc.podIPAddresses.Copy(),
 	}
 	return txn
 }
@@ -130,45 +137,61 @@ func (pct *PolicyConfiguratorTxn) Commit() error {
 	for pod, unorderedPolicies := range pct.config {
 		var ingress ContivRules
 		var egress ContivRules
+		var delPodConfig bool
 
 		// Get target pod configuration.
+		podIPNet, hadIPAddr := pct.podIPAddresses[pod]
 		found, podData := pct.configurator.Cache.LookupPod(pod)
-		if !found {
-			pct.Log.WithField("pod", pod).Warn("Pod data not found in the cache")
-			continue
-		}
 
-		// Get pod IP address (expressed as one-host subnet).
-		if podData.IpAddress == "" {
-			pct.Log.WithField("pod", pod).Warn("Pod has no IP address assigned")
-			continue
-		}
-		podIPNet := utils.GetOneHostSubnet(podData.IpAddress)
-		if podIPNet == nil {
-			pct.Log.WithField("pod", pod).Warn("Pod has invalid IP address assigned")
-			continue
-		}
-
-		// Sort policies to get the same outcome for the same set.
-		policies := unorderedPolicies.Copy()
-		sort.Sort(policies)
-
-		// Check if this set was already processed.
-		alreadyProcessed := false
-		for _, policySet := range processed {
-			if policySet.policies.Equals(policies) {
-				ingress = policySet.ingress
-				egress = policySet.egress
-				alreadyProcessed = true
+		// Handle removed pod.
+		if !found || podData.IpAddress == "" {
+			if hadIPAddr {
+				pct.Log.WithField("pod", pod).Debug("Removing policies from the pod.")
+				delPodConfig = true
+				delete(pct.podIPAddresses, pod)
+			} else {
+				/* already un-configured */
+				continue
 			}
 		}
 
-		// Generate rules for a set of policies not yet processed.
-		if !alreadyProcessed {
-			// Direction in policies is from the pod point of view, whereas rules
-			// are evaluated from the vswitch perspective.
-			egress = pct.generateRules(MatchIngress, policies)
-			ingress = pct.generateRules(MatchEgress, policies)
+		if !delPodConfig {
+			// Get pod IP address (expressed as one-host subnet).
+			podIPNet = utils.GetOneHostSubnet(podData.IpAddress)
+			if podIPNet == nil {
+				pct.Log.WithField("pod", pod).Warn("Pod has invalid IP address assigned")
+				continue
+			}
+			pct.podIPAddresses[pod] = podIPNet
+
+			// Sort policies to get the same outcome for the same set.
+			policies := unorderedPolicies.Copy()
+			sort.Sort(policies)
+
+			// Check if this set was already processed.
+			alreadyProcessed := false
+			for _, policySet := range processed {
+				if policySet.policies.Equals(policies) {
+					ingress = policySet.ingress
+					egress = policySet.egress
+					alreadyProcessed = true
+				}
+			}
+
+			// Generate rules for a set of policies not yet processed.
+			if !alreadyProcessed {
+				// Direction in policies is from the pod point of view, whereas rules
+				// are evaluated from the vswitch perspective.
+				egress = pct.generateRules(MatchIngress, policies)
+				ingress = pct.generateRules(MatchEgress, policies)
+				// Remember already processed set of policies.
+				processed = append(processed,
+					ProcessedPolicySet{
+						policies: policies,
+						ingress:  ingress,
+						egress:   egress,
+					})
+			}
 		}
 
 		// Start transaction on every renderer if they are not running already.
@@ -181,16 +204,6 @@ func (pct *PolicyConfiguratorTxn) Commit() error {
 		// Add rules into the transactions.
 		for _, rTxn := range rendererTxns {
 			rTxn.Render(pod, podIPNet, ingress.Copy(), egress.Copy())
-		}
-
-		// Remember already processed set of policies.
-		if !alreadyProcessed {
-			processed = append(processed,
-				ProcessedPolicySet{
-					policies: policies,
-					ingress:  ingress,
-					egress:   egress,
-				})
 		}
 	}
 
@@ -218,6 +231,9 @@ func (pct *PolicyConfiguratorTxn) Commit() error {
 			}
 		}
 	}
+
+	// Save changes to the configurator.
+	pct.configurator.podIPAddresses = pct.podIPAddresses.Copy()
 
 	return wasError
 }
@@ -543,6 +559,15 @@ func (cr ContivRules) Copy() ContivRules {
 		*(crCopy[idx]) = *rule
 	}
 	return crCopy
+}
+
+// Copy creates a deep copy of PodIPAddresses.
+func (pa PodIPAddresses) Copy() PodIPAddresses {
+	paCopy := make(PodIPAddresses, len(pa))
+	for pod, addr := range pa {
+		paCopy[pod] = addr
+	}
+	return paCopy
 }
 
 // Function returns a list of subnets with all IPs included in net1 and not included in net2.

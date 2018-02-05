@@ -79,7 +79,7 @@ type PolicyCacheAPI interface {
 
 	// LookupNamespacesByLabelSelector evaluates label selector (expression
 	// and/or match labels) and returns IDs of matching namespaces.
-	LookupNamespacesByLabelSelector(nsLabelSelector string) (namespaces []string)
+	LookupNamespacesByLabelSelector(nsLabelSelector string) (namespaces []nsmodel.ID)
 
 	// ListAllNamespaces returns IDs of all known namespaces.
 	ListAllNamespaces() (namespaces []nsmodel.ID)

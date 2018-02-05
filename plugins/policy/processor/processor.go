@@ -17,7 +17,6 @@
 package processor
 
 import (
-	"fmt"
 	"net"
 
 	"github.com/ligato/cn-infra/logging"
@@ -171,9 +170,6 @@ func (pp *PolicyProcessor) UpdatePod(podID podmodel.ID, oldPod, newPod *podmodel
 		"new-pod": newPod,
 		"old-pod": oldPod,
 	}).Info("Pod was updated")
-
-	fmt.Printf("Update Pod old: %+v %p\n", *oldPod, oldPod)
-	fmt.Printf("Update Pod new: %+v %p\n", *newPod, newPod)
 
 	// No action if Pod belongs to kube-system namespace
 	if newPod.Namespace == "kube-system" {
@@ -380,11 +376,8 @@ func (pp *PolicyProcessor) filterHostPods(pods []podmodel.ID) []podmodel.ID {
 func (pp *PolicyProcessor) getPodsAssignedToPolicy(policy *policymodel.Policy) (pods []podmodel.ID) {
 	namespace := policy.Namespace
 	policyLabelSelectors := policy.Pods
-	if len(policyLabelSelectors.MatchExpression) == 0 && len(policyLabelSelectors.MatchLabel) == 0 {
-		return pp.Cache.LookupPodsByNamespace(namespace)
-	}
-
-	return pp.Cache.LookupPodsByNSLabelSelector(namespace, policyLabelSelectors)
+	pods = pp.Cache.LookupPodsByNSLabelSelector(namespace, policyLabelSelectors)
+	return pods
 }
 
 // getPoliciesAssignedToPod returns all policies currently assigned to a given pod.

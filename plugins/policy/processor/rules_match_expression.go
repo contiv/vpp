@@ -29,7 +29,7 @@ const (
 	doesNotExist = policymodel.Policy_LabelSelector_LabelExpression_DOES_NOT_EXIST
 )
 
-// isMatchExpression returns all the pods that match a collection of expressions (expressions are ANDed)
+// isMatchExpression returns true/false if pod labels match a collection of pod selector expressions (expressions are ANDed).
 func (pp *PolicyProcessor) isMatchExpression(pod *podmodel.Pod,
 	expressions []*policymodel.Policy_LabelSelector_LabelExpression, policyNamespace string) bool {
 

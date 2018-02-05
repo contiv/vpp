@@ -198,7 +198,7 @@ func (pp *PolicyProcessor) DelPod(pod *podmodel.Pod) error {
 					}
 
 					isMatchNamespaceSelector := pp.isNamespaceMatchLabel(pod, matchLabels)
-					if !isMatchPodSelector && isMatchNamespaceSelector {
+					if !isMatchPodSelector && !isMatchNamespaceSelector {
 						continue
 					}
 
@@ -231,7 +231,7 @@ func (pp *PolicyProcessor) DelPod(pod *podmodel.Pod) error {
 					}
 
 					isMatchNamespaceSelector := pp.isNamespaceMatchLabel(pod, matchLabels)
-					if !isMatchPodSelector && isMatchNamespaceSelector {
+					if !isMatchPodSelector && !isMatchNamespaceSelector {
 						continue
 					}
 
@@ -352,7 +352,7 @@ func (pp *PolicyProcessor) UpdatePod(oldPod, newPod *podmodel.Pod) error {
 					}
 
 					isMatchNamespaceSelector := pp.isNamespaceMatchLabel(oldPod, matchLabels)
-					if !isMatchPodSelector && isMatchNamespaceSelector {
+					if !isMatchPodSelector && !isMatchNamespaceSelector {
 						continue
 					}
 
@@ -385,7 +385,7 @@ func (pp *PolicyProcessor) UpdatePod(oldPod, newPod *podmodel.Pod) error {
 					}
 
 					isMatchNamespaceSelector := pp.isNamespaceMatchLabel(oldPod, matchLabels)
-					if !isMatchPodSelector && isMatchNamespaceSelector {
+					if !isMatchPodSelector && !isMatchNamespaceSelector {
 						continue
 					}
 
@@ -424,7 +424,7 @@ func (pp *PolicyProcessor) UpdatePod(oldPod, newPod *podmodel.Pod) error {
 					}
 
 					isMatchNamespaceSelector := pp.isNamespaceMatchLabel(newPod, matchLabels)
-					if !isMatchPodSelector && isMatchNamespaceSelector {
+					if !isMatchPodSelector && !isMatchNamespaceSelector {
 						continue
 					}
 
@@ -457,7 +457,7 @@ func (pp *PolicyProcessor) UpdatePod(oldPod, newPod *podmodel.Pod) error {
 					}
 
 					isMatchNamespaceSelector := pp.isNamespaceMatchLabel(newPod, matchLabels)
-					if !isMatchPodSelector && isMatchNamespaceSelector {
+					if !isMatchPodSelector && !isMatchNamespaceSelector {
 						continue
 					}
 

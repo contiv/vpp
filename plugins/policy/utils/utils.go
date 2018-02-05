@@ -41,21 +41,25 @@ func RemoveDuplicates(el []string) []string {
 	return result
 }
 
-// Intersect returns the common elements of two slices
-func Intersect(a []string, b []string) []string {
+// Intersect returns the common elements of two or more slices
+func Intersect(a []string, b []string, s ...[]string) []string {
+	if len(a) == 0 || len(b) == 0 {
+		return []string{}
+	}
 	set := make([]string, 0)
 	hash := make(map[string]bool)
-
 	for _, el := range a {
 		hash[el] = true
 	}
-
 	for _, el := range b {
 		if _, found := hash[el]; found {
 			set = append(set, el)
 		}
 	}
-	return set
+	if len(s) == 0 {
+		return set
+	}
+	return Intersect(set, s[0], s[1:]...)
 }
 
 // Difference returns the difference of two slices

@@ -107,8 +107,13 @@ func (pc *PolicyCache) LookupPodsByNSLabelSelector(policyNamespace string,
 	mlPods := pc.getPodsByNSLabelSelector(policyNamespace, matchLabels)
 	mePods := pc.getMatchExpressionPods(policyNamespace, matchExpressions)
 
-	return utils.UnstringPodID(utils.Intersect(mlPods, mePods))
-
+	if len(matchLabels) > 0 && len(matchExpressions) > 0 {
+		return utils.UnstringPodID(utils.Intersect(mlPods, mePods))
+	}
+	if len(matchLabels) > 0 {
+		return utils.UnstringPodID(mlPods)
+	}
+	return utils.UnstringPodID(mePods)
 }
 
 // LookupPodsByLabelSelector evaluates label selector (expression and/or match
@@ -240,8 +245,9 @@ func (pc *PolicyCache) LookupNamespace(namespace nsmodel.ID) (found bool, data *
 // LookupNamespacesByLabelSelector evaluates label selector (expression
 // and/or match labels) and returns IDs of matching namespaces.
 func (pc *PolicyCache) LookupNamespacesByLabelSelector(
-	nsLabelSelector string) []string {
-	return pc.configuredNamespaces.LookupNamespacesByLabelSelector(nsLabelSelector)
+	nsLabelSelector string) []nsmodel.ID {
+	namespaces := pc.configuredNamespaces.LookupNamespacesByLabelSelector(nsLabelSelector)
+	return utils.UnstringNamespaceID(namespaces)
 }
 
 // ListAllNamespaces returns IDs of all known namespaces.

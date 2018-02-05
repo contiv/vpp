@@ -61,7 +61,7 @@ func (pp *PolicyProcessor) isNamespaceMatchLabel(pod *podmodel.Pod, matchLabels 
 		namespaceExists := false
 		// Check if matched namespaces include pod's namespace
 		for _, namespace := range namespaces {
-			if namespace == podNamespace {
+			if namespace.String() == podNamespace {
 				namespaceExists = true
 				break
 			}

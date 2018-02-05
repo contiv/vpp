@@ -35,8 +35,7 @@ import (
 
 type PolicyTestVars struct {
 	k8sListWatch    *mockK8sListWatch
-	mockKvWriter    *mockKeyProtoValWriter
-	mockKvLister    *mockKeyProtoValLister
+	mockKvWriter    *mockKeyProtoVaBroker
 	policyReflector *PolicyReflector
 	policyTestData  []coreV1Beta1.NetworkPolicy
 }
@@ -50,18 +49,16 @@ func TestPolicyReflector(t *testing.T) {
 	flavorLocal.Inject()
 
 	policyTestVars.k8sListWatch = &mockK8sListWatch{}
-	policyTestVars.mockKvWriter = newMockKeyProtoValWriter()
-	policyTestVars.mockKvLister = newMockKeyProtoValLister(policyTestVars.mockKvWriter.ds)
+	policyTestVars.mockKvWriter = newMockKeyProtoValBroker()
 
 	policyTestVars.policyReflector = &PolicyReflector{
 		Reflector: Reflector{
 			Log:          flavorLocal.LoggerFor("policy-reflector"),
 			K8sClientset: &kubernetes.Clientset{},
 			K8sListWatch: policyTestVars.k8sListWatch,
-			Writer:       policyTestVars.mockKvWriter,
-			Lister:       policyTestVars.mockKvLister,
+			Broker:       policyTestVars.mockKvWriter,
 			dsSynced:     false,
-			objType:      "Policy",
+			objType:      policyObjType,
 		},
 	}
 
@@ -361,7 +358,7 @@ func testAddDeletePolicy(t *testing.T) {
 
 		key := policy.Key(k8sPolicy.GetName(), k8sPolicy.GetNamespace())
 		protoPolicy := &policy.Policy{}
-		err := policyTestVars.mockKvWriter.GetValue(key, protoPolicy)
+		_, _, err := policyTestVars.mockKvWriter.GetValue(key, protoPolicy)
 
 		gomega.Expect(adds + 1).To(gomega.Equal(policyTestVars.policyReflector.GetStats().Adds))
 		gomega.Expect(err).To(gomega.BeNil())
@@ -388,7 +385,7 @@ func testAddDeletePolicy(t *testing.T) {
 
 		key := policy.Key(k8sPolicy.GetName(), k8sPolicy.GetNamespace())
 		protoPolicy := &policy.Policy{}
-		err := policyTestVars.mockKvWriter.GetValue(key, protoPolicy)
+		_, _, err := policyTestVars.mockKvWriter.GetValue(key, protoPolicy)
 		gomega.Ω(err).ShouldNot(gomega.Succeed())
 	}
 
@@ -450,7 +447,7 @@ func testUpdatePolicy(t *testing.T) {
 
 	key := policy.Key(k8sPolicyOld.GetName(), k8sPolicyOld.GetNamespace())
 	protoPolicyNew := &policy.Policy{}
-	err = policyTestVars.mockKvWriter.GetValue(key, protoPolicyNew)
+	_, _, err = policyTestVars.mockKvWriter.GetValue(key, protoPolicyNew)
 	gomega.Ω(err).Should(gomega.Succeed())
 
 	checkPolicyToProtoTranslation(t, protoPolicyNew, k8sPolicyNew)
@@ -481,10 +478,10 @@ func testResyncPolicyAddFail(t *testing.T) {
 	gomega.Expect(sSnap.Adds + 2).To(gomega.Equal(policyTestVars.policyReflector.GetStats().Adds))
 	gomega.Expect(sSnap.AddErrors).To(gomega.Equal(policyTestVars.policyReflector.GetStats().AddErrors))
 
-	// Injecting two errors into writer and one error in the Lister will test
+	// Injecting two errors into the Broker and one error in the Lister will test
 	// the data sync good path and all error paths
-	policyTestVars.mockKvLister.injectError(fmt.Errorf("%s", "Lister test error"), 1)
-	policyTestVars.mockKvWriter.injectError(fmt.Errorf("%s", "Writer test error"), 2)
+	policyTestVars.mockKvWriter.injectListError(fmt.Errorf("%s", "Lister test error"), 1)
+	policyTestVars.mockKvWriter.injectReadWriteError(fmt.Errorf("%s", "Read/write test error"), 2)
 
 	policyTestVars.k8sListWatch.Add(&policyTestVars.policyTestData[2])
 
@@ -512,7 +509,7 @@ func testResyncPolicyAddFail(t *testing.T) {
 
 	key := policy.Key(policyTestVars.policyTestData[2].GetName(), policyTestVars.policyTestData[2].GetNamespace())
 	protoPolicy := &policy.Policy{}
-	err := policyTestVars.mockKvWriter.GetValue(key, protoPolicy)
+	_, _, err := policyTestVars.mockKvWriter.GetValue(key, protoPolicy)
 	gomega.Ω(err).Should(gomega.Succeed())
 	checkPolicyToProtoTranslation(t, protoPolicy, &policyTestVars.policyTestData[2])
 }
@@ -536,10 +533,10 @@ func testResyncPolicyDeleteFail(t *testing.T) {
 
 	gomega.Expect(sSnap.Adds + 3).To(gomega.Equal(policyTestVars.policyReflector.GetStats().Adds))
 
-	// Injecting two errors into writer and one error in the Lister will test
+	// Injecting two errors into the Broker and one error in the Lister will test
 	// the data sync good path and all error paths
-	policyTestVars.mockKvLister.injectError(fmt.Errorf("%s", "Lister test error"), 1)
-	policyTestVars.mockKvWriter.injectError(fmt.Errorf("%s", "Writer test error"), 2)
+	policyTestVars.mockKvWriter.injectListError(fmt.Errorf("%s", "Lister test error"), 1)
+	policyTestVars.mockKvWriter.injectReadWriteError(fmt.Errorf("%s", "Read/write test error"), 2)
 
 	// Delete an element, write error happens during delete
 	policyTestVars.k8sListWatch.Delete(&policyTestVars.policyTestData[1])
@@ -568,7 +565,7 @@ func testResyncPolicyDeleteFail(t *testing.T) {
 
 	key := policy.Key(policyTestVars.policyTestData[1].GetName(), policyTestVars.policyTestData[2].GetNamespace())
 	protoPolicy := &policy.Policy{}
-	err := policyTestVars.mockKvWriter.GetValue(key, protoPolicy)
+	_, _, err := policyTestVars.mockKvWriter.GetValue(key, protoPolicy)
 	gomega.Ω(err).ShouldNot(gomega.Succeed())
 }
 
@@ -626,10 +623,10 @@ func testResyncPolicyUpdateFail(t *testing.T) {
 		}
 	}
 
-	// Injecting two errors into writer and one error in the Lister will test
+	// Injecting two errors into the Broker and one error in the Lister will test
 	// the data sync good path and all error paths
-	policyTestVars.mockKvLister.injectError(fmt.Errorf("%s", "Lister test error"), 1)
-	policyTestVars.mockKvWriter.injectError(fmt.Errorf("%s", "Writer test error"), 2)
+	policyTestVars.mockKvWriter.injectListError(fmt.Errorf("%s", "Lister test error"), 1)
+	policyTestVars.mockKvWriter.injectReadWriteError(fmt.Errorf("%s", "Read/write test error"), 2)
 
 	// Delete an element, write error happens during delete
 	policyTestVars.k8sListWatch.Update(k8sPolicyOld, k8sPolicyNew)
@@ -658,7 +655,7 @@ func testResyncPolicyUpdateFail(t *testing.T) {
 
 	key := policy.Key(k8sPolicyNew.GetName(), k8sPolicyNew.GetNamespace())
 	protoPolicy := &policy.Policy{}
-	err = policyTestVars.mockKvWriter.GetValue(key, protoPolicy)
+	_, _, err = policyTestVars.mockKvWriter.GetValue(key, protoPolicy)
 	gomega.Ω(err).Should(gomega.Succeed())
 	checkPolicyToProtoTranslation(t, protoPolicy, k8sPolicyNew)
 }
@@ -714,7 +711,7 @@ func testResyncPolicyDataStoreDownThenAdd(t *testing.T) {
 
 	key := policy.Key(policyTestVars.policyTestData[2].GetName(), policyTestVars.policyTestData[2].GetNamespace())
 	protoPolicy := &policy.Policy{}
-	err := policyTestVars.mockKvWriter.GetValue(key, protoPolicy)
+	_, _, err := policyTestVars.mockKvWriter.GetValue(key, protoPolicy)
 	gomega.Ω(err).Should(gomega.Succeed())
 	checkPolicyToProtoTranslation(t, protoPolicy, &policyTestVars.policyTestData[2])
 }
@@ -741,12 +738,13 @@ func testResyncPolicyAddFailAndDataStoreDown(t *testing.T) {
 	gomega.Expect(sSnap.Adds + 2).To(gomega.Equal(policyTestVars.policyReflector.GetStats().Adds))
 	gomega.Expect(sSnap.AddErrors).To(gomega.Equal(policyTestVars.policyReflector.GetStats().AddErrors))
 
-	// Injecting an error into the lister will test the Lister error path.
-	// Injecting and "infinite number" of errors into the Writer will keep
+	// Injecting and "infinite number" of errors into the Broker will keep
 	// data sync in the rmark-and-sweep etry loop so that we can inject the
 	// 'data store down' signal and thus abort the loop.
-	policyTestVars.mockKvLister.injectError(fmt.Errorf("%s", "Lister test error"), 1)
-	policyTestVars.mockKvWriter.injectError(fmt.Errorf("%s", "Test error"), 1000)
+	// Injecting two errors into the Broker and one error in the Lister will test
+	// the data sync good path and all error paths
+	policyTestVars.mockKvWriter.injectListError(fmt.Errorf("%s", "Lister test error"), 1)
+	policyTestVars.mockKvWriter.injectReadWriteError(fmt.Errorf("%s", "Read/write test error"), 1000)
 
 	policyTestVars.k8sListWatch.Add(&policyTestVars.policyTestData[2])
 
@@ -755,7 +753,7 @@ func testResyncPolicyAddFailAndDataStoreDown(t *testing.T) {
 		time.Sleep(time.Second)
 		dataStoreDownEvent()
 		time.Sleep(time.Second)
-		policyTestVars.mockKvWriter.clearError()
+		policyTestVars.mockKvWriter.clearReadWriteError()
 		dataStoreUpEvent()
 	}()
 
@@ -778,7 +776,7 @@ func testResyncPolicyAddFailAndDataStoreDown(t *testing.T) {
 
 	key := policy.Key(policyTestVars.policyTestData[2].GetName(), policyTestVars.policyTestData[2].GetNamespace())
 	protoPolicy := &policy.Policy{}
-	err := policyTestVars.mockKvWriter.GetValue(key, protoPolicy)
+	_, _, err := policyTestVars.mockKvWriter.GetValue(key, protoPolicy)
 	gomega.Ω(err).Should(gomega.Succeed())
 	checkPolicyToProtoTranslation(t, protoPolicy, &policyTestVars.policyTestData[2])
 }

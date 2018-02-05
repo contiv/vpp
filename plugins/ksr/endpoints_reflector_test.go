@@ -31,8 +31,7 @@ import (
 
 type EndpointsTestVars struct {
 	k8sListWatch *mockK8sListWatch
-	mockKvWriter *mockKeyProtoValWriter
-	mockKvLister *mockKeyProtoValLister
+	mockKvWriter *mockKeyProtoVaBroker
 	epsReflector *EndpointsReflector
 	epsTestData  []coreV1.Endpoints
 }
@@ -46,18 +45,16 @@ func TestEndpointsReflector(t *testing.T) {
 	flavorLocal.Inject()
 
 	epTestVars.k8sListWatch = &mockK8sListWatch{}
-	epTestVars.mockKvWriter = newMockKeyProtoValWriter()
-	epTestVars.mockKvLister = newMockKeyProtoValLister(epTestVars.mockKvWriter.ds)
+	epTestVars.mockKvWriter = newMockKeyProtoValBroker()
 
 	epTestVars.epsReflector = &EndpointsReflector{
 		Reflector: Reflector{
 			Log:          flavorLocal.LoggerFor("endpoints-reflector"),
 			K8sClientset: &kubernetes.Clientset{},
 			K8sListWatch: epTestVars.k8sListWatch,
-			Writer:       epTestVars.mockKvWriter,
-			Lister:       epTestVars.mockKvLister,
+			Broker:       epTestVars.mockKvWriter,
 			dsSynced:     false,
-			objType:      "Endpoints",
+			objType:      endpointsObjType,
 		},
 	}
 
@@ -272,7 +269,8 @@ func testAddDeleteEndpoints(t *testing.T) {
 	// Test add where everything should be good
 	epTestVars.k8sListWatch.Add(eps)
 	epsProto := &endpoints.Endpoints{}
-	err := epTestVars.mockKvWriter.GetValue(endpoints.Key(eps.GetName(), eps.GetNamespace()), epsProto)
+
+	_, _, err := epTestVars.mockKvWriter.GetValue(endpoints.Key(eps.GetName(), eps.GetNamespace()), epsProto)
 
 	gomega.Expect(adds + 1).To(gomega.Equal(epTestVars.epsReflector.GetStats().Adds))
 
@@ -324,7 +322,7 @@ func testAddDeleteEndpoints(t *testing.T) {
 
 	epsProto = &endpoints.Endpoints{}
 	key := endpoints.Key(eps.GetName(), eps.GetNamespace())
-	err = epTestVars.mockKvWriter.GetValue(key, epsProto)
+	_, _, err = epTestVars.mockKvWriter.GetValue(key, epsProto)
 	gomega.Ω(err).ShouldNot(gomega.Succeed())
 }
 
@@ -386,7 +384,7 @@ func testUpdateEndpoints(t *testing.T) {
 	gomega.Expect(upd + 1).To(gomega.Equal(epTestVars.epsReflector.GetStats().Updates))
 
 	epsProto := &endpoints.Endpoints{}
-	err := epTestVars.mockKvWriter.GetValue(endpoints.Key(epsNew.GetName(), epsNew.GetNamespace()), epsProto)
+	_, _, err := epTestVars.mockKvWriter.GetValue(endpoints.Key(epsNew.GetName(), epsNew.GetNamespace()), epsProto)
 	gomega.Expect(err).To(gomega.BeNil())
 	gomega.Expect(epsProto.EndpointSubsets[0].Addresses[0].Ip).
 		To(gomega.Equal(epsNew.Subsets[0].Addresses[0].IP))

@@ -45,10 +45,8 @@ type Reflector struct {
 	K8sClientset *kubernetes.Clientset
 	// K8s List-Watch watches for Kubernetes config changes.
 	K8sListWatch K8sListWatcher
-	// Writer propagates changes into a data store.
-	Writer KeyProtoValWriter
-	// Lister lists values from a data store.
-	Lister KeyProtoValLister
+	// Broker is the interface to a key-val data store.
+	Broker KeyProtoValBroker
 	// objType defines the type of the object handled by a particular reflector
 	objType string
 	// ksrStopCh is used to gracefully shutdown the Reflector
@@ -180,7 +178,7 @@ func (r *Reflector) listDataStoreItems(pfx string, iaf func() proto.Message) (Ds
 	dsDump := make(map[string]interface{})
 
 	// Retrieve all data items for a given data type (i.e. key prefix)
-	kvi, err := r.Lister.ListValues(pfx)
+	kvi, err := r.Broker.ListValues(pfx)
 	if err != nil {
 		return dsDump, fmt.Errorf("%s reflector can not get kv iterator, error: %s", r.objType, err)
 	}
@@ -226,7 +224,7 @@ func (r *Reflector) markAndSweep(dsItems DsItems, oc K8sToProtoConverter) error 
 				if !reflect.DeepEqual(k8sProtoObj, dsProtoObj) {
 					// Object exists in the data store, but it changed in the
 					// K8s cache; overwrite the data store
-					err := r.Writer.Put(key, k8sProtoObj.(proto.Message))
+					err := r.Broker.Put(key, k8sProtoObj.(proto.Message))
 					if err != nil {
 						r.stats.UpdErrors++
 						return fmt.Errorf("update for key '%s' failed", key)
@@ -236,7 +234,7 @@ func (r *Reflector) markAndSweep(dsItems DsItems, oc K8sToProtoConverter) error 
 			} else {
 				// Object does not exist in the data store, but it exists in
 				// the K8s cache; create object in the data store
-				err := r.Writer.Put(key, k8sProtoObj.(proto.Message))
+				err := r.Broker.Put(key, k8sProtoObj.(proto.Message))
 				if err != nil {
 					r.stats.AddErrors++
 					return fmt.Errorf("add for key '%s' failed", key)
@@ -250,7 +248,7 @@ func (r *Reflector) markAndSweep(dsItems DsItems, oc K8sToProtoConverter) error 
 	// Delete from data store all objects that no longer exist in the K8s
 	// cache.
 	for key := range dsItems {
-		_, err := r.Writer.Delete(key)
+		_, err := r.Broker.Delete(key)
 		if err != nil {
 			r.stats.DelErrors++
 			return fmt.Errorf("delete for key '%s' failed", key)
@@ -362,9 +360,9 @@ func (r *Reflector) startDataStoreResync() {
 // ksrAdd adds an item to the Etcd data store. This function must be called
 // with dsMutex locked, since it manipulates the dsSynced flag.
 func (r *Reflector) ksrAdd(key string, item proto.Message) {
-	err := r.Writer.Put(key, item)
+	err := r.Broker.Put(key, item)
 	if err != nil {
-		r.Log.WithField("err", err).Warnf("%s: failed to add item to data store", r.objType)
+		r.Log.WithField("rwErr", err).Warnf("%s: failed to add item to data store", r.objType)
 		r.stats.AddErrors++
 		r.dsSynced = false
 		r.startDataStoreResync()
@@ -380,9 +378,9 @@ func (r *Reflector) ksrUpdate(key string, itemOld, itemNew proto.Message) {
 
 		r.Log.WithField("key", key).Debugf("%s: updating item in data store", r.objType)
 
-		err := r.Writer.Put(key, itemNew)
+		err := r.Broker.Put(key, itemNew)
 		if err != nil {
-			r.Log.WithField("err", err).
+			r.Log.WithField("rwErr", err).
 				Warnf("%s: failed to update item in data store", r.objType)
 			r.stats.UpdErrors++
 			r.dsSynced = false
@@ -396,9 +394,9 @@ func (r *Reflector) ksrUpdate(key string, itemOld, itemNew proto.Message) {
 // ksrDelete deletes an item from the Etcd data store. This function must be
 // called with dsMutex locked, since it manipulates the dsSynced flag.
 func (r *Reflector) ksrDelete(key string) {
-	_, err := r.Writer.Delete(key)
+	_, err := r.Broker.Delete(key)
 	if err != nil {
-		r.Log.WithField("err", err).
+		r.Log.WithField("rwErr", err).
 			Warnf("%s: Failed to remove item from data store", r.objType)
 		r.stats.DelErrors++
 		r.dsSynced = false
@@ -412,9 +410,9 @@ func (r *Reflector) ksrDelete(key string) {
 // of k8s services. The subscription does not become active until Start()
 // is called.
 func (r *Reflector) ksrInit(stopCh <-chan struct{}, wg *sync.WaitGroup, prefix string,
-	objType string, k8sObjType k8sRuntime.Object, ksrFuncs ReflectorFunctions) error {
+	k8sObjName string, k8sObjType k8sRuntime.Object, ksrFuncs ReflectorFunctions) error {
 
-	if _, objExists := reflectors[objType]; objExists {
+	if _, objExists := reflectors[r.objType]; objExists {
 		return fmt.Errorf("%s reflector type already exists", r.objType)
 	}
 
@@ -435,7 +433,7 @@ func (r *Reflector) ksrInit(stopCh <-chan struct{}, wg *sync.WaitGroup, prefix s
 		restClient = r.K8sClientset.CoreV1().RESTClient()
 	}
 
-	listWatch := r.K8sListWatch.NewListWatchFromClient(restClient, objType, "", fields.Everything())
+	listWatch := r.K8sListWatch.NewListWatchFromClient(restClient, k8sObjName, "", fields.Everything())
 	r.k8sStore, r.k8sController = r.K8sListWatch.NewInformer(
 		listWatch,
 		k8sObjType,
@@ -470,6 +468,6 @@ func (r *Reflector) ksrInit(stopCh <-chan struct{}, wg *sync.WaitGroup, prefix s
 			},
 		},
 	)
-	reflectors[objType] = r
+	reflectors[r.objType] = r
 	return nil
 }

@@ -108,28 +108,21 @@ func (adapter *Registry) WatchDataBase(resyncName string, changeChan chan datasy
 func (adapter *Registry) PropagateChanges(txData map[string] /*key*/ datasync.ChangeValue) error {
 	var events []func(done chan error)
 
-	var prev datasync.LazyValueWithRev
-	prevValues := make(map[string]datasync.LazyValueWithRev)
-
-	for key, val := range txData {
-		_, prev = adapter.lastRev.Get(key)
-		prevValues[key] = prev
-		if val.GetChangeType() == datasync.Delete {
-			adapter.lastRev.Del(key)
-		} else {
-			adapter.lastRev.Put(key, val)
-		}
-	}
-
 	for _, sub := range adapter.subscriptions {
 		for _, prefix := range sub.KeyPrefixes {
 			for key, val := range txData {
-				var curRev int64
-				prev = prevValues[key]
+				var (
+					prev   datasync.LazyValueWithRev
+					curRev int64
+				)
 
 				if strings.HasPrefix(key, prefix) {
-					if prev != nil {
-						curRev = prev.GetRevision() + 1
+					if val.GetChangeType() == datasync.Delete {
+						if _, prev = adapter.lastRev.Del(key); prev != nil {
+							curRev = prev.GetRevision() + 1
+						}
+					} else {
+						_, prev, curRev = adapter.lastRev.Put(key, val)
 					}
 
 					sendTo := func(sub *Subscription, key string, val datasync.ChangeValue) func(done chan error) {
@@ -139,7 +132,7 @@ func (adapter *Registry) PropagateChanges(txData map[string] /*key*/ datasync.Ch
 								ChangeType: val.GetChangeType(),
 								CurrVal:    val,
 								CurrRev:    curRev,
-								PrevVal:    prevValues[key],
+								PrevVal:    prev,
 								delegate:   NewDoneChannel(done),
 							}
 						}

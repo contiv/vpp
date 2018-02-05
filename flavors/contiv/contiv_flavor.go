@@ -37,6 +37,7 @@ import (
 	"github.com/ligato/cn-infra/rpc/grpc"
 	"github.com/ligato/cn-infra/rpc/prometheus"
 	"github.com/ligato/cn-infra/rpc/rest"
+	"github.com/ligato/cn-infra/servicelabel"
 	"github.com/ligato/vpp-agent/clientv1/linux/localclient"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins"
 	"github.com/ligato/vpp-agent/plugins/govppmux"
@@ -74,7 +75,9 @@ type FlavorContiv struct {
 
 	ETCD            etcdv3.Plugin
 	ETCDDataSync    kvdbsync.Plugin
-	KsrETCDDataSync kvdbsync.Plugin
+	NodeIDDataSync  kvdbsync.Plugin
+	ServiceDataSync kvdbsync.Plugin
+	PolicyDataSync  kvdbsync.Plugin
 
 	KVProxy kvdbproxy.Plugin
 	Stats   statscollector.Plugin
@@ -124,7 +127,15 @@ func (f *FlavorContiv) Inject() bool {
 
 	f.ETCD.Deps.PluginInfraDeps = *f.InfraDeps("etcdv3", local.WithConf())
 	connectors.InjectKVDBSync(&f.ETCDDataSync, &f.ETCD, f.ETCD.PluginName, f.FlavorLocal, &f.ResyncOrch)
-	f.KsrETCDDataSync = *f.ETCDDataSync.OfDifferentAgent(ksr.MicroserviceLabel, f)
+	f.NodeIDDataSync = f.ETCDDataSync
+	f.NodeIDDataSync.PluginInfraDeps = *f.InfraDeps("nodeid-datasync")
+	f.NodeIDDataSync.Deps.PluginInfraDeps.ServiceLabel = servicelabel.OfDifferentAgent(ksr.MicroserviceLabel)
+	f.PolicyDataSync = f.ETCDDataSync
+	f.PolicyDataSync.PluginInfraDeps = *f.InfraDeps("policy-datasync")
+	f.PolicyDataSync.Deps.PluginInfraDeps.ServiceLabel = servicelabel.OfDifferentAgent(ksr.MicroserviceLabel)
+	f.ServiceDataSync = f.ETCDDataSync
+	f.ServiceDataSync.PluginInfraDeps = *f.InfraDeps("service-datasync")
+	f.ServiceDataSync.Deps.PluginInfraDeps.ServiceLabel = servicelabel.OfDifferentAgent(ksr.MicroserviceLabel)
 
 	f.KVProxy.Deps.PluginInfraDeps = *f.FlavorLocal.InfraDeps("kvproxy")
 	f.KVProxy.Deps.KVDB = &f.ETCDDataSync
@@ -157,19 +168,19 @@ func (f *FlavorContiv) Inject() bool {
 	f.Contiv.Deps.VPP = &f.VPP
 	f.Contiv.Deps.Resync = &f.ResyncOrch
 	f.Contiv.Deps.ETCD = &f.ETCD
-	f.Contiv.Deps.Watcher = &f.KsrETCDDataSync
+	f.Contiv.Deps.Watcher = &f.NodeIDDataSync
 	f.Contiv.Deps.PluginConfig = config.ForPlugin("contiv", ContivConfigPath, ContivConfigPathUsage)
 
 	f.Policy.Deps.PluginInfraDeps = *f.FlavorLocal.InfraDeps("policy")
 	f.Policy.Deps.Resync = &f.ResyncOrch
-	f.Policy.Deps.Watcher = &f.KsrETCDDataSync
+	f.Policy.Deps.Watcher = &f.PolicyDataSync
 	f.Policy.Deps.Contiv = &f.Contiv
 	f.Policy.Deps.GoVPP = &f.GoVPP
 	f.Policy.Deps.VPP = &f.VPP
 
 	f.Service.Deps.PluginInfraDeps = *f.FlavorLocal.InfraDeps("service")
 	f.Service.Deps.Resync = &f.ResyncOrch
-	f.Service.Deps.Watcher = &f.KsrETCDDataSync
+	f.Service.Deps.Watcher = &f.ServiceDataSync
 	f.Service.Deps.Contiv = &f.Contiv
 	f.Service.Deps.GoVPP = &f.GoVPP
 	f.Service.Deps.VPP = &f.VPP

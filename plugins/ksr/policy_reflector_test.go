@@ -58,7 +58,7 @@ func TestPolicyReflector(t *testing.T) {
 			K8sListWatch: policyTestVars.k8sListWatch,
 			Broker:       policyTestVars.mockKvWriter,
 			dsSynced:     false,
-			objType:      "Policy",
+			objType:      policyObjType,
 		},
 	}
 

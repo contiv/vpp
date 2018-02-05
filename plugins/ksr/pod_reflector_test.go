@@ -55,7 +55,7 @@ func TestPodReflector(t *testing.T) {
 			K8sListWatch: podTestVars.k8sListWatch,
 			Broker:       podTestVars.mockKvWriter,
 			dsSynced:     false,
-			objType:      "Pod",
+			objType:      podObjType,
 		},
 	}
 

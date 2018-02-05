@@ -23,7 +23,7 @@ import (
 
 	"github.com/golang/protobuf/proto"
 
-	pod "github.com/contiv/vpp/plugins/ksr/model/pod"
+	"github.com/contiv/vpp/plugins/ksr/model/pod"
 )
 
 // PodReflector subscribes to K8s cluster to watch for changes

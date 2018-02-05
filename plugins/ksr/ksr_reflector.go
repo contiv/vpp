@@ -45,7 +45,7 @@ type Reflector struct {
 	K8sClientset *kubernetes.Clientset
 	// K8s List-Watch watches for Kubernetes config changes.
 	K8sListWatch K8sListWatcher
-	// Broker propagates changes into a data store.
+	// Broker is the interface to a key-val data store.
 	Broker KeyProtoValBroker
 	// objType defines the type of the object handled by a particular reflector
 	objType string
@@ -410,9 +410,9 @@ func (r *Reflector) ksrDelete(key string) {
 // of k8s services. The subscription does not become active until Start()
 // is called.
 func (r *Reflector) ksrInit(stopCh <-chan struct{}, wg *sync.WaitGroup, prefix string,
-	objType string, k8sObjType k8sRuntime.Object, ksrFuncs ReflectorFunctions) error {
+	k8sObjName string, k8sObjType k8sRuntime.Object, ksrFuncs ReflectorFunctions) error {
 
-	if _, objExists := reflectors[objType]; objExists {
+	if _, objExists := reflectors[r.objType]; objExists {
 		return fmt.Errorf("%s reflector type already exists", r.objType)
 	}
 
@@ -433,7 +433,7 @@ func (r *Reflector) ksrInit(stopCh <-chan struct{}, wg *sync.WaitGroup, prefix s
 		restClient = r.K8sClientset.CoreV1().RESTClient()
 	}
 
-	listWatch := r.K8sListWatch.NewListWatchFromClient(restClient, objType, "", fields.Everything())
+	listWatch := r.K8sListWatch.NewListWatchFromClient(restClient, k8sObjName, "", fields.Everything())
 	r.k8sStore, r.k8sController = r.K8sListWatch.NewInformer(
 		listWatch,
 		k8sObjType,
@@ -468,6 +468,6 @@ func (r *Reflector) ksrInit(stopCh <-chan struct{}, wg *sync.WaitGroup, prefix s
 			},
 		},
 	)
-	reflectors[objType] = r
+	reflectors[r.objType] = r
 	return nil
 }

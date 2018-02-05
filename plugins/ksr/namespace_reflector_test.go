@@ -54,7 +54,7 @@ func TestNamespaceReflector(t *testing.T) {
 			K8sListWatch: nsTestVars.k8sListWatch,
 			Broker:       nsTestVars.mockKvWriter,
 			dsSynced:     false,
-			objType:      "Service",
+			objType:      namespaceObjType,
 		},
 	}
 

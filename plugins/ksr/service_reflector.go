@@ -65,7 +65,8 @@ func (sr *ServiceReflector) Init(stopCh2 <-chan struct{}, wg *sync.WaitGroup) er
 		},
 	}
 
-	return sr.ksrInit(stopCh2, wg, service.KeyPrefix(), "services", &coreV1.Service{}, serviceReflectorFuncs)
+	return sr.ksrInit(stopCh2, wg, service.KeyPrefix(), "services",
+		&coreV1.Service{}, serviceReflectorFuncs)
 }
 
 // addService adds state data of a newly created K8s service into the data store.

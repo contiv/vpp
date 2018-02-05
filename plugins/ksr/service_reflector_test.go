@@ -56,7 +56,7 @@ func TestServiceReflector(t *testing.T) {
 			K8sListWatch: serviceTestVars.k8sListWatch,
 			Broker:       serviceTestVars.mockKvWriter,
 			dsSynced:     false,
-			objType:      "Service",
+			objType:      serviceObjType,
 		},
 	}
 

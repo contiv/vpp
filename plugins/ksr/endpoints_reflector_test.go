@@ -54,7 +54,7 @@ func TestEndpointsReflector(t *testing.T) {
 			K8sListWatch: epTestVars.k8sListWatch,
 			Broker:       epTestVars.mockKvWriter,
 			dsSynced:     false,
-			objType:      "Endpoints",
+			objType:      endpointsObjType,
 		},
 	}
 

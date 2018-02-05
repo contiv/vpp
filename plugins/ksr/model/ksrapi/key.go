@@ -20,4 +20,3 @@ import "github.com/contiv/vpp/plugins/ksr/model/ksrkey"
 func Key(metric string) string {
 	return ksrkey.KsrStsPrefix + "/" + metric
 }
-

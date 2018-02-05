@@ -276,7 +276,7 @@ func (etcdm *EtcdMonitor) processEtcdMonitorEvent(ns status.OperationalState) {
 // in data loss in Etcd. If yes, resync of all reflectors is triggered. As a
 // byproduct, this function periodically writes reflector statistics to Etcd.
 func (etcdm *EtcdMonitor) checkEtcdTransientError() {
-
+	// Skip monitoring during data store resync
 	if !ksrHasSynced() {
 		return
 	}
@@ -305,11 +305,12 @@ func (etcdm *EtcdMonitor) checkEtcdTransientError() {
 // ksrHasSynced determines if all reflectors have synced their respective K8s
 // caches with their respective data stores.
 func ksrHasSynced() bool {
-	hasSynced := true
 	for _, v := range reflectors {
-		hasSynced = hasSynced && v.HasSynced()
+		if !v.HasSynced() {
+			return false
+		}
 	}
-	return hasSynced
+	return true
 }
 
 // getKsrStats() gets the global stats from all reflectors

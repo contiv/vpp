@@ -157,7 +157,7 @@ func (pct *PolicyConfiguratorTxn) Commit() error {
 
 		if !delPodConfig {
 			// Get pod IP address (expressed as one-host subnet).
-			podIPNet := utils.GetOneHostSubnet(podData.IpAddress)
+			podIPNet = utils.GetOneHostSubnet(podData.IpAddress)
 			if podIPNet == nil {
 				pct.Log.WithField("pod", pod).Warn("Pod has invalid IP address assigned")
 				continue

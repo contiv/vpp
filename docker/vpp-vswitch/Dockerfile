@@ -28,13 +28,13 @@ RUN apt-get update \
 COPY --from=builder /root/go/src/github.com/contiv/vpp/cmd/contiv-agent/contiv-agent /usr/bin/contiv-agent
 
 # add contiv-vswitch.conf
-COPY docker/vpp-vsvswitch/contiv-vswitch.conf /etc/vpp/contiv-vswitch.conf
+COPY docker/vpp-vswitch/contiv-vswitch.conf /etc/vpp/contiv-vswitch.conf
 
 # add supervisord config file
-COPY docker/vpp-vsvswitch/supervisord.conf /etc/supervisord.conf
+COPY docker/vpp-vswitch/supervisord.conf /etc/supervisord.conf
 
 # add govpp config file
-COPY docker/vpp-vsvswitch/govpp.conf /etc/govpp/govpp.conf
+COPY docker/vpp-vswitch/govpp.conf /etc/govpp/govpp.conf
 
 # run supervisord as the default executable
 CMD ["/usr/bin/supervisord", "-c", "/etc/supervisord.conf"]

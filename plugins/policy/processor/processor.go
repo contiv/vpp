@@ -428,7 +428,7 @@ func (pp *PolicyProcessor) getPoliciesAssignedToPod(pod *podmodel.Pod) (policies
 					}
 
 					isMatchNamespaceSelector := pp.isNamespaceMatchLabel(pod, matchLabels)
-					if !isMatchPodSelector && isMatchNamespaceSelector {
+					if !isMatchPodSelector && !isMatchNamespaceSelector {
 						continue
 					}
 
@@ -458,7 +458,7 @@ func (pp *PolicyProcessor) getPoliciesAssignedToPod(pod *podmodel.Pod) (policies
 					}
 					isMatchNamespaceSelector := pp.isNamespaceMatchLabel(pod, matchLabels)
 
-					if !isMatchPodSelector && isMatchNamespaceSelector {
+					if !isMatchPodSelector && !isMatchNamespaceSelector {
 						continue
 					}
 

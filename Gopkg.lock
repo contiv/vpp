@@ -1051,6 +1051,11 @@
   revision = "be1fbeda19366dea804f00efff2dd73a1642fdcc"
 
 [[projects]]
+  name = "github.com/wadey/gocovmerge"
+  packages = ["."]
+  revision = "b5bfa59ec0adc420475f97f89b58045c721d761c"
+
+[[projects]]
   branch = "master"
   name = "github.com/willfaught/gockle"
   packages = ["."]
@@ -1150,6 +1155,12 @@
     "width"
   ]
   revision = "e19ae1496984b1c655b8044a65c0300a3c878dd3"
+
+[[projects]]
+  branch = "master"
+  name = "golang.org/x/tools"
+  packages = ["cover"]
+  revision = "66487607e2081c7c2af2281c62c14ee000d5024b"
 
 [[projects]]
   branch = "master"
@@ -1597,6 +1608,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "0c29611cc68c2c05d55d1929b0232faf909c63c33b764c8866366c84d783bb4f"
+  inputs-digest = "22336769a13c413c5d5e11b7829f569e772f351b8d6d7a401271c0fd1e3c61a6"
   solver-name = "gps-cdcl"
   solver-version = 1

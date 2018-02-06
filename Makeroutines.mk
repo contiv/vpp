@@ -1,7 +1,7 @@
 # install dependencies according to Gopkg.toml
 define install_dependencies
 	@echo "# installing dependencies, please wait ..."
-	@dep ensure
+	@dep ensure -v
 endef
 
 # install code generators

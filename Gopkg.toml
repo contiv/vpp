@@ -24,11 +24,15 @@
 #   go-tests = true
 #   unused-packages = true
 
-required = ["github.com/docker/docker/api", "github.com/docker/swarmkit", "github.com/opencontainers/runc", "golang.org/x/exp/inotify", "github.com/google/cadvisor", "k8s.io/apiserver/pkg/apis/apiserver", "github.com/ugorji/go/codec", "github.com/docker/distribution"]
+required = ["github.com/wadey/gocovmerge", "github.com/docker/docker/api", "github.com/docker/swarmkit", "github.com/opencontainers/runc", "golang.org/x/exp/inotify", "github.com/google/cadvisor", "k8s.io/apiserver/pkg/apis/apiserver", "github.com/ugorji/go/codec", "github.com/docker/distribution"]
 
 [[constraint]]
   revision = "8ca20507d15703412c18b07d4f4ce6b4de989de6"
   name = "git.fd.io/govpp.git"
+
+[[constraint]]
+  revision = "b5bfa59ec0adc420475f97f89b58045c721d761c"
+  name = "github.com/wadey/gocovmerge"
 
 [[constraint]]
   revision = "1c81e2a794c6e26a4c650142ae8893c47f619764"

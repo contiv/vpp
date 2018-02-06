@@ -53,6 +53,8 @@ type IPAM struct {
 	nodeInterconnectCIDR net.IPNet // IPv4 subnet used for for inter-node connections
 	vxlanCIDR            net.IPNet // IPv4 subnet used for for inter-node VXLAN
 	serviceCIDR          net.IPNet // IPv4 subnet used to allocate ClusterIPs for a service
+
+	lastAssigned int // counter denoting last assigned IP address
 }
 
 type uintIP = uint32
@@ -73,8 +75,9 @@ type Config struct {
 func New(logger logging.Logger, nodeID uint8, config *Config) (*IPAM, error) {
 	// create basic IPAM
 	ipam := &IPAM{
-		logger: logger,
-		nodeID: nodeID,
+		logger:       logger,
+		nodeID:       nodeID,
+		lastAssigned: 1,
 	}
 
 	// computing IPAM struct variables from IPAM config
@@ -243,27 +246,48 @@ func (i *IPAM) NextPodIP(podID string) (net.IP, error) {
 		return nil, err
 	}
 
+	last := i.lastAssigned + 1
 	// iterate over all possible IP addresses for pod network prefix
-	// and take first not assigned IP
+	// start from the last assigned and take first available IP
 	prefixBits, totalBits := i.podNetworkIPPrefix.Mask.Size()
 	maxSeqID := 1 << uint(totalBits-prefixBits) //max IP addresses in network range
-	for j := 1; j < maxSeqID; j++ {             // zero ending IP is reserved for network => skip seqID=0
-		if j == podGatewaySeqID {
-			continue // gateway IP address can't be assigned as pod
+	for j := last; j < maxSeqID; j++ {          // zero ending IP is reserved for network => skip seqID=0
+		ipForAssign, success := i.tryToAllocatePodIP(j, networkPrefix, podID)
+		if success {
+			i.lastAssigned = j
+			return ipForAssign, nil
 		}
-		if _, found := i.assignedPodIPs[networkPrefix+uint32(j)]; found {
-			continue // ignore already assigned IP addresses
-		}
-		i.assignedPodIPs[networkPrefix+uint32(j)] = podID
-		//TODO set etcd for new assigned value
+	}
 
-		ipForAssign := uint32ToIpv4(networkPrefix + uint32(j))
-		i.logger.Infof("Assigned new pod IP %s", ipForAssign)
-		i.logAssignedPodIPPool()
-		return ipForAssign, nil
+	// iterate from the range start until lastAssigned
+	for j := 1; j < last; j++ { // zero ending IP is reserved for network => skip seqID=0
+		ipForAssign, success := i.tryToAllocatePodIP(j, networkPrefix, podID)
+		if success {
+			i.lastAssigned = j
+			return ipForAssign, nil
+		}
 	}
 
 	return nil, fmt.Errorf("No IP address is free for assignment. All IP addresses for pod network %v are already assigned", i.podNetworkIPPrefix)
+}
+
+// tryToAllocatePodIP checks whether the IP at the given index is available.
+func (i *IPAM) tryToAllocatePodIP(index int, networkPrefix uint32, podID string) (assignedIP net.IP, success bool) {
+	if index == podGatewaySeqID {
+		return nil, false // gateway IP address can't be assigned as pod
+	}
+	ip := networkPrefix + uint32(index)
+	if _, found := i.assignedPodIPs[ip]; found {
+		return nil, false // ignore already assigned IP addresses
+	}
+	i.assignedPodIPs[ip] = podID
+	//TODO set etcd for new assigned value
+
+	ipForAssign := uint32ToIpv4(ip)
+	i.logger.Infof("Assigned new pod IP %s", ipForAssign)
+	i.logAssignedPodIPPool()
+
+	return ipForAssign, true
 }
 
 // ReleasePodIP releases the pod IP address remembered for POD id string, so that it can be reused by the next PODs.

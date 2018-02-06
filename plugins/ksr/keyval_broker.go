@@ -16,7 +16,6 @@ package ksr
 
 import (
 	"encoding/json"
-	"errors"
 
 	"github.com/ligato/cn-infra/db/keyval"
 
@@ -31,7 +30,7 @@ const (
 )
 
 // KeyProtoValBroker defines KSR's interface to the key-value data store. It
-// defines a subset of operations from a generic cn-infra Broker interface
+// defines a subset of operations from a generic cn-infra broker interface
 // (keyval.ProtoBroker in cn-infra).
 type KeyProtoValBroker interface {
 	// Put <data> to ETCD or to any other key-value based data source.
@@ -68,9 +67,11 @@ type dataStoreItem struct {
 // newMockKeyProtoValBroker returns a new instance of mockKeyProtoVaBroker.
 func newMockKeyProtoValBroker() *mockKeyProtoVaBroker {
 	return &mockKeyProtoVaBroker{
-		numRwErr: 0,
-		rwErr:    nil,
-		ds:       make(map[string]dataStoreItem),
+		numRwErr:   0,
+		numListErr: 0,
+		rwErr:      nil,
+		listErr:    nil,
+		ds:         make(map[string]dataStoreItem),
 	}
 }
 
@@ -142,7 +143,7 @@ func (mock *mockKeyProtoVaBroker) GetValue(key string, out proto.Message) (found
 
 	data, exists := mock.ds[key]
 	if !exists {
-		return false, 0, errors.New(noDataForKey + key)
+		return false, 0, nil
 	}
 	proto.Merge(out, data.val)
 	return true, data.rev, nil
@@ -154,6 +155,10 @@ func (mock *mockKeyProtoVaBroker) ClearDs() {
 	for key := range mock.ds {
 		delete(mock.ds, key)
 	}
+	mock.numRwErr = 0
+	mock.numListErr = 0
+	mock.rwErr = nil
+	mock.listErr = nil
 }
 
 // ListValues returns the mockProtoKeyValIterator which will contain some

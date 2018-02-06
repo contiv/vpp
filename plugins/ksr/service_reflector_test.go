@@ -32,7 +32,7 @@ import (
 
 type ServiceTestVars struct {
 	k8sListWatch *mockK8sListWatch
-	mockKvWriter *mockKeyProtoVaBroker
+	mockKvBroker *mockKeyProtoVaBroker
 	svcReflector *ServiceReflector
 	svc          *coreV1.Service
 	svcTestData  []coreV1.Service
@@ -47,14 +47,14 @@ func TestServiceReflector(t *testing.T) {
 	flavorLocal.Inject()
 
 	serviceTestVars.k8sListWatch = &mockK8sListWatch{}
-	serviceTestVars.mockKvWriter = newMockKeyProtoValBroker()
+	serviceTestVars.mockKvBroker = newMockKeyProtoValBroker()
 
 	serviceTestVars.svcReflector = &ServiceReflector{
 		Reflector: Reflector{
 			Log:          flavorLocal.LoggerFor("service-reflector"),
 			K8sClientset: &kubernetes.Clientset{},
 			K8sListWatch: serviceTestVars.k8sListWatch,
-			Broker:       serviceTestVars.mockKvWriter,
+			Broker:       serviceTestVars.mockKvBroker,
 			dsSynced:     false,
 			objType:      serviceObjType,
 		},
@@ -214,12 +214,12 @@ func TestServiceReflector(t *testing.T) {
 	// Pre-populate the mock data store with pre-existing data that is supposed
 	// to be updated during the test.
 	svc1 := &serviceTestVars.svcTestData[0]
-	serviceTestVars.mockKvWriter.
+	serviceTestVars.mockKvBroker.
 		Put(service.Key(svc1.GetName(), svc1.GetNamespace()), serviceTestVars.svcReflector.serviceToProto(svc1))
 	// Pre-populate the mock data store with "stale" data that is supposed to
 	// be deleted during the test.
 	svc2 := &serviceTestVars.svcTestData[3]
-	serviceTestVars.mockKvWriter.
+	serviceTestVars.mockKvBroker.
 		Put(service.Key(svc2.GetName(), svc2.GetNamespace()), serviceTestVars.svcReflector.serviceToProto(svc2))
 
 	statsBefore := *serviceTestVars.svcReflector.GetStats()
@@ -241,18 +241,18 @@ func TestServiceReflector(t *testing.T) {
 
 	statsAfter := *serviceTestVars.svcReflector.GetStats()
 
-	gomega.Expect(serviceTestVars.mockKvWriter.ds).Should(gomega.HaveLen(2))
+	gomega.Expect(serviceTestVars.mockKvBroker.ds).Should(gomega.HaveLen(2))
 	gomega.Expect(statsBefore.Adds + 1).To(gomega.Equal(statsAfter.Adds))
 	gomega.Expect(statsBefore.Updates + 1).Should(gomega.BeNumerically("==", statsAfter.Updates))
 	gomega.Expect(statsBefore.Deletes + 1).Should(gomega.BeNumerically("==", statsAfter.Deletes))
 
-	serviceTestVars.mockKvWriter.ClearDs()
+	serviceTestVars.mockKvBroker.ClearDs()
 
 	serviceTestVars.svc = &serviceTestVars.svcTestData[0]
 
 	t.Run("addDeleteService", testAddDeleteService)
 
-	serviceTestVars.mockKvWriter.ClearDs()
+	serviceTestVars.mockKvBroker.ClearDs()
 	t.Run("updateService", testUpdateService)
 
 	MockK8sCache.ListFunc = nil
@@ -288,7 +288,7 @@ func testUpdateService(t *testing.T) {
 
 	// Check that new data was written properly
 	svcProto := &service.Service{}
-	_, _, err := serviceTestVars.mockKvWriter.GetValue(service.Key(svcNew.GetName(), svcNew.GetNamespace()), svcProto)
+	_, _, err := serviceTestVars.mockKvBroker.GetValue(service.Key(svcNew.GetName(), svcNew.GetNamespace()), svcProto)
 	gomega.Expect(err).To(gomega.BeNil())
 	gomega.Expect(svcProto.ClusterIp).To(gomega.Equal(svcNew.Spec.ClusterIP))
 
@@ -311,10 +311,12 @@ func testAddDeleteService(t *testing.T) {
 	serviceTestVars.k8sListWatch.Add(svc)
 
 	svcProto := &service.Service{}
-	_, _, err := serviceTestVars.mockKvWriter.GetValue(service.Key(svc.GetName(), svc.GetNamespace()), svcProto)
+	found, _, err := serviceTestVars.mockKvBroker.GetValue(service.Key(svc.GetName(), svc.GetNamespace()), svcProto)
+
+	gomega.Expect(found).To(gomega.BeTrue())
+	gomega.Expect(err).To(gomega.BeNil())
 
 	gomega.Expect(adds + 1).To(gomega.Equal(serviceTestVars.svcReflector.GetStats().Adds))
-	gomega.Expect(err).To(gomega.BeNil())
 	gomega.Expect(svcProto).NotTo(gomega.BeNil())
 	gomega.Expect(svcProto.Name).To(gomega.Equal(svc.GetName()))
 	gomega.Expect(svcProto.Namespace).To(gomega.Equal(svc.GetNamespace()))
@@ -345,6 +347,8 @@ func testAddDeleteService(t *testing.T) {
 
 	svcProto = &service.Service{}
 	key := service.Key(svc.GetName(), svc.GetNamespace())
-	_, _, err = serviceTestVars.mockKvWriter.GetValue(key, svcProto)
-	gomega.Ω(err).ShouldNot(gomega.Succeed())
+	found, _, err = serviceTestVars.mockKvBroker.GetValue(key, svcProto)
+
+	gomega.Expect(found).To(gomega.BeFalse())
+	gomega.Ω(err).Should(gomega.Succeed())
 }

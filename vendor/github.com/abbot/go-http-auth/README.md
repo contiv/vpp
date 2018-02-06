@@ -12,7 +12,7 @@ Features
  * Supports htpasswd and htdigest formatted files.
  * Automatic reloading of password files.
  * Pluggable interface for user/password storage.
- * Supports MD5 and SHA1 for Basic authentication password storage.
+ * Supports MD5, SHA1 and BCrypt for Basic authentication password storage.
  * Configurable Digest nonce cache size with expiration.
  * Wrapper for legacy http handlers (http.HandlerFunc interface)
  
@@ -24,9 +24,10 @@ This is a complete working example for Basic auth:
     package main
 
     import (
-            auth "github.com/abbot/go-http-auth"
             "fmt"
             "net/http"
+
+            auth "github.com/abbot/go-http-auth"
     )
 
     func Secret(user, realm string) string {

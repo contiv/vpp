@@ -1,18 +1,19 @@
+// +build windows
+
 // Copyright 2016 go-dockerclient authors. All rights reserved.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
-
-// +build windows
 
 package docker
 
 import (
 	"context"
 	"net"
-	"time"
 	"net/http"
+	"time"
 
 	"github.com/Microsoft/go-winio"
+	"github.com/hashicorp/go-cleanhttp"
 )
 
 const namedPipeConnectTimeout = 2 * time.Second
@@ -26,7 +27,7 @@ func (p pipeDialer) Dial(network, address string) (net.Conn, error) {
 }
 
 // initializeNativeClient initializes the native Named Pipe client for Windows
-func (c *Client) initializeNativeClient(trFunc func () *http.Transport) {
+func (c *Client) initializeNativeClient() {
 	if c.endpointURL.Scheme != namedPipeProtocol {
 		return
 	}
@@ -35,11 +36,11 @@ func (c *Client) initializeNativeClient(trFunc func () *http.Transport) {
 		timeout := namedPipeConnectTimeout
 		return winio.DialPipe(namedPipePath, &timeout)
 	}
-	tr := trFunc()
+	tr := cleanhttp.DefaultTransport()
 	tr.Dial = dialFunc
 	tr.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
 		return dialFunc(network, addr)
 	}
 	c.Dialer = &pipeDialer{dialFunc}
-	c.HTTPClient.Transport = tr
+	c.nativeHTTPClient = &http.Client{Transport: tr}
 }

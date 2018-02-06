@@ -47,9 +47,9 @@ type KeyProtoValBroker interface {
 	ListValues(prefix string) (keyval.ProtoKeyValIterator, error)
 }
 
-// mockKeyProtoVaBroker is a mock implementation of KSR's interface to the
+// mockKeyProtoValBroker is a mock implementation of KSR's interface to the
 // key-value data store.
-type mockKeyProtoVaBroker struct {
+type mockKeyProtoValBroker struct {
 	numRwErr   int
 	rwErr      error
 	numListErr int
@@ -64,9 +64,9 @@ type dataStoreItem struct {
 	rev int64
 }
 
-// newMockKeyProtoValBroker returns a new instance of mockKeyProtoVaBroker.
-func newMockKeyProtoValBroker() *mockKeyProtoVaBroker {
-	return &mockKeyProtoVaBroker{
+// newMockKeyProtoValBroker returns a new instance of mockKeyProtoValBroker.
+func newMockKeyProtoValBroker() *mockKeyProtoValBroker {
+	return &mockKeyProtoValBroker{
 		numRwErr:   0,
 		numListErr: 0,
 		rwErr:      nil,
@@ -78,7 +78,7 @@ func newMockKeyProtoValBroker() *mockKeyProtoVaBroker {
 // injectReadWriteError sets the error value to be returned from read and write
 // operations. The error will be returned from 'numRwErr' calls to Put, Delete,
 // and GetValue operations, then cleared.
-func (mock *mockKeyProtoVaBroker) injectReadWriteError(err error, numErr int) {
+func (mock *mockKeyProtoValBroker) injectReadWriteError(err error, numErr int) {
 	mock.numRwErr = numErr
 	mock.rwErr = err
 }
@@ -86,25 +86,25 @@ func (mock *mockKeyProtoVaBroker) injectReadWriteError(err error, numErr int) {
 // injectListError sets the error value to be returned from list operations. The
 // operations. The error will be returned from 'numRwErr' calls to ListValues(),
 // and GetValue operations, then cleared.
-func (mock *mockKeyProtoVaBroker) injectListError(err error, numErr int) {
+func (mock *mockKeyProtoValBroker) injectListError(err error, numErr int) {
 	mock.numListErr = numErr
 	mock.listErr = err
 }
 
 // clearReadWriteError resets the error value returned from Put, Delete and
 // GetValue operations.
-func (mock *mockKeyProtoVaBroker) clearReadWriteError() {
+func (mock *mockKeyProtoValBroker) clearReadWriteError() {
 	mock.injectReadWriteError(nil, 0)
 }
 
 // clearListError resets the error value returned from Put, Delete and
 // GetValue operations.
-func (mock *mockKeyProtoVaBroker) clearListError() {
+func (mock *mockKeyProtoValBroker) clearListError() {
 	mock.injectListError(nil, 0)
 }
 
 // Put puts data into an in-memory map simulating a key-value datastore.
-func (mock *mockKeyProtoVaBroker) Put(key string, data proto.Message, opts ...datasync.PutOption) error {
+func (mock *mockKeyProtoValBroker) Put(key string, data proto.Message, opts ...datasync.PutOption) error {
 	if mock.numRwErr > 0 {
 		mock.numRwErr--
 		return mock.rwErr
@@ -120,7 +120,7 @@ func (mock *mockKeyProtoVaBroker) Put(key string, data proto.Message, opts ...da
 }
 
 // Delete removes data from an in-memory map simulating a key-value datastore.
-func (mock *mockKeyProtoVaBroker) Delete(key string, opts ...datasync.DelOption) (existed bool, err error) {
+func (mock *mockKeyProtoValBroker) Delete(key string, opts ...datasync.DelOption) (existed bool, err error) {
 	if mock.numRwErr > 0 {
 		mock.numRwErr--
 		return false, mock.rwErr
@@ -135,7 +135,7 @@ func (mock *mockKeyProtoVaBroker) Delete(key string, opts ...datasync.DelOption)
 }
 
 // GetValue is a helper for unit tests to get value stored under a given key.
-func (mock *mockKeyProtoVaBroker) GetValue(key string, out proto.Message) (found bool, revision int64, err error) {
+func (mock *mockKeyProtoValBroker) GetValue(key string, out proto.Message) (found bool, revision int64, err error) {
 	if mock.numRwErr > 0 {
 		mock.numRwErr--
 		return false, 0, mock.rwErr
@@ -151,7 +151,7 @@ func (mock *mockKeyProtoVaBroker) GetValue(key string, out proto.Message) (found
 
 // ClearDs is a helper which allows to clear the in-memory map simulating
 // a key-value datastore.
-func (mock *mockKeyProtoVaBroker) ClearDs() {
+func (mock *mockKeyProtoValBroker) ClearDs() {
 	for key := range mock.ds {
 		delete(mock.ds, key)
 	}
@@ -163,7 +163,7 @@ func (mock *mockKeyProtoVaBroker) ClearDs() {
 
 // ListValues returns the mockProtoKeyValIterator which will contain some
 // mock values down the road
-func (mock *mockKeyProtoVaBroker) ListValues(prefix string) (keyval.ProtoKeyValIterator, error) {
+func (mock *mockKeyProtoValBroker) ListValues(prefix string) (keyval.ProtoKeyValIterator, error) {
 	if mock.numListErr > 0 {
 		mock.numListErr--
 		return nil, mock.rwErr

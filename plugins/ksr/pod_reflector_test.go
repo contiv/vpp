@@ -32,7 +32,7 @@ import (
 
 type PodTestVars struct {
 	k8sListWatch *mockK8sListWatch
-	mockKvBroker *mockKeyProtoVaBroker
+	mockKvBroker *mockKeyProtoValBroker
 	podReflector *PodReflector
 	podTestData  []coreV1.Pod
 }

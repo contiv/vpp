@@ -37,7 +37,7 @@ import (
 
 type PolicyTestVars struct {
 	k8sListWatch    *mockK8sListWatch
-	mockKvBroker    *mockKeyProtoVaBroker
+	mockKvBroker    *mockKeyProtoValBroker
 	policyReflector *PolicyReflector
 	policyTestData  []coreV1Beta1.NetworkPolicy
 }
@@ -772,11 +772,22 @@ func testResyncPolicyDataStoreDownThenAdd(t *testing.T) {
 	gomega.Expect(sSnap.Adds + 2).To(gomega.Equal(policyTestVars.policyReflector.GetStats().Adds))
 	gomega.Expect(sSnap.AddErrors).To(gomega.Equal(policyTestVars.policyReflector.GetStats().AddErrors))
 
-	dataStoreDownEvent()
+	etcdMonitor := EtcdMonitor{
+		status:  status.OperationalState_INIT,
+		lastRev: 0,
+		broker:  policyTestVars.mockKvBroker,
+	}
+
+	// Emulate the initial 'data store up' event when KSR is coming up
+	etcdMonitor.processEtcdMonitorEvent(status.OperationalState_OK)
+
+	// Emulate a 'data store down' event
+	etcdMonitor.processEtcdMonitorEvent(status.OperationalState_ERROR)
 
 	policyTestVars.k8sListWatch.Add(&policyTestVars.policyTestData[2])
 
-	dataStoreUpEvent()
+	// Emulate a 'data store up' event
+	etcdMonitor.processEtcdMonitorEvent(status.OperationalState_OK)
 
 	// Wait for the resync to finish
 	for {
@@ -855,14 +866,15 @@ func testResyncPolicyTransientDsError(t *testing.T) {
 	gomega.Expect(err).To(gomega.BeNil())
 	gomega.Expect(rev).Should(gomega.BeNumerically("==", 2))
 
-	// Emutate a transient data store error with data loss
+	// Emulate a transient data store error with data loss
 	policyTestVars.mockKvBroker.ClearDs()
 	gomega.Expect(len(policyTestVars.mockKvBroker.ds)).To(gomega.Equal(0))
 
-	// Do another check for transient errors
+	// Do another check for transient errors which should detect a transient
+	// error and trigger a data store resync.
 	etcdMonitor.checkEtcdTransientError()
 
-	// The data loss should have triggered a data sync - wait for it to finish
+	// Wait for data store to finish
 	for {
 		if policyTestVars.policyReflector.HasSynced() {
 			break
@@ -873,8 +885,8 @@ func testResyncPolicyTransientDsError(t *testing.T) {
 	policyTestVars.policyReflector.Log.Infof("*** data sync done:\nsSnap: %+v\nstats: %+v",
 		sSnap, policyTestVars.policyReflector.stats)
 
-	// Check that resync happened and that we have have the data bacj in the
-	// data store
+	// Check that the data store resync happened and that we have have the
+	// data back in the data store
 	gomega.Expect(sSnap.Adds + 6).To(gomega.Equal(policyTestVars.policyReflector.GetStats().Adds))
 	gomega.Expect(len(policyTestVars.mockKvBroker.ds)).To(gomega.Equal(3))
 	gomega.Expect(sSnap.Resyncs + 1).To(gomega.Equal(policyTestVars.policyReflector.GetStats().Resyncs))

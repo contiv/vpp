@@ -31,7 +31,7 @@ import (
 
 type EndpointsTestVars struct {
 	k8sListWatch *mockK8sListWatch
-	mockKvBroker *mockKeyProtoVaBroker
+	mockKvBroker *mockKeyProtoValBroker
 	epsReflector *EndpointsReflector
 	epsTestData  []coreV1.Endpoints
 }

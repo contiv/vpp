@@ -30,7 +30,7 @@ import (
 
 type NamespaceTestVars struct {
 	k8sListWatch *mockK8sListWatch
-	mockKvBroker *mockKeyProtoVaBroker
+	mockKvBroker *mockKeyProtoValBroker
 	nsReflector  *NamespaceReflector
 	svc          *coreV1.Service
 	svcTestData  []coreV1.Service

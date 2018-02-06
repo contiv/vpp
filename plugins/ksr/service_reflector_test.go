@@ -32,7 +32,7 @@ import (
 
 type ServiceTestVars struct {
 	k8sListWatch *mockK8sListWatch
-	mockKvBroker *mockKeyProtoVaBroker
+	mockKvBroker *mockKeyProtoValBroker
 	svcReflector *ServiceReflector
 	svc          *coreV1.Service
 	svcTestData  []coreV1.Service

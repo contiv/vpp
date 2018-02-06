@@ -28,6 +28,7 @@ import (
 	"github.com/ligato/vpp-agent/plugins/linuxplugin/ifplugin/linuxcalls"
 	linux_intf "github.com/ligato/vpp-agent/plugins/linuxplugin/ifplugin/model/interfaces"
 	linux_l3 "github.com/ligato/vpp-agent/plugins/linuxplugin/l3plugin/model/l3"
+	"github.com/vishvananda/netlink"
 )
 
 const (
@@ -67,6 +68,25 @@ func (s *remoteCNIserver) defaultRoute(gwIP string, outIfName string) *vpp_l3.St
 		OutgoingInterface: outIfName,
 	}
 	return route
+}
+
+func (s *remoteCNIserver) routesToHost() []*vpp_l3.StaticRoutes_Route {
+	// list all IPs assigned to host interfaces
+	ips, err := s.getHostLinkIPs()
+	if err != nil {
+		return nil
+	}
+
+	// generate a /32 static route from VPP for each of the host's IPs
+	routes := make([]*vpp_l3.StaticRoutes_Route, 0)
+	for _, ip := range ips {
+		routes = append(routes, &vpp_l3.StaticRoutes_Route{
+			DstIpAddr:   fmt.Sprintf("%s/32", ip),
+			NextHopAddr: s.ipam.VEthHostEndIP().String(),
+		})
+	}
+
+	return routes
 }
 
 func (s *remoteCNIserver) interconnectTap() *vpp_intf.Interfaces_Interface {
@@ -269,4 +289,30 @@ func (s *remoteCNIserver) ipPrefixToAddress(ip string) string {
 		return ip[:strings.Index(ip, "/")]
 	}
 	return ip
+}
+
+func (s *remoteCNIserver) getHostLinkIPs() ([]string, error) {
+	links, err := netlink.LinkList()
+	if err != nil {
+		s.Logger.Error("Unable to list host links:", err)
+		return nil, err
+	}
+
+	res := make([]string, 0)
+	for _, l := range links {
+		if !strings.HasPrefix(l.Attrs().Name, "lo") && !strings.HasPrefix(l.Attrs().Name, "docker") &&
+			!strings.HasPrefix(l.Attrs().Name, "virbr") && !strings.HasPrefix(l.Attrs().Name, "vpp") {
+			// not a virtual interface, list its IP addresses
+			addrList, err := netlink.AddrList(l, netlink.FAMILY_V4)
+			if err != nil {
+				s.Logger.Error("Unable to list link IPs:", err)
+				return nil, err
+			}
+			// return all IPs
+			for _, addr := range addrList {
+				res = append(res, addr.IP.String())
+			}
+		}
+	}
+	return res, nil
 }

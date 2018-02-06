@@ -470,13 +470,22 @@ func (s *remoteCNIserver) configureVswitchHostConnectivity(config *vswitchConfig
 		}
 	}
 
-	// configure static routes and enable L4 features
-	config.routeFromHost = s.routeFromHost()
-	config.l4Features = s.l4Features(!s.disableTCPstack)
+	txn2 := s.vppTxnFactory().Put()
 
-	txn2 := s.vppTxnFactory().Put().
-		LinuxRoute(config.routeFromHost).
-		L4Features(config.l4Features)
+	// configure the routes from VPP to host interfaces
+	routes := s.routesToHost()
+	for _, r := range routes {
+		s.Logger.Debug("Adding route to host IP: ", r)
+		txn2.StaticRoute(r)
+	}
+
+	// configure the route from the host to PODs
+	config.routeFromHost = s.routeFromHost()
+	txn2.LinuxRoute(config.routeFromHost)
+
+	// enable L4 features
+	config.l4Features = s.l4Features(!s.disableTCPstack)
+	txn2.L4Features(config.l4Features)
 
 	// execute the config transaction
 	err = txn2.Send().ReceiveReply()

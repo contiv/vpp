@@ -70,8 +70,8 @@ type EtcdMonitor struct {
 	// lastRev is the last seen revision of the plugin's status in the
 	// data store
 	lastRev int64
-	// Broker is the interface to a key-val data store.
-	Broker KeyProtoValBroker
+	// broker is the interface to a key-val data store.
+	broker KeyProtoValBroker
 }
 
 // Deps defines dependencies of ksr plugin.
@@ -79,7 +79,7 @@ type Deps struct {
 	local.PluginInfraDeps
 	// Kubeconfig with k8s cluster address and access credentials to use.
 	KubeConfig config.PluginConfig
-	// Broker is used to propagate changes into a key-value datastore.
+	// broker is used to propagate changes into a key-value datastore.
 	// contiv-ksr uses ETCD as datastore.
 	Publish *kvdbsync.Plugin
 }
@@ -114,7 +114,7 @@ func (plugin *Plugin) Init() error {
 
 	ksrPrefix := plugin.Publish.ServiceLabel.GetAgentPrefix()
 
-	plugin.etcdMonitor.Broker = plugin.Publish.Deps.KvPlugin.NewBroker(ksrPrefix)
+	plugin.etcdMonitor.broker = plugin.Publish.Deps.KvPlugin.NewBroker(ksrPrefix)
 	plugin.etcdMonitor.status = status.OperationalState_INIT
 	plugin.etcdMonitor.lastRev = 0
 
@@ -282,10 +282,10 @@ func (etcdm *EtcdMonitor) checkEtcdTransientError() {
 	}
 
 	oldStats := ksrapi.Stats{}
-	found, rev, err := etcdm.Broker.GetValue(ksrapi.Key("statistics"), &oldStats)
+	found, rev, err := etcdm.broker.GetValue(ksrapi.Key("statistics"), &oldStats)
 	if err != nil {
-		// We only detect loos of data in etcd here; other failures are
-		// detected by the plugin monitor
+		// We only detect loss of data in etcd here; other failures are
+		// detected by the plugin monitor.
 		return
 	}
 	if !found {
@@ -299,7 +299,7 @@ func (etcdm *EtcdMonitor) checkEtcdTransientError() {
 		dataStoreUpEvent()
 	}
 	etcdm.lastRev = rev
-	etcdm.Broker.Put(ksrapi.Key("statistics"), getKsrStats())
+	etcdm.broker.Put(ksrapi.Key("statistics"), getKsrStats())
 }
 
 // ksrHasSynced determines if all reflectors have synced their respective K8s

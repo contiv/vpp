@@ -31,7 +31,7 @@ import (
 
 type EndpointsTestVars struct {
 	k8sListWatch *mockK8sListWatch
-	mockKvWriter *mockKeyProtoVaBroker
+	mockKvBroker *mockKeyProtoValBroker
 	epsReflector *EndpointsReflector
 	epsTestData  []coreV1.Endpoints
 }
@@ -45,14 +45,14 @@ func TestEndpointsReflector(t *testing.T) {
 	flavorLocal.Inject()
 
 	epTestVars.k8sListWatch = &mockK8sListWatch{}
-	epTestVars.mockKvWriter = newMockKeyProtoValBroker()
+	epTestVars.mockKvBroker = newMockKeyProtoValBroker()
 
 	epTestVars.epsReflector = &EndpointsReflector{
 		Reflector: Reflector{
 			Log:          flavorLocal.LoggerFor("endpoints-reflector"),
 			K8sClientset: &kubernetes.Clientset{},
 			K8sListWatch: epTestVars.k8sListWatch,
-			Broker:       epTestVars.mockKvWriter,
+			Broker:       epTestVars.mockKvBroker,
 			dsSynced:     false,
 			objType:      endpointsObjType,
 		},
@@ -213,12 +213,12 @@ func TestEndpointsReflector(t *testing.T) {
 	k8sEps1 := &epTestVars.epsTestData[1]
 	protoEps1 := epTestVars.epsReflector.endpointsToProto(k8sEps1)
 	protoEps1.EndpointSubsets[0].Addresses[0].Ip = "1.2.3.4"
-	epTestVars.mockKvWriter.Put(endpoints.Key(k8sEps1.GetName(), k8sEps1.GetNamespace()), protoEps1)
+	epTestVars.mockKvBroker.Put(endpoints.Key(k8sEps1.GetName(), k8sEps1.GetNamespace()), protoEps1)
 
 	// Pre-populate the mock data store with "stale" data that is supposed to
 	// be deleted during the test.
 	k8sEps2 := &epTestVars.epsTestData[2]
-	epTestVars.mockKvWriter.Put(endpoints.Key(k8sEps2.GetName(),
+	epTestVars.mockKvBroker.Put(endpoints.Key(k8sEps2.GetName(),
 		k8sEps2.GetNamespace()), epTestVars.epsReflector.endpointsToProto(k8sEps2))
 
 	statsBefore := *epTestVars.epsReflector.GetStats()
@@ -240,16 +240,16 @@ func TestEndpointsReflector(t *testing.T) {
 
 	statsAfter := *epTestVars.epsReflector.GetStats()
 
-	gomega.Expect(epTestVars.mockKvWriter.ds).Should(gomega.HaveLen(2))
+	gomega.Expect(epTestVars.mockKvBroker.ds).Should(gomega.HaveLen(2))
 	gomega.Expect(statsBefore.Adds + 1).Should(gomega.BeNumerically("==", statsAfter.Adds))
 	gomega.Expect(statsBefore.Updates + 1).Should(gomega.BeNumerically("==", statsAfter.Updates))
 	gomega.Expect(statsBefore.Deletes + 1).Should(gomega.BeNumerically("==", statsAfter.Deletes))
 
-	epTestVars.mockKvWriter.ClearDs()
+	epTestVars.mockKvBroker.ClearDs()
 
 	t.Run("addDeleteEndpoints", testAddDeleteEndpoints)
 
-	epTestVars.mockKvWriter.ClearDs()
+	epTestVars.mockKvBroker.ClearDs()
 	t.Run("updateEndpoints", testUpdateEndpoints)
 }
 
@@ -270,11 +270,12 @@ func testAddDeleteEndpoints(t *testing.T) {
 	epTestVars.k8sListWatch.Add(eps)
 	epsProto := &endpoints.Endpoints{}
 
-	_, _, err := epTestVars.mockKvWriter.GetValue(endpoints.Key(eps.GetName(), eps.GetNamespace()), epsProto)
+	found, _, err := epTestVars.mockKvBroker.GetValue(endpoints.Key(eps.GetName(), eps.GetNamespace()), epsProto)
 
 	gomega.Expect(adds + 1).To(gomega.Equal(epTestVars.epsReflector.GetStats().Adds))
 
 	gomega.Expect(err).To(gomega.BeNil())
+	gomega.Expect(found).To(gomega.BeTrue())
 	gomega.Expect(epsProto).NotTo(gomega.BeNil())
 	gomega.Expect(epsProto.Name).To(gomega.Equal(eps.GetName()))
 	gomega.Expect(epsProto.Namespace).To(gomega.Equal(eps.GetNamespace()))
@@ -322,8 +323,8 @@ func testAddDeleteEndpoints(t *testing.T) {
 
 	epsProto = &endpoints.Endpoints{}
 	key := endpoints.Key(eps.GetName(), eps.GetNamespace())
-	_, _, err = epTestVars.mockKvWriter.GetValue(key, epsProto)
-	gomega.Ω(err).ShouldNot(gomega.Succeed())
+	found, _, _ = epTestVars.mockKvBroker.GetValue(key, epsProto)
+	gomega.Ω(found).ShouldNot(gomega.BeTrue())
 }
 
 func testUpdateEndpoints(t *testing.T) {
@@ -384,7 +385,7 @@ func testUpdateEndpoints(t *testing.T) {
 	gomega.Expect(upd + 1).To(gomega.Equal(epTestVars.epsReflector.GetStats().Updates))
 
 	epsProto := &endpoints.Endpoints{}
-	_, _, err := epTestVars.mockKvWriter.GetValue(endpoints.Key(epsNew.GetName(), epsNew.GetNamespace()), epsProto)
+	_, _, err := epTestVars.mockKvBroker.GetValue(endpoints.Key(epsNew.GetName(), epsNew.GetNamespace()), epsProto)
 	gomega.Expect(err).To(gomega.BeNil())
 	gomega.Expect(epsProto.EndpointSubsets[0].Addresses[0].Ip).
 		To(gomega.Equal(epsNew.Subsets[0].Addresses[0].IP))

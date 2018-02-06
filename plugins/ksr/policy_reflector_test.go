@@ -773,13 +773,10 @@ func testResyncPolicyDataStoreDownThenAdd(t *testing.T) {
 	gomega.Expect(sSnap.AddErrors).To(gomega.Equal(policyTestVars.policyReflector.GetStats().AddErrors))
 
 	etcdMonitor := EtcdMonitor{
-		status:  status.OperationalState_INIT,
+		status:  status.OperationalState_OK,
 		lastRev: 0,
 		broker:  policyTestVars.mockKvBroker,
 	}
-
-	// Emulate the initial 'data store up' event when KSR is coming up
-	etcdMonitor.processEtcdMonitorEvent(status.OperationalState_OK)
 
 	// Emulate a 'data store down' event
 	etcdMonitor.processEtcdMonitorEvent(status.OperationalState_ERROR)

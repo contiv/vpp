@@ -19,6 +19,8 @@ package acl
 import (
 	"net"
 
+	"github.com/golang/protobuf/proto"
+
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/vpp-agent/clientv1/linux"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins"
@@ -36,7 +38,8 @@ import (
 type Renderer struct {
 	Deps
 
-	cache *cache.ContivRuleCache
+	cache         *cache.ContivRuleCache
+	podInterfaces PodInterfaces
 }
 
 // Deps lists dependencies of Renderer.
@@ -65,6 +68,9 @@ type InterfaceConfig struct {
 	egress  []*renderer.ContivRule
 }
 
+// PodInterfaces is a map used to remember interface of each (configured) pod.
+type PodInterfaces map[podmodel.ID]string
+
 // Init initializes the ACL Renderer.
 func (r *Renderer) Init() error {
 	r.cache = &cache.ContivRuleCache{}
@@ -74,6 +80,7 @@ func (r *Renderer) Init() error {
 		r.cache.Log = r.Log
 	}
 	r.cache.Init()
+	r.podInterfaces = make(PodInterfaces)
 	return nil
 }
 
@@ -105,11 +112,15 @@ func (art *RendererTxn) Render(pod podmodel.ID, podIP *net.IPNet, ingress []*ren
 	}).Debug("ACL RendererTxn Render()")
 
 	// Get the target interface.
-	ifName, found := art.renderer.Contiv.GetIfName(pod.Namespace, pod.Name)
+	ifName, found := art.renderer.podInterfaces[pod] /* first query local cache */
 	if !found {
-		art.renderer.Log.WithField("pod", pod).Warn("Unable to get the interface assigned to the Pod")
-		return art
+		ifName, found = art.renderer.Contiv.GetIfName(pod.Namespace, pod.Name) /* next query Contiv plugin */
+		if !found {
+			art.renderer.Log.WithField("pod", pod).Warn("Unable to get the interface assigned to the Pod")
+			return art
+		}
 	}
+	art.renderer.podInterfaces[pod] = ifName
 
 	// Empty list of rules should allow all the traffic.
 	// We need to add allow-all rules explicitly so that for each allowed SYN packet
@@ -395,7 +406,8 @@ func (art *RendererTxn) renderChanges(putDsl linux.PutDSL, deleteDsl linux.Delet
 			}).Debug("Put new ACL")
 		} else if len(change.List.Interfaces) != 0 {
 			// Changed interfaces
-			acl := change.List.Private.(*vpp_acl.AccessLists_Acl)
+			aclPrivCopy := proto.Clone(change.List.Private.(*vpp_acl.AccessLists_Acl))
+			acl := aclPrivCopy.(*vpp_acl.AccessLists_Acl)
 			acl.Interfaces = art.renderInterfaces(change.List.Interfaces, ingress)
 			putDsl.ACL(acl)
 			art.renderer.Log.WithFields(logging.Fields{

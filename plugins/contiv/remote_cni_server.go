@@ -149,7 +149,7 @@ type vswitchConfig struct {
 	vethVpp        *linux_intf.LinuxInterfaces_Interface
 	interconnectAF *vpp_intf.Interfaces_Interface
 
-	routeToHost      *vpp_l3.StaticRoutes_Route
+	routesToHost     []*vpp_l3.StaticRoutes_Route
 	routeFromHost    *linux_l3.LinuxStaticRoutes_Route
 	routeForServices *linux_l3.LinuxStaticRoutes_Route
 	l4Features       *vpp_l4.L4Features
@@ -475,8 +475,8 @@ func (s *remoteCNIserver) configureVswitchHostConnectivity(config *vswitchConfig
 	txn2 := s.vppTxnFactory().Put()
 
 	// configure the routes from VPP to host interfaces
-	routes := s.routesToHost()
-	for _, r := range routes {
+	config.routesToHost = s.routesToHost()
+	for _, r := range config.routesToHost {
 		s.Logger.Debug("Adding route to host IP: ", r)
 		txn2.StaticRoute(r)
 	}
@@ -562,6 +562,11 @@ func (s *remoteCNIserver) persistVswitchConfig(config *vswitchConfig) error {
 	}
 
 	// routes + l4 config
+	if config.routesToHost != nil {
+		for _, r := range config.routesToHost {
+			changes[vpp_l3.RouteKey(r.VrfId, r.DstIpAddr, r.NextHopAddr)] = r
+		}
+	}
 	changes[linux_l3.StaticRouteKey(config.routeFromHost.Name)] = config.routeFromHost
 	changes[linux_l3.StaticRouteKey(config.routeForServices.Name)] = config.routeForServices
 	changes[vpp_l4.FeatureKey()] = config.l4Features

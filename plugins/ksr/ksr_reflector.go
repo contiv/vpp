@@ -45,7 +45,7 @@ type Reflector struct {
 	K8sClientset *kubernetes.Clientset
 	// K8s List-Watch watches for Kubernetes config changes.
 	K8sListWatch K8sListWatcher
-	// Broker is the interface to a key-val data store.
+	// broker is the interface to a key-val data store.
 	Broker KeyProtoValBroker
 	// objType defines the type of the object handled by a particular reflector
 	objType string

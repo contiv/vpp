@@ -32,7 +32,7 @@ import (
 
 type PodTestVars struct {
 	k8sListWatch *mockK8sListWatch
-	mockKvWriter *mockKeyProtoVaBroker
+	mockKvBroker *mockKeyProtoValBroker
 	podReflector *PodReflector
 	podTestData  []coreV1.Pod
 }
@@ -46,14 +46,14 @@ func TestPodReflector(t *testing.T) {
 	flavorLocal.Inject()
 
 	podTestVars.k8sListWatch = &mockK8sListWatch{}
-	podTestVars.mockKvWriter = newMockKeyProtoValBroker()
+	podTestVars.mockKvBroker = newMockKeyProtoValBroker()
 
 	podTestVars.podReflector = &PodReflector{
 		Reflector: Reflector{
 			Log:          flavorLocal.LoggerFor("pod-reflector"),
 			K8sClientset: &kubernetes.Clientset{},
 			K8sListWatch: podTestVars.k8sListWatch,
-			Broker:       podTestVars.mockKvWriter,
+			Broker:       podTestVars.mockKvBroker,
 			dsSynced:     false,
 			objType:      podObjType,
 		},
@@ -273,12 +273,12 @@ func TestPodReflector(t *testing.T) {
 	k8sPod1 := &podTestVars.podTestData[1]
 	protoPod1 := podTestVars.podReflector.podToProto(k8sPod1)
 	protoPod1.IpAddress = "1.2.3.4"
-	podTestVars.mockKvWriter.Put(pod.Key(k8sPod1.GetName(), k8sPod1.GetNamespace()), protoPod1)
+	podTestVars.mockKvBroker.Put(pod.Key(k8sPod1.GetName(), k8sPod1.GetNamespace()), protoPod1)
 
 	// Pre-populate the mock data store with "stale" data that is supposed to
 	// be deleted during the test.
 	k8sPod2 := &podTestVars.podTestData[2]
-	podTestVars.mockKvWriter.Put(pod.Key(k8sPod2.GetName(),
+	podTestVars.mockKvBroker.Put(pod.Key(k8sPod2.GetName(),
 		k8sPod2.GetNamespace()), podTestVars.podReflector.podToProto(k8sPod2))
 
 	statsBefore := *podTestVars.podReflector.GetStats()
@@ -300,16 +300,16 @@ func TestPodReflector(t *testing.T) {
 
 	statsAfter := *podTestVars.podReflector.GetStats()
 
-	gomega.Expect(podTestVars.mockKvWriter.ds).Should(gomega.HaveLen(2))
+	gomega.Expect(podTestVars.mockKvBroker.ds).Should(gomega.HaveLen(2))
 	gomega.Expect(statsBefore.Adds + 1).Should(gomega.BeNumerically("==", statsAfter.Adds))
 	gomega.Expect(statsBefore.Updates + 1).Should(gomega.BeNumerically("==", statsAfter.Updates))
 	gomega.Expect(statsBefore.Deletes + 1).Should(gomega.BeNumerically("==", statsAfter.Deletes))
 
-	podTestVars.mockKvWriter.ClearDs()
+	podTestVars.mockKvBroker.ClearDs()
 
 	t.Run("addDeleteEndpoints", testAddDeletePod)
 
-	podTestVars.mockKvWriter.ClearDs()
+	podTestVars.mockKvBroker.ClearDs()
 	t.Run("updateEndpoints", testUpdatePod)
 }
 
@@ -331,10 +331,11 @@ func testAddDeletePod(t *testing.T) {
 
 	key := pod.Key(k8sPod.GetName(), k8sPod.GetNamespace())
 	protoPod := &pod.Pod{}
-	_, _, err := podTestVars.mockKvWriter.GetValue(key, protoPod)
+	found, _, err := podTestVars.mockKvBroker.GetValue(key, protoPod)
 
 	gomega.Expect(adds + 1).To(gomega.Equal(podTestVars.podReflector.GetStats().Adds))
 	gomega.Expect(err).To(gomega.BeNil())
+	gomega.Expect(found).To(gomega.BeTrue())
 	gomega.Expect(protoPod).NotTo(gomega.BeNil())
 	gomega.Expect(protoPod.Name).To(gomega.Equal(k8sPod.GetName()))
 	gomega.Expect(protoPod.Namespace).To(gomega.Equal(k8sPod.GetNamespace()))
@@ -371,8 +372,8 @@ func testAddDeletePod(t *testing.T) {
 	gomega.Expect(dels + 1).To(gomega.Equal(podTestVars.podReflector.GetStats().Deletes))
 
 	protoPod = &pod.Pod{}
-	_, _, err = podTestVars.mockKvWriter.GetValue(key, protoPod)
-	gomega.Ω(err).ShouldNot(gomega.Succeed())
+	found, _, _ = podTestVars.mockKvBroker.GetValue(key, protoPod)
+	gomega.Ω(found).ShouldNot(gomega.BeTrue())
 }
 
 func testUpdatePod(t *testing.T) {
@@ -405,7 +406,8 @@ func testUpdatePod(t *testing.T) {
 
 	key := pod.Key(k8sPodOld.GetName(), k8sPodOld.GetNamespace())
 	protoPodNew := &pod.Pod{}
-	_, _, err = podTestVars.mockKvWriter.GetValue(key, protoPodNew)
-	gomega.Ω(err).Should(gomega.Succeed())
+	found, _, err := podTestVars.mockKvBroker.GetValue(key, protoPodNew)
+	gomega.Expect(found).To(gomega.BeTrue())
+	gomega.Ω(err).Should(gomega.BeNil())
 	gomega.Expect(protoPodNew.HostIpAddress).To(gomega.Equal(k8sPodNew.Status.HostIP))
 }

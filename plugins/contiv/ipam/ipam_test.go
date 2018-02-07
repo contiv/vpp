@@ -111,6 +111,48 @@ func TestBasicAllocateReleasePodAddress(t *testing.T) {
 	Expect(err).To(BeNil())
 }
 
+// TestAssigniningIncrementalIPs test whether released IPs are reused only once all the range is exhausted
+func TestAssigniningIncrementalIPs(t *testing.T) {
+	i := setup(t, newDefaultConfig())
+	ip, err := i.NextPodIP(podID)
+	Expect(err).To(BeNil())
+	Expect(ip).NotTo(BeNil())
+	Expect(ip.String()).To(BeEquivalentTo("1.2.133.10"))
+	Expect(i.PodNetwork().Contains(ip)).To(BeTrue(), "Pod IP address is not from pod network")
+
+	second, err := i.NextPodIP(podID + "2")
+	Expect(err).To(BeNil())
+	Expect(second).NotTo(BeNil())
+	Expect(second.String()).To(BeEquivalentTo("1.2.133.11"))
+	Expect(i.PodNetwork().Contains(second)).To(BeTrue(), "Pod IP address is not from pod network")
+
+	err = i.ReleasePodIP(podID + "2")
+	Expect(err).To(BeNil())
+
+	// check that second is not reused
+	third, err := i.NextPodIP(podID + "3")
+	Expect(err).To(BeNil())
+	Expect(third).NotTo(BeNil())
+	Expect(third.String()).To(BeEquivalentTo("1.2.133.12"))
+	Expect(i.PodNetwork().Contains(third)).To(BeTrue(), "Pod IP address is not from pod network")
+
+	// exhaust the range
+	for j := 0; j < 3; j++ {
+		assigned, err := i.NextPodIP(podID + "n" + fmt.Sprint(j))
+		Expect(err).To(BeNil())
+		Expect(assigned).NotTo(BeNil())
+		Expect(i.PodNetwork().Contains(assigned)).To(BeTrue(), "Pod IP address is not from pod network")
+	}
+
+	// expect released ip to be reused
+	reused, err := i.NextPodIP(podID + "2")
+	Expect(err).To(BeNil())
+	Expect(reused).NotTo(BeNil())
+	Expect(i.PodNetwork().Contains(reused)).To(BeTrue(), "Pod IP address is not from pod network")
+	Expect(reused.String()).To(BeEquivalentTo("1.2.133.11"))
+
+}
+
 // TestBadInputForIPAllocation tests expected failure of IP allocation caused by bad input
 func TestBadInputForIPAllocation(t *testing.T) {
 	i := setup(t, newDefaultConfig())

@@ -109,27 +109,28 @@ func (acl *ACLInterfacesVppCalls) requestSetACLToInterfaces(logicalReq *ACLInter
 			return err
 		}
 
-		var nInput uint8
-		if aclInterfaceDetails != nil {
-			nInput = aclInterfaceDetails.NInput
-			if logicalReq.ingress {
-				// Construct ACL list. ACLs within NInput are defined as ingress, so provided new aclIndex has to be
-				// added to the beginning of the list
-				// TODO it would be nicer to add new acl index to newNInput index
+		nInput := aclInterfaceDetails.NInput
+		if logicalReq.ingress {
+			// Construct ACL list. ACLs within NInput are defined as ingress, so provided new aclIndex has to be
+			// added to the beginning of the list
+			// TODO it would be nicer to add new acl index to newNInput index
+			if aclInterfaceDetails != nil {
 				ACLs = append(ACLs, logicalReq.aclIndex)
 				for _, aclIndex := range aclInterfaceDetails.Acls {
 					ACLs = append(ACLs, aclIndex)
 				}
-				nInput++ // Rise NInput
-			} else {
-				// Construct ACL list. ACLs outside of NInput are defined as egress, so provided new aclIndex has to be
-				// added to the end of the list
-				for _, aclIndex := range aclInterfaceDetails.Acls {
-					ACLs = append(ACLs, aclIndex)
-				}
-				ACLs = append(ACLs, logicalReq.aclIndex)
-				// NInput remains the same
 			}
+			nInput++ // Rise NInput
+		} else {
+			// Construct ACL list. ACLs outside of NInput are defined as egress, so provided new aclIndex has to be
+			// added to the end of the list
+			if aclInterfaceDetails != nil {
+				for _, aclIndex := range aclInterfaceDetails.Acls {
+					ACLs = append(ACLs, aclIndex)
+				}
+				ACLs = append(ACLs, logicalReq.aclIndex)
+			}
+			// NInput remains the same
 		}
 
 		// Measure ACLInterfaceSetACLList time
@@ -176,23 +177,19 @@ func (acl *ACLInterfacesVppCalls) requestRemoveInterfacesFromACL(logicalReq *ACL
 		if err != nil {
 			return err
 		}
-
 		// Reconstruct ACL list without removed ACL
-		var nInput uint8
 		if aclInterfaceDetails != nil {
-			nInput = aclInterfaceDetails.NInput
-			for idx, aclIndex := range aclInterfaceDetails.Acls {
-				if (aclIndex != logicalReq.aclIndex) ||
-					(logicalReq.ingress && idx >= int(aclInterfaceDetails.NInput)) ||
-					(!logicalReq.ingress && idx < int(aclInterfaceDetails.NInput)) {
+			for _, aclIndex := range aclInterfaceDetails.Acls {
+				if aclIndex != logicalReq.aclIndex {
 					ACLs = append(ACLs, aclIndex)
-				} else {
-					// Decrease NInput if ingress, otherwise keep it the same
-					if logicalReq.ingress {
-						nInput--
-					}
 				}
 			}
+		}
+
+		nInput := aclInterfaceDetails.NInput
+		// Decrease NInput if ingress, otherwise keep it the same
+		if logicalReq.ingress {
+			nInput--
 		}
 
 		// Measure ACLInterfaceSetACLList time

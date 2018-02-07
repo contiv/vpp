@@ -94,7 +94,6 @@ type OneNodeConfig struct {
 	MainVppInterface   InterfaceWithIP   // main VPP interface used for the inter-node connectivity
 	OtherVPPInterfaces []InterfaceWithIP // other interfaces on VPP, not necessarily used for inter-node connectivity
 	Gateway            string            // IP address of the default gateway
-	StealHostInterface string            // interface in the host Linux (e.g. eth0) to be stolen and connected to VPP
 }
 
 // InterfaceWithIP binds interface name with IP address for configuration purposes.

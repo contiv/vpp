@@ -1,8 +1,9 @@
 package contiv
 
 import (
-	"github.com/contiv/vpp/plugins/contiv/containeridx"
 	"net"
+
+	"github.com/contiv/vpp/plugins/contiv/containeridx"
 )
 
 // API for other plugins to query network-related information.

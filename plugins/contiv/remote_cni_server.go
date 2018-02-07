@@ -503,7 +503,9 @@ func (s *remoteCNIserver) configureVswitchVxlanBridgeDomain(config *vswitchConfi
 
 	// bridge domain for the VXLAN tunnel
 	config.vxlanBD = s.vxlanBridgeDomain(config.vxlanBVI.Name)
-	txn.BD(config.vxlanBD)
+	// create deep copy since the config will be overwritten when a node joins the cluster
+	newbd := proto.Clone(config.vxlanBD)
+	txn.BD(newbd.(*vpp_l2.BridgeDomains_BridgeDomain))
 	// remember the VXLAN config - needs to be reconfigured with each new VXLAN (each new node)
 	s.vxlanBD = config.vxlanBD
 

@@ -22,7 +22,9 @@ import (
 	"net"
 
 	"github.com/contiv/vpp/plugins/contiv/model/node"
+	"github.com/golang/protobuf/proto"
 	"github.com/ligato/cn-infra/datasync"
+	vpp_l2 "github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/l2"
 	vpp_l3 "github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/l3"
 )
 
@@ -145,7 +147,10 @@ func (s *remoteCNIserver) addRoutesToNode(nodeInfo *node.NodeInfo) error {
 
 		// add the VXLAN interface into the VXLAN bridge domain
 		s.addInterfaceToVxlanBD(s.vxlanBD, vxlanIf.Name)
-		txn.BD(s.vxlanBD)
+
+		// pass deep copy to local client since we are overwriting previously applied config
+		bd := proto.Clone(s.vxlanBD)
+		txn.BD(bd.(*vpp_l2.BridgeDomains_BridgeDomain))
 	}
 
 	// static routes

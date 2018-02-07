@@ -36,14 +36,14 @@ project). Upon submission, each patch is run through the `go fmt` and
 `golint` tools.
 
 
-The tool used for managing third-party dependencies is [Glide][4]. After 
-adding or updating a dependency in `glide.yaml` run `make install-dep` to 
+The tool used for managing third-party dependencies is [Dep][4]. After
+ adding or updating a dependency in `Gopkg.toml` run `make install-dep` to 
 download the specified dependencies into the vendor folder. Please make sure
-that each dependency in the `glide.yaml` has a specific `version` defined 
+that each dependency in the `Gopkg.toml` has a specific `version` defined 
 (a specific commit ID or a git tag).
 
 [1]: vagrant/README.md
 [2]: docs/MANUAL_INSTALL.md
 [3]: https://github.com/ligato/cn-infra/blob/master/docs/guidelines/CODINGSTYLE.md
-[4]: https://github.com/Masterminds/glide
+[4]: https://github.com/golang/dep
 [5]: https://github.com/ligato

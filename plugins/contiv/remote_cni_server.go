@@ -475,6 +475,9 @@ func (s *remoteCNIserver) configureVswitchHostConnectivity(config *vswitchConfig
 	txn2 := s.vppTxnFactory().Put()
 
 	// configure the routes from VPP to host interfaces
+	//
+	// TODO: this is a temporary solution, should be removed once
+	// the main node IP address as seen by k8s is determined by k8s API
 	config.routesToHost = s.routesToHost()
 	for _, r := range config.routesToHost {
 		s.Logger.Debug("Adding route to host IP: ", r)

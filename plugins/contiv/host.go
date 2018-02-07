@@ -93,6 +93,7 @@ func (s *remoteCNIserver) routesToHost() []*vpp_l3.StaticRoutes_Route {
 	// list all IPs assigned to host interfaces
 	ips, err := s.getHostLinkIPs()
 	if err != nil {
+		s.Logger.Errorf("Error by listing host IPs: %v", err)
 		return nil
 	}
 

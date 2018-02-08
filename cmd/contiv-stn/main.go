@@ -39,8 +39,8 @@ const (
 	defaultGRPCServerPort  = 50051 // port where the GRPC STN server listens for client connections
 	defaultStatusCheckPort = 9999  // port that STN server is checking to determine contive-agent liveness
 
-	initStatusCheckTimeout = 10 // initial timeout after which the STN server starts checking of the contiv-agent state
-	statusCheckInterval    = 1
+	initStatusCheckTimeout = 10 // initial timeout (in seconds) after which the STN server starts checking of the contiv-agent state
+	statusCheckInterval    = 1  // periodic interval (in seconds) in which the STN server checks for contiv-agent state
 )
 
 var (
@@ -62,6 +62,7 @@ type interfaceData struct {
 	name       string
 	PCIAddress string
 	driver     string
+	linkIndex  int
 	addresses  []netlink.Addr
 	routes     []netlink.Route
 }
@@ -112,12 +113,20 @@ func (s *stnServer) unconfigureInterface(ifName string) (*interfaceData, error) 
 	s.Lock()
 	defer s.Unlock()
 
+	// check whether the interface has not been already stolen
+	if ifData, ok := s.stolenInterfaces[ifName]; ok {
+		log.Printf("Interface %s has been already stolen.", ifName)
+		return ifData, nil
+	}
+
+	// list existing links
 	links, err := netlink.LinkList()
 	if err != nil {
 		log.Println("Unable to list links:", err)
 		return nil, err
 	}
 
+	// find link to steal
 	for _, l := range links {
 		if l.Attrs().Name == ifName {
 			// found link matching the interface name, unconfigure it
@@ -151,7 +160,8 @@ func (s *stnServer) unconfigureLink(l netlink.Link) (*interfaceData, error) {
 	var err error
 
 	ifData := &interfaceData{
-		name: l.Attrs().Name,
+		name:      l.Attrs().Name,
+		linkIndex: l.Attrs().Index,
 	}
 
 	// retrieve PCI address and current driver name
@@ -212,11 +222,30 @@ func (s *stnServer) unconfigureLink(l netlink.Link) (*interfaceData, error) {
 func (s *stnServer) revertLink(ifData *interfaceData) error {
 	log.Println("Reverting interface", ifData.name)
 
-	// find the link
-	link, err := netlink.LinkByName(ifData.name)
+	// bind to proper PCI driver
+	err := pciDriverBind(ifData.PCIAddress, ifData.driver)
 	if err != nil {
-		log.Printf("Error by looking up for interface %s: %v", ifData.name, err)
+		log.Printf("Unable to bind PCI device %s to driver %s", ifData.PCIAddress, ifData.driver)
 		return err
+	}
+
+	// try to find the link in a loop (some time is needed in case it has been just bound to a new driver)
+	var link netlink.Link
+	for i := 0; i <= 5; i++ {
+		link, err = netlink.LinkByName(ifData.name)
+		if err != nil {
+			if i < 5 {
+				// wait & retry
+				time.Sleep(50 * time.Millisecond)
+				continue
+			} else {
+				// not able to find the link in multiple retries
+				log.Printf("Error by looking up for interface %s: %v", ifData.name, err)
+				return err
+			}
+		}
+		// found the link
+		break
 	}
 
 	// enable the interface
@@ -241,6 +270,7 @@ func (s *stnServer) revertLink(ifData *interfaceData) error {
 
 	// configure routes
 	for _, r := range ifData.routes {
+		s.updateLinkInRoute(&r, ifData.linkIndex, link.Attrs().Index)
 		err = netlink.RouteAdd(&r)
 		if err != nil {
 			if errno, ok := err.(syscall.Errno); ok && errno == syscall.EEXIST {
@@ -253,8 +283,18 @@ func (s *stnServer) revertLink(ifData *interfaceData) error {
 	}
 
 	// delete the interface info
-	delete(s.stolenInterfaces, "ifName")
+	delete(s.stolenInterfaces, ifData.name)
 	return nil
+}
+
+// updateLinkInRoute updates link indexes in the old route with the new index of the link.
+func (s *stnServer) updateLinkInRoute(r *netlink.Route, oldLinkIndex int, newLinkIndex int) {
+	r.LinkIndex = newLinkIndex
+	for _, nh := range r.MultiPath {
+		if nh.LinkIndex == oldLinkIndex {
+			nh.LinkIndex = newLinkIndex
+		}
+	}
 }
 
 // revertAllLinks reverts all links config to the state before their stealing.

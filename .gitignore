@@ -5,4 +5,6 @@ cmd/contiv-agent/contiv-agent
 cmd/contiv-cni/contiv-cni
 cmd/contiv-ksr/contiv-ksr
 cmd/contiv-cri/contiv-cri
+cmd/contiv-init/contiv-init
+cmd/contiv-stn/contiv-stn
 cmd/tools/ldpreload-label-injector/ldpreload-label-injector

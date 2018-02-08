@@ -65,7 +65,8 @@ func (sr *ServiceReflector) Init(stopCh2 <-chan struct{}, wg *sync.WaitGroup) er
 		},
 	}
 
-	return sr.ksrInit(stopCh2, wg, service.KeyPrefix(), "services", &coreV1.Service{}, serviceReflectorFuncs)
+	return sr.ksrInit(stopCh2, wg, service.KeyPrefix(), "services",
+		&coreV1.Service{}, serviceReflectorFuncs)
 }
 
 // addService adds state data of a newly created K8s service into the data store.
@@ -75,7 +76,7 @@ func (sr *ServiceReflector) addService(obj interface{}) {
 	svc, ok := obj.(*coreV1.Service)
 	if !ok {
 		sr.Log.Warn("Failed to cast newly created service object")
-		sr.stats.NumArgErrors++
+		sr.stats.ArgErrors++
 		return
 	}
 
@@ -91,7 +92,7 @@ func (sr *ServiceReflector) deleteService(obj interface{}) {
 	svc, ok := obj.(*coreV1.Service)
 	if !ok {
 		sr.Log.Warn("Failed to cast removed service object")
-		sr.stats.NumArgErrors++
+		sr.stats.ArgErrors++
 		return
 	}
 
@@ -105,7 +106,7 @@ func (sr *ServiceReflector) updateService(oldObj, newObj interface{}) {
 	svcNew, ok2 := newObj.(*coreV1.Service)
 	if !ok1 || !ok2 {
 		sr.Log.Warn("Failed to cast changed service object")
-		sr.stats.NumArgErrors++
+		sr.stats.ArgErrors++
 		return
 	}
 	sr.Log.WithFields(map[string]interface{}{"service-old": svcOld, "service-new": svcNew}).

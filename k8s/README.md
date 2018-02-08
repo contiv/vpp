@@ -49,6 +49,8 @@ To use the development image for testing with specific version of VPP, see
       on 1 k8s node (VPPHost network = VPPHost subnet for one k8s node);
     - `NodeInterconnectCIDR`: subnet used for main interfaces of all nodes;
     - `VxlanCIDR`: subnet used for VXLAN addressing providing node-interconnect overlay.
+    - `ServiceCIDR`: subnet used for allocation of Cluster IPs for services. Default value
+    is the default kubernetes service range `10.96.0.0/12`.
 
   * Node configuration (section `NodeConfig`; one entry for each node)
     - `NodeName`: name of a Kubernetes node;
@@ -58,7 +60,8 @@ To use the development image for testing with specific version of VPP, see
       - `IP`: IP address to be attached to the main interface;
     - `OtherVPPInterfaces` (other configured interfaces only get IP address assigned in VPP)
       - `InterfaceName`: name of the interface;
-      - `IP`: IP address to be attached to the interface.
+      - `IP`: IP address to be attached to the interface;
+    - `Gateway`: IP address of the default gateway for external traffic, if it needs to be configured.
 
 #### cri-install.sh
 Contiv-VPP CRI Shim installer / uninstaller, that can be used as follows:

@@ -30,12 +30,14 @@ data:
       VPPHostNetworkPrefixLen: 24
       NodeInterconnectCIDR: "192.168.16.0/24"
       VxlanCIDR: "192.168.30.0/24"
+#      ServiceCIDR: "10.96.0.0/12"
 ### example of node configuration for VPP interfaces
 #    NodeConfig:
 #    - NodeName: "vm1"
 #      MainVppInterface:
 #        InterfaceName: "GigabitEthernet0/4/0"
 #        IP: 192.168.16.101/24
+#      Gateway: 192.168.1.1
 #      OtherVPPInterfaces:
 #      - InterfaceName: "GigabitEthernet0/5/0"
 #        IP: "1.2.3.4/24"
@@ -45,6 +47,7 @@ data:
 #      MainVppInterface:
 #        InterfaceName: "GigabitEthernet0/9/0"
 #        IP: 192.168.16.101/24
+#      Gateway: 192.168.1.1
 #      OtherVPPInterfaces:
 #      - InterfaceName: "GigabitEthernet0/7/0"
 #        IP: "3.4.5.6/24"

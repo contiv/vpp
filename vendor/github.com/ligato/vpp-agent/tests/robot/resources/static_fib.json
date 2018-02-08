@@ -1,6 +1,0 @@
-{
-  "phys_address": "${mac}",
-  "bridge_domain": "${bd_name}",
-  "outgoing_interface": "${outgoing_interface}",
-  "static_config": ${static}
-}

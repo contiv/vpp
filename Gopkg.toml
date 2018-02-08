@@ -1,0 +1,124 @@
+# Gopkg.toml example
+#
+# Refer to https://github.com/golang/dep/blob/master/docs/Gopkg.toml.md
+# for detailed Gopkg.toml documentation.
+#
+# required = ["github.com/user/thing/cmd/thing"]
+# ignored = ["github.com/user/project/pkgX", "bitbucket.org/user/project/pkgA/pkgY"]
+#
+# [[constraint]]
+#   name = "github.com/user/project"
+#   version = "1.0.0"
+#
+# [[constraint]]
+#   name = "github.com/user/project2"
+#   branch = "dev"
+#   source = "github.com/myfork/project2"
+#
+# [[override]]
+#   name = "github.com/x/y"
+#   version = "2.4.0"
+#
+# [prune]
+#   non-go = false
+#   go-tests = true
+#   unused-packages = true
+
+required = ["github.com/wadey/gocovmerge", "github.com/docker/docker/api", "github.com/docker/swarmkit", "github.com/opencontainers/runc", "golang.org/x/exp/inotify", "github.com/google/cadvisor", "k8s.io/apiserver/pkg/apis/apiserver", "github.com/ugorji/go/codec", "github.com/docker/distribution"]
+
+[[constraint]]
+  revision = "8ca20507d15703412c18b07d4f4ce6b4de989de6"
+  name = "git.fd.io/govpp.git"
+
+[[constraint]]
+  revision = "b5bfa59ec0adc420475f97f89b58045c721d761c"
+  name = "github.com/wadey/gocovmerge"
+
+[[constraint]]
+  revision = "1c81e2a794c6e26a4c650142ae8893c47f619764"
+  name = "github.com/opencontainers/runc"
+
+[[constraint]]
+  name = "k8s.io/apiserver"
+  revision = "a35277792fddcf69f8cbbb8a9cb7727b23077409"
+
+[[constraint]]
+  name = "github.com/ugorji/go"
+  revision = "ded73eae5db7e7a0ef6f55aace87a2873c5d2b74"
+
+[[constraint]]
+  name = "github.com/docker/distribution"
+  revision = "edc3ab29cdff8694dd6feb85cfeb4b5f1b38ed9c"
+
+[[constraint]]
+  name = "github.com/ligato/cn-infra"
+  revision = "d27ff7d747310a942c61fb39725463b4cdf540cb"
+
+[[constraint]]
+  name = "github.com/containernetworking/cni"
+  version = "0.6.0"
+
+[[constraint]]
+  name = "github.com/gogo/protobuf"
+  version = "0.5.0"
+
+[[constraint]]
+  branch = "master"
+  name = "github.com/golang/glog"
+
+[[constraint]]
+  name = "github.com/docker/docker"
+  revision = "008b217844f8738cc47ef9ff108dc41dc37736cc"
+
+[[constraint]]
+  name = "github.com/google/cadvisor"
+  revision = "cda62a43857256fbc95dd31e7c810888f00f8ec7"
+
+[[constraint]]
+  name = "github.com/docker/swarmkit"
+  source = "https://github.com/dmcgowan/swarmkit.git"
+  revision = "8bdecc57887ffc598b63d6433f58e0d2852112c3"
+
+[[constraint]]
+  name = "github.com/golang/protobuf"
+  branch = "master"
+
+[[constraint]]
+  name = "github.com/ligato/vpp-agent"
+  revision = "188910dbed38b093ba4e8f57b3dde1e3a4314c51"
+
+[[constraint]]
+  name = "github.com/prometheus/client_golang"
+  version = "0.8.0"
+
+[[constraint]]
+  branch = "master"
+  name = "golang.org/x/net"
+
+[[constraint]]
+  name = "google.golang.org/grpc"
+  version = "1.2.1"
+
+[[constraint]]
+  name = "golang.org/x/exp"
+  revision = "292a51b8d262487dab23a588950e8052d63d9113"
+
+[[constraint]]
+  name = "k8s.io/kubernetes"
+  version = "=1.8.0"
+
+[[constraint]]
+  name = "k8s.io/api"
+  version = "kubernetes-1.8.0"
+
+[[constraint]]
+  name = "k8s.io/apimachinery"
+  version = "kubernetes-1.8.0"
+
+[[constraint]]
+  name = "k8s.io/client-go"
+  revision = "82aa063804cf055e16e8911250f888bc216e8b61"
+
+[prune]
+  go-tests = true
+  unused-packages = true

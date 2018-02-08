@@ -28,21 +28,14 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
+
+	"github.com/contiv/vpp/plugins/ksr/model/ksrapi"
 )
 
-// ReflectorStats defines the usage statistics for K8s State Reflectors
-type ReflectorStats struct {
-	NumAdds    int
-	NumDeletes int
-	NumUpdates int
-	NumResyncs int
-
-	NumArgErrors int
-	NumAddErrors int
-	NumDelErrors int
-	NumUpdErrors int
-	NumResErrors int
-}
+const (
+	minResyncTimeout = 100  // minimum timeout between resync attempts, in ms
+	maxResyncTimeout = 1000 // maximum timeout between resync attempts, in ms
+)
 
 // Reflector holds data that is common to all KSR reflectors.
 type Reflector struct {
@@ -52,10 +45,8 @@ type Reflector struct {
 	K8sClientset *kubernetes.Clientset
 	// K8s List-Watch watches for Kubernetes config changes.
 	K8sListWatch K8sListWatcher
-	// Writer propagates changes into a data store.
-	Writer KeyProtoValWriter
-	// Lister lists values from a data store.
-	Lister KeyProtoValLister
+	// broker is the interface to a key-val data store.
+	Broker KeyProtoValBroker
 	// objType defines the type of the object handled by a particular reflector
 	objType string
 	// ksrStopCh is used to gracefully shutdown the Reflector
@@ -66,7 +57,7 @@ type Reflector struct {
 	// K8s controller
 	k8sController cache.Controller
 	// Reflector statistics
-	stats ReflectorStats
+	stats ksrapi.KsrStats
 
 	prefix string
 	pa     ProtoAllocator
@@ -138,7 +129,7 @@ func dataStoreUpEvent() {
 }
 
 // GetStats returns the Service Reflector usage statistics
-func (r *Reflector) GetStats() *ReflectorStats {
+func (r *Reflector) GetStats() *ksrapi.KsrStats {
 	return &r.stats
 }
 
@@ -187,7 +178,7 @@ func (r *Reflector) listDataStoreItems(pfx string, iaf func() proto.Message) (Ds
 	dsDump := make(map[string]interface{})
 
 	// Retrieve all data items for a given data type (i.e. key prefix)
-	kvi, err := r.Lister.ListValues(pfx)
+	kvi, err := r.Broker.ListValues(pfx)
 	if err != nil {
 		return dsDump, fmt.Errorf("%s reflector can not get kv iterator, error: %s", r.objType, err)
 	}
@@ -233,22 +224,22 @@ func (r *Reflector) markAndSweep(dsItems DsItems, oc K8sToProtoConverter) error 
 				if !reflect.DeepEqual(k8sProtoObj, dsProtoObj) {
 					// Object exists in the data store, but it changed in the
 					// K8s cache; overwrite the data store
-					err := r.Writer.Put(key, k8sProtoObj.(proto.Message))
+					err := r.Broker.Put(key, k8sProtoObj.(proto.Message))
 					if err != nil {
-						r.stats.NumUpdErrors++
+						r.stats.UpdErrors++
 						return fmt.Errorf("update for key '%s' failed", key)
 					}
-					r.stats.NumUpdates++
+					r.stats.Updates++
 				}
 			} else {
 				// Object does not exist in the data store, but it exists in
 				// the K8s cache; create object in the data store
-				err := r.Writer.Put(key, k8sProtoObj.(proto.Message))
+				err := r.Broker.Put(key, k8sProtoObj.(proto.Message))
 				if err != nil {
-					r.stats.NumAddErrors++
+					r.stats.AddErrors++
 					return fmt.Errorf("add for key '%s' failed", key)
 				}
-				r.stats.NumAdds++
+				r.stats.Adds++
 			}
 			delete(dsItems, key)
 		}
@@ -257,12 +248,12 @@ func (r *Reflector) markAndSweep(dsItems DsItems, oc K8sToProtoConverter) error 
 	// Delete from data store all objects that no longer exist in the K8s
 	// cache.
 	for key := range dsItems {
-		_, err := r.Writer.Delete(key)
+		_, err := r.Broker.Delete(key)
 		if err != nil {
-			r.stats.NumDelErrors++
+			r.stats.DelErrors++
 			return fmt.Errorf("delete for key '%s' failed", key)
 		}
-		r.stats.NumDeletes++
+		r.stats.Deletes++
 
 		delete(dsItems, key)
 	}
@@ -275,7 +266,7 @@ func (r *Reflector) syncDataStoreWithK8sCache(dsItems DsItems) error {
 	r.dsMutex.Lock()
 	defer r.dsMutex.Unlock()
 
-	r.stats.NumResyncs++
+	r.stats.Resyncs++
 
 	// don't do anything unless the K8s cache itself is synced
 	if !r.k8sController.HasSynced() {
@@ -292,6 +283,29 @@ func (r *Reflector) syncDataStoreWithK8sCache(dsItems DsItems) error {
 	return nil
 }
 
+// dataStoreResyncWait waits for a specified time before the data store
+// resync procedure is attempted again. The wait time doubles with each
+// attempt until it reaches the specified maximum wait timeout. The function
+// returns true if a data sync abort signal is received, at which point
+// the data store resync is terminated.
+func (r *Reflector) dataStoreResyncWait(timeout *time.Duration) bool {
+	select {
+	case <-r.ksrStopCh: // KSR is being terminated
+		r.Log.Info("Data sync aborted due to KSR process termination")
+		return true
+	case <-r.syncStopCh: // Data Store resync is aborted
+		r.Log.Info("Data sync aborted due to data store down")
+		return true
+	case <-time.After(*timeout * time.Millisecond):
+		t := *timeout * 2
+		if t > maxResyncTimeout {
+			t = maxResyncTimeout
+		}
+		*timeout = t
+		return false
+	}
+}
+
 // startDataStoreResync starts the synchronization of the data store with
 // the reflector's K8s cache. The resync will only stop if it's successful,
 // or until it's aborted because of a data store failure or a KSR process
@@ -299,8 +313,10 @@ func (r *Reflector) syncDataStoreWithK8sCache(dsItems DsItems) error {
 func (r *Reflector) startDataStoreResync() {
 	go func(r *Reflector) {
 		r.Log.Debug("%s: starting data sync", r.objType)
+		var timeout time.Duration = minResyncTimeout
 
 		// Keep trying to reconcile until data sync succeeds.
+	Loop:
 		for {
 			// Try to get a snapshot of the data store.
 			dsItems, err := r.listDataStoreItems(r.prefix, r.pa)
@@ -308,45 +324,34 @@ func (r *Reflector) startDataStoreResync() {
 				// Now that we have a data store snapshot, keep trying to
 				// resync the cache with it
 				for {
+					// Make a copy of DsItems because the parameter passed to
+					// syncDataStoreWithK8sCache gets destroyed in the function
 					dsItemsCopy := make(DsItems)
 					for k, v := range dsItems {
 						dsItemsCopy[k] = v
 					}
-
-					// Try to perform mark-and-sweep data sync
+					// Try to resync the data store with the K8s cache
 					err := r.syncDataStoreWithK8sCache(dsItemsCopy)
 					if err == nil {
 						r.Log.Infof("%s: data sync done, stats %+v", r.objType, r.stats)
-						return
+						break Loop
 					}
 					r.Log.Infof("%s data sync: syncDataStoreWithK8sCache failed, '%s'", r.objType, err)
-					r.stats.NumResErrors++ // unprotected by dsMutex, but dsSync=false
+					r.stats.ResErrors++ // unprotected by dsMutex, but dsSync=false
 
 					// Wait before attempting the resync again
-					select {
-					case <-r.ksrStopCh: // KSR is being terminated
-						r.Log.Info("Data sync aborted due to KSR process termination")
-						return
-					case <-r.syncStopCh: // Data Store resync is aborted
-						r.Log.Info("Data sync aborted due to data store down")
-						return
-					case <-time.After(100 * time.Millisecond):
+					if abort := r.dataStoreResyncWait(&timeout); abort == true {
+						break Loop
 					}
 				}
 			}
 			r.Log.Infof("%s data sync: error listing data store items, '%s'", r.objType, err)
-			r.stats.NumResErrors++ // unprotected by dsMutex, but dsSync=false
-			r.stats.NumResyncs++   // unprotected by dsMutex, but dsSync=false
+			r.stats.ResErrors++ // unprotected by dsMutex, but dsSync=false
+			r.stats.Resyncs++   // unprotected by dsMutex, but dsSync=false
 
 			// Wait before attempting to list data store items again
-			select {
-			case <-r.ksrStopCh: // KSR is being aborted
-				r.Log.Info("Data sync aborted due to KSR process termination")
-				return
-			case <-r.syncStopCh: // Data Store resync is aborted
-				r.Log.Info("Data sync aborted due to data store down")
-				return
-			case <-time.After(100 * time.Millisecond):
+			if abort := r.dataStoreResyncWait(&timeout); abort == true {
+				break Loop
 			}
 		}
 	}(r)
@@ -355,15 +360,15 @@ func (r *Reflector) startDataStoreResync() {
 // ksrAdd adds an item to the Etcd data store. This function must be called
 // with dsMutex locked, since it manipulates the dsSynced flag.
 func (r *Reflector) ksrAdd(key string, item proto.Message) {
-	err := r.Writer.Put(key, item)
+	err := r.Broker.Put(key, item)
 	if err != nil {
-		r.Log.WithField("err", err).Warnf("%s: failed to add item to data store", r.objType)
-		r.stats.NumAddErrors++
+		r.Log.WithField("rwErr", err).Warnf("%s: failed to add item to data store", r.objType)
+		r.stats.AddErrors++
 		r.dsSynced = false
 		r.startDataStoreResync()
 		return
 	}
-	r.stats.NumAdds++
+	r.stats.Adds++
 }
 
 // ksrUpdate updates an item to the Etcd data store. This function must be
@@ -373,41 +378,41 @@ func (r *Reflector) ksrUpdate(key string, itemOld, itemNew proto.Message) {
 
 		r.Log.WithField("key", key).Debugf("%s: updating item in data store", r.objType)
 
-		err := r.Writer.Put(key, itemNew)
+		err := r.Broker.Put(key, itemNew)
 		if err != nil {
-			r.Log.WithField("err", err).
+			r.Log.WithField("rwErr", err).
 				Warnf("%s: failed to update item in data store", r.objType)
-			r.stats.NumUpdErrors++
+			r.stats.UpdErrors++
 			r.dsSynced = false
 			r.startDataStoreResync()
 			return
 		}
-		r.stats.NumUpdates++
+		r.stats.Updates++
 	}
 }
 
 // ksrDelete deletes an item from the Etcd data store. This function must be
 // called with dsMutex locked, since it manipulates the dsSynced flag.
 func (r *Reflector) ksrDelete(key string) {
-	_, err := r.Writer.Delete(key)
+	_, err := r.Broker.Delete(key)
 	if err != nil {
-		r.Log.WithField("err", err).
+		r.Log.WithField("rwErr", err).
 			Warnf("%s: Failed to remove item from data store", r.objType)
-		r.stats.NumDelErrors++
+		r.stats.DelErrors++
 		r.dsSynced = false
 		r.startDataStoreResync()
 		return
 	}
-	r.stats.NumDeletes++
+	r.stats.Deletes++
 }
 
 // Init subscribes to K8s cluster to watch for changes in the configuration
 // of k8s services. The subscription does not become active until Start()
 // is called.
 func (r *Reflector) ksrInit(stopCh <-chan struct{}, wg *sync.WaitGroup, prefix string,
-	objType string, k8sObjType k8sRuntime.Object, ksrFuncs ReflectorFunctions) error {
+	k8sObjName string, k8sObjType k8sRuntime.Object, ksrFuncs ReflectorFunctions) error {
 
-	if _, objExists := reflectors[objType]; objExists {
+	if _, objExists := reflectors[r.objType]; objExists {
 		return fmt.Errorf("%s reflector type already exists", r.objType)
 	}
 
@@ -428,7 +433,7 @@ func (r *Reflector) ksrInit(stopCh <-chan struct{}, wg *sync.WaitGroup, prefix s
 		restClient = r.K8sClientset.CoreV1().RESTClient()
 	}
 
-	listWatch := r.K8sListWatch.NewListWatchFromClient(restClient, objType, "", fields.Everything())
+	listWatch := r.K8sListWatch.NewListWatchFromClient(restClient, k8sObjName, "", fields.Everything())
 	r.k8sStore, r.k8sController = r.K8sListWatch.NewInformer(
 		listWatch,
 		k8sObjType,
@@ -463,6 +468,6 @@ func (r *Reflector) ksrInit(stopCh <-chan struct{}, wg *sync.WaitGroup, prefix s
 			},
 		},
 	)
-	reflectors[objType] = r
+	reflectors[r.objType] = r
 	return nil
 }

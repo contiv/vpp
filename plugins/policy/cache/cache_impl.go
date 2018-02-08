@@ -84,13 +84,7 @@ func (pc *PolicyCache) Watch(watcher PolicyCacheWatcher) error {
 
 // LookupPod returns data of a given Pod.
 func (pc *PolicyCache) LookupPod(pod podmodel.ID) (found bool, data *podmodel.Pod) {
-	found, data = pc.configuredPods.LookupPod(pod.String())
-
-	if !found {
-		return !found, nil
-	}
-
-	return found, data
+	return pc.configuredPods.LookupPod(pod.String())
 }
 
 // LookupPodsByNSLabelSelector evaluates label selector (expression and/or match
@@ -99,8 +93,10 @@ func (pc *PolicyCache) LookupPodsByNSLabelSelector(policyNamespace string,
 	podLabelSelector *policymodel.Policy_LabelSelector) (pods []podmodel.ID) {
 
 	// An empty podSelector matches all pods in this namespace.
-	if podLabelSelector == nil {
+	if len(podLabelSelector.MatchExpression) == 0 && len(podLabelSelector.MatchLabel) == 0 {
 		pods := pc.configuredPods.LookupPodsByNamespace(policyNamespace)
+		pc.Log.WithField("LookupPodsByNSLabelSelector", policyNamespace).
+			Infof("Empty PodSelector returning pods: %+v", pods)
 		return utils.UnstringPodID(pods)
 	}
 
@@ -108,52 +104,45 @@ func (pc *PolicyCache) LookupPodsByNSLabelSelector(policyNamespace string,
 	matchLabels := podLabelSelector.MatchLabel
 	matchExpressions := podLabelSelector.MatchExpression
 
-	if len(matchLabels) > 0 && len(matchExpressions) == 0 {
-		found, pods := pc.getPodsByNSLabelSelector(policyNamespace, matchLabels)
-		if !found {
-			return []podmodel.ID{}
-		}
-		return utils.UnstringPodID(pods)
+	mlPods := pc.getPodsByNSLabelSelector(policyNamespace, matchLabels)
+	mePods := pc.getMatchExpressionPods(policyNamespace, matchExpressions)
 
-	} else if len(matchLabels) == 0 && len(matchExpressions) > 0 {
-		found, pods := pc.getMatchExpressionPods(policyNamespace, matchExpressions)
-		if !found {
-			return []podmodel.ID{}
-		}
-		return utils.UnstringPodID(pods)
-
-	} else if len(matchLabels) > 0 && len(matchExpressions) > 0 {
-		foundMlPods, mlPods := pc.getPodsByNSLabelSelector(policyNamespace, matchLabels)
-		if !foundMlPods {
-			return []podmodel.ID{}
-		}
-
-		foundMePods, mePods := pc.getMatchExpressionPods(policyNamespace, matchExpressions)
-		if !foundMePods {
-			return []podmodel.ID{}
-		}
-
-		pods := utils.Intersect(mlPods, mePods)
-		if pods == nil {
-			return nil
-		}
-
-		return utils.UnstringPodID(pods)
+	if len(matchLabels) > 0 && len(matchExpressions) > 0 {
+		return utils.UnstringPodID(utils.Intersect(mlPods, mePods))
 	}
-
-	return nil
+	if len(matchLabels) > 0 {
+		return utils.UnstringPodID(mlPods)
+	}
+	return utils.UnstringPodID(mePods)
 }
 
 // LookupPodsByLabelSelector evaluates label selector (expression and/or match
 // labels) and returns IDs of matching pods.
 func (pc *PolicyCache) LookupPodsByLabelSelector(
-	podLabelSelector *policymodel.Policy_LabelSelector) (pods []podmodel.ID) {
-	return nil
+	namespaceLabelSelector *policymodel.Policy_LabelSelector) (pods []podmodel.ID) {
+	// An empty namespace selector matches all namespaces.
+	if len(namespaceLabelSelector.MatchExpression) == 0 && len(namespaceLabelSelector.MatchLabel) == 0 {
+		allPods := pc.configuredPods.ListAll()
+		kubeSystemPods := pc.configuredPods.LookupPodsByNamespace("kube-system")
+		pods := utils.Difference(allPods, kubeSystemPods)
+
+		pc.Log.WithField("LookupPodsByNSLabelSelector", namespaceLabelSelector).
+			Infof("Empty namespace selector returning pods: %+v", pods)
+		return utils.UnstringPodID(pods)
+	}
+	// List of match labels and match expressions.
+	matchLabels := namespaceLabelSelector.MatchLabel
+
+	namespaceSelectorPods := pc.getPodsByLabelSelector(matchLabels)
+	if len(namespaceSelectorPods) == 0 {
+		return []podmodel.ID{}
+	}
+	return utils.UnstringPodID(namespaceSelectorPods)
 }
 
 // LookupPodsByNamespace returns IDs of all pods inside a given namespace.
-func (pc *PolicyCache) LookupPodsByNamespace(namespace nsmodel.ID) (pods []podmodel.ID) {
-	podsByNamespace := pc.configuredPods.LookupPodsByNamespace(namespace.String())
+func (pc *PolicyCache) LookupPodsByNamespace(namespace string) (pods []podmodel.ID) {
+	podsByNamespace := pc.configuredPods.LookupPodsByNamespace(namespace)
 	pods = utils.UnstringPodID(podsByNamespace)
 
 	return pods
@@ -180,6 +169,7 @@ func (pc *PolicyCache) LookupPolicy(policy policymodel.ID) (found bool, data *po
 func (pc *PolicyCache) LookupPoliciesByPod(pod podmodel.ID) (policies []policymodel.ID) {
 	policies = []policymodel.ID{}
 	policyMap := make(map[string]*policymodel.Policy)
+	dataPolicies := []*policymodel.Policy{}
 
 	found, podData := pc.configuredPods.LookupPod(pod.String())
 	if !found {
@@ -191,6 +181,22 @@ func (pc *PolicyCache) LookupPoliciesByPod(pod podmodel.ID) (policies []policymo
 	for _, podLabel := range podLabels {
 		nsLabel := podData.Namespace + "/" + podLabel.Key + "/" + podLabel.Value
 		policyIDs := pc.configuredPolicies.LookupPolicyByNSLabelSelector(nsLabel)
+
+		// Check if we have policies with empty podSelectors:
+		allPolicies := pc.ListAllPolicies()
+		for _, stringPolicy := range allPolicies {
+			found, policyData := pc.LookupPolicy(stringPolicy)
+			if !found {
+				continue
+			}
+			dataPolicies = append(dataPolicies, policyData)
+		}
+
+		for _, dataPolicy := range dataPolicies {
+			if len(dataPolicy.Pods.MatchLabel) == 0 && len(dataPolicy.Pods.MatchExpression) == 0 {
+				policyIDs = append(policyIDs, dataPolicy.Namespace+"/"+dataPolicy.Name)
+			}
+		}
 
 		for _, policyID := range policyIDs {
 			found, policyData := pc.configuredPolicies.LookupPolicy(policyID)
@@ -239,8 +245,9 @@ func (pc *PolicyCache) LookupNamespace(namespace nsmodel.ID) (found bool, data *
 // LookupNamespacesByLabelSelector evaluates label selector (expression
 // and/or match labels) and returns IDs of matching namespaces.
 func (pc *PolicyCache) LookupNamespacesByLabelSelector(
-	nsLabelSelector *policymodel.Policy_LabelSelector) (namespaces []nsmodel.ID) {
-	return nil
+	nsLabelSelector string) []nsmodel.ID {
+	namespaces := pc.configuredNamespaces.LookupNamespacesByLabelSelector(nsLabelSelector)
+	return utils.UnstringNamespaceID(namespaces)
 }
 
 // ListAllNamespaces returns IDs of all known namespaces.

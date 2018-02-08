@@ -17,6 +17,8 @@ package ksr
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/contiv/vpp/plugins/ksr/model/ksrapi"
+	"github.com/ligato/cn-infra/health/statuscheck/model/status"
 	"sync"
 	"testing"
 	"time"
@@ -35,8 +37,7 @@ import (
 
 type PolicyTestVars struct {
 	k8sListWatch    *mockK8sListWatch
-	mockKvWriter    *mockKeyProtoValWriter
-	mockKvLister    *mockKeyProtoValLister
+	mockKvBroker    *mockKeyProtoValBroker
 	policyReflector *PolicyReflector
 	policyTestData  []coreV1Beta1.NetworkPolicy
 }
@@ -50,18 +51,16 @@ func TestPolicyReflector(t *testing.T) {
 	flavorLocal.Inject()
 
 	policyTestVars.k8sListWatch = &mockK8sListWatch{}
-	policyTestVars.mockKvWriter = newMockKeyProtoValWriter()
-	policyTestVars.mockKvLister = newMockKeyProtoValLister(policyTestVars.mockKvWriter.ds)
+	policyTestVars.mockKvBroker = newMockKeyProtoValBroker()
 
 	policyTestVars.policyReflector = &PolicyReflector{
 		Reflector: Reflector{
 			Log:          flavorLocal.LoggerFor("policy-reflector"),
 			K8sClientset: &kubernetes.Clientset{},
 			K8sListWatch: policyTestVars.k8sListWatch,
-			Writer:       policyTestVars.mockKvWriter,
-			Lister:       policyTestVars.mockKvLister,
+			Broker:       policyTestVars.mockKvBroker,
 			dsSynced:     false,
-			objType:      "Policy",
+			objType:      policyObjType,
 		},
 	}
 
@@ -283,7 +282,7 @@ func TestPolicyReflector(t *testing.T) {
 
 	protoPolicy1.Pods.MatchLabel = append(protoPolicy1.Pods.MatchLabel,
 		&policy.Policy_Label{Key: "key", Value: "value"})
-	policyTestVars.mockKvWriter.Put(policy.Key(k8sPolicy1.GetName(), k8sPolicy1.GetNamespace()), protoPolicy1)
+	policyTestVars.mockKvBroker.Put(policy.Key(k8sPolicy1.GetName(), k8sPolicy1.GetNamespace()), protoPolicy1)
 
 	// Pre-populate the mock data store with "stale" data that is supposed to
 	// be deleted during the test.
@@ -291,7 +290,7 @@ func TestPolicyReflector(t *testing.T) {
 	protoPolicy2 := policyTestVars.policyReflector.policyToProto(k8sPolicy2)
 	checkPolicyToProtoTranslation(t, protoPolicy2, k8sPolicy2)
 
-	policyTestVars.mockKvWriter.Put(policy.Key(k8sPolicy2.GetName(), k8sPolicy2.GetNamespace()), protoPolicy2)
+	policyTestVars.mockKvBroker.Put(policy.Key(k8sPolicy2.GetName(), k8sPolicy2.GetNamespace()), protoPolicy2)
 
 	statsBefore := *policyTestVars.policyReflector.GetStats()
 
@@ -316,55 +315,64 @@ func TestPolicyReflector(t *testing.T) {
 
 	statsAfter := *policyTestVars.policyReflector.GetStats()
 
-	gomega.Expect(policyTestVars.mockKvWriter.ds).Should(gomega.HaveLen(2))
-	gomega.Expect(statsBefore.NumAdds + 1).Should(gomega.BeNumerically("==", statsAfter.NumAdds))
-	gomega.Expect(statsBefore.NumUpdates + 1).Should(gomega.BeNumerically("==", statsAfter.NumUpdates))
-	gomega.Expect(statsBefore.NumDeletes + 1).Should(gomega.BeNumerically("==", statsAfter.NumDeletes))
+	gomega.Expect(policyTestVars.mockKvBroker.ds).Should(gomega.HaveLen(2))
+	gomega.Expect(statsBefore.Adds + 1).Should(gomega.BeNumerically("==", statsAfter.Adds))
+	gomega.Expect(statsBefore.Updates + 1).Should(gomega.BeNumerically("==", statsAfter.Updates))
+	gomega.Expect(statsBefore.Deletes + 1).Should(gomega.BeNumerically("==", statsAfter.Deletes))
 
-	policyTestVars.mockKvWriter.ClearDs()
+	policyTestVars.mockKvBroker.ClearDs()
 	t.Run("addDeletePolicy", testAddDeletePolicy)
 
-	policyTestVars.mockKvWriter.ClearDs()
+	policyTestVars.mockKvBroker.ClearDs()
 	t.Run("updatePolicy", testUpdatePolicy)
 
-	policyTestVars.mockKvWriter.ClearDs()
+	// The following tests check the KSR resync feature under various failure
+	// scenarios. These tests exercise mostly the core KSR Reflector code. We
+	// only perform them on policies, as the core KSR reflector code is common
+	// for all reflectors.
+	policyTestVars.mockKvBroker.ClearDs()
 	t.Run("testResyncPolicyAddFail", testResyncPolicyAddFail)
 
-	policyTestVars.mockKvWriter.ClearDs()
+	policyTestVars.mockKvBroker.ClearDs()
 	t.Run("testResyncPolicySingleDeleteFail", testResyncPolicyDeleteFail)
 
-	policyTestVars.mockKvWriter.ClearDs()
+	policyTestVars.mockKvBroker.ClearDs()
 	t.Run("testResyncPolicyUpdateFail", testResyncPolicyUpdateFail)
 
-	policyTestVars.mockKvWriter.ClearDs()
+	policyTestVars.mockKvBroker.ClearDs()
 	t.Run("testResyncPolicyAddFailAndDataStoreDown", testResyncPolicyAddFailAndDataStoreDown)
 
-	policyTestVars.mockKvWriter.ClearDs()
+	policyTestVars.mockKvBroker.ClearDs()
 	t.Run("testResyncPolicyDataStoreDownThenAdd", testResyncPolicyDataStoreDownThenAdd)
+
+	policyTestVars.mockKvBroker.ClearDs()
+	t.Run("testResyncPolicyTransientDsError", testResyncPolicyTransientDsError)
+
 }
 
 func testAddDeletePolicy(t *testing.T) {
 	// Test the policy add operation
 	for _, k8sPolicy := range policyTestVars.policyTestData {
 		// Take a snapshot of counters
-		adds := policyTestVars.policyReflector.GetStats().NumAdds
-		argErrs := policyTestVars.policyReflector.GetStats().NumArgErrors
+		adds := policyTestVars.policyReflector.GetStats().Adds
+		argErrs := policyTestVars.policyReflector.GetStats().ArgErrors
 
 		// Test add with wrong argument type
 		policyTestVars.k8sListWatch.Add(k8sPolicy)
 
-		gomega.Expect(argErrs + 1).To(gomega.Equal(policyTestVars.policyReflector.GetStats().NumArgErrors))
-		gomega.Expect(adds).To(gomega.Equal(policyTestVars.policyReflector.GetStats().NumAdds))
+		gomega.Expect(argErrs + 1).To(gomega.Equal(policyTestVars.policyReflector.GetStats().ArgErrors))
+		gomega.Expect(adds).To(gomega.Equal(policyTestVars.policyReflector.GetStats().Adds))
 
 		// Test add where everything should be good
 		policyTestVars.k8sListWatch.Add(&k8sPolicy)
 
 		key := policy.Key(k8sPolicy.GetName(), k8sPolicy.GetNamespace())
 		protoPolicy := &policy.Policy{}
-		err := policyTestVars.mockKvWriter.GetValue(key, protoPolicy)
+		found, _, err := policyTestVars.mockKvBroker.GetValue(key, protoPolicy)
 
-		gomega.Expect(adds + 1).To(gomega.Equal(policyTestVars.policyReflector.GetStats().NumAdds))
+		gomega.Expect(found).To(gomega.BeTrue())
 		gomega.Expect(err).To(gomega.BeNil())
+		gomega.Expect(adds + 1).To(gomega.Equal(policyTestVars.policyReflector.GetStats().Adds))
 		gomega.Expect(protoPolicy).NotTo(gomega.BeNil())
 
 		checkPolicyToProtoTranslation(t, protoPolicy, &k8sPolicy)
@@ -373,23 +381,24 @@ func testAddDeletePolicy(t *testing.T) {
 	// Test the policy delete operation
 	for _, k8sPolicy := range policyTestVars.policyTestData {
 		// Take a snapshot of counters
-		dels := policyTestVars.policyReflector.GetStats().NumDeletes
-		argErrs := policyTestVars.policyReflector.GetStats().NumArgErrors
+		dels := policyTestVars.policyReflector.GetStats().Deletes
+		argErrs := policyTestVars.policyReflector.GetStats().ArgErrors
 
 		// Test delete with wrong argument type
 		policyTestVars.k8sListWatch.Delete(k8sPolicy)
 
-		gomega.Expect(argErrs + 1).To(gomega.Equal(policyTestVars.policyReflector.GetStats().NumArgErrors))
-		gomega.Expect(dels).To(gomega.Equal(policyTestVars.policyReflector.GetStats().NumDeletes))
+		gomega.Expect(argErrs + 1).To(gomega.Equal(policyTestVars.policyReflector.GetStats().ArgErrors))
+		gomega.Expect(dels).To(gomega.Equal(policyTestVars.policyReflector.GetStats().Deletes))
 
 		// Test delete where everything should be good
 		policyTestVars.k8sListWatch.Delete(&k8sPolicy)
-		gomega.Expect(dels + 1).To(gomega.Equal(policyTestVars.policyReflector.GetStats().NumDeletes))
+		gomega.Expect(dels + 1).To(gomega.Equal(policyTestVars.policyReflector.GetStats().Deletes))
 
 		key := policy.Key(k8sPolicy.GetName(), k8sPolicy.GetNamespace())
 		protoPolicy := &policy.Policy{}
-		err := policyTestVars.mockKvWriter.GetValue(key, protoPolicy)
-		gomega.Ω(err).ShouldNot(gomega.Succeed())
+		found, _, err := policyTestVars.mockKvBroker.GetValue(key, protoPolicy)
+		gomega.Expect(found).To(gomega.BeFalse())
+		gomega.Ω(err).Should(gomega.Succeed())
 	}
 
 	policyTestVars.policyReflector.Log.Infof("%s: data sync done, stats: %+v",
@@ -406,18 +415,18 @@ func testUpdatePolicy(t *testing.T) {
 	gomega.Ω(err).Should(gomega.Succeed())
 
 	// Take a snapshot of counters
-	upds := policyTestVars.policyReflector.GetStats().NumUpdates
-	argErrs := policyTestVars.policyReflector.GetStats().NumArgErrors
+	upds := policyTestVars.policyReflector.GetStats().Updates
+	argErrs := policyTestVars.policyReflector.GetStats().ArgErrors
 
 	// Test update with wrong argument type
 	policyTestVars.k8sListWatch.Update(*k8sPolicyOld, *k8sPolicyNew)
 
-	gomega.Expect(argErrs + 1).To(gomega.Equal(policyTestVars.policyReflector.GetStats().NumArgErrors))
-	gomega.Expect(upds).To(gomega.Equal(policyTestVars.policyReflector.GetStats().NumUpdates))
+	gomega.Expect(argErrs + 1).To(gomega.Equal(policyTestVars.policyReflector.GetStats().ArgErrors))
+	gomega.Expect(upds).To(gomega.Equal(policyTestVars.policyReflector.GetStats().Updates))
 
 	// Ensure that there is no update if old and new values are the same
 	policyTestVars.k8sListWatch.Update(k8sPolicyOld, k8sPolicyNew)
-	gomega.Expect(upds).To(gomega.Equal(policyTestVars.policyReflector.GetStats().NumUpdates))
+	gomega.Expect(upds).To(gomega.Equal(policyTestVars.policyReflector.GetStats().Updates))
 
 	// Test update where everything should be good
 	k8sPolicyNew.Spec.Egress = append(k8sPolicyNew.Spec.Egress, coreV1Beta1.NetworkPolicyEgressRule{
@@ -446,11 +455,13 @@ func testUpdatePolicy(t *testing.T) {
 	})
 
 	policyTestVars.k8sListWatch.Update(k8sPolicyOld, k8sPolicyNew)
-	gomega.Expect(upds + 1).To(gomega.Equal(policyTestVars.policyReflector.GetStats().NumUpdates))
+	gomega.Expect(upds + 1).To(gomega.Equal(policyTestVars.policyReflector.GetStats().Updates))
 
 	key := policy.Key(k8sPolicyOld.GetName(), k8sPolicyOld.GetNamespace())
 	protoPolicyNew := &policy.Policy{}
-	err = policyTestVars.mockKvWriter.GetValue(key, protoPolicyNew)
+	found, _, err := policyTestVars.mockKvBroker.GetValue(key, protoPolicyNew)
+
+	gomega.Expect(found).To(gomega.BeTrue())
 	gomega.Ω(err).Should(gomega.Succeed())
 
 	checkPolicyToProtoTranslation(t, protoPolicyNew, k8sPolicyNew)
@@ -476,15 +487,15 @@ func testResyncPolicyAddFail(t *testing.T) {
 	// Add two elements
 	policyTestVars.k8sListWatch.Add(&policyTestVars.policyTestData[0])
 	policyTestVars.k8sListWatch.Add(&policyTestVars.policyTestData[1])
-	gomega.Expect(policyTestVars.mockKvWriter.ds).Should(gomega.HaveLen(2))
+	gomega.Expect(policyTestVars.mockKvBroker.ds).Should(gomega.HaveLen(2))
 
-	gomega.Expect(sSnap.NumAdds + 2).To(gomega.Equal(policyTestVars.policyReflector.GetStats().NumAdds))
-	gomega.Expect(sSnap.NumAddErrors).To(gomega.Equal(policyTestVars.policyReflector.GetStats().NumAddErrors))
+	gomega.Expect(sSnap.Adds + 2).To(gomega.Equal(policyTestVars.policyReflector.GetStats().Adds))
+	gomega.Expect(sSnap.AddErrors).To(gomega.Equal(policyTestVars.policyReflector.GetStats().AddErrors))
 
-	// Injecting two errors into writer and one error in the Lister will test
+	// Injecting two errors into the broker and one error in the Lister will test
 	// the data sync good path and all error paths
-	policyTestVars.mockKvLister.injectError(fmt.Errorf("%s", "Lister test error"), 1)
-	policyTestVars.mockKvWriter.injectError(fmt.Errorf("%s", "Writer test error"), 2)
+	policyTestVars.mockKvBroker.injectListError(fmt.Errorf("%s", "Lister test error"), 1)
+	policyTestVars.mockKvBroker.injectReadWriteError(fmt.Errorf("%s", "Read/write test error"), 2)
 
 	policyTestVars.k8sListWatch.Add(&policyTestVars.policyTestData[2])
 
@@ -499,21 +510,24 @@ func testResyncPolicyAddFail(t *testing.T) {
 	policyTestVars.policyReflector.Log.Infof("*** data sync done:\nsSnap: %+v\nstats: %+v",
 		sSnap, policyTestVars.policyReflector.stats)
 
-	gomega.Expect(sSnap.NumAdds + 3).To(gomega.Equal(policyTestVars.policyReflector.GetStats().NumAdds))
-	gomega.Expect(sSnap.NumUpdates).To(gomega.Equal(policyTestVars.policyReflector.GetStats().NumUpdates))
-	gomega.Expect(sSnap.NumDeletes).To(gomega.Equal(policyTestVars.policyReflector.GetStats().NumDeletes))
-	gomega.Expect(sSnap.NumResyncs + 3).To(gomega.Equal(policyTestVars.policyReflector.GetStats().NumResyncs))
-	gomega.Expect(sSnap.NumAddErrors + 2).To(gomega.Equal(policyTestVars.policyReflector.GetStats().NumAddErrors))
-	gomega.Expect(sSnap.NumUpdErrors).To(gomega.Equal(policyTestVars.policyReflector.GetStats().NumUpdErrors))
-	gomega.Expect(sSnap.NumDelErrors).To(gomega.Equal(policyTestVars.policyReflector.GetStats().NumDelErrors))
-	gomega.Expect(sSnap.NumResErrors + 2).To(gomega.Equal(policyTestVars.policyReflector.GetStats().NumResErrors))
+	gomega.Expect(sSnap.Adds + 3).To(gomega.Equal(policyTestVars.policyReflector.GetStats().Adds))
+	gomega.Expect(sSnap.Updates).To(gomega.Equal(policyTestVars.policyReflector.GetStats().Updates))
+	gomega.Expect(sSnap.Deletes).To(gomega.Equal(policyTestVars.policyReflector.GetStats().Deletes))
+	gomega.Expect(sSnap.Resyncs + 3).To(gomega.Equal(policyTestVars.policyReflector.GetStats().Resyncs))
+	gomega.Expect(sSnap.AddErrors + 2).To(gomega.Equal(policyTestVars.policyReflector.GetStats().AddErrors))
+	gomega.Expect(sSnap.UpdErrors).To(gomega.Equal(policyTestVars.policyReflector.GetStats().UpdErrors))
+	gomega.Expect(sSnap.DelErrors).To(gomega.Equal(policyTestVars.policyReflector.GetStats().DelErrors))
+	gomega.Expect(sSnap.ResErrors + 2).To(gomega.Equal(policyTestVars.policyReflector.GetStats().ResErrors))
 
-	gomega.Expect(policyTestVars.mockKvWriter.ds).Should(gomega.HaveLen(3))
+	gomega.Expect(policyTestVars.mockKvBroker.ds).Should(gomega.HaveLen(3))
 
 	key := policy.Key(policyTestVars.policyTestData[2].GetName(), policyTestVars.policyTestData[2].GetNamespace())
 	protoPolicy := &policy.Policy{}
-	err := policyTestVars.mockKvWriter.GetValue(key, protoPolicy)
+	found, _, err := policyTestVars.mockKvBroker.GetValue(key, protoPolicy)
+
+	gomega.Expect(found).To(gomega.BeTrue())
 	gomega.Ω(err).Should(gomega.Succeed())
+
 	checkPolicyToProtoTranslation(t, protoPolicy, &policyTestVars.policyTestData[2])
 }
 
@@ -534,12 +548,13 @@ func testResyncPolicyDeleteFail(t *testing.T) {
 	policyTestVars.k8sListWatch.Add(&policyTestVars.policyTestData[1])
 	policyTestVars.k8sListWatch.Add(&policyTestVars.policyTestData[2])
 
-	gomega.Expect(sSnap.NumAdds + 3).To(gomega.Equal(policyTestVars.policyReflector.GetStats().NumAdds))
+	gomega.Expect(sSnap.Adds + 3).To(gomega.Equal(policyTestVars.policyReflector.GetStats().Adds))
+	gomega.Expect(len(policyTestVars.mockKvBroker.ds)).To(gomega.Equal(3))
 
-	// Injecting two errors into writer and one error in the Lister will test
+	// Injecting two errors into the broker and one error in the Lister will test
 	// the data sync good path and all error paths
-	policyTestVars.mockKvLister.injectError(fmt.Errorf("%s", "Lister test error"), 1)
-	policyTestVars.mockKvWriter.injectError(fmt.Errorf("%s", "Writer test error"), 2)
+	policyTestVars.mockKvBroker.injectListError(fmt.Errorf("%s", "Lister test error"), 1)
+	policyTestVars.mockKvBroker.injectReadWriteError(fmt.Errorf("%s", "Read/write test error"), 2)
 
 	// Delete an element, write error happens during delete
 	policyTestVars.k8sListWatch.Delete(&policyTestVars.policyTestData[1])
@@ -555,21 +570,23 @@ func testResyncPolicyDeleteFail(t *testing.T) {
 	policyTestVars.policyReflector.Log.Infof("*** data sync done:\nsSnap: %+v\nstats: %+v",
 		sSnap, policyTestVars.policyReflector.stats)
 
-	gomega.Expect(sSnap.NumAdds + 3).To(gomega.Equal(policyTestVars.policyReflector.GetStats().NumAdds))
-	gomega.Expect(sSnap.NumUpdates).To(gomega.Equal(policyTestVars.policyReflector.GetStats().NumUpdates))
-	gomega.Expect(sSnap.NumDeletes + 1).To(gomega.Equal(policyTestVars.policyReflector.GetStats().NumDeletes))
-	gomega.Expect(sSnap.NumResyncs + 3).To(gomega.Equal(policyTestVars.policyReflector.GetStats().NumResyncs))
-	gomega.Expect(sSnap.NumAddErrors).To(gomega.Equal(policyTestVars.policyReflector.GetStats().NumAddErrors))
-	gomega.Expect(sSnap.NumUpdErrors).To(gomega.Equal(policyTestVars.policyReflector.GetStats().NumUpdErrors))
-	gomega.Expect(sSnap.NumDelErrors + 2).To(gomega.Equal(policyTestVars.policyReflector.GetStats().NumDelErrors))
-	gomega.Expect(sSnap.NumResErrors + 2).To(gomega.Equal(policyTestVars.policyReflector.GetStats().NumResErrors))
+	gomega.Expect(sSnap.Adds + 3).To(gomega.Equal(policyTestVars.policyReflector.GetStats().Adds))
+	gomega.Expect(sSnap.Updates).To(gomega.Equal(policyTestVars.policyReflector.GetStats().Updates))
+	gomega.Expect(sSnap.Deletes + 1).To(gomega.Equal(policyTestVars.policyReflector.GetStats().Deletes))
+	gomega.Expect(sSnap.Resyncs + 3).To(gomega.Equal(policyTestVars.policyReflector.GetStats().Resyncs))
+	gomega.Expect(sSnap.AddErrors).To(gomega.Equal(policyTestVars.policyReflector.GetStats().AddErrors))
+	gomega.Expect(sSnap.UpdErrors).To(gomega.Equal(policyTestVars.policyReflector.GetStats().UpdErrors))
+	gomega.Expect(sSnap.DelErrors + 2).To(gomega.Equal(policyTestVars.policyReflector.GetStats().DelErrors))
+	gomega.Expect(sSnap.ResErrors + 2).To(gomega.Equal(policyTestVars.policyReflector.GetStats().ResErrors))
 
-	gomega.Expect(policyTestVars.mockKvWriter.ds).Should(gomega.HaveLen(2))
+	gomega.Expect(policyTestVars.mockKvBroker.ds).Should(gomega.HaveLen(2))
 
 	key := policy.Key(policyTestVars.policyTestData[1].GetName(), policyTestVars.policyTestData[2].GetNamespace())
 	protoPolicy := &policy.Policy{}
-	err := policyTestVars.mockKvWriter.GetValue(key, protoPolicy)
-	gomega.Ω(err).ShouldNot(gomega.Succeed())
+	found, _, err := policyTestVars.mockKvBroker.GetValue(key, protoPolicy)
+
+	gomega.Expect(found).To(gomega.BeFalse())
+	gomega.Ω(err).Should(gomega.Succeed())
 }
 
 func testResyncPolicyUpdateFail(t *testing.T) {
@@ -589,7 +606,7 @@ func testResyncPolicyUpdateFail(t *testing.T) {
 	policyTestVars.k8sListWatch.Add(&policyTestVars.policyTestData[1])
 	policyTestVars.k8sListWatch.Add(&policyTestVars.policyTestData[2])
 
-	gomega.Expect(sSnap.NumAdds + 3).To(gomega.Equal(policyTestVars.policyReflector.GetStats().NumAdds))
+	gomega.Expect(sSnap.Adds + 3).To(gomega.Equal(policyTestVars.policyReflector.GetStats().Adds))
 
 	// Test update where everything should be good
 	k8sPolicyNew.Spec.Egress = append(k8sPolicyNew.Spec.Egress, coreV1Beta1.NetworkPolicyEgressRule{
@@ -626,10 +643,10 @@ func testResyncPolicyUpdateFail(t *testing.T) {
 		}
 	}
 
-	// Injecting two errors into writer and one error in the Lister will test
+	// Injecting two errors into the broker and one error in the Lister will test
 	// the data sync good path and all error paths
-	policyTestVars.mockKvLister.injectError(fmt.Errorf("%s", "Lister test error"), 1)
-	policyTestVars.mockKvWriter.injectError(fmt.Errorf("%s", "Writer test error"), 2)
+	policyTestVars.mockKvBroker.injectListError(fmt.Errorf("%s", "Lister test error"), 1)
+	policyTestVars.mockKvBroker.injectReadWriteError(fmt.Errorf("%s", "Read/write test error"), 2)
 
 	// Delete an element, write error happens during delete
 	policyTestVars.k8sListWatch.Update(k8sPolicyOld, k8sPolicyNew)
@@ -645,78 +662,25 @@ func testResyncPolicyUpdateFail(t *testing.T) {
 	policyTestVars.policyReflector.Log.Infof("*** data sync done:\nsSnap: %+v\nstats: %+v",
 		sSnap, policyTestVars.policyReflector.stats)
 
-	gomega.Expect(sSnap.NumAdds + 3).To(gomega.Equal(policyTestVars.policyReflector.GetStats().NumAdds))
-	gomega.Expect(sSnap.NumDeletes).To(gomega.Equal(policyTestVars.policyReflector.GetStats().NumDeletes))
-	gomega.Expect(policyTestVars.policyReflector.GetStats().NumUpdates).To(gomega.Equal(sSnap.NumUpdates + 1))
-	gomega.Expect(sSnap.NumResyncs + 3).To(gomega.Equal(policyTestVars.policyReflector.GetStats().NumResyncs))
-	gomega.Expect(sSnap.NumAddErrors).To(gomega.Equal(policyTestVars.policyReflector.GetStats().NumAddErrors))
-	gomega.Expect(sSnap.NumDelErrors).To(gomega.Equal(policyTestVars.policyReflector.GetStats().NumDelErrors))
-	gomega.Expect(sSnap.NumUpdErrors + 2).To(gomega.Equal(policyTestVars.policyReflector.GetStats().NumUpdErrors))
-	gomega.Expect(sSnap.NumResErrors + 2).To(gomega.Equal(policyTestVars.policyReflector.GetStats().NumResErrors))
+	gomega.Expect(sSnap.Adds + 3).To(gomega.Equal(policyTestVars.policyReflector.GetStats().Adds))
+	gomega.Expect(sSnap.Deletes).To(gomega.Equal(policyTestVars.policyReflector.GetStats().Deletes))
+	gomega.Expect(policyTestVars.policyReflector.GetStats().Updates).To(gomega.Equal(sSnap.Updates + 1))
+	gomega.Expect(sSnap.Resyncs + 3).To(gomega.Equal(policyTestVars.policyReflector.GetStats().Resyncs))
+	gomega.Expect(sSnap.AddErrors).To(gomega.Equal(policyTestVars.policyReflector.GetStats().AddErrors))
+	gomega.Expect(sSnap.DelErrors).To(gomega.Equal(policyTestVars.policyReflector.GetStats().DelErrors))
+	gomega.Expect(sSnap.UpdErrors + 2).To(gomega.Equal(policyTestVars.policyReflector.GetStats().UpdErrors))
+	gomega.Expect(sSnap.ResErrors + 2).To(gomega.Equal(policyTestVars.policyReflector.GetStats().ResErrors))
 
-	gomega.Expect(policyTestVars.mockKvWriter.ds).Should(gomega.HaveLen(3))
+	gomega.Expect(policyTestVars.mockKvBroker.ds).Should(gomega.HaveLen(3))
 
 	key := policy.Key(k8sPolicyNew.GetName(), k8sPolicyNew.GetNamespace())
 	protoPolicy := &policy.Policy{}
-	err = policyTestVars.mockKvWriter.GetValue(key, protoPolicy)
+	found, _, err := policyTestVars.mockKvBroker.GetValue(key, protoPolicy)
+
+	gomega.Expect(found).To(gomega.BeTrue())
 	gomega.Ω(err).Should(gomega.Succeed())
+
 	checkPolicyToProtoTranslation(t, protoPolicy, k8sPolicyNew)
-}
-
-func testResyncPolicyDataStoreDownThenAdd(t *testing.T) {
-	// Set the mock K8s cache to expect 3 values.
-	MockK8sCache.ListFunc = func() []interface{} {
-		return []interface{}{
-			&policyTestVars.policyTestData[2],
-			&policyTestVars.policyTestData[0],
-			&policyTestVars.policyTestData[1],
-		}
-	}
-
-	// Take a snapshot of reflector counters
-	sSnap := *policyTestVars.policyReflector.GetStats()
-
-	// Add two elements
-	policyTestVars.k8sListWatch.Add(&policyTestVars.policyTestData[0])
-	policyTestVars.k8sListWatch.Add(&policyTestVars.policyTestData[1])
-	gomega.Expect(policyTestVars.mockKvWriter.ds).Should(gomega.HaveLen(2))
-
-	gomega.Expect(sSnap.NumAdds + 2).To(gomega.Equal(policyTestVars.policyReflector.GetStats().NumAdds))
-	gomega.Expect(sSnap.NumAddErrors).To(gomega.Equal(policyTestVars.policyReflector.GetStats().NumAddErrors))
-
-	dataStoreDownEvent()
-
-	policyTestVars.k8sListWatch.Add(&policyTestVars.policyTestData[2])
-
-	dataStoreUpEvent()
-
-	// Wait for the resync to finish
-	for {
-		if policyTestVars.policyReflector.HasSynced() {
-			break
-		}
-		time.Sleep(time.Millisecond * 100)
-	}
-
-	policyTestVars.policyReflector.Log.Infof("*** data sync done:\nsSnap: %+v\nstats: %+v",
-		sSnap, policyTestVars.policyReflector.stats)
-
-	gomega.Expect(sSnap.NumAdds + 3).To(gomega.Equal(policyTestVars.policyReflector.GetStats().NumAdds))
-	gomega.Expect(sSnap.NumUpdates).To(gomega.Equal(policyTestVars.policyReflector.GetStats().NumUpdates))
-	gomega.Expect(sSnap.NumDeletes).To(gomega.Equal(policyTestVars.policyReflector.GetStats().NumDeletes))
-	gomega.Expect(sSnap.NumResyncs + 1).To(gomega.Equal(policyTestVars.policyReflector.GetStats().NumResyncs))
-	gomega.Expect(sSnap.NumAddErrors).To(gomega.Equal(policyTestVars.policyReflector.GetStats().NumAddErrors))
-	gomega.Expect(sSnap.NumUpdErrors).To(gomega.Equal(policyTestVars.policyReflector.GetStats().NumUpdErrors))
-	gomega.Expect(sSnap.NumDelErrors).To(gomega.Equal(policyTestVars.policyReflector.GetStats().NumDelErrors))
-	gomega.Expect(sSnap.NumResErrors).To(gomega.Equal(policyTestVars.policyReflector.GetStats().NumResErrors))
-
-	gomega.Expect(policyTestVars.mockKvWriter.ds).Should(gomega.HaveLen(3))
-
-	key := policy.Key(policyTestVars.policyTestData[2].GetName(), policyTestVars.policyTestData[2].GetNamespace())
-	protoPolicy := &policy.Policy{}
-	err := policyTestVars.mockKvWriter.GetValue(key, protoPolicy)
-	gomega.Ω(err).Should(gomega.Succeed())
-	checkPolicyToProtoTranslation(t, protoPolicy, &policyTestVars.policyTestData[2])
 }
 
 func testResyncPolicyAddFailAndDataStoreDown(t *testing.T) {
@@ -736,17 +700,18 @@ func testResyncPolicyAddFailAndDataStoreDown(t *testing.T) {
 	// Add two elements
 	policyTestVars.k8sListWatch.Add(&policyTestVars.policyTestData[0])
 	policyTestVars.k8sListWatch.Add(&policyTestVars.policyTestData[1])
-	gomega.Expect(policyTestVars.mockKvWriter.ds).Should(gomega.HaveLen(2))
+	gomega.Expect(policyTestVars.mockKvBroker.ds).Should(gomega.HaveLen(2))
 
-	gomega.Expect(sSnap.NumAdds + 2).To(gomega.Equal(policyTestVars.policyReflector.GetStats().NumAdds))
-	gomega.Expect(sSnap.NumAddErrors).To(gomega.Equal(policyTestVars.policyReflector.GetStats().NumAddErrors))
+	gomega.Expect(sSnap.Adds + 2).To(gomega.Equal(policyTestVars.policyReflector.GetStats().Adds))
+	gomega.Expect(sSnap.AddErrors).To(gomega.Equal(policyTestVars.policyReflector.GetStats().AddErrors))
 
-	// Injecting an error into the lister will test the Lister error path.
-	// Injecting and "infinite number" of errors into the Writer will keep
+	// Injecting and "infinite number" of errors into the broker will keep
 	// data sync in the rmark-and-sweep etry loop so that we can inject the
 	// 'data store down' signal and thus abort the loop.
-	policyTestVars.mockKvLister.injectError(fmt.Errorf("%s", "Lister test error"), 1)
-	policyTestVars.mockKvWriter.injectError(fmt.Errorf("%s", "Test error"), 1000)
+	// Injecting two errors into the broker and one error in the Lister will test
+	// the data sync good path and all error paths
+	policyTestVars.mockKvBroker.injectListError(fmt.Errorf("%s", "Lister test error"), 1)
+	policyTestVars.mockKvBroker.injectReadWriteError(fmt.Errorf("%s", "Read/write test error"), 1000)
 
 	policyTestVars.k8sListWatch.Add(&policyTestVars.policyTestData[2])
 
@@ -755,7 +720,7 @@ func testResyncPolicyAddFailAndDataStoreDown(t *testing.T) {
 		time.Sleep(time.Second)
 		dataStoreDownEvent()
 		time.Sleep(time.Second)
-		policyTestVars.mockKvWriter.clearError()
+		policyTestVars.mockKvBroker.clearReadWriteError()
 		dataStoreUpEvent()
 	}()
 
@@ -770,17 +735,158 @@ func testResyncPolicyAddFailAndDataStoreDown(t *testing.T) {
 	policyTestVars.policyReflector.Log.Infof("*** data sync done:\nsSnap: %+v\nstats: %+v",
 		sSnap, policyTestVars.policyReflector.stats)
 
-	gomega.Expect(sSnap.NumAdds + 3).To(gomega.Equal(policyTestVars.policyReflector.GetStats().NumAdds))
-	gomega.Expect(sSnap.NumUpdates).To(gomega.Equal(policyTestVars.policyReflector.GetStats().NumUpdates))
-	gomega.Expect(policyTestVars.policyReflector.GetStats().NumAddErrors - sSnap.NumAddErrors).
-		To(gomega.Equal(policyTestVars.policyReflector.GetStats().NumResErrors - sSnap.NumResErrors))
-	gomega.Expect(policyTestVars.mockKvWriter.ds).Should(gomega.HaveLen(3))
+	gomega.Expect(sSnap.Adds + 3).To(gomega.Equal(policyTestVars.policyReflector.GetStats().Adds))
+	gomega.Expect(sSnap.Updates).To(gomega.Equal(policyTestVars.policyReflector.GetStats().Updates))
+	gomega.Expect(policyTestVars.policyReflector.GetStats().AddErrors - sSnap.AddErrors).
+		To(gomega.Equal(policyTestVars.policyReflector.GetStats().ResErrors - sSnap.ResErrors))
+	gomega.Expect(policyTestVars.mockKvBroker.ds).Should(gomega.HaveLen(3))
 
 	key := policy.Key(policyTestVars.policyTestData[2].GetName(), policyTestVars.policyTestData[2].GetNamespace())
 	protoPolicy := &policy.Policy{}
-	err := policyTestVars.mockKvWriter.GetValue(key, protoPolicy)
+	found, _, err := policyTestVars.mockKvBroker.GetValue(key, protoPolicy)
+
+	gomega.Expect(found).To(gomega.BeTrue())
 	gomega.Ω(err).Should(gomega.Succeed())
+
 	checkPolicyToProtoTranslation(t, protoPolicy, &policyTestVars.policyTestData[2])
+}
+
+func testResyncPolicyDataStoreDownThenAdd(t *testing.T) {
+	// Set the mock K8s cache to expect 3 values.
+	MockK8sCache.ListFunc = func() []interface{} {
+		return []interface{}{
+			&policyTestVars.policyTestData[2],
+			&policyTestVars.policyTestData[0],
+			&policyTestVars.policyTestData[1],
+		}
+	}
+
+	// Take a snapshot of reflector counters
+	sSnap := *policyTestVars.policyReflector.GetStats()
+
+	// Add two elements
+	policyTestVars.k8sListWatch.Add(&policyTestVars.policyTestData[0])
+	policyTestVars.k8sListWatch.Add(&policyTestVars.policyTestData[1])
+	gomega.Expect(policyTestVars.mockKvBroker.ds).Should(gomega.HaveLen(2))
+
+	gomega.Expect(sSnap.Adds + 2).To(gomega.Equal(policyTestVars.policyReflector.GetStats().Adds))
+	gomega.Expect(sSnap.AddErrors).To(gomega.Equal(policyTestVars.policyReflector.GetStats().AddErrors))
+
+	etcdMonitor := EtcdMonitor{
+		status:  status.OperationalState_OK,
+		lastRev: 0,
+		broker:  policyTestVars.mockKvBroker,
+	}
+
+	// Emulate a 'data store down' event
+	etcdMonitor.processEtcdMonitorEvent(status.OperationalState_ERROR)
+
+	policyTestVars.k8sListWatch.Add(&policyTestVars.policyTestData[2])
+
+	// Emulate a 'data store up' event
+	etcdMonitor.processEtcdMonitorEvent(status.OperationalState_OK)
+
+	// Wait for the resync to finish
+	for {
+		if policyTestVars.policyReflector.HasSynced() {
+			break
+		}
+		time.Sleep(time.Millisecond * 100)
+	}
+
+	policyTestVars.policyReflector.Log.Infof("*** data sync done:\nsSnap: %+v\nstats: %+v",
+		sSnap, policyTestVars.policyReflector.stats)
+
+	gomega.Expect(sSnap.Adds + 3).To(gomega.Equal(policyTestVars.policyReflector.GetStats().Adds))
+	gomega.Expect(sSnap.Updates).To(gomega.Equal(policyTestVars.policyReflector.GetStats().Updates))
+	gomega.Expect(sSnap.Deletes).To(gomega.Equal(policyTestVars.policyReflector.GetStats().Deletes))
+	gomega.Expect(sSnap.Resyncs + 1).To(gomega.Equal(policyTestVars.policyReflector.GetStats().Resyncs))
+	gomega.Expect(sSnap.AddErrors).To(gomega.Equal(policyTestVars.policyReflector.GetStats().AddErrors))
+	gomega.Expect(sSnap.UpdErrors).To(gomega.Equal(policyTestVars.policyReflector.GetStats().UpdErrors))
+	gomega.Expect(sSnap.DelErrors).To(gomega.Equal(policyTestVars.policyReflector.GetStats().DelErrors))
+	gomega.Expect(sSnap.ResErrors).To(gomega.Equal(policyTestVars.policyReflector.GetStats().ResErrors))
+
+	gomega.Expect(policyTestVars.mockKvBroker.ds).Should(gomega.HaveLen(3))
+
+	key := policy.Key(policyTestVars.policyTestData[2].GetName(), policyTestVars.policyTestData[2].GetNamespace())
+	protoPolicy := &policy.Policy{}
+	found, _, err := policyTestVars.mockKvBroker.GetValue(key, protoPolicy)
+
+	gomega.Expect(found).To(gomega.BeTrue())
+	gomega.Ω(err).Should(gomega.Succeed())
+
+	checkPolicyToProtoTranslation(t, protoPolicy, &policyTestVars.policyTestData[2])
+}
+
+func testResyncPolicyTransientDsError(t *testing.T) {
+	// Set the mock K8s cache to expect 3 values.
+	MockK8sCache.ListFunc = func() []interface{} {
+		return []interface{}{
+			&policyTestVars.policyTestData[2],
+			&policyTestVars.policyTestData[1],
+			&policyTestVars.policyTestData[0],
+		}
+	}
+
+	// Take a snapshot of reflector counters
+	sSnap := *policyTestVars.policyReflector.GetStats()
+
+	// Add three elements
+	policyTestVars.k8sListWatch.Add(&policyTestVars.policyTestData[0])
+	policyTestVars.k8sListWatch.Add(&policyTestVars.policyTestData[1])
+	policyTestVars.k8sListWatch.Add(&policyTestVars.policyTestData[2])
+
+	gomega.Expect(sSnap.Adds + 3).To(gomega.Equal(policyTestVars.policyReflector.GetStats().Adds))
+	gomega.Expect(len(policyTestVars.mockKvBroker.ds)).To(gomega.Equal(3))
+
+	etcdMonitor := EtcdMonitor{
+		status:  status.OperationalState_OK,
+		lastRev: 0,
+		broker:  policyTestVars.mockKvBroker,
+	}
+
+	// Do the initial check for transient errors
+	etcdMonitor.checkEtcdTransientError()
+
+	stsKey := ksrapi.Key("statistics")
+	ksrStats := ksrapi.Stats{}
+	found, rev, err := policyTestVars.mockKvBroker.GetValue(stsKey, &ksrStats)
+	gomega.Expect(found).To(gomega.BeTrue())
+	gomega.Expect(err).To(gomega.BeNil())
+	gomega.Expect(rev).Should(gomega.BeNumerically("==", 1))
+
+	// Do another check for transient errors
+	etcdMonitor.checkEtcdTransientError()
+
+	found, rev, err = policyTestVars.mockKvBroker.GetValue(stsKey, &ksrStats)
+	gomega.Expect(found).To(gomega.BeTrue())
+	gomega.Expect(err).To(gomega.BeNil())
+	gomega.Expect(rev).Should(gomega.BeNumerically("==", 2))
+
+	// Emulate a transient data store error with data loss
+	policyTestVars.mockKvBroker.ClearDs()
+	gomega.Expect(len(policyTestVars.mockKvBroker.ds)).To(gomega.Equal(0))
+
+	// Do another check for transient errors which should detect a transient
+	// error and trigger a data store resync.
+	etcdMonitor.checkEtcdTransientError()
+
+	// Wait for data store to finish
+	for {
+		if policyTestVars.policyReflector.HasSynced() {
+			break
+		}
+		time.Sleep(time.Millisecond * 100)
+	}
+
+	policyTestVars.policyReflector.Log.Infof("*** data sync done:\nsSnap: %+v\nstats: %+v",
+		sSnap, policyTestVars.policyReflector.stats)
+
+	// Check that the data store resync happened and that we have have the
+	// data back in the data store
+	gomega.Expect(sSnap.Adds + 6).To(gomega.Equal(policyTestVars.policyReflector.GetStats().Adds))
+	gomega.Expect(len(policyTestVars.mockKvBroker.ds)).To(gomega.Equal(3))
+	gomega.Expect(sSnap.Resyncs + 1).To(gomega.Equal(policyTestVars.policyReflector.GetStats().Resyncs))
 }
 
 // checkPolicyToProtoTranslation checks whether the translation of K8s policy

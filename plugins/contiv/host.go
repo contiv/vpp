@@ -28,6 +28,7 @@ import (
 	"github.com/ligato/vpp-agent/plugins/linuxplugin/ifplugin/linuxcalls"
 	linux_intf "github.com/ligato/vpp-agent/plugins/linuxplugin/ifplugin/model/interfaces"
 	linux_l3 "github.com/ligato/vpp-agent/plugins/linuxplugin/l3plugin/model/l3"
+	"github.com/vishvananda/netlink"
 )
 
 const (
@@ -60,16 +61,52 @@ func (s *remoteCNIserver) routeFromHost() *linux_l3.LinuxStaticRoutes_Route {
 	return route
 }
 
-func (s *remoteCNIserver) defaultRouteToHost() *vpp_l3.StaticRoutes_Route {
-	route := &vpp_l3.StaticRoutes_Route{
-		DstIpAddr:         "0.0.0.0/0",
-		NextHopAddr:       s.ipam.VEthHostEndIP().String(),
-		OutgoingInterface: s.interconnectAfpacketName(),
+func (s *remoteCNIserver) routeServicesFromHost() *linux_l3.LinuxStaticRoutes_Route {
+	route := &linux_l3.LinuxStaticRoutes_Route{
+		Name:        "service-to-vpp",
+		Default:     false,
+		Namespace:   nil,
+		Interface:   vethHostEndLogicalName,
+		Description: "Services from host.",
+		Scope: &linux_l3.LinuxStaticRoutes_Route_Scope{
+			Type: linux_l3.LinuxStaticRoutes_Route_Scope_GLOBAL,
+		},
+		DstIpAddr: s.ipam.ServiceNetwork().String(),
+		GwAddr:    s.ipam.VEthVPPEndIP().String(),
 	}
 	if s.useTAPInterfaces {
-		route.OutgoingInterface = tapVPPEndLogicalName
+		route.Interface = tapHostEndName
 	}
 	return route
+}
+
+func (s *remoteCNIserver) defaultRoute(gwIP string, outIfName string) *vpp_l3.StaticRoutes_Route {
+	route := &vpp_l3.StaticRoutes_Route{
+		DstIpAddr:         "0.0.0.0/0",
+		NextHopAddr:       gwIP,
+		OutgoingInterface: outIfName,
+	}
+	return route
+}
+
+func (s *remoteCNIserver) routesToHost() []*vpp_l3.StaticRoutes_Route {
+	// list all IPs assigned to host interfaces
+	ips, err := s.getHostLinkIPs()
+	if err != nil {
+		s.Logger.Errorf("Error by listing host IPs: %v", err)
+		return nil
+	}
+
+	// generate a /32 static route from VPP for each of the host's IPs
+	routes := make([]*vpp_l3.StaticRoutes_Route, 0)
+	for _, ip := range ips {
+		routes = append(routes, &vpp_l3.StaticRoutes_Route{
+			DstIpAddr:   fmt.Sprintf("%s/32", ip),
+			NextHopAddr: s.ipam.VEthHostEndIP().String(),
+		})
+	}
+
+	return routes
 }
 
 func (s *remoteCNIserver) interconnectTap() *vpp_intf.Interfaces_Interface {
@@ -272,4 +309,30 @@ func (s *remoteCNIserver) ipPrefixToAddress(ip string) string {
 		return ip[:strings.Index(ip, "/")]
 	}
 	return ip
+}
+
+func (s *remoteCNIserver) getHostLinkIPs() ([]string, error) {
+	links, err := netlink.LinkList()
+	if err != nil {
+		s.Logger.Error("Unable to list host links:", err)
+		return nil, err
+	}
+
+	res := make([]string, 0)
+	for _, l := range links {
+		if !strings.HasPrefix(l.Attrs().Name, "lo") && !strings.HasPrefix(l.Attrs().Name, "docker") &&
+			!strings.HasPrefix(l.Attrs().Name, "virbr") && !strings.HasPrefix(l.Attrs().Name, "vpp") {
+			// not a virtual interface, list its IP addresses
+			addrList, err := netlink.AddrList(l, netlink.FAMILY_V4)
+			if err != nil {
+				s.Logger.Error("Unable to list link IPs:", err)
+				return nil, err
+			}
+			// return all IPs
+			for _, addr := range addrList {
+				res = append(res, addr.IP.String())
+			}
+		}
+	}
+	return res, nil
 }

@@ -26,9 +26,9 @@ import (
 const (
 	podLabelSelectorKey   = "podLabelSelectorKey"
 	podKeySelectorKey     = "podKeySelectorKey"
-	podNSKeySelectorKey   = "podNamespaceKey"
+	podNSKeySelectorKey   = "podNSKeySelectorKey"
 	podNSLabelSelectorKey = "podNamespaceLabelKey"
-	podNamespace          = "podNamespace"
+	podNamespaceKey       = "podNamespaceKey"
 )
 
 // ConfigIndex implements a cache for configured policies. Primary index is PolicyName.
@@ -81,7 +81,7 @@ func (ci *ConfigIndex) LookupPodsByLabelKey(podKeySelector string) (podIDs []str
 
 // LookupPodsByNamespace performs lookup based on secondary index podNamespace.
 func (ci *ConfigIndex) LookupPodsByNamespace(podNamespace string) (podIDs []string) {
-	return ci.mapping.ListNames(podNamespace, podNamespace)
+	return ci.mapping.ListNames(podNamespaceKey, podNamespace)
 }
 
 // LookupPodsByNSLabelSelector performs lookup based on secondary index podNamespace/podLabelSelector.
@@ -106,6 +106,7 @@ func IndexFunction(data interface{}) map[string][]string {
 	keys := []string{}
 	nsLabels := []string{}
 	nsKeys := []string{}
+
 	if config, ok := data.(*podmodel.Pod); ok && config != nil {
 		for _, v := range config.Label {
 			labelSelector := v.Key + "/" + v.Value
@@ -117,13 +118,12 @@ func IndexFunction(data interface{}) map[string][]string {
 			nsLabels = append(nsLabels, nsLabelSelector)
 			nsKeys = append(nsKeys, nsKeySelector)
 		}
-
 		keys = utils.RemoveDuplicates(keys)
 		nsKeys = utils.RemoveDuplicates(nsKeys)
 
 		res[podLabelSelectorKey] = labels
 		res[podKeySelectorKey] = keys
-		res[podNamespace] = []string{config.Namespace}
+		res[podNamespaceKey] = []string{config.Namespace}
 		res[podNSLabelSelectorKey] = nsLabels
 		res[podNSKeySelectorKey] = nsKeys
 	}

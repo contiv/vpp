@@ -111,15 +111,7 @@ After installing the CRI Shim, please proceed with cluster initialization,
 as described in the steps below. Alternatively, if the cluster had already
 been initialized before installing the CRI Shim, just reboot the node.
 
-
-#### 1.5 (Optional): Installing custom version of Kube-Proxy to enable Kubernetes services
-If you plan to use Kubernetes services, you need to pre-install the custom version
-of Kube-Proxy that works with the Contiv-VPP network plugin on each node:
-```
-bash <(curl -s https://raw.githubusercontent.com/contiv/vpp/master/k8s/proxy-install.sh)
-```
-
-The steps 1.2 - 1.5 can be set up interactively using [script](../k8s/setup-node.sh).
+The steps 1.2 - 1.4 can be set up interactively using [script](../k8s/setup-node.sh).
 ```
 bash <(curl https://raw.githubusercontent.com/contiv/vpp/master/k8s/setup-node.sh)
 ```

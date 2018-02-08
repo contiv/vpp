@@ -12,23 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package policy
+package node
 
-// ID used to uniquely represent a K8s Policy.
-type ID struct {
-	Name      string
-	Namespace string
-}
+// ID used to uniquely represent a K8s Node.
+type ID string
 
-// GetID returns ID of a policy.
-func GetID(policy *Policy) ID {
-	if policy != nil {
-		return ID{Name: policy.Name, Namespace: policy.Namespace}
+// GetID returns ID of a node.
+func GetID(node *Node) ID {
+	if node != nil {
+		return ID(node.Name)
 	}
-	return ID{}
+	return ID("")
 }
 
-// String returns a string representation of a policy ID.
+// String returns a string representation of a node ID.
 func (id ID) String() string {
-	return id.Namespace + "/" + id.Name
+	return string(id)
 }

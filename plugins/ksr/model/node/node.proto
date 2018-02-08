@@ -1,0 +1,124 @@
+// Copyright (c) 2017 Cisco and/or its affiliates.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at:
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+// Package node defines data model for Kubernetes Node.
+package node;
+
+// Pod is a collection of containers that can run on a host.
+// This resource is created by clients and scheduled onto hosts.
+message Node {
+  // Name of the node unique within the cluster.
+  // Cannot be updated.
+  string name = 1;
+
+  // PodCIDR represents the pod IP range assigned to the node.
+  // +optional
+  string pod_CIDR = 2;
+
+  // ID of the node assigned by the cloud provider in the format:
+  // <ProviderName>://<ProviderSpecificNodeID>
+  // +optional
+  string provider_ID = 3;
+
+  // ResourceList is a list of (resource name, quantity) pairs.
+  message Resource {
+    string name = 1;
+    int32 capacity = 2;
+  }
+
+  // Capacity represents the total resources of a node.
+  // More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#capacity
+  // +optional
+  repeated Resource capacity = 4;
+
+  // Allocatable represents the resources of a node that are available for scheduling.
+  // Defaults to Capacity.
+  // +optional
+  repeated Resource allocatable = 5;
+
+  // List of addresses reachable to the node.
+  // Queried from cloud provider, if available.
+  // More info: https://kubernetes.io/docs/concepts/nodes/node/#addresses
+  // +optional
+  repeated NodeAddress addresses = 6;
+
+  // Set of ids/uuids to uniquely identify the node.
+  // More info: https://kubernetes.io/docs/concepts/nodes/node/#info
+  // +optional
+  NodeSystemInfo node_info = 7;
+}
+
+// NodeAddress contains information for the node's address.
+message NodeAddress {
+  // These are valid address type of node.
+  enum AddressType {
+    NodeUnknownAddr = 0;
+    NodeHostName    = 1;
+    NodeExternalIP  = 2;
+    NodeInternalIP  = 3;
+    NodeExternalDNS = 4;
+    NodeInternalDNS = 5;
+  }
+
+  // Node address type, one of Hostname, ExternalIP or InternalIP.
+  AddressType type = 1;
+
+  // The node address.
+  string address = 2;
+}
+
+// NodeSystemInfo is a set of ids/uuids to uniquely identify the node.
+message NodeSystemInfo {
+  // MachineID reported by the node. For unique machine identification
+  // in the cluster this field is preferred. Learn more from man(5)
+  // machine-id: http://man7.org/linux/man-pages/man5/machine-id.5.html
+  string machine_ID = 1;
+
+  // SystemUUID reported by the node. For unique machine identification
+  // MachineID is preferred. This field is specific to Red Hat hosts
+  // https://access.redhat.com/documentation/en-US/Red_Hat_Subscription_Management/1/html/RHSM/getting-system-uuid.html
+  string system_UUID = 2;
+
+  // Boot ID reported by the node.
+  string boot_ID = 3;
+
+  // Kernel Version reported by the node from 'uname -r'
+  // (e.g. 3.16.0-0.bpo.4-amd64).
+  string kernel_version = 4;
+
+  // OS Image reported by the node from /etc/os-release
+  // (e.g. Debian GNU/Linux 7 (wheezy)).
+  string os_image = 5;
+
+  // ContainerRuntime Version reported by the node through runtime remote API
+  // (e.g. docker://1.5.0).
+  string container_runtime_version = 6;
+
+  // Kubelet Version reported by the node.
+  string kubelet_version = 7;
+
+  // KubeProxy Version reported by the node.
+  string KubeProxyVersion = 8;
+  // The Operating System reported by the node
+
+  string OperatingSystem = 9;
+
+  // The Architecture reported by the node
+  string Architecture = 10;
+
+}
+
+

@@ -93,8 +93,15 @@ type ReflectorFunctions struct {
 	EventHdlrFunc cache.ResourceEventHandlerFuncs
 
 	ProtoAllocFunc ProtoAllocator
-	K8s2ProtoFunc  K8sToProtoConverter
+	K8s2NodeFunc   K8sToProtoConverter
 	K8sClntGetFunc K8sClientGetter
+}
+
+// dataStoreDownEvent starts all reflectors
+func startReflectors() {
+	for _, r := range reflectors {
+		r.Start()
+	}
 }
 
 // dataStoreDownEvent signals to all registered reflectors that the data store
@@ -410,7 +417,7 @@ func (r *Reflector) ksrDelete(key string) {
 // of k8s services. The subscription does not become active until Start()
 // is called.
 func (r *Reflector) ksrInit(stopCh <-chan struct{}, wg *sync.WaitGroup, prefix string,
-	k8sObjName string, k8sObjType k8sRuntime.Object, ksrFuncs ReflectorFunctions) error {
+	k8sResourceName string, k8sObjType k8sRuntime.Object, ksrFuncs ReflectorFunctions) error {
 
 	if _, objExists := reflectors[r.objType]; objExists {
 		return fmt.Errorf("%s reflector type already exists", r.objType)
@@ -423,7 +430,7 @@ func (r *Reflector) ksrInit(stopCh <-chan struct{}, wg *sync.WaitGroup, prefix s
 
 	r.prefix = prefix
 	r.pa = ksrFuncs.ProtoAllocFunc
-	r.kpc = ksrFuncs.K8s2ProtoFunc
+	r.kpc = ksrFuncs.K8s2NodeFunc
 
 	var restClient rest.Interface
 	if ksrFuncs.K8sClntGetFunc != nil {
@@ -433,7 +440,7 @@ func (r *Reflector) ksrInit(stopCh <-chan struct{}, wg *sync.WaitGroup, prefix s
 		restClient = r.K8sClientset.CoreV1().RESTClient()
 	}
 
-	listWatch := r.K8sListWatch.NewListWatchFromClient(restClient, k8sObjName, "", fields.Everything())
+	listWatch := r.K8sListWatch.NewListWatchFromClient(restClient, k8sResourceName, "", fields.Everything())
 	r.k8sStore, r.k8sController = r.K8sListWatch.NewInformer(
 		listWatch,
 		k8sObjType,

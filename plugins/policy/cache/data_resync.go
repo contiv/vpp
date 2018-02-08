@@ -68,6 +68,8 @@ func (pc *PolicyCache) resyncParseEvent(resyncEv datasync.ResyncEvent) *DataResy
 				err := evData.GetValue(value)
 				if err == nil {
 					event.Policies = append(event.Policies, value)
+					policyID := policymodel.GetID(value).String()
+					pc.configuredPolicies.RegisterPolicy(policyID, value)
 					numPolicy++
 				}
 				continue
@@ -80,6 +82,8 @@ func (pc *PolicyCache) resyncParseEvent(resyncEv datasync.ResyncEvent) *DataResy
 				err := evData.GetValue(value)
 				if err == nil {
 					event.Pods = append(event.Pods, value)
+					podID := podmodel.GetID(value).String()
+					pc.configuredPods.RegisterPod(podID, value)
 					numPod++
 				}
 				continue
@@ -92,6 +96,8 @@ func (pc *PolicyCache) resyncParseEvent(resyncEv datasync.ResyncEvent) *DataResy
 				err = evData.GetValue(value)
 				if err == nil {
 					event.Namespaces = append(event.Namespaces, value)
+					namespaceID := namespacemodel.GetID(value).String()
+					pc.configuredNamespaces.RegisterNamespace(namespaceID, value)
 					numNs++
 				}
 				continue

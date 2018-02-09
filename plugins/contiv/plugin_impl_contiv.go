@@ -93,6 +93,7 @@ type OneNodeConfig struct {
 	NodeName           string            // name of the node, should match withs the hostname
 	MainVppInterface   InterfaceWithIP   // main VPP interface used for the inter-node connectivity
 	OtherVPPInterfaces []InterfaceWithIP // other interfaces on VPP, not necessarily used for inter-node connectivity
+	StealInterface     string            // interface to be stolen from the host stack and bound to VPP
 	Gateway            string            // IP address of the default gateway
 }
 

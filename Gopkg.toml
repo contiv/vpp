@@ -119,6 +119,18 @@ required = ["github.com/wadey/gocovmerge", "github.com/docker/docker/api", "gith
   name = "k8s.io/client-go"
   revision = "82aa063804cf055e16e8911250f888bc216e8b61"
 
+[[constraint]]
+  name = "github.com/nerdtakula/supervisor"
+  revision = "5bf894f54fd79a23fa965bf078b2a094a9d9e20b"
+
+[[constraint]]
+  name = "github.com/safchain/ethtool"
+  revision = "7ff1ba29eca231991280817541cb3903f6be15d1"
+
+[[constraint]]
+  name = "github.com/vishvananda/netlink"
+  revision = "d35d6b58e1cb692b27b94fc403170bf44058ac3e"
+
 [prune]
   go-tests = true
   unused-packages = true

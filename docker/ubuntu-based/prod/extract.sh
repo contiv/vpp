@@ -28,6 +28,7 @@ rm -rf binaries
 mkdir -p binaries
 
 # extract the binaries into the binaries/ folder
+sudo docker cp ${CID}:/root/go/bin/contiv-init binaries/
 sudo docker cp ${CID}:/root/go/bin/contiv-agent binaries/
 sudo docker cp ${CID}:/root/go/bin/contiv-cri binaries/
 

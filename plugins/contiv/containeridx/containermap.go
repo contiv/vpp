@@ -15,6 +15,8 @@
 package containeridx
 
 import (
+	"time"
+
 	"github.com/ligato/cn-infra/core"
 	"github.com/ligato/cn-infra/idxmap"
 	"github.com/ligato/cn-infra/idxmap/mem"
@@ -26,7 +28,6 @@ import (
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/stn"
 	linux_intf "github.com/ligato/vpp-agent/plugins/linuxplugin/ifplugin/model/interfaces"
 	linux_l3 "github.com/ligato/vpp-agent/plugins/linuxplugin/l3plugin/model/l3"
-	"time"
 )
 
 const podNameKey = "podNameKey"

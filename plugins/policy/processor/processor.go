@@ -156,8 +156,33 @@ func (pp *PolicyProcessor) AddPod(podID podmodel.ID, pod *podmodel.Pod) error {
 
 // DelPod processes the event of a removed pod (no action needed).
 func (pp *PolicyProcessor) DelPod(podID podmodel.ID, pod *podmodel.Pod) error {
-	pp.Log.WithField("podID", podID).Info("Pod was removed")
-	/* Already un-configured when the pod has lost its IP address */
+	pp.Log.WithFields(logging.Fields{
+		"podID":   podID,
+		"del-pod": pod,
+	}).Info("Pod was removed")
+	if pod.Namespace == "kube-system" {
+		pp.Log.WithField("pod", pod).Info("Pod belongs to kube-system namespace, ignoring")
+		return nil
+	}
+
+	pods := []podmodel.ID{}
+	podPolicies := pp.getPoliciesAssignedToPod(pod)
+	for _, policy := range podPolicies {
+		pods = append(pods, pp.getPodsAssignedToPolicy(policy)...)
+	}
+	strPods := utils.RemoveDuplicates(utils.StringPodID(pods))
+	pods = utils.UnstringPodID(strPods)
+
+	// Re-configure only pods that belong to the current node.
+	hostPods := pp.filterHostPods(pods)
+
+	pp.Log.WithField("del-pod", pod).
+		Infof("Pods sent to Process: %+v", hostPods)
+
+	if len(hostPods) > 0 {
+		return pp.Process(false, hostPods)
+	}
+
 	return nil
 }
 
@@ -331,8 +356,33 @@ func (pp *PolicyProcessor) UpdateNamespace(oldNs, newNs *nsmodel.Namespace) erro
 		pp.Log.WithField("namespace", newNs).Error("Error reading Namespace")
 		return nil
 	}
-	// TODO
-	return pp.Process(false, pods)
+	if oldNs == nil {
+		pp.Log.WithField("namespace", oldNs).Error("Error reading Old Namespace")
+		return nil
+	}
+	// For every matched policy (before and now), find all the pods that have the policy attached.
+	oldPolicies := pp.getPoliciesAssignedToNamespace(oldNs)
+	for _, policy := range oldPolicies {
+		pods = append(pods, pp.getPodsAssignedToPolicy(policy)...)
+	}
+	newPolicies := pp.getPoliciesAssignedToNamespace(newNs)
+	for _, policy := range newPolicies {
+		pods = append(pods, pp.getPodsAssignedToPolicy(policy)...)
+	}
+	strPods := utils.RemoveDuplicates(utils.StringPodID(pods))
+	pods = utils.UnstringPodID(strPods)
+
+	// Re-configure only pods that belong to the current node.
+	hostPods := pp.filterHostPods(pods)
+
+	pp.Log.WithField("update-ns", newNs).
+		Infof("Pods sent to Process: %+v", hostPods)
+
+	if len(hostPods) > 0 {
+		return pp.Process(false, hostPods)
+	}
+
+	return nil
 }
 
 // Close deallocates all resources held by the processor.
@@ -455,6 +505,74 @@ func (pp *PolicyProcessor) getPoliciesAssignedToPod(pod *podmodel.Pod) (policies
 						continue
 					}
 
+					policies[dataPolicyID] = dataPolicy
+				}
+			}
+		}
+	}
+	return policies
+}
+
+// getPoliciesAssignedToNamespace returns all policies currently assigned to a namespace.
+func (pp *PolicyProcessor) getPoliciesAssignedToNamespace(ns *nsmodel.Namespace) (policies map[policymodel.ID]*policymodel.Policy) {
+	policies = make(map[policymodel.ID]*policymodel.Policy)
+	labelsMap := make(map[string]string)
+
+	nsLabels := ns.Label
+	for _, nsLabel := range nsLabels {
+		labelsMap[nsLabel.Key] = nsLabel.Value
+	}
+
+	// Fetch data of all policies from the cache.
+	allPolicies := pp.Cache.ListAllPolicies()
+	dataPolicies := []*policymodel.Policy{}
+	for _, policy := range allPolicies {
+		found, policyData := pp.Cache.LookupPolicy(policy)
+
+		if !found {
+			continue
+		}
+		dataPolicies = append(dataPolicies, policyData)
+	}
+
+	// Select policies that match pod's labels.
+	for _, dataPolicy := range dataPolicies {
+		dataPolicyID := policymodel.GetID(dataPolicy)
+		if len(dataPolicy.IngressRule) == 0 {
+			continue
+		} else {
+			for _, ingressRules := range dataPolicy.IngressRule {
+				for _, ingressRule := range ingressRules.From {
+					matchLabels := []*policymodel.Policy_Label{}
+
+					if ingressRule.Namespaces != nil {
+						matchLabels = ingressRule.Namespaces.MatchLabel
+						for _, label := range matchLabels {
+							if labelsMap[label.Key] != label.Value {
+								break
+							}
+						}
+					}
+					policies[dataPolicyID] = dataPolicy
+				}
+			}
+		}
+
+		if len(dataPolicy.EgressRule) == 0 {
+			continue
+		} else {
+			for _, egressRules := range dataPolicy.EgressRule {
+				for _, egressRule := range egressRules.To {
+					matchLabels := []*policymodel.Policy_Label{}
+
+					if egressRule.Namespaces != nil {
+						matchLabels = egressRule.Namespaces.MatchLabel
+						for _, label := range matchLabels {
+							if labelsMap[label.Key] != label.Value {
+								break
+							}
+						}
+					}
 					policies[dataPolicyID] = dataPolicy
 				}
 			}

@@ -22,18 +22,18 @@ import (
 )
 
 const (
-	// NamespaceKeyword defines the keyword identifying Namespace data.
+	// NodeKeyword defines the keyword identifying Node data.
 	NodeKeyword = "node"
 )
 
 // KeyPrefix returns the key prefix used in the data-store to save
-// the current state of every known K8s namespace.
+// the current state of every known K8s node.
 func KeyPrefix() string {
 	return ksrkey.KsrK8sPrefix + "/" + NodeKeyword
 }
 
-// ParseNamespaceFromKey parses namespace id from the associated data-store key.
-func ParseNamespaceFromKey(key string) (node string, err error) {
+// ParseNodeFromKey parses namespace id from the associated data-store key.
+func ParseNodeFromKey(key string) (node string, err error) {
 	keywords := strings.Split(key, "/")
 	if len(keywords) == 3 && keywords[0] == ksrkey.KsrK8sPrefix && keywords[1] == NodeKeyword {
 		return keywords[2], nil
@@ -42,7 +42,7 @@ func ParseNamespaceFromKey(key string) (node string, err error) {
 }
 
 // Key returns the key under which a configuration for the given
-// namespace should be stored in the data-store.
+// node should be stored in the data-store.
 func Key(node string) string {
 	return KeyPrefix() + "/" + node
 }

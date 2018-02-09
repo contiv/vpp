@@ -68,7 +68,7 @@ func (nr *NodeReflector) Init(stopCh2 <-chan struct{}, wg *sync.WaitGroup) error
 
 // addPod adds state data of a newly created K8s pod into the data store.
 func (nr *NodeReflector) addNode(obj interface{}) {
-	nr.Log.WithField("node", obj).Info("addNode")
+	nr.Log.WithField("node", obj).Debug("addNode")
 	k8sNode, ok := obj.(*coreV1.Node)
 	if !ok {
 		nr.Log.Warn("Failed to cast newly created node object")
@@ -83,7 +83,7 @@ func (nr *NodeReflector) addNode(obj interface{}) {
 
 // deleteNode deletes data of a removed K8s node from the data store.
 func (nr *NodeReflector) deleteNode(obj interface{}) {
-	nr.Log.WithField("node", obj).Info("deleteNode")
+	nr.Log.WithField("node", obj).Debug("deleteNode")
 	k8sNode, ok := obj.(*coreV1.Node)
 	if !ok {
 		nr.Log.Warn("Failed to cast newly created node object")
@@ -105,8 +105,8 @@ func (nr *NodeReflector) updateNode(oldObj, newObj interface{}) {
 		return
 	}
 
-	nr.Log.WithFields(map[string]interface{}{"pod-old": oldK8sNode, "pod-new": newK8sNode}).
-		Info("Node updated")
+	nr.Log.WithFields(map[string]interface{}{"node-old": oldK8sNode, "node-new": newK8sNode}).
+		Debug("Node updated")
 
 	key := node.Key(newK8sNode.GetName())
 	oldNodeProto := nr.nodeToProto(oldK8sNode)
@@ -114,11 +114,65 @@ func (nr *NodeReflector) updateNode(oldObj, newObj interface{}) {
 	nr.ksrUpdate(key, oldNodeProto, newNodeProto)
 }
 
-// nodeToProto converts node data from the k8s representation into contiv
-// protobuf-modelled data structure.
+// nodeToProto converts node data from the k8s representation into the
+// corresponding contiv protobuf-modelled data format.
 func (nr *NodeReflector) nodeToProto(k8sNode *coreV1.Node) *node.Node {
-	nr.Log.Infof("k8sNode: %+v", k8sNode)
 	nodeProto := &node.Node{}
 	nodeProto.Name = k8sNode.Name
+
+	nodeProto.Pod_CIDR = k8sNode.Spec.PodCIDR
+	nodeProto.Provider_ID = k8sNode.Spec.ProviderID
+	nodeProto.Addresses = getNodeAddresses(k8sNode.Status.Addresses)
+	nodeProto.NodeInfo = getNodeInfo(k8sNode.Status.NodeInfo)
+
 	return nodeProto
+}
+
+// getNodeAddresses converts node addresses from the k8s representation
+// into the corresponding contiv protobuf-modelled data format.
+func getNodeAddresses(k8sAddrs []coreV1.NodeAddress) []*node.NodeAddress {
+	var protoAddrs []*node.NodeAddress
+
+Loop:
+	for _, ka := range k8sAddrs {
+		pa := &node.NodeAddress{}
+		switch ka.Type {
+		case coreV1.NodeHostName:
+			pa.Type = node.NodeAddress_NodeHostName
+		case coreV1.NodeExternalIP:
+			pa.Type = node.NodeAddress_NodeExternalIP
+		case coreV1.NodeInternalIP:
+			pa.Type = node.NodeAddress_NodeInternalDNS
+		case coreV1.NodeExternalDNS:
+			pa.Type = node.NodeAddress_NodeExternalDNS
+		case coreV1.NodeInternalDNS:
+			pa.Type = node.NodeAddress_NodeInternalDNS
+		default:
+			continue Loop
+		}
+
+		pa.Address = ka.Address
+		protoAddrs = append(protoAddrs, pa)
+	}
+
+	return protoAddrs
+}
+
+// getNodeAddresses converts node system node info from the k8s representation
+// into the corresponding contiv protobuf-modelled data format.
+func getNodeInfo(kni coreV1.NodeSystemInfo) *node.NodeSystemInfo {
+	pni := &node.NodeSystemInfo{}
+
+	pni.Architecture = kni.Architecture
+	pni.Boot_ID = kni.BootID
+	pni.ContainerRuntimeVersion = kni.ContainerRuntimeVersion
+	pni.KernelVersion = kni.KernelVersion
+	pni.KubeletVersion = kni.KubeletVersion
+	pni.KubeProxyVersion = kni.KubeProxyVersion
+	pni.Machine_ID = kni.MachineID
+	pni.OperatingSystem = kni.OperatingSystem
+	pni.OsImage = kni.OSImage
+	pni.System_UUID = kni.SystemUUID
+
+	return pni
 }

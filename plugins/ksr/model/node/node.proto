@@ -33,32 +33,16 @@ message Node {
   // +optional
   string provider_ID = 3;
 
-  // ResourceList is a list of (resource name, quantity) pairs.
-  message Resource {
-    string name = 1;
-    int32 capacity = 2;
-  }
-
-  // Capacity represents the total resources of a node.
-  // More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#capacity
-  // +optional
-  repeated Resource capacity = 4;
-
-  // Allocatable represents the resources of a node that are available for scheduling.
-  // Defaults to Capacity.
-  // +optional
-  repeated Resource allocatable = 5;
-
   // List of addresses reachable to the node.
   // Queried from cloud provider, if available.
   // More info: https://kubernetes.io/docs/concepts/nodes/node/#addresses
   // +optional
-  repeated NodeAddress addresses = 6;
+  repeated NodeAddress addresses = 4;
 
   // Set of ids/uuids to uniquely identify the node.
   // More info: https://kubernetes.io/docs/concepts/nodes/node/#info
   // +optional
-  NodeSystemInfo node_info = 7;
+  NodeSystemInfo node_info = 5;
 }
 
 // NodeAddress contains information for the node's address.

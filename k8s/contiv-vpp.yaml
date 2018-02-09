@@ -270,7 +270,7 @@ spec:
         # This container installs the Contiv CNI binaries
         # and CNI network config file on each node.
         - name: contiv-cni
-          image: contivvpp/cni
+          image: contiv/vpp-cni
           imagePullPolicy: IfNotPresent
           volumeMounts:
             - mountPath: /opt/cni/bin
@@ -348,7 +348,7 @@ spec:
 
       containers:
         - name: contiv-ksr
-          image: contivvpp/ksr
+          image: contiv/vpp-ksr
           imagePullPolicy: IfNotPresent
           env:
             - name: ETCDV3_CONFIG

@@ -54,6 +54,8 @@ To use the development image for testing with specific version of VPP, see
 
   * Node configuration (section `NodeConfig`; one entry for each node)
     - `NodeName`: name of a Kubernetes node;
+    - `UseDhcpOnMainInt`: acquire IP address for the main VPP interface using DHCP 
+        (beware: renew of IP address is not supported)
     - `MainVppInterface`: name of the interface to be used for node-to-node connectivity.
        IP address is allocated from `HostNodeSubnetCidr` defined in the IPAM section OR can be specified manually:
       - `InterfaceName`: name of the main interface;

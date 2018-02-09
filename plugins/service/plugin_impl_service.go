@@ -34,6 +34,7 @@ import (
 	epmodel "github.com/contiv/vpp/plugins/ksr/model/endpoints"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	svcmodel "github.com/contiv/vpp/plugins/ksr/model/service"
+	"time"
 )
 
 // Plugin watches configuration of K8s resources (as reflected by KSR into ETCD)
@@ -173,6 +174,16 @@ func (p *Plugin) watchEvents() {
 }
 
 func (p *Plugin) handleResync(resyncChan chan resync.StatusEvent) {
+	// block until NodeIP is set
+	for {
+		nodeIP := p.Contiv.GetNodeIP()
+		if nodeIP != nil {
+			break
+		}
+		// TODO: remove sleep i.e: extend API of contiv plugin
+		time.Sleep(500 * time.Millisecond)
+	}
+
 	for {
 		select {
 		case ev := <-resyncChan:

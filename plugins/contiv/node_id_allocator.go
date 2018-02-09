@@ -116,6 +116,32 @@ func (ia *idAllocator) getID() (id uint8, err error) {
 	return uint8(ia.ID), nil
 }
 
+func (ia *idAllocator) updateIP(newIP string) error {
+	// make sure that ID is allocated
+	_, err := ia.getID()
+	if err != nil {
+		return err
+	}
+
+	ia.Lock()
+	defer ia.Unlock()
+	if ia.nodeIP == newIP {
+		return nil
+	}
+
+	ia.nodeIP = newIP
+
+	value := &node.NodeInfo{
+		Id:        ia.ID,
+		Name:      ia.nodeName,
+		IpAddress: ia.nodeIP,
+	}
+	err = ia.broker.Put(createKey(ia.ID), value)
+
+	return err
+
+}
+
 // releaseID returns allocated ID back to the pool
 func (ia *idAllocator) releaseID() error {
 	ia.Lock()

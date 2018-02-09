@@ -175,7 +175,7 @@ func (r *Reflector) stopDataStoreUpdates() {
 // ksrRun runs k8s subscription in a separate go routine.
 func (r *Reflector) ksrRun() {
 	defer r.wg.Done()
-	r.Log.Infof("%s reflector is now running", r.objType)
+	r.Log.Infof("%s reflector is now synced", r.objType)
 	r.k8sController.Run(r.ksrStopCh)
 	r.Log.Infof("%s reflector stopped", r.objType)
 }

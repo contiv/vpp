@@ -248,7 +248,8 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
         k8smaster.vm.network :private_network, type: "dhcp", auto_config: false
         k8smaster.vm.network :private_network, ip: base_ip + "10", virtualbox__intnet: "true"
         k8smaster.vm.provider "virtualbox" do |v|
-            v.memory = 4096
+            v.customize ["modifyvm", :id, "--ioapic", "on"]
+            v.memory = 2048
             v.cpus = 2
         end
         k8smaster_ip = base_ip + "51"
@@ -274,8 +275,9 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
             #node.vm.network :private_network, ip: "node_addr", virtualbox__intnet: "true"
             node.vm.network :private_network, ip: base_ip + "11", virtualbox__intnet: "true"
             node.vm.provider "virtualbox" do |v|
-                v.memory = 4096
-                v.cpus = 2
+            v.customize ["modifyvm", :id, "--ioapic", "on"]
+            v.memory = 2048
+            v.cpus = 2
             end
             node_ip_last = n+10
             #node.vm.provision :shell, inline: "sed 's/127\.0\.0\.1.*k8s.*/192\.169\.1\.#{node_ip_last} #{node_name}/' -i /etc/hosts"

@@ -551,9 +551,9 @@ func (pp *PolicyProcessor) getPoliciesAssignedToNamespace(ns *nsmodel.Namespace)
 							if labelsMap[label.Key] != label.Value {
 								break
 							}
+							policies[dataPolicyID] = dataPolicy
 						}
 					}
-					policies[dataPolicyID] = dataPolicy
 				}
 			}
 		}
@@ -571,9 +571,9 @@ func (pp *PolicyProcessor) getPoliciesAssignedToNamespace(ns *nsmodel.Namespace)
 							if labelsMap[label.Key] != label.Value {
 								break
 							}
+							policies[dataPolicyID] = dataPolicy
 						}
 					}
-					policies[dataPolicyID] = dataPolicy
 				}
 			}
 		}

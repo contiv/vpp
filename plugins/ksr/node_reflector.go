@@ -142,7 +142,7 @@ Loop:
 		case coreV1.NodeExternalIP:
 			pa.Type = node.NodeAddress_NodeExternalIP
 		case coreV1.NodeInternalIP:
-			pa.Type = node.NodeAddress_NodeInternalDNS
+			pa.Type = node.NodeAddress_NodeInternalIP
 		case coreV1.NodeExternalDNS:
 			pa.Type = node.NodeAddress_NodeExternalDNS
 		case coreV1.NodeInternalDNS:

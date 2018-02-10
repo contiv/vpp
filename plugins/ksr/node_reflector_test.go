@@ -317,7 +317,7 @@ func testUpdateNode(t *testing.T) {
 	gomega.Expect(upds).To(gomega.Equal(nodeTestVars.nodeReflector.GetStats().Updates))
 
 	// Test update where everything is good
-	k8sNodeNew.Status.Addresses[0].Address="24.56.78.90"
+	k8sNodeNew.Status.Addresses[0].Address = "24.56.78.90"
 	nodeTestVars.k8sListWatch.Update(k8sNodeOld, k8sNodeNew)
 	gomega.Expect(upds + 1).To(gomega.Equal(nodeTestVars.nodeReflector.GetStats().Updates))
 

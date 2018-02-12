@@ -26,9 +26,9 @@ import (
 	"github.com/contiv/vpp/plugins/ksr/model/pod"
 )
 
-// PodReflector subscribes to K8s cluster to watch for changes
-// in the configuration of k8s pods.
-// Protobuf-modelled changes are published into the selected key-value store.
+// PodReflector subscribes to K8s cluster to watch for changes in the
+// configuration of k8s pods. Protobuf-modelled changes are published
+// into the selected key-value store.
 type PodReflector struct {
 	Reflector
 }
@@ -53,7 +53,7 @@ func (pr *PodReflector) Init(stopCh2 <-chan struct{}, wg *sync.WaitGroup) error 
 		ProtoAllocFunc: func() proto.Message {
 			return &pod.Pod{}
 		},
-		K8s2ProtoFunc: func(k8sObj interface{}) (interface{}, string, bool) {
+		K8s2NodeFunc: func(k8sObj interface{}) (interface{}, string, bool) {
 			k8sPod, ok := k8sObj.(*coreV1.Pod)
 			if !ok {
 				pr.Log.Errorf("pod syncDataStore: wrong object type %s, obj %+v",
@@ -69,7 +69,7 @@ func (pr *PodReflector) Init(stopCh2 <-chan struct{}, wg *sync.WaitGroup) error 
 
 // addPod adds state data of a newly created K8s pod into the data store.
 func (pr *PodReflector) addPod(obj interface{}) {
-	pr.Log.WithField("service", obj).Info("addPod")
+	pr.Log.WithField("pod", obj).Info("addPod")
 	k8sPod, ok := obj.(*coreV1.Pod)
 	if !ok {
 		pr.Log.Warn("Failed to cast newly created pod object")
@@ -84,7 +84,7 @@ func (pr *PodReflector) addPod(obj interface{}) {
 
 // deletePod deletes state data of a removed K8s pod from the data store.
 func (pr *PodReflector) deletePod(obj interface{}) {
-	pr.Log.WithField("service", obj).Info("addPod")
+	pr.Log.WithField("pod", obj).Info("deletePod")
 	k8sPod, ok := obj.(*coreV1.Pod)
 	if !ok {
 		pr.Log.Warn("Failed to cast newly created pod object")
@@ -96,7 +96,7 @@ func (pr *PodReflector) deletePod(obj interface{}) {
 	pr.ksrDelete(key)
 }
 
-// updatePod updates state data of a changes K8s pod in the data store.
+// updatePod updates state data of a changed K8s pod in the data store.
 func (pr *PodReflector) updatePod(oldObj, newObj interface{}) {
 	oldK8sPod, ok1 := oldObj.(*coreV1.Pod)
 	newK8sPod, ok2 := newObj.(*coreV1.Pod)

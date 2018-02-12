@@ -51,7 +51,7 @@ func (nr *NamespaceReflector) Init(stopCh2 <-chan struct{}, wg *sync.WaitGroup) 
 		ProtoAllocFunc: func() proto.Message {
 			return &namespace.Namespace{}
 		},
-		K8s2ProtoFunc: func(k8sObj interface{}) (interface{}, string, bool) {
+		K8s2NodeFunc: func(k8sObj interface{}) (interface{}, string, bool) {
 			k8sNsp, ok := k8sObj.(*coreV1.Namespace)
 			if !ok {
 				nr.Log.Errorf("service syncDataStore: wrong object type %s, obj %+v",

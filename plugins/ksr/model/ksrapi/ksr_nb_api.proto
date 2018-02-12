@@ -63,4 +63,7 @@ message Stats {
 
     // Statistics for the Service Reflector
     KsrStats serviceStats = 5;
+
+    // Statistics for the Node Reflector
+    KsrStats nodeStats = 6;
 }

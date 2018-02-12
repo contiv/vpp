@@ -48,6 +48,7 @@ import (
 	vpp_l3 "github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/l3"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/ifaceidx"
 
+	"github.com/contiv/vpp/plugins/contiv/bin_api/dhcp"
 	"github.com/contiv/vpp/plugins/contiv/ipam"
 	"github.com/ligato/cn-infra/datasync"
 	"github.com/onsi/gomega"
@@ -106,6 +107,19 @@ var (
 			},
 		},
 	}
+	nodeDHCPConfig = OneNodeConfig{
+		NodeName:         "test-node",
+		UseDhcpOnMainInt: true,
+		MainVppInterface: InterfaceWithIP{
+			InterfaceName: "GigabitEthernet0/0/0/1",
+		},
+		OtherVPPInterfaces: []InterfaceWithIP{
+			{
+				InterfaceName: "GigabitEthernet0/0/0/10",
+				IP:            "192.168.1.10/24",
+			},
+		},
+	}
 	otherNodeInfo = node.NodeInfo{
 		Id:        5,
 		Name:      "node5",
@@ -113,8 +127,13 @@ var (
 	}
 )
 
-func setupTestCNIServer(config *Config, nodeConfig *OneNodeConfig) (*remoteCNIserver, *localclient.TxnTracker, *containeridx.ConfigIndex) {
+func setupTestCNIServer(config *Config, nodeConfig *OneNodeConfig, existingInterfaces ...string) (*remoteCNIserver, *localclient.TxnTracker, *containeridx.ConfigIndex) {
 	swIfIdx := swIfIndexMock()
+	// add existing interfaces into swIfIndex
+	for i, intf := range existingInterfaces {
+		swIfIdx.RegisterName(intf, uint32(i+1), nil)
+	}
+
 	txns := localclient.NewTxnTracker(addIfsIntoTheIndex(swIfIdx))
 	configuredContainers := containeridx.NewConfigIndex(logrus.DefaultLogger(), core.PluginName("Plugin-name"), "title")
 
@@ -245,6 +264,27 @@ func TestConfigureVswitchTap(t *testing.T) {
 	gomega.Expect(len(txns.CommittedTxns)).To(gomega.BeEquivalentTo(5))
 }
 
+func TestConfigureVswitchDHCP(t *testing.T) {
+	gomega.RegisterTestingT(t)
+
+	server, txns, _ := setupTestCNIServer(&configTapVxlanTCP, &nodeDHCPConfig, nodeDHCPConfig.MainVppInterface.InterfaceName)
+
+	// exec resync to configure vswitch
+	err := server.resync()
+	gomega.Expect(err).To(gomega.BeNil())
+
+	gomega.Expect(len(txns.CommittedTxns)).To(gomega.BeEquivalentTo(4))
+	// TODO add asserts for txns(one linux plugin txn and one default plugins txn) / currently applied config
+
+	// node IP is empty since DHCP reply have not been received
+	gomega.Expect(server.GetNodeIP()).To(gomega.BeEmpty())
+	// host interconnect IF must be configured
+	gomega.Expect(server.GetHostInterconnectIfName()).ToNot(gomega.BeEmpty())
+
+	server.close()
+	gomega.Expect(len(txns.CommittedTxns)).To(gomega.BeEquivalentTo(5))
+}
+
 func TestNodeAddDelL2(t *testing.T) {
 	gomega.RegisterTestingT(t)
 
@@ -326,6 +366,7 @@ func vppChanMock() *api.Channel {
 	vppMock.RegisterBinAPITypes(vpe.Types)
 	vppMock.RegisterBinAPITypes(vxlan.Types)
 	vppMock.RegisterBinAPITypes(ip.Types)
+	vppMock.RegisterBinAPITypes(dhcp.Types)
 
 	vppMock.MockReplyHandler(func(request govppmock.MessageDTO) (reply []byte, msgID uint16, prepared bool) {
 		reqName, found := vppMock.GetMsgNameByID(request.MsgID)

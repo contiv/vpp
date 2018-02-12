@@ -289,10 +289,11 @@ func (s *remoteCNIserver) configureVswitchConnectivity() error {
 		return err
 	}
 
-	// set the state to configured and broadcast
-	s.vswitchConnectivityConfigured = true
-	s.vswitchCond.Broadcast()
-
+	if s.nodeIP != "" {
+		// set the state to configured and broadcast
+		s.vswitchConnectivityConfigured = true
+		s.vswitchCond.Broadcast()
+	}
 	return err
 }
 
@@ -359,9 +360,11 @@ func (s *remoteCNIserver) configureMainVPPInterface(config *vswitchConfig, nicNa
 	txn1 := s.vppTxnFactory().Put()
 
 	// determine main node IP address
-	if nicIP != "" {
+	if useDHCP {
+		// ip address will be assigned by DHCP server, not known yet
+	} else if nicIP != "" {
 		s.setNodeIP(nicIP)
-	} else if !useDHCP {
+	} else {
 		nodeIP, err := s.ipam.NodeIPWithPrefix(s.ipam.NodeID())
 		if err != nil {
 			s.Logger.Error("Unable to generate node IP address.")
@@ -457,9 +460,11 @@ func (s *remoteCNIserver) handleDHCPNotifications(notifCh chan govppapi.Message)
 					ipAddr = fmt.Sprintf("%s/%d", net.IP(notif.HostAddress[:4]).To4().String(), notif.MaskWidth)
 				}
 				s.Lock()
-				if s.nodeIP != "" {
+				if s.nodeIP != "" && s.nodeIP != ipAddr {
 					s.Logger.Error("Update of Node IP address is not supported")
 				}
+				s.vswitchConnectivityConfigured = true
+				s.vswitchCond.Broadcast()
 				s.setNodeIP(ipAddr)
 				s.Unlock()
 

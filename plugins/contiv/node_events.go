@@ -81,9 +81,12 @@ func (s *remoteCNIserver) nodeResync(dataResyncEv datasync.ResyncEvent) error {
 
 				if nodeID != s.ipam.NodeID() {
 					s.Logger.Info("Other node discovered: ", nodeID)
-
-					// add routes to the node
-					err = s.addRoutesToNode(nodeInfo)
+					if nodeInfo.IpAddress != "" {
+						// add routes to the node
+						err = s.addRoutesToNode(nodeInfo)
+					} else {
+						s.Logger.Infof("Ip address of node %v is not known yet.")
+					}
 				}
 			}
 		}

@@ -127,7 +127,7 @@ var (
 	}
 )
 
-func setupTestCNIServer(config *Config, nodeConfig *OneNodeConfig, existingInterfaces ...string) (*remoteCNIserver, *localclient.TxnTracker, *containeridx.ConfigIndex) {
+func setupTestCNIServer(config *Config, nodeConfig *OneNodeConfig, existingInterfaces ...string) (*remoteCNIserver, *localclient.TxnTracker, *containeridx.ConfigIndex, *govpp.Connection) {
 	swIfIdx := swIfIndexMock()
 	// add existing interfaces into swIfIndex
 	for i, intf := range existingInterfaces {
@@ -137,11 +137,13 @@ func setupTestCNIServer(config *Config, nodeConfig *OneNodeConfig, existingInter
 	txns := localclient.NewTxnTracker(addIfsIntoTheIndex(swIfIdx))
 	configuredContainers := containeridx.NewConfigIndex(logrus.DefaultLogger(), core.PluginName("Plugin-name"), "title")
 
+	vppMockChan, vppMockConn := vppChanMock()
+
 	server, err := newRemoteCNIServer(logrus.DefaultLogger(),
 		txns.NewLinuxDataChangeTxn,
 		kvdbproxy.NewKvdbsyncMock(),
 		configuredContainers,
-		vppChanMock(),
+		vppMockChan,
 		swIfIdx,
 		"testLabel",
 		config,
@@ -150,13 +152,14 @@ func setupTestCNIServer(config *Config, nodeConfig *OneNodeConfig, existingInter
 	server.test = true
 	gomega.Expect(err).To(gomega.BeNil())
 
-	return server, txns, configuredContainers
+	return server, txns, configuredContainers, vppMockConn
 }
 
 func TestAddDelVeth(t *testing.T) {
 	gomega.RegisterTestingT(t)
 
-	server, txns, configuredContainers := setupTestCNIServer(&configVethL2NoTCP, nil)
+	server, txns, configuredContainers, conn := setupTestCNIServer(&configVethL2NoTCP, nil)
+	defer conn.Disconnect()
 
 	// pretend that connectivity is configured to unblock CNI requests
 	server.vswitchConnectivityConfigured = true
@@ -183,10 +186,33 @@ func TestAddDelVeth(t *testing.T) {
 	gomega.Expect(reply).NotTo(gomega.BeNil())
 }
 
+func TestConfigureVswitchDHCP(t *testing.T) {
+	gomega.RegisterTestingT(t)
+
+	server, txns, _, conn := setupTestCNIServer(&configTapVxlanTCP, &nodeDHCPConfig, nodeDHCPConfig.MainVppInterface.InterfaceName)
+	defer conn.Disconnect()
+
+	// exec resync to configure vswitch
+	err := server.resync()
+	gomega.Expect(err).To(gomega.BeNil())
+
+	gomega.Expect(len(txns.CommittedTxns)).To(gomega.BeEquivalentTo(4))
+	// TODO add asserts for txns(one linux plugin txn and one default plugins txn) / currently applied config
+
+	// node IP is empty since DHCP reply have not been received
+	gomega.Expect(server.GetNodeIP()).To(gomega.BeEmpty())
+	// host interconnect IF must be configured
+	gomega.Expect(server.GetHostInterconnectIfName()).ToNot(gomega.BeEmpty())
+
+	server.close()
+	gomega.Expect(len(txns.CommittedTxns)).To(gomega.BeEquivalentTo(5))
+}
+
 func TestAddDelTap(t *testing.T) {
 	gomega.RegisterTestingT(t)
 
-	server, txns, configuredContainers := setupTestCNIServer(&configTapVxlanTCP, &nodeConfig)
+	server, txns, configuredContainers, conn := setupTestCNIServer(&configTapVxlanTCP, &nodeConfig)
+	defer conn.Disconnect()
 
 	// pretend that connectivity is configured to unblock CNI requests
 	server.vswitchConnectivityConfigured = true
@@ -217,7 +243,8 @@ func TestAddDelTap(t *testing.T) {
 func TestConfigureVswitchVeth(t *testing.T) {
 	gomega.RegisterTestingT(t)
 
-	server, txns, _ := setupTestCNIServer(&configVethL2NoTCP, &nodeConfig)
+	server, txns, _, conn := setupTestCNIServer(&configVethL2NoTCP, &nodeConfig)
+	defer conn.Disconnect()
 
 	// exec resync to configure vswitch
 	err := server.resync()
@@ -244,7 +271,8 @@ func TestConfigureVswitchVeth(t *testing.T) {
 func TestConfigureVswitchTap(t *testing.T) {
 	gomega.RegisterTestingT(t)
 
-	server, txns, _ := setupTestCNIServer(&configTapVxlanTCP, nil)
+	server, txns, _, conn := setupTestCNIServer(&configTapVxlanTCP, nil)
+	defer conn.Disconnect()
 
 	// exec resync to configure vswitch
 	err := server.resync()
@@ -264,31 +292,11 @@ func TestConfigureVswitchTap(t *testing.T) {
 	gomega.Expect(len(txns.CommittedTxns)).To(gomega.BeEquivalentTo(5))
 }
 
-func TestConfigureVswitchDHCP(t *testing.T) {
-	gomega.RegisterTestingT(t)
-
-	server, txns, _ := setupTestCNIServer(&configTapVxlanTCP, &nodeDHCPConfig, nodeDHCPConfig.MainVppInterface.InterfaceName)
-
-	// exec resync to configure vswitch
-	err := server.resync()
-	gomega.Expect(err).To(gomega.BeNil())
-
-	gomega.Expect(len(txns.CommittedTxns)).To(gomega.BeEquivalentTo(4))
-	// TODO add asserts for txns(one linux plugin txn and one default plugins txn) / currently applied config
-
-	// node IP is empty since DHCP reply have not been received
-	gomega.Expect(server.GetNodeIP()).To(gomega.BeEmpty())
-	// host interconnect IF must be configured
-	gomega.Expect(server.GetHostInterconnectIfName()).ToNot(gomega.BeEmpty())
-
-	server.close()
-	gomega.Expect(len(txns.CommittedTxns)).To(gomega.BeEquivalentTo(5))
-}
-
 func TestNodeAddDelL2(t *testing.T) {
 	gomega.RegisterTestingT(t)
 
-	server, txns, _ := setupTestCNIServer(&configVethL2NoTCP, nil)
+	server, txns, _, conn := setupTestCNIServer(&configVethL2NoTCP, nil)
+	defer conn.Disconnect()
 
 	// exec resync to configure vswitch
 	err := server.resync()
@@ -313,7 +321,8 @@ func TestNodeAddDelL2(t *testing.T) {
 func TestNodeAddDelVXLAN(t *testing.T) {
 	gomega.RegisterTestingT(t)
 
-	server, txns, _ := setupTestCNIServer(&configTapVxlanTCP, nil)
+	server, txns, _, conn := setupTestCNIServer(&configTapVxlanTCP, nil)
+	defer conn.Disconnect()
 
 	// exec resync to configure vswitch
 	err := server.resync()
@@ -357,7 +366,7 @@ func TestVeth1NameFromRequest(t *testing.T) {
 	gomega.Expect(hostIfName).To(gomega.BeEquivalentTo("eth0"))
 }
 
-func vppChanMock() *api.Channel {
+func vppChanMock() (*api.Channel, *govpp.Connection) {
 	vppMock := &mock.VppAdapter{}
 	vppMock.RegisterBinAPITypes(interfaces_bin.Types)
 	vppMock.RegisterBinAPITypes(memif.Types)
@@ -432,11 +441,11 @@ func vppChanMock() *api.Channel {
 
 	conn, err := govpp.Connect(vppMock)
 	if err != nil {
-		return nil
+		return nil, nil
 	}
 
 	c, _ := conn.NewAPIChannel()
-	return c
+	return c, conn
 }
 
 func addIfsIntoTheIndex(mapping ifaceidx.SwIfIndexRW) func(txn *localclient.Txn) error {

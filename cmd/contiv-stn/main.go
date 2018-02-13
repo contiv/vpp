@@ -39,8 +39,11 @@ const (
 	defaultGRPCServerPort  = 50051 // port where the GRPC STN server listens for client connections
 	defaultStatusCheckPort = 9999  // port that STN server is checking to determine contive-agent liveness
 
-	initStatusCheckTimeout = 10 // initial timeout (in seconds) after which the STN server starts checking of the contiv-agent state
-	statusCheckInterval    = 1  // periodic interval (in seconds) in which the STN server checks for contiv-agent state
+	initStatusCheckTimeout = 10 * time.Second // initial timeout after which the STN server starts checking of the contiv-agent state
+	statusCheckInterval    = 1 * time.Second  // periodic interval in which the STN server checks for contiv-agent state
+
+	configRetryCount = 20                    // number of config attempts in case that an error is returned / config is not applied correctly
+	configRetrySleep = 50 * time.Millisecond // sleep interval between individual config retry attempts
 )
 
 var (
@@ -230,26 +233,14 @@ func (s *stnServer) revertLink(ifData *interfaceData) error {
 	}
 
 	// try to find the link in a loop (some time is needed in case it has been just bound to a new driver)
-	var link netlink.Link
-	for i := 0; i <= 5; i++ {
-		link, err = netlink.LinkByName(ifData.name)
-		if err != nil {
-			if i < 5 {
-				// wait & retry
-				time.Sleep(50 * time.Millisecond)
-				continue
-			} else {
-				// not able to find the link in multiple retries
-				log.Printf("Error by looking up for interface %s: %v", ifData.name, err)
-				return err
-			}
-		}
-		// found the link
-		break
+	link, err := s.findLinkByName(ifData.name)
+	if err != nil {
+		log.Printf("Error by looking up for interface %s: %v", ifData.name, err)
+		return err
 	}
 
 	// enable the interface
-	err = netlink.LinkSetUp(link)
+	err = s.setLinkUp(link)
 	if err != nil {
 		log.Printf("Error by enabling interface %s: %v", ifData.name, err)
 		return err
@@ -257,35 +248,170 @@ func (s *stnServer) revertLink(ifData *interfaceData) error {
 
 	// configure IP addresses
 	for _, addr := range ifData.addresses {
-		log.Printf("Adding IP address %s to interface %s (idx %d)", addr.String(), ifData.name, link.Attrs().Index)
-		err = netlink.AddrAdd(link, &addr)
+		err = s.setLinkIP(link, addr)
 		if err != nil {
-			if errno, ok := err.(syscall.Errno); ok && errno == syscall.EEXIST {
-				log.Printf("%s: IP %s already exists, skipping", ifData.name, addr.IP.String())
-			} else {
-				log.Printf("Error by reverting interface %s address %s: %v", ifData.name, addr.IP.String(), err)
-				return err
-			}
+			log.Printf("Error by reverting interface %s IP: %v", ifData.name, err)
+			return err
 		}
 	}
 
 	// configure routes
 	for _, r := range ifData.routes {
-		log.Printf("Adding route to %s for interface %s", r.Dst.String(), ifData.name)
 		s.updateLinkInRoute(&r, ifData.linkIndex, link.Attrs().Index)
-		err = netlink.RouteAdd(&r)
+		err = s.addLinkRoute(link, r)
 		if err != nil {
-			if errno, ok := err.(syscall.Errno); ok && errno == syscall.EEXIST {
-				log.Printf("%s: route to %s already exists, skipping", ifData.name, r.Dst.IP.String())
-			} else {
-				log.Printf("Error by reverting interface %s route to %s: %v", ifData.name, r.Dst.IP.String(), err)
-				return err
-			}
+			log.Printf("Error by reverting interface %s route: %v", ifData.name, err)
+			return err
 		}
 	}
 
 	// delete the interface info
 	delete(s.stolenInterfaces, ifData.name)
+	return nil
+}
+
+// findLinkByName finds link by interface name. If link cannot be found, retries configRetryCount times.
+func (s *stnServer) findLinkByName(ifName string) (netlink.Link, error) {
+	for i := 0; i < configRetryCount; i++ {
+		link, err := netlink.LinkByName(ifName)
+		if err != nil {
+			if i < configRetryCount-1 {
+				// wait & retry
+				log.Printf("IP link lookup attempt %d failed, retry", i+1)
+				time.Sleep(configRetrySleep)
+				continue
+			} else {
+				// not able to find the link in multiple retries
+				log.Printf("Error by looking up for interface %s: %v", ifName, err)
+				return nil, err
+			}
+		}
+		// found the link
+		return link, nil
+	}
+	return nil, nil
+}
+
+// setLinkUp moves provided link to UP state. It also checks whether the state change has been succesfull and retries if not.
+func (s *stnServer) setLinkUp(link netlink.Link) error {
+	log.Printf("Setting interface %s (idx %d) to UP state", link.Attrs().Name, link.Attrs().Index)
+
+	for i := 0; i < configRetryCount; i++ {
+		// set link to UP state
+		err := netlink.LinkSetUp(link)
+		if err != nil {
+			log.Printf("Error by enabling interface %s: %v", link.Attrs().Name, err)
+			return err
+		}
+
+		// check whether the link is UP
+		l, err := netlink.LinkByName(link.Attrs().Name)
+		if err == nil {
+			if l.Attrs().OperState != netlink.OperUp {
+				// succesfully configured
+				return nil
+			}
+		}
+
+		// not configured succesfully
+		if i < configRetryCount-1 {
+			// wait & retry
+			log.Printf("Link UP check attempt %d failed, retry", i+1)
+			time.Sleep(configRetrySleep)
+			continue
+		} else {
+			// not able to configure in multiple retries
+			log.Printf("Error by enabling interface %s: not able to enable in %d retries", link.Attrs().Name, i+1)
+			return err
+		}
+	}
+
+	return nil
+}
+
+// setLinkIP sets an IP address on provided link. It also checks whether the config has been succesfully applied and retries if not.
+func (s *stnServer) setLinkIP(link netlink.Link, addr netlink.Addr) error {
+	log.Printf("Adding IP address %s to interface %s (idx %d)", addr.String(), link.Attrs().Name, link.Attrs().Index)
+
+	for i := 0; i < configRetryCount; i++ {
+		// configure the IP address
+		err := netlink.AddrAdd(link, &addr)
+		if err != nil {
+			if errno, ok := err.(syscall.Errno); ok && errno == syscall.EEXIST {
+				log.Printf("%s: IP %s already exists, skipping", link.Attrs().Name, addr.IP.String())
+				return nil
+			}
+			log.Printf("Error by configuring interface %s address %s: %v", link.Attrs().Name, addr.IP.String(), err)
+			return err
+		}
+
+		// check whether address has been configured properly
+		addrs, err := netlink.AddrList(link, netlink.FAMILY_V4)
+		if err == nil {
+			for _, a := range addrs {
+				if a.Equal(addr) {
+					// succesfully configured
+					return nil
+				}
+			}
+		}
+
+		// not configured succesfully
+		if i < configRetryCount-1 {
+			// wait & retry
+			log.Printf("IP address config check attempt %d failed, retry", i+1)
+			time.Sleep(configRetrySleep)
+			continue
+		} else {
+			// not able to configure in multiple retries
+			log.Printf("Error by configuring interface %s address %s: not able to configure in %d retries", link.Attrs().Name, addr.IP.String(), i+1)
+			return err
+		}
+	}
+
+	return nil
+}
+
+// addLinkRoute adds a new route referring the provided link. It also checks whether the config has been succesfully applied and retries if not.
+func (s *stnServer) addLinkRoute(link netlink.Link, route netlink.Route) error {
+	log.Printf("Adding route to %s for interface %s", route.Dst.String(), link.Attrs().Name)
+
+	for i := 0; i < configRetryCount; i++ {
+		// configure the route
+		err := netlink.RouteAdd(&route)
+		if err != nil {
+			if errno, ok := err.(syscall.Errno); ok && errno == syscall.EEXIST {
+				log.Printf("%s: route to %s already exists, skipping", link.Attrs().Name, route.Dst.IP.String())
+				return nil
+			}
+			log.Printf("Error by reverting interface %s route to %s: %v", link.Attrs().Name, route.Dst.IP.String(), err)
+			return err
+		}
+
+		// check whether the route has been configured properly
+		routes, err := netlink.RouteList(link, netlink.FAMILY_V4)
+		if err == nil {
+			for _, r := range routes {
+				if r.String() == route.String() {
+					// succesfully configured
+					return nil
+				}
+			}
+		}
+
+		// not configured succesfully
+		if i < configRetryCount-1 {
+			// wait & retry
+			log.Printf("Route config check attempt %d failed, retry", i+1)
+			time.Sleep(configRetrySleep)
+			continue
+		} else {
+			// not able to configure in multiple retries
+			log.Printf("Error by reverting interface %s route to %s in %d retries", link.Attrs().Name, route.Dst.IP.String(), i+1)
+			return err
+		}
+	}
+
 	return nil
 }
 
@@ -308,7 +434,7 @@ func (s *stnServer) revertAllLinks() {
 
 // checkStatusAfterTimeout starts checking the contiv-agent state after the init timeout.
 func (s *stnServer) checkStatusAfterTimeout() {
-	timer := time.NewTimer(initStatusCheckTimeout * time.Second)
+	timer := time.NewTimer(initStatusCheckTimeout)
 	go func() {
 		<-timer.C
 
@@ -328,7 +454,7 @@ func (s *stnServer) startStatusCheckLoop() {
 
 	s.statusCheckStarted = true
 
-	ticker := time.NewTicker(time.Second * statusCheckInterval)
+	ticker := time.NewTicker(statusCheckInterval)
 	go func() {
 		for {
 			<-ticker.C

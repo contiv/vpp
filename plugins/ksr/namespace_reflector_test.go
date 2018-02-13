@@ -30,8 +30,7 @@ import (
 
 type NamespaceTestVars struct {
 	k8sListWatch *mockK8sListWatch
-	mockKvWriter *mockKeyProtoValWriter
-	mockKvLister *mockKeyProtoValLister
+	mockKvBroker *mockKeyProtoValBroker
 	nsReflector  *NamespaceReflector
 	svc          *coreV1.Service
 	svcTestData  []coreV1.Service
@@ -46,18 +45,16 @@ func TestNamespaceReflector(t *testing.T) {
 	flavorLocal.Inject()
 
 	nsTestVars.k8sListWatch = &mockK8sListWatch{}
-	nsTestVars.mockKvWriter = newMockKeyProtoValWriter()
-	nsTestVars.mockKvLister = newMockKeyProtoValLister(nsTestVars.mockKvWriter.ds)
+	nsTestVars.mockKvBroker = newMockKeyProtoValBroker()
 
 	nsTestVars.nsReflector = &NamespaceReflector{
 		Reflector: Reflector{
 			Log:          flavorLocal.LoggerFor("namespace-reflector"),
 			K8sClientset: &kubernetes.Clientset{},
 			K8sListWatch: nsTestVars.k8sListWatch,
-			Writer:       nsTestVars.mockKvWriter,
-			Lister:       nsTestVars.mockKvLister,
+			Broker:       nsTestVars.mockKvBroker,
 			dsSynced:     false,
-			objType:      "Service",
+			objType:      namespaceObjType,
 		},
 	}
 
@@ -66,7 +63,7 @@ func TestNamespaceReflector(t *testing.T) {
 	err := nsTestVars.nsReflector.Init(stopCh, &wg)
 	gomega.Expect(err).To(gomega.BeNil())
 
-	nsTestVars.nsReflector.SyncDataStoreWithK8sCache()
+	nsTestVars.nsReflector.startDataStoreResync()
 
 	// Wait for the initial sync to finish
 	for {
@@ -77,7 +74,7 @@ func TestNamespaceReflector(t *testing.T) {
 	}
 
 	t.Run("addDeleteNamespace", testAddDeleteNamespace)
-	nsTestVars.mockKvWriter.ClearDs()
+	nsTestVars.mockKvBroker.ClearDs()
 	t.Run("updateNamespace", testUpdateeNamespace)
 }
 
@@ -90,46 +87,48 @@ func testAddDeleteNamespace(t *testing.T) {
 	ns.Labels["privileged"] = "true"
 
 	// Take a snapshot of counters
-	adds := nsTestVars.nsReflector.GetStats().NumAdds
-	argErrs := nsTestVars.nsReflector.GetStats().NumArgErrors
+	adds := nsTestVars.nsReflector.GetStats().Adds
+	argErrs := nsTestVars.nsReflector.GetStats().ArgErrors
 
 	// Test add with wrong argument type
 	nsTestVars.k8sListWatch.Add(&ns)
 
-	gomega.Expect(argErrs + 1).To(gomega.Equal(nsTestVars.nsReflector.GetStats().NumArgErrors))
-	gomega.Expect(adds).To(gomega.Equal(nsTestVars.nsReflector.GetStats().NumAdds))
+	gomega.Expect(argErrs + 1).To(gomega.Equal(nsTestVars.nsReflector.GetStats().ArgErrors))
+	gomega.Expect(adds).To(gomega.Equal(nsTestVars.nsReflector.GetStats().Adds))
 
 	// Test add where everything should be good
 	nsTestVars.k8sListWatch.Add(ns)
 
 	nsProto := &proto.Namespace{}
-	err := nsTestVars.mockKvWriter.GetValue(proto.Key(ns.GetName()), nsProto)
+	found, _, err := nsTestVars.mockKvBroker.GetValue(proto.Key(ns.GetName()), nsProto)
+
 	gomega.Expect(err).To(gomega.BeNil())
+	gomega.Expect(found).To(gomega.BeTrue())
 	gomega.Expect(nsProto).NotTo(gomega.BeNil())
 	gomega.Expect(nsProto.Name).To(gomega.Equal(ns.GetName()))
 	gomega.Expect(nsProto.Label).To(gomega.HaveLen(2))
 	gomega.Expect(nsProto.Label).To(gomega.ContainElement(&proto.Namespace_Label{Key: "role", Value: "mgmt"}))
 	gomega.Expect(nsProto.Label).To(gomega.ContainElement(&proto.Namespace_Label{Key: "privileged", Value: "true"}))
 
-	gomega.Expect(adds + 1).To(gomega.Equal(nsTestVars.nsReflector.GetStats().NumAdds))
+	gomega.Expect(adds + 1).To(gomega.Equal(nsTestVars.nsReflector.GetStats().Adds))
 
 	// Take a snapshot of counters
-	dels := nsTestVars.nsReflector.GetStats().NumDeletes
-	argErrs = nsTestVars.nsReflector.GetStats().NumArgErrors
+	dels := nsTestVars.nsReflector.GetStats().Deletes
+	argErrs = nsTestVars.nsReflector.GetStats().ArgErrors
 
 	nsTestVars.k8sListWatch.Delete(&ns)
 
 	// Test delete with wrong argument type
-	gomega.Expect(argErrs + 1).To(gomega.Equal(nsTestVars.nsReflector.GetStats().NumArgErrors))
-	gomega.Expect(dels).To(gomega.Equal(nsTestVars.nsReflector.GetStats().NumDeletes))
-	gomega.Expect(len(nsTestVars.mockKvWriter.ds)).Should(gomega.BeNumerically("==", 1))
+	gomega.Expect(argErrs + 1).To(gomega.Equal(nsTestVars.nsReflector.GetStats().ArgErrors))
+	gomega.Expect(dels).To(gomega.Equal(nsTestVars.nsReflector.GetStats().Deletes))
+	gomega.Expect(len(nsTestVars.mockKvBroker.ds)).Should(gomega.BeNumerically("==", 1))
 
 	// Test delete where everything should be good
 	nsTestVars.k8sListWatch.Delete(ns)
 
-	// NumArgErrors stat should roll and the data store should be empty
-	gomega.Expect(dels + 1).To(gomega.Equal(nsTestVars.nsReflector.GetStats().NumDeletes))
-	gomega.Expect(len(nsTestVars.mockKvWriter.ds)).Should(gomega.BeNumerically("==", 0))
+	// ArgErrors stat should roll and the data store should be empty
+	gomega.Expect(dels + 1).To(gomega.Equal(nsTestVars.nsReflector.GetStats().Deletes))
+	gomega.Expect(len(nsTestVars.mockKvBroker.ds)).Should(gomega.BeNumerically("==", 0))
 }
 
 func testUpdateeNamespace(t *testing.T) {
@@ -146,12 +145,14 @@ func testUpdateeNamespace(t *testing.T) {
 	nsNew.Labels["role"] = nsOld.Labels["role"]
 	nsNew.Labels["privileged"] = "false" // <-- Different value for flag "privileged"
 
-	adds := nsTestVars.nsReflector.GetStats().NumAdds
+	adds := nsTestVars.nsReflector.GetStats().Adds
 
 	nsTestVars.k8sListWatch.Add(nsOld)
 
 	nsProtoOld := &proto.Namespace{}
-	err := nsTestVars.mockKvWriter.GetValue(proto.Key(nsOld.GetName()), nsProtoOld)
+	found, _, err := nsTestVars.mockKvBroker.GetValue(proto.Key(nsOld.GetName()), nsProtoOld)
+
+	gomega.Expect(found).To(gomega.BeTrue())
 	gomega.Expect(err).To(gomega.BeNil())
 	gomega.Expect(nsProtoOld).NotTo(gomega.BeNil())
 	gomega.Expect(nsProtoOld.Name).To(gomega.Equal(nsOld.GetName()))
@@ -159,27 +160,28 @@ func testUpdateeNamespace(t *testing.T) {
 	gomega.Expect(nsProtoOld.Label).To(gomega.ContainElement(&proto.Namespace_Label{Key: "role", Value: "mgmt"}))
 	gomega.Expect(nsProtoOld.Label).To(gomega.ContainElement(&proto.Namespace_Label{Key: "privileged", Value: "true"}))
 
-	gomega.Expect(adds + 1).To(gomega.Equal(nsTestVars.nsReflector.GetStats().NumAdds))
+	gomega.Expect(adds + 1).To(gomega.Equal(nsTestVars.nsReflector.GetStats().Adds))
 
 	// Take a snapshot of counters
-	updates := nsTestVars.nsReflector.GetStats().NumUpdates
-	argErrs := nsTestVars.nsReflector.GetStats().NumArgErrors
+	updates := nsTestVars.nsReflector.GetStats().Updates
+	argErrs := nsTestVars.nsReflector.GetStats().ArgErrors
 
 	// Test update with wrong argument type
 	nsTestVars.k8sListWatch.Update(nsOld, &nsNew)
 
-	gomega.Expect(argErrs + 1).To(gomega.Equal(nsTestVars.nsReflector.GetStats().NumArgErrors))
-	gomega.Expect(updates).To(gomega.Equal(nsTestVars.nsReflector.GetStats().NumUpdates))
+	gomega.Expect(argErrs + 1).To(gomega.Equal(nsTestVars.nsReflector.GetStats().ArgErrors))
+	gomega.Expect(updates).To(gomega.Equal(nsTestVars.nsReflector.GetStats().Updates))
 
 	// Test update where everything should be good
 	nsTestVars.k8sListWatch.Update(nsOld, nsNew)
 
-	gomega.Expect(updates + 1).To(gomega.Equal(nsTestVars.nsReflector.GetStats().NumUpdates))
+	gomega.Expect(updates + 1).To(gomega.Equal(nsTestVars.nsReflector.GetStats().Updates))
 
 	nsProtoNew := &proto.Namespace{}
-	err = nsTestVars.mockKvWriter.GetValue(proto.Key(nsOld.GetName()), nsProtoNew)
-	gomega.Expect(err).To(gomega.BeNil())
+	found, _, err = nsTestVars.mockKvBroker.GetValue(proto.Key(nsOld.GetName()), nsProtoNew)
 
+	gomega.Expect(err).To(gomega.BeNil())
+	gomega.Expect(found).To(gomega.BeTrue())
 	gomega.Expect(nsProtoOld.Label).To(gomega.ContainElement(&proto.Namespace_Label{Key: "privileged", Value: "true"}))
 	gomega.Expect(nsProtoNew.Label).To(gomega.ContainElement(&proto.Namespace_Label{Key: "privileged", Value: "false"}))
 

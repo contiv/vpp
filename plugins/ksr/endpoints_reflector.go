@@ -57,7 +57,7 @@ func (epr *EndpointsReflector) Init(stopCh2 <-chan struct{}, wg *sync.WaitGroup)
 		ProtoAllocFunc: func() proto.Message {
 			return &endpoints.Endpoints{}
 		},
-		K8s2ProtoFunc: func(k8sObj interface{}) (interface{}, string, bool) {
+		K8s2NodeFunc: func(k8sObj interface{}) (interface{}, string, bool) {
 			k8sEps, ok := k8sObj.(*coreV1.Endpoints)
 			if !ok {
 				epr.Log.Errorf("endpoints syncDataStore: wrong object type %s, obj %+v",
@@ -76,7 +76,7 @@ func (epr *EndpointsReflector) addEndpoints(obj interface{}) {
 	eps, ok := obj.(*coreV1.Endpoints)
 	if !ok {
 		epr.Log.Warn("Failed to cast newly created endpoints object")
-		epr.stats.NumArgErrors++
+		epr.stats.ArgErrors++
 		return
 	}
 
@@ -96,7 +96,7 @@ func (epr *EndpointsReflector) deleteEndpoints(obj interface{}) {
 	eps, ok := obj.(*coreV1.Endpoints)
 	if !ok {
 		epr.Log.Warn("Failed to cast newly created endpoints object")
-		epr.stats.NumArgErrors++
+		epr.stats.ArgErrors++
 		return
 	}
 
@@ -110,13 +110,13 @@ func (epr *EndpointsReflector) deleteEndpoints(obj interface{}) {
 	epr.ksrDelete(key)
 }
 
-// updateEndpoints updates state data of a changes K8s endpoints in the data store.
+// updateEndpoints updates state data of a changed K8s endpoints in the data store.
 func (epr *EndpointsReflector) updateEndpoints(oldObj, newObj interface{}) {
 	epsOld, ok1 := oldObj.(*coreV1.Endpoints)
 	epsNew, ok2 := newObj.(*coreV1.Endpoints)
 	if !ok1 || !ok2 {
 		epr.Log.Warn("Failed to cast changed service object")
-		epr.stats.NumArgErrors++
+		epr.stats.ArgErrors++
 		return
 	}
 

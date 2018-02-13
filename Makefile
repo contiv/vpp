@@ -104,6 +104,12 @@ define format_only
     @echo "# done"
 endef
 
+# run all code quality tools in parallel
+define metalinter_only
+    @docker build -t vpp_metalinter -f ./docker/development/Dockerfile.metalinter .
+    @docker run --rm vpp_metalinter
+endef
+
 # build contiv agent
 define build_contiv_agent_only
     @echo "# building contiv-agent"
@@ -194,14 +200,6 @@ install:
 install-dep:
 	$(call install_dependencies)
 
-# update dependencies
-update-dep:
-	$(call update_dependencies)
-
-# unify sirupsen imports
-unify-sirupsen:
-	$(call unify_sirupsen)
-
 # generate structures
 generate:
 	$(call generate_sources)
@@ -221,6 +219,10 @@ test-cover-html:
 # run tests with XML coverage report
 test-cover-xml:
 	$(call test_cover_xml)
+
+# run all code quality tools in parallel
+metalinter:
+	$(call metalinter_only)
 
 # run & print code analysis
 lint:

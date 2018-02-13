@@ -21,7 +21,7 @@
 //
 //		Assigned node ID: 5
 //
-//		Calculated POD IPs: 10.1.5.2 - 10.1.5.2.254 (/24)
+//		Calculated POD IPs: 10.1.5.2 - 10.1.5.254 (/24)
 //		Calculated VPP-host interconnect IPs: 172.30.5.1, 172.30.5.2 (/24)
 //  	Calculated Node Interconnect IP:  192.168.16.5 (/24)
 package ipam

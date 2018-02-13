@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+//go:generate binapi-generator --input-file=/usr/share/vpp/api/dhcp.api.json --output-dir=bin_api
+
 package contiv
 
 import (
@@ -21,6 +23,8 @@ import (
 	"sync"
 
 	"git.fd.io/govpp.git/api"
+	govppapi "git.fd.io/govpp.git/api"
+	"github.com/contiv/vpp/plugins/contiv/bin_api/dhcp"
 	"github.com/contiv/vpp/plugins/contiv/containeridx"
 	"github.com/contiv/vpp/plugins/contiv/ipam"
 	"github.com/contiv/vpp/plugins/contiv/model/cni"
@@ -98,6 +102,9 @@ type remoteCNIserver struct {
 	// this node's main IP address
 	nodeIP string
 
+	// nodeIPsubsribers is a slice of channels that are notified when nodeIP is changed
+	nodeIPsubscribers []chan string
+
 	// node specific configuration
 	nodeConfig *OneNodeConfig
 
@@ -137,20 +144,27 @@ type remoteCNIserver struct {
 
 	// the name of an BVI interface facing towards VXLAN tunnels to other hosts
 	vxlanBVIIfName string
+
+	dhcpNotif chan govppapi.Message
+
+	ctx           context.Context
+	ctxCancelFunc context.CancelFunc
 }
 
 // vswitchConfig holds base vSwitch VPP configuration.
 type vswitchConfig struct {
-	nics []*vpp_intf.Interfaces_Interface
+	nics         []*vpp_intf.Interfaces_Interface
+	defaultRoute *vpp_l3.StaticRoutes_Route
 
 	tapHost        *vpp_intf.Interfaces_Interface
 	vethHost       *linux_intf.LinuxInterfaces_Interface
 	vethVpp        *linux_intf.LinuxInterfaces_Interface
 	interconnectAF *vpp_intf.Interfaces_Interface
 
-	routeToHost   *vpp_l3.StaticRoutes_Route
-	routeFromHost *linux_l3.LinuxStaticRoutes_Route
-	l4Features    *vpp_l4.L4Features
+	routesToHost     []*vpp_l3.StaticRoutes_Route
+	routeFromHost    *linux_l3.LinuxStaticRoutes_Route
+	routeForServices *linux_l3.LinuxStaticRoutes_Route
+	l4Features       *vpp_l4.L4Features
 
 	vxlanBVI *vpp_intf.Interfaces_Interface
 	vxlanBD  *vpp_l2.BridgeDomains_BridgeDomain
@@ -164,6 +178,7 @@ func newRemoteCNIServer(logger logging.Logger, vppTxnFactory func() linux.DataCh
 	if err != nil {
 		return nil, err
 	}
+
 	server := &remoteCNIserver{
 		Logger:                     logger,
 		vppTxnFactory:              vppTxnFactory,
@@ -184,6 +199,8 @@ func newRemoteCNIServer(logger logging.Logger, vppTxnFactory func() linux.DataCh
 		useL2Interconnect:          config.UseL2Interconnect,
 	}
 	server.vswitchCond = sync.NewCond(&server.Mutex)
+	server.ctx, server.ctxCancelFunc = context.WithCancel(context.Background())
+	server.dhcpNotif = make(chan govppapi.Message, 1)
 	return server, nil
 }
 
@@ -204,6 +221,8 @@ func (s *remoteCNIserver) resync() error {
 // close is called by the plugin infra when the CNI server needs to be stopped.
 func (s *remoteCNIserver) close() {
 	s.cleanupVswitchConnectivity()
+	s.ctxCancelFunc()
+	close(s.dhcpNotif)
 }
 
 // Add handles CNI Add request, connects the container to the network.
@@ -270,10 +289,11 @@ func (s *remoteCNIserver) configureVswitchConnectivity() error {
 		return err
 	}
 
-	// set the state to configured and broadcast
-	s.vswitchConnectivityConfigured = true
-	s.vswitchCond.Broadcast()
-
+	if s.nodeIP != "" {
+		// set the state to configured and broadcast
+		s.vswitchConnectivityConfigured = true
+		s.vswitchCond.Broadcast()
+	}
 	return err
 }
 
@@ -288,9 +308,11 @@ func (s *remoteCNIserver) configureVswitchNICs(config *vswitchConfig) error {
 
 	// find name of the main VPP NIC interface
 	nicName := ""
+	useDHCP := false
 	if s.nodeConfig != nil && strings.Trim(s.nodeConfig.MainVppInterface.InterfaceName, " ") != "" {
 		// use name as as specified in node config YAML
 		nicName = s.nodeConfig.MainVppInterface.InterfaceName
+		useDHCP = s.nodeConfig.UseDhcpOnMainInt
 		s.Logger.Debugf("Physical NIC name taken from nodeConfig: %v ", nicName)
 	} else {
 		// name not specified in config, use heuristic - first non-virtual interface
@@ -312,7 +334,7 @@ func (s *remoteCNIserver) configureVswitchNICs(config *vswitchConfig) error {
 	}
 
 	// configure the main VPP NIC interface
-	err := s.configureMainVPPInterface(config, nicName, nicIP)
+	err := s.configureMainVPPInterface(config, nicName, nicIP, useDHCP)
 	if err != nil {
 		s.Logger.Error(err)
 		return err
@@ -333,20 +355,22 @@ func (s *remoteCNIserver) configureVswitchNICs(config *vswitchConfig) error {
 }
 
 // configureMainVPPInterface configures the main NIC used for node interconnect on vswitch VPP.
-func (s *remoteCNIserver) configureMainVPPInterface(config *vswitchConfig, nicName string, nicIP string) error {
+func (s *remoteCNIserver) configureMainVPPInterface(config *vswitchConfig, nicName string, nicIP string, useDHCP bool) error {
 	var err error
 	txn1 := s.vppTxnFactory().Put()
 
 	// determine main node IP address
-	if nicIP != "" {
-		s.nodeIP = nicIP
+	if useDHCP {
+		// ip address will be assigned by DHCP server, not known yet
+	} else if nicIP != "" {
+		s.setNodeIP(nicIP)
 	} else {
 		nodeIP, err := s.ipam.NodeIPWithPrefix(s.ipam.NodeID())
 		if err != nil {
 			s.Logger.Error("Unable to generate node IP address.")
 			return err
 		}
-		s.nodeIP = nodeIP.String()
+		s.setNodeIP(nodeIP.String())
 	}
 
 	if nicName != "" {
@@ -354,6 +378,10 @@ func (s *remoteCNIserver) configureMainVPPInterface(config *vswitchConfig, nicNa
 		s.Logger.Info("Configuring physical NIC ", nicName)
 
 		nic := s.physicalInterface(nicName, s.nodeIP)
+		if useDHCP {
+			// clear IP addresses
+			nic.IpAddresses = []string{}
+		}
 		txn1.VppInterface(nic)
 		config.nics = append(config.nics, nic)
 		s.physicalIfs = append(s.physicalIfs, nicName)
@@ -366,6 +394,12 @@ func (s *remoteCNIserver) configureMainVPPInterface(config *vswitchConfig, nicNa
 		config.nics = append(config.nics, loop)
 	}
 
+	if nicName != "" && s.nodeConfig != nil && s.nodeConfig.Gateway != "" {
+		// configure the default gateway
+		config.defaultRoute = s.defaultRoute(s.nodeConfig.Gateway, nicName)
+		txn1.StaticRoute(config.defaultRoute)
+	}
+
 	// execute the config transaction
 	err = txn1.Send().ReceiveReply()
 	if err != nil {
@@ -373,7 +407,74 @@ func (s *remoteCNIserver) configureMainVPPInterface(config *vswitchConfig, nicNa
 		return err
 	}
 
+	if useDHCP {
+		err = s.configureDHCP(nicName)
+		if err != nil {
+			s.Logger.Error(err)
+			return err
+		}
+	}
+
 	return nil
+}
+
+func (s *remoteCNIserver) configureDHCP(nicName string) error {
+
+	_, err := s.govppChan.SubscribeNotification(s.dhcpNotif, dhcp.NewDhcpComplEvent)
+	if err != nil {
+		return err
+	}
+
+	idx, _, found := s.swIfIndex.LookupIdx(nicName)
+
+	if found {
+		req := &dhcp.DhcpClientConfig{}
+		req.SwIfIndex = idx
+		req.IsAdd = 1
+		req.WantDhcpEvent = 1
+
+		reply := &dhcp.DhcpClientConfigReply{}
+		err = s.govppChan.SendRequest(req).ReceiveReply(reply)
+		if err != nil {
+			return err
+		}
+	} else {
+		return fmt.Errorf("DHCP interfaces not found")
+	}
+
+	go s.handleDHCPNotifications(s.dhcpNotif)
+	return nil
+}
+
+func (s *remoteCNIserver) handleDHCPNotifications(notifCh chan govppapi.Message) {
+
+	for {
+		select {
+		case msg := <-notifCh:
+			switch notif := msg.(type) {
+			case *dhcp.DhcpComplEvent:
+				var ipAddr string
+				if notif.IsIpv6 == 1 {
+					ipAddr = fmt.Sprintf("%s/%d", net.IP(notif.HostAddress).To16().String(), notif.MaskWidth)
+				} else {
+					ipAddr = fmt.Sprintf("%s/%d", net.IP(notif.HostAddress[:4]).To4().String(), notif.MaskWidth)
+				}
+				s.Lock()
+				if s.nodeIP != "" && s.nodeIP != ipAddr {
+					s.Logger.Error("Update of Node IP address is not supported")
+				}
+				s.vswitchConnectivityConfigured = true
+				s.vswitchCond.Broadcast()
+				s.setNodeIP(ipAddr)
+				s.Unlock()
+
+				s.Logger.Info("DHCP event", *notif)
+			}
+		case <-s.ctx.Done():
+			return
+		}
+	}
+
 }
 
 // configureOtherVPPInterfaces other interfaces that were configured in contiv plugin YAML configuration.
@@ -464,15 +565,29 @@ func (s *remoteCNIserver) configureVswitchHostConnectivity(config *vswitchConfig
 		}
 	}
 
-	// configure static routes and enable L4 features
-	config.routeToHost = s.defaultRouteToHost()
-	config.routeFromHost = s.routeFromHost()
-	config.l4Features = s.l4Features(!s.disableTCPstack)
+	txn2 := s.vppTxnFactory().Put()
 
-	txn2 := s.vppTxnFactory().Put().
-		StaticRoute(config.routeToHost).
-		LinuxRoute(config.routeFromHost).
-		L4Features(config.l4Features)
+	// configure the routes from VPP to host interfaces
+	//
+	// TODO: this is a temporary solution, should be removed once
+	// the main node IP address as seen by k8s is determined by k8s API
+	config.routesToHost = s.routesToHost()
+	for _, r := range config.routesToHost {
+		s.Logger.Debug("Adding route to host IP: ", r)
+		txn2.StaticRoute(r)
+	}
+
+	// configure the route from the host to PODs
+	config.routeFromHost = s.routeFromHost()
+	txn2.LinuxRoute(config.routeFromHost)
+
+	// route from the host to k8s service range from the host
+	config.routeForServices = s.routeServicesFromHost()
+	txn2.LinuxRoute(config.routeForServices)
+
+	// enable L4 features
+	config.l4Features = s.l4Features(!s.disableTCPstack)
+	txn2.L4Features(config.l4Features)
 
 	// execute the config transaction
 	err = txn2.Send().ReceiveReply()
@@ -500,7 +615,9 @@ func (s *remoteCNIserver) configureVswitchVxlanBridgeDomain(config *vswitchConfi
 
 	// bridge domain for the VXLAN tunnel
 	config.vxlanBD = s.vxlanBridgeDomain(config.vxlanBVI.Name)
-	txn.BD(config.vxlanBD)
+	// create deep copy since the config will be overwritten when a node joins the cluster
+	newbd := proto.Clone(config.vxlanBD)
+	txn.BD(newbd.(*vpp_l2.BridgeDomains_BridgeDomain))
 	// remember the VXLAN config - needs to be reconfigured with each new VXLAN (each new node)
 	s.vxlanBD = config.vxlanBD
 
@@ -519,9 +636,12 @@ func (s *remoteCNIserver) persistVswitchConfig(config *vswitchConfig) error {
 	var err error
 	changes := map[string]proto.Message{}
 
-	// physical NICs
+	// physical NICs + default route
 	for _, nic := range config.nics {
 		changes[vpp_intf.InterfaceKey(nic.Name)] = nic
+	}
+	if config.defaultRoute != nil {
+		changes[vpp_l3.RouteKey(config.defaultRoute.VrfId, config.defaultRoute.DstIpAddr, config.defaultRoute.NextHopAddr)] = config.defaultRoute
 	}
 
 	// VXLAN-related data
@@ -540,8 +660,13 @@ func (s *remoteCNIserver) persistVswitchConfig(config *vswitchConfig) error {
 	}
 
 	// routes + l4 config
-	changes[vpp_l3.RouteKey(config.routeToHost.VrfId, config.routeToHost.DstIpAddr, config.routeToHost.NextHopAddr)] = config.routeToHost
+	if config.routesToHost != nil {
+		for _, r := range config.routesToHost {
+			changes[vpp_l3.RouteKey(r.VrfId, r.DstIpAddr, r.NextHopAddr)] = r
+		}
+	}
 	changes[linux_l3.StaticRouteKey(config.routeFromHost.Name)] = config.routeFromHost
+	changes[linux_l3.StaticRouteKey(config.routeForServices.Name)] = config.routeForServices
 	changes[vpp_l4.FeatureKey()] = config.l4Features
 
 	// persist the changes in ETCD
@@ -1119,4 +1244,30 @@ func (s *remoteCNIserver) GetNodeIP() net.IP {
 	}
 
 	return nodeIP
+}
+
+// WatchNodeIP adds given channel to the list of subscribers that are notified upon change
+// of nodeIP address. If the channel is not ready to receive notification, the notification is dropped.
+func (s *remoteCNIserver) WatchNodeIP(subscriber chan string) {
+	s.Lock()
+	defer s.Unlock()
+
+	s.nodeIPsubscribers = append(s.nodeIPsubscribers, subscriber)
+}
+
+// setNodeIP updates nodeIP and propagate the change to subscribers
+// the method must be called with acquired mutex guarding remoteCNI server
+func (s *remoteCNIserver) setNodeIP(nodeIP string) error {
+
+	s.nodeIP = nodeIP
+
+	for _, sub := range s.nodeIPsubscribers {
+		select {
+		case sub <- nodeIP:
+		default:
+			// skip subscribers who are not ready to receive notification
+		}
+	}
+
+	return nil
 }

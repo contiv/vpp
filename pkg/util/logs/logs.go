@@ -34,7 +34,7 @@ func init() {
 // GlogWriter serves as a bridge between the standard log package and the glog package.
 type GlogWriter struct{}
 
-// Write implements the io.Writer interface.
+// Write implements the io.broker interface.
 func (writer GlogWriter) Write(data []byte) (n int, err error) {
 	glog.Info(string(data))
 	return len(data), nil

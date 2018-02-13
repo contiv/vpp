@@ -51,7 +51,7 @@ func (nr *NamespaceReflector) Init(stopCh2 <-chan struct{}, wg *sync.WaitGroup) 
 		ProtoAllocFunc: func() proto.Message {
 			return &namespace.Namespace{}
 		},
-		K8s2ProtoFunc: func(k8sObj interface{}) (interface{}, string, bool) {
+		K8s2NodeFunc: func(k8sObj interface{}) (interface{}, string, bool) {
 			k8sNsp, ok := k8sObj.(*coreV1.Namespace)
 			if !ok {
 				nr.Log.Errorf("service syncDataStore: wrong object type %s, obj %+v",
@@ -74,7 +74,7 @@ func (nr *NamespaceReflector) addNamespace(obj interface{}) {
 	k8sNs, ok := obj.(*coreV1.Namespace)
 	if !ok {
 		nr.Log.Warn("Failed to cast to be deleted namespace object")
-		nr.stats.NumArgErrors++
+		nr.stats.ArgErrors++
 		return
 	}
 	nr.ksrAdd(namespace.Key(k8sNs.GetName()), nr.namespaceToProto(k8sNs))
@@ -88,7 +88,7 @@ func (nr *NamespaceReflector) deleteNamespace(obj interface{}) {
 	k8sNs, ok := obj.(*coreV1.Namespace)
 	if !ok {
 		nr.Log.Warn("Failed to cast to be deleted namespace object")
-		nr.stats.NumArgErrors++
+		nr.stats.ArgErrors++
 		return
 	}
 	nr.ksrDelete(namespace.Key(k8sNs.GetName()))
@@ -104,7 +104,7 @@ func (nr *NamespaceReflector) updateNamespace(oldObj, newObj interface{}) {
 	newK8sNs, ok2 := newObj.(*coreV1.Namespace)
 	if !ok1 || !ok2 {
 		nr.Log.Warn("Failed to cast changed namespace object")
-		nr.stats.NumArgErrors++
+		nr.stats.ArgErrors++
 		return
 	}
 	nr.ksrUpdate(namespace.Key(newK8sNs.GetName()),

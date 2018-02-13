@@ -58,7 +58,9 @@ can be brought up by running the vagrant-up.sh script.
 ### Exploring the cluster:
 Once the cluster is up, log into the master:
 ```
-Vagrant ssh k8s-master
+cd vagrant-scripts
+
+vagrant ssh k8s-master
 
 Welcome to Ubuntu 16.04 LTS (GNU/Linux 4.4.0-21-generic x86_64)
 
@@ -164,3 +166,12 @@ index.html.1                100%[=========================================>]    
 2018-01-19 12:34:08 (1.78 MB/s) - ‘index.html.1’ saved [612/612]
 ```
 
+#### How to SSH into k8s worker node
+
+```
+cd vagrant-scripts
+
+vagrant status
+
+vagrant ssh k8s-worker1
+```

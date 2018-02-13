@@ -52,15 +52,15 @@ type PolicyCacheAPI interface {
 	LookupPod(pod podmodel.ID) (found bool, data *podmodel.Pod)
 
 	// LookupPodsByLabelSelector evaluates label selector (expression and/or match
-	// labels) and returns IDs of matching pods.
+	// labels) and returns IDs of matching pods in a namespace.
 	LookupPodsByLabelSelector(podLabelSelector *policymodel.Policy_LabelSelector) (pods []podmodel.ID)
 
 	// LookupPodsByNSLabelSelector evaluates label selector (expression and/or match
-	// labels and returns IDs of matching pods in a namespace.
-	LookupPodsByNSLabelSelector(namespace string, podLabelSelector *policymodel.Policy_LabelSelector) (pods []podmodel.ID)
+	// labels and returns IDs of matching pods.
+	LookupPodsByNSLabelSelector(policyNamespace string, podLabelSelector *policymodel.Policy_LabelSelector) (pods []podmodel.ID)
 
 	// LookupPodsByNamespace returns IDs of all pods inside a given namespace.
-	LookupPodsByNamespace(namespace nsmodel.ID) (pods []podmodel.ID)
+	LookupPodsByNamespace(policyNamespace string) (pods []podmodel.ID)
 
 	// ListAllPods returns IDs of all known pods.
 	ListAllPods() (pods []podmodel.ID)
@@ -79,7 +79,7 @@ type PolicyCacheAPI interface {
 
 	// LookupNamespacesByLabelSelector evaluates label selector (expression
 	// and/or match labels) and returns IDs of matching namespaces.
-	LookupNamespacesByLabelSelector(nsLabelSelector *policymodel.Policy_LabelSelector) (namespaces []nsmodel.ID)
+	LookupNamespacesByLabelSelector(nsLabelSelector string) (namespaces []nsmodel.ID)
 
 	// ListAllNamespaces returns IDs of all known namespaces.
 	ListAllNamespaces() (namespaces []nsmodel.ID)
@@ -91,13 +91,13 @@ type PolicyCacheWatcher interface {
 	Resync(data *DataResyncEvent) error
 
 	// AddPod is called by Policy Cache when a new pod is created.
-	AddPod(pod *podmodel.Pod) error
+	AddPod(podID podmodel.ID, pod *podmodel.Pod) error
 
 	// DelPod is called by Policy Cache after a pod was removed.
-	DelPod(pod *podmodel.Pod) error
+	DelPod(podID podmodel.ID, pod *podmodel.Pod) error
 
 	// UpdatePod is called by Policy Cache when data of a pod were modified.
-	UpdatePod(oldPod, newPod *podmodel.Pod) error
+	UpdatePod(podID podmodel.ID, oldPod, newPod *podmodel.Pod) error
 
 	// AddPolicy is called by Policy Cache when a new policy is created.
 	AddPolicy(policy *policymodel.Policy) error

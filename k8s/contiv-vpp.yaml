@@ -30,21 +30,26 @@ data:
       VPPHostNetworkPrefixLen: 24
       NodeInterconnectCIDR: "192.168.16.0/24"
       VxlanCIDR: "192.168.30.0/24"
+#      ServiceCIDR: "10.96.0.0/12"
 ### example of node configuration for VPP interfaces
 #    NodeConfig:
 #    - NodeName: "vm1"
+#      UseDhcpOnMainInt: False
 #      MainVppInterface:
 #        InterfaceName: "GigabitEthernet0/4/0"
 #        IP: 192.168.16.101/24
+#      Gateway: 192.168.1.1
 #      OtherVPPInterfaces:
 #      - InterfaceName: "GigabitEthernet0/5/0"
 #        IP: "1.2.3.4/24"
 #      - InterfaceName: "GigabitEthernet0/6/0"
 #        IP: "2.3.4.5/24"
 #    - NodeName: "vm2"
+#      UseDhcpOnMainInt: False
 #      MainVppInterface:
 #        InterfaceName: "GigabitEthernet0/9/0"
 #        IP: 192.168.16.101/24
+#      Gateway: 192.168.1.1
 #      OtherVPPInterfaces:
 #      - InterfaceName: "GigabitEthernet0/7/0"
 #        IP: "3.4.5.6/24"
@@ -231,22 +236,18 @@ spec:
             - containerPort: 5002
             # readiness + liveness probe
             - containerPort: 9999
-          # to be uncomented if env vpp has enough (cpu) resources
-          # while testing it keep restarting due to
-          #  Warning  Unhealthy ... Liveness probe failed: HTTP probe failed with statuscode: 500
-          # TODO: increase tolerance
-         # readinessProbe:
-         #   httpGet:
-         #     path: /readiness
-         #     port: 9999
-         #   periodSeconds: 1
-         #   initialDelaySeconds: 10
-         # livenessProbe:
-         #   httpGet:
-         #     path: /liveness
-         #     port: 9999
-         #   periodSeconds: 1
-         #   initialDelaySeconds: 60
+          readinessProbe:
+            httpGet:
+              path: /readiness
+              port: 9999
+            periodSeconds: 1
+            initialDelaySeconds: 15
+          livenessProbe:
+            httpGet:
+              path: /liveness
+              port: 9999
+            periodSeconds: 1
+            initialDelaySeconds: 60
           env:
             - name: MICROSERVICE_LABEL
               valueFrom:
@@ -271,7 +272,7 @@ spec:
         # This container installs the Contiv CNI binaries
         # and CNI network config file on each node.
         - name: contiv-cni
-          image: contivvpp/cni
+          image: contiv/vpp-cni
           imagePullPolicy: IfNotPresent
           volumeMounts:
             - mountPath: /opt/cni/bin
@@ -349,7 +350,7 @@ spec:
 
       containers:
         - name: contiv-ksr
-          image: contivvpp/ksr
+          image: contiv/vpp-ksr
           imagePullPolicy: IfNotPresent
           env:
             - name: ETCDV3_CONFIG
@@ -357,6 +358,18 @@ spec:
           volumeMounts:
             - name: etcd-cfg
               mountPath: /etc/etcd
+          readinessProbe:
+            httpGet:
+              path: /readiness
+              port: 9191
+            periodSeconds: 1
+            initialDelaySeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /liveness
+              port: 9191
+            periodSeconds: 1
+            initialDelaySeconds: 30
 
       volumes:
         # Used to connect to contiv-etcd.

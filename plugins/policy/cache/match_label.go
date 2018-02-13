@@ -21,56 +21,52 @@ import (
 	"github.com/contiv/vpp/plugins/policy/utils"
 )
 
-// GetPodsByNSLabelSelector returns the pods that match a collection of Label Selectors in the same namespace
-func (pc *PolicyCache) getPodsByNSLabelSelector(namespace string, labels []*policymodel.Policy_Label) (bool, []string) {
-
+// getPodsByNSLabelSelector returns the pods that match a collection of Label Selectors in the same namespace
+func (pc *PolicyCache) getPodsByNSLabelSelector(namespace string, labels []*policymodel.Policy_Label) []string {
+	// Check if we have empty labels
+	if len(labels) == 0 {
+		return []string{}
+	}
 	prevNSLabelSelector := namespace + "/" + labels[0].Key + "/" + labels[0].Value
 	prevPodSet := pc.configuredPods.LookupPodsByNSLabelSelector(prevNSLabelSelector)
-	newPodSet := []string{}
-
-	if len(labels) == 1 {
-		return true, prevPodSet
-	}
+	current := prevPodSet
 
 	for i := 1; i < len(labels); i++ {
+		prevPodSet = current
 		newNSLabelSelector := namespace + "/" + labels[i].Key + "/" + labels[i].Value
-		newPodSet = pc.configuredPods.LookupPodsByNSLabelSelector(newNSLabelSelector)
-
-		tmp := utils.Intersect(prevPodSet, newPodSet)
-		if len(tmp) == 0 {
-			return false, nil
+		newPodSet := pc.configuredPods.LookupPodsByNSLabelSelector(newNSLabelSelector)
+		current = utils.Intersect(prevPodSet, newPodSet)
+		if len(current) == 0 {
+			break
 		}
-
-		prevPodSet = newPodSet
-		newPodSet = tmp
 	}
 
-	return true, newPodSet
+	return current
 }
 
-// GetPodsByNSLabelSelector returns the pods that match a collection of Label Selectors in the same namespace
-func (pc *PolicyCache) getPodsByLabelSelector(namespace string, labels []*policymodel.Policy_Label) (bool, []string) {
-
-	prevNSLabelSelector := labels[0].Key + "/" + labels[0].Value
-	prevPodSet := pc.configuredPods.LookupPodsByLabelSelector(prevNSLabelSelector)
-	newPodSet := []string{}
-
-	if len(labels) == 1 {
-		return true, prevPodSet
+// getPodsByLabelSelector returns the pods that match a collection of Label Selectors
+func (pc *PolicyCache) getPodsByLabelSelector(labels []*policymodel.Policy_Label) []string {
+	// Check if we have empty labels
+	if len(labels) == 0 {
+		return []string{}
 	}
+	pods := []string{}
+	prevNSLabelSelector := labels[0].Key + "/" + labels[0].Value
+	prevNamespaceSet := pc.configuredNamespaces.LookupNamespacesByLabelSelector(prevNSLabelSelector)
+	current := prevNamespaceSet
 
 	for i := 1; i < len(labels); i++ {
-		newLabelSelector := labels[i].Key + "/" + labels[i].Value
-		newPodSet = pc.configuredPods.LookupPodsByLabelSelector(newLabelSelector)
-
-		tmp := utils.Intersect(prevPodSet, newPodSet)
-		if len(tmp) == 0 {
-			return false, nil
+		prevNamespaceSet = current
+		newNSLabelSelector := labels[i].Key + "/" + labels[i].Value
+		newNamespaceSet := pc.configuredNamespaces.LookupNamespacesByLabelSelector(newNSLabelSelector)
+		current = utils.Intersect(prevNamespaceSet, newNamespaceSet)
+		if len(current) == 0 {
+			break
 		}
-
-		prevPodSet = newPodSet
-		newPodSet = tmp
+	}
+	for _, namespace := range current {
+		pods = append(pods, pc.configuredPods.LookupPodsByNamespace(namespace)...)
 	}
 
-	return true, newPodSet
+	return pods
 }

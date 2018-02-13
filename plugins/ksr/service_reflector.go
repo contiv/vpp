@@ -54,7 +54,7 @@ func (sr *ServiceReflector) Init(stopCh2 <-chan struct{}, wg *sync.WaitGroup) er
 		ProtoAllocFunc: func() proto.Message {
 			return &service.Service{}
 		},
-		K8s2ProtoFunc: func(k8sObj interface{}) (interface{}, string, bool) {
+		K8s2NodeFunc: func(k8sObj interface{}) (interface{}, string, bool) {
 			k8sSvc, ok := k8sObj.(*coreV1.Service)
 			if !ok {
 				sr.Log.Errorf("service syncDataStore: wrong object type %s, obj %+v",
@@ -65,7 +65,8 @@ func (sr *ServiceReflector) Init(stopCh2 <-chan struct{}, wg *sync.WaitGroup) er
 		},
 	}
 
-	return sr.ksrInit(stopCh2, wg, service.KeyPrefix(), "services", &coreV1.Service{}, serviceReflectorFuncs)
+	return sr.ksrInit(stopCh2, wg, service.KeyPrefix(), "services",
+		&coreV1.Service{}, serviceReflectorFuncs)
 }
 
 // addService adds state data of a newly created K8s service into the data store.
@@ -75,7 +76,7 @@ func (sr *ServiceReflector) addService(obj interface{}) {
 	svc, ok := obj.(*coreV1.Service)
 	if !ok {
 		sr.Log.Warn("Failed to cast newly created service object")
-		sr.stats.NumArgErrors++
+		sr.stats.ArgErrors++
 		return
 	}
 
@@ -91,7 +92,7 @@ func (sr *ServiceReflector) deleteService(obj interface{}) {
 	svc, ok := obj.(*coreV1.Service)
 	if !ok {
 		sr.Log.Warn("Failed to cast removed service object")
-		sr.stats.NumArgErrors++
+		sr.stats.ArgErrors++
 		return
 	}
 
@@ -99,13 +100,13 @@ func (sr *ServiceReflector) deleteService(obj interface{}) {
 	sr.ksrDelete(key)
 }
 
-// updateService updates state data of a changes K8s service in the data store.
+// updateService updates state data of a changed K8s service in the data store.
 func (sr *ServiceReflector) updateService(oldObj, newObj interface{}) {
 	svcOld, ok1 := oldObj.(*coreV1.Service)
 	svcNew, ok2 := newObj.(*coreV1.Service)
 	if !ok1 || !ok2 {
 		sr.Log.Warn("Failed to cast changed service object")
-		sr.stats.NumArgErrors++
+		sr.stats.ArgErrors++
 		return
 	}
 	sr.Log.WithFields(map[string]interface{}{"service-old": svcOld, "service-new": svcNew}).

@@ -22,7 +22,9 @@ import (
 	"net"
 
 	"github.com/contiv/vpp/plugins/contiv/model/node"
+	"github.com/golang/protobuf/proto"
 	"github.com/ligato/cn-infra/datasync"
+	vpp_l2 "github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/l2"
 	vpp_l3 "github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/l3"
 )
 
@@ -79,9 +81,12 @@ func (s *remoteCNIserver) nodeResync(dataResyncEv datasync.ResyncEvent) error {
 
 				if nodeID != s.ipam.NodeID() {
 					s.Logger.Info("Other node discovered: ", nodeID)
-
-					// add routes to the node
-					err = s.addRoutesToNode(nodeInfo)
+					if nodeInfo.IpAddress != "" {
+						// add routes to the node
+						err = s.addRoutesToNode(nodeInfo)
+					} else {
+						s.Logger.Infof("Ip address of node %v is not known yet.")
+					}
 				}
 			}
 		}
@@ -111,11 +116,21 @@ func (s *remoteCNIserver) nodeChangePropageteEvent(dataChngEv datasync.ChangeEve
 			return err
 		}
 
-		if dataChngEv.GetChangeType() == datasync.Put {
-			s.Logger.Info("New node discovered: ", nodeInfo.Id)
+		// skip nodeInfo of this node
+		if nodeInfo.Id == uint32(s.nodeID) {
+			return nil
+		}
 
-			// add routes to the node
-			err = s.addRoutesToNode(nodeInfo)
+		if dataChngEv.GetChangeType() == datasync.Put {
+
+			// Note: the case where IP address is changed during runtime is not handled
+			if nodeInfo.IpAddress != "" {
+				s.Logger.Info("New node discovered: ", nodeInfo.Id)
+				// add routes to the node
+				err = s.addRoutesToNode(nodeInfo)
+			} else {
+				s.Logger.Infof("Ip address of node %v is not known yet.")
+			}
 		} else {
 			s.Logger.Info("Node removed: ", nodeInfo.Id)
 
@@ -145,7 +160,10 @@ func (s *remoteCNIserver) addRoutesToNode(nodeInfo *node.NodeInfo) error {
 
 		// add the VXLAN interface into the VXLAN bridge domain
 		s.addInterfaceToVxlanBD(s.vxlanBD, vxlanIf.Name)
-		txn.BD(s.vxlanBD)
+
+		// pass deep copy to local client since we are overwriting previously applied config
+		bd := proto.Clone(s.vxlanBD)
+		txn.BD(bd.(*vpp_l2.BridgeDomains_BridgeDomain))
 	}
 
 	// static routes

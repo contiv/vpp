@@ -21,6 +21,7 @@ import (
 	policymodel "github.com/contiv/vpp/plugins/ksr/model/policy"
 )
 
+// isMatchLabel returns true/false if pod labels match a collection of pod selector labels (labels are ANDed).
 func (pp *PolicyProcessor) isMatchLabel(pod *podmodel.Pod, matchLabels []*policymodel.Policy_Label, policyNamespace string) bool {
 	namespace := pod.Namespace
 	podLabels := pod.Label
@@ -42,4 +43,35 @@ func (pp *PolicyProcessor) isMatchLabel(pod *podmodel.Pod, matchLabels []*policy
 
 	return isMatch
 
+}
+
+// isNamespaceMatchLabel returns true/false if pod namespace matches a collection of namespace selector labels (labels are ANDed).
+func (pp *PolicyProcessor) isNamespaceMatchLabel(pod *podmodel.Pod, matchLabels []*policymodel.Policy_Label) bool {
+
+	podNamespace := pod.Namespace
+	isMatch := false
+
+	for _, matchLabel := range matchLabels {
+		label := matchLabel.Key + "/" + matchLabel.Value
+		// Get all namespaces that match namespace label selector
+		namespaces := pp.Cache.LookupNamespacesByLabelSelector(label)
+		if len(namespaces) == 0 {
+			return false
+		}
+		namespaceExists := false
+		// Check if matched namespaces include pod's namespace
+		for _, namespace := range namespaces {
+			if namespace.String() == podNamespace {
+				namespaceExists = true
+				break
+			}
+		}
+		// Namespaces are AND'ed, if one is not a match then exit
+		if namespaceExists == false {
+			isMatch = false
+			break
+		}
+		isMatch = true
+	}
+	return isMatch
 }

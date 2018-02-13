@@ -29,13 +29,13 @@ const (
 // KeyPrefix returns the key prefix used in the data-store to save
 // the current state of every known K8s namespace.
 func KeyPrefix() string {
-	return ksrkey.KsrPrefix + "/" + NamespaceKeyword
+	return ksrkey.KsrK8sPrefix + "/" + NamespaceKeyword
 }
 
 // ParseNamespaceFromKey parses namespace id from the associated data-store key.
 func ParseNamespaceFromKey(key string) (namespace string, err error) {
 	keywords := strings.Split(key, "/")
-	if len(keywords) == 3 && keywords[0] == ksrkey.KsrPrefix && keywords[1] == NamespaceKeyword {
+	if len(keywords) == 3 && keywords[0] == ksrkey.KsrK8sPrefix && keywords[1] == NamespaceKeyword {
 		return keywords[2], nil
 	}
 	return "", fmt.Errorf("invalid format of the key %s", key)

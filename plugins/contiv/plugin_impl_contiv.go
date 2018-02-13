@@ -57,8 +57,9 @@ type Plugin struct {
 	ctx           context.Context
 	ctxCancelFunc context.CancelFunc
 
-	Config       *Config
-	myNodeConfig *OneNodeConfig
+	Config        *Config
+	myNodeConfig  *OneNodeConfig
+	nodeIPWatcher chan string
 }
 
 // Deps groups the dependencies of the Plugin.
@@ -90,9 +91,11 @@ type Config struct {
 
 // OneNodeConfig represents configuration for one node. It contains only settings specific to given node.
 type OneNodeConfig struct {
-	NodeName           string
-	MainVppInterface   InterfaceWithIP
-	OtherVPPInterfaces []InterfaceWithIP // other configured interfaces get only ip address assigned in vpp
+	NodeName           string            // name of the node, should match withs the hostname
+	MainVppInterface   InterfaceWithIP   // main VPP interface used for the inter-node connectivity
+	OtherVPPInterfaces []InterfaceWithIP // other interfaces on VPP, not necessarily used for inter-node connectivity
+	Gateway            string            // IP address of the default gateway
+	UseDhcpOnMainInt   bool              // request IP address for main VPP interface using DHCP
 }
 
 // InterfaceWithIP binds interface name with IP address for configuration purposes.
@@ -159,6 +162,10 @@ func (plugin *Plugin) Init() error {
 	}
 	cni.RegisterRemoteCNIServer(plugin.GRPC.Server(), plugin.cniServer)
 
+	plugin.nodeIPWatcher = make(chan string)
+	go plugin.watchNodeIP()
+	plugin.cniServer.WatchNodeIP(plugin.nodeIPWatcher)
+
 	// start goroutine handling changes in nodes within the k8s cluster
 	go plugin.cniServer.handleNodeEvents(plugin.ctx, plugin.nodeIDsresyncChan, plugin.nodeIDSchangeChan)
 
@@ -223,6 +230,11 @@ func (plugin *Plugin) GetNsIndex(podNamespace string, podName string) (nsIndex u
 // GetPodNetwork provides subnet used for allocating pod IP addresses on this node.
 func (plugin *Plugin) GetPodNetwork() *net.IPNet {
 	return plugin.cniServer.ipam.PodNetwork()
+}
+
+// GetContainerIndex returns the index of configured containers/pods
+func (plugin *Plugin) GetContainerIndex() containeridx.Reader {
+	return plugin.configuredContainers
 }
 
 // IsTCPstackDisabled returns true if the VPP TCP stack is disabled and only VETHs/TAPs are configured.
@@ -318,4 +330,19 @@ func (plugin *Plugin) getContainerConfig(podNamespace string, podName string) *c
 	}
 
 	return nil
+}
+
+func (plugin *Plugin) watchNodeIP() {
+	for {
+		select {
+		case newIP := <-plugin.nodeIPWatcher:
+			if newIP != "" {
+				err := plugin.nodeIDAllocator.updateIP(newIP)
+				if err != nil {
+					plugin.Log.Error(err)
+				}
+			}
+		case <-plugin.ctx.Done():
+		}
+	}
 }

@@ -64,17 +64,16 @@ export https_proxy='#{https_proxy}'
 EOF
 
 source /etc/profile.d/envvar.sh
-echo "Updating Ubuntu..."
+echo "Updating apt lists..."
 apt-get update
 
-echo "Install os requirements"
+echo "Installing dependency packages..."
 apt-get install -y apt-transport-https \
-                   apt-transport-https \
                    ca-certificates \
                    curl \
                    software-properties-common
                    
-echo "Add Kubernetes & Docker repo..."
+echo "Adding Kubernetes & Docker repos..."
 curl -s https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add -
 curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add -
 cat <<EOF >/etc/apt/sources.list.d/kubernetes.list
@@ -82,7 +81,7 @@ deb http://apt.kubernetes.io/ kubernetes-xenial main
 deb [arch=amd64] https://download.docker.com/linux/ubuntu xenial stable
 EOF
 
-echo "Updating Ubuntu..."
+echo "Updating apt lists..."
 apt-get update
 
 echo "Installing Docker-CE..."
@@ -96,9 +95,9 @@ systemctl start docker
 
 echo "Installing Kubernetes Components..."
 apt-get install -y kubelet kubectl kubeadm kubernetes-cni
-
-echo "Downloading Go..."
-curl --silent https://storage.googleapis.com/golang/go1.9.linux-amd64.tar.gz > /tmp/go.tar.gz
+export GO_VERSION=1.9.3
+echo "Downloading Go $GO_VERSION..."
+curl --silent https://storage.googleapis.com/golang/go$GO_VERSION.linux-amd64.tar.gz > /tmp/go.tar.gz
 
 echo "Extracting Go..."
 tar -xvzf /tmp/go.tar.gz --directory /home/vagrant >/dev/null 2>&1
@@ -234,6 +233,7 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
     end
     config.vm.provider 'virtualbox' do |v|
         v.linked_clone = true if Vagrant::VERSION >= "1.8"
+        v.customize ['modifyvm', :id, '--paravirtprovider', 'kvm']
     end
 
     node_ips = num_nodes.times.collect { |n| base_ip + "#{n+10}" }
@@ -241,6 +241,11 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
 
     config.ssh.insert_key = false
     node_names = num_nodes.times.collect { |n| "k8s-worker#{n+1}" }
+
+    if Vagrant.has_plugin?("vagrant-cachier")
+        config.cache.scope = :box
+        config.cache.enable :apt
+    end
     
     # Configure Master node
     config.vm.define "k8s-master" do |k8smaster|
@@ -248,7 +253,8 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
         k8smaster.vm.network :private_network, type: "dhcp", auto_config: false
         k8smaster.vm.network :private_network, ip: base_ip + "10", virtualbox__intnet: "true"
         k8smaster.vm.provider "virtualbox" do |v|
-            v.memory = 4096
+            v.customize ["modifyvm", :id, "--ioapic", "on"]
+            v.memory = 2048
             v.cpus = 2
         end
         k8smaster_ip = base_ip + "51"
@@ -274,8 +280,9 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
             #node.vm.network :private_network, ip: "node_addr", virtualbox__intnet: "true"
             node.vm.network :private_network, ip: base_ip + "11", virtualbox__intnet: "true"
             node.vm.provider "virtualbox" do |v|
-                v.memory = 4096
-                v.cpus = 2
+            v.customize ["modifyvm", :id, "--ioapic", "on"]
+            v.memory = 2048
+            v.cpus = 2
             end
             node_ip_last = n+10
             #node.vm.provision :shell, inline: "sed 's/127\.0\.0\.1.*k8s.*/192\.169\.1\.#{node_ip_last} #{node_name}/' -i /etc/hosts"

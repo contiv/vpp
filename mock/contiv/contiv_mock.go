@@ -3,7 +3,9 @@ package contiv
 import (
 	"net"
 
+	"github.com/contiv/vpp/plugins/contiv/containeridx"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
+	"github.com/ligato/cn-infra/logging/logrus"
 )
 
 // MockContiv is a mock for the Contiv Plugin.
@@ -16,13 +18,16 @@ type MockContiv struct {
 	physicalIfs      []string
 	hostInterconnect string
 	vxlanBVIIfName   string
+	containerIndex   *containeridx.ConfigIndex
 }
 
 // NewMockContiv is a constructor for MockContiv.
 func NewMockContiv() *MockContiv {
+	ci := containeridx.NewConfigIndex(logrus.DefaultLogger(), "test", "title")
 	return &MockContiv{
-		podIf: make(map[podmodel.ID]string),
-		podNs: make(map[podmodel.ID]uint32),
+		podIf:          make(map[podmodel.ID]string),
+		podNs:          make(map[podmodel.ID]uint32),
+		containerIndex: ci,
 	}
 }
 
@@ -41,6 +46,11 @@ func (mc *MockContiv) SetPodNsIndex(pod podmodel.ID, nsIndex uint32) {
 // for the current host node.
 func (mc *MockContiv) SetPodNetwork(podNetwork string) {
 	_, mc.podNetwork, _ = net.ParseCIDR(podNetwork)
+}
+
+// SetContainerIndex allows to set index that contains configured containers
+func (mc *MockContiv) SetContainerIndex(ci *containeridx.ConfigIndex) {
+	mc.containerIndex = ci
 }
 
 // SetTCPStackDisabled allows to set flag denoting if the tcpStack is disabled or not.
@@ -79,6 +89,11 @@ func (mc *MockContiv) GetNsIndex(podNamespace string, podName string) (nsIndex u
 // GetPodByIf looks up podName and podNamespace that is associated with logical interface name.
 func (mc *MockContiv) GetPodByIf(ifname string) (podNamespace string, podName string, exists bool) {
 	return "", "", false
+}
+
+// GetContainerIndex returns the index of configured containers/pods
+func (mc *MockContiv) GetContainerIndex() containeridx.Reader {
+	return mc.containerIndex
 }
 
 // GetPodNetwork returns static subnet constant that should represent pod subnet for current host node

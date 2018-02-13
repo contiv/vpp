@@ -264,6 +264,12 @@ func (plugin *Plugin) GetVxlanBVIIfName() string {
 	return plugin.cniServer.GetVxlanBVIIfName()
 }
 
+// GetDefaultGatewayIP returns the IP address of the default gateway for external traffic.
+// If the default GW is not configured, the function returns nil.
+func (plugin *Plugin) GetDefaultGatewayIP() net.IP {
+	return plugin.cniServer.GetDefaultGatewayIP()
+}
+
 // handleResync handles resync events of the plugin. Called automatically by the plugin infra.
 func (plugin *Plugin) handleResync(resyncChan chan resync.StatusEvent) {
 	for {

@@ -1271,3 +1271,12 @@ func (s *remoteCNIserver) setNodeIP(nodeIP string) error {
 
 	return nil
 }
+
+// GetDefaultGatewayIP returns the IP address of the default gateway for external traffic.
+// If the default GW is not configured, the function returns nil.
+func (s *remoteCNIserver) GetDefaultGatewayIP() net.IP {
+	if s.nodeConfig.Gateway != "" {
+		return net.ParseIP(s.nodeConfig.Gateway)
+	}
+	return nil
+}

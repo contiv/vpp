@@ -41,4 +41,8 @@ type API interface {
 	// GetVxlanBVIIfName returns the name of an BVI interface facing towards VXLAN tunnels to other hosts.
 	// Returns an empty string if VXLAN is not used (in L2 interconnect mode).
 	GetVxlanBVIIfName() string
+
+	// GetDefaultGatewayIP returns the IP address of the default gateway for external traffic.
+	// If the default GW is not configured, the function returns nil.
+	GetDefaultGatewayIP() net.IP
 }

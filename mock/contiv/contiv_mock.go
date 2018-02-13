@@ -18,6 +18,7 @@ type MockContiv struct {
 	physicalIfs      []string
 	hostInterconnect string
 	vxlanBVIIfName   string
+	gwIP             net.IP
 	containerIndex   *containeridx.ConfigIndex
 }
 
@@ -74,6 +75,11 @@ func (mc *MockContiv) SetHostInterconnectIfName(ifName string) {
 	mc.hostInterconnect = ifName
 }
 
+// SetDefaultGatewayIP allows to set what tests will assume the default gateway IP is (can be nil).
+func (mc *MockContiv) SetDefaultGatewayIP(gwIP net.IP) {
+	mc.gwIP = gwIP
+}
+
 // GetIfName returns pod's interface name as set previously using SetPodIfName.
 func (mc *MockContiv) GetIfName(podNamespace string, podName string) (name string, exists bool) {
 	name, exists = mc.podIf[podmodel.ID{Name: podName, Namespace: podNamespace}]
@@ -126,4 +132,10 @@ func (mc *MockContiv) GetHostInterconnectIfName() string {
 // Returns an empty string if VXLAN is not used (in L2 interconnect mode).
 func (mc *MockContiv) GetVxlanBVIIfName() string {
 	return mc.vxlanBVIIfName
+}
+
+// GetDefaultGatewayIP returns the IP address of the default gateway for external traffic.
+// If the default GW is not configured, the function returns nil.
+func (mc *MockContiv) GetDefaultGatewayIP() net.IP {
+	return mc.gwIP
 }

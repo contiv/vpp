@@ -108,10 +108,10 @@ var (
 		},
 	}
 	nodeDHCPConfig = OneNodeConfig{
-		NodeName:         "test-node",
-		UseDhcpOnMainInt: true,
+		NodeName: "test-node",
 		MainVppInterface: InterfaceWithIP{
 			InterfaceName: "GigabitEthernet0/0/0/1",
+			UseDHCP:       true,
 		},
 		OtherVPPInterfaces: []InterfaceWithIP{
 			{

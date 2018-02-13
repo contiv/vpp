@@ -50,6 +50,7 @@ type IPAM struct {
 	vethHostEndIP          net.IP    // IPv4 address for virtual ethernet's host-end on given node
 
 	// node related variables
+	nodeInterconnectDHCP bool      // use DHCP to acquire IP for inter-node interface by default (can be overriden in NodeConfig by defining IP)
 	nodeInterconnectCIDR net.IPNet // IPv4 subnet used for for inter-node connections
 	vxlanCIDR            net.IPNet // IPv4 subnet used for for inter-node VXLAN
 	serviceCIDR          net.IPNet // IPv4 subnet used to allocate ClusterIPs for a service
@@ -67,6 +68,7 @@ type Config struct {
 	VPPHostSubnetCIDR       string // subnet used across all nodes for VPP to host Linux stack interconnect
 	VPPHostNetworkPrefixLen uint8  // prefix length of subnet used for for VPP to host Linux stack interconnect within 1 node (VPPHost network = VPPHost subnet for one 1 node)
 	NodeInterconnectCIDR    string // subnet used for for inter-node connections
+	NodeInterconnectDHCP    bool   // if set to true DHCP is used to acquire IP for the main VPP interface (NodeInterconnectCIDR can be omitted in config)
 	VxlanCIDR               string // subnet used for for inter-node VXLAN
 	ServiceCIDR             string // subnet used by services
 }
@@ -93,6 +95,14 @@ func New(logger logging.Logger, nodeID uint8, config *Config) (*IPAM, error) {
 	logger.Infof("IPAM values loaded: %+v", ipam)
 
 	return ipam, nil
+}
+
+// NodeInterconnectDHCPEnabled returns true if DHCP should be configured on the main
+// vpp interface by default.
+func (i *IPAM) NodeInterconnectDHCPEnabled() bool {
+	i.mutex.RLock()
+	defer i.mutex.RUnlock()
+	return i.nodeInterconnectDHCP
 }
 
 // NodeIPAddress computes IP address of the node based on the provided node ID.
@@ -356,15 +366,19 @@ func initializeVPPHostIPAM(ipam *IPAM, config *Config, nodeID uint8) (err error)
 
 // initializeNodeInterconnectIPAM initializes node interconnect -related variables of IPAM.
 func initializeNodeInterconnectIPAM(ipam *IPAM, config *Config) (err error) {
-	if config == nil || config.NodeInterconnectCIDR == "" || config.VxlanCIDR == "" {
-		return fmt.Errorf("missing NodeInterconnectCIDR or VxlanCIDR configuration")
+	if config == nil || (config.NodeInterconnectCIDR == "" && config.NodeInterconnectDHCP == false) || config.VxlanCIDR == "" {
+		return fmt.Errorf("missing NodeInterconnectCIDR or NodeInterconnectDHCP or VxlanCIDR configuration")
 	}
 
-	_, nodeSubnet, err := net.ParseCIDR(config.NodeInterconnectCIDR)
-	if err != nil {
-		return
+	ipam.nodeInterconnectDHCP = config.NodeInterconnectDHCP
+
+	if !ipam.nodeInterconnectDHCP {
+		_, nodeSubnet, err := net.ParseCIDR(config.NodeInterconnectCIDR)
+		if err != nil {
+			return err
+		}
+		ipam.nodeInterconnectCIDR = *nodeSubnet
 	}
-	ipam.nodeInterconnectCIDR = *nodeSubnet
 
 	_, vxlanSubnet, err := net.ParseCIDR(config.VxlanCIDR)
 	if err != nil {

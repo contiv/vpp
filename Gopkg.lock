@@ -10,6 +10,7 @@
 [[projects]]
   name = "git.fd.io/govpp.git"
   packages = [
+    ".",
     "adapter",
     "adapter/mock",
     "adapter/mock/binapi",
@@ -644,6 +645,12 @@
 
 [[projects]]
   branch = "master"
+  name = "github.com/kolo/xmlrpc"
+  packages = ["."]
+  revision = "0826b98aaa29c0766956cb40d45cf7482a597671"
+
+[[projects]]
+  branch = "master"
   name = "github.com/kr/pretty"
   packages = ["."]
   revision = "cfb55aafdaf3ec08f0db22699ab822c50091b1c4"
@@ -817,6 +824,11 @@
   version = "v1.7.4-pre"
 
 [[projects]]
+  name = "github.com/nerdtakula/supervisor"
+  packages = ["."]
+  revision = "5bf894f54fd79a23fa965bf078b2a094a9d9e20b"
+
+[[projects]]
   name = "github.com/onsi/gomega"
   packages = [
     ".",
@@ -980,6 +992,11 @@
   version = "v1.29.0"
 
 [[projects]]
+  name = "github.com/safchain/ethtool"
+  packages = ["."]
+  revision = "7ff1ba29eca231991280817541cb3903f6be15d1"
+
+[[projects]]
   name = "github.com/satori/go.uuid"
   packages = ["."]
   revision = "f58768cc1a7a7e77a3bd49e98cdd21419399b6a3"
@@ -1036,13 +1053,12 @@
   version = "v1.20.0"
 
 [[projects]]
-  branch = "master"
   name = "github.com/vishvananda/netlink"
   packages = [
     ".",
     "nl"
   ]
-  revision = "a2af46a09c21dd8b727a0f8912e559b8b484144d"
+  revision = "d35d6b58e1cb692b27b94fc403170bf44058ac3e"
 
 [[projects]]
   branch = "master"
@@ -1608,6 +1624,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "5dc216f464f00937b87e3ef5109dbf4bac908501fb8027dcd217fe91a7a32be8"
+  inputs-digest = "120edbc4ea38ee13621898b3fec28251d6ad687ce3ddf04e2040046476338715"
   solver-name = "gps-cdcl"
   solver-version = 1

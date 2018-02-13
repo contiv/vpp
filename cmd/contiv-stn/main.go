@@ -257,6 +257,7 @@ func (s *stnServer) revertLink(ifData *interfaceData) error {
 
 	// configure IP addresses
 	for _, addr := range ifData.addresses {
+		log.Printf("Adding IP address %s to interface %s (idx %d)", addr.String(), ifData.name, link.Attrs().Index)
 		err = netlink.AddrAdd(link, &addr)
 		if err != nil {
 			if errno, ok := err.(syscall.Errno); ok && errno == syscall.EEXIST {
@@ -270,6 +271,7 @@ func (s *stnServer) revertLink(ifData *interfaceData) error {
 
 	// configure routes
 	for _, r := range ifData.routes {
+		log.Printf("Adding route to %s for interface %s", r.Dst.String(), ifData.name)
 		s.updateLinkInRoute(&r, ifData.linkIndex, link.Attrs().Index)
 		err = netlink.RouteAdd(&r)
 		if err != nil {

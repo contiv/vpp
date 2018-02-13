@@ -275,7 +275,7 @@ func TestPolicyReflector(t *testing.T) {
 	}
 
 	// Pre-populate the mock data store with pre-existing data that is supposed
-	// to be updated during the test.
+	// to be updated during resync.
 	k8sPolicy1 := &policyTestVars.policyTestData[1]
 	protoPolicy1 := policyTestVars.policyReflector.policyToProto(k8sPolicy1)
 	checkPolicyToProtoTranslation(t, protoPolicy1, k8sPolicy1)
@@ -285,7 +285,7 @@ func TestPolicyReflector(t *testing.T) {
 	policyTestVars.mockKvBroker.Put(policy.Key(k8sPolicy1.GetName(), k8sPolicy1.GetNamespace()), protoPolicy1)
 
 	// Pre-populate the mock data store with "stale" data that is supposed to
-	// be deleted during the test.
+	// be deleted during resync.
 	k8sPolicy2 := &policyTestVars.policyTestData[2]
 	protoPolicy2 := policyTestVars.policyReflector.policyToProto(k8sPolicy2)
 	checkPolicyToProtoTranslation(t, protoPolicy2, k8sPolicy2)

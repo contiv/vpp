@@ -57,8 +57,9 @@ type Plugin struct {
 	ctx           context.Context
 	ctxCancelFunc context.CancelFunc
 
-	Config       *Config
-	myNodeConfig *OneNodeConfig
+	Config        *Config
+	myNodeConfig  *OneNodeConfig
+	nodeIPWatcher chan string
 }
 
 // Deps groups the dependencies of the Plugin.
@@ -95,6 +96,7 @@ type OneNodeConfig struct {
 	OtherVPPInterfaces []InterfaceWithIP // other interfaces on VPP, not necessarily used for inter-node connectivity
 	StealInterface     string            // interface to be stolen from the host stack and bound to VPP
 	Gateway            string            // IP address of the default gateway
+	UseDhcpOnMainInt   bool              // request IP address for main VPP interface using DHCP
 }
 
 // InterfaceWithIP binds interface name with IP address for configuration purposes.
@@ -160,6 +162,10 @@ func (plugin *Plugin) Init() error {
 		return fmt.Errorf("Can't create new remote CNI server due to error: %v ", err)
 	}
 	cni.RegisterRemoteCNIServer(plugin.GRPC.Server(), plugin.cniServer)
+
+	plugin.nodeIPWatcher = make(chan string)
+	go plugin.watchNodeIP()
+	plugin.cniServer.WatchNodeIP(plugin.nodeIPWatcher)
 
 	// start goroutine handling changes in nodes within the k8s cluster
 	go plugin.cniServer.handleNodeEvents(plugin.ctx, plugin.nodeIDsresyncChan, plugin.nodeIDSchangeChan)
@@ -325,4 +331,19 @@ func (plugin *Plugin) getContainerConfig(podNamespace string, podName string) *c
 	}
 
 	return nil
+}
+
+func (plugin *Plugin) watchNodeIP() {
+	for {
+		select {
+		case newIP := <-plugin.nodeIPWatcher:
+			if newIP != "" {
+				err := plugin.nodeIDAllocator.updateIP(newIP)
+				if err != nil {
+					plugin.Log.Error(err)
+				}
+			}
+		case <-plugin.ctx.Done():
+		}
+	}
 }

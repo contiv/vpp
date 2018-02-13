@@ -17,6 +17,7 @@
 //go:generate protoc -I ./model/policy --go_out=plugins=grpc:./model/policy ./model/policy/policy.proto
 //go:generate protoc -I ./model/service --go_out=plugins=grpc:./model/service ./model/service/service.proto
 //go:generate protoc -I ./model/endpoints --go_out=plugins=grpc:./model/endpoints ./model/endpoints/endpoints.proto
+//go:generate protoc -I ./model/node --go_out=plugins=grpc:./model/node ./model/node/node.proto
 //go:generate protoc -I ./model/ksrapi --go_out=plugins=grpc:./model/ksrapi ./model/ksrapi/ksr_nb_api.proto
 
 package ksr
@@ -58,6 +59,7 @@ type Plugin struct {
 	policyReflector    *PolicyReflector
 	serviceReflector   *ServiceReflector
 	endpointsReflector *EndpointsReflector
+	nodeReflector      *NodeReflector
 
 	etcdMonitor EtcdMonitor
 }
@@ -91,6 +93,7 @@ const (
 	policyObjType    = "NetworkPolicy"
 	endpointsObjType = "Endpoints"
 	serviceObjType   = "Service"
+	nodeObjType      = "Node"
 )
 
 // Init builds K8s client-set based on the supplied kubeconfig and initializes
@@ -129,7 +132,7 @@ func (plugin *Plugin) Init() error {
 		},
 	}
 
-	//plugin.nsReflector.ReflectorDeps.Log.SetLevel(logging.DebugLevel)
+	//plugin.nsReflectorLog.SetLevel(logging.DebugLevel)
 	err = plugin.nsReflector.Init(plugin.stopCh, &plugin.wg)
 	if err != nil {
 		plugin.Log.WithField("rwErr", err).Error("Failed to initialize Namespace reflector")
@@ -146,8 +149,9 @@ func (plugin *Plugin) Init() error {
 			objType:      podObjType,
 		},
 	}
+
+	//plugin.podReflector.Log.SetLevel(logging.DebugLevel)
 	err = plugin.podReflector.Init(plugin.stopCh, &plugin.wg)
-	//plugin.podReflector.ReflectorDeps.Log.SetLevel(logging.DebugLevel)
 	if err != nil {
 		plugin.Log.WithField("rwErr", err).Error("Failed to initialize Pod reflector")
 		return err
@@ -163,7 +167,8 @@ func (plugin *Plugin) Init() error {
 			objType:      policyObjType,
 		},
 	}
-	//plugin.policyReflector.ReflectorDeps.Log.SetLevel(logging.DebugLevel)
+
+	//plugin.policyReflector.Log.SetLevel(logging.DebugLevel)
 	err = plugin.policyReflector.Init(plugin.stopCh, &plugin.wg)
 	if err != nil {
 		plugin.Log.WithField("rwErr", err).Error("Failed to initialize Policy reflector")
@@ -180,8 +185,9 @@ func (plugin *Plugin) Init() error {
 			objType:      serviceObjType,
 		},
 	}
+
+	//plugin.serviceReflector.Log.SetLevel(logging.DebugLevel)
 	err = plugin.serviceReflector.Init(plugin.stopCh, &plugin.wg)
-	//plugin.serviceReflector.ReflectorDeps.Log.SetLevel(logging.DebugLevel)
 	if err != nil {
 		plugin.Log.WithField("rwErr", err).Error("Failed to initialize Service reflector")
 		return err
@@ -197,10 +203,29 @@ func (plugin *Plugin) Init() error {
 			objType:      endpointsObjType,
 		},
 	}
+
+	//plugin.endpointsReflector.Log.SetLevel(logging.DebugLevel)
 	err = plugin.endpointsReflector.Init(plugin.stopCh, &plugin.wg)
-	//plugin.endpointsReflector.ReflectorDeps.Log.SetLevel(logging.DebugLevel)
 	if err != nil {
 		plugin.Log.WithField("rwErr", err).Error("Failed to initialize Endpoints reflector")
+		return err
+	}
+
+	plugin.nodeReflector = &NodeReflector{
+		Reflector: Reflector{
+			Log:          plugin.Log.NewLogger("-node"),
+			K8sClientset: plugin.k8sClientset,
+			K8sListWatch: &k8sCache{},
+			Broker:       plugin.Publish.Deps.KvPlugin.NewBroker(ksrPrefix),
+			dsSynced:     false,
+			objType:      nodeObjType,
+		},
+	}
+
+	// plugin.nodeReflector.Log.SetLevel(logging.DebugLevel)
+	err = plugin.nodeReflector.Init(plugin.stopCh, &plugin.wg)
+	if err != nil {
+		plugin.Log.WithField("rwErr", err).Error("Failed to initialize Node reflector")
 		return err
 	}
 
@@ -211,12 +236,7 @@ func (plugin *Plugin) Init() error {
 // the kvdbsync is fully initialized and ready for publishing when a k8s
 // notification comes.
 func (plugin *Plugin) AfterInit() error {
-	plugin.nsReflector.Start()
-	plugin.podReflector.Start()
-	plugin.policyReflector.Start()
-	plugin.serviceReflector.Start()
-	plugin.endpointsReflector.Start()
-
+	startReflectors()
 	go plugin.monitorEtcdStatus(plugin.stopCh)
 
 	return nil
@@ -328,6 +348,8 @@ func getKsrStats() *ksrapi.Stats {
 			stats.PolicyStats = &v.stats
 		case serviceObjType:
 			stats.ServiceStats = &v.stats
+		case nodeObjType:
+			stats.NodeStats = &v.stats
 		default:
 			v.Log.WithField("ksrObjectType", v.objType).
 				Error("Plugin stats sees unknown reflector object type")

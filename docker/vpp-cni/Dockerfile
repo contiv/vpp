@@ -14,7 +14,7 @@ WORKDIR /go/src/github.com/contiv/vpp/cmd/contiv-cni
 
 # we collect & store all files in one folder to make the resulting
 # image smaller when we copy them all in one single operation
-RUN CGO_ENABLED=0 \
+RUN export CGO_ENABLED=0 \
  && mkdir /output/ \
  && cp /cni/loopback /output/ \
  && cp /go/src/github.com/contiv/vpp/docker/vpp-cni/10-contiv-vpp.conf /output/ \

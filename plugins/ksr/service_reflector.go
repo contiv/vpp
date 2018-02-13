@@ -54,7 +54,7 @@ func (sr *ServiceReflector) Init(stopCh2 <-chan struct{}, wg *sync.WaitGroup) er
 		ProtoAllocFunc: func() proto.Message {
 			return &service.Service{}
 		},
-		K8s2ProtoFunc: func(k8sObj interface{}) (interface{}, string, bool) {
+		K8s2NodeFunc: func(k8sObj interface{}) (interface{}, string, bool) {
 			k8sSvc, ok := k8sObj.(*coreV1.Service)
 			if !ok {
 				sr.Log.Errorf("service syncDataStore: wrong object type %s, obj %+v",
@@ -100,7 +100,7 @@ func (sr *ServiceReflector) deleteService(obj interface{}) {
 	sr.ksrDelete(key)
 }
 
-// updateService updates state data of a changes K8s service in the data store.
+// updateService updates state data of a changed K8s service in the data store.
 func (sr *ServiceReflector) updateService(oldObj, newObj interface{}) {
 	svcOld, ok1 := oldObj.(*coreV1.Service)
 	svcNew, ok2 := newObj.(*coreV1.Service)

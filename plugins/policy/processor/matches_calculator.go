@@ -79,6 +79,7 @@ func (pp *PolicyProcessor) calculateMatches(policyData *policymodel.Policy) []co
 	if len(egressRules) != 0 {
 
 		matchType := config.MatchEgress
+		matchAll := false
 
 		for _, egressRule := range egressRules {
 			egressPods := []podmodel.ID{}
@@ -89,6 +90,7 @@ func (pp *PolicyProcessor) calculateMatches(policyData *policymodel.Policy) []co
 			if len(egressRulesTo) == 0 {
 				egressPods = nil
 				egressIPBlocks = nil
+				matchAll = true
 			}
 			for _, egressRuleTo := range egressRulesTo {
 				egressLabel := egressRuleTo.Pods
@@ -133,6 +135,14 @@ func (pp *PolicyProcessor) calculateMatches(policyData *policymodel.Policy) []co
 				Pods:     egressPods,
 				Ports:    egressPorts,
 				IPBlocks: egressIPBlocks,
+			})
+		}
+
+		if !matchAll {
+			/* Always keep access to the kube-system namespace. */
+			matches = append(matches, config.Match{
+				Type: matchType,
+				Pods: pp.Cache.LookupPodsByNamespace("kube-system"),
 			})
 		}
 	}

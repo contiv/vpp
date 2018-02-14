@@ -35,7 +35,7 @@ data:
 ### example of node configuration for VPP interfaces
 #    NodeConfig:
 #    - NodeName: "vm1"
-#      MainVppInterface:
+#      MainVPPInterface:
 #        InterfaceName: "GigabitEthernet0/4/0"
 #        IP: 192.168.16.101/24
 #      Gateway: 192.168.1.1
@@ -45,7 +45,7 @@ data:
 #      - InterfaceName: "GigabitEthernet0/6/0"
 #        IP: "2.3.4.5/24"
 #    - NodeName: "vm2"
-#      MainVppInterface:
+#      MainVPPInterface:
 #        InterfaceName: "GigabitEthernet0/9/0"
 #        UseDHCP: True
 #      Gateway: 192.168.1.1

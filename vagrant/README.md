@@ -26,7 +26,7 @@ variable, two nodes (one master, one worker) are created.
 
 To create and run the cluster run vagrant-up.sh script, located inside 
 vagrant-scripts folder. You can choose to deploy between the testing (use the 
--t flag or leave empty) and the development environment (use -d flag) when 
+-t flag or leave empty) and the development environment (use the -d flag) when 
 running the vagrant-up.sh script. Instructions on how to build the development
 contiv/vpp-vswitch image can be found in the next paragraph.
 

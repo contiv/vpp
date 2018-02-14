@@ -16,9 +16,10 @@ if [ -f ../config/*.tar ] ; then
     rm ../config/*.tar
 fi
 
-vagrant destroy -f
+export VAGRANT_VAGRANTFILE=../Vagrantfile-dev; vagrant destroy -f
 
 rm -rf ../.vagrant
+rm -rf ./.vagrant
 
 if [ -f .vagrant-state ] ; then
     rm .vagrant-state
@@ -26,8 +27,4 @@ fi
 
 if [ -f ../.vagrant-state ] ; then
     rm ../.vagrant-state
-fi
-
-if [ -f ../Vagrantfile ] ; then
-    rm ../Vagrantfile
 fi

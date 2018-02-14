@@ -6,7 +6,8 @@ export K8S_NODE_OS=${K8S_NODE_OS:-ubuntu}
 export K8S_NODES=${K8S_NODES:-1}
 export VAGRANT_DEFAULT_PROVIDER=${VAGRANT_DEFAULT_PROVIDER:-virtualbox}
 
-# Default values for environment deployment
+# Default values for environment deploymen
+export VAGRANT_VAGRANTFILE=../Vagrantfile-prod
 DEV_ENV="false"
 TEST_ENV="true"
 
@@ -18,7 +19,6 @@ while [ "$1" != "" ]; do
             echo "Using development environment"
             ;;
         -t | --test-env )
-            TEST_ENV="true"
             echo "Using testing environment"
             ;;
         * )
@@ -30,12 +30,11 @@ done
 
 if [ "${DEV_ENV}" == "true" ]
 then
-    cp ../Vagrantfile-dev ../Vagrantfile
-    vagrant up
+    export VAGRANT_VAGRANTFILE=../Vagrantfile-dev; vagrant up
 fi
   
 if [ "${TEST_ENV}" == "true" ]
 then
-  cp ../Vagrantfile-prod ../Vagrantfile
-  vagrant up 
+    echo "Using testing environment"
+    vagrant up 
 fi

@@ -95,13 +95,13 @@ type OneNodeConfig struct {
 	MainVppInterface   InterfaceWithIP   // main VPP interface used for the inter-node connectivity
 	OtherVPPInterfaces []InterfaceWithIP // other interfaces on VPP, not necessarily used for inter-node connectivity
 	Gateway            string            // IP address of the default gateway
-	UseDhcpOnMainInt   bool              // request IP address for main VPP interface using DHCP
 }
 
 // InterfaceWithIP binds interface name with IP address for configuration purposes.
 type InterfaceWithIP struct {
 	InterfaceName string
 	IP            string
+	UseDHCP       bool
 }
 
 // Init initializes the Contiv plugin. Called automatically by plugin infra upon contiv-agent startup.

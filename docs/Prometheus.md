@@ -1,19 +1,30 @@
 # Prometheus statistics
 
-Each contiv-agent exposes statistics in prometheus format at port `9999` by default. 
+Each contiv-agent exposes statistics in Prometheus format at port `9999` by default. 
 Exposed data is split into two groups:
-- `/stats`  provides statistics for the interfaces of vpp managed by contiv-agent
-
-   Prometheus data is a set of counters with labels. For each interfaces
-   the following counters are exposed: *inPackets*, *outPackets*, *inBytes*, *outBytes*,
-    *ipv4Packets*, *ipv6Packets*, *outErrorPackets*, *dropPackets*, *inMissPackets*,
-     *inNobufPackets*, *puntPackets*.
-   Labels allows to add additional information to a counter. *interfaceName* and *node* labels are
-   specified for all. If an interface is associated with a particular pod, *podName* and *podNamespace*
-   labels are filled correspondingly otherwise (e.g.: node interconnect interfaces) placeholder value (`--`) is used.
+- `/stats`  provides statistics for VPP interfaces managed by contiv-agent
+   Prometheus data is a set of counters with labels. For each interface,
+   the following counters are exposed: 
+   * *inPackets* 
+   * *outPackets* 
+   * *inBytes*
+   * *outBytes*
+   * *ipv4Packets*
+   * *ipv6Packets*
+   * *outErrorPackets*
+   * *dropPackets*
+   * *inMissPackets*
+   * *inNobufPackets*
+   * *puntPackets*
+   
+   Labels allows to add additional information to a counter. The *interfaceName* and *node*
+   labels are specified for all counters. If an interface is associated with a particular 
+   pod, the *podName* and *podNamespace* labels are also specified for its counters; 
+   otherwise, a placeholder value (`--`) is used (for example, for node interconnect 
+   interfaces).
 - `/metrics` provides general go runtime statistics
 
-In order to access prometheus stats of a node you can use `curl localhost:9999/stats` from the node
+In order to access Prometheus stats of a node you can use `curl localhost:9999/stats` from the node
 The output of contiv-agent running at k8s master node looks similar to
 
 ```
@@ -125,7 +136,8 @@ scrape_configs:
       - targets: ['localhost:9999']
 ```
 
-Once the prometheus is started with the specified config you should be able access web UI at `localhost:9090`.
+Once Prometheus is started with the specified config you should be able access its web UI at
+`localhost:9090`.
 ```
 tester@dev:~/Downloads/prometheus-2.1.0.linux-amd64$ ./prometheus --config.file=config.yml
 ```

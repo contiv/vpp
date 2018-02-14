@@ -75,7 +75,7 @@ instructions to build a modified contivvpp/vswitch image.
    build the new contivvpp/vswitch image (run as sudo)
 
 ```
-vagrant ssh k8s-master
+export VAGRANT_VAGRANTFILE=../Vagrantfile-dev; vagrant ssh k8s-master
 cd /vagrant/config
 sudo ./save-dev-image.sh
 ```
@@ -87,7 +87,7 @@ the nodes in the K8s cluster. To do so, load the docker image into the running
 worker nodes (run as sudo).
 
 ```
-vagrant ssh k8s-worker1 
+export VAGRANT_VAGRANTFILE=../Vagrantfile-dev; vagrant ssh k8s-worker1 
 cd /vagrant/config
 sudo ./load-dev-image.sh
 ```
@@ -101,7 +101,7 @@ Once the cluster is up, log into the master:
 ```
 cd vagrant-scripts
 
-vagrant ssh k8s-master
+export VAGRANT_VAGRANTFILE=../Vagrantfile-prod; vagrant ssh k8s-master
 
 Welcome to Ubuntu 16.04 LTS (GNU/Linux 4.4.0-21-generic x86_64)
 
@@ -214,5 +214,5 @@ cd vagrant-scripts
 
 vagrant status
 
-vagrant ssh k8s-worker1
+export VAGRANT_VAGRANTFILE=../Vagrantfile-prod; vagrant ssh k8s-worker1
 ```

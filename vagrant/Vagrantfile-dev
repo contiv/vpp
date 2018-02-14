@@ -71,7 +71,8 @@ echo "Installing dependency packages..."
 apt-get install -y apt-transport-https \
                    ca-certificates \
                    curl \
-                   software-properties-common
+                   software-properties-common \
+                   git
                    
 echo "Adding Kubernetes & Docker repos..."
 curl -s https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add -
@@ -103,11 +104,13 @@ echo "Extracting Go..."
 tar -xvzf /tmp/go.tar.gz --directory /home/vagrant >/dev/null 2>&1
 
 echo "Setting Go environment variables..."
-mkdir /home/vagrant/gopath
+mkdir -p /home/vagrant/gopath/bin
+mkdir -p /home/vagrant/gopath/pkg
 chmod -R 777 /home/vagrant/gopath
 echo 'export GOROOT="/home/vagrant/go"' >> /home/vagrant/.bashrc
 echo 'export GOPATH="/home/vagrant/gopath"' >> /home/vagrant/.bashrc
 echo 'export PATH="$PATH:$GOROOT/bin:$GOPATH/bin"' >> /home/vagrant/.bashrc
+source /home/vagrant/.bashrc
 update-locale LANG=en_US.UTF-8 LANGUAGE=en_US.UTF-8 LC_ALL=en_US.UTF-8
 echo 'All done!'
 
@@ -162,6 +165,10 @@ set -x
 # --------------------------------------------------------
 # ---> Create token and export it with kube master IP <---
 # --------------------------------------------------------
+
+echo "Building development contivpp/vswitch image..."
+cd /home/vagrant/gopath/src/github.com/contiv/vpp/docker/ubuntu-based/dev; ./build.sh
+
 echo "Exporting Kube Master IP and Kubeadm Token..."
 #echo "export KUBE_MASTER_IP=$(hostname -I | cut -f2 -d' ')" >> /vagrant/config/init.sh
 echo "export KUBE_MASTER_IP=192.169.1.10\n" >> /vagrant/config/init.sh
@@ -179,6 +186,7 @@ source ~/.profile
 sed -i '4 a Environment="KUBELET_EXTRA_ARGS=--fail-swap-on=false --node-ip=192.169.1.10"' /etc/systemd/system/kubelet.service.d/10-kubeadm.conf
 systemctl daemon-reload
 systemctl restart kubelet
+
 #Disable swap
 swapoff -a
 echo "$(kubeadm init --token-ttl 0 --apiserver-advertise-address="${KUBE_MASTER_IP}" --token="${KUBEADM_TOKEN}")" >> /vagrant/config/cert.sh
@@ -254,9 +262,10 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
         k8smaster.vm.network :private_network, ip: base_ip + "10", virtualbox__intnet: "true"
         k8smaster.vm.provider "virtualbox" do |v|
             v.customize ["modifyvm", :id, "--ioapic", "on"]
-            v.memory = 2048
-            v.cpus = 2
+            v.memory = 4096
+            v.cpus = 4
         end
+        k8smaster.vm.synced_folder "../", "/home/vagrant/gopath/src/github.com/contiv/vpp"
         k8smaster_ip = base_ip + "51"
         k8smaster.vm.provision :shell, inline: "sed 's/127\.0\.0\.1.*k8s.*/"+base_ip +"10 k8s-master/' -i /etc/hosts"
         k8smaster.vm.provision "shell" do |s|

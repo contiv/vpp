@@ -12,6 +12,10 @@ if [ -f ../config/cert.sh ] ; then
 fi
 touch ../config/cert.sh
 
+if [ -f ../config/*.tar ] ; then
+    rm ../config/*.tar
+fi
+
 vagrant destroy -f
 
 rm -rf ../.vagrant
@@ -22,4 +26,8 @@ fi
 
 if [ -f ../.vagrant-state ] ; then
     rm ../.vagrant-state
+fi
+
+if [ -f ../Vagrantfile ] ; then
+    rm ../Vagrantfile
 fi

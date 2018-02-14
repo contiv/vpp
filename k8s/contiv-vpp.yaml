@@ -45,7 +45,6 @@ data:
 #      - InterfaceName: "GigabitEthernet0/6/0"
 #        IP: "2.3.4.5/24"
 #    - NodeName: "vm2"
-#      UseDhcpOnMainInt: False
 #      MainVppInterface:
 #        InterfaceName: "GigabitEthernet0/9/0"
 #        UseDHCP: True

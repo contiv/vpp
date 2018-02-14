@@ -27,6 +27,7 @@ variable, two nodes (one master, one worker) are created.
 To create and run the cluster run vagrant-up.sh script, located inside 
 vagrant-scripts folder. You can choose to deploy between the testing (use -t flag or leave empty) and the development environment (use -d flag) when running the vagrant-up script.
 Instructions on how to build the developmnet contiv/vpp-vswitch can be found on the next paragraph.
+
 _For the testing environment run:_
 ```
 cd vagrant-scripts/
@@ -65,7 +66,7 @@ can be brought up by running the vagrant-up.sh script.
 
 
 ### Building the dev-contiv-vswitch image (optional)
-If you chose the deployment with the development environment follow the instructions to build modified contivvpp/vswitch image.
+If you chose the deployment with the development environment follow the instructions to build a modified contivvpp/vswitch image.
 
 1. Make sure changes in the code have been saved. From the k8s-master node, build the new contivvpp/vswitch image (run as sudo)
 
@@ -76,7 +77,7 @@ sudo ./save-dev-image.sh
 ```
 
 2. The newly built contivvpp/vswitch image is now tagged as latest. Verify with `sudo docker images`; contivvpp/vswitch should have been created a few seconds ago.
-The new image with all the changes must become available to all the worker nodes in the K8s cluster. To do so, load the docker image to the running worker node.
+The new image with all the changes must become available to all the nodes in the K8s cluster. To do so, load the docker image into the running worker nodes (run as sudo).
 
 ```
 vagrant ssh k8s-worker1 

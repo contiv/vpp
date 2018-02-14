@@ -25,8 +25,10 @@ By default, if you do not specify the number of nodes in the environment
 variable, two nodes (one master, one worker) are created.
 
 To create and run the cluster run vagrant-up.sh script, located inside 
-vagrant-scripts folder. You can choose to deploy between the testing (use -t flag or leave empty) and the development environment (use -d flag) when running the vagrant-up script.
-Instructions on how to build the developmnet contiv/vpp-vswitch can be found on the next paragraph.
+vagrant-scripts folder. You can choose to deploy between the testing (use the 
+-t flag or leave empty) and the development environment (use -d flag) when 
+running the vagrant-up.sh script. Instructions on how to build the development
+contiv/vpp-vswitch image can be found in the next paragraph.
 
 _For the testing environment run:_
 ```
@@ -65,10 +67,12 @@ From a suspended state, or after a reboot of the host machine, the cluster
 can be brought up by running the vagrant-up.sh script.
 
 
-### Building the dev-contiv-vswitch image (optional)
-If you chose the deployment with the development environment follow the instructions to build a modified contivvpp/vswitch image.
+### Building and deploying the dev-contiv-vswitch image (optional)
+If you chose the deployment with the development environment follow the
+instructions to build a modified contivvpp/vswitch image.
 
-1. Make sure changes in the code have been saved. From the k8s-master node, build the new contivvpp/vswitch image (run as sudo)
+1. Make sure changes in the code have been saved. From the k8s-master node, 
+   build the new contivvpp/vswitch image (run as sudo)
 
 ```
 vagrant ssh k8s-master
@@ -76,8 +80,11 @@ cd /vagrant/config
 sudo ./save-dev-image.sh
 ```
 
-2. The newly built contivvpp/vswitch image is now tagged as latest. Verify with `sudo docker images`; contivvpp/vswitch should have been created a few seconds ago.
-The new image with all the changes must become available to all the nodes in the K8s cluster. To do so, load the docker image into the running worker nodes (run as sudo).
+2. The newly built contivvpp/vswitch image is now tagged as latest. Verify 
+with `sudo docker images`; contivvpp/vswitch should have been created a few
+seconds ago. The new image with all the changes must become available to all
+the nodes in the K8s cluster. To do so, load the docker image into the running
+worker nodes (run as sudo).
 
 ```
 vagrant ssh k8s-worker1 
@@ -85,7 +92,9 @@ cd /vagrant/config
 sudo ./load-dev-image.sh
 ```
 
-Verify with `sudo docker images`; old contivvpp/vswitch should now be tagged as `<none>` and the latest tagged  contivvpp/vswitch should have been created a few seconds ago.
+Verify with `sudo docker images`; old contivvpp/vswitch should now be tagged as
+`<none>` and the latest tagged  contivvpp/vswitch should have been created a
+few seconds ago.
 
 ### Exploring the cluster:
 Once the cluster is up, log into the master:

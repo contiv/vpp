@@ -72,7 +72,7 @@ If you chose the deployment with the development environment follow the instruct
 
 ```
 vagrant ssh k8s-master
-cd $GOPATH/src/github.com/contiv/vpp/vagrant/config
+cd /vagrant/config
 sudo ./save-dev-image.sh
 ```
 
@@ -81,7 +81,7 @@ The new image with all the changes must become available to all the nodes in the
 
 ```
 vagrant ssh k8s-worker1 
-cd $GOPATH/src/github.com/contiv/vpp/vagrant/config
+cd /vagrant/config
 sudo ./load-dev-image.sh
 ```
 

@@ -146,10 +146,7 @@ you have to untaint the master node:
 
 Check VPP and its interfaces:
 ```apple js
-vagrant@k8s-master:~$ telnet 0 5002
-Trying 0.0.0.0...
-Connected to 0.
-Escape character is '^]'.
+vagrant@k8s-master:~$ sudo nc -U /run/vpp/cli.sock
     _______    _        _   _____  ___ 
  __/ __/ _ \  (_)__    | | / / _ \/ _ \
  _/ _// // / / / _ \   | |/ / ___/ ___/

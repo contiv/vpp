@@ -1,0 +1,4 @@
+name: contiv-vpp
+description: Deploys Contiv VPP networking
+version: 0.1.0
+home: https://github.com/contiv/vpp

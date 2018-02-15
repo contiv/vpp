@@ -170,10 +170,10 @@ echo "Building development contivpp/vswitch image..."
 cd /home/vagrant/gopath/src/github.com/contiv/vpp/docker/ubuntu-based/dev; ./build.sh
 
 echo "Exporting Kube Master IP and Kubeadm Token..."
-#echo "export KUBE_MASTER_IP=$(hostname -I | cut -f2 -d' ')" >> /vagrant/config/init.sh
-echo "export KUBE_MASTER_IP=192.169.1.10\n" >> /vagrant/config/init.sh
-echo "export KUBEADM_TOKEN=$(kubeadm token generate)" >> /vagrant/config/init.sh
-source /vagrant/config/init.sh
+#echo "export KUBE_MASTER_IP=$(hostname -I | cut -f2 -d' ')" >> /vagrant/config/init
+echo "export KUBE_MASTER_IP=192.169.1.10\n" >> /vagrant/config/init
+echo "export KUBEADM_TOKEN=$(kubeadm token generate)" >> /vagrant/config/init
+source /vagrant/config/init
 echo "export no_proxy='k8s-master,192.169.1.10,192.169.1.11,192.169.1.12,192.169.1.13,localhost,127.0.0.1'" >> /etc/profile.d/envvar.sh
 echo "export no_proxy='k8s-master,192.169.1.10,192.169.1.11,192.169.1.12,192.169.1.13,localhost,127.0.0.1'" >> ~/.profile
 source /etc/profile.d/envvar.sh
@@ -189,7 +189,7 @@ systemctl restart kubelet
 
 #Disable swap
 swapoff -a
-echo "$(kubeadm init --token-ttl 0 --apiserver-advertise-address="${KUBE_MASTER_IP}" --token="${KUBEADM_TOKEN}")" >> /vagrant/config/cert.sh
+echo "$(kubeadm init --token-ttl 0 --apiserver-advertise-address="${KUBE_MASTER_IP}" --token="${KUBEADM_TOKEN}")" >> /vagrant/config/cert
 
 echo "Create folder to store kubernetes and network configuration"
 mkdir -p /home/vagrant/.kube
@@ -222,8 +222,8 @@ swapoff -a
 # Kubeadm join expects kube_master_ip and kubeadm_token
 set -e
 set -x
-source /vagrant/config/init.sh
-hash=$(awk 'END {print $NF}' /vagrant/config/cert.sh)
+source /vagrant/config/init
+hash=$(awk 'END {print $NF}' /vagrant/config/cert)
 kubeadm join --token "${KUBEADM_TOKEN}"  "${KUBE_MASTER_IP}":6443 --discovery-token-ca-cert-hash "$hash"
 SCRIPT
 

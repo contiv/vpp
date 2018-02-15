@@ -7,7 +7,6 @@ export K8S_NODES=${K8S_NODES:-1}
 export VAGRANT_DEFAULT_PROVIDER=${VAGRANT_DEFAULT_PROVIDER:-virtualbox}
 
 # Default values for environment deploymen
-export VAGRANT_VAGRANTFILE=../Vagrantfile-prod
 DEV_ENV="false"
 TEST_ENV="true"
 
@@ -30,11 +29,13 @@ done
 
 if [ "${DEV_ENV}" == "true" ]
 then
-    export VAGRANT_VAGRANTFILE=../Vagrantfile-dev; vagrant up
+    cp ../Vagrantfile-dev ../Vagrantfile
+    vagrant up
 fi
   
 if [ "${TEST_ENV}" == "true" ]
 then
     echo "Using testing environment"
+    cp ../Vagrantfile-prod ../Vagrantfile
     vagrant up 
 fi

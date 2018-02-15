@@ -30,6 +30,6 @@ if [ -f ../.vagrant-state ] ; then
     rm ../.vagrant-state
 fi
 
-if [ -f ./Vagrantfile ] ; then
-    rm ./Vagrantfile
+if [ -f ../Vagrantfile ] ; then
+    rm ../Vagrantfile
 fi

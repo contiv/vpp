@@ -1,0 +1,73 @@
+contiv:
+  tcpStackDisabled: True
+  useTAPInterfaces: True
+  tapInterfaceVersion: 1
+  ipamConfig:
+    podSubnetCIDR: "10.1.0.0/16"
+    podNetworkPrefixLen: 24
+    vppHostSubnetCIDR: "172.30.0.0/16"
+    vppHostNetworkPrefixLen: "192.168.16.0/24"
+    vxlanCIDR: "192.168.30.0/24"
+    nodeInterconnectCIDR: "192.168.16.0/24"
+    #serviceCIDR: "10.96.0.0/12"
+  # example of node configuration for VPP interfaces
+  #nodeConfig:
+  #  - name: "vm1"
+  #    mainInterface:
+  #      interfaceName: "GigabitEthernet0/4/0"
+  #      ip: 192.168.16.101/24
+  #    gateway: 192.168.1.1
+  #    otherInterfaces:
+  #      - interfaceName: "GigabitEthernet0/5/0"
+  #        ip: "1.2.3.4/24"
+  #      - interfaceName: "GigabitEthernet0/6/0"
+  #        ip: "2.3.4.5/24"
+  #  - name: "vm2"
+  #    useDHCPOnMainInt: False
+  #    mainInterface:
+  #      interfaceName: "GigabitEthernet0/9/0"
+  #      useDHCP: True
+  #    gateway: 192.168.1.1
+  #    otherInterfaces:
+  #      - interfaceName: "GigabitEthernet0/7/0"
+  #        ip: "3.4.5.6/24"
+  #      - interfaceName: "GigabitEthernet0/7/0"
+  #        ip: "5.6.7.8/24"
+
+# ETCD server to be used by Contiv
+etcd:
+  image:
+    repository: quay.io/coreos/etcd
+    tag: v3.1.10
+    pullPolicy: IfNotPresent
+  service:
+    #NodePort where contiv-etcd can be reached on any node.
+    nodePort: 32379
+
+vswitch:
+  image:
+    repository: contivvpp/vswitch
+    tag: latest
+    pullPolicy: IfNotPresent
+  enableLivenessReadinessProbes: true
+
+cni:
+  image:
+    repository: contivvpp/cni
+    tag: latest
+    pullPolicy: IfNotPresent
+
+ksr:
+  image:
+    repository: contivvpp/ksr
+    tag: latest
+    pullPolicy: IfNotPresent
+
+# GoVPP configuration
+# It contains time intervals used for VPP health probing (in nanoseconds).
+# After a health check probe is not recieved within the health-check-reply-timeout
+# period health-check-threshold times, VPP is considered to be dead by the contiv-agent.
+govpp:
+  healthCheckProbeInterval: 1000000000
+  healthCheckReplyTimeout: 500000000
+  healthCheckThreshold: 3

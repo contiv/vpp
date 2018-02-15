@@ -261,6 +261,13 @@ func (s *remoteCNIserver) routeToOtherHostStack(hostID uint8, nextHopIP string) 
 	return s.routeToOtherHostNetworks(hostNw, nextHopIP)
 }
 
+func (s *remoteCNIserver) routeToOtherManagementIP(managementIP string, nextHopIP string) *vpp_l3.StaticRoutes_Route {
+	return &vpp_l3.StaticRoutes_Route{
+		DstIpAddr:   managementIP + "/32",
+		NextHopAddr: nextHopIP,
+	}
+}
+
 func (s *remoteCNIserver) routeToOtherHostNetworks(destNetwork *net.IPNet, nextHopIP string) (*vpp_l3.StaticRoutes_Route, error) {
 	return &vpp_l3.StaticRoutes_Route{
 		DstIpAddr:   destNetwork.String(),

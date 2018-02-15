@@ -311,7 +311,7 @@ func (s *remoteCNIserver) configureVswitchNICs(config *vswitchConfig) error {
 	useDHCP := false
 	if s.nodeConfig != nil {
 		// use name as as specified in node config YAML
-		nicName = s.nodeConfig.MainVppInterface.InterfaceName
+		nicName = s.nodeConfig.MainVPPInterface.InterfaceName
 		s.Logger.Debugf("Physical NIC name taken from nodeConfig: %v ", nicName)
 	}
 
@@ -330,9 +330,9 @@ func (s *remoteCNIserver) configureVswitchNICs(config *vswitchConfig) error {
 	}
 	// IP of the main interface
 	nicIP := ""
-	if s.nodeConfig != nil && s.nodeConfig.MainVppInterface.IP != "" {
-		nicIP = s.nodeConfig.MainVppInterface.IP
-	} else if s.nodeConfig != nil && s.nodeConfig.MainVppInterface.UseDHCP {
+	if s.nodeConfig != nil && s.nodeConfig.MainVPPInterface.IP != "" {
+		nicIP = s.nodeConfig.MainVPPInterface.IP
+	} else if s.nodeConfig != nil && s.nodeConfig.MainVPPInterface.UseDHCP {
 		useDHCP = true
 	} else if s.ipam.NodeInterconnectDHCPEnabled() {
 		// inherit DHCP from global setting

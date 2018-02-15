@@ -62,7 +62,7 @@ to contain the proper PCI address:
 ```
 unix {
     nodaemon
-    cli-listen /run/vpp/cli.sock
+    cli-listen 0.0.0.0:5002
     cli-no-pager
 }
 dpdk {
@@ -174,7 +174,7 @@ argument to kubeadm init.
 Verify that the VPP successfully grabbed the network interface specified in
 the VPP startup config (`GigabitEthernet0/4/0` in our case):
 ```
-$ sudo nc -U /run/vpp/cli.sock
+$ telnet 0 5002
 vpp# sh inter
               Name               Idx       State          Counter          Count
 GigabitEthernet0/4/0              1         up       rx packets                  1294
@@ -246,7 +246,7 @@ On each joined node, verify that the VPP successfully grabbed the network
 interface specified in the VPP startup config (`GigabitEthernet0/4/0` in
 our case):
 ```
-$ sudo nc -U /run/vpp/cli.sock
+$ telnet 0 5002
 vpp# sh inter
               Name               Idx       State          Counter          Count
 GigabitEthernet0/4/0              1         up
@@ -284,7 +284,7 @@ IP:		10.1.1.4
 You can check the pods' connectivity in one of the following ways:
 * Connect to the VPP debug CLI and ping any pod:
 ```
-  sudo nc -U /run/vpp/cli.sock
+  telnet 0 5002
   vpp# ping 10.1.1.3
 ```
 * Start busybox and ping any pod:

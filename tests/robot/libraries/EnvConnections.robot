@@ -28,7 +28,7 @@ Open_VPP_Connection
     BuiltIn.Log    ${node_index}
     ${vpp_connection}=    KubernetesEnv.Open_Connection_To_Node    vpp    ${node_index}
     BuiltIn.Set_Suite_Variable    ${vpp_connection}
-    SshCommons.Switch_And_Write_Command    ${vpp_connection}    nc -U /run/vpp/cli.sock
+    SshCommons.Switch_And_Write_Command    ${vpp_connection}    telnet 0 5002
 
 Find_Nginx_IP
     ${nginx_pod_details} =     KubeCtl.Describe_Pod    ${testbed_connection}    ${nginx_pod_name}

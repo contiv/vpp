@@ -106,7 +106,7 @@ Device 'eth2' must be shutdown, do you want to proceed? [Y/n] y
 
 unix {
    nodaemon
-   cli-listen /run/vpp/cli.sock
+   cli-listen 0.0.0.0:5002
    cli-no-pager
 }
 dpdk {

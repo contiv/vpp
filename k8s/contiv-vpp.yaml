@@ -395,6 +395,7 @@ rules:
       - networkpolicies
       - services
       - endpoints
+      - nodes
     verbs:
       - watch
       - list

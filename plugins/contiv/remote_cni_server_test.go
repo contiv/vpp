@@ -121,9 +121,10 @@ var (
 		},
 	}
 	otherNodeInfo = node.NodeInfo{
-		Id:        5,
-		Name:      "node5",
-		IpAddress: "1.2.3.4/25",
+		Id:                  5,
+		Name:                "node5",
+		IpAddress:           "1.2.3.4/25",
+		ManagementIpAddress: "192.168.42.5",
 	}
 )
 
@@ -312,7 +313,7 @@ func TestNodeAddDelL2(t *testing.T) {
 	// check routes to the other node pointing to node IP
 	nexthopIP := server.ipPrefixToAddress(otherNodeInfo.IpAddress)
 	routes := routesViaInSnapshot(txns.AppliedConfig, nexthopIP)
-	gomega.Expect(len(routes)).To(gomega.BeEquivalentTo(2))
+	gomega.Expect(len(routes)).To(gomega.BeEquivalentTo(3))
 
 	err = server.nodeChangePropageteEvent(&nodeAddDelEvent{evType: datasync.Delete})
 	gomega.Expect(err).To(gomega.BeNil())
@@ -339,7 +340,7 @@ func TestNodeAddDelVXLAN(t *testing.T) {
 	// check routes to the other node pointing to VXLAN IP
 	nexthopIP, _ := server.ipam.VxlanIPAddress(uint8(otherNodeInfo.Id))
 	routes := routesViaInSnapshot(txns.AppliedConfig, nexthopIP.String())
-	gomega.Expect(len(routes)).To(gomega.BeEquivalentTo(2))
+	gomega.Expect(len(routes)).To(gomega.BeEquivalentTo(3))
 
 	err = server.nodeChangePropageteEvent(&nodeAddDelEvent{evType: datasync.Delete})
 	gomega.Expect(err).To(gomega.BeNil())
@@ -520,6 +521,7 @@ func (e nodeAddDelEvent) GetValue(value proto.Message) error {
 	v.Id = otherNodeInfo.Id
 	v.Name = otherNodeInfo.Name
 	v.IpAddress = otherNodeInfo.IpAddress
+	v.ManagementIpAddress = otherNodeInfo.ManagementIpAddress
 	return nil
 }
 

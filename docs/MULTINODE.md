@@ -47,7 +47,7 @@ to contain the proper PCI address:
 ```
 unix {
     nodaemon
-    cli-listen /run/vpp/cli.sock
+    cli-listen 0.0.0.0:5002
     cli-no-pager
 }
 dpdk {
@@ -96,7 +96,7 @@ $ kubectl get pods --all-namespaces
 On each node, verify that the VPP successfully grabbed the network interface specified 
 in the VPP startup config (`GigabitEthernet0/4/0` in our case):
 ```
-$ sudo nc -U /run/vpp/cli.sock
+$ telnet 0 5002
 vpp# sh inter
               Name               Idx       State          Counter          Count     
 GigabitEthernet0/4/0              1        down      

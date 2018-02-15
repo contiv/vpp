@@ -31,6 +31,7 @@ if [ "${DEV_ENV}" == "true" ]
 then
     cp ../Vagrantfile-dev ../Vagrantfile
     vagrant up
+    exit 1
 fi
   
 if [ "${TEST_ENV}" == "true" ]

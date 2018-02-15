@@ -24,11 +24,13 @@ import (
 
 	"git.fd.io/govpp.git/api"
 	govppapi "git.fd.io/govpp.git/api"
+	stn_grpc "github.com/contiv/vpp/cmd/contiv-stn/model/stn"
 	"github.com/contiv/vpp/plugins/contiv/bin_api/dhcp"
 	"github.com/contiv/vpp/plugins/contiv/containeridx"
 	"github.com/contiv/vpp/plugins/contiv/ipam"
 	"github.com/contiv/vpp/plugins/contiv/model/cni"
 	"github.com/contiv/vpp/plugins/kvdbproxy"
+	"github.com/coreos/rkt/tests/testutils/logger"
 	"github.com/gogo/protobuf/proto"
 	"github.com/ligato/cn-infra/datasync"
 	"github.com/ligato/cn-infra/logging"
@@ -42,6 +44,7 @@ import (
 	linux_intf "github.com/ligato/vpp-agent/plugins/linuxplugin/ifplugin/model/interfaces"
 	linux_l3 "github.com/ligato/vpp-agent/plugins/linuxplugin/l3plugin/model/l3"
 	"golang.org/x/net/context"
+	"google.golang.org/grpc"
 )
 
 const (
@@ -365,6 +368,26 @@ func (s *remoteCNIserver) configureMainVPPInterface(config *vswitchConfig, nicNa
 	var err error
 	txn1 := s.vppTxnFactory().Put()
 
+	useSTN := false
+	if s.nodeConfig != nil && s.nodeConfig.StealInterface != "" {
+		useSTN = true
+		s.Logger.Infof("STN of the host interface %s requested.", s.nodeConfig.StealInterface)
+
+		// get IP address of the STN interface
+		nicIP, err = s.getSTNInterfaceIP(s.nodeConfig.StealInterface)
+		if err != nil {
+			logger.Errorf("Unable to get STN interface info: %v", err)
+			return err
+		}
+
+		if nicIP != "" {
+			s.Logger.Infof("STN-configured interface %s (IP %s), skip main interface config.", nicName, nicIP)
+		} else {
+			s.Logger.Infof("STN-configured interface %s, but there is no IP, continue with main interface config.", nicName)
+			useSTN = false
+		}
+	}
+
 	// determine main node IP address
 	if useDHCP {
 		// ip address will be assigned by DHCP server, not known yet
@@ -382,38 +405,40 @@ func (s *remoteCNIserver) configureMainVPPInterface(config *vswitchConfig, nicNa
 		s.Logger.Infof("Configuring %v to use %v", nicName, nodeIP.String())
 	}
 
-	if nicName != "" {
-		// configure the physical NIC
-		s.Logger.Info("Configuring physical NIC ", nicName)
+	if !useSTN {
+		if nicName != "" {
+			// configure the physical NIC
+			s.Logger.Info("Configuring physical NIC ", nicName)
 
-		nic := s.physicalInterface(nicName, s.nodeIP)
-		if useDHCP {
-			// clear IP addresses
-			nic.IpAddresses = []string{}
+			nic := s.physicalInterface(nicName, s.nodeIP)
+			if useDHCP {
+				// clear IP addresses
+				nic.IpAddresses = []string{}
+			}
+			txn1.VppInterface(nic)
+			config.nics = append(config.nics, nic)
+			s.physicalIfs = append(s.physicalIfs, nicName)
+		} else {
+			// configure loopback instead of the physical NIC
+			s.Logger.Debug("Physical NIC not found, configuring loopback instead.")
+
+			loop := s.physicalInterfaceLoopback(s.nodeIP)
+			txn1.VppInterface(loop)
+			config.nics = append(config.nics, loop)
 		}
-		txn1.VppInterface(nic)
-		config.nics = append(config.nics, nic)
-		s.physicalIfs = append(s.physicalIfs, nicName)
-	} else {
-		// configure loopback instead of the physical NIC
-		s.Logger.Debug("Physical NIC not found, configuring loopback instead.")
 
-		loop := s.physicalInterfaceLoopback(s.nodeIP)
-		txn1.VppInterface(loop)
-		config.nics = append(config.nics, loop)
-	}
+		if nicName != "" && s.nodeConfig != nil && s.nodeConfig.Gateway != "" {
+			// configure the default gateway
+			config.defaultRoute = s.defaultRoute(s.nodeConfig.Gateway, nicName)
+			txn1.StaticRoute(config.defaultRoute)
+		}
 
-	if nicName != "" && s.nodeConfig != nil && s.nodeConfig.Gateway != "" {
-		// configure the default gateway
-		config.defaultRoute = s.defaultRoute(s.nodeConfig.Gateway, nicName)
-		txn1.StaticRoute(config.defaultRoute)
-	}
-
-	// execute the config transaction
-	err = txn1.Send().ReceiveReply()
-	if err != nil {
-		s.Logger.Error(err)
-		return err
+		// execute the config transaction
+		err = txn1.Send().ReceiveReply()
+		if err != nil {
+			s.Logger.Error(err)
+			return err
+		}
 	}
 
 	if useDHCP {
@@ -425,6 +450,36 @@ func (s *remoteCNIserver) configureMainVPPInterface(config *vswitchConfig, nicNa
 	}
 
 	return nil
+}
+
+// getSTNInterfaceIP returns IP address of the interface before stealing it from the host stack.
+func (s *remoteCNIserver) getSTNInterfaceIP(ifName string) (string, error) {
+	s.Logger.Debugf("Getting STN info for interface %s", ifName)
+
+	// connect to STN GRPC server
+	conn, err := grpc.Dial(fmt.Sprintf(":%d", 50051), grpc.WithInsecure()) // TODO configurable server port
+	if err != nil {
+		logger.Errorf("Unable to connect to STN GRPC: %v", err)
+		return "", err
+	}
+	defer conn.Close()
+	c := stn_grpc.NewSTNClient(conn)
+
+	// request stealing the interface
+	reply, err := c.StolenInterfaceInfo(context.Background(), &stn_grpc.STNRequest{
+		InterfaceName: ifName,
+	})
+	if err != nil {
+		logger.Errorf("Error by executing STN GRPC: %v", err)
+		return "", err
+	}
+
+	s.Logger.Debugf("STN GRPC reply: %v", reply)
+
+	if len(reply.IpAddresses) == 0 {
+		return "", nil
+	}
+	return reply.IpAddresses[0], nil
 }
 
 func (s *remoteCNIserver) configureDHCP(nicName string) error {

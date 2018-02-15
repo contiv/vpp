@@ -111,6 +111,25 @@ func (s *stnServer) ReleaseInterface(ctx context.Context, req *stn.STNRequest) (
 	return s.grpcReplyEmptyOK(), nil
 }
 
+// StolenInterfaceInfo implements GRPC StolenInterfaceInfo procedure.
+// It returns information about the already stolen interface.
+func (s *stnServer) StolenInterfaceInfo(ctx context.Context, req *stn.STNRequest) (*stn.STNReply, error) {
+	log.Println("GRPC StolenInterfaceInfo request:", req)
+
+	// find interface data
+	ifData, err := s.getStolenInterfaceData(req.InterfaceName)
+	if err != nil {
+		log.Println(err)
+		return s.grpcReplyError(err), err
+	}
+
+	// generate GRPC response
+	resp := s.grpcReplyData(ifData)
+	log.Println("Returning GRPC data:", resp)
+
+	return resp, nil
+}
+
 // unconfigureInterface "steals" an interface identified by its name and returns its original config.
 func (s *stnServer) unconfigureInterface(ifName string) (*interfaceData, error) {
 	s.Lock()
@@ -156,6 +175,22 @@ func (s *stnServer) revertInterface(ifName string) error {
 		return s.revertLink(ifData)
 	}
 	return fmt.Errorf("no previous config found for the interface %s", ifName)
+}
+
+// getStolenInterfaceData returns data of the already stolen interface.
+func (s *stnServer) getStolenInterfaceData(ifName string) (*interfaceData, error) {
+	s.Lock()
+	defer s.Unlock()
+
+	// find matching interface
+	ifData, ok := s.stolenInterfaces[ifName]
+	if !ok {
+		err := fmt.Errorf("interface %s not found in stolen interface list", ifName)
+		log.Println(err)
+		return nil, err
+	}
+
+	return ifData, nil
 }
 
 // unconfigureLink "steals" a link and returns its original config.
@@ -307,7 +342,7 @@ func (s *stnServer) setLinkUp(link netlink.Link) error {
 		// check whether the link is UP
 		l, err := netlink.LinkByName(link.Attrs().Name)
 		if err == nil {
-			if l.Attrs().OperState != netlink.OperUp {
+			if l.Attrs().OperState == netlink.OperUp {
 				// succesfully configured
 				return nil
 			}

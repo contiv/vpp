@@ -134,7 +134,7 @@ func parseSTNConfig() (nicToSteal string, vppIfName string, err error) {
 
 	for _, nc := range config.NodeConfig {
 		if nc.NodeName == nodeName {
-			logger.Debug("Found interface to be stealed: %s", nc.StealInterface)
+			logger.Debugf("Found interface to be stealed: %s", nc.StealInterface)
 			nicToSteal = nc.StealInterface
 			vppIfName = nc.MainVppInterface.InterfaceName
 			return
@@ -182,16 +182,14 @@ func main() {
 
 	if nicToSteal != "" {
 		// configure connectivity on VPP
-		err = configureVpp(stnData, vppIfName)
+		vppCfg, err := configureVpp(stnData, vppIfName)
 		if err != nil {
 			logger.Errorf("Error by configuring VPP: %v", err)
 			os.Exit(-1)
 		}
 
-		// TODO: configure connectivity on host
-
 		// persist VPP config in ETCD
-		err = persistVppConfig(stnData)
+		err = persistVppConfig(stnData, vppCfg)
 		if err != nil {
 			logger.Errorf("Error by persisting VPP config in ETCD: %v", err)
 			os.Exit(-1)

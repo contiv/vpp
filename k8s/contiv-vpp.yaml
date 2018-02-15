@@ -31,7 +31,7 @@ data:
       NodeInterconnectCIDR: "192.168.16.0/24"
       VxlanCIDR: "192.168.30.0/24"
     NodeConfig:
-    - NodeName: "ubuntu-10"
+    - NodeName: "ubuntu-1"
       StealInterface: "enp0s9"
 #      ServiceCIDR: "10.96.0.0/12"
 #      NodeInterconnectDHCP: True

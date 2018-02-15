@@ -24,6 +24,9 @@ service STN {
 
     // The request to revert config of a previously "stolen" (unconfigured) interface.
     rpc ReleaseInterface (STNRequest) returns (STNReply) {}
+
+    // Request to return information about the stolen interface.
+    rpc StolenInterfaceInfo (STNRequest) returns (STNReply) {}
 }
 
 // STNRequest represents a request to steal or release of an interface.

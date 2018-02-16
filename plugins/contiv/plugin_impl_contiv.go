@@ -203,7 +203,23 @@ func (plugin *Plugin) GetPodByIf(ifname string) (podNamespace string, podName st
 		return "", "", false
 	}
 	return config.PodNamespace, config.PodName, true
+}
 
+// GetPodByNsIndex looks up podName and podNamespace that is associated with the VPP session namespace.
+func (plugin *Plugin) GetPodByNsIndex(nsIndex uint32) (podNamespace string, podName string, exists bool) {
+	nsID, _, found := plugin.VPP.GetAppNsIndexes().LookupName(nsIndex)
+	if !found {
+		return "", "", false
+	}
+	ids := plugin.configuredContainers.LookupPodNs(nsID)
+	if len(ids) != 1 {
+		return "", "", false
+	}
+	config, found := plugin.configuredContainers.LookupContainer(ids[0])
+	if !found {
+		return "", "", false
+	}
+	return config.PodNamespace, config.PodName, true
 }
 
 // GetIfName looks up logical interface name that corresponds to the interface associated with the given POD name.

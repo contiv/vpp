@@ -129,7 +129,7 @@ func verifyACL(acl *acl_model.AccessLists_Acl, aclName string, ingress cache.Int
 
 func verifyRule(aclRule *acl_model.AccessLists_Acl_Rule, contivRule *renderer.ContivRule) {
 	// Name
-	gomega.Expect(aclRule.RuleName).To(gomega.BeEquivalentTo(contivRule.ID))
+	gomega.Expect(aclRule.RuleName).To(gomega.BeEmpty())
 	// Action
 	gomega.Expect(aclRule.Actions).ToNot(gomega.BeNil())
 	if contivRule.Action == renderer.ActionPermit {
@@ -194,7 +194,6 @@ func verifyRule(aclRule *acl_model.AccessLists_Acl_Rule, contivRule *renderer.Co
 
 func allowAll() []*renderer.ContivRule {
 	ruleTCPAny := &renderer.ContivRule{
-		ID:          "TCP:ANY",
 		Action:      renderer.ActionPermit,
 		SrcNetwork:  &net.IPNet{},
 		DestNetwork: &net.IPNet{},
@@ -203,7 +202,6 @@ func allowAll() []*renderer.ContivRule {
 		DestPort:    0,
 	}
 	ruleUDPAny := &renderer.ContivRule{
-		ID:          "UDP:ANY",
 		Action:      renderer.ActionPermit,
 		SrcNetwork:  &net.IPNet{},
 		DestNetwork: &net.IPNet{},

@@ -26,6 +26,7 @@ import (
 	"github.com/contiv/vpp/plugins/contiv/containeridx"
 	"github.com/contiv/vpp/plugins/contiv/ipam"
 	"github.com/contiv/vpp/plugins/contiv/model/cni"
+	protoNode "github.com/contiv/vpp/plugins/ksr/model/node"
 	"github.com/contiv/vpp/plugins/kvdbproxy"
 	"github.com/ligato/cn-infra/datasync"
 	"github.com/ligato/cn-infra/datasync/resync"
@@ -38,6 +39,7 @@ import (
 	linuxlocalclient "github.com/ligato/vpp-agent/clientv1/linux/localclient"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins"
 	"github.com/ligato/vpp-agent/plugins/govppmux"
+	"strings"
 )
 
 // Plugin represents the instance of the Contiv network plugin, that transforms CNI requests recieved over
@@ -53,6 +55,9 @@ type Plugin struct {
 	nodeIDsresyncChan chan datasync.ResyncEvent
 	nodeIDSchangeChan chan datasync.ChangeEvent
 	nodeIDwatchReg    datasync.WatchRegistration
+	watchReg          datasync.WatchRegistration
+	resyncCh          chan datasync.ResyncEvent
+	changeCh          chan datasync.ChangeEvent
 
 	ctx           context.Context
 	ctxCancelFunc context.CancelFunc
@@ -92,16 +97,16 @@ type Config struct {
 // OneNodeConfig represents configuration for one node. It contains only settings specific to given node.
 type OneNodeConfig struct {
 	NodeName           string            // name of the node, should match withs the hostname
-	MainVppInterface   InterfaceWithIP   // main VPP interface used for the inter-node connectivity
+	MainVPPInterface   InterfaceWithIP   // main VPP interface used for the inter-node connectivity
 	OtherVPPInterfaces []InterfaceWithIP // other interfaces on VPP, not necessarily used for inter-node connectivity
 	Gateway            string            // IP address of the default gateway
-	UseDhcpOnMainInt   bool              // request IP address for main VPP interface using DHCP
 }
 
 // InterfaceWithIP binds interface name with IP address for configuration purposes.
 type InterfaceWithIP struct {
 	InterfaceName string
 	IP            string
+	UseDHCP       bool
 }
 
 // Init initializes the Contiv plugin. Called automatically by plugin infra upon contiv-agent startup.
@@ -127,7 +132,7 @@ func (plugin *Plugin) Init() error {
 	// init node ID allocator
 	nodeIP := ""
 	if plugin.myNodeConfig != nil {
-		nodeIP = plugin.myNodeConfig.MainVppInterface.IP
+		nodeIP = plugin.myNodeConfig.MainVPPInterface.IP
 	}
 	plugin.nodeIDAllocator = newIDAllocator(plugin.ETCD, plugin.ServiceLabel.GetAgentLabel(), nodeIP)
 	nodeID, err := plugin.nodeIDAllocator.getID()
@@ -138,8 +143,15 @@ func (plugin *Plugin) Init() error {
 
 	plugin.nodeIDsresyncChan = make(chan datasync.ResyncEvent)
 	plugin.nodeIDSchangeChan = make(chan datasync.ChangeEvent)
+	plugin.resyncCh = make(chan datasync.ResyncEvent)
+	plugin.changeCh = make(chan datasync.ChangeEvent)
 
-	plugin.nodeIDwatchReg, err = plugin.Watcher.Watch("contiv-plugin", plugin.nodeIDSchangeChan, plugin.nodeIDsresyncChan, allocatedIDsKeyPrefix)
+	plugin.nodeIDwatchReg, err = plugin.Watcher.Watch("contiv-plugin-ids", plugin.nodeIDSchangeChan, plugin.nodeIDsresyncChan, allocatedIDsKeyPrefix)
+	if err != nil {
+		return err
+	}
+
+	plugin.watchReg, err = plugin.Watcher.Watch("contiv-plugin-node", plugin.changeCh, plugin.resyncCh, protoNode.KeyPrefix())
 	if err != nil {
 		return err
 	}
@@ -162,8 +174,8 @@ func (plugin *Plugin) Init() error {
 	}
 	cni.RegisterRemoteCNIServer(plugin.GRPC.Server(), plugin.cniServer)
 
-	plugin.nodeIPWatcher = make(chan string)
-	go plugin.watchNodeIP()
+	plugin.nodeIPWatcher = make(chan string, 1)
+	go plugin.watchEvents()
 	plugin.cniServer.WatchNodeIP(plugin.nodeIPWatcher)
 
 	// start goroutine handling changes in nodes within the k8s cluster
@@ -188,7 +200,7 @@ func (plugin *Plugin) Close() error {
 	plugin.ctxCancelFunc()
 	plugin.cniServer.close()
 	plugin.nodeIDAllocator.releaseID()
-	_, err := safeclose.CloseAll(plugin.govppCh, plugin.nodeIDwatchReg)
+	_, err := safeclose.CloseAll(plugin.govppCh, plugin.nodeIDwatchReg, plugin.watchReg)
 	return err
 }
 
@@ -354,7 +366,7 @@ func (plugin *Plugin) getContainerConfig(podNamespace string, podName string) *c
 	return nil
 }
 
-func (plugin *Plugin) watchNodeIP() {
+func (plugin *Plugin) watchEvents() {
 	for {
 		select {
 		case newIP := <-plugin.nodeIPWatcher:
@@ -364,7 +376,91 @@ func (plugin *Plugin) watchNodeIP() {
 					plugin.Log.Error(err)
 				}
 			}
+		case changeEv := <-plugin.changeCh:
+			var err error
+			key := changeEv.GetKey()
+			if strings.HasPrefix(key, protoNode.KeyPrefix()) {
+				err = plugin.handleKsrNodeChange(changeEv)
+			} else {
+				plugin.Log.Warn("Change for unknown key %v received", key)
+			}
+			changeEv.Done(err)
+		case resyncEv := <-plugin.resyncCh:
+			var err error
+			data := resyncEv.GetValues()
+
+			for prefix, it := range data {
+				if prefix == protoNode.KeyPrefix() {
+					err = plugin.handleKsrNodeResync(it)
+				}
+			}
+			resyncEv.Done(err)
 		case <-plugin.ctx.Done():
 		}
 	}
+}
+
+// handleKsrNodeChange handles change event for the prefix where node data
+// is stored by ksr. The aim is to extract node Internal IP - ip address
+// that k8s use to access node(management IP). This IP is used as an endpoint
+// for services where backends use host networking.
+func (plugin *Plugin) handleKsrNodeChange(change datasync.ChangeEvent) error {
+	var err error
+	// look for our InternalIP skip the others
+	if change.GetKey() != protoNode.Key(plugin.ServiceLabel.GetAgentLabel()) {
+		return nil
+	}
+	if change.GetChangeType() == datasync.Delete {
+		plugin.Log.Warn("Unexpected delete for node data received")
+		return nil
+	}
+	value := &protoNode.Node{}
+	err = change.GetValue(value)
+	if err != nil {
+		plugin.Log.Error(err)
+		return err
+	}
+	var internalIP string
+	for i := range value.Addresses {
+		if value.Addresses[i].Type == protoNode.NodeAddress_NodeInternalIP {
+			internalIP = value.Addresses[i].Address
+			plugin.Log.Info("Internal IP of the node is ", internalIP)
+			return plugin.nodeIDAllocator.updateManagementIP(internalIP)
+		}
+	}
+	plugin.Log.Warn("Internal IP of the node is missing in ETCD.")
+
+	return err
+}
+
+// handleKsrNodeResync handles resync event for the prefix where node data
+// is stored by ksr. The aim is to extract node Internal IP - ip address
+// that k8s use to access node(management IP). This IP is used as an endpoint
+// for services where backends use host networking.
+func (plugin *Plugin) handleKsrNodeResync(it datasync.KeyValIterator) error {
+	var err error
+	for {
+		kv, stop := it.GetNext()
+		if stop {
+			break
+		}
+		value := &protoNode.Node{}
+		err = kv.GetValue(value)
+		if err != nil {
+			return err
+		}
+
+		if value.Name == plugin.ServiceLabel.GetAgentLabel() {
+			var internalIP string
+			for i := range value.Addresses {
+				if value.Addresses[i].Type == protoNode.NodeAddress_NodeInternalIP {
+					internalIP = value.Addresses[i].Address
+					plugin.Log.Info("Internal IP of the node is ", internalIP)
+					return plugin.nodeIDAllocator.updateManagementIP(internalIP)
+				}
+			}
+		}
+		plugin.Log.Debug("Internal IP of the node is not in ETCD yet.")
+	}
+	return err
 }

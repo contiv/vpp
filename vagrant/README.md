@@ -13,7 +13,7 @@ It is organized into two subfolders:
     and shuting down the VMs that host the K8s cluster.
 
 If you wish to change the default number of nodes, set K8S_NODES before running
-vagrant-up.sh:
+vagrant-up:
 ```
 # For a single node setup:
 export K8S_NODES=0
@@ -24,36 +24,77 @@ export K8S_NODES=1
 By default, if you do not specify the number of nodes in the environment 
 variable, two nodes (one master, one worker) are created.
 
-To create and run the cluster run vagrant-up.sh script, located inside 
-vagrant-scripts folder:
+To create and run the cluster run vagrant-up script, located inside
+vagrant-scripts folder. You can choose to deploy between the testing (use the 
+-t flag or leave empty) and the development environment (use the -d flag) when 
+running the vagrant-up script. Instructions on how to build the development
+contiv/vpp-vswitch image can be found in the next paragraph.
+
+_For the testing environment run:_
 ```
 cd vagrant-scripts/
-./vagrant-up.sh
+./vagrant-up
 ```
 
-To destroy and clean-up the cluster run vagrant-cleanup.sh script, located
+_For the development environment run:_
+```
+cd vagrant-scripts/
+./vagrant-up -d
+```
+
+To destroy and clean-up the cluster run vagrant-cleanup script, located
 inside vagrant-scripts folder:
 ```
 cd vagrant-scripts/
-./vagrant-cleanup.sh
+./vagrant-cleanup
 ```
 
-To shutdown the cluster run vagrant-shutdown.sh script, located inside 
+To shutdown the cluster run vagrant-shutdown script, located inside
 vagrant-scripts folder:
 ```
 cd vagrant-scripts/
-./vagrant-shutdown.sh
+./vagrant-shutdown
 ```
 
-To reboot the cluster run vagrant-reload.sh script, located inside 
+To reboot the cluster run vagrant-reload script, located inside
 vagrant-scripts folder:
 ```
 cd vagrant-scripts/
-./vagrant-reload.sh
+./vagrant-reload
 ```
 
 From a suspended state, or after a reboot of the host machine, the cluster
-can be brought up by running the vagrant-up.sh script.
+can be brought up by running the vagrant-up script.
+
+
+### Building and deploying the dev-contiv-vswitch image (optional)
+If you chose the deployment with the development environment follow the
+instructions to build a modified contivvpp/vswitch image.
+
+1. Make sure changes in the code have been saved. From the k8s-master node, 
+   build the new contivvpp/vswitch image (run as sudo)
+
+```
+vagrant ssh k8s-master
+cd /vagrant/config
+sudo ./save-dev-image
+```
+
+2. The newly built contivvpp/vswitch image is now tagged as latest. Verify 
+with `sudo docker images`; contivvpp/vswitch should have been created a few
+seconds ago. The new image with all the changes must become available to all
+the nodes in the K8s cluster. To do so, load the docker image into the running
+worker nodes (run as sudo).
+
+```
+vagrant ssh k8s-worker1
+cd /vagrant/config
+sudo ./load-dev-image
+```
+
+Verify with `sudo docker images`; old contivvpp/vswitch should now be tagged as
+`<none>` and the latest tagged  contivvpp/vswitch should have been created a
+few seconds ago.
 
 ### Exploring the cluster:
 Once the cluster is up, log into the master:

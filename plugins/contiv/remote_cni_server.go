@@ -309,12 +309,13 @@ func (s *remoteCNIserver) configureVswitchNICs(config *vswitchConfig) error {
 	// find name of the main VPP NIC interface
 	nicName := ""
 	useDHCP := false
-	if s.nodeConfig != nil && strings.Trim(s.nodeConfig.MainVppInterface.InterfaceName, " ") != "" {
+	if s.nodeConfig != nil {
 		// use name as as specified in node config YAML
-		nicName = s.nodeConfig.MainVppInterface.InterfaceName
-		useDHCP = s.nodeConfig.UseDhcpOnMainInt
+		nicName = s.nodeConfig.MainVPPInterface.InterfaceName
 		s.Logger.Debugf("Physical NIC name taken from nodeConfig: %v ", nicName)
-	} else {
+	}
+
+	if nicName == "" {
 		// name not specified in config, use heuristic - first non-virtual interface
 		for _, name := range s.swIfIndex.GetMapping().ListNames() {
 			if strings.HasPrefix(name, "local") || strings.HasPrefix(name, "loop") ||
@@ -329,8 +330,13 @@ func (s *remoteCNIserver) configureVswitchNICs(config *vswitchConfig) error {
 	}
 	// IP of the main interface
 	nicIP := ""
-	if s.nodeConfig != nil && s.nodeConfig.MainVppInterface.IP != "" {
-		nicIP = s.nodeConfig.MainVppInterface.IP
+	if s.nodeConfig != nil && s.nodeConfig.MainVPPInterface.IP != "" {
+		nicIP = s.nodeConfig.MainVPPInterface.IP
+	} else if s.nodeConfig != nil && s.nodeConfig.MainVPPInterface.UseDHCP {
+		useDHCP = true
+	} else if s.ipam.NodeInterconnectDHCPEnabled() {
+		// inherit DHCP from global setting
+		useDHCP = true
 	}
 
 	// configure the main VPP NIC interface
@@ -362,8 +368,10 @@ func (s *remoteCNIserver) configureMainVPPInterface(config *vswitchConfig, nicNa
 	// determine main node IP address
 	if useDHCP {
 		// ip address will be assigned by DHCP server, not known yet
+		s.Logger.Infof("Configuring %v to use dhcp", nicName)
 	} else if nicIP != "" {
 		s.setNodeIP(nicIP)
+		s.Logger.Infof("Configuring %v to use %v", nicName, nicIP)
 	} else {
 		nodeIP, err := s.ipam.NodeIPWithPrefix(s.ipam.NodeID())
 		if err != nil {
@@ -371,6 +379,7 @@ func (s *remoteCNIserver) configureMainVPPInterface(config *vswitchConfig, nicNa
 			return err
 		}
 		s.setNodeIP(nodeIP.String())
+		s.Logger.Infof("Configuring %v to use %v", nicName, nodeIP.String())
 	}
 
 	if nicName != "" {

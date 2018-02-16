@@ -55,6 +55,9 @@ type idAllocator struct {
 
 	nodeName string
 	nodeIP   string
+
+	// ip used by k8s to access node
+	managementIP string
 }
 
 // newIDAllocator creates new instance of idAllocator
@@ -117,6 +120,14 @@ func (ia *idAllocator) getID() (id uint8, err error) {
 }
 
 func (ia *idAllocator) updateIP(newIP string) error {
+	return ia.updateEtcdEntry(newIP, ia.managementIP)
+}
+
+func (ia *idAllocator) updateManagementIP(newMgmtIP string) error {
+	return ia.updateEtcdEntry(ia.nodeIP, newMgmtIP)
+}
+
+func (ia *idAllocator) updateEtcdEntry(newIP string, newManagementIP string) error {
 	// make sure that ID is allocated
 	_, err := ia.getID()
 	if err != nil {
@@ -125,16 +136,18 @@ func (ia *idAllocator) updateIP(newIP string) error {
 
 	ia.Lock()
 	defer ia.Unlock()
-	if ia.nodeIP == newIP {
+	if ia.nodeIP == newIP && ia.managementIP == newManagementIP {
 		return nil
 	}
 
 	ia.nodeIP = newIP
+	ia.managementIP = newManagementIP
 
 	value := &node.NodeInfo{
-		Id:        ia.ID,
-		Name:      ia.nodeName,
-		IpAddress: ia.nodeIP,
+		Id:                  ia.ID,
+		Name:                ia.nodeName,
+		IpAddress:           ia.nodeIP,
+		ManagementIpAddress: ia.managementIP,
 	}
 	err = ia.broker.Put(createKey(ia.ID), value)
 

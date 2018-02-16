@@ -196,6 +196,7 @@ func (p *Plugin) Put(key string, data proto.Message, opts ...datasync.PutOption)
 	p.Lock()
 	defer p.Unlock()
 
+	p.Log.Infof("Statistic data with key %v received", key)
 	if strings.HasPrefix(key, interfaces.InterfaceStateKeyPrefix()) {
 		var (
 			entry *stats
@@ -321,8 +322,8 @@ func (p *Plugin) updatePrometheusStats(entry *stats) {
 // isContivSystemInterface returns true if given interface name is not associated
 // with a pod (e.g. interface that interconnect vpp and host stack), otherwise false
 func (p *Plugin) isContivSystemInterface(ifName string) bool {
-	for _, n := range []string{"afpacket-vpp2", "vpp2", "vxlanBVI", "loopbackNIC"} {
-		if n == ifName {
+	for _, n := range []string{"afpacket-vpp2", "vpp2", "tap-vpp2", "vxlanBVI", "loopbackNIC", "GigabitEthernet"} {
+		if strings.HasPrefix(ifName, n) {
 			return true
 		}
 	}

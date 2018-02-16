@@ -96,7 +96,7 @@ var (
 	}
 	nodeConfig = OneNodeConfig{
 		NodeName: "test-node",
-		MainVppInterface: InterfaceWithIP{
+		MainVPPInterface: InterfaceWithIP{
 			InterfaceName: "GigabitEthernet0/0/0/1",
 			IP:            "192.168.1.1/24",
 		},
@@ -108,10 +108,10 @@ var (
 		},
 	}
 	nodeDHCPConfig = OneNodeConfig{
-		NodeName:         "test-node",
-		UseDhcpOnMainInt: true,
-		MainVppInterface: InterfaceWithIP{
+		NodeName: "test-node",
+		MainVPPInterface: InterfaceWithIP{
 			InterfaceName: "GigabitEthernet0/0/0/1",
+			UseDHCP:       true,
 		},
 		OtherVPPInterfaces: []InterfaceWithIP{
 			{
@@ -121,9 +121,10 @@ var (
 		},
 	}
 	otherNodeInfo = node.NodeInfo{
-		Id:        5,
-		Name:      "node5",
-		IpAddress: "1.2.3.4/25",
+		Id:                  5,
+		Name:                "node5",
+		IpAddress:           "1.2.3.4/25",
+		ManagementIpAddress: "192.168.42.5",
 	}
 )
 
@@ -189,7 +190,7 @@ func TestAddDelVeth(t *testing.T) {
 func TestConfigureVswitchDHCP(t *testing.T) {
 	gomega.RegisterTestingT(t)
 
-	server, txns, _, conn := setupTestCNIServer(&configTapVxlanTCP, &nodeDHCPConfig, nodeDHCPConfig.MainVppInterface.InterfaceName)
+	server, txns, _, conn := setupTestCNIServer(&configTapVxlanTCP, &nodeDHCPConfig, nodeDHCPConfig.MainVPPInterface.InterfaceName)
 	defer conn.Disconnect()
 
 	// exec resync to configure vswitch
@@ -256,7 +257,7 @@ func TestConfigureVswitchVeth(t *testing.T) {
 	// check physical interface name
 	ifs := server.GetPhysicalIfNames()
 	gomega.Expect(len(ifs)).To(gomega.BeEquivalentTo(1))
-	gomega.Expect(ifs[0]).To(gomega.BeEquivalentTo(nodeConfig.MainVppInterface.InterfaceName))
+	gomega.Expect(ifs[0]).To(gomega.BeEquivalentTo(nodeConfig.MainVPPInterface.InterfaceName))
 	// node IP must not be empty
 	gomega.Expect(server.GetNodeIP()).ToNot(gomega.BeEmpty())
 	// host interconnect IF must be configured
@@ -312,7 +313,7 @@ func TestNodeAddDelL2(t *testing.T) {
 	// check routes to the other node pointing to node IP
 	nexthopIP := server.ipPrefixToAddress(otherNodeInfo.IpAddress)
 	routes := routesViaInSnapshot(txns.AppliedConfig, nexthopIP)
-	gomega.Expect(len(routes)).To(gomega.BeEquivalentTo(2))
+	gomega.Expect(len(routes)).To(gomega.BeEquivalentTo(3))
 
 	err = server.nodeChangePropageteEvent(&nodeAddDelEvent{evType: datasync.Delete})
 	gomega.Expect(err).To(gomega.BeNil())
@@ -339,7 +340,7 @@ func TestNodeAddDelVXLAN(t *testing.T) {
 	// check routes to the other node pointing to VXLAN IP
 	nexthopIP, _ := server.ipam.VxlanIPAddress(uint8(otherNodeInfo.Id))
 	routes := routesViaInSnapshot(txns.AppliedConfig, nexthopIP.String())
-	gomega.Expect(len(routes)).To(gomega.BeEquivalentTo(2))
+	gomega.Expect(len(routes)).To(gomega.BeEquivalentTo(3))
 
 	err = server.nodeChangePropageteEvent(&nodeAddDelEvent{evType: datasync.Delete})
 	gomega.Expect(err).To(gomega.BeNil())
@@ -520,6 +521,7 @@ func (e nodeAddDelEvent) GetValue(value proto.Message) error {
 	v.Id = otherNodeInfo.Id
 	v.Name = otherNodeInfo.Name
 	v.IpAddress = otherNodeInfo.IpAddress
+	v.ManagementIpAddress = otherNodeInfo.ManagementIpAddress
 	return nil
 }
 

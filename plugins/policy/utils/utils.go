@@ -165,14 +165,47 @@ func CompareInts(a, b int) int {
 	return 0
 }
 
-// CompareIPNets returns an integer comparing two IP network addresses
+// CompareIPNets returns -1, 0, 1 if a<b or a==b or a>b, respectively.
+// It hold that if *a* is subset of *b*, then a<b (and vice-versa).
 // lexicographically.
 func CompareIPNets(a, b *net.IPNet) int {
-	ipOrder := bytes.Compare(a.IP, b.IP)
-	if ipOrder == 0 {
-		return bytes.Compare(a.Mask, b.Mask)
+	aOnes, aBits := a.Mask.Size()
+	bOnes, bBits := b.Mask.Size()
+	sizeOrder := CompareInts(aBits, bBits)
+	if sizeOrder != 0 {
+		return sizeOrder
 	}
-	return ipOrder
+	commonOnes := aOnes
+	if bOnes < aOnes {
+		commonOnes = bOnes
+	}
+	commonMask := net.CIDRMask(commonOnes, aBits)
+	if a.IP.Mask(commonMask).Equal(b.IP.Mask(commonMask)) {
+		return CompareInts(bOnes, aOnes)
+	}
+	maskOrder := bytes.Compare(b.Mask, a.Mask)
+	if maskOrder != 0 {
+		return maskOrder
+	}
+	return bytes.Compare(a.IP, b.IP)
+}
+
+// ComparePorts is a comparison function for two ports.
+// Port=0 means "all-ports" and it is higher in the order than any specific port.
+func ComparePorts(a, b uint16) int {
+	if a == b {
+		return 0
+	}
+	if a == 0 {
+		return 1
+	}
+	if b == 0 {
+		return -1
+	}
+	if a < b {
+		return -1
+	}
+	return 1
 }
 
 // CompareIPNetsBytes returns an integer comparing two IP network addresses

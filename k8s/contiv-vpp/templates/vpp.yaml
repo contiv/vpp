@@ -204,12 +204,19 @@ spec:
         - /bin/sh
         args:
         - -c
-        - "rm -rf /dev/shm/db /dev/shm/global_vm /dev/shm/vpe-api || true && \
-           rm -rf /vpp-lib64/* || true && \
-           cp -r $LD_PRELOAD_LIB_DIR/* /vpp-lib64/ && \
-           if [ ! -e /host/etc/vpp/contiv-vswitch.conf ]; then cp /etc/vpp/contiv-vswitch.conf /host/etc/vpp; fi && \
-           ip link del vpp1 || true"
-        imagePullPolicy: IfNotPresent
+        - |
+          set -eu
+          chmod 700 /run/vpp
+          rm -rf /dev/shm/db /dev/shm/global_vm /dev/shm/vpe-api /vpp-lib64/*
+          cp -r "$LD_PRELOAD_LIB_DIR"/* /vpp-lib64/
+          if [ ! -e /host/etc/vpp/contiv-vswitch.conf ]
+          then
+              cp /etc/vpp/contiv-vswitch.conf /host/etc/vpp/
+          fi
+          if ip link show vpp1 >/dev/null 2>&1
+          then
+               ip link del vpp1
+          fi
         resources: {}
         securityContext:
           privileged: true
@@ -220,6 +227,8 @@ spec:
             mountPath: /host/etc/vpp
           - name: shm
             mountPath: /dev/shm
+          - name: vpp-run
+            mountPath: /run/vpp
 
       containers:
         # Runs contiv-vswitch container on each Kubernetes node.
@@ -230,8 +239,6 @@ spec:
           securityContext:
             privileged: true
           ports:
-            # VPP debug CLI
-            - containerPort: 5002
             # readiness + liveness probe
             - containerPort: 9999
           {{- if .Values.vswitch.enableLivenessReadinessProbes }}
@@ -264,6 +271,8 @@ spec:
               mountPath: /dev/shm
             - name: dev
               mountPath: /dev
+            - name: vpp-run
+              mountPath: /run/vpp
             - name: contiv-plugin-cfg
               mountPath: /etc/agent
             - name: govpp-plugin-cfg
@@ -307,6 +316,10 @@ spec:
         - name: shm
           hostPath:
             path: /dev/shm
+        # For CLI unix socket.
+        - name: vpp-run
+          hostPath:
+            path: /run/vpp
         # Used to configure contiv plugin.
         - name: contiv-plugin-cfg
           configMap:

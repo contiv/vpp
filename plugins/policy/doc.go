@@ -100,12 +100,8 @@
 //      the PolicyCacheWatcher interface
 //    - provides various lookup methods (e.g. by the label selector)
 //
-// * Renderer's own cache
-//    - to accomplish the task of (efficient) rule rendering, renderers often
-//      implement their own cache for rules (transparent for the layers above)
-//    - the selection of the data structure for the cache depends on the policy
-//      implementation in the destination network stack which limits
-//      re-usability of caches between renderers
+// * Renderer cache
+//    - to accomplish the task of (efficient) rule rendering, renderers TODO
 //
 //
 // Diagram
@@ -159,15 +155,15 @@
 // |      |                     |      |  |                        |
 // +------|---------------------|------+  +------------------------+
 //        | Render Contiv Rules |
-// +------v--------+   +--------v------+
-// |               |   |               |
-// | 4. Policy     |   | 4. Policy     |
-// |   Renderer    |   |   Renderer    |
-// |     +-------+ |   |     +-------+ |
-// |     | cache | |   |     | cache | |
-// |     +-------+ |   |     +-------+ |
-// +-------|-------+   +-------|-------+
-//      Render (via e.g. local client)
+// +------v--------+   +--------v------+  +------------------------+
+// |               |   |               |  |                        |
+// | 4. Policy     |   | 4. Policy     |  |     Renderer Cache     |
+// |   Renderer    |   |   Renderer    |  |                        |
+// |               |   |      <------get&update--> // one instance |
+// |       <-------------------------get&update--> // per renderer |
+// |               |   |               |  |                        |
+// +-------|-------+   +-------|-------+  +------------------------+
+//      Render (via e.g. ligato/vpp-agent)
 // +-------|-------------------|-------+
 // |       v                   v       |
 // |                                   |

@@ -48,6 +48,7 @@ To use the development image for testing with specific version of VPP, see
     - `VPPHostNetworkPrefixLen`: prefix length of the subnet used for VPP-to-host connectivity
       on 1 k8s node (VPPHost network = VPPHost subnet for one k8s node);
     - `NodeInterconnectCIDR`: subnet used for main interfaces of all nodes;
+    - `NodeInterconnectDHCP`: use DHCP to acquire IP for all nodes by default
     - `VxlanCIDR`: subnet used for VXLAN addressing providing node-interconnect overlay.
     - `ServiceCIDR`: subnet used for allocation of Cluster IPs for services. Default value
     is the default kubernetes service range `10.96.0.0/12`.

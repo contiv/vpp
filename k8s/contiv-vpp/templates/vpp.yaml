@@ -203,7 +203,7 @@ spec:
       initContainers:
       # This init container extracts/copies VPP LD_PRELOAD libs and default VPP config to the host.
       - name: vpp-init
-        image: {{ .Values.vswitch.image.repository }}:{{ .Values.vswitch.image.tag }}
+        image: {{ .Values.vswitch.image.repository }}:{{ default .Chart.Version .Values.vswitch.image.tag }}
         imagePullPolicy: {{ .Values.vswitch.image.pullPolicy }}
         command:
         - /bin/sh
@@ -239,7 +239,7 @@ spec:
         # Runs contiv-vswitch container on each Kubernetes node.
         # It contains the vSwitch VPP and its management agent.
         - name: contiv-vswitch
-          image: {{ .Values.vswitch.image.repository }}:{{ .Values.vswitch.image.tag }}
+          image: {{ .Values.vswitch.image.repository }}:{{ default .Chart.Version .Values.vswitch.image.tag }}
           imagePullPolicy: {{ .Values.vswitch.image.pullPolicy }}
           securityContext:
             privileged: true
@@ -286,7 +286,7 @@ spec:
         # This container installs the Contiv CNI binaries
         # and CNI network config file on each node.
         - name: contiv-cni
-          image: {{ .Values.cni.image.repository }}:{{ .Values.cni.image.tag }}
+          image: {{ .Values.cni.image.repository }}:{{ default .Chart.Version .Values.cni.image.tag }}
           imagePullPolicy: {{ .Values.cni.image.pullPolicy }}
           volumeMounts:
             - mountPath: /opt/cni/bin
@@ -368,7 +368,7 @@ spec:
 
       containers:
         - name: contiv-ksr
-          image: {{ .Values.ksr.image.repository }}:{{ .Values.ksr.image.tag }}
+          image: {{ .Values.ksr.image.repository }}:{{ default .Chart.Version .Values.ksr.image.tag }}
           imagePullPolicy: {{ .Values.ksr.image.pullPolicy }}
           env:
             - name: ETCDV3_CONFIG

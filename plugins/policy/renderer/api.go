@@ -61,10 +61,6 @@ type Txn interface {
 // ContivRule is an n-tuple with the most basic policy rule definition that the
 // destination network stack must support.
 type ContivRule struct {
-	// ID uniquely identifies the rule within the list of ingress or egress
-	// rules.
-	ID string
-
 	// Action to perform when traffic matches.
 	Action ActionType
 
@@ -98,8 +94,8 @@ func (cr *ContivRule) String() string {
 	if cr.DestPort != 0 {
 		dstPort = strconv.Itoa(int(cr.DestPort))
 	}
-	return fmt.Sprintf("Rule %s <%s %s[%s:%s] -> %s[%s:%s]>",
-		cr.ID, cr.Action, srcNet, cr.Protocol, srcPort, dstNet, cr.Protocol, dstPort)
+	return fmt.Sprintf("Rule <%s %s[%s:%s] -> %s[%s:%s]>",
+		cr.Action, srcNet, cr.Protocol, srcPort, dstNet, cr.Protocol, dstPort)
 }
 
 // Copy creates a deep copy of the Contiv rule.

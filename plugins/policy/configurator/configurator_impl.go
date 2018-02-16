@@ -305,7 +305,6 @@ func (pct *PolicyConfiguratorTxn) generateRules(direction MatchType, policies Co
 				if len(match.Ports) == 0 {
 					// = match anything on L3 & L4
 					ruleTCPAny := &renderer.ContivRule{
-						ID:          policy.ID.String() + "-TCP:ANY",
 						Action:      renderer.ActionPermit,
 						SrcNetwork:  &net.IPNet{},
 						DestNetwork: &net.IPNet{},
@@ -314,7 +313,6 @@ func (pct *PolicyConfiguratorTxn) generateRules(direction MatchType, policies Co
 						DestPort:    0,
 					}
 					ruleUDPAny := &renderer.ContivRule{
-						ID:          policy.ID.String() + "-UDP:ANY",
 						Action:      renderer.ActionPermit,
 						SrcNetwork:  &net.IPNet{},
 						DestNetwork: &net.IPNet{},
@@ -328,7 +326,6 @@ func (pct *PolicyConfiguratorTxn) generateRules(direction MatchType, policies Co
 					// = match by L4
 					for _, port := range match.Ports {
 						rule := &renderer.ContivRule{
-							ID:          policy.ID.String() + "-" + port.String(),
 							Action:      renderer.ActionPermit,
 							SrcNetwork:  &net.IPNet{},
 							DestNetwork: &net.IPNet{},
@@ -351,7 +348,6 @@ func (pct *PolicyConfiguratorTxn) generateRules(direction MatchType, policies Co
 					// Match all ports.
 					// = match by L3
 					ruleTCPAny := &renderer.ContivRule{
-						ID:          policy.ID.String() + "-" + peer.ID.String() + "-TCP:ANY",
 						Action:      renderer.ActionPermit,
 						Protocol:    renderer.TCP,
 						SrcNetwork:  &net.IPNet{},
@@ -360,7 +356,6 @@ func (pct *PolicyConfiguratorTxn) generateRules(direction MatchType, policies Co
 						DestPort:    0,
 					}
 					ruleUDPAny := &renderer.ContivRule{
-						ID:          policy.ID.String() + "-" + peer.ID.String() + "-UDP:ANY",
 						Action:      renderer.ActionPermit,
 						Protocol:    renderer.UDP,
 						SrcNetwork:  &net.IPNet{},
@@ -381,7 +376,6 @@ func (pct *PolicyConfiguratorTxn) generateRules(direction MatchType, policies Co
 					// = match by L3 & L4
 					for _, port := range match.Ports {
 						rule := &renderer.ContivRule{
-							ID:          policy.ID.String() + "-" + peer.ID.String() + "-" + port.String(),
 							Action:      renderer.ActionPermit,
 							SrcNetwork:  &net.IPNet{},
 							DestNetwork: &net.IPNet{},
@@ -409,7 +403,6 @@ func (pct *PolicyConfiguratorTxn) generateRules(direction MatchType, policies Co
 					// Handle IPBlock with no ports.
 					// = match by L3
 					ruleTCPAny := &renderer.ContivRule{
-						ID:          policy.ID.String() + "-" + subnet.String() + "-TCP:ANY",
 						Action:      renderer.ActionPermit,
 						Protocol:    renderer.TCP,
 						SrcNetwork:  &net.IPNet{},
@@ -418,7 +411,6 @@ func (pct *PolicyConfiguratorTxn) generateRules(direction MatchType, policies Co
 						DestPort:    0,
 					}
 					ruleUDPAny := &renderer.ContivRule{
-						ID:          policy.ID.String() + "-" + subnet.String() + "-UDP:ANY",
 						Action:      renderer.ActionPermit,
 						Protocol:    renderer.UDP,
 						SrcNetwork:  &net.IPNet{},
@@ -439,7 +431,6 @@ func (pct *PolicyConfiguratorTxn) generateRules(direction MatchType, policies Co
 					// = match by L3 & L4
 					for _, port := range match.Ports {
 						rule := &renderer.ContivRule{
-							ID:          policy.ID.String() + "-" + subnet.String() + "-" + port.String(),
 							Action:      renderer.ActionPermit,
 							SrcNetwork:  &net.IPNet{},
 							DestNetwork: &net.IPNet{},
@@ -466,7 +457,6 @@ func (pct *PolicyConfiguratorTxn) generateRules(direction MatchType, policies Co
 	if hasPolicy && !allAllowed {
 		// Deny the rest.
 		ruleTCPNone := &renderer.ContivRule{
-			ID:          "TCP:NONE",
 			Action:      renderer.ActionDeny,
 			SrcNetwork:  &net.IPNet{},
 			DestNetwork: &net.IPNet{},
@@ -475,7 +465,6 @@ func (pct *PolicyConfiguratorTxn) generateRules(direction MatchType, policies Co
 			DestPort:    0,
 		}
 		ruleUDPNone := &renderer.ContivRule{
-			ID:          "UDP:NONE",
 			Action:      renderer.ActionDeny,
 			SrcNetwork:  &net.IPNet{},
 			DestNetwork: &net.IPNet{},
@@ -492,7 +481,7 @@ func (pct *PolicyConfiguratorTxn) generateRules(direction MatchType, policies Co
 // Append rule into the list if it is not there already.
 func (pct *PolicyConfiguratorTxn) appendRule(rules []*renderer.ContivRule, newRule *renderer.ContivRule) []*renderer.ContivRule {
 	for _, rule := range rules {
-		if rule.ID == newRule.ID {
+		if rule.Compare(newRule) == 0 {
 			pct.Log.WithField("rule", newRule).Debug("Skipping duplicate rule")
 			return rules
 		}

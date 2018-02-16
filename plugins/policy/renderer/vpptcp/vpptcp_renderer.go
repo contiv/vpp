@@ -28,20 +28,16 @@ import (
 	"github.com/contiv/vpp/plugins/contiv"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	"github.com/contiv/vpp/plugins/policy/renderer"
+	"github.com/contiv/vpp/plugins/policy/renderer/cache"
 	"github.com/contiv/vpp/plugins/policy/renderer/vpptcp/bin_api/session"
-	"github.com/contiv/vpp/plugins/policy/renderer/vpptcp/cache"
 )
-
-// SessionRuleTagPrefix is used to tag session rules created for the implementation
-// of K8s policies.
-const SessionRuleTagPrefix = "contiv/vpp-policy-"
 
 // Renderer renders Contiv Rules into VPP Session rules.
 // Session rules are configured into VPP directly via binary API using govpp.
 type Renderer struct {
 	Deps
 
-	cache *cache.SessionRuleCache
+	cache *cache.RendererCache
 }
 
 // Deps lists dependencies of Renderer.
@@ -55,6 +51,7 @@ type Deps struct {
 
 // RendererTxn represents a single transaction of Renderer.
 type RendererTxn struct {
+	Log      logging.Logger
 	cacheTxn cache.Txn
 	renderer *Renderer
 	resync   bool
@@ -63,14 +60,14 @@ type RendererTxn struct {
 // Init initializes the VPPTCP Renderer.
 func (r *Renderer) Init() error {
 	// Init the cache
-	r.cache = &cache.SessionRuleCache{}
+	r.cache = &cache.RendererCache{}
 	if r.LogFactory != nil {
 		r.cache.Log = r.LogFactory.NewLogger("-vpptcpCache")
 		r.cache.Log.SetLevel(logging.DebugLevel)
 	} else {
 		r.cache.Log = r.Log
 	}
-	r.cache.Init(r.dumpRules, SessionRuleTagPrefix)
+	r.cache.Init(cache.IngressOrientation)
 	return nil
 }
 
@@ -80,22 +77,114 @@ func (r *Renderer) Init() error {
 // replace the existing one. Otherwise, the change is performed incrementally,
 // i.e. interfaces not mentioned in the transaction are left unaffected.
 func (r *Renderer) NewTxn(resync bool) renderer.Txn {
-	return &RendererTxn{cacheTxn: r.cache.NewTxn(resync), renderer: r, resync: resync}
+	return &RendererTxn{
+		Log:      r.Log,
+		cacheTxn: r.cache.NewTxn(),
+		renderer: r,
+		resync:   resync,
+	}
 }
 
-// dumpRules queries VPP to get the currently installed set of rules.
-func (r *Renderer) dumpRules() ([]*cache.SessionRule, error) {
-	rules := []*cache.SessionRule{}
+// Render applies the set of ingress & egress rules for a given pod.
+// The existing rules are replaced.
+// Te actual change is performed only after the commit.
+func (art *RendererTxn) Render(pod podmodel.ID, podIP *net.IPNet, ingress []*renderer.ContivRule, egress []*renderer.ContivRule) renderer.Txn {
+	art.renderer.Log.WithFields(logging.Fields{
+		"pod":     pod,
+		"ingress": ingress,
+		"egress":  egress,
+	}).Debug("VPPTCP RendererTxn Render()")
+
+	// Add the rules into the transaction.
+	art.cacheTxn.Update(pod, podIP, ingress, egress)
+	return art
+}
+
+// Commit proceeds with the rendering. A minimalistic set of changes is
+// calculated using ContivRuleCache and applied via binary API using govpp.
+func (art *RendererTxn) Commit() error {
+	var added, removed []*SessionRule
+
+	if art.resync {
+		// Re-synchronize with VPP first.
+		rules, err := art.dumpRules()
+		if err != nil {
+			return err
+		}
+		tables := ImportSessionRules(rules, art.renderer.Contiv, art.Log)
+		err = art.renderer.cache.Resync(tables)
+		if err != nil {
+			return err
+		}
+		// Apply empty config for pods not present in the transaction
+		// which are currently isolated.
+		txnPods := art.cacheTxn.UpdatedPods()
+		emptyList := []*renderer.ContivRule{}
+		for pod := range art.renderer.cache.IsolatedPods() {
+			if !txnPods.Has(pod) {
+				podIP, _, _ := art.renderer.cache.GetPodConfig(pod)
+				art.cacheTxn.Update(pod, podIP, emptyList, emptyList)
+			}
+		}
+	}
+
+	// Get list of added and removed rules in the local tables.
+	for pod := range art.cacheTxn.UpdatedPods() {
+		var newContivRules, removedContivRules []*renderer.ContivRule
+		origLocalTable := art.renderer.cache.GetLocalTableByPod(pod)
+		newLocalTable := art.cacheTxn.GetLocalTableByPod(pod)
+		if origLocalTable == nil && newLocalTable != nil {
+			// newly assigned local table
+			newContivRules = newLocalTable.Rules[:newLocalTable.NumOfRules]
+		}
+		if origLocalTable != nil && newLocalTable == nil {
+			// removed local table
+			removedContivRules = origLocalTable.Rules[:origLocalTable.NumOfRules]
+		}
+		if origLocalTable != nil && newLocalTable != nil && origLocalTable.ID != newLocalTable.ID {
+			// changed table
+			removedContivRules, newContivRules = origLocalTable.DiffRules(newLocalTable)
+		}
+		newSessionRules := ExportSessionRules(newContivRules, &pod, art.renderer.Contiv, art.Log)
+		added = append(added, newSessionRules...)
+		removedSessionRules := ExportSessionRules(removedContivRules, &pod, art.renderer.Contiv, art.Log)
+		removed = append(removed, removedSessionRules...)
+	}
+
+	// Get list of added and removed rules in the global table.
+	origGlobalTable := art.renderer.cache.GetGlobalTable()
+	newGlobalTable := art.cacheTxn.GetGlobalTable()
+	removedContivRules, newContivRules := origGlobalTable.DiffRules(newGlobalTable)
+	newSessionRules := ExportSessionRules(newContivRules, nil, art.renderer.Contiv, art.Log)
+	added = append(added, newSessionRules...)
+	removedSessionRules := ExportSessionRules(removedContivRules, nil, art.renderer.Contiv, art.Log)
+	removed = append(removed, removedSessionRules...)
+
+	if len(added) == 0 && len(removed) == 0 {
+		art.renderer.Log.Debug("No changes to be rendered in the transaction")
+	} else {
+		err := art.renderer.updateRules(added, removed)
+		if err != nil {
+			return err
+		}
+	}
+
+	art.cacheTxn.Commit()
+	return nil
+}
+
+// dumpRules queries VPP to get the currently installed set of session rules.
+func (art *RendererTxn) dumpRules() (rules []*SessionRule, err error) {
 	// Send request to dump all installed rules.
 	req := &session.SessionRulesDump{}
-	reqContext := r.GoVPPChan.SendMultiRequest(req)
+	reqContext := art.renderer.GoVPPChan.SendMultiRequest(req)
 	// Receive details about each installed rule.
 	for {
 		msg := &session.SessionRulesDetails{}
 		stop, err := reqContext.ReceiveReply(msg)
 		if err != nil {
-			r.Log.WithField("err", err).Error("Failed to get a session rule details")
-			return rules, err
+			art.Log.WithField("err", err).Error("Failed to get a session rule details")
+			break
 		}
 		if stop {
 			break
@@ -106,7 +195,8 @@ func (r *Renderer) dumpRules() ([]*cache.SessionRule, error) {
 			// Skip rules not installed by this renderer.
 			continue
 		}
-		sessionRule := &cache.SessionRule{
+		// Export session rule from the message.
+		sessionRule := &SessionRule{
 			TransportProto: msg.TransportProto,
 			IsIP4:          msg.IsIP4,
 			LclPlen:        msg.LclPlen,
@@ -123,7 +213,7 @@ func (r *Renderer) dumpRules() ([]*cache.SessionRule, error) {
 		rules = append(rules, sessionRule)
 	}
 
-	r.Log.WithFields(logging.Fields{
+	art.Log.WithFields(logging.Fields{
 		"rules": rules,
 	}).Debug("VPPTCP Renderer dumpRules()")
 	return rules, nil
@@ -131,7 +221,7 @@ func (r *Renderer) dumpRules() ([]*cache.SessionRule, error) {
 
 // makeSessionRuleAddDelReq creates an instance of SessionRuleAddDel bin API
 // request.
-func (r *Renderer) makeSessionRuleAddDelReq(rule *cache.SessionRule, add bool) *govpp.VppRequest {
+func (r *Renderer) makeSessionRuleAddDelReq(rule *SessionRule, add bool) *govpp.VppRequest {
 	isAdd := uint8(0)
 	if add {
 		isAdd = uint8(1)
@@ -159,7 +249,7 @@ func (r *Renderer) makeSessionRuleAddDelReq(rule *cache.SessionRule, add bool) *
 }
 
 // updateRules adds/removes selected rules to/from VPP Session rule tables.
-func (r *Renderer) updateRules(add, remove []*cache.SessionRule) error {
+func (r *Renderer) updateRules(add, remove []*SessionRule) error {
 	const errMsg = "failed to update VPPTCP session rule"
 
 	// Prepare VPP requests.
@@ -216,46 +306,4 @@ func (r *Renderer) updateRules(add, remove []*cache.SessionRule) error {
 
 	r.Log.WithField("count", len(requests)).Debug("All BIN API responses were received")
 	return wasError
-}
-
-// Render applies the set of ingress & egress rules for a given pod.
-// The existing rules are replaced.
-// Te actual change is performed only after the commit.
-func (art *RendererTxn) Render(pod podmodel.ID, podIP *net.IPNet, ingress []*renderer.ContivRule, egress []*renderer.ContivRule) renderer.Txn {
-	// Get the target namespace index.
-	nsIndex, found := art.renderer.Contiv.GetNsIndex(pod.Namespace, pod.Name)
-	if !found {
-		art.renderer.Log.WithField("pod", pod).Warn("Unable to get the namespace index of the Pod")
-		return art
-	}
-
-	art.renderer.Log.WithFields(logging.Fields{
-		"pod":     pod,
-		"nsIndex": nsIndex,
-		"ingress": ingress,
-		"egress":  egress,
-	}).Debug("VPPTCP RendererTxn Render()")
-
-	// Add the rules into the transaction.
-	art.cacheTxn.Update(nsIndex, podIP, ingress, egress)
-	return art
-}
-
-// Commit proceeds with the rendering. A minimalistic set of changes is
-// calculated using ContivRuleCache and applied via binary API using govpp.
-func (art *RendererTxn) Commit() error {
-	added, removed, err := art.cacheTxn.Changes()
-	if err != nil {
-		return err
-	}
-	if len(added) == 0 && len(removed) == 0 {
-		art.renderer.Log.Debug("No changes to be rendered in the transaction")
-	} else {
-		err = art.renderer.updateRules(added, removed)
-		if err != nil {
-			return err
-		}
-	}
-	art.cacheTxn.Commit()
-	return nil
 }

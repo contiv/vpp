@@ -4,7 +4,7 @@ set -eo pipefail
 
 export K8S_NODE_OS=${K8S_NODE_OS:-ubuntu}
 export K8S_NODES=${K8S_NODES:-1}
-export VAGRANT_DEFAULT_PROVIDER=${VAGRANT_DEFAULT_PROVIDER:-virtualbox}
+export VAGRANT_DEFAULT_PROVIDER=${VAGRANT_DEFAULT_PROVIDER:-vmware_fusion}
 
 # Default values for environment deploymen
 DEV_ENV="false"
@@ -29,14 +29,23 @@ done
 
 if [ "${DEV_ENV}" == "true" ]
 then
-    cp ../Vagrantfile-dev ../Vagrantfile
-    vagrant up
-    exit 1
+    if [ "${VAGRANT_DEFAULT_PROVIDER}" == "vmware_fusion" ]
+    then
+        cp ../Vagrantfiles/vmware-dev ../Vagrantfile
+        vagrant up
+        exit 1
+    else 
+        cp ../Vagrantfiles/virtualbox-dev ../Vagrantfile
+        vagrant up
+        exit 1
+    fi
 fi
   
-if [ "${TEST_ENV}" == "true" ]
+if [ "${VAGRANT_DEFAULT_PROVIDER}" == "vmware_fusion" ]
 then
-    echo "Using testing environment"
-    cp ../Vagrantfile-prod ../Vagrantfile
-    vagrant up 
+    cp ../Vagrantfiles/vmware-prod ../Vagrantfile
+    vagrant up
+else 
+    cp ../Vagrantfiles/virtualbox-prod ../Vagrantfile
+    vagrant up
 fi

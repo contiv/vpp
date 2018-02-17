@@ -48,7 +48,7 @@ end
 http_proxy = ENV['HTTP_PROXY'] || ENV['http_proxy'] || ''
 https_proxy = ENV['HTTPS_PROXY'] || ENV['https_proxy'] || ''
 node_os = ENV['K8S_NODE_OS'] || 'ubuntu'
-base_ip = ENV['K8S_IP_PREFIX'] || '192.169.1.'
+base_ip = ENV['K8S_IP_PREFIX'] || '192.168.20.'
 num_nodes = ENV['K8S_NODES'].to_i == 0 ? 0 : ENV['K8S_NODES'].to_i
 
 provision_every_node = <<SCRIPT
@@ -71,7 +71,7 @@ echo "Installing dependency packages..."
 apt-get install -y apt-transport-https \
                    ca-certificates \
                    curl \
-                   software-properties-common
+                   software-properties-common 
                    
 echo "Adding Kubernetes & Docker repos..."
 curl -s https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add -
@@ -84,6 +84,9 @@ EOF
 echo "Updating apt lists..."
 apt-get update
 
+echo "Installing Kubernetes Components..."
+apt-get install -y kubelet kubectl kubeadm kubernetes-cni
+
 echo "Installing Docker-CE..."
 apt-get install -y docker-ce
 systemctl stop docker
@@ -92,24 +95,6 @@ modprobe overlay
 echo '{"storage-driver": "overlay2"}' > /etc/docker/daemon.json
 rm -rf /var/lib/docker/*
 systemctl start docker
-
-echo "Installing Kubernetes Components..."
-apt-get install -y kubelet kubectl kubeadm kubernetes-cni
-export GO_VERSION=1.9.3
-echo "Downloading Go $GO_VERSION..."
-curl --silent https://storage.googleapis.com/golang/go$GO_VERSION.linux-amd64.tar.gz > /tmp/go.tar.gz
-
-echo "Extracting Go..."
-tar -xvzf /tmp/go.tar.gz --directory /home/vagrant >/dev/null 2>&1
-
-echo "Setting Go environment variables..."
-mkdir /home/vagrant/gopath
-chmod -R 777 /home/vagrant/gopath
-echo 'export GOROOT="/home/vagrant/go"' >> /home/vagrant/.bashrc
-echo 'export GOPATH="/home/vagrant/gopath"' >> /home/vagrant/.bashrc
-echo 'export PATH="$PATH:$GOROOT/bin:$GOPATH/bin"' >> /home/vagrant/.bashrc
-update-locale LANG=en_US.UTF-8 LANGUAGE=en_US.UTF-8 LC_ALL=en_US.UTF-8
-echo 'All done!'
 
 #Load uio_pci_generic driver and setup the loading on each boot up
 installPCIUIO() {
@@ -153,34 +138,39 @@ echo "#auto enp0s8" >> /etc/network/interfaces
 # Pull the latest images
 bash <(curl -s https://raw.githubusercontent.com/contiv/vpp/master/k8s/pull-images.sh)
 
+#Disable swap
+swapoff -a
+sed -e '/swap/ s/^#*/#/' -i /etc/fstab
 SCRIPT
 
 bootstrap_master = <<SCRIPT
 set -e
 set -x
 
+echo Args passed: [[ $@ ]]
+
 # --------------------------------------------------------
 # ---> Create token and export it with kube master IP <---
 # --------------------------------------------------------
+
 echo "Exporting Kube Master IP and Kubeadm Token..."
-#echo "export KUBE_MASTER_IP=$(hostname -I | cut -f2 -d' ')" >> /vagrant/config/init
-echo "export KUBE_MASTER_IP=192.169.1.10\n" >> /vagrant/config/init
+echo "export KUBE_MASTER_IP=$2" >> /vagrant/config/init
 echo "export KUBEADM_TOKEN=$(kubeadm token generate)" >> /vagrant/config/init
 source /vagrant/config/init
-echo "export no_proxy='k8s-master,192.169.1.10,192.169.1.11,192.169.1.12,192.169.1.13,localhost,127.0.0.1'" >> /etc/profile.d/envvar.sh
-echo "export no_proxy='k8s-master,192.169.1.10,192.169.1.11,192.169.1.12,192.169.1.13,localhost,127.0.0.1'" >> ~/.profile
+sed 's/127\.0\.0\.1.*k8s.*/'"$2"' '"$1"'/' -i /etc/hosts
+
+echo "export no_proxy='$1,$KUBE_MASTER_IP,localhost,127.0.0.1'" >> /etc/profile.d/envvar.sh
+echo "export no_proxy='$1,$KUBE_MASTER_IP,localhost,127.0.0.1'" >> /home/vagrant/.profile
 source /etc/profile.d/envvar.sh
-source ~/.profile
+source /home/vagrant/.profile
 
 # --------------------------------------------------------
 # --------------> Kubeadm & Networking <------------------
 # --------------------------------------------------------
 
-sed -i '4 a Environment="KUBELET_EXTRA_ARGS=--fail-swap-on=false --node-ip=192.169.1.10"' /etc/systemd/system/kubelet.service.d/10-kubeadm.conf
+sed -i '4 a Environment="KUBELET_EXTRA_ARGS=--node-ip=$KUBE_MASTER_IP"' /etc/systemd/system/kubelet.service.d/10-kubeadm.conf
 systemctl daemon-reload
 systemctl restart kubelet
-#Disable swap
-swapoff -a
 echo "$(kubeadm init --token-ttl 0 --apiserver-advertise-address="${KUBE_MASTER_IP}" --token="${KUBEADM_TOKEN}")" >> /vagrant/config/cert
 
 echo "Create folder to store kubernetes and network configuration"
@@ -200,21 +190,20 @@ EOF
 SCRIPT
 
 bootstrap_worker = <<SCRIPT
-echo "export no_proxy='k8s-worker1,192.169.1.10,192.169.1.11,192.169.1.12,192.169.1.13,localhost,127.0.0.1'" >> /etc/profile.d/envvar.sh
-echo "export no_proxy='k8s-worker1,192.169.1.10,192.169.1.11,192.169.1.12,192.169.1.13,localhost,127.0.0.1'" >> ~/.profile
-source /etc/profile.d/envvar.sh
-source ~/.profile
-sed -i '4 a Environment="KUBELET_EXTRA_ARGS=--fail-swap-on=false --node-ip=192.169.1.11"' /etc/systemd/system/kubelet.service.d/10-kubeadm.conf
-systemctl daemon-reload
-systemctl restart kubelet
-
-#Disable swap
-swapoff -a
-
-# Kubeadm join expects kube_master_ip and kubeadm_token
 set -e
 set -x
+
+echo Args passed: [[ $@ ]]
+
 source /vagrant/config/init
+export KUBE_WORKER_IP=$2
+sed 's/127\.0\.0\.1.*k8s.*/'"$2"' '"$1"'/' -i /etc/hosts
+echo "export no_proxy='$1,$KUBE_MASTER_IP,$KUBE_WORKER_IP,localhost,127.0.0.1'" >> /etc/profile.d/envvar.sh
+echo "export no_proxy='$1,$KUBE_MASTER_IP,$KUBE_WORKER_IP,localhost,127.0.0.1'" >> /home/vagrant/.profile
+source /etc/profile.d/envvar.sh
+source /home/vagrant/.profile
+
+# Kubeadm join expects kube_master_ip and kubeadm_token
 hash=$(awk 'END {print $NF}' /vagrant/config/cert)
 kubeadm join --token "${KUBEADM_TOKEN}"  "${KUBE_MASTER_IP}":6443 --discovery-token-ca-cert-hash "$hash"
 SCRIPT
@@ -237,10 +226,9 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
     end
 
     node_ips = num_nodes.times.collect { |n| base_ip + "#{n+10}" }
-    cluster_ip_nodes = node_ips.join(",")
+    node_names = num_nodes.times.collect { |n| "k8s-worker#{n+1}" }
 
     config.ssh.insert_key = false
-    node_names = num_nodes.times.collect { |n| "k8s-worker#{n+1}" }
 
     if Vagrant.has_plugin?("vagrant-cachier")
         config.cache.scope = :box
@@ -250,22 +238,21 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
     # Configure Master node
     config.vm.define "k8s-master" do |k8smaster|
         k8smaster.vm.host_name = "k8s-master"
+        k8smaster_ip = base_ip + "2"
         k8smaster.vm.network :private_network, type: "dhcp", auto_config: false
-        k8smaster.vm.network :private_network, ip: base_ip + "10", virtualbox__intnet: "true"
+        k8smaster.vm.network :private_network, ip: k8smaster_ip, virtualbox__intnet: "true"
         k8smaster.vm.provider "virtualbox" do |v|
             v.customize ["modifyvm", :id, "--ioapic", "on"]
             v.memory = 2048
             v.cpus = 2
         end
-        k8smaster_ip = base_ip + "51"
-        k8smaster.vm.provision :shell, inline: "sed 's/127\.0\.0\.1.*k8s.*/"+base_ip +"10 k8s-master/' -i /etc/hosts"
         k8smaster.vm.provision "shell" do |s|
             s.inline = provision_every_node
-            s.args = [ENV["http_proxy"] || "", ENV["https_proxy"] || ""]
+            s.args = [http_proxy, https_proxy]
         end
         k8smaster.vm.provision "shell" do |s|
             s.inline = bootstrap_master
-            s.args = [ENV["http_proxy"] || "", ENV["https_proxy"] || ""]
+            s.args = ["k8s-master", k8smaster_ip]
         end
     end
 
@@ -277,23 +264,19 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
             node.vm.hostname = node_name
             # Interface for K8s Cluster
             node.vm.network :private_network, type: "dhcp", auto_config: false
-            #node.vm.network :private_network, ip: "node_addr", virtualbox__intnet: "true"
-            node.vm.network :private_network, ip: base_ip + "11", virtualbox__intnet: "true"
+            node.vm.network :private_network, ip: node_addr, virtualbox__intnet: "true"
             node.vm.provider "virtualbox" do |v|
             v.customize ["modifyvm", :id, "--ioapic", "on"]
             v.memory = 2048
             v.cpus = 2
             end
-            node_ip_last = n+10
-            #node.vm.provision :shell, inline: "sed 's/127\.0\.0\.1.*k8s.*/192\.169\.1\.#{node_ip_last} #{node_name}/' -i /etc/hosts"
-            node.vm.provision :shell, inline: "sed 's/127\.0\.0\.1.*k8s.*/"+base_ip+"11 k8s-worker1/' -i /etc/hosts"
             node.vm.provision "shell" do |s|
                 s.inline = provision_every_node
-                s.args = [ENV["http_proxy"] || "", ENV["https_proxy"] || ""]
+                s.args = [http_proxy, https_proxy]
             end
             node.vm.provision "shell" do |s|
                 s.inline = bootstrap_worker
-                s.args = [ENV["http_proxy"] || "", ENV["https_proxy"] || ""]
+                s.args = [node_name, node_addr]
             end
         end
     end

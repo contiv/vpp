@@ -12,7 +12,7 @@ It is organized into two subfolders:
  - (vagrant-scripts) - contains scripts for creating, destroying, rebooting
     and shuting down the VMs that host the K8s cluster.
 
-If you wish to change the default number of nodes, set K8S_NODES before running
+If you wish to change the default number of nodes, edit and set K8S_NODES before running
 vagrant-up:
 ```
 # For a single node setup:
@@ -23,6 +23,17 @@ export K8S_NODES=1
 
 By default, if you do not specify the number of nodes in the environment 
 variable, two nodes (one master, one worker) are created.
+
+If you wish to change the default vagrant provider, you can edit and set the VAGRANT_DEFAULT_PROVIDER value 
+in vagrant-up script to `vmware_fusion`. You can always switch back to the default `virtualbox`.
+(note: for vmware_fusion you need to install the vmware_fusion plugin `vagrant plugin install vagrant-vmware-fusion` 
+and have a valid license)
+
+```
+# For virtualbox provider:
+export VAGRANT_DEFAULT_PROVIDER=${VAGRANT_DEFAULT_PROVIDER:-virtualbox}
+# For vmware_fusion provider:
+export VAGRANT_DEFAULT_PROVIDER=${VAGRANT_DEFAULT_PROVIDER:-vmware_fusion}
 
 To create and run the cluster run vagrant-up script, located inside
 vagrant-scripts folder. You can choose to deploy between the testing (use the 

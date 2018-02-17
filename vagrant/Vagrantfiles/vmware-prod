@@ -29,7 +29,7 @@ module VagrantPlugins
 
         def self.destroy_hook(arg)
             if File.exist?(STATEFILE)
-            File.unlink(STATEFILE)
+                File.unlink(STATEFILE)
             end
         end
 
@@ -112,7 +112,7 @@ touch /etc/vpp/contiv-vswitch.conf
   cat <<EOF >/etc/vpp/contiv-vswitch.conf
 unix {
    nodaemon
-   cli-listen 0.0.0.0:5002
+   cli-listen /run/vpp/cli.sock
    cli-no-pager
 }
 dpdk {

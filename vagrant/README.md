@@ -53,13 +53,13 @@ leave empty) or the *development environment* (use the -d flag) . Instructions
 on how to build the development contiv/vpp-vswitch image can be found in the
 next paragraph.
 
-_For the testing environment run:_
+For the testing environment run:
 ```
 cd vagrant-scripts/
 ./vagrant-up
 ```
 
-_For the development environment run:_
+For the development environment run:
 ```
 cd vagrant-scripts/
 ./vagrant-up -d

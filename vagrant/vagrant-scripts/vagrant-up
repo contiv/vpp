@@ -29,14 +29,23 @@ done
 
 if [ "${DEV_ENV}" == "true" ]
 then
-    cp ../Vagrantfile-dev ../Vagrantfile
-    vagrant up
-    exit 1
+    if [ "${VAGRANT_DEFAULT_PROVIDER}" == "vmware_fusion" ]
+    then
+        cp ../Vagrantfiles/vmware-dev ../Vagrantfile
+        vagrant up
+        exit 1
+    else 
+        cp ../Vagrantfiles/virtualbox-dev ../Vagrantfile
+        vagrant up
+        exit 1
+    fi
 fi
   
-if [ "${TEST_ENV}" == "true" ]
+if [ "${VAGRANT_DEFAULT_PROVIDER}" == "vmware_fusion" ]
 then
-    echo "Using testing environment"
-    cp ../Vagrantfile-prod ../Vagrantfile
-    vagrant up 
+    cp ../Vagrantfiles/vmware-prod ../Vagrantfile
+    vagrant up
+else 
+    cp ../Vagrantfiles/virtualbox-prod ../Vagrantfile
+    vagrant up
 fi

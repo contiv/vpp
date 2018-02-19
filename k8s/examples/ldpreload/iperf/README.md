@@ -19,7 +19,7 @@ iperf-server-5574dcc986-g8fbv   1/1       Running   0          8s        10.1.1.
 
 Verify the binding on the VPP, on the host where the server POD has been deployed:
 ```
-$ telnet 0 5002
+$ sudo nc -U /run/vpp/cli.sock
 vpp# sh app server
 Connection                              App                 
 [#0][T] 10.1.1.3:5201->0.0.0.0:0        vcom-app-1          

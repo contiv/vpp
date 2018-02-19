@@ -96,7 +96,7 @@ var (
 	}
 	nodeConfig = OneNodeConfig{
 		NodeName: "test-node",
-		MainVppInterface: InterfaceWithIP{
+		MainVPPInterface: InterfaceWithIP{
 			InterfaceName: "GigabitEthernet0/0/0/1",
 			IP:            "192.168.1.1/24",
 		},
@@ -109,7 +109,7 @@ var (
 	}
 	nodeDHCPConfig = OneNodeConfig{
 		NodeName: "test-node",
-		MainVppInterface: InterfaceWithIP{
+		MainVPPInterface: InterfaceWithIP{
 			InterfaceName: "GigabitEthernet0/0/0/1",
 			UseDHCP:       true,
 		},
@@ -190,7 +190,7 @@ func TestAddDelVeth(t *testing.T) {
 func TestConfigureVswitchDHCP(t *testing.T) {
 	gomega.RegisterTestingT(t)
 
-	server, txns, _, conn := setupTestCNIServer(&configTapVxlanTCP, &nodeDHCPConfig, nodeDHCPConfig.MainVppInterface.InterfaceName)
+	server, txns, _, conn := setupTestCNIServer(&configTapVxlanTCP, &nodeDHCPConfig, nodeDHCPConfig.MainVPPInterface.InterfaceName)
 	defer conn.Disconnect()
 
 	// exec resync to configure vswitch
@@ -257,7 +257,7 @@ func TestConfigureVswitchVeth(t *testing.T) {
 	// check physical interface name
 	ifs := server.GetPhysicalIfNames()
 	gomega.Expect(len(ifs)).To(gomega.BeEquivalentTo(1))
-	gomega.Expect(ifs[0]).To(gomega.BeEquivalentTo(nodeConfig.MainVppInterface.InterfaceName))
+	gomega.Expect(ifs[0]).To(gomega.BeEquivalentTo(nodeConfig.MainVPPInterface.InterfaceName))
 	// node IP must not be empty
 	gomega.Expect(server.GetNodeIP()).ToNot(gomega.BeEmpty())
 	// host interconnect IF must be configured

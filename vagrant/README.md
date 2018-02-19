@@ -12,8 +12,8 @@ It is organized into two subfolders:
  - (vagrant-scripts) - contains scripts for creating, destroying, rebooting
     and shuting down the VMs that host the K8s cluster.
 
-If you wish to change the default number of nodes, set K8S_NODES before running
-vagrant-up:
+If you wish to change the default number of nodes, edit and set K8S_NODES 
+before running vagrant-up:
 ```
 # For a single node setup:
 export K8S_NODES=0
@@ -24,19 +24,42 @@ export K8S_NODES=1
 By default, if you do not specify the number of nodes in the environment 
 variable, two nodes (one master, one worker) are created.
 
-To create and run the cluster run vagrant-up script, located inside
-vagrant-scripts folder. You can choose to deploy between the testing (use the 
--t flag or leave empty) and the development environment (use the -d flag) when 
-running the vagrant-up script. Instructions on how to build the development
-contiv/vpp-vswitch image can be found in the next paragraph.
+Two vagrant providers are supported: VirtualBox and VmWare Fusion. The default 
+provider is VirtualBox. If you wish to use VmWare Fusion as the default vagrant
+provider, edit the vagrant-up script and set the VAGRANT_DEFAULT_PROVIDER value
+to `vmware_fusion`. You can always switch back to the default `virtualbox`.
 
-_For the testing environment run:_
+Note: to use vmware_fusion, you need to have a valid license and install the 
+vmware_fusion plugin for vagrant:
+```
+vagrant plugin install vagrant-vmware-fusion
+```
+
+- To use the virtualbox provider, set the `VAGRANT_DEFAULT_PROVIDER` variable
+as follows:
+```
+export VAGRANT_DEFAULT_PROVIDER=${VAGRANT_DEFAULT_PROVIDER:-virtualbox}
+```
+- To use the vmware_fusion provider, set the `VAGRANT_DEFAULT_PROVIDER` 
+variable as follows:
+```
+export VAGRANT_DEFAULT_PROVIDER=${VAGRANT_DEFAULT_PROVIDER:-vmware_fusion}
+```
+
+To create and run a K8s cluster with contiv-vpp CNI plugin, run the 
+`vagrant-up` script, located in the vagrant-scripts folder. The `vagrant-up`
+script can deploy either the *testing environment* (using the -t flag or 
+leave empty) or the *development environment* (use the -d flag) . Instructions
+on how to build the development contiv/vpp-vswitch image can be found in the
+next paragraph.
+
+For the testing environment run:
 ```
 cd vagrant-scripts/
 ./vagrant-up
 ```
 
-_For the development environment run:_
+For the development environment run:
 ```
 cd vagrant-scripts/
 ./vagrant-up -d
@@ -146,10 +169,7 @@ you have to untaint the master node:
 
 Check VPP and its interfaces:
 ```apple js
-vagrant@k8s-master:~$ telnet 0 5002
-Trying 0.0.0.0...
-Connected to 0.
-Escape character is '^]'.
+vagrant@k8s-master:~$ sudo nc -U /run/vpp/cli.sock
     _______    _        _   _____  ___ 
  __/ __/ _ \  (_)__    | | / / _ \/ _ \
  _/ _// // / / / _ \   | |/ / ___/ ___/

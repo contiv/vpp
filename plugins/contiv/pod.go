@@ -29,10 +29,10 @@ import (
 	vpp_l3 "github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/l3"
 	vpp_l4 "github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/l4"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/stn"
+	linux_intf "github.com/ligato/vpp-agent/plugins/linuxplugin/common/model/interfaces"
+	linux_l3 "github.com/ligato/vpp-agent/plugins/linuxplugin/common/model/l3"
 	"github.com/ligato/vpp-agent/plugins/linuxplugin/ifplugin/linuxcalls"
-	linux_intf "github.com/ligato/vpp-agent/plugins/linuxplugin/ifplugin/model/interfaces"
 	l3_linux "github.com/ligato/vpp-agent/plugins/linuxplugin/l3plugin/linuxcalls"
-	linux_l3 "github.com/ligato/vpp-agent/plugins/linuxplugin/l3plugin/model/l3"
 )
 
 // disableTCPChecksumOffload disables TCP checksum offload on the eth0 in the container
@@ -380,7 +380,7 @@ func (s *remoteCNIserver) podArpEntry(request *cni.CNIRequest, ifName string, ma
 		Name:      request.ContainerId,
 		Namespace: containerNs,
 		Interface: ifName,
-		Family:    netlink.FAMILY_V4, /* TODO: not nice, add enum to protobuf */
+		IpFamily:  &linux_l3.LinuxStaticArpEntries_ArpEntry_IpFamily{Family: linux_l3.LinuxStaticArpEntries_ArpEntry_IpFamily_IPV4},
 		State: &linux_l3.LinuxStaticArpEntries_ArpEntry_NudState{
 			Type: linux_l3.LinuxStaticArpEntries_ArpEntry_NudState_PERMANENT,
 		},

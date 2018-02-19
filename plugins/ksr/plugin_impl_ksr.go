@@ -24,9 +24,10 @@ package ksr
 
 import (
 	"fmt"
-	"github.com/contiv/vpp/plugins/ksr/model/ksrapi"
 	"sync"
 	"time"
+
+	"github.com/contiv/vpp/plugins/ksr/model/ksrapi"
 
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"

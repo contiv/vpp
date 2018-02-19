@@ -376,8 +376,7 @@ func (s *remoteCNIserver) configureMainVPPInterface(config *vswitchConfig, nicNa
 		// get IP address of the STN interface
 		nicIP, err = s.getSTNInterfaceIP(s.nodeConfig.StealInterface)
 		if err != nil {
-			logger.Errorf("Unable to get STN interface info: %v", err)
-			return err
+			s.Logger.Warnf("Unable to get STN interface info: %v, skipping STN config", err)
 		}
 
 		if nicIP != "" {
@@ -579,53 +578,58 @@ func (s *remoteCNIserver) configureOtherVPPInterfaces(config *vswitchConfig, nod
 
 // configureVswitchHostConnectivity configures vswitch VPP to Linux host interconnect.
 func (s *remoteCNIserver) configureVswitchHostConnectivity(config *vswitchConfig) error {
-	txn1 := s.vppTxnFactory().Put()
 
-	if s.useTAPInterfaces {
-		// TAP interface
-		config.tapHost = s.interconnectTap()
+	if s.nodeConfig == nil || s.nodeConfig.StealInterface == "" {
+		// execute only if STN has not already configured this
 
-		s.hostInterconnectIfName = config.tapHost.Name
+		txn1 := s.vppTxnFactory().Put()
 
-		txn1.VppInterface(config.tapHost)
-	} else {
-		// veth + AF_PACKET
-		config.vethHost = s.interconnectVethHost()
-		config.vethVpp = s.interconnectVethVpp()
-		config.interconnectAF = s.interconnectAfpacket()
+		if s.useTAPInterfaces {
+			// TAP interface
+			config.tapHost = s.interconnectTap()
 
-		s.hostInterconnectIfName = config.interconnectAF.Name
+			s.hostInterconnectIfName = config.tapHost.Name
 
-		txn1.LinuxInterface(config.vethHost).
-			LinuxInterface(config.vethVpp)
-	}
+			txn1.VppInterface(config.tapHost)
+		} else {
+			// veth + AF_PACKET
+			config.vethHost = s.interconnectVethHost()
+			config.vethVpp = s.interconnectVethVpp()
+			config.interconnectAF = s.interconnectAfpacket()
 
-	// execute the config transaction
-	err := txn1.Send().ReceiveReply()
-	if err != nil {
-		s.Logger.Error(err)
-		return err
-	}
+			s.hostInterconnectIfName = config.interconnectAF.Name
 
-	// finish TAP configuration
-	if s.useTAPInterfaces {
-		// TODO: this is not persisted, will not work in resync case!
-		err = s.configureInterfconnectHostTap()
-		if err != nil {
-			s.Logger.Error(err)
-			if !s.test {
-				// skip error by unit tests
-				return err
-			}
+			txn1.LinuxInterface(config.vethHost).
+				LinuxInterface(config.vethVpp)
 		}
-	} else {
-		// AFPacket is intentionally configured in a txn different from the one that configures veth.
-		// Otherwise if the veth exists before the first transaction (i.e. vEth pair was not deleted after last run)
-		// configuring AfPacket might return an error since linux plugin deletes the existing veth and creates a new one.
-		err = s.vppTxnFactory().Put().VppInterface(config.interconnectAF).Send().ReceiveReply()
+
+		// execute the config transaction
+		err := txn1.Send().ReceiveReply()
 		if err != nil {
 			s.Logger.Error(err)
 			return err
+		}
+
+		// finish TAP configuration
+		if s.useTAPInterfaces {
+			// TODO: this is not persisted, will not work in resync case!
+			err = s.configureInterfconnectHostTap()
+			if err != nil {
+				s.Logger.Error(err)
+				if !s.test {
+					// skip error by unit tests
+					return err
+				}
+			}
+		} else {
+			// AFPacket is intentionally configured in a txn different from the one that configures veth.
+			// Otherwise if the veth exists before the first transaction (i.e. vEth pair was not deleted after last run)
+			// configuring AfPacket might return an error since linux plugin deletes the existing veth and creates a new one.
+			err = s.vppTxnFactory().Put().VppInterface(config.interconnectAF).Send().ReceiveReply()
+			if err != nil {
+				s.Logger.Error(err)
+				return err
+			}
 		}
 	}
 
@@ -654,7 +658,7 @@ func (s *remoteCNIserver) configureVswitchHostConnectivity(config *vswitchConfig
 	txn2.L4Features(config.l4Features)
 
 	// execute the config transaction
-	err = txn2.Send().ReceiveReply()
+	err := txn2.Send().ReceiveReply()
 	if err != nil {
 		s.Logger.Error(err)
 		return err

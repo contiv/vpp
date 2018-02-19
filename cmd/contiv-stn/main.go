@@ -42,8 +42,8 @@ const (
 	initStatusCheckTimeout = 10 * time.Second // initial timeout after which the STN server starts checking of the contiv-agent state
 	statusCheckInterval    = 1 * time.Second  // periodic interval in which the STN server checks for contiv-agent state
 
-	configRetryCount = 20                    // number of config attempts in case that an error is returned / config is not applied correctly
-	configRetrySleep = 50 * time.Millisecond // sleep interval between individual config retry attempts
+	configRetryCount = 20                     // number of config attempts in case that an error is returned / config is not applied correctly
+	configRetrySleep = 200 * time.Millisecond // sleep interval between individual config retry attempts
 )
 
 var (
@@ -342,10 +342,14 @@ func (s *stnServer) setLinkUp(link netlink.Link) error {
 		// check whether the link is UP
 		l, err := netlink.LinkByName(link.Attrs().Name)
 		if err == nil {
-			if l.Attrs().OperState == netlink.OperUp {
+			if l.Attrs().OperState != netlink.OperDown {
 				// succesfully configured
 				return nil
+			} else {
+				log.Println(l.Attrs().OperState)
 			}
+		} else {
+			log.Println(err)
 		}
 
 		// not configured succesfully
@@ -534,10 +538,13 @@ func (s *stnServer) grpcReplyData(ifData *interfaceData) *stn.STNReply {
 
 	// fill-in routes
 	for _, r := range ifData.routes {
-		reply.Routes = append(reply.Routes, &stn.STNReply_Route{
+		route := &stn.STNReply_Route{
 			DestinationSubnet: r.Dst.String(),
-			NextHopIp:         r.Gw.String(),
-		})
+		}
+		if !r.Gw.IsUnspecified() {
+			route.NextHopIp = r.Gw.String()
+		}
+		reply.Routes = append(reply.Routes, route)
 	}
 
 	return reply

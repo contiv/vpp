@@ -23,6 +23,7 @@ import (
 	"github.com/contiv/vpp/plugins/policy/renderer"
 )
 
+// GlobalTableID is the ID of the global table.
 const GlobalTableID = "NODE-GLOBAL"
 
 // RendererCacheAPI defines API of a cache used to store Contiv rules.
@@ -48,12 +49,15 @@ const GlobalTableID = "NODE-GLOBAL"
 // For EgressOrientation, the local table rules have destination IP address and port
 // always ANYADDR/ANYPORT.
 type RendererCacheAPI interface {
-	CacheView
+	View
 
 	// Init initializes the cache.
 	// The caller selects the orientation of the traffic at which the rules are applied
 	// in the destination network stack.
-	Init(orientation CacheOrientation) error
+	Init(orientation Orientation)
+
+	// Flush completely wipes out the cache content.
+	Flush()
 
 	// NewTxn starts a new transaction. The changes are reflected in the cache
 	// only after Commit() is called.
@@ -68,8 +72,8 @@ type RendererCacheAPI interface {
 	Resync(tables []*ContivRuleTable) error
 }
 
-// CacheView allows to read the cache content
-type CacheView interface {
+// View allows to read the cache content
+type View interface {
 	// GetPodConfig returns the current configuration of a given pod
 	// (as passed through the Txn.Update() method).
 	// Method returns nil if the given pod is not tracked by the cache.
@@ -93,16 +97,16 @@ type CacheView interface {
 	GetGlobalTable() *ContivRuleTable
 }
 
-// CacheOrientation is either "IngressOrientation" or "EgressOrientation".
+// Orientation is either "IngressOrientation" or "EgressOrientation".
 // It is selected during the cache initialization to specify whether the rule
 // matching algorithm in the destination network stack runs against the ingress
 // or the egress traffic (from the vswitch point of view).
-type CacheOrientation int
+type Orientation int
 
 const (
 	// IngressOrientation means that rules are applied on the traffic *arriving*
 	// from the interfaces into the vswitch.
-	IngressOrientation CacheOrientation = iota
+	IngressOrientation Orientation = iota
 
 	// EgressOrientation means that rules are applied on the traffic *leaving*
 	// the vswitch through the interfaces.
@@ -111,10 +115,10 @@ const (
 
 // Txn defines API of RendererCache transaction.
 type Txn interface {
-	// CacheView allows to view the cache as it will look like if the transaction
+	// View allows to view the cache as it will look like if the transaction
 	// is committed without any additional changes.
-	// Should be used only before Commit() (afterwards use CacheView from the cache itself).
-	CacheView
+	// Should be used only before Commit() (afterwards use View from the cache itself).
+	View
 
 	// Update changes the configuration of Contiv rules for a given pod.
 	// The change is applied into the cache during the commit.
@@ -134,7 +138,7 @@ type Txn interface {
 	// transaction up to this point.
 	// Changes are presented from the tables point of view (i.e. what tables have been
 	// changed, created, removed).
-	// Alternatively, GetLocalTableByPod() and GetGlobalTable() from CacheView
+	// Alternatively, GetLocalTableByPod() and GetGlobalTable() from View
 	// interface can be used to get the updated configuration from the pods point of view.
 	// GetChanges() must be run before Commit().
 	GetChanges() (changes []*TxnChange)
@@ -197,7 +201,7 @@ type ContivRuleTable struct {
 	// all tables. IDs of tables supplied to RendererCacheAPI.Resync() should also
 	// satisfy the uniqueness or the operation will get rejected.
 	// The exception is the global table which is (and should be) identified
-	// as "NODE-GLOBAL".
+	// as <GlobalTableID>.
 	ID string
 
 	// Type is used to differentiate the global table from the local ones.
@@ -361,8 +365,12 @@ func (tt TableType) String() string {
 type PodSet map[podmodel.ID]struct{}
 
 // NewPodSet is a constructor for PodSet
-func NewPodSet() PodSet {
-	return make(PodSet)
+func NewPodSet(podIDs ...podmodel.ID) PodSet {
+	pods := make(PodSet)
+	for _, podID := range podIDs {
+		pods.Add(podID)
+	}
+	return pods
 }
 
 // Copy returns deep copy of the set.

@@ -42,10 +42,9 @@ define test_only
 	@go test ./plugins/contiv/containeridx -tags="${GO_BUILD_TAGS}"
 	@go test ./plugins/kvdbproxy -tags="${GO_BUILD_TAGS}"
 	@go test ./plugins/ksr -tags="${GO_BUILD_TAGS}"
-	@go test ./plugins/policy/renderer/acl/cache -tags="${GO_BUILD_TAGS}"
-	@go test ./plugins/policy/renderer/acl -tags="${GO_BUILD_TAGS}"
 	@go test ./plugins/policy/configurator -tags="${GO_BUILD_TAGS}"
-	@go test ./plugins/policy/renderer/vpptcp/cache -tags="${GO_BUILD_TAGS}"
+	@go test ./plugins/policy/renderer/cache -tags="${GO_BUILD_TAGS}"
+	@go test ./plugins/policy/renderer/acl -tags="${GO_BUILD_TAGS}"
 	@go test ./plugins/policy/renderer/vpptcp -tags="${GO_BUILD_TAGS}"
 	@echo "# done"
 endef
@@ -59,17 +58,16 @@ define test_cover_only
     @go test -covermode=count -coverprofile=${COVER_DIR}cov_u4.out ./plugins/contiv/containeridx -tags="${GO_BUILD_TAGS}"
     @go test -covermode=count -coverprofile=${COVER_DIR}cov_u5.out ./plugins/kvdbproxy -tags="${GO_BUILD_TAGS}"
     @go test -covermode=count -coverprofile=${COVER_DIR}cov_u6.out ./plugins/ksr -tags="${GO_BUILD_TAGS}"
-    @go test -covermode=count -coverprofile=${COVER_DIR}cov_u7.out ./plugins/policy/renderer/acl/cache -tags="${GO_BUILD_TAGS}"
-    @go test -covermode=count -coverprofile=${COVER_DIR}cov_u8.out ./plugins/policy/renderer/acl -tags="${GO_BUILD_TAGS}"
-    @go test -covermode=count -coverprofile=${COVER_DIR}cov_u9.out ./plugins/policy/configurator -tags="${GO_BUILD_TAGS}"
-    @go test -covermode=count -coverprofile=${COVER_DIR}cov_u10.out ./plugins/policy/renderer/vpptcp/cache -tags="${GO_BUILD_TAGS}"
-    @go test -covermode=count -coverprofile=${COVER_DIR}cov_u11.out ./plugins/policy/renderer/vpptcp -tags="${GO_BUILD_TAGS}"
+    @go test -covermode=count -coverprofile=${COVER_DIR}cov_u7.out ./plugins/policy/configurator -tags="${GO_BUILD_TAGS}"
+    @go test -covermode=count -coverprofile=${COVER_DIR}cov_u8.out ./plugins/policy/renderer/cache -tags="${GO_BUILD_TAGS}"
+    @go test -covermode=count -coverprofile=${COVER_DIR}cov_u9.out ./plugins/policy/renderer/acl -tags="${GO_BUILD_TAGS}"
+    @go test -covermode=count -coverprofile=${COVER_DIR}cov_u10.out ./plugins/policy/renderer/vpptcp -tags="${GO_BUILD_TAGS}"
     @echo "# merging coverage results"
     @cd vendor/github.com/wadey/gocovmerge && go install -v
     @gocovmerge ${COVER_DIR}cov_u1.out ${COVER_DIR}cov_u2.out ${COVER_DIR}cov_u3.out \
 		${COVER_DIR}cov_u4.out ${COVER_DIR}cov_u5.out ${COVER_DIR}cov_u6.out \
 		${COVER_DIR}cov_u7.out ${COVER_DIR}cov_u8.out ${COVER_DIR}cov_u9.out \
-		${COVER_DIR}cov_u10.out ${COVER_DIR}cov_u11.out > ${COVER_DIR}coverage.out
+		${COVER_DIR}cov_u10.out > ${COVER_DIR}coverage.out
     @echo "# coverage data generated into ${COVER_DIR}coverage.out"
     @echo "# done"
 endef

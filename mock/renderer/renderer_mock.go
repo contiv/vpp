@@ -145,15 +145,22 @@ func (mr *MockRenderer) TestTraffic(pod podmodel.ID, direction TrafficDirection,
 }
 
 // Render just stores config to be rendered.
-func (mrt *MockRendererTxn) Render(pod podmodel.ID, podIP *net.IPNet, ingress []*renderer.ContivRule, egress []*renderer.ContivRule) renderer.Txn {
+func (mrt *MockRendererTxn) Render(pod podmodel.ID, podIP *net.IPNet, ingress []*renderer.ContivRule, egress []*renderer.ContivRule, removed bool) renderer.Txn {
 	mrt.Log.WithFields(logging.Fields{
 		"renderer": mrt.renderer.name,
 		"pod":      pod,
 		"IP":       podIP,
 		"ingress":  ingress,
 		"egress":   egress,
+		"removed":  removed,
 	}).Debug("Mock RendererTxn Render()")
-	mrt.config[pod] = &PodConfig{ip: podIP, ingress: ingress, egress: egress}
+	if removed {
+		if _, hasPod := mrt.config[pod]; hasPod {
+			delete(mrt.config, pod)
+		}
+	} else {
+		mrt.config[pod] = &PodConfig{ip: podIP, ingress: ingress, egress: egress}
+	}
 	return mrt
 }
 

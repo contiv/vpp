@@ -19,6 +19,7 @@ import (
 
 	"github.com/ligato/cn-infra/logging"
 
+	"fmt"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	"github.com/contiv/vpp/plugins/policy/renderer"
 	"github.com/contiv/vpp/plugins/policy/utils"
@@ -55,6 +56,39 @@ func NewLocalTables(logger logging.Logger) *LocalTables {
 		byID:   make(map[string]*ContivRuleTable),
 		byPod:  make(map[podmodel.ID]*ContivRuleTable),
 	}
+}
+
+// String converts LocalTables (pointer) into a human-readable string
+// representation.
+func (lts *LocalTables) String() string {
+	tables := ""
+	for i := 0; i < lts.numTables; i++ {
+		tables += lts.tables[i].String()
+		if i < lts.numTables-1 {
+			tables += ", "
+		}
+	}
+
+	byID := ""
+	count := 0
+	for id, table := range lts.byID {
+		byID += fmt.Sprintf("<%s> -> <%s>", id, table)
+		if count < len(lts.byID)-1 {
+			byID += ","
+		}
+	}
+
+	byPod := ""
+	count = 0
+	for pod, table := range lts.byPod {
+		byPod += fmt.Sprintf("<%s> -> <%s>", pod, table)
+		if count < len(lts.byPod)-1 {
+			byPod += ","
+		}
+	}
+
+	return fmt.Sprintf("Local Tables <tables: [%s], byID: {%s}, byPod: {%s}>",
+		tables, byID, byPod)
 }
 
 // Insert local table into the list.

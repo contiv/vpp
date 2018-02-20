@@ -32,7 +32,7 @@ type RendererCache struct {
 	Deps
 
 	// configuration
-	orientation CacheOrientation
+	orientation Orientation
 
 	// tables
 	localTables       *LocalTables
@@ -73,13 +73,17 @@ type AllocatedIDs map[string]struct{}
 // Init initializes the cache.
 // The caller selects the orientation of the traffic at which the rules are applied
 // in the destination network stack.
-func (rc *RendererCache) Init(orientation CacheOrientation) error {
+func (rc *RendererCache) Init(orientation Orientation) {
 	rc.orientation = orientation
+	rc.Flush()
+}
+
+// Flush completely wipes out the cache content.
+func (rc *RendererCache) Flush() {
 	rc.localTables = NewLocalTables(rc.Log)
 	rc.globalTable = NewContivRuleTable(GlobalTableID)
 	rc.allocatedTableIDs = make(AllocatedIDs)
 	rc.config = make(Config)
-	return nil
 }
 
 // NewTxn starts a new transaction. The changes are reflected in the cache
@@ -156,7 +160,7 @@ func (rc *RendererCache) GetPodConfig(pod podmodel.ID) *PodConfig {
 // GetAllPods returns the set of all pods currently tracked by the cache.
 func (rc *RendererCache) GetAllPods() PodSet {
 	pods := NewPodSet()
-	for podID, _ := range rc.config {
+	for podID := range rc.config {
 		pods.Add(podID)
 	}
 	return pods
@@ -433,7 +437,7 @@ func (rct *RendererCacheTxn) refreshTables() {
 			rct.localTables.AssignPod(txnTable, podID)
 			// Throw away the local table that was just built.
 			delete(rct.cache.allocatedTableIDs, newTable.ID)
-			return
+			continue
 		}
 
 		// Check if the table exists in the cache but not in the transaction.
@@ -452,7 +456,7 @@ func (rct *RendererCacheTxn) refreshTables() {
 			rct.localTables.Insert(updatedTable)
 			// Throw away the local table that was just built.
 			delete(rct.cache.allocatedTableIDs, newTable.ID)
-			return
+			continue
 		}
 
 		// Add the newly created local table.
@@ -463,12 +467,17 @@ func (rct *RendererCacheTxn) refreshTables() {
 	rct.rebuildGlobalTable()
 
 	rct.upToDateTables = true
+	rct.cache.Log.WithFields(logging.Fields{
+		"local":  rct.localTables,
+		"global": rct.globalTable,
+	}).Debug("tables in transaction were refreshed")
 }
 
 // buildLocalTable builds the local table corresponding to the given pod
 // for the current state of the transaction.
 func (rct *RendererCacheTxn) buildLocalTable(dstPodID podmodel.ID, dstPodCfg *PodConfig) *ContivRuleTable {
 	table := NewContivRuleTable(rct.generateTableID())
+	table.Pods.Add(dstPodID)
 	if dstPodCfg.Removed {
 		// For removed pod return empty table.
 		return table

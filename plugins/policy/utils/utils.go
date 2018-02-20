@@ -167,27 +167,58 @@ func CompareInts(a, b int) int {
 
 // CompareIPNets returns -1, 0, 1 if a<b or a==b or a>b, respectively.
 // It hold that if *a* is subset of *b*, then a<b (and vice-versa).
-// lexicographically.
 func CompareIPNets(a, b *net.IPNet) int {
-	aOnes, aBits := a.Mask.Size()
-	bOnes, bBits := b.Mask.Size()
-	sizeOrder := CompareInts(aBits, bBits)
-	if sizeOrder != 0 {
-		return sizeOrder
+	// Handle 0/0
+	if len(a.IP) == 0 {
+		if len(b.IP) == 0 {
+			return 0
+		}
+		return 1
 	}
+	if len(b.IP) == 0 {
+		return -1
+	}
+
+	// Normalize IP addresses.
+	// Order IPv4 before IPv6.
+	var aNorm, bNorm *net.IPNet
+	if a.IP.To4() != nil {
+		if b.IP.To4() == nil {
+			return -1
+		}
+		aNorm = &net.IPNet{IP: a.IP.To4(), Mask: a.Mask}
+	} else {
+		aNorm = &net.IPNet{IP: a.IP.To16(), Mask: a.Mask}
+	}
+	if b.IP.To4() != nil {
+		if a.IP.To4() == nil {
+			return 1
+		}
+		bNorm = &net.IPNet{IP: b.IP.To4(), Mask: b.Mask}
+	} else {
+		bNorm = &net.IPNet{IP: b.IP.To16(), Mask: b.Mask}
+	}
+
+	// Compare common prefix
+	aOnes, bits := aNorm.Mask.Size()
+	bOnes, _ := bNorm.Mask.Size()
 	commonOnes := aOnes
 	if bOnes < aOnes {
 		commonOnes = bOnes
 	}
-	commonMask := net.CIDRMask(commonOnes, aBits)
-	if a.IP.Mask(commonMask).Equal(b.IP.Mask(commonMask)) {
+	commonMask := net.CIDRMask(commonOnes, bits)
+	if aNorm.IP.Mask(commonMask).Equal(bNorm.IP.Mask(commonMask)) {
+		// Prefix is the same => compare by mask length.
 		return CompareInts(bOnes, aOnes)
 	}
-	maskOrder := bytes.Compare(b.Mask, a.Mask)
+
+	// a,b form network subnets with empty intersection -> still compare
+	// in some way to maintain a total order.
+	maskOrder := bytes.Compare(bNorm.Mask, aNorm.Mask)
 	if maskOrder != 0 {
 		return maskOrder
 	}
-	return bytes.Compare(a.IP, b.IP)
+	return bytes.Compare(aNorm.IP, bNorm.IP)
 }
 
 // ComparePorts is a comparison function for two ports.

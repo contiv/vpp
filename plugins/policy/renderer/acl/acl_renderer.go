@@ -34,13 +34,13 @@ import (
 )
 
 const (
-	// AclNamePrefix is used to tag ACLs created for the implementation of K8s policies.
-	AclNamePrefix = "contiv/vpp-policy-"
+	// ACLNamePrefix is used to tag ACLs created for the implementation of K8s policies.
+	ACLNamePrefix = "contiv/vpp-policy-"
 
-	// ReflectiveAclName is the name of the *reflective* ACL (full name prefixed with
-	// AclNamePrefix). Reflective ACL is used to allow responses of accepted sessions
+	// ReflectiveACLName is the name of the *reflective* ACL (full name prefixed with
+	// ACLNamePrefix). Reflective ACL is used to allow responses of accepted sessions
 	// regardless of installed policies on the way back.
-	ReflectiveAclName = "REFLECTION"
+	ReflectiveACLName = "REFLECTION"
 )
 
 // Renderer renders Contiv Rules into VPP ACLs.
@@ -202,31 +202,31 @@ func (art *RendererTxn) Commit() error {
 
 	// Render the global table.
 	if globalTable != nil {
-		globalAcl := art.renderACL(globalTable)
+		globalACL := art.renderACL(globalTable)
 		if globalTable.NumOfRules == 0 {
 			// Remove empty global table.
-			deleteDsl.ACL(globalAcl.AclName)
+			deleteDsl.ACL(globalACL.AclName)
 			art.renderer.Log.WithFields(logging.Fields{
 				"table": globalTable,
-				"acl":   globalAcl,
+				"acl":   globalACL,
 			}).Debug("Removed Global ACL")
 		} else {
 			// Update content of the global table.
-			globalAcl.Interfaces.Egress = art.getNodeOutputInterfaces()
-			putDsl.ACL(globalAcl)
+			globalACL.Interfaces.Egress = art.getNodeOutputInterfaces()
+			putDsl.ACL(globalACL)
 			art.renderer.Log.WithFields(logging.Fields{
 				"table": globalTable,
-				"acl":   globalAcl,
+				"acl":   globalACL,
 			}).Debug("Put Global ACL")
 		}
 	}
 
 	// Render the reflective ACL
 	if art.resync || !art.cacheTxn.GetIsolatedPods().Equals(art.renderer.cache.GetIsolatedPods()) {
-		reflectiveAcl := art.reflectiveAcl()
-		putDsl.ACL(reflectiveAcl)
+		reflectiveACL := art.reflectiveACL()
+		putDsl.ACL(reflectiveACL)
 		art.renderer.Log.WithFields(logging.Fields{
-			"acl": reflectiveAcl,
+			"acl": reflectiveACL,
 		}).Debug("Put Reflective ACL")
 	}
 
@@ -239,8 +239,8 @@ func (art *RendererTxn) Commit() error {
 	return art.cacheTxn.Commit()
 }
 
-// reflectiveAcl returns the configuration of the reflective ACL.
-func (art *RendererTxn) reflectiveAcl() *vpp_acl.AccessLists_Acl {
+// reflectiveACL returns the configuration of the reflective ACL.
+func (art *RendererTxn) reflectiveACL() *vpp_acl.AccessLists_Acl {
 	// Prepare table to render the ACL from.
 	ruleTCPAny := &renderer.ContivRule{
 		Action:      renderer.ActionPermit,
@@ -258,7 +258,7 @@ func (art *RendererTxn) reflectiveAcl() *vpp_acl.AccessLists_Acl {
 		SrcPort:     0,
 		DestPort:    0,
 	}
-	table := cache.NewContivRuleTable(ReflectiveAclName)
+	table := cache.NewContivRuleTable(ReflectiveACLName)
 	table.Rules = []*renderer.ContivRule{ruleTCPAny, ruleUDPAny}
 	table.NumOfRules = 2
 	table.Pods = art.cacheTxn.GetIsolatedPods()
@@ -285,15 +285,15 @@ func (art *RendererTxn) getNodeOutputInterfaces() []string {
 func (art *RendererTxn) renderACL(table *cache.ContivRuleTable) *vpp_acl.AccessLists_Acl {
 	const maxPortNum = ^uint16(0)
 	acl := &vpp_acl.AccessLists_Acl{}
-	acl.AclName = AclNamePrefix + table.ID
-	acl.Interfaces = art.renderInterfaces(table.Pods, table.ID == ReflectiveAclName)
+	acl.AclName = ACLNamePrefix + table.ID
+	acl.Interfaces = art.renderInterfaces(table.Pods, table.ID == ReflectiveACLName)
 	for i := 0; i < table.NumOfRules; i++ {
 		rule := table.Rules[i]
 		aclRule := &vpp_acl.AccessLists_Acl_Rule{}
 		aclRule.Actions = &vpp_acl.AccessLists_Acl_Rule_Actions{}
 		if rule.Action == renderer.ActionDeny {
 			aclRule.Actions.AclAction = vpp_acl.AclAction_DENY
-		} else if table.ID == ReflectiveAclName {
+		} else if table.ID == ReflectiveACLName {
 			aclRule.Actions.AclAction = vpp_acl.AclAction_REFLECT
 		} else {
 			aclRule.Actions.AclAction = vpp_acl.AclAction_PERMIT
@@ -381,14 +381,14 @@ func (art *RendererTxn) dumpVppACLConfig() (tables []*cache.ContivRuleTable, err
 		return tables, err
 	}
 	for _, acl := range aclDump {
-		if !strings.HasPrefix(acl.AclName, AclNamePrefix) {
+		if !strings.HasPrefix(acl.AclName, ACLNamePrefix) {
 			/* ACL not installed by this plugin */
 			continue
 		}
-		aclName := strings.TrimPrefix(acl.AclName, AclNamePrefix)
+		aclName := strings.TrimPrefix(acl.AclName, ACLNamePrefix)
 
 		// Skip the Reflective ACL.
-		if aclName == ReflectiveAclName {
+		if aclName == ReflectiveACLName {
 			continue
 		}
 

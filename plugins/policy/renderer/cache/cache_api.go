@@ -61,6 +61,10 @@ type RendererCacheAPI interface {
 
 	// Resync completely replaces the existing cache content with the supplied
 	// data.
+	// The configuration cannot be fully reconstructed however, only the set
+	// of all tracked pods. Do not use GetPodConfig() immediately after Resync(),
+	// instead follow the resync with a transaction that updates the configuration
+	// of still present pods and removes the rest (Cache.GetAllPods() \ Txn.GetUpdatedPods()).
 	Resync(tables []*ContivRuleTable) error
 }
 

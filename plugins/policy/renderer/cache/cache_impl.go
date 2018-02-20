@@ -99,6 +99,7 @@ func (rc *RendererCache) Resync(tables []*ContivRuleTable) error {
 
 	// Re-synchronize outside of the cache first.
 	// In-progress failure should not affect the cache content.
+	config := make(Config)
 	allocatedTableIDs := make(AllocatedIDs)
 	localTables := NewLocalTables(rc.Log)
 	globalTable := NewContivRuleTable(GlobalTableID)
@@ -122,12 +123,22 @@ func (rc *RendererCache) Resync(tables []*ContivRuleTable) error {
 		}
 		allocatedTableIDs[table.ID] = struct{}{}
 		localTables.Insert(table)
+		// The configuration cannot be reconstructed, but at least the set of all pods
+		// can be.
+		for podID := range table.Pods {
+			_, multipleTables := config[podID]
+			if multipleTables {
+				return fmt.Errorf("pod assigned to multiple local tables: %s", podID)
+			}
+			config[podID] = &PodConfig{}
+		}
 	}
 
 	// Replace the cache content.
 	rc.allocatedTableIDs = allocatedTableIDs
 	rc.localTables = localTables
 	rc.globalTable = globalTable
+	rc.config = config
 	return nil
 }
 

@@ -52,8 +52,7 @@ type Txn interface {
 	// in case they are installed globally and not assigned to interfaces.
 	// Empty set of rules should allow any traffic in that direction.
 	// The flag *removed* is set to true if the pod was just removed - in such
-	// case the original IP address is still provided, but both list of rules
-	// are empty.
+	// case *podIP* may be nil and both list of rules are empty.
 	Render(pod podmodel.ID, podIP *net.IPNet /* one host subnet */, ingress []*ContivRule, egress []*ContivRule, removed bool) Txn
 
 	// Commit proceeds with the rendering. The changes are propagated into

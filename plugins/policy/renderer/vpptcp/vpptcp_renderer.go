@@ -118,15 +118,10 @@ func (art *RendererTxn) Commit() error {
 		}
 		// Remove pods not present in the transaction.
 		txnPods := art.cacheTxn.GetUpdatedPods()
-		emptyList := []*renderer.ContivRule{}
 		for pod := range art.renderer.cache.GetAllPods() {
 			if !txnPods.Has(pod) {
-				podCfg := art.renderer.cache.GetPodConfig(pod)
 				art.cacheTxn.Update(pod,
 					&cache.PodConfig{
-						PodIP:   podCfg.PodIP,
-						Ingress: emptyList,
-						Egress:  emptyList,
 						Removed: true,
 					})
 			}

@@ -88,7 +88,7 @@ func (r *Renderer) NewTxn(resync bool) renderer.Txn {
 // Render applies the set of ingress & egress rules for a given pod.
 // The existing rules are replaced.
 // Te actual change is performed only after the commit.
-func (art *RendererTxn) Render(pod podmodel.ID, podIP *net.IPNet, ingress []*renderer.ContivRule, egress []*renderer.ContivRule) renderer.Txn {
+func (art *RendererTxn) Render(pod podmodel.ID, podIP *net.IPNet, ingress []*renderer.ContivRule, egress []*renderer.ContivRule, removed bool) renderer.Txn {
 	art.renderer.Log.WithFields(logging.Fields{
 		"pod":     pod,
 		"ingress": ingress,
@@ -96,7 +96,7 @@ func (art *RendererTxn) Render(pod podmodel.ID, podIP *net.IPNet, ingress []*ren
 	}).Debug("VPPTCP RendererTxn Render()")
 
 	// Add the rules into the transaction.
-	art.cacheTxn.Update(pod, podIP, ingress, egress)
+	art.cacheTxn.Update(pod, &cache.PodConfig{PodIP: podIP, Ingress: ingress, Egress: egress, Removed: removed})
 	return art
 }
 
@@ -116,20 +116,25 @@ func (art *RendererTxn) Commit() error {
 		if err != nil {
 			return err
 		}
-		// Apply empty config for pods not present in the transaction
-		// which are currently isolated.
-		txnPods := art.cacheTxn.UpdatedPods()
+		// Remove pods not present in the transaction.
+		txnPods := art.cacheTxn.GetUpdatedPods()
 		emptyList := []*renderer.ContivRule{}
-		for pod := range art.renderer.cache.IsolatedPods() {
+		for pod := range art.renderer.cache.GetAllPods() {
 			if !txnPods.Has(pod) {
-				podIP, _, _ := art.renderer.cache.GetPodConfig(pod)
-				art.cacheTxn.Update(pod, podIP, emptyList, emptyList)
+				podCfg := art.renderer.cache.GetPodConfig(pod)
+				art.cacheTxn.Update(pod,
+					&cache.PodConfig{
+						PodIP:   podCfg.PodIP,
+						Ingress: emptyList,
+						Egress:  emptyList,
+						Removed: true,
+					})
 			}
 		}
 	}
 
 	// Get list of added and removed rules in the local tables.
-	for pod := range art.cacheTxn.UpdatedPods() {
+	for pod := range art.cacheTxn.GetUpdatedPods() {
 		var newContivRules, removedContivRules []*renderer.ContivRule
 		origLocalTable := art.renderer.cache.GetLocalTableByPod(pod)
 		newLocalTable := art.cacheTxn.GetLocalTableByPod(pod)

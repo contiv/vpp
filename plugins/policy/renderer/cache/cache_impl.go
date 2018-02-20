@@ -31,6 +31,9 @@ import (
 type RendererCache struct {
 	Deps
 
+	// configuration
+	orientation CacheOrientation
+
 	// tables
 	localTables       *LocalTables
 	globalTable       *ContivRuleTable
@@ -50,23 +53,17 @@ type RendererCacheTxn struct {
 	cache *RendererCache
 
 	// tables with changes from the transaction.
-	localTables *LocalTables
-	globalTable *ContivRuleTable
+	localTables    *LocalTables
+	globalTable    *ContivRuleTable
+	upToDateTables bool
 
 	// updated pod configuration
 	config Config
 }
 
-// PodConfig encapsulates pod config (as received through RendererCacheTxn.Update()).
-type PodConfig struct {
-	podIP   *net.IPNet
-	ingress []*renderer.ContivRule
-	egress  []*renderer.ContivRule
-}
-
 // Config is used to store snapshot of the configuration as received through
 // RendererCacheTxn.Update().
-type Config map[podmodel.ID]PodConfig
+type Config map[podmodel.ID]*PodConfig
 
 // AllocatedIDs represents a set of all allocated IDs.
 type AllocatedIDs map[string]struct{}
@@ -77,6 +74,7 @@ type AllocatedIDs map[string]struct{}
 // The caller selects the orientation of the traffic at which the rules are applied
 // in the destination network stack.
 func (rc *RendererCache) Init(orientation CacheOrientation) error {
+	rc.orientation = orientation
 	rc.localTables = NewLocalTables(rc.Log)
 	rc.globalTable = NewContivRuleTable(GlobalTableID)
 	rc.allocatedTableIDs = make(AllocatedIDs)
@@ -134,20 +132,30 @@ func (rc *RendererCache) Resync(tables []*ContivRuleTable) error {
 }
 
 // GetPodConfig returns the current configuration of a given pod
-// (as passed through the Txn.Update() method the last time).
-func (rc *RendererCache) GetPodConfig(pod podmodel.ID) (podIP *net.IPNet, ingress, egress []*renderer.ContivRule) {
+// (as passed through the Txn.Update() method).
+// Method returns nil if the given pod is not tracked by the cache.
+func (rc *RendererCache) GetPodConfig(pod podmodel.ID) *PodConfig {
 	config, hasConfig := rc.config[pod]
 	if !hasConfig {
-		return nil, ingress, egress
+		return nil
 	}
-	return config.podIP, config.ingress, config.egress
+	return config
 }
 
-// IsolatedPods returns the set of IDs of all pods that have a local table assigned.
+// GetAllPods returns the set of all pods currently tracked by the cache.
+func (rc *RendererCache) GetAllPods() PodSet {
+	pods := NewPodSet()
+	for podID, _ := range rc.config {
+		pods.Add(podID)
+	}
+	return pods
+}
+
+// GetIsolatedPods returns the set of IDs of all pods that have a local table assigned.
 // The term "isolated" is borrowed from K8s, pods become isolated by having
 // a NetworkPolicy that selects them.
-func (rc *RendererCache) IsolatedPods() PodSet {
-	return rc.localTables.IsolatedPods()
+func (rc *RendererCache) GetIsolatedPods() PodSet {
+	return rc.localTables.GetIsolatedPods()
 }
 
 // GetLocalTableByPod returns the local table assigned to a given pod.
@@ -169,14 +177,14 @@ func (rc *RendererCache) GetGlobalTable() *ContivRuleTable {
 
 /************************************ TXN ************************************/
 
-func (rct *RendererCacheTxn) Update(pod podmodel.ID, podIP *net.IPNet, ingress []*renderer.ContivRule, egress []*renderer.ContivRule) {
-	rct.config[pod] = PodConfig{podIP: podIP, ingress: ingress, egress: egress}
-
-	/* TODO: refresh local tables + global table in the transaction */
+// Update changes the configuration of Contiv rules for a given pod.
+func (rct *RendererCacheTxn) Update(pod podmodel.ID, podConfig *PodConfig) {
+	rct.config[pod] = podConfig
+	rct.upToDateTables = false
 }
 
-// UpdatedPods returns the set of all pods included in the transaction.
-func (rct *RendererCacheTxn) UpdatedPods() PodSet {
+// GetUpdatedPods returns the set of all pods included in the transaction.
+func (rct *RendererCacheTxn) GetUpdatedPods() PodSet {
 	updated := NewPodSet()
 	for pod := range rct.config {
 		updated.Add(pod)
@@ -184,10 +192,24 @@ func (rct *RendererCacheTxn) UpdatedPods() PodSet {
 	return updated
 }
 
-// Changes calculates a minimalistic set of changes prepared in the transaction
+// GetRemovedPods returns the set of all pods that will be removed by the transaction.
+func (rct *RendererCacheTxn) GetRemovedPods() PodSet {
+	removed := NewPodSet()
+	for pod, podCfg := range rct.config {
+		if podCfg.Removed {
+			removed.Add(pod)
+		}
+	}
+	return removed
+}
+
+// GetChanges calculates a minimalistic set of changes prepared in the transaction
 // up to this point.
 // Must be run before Commit().
-func (rct *RendererCacheTxn) Changes() (changes []*TxnChange) {
+func (rct *RendererCacheTxn) GetChanges() (changes []*TxnChange) {
+	if !rct.upToDateTables {
+		rct.refreshTables()
+	}
 	// Get changes related to local tables.
 	for i := 0; i < rct.localTables.numTables; i++ {
 		txnTable := rct.localTables.tables[i]
@@ -232,6 +254,9 @@ func (rct *RendererCacheTxn) Changes() (changes []*TxnChange) {
 
 // Commit applies the changes into the underlying cache.
 func (rct *RendererCacheTxn) Commit() error {
+	if !rct.upToDateTables {
+		rct.refreshTables()
+	}
 	// Commit local tables.
 	for i := 0; i < rct.localTables.numTables; i++ {
 		txnTable := rct.localTables.tables[i]
@@ -276,28 +301,60 @@ func (rct *RendererCacheTxn) Commit() error {
 	}
 
 	// Commit global table.
-	if rct.globalTable != nil {
+	if rct.globalTable != nil &&
+		compareRuleLists(
+			rct.globalTable.Rules[:rct.globalTable.NumOfRules],
+			rct.cache.globalTable.Rules[:rct.cache.globalTable.NumOfRules]) != 0 {
 		rct.cache.globalTable = rct.globalTable
+	}
+
+	// Commit configuration.
+	for podID, podCfg := range rct.config {
+		if podCfg.Removed {
+			if _, exists := rct.cache.config[podID]; exists {
+				delete(rct.cache.config, podID)
+			}
+			rct.cache.localTables.UnassignPod(nil, podID)
+		} else {
+			rct.cache.config[podID] = podCfg
+		}
 	}
 	return nil
 }
 
-// GetPodConfig returns the configuration of a given pod pending in the transaction
-// (applied after the commit).
-func (rct *RendererCacheTxn) GetPodConfig(pod podmodel.ID) (podIP *net.IPNet, ingress, egress []*renderer.ContivRule) {
+// GetPodConfig returns the configuration of a given pod either pending in the transaction
+// or taken from the cache if the pod was not updated.
+func (rct *RendererCacheTxn) GetPodConfig(pod podmodel.ID) *PodConfig {
 	config, hasConfig := rct.config[pod]
 	if !hasConfig {
-		return nil, ingress, egress
+		return rct.cache.GetPodConfig(pod)
 	}
-	return config.podIP, config.ingress, config.egress
+	return config
 }
 
-// IsolatedPods returns the set of IDs of pods that will have a local table assigned
+// GetAllPods returns the set of all pods that will have configuration tracked by the cache if the
+// transaction is committed without any additional changes.
+func (rct *RendererCacheTxn) GetAllPods() PodSet {
+	pods := rct.cache.GetAllPods()
+	for podID, podCfg := range rct.config {
+		if !podCfg.Removed {
+			pods.Add(podID)
+		} else {
+			pods.Remove(podID)
+		}
+	}
+	return pods
+}
+
+// GetIsolatedPods returns the set of IDs of pods that will have a local table assigned
 // if the transaction is committed without any additional changes.
-func (rct *RendererCacheTxn) IsolatedPods() PodSet {
-	isolated := rct.localTables.IsolatedPods()
+func (rct *RendererCacheTxn) GetIsolatedPods() PodSet {
+	if !rct.upToDateTables {
+		rct.refreshTables()
+	}
+	isolated := rct.localTables.GetIsolatedPods()
 	// Add isolated pods that are without changes in the transaction.
-	for pod := range rct.cache.IsolatedPods() {
+	for pod := range rct.cache.GetIsolatedPods() {
 		if rct.localTables.LookupByPod(pod) == nil {
 			isolated.Add(pod)
 		}
@@ -309,6 +366,9 @@ func (rct *RendererCacheTxn) IsolatedPods() PodSet {
 // if the transaction is committed without any additional changes.
 // Returns nil if the pod will be non-isolated.
 func (rct *RendererCacheTxn) GetLocalTableByPod(pod podmodel.ID) *ContivRuleTable {
+	if !rct.upToDateTables {
+		rct.refreshTables()
+	}
 	table := rct.localTables.LookupByPod(pod)
 	if table != nil && table.NumOfRules == 0 {
 		return nil /* do not return empty table */
@@ -323,6 +383,9 @@ func (rct *RendererCacheTxn) GetLocalTableByPod(pod podmodel.ID) *ContivRuleTabl
 // GetGlobalTable returns the global table that will be installed if the transaction
 // is committed without any additional changes
 func (rct *RendererCacheTxn) GetGlobalTable() *ContivRuleTable {
+	if !rct.upToDateTables {
+		rct.refreshTables()
+	}
 	if rct.globalTable != nil {
 		return rct.globalTable
 	}
@@ -330,8 +393,257 @@ func (rct *RendererCacheTxn) GetGlobalTable() *ContivRuleTable {
 	return rct.cache.globalTable
 }
 
+// refreshTables re-calculates local tables as well as the global one to reflect
+// all the changes included in the transaction up to this point.
+func (rct *RendererCacheTxn) refreshTables() {
+	// First refresh local tables of all pods (including the to-be-removed ones).
+	for podID := range rct.GetAllPods().Join(rct.GetRemovedPods()) {
+		podCfg := rct.GetPodConfig(podID)
+		newTable := rct.buildLocalTable(podID, podCfg)
+
+		// Add pod's original table into the transaction if is not already there.
+		origTable := rct.cache.localTables.LookupByPod(podID)
+		if origTable != nil && rct.localTables.LookupByID(origTable.ID) == nil {
+			// Create a copy in the transaction (only shallow copy of rules).
+			updatedTable := &ContivRuleTable{
+				ID:         origTable.ID,
+				Type:       origTable.Type,
+				Rules:      origTable.Rules,
+				NumOfRules: origTable.NumOfRules,
+				Pods:       origTable.Pods.Copy(),
+				Private:    origTable.Private,
+			}
+			rct.localTables.Insert(updatedTable)
+		}
+
+		// Check if the table was already created inside the transaction.
+		txnTable := rct.localTables.LookupByRules(newTable.Rules[:newTable.NumOfRules])
+		if txnTable != nil {
+			rct.localTables.AssignPod(txnTable, podID)
+			// Throw away the local table that was just built.
+			delete(rct.cache.allocatedTableIDs, newTable.ID)
+			return
+		}
+
+		// Check if the table exists in the cache but not in the transaction.
+		cacheTable := rct.cache.localTables.LookupByRules(newTable.Rules[:newTable.NumOfRules])
+		if cacheTable != nil {
+			// Create a copy in the transaction with added pod (only shallow copy of rules).
+			updatedTable := &ContivRuleTable{
+				ID:         cacheTable.ID,
+				Type:       cacheTable.Type,
+				Rules:      cacheTable.Rules,
+				NumOfRules: cacheTable.NumOfRules,
+				Pods:       cacheTable.Pods.Copy(),
+				Private:    cacheTable.Private,
+			}
+			updatedTable.Pods.Add(podID)
+			rct.localTables.Insert(updatedTable)
+			// Throw away the local table that was just built.
+			delete(rct.cache.allocatedTableIDs, newTable.ID)
+			return
+		}
+
+		// Add the newly created local table.
+		rct.localTables.Insert(newTable)
+	}
+
+	// Finally rebuild the global table.
+	rct.rebuildGlobalTable()
+
+	rct.upToDateTables = true
+}
+
+// buildLocalTable builds the local table corresponding to the given pod
+// for the current state of the transaction.
+func (rct *RendererCacheTxn) buildLocalTable(dstPodID podmodel.ID, dstPodCfg *PodConfig) *ContivRuleTable {
+	table := NewContivRuleTable(rct.generateTableID())
+	if dstPodCfg.Removed {
+		// For removed pod return empty table.
+		return table
+	}
+
+	// Just copy the rules that already have the desired cache orientation.
+	var rules []*renderer.ContivRule
+	if rct.cache.orientation == EgressOrientation {
+		rules = dstPodCfg.Egress
+	} else {
+		rules = dstPodCfg.Ingress
+	}
+	for _, rule := range rules {
+		table.InsertRule(rule.Copy())
+	}
+
+	// Combine rules with the opposite direction of every other pod on the node.
+	for srcPodID := range rct.GetAllPods() {
+		srcPodCfg := rct.GetPodConfig(srcPodID)
+		if srcPodID == dstPodID {
+			continue
+		}
+		rct.installLocalRules(table, dstPodCfg, srcPodCfg)
+	}
+
+	return table
+}
+
+// installLocalRules takes rules of the source pod (srcPodCfg) with the opposite
+// orientation wrt. the cache, and combines them with the rules in the local table (dstTable)
+// belonging to the destination pod (dstPodCfg).
+// The ingress with egress is combined such that the resulting rules all follow
+// the cache orientation while the original semantic of policies between the source
+// and the destination pod is maintained.
+func (rct *RendererCacheTxn) installLocalRules(dstTable *ContivRuleTable, dstPodCfg *PodConfig, srcPodCfg *PodConfig) {
+	// Determine the set of accessible ports from the source pod point of view.
+	var srcTCP, srcUDP Ports
+	if rct.cache.orientation == EgressOrientation {
+		srcTCP, srcUDP = getAllowedIngressPorts(dstPodCfg.PodIP, srcPodCfg.Ingress)
+	} else {
+		srcTCP, srcUDP = getAllowedEgressPorts(dstPodCfg.PodIP, srcPodCfg.Egress)
+	}
+
+	// Determine the set of accessible ports from the destination pod point of view.
+	var dstTCP, dstUDP Ports
+	if rct.cache.orientation == EgressOrientation {
+		dstTCP, dstUDP = getAllowedEgressPorts(srcPodCfg.PodIP, dstPodCfg.Egress)
+	} else {
+		dstTCP, dstUDP = getAllowedIngressPorts(srcPodCfg.PodIP, dstPodCfg.Ingress)
+	}
+
+	// Intersect TCP ports
+	if !dstTCP.IsSubsetOf(srcTCP) {
+		allowedTCP := dstTCP.Intersection(srcTCP) /* intersection is certainly not AnyPort */
+		rct.installAllowedPorts(dstTable, srcPodCfg.PodIP, allowedTCP, renderer.TCP)
+	}
+
+	// Intersect UDP ports
+	if !dstUDP.IsSubsetOf(srcUDP) {
+		allowedUDP := dstUDP.Intersection(srcUDP) /* intersection is certainly not AnyPort */
+		rct.installAllowedPorts(dstTable, srcPodCfg.PodIP, allowedUDP, renderer.UDP)
+	}
+}
+
+// installAllowedPorts modifies the table content such that the source pod will
+// be able to communicate with the table owner only on the selected allowed ports
+// of a given protocol with the rest being blocked.
+func (rct *RendererCacheTxn) installAllowedPorts(dstTable *ContivRuleTable, srcPodIP *net.IPNet, allowedPorts Ports, protocol renderer.ProtocolType) {
+	// cleanup TCP rule subtree with the root node:
+	// 	(egress orientation)  srcIP:0 -> 0/0:0
+	// 	(ingress orientation) 0/0:0   -> srcIP:0
+	dstTable.RemoveByPredicate(func(rule *renderer.ContivRule) bool {
+		if rule.Protocol != renderer.TCP {
+			return false
+		}
+		var ipAddr *net.IPNet
+		if rct.cache.orientation == EgressOrientation {
+			ipAddr = rule.SrcNetwork
+		} else {
+			ipAddr = rule.DestNetwork
+		}
+		if len(ipAddr.IP) == 0 {
+			return false
+		}
+		ones, bits := ipAddr.Mask.Size()
+		if ones != bits || !ipAddr.IP.Equal(srcPodIP.IP) {
+			return false
+		}
+		return true
+	})
+
+	// Add explicit rule for each allowed port from the intersection
+	// of ingress with egress.
+	for port := range allowedPorts {
+		newRule := &renderer.ContivRule{
+			Action:      renderer.ActionPermit,
+			SrcNetwork:  &net.IPNet{},
+			DestNetwork: &net.IPNet{},
+			SrcPort:     AnyPort,
+			DestPort:    port,
+			Protocol:    protocol,
+		}
+		if rct.cache.orientation == EgressOrientation {
+			newRule.SrcNetwork = srcPodIP
+		} else {
+			newRule.DestNetwork = srcPodIP
+		}
+		dstTable.InsertRule(newRule)
+	}
+
+	// Add the "deny-the-rest" rule.
+	newRule := &renderer.ContivRule{
+		Action:      renderer.ActionDeny,
+		SrcNetwork:  &net.IPNet{},
+		DestNetwork: &net.IPNet{},
+		SrcPort:     AnyPort,
+		DestPort:    AnyPort,
+		Protocol:    protocol,
+	}
+	if rct.cache.orientation == EgressOrientation {
+		newRule.SrcNetwork = srcPodIP
+	} else {
+		newRule.DestNetwork = srcPodIP
+	}
+	dstTable.InsertRule(newRule)
+}
+
+// rebuildGlobalTable rebuilds the content of the global table for the current state
+// of the transaction.
+func (rct *RendererCacheTxn) rebuildGlobalTable() {
+	rct.globalTable = NewContivRuleTable(GlobalTableID)
+
+	// For every pod, take the deny-rules with the opposite orientation wrt. the cache
+	// and install them into the global table.
+	for podID := range rct.GetAllPods() {
+		podCfg := rct.GetPodConfig(podID)
+		rct.installGlobalRules(podCfg)
+	}
+
+	if rct.globalTable.NumOfRules > 0 {
+		// Default action is to allow everything.
+		ruleTCPAny := &renderer.ContivRule{
+			Action:      renderer.ActionPermit,
+			SrcNetwork:  &net.IPNet{},
+			DestNetwork: &net.IPNet{},
+			Protocol:    renderer.TCP,
+			SrcPort:     0,
+			DestPort:    0,
+		}
+		ruleUDPAny := &renderer.ContivRule{
+			Action:      renderer.ActionPermit,
+			SrcNetwork:  &net.IPNet{},
+			DestNetwork: &net.IPNet{},
+			Protocol:    renderer.UDP,
+			SrcPort:     0,
+			DestPort:    0,
+		}
+		rct.globalTable.InsertRule(ruleTCPAny)
+		rct.globalTable.InsertRule(ruleUDPAny)
+	}
+}
+
+// installGlobalRules takes the deny-rules of the given pod with the opposite orientation
+// wrt. the cache and installs them into the global table.
+func (rct *RendererCacheTxn) installGlobalRules(podCfg *PodConfig) {
+	var rules []*renderer.ContivRule
+	if rct.cache.orientation == EgressOrientation {
+		rules = podCfg.Ingress
+	} else {
+		rules = podCfg.Egress
+	}
+	for _, rule := range rules {
+		if rule.Action == renderer.ActionDeny {
+			ruleCopy := rule.Copy() /* do not change the original config */
+			if rct.cache.orientation == EgressOrientation {
+				ruleCopy.SrcNetwork = podCfg.PodIP
+			} else {
+				ruleCopy.DestNetwork = podCfg.PodIP
+			}
+			rct.globalTable.InsertRule(ruleCopy)
+		}
+	}
+}
+
 // Generator for ContivRuleTable IDs.
-func (rct *RendererCacheTxn) generateListID() string {
+func (rct *RendererCacheTxn) generateTableID() string {
 	var id string
 	for {
 		// Generate random suffix, 10 characters long.

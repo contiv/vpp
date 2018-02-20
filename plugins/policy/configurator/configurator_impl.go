@@ -203,7 +203,7 @@ func (pct *PolicyConfiguratorTxn) Commit() error {
 
 		// Add rules into the transactions.
 		for _, rTxn := range rendererTxns {
-			rTxn.Render(pod, podIPNet, ingress.Copy(), egress.Copy())
+			rTxn.Render(pod, podIPNet, ingress.Copy(), egress.Copy(), delPodConfig)
 		}
 	}
 

@@ -1,3 +1,17 @@
+// Copyright (c) 2018 Cisco and/or its affiliates.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at:
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package cache
 
 import (
@@ -24,6 +38,7 @@ import (
 //  LookupByPod(pod) -> table
 //  AssignPod(table, podID)
 //  UnassignPod(table/nil=all, podID)
+//  GetIsolatedPods() -> pods
 type LocalTables struct {
 	Log       logging.Logger
 	tables    []*ContivRuleTable               /* ordered by rules */
@@ -97,7 +112,8 @@ func (lts *LocalTables) RemoveByIdx(idx int) bool {
 	return false
 }
 
-// RemoveByPredicate removes local table that satisfies a given predicate.
+// RemoveByPredicate removes all local tables that satisfy a given predicate.
+// Number of removed tables is returned.
 func (lts *LocalTables) RemoveByPredicate(predicate func(table *ContivRuleTable) bool) int {
 	tableIdx := 0
 	count := 0
@@ -163,10 +179,10 @@ func (lts *LocalTables) LookupByPod(podID podmodel.ID) *ContivRuleTable {
 	return nil
 }
 
-// IsolatedPods returns the set of IDs of all pods that have a (non-empty) local table assigned.
+// GetIsolatedPods returns the set of IDs of all pods that have a (non-empty) local table assigned.
 // The term "isolated" is borrowed from K8s, pods become isolated by having
 // a NetworkPolicy that selects them.
-func (lts *LocalTables) IsolatedPods() PodSet {
+func (lts *LocalTables) GetIsolatedPods() PodSet {
 	pods := NewPodSet()
 	for podID, table := range lts.byPod {
 		if table.NumOfRules > 0 {

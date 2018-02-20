@@ -65,7 +65,7 @@ type Deps struct {
 // RendererTxn represents a single transaction of Renderer.
 type RendererTxn struct {
 	Log      logging.Logger
-	txn      cache.Txn
+	cacheTxn cache.Txn
 	vpp      defaultplugins.API
 	renderer *Renderer
 	resync   bool
@@ -95,7 +95,7 @@ func (r *Renderer) Init() error {
 func (r *Renderer) NewTxn(resync bool) renderer.Txn {
 	txn := &RendererTxn{
 		Log:      r.Log,
-		txn:      r.cache.NewTxn(),
+		cacheTxn: r.cache.NewTxn(),
 		vpp:      r.VPP,
 		renderer: r,
 		resync:   resync,
@@ -106,14 +106,15 @@ func (r *Renderer) NewTxn(resync bool) renderer.Txn {
 // Render applies the set of ingress & egress rules for a given pod.
 // The existing rules are replaced.
 // Te actual change is performed only after the commit.
-func (art *RendererTxn) Render(pod podmodel.ID, podIP *net.IPNet, ingress []*renderer.ContivRule, egress []*renderer.ContivRule) renderer.Txn {
+func (art *RendererTxn) Render(pod podmodel.ID, podIP *net.IPNet, ingress []*renderer.ContivRule, egress []*renderer.ContivRule, removed bool) renderer.Txn {
 	art.renderer.Log.WithFields(logging.Fields{
 		"pod":     pod,
 		"ingress": ingress,
 		"egress":  egress,
+		"removed": removed,
 	}).Debug("ACL RendererTxn Render()")
 
-	art.txn.Update(pod, podIP, ingress, egress)
+	art.cacheTxn.Update(pod, &cache.PodConfig{PodIP: podIP, Ingress: ingress, Egress: egress, Removed: removed})
 	return art
 }
 
@@ -133,20 +134,25 @@ func (art *RendererTxn) Commit() error {
 		if err != nil {
 			return err
 		}
-		// Apply empty config for pods not present in the transaction
-		// which are currently isolated.
-		txnPods := art.txn.UpdatedPods()
+		// Remove pods not present in the transaction.
+		txnPods := art.cacheTxn.GetUpdatedPods()
 		emptyList := []*renderer.ContivRule{}
-		for pod := range art.renderer.cache.IsolatedPods() {
+		for pod := range art.renderer.cache.GetAllPods() {
 			if !txnPods.Has(pod) {
-				podIP, _, _ := art.renderer.cache.GetPodConfig(pod)
-				art.txn.Update(pod, podIP, emptyList, emptyList)
+				podCfg := art.renderer.cache.GetPodConfig(pod)
+				art.cacheTxn.Update(pod,
+					&cache.PodConfig{
+						PodIP:   podCfg.PodIP,
+						Ingress: emptyList,
+						Egress:  emptyList,
+						Removed: true,
+					})
 			}
 		}
 	}
 
 	// Get the minimalistic diff to be rendered.
-	changes := art.txn.Changes()
+	changes := art.cacheTxn.GetChanges()
 	if !art.resync && len(changes) == 0 {
 		art.renderer.Log.Debug("No changes to be rendered in the transaction")
 		return nil
@@ -221,7 +227,7 @@ func (art *RendererTxn) Commit() error {
 	}
 
 	// Render the reflective ACL
-	if art.resync || !art.txn.IsolatedPods().Equals(art.renderer.cache.IsolatedPods()) {
+	if art.resync || !art.cacheTxn.GetIsolatedPods().Equals(art.renderer.cache.GetIsolatedPods()) {
 		reflectiveAcl := art.reflectiveAcl()
 		putDsl.ACL(reflectiveAcl)
 		art.renderer.Log.WithFields(logging.Fields{
@@ -235,7 +241,7 @@ func (art *RendererTxn) Commit() error {
 	}
 
 	// Save changes into the cache.
-	return art.txn.Commit()
+	return art.cacheTxn.Commit()
 }
 
 // reflectiveAcl returns the configuration of the reflective ACL.
@@ -260,7 +266,7 @@ func (art *RendererTxn) reflectiveAcl() *vpp_acl.AccessLists_Acl {
 	table := cache.NewContivRuleTable(ReflectiveAclName)
 	table.Rules = []*renderer.ContivRule{ruleTCPAny, ruleUDPAny}
 	table.NumOfRules = 2
-	table.Pods = art.txn.IsolatedPods()
+	table.Pods = art.cacheTxn.GetIsolatedPods()
 	// Render the ACL.
 	acl := art.renderACL(table)
 	acl.Interfaces.Ingress = append(acl.Interfaces.Ingress, art.getNodeOutputInterfaces()...)

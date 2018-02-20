@@ -68,12 +68,16 @@ type RendererCacheAPI interface {
 type CacheView interface {
 	// GetPodConfig returns the current configuration of a given pod
 	// (as passed through the Txn.Update() method).
-	GetPodConfig(pod podmodel.ID) (podIP *net.IPNet, ingress, egress []*renderer.ContivRule)
+	// Method returns nil if the given pod is not tracked by the cache.
+	GetPodConfig(pod podmodel.ID) *PodConfig
 
-	// IsolatedPods returns the set of IDs of all pods that have a local table assigned.
+	// GetAllPods returns the set of all pods currently tracked by the cache.
+	GetAllPods() PodSet
+
+	// GetIsolatedPods returns the set of IDs of all pods that have a local table assigned.
 	// The term "isolated" is borrowed from K8s, pods become isolated by having
 	// a NetworkPolicy that selects them.
-	IsolatedPods() PodSet
+	GetIsolatedPods() PodSet
 
 	// GetLocalTableByPod returns the local table assigned to a given pod.
 	// Returns nil if the pod has no table assigned (non-isolated).
@@ -108,26 +112,39 @@ type Txn interface {
 	// Should be used only before Commit() (afterwards use CacheView from the cache itself).
 	CacheView
 
-	// Update changes the list of Contiv rules for a given pod.
+	// Update changes the configuration of Contiv rules for a given pod.
 	// The change is applied into the cache during the commit.
-	// Run Changes() before Commit() to learn the set of pending updates (merged
+	// Run GetChanges() before Commit() to learn the set of pending updates (merged
 	// to a minimal diff).
-	Update(pod podmodel.ID, podIP *net.IPNet /* one host subnet */, ingress []*renderer.ContivRule, egress []*renderer.ContivRule)
+	// If *podConfig.removed* is true, the pod will be removed from the cache
+	// when the transaction is committed.
+	Update(pod podmodel.ID, podConfig *PodConfig)
 
-	// UpdatedPods returns the set of all pods included in the transaction.
-	UpdatedPods() PodSet
+	// GetUpdatedPods returns the set of all pods included in the transaction.
+	GetUpdatedPods() PodSet
 
-	// Changes calculates a minimalistic set of changes prepared in the
+	// GetRemovedPods returns the set of all pods that will be removed by the transaction.
+	GetRemovedPods() PodSet
+
+	// GetChanges calculates a minimalistic set of changes prepared in the
 	// transaction up to this point.
 	// Changes are presented from the tables point of view (i.e. what tables have been
 	// changed, created, removed).
 	// Alternatively, GetLocalTableByPod() and GetGlobalTable() from CacheView
 	// interface can be used to get the updated configuration from the pods point of view.
-	// Changes() must be run before Commit().
-	Changes() (changes []*TxnChange)
+	// GetChanges() must be run before Commit().
+	GetChanges() (changes []*TxnChange)
 
 	// Commit applies the changes into the underlying cache.
 	Commit() error
+}
+
+// PodConfig encapsulates pod configuration (passed through RendererCacheTxn.Update()).
+type PodConfig struct {
+	PodIP   *net.IPNet
+	Ingress []*renderer.ContivRule
+	Egress  []*renderer.ContivRule
+	Removed bool /* false can only be inside the transaction; removed pods are no longer tracked by the cache */
 }
 
 // TxnChange represents change in the RendererCache to be performed
@@ -239,6 +256,36 @@ func (crt *ContivRuleTable) InsertRule(rule *renderer.ContivRule) bool {
 	return true
 }
 
+// RemoveRuleByIdx removes rule under a given index from the table.
+// Returns *true* if the index is valid and the rule was removed.
+func (crt *ContivRuleTable) RemoveRuleByIdx(idx int) bool {
+	if idx < crt.NumOfRules {
+		if idx < crt.NumOfRules-1 {
+			copy(crt.Rules[idx:], crt.Rules[idx+1:])
+		}
+		crt.NumOfRules--
+		crt.Rules[crt.NumOfRules] = nil
+		return true
+	}
+	return false
+}
+
+// RemoveByPredicate removes all rules from the table that satisfy a given predicate.
+// Number of removed rules is returned.
+func (crt *ContivRuleTable) RemoveByPredicate(predicate func(rule *renderer.ContivRule) bool) int {
+	ruleIdx := 0
+	count := 0
+	for ruleIdx < crt.NumOfRules {
+		if predicate(crt.Rules[ruleIdx]) == true {
+			crt.RemoveRuleByIdx(ruleIdx)
+			count++
+		} else {
+			ruleIdx++
+		}
+	}
+	return count
+}
+
 // HasRule returns true if the given rule is included in the table.
 func (crt *ContivRuleTable) HasRule(rule *renderer.ContivRule) bool {
 	_, inserted := crt.getRuleIndex(rule)
@@ -342,10 +389,11 @@ func (set PodSet) Remove(podID podmodel.ID) bool {
 }
 
 // Join merges <set2> into this set.
-func (set PodSet) Join(set2 PodSet) {
+func (set PodSet) Join(set2 PodSet) PodSet {
 	for podID := range set2 {
 		set.Add(podID)
 	}
+	return set
 }
 
 // Equals compares two sets for equality.

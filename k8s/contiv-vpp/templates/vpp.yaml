@@ -1,5 +1,3 @@
----
-# Source: contiv-vpp/templates/vpp.yaml
 # Contiv-VPP deployment YAML file. This deploys Contiv VPP networking on a Kuberntes cluster.
 # The deployment consists of the following components:
 #   - contiv-etcd - deployed on k8s master
@@ -22,17 +20,44 @@ metadata:
   namespace: kube-system
 data:
   contiv.yaml: |-
-    TCPstackDisabled: true
-    UseTAPInterfaces: true
-    TAPInterfaceVersion: 1
+    TCPstackDisabled: {{ .Values.contiv.tcpStackDisabled }}
+    UseTAPInterfaces: {{ .Values.contiv.useTAPInterfaces }}
+    TAPInterfaceVersion: {{ .Values.contiv.tapInterfaceVersion }}
     IPAMConfig:
-      PodSubnetCIDR: 10.1.0.0/16
-      PodNetworkPrefixLen: 24
-      VPPHostSubnetCIDR: 172.30.0.0/16
-      VPPHostNetworkPrefixLen: 24
-      NodeInterconnectCIDR: 192.168.16.0/24
-      VxlanCIDR: 192.168.30.0/24
-      NodeInterconnectDHCP: False
+      PodSubnetCIDR: {{ .Values.contiv.ipamConfig.podSubnetCIDR }}
+      PodNetworkPrefixLen: {{ .Values.contiv.ipamConfig.podNetworkPrefixLen }}
+      VPPHostSubnetCIDR: {{ .Values.contiv.ipamConfig.vppHostSubnetCIDR }}
+      VPPHostNetworkPrefixLen: {{ .Values.contiv.ipamConfig.vppHostNetworkPrefixLen }}
+      {{- if .Values.contiv.ipamConfig.nodeInterconnectCIDR }}
+      NodeInterconnectCIDR: {{ .Values.contiv.ipamConfig.nodeInterconnectCIDR }}
+      {{- end }}
+      VxlanCIDR: {{ .Values.contiv.ipamConfig.vxlanCIDR }}
+      NodeInterconnectDHCP: {{ if .Values.contiv.ipamConfig.nodeInterconnectCIDR }}False{{ else }}True{{ end }}
+      {{- if .Values.contiv.ipamConfig.serviceCIDR }}
+      ServiceCIDR: {{ .Values.contiv.ipamConfig.serviceCIDR }}
+      {{- end }}
+
+    {{- if .Values.contiv.nodeConfig }}
+    NodeConfig:
+    {{- range .Values.contiv.nodeConfig }}
+    - NodeName: {{ .name }}
+      MainVppInterface:
+        InterfaceName: {{ .mainInterface.interfaceName }}
+        {{- if .mainInterface.useDHCP }}
+        UseDHCP: {{ .mainInterface.useDHCP }}
+        {{ else }}
+        IP: {{ .mainInterface.ip }}
+        {{- end -}}
+      Gateway: {{ .gateway }}
+      {{- if .otherInterfaces }}
+      OtherVPPInterfaces:
+      {{- range $iface := .otherInterfaces }}
+        - InterfaceName: {{ $iface.interfaceName }}
+          IP: {{ $iface.ip }}
+      {{- end }}
+    {{- end }}
+    {{- end }}
+    {{- end }}
 
 ---
 
@@ -43,9 +68,9 @@ metadata:
   namespace: kube-system
 data:
   govpp.conf: |
-    health-check-probe-interval: 1000000000
-    health-check-reply-timeout: 500000000
-    health-check-threshold: 3
+    health-check-probe-interval: {{ .Values.govpp.healthCheckProbeInterval | int64 }}
+    health-check-reply-timeout: {{ .Values.govpp.healthCheckReplyTimeout | int64 }}
+    health-check-threshold: {{ .Values.govpp.healthCheckThreshold | int64 }}
 
 ---
 
@@ -92,8 +117,8 @@ spec:
 
       containers:
         - name: contiv-etcd
-          image: quay.io/coreos/etcd:v3.1.10
-          imagePullPolicy: IfNotPresent
+          image: {{ .Values.etcd.image.repository }}:{{ .Values.etcd.image.tag }}
+          imagePullPolicy: {{ .Values.etcd.image.pullPolicy }}
           env:
             - name: CONTIV_ETCD_IP
               valueFrom:
@@ -118,7 +143,7 @@ spec:
     k8s-app: contiv-etcd
   ports:
   - port: 12379
-    nodePort: 32379
+    nodePort: {{ .Values.etcd.service.nodePort }}
 
 ---
 
@@ -133,7 +158,7 @@ data:
     insecure-transport: true
     dial-timeout: 1000000000
     endpoints:
-      - "127.0.0.1:32379"
+      - "127.0.0.1:{{ .Values.etcd.service.nodePort }}"
 
 ---
 
@@ -173,8 +198,8 @@ spec:
       initContainers:
       # This init container extracts/copies VPP LD_PRELOAD libs and default VPP config to the host.
       - name: vpp-init
-        image: contivvpp/vswitch:latest
-        imagePullPolicy: IfNotPresent
+        image: {{ .Values.vswitch.image.repository }}:{{ .Values.vswitch.image.tag }}
+        imagePullPolicy: {{ .Values.vswitch.image.pullPolicy }}
         command:
         - /bin/sh
         args:
@@ -209,13 +234,14 @@ spec:
         # Runs contiv-vswitch container on each Kubernetes node.
         # It contains the vSwitch VPP and its management agent.
         - name: contiv-vswitch
-          image: contivvpp/vswitch:latest
-          imagePullPolicy: IfNotPresent
+          image: {{ .Values.vswitch.image.repository }}:{{ .Values.vswitch.image.tag }}
+          imagePullPolicy: {{ .Values.vswitch.image.pullPolicy }}
           securityContext:
             privileged: true
           ports:
             # readiness + liveness probe
             - containerPort: 9999
+          {{- if .Values.vswitch.enableLivenessReadinessProbes }}
           readinessProbe:
             httpGet:
               path: /readiness
@@ -228,6 +254,7 @@ spec:
               port: 9999
             periodSeconds: 1
             initialDelaySeconds: 60
+          {{- end }}
           env:
             - name: MICROSERVICE_LABEL
               valueFrom:
@@ -254,8 +281,8 @@ spec:
         # This container installs the Contiv CNI binaries
         # and CNI network config file on each node.
         - name: contiv-cni
-          image: contivvpp/cni:latest
-          imagePullPolicy: IfNotPresent
+          image: {{ .Values.cni.image.repository }}:{{ .Values.cni.image.tag }}
+          imagePullPolicy: {{ .Values.cni.image.pullPolicy }}
           volumeMounts:
             - mountPath: /opt/cni/bin
               name: cni-bin-dir
@@ -336,8 +363,8 @@ spec:
 
       containers:
         - name: contiv-ksr
-          image: contivvpp/ksr:latest
-          imagePullPolicy: IfNotPresent
+          image: {{ .Values.ksr.image.repository }}:{{ .Values.ksr.image.tag }}
+          imagePullPolicy: {{ .Values.ksr.image.pullPolicy }}
           env:
             - name: ETCDV3_CONFIG
               value: "/etc/etcd/etcd.conf"
@@ -410,4 +437,3 @@ subjects:
 - kind: ServiceAccount
   name: contiv-ksr
   namespace: kube-system
-

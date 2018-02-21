@@ -24,9 +24,15 @@ import (
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/logging/logrus"
 
+	"fmt"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	"github.com/contiv/vpp/plugins/policy/renderer"
 	. "github.com/contiv/vpp/plugins/policy/utils"
+)
+
+var (
+	EmptyPodSet = NewPodSet()
+	EmptyRules  = []*renderer.ContivRule{}
 )
 
 func ipNetwork(addr string) *net.IPNet {
@@ -36,12 +42,6 @@ func ipNetwork(addr string) *net.IPNet {
 	_, network, error := net.ParseCIDR(addr)
 	gomega.Expect(error).To(gomega.BeNil())
 	return network
-}
-
-func verifyRules(table *ContivRuleTable, rules []*renderer.ContivRule) {
-	gomega.Expect(
-		compareRuleLists(table.Rules[:table.NumOfRules], rules)).To(
-		gomega.BeEquivalentTo(0))
 }
 
 func allowAllTCP() *renderer.ContivRule {
@@ -68,6 +68,129 @@ func allowAllUDP() *renderer.ContivRule {
 	return ruleUDPAny
 }
 
+func denyAllTCP() *renderer.ContivRule {
+	ruleTCPNone := &renderer.ContivRule{
+		Action:      renderer.ActionDeny,
+		SrcNetwork:  &net.IPNet{},
+		DestNetwork: &net.IPNet{},
+		Protocol:    renderer.TCP,
+		SrcPort:     0,
+		DestPort:    0,
+	}
+	return ruleTCPNone
+}
+
+func denyAllUDP() *renderer.ContivRule {
+	ruleUDPNone := &renderer.ContivRule{
+		Action:      renderer.ActionDeny,
+		SrcNetwork:  &net.IPNet{},
+		DestNetwork: &net.IPNet{},
+		Protocol:    renderer.UDP,
+		SrcPort:     0,
+		DestPort:    0,
+	}
+	return ruleUDPNone
+}
+
+func modifySrc(rule *renderer.ContivRule, srcIPs ...string) []*renderer.ContivRule {
+	modified := []*renderer.ContivRule{}
+	for _, srcIP := range srcIPs {
+		modifiedRule := rule.Copy()
+		modifiedRule.SrcNetwork = GetOneHostSubnet(srcIP)
+		modified = append(modified, modifiedRule)
+	}
+	return modified
+}
+
+func modifyDst(rule *renderer.ContivRule, dstIPs ...string) []*renderer.ContivRule {
+	modified := []*renderer.ContivRule{}
+	for _, dstIP := range dstIPs {
+		modifiedRule := rule.Copy()
+		modifiedRule.DestNetwork = GetOneHostSubnet(dstIP)
+		modified = append(modified, modifiedRule)
+	}
+	return modified
+}
+
+func verifyRules(table *ContivRuleTable, rules []*renderer.ContivRule) {
+	cmp := compareRuleLists(table.Rules[:table.NumOfRules], rules)
+	if cmp != 0 {
+		fmt.Printf("Rule lists do not match:\n")
+		fmt.Printf("%s\n", table.Rules[:table.NumOfRules])
+		fmt.Printf("%s\n", rules)
+	}
+	gomega.Expect(cmp).To(gomega.BeEquivalentTo(0))
+}
+
+func verifyCachedPods(cacheView View, all, isolated PodSet) {
+	gomega.Expect(cacheView.GetAllPods()).To(gomega.BeEquivalentTo(all))
+	gomega.Expect(cacheView.GetIsolatedPods()).To(gomega.BeEquivalentTo(isolated))
+}
+
+func verifyUpdatedPods(txn Txn, updated, removed PodSet) {
+	gomega.Expect(txn.GetUpdatedPods()).To(gomega.BeEquivalentTo(updated))
+	gomega.Expect(txn.GetRemovedPods()).To(gomega.BeEquivalentTo(removed))
+}
+
+func verifyLocalTableChange(change *TxnChange, expPtr *ContivRuleTable, rules []*renderer.ContivRule, prevPods, newPods PodSet) {
+	gomega.Expect(change).ToNot(gomega.BeNil())
+	verifyLocalTable(change.Table, expPtr, rules, newPods)
+	gomega.Expect(change.PreviousPods).To(gomega.BeEquivalentTo(prevPods))
+}
+
+func verifyPodLocalTable(view View, podID podmodel.ID, expPtr *ContivRuleTable, rules []*renderer.ContivRule, pods PodSet) {
+	table := view.GetLocalTableByPod(podID)
+	gomega.Expect(table).ToNot(gomega.BeNil())
+	if expPtr != nil {
+		gomega.Expect(table).To(gomega.Equal(expPtr))
+	}
+	gomega.Expect(table.ID).ToNot(gomega.BeEmpty())
+	gomega.Expect(table.Type).To(gomega.Equal(Local))
+	verifyRules(table, rules)
+	gomega.Expect(table.Pods).To(gomega.BeEquivalentTo(pods))
+}
+
+func verifyPodNilLocalTable(view View, podID podmodel.ID) {
+	table := view.GetLocalTableByPod(podID)
+	gomega.Expect(table).To(gomega.BeNil())
+}
+
+func verifyLocalTable(table *ContivRuleTable, expPtr *ContivRuleTable, rules []*renderer.ContivRule, pods PodSet) {
+	gomega.Expect(table).ToNot(gomega.BeNil())
+	if expPtr != nil {
+		gomega.Expect(table).To(gomega.Equal(expPtr))
+	}
+	gomega.Expect(table.ID).ToNot(gomega.BeEmpty())
+	gomega.Expect(table.ID).ToNot(gomega.BeEquivalentTo(GlobalTableID))
+	gomega.Expect(table.Type).To(gomega.Equal(Local))
+	verifyRules(table, rules)
+	gomega.Expect(table.Pods).To(gomega.BeEquivalentTo(pods))
+}
+
+func verifyGlobalTableChange(change *TxnChange, expPtr, notExpPtr *ContivRuleTable, rules []*renderer.ContivRule) {
+	gomega.Expect(change).ToNot(gomega.BeNil())
+	verifyGlobalTable(change.Table, expPtr, notExpPtr, rules)
+	gomega.Expect(change.PreviousPods).To(gomega.BeEmpty())
+}
+
+func verifyGlobalTable(table *ContivRuleTable, expPtr, notExpPtr *ContivRuleTable, rules []*renderer.ContivRule) {
+	gomega.Expect(table).ToNot(gomega.BeNil())
+	if expPtr != nil {
+		gomega.Expect(table).To(gomega.Equal(expPtr))
+	}
+	if notExpPtr != nil {
+		gomega.Expect(table).ToNot(gomega.Equal(notExpPtr))
+	}
+	gomega.Expect(table.ID).To(gomega.BeEquivalentTo(GlobalTableID))
+	gomega.Expect(table.Type).To(gomega.Equal(Global))
+	verifyRules(table, rules)
+	gomega.Expect(table.Pods).To(gomega.BeEmpty())
+}
+
+func verifyPodConfig(view View, podID podmodel.ID, cfg *PodConfig) {
+	gomega.Expect(view.GetPodConfig(podID)).To(gomega.Equal(cfg))
+}
+
 func TestSingleEgressRuleOnePod(t *testing.T) {
 	gomega.RegisterTestingT(t)
 	logger := logrus.DefaultLogger()
@@ -84,7 +207,7 @@ func TestSingleEgressRuleOnePod(t *testing.T) {
 	pods := NewPodSet(pod1)
 
 	rule := &renderer.ContivRule{
-		Action:      renderer.ActionDeny,
+		Action:      renderer.ActionPermit,
 		SrcNetwork:  ipNetwork("192.168.0.0/16"),
 		DestNetwork: ipNetwork(""),
 		Protocol:    renderer.TCP,
@@ -104,6 +227,158 @@ func TestSingleEgressRuleOnePod(t *testing.T) {
 		},
 	}
 	ruleCache.Init(EgressOrientation)
+
+	// Check initial cache content
+	globalTable := ruleCache.GetGlobalTable()
+	verifyGlobalTable(globalTable, nil, nil, EmptyRules)
+	verifyCachedPods(ruleCache, EmptyPodSet, EmptyPodSet)
+
+	// Run single transaction.
+	txn := ruleCache.NewTxn()
+
+	// Verify that initially there are no changes.
+	changes := txn.GetChanges()
+	gomega.Expect(changes).To(gomega.HaveLen(0))
+
+	// Perform single update.
+	txn.Update(pod1, podCfg)
+	verifyPodConfig(txn, pod1, podCfg)
+	verifyUpdatedPods(txn, pods, EmptyPodSet)
+	verifyCachedPods(txn, pods, pods)
+
+	// Verify changes to be committed.
+	changes = txn.GetChanges()
+	gomega.Expect(changes).To(gomega.HaveLen(1))
+
+	// Local table was added.
+	verifyLocalTableChange(changes[0], nil, egress, EmptyPodSet, pods)
+	localTableTxn := changes[0].Table
+
+	// Test what the cache will contain after the transaction.
+	verifyPodLocalTable(txn, pod1, localTableTxn, egress, pods)
+	verifyGlobalTable(txn.GetGlobalTable(), globalTable, nil, EmptyRules)
+
+	// Changes should be applied only after the commit.
+	verifyPodConfig(ruleCache, pod1, nil)
+	verifyCachedPods(ruleCache, EmptyPodSet, EmptyPodSet)
+	verifyPodNilLocalTable(ruleCache, pod1)
+	verifyGlobalTable(ruleCache.GetGlobalTable(), globalTable, nil, EmptyRules)
+
+	// Commit changes into the cache.
+	err := txn.Commit()
+	gomega.Expect(err).To(gomega.BeNil())
+
+	// Transaction has finalized, no changes are pending.
+	changes = txn.GetChanges()
+	gomega.Expect(changes).To(gomega.HaveLen(0))
+
+	// Verify cache content.
+	verifyPodConfig(ruleCache, pod1, podCfg)
+	verifyPodLocalTable(ruleCache, pod1, localTableTxn, egress, pods)
+	verifyCachedPods(ruleCache, pods, pods)
+	verifyGlobalTable(ruleCache.GetGlobalTable(), globalTable, nil, EmptyRules)
+
+	// 2. Ingress Orientation
+
+	ruleCache.Flush()
+	ruleCache.Init(IngressOrientation)
+
+	// Expected global table content.
+	globalRules := modifyDst(rule, pod1IP)
+	globalRules = append(globalRules, allowAllTCP(), allowAllUDP())
+
+	// Check initial cache content
+	globalTable = ruleCache.GetGlobalTable()
+	verifyGlobalTable(globalTable, nil, nil, EmptyRules)
+	verifyCachedPods(ruleCache, EmptyPodSet, EmptyPodSet)
+
+	// Run single transaction.
+	txn = ruleCache.NewTxn()
+
+	// Verify that initially there are no changes.
+	changes = txn.GetChanges()
+	gomega.Expect(changes).To(gomega.HaveLen(0))
+
+	// Perform single update.
+	txn.Update(pod1, podCfg)
+	verifyPodConfig(txn, pod1, podCfg)
+	verifyUpdatedPods(txn, pods, EmptyPodSet)
+	verifyCachedPods(txn, pods, EmptyPodSet)
+
+	// Verify changes to be committed.
+	changes = txn.GetChanges()
+	gomega.Expect(changes).To(gomega.HaveLen(1))
+
+	// Global table has changed.
+	verifyGlobalTableChange(changes[0], nil, globalTable, globalRules)
+	globalTableTxn := changes[0].Table
+
+	// Test what the cache will contain after the transaction.
+	verifyPodNilLocalTable(txn, pod1)
+	verifyCachedPods(txn, pods, EmptyPodSet)
+	verifyGlobalTable(txn.GetGlobalTable(), globalTableTxn, globalTable, globalRules)
+
+	// Changes should be applied only after the commit.
+	verifyPodConfig(ruleCache, pod1, nil)
+	verifyCachedPods(ruleCache, EmptyPodSet, EmptyPodSet)
+	verifyPodNilLocalTable(ruleCache, pod1)
+	verifyGlobalTable(ruleCache.GetGlobalTable(), globalTable, globalTableTxn, EmptyRules)
+
+	// Commit changes into the cache.
+	err = txn.Commit()
+	gomega.Expect(err).To(gomega.BeNil())
+
+	// Transaction has finalized, no changes are pending.
+	changes = txn.GetChanges()
+	gomega.Expect(changes).To(gomega.HaveLen(0))
+
+	// Verify cache content.
+	verifyPodConfig(ruleCache, pod1, podCfg)
+	verifyPodNilLocalTable(ruleCache, pod1)
+	verifyCachedPods(ruleCache, pods, EmptyPodSet)
+	verifyGlobalTable(ruleCache.GetGlobalTable(), globalTableTxn, globalTable, globalRules)
+}
+
+func TestSingleIngressRuleOnePod(t *testing.T) {
+	gomega.RegisterTestingT(t)
+	logger := logrus.DefaultLogger()
+	logger.SetLevel(logging.DebugLevel)
+	logger.Debug("TestSingleIngressRuleOnePod")
+
+	// Prepare input data.
+	const (
+		namespace = "default"
+		pod1IP    = "10.10.1.1"
+	)
+	pod1 := podmodel.ID{Name: "pod1", Namespace: namespace}
+	pods := NewPodSet(pod1)
+
+	rule := &renderer.ContivRule{
+		Action:      renderer.ActionPermit,
+		SrcNetwork:  ipNetwork(""),
+		DestNetwork: ipNetwork("192.168.0.0/16"),
+		Protocol:    renderer.TCP,
+		SrcPort:     0,
+		DestPort:    80,
+	}
+	ingress := []*renderer.ContivRule{rule}
+	egress := []*renderer.ContivRule{}
+	podCfg := &PodConfig{PodIP: GetOneHostSubnet(pod1IP), Ingress: ingress, Egress: egress, Removed: false}
+
+	// 1. Egress Orientation
+
+	// Create an instance of RendererCache
+	ruleCache := &RendererCache{
+		Deps: Deps{
+			Log: logger,
+		},
+	}
+	ruleCache.Init(EgressOrientation)
+
+	// Expected global table content.
+	globalRule := rule.Copy()
+	globalRule.SrcNetwork = GetOneHostSubnet(pod1IP)
+	globalRules := []*renderer.ContivRule{globalRule, allowAllTCP(), allowAllUDP()} /* order matters */
 
 	// Check initial cache content
 	globalTable := ruleCache.GetGlobalTable()
@@ -131,25 +406,21 @@ func TestSingleEgressRuleOnePod(t *testing.T) {
 	changes = txn.GetChanges()
 	gomega.Expect(changes).To(gomega.HaveLen(1))
 
-	// Local table was added.
+	// Global table has changed.
 	change := changes[0]
 	gomega.Expect(change.Table).ToNot(gomega.BeNil())
-	gomega.Expect(change.Table.ID).ToNot(gomega.BeEmpty())
-	gomega.Expect(change.Table.Type).To(gomega.Equal(Local))
-	verifyRules(change.Table, egress)
-	gomega.Expect(change.Table.Pods).To(gomega.BeEquivalentTo(pods))
+	gomega.Expect(change.Table.ID).To(gomega.BeEquivalentTo(GlobalTableID))
+	gomega.Expect(change.Table.Type).To(gomega.Equal(Global))
+	verifyRules(change.Table, globalRules)
+	gomega.Expect(change.Table.Pods).To(gomega.BeEmpty())
 	gomega.Expect(change.PreviousPods).To(gomega.BeEmpty())
-	localTableTxn := change.Table
+	globalTableTxn := change.Table
+	gomega.Expect(globalTableTxn).ToNot(gomega.Equal(globalTable))
 
 	// Test what the cache will contain after the transaction.
-	gomega.Expect(txn.GetIsolatedPods()).To(gomega.BeEquivalentTo(pods))
-	gomega.Expect(txn.GetLocalTableByPod(pod1)).To(gomega.BeEquivalentTo(localTableTxn))
-	globalTableTxn := txn.GetGlobalTable()
-	gomega.Expect(globalTableTxn).ToNot(gomega.BeNil())
-	gomega.Expect(globalTableTxn.ID).To(gomega.BeEquivalentTo(GlobalTableID))
-	gomega.Expect(globalTableTxn.Type).To(gomega.BeEquivalentTo(Global))
-	verifyRules(globalTableTxn, []*renderer.ContivRule{})
-	gomega.Expect(globalTableTxn.Pods).To(gomega.BeEmpty())
+	gomega.Expect(txn.GetIsolatedPods()).To(gomega.BeEmpty())
+	gomega.Expect(txn.GetLocalTableByPod(pod1)).To(gomega.BeNil())
+	gomega.Expect(txn.GetGlobalTable()).To(gomega.Equal(globalTableTxn))
 
 	// Changes should be applied only after the commit.
 	gomega.Expect(ruleCache.GetPodConfig(pod1)).To(gomega.BeNil())
@@ -169,18 +440,16 @@ func TestSingleEgressRuleOnePod(t *testing.T) {
 	// Verify cache content.
 	gomega.Expect(ruleCache.GetPodConfig(pod1)).To(gomega.Equal(podCfg))
 	gomega.Expect(ruleCache.GetAllPods()).To(gomega.BeEquivalentTo(pods))
-	gomega.Expect(ruleCache.GetLocalTableByPod(pod1).ID).To(gomega.BeEquivalentTo(localTableTxn.ID))
-	gomega.Expect(ruleCache.GetGlobalTable()).To(gomega.Equal(globalTable))
-	gomega.Expect(ruleCache.GetIsolatedPods()).To(gomega.BeEquivalentTo(pods))
+	gomega.Expect(ruleCache.GetLocalTableByPod(pod1)).To(gomega.BeNil())
+	gomega.Expect(ruleCache.GetGlobalTable()).To(gomega.Equal(globalTableTxn))
+	verifyRules(ruleCache.GetGlobalTable(), globalRules)
+	gomega.Expect(ruleCache.GetGlobalTable().Pods).To(gomega.BeEmpty())
+	gomega.Expect(ruleCache.GetIsolatedPods()).To(gomega.BeEmpty())
 
 	// 2. Ingress Orientation
+
 	ruleCache.Flush()
 	ruleCache.Init(IngressOrientation)
-
-	// Expected global table content.
-	globalRule := rule.Copy()
-	globalRule.DestNetwork = GetOneHostSubnet(pod1IP)
-	globalRules := []*renderer.ContivRule{globalRule, allowAllTCP(), allowAllUDP()} /* order matters */
 
 	// Check initial cache content
 	globalTable = ruleCache.GetGlobalTable()
@@ -208,21 +477,25 @@ func TestSingleEgressRuleOnePod(t *testing.T) {
 	changes = txn.GetChanges()
 	gomega.Expect(changes).To(gomega.HaveLen(1))
 
-	// Global table has changed.
+	// Local table was added.
 	change = changes[0]
 	gomega.Expect(change.Table).ToNot(gomega.BeNil())
-	gomega.Expect(change.Table.ID).To(gomega.BeEquivalentTo(GlobalTableID))
-	gomega.Expect(change.Table.Type).To(gomega.Equal(Global))
-	verifyRules(change.Table, globalRules)
-	gomega.Expect(change.Table.Pods).To(gomega.BeEmpty())
+	gomega.Expect(change.Table.ID).ToNot(gomega.BeEmpty())
+	gomega.Expect(change.Table.Type).To(gomega.Equal(Local))
+	verifyRules(change.Table, ingress)
+	gomega.Expect(change.Table.Pods).To(gomega.BeEquivalentTo(pods))
 	gomega.Expect(change.PreviousPods).To(gomega.BeEmpty())
-	globalTableTxn = change.Table
-	gomega.Expect(globalTableTxn).ToNot(gomega.Equal(globalTable))
+	localTableTxn := change.Table
 
 	// Test what the cache will contain after the transaction.
-	gomega.Expect(txn.GetIsolatedPods()).To(gomega.BeEmpty())
-	gomega.Expect(txn.GetLocalTableByPod(pod1)).To(gomega.BeNil())
-	gomega.Expect(txn.GetGlobalTable()).To(gomega.Equal(globalTableTxn))
+	gomega.Expect(txn.GetIsolatedPods()).To(gomega.BeEquivalentTo(pods))
+	gomega.Expect(txn.GetLocalTableByPod(pod1)).To(gomega.BeEquivalentTo(localTableTxn))
+	globalTableTxn = txn.GetGlobalTable()
+	gomega.Expect(globalTableTxn).ToNot(gomega.BeNil())
+	gomega.Expect(globalTableTxn.ID).To(gomega.BeEquivalentTo(GlobalTableID))
+	gomega.Expect(globalTableTxn.Type).To(gomega.BeEquivalentTo(Global))
+	verifyRules(globalTableTxn, []*renderer.ContivRule{})
+	gomega.Expect(globalTableTxn.Pods).To(gomega.BeEmpty())
 
 	// Changes should be applied only after the commit.
 	gomega.Expect(ruleCache.GetPodConfig(pod1)).To(gomega.BeNil())
@@ -242,178 +515,299 @@ func TestSingleEgressRuleOnePod(t *testing.T) {
 	// Verify cache content.
 	gomega.Expect(ruleCache.GetPodConfig(pod1)).To(gomega.Equal(podCfg))
 	gomega.Expect(ruleCache.GetAllPods()).To(gomega.BeEquivalentTo(pods))
-	gomega.Expect(ruleCache.GetLocalTableByPod(pod1)).To(gomega.BeNil())
-	gomega.Expect(ruleCache.GetGlobalTable()).To(gomega.Equal(globalTableTxn))
-	verifyRules(ruleCache.GetGlobalTable(), globalRules)
-	gomega.Expect(ruleCache.GetGlobalTable().Pods).To(gomega.BeEmpty())
-	gomega.Expect(ruleCache.GetIsolatedPods()).To(gomega.BeEmpty())
+	gomega.Expect(ruleCache.GetLocalTableByPod(pod1).ID).To(gomega.BeEquivalentTo(localTableTxn.ID))
+	gomega.Expect(ruleCache.GetGlobalTable()).To(gomega.Equal(globalTable))
+	gomega.Expect(ruleCache.GetIsolatedPods()).To(gomega.BeEquivalentTo(pods))
 }
 
-/*
-func TestSingleContivRuleMultipleInterfaces(t *testing.T) {
+func TestMultipleEgressRulesMultiplePods(t *testing.T) {
 	gomega.RegisterTestingT(t)
 	logger := logrus.DefaultLogger()
 	logger.SetLevel(logging.DebugLevel)
-	logger.Debug("TestSingleContivRuleMultipleInterfaces")
+	logger.Debug("TestMultipleEgressRulesMultiplePods")
 
-	// Create an instance of ContivRuleCache
-	ruleCache := &ContivRuleCache{
+	// Prepare input data.
+	const (
+		namespace = "default"
+	)
+
+	podIDs := []podmodel.ID{
+		{Name: "pod1", Namespace: namespace},
+		{Name: "pod2", Namespace: namespace},
+		{Name: "pod3", Namespace: namespace},
+		{Name: "pod4", Namespace: namespace},
+		{Name: "pod5", Namespace: namespace},
+	}
+	podIPs := []string{
+		"10.10.1.1",
+		"10.10.1.2",
+		"10.10.2.1",
+		"10.10.2.2",
+		"10.10.2.5",
+	}
+
+	pods1 := NewPodSet(podIDs[:3]...) /* first TXN contains pod1-pod3 */
+	pods2 := NewPodSet(podIDs...)     /* second TXN contains all pods */
+
+	rule1 := &renderer.ContivRule{
+		Action:      renderer.ActionPermit,
+		SrcNetwork:  ipNetwork("10.10.0.0/16"),
+		DestNetwork: ipNetwork(""),
+		Protocol:    renderer.TCP,
+		SrcPort:     0,
+		DestPort:    0,
+	}
+	rule2 := &renderer.ContivRule{
+		Action:      renderer.ActionPermit,
+		SrcNetwork:  ipNetwork("10.10.0.0/16"),
+		DestNetwork: ipNetwork(""),
+		Protocol:    renderer.UDP,
+		SrcPort:     0,
+		DestPort:    0,
+	}
+	rule3 := denyAllTCP()
+	rule4 := denyAllUDP()
+
+	ingress := []*renderer.ContivRule{}
+	egress := []*renderer.ContivRule{rule1, rule2, rule3, rule4}
+	orderedEgress := []*renderer.ContivRule{rule1, rule3, rule2, rule4}
+
+	podCfg := []*PodConfig{}
+	for i := range podIDs {
+		podCfg = append(podCfg,
+			&PodConfig{
+				PodIP:   GetOneHostSubnet(podIPs[i]),
+				Ingress: ingress,
+				Egress:  egress,
+				Removed: false,
+			})
+	}
+
+	// 1. Egress Orientation
+
+	// Create an instance of RendererCache
+	ruleCache := &RendererCache{
 		Deps: Deps{
 			Log: logger,
 		},
 	}
-	ruleCache.Init()
-
-	// Prepare input data.
-	rule := &renderer.ContivRule{
-		ID:          "deny-http",
-		Action:      renderer.ActionDeny,
-		SrcNetwork:  ipNetwork("192.168.0.0/16"),
-		DestNetwork: ipNetwork(""),
-		Protocol:    renderer.TCP,
-		SrcPort:     0,
-		DestPort:    80,
-	}
-	ingress := []*renderer.ContivRule{}
-	egress := []*renderer.ContivRule{rule}
+	ruleCache.Init(EgressOrientation)
+	globalTable := ruleCache.GetGlobalTable()
 
 	// Run first transaction.
 	txn := ruleCache.NewTxn()
 
-	// Perform update of the same rules for multiple interfaces.
-	ifSet := NewInterfaceSet("afpacket1", "afpacket2", "afpacket3")
-	for ifName := range ifSet {
-		err := txn.Update(ifName, ingress, egress)
-		gomega.Expect(err).To(gomega.BeNil())
+	// Perform update of the first three pods.
+	for i := 0; i < len(pods1); i++ {
+		txn.Update(podIDs[i], podCfg[i])
+		gomega.Expect(txn.GetPodConfig(podIDs[i])).To(gomega.Equal(podCfg[i]))
 	}
-	gomega.Expect(txn.AllInterfaces()).To(gomega.BeEquivalentTo(ifSet))
+	gomega.Expect(txn.GetUpdatedPods()).To(gomega.BeEquivalentTo(pods1))
+	gomega.Expect(txn.GetRemovedPods()).To(gomega.BeEmpty())
+	gomega.Expect(txn.GetAllPods()).To(gomega.BeEquivalentTo(pods1))
 
 	// Verify changes to be committed.
-	ingressChanges, egressChanges := txn.Changes()
-	gomega.Expect(ingressChanges).To(gomega.HaveLen(1))
-	gomega.Expect(egressChanges).To(gomega.HaveLen(1))
+	changes := txn.GetChanges()
+	gomega.Expect(changes).To(gomega.HaveLen(1))
 
-	change := ingressChanges[0]
-	gomega.Expect(change.List).ToNot(gomega.BeNil())
-	gomega.Expect(change.List.ID).ToNot(gomega.BeEmpty())
-	gomega.Expect(strings.HasPrefix(change.List.ID, "ingress")).To(gomega.BeTrue())
-	gomega.Expect(compareRuleLists(change.List.Rules, ingress)).To(gomega.BeEquivalentTo(0))
-	gomega.Expect(change.PreviousInterfaces).To(gomega.BeEmpty())
-	gomega.Expect(change.List.Interfaces).To(gomega.BeEquivalentTo(ifSet))
-	ingressListID := change.List.ID
+	// Local table was added.
+	change := changes[0]
+	gomega.Expect(change.Table).ToNot(gomega.BeNil())
+	gomega.Expect(change.Table.ID).ToNot(gomega.BeEmpty())
+	gomega.Expect(change.Table.Type).To(gomega.Equal(Local))
+	verifyRules(change.Table, orderedEgress)
+	gomega.Expect(change.Table.Pods).To(gomega.BeEquivalentTo(pods1))
+	gomega.Expect(change.PreviousPods).To(gomega.BeEmpty())
+	localTableTxn := change.Table
 
-	change = egressChanges[0]
-	gomega.Expect(change.List).ToNot(gomega.BeNil())
-	gomega.Expect(change.List.ID).ToNot(gomega.BeEmpty())
-	gomega.Expect(strings.HasPrefix(change.List.ID, "egress")).To(gomega.BeTrue())
-	gomega.Expect(compareRuleLists(change.List.Rules, egress)).To(gomega.BeEquivalentTo(0))
-	gomega.Expect(change.PreviousInterfaces).To(gomega.BeEmpty())
-	gomega.Expect(change.List.Interfaces).To(gomega.BeEquivalentTo(ifSet))
-	egressListID := change.List.ID
+	// Test what the cache will contain after the transaction.
+	gomega.Expect(txn.GetIsolatedPods()).To(gomega.BeEquivalentTo(pods1))
+	for i := 0; i < len(pods1); i++ {
+		gomega.Expect(txn.GetLocalTableByPod(podIDs[i])).To(gomega.BeEquivalentTo(localTableTxn))
+	}
+	globalTableTxn1 := txn.GetGlobalTable()
+	gomega.Expect(globalTableTxn1).ToNot(gomega.BeNil())
+	gomega.Expect(globalTableTxn1.ID).To(gomega.BeEquivalentTo(GlobalTableID))
+	gomega.Expect(globalTableTxn1.Type).To(gomega.BeEquivalentTo(Global))
+	verifyRules(globalTableTxn1, []*renderer.ContivRule{})
+	gomega.Expect(globalTableTxn1.Pods).To(gomega.BeEmpty())
 
 	// Commit changes into the cache.
 	err := txn.Commit()
 	gomega.Expect(err).To(gomega.BeNil())
 
 	// Verify cache content.
-	gomega.Expect(ruleCache.AllInterfaces()).To(gomega.BeEquivalentTo(ifSet))
-	ifIngress1, ifEgress1 := ruleCache.LookupByInterface("afpacket1")
-	gomega.Expect(ifIngress1).ToNot(gomega.BeNil())
-	gomega.Expect(ifEgress1).ToNot(gomega.BeNil())
-
-	gomega.Expect(ifIngress1.ID).To(gomega.BeEquivalentTo(ingressListID))
-	gomega.Expect(compareRuleLists(ifIngress1.Rules, ingress)).To(gomega.BeEquivalentTo(0))
-	gomega.Expect(ifIngress1.Interfaces).To(gomega.BeEquivalentTo(ifSet))
-
-	gomega.Expect(ifEgress1.ID).To(gomega.BeEquivalentTo(egressListID))
-	gomega.Expect(compareRuleLists(ifEgress1.Rules, egress)).To(gomega.BeEquivalentTo(0))
-	gomega.Expect(ifEgress1.Interfaces).To(gomega.BeEquivalentTo(ifSet))
-
-	ifIngress2, ifEgress2 := ruleCache.LookupByInterface("afpacket2")
-	gomega.Expect(ifIngress2).ToNot(gomega.BeNil())
-	gomega.Expect(ifEgress2).ToNot(gomega.BeNil())
-	ifIngress3, ifEgress3 := ruleCache.LookupByInterface("afpacket3")
-	gomega.Expect(ifIngress3).ToNot(gomega.BeNil())
-	gomega.Expect(ifEgress3).ToNot(gomega.BeNil())
-
-	gomega.Expect(ifIngress2.ID).To(gomega.BeEquivalentTo(ifIngress1.ID))
-	gomega.Expect(ifEgress2.ID).To(gomega.BeEquivalentTo(ifEgress1.ID))
-	gomega.Expect(ifIngress3.ID).To(gomega.BeEquivalentTo(ifIngress1.ID))
-	gomega.Expect(ifEgress3.ID).To(gomega.BeEquivalentTo(ifEgress1.ID))
+	for i := 0; i < len(pods1); i++ {
+		gomega.Expect(ruleCache.GetPodConfig(podIDs[i])).To(gomega.Equal(podCfg[i]))
+	}
+	gomega.Expect(ruleCache.GetAllPods()).To(gomega.BeEquivalentTo(pods1))
+	for i := 0; i < len(pods1); i++ {
+		gomega.Expect(txn.GetLocalTableByPod(podIDs[i])).To(gomega.BeEquivalentTo(localTableTxn))
+	}
+	gomega.Expect(ruleCache.GetGlobalTable()).To(gomega.Equal(globalTable))
+	gomega.Expect(ruleCache.GetIsolatedPods()).To(gomega.BeEquivalentTo(pods1))
 
 	// Run second transaction.
+	// Pod4 and Pod5 are added.
 	txn = ruleCache.NewTxn()
 
-	// Add two more interfaces.
-	ifSet2 := ifSet.Copy()
-	ifSet2.Add("afpacket4")
-	ifSet2.Add("afpacket5")
-	for ifName := range ifSet2 {
-		err := txn.Update(ifName, ingress, egress)
-		gomega.Expect(err).To(gomega.BeNil())
+	for i := 0; i < len(pods2); i++ {
+		txn.Update(podIDs[i], podCfg[i])
+		gomega.Expect(txn.GetPodConfig(podIDs[i])).To(gomega.Equal(podCfg[i]))
 	}
-	gomega.Expect(txn.AllInterfaces()).To(gomega.BeEquivalentTo(ifSet2))
+	gomega.Expect(txn.GetUpdatedPods()).To(gomega.BeEquivalentTo(pods2))
+	gomega.Expect(txn.GetRemovedPods()).To(gomega.BeEmpty())
+	gomega.Expect(txn.GetAllPods()).To(gomega.BeEquivalentTo(pods2))
 
 	// Verify changes to be committed.
-	ingressChanges, egressChanges = txn.Changes()
-	gomega.Expect(ingressChanges).To(gomega.HaveLen(1))
-	gomega.Expect(egressChanges).To(gomega.HaveLen(1))
+	changes = txn.GetChanges()
+	gomega.Expect(changes).To(gomega.HaveLen(1))
 
-	change = ingressChanges[0]
-	gomega.Expect(change.List).ToNot(gomega.BeNil())
-	gomega.Expect(change.List.ID).To(gomega.BeEquivalentTo(ingressListID))
-	gomega.Expect(compareRuleLists(change.List.Rules, ingress)).To(gomega.BeEquivalentTo(0))
-	gomega.Expect(change.PreviousInterfaces).To(gomega.BeEquivalentTo(ifSet))
-	gomega.Expect(change.List.Interfaces).To(gomega.BeEquivalentTo(ifSet2))
-
-	change = egressChanges[0]
-	gomega.Expect(change.List).ToNot(gomega.BeNil())
-	gomega.Expect(change.List.ID).To(gomega.BeEquivalentTo(egressListID))
-	gomega.Expect(compareRuleLists(change.List.Rules, egress)).To(gomega.BeEquivalentTo(0))
-	gomega.Expect(change.PreviousInterfaces).To(gomega.BeEquivalentTo(ifSet))
-	gomega.Expect(change.List.Interfaces).To(gomega.BeEquivalentTo(ifSet2))
+	// New pods were assigned to the existing local table.
+	change = changes[0]
+	gomega.Expect(change.Table).ToNot(gomega.BeNil())
+	gomega.Expect(change.Table.ID).To(gomega.BeEquivalentTo(localTableTxn.ID))
+	gomega.Expect(change.Table.Pods).To(gomega.BeEquivalentTo(pods2))
+	gomega.Expect(change.PreviousPods).To(gomega.BeEquivalentTo(pods1))
 
 	// Commit changes into the cache.
 	err = txn.Commit()
 	gomega.Expect(err).To(gomega.BeNil())
 
 	// Verify cache content.
-	gomega.Expect(ruleCache.AllInterfaces()).To(gomega.BeEquivalentTo(ifSet2))
-	ifIngress1, ifEgress1 = ruleCache.LookupByInterface("afpacket1")
-	gomega.Expect(ifIngress1).ToNot(gomega.BeNil())
-	gomega.Expect(ifEgress1).ToNot(gomega.BeNil())
+	for i := 0; i < len(pods2); i++ {
+		gomega.Expect(ruleCache.GetPodConfig(podIDs[i])).To(gomega.Equal(podCfg[i]))
+	}
+	gomega.Expect(ruleCache.GetAllPods()).To(gomega.BeEquivalentTo(pods2))
+	for i := 0; i < len(pods2); i++ {
+		gomega.Expect(txn.GetLocalTableByPod(podIDs[i])).To(gomega.BeEquivalentTo(localTableTxn))
+	}
+	gomega.Expect(ruleCache.GetGlobalTable()).To(gomega.Equal(globalTable))
+	gomega.Expect(ruleCache.GetIsolatedPods()).To(gomega.BeEquivalentTo(pods2))
 
-	gomega.Expect(ifIngress1.ID).To(gomega.BeEquivalentTo(ingressListID))
-	gomega.Expect(compareRuleLists(ifIngress1.Rules, ingress)).To(gomega.BeEquivalentTo(0))
-	gomega.Expect(ifIngress1.Interfaces).To(gomega.BeEquivalentTo(ifSet2))
+	// 2. Ingress Orientation
 
-	gomega.Expect(ifEgress1.ID).To(gomega.BeEquivalentTo(egressListID))
-	gomega.Expect(compareRuleLists(ifEgress1.Rules, egress)).To(gomega.BeEquivalentTo(0))
-	gomega.Expect(ifEgress1.Interfaces).To(gomega.BeEquivalentTo(ifSet2))
+	ruleCache.Flush()
+	ruleCache.Init(IngressOrientation)
 
-	ifIngress2, ifEgress2 = ruleCache.LookupByInterface("afpacket2")
-	gomega.Expect(ifIngress2).ToNot(gomega.BeNil())
-	gomega.Expect(ifEgress2).ToNot(gomega.BeNil())
-	ifIngress3, ifEgress3 = ruleCache.LookupByInterface("afpacket3")
-	gomega.Expect(ifIngress3).ToNot(gomega.BeNil())
-	gomega.Expect(ifEgress3).ToNot(gomega.BeNil())
-	ifIngress4, ifEgress4 := ruleCache.LookupByInterface("afpacket4")
-	gomega.Expect(ifIngress4).ToNot(gomega.BeNil())
-	gomega.Expect(ifEgress4).ToNot(gomega.BeNil())
-	ifIngress5, ifEgress5 := ruleCache.LookupByInterface("afpacket5")
-	gomega.Expect(ifIngress5).ToNot(gomega.BeNil())
-	gomega.Expect(ifEgress5).ToNot(gomega.BeNil())
+	// Expected global table content after the first transaction.
+	globalRules := []*renderer.ContivRule{}
+	globalRules = append(globalRules, modifyDst(rule1, podIPs[:3]...)...)
+	globalRules = append(globalRules, modifyDst(rule3, podIPs[:3]...)...) /* TCP before UDP */
+	globalRules = append(globalRules, allowAllTCP())
+	globalRules = append(globalRules, modifyDst(rule2, podIPs[:3]...)...)
+	globalRules = append(globalRules, modifyDst(rule4, podIPs[:3]...)...)
+	globalRules = append(globalRules, allowAllUDP())
 
-	gomega.Expect(ifIngress2.ID).To(gomega.BeEquivalentTo(ifIngress1.ID))
-	gomega.Expect(ifEgress2.ID).To(gomega.BeEquivalentTo(ifEgress1.ID))
-	gomega.Expect(ifIngress3.ID).To(gomega.BeEquivalentTo(ifIngress1.ID))
-	gomega.Expect(ifEgress3.ID).To(gomega.BeEquivalentTo(ifEgress1.ID))
-	gomega.Expect(ifIngress4.ID).To(gomega.BeEquivalentTo(ifIngress1.ID))
-	gomega.Expect(ifEgress4.ID).To(gomega.BeEquivalentTo(ifEgress1.ID))
-	gomega.Expect(ifIngress5.ID).To(gomega.BeEquivalentTo(ifIngress1.ID))
-	gomega.Expect(ifEgress5.ID).To(gomega.BeEquivalentTo(ifEgress1.ID))
+	// Run first transaction.
+	txn = ruleCache.NewTxn()
+
+	// Perform update of the first three pods.
+	for i := 0; i < len(pods1); i++ {
+		txn.Update(podIDs[i], podCfg[i])
+		gomega.Expect(txn.GetPodConfig(podIDs[i])).To(gomega.Equal(podCfg[i]))
+	}
+	gomega.Expect(txn.GetUpdatedPods()).To(gomega.BeEquivalentTo(pods1))
+	gomega.Expect(txn.GetRemovedPods()).To(gomega.BeEmpty())
+	gomega.Expect(txn.GetAllPods()).To(gomega.BeEquivalentTo(pods1))
+
+	// Verify changes to be committed.
+	changes = txn.GetChanges()
+	gomega.Expect(changes).To(gomega.HaveLen(1))
+
+	// Global table has changed.
+	change = changes[0]
+	gomega.Expect(change.Table).ToNot(gomega.BeNil())
+	gomega.Expect(change.Table.ID).To(gomega.BeEquivalentTo(GlobalTableID))
+	gomega.Expect(change.Table.Type).To(gomega.Equal(Global))
+	verifyRules(change.Table, globalRules)
+	gomega.Expect(change.Table.Pods).To(gomega.BeEmpty())
+	gomega.Expect(change.PreviousPods).To(gomega.BeEmpty())
+	globalTableTxn1 = change.Table
+	gomega.Expect(globalTableTxn1).ToNot(gomega.Equal(globalTable))
+
+	// Test what the cache will contain after the transaction.
+	gomega.Expect(txn.GetIsolatedPods()).To(gomega.BeEmpty())
+	for i := 0; i < len(pods1); i++ {
+		gomega.Expect(txn.GetLocalTableByPod(podIDs[i])).To(gomega.BeNil())
+	}
+	gomega.Expect(txn.GetGlobalTable()).To(gomega.Equal(globalTableTxn1))
+
+	// Commit changes into the cache.
+	err = txn.Commit()
+	gomega.Expect(err).To(gomega.BeNil())
+
+	// Verify cache content.
+	for i := 0; i < len(pods1); i++ {
+		gomega.Expect(ruleCache.GetPodConfig(podIDs[i])).To(gomega.Equal(podCfg[i]))
+	}
+	gomega.Expect(ruleCache.GetAllPods()).To(gomega.BeEquivalentTo(pods1))
+	for i := 0; i < len(pods1); i++ {
+		gomega.Expect(txn.GetLocalTableByPod(podIDs[i])).To(gomega.BeNil())
+	}
+	gomega.Expect(ruleCache.GetGlobalTable()).To(gomega.Equal(globalTableTxn1))
+	gomega.Expect(ruleCache.GetIsolatedPods()).To(gomega.BeEmpty())
+
+	// Run second transaction.
+	// Pod4 and Pod5 are added.
+	txn = ruleCache.NewTxn()
+
+	for i := 0; i < len(pods2); i++ {
+		txn.Update(podIDs[i], podCfg[i])
+		gomega.Expect(txn.GetPodConfig(podIDs[i])).To(gomega.Equal(podCfg[i]))
+	}
+	gomega.Expect(txn.GetUpdatedPods()).To(gomega.BeEquivalentTo(pods2))
+	gomega.Expect(txn.GetRemovedPods()).To(gomega.BeEmpty())
+	gomega.Expect(txn.GetAllPods()).To(gomega.BeEquivalentTo(pods2))
+
+	// Expected global table content after the second transaction.
+	globalRules = []*renderer.ContivRule{}
+	globalRules = append(globalRules, modifyDst(rule1, podIPs...)...)
+	globalRules = append(globalRules, modifyDst(rule3, podIPs...)...) /* TCP before UDP */
+	globalRules = append(globalRules, allowAllTCP())
+	globalRules = append(globalRules, modifyDst(rule2, podIPs...)...)
+	globalRules = append(globalRules, modifyDst(rule4, podIPs...)...)
+	globalRules = append(globalRules, allowAllUDP())
+
+	// Verify changes to be committed.
+	changes = txn.GetChanges()
+	gomega.Expect(changes).To(gomega.HaveLen(1))
+
+	// Global table has changed again.
+	change = changes[0]
+	gomega.Expect(change.Table).ToNot(gomega.BeNil())
+	gomega.Expect(change.Table.ID).To(gomega.BeEquivalentTo(GlobalTableID))
+	gomega.Expect(change.Table.Type).To(gomega.Equal(Global))
+	verifyRules(change.Table, globalRules)
+	gomega.Expect(change.Table.Pods).To(gomega.BeEmpty())
+	gomega.Expect(change.PreviousPods).To(gomega.BeEmpty())
+	globalTableTxn2 := change.Table
+	gomega.Expect(globalTableTxn2).ToNot(gomega.Equal(globalTableTxn1))
+
+	// Test what the cache will contain after the transaction.
+	gomega.Expect(txn.GetIsolatedPods()).To(gomega.BeEmpty())
+	for i := 0; i < len(pods2); i++ {
+		gomega.Expect(txn.GetLocalTableByPod(podIDs[i])).To(gomega.BeNil())
+	}
+	gomega.Expect(txn.GetGlobalTable()).To(gomega.Equal(globalTableTxn2))
+
+	// Commit changes into the cache.
+	err = txn.Commit()
+	gomega.Expect(err).To(gomega.BeNil())
+
+	// Verify cache content.
+	for i := 0; i < len(pods2); i++ {
+		gomega.Expect(ruleCache.GetPodConfig(podIDs[i])).To(gomega.Equal(podCfg[i]))
+	}
+	gomega.Expect(ruleCache.GetAllPods()).To(gomega.BeEquivalentTo(pods2))
+	for i := 0; i < len(pods2); i++ {
+		gomega.Expect(txn.GetLocalTableByPod(podIDs[i])).To(gomega.BeNil())
+	}
+	gomega.Expect(ruleCache.GetGlobalTable()).To(gomega.Equal(globalTableTxn2))
+	gomega.Expect(ruleCache.GetIsolatedPods()).To(gomega.BeEmpty())
 }
 
+/*
 func TestMultipleContivRulesSingleInterface(t *testing.T) {
 	gomega.RegisterTestingT(t)
 	logger := logrus.DefaultLogger()

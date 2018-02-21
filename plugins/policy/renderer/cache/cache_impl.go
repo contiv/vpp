@@ -494,12 +494,9 @@ func (rct *RendererCacheTxn) buildLocalTable(dstPodID podmodel.ID, dstPodCfg *Po
 		table.InsertRule(rule.Copy())
 	}
 
-	// Combine rules with the opposite direction of every other pod on the node.
+	// Combine rules with the opposite direction of every pod on the node.
 	for srcPodID := range rct.GetAllPods() {
 		srcPodCfg := rct.GetPodConfig(srcPodID)
-		if srcPodID == dstPodID {
-			continue
-		}
 		rct.installLocalRules(table, dstPodCfg, srcPodCfg)
 	}
 
@@ -550,7 +547,7 @@ func (rct *RendererCacheTxn) installAllowedPorts(dstTable *ContivRuleTable, srcP
 	// 	(egress orientation)  srcIP:0 -> 0/0:0
 	// 	(ingress orientation) 0/0:0   -> srcIP:0
 	dstTable.RemoveByPredicate(func(rule *renderer.ContivRule) bool {
-		if rule.Protocol != renderer.TCP {
+		if rule.Protocol != protocol {
 			return false
 		}
 		var ipAddr *net.IPNet
@@ -640,7 +637,7 @@ func (rct *RendererCacheTxn) rebuildGlobalTable() {
 	}
 }
 
-// installGlobalRules takes the deny-rules of the given pod with the opposite orientation
+// installGlobalRules takes the rules of the given pod with the opposite orientation
 // wrt. the cache and installs them into the global table.
 func (rct *RendererCacheTxn) installGlobalRules(podCfg *PodConfig) {
 	var rules []*renderer.ContivRule
@@ -650,15 +647,13 @@ func (rct *RendererCacheTxn) installGlobalRules(podCfg *PodConfig) {
 		rules = podCfg.Egress
 	}
 	for _, rule := range rules {
-		if rule.Action == renderer.ActionDeny {
-			ruleCopy := rule.Copy() /* do not change the original config */
-			if rct.cache.orientation == EgressOrientation {
-				ruleCopy.SrcNetwork = podCfg.PodIP
-			} else {
-				ruleCopy.DestNetwork = podCfg.PodIP
-			}
-			rct.globalTable.InsertRule(ruleCopy)
+		ruleCopy := rule.Copy() /* do not change the original config */
+		if rct.cache.orientation == EgressOrientation {
+			ruleCopy.SrcNetwork = podCfg.PodIP
+		} else {
+			ruleCopy.DestNetwork = podCfg.PodIP
 		}
+		rct.globalTable.InsertRule(ruleCopy)
 	}
 }
 

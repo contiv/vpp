@@ -68,27 +68,29 @@ func (lts *LocalTables) String() string {
 			tables += ", "
 		}
 	}
-
-	byID := ""
-	count := 0
-	for id, table := range lts.byID {
-		byID += fmt.Sprintf("<%s> -> <%s>", id, table)
-		if count < len(lts.byID)-1 {
-			byID += ","
+	/*
+		byID := ""
+		count := 0
+		for id, table := range lts.byID {
+			byID += fmt.Sprintf("<%s> -> <%s>", id, table)
+			if count < len(lts.byID)-1 {
+				byID += ","
+			}
 		}
-	}
 
-	byPod := ""
-	count = 0
-	for pod, table := range lts.byPod {
-		byPod += fmt.Sprintf("<%s> -> <%s>", pod, table)
-		if count < len(lts.byPod)-1 {
-			byPod += ","
+		byPod := ""
+		count = 0
+		for pod, table := range lts.byPod {
+			byPod += fmt.Sprintf("<%s> -> <%s>", pod, table)
+			if count < len(lts.byPod)-1 {
+				byPod += ","
+			}
 		}
-	}
 
-	return fmt.Sprintf("Local Tables <tables: [%s], byID: {%s}, byPod: {%s}>",
-		tables, byID, byPod)
+		return fmt.Sprintf("Local Tables <tables: [%s], byID: {%s}, byPod: {%s}>",
+			tables, byID, byPod)
+	*/
+	return fmt.Sprintf("[%s]", tables)
 }
 
 // Insert local table into the list.
@@ -99,7 +101,7 @@ func (lts *LocalTables) Insert(table *ContivRuleTable) bool {
 	}
 
 	// Insert the table at the right index to keep the order.
-	tableIdx := lts.lookupIdxByRules(table.Rules)
+	tableIdx := lts.lookupIdxByRules(table.Rules[:table.NumOfRules])
 	if lts.numTables == len(lts.tables) {
 		/* just increase the size by one */
 		lts.tables = append(lts.tables, nil)
@@ -198,7 +200,7 @@ func (lts *LocalTables) LookupByID(id string) *ContivRuleTable {
 func (lts *LocalTables) LookupByRules(rules []*renderer.ContivRule) *ContivRuleTable {
 	tableIdx := lts.lookupIdxByRules(rules)
 	if tableIdx < lts.numTables &&
-		compareRuleLists(rules, lts.tables[tableIdx].Rules) == 0 {
+		compareRuleLists(rules, lts.tables[tableIdx].Rules[:lts.tables[tableIdx].NumOfRules]) == 0 {
 		return lts.tables[tableIdx]
 	}
 	return nil

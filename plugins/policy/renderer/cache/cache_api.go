@@ -332,7 +332,7 @@ func (crt *ContivRuleTable) getRuleIndex(rule *renderer.ContivRule) (idx int, in
 // representation.
 func (crt *ContivRuleTable) String() string {
 	return fmt.Sprintf("Rule Table %s <type: %s, rules: %v, pods: %s>",
-		crt.ID, crt.Type, crt.Rules, crt.Pods)
+		crt.ID, crt.Type, crt.Rules[:crt.NumOfRules], crt.Pods)
 }
 
 // TableType is either "Local" or "Global".

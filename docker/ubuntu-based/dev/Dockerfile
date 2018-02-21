@@ -8,7 +8,9 @@ ARG VPP_COMMIT_ID="xxx"
 ARG SKIP_DEBUG_BUILD=0
 
 # install ethtool - required for disabling TCP checksum offload in containers
-RUN apt-get update && apt-get install -y ethtool
+RUN apt-get update \
+ && apt-get install -y ethtool \
+ && rm -rf /var/lib/apt/lists/*
 
 # set work directory
 WORKDIR /root/

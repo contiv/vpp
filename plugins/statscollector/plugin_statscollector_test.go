@@ -356,7 +356,7 @@ func (mc *mockContiv) GetNsIndex(podNamespace string, podName string) (nsIndex u
 func (mc *mockContiv) GetPodByIf(ifname string) (podNamespace string, podName string, exists bool) {
 	pod, found := mc.pods[ifname]
 	if found {
-		return pod.name, pod.namespace, true
+		return pod.namespace, pod.name,true
 	}
 
 	return "", "", false

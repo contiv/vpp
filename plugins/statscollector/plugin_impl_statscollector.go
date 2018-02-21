@@ -138,11 +138,11 @@ func (p *Plugin) processPodEvent(event containeridx.ChangeEvent) {
 	if !event.Del {
 		return
 	}
-	nsmap, exists := p.podIfs[event.Value.PodName]
+	nsmap, exists := p.podIfs[event.Value.PodNamespace]
 	if !exists {
 		return
 	}
-	ifs, exists := nsmap[event.Value.PodNamespace]
+	ifs, exists := nsmap[event.Value.PodName]
 	if !exists {
 		return
 	}

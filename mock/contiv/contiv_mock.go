@@ -2,6 +2,7 @@ package contiv
 
 import (
 	"net"
+	"sync"
 
 	"github.com/contiv/vpp/plugins/contiv/containeridx"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
@@ -10,12 +11,16 @@ import (
 
 // MockContiv is a mock for the Contiv Plugin.
 type MockContiv struct {
+	sync.Mutex
+
 	podIf            map[podmodel.ID]string
 	podNs            map[podmodel.ID]uint32
 	podNetwork       *net.IPNet
 	tcpStackDisabled bool
-	nodeIP           net.IP
-	physicalIfs      []string
+	nodeIP           string
+	nodeIPsubs       []chan string
+	mainPhysIf       string
+	otherPhysIfs     []string
 	hostInterconnect string
 	vxlanBVIIfName   string
 	gwIP             net.IP
@@ -60,19 +65,42 @@ func (mc *MockContiv) SetTCPStackDisabled(tcpStackDisabled bool) {
 }
 
 // SetNodeIP allows to set what tests will assume the node IP is.
-func (mc *MockContiv) SetNodeIP(nodeIP net.IP) {
+func (mc *MockContiv) SetNodeIP(nodeIP string) {
+	mc.Lock()
+	defer mc.Unlock()
+
 	mc.nodeIP = nodeIP
+
+	for _, sub := range mc.nodeIPsubs {
+		select {
+		case sub <- nodeIP:
+		default:
+			// skip subscribers who are not ready to receive notification
+		}
+	}
 }
 
-// SetPhysicalIfNames allows to set what tests will assume the list of physical interface names is.
-func (mc *MockContiv) SetPhysicalIfNames(ifs []string) {
-	mc.physicalIfs = ifs
+// SetMainPhysicalIfName allows to set what tests will assume the name of the main
+// physical interface is.
+func (mc *MockContiv) SetMainPhysicalIfName(ifName string) {
+	mc.mainPhysIf = ifName
+}
+
+// SetOtherPhysicalIfNames allows to set what tests will assume the list of other physical
+// interface names is.
+func (mc *MockContiv) SetOtherPhysicalIfNames(ifs []string) {
+	mc.otherPhysIfs = ifs
 }
 
 // SetHostInterconnectIfName allows to set what tests will assume the name of the host-interconnect
 // interface is.
 func (mc *MockContiv) SetHostInterconnectIfName(ifName string) {
 	mc.hostInterconnect = ifName
+}
+
+// SetVxlanBVIIfName allows to set what tests will assume the name of the VXLAN BVI interface is.
+func (mc *MockContiv) SetVxlanBVIIfName() string {
+	return mc.vxlanBVIIfName
 }
 
 // SetDefaultGatewayIP allows to set what tests will assume the default gateway IP is (can be nil).
@@ -94,6 +122,21 @@ func (mc *MockContiv) GetNsIndex(podNamespace string, podName string) (nsIndex u
 
 // GetPodByIf looks up podName and podNamespace that is associated with logical interface name.
 func (mc *MockContiv) GetPodByIf(ifname string) (podNamespace string, podName string, exists bool) {
+	for podID, name := range mc.podIf {
+		if name == ifname {
+			return podID.Namespace, podID.Name, true
+		}
+	}
+	return "", "", false
+}
+
+// GetPodByNsIndex looks up podName and podNamespace that is associated with the VPP session namespace.
+func (mc *MockContiv) GetPodByNsIndex(nsIndex uint32) (podNamespace string, podName string, exists bool) {
+	for podID, index := range mc.podNs {
+		if index == nsIndex {
+			return podID.Namespace, podID.Name, true
+		}
+	}
 	return "", "", false
 }
 
@@ -112,14 +155,34 @@ func (mc *MockContiv) IsTCPstackDisabled() bool {
 	return mc.tcpStackDisabled
 }
 
-// GetNodeIP returns the IP address of this node.
-func (mc *MockContiv) GetNodeIP() net.IP {
-	return mc.nodeIP
+// GetNodeIP returns the IP+network address of this node.
+func (mc *MockContiv) GetNodeIP() (net.IP, *net.IPNet) {
+	mc.Lock()
+	defer mc.Unlock()
+
+	nodeIP, nodeNet, _ := net.ParseCIDR(mc.nodeIP)
+	return nodeIP, nodeNet
 }
 
-// GetPhysicalIfNames returns a slice of names of all configured physical interfaces.
-func (mc *MockContiv) GetPhysicalIfNames() []string {
-	return mc.physicalIfs
+// WatchNodeIP adds given channel to the list of subscribers that are notified upon change
+// of nodeIP address. If the channel is not ready to receive notification, the notification is dropped.
+func (mc *MockContiv) WatchNodeIP(subscriber chan string) {
+	mc.Lock()
+	defer mc.Unlock()
+
+	mc.nodeIPsubs = append(mc.nodeIPsubs, subscriber)
+}
+
+// GetMainPhysicalIfName returns name of the "main" interface - i.e. physical interface connecting
+// the node with the rest of the cluster.
+func (mc *MockContiv) GetMainPhysicalIfName() string {
+	return mc.mainPhysIf
+}
+
+// GetOtherPhysicalIfNames returns a slice of names of all physical interfaces configured additionally
+// to the main interface.
+func (mc *MockContiv) GetOtherPhysicalIfNames() []string {
+	return mc.otherPhysIfs
 }
 
 // GetHostInterconnectIfName returns the name of the TAP/AF_PACKET interface

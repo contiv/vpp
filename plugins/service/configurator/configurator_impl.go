@@ -433,7 +433,7 @@ func (sc *ServiceConfigurator) Close() error {
 /**** Helper methods ****/
 
 func (sc *ServiceConfigurator) getNodeIP() (net.IP, error) {
-	nodeIP := sc.Contiv.GetNodeIP()
+	nodeIP, _ := sc.Contiv.GetNodeIP()
 	if nodeIP == nil {
 		return nil, errors.New("failed to get Node IP")
 	}

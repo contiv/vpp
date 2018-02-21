@@ -255,11 +255,12 @@ func TestConfigureVswitchVeth(t *testing.T) {
 	// TODO add asserts for txns(one linux plugin txn and one default plugins txn) / currently applied config
 
 	// check physical interface name
-	ifs := server.GetPhysicalIfNames()
-	gomega.Expect(len(ifs)).To(gomega.BeEquivalentTo(1))
-	gomega.Expect(ifs[0]).To(gomega.BeEquivalentTo(nodeConfig.MainVPPInterface.InterfaceName))
+	physIf := server.GetMainPhysicalIfName()
+	gomega.Expect(physIf).To(gomega.BeEquivalentTo(nodeConfig.MainVPPInterface.InterfaceName))
 	// node IP must not be empty
-	gomega.Expect(server.GetNodeIP()).ToNot(gomega.BeEmpty())
+	nodeIP, nodeNet := server.GetNodeIP()
+	gomega.Expect(nodeIP).ToNot(gomega.BeEmpty())
+	gomega.Expect(nodeNet).ToNot(gomega.BeNil())
 	// host interconnect IF must be configured
 	gomega.Expect(server.GetHostInterconnectIfName()).ToNot(gomega.BeEmpty())
 	// using L2 interconnect - no VXLAN IF name
@@ -283,7 +284,9 @@ func TestConfigureVswitchTap(t *testing.T) {
 	// TODO add asserts for txns(one linux plugin txn and one default plugins txn) / currently applied config
 
 	// node IP must not be empty
-	gomega.Expect(server.GetNodeIP()).ToNot(gomega.BeEmpty())
+	nodeIP, nodeNet := server.GetNodeIP()
+	gomega.Expect(nodeIP).ToNot(gomega.BeEmpty())
+	gomega.Expect(nodeNet).ToNot(gomega.BeNil())
 	// host interconnect IF must be configured
 	gomega.Expect(server.GetHostInterconnectIfName()).ToNot(gomega.BeEmpty())
 	// using VXLANs - VXLAN IF name must not be empty

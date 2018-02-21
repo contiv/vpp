@@ -273,7 +273,8 @@ func (art *RendererTxn) reflectiveACL() *vpp_acl.AccessLists_Acl {
 func (art *RendererTxn) getNodeOutputInterfaces() []string {
 	interfaces := []string{}
 	interfaces = append(interfaces, art.renderer.Contiv.GetHostInterconnectIfName())
-	interfaces = append(interfaces, art.renderer.Contiv.GetPhysicalIfNames()...)
+	interfaces = append(interfaces, art.renderer.Contiv.GetMainPhysicalIfName())
+	interfaces = append(interfaces, art.renderer.Contiv.GetOtherPhysicalIfNames()...)
 	vxlanBVI := art.renderer.Contiv.GetVxlanBVIIfName()
 	if vxlanBVI != "" {
 		interfaces = append(interfaces, vxlanBVI)

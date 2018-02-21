@@ -325,7 +325,7 @@ func (sp *ServiceProcessor) processResyncEvent(resyncEv *ResyncEventData) error 
 	confResyncEv := configurator.NewResyncEventData()
 
 	// Try to get Node IP.
-	nodeIP := sp.Contiv.GetNodeIP()
+	nodeIP, nodeNet := sp.Contiv.GetNodeIP()
 	if nodeIP == nil {
 		return errors.New("failed to get Node IP")
 	}
@@ -341,26 +341,26 @@ func (sp *ServiceProcessor) processResyncEvent(resyncEv *ResyncEventData) error 
 		sp.frontendIfs.Add(vxlanBVIIf)
 		sp.backendIfs.Add(vxlanBVIIf)
 	}
-	// -> physical interfaces
-	for _, physIf := range sp.Contiv.GetPhysicalIfNames() {
+	// -> main physical interfaces
+	mainPhysIf := sp.Contiv.GetMainPhysicalIfName()
+	sp.frontendIfs.Add(mainPhysIf)
+	if vxlanBVIIf == "" {
+		sp.backendIfs.Add(mainPhysIf)
+	}
+	if vxlanBVIIf != "" && gwIP != nil {
+		// If the interface connects node with the default GW, SNAT all egress traffic.
+		// For main interface this is supported only with VXLANs enabled.
+		if nodeNet.Contains(gwIP) {
+			confResyncEv.ExternalSNAT.ExternalIfName = mainPhysIf
+			confResyncEv.ExternalSNAT.ExternalIP = nodeIP
+		}
+	}
+	// -> other physical interfaces
+	for _, physIf := range sp.Contiv.GetOtherPhysicalIfNames() {
 		ipAddresses := sp.getInterfaceIPs(physIf)
-		// decide if the interface is frontend/backend
-		inVxlan := false
-		if vxlanBVIIf != "" {
-			for _, ipAddr := range ipAddresses {
-				if ipAddr.IP.Equal(nodeIP) {
-					inVxlan = true
-					break
-				}
-			}
-		}
 		sp.frontendIfs.Add(physIf)
-		if !inVxlan {
-			sp.backendIfs.Add(physIf)
-		}
-		// build SNAT configuration
-		// - supported only if VXLAN is enabled and default gateway is configured via one of the physical interfaces
-		if vxlanBVIIf != "" && gwIP != nil {
+		// If the interface connects node with the default GW, SNAT all egress traffic.
+		if gwIP != nil {
 			for _, ipAddr := range ipAddresses {
 				if ipAddr.Network.Contains(gwIP) {
 					confResyncEv.ExternalSNAT.ExternalIfName = physIf

@@ -122,7 +122,7 @@ func (s *remoteCNIserver) configureHostTAP(request *cni.CNIRequest, podIPNet *ne
 	}
 
 	// Set TAP interface IP to that of the Pod.
-	err = linuxcalls.AddInterfaceIP(tapHostIfName, podIPNet, nil)
+	err = linuxcalls.AddInterfaceIP(s.Logger, tapHostIfName, podIPNet, nil)
 	if err != nil {
 		return err
 	}
@@ -176,7 +176,7 @@ func (s *remoteCNIserver) configureHostTAP(request *cni.CNIRequest, podIPNet *ne
 // already done by VPP itself.
 // TODO: move to the linuxplugin
 func (s *remoteCNIserver) unconfigureHostTAP(request *cni.CNIRequest) error {
-	tapHostIfName := s.tapHostNameFromRequest(request)
+	//tapHostIfName := s.tapHostNameFromRequest(request)
 	containerNs := &linux_intf.LinuxInterfaces_Interface_Namespace{
 		Type:     linux_intf.LinuxInterfaces_Interface_Namespace_FILE_REF_NS,
 		Filepath: request.NetworkNamespace,
@@ -190,10 +190,10 @@ func (s *remoteCNIserver) unconfigureHostTAP(request *cni.CNIRequest) error {
 	}
 	defer revertNs()
 
-	err = linuxcalls.DeleteInterface(tapHostIfName, nil)
-	if err == nil {
-		s.WithField("tap", tapHostIfName).Warn("TAP interface was not removed in the host stack by VPP")
-	}
+	//err = linuxcalls.DeleteInterface(tapHostIfName, nil)
+	//if err == nil {
+	//	s.WithField("tap", tapHostIfName).Warn("TAP interface was not removed in the host stack by VPP")
+	//}
 
 	return nil
 }

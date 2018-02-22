@@ -16,6 +16,7 @@ package main
 
 import (
 	"bytes"
+	"fmt"
 	"net"
 	"os"
 	"strings"
@@ -26,6 +27,11 @@ import (
 	"github.com/ligato/cn-infra/db/keyval/kvproto"
 	"github.com/ligato/cn-infra/servicelabel"
 
+	govpp "git.fd.io/govpp.git"
+	"git.fd.io/govpp.git/api"
+	"github.com/apparentlymart/go-cidr/cidr"
+	"github.com/contiv/vpp/cmd/contiv-stn/model/stn"
+	"github.com/contiv/vpp/plugins/contiv"
 	if_binapi "github.com/ligato/vpp-agent/plugins/defaultplugins/common/bin_api/interfaces"
 	ip_binapi "github.com/ligato/vpp-agent/plugins/defaultplugins/common/bin_api/ip"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/interfaces"
@@ -33,27 +39,31 @@ import (
 	stn_nb "github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/stn"
 	if_vppcalls "github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/vppcalls"
 	l3_vppcalls "github.com/ligato/vpp-agent/plugins/defaultplugins/l3plugin/vppcalls"
-	"github.com/ligato/vpp-agent/plugins/linuxplugin/ifplugin/linuxcalls"
-
-	govpp "git.fd.io/govpp.git"
-	"git.fd.io/govpp.git/api"
-	"github.com/contiv/vpp/cmd/contiv-stn/model/stn"
+	if_linux "github.com/ligato/vpp-agent/plugins/linuxplugin/common/model/interfaces"
+	l3_linux "github.com/ligato/vpp-agent/plugins/linuxplugin/common/model/l3"
+	if_linuxcalls "github.com/ligato/vpp-agent/plugins/linuxplugin/ifplugin/linuxcalls"
+	l3_linuxcalls "github.com/ligato/vpp-agent/plugins/linuxplugin/l3plugin/linuxcalls"
+	"github.com/vishvananda/netlink"
 )
 
 const (
-	tapHostEndName       = "vpp1"
-	tapVPPEndLogicalName = "tap-vpp2"
+	tapHostEndName        = "vpp1"
+	tapHostEndLogicalName = "tap-vpp1"
+	tapHostEndMacAddr     = "00:00:00:00:00:02" // requirement of the VPP STN plugin
+
 	tapVPPEndName        = "vpp2"
+	tapVPPEndLogicalName = "tap-vpp2"
 )
 
 type vppCfgCtx struct {
 	mainIfIdx  uint32
 	mainIfName string
+	mainIPNet  *net.IPNet
 	mainIP     *net.IPNet
 }
 
 // configureVpp configures main interface and vpp-host interconnect based on provided STN information.
-func configureVpp(stnData *stn.STNReply, vppIfName string) (*vppCfgCtx, error) {
+func configureVpp(contivCfg *contiv.Config, stnData *stn.STNReply, vppIfName string) (*vppCfgCtx, error) {
 	var err error
 
 	// connect to VPP
@@ -81,16 +91,24 @@ func configureVpp(stnData *stn.STNReply, vppIfName string) (*vppCfgCtx, error) {
 		return nil, err
 	}
 
+	// interface tag
+	err = if_vppcalls.SetInterfaceTag(cfg.mainIfName, cfg.mainIfIdx, ch, nil)
+	if err != nil {
+		logger.Errorf("Error by setting the interface %s tag: %v", cfg.mainIfName, err)
+		return nil, err
+	}
+
 	// interface up
 	err = if_vppcalls.InterfaceAdminUp(cfg.mainIfIdx, ch, nil)
 	if err != nil {
-		logger.Errorf("Error by enabling the intrerface %s: %v", cfg.mainIfName, err)
+		logger.Errorf("Error by enabling the interface %s: %v", cfg.mainIfName, err)
 		return nil, err
 	}
 
 	// interface IPs
 	for _, stnAddr := range stnData.IpAddresses {
 		ip, addr, _ := net.ParseCIDR(stnAddr)
+		cfg.mainIPNet = &net.IPNet{IP: addr.IP, Mask: addr.Mask} // deep copy
 		addr.IP = ip
 		cfg.mainIP = addr
 
@@ -123,9 +141,10 @@ func configureVpp(stnData *stn.STNReply, vppIfName string) (*vppCfgCtx, error) {
 
 	// interconnect TAP
 	tapIdx, err := if_vppcalls.AddTapInterface(
+		tapVPPEndLogicalName,
 		&interfaces.Interfaces_Interface_Tap{
 			HostIfName: tapHostEndName,
-			Version:    1, // TODO
+			Version:    uint32(contivCfg.TAPInterfaceVersion),
 		}, ch, nil)
 	if err != nil {
 		logger.Errorf("Error by adding TAP intrerface: %v", err)
@@ -152,31 +171,59 @@ func configureVpp(stnData *stn.STNReply, vppIfName string) (*vppCfgCtx, error) {
 	}
 
 	// host-end TAP config
-	err = linuxcalls.AddInterfaceIP(tapHostEndName, &net.IPNet{IP: cfg.mainIP.IP, Mask: cfg.mainIP.Mask}, nil)
+	err = if_linuxcalls.AddInterfaceIP(logger, tapHostEndName, &net.IPNet{IP: cfg.mainIP.IP, Mask: cfg.mainIP.Mask}, nil)
 	if err != nil {
 		logger.Errorf("Error by configuring host-end TAP interface IP: %v", err)
 		return nil, err
 	}
-	err = linuxcalls.SetInterfaceMac(tapHostEndName, "00:00:00:00:00:02", nil)
+	err = if_linuxcalls.SetInterfaceMac(tapHostEndName, tapHostEndMacAddr, nil)
 	if err != nil {
 		logger.Errorf("Error by configuring host-end TAP interface MAC: %v", err)
 		return nil, err
 	}
 
-	// TODO: do this using linuxcalls once supported
-	err = enableArpProxy(ch, "192.168.168.1", "192.168.168.254", tapIdx) // TODO IP ADDRESSESS
+	// TODO: do this using linuxcalls once supported in vpp-agent
+	firstIP, lastIP := cidr.AddressRange(cfg.mainIPNet)
+	err = enableArpProxy(ch, cidr.Inc(firstIP), cidr.Dec(lastIP), tapIdx)
 	if err != nil {
 		logger.Errorf("Error by configuring proxy ARP: %v", err)
 		return nil, err
 	}
 
-	// TODO: host routes to GW/fake GW
+	// host routes
+	link, err := netlink.LinkByName(tapHostEndName)
+	if err != nil {
+		logger.Errorf("Unable to find link %s: %v", tapHostEndName, err)
+		return nil, err
+	}
+	for _, stnRoute := range stnData.Routes {
+		if stnRoute.NextHopIp == "" {
+			continue // skip routes with no next hop IP (link-local)
+		}
+		dstIP, dstAddr, _ := net.ParseCIDR(stnRoute.DestinationSubnet)
+		dstAddr.IP = dstIP
+		nextHopIP := net.ParseIP(stnRoute.NextHopIp)
+
+		err = l3_linuxcalls.AddStaticRoute(
+			fmt.Sprintf("route-to-%s", dstAddr.String()),
+			&netlink.Route{
+				Dst:       dstAddr,
+				Gw:        nextHopIP,
+				LinkIndex: link.Attrs().Index,
+			},
+			logger,
+			nil)
+		if err != nil {
+			logger.Errorf("Error by configuring host route to %s: %v", dstAddr.String(), err)
+			return nil, err
+		}
+	}
 
 	return cfg, nil
 }
 
 // persistVppConfig persists VPP configuration in ETCD.
-func persistVppConfig(stnData *stn.STNReply, cfg *vppCfgCtx) error {
+func persistVppConfig(contivCfg *contiv.Config, stnData *stn.STNReply, cfg *vppCfgCtx) error {
 	etcdConfig := &etcdv3.Config{}
 
 	// parse ETCD config file
@@ -240,7 +287,7 @@ func persistVppConfig(stnData *stn.STNReply, cfg *vppCfgCtx) error {
 		Enabled: true,
 		Tap: &interfaces.Interfaces_Interface_Tap{
 			HostIfName: tapHostEndName,
-			Version:    1, // TODO
+			Version:    uint32(contivCfg.TAPInterfaceVersion),
 		},
 		Unnumbered: &interfaces.Interfaces_Interface_Unnumbered{
 			IsUnnumbered:    true,
@@ -265,7 +312,39 @@ func persistVppConfig(stnData *stn.STNReply, cfg *vppCfgCtx) error {
 		return err
 	}
 
-	// TODO: host TAP config + host routes
+	// host-end TAP config
+	hostTap := &if_linux.LinuxInterfaces_Interface{
+		Name:        tapHostEndLogicalName,
+		HostIfName:  tapHostEndName,
+		Type:        if_linux.LinuxInterfaces_AUTO_TAP,
+		Enabled:     true,
+		PhysAddress: tapHostEndMacAddr,
+		IpAddresses: []string{cfg.mainIP.String()},
+	}
+	err = pb.Put(if_linux.InterfaceKey(hostTap.Name), hostTap)
+	if err != nil {
+		logger.Errorf("Error by persisting host-end TAP interface config %v", err)
+		return err
+	}
+
+	// host routes
+	for _, stnRoute := range stnData.Routes {
+		if stnRoute.NextHopIp == "" {
+			continue // skip routes with no next hop IP (link-local)
+		}
+		route := &l3_linux.LinuxStaticRoutes_Route{
+			Name:      fmt.Sprintf("route-to-%s", stnRoute.DestinationSubnet),
+			DstIpAddr: stnRoute.DestinationSubnet,
+			GwAddr:    stnRoute.NextHopIp,
+			Interface: tapHostEndLogicalName,
+		}
+		err = pb.Put(l3_linux.StaticRouteKey(route.Name), route)
+		if err != nil {
+			logger.Errorf("Error by persisting TAP interface config %v", err)
+			return err
+		}
+
+	}
 
 	return nil
 }
@@ -300,14 +379,16 @@ func findHwInterfaceIdx(ch *api.Channel) (uint32, string, error) {
 }
 
 // enableArpProxy enables ARP proxy on specified interface on VPP.
-func enableArpProxy(ch *api.Channel, loAddr string, hiAddr string, ifIdx uint32) error {
+func enableArpProxy(ch *api.Channel, loAddr net.IP, hiAddr net.IP, ifIdx uint32) error {
+
+	logger.Debugf("Enabling ARP proxy for IP range %s - %s, ifIdx %d", loAddr.String(), hiAddr.String(), ifIdx)
 
 	// configure proxy arp pool
 	req := &ip_binapi.ProxyArpAddDel{
 		VrfID:      0,
 		IsAdd:      1,
-		LowAddress: []byte(net.ParseIP(loAddr).To4()),
-		HiAddress:  []byte(net.ParseIP(hiAddr).To4()),
+		LowAddress: []byte(loAddr.To4()),
+		HiAddress:  []byte(hiAddr.To4()),
 	}
 	reply := &ip_binapi.ProxyArpAddDelReply{}
 

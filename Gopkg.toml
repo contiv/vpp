@@ -131,6 +131,10 @@ required = ["github.com/wadey/gocovmerge", "github.com/docker/docker/api", "gith
   name = "github.com/vishvananda/netlink"
   revision = "d35d6b58e1cb692b27b94fc403170bf44058ac3e"
 
+[[constraint]]
+  name = "github.com/apparentlymart/go-cidr"
+  revision = "2bd8b58cf4275aeb086ade613de226773e29e853"
+
 [prune]
   go-tests = true
   unused-packages = true

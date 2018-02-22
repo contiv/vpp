@@ -343,15 +343,10 @@ func (s *stnServer) setLinkUp(link netlink.Link) error {
 		l, err := netlink.LinkByName(link.Attrs().Name)
 		if err == nil {
 			if l.Attrs().OperState != netlink.OperDown {
-				// succesfully configured
+				// successfully configured
 				return nil
-			} else {
-				log.Println(l.Attrs().OperState)
 			}
-		} else {
-			log.Println(err)
 		}
-
 		// not configured succesfully
 		if i < configRetryCount-1 {
 			// wait & retry
@@ -541,7 +536,7 @@ func (s *stnServer) grpcReplyData(ifData *interfaceData) *stn.STNReply {
 		route := &stn.STNReply_Route{
 			DestinationSubnet: r.Dst.String(),
 		}
-		if !r.Gw.IsUnspecified() {
+		if len(r.Gw) != 0 {
 			route.NextHopIp = r.Gw.String()
 		}
 		reply.Routes = append(reply.Routes, route)
@@ -581,7 +576,7 @@ func main() {
 	log.Printf("Starting the STN GRPC server at port %d", *grpcServerPort)
 
 	// init GRPC server
-	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", *grpcServerPort))
+	lis, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", *grpcServerPort))
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)
 	}

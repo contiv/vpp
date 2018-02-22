@@ -22,7 +22,7 @@ data:
   contiv.yaml: |
     TCPstackDisabled: True
     UseTAPInterfaces: True
-    TAPInterfaceVersion: 1
+    TAPInterfaceVersion: 2
     IPAMConfig:
       PodSubnetCIDR: "10.1.0.0/16"
       PodNetworkPrefixLen: 24
@@ -75,6 +75,9 @@ data:
     health-check-probe-interval: 1000000000
     health-check-reply-timeout: 500000000
     health-check-threshold: 3
+  logs.conf: |
+    defaultlevel: debug
+
 
 ---
 

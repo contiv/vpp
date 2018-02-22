@@ -111,8 +111,7 @@ func releaseNIC(nicName string) error {
 
 // parseSTNConfig parses the config file and looks up for STN configuration.
 // In case that STN was requested for this node, returns the interface to be stealed and optionally its name on VPP.
-func parseSTNConfig() (nicToSteal string, vppIfName string, err error) {
-	var config contiv.Config
+func parseSTNConfig() (config *contiv.Config, nicToSteal string, vppIfName string, err error) {
 
 	// read config YAML
 	yamlFile, err := ioutil.ReadFile(*contivCfgFile)
@@ -122,15 +121,19 @@ func parseSTNConfig() (nicToSteal string, vppIfName string, err error) {
 	}
 
 	// unmarshall the YAML
-	err = yaml.Unmarshal(yamlFile, &config)
+	config = &contiv.Config{}
+	err = yaml.Unmarshal(yamlFile, config)
 	if err != nil {
 		logger.Errorf("Error by unmarshaling YAML: %v", err)
 		return
 	}
+	if config.TAPInterfaceVersion == 0 {
+		config.TAPInterfaceVersion = 1 // default
+	}
 
 	// try to find node config and return STN interface name if found
 	nodeName := os.Getenv(servicelabel.MicroserviceLabelEnvVar)
-	logger.Debug("Looking for node '%s' specific config", nodeName)
+	logger.Debugf("Looking for node '%s' specific config", nodeName)
 
 	for _, nc := range config.NodeConfig {
 		if nc.NodeName == nodeName {
@@ -141,7 +144,7 @@ func parseSTNConfig() (nicToSteal string, vppIfName string, err error) {
 		}
 	}
 
-	return "", "", nil
+	return
 }
 
 func main() {
@@ -150,7 +153,7 @@ func main() {
 	logger.Debugf("Starting contiv-init process")
 
 	// check whether STN is required and get NIC name
-	nicToSteal, vppIfName, err := parseSTNConfig()
+	contivCfg, nicToSteal, vppIfName, err := parseSTNConfig()
 	if err != nil {
 		logger.Errorf("Error by parsing STN config: %v", err)
 		os.Exit(-1)
@@ -182,14 +185,14 @@ func main() {
 
 	if nicToSteal != "" {
 		// configure connectivity on VPP
-		vppCfg, err := configureVpp(stnData, vppIfName)
+		vppCfg, err := configureVpp(contivCfg, stnData, vppIfName)
 		if err != nil {
 			logger.Errorf("Error by configuring VPP: %v", err)
 			os.Exit(-1)
 		}
 
 		// persist VPP config in ETCD
-		err = persistVppConfig(stnData, vppCfg)
+		err = persistVppConfig(contivCfg, stnData, vppCfg)
 		if err != nil {
 			logger.Errorf("Error by persisting VPP config in ETCD: %v", err)
 			os.Exit(-1)

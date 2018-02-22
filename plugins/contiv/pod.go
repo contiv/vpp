@@ -122,7 +122,7 @@ func (s *remoteCNIserver) configureHostTAP(request *cni.CNIRequest, podIPNet *ne
 	}
 
 	// Set TAP interface IP to that of the Pod.
-	err = linuxcalls.AddInterfaceIP(tapHostIfName, podIPNet, nil)
+	err = linuxcalls.AddInterfaceIP(s.Logger, tapHostIfName, podIPNet, nil)
 	if err != nil {
 		return err
 	}

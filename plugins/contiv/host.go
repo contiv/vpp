@@ -27,7 +27,6 @@ import (
 	vpp_l4 "github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/l4"
 	linux_intf "github.com/ligato/vpp-agent/plugins/linuxplugin/common/model/interfaces"
 	linux_l3 "github.com/ligato/vpp-agent/plugins/linuxplugin/common/model/l3"
-	"github.com/ligato/vpp-agent/plugins/linuxplugin/ifplugin/linuxcalls"
 	"github.com/vishvananda/netlink"
 )
 
@@ -129,9 +128,14 @@ func (s *remoteCNIserver) interconnectTap() *vpp_intf.Interfaces_Interface {
 	return tap
 }
 
-func (s *remoteCNIserver) configureInterfconnectHostTap() error {
-	// Set TAP interface IP to that of the Pod.
-	return linuxcalls.AddInterfaceIP(tapHostEndName, &net.IPNet{IP: s.ipam.VEthHostEndIP(), Mask: s.ipam.VPPHostNetwork().Mask}, nil)
+func (s *remoteCNIserver) interconnectTapHost() *linux_intf.LinuxInterfaces_Interface {
+	size, _ := s.ipam.VPPHostNetwork().Mask.Size()
+	return &linux_intf.LinuxInterfaces_Interface{
+		Name:        tapHostEndName,
+		Type:        linux_intf.LinuxInterfaces_AUTO_TAP,
+		Enabled:     true,
+		IpAddresses: []string{s.ipam.VEthHostEndIP().String() + "/" + strconv.Itoa(size)},
+	}
 }
 
 func (s *remoteCNIserver) interconnectVethHost() *linux_intf.LinuxInterfaces_Interface {

@@ -30,9 +30,7 @@ RUN /bin/bash -c "if [ '${VPP_COMMIT_ID}' != 'xxx' ]; then \
         git checkout ${VPP_COMMIT_ID} && \
         rm -rf build-root/ && \
         git reset --hard HEAD && \
-        yes | make install-dep && \
-        make bootstrap && \
-        make pkg-deb; \
+        UNATTENDED=y make vpp_configure_args_vpp='--disable-japi --disable-vom' install-dep bootstrap pkg-deb; \
     fi"
 
 # if VPP comit ID is specified and debug build is not skipped, run the debug build too

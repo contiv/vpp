@@ -23,7 +23,7 @@ DEV_UPLOAD="false"
 CLEANUP="false"
 
 # list of images we are tagging & pushing
-IMAGES=("cni" "ksr" "cri")
+IMAGES=("cni" "ksr" "cri" "stn")
 IMAGES_VPP=("vswitch")
 
 # override defaults from arguments

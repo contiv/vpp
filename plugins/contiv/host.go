@@ -20,7 +20,6 @@ import (
 	"strconv"
 	"strings"
 
-	binapi_ip "github.com/ligato/vpp-agent/plugins/defaultplugins/common/bin_api/ip"
 	vpp_intf "github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/interfaces"
 	vpp_l2 "github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/l2"
 	vpp_l3 "github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/l3"
@@ -336,30 +335,4 @@ func (s *remoteCNIserver) getHostLinkIPs() ([]string, error) {
 		}
 	}
 	return res, nil
-}
-
-func (s *remoteCNIserver) getInterfaceIP(ifIdx uint32) (string, error) {
-	req := &binapi_ip.IPAddressDump{
-		SwIfIndex: ifIdx,
-		IsIpv6:    0,
-	}
-	reqCtx := s.govppChan.SendMultiRequest(req)
-
-	ipAddr := ""
-	for {
-		msg := &binapi_ip.IPAddressDetails{}
-		stop, err := reqCtx.ReceiveReply(msg)
-		if stop {
-			break // break out of the loop
-		}
-		if err != nil {
-			s.Logger.Errorf("Error by listing interface IPs: %v", err)
-			return "", err
-		}
-		if msg.IsIpv6 == 0 {
-			ipAddr = fmt.Sprintf("%s/%d", net.IP(msg.IP[:4]).To4().String(), uint32(msg.PrefixLength))
-			// do not break the loop - we need to read till the end
-		}
-	}
-	return ipAddr, nil
 }

@@ -94,7 +94,18 @@ On the `192.168.56.106` node you add the following line to `10-kubeadm.conf`:
 Environment="KUBELET_EXTRA_ARGS=--fail-swap-on=false --node-ip=192.168.56.106"
 ```
 
-#### 1.4 (Optional): Installing the CRI Shim on your hosts
+#### 1.4 (Optional): Installing the STN daemon on your hosts
+If you plan to use the "Steal the NIC" feature (STN), for deployments
+on nodes with just single network interface, you must first install the
+STN daemon on each host of the k8s cluster. The STN daemon installation
+should be performed before deployment of the Contiv-VPP plugin.
+
+Run as root (not using sudo):
+```
+bash <(curl -s https://raw.githubusercontent.com/contiv/vpp/master/k8s/stn-install.sh)
+```
+
+#### 1.5 (Optional): Installing the CRI Shim on your hosts
 If your pods will be using the VPP TCP/IP stack, you must first install the
 CRI Shim on each host where the stack will be used. The CRI Shim installation
 should only be performed after `kubelet`, `kubeadm` and `kubectl` have already
@@ -107,11 +118,12 @@ bash <(curl -s https://raw.githubusercontent.com/contiv/vpp/master/k8s/cri-insta
 Note that the CRI Shim installer has only been tested  with the [kubeadm][1]
 K8s cluster creation tool.
 
+
 After installing the CRI Shim, please proceed with cluster initialization,
 as described in the steps below. Alternatively, if the cluster had already
 been initialized before installing the CRI Shim, just reboot the node.
 
-The steps 1.2 - 1.4 can be set up interactively using [script](../k8s/setup-node.sh).
+The steps 1.2 - 1.5 can be set up interactively using [script](../k8s/setup-node.sh).
 ```
 bash <(curl https://raw.githubusercontent.com/contiv/vpp/master/k8s/setup-node.sh)
 ```

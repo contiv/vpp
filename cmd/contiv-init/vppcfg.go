@@ -53,6 +53,8 @@ const (
 
 	tapVPPEndName        = "vpp2"
 	tapVPPEndLogicalName = "tap-vpp2"
+
+	etcdConnectionRetries = 10
 )
 
 type vppCfgCtx struct {
@@ -233,18 +235,28 @@ func persistVppConfig(contivCfg *contiv.Config, stnData *stn.STNReply, cfg *vppC
 		return err
 	}
 
-	// connect to ETCD
+	// prepare ETCD config
 	etcdCfg, err := etcdv3.ConfigToClientv3(etcdConfig)
 	if err != nil {
 		logger.Errorf("Error by constructing ETCD config: %v", err)
 		return err
 	}
-	db, err := etcdv3.NewEtcdConnectionWithBytes(*etcdCfg, logger)
-	if err != nil {
-		logger.Errorf("Error by connecting to ETCD: %v", err)
-		return err
+
+	// connect in retry loop
+	var conn *etcdv3.BytesConnectionEtcd
+	for i := 0; i < etcdConnectionRetries; i++ {
+		conn, err = etcdv3.NewEtcdConnectionWithBytes(*etcdCfg, logger)
+		if err != nil {
+			if i == etcdConnectionRetries-1 {
+				logger.Errorf("Error by connecting to ETCD: %v", err)
+				return err
+			} else {
+				logger.Debugf("ETCD connection retry n. %d", i+1)
+			}
+		}
 	}
-	protoDb := kvproto.NewProtoWrapperWithSerializer(db, &keyval.SerializerJSON{})
+
+	protoDb := kvproto.NewProtoWrapperWithSerializer(conn, &keyval.SerializerJSON{})
 	pb := protoDb.NewBroker(servicelabel.GetDifferentAgentPrefix(os.Getenv(servicelabel.MicroserviceLabelEnvVar)))
 	defer protoDb.Close()
 

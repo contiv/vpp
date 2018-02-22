@@ -75,11 +75,14 @@ Contiv-VPP CRI Shim installer / uninstaller, that can be used as follows:
 ./cri-install.sh --uninstall
 ```
 
-#### proxy-install.sh
-Pre-installs custom version of Kube-Proxy that works with the Contiv-VPP. Needs to be done
-on each node, before initializing the cluster with `kubeadm init` or joining the cluster with `kubeadm join`.
+#### stn-install.sh
+Contiv-VPP STN daemon installer / uninstaller, that can be used as follows:
 ```
-./proxy-install.sh
+# install
+./stn-install.sh
+
+# uninstall
+./stn-install.sh --uninstall
 ```
 
 #### pull-images.sh

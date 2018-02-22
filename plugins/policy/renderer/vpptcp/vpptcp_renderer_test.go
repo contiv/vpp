@@ -29,6 +29,7 @@ import (
 	. "github.com/contiv/vpp/mock/sessionrules"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	"github.com/contiv/vpp/plugins/policy/renderer"
+	vpptcprule "github.com/contiv/vpp/plugins/policy/renderer/vpptcp/rule"
 	. "github.com/contiv/vpp/plugins/policy/utils"
 )
 
@@ -46,7 +47,7 @@ func ipNetwork(addr string) *net.IPNet {
 func TestMain(m *testing.M) {
 	logger := logrus.DefaultLogger()
 	logger.SetLevel(logging.DebugLevel)
-	mockSessionRules = NewMockSessionRules(logger, SessionRuleTagPrefix)
+	mockSessionRules = NewMockSessionRules(logger, vpptcprule.SessionRuleTagPrefix)
 	os.Exit(m.Run())
 }
 
@@ -66,7 +67,6 @@ func TestSingleEgressRuleSinglePod(t *testing.T) {
 	pod1 := podmodel.ID{Name: pod1Name, Namespace: namespace}
 
 	rule := &renderer.ContivRule{
-		ID:          "deny-http",
 		Action:      renderer.ActionDeny,
 		SrcNetwork:  ipNetwork("192.168.2.0/24"),
 		DestNetwork: ipNetwork(""),
@@ -96,7 +96,7 @@ func TestSingleEgressRuleSinglePod(t *testing.T) {
 	vppTCPRenderer.Init()
 
 	// Execute Renderer transaction.
-	vppTCPRenderer.NewTxn(false).Render(pod1, GetOneHostSubnet(pod1IP), ingress, egress).Commit()
+	vppTCPRenderer.NewTxn(false).Render(pod1, GetOneHostSubnet(pod1IP), ingress, egress, false).Commit()
 
 	// Verify output
 	gomega.Expect(mockSessionRules.GetErrCount()).To(gomega.BeEquivalentTo(0))
@@ -122,7 +122,6 @@ func TestSingleIngressRuleSinglePod(t *testing.T) {
 	pod1 := podmodel.ID{Name: pod1Name, Namespace: namespace}
 
 	rule := &renderer.ContivRule{
-		ID:          "deny-ssh",
 		Action:      renderer.ActionDeny,
 		SrcNetwork:  ipNetwork(""),
 		DestNetwork: ipNetwork("10.0.0.0/8"),
@@ -152,7 +151,7 @@ func TestSingleIngressRuleSinglePod(t *testing.T) {
 	vppTCPRenderer.Init()
 
 	// Execute Renderer transaction.
-	vppTCPRenderer.NewTxn(false).Render(pod1, GetOneHostSubnet(pod1IP), ingress, egress).Commit()
+	vppTCPRenderer.NewTxn(false).Render(pod1, GetOneHostSubnet(pod1IP), ingress, egress, false).Commit()
 
 	// Verify output
 	gomega.Expect(mockSessionRules.GetErrCount()).To(gomega.BeEquivalentTo(0))
@@ -178,7 +177,6 @@ func TestMultipleRulesSinglePodWithDataChange(t *testing.T) {
 	pod1 := podmodel.ID{Name: pod1Name, Namespace: namespace}
 
 	inRule1 := &renderer.ContivRule{
-		ID:          "deny-ssh",
 		Action:      renderer.ActionDeny,
 		SrcNetwork:  ipNetwork(""),
 		DestNetwork: ipNetwork("10.0.0.0/8"),
@@ -187,7 +185,6 @@ func TestMultipleRulesSinglePodWithDataChange(t *testing.T) {
 		DestPort:    22,
 	}
 	inRule2 := &renderer.ContivRule{
-		ID:          "deny-http",
 		Action:      renderer.ActionDeny,
 		SrcNetwork:  ipNetwork(""),
 		DestNetwork: ipNetwork("10.1.0.0/16"),
@@ -196,7 +193,6 @@ func TestMultipleRulesSinglePodWithDataChange(t *testing.T) {
 		DestPort:    80,
 	}
 	egRule1 := &renderer.ContivRule{
-		ID:          "allow-telnet",
 		Action:      renderer.ActionPermit,
 		SrcNetwork:  ipNetwork("192.168.2.0/24"),
 		DestNetwork: ipNetwork(""),
@@ -205,7 +201,6 @@ func TestMultipleRulesSinglePodWithDataChange(t *testing.T) {
 		DestPort:    23,
 	}
 	egRule2 := &renderer.ContivRule{
-		ID:          "deny-udp",
 		Action:      renderer.ActionDeny,
 		SrcNetwork:  ipNetwork(""),
 		DestNetwork: ipNetwork(""),
@@ -236,7 +231,7 @@ func TestMultipleRulesSinglePodWithDataChange(t *testing.T) {
 	vppTCPRenderer.Init()
 
 	// Execute first Renderer transaction.
-	vppTCPRenderer.NewTxn(false).Render(pod1, GetOneHostSubnet(pod1IP), ingress, egress).Commit()
+	vppTCPRenderer.NewTxn(false).Render(pod1, GetOneHostSubnet(pod1IP), ingress, egress, false).Commit()
 
 	// Verify output
 	gomega.Expect(mockSessionRules.GetErrCount()).To(gomega.BeEquivalentTo(0))
@@ -251,7 +246,6 @@ func TestMultipleRulesSinglePodWithDataChange(t *testing.T) {
 
 	// Prepare new data.
 	inRule3 := &renderer.ContivRule{
-		ID:          "deny-tcp",
 		Action:      renderer.ActionDeny,
 		SrcNetwork:  ipNetwork(""),
 		DestNetwork: ipNetwork(""),
@@ -264,17 +258,15 @@ func TestMultipleRulesSinglePodWithDataChange(t *testing.T) {
 	egress2 := []*renderer.ContivRule{egRule2}
 
 	// Execute second first Renderer transaction.
-	vppTCPRenderer.NewTxn(false).Render(pod1, GetOneHostSubnet(pod1IP), ingress2, egress2).Commit()
+	vppTCPRenderer.NewTxn(false).Render(pod1, GetOneHostSubnet(pod1IP), ingress2, egress2, false).Commit()
 
 	// Verify output
 	gomega.Expect(mockSessionRules.GetErrCount()).To(gomega.BeEquivalentTo(0))
-	gomega.Expect(mockSessionRules.GetReqCount()).To(gomega.BeEquivalentTo(11))
-	gomega.Expect(mockSessionRules.LocalTable(pod1VPPNsIndex).NumOfRules()).To(gomega.BeEquivalentTo(5))
+	gomega.Expect(mockSessionRules.GetReqCount()).To(gomega.BeEquivalentTo(9))
+	gomega.Expect(mockSessionRules.LocalTable(pod1VPPNsIndex).NumOfRules()).To(gomega.BeEquivalentTo(3))
 	gomega.Expect(mockSessionRules.LocalTable(pod1VPPNsIndex).HasRule("", 0, "10.0.0.0/8", 22, "TCP", "DENY")).To(gomega.BeTrue())
 	gomega.Expect(mockSessionRules.LocalTable(pod1VPPNsIndex).HasRule("", 0, "0.0.0.0/1", 0, "TCP", "DENY")).To(gomega.BeTrue())
 	gomega.Expect(mockSessionRules.LocalTable(pod1VPPNsIndex).HasRule("", 0, "128.0.0.0/1", 0, "TCP", "DENY")).To(gomega.BeTrue())
-	gomega.Expect(mockSessionRules.LocalTable(pod1VPPNsIndex).HasRule("", 0, "0000:0000:0000:0000:0000:0000:0000:0000/1", 0, "TCP", "DENY")).To(gomega.BeTrue())
-	gomega.Expect(mockSessionRules.LocalTable(pod1VPPNsIndex).HasRule("", 0, "8000:0000:0000:0000:0000:0000:0000:0000/1", 0, "TCP", "DENY")).To(gomega.BeTrue())
 	gomega.Expect(mockSessionRules.GlobalTable().NumOfRules()).To(gomega.BeEquivalentTo(2))
 	gomega.Expect(mockSessionRules.GlobalTable().HasRule(pod1IP, 0, "0.0.0.0/1", 0, "UDP", "DENY")).To(gomega.BeTrue())
 	gomega.Expect(mockSessionRules.GlobalTable().HasRule(pod1IP, 0, "128.0.0.0/1", 0, "UDP", "DENY")).To(gomega.BeTrue())
@@ -301,7 +293,6 @@ func TestMultipleRulesMultiplePodsWithDataChange(t *testing.T) {
 	pod2 := podmodel.ID{Name: pod2Name, Namespace: namespace}
 
 	inRule1 := &renderer.ContivRule{
-		ID:          "deny-ssh",
 		Action:      renderer.ActionDeny,
 		SrcNetwork:  ipNetwork(""),
 		DestNetwork: ipNetwork("10.0.0.0/8"),
@@ -310,7 +301,6 @@ func TestMultipleRulesMultiplePodsWithDataChange(t *testing.T) {
 		DestPort:    22,
 	}
 	inRule2 := &renderer.ContivRule{
-		ID:          "deny-http",
 		Action:      renderer.ActionDeny,
 		SrcNetwork:  ipNetwork(""),
 		DestNetwork: ipNetwork("10.1.0.0/16"),
@@ -319,7 +309,6 @@ func TestMultipleRulesMultiplePodsWithDataChange(t *testing.T) {
 		DestPort:    80,
 	}
 	egRule1 := &renderer.ContivRule{
-		ID:          "allow-telnet",
 		Action:      renderer.ActionPermit,
 		SrcNetwork:  ipNetwork("192.168.2.0/24"),
 		DestNetwork: ipNetwork(""),
@@ -328,7 +317,6 @@ func TestMultipleRulesMultiplePodsWithDataChange(t *testing.T) {
 		DestPort:    23,
 	}
 	egRule2 := &renderer.ContivRule{
-		ID:          "deny-udp",
 		Action:      renderer.ActionDeny,
 		SrcNetwork:  ipNetwork(""),
 		DestNetwork: ipNetwork(""),
@@ -363,8 +351,8 @@ func TestMultipleRulesMultiplePodsWithDataChange(t *testing.T) {
 
 	// Execute first Renderer transaction for two pods.
 	txn := vppTCPRenderer.NewTxn(false)
-	txn.Render(pod1, GetOneHostSubnet(pod1IP), ingressPod1, egressPod1)
-	txn.Render(pod2, GetOneHostSubnet(pod2IP), ingressPod2, egressPod2)
+	txn.Render(pod1, GetOneHostSubnet(pod1IP), ingressPod1, egressPod1, false)
+	txn.Render(pod2, GetOneHostSubnet(pod2IP), ingressPod2, egressPod2, false)
 	txn.Commit()
 
 	// Verify output
@@ -384,7 +372,6 @@ func TestMultipleRulesMultiplePodsWithDataChange(t *testing.T) {
 
 	// Prepare new data.
 	inRule3 := &renderer.ContivRule{
-		ID:          "deny-tcp",
 		Action:      renderer.ActionDeny,
 		SrcNetwork:  ipNetwork(""),
 		DestNetwork: ipNetwork(""),
@@ -401,21 +388,19 @@ func TestMultipleRulesMultiplePodsWithDataChange(t *testing.T) {
 
 	// Execute second Renderer transaction for both pods.
 	txn = vppTCPRenderer.NewTxn(false)
-	txn.Render(pod1, GetOneHostSubnet(pod1IP), ingressPod1, egressPod1)
-	txn.Render(pod2, GetOneHostSubnet(pod2IP), ingressPod2, egressPod2)
+	txn.Render(pod1, GetOneHostSubnet(pod1IP), ingressPod1, egressPod1, false)
+	txn.Render(pod2, GetOneHostSubnet(pod2IP), ingressPod2, egressPod2, false)
 	txn.Commit()
 
 	// Verify output
 	gomega.Expect(mockSessionRules.GetErrCount()).To(gomega.BeEquivalentTo(0))
-	gomega.Expect(mockSessionRules.GetReqCount()).To(gomega.BeEquivalentTo(16))
+	gomega.Expect(mockSessionRules.GetReqCount()).To(gomega.BeEquivalentTo(14))
 	gomega.Expect(mockSessionRules.LocalTable(pod1VPPNsIndex).NumOfRules()).To(gomega.BeEquivalentTo(1))
 	gomega.Expect(mockSessionRules.LocalTable(pod1VPPNsIndex).HasRule("", 0, "10.0.0.0/8", 22, "TCP", "DENY")).To(gomega.BeTrue())
-	gomega.Expect(mockSessionRules.LocalTable(pod2VPPNsIndex).NumOfRules()).To(gomega.BeEquivalentTo(5))
+	gomega.Expect(mockSessionRules.LocalTable(pod2VPPNsIndex).NumOfRules()).To(gomega.BeEquivalentTo(3))
 	gomega.Expect(mockSessionRules.LocalTable(pod2VPPNsIndex).HasRule("", 0, "10.0.0.0/8", 22, "TCP", "DENY")).To(gomega.BeTrue())
 	gomega.Expect(mockSessionRules.LocalTable(pod2VPPNsIndex).HasRule("", 0, "0.0.0.0/1", 0, "TCP", "DENY")).To(gomega.BeTrue())
 	gomega.Expect(mockSessionRules.LocalTable(pod2VPPNsIndex).HasRule("", 0, "128.0.0.0/1", 0, "TCP", "DENY")).To(gomega.BeTrue())
-	gomega.Expect(mockSessionRules.LocalTable(pod2VPPNsIndex).HasRule("", 0, "0000:0000:0000:0000:0000:0000:0000:0000/1", 0, "TCP", "DENY")).To(gomega.BeTrue())
-	gomega.Expect(mockSessionRules.LocalTable(pod2VPPNsIndex).HasRule("", 0, "8000:0000:0000:0000:0000:0000:0000:0000/1", 0, "TCP", "DENY")).To(gomega.BeTrue())
 	gomega.Expect(mockSessionRules.GlobalTable().NumOfRules()).To(gomega.BeEquivalentTo(2))
 	gomega.Expect(mockSessionRules.GlobalTable().HasRule(pod1IP, 0, "0.0.0.0/1", 0, "UDP", "DENY")).To(gomega.BeTrue())
 	gomega.Expect(mockSessionRules.GlobalTable().HasRule(pod1IP, 0, "128.0.0.0/1", 0, "UDP", "DENY")).To(gomega.BeTrue())
@@ -441,7 +426,6 @@ func TestMultipleRulesMultiplePodsWithResync(t *testing.T) {
 	pod2 := podmodel.ID{Name: pod2Name, Namespace: namespace}
 
 	inRule1 := &renderer.ContivRule{
-		ID:          "deny-ssh",
 		Action:      renderer.ActionDeny,
 		SrcNetwork:  ipNetwork(""),
 		DestNetwork: ipNetwork("10.0.0.0/8"),
@@ -450,7 +434,6 @@ func TestMultipleRulesMultiplePodsWithResync(t *testing.T) {
 		DestPort:    22,
 	}
 	inRule2 := &renderer.ContivRule{
-		ID:          "deny-http",
 		Action:      renderer.ActionDeny,
 		SrcNetwork:  ipNetwork(""),
 		DestNetwork: ipNetwork("10.1.0.0/16"),
@@ -459,7 +442,6 @@ func TestMultipleRulesMultiplePodsWithResync(t *testing.T) {
 		DestPort:    80,
 	}
 	egRule1 := &renderer.ContivRule{
-		ID:          "allow-telnet",
 		Action:      renderer.ActionPermit,
 		SrcNetwork:  ipNetwork("192.168.2.0/24"),
 		DestNetwork: ipNetwork(""),
@@ -468,7 +450,6 @@ func TestMultipleRulesMultiplePodsWithResync(t *testing.T) {
 		DestPort:    23,
 	}
 	egRule2 := &renderer.ContivRule{
-		ID:          "deny-udp",
 		Action:      renderer.ActionDeny,
 		SrcNetwork:  ipNetwork(""),
 		DestNetwork: ipNetwork(""),
@@ -504,8 +485,8 @@ func TestMultipleRulesMultiplePodsWithResync(t *testing.T) {
 
 	// Execute first Renderer transaction for two pods.
 	txn := vppTCPRenderer.NewTxn(false)
-	txn.Render(pod1, GetOneHostSubnet(pod1IP), ingressPod1, egressPod1)
-	txn.Render(pod2, GetOneHostSubnet(pod2IP), ingressPod2, egressPod2)
+	txn.Render(pod1, GetOneHostSubnet(pod1IP), ingressPod1, egressPod1, false)
+	txn.Render(pod2, GetOneHostSubnet(pod2IP), ingressPod2, egressPod2, false)
 	txn.Commit()
 
 	// Verify output
@@ -525,7 +506,6 @@ func TestMultipleRulesMultiplePodsWithResync(t *testing.T) {
 
 	// Prepare new data.
 	inRule3 := &renderer.ContivRule{
-		ID:          "deny-tcp",
 		Action:      renderer.ActionDeny,
 		SrcNetwork:  ipNetwork(""),
 		DestNetwork: ipNetwork(""),
@@ -552,21 +532,19 @@ func TestMultipleRulesMultiplePodsWithResync(t *testing.T) {
 
 	// Execute RESYNC Renderer transaction for both pods.
 	txn = vppTCPRenderer.NewTxn(true)
-	txn.Render(pod1, GetOneHostSubnet(pod1IP), ingressPod1, egressPod1)
-	txn.Render(pod2, GetOneHostSubnet(pod2IP), ingressPod2, egressPod2)
+	txn.Render(pod1, GetOneHostSubnet(pod1IP), ingressPod1, egressPod1, false)
+	txn.Render(pod2, GetOneHostSubnet(pod2IP), ingressPod2, egressPod2, false)
 	txn.Commit()
 
 	// Verify output
 	gomega.Expect(mockSessionRules.GetErrCount()).To(gomega.BeEquivalentTo(0))
-	gomega.Expect(mockSessionRules.GetReqCount()).To(gomega.BeEquivalentTo(18))
+	gomega.Expect(mockSessionRules.GetReqCount()).To(gomega.BeEquivalentTo(16))
 	gomega.Expect(mockSessionRules.LocalTable(pod1VPPNsIndex).NumOfRules()).To(gomega.BeEquivalentTo(1))
 	gomega.Expect(mockSessionRules.LocalTable(pod1VPPNsIndex).HasRule("", 0, "10.0.0.0/8", 22, "TCP", "DENY")).To(gomega.BeTrue())
-	gomega.Expect(mockSessionRules.LocalTable(pod2VPPNsIndex).NumOfRules()).To(gomega.BeEquivalentTo(5))
+	gomega.Expect(mockSessionRules.LocalTable(pod2VPPNsIndex).NumOfRules()).To(gomega.BeEquivalentTo(3))
 	gomega.Expect(mockSessionRules.LocalTable(pod2VPPNsIndex).HasRule("", 0, "10.0.0.0/8", 22, "TCP", "DENY")).To(gomega.BeTrue())
 	gomega.Expect(mockSessionRules.LocalTable(pod2VPPNsIndex).HasRule("", 0, "0.0.0.0/1", 0, "TCP", "DENY")).To(gomega.BeTrue())
 	gomega.Expect(mockSessionRules.LocalTable(pod2VPPNsIndex).HasRule("", 0, "128.0.0.0/1", 0, "TCP", "DENY")).To(gomega.BeTrue())
-	gomega.Expect(mockSessionRules.LocalTable(pod2VPPNsIndex).HasRule("", 0, "0000:0000:0000:0000:0000:0000:0000:0000/1", 0, "TCP", "DENY")).To(gomega.BeTrue())
-	gomega.Expect(mockSessionRules.LocalTable(pod2VPPNsIndex).HasRule("", 0, "8000:0000:0000:0000:0000:0000:0000:0000/1", 0, "TCP", "DENY")).To(gomega.BeTrue())
 	gomega.Expect(mockSessionRules.GlobalTable().NumOfRules()).To(gomega.BeEquivalentTo(2))
 	gomega.Expect(mockSessionRules.GlobalTable().HasRule(pod1IP, 0, "0.0.0.0/1", 0, "UDP", "DENY")).To(gomega.BeTrue())
 	gomega.Expect(mockSessionRules.GlobalTable().HasRule(pod1IP, 0, "128.0.0.0/1", 0, "UDP", "DENY")).To(gomega.BeTrue())
@@ -588,7 +566,6 @@ func TestSinglePodWithResync(t *testing.T) {
 	pod1 := podmodel.ID{Name: pod1Name, Namespace: namespace}
 
 	inRule1 := &renderer.ContivRule{
-		ID:          "allow-ssh",
 		Action:      renderer.ActionPermit,
 		SrcNetwork:  ipNetwork(""),
 		DestNetwork: ipNetwork("10.0.0.0/8"),
@@ -597,7 +574,6 @@ func TestSinglePodWithResync(t *testing.T) {
 		DestPort:    22,
 	}
 	inRule2 := &renderer.ContivRule{
-		ID:          "allow-telnet",
 		Action:      renderer.ActionPermit,
 		SrcNetwork:  ipNetwork(""),
 		DestNetwork: ipNetwork("10.0.0.0/8"),
@@ -606,7 +582,6 @@ func TestSinglePodWithResync(t *testing.T) {
 		DestPort:    23,
 	}
 	egRule1 := &renderer.ContivRule{
-		ID:          "deny-http",
 		Action:      renderer.ActionDeny,
 		SrcNetwork:  ipNetwork("192.168.2.0/24"),
 		DestNetwork: ipNetwork(""),
@@ -636,7 +611,7 @@ func TestSinglePodWithResync(t *testing.T) {
 	vppTCPRenderer.Init()
 
 	// Execute Renderer transaction.
-	vppTCPRenderer.NewTxn(false).Render(pod1, GetOneHostSubnet(pod1IP), ingress, egress).Commit()
+	vppTCPRenderer.NewTxn(false).Render(pod1, GetOneHostSubnet(pod1IP), ingress, egress, false).Commit()
 
 	// Verify output
 	gomega.Expect(mockSessionRules.GetErrCount()).To(gomega.BeEquivalentTo(0))
@@ -658,7 +633,7 @@ func TestSinglePodWithResync(t *testing.T) {
 	vppTCPRenderer.Init()
 
 	// Execute Renderer RESYNC transaction.
-	vppTCPRenderer.NewTxn(true).Render(pod1, GetOneHostSubnet(pod1IP), ingress, egress).Commit()
+	vppTCPRenderer.NewTxn(true).Render(pod1, GetOneHostSubnet(pod1IP), ingress, egress, false).Commit()
 
 	// Verify output
 	gomega.Expect(mockSessionRules.GetErrCount()).To(gomega.BeEquivalentTo(0))
@@ -681,7 +656,6 @@ func TestSinglePodWithResync(t *testing.T) {
 
 	// Prepare new data.
 	egRule2 := &renderer.ContivRule{
-		ID:          "allow-UDP",
 		Action:      renderer.ActionPermit,
 		SrcNetwork:  ipNetwork("192.168.3.0/24"),
 		DestNetwork: ipNetwork(""),
@@ -694,7 +668,7 @@ func TestSinglePodWithResync(t *testing.T) {
 	egress2 := []*renderer.ContivRule{egRule1, egRule2}
 
 	// Execute Renderer transaction.
-	vppTCPRenderer.NewTxn(true).Render(pod1, GetOneHostSubnet(pod1IP), ingress2, egress2).Commit()
+	vppTCPRenderer.NewTxn(true).Render(pod1, GetOneHostSubnet(pod1IP), ingress2, egress2, false).Commit()
 
 	// Verify output
 	gomega.Expect(mockSessionRules.GetErrCount()).To(gomega.BeEquivalentTo(0))
@@ -704,72 +678,4 @@ func TestSinglePodWithResync(t *testing.T) {
 	gomega.Expect(mockSessionRules.GlobalTable().NumOfRules()).To(gomega.BeEquivalentTo(2))
 	gomega.Expect(mockSessionRules.GlobalTable().HasRule(pod1IP, 80, "192.168.2.0/24", 0, "TCP", "DENY")).To(gomega.BeTrue())
 	gomega.Expect(mockSessionRules.GlobalTable().HasRule(pod1IP, 0, "192.168.3.0/24", 0, "UDP", "ALLOW")).To(gomega.BeTrue())
-}
-
-func TestRuleIDChange(t *testing.T) {
-	gomega.RegisterTestingT(t)
-	logger := logrus.DefaultLogger()
-	logger.SetLevel(logging.DebugLevel)
-	logger.Debug("TestTagChange")
-
-	// Prepare input data.
-	const (
-		namespace      = "default"
-		pod1Name       = "pod1"
-		pod1IP         = "192.168.1.1"
-		pod1VPPNsIndex = 10
-	)
-	pod1 := podmodel.ID{Name: pod1Name, Namespace: namespace}
-
-	rule := &renderer.ContivRule{
-		ID:          "deny-http",
-		Action:      renderer.ActionDeny,
-		SrcNetwork:  ipNetwork("192.168.2.0/24"),
-		DestNetwork: ipNetwork(""),
-		Protocol:    renderer.TCP,
-		SrcPort:     0,
-		DestPort:    80,
-	}
-	ingress := []*renderer.ContivRule{}
-	egress := []*renderer.ContivRule{rule}
-
-	// Prepare mocks.
-	contiv := NewMockContiv()
-	contiv.SetPodNsIndex(pod1, pod1VPPNsIndex)
-	mockSessionRules.Clear()
-	vppChan := mockSessionRules.NewVPPChan()
-	gomega.Expect(vppChan).ToNot(gomega.BeNil())
-
-	// Prepare VPPTCP Renderer.
-	vppTCPRenderer := &Renderer{
-		Deps: Deps{
-			Log:       logger,
-			Contiv:    contiv,
-			GoVPPChan: vppChan,
-		},
-	}
-	vppTCPRenderer.Init()
-
-	// Execute first Renderer transaction.
-	vppTCPRenderer.NewTxn(false).Render(pod1, GetOneHostSubnet(pod1IP), ingress, egress).Commit()
-
-	// Verify output
-	gomega.Expect(mockSessionRules.GetErrCount()).To(gomega.BeEquivalentTo(0))
-	gomega.Expect(mockSessionRules.GetReqCount()).To(gomega.BeEquivalentTo(1))
-	gomega.Expect(mockSessionRules.LocalTable(pod1VPPNsIndex).NumOfRules()).To(gomega.BeEquivalentTo(0))
-	gomega.Expect(mockSessionRules.GlobalTable().NumOfRules()).To(gomega.BeEquivalentTo(1))
-	gomega.Expect(mockSessionRules.GlobalTable().HasRule(pod1IP, 80, "192.168.2.0/24", 0, "TCP", "DENY")).To(gomega.BeTrue())
-
-	// Change rule ID.
-	rule.ID = "deny-http2"
-
-	// Execute second Renderer transaction.
-	vppTCPRenderer.NewTxn(false).Render(pod1, GetOneHostSubnet(pod1IP), ingress, egress).Commit()
-
-	// Verify output
-	gomega.Expect(mockSessionRules.GetErrCount()).To(gomega.BeEquivalentTo(0))
-	gomega.Expect(mockSessionRules.GetReqCount()).To(gomega.BeEquivalentTo(3)) // + removed + added
-	gomega.Expect(mockSessionRules.LocalTable(pod1VPPNsIndex).NumOfRules()).To(gomega.BeEquivalentTo(0))
-	gomega.Expect(mockSessionRules.GlobalTable().NumOfRules()).To(gomega.BeEquivalentTo(1))
-	gomega.Expect(mockSessionRules.GlobalTable().HasRule(pod1IP, 80, "192.168.2.0/24", 0, "TCP", "DENY")).To(gomega.BeTrue())
 }

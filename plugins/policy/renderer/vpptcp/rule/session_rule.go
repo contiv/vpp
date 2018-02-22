@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package vpptcp
+package rule
 
 import (
 	"bytes"
@@ -26,6 +26,7 @@ import (
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	"github.com/contiv/vpp/plugins/policy/renderer"
 	"github.com/contiv/vpp/plugins/policy/renderer/cache"
+	"github.com/contiv/vpp/plugins/policy/utils"
 )
 
 const (
@@ -39,30 +40,30 @@ const (
 	SplitSessionRuleTag = "SPLIT"
 
 	// RuleScopeGlobal is a constant used to set the global scope for a session rule.
-	RuleScopeGlobal = 1
+	ScopeGlobal = 1
 
 	// RuleScopeLocal is a constant used to set the local scope for a session rule.
-	RuleScopeLocal = 2
+	ScopeLocal = 2
 
 	// RuleScopeBoth is a constant used to set both the local and the global scope
 	// for a session rule.
-	RuleScopeBoth = 3
+	ScopeBoth = 3
 
 	// RuleActionDoNothing is a constant used to set DO-NOTHING action for a session
 	// rule.
-	RuleActionDoNothing = ^uint32(0)
+	ActionDoNothing = ^uint32(0)
 
 	// RuleActionDeny is a constant used to set DENY action for a session rule.
-	RuleActionDeny = ^uint32(0) - 1
+	ActionDeny = ^uint32(0) - 1
 
 	// RuleActionAllow is a constant used to set ALLOW action for a session rule.
-	RuleActionAllow = ^uint32(0) - 2
+	ActionAllow = ^uint32(0) - 2
 
 	// RuleProtoTCP is a constant used to set TCP protocol for a session rule.
-	RuleProtoTCP = 0
+	ProtoTCP = 0
 
 	// RuleProtoUDP is a constant used to set UDP protocol for a session rule.
-	RuleProtoUDP = 1
+	ProtoUDP = 1
 )
 
 // SessionRule defines and groups the fields of a VPP session rule.
@@ -97,22 +98,22 @@ func (sr *SessionRule) String() string {
 	switch sr.Scope {
 	case 0:
 		scope = "global"
-	case RuleScopeGlobal:
+	case ScopeGlobal:
 		scope = "global"
-	case RuleScopeLocal:
+	case ScopeLocal:
 		scope = "local"
-	case RuleScopeBoth:
+	case ScopeBoth:
 		scope = "both"
 	default:
 		scope = "invalid"
 	}
 
 	switch sr.ActionIndex {
-	case RuleActionDoNothing:
+	case ActionDoNothing:
 		action = "do-nothing"
-	case RuleActionAllow:
+	case ActionAllow:
 		action = "allow"
-	case RuleActionDeny:
+	case ActionDeny:
 		action = "deny"
 	default:
 		action = fmt.Sprintf("fwd->%d", sr.ActionIndex)
@@ -134,9 +135,9 @@ func (sr *SessionRule) String() string {
 	rmt.Mask = net.CIDRMask(int(sr.RmtPlen), ipBits)
 
 	switch sr.TransportProto {
-	case RuleProtoTCP:
+	case ProtoTCP:
 		l4Proto = "TCP"
-	case RuleProtoUDP:
+	case ProtoUDP:
 		l4Proto = "UDP"
 	default:
 		l4Proto = "invalid"
@@ -150,9 +151,54 @@ func (sr *SessionRule) String() string {
 		sr.RmtPort, tag)
 }
 
+// Compare returns -1, 0, 1 if this<sr2 or this==sr2 or this>sr2, respectively.
+// Session rules have a total order defined on them.
+func (sr *SessionRule) Compare(sr2 *SessionRule, compareTag bool) int {
+	nsOrder := utils.CompareInts(int(sr.AppnsIndex), int(sr2.AppnsIndex))
+	if nsOrder != 0 {
+		return nsOrder
+	}
+	scopeOrder := utils.CompareInts(int(sr.Scope), int(sr2.Scope))
+	if scopeOrder != 0 {
+		return scopeOrder
+	}
+	actionOrder := utils.CompareInts(int(sr.ActionIndex), int(sr2.ActionIndex))
+	if actionOrder != 0 {
+		return actionOrder
+	}
+	ipVerOrder := utils.CompareInts(int(sr.IsIP4), int(sr2.IsIP4))
+	if ipVerOrder != 0 {
+		return ipVerOrder
+	}
+	lclOrder := utils.CompareIPNetsBytes(sr.LclPlen, sr.LclIP, sr2.LclPlen, sr2.LclIP)
+	if lclOrder != 0 {
+		return lclOrder
+	}
+	rmtOrder := utils.CompareIPNetsBytes(sr.RmtPlen, sr.RmtIP, sr2.RmtPlen, sr2.RmtIP)
+	if rmtOrder != 0 {
+		return rmtOrder
+	}
+	protocolOrder := utils.CompareInts(int(sr.TransportProto), int(sr2.TransportProto))
+	if protocolOrder != 0 {
+		return protocolOrder
+	}
+	lclPortOrder := utils.CompareInts(int(sr.LclPort), int(sr2.LclPort))
+	if lclPortOrder != 0 {
+		return lclPortOrder
+	}
+	rmtPortOrder := utils.CompareInts(int(sr.RmtPort), int(sr2.RmtPort))
+	if rmtPortOrder != 0 {
+		return rmtPortOrder
+	}
+	if compareTag {
+		return bytes.Compare(sr.Tag[:], sr2.Tag[:])
+	}
+	return 0
+}
+
 // ExportSessionRules converts Contiv rules into the corresponding set of session rules.
 // Set *podID* to nil if the rules are from the global table.
-func ExportSessionRules(rules []*renderer.ContivRule, podID *podmodel.ID, contiv contiv.API, log logging.Logger) []*SessionRule {
+func ExportSessionRules(rules []*renderer.ContivRule, podID *podmodel.ID, podIP net.IP, contiv contiv.API, log logging.Logger) []*SessionRule {
 	global := podID == nil
 	// Construct Session rules.
 	sessionRules := []*SessionRule{}
@@ -174,17 +220,25 @@ func ExportSessionRules(rules []*renderer.ContivRule, podID *podmodel.ID, contiv
 		if rule.DestPort == 0 && rule.Action == renderer.ActionPermit &&
 			((global && len(rule.SrcNetwork.IP) == 0) || (!global && len(rule.DestNetwork.IP) == 0)) {
 			/* do not install allow-all destination rules - it is the default behaviour in the stack */
-			return sessionRules
+			continue
+		}
+
+		if !global && len(rule.DestNetwork.IP) > 0 {
+			ones, bits := rule.DestNetwork.Mask.Size()
+			if ones == bits && rule.DestNetwork.IP.Equal(podIP) {
+				/* do not install rules that have the same source as destination */
+				continue
+			}
 		}
 
 		// Transport Protocol
 		switch rule.Protocol {
 		case renderer.TCP:
-			sessionRule.TransportProto = RuleProtoTCP
+			sessionRule.TransportProto = ProtoTCP
 		case renderer.UDP:
-			sessionRule.TransportProto = RuleProtoUDP
+			sessionRule.TransportProto = ProtoUDP
 		default:
-			sessionRule.TransportProto = RuleProtoTCP
+			sessionRule.TransportProto = ProtoTCP
 		}
 
 		// Is IPv4?
@@ -239,9 +293,9 @@ func ExportSessionRules(rules []*renderer.ContivRule, podID *podmodel.ID, contiv
 
 		// Action Index
 		if rule.Action == renderer.ActionPermit {
-			sessionRule.ActionIndex = RuleActionAllow
+			sessionRule.ActionIndex = ActionAllow
 		} else {
-			sessionRule.ActionIndex = RuleActionDeny
+			sessionRule.ActionIndex = ActionDeny
 		}
 
 		// Application namespace index
@@ -249,9 +303,9 @@ func ExportSessionRules(rules []*renderer.ContivRule, podID *podmodel.ID, contiv
 
 		// Scope
 		if global {
-			sessionRule.Scope = RuleScopeGlobal
+			sessionRule.Scope = ScopeGlobal
 		} else {
-			sessionRule.Scope = RuleScopeLocal
+			sessionRule.Scope = ScopeLocal
 		}
 
 		if (global && len(rule.SrcNetwork.IP) == 0) || (!global && len(rule.DestNetwork.IP) == 0) {
@@ -298,9 +352,9 @@ func ImportSessionRules(rules []*SessionRule, contiv contiv.API, log logging.Log
 
 		// Transport Protocol
 		switch rule.TransportProto {
-		case RuleProtoTCP:
+		case ProtoTCP:
 			contivRule.Protocol = renderer.TCP
-		case RuleProtoUDP:
+		case ProtoUDP:
 			contivRule.Protocol = renderer.UDP
 		default:
 			contivRule.Protocol = renderer.TCP
@@ -310,7 +364,7 @@ func ImportSessionRules(rules []*SessionRule, contiv contiv.API, log logging.Log
 		var srcIP, dstIP [16]byte
 		var srcPlen, dstPlen uint8
 		var ipLen int
-		if rule.Scope == RuleScopeGlobal {
+		if rule.Scope == ScopeGlobal {
 			srcIP = rule.RmtIP
 			srcPlen = rule.RmtPlen
 			dstIP = rule.LclIP
@@ -340,7 +394,7 @@ func ImportSessionRules(rules []*SessionRule, contiv contiv.API, log logging.Log
 		}
 
 		// Source and destination port
-		if rule.Scope == RuleScopeGlobal {
+		if rule.Scope == ScopeGlobal {
 			contivRule.SrcPort = rule.RmtPort
 			contivRule.DestPort = rule.LclPort
 		} else {
@@ -349,14 +403,14 @@ func ImportSessionRules(rules []*SessionRule, contiv contiv.API, log logging.Log
 		}
 
 		// Action Index
-		if rule.ActionIndex == RuleActionAllow {
+		if rule.ActionIndex == ActionAllow {
 			contivRule.Action = renderer.ActionPermit
 		} else {
 			contivRule.Action = renderer.ActionDeny
 		}
 
 		// Insert the rule into the corresponding table.
-		if rule.Scope == RuleScopeGlobal {
+		if rule.Scope == ScopeGlobal {
 			globalTable.InsertRule(contivRule)
 		} else {
 			// Get ID of the pod to which this rule is associated.

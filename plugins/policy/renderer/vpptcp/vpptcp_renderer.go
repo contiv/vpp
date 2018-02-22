@@ -30,6 +30,7 @@ import (
 	"github.com/contiv/vpp/plugins/policy/renderer"
 	"github.com/contiv/vpp/plugins/policy/renderer/cache"
 	"github.com/contiv/vpp/plugins/policy/renderer/vpptcp/bin_api/session"
+	vpptcprule "github.com/contiv/vpp/plugins/policy/renderer/vpptcp/rule"
 )
 
 // Renderer renders Contiv Rules into VPP Session rules.
@@ -103,7 +104,7 @@ func (art *RendererTxn) Render(pod podmodel.ID, podIP *net.IPNet, ingress []*ren
 // Commit proceeds with the rendering. A minimalistic set of changes is
 // calculated using ContivRuleCache and applied via binary API using govpp.
 func (art *RendererTxn) Commit() error {
-	var added, removed []*SessionRule
+	var added, removed []*vpptcprule.SessionRule
 
 	if art.resync {
 		// Re-synchronize with VPP first.
@@ -111,7 +112,7 @@ func (art *RendererTxn) Commit() error {
 		if err != nil {
 			return err
 		}
-		tables := ImportSessionRules(rules, art.renderer.Contiv, art.Log)
+		tables := vpptcprule.ImportSessionRules(rules, art.renderer.Contiv, art.Log)
 		err = art.renderer.cache.Resync(tables)
 		if err != nil {
 			return err
@@ -131,6 +132,18 @@ func (art *RendererTxn) Commit() error {
 	// Get list of added and removed rules in the local tables.
 	for pod := range art.cacheTxn.GetUpdatedPods() {
 		var newContivRules, removedContivRules []*renderer.ContivRule
+
+		// -> get pod configuration
+		podCfg := art.cacheTxn.GetPodConfig(pod)
+		if podCfg.Removed {
+			podCfg = art.renderer.cache.GetPodConfig(pod)
+			if podCfg == nil {
+				// removed pod which does not exist
+				continue
+			}
+		}
+
+		// -> compare the original and the new local table
 		origLocalTable := art.renderer.cache.GetLocalTableByPod(pod)
 		newLocalTable := art.cacheTxn.GetLocalTableByPod(pod)
 		if origLocalTable == nil && newLocalTable != nil {
@@ -145,9 +158,15 @@ func (art *RendererTxn) Commit() error {
 			// changed table
 			removedContivRules, newContivRules = origLocalTable.DiffRules(newLocalTable)
 		}
-		newSessionRules := ExportSessionRules(newContivRules, &pod, art.renderer.Contiv, art.Log)
+
+		// -> export new session rules
+		newSessionRules := vpptcprule.ExportSessionRules(
+			newContivRules, &pod, podCfg.PodIP.IP, art.renderer.Contiv, art.Log)
 		added = append(added, newSessionRules...)
-		removedSessionRules := ExportSessionRules(removedContivRules, &pod, art.renderer.Contiv, art.Log)
+
+		// -> export removed session rules.
+		removedSessionRules := vpptcprule.ExportSessionRules(
+			removedContivRules, &pod, podCfg.PodIP.IP, art.renderer.Contiv, art.Log)
 		removed = append(removed, removedSessionRules...)
 	}
 
@@ -155,9 +174,9 @@ func (art *RendererTxn) Commit() error {
 	origGlobalTable := art.renderer.cache.GetGlobalTable()
 	newGlobalTable := art.cacheTxn.GetGlobalTable()
 	removedContivRules, newContivRules := origGlobalTable.DiffRules(newGlobalTable)
-	newSessionRules := ExportSessionRules(newContivRules, nil, art.renderer.Contiv, art.Log)
+	newSessionRules := vpptcprule.ExportSessionRules(newContivRules, nil, nil, art.renderer.Contiv, art.Log)
 	added = append(added, newSessionRules...)
-	removedSessionRules := ExportSessionRules(removedContivRules, nil, art.renderer.Contiv, art.Log)
+	removedSessionRules := vpptcprule.ExportSessionRules(removedContivRules, nil, nil, art.renderer.Contiv, art.Log)
 	removed = append(removed, removedSessionRules...)
 
 	if len(added) == 0 && len(removed) == 0 {
@@ -174,7 +193,7 @@ func (art *RendererTxn) Commit() error {
 }
 
 // dumpRules queries VPP to get the currently installed set of session rules.
-func (art *RendererTxn) dumpRules() (rules []*SessionRule, err error) {
+func (art *RendererTxn) dumpRules() (rules []*vpptcprule.SessionRule, err error) {
 	// Send request to dump all installed rules.
 	req := &session.SessionRulesDump{}
 	reqContext := art.renderer.GoVPPChan.SendMultiRequest(req)
@@ -191,12 +210,12 @@ func (art *RendererTxn) dumpRules() (rules []*SessionRule, err error) {
 		}
 		tagLen := bytes.IndexByte(msg.Tag, 0)
 		tag := string(msg.Tag[:tagLen])
-		if !strings.HasPrefix(tag, SessionRuleTagPrefix) {
+		if !strings.HasPrefix(tag, vpptcprule.SessionRuleTagPrefix) {
 			// Skip rules not installed by this renderer.
 			continue
 		}
 		// Export session rule from the message.
-		sessionRule := &SessionRule{
+		sessionRule := &vpptcprule.SessionRule{
 			TransportProto: msg.TransportProto,
 			IsIP4:          msg.IsIP4,
 			LclPlen:        msg.LclPlen,
@@ -221,7 +240,7 @@ func (art *RendererTxn) dumpRules() (rules []*SessionRule, err error) {
 
 // makeSessionRuleAddDelReq creates an instance of SessionRuleAddDel bin API
 // request.
-func (r *Renderer) makeSessionRuleAddDelReq(rule *SessionRule, add bool) *govpp.VppRequest {
+func (r *Renderer) makeSessionRuleAddDelReq(rule *vpptcprule.SessionRule, add bool) *govpp.VppRequest {
 	isAdd := uint8(0)
 	if add {
 		isAdd = uint8(1)
@@ -249,7 +268,7 @@ func (r *Renderer) makeSessionRuleAddDelReq(rule *SessionRule, add bool) *govpp.
 }
 
 // updateRules adds/removes selected rules to/from VPP Session rule tables.
-func (r *Renderer) updateRules(add, remove []*SessionRule) error {
+func (r *Renderer) updateRules(add, remove []*vpptcprule.SessionRule) error {
 	const errMsg = "failed to update VPPTCP session rule"
 
 	// Prepare VPP requests.

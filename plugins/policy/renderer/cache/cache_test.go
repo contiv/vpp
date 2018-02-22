@@ -68,7 +68,7 @@ type TestSet1And2 struct {
 	rule *renderer.ContivRule
 }
 
-var ts1 = TestSet1And2{
+var ts1 = TestSet1And2{ /* one egress rule */
 	rule: &renderer.ContivRule{
 		Action:      renderer.ActionPermit,
 		SrcNetwork:  ipNetwork("192.168.0.0/16"),
@@ -80,7 +80,7 @@ var ts1 = TestSet1And2{
 }
 
 // Input data for test set2:
-var ts2 = TestSet1And2{
+var ts2 = TestSet1And2{ /* one ingress rule */
 	rule: &renderer.ContivRule{
 		Action:      renderer.ActionPermit,
 		SrcNetwork:  ipNetwork(""),
@@ -96,7 +96,7 @@ type TestSet3And4 struct {
 	rule1, rule2, rule3, rule4 *renderer.ContivRule
 }
 
-var ts3 = TestSet3And4{
+var ts3 = TestSet3And4{ /* multiple egress rules */
 	rule1: &renderer.ContivRule{
 		Action:      renderer.ActionPermit,
 		SrcNetwork:  ipNetwork("10.10.0.0/16"),
@@ -118,7 +118,7 @@ var ts3 = TestSet3And4{
 }
 
 // Input data for test set4:
-var ts4 = TestSet3And4{
+var ts4 = TestSet3And4{ /* multiple ingress rules */
 	rule1: &renderer.ContivRule{
 		Action:      renderer.ActionPermit,
 		SrcNetwork:  ipNetwork(""),
@@ -145,7 +145,7 @@ type TestSet5 struct {
 	pod3Ingress, pod3Egress []*renderer.ContivRule
 }
 
-var ts5 = TestSet5{
+var ts5 = TestSet5{ /* combined ingress with egress */
 	pod1Ingress: []*renderer.ContivRule{
 		{ // Txn2
 			Action:      renderer.ActionPermit,

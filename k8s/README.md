@@ -12,11 +12,25 @@ kubectl apply -f contiv-vpp.yaml
 # undeploy
 kubectl delete -f contiv-vpp.yaml
 ```
-Optionaly you can edit `contiv-vpp.yaml` to deploy the dev-contiv-vswitch image, built
+Optionally you can edit `contiv-vpp.yaml` to deploy the dev-contiv-vswitch image, built
 in local environment with `../docker/build-all.sh`.
 ```
 sed -i "s@image: contivvpp/vswitch@image: dev-contiv-vswitch:<your image version>@g" ./contiv-vpp.yaml
 ```
+
+This manifest can be generated and updated from the contiv-vpp helm chart:
+```
+make generate-manifest
+```
+
+And optionally, a new manifest can be generated with different configuration values than the defaults in contiv-vpp/values.yaml:
+```
+helm template --name contiv-vpp contiv-vpp \
+  --set vswitch.image.repository=dev-contiv-vswitch \
+  --set vswitch.image.tag=<your image version> > dev-contiv-vpp.yaml
+```
+
+Which can be deployed/undeployed using the above kubectl steps on your newly generated manifest.
 
 To use the development image for testing with specific version of VPP, see
 [DEVIMAGE.md](../docker/DEVIMAGE.md).
@@ -74,13 +88,6 @@ Contiv-VPP CRI Shim installer / uninstaller, that can be used as follows:
 
 # uninstall
 ./cri-install.sh --uninstall
-```
-
-#### proxy-install.sh
-Pre-installs custom version of Kube-Proxy that works with the Contiv-VPP. Needs to be done
-on each node, before initializing the cluster with `kubeadm init` or joining the cluster with `kubeadm join`.
-```
-./proxy-install.sh
 ```
 
 #### pull-images.sh

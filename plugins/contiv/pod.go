@@ -29,10 +29,10 @@ import (
 	vpp_l3 "github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/l3"
 	vpp_l4 "github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/l4"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/stn"
+	linux_intf "github.com/ligato/vpp-agent/plugins/linuxplugin/common/model/interfaces"
+	linux_l3 "github.com/ligato/vpp-agent/plugins/linuxplugin/common/model/l3"
 	"github.com/ligato/vpp-agent/plugins/linuxplugin/ifplugin/linuxcalls"
-	linux_intf "github.com/ligato/vpp-agent/plugins/linuxplugin/ifplugin/model/interfaces"
 	l3_linux "github.com/ligato/vpp-agent/plugins/linuxplugin/l3plugin/linuxcalls"
-	linux_l3 "github.com/ligato/vpp-agent/plugins/linuxplugin/l3plugin/model/l3"
 )
 
 // disableTCPChecksumOffload disables TCP checksum offload on the eth0 in the container
@@ -122,7 +122,7 @@ func (s *remoteCNIserver) configureHostTAP(request *cni.CNIRequest, podIPNet *ne
 	}
 
 	// Set TAP interface IP to that of the Pod.
-	err = linuxcalls.AddInterfaceIP(tapHostIfName, podIPNet, nil)
+	err = linuxcalls.AddInterfaceIP(s.Logger, tapHostIfName, podIPNet, nil)
 	if err != nil {
 		return err
 	}
@@ -190,7 +190,7 @@ func (s *remoteCNIserver) unconfigureHostTAP(request *cni.CNIRequest) error {
 	}
 	defer revertNs()
 
-	err = linuxcalls.DeleteInterface(tapHostIfName, nil)
+	err = deleteInterface(tapHostIfName)
 	if err == nil {
 		s.WithField("tap", tapHostIfName).Warn("TAP interface was not removed in the host stack by VPP")
 	}
@@ -380,7 +380,9 @@ func (s *remoteCNIserver) podArpEntry(request *cni.CNIRequest, ifName string, ma
 		Name:      request.ContainerId,
 		Namespace: containerNs,
 		Interface: ifName,
-		Family:    netlink.FAMILY_V4, /* TODO: not nice, add enum to protobuf */
+		IpFamily: &linux_l3.LinuxStaticArpEntries_ArpEntry_IpFamily{
+			Family: linux_l3.LinuxStaticArpEntries_ArpEntry_IpFamily_IPV4,
+		},
 		State: &linux_l3.LinuxStaticArpEntries_ArpEntry_NudState{
 			Type: linux_l3.LinuxStaticArpEntries_ArpEntry_NudState_PERMANENT,
 		},
@@ -421,4 +423,14 @@ func (s *remoteCNIserver) podDefaultRouteFromRequest(request *cni.CNIRequest, if
 		},
 		GwAddr: s.ipam.PodGatewayIP().String(),
 	}
+}
+
+// deleteInterface removes interface <ifName>.
+// TODO: remove once we migrate to vpp-agent's handling of TAPs.
+func deleteInterface(ifName string) error {
+	link, err := netlink.LinkByName(ifName)
+	if err != nil {
+		return err
+	}
+	return netlink.LinkDel(link)
 }

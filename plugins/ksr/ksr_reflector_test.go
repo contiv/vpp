@@ -34,7 +34,7 @@ type mockK8sController struct {
 
 func (mc *mockK8sController) Run(stopCh <-chan struct{}) {
 	mc.synced = true
-	stopCh = stopCh
+	mc.stopCh = stopCh
 	mc.version = "v2"
 }
 

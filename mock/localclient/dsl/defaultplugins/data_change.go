@@ -10,6 +10,7 @@ import (
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/l2"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/l3"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/l4"
+	"github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/nat"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/stn"
 )
 
@@ -146,6 +147,20 @@ func (d *MockPutDSL) StnRule(val *stn.StnRule) defaultplugins.PutDSL {
 	return d
 }
 
+// NAT44Global adds a request to set global configuration for NAT44
+func (d *MockPutDSL) NAT44Global(val *nat.Nat44Global) defaultplugins.PutDSL {
+	op := dsl.TxnOp{Key: nat.GlobalConfigKey(), Value: val}
+	d.parent.Ops = append(d.parent.Ops, op)
+	return d
+}
+
+// NAT44DNat adds a request to create a new DNAT configuration
+func (d *MockPutDSL) NAT44DNat(val *nat.Nat44DNat_DNatConfig) defaultplugins.PutDSL {
+	op := dsl.TxnOp{Key: nat.DNatKey(val.Label), Value: val}
+	d.parent.Ops = append(d.parent.Ops, op)
+	return d
+}
+
 // Delete changes the DSL mode to allow removal of an existing configuration.
 func (d *MockPutDSL) Delete() defaultplugins.DeleteDSL {
 	return &MockDeleteDSL{d.parent}
@@ -173,8 +188,8 @@ func (d *MockDeleteDSL) BfdSession(bfdSessionIfaceName string) defaultplugins.De
 
 // BfdAuthKeys adds a mock request to delete an existing bidirectional forwarding
 // detection key.
-func (d *MockDeleteDSL) BfdAuthKeys(bfdKey uint32) defaultplugins.DeleteDSL {
-	op := dsl.TxnOp{Key: bfd.AuthKeysKey(string(bfdKey))}
+func (d *MockDeleteDSL) BfdAuthKeys(bfdKey string) defaultplugins.DeleteDSL {
+	op := dsl.TxnOp{Key: bfd.AuthKeysKey(bfdKey)}
 	d.parent.Ops = append(d.parent.Ops, op)
 	return d
 }
@@ -248,6 +263,20 @@ func (d *MockDeleteDSL) Arp(ifaceName string, ipAddr string) defaultplugins.Dele
 // StnRule adds a request to delete an existing Stn rule to the RESYNC request.
 func (d *MockDeleteDSL) StnRule(ruleName string) defaultplugins.DeleteDSL {
 	op := dsl.TxnOp{Key: stn.Key(ruleName)}
+	d.parent.Ops = append(d.parent.Ops, op)
+	return d
+}
+
+// NAT44Global adds a request to remove global configuration for NAT44
+func (d *MockDeleteDSL) NAT44Global() defaultplugins.DeleteDSL {
+	op := dsl.TxnOp{Key: nat.GlobalConfigKey()}
+	d.parent.Ops = append(d.parent.Ops, op)
+	return d
+}
+
+// NAT44DNat adds a request to delete a DNAT configuration identified by label
+func (d *MockDeleteDSL) NAT44DNat(label string) defaultplugins.DeleteDSL {
+	op := dsl.TxnOp{Key: nat.DNatKey(label)}
 	d.parent.Ops = append(d.parent.Ops, op)
 	return d
 }

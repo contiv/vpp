@@ -39,8 +39,8 @@ import (
 	vpp_l4 "github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/l4"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/stn"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/ifaceidx"
-	linux_intf "github.com/ligato/vpp-agent/plugins/linuxplugin/ifplugin/model/interfaces"
-	linux_l3 "github.com/ligato/vpp-agent/plugins/linuxplugin/l3plugin/model/l3"
+	linux_intf "github.com/ligato/vpp-agent/plugins/linuxplugin/common/model/interfaces"
+	linux_l3 "github.com/ligato/vpp-agent/plugins/linuxplugin/common/model/l3"
 	"golang.org/x/net/context"
 )
 
@@ -156,7 +156,8 @@ type vswitchConfig struct {
 	nics         []*vpp_intf.Interfaces_Interface
 	defaultRoute *vpp_l3.StaticRoutes_Route
 
-	tapHost        *vpp_intf.Interfaces_Interface
+	tapHost        *linux_intf.LinuxInterfaces_Interface
+	tapVpp         *vpp_intf.Interfaces_Interface
 	vethHost       *linux_intf.LinuxInterfaces_Interface
 	vethVpp        *linux_intf.LinuxInterfaces_Interface
 	interconnectAF *vpp_intf.Interfaces_Interface
@@ -528,11 +529,11 @@ func (s *remoteCNIserver) configureVswitchHostConnectivity(config *vswitchConfig
 
 	if s.useTAPInterfaces {
 		// TAP interface
-		config.tapHost = s.interconnectTap()
+		config.tapVpp = s.interconnectTap()
 
-		s.hostInterconnectIfName = config.tapHost.Name
+		s.hostInterconnectIfName = config.tapVpp.Name
 
-		txn1.VppInterface(config.tapHost)
+		txn1.VppInterface(config.tapVpp)
 	} else {
 		// veth + AF_PACKET
 		config.vethHost = s.interconnectVethHost()
@@ -554,14 +555,11 @@ func (s *remoteCNIserver) configureVswitchHostConnectivity(config *vswitchConfig
 
 	// finish TAP configuration
 	if s.useTAPInterfaces {
-		// TODO: this is not persisted, will not work in resync case!
-		err = s.configureInterfconnectHostTap()
+		config.tapHost = s.interconnectTapHost()
+		err = s.vppTxnFactory().Put().LinuxInterface(config.tapHost).Send().ReceiveReply()
 		if err != nil {
 			s.Logger.Error(err)
-			if !s.test {
-				// skip error by unit tests
-				return err
-			}
+			return err
 		}
 	} else {
 		// AFPacket is intentionally configured in a txn different from the one that configures veth.
@@ -661,7 +659,8 @@ func (s *remoteCNIserver) persistVswitchConfig(config *vswitchConfig) error {
 
 	// TAP / veths + AF_APCKET
 	if s.useTAPInterfaces {
-		changes[vpp_intf.InterfaceKey(config.tapHost.Name)] = config.tapHost
+		changes[vpp_intf.InterfaceKey(config.tapVpp.Name)] = config.tapVpp
+		changes[linux_intf.InterfaceKey(config.tapHost.Name)] = config.tapHost
 	} else {
 		changes[linux_intf.InterfaceKey(config.vethHost.Name)] = config.vethHost
 		changes[linux_intf.InterfaceKey(config.vethVpp.Name)] = config.vethVpp
@@ -696,9 +695,10 @@ func (s *remoteCNIserver) cleanupVswitchConnectivity() {
 
 	// unconfigure VPP-host interconnect interfaces
 	if s.useTAPInterfaces {
-		tapHost := s.interconnectTap()
-
-		txn.VppInterface(tapHost.Name)
+		tapVpp := s.interconnectTap()
+		tapHost := s.interconnectTapHost()
+		txn.VppInterface(tapVpp.Name).
+			LinuxInterface(tapHost.Name)
 	} else {
 		vethHost := s.interconnectVethHost()
 		vethVpp := s.interconnectVethVpp()

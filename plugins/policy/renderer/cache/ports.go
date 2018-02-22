@@ -17,6 +17,7 @@ package cache
 import (
 	"net"
 
+	"fmt"
 	"github.com/contiv/vpp/plugins/policy/renderer"
 )
 
@@ -83,6 +84,22 @@ func (p Ports) Intersection(p2 Ports) Ports {
 		}
 	}
 	return intersection
+}
+
+// String converts Ports into a human-readable string
+// representation.
+func (p Ports) String() string {
+	ports := "{"
+	count := 0
+	for port := range p {
+		ports += fmt.Sprintf("%d", port)
+		count++
+		if count < len(p) {
+			ports += ","
+		}
+	}
+	ports += "}"
+	return ports
 }
 
 // getAllowedEgressPorts returns allowed destination UDP and TCP ports for a given

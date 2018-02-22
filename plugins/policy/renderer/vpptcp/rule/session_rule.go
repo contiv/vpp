@@ -39,30 +39,30 @@ const (
 	// the VPP proxy rules.
 	SplitSessionRuleTag = "SPLIT"
 
-	// RuleScopeGlobal is a constant used to set the global scope for a session rule.
+	// ScopeGlobal is a constant used to set the global scope for a session rule.
 	ScopeGlobal = 1
 
-	// RuleScopeLocal is a constant used to set the local scope for a session rule.
+	// ScopeLocal is a constant used to set the local scope for a session rule.
 	ScopeLocal = 2
 
-	// RuleScopeBoth is a constant used to set both the local and the global scope
+	// ScopeBoth is a constant used to set both the local and the global scope
 	// for a session rule.
 	ScopeBoth = 3
 
-	// RuleActionDoNothing is a constant used to set DO-NOTHING action for a session
+	// ActionDoNothing is a constant used to set DO-NOTHING action for a session
 	// rule.
 	ActionDoNothing = ^uint32(0)
 
-	// RuleActionDeny is a constant used to set DENY action for a session rule.
+	// ActionDeny is a constant used to set DENY action for a session rule.
 	ActionDeny = ^uint32(0) - 1
 
-	// RuleActionAllow is a constant used to set ALLOW action for a session rule.
+	// ActionAllow is a constant used to set ALLOW action for a session rule.
 	ActionAllow = ^uint32(0) - 2
 
-	// RuleProtoTCP is a constant used to set TCP protocol for a session rule.
+	// ProtoTCP is a constant used to set TCP protocol for a session rule.
 	ProtoTCP = 0
 
-	// RuleProtoUDP is a constant used to set UDP protocol for a session rule.
+	// ProtoUDP is a constant used to set UDP protocol for a session rule.
 	ProtoUDP = 1
 )
 

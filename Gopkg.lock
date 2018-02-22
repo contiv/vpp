@@ -716,9 +716,9 @@
     "idxvpp",
     "idxvpp/cacheutil",
     "idxvpp/nametoidx",
-    "idxvpp/persist",
     "plugins/defaultplugins",
     "plugins/defaultplugins/aclplugin",
+    "plugins/defaultplugins/aclplugin/aclidx",
     "plugins/defaultplugins/aclplugin/vppcalls",
     "plugins/defaultplugins/aclplugin/vppdump",
     "plugins/defaultplugins/common/bin_api/acl",
@@ -772,7 +772,7 @@
     "plugins/linuxplugin/l3plugin/l3idx",
     "plugins/linuxplugin/l3plugin/linuxcalls"
   ]
-  revision = "995364000e8761869b7b89523f786aceafb34016"
+  revision = "50f76e2054f56835724f229655220f3f09e86293"
 
 [[projects]]
   branch = "master"
@@ -1612,6 +1612,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "bf6f89c206541b8b0a05676743451b64bd3ad604960582ee60112a2599f5c654"
+  inputs-digest = "1aa7c9167c4371caf3438d6bae685b4db9f8b6520512c5db70f1e86c88cf8f2e"
   solver-name = "gps-cdcl"
   solver-version = 1

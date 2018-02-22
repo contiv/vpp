@@ -85,7 +85,7 @@ required = ["github.com/wadey/gocovmerge", "github.com/docker/docker/api", "gith
 
 [[constraint]]
   name = "github.com/ligato/vpp-agent"
-  revision = "995364000e8761869b7b89523f786aceafb34016"
+  revision = "50f76e2054f56835724f229655220f3f09e86293"
 
 [[constraint]]
   name = "github.com/prometheus/client_golang"

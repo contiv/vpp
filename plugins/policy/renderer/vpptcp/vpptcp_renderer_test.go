@@ -79,7 +79,7 @@ func TestSingleEgressRuleSinglePod(t *testing.T) {
 
 	// Prepare mocks.
 	contiv := NewMockContiv()
-	contiv.SetPodNsIndex(pod1, pod1VPPNsIndex)
+	contiv.SetPodAppNsIndex(pod1, pod1VPPNsIndex)
 	mockSessionRules.Clear()
 	vppChan := mockSessionRules.NewVPPChan()
 	gomega.Expect(vppChan).ToNot(gomega.BeNil())
@@ -134,7 +134,7 @@ func TestSingleIngressRuleSinglePod(t *testing.T) {
 
 	// Prepare mocks.
 	contiv := NewMockContiv()
-	contiv.SetPodNsIndex(pod1, pod1VPPNsIndex)
+	contiv.SetPodAppNsIndex(pod1, pod1VPPNsIndex)
 	mockSessionRules.Clear()
 	vppChan := mockSessionRules.NewVPPChan()
 	gomega.Expect(vppChan).ToNot(gomega.BeNil())
@@ -214,7 +214,7 @@ func TestMultipleRulesSinglePodWithDataChange(t *testing.T) {
 
 	// Prepare mocks.
 	contiv := NewMockContiv()
-	contiv.SetPodNsIndex(pod1, pod1VPPNsIndex)
+	contiv.SetPodAppNsIndex(pod1, pod1VPPNsIndex)
 	mockSessionRules.Clear()
 	vppChan := mockSessionRules.NewVPPChan()
 	gomega.Expect(vppChan).ToNot(gomega.BeNil())
@@ -333,8 +333,8 @@ func TestMultipleRulesMultiplePodsWithDataChange(t *testing.T) {
 
 	// Prepare mocks.
 	contiv := NewMockContiv()
-	contiv.SetPodNsIndex(pod1, pod1VPPNsIndex)
-	contiv.SetPodNsIndex(pod2, pod2VPPNsIndex)
+	contiv.SetPodAppNsIndex(pod1, pod1VPPNsIndex)
+	contiv.SetPodAppNsIndex(pod2, pod2VPPNsIndex)
 	mockSessionRules.Clear()
 	vppChan := mockSessionRules.NewVPPChan()
 	gomega.Expect(vppChan).ToNot(gomega.BeNil())
@@ -466,8 +466,8 @@ func TestMultipleRulesMultiplePodsWithResync(t *testing.T) {
 
 	// Prepare mocks.
 	contiv := NewMockContiv()
-	contiv.SetPodNsIndex(pod1, pod1VPPNsIndex)
-	contiv.SetPodNsIndex(pod2, pod2VPPNsIndex)
+	contiv.SetPodAppNsIndex(pod1, pod1VPPNsIndex)
+	contiv.SetPodAppNsIndex(pod2, pod2VPPNsIndex)
 	mockSessionRules.Clear()
 	vppChan := mockSessionRules.NewVPPChan()
 	gomega.Expect(vppChan).ToNot(gomega.BeNil())
@@ -595,7 +595,7 @@ func TestSinglePodWithResync(t *testing.T) {
 
 	// Prepare mocks.
 	contiv := NewMockContiv()
-	contiv.SetPodNsIndex(pod1, pod1VPPNsIndex)
+	contiv.SetPodAppNsIndex(pod1, pod1VPPNsIndex)
 	mockSessionRules.Clear()
 	vppChan := mockSessionRules.NewVPPChan()
 	gomega.Expect(vppChan).ToNot(gomega.BeNil())

@@ -14,7 +14,7 @@ type MockContiv struct {
 	sync.Mutex
 
 	podIf            map[podmodel.ID]string
-	podNs            map[podmodel.ID]uint32
+	podAppNs         map[podmodel.ID]uint32
 	podNetwork       *net.IPNet
 	tcpStackDisabled bool
 	nodeIP           string
@@ -32,7 +32,7 @@ func NewMockContiv() *MockContiv {
 	ci := containeridx.NewConfigIndex(logrus.DefaultLogger(), "test", "title")
 	return &MockContiv{
 		podIf:          make(map[podmodel.ID]string),
-		podNs:          make(map[podmodel.ID]uint32),
+		podAppNs:       make(map[podmodel.ID]uint32),
 		containerIndex: ci,
 	}
 }
@@ -42,10 +42,10 @@ func (mc *MockContiv) SetPodIfName(pod podmodel.ID, ifName string) {
 	mc.podIf[pod] = ifName
 }
 
-// SetPodNsIndex allows to create a fake association between a pod and a VPP
-// session namespace.
-func (mc *MockContiv) SetPodNsIndex(pod podmodel.ID, nsIndex uint32) {
-	mc.podNs[pod] = nsIndex
+// SetPodAppNsIndex allows to create a fake association between a pod and a VPP
+// application namespace index.
+func (mc *MockContiv) SetPodAppNsIndex(pod podmodel.ID, nsIndex uint32) {
+	mc.podAppNs[pod] = nsIndex
 }
 
 // SetPodNetwork allows to set what tests will assume as the pod subnet
@@ -116,7 +116,7 @@ func (mc *MockContiv) GetIfName(podNamespace string, podName string) (name strin
 
 // GetNsIndex returns pod's namespace index as set previously using SetPodNsIndex.
 func (mc *MockContiv) GetNsIndex(podNamespace string, podName string) (nsIndex uint32, exists bool) {
-	nsIndex, exists = mc.podNs[podmodel.ID{Name: podName, Namespace: podNamespace}]
+	nsIndex, exists = mc.podAppNs[podmodel.ID{Name: podName, Namespace: podNamespace}]
 	return nsIndex, exists
 }
 
@@ -130,9 +130,9 @@ func (mc *MockContiv) GetPodByIf(ifname string) (podNamespace string, podName st
 	return "", "", false
 }
 
-// GetPodByNsIndex looks up podName and podNamespace that is associated with the VPP session namespace.
-func (mc *MockContiv) GetPodByNsIndex(nsIndex uint32) (podNamespace string, podName string, exists bool) {
-	for podID, index := range mc.podNs {
+// GetPodByAppNsIndex looks up podName and podNamespace that is associated with the VPP application namespace.
+func (mc *MockContiv) GetPodByAppNsIndex(nsIndex uint32) (podNamespace string, podName string, exists bool) {
+	for podID, index := range mc.podAppNs {
 		if index == nsIndex {
 			return podID.Namespace, podID.Name, true
 		}

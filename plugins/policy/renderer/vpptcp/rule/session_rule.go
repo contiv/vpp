@@ -414,7 +414,7 @@ func ImportSessionRules(rules []*SessionRule, contiv contiv.API, log logging.Log
 			globalTable.InsertRule(contivRule)
 		} else {
 			// Get ID of the pod to which this rule is associated.
-			podNamespace, podName, exists := contiv.GetPodByNsIndex(rule.AppnsIndex)
+			podNamespace, podName, exists := contiv.GetPodByAppNsIndex(rule.AppnsIndex)
 			if !exists {
 				log.WithField("rule", rule).Warn("Failed to get pod corresponding to NS index from the session rule")
 				continue

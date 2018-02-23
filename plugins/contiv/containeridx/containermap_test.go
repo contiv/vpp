@@ -22,6 +22,8 @@ import (
 	"github.com/ligato/cn-infra/core"
 	"github.com/ligato/cn-infra/logging/logrus"
 	"github.com/onsi/gomega"
+
+	vpp_l4 "github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/l4"
 )
 
 func TestNewConfigIndex(t *testing.T) {
@@ -75,10 +77,24 @@ func TestSecondaryIndexLookup(t *testing.T) {
 		podNs      = "myNamespace"
 		podA       = "123"
 		podB       = "456"
+		podAAppNs  = "appNsA"
+		podBAppNs  = "appNsB"
 	)
 
-	configA := &Config{PodNamespace: podNs, PodName: podA}
-	configB := &Config{PodNamespace: podNs, PodName: podB}
+	configA := &Config{
+		PodNamespace: podNs,
+		PodName:      podA,
+		AppNamespace: &vpp_l4.AppNamespaces_AppNamespace{
+			NamespaceId: podAAppNs,
+		},
+	}
+	configB := &Config{
+		PodNamespace: podNs,
+		PodName:      podB,
+		AppNamespace: &vpp_l4.AppNamespaces_AppNamespace{
+			NamespaceId: podBAppNs,
+		},
+	}
 
 	idx.RegisterContainer(containerA, configA)
 	idx.RegisterContainer(containerB, configB)
@@ -94,6 +110,13 @@ func TestSecondaryIndexLookup(t *testing.T) {
 	podMatch := idx.LookupPodName(podA)
 	gomega.Expect(podMatch).To(gomega.ContainElement(containerA))
 
+	appNsMatch := idx.LookupPodAppNs(podAAppNs)
+	gomega.Expect(appNsMatch).To(gomega.HaveLen(1))
+	gomega.Expect(appNsMatch).To(gomega.ContainElement(containerA))
+
+	appNsMatch = idx.LookupPodAppNs(podBAppNs)
+	gomega.Expect(appNsMatch).To(gomega.HaveLen(1))
+	gomega.Expect(appNsMatch).To(gomega.ContainElement(containerB))
 }
 
 func TestWatch(t *testing.T) {

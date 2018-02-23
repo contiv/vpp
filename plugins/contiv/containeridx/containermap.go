@@ -33,7 +33,7 @@ import (
 const podNameKey = "podNameKey"
 const podNamespaceKey = "podNamespaceKey"
 const podRelatedIfsKey = "podRelatedIfsKey"
-const podRelatedNsKey = "podRelatedNsKey"
+const podRelatedAppNsKey = "podRelatedAppNsKey"
 
 // Reader provides read API to ConfigIndex
 type Reader interface {
@@ -48,6 +48,9 @@ type Reader interface {
 
 	// LookupPodIf performs lookup based on secondary index podRelatedIfs.
 	LookupPodIf(ifname string) (containerIDs []string)
+
+	// LookupPodAppNs performs lookup based on secondary index podRelatedAppNs.
+	LookupPodAppNs(namespaceID string) (containerIDs []string)
 
 	// ListAll returns all registered names in the mapping.
 	ListAll() (containerIDs []string)
@@ -149,9 +152,9 @@ func (ci *ConfigIndex) LookupPodIf(ifname string) (containerIDs []string) {
 	return ci.mapping.ListNames(podRelatedIfsKey, ifname)
 }
 
-// LookupPodNs performs lookup based on secondary index podRelatedNs.
-func (ci *ConfigIndex) LookupPodNs(namespaceID string) (containerIDs []string) {
-	return ci.mapping.ListNames(podRelatedNsKey, namespaceID)
+// LookupPodAppNs performs lookup based on secondary index podRelatedNs.
+func (ci *ConfigIndex) LookupPodAppNs(namespaceID string) (containerIDs []string) {
+	return ci.mapping.ListNames(podRelatedAppNsKey, namespaceID)
 }
 
 // ListAll returns all registered names in the mapping.
@@ -182,7 +185,7 @@ func IndexFunction(data interface{}) map[string][]string {
 			res[podRelatedIfsKey] = append(res[podRelatedIfsKey], config.Loopback.Name)
 		}
 		if config.AppNamespace != nil {
-			res[podRelatedNsKey] = []string{config.AppNamespace.NamespaceId}
+			res[podRelatedAppNsKey] = []string{config.AppNamespace.NamespaceId}
 		}
 	}
 	return res

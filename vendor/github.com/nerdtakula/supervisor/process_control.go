@@ -1,11 +1,10 @@
 package supervisor
 
 const (
-	GROUPS_ADDED   = "PROCESS_GROUPS_ADDED"
-	GROUPS_CHANGED = "PROCESS_GROUPS_CHANGED"
-	GROUPS_REMOVED = "PROCESS_GROUPS_REMOVED"
+	GROUPS_ADDED	=	"PROCESS_GROUPS_ADDED"
+	GROUPS_CHANGED	=	"PROCESS_GROUPS_CHANGED"
+	GROUPS_REMOVED	=	"PROCESS_GROUPS_REMOVED"
 )
-
 // Get info about a specific process
 func (c Client) GetProcessInfo(name string) (*ProcessInfo, error) {
 	result := &ProcessInfo{}

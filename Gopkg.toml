@@ -129,7 +129,7 @@ required = ["github.com/wadey/gocovmerge", "github.com/docker/docker/api", "gith
 
 [[constraint]]
   name = "github.com/vishvananda/netlink"
-  revision = "d35d6b58e1cb692b27b94fc403170bf44058ac3e"
+  branch = "master"
 
 [[constraint]]
   name = "github.com/apparentlymart/go-cidr"

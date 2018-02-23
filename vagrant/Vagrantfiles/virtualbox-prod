@@ -135,8 +135,14 @@ createVPPconfig
 
 echo "#auto enp0s8" >> /etc/network/interfaces
 
-# Pull the latest images
-bash <(curl -s https://raw.githubusercontent.com/contiv/vpp/master/k8s/pull-images.sh)
+if [ -f /vagrant/images.tar ]; then
+	echo "found saved images at /vagrant/images.tar"
+	docker load -i /vagrant/images.tar
+else
+	# Pull the latest images
+	echo "pulling the latest images"
+	bash <(curl -s https://raw.githubusercontent.com/contiv/vpp/master/k8s/pull-images.sh)
+fi
 
 #Disable swap
 swapoff -a

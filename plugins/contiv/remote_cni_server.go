@@ -60,6 +60,8 @@ const (
 	tapVPPEndLogicalName          = "tap-vpp2"
 	tapVPPEndName                 = "vpp2"
 	podIfIPPrefix                 = "10.2.1"
+	// HostInterconnectMAC is MAC address of tap that interconnects VPP with host stack
+	HostInterconnectMAC = "01:23:45:67:89:42"
 )
 
 // remoteCNIserver represents the remote CNI server instance. It accepts the requests from the contiv-CNI

@@ -250,9 +250,8 @@ func persistVppConfig(contivCfg *contiv.Config, stnData *stn.STNReply, cfg *vppC
 			if i == etcdConnectionRetries-1 {
 				logger.Errorf("Error by connecting to ETCD: %v", err)
 				return err
-			} else {
-				logger.Debugf("ETCD connection retry n. %d", i+1)
 			}
+			logger.Debugf("ETCD connection retry n. %d", i+1)
 		}
 	}
 

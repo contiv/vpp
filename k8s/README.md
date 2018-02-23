@@ -75,6 +75,7 @@ To use the development image for testing with specific version of VPP, see
       - `IP`: IP address to be attached to the main interface;
       - `UseDHCP`: acquire IP address using DHCP
               (beware: the change of IP address is not supported)
+    - `StealInterface`: name of the interface in the Linux host stack, that should be "stolen" and used by VPP (see [STN documenattion](../docs/STN.md));
     - `OtherVPPInterfaces` (other configured interfaces only get IP address assigned in VPP)
       - `InterfaceName`: name of the interface;
       - `IP`: IP address to be attached to the interface;

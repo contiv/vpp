@@ -702,7 +702,8 @@
     "utils/safeclose",
     "utils/structs"
   ]
-  revision = "d27ff7d747310a942c61fb39725463b4cdf540cb"
+  revision = "39925ecc46ce2ed75c36869d584925963a3314d4"
+  version = "v1.1"
 
 [[projects]]
   name = "github.com/ligato/vpp-agent"
@@ -715,18 +716,20 @@
     "idxvpp",
     "idxvpp/cacheutil",
     "idxvpp/nametoidx",
-    "idxvpp/persist",
     "plugins/defaultplugins",
     "plugins/defaultplugins/aclplugin",
+    "plugins/defaultplugins/aclplugin/aclidx",
     "plugins/defaultplugins/aclplugin/vppcalls",
     "plugins/defaultplugins/aclplugin/vppdump",
     "plugins/defaultplugins/common/bin_api/acl",
     "plugins/defaultplugins/common/bin_api/af_packet",
     "plugins/defaultplugins/common/bin_api/bfd",
+    "plugins/defaultplugins/common/bin_api/dhcp",
     "plugins/defaultplugins/common/bin_api/interfaces",
     "plugins/defaultplugins/common/bin_api/ip",
     "plugins/defaultplugins/common/bin_api/l2",
     "plugins/defaultplugins/common/bin_api/memif",
+    "plugins/defaultplugins/common/bin_api/nat",
     "plugins/defaultplugins/common/bin_api/session",
     "plugins/defaultplugins/common/bin_api/stats",
     "plugins/defaultplugins/common/bin_api/stn",
@@ -740,6 +743,7 @@
     "plugins/defaultplugins/common/model/l2",
     "plugins/defaultplugins/common/model/l3",
     "plugins/defaultplugins/common/model/l4",
+    "plugins/defaultplugins/common/model/nat",
     "plugins/defaultplugins/common/model/stn",
     "plugins/defaultplugins/ifplugin",
     "plugins/defaultplugins/ifplugin/ifaceidx",
@@ -759,16 +763,16 @@
     "plugins/govppmux",
     "plugins/govppmux/vppcalls",
     "plugins/linuxplugin",
+    "plugins/linuxplugin/common/model/interfaces",
+    "plugins/linuxplugin/common/model/l3",
     "plugins/linuxplugin/ifplugin",
     "plugins/linuxplugin/ifplugin/ifaceidx",
     "plugins/linuxplugin/ifplugin/linuxcalls",
-    "plugins/linuxplugin/ifplugin/model/interfaces",
     "plugins/linuxplugin/l3plugin",
     "plugins/linuxplugin/l3plugin/l3idx",
-    "plugins/linuxplugin/l3plugin/linuxcalls",
-    "plugins/linuxplugin/l3plugin/model/l3"
+    "plugins/linuxplugin/l3plugin/linuxcalls"
   ]
-  revision = "188910dbed38b093ba4e8f57b3dde1e3a4314c51"
+  revision = "50f76e2054f56835724f229655220f3f09e86293"
 
 [[projects]]
   branch = "master"
@@ -1608,6 +1612,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "5dc216f464f00937b87e3ef5109dbf4bac908501fb8027dcd217fe91a7a32be8"
+  inputs-digest = "1aa7c9167c4371caf3438d6bae685b4db9f8b6520512c5db70f1e86c88cf8f2e"
   solver-name = "gps-cdcl"
   solver-version = 1

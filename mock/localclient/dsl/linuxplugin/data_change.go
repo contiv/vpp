@@ -11,9 +11,10 @@ import (
 	vpp_l2 "github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/l2"
 	vpp_l3 "github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/l3"
 	vpp_l4 "github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/l4"
+	vpp_nat "github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/nat"
 	vpp_stn "github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/stn"
-	linux_intf "github.com/ligato/vpp-agent/plugins/linuxplugin/ifplugin/model/interfaces"
-	linux_l3 "github.com/ligato/vpp-agent/plugins/linuxplugin/l3plugin/model/l3"
+	linux_intf "github.com/ligato/vpp-agent/plugins/linuxplugin/common/model/interfaces"
+	linux_l3 "github.com/ligato/vpp-agent/plugins/linuxplugin/common/model/l3"
 )
 
 // MockDataChangeDSL is mock for DataChangeDSL.
@@ -149,6 +150,20 @@ func (d *MockPutDSL) StnRule(val *vpp_stn.StnRule) linux.PutDSL {
 	return d
 }
 
+// NAT44Global adds a request to set global configuration for NAT44
+func (d *MockPutDSL) NAT44Global(val *vpp_nat.Nat44Global) linux.PutDSL {
+	op := dsl.TxnOp{Key: vpp_nat.GlobalConfigKey(), Value: val}
+	d.parent.Ops = append(d.parent.Ops, op)
+	return d
+}
+
+// NAT44DNat adds a request to create a new DNAT configuration
+func (d *MockPutDSL) NAT44DNat(val *vpp_nat.Nat44DNat_DNatConfig) linux.PutDSL {
+	op := dsl.TxnOp{Key: vpp_nat.DNatKey(val.Label), Value: val}
+	d.parent.Ops = append(d.parent.Ops, op)
+	return d
+}
+
 // LinuxInterface adds a mock request to create or update Linux network interface.
 func (d *MockPutDSL) LinuxInterface(val *linux_intf.LinuxInterfaces_Interface) linux.PutDSL {
 	op := dsl.TxnOp{Key: linux_intf.InterfaceKey(val.Name), Value: val}
@@ -195,8 +210,8 @@ func (d *MockDeleteDSL) BfdSession(bfdSessionIfaceName string) linux.DeleteDSL {
 
 // BfdAuthKeys adds a mock request to delete an existing bidirectional forwarding
 // detection key.
-func (d *MockDeleteDSL) BfdAuthKeys(bfdKey uint32) linux.DeleteDSL {
-	op := dsl.TxnOp{Key: vpp_bfd.AuthKeysKey(string(bfdKey))}
+func (d *MockDeleteDSL) BfdAuthKeys(bfdKey string) linux.DeleteDSL {
+	op := dsl.TxnOp{Key: vpp_bfd.AuthKeysKey(bfdKey)}
 	d.parent.Ops = append(d.parent.Ops, op)
 	return d
 }
@@ -269,6 +284,20 @@ func (d *MockDeleteDSL) AppNamespace(id string) linux.DeleteDSL {
 // StnRule adds request to delete Stn rule.
 func (d *MockDeleteDSL) StnRule(ruleName string) linux.DeleteDSL {
 	op := dsl.TxnOp{Key: vpp_stn.Key(ruleName)}
+	d.parent.Ops = append(d.parent.Ops, op)
+	return d
+}
+
+// NAT44Global adds a request to remove global configuration for NAT44
+func (d *MockDeleteDSL) NAT44Global() linux.DeleteDSL {
+	op := dsl.TxnOp{Key: vpp_nat.GlobalConfigKey()}
+	d.parent.Ops = append(d.parent.Ops, op)
+	return d
+}
+
+// NAT44DNat adds a request to delete a DNAT configuration identified by label
+func (d *MockDeleteDSL) NAT44DNat(label string) linux.DeleteDSL {
+	op := dsl.TxnOp{Key: vpp_nat.DNatKey(label)}
 	d.parent.Ops = append(d.parent.Ops, op)
 	return d
 }

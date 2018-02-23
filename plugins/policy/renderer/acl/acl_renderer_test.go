@@ -281,6 +281,104 @@ func TestIngressRulesOnePod(t *testing.T) {
 	gomega.Expect(txnTracker.CommittedTxns).To(gomega.HaveLen(1))
 }
 
+func TestEgressRulesTwoPods(t *testing.T) {
+	gomega.RegisterTestingT(t)
+	logger := logrus.DefaultLogger()
+	logger.SetLevel(logging.DebugLevel)
+	logger.Debug("TestEgressRulesTwoPods")
+
+	// Prepare input data
+	ingress := []*renderer.ContivRule{}
+	egress := []*renderer.ContivRule{Ts3.Rule1 /* UDP not allowed */, Ts3.Rule3, Ts3.Rule4}
+
+	// Prepare mocks.
+	//  -> Contiv plugin
+	contiv := NewMockContiv()
+	contiv.SetMainPhysicalIfName(mainIfName)
+	contiv.SetVxlanBVIIfName(vxlanIfName)
+	contiv.SetHostInterconnectIfName(hostInterIfName)
+	contiv.SetPodIfName(Pod1, Pod1IfName)
+	contiv.SetPodIfName(Pod2, Pod2IfName)
+
+	// -> ACL engine
+	aclEngine := NewMockACLEngine(logger, contiv)
+	aclEngine.RegisterPod(Pod1, Pod1IP, false)
+	aclEngine.RegisterPod(Pod2, Pod2IP, false)
+	aclEngine.RegisterPod(Pod6, Pod6IP, true)
+
+	// -> localclient
+	txnTracker := localclient.NewTxnTracker(aclEngine.ApplyTxn)
+
+	// -> default VPP plugins
+	vppPlugins := NewMockVppPlugin()
+
+	// Prepare ACL Renderer.
+	aclRenderer := &Renderer{
+		Deps: Deps{
+			Log:           logger,
+			Contiv:        contiv,
+			VPP:           vppPlugins,
+			ACLTxnFactory: txnTracker.NewLinuxDataChangeTxn,
+		},
+	}
+	aclRenderer.Init()
+
+	// Execute Renderer transaction.
+	txn := aclRenderer.NewTxn(true)
+	txn.Render(Pod1, GetOneHostSubnet(Pod1IP), ingress, egress, false)
+	txn.Render(Pod2, GetOneHostSubnet(Pod2IP), ingress, egress, false)
+	err := txn.Commit()
+	gomega.Expect(err).To(gomega.BeNil())
+	gomega.Expect(txnTracker.CommittedTxns).To(gomega.HaveLen(1))
+
+	// Test ACLs.
+	gomega.Expect(aclEngine.GetNumOfACLs()).To(gomega.Equal(2)) /* pod1 and pod2 should share the same local table */
+	gomega.Expect(aclEngine.GetNumOfACLChanges()).To(gomega.Equal(2))
+	verifyReflectiveACL(aclEngine, contiv, Pod1IfName, true)
+	verifyReflectiveACL(aclEngine, contiv, Pod2IfName, true)
+	verifyGlobalTable(aclEngine, contiv, false)
+
+	// Test connections (Pod1, Pod2 can receive connection only from 10.10.0.0/16:[TCP:ANY]).
+	//  -> dst = pod1
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod2, Pod1, renderer.TCP, somePort, 80)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod2, Pod1, renderer.TCP, somePort, 8080)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod6, Pod1, renderer.TCP, somePort, 80)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod6, Pod1, renderer.TCP, somePort, 8080)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod2, Pod1, renderer.UDP, somePort, 53)).To(gomega.Equal(ConnActionDenySyn))
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod2, Pod1, renderer.UDP, somePort, 500)).To(gomega.Equal(ConnActionDenySyn))
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod6, Pod1, renderer.UDP, somePort, 53)).To(gomega.Equal(ConnActionDenySyn))
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod6, Pod1, renderer.UDP, somePort, 500)).To(gomega.Equal(ConnActionDenySyn))
+	gomega.Expect(aclEngine.ConnectionInternetToPod(googleDNS, Pod1, renderer.TCP, somePort, 80)).To(gomega.Equal(ConnActionDenySyn))
+	gomega.Expect(aclEngine.ConnectionInternetToPod("10.10.50.1", Pod1, renderer.TCP, somePort, 80)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionInternetToPod("10.10.50.1", Pod1, renderer.TCP, somePort, 81)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionInternetToPod("10.10.50.1", Pod1, renderer.UDP, somePort, 53)).To(gomega.Equal(ConnActionDenySyn))
+	//  -> dst = pod2
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod1, Pod2, renderer.TCP, somePort, 80)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod1, Pod2, renderer.TCP, somePort, 8080)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod6, Pod2, renderer.TCP, somePort, 80)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod6, Pod2, renderer.TCP, somePort, 8080)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod1, Pod2, renderer.UDP, somePort, 53)).To(gomega.Equal(ConnActionDenySyn))
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod1, Pod2, renderer.UDP, somePort, 500)).To(gomega.Equal(ConnActionDenySyn))
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod6, Pod2, renderer.UDP, somePort, 53)).To(gomega.Equal(ConnActionDenySyn))
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod6, Pod2, renderer.UDP, somePort, 500)).To(gomega.Equal(ConnActionDenySyn))
+	gomega.Expect(aclEngine.ConnectionInternetToPod(googleDNS, Pod2, renderer.TCP, somePort, 80)).To(gomega.Equal(ConnActionDenySyn))
+	gomega.Expect(aclEngine.ConnectionInternetToPod("10.10.50.1", Pod2, renderer.TCP, somePort, 80)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionInternetToPod("10.10.50.1", Pod2, renderer.TCP, somePort, 81)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionInternetToPod("10.10.50.1", Pod2, renderer.UDP, somePort, 53)).To(gomega.Equal(ConnActionDenySyn))
+
+	// Remove pod2 - pod1 should still have the same local table.
+	err = aclRenderer.NewTxn(false).Render(Pod2, GetOneHostSubnet(Pod2IP), []*renderer.ContivRule{}, []*renderer.ContivRule{}, true).Commit()
+	gomega.Expect(err).To(gomega.BeNil())
+	gomega.Expect(txnTracker.CommittedTxns).To(gomega.HaveLen(2))
+
+	// Test ACLs.
+	gomega.Expect(aclEngine.GetNumOfACLs()).To(gomega.Equal(2))
+	gomega.Expect(aclEngine.GetNumOfACLChanges()).To(gomega.Equal(4)) /* changed interfaces for local table + reflective ACL */
+	verifyReflectiveACL(aclEngine, contiv, Pod1IfName, true)
+	verifyReflectiveACL(aclEngine, contiv, Pod2IfName, false)
+	verifyGlobalTable(aclEngine, contiv, false)
+}
+
 func TestCombinedRules(t *testing.T) {
 	gomega.RegisterTestingT(t)
 	logger := logrus.DefaultLogger()

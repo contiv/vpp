@@ -88,8 +88,9 @@ type PodConfig struct {
 
 // ACLConfig stores currently installed ACLs.
 type ACLConfig struct {
-	byName map[string]*vpp_acl.AccessLists_Acl
-	byIf   map[string]*InterfaceACLs
+	byName  map[string]*vpp_acl.AccessLists_Acl
+	byIf    map[string]*InterfaceACLs
+	changes int
 }
 
 // InterfaceACLs stores ACLs assigned to interface.
@@ -209,6 +210,11 @@ func (mae *MockACLEngine) GetACLByName(aclName string) *vpp_acl.AccessLists_Acl 
 		return nil
 	}
 	return acl
+}
+
+// GetNumOfACLChanges returns the number of ACL changes (Put+Delete).
+func (mae *MockACLEngine) GetNumOfACLChanges() int {
+	return mae.aclConfig.changes
 }
 
 // ConnectionPodToPod allows to simulate a connection establishment between two pods
@@ -619,6 +625,7 @@ func (ac *ACLConfig) DelACL(aclName string) error {
 			aclCfg.outbound = nil
 		}
 	}
+	ac.changes++
 	return nil
 }
 
@@ -635,6 +642,7 @@ func (ac *ACLConfig) PutACL(acl *vpp_acl.AccessLists_Acl) error {
 	if hasACL {
 		// del origin ACL first
 		ac.DelACL(acl.AclName)
+		ac.changes--
 	}
 	ac.byName[acl.AclName] = acl
 	for _, ifName := range acl.Interfaces.Ingress {
@@ -649,5 +657,6 @@ func (ac *ACLConfig) PutACL(acl *vpp_acl.AccessLists_Acl) error {
 		}
 		ac.byIf[ifName].outbound = acl
 	}
+	ac.changes++
 	return nil
 }

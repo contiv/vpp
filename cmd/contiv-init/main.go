@@ -139,7 +139,7 @@ func parseSTNConfig() (config *contiv.Config, nicToSteal string, vppIfName strin
 		if nc.NodeName == nodeName {
 			logger.Debugf("Found interface to be stealed: %s", nc.StealInterface)
 			nicToSteal = nc.StealInterface
-			vppIfName = nc.MainVppInterface.InterfaceName
+			vppIfName = nc.MainVPPInterface.InterfaceName
 			return
 		}
 	}

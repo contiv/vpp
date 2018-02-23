@@ -153,7 +153,7 @@ endef
 # build contiv-init only
 define build_contiv_init_only
     @echo "# building contiv-init"
-    @cd cmd/contiv-init && go build -v -i ${LDFLAGS}
+    @cd cmd/contiv-init && go build -v -i ${LDFLAGS} -tags="${GO_BUILD_TAGS}"
     @echo "# done"
 endef
 

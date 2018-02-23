@@ -1,3 +1,5 @@
+---
+# Source: contiv-vpp/templates/vpp.yaml
 # Contiv-VPP deployment YAML file. This deploys Contiv VPP networking on a Kuberntes cluster.
 # The deployment consists of the following components:
 #   - contiv-etcd - deployed on k8s master
@@ -19,54 +21,21 @@ metadata:
   name: contiv-agent-cfg
   namespace: kube-system
 data:
-  contiv.yaml: |
-    TCPstackDisabled: True
-    UseTAPInterfaces: True
-    TAPInterfaceVersion: 2
+  contiv.yaml: |-
+    TCPstackDisabled: true
+    UseTAPInterfaces: true
+    TAPInterfaceVersion: 1
     IPAMConfig:
-      PodSubnetCIDR: "10.1.0.0/16"
+      PodSubnetCIDR: 10.1.0.0/16
       PodNetworkPrefixLen: 24
-      VPPHostSubnetCIDR: "172.30.0.0/16"
+      VPPHostSubnetCIDR: 172.30.0.0/16
       VPPHostNetworkPrefixLen: 24
-      NodeInterconnectCIDR: "192.168.16.0/24"
-      VxlanCIDR: "192.168.30.0/24"
-    NodeConfig:
-    - NodeName: "ubuntu-1"
-      StealInterface: "enp0s8"
-    - NodeName: "ubuntu-2"
-      StealInterface: "enp0s8"
-#      ServiceCIDR: "10.96.0.0/12"
-#      NodeInterconnectDHCP: True
-### example of node configuration for VPP interfaces
-#    NodeConfig:
-#    - NodeName: "vm1"
-#      MainVppInterface:
-#        InterfaceName: "GigabitEthernet0/4/0"
-#        IP: 192.168.16.101/24
-#      Gateway: 192.168.1.1
-#      OtherVPPInterfaces:
-#      - InterfaceName: "GigabitEthernet0/5/0"
-#        IP: "1.2.3.4/24"
-#      - InterfaceName: "GigabitEthernet0/6/0"
-#        IP: "2.3.4.5/24"
-#    - NodeName: "vm2"
-#      UseDhcpOnMainInt: False
-#      MainVppInterface:
-#        InterfaceName: "GigabitEthernet0/9/0"
-#        UseDHCP: True
-#      Gateway: 192.168.1.1
-#      OtherVPPInterfaces:
-#      - InterfaceName: "GigabitEthernet0/7/0"
-#        IP: "3.4.5.6/24"
-#      - InterfaceName: "GigabitEthernet0/7/0"
-#        IP: "5.6.7.8/24"
+      NodeInterconnectCIDR: 192.168.16.0/24
+      VxlanCIDR: 192.168.30.0/24
+      NodeInterconnectDHCP: False
 
 ---
 
-# This config map contains GoVPP configuration. It contains time intervals used for VPP
-# health probing (in nanoseconds). After a health check probe is not recieved within the
-# health-check-reply-timeout period health-check-threshold times, VPP is considered to be dead
-# by the contiv-agent.
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -77,9 +46,6 @@ data:
     health-check-probe-interval: 1000000000
     health-check-reply-timeout: 500000000
     health-check-threshold: 3
-  logs.conf: |
-    defaultlevel: debug
-
 
 ---
 
@@ -127,6 +93,7 @@ spec:
       containers:
         - name: contiv-etcd
           image: quay.io/coreos/etcd:v3.1.10
+          imagePullPolicy: IfNotPresent
           env:
             - name: CONTIV_ETCD_IP
               valueFrom:
@@ -139,7 +106,6 @@ spec:
 
 ---
 
-# This service exposes a NodePort where contiv-etcd can be reached on any node.
 apiVersion: v1
 kind: Service
 metadata:
@@ -151,7 +117,6 @@ spec:
   selector:
     k8s-app: contiv-etcd
   ports:
-  # Our ETCD is running on port 12379 on the master node. Let's expose it as a service on port 32379 on each node.
   - port: 12379
     nodePort: 32379
 
@@ -208,18 +173,25 @@ spec:
       initContainers:
       # This init container extracts/copies VPP LD_PRELOAD libs and default VPP config to the host.
       - name: vpp-init
-        image: contivvpp/vswitch
+        image: contivvpp/vswitch:latest
         imagePullPolicy: IfNotPresent
         command:
         - /bin/sh
         args:
         - -c
-        - "rm -rf /dev/shm/db /dev/shm/global_vm /dev/shm/vpe-api || true && \
-           rm -rf /vpp-lib64/* || true && \
-           cp -r $LD_PRELOAD_LIB_DIR/* /vpp-lib64/ && \
-           if [ ! -e /host/etc/vpp/contiv-vswitch.conf ]; then cp /etc/vpp/contiv-vswitch.conf /host/etc/vpp; fi && \
-           ip link del vpp1 || true"
-        imagePullPolicy: IfNotPresent
+        - |
+          set -eu
+          chmod 700 /run/vpp
+          rm -rf /dev/shm/db /dev/shm/global_vm /dev/shm/vpe-api /vpp-lib64/*
+          cp -r "$LD_PRELOAD_LIB_DIR"/* /vpp-lib64/
+          if [ ! -e /host/etc/vpp/contiv-vswitch.conf ]
+          then
+              cp /etc/vpp/contiv-vswitch.conf /host/etc/vpp/
+          fi
+          if ip link show vpp1 >/dev/null 2>&1
+          then
+               ip link del vpp1
+          fi
         resources: {}
         securityContext:
           privileged: true
@@ -230,18 +202,18 @@ spec:
             mountPath: /host/etc/vpp
           - name: shm
             mountPath: /dev/shm
+          - name: vpp-run
+            mountPath: /run/vpp
 
       containers:
         # Runs contiv-vswitch container on each Kubernetes node.
         # It contains the vSwitch VPP and its management agent.
         - name: contiv-vswitch
-          image: contivvpp/vswitch
+          image: contivvpp/vswitch:latest
           imagePullPolicy: IfNotPresent
           securityContext:
             privileged: true
           ports:
-            # VPP debug CLI
-            - containerPort: 5002
             # readiness + liveness probe
             - containerPort: 9999
           readinessProbe:
@@ -272,6 +244,8 @@ spec:
               mountPath: /dev/shm
             - name: dev
               mountPath: /dev
+            - name: vpp-run
+              mountPath: /run/vpp
             - name: contiv-plugin-cfg
               mountPath: /etc/agent
             - name: govpp-plugin-cfg
@@ -280,7 +254,7 @@ spec:
         # This container installs the Contiv CNI binaries
         # and CNI network config file on each node.
         - name: contiv-cni
-          image: contiv/vpp-cni
+          image: contivvpp/cni:latest
           imagePullPolicy: IfNotPresent
           volumeMounts:
             - mountPath: /opt/cni/bin
@@ -315,6 +289,10 @@ spec:
         - name: shm
           hostPath:
             path: /dev/shm
+        # For CLI unix socket.
+        - name: vpp-run
+          hostPath:
+            path: /run/vpp
         # Used to configure contiv plugin.
         - name: contiv-plugin-cfg
           configMap:
@@ -358,7 +336,7 @@ spec:
 
       containers:
         - name: contiv-ksr
-          image: contiv/vpp-ksr
+          image: contivvpp/ksr:latest
           imagePullPolicy: IfNotPresent
           env:
             - name: ETCDV3_CONFIG
@@ -403,6 +381,7 @@ rules:
       - networkpolicies
       - services
       - endpoints
+      - nodes
     verbs:
       - watch
       - list
@@ -431,3 +410,4 @@ subjects:
 - kind: ServiceAccount
   name: contiv-ksr
   namespace: kube-system
+

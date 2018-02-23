@@ -18,7 +18,7 @@ package node;
 
 // NodeInfo represents a node in the k8s cluster.
 // It records an unique node ID to identify the node within the cluster.
-// ID determines IPAM for the givne node.
+// ID determines IPAM for the given node.
 message NodeInfo {
 
     uint32 id = 1;
@@ -26,4 +26,6 @@ message NodeInfo {
     string name = 2;
 
     string ip_address = 3;
+
+    string management_ip_address = 4;
 }

@@ -10,7 +10,6 @@
 [[projects]]
   name = "git.fd.io/govpp.git"
   packages = [
-    ".",
     "adapter",
     "adapter/mock",
     "adapter/mock/binapi",
@@ -645,12 +644,6 @@
 
 [[projects]]
   branch = "master"
-  name = "github.com/kolo/xmlrpc"
-  packages = ["."]
-  revision = "0826b98aaa29c0766956cb40d45cf7482a597671"
-
-[[projects]]
-  branch = "master"
   name = "github.com/kr/pretty"
   packages = ["."]
   revision = "cfb55aafdaf3ec08f0db22699ab822c50091b1c4"
@@ -709,7 +702,8 @@
     "utils/safeclose",
     "utils/structs"
   ]
-  revision = "d27ff7d747310a942c61fb39725463b4cdf540cb"
+  revision = "39925ecc46ce2ed75c36869d584925963a3314d4"
+  version = "v1.1"
 
 [[projects]]
   name = "github.com/ligato/vpp-agent"
@@ -722,18 +716,20 @@
     "idxvpp",
     "idxvpp/cacheutil",
     "idxvpp/nametoidx",
-    "idxvpp/persist",
     "plugins/defaultplugins",
     "plugins/defaultplugins/aclplugin",
+    "plugins/defaultplugins/aclplugin/aclidx",
     "plugins/defaultplugins/aclplugin/vppcalls",
     "plugins/defaultplugins/aclplugin/vppdump",
     "plugins/defaultplugins/common/bin_api/acl",
     "plugins/defaultplugins/common/bin_api/af_packet",
     "plugins/defaultplugins/common/bin_api/bfd",
+    "plugins/defaultplugins/common/bin_api/dhcp",
     "plugins/defaultplugins/common/bin_api/interfaces",
     "plugins/defaultplugins/common/bin_api/ip",
     "plugins/defaultplugins/common/bin_api/l2",
     "plugins/defaultplugins/common/bin_api/memif",
+    "plugins/defaultplugins/common/bin_api/nat",
     "plugins/defaultplugins/common/bin_api/session",
     "plugins/defaultplugins/common/bin_api/stats",
     "plugins/defaultplugins/common/bin_api/stn",
@@ -747,6 +743,7 @@
     "plugins/defaultplugins/common/model/l2",
     "plugins/defaultplugins/common/model/l3",
     "plugins/defaultplugins/common/model/l4",
+    "plugins/defaultplugins/common/model/nat",
     "plugins/defaultplugins/common/model/stn",
     "plugins/defaultplugins/ifplugin",
     "plugins/defaultplugins/ifplugin/ifaceidx",
@@ -766,16 +763,16 @@
     "plugins/govppmux",
     "plugins/govppmux/vppcalls",
     "plugins/linuxplugin",
+    "plugins/linuxplugin/common/model/interfaces",
+    "plugins/linuxplugin/common/model/l3",
     "plugins/linuxplugin/ifplugin",
     "plugins/linuxplugin/ifplugin/ifaceidx",
     "plugins/linuxplugin/ifplugin/linuxcalls",
-    "plugins/linuxplugin/ifplugin/model/interfaces",
     "plugins/linuxplugin/l3plugin",
     "plugins/linuxplugin/l3plugin/l3idx",
-    "plugins/linuxplugin/l3plugin/linuxcalls",
-    "plugins/linuxplugin/l3plugin/model/l3"
+    "plugins/linuxplugin/l3plugin/linuxcalls"
   ]
-  revision = "188910dbed38b093ba4e8f57b3dde1e3a4314c51"
+  revision = "50f76e2054f56835724f229655220f3f09e86293"
 
 [[projects]]
   branch = "master"
@@ -822,11 +819,6 @@
   packages = ["."]
   revision = "71ceffbeb0ba60fccc853971bb3ed4d7d90bfd04"
   version = "v1.7.4-pre"
-
-[[projects]]
-  name = "github.com/nerdtakula/supervisor"
-  packages = ["."]
-  revision = "5bf894f54fd79a23fa965bf078b2a094a9d9e20b"
 
 [[projects]]
   name = "github.com/onsi/gomega"
@@ -992,11 +984,6 @@
   version = "v1.29.0"
 
 [[projects]]
-  name = "github.com/safchain/ethtool"
-  packages = ["."]
-  revision = "7ff1ba29eca231991280817541cb3903f6be15d1"
-
-[[projects]]
   name = "github.com/satori/go.uuid"
   packages = ["."]
   revision = "f58768cc1a7a7e77a3bd49e98cdd21419399b6a3"
@@ -1053,12 +1040,13 @@
   version = "v1.20.0"
 
 [[projects]]
+  branch = "master"
   name = "github.com/vishvananda/netlink"
   packages = [
     ".",
     "nl"
   ]
-  revision = "d35d6b58e1cb692b27b94fc403170bf44058ac3e"
+  revision = "a2af46a09c21dd8b727a0f8912e559b8b484144d"
 
 [[projects]]
   branch = "master"
@@ -1624,6 +1612,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "120edbc4ea38ee13621898b3fec28251d6ad687ce3ddf04e2040046476338715"
+  inputs-digest = "1aa7c9167c4371caf3438d6bae685b4db9f8b6520512c5db70f1e86c88cf8f2e"
   solver-name = "gps-cdcl"
   solver-version = 1

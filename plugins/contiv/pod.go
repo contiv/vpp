@@ -176,7 +176,7 @@ func (s *remoteCNIserver) configureHostTAP(request *cni.CNIRequest, podIPNet *ne
 // already done by VPP itself.
 // TODO: move to the linuxplugin
 func (s *remoteCNIserver) unconfigureHostTAP(request *cni.CNIRequest) error {
-	//tapHostIfName := s.tapHostNameFromRequest(request)
+	tapHostIfName := s.tapHostNameFromRequest(request)
 	containerNs := &linux_intf.LinuxInterfaces_Interface_Namespace{
 		Type:     linux_intf.LinuxInterfaces_Interface_Namespace_FILE_REF_NS,
 		Filepath: request.NetworkNamespace,
@@ -190,10 +190,10 @@ func (s *remoteCNIserver) unconfigureHostTAP(request *cni.CNIRequest) error {
 	}
 	defer revertNs()
 
-	//err = linuxcalls.DeleteInterface(tapHostIfName, nil)
-	//if err == nil {
-	//	s.WithField("tap", tapHostIfName).Warn("TAP interface was not removed in the host stack by VPP")
-	//}
+	err = deleteInterface(tapHostIfName)
+	if err == nil {
+		s.WithField("tap", tapHostIfName).Warn("TAP interface was not removed in the host stack by VPP")
+	}
 
 	return nil
 }
@@ -380,7 +380,9 @@ func (s *remoteCNIserver) podArpEntry(request *cni.CNIRequest, ifName string, ma
 		Name:      request.ContainerId,
 		Namespace: containerNs,
 		Interface: ifName,
-		IpFamily:  &linux_l3.LinuxStaticArpEntries_ArpEntry_IpFamily{Family: linux_l3.LinuxStaticArpEntries_ArpEntry_IpFamily_IPV4},
+		IpFamily: &linux_l3.LinuxStaticArpEntries_ArpEntry_IpFamily{
+			Family: linux_l3.LinuxStaticArpEntries_ArpEntry_IpFamily_IPV4,
+		},
 		State: &linux_l3.LinuxStaticArpEntries_ArpEntry_NudState{
 			Type: linux_l3.LinuxStaticArpEntries_ArpEntry_NudState_PERMANENT,
 		},
@@ -421,4 +423,14 @@ func (s *remoteCNIserver) podDefaultRouteFromRequest(request *cni.CNIRequest, if
 		},
 		GwAddr: s.ipam.PodGatewayIP().String(),
 	}
+}
+
+// deleteInterface removes interface <ifName>.
+// TODO: remove once we migrate to vpp-agent's handling of TAPs.
+func deleteInterface(ifName string) error {
+	link, err := netlink.LinkByName(ifName)
+	if err != nil {
+		return err
+	}
+	return netlink.LinkDel(link)
 }

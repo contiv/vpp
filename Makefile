@@ -272,6 +272,12 @@ check_format:
 describe:
 	$(call describe_only)
 
+generate-manifest:
+	helm template k8s/contiv-vpp/ > k8s/contiv-vpp.yaml
+
+helm-package:
+	helm package k8s/contiv-vpp/
+
 # clean
 clean:
 	rm -f cmd/contiv-agent/contiv-agent

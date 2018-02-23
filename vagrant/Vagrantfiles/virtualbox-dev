@@ -29,7 +29,7 @@ module VagrantPlugins
 
         def self.destroy_hook(arg)
             if File.exist?(STATEFILE)
-            File.unlink(STATEFILE)
+                File.unlink(STATEFILE)
             end
         end
 
@@ -48,7 +48,7 @@ end
 http_proxy = ENV['HTTP_PROXY'] || ENV['http_proxy'] || ''
 https_proxy = ENV['HTTPS_PROXY'] || ENV['https_proxy'] || ''
 node_os = ENV['K8S_NODE_OS'] || 'ubuntu'
-base_ip = ENV['K8S_IP_PREFIX'] || '192.169.1.'
+base_ip = ENV['K8S_IP_PREFIX'] || '192.168.20.'
 num_nodes = ENV['K8S_NODES'].to_i == 0 ? 0 : ENV['K8S_NODES'].to_i
 
 provision_every_node = <<SCRIPT
@@ -71,9 +71,8 @@ echo "Installing dependency packages..."
 apt-get install -y apt-transport-https \
                    ca-certificates \
                    curl \
-                   software-properties-common \
-                   git
-                   
+                   software-properties-common 
+
 echo "Adding Kubernetes & Docker repos..."
 curl -s https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add -
 curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add -
@@ -131,7 +130,7 @@ touch /etc/vpp/contiv-vswitch.conf
   cat <<EOF >/etc/vpp/contiv-vswitch.conf
 unix {
    nodaemon
-   cli-listen 0.0.0.0:5002
+   cli-listen /run/vpp/cli.sock
    cli-no-pager
 }
 dpdk {
@@ -156,40 +155,48 @@ echo "#auto enp0s8" >> /etc/network/interfaces
 # Pull the latest images
 bash <(curl -s https://raw.githubusercontent.com/contiv/vpp/master/k8s/pull-images.sh)
 
+#Disable swap
+swapoff -a
+sed -e '/swap/ s/^#*/#/' -i /etc/fstab
 SCRIPT
 
 bootstrap_master = <<SCRIPT
 set -e
 set -x
 
+echo Args passed: [[ $@ ]]
+
+# --------------------------------------------------------
+# ---> Build Contiv/VPP-vswitch Development Image <---
+# --------------------------------------------------------
+
+echo "vagrant" >> /home/vagrant/gopath/src/github.com/contiv/vpp/.dockerignore
+echo "Building development contivpp/vswitch image..."
+cd /home/vagrant/gopath/src/github.com/contiv/vpp/docker/ubuntu-based/dev; ./build.sh
+
 # --------------------------------------------------------
 # ---> Create token and export it with kube master IP <---
 # --------------------------------------------------------
 
-echo "Building development contivpp/vswitch image..."
-cd /home/vagrant/gopath/src/github.com/contiv/vpp/docker/ubuntu-based/dev; ./build.sh
-
 echo "Exporting Kube Master IP and Kubeadm Token..."
-#echo "export KUBE_MASTER_IP=$(hostname -I | cut -f2 -d' ')" >> /vagrant/config/init.sh
-echo "export KUBE_MASTER_IP=192.169.1.10\n" >> /vagrant/config/init.sh
-echo "export KUBEADM_TOKEN=$(kubeadm token generate)" >> /vagrant/config/init.sh
-source /vagrant/config/init.sh
-echo "export no_proxy='k8s-master,192.169.1.10,192.169.1.11,192.169.1.12,192.169.1.13,localhost,127.0.0.1'" >> /etc/profile.d/envvar.sh
-echo "export no_proxy='k8s-master,192.169.1.10,192.169.1.11,192.169.1.12,192.169.1.13,localhost,127.0.0.1'" >> ~/.profile
+echo "export KUBE_MASTER_IP=$2" >> /vagrant/config/init
+echo "export KUBEADM_TOKEN=$(kubeadm token generate)" >> /vagrant/config/init
+source /vagrant/config/init
+sed 's/127\.0\.0\.1.*k8s.*/'"$2"' '"$1"'/' -i /etc/hosts
+
+echo "export no_proxy='$1,$KUBE_MASTER_IP,localhost,127.0.0.1'" >> /etc/profile.d/envvar.sh
+echo "export no_proxy='$1,$KUBE_MASTER_IP,localhost,127.0.0.1'" >> /home/vagrant/.profile
 source /etc/profile.d/envvar.sh
-source ~/.profile
+source /home/vagrant/.profile
 
 # --------------------------------------------------------
 # --------------> Kubeadm & Networking <------------------
 # --------------------------------------------------------
 
-sed -i '4 a Environment="KUBELET_EXTRA_ARGS=--fail-swap-on=false --node-ip=192.169.1.10"' /etc/systemd/system/kubelet.service.d/10-kubeadm.conf
+sed -i '4 a Environment="KUBELET_EXTRA_ARGS=--node-ip=$KUBE_MASTER_IP"' /etc/systemd/system/kubelet.service.d/10-kubeadm.conf
 systemctl daemon-reload
 systemctl restart kubelet
-
-#Disable swap
-swapoff -a
-echo "$(kubeadm init --token-ttl 0 --apiserver-advertise-address="${KUBE_MASTER_IP}" --token="${KUBEADM_TOKEN}")" >> /vagrant/config/cert.sh
+echo "$(kubeadm init --token-ttl 0 --apiserver-advertise-address="${KUBE_MASTER_IP}" --token="${KUBEADM_TOKEN}")" >> /vagrant/config/cert
 
 echo "Create folder to store kubernetes and network configuration"
 mkdir -p /home/vagrant/.kube
@@ -208,22 +215,21 @@ EOF
 SCRIPT
 
 bootstrap_worker = <<SCRIPT
-echo "export no_proxy='k8s-worker1,192.169.1.10,192.169.1.11,192.169.1.12,192.169.1.13,localhost,127.0.0.1'" >> /etc/profile.d/envvar.sh
-echo "export no_proxy='k8s-worker1,192.169.1.10,192.169.1.11,192.169.1.12,192.169.1.13,localhost,127.0.0.1'" >> ~/.profile
-source /etc/profile.d/envvar.sh
-source ~/.profile
-sed -i '4 a Environment="KUBELET_EXTRA_ARGS=--fail-swap-on=false --node-ip=192.169.1.11"' /etc/systemd/system/kubelet.service.d/10-kubeadm.conf
-systemctl daemon-reload
-systemctl restart kubelet
-
-#Disable swap
-swapoff -a
-
-# Kubeadm join expects kube_master_ip and kubeadm_token
 set -e
 set -x
-source /vagrant/config/init.sh
-hash=$(awk 'END {print $NF}' /vagrant/config/cert.sh)
+
+echo Args passed: [[ $@ ]]
+
+source /vagrant/config/init
+export KUBE_WORKER_IP=$2
+sed 's/127\.0\.0\.1.*k8s.*/'"$2"' '"$1"'/' -i /etc/hosts
+echo "export no_proxy='$1,$KUBE_MASTER_IP,$KUBE_WORKER_IP,localhost,127.0.0.1'" >> /etc/profile.d/envvar.sh
+echo "export no_proxy='$1,$KUBE_MASTER_IP,$KUBE_WORKER_IP,localhost,127.0.0.1'" >> /home/vagrant/.profile
+source /etc/profile.d/envvar.sh
+source /home/vagrant/.profile
+
+# Kubeadm join expects kube_master_ip and kubeadm_token
+hash=$(awk 'END {print $NF}' /vagrant/config/cert)
 kubeadm join --token "${KUBEADM_TOKEN}"  "${KUBE_MASTER_IP}":6443 --discovery-token-ca-cert-hash "$hash"
 SCRIPT
 
@@ -245,10 +251,9 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
     end
 
     node_ips = num_nodes.times.collect { |n| base_ip + "#{n+10}" }
-    cluster_ip_nodes = node_ips.join(",")
+    node_names = num_nodes.times.collect { |n| "k8s-worker#{n+1}" }
 
     config.ssh.insert_key = false
-    node_names = num_nodes.times.collect { |n| "k8s-worker#{n+1}" }
 
     if Vagrant.has_plugin?("vagrant-cachier")
         config.cache.scope = :box
@@ -258,23 +263,22 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
     # Configure Master node
     config.vm.define "k8s-master" do |k8smaster|
         k8smaster.vm.host_name = "k8s-master"
+        k8smaster_ip = base_ip + "2"
+        k8smaster.vm.synced_folder "../", "/home/vagrant/gopath/src/github.com/contiv/vpp"
         k8smaster.vm.network :private_network, type: "dhcp", auto_config: false
-        k8smaster.vm.network :private_network, ip: base_ip + "10", virtualbox__intnet: "true"
+        k8smaster.vm.network :private_network, ip: k8smaster_ip, virtualbox__intnet: "true"
         k8smaster.vm.provider "virtualbox" do |v|
             v.customize ["modifyvm", :id, "--ioapic", "on"]
             v.memory = 4096
             v.cpus = 4
         end
-        k8smaster.vm.synced_folder "../", "/home/vagrant/gopath/src/github.com/contiv/vpp"
-        k8smaster_ip = base_ip + "51"
-        k8smaster.vm.provision :shell, inline: "sed 's/127\.0\.0\.1.*k8s.*/"+base_ip +"10 k8s-master/' -i /etc/hosts"
         k8smaster.vm.provision "shell" do |s|
             s.inline = provision_every_node
-            s.args = [ENV["http_proxy"] || "", ENV["https_proxy"] || ""]
+            s.args = [http_proxy, https_proxy]
         end
         k8smaster.vm.provision "shell" do |s|
             s.inline = bootstrap_master
-            s.args = [ENV["http_proxy"] || "", ENV["https_proxy"] || ""]
+            s.args = ["k8s-master", k8smaster_ip]
         end
     end
 
@@ -286,23 +290,19 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
             node.vm.hostname = node_name
             # Interface for K8s Cluster
             node.vm.network :private_network, type: "dhcp", auto_config: false
-            #node.vm.network :private_network, ip: "node_addr", virtualbox__intnet: "true"
-            node.vm.network :private_network, ip: base_ip + "11", virtualbox__intnet: "true"
+            node.vm.network :private_network, ip: node_addr, virtualbox__intnet: "true"
             node.vm.provider "virtualbox" do |v|
             v.customize ["modifyvm", :id, "--ioapic", "on"]
             v.memory = 2048
             v.cpus = 2
             end
-            node_ip_last = n+10
-            #node.vm.provision :shell, inline: "sed 's/127\.0\.0\.1.*k8s.*/192\.169\.1\.#{node_ip_last} #{node_name}/' -i /etc/hosts"
-            node.vm.provision :shell, inline: "sed 's/127\.0\.0\.1.*k8s.*/"+base_ip+"11 k8s-worker1/' -i /etc/hosts"
             node.vm.provision "shell" do |s|
                 s.inline = provision_every_node
-                s.args = [ENV["http_proxy"] || "", ENV["https_proxy"] || ""]
+                s.args = [http_proxy, https_proxy]
             end
             node.vm.provision "shell" do |s|
                 s.inline = bootstrap_worker
-                s.args = [ENV["http_proxy"] || "", ENV["https_proxy"] || ""]
+                s.args = [node_name, node_addr]
             end
         end
     end

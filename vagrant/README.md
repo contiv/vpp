@@ -12,8 +12,8 @@ It is organized into two subfolders:
  - (vagrant-scripts) - contains scripts for creating, destroying, rebooting
     and shuting down the VMs that host the K8s cluster.
 
-If you wish to change the default number of nodes, set K8S_NODES before running
-vagrant-up.sh:
+If you wish to change the default number of nodes, edit and set K8S_NODES 
+before running vagrant-up:
 ```
 # For a single node setup:
 export K8S_NODES=0
@@ -24,47 +24,70 @@ export K8S_NODES=1
 By default, if you do not specify the number of nodes in the environment 
 variable, two nodes (one master, one worker) are created.
 
-To create and run the cluster run vagrant-up.sh script, located inside 
-vagrant-scripts folder. You can choose to deploy between the testing (use the 
--t flag or leave empty) and the development environment (use the -d flag) when 
-running the vagrant-up.sh script. Instructions on how to build the development
-contiv/vpp-vswitch image can be found in the next paragraph.
+Two vagrant providers are supported: VirtualBox and VmWare Fusion. The default 
+provider is VirtualBox. If you wish to use VmWare Fusion as the default vagrant
+provider, edit the vagrant-up script and set the VAGRANT_DEFAULT_PROVIDER value
+to `vmware_fusion`. You can always switch back to the default `virtualbox`.
 
-_For the testing environment run:_
+Note: to use vmware_fusion, you need to have a valid license and install the 
+vmware_fusion plugin for vagrant:
+```
+vagrant plugin install vagrant-vmware-fusion
+```
+
+- To use the virtualbox provider, set the `VAGRANT_DEFAULT_PROVIDER` variable
+as follows:
+```
+export VAGRANT_DEFAULT_PROVIDER=${VAGRANT_DEFAULT_PROVIDER:-virtualbox}
+```
+- To use the vmware_fusion provider, set the `VAGRANT_DEFAULT_PROVIDER` 
+variable as follows:
+```
+export VAGRANT_DEFAULT_PROVIDER=${VAGRANT_DEFAULT_PROVIDER:-vmware_fusion}
+```
+
+To create and run a K8s cluster with contiv-vpp CNI plugin, run the 
+`vagrant-up` script, located in the vagrant-scripts folder. The `vagrant-up`
+script can deploy either the *testing environment* (using the -t flag or 
+leave empty) or the *development environment* (use the -d flag) . Instructions
+on how to build the development contiv/vpp-vswitch image can be found in the
+next paragraph.
+
+For the testing environment run:
 ```
 cd vagrant-scripts/
-./vagrant-up.sh
+./vagrant-up
 ```
 
-_For the development environment run:_
+For the development environment run:
 ```
 cd vagrant-scripts/
-./vagrant-up.sh -d
+./vagrant-up -d
 ```
 
-To destroy and clean-up the cluster run vagrant-cleanup.sh script, located
+To destroy and clean-up the cluster run vagrant-cleanup script, located
 inside vagrant-scripts folder:
 ```
 cd vagrant-scripts/
-./vagrant-cleanup.sh
+./vagrant-cleanup
 ```
 
-To shutdown the cluster run vagrant-shutdown.sh script, located inside 
+To shutdown the cluster run vagrant-shutdown script, located inside
 vagrant-scripts folder:
 ```
 cd vagrant-scripts/
-./vagrant-shutdown.sh
+./vagrant-shutdown
 ```
 
-To reboot the cluster run vagrant-reload.sh script, located inside 
+To reboot the cluster run vagrant-reload script, located inside
 vagrant-scripts folder:
 ```
 cd vagrant-scripts/
-./vagrant-reload.sh
+./vagrant-reload
 ```
 
 From a suspended state, or after a reboot of the host machine, the cluster
-can be brought up by running the vagrant-up.sh script.
+can be brought up by running the vagrant-up script.
 
 
 ### Building and deploying the dev-contiv-vswitch image (optional)
@@ -75,9 +98,9 @@ instructions to build a modified contivvpp/vswitch image.
    build the new contivvpp/vswitch image (run as sudo)
 
 ```
-export VAGRANT_VAGRANTFILE=../Vagrantfile-dev; vagrant ssh k8s-master
+vagrant ssh k8s-master
 cd /vagrant/config
-sudo ./save-dev-image.sh
+sudo ./save-dev-image
 ```
 
 2. The newly built contivvpp/vswitch image is now tagged as latest. Verify 
@@ -87,9 +110,9 @@ the nodes in the K8s cluster. To do so, load the docker image into the running
 worker nodes (run as sudo).
 
 ```
-export VAGRANT_VAGRANTFILE=../Vagrantfile-dev; vagrant ssh k8s-worker1 
+vagrant ssh k8s-worker1
 cd /vagrant/config
-sudo ./load-dev-image.sh
+sudo ./load-dev-image
 ```
 
 Verify with `sudo docker images`; old contivvpp/vswitch should now be tagged as
@@ -101,7 +124,7 @@ Once the cluster is up, log into the master:
 ```
 cd vagrant-scripts
 
-export VAGRANT_VAGRANTFILE=../Vagrantfile-prod; vagrant ssh k8s-master
+vagrant ssh k8s-master
 
 Welcome to Ubuntu 16.04 LTS (GNU/Linux 4.4.0-21-generic x86_64)
 
@@ -146,10 +169,7 @@ you have to untaint the master node:
 
 Check VPP and its interfaces:
 ```apple js
-vagrant@k8s-master:~$ telnet 0 5002
-Trying 0.0.0.0...
-Connected to 0.
-Escape character is '^]'.
+vagrant@k8s-master:~$ sudo nc -U /run/vpp/cli.sock
     _______    _        _   _____  ___ 
  __/ __/ _ \  (_)__    | | / / _ \/ _ \
  _/ _// // / / / _ \   | |/ / ___/ ___/
@@ -214,5 +234,5 @@ cd vagrant-scripts
 
 vagrant status
 
-export VAGRANT_VAGRANTFILE=../Vagrantfile-prod; vagrant ssh k8s-worker1
+vagrant ssh k8s-worker1
 ```

@@ -19,7 +19,7 @@ package linuxcalls
 import (
 	"strconv"
 
-	intf "github.com/ligato/vpp-agent/plugins/linuxplugin/ifplugin/model/interfaces"
+	intf "github.com/ligato/vpp-agent/plugins/linuxplugin/common/model/interfaces"
 
 	"fmt"
 	"net"
@@ -139,7 +139,7 @@ func SetInterfaceNamespace(ctx *NamespaceMgmtCtx, ifName string, namespace *intf
 		if err != nil {
 			return fmt.Errorf("failed to parse IPv4 address of a Linux interface `%s`: %v", ifName, err)
 		}
-		err = AddInterfaceIP(ifName, network, measure.GetTimeLog("add_iface_ip", stopwatch))
+		err = AddInterfaceIP(log, ifName, network, measure.GetTimeLog("add_iface_ip", stopwatch))
 		if err != nil {
 			if err.Error() == "file exists" {
 				continue

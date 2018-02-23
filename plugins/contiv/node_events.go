@@ -81,11 +81,11 @@ func (s *remoteCNIserver) nodeResync(dataResyncEv datasync.ResyncEvent) error {
 
 				if nodeID != s.ipam.NodeID() {
 					s.Logger.Info("Other node discovered: ", nodeID)
-					if nodeInfo.IpAddress != "" {
+					if nodeInfo.IpAddress != "" && nodeInfo.ManagementIpAddress != "" {
 						// add routes to the node
 						err = s.addRoutesToNode(nodeInfo)
 					} else {
-						s.Logger.Infof("Ip address of node %v is not known yet.")
+						s.Logger.Infof("Ip address or management IP of node %v is not known yet.")
 					}
 				}
 			}
@@ -124,12 +124,12 @@ func (s *remoteCNIserver) nodeChangePropageteEvent(dataChngEv datasync.ChangeEve
 		if dataChngEv.GetChangeType() == datasync.Put {
 
 			// Note: the case where IP address is changed during runtime is not handled
-			if nodeInfo.IpAddress != "" {
+			if nodeInfo.IpAddress != "" && nodeInfo.ManagementIpAddress != "" {
 				s.Logger.Info("New node discovered: ", nodeInfo.Id)
 				// add routes to the node
 				err = s.addRoutesToNode(nodeInfo)
 			} else {
-				s.Logger.Infof("Ip address of node %v is not known yet.")
+				s.Logger.Infof("IP address or management IP of node %v is not known yet.", nodeInfo.Id)
 			}
 		} else {
 			s.Logger.Info("Node removed: ", nodeInfo.Id)
@@ -172,17 +172,20 @@ func (s *remoteCNIserver) addRoutesToNode(nodeInfo *node.NodeInfo) error {
 		hostRoute    *vpp_l3.StaticRoutes_Route
 		vxlanNextHop net.IP
 		err          error
+		nextHop      string
 	)
 	if s.useL2Interconnect {
 		// static route directly to other node IP
 		podsRoute, hostRoute, err = s.computeRoutesToHost(uint8(nodeInfo.Id), hostIP)
+		nextHop = hostIP
 	} else {
 		// static route to other node VXLAN BVI
 		vxlanNextHop, err = s.ipam.VxlanIPAddress(uint8(nodeInfo.Id))
 		if err != nil {
 			return err
 		}
-		podsRoute, hostRoute, err = s.computeRoutesToHost(uint8(nodeInfo.Id), vxlanNextHop.String())
+		nextHop = vxlanNextHop.String()
+		podsRoute, hostRoute, err = s.computeRoutesToHost(uint8(nodeInfo.Id), nextHop)
 	}
 	if err != nil {
 		return err
@@ -191,6 +194,10 @@ func (s *remoteCNIserver) addRoutesToNode(nodeInfo *node.NodeInfo) error {
 	txn.StaticRoute(hostRoute)
 	s.Logger.Info("Adding PODs route: ", podsRoute)
 	s.Logger.Info("Adding host route: ", hostRoute)
+
+	managementRoute := s.routeToOtherManagementIP(nodeInfo.ManagementIpAddress, nextHop)
+	txn.StaticRoute(managementRoute)
+	s.Logger.Info("Adding managementIP route: ", managementRoute)
 
 	// send the config transaction
 	err = txn.Send().ReceiveReply()

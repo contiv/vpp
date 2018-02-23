@@ -82,7 +82,7 @@ selectNodeIntreconnectIf() {
    startup="
 unix {
    nodaemon
-   cli-listen 0.0.0.0:5002
+   cli-listen /run/vpp/cli.sock
    cli-no-pager
 }
 dpdk {

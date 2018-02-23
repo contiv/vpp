@@ -32,7 +32,9 @@ data:
       VxlanCIDR: "192.168.30.0/24"
     NodeConfig:
     - NodeName: "ubuntu-1"
-      StealInterface: "enp0s9"
+      StealInterface: "enp0s8"
+    - NodeName: "ubuntu-2"
+      StealInterface: "enp0s8"
 #      ServiceCIDR: "10.96.0.0/12"
 #      NodeInterconnectDHCP: True
 ### example of node configuration for VPP interfaces

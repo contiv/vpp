@@ -11,6 +11,7 @@ import (
 	vpp_l2 "github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/l2"
 	vpp_l3 "github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/l3"
 	vpp_l4 "github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/l4"
+	vpp_nat "github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/nat"
 	vpp_stn "github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/stn"
 	linux_intf "github.com/ligato/vpp-agent/plugins/linuxplugin/common/model/interfaces"
 	linux_l3 "github.com/ligato/vpp-agent/plugins/linuxplugin/common/model/l3"
@@ -136,6 +137,20 @@ func (d *MockDataResyncDSL) Arp(val *vpp_l3.ArpTable_ArpTableEntry) linux.DataRe
 // StnRule adds Stn rule to the RESYNC request.
 func (d *MockDataResyncDSL) StnRule(val *vpp_stn.StnRule) linux.DataResyncDSL {
 	op := dsl.TxnOp{Key: vpp_stn.Key(val.RuleName), Value: val}
+	d.Ops = append(d.Ops, op)
+	return d
+}
+
+// NAT44Global adds a request to RESYNC global configuration for NAT44
+func (d *MockDataResyncDSL) NAT44Global(val *vpp_nat.Nat44Global) linux.DataResyncDSL {
+	op := dsl.TxnOp{Key: vpp_nat.GlobalConfigKey(), Value: val}
+	d.Ops = append(d.Ops, op)
+	return d
+}
+
+// NAT44DNat adds a request to RESYNC a new DNAT configuration
+func (d *MockDataResyncDSL) NAT44DNat(val *vpp_nat.Nat44DNat_DNatConfig) linux.DataResyncDSL {
+	op := dsl.TxnOp{Key: vpp_nat.DNatKey(val.Label), Value: val}
 	d.Ops = append(d.Ops, op)
 	return d
 }

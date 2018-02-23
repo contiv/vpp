@@ -39,6 +39,8 @@ const (
 	outErrorPacketsMetric = "outErrorPackets"
 )
 
+var systemIfNames = []string{"afpacket-vpp2", "vpp2", "tap-vpp2", "vxlanBVI", "loopbackNIC", "GigabitEthernet"}
+
 // Plugin collects the statistics from vpp interfaces and publishes them to prometheus.
 type Plugin struct {
 	Deps
@@ -126,45 +128,49 @@ func (p *Plugin) Init() error {
 	return nil
 }
 
+// processPodEvent processes pod delete events; it removes the deleted pod's
+// stats entry from the stats set reported to Prometheus.
+func (p *Plugin) processPodEvent(event containeridx.ChangeEvent) {
+	p.Lock()
+	defer p.Unlock()
+
+	var err error
+	if !event.Del {
+		return
+	}
+	nsmap, exists := p.podIfs[event.Value.PodNamespace]
+	if !exists {
+		return
+	}
+	ifs, exists := nsmap[event.Value.PodName]
+	if !exists {
+		return
+	}
+	for _, key := range ifs {
+		entry, exists := p.ifStats[key]
+		if exists && entry != nil {
+			// remove gauge with corresponding labels from each vector
+			for _, vec := range p.gaugeVecs {
+				vec.Delete(prometheus.Labels{
+					podNameLabel:       entry.podName,
+					podNamespaceLabel:  entry.podNamespace,
+					interfaceNameLabel: entry.data.Name,
+				})
+				if err != nil {
+					p.Log.Error(err)
+				}
+			}
+
+		}
+		delete(p.ifStats, key)
+	}
+}
+
 // AfterInit subscribes for monitoring of changes in ContainerIndex
 func (p *Plugin) AfterInit() error {
 	// watch containerIDX and remove gauges of pods that have been deleted
 	return p.Contiv.GetContainerIndex().Watch(p.PluginName, func(event containeridx.ChangeEvent) {
-		p.Lock()
-		defer p.Unlock()
-
-		var err error
-		if !event.Del {
-			return
-		}
-
-		nsmap, exists := p.podIfs[event.Value.PodNamespace]
-		if !exists {
-			return
-		}
-		ifs, exists := nsmap[event.Value.PodName]
-		if !exists {
-			return
-		}
-		for _, key := range ifs {
-			entry, exists := p.ifStats[key]
-			if exists && entry != nil {
-				// remove gauge with corresponding labels from each vector
-				for _, vec := range p.gaugeVecs {
-					vec.Delete(prometheus.Labels{
-						podNameLabel:       entry.podName,
-						podNamespaceLabel:  entry.podNamespace,
-						interfaceNameLabel: entry.data.Name,
-					})
-					if err != nil {
-						p.Log.Error(err)
-					}
-				}
-
-			}
-			delete(p.ifStats, key)
-		}
-
+		p.processPodEvent(event)
 	})
 
 }
@@ -175,7 +181,7 @@ func (p *Plugin) Close() error {
 	return nil
 }
 
-// PrintStats dumps stats to log
+// PrintStats periodically dumps stats to log
 func (p *Plugin) PrintStats() {
 	for {
 		select {
@@ -322,7 +328,7 @@ func (p *Plugin) updatePrometheusStats(entry *stats) {
 // isContivSystemInterface returns true if given interface name is not associated
 // with a pod (e.g. interface that interconnect vpp and host stack), otherwise false
 func (p *Plugin) isContivSystemInterface(ifName string) bool {
-	for _, n := range []string{"afpacket-vpp2", "vpp2", "tap-vpp2", "vxlanBVI", "loopbackNIC", "GigabitEthernet"} {
+	for _, n := range systemIfNames {
 		if strings.HasPrefix(ifName, n) {
 			return true
 		}

@@ -16,7 +16,6 @@ package vppcalls
 
 import (
 	"fmt"
-
 	"time"
 
 	"github.com/ligato/cn-infra/logging/measure"
@@ -25,7 +24,7 @@ import (
 )
 
 // AddAfPacketInterface calls AfPacketCreate VPP binary API.
-func AddAfPacketInterface(afPacketIntf *intf.Interfaces_Interface_Afpacket, vppChan VPPChannel, timeLog measure.StopWatchEntry) (swIndex uint32, err error) {
+func AddAfPacketInterface(ifName string, afPacketIntf *intf.Interfaces_Interface_Afpacket, vppChan VPPChannel, timeLog measure.StopWatchEntry) (swIndex uint32, err error) {
 	// AfPacketCreate time measurement
 	start := time.Now()
 	defer func() {
@@ -41,19 +40,18 @@ func AddAfPacketInterface(afPacketIntf *intf.Interfaces_Interface_Afpacket, vppC
 	}
 
 	reply := &af_packet.AfPacketCreateReply{}
-	err = vppChan.SendRequest(req).ReceiveReply(reply)
-	if err != nil {
+	if err = vppChan.SendRequest(req).ReceiveReply(reply); err != nil {
 		return 0, err
 	}
 	if reply.Retval != 0 {
 		return 0, fmt.Errorf("add af_packet interface (%+v) returned %d", afPacketIntf, reply.Retval)
 	}
 
-	return reply.SwIfIndex, nil
+	return reply.SwIfIndex, SetInterfaceTag(ifName, reply.SwIfIndex, vppChan, timeLog)
 }
 
 // DeleteAfPacketInterface calls AfPacketDelete VPP binary API.
-func DeleteAfPacketInterface(afPacketIntf *intf.Interfaces_Interface_Afpacket, vppChan VPPChannel, timeLog measure.StopWatchEntry) error {
+func DeleteAfPacketInterface(ifName string, idx uint32, afPacketIntf *intf.Interfaces_Interface_Afpacket, vppChan VPPChannel, timeLog measure.StopWatchEntry) error {
 	// AfPacketDelete time measurement
 	start := time.Now()
 	defer func() {
@@ -68,13 +66,12 @@ func DeleteAfPacketInterface(afPacketIntf *intf.Interfaces_Interface_Afpacket, v
 	}
 
 	reply := &af_packet.AfPacketDeleteReply{}
-	err := vppChan.SendRequest(req).ReceiveReply(reply)
-	if err != nil {
+	if err := vppChan.SendRequest(req).ReceiveReply(reply); err != nil {
 		return err
 	}
 	if reply.Retval != 0 {
 		return fmt.Errorf("deleting of af_packet interface (%+v) returned %d", afPacketIntf, reply.Retval)
 	}
 
-	return nil
+	return RemoveInterfaceTag(ifName, idx, vppChan, timeLog)
 }

@@ -26,8 +26,8 @@ import (
 	vpp_l3 "github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/l3"
 	vpp_l4 "github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/l4"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/stn"
-	linux_intf "github.com/ligato/vpp-agent/plugins/linuxplugin/ifplugin/model/interfaces"
-	linux_l3 "github.com/ligato/vpp-agent/plugins/linuxplugin/l3plugin/model/l3"
+	linux_intf "github.com/ligato/vpp-agent/plugins/linuxplugin/common/model/interfaces"
+	linux_l3 "github.com/ligato/vpp-agent/plugins/linuxplugin/common/model/l3"
 )
 
 const podNameKey = "podNameKey"

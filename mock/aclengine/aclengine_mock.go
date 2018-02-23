@@ -32,6 +32,7 @@ import (
 	vpp_acl "github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/acl"
 )
 
+// maxPortNum is the maximum possible port number.
 const maxPortNum = uint32(^uint16(0))
 
 // ConnectionAction is one of DENY-SYN, DENY-SYN-ACK, ALLOW, FAILURE.
@@ -47,7 +48,7 @@ const (
 	// ConnActionAllow is returned by the mock ACL engine when the connection is allowed.
 	ConnActionAllow
 
-	// ConnActionFailure is returned by the mock ACL engine when TestConnection() fails.
+	// ConnActionFailure is returned by the mock ACL engine when connection simulation fails.
 	ConnActionFailure
 )
 
@@ -81,7 +82,7 @@ type MockACLEngine struct {
 
 // PodConfig encapsulates pod configuration.
 type PodConfig struct {
-	podIP       *net.IPNet
+	podIP       net.IP
 	anotherNode bool
 }
 
@@ -117,11 +118,11 @@ func NewACLConfig() *ACLConfig {
 
 // RegisterPod registers a deployed pod.
 // Set *anotherNode* to true if the pod was deployed on another node.
-// TestConnection assumes no ACLs installed on other nodes.
-func (mae *MockACLEngine) RegisterPod(pod podmodel.ID, podIP *net.IPNet, anotherNode bool) {
+// testConnection() assumes no ACLs installed on other nodes.
+func (mae *MockACLEngine) RegisterPod(pod podmodel.ID, podIP string, anotherNode bool) {
 	mae.Lock()
 	defer mae.Unlock()
-	mae.pods[pod] = &PodConfig{podIP: podIP, anotherNode: anotherNode}
+	mae.pods[pod] = &PodConfig{podIP: net.ParseIP(podIP), anotherNode: anotherNode}
 }
 
 // ApplyTxn applies transaction created by ACL renderer.
@@ -182,24 +183,50 @@ func (mae *MockACLEngine) DumpACLs() (acls []*vpp_acl.AccessLists_Acl) {
 	return acls
 }
 
-// TestConnection allows to simulate a connection establishment and tests what
-// the outcome in terms of ACLs would be.
-func (mae *MockACLEngine) TestConnection(srcPod podmodel.ID, dstPod podmodel.ID,
+// GetNumOfACLs returns the number of installed ACLs.
+func (mae *MockACLEngine) GetNumOfACLs() int {
+	return len(mae.aclConfig.byName)
+}
+
+// GetInboundACL returns ACL assigned on the inbound side of the given interface,
+// or nil if there is none.
+func (mae *MockACLEngine) GetInboundACL(ifName string) *vpp_acl.AccessLists_Acl {
+	acls := mae.aclConfig.GetACLs(ifName)
+	return acls.inbound
+}
+
+// GetOutboundACL returns ACL assigned on the outbound side of the given interface,
+// or nil if there is none.
+func (mae *MockACLEngine) GetOutboundACL(ifName string) *vpp_acl.AccessLists_Acl {
+	acls := mae.aclConfig.GetACLs(ifName)
+	return acls.outbound
+}
+
+// GetACLByName returns ACL with the given name, or nil if there is none.
+func (mae *MockACLEngine) GetACLByName(aclName string) *vpp_acl.AccessLists_Acl {
+	acl, has := mae.aclConfig.byName[aclName]
+	if !has {
+		return nil
+	}
+	return acl
+}
+
+// ConnectionPodToPod allows to simulate a connection establishment between two pods
+// and tests what the outcome in terms of ACLs would be.
+func (mae *MockACLEngine) ConnectionPodToPod(srcPod podmodel.ID, dstPod podmodel.ID,
 	protocol renderer.ProtocolType, srcPort, dstPort uint16) ConnectionAction {
 
-	mae.Lock()
-	defer mae.Unlock()
-
 	var srcIfName, dstIfName string
-	var srcIfReflected, dstIfReflected bool
 
 	// Get configuration for both pods.
 	srcPodCfg, hasCfg := mae.pods[srcPod]
 	if !hasCfg {
+		mae.Log.WithField("pod", srcPod).Error("Missing configuration for source pod")
 		return ConnActionFailure
 	}
 	dstPodCfg, hasCfg := mae.pods[dstPod]
 	if !hasCfg {
+		mae.Log.WithField("pod", dstPod).Error("Missing configuration for destination pod")
 		return ConnActionFailure
 	}
 
@@ -210,12 +237,14 @@ func (mae *MockACLEngine) TestConnection(srcPod podmodel.ID, dstPod podmodel.ID,
 			srcIfName = mae.Contiv.GetMainPhysicalIfName()
 		}
 		if srcIfName == "" {
+			mae.Log.Error("Missing node output interface")
 			return ConnActionFailure
 		}
 	} else {
 		var exists bool
 		srcIfName, exists = mae.Contiv.GetIfName(srcPod.Namespace, srcPod.Name)
 		if !exists {
+			mae.Log.WithField("pod", srcPod).Error("Missing interface for source pod")
 			return ConnActionFailure
 		}
 	}
@@ -227,15 +256,131 @@ func (mae *MockACLEngine) TestConnection(srcPod podmodel.ID, dstPod podmodel.ID,
 			dstIfName = mae.Contiv.GetMainPhysicalIfName()
 		}
 		if dstIfName == "" {
+			mae.Log.Error("Missing node output interface")
 			return ConnActionFailure
 		}
 	} else {
 		var exists bool
 		dstIfName, exists = mae.Contiv.GetIfName(dstPod.Namespace, dstPod.Name)
 		if !exists {
+			mae.Log.WithField("pod", srcPod).Error("Missing interface for source pod")
 			return ConnActionFailure
 		}
 	}
+
+	return mae.testConnection(srcIfName, srcPodCfg.podIP, dstIfName, dstPodCfg.podIP,
+		protocol, srcPort, dstPort)
+}
+
+// ConnectionPodToInternet allows to simulate a connection establishment between a pod
+// and a remote destination, returning the outcome in terms of ACLs.
+func (mae *MockACLEngine) ConnectionPodToInternet(srcPod podmodel.ID, dstIP string,
+	protocol renderer.ProtocolType, srcPort, dstPort uint16) ConnectionAction {
+
+	// Get configuration for the source pod.
+	srcPodCfg, hasCfg := mae.pods[srcPod]
+	if !hasCfg {
+		mae.Log.WithField("pod", srcPod).Error("Missing configuration for source pod")
+		return ConnActionFailure
+	}
+	if srcPodCfg.anotherNode {
+		// invalid scenario
+		mae.Log.Error("Invalid scenario to test (pod from another node -> Internet)")
+		return ConnActionFailure
+	}
+
+	// Get source interface.
+	srcIfName, exists := mae.Contiv.GetIfName(srcPod.Namespace, srcPod.Name)
+	if !exists {
+		mae.Log.WithField("pod", srcPod).Error("Missing interface for source pod")
+		return ConnActionFailure
+	}
+
+	// Get destination interface.
+	dstIfName := mae.Contiv.GetVxlanBVIIfName()
+	if dstIfName == "" {
+		dstIfName = mae.Contiv.GetMainPhysicalIfName()
+	}
+	if dstIfName == "" {
+		mae.Log.Error("Missing node output interface")
+		return ConnActionFailure
+	}
+
+	// Parse destination IP address.
+	dstIPAddr := net.ParseIP(dstIP)
+	if dstIPAddr == nil {
+		mae.Log.WithField("dstIP", dstIP).Error("Failed to parse IP address")
+		return ConnActionFailure
+	}
+
+	return mae.testConnection(srcIfName, srcPodCfg.podIP, dstIfName, dstIPAddr,
+		protocol, srcPort, dstPort)
+}
+
+// ConnectionInternetToPod allows to simulate a connection establishment between
+// a remote source and a destination pod, returning the outcome in terms of ACLs.
+func (mae *MockACLEngine) ConnectionInternetToPod(srcIP string, dstPod podmodel.ID,
+	protocol renderer.ProtocolType, srcPort, dstPort uint16) ConnectionAction {
+
+	// Get configuration for the destination pod.
+	dstPodCfg, hasCfg := mae.pods[dstPod]
+	if !hasCfg {
+		mae.Log.WithField("pod", dstPod).Error("Missing configuration for destination pod")
+		return ConnActionFailure
+	}
+	if dstPodCfg.anotherNode {
+		// invalid scenario
+		mae.Log.Error("Invalid scenario to test (Internet -> pod from another node)")
+		return ConnActionFailure
+	}
+
+	// Get source interface.
+	srcIfName := mae.Contiv.GetVxlanBVIIfName()
+	if srcIfName == "" {
+		srcIfName = mae.Contiv.GetMainPhysicalIfName()
+	}
+	if srcIfName == "" {
+		mae.Log.Error("Missing node output interface")
+		return ConnActionFailure
+	}
+
+	// Parse source IP address.
+	srcIPAddr := net.ParseIP(srcIP)
+	if srcIPAddr == nil {
+		mae.Log.WithField("srcIP", srcIP).Error("Failed to parse IP address")
+		return ConnActionFailure
+	}
+
+	// Get destination interface.
+	dstIfName, exists := mae.Contiv.GetIfName(dstPod.Namespace, dstPod.Name)
+	if !exists {
+		mae.Log.WithField("pod", dstPod).Error("Missing interface for destination pod")
+		return ConnActionFailure
+	}
+
+	return mae.testConnection(srcIfName, srcIPAddr, dstIfName, dstPodCfg.podIP,
+		protocol, srcPort, dstPort)
+}
+
+// testConnection allows to simulate a connection establishment and tests what
+// the outcome in terms of ACLs would be.
+func (mae *MockACLEngine) testConnection(srcIfName string, srcIP net.IP,
+	dstIfName string, dstIP net.IP, protocol renderer.ProtocolType, srcPort, dstPort uint16) ConnectionAction {
+
+	mae.Lock()
+	defer mae.Unlock()
+
+	mae.Log.WithFields(logging.Fields{
+		"srcIfName": srcIfName,
+		"srcIP":     srcIP,
+		"dstIfName": dstIfName,
+		"dstIP":     dstIP,
+		"protocol":  protocol,
+		"srcPort":   srcPort,
+		"dstPort":   dstPort,
+	}).Debug("Testing connection")
+
+	var srcIfReflected, dstIfReflected bool
 
 	// Get ACLs on the communication path.
 	srcACLs := mae.aclConfig.GetACLs(srcIfName)
@@ -243,8 +388,10 @@ func (mae *MockACLEngine) TestConnection(srcPod podmodel.ID, dstPod podmodel.ID,
 
 	// SYN packet:
 	//   -> test inbound ACL for source interface
-	srcInAction := mae.evalACL(srcACLs.inbound, srcPodCfg.podIP.IP, dstPodCfg.podIP.IP,
-		protocol, dstPort)
+	srcInAction := mae.evalACL(srcACLs.inbound, srcIP, dstIP, protocol, dstPort)
+
+	mae.Log.WithField("srcInAction", srcInAction).Debug("SYN-inbound")
+
 	if srcInAction == ACLActionFailure {
 		return ConnActionFailure
 	}
@@ -255,8 +402,10 @@ func (mae *MockACLEngine) TestConnection(srcPod podmodel.ID, dstPod podmodel.ID,
 		srcIfReflected = true
 	}
 	//   -> test outbound ACL for destination interface
-	dstOutAction := mae.evalACL(dstACLs.outbound, srcPodCfg.podIP.IP, dstPodCfg.podIP.IP,
-		protocol, dstPort)
+	dstOutAction := mae.evalACL(dstACLs.outbound, srcIP, dstIP, protocol, dstPort)
+
+	mae.Log.WithField("dstOutAction", dstOutAction).Debug("SYN-outbound")
+
 	if dstOutAction == ACLActionFailure {
 		return ConnActionFailure
 	}
@@ -270,8 +419,7 @@ func (mae *MockACLEngine) TestConnection(srcPod podmodel.ID, dstPod podmodel.ID,
 	// SYN-ACK packet:
 	//   -> test inbound ACL for destination interface
 	if !dstIfReflected {
-		dstInAction := mae.evalACL(dstACLs.inbound, dstPodCfg.podIP.IP, srcPodCfg.podIP.IP,
-			protocol, srcPort)
+		dstInAction := mae.evalACL(dstACLs.inbound, dstIP, srcIP, protocol, srcPort)
 		if dstInAction == ACLActionFailure {
 			return ConnActionFailure
 		}
@@ -281,8 +429,7 @@ func (mae *MockACLEngine) TestConnection(srcPod podmodel.ID, dstPod podmodel.ID,
 	}
 	//   -> test outbound ACL for source interface
 	if !srcIfReflected {
-		srcOutAction := mae.evalACL(srcACLs.outbound, dstPodCfg.podIP.IP, srcPodCfg.podIP.IP,
-			protocol, srcPort)
+		srcOutAction := mae.evalACL(srcACLs.outbound, dstIP, srcIP, protocol, srcPort)
 		if srcOutAction == ACLActionFailure {
 			return ConnActionFailure
 		}
@@ -304,15 +451,18 @@ func (mae *MockACLEngine) evalACL(acl *vpp_acl.AccessLists_Acl, srcIP, dstIP net
 	for _, rule := range acl.Rules {
 		if rule.Matches.MacipRule != nil {
 			// unsupported
+			mae.Log.WithField("acl", *acl).Error("MAC-IP rules are not supported")
 			return ACLActionFailure
 		}
 		if rule.Matches.IpRule == nil {
 			// invalid
+			mae.Log.WithField("acl", *acl).Error("Missing IP Rule")
 			return ACLActionFailure
 		}
 		ipRule := rule.Matches.IpRule
 		if ipRule.Icmp != nil || ipRule.Other != nil || ipRule.Ip == nil {
 			// unsupported
+			mae.Log.WithField("acl", *acl).Error("Missing IP or found unsupported ICMP/Other section")
 			return ACLActionFailure
 		}
 
@@ -321,6 +471,7 @@ func (mae *MockACLEngine) evalACL(acl *vpp_acl.AccessLists_Acl, srcIP, dstIP net
 			_, srcNetwork, err := net.ParseCIDR(ipRule.Ip.SourceNetwork)
 			if err != nil {
 				// invalid
+				mae.Log.WithField("acl", *acl).Error("Missing source network")
 				return ACLActionFailure
 			}
 			if !srcNetwork.Contains(srcIP) {
@@ -334,6 +485,7 @@ func (mae *MockACLEngine) evalACL(acl *vpp_acl.AccessLists_Acl, srcIP, dstIP net
 			_, dstNetwork, err := net.ParseCIDR(ipRule.Ip.DestinationNetwork)
 			if err != nil {
 				// invalid
+				mae.Log.WithField("acl", *acl).Error("Missing destination network")
 				return ACLActionFailure
 			}
 			if !dstNetwork.Contains(dstIP) {
@@ -344,8 +496,13 @@ func (mae *MockACLEngine) evalACL(acl *vpp_acl.AccessLists_Acl, srcIP, dstIP net
 
 		// check L4
 		if protocol == renderer.TCP {
-			if ipRule.Tcp == nil || ipRule.Udp != nil {
+			if ipRule.Udp != nil {
+				// not matching
+				continue
+			}
+			if ipRule.Tcp == nil {
 				// invalid
+				mae.Log.WithField("acl", *acl).Error("Missing TCP section")
 				return ACLActionFailure
 			}
 
@@ -353,10 +510,12 @@ func (mae *MockACLEngine) evalACL(acl *vpp_acl.AccessLists_Acl, srcIP, dstIP net
 			srcPortRange := ipRule.Tcp.SourcePortRange
 			if srcPortRange == nil {
 				// invalid
+				mae.Log.WithField("acl", *acl).Error("Missing source port range")
 				return ACLActionFailure
 			}
 			if srcPortRange.LowerPort != 0 || srcPortRange.UpperPort != maxPortNum {
 				// invalid
+				mae.Log.WithField("acl", *acl).Error("Source port range does not cover all ports")
 				return ACLActionFailure
 			}
 
@@ -364,6 +523,7 @@ func (mae *MockACLEngine) evalACL(acl *vpp_acl.AccessLists_Acl, srcIP, dstIP net
 			dstPortRange := ipRule.Tcp.DestinationPortRange
 			if dstPortRange == nil {
 				// invalid
+				mae.Log.WithField("acl", *acl).Error("Missing destination port range")
 				return ACLActionFailure
 			}
 			if dstPort < uint16(dstPortRange.LowerPort) || dstPort > uint16(dstPortRange.UpperPort) {
@@ -372,8 +532,13 @@ func (mae *MockACLEngine) evalACL(acl *vpp_acl.AccessLists_Acl, srcIP, dstIP net
 			}
 
 		} else {
-			if ipRule.Udp == nil || ipRule.Tcp != nil {
+			if ipRule.Tcp != nil {
+				// not matching
+				continue
+			}
+			if ipRule.Udp == nil {
 				// invalid
+				mae.Log.WithField("acl", *acl).Error("Missing UDP section")
 				return ACLActionFailure
 			}
 
@@ -381,10 +546,12 @@ func (mae *MockACLEngine) evalACL(acl *vpp_acl.AccessLists_Acl, srcIP, dstIP net
 			srcPortRange := ipRule.Udp.SourcePortRange
 			if srcPortRange == nil {
 				// invalid
+				mae.Log.WithField("acl", *acl).Error("Missing source port range")
 				return ACLActionFailure
 			}
 			if srcPortRange.LowerPort != 0 || srcPortRange.UpperPort != maxPortNum {
 				// invalid
+				mae.Log.WithField("acl", *acl).Error("Source port range does not cover all ports")
 				return ACLActionFailure
 			}
 
@@ -392,6 +559,7 @@ func (mae *MockACLEngine) evalACL(acl *vpp_acl.AccessLists_Acl, srcIP, dstIP net
 			dstPortRange := ipRule.Udp.DestinationPortRange
 			if dstPortRange == nil {
 				// invalid
+				mae.Log.WithField("acl", *acl).Error("Missing destination port range")
 				return ACLActionFailure
 			}
 			if dstPort < uint16(dstPortRange.LowerPort) || dstPort > uint16(dstPortRange.UpperPort) {
@@ -403,8 +571,13 @@ func (mae *MockACLEngine) evalACL(acl *vpp_acl.AccessLists_Acl, srcIP, dstIP net
 		// Rule matches the packet!
 		if rule.Actions == nil {
 			// invalid
+			mae.Log.WithField("acl", *acl).Error("Missing actions")
 			return ACLActionFailure
 		}
+		mae.Log.WithFields(logging.Fields{
+			"rule": *rule,
+			"acl":  acl.AclName,
+		}).Debug("Connection matched by ACL rule")
 		switch rule.Actions.AclAction {
 		case vpp_acl.AclAction_DENY:
 			return ACLActionDeny

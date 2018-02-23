@@ -99,8 +99,8 @@ func (mc *MockContiv) SetHostInterconnectIfName(ifName string) {
 }
 
 // SetVxlanBVIIfName allows to set what tests will assume the name of the VXLAN BVI interface is.
-func (mc *MockContiv) SetVxlanBVIIfName() string {
-	return mc.vxlanBVIIfName
+func (mc *MockContiv) SetVxlanBVIIfName(ifName string) {
+	mc.vxlanBVIIfName = ifName
 }
 
 // SetDefaultGatewayIP allows to set what tests will assume the default gateway IP is (can be nil).

@@ -500,6 +500,27 @@ func (rct *RendererCacheTxn) buildLocalTable(dstPodID podmodel.ID, dstPodCfg *Po
 		rct.installLocalRules(table, dstPodCfg, srcPodCfg)
 	}
 
+	// Add explicit rules to allow traffic not matched by any rule.
+	if len(table.Rules) > 0 {
+		var allTCP, allUDP bool
+		for i := 0; i < table.NumOfRules; i++ {
+			if table.Rules[i].DestPort == 0 &&
+				len(table.Rules[i].SrcNetwork.IP) == 0 && len(table.Rules[i].DestNetwork.IP) == 0 {
+				if table.Rules[i].Protocol == renderer.TCP {
+					allTCP = true
+				} else {
+					allUDP = true
+				}
+			}
+		}
+		if !allTCP {
+			table.InsertRule(rct.allowAllTCP())
+		}
+		if !allUDP {
+			table.InsertRule(rct.allowAllUDP())
+		}
+	}
+
 	return table
 }
 
@@ -616,24 +637,8 @@ func (rct *RendererCacheTxn) rebuildGlobalTable() {
 
 	if rct.globalTable.NumOfRules > 0 {
 		// Default action is to allow everything.
-		ruleTCPAny := &renderer.ContivRule{
-			Action:      renderer.ActionPermit,
-			SrcNetwork:  &net.IPNet{},
-			DestNetwork: &net.IPNet{},
-			Protocol:    renderer.TCP,
-			SrcPort:     0,
-			DestPort:    0,
-		}
-		ruleUDPAny := &renderer.ContivRule{
-			Action:      renderer.ActionPermit,
-			SrcNetwork:  &net.IPNet{},
-			DestNetwork: &net.IPNet{},
-			Protocol:    renderer.UDP,
-			SrcPort:     0,
-			DestPort:    0,
-		}
-		rct.globalTable.InsertRule(ruleTCPAny)
-		rct.globalTable.InsertRule(ruleUDPAny)
+		rct.globalTable.InsertRule(rct.allowAllTCP())
+		rct.globalTable.InsertRule(rct.allowAllUDP())
 	}
 }
 
@@ -671,4 +676,28 @@ func (rct *RendererCacheTxn) generateTableID() string {
 		}
 	}
 	return id
+}
+
+func (rct *RendererCacheTxn) allowAllTCP() *renderer.ContivRule {
+	ruleTCPAny := &renderer.ContivRule{
+		Action:      renderer.ActionPermit,
+		SrcNetwork:  &net.IPNet{},
+		DestNetwork: &net.IPNet{},
+		Protocol:    renderer.TCP,
+		SrcPort:     0,
+		DestPort:    0,
+	}
+	return ruleTCPAny
+}
+
+func (rct *RendererCacheTxn) allowAllUDP() *renderer.ContivRule {
+	ruleUDPAny := &renderer.ContivRule{
+		Action:      renderer.ActionPermit,
+		SrcNetwork:  &net.IPNet{},
+		DestNetwork: &net.IPNet{},
+		Protocol:    renderer.UDP,
+		SrcPort:     0,
+		DestPort:    0,
+	}
+	return ruleUDPAny
 }

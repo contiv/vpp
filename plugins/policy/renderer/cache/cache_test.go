@@ -27,270 +27,15 @@ import (
 
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	"github.com/contiv/vpp/plugins/policy/renderer"
+	. "github.com/contiv/vpp/plugins/policy/renderer/testdata"
 	. "github.com/contiv/vpp/plugins/policy/utils"
 )
 
-const (
-	namespace = "default"
-)
-
 var (
-	podIDs = []podmodel.ID{
-		{Name: "pod1", Namespace: namespace},
-		{Name: "pod2", Namespace: namespace},
-		{Name: "pod3", Namespace: namespace},
-		{Name: "pod4", Namespace: namespace},
-		{Name: "pod5", Namespace: namespace},
-	}
-	podIPs = []string{
-		"10.10.1.1",
-		"10.10.1.2",
-		"10.10.2.1",
-		"10.10.2.2",
-		"10.10.2.5",
-	}
-
-	// aliases
-	pod1   = podIDs[0]
-	pod2   = podIDs[1]
-	pod3   = podIDs[2]
-	pod1IP = podIPs[0]
-	pod2IP = podIPs[1]
-	pod3IP = podIPs[2]
-
 	// shortcuts
 	EmptyPodSet = NewPodSet()
 	EmptyRules  = []*renderer.ContivRule{}
 )
-
-// Input data for test set1:
-type TestSet1And2 struct {
-	rule *renderer.ContivRule
-}
-
-var ts1 = TestSet1And2{ /* one egress rule */
-	rule: &renderer.ContivRule{
-		Action:      renderer.ActionPermit,
-		SrcNetwork:  ipNetwork("192.168.0.0/16"),
-		DestNetwork: ipNetwork(""),
-		Protocol:    renderer.TCP,
-		SrcPort:     0,
-		DestPort:    80,
-	},
-}
-
-// Input data for test set2:
-var ts2 = TestSet1And2{ /* one ingress rule */
-	rule: &renderer.ContivRule{
-		Action:      renderer.ActionPermit,
-		SrcNetwork:  ipNetwork(""),
-		DestNetwork: ipNetwork("192.168.0.0/16"),
-		Protocol:    renderer.TCP,
-		SrcPort:     0,
-		DestPort:    80,
-	},
-}
-
-// Input data for test set3:
-type TestSet3And4 struct {
-	rule1, rule2, rule3, rule4 *renderer.ContivRule
-}
-
-var ts3 = TestSet3And4{ /* multiple egress rules */
-	rule1: &renderer.ContivRule{
-		Action:      renderer.ActionPermit,
-		SrcNetwork:  ipNetwork("10.10.0.0/16"),
-		DestNetwork: ipNetwork(""),
-		Protocol:    renderer.TCP,
-		SrcPort:     0,
-		DestPort:    0,
-	},
-	rule2: &renderer.ContivRule{
-		Action:      renderer.ActionPermit,
-		SrcNetwork:  ipNetwork("10.10.0.0/16"),
-		DestNetwork: ipNetwork(""),
-		Protocol:    renderer.UDP,
-		SrcPort:     0,
-		DestPort:    0,
-	},
-	rule3: denyAllTCP(),
-	rule4: denyAllUDP(),
-}
-
-// Input data for test set4:
-var ts4 = TestSet3And4{ /* multiple ingress rules */
-	rule1: &renderer.ContivRule{
-		Action:      renderer.ActionPermit,
-		SrcNetwork:  ipNetwork(""),
-		DestNetwork: ipNetwork("10.10.0.0/16"),
-		Protocol:    renderer.TCP,
-		SrcPort:     0,
-		DestPort:    0,
-	},
-	rule2: &renderer.ContivRule{
-		Action:      renderer.ActionPermit,
-		SrcNetwork:  ipNetwork(""),
-		DestNetwork: ipNetwork("10.10.0.0/16"),
-		Protocol:    renderer.UDP,
-		SrcPort:     0,
-		DestPort:    0,
-	},
-	rule3: denyAllTCP(),
-	rule4: denyAllUDP(),
-}
-
-// Input data for test set5:
-type TestSet5 struct {
-	pod1Ingress, pod1Egress []*renderer.ContivRule
-	pod3Ingress, pod3Egress []*renderer.ContivRule
-}
-
-var ts5 = TestSet5{ /* combined ingress with egress */
-	pod1Ingress: []*renderer.ContivRule{
-		{ // Txn2
-			Action:      renderer.ActionPermit,
-			SrcNetwork:  ipNetwork(""),
-			DestNetwork: ipNetwork("10.10.0.0/16"),
-			Protocol:    renderer.TCP,
-			SrcPort:     0,
-			DestPort:    80,
-		},
-		{
-			Action:      renderer.ActionPermit,
-			SrcNetwork:  ipNetwork(""),
-			DestNetwork: ipNetwork(""),
-			Protocol:    renderer.UDP,
-			SrcPort:     0,
-			DestPort:    161,
-		},
-		denyAllTCP(),
-		denyAllUDP(),
-	},
-	pod1Egress: []*renderer.ContivRule{
-		{
-			Action:      renderer.ActionPermit,
-			SrcNetwork:  ipNetwork("10.0.0.0/8"),
-			DestNetwork: ipNetwork(""),
-			Protocol:    renderer.UDP,
-			SrcPort:     0,
-			DestPort:    53,
-		},
-		{
-			Action:      renderer.ActionPermit,
-			SrcNetwork:  ipNetwork("192.168.0.0/16"),
-			DestNetwork: ipNetwork(""),
-			Protocol:    renderer.UDP,
-			SrcPort:     0,
-			DestPort:    514,
-		},
-		denyAllTCP(), // Txn2
-		denyAllUDP(), // Txn2
-	},
-	pod3Ingress: []*renderer.ContivRule{
-		{
-			Action:      renderer.ActionPermit,
-			SrcNetwork:  ipNetwork(""),
-			DestNetwork: ipNetwork("10.10.1.1/32"),
-			Protocol:    renderer.UDP,
-			SrcPort:     0,
-			DestPort:    0,
-		},
-		{
-			Action:      renderer.ActionPermit,
-			SrcNetwork:  ipNetwork(""),
-			DestNetwork: ipNetwork(""),
-			Protocol:    renderer.TCP,
-			SrcPort:     0,
-			DestPort:    22,
-		},
-		denyAllTCP(),
-		denyAllUDP(),
-	},
-	pod3Egress: []*renderer.ContivRule{
-		{
-			Action:      renderer.ActionPermit,
-			SrcNetwork:  ipNetwork("10.0.0.0/8"),
-			DestNetwork: ipNetwork(""),
-			Protocol:    renderer.TCP,
-			SrcPort:     0,
-			DestPort:    80,
-		},
-		{
-			Action:      renderer.ActionPermit,
-			SrcNetwork:  ipNetwork("10.0.0.0/8"),
-			DestNetwork: ipNetwork(""),
-			Protocol:    renderer.TCP,
-			SrcPort:     0,
-			DestPort:    443,
-		},
-		{
-			Action:      renderer.ActionPermit,
-			SrcNetwork:  ipNetwork(""),
-			DestNetwork: ipNetwork(""),
-			Protocol:    renderer.UDP,
-			SrcPort:     0,
-			DestPort:    67,
-		},
-		denyAllTCP(),
-		denyAllUDP(),
-	},
-}
-
-func ipNetwork(addr string) *net.IPNet {
-	if addr == "" {
-		return &net.IPNet{}
-	}
-	_, network, _ := net.ParseCIDR(addr)
-	return network
-}
-
-func allowAllTCP() *renderer.ContivRule {
-	ruleTCPAny := &renderer.ContivRule{
-		Action:      renderer.ActionPermit,
-		SrcNetwork:  &net.IPNet{},
-		DestNetwork: &net.IPNet{},
-		Protocol:    renderer.TCP,
-		SrcPort:     0,
-		DestPort:    0,
-	}
-	return ruleTCPAny
-}
-
-func allowAllUDP() *renderer.ContivRule {
-	ruleUDPAny := &renderer.ContivRule{
-		Action:      renderer.ActionPermit,
-		SrcNetwork:  &net.IPNet{},
-		DestNetwork: &net.IPNet{},
-		Protocol:    renderer.UDP,
-		SrcPort:     0,
-		DestPort:    0,
-	}
-	return ruleUDPAny
-}
-
-func denyAllTCP() *renderer.ContivRule {
-	ruleTCPNone := &renderer.ContivRule{
-		Action:      renderer.ActionDeny,
-		SrcNetwork:  &net.IPNet{},
-		DestNetwork: &net.IPNet{},
-		Protocol:    renderer.TCP,
-		SrcPort:     0,
-		DestPort:    0,
-	}
-	return ruleTCPNone
-}
-
-func denyAllUDP() *renderer.ContivRule {
-	ruleUDPNone := &renderer.ContivRule{
-		Action:      renderer.ActionDeny,
-		SrcNetwork:  &net.IPNet{},
-		DestNetwork: &net.IPNet{},
-		Protocol:    renderer.UDP,
-		SrcPort:     0,
-		DestPort:    0,
-	}
-	return ruleUDPNone
-}
 
 func modifySrc(srcIP string, rules ...*renderer.ContivRule) []*renderer.ContivRule {
 	modified := []*renderer.ContivRule{}
@@ -442,12 +187,13 @@ func TestSingleEgressRuleOnePodEgressOrientation(t *testing.T) {
 	logger.Debug("TestSingleEgressRuleOnePodEgressOrientation")
 
 	// Prepare input data.
-	pods := NewPodSet(pod1)
+	pods := NewPodSet(Pod1)
 
 	ingress := []*renderer.ContivRule{}
-	egress := []*renderer.ContivRule{ts1.rule}
+	egress := []*renderer.ContivRule{Ts1.Rule}
+	localRules := []*renderer.ContivRule{Ts1.Rule, AllowAllTCP(), AllowAllUDP()}
 	podCfg := &PodConfig{
-		PodIP:   GetOneHostSubnet(podIPs[0]),
+		PodIP:   GetOneHostSubnet(PodIPs[0]),
 		Ingress: ingress,
 		Egress:  egress,
 		Removed: false,
@@ -474,8 +220,8 @@ func TestSingleEgressRuleOnePodEgressOrientation(t *testing.T) {
 	gomega.Expect(changes).To(gomega.HaveLen(0))
 
 	// Perform single update.
-	txn.Update(pod1, podCfg)
-	verifyPodConfig(txn, pod1, podCfg)
+	txn.Update(Pod1, podCfg)
+	verifyPodConfig(txn, Pod1, podCfg)
 	verifyUpdatedPods(txn, pods, EmptyPodSet)
 	verifyCachedPods(txn, pods, pods)
 
@@ -484,17 +230,17 @@ func TestSingleEgressRuleOnePodEgressOrientation(t *testing.T) {
 	gomega.Expect(changes).To(gomega.HaveLen(1))
 
 	// Local table was added.
-	verifyLocalTableChange(changes[0], nil, egress, EmptyPodSet, pods)
+	verifyLocalTableChange(changes[0], nil, localRules, EmptyPodSet, pods)
 	localTableTxn := changes[0].Table
 
 	// Test what the cache will contain after the transaction.
-	verifyPodLocalTable(txn, pod1, localTableTxn, egress, pods)
+	verifyPodLocalTable(txn, Pod1, localTableTxn, localRules, pods)
 	verifyGlobalTable(txn.GetGlobalTable(), globalTable, nil, EmptyRules)
 
 	// Changes should be applied only after the commit.
-	verifyPodConfig(ruleCache, pod1, nil)
+	verifyPodConfig(ruleCache, Pod1, nil)
 	verifyCachedPods(ruleCache, EmptyPodSet, EmptyPodSet)
-	verifyPodNilLocalTable(ruleCache, pod1)
+	verifyPodNilLocalTable(ruleCache, Pod1)
 	verifyGlobalTable(ruleCache.GetGlobalTable(), globalTable, nil, EmptyRules)
 
 	// Commit changes into the cache.
@@ -506,8 +252,8 @@ func TestSingleEgressRuleOnePodEgressOrientation(t *testing.T) {
 	gomega.Expect(changes).To(gomega.HaveLen(0))
 
 	// Verify cache content.
-	verifyPodConfig(ruleCache, pod1, podCfg)
-	verifyPodLocalTable(ruleCache, pod1, localTableTxn, egress, pods)
+	verifyPodConfig(ruleCache, Pod1, podCfg)
+	verifyPodLocalTable(ruleCache, Pod1, localTableTxn, localRules, pods)
 	verifyCachedPods(ruleCache, pods, pods)
 	verifyGlobalTable(ruleCache.GetGlobalTable(), globalTable, nil, EmptyRules)
 }
@@ -519,12 +265,12 @@ func TestSingleEgressRuleOnePodIngressOrientation(t *testing.T) {
 	logger.Debug("TestSingleEgressRuleOnePodIngressOrientation")
 
 	// Prepare input data.
-	pods := NewPodSet(pod1)
+	pods := NewPodSet(Pod1)
 
 	ingress := []*renderer.ContivRule{}
-	egress := []*renderer.ContivRule{ts1.rule}
+	egress := []*renderer.ContivRule{Ts1.Rule}
 	podCfg := &PodConfig{
-		PodIP:   GetOneHostSubnet(podIPs[0]),
+		PodIP:   GetOneHostSubnet(PodIPs[0]),
 		Ingress: ingress,
 		Egress:  egress,
 		Removed: false,
@@ -539,8 +285,8 @@ func TestSingleEgressRuleOnePodIngressOrientation(t *testing.T) {
 	ruleCache.Init(IngressOrientation)
 
 	// Expected global table content.
-	globalRules := modifyDst(ts1.rule, podIPs[0])
-	globalRules = append(globalRules, allowAllTCP(), allowAllUDP())
+	globalRules := modifyDst(Ts1.Rule, PodIPs[0])
+	globalRules = append(globalRules, AllowAllTCP(), AllowAllUDP())
 
 	// Check initial cache content
 	globalTable := ruleCache.GetGlobalTable()
@@ -555,8 +301,8 @@ func TestSingleEgressRuleOnePodIngressOrientation(t *testing.T) {
 	gomega.Expect(changes).To(gomega.HaveLen(0))
 
 	// Perform single update.
-	txn.Update(pod1, podCfg)
-	verifyPodConfig(txn, pod1, podCfg)
+	txn.Update(Pod1, podCfg)
+	verifyPodConfig(txn, Pod1, podCfg)
 	verifyUpdatedPods(txn, pods, EmptyPodSet)
 	verifyCachedPods(txn, pods, EmptyPodSet)
 
@@ -569,14 +315,14 @@ func TestSingleEgressRuleOnePodIngressOrientation(t *testing.T) {
 	globalTableTxn := changes[0].Table
 
 	// Test what the cache will contain after the transaction.
-	verifyPodNilLocalTable(txn, pod1)
+	verifyPodNilLocalTable(txn, Pod1)
 	verifyCachedPods(txn, pods, EmptyPodSet)
 	verifyGlobalTable(txn.GetGlobalTable(), globalTableTxn, globalTable, globalRules)
 
 	// Changes should be applied only after the commit.
-	verifyPodConfig(ruleCache, pod1, nil)
+	verifyPodConfig(ruleCache, Pod1, nil)
 	verifyCachedPods(ruleCache, EmptyPodSet, EmptyPodSet)
-	verifyPodNilLocalTable(ruleCache, pod1)
+	verifyPodNilLocalTable(ruleCache, Pod1)
 	verifyGlobalTable(ruleCache.GetGlobalTable(), globalTable, globalTableTxn, EmptyRules)
 
 	// Commit changes into the cache.
@@ -588,8 +334,8 @@ func TestSingleEgressRuleOnePodIngressOrientation(t *testing.T) {
 	gomega.Expect(changes).To(gomega.HaveLen(0))
 
 	// Verify cache content.
-	verifyPodConfig(ruleCache, pod1, podCfg)
-	verifyPodNilLocalTable(ruleCache, pod1)
+	verifyPodConfig(ruleCache, Pod1, podCfg)
+	verifyPodNilLocalTable(ruleCache, Pod1)
 	verifyCachedPods(ruleCache, pods, EmptyPodSet)
 	verifyGlobalTable(ruleCache.GetGlobalTable(), globalTableTxn, globalTable, globalRules)
 }
@@ -601,11 +347,11 @@ func TestSingleIngressRuleOnePodEgressOrientation(t *testing.T) {
 	logger.Debug("TestSingleIngressRuleOnePodEgressOrientation")
 
 	// Prepare input data.
-	pods := NewPodSet(pod1)
-	ingress := []*renderer.ContivRule{ts2.rule}
+	pods := NewPodSet(Pod1)
+	ingress := []*renderer.ContivRule{Ts2.Rule}
 	egress := []*renderer.ContivRule{}
 	podCfg := &PodConfig{
-		PodIP:   GetOneHostSubnet(podIPs[0]),
+		PodIP:   GetOneHostSubnet(PodIPs[0]),
 		Ingress: ingress,
 		Egress:  egress,
 		Removed: false,
@@ -620,8 +366,8 @@ func TestSingleIngressRuleOnePodEgressOrientation(t *testing.T) {
 	ruleCache.Init(EgressOrientation)
 
 	// Expected global table content.
-	globalRules := modifySrc(podIPs[0], ts2.rule)
-	globalRules = append(globalRules, allowAllTCP(), allowAllUDP()) /* order matters */
+	globalRules := modifySrc(PodIPs[0], Ts2.Rule)
+	globalRules = append(globalRules, AllowAllTCP(), AllowAllUDP()) /* order matters */
 
 	// Check initial cache content
 	globalTable := ruleCache.GetGlobalTable()
@@ -636,8 +382,8 @@ func TestSingleIngressRuleOnePodEgressOrientation(t *testing.T) {
 	gomega.Expect(changes).To(gomega.HaveLen(0))
 
 	// Perform single update.
-	txn.Update(pod1, podCfg)
-	verifyPodConfig(txn, pod1, podCfg)
+	txn.Update(Pod1, podCfg)
+	verifyPodConfig(txn, Pod1, podCfg)
 	verifyUpdatedPods(txn, pods, EmptyPodSet)
 	verifyCachedPods(txn, pods, EmptyPodSet)
 
@@ -650,14 +396,14 @@ func TestSingleIngressRuleOnePodEgressOrientation(t *testing.T) {
 	globalTableTxn := changes[0].Table
 
 	// Test what the cache will contain after the transaction.
-	verifyPodNilLocalTable(txn, pod1)
+	verifyPodNilLocalTable(txn, Pod1)
 	verifyCachedPods(txn, pods, EmptyPodSet)
 	verifyGlobalTable(txn.GetGlobalTable(), globalTableTxn, globalTable, globalRules)
 
 	// Changes should be applied only after the commit.
-	verifyPodConfig(ruleCache, pod1, nil)
+	verifyPodConfig(ruleCache, Pod1, nil)
 	verifyCachedPods(ruleCache, EmptyPodSet, EmptyPodSet)
-	verifyPodNilLocalTable(ruleCache, pod1)
+	verifyPodNilLocalTable(ruleCache, Pod1)
 	verifyGlobalTable(ruleCache.GetGlobalTable(), globalTable, globalTableTxn, EmptyRules)
 
 	// Commit changes into the cache.
@@ -669,8 +415,8 @@ func TestSingleIngressRuleOnePodEgressOrientation(t *testing.T) {
 	gomega.Expect(changes).To(gomega.HaveLen(0))
 
 	// Verify cache content.
-	verifyPodConfig(ruleCache, pod1, podCfg)
-	verifyPodNilLocalTable(ruleCache, pod1)
+	verifyPodConfig(ruleCache, Pod1, podCfg)
+	verifyPodNilLocalTable(ruleCache, Pod1)
 	verifyCachedPods(ruleCache, pods, EmptyPodSet)
 	verifyGlobalTable(ruleCache.GetGlobalTable(), globalTableTxn, globalTable, globalRules)
 }
@@ -682,11 +428,12 @@ func TestSingleIngressRuleOnePodIngressOrientation(t *testing.T) {
 	logger.Debug("TestSingleIngressRuleOnePodIngressOrientation")
 
 	// Prepare input data.
-	pods := NewPodSet(pod1)
-	ingress := []*renderer.ContivRule{ts2.rule}
+	pods := NewPodSet(Pod1)
+	ingress := []*renderer.ContivRule{Ts2.Rule}
 	egress := []*renderer.ContivRule{}
+	localRules := []*renderer.ContivRule{Ts2.Rule, AllowAllTCP(), AllowAllUDP()}
 	podCfg := &PodConfig{
-		PodIP:   GetOneHostSubnet(podIPs[0]),
+		PodIP:   GetOneHostSubnet(PodIPs[0]),
 		Ingress: ingress,
 		Egress:  egress,
 		Removed: false,
@@ -713,8 +460,8 @@ func TestSingleIngressRuleOnePodIngressOrientation(t *testing.T) {
 	gomega.Expect(changes).To(gomega.HaveLen(0))
 
 	// Perform single update.
-	txn.Update(pod1, podCfg)
-	verifyPodConfig(txn, pod1, podCfg)
+	txn.Update(Pod1, podCfg)
+	verifyPodConfig(txn, Pod1, podCfg)
 	verifyUpdatedPods(txn, pods, EmptyPodSet)
 	verifyCachedPods(txn, pods, pods)
 
@@ -723,17 +470,17 @@ func TestSingleIngressRuleOnePodIngressOrientation(t *testing.T) {
 	gomega.Expect(changes).To(gomega.HaveLen(1))
 
 	// Local table was added.
-	verifyLocalTableChange(changes[0], nil, ingress, EmptyPodSet, pods)
+	verifyLocalTableChange(changes[0], nil, localRules, EmptyPodSet, pods)
 	localTableTxn := changes[0].Table
 
 	// Test what the cache will contain after the transaction.
-	verifyPodLocalTable(txn, pod1, localTableTxn, ingress, pods)
+	verifyPodLocalTable(txn, Pod1, localTableTxn, localRules, pods)
 	verifyGlobalTable(txn.GetGlobalTable(), globalTable, nil, EmptyRules)
 
 	// Changes should be applied only after the commit.
-	verifyPodConfig(ruleCache, pod1, nil)
+	verifyPodConfig(ruleCache, Pod1, nil)
 	verifyCachedPods(ruleCache, EmptyPodSet, EmptyPodSet)
-	verifyPodNilLocalTable(ruleCache, pod1)
+	verifyPodNilLocalTable(ruleCache, Pod1)
 	verifyGlobalTable(ruleCache.GetGlobalTable(), globalTable, nil, EmptyRules)
 
 	// Commit changes into the cache.
@@ -745,8 +492,8 @@ func TestSingleIngressRuleOnePodIngressOrientation(t *testing.T) {
 	gomega.Expect(changes).To(gomega.HaveLen(0))
 
 	// Verify cache content.
-	verifyPodConfig(ruleCache, pod1, podCfg)
-	verifyPodLocalTable(ruleCache, pod1, localTableTxn, ingress, pods)
+	verifyPodConfig(ruleCache, Pod1, podCfg)
+	verifyPodLocalTable(ruleCache, Pod1, localTableTxn, localRules, pods)
 	verifyCachedPods(ruleCache, pods, pods)
 	verifyGlobalTable(ruleCache.GetGlobalTable(), globalTable, nil, EmptyRules)
 }
@@ -758,18 +505,18 @@ func TestMultipleEgressRulesMultiplePodsEgressOrientation(t *testing.T) {
 	logger.Debug("TestMultipleEgressRulesMultiplePodsEgressOrientation")
 
 	// Prepare input data.
-	pods1 := NewPodSet(podIDs[:3]...) /* first TXN contains pod1-pod3 */
-	pods2 := NewPodSet(podIDs...)     /* second TXN contains all pods */
+	pods1 := NewPodSet(PodIDs[:3]...) /* first TXN contains Pod1-pod3 */
+	pods2 := NewPodSet(PodIDs...)     /* second TXN contains all pods */
 
 	ingress := []*renderer.ContivRule{}
-	egress := []*renderer.ContivRule{ts3.rule1, ts3.rule2, ts3.rule3, ts3.rule4}
-	orderedEgress := []*renderer.ContivRule{ts3.rule1, ts3.rule3, ts3.rule2, ts3.rule4}
+	egress := []*renderer.ContivRule{Ts3.Rule1, Ts3.Rule2, Ts3.Rule3, Ts3.Rule4}
+	orderedEgress := []*renderer.ContivRule{Ts3.Rule1, Ts3.Rule3, Ts3.Rule2, Ts3.Rule4}
 
 	podCfg := []*PodConfig{}
-	for i := range podIDs {
+	for i := range PodIDs {
 		podCfg = append(podCfg,
 			&PodConfig{
-				PodIP:   GetOneHostSubnet(podIPs[i]),
+				PodIP:   GetOneHostSubnet(PodIPs[i]),
 				Ingress: ingress,
 				Egress:  egress,
 				Removed: false,
@@ -790,8 +537,8 @@ func TestMultipleEgressRulesMultiplePodsEgressOrientation(t *testing.T) {
 
 	// Perform update of the first three pods.
 	for i := 0; i < len(pods1); i++ {
-		txn.Update(podIDs[i], podCfg[i])
-		verifyPodConfig(txn, podIDs[i], podCfg[i])
+		txn.Update(PodIDs[i], podCfg[i])
+		verifyPodConfig(txn, PodIDs[i], podCfg[i])
 	}
 	verifyUpdatedPods(txn, pods1, EmptyPodSet)
 	verifyCachedPods(txn, pods1, pods1)
@@ -806,7 +553,7 @@ func TestMultipleEgressRulesMultiplePodsEgressOrientation(t *testing.T) {
 
 	// Test what the cache will contain after the transaction.
 	for i := 0; i < len(pods1); i++ {
-		verifyPodLocalTable(txn, podIDs[i], localTableTxn, orderedEgress, pods1)
+		verifyPodLocalTable(txn, PodIDs[i], localTableTxn, orderedEgress, pods1)
 	}
 	verifyGlobalTable(txn.GetGlobalTable(), globalTable, nil, EmptyRules)
 
@@ -816,8 +563,8 @@ func TestMultipleEgressRulesMultiplePodsEgressOrientation(t *testing.T) {
 
 	// Verify cache content.
 	for i := 0; i < len(pods1); i++ {
-		verifyPodConfig(ruleCache, podIDs[i], podCfg[i])
-		verifyPodLocalTable(ruleCache, podIDs[i], localTableTxn, orderedEgress, pods1)
+		verifyPodConfig(ruleCache, PodIDs[i], podCfg[i])
+		verifyPodLocalTable(ruleCache, PodIDs[i], localTableTxn, orderedEgress, pods1)
 	}
 	verifyCachedPods(ruleCache, pods1, pods1)
 	verifyGlobalTable(ruleCache.GetGlobalTable(), globalTable, nil, EmptyRules)
@@ -827,8 +574,8 @@ func TestMultipleEgressRulesMultiplePodsEgressOrientation(t *testing.T) {
 	txn = ruleCache.NewTxn()
 
 	for i := 0; i < len(pods2); i++ {
-		txn.Update(podIDs[i], podCfg[i])
-		verifyPodConfig(txn, podIDs[i], podCfg[i])
+		txn.Update(PodIDs[i], podCfg[i])
+		verifyPodConfig(txn, PodIDs[i], podCfg[i])
 	}
 	verifyUpdatedPods(txn, pods2, EmptyPodSet)
 	verifyCachedPods(txn, pods2, pods2)
@@ -846,8 +593,8 @@ func TestMultipleEgressRulesMultiplePodsEgressOrientation(t *testing.T) {
 
 	// Verify cache content.
 	for i := 0; i < len(pods2); i++ {
-		verifyPodConfig(ruleCache, podIDs[i], podCfg[i])
-		verifyPodLocalTable(ruleCache, podIDs[i], localTableTxn, orderedEgress, pods2)
+		verifyPodConfig(ruleCache, PodIDs[i], podCfg[i])
+		verifyPodLocalTable(ruleCache, PodIDs[i], localTableTxn, orderedEgress, pods2)
 	}
 	verifyCachedPods(ruleCache, pods2, pods2)
 	verifyGlobalTable(ruleCache.GetGlobalTable(), globalTable, nil, EmptyRules)
@@ -860,16 +607,16 @@ func TestMultipleEgressRulesMultiplePodsIngressOrientation(t *testing.T) {
 	logger.Debug("TestMultipleEgressRulesMultiplePodsIngressOrientation")
 
 	// Prepare input data.
-	pods1 := NewPodSet(podIDs[:3]...) /* first TXN contains pod1-pod3 */
-	pods2 := NewPodSet(podIDs...)     /* second TXN contains all pods */
+	pods1 := NewPodSet(PodIDs[:3]...) /* first TXN contains pod1-pod3 */
+	pods2 := NewPodSet(PodIDs...)     /* second TXN contains all pods */
 	ingress := []*renderer.ContivRule{}
-	egress := []*renderer.ContivRule{ts3.rule1, ts3.rule2, ts3.rule3, ts3.rule4}
+	egress := []*renderer.ContivRule{Ts3.Rule1, Ts3.Rule2, Ts3.Rule3, Ts3.Rule4}
 
 	podCfg := []*PodConfig{}
-	for i := range podIDs {
+	for i := range PodIDs {
 		podCfg = append(podCfg,
 			&PodConfig{
-				PodIP:   GetOneHostSubnet(podIPs[i]),
+				PodIP:   GetOneHostSubnet(PodIPs[i]),
 				Ingress: ingress,
 				Egress:  egress,
 				Removed: false,
@@ -887,20 +634,20 @@ func TestMultipleEgressRulesMultiplePodsIngressOrientation(t *testing.T) {
 
 	// Expected global table content after the first transaction.
 	var globalRules []*renderer.ContivRule
-	globalRules = append(globalRules, modifyDst(ts3.rule1, podIPs[:3]...)...)
-	globalRules = append(globalRules, modifyDst(ts3.rule3, podIPs[:3]...)...) /* TCP before UDP */
-	globalRules = append(globalRules, allowAllTCP())
-	globalRules = append(globalRules, modifyDst(ts3.rule2, podIPs[:3]...)...)
-	globalRules = append(globalRules, modifyDst(ts3.rule4, podIPs[:3]...)...)
-	globalRules = append(globalRules, allowAllUDP())
+	globalRules = append(globalRules, modifyDst(Ts3.Rule1, PodIPs[:3]...)...)
+	globalRules = append(globalRules, modifyDst(Ts3.Rule3, PodIPs[:3]...)...) /* TCP before UDP */
+	globalRules = append(globalRules, AllowAllTCP())
+	globalRules = append(globalRules, modifyDst(Ts3.Rule2, PodIPs[:3]...)...)
+	globalRules = append(globalRules, modifyDst(Ts3.Rule4, PodIPs[:3]...)...)
+	globalRules = append(globalRules, AllowAllUDP())
 
 	// Run first transaction.
 	txn := ruleCache.NewTxn()
 
 	// Perform update of the first three pods.
 	for i := 0; i < len(pods1); i++ {
-		txn.Update(podIDs[i], podCfg[i])
-		verifyPodConfig(txn, podIDs[i], podCfg[i])
+		txn.Update(PodIDs[i], podCfg[i])
+		verifyPodConfig(txn, PodIDs[i], podCfg[i])
 	}
 	verifyUpdatedPods(txn, pods1, EmptyPodSet)
 	verifyCachedPods(txn, pods1, EmptyPodSet)
@@ -915,7 +662,7 @@ func TestMultipleEgressRulesMultiplePodsIngressOrientation(t *testing.T) {
 
 	// Test what the cache will contain after the transaction.
 	for i := 0; i < len(pods1); i++ {
-		verifyPodNilLocalTable(txn, podIDs[i])
+		verifyPodNilLocalTable(txn, PodIDs[i])
 	}
 	verifyCachedPods(txn, pods1, EmptyPodSet)
 	verifyGlobalTable(txn.GetGlobalTable(), globalTableTxn1, globalTable, globalRules)
@@ -926,8 +673,8 @@ func TestMultipleEgressRulesMultiplePodsIngressOrientation(t *testing.T) {
 
 	// Verify cache content.
 	for i := 0; i < len(pods1); i++ {
-		verifyPodConfig(ruleCache, podIDs[i], podCfg[i])
-		verifyPodNilLocalTable(ruleCache, podIDs[i])
+		verifyPodConfig(ruleCache, PodIDs[i], podCfg[i])
+		verifyPodNilLocalTable(ruleCache, PodIDs[i])
 	}
 	verifyCachedPods(ruleCache, pods1, EmptyPodSet)
 	verifyGlobalTable(ruleCache.GetGlobalTable(), globalTableTxn1, globalTable, globalRules)
@@ -937,20 +684,20 @@ func TestMultipleEgressRulesMultiplePodsIngressOrientation(t *testing.T) {
 	txn = ruleCache.NewTxn()
 
 	for i := 0; i < len(pods2); i++ {
-		txn.Update(podIDs[i], podCfg[i])
-		verifyPodConfig(txn, podIDs[i], podCfg[i])
+		txn.Update(PodIDs[i], podCfg[i])
+		verifyPodConfig(txn, PodIDs[i], podCfg[i])
 	}
 	verifyUpdatedPods(txn, pods2, EmptyPodSet)
 	verifyCachedPods(txn, pods2, EmptyPodSet)
 
 	// Expected global table content after the second transaction.
 	globalRules = []*renderer.ContivRule{}
-	globalRules = append(globalRules, modifyDst(ts3.rule1, podIPs...)...)
-	globalRules = append(globalRules, modifyDst(ts3.rule3, podIPs...)...) /* TCP before UDP */
-	globalRules = append(globalRules, allowAllTCP())
-	globalRules = append(globalRules, modifyDst(ts3.rule2, podIPs...)...)
-	globalRules = append(globalRules, modifyDst(ts3.rule4, podIPs...)...)
-	globalRules = append(globalRules, allowAllUDP())
+	globalRules = append(globalRules, modifyDst(Ts3.Rule1, PodIPs...)...)
+	globalRules = append(globalRules, modifyDst(Ts3.Rule3, PodIPs...)...) /* TCP before UDP */
+	globalRules = append(globalRules, AllowAllTCP())
+	globalRules = append(globalRules, modifyDst(Ts3.Rule2, PodIPs...)...)
+	globalRules = append(globalRules, modifyDst(Ts3.Rule4, PodIPs...)...)
+	globalRules = append(globalRules, AllowAllUDP())
 
 	// Verify changes to be committed.
 	changes = txn.GetChanges()
@@ -962,7 +709,7 @@ func TestMultipleEgressRulesMultiplePodsIngressOrientation(t *testing.T) {
 
 	// Test what the cache will contain after the transaction.
 	for i := 0; i < len(pods2); i++ {
-		verifyPodNilLocalTable(txn, podIDs[i])
+		verifyPodNilLocalTable(txn, PodIDs[i])
 	}
 	verifyCachedPods(txn, pods2, EmptyPodSet)
 	verifyGlobalTable(txn.GetGlobalTable(), globalTableTxn2, globalTableTxn1, globalRules)
@@ -973,8 +720,8 @@ func TestMultipleEgressRulesMultiplePodsIngressOrientation(t *testing.T) {
 
 	// Verify cache content.
 	for i := 0; i < len(pods2); i++ {
-		verifyPodConfig(ruleCache, podIDs[i], podCfg[i])
-		verifyPodNilLocalTable(ruleCache, podIDs[i])
+		verifyPodConfig(ruleCache, PodIDs[i], podCfg[i])
+		verifyPodNilLocalTable(ruleCache, PodIDs[i])
 	}
 	verifyCachedPods(ruleCache, pods2, EmptyPodSet)
 	verifyGlobalTable(ruleCache.GetGlobalTable(), globalTableTxn2, globalTableTxn1, globalRules)
@@ -987,16 +734,16 @@ func TestMultipleIngressRulesMultiplePodsEgressOrientation(t *testing.T) {
 	logger.Debug("TestMultipleIngressRulesMultiplePodsEgressOrientation")
 
 	// Prepare input data.
-	pods1 := NewPodSet(podIDs[:3]...) /* first TXN contains pod1-pod3 */
-	pods2 := NewPodSet(podIDs...)     /* second TXN contains all pods */
-	ingress := []*renderer.ContivRule{ts4.rule1, ts4.rule2, ts4.rule3, ts4.rule4}
+	pods1 := NewPodSet(PodIDs[:3]...) /* first TXN contains Pod1-pod3 */
+	pods2 := NewPodSet(PodIDs...)     /* second TXN contains all pods */
+	ingress := []*renderer.ContivRule{Ts4.Rule1, Ts4.Rule2, Ts4.Rule3, Ts4.Rule4}
 	egress := []*renderer.ContivRule{}
 
 	podCfg := []*PodConfig{}
-	for i := range podIDs {
+	for i := range PodIDs {
 		podCfg = append(podCfg,
 			&PodConfig{
-				PodIP:   GetOneHostSubnet(podIPs[i]),
+				PodIP:   GetOneHostSubnet(PodIPs[i]),
 				Ingress: ingress,
 				Egress:  egress,
 				Removed: false,
@@ -1015,21 +762,21 @@ func TestMultipleIngressRulesMultiplePodsEgressOrientation(t *testing.T) {
 	// Expected global table content after the first transaction.
 	var globalRules []*renderer.ContivRule
 	for i := 0; i < len(pods1); i++ {
-		globalRules = append(globalRules, modifySrc(podIPs[i], ts4.rule1, ts4.rule3)...)
+		globalRules = append(globalRules, modifySrc(PodIPs[i], Ts4.Rule1, Ts4.Rule3)...)
 	}
-	globalRules = append(globalRules, allowAllTCP())
+	globalRules = append(globalRules, AllowAllTCP())
 	for i := 0; i < len(pods1); i++ {
-		globalRules = append(globalRules, modifySrc(podIPs[i], ts4.rule2, ts4.rule4)...)
+		globalRules = append(globalRules, modifySrc(PodIPs[i], Ts4.Rule2, Ts4.Rule4)...)
 	}
-	globalRules = append(globalRules, allowAllUDP())
+	globalRules = append(globalRules, AllowAllUDP())
 
 	// Run first transaction.
 	txn := ruleCache.NewTxn()
 
 	// Perform update of the first three pods.
 	for i := 0; i < len(pods1); i++ {
-		txn.Update(podIDs[i], podCfg[i])
-		verifyPodConfig(txn, podIDs[i], podCfg[i])
+		txn.Update(PodIDs[i], podCfg[i])
+		verifyPodConfig(txn, PodIDs[i], podCfg[i])
 	}
 	verifyUpdatedPods(txn, pods1, EmptyPodSet)
 	verifyCachedPods(txn, pods1, EmptyPodSet)
@@ -1044,7 +791,7 @@ func TestMultipleIngressRulesMultiplePodsEgressOrientation(t *testing.T) {
 
 	// Test what the cache will contain after the transaction.
 	for i := 0; i < len(pods1); i++ {
-		verifyPodNilLocalTable(txn, podIDs[i])
+		verifyPodNilLocalTable(txn, PodIDs[i])
 	}
 	verifyCachedPods(txn, pods1, EmptyPodSet)
 	verifyGlobalTable(txn.GetGlobalTable(), globalTableTxn1, globalTable, globalRules)
@@ -1055,8 +802,8 @@ func TestMultipleIngressRulesMultiplePodsEgressOrientation(t *testing.T) {
 
 	// Verify cache content.
 	for i := 0; i < len(pods1); i++ {
-		verifyPodConfig(ruleCache, podIDs[i], podCfg[i])
-		verifyPodNilLocalTable(ruleCache, podIDs[i])
+		verifyPodConfig(ruleCache, PodIDs[i], podCfg[i])
+		verifyPodNilLocalTable(ruleCache, PodIDs[i])
 	}
 	verifyCachedPods(ruleCache, pods1, EmptyPodSet)
 	verifyGlobalTable(ruleCache.GetGlobalTable(), globalTableTxn1, globalTable, globalRules)
@@ -1066,8 +813,8 @@ func TestMultipleIngressRulesMultiplePodsEgressOrientation(t *testing.T) {
 	txn = ruleCache.NewTxn()
 
 	for i := 0; i < len(pods2); i++ {
-		txn.Update(podIDs[i], podCfg[i])
-		verifyPodConfig(txn, podIDs[i], podCfg[i])
+		txn.Update(PodIDs[i], podCfg[i])
+		verifyPodConfig(txn, PodIDs[i], podCfg[i])
 	}
 	verifyUpdatedPods(txn, pods2, EmptyPodSet)
 	verifyCachedPods(txn, pods2, EmptyPodSet)
@@ -1075,13 +822,13 @@ func TestMultipleIngressRulesMultiplePodsEgressOrientation(t *testing.T) {
 	// Expected global table content after the second transaction.
 	globalRules = []*renderer.ContivRule{}
 	for i := 0; i < len(pods2); i++ {
-		globalRules = append(globalRules, modifySrc(podIPs[i], ts4.rule1, ts4.rule3)...)
+		globalRules = append(globalRules, modifySrc(PodIPs[i], Ts4.Rule1, Ts4.Rule3)...)
 	}
-	globalRules = append(globalRules, allowAllTCP())
+	globalRules = append(globalRules, AllowAllTCP())
 	for i := 0; i < len(pods2); i++ {
-		globalRules = append(globalRules, modifySrc(podIPs[i], ts4.rule2, ts4.rule4)...)
+		globalRules = append(globalRules, modifySrc(PodIPs[i], Ts4.Rule2, Ts4.Rule4)...)
 	}
-	globalRules = append(globalRules, allowAllUDP())
+	globalRules = append(globalRules, AllowAllUDP())
 
 	// Verify changes to be committed.
 	changes = txn.GetChanges()
@@ -1097,8 +844,8 @@ func TestMultipleIngressRulesMultiplePodsEgressOrientation(t *testing.T) {
 
 	// Verify cache content.
 	for i := 0; i < len(pods2); i++ {
-		verifyPodConfig(ruleCache, podIDs[i], podCfg[i])
-		verifyPodNilLocalTable(ruleCache, podIDs[i])
+		verifyPodConfig(ruleCache, PodIDs[i], podCfg[i])
+		verifyPodNilLocalTable(ruleCache, PodIDs[i])
 	}
 	verifyCachedPods(ruleCache, pods2, EmptyPodSet)
 	verifyGlobalTable(ruleCache.GetGlobalTable(), globalTableTxn2, globalTableTxn1, globalRules)
@@ -1111,17 +858,17 @@ func TestMultipleIngressRulesMultiplePodsIngressOrientation(t *testing.T) {
 	logger.Debug("TestMultipleIngressRulesMultiplePodsIngressOrientation")
 
 	// Prepare input data.
-	pods1 := NewPodSet(podIDs[:3]...) /* first TXN contains pod1-pod3 */
-	pods2 := NewPodSet(podIDs...)     /* second TXN contains all pods */
-	ingress := []*renderer.ContivRule{ts4.rule1, ts4.rule2, ts4.rule3, ts4.rule4}
+	pods1 := NewPodSet(PodIDs[:3]...) /* first TXN contains Pod1-pod3 */
+	pods2 := NewPodSet(PodIDs...)     /* second TXN contains all pods */
+	ingress := []*renderer.ContivRule{Ts4.Rule1, Ts4.Rule2, Ts4.Rule3, Ts4.Rule4}
 	egress := []*renderer.ContivRule{}
-	orderedIngress := []*renderer.ContivRule{ts4.rule1, ts4.rule3, ts4.rule2, ts4.rule4}
+	orderedIngress := []*renderer.ContivRule{Ts4.Rule1, Ts4.Rule3, Ts4.Rule2, Ts4.Rule4}
 
 	podCfg := []*PodConfig{}
-	for i := range podIDs {
+	for i := range PodIDs {
 		podCfg = append(podCfg,
 			&PodConfig{
-				PodIP:   GetOneHostSubnet(podIPs[i]),
+				PodIP:   GetOneHostSubnet(PodIPs[i]),
 				Ingress: ingress,
 				Egress:  egress,
 				Removed: false,
@@ -1142,8 +889,8 @@ func TestMultipleIngressRulesMultiplePodsIngressOrientation(t *testing.T) {
 
 	// Perform update of the first three pods.
 	for i := 0; i < len(pods1); i++ {
-		txn.Update(podIDs[i], podCfg[i])
-		verifyPodConfig(txn, podIDs[i], podCfg[i])
+		txn.Update(PodIDs[i], podCfg[i])
+		verifyPodConfig(txn, PodIDs[i], podCfg[i])
 	}
 	verifyUpdatedPods(txn, pods1, EmptyPodSet)
 	verifyCachedPods(txn, pods1, pods1)
@@ -1158,7 +905,7 @@ func TestMultipleIngressRulesMultiplePodsIngressOrientation(t *testing.T) {
 
 	// Test what the cache will contain after the transaction.
 	for i := 0; i < len(pods1); i++ {
-		verifyPodLocalTable(txn, podIDs[i], localTableTxn, orderedIngress, pods1)
+		verifyPodLocalTable(txn, PodIDs[i], localTableTxn, orderedIngress, pods1)
 	}
 	verifyGlobalTable(txn.GetGlobalTable(), globalTable, nil, EmptyRules)
 
@@ -1168,8 +915,8 @@ func TestMultipleIngressRulesMultiplePodsIngressOrientation(t *testing.T) {
 
 	// Verify cache content.
 	for i := 0; i < len(pods1); i++ {
-		verifyPodConfig(ruleCache, podIDs[i], podCfg[i])
-		verifyPodLocalTable(ruleCache, podIDs[i], localTableTxn, orderedIngress, pods1)
+		verifyPodConfig(ruleCache, PodIDs[i], podCfg[i])
+		verifyPodLocalTable(ruleCache, PodIDs[i], localTableTxn, orderedIngress, pods1)
 	}
 	verifyCachedPods(ruleCache, pods1, pods1)
 	verifyGlobalTable(ruleCache.GetGlobalTable(), globalTable, nil, EmptyRules)
@@ -1179,8 +926,8 @@ func TestMultipleIngressRulesMultiplePodsIngressOrientation(t *testing.T) {
 	txn = ruleCache.NewTxn()
 
 	for i := 0; i < len(pods2); i++ {
-		txn.Update(podIDs[i], podCfg[i])
-		verifyPodConfig(txn, podIDs[i], podCfg[i])
+		txn.Update(PodIDs[i], podCfg[i])
+		verifyPodConfig(txn, PodIDs[i], podCfg[i])
 	}
 	verifyUpdatedPods(txn, pods2, EmptyPodSet)
 	verifyCachedPods(txn, pods2, pods2)
@@ -1198,8 +945,8 @@ func TestMultipleIngressRulesMultiplePodsIngressOrientation(t *testing.T) {
 
 	// Verify cache content.
 	for i := 0; i < len(pods2); i++ {
-		verifyPodConfig(ruleCache, podIDs[i], podCfg[i])
-		verifyPodLocalTable(ruleCache, podIDs[i], localTableTxn, orderedIngress, pods2)
+		verifyPodConfig(ruleCache, PodIDs[i], podCfg[i])
+		verifyPodLocalTable(ruleCache, PodIDs[i], localTableTxn, orderedIngress, pods2)
 	}
 	verifyCachedPods(ruleCache, pods2, pods2)
 	verifyGlobalTable(ruleCache.GetGlobalTable(), globalTable, nil, EmptyRules)
@@ -1212,48 +959,50 @@ func TestCombinedRulesEgressOrientation(t *testing.T) {
 	logger.Debug("TestCombinedRulesEgressOrientation")
 
 	// Prepare test data
-	pods := NewPodSet(pod1, pod3)
+	pods := NewPodSet(Pod1, Pod3)
 	pod1Txn1Cfg := &PodConfig{
-		PodIP:   GetOneHostSubnet(pod1IP),
-		Ingress: ts5.pod1Ingress[1:],
-		Egress:  ts5.pod1Egress[:2],
+		PodIP:   GetOneHostSubnet(Pod1IP),
+		Ingress: Ts5.Pod1Ingress[1:],
+		Egress:  Ts5.Pod1Egress[:2],
 		Removed: false,
 	}
 	pod1Txn2Cfg := &PodConfig{
-		PodIP:   GetOneHostSubnet(pod1IP),
-		Ingress: ts5.pod1Ingress,
-		Egress:  ts5.pod1Egress,
+		PodIP:   GetOneHostSubnet(Pod1IP),
+		Ingress: Ts5.Pod1Ingress,
+		Egress:  Ts5.Pod1Egress,
 		Removed: false,
 	}
 	pod3Cfg := &PodConfig{
-		PodIP:   GetOneHostSubnet(pod3IP),
-		Ingress: ts5.pod3Ingress,
-		Egress:  ts5.pod3Egress,
+		PodIP:   GetOneHostSubnet(Pod3IP),
+		Ingress: Ts5.Pod3Ingress,
+		Egress:  Ts5.Pod3Egress,
 		Removed: false,
 	}
 
 	// Expected output data
 	pod1LocalRules := []*renderer.ContivRule{
-		/* TCP: */ blockPodEgress(pod1IP, renderer.TCP),
-		allowPodEgress(pod3IP, 22, renderer.TCP), blockPodEgress(pod3IP, renderer.TCP),
-		/* UDP: */ allowPodEgress(pod1IP, 161, renderer.UDP), blockPodEgress(pod1IP, renderer.UDP),
+		/* TCP: */ blockPodEgress(Pod1IP, renderer.TCP),
+		allowPodEgress(Pod3IP, 22, renderer.TCP), blockPodEgress(Pod3IP, renderer.TCP),
+		AllowAllTCP(),
+		/* UDP: */ allowPodEgress(Pod1IP, 161, renderer.UDP), blockPodEgress(Pod1IP, renderer.UDP),
 		pod1Txn1Cfg.Egress[1] /* smaller subnet */, pod1Txn1Cfg.Egress[0],
+		AllowAllUDP(),
 	}
 	pod3LocalRules := []*renderer.ContivRule{
-		/* TCP: */ blockPodEgress(pod1IP, renderer.TCP),
-		blockPodEgress(pod3IP, renderer.TCP), ts5.pod3Egress[0], ts5.pod3Egress[1], ts5.pod3Egress[3],
-		/* UDP: */ blockPodEgress(pod1IP, renderer.UDP), blockPodEgress(pod3IP, renderer.UDP),
-		ts5.pod3Egress[2], ts5.pod3Egress[4],
+		/* TCP: */ blockPodEgress(Pod1IP, renderer.TCP),
+		blockPodEgress(Pod3IP, renderer.TCP), Ts5.Pod3Egress[0], Ts5.Pod3Egress[1], Ts5.Pod3Egress[3],
+		/* UDP: */ blockPodEgress(Pod1IP, renderer.UDP), blockPodEgress(Pod3IP, renderer.UDP),
+		Ts5.Pod3Egress[2], Ts5.Pod3Egress[4],
 	}
 	globalRules := []*renderer.ContivRule{}
 	/* TCP: */
-	globalRules = append(globalRules, modifySrc(pod1IP, pod1Txn1Cfg.Ingress[1])...)
-	globalRules = append(globalRules, modifySrc(pod3IP, pod3Cfg.Ingress[1], pod3Cfg.Ingress[2])...)
-	globalRules = append(globalRules, allowAllTCP())
+	globalRules = append(globalRules, modifySrc(Pod1IP, pod1Txn1Cfg.Ingress[1])...)
+	globalRules = append(globalRules, modifySrc(Pod3IP, pod3Cfg.Ingress[1], pod3Cfg.Ingress[2])...)
+	globalRules = append(globalRules, AllowAllTCP())
 	/* UDP: */
-	globalRules = append(globalRules, modifySrc(pod1IP, pod1Txn1Cfg.Ingress[0], pod1Txn1Cfg.Ingress[2])...)
-	globalRules = append(globalRules, modifySrc(pod3IP, pod3Cfg.Ingress[0], pod3Cfg.Ingress[3])...)
-	globalRules = append(globalRules, allowAllUDP())
+	globalRules = append(globalRules, modifySrc(Pod1IP, pod1Txn1Cfg.Ingress[0], pod1Txn1Cfg.Ingress[2])...)
+	globalRules = append(globalRules, modifySrc(Pod3IP, pod3Cfg.Ingress[0], pod3Cfg.Ingress[3])...)
+	globalRules = append(globalRules, AllowAllUDP())
 
 	// Create an instance of RendererCache
 	ruleCache := &RendererCache{
@@ -1265,8 +1014,8 @@ func TestCombinedRulesEgressOrientation(t *testing.T) {
 
 	// Run first transaction.
 	txn := ruleCache.NewTxn()
-	txn.Update(pod1, pod1Txn1Cfg)
-	txn.Update(pod3, pod3Cfg)
+	txn.Update(Pod1, pod1Txn1Cfg)
+	txn.Update(Pod3, pod3Cfg)
 	verifyUpdatedPods(txn, pods, EmptyPodSet)
 	verifyCachedPods(txn, pods, pods)
 
@@ -1279,14 +1028,14 @@ func TestCombinedRulesEgressOrientation(t *testing.T) {
 	fmt.Printf("\n\n Table1: %s\n\n", changes[1].Table)
 
 	var pod1TableIdx, pod3TableIdx int
-	if changes[0].Table.Pods.Has(pod1) {
+	if changes[0].Table.Pods.Has(Pod1) {
 		pod3TableIdx = 1
 	} else {
 		pod1TableIdx = 1
 	}
-	verifyLocalTableChange(changes[pod1TableIdx], nil, pod1LocalRules, EmptyPodSet, NewPodSet(pod1))
+	verifyLocalTableChange(changes[pod1TableIdx], nil, pod1LocalRules, EmptyPodSet, NewPodSet(Pod1))
 	pod1LocalTableTxn1 := changes[pod1TableIdx].Table
-	verifyLocalTableChange(changes[pod3TableIdx], nil, pod3LocalRules, EmptyPodSet, NewPodSet(pod3))
+	verifyLocalTableChange(changes[pod3TableIdx], nil, pod3LocalRules, EmptyPodSet, NewPodSet(Pod3))
 	pod3LocalTableTxn1 := changes[pod3TableIdx].Table
 
 	// Global table has changed.
@@ -1298,41 +1047,41 @@ func TestCombinedRulesEgressOrientation(t *testing.T) {
 	gomega.Expect(err).To(gomega.BeNil())
 
 	// Verify cache content.
-	verifyPodConfig(ruleCache, pod1, pod1Txn1Cfg)
-	verifyPodConfig(ruleCache, pod3, pod3Cfg)
-	verifyPodLocalTable(ruleCache, pod1, pod1LocalTableTxn1, pod1LocalRules, NewPodSet(pod1))
-	verifyPodLocalTable(ruleCache, pod3, pod3LocalTableTxn1, pod3LocalRules, NewPodSet(pod3))
+	verifyPodConfig(ruleCache, Pod1, pod1Txn1Cfg)
+	verifyPodConfig(ruleCache, Pod3, pod3Cfg)
+	verifyPodLocalTable(ruleCache, Pod1, pod1LocalTableTxn1, pod1LocalRules, NewPodSet(Pod1))
+	verifyPodLocalTable(ruleCache, Pod3, pod3LocalTableTxn1, pod3LocalRules, NewPodSet(Pod3))
 	verifyCachedPods(ruleCache, pods, pods)
 	verifyGlobalTable(ruleCache.GetGlobalTable(), globalTableTxn1, nil, globalRules)
 
-	// Run second transaction - update pod1
+	// Run second transaction - update Pod1
 	txn = ruleCache.NewTxn()
-	txn.Update(pod1, pod1Txn2Cfg)
-	verifyUpdatedPods(txn, NewPodSet(pod1), EmptyPodSet)
+	txn.Update(Pod1, pod1Txn2Cfg)
+	verifyUpdatedPods(txn, NewPodSet(Pod1), EmptyPodSet)
 	verifyCachedPods(txn, pods, pods)
 
 	// Expected output data
 	pod1LocalRulesTxn2 := []*renderer.ContivRule{
 		/* TCP: */ pod1Txn2Cfg.Egress[2],
-		/* UDP: */ blockPodEgress(pod1IP, renderer.UDP),
+		/* UDP: */ blockPodEgress(Pod1IP, renderer.UDP),
 		pod1Txn2Cfg.Egress[1] /* smaller subnet */, pod1Txn2Cfg.Egress[0], pod1Txn2Cfg.Egress[3],
 	}
 	pod3LocalRulesTxn2 := []*renderer.ContivRule{
-		/* TCP: */ allowPodEgress(pod1IP, 80, renderer.TCP), blockPodEgress(pod1IP, renderer.TCP),
-		blockPodEgress(pod3IP, renderer.TCP),
-		ts5.pod3Egress[0], ts5.pod3Egress[1], ts5.pod3Egress[3],
-		/* UDP: */ blockPodEgress(pod1IP, renderer.UDP), blockPodEgress(pod3IP, renderer.UDP),
-		ts5.pod3Egress[2], ts5.pod3Egress[4],
+		/* TCP: */ allowPodEgress(Pod1IP, 80, renderer.TCP), blockPodEgress(Pod1IP, renderer.TCP),
+		blockPodEgress(Pod3IP, renderer.TCP),
+		Ts5.Pod3Egress[0], Ts5.Pod3Egress[1], Ts5.Pod3Egress[3],
+		/* UDP: */ blockPodEgress(Pod1IP, renderer.UDP), blockPodEgress(Pod3IP, renderer.UDP),
+		Ts5.Pod3Egress[2], Ts5.Pod3Egress[4],
 	}
 	globalRulesTxn2 := []*renderer.ContivRule{}
 	/* TCP: */
-	globalRulesTxn2 = append(globalRulesTxn2, modifySrc(pod1IP, pod1Txn2Cfg.Ingress[0], pod1Txn2Cfg.Ingress[2])...)
-	globalRulesTxn2 = append(globalRulesTxn2, modifySrc(pod3IP, pod3Cfg.Ingress[1], pod3Cfg.Ingress[2])...)
-	globalRulesTxn2 = append(globalRulesTxn2, allowAllTCP())
+	globalRulesTxn2 = append(globalRulesTxn2, modifySrc(Pod1IP, pod1Txn2Cfg.Ingress[0], pod1Txn2Cfg.Ingress[2])...)
+	globalRulesTxn2 = append(globalRulesTxn2, modifySrc(Pod3IP, pod3Cfg.Ingress[1], pod3Cfg.Ingress[2])...)
+	globalRulesTxn2 = append(globalRulesTxn2, AllowAllTCP())
 	/* UDP: */
-	globalRulesTxn2 = append(globalRulesTxn2, modifySrc(pod1IP, pod1Txn2Cfg.Ingress[1], pod1Txn2Cfg.Ingress[3])...)
-	globalRulesTxn2 = append(globalRulesTxn2, modifySrc(pod3IP, pod3Cfg.Ingress[0], pod3Cfg.Ingress[3])...)
-	globalRulesTxn2 = append(globalRulesTxn2, allowAllUDP())
+	globalRulesTxn2 = append(globalRulesTxn2, modifySrc(Pod1IP, pod1Txn2Cfg.Ingress[1], pod1Txn2Cfg.Ingress[3])...)
+	globalRulesTxn2 = append(globalRulesTxn2, modifySrc(Pod3IP, pod3Cfg.Ingress[0], pod3Cfg.Ingress[3])...)
+	globalRulesTxn2 = append(globalRulesTxn2, AllowAllUDP())
 
 	// Verify changes to be committed.
 	changes = txn.GetChanges()
@@ -1343,19 +1092,19 @@ func TestCombinedRulesEgressOrientation(t *testing.T) {
 	var pod3LocalTableChange *TxnChange
 	var pod1LocalTableTxn1Removed, pod3LocalTableTxn1Removed bool
 	for i := 0; i < 4; i++ {
-		if changes[i].Table.Pods.Has(pod1) {
+		if changes[i].Table.Pods.Has(Pod1) {
 			gomega.Expect(pod1LocalTableChange).To(gomega.BeNil())
 			pod1LocalTableChange = changes[i]
 		}
-		if changes[i].Table.Pods.Has(pod3) {
+		if changes[i].Table.Pods.Has(Pod3) {
 			gomega.Expect(pod3LocalTableChange).To(gomega.BeNil())
 			pod3LocalTableChange = changes[i]
 		}
-		if changes[i].PreviousPods.Has(pod1) {
+		if changes[i].PreviousPods.Has(Pod1) {
 			gomega.Expect(pod1LocalTableTxn1Removed).To(gomega.BeFalse())
 			pod1LocalTableTxn1Removed = true
 		}
-		if changes[i].PreviousPods.Has(pod3) {
+		if changes[i].PreviousPods.Has(Pod3) {
 			gomega.Expect(pod3LocalTableTxn1Removed).To(gomega.BeFalse())
 			pod3LocalTableTxn1Removed = true
 		}
@@ -1365,9 +1114,9 @@ func TestCombinedRulesEgressOrientation(t *testing.T) {
 	gomega.Expect(pod1LocalTableChange).ToNot(gomega.BeNil())
 	gomega.Expect(pod3LocalTableChange).ToNot(gomega.BeNil())
 
-	verifyLocalTableChange(pod1LocalTableChange, nil, pod1LocalRulesTxn2, EmptyPodSet, NewPodSet(pod1))
+	verifyLocalTableChange(pod1LocalTableChange, nil, pod1LocalRulesTxn2, EmptyPodSet, NewPodSet(Pod1))
 	pod1LocalTableTxn2 := pod1LocalTableChange.Table
-	verifyLocalTableChange(pod3LocalTableChange, nil, pod3LocalRulesTxn2, EmptyPodSet, NewPodSet(pod3))
+	verifyLocalTableChange(pod3LocalTableChange, nil, pod3LocalRulesTxn2, EmptyPodSet, NewPodSet(Pod3))
 	pod3LocalTableTxn2 := pod3LocalTableChange.Table
 
 	// Global table has changed.
@@ -1379,10 +1128,10 @@ func TestCombinedRulesEgressOrientation(t *testing.T) {
 	gomega.Expect(err).To(gomega.BeNil())
 
 	// Verify cache content.
-	verifyPodConfig(ruleCache, pod1, pod1Txn2Cfg)
-	verifyPodConfig(ruleCache, pod3, pod3Cfg)
-	verifyPodLocalTable(ruleCache, pod1, pod1LocalTableTxn2, pod1LocalRulesTxn2, NewPodSet(pod1))
-	verifyPodLocalTable(ruleCache, pod3, pod3LocalTableTxn2, pod3LocalRulesTxn2, NewPodSet(pod3))
+	verifyPodConfig(ruleCache, Pod1, pod1Txn2Cfg)
+	verifyPodConfig(ruleCache, Pod3, pod3Cfg)
+	verifyPodLocalTable(ruleCache, Pod1, pod1LocalTableTxn2, pod1LocalRulesTxn2, NewPodSet(Pod1))
+	verifyPodLocalTable(ruleCache, Pod3, pod3LocalTableTxn2, pod3LocalRulesTxn2, NewPodSet(Pod3))
 	verifyCachedPods(ruleCache, pods, pods)
 	verifyGlobalTable(ruleCache.GetGlobalTable(), globalTableTxn2, globalTableTxn1, globalRulesTxn2)
 }
@@ -1394,49 +1143,49 @@ func TestCombinedRulesIngressOrientation(t *testing.T) {
 	logger.Debug("TestCombinedRulesIngressOrientation")
 
 	// Prepare test data
-	pods := NewPodSet(pod1, pod3)
+	pods := NewPodSet(Pod1, Pod3)
 	pod1Txn1Cfg := &PodConfig{
-		PodIP:   GetOneHostSubnet(pod1IP),
-		Ingress: ts5.pod1Ingress[1:],
-		Egress:  ts5.pod1Egress[:2],
+		PodIP:   GetOneHostSubnet(Pod1IP),
+		Ingress: Ts5.Pod1Ingress[1:],
+		Egress:  Ts5.Pod1Egress[:2],
 		Removed: false,
 	}
 	pod1Txn2Cfg := &PodConfig{
-		PodIP:   GetOneHostSubnet(pod1IP),
-		Ingress: ts5.pod1Ingress,
-		Egress:  ts5.pod1Egress,
+		PodIP:   GetOneHostSubnet(Pod1IP),
+		Ingress: Ts5.Pod1Ingress,
+		Egress:  Ts5.Pod1Egress,
 		Removed: false,
 	}
 	pod3Cfg := &PodConfig{
-		PodIP:   GetOneHostSubnet(pod3IP),
-		Ingress: ts5.pod3Ingress,
-		Egress:  ts5.pod3Egress,
+		PodIP:   GetOneHostSubnet(Pod3IP),
+		Ingress: Ts5.Pod3Ingress,
+		Egress:  Ts5.Pod3Egress,
 		Removed: false,
 	}
 
 	// Expected output data
 	pod1LocalRules := []*renderer.ContivRule{
 		/* TCP: */ pod1Txn1Cfg.Ingress[1],
-		/* UDP: */ blockPodIngress(pod3IP, renderer.UDP),
+		/* UDP: */ blockPodIngress(Pod3IP, renderer.UDP),
 		pod1Txn1Cfg.Ingress[0], pod1Txn1Cfg.Ingress[2],
 	}
 	pod3LocalRules := []*renderer.ContivRule{
-		/* TCP: */ blockPodIngress(pod3IP, renderer.TCP),
+		/* TCP: */ blockPodIngress(Pod3IP, renderer.TCP),
 		pod3Cfg.Ingress[1], pod3Cfg.Ingress[2],
 		/* UDP: */ pod3Cfg.Ingress[0], pod3Cfg.Ingress[3],
 	}
 	globalRules := []*renderer.ContivRule{}
 	/* TCP: */
-	globalRules = append(globalRules, modifyDst(pod3Cfg.Egress[0], pod3IP)...)
-	globalRules = append(globalRules, modifyDst(pod3Cfg.Egress[1], pod3IP)...)
-	globalRules = append(globalRules, modifyDst(pod3Cfg.Egress[3], pod3IP)...)
-	globalRules = append(globalRules, allowAllTCP())
+	globalRules = append(globalRules, modifyDst(pod3Cfg.Egress[0], Pod3IP)...)
+	globalRules = append(globalRules, modifyDst(pod3Cfg.Egress[1], Pod3IP)...)
+	globalRules = append(globalRules, modifyDst(pod3Cfg.Egress[3], Pod3IP)...)
+	globalRules = append(globalRules, AllowAllTCP())
 	/* UDP: */
-	globalRules = append(globalRules, modifyDst(pod1Txn1Cfg.Egress[1], pod1IP)...)
-	globalRules = append(globalRules, modifyDst(pod1Txn1Cfg.Egress[0], pod1IP)...)
-	globalRules = append(globalRules, modifyDst(pod3Cfg.Egress[2], pod3IP)...)
-	globalRules = append(globalRules, modifyDst(pod3Cfg.Egress[4], pod3IP)...)
-	globalRules = append(globalRules, allowAllUDP())
+	globalRules = append(globalRules, modifyDst(pod1Txn1Cfg.Egress[1], Pod1IP)...)
+	globalRules = append(globalRules, modifyDst(pod1Txn1Cfg.Egress[0], Pod1IP)...)
+	globalRules = append(globalRules, modifyDst(pod3Cfg.Egress[2], Pod3IP)...)
+	globalRules = append(globalRules, modifyDst(pod3Cfg.Egress[4], Pod3IP)...)
+	globalRules = append(globalRules, AllowAllUDP())
 
 	// Create an instance of RendererCache
 	ruleCache := &RendererCache{
@@ -1448,8 +1197,8 @@ func TestCombinedRulesIngressOrientation(t *testing.T) {
 
 	// Run first transaction.
 	txn := ruleCache.NewTxn()
-	txn.Update(pod1, pod1Txn1Cfg)
-	txn.Update(pod3, pod3Cfg)
+	txn.Update(Pod1, pod1Txn1Cfg)
+	txn.Update(Pod3, pod3Cfg)
 	verifyUpdatedPods(txn, pods, EmptyPodSet)
 	verifyCachedPods(txn, pods, pods)
 
@@ -1459,14 +1208,14 @@ func TestCombinedRulesIngressOrientation(t *testing.T) {
 
 	// 2 local tables were added.
 	var pod1TableIdx, pod3TableIdx int
-	if changes[0].Table.Pods.Has(pod1) {
+	if changes[0].Table.Pods.Has(Pod1) {
 		pod3TableIdx = 1
 	} else {
 		pod1TableIdx = 1
 	}
-	verifyLocalTableChange(changes[pod1TableIdx], nil, pod1LocalRules, EmptyPodSet, NewPodSet(pod1))
+	verifyLocalTableChange(changes[pod1TableIdx], nil, pod1LocalRules, EmptyPodSet, NewPodSet(Pod1))
 	pod1LocalTableTxn1 := changes[pod1TableIdx].Table
-	verifyLocalTableChange(changes[pod3TableIdx], nil, pod3LocalRules, EmptyPodSet, NewPodSet(pod3))
+	verifyLocalTableChange(changes[pod3TableIdx], nil, pod3LocalRules, EmptyPodSet, NewPodSet(Pod3))
 	pod3LocalTableTxn1 := changes[pod3TableIdx].Table
 
 	// Global table has changed.
@@ -1478,46 +1227,46 @@ func TestCombinedRulesIngressOrientation(t *testing.T) {
 	gomega.Expect(err).To(gomega.BeNil())
 
 	// Verify cache content.
-	verifyPodConfig(ruleCache, pod1, pod1Txn1Cfg)
-	verifyPodConfig(ruleCache, pod3, pod3Cfg)
-	verifyPodLocalTable(ruleCache, pod1, pod1LocalTableTxn1, pod1LocalRules, NewPodSet(pod1))
-	verifyPodLocalTable(ruleCache, pod3, pod3LocalTableTxn1, pod3LocalRules, NewPodSet(pod3))
+	verifyPodConfig(ruleCache, Pod1, pod1Txn1Cfg)
+	verifyPodConfig(ruleCache, Pod3, pod3Cfg)
+	verifyPodLocalTable(ruleCache, Pod1, pod1LocalTableTxn1, pod1LocalRules, NewPodSet(Pod1))
+	verifyPodLocalTable(ruleCache, Pod3, pod3LocalTableTxn1, pod3LocalRules, NewPodSet(Pod3))
 	verifyCachedPods(ruleCache, pods, pods)
 	verifyGlobalTable(ruleCache.GetGlobalTable(), globalTableTxn1, nil, globalRules)
 
 	// Run second transaction - update pod1
 	txn = ruleCache.NewTxn()
-	txn.Update(pod1, pod1Txn2Cfg)
-	verifyUpdatedPods(txn, NewPodSet(pod1), EmptyPodSet)
+	txn.Update(Pod1, pod1Txn2Cfg)
+	verifyUpdatedPods(txn, NewPodSet(Pod1), EmptyPodSet)
 	verifyCachedPods(txn, pods, pods)
 
 	// Expected output data
 	pod1LocalRulesTxn2 := []*renderer.ContivRule{
-		/* TCP: */ blockPodIngress(pod1IP, renderer.TCP),
+		/* TCP: */ blockPodIngress(Pod1IP, renderer.TCP),
 		pod1Txn2Cfg.Ingress[0], pod1Txn2Cfg.Ingress[2],
-		/* UDP: */ blockPodIngress(pod1IP, renderer.UDP), blockPodIngress(pod3IP, renderer.UDP),
+		/* UDP: */ blockPodIngress(Pod1IP, renderer.UDP), blockPodIngress(Pod3IP, renderer.UDP),
 		pod1Txn2Cfg.Ingress[1], pod1Txn2Cfg.Ingress[3],
 	}
 	pod3LocalRulesTxn2 := []*renderer.ContivRule{
-		/* TCP: */ blockPodIngress(pod1IP, renderer.TCP), blockPodIngress(pod3IP, renderer.TCP),
+		/* TCP: */ blockPodIngress(Pod1IP, renderer.TCP), blockPodIngress(Pod3IP, renderer.TCP),
 		pod3Cfg.Ingress[1], pod3Cfg.Ingress[2],
-		/* UDP: */ allowPodIngress(pod1IP, 53, renderer.UDP), blockPodIngress(pod1IP, renderer.UDP),
+		/* UDP: */ allowPodIngress(Pod1IP, 53, renderer.UDP), blockPodIngress(Pod1IP, renderer.UDP),
 		/* removed: pod3Cfg.Ingress[0],*/ pod3Cfg.Ingress[3],
 	}
 	globalRulesTxn2 := []*renderer.ContivRule{}
 	/* TCP: */
-	globalRulesTxn2 = append(globalRulesTxn2, modifyDst(pod3Cfg.Egress[0], pod3IP)...)
-	globalRulesTxn2 = append(globalRulesTxn2, modifyDst(pod3Cfg.Egress[1], pod3IP)...)
-	globalRulesTxn2 = append(globalRulesTxn2, modifyDst(pod1Txn2Cfg.Egress[2], pod1IP)...)
-	globalRulesTxn2 = append(globalRulesTxn2, modifyDst(pod3Cfg.Egress[3], pod3IP)...)
-	globalRulesTxn2 = append(globalRulesTxn2, allowAllTCP())
+	globalRulesTxn2 = append(globalRulesTxn2, modifyDst(pod3Cfg.Egress[0], Pod3IP)...)
+	globalRulesTxn2 = append(globalRulesTxn2, modifyDst(pod3Cfg.Egress[1], Pod3IP)...)
+	globalRulesTxn2 = append(globalRulesTxn2, modifyDst(pod1Txn2Cfg.Egress[2], Pod1IP)...)
+	globalRulesTxn2 = append(globalRulesTxn2, modifyDst(pod3Cfg.Egress[3], Pod3IP)...)
+	globalRulesTxn2 = append(globalRulesTxn2, AllowAllTCP())
 	/* UDP: */
-	globalRulesTxn2 = append(globalRulesTxn2, modifyDst(pod1Txn2Cfg.Egress[1], pod1IP)...)
-	globalRulesTxn2 = append(globalRulesTxn2, modifyDst(pod1Txn2Cfg.Egress[0], pod1IP)...)
-	globalRulesTxn2 = append(globalRulesTxn2, modifyDst(pod1Txn2Cfg.Egress[3], pod1IP)...)
-	globalRulesTxn2 = append(globalRulesTxn2, modifyDst(pod3Cfg.Egress[2], pod3IP)...)
-	globalRulesTxn2 = append(globalRulesTxn2, modifyDst(pod3Cfg.Egress[4], pod3IP)...)
-	globalRulesTxn2 = append(globalRulesTxn2, allowAllUDP())
+	globalRulesTxn2 = append(globalRulesTxn2, modifyDst(pod1Txn2Cfg.Egress[1], Pod1IP)...)
+	globalRulesTxn2 = append(globalRulesTxn2, modifyDst(pod1Txn2Cfg.Egress[0], Pod1IP)...)
+	globalRulesTxn2 = append(globalRulesTxn2, modifyDst(pod1Txn2Cfg.Egress[3], Pod1IP)...)
+	globalRulesTxn2 = append(globalRulesTxn2, modifyDst(pod3Cfg.Egress[2], Pod3IP)...)
+	globalRulesTxn2 = append(globalRulesTxn2, modifyDst(pod3Cfg.Egress[4], Pod3IP)...)
+	globalRulesTxn2 = append(globalRulesTxn2, AllowAllUDP())
 
 	// Verify changes to be committed.
 	changes = txn.GetChanges()
@@ -1528,19 +1277,19 @@ func TestCombinedRulesIngressOrientation(t *testing.T) {
 	var pod3LocalTableChange *TxnChange
 	var pod1LocalTableTxn1Removed, pod3LocalTableTxn1Removed bool
 	for i := 0; i < 4; i++ {
-		if changes[i].Table.Pods.Has(pod1) {
+		if changes[i].Table.Pods.Has(Pod1) {
 			gomega.Expect(pod1LocalTableChange).To(gomega.BeNil())
 			pod1LocalTableChange = changes[i]
 		}
-		if changes[i].Table.Pods.Has(pod3) {
+		if changes[i].Table.Pods.Has(Pod3) {
 			gomega.Expect(pod3LocalTableChange).To(gomega.BeNil())
 			pod3LocalTableChange = changes[i]
 		}
-		if changes[i].PreviousPods.Has(pod1) {
+		if changes[i].PreviousPods.Has(Pod1) {
 			gomega.Expect(pod1LocalTableTxn1Removed).To(gomega.BeFalse())
 			pod1LocalTableTxn1Removed = true
 		}
-		if changes[i].PreviousPods.Has(pod3) {
+		if changes[i].PreviousPods.Has(Pod3) {
 			gomega.Expect(pod3LocalTableTxn1Removed).To(gomega.BeFalse())
 			pod3LocalTableTxn1Removed = true
 		}
@@ -1550,9 +1299,9 @@ func TestCombinedRulesIngressOrientation(t *testing.T) {
 	gomega.Expect(pod1LocalTableChange).ToNot(gomega.BeNil())
 	gomega.Expect(pod3LocalTableChange).ToNot(gomega.BeNil())
 
-	verifyLocalTableChange(pod1LocalTableChange, nil, pod1LocalRulesTxn2, EmptyPodSet, NewPodSet(pod1))
+	verifyLocalTableChange(pod1LocalTableChange, nil, pod1LocalRulesTxn2, EmptyPodSet, NewPodSet(Pod1))
 	pod1LocalTableTxn2 := pod1LocalTableChange.Table
-	verifyLocalTableChange(pod3LocalTableChange, nil, pod3LocalRulesTxn2, EmptyPodSet, NewPodSet(pod3))
+	verifyLocalTableChange(pod3LocalTableChange, nil, pod3LocalRulesTxn2, EmptyPodSet, NewPodSet(Pod3))
 	pod3LocalTableTxn2 := pod3LocalTableChange.Table
 
 	// Global table has changed.
@@ -1564,10 +1313,10 @@ func TestCombinedRulesIngressOrientation(t *testing.T) {
 	gomega.Expect(err).To(gomega.BeNil())
 
 	// Verify cache content.
-	verifyPodConfig(ruleCache, pod1, pod1Txn2Cfg)
-	verifyPodConfig(ruleCache, pod3, pod3Cfg)
-	verifyPodLocalTable(ruleCache, pod1, pod1LocalTableTxn2, pod1LocalRulesTxn2, NewPodSet(pod1))
-	verifyPodLocalTable(ruleCache, pod3, pod3LocalTableTxn2, pod3LocalRulesTxn2, NewPodSet(pod3))
+	verifyPodConfig(ruleCache, Pod1, pod1Txn2Cfg)
+	verifyPodConfig(ruleCache, Pod3, pod3Cfg)
+	verifyPodLocalTable(ruleCache, Pod1, pod1LocalTableTxn2, pod1LocalRulesTxn2, NewPodSet(Pod1))
+	verifyPodLocalTable(ruleCache, Pod3, pod3LocalTableTxn2, pod3LocalRulesTxn2, NewPodSet(Pod3))
 	verifyCachedPods(ruleCache, pods, pods)
 	verifyGlobalTable(ruleCache.GetGlobalTable(), globalTableTxn2, globalTableTxn1, globalRulesTxn2)
 }
@@ -1579,25 +1328,25 @@ func TestRemovedPodsEgressOrientation(t *testing.T) {
 	logger.Debug("TestRemovedPodsEgressOrientation")
 
 	// Prepare input data.
-	pods1 := NewPodSet(podIDs[:3]...) /* first TXN contains pod1-pod3 */
-	pods2 := NewPodSet(podIDs[:2]...) /* second TXN removes pod3 */
+	pods1 := NewPodSet(PodIDs[:3]...) /* first TXN contains pod1-pod3 */
+	pods2 := NewPodSet(PodIDs[:2]...) /* second TXN removes pod3 */
 
 	ingress := []*renderer.ContivRule{}
-	egress := []*renderer.ContivRule{ts3.rule1, ts3.rule2, ts3.rule3, ts3.rule4}
-	orderedEgress := []*renderer.ContivRule{ts3.rule1, ts3.rule3, ts3.rule2, ts3.rule4}
+	egress := []*renderer.ContivRule{Ts3.Rule1, Ts3.Rule2, Ts3.Rule3, Ts3.Rule4}
+	orderedEgress := []*renderer.ContivRule{Ts3.Rule1, Ts3.Rule3, Ts3.Rule2, Ts3.Rule4}
 
 	podCfg := []*PodConfig{}
-	for i := range podIDs {
+	for i := range PodIDs {
 		podCfg = append(podCfg,
 			&PodConfig{
-				PodIP:   GetOneHostSubnet(podIPs[i]),
+				PodIP:   GetOneHostSubnet(PodIPs[i]),
 				Ingress: ingress,
 				Egress:  egress,
 				Removed: false,
 			})
 	}
 	pod3CfgTxn2 := &PodConfig{
-		PodIP:   GetOneHostSubnet(pod3IP),
+		PodIP:   GetOneHostSubnet(Pod3IP),
 		Ingress: EmptyRules,
 		Egress:  EmptyRules,
 		Removed: true,
@@ -1617,8 +1366,8 @@ func TestRemovedPodsEgressOrientation(t *testing.T) {
 
 	// Perform update of the first three pods.
 	for i := 0; i < len(pods1); i++ {
-		txn.Update(podIDs[i], podCfg[i])
-		verifyPodConfig(txn, podIDs[i], podCfg[i])
+		txn.Update(PodIDs[i], podCfg[i])
+		verifyPodConfig(txn, PodIDs[i], podCfg[i])
 	}
 	verifyUpdatedPods(txn, pods1, EmptyPodSet)
 	verifyCachedPods(txn, pods1, pods1)
@@ -1637,8 +1386,8 @@ func TestRemovedPodsEgressOrientation(t *testing.T) {
 
 	// Verify cache content.
 	for i := 0; i < len(pods1); i++ {
-		verifyPodConfig(ruleCache, podIDs[i], podCfg[i])
-		verifyPodLocalTable(ruleCache, podIDs[i], localTableTxn, orderedEgress, pods1)
+		verifyPodConfig(ruleCache, PodIDs[i], podCfg[i])
+		verifyPodLocalTable(ruleCache, PodIDs[i], localTableTxn, orderedEgress, pods1)
 	}
 	verifyCachedPods(ruleCache, pods1, pods1)
 	verifyGlobalTable(ruleCache.GetGlobalTable(), globalTable, nil, EmptyRules)
@@ -1648,11 +1397,11 @@ func TestRemovedPodsEgressOrientation(t *testing.T) {
 	txn = ruleCache.NewTxn()
 
 	for i := 0; i < len(pods2); i++ {
-		txn.Update(podIDs[i], podCfg[i])
-		verifyPodConfig(txn, podIDs[i], podCfg[i])
+		txn.Update(PodIDs[i], podCfg[i])
+		verifyPodConfig(txn, PodIDs[i], podCfg[i])
 	}
-	txn.Update(pod3, pod3CfgTxn2)
-	verifyUpdatedPods(txn, pods1, NewPodSet(pod3))
+	txn.Update(Pod3, pod3CfgTxn2)
+	verifyUpdatedPods(txn, pods1, NewPodSet(Pod3))
 	verifyCachedPods(txn, pods2, pods2)
 
 	// Verify changes to be committed.
@@ -1668,19 +1417,19 @@ func TestRemovedPodsEgressOrientation(t *testing.T) {
 
 	// Verify cache content.
 	for i := 0; i < len(pods2); i++ {
-		verifyPodConfig(ruleCache, podIDs[i], podCfg[i])
-		verifyPodLocalTable(ruleCache, podIDs[i], localTableTxn, orderedEgress, pods2)
+		verifyPodConfig(ruleCache, PodIDs[i], podCfg[i])
+		verifyPodLocalTable(ruleCache, PodIDs[i], localTableTxn, orderedEgress, pods2)
 	}
-	verifyPodConfig(ruleCache, pod3, nil)
-	verifyPodNilLocalTable(ruleCache, pod3)
+	verifyPodConfig(ruleCache, Pod3, nil)
+	verifyPodNilLocalTable(ruleCache, Pod3)
 	verifyCachedPods(ruleCache, pods2, pods2)
 	verifyGlobalTable(ruleCache.GetGlobalTable(), globalTable, nil, EmptyRules)
 
 	/* Also test cache flushing */
 	ruleCache.Flush()
 	for i := 0; i < len(pods1); i++ {
-		verifyPodConfig(ruleCache, podIDs[i], nil)
-		verifyPodNilLocalTable(ruleCache, podIDs[i])
+		verifyPodConfig(ruleCache, PodIDs[i], nil)
+		verifyPodNilLocalTable(ruleCache, PodIDs[i])
 	}
 	verifyGlobalTable(ruleCache.GetGlobalTable(), nil, nil, EmptyRules)
 }
@@ -1692,23 +1441,23 @@ func TestRemovedPodsIngressOrientation(t *testing.T) {
 	logger.Debug("TestRemovedPodsIngressOrientation")
 
 	// Prepare input data.
-	pods1 := NewPodSet(podIDs[:3]...) /* first TXN contains pod1-pod3 */
-	pods2 := NewPodSet(podIDs[:2]...) /* second TXN contains all pods */
+	pods1 := NewPodSet(PodIDs[:3]...) /* first TXN contains pod1-pod3 */
+	pods2 := NewPodSet(PodIDs[:2]...) /* second TXN contains all pods */
 	ingress := []*renderer.ContivRule{}
-	egress := []*renderer.ContivRule{ts3.rule1, ts3.rule2, ts3.rule3, ts3.rule4}
+	egress := []*renderer.ContivRule{Ts3.Rule1, Ts3.Rule2, Ts3.Rule3, Ts3.Rule4}
 
 	podCfg := []*PodConfig{}
-	for i := range podIDs {
+	for i := range PodIDs {
 		podCfg = append(podCfg,
 			&PodConfig{
-				PodIP:   GetOneHostSubnet(podIPs[i]),
+				PodIP:   GetOneHostSubnet(PodIPs[i]),
 				Ingress: ingress,
 				Egress:  egress,
 				Removed: false,
 			})
 	}
 	pod3CfgTxn2 := &PodConfig{
-		PodIP:   GetOneHostSubnet(pod3IP),
+		PodIP:   GetOneHostSubnet(Pod3IP),
 		Ingress: EmptyRules,
 		Egress:  EmptyRules,
 		Removed: true,
@@ -1725,20 +1474,20 @@ func TestRemovedPodsIngressOrientation(t *testing.T) {
 
 	// Expected global table content after the first transaction.
 	var globalRules []*renderer.ContivRule
-	globalRules = append(globalRules, modifyDst(ts3.rule1, podIPs[:3]...)...)
-	globalRules = append(globalRules, modifyDst(ts3.rule3, podIPs[:3]...)...) /* TCP before UDP */
-	globalRules = append(globalRules, allowAllTCP())
-	globalRules = append(globalRules, modifyDst(ts3.rule2, podIPs[:3]...)...)
-	globalRules = append(globalRules, modifyDst(ts3.rule4, podIPs[:3]...)...)
-	globalRules = append(globalRules, allowAllUDP())
+	globalRules = append(globalRules, modifyDst(Ts3.Rule1, PodIPs[:3]...)...)
+	globalRules = append(globalRules, modifyDst(Ts3.Rule3, PodIPs[:3]...)...) /* TCP before UDP */
+	globalRules = append(globalRules, AllowAllTCP())
+	globalRules = append(globalRules, modifyDst(Ts3.Rule2, PodIPs[:3]...)...)
+	globalRules = append(globalRules, modifyDst(Ts3.Rule4, PodIPs[:3]...)...)
+	globalRules = append(globalRules, AllowAllUDP())
 
 	// Run first transaction.
 	txn := ruleCache.NewTxn()
 
 	// Perform update of the first three pods.
 	for i := 0; i < len(pods1); i++ {
-		txn.Update(podIDs[i], podCfg[i])
-		verifyPodConfig(txn, podIDs[i], podCfg[i])
+		txn.Update(PodIDs[i], podCfg[i])
+		verifyPodConfig(txn, PodIDs[i], podCfg[i])
 	}
 	verifyUpdatedPods(txn, pods1, EmptyPodSet)
 	verifyCachedPods(txn, pods1, EmptyPodSet)
@@ -1757,8 +1506,8 @@ func TestRemovedPodsIngressOrientation(t *testing.T) {
 
 	// Verify cache content.
 	for i := 0; i < len(pods1); i++ {
-		verifyPodConfig(ruleCache, podIDs[i], podCfg[i])
-		verifyPodNilLocalTable(ruleCache, podIDs[i])
+		verifyPodConfig(ruleCache, PodIDs[i], podCfg[i])
+		verifyPodNilLocalTable(ruleCache, PodIDs[i])
 	}
 	verifyCachedPods(ruleCache, pods1, EmptyPodSet)
 	verifyGlobalTable(ruleCache.GetGlobalTable(), globalTableTxn1, globalTable, globalRules)
@@ -1768,21 +1517,21 @@ func TestRemovedPodsIngressOrientation(t *testing.T) {
 	txn = ruleCache.NewTxn()
 
 	for i := 0; i < len(pods2); i++ {
-		txn.Update(podIDs[i], podCfg[i])
-		verifyPodConfig(txn, podIDs[i], podCfg[i])
+		txn.Update(PodIDs[i], podCfg[i])
+		verifyPodConfig(txn, PodIDs[i], podCfg[i])
 	}
-	txn.Update(pod3, pod3CfgTxn2)
-	verifyUpdatedPods(txn, pods1, NewPodSet(pod3))
+	txn.Update(Pod3, pod3CfgTxn2)
+	verifyUpdatedPods(txn, pods1, NewPodSet(Pod3))
 	verifyCachedPods(txn, pods2, EmptyPodSet)
 
 	// Expected global table content after the second transaction.
 	globalRules = []*renderer.ContivRule{}
-	globalRules = append(globalRules, modifyDst(ts3.rule1, podIPs[:2]...)...)
-	globalRules = append(globalRules, modifyDst(ts3.rule3, podIPs[:2]...)...) /* TCP before UDP */
-	globalRules = append(globalRules, allowAllTCP())
-	globalRules = append(globalRules, modifyDst(ts3.rule2, podIPs[:2]...)...)
-	globalRules = append(globalRules, modifyDst(ts3.rule4, podIPs[:2]...)...)
-	globalRules = append(globalRules, allowAllUDP())
+	globalRules = append(globalRules, modifyDst(Ts3.Rule1, PodIPs[:2]...)...)
+	globalRules = append(globalRules, modifyDst(Ts3.Rule3, PodIPs[:2]...)...) /* TCP before UDP */
+	globalRules = append(globalRules, AllowAllTCP())
+	globalRules = append(globalRules, modifyDst(Ts3.Rule2, PodIPs[:2]...)...)
+	globalRules = append(globalRules, modifyDst(Ts3.Rule4, PodIPs[:2]...)...)
+	globalRules = append(globalRules, AllowAllUDP())
 
 	// Verify changes to be committed.
 	changes = txn.GetChanges()
@@ -1798,19 +1547,19 @@ func TestRemovedPodsIngressOrientation(t *testing.T) {
 
 	// Verify cache content.
 	for i := 0; i < len(pods2); i++ {
-		verifyPodConfig(ruleCache, podIDs[i], podCfg[i])
-		verifyPodNilLocalTable(ruleCache, podIDs[i])
+		verifyPodConfig(ruleCache, PodIDs[i], podCfg[i])
+		verifyPodNilLocalTable(ruleCache, PodIDs[i])
 	}
-	verifyPodConfig(ruleCache, pod3, nil)
-	verifyPodNilLocalTable(ruleCache, pod3)
+	verifyPodConfig(ruleCache, Pod3, nil)
+	verifyPodNilLocalTable(ruleCache, Pod3)
 	verifyCachedPods(ruleCache, pods2, EmptyPodSet)
 	verifyGlobalTable(ruleCache.GetGlobalTable(), globalTableTxn2, globalTableTxn1, globalRules)
 
 	/* Also test cache flushing */
 	ruleCache.Flush()
 	for i := 0; i < len(pods1); i++ {
-		verifyPodConfig(ruleCache, podIDs[i], nil)
-		verifyPodNilLocalTable(ruleCache, podIDs[i])
+		verifyPodConfig(ruleCache, PodIDs[i], nil)
+		verifyPodNilLocalTable(ruleCache, PodIDs[i])
 	}
 	verifyGlobalTable(ruleCache.GetGlobalTable(), nil, nil, EmptyRules)
 }
@@ -1822,49 +1571,49 @@ func TestResyncEgressOrientation(t *testing.T) {
 	logger.Debug("TestResyncEgressOrientation")
 
 	// Prepare input data
-	pods := NewPodSet(pod1, pod3)
+	pods := NewPodSet(Pod1, Pod3)
 	pod1ResyncCfg := &PodConfig{
-		PodIP:   GetOneHostSubnet(pod1IP),
-		Ingress: ts5.pod1Ingress[1:],
-		Egress:  ts5.pod1Egress[:2],
+		PodIP:   GetOneHostSubnet(Pod1IP),
+		Ingress: Ts5.Pod1Ingress[1:],
+		Egress:  Ts5.Pod1Egress[:2],
 		Removed: false,
 	}
 	pod1TxnCfg := &PodConfig{
-		PodIP:   GetOneHostSubnet(pod1IP),
-		Ingress: ts5.pod1Ingress,
-		Egress:  ts5.pod1Egress,
+		PodIP:   GetOneHostSubnet(Pod1IP),
+		Ingress: Ts5.Pod1Ingress,
+		Egress:  Ts5.Pod1Egress,
 		Removed: false,
 	}
 	pod3Cfg := &PodConfig{
-		PodIP:   GetOneHostSubnet(pod3IP),
-		Ingress: ts5.pod3Ingress,
-		Egress:  ts5.pod3Egress,
+		PodIP:   GetOneHostSubnet(Pod3IP),
+		Ingress: Ts5.Pod3Ingress,
+		Egress:  Ts5.Pod3Egress,
 		Removed: false,
 	}
 
 	// Resync data taken from the outcome of Txn1 in TestCombinedRulesEgressOrientation:
 	//  -> pod1 local table
 	pod1LocalRules := []*renderer.ContivRule{
-		/* TCP: */ blockPodEgress(pod1IP, renderer.TCP),
-		allowPodEgress(pod3IP, 22, renderer.TCP), blockPodEgress(pod3IP, renderer.TCP),
-		/* UDP: */ allowPodEgress(pod1IP, 161, renderer.UDP), blockPodEgress(pod1IP, renderer.UDP),
+		/* TCP: */ blockPodEgress(Pod1IP, renderer.TCP),
+		allowPodEgress(Pod3IP, 22, renderer.TCP), blockPodEgress(Pod3IP, renderer.TCP),
+		/* UDP: */ allowPodEgress(Pod1IP, 161, renderer.UDP), blockPodEgress(Pod1IP, renderer.UDP),
 		pod1ResyncCfg.Egress[1] /* smaller subnet */, pod1ResyncCfg.Egress[0],
 	}
 	pod1LocalTable := NewContivRuleTable("pod1-local")
-	pod1LocalTable.Pods.Add(pod1)
+	pod1LocalTable.Pods.Add(Pod1)
 	for _, rule := range pod1LocalRules {
 		pod1LocalTable.InsertRule(rule)
 	}
 
 	//  -> pod3 local table
 	pod3LocalRules := []*renderer.ContivRule{
-		/* TCP: */ blockPodEgress(pod1IP, renderer.TCP),
-		blockPodEgress(pod3IP, renderer.TCP), ts5.pod3Egress[0], ts5.pod3Egress[1], ts5.pod3Egress[3],
-		/* UDP: */ blockPodEgress(pod1IP, renderer.UDP), blockPodEgress(pod3IP, renderer.UDP),
-		ts5.pod3Egress[2], ts5.pod3Egress[4],
+		/* TCP: */ blockPodEgress(Pod1IP, renderer.TCP),
+		blockPodEgress(Pod3IP, renderer.TCP), Ts5.Pod3Egress[0], Ts5.Pod3Egress[1], Ts5.Pod3Egress[3],
+		/* UDP: */ blockPodEgress(Pod1IP, renderer.UDP), blockPodEgress(Pod3IP, renderer.UDP),
+		Ts5.Pod3Egress[2], Ts5.Pod3Egress[4],
 	}
 	pod3LocalTable := NewContivRuleTable("pod3-local")
-	pod3LocalTable.Pods.Add(pod3)
+	pod3LocalTable.Pods.Add(Pod3)
 	for _, rule := range pod3LocalRules {
 		pod3LocalTable.InsertRule(rule)
 	}
@@ -1872,13 +1621,13 @@ func TestResyncEgressOrientation(t *testing.T) {
 	//  -> global table
 	globalRules := []*renderer.ContivRule{}
 	/* TCP: */
-	globalRules = append(globalRules, modifySrc(pod1IP, pod1ResyncCfg.Ingress[1])...)
-	globalRules = append(globalRules, modifySrc(pod3IP, pod3Cfg.Ingress[1], pod3Cfg.Ingress[2])...)
-	globalRules = append(globalRules, allowAllTCP())
+	globalRules = append(globalRules, modifySrc(Pod1IP, pod1ResyncCfg.Ingress[1])...)
+	globalRules = append(globalRules, modifySrc(Pod3IP, pod3Cfg.Ingress[1], pod3Cfg.Ingress[2])...)
+	globalRules = append(globalRules, AllowAllTCP())
 	/* UDP: */
-	globalRules = append(globalRules, modifySrc(pod1IP, pod1ResyncCfg.Ingress[0], pod1ResyncCfg.Ingress[2])...)
-	globalRules = append(globalRules, modifySrc(pod3IP, pod3Cfg.Ingress[0], pod3Cfg.Ingress[3])...)
-	globalRules = append(globalRules, allowAllUDP())
+	globalRules = append(globalRules, modifySrc(Pod1IP, pod1ResyncCfg.Ingress[0], pod1ResyncCfg.Ingress[2])...)
+	globalRules = append(globalRules, modifySrc(Pod3IP, pod3Cfg.Ingress[0], pod3Cfg.Ingress[3])...)
+	globalRules = append(globalRules, AllowAllUDP())
 	globalTable := NewContivRuleTable(GlobalTableID)
 	for _, rule := range globalRules {
 		globalTable.InsertRule(rule)
@@ -1898,33 +1647,33 @@ func TestResyncEgressOrientation(t *testing.T) {
 
 	// Run transaction - update both pods, but only pod1 has data changed
 	txn := ruleCache.NewTxn()
-	txn.Update(pod1, pod1TxnCfg)
-	txn.Update(pod3, pod3Cfg)
+	txn.Update(Pod1, pod1TxnCfg)
+	txn.Update(Pod3, pod3Cfg)
 	verifyUpdatedPods(txn, pods, EmptyPodSet)
 	verifyCachedPods(txn, pods, pods)
 
 	// Expected output data
 	pod1LocalRulesTxn2 := []*renderer.ContivRule{
 		/* TCP: */ pod1TxnCfg.Egress[2],
-		/* UDP: */ blockPodEgress(pod1IP, renderer.UDP),
+		/* UDP: */ blockPodEgress(Pod1IP, renderer.UDP),
 		pod1TxnCfg.Egress[1] /* smaller subnet */, pod1TxnCfg.Egress[0], pod1TxnCfg.Egress[3],
 	}
 	pod3LocalRulesTxn2 := []*renderer.ContivRule{
-		/* TCP: */ allowPodEgress(pod1IP, 80, renderer.TCP), blockPodEgress(pod1IP, renderer.TCP),
-		blockPodEgress(pod3IP, renderer.TCP),
-		ts5.pod3Egress[0], ts5.pod3Egress[1], ts5.pod3Egress[3],
-		/* UDP: */ blockPodEgress(pod1IP, renderer.UDP), blockPodEgress(pod3IP, renderer.UDP),
-		ts5.pod3Egress[2], ts5.pod3Egress[4],
+		/* TCP: */ allowPodEgress(Pod1IP, 80, renderer.TCP), blockPodEgress(Pod1IP, renderer.TCP),
+		blockPodEgress(Pod3IP, renderer.TCP),
+		Ts5.Pod3Egress[0], Ts5.Pod3Egress[1], Ts5.Pod3Egress[3],
+		/* UDP: */ blockPodEgress(Pod1IP, renderer.UDP), blockPodEgress(Pod3IP, renderer.UDP),
+		Ts5.Pod3Egress[2], Ts5.Pod3Egress[4],
 	}
 	globalRulesTxn2 := []*renderer.ContivRule{}
 	/* TCP: */
-	globalRulesTxn2 = append(globalRulesTxn2, modifySrc(pod1IP, pod1TxnCfg.Ingress[0], pod1TxnCfg.Ingress[2])...)
-	globalRulesTxn2 = append(globalRulesTxn2, modifySrc(pod3IP, pod3Cfg.Ingress[1], pod3Cfg.Ingress[2])...)
-	globalRulesTxn2 = append(globalRulesTxn2, allowAllTCP())
+	globalRulesTxn2 = append(globalRulesTxn2, modifySrc(Pod1IP, pod1TxnCfg.Ingress[0], pod1TxnCfg.Ingress[2])...)
+	globalRulesTxn2 = append(globalRulesTxn2, modifySrc(Pod3IP, pod3Cfg.Ingress[1], pod3Cfg.Ingress[2])...)
+	globalRulesTxn2 = append(globalRulesTxn2, AllowAllTCP())
 	/* UDP: */
-	globalRulesTxn2 = append(globalRulesTxn2, modifySrc(pod1IP, pod1TxnCfg.Ingress[1], pod1TxnCfg.Ingress[3])...)
-	globalRulesTxn2 = append(globalRulesTxn2, modifySrc(pod3IP, pod3Cfg.Ingress[0], pod3Cfg.Ingress[3])...)
-	globalRulesTxn2 = append(globalRulesTxn2, allowAllUDP())
+	globalRulesTxn2 = append(globalRulesTxn2, modifySrc(Pod1IP, pod1TxnCfg.Ingress[1], pod1TxnCfg.Ingress[3])...)
+	globalRulesTxn2 = append(globalRulesTxn2, modifySrc(Pod3IP, pod3Cfg.Ingress[0], pod3Cfg.Ingress[3])...)
+	globalRulesTxn2 = append(globalRulesTxn2, AllowAllUDP())
 
 	// Verify changes to be committed.
 	changes := txn.GetChanges()
@@ -1935,19 +1684,19 @@ func TestResyncEgressOrientation(t *testing.T) {
 	var pod3LocalTableChange *TxnChange
 	var pod1LocalTableTxn1Removed, pod3LocalTableTxn1Removed bool
 	for i := 0; i < 4; i++ {
-		if changes[i].Table.Pods.Has(pod1) {
+		if changes[i].Table.Pods.Has(Pod1) {
 			gomega.Expect(pod1LocalTableChange).To(gomega.BeNil())
 			pod1LocalTableChange = changes[i]
 		}
-		if changes[i].Table.Pods.Has(pod3) {
+		if changes[i].Table.Pods.Has(Pod3) {
 			gomega.Expect(pod3LocalTableChange).To(gomega.BeNil())
 			pod3LocalTableChange = changes[i]
 		}
-		if changes[i].PreviousPods.Has(pod1) {
+		if changes[i].PreviousPods.Has(Pod1) {
 			gomega.Expect(pod1LocalTableTxn1Removed).To(gomega.BeFalse())
 			pod1LocalTableTxn1Removed = true
 		}
-		if changes[i].PreviousPods.Has(pod3) {
+		if changes[i].PreviousPods.Has(Pod3) {
 			gomega.Expect(pod3LocalTableTxn1Removed).To(gomega.BeFalse())
 			pod3LocalTableTxn1Removed = true
 		}
@@ -1957,9 +1706,9 @@ func TestResyncEgressOrientation(t *testing.T) {
 	gomega.Expect(pod1LocalTableChange).ToNot(gomega.BeNil())
 	gomega.Expect(pod3LocalTableChange).ToNot(gomega.BeNil())
 
-	verifyLocalTableChange(pod1LocalTableChange, nil, pod1LocalRulesTxn2, EmptyPodSet, NewPodSet(pod1))
+	verifyLocalTableChange(pod1LocalTableChange, nil, pod1LocalRulesTxn2, EmptyPodSet, NewPodSet(Pod1))
 	pod1LocalTableTxn2 := pod1LocalTableChange.Table
-	verifyLocalTableChange(pod3LocalTableChange, nil, pod3LocalRulesTxn2, EmptyPodSet, NewPodSet(pod3))
+	verifyLocalTableChange(pod3LocalTableChange, nil, pod3LocalRulesTxn2, EmptyPodSet, NewPodSet(Pod3))
 	pod3LocalTableTxn2 := pod3LocalTableChange.Table
 
 	// Global table has changed.
@@ -1971,10 +1720,10 @@ func TestResyncEgressOrientation(t *testing.T) {
 	gomega.Expect(err).To(gomega.BeNil())
 
 	// Verify cache content.
-	verifyPodConfig(ruleCache, pod1, pod1TxnCfg)
-	verifyPodConfig(ruleCache, pod3, pod3Cfg)
-	verifyPodLocalTable(ruleCache, pod1, pod1LocalTableTxn2, pod1LocalRulesTxn2, NewPodSet(pod1))
-	verifyPodLocalTable(ruleCache, pod3, pod3LocalTableTxn2, pod3LocalRulesTxn2, NewPodSet(pod3))
+	verifyPodConfig(ruleCache, Pod1, pod1TxnCfg)
+	verifyPodConfig(ruleCache, Pod3, pod3Cfg)
+	verifyPodLocalTable(ruleCache, Pod1, pod1LocalTableTxn2, pod1LocalRulesTxn2, NewPodSet(Pod1))
+	verifyPodLocalTable(ruleCache, Pod3, pod3LocalTableTxn2, pod3LocalRulesTxn2, NewPodSet(Pod3))
 	verifyCachedPods(ruleCache, pods, pods)
 	verifyGlobalTable(ruleCache.GetGlobalTable(), globalTableTxn2, globalTable, globalRulesTxn2)
 }
@@ -1986,23 +1735,23 @@ func TestResyncIngressOrientation(t *testing.T) {
 	logger.Debug("TestResyncIngressOrientation")
 
 	// Prepare input data
-	pods := NewPodSet(pod1, pod3)
+	pods := NewPodSet(Pod1, Pod3)
 	pod1ResyncCfg := &PodConfig{
-		PodIP:   GetOneHostSubnet(pod1IP),
-		Ingress: ts5.pod1Ingress[1:],
-		Egress:  ts5.pod1Egress[:2],
+		PodIP:   GetOneHostSubnet(Pod1IP),
+		Ingress: Ts5.Pod1Ingress[1:],
+		Egress:  Ts5.Pod1Egress[:2],
 		Removed: false,
 	}
 	pod1TxnCfg := &PodConfig{
-		PodIP:   GetOneHostSubnet(pod1IP),
-		Ingress: ts5.pod1Ingress,
-		Egress:  ts5.pod1Egress,
+		PodIP:   GetOneHostSubnet(Pod1IP),
+		Ingress: Ts5.Pod1Ingress,
+		Egress:  Ts5.Pod1Egress,
 		Removed: false,
 	}
 	pod3Cfg := &PodConfig{
-		PodIP:   GetOneHostSubnet(pod3IP),
-		Ingress: ts5.pod3Ingress,
-		Egress:  ts5.pod3Egress,
+		PodIP:   GetOneHostSubnet(Pod3IP),
+		Ingress: Ts5.Pod3Ingress,
+		Egress:  Ts5.Pod3Egress,
 		Removed: false,
 	}
 
@@ -2010,23 +1759,23 @@ func TestResyncIngressOrientation(t *testing.T) {
 	//  -> pod1 local table
 	pod1LocalRules := []*renderer.ContivRule{
 		/* TCP: */ pod1ResyncCfg.Ingress[1],
-		/* UDP: */ blockPodIngress(pod3IP, renderer.UDP),
+		/* UDP: */ blockPodIngress(Pod3IP, renderer.UDP),
 		pod1ResyncCfg.Ingress[0], pod1ResyncCfg.Ingress[2],
 	}
 	pod1LocalTable := NewContivRuleTable("pod1-local")
-	pod1LocalTable.Pods.Add(pod1)
+	pod1LocalTable.Pods.Add(Pod1)
 	for _, rule := range pod1LocalRules {
 		pod1LocalTable.InsertRule(rule)
 	}
 
 	//  -> pod3 local table
 	pod3LocalRules := []*renderer.ContivRule{
-		/* TCP: */ blockPodIngress(pod3IP, renderer.TCP),
+		/* TCP: */ blockPodIngress(Pod3IP, renderer.TCP),
 		pod3Cfg.Ingress[1], pod3Cfg.Ingress[2],
 		/* UDP: */ pod3Cfg.Ingress[0], pod3Cfg.Ingress[3],
 	}
 	pod3LocalTable := NewContivRuleTable("pod3-local")
-	pod3LocalTable.Pods.Add(pod3)
+	pod3LocalTable.Pods.Add(Pod3)
 	for _, rule := range pod3LocalRules {
 		pod3LocalTable.InsertRule(rule)
 	}
@@ -2034,16 +1783,16 @@ func TestResyncIngressOrientation(t *testing.T) {
 	//  -> global table
 	globalRules := []*renderer.ContivRule{}
 	/* TCP: */
-	globalRules = append(globalRules, modifyDst(pod3Cfg.Egress[0], pod3IP)...)
-	globalRules = append(globalRules, modifyDst(pod3Cfg.Egress[1], pod3IP)...)
-	globalRules = append(globalRules, modifyDst(pod3Cfg.Egress[3], pod3IP)...)
-	globalRules = append(globalRules, allowAllTCP())
+	globalRules = append(globalRules, modifyDst(pod3Cfg.Egress[0], Pod3IP)...)
+	globalRules = append(globalRules, modifyDst(pod3Cfg.Egress[1], Pod3IP)...)
+	globalRules = append(globalRules, modifyDst(pod3Cfg.Egress[3], Pod3IP)...)
+	globalRules = append(globalRules, AllowAllTCP())
 	/* UDP: */
-	globalRules = append(globalRules, modifyDst(pod1ResyncCfg.Egress[1], pod1IP)...)
-	globalRules = append(globalRules, modifyDst(pod1ResyncCfg.Egress[0], pod1IP)...)
-	globalRules = append(globalRules, modifyDst(pod3Cfg.Egress[2], pod3IP)...)
-	globalRules = append(globalRules, modifyDst(pod3Cfg.Egress[4], pod3IP)...)
-	globalRules = append(globalRules, allowAllUDP())
+	globalRules = append(globalRules, modifyDst(pod1ResyncCfg.Egress[1], Pod1IP)...)
+	globalRules = append(globalRules, modifyDst(pod1ResyncCfg.Egress[0], Pod1IP)...)
+	globalRules = append(globalRules, modifyDst(pod3Cfg.Egress[2], Pod3IP)...)
+	globalRules = append(globalRules, modifyDst(pod3Cfg.Egress[4], Pod3IP)...)
+	globalRules = append(globalRules, AllowAllUDP())
 	globalTable := NewContivRuleTable(GlobalTableID)
 	for _, rule := range globalRules {
 		globalTable.InsertRule(rule)
@@ -2063,38 +1812,38 @@ func TestResyncIngressOrientation(t *testing.T) {
 
 	// Run transaction - update both pods, but only pod1 has data changed
 	txn := ruleCache.NewTxn()
-	txn.Update(pod1, pod1TxnCfg)
-	txn.Update(pod3, pod3Cfg)
+	txn.Update(Pod1, pod1TxnCfg)
+	txn.Update(Pod3, pod3Cfg)
 	verifyUpdatedPods(txn, pods, EmptyPodSet)
 	verifyCachedPods(txn, pods, pods)
 
 	// Expected output data
 	pod1LocalRulesTxn2 := []*renderer.ContivRule{
-		/* TCP: */ blockPodIngress(pod1IP, renderer.TCP),
+		/* TCP: */ blockPodIngress(Pod1IP, renderer.TCP),
 		pod1TxnCfg.Ingress[0], pod1TxnCfg.Ingress[2],
-		/* UDP: */ blockPodIngress(pod1IP, renderer.UDP), blockPodIngress(pod3IP, renderer.UDP),
+		/* UDP: */ blockPodIngress(Pod1IP, renderer.UDP), blockPodIngress(Pod3IP, renderer.UDP),
 		pod1TxnCfg.Ingress[1], pod1TxnCfg.Ingress[3],
 	}
 	pod3LocalRulesTxn2 := []*renderer.ContivRule{
-		/* TCP: */ blockPodIngress(pod1IP, renderer.TCP), blockPodIngress(pod3IP, renderer.TCP),
+		/* TCP: */ blockPodIngress(Pod1IP, renderer.TCP), blockPodIngress(Pod3IP, renderer.TCP),
 		pod3Cfg.Ingress[1], pod3Cfg.Ingress[2],
-		/* UDP: */ allowPodIngress(pod1IP, 53, renderer.UDP), blockPodIngress(pod1IP, renderer.UDP),
+		/* UDP: */ allowPodIngress(Pod1IP, 53, renderer.UDP), blockPodIngress(Pod1IP, renderer.UDP),
 		/* removed: pod3Cfg.Ingress[0],*/ pod3Cfg.Ingress[3],
 	}
 	globalRulesTxn2 := []*renderer.ContivRule{}
 	/* TCP: */
-	globalRulesTxn2 = append(globalRulesTxn2, modifyDst(pod3Cfg.Egress[0], pod3IP)...)
-	globalRulesTxn2 = append(globalRulesTxn2, modifyDst(pod3Cfg.Egress[1], pod3IP)...)
-	globalRulesTxn2 = append(globalRulesTxn2, modifyDst(pod1TxnCfg.Egress[2], pod1IP)...)
-	globalRulesTxn2 = append(globalRulesTxn2, modifyDst(pod3Cfg.Egress[3], pod3IP)...)
-	globalRulesTxn2 = append(globalRulesTxn2, allowAllTCP())
+	globalRulesTxn2 = append(globalRulesTxn2, modifyDst(pod3Cfg.Egress[0], Pod3IP)...)
+	globalRulesTxn2 = append(globalRulesTxn2, modifyDst(pod3Cfg.Egress[1], Pod3IP)...)
+	globalRulesTxn2 = append(globalRulesTxn2, modifyDst(pod1TxnCfg.Egress[2], Pod1IP)...)
+	globalRulesTxn2 = append(globalRulesTxn2, modifyDst(pod3Cfg.Egress[3], Pod3IP)...)
+	globalRulesTxn2 = append(globalRulesTxn2, AllowAllTCP())
 	/* UDP: */
-	globalRulesTxn2 = append(globalRulesTxn2, modifyDst(pod1TxnCfg.Egress[1], pod1IP)...)
-	globalRulesTxn2 = append(globalRulesTxn2, modifyDst(pod1TxnCfg.Egress[0], pod1IP)...)
-	globalRulesTxn2 = append(globalRulesTxn2, modifyDst(pod1TxnCfg.Egress[3], pod1IP)...)
-	globalRulesTxn2 = append(globalRulesTxn2, modifyDst(pod3Cfg.Egress[2], pod3IP)...)
-	globalRulesTxn2 = append(globalRulesTxn2, modifyDst(pod3Cfg.Egress[4], pod3IP)...)
-	globalRulesTxn2 = append(globalRulesTxn2, allowAllUDP())
+	globalRulesTxn2 = append(globalRulesTxn2, modifyDst(pod1TxnCfg.Egress[1], Pod1IP)...)
+	globalRulesTxn2 = append(globalRulesTxn2, modifyDst(pod1TxnCfg.Egress[0], Pod1IP)...)
+	globalRulesTxn2 = append(globalRulesTxn2, modifyDst(pod1TxnCfg.Egress[3], Pod1IP)...)
+	globalRulesTxn2 = append(globalRulesTxn2, modifyDst(pod3Cfg.Egress[2], Pod3IP)...)
+	globalRulesTxn2 = append(globalRulesTxn2, modifyDst(pod3Cfg.Egress[4], Pod3IP)...)
+	globalRulesTxn2 = append(globalRulesTxn2, AllowAllUDP())
 
 	// Verify changes to be committed.
 	changes := txn.GetChanges()
@@ -2105,19 +1854,19 @@ func TestResyncIngressOrientation(t *testing.T) {
 	var pod3LocalTableChange *TxnChange
 	var pod1LocalTableTxn1Removed, pod3LocalTableTxn1Removed bool
 	for i := 0; i < 4; i++ {
-		if changes[i].Table.Pods.Has(pod1) {
+		if changes[i].Table.Pods.Has(Pod1) {
 			gomega.Expect(pod1LocalTableChange).To(gomega.BeNil())
 			pod1LocalTableChange = changes[i]
 		}
-		if changes[i].Table.Pods.Has(pod3) {
+		if changes[i].Table.Pods.Has(Pod3) {
 			gomega.Expect(pod3LocalTableChange).To(gomega.BeNil())
 			pod3LocalTableChange = changes[i]
 		}
-		if changes[i].PreviousPods.Has(pod1) {
+		if changes[i].PreviousPods.Has(Pod1) {
 			gomega.Expect(pod1LocalTableTxn1Removed).To(gomega.BeFalse())
 			pod1LocalTableTxn1Removed = true
 		}
-		if changes[i].PreviousPods.Has(pod3) {
+		if changes[i].PreviousPods.Has(Pod3) {
 			gomega.Expect(pod3LocalTableTxn1Removed).To(gomega.BeFalse())
 			pod3LocalTableTxn1Removed = true
 		}
@@ -2127,9 +1876,9 @@ func TestResyncIngressOrientation(t *testing.T) {
 	gomega.Expect(pod1LocalTableChange).ToNot(gomega.BeNil())
 	gomega.Expect(pod3LocalTableChange).ToNot(gomega.BeNil())
 
-	verifyLocalTableChange(pod1LocalTableChange, nil, pod1LocalRulesTxn2, EmptyPodSet, NewPodSet(pod1))
+	verifyLocalTableChange(pod1LocalTableChange, nil, pod1LocalRulesTxn2, EmptyPodSet, NewPodSet(Pod1))
 	pod1LocalTableTxn2 := pod1LocalTableChange.Table
-	verifyLocalTableChange(pod3LocalTableChange, nil, pod3LocalRulesTxn2, EmptyPodSet, NewPodSet(pod3))
+	verifyLocalTableChange(pod3LocalTableChange, nil, pod3LocalRulesTxn2, EmptyPodSet, NewPodSet(Pod3))
 	pod3LocalTableTxn2 := pod3LocalTableChange.Table
 
 	// Global table has changed.
@@ -2141,10 +1890,10 @@ func TestResyncIngressOrientation(t *testing.T) {
 	gomega.Expect(err).To(gomega.BeNil())
 
 	// Verify cache content.
-	verifyPodConfig(ruleCache, pod1, pod1TxnCfg)
-	verifyPodConfig(ruleCache, pod3, pod3Cfg)
-	verifyPodLocalTable(ruleCache, pod1, pod1LocalTableTxn2, pod1LocalRulesTxn2, NewPodSet(pod1))
-	verifyPodLocalTable(ruleCache, pod3, pod3LocalTableTxn2, pod3LocalRulesTxn2, NewPodSet(pod3))
+	verifyPodConfig(ruleCache, Pod1, pod1TxnCfg)
+	verifyPodConfig(ruleCache, Pod3, pod3Cfg)
+	verifyPodLocalTable(ruleCache, Pod1, pod1LocalTableTxn2, pod1LocalRulesTxn2, NewPodSet(Pod1))
+	verifyPodLocalTable(ruleCache, Pod3, pod3LocalTableTxn2, pod3LocalRulesTxn2, NewPodSet(Pod3))
 	verifyCachedPods(ruleCache, pods, pods)
 	verifyGlobalTable(ruleCache.GetGlobalTable(), globalTableTxn2, globalTable, globalRulesTxn2)
 }

@@ -1024,9 +1024,6 @@ func TestCombinedRulesEgressOrientation(t *testing.T) {
 	gomega.Expect(changes).To(gomega.HaveLen(3))
 
 	// 2 local tables were added.
-	fmt.Printf("\n\n Table0: %s\n\n", changes[0].Table)
-	fmt.Printf("\n\n Table1: %s\n\n", changes[1].Table)
-
 	var pod1TableIdx, pod3TableIdx int
 	if changes[0].Table.Pods.Has(Pod1) {
 		pod3TableIdx = 1

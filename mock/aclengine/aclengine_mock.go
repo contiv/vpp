@@ -389,9 +389,6 @@ func (mae *MockACLEngine) testConnection(srcIfName string, srcIP net.IP,
 	// SYN packet:
 	//   -> test inbound ACL for source interface
 	srcInAction := mae.evalACL(srcACLs.inbound, srcIP, dstIP, protocol, dstPort)
-
-	mae.Log.WithField("srcInAction", srcInAction).Debug("SYN-inbound")
-
 	if srcInAction == ACLActionFailure {
 		return ConnActionFailure
 	}
@@ -400,20 +397,25 @@ func (mae *MockACLEngine) testConnection(srcIfName string, srcIP net.IP,
 	}
 	if srcInAction == ACLActionReflect {
 		srcIfReflected = true
+		if srcIfName == dstIfName {
+			dstIfReflected = true
+		}
 	}
 	//   -> test outbound ACL for destination interface
-	dstOutAction := mae.evalACL(dstACLs.outbound, srcIP, dstIP, protocol, dstPort)
-
-	mae.Log.WithField("dstOutAction", dstOutAction).Debug("SYN-outbound")
-
-	if dstOutAction == ACLActionFailure {
-		return ConnActionFailure
-	}
-	if dstOutAction == ACLActionDeny {
-		return ConnActionDenySyn
-	}
-	if dstOutAction == ACLActionReflect {
-		dstIfReflected = true
+	if !dstIfReflected {
+		dstOutAction := mae.evalACL(dstACLs.outbound, srcIP, dstIP, protocol, dstPort)
+		if dstOutAction == ACLActionFailure {
+			return ConnActionFailure
+		}
+		if dstOutAction == ACLActionDeny {
+			return ConnActionDenySyn
+		}
+		if dstOutAction == ACLActionReflect {
+			dstIfReflected = true
+			if srcIfName == dstIfName {
+				srcIfReflected = true
+			}
+		}
 	}
 
 	// SYN-ACK packet:

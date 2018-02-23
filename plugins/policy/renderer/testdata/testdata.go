@@ -22,7 +22,8 @@ import (
 )
 
 const (
-	namespace = "default"
+	namespace  = "default"
+	namespace2 = "namespace2"
 )
 
 var (
@@ -32,22 +33,27 @@ var (
 		{Name: "pod3", Namespace: namespace},
 		{Name: "pod4", Namespace: namespace},
 		{Name: "pod5", Namespace: namespace},
+		{Name: "pod6", Namespace: namespace2},
 	}
 
 	PodIPs = []string{
+		/* node 1: */
 		"10.10.1.1",
 		"10.10.1.2",
 		"10.10.2.1",
 		"10.10.2.2",
-		"10.10.2.5",
+		"10.10.2.3",
+		/* node 2: */
+		"10.10.10.1",
 	}
 
 	PodIfNames = []string{
 		"node1-tap1",
 		"node1-tap2",
+		"node1-tap3",
+		"node1-tap4",
+		"node1-tap5",
 		"node2-tap1",
-		"node2-tap2",
-		"node2-tap3",
 	}
 
 	// aliases
@@ -56,18 +62,21 @@ var (
 	Pod3 = PodIDs[2]
 	Pod4 = PodIDs[3]
 	Pod5 = PodIDs[4]
+	Pod6 = PodIDs[5]
 
 	Pod1IP = PodIPs[0]
 	Pod2IP = PodIPs[1]
 	Pod3IP = PodIPs[2]
 	Pod4IP = PodIPs[3]
 	Pod5IP = PodIPs[4]
+	Pod6IP = PodIPs[5]
 
 	Pod1IfName = PodIfNames[0]
 	Pod2IfName = PodIfNames[1]
 	Pod3IfName = PodIfNames[2]
 	Pod4IfName = PodIfNames[3]
 	Pod5IfName = PodIfNames[4]
+	Pod6IfName = PodIfNames[5]
 )
 
 // Input data for test-set 1:

@@ -29,9 +29,7 @@ import (
 
 	"git.fd.io/govpp.git/api"
 	govpp "git.fd.io/govpp.git/core"
-	"github.com/apparentlymart/go-cidr/cidr"
-	"github.com/contiv/vpp/cmd/contiv-stn/model/stn"
-	"github.com/contiv/vpp/plugins/contiv"
+
 	if_binapi "github.com/ligato/vpp-agent/plugins/defaultplugins/common/bin_api/interfaces"
 	ip_binapi "github.com/ligato/vpp-agent/plugins/defaultplugins/common/bin_api/ip"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/interfaces"
@@ -39,10 +37,15 @@ import (
 	stn_nb "github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/stn"
 	if_vppcalls "github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/vppcalls"
 	l3_vppcalls "github.com/ligato/vpp-agent/plugins/defaultplugins/l3plugin/vppcalls"
+	"github.com/ligato/vpp-agent/plugins/govppmux"
 	if_linux "github.com/ligato/vpp-agent/plugins/linuxplugin/common/model/interfaces"
 	l3_linux "github.com/ligato/vpp-agent/plugins/linuxplugin/common/model/l3"
 	if_linuxcalls "github.com/ligato/vpp-agent/plugins/linuxplugin/ifplugin/linuxcalls"
 	l3_linuxcalls "github.com/ligato/vpp-agent/plugins/linuxplugin/l3plugin/linuxcalls"
+
+	"github.com/apparentlymart/go-cidr/cidr"
+	"github.com/contiv/vpp/cmd/contiv-stn/model/stn"
+	"github.com/contiv/vpp/plugins/contiv"
 	"github.com/vishvananda/netlink"
 )
 
@@ -69,7 +72,7 @@ func configureVpp(contivCfg *contiv.Config, stnData *stn.STNReply, vppIfName str
 	var err error
 
 	// connect to VPP
-	conn, err := govpp.Connect(NewVppAdapter())
+	conn, err := govpp.Connect(govppmux.NewVppAdapter())
 	if err != nil {
 		logger.Errorf("Error by connecting to VPP: %v", err)
 		return nil, err

@@ -33,11 +33,8 @@ data:
       NodeInterconnectCIDR: 192.168.16.0/24
       VxlanCIDR: 192.168.30.0/24
       NodeInterconnectDHCP: False
-    NodeConfig:
-    - NodeName: "ubuntu-1"
-      StealInterface: "enp0s8"
-    - NodeName: "ubuntu-2"
-      StealInterface: "enp0s8"
+  logs.conf: |
+    defaultlevel: debug
 
 ---
 
@@ -51,8 +48,6 @@ data:
     health-check-probe-interval: 1000000000
     health-check-reply-timeout: 500000000
     health-check-threshold: 3
-  logs.conf: |
-    defaultlevel: debug
 
 ---
 
@@ -223,18 +218,18 @@ spec:
           ports:
             # readiness + liveness probe
             - containerPort: 9999
-#          readinessProbe:
-#            httpGet:
-#              path: /readiness
-#              port: 9999
-#            periodSeconds: 1
-#            initialDelaySeconds: 15
-#          livenessProbe:
-#            httpGet:
-#              path: /liveness
-#              port: 9999
-#            periodSeconds: 1
-#            initialDelaySeconds: 60
+          readinessProbe:
+            httpGet:
+              path: /readiness
+              port: 9999
+            periodSeconds: 1
+            initialDelaySeconds: 15
+          livenessProbe:
+            httpGet:
+              path: /liveness
+              port: 9999
+            periodSeconds: 1
+            initialDelaySeconds: 60
           env:
             - name: MICROSERVICE_LABEL
               valueFrom:

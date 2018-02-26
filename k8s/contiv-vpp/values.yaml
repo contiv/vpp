@@ -34,6 +34,9 @@ contiv:
   #      - interfaceName: "GigabitEthernet0/7/0"
   #        ip: "5.6.7.8/24"
 
+logs:
+  defaultLevel: debug
+
 # ETCD server to be used by Contiv
 etcd:
   image:

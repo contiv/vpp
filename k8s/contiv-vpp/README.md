@@ -77,3 +77,4 @@ Parameter | Description | Default
 `govpp.healthCheckProbeInterval` | Health check proble interval (nanoseconds) | `1000000000`
 `govpp.healthCheckReplyTimeout` | Health check reply timeout (nanoseconds) | `500000000`
 `govpp.healthCheckThreshold` | Health check threshold | 3
+`logs.defaultLevel` | Default level of logging | `debug`

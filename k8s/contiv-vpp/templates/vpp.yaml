@@ -58,6 +58,8 @@ data:
     {{- end }}
     {{- end }}
     {{- end }}
+  logs.conf: |
+    defaultlevel: {{ .Values.logs.defaultLevel }}
 
 ---
 

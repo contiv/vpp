@@ -16,6 +16,7 @@ package ksr
 
 import (
 	"encoding/json"
+	"sync"
 
 	"github.com/ligato/cn-infra/db/keyval"
 
@@ -55,6 +56,7 @@ type mockKeyProtoValBroker struct {
 	numListErr int
 	listErr    error
 	ds         map[string]dataStoreItem
+	dsMtx      sync.RWMutex
 }
 
 // dataStoreItem defines the structure of values stored in the key-value data
@@ -105,6 +107,9 @@ func (mock *mockKeyProtoValBroker) clearListError() {
 
 // Put puts data into an in-memory map simulating a key-value datastore.
 func (mock *mockKeyProtoValBroker) Put(key string, data proto.Message, opts ...datasync.PutOption) error {
+	mock.dsMtx.Lock()
+	defer mock.dsMtx.Unlock()
+
 	if mock.numRwErr > 0 {
 		mock.numRwErr--
 		return mock.rwErr
@@ -121,6 +126,9 @@ func (mock *mockKeyProtoValBroker) Put(key string, data proto.Message, opts ...d
 
 // Delete removes data from an in-memory map simulating a key-value datastore.
 func (mock *mockKeyProtoValBroker) Delete(key string, opts ...datasync.DelOption) (existed bool, err error) {
+	mock.dsMtx.Lock()
+	defer mock.dsMtx.Unlock()
+
 	if mock.numRwErr > 0 {
 		mock.numRwErr--
 		return false, mock.rwErr
@@ -136,6 +144,9 @@ func (mock *mockKeyProtoValBroker) Delete(key string, opts ...datasync.DelOption
 
 // GetValue is a helper for unit tests to get value stored under a given key.
 func (mock *mockKeyProtoValBroker) GetValue(key string, out proto.Message) (found bool, revision int64, err error) {
+	mock.dsMtx.Lock()
+	defer mock.dsMtx.Unlock()
+
 	if mock.numRwErr > 0 {
 		mock.numRwErr--
 		return false, 0, mock.rwErr
@@ -152,6 +163,9 @@ func (mock *mockKeyProtoValBroker) GetValue(key string, out proto.Message) (foun
 // ClearDs is a helper which allows to clear the in-memory map simulating
 // a key-value datastore.
 func (mock *mockKeyProtoValBroker) ClearDs() {
+	mock.dsMtx.Lock()
+	defer mock.dsMtx.Unlock()
+
 	for key := range mock.ds {
 		delete(mock.ds, key)
 	}
@@ -164,6 +178,9 @@ func (mock *mockKeyProtoValBroker) ClearDs() {
 // ListValues returns the mockProtoKeyValIterator which will contain some
 // mock values down the road
 func (mock *mockKeyProtoValBroker) ListValues(prefix string) (keyval.ProtoKeyValIterator, error) {
+	mock.dsMtx.RLock()
+	defer mock.dsMtx.RUnlock()
+
 	if mock.numListErr > 0 {
 		mock.numListErr--
 		return nil, mock.rwErr

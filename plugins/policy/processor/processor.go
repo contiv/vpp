@@ -170,8 +170,10 @@ func (pp *PolicyProcessor) DelPod(podID podmodel.ID, pod *podmodel.Pod) error {
 	for _, policy := range podPolicies {
 		pods = append(pods, pp.getPodsAssignedToPolicy(policy)...)
 	}
-	strPods := utils.RemoveDuplicates(utils.StringPodID(pods))
-	pods = utils.UnstringPodID(strPods)
+
+	// Update deleted pod as well.
+	pods = append(pods, podID)
+	pods = utils.RemoveDuplicatePodIDs(pods)
 
 	// Re-configure only pods that belong to the current node.
 	hostPods := pp.filterHostPods(pods)
@@ -181,6 +183,10 @@ func (pp *PolicyProcessor) DelPod(podID podmodel.ID, pod *podmodel.Pod) error {
 
 	if len(hostPods) > 0 {
 		return pp.Process(false, hostPods)
+	}
+
+	if _, hadIP := pp.podIPAddressMap[podID]; hadIP {
+		delete(pp.podIPAddressMap, podID)
 	}
 
 	return nil
@@ -235,8 +241,14 @@ func (pp *PolicyProcessor) UpdatePod(podID podmodel.ID, oldPod, newPod *podmodel
 			pods = append(pods, pp.getPodsAssignedToPolicy(policy)...)
 		}
 	}
-	strPods := utils.RemoveDuplicates(utils.StringPodID(pods))
-	pods = utils.UnstringPodID(strPods)
+
+	// Process this pod also in case the IP address has changed.
+	if newPod.IpAddress != oldPod.IpAddress {
+		pods = append(pods, podID)
+	}
+
+	// Remove duplicate pods.
+	pods = utils.RemoveDuplicatePodIDs(pods)
 
 	// Re-configure only pods that belong to the current node.
 	hostPods := pp.filterHostPods(pods)
@@ -326,8 +338,7 @@ func (pp *PolicyProcessor) UpdatePolicy(oldPolicy, newPolicy *policymodel.Policy
 	pods := []podmodel.ID{}
 	pods = append(pods, pp.getPodsAssignedToPolicy(oldPolicy)...)
 	pods = append(pods, pp.getPodsAssignedToPolicy(newPolicy)...)
-	strPods := utils.RemoveDuplicates(utils.StringPodID(pods))
-	pods = utils.UnstringPodID(strPods)
+	pods = utils.RemoveDuplicatePodIDs(pods)
 
 	// Re-configure only pods that belong to the current node.
 	hostPods := pp.filterHostPods(pods)
@@ -377,8 +388,7 @@ func (pp *PolicyProcessor) UpdateNamespace(oldNs, newNs *nsmodel.Namespace) erro
 	for _, policy := range newPolicies {
 		pods = append(pods, pp.getPodsAssignedToPolicy(policy)...)
 	}
-	strPods := utils.RemoveDuplicates(utils.StringPodID(pods))
-	pods = utils.UnstringPodID(strPods)
+	pods = utils.RemoveDuplicatePodIDs(pods)
 
 	// Re-configure only pods that belong to the current node.
 	hostPods := pp.filterHostPods(pods)
@@ -411,12 +421,8 @@ func (pp *PolicyProcessor) filterHostPods(pods []podmodel.ID) []podmodel.ID {
 	for _, podID := range pods {
 		found, podData := pp.Cache.LookupPod(podID)
 
-		if !found {
-			continue
-		}
-
-		if podData.IpAddress == "" {
-			if podIPAddress, hadIP = pp.podIPAddressMap[podmodel.GetID(podData)]; !hadIP {
+		if !found || podData.IpAddress == "" {
+			if podIPAddress, hadIP = pp.podIPAddressMap[podID]; !hadIP {
 				continue
 			}
 		} else {

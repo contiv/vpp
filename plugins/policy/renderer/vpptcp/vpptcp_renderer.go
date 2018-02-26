@@ -188,8 +188,7 @@ func (art *RendererTxn) Commit() error {
 		}
 	}
 
-	art.cacheTxn.Commit()
-	return nil
+	return art.cacheTxn.Commit()
 }
 
 // dumpRules queries VPP to get the currently installed set of session rules.

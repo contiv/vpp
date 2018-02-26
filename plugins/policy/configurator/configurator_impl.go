@@ -482,7 +482,8 @@ func (pct *PolicyConfiguratorTxn) generateRules(direction MatchType, policies Co
 func (pct *PolicyConfiguratorTxn) appendRule(rules []*renderer.ContivRule, newRule *renderer.ContivRule) []*renderer.ContivRule {
 	for _, rule := range rules {
 		if rule.Compare(newRule) == 0 {
-			pct.Log.WithField("rule", newRule).Debug("Skipping duplicate rule")
+			// TODO: uncomment once pods with host network stack are handled properly.
+			//pct.Log.WithField("rule", newRule).Debug("Skipping duplicate rule")
 			return rules
 		}
 	}

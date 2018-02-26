@@ -41,6 +41,23 @@ func RemoveDuplicates(el []string) []string {
 	return result
 }
 
+// RemoveDuplicatePodIDs removes duplicate pod IDs from a slice.
+func RemoveDuplicatePodIDs(el []podmodel.ID) []podmodel.ID {
+	found := map[podmodel.ID]bool{}
+
+	// Create a map of all unique elements.
+	for v := range el {
+		found[el[v]] = true
+	}
+
+	// Place all keys from the map into a slice.
+	result := []podmodel.ID{}
+	for key := range found {
+		result = append(result, key)
+	}
+	return result
+}
+
 // Intersect returns the common elements of two or more slices
 func Intersect(a []string, b []string, s ...[]string) []string {
 	if len(a) == 0 || len(b) == 0 {

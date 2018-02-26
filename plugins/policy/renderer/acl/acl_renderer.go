@@ -150,7 +150,8 @@ func (art *RendererTxn) Commit() error {
 	changes := art.cacheTxn.GetChanges()
 	if !art.resync && len(changes) == 0 {
 		art.renderer.Log.Debug("No changes to be rendered in the transaction")
-		return nil
+		// Still need to commit the configuration updates from the transaction.
+		return art.cacheTxn.Commit()
 	}
 
 	// Render ACLs and propagate changes via localclient.

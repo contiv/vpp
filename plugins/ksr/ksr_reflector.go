@@ -73,6 +73,9 @@ type Reflector struct {
 // reflectors is the reflector registry
 var reflectors = make(map[string]*Reflector)
 
+// reflector registry lock
+var rrLock sync.RWMutex
+
 // DsItems defines the structure holding items listed from the data store.
 type DsItems map[string]interface{}
 
@@ -99,6 +102,9 @@ type ReflectorFunctions struct {
 
 // dataStoreDownEvent starts all reflectors
 func startReflectors() {
+	rrLock.RLock()
+	defer rrLock.RUnlock()
+
 	for _, r := range reflectors {
 		r.Start()
 	}
@@ -109,6 +115,9 @@ func startReflectors() {
 // Optionally, if data store resync with the K8s cache is in progress, it will
 // be abort.
 func dataStoreDownEvent() {
+	rrLock.RLock()
+	defer rrLock.RUnlock()
+
 	for _, r := range reflectors {
 		r.stopDataStoreUpdates()
 		select {
@@ -124,6 +133,9 @@ func dataStoreDownEvent() {
 // is back up. Reflectors should start the resync procedure between their
 // respective data stores with their respective K8s caches.
 func dataStoreUpEvent() {
+	rrLock.RLock()
+	defer rrLock.RUnlock()
+
 	for _, r := range reflectors {
 		select {
 		case <-r.syncStopCh:
@@ -475,6 +487,10 @@ func (r *Reflector) ksrInit(stopCh <-chan struct{}, wg *sync.WaitGroup, prefix s
 			},
 		},
 	)
+
+	rrLock.Lock()
 	reflectors[r.objType] = r
+	rrLock.Unlock()
+
 	return nil
 }

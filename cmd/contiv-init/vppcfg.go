@@ -27,8 +27,8 @@ import (
 	"github.com/ligato/cn-infra/db/keyval/kvproto"
 	"github.com/ligato/cn-infra/servicelabel"
 
-	govpp "git.fd.io/govpp.git"
 	"git.fd.io/govpp.git/api"
+	govpp "git.fd.io/govpp.git/core"
 	"github.com/apparentlymart/go-cidr/cidr"
 	"github.com/contiv/vpp/cmd/contiv-stn/model/stn"
 	"github.com/contiv/vpp/plugins/contiv"
@@ -69,7 +69,7 @@ func configureVpp(contivCfg *contiv.Config, stnData *stn.STNReply, vppIfName str
 	var err error
 
 	// connect to VPP
-	conn, err := govpp.Connect()
+	conn, err := govpp.Connect(NewVppAdapter())
 	if err != nil {
 		logger.Errorf("Error by connecting to VPP: %v", err)
 		return nil, err

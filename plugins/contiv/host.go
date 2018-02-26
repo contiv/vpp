@@ -118,6 +118,7 @@ func (s *remoteCNIserver) interconnectTap() *vpp_intf.Interfaces_Interface {
 			HostIfName: tapHostEndName,
 		},
 		IpAddresses: []string{s.ipam.VEthVPPEndIP().String() + "/" + strconv.Itoa(size)},
+		PhysAddress: HostInterconnectMAC,
 	}
 	if s.tapVersion == 2 {
 		tap.Tap.Version = 2

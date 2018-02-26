@@ -69,6 +69,9 @@ type Config struct {
 	Veth2 *linux_intf.LinuxInterfaces_Interface
 	// VppIf is AF_PACKET/TAP interface connecting pod to VPP
 	VppIf *vpp_intf.Interfaces_Interface
+	// PodTap is the host end of the tap connecting pod to VPP
+	// Nil if TAPs are not used
+	PodTap *linux_intf.LinuxInterfaces_Interface
 	// Loopback interface associated with the pod.
 	// Nil if VPP TCP stack is disabled.
 	Loopback *vpp_intf.Interfaces_Interface

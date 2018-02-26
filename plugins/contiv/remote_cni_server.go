@@ -59,11 +59,16 @@ const (
 	vethHostEndName               = "vpp1"
 	vethVPPEndLogicalName         = "veth-vpp2"
 	vethVPPEndName                = "vpp2"
-	TapHostEndLogicalName         = "tap-vpp1"
-	TapHostEndName                = "vpp1"
-	TapVPPEndLogicalName          = "tap-vpp2"
-	TapVPPEndName                 = "vpp2"
 	podIfIPPrefix                 = "10.2.1"
+
+	// TapHostEndLogicalName is the logical name of the VPP-host interconnect TAP interface (host end)
+	TapHostEndLogicalName = "tap-vpp1"
+	// TapHostEndName is the physical name of the VPP-host interconnect TAP interface (host end)
+	TapHostEndName = "vpp1"
+	// TapVPPEndLogicalName is the logical name of the VPP-host interconnect TAP interface (VPP end)
+	TapVPPEndLogicalName = "tap-vpp2"
+	// TapVPPEndName is the physical name of the VPP-host interconnect TAP interface (VPP end)
+	TapVPPEndName = "vpp2"
 	// HostInterconnectMAC is MAC address of tap that interconnects VPP with host stack
 	HostInterconnectMAC = "01:23:45:67:89:42"
 )

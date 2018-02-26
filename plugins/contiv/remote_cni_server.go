@@ -60,6 +60,8 @@ const (
 	tapVPPEndLogicalName          = "tap-vpp2"
 	tapVPPEndName                 = "vpp2"
 	podIfIPPrefix                 = "10.2.1"
+	// HostInterconnectMAC is MAC address of tap that interconnects VPP with host stack
+	HostInterconnectMAC = "01:23:45:67:89:42"
 )
 
 // remoteCNIserver represents the remote CNI server instance. It accepts the requests from the contiv-CNI
@@ -858,8 +860,12 @@ func (s *remoteCNIserver) configurePodInterface(request *cni.CNIRequest, podIP n
 	if s.useTAPInterfaces {
 		// TAP interface
 		config.VppIf = s.tapFromRequest(request, !s.disableTCPstack, podIPCIDR)
+		config.PodTap = s.podTAP(request, podIPNet)
 
-		txn1.VppInterface(config.VppIf)
+		podIfName = config.PodTap.Name
+
+		txn1.VppInterface(config.VppIf).
+			LinuxInterface(config.PodTap)
 	} else {
 		// veth pair + AF_PACKET
 		config.Veth1 = s.veth1FromRequest(request, podIPCIDR)
@@ -872,17 +878,13 @@ func (s *remoteCNIserver) configurePodInterface(request *cni.CNIRequest, podIP n
 		podIfName = config.Veth1.Name
 	}
 
-	if !s.useTAPInterfaces {
-		// TODO: temporary bypass this section for TAP interfaces, configured in configureHostTAP
+	// link scope route - must be added before the default route
+	config.PodLinkRoute = s.podLinkRouteFromRequest(request, podIfName)
+	txn1.LinuxRoute(config.PodLinkRoute)
 
-		// link scope route - must be added before the default route
-		config.PodLinkRoute = s.podLinkRouteFromRequest(request, podIfName)
-		txn1.LinuxRoute(config.PodLinkRoute)
-
-		// ARP to VPP
-		config.PodARPEntry = s.podArpEntry(request, podIfName, config.VppIf.PhysAddress)
-		txn1.LinuxArpEntry(config.PodARPEntry)
-	}
+	// ARP to VPP
+	config.PodARPEntry = s.podArpEntry(request, podIfName, config.VppIf.PhysAddress)
+	txn1.LinuxArpEntry(config.PodARPEntry)
 
 	// execute the config transaction
 	err := txn1.Send().ReceiveReply()
@@ -891,37 +893,20 @@ func (s *remoteCNIserver) configurePodInterface(request *cni.CNIRequest, podIP n
 		return err
 	}
 
-	// finish the TAP interface configuration (rename, move to proper namespace, etc.)
-	if s.useTAPInterfaces {
-		err = s.configureHostTAP(request, podIPNet, config.VppIf.PhysAddress)
-		// TODO: not stored in config, this will not be resynced in case of resync!!!
-		if err != nil {
-			s.Logger.Error(err)
-			if !s.test {
-				// skip error by tests
-				return err
-			}
-		}
-	}
+	// prepare the config transaction 2
+	// the default route needs to be configured after the first transaction,
+	// since it depends on the link-local route in the transaction 1
+	txn2 := s.vppTxnFactory().Put()
 
-	if !s.useTAPInterfaces {
-		// TODO: temporary bypass this section for TAP interfaces, configured in configureHostTAP
+	// Add default route for the container
+	config.PodDefaultRoute = s.podDefaultRouteFromRequest(request, podIfName)
+	txn2.LinuxRoute(config.PodDefaultRoute)
 
-		// prepare the config transaction 2
-		// the default route needs to be configured after the first transaction,
-		// since it depends on the link-local route in the transaction 1
-		txn2 := s.vppTxnFactory().Put()
-
-		// Add default route for the container
-		config.PodDefaultRoute = s.podDefaultRouteFromRequest(request, podIfName)
-		txn2.LinuxRoute(config.PodDefaultRoute)
-
-		// execute the config transaction
-		err = txn2.Send().ReceiveReply()
-		if err != nil {
-			s.Logger.Error(err)
-			return err
-		}
+	// execute the config transaction
+	err = txn2.Send().ReceiveReply()
+	if err != nil {
+		s.Logger.Error(err)
+		return err
 	}
 
 	return nil
@@ -938,11 +923,11 @@ func (s *remoteCNIserver) unconfigurePodInterface(request *cni.CNIRequest, confi
 	if !s.useTAPInterfaces {
 		txn2.LinuxInterface(config.Veth1.Name).
 			LinuxInterface(config.Veth2.Name)
+	} else {
+		txn2.LinuxInterface(config.PodTap.Name)
 	}
 
-	if !s.useTAPInterfaces && !s.test {
-		// TODO: temporary bypass this section for TAP interfaces
-
+	if !s.test {
 		// delete static routes
 		txn2.LinuxRoute(config.PodLinkRoute.Name).
 			LinuxRoute(config.PodDefaultRoute.Name)
@@ -956,16 +941,6 @@ func (s *remoteCNIserver) unconfigurePodInterface(request *cni.CNIRequest, confi
 	if err != nil {
 		s.Logger.Error(err)
 		return err
-	}
-
-	// delete the TAP interface from the host stack
-	if s.useTAPInterfaces {
-		err = s.unconfigureHostTAP(request)
-		// TODO: not stored in config, this will not be resynced in case of resync!!!
-		if err != nil {
-			s.Logger.Error(err)
-			return err
-		}
 	}
 
 	return nil
@@ -1056,12 +1031,12 @@ func (s *remoteCNIserver) persistPodConfig(config *containeridx.Config) error {
 	if !s.useTAPInterfaces {
 		changes[linux_intf.InterfaceKey(config.Veth1.Name)] = config.Veth1
 		changes[linux_intf.InterfaceKey(config.Veth2.Name)] = config.Veth2
-
-		//FIXME: the following items should be persisted once arp and routes can be configured with TAPs
-		changes[linux_l3.StaticRouteKey(config.PodLinkRoute.Name)] = config.PodLinkRoute
-		changes[linux_l3.StaticRouteKey(config.PodDefaultRoute.Name)] = config.PodDefaultRoute
-		changes[linux_l3.StaticArpKey(config.PodARPEntry.Name)] = config.PodARPEntry
+	} else {
+		changes[linux_intf.InterfaceKey(config.PodTap.Name)] = config.PodTap
 	}
+	changes[linux_l3.StaticRouteKey(config.PodLinkRoute.Name)] = config.PodLinkRoute
+	changes[linux_l3.StaticRouteKey(config.PodDefaultRoute.Name)] = config.PodDefaultRoute
+	changes[linux_l3.StaticArpKey(config.PodARPEntry.Name)] = config.PodARPEntry
 
 	// VPP-side configuration
 	if !s.disableTCPstack {
@@ -1094,12 +1069,14 @@ func (s *remoteCNIserver) deletePersistedPodConfig(config *containeridx.Config) 
 		removedKeys = append(removedKeys,
 			linux_intf.InterfaceKey(config.Veth1.Name),
 			linux_intf.InterfaceKey(config.Veth2.Name),
-			//FIXME: the following items should be deleted once arp and routes can be configured with TAPs
-			linux_l3.StaticRouteKey(config.PodLinkRoute.Name),
-			linux_l3.StaticRouteKey(config.PodDefaultRoute.Name),
-			linux_l3.StaticArpKey(config.PodARPEntry.Name),
 		)
+	} else {
+		removedKeys = append(removedKeys, linux_intf.InterfaceKey(config.PodTap.Name))
 	}
+
+	removedKeys = append(removedKeys, linux_l3.StaticRouteKey(config.PodLinkRoute.Name),
+		linux_l3.StaticRouteKey(config.PodDefaultRoute.Name),
+		linux_l3.StaticArpKey(config.PodARPEntry.Name))
 
 	// VPP-side configuration
 	if !s.disableTCPstack {

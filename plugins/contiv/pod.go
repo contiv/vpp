@@ -22,8 +22,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/vishvananda/netlink"
-
 	"github.com/contiv/vpp/plugins/contiv/model/cni"
 	vpp_intf "github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/interfaces"
 	vpp_l3 "github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/l3"
@@ -31,8 +29,6 @@ import (
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/stn"
 	linux_intf "github.com/ligato/vpp-agent/plugins/linuxplugin/common/model/interfaces"
 	linux_l3 "github.com/ligato/vpp-agent/plugins/linuxplugin/common/model/l3"
-	"github.com/ligato/vpp-agent/plugins/linuxplugin/ifplugin/linuxcalls"
-	l3_linux "github.com/ligato/vpp-agent/plugins/linuxplugin/l3plugin/linuxcalls"
 )
 
 // disableTCPChecksumOffload disables TCP checksum offload on the eth0 in the container
@@ -79,123 +75,6 @@ func (s *remoteCNIserver) getPIDFromNwNsPath(ns string) (int, error) {
 		return -1, fmt.Errorf("unable to detect container PID from NS %s", ns)
 	}
 	return pid, nil
-}
-
-// configureHostTAP configures TAP interface created in the host by VPP.
-// TODO: move to the linuxplugin
-func (s *remoteCNIserver) configureHostTAP(request *cni.CNIRequest, podIPNet *net.IPNet, vppHw string) error {
-	tapTmpHostIfName := s.tapTmpHostNameFromRequest(request)
-	tapHostIfName := s.tapHostNameFromRequest(request)
-	containerNs := &linux_intf.LinuxInterfaces_Interface_Namespace{
-		Type:     linux_intf.LinuxInterfaces_Interface_Namespace_FILE_REF_NS,
-		Filepath: request.NetworkNamespace,
-	}
-	nsMgmtCtx := linuxcalls.NewNamespaceMgmtCtx()
-
-	// Move TAP into the namespace of the container.
-	err := linuxcalls.SetInterfaceNamespace(nsMgmtCtx, tapTmpHostIfName,
-		containerNs, s.Logger, nil)
-	/* TODO: investigate the (non-fatal) error thrown here.
-	if err != nil {
-		s.Logger.Error(err)
-		return s.generateCniErrorReply(err)
-	}
-	*/
-
-	// Switch to the namespace of the container.
-	revertNs, err := linuxcalls.ToGenericNs(containerNs).SwitchNamespace(nsMgmtCtx, s.Logger)
-	if err != nil {
-		return err
-	}
-	defer revertNs()
-
-	// Rename the interface from the temporary host-wide unique name to eth0.
-	err = linuxcalls.RenameInterface(tapTmpHostIfName, tapHostIfName, nil)
-	if err != nil {
-		return err
-	}
-
-	// Set TAP interface MAC address to make it compatible with STN.
-	err = linuxcalls.SetInterfaceMac(tapHostIfName, s.hwAddrForContainer(), nil)
-	if err != nil {
-		return err
-	}
-
-	// Set TAP interface IP to that of the Pod.
-	err = linuxcalls.AddInterfaceIP(s.Logger, tapHostIfName, podIPNet, nil)
-	if err != nil {
-		return err
-	}
-
-	// FIXME: following items ARP + link scope route + default route should be configured by linux plugin
-	dev, err := netlink.LinkByName(request.InterfaceName)
-	if err != nil {
-		return err
-	}
-
-	destination := net.IPNet{IP: s.ipam.PodGatewayIP(), Mask: net.IPv4Mask(0xff, 0xff, 0xff, 0xff)}
-	macAddr, err := net.ParseMAC(vppHw)
-	if err != nil {
-		return err
-	}
-
-	err = l3_linux.AddArpEntry("pod-vpp arp", &netlink.Neigh{
-		LinkIndex:    dev.Attrs().Index,
-		Family:       netlink.FAMILY_V4,
-		State:        netlink.NUD_PERMANENT,
-		Type:         1,
-		IP:           s.ipam.PodGatewayIP(),
-		HardwareAddr: macAddr,
-	}, s.Logger, nil)
-	if err != nil {
-		return err
-	}
-
-	err = l3_linux.AddStaticRoute("pod-link-scope", &netlink.Route{
-		LinkIndex: dev.Attrs().Index,
-		Dst:       &destination,
-		Scope:     netlink.SCOPE_LINK,
-	}, s.Logger, nil)
-	if err != nil {
-		return err
-	}
-
-	_, defaultDst, err := net.ParseCIDR("0.0.0.0/0")
-	if err != nil {
-		return err
-	}
-
-	return l3_linux.AddStaticRoute("pod default route", &netlink.Route{
-		LinkIndex: dev.Attrs().Index,
-		Dst:       defaultDst,
-		Gw:        s.ipam.PodGatewayIP(),
-	}, s.Logger, nil)
-}
-
-// unconfigureHostTAP removes TAP interface from the host stack if it wasn't
-// already done by VPP itself.
-// TODO: move to the linuxplugin
-func (s *remoteCNIserver) unconfigureHostTAP(request *cni.CNIRequest) error {
-	tapHostIfName := s.tapHostNameFromRequest(request)
-	containerNs := &linux_intf.LinuxInterfaces_Interface_Namespace{
-		Type:     linux_intf.LinuxInterfaces_Interface_Namespace_FILE_REF_NS,
-		Filepath: request.NetworkNamespace,
-	}
-	nsMgmtCtx := linuxcalls.NewNamespaceMgmtCtx()
-
-	// Switch to the namespace of the container.
-	revertNs, err := linuxcalls.ToGenericNs(containerNs).SwitchNamespace(nsMgmtCtx, s.Logger)
-	if err != nil {
-		return err
-	}
-	defer revertNs()
-
-	err = deleteInterface(tapHostIfName)
-	if err == nil {
-		s.WithField("tap", tapHostIfName).Warn("TAP interface was not removed in the host stack by VPP")
-	}
-
-	return nil
 }
 
 func (s *remoteCNIserver) veth1NameFromRequest(request *cni.CNIRequest) string {
@@ -325,6 +204,24 @@ func (s *remoteCNIserver) tapFromRequest(request *cni.CNIRequest, configureConta
 	return tap
 }
 
+func (s *remoteCNIserver) podTAP(request *cni.CNIRequest, podIPNet *net.IPNet) *linux_intf.LinuxInterfaces_Interface {
+	return &linux_intf.LinuxInterfaces_Interface{
+		Name:    "pod-" + s.tapTmpHostNameFromRequest(request),
+		Type:    linux_intf.LinuxInterfaces_AUTO_TAP,
+		Enabled: true,
+		Tap: &linux_intf.LinuxInterfaces_Interface_Tap{
+			TempIfName: s.tapTmpHostNameFromRequest(request),
+		},
+		HostIfName: s.tapHostNameFromRequest(request),
+		Namespace: &linux_intf.LinuxInterfaces_Interface_Namespace{
+			Type:     linux_intf.LinuxInterfaces_Interface_Namespace_FILE_REF_NS,
+			Filepath: request.NetworkNamespace,
+		},
+		PhysAddress: s.hwAddrForContainer(),
+		IpAddresses: []string{podIPNet.String()},
+	}
+}
+
 func (s *remoteCNIserver) loopbackFromRequest(request *cni.CNIRequest, loopIP string) *vpp_intf.Interfaces_Interface {
 	return &vpp_intf.Interfaces_Interface{
 		Name:        s.loopbackNameFromRequest(request),
@@ -423,14 +320,4 @@ func (s *remoteCNIserver) podDefaultRouteFromRequest(request *cni.CNIRequest, if
 		},
 		GwAddr: s.ipam.PodGatewayIP().String(),
 	}
-}
-
-// deleteInterface removes interface <ifName>.
-// TODO: remove once we migrate to vpp-agent's handling of TAPs.
-func deleteInterface(ifName string) error {
-	link, err := netlink.LinkByName(ifName)
-	if err != nil {
-		return err
-	}
-	return netlink.LinkDel(link)
 }

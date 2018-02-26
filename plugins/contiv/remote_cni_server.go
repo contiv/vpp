@@ -59,10 +59,10 @@ const (
 	vethHostEndName               = "vpp1"
 	vethVPPEndLogicalName         = "veth-vpp2"
 	vethVPPEndName                = "vpp2"
-	tapHostEndLogicalName         = "tap-vpp1"
-	tapHostEndName                = "vpp1"
-	tapVPPEndLogicalName          = "tap-vpp2"
-	tapVPPEndName                 = "vpp2"
+	TapHostEndLogicalName         = "tap-vpp1"
+	TapHostEndName                = "vpp1"
+	TapVPPEndLogicalName          = "tap-vpp2"
+	TapVPPEndName                 = "vpp2"
 	podIfIPPrefix                 = "10.2.1"
 	// HostInterconnectMAC is MAC address of tap that interconnects VPP with host stack
 	HostInterconnectMAC = "01:23:45:67:89:42"
@@ -661,7 +661,7 @@ func (s *remoteCNIserver) configureVswitchHostConnectivity(config *vswitchConfig
 		}
 	} else {
 		if s.useTAPInterfaces {
-			s.hostInterconnectIfName = tapVPPEndLogicalName
+			s.hostInterconnectIfName = TapVPPEndLogicalName
 		} else {
 			s.hostInterconnectIfName = s.interconnectAfpacketName()
 		}

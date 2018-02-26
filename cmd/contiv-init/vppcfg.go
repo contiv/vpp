@@ -50,14 +50,9 @@ import (
 )
 
 const (
-	tapHostEndName        = "vpp1"
-	tapHostEndLogicalName = "tap-vpp1"
-	tapHostEndMacAddr     = "00:00:00:00:00:02" // requirement of the VPP STN plugin
+	tapHostEndMacAddr = "00:00:00:00:00:02" // requirement of the VPP STN plugin
 
-	tapVPPEndName        = "vpp2"
-	tapVPPEndLogicalName = "tap-vpp2"
-
-	etcdConnectionRetries = 10
+	etcdConnectionRetries = 20 // number of retries to connect to ETCD once STN is configured
 )
 
 type vppCfgCtx struct {
@@ -146,13 +141,19 @@ func configureVpp(contivCfg *contiv.Config, stnData *stn.STNReply, vppIfName str
 
 	// interconnect TAP
 	tapIdx, err := if_vppcalls.AddTapInterface(
-		tapVPPEndLogicalName,
+		contiv.TapVPPEndLogicalName,
 		&interfaces.Interfaces_Interface_Tap{
-			HostIfName: tapHostEndName,
+			HostIfName: contiv.TapHostEndName,
 			Version:    uint32(contivCfg.TAPInterfaceVersion),
 		}, ch, nil)
 	if err != nil {
 		logger.Errorf("Error by adding TAP intrerface: %v", err)
+		return nil, err
+	}
+
+	err = if_vppcalls.SetInterfaceMac(tapIdx, contiv.HostInterconnectMAC, logger, ch, nil)
+	if err != nil {
+		logger.Errorf("Error by setting the MAC for TAP: %v", err)
 		return nil, err
 	}
 
@@ -176,12 +177,12 @@ func configureVpp(contivCfg *contiv.Config, stnData *stn.STNReply, vppIfName str
 	}
 
 	// host-end TAP config
-	err = if_linuxcalls.AddInterfaceIP(logger, tapHostEndName, &net.IPNet{IP: cfg.mainIP.IP, Mask: cfg.mainIP.Mask}, nil)
+	err = if_linuxcalls.AddInterfaceIP(logger, contiv.TapHostEndName, &net.IPNet{IP: cfg.mainIP.IP, Mask: cfg.mainIP.Mask}, nil)
 	if err != nil {
 		logger.Errorf("Error by configuring host-end TAP interface IP: %v", err)
 		return nil, err
 	}
-	err = if_linuxcalls.SetInterfaceMac(tapHostEndName, tapHostEndMacAddr, nil)
+	err = if_linuxcalls.SetInterfaceMac(contiv.TapHostEndName, tapHostEndMacAddr, nil)
 	if err != nil {
 		logger.Errorf("Error by configuring host-end TAP interface MAC: %v", err)
 		return nil, err
@@ -196,9 +197,9 @@ func configureVpp(contivCfg *contiv.Config, stnData *stn.STNReply, vppIfName str
 	}
 
 	// host routes
-	link, err := netlink.LinkByName(tapHostEndName)
+	link, err := netlink.LinkByName(contiv.TapHostEndName)
 	if err != nil {
-		logger.Errorf("Unable to find link %s: %v", tapHostEndName, err)
+		logger.Errorf("Unable to find link %s: %v", contiv.TapHostEndName, err)
 		return nil, err
 	}
 	for _, stnRoute := range stnData.Routes {
@@ -296,13 +297,14 @@ func persistVppConfig(contivCfg *contiv.Config, stnData *stn.STNReply, cfg *vppC
 
 	// host interconnect TAP
 	tap := &interfaces.Interfaces_Interface{
-		Name:    tapVPPEndLogicalName,
+		Name:    contiv.TapVPPEndLogicalName,
 		Type:    interfaces.InterfaceType_TAP_INTERFACE,
 		Enabled: true,
 		Tap: &interfaces.Interfaces_Interface_Tap{
-			HostIfName: tapHostEndName,
+			HostIfName: contiv.TapHostEndName,
 			Version:    uint32(contivCfg.TAPInterfaceVersion),
 		},
+		PhysAddress: contiv.HostInterconnectMAC,
 		Unnumbered: &interfaces.Interfaces_Interface_Unnumbered{
 			IsUnnumbered:    true,
 			InterfaceWithIP: cfg.mainIfName,
@@ -317,7 +319,7 @@ func persistVppConfig(contivCfg *contiv.Config, stnData *stn.STNReply, cfg *vppC
 	// host interconnect STN
 	stnRule := &stn_nb.StnRule{
 		RuleName:  "VPP-host-STN",
-		Interface: tapVPPEndLogicalName,
+		Interface: contiv.TapVPPEndLogicalName,
 		IpAddress: cfg.mainIP.IP.String(),
 	}
 	err = pb.Put(stn_nb.Key(stnRule.RuleName), stnRule)
@@ -328,13 +330,12 @@ func persistVppConfig(contivCfg *contiv.Config, stnData *stn.STNReply, cfg *vppC
 
 	// host-end TAP config
 	hostTap := &if_linux.LinuxInterfaces_Interface{
-		Name:        tapHostEndLogicalName,
-		HostIfName:  tapHostEndName,
+		Name:        contiv.TapHostEndLogicalName,
+		HostIfName:  contiv.TapHostEndName,
 		Type:        if_linux.LinuxInterfaces_AUTO_TAP,
 		Enabled:     true,
 		PhysAddress: tapHostEndMacAddr,
 		IpAddresses: []string{cfg.mainIP.String()},
-		Mtu:         1500, // TODO: temporary fix for vpp-agent resync
 	}
 	err = pb.Put(if_linux.InterfaceKey(hostTap.Name), hostTap)
 	if err != nil {
@@ -351,7 +352,7 @@ func persistVppConfig(contivCfg *contiv.Config, stnData *stn.STNReply, cfg *vppC
 			Name:      fmt.Sprintf("route-to-%s", stnRoute.DestinationSubnet),
 			DstIpAddr: stnRoute.DestinationSubnet,
 			GwAddr:    stnRoute.NextHopIp,
-			Interface: tapHostEndLogicalName,
+			Interface: contiv.TapHostEndLogicalName,
 		}
 		err = pb.Put(l3_linux.StaticRouteKey(route.Name), route)
 		if err != nil {

@@ -54,7 +54,7 @@ func (s *remoteCNIserver) routePODsFromHost(nextHopIP string) *linux_l3.LinuxSta
 		GwAddr:    nextHopIP,
 	}
 	if s.useTAPInterfaces {
-		route.Interface = tapHostEndLogicalName
+		route.Interface = TapHostEndLogicalName
 	}
 	return route
 }
@@ -73,7 +73,7 @@ func (s *remoteCNIserver) routeServicesFromHost(nextHopIP string) *linux_l3.Linu
 		GwAddr:    nextHopIP,
 	}
 	if s.useTAPInterfaces {
-		route.Interface = tapHostEndLogicalName
+		route.Interface = TapHostEndLogicalName
 	}
 	return route
 }
@@ -111,11 +111,11 @@ func (s *remoteCNIserver) routesToHost(nextHopIP string) []*vpp_l3.StaticRoutes_
 func (s *remoteCNIserver) interconnectTap() *vpp_intf.Interfaces_Interface {
 	size, _ := s.ipam.VPPHostNetwork().Mask.Size()
 	tap := &vpp_intf.Interfaces_Interface{
-		Name:    tapVPPEndLogicalName,
+		Name:    TapVPPEndLogicalName,
 		Type:    vpp_intf.InterfaceType_TAP_INTERFACE,
 		Enabled: true,
 		Tap: &vpp_intf.Interfaces_Interface_Tap{
-			HostIfName: tapHostEndName,
+			HostIfName: TapHostEndName,
 		},
 		IpAddresses: []string{s.ipam.VEthVPPEndIP().String() + "/" + strconv.Itoa(size)},
 		PhysAddress: HostInterconnectMAC,
@@ -132,7 +132,7 @@ func (s *remoteCNIserver) interconnectTap() *vpp_intf.Interfaces_Interface {
 func (s *remoteCNIserver) interconnectTapHost() *linux_intf.LinuxInterfaces_Interface {
 	size, _ := s.ipam.VPPHostNetwork().Mask.Size()
 	return &linux_intf.LinuxInterfaces_Interface{
-		Name:        tapHostEndName,
+		Name:        TapHostEndName,
 		Type:        linux_intf.LinuxInterfaces_AUTO_TAP,
 		Enabled:     true,
 		IpAddresses: []string{s.ipam.VEthHostEndIP().String() + "/" + strconv.Itoa(size)},

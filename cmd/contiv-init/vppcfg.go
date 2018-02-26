@@ -331,6 +331,7 @@ func persistVppConfig(contivCfg *contiv.Config, stnData *stn.STNReply, cfg *vppC
 		Enabled:     true,
 		PhysAddress: tapHostEndMacAddr,
 		IpAddresses: []string{cfg.mainIP.String()},
+		Mtu:         1500, // TODO: temporary fix for vpp-agent resync
 	}
 	err = pb.Put(if_linux.InterfaceKey(hostTap.Name), hostTap)
 	if err != nil {

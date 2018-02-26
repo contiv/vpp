@@ -59,6 +59,7 @@ const (
 	vethHostEndName               = "vpp1"
 	vethVPPEndLogicalName         = "veth-vpp2"
 	vethVPPEndName                = "vpp2"
+	tapHostEndLogicalName         = "tap-vpp1"
 	tapHostEndName                = "vpp1"
 	tapVPPEndLogicalName          = "tap-vpp2"
 	tapVPPEndName                 = "vpp2"

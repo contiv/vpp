@@ -54,7 +54,7 @@ func (s *remoteCNIserver) routePODsFromHost(nextHopIP string) *linux_l3.LinuxSta
 		GwAddr:    nextHopIP,
 	}
 	if s.useTAPInterfaces {
-		route.Interface = tapHostEndName
+		route.Interface = tapHostEndLogicalName
 	}
 	return route
 }
@@ -73,7 +73,7 @@ func (s *remoteCNIserver) routeServicesFromHost(nextHopIP string) *linux_l3.Linu
 		GwAddr:    nextHopIP,
 	}
 	if s.useTAPInterfaces {
-		route.Interface = tapHostEndName
+		route.Interface = tapHostEndLogicalName
 	}
 	return route
 }

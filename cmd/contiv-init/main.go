@@ -111,7 +111,7 @@ func releaseNIC(nicName string) error {
 
 // parseSTNConfig parses the config file and looks up for STN configuration.
 // In case that STN was requested for this node, returns the interface to be stealed and optionally its name on VPP.
-func parseSTNConfig() (config *contiv.Config, nicToSteal string, vppIfName string, err error) {
+func parseSTNConfig() (config *contiv.Config, nicToSteal string, vppIfName string, useDHCP bool, err error) {
 
 	// read config YAML
 	yamlFile, err := ioutil.ReadFile(*contivCfgFile)
@@ -135,11 +135,18 @@ func parseSTNConfig() (config *contiv.Config, nicToSteal string, vppIfName strin
 	nodeName := os.Getenv(servicelabel.MicroserviceLabelEnvVar)
 	logger.Debugf("Looking for node '%s' specific config", nodeName)
 
+	if config.IPAMConfig.NodeInterconnectDHCP == true {
+		useDHCP = true
+	}
+
 	for _, nc := range config.NodeConfig {
 		if nc.NodeName == nodeName {
 			logger.Debugf("Found interface to be stealed: %s", nc.StealInterface)
 			nicToSteal = nc.StealInterface
 			vppIfName = nc.MainVPPInterface.InterfaceName
+			if nc.MainVPPInterface.UseDHCP == true {
+				useDHCP = true
+			}
 			return
 		}
 	}
@@ -153,7 +160,7 @@ func main() {
 	logger.Debugf("Starting contiv-init process")
 
 	// check whether STN is required and get NIC name
-	contivCfg, nicToSteal, vppIfName, err := parseSTNConfig()
+	contivCfg, nicToSteal, vppIfName, useDHCP, err := parseSTNConfig()
 	if err != nil {
 		logger.Errorf("Error by parsing STN config: %v", err)
 		os.Exit(-1)
@@ -185,14 +192,14 @@ func main() {
 
 	if nicToSteal != "" {
 		// configure connectivity on VPP
-		vppCfg, err := configureVpp(contivCfg, stnData, vppIfName)
+		vppCfg, err := configureVpp(contivCfg, stnData, vppIfName, useDHCP)
 		if err != nil {
 			logger.Errorf("Error by configuring VPP: %v", err)
 			os.Exit(-1)
 		}
 
 		// persist VPP config in ETCD
-		err = persistVppConfig(contivCfg, stnData, vppCfg)
+		err = persistVppConfig(contivCfg, stnData, vppCfg, useDHCP)
 		if err != nil {
 			logger.Errorf("Error by persisting VPP config in ETCD: %v", err)
 			os.Exit(-1)

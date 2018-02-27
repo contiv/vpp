@@ -403,7 +403,7 @@ func (s *remoteCNIserver) configureMainVPPInterface(config *vswitchConfig, nicNa
 	}
 
 	// determine main node IP address
-	if useDHCP {
+	if !useSTN && useDHCP {
 		// ip address will be assigned by DHCP server, not known yet
 		s.Logger.Infof("Configuring %v to use dhcp", nicName)
 	} else if nicIP != "" {
@@ -455,7 +455,7 @@ func (s *remoteCNIserver) configureMainVPPInterface(config *vswitchConfig, nicNa
 		}
 	}
 
-	if useDHCP {
+	if !useSTN && useDHCP {
 		err = s.configureDHCP(nicName)
 		if err != nil {
 			s.Logger.Error(err)

@@ -408,17 +408,17 @@ func (s *stnServer) setLinkIP(link netlink.Link, addr netlink.Addr) error {
 
 // addLinkRoute adds a new route referring the provided link. It also checks whether the config has been succesfully applied and retries if not.
 func (s *stnServer) addLinkRoute(link netlink.Link, route netlink.Route) error {
-	log.Printf("Adding route to %s for interface %s", route.Dst.String(), link.Attrs().Name)
+	log.Printf("Adding route via interface %s: %v", link.Attrs().Name, route)
 
 	for i := 0; i < configRetryCount; i++ {
 		// configure the route
 		err := netlink.RouteAdd(&route)
 		if err != nil {
 			if errno, ok := err.(syscall.Errno); ok && errno == syscall.EEXIST {
-				log.Printf("%s: route to %s already exists, skipping", link.Attrs().Name, route.Dst.IP.String())
+				log.Printf("%s: route already exists, skipping (%v)", link.Attrs().Name, route)
 				return nil
 			}
-			log.Printf("Error by reverting interface %s route to %s: %v", link.Attrs().Name, route.Dst.IP.String(), err)
+			log.Printf("Error by reverting interface %s route %v: %v", link.Attrs().Name, route, err)
 			return err
 		}
 
@@ -441,7 +441,7 @@ func (s *stnServer) addLinkRoute(link netlink.Link, route netlink.Route) error {
 			continue
 		} else {
 			// not able to configure in multiple retries
-			log.Printf("Error by reverting interface %s route to %s in %d retries", link.Attrs().Name, route.Dst.IP.String(), i+1)
+			log.Printf("Error by reverting interface %s route %v in %d retries", link.Attrs().Name, route, i+1)
 			return err
 		}
 	}
@@ -533,8 +533,9 @@ func (s *stnServer) grpcReplyData(ifData *interfaceData) *stn.STNReply {
 
 	// fill-in routes
 	for _, r := range ifData.routes {
-		route := &stn.STNReply_Route{
-			DestinationSubnet: r.Dst.String(),
+		route := &stn.STNReply_Route{}
+		if r.Dst != nil {
+			route.DestinationSubnet = r.Dst.String()
 		}
 		if len(r.Gw) != 0 {
 			route.NextHopIp = r.Gw.String()

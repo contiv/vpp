@@ -32,7 +32,12 @@ data:
       VPPHostNetworkPrefixLen: 24
       NodeInterconnectCIDR: 192.168.16.0/24
       VxlanCIDR: 192.168.30.0/24
-      NodeInterconnectDHCP: False
+      NodeInterconnectDHCP: True
+    NodeConfig:
+    - NodeName: "ubuntu-1"
+      StealInterface: "enp0s3"
+    - NodeName: "ubuntu-2"
+      StealInterface: "enp0s3"
   logs.conf: |
     defaultlevel: debug
 

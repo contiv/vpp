@@ -20,6 +20,7 @@ import (
 	"net"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/ligato/cn-infra/config"
 	"github.com/ligato/cn-infra/db/keyval"
@@ -30,18 +31,21 @@ import (
 	"git.fd.io/govpp.git/api"
 	govpp "git.fd.io/govpp.git/core"
 
-	if_binapi "github.com/ligato/vpp-agent/plugins/defaultplugins/common/bin_api/interfaces"
-	ip_binapi "github.com/ligato/vpp-agent/plugins/defaultplugins/common/bin_api/ip"
-	"github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/interfaces"
-	"github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/l3"
-	stn_nb "github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/stn"
 	if_vppcalls "github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/vppcalls"
 	l3_vppcalls "github.com/ligato/vpp-agent/plugins/defaultplugins/l3plugin/vppcalls"
 	"github.com/ligato/vpp-agent/plugins/govppmux"
-	if_linux "github.com/ligato/vpp-agent/plugins/linuxplugin/common/model/interfaces"
-	l3_linux "github.com/ligato/vpp-agent/plugins/linuxplugin/common/model/l3"
 	if_linuxcalls "github.com/ligato/vpp-agent/plugins/linuxplugin/ifplugin/linuxcalls"
 	l3_linuxcalls "github.com/ligato/vpp-agent/plugins/linuxplugin/l3plugin/linuxcalls"
+
+	"github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/interfaces"
+	"github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/l3"
+	stn_nb "github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/stn"
+	if_linux "github.com/ligato/vpp-agent/plugins/linuxplugin/common/model/interfaces"
+	l3_linux "github.com/ligato/vpp-agent/plugins/linuxplugin/common/model/l3"
+
+	"github.com/contiv/vpp/plugins/contiv/bin_api/dhcp"
+	if_binapi "github.com/ligato/vpp-agent/plugins/defaultplugins/common/bin_api/interfaces"
+	ip_binapi "github.com/ligato/vpp-agent/plugins/defaultplugins/common/bin_api/ip"
 
 	"github.com/apparentlymart/go-cidr/cidr"
 	"github.com/contiv/vpp/cmd/contiv-stn/model/stn"
@@ -50,9 +54,10 @@ import (
 )
 
 const (
-	tapHostEndMacAddr = "00:00:00:00:00:02" // requirement of the VPP STN plugin
-
-	etcdConnectionRetries = 20 // number of retries to connect to ETCD once STN is configured
+	tapHostEndMacAddr       = "00:00:00:00:00:02" // requirement of the VPP STN plugin
+	etcdConnectionRetries   = 20                  // number of retries to connect to ETCD once STN is configured
+	dhcpTimeout             = 20 * time.Second    // timeout to wait for a DHCP offer after configuring DHCP on the interface
+	defaultRouteDestination = "0.0.0.0/0"
 )
 
 type vppCfgCtx struct {
@@ -63,7 +68,7 @@ type vppCfgCtx struct {
 }
 
 // configureVpp configures main interface and vpp-host interconnect based on provided STN information.
-func configureVpp(contivCfg *contiv.Config, stnData *stn.STNReply, vppIfName string) (*vppCfgCtx, error) {
+func configureVpp(contivCfg *contiv.Config, stnData *stn.STNReply, vppIfName string, useDHCP bool) (*vppCfgCtx, error) {
 	var err error
 
 	// connect to VPP
@@ -105,37 +110,80 @@ func configureVpp(contivCfg *contiv.Config, stnData *stn.STNReply, vppIfName str
 		return nil, err
 	}
 
-	// interface IPs
-	for _, stnAddr := range stnData.IpAddresses {
-		ip, addr, _ := net.ParseCIDR(stnAddr)
+	// save main interface IP
+	if len(stnData.IpAddresses) > 0 {
+		ip, addr, _ := net.ParseCIDR(stnData.IpAddresses[0])
 		cfg.mainIPNet = &net.IPNet{IP: addr.IP, Mask: addr.Mask} // deep copy
 		addr.IP = ip
 		cfg.mainIP = addr
-
-		err = if_vppcalls.AddInterfaceIP(cfg.mainIfIdx, addr, ch, nil)
-		if err != nil {
-			logger.Errorf("Error by configuring interface IP: %v", err)
-			return nil, err
-		}
 	}
 
-	// interface routes
-	for _, stnRoute := range stnData.Routes {
-		if stnRoute.NextHopIp == "" {
-			continue // skip routes with no next hop IP (link-local)
-		}
-		dstIP, dstAddr, _ := net.ParseCIDR(stnRoute.DestinationSubnet)
-		dstAddr.IP = dstIP
-		nextHopIP := net.ParseIP(stnRoute.NextHopIp)
+	if useDHCP {
+		// DHCP-based interface configuration
 
-		err = l3_vppcalls.VppAddRoute(&l3_vppcalls.Route{
-			DstAddr:     *dstAddr,
-			NextHopAddr: nextHopIP,
-			OutIface:    cfg.mainIfIdx,
-		}, ch, nil)
+		// configure DHCP on the interface
+		ipChan, err := configureDHCP(ch, cfg.mainIfIdx)
 		if err != nil {
-			logger.Errorf("Error by configuring route: %v", err)
+			logger.Errorf("Error by configuring DHCP on the interface %s: %v", cfg.mainIfName, err)
 			return nil, err
+		}
+
+		// wait for the IP address retrieval
+		var ip string
+		select {
+		case ip = <-ipChan:
+			logger.Debugf("IP retrieved from DHCP: %s", ip)
+		case <-time.After(dhcpTimeout):
+			logger.Errorf("Error by configuring DHCP on the interface %s: No address retrieved within %d seconds", dhcpTimeout/time.Second)
+			return nil, fmt.Errorf("DHCP timeout")
+		}
+
+		// if there was no IP on the interface previously, use DHCP one
+		if cfg.mainIP == nil {
+			ip, addr, _ := net.ParseCIDR(ip)
+			cfg.mainIPNet = &net.IPNet{IP: addr.IP, Mask: addr.Mask} // deep copy
+			addr.IP = ip
+			cfg.mainIP = addr
+		}
+
+		// the retrieved address must match with the original one
+		if ip != cfg.mainIP.String() {
+			logger.Errorf("The address retrieved from DHCP (%s) does not match with original address (%s)", ip, cfg.mainIP.String())
+			return nil, fmt.Errorf("IP address mismatch")
+		}
+	} else {
+		// static IP -based interface configuration
+
+		// interface IPs
+		for _, stnAddr := range stnData.IpAddresses {
+			ip, addr, _ := net.ParseCIDR(stnAddr)
+			addr.IP = ip
+
+			err = if_vppcalls.AddInterfaceIP(cfg.mainIfIdx, addr, ch, nil)
+			if err != nil {
+				logger.Errorf("Error by configuring interface IP: %v", err)
+				return nil, err
+			}
+		}
+
+		// interface routes
+		for _, stnRoute := range stnData.Routes {
+			if stnRoute.NextHopIp == "" {
+				continue // skip routes with no next hop IP (link-local)
+			}
+			dstIP, dstAddr, _ := net.ParseCIDR(stnRoute.DestinationSubnet)
+			dstAddr.IP = dstIP
+			nextHopIP := net.ParseIP(stnRoute.NextHopIp)
+
+			err = l3_vppcalls.VppAddRoute(&l3_vppcalls.Route{
+				DstAddr:     *dstAddr,
+				NextHopAddr: nextHopIP,
+				OutIface:    cfg.mainIfIdx,
+			}, ch, nil)
+			if err != nil {
+				logger.Errorf("Error by configuring route: %v", err)
+				return nil, err
+			}
 		}
 	}
 
@@ -206,8 +254,14 @@ func configureVpp(contivCfg *contiv.Config, stnData *stn.STNReply, vppIfName str
 		if stnRoute.NextHopIp == "" {
 			continue // skip routes with no next hop IP (link-local)
 		}
-		dstIP, dstAddr, _ := net.ParseCIDR(stnRoute.DestinationSubnet)
-		dstAddr.IP = dstIP
+		var dstIP net.IP
+		var dstAddr *net.IPNet
+		if stnRoute.DestinationSubnet != "" {
+			dstIP, dstAddr, _ = net.ParseCIDR(stnRoute.DestinationSubnet)
+			dstAddr.IP = dstIP
+		} else {
+			_, dstAddr, _ = net.ParseCIDR(defaultRouteDestination)
+		}
 		nextHopIP := net.ParseIP(stnRoute.NextHopIp)
 
 		err = l3_linuxcalls.AddStaticRoute(
@@ -229,7 +283,7 @@ func configureVpp(contivCfg *contiv.Config, stnData *stn.STNReply, vppIfName str
 }
 
 // persistVppConfig persists VPP configuration in ETCD.
-func persistVppConfig(contivCfg *contiv.Config, stnData *stn.STNReply, cfg *vppCfgCtx) error {
+func persistVppConfig(contivCfg *contiv.Config, stnData *stn.STNReply, cfg *vppCfgCtx, useDHCP bool) error {
 	etcdConfig := &etcdv3.Config{}
 
 	// parse ETCD config file
@@ -256,6 +310,9 @@ func persistVppConfig(contivCfg *contiv.Config, stnData *stn.STNReply, cfg *vppC
 				return err
 			}
 			logger.Debugf("ETCD connection retry n. %d", i+1)
+		} else {
+			// connected
+			break
 		}
 	}
 
@@ -272,6 +329,10 @@ func persistVppConfig(contivCfg *contiv.Config, stnData *stn.STNReply, cfg *vppC
 	for _, stnAddr := range stnData.IpAddresses {
 		ifCfg.IpAddresses = append(ifCfg.IpAddresses, stnAddr)
 	}
+	// TODO: re-enable after fixing of resync in vpp-agent
+	//if useDHCP {
+	//	ifCfg.SetDhcpClient = true
+	//}
 	err = pb.Put(interfaces.InterfaceKey(ifCfg.Name), ifCfg)
 	if err != nil {
 		logger.Errorf("Error by persisting the main interface config: %v", err)
@@ -287,6 +348,9 @@ func persistVppConfig(contivCfg *contiv.Config, stnData *stn.STNReply, cfg *vppC
 			DstIpAddr:         stnRoute.DestinationSubnet,
 			NextHopAddr:       stnRoute.NextHopIp,
 			OutgoingInterface: ifCfg.Name,
+		}
+		if r.DstIpAddr == "" {
+			r.DstIpAddr = defaultRouteDestination
 		}
 		err = pb.Put(l3.RouteKey(r.VrfId, r.DstIpAddr, r.NextHopAddr), r)
 		if err != nil {
@@ -354,12 +418,15 @@ func persistVppConfig(contivCfg *contiv.Config, stnData *stn.STNReply, cfg *vppC
 			GwAddr:    stnRoute.NextHopIp,
 			Interface: contiv.TapHostEndLogicalName,
 		}
+		if route.DstIpAddr == "" {
+			route.Name = fmt.Sprintf("route-to-%s", defaultRouteDestination)
+			route.DstIpAddr = defaultRouteDestination
+		}
 		err = pb.Put(l3_linux.StaticRouteKey(route.Name), route)
 		if err != nil {
 			logger.Errorf("Error by persisting TAP interface config %v", err)
 			return err
 		}
-
 	}
 
 	return nil
@@ -426,4 +493,58 @@ func enableArpProxy(ch *api.Channel, loAddr net.IP, hiAddr net.IP, ifIdx uint32)
 	}
 
 	return nil
+}
+
+// configureDHCP configures DHCP on an interface on VPP. Returns Go channel where assigned IP will be delivered.
+func configureDHCP(ch *api.Channel, ifIdx uint32) (chan string, error) {
+	dhcpNotifChan := make(chan api.Message)
+	dhcpIPChan := make(chan string)
+
+	logger.Debugf("Enabling DHCP on the interface idx %d", ifIdx)
+
+	// subscribe for the DHCP notifications from VPP
+	_, err := ch.SubscribeNotification(dhcpNotifChan, dhcp.NewDhcpComplEvent)
+	if err != nil {
+		return nil, err
+	}
+
+	req := &dhcp.DhcpClientConfig{
+		SwIfIndex:     ifIdx,
+		IsAdd:         1,
+		WantDhcpEvent: 1,
+	}
+	reply := &dhcp.DhcpClientConfigReply{}
+
+	// configure DHCP on the interface
+	err = ch.SendRequest(req).ReceiveReply(reply)
+	if err != nil {
+		return nil, err
+	}
+
+	// asynchronously handle DHCP notifications
+	go handleDHCPNotifications(dhcpNotifChan, dhcpIPChan)
+	return dhcpIPChan, nil
+}
+
+// handleDHCPNotifications handles DHCP state change notifications.
+func handleDHCPNotifications(notifCh chan api.Message, dhcpIPChan chan string) {
+	for {
+		select {
+		case msg := <-notifCh:
+			switch notif := msg.(type) {
+			case *dhcp.DhcpComplEvent:
+				var ipAddr string
+				if notif.IsIpv6 == 1 {
+					ipAddr = fmt.Sprintf("%s/%d", net.IP(notif.HostAddress).To16().String(), notif.MaskWidth)
+				} else {
+					ipAddr = fmt.Sprintf("%s/%d", net.IP(notif.HostAddress[:4]).To4().String(), notif.MaskWidth)
+				}
+				logger.Infof("DHCP event: %v, IP: %s", *notif, ipAddr)
+				// send the IP via channel
+				dhcpIPChan <- ipAddr
+				// we can return the go routine, we do not support later changes of the IP
+				return
+			}
+		}
+	}
 }

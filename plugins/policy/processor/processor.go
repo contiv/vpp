@@ -202,18 +202,10 @@ func (pp *PolicyProcessor) UpdatePod(podID podmodel.ID, oldPod, newPod *podmodel
 		"old-pod": oldPod,
 	}).Info("Pod was updated")
 
+	// No action if Pod belongs to kube-system namespace
 	if newPod.Namespace == "kube-system" {
-		if oldPod.IpAddress == newPod.IpAddress {
-			// No action if Pod belongs to kube-system namespace and the pod IP has not changed.
-			pp.Log.WithField("pod", newPod).Info(
-				"Pod belongs to kube-system namespace and its IP has not changed, ignoring")
-			return nil
-		}
-		// Re-build policies for all pods.
-		// Effectivelly only those with EGRESS policies attached will undergo any changes.
-		pp.Log.WithField("pod", newPod).Info(
-			"IP address of a pod from kube-system namespace has changed -> re-building egress policies")
-		return pp.Process(false, pp.Cache.ListAllPods())
+		pp.Log.WithField("pod", newPod).Info("Pod belongs to kube-system namespace, ignoring")
+		return nil
 	}
 
 	if newPod.IpAddress != "" {

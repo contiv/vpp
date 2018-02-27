@@ -112,7 +112,7 @@ func configureVpp(contivCfg *contiv.Config, stnData *stn.STNReply, vppIfName str
 		addr.IP = ip
 		cfg.mainIP = addr
 
-		err = if_vppcalls.AddInterfaceIP(cfg.mainIfIdx, addr, logger, ch, nil)
+		err = if_vppcalls.AddInterfaceIP(cfg.mainIfIdx, addr, ch, nil)
 		if err != nil {
 			logger.Errorf("Error by configuring interface IP: %v", err)
 			return nil, err
@@ -151,7 +151,7 @@ func configureVpp(contivCfg *contiv.Config, stnData *stn.STNReply, vppIfName str
 		return nil, err
 	}
 
-	err = if_vppcalls.SetInterfaceMac(tapIdx, contiv.HostInterconnectMAC, logger, ch, nil)
+	err = if_vppcalls.SetInterfaceMac(tapIdx, contiv.HostInterconnectMAC, ch, nil)
 	if err != nil {
 		logger.Errorf("Error by setting the MAC for TAP: %v", err)
 		return nil, err
@@ -163,14 +163,14 @@ func configureVpp(contivCfg *contiv.Config, stnData *stn.STNReply, vppIfName str
 		return nil, err
 	}
 
-	if_vppcalls.SetUnnumberedIP(tapIdx, cfg.mainIfIdx, logger, ch, nil)
+	if_vppcalls.SetUnnumberedIP(tapIdx, cfg.mainIfIdx, ch, nil)
 	if err != nil {
 		logger.Errorf("Error by setting the TAP intrerface as unnumbered: %v", err)
 		return nil, err
 	}
 
 	// interconnect STN
-	if_vppcalls.AddStnRule(tapIdx, &cfg.mainIP.IP, logger, ch, nil)
+	if_vppcalls.AddStnRule(tapIdx, &cfg.mainIP.IP, ch, nil)
 	if err != nil {
 		logger.Errorf("Error by adding STN rule: %v", err)
 		return nil, err

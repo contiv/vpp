@@ -141,9 +141,32 @@ func (pp *PolicyProcessor) Resync(data *cache.DataResyncEvent) error {
 func (pp *PolicyProcessor) AddPod(podID podmodel.ID, pod *podmodel.Pod) error {
 	pp.Log.WithField("pod", pod).Info("Pod was added")
 
+	// Remember pod IP.
 	if pod.IpAddress == "" {
 		pp.Log.WithField("add-pod", pod).Info("Pod does not have an IP Address assigned yet")
 		return nil
+	}
+	pp.podIPAddressMap[podID] = net.ParseIP(pod.IpAddress)
+
+	// For every matched policy, find all the pods that have the policy attached.
+	pods := []podmodel.ID{}
+	podPolicies := pp.getPoliciesAssignedToPod(pod)
+	for _, policy := range podPolicies {
+		pods = append(pods, pp.getPodsAssignedToPolicy(policy)...)
+	}
+
+	// Update newly added pod as well.
+	pods = append(pods, podID)
+	pods = utils.RemoveDuplicatePodIDs(pods)
+
+	// Re-configure only pods that belong to the current node.
+	hostPods := pp.filterHostPods(pods)
+
+	pp.Log.WithField("add-pod", pod).
+		Infof("Pods sent to Process: %+v", hostPods)
+
+	if len(hostPods) > 0 {
+		return pp.Process(false, hostPods)
 	}
 
 	return nil
@@ -156,6 +179,7 @@ func (pp *PolicyProcessor) DelPod(podID podmodel.ID, pod *podmodel.Pod) error {
 		"del-pod": pod,
 	}).Info("Pod was removed")
 
+	// For every matched policy (before removal), find all the pods that have the policy attached.
 	pods := []podmodel.ID{}
 	podPolicies := pp.getPoliciesAssignedToPod(pod)
 	for _, policy := range podPolicies {
@@ -193,6 +217,7 @@ func (pp *PolicyProcessor) UpdatePod(podID podmodel.ID, oldPod, newPod *podmodel
 		"old-pod": oldPod,
 	}).Info("Pod was updated")
 
+	// Remember pod IP if it was added / has changed.
 	if newPod.IpAddress != "" {
 		pp.podIPAddressMap[podID] = net.ParseIP(newPod.IpAddress)
 	} else {

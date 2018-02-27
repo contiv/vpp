@@ -1027,7 +1027,35 @@ func (s *remoteCNIserver) configurePodInterface(request *cni.CNIRequest, podIP n
 // unconfigurePodInterface unconfigures POD's network interface and its routes + ARPs.
 func (s *remoteCNIserver) unconfigurePodInterface(request *cni.CNIRequest, config *containeridx.Config) error {
 
-	// prepare the config transaction
+	// removal of configuration is split into multiple transactions because the order of delete operations
+	// in a transaction can not be guaranteed. If the interface is deleted before routes and arp entries,
+	// they are deleted automatically and follow up attempt to delete them results into errors.
+
+	if !s.test {
+		// prepare the config transaction
+		txn1 := s.vppTxnFactory().Delete()
+
+		// delete static routes
+		txn1.LinuxRoute(config.PodLinkRoute.Name).
+			LinuxRoute(config.PodDefaultRoute.Name)
+
+		// delete the ARP entry
+		txn1.LinuxArpEntry(config.PodARPEntry.Name)
+		err := txn1.Send().ReceiveReply()
+		if err != nil {
+			s.Logger.Error(err)
+			return err
+		}
+	}
+
+	if s.useTAPInterfaces {
+		err := s.vppTxnFactory().Delete().LinuxInterface(config.PodTap.Name).Send().ReceiveReply()
+		if err != nil {
+			s.Logger.Error(err)
+			return err
+		}
+	}
+
 	txn2 := s.vppTxnFactory().Delete()
 
 	// delete VPP to POD interconnect interface
@@ -1035,17 +1063,6 @@ func (s *remoteCNIserver) unconfigurePodInterface(request *cni.CNIRequest, confi
 	if !s.useTAPInterfaces {
 		txn2.LinuxInterface(config.Veth1.Name).
 			LinuxInterface(config.Veth2.Name)
-	} else {
-		txn2.LinuxInterface(config.PodTap.Name)
-	}
-
-	if !s.test {
-		// delete static routes
-		txn2.LinuxRoute(config.PodLinkRoute.Name).
-			LinuxRoute(config.PodDefaultRoute.Name)
-
-		// delete the ARP entry
-		txn2.LinuxArpEntry(config.PodARPEntry.Name)
 	}
 
 	// execute the config transaction

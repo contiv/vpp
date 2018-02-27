@@ -55,6 +55,23 @@ define test_only
 	@echo "# done"
 endef
 
+# run all tests with -race
+define test_race_only
+	@echo "# running unit tests with -race"
+	@go test ./cmd/contiv-cni -race -tags="${GO_BUILD_TAGS}"
+	@go test ./plugins/contiv -race -tags="${GO_BUILD_TAGS}"
+	@go test ./plugins/contiv/ipam -race -tags="${GO_BUILD_TAGS}"
+	@go test ./plugins/contiv/containeridx -race -tags="${GO_BUILD_TAGS}"
+	@go test ./plugins/kvdbproxy -race -tags="${GO_BUILD_TAGS}"
+	@go test ./plugins/ksr -race -tags="${GO_BUILD_TAGS}"
+	@go test ./plugins/policy/renderer/acl/cache -race -tags="${GO_BUILD_TAGS}"
+	@go test ./plugins/policy/renderer/acl -race -tags="${GO_BUILD_TAGS}"
+	@go test ./plugins/policy/configurator -race -tags="${GO_BUILD_TAGS}"
+	@go test ./plugins/policy/renderer/vpptcp/cache -race -tags="${GO_BUILD_TAGS}"
+	@go test ./plugins/policy/renderer/vpptcp -race -tags="${GO_BUILD_TAGS}"
+	@echo "# done"
+endef
+
 # run all tests with coverage
 define test_cover_only
 	@echo "# running unit tests with coverage analysis"
@@ -236,6 +253,10 @@ generate:
 # run tests
 test:
 	$(call test_only)
+
+# run tests
+test-race:
+	$(call test_race_only)
 
 # run tests with coverage report
 test-cover:

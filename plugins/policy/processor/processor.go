@@ -146,11 +146,6 @@ func (pp *PolicyProcessor) AddPod(podID podmodel.ID, pod *podmodel.Pod) error {
 		return nil
 	}
 
-	if pod.Namespace == "kube-system" {
-		pp.Log.WithField("add-pod", pod).Info("Pod belongs to kube-system namespace, ignoring")
-		return nil
-	}
-
 	return nil
 }
 
@@ -160,10 +155,6 @@ func (pp *PolicyProcessor) DelPod(podID podmodel.ID, pod *podmodel.Pod) error {
 		"podID":   podID,
 		"del-pod": pod,
 	}).Info("Pod was removed")
-	if pod.Namespace == "kube-system" {
-		pp.Log.WithField("pod", pod).Info("Pod belongs to kube-system namespace, ignoring")
-		return nil
-	}
 
 	pods := []podmodel.ID{}
 	podPolicies := pp.getPoliciesAssignedToPod(pod)
@@ -201,12 +192,6 @@ func (pp *PolicyProcessor) UpdatePod(podID podmodel.ID, oldPod, newPod *podmodel
 		"new-pod": newPod,
 		"old-pod": oldPod,
 	}).Info("Pod was updated")
-
-	// No action if Pod belongs to kube-system namespace
-	if newPod.Namespace == "kube-system" {
-		pp.Log.WithField("pod", newPod).Info("Pod belongs to kube-system namespace, ignoring")
-		return nil
-	}
 
 	if newPod.IpAddress != "" {
 		pp.podIPAddressMap[podID] = net.ParseIP(newPod.IpAddress)

@@ -58,7 +58,7 @@ type Reflector struct {
 	k8sStore cache.Store
 	// K8s controller
 	k8sController cache.Controller
-	// Reflector statistics
+	// Reflector gauges
 	stats ksrapi.KsrStats
 
 	prefix string
@@ -96,9 +96,13 @@ type ReflectorFunctions struct {
 	K8sClntGetFunc K8sClientGetter
 }
 
-// GetStats returns the Service Reflector usage statistics
+// GetStats returns the Service Reflector usage gauges
 func (r *Reflector) GetStats() *ksrapi.KsrStats {
-	return &r.stats
+	r.dsMutex.Lock()
+	defer r.dsMutex.Unlock()
+
+	retStats := r.stats
+	return &retStats
 }
 
 // Start activates the K8s subscription.
@@ -296,7 +300,7 @@ func (r *Reflector) startDataStoreResync() {
 					// Try to resync the data store with the K8s cache
 					err := r.syncDataStoreWithK8sCache(dsItemsCopy)
 					if err == nil {
-						r.Log.Infof("%s: data sync done, statistics %+v", r.objType, r.stats)
+						r.Log.Infof("%s: data sync done, gauges %+v", r.objType, r.stats)
 						break Loop
 					}
 					r.Log.Infof("%s data sync: syncDataStoreWithK8sCache failed, '%s'", r.objType, err)

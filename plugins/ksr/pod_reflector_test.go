@@ -168,7 +168,7 @@ func TestPodReflector(t *testing.T) {
 								Protocol:      "TCP",
 							},
 							{
-								Name:          "metrics",
+								Name:          "gauges",
 								ContainerPort: 0,
 								HostPort:      10055,
 								Protocol:      "TCP",

@@ -293,7 +293,7 @@ func testAddDeleteNode(t *testing.T) {
 		gomega.Ω(err).Should(gomega.Succeed())
 	}
 
-	nodeTestVars.nodeReflector.Log.Infof("%s: data sync done, statistics: %+v",
+	nodeTestVars.nodeReflector.Log.Infof("%s: data sync done, gauges: %+v",
 		nodeTestVars.nodeReflector.objType, nodeTestVars.nodeReflector.stats)
 }
 
@@ -337,7 +337,7 @@ func testUpdateNode(t *testing.T) {
 
 	checkNodeToProtoTranslation(t, protoNodeNew, k8sNodeNew)
 
-	nodeTestVars.nodeReflector.Log.Infof("%s: data sync done, statistics: %+v",
+	nodeTestVars.nodeReflector.Log.Infof("%s: data sync done, gauges: %+v",
 		nodeTestVars.nodeReflector.objType, nodeTestVars.nodeReflector.stats)
 
 }

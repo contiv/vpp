@@ -52,8 +52,6 @@ type Plugin struct {
 	k8sClientConfig *rest.Config
 	k8sClientset    *kubernetes.Clientset
 
-	StatusMonitor statuscheck.StatusReader
-
 	nsReflector        *NamespaceReflector
 	podReflector       *PodReflector
 	policyReflector    *PolicyReflector
@@ -63,7 +61,9 @@ type Plugin struct {
 
 	reflectorRegistry ReflectorRegistry
 
-	etcdMonitor EtcdMonitor
+	StatusMonitor  statuscheck.StatusReader
+	etcdMonitor    EtcdMonitor
+	StatsCollector StatsCollector
 }
 
 // EtcdMonitor defines the state data for the Etcd Monitor
@@ -193,6 +193,18 @@ func (plugin *Plugin) Init() error {
 		return err
 	}
 
+	plugin.StatsCollector.Log = plugin.Log.NewLogger("-metrics")
+	plugin.StatsCollector.serviceLabel = plugin.Publish.ServiceLabel.GetAgentLabel()
+	err = plugin.StatsCollector.Init()
+	if err != nil {
+		plugin.Log.WithField("rwErr", err).Error("Failed to initialize Stats Collector")
+		return err
+	}
+
+	for _, r := range plugin.reflectorRegistry.getRegisteredReflectors() {
+		plugin.StatsCollector.addReflector(r)
+	}
+
 	return nil
 }
 
@@ -201,6 +213,8 @@ func (plugin *Plugin) Init() error {
 // notification comes.
 func (plugin *Plugin) AfterInit() error {
 	plugin.reflectorRegistry.startReflectors()
+	plugin.StatsCollector.start(plugin.stopCh, plugin.reflectorRegistry)
+
 	go plugin.monitorEtcdStatus(plugin.stopCh)
 
 	return nil
@@ -271,7 +285,7 @@ func (etcdm *EtcdMonitor) processEtcdMonitorEvent(ns status.OperationalState) {
 
 // checkEtcdTransientError checks is there was a transient error that results
 // in data loss in Etcd. If yes, resync of all reflectors is triggered. As a
-// byproduct, this function periodically writes reflector statistics to Etcd.
+// byproduct, this function periodically writes reflector gauges to Etcd.
 func (etcdm *EtcdMonitor) checkEtcdTransientError() {
 	// Skip monitoring during data store resync
 	if !etcdm.rr.ksrHasSynced() {
@@ -279,7 +293,7 @@ func (etcdm *EtcdMonitor) checkEtcdTransientError() {
 	}
 
 	oldStats := ksrapi.Stats{}
-	found, rev, err := etcdm.broker.GetValue(ksrapi.Key("statistics"), &oldStats)
+	found, rev, err := etcdm.broker.GetValue(ksrapi.Key("gauges"), &oldStats)
 	if err != nil {
 		// We only detect loss of data in etcd here; other failures are
 		// detected by the plugin monitor.
@@ -296,5 +310,5 @@ func (etcdm *EtcdMonitor) checkEtcdTransientError() {
 		etcdm.rr.dataStoreUpEvent()
 	}
 	etcdm.lastRev = rev
-	etcdm.broker.Put(ksrapi.Key("statistics"), etcdm.rr.getKsrStats())
+	etcdm.broker.Put(ksrapi.Key("gauges"), etcdm.rr.getStats())
 }

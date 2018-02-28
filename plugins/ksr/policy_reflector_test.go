@@ -406,7 +406,7 @@ func testAddDeletePolicy(t *testing.T) {
 		gomega.Ω(err).Should(gomega.Succeed())
 	}
 
-	policyTestVars.policyReflector.Log.Infof("%s: data sync done, statistics: %+v",
+	policyTestVars.policyReflector.Log.Infof("%s: data sync done, gauges: %+v",
 		policyTestVars.policyReflector.objType, policyTestVars.policyReflector.stats)
 }
 
@@ -471,7 +471,7 @@ func testUpdatePolicy(t *testing.T) {
 
 	checkPolicyToProtoTranslation(t, protoPolicyNew, k8sPolicyNew)
 
-	policyTestVars.policyReflector.Log.Infof("%s: data sync done, statistics: %+v",
+	policyTestVars.policyReflector.Log.Infof("%s: data sync done, gauges: %+v",
 		policyTestVars.policyReflector.objType, policyTestVars.policyReflector.stats)
 }
 
@@ -512,7 +512,7 @@ func testResyncPolicyAddFail(t *testing.T) {
 		time.Sleep(time.Millisecond * 100)
 	}
 
-	policyTestVars.policyReflector.Log.Infof("*** data sync done:\nsSnap: %+v\nstatistics: %+v",
+	policyTestVars.policyReflector.Log.Infof("*** data sync done:\nsSnap: %+v\ngauges: %+v",
 		sSnap, policyTestVars.policyReflector.stats)
 
 	gomega.Expect(sSnap.Adds + 3).To(gomega.Equal(policyTestVars.policyReflector.GetStats().Adds))
@@ -572,7 +572,7 @@ func testResyncPolicyDeleteFail(t *testing.T) {
 		time.Sleep(time.Millisecond * 100)
 	}
 
-	policyTestVars.policyReflector.Log.Infof("*** data sync done:\nsSnap: %+v\nstatistics: %+v",
+	policyTestVars.policyReflector.Log.Infof("*** data sync done:\nsSnap: %+v\ngauges: %+v",
 		sSnap, policyTestVars.policyReflector.stats)
 
 	gomega.Expect(sSnap.Adds + 3).To(gomega.Equal(policyTestVars.policyReflector.GetStats().Adds))
@@ -664,7 +664,7 @@ func testResyncPolicyUpdateFail(t *testing.T) {
 		time.Sleep(time.Millisecond * 100)
 	}
 
-	policyTestVars.policyReflector.Log.Infof("*** data sync done:\nsSnap: %+v\nstatistics: %+v",
+	policyTestVars.policyReflector.Log.Infof("*** data sync done:\nsSnap: %+v\ngauges: %+v",
 		sSnap, policyTestVars.policyReflector.stats)
 
 	gomega.Expect(sSnap.Adds + 3).To(gomega.Equal(policyTestVars.policyReflector.GetStats().Adds))
@@ -737,7 +737,7 @@ func testResyncPolicyAddFailAndDataStoreDown(t *testing.T) {
 		time.Sleep(time.Millisecond * 100)
 	}
 
-	policyTestVars.policyReflector.Log.Infof("*** data sync done:\nsSnap: %+v\nstatistics: %+v",
+	policyTestVars.policyReflector.Log.Infof("*** data sync done:\nsSnap: %+v\ngauges: %+v",
 		sSnap, policyTestVars.policyReflector.stats)
 
 	gomega.Expect(sSnap.Adds + 3).To(gomega.Equal(policyTestVars.policyReflector.GetStats().Adds))
@@ -800,7 +800,7 @@ func testResyncPolicyDataStoreDownThenAdd(t *testing.T) {
 		time.Sleep(time.Millisecond * 100)
 	}
 
-	policyTestVars.policyReflector.Log.Infof("*** data sync done:\nsSnap: %+v\nstatistics: %+v",
+	policyTestVars.policyReflector.Log.Infof("*** data sync done:\nsSnap: %+v\ngauges: %+v",
 		sSnap, policyTestVars.policyReflector.stats)
 
 	gomega.Expect(sSnap.Adds + 3).To(gomega.Equal(policyTestVars.policyReflector.GetStats().Adds))
@@ -855,7 +855,7 @@ func testResyncPolicyTransientDsError(t *testing.T) {
 	// Do the initial check for transient errors
 	etcdMonitor.checkEtcdTransientError()
 
-	stsKey := ksrapi.Key("statistics")
+	stsKey := ksrapi.Key("gauges")
 	ksrStats := ksrapi.Stats{}
 	found, rev, err := policyTestVars.mockKvBroker.GetValue(stsKey, &ksrStats)
 	gomega.Expect(found).To(gomega.BeTrue())
@@ -886,7 +886,7 @@ func testResyncPolicyTransientDsError(t *testing.T) {
 		time.Sleep(time.Millisecond * 100)
 	}
 
-	policyTestVars.policyReflector.Log.Infof("*** data sync done:\nsSnap: %+v\nstatistics: %+v",
+	policyTestVars.policyReflector.Log.Infof("*** data sync done:\nsSnap: %+v\ngauges: %+v",
 		sSnap, policyTestVars.policyReflector.stats)
 
 	// Check that the data store resync happened and that we have have the

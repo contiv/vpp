@@ -20,11 +20,10 @@ import (
 	"sync"
 )
 
+// ReflectorRegistry defines the data structures for the KSR Reflector Registry
 type ReflectorRegistry struct {
-	// reflectors is the reflector registry
 	reflectors map[string]*Reflector
-	// reflector registry lock
-	lock sync.RWMutex
+	lock       sync.RWMutex
 }
 
 // dataStoreDownEvent starts all reflectors
@@ -77,6 +76,9 @@ func (rr *ReflectorRegistry) dataStoreUpEvent() {
 // ksrHasSynced determines if all reflectors have synced their respective K8s
 // caches with their respective data stores.
 func (rr *ReflectorRegistry) ksrHasSynced() bool {
+	rr.lock.RLock()
+	defer rr.lock.RUnlock()
+
 	for _, r := range rr.reflectors {
 		if !r.HasSynced() {
 			return false
@@ -85,8 +87,23 @@ func (rr *ReflectorRegistry) ksrHasSynced() bool {
 	return true
 }
 
-// getKsrStats() gets the global statistics from all reflectors
-func (rr *ReflectorRegistry) getKsrStats() *ksrapi.Stats {
+// getKsrStats returns gauges for a given reflector type
+func (rr *ReflectorRegistry) getKsrStats(key string) (*ksrapi.KsrStats, bool) {
+	rr.lock.RLock()
+	defer rr.lock.RUnlock()
+
+	reflector, found := rr.reflectors[key]
+	if found {
+		return reflector.GetStats(), found
+	}
+	return nil, false
+}
+
+// getStats() gets the global gauges from all reflectors
+func (rr *ReflectorRegistry) getStats() *ksrapi.Stats {
+	rr.lock.RLock()
+	defer rr.lock.RUnlock()
+
 	stats := ksrapi.Stats{}
 	for _, r := range rr.reflectors {
 		switch r.objType {
@@ -104,10 +121,26 @@ func (rr *ReflectorRegistry) getKsrStats() *ksrapi.Stats {
 			stats.NodeStats = r.GetStats()
 		default:
 			r.Log.WithField("ksrObjectType", r.objType).
-				Error("Plugin statistics sees unknown reflector object type")
+				Error("Plugin gauges sees unknown reflector object type")
 		}
 	}
 	return &stats
+}
+
+// getRegisteredReflectors returns the object types of all reflectors in
+// the registry.
+func (rr *ReflectorRegistry) getRegisteredReflectors() []string {
+	rr.lock.RLock()
+	defer rr.lock.RUnlock()
+
+	keys := make([]string, len(rr.reflectors))
+
+	i := 0
+	for k := range rr.reflectors {
+		keys[i] = k
+		i++
+	}
+	return keys
 }
 
 // addReflector adds a reflector to the registry

@@ -59,7 +59,7 @@ type Plugin struct {
 	endpointsReflector *EndpointsReflector
 	nodeReflector      *NodeReflector
 
-	reflectorRegistry ReflectorRegistry
+	reflectorRegistry *ReflectorRegistry
 
 	StatusMonitor  statuscheck.StatusReader
 	etcdMonitor    EtcdMonitor
@@ -107,7 +107,7 @@ func (plugin *Plugin) Init() error {
 	plugin.Log.SetLevel(logging.DebugLevel)
 	plugin.stopCh = make(chan struct{})
 
-	plugin.reflectorRegistry = ReflectorRegistry{
+	plugin.reflectorRegistry = &ReflectorRegistry{
 		lock:       sync.RWMutex{},
 		reflectors: make(map[string]*Reflector),
 	}
@@ -129,7 +129,7 @@ func (plugin *Plugin) Init() error {
 	plugin.etcdMonitor.broker = plugin.Publish.Deps.KvPlugin.NewBroker(ksrPrefix)
 	plugin.etcdMonitor.status = status.OperationalState_INIT
 	plugin.etcdMonitor.lastRev = 0
-	plugin.etcdMonitor.rr = &plugin.reflectorRegistry
+	plugin.etcdMonitor.rr = plugin.reflectorRegistry
 
 	broker := plugin.Publish.Deps.KvPlugin.NewBroker(ksrPrefix)
 
@@ -258,7 +258,7 @@ func (plugin *Plugin) newReflector(logName string, objType string, broker KeyPro
 		Broker:            broker,
 		dsSynced:          false,
 		objType:           objType,
-		ReflectorRegistry: &plugin.reflectorRegistry,
+		ReflectorRegistry: plugin.reflectorRegistry,
 	}
 }
 

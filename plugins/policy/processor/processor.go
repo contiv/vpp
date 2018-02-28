@@ -65,10 +65,21 @@ func (pp *PolicyProcessor) Init() error {
 // configuration. The order at which the pods are reconfigured or the order
 // of policies listed for a given pod are all irrelevant.
 func (pp *PolicyProcessor) Process(resync bool, pods []podmodel.ID) error {
-	txn := pp.Configurator.NewTxn(false)
-	processedPolicies := make(map[policymodel.ID]*config.ContivPolicy)
 	var contivPolicy *config.ContivPolicy
 	var alreadyProcessed bool
+
+	// Remove duplicate pods first.
+	pods = utils.RemoveDuplicatePodIDs(pods)
+
+	// Re-configure only pods that belong to the current node.
+	pods = pp.filterHostPods(pods)
+	if len(pods) == 0 {
+		return nil
+	}
+
+	txn := pp.Configurator.NewTxn(false)
+	processedPolicies := make(map[policymodel.ID]*config.ContivPolicy)
+	pp.Log.WithField("pods", pods).Info("Non-empty set of pods sent to Process")
 
 	for _, pod := range pods {
 		policies := []*config.ContivPolicy{}
@@ -127,6 +138,7 @@ func (pp *PolicyProcessor) Process(resync bool, pods []podmodel.ID) error {
 			Infof("Pod sent to Configurator: %+v, w/ Policies: %+v", pod, policies)
 		txn.Configure(pod, policies)
 	}
+
 	return txn.Commit()
 }
 
@@ -157,19 +169,8 @@ func (pp *PolicyProcessor) AddPod(podID podmodel.ID, pod *podmodel.Pod) error {
 
 	// Update newly added pod as well.
 	pods = append(pods, podID)
-	pods = utils.RemoveDuplicatePodIDs(pods)
 
-	// Re-configure only pods that belong to the current node.
-	hostPods := pp.filterHostPods(pods)
-
-	pp.Log.WithField("add-pod", pod).
-		Infof("Pods sent to Process: %+v", hostPods)
-
-	if len(hostPods) > 0 {
-		return pp.Process(false, hostPods)
-	}
-
-	return nil
+	return pp.Process(false, pods)
 }
 
 // DelPod processes the event of a removed pod (no action needed).
@@ -188,23 +189,15 @@ func (pp *PolicyProcessor) DelPod(podID podmodel.ID, pod *podmodel.Pod) error {
 
 	// Update deleted pod as well.
 	pods = append(pods, podID)
-	pods = utils.RemoveDuplicatePodIDs(pods)
 
-	// Re-configure only pods that belong to the current node.
-	hostPods := pp.filterHostPods(pods)
+	err := pp.Process(false, pods)
 
-	pp.Log.WithField("del-pod", pod).
-		Infof("Pods sent to Process: %+v", hostPods)
-
-	if len(hostPods) > 0 {
-		return pp.Process(false, hostPods)
-	}
-
+	// Remove remembered pod IP address.
 	if _, hadIP := pp.podIPAddressMap[podID]; hadIP {
 		delete(pp.podIPAddressMap, podID)
 	}
 
-	return nil
+	return err
 }
 
 // UpdatePod processes the event of changed pod data.
@@ -249,20 +242,7 @@ func (pp *PolicyProcessor) UpdatePod(podID podmodel.ID, oldPod, newPod *podmodel
 		pods = append(pods, podID)
 	}
 
-	// Remove duplicate pods.
-	pods = utils.RemoveDuplicatePodIDs(pods)
-
-	// Re-configure only pods that belong to the current node.
-	hostPods := pp.filterHostPods(pods)
-
-	pp.Log.WithField("update-pod", newPod).
-		Infof("Pods sent to Process: %+v", hostPods)
-
-	if len(hostPods) > 0 {
-		return pp.Process(false, hostPods)
-	}
-
-	return nil
+	return pp.Process(false, pods)
 }
 
 // AddPolicy processes the event of newly added policy.
@@ -279,16 +259,7 @@ func (pp *PolicyProcessor) AddPolicy(policy *policymodel.Policy) error {
 
 	// Find all the pods that match the newly added policy.
 	pods := pp.getPodsAssignedToPolicy(policy)
-
-	// Re-configure only pods that belong to the current node.
-	hostPods := pp.filterHostPods(pods)
-
-	if len(hostPods) > 0 {
-		pp.Log.WithField("add-policy", policy).
-			Infof("Pods sent to Process: %+v", hostPods)
-		return pp.Process(false, hostPods)
-	}
-	return nil
+	return pp.Process(false, pods)
 }
 
 // DelPolicy processes the event of a removed policy.
@@ -305,16 +276,7 @@ func (pp *PolicyProcessor) DelPolicy(policy *policymodel.Policy) error {
 
 	// Find all the pods that used to match the removed policy.
 	pods := pp.getPodsAssignedToPolicy(policy)
-
-	// Re-configure only pods that belong to the current node.
-	hostPods := pp.filterHostPods(pods)
-
-	if len(pods) > 0 {
-		pp.Log.WithField("del-policy", policy).
-			Infof("Pods sent to Process: %+v", hostPods)
-		return pp.Process(false, hostPods)
-	}
-	return nil
+	return pp.Process(false, pods)
 }
 
 // UpdatePolicy processes the event of changed policy data.
@@ -340,15 +302,8 @@ func (pp *PolicyProcessor) UpdatePolicy(oldPolicy, newPolicy *policymodel.Policy
 	pods := []podmodel.ID{}
 	pods = append(pods, pp.getPodsAssignedToPolicy(oldPolicy)...)
 	pods = append(pods, pp.getPodsAssignedToPolicy(newPolicy)...)
-	pods = utils.RemoveDuplicatePodIDs(pods)
 
-	// Re-configure only pods that belong to the current node.
-	hostPods := pp.filterHostPods(pods)
-
-	if len(pods) > 0 {
-		return pp.Process(false, hostPods)
-	}
-	return nil
+	return pp.Process(false, pods)
 }
 
 // AddNamespace processes the event of newly added namespace (no action needed).
@@ -390,19 +345,8 @@ func (pp *PolicyProcessor) UpdateNamespace(oldNs, newNs *nsmodel.Namespace) erro
 	for _, policy := range newPolicies {
 		pods = append(pods, pp.getPodsAssignedToPolicy(policy)...)
 	}
-	pods = utils.RemoveDuplicatePodIDs(pods)
 
-	// Re-configure only pods that belong to the current node.
-	hostPods := pp.filterHostPods(pods)
-
-	pp.Log.WithField("update-ns", newNs).
-		Infof("Pods sent to Process: %+v", hostPods)
-
-	if len(hostPods) > 0 {
-		return pp.Process(false, hostPods)
-	}
-
-	return nil
+	return pp.Process(false, pods)
 }
 
 // Close deallocates all resources held by the processor.

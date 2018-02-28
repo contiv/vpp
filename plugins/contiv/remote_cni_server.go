@@ -845,6 +845,18 @@ func (s *remoteCNIserver) unconfigureContainerConnectivity(request *cni.CNIReque
 // configurePodInterface configures POD's network interface and its routes + ARPs.
 func (s *remoteCNIserver) configurePodInterface(request *cni.CNIRequest, podIP net.IP, config *containeridx.Config) error {
 
+	// this is necessary for the latest docker where ipv6 is disabled by default.
+	// OS assigns automatically ipv6 addr to a newly created TAP. We
+	// try to reassign all IPs once interfaces is moved to a namespace. Without explicitly enabled ipv6,
+	// we receive an error while moving interface to a namespace.
+	if !s.test {
+		err := s.enableIPv6(request)
+		if err != nil {
+			s.Logger.Error("unable to enable ipv6 in the namespace")
+			return err
+		}
+	}
+
 	podIPCIDR := podIP.String() + "/32"
 	podIPNet := &net.IPNet{
 		IP:   podIP,

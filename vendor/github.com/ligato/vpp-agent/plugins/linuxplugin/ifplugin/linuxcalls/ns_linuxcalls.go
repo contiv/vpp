@@ -143,9 +143,6 @@ func SetInterfaceNamespace(ctx *NamespaceMgmtCtx, ifName string, namespace *intf
 		if err != nil {
 			if err.Error() == "file exists" {
 				continue
-			} else if len(ip) == net.IPv6len {
-				log.Warn("failed to add IPv6 addr", err)
-				continue
 			}
 			return fmt.Errorf("failed to assign IPv4 address to a Linux interface `%s`: %v", ifName, err)
 		}

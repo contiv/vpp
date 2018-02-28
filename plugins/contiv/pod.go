@@ -57,6 +57,31 @@ func (s *remoteCNIserver) disableTCPChecksumOffload(request *cni.CNIRequest) err
 	return nil
 }
 
+func (s *remoteCNIserver) enableIPv6(request *cni.CNIRequest) error {
+	// parse PID from the network namespace
+	pid, err := s.getPIDFromNwNsPath(request.NetworkNamespace)
+	if err != nil {
+		return err
+	}
+
+	// execute the sysctl in the namespace of given PID
+	cmdStr := fmt.Sprintf("nsenter -t %d -n sysctl net.ipv6.conf.all.disable_ipv6=0", pid)
+	s.Logger.Infof("Executing CMD: %s", cmdStr)
+
+	cmdArr := strings.Split(cmdStr, " ")
+	cmd := exec.Command("nsenter", cmdArr[1:]...)
+
+	// check the output of the exec
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		s.Logger.Errorf("CMD exec returned error: %v", err)
+		return err
+	}
+	s.Logger.Infof("CMD output: %s", output)
+
+	return nil
+}
+
 // getPIDFromNwNsPath returns PID of the main process of the given network namespace path
 func (s *remoteCNIserver) getPIDFromNwNsPath(ns string) (int, error) {
 	strArr := strings.Split(ns, "/")

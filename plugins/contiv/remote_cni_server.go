@@ -849,10 +849,12 @@ func (s *remoteCNIserver) configurePodInterface(request *cni.CNIRequest, podIP n
 	// OS assigns automatically ipv6 addr to a newly created TAP. We
 	// try to reassign all IPs once interfaces is moved to a namespace. Without explicitly enabled ipv6,
 	// we receive an error while moving interface to a namespace.
-	err := s.enableIPv6(request)
-	if err != nil {
-		s.Logger.Error("unable to enable ipv6 in the namespace")
-		return err
+	if !s.test {
+		err := s.enableIPv6(request)
+		if err != nil {
+			s.Logger.Error("unable to enable ipv6 in the namespace")
+			return err
+		}
 	}
 
 	podIPCIDR := podIP.String() + "/32"
@@ -897,7 +899,7 @@ func (s *remoteCNIserver) configurePodInterface(request *cni.CNIRequest, podIP n
 	txn1.LinuxArpEntry(config.PodARPEntry)
 
 	// execute the config transaction
-	err = txn1.Send().ReceiveReply()
+	err := txn1.Send().ReceiveReply()
 	if err != nil {
 		s.Logger.Error(err)
 		return err

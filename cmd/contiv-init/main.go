@@ -58,7 +58,7 @@ func init() {
 }
 
 // stealNIC requests stealing the specified NIC from the STN GRPC server.
-func stealNIC(nicName string) (*stn.STNReply, error) {
+func stealNIC(nicName string, useDHCP bool) (*stn.STNReply, error) {
 	logger.Debugf("Stealing the NIC: %s", nicName)
 
 	// connect to STN GRPC server
@@ -73,6 +73,7 @@ func stealNIC(nicName string) (*stn.STNReply, error) {
 	// request stealing the interface
 	reply, err := c.StealInterface(context.Background(), &stn.STNRequest{
 		InterfaceName: nicName,
+		DhcpEnabled:   useDHCP,
 	})
 	if err != nil {
 		logger.Errorf("Error by executing STN GRPC: %v", err)
@@ -84,7 +85,7 @@ func stealNIC(nicName string) (*stn.STNReply, error) {
 }
 
 // releaseNIC requests reverting the specified NIC to its original state using the STN GRPC server.
-func releaseNIC(nicName string) error {
+func releaseNIC(nicName string, useDHCP bool) error {
 	logger.Debugf("Releasing the NIC: %s", nicName)
 
 	// connect to STN GRPC server
@@ -99,6 +100,7 @@ func releaseNIC(nicName string) error {
 	// request release of the interface
 	reply, err := c.ReleaseInterface(context.Background(), &stn.STNRequest{
 		InterfaceName: nicName,
+		DhcpEnabled:   useDHCP,
 	})
 	if err != nil {
 		logger.Errorf("Error by executing STN GRPC: %v", err)
@@ -169,7 +171,7 @@ func main() {
 	var stnData *stn.STNReply
 	if nicToSteal != "" {
 		// steal the NIC
-		stnData, err = stealNIC(nicToSteal)
+		stnData, err = stealNIC(nicToSteal, useDHCP)
 		if err != nil {
 			logger.Warnf("Error by stealing the NIC %s: %v", nicToSteal, err)
 			// do not fail of STN was not succesfull
@@ -222,6 +224,6 @@ func main() {
 
 	// request releasing the NIC
 	if nicToSteal != "" {
-		releaseNIC(nicToSteal)
+		releaseNIC(nicToSteal, useDHCP)
 	}
 }

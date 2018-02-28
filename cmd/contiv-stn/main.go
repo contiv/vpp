@@ -62,12 +62,13 @@ type stnServer struct {
 
 // interfaceData holds information about an interface state before "stealing".
 type interfaceData struct {
-	name       string
-	PCIAddress string
-	driver     string
-	linkIndex  int
-	addresses  []netlink.Addr
-	routes     []netlink.Route
+	name        string
+	PCIAddress  string
+	driver      string
+	linkIndex   int
+	addresses   []netlink.Addr
+	routes      []netlink.Route
+	dhcpEnabled bool
 }
 
 // newSTNServer returns a new instance of the STN GRPC server.
@@ -83,7 +84,7 @@ func (s *stnServer) StealInterface(ctx context.Context, req *stn.STNRequest) (*s
 	log.Println("GRPC StealInterface request:", req)
 
 	// unconfigure the interface & remember the original config
-	ifData, err := s.unconfigureInterface(req.InterfaceName)
+	ifData, err := s.unconfigureInterface(req.InterfaceName, req.DhcpEnabled)
 	if err != nil {
 		log.Println(err)
 		return s.grpcReplyError(err), err
@@ -131,7 +132,7 @@ func (s *stnServer) StolenInterfaceInfo(ctx context.Context, req *stn.STNRequest
 }
 
 // unconfigureInterface "steals" an interface identified by its name and returns its original config.
-func (s *stnServer) unconfigureInterface(ifName string) (*interfaceData, error) {
+func (s *stnServer) unconfigureInterface(ifName string, dhcpEnabled bool) (*interfaceData, error) {
 	s.Lock()
 	defer s.Unlock()
 
@@ -156,6 +157,7 @@ func (s *stnServer) unconfigureInterface(ifName string) (*interfaceData, error) 
 			if err != nil {
 				return nil, err
 			}
+			ifData.dhcpEnabled = dhcpEnabled
 
 			// start asynchronous checking of the VPP-agent state
 			s.checkStatusAfterTimeout()
@@ -229,7 +231,14 @@ func (s *stnServer) unconfigureLink(l netlink.Link) (*interfaceData, error) {
 		}
 	}
 
-	// list & unconfigure IP addresses
+	// shut down the interface
+	err = netlink.LinkSetDown(l)
+	if err != nil {
+		log.Printf("Error by shutting down the interface %s: %v", ifData.name, err)
+		return nil, err
+	}
+
+	// list & unconfigure IP addresses (after shutting down, otherwise DHCP may return the IP back)
 	ifData.addresses, err = netlink.AddrList(l, netlink.FAMILY_V4)
 	if err != nil {
 		log.Printf("Error by listing interface %s addresses: %v", ifData.name, err)
@@ -241,13 +250,6 @@ func (s *stnServer) unconfigureLink(l netlink.Link) (*interfaceData, error) {
 			log.Printf("Error by deleting interface %s IP: %v", ifData.name, err)
 			return nil, err
 		}
-	}
-
-	// shut down the interface
-	err = netlink.LinkSetDown(l)
-	if err != nil {
-		log.Printf("Error by shutting down the interface %s: %v", ifData.name, err)
-		return nil, err
 	}
 
 	// remember stolen interface state
@@ -281,23 +283,27 @@ func (s *stnServer) revertLink(ifData *interfaceData) error {
 		return err
 	}
 
-	// configure IP addresses
-	for _, addr := range ifData.addresses {
-		err = s.setLinkIP(link, addr)
-		if err != nil {
-			log.Printf("Error by reverting interface %s IP: %v", ifData.name, err)
-			return err
+	if !ifData.dhcpEnabled {
+		// configure IP addresses
+		for _, addr := range ifData.addresses {
+			err = s.setLinkIP(link, addr)
+			if err != nil {
+				log.Printf("Error by reverting interface %s IP: %v", ifData.name, err)
+				return err
+			}
 		}
-	}
 
-	// configure routes
-	for _, r := range ifData.routes {
-		s.updateLinkInRoute(&r, ifData.linkIndex, link.Attrs().Index)
-		err = s.addLinkRoute(link, r)
-		if err != nil {
-			log.Printf("Error by reverting interface %s route: %v", ifData.name, err)
-			return err
+		// configure routes
+		for _, r := range ifData.routes {
+			s.updateLinkInRoute(&r, ifData.linkIndex, link.Attrs().Index)
+			err = s.addLinkRoute(link, r)
+			if err != nil {
+				log.Printf("Error by reverting interface %s route: %v", ifData.name, err)
+				return err
+			}
 		}
+	} else {
+		log.Printf("DHCP is enabled on the interface %s, leaving IP/route config up to the DHCP client.", ifData.name)
 	}
 
 	// delete the interface info

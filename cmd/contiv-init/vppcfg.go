@@ -134,7 +134,7 @@ func configureVpp(contivCfg *contiv.Config, stnData *stn.STNReply, vppIfName str
 		case ip = <-ipChan:
 			logger.Debugf("IP retrieved from DHCP: %s", ip)
 		case <-time.After(dhcpTimeout):
-			logger.Errorf("Error by configuring DHCP on the interface %s: No address retrieved within %d seconds", dhcpTimeout/time.Second)
+			logger.Errorf("Error by configuring DHCP on the interface %s: No address retrieved within %d seconds", cfg.mainIfName, dhcpTimeout/time.Second)
 			return nil, fmt.Errorf("DHCP timeout")
 		}
 
@@ -457,6 +457,10 @@ func findHwInterfaceIdx(ch *api.Channel) (uint32, string, error) {
 			logger.Debugf("Found HW interface %s, idx=%d", ifName, ifIdx)
 			// do not break the loop, we need read till the end
 		}
+	}
+
+	if ifName == "" {
+		return 0, "", fmt.Errorf("no HW interface found")
 	}
 	return ifIdx, ifName, nil
 }

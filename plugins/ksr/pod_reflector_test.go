@@ -31,10 +31,11 @@ import (
 )
 
 type PodTestVars struct {
-	k8sListWatch *mockK8sListWatch
-	mockKvBroker *mockKeyProtoValBroker
-	podReflector *PodReflector
-	podTestData  []coreV1.Pod
+	k8sListWatch      *mockK8sListWatch
+	mockKvBroker      *mockKeyProtoValBroker
+	podReflector      *PodReflector
+	podTestData       []coreV1.Pod
+	reflectorRegistry ReflectorRegistry
 }
 
 var podTestVars PodTestVars
@@ -48,14 +49,20 @@ func TestPodReflector(t *testing.T) {
 	podTestVars.k8sListWatch = &mockK8sListWatch{}
 	podTestVars.mockKvBroker = newMockKeyProtoValBroker()
 
+	podTestVars.reflectorRegistry = ReflectorRegistry{
+		reflectors: make(map[string]*Reflector),
+		lock:       sync.RWMutex{},
+	}
+
 	podTestVars.podReflector = &PodReflector{
 		Reflector: Reflector{
-			Log:          flavorLocal.LoggerFor("pod-reflector"),
-			K8sClientset: &kubernetes.Clientset{},
-			K8sListWatch: podTestVars.k8sListWatch,
-			Broker:       podTestVars.mockKvBroker,
-			dsSynced:     false,
-			objType:      podObjType,
+			Log:               flavorLocal.LoggerFor("pod-reflector"),
+			K8sClientset:      &kubernetes.Clientset{},
+			K8sListWatch:      podTestVars.k8sListWatch,
+			Broker:            podTestVars.mockKvBroker,
+			dsSynced:          false,
+			objType:           podObjType,
+			ReflectorRegistry: &podTestVars.reflectorRegistry,
 		},
 	}
 

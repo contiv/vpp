@@ -30,10 +30,11 @@ import (
 )
 
 type EndpointsTestVars struct {
-	k8sListWatch *mockK8sListWatch
-	mockKvBroker *mockKeyProtoValBroker
-	epsReflector *EndpointsReflector
-	epsTestData  []coreV1.Endpoints
+	k8sListWatch      *mockK8sListWatch
+	mockKvBroker      *mockKeyProtoValBroker
+	epsReflector      *EndpointsReflector
+	epsTestData       []coreV1.Endpoints
+	reflectorRegistry ReflectorRegistry
 }
 
 var epTestVars EndpointsTestVars
@@ -47,14 +48,20 @@ func TestEndpointsReflector(t *testing.T) {
 	epTestVars.k8sListWatch = &mockK8sListWatch{}
 	epTestVars.mockKvBroker = newMockKeyProtoValBroker()
 
+	epTestVars.reflectorRegistry = ReflectorRegistry{
+		reflectors: make(map[string]*Reflector),
+		lock:       sync.RWMutex{},
+	}
+
 	epTestVars.epsReflector = &EndpointsReflector{
 		Reflector: Reflector{
-			Log:          flavorLocal.LoggerFor("endpoints-reflector"),
-			K8sClientset: &kubernetes.Clientset{},
-			K8sListWatch: epTestVars.k8sListWatch,
-			Broker:       epTestVars.mockKvBroker,
-			dsSynced:     false,
-			objType:      endpointsObjType,
+			Log:               flavorLocal.LoggerFor("endpoints-reflector"),
+			K8sClientset:      &kubernetes.Clientset{},
+			K8sListWatch:      epTestVars.k8sListWatch,
+			Broker:            epTestVars.mockKvBroker,
+			dsSynced:          false,
+			objType:           endpointsObjType,
+			ReflectorRegistry: &epTestVars.reflectorRegistry,
 		},
 	}
 

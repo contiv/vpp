@@ -36,10 +36,11 @@ import (
 )
 
 type PolicyTestVars struct {
-	k8sListWatch    *mockK8sListWatch
-	mockKvBroker    *mockKeyProtoValBroker
-	policyReflector *PolicyReflector
-	policyTestData  []coreV1Beta1.NetworkPolicy
+	k8sListWatch      *mockK8sListWatch
+	mockKvBroker      *mockKeyProtoValBroker
+	policyReflector   *PolicyReflector
+	policyTestData    []coreV1Beta1.NetworkPolicy
+	reflectorRegistry ReflectorRegistry
 }
 
 var policyTestVars PolicyTestVars
@@ -53,14 +54,20 @@ func TestPolicyReflector(t *testing.T) {
 	policyTestVars.k8sListWatch = &mockK8sListWatch{}
 	policyTestVars.mockKvBroker = newMockKeyProtoValBroker()
 
+	policyTestVars.reflectorRegistry = ReflectorRegistry{
+		reflectors: make(map[string]*Reflector),
+		lock:       sync.RWMutex{},
+	}
+
 	policyTestVars.policyReflector = &PolicyReflector{
 		Reflector: Reflector{
-			Log:          flavorLocal.LoggerFor("policy-reflector"),
-			K8sClientset: &kubernetes.Clientset{},
-			K8sListWatch: policyTestVars.k8sListWatch,
-			Broker:       policyTestVars.mockKvBroker,
-			dsSynced:     false,
-			objType:      policyObjType,
+			Log:               flavorLocal.LoggerFor("policy-reflector"),
+			K8sClientset:      &kubernetes.Clientset{},
+			K8sListWatch:      policyTestVars.k8sListWatch,
+			Broker:            policyTestVars.mockKvBroker,
+			dsSynced:          false,
+			objType:           policyObjType,
+			ReflectorRegistry: &policyTestVars.reflectorRegistry,
 		},
 	}
 
@@ -296,8 +303,6 @@ func TestPolicyReflector(t *testing.T) {
 
 	// Clear the reflector list (i.e. apply the policy resync tests only to
 	// the policy reflector)
-	reflectors = make(map[string]*Reflector)
-
 	stopCh := make(chan struct{})
 	var wg sync.WaitGroup
 	err := policyTestVars.policyReflector.Init(stopCh, &wg)
@@ -401,7 +406,7 @@ func testAddDeletePolicy(t *testing.T) {
 		gomega.Ω(err).Should(gomega.Succeed())
 	}
 
-	policyTestVars.policyReflector.Log.Infof("%s: data sync done, stats: %+v",
+	policyTestVars.policyReflector.Log.Infof("%s: data sync done, statistics: %+v",
 		policyTestVars.policyReflector.objType, policyTestVars.policyReflector.stats)
 }
 
@@ -466,7 +471,7 @@ func testUpdatePolicy(t *testing.T) {
 
 	checkPolicyToProtoTranslation(t, protoPolicyNew, k8sPolicyNew)
 
-	policyTestVars.policyReflector.Log.Infof("%s: data sync done, stats: %+v",
+	policyTestVars.policyReflector.Log.Infof("%s: data sync done, statistics: %+v",
 		policyTestVars.policyReflector.objType, policyTestVars.policyReflector.stats)
 }
 
@@ -507,7 +512,7 @@ func testResyncPolicyAddFail(t *testing.T) {
 		time.Sleep(time.Millisecond * 100)
 	}
 
-	policyTestVars.policyReflector.Log.Infof("*** data sync done:\nsSnap: %+v\nstats: %+v",
+	policyTestVars.policyReflector.Log.Infof("*** data sync done:\nsSnap: %+v\nstatistics: %+v",
 		sSnap, policyTestVars.policyReflector.stats)
 
 	gomega.Expect(sSnap.Adds + 3).To(gomega.Equal(policyTestVars.policyReflector.GetStats().Adds))
@@ -567,7 +572,7 @@ func testResyncPolicyDeleteFail(t *testing.T) {
 		time.Sleep(time.Millisecond * 100)
 	}
 
-	policyTestVars.policyReflector.Log.Infof("*** data sync done:\nsSnap: %+v\nstats: %+v",
+	policyTestVars.policyReflector.Log.Infof("*** data sync done:\nsSnap: %+v\nstatistics: %+v",
 		sSnap, policyTestVars.policyReflector.stats)
 
 	gomega.Expect(sSnap.Adds + 3).To(gomega.Equal(policyTestVars.policyReflector.GetStats().Adds))
@@ -659,7 +664,7 @@ func testResyncPolicyUpdateFail(t *testing.T) {
 		time.Sleep(time.Millisecond * 100)
 	}
 
-	policyTestVars.policyReflector.Log.Infof("*** data sync done:\nsSnap: %+v\nstats: %+v",
+	policyTestVars.policyReflector.Log.Infof("*** data sync done:\nsSnap: %+v\nstatistics: %+v",
 		sSnap, policyTestVars.policyReflector.stats)
 
 	gomega.Expect(sSnap.Adds + 3).To(gomega.Equal(policyTestVars.policyReflector.GetStats().Adds))
@@ -718,10 +723,10 @@ func testResyncPolicyAddFailAndDataStoreDown(t *testing.T) {
 	// Emulate the data store down/up sequence
 	go func() {
 		time.Sleep(time.Second)
-		dataStoreDownEvent()
+		policyTestVars.reflectorRegistry.dataStoreDownEvent()
 		time.Sleep(time.Second)
 		policyTestVars.mockKvBroker.clearReadWriteError()
-		dataStoreUpEvent()
+		policyTestVars.reflectorRegistry.dataStoreUpEvent()
 	}()
 
 	// Wait for the resync to finish
@@ -732,7 +737,7 @@ func testResyncPolicyAddFailAndDataStoreDown(t *testing.T) {
 		time.Sleep(time.Millisecond * 100)
 	}
 
-	policyTestVars.policyReflector.Log.Infof("*** data sync done:\nsSnap: %+v\nstats: %+v",
+	policyTestVars.policyReflector.Log.Infof("*** data sync done:\nsSnap: %+v\nstatistics: %+v",
 		sSnap, policyTestVars.policyReflector.stats)
 
 	gomega.Expect(sSnap.Adds + 3).To(gomega.Equal(policyTestVars.policyReflector.GetStats().Adds))
@@ -776,6 +781,7 @@ func testResyncPolicyDataStoreDownThenAdd(t *testing.T) {
 		status:  status.OperationalState_OK,
 		lastRev: 0,
 		broker:  policyTestVars.mockKvBroker,
+		rr:      &policyTestVars.reflectorRegistry,
 	}
 
 	// Emulate a 'data store down' event
@@ -794,7 +800,7 @@ func testResyncPolicyDataStoreDownThenAdd(t *testing.T) {
 		time.Sleep(time.Millisecond * 100)
 	}
 
-	policyTestVars.policyReflector.Log.Infof("*** data sync done:\nsSnap: %+v\nstats: %+v",
+	policyTestVars.policyReflector.Log.Infof("*** data sync done:\nsSnap: %+v\nstatistics: %+v",
 		sSnap, policyTestVars.policyReflector.stats)
 
 	gomega.Expect(sSnap.Adds + 3).To(gomega.Equal(policyTestVars.policyReflector.GetStats().Adds))
@@ -843,6 +849,7 @@ func testResyncPolicyTransientDsError(t *testing.T) {
 		status:  status.OperationalState_OK,
 		lastRev: 0,
 		broker:  policyTestVars.mockKvBroker,
+		rr:      &policyTestVars.reflectorRegistry,
 	}
 
 	// Do the initial check for transient errors
@@ -879,7 +886,7 @@ func testResyncPolicyTransientDsError(t *testing.T) {
 		time.Sleep(time.Millisecond * 100)
 	}
 
-	policyTestVars.policyReflector.Log.Infof("*** data sync done:\nsSnap: %+v\nstats: %+v",
+	policyTestVars.policyReflector.Log.Infof("*** data sync done:\nsSnap: %+v\nstatistics: %+v",
 		sSnap, policyTestVars.policyReflector.stats)
 
 	// Check that the data store resync happened and that we have have the

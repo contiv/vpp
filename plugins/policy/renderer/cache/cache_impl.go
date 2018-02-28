@@ -195,6 +195,11 @@ func (rc *RendererCache) GetGlobalTable() *ContivRuleTable {
 // Update changes the configuration of Contiv rules for a given pod.
 func (rct *RendererCacheTxn) Update(pod podmodel.ID, podConfig *PodConfig) {
 	rct.config[pod] = podConfig
+	rct.cache.Log.WithFields(logging.Fields{
+		"podID":  pod,
+		"newPodConfig": *podConfig,
+        "config": rct.config,
+	}).Debug("Updating pod")
 	rct.upToDateTables = false
 }
 
@@ -415,6 +420,11 @@ func (rct *RendererCacheTxn) refreshTables() {
 	for podID := range rct.GetAllPods().Join(rct.GetRemovedPods()) {
 		podCfg := rct.GetPodConfig(podID)
 		newTable := rct.buildLocalTable(podID, podCfg)
+
+		rct.cache.Log.WithFields(logging.Fields{
+			"podID":    podID,
+			"newTable": newTable,
+		}).Debug("Refreshing pod's local table")
 
 		// Add pod's original table into the transaction if is not already there.
 		origTable := rct.cache.localTables.LookupByPod(podID)

@@ -196,9 +196,9 @@ func (rc *RendererCache) GetGlobalTable() *ContivRuleTable {
 func (rct *RendererCacheTxn) Update(pod podmodel.ID, podConfig *PodConfig) {
 	rct.config[pod] = podConfig
 	rct.cache.Log.WithFields(logging.Fields{
-		"podID":  pod,
+		"podID":        pod,
 		"newPodConfig": *podConfig,
-        "config": rct.config,
+		"config":       rct.config,
 	}).Debug("Updating pod")
 	rct.upToDateTables = false
 }

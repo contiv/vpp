@@ -122,7 +122,7 @@ func (ksc *StatsCollector) addReflector(objectType string) {
 }
 
 // start starts periodic updates of KSr starts into Prometheus.
-func (ksc *StatsCollector) start(closeCh chan struct{}, rr ReflectorRegistry) {
+func (ksc *StatsCollector) start(closeCh chan struct{}, rr *ReflectorRegistry) {
 	go func() {
 		for {
 			select {

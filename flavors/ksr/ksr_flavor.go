@@ -99,7 +99,6 @@ func (f *FlavorKsr) Inject() (allReadyInjected bool) {
 	// wired to the primary HTTP server, please uncomment the following line:
 	// f.Prometheus.Deps.HTTP = &f.HTTP
 
-
 	return true
 }
 

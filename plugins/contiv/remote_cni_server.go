@@ -472,6 +472,8 @@ func (s *remoteCNIserver) configureMainVPPInterface(config *vswitchConfig, nicNa
 			s.Logger.Error(err)
 			return err
 		}
+	} else {
+		s.mainPhysicalIf = nicName
 	}
 
 	if !useSTN && useDHCP {
@@ -517,8 +519,9 @@ func (s *remoteCNIserver) getSTNInterfaceIP(ifName string) (ip string, gw string
 
 	// try to find the default gateway in the list of routes
 	for _, r := range reply.Routes {
-		if strings.HasPrefix(r.DestinationSubnet, "0.0.0.0") {
+		if r.DestinationSubnet == "" || strings.HasPrefix(r.DestinationSubnet, "0.0.0.0") {
 			gw = r.NextHopIp
+			s.defaultGw = net.ParseIP(gw)
 		}
 	}
 	if gw == "" {

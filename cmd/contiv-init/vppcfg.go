@@ -422,6 +422,7 @@ func persistVppConfig(contivCfg *contiv.Config, stnData *stn.STNReply, cfg *vppC
 		if route.DstIpAddr == "" {
 			route.Name = fmt.Sprintf("route-to-%s", defaultRouteDestination)
 			route.DstIpAddr = defaultRouteDestination
+			route.Default = true
 		}
 		err = pb.Put(l3_linux.StaticRouteKey(route.Name), route)
 		if err != nil {

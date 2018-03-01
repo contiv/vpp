@@ -71,7 +71,7 @@ func testKsrHasSynced(t *testing.T) {
 	hasSynced := rrTestVars.reflectorRegistry.ksrHasSynced()
 	gomega.Expect(hasSynced).To(gomega.BeFalse())
 
-	rrTestVars.reflectorRegistry.reflectors[mockReflectorType] .dsSynced = true
+	rrTestVars.reflectorRegistry.reflectors[mockReflectorType].dsSynced = true
 	hasSynced = rrTestVars.reflectorRegistry.ksrHasSynced()
 	gomega.Expect(hasSynced).To(gomega.BeTrue())
 }

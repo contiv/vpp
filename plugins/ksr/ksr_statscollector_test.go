@@ -32,23 +32,21 @@ const (
 	testReflector        = "testReflector"
 )
 
+// mockPrometheus is a mock implementation of the main Prometheus registry
 type mockPrometheus struct {
 	statsPath        string
 	newRegistryError error
 	registerError    error
 }
 
-type StatsCollectorTestVars struct {
-	mockPrometheus *mockPrometheus
-	statsCollector *StatsCollector
-}
-
+// mockGauge is a mock implementation of the Prometheus Gauge
 type mockGauge struct {
 	value float64
 }
 
-type mockGaugeVec struct {
-	gauges map[string]mockGauge
+type StatsCollectorTestVars struct {
+	mockPrometheus *mockPrometheus
+	statsCollector *StatsCollector
 }
 
 var scTestVars StatsCollectorTestVars
@@ -70,15 +68,18 @@ func TestStatsCollector(t *testing.T) {
 		Prometheus:   scTestVars.mockPrometheus,
 	}
 
+	// Check proper handling of registration errors
 	scTestVars.mockPrometheus.injectNewRegistryFuncError(fmt.Errorf("%s", newRegistryTestError))
 	err := scTestVars.statsCollector.Init()
 	gomega.Expect(err).To(gomega.MatchError(newRegistryTestError))
 
+	// Check proper handling of Gauge Vector creation errors
 	scTestVars.mockPrometheus.injectNewRegistryFuncError(nil)
 	scTestVars.mockPrometheus.injectRegisterFuncError(fmt.Errorf("%s", newGaugeVecTestError))
 	err = scTestVars.statsCollector.Init()
 	gomega.Expect(err).To(gomega.MatchError(newGaugeVecTestError))
 
+	// Check the "sunny path" initialization
 	scTestVars.mockPrometheus.injectRegisterFuncError(nil)
 	err = scTestVars.statsCollector.Init()
 	gomega.Expect(err).To(gomega.BeNil())
@@ -90,6 +91,7 @@ func TestStatsCollector(t *testing.T) {
 
 func testAddReflector(t *testing.T) {
 	scTestVars.statsCollector.addReflector(testReflector)
+
 	gomega.Expect(len(scTestVars.statsCollector.metrics)).To(gomega.Equal(1))
 	gomega.Expect(len(scTestVars.statsCollector.metrics[testReflector].gauges)).To(gomega.Equal(9))
 }

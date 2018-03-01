@@ -6,6 +6,8 @@ import (
 	"github.com/contiv/vpp/plugins/contiv/containeridx"
 )
 
+// PodActionHook defines parameters and the return value of a callback triggered
+// during an event associated with a pod.
 type PodActionHook func(podNamespace string, podName string) error
 
 // API for other plugins to query network-related information.

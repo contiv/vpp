@@ -217,7 +217,23 @@ func (plugin *Plugin) GetPodByIf(ifname string) (podNamespace string, podName st
 		return "", "", false
 	}
 	return config.PodNamespace, config.PodName, true
+}
 
+// GetPodByAppNsIndex looks up podName and podNamespace that is associated with the VPP application namespace.
+func (plugin *Plugin) GetPodByAppNsIndex(nsIndex uint32) (podNamespace string, podName string, exists bool) {
+	nsID, _, found := plugin.VPP.GetAppNsIndexes().LookupName(nsIndex)
+	if !found {
+		return "", "", false
+	}
+	ids := plugin.configuredContainers.LookupPodAppNs(nsID)
+	if len(ids) != 1 {
+		return "", "", false
+	}
+	config, found := plugin.configuredContainers.LookupContainer(ids[0])
+	if !found {
+		return "", "", false
+	}
+	return config.PodNamespace, config.PodName, true
 }
 
 // GetIfName looks up logical interface name that corresponds to the interface associated with the given POD name.
@@ -257,13 +273,26 @@ func (plugin *Plugin) IsTCPstackDisabled() bool {
 }
 
 // GetNodeIP returns the IP address of this node.
-func (plugin *Plugin) GetNodeIP() net.IP {
+func (plugin *Plugin) GetNodeIP() (ip net.IP, network *net.IPNet) {
 	return plugin.cniServer.GetNodeIP()
 }
 
-// GetPhysicalIfNames returns a slice of names of all configured physical interfaces.
-func (plugin *Plugin) GetPhysicalIfNames() []string {
-	return plugin.cniServer.GetPhysicalIfNames()
+// WatchNodeIP adds given channel to the list of subscribers that are notified upon change
+// of nodeIP address. If the channel is not ready to receive notification, the notification is dropped.
+func (plugin *Plugin) WatchNodeIP(subscriber chan string) {
+	plugin.cniServer.WatchNodeIP(subscriber)
+}
+
+// GetMainPhysicalIfName returns name of the "main" interface - i.e. physical interface connecting
+// the node with the rest of the cluster.
+func (plugin *Plugin) GetMainPhysicalIfName() string {
+	return plugin.cniServer.GetMainPhysicalIfName()
+}
+
+// GetOtherPhysicalIfNames returns a slice of names of all physical interfaces configured additionally
+// to the main interface.
+func (plugin *Plugin) GetOtherPhysicalIfNames() []string {
+	return plugin.cniServer.GetOtherPhysicalIfNames()
 }
 
 // GetHostInterconnectIfName returns the name of the TAP/AF_PACKET interface
@@ -276,6 +305,12 @@ func (plugin *Plugin) GetHostInterconnectIfName() string {
 // Returns an empty string if VXLAN is not used (in L2 interconnect mode).
 func (plugin *Plugin) GetVxlanBVIIfName() string {
 	return plugin.cniServer.GetVxlanBVIIfName()
+}
+
+// GetDefaultGatewayIP returns the IP address of the default gateway for external traffic.
+// If the default GW is not configured, the function returns nil.
+func (plugin *Plugin) GetDefaultGatewayIP() net.IP {
+	return plugin.cniServer.GetDefaultGatewayIP()
 }
 
 // handleResync handles resync events of the plugin. Called automatically by the plugin infra.

@@ -233,6 +233,14 @@ func (p *Plugin) watchEvents() {
 }
 
 func (p *Plugin) handleResync(resyncChan chan resync.StatusEvent) {
+	// block until NodeIP is set
+	nodeIPWatcher := make(chan string, 1)
+	p.Contiv.WatchNodeIP(nodeIPWatcher)
+	nodeIP, nodeNet := p.Contiv.GetNodeIP()
+	if nodeIP == nil || nodeNet == nil {
+		<-nodeIPWatcher
+	}
+
 	for {
 		select {
 		case ev := <-resyncChan:

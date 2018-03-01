@@ -51,7 +51,9 @@ type Txn interface {
 	// The renderer may use the provided pod IP to make the rules fully specific
 	// in case they are installed globally and not assigned to interfaces.
 	// Empty set of rules should allow any traffic in that direction.
-	Render(pod podmodel.ID, podIP *net.IPNet /* one host subnet */, ingress []*ContivRule, egress []*ContivRule) Txn
+	// The flag *removed* is set to true if the pod was just removed - in such
+	// case *podIP* may be nil and both list of rules are empty.
+	Render(pod podmodel.ID, podIP *net.IPNet /* one host subnet */, ingress []*ContivRule, egress []*ContivRule, removed bool) Txn
 
 	// Commit proceeds with the rendering. The changes are propagated into
 	// the destination network stack.
@@ -61,10 +63,6 @@ type Txn interface {
 // ContivRule is an n-tuple with the most basic policy rule definition that the
 // destination network stack must support.
 type ContivRule struct {
-	// ID uniquely identifies the rule within the list of ingress or egress
-	// rules.
-	ID string
-
 	// Action to perform when traffic matches.
 	Action ActionType
 
@@ -98,8 +96,8 @@ func (cr *ContivRule) String() string {
 	if cr.DestPort != 0 {
 		dstPort = strconv.Itoa(int(cr.DestPort))
 	}
-	return fmt.Sprintf("Rule %s <%s %s[%s:%s] -> %s[%s:%s]>",
-		cr.ID, cr.Action, srcNet, cr.Protocol, srcPort, dstNet, cr.Protocol, dstPort)
+	return fmt.Sprintf("Rule <%s %s[%s:%s] -> %s[%s:%s]>",
+		cr.Action, srcNet, cr.Protocol, srcPort, dstNet, cr.Protocol, dstPort)
 }
 
 // Copy creates a deep copy of the Contiv rule.
@@ -111,16 +109,12 @@ func (cr *ContivRule) Copy() *ContivRule {
 
 // Compare returns -1, 0, 1 if this<cr2 or this==cr2 or this>cr2, respectively.
 // Contiv rules have a total order defined on them.
+// It holds that if cr matches subset of the traffic matched by cr2, then cr<cr2
+// (and vice-versa).
 func (cr *ContivRule) Compare(cr2 *ContivRule) int {
-	if cr.ID < cr2.ID {
-		return -1
-	}
-	if cr.ID > cr2.ID {
-		return 1
-	}
-	actionOrder := utils.CompareInts(int(cr.Action), int(cr2.Action))
-	if actionOrder != 0 {
-		return actionOrder
+	protocolOrder := utils.CompareInts(int(cr.Protocol), int(cr2.Protocol))
+	if protocolOrder != 0 {
+		return protocolOrder
 	}
 	srcIPOrder := utils.CompareIPNets(cr.SrcNetwork, cr2.SrcNetwork)
 	if srcIPOrder != 0 {
@@ -130,15 +124,15 @@ func (cr *ContivRule) Compare(cr2 *ContivRule) int {
 	if destIPOrder != 0 {
 		return destIPOrder
 	}
-	protocolOrder := utils.CompareInts(int(cr.Protocol), int(cr2.Protocol))
-	if protocolOrder != 0 {
-		return protocolOrder
-	}
-	srcPortOrder := utils.CompareInts(int(cr.SrcPort), int(cr2.SrcPort))
+	srcPortOrder := utils.ComparePorts(cr.SrcPort, cr2.SrcPort)
 	if srcPortOrder != 0 {
 		return srcPortOrder
 	}
-	return utils.CompareInts(int(cr.DestPort), int(cr2.DestPort))
+	dstPortOrder := utils.ComparePorts(cr.DestPort, cr2.DestPort)
+	if dstPortOrder != 0 {
+		return dstPortOrder
+	}
+	return utils.CompareInts(int(cr.Action), int(cr2.Action))
 }
 
 // ActionType is either DENY or PERMIT.

@@ -25,6 +25,7 @@ import (
 
 	"github.com/ghodss/yaml"
 	"github.com/nerdtakula/supervisor"
+	"github.com/vishvananda/netlink"
 	"google.golang.org/grpc"
 
 	"github.com/ligato/cn-infra/logging"
@@ -33,6 +34,7 @@ import (
 
 	"github.com/contiv/vpp/cmd/contiv-stn/model/stn"
 	"github.com/contiv/vpp/plugins/contiv"
+	"strings"
 )
 
 const (
@@ -113,7 +115,7 @@ func releaseNIC(nicName string, useDHCP bool) error {
 
 // parseSTNConfig parses the config file and looks up for STN configuration.
 // In case that STN was requested for this node, returns the interface to be stealed and optionally its name on VPP.
-func parseSTNConfig() (config *contiv.Config, nicToSteal string, vppIfName string, useDHCP bool, err error) {
+func parseSTNConfig() (config *contiv.Config, nicToSteal string, useDHCP bool, err error) {
 
 	// read config YAML
 	yamlFile, err := ioutil.ReadFile(*contivCfgFile)
@@ -143,9 +145,8 @@ func parseSTNConfig() (config *contiv.Config, nicToSteal string, vppIfName strin
 
 	for _, nc := range config.NodeConfig {
 		if nc.NodeName == nodeName {
-			logger.Debugf("Found interface to be stealed: %s", nc.StealInterface)
+			logger.Debugf("Found interface to be stolen: %s", nc.StealInterface)
 			nicToSteal = nc.StealInterface
-			vppIfName = nc.MainVPPInterface.InterfaceName
 			if nc.MainVPPInterface.UseDHCP == true {
 				useDHCP = true
 			}
@@ -153,7 +154,35 @@ func parseSTNConfig() (config *contiv.Config, nicToSteal string, vppIfName strin
 		}
 	}
 
+	if nicToSteal == "" && config.StealTheNIC {
+		// the first NIC will be stolen
+		nicToSteal = getFirstInterfaceName()
+		if nicToSteal != "" {
+			logger.Infof("No specific NIC to steal specified, stealing the first one: %s", nicToSteal)
+		}
+	}
+
 	return
+}
+
+// getFirstInterfaceName returns the name of the first non-virtual Linux interface
+func getFirstInterfaceName() string {
+	// list existing links
+	links, err := netlink.LinkList()
+	if err != nil {
+		logger.Error("Unable to list links:", err)
+		return ""
+	}
+
+	// find link to steal
+	for _, l := range links {
+		if !strings.HasPrefix(l.Attrs().Name, "lo") &&
+			!strings.HasPrefix(l.Attrs().Name, "vir") &&
+			!strings.HasPrefix(l.Attrs().Name, "docker") {
+			return l.Attrs().Name
+		}
+	}
+	return ""
 }
 
 func main() {
@@ -162,7 +191,7 @@ func main() {
 	logger.Debugf("Starting contiv-init process")
 
 	// check whether STN is required and get NIC name
-	contivCfg, nicToSteal, vppIfName, useDHCP, err := parseSTNConfig()
+	contivCfg, nicToSteal, useDHCP, err := parseSTNConfig()
 	if err != nil {
 		logger.Errorf("Error by parsing STN config: %v", err)
 		os.Exit(-1)
@@ -174,7 +203,7 @@ func main() {
 		stnData, err = stealNIC(nicToSteal, useDHCP)
 		if err != nil {
 			logger.Warnf("Error by stealing the NIC %s: %v", nicToSteal, err)
-			// do not fail of STN was not succesfull
+			// do not fail of STN was not successful
 			nicToSteal = ""
 		}
 	} else {
@@ -194,7 +223,7 @@ func main() {
 
 	if nicToSteal != "" {
 		// configure connectivity on VPP
-		vppCfg, err := configureVpp(contivCfg, stnData, vppIfName, useDHCP)
+		vppCfg, err := configureVpp(contivCfg, stnData, useDHCP)
 		if err != nil {
 			logger.Errorf("Error by configuring VPP: %v", err)
 			os.Exit(-1)

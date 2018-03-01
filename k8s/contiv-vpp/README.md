@@ -56,6 +56,7 @@ Parameter | Description | Default
 `contiv.tcpStackDisabled` | Disable TCP stack | `True`
 `contiv.useTAPInterfaces` | Enable TAP interfaces | `True`
 `contiv.tapInterfaceVersion`| TAP interface version | 1
+`contiv.stealTheNIC` | Enable Steal The NIC feature on the first interface on each node | `False`
 `contiv.ipamConfig.podSubnetCIDR` | Pod subnet CIDR | `10.1.0.0/16`
 `contiv.ipamConfig.podNetworkPrefixLen` | Pod network prefix length | `24`
 `contiv.ipamConfig.vppHostSubnetCIDR` | VPP host subnet CIDR | `172.30.0.0/16`

@@ -90,6 +90,7 @@ type Config struct {
 	TAPInterfaceVersion        uint8
 	TAPv2RxRingSize            uint16
 	TAPv2TxRingSize            uint16
+	StealTheNIC                bool
 	IPAMConfig                 ipam.Config
 	NodeConfig                 []OneNodeConfig
 }

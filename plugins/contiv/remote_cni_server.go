@@ -116,6 +116,9 @@ type remoteCNIserver struct {
 	// nodeIPsubsribers is a slice of channels that are notified when nodeIP is changed
 	nodeIPsubscribers []chan string
 
+	// global config
+	config *Config
+
 	// node specific configuration
 	nodeConfig *OneNodeConfig
 
@@ -195,16 +198,17 @@ func newRemoteCNIServer(logger logging.Logger, vppTxnFactory func() linux.DataCh
 	}
 
 	server := &remoteCNIserver{
-		Logger:                     logger,
-		vppTxnFactory:              vppTxnFactory,
-		proxy:                      proxy,
-		configuredContainers:       configuredContainers,
-		govppChan:                  govppChan,
-		swIfIndex:                  index,
-		agentLabel:                 agentLabel,
-		nodeID:                     nodeID,
-		ipam:                       ipam,
-		nodeConfig:                 nodeConfig,
+		Logger:               logger,
+		vppTxnFactory:        vppTxnFactory,
+		proxy:                proxy,
+		configuredContainers: configuredContainers,
+		govppChan:            govppChan,
+		swIfIndex:            index,
+		agentLabel:           agentLabel,
+		nodeID:               nodeID,
+		ipam:                 ipam,
+		nodeConfig:           nodeConfig,
+		config:               config,
 		tcpChecksumOffloadDisabled: config.TCPChecksumOffloadDisabled,
 		useTAPInterfaces:           config.UseTAPInterfaces,
 		tapVersion:                 config.TAPInterfaceVersion,
@@ -381,13 +385,18 @@ func (s *remoteCNIserver) configureMainVPPInterface(config *vswitchConfig, nicNa
 	txn1 := s.vppTxnFactory().Put()
 
 	useSTN := false
-	if s.nodeConfig != nil && s.nodeConfig.StealInterface != "" {
+	if s.config.StealTheNIC || (s.nodeConfig != nil && s.nodeConfig.StealInterface != "") {
 		useSTN = true
 		s.Logger.Infof("STN of the host interface %s requested.", s.nodeConfig.StealInterface)
 
 		// get IP address of the STN interface
 		var gwIP string
-		nicIP, gwIP, err = s.getSTNInterfaceIP(s.nodeConfig.StealInterface)
+		if s.nodeConfig != nil && s.nodeConfig.StealInterface != "" {
+			nicIP, gwIP, err = s.getSTNInterfaceIP(s.nodeConfig.StealInterface)
+		} else {
+			nicIP, gwIP, err = s.getSTNInterfaceIP("")
+		}
+
 		if err != nil {
 			s.Logger.Warnf("Unable to get STN interface info: %v, skipping STN config", err)
 		}

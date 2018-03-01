@@ -54,10 +54,11 @@ import (
 )
 
 const (
+	etcdConnectionRetries = 20               // number of retries to connect to ETCD once STN is configured
+	dhcpTimeout           = 20 * time.Second // timeout to wait for a DHCP offer after configuring DHCP on the interface
+
 	tapHostEndMacAddr       = "00:00:00:00:00:02" // requirement of the VPP STN plugin
-	etcdConnectionRetries   = 20                  // number of retries to connect to ETCD once STN is configured
-	dhcpTimeout             = 20 * time.Second    // timeout to wait for a DHCP offer after configuring DHCP on the interface
-	defaultRouteDestination = "0.0.0.0/0"
+	defaultRouteDestination = "0.0.0.0/0"         // destination IP address used for default routes on VPP
 )
 
 type vppCfgCtx struct {
@@ -68,7 +69,7 @@ type vppCfgCtx struct {
 }
 
 // configureVpp configures main interface and vpp-host interconnect based on provided STN information.
-func configureVpp(contivCfg *contiv.Config, stnData *stn.STNReply, vppIfName string, useDHCP bool) (*vppCfgCtx, error) {
+func configureVpp(contivCfg *contiv.Config, stnData *stn.STNReply, useDHCP bool) (*vppCfgCtx, error) {
 	var err error
 
 	// connect to VPP

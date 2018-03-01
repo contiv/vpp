@@ -184,6 +184,16 @@ func (s *stnServer) getStolenInterfaceData(ifName string) (*interfaceData, error
 	s.Lock()
 	defer s.Unlock()
 
+	// no interface name defined - return the first one
+	if ifName == "" {
+		for _, i := range s.stolenInterfaces {
+			return i, nil
+		}
+		err := fmt.Errorf("no existing stolen interface data")
+		log.Println(err)
+		return nil, err
+	}
+
 	// find matching interface
 	ifData, ok := s.stolenInterfaces[ifName]
 	if !ok {

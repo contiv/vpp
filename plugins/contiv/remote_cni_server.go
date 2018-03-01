@@ -387,13 +387,14 @@ func (s *remoteCNIserver) configureMainVPPInterface(config *vswitchConfig, nicNa
 	useSTN := false
 	if s.config.StealTheNIC || (s.nodeConfig != nil && s.nodeConfig.StealInterface != "") {
 		useSTN = true
-		s.Logger.Infof("STN of the host interface %s requested.", s.nodeConfig.StealInterface)
 
 		// get IP address of the STN interface
 		var gwIP string
 		if s.nodeConfig != nil && s.nodeConfig.StealInterface != "" {
+			s.Logger.Infof("STN of the host interface %s requested.", s.nodeConfig.StealInterface)
 			nicIP, gwIP, err = s.getSTNInterfaceIP(s.nodeConfig.StealInterface)
 		} else {
+			s.Logger.Infof("STN of the first interface (%s) requested.", nicName)
 			nicIP, gwIP, err = s.getSTNInterfaceIP("")
 		}
 

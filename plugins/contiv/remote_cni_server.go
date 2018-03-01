@@ -450,7 +450,7 @@ func (s *remoteCNIserver) configureMainVPPInterface(config *vswitchConfig, nicNa
 			}
 			txn1.VppInterface(nic)
 			config.nics = append(config.nics, nic)
-			s.physicalIfs = append(s.physicalIfs, nicName)
+			s.mainPhysicalIf = nicName
 		} else {
 			// configure loopback instead of the physical NIC
 			s.Logger.Debug("Physical NIC not found, configuring loopback instead.")
@@ -459,20 +459,6 @@ func (s *remoteCNIserver) configureMainVPPInterface(config *vswitchConfig, nicNa
 			txn1.VppInterface(loop)
 			config.nics = append(config.nics, loop)
 		}
-<<<<<<< HEAD
-=======
-		txn1.VppInterface(nic)
-		config.nics = append(config.nics, nic)
-		s.mainPhysicalIf = nicName
-	} else {
-		// configure loopback instead of the physical NIC
-		s.Logger.Debug("Physical NIC not found, configuring loopback instead.")
-
-		loop := s.physicalInterfaceLoopback(s.nodeIP)
-		txn1.VppInterface(loop)
-		config.nics = append(config.nics, loop)
-	}
->>>>>>> master
 
 		if nicName != "" && s.nodeConfig != nil && s.nodeConfig.Gateway != "" {
 			// configure the default gateway

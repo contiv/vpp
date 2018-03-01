@@ -17,17 +17,19 @@
 package processor
 
 import (
+	"errors"
 	"net"
 
 	"github.com/ligato/cn-infra/datasync"
 	"github.com/ligato/cn-infra/logging"
+	"github.com/ligato/cn-infra/servicelabel"
+	"github.com/ligato/vpp-agent/plugins/defaultplugins"
 
 	"github.com/contiv/vpp/plugins/contiv"
 	epmodel "github.com/contiv/vpp/plugins/ksr/model/endpoints"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	svcmodel "github.com/contiv/vpp/plugins/ksr/model/service"
 	"github.com/contiv/vpp/plugins/service/configurator"
-	"github.com/ligato/cn-infra/servicelabel"
 )
 
 // ServiceProcessor implements ServiceProcessorAPI.
@@ -47,7 +49,8 @@ type ServiceProcessor struct {
 type Deps struct {
 	Log          logging.Logger
 	ServiceLabel servicelabel.ReaderAPI
-	Contiv       contiv.API /* to get all interface names and pod IP network */
+	Contiv       contiv.API         /* to get all interface names and pod IP network */
+	VPP          defaultplugins.API /* interface IP addresses */
 	Configurator configurator.ServiceConfiguratorAPI
 }
 
@@ -321,17 +324,51 @@ func (sp *ServiceProcessor) processResyncEvent(resyncEv *ResyncEventData) error 
 	// Re-build the current state.
 	confResyncEv := configurator.NewResyncEventData()
 
-	// Fill up the set of frontend/backend interfaces and local endpoints.
-	// -> physical interfaces
-	for _, physIf := range sp.Contiv.GetPhysicalIfNames() {
-		sp.frontendIfs.Add(physIf)
-		sp.backendIfs.Add(physIf)
+	// Try to get Node IP.
+	nodeIP, nodeNet := sp.Contiv.GetNodeIP()
+	if nodeIP == nil {
+		return errors.New("failed to get Node IP")
 	}
+
+	// Get default gateway IP address.
+	gwIP := sp.Contiv.GetDefaultGatewayIP()
+
+	// Fill up the set of frontend/backend interfaces and local endpoints.
+	// With physical interfaces also build SNAT configuration.
 	// -> VXLAN BVI interface
 	vxlanBVIIf := sp.Contiv.GetVxlanBVIIfName()
 	if vxlanBVIIf != "" {
 		sp.frontendIfs.Add(vxlanBVIIf)
 		sp.backendIfs.Add(vxlanBVIIf)
+	}
+	// -> main physical interfaces
+	mainPhysIf := sp.Contiv.GetMainPhysicalIfName()
+	sp.frontendIfs.Add(mainPhysIf)
+	if vxlanBVIIf == "" {
+		sp.backendIfs.Add(mainPhysIf)
+	}
+	if vxlanBVIIf != "" && gwIP != nil {
+		// If the interface connects node with the default GW, SNAT all egress traffic.
+		// For main interface this is supported only with VXLANs enabled.
+		if nodeNet.Contains(gwIP) {
+			confResyncEv.ExternalSNAT.ExternalIfName = mainPhysIf
+			confResyncEv.ExternalSNAT.ExternalIP = nodeIP
+		}
+	}
+	// -> other physical interfaces
+	for _, physIf := range sp.Contiv.GetOtherPhysicalIfNames() {
+		ipAddresses := sp.getInterfaceIPs(physIf)
+		sp.frontendIfs.Add(physIf)
+		// If the interface connects node with the default GW, SNAT all egress traffic.
+		if gwIP != nil {
+			for _, ipAddr := range ipAddresses {
+				if ipAddr.Network.Contains(gwIP) {
+					confResyncEv.ExternalSNAT.ExternalIfName = physIf
+					confResyncEv.ExternalSNAT.ExternalIP = ipAddr.IP
+					break
+				}
+			}
+		}
 	}
 	// -> host interconnect
 	hostInterconnect := sp.Contiv.GetHostInterconnectIfName()
@@ -417,4 +454,35 @@ func (sp *ServiceProcessor) getLocalEndpoint(podID podmodel.ID) *LocalEndpoint {
 		sp.localEps[podID] = &LocalEndpoint{}
 	}
 	return sp.localEps[podID]
+}
+
+// InterfaceIPAddress encapsulates interface IP address and the network implied by the IP
+// and prefix length.
+type InterfaceIPAddress struct {
+	IP      net.IP
+	Network *net.IPNet
+}
+
+// getInterfaceIPs returns all IP addresses the interface has assigned.
+func (sp *ServiceProcessor) getInterfaceIPs(ifName string) []InterfaceIPAddress {
+	networks := []InterfaceIPAddress{}
+	_, meta, exists := sp.VPP.GetSwIfIndexes().LookupIdx(ifName)
+	if !exists || meta == nil {
+		sp.Log.WithFields(logging.Fields{
+			"ifName": ifName,
+		}).Warn("failed to get interface metadata")
+		return networks
+	}
+	for _, ipAddr := range meta.IpAddresses {
+		ip, ipNet, err := net.ParseCIDR(ipAddr)
+		if err != nil {
+			sp.Log.WithFields(logging.Fields{
+				"ifName": ifName,
+				"err":    err,
+			}).Warn("failed to parse interface IP")
+			continue
+		}
+		networks = append(networks, InterfaceIPAddress{IP: ip, Network: ipNet})
+	}
+	return networks
 }

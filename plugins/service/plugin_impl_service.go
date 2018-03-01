@@ -34,7 +34,6 @@ import (
 	epmodel "github.com/contiv/vpp/plugins/ksr/model/endpoints"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	svcmodel "github.com/contiv/vpp/plugins/ksr/model/service"
-	"time"
 )
 
 // Plugin watches configuration of K8s resources (as reflected by KSR into ETCD)
@@ -67,10 +66,10 @@ type Deps struct {
 	Resync  resync.Subscriber
 	Watcher datasync.KeyValProtoWatcher /* prefixed for KSR-published K8s state data */
 	Contiv  contiv.API                  /* to get the Node IP and all interface names */
+	VPP     defaultplugins.API          /* interface indexes && IP addresses */
 
 	/* until supported in vpp-agent, we call NAT binary APIs directly */
-	VPP   defaultplugins.API /* interface indexes */
-	GoVPP govppmux.API       /* NAT binary APIs*/
+	GoVPP govppmux.API /* NAT binary APIs*/
 }
 
 // Init initializes the service plugin and starts watching ETCD for K8s configuration.
@@ -91,7 +90,7 @@ func (p *Plugin) Init() error {
 		Deps: configurator.Deps{
 			Log:              p.Log.NewLogger("-serviceConfigurator"),
 			Contiv:           p.Contiv,
-			VPP:              p.VPP,
+			VPP:              p.VPP, /* temporary dependency - only until vpp-agent supports NAT */
 			GoVPPChan:        goVppCh,
 			GoVPPChanBufSize: goVPPChanBufSize,
 		},
@@ -175,13 +174,11 @@ func (p *Plugin) watchEvents() {
 
 func (p *Plugin) handleResync(resyncChan chan resync.StatusEvent) {
 	// block until NodeIP is set
-	for {
-		nodeIP := p.Contiv.GetNodeIP()
-		if nodeIP != nil {
-			break
-		}
-		// TODO: remove sleep i.e: extend API of contiv plugin
-		time.Sleep(500 * time.Millisecond)
+	nodeIPWatcher := make(chan string, 1)
+	p.Contiv.WatchNodeIP(nodeIPWatcher)
+	nodeIP, nodeNet := p.Contiv.GetNodeIP()
+	if nodeIP == nil || nodeNet == nil {
+		<-nodeIPWatcher
 	}
 
 	for {

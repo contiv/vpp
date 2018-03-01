@@ -30,8 +30,10 @@ func (mvp *MockVppPlugin) ClearACLs() {
 }
 
 // AddAcl adds ACL for DumpACLs().
-func (mvp *MockVppPlugin) AddACL(acl *acl.AccessLists_Acl) {
-	mvp.ACLs = append(mvp.ACLs, acl)
+func (mvp *MockVppPlugin) AddACL(acls ...*acl.AccessLists_Acl) {
+	for _, acl := range acls {
+		mvp.ACLs = append(mvp.ACLs, acl)
+	}
 }
 
 // DisableResync does nothing here.

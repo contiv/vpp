@@ -72,7 +72,7 @@ func (ksc *StatsCollector) Init() error {
 	err := ksc.Prometheus.NewRegistry(prometheusStatsPath,
 		promhttp.HandlerOpts{ErrorHandling: promhttp.ContinueOnError, ErrorLog: ksc.Log})
 	if err != nil {
-		ksc.Log.Errorf("failed to create Prometheus registry for path '%s', error %s", prometheusStatsPath, err)
+		ksc.Log.Errorf("failed to create Prometheus registry for '%s', error %s", prometheusStatsPath, err)
 		return err
 	}
 

@@ -25,7 +25,6 @@ data:
     TCPstackDisabled: true
     UseTAPInterfaces: true
     TAPInterfaceVersion: 1
-    StealTheNIC: True
     IPAMConfig:
       PodSubnetCIDR: 10.1.0.0/16
       PodNetworkPrefixLen: 24
@@ -33,7 +32,7 @@ data:
       VPPHostNetworkPrefixLen: 24
       NodeInterconnectCIDR: 192.168.16.0/24
       VxlanCIDR: 192.168.30.0/24
-      NodeInterconnectDHCP: True
+      NodeInterconnectDHCP: False
   logs.conf: |
     defaultlevel: debug
 

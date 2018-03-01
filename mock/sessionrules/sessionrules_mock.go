@@ -12,8 +12,9 @@ import (
 
 	"github.com/ligato/cn-infra/logging"
 
+	"fmt"
 	"github.com/contiv/vpp/plugins/policy/renderer/vpptcp/bin_api/session"
-	"github.com/contiv/vpp/plugins/policy/renderer/vpptcp/cache"
+	vpptcprule "github.com/contiv/vpp/plugins/policy/renderer/vpptcp/rule"
 )
 
 // MockSessionRules simulates session rules from VPPTCP stack.
@@ -27,7 +28,6 @@ type MockSessionRules struct {
 	vppConn     *govpp.Connection
 	localTable  map[uint32]SessionRules // namespace index -> rules
 	globalTable SessionRules
-	tags        map[string]struct{}
 	errCount    int
 	reqCount    int
 }
@@ -44,7 +44,7 @@ type GlobalTableCheck struct {
 }
 
 // SessionRules is a list of session rules.
-type SessionRules []*cache.SessionRule
+type SessionRules []*vpptcprule.SessionRule
 
 // NewMockSessionRules is a constructor for MockSessionRules.
 // Create only one in the entire test suite.
@@ -57,7 +57,6 @@ func NewMockSessionRules(log logging.Logger, tagPrefix string) *MockSessionRules
 		vppMock:     &govppmock.VppAdapter{},
 		localTable:  make(map[uint32]SessionRules),
 		globalTable: SessionRules{},
-		tags:        make(map[string]struct{}),
 	}
 	mock.vppMock.RegisterBinAPITypes(session.Types)
 	mock.vppMock.MockReplyHandler(mock.msgReplyHandler)
@@ -76,7 +75,6 @@ func NewMockSessionRules(log logging.Logger, tagPrefix string) *MockSessionRules
 func (msr *MockSessionRules) Clear() {
 	msr.localTable = make(map[uint32]SessionRules)
 	msr.globalTable = SessionRules{}
-	msr.tags = make(map[string]struct{})
 	msr.errCount = 0
 	msr.reqCount = 0
 }
@@ -127,12 +125,12 @@ func (ltc *LocalTableCheck) HasRule(lclIP string, lclPort uint16, rmtIP string, 
 	if !exists {
 		return false
 	}
-	return ltc.session.hasRule(table, cache.RuleScopeLocal, ltc.nsIndex, lclIP, lclPort, rmtIP, rmtPort, proto, action)
+	return ltc.session.hasRule(table, vpptcprule.ScopeLocal, ltc.nsIndex, lclIP, lclPort, rmtIP, rmtPort, proto, action)
 }
 
 // HasRule returns <true> if the given rule is present in the table.
 func (gtc *GlobalTableCheck) HasRule(lclIP string, lclPort uint16, rmtIP string, rmtPort uint16, proto string, action string) bool {
-	return gtc.session.hasRule(gtc.session.globalTable, cache.RuleScopeGlobal, 0, lclIP, lclPort, rmtIP, rmtPort, proto, action)
+	return gtc.session.hasRule(gtc.session.globalTable, vpptcprule.ScopeGlobal, 0, lclIP, lclPort, rmtIP, rmtPort, proto, action)
 }
 
 // hasRule returns <true> if the given rule is present in the given table.
@@ -142,7 +140,7 @@ func (msr *MockSessionRules) hasRule(table SessionRules, scope uint8, nsIndex ui
 	var err error
 
 	// Construct SessionRule.
-	rule := cache.SessionRule{
+	rule := vpptcprule.SessionRule{
 		LclPort:    lclPort,
 		RmtPort:    rmtPort,
 		AppnsIndex: nsIndex,
@@ -153,9 +151,9 @@ func (msr *MockSessionRules) hasRule(table SessionRules, scope uint8, nsIndex ui
 	var transportProto uint8
 	switch proto {
 	case "TCP":
-		transportProto = cache.RuleProtoTCP
+		transportProto = vpptcprule.ProtoTCP
 	case "UDP":
-		transportProto = cache.RuleProtoUDP
+		transportProto = vpptcprule.ProtoUDP
 	}
 	rule.TransportProto = transportProto
 
@@ -163,9 +161,9 @@ func (msr *MockSessionRules) hasRule(table SessionRules, scope uint8, nsIndex ui
 	var actionIndex uint32
 	switch action {
 	case "ALLOW":
-		actionIndex = cache.RuleActionAllow
+		actionIndex = vpptcprule.ActionAllow
 	case "DENY":
-		actionIndex = cache.RuleActionDeny
+		actionIndex = vpptcprule.ActionDeny
 	}
 	rule.ActionIndex = actionIndex
 
@@ -219,6 +217,12 @@ func (msr *MockSessionRules) hasRule(table SessionRules, scope uint8, nsIndex ui
 		if rule.Compare(rule2, false) == 0 {
 			return true
 		}
+	}
+
+	fmt.Printf("Rule '%s' was not found\n", rule.String())
+	fmt.Printf("Local table:\n")
+	for idx, rule2 := range table {
+		fmt.Printf("Rule %d: '%s'\n", idx, rule2.String())
 	}
 	return false
 }
@@ -292,19 +296,11 @@ func (msr *MockSessionRules) msgReplyHandler(request govppmock.MessageDTO) (repl
 			msr.Log.WithField("rule", rule).Warn("Invalid tag")
 			retval = 1
 		}
-		if ruleAddDel.IsAdd == 1 {
-			_, alreadyExists := msr.tags[tag]
-			if alreadyExists {
-				msr.errCount++
-				msr.Log.WithField("rule", rule).Warn("Duplicate tag")
-				retval = 1
-			}
-		}
 
 		// Add/Delete rule.
 		if retval == 0 {
 			var ok bool
-			if rule.Scope == cache.RuleScopeLocal {
+			if rule.Scope == vpptcprule.ScopeLocal {
 				_, exists := msr.localTable[rule.AppnsIndex]
 				if !exists {
 					msr.localTable[rule.AppnsIndex] = SessionRules{}
@@ -322,15 +318,6 @@ func (msr *MockSessionRules) msgReplyHandler(request govppmock.MessageDTO) (repl
 					msr.Log.WithField("rule", rule).Warn("The rule cannot be added/removed to/from the table")
 					retval = 1
 				}
-			}
-		}
-
-		// Update the set of used tags.
-		if retval == 0 {
-			if ruleAddDel.IsAdd == 1 {
-				msr.tags[tag] = struct{}{}
-			} else {
-				delete(msr.tags, tag)
 			}
 		}
 
@@ -352,7 +339,7 @@ func (msr *MockSessionRules) msgReplyHandler(request govppmock.MessageDTO) (repl
 }
 
 // addDelRule adds or removes rule to/from a table.
-func addDelRule(table SessionRules, rule *cache.SessionRule, isAdd uint8) (SessionRules, bool) {
+func addDelRule(table SessionRules, rule *vpptcprule.SessionRule, isAdd uint8) (SessionRules, bool) {
 	compareTag := false
 	if isAdd == 0 {
 		compareTag = true /* exact match for removal */
@@ -374,7 +361,7 @@ func addDelRule(table SessionRules, rule *cache.SessionRule, isAdd uint8) (Sessi
 	return table, false
 }
 
-func makeSessionRuleDetails(rule *cache.SessionRule) *session.SessionRulesDetails {
+func makeSessionRuleDetails(rule *vpptcprule.SessionRule) *session.SessionRulesDetails {
 	details := &session.SessionRulesDetails{
 		TransportProto: rule.TransportProto,
 		IsIP4:          rule.IsIP4,
@@ -392,8 +379,8 @@ func makeSessionRuleDetails(rule *cache.SessionRule) *session.SessionRulesDetail
 	return details
 }
 
-func makeSessionRule(rule *session.SessionRuleAddDel) *cache.SessionRule {
-	sessionRule := &cache.SessionRule{
+func makeSessionRule(rule *session.SessionRuleAddDel) *vpptcprule.SessionRule {
+	sessionRule := &vpptcprule.SessionRule{
 		TransportProto: rule.TransportProto,
 		IsIP4:          rule.IsIP4,
 		LclPlen:        rule.LclPlen,

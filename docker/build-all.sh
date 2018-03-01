@@ -49,6 +49,6 @@ done
 cd ubuntu-based
 ./build.sh
 
-# builds all Alpine Linux -based images
-cd ../alpine-based
-./build.sh
+# builds the new images (vpp-cni, vpp-ksr, vpp-cri)
+cd ..
+./build-new.sh

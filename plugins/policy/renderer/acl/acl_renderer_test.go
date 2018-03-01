@@ -1,5 +1,5 @@
 /*
- * // Copyright (c) 2017 Cisco and/or its affiliates.
+ * // Copyright (c) 2018 Cisco and/or its affiliates.
  * //
  * // Licensed under the Apache License, Version 2.0 (the "License");
  * // you may not use this file except in compliance with the License.
@@ -17,942 +17,874 @@
 package acl
 
 import (
-	"net"
-	"strings"
-	"testing"
-
 	"github.com/onsi/gomega"
+	"testing"
 
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/logging/logrus"
-	acl_model "github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/acl"
+	vpp_acl "github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/acl"
 
+	. "github.com/contiv/vpp/mock/aclengine"
 	. "github.com/contiv/vpp/mock/contiv"
 	. "github.com/contiv/vpp/mock/defaultplugins"
 	"github.com/contiv/vpp/mock/localclient"
-	"github.com/contiv/vpp/mock/localclient/dsl"
-	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
+	"github.com/contiv/vpp/plugins/contiv"
 	"github.com/contiv/vpp/plugins/policy/renderer"
-	"github.com/contiv/vpp/plugins/policy/renderer/acl/cache"
+	"github.com/contiv/vpp/plugins/policy/renderer/cache"
+	. "github.com/contiv/vpp/plugins/policy/renderer/testdata"
+	. "github.com/contiv/vpp/plugins/policy/utils"
 )
 
-type ACLSet map[string]struct{}                       // set of ACL names
-type ACLByIfMap map[string]*acl_model.AccessLists_Acl // interface -> ACL
+const (
+	mainIfName      = "GbE"
+	vxlanIfName     = "VXLAN-BVI"
+	hostInterIfName = "VPP-Host"
 
-func ipNetwork(addr string) *net.IPNet {
-	if addr == "" {
-		return &net.IPNet{}
+	maxPortNum = uint32(^uint16(0))
+	googleDNS  = "8.8.8.8" /* just random IP from the Internet */
+	somePort   = 500       /* some port number to use as the source port */
+	somePort2  = 600       /* some port number to use as the source port */
+)
+
+func verifyReflectiveACL(engine *MockACLEngine, contiv contiv.API, ifName string, expectedToHave bool) {
+	ifs := contiv.GetOtherPhysicalIfNames()
+	ifs = append(ifs, contiv.GetVxlanBVIIfName())
+	ifs = append(ifs, contiv.GetMainPhysicalIfName())
+	ifs = append(ifs, contiv.GetHostInterconnectIfName())
+	ifs = append(ifs, ifName)
+
+	acl := engine.GetInboundACL(ifName)
+	if !expectedToHave {
+		gomega.Expect(acl).To(gomega.BeNil())
+		return
 	}
-	_, network, error := net.ParseCIDR(addr)
-	gomega.Expect(error).To(gomega.BeNil())
-	return network
-}
-
-func (abim ACLByIfMap) GetACL(ifName string) *acl_model.AccessLists_Acl {
-	acl, exists := abim[ifName]
-	if exists {
-		return acl
-	}
-	return nil
-}
-
-func (as ACLSet) Has(aclName string) bool {
-	_, has := as[aclName]
-	return has
-}
-
-func parseACLOps(ops []dsl.TxnOp) (putIngress ACLByIfMap, putEgress ACLByIfMap, deleted ACLSet) {
-	putIngress = make(ACLByIfMap)
-	putEgress = make(ACLByIfMap)
-	deleted = make(ACLSet)
-	for _, op := range ops {
-		gomega.Expect(strings.HasPrefix(op.Key, acl_model.KeyPrefix())).To(gomega.BeTrue())
-		if op.Value == nil {
-			aclName := strings.TrimPrefix(op.Key, acl_model.KeyPrefix())
-			deleted[aclName] = struct{}{}
-		} else {
-			acl, isACL := (op.Value).(*acl_model.AccessLists_Acl)
-			gomega.Expect(isACL).To(gomega.BeTrue())
-			gomega.Expect(acl.Interfaces).ToNot(gomega.BeNil())
-			for _, ifName := range acl.Interfaces.Ingress {
-				putIngress[ifName] = acl
-			}
-			for _, ifName := range acl.Interfaces.Egress {
-				putEgress[ifName] = acl
-			}
-		}
-	}
-	return putIngress, putEgress, deleted
-}
-
-func verifyACLPut(op dsl.TxnOp, aclName string, ingress cache.InterfaceSet, egress cache.InterfaceSet,
-	contivRule ...*renderer.ContivRule) string {
-
-	// Type & key
-	gomega.Expect(op.Value).ToNot(gomega.BeNil()) // Put
-	acl, isACL := (op.Value).(*acl_model.AccessLists_Acl)
-	gomega.Expect(isACL).To(gomega.BeTrue())
-	gomega.Expect(acl.AclName).ToNot(gomega.BeEmpty())
-	gomega.Expect(op.Key).To(gomega.BeEquivalentTo(acl_model.Key(acl.AclName)))
-	return verifyACL(acl, aclName, ingress, egress, contivRule...)
-}
-
-func verifyACL(acl *acl_model.AccessLists_Acl, aclName string, ingress cache.InterfaceSet, egress cache.InterfaceSet,
-	contivRule ...*renderer.ContivRule) string {
-
-	gomega.Expect(acl.AclName).ToNot(gomega.BeEmpty())
-	if aclName != "" {
-		gomega.Expect(acl.AclName).To(gomega.BeEquivalentTo(aclName))
-	}
-
-	// Interfaces
+	gomega.Expect(acl).ToNot(gomega.BeNil())
+	gomega.Expect(acl.AclName).To(gomega.BeEquivalentTo(ACLNamePrefix + ReflectiveACLName))
+	gomega.Expect(acl.Rules).To(gomega.HaveLen(2))
+	rule1 := acl.Rules[0]
+	rule2 := acl.Rules[1]
 	gomega.Expect(acl.Interfaces).ToNot(gomega.BeNil())
-	inIfSet := cache.NewInterfaceSet()
-	for _, ifName := range acl.Interfaces.Ingress {
-		inIfSet.Add(ifName)
+	for _, ifName := range ifs {
+		gomega.Expect(acl.Interfaces.Ingress).To(gomega.ContainElement(ifName))
 	}
-	egIfSet := cache.NewInterfaceSet()
-	for _, ifName := range acl.Interfaces.Egress {
-		egIfSet.Add(ifName)
-	}
-	gomega.Expect(inIfSet).To(gomega.BeEquivalentTo(ingress))
-	gomega.Expect(egIfSet).To(gomega.BeEquivalentTo(egress))
+	gomega.Expect(acl.Interfaces.Egress).To(gomega.HaveLen(0))
 
-	// Rules
-	gomega.Expect(acl.Rules).To(gomega.HaveLen(len(contivRule)))
-	for idx, aclRule := range acl.Rules {
-		verifyRule(aclRule, contivRule[idx])
-	}
+	// TCP any
+	gomega.Expect(rule1.Actions).ToNot(gomega.BeNil())
+	gomega.Expect(rule1.Actions.AclAction).To(gomega.BeEquivalentTo(vpp_acl.AclAction_REFLECT))
+	gomega.Expect(rule1.Matches).ToNot(gomega.BeNil())
+	gomega.Expect(rule1.Matches.MacipRule).To(gomega.BeNil())
+	gomega.Expect(rule1.Matches.IpRule).ToNot(gomega.BeNil())
+	ipRule := rule1.Matches.IpRule
+	gomega.Expect(ipRule.Other).To(gomega.BeNil())
+	gomega.Expect(ipRule.Icmp).To(gomega.BeNil())
+	gomega.Expect(ipRule.Udp).To(gomega.BeNil())
+	gomega.Expect(ipRule.Ip).ToNot(gomega.BeNil())
+	gomega.Expect(ipRule.Tcp).ToNot(gomega.BeNil())
+	gomega.Expect(ipRule.Ip.SourceNetwork).To(gomega.BeEmpty())
+	gomega.Expect(ipRule.Ip.DestinationNetwork).To(gomega.BeEmpty())
+	gomega.Expect(ipRule.Tcp.TcpFlagsValue).To(gomega.BeEquivalentTo(0))
+	gomega.Expect(ipRule.Tcp.TcpFlagsMask).To(gomega.BeEquivalentTo(0))
+	gomega.Expect(ipRule.Tcp.SourcePortRange).ToNot(gomega.BeNil())
+	gomega.Expect(ipRule.Tcp.DestinationPortRange).ToNot(gomega.BeNil())
+	gomega.Expect(ipRule.Tcp.SourcePortRange.LowerPort).To(gomega.BeEquivalentTo(0))
+	gomega.Expect(ipRule.Tcp.SourcePortRange.UpperPort).To(gomega.BeEquivalentTo(maxPortNum))
+	gomega.Expect(ipRule.Tcp.DestinationPortRange.LowerPort).To(gomega.BeEquivalentTo(0))
+	gomega.Expect(ipRule.Tcp.DestinationPortRange.UpperPort).To(gomega.BeEquivalentTo(maxPortNum))
 
-	return acl.AclName
+	// UDP any
+	gomega.Expect(rule2.Actions).ToNot(gomega.BeNil())
+	gomega.Expect(rule2.Actions.AclAction).To(gomega.BeEquivalentTo(vpp_acl.AclAction_REFLECT))
+	gomega.Expect(rule2.Matches).ToNot(gomega.BeNil())
+	gomega.Expect(rule2.Matches.MacipRule).To(gomega.BeNil())
+	gomega.Expect(rule2.Matches.IpRule).ToNot(gomega.BeNil())
+	ipRule = rule2.Matches.IpRule
+	gomega.Expect(ipRule.Other).To(gomega.BeNil())
+	gomega.Expect(ipRule.Icmp).To(gomega.BeNil())
+	gomega.Expect(ipRule.Tcp).To(gomega.BeNil())
+	gomega.Expect(ipRule.Ip).ToNot(gomega.BeNil())
+	gomega.Expect(ipRule.Udp).ToNot(gomega.BeNil())
+	gomega.Expect(ipRule.Ip.SourceNetwork).To(gomega.BeEmpty())
+	gomega.Expect(ipRule.Ip.DestinationNetwork).To(gomega.BeEmpty())
+	gomega.Expect(ipRule.Udp.SourcePortRange).ToNot(gomega.BeNil())
+	gomega.Expect(ipRule.Udp.DestinationPortRange).ToNot(gomega.BeNil())
+	gomega.Expect(ipRule.Udp.SourcePortRange.LowerPort).To(gomega.BeEquivalentTo(0))
+	gomega.Expect(ipRule.Udp.SourcePortRange.UpperPort).To(gomega.BeEquivalentTo(maxPortNum))
+	gomega.Expect(ipRule.Udp.DestinationPortRange.LowerPort).To(gomega.BeEquivalentTo(0))
+	gomega.Expect(ipRule.Udp.DestinationPortRange.UpperPort).To(gomega.BeEquivalentTo(maxPortNum))
 }
 
-func verifyRule(aclRule *acl_model.AccessLists_Acl_Rule, contivRule *renderer.ContivRule) {
-	// Name
-	gomega.Expect(aclRule.RuleName).To(gomega.BeEquivalentTo(contivRule.ID))
-	// Action
-	gomega.Expect(aclRule.Actions).ToNot(gomega.BeNil())
-	if contivRule.Action == renderer.ActionPermit {
-		gomega.Expect(aclRule.Actions.AclAction).To(gomega.BeEquivalentTo(acl_model.AclAction_REFLECT))
-	} else {
-		gomega.Expect(aclRule.Actions.AclAction).To(gomega.BeEquivalentTo(acl_model.AclAction_DENY))
+func verifyGlobalTable(engine *MockACLEngine, contiv contiv.API, expectedToHave bool) {
+	ifs := contiv.GetOtherPhysicalIfNames()
+	ifs = append(ifs, contiv.GetVxlanBVIIfName())
+	ifs = append(ifs, contiv.GetMainPhysicalIfName())
+	ifs = append(ifs, contiv.GetHostInterconnectIfName())
+
+	acl := engine.GetACLByName(ACLNamePrefix + cache.GlobalTableID)
+	if !expectedToHave {
+		gomega.Expect(acl).To(gomega.BeNil())
+		return
 	}
-	// IP
-	gomega.Expect(aclRule.Matches).ToNot(gomega.BeNil())
-	gomega.Expect(aclRule.Matches.MacipRule).To(gomega.BeNil())
-	gomega.Expect(aclRule.Matches.IpRule).ToNot(gomega.BeNil())
-	gomega.Expect(aclRule.Matches.IpRule.Ip).ToNot(gomega.BeNil())
-	if len(contivRule.SrcNetwork.IP) > 0 {
-		gomega.Expect(aclRule.Matches.IpRule.Ip.SourceNetwork).To(gomega.BeEquivalentTo(contivRule.SrcNetwork.String()))
-	} else {
-		gomega.Expect(aclRule.Matches.IpRule.Ip.SourceNetwork).To(gomega.BeEquivalentTo(""))
+	gomega.Expect(acl).ToNot(gomega.BeNil())
+	gomega.Expect(acl.Rules).ToNot(gomega.HaveLen(0))
+	gomega.Expect(acl.Interfaces).ToNot(gomega.BeNil())
+	gomega.Expect(acl.Interfaces.Ingress).To(gomega.HaveLen(0))
+	for _, ifName := range ifs {
+		gomega.Expect(acl.Interfaces.Egress).To(gomega.ContainElement(ifName))
 	}
-	if len(contivRule.DestNetwork.IP) > 0 {
-		gomega.Expect(aclRule.Matches.IpRule.Ip.DestinationNetwork).To(gomega.BeEquivalentTo(contivRule.DestNetwork.String()))
-	} else {
-		gomega.Expect(aclRule.Matches.IpRule.Ip.DestinationNetwork).To(gomega.BeEquivalentTo(""))
-	}
-	// L4
-	gomega.Expect(aclRule.Matches.IpRule.Icmp).To(gomega.BeNil())
-	if contivRule.Protocol == renderer.TCP {
-		// TCP
-		gomega.Expect(aclRule.Matches.IpRule.Tcp).ToNot(gomega.BeNil())
-		gomega.Expect(aclRule.Matches.IpRule.Tcp.SourcePortRange).ToNot(gomega.BeNil())
-		gomega.Expect(aclRule.Matches.IpRule.Tcp.SourcePortRange.LowerPort).To(gomega.BeEquivalentTo(contivRule.SrcPort))
-		if contivRule.SrcPort == 0 {
-			gomega.Expect(aclRule.Matches.IpRule.Tcp.SourcePortRange.UpperPort).To(gomega.BeEquivalentTo(65535))
-		} else {
-			gomega.Expect(aclRule.Matches.IpRule.Tcp.SourcePortRange.UpperPort).To(gomega.BeEquivalentTo(contivRule.SrcPort))
-		}
-		gomega.Expect(aclRule.Matches.IpRule.Tcp.DestinationPortRange).ToNot(gomega.BeNil())
-		gomega.Expect(aclRule.Matches.IpRule.Tcp.DestinationPortRange.LowerPort).To(gomega.BeEquivalentTo(contivRule.DestPort))
-		if contivRule.DestPort == 0 {
-			gomega.Expect(aclRule.Matches.IpRule.Tcp.DestinationPortRange.UpperPort).To(gomega.BeEquivalentTo(65535))
-		} else {
-			gomega.Expect(aclRule.Matches.IpRule.Tcp.DestinationPortRange.UpperPort).To(gomega.BeEquivalentTo(contivRule.DestPort))
-		}
-	} else {
-		// UDP
-		gomega.Expect(aclRule.Matches.IpRule.Udp).ToNot(gomega.BeNil())
-		gomega.Expect(aclRule.Matches.IpRule.Udp.SourcePortRange).ToNot(gomega.BeNil())
-		gomega.Expect(aclRule.Matches.IpRule.Udp.SourcePortRange.LowerPort).To(gomega.BeEquivalentTo(contivRule.SrcPort))
-		if contivRule.SrcPort == 0 {
-			gomega.Expect(aclRule.Matches.IpRule.Udp.SourcePortRange.UpperPort).To(gomega.BeEquivalentTo(65535))
-		} else {
-			gomega.Expect(aclRule.Matches.IpRule.Udp.SourcePortRange.UpperPort).To(gomega.BeEquivalentTo(contivRule.SrcPort))
-		}
-		gomega.Expect(aclRule.Matches.IpRule.Udp.DestinationPortRange).ToNot(gomega.BeNil())
-		gomega.Expect(aclRule.Matches.IpRule.Udp.DestinationPortRange.LowerPort).To(gomega.BeEquivalentTo(contivRule.DestPort))
-		if contivRule.DestPort == 0 {
-			gomega.Expect(aclRule.Matches.IpRule.Udp.DestinationPortRange.UpperPort).To(gomega.BeEquivalentTo(65535))
-		} else {
-			gomega.Expect(aclRule.Matches.IpRule.Udp.DestinationPortRange.UpperPort).To(gomega.BeEquivalentTo(contivRule.DestPort))
-		}
-	}
-	gomega.Expect(aclRule.Matches.IpRule.Other).To(gomega.BeNil())
+	gomega.Expect(acl.Interfaces.Egress).To(gomega.HaveLen(len(ifs)))
 }
 
-func allowAll() []*renderer.ContivRule {
-	ruleTCPAny := &renderer.ContivRule{
-		ID:          "TCP:ANY",
-		Action:      renderer.ActionPermit,
-		SrcNetwork:  &net.IPNet{},
-		DestNetwork: &net.IPNet{},
-		Protocol:    renderer.TCP,
-		SrcPort:     0,
-		DestPort:    0,
-	}
-	ruleUDPAny := &renderer.ContivRule{
-		ID:          "UDP:ANY",
-		Action:      renderer.ActionPermit,
-		SrcNetwork:  &net.IPNet{},
-		DestNetwork: &net.IPNet{},
-		Protocol:    renderer.UDP,
-		SrcPort:     0,
-		DestPort:    0,
-	}
-	return []*renderer.ContivRule{ruleTCPAny, ruleUDPAny}
-}
-
-func TestSingleContivRuleOneInterface(t *testing.T) {
+func TestEgressRulesOnePod(t *testing.T) {
 	gomega.RegisterTestingT(t)
 	logger := logrus.DefaultLogger()
 	logger.SetLevel(logging.DebugLevel)
-	logger.Debug("TestSingleContivRuleOneInterface")
+	logger.Debug("TestEgressRulesOnePod")
 
-	// Prepare input data.
-	const (
-		namespace  = "default"
-		pod1Name   = "pod1"
-		pod1IfName = "afpacket1"
-	)
-	pod1 := podmodel.ID{Name: pod1Name, Namespace: namespace}
-
-	rule := &renderer.ContivRule{
-		ID:          "deny-http",
-		Action:      renderer.ActionDeny,
-		SrcNetwork:  ipNetwork("192.168.0.0/24"),
-		DestNetwork: ipNetwork(""),
-		Protocol:    renderer.TCP,
-		SrcPort:     0,
-		DestPort:    80,
-	}
+	// Prepare input data
 	ingress := []*renderer.ContivRule{}
-	egress := []*renderer.ContivRule{rule}
-	ifSet := cache.NewInterfaceSet(pod1IfName)
+	egress := []*renderer.ContivRule{Ts3.Rule1 /* UDP not allowed */, Ts3.Rule3, Ts3.Rule4}
 
 	// Prepare mocks.
+	//  -> Contiv plugin
 	contiv := NewMockContiv()
-	contiv.SetPodIfName(pod1, pod1IfName)
+	contiv.SetMainPhysicalIfName(mainIfName)
+	contiv.SetVxlanBVIIfName(vxlanIfName)
+	contiv.SetHostInterconnectIfName(hostInterIfName)
+	contiv.SetPodIfName(Pod1, Pod1IfName)
 
-	txnTracker := localclient.NewTxnTracker(nil)
+	// -> ACL engine
+	aclEngine := NewMockACLEngine(logger, contiv)
+	aclEngine.RegisterPod(Pod1, Pod1IP, false)
+	aclEngine.RegisterPod(Pod6, Pod6IP, true)
+
+	// -> localclient
+	txnTracker := localclient.NewTxnTracker(aclEngine.ApplyTxn)
+
+	// -> default VPP plugins
+	vppPlugins := NewMockVppPlugin()
 
 	// Prepare ACL Renderer.
 	aclRenderer := &Renderer{
 		Deps: Deps{
 			Log:           logger,
 			Contiv:        contiv,
-			VPP:           NewMockVppPlugin(),
+			VPP:           vppPlugins,
 			ACLTxnFactory: txnTracker.NewLinuxDataChangeTxn,
 		},
 	}
 	aclRenderer.Init()
 
 	// Execute Renderer transaction.
-	aclRenderer.NewTxn(false).Render(pod1, nil, ingress, egress).Commit()
-
-	// Verify localclient transactions.
-	gomega.Expect(txnTracker.PendingTxns).To(gomega.HaveLen(0))
+	err := aclRenderer.NewTxn(true).Render(Pod1, GetOneHostSubnet(Pod1IP), ingress, egress, false).Commit()
+	gomega.Expect(err).To(gomega.BeNil())
 	gomega.Expect(txnTracker.CommittedTxns).To(gomega.HaveLen(1))
-	txn := txnTracker.CommittedTxns[0]
-	gomega.Expect(txn.LinuxDataResyncTxn).To(gomega.BeNil())
-	gomega.Expect(txn.LinuxDataChangeTxn).ToNot(gomega.BeNil())
 
-	// Verify transaction operations.
-	ops := txn.LinuxDataChangeTxn.Ops
-	gomega.Expect(ops).To(gomega.HaveLen(2))
-	putIngress, putEgress, deleted := parseACLOps(ops)
-	gomega.Expect(deleted).To(gomega.HaveLen(0))
-	gomega.Expect(putIngress).To(gomega.HaveLen(1))
-	gomega.Expect(putIngress.GetACL(pod1IfName)).ToNot(gomega.BeNil())
-	gomega.Expect(putEgress).To(gomega.HaveLen(1))
-	gomega.Expect(putEgress.GetACL(pod1IfName)).ToNot(gomega.BeNil())
+	// Test ACLs.
+	gomega.Expect(aclEngine.GetNumOfACLs()).To(gomega.Equal(2))
+	verifyReflectiveACL(aclEngine, contiv, Pod1IfName, true)
+	verifyGlobalTable(aclEngine, contiv, false)
 
-	// Verify the generated ACLs.
-	verifyACL(putIngress.GetACL(pod1IfName), "", ifSet, cache.NewInterfaceSet(), allowAll()...)
-	verifyACL(putEgress.GetACL(pod1IfName), "", cache.NewInterfaceSet(), ifSet, egress...)
+	// Test connections (Pod1 can receive connection only from 10.10.0.0/16:[TCP:ANY]).
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod1, Pod6, renderer.TCP, somePort, 80)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod6, Pod1, renderer.TCP, somePort, 80)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod6, Pod1, renderer.TCP, somePort, 8080)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod6, Pod1, renderer.UDP, somePort, 53)).To(gomega.Equal(ConnActionDenySyn))
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod6, Pod1, renderer.UDP, somePort, 500)).To(gomega.Equal(ConnActionDenySyn))
+	gomega.Expect(aclEngine.ConnectionPodToInternet(Pod1, googleDNS, renderer.TCP, somePort, 80)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionInternetToPod(googleDNS, Pod1, renderer.TCP, somePort, 80)).To(gomega.Equal(ConnActionDenySyn))
+	gomega.Expect(aclEngine.ConnectionInternetToPod("10.10.50.1", Pod1, renderer.TCP, somePort, 80)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionInternetToPod("10.10.50.1", Pod1, renderer.TCP, somePort, 81)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionInternetToPod("10.10.50.1", Pod1, renderer.UDP, somePort, 53)).To(gomega.Equal(ConnActionDenySyn))
 
 	// Try to execute the same change again.
-	aclRenderer.NewTxn(false).Render(pod1, nil, ingress, egress).Commit()
+	err = aclRenderer.NewTxn(false).Render(Pod1, GetOneHostSubnet(Pod1IP), ingress, egress, false).Commit()
+	gomega.Expect(err).To(gomega.BeNil())
 
 	// Verify that the change had no further effect.
 	gomega.Expect(txnTracker.PendingTxns).To(gomega.HaveLen(0))
 	gomega.Expect(txnTracker.CommittedTxns).To(gomega.HaveLen(1))
 }
 
-func TestSingleContivRuleMultipleInterfaces(t *testing.T) {
+func TestIngressRulesOnePod(t *testing.T) {
 	gomega.RegisterTestingT(t)
 	logger := logrus.DefaultLogger()
 	logger.SetLevel(logging.DebugLevel)
-	logger.Debug("TestSingleContivRuleMultipleInterfaces")
+	logger.Debug("TestIngressRulesOnePod")
 
-	// Prepare input data.
-	const (
-		namespace  = "default"
-		pod1Name   = "pod1"
-		pod1IfName = "afpacket1"
-		pod2Name   = "pod2"
-		pod2IfName = "afpacket2"
-		pod3Name   = "pod3"
-		pod3IfName = "afpacket3"
-		pod4Name   = "pod4"
-		pod4IfName = "afpacket4"
-		pod5Name   = "pod5"
-		pod5IfName = "afpacket5"
-	)
-	pod1 := podmodel.ID{Name: pod1Name, Namespace: namespace}
-	pod2 := podmodel.ID{Name: pod2Name, Namespace: namespace}
-	pod3 := podmodel.ID{Name: pod3Name, Namespace: namespace}
-	pod4 := podmodel.ID{Name: pod4Name, Namespace: namespace}
-	pod5 := podmodel.ID{Name: pod5Name, Namespace: namespace}
+	// Prepare input data
+	ingress := []*renderer.ContivRule{Ts4.Rule1 /* UDP not allowed */, Ts4.Rule3, Ts4.Rule4}
+	egress := []*renderer.ContivRule{}
 
 	// Prepare mocks.
+	//  -> Contiv plugin
 	contiv := NewMockContiv()
-	contiv.SetPodIfName(pod1, pod1IfName)
-	contiv.SetPodIfName(pod2, pod2IfName)
-	contiv.SetPodIfName(pod3, pod3IfName)
-	contiv.SetPodIfName(pod4, pod4IfName)
-	contiv.SetPodIfName(pod5, pod5IfName)
+	contiv.SetMainPhysicalIfName(mainIfName)
+	contiv.SetVxlanBVIIfName(vxlanIfName)
+	contiv.SetHostInterconnectIfName(hostInterIfName)
+	contiv.SetPodIfName(Pod1, Pod1IfName)
 
-	txnTracker := localclient.NewTxnTracker(nil)
+	// -> ACL engine
+	aclEngine := NewMockACLEngine(logger, contiv)
+	aclEngine.RegisterPod(Pod1, Pod1IP, false)
+	aclEngine.RegisterPod(Pod6, Pod6IP, true)
+
+	// -> localclient
+	txnTracker := localclient.NewTxnTracker(aclEngine.ApplyTxn)
+
+	// -> default VPP plugins
+	vppPlugins := NewMockVppPlugin()
 
 	// Prepare ACL Renderer.
 	aclRenderer := &Renderer{
 		Deps: Deps{
 			Log:           logger,
 			Contiv:        contiv,
-			VPP:           NewMockVppPlugin(),
+			VPP:           vppPlugins,
 			ACLTxnFactory: txnTracker.NewLinuxDataChangeTxn,
 		},
 	}
 	aclRenderer.Init()
 
-	// Prepare input data.
-	rule := &renderer.ContivRule{
-		ID:          "deny-http",
-		Action:      renderer.ActionDeny,
-		SrcNetwork:  ipNetwork("192.168.0.0/24"),
-		DestNetwork: ipNetwork(""),
-		Protocol:    renderer.TCP,
-		SrcPort:     0,
-		DestPort:    80,
-	}
+	// Execute Renderer transaction.
+	err := aclRenderer.NewTxn(true).Render(Pod1, GetOneHostSubnet(Pod1IP), ingress, egress, false).Commit()
+	gomega.Expect(err).To(gomega.BeNil())
+	gomega.Expect(txnTracker.CommittedTxns).To(gomega.HaveLen(1))
+
+	// Test ACLs.
+	gomega.Expect(aclEngine.GetNumOfACLs()).To(gomega.Equal(3))
+	verifyReflectiveACL(aclEngine, contiv, Pod1IfName, true)
+	verifyGlobalTable(aclEngine, contiv, true)
+
+	// Test connections (Pod1 can initiate connection only to 10.10.0.0/16:[TCP:ANY]).
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod1, Pod6, renderer.TCP, somePort, 80)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod1, Pod1, renderer.TCP, somePort, 80)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod1, Pod6, renderer.UDP, somePort, 53)).To(gomega.Equal(ConnActionDenySyn))
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod1, Pod1, renderer.UDP, somePort, 53)).To(gomega.Equal(ConnActionAllow)) /* pod can talk to itself */
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod6, Pod1, renderer.TCP, somePort, 80)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod6, Pod1, renderer.UDP, somePort, 53)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionPodToInternet(Pod1, googleDNS, renderer.TCP, somePort, 80)).To(gomega.Equal(ConnActionDenySyn))
+	gomega.Expect(aclEngine.ConnectionPodToInternet(Pod1, "10.10.50.1", renderer.TCP, somePort, 80)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionPodToInternet(Pod1, "10.10.50.1", renderer.TCP, somePort, 81)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionPodToInternet(Pod1, "10.10.50.1", renderer.UDP, somePort, 53)).To(gomega.Equal(ConnActionDenySyn))
+	gomega.Expect(aclEngine.ConnectionInternetToPod(googleDNS, Pod1, renderer.TCP, somePort, 80)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionInternetToPod(googleDNS, Pod1, renderer.UDP, somePort, 53)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionInternetToPod(googleDNS, Pod1, renderer.TCP, somePort, 80)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionInternetToPod(googleDNS, Pod1, renderer.UDP, somePort, 53)).To(gomega.Equal(ConnActionAllow))
+
+	// Try to execute the same change again.
+	err = aclRenderer.NewTxn(false).Render(Pod1, GetOneHostSubnet(Pod1IP), ingress, egress, false).Commit()
+	gomega.Expect(err).To(gomega.BeNil())
+
+	// Verify that the change had no further effect.
+	gomega.Expect(txnTracker.PendingTxns).To(gomega.HaveLen(0))
+	gomega.Expect(txnTracker.CommittedTxns).To(gomega.HaveLen(1))
+}
+
+func TestEgressRulesTwoPods(t *testing.T) {
+	gomega.RegisterTestingT(t)
+	logger := logrus.DefaultLogger()
+	logger.SetLevel(logging.DebugLevel)
+	logger.Debug("TestEgressRulesTwoPods")
+
+	// Prepare input data
 	ingress := []*renderer.ContivRule{}
-	egress := []*renderer.ContivRule{rule}
-
-	// Execute Renderer transaction for 3 interfaces.
-	rendererTxn := aclRenderer.NewTxn(false)
-	ifSet := cache.NewInterfaceSet(pod1IfName, pod2IfName, pod3IfName)
-	pods := []podmodel.ID{pod1, pod2, pod3}
-	for _, pod := range pods {
-		rendererTxn.Render(pod, nil, ingress, egress)
-	}
-	err := rendererTxn.Commit()
-	gomega.Expect(err).To(gomega.BeNil())
-
-	// Verify localclient transactions.
-	gomega.Expect(txnTracker.PendingTxns).To(gomega.HaveLen(0))
-	gomega.Expect(txnTracker.CommittedTxns).To(gomega.HaveLen(1))
-	txn := txnTracker.CommittedTxns[0]
-	gomega.Expect(txn.LinuxDataResyncTxn).To(gomega.BeNil())
-	gomega.Expect(txn.LinuxDataChangeTxn).ToNot(gomega.BeNil())
-
-	// Verify transaction operations.
-	ops := txn.LinuxDataChangeTxn.Ops
-	gomega.Expect(ops).To(gomega.HaveLen(2))
-	putIngress, putEgress, deleted := parseACLOps(ops)
-	gomega.Expect(deleted).To(gomega.HaveLen(0))
-	gomega.Expect(putIngress).To(gomega.HaveLen(3))
-	for iface := range ifSet {
-		gomega.Expect(putIngress.GetACL(iface)).ToNot(gomega.BeNil())
-	}
-	gomega.Expect(putEgress).To(gomega.HaveLen(3))
-	for iface := range ifSet {
-		gomega.Expect(putEgress.GetACL(iface)).ToNot(gomega.BeNil())
-	}
-
-	// Verify the generated ACLs.
-	inACL := verifyACL(putIngress.GetACL(pod1IfName), "", ifSet, cache.NewInterfaceSet(), allowAll()...)
-	for iface := range ifSet {
-		verifyACL(putIngress.GetACL(iface), inACL, ifSet, cache.NewInterfaceSet(), allowAll()...)
-	}
-	egACL := verifyACL(putEgress.GetACL(pod1IfName), "", cache.NewInterfaceSet(), ifSet, egress...)
-	for iface := range ifSet {
-		verifyACL(putEgress.GetACL(iface), egACL, cache.NewInterfaceSet(), ifSet, egress...)
-	}
-	// Try to execute the same change again.
-	rendererTxn = aclRenderer.NewTxn(false)
-	for _, pod := range pods {
-		rendererTxn.Render(pod, nil, ingress, egress)
-	}
-	err = rendererTxn.Commit()
-	gomega.Expect(err).To(gomega.BeNil())
-
-	// Verify that the change had no further effect.
-	gomega.Expect(txnTracker.PendingTxns).To(gomega.HaveLen(0))
-	gomega.Expect(txnTracker.CommittedTxns).To(gomega.HaveLen(1))
-
-	// Add two more interfaces.
-	rendererTxn = aclRenderer.NewTxn(false)
-	ifSet2 := cache.NewInterfaceSet(pod4IfName, pod5IfName)
-	pods = []podmodel.ID{pod4, pod5}
-	for _, pod := range pods {
-		rendererTxn.Render(pod, nil, ingress, egress)
-	}
-	ifSet.Join(ifSet2)
-	err = rendererTxn.Commit()
-	gomega.Expect(err).To(gomega.BeNil())
-
-	// Verify localclient transactions.
-	gomega.Expect(txnTracker.PendingTxns).To(gomega.HaveLen(0))
-	gomega.Expect(txnTracker.CommittedTxns).To(gomega.HaveLen(2))
-	txn = txnTracker.CommittedTxns[1]
-	gomega.Expect(txn.LinuxDataResyncTxn).To(gomega.BeNil())
-	gomega.Expect(txn.LinuxDataChangeTxn).ToNot(gomega.BeNil())
-
-	// Verify transaction operations.
-	ops = txn.LinuxDataChangeTxn.Ops
-	gomega.Expect(ops).To(gomega.HaveLen(2))
-	putIngress, putEgress, deleted = parseACLOps(ops)
-	gomega.Expect(deleted).To(gomega.HaveLen(0))
-	gomega.Expect(putIngress).To(gomega.HaveLen(5))
-	for iface := range ifSet {
-		gomega.Expect(putIngress.GetACL(iface)).ToNot(gomega.BeNil())
-	}
-	gomega.Expect(putEgress).To(gomega.HaveLen(5))
-	for iface := range ifSet {
-		gomega.Expect(putEgress.GetACL(iface)).ToNot(gomega.BeNil())
-	}
-
-	// Verify the modified ACLs.
-	for iface := range ifSet {
-		verifyACL(putIngress.GetACL(iface), inACL, ifSet, cache.NewInterfaceSet(), allowAll()...)
-	}
-	for iface := range ifSet {
-		verifyACL(putEgress.GetACL(iface), egACL, cache.NewInterfaceSet(), ifSet, egress...)
-	}
-}
-
-func TestMultipleContivRulesSingleInterface(t *testing.T) {
-	gomega.RegisterTestingT(t)
-	logger := logrus.DefaultLogger()
-	logger.SetLevel(logging.DebugLevel)
-	logger.Debug("TestMultipleContivRulesSingleInterface")
-
-	// Prepare input data.
-	const (
-		namespace  = "default"
-		pod1Name   = "pod1"
-		pod1IfName = "afpacket1"
-	)
-	pod1 := podmodel.ID{Name: pod1Name, Namespace: namespace}
+	egress := []*renderer.ContivRule{Ts3.Rule1 /* UDP not allowed */, Ts3.Rule3, Ts3.Rule4}
 
 	// Prepare mocks.
+	//  -> Contiv plugin
 	contiv := NewMockContiv()
-	contiv.SetPodIfName(pod1, pod1IfName)
+	contiv.SetMainPhysicalIfName(mainIfName)
+	contiv.SetVxlanBVIIfName(vxlanIfName)
+	contiv.SetHostInterconnectIfName(hostInterIfName)
+	contiv.SetPodIfName(Pod1, Pod1IfName)
+	contiv.SetPodIfName(Pod2, Pod2IfName)
 
-	txnTracker := localclient.NewTxnTracker(nil)
+	// -> ACL engine
+	aclEngine := NewMockACLEngine(logger, contiv)
+	aclEngine.RegisterPod(Pod1, Pod1IP, false)
+	aclEngine.RegisterPod(Pod2, Pod2IP, false)
+	aclEngine.RegisterPod(Pod6, Pod6IP, true)
+
+	// -> localclient
+	txnTracker := localclient.NewTxnTracker(aclEngine.ApplyTxn)
+
+	// -> default VPP plugins
+	vppPlugins := NewMockVppPlugin()
 
 	// Prepare ACL Renderer.
 	aclRenderer := &Renderer{
 		Deps: Deps{
 			Log:           logger,
 			Contiv:        contiv,
-			VPP:           NewMockVppPlugin(),
+			VPP:           vppPlugins,
 			ACLTxnFactory: txnTracker.NewLinuxDataChangeTxn,
 		},
 	}
 	aclRenderer.Init()
 
-	// Prepare input data.
-	egRule1 := &renderer.ContivRule{
-		ID:          "deny-http",
-		Action:      renderer.ActionDeny,
-		SrcNetwork:  ipNetwork("192.168.0.0/16"),
-		DestNetwork: ipNetwork(""),
-		Protocol:    renderer.TCP,
-		SrcPort:     0,
-		DestPort:    80,
-	}
-	egRule2 := &renderer.ContivRule{
-		ID:          "deny-https",
-		Action:      renderer.ActionDeny,
-		SrcNetwork:  ipNetwork("192.168.0.0/16"),
-		DestNetwork: ipNetwork(""),
-		Protocol:    renderer.TCP,
-		SrcPort:     0,
-		DestPort:    443,
-	}
-	inRule1 := &renderer.ContivRule{
-		ID:          "deny-ssh",
-		Action:      renderer.ActionDeny,
-		SrcNetwork:  ipNetwork(""),
-		DestNetwork: ipNetwork("192.168.1.0/24"),
-		Protocol:    renderer.TCP,
-		SrcPort:     0,
-		DestPort:    22,
-	}
-	inRule2 := &renderer.ContivRule{
-		ID:          "random-rule",
-		Action:      renderer.ActionPermit,
-		SrcNetwork:  ipNetwork("10.0.0.0/8"),
-		DestNetwork: ipNetwork("192.168.1.1/32"),
-		Protocol:    renderer.UDP,
-		SrcPort:     1111,
-		DestPort:    2222,
-	}
-	ingress := []*renderer.ContivRule{inRule1, inRule2}
-	egress := []*renderer.ContivRule{egRule1, egRule2}
-
-	// Execute Renderer transaction for 3 interfaces.
-	rendererTxn := aclRenderer.NewTxn(false)
-	ifSet := cache.NewInterfaceSet(pod1IfName)
-	rendererTxn.Render(pod1, nil, ingress, egress)
-	err := rendererTxn.Commit()
+	// Execute Renderer transaction.
+	txn := aclRenderer.NewTxn(true)
+	txn.Render(Pod1, GetOneHostSubnet(Pod1IP), ingress, egress, false)
+	txn.Render(Pod2, GetOneHostSubnet(Pod2IP), ingress, egress, false)
+	err := txn.Commit()
 	gomega.Expect(err).To(gomega.BeNil())
-
-	// Verify localclient transactions.
-	gomega.Expect(txnTracker.PendingTxns).To(gomega.HaveLen(0))
-	gomega.Expect(txnTracker.CommittedTxns).To(gomega.HaveLen(1))
-	txn := txnTracker.CommittedTxns[0]
-	gomega.Expect(txn.LinuxDataResyncTxn).To(gomega.BeNil())
-	gomega.Expect(txn.LinuxDataChangeTxn).ToNot(gomega.BeNil())
-
-	// Verify transaction operations.
-	ops := txn.LinuxDataChangeTxn.Ops
-	gomega.Expect(ops).To(gomega.HaveLen(2))
-	putIngress, putEgress, deleted := parseACLOps(ops)
-	gomega.Expect(deleted).To(gomega.HaveLen(0))
-	gomega.Expect(putIngress).To(gomega.HaveLen(1))
-	gomega.Expect(putIngress.GetACL(pod1IfName)).ToNot(gomega.BeNil())
-	gomega.Expect(putEgress).To(gomega.HaveLen(1))
-	gomega.Expect(putEgress.GetACL(pod1IfName)).ToNot(gomega.BeNil())
-
-	// Verify the generated ACLs.
-	inACL1 := verifyACL(putIngress.GetACL(pod1IfName), "", ifSet, cache.NewInterfaceSet(), ingress...)
-	verifyACL(putEgress.GetACL(pod1IfName), "", cache.NewInterfaceSet(), ifSet, egress...)
-
-	// Try to execute the same change again.
-	rendererTxn = aclRenderer.NewTxn(false)
-	rendererTxn.Render(pod1, nil, ingress, egress)
-	err = rendererTxn.Commit()
-	gomega.Expect(err).To(gomega.BeNil())
-
-	// Verify that the change had no further effect.
-	gomega.Expect(txnTracker.PendingTxns).To(gomega.HaveLen(0))
 	gomega.Expect(txnTracker.CommittedTxns).To(gomega.HaveLen(1))
 
-	// Add ingress rule.
-	inRule3 := &renderer.ContivRule{
-		ID:          "new-rule",
-		Action:      renderer.ActionDeny,
-		SrcNetwork:  ipNetwork("10.10.0.0/16"),
-		DestNetwork: ipNetwork("192.168.1.1/32"),
-		Protocol:    renderer.TCP,
-		SrcPort:     3333,
-		DestPort:    4444,
-	}
-	ingress2 := []*renderer.ContivRule{inRule1, inRule2, inRule3}
+	// Test ACLs.
+	gomega.Expect(aclEngine.GetNumOfACLs()).To(gomega.Equal(2)) /* pod1 and pod2 should share the same local table */
+	gomega.Expect(aclEngine.GetNumOfACLChanges()).To(gomega.Equal(2))
+	verifyReflectiveACL(aclEngine, contiv, Pod1IfName, true)
+	verifyReflectiveACL(aclEngine, contiv, Pod2IfName, true)
+	verifyGlobalTable(aclEngine, contiv, false)
 
-	// Update interface rules.
-	rendererTxn = aclRenderer.NewTxn(false)
-	rendererTxn.Render(pod1, nil, ingress2, egress)
-	err = rendererTxn.Commit()
+	// Test connections (Pod1, Pod2 can receive connection only from 10.10.0.0/16:[TCP:ANY]).
+	//  -> dst = pod1
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod2, Pod1, renderer.TCP, somePort, 80)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod2, Pod1, renderer.TCP, somePort, 8080)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod6, Pod1, renderer.TCP, somePort, 80)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod6, Pod1, renderer.TCP, somePort, 8080)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod2, Pod1, renderer.UDP, somePort, 53)).To(gomega.Equal(ConnActionDenySyn))
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod2, Pod1, renderer.UDP, somePort, 500)).To(gomega.Equal(ConnActionDenySyn))
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod6, Pod1, renderer.UDP, somePort, 53)).To(gomega.Equal(ConnActionDenySyn))
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod6, Pod1, renderer.UDP, somePort, 500)).To(gomega.Equal(ConnActionDenySyn))
+	gomega.Expect(aclEngine.ConnectionInternetToPod(googleDNS, Pod1, renderer.TCP, somePort, 80)).To(gomega.Equal(ConnActionDenySyn))
+	gomega.Expect(aclEngine.ConnectionInternetToPod("10.10.50.1", Pod1, renderer.TCP, somePort, 80)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionInternetToPod("10.10.50.1", Pod1, renderer.TCP, somePort, 81)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionInternetToPod("10.10.50.1", Pod1, renderer.UDP, somePort, 53)).To(gomega.Equal(ConnActionDenySyn))
+	//  -> dst = pod2
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod1, Pod2, renderer.TCP, somePort, 80)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod1, Pod2, renderer.TCP, somePort, 8080)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod6, Pod2, renderer.TCP, somePort, 80)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod6, Pod2, renderer.TCP, somePort, 8080)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod1, Pod2, renderer.UDP, somePort, 53)).To(gomega.Equal(ConnActionDenySyn))
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod1, Pod2, renderer.UDP, somePort, 500)).To(gomega.Equal(ConnActionDenySyn))
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod6, Pod2, renderer.UDP, somePort, 53)).To(gomega.Equal(ConnActionDenySyn))
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod6, Pod2, renderer.UDP, somePort, 500)).To(gomega.Equal(ConnActionDenySyn))
+	gomega.Expect(aclEngine.ConnectionInternetToPod(googleDNS, Pod2, renderer.TCP, somePort, 80)).To(gomega.Equal(ConnActionDenySyn))
+	gomega.Expect(aclEngine.ConnectionInternetToPod("10.10.50.1", Pod2, renderer.TCP, somePort, 80)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionInternetToPod("10.10.50.1", Pod2, renderer.TCP, somePort, 81)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionInternetToPod("10.10.50.1", Pod2, renderer.UDP, somePort, 53)).To(gomega.Equal(ConnActionDenySyn))
+
+	// Remove pod2 - pod1 should still have the same local table.
+	err = aclRenderer.NewTxn(false).Render(Pod2, GetOneHostSubnet(Pod2IP), []*renderer.ContivRule{}, []*renderer.ContivRule{}, true).Commit()
 	gomega.Expect(err).To(gomega.BeNil())
-
-	// Verify localclient transactions.
-	gomega.Expect(txnTracker.PendingTxns).To(gomega.HaveLen(0))
 	gomega.Expect(txnTracker.CommittedTxns).To(gomega.HaveLen(2))
-	txn = txnTracker.CommittedTxns[1]
-	gomega.Expect(txn.LinuxDataResyncTxn).To(gomega.BeNil())
-	gomega.Expect(txn.LinuxDataChangeTxn).ToNot(gomega.BeNil())
 
-	// Verify transaction operations.
-	ops = txn.LinuxDataChangeTxn.Ops
-	gomega.Expect(ops).To(gomega.HaveLen(2))
-	putIngress, putEgress, deleted = parseACLOps(ops)
-	gomega.Expect(deleted).To(gomega.HaveLen(1))
-	gomega.Expect(deleted.Has(inACL1)).To(gomega.BeTrue())
-	gomega.Expect(putIngress).To(gomega.HaveLen(1))
-	gomega.Expect(putIngress.GetACL(pod1IfName)).ToNot(gomega.BeNil())
-	gomega.Expect(putEgress).To(gomega.HaveLen(0))
-
-	// Verify the new ACL.
-	inACL2 := verifyACL(putIngress.GetACL(pod1IfName), "", ifSet, cache.NewInterfaceSet(), ingress2...)
-	gomega.Expect(inACL2).ToNot(gomega.BeEquivalentTo(inACL1))
+	// Test ACLs.
+	gomega.Expect(aclEngine.GetNumOfACLs()).To(gomega.Equal(2))
+	gomega.Expect(aclEngine.GetNumOfACLChanges()).To(gomega.Equal(4)) /* changed interfaces for local table + reflective ACL */
+	verifyReflectiveACL(aclEngine, contiv, Pod1IfName, true)
+	verifyReflectiveACL(aclEngine, contiv, Pod2IfName, false)
+	verifyGlobalTable(aclEngine, contiv, false)
 }
 
-func TestMultipleContivRulesMultipleInterfaces(t *testing.T) {
+func TestCombinedRules(t *testing.T) {
 	gomega.RegisterTestingT(t)
 	logger := logrus.DefaultLogger()
 	logger.SetLevel(logging.DebugLevel)
-	logger.Debug("TestMultipleContivRulesMultipleInterfaces")
+	logger.Debug("TestCombinedRules")
 
-	// Prepare input data.
-	const (
-		namespace  = "default"
-		pod1Name   = "pod1"
-		pod1IfName = "afpacket1"
-		pod2Name   = "pod2"
-		pod2IfName = "afpacket2"
-		pod3Name   = "pod3"
-		pod3IfName = "afpacket3"
-	)
-	pod1 := podmodel.ID{Name: pod1Name, Namespace: namespace}
-	pod2 := podmodel.ID{Name: pod2Name, Namespace: namespace}
-	pod3 := podmodel.ID{Name: pod3Name, Namespace: namespace}
+	// Prepare test data
+	pod1Txn1Cfg := &cache.PodConfig{
+		PodIP:   GetOneHostSubnet(Pod1IP),
+		Ingress: Ts5.Pod1Ingress[1:],
+		Egress:  Ts5.Pod1Egress[:2],
+	}
+	pod1Txn2Cfg := &cache.PodConfig{
+		PodIP:   GetOneHostSubnet(Pod1IP),
+		Ingress: Ts5.Pod1Ingress,
+		Egress:  Ts5.Pod1Egress,
+	}
+	pod3Cfg := &cache.PodConfig{
+		PodIP:   GetOneHostSubnet(Pod3IP),
+		Ingress: Ts5.Pod3Ingress,
+		Egress:  Ts5.Pod3Egress,
+	}
 
 	// Prepare mocks.
+	//  -> Contiv plugin
 	contiv := NewMockContiv()
-	contiv.SetPodIfName(pod1, pod1IfName)
-	contiv.SetPodIfName(pod2, pod2IfName)
-	contiv.SetPodIfName(pod3, pod3IfName)
+	contiv.SetMainPhysicalIfName(mainIfName)
+	contiv.SetVxlanBVIIfName(vxlanIfName)
+	contiv.SetHostInterconnectIfName(hostInterIfName)
+	contiv.SetPodIfName(Pod1, Pod1IfName)
+	contiv.SetPodIfName(Pod3, Pod3IfName)
 
-	txnTracker := localclient.NewTxnTracker(nil)
+	// -> ACL engine
+	aclEngine := NewMockACLEngine(logger, contiv)
+	aclEngine.RegisterPod(Pod1, Pod1IP, false)
+	aclEngine.RegisterPod(Pod3, Pod3IP, false)
+	aclEngine.RegisterPod(Pod6, Pod6IP, true)
+
+	// -> localclient
+	txnTracker := localclient.NewTxnTracker(aclEngine.ApplyTxn)
+
+	// -> default VPP plugins
+	vppPlugins := NewMockVppPlugin()
 
 	// Prepare ACL Renderer.
 	aclRenderer := &Renderer{
 		Deps: Deps{
 			Log:           logger,
 			Contiv:        contiv,
-			VPP:           NewMockVppPlugin(),
+			VPP:           vppPlugins,
 			ACLTxnFactory: txnTracker.NewLinuxDataChangeTxn,
 		},
 	}
 	aclRenderer.Init()
 
-	// Prepare input data.
-	egRule1 := &renderer.ContivRule{
-		ID:          "deny-http",
-		Action:      renderer.ActionDeny,
-		SrcNetwork:  ipNetwork("192.168.0.0/16"),
-		DestNetwork: ipNetwork(""),
-		Protocol:    renderer.TCP,
-		SrcPort:     0,
-		DestPort:    80,
-	}
-	egRule2 := &renderer.ContivRule{
-		ID:          "deny-https",
-		Action:      renderer.ActionDeny,
-		SrcNetwork:  ipNetwork("192.168.0.0/16"),
-		DestNetwork: ipNetwork(""),
-		Protocol:    renderer.TCP,
-		SrcPort:     0,
-		DestPort:    443,
-	}
-	inRule1 := &renderer.ContivRule{
-		ID:          "deny-ssh",
-		Action:      renderer.ActionDeny,
-		SrcNetwork:  ipNetwork(""),
-		DestNetwork: ipNetwork("192.168.1.0/24"),
-		Protocol:    renderer.TCP,
-		SrcPort:     0,
-		DestPort:    22,
-	}
-	inRule2 := &renderer.ContivRule{
-		ID:          "random-rule",
-		Action:      renderer.ActionPermit,
-		SrcNetwork:  ipNetwork("10.0.0.0/8"),
-		DestNetwork: ipNetwork("192.168.1.1/32"),
-		Protocol:    renderer.UDP,
-		SrcPort:     1111,
-		DestPort:    2222,
-	}
-	ingressA := []*renderer.ContivRule{inRule1, inRule2} // afpacket1, afpacket2
-	ingressB := []*renderer.ContivRule{}                 // afpacket3
-	egressA := []*renderer.ContivRule{egRule2}           // afpacket1
-	egressB := []*renderer.ContivRule{egRule1, egRule2}  // afpacket2, afpacket3
-
-	ifSetInA := cache.NewInterfaceSet(pod1IfName, pod2IfName)
-	ifSetInB := cache.NewInterfaceSet(pod3IfName)
-	ifSetEgA := cache.NewInterfaceSet(pod1IfName)
-	ifSetEgB := cache.NewInterfaceSet(pod2IfName, pod3IfName)
-
-	// Execute Renderer transaction for 3 interfaces.
-	rendererTxn := aclRenderer.NewTxn(false)
-	rendererTxn.Render(pod1, nil, ingressA, egressA)
-	rendererTxn.Render(pod2, nil, ingressA, egressB)
-	rendererTxn.Render(pod3, nil, ingressB, egressB)
-	err := rendererTxn.Commit()
+	// Execute first Renderer transaction.
+	txn := aclRenderer.NewTxn(true)
+	txn.Render(Pod1, pod1Txn1Cfg.PodIP, pod1Txn1Cfg.Ingress, pod1Txn1Cfg.Egress, false)
+	txn.Render(Pod3, pod3Cfg.PodIP, pod3Cfg.Ingress, pod3Cfg.Egress, false)
+	err := txn.Commit()
 	gomega.Expect(err).To(gomega.BeNil())
-
-	// Verify localclient transactions.
-	gomega.Expect(txnTracker.PendingTxns).To(gomega.HaveLen(0))
-	gomega.Expect(txnTracker.CommittedTxns).To(gomega.HaveLen(1))
-	txn := txnTracker.CommittedTxns[0]
-	gomega.Expect(txn.LinuxDataResyncTxn).To(gomega.BeNil())
-	gomega.Expect(txn.LinuxDataChangeTxn).ToNot(gomega.BeNil())
-
-	// Verify transaction operations.
-	ops := txn.LinuxDataChangeTxn.Ops
-	gomega.Expect(ops).To(gomega.HaveLen(4))
-	putIngress, putEgress, deleted := parseACLOps(ops)
-	gomega.Expect(deleted).To(gomega.HaveLen(0))
-	gomega.Expect(putIngress).To(gomega.HaveLen(3))
-	gomega.Expect(putIngress.GetACL(pod1IfName)).ToNot(gomega.BeNil())
-	gomega.Expect(putIngress.GetACL(pod2IfName)).ToNot(gomega.BeNil())
-	gomega.Expect(putIngress.GetACL(pod3IfName)).ToNot(gomega.BeNil())
-	gomega.Expect(putEgress).To(gomega.HaveLen(3))
-	gomega.Expect(putEgress.GetACL(pod1IfName)).ToNot(gomega.BeNil())
-	gomega.Expect(putEgress.GetACL(pod2IfName)).ToNot(gomega.BeNil())
-	gomega.Expect(putEgress.GetACL(pod3IfName)).ToNot(gomega.BeNil())
-
-	// Verify the generated ACLs.
-	inACLA := verifyACL(putIngress.GetACL(pod1IfName), "", ifSetInA, cache.NewInterfaceSet(), ingressA...)
-	verifyACL(putIngress.GetACL(pod2IfName), inACLA, ifSetInA, cache.NewInterfaceSet(), ingressA...)
-	inACLB := verifyACL(putIngress.GetACL(pod3IfName), "", ifSetInB, cache.NewInterfaceSet(), allowAll()...)
-	egACLA := verifyACL(putEgress.GetACL(pod1IfName), "", cache.NewInterfaceSet(), ifSetEgA, egressA...)
-	egACLB := verifyACL(putEgress.GetACL(pod2IfName), "", cache.NewInterfaceSet(), ifSetEgB, egressB...)
-	verifyACL(putEgress.GetACL(pod3IfName), egACLB, cache.NewInterfaceSet(), ifSetEgB, egressB...)
-
-	// Try to execute the same changes again.
-	rendererTxn = aclRenderer.NewTxn(false)
-	rendererTxn.Render(pod1, nil, ingressA, egressA)
-	rendererTxn.Render(pod2, nil, ingressA, egressB)
-	rendererTxn.Render(pod3, nil, ingressB, egressB)
-	err = rendererTxn.Commit()
-	gomega.Expect(err).To(gomega.BeNil())
-
-	// Verify that the change had no further effect.
-	gomega.Expect(txnTracker.PendingTxns).To(gomega.HaveLen(0))
 	gomega.Expect(txnTracker.CommittedTxns).To(gomega.HaveLen(1))
 
-	// Change assignment of rules a bit.
-	ingressC := []*renderer.ContivRule{inRule1} // afpacket1, afpacket3
-	ifSetInA = cache.NewInterfaceSet(pod2IfName)
-	ifSetInC := cache.NewInterfaceSet(pod1IfName, pod3IfName)
-	ifSetEgB = cache.NewInterfaceSet(pod1IfName, pod2IfName, pod3IfName)
+	// Test ACLs.
+	gomega.Expect(aclEngine.GetNumOfACLs()).To(gomega.Equal(4))
+	verifyReflectiveACL(aclEngine, contiv, Pod1IfName, true)
+	verifyReflectiveACL(aclEngine, contiv, Pod3IfName, true)
+	verifyGlobalTable(aclEngine, contiv, true)
 
-	// Run second transaction (with effect).
-	rendererTxn = aclRenderer.NewTxn(false)
-	rendererTxn.Render(pod1, nil, ingressC, egressB)
-	rendererTxn.Render(pod2, nil, ingressA, egressB)
-	rendererTxn.Render(pod3, nil, ingressC, egressB)
-	err = rendererTxn.Commit()
+	// Test connections.
+	// -> src = pod1
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod1, Pod3, renderer.UDP, somePort, 161)).To(gomega.Equal(ConnActionDenySyn))
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod1, Pod6, renderer.UDP, somePort, 161)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod1, Pod6, renderer.UDP, somePort, 162)).To(gomega.Equal(ConnActionDenySyn))
+	gomega.Expect(aclEngine.ConnectionPodToInternet(Pod1, googleDNS, renderer.UDP, somePort, 161)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionPodToInternet(Pod1, googleDNS, renderer.UDP, somePort, 162)).To(gomega.Equal(ConnActionDenySyn))
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod1, Pod3, renderer.TCP, somePort, 80)).To(gomega.Equal(ConnActionDenySyn))
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod1, Pod6, renderer.TCP, somePort, 80)).To(gomega.Equal(ConnActionDenySyn))
+	gomega.Expect(aclEngine.ConnectionPodToInternet(Pod1, googleDNS, renderer.TCP, somePort, 80)).To(gomega.Equal(ConnActionDenySyn))
+	// -> src = pod3
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod3, Pod1, renderer.UDP, somePort, 161)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod3, Pod1, renderer.UDP, somePort, 53)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod3, Pod1, renderer.UDP, somePort, 514)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod3, Pod6, renderer.UDP, somePort, 161)).To(gomega.Equal(ConnActionDenySyn))
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod3, Pod3, renderer.UDP, somePort, 161)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionPodToInternet(Pod3, googleDNS, renderer.UDP, somePort, 161)).To(gomega.Equal(ConnActionDenySyn))
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod3, Pod1, renderer.TCP, somePort, 22)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod3, Pod6, renderer.TCP, somePort, 22)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionPodToInternet(Pod3, googleDNS, renderer.TCP, somePort, 22)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod3, Pod1, renderer.TCP, somePort, 80)).To(gomega.Equal(ConnActionDenySyn))
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod3, Pod6, renderer.TCP, somePort, 80)).To(gomega.Equal(ConnActionDenySyn))
+	gomega.Expect(aclEngine.ConnectionPodToInternet(Pod3, googleDNS, renderer.TCP, somePort, 80)).To(gomega.Equal(ConnActionDenySyn))
+	// -> src = internet
+	gomega.Expect(aclEngine.ConnectionInternetToPod(googleDNS, Pod1, renderer.UDP, somePort2, 161)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionInternetToPod(googleDNS, Pod1, renderer.UDP, somePort2, 53)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionInternetToPod(googleDNS, Pod1, renderer.TCP, somePort2, 80)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionInternetToPod(googleDNS, Pod3, renderer.UDP, somePort2, 161)).To(gomega.Equal(ConnActionDenySyn))
+	gomega.Expect(aclEngine.ConnectionInternetToPod(googleDNS, Pod3, renderer.UDP, somePort2, 67)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionInternetToPod(googleDNS, Pod3, renderer.TCP, somePort2, 80)).To(gomega.Equal(ConnActionDenySyn))
+
+	// Execute second Renderer transaction (change pod1 config).
+	txn = aclRenderer.NewTxn(false)
+	txn.Render(Pod1, pod1Txn2Cfg.PodIP, pod1Txn2Cfg.Ingress, pod1Txn2Cfg.Egress, false)
+	err = txn.Commit()
 	gomega.Expect(err).To(gomega.BeNil())
-
-	// Verify localclient transactions.
-	gomega.Expect(txnTracker.PendingTxns).To(gomega.HaveLen(0))
 	gomega.Expect(txnTracker.CommittedTxns).To(gomega.HaveLen(2))
-	txn = txnTracker.CommittedTxns[1]
-	gomega.Expect(txn.LinuxDataResyncTxn).To(gomega.BeNil())
-	gomega.Expect(txn.LinuxDataChangeTxn).ToNot(gomega.BeNil())
 
-	// Verify transaction operations.
-	ops = txn.LinuxDataChangeTxn.Ops
-	gomega.Expect(ops).To(gomega.HaveLen(5))
-	putIngress, putEgress, deleted = parseACLOps(ops)
-	gomega.Expect(deleted).To(gomega.HaveLen(2))
-	gomega.Expect(deleted.Has(inACLB)).To(gomega.BeTrue())
-	gomega.Expect(deleted.Has(egACLA)).To(gomega.BeTrue())
-	gomega.Expect(putIngress).To(gomega.HaveLen(3))
-	gomega.Expect(putIngress.GetACL(pod1IfName)).ToNot(gomega.BeNil())
-	gomega.Expect(putIngress.GetACL(pod2IfName)).ToNot(gomega.BeNil())
-	gomega.Expect(putIngress.GetACL(pod3IfName)).ToNot(gomega.BeNil())
-	gomega.Expect(putEgress).To(gomega.HaveLen(3))
-	gomega.Expect(putEgress.GetACL(pod1IfName)).ToNot(gomega.BeNil())
-	gomega.Expect(putEgress.GetACL(pod2IfName)).ToNot(gomega.BeNil())
-	gomega.Expect(putEgress.GetACL(pod3IfName)).ToNot(gomega.BeNil())
+	// Test ACLs.
+	gomega.Expect(aclEngine.GetNumOfACLs()).To(gomega.Equal(4))
+	verifyReflectiveACL(aclEngine, contiv, Pod1IfName, true)
+	verifyReflectiveACL(aclEngine, contiv, Pod3IfName, true)
+	verifyGlobalTable(aclEngine, contiv, true)
 
-	// Verify the generated ACLs.
-	verifyACL(putIngress.GetACL(pod1IfName), "", ifSetInC, cache.NewInterfaceSet(), ingressC...)
-	verifyACL(putIngress.GetACL(pod2IfName), inACLA, ifSetInA, cache.NewInterfaceSet(), ingressA...)
-	verifyACL(putEgress.GetACL(pod1IfName), egACLB, cache.NewInterfaceSet(), ifSetEgB, egressB...)
-	verifyACL(putEgress.GetACL(pod2IfName), egACLB, cache.NewInterfaceSet(), ifSetEgB, egressB...)
-	verifyACL(putEgress.GetACL(pod3IfName), egACLB, cache.NewInterfaceSet(), ifSetEgB, egressB...)
+	// Test connections.
+	// -> src = pod1
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod1, Pod3, renderer.UDP, somePort, 161)).To(gomega.Equal(ConnActionDenySyn))
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod1, Pod6, renderer.UDP, somePort, 161)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod1, Pod6, renderer.UDP, somePort, 162)).To(gomega.Equal(ConnActionDenySyn))
+	gomega.Expect(aclEngine.ConnectionPodToInternet(Pod1, googleDNS, renderer.UDP, somePort, 161)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionPodToInternet(Pod1, googleDNS, renderer.UDP, somePort, 162)).To(gomega.Equal(ConnActionDenySyn))
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod1, Pod3, renderer.TCP, somePort, 80)).To(gomega.Equal(ConnActionAllow)) /* changed */
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod1, Pod6, renderer.TCP, somePort, 80)).To(gomega.Equal(ConnActionAllow)) /* changed */
+	gomega.Expect(aclEngine.ConnectionPodToInternet(Pod1, googleDNS, renderer.TCP, somePort, 80)).To(gomega.Equal(ConnActionDenySyn))
+	// -> src = pod3
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod3, Pod1, renderer.UDP, somePort, 161)).To(gomega.Equal(ConnActionDenySyn)) /* changed */
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod3, Pod1, renderer.UDP, somePort, 53)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod3, Pod1, renderer.UDP, somePort, 514)).To(gomega.Equal(ConnActionDenySyn)) /* changed */
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod3, Pod6, renderer.UDP, somePort, 161)).To(gomega.Equal(ConnActionDenySyn))
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod3, Pod3, renderer.UDP, somePort, 161)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionPodToInternet(Pod3, googleDNS, renderer.UDP, somePort, 161)).To(gomega.Equal(ConnActionDenySyn))
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod3, Pod1, renderer.TCP, somePort, 22)).To(gomega.Equal(ConnActionDenySyn)) /* changed */
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod3, Pod6, renderer.TCP, somePort, 22)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionPodToInternet(Pod3, googleDNS, renderer.TCP, somePort, 22)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod3, Pod1, renderer.TCP, somePort, 80)).To(gomega.Equal(ConnActionDenySyn))
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod3, Pod6, renderer.TCP, somePort, 80)).To(gomega.Equal(ConnActionDenySyn))
+	gomega.Expect(aclEngine.ConnectionPodToInternet(Pod3, googleDNS, renderer.TCP, somePort, 80)).To(gomega.Equal(ConnActionDenySyn))
+	// -> src = internet
+	gomega.Expect(aclEngine.ConnectionInternetToPod(googleDNS, Pod1, renderer.UDP, somePort2, 161)).To(gomega.Equal(ConnActionDenySyn)) /* changed */
+	gomega.Expect(aclEngine.ConnectionInternetToPod(googleDNS, Pod1, renderer.UDP, somePort2, 53)).To(gomega.Equal(ConnActionDenySyn))  /* changed */
+	gomega.Expect(aclEngine.ConnectionInternetToPod(googleDNS, Pod1, renderer.TCP, somePort2, 80)).To(gomega.Equal(ConnActionDenySyn))  /* changed */
+	gomega.Expect(aclEngine.ConnectionInternetToPod(googleDNS, Pod3, renderer.UDP, somePort2, 161)).To(gomega.Equal(ConnActionDenySyn))
+	gomega.Expect(aclEngine.ConnectionInternetToPod(googleDNS, Pod3, renderer.UDP, somePort2, 67)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionInternetToPod(googleDNS, Pod3, renderer.TCP, somePort2, 80)).To(gomega.Equal(ConnActionDenySyn))
+
 }
 
-func TestMultipleContivRulesMultipleInterfacesWithResync(t *testing.T) {
+func TestCombinedRulesWithResync(t *testing.T) {
 	gomega.RegisterTestingT(t)
 	logger := logrus.DefaultLogger()
 	logger.SetLevel(logging.DebugLevel)
-	logger.Debug("TestMultipleContivRulesMultipleInterfacesWithResync")
+	logger.Debug("TestCombinedRulesWithResync")
 
-	// Prepare input data.
-	const (
-		namespace  = "default"
-		pod1Name   = "pod1"
-		pod1IfName = "afpacket1"
-		pod2Name   = "pod2"
-		pod2IfName = "afpacket2"
-		pod3Name   = "pod3"
-		pod3IfName = "afpacket3"
-	)
-	pod1 := podmodel.ID{Name: pod1Name, Namespace: namespace}
-	pod2 := podmodel.ID{Name: pod2Name, Namespace: namespace}
-	pod3 := podmodel.ID{Name: pod3Name, Namespace: namespace}
+	// Prepare test data
+	pod1Txn1Cfg := &cache.PodConfig{
+		PodIP:   GetOneHostSubnet(Pod1IP),
+		Ingress: Ts5.Pod1Ingress[1:],
+		Egress:  Ts5.Pod1Egress[:2],
+	}
+	pod1Txn2Cfg := &cache.PodConfig{
+		PodIP:   GetOneHostSubnet(Pod1IP),
+		Ingress: Ts5.Pod1Ingress,
+		Egress:  Ts5.Pod1Egress,
+	}
+	pod3Cfg := &cache.PodConfig{
+		PodIP:   GetOneHostSubnet(Pod3IP),
+		Ingress: Ts5.Pod3Ingress,
+		Egress:  Ts5.Pod3Egress,
+	}
 
 	// Prepare mocks.
+	//  -> Contiv plugin
 	contiv := NewMockContiv()
-	contiv.SetPodIfName(pod1, pod1IfName)
-	contiv.SetPodIfName(pod2, pod2IfName)
-	contiv.SetPodIfName(pod3, pod3IfName)
-	mockVppPlugin := NewMockVppPlugin()
+	contiv.SetMainPhysicalIfName(mainIfName)
+	contiv.SetVxlanBVIIfName(vxlanIfName)
+	contiv.SetHostInterconnectIfName(hostInterIfName)
+	contiv.SetPodIfName(Pod1, Pod1IfName)
+	contiv.SetPodIfName(Pod3, Pod3IfName)
 
-	txnTracker := localclient.NewTxnTracker(nil)
+	// -> ACL engine
+	aclEngine := NewMockACLEngine(logger, contiv)
+	aclEngine.RegisterPod(Pod1, Pod1IP, false)
+	aclEngine.RegisterPod(Pod3, Pod3IP, false)
+	aclEngine.RegisterPod(Pod6, Pod6IP, true)
+
+	// -> localclient
+	txnTracker := localclient.NewTxnTracker(aclEngine.ApplyTxn)
+
+	// -> default VPP plugins
+	vppPlugins := NewMockVppPlugin()
 
 	// Prepare ACL Renderer.
 	aclRenderer := &Renderer{
 		Deps: Deps{
 			Log:           logger,
 			Contiv:        contiv,
-			VPP:           mockVppPlugin,
+			VPP:           vppPlugins,
 			ACLTxnFactory: txnTracker.NewLinuxDataChangeTxn,
 		},
 	}
 	aclRenderer.Init()
 
-	// Prepare input data.
-	egRule1 := &renderer.ContivRule{
-		ID:          "deny-http",
-		Action:      renderer.ActionDeny,
-		SrcNetwork:  ipNetwork("192.168.0.0/16"),
-		DestNetwork: ipNetwork(""),
-		Protocol:    renderer.TCP,
-		SrcPort:     0,
-		DestPort:    80,
-	}
-	egRule2 := &renderer.ContivRule{
-		ID:          "deny-https",
-		Action:      renderer.ActionDeny,
-		SrcNetwork:  ipNetwork("192.168.0.0/16"),
-		DestNetwork: ipNetwork(""),
-		Protocol:    renderer.TCP,
-		SrcPort:     0,
-		DestPort:    443,
-	}
-	inRule1 := &renderer.ContivRule{
-		ID:          "deny-ssh",
-		Action:      renderer.ActionDeny,
-		SrcNetwork:  ipNetwork(""),
-		DestNetwork: ipNetwork("192.168.1.0/24"),
-		Protocol:    renderer.TCP,
-		SrcPort:     0,
-		DestPort:    22,
-	}
-	inRule2 := &renderer.ContivRule{
-		ID:          "random-rule",
-		Action:      renderer.ActionPermit,
-		SrcNetwork:  ipNetwork("10.0.0.0/8"),
-		DestNetwork: ipNetwork("192.168.1.1/32"),
-		Protocol:    renderer.UDP,
-		SrcPort:     1111,
-		DestPort:    2222,
-	}
-	ingressA := []*renderer.ContivRule{inRule1, inRule2} // afpacket1, afpacket2
-	ingressB := []*renderer.ContivRule{}                 // afpacket3
-	egressA := []*renderer.ContivRule{egRule2}           // afpacket1
-	egressB := []*renderer.ContivRule{egRule1, egRule2}  // afpacket2, afpacket3
-
-	ifSetInA := cache.NewInterfaceSet(pod1IfName, pod2IfName)
-	ifSetInB := cache.NewInterfaceSet(pod3IfName)
-	ifSetEgA := cache.NewInterfaceSet(pod1IfName)
-	ifSetEgB := cache.NewInterfaceSet(pod2IfName, pod3IfName)
-
-	// Execute initial RESYNC Renderer transaction (from empty VPP state).
-	rendererTxn := aclRenderer.NewTxn(true)
-	rendererTxn.Render(pod1, nil, ingressA, egressA)
-	rendererTxn.Render(pod2, nil, ingressA, egressB)
-	rendererTxn.Render(pod3, nil, ingressB, egressB)
-	err := rendererTxn.Commit()
+	// Execute first Renderer transaction.
+	txn := aclRenderer.NewTxn(true)
+	txn.Render(Pod1, pod1Txn1Cfg.PodIP, pod1Txn1Cfg.Ingress, pod1Txn1Cfg.Egress, false)
+	txn.Render(Pod3, pod3Cfg.PodIP, pod3Cfg.Ingress, pod3Cfg.Egress, false)
+	err := txn.Commit()
 	gomega.Expect(err).To(gomega.BeNil())
-
-	// Verify localclient transactions.
-	gomega.Expect(txnTracker.PendingTxns).To(gomega.HaveLen(0))
 	gomega.Expect(txnTracker.CommittedTxns).To(gomega.HaveLen(1))
-	txn := txnTracker.CommittedTxns[0]
-	gomega.Expect(txn.LinuxDataResyncTxn).To(gomega.BeNil())
-	gomega.Expect(txn.LinuxDataChangeTxn).ToNot(gomega.BeNil())
 
-	// Verify transaction operations.
-	ops := txn.LinuxDataChangeTxn.Ops
-	gomega.Expect(ops).To(gomega.HaveLen(4))
-	putIngress, putEgress, deleted := parseACLOps(ops)
-	gomega.Expect(deleted).To(gomega.HaveLen(0))
-	gomega.Expect(putIngress).To(gomega.HaveLen(3))
-	gomega.Expect(putIngress.GetACL(pod1IfName)).ToNot(gomega.BeNil())
-	gomega.Expect(putIngress.GetACL(pod2IfName)).ToNot(gomega.BeNil())
-	gomega.Expect(putIngress.GetACL(pod3IfName)).ToNot(gomega.BeNil())
-	gomega.Expect(putEgress).To(gomega.HaveLen(3))
-	gomega.Expect(putEgress.GetACL(pod1IfName)).ToNot(gomega.BeNil())
-	gomega.Expect(putEgress.GetACL(pod2IfName)).ToNot(gomega.BeNil())
-	gomega.Expect(putEgress.GetACL(pod3IfName)).ToNot(gomega.BeNil())
+	// Dump ACLs and put them to mock defaultplugins.
+	acls := aclEngine.DumpACLs()
+	vppPlugins.AddACL(acls...)
 
-	// Verify the generated ACLs.
-	inACLA := verifyACL(putIngress.GetACL(pod1IfName), "", ifSetInA, cache.NewInterfaceSet(), ingressA...)
-	verifyACL(putIngress.GetACL(pod2IfName), inACLA, ifSetInA, cache.NewInterfaceSet(), ingressA...)
-	inACLB := verifyACL(putIngress.GetACL(pod3IfName), "", ifSetInB, cache.NewInterfaceSet(), allowAll()...)
-	egACLA := verifyACL(putEgress.GetACL(pod1IfName), "", cache.NewInterfaceSet(), ifSetEgA, egressA...)
-	egACLB := verifyACL(putEgress.GetACL(pod2IfName), "", cache.NewInterfaceSet(), ifSetEgB, egressB...)
-	verifyACL(putEgress.GetACL(pod3IfName), egACLB, cache.NewInterfaceSet(), ifSetEgB, egressB...)
-
-	// Remember the current VPP configuration.
-	mockVppPlugin.AddACL(putIngress.GetACL(pod1IfName))
-	mockVppPlugin.AddACL(putIngress.GetACL(pod3IfName))
-	mockVppPlugin.AddACL(putEgress.GetACL(pod1IfName))
-	mockVppPlugin.AddACL(putEgress.GetACL(pod2IfName))
-
-	// Simulate Agent restart.
-	txnTracker = localclient.NewTxnTracker(nil)
+	// Simulate restart of ACL Renderer.
+	txnTracker = localclient.NewTxnTracker(aclEngine.ApplyTxn)
 	aclRenderer = &Renderer{
 		Deps: Deps{
 			Log:           logger,
 			Contiv:        contiv,
-			VPP:           mockVppPlugin,
+			VPP:           vppPlugins,
 			ACLTxnFactory: txnTracker.NewLinuxDataChangeTxn,
 		},
 	}
 	aclRenderer.Init()
 
-	// Resync: change assignment of rules a bit and remove afpacket3.
-	ifSetInC := cache.NewInterfaceSet(pod1IfName)
-	ifSetInA = cache.NewInterfaceSet(pod2IfName)
-	ifSetEgB = cache.NewInterfaceSet(pod1IfName, pod2IfName)
-
-	ingressC := []*renderer.ContivRule{inRule1} // afpacket1
-
-	// Execute second RESYNC transaction (from non-empty VPP state).
-	rendererTxn = aclRenderer.NewTxn(true)
-	rendererTxn.Render(pod1, nil, ingressC, egressB)
-	rendererTxn.Render(pod2, nil, ingressA, egressB)
-	err = rendererTxn.Commit()
+	// Execute second Renderer transaction (from non-empty state; change pod1 config).
+	txn = aclRenderer.NewTxn(true)
+	txn.Render(Pod1, pod1Txn2Cfg.PodIP, pod1Txn2Cfg.Ingress, pod1Txn2Cfg.Egress, false)
+	txn.Render(Pod3, pod3Cfg.PodIP, pod3Cfg.Ingress, pod3Cfg.Egress, false)
+	err = txn.Commit()
 	gomega.Expect(err).To(gomega.BeNil())
-
-	// Verify localclient transactions.
 	gomega.Expect(txnTracker.PendingTxns).To(gomega.HaveLen(0))
 	gomega.Expect(txnTracker.CommittedTxns).To(gomega.HaveLen(1))
-	txn = txnTracker.CommittedTxns[0]
-	gomega.Expect(txn.LinuxDataResyncTxn).To(gomega.BeNil())
-	gomega.Expect(txn.LinuxDataChangeTxn).ToNot(gomega.BeNil())
 
-	// Verify transaction operations.
-	ops = txn.LinuxDataChangeTxn.Ops
-	gomega.Expect(ops).To(gomega.HaveLen(5))
-	putIngress, putEgress, deleted = parseACLOps(ops)
-	gomega.Expect(deleted).To(gomega.HaveLen(2))
-	gomega.Expect(deleted.Has(inACLB)).To(gomega.BeTrue())
-	gomega.Expect(deleted.Has(egACLA)).To(gomega.BeTrue())
-	gomega.Expect(putIngress).To(gomega.HaveLen(2))
-	gomega.Expect(putIngress.GetACL(pod1IfName)).ToNot(gomega.BeNil())
-	gomega.Expect(putIngress.GetACL(pod2IfName)).ToNot(gomega.BeNil())
-	gomega.Expect(putEgress).To(gomega.HaveLen(2))
-	gomega.Expect(putEgress.GetACL(pod1IfName)).ToNot(gomega.BeNil())
-	gomega.Expect(putEgress.GetACL(pod2IfName)).ToNot(gomega.BeNil())
+	// Test ACLs.
+	gomega.Expect(aclEngine.GetNumOfACLs()).To(gomega.Equal(4))
+	verifyReflectiveACL(aclEngine, contiv, Pod1IfName, true)
+	verifyReflectiveACL(aclEngine, contiv, Pod3IfName, true)
+	verifyGlobalTable(aclEngine, contiv, true)
 
-	// Verify the generated ACLs.
-	inACLC := verifyACL(putIngress.GetACL(pod1IfName), "", ifSetInC, cache.NewInterfaceSet(), ingressC...)
-	gomega.Expect(inACLC).ToNot(gomega.BeEquivalentTo(inACLA))
-	verifyACL(putIngress.GetACL(pod2IfName), inACLA, ifSetInA, cache.NewInterfaceSet(), ingressA...)
-	verifyACL(putEgress.GetACL(pod1IfName), egACLB, cache.NewInterfaceSet(), ifSetEgB, egressB...)
-	verifyACL(putEgress.GetACL(pod2IfName), egACLB, cache.NewInterfaceSet(), ifSetEgB, egressB...)
+	// Test connections.
+	// -> src = pod1
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod1, Pod3, renderer.UDP, somePort, 161)).To(gomega.Equal(ConnActionDenySyn))
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod1, Pod6, renderer.UDP, somePort, 161)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod1, Pod6, renderer.UDP, somePort, 162)).To(gomega.Equal(ConnActionDenySyn))
+	gomega.Expect(aclEngine.ConnectionPodToInternet(Pod1, googleDNS, renderer.UDP, somePort, 161)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionPodToInternet(Pod1, googleDNS, renderer.UDP, somePort, 162)).To(gomega.Equal(ConnActionDenySyn))
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod1, Pod3, renderer.TCP, somePort, 80)).To(gomega.Equal(ConnActionAllow)) /* changed */
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod1, Pod6, renderer.TCP, somePort, 80)).To(gomega.Equal(ConnActionAllow)) /* changed */
+	gomega.Expect(aclEngine.ConnectionPodToInternet(Pod1, googleDNS, renderer.TCP, somePort, 80)).To(gomega.Equal(ConnActionDenySyn))
+	// -> src = pod3
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod3, Pod1, renderer.UDP, somePort, 161)).To(gomega.Equal(ConnActionDenySyn)) /* changed */
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod3, Pod1, renderer.UDP, somePort, 53)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod3, Pod1, renderer.UDP, somePort, 514)).To(gomega.Equal(ConnActionDenySyn)) /* changed */
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod3, Pod6, renderer.UDP, somePort, 161)).To(gomega.Equal(ConnActionDenySyn))
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod3, Pod3, renderer.UDP, somePort, 161)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionPodToInternet(Pod3, googleDNS, renderer.UDP, somePort, 161)).To(gomega.Equal(ConnActionDenySyn))
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod3, Pod1, renderer.TCP, somePort, 22)).To(gomega.Equal(ConnActionDenySyn)) /* changed */
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod3, Pod6, renderer.TCP, somePort, 22)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionPodToInternet(Pod3, googleDNS, renderer.TCP, somePort, 22)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod3, Pod1, renderer.TCP, somePort, 80)).To(gomega.Equal(ConnActionDenySyn))
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod3, Pod6, renderer.TCP, somePort, 80)).To(gomega.Equal(ConnActionDenySyn))
+	gomega.Expect(aclEngine.ConnectionPodToInternet(Pod3, googleDNS, renderer.TCP, somePort, 80)).To(gomega.Equal(ConnActionDenySyn))
+	// -> src = internet
+	gomega.Expect(aclEngine.ConnectionInternetToPod(googleDNS, Pod1, renderer.UDP, somePort2, 161)).To(gomega.Equal(ConnActionDenySyn)) /* changed */
+	gomega.Expect(aclEngine.ConnectionInternetToPod(googleDNS, Pod1, renderer.UDP, somePort2, 53)).To(gomega.Equal(ConnActionDenySyn))  /* changed */
+	gomega.Expect(aclEngine.ConnectionInternetToPod(googleDNS, Pod1, renderer.TCP, somePort2, 80)).To(gomega.Equal(ConnActionDenySyn))  /* changed */
+	gomega.Expect(aclEngine.ConnectionInternetToPod(googleDNS, Pod3, renderer.UDP, somePort2, 161)).To(gomega.Equal(ConnActionDenySyn))
+	gomega.Expect(aclEngine.ConnectionInternetToPod(googleDNS, Pod3, renderer.UDP, somePort2, 67)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionInternetToPod(googleDNS, Pod3, renderer.TCP, somePort2, 80)).To(gomega.Equal(ConnActionDenySyn))
+}
+
+func TestCombinedRulesWithResyncAndRemovedPod(t *testing.T) {
+	gomega.RegisterTestingT(t)
+	logger := logrus.DefaultLogger()
+	logger.SetLevel(logging.DebugLevel)
+	logger.Debug("TestCombinedRulesWithResyncAndRemovedPod")
+
+	// Prepare test data
+	pod1Cfg := &cache.PodConfig{
+		PodIP:   GetOneHostSubnet(Pod1IP),
+		Ingress: Ts5.Pod1Ingress[1:],
+		Egress:  Ts5.Pod1Egress[:2],
+	}
+	pod3Cfg := &cache.PodConfig{
+		PodIP:   GetOneHostSubnet(Pod3IP),
+		Ingress: Ts5.Pod3Ingress,
+		Egress:  Ts5.Pod3Egress,
+	}
+
+	// Prepare mocks.
+	//  -> Contiv plugin
+	contiv := NewMockContiv()
+	contiv.SetMainPhysicalIfName(mainIfName)
+	contiv.SetVxlanBVIIfName(vxlanIfName)
+	contiv.SetHostInterconnectIfName(hostInterIfName)
+	contiv.SetPodIfName(Pod1, Pod1IfName)
+	contiv.SetPodIfName(Pod3, Pod3IfName)
+
+	// -> ACL engine
+	aclEngine := NewMockACLEngine(logger, contiv)
+	aclEngine.RegisterPod(Pod1, Pod1IP, false)
+	aclEngine.RegisterPod(Pod3, Pod3IP, false)
+	aclEngine.RegisterPod(Pod6, Pod6IP, true)
+
+	// -> localclient
+	txnTracker := localclient.NewTxnTracker(aclEngine.ApplyTxn)
+
+	// -> default VPP plugins
+	vppPlugins := NewMockVppPlugin()
+
+	// Prepare ACL Renderer.
+	aclRenderer := &Renderer{
+		Deps: Deps{
+			Log:           logger,
+			Contiv:        contiv,
+			VPP:           vppPlugins,
+			ACLTxnFactory: txnTracker.NewLinuxDataChangeTxn,
+		},
+	}
+	aclRenderer.Init()
+
+	// Execute first Renderer transaction.
+	txn := aclRenderer.NewTxn(true)
+	txn.Render(Pod1, pod1Cfg.PodIP, pod1Cfg.Ingress, pod1Cfg.Egress, false)
+	txn.Render(Pod3, pod3Cfg.PodIP, pod3Cfg.Ingress, pod3Cfg.Egress, false)
+	err := txn.Commit()
+	gomega.Expect(err).To(gomega.BeNil())
+	gomega.Expect(txnTracker.CommittedTxns).To(gomega.HaveLen(1))
+
+	// Dump ACLs and put them to mock defaultplugins.
+	acls := aclEngine.DumpACLs()
+	vppPlugins.AddACL(acls...)
+
+	// Simulate restart of ACL Renderer.
+	txnTracker = localclient.NewTxnTracker(aclEngine.ApplyTxn)
+	aclRenderer = &Renderer{
+		Deps: Deps{
+			Log:           logger,
+			Contiv:        contiv,
+			VPP:           vppPlugins,
+			ACLTxnFactory: txnTracker.NewLinuxDataChangeTxn,
+		},
+	}
+	aclRenderer.Init()
+
+	// Execute second Renderer transaction (from non-empty state; keep pod1 config & ***remove pod3***).
+	txn = aclRenderer.NewTxn(true)
+	txn.Render(Pod1, pod1Cfg.PodIP, pod1Cfg.Ingress, pod1Cfg.Egress, false)
+	err = txn.Commit()
+	gomega.Expect(err).To(gomega.BeNil())
+	gomega.Expect(txnTracker.PendingTxns).To(gomega.HaveLen(0))
+	gomega.Expect(txnTracker.CommittedTxns).To(gomega.HaveLen(1))
+
+	// Test ACLs.
+	gomega.Expect(aclEngine.GetNumOfACLs()).To(gomega.Equal(3))
+	verifyReflectiveACL(aclEngine, contiv, Pod1IfName, true)
+	verifyReflectiveACL(aclEngine, contiv, Pod3IfName, false)
+	verifyGlobalTable(aclEngine, contiv, true)
+
+	// Test connections (removed pod3 = no ACLs assigned to pod3).
+	// -> src = pod1
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod1, Pod3, renderer.UDP, somePort, 161)).To(gomega.Equal(ConnActionAllow)) /* changed */
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod1, Pod6, renderer.UDP, somePort, 161)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod1, Pod6, renderer.UDP, somePort, 162)).To(gomega.Equal(ConnActionDenySyn))
+	gomega.Expect(aclEngine.ConnectionPodToInternet(Pod1, googleDNS, renderer.UDP, somePort, 161)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionPodToInternet(Pod1, googleDNS, renderer.UDP, somePort, 162)).To(gomega.Equal(ConnActionDenySyn))
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod1, Pod3, renderer.TCP, somePort, 80)).To(gomega.Equal(ConnActionAllow)) /* changed */
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod1, Pod6, renderer.TCP, somePort, 80)).To(gomega.Equal(ConnActionDenySyn))
+	gomega.Expect(aclEngine.ConnectionPodToInternet(Pod1, googleDNS, renderer.TCP, somePort, 80)).To(gomega.Equal(ConnActionDenySyn))
+	// -> src = pod3
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod3, Pod1, renderer.UDP, somePort, 161)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod3, Pod1, renderer.UDP, somePort, 53)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod3, Pod1, renderer.UDP, somePort, 514)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod3, Pod6, renderer.UDP, somePort, 161)).To(gomega.Equal(ConnActionAllow)) /* changed */
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod3, Pod3, renderer.UDP, somePort, 161)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionPodToInternet(Pod3, googleDNS, renderer.UDP, somePort, 161)).To(gomega.Equal(ConnActionAllow)) /* changed */
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod3, Pod1, renderer.TCP, somePort, 22)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod3, Pod6, renderer.TCP, somePort, 22)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionPodToInternet(Pod3, googleDNS, renderer.TCP, somePort, 22)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod3, Pod1, renderer.TCP, somePort, 80)).To(gomega.Equal(ConnActionAllow))           /* changed */
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod3, Pod6, renderer.TCP, somePort, 80)).To(gomega.Equal(ConnActionAllow))           /* changed */
+	gomega.Expect(aclEngine.ConnectionPodToInternet(Pod3, googleDNS, renderer.TCP, somePort, 80)).To(gomega.Equal(ConnActionAllow)) /* changed */
+	// -> src = internet
+	gomega.Expect(aclEngine.ConnectionInternetToPod(googleDNS, Pod1, renderer.UDP, somePort2, 161)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionInternetToPod(googleDNS, Pod1, renderer.UDP, somePort2, 53)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionInternetToPod(googleDNS, Pod1, renderer.TCP, somePort2, 80)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionInternetToPod(googleDNS, Pod3, renderer.UDP, somePort2, 161)).To(gomega.Equal(ConnActionAllow)) /* changed */
+	gomega.Expect(aclEngine.ConnectionInternetToPod(googleDNS, Pod3, renderer.UDP, somePort2, 67)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionInternetToPod(googleDNS, Pod3, renderer.TCP, somePort2, 80)).To(gomega.Equal(ConnActionAllow)) /* changed */
+}
+
+func TestCombinedRulesWithRemovedPods(t *testing.T) {
+	gomega.RegisterTestingT(t)
+	logger := logrus.DefaultLogger()
+	logger.SetLevel(logging.DebugLevel)
+	logger.Debug("TestCombinedRulesWithRemovedPods")
+
+	// Prepare test data
+	pod1Cfg := &cache.PodConfig{
+		PodIP:   GetOneHostSubnet(Pod1IP),
+		Ingress: Ts5.Pod1Ingress[1:],
+		Egress:  Ts5.Pod1Egress[:2],
+	}
+	pod3Cfg := &cache.PodConfig{
+		PodIP:   GetOneHostSubnet(Pod3IP),
+		Ingress: Ts5.Pod3Ingress,
+		Egress:  Ts5.Pod3Egress,
+	}
+
+	// Prepare mocks.
+	//  -> Contiv plugin
+	contiv := NewMockContiv()
+	contiv.SetMainPhysicalIfName(mainIfName)
+	contiv.SetVxlanBVIIfName(vxlanIfName)
+	contiv.SetHostInterconnectIfName(hostInterIfName)
+	contiv.SetPodIfName(Pod1, Pod1IfName)
+	contiv.SetPodIfName(Pod3, Pod3IfName)
+
+	// -> ACL engine
+	aclEngine := NewMockACLEngine(logger, contiv)
+	aclEngine.RegisterPod(Pod1, Pod1IP, false)
+	aclEngine.RegisterPod(Pod3, Pod3IP, false)
+	aclEngine.RegisterPod(Pod6, Pod6IP, true)
+
+	// -> localclient
+	txnTracker := localclient.NewTxnTracker(aclEngine.ApplyTxn)
+
+	// -> default VPP plugins
+	vppPlugins := NewMockVppPlugin()
+
+	// Prepare ACL Renderer.
+	aclRenderer := &Renderer{
+		Deps: Deps{
+			Log:           logger,
+			Contiv:        contiv,
+			VPP:           vppPlugins,
+			ACLTxnFactory: txnTracker.NewLinuxDataChangeTxn,
+		},
+	}
+	aclRenderer.Init()
+
+	// Execute first Renderer transaction.
+	txn := aclRenderer.NewTxn(true)
+	txn.Render(Pod1, pod1Cfg.PodIP, pod1Cfg.Ingress, pod1Cfg.Egress, false)
+	txn.Render(Pod3, pod3Cfg.PodIP, pod3Cfg.Ingress, pod3Cfg.Egress, false)
+	err := txn.Commit()
+	gomega.Expect(err).To(gomega.BeNil())
+	gomega.Expect(txnTracker.CommittedTxns).To(gomega.HaveLen(1))
+
+	// Execute second Renderer transaction (keep pod1 config & ***remove pod3***).
+	txn = aclRenderer.NewTxn(false)
+	txn.Render(Pod1, pod1Cfg.PodIP, pod1Cfg.Ingress, pod1Cfg.Egress, false)
+	txn.Render(Pod3, pod3Cfg.PodIP, []*renderer.ContivRule{}, []*renderer.ContivRule{}, true)
+	err = txn.Commit()
+	gomega.Expect(err).To(gomega.BeNil())
+	gomega.Expect(txnTracker.PendingTxns).To(gomega.HaveLen(0))
+	gomega.Expect(txnTracker.CommittedTxns).To(gomega.HaveLen(2))
+
+	// Test ACLs.
+	gomega.Expect(aclEngine.GetNumOfACLs()).To(gomega.Equal(3))
+	verifyReflectiveACL(aclEngine, contiv, Pod1IfName, true)
+	verifyReflectiveACL(aclEngine, contiv, Pod3IfName, false)
+	verifyGlobalTable(aclEngine, contiv, true)
+
+	// Test connections (removed pod3 = no ACLs assigned to pod3).
+	// -> src = pod1
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod1, Pod3, renderer.UDP, somePort, 161)).To(gomega.Equal(ConnActionAllow)) /* changed */
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod1, Pod6, renderer.UDP, somePort, 161)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod1, Pod6, renderer.UDP, somePort, 162)).To(gomega.Equal(ConnActionDenySyn))
+	gomega.Expect(aclEngine.ConnectionPodToInternet(Pod1, googleDNS, renderer.UDP, somePort, 161)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionPodToInternet(Pod1, googleDNS, renderer.UDP, somePort, 162)).To(gomega.Equal(ConnActionDenySyn))
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod1, Pod3, renderer.TCP, somePort, 80)).To(gomega.Equal(ConnActionAllow)) /* changed */
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod1, Pod6, renderer.TCP, somePort, 80)).To(gomega.Equal(ConnActionDenySyn))
+	gomega.Expect(aclEngine.ConnectionPodToInternet(Pod1, googleDNS, renderer.TCP, somePort, 80)).To(gomega.Equal(ConnActionDenySyn))
+	// -> src = pod3
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod3, Pod1, renderer.UDP, somePort, 161)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod3, Pod1, renderer.UDP, somePort, 53)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod3, Pod1, renderer.UDP, somePort, 514)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod3, Pod6, renderer.UDP, somePort, 161)).To(gomega.Equal(ConnActionAllow)) /* changed */
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod3, Pod3, renderer.UDP, somePort, 161)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionPodToInternet(Pod3, googleDNS, renderer.UDP, somePort, 161)).To(gomega.Equal(ConnActionAllow)) /* changed */
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod3, Pod1, renderer.TCP, somePort, 22)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod3, Pod6, renderer.TCP, somePort, 22)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionPodToInternet(Pod3, googleDNS, renderer.TCP, somePort, 22)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod3, Pod1, renderer.TCP, somePort, 80)).To(gomega.Equal(ConnActionAllow))           /* changed */
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod3, Pod6, renderer.TCP, somePort, 80)).To(gomega.Equal(ConnActionAllow))           /* changed */
+	gomega.Expect(aclEngine.ConnectionPodToInternet(Pod3, googleDNS, renderer.TCP, somePort, 80)).To(gomega.Equal(ConnActionAllow)) /* changed */
+	// -> src = internet
+	gomega.Expect(aclEngine.ConnectionInternetToPod(googleDNS, Pod1, renderer.UDP, somePort2, 161)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionInternetToPod(googleDNS, Pod1, renderer.UDP, somePort2, 53)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionInternetToPod(googleDNS, Pod1, renderer.TCP, somePort2, 80)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionInternetToPod(googleDNS, Pod3, renderer.UDP, somePort2, 161)).To(gomega.Equal(ConnActionAllow)) /* changed */
+	gomega.Expect(aclEngine.ConnectionInternetToPod(googleDNS, Pod3, renderer.UDP, somePort2, 67)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionInternetToPod(googleDNS, Pod3, renderer.TCP, somePort2, 80)).To(gomega.Equal(ConnActionAllow)) /* changed */
+
+	// Execute third Renderer transaction (***remove pod1 as well***).
+	txn = aclRenderer.NewTxn(false)
+	txn.Render(Pod1, pod1Cfg.PodIP, []*renderer.ContivRule{}, []*renderer.ContivRule{}, true)
+	err = txn.Commit()
+	gomega.Expect(err).To(gomega.BeNil())
+	gomega.Expect(txnTracker.PendingTxns).To(gomega.HaveLen(0))
+	gomega.Expect(txnTracker.CommittedTxns).To(gomega.HaveLen(3))
+
+	// Test ACLs.
+	gomega.Expect(aclEngine.GetNumOfACLs()).To(gomega.Equal(1)) /* just reflective ACL */
+	verifyReflectiveACL(aclEngine, contiv, mainIfName, true)
+	verifyGlobalTable(aclEngine, contiv, false)
 }

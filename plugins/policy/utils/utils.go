@@ -41,6 +41,23 @@ func RemoveDuplicates(el []string) []string {
 	return result
 }
 
+// RemoveDuplicatePodIDs removes duplicate pod IDs from a slice.
+func RemoveDuplicatePodIDs(el []podmodel.ID) []podmodel.ID {
+	found := map[podmodel.ID]bool{}
+
+	// Create a map of all unique elements.
+	for v := range el {
+		found[el[v]] = true
+	}
+
+	// Place all keys from the map into a slice.
+	result := []podmodel.ID{}
+	for key := range found {
+		result = append(result, key)
+	}
+	return result
+}
+
 // Intersect returns the common elements of two or more slices
 func Intersect(a []string, b []string, s ...[]string) []string {
 	if len(a) == 0 || len(b) == 0 {
@@ -165,14 +182,78 @@ func CompareInts(a, b int) int {
 	return 0
 }
 
-// CompareIPNets returns an integer comparing two IP network addresses
-// lexicographically.
+// CompareIPNets returns -1, 0, 1 if a<b or a==b or a>b, respectively.
+// It hold that if *a* is subset of *b*, then a<b (and vice-versa).
 func CompareIPNets(a, b *net.IPNet) int {
-	ipOrder := bytes.Compare(a.IP, b.IP)
-	if ipOrder == 0 {
-		return bytes.Compare(a.Mask, b.Mask)
+	// Handle 0/0
+	if len(a.IP) == 0 {
+		if len(b.IP) == 0 {
+			return 0
+		}
+		return 1
 	}
-	return ipOrder
+	if len(b.IP) == 0 {
+		return -1
+	}
+
+	// Normalize IP addresses.
+	// Order IPv4 before IPv6.
+	var aNorm, bNorm *net.IPNet
+	if a.IP.To4() != nil {
+		if b.IP.To4() == nil {
+			return -1
+		}
+		aNorm = &net.IPNet{IP: a.IP.To4(), Mask: a.Mask}
+	} else {
+		aNorm = &net.IPNet{IP: a.IP.To16(), Mask: a.Mask}
+	}
+	if b.IP.To4() != nil {
+		if a.IP.To4() == nil {
+			return 1
+		}
+		bNorm = &net.IPNet{IP: b.IP.To4(), Mask: b.Mask}
+	} else {
+		bNorm = &net.IPNet{IP: b.IP.To16(), Mask: b.Mask}
+	}
+
+	// Compare common prefix
+	aOnes, bits := aNorm.Mask.Size()
+	bOnes, _ := bNorm.Mask.Size()
+	commonOnes := aOnes
+	if bOnes < aOnes {
+		commonOnes = bOnes
+	}
+	commonMask := net.CIDRMask(commonOnes, bits)
+	if aNorm.IP.Mask(commonMask).Equal(bNorm.IP.Mask(commonMask)) {
+		// Prefix is the same => compare by mask length.
+		return CompareInts(bOnes, aOnes)
+	}
+
+	// a,b form network subnets with empty intersection -> still compare
+	// in some way to maintain a total order.
+	maskOrder := bytes.Compare(bNorm.Mask, aNorm.Mask)
+	if maskOrder != 0 {
+		return maskOrder
+	}
+	return bytes.Compare(aNorm.IP, bNorm.IP)
+}
+
+// ComparePorts is a comparison function for two ports.
+// Port=0 means "all-ports" and it is higher in the order than any specific port.
+func ComparePorts(a, b uint16) int {
+	if a == b {
+		return 0
+	}
+	if a == 0 {
+		return 1
+	}
+	if b == 0 {
+		return -1
+	}
+	if a < b {
+		return -1
+	}
+	return 1
 }
 
 // CompareIPNetsBytes returns an integer comparing two IP network addresses

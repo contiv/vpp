@@ -138,14 +138,20 @@ type remoteCNIserver struct {
 	// bridge domain used for VXLAN tunnels
 	vxlanBD *vpp_l2.BridgeDomains_BridgeDomain
 
-	// name of physical interfaces configured by the agent
-	physicalIfs []string
+	// name of the main physical interface
+	mainPhysicalIf string
+
+	// name of extra physical interfaces configured by the agent
+	otherPhysicalIfs []string
 
 	// name of the interface interconnecting VPP with the host stack
 	hostInterconnectIfName string
 
 	// the name of an BVI interface facing towards VXLAN tunnels to other hosts
 	vxlanBVIIfName string
+
+	// default gateway IP address
+	defaultGw net.IP
 
 	dhcpNotif chan govppapi.Message
 
@@ -203,6 +209,9 @@ func newRemoteCNIServer(logger logging.Logger, vppTxnFactory func() linux.DataCh
 	}
 	server.vswitchCond = sync.NewCond(&server.Mutex)
 	server.ctx, server.ctxCancelFunc = context.WithCancel(context.Background())
+	if nodeConfig != nil && nodeConfig.Gateway != "" {
+		server.defaultGw = net.ParseIP(nodeConfig.Gateway)
+	}
 	server.dhcpNotif = make(chan govppapi.Message, 1)
 	return server, nil
 }
@@ -396,7 +405,7 @@ func (s *remoteCNIserver) configureMainVPPInterface(config *vswitchConfig, nicNa
 		}
 		txn1.VppInterface(nic)
 		config.nics = append(config.nics, nic)
-		s.physicalIfs = append(s.physicalIfs, nicName)
+		s.mainPhysicalIf = nicName
 	} else {
 		// configure loopback instead of the physical NIC
 		s.Logger.Debug("Physical NIC not found, configuring loopback instead.")
@@ -468,8 +477,10 @@ func (s *remoteCNIserver) handleDHCPNotifications(notifCh chan govppapi.Message)
 				var ipAddr string
 				if notif.IsIpv6 == 1 {
 					ipAddr = fmt.Sprintf("%s/%d", net.IP(notif.HostAddress).To16().String(), notif.MaskWidth)
+					s.defaultGw = net.IP(notif.RouterAddress)
 				} else {
 					ipAddr = fmt.Sprintf("%s/%d", net.IP(notif.HostAddress[:4]).To4().String(), notif.MaskWidth)
+					s.defaultGw = net.IP(notif.RouterAddress[:4])
 				}
 				s.Lock()
 				if s.nodeIP != "" && s.nodeIP != ipAddr {
@@ -511,7 +522,7 @@ func (s *remoteCNIserver) configureOtherVPPInterfaces(config *vswitchConfig, nod
 		for _, intf := range interfaces {
 			txn.VppInterface(intf)
 			config.nics = append(config.nics, intf)
-			s.physicalIfs = append(s.physicalIfs, intf.Name)
+			s.otherPhysicalIfs = append(s.otherPhysicalIfs, intf.Name)
 		}
 
 		// execute the config transaction
@@ -844,6 +855,18 @@ func (s *remoteCNIserver) unconfigureContainerConnectivity(request *cni.CNIReque
 
 // configurePodInterface configures POD's network interface and its routes + ARPs.
 func (s *remoteCNIserver) configurePodInterface(request *cni.CNIRequest, podIP net.IP, config *containeridx.Config) error {
+
+	// this is necessary for the latest docker where ipv6 is disabled by default.
+	// OS assigns automatically ipv6 addr to a newly created TAP. We
+	// try to reassign all IPs once interfaces is moved to a namespace. Without explicitly enabled ipv6,
+	// we receive an error while moving interface to a namespace.
+	if !s.test {
+		err := s.enableIPv6(request)
+		if err != nil {
+			s.Logger.Error("unable to enable ipv6 in the namespace")
+			return err
+		}
+	}
 
 	podIPCIDR := podIP.String() + "/32"
 	podIPNet := &net.IPNet{
@@ -1202,12 +1225,22 @@ func (s *remoteCNIserver) persistChanges(removedKeys []string, putChanges map[st
 	return err
 }
 
-// GetPhysicalIfNames returns a slice of names of all configured physical interfaces.
-func (s *remoteCNIserver) GetPhysicalIfNames() []string {
+// GetMainPhysicalIfName returns name of the "main" interface - i.e. physical interface connecting
+// the node with the rest of the cluster.
+func (s *remoteCNIserver) GetMainPhysicalIfName() string {
 	s.Lock()
 	defer s.Unlock()
 
-	return s.physicalIfs
+	return s.mainPhysicalIf
+}
+
+// GetOtherPhysicalIfNames returns a slice of names of all physical interfaces configured additionally
+// to the main interface.
+func (s *remoteCNIserver) GetOtherPhysicalIfNames() []string {
+	s.Lock()
+	defer s.Unlock()
+
+	return s.otherPhysicalIfs
 }
 
 // GetVxlanBVIIfName returns the name of an BVI interface facing towards VXLAN tunnels to other hosts.
@@ -1233,20 +1266,20 @@ func (s *remoteCNIserver) GetHostInterconnectIfName() string {
 }
 
 // GetNodeIP returns the IP address of this node.
-func (s *remoteCNIserver) GetNodeIP() net.IP {
+func (s *remoteCNIserver) GetNodeIP() (ip net.IP, network *net.IPNet) {
 	s.Lock()
 	defer s.Unlock()
 
 	if s.nodeIP == "" {
-		return nil
+		return nil, nil
 	}
 
-	nodeIP, _, err := net.ParseCIDR(s.nodeIP)
+	nodeIP, nodeNet, err := net.ParseCIDR(s.nodeIP)
 	if err != nil {
-		return nil
+		return nil, nil
 	}
 
-	return nodeIP
+	return nodeIP, nodeNet
 }
 
 // WatchNodeIP adds given channel to the list of subscribers that are notified upon change
@@ -1273,4 +1306,13 @@ func (s *remoteCNIserver) setNodeIP(nodeIP string) error {
 	}
 
 	return nil
+}
+
+// GetDefaultGatewayIP returns the IP address of the default gateway for external traffic.
+// If the default GW is not configured, the function returns nil.
+func (s *remoteCNIserver) GetDefaultGatewayIP() net.IP {
+	s.Lock()
+	defer s.Unlock()
+
+	return s.defaultGw
 }

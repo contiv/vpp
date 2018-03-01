@@ -149,42 +149,72 @@ func (sc *ServiceConfigurator) enableNat44Forwarding() error {
 }
 
 // setInterfaceNATFeature enables(isAdd=true)/disables NATing for ingress or egress(isInside=true)
-// traffic going through a given interface(ifName).
-func (sc *ServiceConfigurator) setInterfaceNATFeature(ifName string, isInside bool, isAdd bool) error {
-	var op string
-	var feature string
+// traffic going through a given interface(ifName) in the pre-routing or post-routing(postrouting=true) phase.
+func (sc *ServiceConfigurator) setInterfaceNATFeature(ifName string, postrouting bool, isInside bool, isAdd bool) error {
+	var (
+		op            string
+		feature       string
+		featureSuffix string
+		retval        int32
+		err           error
+	)
+
+	if isAdd {
+		op = "enable"
+	} else {
+		op = "disable"
+	}
+	if isInside {
+		feature = "in2out"
+	} else {
+		feature = "out2in"
+	}
+	if postrouting {
+		featureSuffix = "-output"
+	}
 
 	ifIndex, _, exists := sc.VPP.GetSwIfIndexes().LookupIdx(ifName)
 	if !exists {
 		return fmt.Errorf("failed to get interface index corresponding to interface name: %s", ifName)
 	}
 
-	req := &nat.Nat44InterfaceAddDelFeature{
-		SwIfIndex: ifIndex,
-	}
-	if isAdd {
-		req.IsAdd = 1
-		op = "enable"
+	if postrouting {
+		req := &nat.Nat44InterfaceAddDelOutputFeature{
+			SwIfIndex: ifIndex,
+		}
+		if isAdd {
+			req.IsAdd = 1
+		}
+		if isInside {
+			req.IsInside = 1
+		}
+		reply := &nat.Nat44InterfaceAddDelOutputFeatureReply{}
+		err = sc.GoVPPChan.SendRequest(req).ReceiveReply(reply)
+		retval = reply.Retval
 	} else {
-		op = "disable"
+		req := &nat.Nat44InterfaceAddDelFeature{
+			SwIfIndex: ifIndex,
+		}
+		if isAdd {
+			req.IsAdd = 1
+		}
+		if isInside {
+			req.IsInside = 1
+		}
+		reply := &nat.Nat44InterfaceAddDelFeatureReply{}
+		err = sc.GoVPPChan.SendRequest(req).ReceiveReply(reply)
+		retval = reply.Retval
 	}
-	if isInside {
-		req.IsInside = 1
-		feature = "in2out"
-	} else {
-		feature = "out2in"
-	}
-	reply := &nat.Nat44InterfaceAddDelFeatureReply{}
-	err := sc.GoVPPChan.SendRequest(req).ReceiveReply(reply)
-	if reply.Retval != 0 {
-		return fmt.Errorf("attempt to %s NAT44 feature '%s' for interface '%s' returned non zero error code (%v)",
-			op, feature, ifName, reply.Retval)
+
+	if retval != 0 {
+		return fmt.Errorf("attempt to %s NAT44 feature '%s%s' for interface '%s' returned non zero error code (%v)",
+			op, feature, featureSuffix, ifName, retval)
 	}
 	if err != nil {
 		return err
 	}
 
-	sc.Log.Debugf("Feature '%s' was %sd for interface '%s'", feature, op, ifName)
+	sc.Log.Debugf("Feature '%s%s' was %sd for interface '%s'", feature, featureSuffix, op, ifName)
 	return nil
 }
 
@@ -480,35 +510,65 @@ func (sc *ServiceConfigurator) dumpNATMappings() ([]*NATMapping, error) {
 
 // dumpNATInterfaces returns sets of currently configured NAT frontend
 // and backend interfaces.
-func (sc *ServiceConfigurator) dumpNATInterfaces() (frontend, backend Interfaces, err error) {
+func (sc *ServiceConfigurator) dumpNATInterfaces(postrouting bool) (frontend, backend Interfaces, err error) {
 	frontend = NewInterfaces()
 	backend = NewInterfaces()
 
-	req := &nat.Nat44InterfaceDump{}
-	reqContext := sc.GoVPPChan.SendMultiRequest(req)
+	if postrouting {
+		req := &nat.Nat44InterfaceOutputFeatureDump{}
+		reqContext := sc.GoVPPChan.SendMultiRequest(req)
 
-	for {
-		msg := &nat.Nat44InterfaceDetails{}
-		stop, err := reqContext.ReceiveReply(msg)
-		if err != nil {
-			sc.Log.WithField("err", err).Error("Failed to get NAT44 interface details")
-			return frontend, backend, err
+		for {
+			msg := &nat.Nat44InterfaceOutputFeatureDetails{}
+			stop, err := reqContext.ReceiveReply(msg)
+			if err != nil {
+				sc.Log.WithField("err", err).Error("Failed to get NAT44 interface details")
+				return frontend, backend, err
+			}
+			if stop {
+				break
+			}
+			// Get interface name.
+			ifName, _, exists := sc.VPP.GetSwIfIndexes().LookupName(msg.SwIfIndex)
+			if !exists {
+				sc.Log.WithFields(logging.Fields{
+					"swIfIndex": msg.SwIfIndex,
+				}).Warn("Failed to get interface name")
+			}
+			// Add interface into the corresponding set.
+			if msg.IsInside == 1 {
+				backend.Add(ifName)
+			} else {
+				frontend.Add(ifName)
+			}
 		}
-		if stop {
-			break
-		}
-		// Get interface name.
-		ifName, _, exists := sc.VPP.GetSwIfIndexes().LookupName(msg.SwIfIndex)
-		if !exists {
-			sc.Log.WithFields(logging.Fields{
-				"swIfIndex": msg.SwIfIndex,
-			}).Warn("Failed to get interface name")
-		}
-		// Add interface into the corresponding set.
-		if msg.IsInside == 1 {
-			backend.Add(ifName)
-		} else {
-			frontend.Add(ifName)
+	} else {
+		req := &nat.Nat44InterfaceDump{}
+		reqContext := sc.GoVPPChan.SendMultiRequest(req)
+
+		for {
+			msg := &nat.Nat44InterfaceDetails{}
+			stop, err := reqContext.ReceiveReply(msg)
+			if err != nil {
+				sc.Log.WithField("err", err).Error("Failed to get NAT44 interface details")
+				return frontend, backend, err
+			}
+			if stop {
+				break
+			}
+			// Get interface name.
+			ifName, _, exists := sc.VPP.GetSwIfIndexes().LookupName(msg.SwIfIndex)
+			if !exists {
+				sc.Log.WithFields(logging.Fields{
+					"swIfIndex": msg.SwIfIndex,
+				}).Warn("Failed to get interface name")
+			}
+			// Add interface into the corresponding set.
+			if msg.IsInside == 1 {
+				backend.Add(ifName)
+			} else {
+				frontend.Add(ifName)
+			}
 		}
 	}
 

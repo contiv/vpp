@@ -137,7 +137,7 @@ func (sc *ServiceConfigurator) UpdateLocalFrontendIfs(oldIfNames, newIfNames Int
 			}
 		}
 		if new {
-			err := sc.setInterfaceNATFeature(newIf, false, true)
+			err := sc.setInterfaceNATFeature(newIf, false, false, true)
 			if err != nil {
 				sc.Log.Error(err)
 				return err
@@ -168,7 +168,7 @@ func (sc *ServiceConfigurator) UpdateLocalBackendIfs(oldIfNames, newIfNames Inte
 			}
 		}
 		if new {
-			err := sc.setInterfaceNATFeature(newIf, true, true)
+			err := sc.setInterfaceNATFeature(newIf, false, true, true)
 			if err != nil {
 				sc.Log.Error(err)
 				return err
@@ -186,7 +186,7 @@ func (sc *ServiceConfigurator) UpdateLocalBackendIfs(oldIfNames, newIfNames Inte
 			}
 		}
 		if removed {
-			err := sc.setInterfaceNATFeature(oldIf, true, false)
+			err := sc.setInterfaceNATFeature(oldIf, false, true, false)
 			if err != nil {
 				// Interface may have already been removed thus the error is ignored.
 				sc.Log.WithFields(logging.Fields{
@@ -207,21 +207,12 @@ func (sc *ServiceConfigurator) Resync(resyncEv *ResyncEventData) error {
 		"resyncEv": resyncEv,
 	}).Debug("ServiceConfigurator - Resync()")
 
-	/*
-		// Try to get Node IP.
-		nodeIP, err := sc.getNodeIP()
-		if err != nil {
-			sc.Log.Error(err)
-			return err
-		}
-
-		// Dump NAT address pool.
-		natPoolDump, _, err := sc.dumpAddressPool()
-		if err != nil {
-			sc.Log.Error(err)
-			return err
-		}
-	*/
+	// Dump NAT address pool.
+	natPoolDump, err := sc.dumpAddressPool()
+	if err != nil {
+		sc.Log.Error(err)
+		return err
+	}
 
 	// Dump currently installed NAT mappings.
 	natMapDump, err := sc.dumpNATMappings()
@@ -231,7 +222,14 @@ func (sc *ServiceConfigurator) Resync(resyncEv *ResyncEventData) error {
 	}
 
 	// Dump currently configured local frontend and backend interfaces.
-	frontendIfsDump, backendIfsDump, err := sc.dumpNATInterfaces()
+	frontendIfsDump, backendIfsDump, err := sc.dumpNATInterfaces(false)
+	if err != nil {
+		sc.Log.Error(err)
+		return err
+	}
+
+	// Dump currently configured local frontend and backend interfaces for *post*-routing.
+	postFrontendIfsDump, postBackendIfsDump, err := sc.dumpNATInterfaces(true)
 	if err != nil {
 		sc.Log.Error(err)
 		return err
@@ -244,22 +242,23 @@ func (sc *ServiceConfigurator) Resync(resyncEv *ResyncEventData) error {
 		return err
 	}
 
-	/*
-		// Make sure Node IP is the only addres in the NAT address pool.
-		nodeIPInstalled := false
+	// Insert address used for SNAT into the NAT address pool if it is not already there.
+	if resyncEv.ExternalSNAT.ExternalIP != nil {
+		extAddrInstalled := false
 		for _, addr := range natPoolDump.List() {
-			if addr.Equal(nodeIP) {
-				nodeIPInstalled = true
-			} else {
-				err = sc.setNATAddress(addr, false)
-				if err != nil {
-					sc.Log.Error(err)
-					return err
-				}
-
+			if addr.Equal(resyncEv.ExternalSNAT.ExternalIP) {
+				extAddrInstalled = true
+				break
 			}
 		}
-	*/
+		if !extAddrInstalled {
+			err = sc.setNATAddress(resyncEv.ExternalSNAT.ExternalIP, true)
+			if err != nil {
+				sc.Log.Error(err)
+				return err
+			}
+		}
+	}
 
 	// Export and update NAT Mappings.
 	natMaps := []*NATMapping{}
@@ -277,6 +276,17 @@ func (sc *ServiceConfigurator) Resync(resyncEv *ResyncEventData) error {
 		return err
 	}
 
+	// Remove obsolete addresses from the NAT pool.
+	for _, addr := range natPoolDump.List() {
+		if resyncEv.ExternalSNAT.ExternalIP == nil || !addr.Equal(resyncEv.ExternalSNAT.ExternalIP) {
+			err = sc.setNATAddress(addr, false)
+			if err != nil {
+				sc.Log.Error(err)
+				return err
+			}
+		}
+	}
+
 	// Update local backend interfaces.
 	err = sc.UpdateLocalBackendIfs(backendIfsDump, resyncEv.BackendIfs)
 	if err != nil {
@@ -289,6 +299,36 @@ func (sc *ServiceConfigurator) Resync(resyncEv *ResyncEventData) error {
 	if err != nil {
 		sc.Log.Error(err)
 		return err
+	}
+
+	// Update frontend and backend interfaces for *post*-routing.
+	// -> no backend should be in the postrouting mode
+	for ifName := range postBackendIfsDump {
+		err := sc.setInterfaceNATFeature(ifName, true, true, false)
+		if err != nil {
+			sc.Log.Error(err)
+			return err
+		}
+	}
+	// -> make sure the SNATed interface is the only one in the postrouting mode
+	snatEnabled := false
+	for ifName := range postFrontendIfsDump {
+		if ifName == resyncEv.ExternalSNAT.ExternalIfName {
+			snatEnabled = true
+		} else {
+			err := sc.setInterfaceNATFeature(ifName, true, false, false)
+			if err != nil {
+				sc.Log.Error(err)
+				return err
+			}
+		}
+	}
+	if resyncEv.ExternalSNAT.ExternalIfName != "" && !snatEnabled {
+		err := sc.setInterfaceNATFeature(resyncEv.ExternalSNAT.ExternalIfName, true, false, true)
+		if err != nil {
+			sc.Log.Error(err)
+			return err
+		}
 	}
 
 	return nil
@@ -393,7 +433,7 @@ func (sc *ServiceConfigurator) Close() error {
 /**** Helper methods ****/
 
 func (sc *ServiceConfigurator) getNodeIP() (net.IP, error) {
-	nodeIP := sc.Contiv.GetNodeIP()
+	nodeIP, _ := sc.Contiv.GetNodeIP()
 	if nodeIP == nil {
 		return nil, errors.New("failed to get Node IP")
 	}

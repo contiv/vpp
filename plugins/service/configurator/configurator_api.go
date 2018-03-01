@@ -328,6 +328,9 @@ func (ifs Interfaces) String() string {
 
 // ResyncEventData wraps an entire state of K8s services.
 type ResyncEventData struct {
+	// ExternalSNAT contains configuration of SNAT, installed to allow access outside the cluster network.
+	ExternalSNAT ExternalSNATConfig
+
 	// Services is a list of all currently deployed services.
 	Services []*ContivService
 
@@ -356,6 +359,23 @@ func (red ResyncEventData) String() string {
 			services += ", "
 		}
 	}
-	return fmt.Sprintf("ResyncEventData <Services:[%s], FrontendIfs:%s BackendIfs:%s>",
-		services, red.FrontendIfs.String(), red.BackendIfs.String())
+	return fmt.Sprintf("ResyncEventData <%s Services:[%s], FrontendIfs:%s BackendIfs:%s>",
+		red.ExternalSNAT.String(), services, red.FrontendIfs.String(), red.BackendIfs.String())
+}
+
+// ExternalSNATConfig encapsulates configuration concerning SNAT, installed to allow Internet access for pods.
+type ExternalSNATConfig struct {
+	// ExternalIfName is the name of the interface used as the gateway to the external network.
+	// If empty, the SNAT is not configured.
+	ExternalIfName string
+
+	// ExternalIP is the IP address that will be used as the source address in (S)NAT for all traffic leaving
+	// the cluster network.
+	// If nil, the SNAT is not configured.
+	ExternalIP net.IP
+}
+
+// String converts ExternalSNATConfig into a human-readable string.
+func (esc ExternalSNATConfig) String() string {
+	return fmt.Sprintf("SNAT <ExternalIfName: %s, ExternalIP: %s>", esc.ExternalIfName, esc.ExternalIP)
 }

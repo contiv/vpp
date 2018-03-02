@@ -132,7 +132,8 @@ func (s *remoteCNIserver) interconnectTap() *vpp_intf.Interfaces_Interface {
 func (s *remoteCNIserver) interconnectTapHost() *linux_intf.LinuxInterfaces_Interface {
 	size, _ := s.ipam.VPPHostNetwork().Mask.Size()
 	return &linux_intf.LinuxInterfaces_Interface{
-		Name:        TapHostEndName,
+		Name:        TapHostEndLogicalName,
+		HostIfName:  TapHostEndName,
 		Type:        linux_intf.LinuxInterfaces_AUTO_TAP,
 		Enabled:     true,
 		IpAddresses: []string{s.ipam.VEthHostEndIP().String() + "/" + strconv.Itoa(size)},

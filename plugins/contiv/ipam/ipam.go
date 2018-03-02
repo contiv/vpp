@@ -181,8 +181,11 @@ func (i *IPAM) VPPHostNetwork() *net.IPNet {
 }
 
 // VPPIfIPPrefix returns VPP-side interface IP address prefix.
-func (i *IPAM) VPPIfIPPrefix() net.IP {
-	return i.podIfIPCIDR.IP
+func (i *IPAM) VPPIfIPPrefix() *net.IP {
+	i.mutex.RLock()
+	defer i.mutex.RUnlock()
+	podIfIPPrefix := newIPNet(i.podIfIPCIDR) // defensive copy
+	return &podIfIPPrefix.IP
 }
 
 // OtherNodeVPPHostNetwork returns VPP-host network of another node identified by nodeID.

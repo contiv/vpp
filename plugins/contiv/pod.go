@@ -145,7 +145,7 @@ func (s *remoteCNIserver) loopbackNameFromRequest(request *cni.CNIRequest) strin
 }
 
 func (s *remoteCNIserver) ipAddrForPodVPPIf(podIP string) string {
-	tapPrefix, _ := ipv4ToUint32(s.ipam.VPPIfIPPrefix())
+	tapPrefix, _ := ipv4ToUint32(*s.ipam.VPPIfIPPrefix())
 
 	podAddr, _ := ipv4ToUint32(net.ParseIP(podIP))
 	podMask, _ := ipv4ToUint32(net.IP(s.ipam.PodNetwork().Mask))

@@ -41,6 +41,7 @@ type IPAM struct {
 	podSubnetIPPrefix   net.IPNet        // IPv4 subnet from which individual POD networks are allocated, this is subnet for all PODs across all nodes
 	podNetworkIPPrefix  net.IPNet        // IPv4 subnet prefix for all PODs on the node (given by nodeID), podSubnetIPPrefix + nodeID ==<computation>==> podNetworkIPPrefix
 	podNetworkGatewayIP net.IP           // gateway IP address for PODs on the node (given by nodeID)
+	podIfIPCIDR         net.IPNet        // IPv4 subnet from which individual VPP-side POD interfaces networks are allocated, this is subnet for all PODS within 1 node.
 	assignedPodIPs      map[uintIP]podID // pool of assigned POD IP addresses
 
 	// VSwitch related variables
@@ -63,6 +64,7 @@ type podID = string
 
 // Config represents configuration of the IPAM module.
 type Config struct {
+	PodIfIPCIDR             string // subnet from which individual VPP-side POD interfaces networks are allocated, this is subnet for all PODS within 1 node.
 	PodSubnetCIDR           string // subnet from which individual POD networks are allocated, this is subnet for all PODs across all nodes
 	PodNetworkPrefixLen     uint8  // prefix length of subnet used for all PODs within 1 node (pod network = pod subnet for one 1 node)
 	VPPHostSubnetCIDR       string // subnet used across all nodes for VPP to host Linux stack interconnect
@@ -90,6 +92,9 @@ func New(logger logging.Logger, nodeID uint8, config *Config) (*IPAM, error) {
 		return nil, err
 	}
 	if err := initializeNodeInterconnectIPAM(ipam, config); err != nil {
+		return nil, err
+	}
+	if err := initializePodIfIPPrefix(ipam, config); err != nil {
 		return nil, err
 	}
 	logger.Infof("IPAM values loaded: %+v", ipam)
@@ -173,6 +178,11 @@ func (i *IPAM) VPPHostNetwork() *net.IPNet {
 	defer i.mutex.RUnlock()
 	vSwitchNetwork := newIPNet(i.vppHostNetworkIPPrefix) // defensive copy
 	return &vSwitchNetwork
+}
+
+// VPPIfIPPrefix returns VPP-side interface IP address prefix.
+func (i *IPAM) VPPIfIPPrefix() net.IP {
+	return i.podIfIPCIDR.IP
 }
 
 // OtherNodeVPPHostNetwork returns VPP-host network of another node identified by nodeID.
@@ -385,6 +395,20 @@ func initializeNodeInterconnectIPAM(ipam *IPAM, config *Config) (err error) {
 		return
 	}
 	ipam.vxlanCIDR = *vxlanSubnet
+	return
+}
+
+// initializePodIfIPPrefix initializes node vpp-side POD interface -related variables of IPAM.
+func initializePodIfIPPrefix(ipam *IPAM, config *Config) (err error) {
+	if config == nil || config.PodIfIPCIDR == "" {
+		return fmt.Errorf("missing PodIfIPCIDR configuration")
+	}
+
+	_, podIfIPCIDR, err := net.ParseCIDR(config.PodIfIPCIDR)
+	if err != nil {
+		return
+	}
+	ipam.podIfIPCIDR = *podIfIPCIDR
 	return
 }
 

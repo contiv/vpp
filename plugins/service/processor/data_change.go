@@ -30,7 +30,7 @@ func (sc *ServiceProcessor) propagateDataChangeEv(dataChngEv datasync.ChangeEven
 	sc.Log.Debug("Received CHANGE key ", key)
 
 	// Process Pod CHANGE event
-	podName, podNs, err := podmodel.ParsePodFromKey(key)
+	_, _, err := podmodel.ParsePodFromKey(key)
 	if err == nil {
 		var value, prevValue podmodel.Pod
 
@@ -42,11 +42,11 @@ func (sc *ServiceProcessor) propagateDataChangeEv(dataChngEv datasync.ChangeEven
 			return err
 		}
 
-		// Process notification about a new/updated or deleted pod (add/del frontend).
-		if datasync.Delete == dataChngEv.GetChangeType() {
-			return sc.processDeletedPod(podmodel.ID{Name: podName, Namespace: podNs})
+		// Process notification about a new or updated pod.
+		if datasync.Delete != dataChngEv.GetChangeType() {
+			return sc.processUpdatedPod(&value)
 		}
-		return sc.processUpdatedPod(&value)
+		return nil
 	}
 
 	// Process Endpoints CHANGE event

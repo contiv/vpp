@@ -172,8 +172,14 @@ func configureVpp(contivCfg *contiv.Config, stnData *stn.STNReply, useDHCP bool)
 			if stnRoute.NextHopIp == "" {
 				continue // skip routes with no next hop IP (link-local)
 			}
-			dstIP, dstAddr, _ := net.ParseCIDR(stnRoute.DestinationSubnet)
-			dstAddr.IP = dstIP
+			var dstIP net.IP
+			var dstAddr *net.IPNet
+			if stnRoute.DestinationSubnet != "" {
+				dstIP, dstAddr, _ = net.ParseCIDR(stnRoute.DestinationSubnet)
+				dstAddr.IP = dstIP
+			} else {
+				_, dstAddr, _ = net.ParseCIDR(defaultRouteDestination)
+			}
 			nextHopIP := net.ParseIP(stnRoute.NextHopIp)
 
 			err = l3_vppcalls.VppAddRoute(&l3_vppcalls.Route{

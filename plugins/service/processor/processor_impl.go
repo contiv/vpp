@@ -63,6 +63,7 @@ type LocalEndpoint struct {
 // Init initializes service processor.
 func (sp *ServiceProcessor) Init() error {
 	sp.reset()
+	sp.Contiv.RegisterPodPreRemovalHook(sp.processDeletingPod)
 	return nil
 }
 
@@ -136,10 +137,11 @@ func (sp *ServiceProcessor) processUpdatedPod(pod *podmodel.Pod) error {
 	return nil
 }
 
-func (sp *ServiceProcessor) processDeletedPod(podID podmodel.ID) error {
+func (sp *ServiceProcessor) processDeletingPod(podNamespace string, podName string) error {
+	podID := podmodel.ID{Name: podName, Namespace: podNamespace}
 	sp.Log.WithFields(logging.Fields{
 		"podID": podID,
-	}).Debug("ServiceProcessor - processDeletedPod()")
+	}).Debug("ServiceProcessor - processDeletingPod()")
 
 	localEp, hasEntry := sp.localEps[podID]
 	if !hasEntry {
@@ -343,16 +345,18 @@ func (sp *ServiceProcessor) processResyncEvent(resyncEv *ResyncEventData) error 
 	}
 	// -> main physical interfaces
 	mainPhysIf := sp.Contiv.GetMainPhysicalIfName()
-	sp.frontendIfs.Add(mainPhysIf)
-	if vxlanBVIIf == "" {
-		sp.backendIfs.Add(mainPhysIf)
-	}
-	if vxlanBVIIf != "" && gwIP != nil {
-		// If the interface connects node with the default GW, SNAT all egress traffic.
-		// For main interface this is supported only with VXLANs enabled.
-		if nodeNet.Contains(gwIP) {
-			confResyncEv.ExternalSNAT.ExternalIfName = mainPhysIf
-			confResyncEv.ExternalSNAT.ExternalIP = nodeIP
+	if mainPhysIf != "" {
+		sp.frontendIfs.Add(mainPhysIf)
+		if vxlanBVIIf == "" {
+			sp.backendIfs.Add(mainPhysIf)
+		}
+		if vxlanBVIIf != "" && gwIP != nil {
+			// If the interface connects node with the default GW, SNAT all egress traffic.
+			// For main interface this is supported only with VXLANs enabled.
+			if nodeNet.Contains(gwIP) {
+				confResyncEv.ExternalSNAT.ExternalIfName = mainPhysIf
+				confResyncEv.ExternalSNAT.ExternalIP = nodeIP
+			}
 		}
 	}
 	// -> other physical interfaces

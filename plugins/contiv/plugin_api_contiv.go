@@ -6,6 +6,10 @@ import (
 	"github.com/contiv/vpp/plugins/contiv/containeridx"
 )
 
+// PodActionHook defines parameters and the return value of a callback triggered
+// during an event associated with a pod.
+type PodActionHook func(podNamespace string, podName string) error
+
 // API for other plugins to query network-related information.
 type API interface {
 	// GetIfName looks up logical interface name that corresponds to the interface
@@ -59,4 +63,8 @@ type API interface {
 	// GetDefaultGatewayIP returns the IP address of the default gateway for external traffic.
 	// If the default GW is not configured, the function returns nil.
 	GetDefaultGatewayIP() net.IP
+
+	// RegisterPodPreRemovalHook allows to register callback that will be run for each
+	// pod immediately before its removal.
+	RegisterPodPreRemovalHook(hook PodActionHook)
 }

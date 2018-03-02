@@ -132,7 +132,7 @@ metadata:
 data:
   etcd.conf: |
     insecure-transport: true
-    dial-timeout: 1000000000
+    dial-timeout: 5000000000
     endpoints:
       - "127.0.0.1:32379"
 

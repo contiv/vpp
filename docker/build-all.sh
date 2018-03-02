@@ -52,3 +52,9 @@ cd ubuntu-based
 # builds the new images (vpp-cni, vpp-ksr, vpp-cri)
 cd ..
 ./build-new.sh
+
+# remove dangling images
+set +e
+sudo docker rmi `docker images --filter=dangling=true -q` 2>/dev/null
+set -e
+

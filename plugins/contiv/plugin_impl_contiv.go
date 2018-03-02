@@ -311,6 +311,12 @@ func (plugin *Plugin) GetDefaultGatewayIP() net.IP {
 	return plugin.cniServer.GetDefaultGatewayIP()
 }
 
+// RegisterPodPreRemovalHook allows to register callback that will be run for each
+// pod immediately before its removal.
+func (plugin *Plugin) RegisterPodPreRemovalHook(hook PodActionHook) {
+	plugin.cniServer.RegisterPodPreRemovalHook(hook)
+}
+
 // handleResync handles resync events of the plugin. Called automatically by the plugin infra.
 func (plugin *Plugin) handleResync(resyncChan chan resync.StatusEvent) {
 	for {

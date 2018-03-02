@@ -122,11 +122,16 @@ func (art *RendererTxn) Render(pod podmodel.ID, podIP *net.IPNet, ingress []*ren
 // calculated using RendererCache and applied as one transaction via the
 // localclient.
 func (art *RendererTxn) Commit() error {
-	var globalTable *cache.ContivRuleTable
+	var (
+		aclDump          []*cache.ContivRuleTable
+		globalTable      *cache.ContivRuleTable
+		hasReflectiveACL bool
+		err              error
+	)
 
 	if art.resync {
 		// Re-synchronize with VPP first.
-		aclDump, err := art.dumpVppACLConfig()
+		aclDump, hasReflectiveACL, err = art.dumpVppACLConfig()
 		if err != nil {
 			return err
 		}
@@ -143,6 +148,11 @@ func (art *RendererTxn) Commit() error {
 						Removed: true,
 					})
 			}
+		}
+	} else {
+		if art.renderer.cache.GetGlobalTable().NumOfRules != 0 ||
+			len(art.renderer.cache.GetIsolatedPods()) > 0 {
+			hasReflectiveACL = true
 		}
 	}
 
@@ -202,11 +212,13 @@ func (art *RendererTxn) Commit() error {
 	}
 
 	// Render the global table.
+	var gtAddedOrDeleted bool // will be true if global table is being added / removed (not updated)
 	if globalTable != nil {
 		globalACL := art.renderACL(globalTable)
 		if globalTable.NumOfRules == 0 {
 			// Remove empty global table.
 			deleteDsl.ACL(globalACL.AclName)
+			gtAddedOrDeleted = true
 			art.renderer.Log.WithFields(logging.Fields{
 				"table": globalTable,
 				"acl":   globalACL,
@@ -215,6 +227,9 @@ func (art *RendererTxn) Commit() error {
 			// Update content of the global table.
 			globalACL.Interfaces.Egress = art.getNodeOutputInterfaces()
 			putDsl.ACL(globalACL)
+			if art.renderer.cache.GetGlobalTable().NumOfRules == 0 {
+				gtAddedOrDeleted = true
+			}
 			art.renderer.Log.WithFields(logging.Fields{
 				"table": globalTable,
 				"acl":   globalACL,
@@ -223,15 +238,23 @@ func (art *RendererTxn) Commit() error {
 	}
 
 	// Render the reflective ACL
-	if art.resync || !art.cacheTxn.GetIsolatedPods().Equals(art.renderer.cache.GetIsolatedPods()) {
+	if art.resync || gtAddedOrDeleted ||
+		!art.cacheTxn.GetIsolatedPods().Equals(art.renderer.cache.GetIsolatedPods()) {
 		reflectiveACL := art.reflectiveACL()
-		putDsl.ACL(reflectiveACL)
-		art.renderer.Log.WithFields(logging.Fields{
-			"acl": reflectiveACL,
-		}).Debug("Put Reflective ACL")
+		if len(reflectiveACL.Interfaces.Ingress) == 0 {
+			if hasReflectiveACL {
+				deleteDsl.ACL(reflectiveACL.AclName)
+				art.renderer.Log.Debug("Removed Reflective ACL")
+			}
+		} else {
+			putDsl.ACL(reflectiveACL)
+			art.renderer.Log.WithFields(logging.Fields{
+				"acl": reflectiveACL,
+			}).Debug("Put Reflective ACL")
+		}
 	}
 
-	err := dsl.Send().ReceiveReply()
+	err = dsl.Send().ReceiveReply()
 	if err != nil {
 		return err
 	}
@@ -265,7 +288,9 @@ func (art *RendererTxn) reflectiveACL() *vpp_acl.AccessLists_Acl {
 	table.Pods = art.cacheTxn.GetIsolatedPods()
 	// Render the ACL.
 	acl := art.renderACL(table)
-	acl.Interfaces.Ingress = append(acl.Interfaces.Ingress, art.getNodeOutputInterfaces()...)
+	if art.cacheTxn.GetGlobalTable().NumOfRules > 0 {
+		acl.Interfaces.Ingress = append(acl.Interfaces.Ingress, art.getNodeOutputInterfaces()...)
+	}
 	return acl
 }
 
@@ -374,13 +399,13 @@ func (art *RendererTxn) renderInterfaces(pods cache.PodSet, ingress bool) *vpp_a
 
 // dumpVppACLConfig dumps current ACL config in the format suitable for the resync
 // of the cache.
-func (art *RendererTxn) dumpVppACLConfig() (tables []*cache.ContivRuleTable, err error) {
+func (art *RendererTxn) dumpVppACLConfig() (tables []*cache.ContivRuleTable, hasReflectiveACL bool, err error) {
 	const maxPortNum = uint32(^uint16(0))
 	tables = []*cache.ContivRuleTable{}
 
 	aclDump, err := art.vpp.DumpACL()
 	if err != nil {
-		return tables, err
+		return tables, false, err
 	}
 	for _, acl := range aclDump {
 		if !strings.HasPrefix(acl.AclName, ACLNamePrefix) {
@@ -391,6 +416,7 @@ func (art *RendererTxn) dumpVppACLConfig() (tables []*cache.ContivRuleTable, err
 
 		// Skip the Reflective ACL.
 		if aclName == ReflectiveACLName {
+			hasReflectiveACL = true
 			continue
 		}
 
@@ -537,5 +563,5 @@ func (art *RendererTxn) dumpVppACLConfig() (tables []*cache.ContivRuleTable, err
 		tables = append(tables, table)
 	}
 
-	return tables, nil
+	return tables, hasReflectiveACL, nil
 }

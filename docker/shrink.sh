@@ -13,43 +13,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# remove shrink container if it is running
-set +e
-sudo docker rm -f shrink 2>/dev/null
-set -e
-
-# obtain the current git tag for tagging the Docker images
-TAG=`git describe --tags`
-
-# shrink cni image and replace original one
-sudo docker run -itd --name shrink prod-contiv-cni:${TAG} sh
-sudo docker export shrink >shrink.tar
-sudo docker rm -f shrink
-sudo docker rmi prod-contiv-cni:${TAG}
-sudo docker import -c "WORKDIR /root/" -c 'CMD ["/root/install.sh"]' shrink.tar prod-contiv-cni:${TAG}
-rm shrink.tar
-
-# shrink ksr image and replace original one
-sudo docker run -itd --name shrink prod-contiv-ksr:${TAG} sh
-sudo docker export shrink >shrink.tar
-sudo docker rm -f shrink
-sudo docker rmi prod-contiv-ksr:${TAG}
-sudo docker import -c "WORKDIR /root/" -c 'CMD ["/root/contiv-ksr"]' shrink.tar prod-contiv-ksr:${TAG}
-rm shrink.tar
-
-# shrink cri image and replace original one
-sudo docker run -itd --name shrink prod-contiv-cri:${TAG} bash
-sudo docker export shrink >shrink.tar
-sudo docker rm -f shrink
-sudo docker rmi prod-contiv-cri:${TAG}
-sudo docker import -c "WORKDIR /root/" -c 'CMD ["/root/contiv-cri"]' shrink.tar prod-contiv-cri:${TAG}
-rm shrink.tar
-
-# shrink vswitch image and replace original one
-sudo docker run -itd --name shrink prod-contiv-vswitch:${TAG} bash
-sudo docker export shrink >shrink.tar
-sudo docker rm -f shrink
-sudo docker rmi prod-contiv-vswitch:${TAG}
-sudo docker import -c "WORKDIR /root/" -c "ENV LD_PRELOAD_LIB_DIR /opt/ldpreload/" -c 'CMD ["/usr/bin/supervisord", "-c", "/etc/supervisord.conf"]' shrink.tar prod-contiv-vswitch:${TAG}
-rm shrink.tar
-
+# Custom scripts which shrink images should be avoided.
+# Maintaining separate import commands and the Dockerfiles themselves
+# is too much.
+# This script does nothing now.
+echo "shrink.sh: cowardly exiting and not shrinking images"
+echo "shrink.sh: the size of the images can be reduced by tweaking the \
+	relevant Dockerfile of each Docker image"

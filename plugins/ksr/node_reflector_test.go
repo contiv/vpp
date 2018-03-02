@@ -31,10 +31,11 @@ import (
 )
 
 type NodeTestVars struct {
-	k8sListWatch  *mockK8sListWatch
-	mockKvBroker  *mockKeyProtoValBroker
-	nodeReflector *NodeReflector
-	nodeTestData  []coreV1.Node
+	k8sListWatch      *mockK8sListWatch
+	mockKvBroker      *mockKeyProtoValBroker
+	nodeReflector     *NodeReflector
+	nodeTestData      []coreV1.Node
+	reflectorRegistry ReflectorRegistry
 }
 
 var nodeTestVars NodeTestVars
@@ -48,14 +49,20 @@ func TestNodeReflector(t *testing.T) {
 	nodeTestVars.k8sListWatch = &mockK8sListWatch{}
 	nodeTestVars.mockKvBroker = newMockKeyProtoValBroker()
 
+	nodeTestVars.reflectorRegistry = ReflectorRegistry{
+		reflectors: make(map[string]*Reflector),
+		lock:       sync.RWMutex{},
+	}
+
 	nodeTestVars.nodeReflector = &NodeReflector{
 		Reflector: Reflector{
-			Log:          flavorLocal.LoggerFor("node-reflector"),
-			K8sClientset: &kubernetes.Clientset{},
-			K8sListWatch: nodeTestVars.k8sListWatch,
-			Broker:       nodeTestVars.mockKvBroker,
-			dsSynced:     false,
-			objType:      nodeObjType,
+			Log:               flavorLocal.LoggerFor("node-reflector"),
+			K8sClientset:      &kubernetes.Clientset{},
+			K8sListWatch:      nodeTestVars.k8sListWatch,
+			Broker:            nodeTestVars.mockKvBroker,
+			dsSynced:          false,
+			objType:           nodeObjType,
+			ReflectorRegistry: &nodeTestVars.reflectorRegistry,
 		},
 	}
 
@@ -286,7 +293,7 @@ func testAddDeleteNode(t *testing.T) {
 		gomega.Ω(err).Should(gomega.Succeed())
 	}
 
-	nodeTestVars.nodeReflector.Log.Infof("%s: data sync done, stats: %+v",
+	nodeTestVars.nodeReflector.Log.Infof("%s: data sync done, gauges: %+v",
 		nodeTestVars.nodeReflector.objType, nodeTestVars.nodeReflector.stats)
 }
 
@@ -330,7 +337,7 @@ func testUpdateNode(t *testing.T) {
 
 	checkNodeToProtoTranslation(t, protoNodeNew, k8sNodeNew)
 
-	nodeTestVars.nodeReflector.Log.Infof("%s: data sync done, stats: %+v",
+	nodeTestVars.nodeReflector.Log.Infof("%s: data sync done, gauges: %+v",
 		nodeTestVars.nodeReflector.objType, nodeTestVars.nodeReflector.stats)
 
 }

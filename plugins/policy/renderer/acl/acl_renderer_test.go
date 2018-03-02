@@ -46,11 +46,14 @@ const (
 	somePort2  = 600       /* some port number to use as the source port */
 )
 
-func verifyReflectiveACL(engine *MockACLEngine, contiv contiv.API, ifName string, expectedToHave bool) {
-	ifs := contiv.GetOtherPhysicalIfNames()
-	ifs = append(ifs, contiv.GetVxlanBVIIfName())
-	ifs = append(ifs, contiv.GetMainPhysicalIfName())
-	ifs = append(ifs, contiv.GetHostInterconnectIfName())
+func verifyReflectiveACL(engine *MockACLEngine, contiv contiv.API, ifName string, onOutputIfs bool, expectedToHave bool) {
+	ifs := []string{}
+	if onOutputIfs {
+		ifs = contiv.GetOtherPhysicalIfNames()
+		ifs = append(ifs, contiv.GetVxlanBVIIfName())
+		ifs = append(ifs, contiv.GetMainPhysicalIfName())
+		ifs = append(ifs, contiv.GetHostInterconnectIfName())
+	}
 	ifs = append(ifs, ifName)
 
 	acl := engine.GetInboundACL(ifName)
@@ -182,7 +185,7 @@ func TestEgressRulesOnePod(t *testing.T) {
 
 	// Test ACLs.
 	gomega.Expect(aclEngine.GetNumOfACLs()).To(gomega.Equal(2))
-	verifyReflectiveACL(aclEngine, contiv, Pod1IfName, true)
+	verifyReflectiveACL(aclEngine, contiv, Pod1IfName, false, true)
 	verifyGlobalTable(aclEngine, contiv, false)
 
 	// Test connections (Pod1 can receive connection only from 10.10.0.0/16:[TCP:ANY]).
@@ -253,7 +256,7 @@ func TestIngressRulesOnePod(t *testing.T) {
 
 	// Test ACLs.
 	gomega.Expect(aclEngine.GetNumOfACLs()).To(gomega.Equal(3))
-	verifyReflectiveACL(aclEngine, contiv, Pod1IfName, true)
+	verifyReflectiveACL(aclEngine, contiv, Pod1IfName, true, true)
 	verifyGlobalTable(aclEngine, contiv, true)
 
 	// Test connections (Pod1 can initiate connection only to 10.10.0.0/16:[TCP:ANY]).
@@ -334,8 +337,8 @@ func TestEgressRulesTwoPods(t *testing.T) {
 	// Test ACLs.
 	gomega.Expect(aclEngine.GetNumOfACLs()).To(gomega.Equal(2)) /* pod1 and pod2 should share the same local table */
 	gomega.Expect(aclEngine.GetNumOfACLChanges()).To(gomega.Equal(2))
-	verifyReflectiveACL(aclEngine, contiv, Pod1IfName, true)
-	verifyReflectiveACL(aclEngine, contiv, Pod2IfName, true)
+	verifyReflectiveACL(aclEngine, contiv, Pod1IfName, false, true)
+	verifyReflectiveACL(aclEngine, contiv, Pod2IfName, false, true)
 	verifyGlobalTable(aclEngine, contiv, false)
 
 	// Test connections (Pod1, Pod2 can receive connection only from 10.10.0.0/16:[TCP:ANY]).
@@ -374,8 +377,8 @@ func TestEgressRulesTwoPods(t *testing.T) {
 	// Test ACLs.
 	gomega.Expect(aclEngine.GetNumOfACLs()).To(gomega.Equal(2))
 	gomega.Expect(aclEngine.GetNumOfACLChanges()).To(gomega.Equal(4)) /* changed interfaces for local table + reflective ACL */
-	verifyReflectiveACL(aclEngine, contiv, Pod1IfName, true)
-	verifyReflectiveACL(aclEngine, contiv, Pod2IfName, false)
+	verifyReflectiveACL(aclEngine, contiv, Pod1IfName, false, true)
+	verifyReflectiveACL(aclEngine, contiv, Pod2IfName, false, false)
 	verifyGlobalTable(aclEngine, contiv, false)
 }
 
@@ -444,8 +447,8 @@ func TestCombinedRules(t *testing.T) {
 
 	// Test ACLs.
 	gomega.Expect(aclEngine.GetNumOfACLs()).To(gomega.Equal(4))
-	verifyReflectiveACL(aclEngine, contiv, Pod1IfName, true)
-	verifyReflectiveACL(aclEngine, contiv, Pod3IfName, true)
+	verifyReflectiveACL(aclEngine, contiv, Pod1IfName, true, true)
+	verifyReflectiveACL(aclEngine, contiv, Pod3IfName, true, true)
 	verifyGlobalTable(aclEngine, contiv, true)
 
 	// Test connections.
@@ -488,8 +491,8 @@ func TestCombinedRules(t *testing.T) {
 
 	// Test ACLs.
 	gomega.Expect(aclEngine.GetNumOfACLs()).To(gomega.Equal(4))
-	verifyReflectiveACL(aclEngine, contiv, Pod1IfName, true)
-	verifyReflectiveACL(aclEngine, contiv, Pod3IfName, true)
+	verifyReflectiveACL(aclEngine, contiv, Pod1IfName, true, true)
+	verifyReflectiveACL(aclEngine, contiv, Pod3IfName, true, true)
 	verifyGlobalTable(aclEngine, contiv, true)
 
 	// Test connections.
@@ -615,8 +618,8 @@ func TestCombinedRulesWithResync(t *testing.T) {
 
 	// Test ACLs.
 	gomega.Expect(aclEngine.GetNumOfACLs()).To(gomega.Equal(4))
-	verifyReflectiveACL(aclEngine, contiv, Pod1IfName, true)
-	verifyReflectiveACL(aclEngine, contiv, Pod3IfName, true)
+	verifyReflectiveACL(aclEngine, contiv, Pod1IfName, true, true)
+	verifyReflectiveACL(aclEngine, contiv, Pod3IfName, true, true)
 	verifyGlobalTable(aclEngine, contiv, true)
 
 	// Test connections.
@@ -735,8 +738,8 @@ func TestCombinedRulesWithResyncAndRemovedPod(t *testing.T) {
 
 	// Test ACLs.
 	gomega.Expect(aclEngine.GetNumOfACLs()).To(gomega.Equal(3))
-	verifyReflectiveACL(aclEngine, contiv, Pod1IfName, true)
-	verifyReflectiveACL(aclEngine, contiv, Pod3IfName, false)
+	verifyReflectiveACL(aclEngine, contiv, Pod1IfName, true, true)
+	verifyReflectiveACL(aclEngine, contiv, Pod3IfName, true, false)
 	verifyGlobalTable(aclEngine, contiv, true)
 
 	// Test connections (removed pod3 = no ACLs assigned to pod3).
@@ -840,8 +843,8 @@ func TestCombinedRulesWithRemovedPods(t *testing.T) {
 
 	// Test ACLs.
 	gomega.Expect(aclEngine.GetNumOfACLs()).To(gomega.Equal(3))
-	verifyReflectiveACL(aclEngine, contiv, Pod1IfName, true)
-	verifyReflectiveACL(aclEngine, contiv, Pod3IfName, false)
+	verifyReflectiveACL(aclEngine, contiv, Pod1IfName, true, true)
+	verifyReflectiveACL(aclEngine, contiv, Pod3IfName, true, false)
 	verifyGlobalTable(aclEngine, contiv, true)
 
 	// Test connections (removed pod3 = no ACLs assigned to pod3).
@@ -884,7 +887,7 @@ func TestCombinedRulesWithRemovedPods(t *testing.T) {
 	gomega.Expect(txnTracker.CommittedTxns).To(gomega.HaveLen(3))
 
 	// Test ACLs.
-	gomega.Expect(aclEngine.GetNumOfACLs()).To(gomega.Equal(1)) /* just reflective ACL */
-	verifyReflectiveACL(aclEngine, contiv, mainIfName, true)
+	gomega.Expect(aclEngine.GetNumOfACLs()).To(gomega.Equal(0)) /* all ACLs cleaned up */
+	verifyReflectiveACL(aclEngine, contiv, "", false, false)
 	verifyGlobalTable(aclEngine, contiv, false)
 }

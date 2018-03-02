@@ -53,8 +53,6 @@ type Plugin struct {
 	k8sClientConfig *rest.Config
 	k8sClientset    *kubernetes.Clientset
 
-	StatusMonitor statuscheck.StatusReader
-
 	nsReflector        *NamespaceReflector
 	podReflector       *PodReflector
 	policyReflector    *PolicyReflector
@@ -62,7 +60,11 @@ type Plugin struct {
 	endpointsReflector *EndpointsReflector
 	nodeReflector      *NodeReflector
 
-	etcdMonitor EtcdMonitor
+	reflectorRegistry *ReflectorRegistry
+
+	StatusMonitor  statuscheck.StatusReader
+	etcdMonitor    EtcdMonitor
+	StatsCollector StatsCollector
 }
 
 // EtcdMonitor defines the state data for the Etcd Monitor
@@ -75,6 +77,8 @@ type EtcdMonitor struct {
 	lastRev int64
 	// broker is the interface to a key-val data store.
 	broker KeyProtoValBroker
+	// reflector registry
+	rr *ReflectorRegistry
 }
 
 // Deps defines dependencies of ksr plugin.
@@ -104,6 +108,11 @@ func (plugin *Plugin) Init() error {
 	plugin.Log.SetLevel(logging.DebugLevel)
 	plugin.stopCh = make(chan struct{})
 
+	plugin.reflectorRegistry = &ReflectorRegistry{
+		lock:       sync.RWMutex{},
+		reflectors: make(map[string]*Reflector),
+	}
+
 	kubeconfig := plugin.KubeConfig.GetConfigName()
 	plugin.Log.WithField("kubeconfig", kubeconfig).Info("Loading kubernetes client config")
 	plugin.k8sClientConfig, err = clientcmd.BuildConfigFromFlags("", kubeconfig)
@@ -121,18 +130,13 @@ func (plugin *Plugin) Init() error {
 	plugin.etcdMonitor.broker = plugin.Publish.Deps.KvPlugin.NewBroker(ksrPrefix)
 	plugin.etcdMonitor.status = status.OperationalState_INIT
 	plugin.etcdMonitor.lastRev = 0
+	plugin.etcdMonitor.rr = plugin.reflectorRegistry
+
+	broker := plugin.Publish.Deps.KvPlugin.NewBroker(ksrPrefix)
 
 	plugin.nsReflector = &NamespaceReflector{
-		Reflector: Reflector{
-			Log:          plugin.Log.NewLogger("-namespace"),
-			K8sClientset: plugin.k8sClientset,
-			K8sListWatch: &k8sCache{},
-			Broker:       plugin.Publish.Deps.KvPlugin.NewBroker(ksrPrefix),
-			dsSynced:     false,
-			objType:      namespaceObjType,
-		},
+		Reflector: plugin.newReflector("-namespace", namespaceObjType, broker),
 	}
-
 	//plugin.nsReflectorLog.SetLevel(logging.DebugLevel)
 	err = plugin.nsReflector.Init(plugin.stopCh, &plugin.wg)
 	if err != nil {
@@ -141,16 +145,8 @@ func (plugin *Plugin) Init() error {
 	}
 
 	plugin.podReflector = &PodReflector{
-		Reflector: Reflector{
-			Log:          plugin.Log.NewLogger("-pod"),
-			K8sClientset: plugin.k8sClientset,
-			K8sListWatch: &k8sCache{},
-			Broker:       plugin.Publish.Deps.KvPlugin.NewBroker(ksrPrefix),
-			dsSynced:     false,
-			objType:      podObjType,
-		},
+		Reflector: plugin.newReflector("-pod", podObjType, broker),
 	}
-
 	//plugin.podReflector.Log.SetLevel(logging.DebugLevel)
 	err = plugin.podReflector.Init(plugin.stopCh, &plugin.wg)
 	if err != nil {
@@ -159,16 +155,8 @@ func (plugin *Plugin) Init() error {
 	}
 
 	plugin.policyReflector = &PolicyReflector{
-		Reflector: Reflector{
-			Log:          plugin.Log.NewLogger("-policy"),
-			K8sClientset: plugin.k8sClientset,
-			K8sListWatch: &k8sCache{},
-			Broker:       plugin.Publish.Deps.KvPlugin.NewBroker(ksrPrefix),
-			dsSynced:     false,
-			objType:      policyObjType,
-		},
+		Reflector: plugin.newReflector("-policy", policyObjType, broker),
 	}
-
 	//plugin.policyReflector.Log.SetLevel(logging.DebugLevel)
 	err = plugin.policyReflector.Init(plugin.stopCh, &plugin.wg)
 	if err != nil {
@@ -177,16 +165,8 @@ func (plugin *Plugin) Init() error {
 	}
 
 	plugin.serviceReflector = &ServiceReflector{
-		Reflector: Reflector{
-			Log:          plugin.Log.NewLogger("-service"),
-			K8sClientset: plugin.k8sClientset,
-			K8sListWatch: &k8sCache{},
-			Broker:       plugin.Publish.Deps.KvPlugin.NewBroker(ksrPrefix),
-			dsSynced:     false,
-			objType:      serviceObjType,
-		},
+		Reflector: plugin.newReflector("-service", serviceObjType, broker),
 	}
-
 	//plugin.serviceReflector.Log.SetLevel(logging.DebugLevel)
 	err = plugin.serviceReflector.Init(plugin.stopCh, &plugin.wg)
 	if err != nil {
@@ -195,16 +175,8 @@ func (plugin *Plugin) Init() error {
 	}
 
 	plugin.endpointsReflector = &EndpointsReflector{
-		Reflector: Reflector{
-			Log:          plugin.Log.NewLogger("-endpoints"),
-			K8sClientset: plugin.k8sClientset,
-			K8sListWatch: &k8sCache{},
-			Broker:       plugin.Publish.Deps.KvPlugin.NewBroker(ksrPrefix),
-			dsSynced:     false,
-			objType:      endpointsObjType,
-		},
+		Reflector: plugin.newReflector("-endpoints", endpointsObjType, broker),
 	}
-
 	//plugin.endpointsReflector.Log.SetLevel(logging.DebugLevel)
 	err = plugin.endpointsReflector.Init(plugin.stopCh, &plugin.wg)
 	if err != nil {
@@ -213,21 +185,25 @@ func (plugin *Plugin) Init() error {
 	}
 
 	plugin.nodeReflector = &NodeReflector{
-		Reflector: Reflector{
-			Log:          plugin.Log.NewLogger("-node"),
-			K8sClientset: plugin.k8sClientset,
-			K8sListWatch: &k8sCache{},
-			Broker:       plugin.Publish.Deps.KvPlugin.NewBroker(ksrPrefix),
-			dsSynced:     false,
-			objType:      nodeObjType,
-		},
+		Reflector: plugin.newReflector("-node", nodeObjType, broker),
 	}
-
 	// plugin.nodeReflector.Log.SetLevel(logging.DebugLevel)
 	err = plugin.nodeReflector.Init(plugin.stopCh, &plugin.wg)
 	if err != nil {
 		plugin.Log.WithField("rwErr", err).Error("Failed to initialize Node reflector")
 		return err
+	}
+
+	plugin.StatsCollector.Log = plugin.Log.NewLogger("-metrics")
+	plugin.StatsCollector.serviceLabel = plugin.Publish.ServiceLabel.GetAgentLabel()
+	err = plugin.StatsCollector.Init()
+	if err != nil {
+		plugin.Log.WithField("rwErr", err).Error("Failed to initialize Stats Collector")
+		return err
+	}
+
+	for _, r := range plugin.reflectorRegistry.getRegisteredReflectors() {
+		plugin.StatsCollector.addReflector(r)
 	}
 
 	return nil
@@ -237,7 +213,9 @@ func (plugin *Plugin) Init() error {
 // the kvdbsync is fully initialized and ready for publishing when a k8s
 // notification comes.
 func (plugin *Plugin) AfterInit() error {
-	startReflectors()
+	plugin.reflectorRegistry.startReflectors()
+	plugin.StatsCollector.start(plugin.stopCh, plugin.reflectorRegistry)
+
 	go plugin.monitorEtcdStatus(plugin.stopCh)
 
 	return nil
@@ -272,22 +250,35 @@ func (plugin *Plugin) monitorEtcdStatus(closeCh chan struct{}) {
 	}
 }
 
+// newReflector returns a new instance of KSR Reflector
+func (plugin *Plugin) newReflector(logName string, objType string, broker KeyProtoValBroker) Reflector {
+	return Reflector{
+		Log:               plugin.Log.NewLogger(logName),
+		K8sClientset:      plugin.k8sClientset,
+		K8sListWatch:      &k8sCache{},
+		Broker:            broker,
+		dsSynced:          false,
+		objType:           objType,
+		ReflectorRegistry: plugin.reflectorRegistry,
+	}
+}
+
 // processEtcdMonitorEvent processes ectd plugin's status events and, if an
 // Etcd problem is detected, generates a resync event for all reflectors.
 func (etcdm *EtcdMonitor) processEtcdMonitorEvent(ns status.OperationalState) {
 	switch ns {
 	case status.OperationalState_INIT:
 		if etcdm.status == status.OperationalState_OK {
-			dataStoreDownEvent()
+			etcdm.rr.dataStoreDownEvent()
 		}
 	case status.OperationalState_ERROR:
 		if etcdm.status == status.OperationalState_OK {
-			dataStoreDownEvent()
+			etcdm.rr.dataStoreDownEvent()
 		}
 	case status.OperationalState_OK:
 		if etcdm.status == status.OperationalState_INIT ||
 			etcdm.status == status.OperationalState_ERROR {
-			dataStoreUpEvent()
+			etcdm.rr.dataStoreUpEvent()
 		}
 	}
 	etcdm.status = ns
@@ -295,15 +286,15 @@ func (etcdm *EtcdMonitor) processEtcdMonitorEvent(ns status.OperationalState) {
 
 // checkEtcdTransientError checks is there was a transient error that results
 // in data loss in Etcd. If yes, resync of all reflectors is triggered. As a
-// byproduct, this function periodically writes reflector statistics to Etcd.
+// byproduct, this function periodically writes reflector gauges to Etcd.
 func (etcdm *EtcdMonitor) checkEtcdTransientError() {
 	// Skip monitoring during data store resync
-	if !ksrHasSynced() {
+	if !etcdm.rr.ksrHasSynced() {
 		return
 	}
 
 	oldStats := ksrapi.Stats{}
-	found, rev, err := etcdm.broker.GetValue(ksrapi.Key("statistics"), &oldStats)
+	found, rev, err := etcdm.broker.GetValue(ksrapi.Key("gauges"), &oldStats)
 	if err != nil {
 		// We only detect loss of data in etcd here; other failures are
 		// detected by the plugin monitor.
@@ -315,46 +306,10 @@ func (etcdm *EtcdMonitor) checkEtcdTransientError() {
 	if rev < etcdm.lastRev {
 		// Data loss detected (etcd restarted rev counter of ksr status)
 		// Mark all reflectors out of sync with K8s
-		dataStoreDownEvent()
+		etcdm.rr.dataStoreDownEvent()
 		// Trigger all reflectors to resync their respecrtive data stores
-		dataStoreUpEvent()
+		etcdm.rr.dataStoreUpEvent()
 	}
 	etcdm.lastRev = rev
-	etcdm.broker.Put(ksrapi.Key("statistics"), getKsrStats())
-}
-
-// ksrHasSynced determines if all reflectors have synced their respective K8s
-// caches with their respective data stores.
-func ksrHasSynced() bool {
-	for _, v := range reflectors {
-		if !v.HasSynced() {
-			return false
-		}
-	}
-	return true
-}
-
-// getKsrStats() gets the global stats from all reflectors
-func getKsrStats() *ksrapi.Stats {
-	stats := ksrapi.Stats{}
-	for _, v := range reflectors {
-		switch v.objType {
-		case endpointsObjType:
-			stats.EndpointsStats = &v.stats
-		case namespaceObjType:
-			stats.NamespaceStats = &v.stats
-		case podObjType:
-			stats.PodStats = &v.stats
-		case policyObjType:
-			stats.PolicyStats = &v.stats
-		case serviceObjType:
-			stats.ServiceStats = &v.stats
-		case nodeObjType:
-			stats.NodeStats = &v.stats
-		default:
-			v.Log.WithField("ksrObjectType", v.objType).
-				Error("Plugin stats sees unknown reflector object type")
-		}
-	}
-	return &stats
+	etcdm.broker.Put(ksrapi.Key("gauges"), etcdm.rr.getStats())
 }

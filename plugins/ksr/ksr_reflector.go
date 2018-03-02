@@ -47,6 +47,8 @@ type Reflector struct {
 	K8sListWatch K8sListWatcher
 	// broker is the interface to a key-val data store.
 	Broker KeyProtoValBroker
+	// reflector registry
+	*ReflectorRegistry
 	// objType defines the type of the object handled by a particular reflector
 	objType string
 	// ksrStopCh is used to gracefully shutdown the Reflector
@@ -56,7 +58,7 @@ type Reflector struct {
 	k8sStore cache.Store
 	// K8s controller
 	k8sController cache.Controller
-	// Reflector statistics
+	// Reflector gauges
 	stats ksrapi.KsrStats
 
 	prefix string
@@ -69,12 +71,6 @@ type Reflector struct {
 
 	syncStopCh chan bool
 }
-
-// reflectors is the reflector registry
-var reflectors = make(map[string]*Reflector)
-
-// reflector registry lock
-var rrLock sync.RWMutex
 
 // DsItems defines the structure holding items listed from the data store.
 type DsItems map[string]interface{}
@@ -100,56 +96,13 @@ type ReflectorFunctions struct {
 	K8sClntGetFunc K8sClientGetter
 }
 
-// dataStoreDownEvent starts all reflectors
-func startReflectors() {
-	rrLock.RLock()
-	defer rrLock.RUnlock()
-
-	for _, r := range reflectors {
-		r.Start()
-	}
-}
-
-// dataStoreDownEvent signals to all registered reflectors that the data store
-// is down. Reflectors should stop updates from the  respective K8s caches.
-// Optionally, if data store resync with the K8s cache is in progress, it will
-// be abort.
-func dataStoreDownEvent() {
-	rrLock.RLock()
-	defer rrLock.RUnlock()
-
-	for _, r := range reflectors {
-		r.stopDataStoreUpdates()
-		select {
-		case r.syncStopCh <- true:
-			r.Log.Infof("%s: sent dataStoreResyncAbort signal", r.objType)
-		default:
-			r.Log.Infof("%s: syncStopCh full", r.objType)
-		}
-	}
-}
-
-// dataStoreUpEvent signals to all registered reflectors that the data store
-// is back up. Reflectors should start the resync procedure between their
-// respective data stores with their respective K8s caches.
-func dataStoreUpEvent() {
-	rrLock.RLock()
-	defer rrLock.RUnlock()
-
-	for _, r := range reflectors {
-		select {
-		case <-r.syncStopCh:
-			r.Log.Infof("%s: syncStopCh flushed", r.objType)
-		default:
-			r.Log.Infof("%s: syncStopCh not flushed", r.objType)
-		}
-		r.startDataStoreResync()
-	}
-}
-
-// GetStats returns the Service Reflector usage statistics
+// GetStats returns the Service Reflector usage gauges
 func (r *Reflector) GetStats() *ksrapi.KsrStats {
-	return &r.stats
+	r.dsMutex.Lock()
+	defer r.dsMutex.Unlock()
+
+	retStats := r.stats
+	return &retStats
 }
 
 // Start activates the K8s subscription.
@@ -158,14 +111,9 @@ func (r *Reflector) Start() {
 	go r.ksrRun()
 }
 
-// Close does nothing for this particular reflector.
+// Close deletes the reflector from the reflector registry.
 func (r *Reflector) Close() error {
-	if _, objExists := reflectors[r.objType]; !objExists {
-		return fmt.Errorf("%s reflector type does not exist", r.objType)
-	}
-	delete(reflectors, r.objType)
-
-	return nil
+	return r.deleteReflector(r)
 }
 
 // HasSynced returns the KSR Reflector's sync status.
@@ -352,7 +300,7 @@ func (r *Reflector) startDataStoreResync() {
 					// Try to resync the data store with the K8s cache
 					err := r.syncDataStoreWithK8sCache(dsItemsCopy)
 					if err == nil {
-						r.Log.Infof("%s: data sync done, stats %+v", r.objType, r.stats)
+						r.Log.Infof("%s: data sync done, gauges %+v", r.objType, r.stats)
 						break Loop
 					}
 					r.Log.Infof("%s data sync: syncDataStoreWithK8sCache failed, '%s'", r.objType, err)
@@ -431,10 +379,6 @@ func (r *Reflector) ksrDelete(key string) {
 func (r *Reflector) ksrInit(stopCh <-chan struct{}, wg *sync.WaitGroup, prefix string,
 	k8sResourceName string, k8sObjType k8sRuntime.Object, ksrFuncs ReflectorFunctions) error {
 
-	if _, objExists := reflectors[r.objType]; objExists {
-		return fmt.Errorf("%s reflector type already exists", r.objType)
-	}
-
 	r.syncStopCh = make(chan bool, 1)
 
 	r.ksrStopCh = stopCh
@@ -488,9 +432,5 @@ func (r *Reflector) ksrInit(stopCh <-chan struct{}, wg *sync.WaitGroup, prefix s
 		},
 	)
 
-	rrLock.Lock()
-	reflectors[r.objType] = r
-	rrLock.Unlock()
-
-	return nil
+	return r.addReflector(r)
 }

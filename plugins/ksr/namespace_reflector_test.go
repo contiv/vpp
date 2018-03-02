@@ -29,11 +29,12 @@ import (
 )
 
 type NamespaceTestVars struct {
-	k8sListWatch *mockK8sListWatch
-	mockKvBroker *mockKeyProtoValBroker
-	nsReflector  *NamespaceReflector
-	svc          *coreV1.Service
-	svcTestData  []coreV1.Service
+	k8sListWatch      *mockK8sListWatch
+	mockKvBroker      *mockKeyProtoValBroker
+	nsReflector       *NamespaceReflector
+	svc               *coreV1.Service
+	svcTestData       []coreV1.Service
+	reflectorRegistry ReflectorRegistry
 }
 
 var nsTestVars NamespaceTestVars
@@ -47,14 +48,20 @@ func TestNamespaceReflector(t *testing.T) {
 	nsTestVars.k8sListWatch = &mockK8sListWatch{}
 	nsTestVars.mockKvBroker = newMockKeyProtoValBroker()
 
+	nsTestVars.reflectorRegistry = ReflectorRegistry{
+		reflectors: make(map[string]*Reflector),
+		lock:       sync.RWMutex{},
+	}
+
 	nsTestVars.nsReflector = &NamespaceReflector{
 		Reflector: Reflector{
-			Log:          flavorLocal.LoggerFor("namespace-reflector"),
-			K8sClientset: &kubernetes.Clientset{},
-			K8sListWatch: nsTestVars.k8sListWatch,
-			Broker:       nsTestVars.mockKvBroker,
-			dsSynced:     false,
-			objType:      namespaceObjType,
+			Log:               flavorLocal.LoggerFor("namespace-reflector"),
+			K8sClientset:      &kubernetes.Clientset{},
+			K8sListWatch:      nsTestVars.k8sListWatch,
+			Broker:            nsTestVars.mockKvBroker,
+			dsSynced:          false,
+			objType:           namespaceObjType,
+			ReflectorRegistry: &nsTestVars.reflectorRegistry,
 		},
 	}
 

@@ -91,7 +91,13 @@ func (f *FlavorKsr) Inject() (allReadyInjected bool) {
 	// Reuse ForPlugin to define configuration file for 3rd party library (k8s client).
 	f.Ksr.Deps.KubeConfig = config.ForPlugin("kube", KubeConfigAdmin, KubeConfigUsage)
 	f.Ksr.Deps.Publish = &f.ETCDDataSync
-	f.Ksr.StatusMonitor = &f.StatusCheck // Inject status check
+	f.Ksr.StatusMonitor = &f.StatusCheck            // StatusCheck included in local.FlavorLocal
+	f.Ksr.StatsCollector.Prometheus = &f.Prometheus // Prometheus included in rpc.FlavorRPC
+
+	// Please note that Prometheus handlers are currently wired to the Probe
+	// HTTP server, as defined in in rpc.FlavorRPC' If you want them to be
+	// wired to the primary HTTP server, please uncomment the following line:
+	// f.Prometheus.Deps.HTTP = &f.HTTP
 
 	return true
 }

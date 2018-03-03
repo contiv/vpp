@@ -4,6 +4,7 @@ import (
 	"net"
 	"sync"
 
+	"github.com/contiv/vpp/plugins/contiv"
 	"github.com/contiv/vpp/plugins/contiv/containeridx"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	"github.com/ligato/cn-infra/logging/logrus"
@@ -13,18 +14,19 @@ import (
 type MockContiv struct {
 	sync.Mutex
 
-	podIf            map[podmodel.ID]string
-	podAppNs         map[podmodel.ID]uint32
-	podNetwork       *net.IPNet
-	tcpStackDisabled bool
-	nodeIP           string
-	nodeIPsubs       []chan string
-	mainPhysIf       string
-	otherPhysIfs     []string
-	hostInterconnect string
-	vxlanBVIIfName   string
-	gwIP             net.IP
-	containerIndex   *containeridx.ConfigIndex
+	podIf              map[podmodel.ID]string
+	podAppNs           map[podmodel.ID]uint32
+	podNetwork         *net.IPNet
+	tcpStackDisabled   bool
+	nodeIP             string
+	nodeIPsubs         []chan string
+	podPreRemovalHooks []contiv.PodActionHook
+	mainPhysIf         string
+	otherPhysIfs       []string
+	hostInterconnect   string
+	vxlanBVIIfName     string
+	gwIP               net.IP
+	containerIndex     *containeridx.ConfigIndex
 }
 
 // NewMockContiv is a constructor for MockContiv.
@@ -106,6 +108,14 @@ func (mc *MockContiv) SetVxlanBVIIfName(ifName string) {
 // SetDefaultGatewayIP allows to set what tests will assume the default gateway IP is (can be nil).
 func (mc *MockContiv) SetDefaultGatewayIP(gwIP net.IP) {
 	mc.gwIP = gwIP
+}
+
+// DeletingPod allows to simulate event of deleting pod - all registered pre-removal hooks
+// are called.
+func (mc *MockContiv) DeletingPod(podID podmodel.ID) {
+	for _, hook := range mc.podPreRemovalHooks {
+		hook(podID.Namespace, podID.Name)
+	}
 }
 
 // GetIfName returns pod's interface name as set previously using SetPodIfName.
@@ -201,4 +211,13 @@ func (mc *MockContiv) GetVxlanBVIIfName() string {
 // If the default GW is not configured, the function returns nil.
 func (mc *MockContiv) GetDefaultGatewayIP() net.IP {
 	return mc.gwIP
+}
+
+// RegisterPodPreRemovalHook allows to register callback that will be run for each
+// pod immediately before its removal.
+func (mc *MockContiv) RegisterPodPreRemovalHook(hook contiv.PodActionHook) {
+	mc.Lock()
+	defer mc.Unlock()
+
+	mc.podPreRemovalHooks = append(mc.podPreRemovalHooks, hook)
 }

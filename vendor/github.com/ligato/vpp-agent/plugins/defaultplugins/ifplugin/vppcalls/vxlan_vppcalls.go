@@ -41,7 +41,7 @@ func addDelVxlanTunnel(iface *intf.Interfaces_Interface_Vxlan, encVrf uint32, is
 		IsAdd:          boolToUint(isAdd),
 		Vni:            iface.Vni,
 		DecapNextIndex: 0xFFFFFFFF,
-		Instance: vxlanInstanceUnset,
+		Instance:       vxlanInstanceUnset,
 		EncapVrfID:     encVrf,
 	}
 

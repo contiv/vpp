@@ -77,6 +77,7 @@ var (
 		IPAMConfig: ipam.Config{
 			PodSubnetCIDR:           "10.1.0.0/16",
 			PodNetworkPrefixLen:     24,
+			PodIfIPCIDR:             "10.2.1.0/24",
 			VPPHostSubnetCIDR:       "172.30.0.0/16",
 			VPPHostNetworkPrefixLen: 24,
 			NodeInterconnectCIDR:    "192.168.16.0/24",
@@ -89,6 +90,7 @@ var (
 		IPAMConfig: ipam.Config{
 			PodSubnetCIDR:           "10.1.0.0/16",
 			PodNetworkPrefixLen:     24,
+			PodIfIPCIDR:             "10.2.1.0/24",
 			VPPHostSubnetCIDR:       "172.30.0.0/16",
 			VPPHostNetworkPrefixLen: 24,
 			NodeInterconnectCIDR:    "192.168.16.0/24",

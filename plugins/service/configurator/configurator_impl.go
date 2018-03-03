@@ -145,8 +145,23 @@ func (sc *ServiceConfigurator) UpdateLocalFrontendIfs(oldIfNames, newIfNames Int
 		}
 	}
 
-	// Interfaces which are no longer frontends were removed from VPP
-	//  => nothing to be done here.
+	// Unconfigure interfaces which are no longer frontends (to be removed from VPP).
+	for oldIf := range oldIfNames {
+		removed := true
+		for newIf := range newIfNames {
+			if oldIf == newIf {
+				removed = false
+				break
+			}
+		}
+		if removed {
+			err := sc.setInterfaceNATFeature(oldIf, false, false, false)
+			if err != nil {
+				sc.Log.Error(err)
+				return err
+			}
+		}
+	}
 	return nil
 }
 
@@ -188,11 +203,8 @@ func (sc *ServiceConfigurator) UpdateLocalBackendIfs(oldIfNames, newIfNames Inte
 		if removed {
 			err := sc.setInterfaceNATFeature(oldIf, false, true, false)
 			if err != nil {
-				// Interface may have already been removed thus the error is ignored.
-				sc.Log.WithFields(logging.Fields{
-					"ifName": oldIf,
-					"err":    err,
-				}).Debug("Failed to unconfigure NAT in2out feature from interface")
+				sc.Log.Error(err)
+				return err
 			}
 		}
 	}

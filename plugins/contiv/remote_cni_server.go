@@ -59,7 +59,6 @@ const (
 	tapHostEndName                = "vpp1"
 	tapVPPEndLogicalName          = "tap-vpp2"
 	tapVPPEndName                 = "vpp2"
-	podIfIPPrefix                 = "10.2.1"
 	// HostInterconnectMAC is MAC address of tap that interconnects VPP with host stack
 	HostInterconnectMAC = "01:23:45:67:89:42"
 )
@@ -106,6 +105,9 @@ type remoteCNIserver struct {
 
 	// nodeIPsubsribers is a slice of channels that are notified when nodeIP is changed
 	nodeIPsubscribers []chan string
+
+	// podPreRemovalHooks is a slice of callbacks called before a pod removal
+	podPreRemovalHooks []PodActionHook
 
 	// node specific configuration
 	nodeConfig *OneNodeConfig
@@ -815,6 +817,16 @@ func (s *remoteCNIserver) unconfigureContainerConnectivity(request *cni.CNIReque
 		return reply, nil
 	}
 
+	// Run all registered pre-removal hooks.
+	for _, hook := range s.podPreRemovalHooks {
+		err = hook(config.PodNamespace, config.PodName)
+		if err != nil {
+			// treat error as warning
+			s.Logger.WithField("err", err).Warn("Pod pre-removal hook has failed")
+			err = nil
+		}
+	}
+
 	// delete POD-related config on VPP
 	err = s.unconfigurePodVPPSide(config)
 	if err != nil {
@@ -882,7 +894,7 @@ func (s *remoteCNIserver) configurePodInterface(request *cni.CNIRequest, podIP n
 	// create VPP to POD interconnect interface
 	if s.useTAPInterfaces {
 		// TAP interface
-		config.VppIf = s.tapFromRequest(request, !s.disableTCPstack, podIPCIDR)
+		config.VppIf = s.tapFromRequest(request, podIP.String(), !s.disableTCPstack, podIPCIDR)
 		config.PodTap = s.podTAP(request, podIPNet)
 
 		podIfName = config.PodTap.Name
@@ -893,7 +905,7 @@ func (s *remoteCNIserver) configurePodInterface(request *cni.CNIRequest, podIP n
 		// veth pair + AF_PACKET
 		config.Veth1 = s.veth1FromRequest(request, podIPCIDR)
 		config.Veth2 = s.veth2FromRequest(request)
-		config.VppIf = s.afpacketFromRequest(request, !s.disableTCPstack, podIPCIDR)
+		config.VppIf = s.afpacketFromRequest(request, podIP.String(), !s.disableTCPstack, podIPCIDR)
 
 		txn1.LinuxInterface(config.Veth1).
 			LinuxInterface(config.Veth2).
@@ -1289,6 +1301,15 @@ func (s *remoteCNIserver) WatchNodeIP(subscriber chan string) {
 	defer s.Unlock()
 
 	s.nodeIPsubscribers = append(s.nodeIPsubscribers, subscriber)
+}
+
+// RegisterPodPreRemovalHook allows to register callback that will be run for each
+// pod immediately before its removal.
+func (s *remoteCNIserver) RegisterPodPreRemovalHook(hook PodActionHook) {
+	s.Lock()
+	defer s.Unlock()
+
+	s.podPreRemovalHooks = append(s.podPreRemovalHooks, hook)
 }
 
 // setNodeIP updates nodeIP and propagate the change to subscribers

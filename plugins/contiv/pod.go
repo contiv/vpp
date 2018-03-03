@@ -144,8 +144,16 @@ func (s *remoteCNIserver) loopbackNameFromRequest(request *cni.CNIRequest) strin
 	return "loop" + s.veth2NameFromRequest(request)
 }
 
-func (s *remoteCNIserver) ipAddrForPodVPPIf() string {
-	return podIfIPPrefix + "." + strconv.Itoa(s.counter+1) + "/32"
+func (s *remoteCNIserver) ipAddrForPodVPPIf(podIP string) string {
+	tapPrefix, _ := ipv4ToUint32(*s.ipam.VPPIfIPPrefix())
+
+	podAddr, _ := ipv4ToUint32(net.ParseIP(podIP))
+	podMask, _ := ipv4ToUint32(net.IP(s.ipam.PodNetwork().Mask))
+	podSuffix := podAddr &^ podMask
+
+	tapAddress := uint32ToIpv4(tapPrefix + podSuffix)
+
+	return net.IP.String(tapAddress) + "/32"
 }
 
 func (s *remoteCNIserver) hwAddrForContainer() string {
@@ -190,7 +198,7 @@ func (s *remoteCNIserver) veth2FromRequest(request *cni.CNIRequest) *linux_intf.
 	}
 }
 
-func (s *remoteCNIserver) afpacketFromRequest(request *cni.CNIRequest, configureContainerProxy bool, containerProxyIP string) *vpp_intf.Interfaces_Interface {
+func (s *remoteCNIserver) afpacketFromRequest(request *cni.CNIRequest, podIP string, configureContainerProxy bool, containerProxyIP string) *vpp_intf.Interfaces_Interface {
 	af := &vpp_intf.Interfaces_Interface{
 		Name:    s.afpacketNameFromRequest(request),
 		Type:    vpp_intf.InterfaceType_AF_PACKET_INTERFACE,
@@ -198,7 +206,7 @@ func (s *remoteCNIserver) afpacketFromRequest(request *cni.CNIRequest, configure
 		Afpacket: &vpp_intf.Interfaces_Interface_Afpacket{
 			HostIfName: s.veth2HostIfNameFromRequest(request),
 		},
-		IpAddresses: []string{s.ipAddrForPodVPPIf()},
+		IpAddresses: []string{s.ipAddrForPodVPPIf(podIP)},
 		PhysAddress: s.generateHwAddrForPodVPPIf(),
 	}
 	if configureContainerProxy {
@@ -207,7 +215,7 @@ func (s *remoteCNIserver) afpacketFromRequest(request *cni.CNIRequest, configure
 	return af
 }
 
-func (s *remoteCNIserver) tapFromRequest(request *cni.CNIRequest, configureContainerProxy bool, containerProxyIP string) *vpp_intf.Interfaces_Interface {
+func (s *remoteCNIserver) tapFromRequest(request *cni.CNIRequest, podIP string, configureContainerProxy bool, containerProxyIP string) *vpp_intf.Interfaces_Interface {
 	tap := &vpp_intf.Interfaces_Interface{
 		Name:    s.tapNameFromRequest(request),
 		Type:    vpp_intf.InterfaceType_TAP_INTERFACE,
@@ -215,7 +223,7 @@ func (s *remoteCNIserver) tapFromRequest(request *cni.CNIRequest, configureConta
 		Tap: &vpp_intf.Interfaces_Interface_Tap{
 			HostIfName: s.tapTmpHostNameFromRequest(request),
 		},
-		IpAddresses: []string{s.ipAddrForPodVPPIf()},
+		IpAddresses: []string{s.ipAddrForPodVPPIf(podIP)},
 		PhysAddress: s.generateHwAddrForPodVPPIf(),
 	}
 	if s.tapVersion == 2 {
@@ -345,4 +353,22 @@ func (s *remoteCNIserver) podDefaultRouteFromRequest(request *cni.CNIRequest, if
 		},
 		GwAddr: s.ipam.PodGatewayIP().String(),
 	}
+}
+
+// ipv4ToUint32 is simple utility function for conversion between IPv4 and uint32.
+func ipv4ToUint32(ip net.IP) (uint32, error) {
+	ip = ip.To4()
+	if ip == nil {
+		return 0, fmt.Errorf("Ip address %v is not ipv4 address (or ipv6 convertible to ipv4 address)", ip)
+	}
+	var tmp uint32
+	for _, bytePart := range ip {
+		tmp = tmp<<8 + uint32(bytePart)
+	}
+	return tmp, nil
+}
+
+// uint32ToIpv4 is simple utility function for conversion between IPv4 and uint32.
+func uint32ToIpv4(ip uint32) net.IP {
+	return net.IPv4(byte(ip>>24), byte(ip>>16), byte(ip>>8), byte(ip)).To4()
 }

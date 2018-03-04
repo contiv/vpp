@@ -59,7 +59,6 @@ const (
 	vethHostEndName               = "vpp1"
 	vethVPPEndLogicalName         = "veth-vpp2"
 	vethVPPEndName                = "vpp2"
-	podIfIPPrefix                 = "10.2.1"
 
 	// TapHostEndLogicalName is the logical name of the VPP-host interconnect TAP interface (host end)
 	TapHostEndLogicalName = "tap-vpp1"
@@ -1020,7 +1019,7 @@ func (s *remoteCNIserver) configurePodInterface(request *cni.CNIRequest, podIP n
 	// create VPP to POD interconnect interface
 	if s.useTAPInterfaces {
 		// TAP interface
-		config.VppIf = s.tapFromRequest(request, !s.disableTCPstack, podIPCIDR)
+		config.VppIf = s.tapFromRequest(request, podIP.String(), !s.disableTCPstack, podIPCIDR)
 		config.PodTap = s.podTAP(request, podIPNet)
 
 		podIfName = config.PodTap.Name
@@ -1031,7 +1030,7 @@ func (s *remoteCNIserver) configurePodInterface(request *cni.CNIRequest, podIP n
 		// veth pair + AF_PACKET
 		config.Veth1 = s.veth1FromRequest(request, podIPCIDR)
 		config.Veth2 = s.veth2FromRequest(request)
-		config.VppIf = s.afpacketFromRequest(request, !s.disableTCPstack, podIPCIDR)
+		config.VppIf = s.afpacketFromRequest(request, podIP.String(), !s.disableTCPstack, podIPCIDR)
 
 		txn1.LinuxInterface(config.Veth1).
 			LinuxInterface(config.Veth2).

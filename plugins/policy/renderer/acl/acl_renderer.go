@@ -310,7 +310,12 @@ func (art *RendererTxn) getNodeOutputInterfaces() []string {
 
 // renderACL renders ContivRuleTable into the equivalent ACL configuration.
 func (art *RendererTxn) renderACL(table *cache.ContivRuleTable) *vpp_acl.AccessLists_Acl {
-	const maxPortNum = ^uint16(0)
+	const (
+		maxPortNum  = ^uint16(0)
+		maxICMPCode = 5
+		maxICMPType = 16
+	)
+
 	acl := &vpp_acl.AccessLists_Acl{}
 	acl.AclName = ACLNamePrefix + table.ID
 	acl.Interfaces = art.renderInterfaces(table.Pods, table.ID == ReflectiveACLName)
@@ -369,6 +374,29 @@ func (art *RendererTxn) renderACL(table *cache.ContivRuleTable) *vpp_acl.AccessL
 		}
 		acl.Rules = append(acl.Rules, aclRule)
 	}
+
+	// Allow all ICMP traffic
+	if table.NumOfRules > 0 {
+		aclRule := &vpp_acl.AccessLists_Acl_Rule{}
+		aclRule.Actions = &vpp_acl.AccessLists_Acl_Rule_Actions{}
+		if table.ID == ReflectiveACLName {
+			aclRule.Actions.AclAction = vpp_acl.AclAction_REFLECT
+		} else {
+			aclRule.Actions.AclAction = vpp_acl.AclAction_PERMIT
+		}
+		aclRule.Matches = &vpp_acl.AccessLists_Acl_Rule_Matches{}
+		aclRule.Matches.IpRule = &vpp_acl.AccessLists_Acl_Rule_Matches_IpRule{}
+		aclRule.Matches.IpRule.Ip = &vpp_acl.AccessLists_Acl_Rule_Matches_IpRule_Ip{}
+		aclRule.Matches.IpRule.Icmp = &vpp_acl.AccessLists_Acl_Rule_Matches_IpRule_Icmp{}
+		aclRule.Matches.IpRule.Icmp.IcmpTypeRange = &vpp_acl.AccessLists_Acl_Rule_Matches_IpRule_Icmp_IcmpTypeRange{}
+		aclRule.Matches.IpRule.Icmp.IcmpTypeRange.First = 0
+		aclRule.Matches.IpRule.Icmp.IcmpTypeRange.Last = maxICMPType
+		aclRule.Matches.IpRule.Icmp.IcmpCodeRange = &vpp_acl.AccessLists_Acl_Rule_Matches_IpRule_Icmp_IcmpCodeRange{}
+		aclRule.Matches.IpRule.Icmp.IcmpCodeRange.First = 0
+		aclRule.Matches.IpRule.Icmp.IcmpCodeRange.Last = maxICMPCode
+		acl.Rules = append(acl.Rules, aclRule)
+	}
+
 	table.Private = acl
 	return acl
 }
@@ -498,12 +526,15 @@ func (art *RendererTxn) dumpVppACLConfig() (tables []*cache.ContivRuleTable, has
 				}
 			}
 			// L4
-			if aclRule.Matches.IpRule.Icmp != nil || aclRule.Matches.IpRule.Other != nil {
+			if aclRule.Matches.IpRule.Other != nil {
 				// unhandled, skip
-				art.Log.WithField("rule", aclRule).Warn("Skipping ICMP/Other ACL rule")
+				art.Log.WithField("rule", aclRule).Warn("Skipping Other ACL rule")
 				continue
 			}
-			if aclRule.Matches.IpRule.Tcp != nil {
+			if aclRule.Matches.IpRule.Icmp != nil {
+				// skip ICMP rule
+				continue
+			} else if aclRule.Matches.IpRule.Tcp != nil {
 				rule.Protocol = renderer.TCP
 				if aclRule.Matches.IpRule.Tcp.SourcePortRange != nil {
 					if aclRule.Matches.IpRule.Tcp.SourcePortRange.LowerPort != aclRule.Matches.IpRule.Tcp.SourcePortRange.UpperPort {
@@ -527,7 +558,7 @@ func (art *RendererTxn) dumpVppACLConfig() (tables []*cache.ContivRuleTable, has
 					}
 					rule.DestPort = uint16(aclRule.Matches.IpRule.Tcp.DestinationPortRange.LowerPort)
 				}
-			} else {
+			} else if aclRule.Matches.IpRule.Udp != nil {
 				rule.Protocol = renderer.UDP
 				if aclRule.Matches.IpRule.Udp.SourcePortRange != nil {
 					if aclRule.Matches.IpRule.Udp.SourcePortRange.LowerPort != aclRule.Matches.IpRule.Udp.SourcePortRange.UpperPort {

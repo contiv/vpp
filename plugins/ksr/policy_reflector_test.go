@@ -17,11 +17,12 @@ package ksr
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/contiv/vpp/plugins/ksr/model/ksrapi"
-	"github.com/ligato/cn-infra/health/statuscheck/model/status"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/contiv/vpp/plugins/ksr/model/ksrapi"
+	"github.com/ligato/cn-infra/health/statuscheck/model/status"
 
 	"github.com/onsi/gomega"
 

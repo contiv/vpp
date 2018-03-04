@@ -18,7 +18,6 @@ import (
 	"fmt"
 	"net"
 	"strconv"
-
 	"strings"
 
 	vpp_intf "github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/interfaces"
@@ -41,9 +40,9 @@ func (s *remoteCNIserver) l4Features(enable bool) *vpp_l4.L4Features {
 	}
 }
 
-func (s *remoteCNIserver) routeFromHost() *linux_l3.LinuxStaticRoutes_Route {
+func (s *remoteCNIserver) routePODsFromHost(nextHopIP string) *linux_l3.LinuxStaticRoutes_Route {
 	route := &linux_l3.LinuxStaticRoutes_Route{
-		Name:        "host-to-vpp",
+		Name:        "pods-to-vpp",
 		Default:     false,
 		Namespace:   nil,
 		Interface:   vethHostEndLogicalName,
@@ -52,15 +51,15 @@ func (s *remoteCNIserver) routeFromHost() *linux_l3.LinuxStaticRoutes_Route {
 			Type: linux_l3.LinuxStaticRoutes_Route_Scope_GLOBAL,
 		},
 		DstIpAddr: s.ipam.PodSubnet().String(),
-		GwAddr:    s.ipam.VEthVPPEndIP().String(),
+		GwAddr:    nextHopIP,
 	}
 	if s.useTAPInterfaces {
-		route.Interface = tapHostEndName
+		route.Interface = TapHostEndLogicalName
 	}
 	return route
 }
 
-func (s *remoteCNIserver) routeServicesFromHost() *linux_l3.LinuxStaticRoutes_Route {
+func (s *remoteCNIserver) routeServicesFromHost(nextHopIP string) *linux_l3.LinuxStaticRoutes_Route {
 	route := &linux_l3.LinuxStaticRoutes_Route{
 		Name:        "service-to-vpp",
 		Default:     false,
@@ -71,10 +70,10 @@ func (s *remoteCNIserver) routeServicesFromHost() *linux_l3.LinuxStaticRoutes_Ro
 			Type: linux_l3.LinuxStaticRoutes_Route_Scope_GLOBAL,
 		},
 		DstIpAddr: s.ipam.ServiceNetwork().String(),
-		GwAddr:    s.ipam.VEthVPPEndIP().String(),
+		GwAddr:    nextHopIP,
 	}
 	if s.useTAPInterfaces {
-		route.Interface = tapHostEndName
+		route.Interface = TapHostEndLogicalName
 	}
 	return route
 }
@@ -88,7 +87,7 @@ func (s *remoteCNIserver) defaultRoute(gwIP string, outIfName string) *vpp_l3.St
 	return route
 }
 
-func (s *remoteCNIserver) routesToHost() []*vpp_l3.StaticRoutes_Route {
+func (s *remoteCNIserver) routesToHost(nextHopIP string) []*vpp_l3.StaticRoutes_Route {
 	// list all IPs assigned to host interfaces
 	ips, err := s.getHostLinkIPs()
 	if err != nil {
@@ -100,8 +99,9 @@ func (s *remoteCNIserver) routesToHost() []*vpp_l3.StaticRoutes_Route {
 	routes := make([]*vpp_l3.StaticRoutes_Route, 0)
 	for _, ip := range ips {
 		routes = append(routes, &vpp_l3.StaticRoutes_Route{
-			DstIpAddr:   fmt.Sprintf("%s/32", ip),
-			NextHopAddr: s.ipam.VEthHostEndIP().String(),
+			DstIpAddr:         fmt.Sprintf("%s/32", ip),
+			NextHopAddr:       nextHopIP,
+			OutgoingInterface: s.hostInterconnectIfName,
 		})
 	}
 
@@ -111,11 +111,11 @@ func (s *remoteCNIserver) routesToHost() []*vpp_l3.StaticRoutes_Route {
 func (s *remoteCNIserver) interconnectTap() *vpp_intf.Interfaces_Interface {
 	size, _ := s.ipam.VPPHostNetwork().Mask.Size()
 	tap := &vpp_intf.Interfaces_Interface{
-		Name:    tapVPPEndLogicalName,
+		Name:    TapVPPEndLogicalName,
 		Type:    vpp_intf.InterfaceType_TAP_INTERFACE,
 		Enabled: true,
 		Tap: &vpp_intf.Interfaces_Interface_Tap{
-			HostIfName: tapHostEndName,
+			HostIfName: TapHostEndName,
 		},
 		IpAddresses: []string{s.ipam.VEthVPPEndIP().String() + "/" + strconv.Itoa(size)},
 		PhysAddress: HostInterconnectMAC,
@@ -132,7 +132,8 @@ func (s *remoteCNIserver) interconnectTap() *vpp_intf.Interfaces_Interface {
 func (s *remoteCNIserver) interconnectTapHost() *linux_intf.LinuxInterfaces_Interface {
 	size, _ := s.ipam.VPPHostNetwork().Mask.Size()
 	return &linux_intf.LinuxInterfaces_Interface{
-		Name:        tapHostEndName,
+		Name:        TapHostEndLogicalName,
+		HostIfName:  TapHostEndName,
 		Type:        linux_intf.LinuxInterfaces_AUTO_TAP,
 		Enabled:     true,
 		IpAddresses: []string{s.ipam.VEthHostEndIP().String() + "/" + strconv.Itoa(size)},

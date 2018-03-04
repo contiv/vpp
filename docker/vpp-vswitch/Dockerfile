@@ -16,7 +16,7 @@ COPY . $GOPATH/src/github.com/contiv/vpp
 
 # lint and only build vpp-agent
 RUN cd $GOPATH/src/github.com/contiv/vpp \
-    && make lint agent
+    && make lint agent contiv-init
 
 FROM contiv/vpp-base:b59bd659
 
@@ -26,6 +26,7 @@ RUN apt-get update \
 
 # copy binaries
 COPY --from=builder /root/go/src/github.com/contiv/vpp/cmd/contiv-agent/contiv-agent /usr/bin/contiv-agent
+COPY --from=builder /root/go/src/github.com/contiv/vpp/cmd/contiv-init/contiv-init /usr/bin/contiv-init
 
 # add contiv-vswitch.conf
 COPY docker/vpp-vswitch/contiv-vswitch.conf /etc/vpp/contiv-vswitch.conf

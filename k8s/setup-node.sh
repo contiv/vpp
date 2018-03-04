@@ -137,8 +137,15 @@ if [[ $(confirm "Do you want to pull the latest images?") -eq 1 ]]; then
     bash <(curl -s https://raw.githubusercontent.com/contiv/vpp/master/k8s/pull-images.sh)
 fi
 
-if [[ $(confirm "In order to use Kubernetes services custom Kube-proxy is required, do you want to install it?") -eq 1 ]]; then
-    bash <(curl -s https://raw.githubusercontent.com/contiv/vpp/master/k8s/proxy-install.sh)
+if [[ $(docker ps  | grep contiv-stn | wc -l) -gt 0 ]]; then
+    echo "STN Daemon is already running"
+    if [[ $(confirm "Do you want to restart STN Daemon?") -eq 1 ]]; then
+        docker stop contiv-stn
+        docker rm contiv-stn
+        bash <(curl -s https://raw.githubusercontent.com/contiv/vpp/master/k8s/stn-install.sh)
+    fi
+elif [[ $(confirm "Do you want to install STN Daemon?") -eq 1 ]]; then
+     bash <(curl -s https://raw.githubusercontent.com/contiv/vpp/master/k8s/stn-install.sh)
 fi
 
 if [[ $(docker ps  | grep contiv-cri | wc -l) -gt 0 ]]; then

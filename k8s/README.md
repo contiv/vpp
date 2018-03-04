@@ -51,6 +51,7 @@ To use the development image for testing with specific version of VPP, see
       (VETH is still used to connect VPP with the host stack);
     - `TAPInterfaceVersion`: select `1` to use the standard VPP TAP interface or `2`
       for a faster, virtio-based, VPP TAPv2 interface (default);
+    - `StealTheNIC`: enable Steal The NIC feature on the first interface on each node;
     - `TAPv2RxRingSize`: number of entries to allocate for TAPv2 Rx ring (default is 256);
     - `TAPv2TxRingSize`: number of entries to allocate for TAPv2 Tx ring (default is 256).
 
@@ -75,6 +76,7 @@ To use the development image for testing with specific version of VPP, see
       - `IP`: IP address to be attached to the main interface;
       - `UseDHCP`: acquire IP address using DHCP
               (beware: the change of IP address is not supported)
+    - `StealInterface`: name of the interface in the Linux host stack, that should be "stolen" and used by VPP (see [STN documenattion](../docs/STN.md));
     - `OtherVPPInterfaces` (other configured interfaces only get IP address assigned in VPP)
       - `InterfaceName`: name of the interface;
       - `IP`: IP address to be attached to the interface;
@@ -88,6 +90,16 @@ Contiv-VPP CRI Shim installer / uninstaller, that can be used as follows:
 
 # uninstall
 ./cri-install.sh --uninstall
+```
+
+#### stn-install.sh
+Contiv-VPP STN daemon installer / uninstaller, that can be used as follows:
+```
+# install
+./stn-install.sh
+
+# uninstall
+./stn-install.sh --uninstall
 ```
 
 #### pull-images.sh

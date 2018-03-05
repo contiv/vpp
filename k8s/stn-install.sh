@@ -54,8 +54,7 @@ if [ ${UNINSTALL} == 0 ] ; then
         -v /sys:/sys:rw \
         -v /var/run:/var/run:rw \
         -v /var/log:/var/log:shared \
-        contivvpp/stn \
-        /root/contiv-stn
+        contivvpp/stn
 else
     # Uninstall - stop the Docker container with STN, disable autorestart.
     echo "Stopping contiv-stn Docker container:"

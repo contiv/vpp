@@ -29,6 +29,7 @@ data:
     IPAMConfig:
       PodSubnetCIDR: {{ .Values.contiv.ipamConfig.podSubnetCIDR }}
       PodNetworkPrefixLen: {{ .Values.contiv.ipamConfig.podNetworkPrefixLen }}
+      PodIfIPCIDR: {{ .Values.contiv.ipamConfig.PodIfIPCIDR }}
       VPPHostSubnetCIDR: {{ .Values.contiv.ipamConfig.vppHostSubnetCIDR }}
       VPPHostNetworkPrefixLen: {{ .Values.contiv.ipamConfig.vppHostNetworkPrefixLen }}
       {{- if .Values.contiv.ipamConfig.nodeInterconnectCIDR }}

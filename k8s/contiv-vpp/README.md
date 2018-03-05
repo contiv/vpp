@@ -17,7 +17,7 @@ As with all helm installations, it requires tiller running in the cluster. Tille
 To install without tiller, you can generate the manifest from this chart and install via kubectl:
 
 ```console
-helm template --name my-release contiv-vpp > manifest.yaml
+helm template --name my-release ../contiv-vpp > manifest.yaml
 kubectl apply -f manifest.yaml
 ```
 
@@ -59,6 +59,7 @@ Parameter | Description | Default
 `contiv.stealTheNIC` | Enable Steal The NIC feature on the first interface on each node | `False`
 `contiv.ipamConfig.podSubnetCIDR` | Pod subnet CIDR | `10.1.0.0/16`
 `contiv.ipamConfig.podNetworkPrefixLen` | Pod network prefix length | `24`
+`contiv.ipamConfig.PodIfIPCIDR` | Subnet CIDR for VPP-side POD addresses | `10.2.1.0/24`
 `contiv.ipamConfig.vppHostSubnetCIDR` | VPP host subnet CIDR | `172.30.0.0/16`
 `contiv.ipamConfig.vppHostNetworkPrefixLen` | VPP host network prefix length | `24`
 `contiv.ipamConfig.vxlanCIDR` | VX LAN CIDR | `192.168.30.0/24`

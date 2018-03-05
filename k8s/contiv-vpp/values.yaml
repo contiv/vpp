@@ -52,20 +52,23 @@ etcd:
 vswitch:
   image:
     repository: contivvpp/vswitch
-    tag: latest
+    # tag defaults to chart version
+    #tag:
     pullPolicy: IfNotPresent
   enableLivenessReadinessProbes: true
 
 cni:
   image:
     repository: contivvpp/cni
-    tag: latest
+    # tag defaults to chart version
+    #tag:
     pullPolicy: IfNotPresent
 
 ksr:
   image:
     repository: contivvpp/ksr
-    tag: latest
+    # tag defaults to chart version
+    #tag:
     pullPolicy: IfNotPresent
 
 # GoVPP configuration

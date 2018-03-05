@@ -223,10 +223,13 @@ spec:
           then
                ip link del vpp1
           fi
+          cp -f /usr/local/bin/vppctl /host/usr/local/bin/vppctl
         resources: {}
         securityContext:
           privileged: true
         volumeMounts:
+          - name: usr-local-bin
+            mountPath: /host/usr/local/bin
           - name: vpp-lib64
             mountPath: /vpp-lib64/
           - name: vpp-cfg
@@ -311,6 +314,10 @@ spec:
         - name: vpp-cfg
           hostPath:
             path: /etc/vpp
+        # To install vppctl.
+        - name: usr-local-bin
+          hostPath:
+            path: /usr/local/bin
         # LD_PRELOAD library.
         - name: vpp-lib64
           hostPath:

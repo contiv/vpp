@@ -1,0 +1,24 @@
+#!/bin/bash
+
+# Find the most recent container running vpp, and execute the vpp cli that resides within.
+
+set -euo pipefail
+
+IMAGE="contivvpp/vswitch"
+
+# Test and see if we need more access.
+if ! docker info >/dev/null 2>&1
+then
+    echo "Error connecting to the Docker daemon.  Please try rerunning with sudo." >&2
+    exit 1
+fi
+
+# There may be more than one vswitch container if an upgrade/redeploy is happening, so go for the newest one.
+if ! ID=$(docker ps -f "ancestor=$IMAGE" --format '{{.CreatedAt}} {{.ID}}' | sort -nr | head -n 1 | sed -e 's|.* ||g') \
+    || [ -z "$ID" ]
+then
+    echo "Error finding a running container derived from the $IMAGE image." >&2
+    exit 1
+fi
+
+exec docker exec -it "$ID" /usr/bin/vppctl

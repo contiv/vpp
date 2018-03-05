@@ -16,10 +16,11 @@ package ksr
 
 import (
 	"fmt"
-	"github.com/ligato/cn-infra/logging/logrus"
-	"github.com/onsi/gomega"
 	"sync"
 	"testing"
+
+	"github.com/ligato/cn-infra/logging/logrus"
+	"github.com/onsi/gomega"
 )
 
 type mockKsrReflector struct {

@@ -15,6 +15,7 @@ define generate_sources
 	@cd plugins/policy/renderer/vpptcp && go generate
 	@cd plugins/policy/renderer/vpptcp/bin_api/session && pkgreflect
 	@cd plugins/service/configurator && go generate
+	@cd cmd/contiv-stn && go generate
 	@echo "# done"
 endef
 
@@ -28,8 +29,12 @@ define install_only
 	@cd cmd/contiv-cri && go install -v ${LDFLAGS}
 	@echo "# installing contiv-cni"
 	@cd cmd/contiv-cni && go install -v ${LDFLAGS}
+	@echo "# installing contiv-stn"
+    @cd cmd/contiv-stn && go install -v ${LDFLAGS}
+	@echo "# installing contiv-init"
+    @cd cmd/contiv-init && go install -v ${LDFLAGS}
 	@echo "# installing ldpreload-label-injector"
-	@cd cmd/tools/ldpreload-label-injector && go install -v
+	@cd cmd/tools/ldpreload-label-injector && go install -v ${LDFLAGS}
 	@echo "# done"
 endef
 
@@ -153,6 +158,20 @@ define build_contiv_cri_only
     @echo "# done"
 endef
 
+# build contiv-stn only
+define build_contiv_stn_only
+    @echo "# building contiv-stn"
+    @cd cmd/contiv-stn && go build -v -i ${LDFLAGS}
+    @echo "# done"
+endef
+
+# build contiv-init only
+define build_contiv_init_only
+    @echo "# building contiv-init"
+    @cd cmd/contiv-init && go build -v -i ${LDFLAGS} -tags="${GO_BUILD_TAGS}"
+    @echo "# done"
+endef
+
 # build ldpreload-inject-tool only
 define build_ldpreload_inject_tool_only
     @echo "# building ldpreload inject tool"
@@ -186,6 +205,8 @@ build:
 	$(call build_contiv_cni_only)
 	$(call build_contiv_ksr_only)
 	$(call build_contiv_cri_only)
+	$(call build_contiv_stn_only)
+	$(call build_contiv_init_only)
 	$(call build_ldpreload_inject_tool_only)
 
 # build agent
@@ -203,6 +224,14 @@ contiv-cni:
 # build contiv-cri
 contiv-cri:
 	$(call build_contiv_cri_only)
+
+# build contiv-stn
+contiv-stn:
+	$(call build_contiv_stn_only)
+
+# build contiv-init
+contiv-init:
+	$(call build_contiv_init_only)
 
 ldpreload-inject-tool:
 	$(call build_ldpreload_inject_tool_only)
@@ -273,7 +302,9 @@ clean:
 	rm -f cmd/contiv-agent/contiv-agent
 	rm -f cmd/contiv-cni/contiv-cni
 	rm -f cmd/contiv-ksr/contiv-ksr
-	rm -f cmd/contiv-ksr/contiv-cri
+	rm -f cmd/contiv-cri/contiv-cri
+	rm -f cmd/contiv-stn/contiv-stn
+	rm -f cmd/contiv-init/contiv-init
 	rm -f cmd/tools/ldpreload-label-injector/ldpreload-label-injector
 	@echo "# cleanup completed"
 

@@ -2,6 +2,7 @@ contiv:
   tcpStackDisabled: True
   useTAPInterfaces: True
   tapInterfaceVersion: 1
+  stealTheNIC: False
   ipamConfig:
     podSubnetCIDR: "10.1.0.0/16"
     podNetworkPrefixLen: 24
@@ -34,6 +35,9 @@ contiv:
   #        ip: "3.4.5.6/24"
   #      - interfaceName: "GigabitEthernet0/7/0"
   #        ip: "5.6.7.8/24"
+
+logs:
+  defaultLevel: debug
 
 # ETCD server to be used by Contiv
 etcd:

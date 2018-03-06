@@ -22,6 +22,8 @@ import (
 	"fmt"
 	"net"
 
+	"strings"
+
 	"git.fd.io/govpp.git/api"
 	"github.com/contiv/vpp/plugins/contiv/containeridx"
 	"github.com/contiv/vpp/plugins/contiv/ipam"
@@ -39,7 +41,6 @@ import (
 	linuxlocalclient "github.com/ligato/vpp-agent/clientv1/linux/localclient"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins"
 	"github.com/ligato/vpp-agent/plugins/govppmux"
-	"strings"
 )
 
 // Plugin represents the instance of the Contiv network plugin, that transforms CNI requests recieved over
@@ -90,6 +91,7 @@ type Config struct {
 	TAPInterfaceVersion        uint8
 	TAPv2RxRingSize            uint16
 	TAPv2TxRingSize            uint16
+	MTUSize                    uint32
 	StealTheNIC                bool
 	IPAMConfig                 ipam.Config
 	NodeConfig                 []OneNodeConfig

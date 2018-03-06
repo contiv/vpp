@@ -54,6 +54,7 @@ To use the development image for testing with specific version of VPP, see
     - `StealTheNIC`: enable Steal The NIC feature on the first interface on each node;
     - `TAPv2RxRingSize`: number of entries to allocate for TAPv2 Rx ring (default is 256);
     - `TAPv2TxRingSize`: number of entries to allocate for TAPv2 Tx ring (default is 256).
+    - `MTUSize`: maximum transmission unit (MTU) size (default is 1500)
 
   * IPAM (section `IPAMConfig`)
     - `PodSubnetCIDR`: subnet used for all pods across all nodes;

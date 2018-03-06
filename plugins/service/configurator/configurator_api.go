@@ -44,6 +44,10 @@ type ServiceConfiguratorAPI interface {
 	// service.
 	DeleteService(service *ContivService) error
 
+	// UpdateNodePortServices updates configuration of nodeport services to reflect
+	// changed internal node IP (IP used by Kubernetes).
+	UpdateNodePortServices(nodeInternalIP net.IP, npServices []*ContivService) error
+
 	// UpdateLocalFrontendIfs updates the list of interfaces connecting clients
 	// with VPP (enabled out2in VPP/NAT feature).
 	UpdateLocalFrontendIfs(oldIfNames, newIfNames Interfaces) error
@@ -328,6 +332,9 @@ func (ifs Interfaces) String() string {
 
 // ResyncEventData wraps an entire state of K8s services.
 type ResyncEventData struct {
+	// NodeInternalIP is the IP address of the node as used by Kubernetes (including kube-proxy).
+	NodeInternalIP net.IP
+
 	// ExternalSNAT contains configuration of SNAT, installed to allow access outside the cluster network.
 	ExternalSNAT ExternalSNATConfig
 
@@ -359,8 +366,9 @@ func (red ResyncEventData) String() string {
 			services += ", "
 		}
 	}
-	return fmt.Sprintf("ResyncEventData <%s Services:[%s], FrontendIfs:%s BackendIfs:%s>",
-		red.ExternalSNAT.String(), services, red.FrontendIfs.String(), red.BackendIfs.String())
+	return fmt.Sprintf("ResyncEventData <NodeInternalIP:%s %s Services:[%s], FrontendIfs:%s BackendIfs:%s>",
+		red.NodeInternalIP.String(), red.ExternalSNAT.String(), services, red.FrontendIfs.String(),
+		red.BackendIfs.String())
 }
 
 // ExternalSNATConfig encapsulates configuration concerning SNAT, installed to allow Internet access for pods.

@@ -27,6 +27,7 @@ import (
 
 	"github.com/contiv/vpp/plugins/contiv"
 	epmodel "github.com/contiv/vpp/plugins/ksr/model/endpoints"
+	nodemodel "github.com/contiv/vpp/plugins/ksr/model/node"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	svcmodel "github.com/contiv/vpp/plugins/ksr/model/service"
 	"github.com/contiv/vpp/plugins/service/configurator"
@@ -35,6 +36,8 @@ import (
 // ServiceProcessor implements ServiceProcessorAPI.
 type ServiceProcessor struct {
 	Deps
+
+	nodeInternalIP net.IP
 
 	/* internal maps */
 	services map[svcmodel.ID]*Service
@@ -240,6 +243,39 @@ func (sp *ServiceProcessor) processDeletedService(serviceID svcmodel.ID) error {
 	return sp.configureService(svc, oldContivSvc, oldBackends)
 }
 
+func (sp *ServiceProcessor) processNewNode(node *nodemodel.Node) error {
+	sp.Log.WithFields(logging.Fields{
+		"node": *node,
+	}).Debug("ServiceProcessor - processNewNode()")
+
+	nodeInternalIP := sp.getNodeInternalIP(node)
+	if nodeInternalIP != nil {
+		sp.nodeInternalIP = nodeInternalIP
+		sp.reconfigureNodePorts()
+	}
+	return nil
+}
+
+func (sp *ServiceProcessor) processUpdatedNode(node *nodemodel.Node) error {
+	sp.Log.WithFields(logging.Fields{
+		"node": *node,
+	}).Debug("ServiceProcessor - processUpdatedNode()")
+
+	nodeInternalIP := sp.getNodeInternalIP(node)
+	if nodeInternalIP != nil {
+		if sp.nodeInternalIP == nil || !sp.nodeInternalIP.Equal(nodeInternalIP) {
+			// added/changed node IP
+			sp.nodeInternalIP = nodeInternalIP
+			sp.reconfigureNodePorts()
+		}
+	} else if sp.nodeInternalIP != nil {
+		// lost node IP
+		sp.nodeInternalIP = nil
+		sp.reconfigureNodePorts()
+	}
+	return nil
+}
+
 // configureService makes all the calls to configurator necessary to get K8s state
 // data of a given service in-sync with VPP NAT configuration.
 func (sp *ServiceProcessor) configureService(svc *Service, oldContivSvc *configurator.ContivService, oldBackends []podmodel.ID) error {
@@ -317,6 +353,23 @@ func (sp *ServiceProcessor) configureService(svc *Service, oldContivSvc *configu
 	return err
 }
 
+// reconfigureNodePorts reconfigures all services with a node port.
+func (sp *ServiceProcessor) reconfigureNodePorts() error {
+	sp.Log.Debug("ServiceProcessor - reconfigureNodePorts()")
+
+	var npServices []*configurator.ContivService
+	for _, svc := range sp.services {
+		contivSvc := svc.GetContivService()
+		if contivSvc == nil {
+			continue
+		}
+		if contivSvc.HasNodePort() {
+			npServices = append(npServices, contivSvc)
+		}
+	}
+	return sp.Configurator.UpdateNodePortServices(sp.nodeInternalIP, npServices)
+}
+
 func (sp *ServiceProcessor) processResyncEvent(resyncEv *ResyncEventData) error {
 	sp.Log.WithFields(logging.Fields{
 		"resyncEv": resyncEv,
@@ -325,6 +378,7 @@ func (sp *ServiceProcessor) processResyncEvent(resyncEv *ResyncEventData) error 
 
 	// Re-build the current state.
 	confResyncEv := configurator.NewResyncEventData()
+	confResyncEv.NodeInternalIP = resyncEv.NodeInternalIP
 
 	// Try to get Node IP.
 	nodeIP, nodeNet := sp.Contiv.GetNodeIP()
@@ -489,4 +543,16 @@ func (sp *ServiceProcessor) getInterfaceIPs(ifName string) []InterfaceIPAddress 
 		networks = append(networks, InterfaceIPAddress{IP: ip, Network: ipNet})
 	}
 	return networks
+}
+
+// getNodeInternalIP extracts internal node IP from the K8s node data.
+func (sp *ServiceProcessor) getNodeInternalIP(node *nodemodel.Node) net.IP {
+	var internalIP string
+	for i := range node.Addresses {
+		if node.Addresses[i].Type == nodemodel.NodeAddress_NodeInternalIP {
+			internalIP = node.Addresses[i].Address
+			return net.ParseIP(internalIP)
+		}
+	}
+	return nil
 }

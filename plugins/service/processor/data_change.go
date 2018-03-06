@@ -20,6 +20,7 @@ import (
 	"github.com/ligato/cn-infra/datasync"
 
 	epmodel "github.com/contiv/vpp/plugins/ksr/model/endpoints"
+	nodemodel "github.com/contiv/vpp/plugins/ksr/model/node"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	svcmodel "github.com/contiv/vpp/plugins/ksr/model/service"
 )
@@ -89,6 +90,28 @@ func (sc *ServiceProcessor) propagateDataChangeEv(dataChngEv datasync.ChangeEven
 			return sc.processUpdatedService(&value)
 		}
 		return sc.processNewService(&value)
+	}
+
+	// Process Node CHANGE event
+	nodeName, err := nodemodel.ParseNodeFromKey(key)
+	if err == nil && nodeName == sc.ServiceLabel.GetAgentLabel() {
+		var value, prevValue nodemodel.Node
+
+		if err = dataChngEv.GetValue(&value); err != nil {
+			return err
+		}
+
+		if diff, err = dataChngEv.GetPrevValue(&prevValue); err != nil {
+			return err
+		}
+
+		if datasync.Delete == dataChngEv.GetChangeType() {
+			sc.Log.Warn("Unexpected delete for node data received")
+			return nil
+		} else if diff {
+			return sc.processUpdatedNode(&value)
+		}
+		return sc.processNewNode(&value)
 	}
 
 	return nil

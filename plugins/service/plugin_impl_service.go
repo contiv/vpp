@@ -32,6 +32,7 @@ import (
 	"github.com/contiv/vpp/plugins/service/processor"
 
 	epmodel "github.com/contiv/vpp/plugins/ksr/model/endpoints"
+	nodemodel "github.com/contiv/vpp/plugins/ksr/model/node"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	svcmodel "github.com/contiv/vpp/plugins/ksr/model/service"
 )
@@ -135,7 +136,7 @@ func (p *Plugin) AfterInit() error {
 func (p *Plugin) subscribeWatcher() (err error) {
 	p.watchConfigReg, err = p.Watcher.
 		Watch("K8s services", p.changeChan, p.resyncChan,
-			epmodel.KeyPrefix(), podmodel.KeyPrefix(), svcmodel.KeyPrefix())
+			epmodel.KeyPrefix(), podmodel.KeyPrefix(), svcmodel.KeyPrefix(), nodemodel.KeyPrefix())
 	return err
 }
 

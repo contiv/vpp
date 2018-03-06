@@ -3,9 +3,11 @@ contiv:
   useTAPInterfaces: True
   tapInterfaceVersion: 1
   stealTheNIC: False
+  mtuSize: 1500
   ipamConfig:
     podSubnetCIDR: "10.1.0.0/16"
     podNetworkPrefixLen: 24
+    PodIfIPCIDR: 10.2.1.0/24
     vppHostSubnetCIDR: "172.30.0.0/16"
     vppHostNetworkPrefixLen: 24
     vxlanCIDR: "192.168.30.0/24"
@@ -51,20 +53,23 @@ etcd:
 vswitch:
   image:
     repository: contivvpp/vswitch
-    tag: latest
+    # tag defaults to chart version
+    #tag:
     pullPolicy: IfNotPresent
   enableLivenessReadinessProbes: true
 
 cni:
   image:
     repository: contivvpp/cni
-    tag: latest
+    # tag defaults to chart version
+    #tag:
     pullPolicy: IfNotPresent
 
 ksr:
   image:
     repository: contivvpp/ksr
-    tag: latest
+    # tag defaults to chart version
+    #tag:
     pullPolicy: IfNotPresent
 
 # GoVPP configuration

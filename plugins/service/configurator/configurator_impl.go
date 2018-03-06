@@ -34,6 +34,8 @@ const LocalVsRemoteProbRatio uint8 = 2
 // ServiceConfigurator implements ServiceConfiguratorAPI.
 type ServiceConfigurator struct {
 	Deps
+
+	nodeInternalIP net.IP
 }
 
 // Deps lists dependencies of ServiceConfigurator.
@@ -56,7 +58,7 @@ func (sc *ServiceConfigurator) AddService(service *ContivService) error {
 		"service": service,
 	}).Debug("ServiceConfigurator - AddService()")
 
-	natMaps, err := sc.exportNATMappings(service)
+	natMaps, err := sc.exportNATMappings(sc.nodeInternalIP, service)
 	if err != nil {
 		sc.Log.Error(err)
 		return err
@@ -78,13 +80,13 @@ func (sc *ServiceConfigurator) UpdateService(oldService, newService *ContivServi
 		"newService": newService,
 	}).Debug("ServiceConfigurator - UpdateService()")
 
-	oldNatMaps, err := sc.exportNATMappings(oldService)
+	oldNatMaps, err := sc.exportNATMappings(sc.nodeInternalIP, oldService)
 	if err != nil {
 		sc.Log.Error(err)
 		return err
 	}
 
-	newNatMaps, err := sc.exportNATMappings(newService)
+	newNatMaps, err := sc.exportNATMappings(sc.nodeInternalIP, newService)
 	if err != nil {
 		sc.Log.Error(err)
 		return err
@@ -105,7 +107,7 @@ func (sc *ServiceConfigurator) DeleteService(service *ContivService) error {
 		"service": service,
 	}).Debug("ServiceConfigurator - DeleteService()")
 
-	natMaps, err := sc.exportNATMappings(service)
+	natMaps, err := sc.exportNATMappings(sc.nodeInternalIP, service)
 	if err != nil {
 		sc.Log.Error(err)
 		return err
@@ -116,6 +118,48 @@ func (sc *ServiceConfigurator) DeleteService(service *ContivService) error {
 		sc.Log.Error(err)
 		return err
 	}
+	return nil
+}
+
+// UpdateNodePortServices updates configuration of nodeport services to reflect
+// changed internal node IP (IP used by Kubernetes).
+func (sc *ServiceConfigurator) UpdateNodePortServices(nodeInternalIP net.IP, npServices []*ContivService) error {
+	sc.Log.WithFields(logging.Fields{
+		"nodeInternalIP": nodeInternalIP,
+		"npServices":     npServices,
+	}).Debug("ServiceConfigurator - UpdateNodePortServices()")
+
+	// Export current NAT Mappings for nodePort services.
+	currentNatMaps := []*NATMapping{}
+	for _, svc := range npServices {
+		exportedMaps, err := sc.exportNATMappings(sc.nodeInternalIP, svc)
+		if err != nil {
+			sc.Log.Error(err)
+			return err
+		}
+		currentNatMaps = append(currentNatMaps, exportedMaps...)
+	}
+
+	// Export NAT mapping using the new internal node IP.
+	newNatMaps := []*NATMapping{}
+	for _, svc := range npServices {
+		exportedMaps, err := sc.exportNATMappings(nodeInternalIP, svc)
+		if err != nil {
+			sc.Log.Error(err)
+			return err
+		}
+		newNatMaps = append(newNatMaps, exportedMaps...)
+	}
+
+	// Update outdated NAT mappings.
+	err := sc.syncNATMappings(currentNatMaps, newNatMaps)
+	if err != nil {
+		sc.Log.Error(err)
+		return err
+	}
+
+	// Update cached internal node IP.
+	sc.nodeInternalIP = nodeInternalIP
 	return nil
 }
 
@@ -219,6 +263,9 @@ func (sc *ServiceConfigurator) Resync(resyncEv *ResyncEventData) error {
 		"resyncEv": resyncEv,
 	}).Debug("ServiceConfigurator - Resync()")
 
+	// Updated cached internal node IP.
+	sc.nodeInternalIP = resyncEv.NodeInternalIP
+
 	// Dump NAT address pool.
 	natPoolDump, err := sc.dumpAddressPool()
 	if err != nil {
@@ -275,7 +322,7 @@ func (sc *ServiceConfigurator) Resync(resyncEv *ResyncEventData) error {
 	// Export and update NAT Mappings.
 	natMaps := []*NATMapping{}
 	for _, svc := range resyncEv.Services {
-		exportedMaps, err := sc.exportNATMappings(svc)
+		exportedMaps, err := sc.exportNATMappings(sc.nodeInternalIP, svc)
 		if err != nil {
 			sc.Log.Error(err)
 			return err
@@ -347,51 +394,59 @@ func (sc *ServiceConfigurator) Resync(resyncEv *ResyncEventData) error {
 }
 
 // exportNATMappings exports the corresponding list of NAT mappings from a Contiv service.
-func (sc *ServiceConfigurator) exportNATMappings(service *ContivService) ([]*NATMapping, error) {
+func (sc *ServiceConfigurator) exportNATMappings(nodeInternalIP net.IP, service *ContivService) ([]*NATMapping, error) {
 	mappings := []*NATMapping{}
 
 	// Export NAT mappings for NodePort services.
 	if service.HasNodePort() {
-		// Try to get Node IP.
+		var nodeIPs []net.IP
+		// Try to get Node IP (as used by VPP).
 		nodeIP, err := sc.getNodeIP()
 		if err != nil {
 			sc.Log.Error(err)
 			return nil, err
 		}
-		// Add one mapping for each port.
-		for portName, port := range service.Ports {
-			if port.NodePort == 0 {
-				continue
-			}
-			mapping := NewNATMapping()
-			mapping.ExternalIP = nodeIP
-			mapping.ExternalPort = port.NodePort
-			mapping.Protocol = port.Protocol
-			for _, backend := range service.Backends[portName] {
-				if service.TrafficPolicy != ClusterWide && !backend.Local {
-					// Do not NAT+LB remote backends.
+		nodeIPs = append(nodeIPs, nodeIP)
+		// Add node IP used by K8s if it differs from the VPP one.
+		if nodeInternalIP != nil && !nodeInternalIP.Equal(nodeIP) {
+			nodeIPs = append(nodeIPs, nodeInternalIP)
+		}
+		for _, nodeIP := range nodeIPs {
+			// Add one mapping for each port.
+			for portName, port := range service.Ports {
+				if port.NodePort == 0 {
 					continue
 				}
-				local := &NATMappingLocal{
-					Address: backend.IP,
-					Port:    backend.Port,
+				mapping := NewNATMapping()
+				mapping.ExternalIP = nodeIP
+				mapping.ExternalPort = port.NodePort
+				mapping.Protocol = port.Protocol
+				for _, backend := range service.Backends[portName] {
+					if service.TrafficPolicy != ClusterWide && !backend.Local {
+						// Do not NAT+LB remote backends.
+						continue
+					}
+					local := &NATMappingLocal{
+						Address: backend.IP,
+						Port:    backend.Port,
+					}
+					if backend.Local {
+						local.Probability = LocalVsRemoteProbRatio
+					} else {
+						local.Probability = 1
+					}
+					mapping.Locals = append(mapping.Locals, local)
 				}
-				if backend.Local {
-					local.Probability = LocalVsRemoteProbRatio
-				} else {
-					local.Probability = 1
+				if len(mapping.Locals) == 0 {
+					continue
 				}
-				mapping.Locals = append(mapping.Locals, local)
+				if len(mapping.Locals) == 1 {
+					// For single backend we use "1" to represent the probability
+					// (not really configured).
+					mapping.Locals[0].Probability = 1
+				}
+				mappings = append(mappings, mapping)
 			}
-			if len(mapping.Locals) == 0 {
-				continue
-			}
-			if len(mapping.Locals) == 1 {
-				// For single backend we use "1" to represent the probability
-				// (not really configured).
-				mapping.Locals[0].Probability = 1
-			}
-			mappings = append(mappings, mapping)
 		}
 	}
 

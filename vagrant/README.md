@@ -1,5 +1,13 @@
 ## Contiv-VPP Vagrant Installation
 
+### Prerequisites:
+- Vagrant 2.0.1 or later
+- Hypervisors:
+  - VirtualBox 5.2.8 or later 
+  - VMWare Fusion 10.1.0 or later or VmWare Workstation 14
+    - For use VmWare Fusion you will need the Vagrant VmWare Fusion plugin (https://www.vagrantup.com/vmware/index.html)
+- Laptop or server with at least 4 CPU cores and 16 Gig of RAM    
+
 ### Creating / shutting down / destroying the cluster:
 This folder contains the Vagrant file to create a single or multi-node 
 Kubernetes cluster using Contiv-VPP as a Network Plugin. 

@@ -3,6 +3,7 @@ contiv:
   useTAPInterfaces: True
   tapInterfaceVersion: 1
   stealTheNIC: False
+  mtuSize: 1500
   ipamConfig:
     podSubnetCIDR: "10.1.0.0/16"
     podNetworkPrefixLen: 24

@@ -113,6 +113,7 @@ func (s *remoteCNIserver) interconnectTap() *vpp_intf.Interfaces_Interface {
 	tap := &vpp_intf.Interfaces_Interface{
 		Name:    TapVPPEndLogicalName,
 		Type:    vpp_intf.InterfaceType_TAP_INTERFACE,
+		Mtu:     s.config.MTUSize,
 		Enabled: true,
 		Tap: &vpp_intf.Interfaces_Interface_Tap{
 			HostIfName: TapHostEndName,
@@ -133,6 +134,7 @@ func (s *remoteCNIserver) interconnectTapHost() *linux_intf.LinuxInterfaces_Inte
 	size, _ := s.ipam.VPPHostNetwork().Mask.Size()
 	return &linux_intf.LinuxInterfaces_Interface{
 		Name:        TapHostEndLogicalName,
+		Mtu:         s.config.MTUSize,
 		HostIfName:  TapHostEndName,
 		Type:        linux_intf.LinuxInterfaces_AUTO_TAP,
 		Enabled:     true,
@@ -145,6 +147,7 @@ func (s *remoteCNIserver) interconnectVethHost() *linux_intf.LinuxInterfaces_Int
 	return &linux_intf.LinuxInterfaces_Interface{
 		Name:       vethHostEndLogicalName,
 		Type:       linux_intf.LinuxInterfaces_VETH,
+		Mtu:        s.config.MTUSize,
 		Enabled:    true,
 		HostIfName: vethHostEndName,
 		Veth: &linux_intf.LinuxInterfaces_Interface_Veth{
@@ -158,6 +161,7 @@ func (s *remoteCNIserver) interconnectVethVpp() *linux_intf.LinuxInterfaces_Inte
 	return &linux_intf.LinuxInterfaces_Interface{
 		Name:       vethVPPEndLogicalName,
 		Type:       linux_intf.LinuxInterfaces_VETH,
+		Mtu:        s.config.MTUSize,
 		Enabled:    true,
 		HostIfName: vethVPPEndName,
 		Veth: &linux_intf.LinuxInterfaces_Interface_Veth{
@@ -175,6 +179,7 @@ func (s *remoteCNIserver) interconnectAfpacket() *vpp_intf.Interfaces_Interface 
 	return &vpp_intf.Interfaces_Interface{
 		Name:    s.interconnectAfpacketName(),
 		Type:    vpp_intf.InterfaceType_AF_PACKET_INTERFACE,
+		Mtu:     s.config.MTUSize,
 		Enabled: true,
 		Afpacket: &vpp_intf.Interfaces_Interface_Afpacket{
 			HostIfName: vethVPPEndName,

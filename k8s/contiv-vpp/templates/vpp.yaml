@@ -25,8 +25,8 @@ data:
     TAPInterfaceVersion: {{ .Values.contiv.tapInterfaceVersion }}
     {{- if .Values.contiv.stealTheNIC }}
     StealTheNIC: True
-    MTUSize: {{ .Values.contiv.mtuSize }}
     {{- end }}
+    MTUSize: {{ .Values.contiv.mtuSize }}
     IPAMConfig:
       PodSubnetCIDR: {{ .Values.contiv.ipamConfig.podSubnetCIDR }}
       PodNetworkPrefixLen: {{ .Values.contiv.ipamConfig.podNetworkPrefixLen }}

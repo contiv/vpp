@@ -96,10 +96,6 @@ type remoteCNIserver struct {
 	// IPAM module used by the CNI server
 	ipam *ipam.IPAM
 
-	// counter of connected containers. It is used for generating afpacket names and assigned IP addresses.
-	// TODO: do not rely on counter, since it can overflow uint8 after many container add/remove transactions
-	counter int
-
 	// set to true when running unit tests
 	test bool
 
@@ -178,6 +174,10 @@ type remoteCNIserver struct {
 
 // vswitchConfig holds base vSwitch VPP configuration.
 type vswitchConfig struct {
+	// configured if set to true denotes that vswitch configuration is applied by resync of default plugins
+	// the local client txns are not executed only local variables are filled in order to provide correct values by getters
+	configured bool
+
 	nics         []*vpp_intf.Interfaces_Interface
 	defaultRoute *vpp_l3.StaticRoutes_Route
 
@@ -277,16 +277,22 @@ func (s *remoteCNIserver) configureVswitchConnectivity() error {
 	s.Logger.Info("Applying base vSwitch config.")
 	s.Logger.Info("Existing interfaces: ", s.swIfIndex.GetMapping().ListNames())
 
-	// only apply the config if resync hasn't done it already
-	if _, _, found := s.swIfIndex.LookupIdx(s.interconnectAfpacketName()); found {
-		s.Logger.Info("VSwitch connectivity is considered configured, skipping...")
-		s.vswitchConnectivityConfigured = true
-		s.vswitchCond.Broadcast()
-		return nil
+	var expectedIfName string
+	// TODO: check stn case
+	if s.useTAPInterfaces {
+		expectedIfName = TapVPPEndLogicalName
+	} else {
+		expectedIfName = s.interconnectAfpacketName()
 	}
 
 	// prepare empty vswitch config struct to be filled in
 	config := &vswitchConfig{nics: []*vpp_intf.Interfaces_Interface{}}
+
+	// only apply the config if resync hasn't done it already
+	if _, _, found := s.swIfIndex.LookupIdx(expectedIfName); found {
+		s.Logger.Info("VSwitch connectivity is considered configured, skipping...")
+		config.configured = true
+	}
 
 	// configure physical NIC
 	// NOTE that needs to be done as the first step, before adding any other interfaces to VPP to properly fnd the physical NIC name.
@@ -469,10 +475,12 @@ func (s *remoteCNIserver) configureMainVPPInterface(config *vswitchConfig, nicNa
 		}
 
 		// execute the config transaction
-		err = txn1.Send().ReceiveReply()
-		if err != nil {
-			s.Logger.Error(err)
-			return err
+		if !config.configured {
+			err = txn1.Send().ReceiveReply()
+			if err != nil {
+				s.Logger.Error(err)
+				return err
+			}
 		}
 	} else {
 		s.mainPhysicalIf = nicName
@@ -628,11 +636,13 @@ func (s *remoteCNIserver) configureOtherVPPInterfaces(config *vswitchConfig, nod
 			s.otherPhysicalIfs = append(s.otherPhysicalIfs, intf.Name)
 		}
 
-		// execute the config transaction
-		err := txn.Send().ReceiveReply()
-		if err != nil {
-			s.Logger.Error(err)
-			return err
+		if !config.configured {
+			// execute the config transaction
+			err := txn.Send().ReceiveReply()
+			if err != nil {
+				s.Logger.Error(err)
+				return err
+			}
 		}
 	}
 
@@ -641,6 +651,7 @@ func (s *remoteCNIserver) configureOtherVPPInterfaces(config *vswitchConfig, nod
 
 // configureVswitchHostConnectivity configures vswitch VPP to Linux host interconnect.
 func (s *remoteCNIserver) configureVswitchHostConnectivity(config *vswitchConfig) error {
+	var err error
 
 	if s.stnIP == "" {
 		// execute only if STN has not already configured this
@@ -666,28 +677,34 @@ func (s *remoteCNIserver) configureVswitchHostConnectivity(config *vswitchConfig
 		}
 
 		// execute the config transaction
-		err := txn1.Send().ReceiveReply()
-		if err != nil {
-			s.Logger.Error(err)
-			return err
+		if !config.configured {
+			err = txn1.Send().ReceiveReply()
+			if err != nil {
+				s.Logger.Error(err)
+				return err
+			}
 		}
 
 		// finish TAP configuration
 		if s.useTAPInterfaces {
 			config.tapHost = s.interconnectTapHost()
-			err = s.vppTxnFactory().Put().LinuxInterface(config.tapHost).Send().ReceiveReply()
-			if err != nil {
-				s.Logger.Error(err)
-				return err
+			if !config.configured {
+				err = s.vppTxnFactory().Put().LinuxInterface(config.tapHost).Send().ReceiveReply()
+				if err != nil {
+					s.Logger.Error(err)
+					return err
+				}
 			}
 		} else {
 			// AFPacket is intentionally configured in a txn different from the one that configures veth.
 			// Otherwise if the veth exists before the first transaction (i.e. vEth pair was not deleted after last run)
 			// configuring AfPacket might return an error since linux plugin deletes the existing veth and creates a new one.
-			err = s.vppTxnFactory().Put().VppInterface(config.interconnectAF).Send().ReceiveReply()
-			if err != nil {
-				s.Logger.Error(err)
-				return err
+			if !config.configured {
+				err = s.vppTxnFactory().Put().VppInterface(config.interconnectAF).Send().ReceiveReply()
+				if err != nil {
+					s.Logger.Error(err)
+					return err
+				}
 			}
 		}
 	} else {
@@ -734,11 +751,13 @@ func (s *remoteCNIserver) configureVswitchHostConnectivity(config *vswitchConfig
 	config.l4Features = s.l4Features(!s.disableTCPstack)
 	txn2.L4Features(config.l4Features)
 
-	// execute the config transaction
-	err := txn2.Send().ReceiveReply()
-	if err != nil {
-		s.Logger.Error(err)
-		return err
+	if !config.configured {
+		// execute the config transaction
+		err = txn2.Send().ReceiveReply()
+		if err != nil {
+			s.Logger.Error(err)
+			return err
+		}
 	}
 
 	return nil
@@ -767,10 +786,12 @@ func (s *remoteCNIserver) configureVswitchVxlanBridgeDomain(config *vswitchConfi
 	s.vxlanBD = config.vxlanBD
 
 	// execute the config transaction
-	err = txn.Send().ReceiveReply()
-	if err != nil {
-		s.Logger.Error(err)
-		return err
+	if !config.configured {
+		err = txn.Send().ReceiveReply()
+		if err != nil {
+			s.Logger.Error(err)
+			return err
+		}
 	}
 
 	return nil
@@ -778,6 +799,11 @@ func (s *remoteCNIserver) configureVswitchVxlanBridgeDomain(config *vswitchConfi
 
 // persistVswitchConfig persits vswitch configuration in ETCD
 func (s *remoteCNIserver) persistVswitchConfig(config *vswitchConfig) error {
+	if config.configured {
+		s.Logger.Info("Persisting of vswitch configuration is skipped")
+		return nil
+	}
+
 	var err error
 	changes := map[string]proto.Message{}
 
@@ -865,9 +891,6 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 		s.vswitchCond.Wait()
 	}
 	defer s.Unlock()
-
-	// increment request counter
-	s.counter++
 
 	// prepare config details struct
 	extraArgs := s.parseCniExtraArgs(request.ExtraArguments)

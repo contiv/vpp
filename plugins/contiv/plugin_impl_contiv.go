@@ -170,7 +170,8 @@ func (plugin *Plugin) Init() error {
 		plugin.ServiceLabel.GetAgentLabel(),
 		plugin.Config,
 		plugin.myNodeConfig,
-		nodeID)
+		nodeID,
+		plugin.ETCD.NewBroker(plugin.ServiceLabel.GetAgentPrefix()))
 	if err != nil {
 		return fmt.Errorf("Can't create new remote CNI server due to error: %v ", err)
 	}

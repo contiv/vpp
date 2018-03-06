@@ -33,6 +33,7 @@ import (
 	"github.com/contiv/vpp/plugins/kvdbproxy"
 	"github.com/gogo/protobuf/proto"
 	"github.com/ligato/cn-infra/datasync"
+	"github.com/ligato/cn-infra/db/keyval"
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/vpp-agent/clientv1/linux"
 	vpp_intf "github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/interfaces"
@@ -199,8 +200,8 @@ type vswitchConfig struct {
 // newRemoteCNIServer initializes a new remote CNI server instance.
 func newRemoteCNIServer(logger logging.Logger, vppTxnFactory func() linux.DataChangeDSL, proxy kvdbproxy.Proxy,
 	configuredContainers *containeridx.ConfigIndex, govppChan *api.Channel, index ifaceidx.SwIfIndex, agentLabel string,
-	config *Config, nodeConfig *OneNodeConfig, nodeID uint8) (*remoteCNIserver, error) {
-	ipam, err := ipam.New(logger, nodeID, &config.IPAMConfig)
+	config *Config, nodeConfig *OneNodeConfig, nodeID uint8, broker keyval.ProtoBroker) (*remoteCNIserver, error) {
+	ipam, err := ipam.New(logger, nodeID, &config.IPAMConfig, broker)
 	if err != nil {
 		return nil, err
 	}

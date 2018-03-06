@@ -25,6 +25,7 @@ data:
     TCPstackDisabled: true
     UseTAPInterfaces: true
     TAPInterfaceVersion: 1
+    NatExternalTraffic: true
     IPAMConfig:
       PodSubnetCIDR: 10.1.0.0/16
       PodNetworkPrefixLen: 24

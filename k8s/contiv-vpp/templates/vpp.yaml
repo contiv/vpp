@@ -26,6 +26,7 @@ data:
     {{- if .Values.contiv.stealTheNIC }}
     StealTheNIC: True
     {{- end }}
+    NatExternalTraffic: {{ .Values.contiv.natExternalTraffic }}
     MTUSize: {{ .Values.contiv.mtuSize }}
     IPAMConfig:
       PodSubnetCIDR: {{ .Values.contiv.ipamConfig.podSubnetCIDR }}
@@ -54,6 +55,9 @@ data:
         IP: {{ .mainInterface.ip }}
         {{- end -}}
       Gateway: {{ .gateway }}
+      {{- if .natExternalTraffic }}
+      NatExternalTraffic: {{ .natExternalTraffic }}
+      {{- end }}
       {{- if .otherInterfaces }}
       OtherVPPInterfaces:
       {{- range $iface := .otherInterfaces }}

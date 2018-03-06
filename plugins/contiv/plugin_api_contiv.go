@@ -35,6 +35,10 @@ type API interface {
 	// IsTCPstackDisabled returns true if the TCP stack is disabled and only VETHSs/TAPs are configured
 	IsTCPstackDisabled() bool
 
+	// NatExternalTraffic returns true if traffic with cluster-outside destination should be S-NATed
+	// with node IP before being sent out from the node.
+	NatExternalTraffic() bool
+
 	// GetNodeIP returns the IP+network address of this node.
 	// With DHCP the node IP may get assigned later or change in the runtime, therefore it is preferred
 	// to watch for node IP via WatchNodeIP().

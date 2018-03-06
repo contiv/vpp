@@ -18,6 +18,7 @@ type MockContiv struct {
 	podAppNs           map[podmodel.ID]uint32
 	podNetwork         *net.IPNet
 	tcpStackDisabled   bool
+	natExternalTraffic bool
 	nodeIP             string
 	nodeIPsubs         []chan string
 	podPreRemovalHooks []contiv.PodActionHook
@@ -110,6 +111,11 @@ func (mc *MockContiv) SetDefaultGatewayIP(gwIP net.IP) {
 	mc.gwIP = gwIP
 }
 
+// SetNatExternalTraffic allows to set what tests will assume the state of SNAT is.
+func (mc *MockContiv) SetNatExternalTraffic(natExternalTraffic bool) {
+	mc.natExternalTraffic = natExternalTraffic
+}
+
 // DeletingPod allows to simulate event of deleting pod - all registered pre-removal hooks
 // are called.
 func (mc *MockContiv) DeletingPod(podID podmodel.ID) {
@@ -163,6 +169,12 @@ func (mc *MockContiv) GetPodNetwork() (podNetwork *net.IPNet) {
 // IsTCPstackDisabled returns true if the tcp stack is disabled and only veths are configured
 func (mc *MockContiv) IsTCPstackDisabled() bool {
 	return mc.tcpStackDisabled
+}
+
+// NatExternalTraffic returns true if traffic with cluster-outside destination should be S-NATed
+// with node IP before being sent out from the node.
+func (mc *MockContiv) NatExternalTraffic() bool {
+	return mc.natExternalTraffic
 }
 
 // GetNodeIP returns the IP+network address of this node.

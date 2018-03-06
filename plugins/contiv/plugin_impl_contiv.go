@@ -93,6 +93,7 @@ type Config struct {
 	TAPv2TxRingSize            uint16
 	MTUSize                    uint32
 	StealTheNIC                bool
+	NatExternalTraffic         bool // if enabled, traffic with cluster-outside destination is SNATed on node output (for all nodes)
 	IPAMConfig                 ipam.Config
 	NodeConfig                 []OneNodeConfig
 }
@@ -104,6 +105,7 @@ type OneNodeConfig struct {
 	OtherVPPInterfaces []InterfaceWithIP // other interfaces on VPP, not necessarily used for inter-node connectivity
 	StealInterface     string            // interface to be stolen from the host stack and bound to VPP
 	Gateway            string            // IP address of the default gateway
+	NatExternalTraffic bool              // if enabled, traffic with cluster-outside destination is SNATed on node output
 }
 
 // InterfaceWithIP binds interface name with IP address for configuration purposes.
@@ -272,6 +274,16 @@ func (plugin *Plugin) GetContainerIndex() containeridx.Reader {
 // IsTCPstackDisabled returns true if the VPP TCP stack is disabled and only VETHs/TAPs are configured.
 func (plugin *Plugin) IsTCPstackDisabled() bool {
 	return plugin.Config.TCPstackDisabled
+}
+
+// NatExternalTraffic returns true if traffic with cluster-outside destination should be S-NATed
+// with node IP before being sent out from the node.
+func (plugin *Plugin) NatExternalTraffic() bool {
+	if plugin.Config.NatExternalTraffic ||
+		(plugin.myNodeConfig != nil && plugin.myNodeConfig.NatExternalTraffic) {
+		return true
+	}
+	return false
 }
 
 // GetNodeIP returns the IP address of this node.

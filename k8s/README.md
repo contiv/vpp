@@ -54,6 +54,8 @@ To use the development image for testing with specific version of VPP, see
     - `StealTheNIC`: enable Steal The NIC feature on the first interface on each node;
     - `TAPv2RxRingSize`: number of entries to allocate for TAPv2 Rx ring (default is 256);
     - `TAPv2TxRingSize`: number of entries to allocate for TAPv2 Tx ring (default is 256).
+    - `NatExternalTraffic`: if enabled, traffic with cluster-outside destination is S-NATed
+                            with the node IP before being sent out from the node (applies for all nodes).
     - `MTUSize`: maximum transmission unit (MTU) size (default is 1500)
 
   * IPAM (section `IPAMConfig`)
@@ -81,7 +83,9 @@ To use the development image for testing with specific version of VPP, see
     - `OtherVPPInterfaces` (other configured interfaces only get IP address assigned in VPP)
       - `InterfaceName`: name of the interface;
       - `IP`: IP address to be attached to the interface;
-    - `Gateway`: IP address of the default gateway for external traffic, if it needs to be configured.
+    - `Gateway`: IP address of the default gateway for external traffic, if it needs to be configured;
+    - `NatExternalTraffic`: if enabled, traffic with cluster-outside destination is S-NATed
+                            with the node IP before being sent out from the node.
 
 #### cri-install.sh
 Contiv-VPP CRI Shim installer / uninstaller, that can be used as follows:

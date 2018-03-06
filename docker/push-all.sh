@@ -23,8 +23,8 @@ DEV_UPLOAD="false"
 CLEANUP="false"
 
 # list of images we are tagging & pushing
-IMAGES=("cni" "ksr" "cri")
-IMAGES_VPP=("vswitch")
+IMAGES=()
+IMAGES_VPP=("cni" "ksr" "cri" "stn" "vswitch")
 
 # override defaults from arguments
 while [ "$1" != "" ]; do

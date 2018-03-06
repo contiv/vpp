@@ -16,10 +16,11 @@ package ksr
 
 import (
 	"fmt"
-	"github.com/ligato/cn-infra/logging/logrus"
-	"github.com/onsi/gomega"
 	"sync"
 	"testing"
+
+	"github.com/ligato/cn-infra/logging/logrus"
+	"github.com/onsi/gomega"
 )
 
 type mockKsrReflector struct {
@@ -57,6 +58,11 @@ func TestKsrReflector(t *testing.T) {
 func testKsrStartReflectors(t *testing.T) {
 	gomega.RegisterTestingT(t)
 
+	reflectorRegistry := ReflectorRegistry{
+		reflectors: make(map[string]*Reflector),
+		lock:       sync.RWMutex{},
+	}
+
 	mockReflector := mockKsrReflector{}
 
 	mockReflector.Log = logrus.DefaultLogger()
@@ -64,11 +70,11 @@ func testKsrStartReflectors(t *testing.T) {
 	mockReflector.ksrStopCh = make(chan struct{})
 	mockReflector.objType = "Mock"
 	mockReflector.k8sController = &mockK8sController{false, "v1", nil}
+	mockReflector.ReflectorRegistry = &reflectorRegistry
 
-	reflectors = make(map[string]*Reflector)
-	reflectors[mockReflector.objType] = &mockReflector.Reflector
+	reflectorRegistry.addReflector(&mockReflector.Reflector)
 
-	startReflectors()
+	reflectorRegistry.startReflectors()
 
 	mockReflector.wg.Wait()
 	gomega.Expect(mockReflector.k8sController.HasSynced()).To(gomega.BeTrue())
@@ -77,16 +83,20 @@ func testKsrStartReflectors(t *testing.T) {
 func testKsrReflectorClose(t *testing.T) {
 	gomega.RegisterTestingT(t)
 
+	reflectorRegistry := ReflectorRegistry{
+		reflectors: make(map[string]*Reflector),
+		lock:       sync.RWMutex{},
+	}
+
 	const mockObjType = "Mock"
 	mockReflector := mockKsrReflector{}
 	mockReflector.objType = mockObjType
-
-	reflectors = make(map[string]*Reflector)
+	mockReflector.ReflectorRegistry = &reflectorRegistry
 
 	err := mockReflector.Close()
 	gomega.Ω(err).Should(gomega.MatchError(fmt.Sprintf("%s reflector type does not exist", mockObjType)))
 
-	reflectors[mockReflector.objType] = &mockReflector.Reflector
+	reflectorRegistry.addReflector(&mockReflector.Reflector)
 
 	err = mockReflector.Close()
 	gomega.Expect(err).To(gomega.BeNil())

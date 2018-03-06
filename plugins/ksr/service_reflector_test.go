@@ -31,11 +31,12 @@ import (
 )
 
 type ServiceTestVars struct {
-	k8sListWatch *mockK8sListWatch
-	mockKvBroker *mockKeyProtoValBroker
-	svcReflector *ServiceReflector
-	svc          *coreV1.Service
-	svcTestData  []coreV1.Service
+	k8sListWatch      *mockK8sListWatch
+	mockKvBroker      *mockKeyProtoValBroker
+	svcReflector      *ServiceReflector
+	svc               *coreV1.Service
+	svcTestData       []coreV1.Service
+	reflectorRegistry ReflectorRegistry
 }
 
 var serviceTestVars ServiceTestVars
@@ -49,14 +50,20 @@ func TestServiceReflector(t *testing.T) {
 	serviceTestVars.k8sListWatch = &mockK8sListWatch{}
 	serviceTestVars.mockKvBroker = newMockKeyProtoValBroker()
 
+	serviceTestVars.reflectorRegistry = ReflectorRegistry{
+		reflectors: make(map[string]*Reflector),
+		lock:       sync.RWMutex{},
+	}
+
 	serviceTestVars.svcReflector = &ServiceReflector{
 		Reflector: Reflector{
-			Log:          flavorLocal.LoggerFor("service-reflector"),
-			K8sClientset: &kubernetes.Clientset{},
-			K8sListWatch: serviceTestVars.k8sListWatch,
-			Broker:       serviceTestVars.mockKvBroker,
-			dsSynced:     false,
-			objType:      serviceObjType,
+			Log:               flavorLocal.LoggerFor("service-reflector"),
+			K8sClientset:      &kubernetes.Clientset{},
+			K8sListWatch:      serviceTestVars.k8sListWatch,
+			Broker:            serviceTestVars.mockKvBroker,
+			dsSynced:          false,
+			objType:           serviceObjType,
+			ReflectorRegistry: &serviceTestVars.reflectorRegistry,
 		},
 	}
 

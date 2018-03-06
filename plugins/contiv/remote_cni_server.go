@@ -24,6 +24,8 @@ import (
 
 	"git.fd.io/govpp.git/api"
 	govppapi "git.fd.io/govpp.git/api"
+	"github.com/apparentlymart/go-cidr/cidr"
+	stn_grpc "github.com/contiv/vpp/cmd/contiv-stn/model/stn"
 	"github.com/contiv/vpp/plugins/contiv/bin_api/dhcp"
 	"github.com/contiv/vpp/plugins/contiv/containeridx"
 	"github.com/contiv/vpp/plugins/contiv/ipam"
@@ -42,6 +44,7 @@ import (
 	linux_intf "github.com/ligato/vpp-agent/plugins/linuxplugin/common/model/interfaces"
 	linux_l3 "github.com/ligato/vpp-agent/plugins/linuxplugin/common/model/l3"
 	"golang.org/x/net/context"
+	"google.golang.org/grpc"
 )
 
 const (
@@ -56,10 +59,15 @@ const (
 	vethHostEndName               = "vpp1"
 	vethVPPEndLogicalName         = "veth-vpp2"
 	vethVPPEndName                = "vpp2"
-	tapHostEndName                = "vpp1"
-	tapVPPEndLogicalName          = "tap-vpp2"
-	tapVPPEndName                 = "vpp2"
-	podIfIPPrefix                 = "10.2.1"
+
+	// TapHostEndLogicalName is the logical name of the VPP-host interconnect TAP interface (host end)
+	TapHostEndLogicalName = "tap-vpp1"
+	// TapHostEndName is the physical name of the VPP-host interconnect TAP interface (host end)
+	TapHostEndName = "vpp1"
+	// TapVPPEndLogicalName is the logical name of the VPP-host interconnect TAP interface (VPP end)
+	TapVPPEndLogicalName = "tap-vpp2"
+	// TapVPPEndName is the physical name of the VPP-host interconnect TAP interface (VPP end)
+	TapVPPEndName = "vpp2"
 	// HostInterconnectMAC is MAC address of tap that interconnects VPP with host stack
 	HostInterconnectMAC = "01:23:45:67:89:42"
 )
@@ -107,6 +115,9 @@ type remoteCNIserver struct {
 	// nodeIPsubsribers is a slice of channels that are notified when nodeIP is changed
 	nodeIPsubscribers []chan string
 
+	// global config
+	config *Config
+
 	// podPreRemovalHooks is a slice of callbacks called before a pod removal
 	podPreRemovalHooks []PodActionHook
 
@@ -153,6 +164,9 @@ type remoteCNIserver struct {
 	// the name of an BVI interface facing towards VXLAN tunnels to other hosts
 	vxlanBVIIfName string
 
+	stnIP string
+	stnGw string
+
 	// default gateway IP address
 	defaultGw net.IP
 
@@ -192,16 +206,17 @@ func newRemoteCNIServer(logger logging.Logger, vppTxnFactory func() linux.DataCh
 	}
 
 	server := &remoteCNIserver{
-		Logger:                     logger,
-		vppTxnFactory:              vppTxnFactory,
-		proxy:                      proxy,
-		configuredContainers:       configuredContainers,
-		govppChan:                  govppChan,
-		swIfIndex:                  index,
-		agentLabel:                 agentLabel,
-		nodeID:                     nodeID,
-		ipam:                       ipam,
-		nodeConfig:                 nodeConfig,
+		Logger:               logger,
+		vppTxnFactory:        vppTxnFactory,
+		proxy:                proxy,
+		configuredContainers: configuredContainers,
+		govppChan:            govppChan,
+		swIfIndex:            index,
+		agentLabel:           agentLabel,
+		nodeID:               nodeID,
+		ipam:                 ipam,
+		nodeConfig:           nodeConfig,
+		config:               config,
 		tcpChecksumOffloadDisabled: config.TCPChecksumOffloadDisabled,
 		useTAPInterfaces:           config.UseTAPInterfaces,
 		tapVersion:                 config.TAPInterfaceVersion,
@@ -380,8 +395,36 @@ func (s *remoteCNIserver) configureMainVPPInterface(config *vswitchConfig, nicNa
 	var err error
 	txn1 := s.vppTxnFactory().Put()
 
+	useSTN := false
+	if s.config.StealTheNIC || (s.nodeConfig != nil && s.nodeConfig.StealInterface != "") {
+		useSTN = true
+
+		// get IP address of the STN interface
+		var gwIP string
+		if s.nodeConfig != nil && s.nodeConfig.StealInterface != "" {
+			s.Logger.Infof("STN of the host interface %s requested.", s.nodeConfig.StealInterface)
+			nicIP, gwIP, err = s.getSTNInterfaceIP(s.nodeConfig.StealInterface)
+		} else {
+			s.Logger.Infof("STN of the first interface (%s) requested.", nicName)
+			nicIP, gwIP, err = s.getSTNInterfaceIP("")
+		}
+
+		if err != nil {
+			s.Logger.Warnf("Unable to get STN interface info: %v, skipping STN config", err)
+		}
+
+		if nicIP != "" {
+			s.Logger.Infof("STN-configured interface %s (IP %s, GW %s), skip main interface config.", nicName, nicIP, gwIP)
+			s.stnIP = nicIP
+			s.stnGw = gwIP
+		} else {
+			s.Logger.Infof("STN-configured interface %s, but there is no IP, continue with main interface config.", nicName)
+			useSTN = false
+		}
+	}
+
 	// determine main node IP address
-	if useDHCP {
+	if !useSTN && useDHCP {
 		// ip address will be assigned by DHCP server, not known yet
 		s.Logger.Infof("Configuring %v to use dhcp", nicName)
 	} else if nicIP != "" {
@@ -397,41 +440,45 @@ func (s *remoteCNIserver) configureMainVPPInterface(config *vswitchConfig, nicNa
 		s.Logger.Infof("Configuring %v to use %v", nicName, nodeIP.String())
 	}
 
-	if nicName != "" {
-		// configure the physical NIC
-		s.Logger.Info("Configuring physical NIC ", nicName)
+	if !useSTN {
+		if nicName != "" {
+			// configure the physical NIC
+			s.Logger.Info("Configuring physical NIC ", nicName)
 
-		nic := s.physicalInterface(nicName, s.nodeIP)
-		if useDHCP {
-			// clear IP addresses
-			nic.IpAddresses = []string{}
+			nic := s.physicalInterface(nicName, s.nodeIP)
+			if useDHCP {
+				// clear IP addresses
+				nic.IpAddresses = []string{}
+			}
+			txn1.VppInterface(nic)
+			config.nics = append(config.nics, nic)
+			s.mainPhysicalIf = nicName
+		} else {
+			// configure loopback instead of the physical NIC
+			s.Logger.Debug("Physical NIC not found, configuring loopback instead.")
+
+			loop := s.physicalInterfaceLoopback(s.nodeIP)
+			txn1.VppInterface(loop)
+			config.nics = append(config.nics, loop)
 		}
-		txn1.VppInterface(nic)
-		config.nics = append(config.nics, nic)
-		s.mainPhysicalIf = nicName
+
+		if nicName != "" && s.nodeConfig != nil && s.nodeConfig.Gateway != "" {
+			// configure the default gateway
+			config.defaultRoute = s.defaultRoute(s.nodeConfig.Gateway, nicName)
+			txn1.StaticRoute(config.defaultRoute)
+		}
+
+		// execute the config transaction
+		err = txn1.Send().ReceiveReply()
+		if err != nil {
+			s.Logger.Error(err)
+			return err
+		}
 	} else {
-		// configure loopback instead of the physical NIC
-		s.Logger.Debug("Physical NIC not found, configuring loopback instead.")
-
-		loop := s.physicalInterfaceLoopback(s.nodeIP)
-		txn1.VppInterface(loop)
-		config.nics = append(config.nics, loop)
+		s.mainPhysicalIf = nicName
 	}
 
-	if nicName != "" && s.nodeConfig != nil && s.nodeConfig.Gateway != "" {
-		// configure the default gateway
-		config.defaultRoute = s.defaultRoute(s.nodeConfig.Gateway, nicName)
-		txn1.StaticRoute(config.defaultRoute)
-	}
-
-	// execute the config transaction
-	err = txn1.Send().ReceiveReply()
-	if err != nil {
-		s.Logger.Error(err)
-		return err
-	}
-
-	if useDHCP {
+	if !useSTN && useDHCP {
 		err = s.configureDHCP(nicName)
 		if err != nil {
 			s.Logger.Error(err)
@@ -442,6 +489,58 @@ func (s *remoteCNIserver) configureMainVPPInterface(config *vswitchConfig, nicNa
 	return nil
 }
 
+// getSTNInterfaceIP returns IP address of the interface before stealing it from the host stack.
+func (s *remoteCNIserver) getSTNInterfaceIP(ifName string) (ip string, gw string, err error) {
+	s.Logger.Debugf("Getting STN info for interface %s", ifName)
+
+	// connect to STN GRPC server
+	conn, err := grpc.Dial(fmt.Sprintf(":%d", 50051), grpc.WithInsecure()) // TODO configurable server port
+	if err != nil {
+		s.Logger.Errorf("Unable to connect to STN GRPC: %v", err)
+		return
+	}
+	defer conn.Close()
+	c := stn_grpc.NewSTNClient(conn)
+
+	// request info about the stolen interface
+	reply, err := c.StolenInterfaceInfo(context.Background(), &stn_grpc.STNRequest{
+		InterfaceName: ifName,
+	})
+	if err != nil {
+		s.Logger.Errorf("Error by executing STN GRPC: %v", err)
+		return
+	}
+
+	s.Logger.Debugf("STN GRPC reply: %v", reply)
+
+	// STN IP address
+	if len(reply.IpAddresses) == 0 {
+		return
+	}
+	ip = reply.IpAddresses[0]
+
+	// try to find the default gateway in the list of routes
+	for _, r := range reply.Routes {
+		if r.DestinationSubnet == "" || strings.HasPrefix(r.DestinationSubnet, "0.0.0.0") {
+			gw = r.NextHopIp
+			s.defaultGw = net.ParseIP(gw)
+		}
+	}
+	if gw == "" {
+		// no deafult gateway in routes, calculate fake gateway address for route pointing to VPP
+		_, ipNet, _ := net.ParseCIDR(ip)
+		firstIP, lastIP := cidr.AddressRange(ipNet)
+		if cidr.Inc(firstIP).String() != ip {
+			gw = cidr.Inc(firstIP).String()
+		} else {
+			gw = cidr.Dec(lastIP).String()
+		}
+	}
+
+	return
+}
+
+// configureDHCP configures DHCP on an interface on VPP
 func (s *remoteCNIserver) configureDHCP(nicName string) error {
 
 	_, err := s.govppChan.SubscribeNotification(s.dhcpNotif, dhcp.NewDhcpComplEvent)
@@ -470,6 +569,7 @@ func (s *remoteCNIserver) configureDHCP(nicName string) error {
 	return nil
 }
 
+// handleDHCPNotifications handles DHCP state change notifications
 func (s *remoteCNIserver) handleDHCPNotifications(notifCh chan govppapi.Message) {
 
 	for {
@@ -541,50 +641,60 @@ func (s *remoteCNIserver) configureOtherVPPInterfaces(config *vswitchConfig, nod
 
 // configureVswitchHostConnectivity configures vswitch VPP to Linux host interconnect.
 func (s *remoteCNIserver) configureVswitchHostConnectivity(config *vswitchConfig) error {
-	txn1 := s.vppTxnFactory().Put()
 
-	if s.useTAPInterfaces {
-		// TAP interface
-		config.tapVpp = s.interconnectTap()
+	if s.stnIP == "" {
+		// execute only if STN has not already configured this
+		txn1 := s.vppTxnFactory().Put()
 
-		s.hostInterconnectIfName = config.tapVpp.Name
+		if s.useTAPInterfaces {
+			// TAP interface
+			config.tapVpp = s.interconnectTap()
 
-		txn1.VppInterface(config.tapVpp)
-	} else {
-		// veth + AF_PACKET
-		config.vethHost = s.interconnectVethHost()
-		config.vethVpp = s.interconnectVethVpp()
-		config.interconnectAF = s.interconnectAfpacket()
+			s.hostInterconnectIfName = config.tapVpp.Name
 
-		s.hostInterconnectIfName = config.interconnectAF.Name
+			txn1.VppInterface(config.tapVpp)
+		} else {
+			// veth + AF_PACKET
+			config.vethHost = s.interconnectVethHost()
+			config.vethVpp = s.interconnectVethVpp()
+			config.interconnectAF = s.interconnectAfpacket()
 
-		txn1.LinuxInterface(config.vethHost).
-			LinuxInterface(config.vethVpp)
-	}
+			s.hostInterconnectIfName = config.interconnectAF.Name
 
-	// execute the config transaction
-	err := txn1.Send().ReceiveReply()
-	if err != nil {
-		s.Logger.Error(err)
-		return err
-	}
+			txn1.LinuxInterface(config.vethHost).
+				LinuxInterface(config.vethVpp)
+		}
 
-	// finish TAP configuration
-	if s.useTAPInterfaces {
-		config.tapHost = s.interconnectTapHost()
-		err = s.vppTxnFactory().Put().LinuxInterface(config.tapHost).Send().ReceiveReply()
+		// execute the config transaction
+		err := txn1.Send().ReceiveReply()
 		if err != nil {
 			s.Logger.Error(err)
 			return err
 		}
+
+		// finish TAP configuration
+		if s.useTAPInterfaces {
+			config.tapHost = s.interconnectTapHost()
+			err = s.vppTxnFactory().Put().LinuxInterface(config.tapHost).Send().ReceiveReply()
+			if err != nil {
+				s.Logger.Error(err)
+				return err
+			}
+		} else {
+			// AFPacket is intentionally configured in a txn different from the one that configures veth.
+			// Otherwise if the veth exists before the first transaction (i.e. vEth pair was not deleted after last run)
+			// configuring AfPacket might return an error since linux plugin deletes the existing veth and creates a new one.
+			err = s.vppTxnFactory().Put().VppInterface(config.interconnectAF).Send().ReceiveReply()
+			if err != nil {
+				s.Logger.Error(err)
+				return err
+			}
+		}
 	} else {
-		// AFPacket is intentionally configured in a txn different from the one that configures veth.
-		// Otherwise if the veth exists before the first transaction (i.e. vEth pair was not deleted after last run)
-		// configuring AfPacket might return an error since linux plugin deletes the existing veth and creates a new one.
-		err = s.vppTxnFactory().Put().VppInterface(config.interconnectAF).Send().ReceiveReply()
-		if err != nil {
-			s.Logger.Error(err)
-			return err
+		if s.useTAPInterfaces {
+			s.hostInterconnectIfName = TapVPPEndLogicalName
+		} else {
+			s.hostInterconnectIfName = s.interconnectAfpacketName()
 		}
 	}
 
@@ -594,18 +704,30 @@ func (s *remoteCNIserver) configureVswitchHostConnectivity(config *vswitchConfig
 	//
 	// TODO: this is a temporary solution, should be removed once
 	// the main node IP address as seen by k8s is determined by k8s API
-	config.routesToHost = s.routesToHost()
+	if s.stnIP == "" {
+		config.routesToHost = s.routesToHost(s.ipam.VEthHostEndIP().String())
+	} else {
+		config.routesToHost = s.routesToHost(s.ipPrefixToAddress(s.stnIP))
+	}
 	for _, r := range config.routesToHost {
 		s.Logger.Debug("Adding route to host IP: ", r)
 		txn2.StaticRoute(r)
 	}
 
 	// configure the route from the host to PODs
-	config.routeFromHost = s.routeFromHost()
+	if s.stnGw == "" {
+		config.routeFromHost = s.routePODsFromHost(s.ipam.VEthVPPEndIP().String())
+	} else {
+		config.routeFromHost = s.routePODsFromHost(s.stnGw)
+	}
 	txn2.LinuxRoute(config.routeFromHost)
 
 	// route from the host to k8s service range from the host
-	config.routeForServices = s.routeServicesFromHost()
+	if s.stnGw == "" {
+		config.routeForServices = s.routeServicesFromHost(s.ipam.VEthVPPEndIP().String())
+	} else {
+		config.routeForServices = s.routeServicesFromHost(s.stnGw)
+	}
 	txn2.LinuxRoute(config.routeForServices)
 
 	// enable L4 features
@@ -613,7 +735,7 @@ func (s *remoteCNIserver) configureVswitchHostConnectivity(config *vswitchConfig
 	txn2.L4Features(config.l4Features)
 
 	// execute the config transaction
-	err = txn2.Send().ReceiveReply()
+	err := txn2.Send().ReceiveReply()
 	if err != nil {
 		s.Logger.Error(err)
 		return err
@@ -675,8 +797,10 @@ func (s *remoteCNIserver) persistVswitchConfig(config *vswitchConfig) error {
 
 	// TAP / veths + AF_APCKET
 	if s.useTAPInterfaces {
-		changes[vpp_intf.InterfaceKey(config.tapVpp.Name)] = config.tapVpp
-		changes[linux_intf.InterfaceKey(config.tapHost.Name)] = config.tapHost
+		if config.tapHost != nil {
+			changes[vpp_intf.InterfaceKey(config.tapVpp.Name)] = config.tapVpp
+			changes[linux_intf.InterfaceKey(config.tapHost.Name)] = config.tapHost
+		}
 	} else {
 		changes[linux_intf.InterfaceKey(config.vethHost.Name)] = config.vethHost
 		changes[linux_intf.InterfaceKey(config.vethVpp.Name)] = config.vethVpp
@@ -895,7 +1019,7 @@ func (s *remoteCNIserver) configurePodInterface(request *cni.CNIRequest, podIP n
 	// create VPP to POD interconnect interface
 	if s.useTAPInterfaces {
 		// TAP interface
-		config.VppIf = s.tapFromRequest(request, !s.disableTCPstack, podIPCIDR)
+		config.VppIf = s.tapFromRequest(request, podIP.String(), !s.disableTCPstack, podIPCIDR)
 		config.PodTap = s.podTAP(request, podIPNet)
 
 		podIfName = config.PodTap.Name
@@ -906,7 +1030,7 @@ func (s *remoteCNIserver) configurePodInterface(request *cni.CNIRequest, podIP n
 		// veth pair + AF_PACKET
 		config.Veth1 = s.veth1FromRequest(request, podIPCIDR)
 		config.Veth2 = s.veth2FromRequest(request)
-		config.VppIf = s.afpacketFromRequest(request, !s.disableTCPstack, podIPCIDR)
+		config.VppIf = s.afpacketFromRequest(request, podIP.String(), !s.disableTCPstack, podIPCIDR)
 
 		txn1.LinuxInterface(config.Veth1).
 			LinuxInterface(config.Veth2).

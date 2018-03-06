@@ -195,9 +195,11 @@ func (s *remoteCNIserver) addRoutesToNode(nodeInfo *node.NodeInfo) error {
 	s.Logger.Info("Adding PODs route: ", podsRoute)
 	s.Logger.Info("Adding host route: ", hostRoute)
 
-	managementRoute := s.routeToOtherManagementIP(nodeInfo.ManagementIpAddress, nextHop)
-	txn.StaticRoute(managementRoute)
-	s.Logger.Info("Adding managementIP route: ", managementRoute)
+	if s.stnIP == "" {
+		managementRoute := s.routeToOtherManagementIP(nodeInfo.ManagementIpAddress, nextHop)
+		txn.StaticRoute(managementRoute)
+		s.Logger.Info("Adding managementIP route: ", managementRoute)
+	}
 
 	// send the config transaction
 	err = txn.Send().ReceiveReply()

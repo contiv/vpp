@@ -8,7 +8,8 @@ RUN apt-get update && apt-get install -y ethtool &&\
 # set work directory
 WORKDIR /root/
 
-# add the agent binary
+# add the agent binaries
+COPY binaries/contiv-init /usr/bin/
 COPY binaries/contiv-agent /usr/bin/
 
 #uninstall any VPP first before re-installing

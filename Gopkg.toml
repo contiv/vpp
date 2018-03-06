@@ -85,7 +85,7 @@ required = ["github.com/wadey/gocovmerge", "github.com/docker/docker/api", "gith
 
 [[constraint]]
   name = "github.com/ligato/vpp-agent"
-  revision = "7fc24173762760d1406c9f9698f4f226a617b860"
+  revision = "3301c11d8367111f843c8fdccbe052f2fdac30ea"
 
 [[constraint]]
   name = "github.com/prometheus/client_golang"
@@ -118,6 +118,22 @@ required = ["github.com/wadey/gocovmerge", "github.com/docker/docker/api", "gith
 [[constraint]]
   name = "k8s.io/client-go"
   revision = "82aa063804cf055e16e8911250f888bc216e8b61"
+
+[[constraint]]
+  name = "github.com/nerdtakula/supervisor"
+  revision = "5bf894f54fd79a23fa965bf078b2a094a9d9e20b"
+
+[[constraint]]
+  name = "github.com/safchain/ethtool"
+  revision = "7ff1ba29eca231991280817541cb3903f6be15d1"
+
+[[constraint]]
+  name = "github.com/vishvananda/netlink"
+  branch = "master"
+
+[[constraint]]
+  name = "github.com/apparentlymart/go-cidr"
+  revision = "2bd8b58cf4275aeb086ade613de226773e29e853"
 
 [prune]
   go-tests = true

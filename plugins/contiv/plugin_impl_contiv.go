@@ -90,6 +90,7 @@ type Config struct {
 	TAPInterfaceVersion        uint8
 	TAPv2RxRingSize            uint16
 	TAPv2TxRingSize            uint16
+	StealTheNIC                bool
 	NatExternalTraffic         bool // if enabled, traffic with cluster-outside destination is SNATed on node output (for all nodes)
 	IPAMConfig                 ipam.Config
 	NodeConfig                 []OneNodeConfig
@@ -100,6 +101,7 @@ type OneNodeConfig struct {
 	NodeName           string            // name of the node, should match withs the hostname
 	MainVPPInterface   InterfaceWithIP   // main VPP interface used for the inter-node connectivity
 	OtherVPPInterfaces []InterfaceWithIP // other interfaces on VPP, not necessarily used for inter-node connectivity
+	StealInterface     string            // interface to be stolen from the host stack and bound to VPP
 	Gateway            string            // IP address of the default gateway
 	NatExternalTraffic bool              // if enabled, traffic with cluster-outside destination is SNATed on node output
 }

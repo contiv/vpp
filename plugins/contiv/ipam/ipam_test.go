@@ -41,6 +41,7 @@ var (
 
 func newDefaultConfig() *ipam.Config {
 	return &ipam.Config{
+		PodIfIPCIDR:             "10.2.1.0/24",
 		PodSubnetCIDR:           "1.2." + str(b10000000) + ".2/17",
 		PodNetworkPrefixLen:     29, // 3 bits left -> 6 free IP addresses (gateway IP + zero ending IP is reserved)
 		VPPHostSubnetCIDR:       "2.3." + str(b11000000) + ".2/18",

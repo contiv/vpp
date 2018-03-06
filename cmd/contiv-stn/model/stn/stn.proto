@@ -1,0 +1,64 @@
+// Copyright (c) 2018 Cisco and/or its affiliates.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at:
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+// Package stn defines STN (Steal the NIC) GRPC service.
+package stn;
+
+// The STN service definition.
+service STN {
+    // The request to steal (unconfigure) an interface identified by its name.
+    rpc StealInterface (STNRequest) returns (STNReply) {}
+
+    // The request to revert config of a previously "stolen" (unconfigured) interface.
+    rpc ReleaseInterface (STNRequest) returns (STNReply) {}
+
+    // Request to return information about the stolen interface.
+    rpc StolenInterfaceInfo (STNRequest) returns (STNReply) {}
+}
+
+// STNRequest represents a request to steal or release of an interface.
+message STNRequest {
+    // The interface to be stolen / released.
+    string interface_name = 1;
+    // True if DHCP is enabled on the interface.
+    bool dhcp_enabled = 2;
+}
+
+// The reply to the STNRequest. Contians the original config of the stolen interface.
+message STNReply {
+    // Result code. 0 = success, non-zero = error.
+    uint32 result = 1;
+
+    // Error string in case that result != 0.
+    string error = 2;
+
+    // PCI address of the interface.
+    string pci_address = 3;
+
+    // List of IP addresses assigned to the interface.
+    repeated string ip_addresses = 4;
+
+    // A route related to the interface.
+    message Route {
+        // Destination subnet prefix.
+        string destination_subnet = 1;
+
+        // Next hop IP address.
+        string next_hop_ip = 2;
+    }
+    // List of routes related to the interface.
+    repeated Route routes = 5;
+}

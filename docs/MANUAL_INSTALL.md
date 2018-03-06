@@ -4,6 +4,59 @@ with Contiv-VPP networking on one or more bare metal or VM hosts.
 
 ### (1/4) Preparing your hosts
 
+#### 1.0 (Optional): Prepare a VmWare Fusion host
+The vmxnet3 driver is required on GigE Network Adapter used by VPP. On VmWare
+Fusion, the default Network Adapter driver is Intel 82545EM (e1000), and there
+is no GUI to change it to vmxnet3. The change must be done manually in the VM's
+configuration file as follows:
+
+- Bring up the VM library window: 'Window -> Virtual Machine Library'
+- Right click on the VM where you want to change the driver:
+  '<VM-Name> -> Show in Finder'. This pops up a new Finder window with a line
+  for each VM that Fusion knows about.
+- Right click on the VM where you want to change the driver:
+  '<VM-Name> -> Show package contents'. This brings up a window with the 
+  contents of the package.
+- Open the file '<VM-Name>.vmx' with your favorite text editor
+- For each Network Adapter that you want to be used by VPP, look for the 
+  Network Adapter's driver configuration. For example, for the VM's first
+  Network Adapter look for:
+  ```
+  ethernet0.virtualDev = "e1000"
+  ```
+  Replace `e1000` with `vmxnet3`:
+  ```
+  ethernet0.virtualDev = "vmxnet3"
+  ```
+and restart the VM.
+
+If you replaced the driver on your VM's primary Network Adapter, you will 
+have to change the primary network interface configuration in Linux. First,
+get the new primary network interface name:
+```
+sudo lshw -class network -businfo
+
+Bus info          Device      Class          Description
+========================================================
+pci@0000:03:00.0  ens160      network        VMXNET3 Ethernet Controller
+```
+Replace the existing primary network interface name in `/etc/network/interfaces`
+with the above device name:
+```
+# This file describes the network interfaces available on your system
+# and how to activate them. For more information, see interfaces(5).
+
+source /etc/network/interfaces.d/*
+
+# The loopback network interface
+auto lo
+iface lo inet loopback
+
+# The primary network interface
+auto ens160
+iface ens160 inet dhcp
+```
+
 #### 1.1: Installing kubeadm on your hosts
 For first-time installation, see [Installing kubeadm][6]. To update an
 existing installation,  you should do a `apt-get update && apt-get upgrade`
@@ -94,7 +147,18 @@ On the `192.168.56.106` node you add the following line to `10-kubeadm.conf`:
 Environment="KUBELET_EXTRA_ARGS=--fail-swap-on=false --node-ip=192.168.56.106"
 ```
 
-#### 1.4 (Optional): Installing the CRI Shim on your hosts
+#### 1.4 (Optional): Installing the STN daemon on your hosts
+If you plan to use the "Steal the NIC" feature (STN), for deployments
+on nodes with just single network interface, you must first install the
+STN daemon on each host of the k8s cluster. The STN daemon installation
+should be performed before deployment of the Contiv-VPP plugin.
+
+Run as root (not using sudo):
+```
+bash <(curl -s https://raw.githubusercontent.com/contiv/vpp/master/k8s/stn-install.sh)
+```
+
+#### 1.5 (Optional): Installing the CRI Shim on your hosts
 If your pods will be using the VPP TCP/IP stack, you must first install the
 CRI Shim on each host where the stack will be used. The CRI Shim installation
 should only be performed after `kubelet`, `kubeadm` and `kubectl` have already
@@ -107,11 +171,12 @@ bash <(curl -s https://raw.githubusercontent.com/contiv/vpp/master/k8s/cri-insta
 Note that the CRI Shim installer has only been tested  with the [kubeadm][1]
 K8s cluster creation tool.
 
+
 After installing the CRI Shim, please proceed with cluster initialization,
 as described in the steps below. Alternatively, if the cluster had already
 been initialized before installing the CRI Shim, just reboot the node.
 
-The steps 1.2 - 1.4 can be set up interactively using [script](../k8s/setup-node.sh).
+The steps 1.2 - 1.5 can be set up interactively using [script](../k8s/setup-node.sh).
 ```
 bash <(curl https://raw.githubusercontent.com/contiv/vpp/master/k8s/setup-node.sh)
 ```

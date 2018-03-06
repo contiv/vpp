@@ -29,11 +29,14 @@ data:
     IPAMConfig:
       PodSubnetCIDR: 10.1.0.0/16
       PodNetworkPrefixLen: 24
+      PodIfIPCIDR: 10.2.1.0/24
       VPPHostSubnetCIDR: 172.30.0.0/16
       VPPHostNetworkPrefixLen: 24
       NodeInterconnectCIDR: 192.168.16.0/24
       VxlanCIDR: 192.168.30.0/24
       NodeInterconnectDHCP: False
+  logs.conf: |
+    defaultlevel: debug
 
 ---
 
@@ -132,7 +135,7 @@ metadata:
 data:
   etcd.conf: |
     insecure-transport: true
-    dial-timeout: 1000000000
+    dial-timeout: 5000000000
     endpoints:
       - "127.0.0.1:32379"
 

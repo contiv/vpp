@@ -26,6 +26,7 @@ data:
     {{- if .Values.contiv.stealTheNIC }}
     StealTheNIC: True
     {{- end }}
+    MTUSize: {{ .Values.contiv.mtuSize }}
     IPAMConfig:
       PodSubnetCIDR: {{ .Values.contiv.ipamConfig.podSubnetCIDR }}
       PodNetworkPrefixLen: {{ .Values.contiv.ipamConfig.podNetworkPrefixLen }}

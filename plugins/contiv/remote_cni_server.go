@@ -96,10 +96,6 @@ type remoteCNIserver struct {
 	// IPAM module used by the CNI server
 	ipam *ipam.IPAM
 
-	// counter of connected containers. It is used for generating afpacket names and assigned IP addresses.
-	// TODO: do not rely on counter, since it can overflow uint8 after many container add/remove transactions
-	counter int
-
 	// set to true when running unit tests
 	test bool
 
@@ -895,9 +891,6 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 		s.vswitchCond.Wait()
 	}
 	defer s.Unlock()
-
-	// increment request counter
-	s.counter++
 
 	// prepare config details struct
 	extraArgs := s.parseCniExtraArgs(request.ExtraArguments)

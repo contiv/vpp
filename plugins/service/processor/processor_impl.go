@@ -350,7 +350,7 @@ func (sp *ServiceProcessor) processResyncEvent(resyncEv *ResyncEventData) error 
 		if vxlanBVIIf == "" {
 			sp.backendIfs.Add(mainPhysIf)
 		}
-		if vxlanBVIIf != "" && gwIP != nil {
+		if sp.Contiv.NatExternalTraffic() && vxlanBVIIf != "" && gwIP != nil {
 			// If the interface connects node with the default GW, SNAT all egress traffic.
 			// For main interface this is supported only with VXLANs enabled.
 			if nodeNet.Contains(gwIP) {
@@ -364,7 +364,7 @@ func (sp *ServiceProcessor) processResyncEvent(resyncEv *ResyncEventData) error 
 		ipAddresses := sp.getInterfaceIPs(physIf)
 		sp.frontendIfs.Add(physIf)
 		// If the interface connects node with the default GW, SNAT all egress traffic.
-		if gwIP != nil {
+		if sp.Contiv.NatExternalTraffic() && gwIP != nil {
 			for _, ipAddr := range ipAddresses {
 				if ipAddr.Network.Contains(gwIP) {
 					confResyncEv.ExternalSNAT.ExternalIfName = physIf

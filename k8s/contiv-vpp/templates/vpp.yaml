@@ -49,6 +49,9 @@ data:
         IP: {{ .mainInterface.ip }}
         {{- end -}}
       Gateway: {{ .gateway }}
+      {{- if .natExternalTraffic }}
+      NatExternalTraffic: {{ .natExternalTraffic }}
+      {{- end }}
       {{- if .otherInterfaces }}
       OtherVPPInterfaces:
       {{- range $iface := .otherInterfaces }}

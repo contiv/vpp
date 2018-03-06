@@ -78,7 +78,9 @@ To use the development image for testing with specific version of VPP, see
     - `OtherVPPInterfaces` (other configured interfaces only get IP address assigned in VPP)
       - `InterfaceName`: name of the interface;
       - `IP`: IP address to be attached to the interface;
-    - `Gateway`: IP address of the default gateway for external traffic, if it needs to be configured.
+    - `Gateway`: IP address of the default gateway for external traffic, if it needs to be configured;
+    - `NatExternalTraffic`: if enabled, traffic with cluster-outside destination is S-NATed
+                            with the node IP before being sent out from the node.
 
 #### cri-install.sh
 Contiv-VPP CRI Shim installer / uninstaller, that can be used as follows:

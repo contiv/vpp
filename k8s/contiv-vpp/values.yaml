@@ -2,6 +2,7 @@ contiv:
   tcpStackDisabled: True
   useTAPInterfaces: True
   tapInterfaceVersion: 1
+  natExternalTraffic: True
   ipamConfig:
     podSubnetCIDR: "10.1.0.0/16"
     podNetworkPrefixLen: 24

@@ -90,6 +90,7 @@ type Config struct {
 	TAPInterfaceVersion        uint8
 	TAPv2RxRingSize            uint16
 	TAPv2TxRingSize            uint16
+	NatExternalTraffic         bool // if enabled, traffic with cluster-outside destination is SNATed on node output (for all nodes)
 	IPAMConfig                 ipam.Config
 	NodeConfig                 []OneNodeConfig
 }
@@ -274,8 +275,9 @@ func (plugin *Plugin) IsTCPstackDisabled() bool {
 // NatExternalTraffic returns true if traffic with cluster-outside destination should be S-NATed
 // with node IP before being sent out from the node.
 func (plugin *Plugin) NatExternalTraffic() bool {
-	if plugin.myNodeConfig != nil {
-		return plugin.myNodeConfig.NatExternalTraffic
+	if plugin.Config.NatExternalTraffic ||
+		(plugin.myNodeConfig != nil && plugin.myNodeConfig.NatExternalTraffic) {
+		return true
 	}
 	return false
 }

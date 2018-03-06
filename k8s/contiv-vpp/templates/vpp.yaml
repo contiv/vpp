@@ -23,6 +23,7 @@ data:
     TCPstackDisabled: {{ .Values.contiv.tcpStackDisabled }}
     UseTAPInterfaces: {{ .Values.contiv.useTAPInterfaces }}
     TAPInterfaceVersion: {{ .Values.contiv.tapInterfaceVersion }}
+    NatExternalTraffic: {{ .Values.contiv.natExternalTraffic }}
     IPAMConfig:
       PodSubnetCIDR: {{ .Values.contiv.ipamConfig.podSubnetCIDR }}
       PodNetworkPrefixLen: {{ .Values.contiv.ipamConfig.podNetworkPrefixLen }}

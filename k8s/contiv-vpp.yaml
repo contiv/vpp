@@ -35,6 +35,7 @@ data:
       NodeInterconnectCIDR: 192.168.16.0/24
       VxlanCIDR: 192.168.30.0/24
       NodeInterconnectDHCP: False
+      MTUSize: 1500
   logs.conf: |
     defaultlevel: debug
 

@@ -56,6 +56,7 @@ To use the development image for testing with specific version of VPP, see
     - `TAPv2TxRingSize`: number of entries to allocate for TAPv2 Tx ring (default is 256).
     - `NatExternalTraffic`: if enabled, traffic with cluster-outside destination is S-NATed
                             with the node IP before being sent out from the node (applies for all nodes).
+    - `MTUSize`: maximum transmission unit (MTU) size (default is 1500)
 
   * IPAM (section `IPAMConfig`)
     - `PodSubnetCIDR`: subnet used for all pods across all nodes;

@@ -172,6 +172,7 @@ func (s *remoteCNIserver) veth1FromRequest(request *cni.CNIRequest, podIP string
 	return &linux_intf.LinuxInterfaces_Interface{
 		Name:        s.veth1NameFromRequest(request),
 		Type:        linux_intf.LinuxInterfaces_VETH,
+		Mtu:         s.config.MTUSize,
 		Enabled:     true,
 		HostIfName:  s.veth1HostIfNameFromRequest(request),
 		PhysAddress: s.hwAddrForContainer(),
@@ -190,6 +191,7 @@ func (s *remoteCNIserver) veth2FromRequest(request *cni.CNIRequest) *linux_intf.
 	return &linux_intf.LinuxInterfaces_Interface{
 		Name:       s.veth2NameFromRequest(request),
 		Type:       linux_intf.LinuxInterfaces_VETH,
+		Mtu:        s.config.MTUSize,
 		Enabled:    true,
 		HostIfName: s.veth2HostIfNameFromRequest(request),
 		Veth: &linux_intf.LinuxInterfaces_Interface_Veth{
@@ -202,6 +204,7 @@ func (s *remoteCNIserver) afpacketFromRequest(request *cni.CNIRequest, podIP str
 	af := &vpp_intf.Interfaces_Interface{
 		Name:    s.afpacketNameFromRequest(request),
 		Type:    vpp_intf.InterfaceType_AF_PACKET_INTERFACE,
+		Mtu:     s.config.MTUSize,
 		Enabled: true,
 		Afpacket: &vpp_intf.Interfaces_Interface_Afpacket{
 			HostIfName: s.veth2HostIfNameFromRequest(request),
@@ -219,6 +222,7 @@ func (s *remoteCNIserver) tapFromRequest(request *cni.CNIRequest, podIP string, 
 	tap := &vpp_intf.Interfaces_Interface{
 		Name:    s.tapNameFromRequest(request),
 		Type:    vpp_intf.InterfaceType_TAP_INTERFACE,
+		Mtu:     s.config.MTUSize,
 		Enabled: true,
 		Tap: &vpp_intf.Interfaces_Interface_Tap{
 			HostIfName: s.tapTmpHostNameFromRequest(request),
@@ -241,6 +245,7 @@ func (s *remoteCNIserver) podTAP(request *cni.CNIRequest, podIPNet *net.IPNet) *
 	return &linux_intf.LinuxInterfaces_Interface{
 		Name:    "pod-" + s.tapTmpHostNameFromRequest(request),
 		Type:    linux_intf.LinuxInterfaces_AUTO_TAP,
+		Mtu:     s.config.MTUSize,
 		Enabled: true,
 		Tap: &linux_intf.LinuxInterfaces_Interface_Tap{
 			TempIfName: s.tapTmpHostNameFromRequest(request),

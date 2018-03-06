@@ -55,7 +55,8 @@ import (
 
 const (
 	etcdConnectionRetries = 20               // number of retries to connect to ETCD once STN is configured
-	dhcpTimeout           = 20 * time.Second // timeout to wait for a DHCP offer after configuring DHCP on the interface
+	vppConnectTimeout     = 5 * time.Second  // timeout for connection to VPP
+	dhcpConnectTimeout    = 20 * time.Second // timeout to wait for a DHCP offer after configuring DHCP on the interface
 
 	tapHostEndMacAddr       = "00:00:00:00:00:02" // requirement of the VPP STN plugin
 	defaultRouteDestination = "0.0.0.0/0"         // destination IP address used for default routes on VPP
@@ -73,12 +74,26 @@ func configureVpp(contivCfg *contiv.Config, stnData *stn.STNReply, useDHCP bool)
 	var err error
 
 	// connect to VPP
-	conn, err := govpp.Connect(govppmux.NewVppAdapter())
+	conn, connChan, err := govpp.AsyncConnect(govppmux.NewVppAdapter())
 	if err != nil {
 		logger.Errorf("Error by connecting to VPP: %v", err)
 		return nil, err
 	}
 	defer conn.Disconnect()
+
+	// wait until connected or until timeout expires
+	select {
+	case ev := <-connChan:
+		if ev.State == govpp.Connected {
+			logger.Debug("Connected to VPP.")
+		} else {
+			logger.Error("Error by connecting to VPP: disconnected")
+			return nil, fmt.Errorf("VPP connection error")
+		}
+	case <-time.After(vppConnectTimeout):
+		logger.Errorf("Error by connecting to VPP, not able to connect within %d seconds.", vppConnectTimeout/time.Second)
+		return nil, fmt.Errorf("VPP connection timeout")
+	}
 
 	// create an API channel
 	ch, err := conn.NewAPIChannel()
@@ -134,8 +149,8 @@ func configureVpp(contivCfg *contiv.Config, stnData *stn.STNReply, useDHCP bool)
 		select {
 		case ip = <-ipChan:
 			logger.Debugf("IP retrieved from DHCP: %s", ip)
-		case <-time.After(dhcpTimeout):
-			logger.Errorf("Error by configuring DHCP on the interface %s: No address retrieved within %d seconds", cfg.mainIfName, dhcpTimeout/time.Second)
+		case <-time.After(dhcpConnectTimeout):
+			logger.Errorf("Error by configuring DHCP on the interface %s: No address retrieved within %d seconds", cfg.mainIfName, dhcpConnectTimeout/time.Second)
 			return nil, fmt.Errorf("DHCP timeout")
 		}
 

@@ -481,10 +481,10 @@ func (s *remoteCNIserver) configureMainVPPInterface(config *vswitchConfig, nicNa
 		// execute the config transaction
 		if !config.configured {
 			err = txn1.Send().ReceiveReply()
-		}
-		if err != nil {
-			s.Logger.Error(err)
-			return err
+			if err != nil {
+				s.Logger.Error(err)
+				return err
+			}
 		}
 	} else {
 		s.mainPhysicalIf = nicName
@@ -640,14 +640,13 @@ func (s *remoteCNIserver) configureOtherVPPInterfaces(config *vswitchConfig, nod
 			s.otherPhysicalIfs = append(s.otherPhysicalIfs, intf.Name)
 		}
 
-		var err error
 		if !config.configured {
 			// execute the config transaction
-			err = txn.Send().ReceiveReply()
-		}
-		if err != nil {
-			s.Logger.Error(err)
-			return err
+			err := txn.Send().ReceiveReply()
+			if err != nil {
+				s.Logger.Error(err)
+				return err
+			}
 		}
 	}
 
@@ -684,10 +683,10 @@ func (s *remoteCNIserver) configureVswitchHostConnectivity(config *vswitchConfig
 		// execute the config transaction
 		if !config.configured {
 			err = txn1.Send().ReceiveReply()
-		}
-		if err != nil {
-			s.Logger.Error(err)
-			return err
+			if err != nil {
+				s.Logger.Error(err)
+				return err
+			}
 		}
 
 		// finish TAP configuration
@@ -695,10 +694,10 @@ func (s *remoteCNIserver) configureVswitchHostConnectivity(config *vswitchConfig
 			config.tapHost = s.interconnectTapHost()
 			if !config.configured {
 				err = s.vppTxnFactory().Put().LinuxInterface(config.tapHost).Send().ReceiveReply()
-			}
-			if err != nil {
-				s.Logger.Error(err)
-				return err
+				if err != nil {
+					s.Logger.Error(err)
+					return err
+				}
 			}
 		} else {
 			// AFPacket is intentionally configured in a txn different from the one that configures veth.
@@ -706,10 +705,10 @@ func (s *remoteCNIserver) configureVswitchHostConnectivity(config *vswitchConfig
 			// configuring AfPacket might return an error since linux plugin deletes the existing veth and creates a new one.
 			if !config.configured {
 				err = s.vppTxnFactory().Put().VppInterface(config.interconnectAF).Send().ReceiveReply()
-			}
-			if err != nil {
-				s.Logger.Error(err)
-				return err
+				if err != nil {
+					s.Logger.Error(err)
+					return err
+				}
 			}
 		}
 	} else {
@@ -759,10 +758,10 @@ func (s *remoteCNIserver) configureVswitchHostConnectivity(config *vswitchConfig
 	if !config.configured {
 		// execute the config transaction
 		err = txn2.Send().ReceiveReply()
-	}
-	if err != nil {
-		s.Logger.Error(err)
-		return err
+		if err != nil {
+			s.Logger.Error(err)
+			return err
+		}
 	}
 
 	return nil
@@ -793,10 +792,10 @@ func (s *remoteCNIserver) configureVswitchVxlanBridgeDomain(config *vswitchConfi
 	// execute the config transaction
 	if !config.configured {
 		err = txn.Send().ReceiveReply()
-	}
-	if err != nil {
-		s.Logger.Error(err)
-		return err
+		if err != nil {
+			s.Logger.Error(err)
+			return err
+		}
 	}
 
 	return nil

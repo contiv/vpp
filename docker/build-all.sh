@@ -55,6 +55,6 @@ cd ..
 
 # remove dangling images
 set +e
-sudo docker rmi `docker images --filter=dangling=true -q` 2>/dev/null
+docker rmi `docker images --filter=dangling=true -q` 2>/dev/null
 set -e
 

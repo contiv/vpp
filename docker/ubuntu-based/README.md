@@ -26,7 +26,7 @@ To build the images, execute:
 
 The result of this procedure is the set of container images similar to this:
 ```
-$ sudo docker images | grep contiv-vswitch
+$ docker images | grep contiv-vswitch
 prod-contiv-vswitch      0.0.1-7-g46d22f7        a18a66f3091f        20 seconds ago      473.9 MB
 dev-contiv-vswitch       0.0.1-7-g46d22f7        b494c8622263        23 seconds ago      5.252 GB
 ```

@@ -27,11 +27,11 @@ cd ../../../
 if [ -z "${VPP_COMMIT_ID}" ]
 then
     # no specific VPP commit ID
-    sudo docker build -f docker/ubuntu-based/dev/Dockerfile -t dev-contiv-vswitch:${TAG} --build-arg SKIP_DEBUG_BUILD=${SKIP_DEBUG_BUILD} ${DOCKER_BUILD_ARGS} --no-cache --force-rm=true .
+    docker build -f docker/ubuntu-based/dev/Dockerfile -t dev-contiv-vswitch:${TAG} --build-arg SKIP_DEBUG_BUILD=${SKIP_DEBUG_BUILD} ${DOCKER_BUILD_ARGS} --no-cache --force-rm=true .
 else
     # specific VPP commit ID
-    sudo docker build -f docker/ubuntu-based/dev/Dockerfile -t dev-contiv-vswitch:${TAG} --build-arg VPP_COMMIT_ID=${VPP_COMMIT_ID} --build-arg SKIP_DEBUG_BUILD=${SKIP_DEBUG_BUILD} ${DOCKER_BUILD_ARGS} --no-cache --force-rm=true .
+    docker build -f docker/ubuntu-based/dev/Dockerfile -t dev-contiv-vswitch:${TAG} --build-arg VPP_COMMIT_ID=${VPP_COMMIT_ID} --build-arg SKIP_DEBUG_BUILD=${SKIP_DEBUG_BUILD} ${DOCKER_BUILD_ARGS} --no-cache --force-rm=true .
 fi
 
-VPP=$(sudo docker run --rm dev-contiv-vswitch:${TAG} bash -c "cd \$VPP_DIR && git rev-parse --short HEAD")
-sudo docker tag dev-contiv-vswitch:${TAG} dev-contiv-vswitch:${TAG}-${VPP}
+VPP=$(docker run --rm dev-contiv-vswitch:${TAG} bash -c "cd \$VPP_DIR && git rev-parse --short HEAD")
+docker tag dev-contiv-vswitch:${TAG} dev-contiv-vswitch:${TAG}-${VPP}

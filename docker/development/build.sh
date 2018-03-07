@@ -20,4 +20,4 @@ set -e
 cd ../..
 
 # build the development vswitch
-sudo docker build -f docker/development/Dockerfile -t contivvpp/vswitch --no-cache --force-rm=true .
+docker build -f docker/development/Dockerfile -t contivvpp/vswitch --no-cache --force-rm=true .

@@ -21,17 +21,17 @@ IMAGE=${1}
 
 # run the dev image as the "extract" container
 echo "extracting binaries from ${IMAGE}"
-CID=$(sudo docker run -itd ${IMAGE} sh)
+CID=$(docker run -itd ${IMAGE} sh)
 
 # prepare the folder with the binaries
 rm -rf binaries
 mkdir -p binaries
 
 # extract the binaries into the binaries/ folder
-sudo docker cp ${CID}:/root/go/src/github.com/contiv/vpp/cmd/contiv-cni/contiv-cni binaries/
-sudo docker cp ${CID}:/root/go/src/github.com/contiv/vpp/cmd/contiv-ksr/contiv-ksr binaries/
-sudo docker cp ${CID}:/root/go/src/github.com/contiv/vpp/cmd/contiv-stn/contiv-stn binaries/
-sudo docker cp ${CID}:/root/cni/loopback binaries/
+docker cp ${CID}:/root/go/src/github.com/contiv/vpp/cmd/contiv-cni/contiv-cni binaries/
+docker cp ${CID}:/root/go/src/github.com/contiv/vpp/cmd/contiv-ksr/contiv-ksr binaries/
+docker cp ${CID}:/root/go/src/github.com/contiv/vpp/cmd/contiv-stn/contiv-stn binaries/
+docker cp ${CID}:/root/cni/loopback binaries/
 
 # delete the "extract" container
-sudo docker rm -f ${CID}
+docker rm -f ${CID}

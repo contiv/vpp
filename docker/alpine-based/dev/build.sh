@@ -24,4 +24,4 @@ TAG=${1-latest}
 cd ../../../
 
 # execute the build
-sudo docker build -f docker/alpine-based/dev/Dockerfile -t dev-contiv-plugins:${TAG} ${DOCKER_BUILD_ARGS} --no-cache --force-rm=true .
+docker build -f docker/alpine-based/dev/Dockerfile -t dev-contiv-plugins:${TAG} ${DOCKER_BUILD_ARGS} --no-cache --force-rm=true .

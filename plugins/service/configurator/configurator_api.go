@@ -45,8 +45,8 @@ type ServiceConfiguratorAPI interface {
 	DeleteService(service *ContivService) error
 
 	// UpdateNodePortServices updates configuration of nodeport services to reflect
-	// changed internal node IP (IP used by Kubernetes).
-	UpdateNodePortServices(nodeInternalIP net.IP, npServices []*ContivService) error
+	// changed list of all node IPs in the cluster.
+	UpdateNodePortServices(nodeIPs []net.IP, npServices []*ContivService) error
 
 	// UpdateLocalFrontendIfs updates the list of interfaces connecting clients
 	// with VPP (enabled out2in VPP/NAT feature).
@@ -332,8 +332,8 @@ func (ifs Interfaces) String() string {
 
 // ResyncEventData wraps an entire state of K8s services.
 type ResyncEventData struct {
-	// NodeInternalIP is the IP address of the node as used by Kubernetes (including kube-proxy).
-	NodeInternalIP net.IP
+	// NodeIPs is a list of IP addresses of all nodes in the cluster.
+	NodeIPs []net.IP
 
 	// ExternalSNAT contains configuration of SNAT, installed to allow access outside the cluster network.
 	ExternalSNAT ExternalSNATConfig
@@ -351,6 +351,7 @@ type ResyncEventData struct {
 // NewResyncEventData is a constructor for ResyncEventData.
 func NewResyncEventData() *ResyncEventData {
 	return &ResyncEventData{
+		NodeIPs:     []net.IP{},
 		Services:    []*ContivService{},
 		FrontendIfs: NewInterfaces(),
 		BackendIfs:  NewInterfaces(),
@@ -359,6 +360,13 @@ func NewResyncEventData() *ResyncEventData {
 
 // String converts ResyncEventData into a human-readable string.
 func (red ResyncEventData) String() string {
+	nodeIPs := ""
+	for idx, nodeIP := range red.NodeIPs {
+		nodeIPs += nodeIP.String()
+		if idx < len(red.NodeIPs)-1 {
+			nodeIPs += ", "
+		}
+	}
 	services := ""
 	for idx, service := range red.Services {
 		services += service.String()
@@ -366,8 +374,8 @@ func (red ResyncEventData) String() string {
 			services += ", "
 		}
 	}
-	return fmt.Sprintf("ResyncEventData <NodeInternalIP:%s %s Services:[%s], FrontendIfs:%s BackendIfs:%s>",
-		red.NodeInternalIP.String(), red.ExternalSNAT.String(), services, red.FrontendIfs.String(),
+	return fmt.Sprintf("ResyncEventData <NodeIPs:[%s] %s Services:[%s], FrontendIfs:%s BackendIfs:%s>",
+		nodeIPs, red.ExternalSNAT.String(), services, red.FrontendIfs.String(),
 		red.BackendIfs.String())
 }
 

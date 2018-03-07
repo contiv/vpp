@@ -17,7 +17,6 @@
 package configurator
 
 import (
-	"errors"
 	"net"
 
 	govpp "git.fd.io/govpp.git/api"
@@ -35,7 +34,7 @@ const LocalVsRemoteProbRatio uint8 = 2
 type ServiceConfigurator struct {
 	Deps
 
-	nodeInternalIP net.IP
+	nodeIPs []net.IP
 }
 
 // Deps lists dependencies of ServiceConfigurator.
@@ -58,7 +57,7 @@ func (sc *ServiceConfigurator) AddService(service *ContivService) error {
 		"service": service,
 	}).Debug("ServiceConfigurator - AddService()")
 
-	natMaps, err := sc.exportNATMappings(sc.nodeInternalIP, service)
+	natMaps, err := sc.exportNATMappings(sc.nodeIPs, service)
 	if err != nil {
 		sc.Log.Error(err)
 		return err
@@ -80,13 +79,13 @@ func (sc *ServiceConfigurator) UpdateService(oldService, newService *ContivServi
 		"newService": newService,
 	}).Debug("ServiceConfigurator - UpdateService()")
 
-	oldNatMaps, err := sc.exportNATMappings(sc.nodeInternalIP, oldService)
+	oldNatMaps, err := sc.exportNATMappings(sc.nodeIPs, oldService)
 	if err != nil {
 		sc.Log.Error(err)
 		return err
 	}
 
-	newNatMaps, err := sc.exportNATMappings(sc.nodeInternalIP, newService)
+	newNatMaps, err := sc.exportNATMappings(sc.nodeIPs, newService)
 	if err != nil {
 		sc.Log.Error(err)
 		return err
@@ -107,7 +106,7 @@ func (sc *ServiceConfigurator) DeleteService(service *ContivService) error {
 		"service": service,
 	}).Debug("ServiceConfigurator - DeleteService()")
 
-	natMaps, err := sc.exportNATMappings(sc.nodeInternalIP, service)
+	natMaps, err := sc.exportNATMappings(sc.nodeIPs, service)
 	if err != nil {
 		sc.Log.Error(err)
 		return err
@@ -122,17 +121,17 @@ func (sc *ServiceConfigurator) DeleteService(service *ContivService) error {
 }
 
 // UpdateNodePortServices updates configuration of nodeport services to reflect
-// changed internal node IP (IP used by Kubernetes).
-func (sc *ServiceConfigurator) UpdateNodePortServices(nodeInternalIP net.IP, npServices []*ContivService) error {
+// changed list of all node IPs in the cluster.
+func (sc *ServiceConfigurator) UpdateNodePortServices(nodeIPs []net.IP, npServices []*ContivService) error {
 	sc.Log.WithFields(logging.Fields{
-		"nodeInternalIP": nodeInternalIP,
-		"npServices":     npServices,
+		"nodeIPs":    nodeIPs,
+		"npServices": npServices,
 	}).Debug("ServiceConfigurator - UpdateNodePortServices()")
 
 	// Export current NAT Mappings for nodePort services.
 	currentNatMaps := []*NATMapping{}
 	for _, svc := range npServices {
-		exportedMaps, err := sc.exportNATMappings(sc.nodeInternalIP, svc)
+		exportedMaps, err := sc.exportNATMappings(sc.nodeIPs, svc)
 		if err != nil {
 			sc.Log.Error(err)
 			return err
@@ -143,7 +142,7 @@ func (sc *ServiceConfigurator) UpdateNodePortServices(nodeInternalIP net.IP, npS
 	// Export NAT mapping using the new internal node IP.
 	newNatMaps := []*NATMapping{}
 	for _, svc := range npServices {
-		exportedMaps, err := sc.exportNATMappings(nodeInternalIP, svc)
+		exportedMaps, err := sc.exportNATMappings(nodeIPs, svc)
 		if err != nil {
 			sc.Log.Error(err)
 			return err
@@ -159,7 +158,7 @@ func (sc *ServiceConfigurator) UpdateNodePortServices(nodeInternalIP net.IP, npS
 	}
 
 	// Update cached internal node IP.
-	sc.nodeInternalIP = nodeInternalIP
+	sc.nodeIPs = nodeIPs
 	return nil
 }
 
@@ -264,7 +263,7 @@ func (sc *ServiceConfigurator) Resync(resyncEv *ResyncEventData) error {
 	}).Debug("ServiceConfigurator - Resync()")
 
 	// Updated cached internal node IP.
-	sc.nodeInternalIP = resyncEv.NodeInternalIP
+	sc.nodeIPs = resyncEv.NodeIPs
 
 	// Dump NAT address pool.
 	natPoolDump, err := sc.dumpAddressPool()
@@ -322,7 +321,7 @@ func (sc *ServiceConfigurator) Resync(resyncEv *ResyncEventData) error {
 	// Export and update NAT Mappings.
 	natMaps := []*NATMapping{}
 	for _, svc := range resyncEv.Services {
-		exportedMaps, err := sc.exportNATMappings(sc.nodeInternalIP, svc)
+		exportedMaps, err := sc.exportNATMappings(sc.nodeIPs, svc)
 		if err != nil {
 			sc.Log.Error(err)
 			return err
@@ -394,24 +393,15 @@ func (sc *ServiceConfigurator) Resync(resyncEv *ResyncEventData) error {
 }
 
 // exportNATMappings exports the corresponding list of NAT mappings from a Contiv service.
-func (sc *ServiceConfigurator) exportNATMappings(nodeInternalIP net.IP, service *ContivService) ([]*NATMapping, error) {
+func (sc *ServiceConfigurator) exportNATMappings(nodeIPs []net.IP, service *ContivService) ([]*NATMapping, error) {
 	mappings := []*NATMapping{}
 
 	// Export NAT mappings for NodePort services.
 	if service.HasNodePort() {
-		var nodeIPs []net.IP
-		// Try to get Node IP (as used by VPP).
-		nodeIP, err := sc.getNodeIP()
-		if err != nil {
-			sc.Log.Error(err)
-			return nil, err
-		}
-		nodeIPs = append(nodeIPs, nodeIP)
-		// Add node IP used by K8s if it differs from the VPP one.
-		if nodeInternalIP != nil && !nodeInternalIP.Equal(nodeIP) {
-			nodeIPs = append(nodeIPs, nodeInternalIP)
-		}
 		for _, nodeIP := range nodeIPs {
+			if nodeIP.To4() != nil {
+				nodeIP = nodeIP.To4()
+			}
 			// Add one mapping for each port.
 			for portName, port := range service.Ports {
 				if port.NodePort == 0 {
@@ -495,19 +485,4 @@ func (sc *ServiceConfigurator) exportNATMappings(nodeInternalIP net.IP, service 
 // Close deallocates resources held by the configurator.
 func (sc *ServiceConfigurator) Close() error {
 	return nil
-}
-
-/**** Helper methods ****/
-
-func (sc *ServiceConfigurator) getNodeIP() (net.IP, error) {
-	nodeIP, _ := sc.Contiv.GetNodeIP()
-	if nodeIP == nil {
-		return nil, errors.New("failed to get Node IP")
-	}
-	nodeIPv4 := nodeIP.To4()
-	if nodeIPv4 == nil {
-		// TODO: IPv6 support
-		return nil, errors.New("node IP is not IPv4 address")
-	}
-	return nodeIPv4, nil
 }

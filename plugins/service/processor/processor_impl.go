@@ -19,6 +19,7 @@ package processor
 import (
 	"errors"
 	"net"
+	"strings"
 
 	"github.com/ligato/cn-infra/datasync"
 	"github.com/ligato/cn-infra/logging"
@@ -26,8 +27,8 @@ import (
 	"github.com/ligato/vpp-agent/plugins/defaultplugins"
 
 	"github.com/contiv/vpp/plugins/contiv"
+	nodemodel "github.com/contiv/vpp/plugins/contiv/model/node"
 	epmodel "github.com/contiv/vpp/plugins/ksr/model/endpoints"
-	nodemodel "github.com/contiv/vpp/plugins/ksr/model/node"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	svcmodel "github.com/contiv/vpp/plugins/ksr/model/service"
 	"github.com/contiv/vpp/plugins/service/configurator"
@@ -37,7 +38,8 @@ import (
 type ServiceProcessor struct {
 	Deps
 
-	nodeInternalIP net.IP
+	/* nodes */
+	nodes map[int]*nodemodel.NodeInfo
 
 	/* internal maps */
 	services map[svcmodel.ID]*Service
@@ -72,6 +74,7 @@ func (sp *ServiceProcessor) Init() error {
 
 // reset clears the state of the processor.
 func (sp *ServiceProcessor) reset() error {
+	sp.nodes = make(map[int]*nodemodel.NodeInfo)
 	sp.services = make(map[svcmodel.ID]*Service)
 	sp.localEps = make(map[podmodel.ID]*LocalEndpoint)
 	sp.frontendIfs = configurator.NewInterfaces()
@@ -243,35 +246,32 @@ func (sp *ServiceProcessor) processDeletedService(serviceID svcmodel.ID) error {
 	return sp.configureService(svc, oldContivSvc, oldBackends)
 }
 
-func (sp *ServiceProcessor) processNewNode(node *nodemodel.Node) error {
+func (sp *ServiceProcessor) processNewNode(node *nodemodel.NodeInfo) error {
 	sp.Log.WithFields(logging.Fields{
 		"node": *node,
 	}).Debug("ServiceProcessor - processNewNode()")
 
-	nodeInternalIP := sp.getNodeInternalIP(node)
-	if nodeInternalIP != nil {
-		sp.nodeInternalIP = nodeInternalIP
-		sp.reconfigureNodePorts()
-	}
-	return nil
+	sp.nodes[int(node.Id)] = node
+	return sp.reconfigureNodePorts()
 }
 
-func (sp *ServiceProcessor) processUpdatedNode(node *nodemodel.Node) error {
+func (sp *ServiceProcessor) processUpdatedNode(node *nodemodel.NodeInfo) error {
 	sp.Log.WithFields(logging.Fields{
 		"node": *node,
 	}).Debug("ServiceProcessor - processUpdatedNode()")
 
-	nodeInternalIP := sp.getNodeInternalIP(node)
-	if nodeInternalIP != nil {
-		if sp.nodeInternalIP == nil || !sp.nodeInternalIP.Equal(nodeInternalIP) {
-			// added/changed node IP
-			sp.nodeInternalIP = nodeInternalIP
-			sp.reconfigureNodePorts()
-		}
-	} else if sp.nodeInternalIP != nil {
-		// lost node IP
-		sp.nodeInternalIP = nil
-		sp.reconfigureNodePorts()
+	sp.nodes[int(node.Id)] = node
+	return sp.reconfigureNodePorts()
+}
+
+func (sp *ServiceProcessor) processDeletedNode(nodeID int) error {
+	sp.Log.WithFields(logging.Fields{
+		"nodeID": nodeID,
+	}).Debug("ServiceProcessor - processDeletedNode()")
+
+	if _, hasNode := sp.nodes[nodeID]; hasNode {
+		delete(sp.nodes, nodeID)
+		return sp.reconfigureNodePorts()
 	}
 	return nil
 }
@@ -367,7 +367,46 @@ func (sp *ServiceProcessor) reconfigureNodePorts() error {
 			npServices = append(npServices, contivSvc)
 		}
 	}
-	return sp.Configurator.UpdateNodePortServices(sp.nodeInternalIP, npServices)
+	return sp.Configurator.UpdateNodePortServices(sp.getNodeIPs(), npServices)
+}
+
+// getNodeIPs returns a slice of IP addresses of all nodes in the cluster
+// without duplicities.
+func (sp *ServiceProcessor) getNodeIPs() []net.IP {
+	var nodeIPs []net.IP
+	addedNodeIPs := map[string]struct{}{}
+
+	for _, node := range sp.nodes {
+		// Node IP (VPP)
+		ipAddr := sp.trimIPAddrPrefix(node.IpAddress)
+		sp.Log.WithField("IPAddr", ipAddr).Debug("Node IP")
+		if _, duplicate := addedNodeIPs[ipAddr]; !duplicate {
+			nodeIP := net.ParseIP(ipAddr)
+			if nodeIP != nil {
+				nodeIPs = append(nodeIPs, nodeIP)
+			}
+		}
+		addedNodeIPs[ipAddr] = struct{}{}
+		// Node management IP (K8s, host)
+		ipAddr = sp.trimIPAddrPrefix(node.ManagementIpAddress)
+		sp.Log.WithField("IPAddr", ipAddr).Debug("Node mgmt IP")
+		if _, duplicate := addedNodeIPs[ipAddr]; !duplicate {
+			nodeMgmtIP := net.ParseIP(ipAddr)
+			if nodeMgmtIP != nil {
+				nodeIPs = append(nodeIPs, nodeMgmtIP)
+			}
+		}
+		addedNodeIPs[ipAddr] = struct{}{}
+	}
+
+	return nodeIPs
+}
+
+func (sp *ServiceProcessor) trimIPAddrPrefix(ip string) string {
+	if strings.Contains(ip, "/") {
+		return ip[:strings.Index(ip, "/")]
+	}
+	return ip
 }
 
 func (sp *ServiceProcessor) processResyncEvent(resyncEv *ResyncEventData) error {
@@ -378,7 +417,10 @@ func (sp *ServiceProcessor) processResyncEvent(resyncEv *ResyncEventData) error 
 
 	// Re-build the current state.
 	confResyncEv := configurator.NewResyncEventData()
-	confResyncEv.NodeInternalIP = resyncEv.NodeInternalIP
+
+	// Replace the map of node IDs & IP addresses.
+	sp.nodes = resyncEv.Nodes
+	confResyncEv.NodeIPs = sp.getNodeIPs()
 
 	// Try to get Node IP.
 	nodeIP, nodeNet := sp.Contiv.GetNodeIP()
@@ -543,16 +585,4 @@ func (sp *ServiceProcessor) getInterfaceIPs(ifName string) []InterfaceIPAddress 
 		networks = append(networks, InterfaceIPAddress{IP: ip, Network: ipNet})
 	}
 	return networks
-}
-
-// getNodeInternalIP extracts internal node IP from the K8s node data.
-func (sp *ServiceProcessor) getNodeInternalIP(node *nodemodel.Node) net.IP {
-	var internalIP string
-	for i := range node.Addresses {
-		if node.Addresses[i].Type == nodemodel.NodeAddress_NodeInternalIP {
-			internalIP = node.Addresses[i].Address
-			return net.ParseIP(internalIP)
-		}
-	}
-	return nil
 }

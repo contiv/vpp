@@ -18,20 +18,49 @@ package processor
 
 import (
 	"github.com/ligato/cn-infra/datasync"
+	"strconv"
+	"strings"
 
+	"github.com/contiv/vpp/plugins/contiv"
+	nodemodel "github.com/contiv/vpp/plugins/contiv/model/node"
 	epmodel "github.com/contiv/vpp/plugins/ksr/model/endpoints"
-	nodemodel "github.com/contiv/vpp/plugins/ksr/model/node"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	svcmodel "github.com/contiv/vpp/plugins/ksr/model/service"
 )
 
 func (sc *ServiceProcessor) propagateDataChangeEv(dataChngEv datasync.ChangeEvent) error {
 	var diff bool
+	var err error
 	key := dataChngEv.GetKey()
 	sc.Log.Debug("Received CHANGE key ", key)
 
+	// Process Node CHANGE event
+	if strings.HasPrefix(key, contiv.AllocatedIDsKeyPrefix) {
+		var value, prevValue nodemodel.NodeInfo
+
+		if err = dataChngEv.GetValue(&value); err != nil {
+			return err
+		}
+
+		if diff, err = dataChngEv.GetPrevValue(&prevValue); err != nil {
+			return err
+		}
+
+		if datasync.Delete == dataChngEv.GetChangeType() {
+			nodeIDStr := strings.TrimPrefix(key, contiv.AllocatedIDsKeyPrefix)
+			nodeID, err := strconv.Atoi(nodeIDStr)
+			if err != nil {
+				return err
+			}
+			return sc.processDeletedNode(nodeID)
+		} else if diff {
+			return sc.processUpdatedNode(&value)
+		}
+		return sc.processNewNode(&value)
+	}
+
 	// Process Pod CHANGE event
-	_, _, err := podmodel.ParsePodFromKey(key)
+	_, _, err = podmodel.ParsePodFromKey(key)
 	if err == nil {
 		var value, prevValue podmodel.Pod
 
@@ -90,28 +119,6 @@ func (sc *ServiceProcessor) propagateDataChangeEv(dataChngEv datasync.ChangeEven
 			return sc.processUpdatedService(&value)
 		}
 		return sc.processNewService(&value)
-	}
-
-	// Process Node CHANGE event
-	nodeName, err := nodemodel.ParseNodeFromKey(key)
-	if err == nil && nodeName == sc.ServiceLabel.GetAgentLabel() {
-		var value, prevValue nodemodel.Node
-
-		if err = dataChngEv.GetValue(&value); err != nil {
-			return err
-		}
-
-		if diff, err = dataChngEv.GetPrevValue(&prevValue); err != nil {
-			return err
-		}
-
-		if datasync.Delete == dataChngEv.GetChangeType() {
-			sc.Log.Warn("Unexpected delete for node data received")
-			return nil
-		} else if diff {
-			return sc.processUpdatedNode(&value)
-		}
-		return sc.processNewNode(&value)
 	}
 
 	return nil

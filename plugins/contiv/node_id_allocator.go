@@ -30,8 +30,11 @@ import (
 )
 
 const (
-	allocatedIDsKeyPrefix = "allocatedIDs/"
-	maxAttempts           = 10
+	// AllocatedIDsKeyPrefix is a key prefix used in ETCD to store information
+	// about node ID and its IP addresses.
+	AllocatedIDsKeyPrefix = "allocatedIDs/"
+
+	maxAttempts = 10
 )
 
 var (
@@ -195,7 +198,7 @@ func (ia *idAllocator) writeIfNotExists(id uint32) (succeeded bool, err error) {
 // to the serviceLabel
 func (ia *idAllocator) findExistingEntry(broker keyval.ProtoBroker) (id *node.NodeInfo, err error) {
 	var existingEntry *node.NodeInfo
-	it, err := broker.ListValues(allocatedIDsKeyPrefix)
+	it, err := broker.ListValues(AllocatedIDsKeyPrefix)
 	if err != nil {
 		return nil, err
 	}
@@ -239,7 +242,7 @@ func findFirstAvailableIndex(ids []int) int {
 
 // listAllIDs returns slice that contains allocated ids i.e.: ids assigned to a node
 func listAllIDs(broker keyval.ProtoBroker) (ids []int, err error) {
-	it, err := broker.ListKeys(allocatedIDsKeyPrefix)
+	it, err := broker.ListKeys(AllocatedIDsKeyPrefix)
 	if err != nil {
 		return nil, err
 	}
@@ -263,8 +266,8 @@ func listAllIDs(broker keyval.ProtoBroker) (ids []int, err error) {
 }
 
 func extractIndexFromKey(key string) (int, error) {
-	if strings.HasPrefix(key, allocatedIDsKeyPrefix) {
-		return strconv.Atoi(strings.Replace(key, allocatedIDsKeyPrefix, "", 1))
+	if strings.HasPrefix(key, AllocatedIDsKeyPrefix) {
+		return strconv.Atoi(strings.Replace(key, AllocatedIDsKeyPrefix, "", 1))
 
 	}
 	return 0, errInvalidKey
@@ -272,5 +275,5 @@ func extractIndexFromKey(key string) (int, error) {
 
 func createKey(index uint32) string {
 	str := strconv.FormatUint(uint64(index), 10)
-	return allocatedIDsKeyPrefix + str
+	return AllocatedIDsKeyPrefix + str
 }

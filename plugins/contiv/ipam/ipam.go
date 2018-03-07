@@ -20,6 +20,7 @@ import (
 	"net"
 	"sync"
 
+	"github.com/ligato/cn-infra/db/keyval"
 	"github.com/ligato/cn-infra/logging"
 )
 
@@ -35,7 +36,8 @@ type IPAM struct {
 	logger logging.Logger
 	mutex  sync.RWMutex
 
-	nodeID uint8 // identifier of the node for which this IPAM is created for
+	nodeID uint8              // identifier of the node for which this IPAM is created for
+	broker keyval.ProtoBroker // broker that is used for persisting
 
 	// POD related variables
 	podSubnetIPPrefix   net.IPNet        // IPv4 subnet from which individual POD networks are allocated, this is subnet for all PODs across all nodes
@@ -76,12 +78,13 @@ type Config struct {
 }
 
 // New returns new IPAM module to be used on the node specified by the nodeID.
-func New(logger logging.Logger, nodeID uint8, config *Config) (*IPAM, error) {
+func New(logger logging.Logger, nodeID uint8, config *Config, broker keyval.ProtoBroker) (*IPAM, error) {
 	// create basic IPAM
 	ipam := &IPAM{
 		logger:       logger,
 		nodeID:       nodeID,
 		lastAssigned: 1,
+		broker:       broker,
 	}
 
 	// computing IPAM struct variables from IPAM config
@@ -303,8 +306,13 @@ func (i *IPAM) tryToAllocatePodIP(index int, networkPrefix uint32, podID string)
 	if _, found := i.assignedPodIPs[ip]; found {
 		return nil, false // ignore already assigned IP addresses
 	}
+	err := i.saveAssignedIP(ip, podID)
+	if err != nil {
+		i.logger.Error(err)
+		return nil, false
+	}
+
 	i.assignedPodIPs[ip] = podID
-	//TODO set etcd for new assigned value
 
 	ipForAssign := uint32ToIpv4(ip)
 	i.logger.Infof("Assigned new pod IP %s", ipForAssign)
@@ -327,8 +335,11 @@ func (i *IPAM) ReleasePodIP(podID string) error {
 	if err != nil {
 		return fmt.Errorf("Can't release pod IP: %v", err)
 	}
+	err = i.deleteAssignedIP(podID)
+	if err != nil {
+		return err
+	}
 	delete(i.assignedPodIPs, ip)
-	//TODO remove from etcd (if inside etcd)
 
 	i.logger.Infof("Released IP %v for pod ID %v", uint32ToIpv4(ip), podID)
 	i.logAssignedPodIPPool()
@@ -347,8 +358,8 @@ func initializePodsIPAM(ipam *IPAM, config *Config, nodeID uint8) (err error) {
 		return
 	}
 	ipam.podNetworkGatewayIP = uint32ToIpv4(podNetworkPrefixUint32 + podGatewaySeqID)
-	ipam.assignedPodIPs = make(map[uintIP]podID) // TODO: load allocated IP addresses from ETCD (failover use case)
-	return
+	ipam.assignedPodIPs = make(map[uintIP]podID)
+	return ipam.loadAssignedIPs()
 }
 
 // initializeVPPHostIPAM initializes VPP-host interconnect -related variables of IPAM.

@@ -26,6 +26,7 @@ data:
     UseTAPInterfaces: true
     TAPInterfaceVersion: 1
     NatExternalTraffic: true
+    MTUSize: 1500
     IPAMConfig:
       PodSubnetCIDR: 10.1.0.0/16
       PodNetworkPrefixLen: 24
@@ -35,7 +36,6 @@ data:
       NodeInterconnectCIDR: 192.168.16.0/24
       VxlanCIDR: 192.168.30.0/24
       NodeInterconnectDHCP: False
-      MTUSize: 1500
   logs.conf: |
     defaultlevel: debug
 
@@ -197,10 +197,13 @@ spec:
           then
                ip link del vpp1
           fi
+          cp -f /usr/local/bin/vppctl /host/usr/local/bin/vppctl
         resources: {}
         securityContext:
           privileged: true
         volumeMounts:
+          - name: usr-local-bin
+            mountPath: /host/usr/local/bin
           - name: vpp-lib64
             mountPath: /vpp-lib64/
           - name: vpp-cfg
@@ -283,6 +286,10 @@ spec:
         - name: vpp-cfg
           hostPath:
             path: /etc/vpp
+        # To install vppctl.
+        - name: usr-local-bin
+          hostPath:
+            path: /usr/local/bin
         # LD_PRELOAD library.
         - name: vpp-lib64
           hostPath:

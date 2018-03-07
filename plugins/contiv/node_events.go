@@ -65,7 +65,7 @@ func (s *remoteCNIserver) nodeResync(dataResyncEv datasync.ResyncEvent) error {
 	data := dataResyncEv.GetValues()
 
 	for prefix, it := range data {
-		if prefix == allocatedIDsKeyPrefix {
+		if prefix == AllocatedIDsKeyPrefix {
 			for {
 				kv, stop := it.GetNext()
 				if stop {
@@ -109,7 +109,7 @@ func (s *remoteCNIserver) nodeChangePropageteEvent(dataChngEv datasync.ChangeEve
 	key := dataChngEv.GetKey()
 	var err error
 
-	if strings.HasPrefix(key, allocatedIDsKeyPrefix) {
+	if strings.HasPrefix(key, AllocatedIDsKeyPrefix) {
 		nodeInfo := &node.NodeInfo{}
 		err = dataChngEv.GetValue(nodeInfo)
 		if err != nil {

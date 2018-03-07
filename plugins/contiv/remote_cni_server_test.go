@@ -525,7 +525,7 @@ func (e nodeAddDelEvent) GetChangeType() datasync.PutDel {
 }
 
 func (e nodeAddDelEvent) GetKey() string {
-	return allocatedIDsKeyPrefix
+	return AllocatedIDsKeyPrefix
 }
 
 func (e nodeAddDelEvent) GetValue(value proto.Message) error {

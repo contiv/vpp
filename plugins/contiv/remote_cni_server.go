@@ -291,8 +291,11 @@ func (s *remoteCNIserver) configureVswitchConnectivity() error {
 
 	// only apply the config if resync hasn't done it already
 	if _, _, found := s.swIfIndex.LookupIdx(expectedIfName); found {
-		s.Logger.Info("VSwitch connectivity is considered configured, skipping...")
-		config.configured = true
+		if !s.config.StealTheNIC && (s.nodeConfig == nil || s.nodeConfig.StealInterface == "") {
+			// TODO: use something else to match the STN case
+			s.Logger.Info("VSwitch connectivity is considered configured, skipping...")
+			config.configured = true
+		}
 	}
 
 	// configure physical NIC

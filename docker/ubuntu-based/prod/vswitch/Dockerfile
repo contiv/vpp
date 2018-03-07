@@ -27,11 +27,9 @@ ADD binaries/ldpreload.tar.gz $LD_PRELOAD_LIB_DIR
 # rename defualt VPP startup config to contiv-vswitch.conf
 RUN mv /etc/vpp/vpp.conf /etc/vpp/contiv-vswitch.conf
 
-# add supervisord config file
-COPY vswitch/supervisord.conf /etc/supervisord.conf
-
-# add govpp config file
 COPY vswitch/govpp.conf /etc/govpp/govpp.conf
+COPY vswitch/supervisord.conf /etc/supervisord.conf
+COPY vswitch/vppctl /usr/local/bin/vppctl
 
 # run supervisord as the default executable
 CMD ["/usr/bin/supervisord", "-c", "/etc/supervisord.conf"]

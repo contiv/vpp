@@ -55,9 +55,12 @@ Finally, you need to set up the vswitch to use the network adapters:
 - [Setup on a node with a single NIC][14]
 - [Setup a node with multiple NICs][15]
 
-## Using Kubeadm to install Kubernetes
+### Using a node setup script
+You can perform the above steps using the [node setup script][17].
+
+## Installing Kubernetes with Contiv-vpp CNI plugin
 After the nodes you will be using in your K8s cluster are prepared, you can 
-install the cluster using kubeadm.
+install the cluster using [kubeadm][1].
 
 ### (1/4) Installing Kubeadm on your hosts
 For first-time installation, see [Installing kubeadm][6]. To update an
@@ -419,6 +422,7 @@ kubeadm reset
 kubeadm init --token-ttl 0
 ```
 
+[1]: https://kubernetes.io/docs/setup/independent/create-cluster-kubeadm/
 [3]: https://kubernetes.io/docs/setup/independent/create-cluster-kubeadm/#initializing-your-master
 [4]: https://kubernetes.io/docs/setup/independent/create-cluster-kubeadm/#pod-network
 [5]: https://kubernetes.io/docs/setup/independent/create-cluster-kubeadm/#joining-your-nodes
@@ -431,4 +435,5 @@ kubeadm init --token-ttl 0
 [13]: VMWARE_FUSION_HOST.md
 [14]: SINGLE_NIC_SETUP.md
 [15]: MULTI_NIC_SETUP.md
-[16]: SINGLE_NIC_SETUP.md
+[16]: SINGLE_NIC_SETUP.md#configuring-stn-in-contiv-vpp-k8s-deployment-files
+[17]: ../k8s/README.md#setup-node-sh

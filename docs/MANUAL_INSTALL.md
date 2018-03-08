@@ -82,7 +82,7 @@ kubeadm init --token-ttl 0 --pod-network-cidr=10.1.0.0/16
 **Note:** The CIDR specified with the flag `--pod-network-cidr` is used by 
 kube-proxy, and it **must match** the `PodSubnetCIDR` parameter in the 
 `IPAMConfig` section in the Contiv-vpp config map in its deployment file 
-([contiv-vpp.yaml YAML file](../k8s/contiv-vpp.yaml)). Pods in the host 
+([contiv-vpp.yaml](../k8s/contiv-vpp.yaml)). Pods in the host 
 network namespace are special case; they share interfaces and their IP 
 addresses with the host. For services with backends running on the host
 it is therefore required to select their IP address from the `PodSubnetCIDR`

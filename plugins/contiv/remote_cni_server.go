@@ -897,9 +897,8 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 	// prepare config details struct
 	extraArgs := s.parseCniExtraArgs(request.ExtraArguments)
 	config := &PodConfig{
-		NetworkNamespace: request.NetworkNamespace,
-		PodName:          extraArgs[podNameExtraArg],
-		PodNamespace:     extraArgs[podNamespaceExtraArg],
+		PodName:      extraArgs[podNameExtraArg],
+		PodNamespace: extraArgs[podNamespaceExtraArg],
 	}
 
 	// assign an IP address for this POD
@@ -934,7 +933,7 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 
 	// store configuration internally for other plugins in the internal map
 	if s.configuredContainers != nil {
-		err = s.configuredContainers.RegisterContainer(request.ContainerId, podConfigToProto(config))
+		err = s.configuredContainers.RegisterContainer(config.PodName+config.PodNamespace, podConfigToProto(config))
 		if err != nil {
 			s.Logger.Error(err)
 			return s.generateCniErrorReply(err)
@@ -964,8 +963,9 @@ func (s *remoteCNIserver) unconfigureContainerConnectivity(request *cni.CNIReque
 		return s.generateCniEmptyOKReply(), nil
 	}
 
+	extraArg := s.parseCniExtraArgs(request.ExtraArguments)
 	// load container config
-	config, found := s.configuredContainers.LookupContainer(request.ContainerId)
+	config, found := s.configuredContainers.LookupContainer(extraArg[podNameExtraArg] + extraArg[podNamespaceExtraArg])
 	if !found {
 		s.Logger.Warnf("cannot find configuration for container: %s\n", request.ContainerId)
 		reply := s.generateCniEmptyOKReply()

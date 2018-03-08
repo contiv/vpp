@@ -278,12 +278,20 @@ func (s *remoteCNIserver) configureVswitchConnectivity() error {
 	s.Logger.Info("Applying base vSwitch config.")
 	s.Logger.Info("Existing interfaces: ", s.swIfIndex.GetMapping().ListNames())
 
+	// determine interface name that can be used to check whether vswitch connectivity is already configured
 	var expectedIfName string
-	// TODO: check stn case
 	if s.useTAPInterfaces {
 		expectedIfName = TapVPPEndLogicalName
 	} else {
 		expectedIfName = s.interconnectAfpacketName()
+	}
+	if s.config.StealTheNIC || (s.nodeConfig != nil || s.nodeConfig.StealInterface != "") {
+		// For STN case, do not rely on TAP interconnect, since it has been pre-configured by contiv-init.
+		// Let's relay on VXLAN BVI interface name. Note that this may not work in case that VXLANs are disabled.
+		expectedIfName = vxlanBVIInterfaceName
+		if s.config.UseL2Interconnect {
+			s.Logger.Warn("Unable to reliably determine whether VSwitch connectivity is configured, proceeeding with config.")
+		}
 	}
 
 	// prepare empty vswitch config struct to be filled in
@@ -291,11 +299,8 @@ func (s *remoteCNIserver) configureVswitchConnectivity() error {
 
 	// only apply the config if resync hasn't done it already
 	if _, _, found := s.swIfIndex.LookupIdx(expectedIfName); found {
-		if !s.config.StealTheNIC && (s.nodeConfig == nil || s.nodeConfig.StealInterface == "") {
-			// TODO: use something else to match the STN case
-			s.Logger.Info("VSwitch connectivity is considered configured, skipping...")
-			config.configured = true
-		}
+		s.Logger.Info("VSwitch connectivity is considered configured, skipping...")
+		config.configured = true
 	}
 
 	// configure physical NIC

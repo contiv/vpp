@@ -34,6 +34,8 @@ import (
 
 // PodConfig groups applied configuration for a container
 type PodConfig struct {
+	// ID identifies the Pod
+	ID string
 	// PodName from the CNI request
 	PodName string
 	// PodNamespace from the CNI request
@@ -74,7 +76,7 @@ type PodConfig struct {
 // Beware: Intentionally not all data from config will be persisted, only necessary ones.
 func podConfigToProto(cfg *PodConfig) *container.Persisted {
 	persisted := &container.Persisted{}
-	persisted.ID = cfg.PodName + cfg.PodNamespace
+	persisted.ID = cfg.ID
 	persisted.PodName = cfg.PodName
 	persisted.PodNamespace = cfg.PodNamespace
 	if cfg.Veth1 != nil {

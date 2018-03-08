@@ -183,7 +183,7 @@ func TestAddDelVeth(t *testing.T) {
 
 	res := configuredContainers.LookupPodName(podName)
 	gomega.Expect(len(res)).To(gomega.BeEquivalentTo(1))
-	gomega.Expect(res).To(gomega.ContainElement(podName + podNamespace))
+	gomega.Expect(res).To(gomega.ContainElement(containerID))
 
 	txns.Clear()
 
@@ -236,7 +236,7 @@ func TestAddDelTap(t *testing.T) {
 
 	res := configuredContainers.LookupPodName(podName)
 	gomega.Expect(len(res)).To(gomega.BeEquivalentTo(1))
-	gomega.Expect(res).To(gomega.ContainElement(podName + podNamespace))
+	gomega.Expect(res).To(gomega.ContainElement(containerID))
 
 	txns.Clear()
 

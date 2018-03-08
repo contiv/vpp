@@ -904,7 +904,8 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 		PodNamespace: extraArgs[podNamespaceExtraArg],
 	}
 
-	id := extraArgs[podNameExtraArg] + extraArgs[podNamespaceExtraArg]
+	id := request.ContainerId
+	config.ID = id
 
 	// assign an IP address for this POD
 	podIP, err := s.ipam.NextPodIP(id)
@@ -968,8 +969,7 @@ func (s *remoteCNIserver) unconfigureContainerConnectivity(request *cni.CNIReque
 		return s.generateCniEmptyOKReply(), nil
 	}
 
-	extraArg := s.parseCniExtraArgs(request.ExtraArguments)
-	id := extraArg[podNameExtraArg] + extraArg[podNamespaceExtraArg]
+	id := request.ContainerId
 	// load container config
 	config, found := s.configuredContainers.LookupContainer(id)
 	if !found {

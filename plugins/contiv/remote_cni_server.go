@@ -285,7 +285,7 @@ func (s *remoteCNIserver) configureVswitchConnectivity() error {
 	} else {
 		expectedIfName = s.interconnectAfpacketName()
 	}
-	if s.config.StealTheNIC || (s.nodeConfig != nil || s.nodeConfig.StealInterface != "") {
+	if s.config.StealTheNIC || (s.nodeConfig != nil && s.nodeConfig.StealInterface != "") {
 		// For STN case, do not rely on TAP interconnect, since it has been pre-configured by contiv-init.
 		// Let's relay on VXLAN BVI interface name. Note that this may not work in case that VXLANs are disabled.
 		expectedIfName = vxlanBVIInterfaceName

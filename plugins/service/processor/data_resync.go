@@ -18,13 +18,14 @@ package processor
 
 import (
 	"fmt"
-	"net"
+	"strings"
 
 	"github.com/ligato/cn-infra/datasync"
 	"github.com/ligato/cn-infra/logging"
 
+	"github.com/contiv/vpp/plugins/contiv"
+	nodemodel "github.com/contiv/vpp/plugins/contiv/model/node"
 	epmodel "github.com/contiv/vpp/plugins/ksr/model/endpoints"
-	nodemodel "github.com/contiv/vpp/plugins/ksr/model/node"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	svcmodel "github.com/contiv/vpp/plugins/ksr/model/service"
 )
@@ -32,15 +33,16 @@ import (
 // ResyncEventData wraps an entire state of K8s services that should be reflected
 // into VPP.
 type ResyncEventData struct {
-	NodeInternalIP net.IP
-	Pods           []*podmodel.Pod
-	Endpoints      []*epmodel.Endpoints
-	Services       []*svcmodel.Service
+	Nodes     map[int]*nodemodel.NodeInfo
+	Pods      []*podmodel.Pod
+	Endpoints []*epmodel.Endpoints
+	Services  []*svcmodel.Service
 }
 
 // NewResyncEventData creates an empty instance of ResyncEventData.
 func NewResyncEventData() *ResyncEventData {
 	return &ResyncEventData{
+		Nodes:     make(map[int]*nodemodel.NodeInfo),
 		Pods:      []*podmodel.Pod{},
 		Endpoints: []*epmodel.Endpoints{},
 		Services:  []*svcmodel.Service{},
@@ -70,16 +72,17 @@ func (red ResyncEventData) String() string {
 			services += ", "
 		}
 	}
-	return fmt.Sprintf("ResyncEventData <NodeInternalIP:%s Pods:[%s] Endpoint:[%s] Services:[%s]>",
-		red.NodeInternalIP.String(), pods, endpoints, services)
+	return fmt.Sprintf("ResyncEventData <Nodes:%v Pods:[%s] Endpoint:[%s] Services:[%s]>",
+		red.Nodes, pods, endpoints, services)
 }
 
 func (sc *ServiceProcessor) parseResyncEv(resyncEv datasync.ResyncEvent) *ResyncEventData {
 	var (
-		numPod int
-		numEps int
-		numSvc int
-		err    error
+		numNodes int
+		numPod   int
+		numEps   int
+		numSvc   int
+		err      error
 	)
 
 	event := NewResyncEventData()
@@ -94,6 +97,17 @@ func (sc *ServiceProcessor) parseResyncEv(resyncEv datasync.ResyncEvent) *Resync
 				break
 			}
 			key := evData.GetKey()
+
+			// Parse node RESYNC event
+			if strings.HasPrefix(key, contiv.AllocatedIDsKeyPrefix) {
+				value := &nodemodel.NodeInfo{}
+				err := evData.GetValue(value)
+				if err == nil {
+					event.Nodes[int(value.Id)] = value
+					numNodes++
+				}
+				continue
+			}
 
 			// Parse pod RESYNC event
 			_, _, err = podmodel.ParsePodFromKey(key)
@@ -130,25 +144,14 @@ func (sc *ServiceProcessor) parseResyncEv(resyncEv datasync.ResyncEvent) *Resync
 				}
 				continue
 			}
-
-			// Parse node RESYNC event
-			nodeName, err := nodemodel.ParseNodeFromKey(key)
-			if err == nil && nodeName == sc.ServiceLabel.GetAgentLabel() {
-				value := &nodemodel.Node{}
-				err := evData.GetValue(value)
-				if err == nil {
-					event.NodeInternalIP = sc.getNodeInternalIP(value)
-				}
-				continue
-			}
 		}
 	}
 
 	sc.Log.WithFields(logging.Fields{
-		"num-pods":         numPod,
-		"num-endpoints":    numEps,
-		"num-services":     numSvc,
-		"node-internal-IP": event.NodeInternalIP,
+		"num-nodes":     numNodes,
+		"num-pods":      numPod,
+		"num-endpoints": numEps,
+		"num-services":  numSvc,
 	}).Debug("Parsed RESYNC event")
 
 	return event

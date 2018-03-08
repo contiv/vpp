@@ -1,95 +1,43 @@
-## Manual Installation
+# Manual Installation
 This document describes hot to use [kubeadm][1] to manually install Kubernetes
 with Contiv-VPP networking on one or more bare metal or VM hosts. 
 
-### (1/4) Preparing your hosts
+## Preparing your hosts
 
-#### 1.0 (Optional): Prepare a VmWare Fusion host
-The vmxnet3 driver is required on GigE Network Adapter used by VPP. On VmWare
-Fusion, the default Network Adapter driver is Intel 82545EM (e1000), and there
-is no GUI to change it to vmxnet3. The change must be done manually in the VM's
-configuration file as follows:
+### Host-specific configurations
+- **VmWare VMs**: the vmxnet3 driver is required on each interface that will
+  be used by VPP. Please see [here][13] for instructions how to install the 
+  vmxnet3 driver on VmWare Fusion.
+  
+### Setting up Network Adapter(s)
+#### Setting up DPDK
+DPDK setup must be completed **on each node** as follows:
 
-- Bring up the VM library window: 'Window -> Virtual Machine Library'
-- Right click on the VM where you want to change the driver:
-  '<VM-Name> -> Show in Finder'. This pops up a new Finder window with a line
-  for each VM that Fusion knows about.
-- Right click on the VM where you want to change the driver:
-  '<VM-Name> -> Show package contents'. This brings up a window with the 
-  contents of the package.
-- Open the file '<VM-Name>.vmx' with your favorite text editor
-- For each Network Adapter that you want to be used by VPP, look for the 
-  Network Adapter's driver configuration. For example, for the VM's first
-  Network Adapter look for:
+- Load the PCI UIO driver:
   ```
-  ethernet0.virtualDev = "e1000"
+  $ sudo modprobe uio_pci_generic
   ```
-  Replace `e1000` with `vmxnet3`:
+
+- Verify that the PCI UIO driver has loaded successfully:
   ```
-  ethernet0.virtualDev = "vmxnet3"
+  $ lsmod | grep uio
+  uio_pci_generic        16384  0
+  uio                    20480  1 uio_pci_generic
   ```
-and restart the VM.
 
-If you replaced the driver on your VM's primary Network Adapter, you will 
-have to change the primary network interface configuration in Linux. First,
-get the new primary network interface name:
-```
-sudo lshw -class network -businfo
-
-Bus info          Device      Class          Description
-========================================================
-pci@0000:03:00.0  ens160      network        VMXNET3 Ethernet Controller
-```
-Replace the existing primary network interface name in `/etc/network/interfaces`
-with the above device name:
-```
-# This file describes the network interfaces available on your system
-# and how to activate them. For more information, see interfaces(5).
-
-source /etc/network/interfaces.d/*
-
-# The loopback network interface
-auto lo
-iface lo inet loopback
-
-# The primary network interface
-auto ens160
-iface ens160 inet dhcp
-```
-
-#### 1.1: Installing kubeadm on your hosts
-For first-time installation, see [Installing kubeadm][6]. To update an
-existing installation,  you should do a `apt-get update && apt-get upgrade`
-or `yum update` to get the latest version of kubeadm.
-
-#### 1.2 (Optional): Setting up DPDK and VPP in multi-node deployments
-In order to enable multinode pod-to-pod communication via VPP, you need to
-complete this DPDK setup **on each node**.
-
-Load the PCI UIO driver:
-```
-$ sudo modprobe uio_pci_generic
-```
-
-Verify that the PCI UIO driver has loaded successfully:
-```
-$ lsmod | grep uio
-uio_pci_generic        16384  0
-uio                    20480  1 uio_pci_generic
-```
-Please note that this driver needs to be loaded upon each server bootup, so
-you may want to add `uio_pci_generic` into the `/etc/modules` file, or a file
-in the `/etc/modules-load.d/` directory. For example, the `/etc/modules` file
-could look as follows:
-```
-# /etc/modules: kernel modules to load at boot time.
-#
-# This file contains the names of kernel modules that should be loaded
-# at boot time, one per line. Lines beginning with "#" are ignored.
-uio_pci_generic
-```
-
-Now you need to find out the PCI address of the network interface that
+  Please note that this driver needs to be loaded upon each server bootup,
+  so you may want to add `uio_pci_generic` into the `/etc/modules` file, 
+  or a file in the `/etc/modules-load.d/` directory. For example, the 
+  `/etc/modules` file could look as follows:
+  ```
+  # /etc/modules: kernel modules to load at boot time.
+  #
+  # This file contains the names of kernel modules that should be loaded
+  # at boot time, one per line. Lines beginning with "#" are ignored.
+  uio_pci_generic
+  ```
+#### Determining Network Adapter PCI addresses
+You need to find out the PCI address of the network interface that
 you want VPP to use for multi-node pod interconnect. On Debian-based
 distributions, you can use `lshw`:
 
@@ -101,85 +49,24 @@ pci@0000:00:03.0  ens3        network    Virtio network device
 pci@0000:00:04.0  ens4        network    Virtio network device
 ```
 
-In our case, it would be the `ens4` interface with the PCI address
-`0000:00:04.0`.
+#### Setting up the vswitch to use Network Adapters
+Finally, you need to set up the vswitch to use the network adapters:
 
-Now, make sure that the selected interface is shut down, otherwise VPP
-would not grab it:
-```
-sudo ip link set ens4 down
-```
+- [Setup on a node with a single NIC][14]
+- [Setup a node with multiple NICs][15]
 
-Now, add, or modify the VPP startup config file in `/etc/vpp/contiv-vswitch.conf`
-to contain the proper PCI address:
-```
-unix {
-    nodaemon
-    cli-listen /run/vpp/cli.sock
-    cli-no-pager
-}
-dpdk {
-    dev 0000:00:04.0
-}
-```
-#### 1.3 (Optional): Setting up custom management network on multi-homed nodes
-If the interface you use for Kubernetes management traffic (for example, the
-IP address used for `kubeadm join`) is not the one that contains the default
-route out of the host, you need to specify the management node IP address in
-the Kubelet config file. Add the following line to
-(`/etc/systemd/system/kubelet.service.d/10-kubeadm.conf`):
-```
-Environment="KUBELET_EXTRA_ARGS=--fail-swap-on=false --node-ip=<node-management-ip-address>"
-```
-##### Example:
-Consider a 2 node deployment where each node is connected to 2 networks -
-`10.0.2.0/24` and `192.168.56.0/24`, and the default route on each node points
-to the interface connected to the `10.0.2.0/24` subnet. We want to use subnet
-`192.168.56.0/24` for Kubernetes management traffic. Assume the addresses of
-nodes connected to `192.168.56.0/24` are `192.168.56.105` and `192.168.56.106`.
+## Using Kubeadm to install Kubernetes
+After the nodes you will be using in your K8s cluster are prepared, you can 
+install the cluster using kubeadm.
 
-On the `192.168.56.105` node you add the following line to `10-kubeadm.conf`:
-```
-Environment="KUBELET_EXTRA_ARGS=--fail-swap-on=false --node-ip=192.168.56.105"
-```
-On the `192.168.56.106` node you add the following line to `10-kubeadm.conf`:
-```
-Environment="KUBELET_EXTRA_ARGS=--fail-swap-on=false --node-ip=192.168.56.106"
-```
+### (1/4) Installing Kubeadm on your hosts
+For first-time installation, see [Installing kubeadm][6]. To update an
+existing installation,  you should do a `apt-get update && apt-get upgrade`
+or `yum update` to get the latest version of kubeadm.
 
-#### 1.4 (Optional): Installing the STN daemon on your hosts
-If you plan to use the "Steal the NIC" feature (STN), for deployments
-on nodes with just single network interface, you must first install the
-STN daemon on each host of the k8s cluster. The STN daemon installation
-should be performed before deployment of the Contiv-VPP plugin.
-
-Run as root (not using sudo):
-```
-bash <(curl -s https://raw.githubusercontent.com/contiv/vpp/master/k8s/stn-install.sh)
-```
-
-#### 1.5 (Optional): Installing the CRI Shim on your hosts
-If your pods will be using the VPP TCP/IP stack, you must first install the
-CRI Shim on each host where the stack will be used. The CRI Shim installation
-should only be performed after `kubelet`, `kubeadm` and `kubectl` have already
-been [installed][2].
-
-Run as root (not using sudo):
-```
-bash <(curl -s https://raw.githubusercontent.com/contiv/vpp/master/k8s/cri-install.sh)
-```
-Note that the CRI Shim installer has only been tested  with the [kubeadm][1]
-K8s cluster creation tool.
-
-
-After installing the CRI Shim, please proceed with cluster initialization,
-as described in the steps below. Alternatively, if the cluster had already
-been initialized before installing the CRI Shim, just reboot the node.
-
-The steps 1.2 - 1.5 can be set up interactively using [script](../k8s/setup-node.sh).
-```
-bash <(curl https://raw.githubusercontent.com/contiv/vpp/master/k8s/setup-node.sh)
-```
+On each host with multiple NICs where the NIC that will be used for Kubernetes
+management traffic is not the one pointed to by the default route out of the 
+host, a [custom management network][12] for Kubernetes must be configured.
 
 ### (2/4) Initializing your master
 Before initializing the master, you may want to [tear down][8] up any
@@ -218,9 +105,21 @@ bash <(curl -s https://raw.githubusercontent.com/contiv/vpp/master/k8s/pull-imag
 ```
 
 Install the Contiv-VPP network for your cluster as follows:
-```
-kubectl apply -f https://raw.githubusercontent.com/contiv/vpp/master/k8s/contiv-vpp.yaml
-```
+
+- If you do not use the STN feature, install Contiv-vpp as follows: 
+  ```
+  kubectl apply -f https://raw.githubusercontent.com/contiv/vpp/master/k8s/contiv-vpp.yaml
+  ```
+  
+- If you use the STN feature, download the `contiv-vpp.yaml` file:
+  ```
+  wget https://raw.githubusercontent.com/contiv/vpp/master/k8s/contiv-vpp.yaml
+  ```
+  Then edit the STN configuration as described [here][16]. Finally, create 
+  the Contiv-vpp deployment from the edited file:
+  ```
+  kubectl apply -f ./contiv-vpp.yaml
+  ``` 
 
 #### Deployment Verification
 After some time, all contiv containers should enter the running state:
@@ -512,14 +411,16 @@ kubeadm reset
 kubeadm init --token-ttl 0
 ```
 
-[1]: https://kubernetes.io/docs/setup/independent/create-cluster-kubeadm/
-[2]: https://kubernetes.io/docs/setup/independent/install-kubeadm/#installing-kubeadm-kubelet-and-kubectl
 [3]: https://kubernetes.io/docs/setup/independent/create-cluster-kubeadm/#initializing-your-master
 [4]: https://kubernetes.io/docs/setup/independent/create-cluster-kubeadm/#pod-network
 [5]: https://kubernetes.io/docs/setup/independent/create-cluster-kubeadm/#joining-your-nodes
 [6]: https://kubernetes.io/docs/setup/independent/install-kubeadm/
-[7]: MULTINODE.md
 [8]: #tear-down
 [9]: #installing-the-cri-shim-on-your-hosts
 [10]: #setting-up-custom-management-network-on-multi-homed-nodes
 [11]: ../vagrant/README.md
+[12]: CUSTOM_MGMT_NETWORK.md
+[13]: VMWARE_FUSION_HOST.md
+[14]: SINGLE_NIC_SETUP.md
+[15]: MULTI_NIC_SETUP.md
+[16]: SINGLE_NIC_SETUP.md

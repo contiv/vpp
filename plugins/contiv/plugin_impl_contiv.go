@@ -154,7 +154,7 @@ func (plugin *Plugin) Init() error {
 	plugin.resyncCh = make(chan datasync.ResyncEvent)
 	plugin.changeCh = make(chan datasync.ChangeEvent)
 
-	plugin.nodeIDwatchReg, err = plugin.Watcher.Watch("contiv-plugin-ids", plugin.nodeIDSchangeChan, plugin.nodeIDsresyncChan, allocatedIDsKeyPrefix)
+	plugin.nodeIDwatchReg, err = plugin.Watcher.Watch("contiv-plugin-ids", plugin.nodeIDSchangeChan, plugin.nodeIDsresyncChan, AllocatedIDsKeyPrefix)
 	if err != nil {
 		return err
 	}

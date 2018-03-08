@@ -21,24 +21,24 @@ IMAGE=${1}
 
 # run the dev image as the "extract" container
 echo "extracting binaries from ${IMAGE}"
-CID=$(sudo docker run -itd ${IMAGE} bash)
+CID=$(docker run -itd ${IMAGE} bash)
 
 # prepare the folder with the binaries
 rm -rf binaries
 mkdir -p binaries
 
 # extract the binaries into the binaries/ folder
-sudo docker cp ${CID}:/root/go/bin/contiv-init binaries/
-sudo docker cp ${CID}:/root/go/bin/contiv-agent binaries/
-sudo docker cp ${CID}:/root/go/bin/contiv-cri binaries/
+docker cp ${CID}:/root/go/bin/contiv-init binaries/
+docker cp ${CID}:/root/go/bin/contiv-agent binaries/
+docker cp ${CID}:/root/go/bin/contiv-cri binaries/
 
 # extract VPP binaries
-sudo docker exec ${CID} /bin/bash -c 'mkdir -p /root/vpp && cp /opt/vpp-agent/dev/vpp/build-root/*.deb /root/vpp/ && cd /root && tar -zcvf /root/vpp.tar.gz vpp/*'
-sudo docker cp ${CID}:/root/vpp.tar.gz binaries/
+docker exec ${CID} /bin/bash -c 'mkdir -p /root/vpp && cp /opt/vpp-agent/dev/vpp/build-root/*.deb /root/vpp/ && cd /root && tar -zcvf /root/vpp.tar.gz vpp/*'
+docker cp ${CID}:/root/vpp.tar.gz binaries/
 
 # extract ldpreload lib
-sudo docker exec ${CID} /bin/bash -c 'cd $VPP_DIR/build-root/install-vpp-native/vpp/lib64/; tar -zcvf /root/ldpreload.tar.gz libvcl_ldpreload.so.0.0.0'
-sudo docker cp ${CID}:/root/ldpreload.tar.gz binaries/
+docker exec ${CID} /bin/bash -c 'cd $VPP_DIR/build-root/install-vpp-native/vpp/lib64/; tar -zcvf /root/ldpreload.tar.gz libvcl_ldpreload.so.0.0.0'
+docker cp ${CID}:/root/ldpreload.tar.gz binaries/
 
 # delete the "extract" container
-sudo docker rm -f ${CID}
+docker rm -f ${CID}

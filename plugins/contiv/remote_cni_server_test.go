@@ -56,8 +56,9 @@ import (
 )
 
 const (
-	containerID = "sadfja813227wdhfjkh2319784dgh"
-	podName     = "ubuntu"
+	containerID  = "sadfja813227wdhfjkh2319784dgh"
+	podName      = "ubuntu"
+	podNamespace = "default"
 )
 
 var swIfIndexSeq uint32
@@ -67,7 +68,7 @@ var req = cni.CNIRequest{
 	InterfaceName:    "eth0",
 	ContainerId:      containerID,
 	NetworkNamespace: "/var/run/2345243",
-	ExtraArguments:   "IgnoreUnknown=1;K8S_POD_NAMESPACE=default;K8S_POD_NAME=" + podName + ";K8S_POD_INFRA_CONTAINER_ID=7d673108b0ff9b2f59f977ca5f4cef347cb9ca66888614068882fbfaba4de752",
+	ExtraArguments:   "IgnoreUnknown=1;K8S_POD_NAMESPACE=" + podNamespace + ";K8S_POD_NAME=" + podName + ";K8S_POD_INFRA_CONTAINER_ID=7d673108b0ff9b2f59f977ca5f4cef347cb9ca66888614068882fbfaba4de752",
 }
 
 var (
@@ -140,7 +141,7 @@ func setupTestCNIServer(config *Config, nodeConfig *OneNodeConfig, existingInter
 	}
 
 	txns := localclient.NewTxnTracker(addIfsIntoTheIndex(swIfIdx))
-	configuredContainers := containeridx.NewConfigIndex(logrus.DefaultLogger(), core.PluginName("Plugin-name"), "title")
+	configuredContainers := containeridx.NewConfigIndex(logrus.DefaultLogger(), core.PluginName("Plugin-name"), "title", nil)
 
 	vppMockChan, vppMockConn := vppChanMock()
 

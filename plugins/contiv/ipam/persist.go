@@ -23,6 +23,11 @@ func (i *IPAM) loadAssignedIPs() error {
 		i.logger.Info("No broker specified, assigned IPs will not be loaded from persisted storage")
 		return nil
 	}
+	networkPrefix, err := ipv4ToUint32(i.podNetworkIPPrefix.IP)
+	if err != nil {
+		return err
+	}
+
 	it, err := i.broker.ListValues(model.KeyPrefix())
 	if err != nil {
 		return err
@@ -40,6 +45,11 @@ func (i *IPAM) loadAssignedIPs() error {
 		}
 		cnt++
 		i.assignedPodIPs[ip.ID] = ip.Pod
+
+		diff := int(ip.ID - networkPrefix)
+		if i.lastAssigned < diff {
+			i.lastAssigned = diff
+		}
 	}
 	i.logger.Infof("%v persisted IPAM items were loaded", cnt)
 	return nil

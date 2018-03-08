@@ -23,20 +23,20 @@ import (
 	"github.com/ligato/cn-infra/logging/logrus"
 	"github.com/onsi/gomega"
 
-	vpp_l4 "github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/l4"
+	"github.com/contiv/vpp/plugins/contiv/containeridx/model"
 )
 
 func TestNewConfigIndex(t *testing.T) {
 	gomega.RegisterTestingT(t)
 
-	idx := NewConfigIndex(nil, core.PluginName("Plugin-name"), "title")
+	idx := NewConfigIndex(logrus.DefaultLogger(), core.PluginName("Plugin-name"), "title", nil)
 	gomega.Expect(idx).NotTo(gomega.BeNil())
 }
 
 func TestRegisterUnregister(t *testing.T) {
 	gomega.RegisterTestingT(t)
 
-	idx := NewConfigIndex(nil, core.PluginName("Plugin-name"), "title")
+	idx := NewConfigIndex(logrus.DefaultLogger(), core.PluginName("Plugin-name"), "title", nil)
 	gomega.Expect(idx).NotTo(gomega.BeNil())
 
 	const (
@@ -68,7 +68,7 @@ func TestRegisterUnregister(t *testing.T) {
 func TestSecondaryIndexLookup(t *testing.T) {
 	gomega.RegisterTestingT(t)
 
-	idx := NewConfigIndex(nil, core.PluginName("Plugin-name"), "title")
+	idx := NewConfigIndex(logrus.DefaultLogger(), core.PluginName("Plugin-name"), "title", nil)
 	gomega.Expect(idx).NotTo(gomega.BeNil())
 
 	const (
@@ -81,19 +81,15 @@ func TestSecondaryIndexLookup(t *testing.T) {
 		podBAppNs  = "appNsB"
 	)
 
-	configA := &Config{
-		PodNamespace: podNs,
-		PodName:      podA,
-		AppNamespace: &vpp_l4.AppNamespaces_AppNamespace{
-			NamespaceId: podAAppNs,
-		},
+	configA := &container.Persisted{
+		PodNamespace:   podNs,
+		PodName:        podA,
+		AppNamespaceID: podAAppNs,
 	}
-	configB := &Config{
-		PodNamespace: podNs,
-		PodName:      podB,
-		AppNamespace: &vpp_l4.AppNamespaces_AppNamespace{
-			NamespaceId: podBAppNs,
-		},
+	configB := &container.Persisted{
+		PodNamespace:   podNs,
+		PodName:        podB,
+		AppNamespaceID: podBAppNs,
 	}
 
 	idx.RegisterContainer(containerA, configA)
@@ -123,7 +119,7 @@ func TestWatch(t *testing.T) {
 
 	gomega.RegisterTestingT(t)
 
-	idx := NewConfigIndex(logrus.DefaultLogger(), core.PluginName("Plugin-name"), "title")
+	idx := NewConfigIndex(logrus.DefaultLogger(), core.PluginName("Plugin-name"), "title", nil)
 	gomega.Expect(idx).NotTo(gomega.BeNil())
 
 	const (
@@ -142,7 +138,7 @@ func TestWatch(t *testing.T) {
 	})
 	gomega.Expect(err).To(gomega.BeNil())
 
-	configA := &Config{PodNamespace: podNs, PodName: podA}
+	configA := &container.Persisted{PodNamespace: podNs, PodName: podA}
 
 	idx.RegisterContainer(containerA, configA)
 

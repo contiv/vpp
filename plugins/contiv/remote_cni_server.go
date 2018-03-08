@@ -28,6 +28,7 @@ import (
 	stn_grpc "github.com/contiv/vpp/cmd/contiv-stn/model/stn"
 	"github.com/contiv/vpp/plugins/contiv/bin_api/dhcp"
 	"github.com/contiv/vpp/plugins/contiv/containeridx"
+	"github.com/contiv/vpp/plugins/contiv/containeridx/model"
 	"github.com/contiv/vpp/plugins/contiv/ipam"
 	"github.com/contiv/vpp/plugins/contiv/model/cni"
 	"github.com/contiv/vpp/plugins/kvdbproxy"
@@ -903,13 +904,16 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 
 	// prepare config details struct
 	extraArgs := s.parseCniExtraArgs(request.ExtraArguments)
-	config := &containeridx.Config{
+	config := &PodConfig{
 		PodName:      extraArgs[podNameExtraArg],
 		PodNamespace: extraArgs[podNamespaceExtraArg],
 	}
 
+	id := request.ContainerId
+	config.ID = id
+
 	// assign an IP address for this POD
-	podIP, err := s.ipam.NextPodIP(request.NetworkNamespace)
+	podIP, err := s.ipam.NextPodIP(id)
 	if err != nil {
 		return nil, fmt.Errorf("Can't get new IP address for pod: %v", err)
 	}
@@ -940,7 +944,11 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 
 	// store configuration internally for other plugins in the internal map
 	if s.configuredContainers != nil {
-		s.configuredContainers.RegisterContainer(request.ContainerId, config)
+		err = s.configuredContainers.RegisterContainer(id, podConfigToProto(config))
+		if err != nil {
+			s.Logger.Error(err)
+			return s.generateCniErrorReply(err)
+		}
 	}
 
 	// prepare and send reply for the CNI request
@@ -962,14 +970,15 @@ func (s *remoteCNIserver) unconfigureContainerConnectivity(request *cni.CNIReque
 	// configuredContainers should not be nil unless this is a unit test
 	if s.configuredContainers == nil {
 		err = fmt.Errorf("configuration was not stored for container: %s", request.ContainerId)
-		s.Logger.Error(err)
-		return s.generateCniErrorReply(err)
+		s.Logger.Warn(err)
+		return s.generateCniEmptyOKReply(), nil
 	}
 
+	id := request.ContainerId
 	// load container config
-	config, found := s.configuredContainers.LookupContainer(request.ContainerId)
+	config, found := s.configuredContainers.LookupContainer(id)
 	if !found {
-		s.Logger.Warnf("cannot find configuration for container: %s\n", request.ContainerId)
+		s.Logger.Warnf("cannot find configuration for container: %s\n", id)
 		reply := s.generateCniEmptyOKReply()
 		return reply, nil
 	}
@@ -1007,11 +1016,15 @@ func (s *remoteCNIserver) unconfigureContainerConnectivity(request *cni.CNIReque
 
 	// remove POD configuration from the internal map
 	if s.configuredContainers != nil {
-		s.configuredContainers.UnregisterContainer(request.ContainerId)
+		_, _, err = s.configuredContainers.UnregisterContainer(id)
+		if err != nil {
+			s.Logger.Error(err)
+			return s.generateCniErrorReply(err)
+		}
 	}
 
 	// release IP address of the POD
-	err = s.ipam.ReleasePodIP(request.NetworkNamespace)
+	err = s.ipam.ReleasePodIP(id)
 	if err != nil {
 		s.Logger.Error(err)
 		return s.generateCniErrorReply(err)
@@ -1023,7 +1036,7 @@ func (s *remoteCNIserver) unconfigureContainerConnectivity(request *cni.CNIReque
 }
 
 // configurePodInterface configures POD's network interface and its routes + ARPs.
-func (s *remoteCNIserver) configurePodInterface(request *cni.CNIRequest, podIP net.IP, config *containeridx.Config) error {
+func (s *remoteCNIserver) configurePodInterface(request *cni.CNIRequest, podIP net.IP, config *PodConfig) error {
 
 	// this is necessary for the latest docker where ipv6 is disabled by default.
 	// OS assigns automatically ipv6 addr to a newly created TAP. We
@@ -1105,7 +1118,7 @@ func (s *remoteCNIserver) configurePodInterface(request *cni.CNIRequest, podIP n
 }
 
 // unconfigurePodInterface unconfigures POD's network interface and its routes + ARPs.
-func (s *remoteCNIserver) unconfigurePodInterface(request *cni.CNIRequest, config *containeridx.Config) error {
+func (s *remoteCNIserver) unconfigurePodInterface(request *cni.CNIRequest, config *container.Persisted) error {
 
 	// removal of configuration is split into multiple transactions because the order of delete operations
 	// in a transaction can not be guaranteed. If the interface is deleted before routes and arp entries,
@@ -1116,11 +1129,11 @@ func (s *remoteCNIserver) unconfigurePodInterface(request *cni.CNIRequest, confi
 		txn1 := s.vppTxnFactory().Delete()
 
 		// delete static routes
-		txn1.LinuxRoute(config.PodLinkRoute.Name).
-			LinuxRoute(config.PodDefaultRoute.Name)
+		txn1.LinuxRoute(config.PodLinkRouteName).
+			LinuxRoute(config.PodDefaultRouteName)
 
 		// delete the ARP entry
-		txn1.LinuxArpEntry(config.PodARPEntry.Name)
+		txn1.LinuxArpEntry(config.PodARPEntryName)
 		err := txn1.Send().ReceiveReply()
 		if err != nil {
 			s.Logger.Error(err)
@@ -1129,7 +1142,7 @@ func (s *remoteCNIserver) unconfigurePodInterface(request *cni.CNIRequest, confi
 	}
 
 	if s.useTAPInterfaces {
-		err := s.vppTxnFactory().Delete().LinuxInterface(config.PodTap.Name).Send().ReceiveReply()
+		err := s.vppTxnFactory().Delete().LinuxInterface(config.PodTapName).Send().ReceiveReply()
 		if err != nil {
 			s.Logger.Error(err)
 			return err
@@ -1139,10 +1152,10 @@ func (s *remoteCNIserver) unconfigurePodInterface(request *cni.CNIRequest, confi
 	txn2 := s.vppTxnFactory().Delete()
 
 	// delete VPP to POD interconnect interface
-	txn2.VppInterface(config.VppIf.Name)
+	txn2.VppInterface(config.VppIfName)
 	if !s.useTAPInterfaces {
-		txn2.LinuxInterface(config.Veth1.Name).
-			LinuxInterface(config.Veth2.Name)
+		txn2.LinuxInterface(config.Veth1Name).
+			LinuxInterface(config.Veth2Name)
 	}
 
 	// execute the config transaction
@@ -1156,7 +1169,7 @@ func (s *remoteCNIserver) unconfigurePodInterface(request *cni.CNIRequest, confi
 }
 
 // configurePodVPPSide configures vswitch VPP part of the POD networking.
-func (s *remoteCNIserver) configurePodVPPSide(request *cni.CNIRequest, podIP net.IP, config *containeridx.Config) error {
+func (s *remoteCNIserver) configurePodVPPSide(request *cni.CNIRequest, podIP net.IP, config *PodConfig) error {
 	podIPCIDR := podIP.String() + "/32"
 
 	// prepare the config transaction
@@ -1202,23 +1215,23 @@ func (s *remoteCNIserver) configurePodVPPSide(request *cni.CNIRequest, podIP net
 }
 
 // unconfigurePodVPPSide deletes vswitch VPP part of the POD networking.
-func (s *remoteCNIserver) unconfigurePodVPPSide(config *containeridx.Config) error {
+func (s *remoteCNIserver) unconfigurePodVPPSide(config *container.Persisted) error {
 
 	// prepare the config transaction
 	txn := s.vppTxnFactory().Delete()
 
 	if !s.disableTCPstack {
 		// VPP TCP stack config
-		txn.VppInterface(config.Loopback.Name).
-			AppNamespace(config.AppNamespace.NamespaceId).
-			StnRule(config.StnRule.RuleName)
+		txn.VppInterface(config.LoopbackName).
+			AppNamespace(config.AppNamespaceID).
+			StnRule(config.StnRuleName)
 	} else {
 		// route to PodIP via AF_PACKET / TAP
-		txn.StaticRoute(config.VppRoute.VrfId, config.VppRoute.DstIpAddr, config.VppRoute.NextHopAddr)
+		txn.StaticRoute(config.VppRouteVrf, config.VppRouteDest, config.VppRouteNextHop)
 	}
 
 	// ARP entry for POD IP
-	txn.Arp(config.VppARPEntry.Interface, config.VppARPEntry.IpAddress)
+	txn.Arp(config.VppARPEntryInterface, config.VppARPEntryIP)
 
 	// execute the config transaction
 	err := txn.Send().ReceiveReply()
@@ -1231,7 +1244,7 @@ func (s *remoteCNIserver) unconfigurePodVPPSide(config *containeridx.Config) err
 }
 
 // deletePersistedPodConfig persists POD configuration into ETCD.
-func (s *remoteCNIserver) persistPodConfig(config *containeridx.Config) error {
+func (s *remoteCNIserver) persistPodConfig(config *PodConfig) error {
 	var err error
 	changes := map[string]proto.Message{}
 
@@ -1268,36 +1281,36 @@ func (s *remoteCNIserver) persistPodConfig(config *containeridx.Config) error {
 }
 
 // deletePersistedPodConfig deletes persisted POD configuration from ETCD.
-func (s *remoteCNIserver) deletePersistedPodConfig(config *containeridx.Config) error {
+func (s *remoteCNIserver) deletePersistedPodConfig(config *container.Persisted) error {
 	// collect keys to be removed from ETCD
 	var removedKeys []string
 
 	// POD interface configuration
-	removedKeys = append(removedKeys, vpp_intf.InterfaceKey(config.VppIf.Name))
+	removedKeys = append(removedKeys, vpp_intf.InterfaceKey(config.VppIfName))
 	if !s.useTAPInterfaces {
 		removedKeys = append(removedKeys,
-			linux_intf.InterfaceKey(config.Veth1.Name),
-			linux_intf.InterfaceKey(config.Veth2.Name),
+			linux_intf.InterfaceKey(config.Veth1Name),
+			linux_intf.InterfaceKey(config.Veth2Name),
 		)
 	} else {
-		removedKeys = append(removedKeys, linux_intf.InterfaceKey(config.PodTap.Name))
+		removedKeys = append(removedKeys, linux_intf.InterfaceKey(config.PodTapName))
 	}
 
-	removedKeys = append(removedKeys, linux_l3.StaticRouteKey(config.PodLinkRoute.Name),
-		linux_l3.StaticRouteKey(config.PodDefaultRoute.Name),
-		linux_l3.StaticArpKey(config.PodARPEntry.Name))
+	removedKeys = append(removedKeys, linux_l3.StaticRouteKey(config.PodLinkRouteName),
+		linux_l3.StaticRouteKey(config.PodDefaultRouteName),
+		linux_l3.StaticArpKey(config.PodARPEntryName))
 
 	// VPP-side configuration
 	if !s.disableTCPstack {
 		removedKeys = append(removedKeys,
-			vpp_intf.InterfaceKey(config.Loopback.Name),
-			stn.Key(config.StnRule.RuleName),
-			vpp_l4.AppNamespacesKey(config.AppNamespace.NamespaceId))
+			vpp_intf.InterfaceKey(config.LoopbackName),
+			stn.Key(config.StnRuleName),
+			vpp_l4.AppNamespacesKey(config.AppNamespaceID))
 	} else {
 		removedKeys = append(removedKeys,
-			vpp_l3.RouteKey(config.VppRoute.VrfId, config.VppRoute.DstIpAddr, config.VppRoute.NextHopAddr))
+			vpp_l3.RouteKey(config.VppRouteVrf, config.VppRouteDest, config.VppRouteNextHop))
 	}
-	removedKeys = append(removedKeys, vpp_l3.ArpEntryKey(config.VppARPEntry.Interface, config.VppARPEntry.IpAddress))
+	removedKeys = append(removedKeys, vpp_l3.ArpEntryKey(config.VppARPEntryInterface, config.VppARPEntryIP))
 
 	// remove persisted configuration from ETCD
 	err := s.persistChanges(removedKeys, nil)
@@ -1324,7 +1337,7 @@ func (s *remoteCNIserver) parseCniExtraArgs(input string) map[string]string {
 }
 
 // generateCniReply fills the CNI reply with the data of an interface.
-func (s *remoteCNIserver) generateCniReply(config *containeridx.Config, nsName string, podIP string) *cni.CNIReply {
+func (s *remoteCNIserver) generateCniReply(config *PodConfig, nsName string, podIP string) *cni.CNIReply {
 	return &cni.CNIReply{
 		Result: resultOk,
 		Interfaces: []*cni.CNIReply_Interface{

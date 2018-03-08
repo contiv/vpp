@@ -901,8 +901,10 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 		PodNamespace: extraArgs[podNamespaceExtraArg],
 	}
 
+	id := extraArgs[podNameExtraArg] + extraArgs[podNamespaceExtraArg]
+
 	// assign an IP address for this POD
-	podIP, err := s.ipam.NextPodIP(request.NetworkNamespace)
+	podIP, err := s.ipam.NextPodIP(id)
 	if err != nil {
 		return nil, fmt.Errorf("Can't get new IP address for pod: %v", err)
 	}
@@ -933,7 +935,7 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 
 	// store configuration internally for other plugins in the internal map
 	if s.configuredContainers != nil {
-		err = s.configuredContainers.RegisterContainer(config.PodName+config.PodNamespace, podConfigToProto(config))
+		err = s.configuredContainers.RegisterContainer(id, podConfigToProto(config))
 		if err != nil {
 			s.Logger.Error(err)
 			return s.generateCniErrorReply(err)
@@ -964,10 +966,11 @@ func (s *remoteCNIserver) unconfigureContainerConnectivity(request *cni.CNIReque
 	}
 
 	extraArg := s.parseCniExtraArgs(request.ExtraArguments)
+	id := extraArg[podNameExtraArg] + extraArg[podNamespaceExtraArg]
 	// load container config
-	config, found := s.configuredContainers.LookupContainer(extraArg[podNameExtraArg] + extraArg[podNamespaceExtraArg])
+	config, found := s.configuredContainers.LookupContainer(id)
 	if !found {
-		s.Logger.Warnf("cannot find configuration for container: %s\n", request.ContainerId)
+		s.Logger.Warnf("cannot find configuration for container: %s\n", id)
 		reply := s.generateCniEmptyOKReply()
 		return reply, nil
 	}
@@ -1005,7 +1008,7 @@ func (s *remoteCNIserver) unconfigureContainerConnectivity(request *cni.CNIReque
 
 	// remove POD configuration from the internal map
 	if s.configuredContainers != nil {
-		_, _, err = s.configuredContainers.UnregisterContainer(request.ContainerId)
+		_, _, err = s.configuredContainers.UnregisterContainer(id)
 		if err != nil {
 			s.Logger.Error(err)
 			return s.generateCniErrorReply(err)
@@ -1013,7 +1016,7 @@ func (s *remoteCNIserver) unconfigureContainerConnectivity(request *cni.CNIReque
 	}
 
 	// release IP address of the POD
-	err = s.ipam.ReleasePodIP(request.NetworkNamespace)
+	err = s.ipam.ReleasePodIP(id)
 	if err != nil {
 		s.Logger.Error(err)
 		return s.generateCniErrorReply(err)

@@ -22,6 +22,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/contiv/vpp/plugins/contiv/containeridx/model"
 	"github.com/contiv/vpp/plugins/contiv/model/cni"
 	vpp_intf "github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/interfaces"
 	vpp_l3 "github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/l3"
@@ -30,6 +31,96 @@ import (
 	linux_intf "github.com/ligato/vpp-agent/plugins/linuxplugin/common/model/interfaces"
 	linux_l3 "github.com/ligato/vpp-agent/plugins/linuxplugin/common/model/l3"
 )
+
+// PodConfig groups applied configuration for a container
+type PodConfig struct {
+	// NetworkNamespace identifies the pod
+	NetworkNamespace string
+	// PodName from the CNI request
+	PodName string
+	// PodNamespace from the CNI request
+	PodNamespace string
+	// Veth1 one end end of veth pair that is in the given container namespace.
+	// Nil if TAPs are used instead.
+	Veth1 *linux_intf.LinuxInterfaces_Interface
+	// Veth2 is the other end of veth pair in the default namespace
+	// Nil if TAPs are used instead.
+	Veth2 *linux_intf.LinuxInterfaces_Interface
+	// VppIf is AF_PACKET/TAP interface connecting pod to VPP
+	VppIf *vpp_intf.Interfaces_Interface
+	// PodTap is the host end of the tap connecting pod to VPP
+	// Nil if TAPs are not used
+	PodTap *linux_intf.LinuxInterfaces_Interface
+	// Loopback interface associated with the pod.
+	// Nil if VPP TCP stack is disabled.
+	Loopback *vpp_intf.Interfaces_Interface
+	// StnRule is STN rule used to "punt" any traffic via VETHs/TAPs with no match in VPP TCP stack.
+	// Nil if VPP TCP stack is disabled.
+	StnRule *stn.StnRule
+	// AppNamespace is the application namespace associated with the pod.
+	// Nil if VPP TCP stack is disabled.
+	AppNamespace *vpp_l4.AppNamespaces_AppNamespace
+	// VppARPEntry is ARP entry configured in VPP to route traffic from VPP to pod.
+	VppARPEntry *vpp_l3.ArpTable_ArpTableEntry
+	// PodARPEntry is ARP entry configured in the pod to route traffic from pod to VPP.
+	PodARPEntry *linux_l3.LinuxStaticArpEntries_ArpEntry
+	// VppRoute is the route from VPP to the container
+	VppRoute *vpp_l3.StaticRoutes_Route
+	// PodLinkRoute is the route from pod to the default gateway.
+	PodLinkRoute *linux_l3.LinuxStaticRoutes_Route
+	// PodDefaultRoute is the default gateway for the pod.
+	PodDefaultRoute *linux_l3.LinuxStaticRoutes_Route
+}
+
+// podConfigToProto transform config structure to structure that will be persisted
+// Beware: Intentionally not all data from config will be persisted, only necessary ones.
+func podConfigToProto(cfg *PodConfig) *container.Persisted {
+	persisted := &container.Persisted{}
+	persisted.ID = cfg.NetworkNamespace
+	persisted.PodName = cfg.PodName
+	persisted.PodNamespace = cfg.PodNamespace
+	if cfg.Veth1 != nil {
+		persisted.Veth1Name = cfg.Veth1.Name
+	}
+	if cfg.Veth2 != nil {
+		persisted.Veth2Name = cfg.Veth2.Name
+	}
+	if cfg.VppIf != nil {
+		persisted.VppIfName = cfg.VppIf.Name
+	}
+	if cfg.PodTap != nil {
+		persisted.PodTapName = cfg.PodTap.Name
+	}
+	if cfg.Loopback != nil {
+		persisted.LoopbackName = cfg.Loopback.Name
+	}
+	if cfg.StnRule != nil {
+		persisted.StnRuleName = cfg.StnRule.RuleName
+	}
+	if cfg.AppNamespace != nil {
+		persisted.AppNamespaceID = cfg.AppNamespace.NamespaceId
+	}
+	if cfg.VppARPEntry != nil {
+		persisted.VppARPEntryIP = cfg.VppARPEntry.IpAddress
+		persisted.VppARPEntryInterface = cfg.VppARPEntry.Interface
+	}
+	if cfg.PodARPEntry != nil {
+		persisted.PodARPEntryName = cfg.PodARPEntry.Name
+	}
+	if cfg.VppRoute != nil {
+		persisted.VppRouteVrf = cfg.VppRoute.VrfId
+		persisted.VppRouteNextHop = cfg.VppRoute.NextHopAddr
+		persisted.VppRouteDest = cfg.VppRoute.DstIpAddr
+	}
+	if cfg.PodLinkRoute != nil {
+		persisted.PodLinkRouteName = cfg.PodLinkRoute.Name
+	}
+	if cfg.PodDefaultRoute != nil {
+		persisted.PodDefaultRouteName = cfg.PodDefaultRoute.Name
+	}
+
+	return persisted
+}
 
 // disableTCPChecksumOffload disables TCP checksum offload on the eth0 in the container
 func (s *remoteCNIserver) disableTCPChecksumOffload(request *cni.CNIRequest) error {

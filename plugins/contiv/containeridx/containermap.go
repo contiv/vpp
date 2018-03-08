@@ -12,22 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+//go:generate protoc -I ./model --go_out=plugins=grpc:./model ./model/container.proto
+
 package containeridx
 
 import (
 	"time"
 
+	"fmt"
+	"github.com/contiv/vpp/plugins/contiv/containeridx/model"
 	"github.com/ligato/cn-infra/core"
+	"github.com/ligato/cn-infra/db/keyval"
 	"github.com/ligato/cn-infra/idxmap"
 	"github.com/ligato/cn-infra/idxmap/mem"
 	"github.com/ligato/cn-infra/logging"
-	vpp_intf "github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/interfaces"
-	"github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/l3"
-	vpp_l3 "github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/l3"
-	vpp_l4 "github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/l4"
-	"github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/stn"
-	linux_intf "github.com/ligato/vpp-agent/plugins/linuxplugin/common/model/interfaces"
-	linux_l3 "github.com/ligato/vpp-agent/plugins/linuxplugin/common/model/l3"
 )
 
 const podNameKey = "podNameKey"
@@ -38,7 +36,7 @@ const podRelatedAppNsKey = "podRelatedAppNsKey"
 // Reader provides read API to ConfigIndex
 type Reader interface {
 	// LookupContainer looks up entry in the container based on containerID.
-	LookupContainer(containerID string) (data *Config, found bool)
+	LookupContainer(containerID string) (data *container.Persisted, found bool)
 
 	// LookupPodName performs lookup based on secondary index podName.
 	LookupPodName(podName string) (containerIDs []string)
@@ -59,81 +57,63 @@ type Reader interface {
 	Watch(subscriber core.PluginName, callback func(ChangeEvent)) error
 }
 
-// Config groups applied configuration for a container
-type Config struct {
-	// PodName from the CNI request
-	PodName string
-	// PodNamespace from the CNI request
-	PodNamespace string
-	// Veth1 one end end of veth pair that is in the given container namespace.
-	// Nil if TAPs are used instead.
-	Veth1 *linux_intf.LinuxInterfaces_Interface
-	// Veth2 is the other end of veth pair in the default namespace
-	// Nil if TAPs are used instead.
-	Veth2 *linux_intf.LinuxInterfaces_Interface
-	// VppIf is AF_PACKET/TAP interface connecting pod to VPP
-	VppIf *vpp_intf.Interfaces_Interface
-	// PodTap is the host end of the tap connecting pod to VPP
-	// Nil if TAPs are not used
-	PodTap *linux_intf.LinuxInterfaces_Interface
-	// Loopback interface associated with the pod.
-	// Nil if VPP TCP stack is disabled.
-	Loopback *vpp_intf.Interfaces_Interface
-	// StnRule is STN rule used to "punt" any traffic via VETHs/TAPs with no match in VPP TCP stack.
-	// Nil if VPP TCP stack is disabled.
-	StnRule *stn.StnRule
-	// AppNamespace is the application namespace associated with the pod.
-	// Nil if VPP TCP stack is disabled.
-	AppNamespace *vpp_l4.AppNamespaces_AppNamespace
-	// VppARPEntry is ARP entry configured in VPP to route traffic from VPP to pod.
-	VppARPEntry *vpp_l3.ArpTable_ArpTableEntry
-	// PodARPEntry is ARP entry configured in the pod to route traffic from pod to VPP.
-	PodARPEntry *linux_l3.LinuxStaticArpEntries_ArpEntry
-	// VppRoute is the route from VPP to the container
-	VppRoute *l3.StaticRoutes_Route
-	// PodLinkRoute is the route from pod to the default gateway.
-	PodLinkRoute *linux_l3.LinuxStaticRoutes_Route
-	// PodDefaultRoute is the default gateway for the pod.
-	PodDefaultRoute *linux_l3.LinuxStaticRoutes_Route
-}
-
 // ChangeEvent represents a notification about change in ConfigIndex delivered to subscribers
 type ChangeEvent struct {
 	idxmap.NamedMappingEvent
-	Value *Config
+	Value *container.Persisted
 }
 
 // ConfigIndex implements a cache for configured containers. Primary index is containerID.
 type ConfigIndex struct {
+	logger  logging.Logger
+	broker  keyval.ProtoBroker
 	mapping idxmap.NamedMappingRW
 }
 
 // NewConfigIndex creates new instance of ConfigIndex
-func NewConfigIndex(logger logging.Logger, owner core.PluginName, title string) *ConfigIndex {
-	return &ConfigIndex{mapping: mem.NewNamedMapping(logger, owner, title, IndexFunction)}
+func NewConfigIndex(logger logging.Logger, owner core.PluginName, title string, broker keyval.ProtoBroker) *ConfigIndex {
+	ci := &ConfigIndex{mapping: mem.NewNamedMapping(logger, owner, title, IndexFunction), broker: broker, logger: logger}
+	ci.loadConfigureContainers()
+	return ci
 }
 
 // RegisterContainer adds new entry into the mapping
-func (ci *ConfigIndex) RegisterContainer(containerID string, data *Config) {
+func (ci *ConfigIndex) RegisterContainer(containerID string, data *container.Persisted) error {
+	var err error
+	if ci.broker != nil {
+		err = ci.persistConfiguredContainer(data)
+		if err != nil {
+			return err
+		}
+	}
 	ci.mapping.Put(containerID, data)
+	return err
 }
 
 // UnregisterContainer removes the entry from the mapping
-func (ci *ConfigIndex) UnregisterContainer(containerID string) (data *Config, found bool) {
+func (ci *ConfigIndex) UnregisterContainer(containerID string) (data *container.Persisted, found bool, err error) {
 	d, found := ci.mapping.Delete(containerID)
-	if found {
-		if data, ok := d.(*Config); ok {
-			return data, found
+	if !found {
+		return nil, false, nil
+	}
+	if ci.broker != nil {
+		err = ci.removePersistedConfiguredContainer(containerID)
+		if err != nil {
+			ci.mapping.Put(containerID, d)
+			return nil, true, err
 		}
 	}
-	return nil, false
+	if data, ok := d.(*container.Persisted); ok {
+		return data, found, nil
+	}
+	return nil, found, fmt.Errorf("unknown data")
 }
 
 // LookupContainer looks up entry in the container based on containerID.
-func (ci *ConfigIndex) LookupContainer(containerID string) (data *Config, found bool) {
+func (ci *ConfigIndex) LookupContainer(containerID string) (data *container.Persisted, found bool) {
 	d, found := ci.mapping.GetValue(containerID)
 	if found {
-		if data, ok := d.(*Config); ok {
+		if data, ok := d.(*container.Persisted); ok {
 			return data, found
 		}
 	}
@@ -168,7 +148,7 @@ func (ci *ConfigIndex) ListAll() (containerIDs []string) {
 // Watch subscribe to monitor changes in ConfigIndex
 func (ci *ConfigIndex) Watch(subscriber core.PluginName, callback func(ChangeEvent)) error {
 	return ci.mapping.Watch(subscriber, func(ev idxmap.NamedMappingGenericEvent) {
-		if cfg, ok := ev.Value.(*Config); ok {
+		if cfg, ok := ev.Value.(*container.Persisted); ok {
 			callback(ChangeEvent{NamedMappingEvent: ev.NamedMappingEvent, Value: cfg})
 		}
 	})
@@ -178,17 +158,17 @@ func (ci *ConfigIndex) Watch(subscriber core.PluginName, callback func(ChangeEve
 // and the associated interface/namespace are indexed.
 func IndexFunction(data interface{}) map[string][]string {
 	res := map[string][]string{}
-	if config, ok := data.(*Config); ok && config != nil {
+	if config, ok := data.(*container.Persisted); ok && config != nil {
 		res[podNameKey] = []string{config.PodName}
 		res[podNamespaceKey] = []string{config.PodNamespace}
-		if config.VppIf != nil {
-			res[podRelatedIfsKey] = []string{config.VppIf.Name}
+		if config.VppIfName != "" {
+			res[podRelatedIfsKey] = []string{config.VppIfName}
 		}
-		if config.Loopback != nil {
-			res[podRelatedIfsKey] = append(res[podRelatedIfsKey], config.Loopback.Name)
+		if config.LoopbackName != "" {
+			res[podRelatedIfsKey] = append(res[podRelatedIfsKey], config.LoopbackName)
 		}
-		if config.AppNamespace != nil {
-			res[podRelatedAppNsKey] = []string{config.AppNamespace.NamespaceId}
+		if config.AppNamespaceID != "" {
+			res[podRelatedAppNsKey] = []string{config.AppNamespaceID}
 		}
 	}
 	return res

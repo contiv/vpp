@@ -34,7 +34,7 @@ func TestPersistingAllocatedIPs(t *testing.T) {
 	_, err = myIpam.NextPodIP("first")
 	gomega.Expect(err).To(gomega.BeNil())
 
-	_, err = myIpam.NextPodIP("second")
+	secondIP, err := myIpam.NextPodIP("second")
 	gomega.Expect(err).To(gomega.BeNil())
 
 	_, err = myIpam.NextPodIP("third")
@@ -62,10 +62,13 @@ func TestPersistingAllocatedIPs(t *testing.T) {
 	err = anotherIPAM.ReleasePodIP("third")
 	gomega.Expect(err).To(gomega.BeNil())
 
-	_, err = anotherIPAM.NextPodIP("fourth")
+	fourthIP, err := anotherIPAM.NextPodIP("fourth")
 	gomega.Expect(err).To(gomega.BeNil())
 	gomega.Expect(len(broker.Data)).To(gomega.BeEquivalentTo(2))
 	gomega.Expect(broker.Keys()).To(gomega.ContainElement(model.Key("first")))
 	gomega.Expect(broker.Keys()).To(gomega.ContainElement(model.Key("fourth")))
+
+	// check that IPs are not reused even after restart
+	gomega.Expect(secondIP).ToNot(gomega.BeEquivalentTo(fourthIP))
 
 }

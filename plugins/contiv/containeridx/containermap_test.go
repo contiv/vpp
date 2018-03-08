@@ -29,14 +29,14 @@ import (
 func TestNewConfigIndex(t *testing.T) {
 	gomega.RegisterTestingT(t)
 
-	idx := NewConfigIndex(nil, core.PluginName("Plugin-name"), "title", nil)
+	idx := NewConfigIndex(logrus.DefaultLogger(), core.PluginName("Plugin-name"), "title", nil)
 	gomega.Expect(idx).NotTo(gomega.BeNil())
 }
 
 func TestRegisterUnregister(t *testing.T) {
 	gomega.RegisterTestingT(t)
 
-	idx := NewConfigIndex(nil, core.PluginName("Plugin-name"), "title", nil)
+	idx := NewConfigIndex(logrus.DefaultLogger(), core.PluginName("Plugin-name"), "title", nil)
 	gomega.Expect(idx).NotTo(gomega.BeNil())
 
 	const (
@@ -68,7 +68,7 @@ func TestRegisterUnregister(t *testing.T) {
 func TestSecondaryIndexLookup(t *testing.T) {
 	gomega.RegisterTestingT(t)
 
-	idx := NewConfigIndex(nil, core.PluginName("Plugin-name"), "title", nil)
+	idx := NewConfigIndex(logrus.DefaultLogger(), core.PluginName("Plugin-name"), "title", nil)
 	gomega.Expect(idx).NotTo(gomega.BeNil())
 
 	const (

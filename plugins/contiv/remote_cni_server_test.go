@@ -140,7 +140,7 @@ func setupTestCNIServer(config *Config, nodeConfig *OneNodeConfig, existingInter
 	}
 
 	txns := localclient.NewTxnTracker(addIfsIntoTheIndex(swIfIdx))
-	configuredContainers := containeridx.NewConfigIndex(logrus.DefaultLogger(), core.PluginName("Plugin-name"), "title")
+	configuredContainers := containeridx.NewConfigIndex(logrus.DefaultLogger(), core.PluginName("Plugin-name"), "title", nil)
 
 	vppMockChan, vppMockConn := vppChanMock()
 

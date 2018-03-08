@@ -55,7 +55,7 @@ import (
 
 const (
 	etcdConnectionRetries = 20               // number of retries to connect to ETCD once STN is configured
-	vppConnectTimeout     = 5 * time.Second  // timeout for connection to VPP
+	vppConnectTimeout     = 20 * time.Second // timeout for connection to VPP
 	dhcpConnectTimeout    = 20 * time.Second // timeout to wait for a DHCP offer after configuring DHCP on the interface
 
 	tapHostEndMacAddr       = "00:00:00:00:00:02" // requirement of the VPP STN plugin

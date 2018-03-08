@@ -30,8 +30,9 @@ import (
 )
 
 const (
-	vxlanVNI               = 10 // VXLAN Network Identifier (or VXLAN Segment ID)
-	vxlanSplitHorizonGroup = 1  // As VXLAN tunnels are added to a BD, they must be configured with the same and non-zero Split Horizon Group (SHG) number. Otherwise, flood packet may loop among servers with the same VXLAN segment because VXLAN tunnels are fully meshed among servers.
+	vxlanVNI               = 10         // VXLAN Network Identifier (or VXLAN Segment ID)
+	vxlanSplitHorizonGroup = 1          // As VXLAN tunnels are added to a BD, they must be configured with the same and non-zero Split Horizon Group (SHG) number. Otherwise, flood packet may loop among servers with the same VXLAN segment because VXLAN tunnels are fully meshed among servers.
+	vxlanBVIInterfaceName  = "vxlanBVI" // name of the VXLAN BVI interface
 )
 
 func (s *remoteCNIserver) l4Features(enable bool) *vpp_l4.L4Features {
@@ -213,7 +214,7 @@ func (s *remoteCNIserver) vxlanBVILoopback() (*vpp_intf.Interfaces_Interface, er
 		return nil, err
 	}
 	return &vpp_intf.Interfaces_Interface{
-		Name:        "vxlanBVI",
+		Name:        vxlanBVIInterfaceName,
 		Type:        vpp_intf.InterfaceType_SOFTWARE_LOOPBACK,
 		Enabled:     true,
 		IpAddresses: []string{vxlanIP.String()},

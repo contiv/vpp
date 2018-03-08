@@ -14,7 +14,7 @@
 # limitations under the License.
 
 # leave only contivvpp images tagged as latest
-sudo docker images | grep contivvpp | grep -v latest | awk '{print $3}' | xargs sudo docker rmi
+docker images | grep contivvpp | grep -v latest | awk '{print $3}' | xargs docker rmi
 
 # delete all build-only images
-sudo docker images | grep 'prod-contiv-\|dev-contiv-' | awk '{print $3}' | xargs sudo docker rmi
+docker images | grep 'prod-contiv-\|dev-contiv-' | awk '{print $3}' | xargs docker rmi

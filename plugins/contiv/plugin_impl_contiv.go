@@ -26,6 +26,7 @@ import (
 
 	"git.fd.io/govpp.git/api"
 	"github.com/contiv/vpp/plugins/contiv/containeridx"
+	"github.com/contiv/vpp/plugins/contiv/containeridx/model"
 	"github.com/contiv/vpp/plugins/contiv/ipam"
 	"github.com/contiv/vpp/plugins/contiv/model/cni"
 	protoNode "github.com/contiv/vpp/plugins/ksr/model/node"
@@ -117,8 +118,9 @@ type InterfaceWithIP struct {
 
 // Init initializes the Contiv plugin. Called automatically by plugin infra upon contiv-agent startup.
 func (plugin *Plugin) Init() error {
+	broker := plugin.ETCD.NewBroker(plugin.ServiceLabel.GetAgentPrefix())
 	// init map with configured containers
-	plugin.configuredContainers = containeridx.NewConfigIndex(plugin.Log, plugin.PluginName, "containers")
+	plugin.configuredContainers = containeridx.NewConfigIndex(plugin.Log, plugin.PluginName, "containers", broker)
 
 	// load config file
 	plugin.ctx, plugin.ctxCancelFunc = context.WithCancel(context.Background())
@@ -175,7 +177,7 @@ func (plugin *Plugin) Init() error {
 		plugin.Config,
 		plugin.myNodeConfig,
 		nodeID,
-		plugin.ETCD.NewBroker(plugin.ServiceLabel.GetAgentPrefix()))
+		broker)
 	if err != nil {
 		return fmt.Errorf("Can't create new remote CNI server due to error: %v ", err)
 	}
@@ -244,8 +246,8 @@ func (plugin *Plugin) GetPodByAppNsIndex(nsIndex uint32) (podNamespace string, p
 // GetIfName looks up logical interface name that corresponds to the interface associated with the given POD name.
 func (plugin *Plugin) GetIfName(podNamespace string, podName string) (name string, exists bool) {
 	config := plugin.getContainerConfig(podNamespace, podName)
-	if config != nil && config.VppIf != nil {
-		return config.VppIf.Name, true
+	if config != nil && config.VppIfName != "" {
+		return config.VppIfName, true
 	}
 	plugin.Log.WithFields(logging.Fields{"podNamespace": podNamespace, "podName": podName}).Warn("No matching result found")
 	return "", false
@@ -255,7 +257,7 @@ func (plugin *Plugin) GetIfName(podNamespace string, podName string) (name strin
 func (plugin *Plugin) GetNsIndex(podNamespace string, podName string) (nsIndex uint32, exists bool) {
 	config := plugin.getContainerConfig(podNamespace, podName)
 	if config != nil {
-		nsIndex, _, exists = plugin.VPP.GetAppNsIndexes().LookupIdx(config.AppNamespace.NamespaceId)
+		nsIndex, _, exists = plugin.VPP.GetAppNsIndexes().LookupIdx(config.AppNamespaceID)
 		return nsIndex, exists
 	}
 	plugin.Log.WithFields(logging.Fields{"podNamespace": podNamespace, "podName": podName}).Warn("No matching result found")
@@ -384,7 +386,7 @@ func (plugin *Plugin) loadNodeSpecificConfig() *OneNodeConfig {
 }
 
 // getContainerConfig returns the configuration of the container associated with the given POD name.
-func (plugin *Plugin) getContainerConfig(podNamespace string, podName string) *containeridx.Config {
+func (plugin *Plugin) getContainerConfig(podNamespace string, podName string) *container.Persisted {
 	podNamesMatch := plugin.configuredContainers.LookupPodName(podName)
 	podNamespacesMatch := plugin.configuredContainers.LookupPodNamespace(podNamespace)
 

@@ -32,7 +32,7 @@ type MockContiv struct {
 
 // NewMockContiv is a constructor for MockContiv.
 func NewMockContiv() *MockContiv {
-	ci := containeridx.NewConfigIndex(logrus.DefaultLogger(), "test", "title")
+	ci := containeridx.NewConfigIndex(logrus.DefaultLogger(), "test", "title", nil)
 	return &MockContiv{
 		podIf:          make(map[podmodel.ID]string),
 		podAppNs:       make(map[podmodel.ID]uint32),

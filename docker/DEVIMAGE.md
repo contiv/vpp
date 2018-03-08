@@ -4,13 +4,13 @@ Start with building the images locally, [as described here](README.md). Once the
 you should see a `dev-contiv-vswitch` image with some specific tag, e.g.:
 
 ```
-$ sudo docker images | grep dev-contiv-vswitch
+$ docker images | grep dev-contiv-vswitch
 dev-contiv-vswitch                                       0.0.1-424-gd1a17e5   e6c9f12da183        About an hour ago   20.2GB
 ```
 
 #### 1. Start the development container
 ```
-sudo docker run -it dev-contiv-vswitch:0.0.1-424-gd1a17e5 bash
+docker run -it dev-contiv-vswitch:0.0.1-424-gd1a17e5 bash
 
 # if you are behind a proxy
 export HTTPS_PROXY=http://proxy-wsa.esl.cisco.com:80/
@@ -78,10 +78,10 @@ make install
 
 #### 7. Commit the changes in the running container
 ```
-sudo docker ps | grep vswitch
+docker ps | grep vswitch
 ba4e8b8b69d6        dev-contiv-vswitch:0.0.1-424-gd1a17e5   "bash"                   2 minutes ago       Up 2 minutes                            pensive_jepsen
 
-sudo docker commit --change='CMD ["/usr/bin/supervisord", "-c", "/etc/supervisord.conf"]' ba4e8b8b69d6 dev-contiv-vswitch:0.0.1-424-gd1a17e5
+docker commit --change='CMD ["/usr/bin/supervisord", "-c", "/etc/supervisord.conf"]' ba4e8b8b69d6 dev-contiv-vswitch:0.0.1-424-gd1a17e5
 ```
 
 (the CMD statement would be overwritten, so we need to specify it. If you don't want to start 

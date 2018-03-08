@@ -31,7 +31,6 @@ COPY --from=builder /root/go/src/github.com/contiv/vpp/cmd/contiv-init/contiv-in
 COPY docker/vpp-vswitch/contiv-vswitch.conf /etc/vpp/contiv-vswitch.conf
 COPY docker/vpp-vswitch/govpp.conf /etc/govpp/govpp.conf
 COPY docker/vpp-vswitch/supervisord.conf /etc/supervisord.conf
-COPY docker/vpp-vswitch/vppctl /usr/local/bin/vppctl
 
 # run supervisord as the default executable
 CMD ["/usr/bin/supervisord", "-c", "/etc/supervisord.conf"]

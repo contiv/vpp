@@ -960,8 +960,8 @@ func (s *remoteCNIserver) unconfigureContainerConnectivity(request *cni.CNIReque
 	// configuredContainers should not be nil unless this is a unit test
 	if s.configuredContainers == nil {
 		err = fmt.Errorf("configuration was not stored for container: %s", request.ContainerId)
-		s.Logger.Error(err)
-		return s.generateCniErrorReply(err)
+		s.Logger.Warn(err)
+		return s.generateCniEmptyOKReply(), nil
 	}
 
 	// load container config

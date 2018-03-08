@@ -187,15 +187,23 @@ previously installed K8s components. Then, proceed with master initialization
 as described in the [kubeadm manual][3]. Execute the following command as
 root:
 ```
-kubeadm init --token-ttl 0
+kubeadm init --token-ttl 0 --pod-network-cidr=10.1.0.0/16
 ```
-Note that the above command will autodetect the network interface to advertise
+The CIDR specified with the flag `--pod-network-cidr` is used by kube-proxy
+and must match `PodSubnetCIDR` from the `IPAMConfig` section of the `contiv.yaml`
+configuration file, defined in the Contiv-VPP [deployment YAML file](../k8s/contiv-vpp.yaml).
+A special case are pods in the host network namespace, which will share interfaces
+and their IP addresses with the host. For services with backends running in the host
+it is therefore required to select node management IP from `PodSubnetCIDR`
+for proxying to work properly.
+
+Also note that `kubeadm init` will autodetect the network interface to advertise
 the master on as the interface with the default gateway. If you want to use a
 different interface (i.e. a custom management network setup), specify the
 `--apiserver-advertise-address=<ip-address>` argument to kubeadm init. For
 example:
 ```
-kubeadm init --token-ttl 0  --apiserver-advertise-address=192.168.56.106
+kubeadm init --token-ttl 0 --pod-network-cidr=10.1.0.0/16 --apiserver-advertise-address=192.168.56.106
 ```
 If Kubernetes was initialized successfully, it prints out this message:
 ```

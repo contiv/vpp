@@ -19,7 +19,7 @@ nginx-server-7686d857c-x922b   1/1       Running   0          5s        10.1.1.3
 
 Verify the binding on the VPP, on the host where the server POD has been deployed:
 ```
-$ sudo nc -U /run/vpp/cli.sock
+$ sudo vppctl
 vpp# sh app server
 Connection                              App                 
 [#0][T] 10.1.1.3:80->0.0.0.0:0          vcom-app-1           

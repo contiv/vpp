@@ -18,7 +18,7 @@ vagrant ssh k8s-worker1
 #### Check the VPP graph nodes (input and output queues)
 
 ```
-vagrant@k8s-worker1:~$ sudo nc -U /run/vpp/cli.sock
+vagrant@k8s-worker1:~$ sudo vppctl
     _______    _        _   _____  ___ 
  __/ __/ _ \  (_)__    | | / / _ \/ _ \
  _/ _// // / / / _ \   | |/ / ___/ ___/

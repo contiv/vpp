@@ -177,7 +177,7 @@ you have to untaint the master node:
 
 Check VPP and its interfaces:
 ```apple js
-vagrant@k8s-master:~$ sudo nc -U /run/vpp/cli.sock
+vagrant@k8s-master:~$ sudo vppctl
     _______    _        _   _____  ___ 
  __/ __/ _ \  (_)__    | | / / _ \/ _ \
  _/ _// // / / / _ \   | |/ / ___/ ___/

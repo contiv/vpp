@@ -8,18 +8,21 @@ of the Contiv-VPP plugin.
 Run as root (not using sudo):
 ```
 bash <(curl -s https://raw.githubusercontent.com/contiv/vpp/master/k8s/stn-install.sh)
+Installing Contiv STN daemon.
+Starting contiv-stn Docker container:
+550334308f85f05b2690f5cfb5dd945bd9c501ab9d074231f15c14d7098ef212
 ```
 
 Check that the STN daemon is running:
 ```
-sudo docker ps -a 
+docker ps -a 
 CONTAINER ID        IMAGE               COMMAND             CREATED             STATUS              PORTS               NAMES
-a5cffe4d491f        contivvpp/stn       "/stn"              27 seconds ago      Up 27 seconds                           contiv-stn
+550334308f85        contivvpp/stn       "/stn"              33 seconds ago      Up 33 seconds                           contiv-stn
 ```
 
 Check that the STN daemon is operational:
 ```
-sudo docker logs contiv-stn
+docker logs contiv-stn
 ```
 The expected logs would look like the following excerpt:
 ```
@@ -106,9 +109,14 @@ shown [here](#Creating-the-VPP-interface-configuration).
 Run as root (not using sudo):
 ```
 bash <(curl -s https://raw.githubusercontent.com/contiv/vpp/master/k8s/stn-install.sh) --uninstall
+Uninstalling Contiv STN daemon.
+Stopping contiv-stn Docker container:
+contiv-stn
+contiv-stn
+contiv-stn
 ```
 Make sure that the STN daemon has been uninstalled:
 ```
-sudo docker ps -q -f name=contiv-stn
+docker ps -q -f name=contiv-stn
 ```
 No containers should be listed

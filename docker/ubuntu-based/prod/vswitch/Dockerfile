@@ -1,9 +1,18 @@
-# update the version tag when moving to a new version of the vpp-agent
-FROM ligato/vpp-agent:pantheon-dev
+FROM ubuntu:16.04
 
-# install ethtool - required for disabling TCP checksum offload in containers
-RUN apt-get update && apt-get install -y ethtool &&\
-    rm -rf /var/lib/apt/lists/*
+RUN apt-get update \
+ && apt-get install -y \
+        # general tools
+        iproute2 iputils-ping inetutils-traceroute \
+        # vpp requirements
+        openssl python libapr1 libnuma1 \
+        supervisor \
+        # required for disabling TCP checksum offload in containers
+	ethtool \
+ && rm -rf /var/lib/apt/lists/*
+
+# use /opt/vpp-agent/dev as the working directory
+RUN mkdir /etc/supervisord
 
 # set work directory
 WORKDIR /root/
@@ -11,9 +20,6 @@ WORKDIR /root/
 # add the agent binaries
 COPY binaries/contiv-init /usr/bin/
 COPY binaries/contiv-agent /usr/bin/
-
-#uninstall any VPP first before re-installing
-RUN /bin/bash -c "yes | apt remove vpp* || true"
 
 # add VPP binaries (add also extracts from .tar.gz)
 ADD binaries/vpp.tar.gz .
@@ -24,9 +30,8 @@ RUN dpkg -i vpp/vpp-lib_*.deb vpp/vpp_*.deb vpp/vpp-plugins_*.deb && \
 ENV LD_PRELOAD_LIB_DIR /opt/ldpreload/
 ADD binaries/ldpreload.tar.gz $LD_PRELOAD_LIB_DIR
 
-# rename defualt VPP startup config to contiv-vswitch.conf
-RUN mv /etc/vpp/vpp.conf /etc/vpp/contiv-vswitch.conf
-
+# add defualt VPP startup config as contiv-vswitch.conf
+COPY vswitch/vpp.conf /etc/vpp/contiv-vswitch.conf
 COPY vswitch/govpp.conf /etc/govpp/govpp.conf
 COPY vswitch/supervisord.conf /etc/supervisord.conf
 COPY vswitch/vppctl /usr/local/bin/vppctl

@@ -29,20 +29,18 @@ The expected logs would look like the following excerpt:
 2018/02/23 10:08:34 Starting the STN GRPC server at port 50051
 ```
 
-For more details, please read the Go documentation for 
-[contiv-stn](../cmd/contiv-stn/doc.go)
-and
-[contiv-init](../cmd/contiv-init/doc.go).
+For more details, please read the Go documentation for [contiv-stn](../cmd/contiv-stn/doc.go)
+and [contiv-init](../cmd/contiv-init/doc.go).
 
 #### Creating the VPP interface configuration
 First, you need to find out the PCI address of the host's network interface. that
 On a Debian-based distributions, you can use `lshw`:
 
 ```
-$ sudo lshw -class network -businfo
-Bus info          Device      Class      Description
-====================================================
-pci@0000:00:03.0  ens3        network    Virtio network device
+sudo lshw -class network -businfo
+Bus info          Device      Class          Description
+========================================================
+pci@0000:03:00.0  ens160      network        VMXNET3 Ethernet Controller
 ```
 
 In our case, it would be the `ens3` interface with the PCI address

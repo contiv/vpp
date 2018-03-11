@@ -8,6 +8,9 @@ of the Contiv-VPP plugin.
 Run as root (not using sudo):
 ```
 bash <(curl -s https://raw.githubusercontent.com/contiv/vpp/master/k8s/stn-install.sh)
+```
+The install script should output the following:
+```
 Installing Contiv STN daemon.
 Starting contiv-stn Docker container:
 550334308f85f05b2690f5cfb5dd945bd9c501ab9d074231f15c14d7098ef212
@@ -33,8 +36,8 @@ For more details, please read the Go documentation for [contiv-stn](../cmd/conti
 and [contiv-init](../cmd/contiv-init/doc.go).
 
 #### Creating the VPP interface configuration
-First, you need to find out the PCI address of the host's network interface. that
-On a Debian-based distributions, you can use `lshw`:
+First, you need to find out the PCI address of the host's network interface. 
+On Debian-based distributions you can use `lshw`:
 
 ```
 sudo lshw -class network -businfo
@@ -47,7 +50,7 @@ In our case, it would be the `ens3` interface with the PCI address
 `0000:00:03.0`.
 
 
-Now, add, or modify the VPP startup config file in `/etc/vpp/contiv-vswitch.conf`
+Now, add or modify the VPP startup config file in `/etc/vpp/contiv-vswitch.conf`
 to contain the proper PCI address:
 ```
 unix {
@@ -107,6 +110,9 @@ shown [here](#Creating-the-VPP-interface-configuration).
 Run as root (not using sudo):
 ```
 bash <(curl -s https://raw.githubusercontent.com/contiv/vpp/master/k8s/stn-install.sh) --uninstall
+```
+The install script should output the following:
+```
 Uninstalling Contiv STN daemon.
 Stopping contiv-stn Docker container:
 contiv-stn

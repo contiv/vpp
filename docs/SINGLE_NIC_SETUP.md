@@ -71,7 +71,7 @@ or individually for every node in the cluster.
 Global configuration is used in homogeneous environments where all nodes in 
 a given cluster have the same hardware configuration, for example only a single
 Network Adapter. To enable the STN feature globally, put the `stealTheNIC: True`
-stanza into the `contiv-vpp.yaml` deployment file, for example:
+stanza into the [`contiv-vpp.yaml`][1] deployment file, for example:
 ```
 data:
   contiv.yaml: |-
@@ -123,4 +123,6 @@ Make sure that the STN daemon has been uninstalled:
 ```
 docker ps -q -f name=contiv-stn
 ```
-No containers should be listed
+No containers should be listed.
+
+[1]: ../k8s/contiv-vpp.yaml

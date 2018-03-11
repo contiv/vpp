@@ -84,13 +84,13 @@ data:
 
 Note that the Network Adapters on different nodes do not need to be of the 
 same type. You still need to create the respective vswitch configurations on
-every node in the cluster, as shown [here](#Creating-the-VPP-interface-configuration).
+every node in the cluster, as shown [above](#Creating-the-VPP-interface-configuration).
 
 ##### Individual configuration:
 Individual configuration is used in heterogeneous environments where each node
 in a given cluster may be configured differently. To enable the STN feature 
 for a specific node in the cluster, put the following stanza into its Node
-Configuration:
+Configuration in the [`contiv-vpp.yaml`][1] deployment file, for example:
 ```
 ...
     NodeConfig:

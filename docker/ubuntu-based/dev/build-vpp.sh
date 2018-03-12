@@ -25,7 +25,7 @@ rm *java*.deb
 dpkg -i vpp_*.deb vpp-dev_*.deb vpp-lib_*.deb vpp-plugins_*.deb vpp-dbg_*.deb
 # run the debug build too if
 # the SKIP_DEBUG_BUILD env var is 0
-if [ '${SKIP_DEBUG_BUILD}' -eq 0 ]; then
+if [ "${SKIP_DEBUG_BUILD}" == "" ] || [ "${SKIP_DEBUG_BUILD}" -eq 0 ]; then
 	cd ${VPP_DIR}
 	make vpp_configure_args_vpp='--disable-japi --disable-vom' build
 	# overwrite prod plugins with debug plugins

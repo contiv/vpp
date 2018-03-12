@@ -12,8 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//go:generate binapi-generator --input-file=/usr/share/vpp/api/dhcp.api.json --output-dir=bin_api
-
 package contiv
 
 import (
@@ -23,10 +21,8 @@ import (
 	"sync"
 
 	"git.fd.io/govpp.git/api"
-	govppapi "git.fd.io/govpp.git/api"
 	"github.com/apparentlymart/go-cidr/cidr"
 	stn_grpc "github.com/contiv/vpp/cmd/contiv-stn/model/stn"
-	"github.com/contiv/vpp/plugins/contiv/bin_api/dhcp"
 	"github.com/contiv/vpp/plugins/contiv/containeridx"
 	"github.com/contiv/vpp/plugins/contiv/containeridx/model"
 	"github.com/contiv/vpp/plugins/contiv/ipam"
@@ -91,6 +87,9 @@ type remoteCNIserver struct {
 
 	// VPP interface index map
 	swIfIndex ifaceidx.SwIfIndex
+
+	// VPP dhcp index map
+	dhcpIndex ifaceidx.DhcpIndex
 
 	// map of configured containers
 	configuredContainers *containeridx.ConfigIndex
@@ -168,7 +167,8 @@ type remoteCNIserver struct {
 	// default gateway IP address
 	defaultGw net.IP
 
-	dhcpNotif chan govppapi.Message
+	// dhcpNotif is channel where dhcp events are forwarded
+	dhcpNotif chan ifaceidx.DhcpIdxDto
 
 	ctx           context.Context
 	ctxCancelFunc context.CancelFunc
@@ -204,7 +204,7 @@ type vswitchConfig struct {
 
 // newRemoteCNIServer initializes a new remote CNI server instance.
 func newRemoteCNIServer(logger logging.Logger, vppTxnFactory func() linux.DataChangeDSL, proxy kvdbproxy.Proxy,
-	configuredContainers *containeridx.ConfigIndex, govppChan *api.Channel, index ifaceidx.SwIfIndex, agentLabel string,
+	configuredContainers *containeridx.ConfigIndex, govppChan *api.Channel, index ifaceidx.SwIfIndex, dhcpIndex ifaceidx.DhcpIndex, agentLabel string,
 	config *Config, nodeConfig *OneNodeConfig, nodeID uint8, broker keyval.ProtoBroker) (*remoteCNIserver, error) {
 	ipam, err := ipam.New(logger, nodeID, &config.IPAMConfig, broker)
 	if err != nil {
@@ -218,6 +218,7 @@ func newRemoteCNIServer(logger logging.Logger, vppTxnFactory func() linux.DataCh
 		configuredContainers: configuredContainers,
 		govppChan:            govppChan,
 		swIfIndex:            index,
+		dhcpIndex:            dhcpIndex,
 		agentLabel:           agentLabel,
 		nodeID:               nodeID,
 		ipam:                 ipam,
@@ -237,7 +238,7 @@ func newRemoteCNIServer(logger logging.Logger, vppTxnFactory func() linux.DataCh
 	if nodeConfig != nil && nodeConfig.Gateway != "" {
 		server.defaultGw = net.ParseIP(nodeConfig.Gateway)
 	}
-	server.dhcpNotif = make(chan govppapi.Message, 1)
+	server.dhcpNotif = make(chan ifaceidx.DhcpIdxDto, 1)
 	return server, nil
 }
 
@@ -470,6 +471,16 @@ func (s *remoteCNIserver) configureMainVPPInterface(config *vswitchConfig, nicNa
 			if useDHCP {
 				// clear IP addresses
 				nic.IpAddresses = []string{}
+				nic.SetDhcpClient = true
+				// start watching dhcp notif
+				s.dhcpIndex.WatchNameToIdx("cniserver", s.dhcpNotif)
+				go s.handleDHCPNotifications(s.dhcpNotif)
+				// do lookup to cover the case where dhcp was configured by resync
+				// and ip address is already assigned
+				_, metadata, exists := s.dhcpIndex.LookupIdx(nicName)
+				if exists {
+					s.applyDHCPdata(metadata)
+				}
 			}
 			txn1.VppInterface(nic)
 			config.nics = append(config.nics, nic)
@@ -499,14 +510,6 @@ func (s *remoteCNIserver) configureMainVPPInterface(config *vswitchConfig, nicNa
 		}
 	} else {
 		s.mainPhysicalIf = nicName
-	}
-
-	if !useSTN && useDHCP {
-		err = s.configureDHCP(nicName)
-		if err != nil {
-			s.Logger.Error(err)
-			return err
-		}
 	}
 
 	return nil
@@ -563,67 +566,47 @@ func (s *remoteCNIserver) getSTNInterfaceIP(ifName string) (ip string, gw string
 	return
 }
 
-// configureDHCP configures DHCP on an interface on VPP
-func (s *remoteCNIserver) configureDHCP(nicName string) error {
-
-	_, err := s.govppChan.SubscribeNotification(s.dhcpNotif, dhcp.NewDhcpComplEvent)
-	if err != nil {
-		return err
-	}
-
-	idx, _, found := s.swIfIndex.LookupIdx(nicName)
-
-	if found {
-		req := &dhcp.DhcpClientConfig{}
-		req.SwIfIndex = idx
-		req.IsAdd = 1
-		req.WantDhcpEvent = 1
-
-		reply := &dhcp.DhcpClientConfigReply{}
-		err = s.govppChan.SendRequest(req).ReceiveReply(reply)
-		if err != nil {
-			return err
-		}
-	} else {
-		return fmt.Errorf("DHCP interfaces not found")
-	}
-
-	go s.handleDHCPNotifications(s.dhcpNotif)
-	return nil
-}
-
 // handleDHCPNotifications handles DHCP state change notifications
-func (s *remoteCNIserver) handleDHCPNotifications(notifCh chan govppapi.Message) {
+func (s *remoteCNIserver) handleDHCPNotifications(notifCh chan ifaceidx.DhcpIdxDto) {
 
 	for {
 		select {
-		case msg := <-notifCh:
-			switch notif := msg.(type) {
-			case *dhcp.DhcpComplEvent:
-				var ipAddr string
-				if notif.IsIpv6 == 1 {
-					ipAddr = fmt.Sprintf("%s/%d", net.IP(notif.HostAddress).To16().String(), notif.MaskWidth)
-					s.defaultGw = net.IP(notif.RouterAddress)
-				} else {
-					ipAddr = fmt.Sprintf("%s/%d", net.IP(notif.HostAddress[:4]).To4().String(), notif.MaskWidth)
-					s.defaultGw = net.IP(notif.RouterAddress[:4])
-				}
-				s.Lock()
-				if s.nodeIP != "" && s.nodeIP != ipAddr {
-					s.Logger.Error("Update of Node IP address is not supported")
-				}
-				s.vswitchConnectivityConfigured = true
-				s.vswitchCond.Broadcast()
-				s.setNodeIP(ipAddr)
-				s.Unlock()
-
-				s.Logger.Info("DHCP event", *notif)
+		case notif := <-notifCh:
+			s.Logger.Info("DHCP notification received")
+			if notif.Del {
+				continue
 			}
+			if notif.Metadata == nil {
+				s.Logger.Warn("DHCP notification metadata is empty")
+				continue
+
+			}
+			if notif.Metadata.IfName != s.mainPhysicalIf {
+				continue
+			}
+
+			s.applyDHCPdata(notif.Metadata)
+
 		case <-s.ctx.Done():
 			return
 		}
 	}
 
+}
+
+func (s *remoteCNIserver) applyDHCPdata(notif *ifaceidx.DHCPSettings) {
+	ipAddr := fmt.Sprintf("%s/%d", notif.IPAddress, notif.Mask)
+	s.defaultGw = net.ParseIP(notif.RouterAddress)
+
+	s.Lock()
+	if s.nodeIP != "" && s.nodeIP != ipAddr {
+		s.Logger.Error("Update of Node IP address is not supported")
+	}
+	s.vswitchConnectivityConfigured = true
+	s.vswitchCond.Broadcast()
+	s.setNodeIP(ipAddr)
+	s.Unlock()
+	s.Logger.Info("DHCP event", notif)
 }
 
 // configureOtherVPPInterfaces other interfaces that were configured in contiv plugin YAML configuration.

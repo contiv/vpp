@@ -172,6 +172,10 @@ type remoteCNIserver struct {
 
 	ctx           context.Context
 	ctxCancelFunc context.CancelFunc
+
+	// the map holds containerID of pods that have been configured in this vswitch run
+	// this structure is intentionally not persisted
+	configuredInThisRun map[string]bool
 }
 
 // vswitchConfig holds base vSwitch VPP configuration.
@@ -226,6 +230,7 @@ func newRemoteCNIServer(logger logging.Logger, vppTxnFactory func() linux.DataCh
 		tapV2TxRingSize:            config.TAPv2TxRingSize,
 		disableTCPstack:            config.TCPstackDisabled,
 		useL2Interconnect:          config.UseL2Interconnect,
+		configuredInThisRun:        map[string]bool{},
 	}
 	server.vswitchCond = sync.NewCond(&server.Mutex)
 	server.ctx, server.ctxCancelFunc = context.WithCancel(context.Background())
@@ -854,7 +859,7 @@ func (s *remoteCNIserver) persistVswitchConfig(config *vswitchConfig) error {
 	changes[vpp_l4.FeatureKey()] = config.l4Features
 
 	// persist the changes in ETCD
-	err = s.persistChanges(nil, changes)
+	err = s.persistChanges(nil, changes, true)
 	if err != nil {
 		s.Logger.Error(err)
 		return err
@@ -950,7 +955,7 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 			return s.generateCniErrorReply(err)
 		}
 	}
-
+	s.configuredInThisRun[id] = true
 	// prepare and send reply for the CNI request
 	reply := s.generateCniReply(config, request.NetworkNamespace, podIPCIDR)
 	return reply, err
@@ -1030,6 +1035,7 @@ func (s *remoteCNIserver) unconfigureContainerConnectivity(request *cni.CNIReque
 		return s.generateCniErrorReply(err)
 	}
 
+	delete(s.configuredInThisRun, id)
 	// prepare and send reply for the CNI request
 	reply := s.generateCniEmptyOKReply()
 	return reply, nil
@@ -1271,7 +1277,7 @@ func (s *remoteCNIserver) persistPodConfig(config *PodConfig) error {
 	changes[vpp_l3.ArpEntryKey(config.VppARPEntry.Interface, config.VppARPEntry.IpAddress)] = config.VppARPEntry
 
 	// persist the configuration
-	err = s.persistChanges(nil, changes)
+	err = s.persistChanges(nil, changes, true)
 	if err != nil {
 		s.Logger.Error(err)
 		return err
@@ -1312,8 +1318,10 @@ func (s *remoteCNIserver) deletePersistedPodConfig(config *container.Persisted) 
 	}
 	removedKeys = append(removedKeys, vpp_l3.ArpEntryKey(config.VppARPEntryInterface, config.VppARPEntryIP))
 
+	_, skip := s.configuredInThisRun[config.ID]
+
 	// remove persisted configuration from ETCD
-	err := s.persistChanges(removedKeys, nil)
+	err := s.persistChanges(removedKeys, nil, skip)
 	if err != nil {
 		s.Logger.Error(err)
 		return err
@@ -1379,13 +1387,15 @@ func (s *remoteCNIserver) generateCniErrorReply(err error) (*cni.CNIReply, error
 }
 
 // persistChanges persists the changes passed as input arguments into ETCD.
-func (s *remoteCNIserver) persistChanges(removedKeys []string, putChanges map[string]proto.Message) error {
+func (s *remoteCNIserver) persistChanges(removedKeys []string, putChanges map[string]proto.Message, ignoreDel bool) error {
 	var err error
 	// TODO rollback in case of error
 
 	for _, key := range removedKeys {
 		// ignore the next delete event on this key
-		s.proxy.AddIgnoreEntry(key, datasync.Delete)
+		if ignoreDel {
+			s.proxy.AddIgnoreEntry(key, datasync.Delete)
+		}
 
 		// delete the key
 		_, err = s.proxy.Delete(key)

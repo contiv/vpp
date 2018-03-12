@@ -23,9 +23,9 @@ rm -rf .ccache \
 	build-vpp_debug-native/vpp/vpp-api/java
 rm *java*.deb
 dpkg -i vpp_*.deb vpp-dev_*.deb vpp-lib_*.deb vpp-plugins_*.deb vpp-dbg_*.deb
-# run the debug build too if
-# the SKIP_DEBUG_BUILD env var is 0
-if [ "${SKIP_DEBUG_BUILD}" != "" ] && [ "${SKIP_DEBUG_BUILD}" -ne 0 ]; then
+
+# run the debug build too unless the SKIP_DEBUG_BUILD env var is set to non-0 value
+if [ "${SKIP_DEBUG_BUILD}" == "" ] || [ "${SKIP_DEBUG_BUILD}" -eq 0 ]; then
 	cd ${VPP_DIR}
 	make vpp_configure_args_vpp='--disable-japi --disable-vom' build
 	# overwrite prod plugins with debug plugins

@@ -55,9 +55,12 @@ Finally, you need to set up the vswitch to use the network adapters:
 - [Setup on a node with a single NIC][14]
 - [Setup a node with multiple NICs][15]
 
-## Using Kubeadm to install Kubernetes
+### Using a node setup script
+You can perform the above steps using the [node setup script][17].
+
+## Installing Kubernetes with Contiv-vpp CNI plugin
 After the nodes you will be using in your K8s cluster are prepared, you can 
-install the cluster using kubeadm.
+install the cluster using [kubeadm][1].
 
 ### (1/4) Installing Kubeadm on your hosts
 For first-time installation, see [Installing kubeadm][6]. To update an
@@ -76,13 +79,14 @@ root:
 ```
 kubeadm init --token-ttl 0 --pod-network-cidr=10.1.0.0/16
 ```
-The CIDR specified with the flag `--pod-network-cidr` is used by kube-proxy
-and must match `PodSubnetCIDR` from the `IPAMConfig` section of the `contiv.yaml`
-configuration file, defined in the Contiv-VPP [deployment YAML file](../k8s/contiv-vpp.yaml).
-A special case are pods in the host network namespace, which will share interfaces
-and their IP addresses with the host. For services with backends running in the host
-it is therefore required to select node management IP from `PodSubnetCIDR`
-for proxying to work properly.
+**Note:** The CIDR specified with the flag `--pod-network-cidr` is used by 
+kube-proxy, and it **must match** the `PodSubnetCIDR` parameter in the 
+`IPAMConfig` section in the Contiv-vpp config map in Contiv-vpp's deployment
+file ([contiv-vpp.yaml](../k8s/contiv-vpp.yaml)). Pods in the host network 
+namespace are special case; they share interfaces and their IP addresses 
+with the host. For services with backends running on the hostit is therefore
+required to select their IP address from the `PodSubnetCIDR` for proxying to
+work properly.
 
 Also note that `kubeadm init` will autodetect the network interface to advertise
 the master on as the interface with the default gateway. If you want to use a
@@ -146,7 +150,7 @@ argument to kubeadm init.
 Verify that the VPP successfully grabbed the network interface specified in
 the VPP startup config (`GigabitEthernet0/4/0` in our case):
 ```
-$ sudo nc -U /run/vpp/cli.sock
+$ sudo vppctl
 vpp# sh inter
               Name               Idx       State          Counter          Count
 GigabitEthernet0/4/0              1         up       rx packets                  1294
@@ -218,7 +222,7 @@ On each joined node, verify that the VPP successfully grabbed the network
 interface specified in the VPP startup config (`GigabitEthernet0/4/0` in
 our case):
 ```
-$ sudo nc -U /run/vpp/cli.sock
+$ sudo vppctl
 vpp# sh inter
               Name               Idx       State          Counter          Count
 GigabitEthernet0/4/0              1         up
@@ -256,7 +260,7 @@ IP:		10.1.1.4
 You can check the pods' connectivity in one of the following ways:
 * Connect to the VPP debug CLI and ping any pod:
 ```
-  sudo nc -U /run/vpp/cli.sock
+  sudo vppctl
   vpp# ping 10.1.1.3
 ```
 * Start busybox and ping any pod:
@@ -419,6 +423,7 @@ kubeadm reset
 kubeadm init --token-ttl 0
 ```
 
+[1]: https://kubernetes.io/docs/setup/independent/create-cluster-kubeadm/
 [3]: https://kubernetes.io/docs/setup/independent/create-cluster-kubeadm/#initializing-your-master
 [4]: https://kubernetes.io/docs/setup/independent/create-cluster-kubeadm/#pod-network
 [5]: https://kubernetes.io/docs/setup/independent/create-cluster-kubeadm/#joining-your-nodes
@@ -431,4 +436,5 @@ kubeadm init --token-ttl 0
 [13]: VMWARE_FUSION_HOST.md
 [14]: SINGLE_NIC_SETUP.md
 [15]: MULTI_NIC_SETUP.md
-[16]: SINGLE_NIC_SETUP.md
+[16]: SINGLE_NIC_SETUP.md#configuring-stn-in-contiv-vpp-k8s-deployment-files
+[17]: ../k8s/README.md#setup-node-sh

@@ -177,7 +177,9 @@ source /home/vagrant/.profile
 sed -i '4 a Environment="KUBELET_EXTRA_ARGS=--node-ip=$KUBE_MASTER_IP"' /etc/systemd/system/kubelet.service.d/10-kubeadm.conf
 systemctl daemon-reload
 systemctl restart kubelet
-echo "$(kubeadm init --token-ttl 0 --apiserver-advertise-address="${KUBE_MASTER_IP}" --token="${KUBEADM_TOKEN}")" >> /vagrant/config/cert
+curl --silent https://raw.githubusercontent.com/contiv/vpp/master/k8s/contiv-vpp.yaml > /tmp/contiv-vpp.yaml
+POD_SUBNET_CIDR=$(grep -A0 'PodSubnetCIDR:' /tmp/contiv-vpp.yaml | tail -n1 | awk '{ print $2}')
+echo "$(kubeadm init --token-ttl 0 --pod-network-cidr="${POD_SUBNET_CIDR}" --apiserver-advertise-address="${KUBE_MASTER_IP}" --token="${KUBEADM_TOKEN}")" >> /vagrant/config/cert
 
 echo "Create folder to store kubernetes and network configuration"
 mkdir -p /home/vagrant/.kube

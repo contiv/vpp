@@ -14,8 +14,8 @@ then
 fi
 
 # There may be more than one vswitch container if an upgrade/redeploy is happening, so go for the newest one.
-if ! ID=$(docker ps -f "ancestor=$IMAGE" --format '{{.CreatedAt}} {{.ID}}' | sort -nr | head -n 1 | sed -e 's|.* ||g') \
-    || [ -z "$ID" ]
+if ! ID=$(docker ps --format '{{.CreatedAt}} {{.Image}} {{.ID}}' | grep -E " $IMAGE@?[^ ]* [^ ]+$" | sort -nr | \
+    head -n 1 | sed -e 's|.* ||g') || [ -z "$ID" ]
 then
     echo "Error finding a running container derived from the $IMAGE image." >&2
     exit 1

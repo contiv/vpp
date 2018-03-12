@@ -13,18 +13,9 @@ git checkout ${VPP_COMMIT_ID} || true
 rm -rf build-root/
 git reset --hard HEAD
 UNATTENDED=y make vpp_configure_args_vpp='--disable-japi --disable-vom' install-dep
-apt-get remove --purge -y gcc gcc-5 g++ cpp-5
-add-apt-repository -y ppa:ubuntu-toolchain-r/test
-apt-get update
-apt-get install -y gcc-7 g++-7
-cd /usr/bin/
-ln -s gcc-7 gcc
-ln -s g++-7 g++
-ln -s cpp-7 cpp
 rm -rf /var/lib/apt/lists/*
 cd ${VPP_DIR}
 UNATTENDED=y make vpp_configure_args_vpp='--disable-japi --disable-vom' bootstrap dpdk-install-dev pkg-deb
-add-apt-repository -y ppa:ubuntu-toolchain-r/test
 cd build-root
 rm -rf .ccache \
 	build-vpp-native/vpp/vpp-api/vom \

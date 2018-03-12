@@ -23,12 +23,14 @@ rm -rf .ccache \
 	build-vpp_debug-native/vpp/vpp-api/java
 rm *java*.deb
 dpkg -i vpp_*.deb vpp-dev_*.deb vpp-lib_*.deb vpp-plugins_*.deb vpp-dbg_*.deb
-# run the debug build too if:
-# VPP commit ID is specified AND
+# run the debug build too if
 # the SKIP_DEBUG_BUILD env var is 0
-if [ '${VPP_COMMIT_ID}' != 'xxx' ] && [ '${SKIP_DEBUG_BUILD}' -eq 0 ]; then
+if [ '${SKIP_DEBUG_BUILD}' -eq 0 ]; then
 	cd ${VPP_DIR}
-	make build
+	make vpp_configure_args_vpp='--disable-japi --disable-vom' build
+	# overwrite prod plugins with debug plugins
+	rm -rf /usr/lib/{vpp_plugins,vpp_api_test_plugins}
+	cp -r build-root/install-vpp_debug-native/vpp/lib64/{vpp_plugins,vpp_api_test_plugins} /usr/lib
 fi
 cd ${VPP_DIR}
 cd build-root

@@ -20,7 +20,7 @@ RUN export CGO_ENABLED=0 \
  && cp /cni/loopback /output/ \
  && cp /go/src/github.com/contiv/vpp/docker/vpp-cni/10-contiv-vpp.conf /output/ \
  && cp /go/src/github.com/contiv/vpp/docker/vpp-cni/install.sh /output/ \
- && go build -o /output/contiv-cni contiv_cni.go
+ && go build -ldflags '-s -w' -o /output/contiv-cni contiv_cni.go
 
 FROM alpine:3.7
 

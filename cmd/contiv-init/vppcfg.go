@@ -46,6 +46,7 @@ import (
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/common/bin_api/dhcp"
 	if_binapi "github.com/ligato/vpp-agent/plugins/defaultplugins/common/bin_api/interfaces"
 	ip_binapi "github.com/ligato/vpp-agent/plugins/defaultplugins/common/bin_api/ip"
+	"github.com/ligato/vpp-agent/plugins/defaultplugins/common/bin_api/vpe"
 
 	"github.com/apparentlymart/go-cidr/cidr"
 	"github.com/contiv/vpp/cmd/contiv-stn/model/stn"
@@ -74,6 +75,7 @@ func configureVpp(contivCfg *contiv.Config, stnData *stn.STNReply, useDHCP bool)
 	var err error
 
 	// connect to VPP
+	govpp.SetControlPingMessages(&vpe.ControlPing{}, &vpe.ControlPingReply{})
 	conn, connChan, err := govpp.AsyncConnect(govppmux.NewVppAdapter())
 	if err != nil {
 		logger.Errorf("Error by connecting to VPP: %v", err)

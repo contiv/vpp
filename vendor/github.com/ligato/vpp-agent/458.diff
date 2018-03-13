@@ -1,0 +1,608 @@
+diff --git a/plugins/defaultplugins/ifplugin/data_resync.go b/plugins/defaultplugins/ifplugin/data_resync.go
+index d3c09ad1..fb2c4ddb 100644
+--- a/plugins/defaultplugins/ifplugin/data_resync.go
++++ b/plugins/defaultplugins/ifplugin/data_resync.go
+@@ -15,8 +15,10 @@
+ package ifplugin
+ 
+ import (
++	"bytes"
+ 	"fmt"
+ 	"net"
++	"strings"
+ 
+ 	"github.com/ligato/cn-infra/core"
+ 	"github.com/ligato/vpp-agent/idxvpp/nametoidx"
+@@ -78,11 +80,13 @@ func (plugin *InterfaceConfigurator) Resync(nbIfs []*intf.Interfaces_Interface)
+ 					break
+ 				}
+ 			}
+-			// If interface configuration exists in the NB, call modify to update the device
++			// If interface configuration exists in the NB, check if modification is required to call
+ 			if found {
+-				if err = plugin.ModifyVPPInterface(nbIfConfig, &vppIf.Interfaces_Interface); err != nil {
+-					plugin.Log.Errorf("Error while modifying physical interface: %v", err)
+-					errs = append(errs, err)
++				if plugin.isIfModified(nbIfConfig, &vppIf.Interfaces_Interface) {
++					if err = plugin.ModifyVPPInterface(nbIfConfig, &vppIf.Interfaces_Interface); err != nil {
++						plugin.Log.Errorf("Error while modifying physical interface: %v", err)
++						errs = append(errs, err)
++					}
+ 				}
+ 			} else {
+ 				// If not, remove configuration from physical device (the device itself cannot be removed)
+@@ -105,18 +109,28 @@ func (plugin *InterfaceConfigurator) Resync(nbIfs []*intf.Interfaces_Interface)
+ 	// Handle case where persistent mapping is not available for configurable interfaces
+ 	if len(persistentIfs.ListNames()) == 0 && len(configurableVppIfs) > 0 {
+ 		plugin.Log.Debug("Persistent mapping for interfaces is empty, %v VPP interfaces is unknown", len(configurableVppIfs))
+-		// In such a case, there is nothing to correlate with. All existing interfaces will be removed
++		// Try correlate interfaces heuristically
+ 		for vppIfIdx, vppIf := range configurableVppIfs {
+-			// register interface before deletion (to keep state consistent)
+-			vppAgentIf := &vppIf.Interfaces_Interface
+-			vppAgentIf.Name = vppIf.VPPInternalName
+-			// todo plugin.swIfIndexes.RegisterName(vppAgentIf.Name, vppIfIdx, vppAgentIf)
+-			if err := plugin.deleteVPPInterface(vppAgentIf, vppIfIdx); err != nil {
+-				plugin.Log.Errorf("Error while removing interface: %v", err)
+-				errs = append(errs, err)
++			// Look for simillar NB config
++			correlatedNb := plugin.correlateInterfaces(nbIfs, vppIf)
++			if correlatedNb != nil {
++				if plugin.isIfModified(correlatedNb, &vppIf.Interfaces_Interface) {
++					if err = plugin.ModifyVPPInterface(correlatedNb, &vppIf.Interfaces_Interface); err != nil {
++						plugin.Log.Errorf("Error while modifying physical interface: %v", err)
++						errs = append(errs, err)
++					}
++				}
++			} else {
++				// VPP interface cannot be correlated and will be removed.
++				vppAgentIf := &vppIf.Interfaces_Interface
++				vppAgentIf.Name = vppIf.VPPInternalName
++				if err := plugin.deleteVPPInterface(vppAgentIf, vppIfIdx); err != nil {
++					plugin.Log.Errorf("Error while removing interface: %v", err)
++					errs = append(errs, err)
++				}
+ 			}
+ 		}
+-		// Configure NB interfaces
++		// Configure all new and un-correlated interfaces
+ 		for _, nbIf := range nbIfs {
+ 			if err := plugin.ConfigureVPPInterface(nbIf); err != nil {
+ 				plugin.Log.Errorf("Error while configuring interface: %v", err)
+@@ -144,12 +158,17 @@ func (plugin *InterfaceConfigurator) Resync(nbIfs []*intf.Interfaces_Interface)
+ 				}
+ 			}
+ 			if ifPresent && ifVppData != nil {
+-				// Interface exists on the vpp. Agent assumes that the the configured interface
++				// Interface exists on the vpp. Agent assumes that the configured interface
+ 				// correlates with the NB one (needs to be registered manually)
+ 				plugin.swIfIndexes.RegisterName(nbIf.Name, persistIdx, nbIf)
+ 				plugin.Log.Debugf("Registered existing interface %v with index %v", nbIf.Name, persistIdx)
+-				// todo calculate diff before modifying
+-				plugin.ModifyVPPInterface(nbIf, ifVppData)
++				// Calculate diff to evaluate whether the diff is needed
++				if plugin.isIfModified(nbIf, ifVppData) {
++					if err := plugin.ModifyVPPInterface(nbIf, ifVppData); err != nil {
++						plugin.Log.Errorf("Error while modifying interface: %v", err)
++						errs = append(errs, err)
++					}
++				}
+ 			} else {
+ 				// Interface exists in mapping but not in vpp.
+ 				if err := plugin.ConfigureVPPInterface(nbIf); err != nil {
+@@ -676,3 +695,189 @@ func (plugin *NatConfigurator) resolveMappings(nbDNatConfig *nat.Nat44DNat_DNatC
+ 		}
+ 	}
+ }
++
++// Try to parse existing VPP interface with provided set of NB interfaces. If interfaces are the same type,
++// two parameters are compared:
++//	1. If both interfaces contain the same set of IP addresses, they are considered equal and will be correlated
++//  2. If first condition is false, compare MAC addresses; if both interfaces have the same MAC address,
++//     they will be also considered as correlated
++// Otherwise interfrace cannot be parsed and will be recreated
++func (plugin *InterfaceConfigurator) correlateInterfaces(nbIfs []*intf.Interfaces_Interface, vppIf *vppdump.Interface) *intf.Interfaces_Interface {
++	// find the best match
++	for nbIfIdx, nbIf := range nbIfs {
++		if nbIf.Type != vppIf.Type {
++			continue
++		}
++		// First attempt: match IP address
++		if len(nbIf.IpAddresses) == len(vppIf.IpAddresses) {
++			ipMatch := func(nbIPs, vppIPs []string) bool {
++				for _, nbIP := range nbIPs {
++					var ipFound bool
++					for _, vppIP := range vppIPs {
++						if nbIP == vppIP {
++							ipFound = true
++							break
++						}
++					}
++					if !ipFound {
++						return false
++					}
++				}
++				return true
++			}(nbIf.IpAddresses, vppIf.IpAddresses)
++			if ipMatch {
++				// Remove NB config (so agent knows it was already used)
++				nbIfs = append(nbIfs[:nbIfIdx], nbIfs[nbIfIdx+1:]...)
++				return nbIf
++			}
++		}
++		// Second attempt: match MAC
++		if nbIf.PhysAddress == vppIf.PhysAddress {
++			// Remove NB config (so agent knows it was already used)
++			nbIfs = append(nbIfs[:nbIfIdx], nbIfs[nbIfIdx+1:]...)
++			return nbIf
++		}
++	}
++
++	return nil
++}
++
++// Compares two interfaces. If there is any difference, returns true, false otherwise
++func (plugin *InterfaceConfigurator) isIfModified(nbIf, vppIf *intf.Interfaces_Interface) (isModified bool) {
++	isModified = true
++
++	// Type
++	if nbIf.Type != vppIf.Type {
++		return isModified
++	}
++	// Enabled, VRF, container IP
++	if nbIf.Enabled != vppIf.Enabled || nbIf.Vrf != vppIf.Vrf || nbIf.ContainerIpAddress != vppIf.ContainerIpAddress {
++		return isModified
++	}
++	// DHCP, MTU.
++	if nbIf.SetDhcpClient != vppIf.SetDhcpClient || nbIf.Mtu != vppIf.Mtu {
++		return isModified
++	}
++	// MAC address (compare only if it is set in the NB)
++	if nbIf.PhysAddress != "" && nbIf.PhysAddress != vppIf.PhysAddress {
++		return isModified
++	}
++	// IP address count. First, remove IPv6 link local addresses
++	for ipIdx, ipAddress := range vppIf.IpAddresses {
++		if strings.HasPrefix(ipAddress, "fe80") {
++			vppIf.IpAddresses = append(vppIf.IpAddresses[:ipIdx], vppIf.IpAddresses[ipIdx+1:]...)
++		}
++	}
++	if len(nbIf.IpAddresses) != len(vppIf.IpAddresses) {
++		return isModified
++	}
++	// Value of IP addresses
++	for _, nbIP := range nbIf.IpAddresses {
++		// For every IP there has to be a match
++		var match bool
++		for _, vppIP := range vppIf.IpAddresses {
++			pNbIP, nbIPNet, err := net.ParseCIDR(nbIP)
++			if err != nil {
++				plugin.Log.Error(err)
++				continue
++			}
++			pVppIP, vppIPNet, err := net.ParseCIDR(vppIP)
++			if err != nil {
++				plugin.Log.Error(err)
++				continue
++			}
++			if nbIPNet.Mask.String() == vppIPNet.Mask.String() && bytes.Compare(pNbIP, pVppIP) == 0 {
++				match = true
++				break
++			}
++		}
++		if !match {
++			return isModified
++		}
++	}
++	// RxMode settings
++	if nbIf.RxModeSettings == nil && vppIf.RxModeSettings != nil || nbIf.RxModeSettings != nil && vppIf.RxModeSettings == nil {
++		return isModified
++	}
++	if nbIf.RxModeSettings != nil && vppIf.RxModeSettings != nil {
++		// RxMode fields
++		if nbIf.RxModeSettings.RxMode != vppIf.RxModeSettings.RxMode || nbIf.RxModeSettings.QueueID != vppIf.RxModeSettings.QueueID ||
++			nbIf.RxModeSettings.QueueIDValid != vppIf.RxModeSettings.QueueIDValid {
++			return isModified
++
++		}
++	}
++	// Unnumbered settings
++	if nbIf.Unnumbered == nil && vppIf.Unnumbered != nil || nbIf.Unnumbered != nil && vppIf.Unnumbered == nil {
++		return isModified
++	}
++	if nbIf.Unnumbered != nil && vppIf.Unnumbered != nil {
++		// Unnumbered fields
++		if nbIf.Unnumbered.IsUnnumbered != vppIf.Unnumbered.IsUnnumbered || nbIf.Unnumbered.InterfaceWithIP != nbIf.Unnumbered.InterfaceWithIP {
++			return isModified
++		}
++	}
++
++	switch nbIf.Type {
++	case intf.InterfaceType_AF_PACKET_INTERFACE:
++		if nbIf.Afpacket == nil && vppIf.Afpacket != nil || nbIf.Afpacket != nil && vppIf.Afpacket == nil {
++			return isModified
++		}
++		if nbIf.Afpacket != nil && vppIf.Afpacket != nil {
++			// AF-packet host name
++			if nbIf.Afpacket.HostIfName != vppIf.Afpacket.HostIfName {
++				return isModified
++			}
++		}
++	case intf.InterfaceType_MEMORY_INTERFACE:
++		if nbIf.Memif == nil && vppIf.Memif != nil || nbIf.Memif != nil && vppIf.Memif == nil {
++			return isModified
++		}
++		if nbIf.Memif != nil && vppIf.Memif != nil {
++			// Memif ID and socket
++			if nbIf.Memif.SocketFilename != vppIf.Memif.SocketFilename || nbIf.Memif.Id != vppIf.Memif.Id {
++				return isModified
++			}
++			// Master, mode
++			if nbIf.Memif.Master != vppIf.Memif.Master || nbIf.Memif.Mode != vppIf.Memif.Mode {
++				return isModified
++			}
++			// Rx & Tx queues
++			if nbIf.Memif.TxQueues != vppIf.Memif.TxQueues || nbIf.Memif.RxQueues != vppIf.Memif.RxQueues {
++				return isModified
++			}
++			// todo secret, buffer size and ring size is not compared VPP always returns 0 for buffer size
++			// and 1 for ring size. Secret cannot be dumped at all
++		}
++	case intf.InterfaceType_TAP_INTERFACE:
++		if nbIf.Tap == nil && vppIf.Tap != nil || nbIf.Tap != nil && vppIf.Tap == nil {
++			return isModified
++		}
++		if nbIf.Tap != nil && vppIf.Tap != nil {
++			// Tap version
++			if nbIf.Tap.Version == 2 && nbIf.Tap != vppIf.Tap {
++				return isModified
++			}
++			// Namespace and host name
++			if nbIf.Tap.Namespace != vppIf.Tap.Namespace || nbIf.Tap.HostIfName != vppIf.Tap.HostIfName {
++				return isModified
++			}
++			// Tx & Rx ring size
++			if nbIf.Tap.TxRingSize != nbIf.Tap.TxRingSize || nbIf.Tap.RxRingSize != nbIf.Tap.RxRingSize {
++				return isModified
++			}
++		}
++	case intf.InterfaceType_VXLAN_TUNNEL:
++		if nbIf.Vxlan == nil && vppIf.Vxlan != nil || nbIf.Vxlan != nil && vppIf.Vxlan == nil {
++			return isModified
++		}
++		if nbIf.Vxlan != nil && vppIf.Vxlan != nil {
++			// VxLAN fields
++			if nbIf.Vxlan.Vni != vppIf.Vxlan.Vni || nbIf.Vxlan.SrcAddress != vppIf.Vxlan.SrcAddress || nbIf.Vxlan.DstAddress != vppIf.Vxlan.DstAddress {
++				return isModified
++			}
++		}
++	}
++	isModified = false
++	return
++}
+diff --git a/plugins/defaultplugins/ifplugin/interface_config.go b/plugins/defaultplugins/ifplugin/interface_config.go
+index 0dd795de..3ef53f6f 100644
+--- a/plugins/defaultplugins/ifplugin/interface_config.go
++++ b/plugins/defaultplugins/ifplugin/interface_config.go
+@@ -183,7 +183,8 @@ func (plugin *InterfaceConfigurator) ConfigureVPPInterface(iface *intf.Interface
+ 	case intf.InterfaceType_TAP_INTERFACE:
+ 		ifIdx, err = vppcalls.AddTapInterface(iface.Tap, plugin.vppCh, measure.GetTimeLog(tap.TapConnect{}, plugin.Stopwatch))
+ 	case intf.InterfaceType_MEMORY_INTERFACE:
+-		id, err := plugin.resolveMemifSocketFilename(iface.Memif)
++		var id uint32 // Memif socket id
++		id, err = plugin.resolveMemifSocketFilename(iface.Memif)
+ 		if err != nil {
+ 			return err
+ 		}
+diff --git a/plugins/defaultplugins/ifplugin/vppdump/dump_vppcalls.go b/plugins/defaultplugins/ifplugin/vppdump/dump_vppcalls.go
+index 16e7ff92..327e1cd9 100644
+--- a/plugins/defaultplugins/ifplugin/vppdump/dump_vppcalls.go
++++ b/plugins/defaultplugins/ifplugin/vppdump/dump_vppcalls.go
+@@ -34,6 +34,9 @@ import (
+ 	"github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/vppcalls"
+ )
+ 
++// Default VPP MTU value
++const defaultVPPMtu = 9216
++
+ // Interface is the wrapper structure for the interface northbound API structure.
+ type Interface struct {
+ 	VPPInternalName string `json:"vpp_internal_name"`
+@@ -72,6 +75,13 @@ func DumpInterfaces(log logging.Logger, vppChan *govppapi.Channel, stopwatch *me
+ 				Type:        guessInterfaceType(string(ifDetails.InterfaceName)), // the type may be amended later by further dumps
+ 				Enabled:     ifDetails.AdminUpDown > 0,
+ 				PhysAddress: net.HardwareAddr(ifDetails.L2Address[:ifDetails.L2AddressLength]).String(),
++				Mtu: func(vppMtu uint16) uint32 {
++					// If default VPP MTU value is set, return 0 (it means MTU was not set in the NB config)
++					if vppMtu == defaultVPPMtu {
++						return 0
++					}
++					return uint32(vppMtu)
++				}(ifDetails.LinkMtu),
+ 			},
+ 		}
+ 		ifs[ifDetails.SwIfIndex] = iface
+diff --git a/plugins/linuxplugin/ifplugin/interface_config.go b/plugins/linuxplugin/ifplugin/interface_config.go
+index 58529653..6e84447f 100644
+--- a/plugins/linuxplugin/ifplugin/interface_config.go
++++ b/plugins/linuxplugin/ifplugin/interface_config.go
+@@ -400,6 +400,15 @@ func (plugin *LinuxInterfaceConfigurator) configureVethInterface(ifConfig, peerC
+ func (plugin *LinuxInterfaceConfigurator) configureTapInterface(ifConfig *LinuxInterfaceConfig) error {
+ 	plugin.Log.WithFields(logging.Fields{"name": ifConfig.config.Name,
+ 		"hostName": ifConfig.config.HostIfName}).Debug("Applying new Linux TAP interface configuration")
++
++	// Tap interfaces can be processed directly using config and also via linux interface events. This check
++	// should prevent to process the same interface multiple times.
++	_, _, exists := plugin.ifIndexes.LookupIdx(ifConfig.config.Name)
++	if exists {
++		plugin.Log.Debugf("TAP interface %v already processed", ifConfig.config.Name)
++		return nil
++	}
++
+ 	// Search default namespace for appropriate interface
+ 	linuxIfs, err := netlink.LinkList()
+ 	if err != nil {
+@@ -438,31 +447,10 @@ func (plugin *LinuxInterfaceConfigurator) configureTapInterface(ifConfig *LinuxI
+ 	}
+ 	if !found {
+ 		plugin.Log.Debugf("Linux TAP config %v did not found the linux interface with name %v", ifConfig.config.Name,
+-			ifConfig.config.HostIfName)
++			ifConfig.config.Tap.TempIfName)
+ 		return nil
+ 	}
+ 
+-	// Move interface to the proper namespace.
+-	ns := ifConfig.config.Namespace
+-	if ns != nil && ns.Type == interfaces.LinuxInterfaces_Interface_Namespace_MICROSERVICE_REF_NS {
+-		ns = plugin.convertMicroserviceNsToPidNs(ns.Microservice)
+-		if ns == nil {
+-			return &unavailableMicroserviceErr{}
+-		}
+-	}
+-
+-	err = linuxcalls.SetInterfaceNamespace(nsMgmtCtx, ifConfig.config.Tap.TempIfName, ifConfig.config.Namespace, plugin.Log, plugin.Stopwatch)
+-	if err != nil {
+-		return fmt.Errorf("failed to set interface %s to namespace %s: %v", ifConfig.config.Tap.TempIfName, ifConfig.config.Namespace, err)
+-	}
+-
+-	// Continue configuring interface in its namespace.
+-	revertNs, err := plugin.switchToNamespace(nsMgmtCtx, ifConfig.config.Namespace)
+-	if err != nil {
+-		return fmt.Errorf("failed to switch network namespace: %v", err)
+-	}
+-	defer revertNs()
+-
+ 	return plugin.configureLinuxInterface(nsMgmtCtx, ifConfig.config)
+ }
+ 
+@@ -481,34 +469,18 @@ func (plugin *LinuxInterfaceConfigurator) configureLinuxInterface(nsMgmtCtx *lin
+ 		}
+ 	}
+ 
+-	// Use temp name to move TAP interface to namespace and rename it if necessary
++	// Use temporary/host name (according to type) to set interface to different namespace
+ 	if ifConfig.Type == interfaces.LinuxInterfaces_AUTO_TAP {
+-		// Use temporary name to set interface to different namespace
+ 		err = linuxcalls.SetInterfaceNamespace(nsMgmtCtx, ifConfig.Tap.TempIfName, ifConfig.Namespace, plugin.Log, plugin.Stopwatch)
+ 		if err != nil {
+-			return fmt.Errorf("failed to set interface %s to namespace %s: %v", ifConfig.Tap.TempIfName, ifConfig.Namespace, err)
+-		}
+-		if ifConfig.HostIfName != ifConfig.Tap.TempIfName {
+-			// Rename to the actual host name
+-			if err := linuxcalls.RenameInterface(ifConfig.Tap.TempIfName, ifConfig.HostIfName,
+-				measure.GetTimeLog("rename-linux-interface", plugin.Stopwatch)); err != nil {
+-				plugin.Log.Errorf("Failed to rename TAP interface from %s to %s: %v", ifConfig.Tap.TempIfName,
+-					ifConfig.HostIfName, err)
+-				return err
+-			}
+-		} else {
+-			plugin.Log.Debugf("Renaming of TAP interface %v skipped, host name is the same as temporary", ifConfig.HostIfName)
++			return fmt.Errorf("failed to set TAP interface %s to namespace %s: %v", ifConfig.Tap.TempIfName, ifConfig.Namespace, err)
+ 		}
+-	}
+-	// Use host name to move VETH interface to namespace
+-	if ifConfig.Type == interfaces.LinuxInterfaces_VETH {
+-		// Use host name to set interface to namespace
++	} else {
+ 		err = linuxcalls.SetInterfaceNamespace(nsMgmtCtx, ifConfig.HostIfName, ifConfig.Namespace, plugin.Log, plugin.Stopwatch)
+ 		if err != nil {
+ 			return fmt.Errorf("failed to set interface %s to namespace %s: %v", ifConfig.HostIfName, ifConfig.Namespace, err)
+ 		}
+ 	}
+-
+ 	// Continue configuring interface in its namespace.
+ 	revertNs, err := plugin.switchToNamespace(nsMgmtCtx, ifConfig.Namespace)
+ 	if err != nil {
+@@ -516,6 +488,20 @@ func (plugin *LinuxInterfaceConfigurator) configureLinuxInterface(nsMgmtCtx *lin
+ 	}
+ 	defer revertNs()
+ 
++	// For TAP interfaces only - rename interface to the actual host name if needed
++	if ifConfig.Type == interfaces.LinuxInterfaces_AUTO_TAP {
++		if ifConfig.HostIfName != ifConfig.Tap.TempIfName {
++			if err := linuxcalls.RenameInterface(ifConfig.Tap.TempIfName, ifConfig.HostIfName,
++				measure.GetTimeLog("rename-linux-interface", plugin.Stopwatch)); err != nil {
++				plugin.Log.Errorf("Failed to rename TAP interface from %s to %s: %v", ifConfig.Tap.TempIfName,
++					ifConfig.HostIfName, err)
++				return err
++			}
++		} else {
++			plugin.Log.Debugf("Renaming of TAP interface %v skipped, host name is the same as temporary", ifConfig.HostIfName)
++		}
++	}
++
+ 	var wasErr error
+ 
+ 	// Set interface up.
+@@ -544,7 +530,7 @@ func (plugin *LinuxInterfaceConfigurator) configureLinuxInterface(nsMgmtCtx *lin
+ 		wasErr = err
+ 	}
+ 	for i, ipAddress := range ipAddresses {
+-		err = linuxcalls.AddInterfaceIP(ifConfig.HostIfName, ipAddresses[i], nil)
++		err = linuxcalls.AddInterfaceIP(plugin.Log, ifConfig.HostIfName, ipAddresses[i], nil)
+ 		if err != nil {
+ 			err = fmt.Errorf("cannot assign IP address '%s': %v", ipAddress, err)
+ 			plugin.Log.Error(err)
+@@ -564,7 +550,7 @@ func (plugin *LinuxInterfaceConfigurator) configureLinuxInterface(nsMgmtCtx *lin
+ 		return fmt.Errorf("failed to get index of the Linux interface %s", ifConfig.HostIfName)
+ 	}
+ 
+-	// Register interface with its original name and store host name in metadate
++	// Register interface with its original name and store host name in metadata
+ 	plugin.ifIndexes.RegisterName(ifConfig.Name, uint32(idx), ifConfig)
+ 	plugin.Log.WithFields(logging.Fields{"ifName": ifConfig.Name, "ifIdx": idx}).
+ 		Info("An entry added into ifState.")
+@@ -640,7 +626,7 @@ func (plugin *LinuxInterfaceConfigurator) modifyLinuxInterface(nsMgmtCtx *linuxc
+ 
+ 	for i := range add {
+ 		plugin.Log.WithFields(logging.Fields{"IP address": add[i], "hostIfName": newIfConfig.HostIfName}).Debug("IP address added.")
+-		err := linuxcalls.AddInterfaceIP(newIfConfig.HostIfName, add[i], measure.GetTimeLog("add_iface_ip", plugin.Stopwatch))
++		err := linuxcalls.AddInterfaceIP(plugin.Log, newIfConfig.HostIfName, add[i], measure.GetTimeLog("add_iface_ip", plugin.Stopwatch))
+ 		if nil != err {
+ 			wasErr = fmt.Errorf("failed to assign IPv4 address to a Linux interface: %v", err)
+ 			plugin.Log.Error(wasErr)
+@@ -867,44 +853,47 @@ func (plugin *LinuxInterfaceConfigurator) watchLinuxStateUpdater() {
+ 
+ 	for {
+ 		linuxIf := <-plugin.ifStateChan
+-		ifName := linuxIf.attributes.Name
++		linuxIfName := linuxIf.attributes.Name
+ 
+ 		switch {
+ 		case linuxIf.interfaceType == tapTun:
+ 			if linuxIf.interfaceState == netlink.OperDown {
+-				// Find whether it is a registered tap interface and unregister it. Otherwise the change is ignored.
+-				for _, ifName := range plugin.ifIndexes.GetMapping().ListNames() {
+-					_, ifConfigMeta, found := plugin.ifIndexes.LookupIdx(ifName)
++				// Find whether it is a registered tap interface and un-register it. Otherwise the change is ignored.
++				for _, indexedName := range plugin.ifIndexes.GetMapping().ListNames() {
++					_, ifConfigMeta, found := plugin.ifIndexes.LookupIdx(indexedName)
+ 					if !found {
+ 						// Should not happen
+-						plugin.Log.Warnf("Interface %v not found in the mapping", ifName)
++						plugin.Log.Warnf("Interface %v not found in the mapping", indexedName)
+ 						continue
+ 					}
+ 					if ifConfigMeta.HostIfName == "" {
+-						plugin.Log.Warnf("No info about host name for %v", ifName)
++						plugin.Log.Warnf("No info about host name for %v", indexedName)
+ 						continue
+ 					}
+-					if ifConfigMeta.HostIfName == ifName {
++					if ifConfigMeta.HostIfName == linuxIfName {
+ 						// Registered Linux TAP interface was removed. However it should not be removed from cache
+ 						// because the configuration still exists in the VPP
+-						plugin.ifIndexes.UnregisterName(ifName)
++						plugin.ifIndexes.UnregisterName(linuxIfName)
+ 					}
+ 				}
+ 			} else {
+-				// TAP interface was created
+-				plugin.Log.Infof("Received data about new linux TAP interface %s", ifName)
++				// Event that TAP interface was created.
++				plugin.Log.Debugf("Received data about linux TAP interface %s", linuxIfName)
+ 
+ 				// Look for TAP which is using this interface as the other end
+ 				for _, ifConfig := range plugin.intfByName {
+ 					if ifConfig == nil || ifConfig.config == nil {
+-						plugin.Log.Warnf("Cached config for interface %v is empty", ifName)
++						plugin.Log.Warnf("Cached config for interface %v is empty", linuxIfName)
+ 						continue
+ 					}
+-					if ifConfig.config.HostIfName == ifName {
+-						// Add to cache (without peer)
+-						ifConfig := plugin.addToCache(ifConfig.config, nil)
++					if ifConfig.config.Tap.TempIfName == linuxIfName {
++						// Skip processed interfaces
++						_, _, exists := plugin.ifIndexes.LookupIdx(ifConfig.config.Name)
++						if exists {
++							continue
++						}
+ 						// Host interface was found, configure linux TAP
+-						err := plugin.configureTapInterface(ifConfig)
++						err := plugin.ConfigureLinuxInterface(ifConfig.config)
+ 						if err != nil {
+ 							plugin.Log.Error(err)
+ 						}
+diff --git a/plugins/linuxplugin/ifplugin/interface_state.go b/plugins/linuxplugin/ifplugin/interface_state.go
+index 74b35448..907dd4d1 100644
+--- a/plugins/linuxplugin/ifplugin/interface_state.go
++++ b/plugins/linuxplugin/ifplugin/interface_state.go
+@@ -74,9 +74,7 @@ func (plugin *LinuxInterfaceStateUpdater) Close() error {
+ func (plugin *LinuxInterfaceStateUpdater) subscribeInterfaceState() error {
+ 	if !plugin.stateWatcherRunning {
+ 		plugin.stateWatcherRunning = true
+-		err := netlink.LinkSubscribeWithOptions(plugin.ifWatcherNotifCh, plugin.ifWatcherDoneCh, netlink.LinkSubscribeOptions{
+-			ListExisting: true,
+-		})
++		err := netlink.LinkSubscribe(plugin.ifWatcherNotifCh, plugin.ifWatcherDoneCh)
+ 		if err != nil {
+ 			return err
+ 		}
+@@ -86,7 +84,7 @@ func (plugin *LinuxInterfaceStateUpdater) subscribeInterfaceState() error {
+ 
+ // Watch linux interfaces and send events to processing
+ func (plugin *LinuxInterfaceStateUpdater) watchLinuxInterfaces(ctx context.Context) {
+-	plugin.Log.Warnf("Watching on linux link notifications")
++	plugin.Log.Debugf("Watching on linux link notifications")
+ 
+ 	plugin.wg.Add(1)
+ 	defer plugin.wg.Done()
+diff --git a/plugins/linuxplugin/ifplugin/linuxcalls/ip_linuxcalls.go b/plugins/linuxplugin/ifplugin/linuxcalls/ip_linuxcalls.go
+index 06809945..4766dd01 100644
+--- a/plugins/linuxplugin/ifplugin/linuxcalls/ip_linuxcalls.go
++++ b/plugins/linuxplugin/ifplugin/linuxcalls/ip_linuxcalls.go
+@@ -17,16 +17,18 @@
+ package linuxcalls
+ 
+ import (
++	"bytes"
+ 	"net"
+ 
+ 	"time"
+ 
++	"github.com/ligato/cn-infra/logging"
+ 	"github.com/ligato/cn-infra/logging/measure"
+ 	"github.com/vishvananda/netlink"
+ )
+ 
+ // AddInterfaceIP calls AddrAdd Netlink API.
+-func AddInterfaceIP(ifName string, addr *net.IPNet, timeLog measure.StopWatchEntry) error {
++func AddInterfaceIP(log logging.Logger, ifName string, addr *net.IPNet, timeLog measure.StopWatchEntry) error {
+ 	start := time.Now()
+ 	defer func() {
+ 		if timeLog != nil {
+@@ -38,6 +40,20 @@ func AddInterfaceIP(ifName string, addr *net.IPNet, timeLog measure.StopWatchEnt
+ 	if err != nil {
+ 		return err
+ 	}
++
++	exAddrList, err := netlink.AddrList(link, netlink.FAMILY_ALL)
++	if err != nil {
++		return err
++	}
++
++	// The check is basically because of link local addresses which sometimes cannot be reassigned
++	for _, exAddr := range exAddrList {
++		if bytes.Compare(exAddr.IP, addr.IP) == 0 {
++			log.Debugf("Cannot assign %v to interface %v, IP already exists", addr.IP.String(), ifName)
++			return nil
++		}
++	}
++
+ 	address := &netlink.Addr{IPNet: addr}
+ 	return netlink.AddrAdd(link, address)
+ }
+diff --git a/plugins/linuxplugin/ifplugin/linuxcalls/ns_linuxcalls.go b/plugins/linuxplugin/ifplugin/linuxcalls/ns_linuxcalls.go
+index 05567108..17bc742c 100644
+--- a/plugins/linuxplugin/ifplugin/linuxcalls/ns_linuxcalls.go
++++ b/plugins/linuxplugin/ifplugin/linuxcalls/ns_linuxcalls.go
+@@ -139,7 +139,7 @@ func SetInterfaceNamespace(ctx *NamespaceMgmtCtx, ifName string, namespace *intf
+ 		if err != nil {
+ 			return fmt.Errorf("failed to parse IPv4 address of a Linux interface `%s`: %v", ifName, err)
+ 		}
+-		err = AddInterfaceIP(ifName, network, measure.GetTimeLog("add_iface_ip", stopwatch))
++		err = AddInterfaceIP(log, ifName, network, measure.GetTimeLog("add_iface_ip", stopwatch))
+ 		if err != nil {
+ 			if err.Error() == "file exists" {
+ 				continue

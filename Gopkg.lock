@@ -69,6 +69,11 @@
   version = "v0.4.0"
 
 [[projects]]
+  name = "github.com/apparentlymart/go-cidr"
+  packages = ["cidr"]
+  revision = "2bd8b58cf4275aeb086ade613de226773e29e853"
+
+[[projects]]
   name = "github.com/appc/spec"
   packages = [
     "schema",
@@ -644,6 +649,12 @@
 
 [[projects]]
   branch = "master"
+  name = "github.com/kolo/xmlrpc"
+  packages = ["."]
+  revision = "0826b98aaa29c0766956cb40d45cf7482a597671"
+
+[[projects]]
+  branch = "master"
   name = "github.com/kr/pretty"
   packages = ["."]
   revision = "cfb55aafdaf3ec08f0db22699ab822c50091b1c4"
@@ -702,8 +713,7 @@
     "utils/safeclose",
     "utils/structs"
   ]
-  revision = "39925ecc46ce2ed75c36869d584925963a3314d4"
-  version = "v1.1"
+  revision = "32683576d10608200eab3b52fa74f449bc0b29c9"
 
 [[projects]]
   name = "github.com/ligato/vpp-agent"
@@ -770,9 +780,10 @@
     "plugins/linuxplugin/ifplugin/linuxcalls",
     "plugins/linuxplugin/l3plugin",
     "plugins/linuxplugin/l3plugin/l3idx",
-    "plugins/linuxplugin/l3plugin/linuxcalls"
+    "plugins/linuxplugin/l3plugin/linuxcalls",
+    "plugins/linuxplugin/nsplugin"
   ]
-  revision = "3301c11d8367111f843c8fdccbe052f2fdac30ea"
+  revision = "1dff416ea429bbab195cf0cb8a14c09fbb46ba28"
 
 [[projects]]
   branch = "master"
@@ -819,6 +830,11 @@
   packages = ["."]
   revision = "71ceffbeb0ba60fccc853971bb3ed4d7d90bfd04"
   version = "v1.7.4-pre"
+
+[[projects]]
+  name = "github.com/nerdtakula/supervisor"
+  packages = ["."]
+  revision = "5bf894f54fd79a23fa965bf078b2a094a9d9e20b"
 
 [[projects]]
   name = "github.com/onsi/gomega"
@@ -982,6 +998,11 @@
   packages = ["api/v1alpha"]
   revision = "6de500a70706403c8c611d80491aea64019141b0"
   version = "v1.29.0"
+
+[[projects]]
+  name = "github.com/safchain/ethtool"
+  packages = ["."]
+  revision = "7ff1ba29eca231991280817541cb3903f6be15d1"
 
 [[projects]]
   name = "github.com/satori/go.uuid"
@@ -1612,6 +1633,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "74227c2e5c54ea328a48ea86bfd8fe34634f963e7c7af666bd73379567fb21d4"
+  inputs-digest = "caa77d98f3a83515866bdec83c56a14019cce73b0e7bb922abc51de5b91576c3"
   solver-name = "gps-cdcl"
   solver-version = 1

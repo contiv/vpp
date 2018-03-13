@@ -371,7 +371,8 @@ func (s *remoteCNIserver) configureVswitchNICs(config *vswitchConfig) error {
 		// name not specified in config, use heuristic - first non-virtual interface
 		for _, name := range s.swIfIndex.GetMapping().ListNames() {
 			if strings.HasPrefix(name, "local") || strings.HasPrefix(name, "loop") ||
-				strings.HasPrefix(name, "host") || strings.HasPrefix(name, "tap") {
+				strings.HasPrefix(name, "host") || strings.HasPrefix(name, "tap") ||
+				name == vxlanBVIInterfaceName {
 				continue
 			} else {
 				nicName = name

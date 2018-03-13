@@ -173,6 +173,7 @@ func (plugin *Plugin) Init() error {
 		plugin.configuredContainers,
 		plugin.govppCh,
 		plugin.VPP.GetSwIfIndexes(),
+		plugin.VPP.GetDHCPIndices(),
 		plugin.ServiceLabel.GetAgentLabel(),
 		plugin.Config,
 		plugin.myNodeConfig,

@@ -43,7 +43,7 @@ import (
 	if_linux "github.com/ligato/vpp-agent/plugins/linuxplugin/common/model/interfaces"
 	l3_linux "github.com/ligato/vpp-agent/plugins/linuxplugin/common/model/l3"
 
-	"github.com/contiv/vpp/plugins/contiv/bin_api/dhcp"
+	"github.com/ligato/vpp-agent/plugins/defaultplugins/common/bin_api/dhcp"
 	if_binapi "github.com/ligato/vpp-agent/plugins/defaultplugins/common/bin_api/interfaces"
 	ip_binapi "github.com/ligato/vpp-agent/plugins/defaultplugins/common/bin_api/ip"
 

@@ -39,6 +39,7 @@ import (
 	"github.com/ligato/cn-infra/logging/logrus"
 	"github.com/ligato/vpp-agent/idxvpp/nametoidx"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/common/bin_api/af_packet"
+	"github.com/ligato/vpp-agent/plugins/defaultplugins/common/bin_api/dhcp"
 	interfaces_bin "github.com/ligato/vpp-agent/plugins/defaultplugins/common/bin_api/interfaces"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/common/bin_api/ip"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/common/bin_api/memif"
@@ -49,7 +50,6 @@ import (
 	vpp_l3 "github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/l3"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/ifaceidx"
 
-	"github.com/contiv/vpp/plugins/contiv/bin_api/dhcp"
 	"github.com/contiv/vpp/plugins/contiv/ipam"
 	"github.com/ligato/cn-infra/datasync"
 	"github.com/onsi/gomega"
@@ -151,6 +151,7 @@ func setupTestCNIServer(config *Config, nodeConfig *OneNodeConfig, existingInter
 		configuredContainers,
 		vppMockChan,
 		swIfIdx,
+		dhcpIndexMock(),
 		"testLabel",
 		config,
 		nodeConfig,
@@ -370,6 +371,7 @@ func TestVeth1NameFromRequest(t *testing.T) {
 		nil,
 		nil,
 		nil,
+		nil,
 		"testlabel",
 		&configVethL2NoTCP,
 		nil,
@@ -489,6 +491,12 @@ func swIfIndexMock() ifaceidx.SwIfIndexRW {
 	mapping := nametoidx.NewNameToIdx(logrus.DefaultLogger(), "plugin", "swIf", ifaceidx.IndexMetadata)
 
 	return ifaceidx.NewSwIfIndex(mapping)
+}
+
+func dhcpIndexMock() ifaceidx.DhcpIndex {
+	mapping := nametoidx.NewNameToIdx(logrus.DefaultLogger(), "plugin", "dhcpIf", ifaceidx.IndexDHCPMetadata)
+
+	return ifaceidx.NewDHCPIndex(mapping)
 }
 
 // interfaceInSnapshot returns interface of given name from the config snapshot

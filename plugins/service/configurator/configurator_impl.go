@@ -19,6 +19,7 @@ package configurator
 import (
 	"net"
 
+	"github.com/golang/protobuf/proto"
 	"github.com/ligato/cn-infra/logging"
 
 	"github.com/contiv/vpp/plugins/contiv"
@@ -112,6 +113,9 @@ func (sc *ServiceConfigurator) UpdateNodePortServices(nodeIPs []net.IP, npServic
 		"npServices": npServices,
 	}).Debug("ServiceConfigurator - UpdateNodePortServices()")
 
+	// Update cached internal node IPs.
+	sc.nodeIPs = nodeIPs
+
 	// Update DNAT of all node-port services via ligato/vpp-agent.
 	dsl := sc.NATTxnFactory()
 	putDsl := dsl.Put()
@@ -127,8 +131,6 @@ func (sc *ServiceConfigurator) UpdateNodePortServices(nodeIPs []net.IP, npServic
 		return err
 	}
 
-	// Update cached internal node IPs.
-	sc.nodeIPs = nodeIPs
 	return nil
 }
 
@@ -141,6 +143,7 @@ func (sc *ServiceConfigurator) UpdateLocalFrontendIfs(oldIfNames, newIfNames Int
 	}).Debug("ServiceConfigurator - UpdateLocalFrontendIfs()")
 
 	// Re-build the list of interfaces with enabled NAT features.
+	sc.natGlobalCfg = proto.Clone(sc.natGlobalCfg).(*nat.Nat44Global)
 	// - keep non-frontends unchanged
 	newNatIfs := []*nat.Nat44Global_NatInterfaces{}
 	for _, natIf := range sc.natGlobalCfg.NatInterfaces {
@@ -177,6 +180,7 @@ func (sc *ServiceConfigurator) UpdateLocalBackendIfs(oldIfNames, newIfNames Inte
 	}).Debug("ServiceConfigurator - UpdateLocalBackendIfs()")
 
 	// Re-build the list of interfaces with enabled NAT features.
+	sc.natGlobalCfg = proto.Clone(sc.natGlobalCfg).(*nat.Nat44Global)
 	// - keep non-backends unchanged
 	newNatIfs := []*nat.Nat44Global_NatInterfaces{}
 	for _, natIf := range sc.natGlobalCfg.NatInterfaces {
@@ -219,6 +223,33 @@ func (sc *ServiceConfigurator) Resync(resyncEv *ResyncEventData) error {
 	// Updated cached internal node IP.
 	sc.nodeIPs = resyncEv.NodeIPs
 
+	// Dump currently configured services.
+	dnatDump, err := sc.VPP.DumpNat44DNat()
+	if err != nil {
+		sc.Log.Error(err)
+		return err
+	}
+
+	// Resync DNAT configuration.
+	// - remove obsolete DNATs
+	for _, dnatConfig := range dnatDump.DnatConfig {
+		removed := true
+		for _, service := range resyncEv.Services {
+			if service.ID.String() == dnatConfig.Label {
+				removed = false
+				break
+			}
+		}
+		if removed {
+			deleteDsl.NAT44DNat(dnatConfig.Label)
+		}
+	}
+	// - update all DNATs
+	for _, service := range resyncEv.Services {
+		dnat := sc.contivServiceToDNat(service)
+		putDsl.NAT44DNat(dnat)
+	}
+
 	// Re-build the global NAT config.
 	sc.natGlobalCfg = &nat.Nat44Global{
 		Forwarding: true,
@@ -228,7 +259,6 @@ func (sc *ServiceConfigurator) Resync(resyncEv *ResyncEventData) error {
 		sc.natGlobalCfg.AddressPools = append(sc.natGlobalCfg.AddressPools,
 			&nat.Nat44Global_AddressPools{
 				FirstSrcAddress: resyncEv.ExternalSNAT.ExternalIP.String(),
-				LastSrcAddress:  resyncEv.ExternalSNAT.ExternalIP.String(),
 				VrfId:           ^uint32(0),
 			})
 	}
@@ -261,33 +291,6 @@ func (sc *ServiceConfigurator) Resync(resyncEv *ResyncEventData) error {
 	}
 	// - add to the transaction
 	putDsl.NAT44Global(sc.natGlobalCfg)
-
-	// Dump currently configured services.
-	dnatDump, err := sc.VPP.DumpNat44DNat()
-	if err != nil {
-		sc.Log.Error(err)
-		return err
-	}
-
-	// Resync DNAT configuration.
-	// - remove obsolete DNATs
-	for _, dnatConfig := range dnatDump.DnatConfig {
-		removed := true
-		for _, service := range resyncEv.Services {
-			if service.ID.String() == dnatConfig.Label {
-				removed = false
-				break
-			}
-		}
-		if removed {
-			deleteDsl.NAT44DNat(dnatConfig.Label)
-		}
-	}
-	// - update all DNATs
-	for _, service := range resyncEv.Services {
-		dnat := sc.contivServiceToDNat(service)
-		putDsl.NAT44DNat(dnat)
-	}
 
 	return dsl.Send().ReceiveReply()
 }
@@ -362,7 +365,7 @@ func (sc *ServiceConfigurator) exportDNATMappings(service *ContivService) []*nat
 			}
 			mapping := &nat.Nat44DNat_DNatConfig_StaticMappings{}
 			mapping.ExternalIP = externalIP.String()
-			mapping.ExternalPort = uint32(port.NodePort)
+			mapping.ExternalPort = uint32(port.Port)
 			switch port.Protocol {
 			case TCP:
 				mapping.Protocol = nat.Protocol_TCP

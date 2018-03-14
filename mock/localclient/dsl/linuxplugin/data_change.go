@@ -136,6 +136,20 @@ func (d *MockPutDSL) L4Features(val *vpp_l4.L4Features) linux.PutDSL {
 	return d
 }
 
+// ProxyArpInterfaces adds a request to create or update VPP L3 proxy ARP interfaces
+func (d *MockPutDSL) ProxyArpInterfaces(val *vpp_l3.ProxyArpInterfaces_InterfaceList) linux.PutDSL {
+	op := dsl.TxnOp{Key: vpp_l3.ProxyArpInterfaceKey(val.Label), Value: val}
+	d.parent.Ops = append(d.parent.Ops, op)
+	return d
+}
+
+// ProxyArpRanges adds a request to create or update VPP L3 proxy ARP ranges
+func (d *MockPutDSL) ProxyArpRanges(val *vpp_l3.ProxyArpRanges_RangeList) linux.PutDSL {
+	op := dsl.TxnOp{Key: vpp_l3.ProxyArpRangeKey(val.Lable), Value: val}
+	d.parent.Ops = append(d.parent.Ops, op)
+	return d
+}
+
 // AppNamespace adds a request to create or update VPP Application namespace
 func (d *MockPutDSL) AppNamespace(val *vpp_l4.AppNamespaces_AppNamespace) linux.PutDSL {
 	op := dsl.TxnOp{Key: vpp_l4.AppNamespacesKey(val.NamespaceId), Value: val}
@@ -270,6 +284,20 @@ func (d *MockDeleteDSL) L4Features() linux.DeleteDSL {
 // Arp adds a request to delete an existing VPP L3 ARP entry.
 func (d *MockDeleteDSL) Arp(ifaceName string, ipAddr string) linux.DeleteDSL {
 	op := dsl.TxnOp{Key: vpp_l3.ArpEntryKey(ifaceName, ipAddr)}
+	d.parent.Ops = append(d.parent.Ops, op)
+	return d
+}
+
+// ProxyArpInterfaces adds a request to create or update VPP L3 proxy ARP interfaces
+func (d *MockDeleteDSL) ProxyArpInterfaces(label string) linux.DeleteDSL {
+	op := dsl.TxnOp{Key: vpp_l3.ProxyArpInterfaceKey(label)}
+	d.parent.Ops = append(d.parent.Ops, op)
+	return d
+}
+
+// ProxyArpRanges adds a request to create or update VPP L3 proxy ARP ranges
+func (d *MockDeleteDSL) ProxyArpRanges(label string) linux.DeleteDSL {
+	op := dsl.TxnOp{Key: vpp_l3.ProxyArpRangeKey(label)}
 	d.parent.Ops = append(d.parent.Ops, op)
 	return d
 }

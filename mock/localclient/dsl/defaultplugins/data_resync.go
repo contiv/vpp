@@ -98,6 +98,20 @@ func (d *MockDataResyncDSL) Arp(val *l3.ArpTable_ArpTableEntry) defaultplugins.D
 	return d
 }
 
+// ProxyArpInterfaces adds L3 proxy ARP interfaces to the RESYNC request.
+func (d *MockDataResyncDSL) ProxyArpInterfaces(val *l3.ProxyArpInterfaces_InterfaceList) defaultplugins.DataResyncDSL {
+	op := dsl.TxnOp{Key: l3.ProxyArpInterfaceKey(val.Label), Value: val}
+	d.Ops = append(d.Ops, op)
+	return d
+}
+
+// ProxyArpRanges adds L3 proxy ARP ranges to the RESYNC request.
+func (d *MockDataResyncDSL) ProxyArpRanges(val *l3.ProxyArpRanges_RangeList) defaultplugins.DataResyncDSL {
+	op := dsl.TxnOp{Key: l3.ProxyArpRangeKey(val.Lable), Value: val}
+	d.Ops = append(d.Ops, op)
+	return d
+}
+
 // L4Features adds L4 features to the RESYNC request
 func (d *MockDataResyncDSL) L4Features(val *l4.L4Features) defaultplugins.DataResyncDSL {
 	op := dsl.TxnOp{Key: l4.FeatureKey(), Value: val}

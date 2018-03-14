@@ -31,6 +31,16 @@ import (
 // handleNodeEvents handles changes in nodes within the k8s cluster (node add / delete) and
 // adjusts the vswitch config (routes to the other nodes) accordingly.
 func (s *remoteCNIserver) handleNodeEvents(ctx context.Context, resyncChan chan datasync.ResyncEvent, changeChan chan datasync.ChangeEvent) {
+	select {
+	case resyncEv := <-resyncChan:
+		// resync needs to return done immediately, to not block resync of the remote cni server
+		go s.nodeResync(resyncEv)
+		resyncEv.Done(nil)
+
+	case <-ctx.Done():
+		return
+	}
+
 	for {
 		select {
 

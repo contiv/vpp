@@ -134,6 +134,20 @@ func (d *MockDataResyncDSL) Arp(val *vpp_l3.ArpTable_ArpTableEntry) linux.DataRe
 	return d
 }
 
+// ProxyArpInterfaces adds L3 proxy ARP interfaces to the RESYNC request.
+func (d *MockDataResyncDSL) ProxyArpInterfaces(val *vpp_l3.ProxyArpInterfaces_InterfaceList) linux.DataResyncDSL {
+	op := dsl.TxnOp{Key: vpp_l3.ProxyArpInterfaceKey(val.Label), Value: val}
+	d.Ops = append(d.Ops, op)
+	return d
+}
+
+// ProxyArpRanges adds L3 proxy ARP ranges to the RESYNC request.
+func (d *MockDataResyncDSL) ProxyArpRanges(val *vpp_l3.ProxyArpRanges_RangeList) linux.DataResyncDSL {
+	op := dsl.TxnOp{Key: vpp_l3.ProxyArpRangeKey(val.Lable), Value: val}
+	d.Ops = append(d.Ops, op)
+	return d
+}
+
 // StnRule adds Stn rule to the RESYNC request.
 func (d *MockDataResyncDSL) StnRule(val *vpp_stn.StnRule) linux.DataResyncDSL {
 	op := dsl.TxnOp{Key: vpp_stn.Key(val.RuleName), Value: val}

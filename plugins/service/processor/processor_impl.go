@@ -442,7 +442,6 @@ func (sp *ServiceProcessor) processResyncEvent(resyncEv *ResyncEventData) error 
 	// -> main physical interfaces
 	mainPhysIf := sp.Contiv.GetMainPhysicalIfName()
 	if mainPhysIf != "" {
-		sp.frontendIfs.Add(mainPhysIf)
 		if vxlanBVIIf == "" {
 			sp.backendIfs.Add(mainPhysIf)
 		}
@@ -454,11 +453,13 @@ func (sp *ServiceProcessor) processResyncEvent(resyncEv *ResyncEventData) error 
 				confResyncEv.ExternalSNAT.ExternalIP = nodeIP
 			}
 		}
+		if confResyncEv.ExternalSNAT.ExternalIfName != mainPhysIf {
+			sp.frontendIfs.Add(mainPhysIf)
+		}
 	}
 	// -> other physical interfaces
 	for _, physIf := range sp.Contiv.GetOtherPhysicalIfNames() {
 		ipAddresses := sp.getInterfaceIPs(physIf)
-		sp.frontendIfs.Add(physIf)
 		// If the interface connects node with the default GW, SNAT all egress traffic.
 		if sp.Contiv.NatExternalTraffic() && gwIP != nil {
 			for _, ipAddr := range ipAddresses {
@@ -468,6 +469,9 @@ func (sp *ServiceProcessor) processResyncEvent(resyncEv *ResyncEventData) error 
 					break
 				}
 			}
+		}
+		if confResyncEv.ExternalSNAT.ExternalIfName != physIf {
+			sp.frontendIfs.Add(physIf)
 		}
 	}
 	// -> host interconnect

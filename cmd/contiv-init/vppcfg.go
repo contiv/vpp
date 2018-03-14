@@ -440,7 +440,7 @@ func persistVppConfig(contivCfg *contiv.Config, stnData *stn.STNReply, cfg *vppC
 			Name:      fmt.Sprintf("route-to-%s", stnRoute.DestinationSubnet),
 			DstIpAddr: stnRoute.DestinationSubnet,
 			GwAddr:    stnRoute.NextHopIp,
-			Interface: contiv.TapHostEndLogicalName,
+			Interface: contiv.TapHostEndName, // in case of linux interface, this needs to be HostIfName
 		}
 		if route.DstIpAddr == "" {
 			route.Name = fmt.Sprintf("route-to-%s", defaultRouteDestination)

@@ -79,16 +79,7 @@ root:
 ```
 kubeadm init --token-ttl 0 --pod-network-cidr=10.1.0.0/16
 ```
-**Note:** The CIDR specified with the flag `--pod-network-cidr` is used by 
-kube-proxy, and it **must match** the `PodSubnetCIDR` parameter in the 
-`IPAMConfig` section in the Contiv-vpp config map in Contiv-vpp's deployment
-file ([contiv-vpp.yaml](../k8s/contiv-vpp.yaml)). Pods in the host network 
-namespace are special case; they share interfaces and their IP addresses 
-with the host. For services with backends running on the hostit is therefore
-required to select their IP address from the `PodSubnetCIDR` for proxying to
-work properly.
-
-Also note that `kubeadm init` will autodetect the network interface to advertise
+**Note:** `kubeadm init` will autodetect the network interface to advertise
 the master on as the interface with the default gateway. If you want to use a
 different interface (i.e. a custom management network setup), specify the
 `--apiserver-advertise-address=<ip-address>` argument to kubeadm init. For
@@ -96,6 +87,22 @@ example:
 ```
 kubeadm init --token-ttl 0 --pod-network-cidr=10.1.0.0/16 --apiserver-advertise-address=192.168.56.106
 ```
+**Note:** The CIDR specified with the flag `--pod-network-cidr` is used by
+kube-proxy, and it **must include** the `PodSubnetCIDR` from the `IPAMConfig`
+section in the Contiv-vpp config map in Contiv-vpp's deployment file 
+([contiv-vpp.yaml](../k8s/contiv-vpp.yaml)). Pods in the host network namespace
+are a special case; they share their respective interfaces and IP addresses with
+the host. For proxying to work properly it is therefore required for services
+with backends running on the host to also **include the node management IP** 
+within the `--pod-network-cidr` subnet. For example, with the default 
+`PodSubnetCIDR=10.1.0.0/16` and `PodIfIPCIDR=10.2.1.0/24`, the subnet 
+`10.3.0.0/16` could be allocated for the management network and 
+`--pod-network-cidr` could be defined as `10.0.0.0/8`, so as to include IP 
+addresses of all pods in all network namespaces:
+```
+kubeadm init --token-ttl 0 --pod-network-cidr=10.0.0.0/8 --apiserver-advertise-address=10.3.1.1
+```
+
 If Kubernetes was initialized successfully, it prints out this message:
 ```
 Your Kubernetes master has initialized successfully!

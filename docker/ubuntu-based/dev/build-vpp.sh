@@ -3,9 +3,14 @@
 set -euo pipefail
 
 cd /opt/vpp-agent/dev/
-git clone https://gerrit.fd.io/r/vpp
+
+#git clone https://gerrit.fd.io/r/vpp
+#cd ${VPP_DIR}
+#git checkout master
+git clone https://github.com/vpp-dev/vpp.git
 cd ${VPP_DIR}
-git checkout master
+git checkout stable-1801-contiv
+
 git pull
 # check out a specific commit if specified
 # continue and ignore the error if the commit ID isn't specified

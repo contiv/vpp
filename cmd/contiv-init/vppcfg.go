@@ -197,13 +197,15 @@ func configureVpp(contivCfg *contiv.Config, stnData *stn.STNReply, useDHCP bool)
 			} else {
 				_, dstAddr, _ = net.ParseCIDR(defaultRouteDestination)
 			}
-			nextHopIP := net.ParseIP(stnRoute.NextHopIp)
+			nextHopIP := net.ParseIP(stnRoute.NextHopIp).To4()
 
-			err = l3_vppcalls.VppAddRoute(&l3_vppcalls.Route{
+			sRoute := &l3_vppcalls.Route{
 				DstAddr:     *dstAddr,
 				NextHopAddr: nextHopIP,
 				OutIface:    cfg.mainIfIdx,
-			}, ch, nil)
+			}
+			logger.Debug("Configuring static route: ", sRoute)
+			err = l3_vppcalls.VppAddRoute(sRoute, ch, nil)
 			if err != nil {
 				logger.Errorf("Error by configuring route: %v", err)
 				return nil, err
@@ -440,7 +442,7 @@ func persistVppConfig(contivCfg *contiv.Config, stnData *stn.STNReply, cfg *vppC
 			Name:      fmt.Sprintf("route-to-%s", stnRoute.DestinationSubnet),
 			DstIpAddr: stnRoute.DestinationSubnet,
 			GwAddr:    stnRoute.NextHopIp,
-			Interface: contiv.TapHostEndLogicalName,
+			Interface: contiv.TapHostEndName, // in case of linux interface, this needs to be HostIfName
 		}
 		if route.DstIpAddr == "" {
 			route.Name = fmt.Sprintf("route-to-%s", defaultRouteDestination)

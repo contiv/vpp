@@ -51,7 +51,8 @@ To use the development image for testing with specific version of VPP, see
       (VETH is still used to connect VPP with the host stack);
     - `TAPInterfaceVersion`: select `1` to use the standard VPP TAP interface or `2`
       for a faster, virtio-based, VPP TAPv2 interface (default);
-    - `StealTheNIC`: enable Steal The NIC feature on the first interface on each node;
+    - `StealInterface`: enable Steal The NIC feature on the specified interface on each node;
+    - `StealFirstNIC`: enable Steal The NIC feature on the first interface on each node;
     - `TAPv2RxRingSize`: number of entries to allocate for TAPv2 Rx ring (default is 256);
     - `TAPv2TxRingSize`: number of entries to allocate for TAPv2 Tx ring (default is 256).
     - `NatExternalTraffic`: if enabled, traffic with cluster-outside destination is S-NATed

@@ -27,7 +27,6 @@ import (
 	"github.com/ligato/vpp-agent/clientv1/linux"
 	"github.com/ligato/vpp-agent/clientv1/linux/localclient"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins"
-	"github.com/ligato/vpp-agent/plugins/govppmux"
 
 	"github.com/contiv/vpp/plugins/contiv"
 	"github.com/contiv/vpp/plugins/service/configurator"
@@ -69,9 +68,6 @@ type Deps struct {
 	Watcher datasync.KeyValProtoWatcher /* prefixed for KSR-published K8s state data */
 	Contiv  contiv.API                  /* to get the Node IP and all interface names */
 	VPP     defaultplugins.API          /* interface indexes && IP addresses */
-
-	/* until supported in vpp-agent, we call NAT binary APIs directly */
-	GoVPP govppmux.API /* NAT binary APIs*/
 }
 
 // Init initializes the service plugin and starts watching ETCD for K8s configuration.
@@ -84,9 +80,8 @@ func (p *Plugin) Init() error {
 
 	p.configurator = &configurator.ServiceConfigurator{
 		Deps: configurator.Deps{
-			Log:    p.Log.NewLogger("-serviceConfigurator"),
-			Contiv: p.Contiv,
-			VPP:    p.VPP,
+			Log: p.Log.NewLogger("-serviceConfigurator"),
+			VPP: p.VPP,
 			NATTxnFactory: func() linux.DataChangeDSL {
 				return localclient.DataChangeRequest(p.PluginName)
 			},

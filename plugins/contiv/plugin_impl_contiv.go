@@ -94,7 +94,7 @@ type Config struct {
 	TAPv2TxRingSize            uint16
 	MTUSize                    uint32
 	StealFirstNIC              bool
-	StealInterface			   string
+	StealInterface             string
 	NatExternalTraffic         bool // if enabled, traffic with cluster-outside destination is SNATed on node output (for all nodes)
 	IPAMConfig                 ipam.Config
 	NodeConfig                 []OneNodeConfig

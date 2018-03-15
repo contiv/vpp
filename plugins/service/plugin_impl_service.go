@@ -100,6 +100,7 @@ func (p *Plugin) Init() error {
 			ServiceLabel: p.ServiceLabel,
 			Contiv:       p.Contiv,
 			Configurator: p.configurator,
+			VPP:          p.VPP,
 		},
 	}
 	p.processor.Log.SetLevel(logging.DebugLevel)

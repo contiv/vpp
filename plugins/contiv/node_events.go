@@ -24,6 +24,7 @@ import (
 	"github.com/contiv/vpp/plugins/contiv/model/node"
 	"github.com/golang/protobuf/proto"
 	"github.com/ligato/cn-infra/datasync"
+	"github.com/ligato/cn-infra/logging"
 	vpp_l2 "github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/l2"
 	vpp_l3 "github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/l3"
 )
@@ -31,16 +32,6 @@ import (
 // handleNodeEvents handles changes in nodes within the k8s cluster (node add / delete) and
 // adjusts the vswitch config (routes to the other nodes) accordingly.
 func (s *remoteCNIserver) handleNodeEvents(ctx context.Context, resyncChan chan datasync.ResyncEvent, changeChan chan datasync.ChangeEvent) {
-	select {
-	case resyncEv := <-resyncChan:
-		// resync needs to return done immediately, to not block resync of the remote cni server
-		go s.nodeResync(resyncEv)
-		resyncEv.Done(nil)
-
-	case <-ctx.Done():
-		return
-	}
-
 	for {
 		select {
 
@@ -81,6 +72,11 @@ func (s *remoteCNIserver) nodeResync(dataResyncEv datasync.ResyncEvent) error {
 				if stop {
 					break
 				}
+				rev := kv.GetRevision()
+				if rev > s.nodeIDResyncRev {
+					s.nodeIDResyncRev = rev
+				}
+
 				nodeInfo := &node.NodeInfo{}
 				err = kv.GetValue(nodeInfo)
 				if err != nil {
@@ -95,12 +91,23 @@ func (s *remoteCNIserver) nodeResync(dataResyncEv datasync.ResyncEvent) error {
 						// add routes to the node
 						err = s.addRoutesToNode(nodeInfo)
 					} else {
-						s.Logger.Infof("Ip address or management IP of node %v is not known yet.")
+						s.Logger.Infof("Ip address or management IP of node %v is not known yet.", nodeID)
 					}
 				}
 			}
 		}
 	}
+
+	s.Logger.WithField("nodeResyncRev", s.nodeIDResyncRev).
+		Infof("%v buffered nodeID change event found", len(s.nodeIDChangeEvs))
+	for _, ev := range s.nodeIDChangeEvs {
+		err = s.processChangeEvent(ev)
+		if err != nil {
+			s.Logger.Error(err)
+		}
+	}
+	err = nil
+	s.nodeIDChangeEvs = nil
 
 	return err
 }
@@ -111,15 +118,34 @@ func (s *remoteCNIserver) nodeChangePropageteEvent(dataChngEv datasync.ChangeEve
 
 	// do not handle other nodes until the base vswitch config is successfully applied
 	s.Lock()
-	for !s.vswitchConnectivityConfigured {
-		s.vswitchCond.Wait()
-	}
 	defer s.Unlock()
 
+	if !s.vswitchConnectivityConfigured {
+		// resync event must be processed first, cache the event
+		s.nodeIDChangeEvs = append(s.nodeIDChangeEvs, dataChngEv)
+		s.Logger.WithFields(logging.Fields{
+			"key": dataChngEv.GetKey(),
+			"rev": dataChngEv.GetRevision()}).Info("NodeId change event buffered")
+		return nil
+	}
+
+	return s.processChangeEvent(dataChngEv)
+}
+
+func (s *remoteCNIserver) processChangeEvent(dataChngEv datasync.ChangeEvent) error {
+	s.Logger.WithFields(logging.Fields{
+		"key": dataChngEv.GetKey(),
+		"rev": dataChngEv.GetRevision()}).Info("Processing change event")
 	key := dataChngEv.GetKey()
 	var err error
 
 	if strings.HasPrefix(key, AllocatedIDsKeyPrefix) {
+		rev := dataChngEv.GetRevision()
+		if rev <= s.nodeIDResyncRev {
+			s.Logger.Info("Node id change event was generated before resync, skipping")
+			return nil
+		}
+
 		nodeInfo := &node.NodeInfo{}
 		err = dataChngEv.GetValue(nodeInfo)
 		if err != nil {
@@ -167,6 +193,9 @@ func (s *remoteCNIserver) addRoutesToNode(nodeInfo *node.NodeInfo) error {
 			return err
 		}
 		txn.VppInterface(vxlanIf)
+		s.Logger.WithFields(logging.Fields{
+			"srcIP":  vxlanIf.Vxlan.SrcAddress,
+			"destIP": vxlanIf.Vxlan.DstAddress}).Info("Configuring vxlan")
 
 		// add the VXLAN interface into the VXLAN bridge domain
 		s.addInterfaceToVxlanBD(s.vxlanBD, vxlanIf.Name)

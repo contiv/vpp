@@ -176,6 +176,13 @@ type remoteCNIserver struct {
 	// the map holds containerID of pods that have been configured in this vswitch run
 	// this structure is intentionally not persisted
 	configuredInThisRun map[string]bool
+
+	// nodeIDResyncRev is the latest revision in the resync event. Buffered changes generated
+	// before the resync revision are ignore
+	nodeIDResyncRev int64
+
+	// nodeIDChangeEvs is buffer where change events are stored until resync event is processed
+	nodeIDChangeEvs []datasync.ChangeEvent
 }
 
 // vswitchConfig holds base vSwitch VPP configuration.

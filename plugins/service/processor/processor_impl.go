@@ -570,7 +570,16 @@ type InterfaceIPAddress struct {
 // getInterfaceIPs returns all IP addresses the interface has assigned.
 func (sp *ServiceProcessor) getInterfaceIPs(ifName string) []InterfaceIPAddress {
 	networks := []InterfaceIPAddress{}
-	_, meta, exists := sp.VPP.GetSwIfIndexes().LookupIdx(ifName)
+	if sp.VPP == nil {
+		sp.Log.Error("sp.VPP is nil!")
+		return nil
+	}
+	idxMap := sp.VPP.GetSwIfIndexes()
+	if idxMap == nil {
+		sp.Log.Error("idxMap is nil!")
+		return nil
+	}
+	_, meta, exists := idxMap.LookupIdx(ifName)
 	if !exists || meta == nil {
 		sp.Log.WithFields(logging.Fields{
 			"ifName": ifName,

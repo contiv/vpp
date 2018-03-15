@@ -21,4 +21,10 @@ then
     exit 1
 fi
 
-exec docker exec -it "$ID" /usr/bin/vppctl
+DOCKER_ARGS=
+if [ -t 0 ]
+then
+    DOCKER_ARGS="-t"
+fi
+
+exec docker exec -i $DOCKER_ARGS "$ID" /usr/bin/vppctl

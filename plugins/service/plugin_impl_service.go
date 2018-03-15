@@ -24,6 +24,8 @@ import (
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/utils/safeclose"
 
+	"github.com/ligato/vpp-agent/clientv1/linux"
+	"github.com/ligato/vpp-agent/clientv1/linux/localclient"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins"
 	"github.com/ligato/vpp-agent/plugins/govppmux"
 
@@ -80,19 +82,14 @@ func (p *Plugin) Init() error {
 	p.resyncChan = make(chan datasync.ResyncEvent)
 	p.changeChan = make(chan datasync.ChangeEvent)
 
-	const goVPPChanBufSize = 1 << 12
-	goVppCh, err := p.GoVPP.NewAPIChannelBuffered(goVPPChanBufSize, goVPPChanBufSize)
-	if err != nil {
-		return err
-	}
-
 	p.configurator = &configurator.ServiceConfigurator{
 		Deps: configurator.Deps{
-			Log:              p.Log.NewLogger("-serviceConfigurator"),
-			Contiv:           p.Contiv,
-			VPP:              p.VPP, /* temporary dependency - only until vpp-agent supports NAT */
-			GoVPPChan:        goVppCh,
-			GoVPPChanBufSize: goVPPChanBufSize,
+			Log:    p.Log.NewLogger("-serviceConfigurator"),
+			Contiv: p.Contiv,
+			VPP:    p.VPP,
+			NATTxnFactory: func() linux.DataChangeDSL {
+				return localclient.DataChangeRequest(p.PluginName)
+			},
 		},
 	}
 	p.configurator.Log.SetLevel(logging.DebugLevel)

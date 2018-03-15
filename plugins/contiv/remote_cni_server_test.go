@@ -551,5 +551,6 @@ func (e nodeAddDelEvent) GetPrevValue(prevValue proto.Message) (prevValueExist b
 }
 
 func (e nodeAddDelEvent) GetRevision() int64 {
-	return 0
+	// return revision should be bigger than resync Rev in order to apply the change
+	return 1
 }

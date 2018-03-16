@@ -159,6 +159,16 @@ tapcli-0 (up):
 ```
 - NAT configuration (issues related to services)
 ```
+DBGvpp# sh nat44 addresses
+NAT44 pool addresses:
+192.168.16.10
+  tenant VRF independent
+  0 busy udp ports
+  0 busy tcp ports
+  0 busy icmp ports
+NAT44 twice-nat pool addresses:
+```
+```
 vpp# sh nat44 static mappings 
 NAT44 static mappings:
  tcp local 192.168.42.1:6443 external 10.96.0.1:443 vrf 0  out2in-only

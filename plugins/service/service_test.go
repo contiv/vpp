@@ -265,7 +265,7 @@ func TestResyncAndSingleService(t *testing.T) {
 
 	// New static mappings.
 	Expect(natPlugin.NumOfStaticMappings()).To(Equal(2))
-	staticMapping := &StaticMapping{
+	staticMapping1 := &StaticMapping{
 		ExternalIP:   net.ParseIP("10.96.0.1"),
 		ExternalPort: 80,
 		Protocol:     svc_configurator.TCP,
@@ -282,9 +282,91 @@ func TestResyncAndSingleService(t *testing.T) {
 			},
 		},
 	}
-	Expect(natPlugin.HasStaticMapping(staticMapping)).To(BeTrue())
-	staticMapping.ExternalIP = net.ParseIP("20.20.20.20")
-	Expect(natPlugin.HasStaticMapping(staticMapping)).To(BeTrue())
+	Expect(natPlugin.HasStaticMapping(staticMapping1)).To(BeTrue())
+	staticMapping2 := staticMapping1.Copy()
+	staticMapping2.ExternalIP = net.ParseIP("20.20.20.20")
+	Expect(natPlugin.HasStaticMapping(staticMapping2)).To(BeTrue())
+
+	// Change port number for pod2.
+	eps2 := &epmodel.Endpoints{
+		Name:      "service1",
+		Namespace: namespace1,
+		EndpointSubsets: []*epmodel.EndpointSubset{
+			{
+				Addresses: []*epmodel.EndpointSubset_EndpointAddress{
+					{
+						Ip:       pod1IP,
+						NodeName: agentLabel,
+						TargetRef: &epmodel.ObjectReference{
+							Kind:      "Pod",
+							Namespace: pod1.Namespace,
+							Name:      pod1.Name,
+						},
+					},
+				},
+				Ports: []*epmodel.EndpointSubset_EndpointPort{
+					{
+						Name:     "http",
+						Port:     8080,
+						Protocol: "TCP",
+					},
+				},
+			},
+			{
+				Addresses: []*epmodel.EndpointSubset_EndpointAddress{
+					{
+						Ip:       pod2IP,
+						NodeName: agentLabel,
+						TargetRef: &epmodel.ObjectReference{
+							Kind:      "Pod",
+							Namespace: pod2.Namespace,
+							Name:      pod2.Name,
+						},
+					},
+				},
+				Ports: []*epmodel.EndpointSubset_EndpointPort{
+					{
+						Name:     "http",
+						Port:     9080, // 8080 -> 9080
+						Protocol: "TCP",
+					},
+				},
+			},
+		},
+	}
+
+	dataChange5 := datasync.Put(epmodel.Key(eps2.Name, eps2.Namespace), eps2)
+	Expect(processor.Update(dataChange5)).To(BeNil())
+
+	// First check what should not have changed.
+	Expect(natPlugin.IsForwardingEnabled()).To(BeTrue())
+	Expect(natPlugin.AddressPoolSize()).To(Equal(1))
+	Expect(natPlugin.PoolContainsAddress(nodeIP)).To(BeTrue())
+	Expect(natPlugin.NumOfIdentityMappings()).To(Equal(0))
+
+	// New static mappings.
+	Expect(natPlugin.NumOfStaticMappings()).To(Equal(2))
+	staticMapping1.Locals[1].Port = 9080
+	staticMapping2.Locals[1].Port = 9080
+	Expect(natPlugin.HasStaticMapping(staticMapping1)).To(BeTrue())
+	Expect(natPlugin.HasStaticMapping(staticMapping2)).To(BeTrue())
+
+	// Finally remove the service.
+	dataChange6 := datasync.Delete(svcmodel.Key(service1.Name, service1.Namespace))
+	Expect(processor.Update(dataChange6)).To(BeNil())
+
+	// NAT configuration without the service.
+	Expect(natPlugin.IsForwardingEnabled()).To(BeTrue())
+	Expect(natPlugin.AddressPoolSize()).To(Equal(1))
+	Expect(natPlugin.PoolContainsAddress(nodeIP)).To(BeTrue())
+	Expect(natPlugin.NumOfStaticMappings()).To(Equal(0))
+	Expect(natPlugin.NumOfIdentityMappings()).To(Equal(0))
+	Expect(natPlugin.NumOfIfsWithFeatures()).To(Equal(5))
+	Expect(natPlugin.GetInterfaceFeatures(mainIfName)).To(Equal(NewNatFeatures(OUTPUT_OUT)))
+	Expect(natPlugin.GetInterfaceFeatures(vxlanIfName)).To(Equal(NewNatFeatures(IN, OUT)))
+	Expect(natPlugin.GetInterfaceFeatures(hostInterIfName)).To(Equal(NewNatFeatures(IN, OUT)))
+	Expect(natPlugin.GetInterfaceFeatures(pod1If)).To(Equal(NewNatFeatures(OUT)))
+	Expect(natPlugin.GetInterfaceFeatures(pod2If)).To(Equal(NewNatFeatures(OUT)))
 
 	// Cleanup
 	Expect(processor.Close()).To(BeNil())

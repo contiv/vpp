@@ -41,7 +41,8 @@ type MockKeyVal struct {
 
 // MockChangeEvent implements ChangeEvent interface.
 type MockChangeEvent struct {
-	mds *MockDataSync
+	mds       *MockDataSync
+	eventType datasync.PutDel
 	MockKeyVal
 	prevVal proto.Message
 }
@@ -86,7 +87,8 @@ func (mds *MockDataSync) Put(key string, value proto.Message) datasync.ChangeEve
 		}
 	}
 	return &MockChangeEvent{
-		mds: mds,
+		mds:       mds,
+		eventType: datasync.Put,
 		MockKeyVal: MockKeyVal{
 			key: key,
 			val: value,
@@ -103,12 +105,15 @@ func (mds *MockDataSync) Delete(key string) datasync.ChangeEvent {
 		return nil
 	}
 	rev := mds.data[key].rev
+	val := mds.data[key].val
 	delete(mds.data, key)
 	return &MockChangeEvent{
-		mds: mds,
+		mds:       mds,
+		eventType: datasync.Delete,
 		MockKeyVal: MockKeyVal{
 			key: key,
 			rev: rev,
+			val: val,
 		},
 	}
 }
@@ -160,10 +165,7 @@ func (mche *MockChangeEvent) Done(err error) {
 
 // GetChangeType returns either "Put" or "Delete".
 func (mche *MockChangeEvent) GetChangeType() datasync.PutDel {
-	if mche.val == nil {
-		return datasync.Delete
-	}
-	return datasync.Put
+	return mche.eventType
 }
 
 // GetPrevValue returns the previous value.

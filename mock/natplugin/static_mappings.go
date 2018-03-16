@@ -134,6 +134,23 @@ func (l *Local) String() string {
 		l.IP.String(), l.Port, l.Probability)
 }
 
+// Copy makes deep copy of a static mapping.
+func (sm *StaticMapping) Copy() *StaticMapping {
+	smCopy := &StaticMapping{
+		ExternalIP:   dupIP(sm.ExternalIP),
+		ExternalPort: sm.ExternalPort,
+		Protocol:     sm.Protocol,
+	}
+	for _, local := range sm.Locals {
+		smCopy.Locals = append(smCopy.Locals, &Local{
+			IP:          dupIP(local.IP),
+			Port:        local.Port,
+			Probability: local.Probability,
+		})
+	}
+	return smCopy
+}
+
 // Equals compares this static mapping with <sm2>.
 func (sm *StaticMapping) Equals(sm2 *StaticMapping) bool {
 	if !sm.ExternalIP.Equal(sm2.ExternalIP) ||
@@ -157,4 +174,10 @@ func (sm *StaticMapping) Equals(sm2 *StaticMapping) bool {
 		}
 	}
 	return true
+}
+
+func dupIP(ip net.IP) net.IP {
+	dup := make(net.IP, len(ip))
+	copy(dup, ip)
+	return dup
 }

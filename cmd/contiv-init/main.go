@@ -43,7 +43,7 @@ const (
 	defaultSupervisorPort = 9001
 	defaultStnServerPort  = 50051
 
-	vppProcessName = "vpp"
+	vppProcessName         = "vpp"
 	contivAgentProcessName = "contiv-agent"
 )
 

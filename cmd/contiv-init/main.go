@@ -42,6 +42,9 @@ const (
 	defaultEtcdCfgFile    = "/etc/etcd/etcd.conf"
 	defaultSupervisorPort = 9001
 	defaultStnServerPort  = 50051
+
+	vppProcessName = "vpp"
+	contivAgentProcessName = "contiv-agent"
 )
 
 var (
@@ -225,7 +228,7 @@ func main() {
 
 	// start VPP
 	logger.Debug("Starting VPP")
-	_, err = client.StartProcess("vpp", false)
+	_, err = client.StartProcess(vppProcessName, false)
 	if err != nil {
 		logger.Errorf("Error by starting VPP process: %v", err)
 		os.Exit(-1)
@@ -236,6 +239,7 @@ func main() {
 		vppCfg, err := configureVpp(contivCfg, stnData, useDHCP)
 		if err != nil {
 			logger.Errorf("Error by configuring VPP: %v", err)
+			client.StopProcess(vppProcessName, false)
 			os.Exit(-1)
 		}
 
@@ -243,15 +247,17 @@ func main() {
 		err = persistVppConfig(contivCfg, stnData, vppCfg, useDHCP)
 		if err != nil {
 			logger.Errorf("Error by persisting VPP config in ETCD: %v", err)
+			client.StopProcess(vppProcessName, false)
 			os.Exit(-1)
 		}
 	}
 
 	// start contiv-agent
 	logger.Debugf("Starting contiv-agent")
-	_, err = client.StartProcess("contiv-agent", false)
+	_, err = client.StartProcess(contivAgentProcessName, false)
 	if err != nil {
 		logger.Errorf("Error by starting contiv-agent process: %v", err)
+		client.StopProcess(vppProcessName, false)
 		os.Exit(-1)
 	}
 

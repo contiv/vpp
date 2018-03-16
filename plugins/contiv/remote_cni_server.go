@@ -1069,8 +1069,15 @@ func (s *remoteCNIserver) configurePodInterface(request *cni.CNIRequest, podIP n
 
 		podIfName = config.PodTap.Name
 
-		txn1.VppInterface(config.VppIf).
-			LinuxInterface(config.PodTap)
+		// configure vpp TAP interface in a separate transaction otherwise the AUTO_TAP
+		// might try to configure the other end before VPP is finished
+		err := s.vppTxnFactory().Put().VppInterface(config.VppIf).Send().ReceiveReply()
+		if err != nil {
+			s.Logger.Error(err)
+			return err
+		}
+
+		txn1.LinuxInterface(config.PodTap)
 	} else {
 		// veth pair + AF_PACKET
 		config.Veth1 = s.veth1FromRequest(request, podIPCIDR)

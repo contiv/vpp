@@ -1,6 +1,48 @@
-## Debugging and reporting bugs in Contiv-VPP
+# Debugging and reporting bugs in Contiv-VPP
 
-### 1. Collecting the logs
+## Bug report structure
+
+- [Deployment description](#desribe-deployment)
+Briefly describe the deployment, where an issue was spotted.
+Number of k8s nodes, is DHCP/STN/TAP used?
+
+- [Logs](#collecting-the-logs)
+Attach corresponding logs, at least from vswitch pods.
+
+- [Vpp config](#inspect-vpp-config)
+Attach output of the show commands.
+
+### Describe deployment
+Since contiv-vpp can be used with different configuration it is helpful 
+to attach the config that was applied. Either attach `values.yaml` passed to helm chart
+or the [corresponding part](https://github.com/contiv/vpp/blob/42b3bfbe8735508667b1e7f1928109a65dfd5261/k8s/contiv-vpp.yaml#L24-L38) from deployment yaml file.
+
+```
+  contiv.yaml: |-
+    TCPstackDisabled: true
+    UseTAPInterfaces: true
+    TAPInterfaceVersion: 1
+    NatExternalTraffic: true
+    MTUSize: 1500
+    IPAMConfig:
+      PodSubnetCIDR: 10.1.0.0/16
+      PodNetworkPrefixLen: 24
+      PodIfIPCIDR: 10.2.1.0/24
+      VPPHostSubnetCIDR: 172.30.0.0/16
+      VPPHostNetworkPrefixLen: 24
+      NodeInterconnectCIDR: 192.168.16.0/24
+      VxlanCIDR: 192.168.30.0/24
+      NodeInterconnectDHCP: False
+```
+
+Information that might be helpful:
+ - whether node IPs are statically assigned or DHCP is used
+ - STN is enabled
+ - version of TAP interfaces used
+ - output of `kubectl get pods -o wide --all-namespaces`
+ 
+
+### Collecting the logs
 
 The most essential thing that one needs to do in case of debugging and **reporting an issue**
 in Contiv-VPP is **collecting the logs from the contiv-vpp vswitch containers**.
@@ -101,3 +143,41 @@ index 3676047..ffa4473 100644
                valueFrom:
 ```
 
+### Inspect VPP config
+- configured interfaces (issues related basic node/pod connectivity issues)
+```
+vpp# sh int addr
+GigabitEthernet0/9/0 (up):
+  192.168.16.1/24
+local0 (dn):
+loop0 (up):
+  l2 bridge bd_id 1 bvi shg 0
+  192.168.30.1/24
+tapcli-0 (up):
+  172.30.1.1/24
+
+```
+- NAT configuration (issues related to services)
+```
+vpp# sh nat44 static mappings 
+NAT44 static mappings:
+ tcp local 192.168.42.1:6443 external 10.96.0.1:443 vrf 0  out2in-only
+ tcp local 192.168.42.1:12379 external 192.168.42.2:32379 vrf 0  out2in-only
+ tcp local 192.168.42.1:12379 external 192.168.16.2:32379 vrf 0  out2in-only
+ tcp local 192.168.42.1:12379 external 192.168.42.1:32379 vrf 0  out2in-only
+ tcp local 192.168.42.1:12379 external 192.168.16.1:32379 vrf 0  out2in-only
+ tcp local 192.168.42.1:12379 external 10.109.143.39:12379 vrf 0  out2in-only
+ udp local 10.1.2.2:53 external 10.96.0.10:53 vrf 0  out2in-only
+ tcp local 10.1.2.2:53 external 10.96.0.10:53 vrf 0  out2in-only
+```
+```
+vpp# sh nat44 interfaces
+NAT44 interfaces:
+ loop0 in out
+ GigabitEthernet0/9/0 out
+ tapcli-0 in out
+```
+- ACL config (issues related to policies)
+```
+vpp# sh acl-plugin acl
+```

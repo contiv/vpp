@@ -23,8 +23,11 @@ data:
     TCPstackDisabled: {{ .Values.contiv.tcpStackDisabled }}
     UseTAPInterfaces: {{ .Values.contiv.useTAPInterfaces }}
     TAPInterfaceVersion: {{ .Values.contiv.tapInterfaceVersion }}
-    {{- if .Values.contiv.stealTheNIC }}
-    StealTheNIC: True
+    {{- if .Values.contiv.stealInterface }}
+    StealInterface: {{ .Values.contiv.stealInterface }}
+    {{- end }}
+    {{- if .Values.contiv.stealFirstNIC }}
+    StealFirstNIC: True
     {{- end }}
     NatExternalTraffic: {{ .Values.contiv.natExternalTraffic }}
     MTUSize: {{ .Values.contiv.mtuSize }}

@@ -299,7 +299,7 @@ func (s *remoteCNIserver) configureVswitchConnectivity() error {
 	} else {
 		expectedIfName = s.interconnectAfpacketName()
 	}
-	if s.config.StealTheNIC || (s.nodeConfig != nil && s.nodeConfig.StealInterface != "") {
+	if s.config.StealFirstNIC || s.config.StealInterface != "" || (s.nodeConfig != nil && s.nodeConfig.StealInterface != "") {
 		// For STN case, do not rely on TAP interconnect, since it has been pre-configured by contiv-init.
 		// Let's relay on VXLAN BVI interface name. Note that this may not work in case that VXLANs are disabled.
 		expectedIfName = vxlanBVIInterfaceName
@@ -426,7 +426,7 @@ func (s *remoteCNIserver) configureMainVPPInterface(config *vswitchConfig, nicNa
 	txn1 := s.vppTxnFactory().Put()
 
 	useSTN := false
-	if s.config.StealTheNIC || (s.nodeConfig != nil && s.nodeConfig.StealInterface != "") {
+	if s.config.StealFirstNIC || s.config.StealInterface != "" || (s.nodeConfig != nil && s.nodeConfig.StealInterface != "") {
 		useSTN = true
 
 		// get IP address of the STN interface
@@ -434,6 +434,9 @@ func (s *remoteCNIserver) configureMainVPPInterface(config *vswitchConfig, nicNa
 		if s.nodeConfig != nil && s.nodeConfig.StealInterface != "" {
 			s.Logger.Infof("STN of the host interface %s requested.", s.nodeConfig.StealInterface)
 			nicIP, gwIP, err = s.getSTNInterfaceIP(s.nodeConfig.StealInterface)
+		} else if s.config.StealInterface != "" {
+			s.Logger.Infof("STN of the interface %s requested.", s.config.StealInterface)
+			nicIP, gwIP, err = s.getSTNInterfaceIP(s.config.StealInterface)
 		} else {
 			s.Logger.Infof("STN of the first interface (%s) requested.", nicName)
 			nicIP, gwIP, err = s.getSTNInterfaceIP("")

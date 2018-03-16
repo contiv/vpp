@@ -84,7 +84,7 @@ define test_cover_only
     @go test -covermode=count -coverprofile=${COVER_DIR}cov_u8.out ./plugins/policy/renderer/cache -tags="${GO_BUILD_TAGS}"
     @go test -covermode=count -coverprofile=${COVER_DIR}cov_u9.out ./plugins/policy/renderer/acl -tags="${GO_BUILD_TAGS}"
     @go test -covermode=count -coverprofile=${COVER_DIR}cov_u10.out ./plugins/policy/renderer/vpptcp -tags="${GO_BUILD_TAGS}"
-    @go test -covermode=count -coverprofile=${COVER_DIR}cov_u11.out -coverpkg=./plugins/service/processor,./plugins/service/configurator -tags="${GO_BUILD_TAGS}"
+    @go test -covermode=count -coverprofile=${COVER_DIR}cov_u11.out -coverpkg=./plugins/service/processor,./plugins/service/configurator ./plugins/service -tags="${GO_BUILD_TAGS}"
     @echo "# merging coverage results"
     @cd vendor/github.com/wadey/gocovmerge && go install -v
     @gocovmerge ${COVER_DIR}cov_u1.out ${COVER_DIR}cov_u2.out ${COVER_DIR}cov_u3.out \

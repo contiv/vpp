@@ -650,7 +650,7 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 
 	// New static mappings.
 	// -> service 1
-	staticMappingHttp := &StaticMapping{
+	staticMappingHTTP := &StaticMapping{
 		ExternalIP:   net.ParseIP("10.96.0.1"),
 		ExternalPort: 80,
 		Protocol:     svc_configurator.TCP,
@@ -667,7 +667,7 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 			},
 		},
 	}
-	staticMappingHttps := &StaticMapping{
+	staticMappingHTTPS := &StaticMapping{
 		ExternalIP:   net.ParseIP("10.96.0.1"),
 		ExternalPort: 443,
 		Protocol:     svc_configurator.TCP,
@@ -684,17 +684,17 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 			},
 		},
 	}
-	Expect(natPlugin.HasStaticMapping(staticMappingHttp)).To(BeTrue())
-	Expect(natPlugin.HasStaticMapping(staticMappingHttps)).To(BeTrue())
-	staticMappingHttp2 := staticMappingHttp.Copy()
-	staticMappingHttp2.ExternalIP = net.ParseIP("20.20.20.20")
-	staticMappingHttps2 := staticMappingHttps.Copy()
-	staticMappingHttps2.ExternalIP = net.ParseIP("20.20.20.20")
-	Expect(natPlugin.HasStaticMapping(staticMappingHttp2)).To(BeTrue())
-	Expect(natPlugin.HasStaticMapping(staticMappingHttps2)).To(BeTrue())
+	Expect(natPlugin.HasStaticMapping(staticMappingHTTP)).To(BeTrue())
+	Expect(natPlugin.HasStaticMapping(staticMappingHTTPS)).To(BeTrue())
+	staticMappingHTTP2 := staticMappingHTTP.Copy()
+	staticMappingHTTP2.ExternalIP = net.ParseIP("20.20.20.20")
+	staticMappingHTTPS2 := staticMappingHTTPS.Copy()
+	staticMappingHTTPS2.ExternalIP = net.ParseIP("20.20.20.20")
+	Expect(natPlugin.HasStaticMapping(staticMappingHTTP2)).To(BeTrue())
+	Expect(natPlugin.HasStaticMapping(staticMappingHTTPS2)).To(BeTrue())
 
 	// -> service 2
-	staticMappingDnsTCP := &StaticMapping{
+	staticMappingDNSTCP := &StaticMapping{
 		ExternalIP:   net.ParseIP("10.96.0.10"),
 		ExternalPort: 53,
 		Protocol:     svc_configurator.TCP,
@@ -711,7 +711,7 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 			},
 		},
 	}
-	staticMappingDnsUDP := &StaticMapping{
+	staticMappingDNSUDP := &StaticMapping{
 		ExternalIP:   net.ParseIP("10.96.0.10"),
 		ExternalPort: 53,
 		Protocol:     svc_configurator.UDP,
@@ -728,8 +728,8 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 			},
 		},
 	}
-	Expect(natPlugin.HasStaticMapping(staticMappingDnsTCP)).To(BeTrue())
-	Expect(natPlugin.HasStaticMapping(staticMappingDnsUDP)).To(BeTrue())
+	Expect(natPlugin.HasStaticMapping(staticMappingDNSTCP)).To(BeTrue())
+	Expect(natPlugin.HasStaticMapping(staticMappingDNSUDP)).To(BeTrue())
 
 	// -> total
 	Expect(natPlugin.NumOfStaticMappings()).To(Equal(6))
@@ -756,15 +756,15 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 	Expect(natPlugin.GetInterfaceFeatures(hostInterIfName)).To(Equal(NewNatFeatures(IN, OUT)))
 	Expect(natPlugin.GetInterfaceFeatures(pod1If)).To(Equal(NewNatFeatures(IN, OUT)))
 	Expect(natPlugin.GetInterfaceFeatures(pod2If)).To(Equal(NewNatFeatures(IN, OUT)))
-	Expect(natPlugin.HasStaticMapping(staticMappingHttp)).To(BeTrue())
-	Expect(natPlugin.HasStaticMapping(staticMappingHttps)).To(BeTrue())
-	Expect(natPlugin.HasStaticMapping(staticMappingHttp2)).To(BeTrue())
-	Expect(natPlugin.HasStaticMapping(staticMappingHttps2)).To(BeTrue())
-	Expect(natPlugin.HasStaticMapping(staticMappingDnsTCP)).To(BeTrue())
-	Expect(natPlugin.HasStaticMapping(staticMappingDnsUDP)).To(BeTrue())
+	Expect(natPlugin.HasStaticMapping(staticMappingHTTP)).To(BeTrue())
+	Expect(natPlugin.HasStaticMapping(staticMappingHTTPS)).To(BeTrue())
+	Expect(natPlugin.HasStaticMapping(staticMappingHTTP2)).To(BeTrue())
+	Expect(natPlugin.HasStaticMapping(staticMappingHTTPS2)).To(BeTrue())
+	Expect(natPlugin.HasStaticMapping(staticMappingDNSTCP)).To(BeTrue())
+	Expect(natPlugin.HasStaticMapping(staticMappingDNSUDP)).To(BeTrue())
 
 	// New static mappings for the https nodeport.
-	staticMappingHttpsNodeIP := &StaticMapping{
+	staticMappingHTTPSNodeIP := &StaticMapping{
 		ExternalIP:   net.ParseIP(nodeIP),
 		ExternalPort: 30443,
 		Protocol:     svc_configurator.TCP,
@@ -781,7 +781,7 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 			},
 		},
 	}
-	staticMappingHttpsNodeMgmtIP := &StaticMapping{
+	staticMappingHTTPSNodeMgmtIP := &StaticMapping{
 		ExternalIP:   net.ParseIP(mgmtIP),
 		ExternalPort: 30443,
 		Protocol:     svc_configurator.TCP,
@@ -799,8 +799,8 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 		},
 	}
 
-	Expect(natPlugin.HasStaticMapping(staticMappingHttpsNodeIP)).To(BeTrue())
-	Expect(natPlugin.HasStaticMapping(staticMappingHttpsNodeMgmtIP)).To(BeTrue())
+	Expect(natPlugin.HasStaticMapping(staticMappingHTTPSNodeIP)).To(BeTrue())
+	Expect(natPlugin.HasStaticMapping(staticMappingHTTPSNodeMgmtIP)).To(BeTrue())
 	Expect(natPlugin.NumOfStaticMappings()).To(Equal(8))
 
 	// Propagate NodeIP and Node Mgmt IP of the worker.
@@ -825,22 +825,22 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 	Expect(natPlugin.GetInterfaceFeatures(hostInterIfName)).To(Equal(NewNatFeatures(IN, OUT)))
 	Expect(natPlugin.GetInterfaceFeatures(pod1If)).To(Equal(NewNatFeatures(IN, OUT)))
 	Expect(natPlugin.GetInterfaceFeatures(pod2If)).To(Equal(NewNatFeatures(IN, OUT)))
-	Expect(natPlugin.HasStaticMapping(staticMappingHttp)).To(BeTrue())
-	Expect(natPlugin.HasStaticMapping(staticMappingHttps)).To(BeTrue())
-	Expect(natPlugin.HasStaticMapping(staticMappingHttp2)).To(BeTrue())
-	Expect(natPlugin.HasStaticMapping(staticMappingHttps2)).To(BeTrue())
-	Expect(natPlugin.HasStaticMapping(staticMappingDnsTCP)).To(BeTrue())
-	Expect(natPlugin.HasStaticMapping(staticMappingDnsUDP)).To(BeTrue())
-	Expect(natPlugin.HasStaticMapping(staticMappingHttpsNodeIP)).To(BeTrue())
-	Expect(natPlugin.HasStaticMapping(staticMappingHttpsNodeMgmtIP)).To(BeTrue())
+	Expect(natPlugin.HasStaticMapping(staticMappingHTTP)).To(BeTrue())
+	Expect(natPlugin.HasStaticMapping(staticMappingHTTPS)).To(BeTrue())
+	Expect(natPlugin.HasStaticMapping(staticMappingHTTP2)).To(BeTrue())
+	Expect(natPlugin.HasStaticMapping(staticMappingHTTPS2)).To(BeTrue())
+	Expect(natPlugin.HasStaticMapping(staticMappingDNSTCP)).To(BeTrue())
+	Expect(natPlugin.HasStaticMapping(staticMappingDNSUDP)).To(BeTrue())
+	Expect(natPlugin.HasStaticMapping(staticMappingHTTPSNodeIP)).To(BeTrue())
+	Expect(natPlugin.HasStaticMapping(staticMappingHTTPSNodeMgmtIP)).To(BeTrue())
 
 	// New static mappings for the https nodeport - worker.
-	staticMappingHttpsWorkerNodeIP := staticMappingHttpsNodeIP.Copy()
-	staticMappingHttpsWorkerNodeIP.ExternalIP = net.ParseIP(workerIP)
-	staticMappingHttpsWorkerNodeMgmtIP := staticMappingHttpsNodeMgmtIP.Copy()
-	staticMappingHttpsWorkerNodeMgmtIP.ExternalIP = net.ParseIP(workerMgmtIP)
-	Expect(natPlugin.HasStaticMapping(staticMappingHttpsWorkerNodeIP)).To(BeTrue())
-	Expect(natPlugin.HasStaticMapping(staticMappingHttpsWorkerNodeMgmtIP)).To(BeTrue())
+	staticMappingHTTPSWorkerNodeIP := staticMappingHTTPSNodeIP.Copy()
+	staticMappingHTTPSWorkerNodeIP.ExternalIP = net.ParseIP(workerIP)
+	staticMappingHTTPSWorkerNodeMgmtIP := staticMappingHTTPSNodeMgmtIP.Copy()
+	staticMappingHTTPSWorkerNodeMgmtIP.ExternalIP = net.ParseIP(workerMgmtIP)
+	Expect(natPlugin.HasStaticMapping(staticMappingHTTPSWorkerNodeIP)).To(BeTrue())
+	Expect(natPlugin.HasStaticMapping(staticMappingHTTPSWorkerNodeMgmtIP)).To(BeTrue())
 	Expect(natPlugin.NumOfStaticMappings()).To(Equal(10))
 
 	// Simulate Resync.
@@ -885,8 +885,8 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 	Expect(natPlugin.GetInterfaceFeatures(pod2If)).To(Equal(NewNatFeatures(OUT)))
 
 	Expect(natPlugin.NumOfIdentityMappings()).To(Equal(0))
-	Expect(natPlugin.HasStaticMapping(staticMappingDnsTCP)).To(BeTrue())
-	Expect(natPlugin.HasStaticMapping(staticMappingDnsUDP)).To(BeTrue())
+	Expect(natPlugin.HasStaticMapping(staticMappingDNSTCP)).To(BeTrue())
+	Expect(natPlugin.HasStaticMapping(staticMappingDNSUDP)).To(BeTrue())
 	Expect(natPlugin.NumOfStaticMappings()).To(Equal(2))
 
 	// Cleanup

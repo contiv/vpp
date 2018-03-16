@@ -50,12 +50,13 @@ type MockChangeEvent struct {
 // MockResyncEvent implements ResyncEvent interface.
 type MockResyncEvent struct {
 	mds         *MockDataSync
+	data        map[string]*ProtoData
 	keyPrefixes []string
 }
 
 // MockKeyValIterator implements KeyValIterator interface.
 type MockKeyValIterator struct {
-	mds    *MockDataSync
+	mre    *MockResyncEvent
 	keys   []string
 	cursor int
 }
@@ -121,10 +122,18 @@ func (mds *MockDataSync) Delete(key string) datasync.ChangeEvent {
 // Resync returns resync event corresponding to a given list of key prefixes
 // and the current state of the mocked data store.
 func (mds *MockDataSync) Resync(keyPrefix ...string) datasync.ResyncEvent {
-	return &MockResyncEvent{
-		mds:         mds,
+	mre := &MockResyncEvent{
 		keyPrefixes: keyPrefix,
+		data:        make(map[string]*ProtoData),
 	}
+	// copy datastore
+	for key, data := range mds.data {
+		mre.data[key] = &ProtoData{
+			val: proto.Clone(data.val),
+			rev: data.rev,
+		}
+	}
+	return mre
 }
 
 // AnyError returns non-nil if any data change or resync event was processed
@@ -183,25 +192,25 @@ func (mche *MockChangeEvent) GetPrevValue(prevValue proto.Message) (prevValueExi
 //// Resync Event ////
 
 // Done stores non-nil error to MockDataSync.
-func (mche *MockResyncEvent) Done(err error) {
+func (mre *MockResyncEvent) Done(err error) {
 	if err != nil {
-		mche.mds.anyError = err
+		mre.mds.anyError = err
 	}
 }
 
 // GetValues returns map "key-prefix->iterator".
-func (mche *MockResyncEvent) GetValues() map[ /*keyPrefix*/ string]datasync.KeyValIterator {
+func (mre *MockResyncEvent) GetValues() map[ /*keyPrefix*/ string]datasync.KeyValIterator {
 	values := make(map[string]datasync.KeyValIterator)
-	for _, prefix := range mche.keyPrefixes {
+	for _, prefix := range mre.keyPrefixes {
 		var keys []string
-		for key := range mche.mds.data {
+		for key := range mre.data {
 			if strings.HasPrefix(key, prefix) {
 				keys = append(keys, key)
 			}
 		}
 		if len(keys) > 0 {
 			values[prefix] = &MockKeyValIterator{
-				mds:  mche.mds,
+				mre:  mre,
 				keys: keys,
 			}
 		}
@@ -214,12 +223,15 @@ func (mche *MockResyncEvent) GetValues() map[ /*keyPrefix*/ string]datasync.KeyV
 
 // GetNext returns the next item in the list.
 func (mkvi *MockKeyValIterator) GetNext() (kv datasync.KeyVal, allReceived bool) {
+	if mkvi.cursor == len(mkvi.keys) {
+		return nil, true
+	}
 	key := mkvi.keys[mkvi.cursor]
 	kv = &MockKeyVal{
 		key: key,
-		val: mkvi.mds.data[key].val,
-		rev: mkvi.mds.data[key].rev,
+		val: mkvi.mre.data[key].val,
+		rev: mkvi.mre.data[key].rev,
 	}
 	mkvi.cursor++
-	return kv, mkvi.cursor == len(mkvi.keys)
+	return kv, false
 }

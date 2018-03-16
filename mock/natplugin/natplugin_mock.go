@@ -333,17 +333,17 @@ func (mnt *MockNatPlugin) dnatToIdentityMappings(dnat *nat.Nat44DNat_DNatConfig)
 }
 
 // DumpNat44Global returns the current NAT44 global config
-func (mnt *MockNatPlugin) DumpNat44Global() (*nat.Nat44Global, error) {
-	return mnt.nat44Global, nil
+func (mnt *MockNatPlugin) DumpNat44Global() *nat.Nat44Global {
+	return mnt.nat44Global
 }
 
 // DumpNat44DNat returns the current NAT44 DNAT config
-func (mnt *MockNatPlugin) DumpNat44DNat() (*nat.Nat44DNat, error) {
+func (mnt *MockNatPlugin) DumpNat44DNat() *nat.Nat44DNat {
 	dnat := &nat.Nat44DNat{}
 	for _, dnatCfg := range mnt.nat44Dnat {
 		dnat.DnatConfig = append(dnat.DnatConfig, dnatCfg)
 	}
-	return dnat, nil
+	return dnat
 }
 
 // IsForwardingEnabled returns true if the forwarding is enabled.

@@ -39,7 +39,7 @@ const (
 	defaultGRPCServerPort  = 50051 // port where the GRPC STN server listens for client connections
 	defaultStatusCheckPort = 9999  // port that STN server is checking to determine contive-agent liveness
 
-	initStatusCheckTimeout = 10 * time.Second // initial timeout after which the STN server starts checking of the contiv-agent state
+	initStatusCheckTimeout = 30 * time.Second // initial timeout after which the STN server starts checking of the contiv-agent state
 	statusCheckInterval    = 1 * time.Second  // periodic interval in which the STN server checks for contiv-agent state
 
 	configRetryCount = 20                     // number of config attempts in case that an error is returned / config is not applied correctly

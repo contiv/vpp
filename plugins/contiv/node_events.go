@@ -204,7 +204,12 @@ func (s *remoteCNIserver) addRoutesToNode(nodeInfo *node.NodeInfo) error {
 		bd := proto.Clone(s.vxlanBD)
 		txn.BD(bd.(*vpp_l2.BridgeDomains_BridgeDomain))
 
-		vxlanArp := s.vxlanArpEntry(uint8(nodeInfo.Id), hostIP)
+		vxlanIP, err := s.ipam.VxlanIPAddress(uint8(nodeInfo.Id))
+		if err != nil {
+			s.Logger.Error(err)
+			return err
+		}
+		vxlanArp := s.vxlanArpEntry(uint8(nodeInfo.Id), vxlanIP.String())
 		txn.Arp(vxlanArp)
 	}
 

@@ -7,7 +7,7 @@ COPY . /go/src/github.com/contiv/vpp
 
 WORKDIR /go/src/github.com/contiv/vpp/cmd/contiv-ksr
 
-RUN go build -o /ksr main.go
+RUN go build -ldflags '-s -w' -o /ksr main.go
 
 FROM scratch
 

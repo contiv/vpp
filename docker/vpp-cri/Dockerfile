@@ -7,7 +7,7 @@ COPY . /go/src/github.com/contiv/vpp
 
 WORKDIR /go/src/github.com/contiv/vpp/cmd/contiv-cri
 
-RUN go build -o /cri main.go
+RUN go build -ldflags '-s -w' -o /cri main.go
 
 FROM ubuntu:16.04
 

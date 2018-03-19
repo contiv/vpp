@@ -15,8 +15,12 @@
 package defaultplugins
 
 import (
+	"github.com/ligato/cn-infra/logging/logrus"
+
 	"github.com/ligato/vpp-agent/idxvpp"
+	"github.com/ligato/vpp-agent/idxvpp/nametoidx"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/acl"
+	vppintf "github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/interfaces"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/nat"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/ifaceidx"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/l2plugin/bdidx"
@@ -25,6 +29,7 @@ import (
 
 // MockVppPlugin is a mock for VPP plugin (defaultplugins).
 type MockVppPlugin struct {
+	swIfIndexes ifaceidx.SwIfIndexRW
 	ACLs        []*acl.AccessLists_Acl
 	nat44Global *nat.Nat44Global
 	nat44Dnat   *nat.Nat44DNat
@@ -32,7 +37,19 @@ type MockVppPlugin struct {
 
 // NewMockVppPlugin is a constructor for MockVppPlugin.
 func NewMockVppPlugin() *MockVppPlugin {
-	return &MockVppPlugin{ACLs: []*acl.AccessLists_Acl{}}
+	return &MockVppPlugin{
+		swIfIndexes: ifaceidx.NewSwIfIndex(nametoidx.NewNameToIdx(logrus.DefaultLogger(), "defaultplugins-mock",
+			"sw_if_indexes", ifaceidx.IndexMetadata)),
+		ACLs: []*acl.AccessLists_Acl{},
+	}
+}
+
+// AddInterface adds interface into the map of interfaces (returned by GetSwIfIndexes()).
+func (mvp *MockVppPlugin) AddInterface(ifName string, swIfIndex uint32, ip string) {
+	mvp.swIfIndexes.RegisterName(ifName, swIfIndex, &vppintf.Interfaces_Interface{
+		Name:        ifName,
+		IpAddresses: []string{ip},
+	})
 }
 
 // DumpACL dumps ACLs added with AddACL().
@@ -68,7 +85,7 @@ func (mvp *MockVppPlugin) DisableResync(keyPrefix ...string) {
 
 // GetSwIfIndexes does nothing here.
 func (mvp *MockVppPlugin) GetSwIfIndexes() ifaceidx.SwIfIndex {
-	return nil
+	return mvp.swIfIndexes
 }
 
 // GetSwIfIndexes does nothing here.

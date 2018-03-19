@@ -16,20 +16,13 @@
 # fail in case of error
 set -e
 
-# uncomment to pull newest base images
-#docker pull ligato/dev-vpp-agent:pantheon-dev
-#docker pull ligato/vpp-agent:pantheon-dev
+# execute the build
+if [ -z "${VPP_COMMIT_ID}" ]
+then
+    # no specific VPP commit ID
+    docker build -t dev-contiv-vpp:latest --build-arg SKIP_DEBUG_BUILD=${SKIP_DEBUG_BUILD} ${DOCKER_BUILD_ARGS} --force-rm=true .
+else
+    # specific VPP commit ID
+    docker build -t dev-contiv-vpp:${VPP_COMMIT_ID} --build-arg VPP_COMMIT_ID=${VPP_COMMIT_ID} --build-arg SKIP_DEBUG_BUILD=${SKIP_DEBUG_BUILD} ${DOCKER_BUILD_ARGS} --force-rm=true .
+fi
 
-# obtain the current git tag for tagging the Docker images
-TAG=`git describe --tags`
-
-cd vpp
-./build.sh
-
-# build development image
-cd ../dev
-./build.sh ${TAG}
-
-# build production images
-cd ../prod
-./build.sh ${TAG}

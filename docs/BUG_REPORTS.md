@@ -218,7 +218,15 @@ NAT44 sessions:
   10.1.1.2: 0 dynamic translations, 6 static translations
   10.1.2.18: 0 dynamic translations, 2 static translations
 ```
-- ACL config (issues related to policies)
+- ACL config (issues related to policies):
 ```
 vpp# sh acl-plugin acl
+```
+- "Steal the NIC (STN)" config (issues related to host connectivity when STN is active):
+```
+vpp# sh stn rules 
+- rule_index: 0
+  address: 10.1.10.47
+  iface: tapcli-0 (2)
+  next_node: tapcli-0-output (410)
 ```

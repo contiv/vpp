@@ -155,9 +155,41 @@ loop0 (up):
   192.168.30.1/24
 tapcli-0 (up):
   172.30.1.1/24
-
 ```
-- NAT configuration (issues related to services)
+
+- IP forwarding table:
+```
+vpp# sh ip fib
+ipv4-VRF:0, fib_index:0, flow hash:[src dst sport dport proto ] locks:[src:(nil):2, src:adjacency:3, src:default-route:1, ]
+0.0.0.0/0
+  unicast-ip4-chain
+  [@0]: dpo-load-balance: [proto:ip4 index:1 buckets:1 uRPF:0 to:[7:552]]
+    [0] [@0]: dpo-drop ip4
+0.0.0.0/32
+  unicast-ip4-chain
+  [@0]: dpo-load-balance: [proto:ip4 index:2 buckets:1 uRPF:1 to:[0:0]]
+    [0] [@0]: dpo-drop ip4
+
+... 
+...
+
+255.255.255.255/32
+  unicast-ip4-chain
+  [@0]: dpo-load-balance: [proto:ip4 index:5 buckets:1 uRPF:4 to:[0:0]]
+    [0] [@0]: dpo-drop ip4
+```
+- ARP Table
+```
+vpp# sh ip arp
+    Time           IP4       Flags      Ethernet              Interface       
+    728.6616  192.168.16.2     D    08:00:27:9c:0e:9f GigabitEthernet0/8/0
+    542.7045  192.168.30.2     S    1a:2b:3c:4d:5e:02 loop0
+      1.4241   172.30.1.2      D    86:41:d5:92:fd:24 tapcli-0
+     15.2485    10.1.1.2      SN    00:00:00:00:00:02 tapcli-1
+    739.2339    10.1.1.3      SN    00:00:00:00:00:02 tapcli-2
+    739.4119    10.1.1.4      SN    00:00:00:00:00:02 tapcli-3
+```
+- NAT configuration (issues related to services):
 ```
 vpp# sh nat44 static mappings 
 NAT44 static mappings:
@@ -176,6 +208,15 @@ NAT44 interfaces:
  loop0 in out
  GigabitEthernet0/9/0 out
  tapcli-0 in out
+```
+```
+vpp# sh nat44 sessions
+NAT44 sessions:
+  192.168.20.2: 0 dynamic translations, 3 static translations
+  10.1.1.3: 0 dynamic translations, 0 static translations
+  10.1.1.4: 0 dynamic translations, 0 static translations
+  10.1.1.2: 0 dynamic translations, 6 static translations
+  10.1.2.18: 0 dynamic translations, 2 static translations
 ```
 - ACL config (issues related to policies)
 ```

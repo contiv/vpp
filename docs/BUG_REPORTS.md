@@ -12,6 +12,9 @@ Attach corresponding logs, at least from vswitch pods.
 - [Vpp config](#inspect-vpp-config)
 Attach output of the show commands.
 
+- [Basic Collection Example](#basic-example)
+
+
 ### Describe deployment
 Since contiv-vpp can be used with different configuration it is helpful 
 to attach the config that was applied. Either attach `values.yaml` passed to helm chart
@@ -239,4 +242,48 @@ vpp# sh stn rules
   address: 10.1.10.47
   iface: tapcli-0 (2)
   next_node: tapcli-0-output (410)
+```
+
+### Basic Example
+
+Following is a script that may be useful as a starting point to gathering the above information using kubectl.  Limitations: it does not include STN daemon logs nor does it handle the special case of a crash loop.
+
+```
+# !/bin/bash
+
+#######################################################
+# Example Usage
+# contiv-vpp-bug-report.sh 1.2.3.4  # Address of master
+#######################################################
+
+set -euo pipefail
+
+stamp="$(date "+%Y-%m-%d-%H-%M")"
+report_dir="contiv-vpp-bugreport-$stamp"
+mkdir -p $report_dir
+master=$1
+
+nodes="$(ssh $master kubectl\ get\ nodes\ -o\ go-template=\'\{\{range\ .items\}\}\{\{printf\ \"%s \"\ \(index\ .status.addresses\ 0\).address\}\}\{\{end\}\}\')"
+vswitch_pods="$(ssh $master kubectl get po -o name -n kube-system -l k8s-app=contiv-vswitch | cut -f 2 -d '/')"
+
+for p in $vswitch_pods; do
+  ssh $master kubectl logs $p -n kube-system -c contiv-vswitch > $report_dir/$p
+done
+
+ssh $master kubectl describe configmaps -n kube-system contiv-agent-cfg > $report_dir/vpp.yaml
+ssh $master kubectl get pods -o wide --all-namespaces > $report_dir/pods.txt
+
+for n in $nodes; do
+  echo Gathing information from $n
+  ssh $n mkdir /tmp/$report_dir
+  ssh $n echo sh int addr \| sudo nc -U /run/vpp/cli.sock \> /tmp/$report_dir/int_addr.txt
+  ssh $n echo sh nat44 static mappings \| sudo nc -U /run/vpp/cli.sock \> /tmp/$report_dir/nat_mappings.txt
+  ssh $n echo sh nat44 interfaces \| sudo nc -U /run/vpp/cli.sock \> /tmp/$report_dir/nat_interfaces.txt
+  ssh $n echo sh acl-plugin acl \| sudo nc -U /run/vpp/cli.sock \> /tmp/$report_dir/acl.txt
+  mkdir $report_dir/$n
+  ssh $n tar -cC /tmp/$report_dir/ . | tar -xC $report_dir/$n
+done
+
+tar -z -cvf $report_dir.tgz $report_dir
+rm -rf $report_dir
 ```

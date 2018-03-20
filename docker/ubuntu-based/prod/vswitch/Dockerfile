@@ -18,8 +18,7 @@ RUN mkdir /etc/supervisord
 WORKDIR /root/
 
 # add the agent binaries
-COPY binaries/contiv-init /usr/bin/
-COPY binaries/contiv-agent /usr/bin/
+COPY binaries/contiv-init binaries/contiv-agent /usr/bin/
 
 # add VPP binaries (add also extracts from .tar.gz)
 ADD binaries/vpp.tar.gz .

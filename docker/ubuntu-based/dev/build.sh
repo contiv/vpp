@@ -27,10 +27,10 @@ cd ../../../
 if [ -z "${VPP_COMMIT_ID}" ]
 then
     # no specific VPP commit ID
-    docker build -f docker/ubuntu-based/dev/Dockerfile -t dev-contiv-vswitch:${TAG} --build-arg SKIP_DEBUG_BUILD=${SKIP_DEBUG_BUILD} ${DOCKER_BUILD_ARGS} --no-cache --force-rm=true .
+    docker build -f docker/ubuntu-based/dev/Dockerfile -t dev-contiv-vswitch:${TAG} --build-arg VPP_IMAGE=dev-contiv-vpp:latest ${DOCKER_BUILD_ARGS} --force-rm=true .
 else
     # specific VPP commit ID
-    docker build -f docker/ubuntu-based/dev/Dockerfile -t dev-contiv-vswitch:${TAG} --build-arg VPP_COMMIT_ID=${VPP_COMMIT_ID} --build-arg SKIP_DEBUG_BUILD=${SKIP_DEBUG_BUILD} ${DOCKER_BUILD_ARGS} --no-cache --force-rm=true .
+    docker build -f docker/ubuntu-based/dev/Dockerfile -t dev-contiv-vswitch:${TAG} --build-arg VPP_IMAGE=dev-contiv-vpp:${VPP_COMMIT_ID} ${DOCKER_BUILD_ARGS} --force-rm=true .
 fi
 
 VPP=$(docker run --rm dev-contiv-vswitch:${TAG} bash -c "cd \$VPP_DIR && git rev-parse --short HEAD")

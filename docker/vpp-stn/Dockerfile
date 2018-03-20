@@ -7,7 +7,7 @@ COPY . /go/src/github.com/contiv/vpp
 
 WORKDIR /go/src/github.com/contiv/vpp/cmd/contiv-stn
 
-RUN go build -o /stn .
+RUN go build -ldflags '-s -w' -o /stn .
 
 FROM scratch
 

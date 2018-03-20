@@ -218,18 +218,18 @@ func (s *remoteCNIserver) vxlanBVILoopback() (*vpp_intf.Interfaces_Interface, er
 		Type:        vpp_intf.InterfaceType_SOFTWARE_LOOPBACK,
 		Enabled:     true,
 		IpAddresses: []string{vxlanIP.String()},
-		PhysAddress: s.hwAddrForVXLAN(),
+		PhysAddress: s.hwAddrForVXLAN(s.ipam.NodeID()),
 	}, nil
 }
 
-func (s *remoteCNIserver) hwAddrForVXLAN() string {
-	return fmt.Sprintf("1a:2b:3c:4d:5e:%02x", s.ipam.NodeID())
+func (s *remoteCNIserver) hwAddrForVXLAN(nodeID uint8) string {
+	return fmt.Sprintf("1a:2b:3c:4d:5e:%02x", nodeID)
 }
 
 func (s *remoteCNIserver) vxlanBridgeDomain(bviInterface string) *vpp_l2.BridgeDomains_BridgeDomain {
 	return &vpp_l2.BridgeDomains_BridgeDomain{
 		Name:                "vxlanBD",
-		Learn:               true,
+		Learn:               false,
 		Forward:             true,
 		Flood:               true,
 		UnknownUnicastFlood: true,
@@ -240,6 +240,15 @@ func (s *remoteCNIserver) vxlanBridgeDomain(bviInterface string) *vpp_l2.BridgeD
 				SplitHorizonGroup:       vxlanSplitHorizonGroup,
 			},
 		},
+	}
+}
+
+func (s *remoteCNIserver) vxlanArpEntry(nodeID uint8, hostIP string) *vpp_l3.ArpTable_ArpTableEntry {
+	return &vpp_l3.ArpTable_ArpTableEntry{
+		Interface:   vxlanBVIInterfaceName,
+		IpAddress:   hostIP,
+		PhysAddress: s.hwAddrForVXLAN(nodeID),
+		Static:      true,
 	}
 }
 

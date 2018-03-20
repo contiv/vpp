@@ -2,7 +2,7 @@ include Makeroutines.mk
 
 VERSION=$(shell git rev-parse HEAD)
 DATE=$(shell date +'%Y-%m-%dT%H:%M%:z')
-LDFLAGS=-ldflags '-X github.com/contiv/vpp/vendor/github.com/ligato/cn-infra/core.BuildVersion=$(VERSION) -X github.com/contiv/vpp/vendor/github.com/ligato/cn-infra/core.BuildDate=$(DATE)'
+LDFLAGS=-ldflags '-X github.com/contiv/vpp/vendor/github.com/ligato/cn-infra/core.BuildVersion=$(VERSION) -X github.com/contiv/vpp/vendor/github.com/ligato/cn-infra/core.BuildDate=$(DATE) -s -w'
 COVER_DIR=/tmp/
 
 

@@ -203,6 +203,14 @@ func (s *remoteCNIserver) addRoutesToNode(nodeInfo *node.NodeInfo) error {
 		// pass deep copy to local client since we are overwriting previously applied config
 		bd := proto.Clone(s.vxlanBD)
 		txn.BD(bd.(*vpp_l2.BridgeDomains_BridgeDomain))
+
+		vxlanIP, err := s.ipam.VxlanIPAddress(uint8(nodeInfo.Id))
+		if err != nil {
+			s.Logger.Error(err)
+			return err
+		}
+		vxlanArp := s.vxlanArpEntry(uint8(nodeInfo.Id), vxlanIP.String())
+		txn.Arp(vxlanArp)
 	}
 
 	// static routes

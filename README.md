@@ -21,7 +21,12 @@ You can get started with Contiv-VPP in one of two ways:
    
 * Use the [Contiv-specific kubeadm install][2] instructions to manually
   install Kubernetes with Contiv-VPP networking on one or more bare-metal
-  or VM hosts.
+  
+  
+## Reporting Bugs
+In order to report a bug, please file an issue in GitHub. Please provide
+the information described in [Bug Reports README](docs/BUG_REPORTS.md).
+
 
 ## Contributing
 

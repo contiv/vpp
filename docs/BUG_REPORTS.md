@@ -93,6 +93,14 @@ In order to debug an issue, it is good to start by grepping the logs for the `le
 $ cat logs-master.txt | grep level=error
 ```
 
+Also, VPP or contiv-agent may crash in case of some bugs. To check if some process crashed, grep for 
+the string `exit`, e.g.:
+```
+$ cat logs-master.txt | grep exit
+2018-03-20 06:03:45,948 INFO exited: vpp (terminated by SIGABRT (core dumped); not expected)
+2018-03-20 06:03:48,948 WARN received SIGTERM indicating exit request
+```
+
 #### Collecting the STN daemon logs
 In STN (Steal The NIC) deployment scenarios, it is often needed to collect and review the logs
 from the STN daemon. This needs to be done on each node:

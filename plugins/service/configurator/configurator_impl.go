@@ -22,7 +22,6 @@ import (
 	"github.com/golang/protobuf/proto"
 	"github.com/ligato/cn-infra/logging"
 
-	"github.com/contiv/vpp/plugins/contiv"
 	"github.com/ligato/vpp-agent/clientv1/linux"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/nat"
@@ -43,7 +42,6 @@ type ServiceConfigurator struct {
 // Deps lists dependencies of ServiceConfigurator.
 type Deps struct {
 	Log           logging.Logger
-	Contiv        contiv.API         /* to get the Node IP */
 	VPP           defaultplugins.API /* for DumpNat44Global & DumpNat44DNat */
 	NATTxnFactory func() (dsl linux.DataChangeDSL)
 }

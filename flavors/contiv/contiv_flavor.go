@@ -182,7 +182,6 @@ func (f *FlavorContiv) Inject() bool {
 	f.Service.Deps.Resync = &f.ResyncOrch
 	f.Service.Deps.Watcher = &f.ServiceDataSync
 	f.Service.Deps.Contiv = &f.Contiv
-	f.Service.Deps.GoVPP = &f.GoVPP
 	f.Service.Deps.VPP = &f.VPP
 
 	f.ResyncOrch.PluginLogDeps = *f.LogDeps("resync-orch")

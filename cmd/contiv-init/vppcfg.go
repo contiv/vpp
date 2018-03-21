@@ -121,6 +121,13 @@ func configureVpp(contivCfg *contiv.Config, stnData *stn.STNReply, useDHCP bool)
 		return nil, err
 	}
 
+	// interface MTU
+	err = if_vppcalls.SetInterfaceMtu(cfg.mainIfIdx, contivCfg.MTUSize, ch, nil)
+	if err != nil {
+		logger.Errorf("Error by setting the interface %s MTU: %v", cfg.mainIfName, err)
+		return nil, err
+	}
+
 	// interface up
 	err = if_vppcalls.InterfaceAdminUp(cfg.mainIfIdx, ch, nil)
 	if err != nil {
@@ -231,6 +238,12 @@ func configureVpp(contivCfg *contiv.Config, stnData *stn.STNReply, useDHCP bool)
 		return nil, err
 	}
 
+	err = if_vppcalls.SetInterfaceMtu(tapIdx, contivCfg.MTUSize, ch, nil)
+	if err != nil {
+		logger.Errorf("Error by setting the MTU for TAP: %v", cfg.mainIfName, err)
+		return nil, err
+	}
+
 	err = if_vppcalls.InterfaceAdminUp(tapIdx, ch, nil)
 	if err != nil {
 		logger.Errorf("Error by enabling the TAP intrerface: %v", err)
@@ -259,6 +272,11 @@ func configureVpp(contivCfg *contiv.Config, stnData *stn.STNReply, useDHCP bool)
 	err = if_linuxcalls.SetInterfaceMac(contiv.TapHostEndName, tapHostEndMacAddr, nil)
 	if err != nil {
 		logger.Errorf("Error by configuring host-end TAP interface MAC: %v", err)
+		return nil, err
+	}
+	err = if_linuxcalls.SetInterfaceMTU(contiv.TapHostEndName, int(contivCfg.MTUSize), nil)
+	if err != nil {
+		logger.Errorf("Error by configuring host-end TAP interface MTU: %v", err)
 		return nil, err
 	}
 
@@ -351,6 +369,7 @@ func persistVppConfig(contivCfg *contiv.Config, stnData *stn.STNReply, cfg *vppC
 		Name:    cfg.mainIfName,
 		Type:    interfaces.InterfaceType_ETHERNET_CSMACD,
 		Enabled: true,
+		Mtu:     contivCfg.MTUSize,
 	}
 	for _, stnAddr := range stnData.IpAddresses {
 		ifCfg.IpAddresses = append(ifCfg.IpAddresses, stnAddr)
@@ -390,6 +409,7 @@ func persistVppConfig(contivCfg *contiv.Config, stnData *stn.STNReply, cfg *vppC
 		Name:    contiv.TapVPPEndLogicalName,
 		Type:    interfaces.InterfaceType_TAP_INTERFACE,
 		Enabled: true,
+		Mtu:     contivCfg.MTUSize,
 		Tap: &interfaces.Interfaces_Interface_Tap{
 			HostIfName: contiv.TapHostEndName,
 			Version:    uint32(contivCfg.TAPInterfaceVersion),
@@ -424,6 +444,7 @@ func persistVppConfig(contivCfg *contiv.Config, stnData *stn.STNReply, cfg *vppC
 		HostIfName:  contiv.TapHostEndName,
 		Type:        if_linux.LinuxInterfaces_AUTO_TAP,
 		Enabled:     true,
+		Mtu:         contivCfg.MTUSize,
 		PhysAddress: tapHostEndMacAddr,
 		IpAddresses: []string{cfg.mainIP.String()},
 	}

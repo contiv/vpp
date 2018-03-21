@@ -176,6 +176,22 @@ data:
 
 ---
 
+# This config map contains ETCD configuration for connecting to the contiv-etcd defined above with auto comapact.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: contiv-etcd-withcompact-cfg
+  namespace: kube-system
+data:
+  etcd.conf: |
+    insecure-transport: true
+    dial-timeout: 5000000000
+    auto-compact: 600000000000
+    endpoints:
+      - "127.0.0.1:{{ .Values.etcd.service.nodePort }}"
+
+---
+
 # This installs contiv-vswitch on each master and worker node in a Kubernetes cluster.
 # It consists of the following containers:
 #   - contiv-vswitch container: contains VPP and its management agent
@@ -409,7 +425,7 @@ spec:
         # Used to connect to contiv-etcd.
         - name: etcd-cfg
           configMap:
-            name: contiv-etcd-cfg
+            name: contiv-etcd-withcompact-cfg
 
 ---
 

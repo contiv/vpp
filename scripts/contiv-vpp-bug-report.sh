@@ -1,9 +1,11 @@
 #!/bin/bash
 
-#######################################################
+#################################################################
 # Example Usage
-# contiv-vpp-bug-report.sh 1.2.3.4  # Address of master
-#######################################################
+# contiv-vpp-bug-report.sh <cluster-master-node> [<user-id>]
+# <cluster-master-node>: IP address of K8s master node 
+# <user-id>:             User id used to login to the k8s master
+#################################################################
 
 get_vpp_data() {
   echo " . $2"

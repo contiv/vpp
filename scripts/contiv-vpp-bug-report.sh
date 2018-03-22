@@ -44,6 +44,12 @@ for p in $vswitch_pods; do
   echo "Collecting logs for vswitch" \'"${fields[0]}"\'  "on node" \'"${fields[1]}"\'
   mkdir "$report_dir"/"${fields[1]}"
   ssh "$user"@"$master" kubectl logs "${fields[0]}" -n kube-system -c contiv-vswitch > "$report_dir"/"${fields[1]}"/"${fields[0]}".log
+  set +e
+  ssh "$user"@"$master" kubectl logs "${fields[0]}" -n kube-system -c contiv-vswitch -p > "$report_dir"/"${fields[1]}"/"${fields[0]}"-previous.log 2>/dev/null
+  if [ $? -ne 0 ]; then
+    rm "$report_dir"/"${fields[1]}"/"${fields[0]}"-previous.log
+  fi
+  set -e
 done
 
 echo ""
@@ -87,5 +93,5 @@ done
 
 echo "Creating tar file"
 tar -z -cvf $report_dir.tgz $report_dir >/dev/null
-rm -rf $report_dir
+# rm -rf $report_dir
 echo "Done."

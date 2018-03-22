@@ -155,7 +155,7 @@ index 3676047..ffa4473 100644
 ```
 
 ### Inspect VPP config
-- configured interfaces (issues related basic node/pod connectivity issues)
+- Configured interfaces (issues related basic node/pod connectivity issues)
 ```
 vpp# sh int addr
 GigabitEthernet0/9/0 (up):
@@ -251,47 +251,69 @@ vpp# sh stn rules
   iface: tapcli-0 (2)
   next_node: tapcli-0-output (410)
 ```
+- Errors:
+```
+vpp# sh errors
+```
+- Vxlan tunnels:
+```
+vpp# sh vxlan tunnels
+```
+- Vxlan tunnels:
+```
+vpp# sh vxlan tunnels
+```
+- Hardware interface information:
+```
+vpp# sh hardware-interfaces
+```
 
 ### Basic Example
 
-Following is a script that may be useful as a starting point to gathering the above information using kubectl.  Limitations: it does not include STN daemon logs nor does it handle the special case of a crash loop.
+[contiv-vpp-bug-report.sh][1] is an example of a script that may be useful as
+a starting point to gathering the above information using kubectl.  
 
+Limitations: 
+- the script does not include STN daemon logs nor does it handle the special
+  case of a crash loop
+  
+Prerequisites:
+- The user specified in the script must have passwordless access to all nodes
+  in the cluster; on each node in the cluster the user must have passwordless
+  access to sudo.
+  
+To enable looging into a node without a password, copy your public key to the
+node:
 ```
-# !/bin/bash
-
-#######################################################
-# Example Usage
-# contiv-vpp-bug-report.sh 1.2.3.4  # Address of master
-#######################################################
-
-set -euo pipefail
-
-stamp="$(date "+%Y-%m-%d-%H-%M")"
-report_dir="contiv-vpp-bugreport-$stamp"
-mkdir -p $report_dir
-master=$1
-
-nodes="$(ssh $master kubectl\ get\ nodes\ -o\ go-template=\'\{\{range\ .items\}\}\{\{printf\ \"%s \"\ \(index\ .status.addresses\ 0\).address\}\}\{\{end\}\}\')"
-vswitch_pods="$(ssh $master kubectl get po -o name -n kube-system -l k8s-app=contiv-vswitch | cut -f 2 -d '/')"
-
-for p in $vswitch_pods; do
-  ssh $master kubectl logs $p -n kube-system -c contiv-vswitch > $report_dir/$p
-done
-
-ssh $master kubectl describe configmaps -n kube-system contiv-agent-cfg > $report_dir/vpp.yaml
-ssh $master kubectl get pods -o wide --all-namespaces > $report_dir/pods.txt
-
-for n in $nodes; do
-  echo Gathing information from $n
-  ssh $n mkdir /tmp/$report_dir
-  ssh $n echo sh int addr \| sudo nc -U /run/vpp/cli.sock \> /tmp/$report_dir/int_addr.txt
-  ssh $n echo sh nat44 static mappings \| sudo nc -U /run/vpp/cli.sock \> /tmp/$report_dir/nat_mappings.txt
-  ssh $n echo sh nat44 interfaces \| sudo nc -U /run/vpp/cli.sock \> /tmp/$report_dir/nat_interfaces.txt
-  ssh $n echo sh acl-plugin acl \| sudo nc -U /run/vpp/cli.sock \> /tmp/$report_dir/acl.txt
-  mkdir $report_dir/$n
-  ssh $n tar -cC /tmp/$report_dir/ . | tar -xC $report_dir/$n
-done
-
-tar -z -cvf $report_dir.tgz $report_dir
-rm -rf $report_dir
+ssh-copy-id <user-id>@<node-name-or-ip-address>
 ```
+
+To enable running sudo without a password for a given user, do:
+```
+$ sudo visudo
+```
+
+Append the following entry to run ALL command without a password for a given
+user:
+```
+<userid> ALL=(ALL) NOPASSWD:ALL
+```
+
+You can also add user `<user-id>` to group `sudo` and edit the `sudo`
+entry as follows:
+
+```apple js
+# Allow members of group sudo to execute any command
+%sudo	ALL=(ALL:ALL) NOPASSWD:ALL
+```
+
+Add user `<user-id>` to group `<group-id>` as follows:
+```apple 
+sudo adduser <user-id> <group-id>
+```
+or as follows:
+```
+usermod -a -G <group-id> <user-id>
+```
+
+[1]: ../scripts/contiv-vpp-bug-report.sh

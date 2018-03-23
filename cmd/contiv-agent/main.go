@@ -53,7 +53,7 @@ func closeChanFiredBySigterm() chan struct{} {
 
 func getStartupTimeout() time.Duration {
 	var err error
-	var timeout time.Duration = 0
+	var timeout time.Duration
 
 	// valid env value must conform to duration format
 	// e.g: 45s

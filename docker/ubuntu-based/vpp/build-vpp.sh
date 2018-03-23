@@ -10,13 +10,21 @@ cd /opt/vpp-agent/dev/
 git clone https://github.com/vpp-dev/vpp.git
 cd ${VPP_DIR}
 git checkout stable-1801-contiv
-
 git pull
+
 # check out a specific commit if specified
 # continue and ignore the error if the commit ID isn't specified
 git checkout ${VPP_COMMIT_ID} || true
+
+# clean up old build root
 rm -rf build-root/
 git reset --hard HEAD
+
+# apply VPP patches if present
+cp ${VPP_PATCH_DIR}/*.diff . || true
+git apply -v *.diff || true
+
+# run the production build
 UNATTENDED=y make vpp_configure_args_vpp='--disable-japi --disable-vom' install-dep
 rm -rf /var/lib/apt/lists/*
 cd ${VPP_DIR}
@@ -37,6 +45,8 @@ if [ "${SKIP_DEBUG_BUILD}" == "" ] || [ "${SKIP_DEBUG_BUILD}" -eq 0 ]; then
 	rm -rf /usr/lib/{vpp_plugins,vpp_api_test_plugins}
 	cp -r build-root/install-vpp_debug-native/vpp/lib64/{vpp_plugins,vpp_api_test_plugins} /usr/lib
 fi
+
+# do some cleanup
 cd ${VPP_DIR}
 cd build-root
 rm -rf .ccache \

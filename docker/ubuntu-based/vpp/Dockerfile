@@ -33,6 +33,9 @@ ENV VPP_LIB_DIR $VPP_DIR/build-root/install-vpp_debug-native/vpp/lib64
 ENV VPP_BIN $VPP_BIN_DIR/vpp
 ENV LD_PRELOAD_LIB_DIR $VPP_LIB_DIR
 
+ENV VPP_PATCH_DIR /opt/vpp-agent/dev/vpp-patches
+COPY ./patches $VPP_PATCH_DIR
+
 COPY ./build-vpp.sh /
 RUN /build-vpp.sh
 

@@ -1,0 +1,300 @@
+From 4d023c8c930b2a4220998d4c211d751e33324faa Mon Sep 17 00:00:00 2001
+From: Matus Fabian <matfabia@cisco.com>
+Date: Thu, 22 Mar 2018 05:50:47 -0700
+Subject: [PATCH] NAT44: interface output feature and dst NAT (VPP-1200)
+
+Do not translate packet which go out via nat44-in2out-output and was tranlated
+in nat44-out2in before. On way back forward packet to nat44-in2out node.
+
+Change-Id: I934d69856f0178c86ff879bc691c9e074b8485c8
+Signed-off-by: Matus Fabian <matfabia@cisco.com>
+---
+
+diff --git a/src/plugins/nat/in2out.c b/src/plugins/nat/in2out.c
+index 1b7a24b..8748013 100755
+--- a/src/plugins/nat/in2out.c
++++ b/src/plugins/nat/in2out.c
+@@ -254,11 +254,14 @@
+ 
+ static inline int
+ nat_not_translate_output_feature (snat_main_t * sm, ip4_header_t * ip0,
+-                                  u32 proto0, u16 src_port, u32 thread_index)
++                                  u32 proto0, u16 src_port, u16 dst_port,
++                                  u32 thread_index, u32 sw_if_index)
+ {
+   snat_session_key_t key0;
+   clib_bihash_kv_8_8_t kv0, value0;
++  snat_interface_t *i;
+ 
++  /* src NAT check */
+   key0.addr = ip0->src_address;
+   key0.port = src_port;
+   key0.protocol = proto0;
+@@ -266,8 +269,26 @@
+   kv0.key = key0.as_u64;
+ 
+   if (!clib_bihash_search_8_8 (&sm->per_thread_data[thread_index].out2in, &kv0,
+-                              &value0))
++                               &value0))
+     return 1;
++
++  /* dst NAT check */
++  key0.addr = ip0->dst_address;
++  key0.port = dst_port;
++  key0.protocol = proto0;
++  key0.fib_index = sm->inside_fib_index;
++  kv0.key = key0.as_u64;
++  if (!clib_bihash_search_8_8 (&sm->per_thread_data[thread_index].in2out, &kv0,
++                               &value0))
++  {
++    /* hairpinning */
++    pool_foreach (i, sm->output_feature_interfaces,
++    ({
++      if ((nat_interface_is_inside(i)) && (sw_if_index == i->sw_if_index))
++        return 0;
++    }));
++    return 1;
++  }
+ 
+   return 0;
+ }
+@@ -561,7 +582,7 @@
+       if (vnet_buffer(b0)->sw_if_index[VLIB_TX] != ~0)
+         {
+           if (PREDICT_FALSE(nat_not_translate_output_feature(sm,
+-              ip0, SNAT_PROTOCOL_ICMP, key0.port, thread_index)))
++              ip0, SNAT_PROTOCOL_ICMP, key0.port, key0.port, thread_index, sw_if_index0)))
+             {
+               dont_translate = 1;
+               goto out;
+@@ -1601,7 +1622,7 @@
+                   if (is_output_feature)
+                     {
+                       if (PREDICT_FALSE(nat_not_translate_output_feature(sm,
+-                          ip0, proto0, udp0->src_port, thread_index)))
++                          ip0, proto0, udp0->src_port, udp0->dst_port, thread_index, sw_if_index0)))
+                         goto trace00;
+                     }
+                   else
+@@ -1793,7 +1814,7 @@
+                   if (is_output_feature)
+                     {
+                       if (PREDICT_FALSE(nat_not_translate_output_feature(sm,
+-                          ip1, proto1, udp1->src_port, thread_index)))
++                          ip1, proto1, udp1->src_port, udp1->dst_port, thread_index, sw_if_index1)))
+                         goto trace01;
+                     }
+                   else
+@@ -2021,7 +2042,7 @@
+                   if (is_output_feature)
+                     {
+                       if (PREDICT_FALSE(nat_not_translate_output_feature(sm,
+-                          ip0, proto0, udp0->src_port, thread_index)))
++                          ip0, proto0, udp0->src_port, udp0->dst_port, thread_index, sw_if_index0)))
+                         goto trace0;
+                     }
+                   else
+diff --git a/src/plugins/nat/out2in.c b/src/plugins/nat/out2in.c
+index f6d6a0a..7f811d9 100755
+--- a/src/plugins/nat/out2in.c
++++ b/src/plugins/nat/out2in.c
+@@ -133,6 +133,7 @@
+   SNAT_OUT2IN_NEXT_LOOKUP,
+   SNAT_OUT2IN_NEXT_ICMP_ERROR,
+   SNAT_OUT2IN_NEXT_REASS,
++  SNAT_OUT2IN_NEXT_IN2OUT,
+   SNAT_OUT2IN_N_NEXT,
+ } snat_out2in_next_t;
+ 
+@@ -311,6 +312,26 @@
+   return 0;
+ }
+ 
++static int
++next_src_nat (snat_main_t * sm, ip4_header_t * ip, u32 proto, u16 src_port,
++              u32 thread_index)
++{
++  snat_session_key_t key;
++  clib_bihash_kv_8_8_t kv, value;
++
++  key.addr = ip->src_address;
++  key.port = src_port;
++  key.protocol = proto;
++  key.fib_index = sm->inside_fib_index;
++  kv.key = key.as_u64;
++
++  if (!clib_bihash_search_8_8 (&sm->per_thread_data[thread_index].in2out, &kv,
++                               &value))
++    return 1;
++
++  return 0;
++}
++
+ static void
+ create_bypass_for_fwd(snat_main_t * sm, ip4_header_t * ip)
+ {
+@@ -419,8 +440,13 @@
+             }
+           else
+             {
+-              create_bypass_for_fwd(sm, ip0);
+               dont_translate = 1;
++              if (next_src_nat(sm, ip0, key0.protocol, key0.port, thread_index))
++                {
++                  next0 = SNAT_OUT2IN_NEXT_IN2OUT;
++                  goto out;
++                }
++              create_bypass_for_fwd(sm, ip0);
+               goto out;
+             }
+         }
+@@ -1156,6 +1182,11 @@
+                     }
+                   else
+                     {
++                      if (next_src_nat(sm, ip0, proto0, udp0->src_port, thread_index))
++                        {
++                          next0 = SNAT_OUT2IN_NEXT_IN2OUT;
++                          goto trace0;
++                        }
+                       create_bypass_for_fwd(sm, ip0);
+                       goto trace0;
+                     }
+@@ -1327,6 +1358,11 @@
+                     }
+                   else
+                     {
++                      if (next_src_nat(sm, ip1, proto1, udp1->src_port, thread_index))
++                        {
++                          next1 = SNAT_OUT2IN_NEXT_IN2OUT;
++                          goto trace1;
++                        }
+                       create_bypass_for_fwd(sm, ip1);
+                       goto trace1;
+                     }
+@@ -1534,6 +1570,11 @@
+                     }
+                   else
+                     {
++                      if (next_src_nat(sm, ip0, proto0, udp0->src_port, thread_index))
++                        {
++                          next0 = SNAT_OUT2IN_NEXT_IN2OUT;
++                          goto trace00;
++                        }
+                       create_bypass_for_fwd(sm, ip0);
+                       goto trace00;
+                     }
+@@ -1661,6 +1702,7 @@
+     [SNAT_OUT2IN_NEXT_LOOKUP] = "ip4-lookup",
+     [SNAT_OUT2IN_NEXT_ICMP_ERROR] = "ip4-icmp-error",
+     [SNAT_OUT2IN_NEXT_REASS] = "nat44-out2in-reass",
++    [SNAT_OUT2IN_NEXT_IN2OUT] = "nat44-in2out",
+   },
+ };
+ VLIB_NODE_FUNCTION_MULTIARCH (snat_out2in_node, snat_out2in_node_fn);
+@@ -1781,6 +1823,11 @@
+                         }
+                       else
+                         {
++                          if (next_src_nat(sm, ip0, proto0, udp0->src_port, thread_index))
++                            {
++                              next0 = SNAT_OUT2IN_NEXT_IN2OUT;
++                              goto trace0;
++                            }
+                           create_bypass_for_fwd(sm, ip0);
+                           goto trace0;
+                         }
+@@ -1952,6 +1999,7 @@
+     [SNAT_OUT2IN_NEXT_LOOKUP] = "ip4-lookup",
+     [SNAT_OUT2IN_NEXT_ICMP_ERROR] = "ip4-icmp-error",
+     [SNAT_OUT2IN_NEXT_REASS] = "nat44-out2in-reass",
++    [SNAT_OUT2IN_NEXT_IN2OUT] = "nat44-in2out",
+   },
+ };
+ VLIB_NODE_FUNCTION_MULTIARCH (nat44_out2in_reass_node,
+@@ -2441,6 +2489,7 @@
+     [SNAT_OUT2IN_NEXT_LOOKUP] = "ip4-lookup",
+     [SNAT_OUT2IN_NEXT_ICMP_ERROR] = "ip4-icmp-error",
+     [SNAT_OUT2IN_NEXT_REASS] = "nat44-out2in-reass",
++    [SNAT_OUT2IN_NEXT_IN2OUT] = "nat44-in2out",
+   },
+ };
+ VLIB_NODE_FUNCTION_MULTIARCH (snat_det_out2in_node, snat_det_out2in_node_fn);
+@@ -2934,6 +2983,7 @@
+     [SNAT_OUT2IN_NEXT_DROP] = "error-drop",
+     [SNAT_OUT2IN_NEXT_ICMP_ERROR] = "ip4-icmp-error",
+     [SNAT_OUT2IN_NEXT_REASS] = "nat44-out2in-reass",
++    [SNAT_OUT2IN_NEXT_IN2OUT] = "nat44-in2out",
+   },
+ };
+ VLIB_NODE_FUNCTION_MULTIARCH (snat_out2in_fast_node, snat_out2in_fast_node_fn);
+diff --git a/test/test_nat.py b/test/test_nat.py
+index 344a459..695014f 100644
+--- a/test/test_nat.py
++++ b/test/test_nat.py
+@@ -3418,6 +3418,65 @@
+         self.verify_capture_out(capture, nat_ip=self.pg0.remote_ip4,
+                                 same_port=True)
+ 
++    def test_output_feature_and_service3(self):
++        """ NAT44 interface output feature and DST NAT """
++        external_addr = '1.2.3.4'
++        external_port = 80
++        local_port = 8080
++
++        self.vapi.nat44_forwarding_enable_disable(1)
++        self.nat44_add_address(self.nat_addr)
++        self.nat44_add_static_mapping(self.pg1.remote_ip4, external_addr,
++                                      local_port, external_port,
++                                      proto=IP_PROTOS.tcp, out2in_only=1)
++        self.vapi.nat44_interface_add_del_feature(self.pg0.sw_if_index)
++        self.vapi.nat44_interface_add_del_feature(self.pg0.sw_if_index,
++                                                  is_inside=0)
++        self.vapi.nat44_interface_add_del_output_feature(self.pg1.sw_if_index,
++                                                         is_inside=0)
++
++        p = (Ether(src=self.pg0.remote_mac, dst=self.pg0.local_mac) /
++             IP(src=self.pg0.remote_ip4, dst=external_addr) /
++             TCP(sport=12345, dport=external_port))
++        self.pg0.add_stream(p)
++        self.pg_enable_capture(self.pg_interfaces)
++        self.pg_start()
++        capture = self.pg1.get_capture(1)
++        p = capture[0]
++        try:
++            ip = p[IP]
++            tcp = p[TCP]
++            self.assertEqual(ip.src, self.pg0.remote_ip4)
++            self.assertEqual(tcp.sport, 12345)
++            self.assertEqual(ip.dst, self.pg1.remote_ip4)
++            self.assertEqual(tcp.dport, local_port)
++            self.check_tcp_checksum(p)
++            self.check_ip_checksum(p)
++        except:
++            self.logger.error(ppp("Unexpected or invalid packet:", p))
++            raise
++
++        p = (Ether(src=self.pg1.remote_mac, dst=self.pg1.local_mac) /
++             IP(src=self.pg1.remote_ip4, dst=self.pg0.remote_ip4) /
++             TCP(sport=local_port, dport=12345))
++        self.pg1.add_stream(p)
++        self.pg_enable_capture(self.pg_interfaces)
++        self.pg_start()
++        capture = self.pg0.get_capture(1)
++        p = capture[0]
++        try:
++            ip = p[IP]
++            tcp = p[TCP]
++            self.assertEqual(ip.src, external_addr)
++            self.assertEqual(tcp.sport, external_port)
++            self.assertEqual(ip.dst, self.pg0.remote_ip4)
++            self.assertEqual(tcp.dport, 12345)
++            self.check_tcp_checksum(p)
++            self.check_ip_checksum(p)
++        except:
++            self.logger.error(ppp("Unexpected or invalid packet:", p))
++            raise
++
+     def test_one_armed_nat44(self):
+         """ One armed NAT44 """
+         remote_host = self.pg9.remote_hosts[0]

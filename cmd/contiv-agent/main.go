@@ -22,12 +22,15 @@ import (
 	"syscall"
 
 	"github.com/contiv/vpp/flavors/contiv"
+	"time"
 )
+
+const defaultStartupTimeout = 30 * time.Second
 
 // Start Agent plugins selected for this example
 func main() {
 	// Create new agent
-	agentVar := contiv.NewAgent()
+	agentVar := contiv.NewAgent(core.WithTimeout(getStartupTimeout()))
 	core.EventLoopWithInterrupt(agentVar, closeChanFiredBySigterm())
 }
 
@@ -46,4 +49,19 @@ func closeChanFiredBySigterm() chan struct{} {
 		close(closeChan)
 	}()
 	return closeChan
+}
+
+func getStartupTimeout() time.Duration {
+	var err error
+	var timeout time.Duration
+
+	// valid env value must conform to duration format
+	// e.g: 45s
+	envVal := os.Getenv("STARTUPTIMEOUT")
+
+	if timeout, err = time.ParseDuration(envVal); err != nil {
+		timeout = defaultStartupTimeout
+	}
+
+	return timeout
 }

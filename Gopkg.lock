@@ -18,7 +18,7 @@
     "core",
     "core/bin_api/vpe"
   ]
-  revision = "4df448ad6cdfa2e60fa0167e5f70cc1127fbd3bf"
+  revision = "40cdb18263ac2624c5a007ef1b0ac7d1b21974bd"
 
 [[projects]]
   branch = "master"
@@ -713,7 +713,8 @@
     "utils/safeclose",
     "utils/structs"
   ]
-  revision = "6dc312561669efc1454463221f9f002e565e78d7"
+  revision = "e3b8c2a73fdfb66fe7654d1c3377ed5c1762a3b2"
+  version = "v1.2"
 
 [[projects]]
   name = "github.com/ligato/vpp-agent"
@@ -737,6 +738,7 @@
     "plugins/defaultplugins/common/bin_api/dhcp",
     "plugins/defaultplugins/common/bin_api/interfaces",
     "plugins/defaultplugins/common/bin_api/ip",
+    "plugins/defaultplugins/common/bin_api/ipsec",
     "plugins/defaultplugins/common/bin_api/l2",
     "plugins/defaultplugins/common/bin_api/memif",
     "plugins/defaultplugins/common/bin_api/nat",
@@ -750,6 +752,7 @@
     "plugins/defaultplugins/common/model/acl",
     "plugins/defaultplugins/common/model/bfd",
     "plugins/defaultplugins/common/model/interfaces",
+    "plugins/defaultplugins/common/model/ipsec",
     "plugins/defaultplugins/common/model/l2",
     "plugins/defaultplugins/common/model/l3",
     "plugins/defaultplugins/common/model/l4",
@@ -759,6 +762,9 @@
     "plugins/defaultplugins/ifplugin/ifaceidx",
     "plugins/defaultplugins/ifplugin/vppcalls",
     "plugins/defaultplugins/ifplugin/vppdump",
+    "plugins/defaultplugins/ipsecplugin",
+    "plugins/defaultplugins/ipsecplugin/ipsecidx",
+    "plugins/defaultplugins/ipsecplugin/vppcalls",
     "plugins/defaultplugins/l2plugin",
     "plugins/defaultplugins/l2plugin/bdidx",
     "plugins/defaultplugins/l2plugin/vppcalls",
@@ -783,7 +789,7 @@
     "plugins/linuxplugin/l3plugin/linuxcalls",
     "plugins/linuxplugin/nsplugin"
   ]
-  revision = "f9596d7a140c3d5fcd87cd012d74bfb681ed3eec"
+  revision = "ef38dd408512f2d7f8ce327f3b067a6432283b53"
 
 [[projects]]
   branch = "master"
@@ -1633,6 +1639,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "abfe3c21fd0cba4e1fa8e4f850c14110df7a42703a6eb57f99139c2d7ddf9737"
+  inputs-digest = "66cd5a75ab036b92372ea4c28c269c6b97fc520e03cf409a1685435469d096f8"
   solver-name = "gps-cdcl"
   solver-version = 1

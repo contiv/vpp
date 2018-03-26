@@ -154,6 +154,11 @@ func (plugin *BDConfigurator) ConfigureBridgeDomain(bdConfig *l2.BridgeDomains_B
 func (plugin *BDConfigurator) ModifyBridgeDomain(newBdConfig *l2.BridgeDomains_BridgeDomain, oldBdConfig *l2.BridgeDomains_BridgeDomain) error {
 	plugin.Log.Infof("Modifying VPP bridge domain %v", newBdConfig.Name)
 
+	// Update bridge domain's registered metadata
+	if success := plugin.BdIndices.UpdateMetadata(newBdConfig.Name, newBdConfig); !success {
+		plugin.Log.Errorf("Failed to update metadata for bridge domain %s", newBdConfig.Name)
+	}
+
 	// Validate updated config.
 	isValid, recreate := plugin.vppValidateBridgeDomainBVI(newBdConfig, oldBdConfig)
 	if !isValid {
@@ -400,7 +405,7 @@ func (plugin *BDConfigurator) calculateIfaceDiff(newIfaces, oldIfaces []*l2.Brid
 	// If BVI was set/unset in general or the BVI interface was changed, pass the knowledge to the diff
 	// resolution
 	var bviChanged bool
-	if (oldBVI == nil && newBVI != nil) || (oldBVI != nil && newBVI == nil) || (oldBVI.Name != newBVI.Name) {
+	if (oldBVI == nil && newBVI != nil) || (oldBVI != nil && newBVI == nil) || (oldBVI != nil && newBVI != nil && oldBVI.Name != newBVI.Name) {
 		bviChanged = true
 	}
 

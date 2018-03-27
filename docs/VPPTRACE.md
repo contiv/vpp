@@ -15,7 +15,7 @@ IP address, protocol, etc.
 
 Last but not least, it is not possible to trace packets on a selected interface
 like `tcpdump` allows to do via the option `-i`. VPP is only able to capture packets
-on the *RX side* of a selected `device` (e.g. dpdk, virtio, af-packet). Which means
+on the *RX side* of a selected *device* (e.g. dpdk, virtio, af-packet). Which means
 that interfaces based on the same device cannot by traced for incoming packets
 individually, but only all at the same time. In Contiv/VPP all pods are connected
 with VPP via the same kind of the TAP interface, meaning that it is not possible to
@@ -30,7 +30,7 @@ by the content of the trace. There are two modes of filtering
     be included in the output
  - *regex mode*: packet trace must match a given regex in order to be printed
 
-The script is still limited to captures packets only on the RX side of all interfaces
+The script is still limited in that capture runs only on the RX side of all interfaces
 based on a given device. Using filtering, however, it is possible to limit traffic
 by interface simply by using the interface name as a substring to match against.
 
@@ -46,9 +46,10 @@ In the near future a support for socket-based CLI connect will be added.
 
 Run the script without any arguments to get the usage printed:
 ```
-Usage: scripts/vpptrace.sh  -i <VPP-IF-TYPE> [-a <VPP-ADDRESS>] [-r] [-f <REGEXP> / <SUBSTRING>]
+Usage: vpptrace.sh  -i <VPP-IF-TYPE> [-a <VPP-ADDRESS>] [-r] [-f <REGEXP> / <SUBSTRING>]
    -i <VPP-IF-TYPE> : VPP interface *type* to run the packet capture on (e.g. dpdk-input, virtio-input, etc.)
                        - available aliases:
+                         - af-packet-input: afpacket, af-packet, veth
                          - virtio-input: tap (version determined from the VPP config), tap2, tapv2
                          - tapcli-rx: tap (version determined from the VPP config), tap1, tapv1
                          - dpdk-input: dpdk, gbe, phys*
@@ -60,11 +61,11 @@ Usage: scripts/vpptrace.sh  -i <VPP-IF-TYPE> [-a <VPP-ADDRESS>] [-r] [-f <REGEXP
                       - default is no filtering
 ```
 
-The mandatory option is VPP-IF-TYPE, which is the device (e.g. virtio, dpdk, etc.)
+The mandatory option is `VPP-IF-TYPE`, which is the device (e.g. virtio, dpdk, etc.)
 to capture the incoming traffic from. Script provides multiple aliases which
 are much easier to remember than the device names. For `dpdk-input` one can enter
-just 'dpdk', or anything starting with `phys`, etc. For TAPs, the script is even
-smart enough to find out the TAP version used, which allows to enter just "tap"
+just `dpdk`, or anything starting with `phys`, etc. For TAPs, the script is even
+smart enough to find out the TAP version used, which allows to enter just `tap`
 as the device name.
 
 As a general rule, select `dpdk` only for traffic *entering the node from outside*

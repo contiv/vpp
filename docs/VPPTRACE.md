@@ -31,8 +31,8 @@ by the content of the trace. There are two modes of filtering
  - *regex mode*: packet trace must match a given regex in order to be printed
 
 The script is still limited in that capture runs only on the RX side of all interfaces
-based on a given device. Using filtering, however, it is possible to limit traffic
-by interface simply by using the interface name as a substring to match against.
+built on the top of a selected device. Using filtering, however, it is possible to limit
+traffic by interface simply by using the interface name as a substring to match against.
 
 #### Requirements
 

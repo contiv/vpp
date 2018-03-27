@@ -145,7 +145,7 @@ func (d *MockPutDSL) ProxyArpInterfaces(val *vpp_l3.ProxyArpInterfaces_Interface
 
 // ProxyArpRanges adds a request to create or update VPP L3 proxy ARP ranges
 func (d *MockPutDSL) ProxyArpRanges(val *vpp_l3.ProxyArpRanges_RangeList) linux.PutDSL {
-	op := dsl.TxnOp{Key: vpp_l3.ProxyArpRangeKey(val.Lable), Value: val}
+	op := dsl.TxnOp{Key: vpp_l3.ProxyArpRangeKey(val.Label), Value: val}
 	d.parent.Ops = append(d.parent.Ops, op)
 	return d
 }

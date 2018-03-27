@@ -7,6 +7,7 @@ import (
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/acl"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/bfd"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/interfaces"
+	"github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/ipsec"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/l2"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/l3"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/l4"
@@ -135,7 +136,7 @@ func (d *MockPutDSL) ProxyArpInterfaces(val *l3.ProxyArpInterfaces_InterfaceList
 
 // ProxyArpRanges adds a request to create or update VPP L3 proxy ARP ranges
 func (d *MockPutDSL) ProxyArpRanges(val *l3.ProxyArpRanges_RangeList) defaultplugins.PutDSL {
-	op := dsl.TxnOp{Key: l3.ProxyArpRangeKey(val.Lable), Value: val}
+	op := dsl.TxnOp{Key: l3.ProxyArpRangeKey(val.Label), Value: val}
 	d.parent.Ops = append(d.parent.Ops, op)
 	return d
 }
@@ -171,6 +172,20 @@ func (d *MockPutDSL) NAT44Global(val *nat.Nat44Global) defaultplugins.PutDSL {
 // NAT44DNat adds a request to create a new DNAT configuration
 func (d *MockPutDSL) NAT44DNat(val *nat.Nat44DNat_DNatConfig) defaultplugins.PutDSL {
 	op := dsl.TxnOp{Key: nat.DNatKey(val.Label), Value: val}
+	d.parent.Ops = append(d.parent.Ops, op)
+	return d
+}
+
+// IPSecSA adds request to create a new Security Association
+func (d *MockPutDSL) IPSecSA(val *ipsec.SecurityAssociations_SA) defaultplugins.PutDSL {
+	op := dsl.TxnOp{Key: ipsec.SAKey(val.Name), Value: val}
+	d.parent.Ops = append(d.parent.Ops, op)
+	return d
+}
+
+// IPSecSPD adds request to create a new Security Policy Database
+func (d *MockPutDSL) IPSecSPD(val *ipsec.SecurityPolicyDatabases_SPD) defaultplugins.PutDSL {
+	op := dsl.TxnOp{Key: ipsec.SPDKey(val.Name), Value: val}
 	d.parent.Ops = append(d.parent.Ops, op)
 	return d
 }
@@ -305,6 +320,20 @@ func (d *MockDeleteDSL) NAT44Global() defaultplugins.DeleteDSL {
 // NAT44DNat adds a request to delete a DNAT configuration identified by label
 func (d *MockDeleteDSL) NAT44DNat(label string) defaultplugins.DeleteDSL {
 	op := dsl.TxnOp{Key: nat.DNatKey(label)}
+	d.parent.Ops = append(d.parent.Ops, op)
+	return d
+}
+
+// IPSecSA adds request to create a new Security Association
+func (d *MockDeleteDSL) IPSecSA(saName string) defaultplugins.DeleteDSL {
+	op := dsl.TxnOp{Key: ipsec.SAKey(saName)}
+	d.parent.Ops = append(d.parent.Ops, op)
+	return d
+}
+
+// IPSecSPD adds request to create a new Security Policy Database
+func (d *MockDeleteDSL) IPSecSPD(spdName string) defaultplugins.DeleteDSL {
+	op := dsl.TxnOp{Key: ipsec.SPDKey(spdName)}
 	d.parent.Ops = append(d.parent.Ops, op)
 	return d
 }

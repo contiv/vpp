@@ -7,6 +7,7 @@ import (
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/acl"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/bfd"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/interfaces"
+	"github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/ipsec"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/l2"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/l3"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/l4"
@@ -107,7 +108,7 @@ func (d *MockDataResyncDSL) ProxyArpInterfaces(val *l3.ProxyArpInterfaces_Interf
 
 // ProxyArpRanges adds L3 proxy ARP ranges to the RESYNC request.
 func (d *MockDataResyncDSL) ProxyArpRanges(val *l3.ProxyArpRanges_RangeList) defaultplugins.DataResyncDSL {
-	op := dsl.TxnOp{Key: l3.ProxyArpRangeKey(val.Lable), Value: val}
+	op := dsl.TxnOp{Key: l3.ProxyArpRangeKey(val.Label), Value: val}
 	d.Ops = append(d.Ops, op)
 	return d
 }
@@ -143,6 +144,20 @@ func (d *MockDataResyncDSL) NAT44Global(val *nat.Nat44Global) defaultplugins.Dat
 // NAT44DNat adds a request to RESYNC a new DNAT configuration
 func (d *MockDataResyncDSL) NAT44DNat(val *nat.Nat44DNat_DNatConfig) defaultplugins.DataResyncDSL {
 	op := dsl.TxnOp{Key: nat.DNatKey(val.Label), Value: val}
+	d.Ops = append(d.Ops, op)
+	return d
+}
+
+// IPSecSA adds request to create a new Security Association
+func (d *MockDataResyncDSL) IPSecSA(val *ipsec.SecurityAssociations_SA) defaultplugins.DataResyncDSL {
+	op := dsl.TxnOp{Key: ipsec.SAKey(val.Name), Value: val}
+	d.Ops = append(d.Ops, op)
+	return d
+}
+
+// IPSecSPD adds request to create a new Security Policy Database
+func (d *MockDataResyncDSL) IPSecSPD(val *ipsec.SecurityPolicyDatabases_SPD) defaultplugins.DataResyncDSL {
+	op := dsl.TxnOp{Key: ipsec.SPDKey(val.Name), Value: val}
 	d.Ops = append(d.Ops, op)
 	return d
 }

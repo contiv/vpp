@@ -39,7 +39,7 @@ traffic by interface simply by using the interface name as a substring to match 
 Currently it is required to **expose VPP CLI on the port 5002** for the script
 to be able to connect to it.
 Add `cli-listen 0.0.0.0:5002` to the `unix` section of the VPP startup configuration
-file `/etc/vpp/startup.conf`.
+file `/etc/vpp/contiv-vswitch.conf`.
 In the near future a support for socket-based CLI connect will be added.
 
 #### Usage

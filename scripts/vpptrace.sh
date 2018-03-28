@@ -21,6 +21,7 @@ function print_help_and_exit {
     echo "Usage: $0  -i <VPP-IF-TYPE> [-a <VPP-ADDRESS>] [-r] [-f <REGEXP> / <SUBSTRING>]"
     echo '   -i <VPP-IF-TYPE> : VPP interface *type* to run the packet capture on (e.g. dpdk-input, virtio-input, etc.)'
     echo '                       - available aliases:'
+    echo '                         - af-packet-input: afpacket, af-packet, veth'
     echo '                         - virtio-input: tap (version determined from the VPP config), tap2, tapv2'
     echo '                         - tapcli-rx: tap (version determined from the VPP config), tap1, tapv1'
     echo '                         - dpdk-input: dpdk, gbe, phys*'

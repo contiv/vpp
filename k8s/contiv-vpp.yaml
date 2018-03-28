@@ -27,6 +27,7 @@ data:
     TAPInterfaceVersion: 1
     NatExternalTraffic: true
     MTUSize: 1500
+    StealInterface: enp0s3
     IPAMConfig:
       PodSubnetCIDR: 10.1.0.0/16
       PodNetworkPrefixLen: 24
@@ -244,13 +245,17 @@ spec:
             httpGet:
               path: /readiness
               port: 9999
-            periodSeconds: 1
+            periodSeconds: 3
+            timeoutSeconds: 2
+            failureThreshold: 3
             initialDelaySeconds: 15
           livenessProbe:
             httpGet:
               path: /liveness
               port: 9999
-            periodSeconds: 1
+            periodSeconds: 3
+            timeoutSeconds: 2
+            failureThreshold: 3
             initialDelaySeconds: 60
           env:
             - name: MICROSERVICE_LABEL

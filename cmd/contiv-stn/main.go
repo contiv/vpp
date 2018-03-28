@@ -48,8 +48,10 @@ const (
 )
 
 var (
-	BuildVersion string // set by the Makefile using ldflags
-	BuildDate    string // set by the Makefile using ldflags
+	// BuildVersion contains git version hash, set by the Makefile using ldflags during build.
+	BuildVersion string
+	// BuildDate contains date of the build, set by the Makefile using ldflags during build.
+	BuildDate string
 
 	grpcServerPort  = flag.Int("grpc", defaultGRPCServerPort, "port where the GRPC STN server listens for client connections")
 	statusCheckPort = flag.Int("statuscheck", defaultStatusCheckPort, "port that STN server is checking to determine contive-agent liveness")

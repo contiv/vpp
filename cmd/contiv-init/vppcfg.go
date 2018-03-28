@@ -228,7 +228,7 @@ func configureVpp(contivCfg *contiv.Config, stnData *stn.STNReply, useDHCP bool)
 			Version:    uint32(contivCfg.TAPInterfaceVersion),
 		}, ch, nil)
 	if err != nil {
-		logger.Errorf("Error by adding TAP intrerface: %v", err)
+		logger.Errorf("Error by adding TAP interface: %v", err)
 		return nil, err
 	}
 
@@ -240,19 +240,19 @@ func configureVpp(contivCfg *contiv.Config, stnData *stn.STNReply, useDHCP bool)
 
 	err = if_vppcalls.SetInterfaceMtu(tapIdx, contivCfg.MTUSize, ch, nil)
 	if err != nil {
-		logger.Errorf("Error by setting the MTU for TAP: %v", cfg.mainIfName, err)
+		logger.Errorf("Error by setting the MTU on TAP interface: %v", err)
 		return nil, err
 	}
 
 	err = if_vppcalls.InterfaceAdminUp(tapIdx, ch, nil)
 	if err != nil {
-		logger.Errorf("Error by enabling the TAP intrerface: %v", err)
+		logger.Errorf("Error by enabling the TAP interface: %v", err)
 		return nil, err
 	}
 
 	if_vppcalls.SetUnnumberedIP(tapIdx, cfg.mainIfIdx, ch, nil)
 	if err != nil {
-		logger.Errorf("Error by setting the TAP intrerface as unnumbered: %v", err)
+		logger.Errorf("Error by setting the TAP interface as unnumbered: %v", err)
 		return nil, err
 	}
 

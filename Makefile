@@ -161,7 +161,7 @@ endef
 # build contiv-stn only
 define build_contiv_stn_only
     @echo "# building contiv-stn"
-    @cd cmd/contiv-stn && go build -v -i ${LDFLAGS}
+    @cd cmd/contiv-stn && go build -v -i -ldflags '-X main.BuildVersion=$(VERSION) -X main.BuildDate=$(DATE) -s -w'
     @echo "# done"
 endef
 

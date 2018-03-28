@@ -279,13 +279,17 @@ spec:
             httpGet:
               path: /readiness
               port: 9999
-            periodSeconds: 1
+            periodSeconds: 3
+            timeoutSeconds: 2
+            failureThreshold: 3
             initialDelaySeconds: 15
           livenessProbe:
             httpGet:
               path: /liveness
               port: 9999
-            periodSeconds: 1
+            periodSeconds: 3
+            timeoutSeconds: 2
+            failureThreshold: 3
             initialDelaySeconds: 60
           {{- end }}
           env:

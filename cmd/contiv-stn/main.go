@@ -41,12 +41,16 @@ const (
 
 	initStatusCheckTimeout = 30 * time.Second // initial timeout after which the STN server starts checking of the contiv-agent state
 	statusCheckInterval    = 1 * time.Second  // periodic interval in which the STN server checks for contiv-agent state
+	linkCheckTimeout       = 3 * time.Second  // timeout after which we re-check if the link is in expected state
 
 	configRetryCount = 20                     // number of config attempts in case that an error is returned / config is not applied correctly
 	configRetrySleep = 200 * time.Millisecond // sleep interval between individual config retry attempts
 )
 
 var (
+	BuildVersion string // set by the Makefile using ldflags
+	BuildDate    string // set by the Makefile using ldflags
+
 	grpcServerPort  = flag.Int("grpc", defaultGRPCServerPort, "port where the GRPC STN server listens for client connections")
 	statusCheckPort = flag.Int("statuscheck", defaultStatusCheckPort, "port that STN server is checking to determine contive-agent liveness")
 )
@@ -316,9 +320,105 @@ func (s *stnServer) revertLink(ifData *interfaceData) error {
 		log.Printf("DHCP is enabled on the interface %s, leaving IP/route config up to the DHCP client.", ifData.name)
 	}
 
+	// check the link status after timeout
+	s.checkLinkAfterTimeout(ifData)
+
 	// delete the interface info
 	delete(s.stolenInterfaces, ifData.name)
 	return nil
+}
+
+// checkLinkAfterTimeout checks if the link is in the expected state after the timeout.
+func (s *stnServer) checkLinkAfterTimeout(ifData *interfaceData) {
+	timer := time.NewTimer(linkCheckTimeout)
+	go func() {
+		<-timer.C
+
+		// check if the link is in the expected state
+		s.checkLinkState(ifData)
+	}()
+}
+
+// checkLinkState checks if the link is in the expected state.
+func (s *stnServer) checkLinkState(ifData *interfaceData) {
+	s.Lock()
+	defer s.Unlock()
+
+	log.Printf("Checking state of the interface %s", ifData.name)
+
+	// do not check the link if it has been stolen again
+	_, ok := s.stolenInterfaces[ifData.name]
+	if ok {
+		log.Printf("Interface %s stolen again, skipping check.", ifData.name)
+		return
+	}
+
+	// check interface state
+	l, err := s.findLinkByName(ifData.name)
+	if err != nil {
+		log.Printf("Error by looking up for interface %s: %v", ifData.name, err)
+		return
+	}
+	if l.Attrs().OperState == netlink.OperDown {
+		log.Printf("Link is DOWN, trying to put it UP.")
+		err = s.setLinkUp(l)
+		if err != nil {
+			log.Println(err)
+		}
+		s.checkLinkAfterTimeout(ifData)
+		return
+	}
+
+	// check interface IP
+	for _, addr := range ifData.addresses {
+		matched := false
+		addrs, err := netlink.AddrList(l, netlink.FAMILY_V4)
+		if err == nil {
+			for _, a := range addrs {
+				if a.Equal(addr) {
+					// successfully configured
+					matched = true
+					break
+				}
+			}
+		}
+		if !matched {
+			log.Printf("IP %s missing on interface %s, reconfiguring.", addr.String(), ifData.name)
+			err = s.setLinkIP(l, addr)
+			if err != nil {
+				log.Println(err)
+			}
+			s.checkLinkAfterTimeout(ifData)
+			return
+		}
+	}
+
+	// check routes
+	for _, route := range ifData.routes {
+		s.updateLinkInRoute(&route, ifData.linkIndex, l.Attrs().Index)
+		matched := false
+		routes, err := netlink.RouteList(l, netlink.FAMILY_V4)
+		if err == nil {
+			for _, r := range routes {
+				if r.String() == route.String() {
+					// succesfully configured
+					matched = true
+					break
+				}
+			}
+		}
+		if !matched {
+			log.Printf("Route %s missing on interface %s, reconfiguring.", route.String(), ifData.name)
+			err = s.addLinkRoute(l, route)
+			if err != nil {
+				log.Println(err)
+			}
+			s.checkLinkAfterTimeout(ifData)
+			return
+		}
+	}
+
+	log.Printf("Interface %s is in desired state.", ifData.name)
 }
 
 // findLinkByName finds link by interface name. If link cannot be found, retries configRetryCount times.
@@ -400,7 +500,7 @@ func (s *stnServer) setLinkIP(link netlink.Link, addr netlink.Addr) error {
 		if err == nil {
 			for _, a := range addrs {
 				if a.Equal(addr) {
-					// succesfully configured
+					// successfully configured
 					return nil
 				}
 			}
@@ -581,6 +681,8 @@ func (s *stnServer) grpcReplyError(err error) *stn.STNReply {
 func main() {
 	var err error
 	flag.Parse()
+
+	log.Printf("Contiv-STN daemon, version %s, build date %s", BuildVersion, BuildDate)
 
 	server := newSTNServer()
 

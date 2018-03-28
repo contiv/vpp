@@ -13,8 +13,8 @@ import (
 	"github.com/ligato/cn-infra/logging"
 
 	"fmt"
-	"github.com/contiv/vpp/plugins/policy/renderer/vpptcp/bin_api/session"
 	vpptcprule "github.com/contiv/vpp/plugins/policy/renderer/vpptcp/rule"
+	"github.com/ligato/vpp-agent/plugins/defaultplugins/common/bin_api/session"
 )
 
 // MockSessionRules simulates session rules from VPPTCP stack.

@@ -12,8 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//go:generate binapi-generator --input-file=/usr/share/vpp/api/session.api.json --output-dir=bin_api
-
 package vpptcp
 
 import (
@@ -29,8 +27,8 @@ import (
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	"github.com/contiv/vpp/plugins/policy/renderer"
 	"github.com/contiv/vpp/plugins/policy/renderer/cache"
-	"github.com/contiv/vpp/plugins/policy/renderer/vpptcp/bin_api/session"
 	vpptcprule "github.com/contiv/vpp/plugins/policy/renderer/vpptcp/rule"
+	"github.com/ligato/vpp-agent/plugins/defaultplugins/common/bin_api/session"
 )
 
 // Renderer renders Contiv Rules into VPP Session rules.

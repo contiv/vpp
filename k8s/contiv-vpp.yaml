@@ -27,7 +27,6 @@ data:
     TAPInterfaceVersion: 1
     NatExternalTraffic: true
     MTUSize: 1500
-    StealInterface: enp0s3
     IPAMConfig:
       PodSubnetCIDR: 10.1.0.0/16
       PodNetworkPrefixLen: 24

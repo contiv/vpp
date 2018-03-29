@@ -3,14 +3,16 @@ FROM golang:1.9.3-alpine3.7 as builder
 # we want a static binary
 ENV CGO_ENABLED=0
 
+RUN apk add --update git make
+
 COPY . /go/src/github.com/contiv/vpp
 
-WORKDIR /go/src/github.com/contiv/vpp/cmd/contiv-stn
+WORKDIR /go/src/github.com/contiv/vpp
 
-RUN go build -ldflags '-s -w' -o /stn .
+RUN make contiv-stn
 
 FROM scratch
 
-COPY --from=builder /stn /stn
+COPY --from=builder /go/src/github.com/contiv/vpp/cmd/contiv-stn/contiv-stn /contiv-stn
 
-ENTRYPOINT ["/stn"]
+ENTRYPOINT ["/contiv-stn"]

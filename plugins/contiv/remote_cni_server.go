@@ -892,7 +892,12 @@ func (s *remoteCNIserver) cleanupVswitchConnectivity() {
 // configureContainerConnectivity connects the POD to vSwitch VPP based on the CNI server configuration:
 // either via virtual ethernet interface pair and AF_PACKET, or via TAP interface.
 // It also configures the VPP TCP stack for this container, in case it would be LD_PRELOAD-ed.
-func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest) (*cni.CNIReply, error) {
+func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest) (reply *cni.CNIReply, err error) {
+	var (
+		podIP                  net.IP
+		persisted              bool
+		revertTxn1, revertTxn2 linux.DeleteDSL
+	)
 
 	// do not connect any containers until the base vswitch config is successfully applied
 	s.Lock()
@@ -911,8 +916,26 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 	id := request.ContainerId
 	config.ID = id
 
+	defer func() {
+		if err != nil {
+			if persisted {
+				s.deletePersistedPodConfig(podConfigToProto(config))
+				delete(s.configuredInThisRun, id)
+			}
+			if revertTxn2 != nil {
+				revertTxn2.Send().ReceiveReply()
+			}
+			if revertTxn1 != nil {
+				revertTxn1.Send().ReceiveReply()
+			}
+			if podIP != nil {
+				s.ipam.ReleasePodIP(id)
+			}
+		}
+	}()
+
 	// assign an IP address for this POD
-	podIP, err := s.ipam.NextPodIP(id)
+	podIP, err = s.ipam.NextPodIP(id)
 	if err != nil {
 		return nil, fmt.Errorf("Can't get new IP address for pod: %v", err)
 	}
@@ -921,14 +944,16 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 	// TODO: merge transactions into one once linuxplugin supports TAPs and all race-conditions are fixed.
 
 	// configure POD interface
-	err = s.configurePodInterface(request, podIP, config)
+	revertTxn1 = s.vppTxnFactory().Delete()
+	err = s.configurePodInterface(request, podIP, config, revertTxn1)
 	if err != nil {
 		s.Logger.Error(err)
 		return s.generateCniErrorReply(err)
 	}
 
-	// configure POD-related config on on VPP
-	err = s.configurePodVPPSide(request, podIP, config)
+	// configure POD-related config on VPP
+	revertTxn2 = s.vppTxnFactory().Delete()
+	err = s.configurePodVPPSide(request, podIP, config, revertTxn2)
 	if err != nil {
 		s.Logger.Error(err)
 		return s.generateCniErrorReply(err)
@@ -940,6 +965,8 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 		s.Logger.Error(err)
 		return s.generateCniErrorReply(err)
 	}
+	s.configuredInThisRun[id] = true
+	persisted = true
 
 	// store configuration internally for other plugins in the internal map
 	if s.configuredContainers != nil {
@@ -949,10 +976,10 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 			return s.generateCniErrorReply(err)
 		}
 	}
-	s.configuredInThisRun[id] = true
+
 	// prepare and send reply for the CNI request
-	reply := s.generateCniReply(config, request.NetworkNamespace, podIPCIDR)
-	return reply, err
+	reply = s.generateCniReply(config, request.NetworkNamespace, podIPCIDR)
+	return reply, nil
 }
 
 // unconfigureContainerConnectivity disconnects the POD from vSwitch VPP.
@@ -999,7 +1026,7 @@ func (s *remoteCNIserver) unconfigureContainerConnectivity(request *cni.CNIReque
 		return s.generateCniErrorReply(err)
 	}
 
-	// configure POD interface
+	// unconfigure POD interface
 	err = s.unconfigurePodInterface(request, config)
 	if err != nil {
 		s.Logger.Error(err)
@@ -1029,14 +1056,13 @@ func (s *remoteCNIserver) unconfigureContainerConnectivity(request *cni.CNIReque
 		return s.generateCniErrorReply(err)
 	}
 
-	delete(s.configuredInThisRun, id)
 	// prepare and send reply for the CNI request
 	reply := s.generateCniEmptyOKReply()
 	return reply, nil
 }
 
 // configurePodInterface configures POD's network interface and its routes + ARPs.
-func (s *remoteCNIserver) configurePodInterface(request *cni.CNIRequest, podIP net.IP, config *PodConfig) error {
+func (s *remoteCNIserver) configurePodInterface(request *cni.CNIRequest, podIP net.IP, config *PodConfig, revertTxn linux.DeleteDSL) error {
 
 	// this is necessary for the latest docker where ipv6 is disabled by default.
 	// OS assigns automatically ipv6 addr to a newly created TAP. We
@@ -1076,6 +1102,7 @@ func (s *remoteCNIserver) configurePodInterface(request *cni.CNIRequest, podIP n
 			s.Logger.Error(err)
 			return err
 		}
+		revertTxn.VppInterface(config.VppIf.Name)
 
 		txn1.LinuxInterface(config.PodTap)
 	} else {
@@ -1087,6 +1114,7 @@ func (s *remoteCNIserver) configurePodInterface(request *cni.CNIRequest, podIP n
 		txn1.LinuxInterface(config.Veth1).
 			LinuxInterface(config.Veth2).
 			VppInterface(config.VppIf)
+		revertTxn.VppInterface(config.VppIf.Name)
 		podIfName = config.Veth1.Name
 	}
 
@@ -1175,7 +1203,7 @@ func (s *remoteCNIserver) unconfigurePodInterface(request *cni.CNIRequest, confi
 }
 
 // configurePodVPPSide configures vswitch VPP part of the POD networking.
-func (s *remoteCNIserver) configurePodVPPSide(request *cni.CNIRequest, podIP net.IP, config *PodConfig) error {
+func (s *remoteCNIserver) configurePodVPPSide(request *cni.CNIRequest, podIP net.IP, config *PodConfig, revertTxn linux.DeleteDSL) error {
 	podIPCIDR := podIP.String() + "/32"
 
 	// prepare the config transaction
@@ -1190,16 +1218,21 @@ func (s *remoteCNIserver) configurePodVPPSide(request *cni.CNIRequest, podIP net
 		txn.VppInterface(config.Loopback).
 			AppNamespace(config.AppNamespace).
 			StnRule(config.StnRule)
+		revertTxn.VppInterface(config.Loopback.Name).
+			AppNamespace(config.AppNamespace.NamespaceId).
+			StnRule(config.StnRule.RuleName)
 	} else {
 		// route to PodIP via AF_PACKET / TAP
 		config.VppRoute = s.vppRouteFromRequest(request, podIPCIDR)
 
 		txn.StaticRoute(config.VppRoute)
+		revertTxn.StaticRoute(config.VppRoute.VrfId, config.VppRoute.DstIpAddr, config.VppRoute.NextHopAddr)
 	}
 
 	// ARP entry for POD IP
 	config.VppARPEntry = s.vppArpEntry(config.VppIf.Name, podIP, s.hwAddrForContainer())
 	txn.Arp(config.VppARPEntry)
+	revertTxn.Arp(config.VppARPEntry.Interface, config.VppARPEntry.IpAddress)
 
 	// execute the config transaction
 	err := txn.Send().ReceiveReply()

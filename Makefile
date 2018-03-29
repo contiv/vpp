@@ -11,9 +11,8 @@ define generate_sources
 	$(call install_generators)
 	@echo "# generating sources"
 	@cd plugins/contiv && go generate
+	@cd plugins/contiv/containeridx && go generate
 	@cd plugins/ksr && go generate
-	@cd plugins/policy/renderer/vpptcp && go generate
-	@cd plugins/policy/renderer/vpptcp/bin_api/session && pkgreflect
 	@cd cmd/contiv-stn && go generate
 	@echo "# done"
 endef

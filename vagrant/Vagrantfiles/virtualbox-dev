@@ -193,7 +193,7 @@ source /home/vagrant/.profile
 # --------------> Kubeadm & Networking <------------------
 # --------------------------------------------------------
 
-sed -i '4 a Environment="KUBELET_EXTRA_ARGS=--node-ip=$KUBE_MASTER_IP"' /etc/systemd/system/kubelet.service.d/10-kubeadm.conf
+sed -i '4 a Environment="KUBELET_EXTRA_ARGS=--node-ip=$KUBE_MASTER_IP --feature-gates HugePages=false"' /etc/systemd/system/kubelet.service.d/10-kubeadm.conf
 systemctl daemon-reload
 systemctl restart kubelet
 cd /home/vagrant/gopath/src/github.com/contiv/vpp/k8s
@@ -224,6 +224,11 @@ echo Args passed: [[ $@ ]]
 
 source /vagrant/config/init
 export KUBE_WORKER_IP=$2
+
+sed -i '4 a Environment="KUBELET_EXTRA_ARGS=--node-ip=$KUBE_WORKER_IP --feature-gates HugePages=false"' /etc/systemd/system/kubelet.service.d/10-kubeadm.conf
+systemctl daemon-reload
+systemctl restart kubelet
+
 sed 's/127\.0\.0\.1.*k8s.*/'"$2"' '"$1"'/' -i /etc/hosts
 echo "export no_proxy='$1,$KUBE_MASTER_IP,$KUBE_WORKER_IP,localhost,127.0.0.1'" >> /etc/profile.d/envvar.sh
 echo "export no_proxy='$1,$KUBE_MASTER_IP,$KUBE_WORKER_IP,localhost,127.0.0.1'" >> /home/vagrant/.profile

@@ -4,6 +4,12 @@
 
 set -euo pipefail
 
+get_vswitch_container_ID() {
+    CID=$(docker ps --format '{{.CreatedAt}} {{.Image}} {{.ID}}' | grep -E " $1@?[^ ]* [^ ]+$" | sort -nr | \
+        head -n 1 | sed -e 's|.* ||g') || [ -z "$CID" ]
+    echo "$CID"
+}
+
 IMAGE="contivvpp/vswitch"
 
 # Test and see if we need more access.
@@ -13,10 +19,23 @@ then
     exit 1
 fi
 
+ID=$(get_vswitch_container_ID "$IMAGE")
+
+# In K8s 1.10 only Image IDs are displayed by 'docker ps' instead of Image names.
+# If we can't get the vswitch container by its name, try using Image ID, which we
+# get from listing docker images and looking for the latest vswitch image.
+if [ ! "$ID" ] ; then
+    # Just grab the latest (by date) image for now. Will have to be replaced later
+    # with grabbing an image with a specific tag.
+    IMG=$(docker images --format '{{.CreatedAt}};{{.ID}};{{.Repository}}' | grep "$IMAGE" | sort -nr | head -n 1)
+    if [ "$IMG" ] ; then
+        IFS=';' read -ra IMG_FIELDS <<< "$IMG"
+        ID=$(get_vswitch_container_ID "${IMG_FIELDS[1]}")
+    fi
+fi
+
 # There may be more than one vswitch container if an upgrade/redeploy is happening, so go for the newest one.
-if ! ID=$(docker ps --format '{{.CreatedAt}} {{.Image}} {{.ID}}' | grep -E " $IMAGE@?[^ ]* [^ ]+$" | sort -nr | \
-    head -n 1 | sed -e 's|.* ||g') || [ -z "$ID" ]
-then
+if [ ! ID ] ; then
     echo "Error finding a running container derived from the $IMAGE image." >&2
     exit 1
 fi

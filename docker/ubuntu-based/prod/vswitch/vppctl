@@ -30,16 +30,19 @@ ID=$(get_vswitch_container_ID "$IMAGE")
 if [ ! "$ID" ] ; then
     # Just grab the latest (by date) image for now. Will have to be replaced
     # later with grabbing an image with a specific tag.
-    IMG=$(docker images --format '{{.CreatedAt}};{{.ID}};{{.Repository}}' | grep "$IMAGE" | sort -nr | head -n 1)
+    IMG=$(docker images --format '{{.CreatedAt}};{{.ID}};{{.Repository}}' | grep "$IMAGE" | sort -nr | head -n 1) \
+        || [ -z "$IMG" ]
     if [ "$IMG" ] ; then
         IFS=';' read -ra IMG_FIELDS <<< "$IMG"
         ID=$(get_vswitch_container_ID "${IMG_FIELDS[1]}")
+        if [ "$ID" == "" ] ; then
+            echo "Error finding a running container derived from the $IMAGE image." >&2
+            exit 1
+        fi
+    else
+        echo "Error finding a $IMAGE image." >&2
+        exit 1
     fi
-fi
-
-if [ ! ID ] ; then
-    echo "Error finding a running container derived from the $IMAGE image." >&2
-    exit 1
 fi
 
 DOCKER_ARGS=

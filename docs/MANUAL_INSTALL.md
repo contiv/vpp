@@ -71,6 +71,21 @@ On each host with multiple NICs where the NIC that will be used for Kubernetes
 management traffic is not the one pointed to by the default route out of the 
 host, a [custom management network][12] for Kubernetes must be configured.
 
+#### Using Kubernetes 1.10 and above
+In K8s 1.10, support for huge pages in a pod has been introduced. For now, this
+feature must be disabled with VPP. To disable huge pages, perform the following
+steps as root:
+* Using your favorite editor, disable huge pages in the kubelet configuration 
+  file (`/etc/systemd/system/kubelet.service.d/10-kubeadm.conf`):
+```
+  Environment="KUBELET_EXTRA_ARGS=--feature-gates HugePages=false"
+```
+* Restart the kubelet daemon:
+```
+  systemctl daemon-reload
+  systemctl restart kubelet
+```
+
 ### (2/4) Initializing your master
 Before initializing the master, you may want to [tear down][8] up any
 previously installed K8s components. Then, proceed with master initialization

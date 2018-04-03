@@ -137,3 +137,13 @@ func (mvp *MockVppPlugin) DumpNat44Global() (*nat.Nat44Global, error) {
 func (mvp *MockVppPlugin) DumpNat44DNat() (*nat.Nat44DNat, error) {
 	return mvp.nat44Dnat, nil
 }
+
+// GetIPSecSAIndexes
+func (mvp *MockVppPlugin) GetIPSecSAIndexes() idxvpp.NameToIdx {
+	return nil
+}
+
+// GetIPSecSPDIndexes
+func (mvp *MockVppPlugin) GetIPSecSPDIndexes() idxvpp.NameToIdx {
+	return nil
+}

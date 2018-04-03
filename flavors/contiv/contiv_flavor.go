@@ -42,6 +42,7 @@ import (
 	"github.com/ligato/vpp-agent/plugins/defaultplugins"
 	"github.com/ligato/vpp-agent/plugins/govppmux"
 	"github.com/ligato/vpp-agent/plugins/linuxplugin"
+	"sync"
 )
 
 const (
@@ -144,9 +145,13 @@ func (f *FlavorContiv) Inject() bool {
 	f.Stats.Deps.Contiv = &f.Contiv
 	f.Stats.Deps.Prometheus = &f.Prometheus
 
+	// Mutex for synchronizing watching events
+	var watchEventsMutex sync.Mutex
+
 	f.GoVPP.Deps.PluginInfraDeps = *f.FlavorLocal.InfraDeps("govpp", local.WithConf())
 	f.Linux.Watcher = &datasync.CompositeKVProtoWatcher{Adapters: []datasync.KeyValProtoWatcher{&f.KVProxy, local_sync.Get()}}
 	f.Linux.Deps.PluginInfraDeps = *f.FlavorLocal.InfraDeps("linuxplugin", local.WithConf())
+	f.Linux.Deps.WatchEventsMutex = &watchEventsMutex
 
 	f.VPP.Watch = &datasync.CompositeKVProtoWatcher{Adapters: []datasync.KeyValProtoWatcher{&f.KVProxy, local_sync.Get()}}
 	f.VPP.Deps.PluginInfraDeps = *f.FlavorLocal.InfraDeps("default-plugins", local.WithConf())
@@ -154,6 +159,7 @@ func (f *FlavorContiv) Inject() bool {
 	f.VPP.Deps.GoVppmux = &f.GoVPP
 	f.VPP.Deps.PublishStatistics = &datasync.CompositeKVProtoWriter{Adapters: []datasync.KeyProtoValWriter{&f.Stats}}
 	f.VPP.Deps.IfStatePub = &datasync.CompositeKVProtoWriter{Adapters: []datasync.KeyProtoValWriter{&devNullWriter{}}}
+	f.VPP.Deps.WatchEventsMutex = &watchEventsMutex
 
 	grpc.DeclareGRPCPortFlag("grpc")
 	grpcInfraDeps := f.FlavorLocal.InfraDeps("grpc", local.WithConf())

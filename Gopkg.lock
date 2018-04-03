@@ -789,7 +789,7 @@
     "plugins/linuxplugin/l3plugin/linuxcalls",
     "plugins/linuxplugin/nsplugin"
   ]
-  revision = "ef38dd408512f2d7f8ce327f3b067a6432283b53"
+  revision = "5565fa6ecf7695b84b55d44adaa8497bf9c11521"
 
 [[projects]]
   branch = "master"
@@ -1639,6 +1639,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "66cd5a75ab036b92372ea4c28c269c6b97fc520e03cf409a1685435469d096f8"
+  inputs-digest = "3380dc3ebefaf4daecfd331d3b13bc17aab63601fa5dedab3344969b98dc0b33"
   solver-name = "gps-cdcl"
   solver-version = 1

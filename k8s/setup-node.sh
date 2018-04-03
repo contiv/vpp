@@ -85,6 +85,9 @@ unix {
    cli-listen /run/vpp/cli.sock
    cli-no-pager
 }
+api-trace {
+    on
+}
 dpdk {
    dev $pciAddr
 }

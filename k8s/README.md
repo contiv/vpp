@@ -47,8 +47,7 @@ To use the development image for testing with specific version of VPP, see
       and only VETHs or TAPs are used to connect Pods with VPP;
     - `TCPChecksumOffloadDisabled`: disable checksum offloading for eth0 of every deployed pod;
     - `UseL2Interconnect`: use pure L2 node interconnect instead of VXLANs;
-    - `UseTAPInterfaces`: use TAP interfaces instead of VETHs for Pod-to-VPP interconnection
-      (VETH is still used to connect VPP with the host stack);
+    - `UseTAPInterfaces`: use TAP interfaces instead of VETHs for Pod-to-VPP and VPP-to-Host interconnection
     - `TAPInterfaceVersion`: select `1` to use the standard VPP TAP interface or `2`
       for a faster, virtio-based, VPP TAPv2 interface (default);
     - `StealInterface`: enable Steal The NIC feature on the specified interface on each node;``

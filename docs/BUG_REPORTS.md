@@ -24,7 +24,7 @@ or the [corresponding part](https://github.com/contiv/vpp/blob/42b3bfbe873550866
   contiv.yaml: |-
     TCPstackDisabled: true
     UseTAPInterfaces: true
-    TAPInterfaceVersion: 1
+    TAPInterfaceVersion: 2
     NatExternalTraffic: true
     MTUSize: 1500
     IPAMConfig:

@@ -32,7 +32,8 @@ import (
 const (
 	vxlanVNI               = 10         // VXLAN Network Identifier (or VXLAN Segment ID)
 	vxlanSplitHorizonGroup = 1          // As VXLAN tunnels are added to a BD, they must be configured with the same and non-zero Split Horizon Group (SHG) number. Otherwise, flood packet may loop among servers with the same VXLAN segment because VXLAN tunnels are fully meshed among servers.
-	vxlanBVIInterfaceName  = "vxlanBVI" // name of the VXLAN BVI interface
+	vxlanBVIInterfaceName  = "vxlanBVI" // name of the VXLAN BVI interface.
+	vxlanBDName            = "vxlanBD"  // name of the VXLAN bridge domain
 )
 
 func (s *remoteCNIserver) l4Features(enable bool) *vpp_l4.L4Features {
@@ -228,11 +229,11 @@ func (s *remoteCNIserver) hwAddrForVXLAN(nodeID uint8) string {
 
 func (s *remoteCNIserver) vxlanBridgeDomain(bviInterface string) *vpp_l2.BridgeDomains_BridgeDomain {
 	return &vpp_l2.BridgeDomains_BridgeDomain{
-		Name:                "vxlanBD",
+		Name:                vxlanBDName,
 		Learn:               false,
 		Forward:             true,
-		Flood:               true,
-		UnknownUnicastFlood: true,
+		Flood:               false,
+		UnknownUnicastFlood: false,
 		Interfaces: []*vpp_l2.BridgeDomains_BridgeDomain_Interfaces{
 			{
 				Name: bviInterface,
@@ -249,6 +250,17 @@ func (s *remoteCNIserver) vxlanArpEntry(nodeID uint8, hostIP string) *vpp_l3.Arp
 		IpAddress:   hostIP,
 		PhysAddress: s.hwAddrForVXLAN(nodeID),
 		Static:      true,
+	}
+}
+
+func (s *remoteCNIserver) vxlanFibEntry(macAddr string, outIfName string) *vpp_l2.FibTableEntries_FibTableEntry {
+	return &vpp_l2.FibTableEntries_FibTableEntry{
+		BridgeDomain:            vxlanBDName,
+		PhysAddress:             macAddr,
+		OutgoingInterface:       outIfName,
+		StaticConfig:            true,
+		BridgedVirtualInterface: false,
+		Action:                  vpp_l2.FibTableEntries_FibTableEntry_FORWARD,
 	}
 }
 

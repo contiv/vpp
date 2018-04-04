@@ -184,6 +184,7 @@ func (s *remoteCNIserver) processChangeEvent(dataChngEv datasync.ChangeEvent) er
 func (s *remoteCNIserver) addRoutesToNode(nodeInfo *node.NodeInfo) error {
 
 	txn := s.vppTxnFactory().Put()
+	txn2 := s.vppTxnFactory().Put() // TODO: merge into 1 transaction after vpp-agent supports it
 	hostIP := s.otherHostIP(uint8(nodeInfo.Id), nodeInfo.IpAddress)
 
 	// VXLAN tunnel
@@ -204,6 +205,7 @@ func (s *remoteCNIserver) addRoutesToNode(nodeInfo *node.NodeInfo) error {
 		bd := proto.Clone(s.vxlanBD)
 		txn.BD(bd.(*vpp_l2.BridgeDomains_BridgeDomain))
 
+		// static ARP entry
 		vxlanIP, err := s.ipam.VxlanIPAddress(uint8(nodeInfo.Id))
 		if err != nil {
 			s.Logger.Error(err)
@@ -211,6 +213,10 @@ func (s *remoteCNIserver) addRoutesToNode(nodeInfo *node.NodeInfo) error {
 		}
 		vxlanArp := s.vxlanArpEntry(uint8(nodeInfo.Id), vxlanIP.String())
 		txn.Arp(vxlanArp)
+
+		// static FIB
+		vxlanFib := s.vxlanFibEntry(vxlanArp.PhysAddress, vxlanIf.Name)
+		txn2.BDFIB(vxlanFib)
 	}
 
 	// static routes
@@ -252,6 +258,12 @@ func (s *remoteCNIserver) addRoutesToNode(nodeInfo *node.NodeInfo) error {
 	err = txn.Send().ReceiveReply()
 	if err != nil {
 		return fmt.Errorf("Can't configure VPP to add routes to node %v: %v ", nodeInfo.Id, err)
+	}
+	if !s.useL2Interconnect {
+		err = txn2.Send().ReceiveReply()
+		if err != nil {
+			return fmt.Errorf("Can't configure VPP to add FIB to node %v: %v ", nodeInfo.Id, err)
+		}
 	}
 	return nil
 }

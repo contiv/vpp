@@ -19,7 +19,7 @@ on the *RX side* of a selected *device* (e.g. dpdk, virtio, af-packet). Which me
 that interfaces based on the same device cannot by traced for incoming packets
 individually, but only all at the same time. In Contiv/VPP all pods are connected
 with VPP via the same kind of the TAP interface, meaning that it is not possible to
-capture packets incoming only from a one selected pod.
+capture packets incoming only from one selected pod.
 
 Contiv/VPP ships with a simple bash script [vpptrace.sh](../scripts/vpptrace.sh)
 which helps to alleviate the aforementioned VPP limitations. The script automatically
@@ -34,14 +34,6 @@ The script is still limited in that capture runs only on the RX side of all inte
 built on the top of a selected device. Using filtering, however, it is possible to limit
 traffic by interface simply by using the interface name as a substring to match against.
 
-#### Requirements
-
-Currently it is required to **expose VPP CLI on the port 5002** for the script
-to be able to connect to it.
-Add `cli-listen 0.0.0.0:5002` to the `unix` section of the VPP startup configuration
-file `/etc/vpp/contiv-vswitch.conf`.
-In the near future a support for socket-based CLI connect will be added.
-
 #### Usage
 
 Run the script without any arguments to get the usage printed:
@@ -54,6 +46,7 @@ Usage: vpptrace.sh  -i <VPP-IF-TYPE> [-a <VPP-ADDRESS>] [-r] [-f <REGEXP> / <SUB
                          - tapcli-rx: tap (version determined from the VPP config), tap1, tapv1
                          - dpdk-input: dpdk, gbe, phys*
    -a <VPP-ADDRESS> : IP address or hostname of the VPP to capture packets from
+                      - not supported if VPP listens on a UNIX domain socket
                       - default = 127.0.0.1
    -r               : apply filter string (passed with -f) as a regexp expression
                       - by default the filter is NOT treated as regexp
@@ -73,8 +66,9 @@ As a general rule, select `dpdk` only for traffic *entering the node from outsid
 interface type for pod-VPP and host-VPP interconnection.
 
 vpptrace.sh can capture packets even from VPP on a different host, provided that
-the port 5002 is open. Enter the destination node IP address via the option `-a`
-(localhost is the default).
+VPP-CLI listens on a port and not on a UNIX domain socket (for security reasons IPC
+is the default communication link, see /etc/vpp/contiv-vswitch.conf). Enter the destination
+node IP address via the option `-a`(localhost is the default).
 
 The capture can be filtered via the `-f` option. The output will include only packets
 whose trace matches/contains the given expression/sub-string.

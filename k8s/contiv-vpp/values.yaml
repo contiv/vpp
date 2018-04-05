@@ -81,3 +81,4 @@ govpp:
   healthCheckProbeInterval: 1000000000
   healthCheckReplyTimeout: 500000000
   healthCheckThreshold: 3
+  replyTimeout: 3000000000

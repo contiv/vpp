@@ -85,6 +85,7 @@ data:
     health-check-probe-interval: {{ .Values.govpp.healthCheckProbeInterval | int64 }}
     health-check-reply-timeout: {{ .Values.govpp.healthCheckReplyTimeout | int64 }}
     health-check-threshold: {{ .Values.govpp.healthCheckThreshold | int64 }}
+    reply-timeout: {{ .Values.govpp.replyTimeout | int64 }}
 
 ---
 

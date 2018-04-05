@@ -57,10 +57,10 @@ dpdk {
 }
 ```
 
-Finally, for each inteeface owned by Linux, you need to provide individual
-configuration for each interface used by VPP in Node Configuration for the
+Finally, for each interface owned by Linux, you need to provide individual
+configuration for each interface used by VPP in the Node Configuration for the
 node in the `contiv-vpp.yaml`. For example, if both `ens3` and `ens4` are
-known to Linux, you put the following stanza into node's NodConfig:
+known to Linux, you put the following stanza into the node's NodeConfig:
 ```
 ...
     NodeConfig:

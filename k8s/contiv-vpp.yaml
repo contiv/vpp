@@ -51,6 +51,7 @@ data:
     health-check-probe-interval: 1000000000
     health-check-reply-timeout: 500000000
     health-check-threshold: 3
+    reply-timeout: 3000000000
 
 ---
 

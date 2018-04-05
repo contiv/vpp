@@ -65,7 +65,7 @@ Parameter | Description | Default
 `contiv.ipamConfig.PodIfIPCIDR` | Subnet CIDR for VPP-side POD addresses | `10.2.1.0/24`
 `contiv.ipamConfig.vppHostSubnetCIDR` | VPP host subnet CIDR | `172.30.0.0/16`
 `contiv.ipamConfig.vppHostNetworkPrefixLen` | VPP host network prefix length | `24`
-`contiv.ipamConfig.vxlanCIDR` | VX LAN CIDR | `192.168.30.0/24`
+`contiv.ipamConfig.vxlanCIDR` | VXLAN CIDR | `192.168.30.0/24`
 `contiv.ipamConfig.nodeInterconnectCIDR` | Node interconnect CIDR, uses DHCP if empty | `""`
 `contiv.ipamConfig.serviceCIDR` | Service CIDR | `""`
 `contiv.nodeConfig.*` | List of node configs, see example section in values.yaml | `""`
@@ -82,4 +82,5 @@ Parameter | Description | Default
 `govpp.healthCheckProbeInterval` | Health check proble interval (nanoseconds) | `1000000000`
 `govpp.healthCheckReplyTimeout` | Health check reply timeout (nanoseconds) | `500000000`
 `govpp.healthCheckThreshold` | Health check threshold | 3
+`govpp.replyTimeout` | VPP binary API request timeout (nanoseconds) | 3000000000
 `logs.defaultLevel` | Default level of logging | `debug`

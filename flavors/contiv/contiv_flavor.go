@@ -127,6 +127,7 @@ func (f *FlavorContiv) Inject() bool {
 	f.HealthRPC.Deps.StatusCheck = &f.StatusCheck
 
 	f.ETCD.Deps.PluginInfraDeps = *f.InfraDeps("etcdv3", local.WithConf())
+	f.ETCD.Deps.StatusCheck = nil
 	connectors.InjectKVDBSync(&f.ETCDDataSync, &f.ETCD, f.ETCD.PluginName, f.FlavorLocal, &f.ResyncOrch)
 	f.NodeIDDataSync = f.ETCDDataSync
 	f.NodeIDDataSync.PluginInfraDeps = *f.InfraDeps("nodeid-datasync")

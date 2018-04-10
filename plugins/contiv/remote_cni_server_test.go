@@ -156,6 +156,7 @@ func setupTestCNIServer(config *Config, nodeConfig *OneNodeConfig, existingInter
 		config,
 		nodeConfig,
 		1,
+		nil,
 		nil)
 	server.test = true
 	gomega.Expect(err).To(gomega.BeNil())
@@ -375,7 +376,7 @@ func TestVeth1NameFromRequest(t *testing.T) {
 		"testlabel",
 		&configVethL2NoTCP,
 		nil,
-		1, nil)
+		1, nil, nil)
 	gomega.Expect(err).To(gomega.BeNil())
 
 	hostIfName := server.veth1HostIfNameFromRequest(&req)

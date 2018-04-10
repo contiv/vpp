@@ -37,7 +37,11 @@ and [contiv-init](../cmd/contiv-init/doc.go).
 
 #### Creating the VPP interface configuration
 First, you need to find out the PCI address of the host's network interface. 
-On Debian-based distributions you can use `lshw`:
+You can use the `lshw` command.  It is available on Debian-based distributions.
+On CentOS/RedHat/Fedora distributions, you may install it by yum.
+```
+sudo yum -y install lshw
+```
 
 ```
 sudo lshw -class network -businfo

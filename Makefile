@@ -50,6 +50,10 @@ define test_only
 	@go test ./plugins/policy/renderer/acl -tags="${GO_BUILD_TAGS}"
 	@go test ./plugins/policy/renderer/vpptcp -tags="${GO_BUILD_TAGS}"
 	@go test ./plugins/service -tags="${GO_BUILD_TAGS}"
+	@go test ./plugins/policy/cache -tags="${GO_BUILD_TAGS}"
+    @go test ./plugins/policy/cache/namespaceidx -tags="${GO_BUILD_TAGS}"
+    @go test ./plugins/policy/cache/podidx -tags="${GO_BUILD_TAGS}"
+    @go test ./plugins/policy/cache/policyidx -tags="${GO_BUILD_TAGS}"
 	@echo "# done"
 endef
 
@@ -67,6 +71,10 @@ define test_race_only
 	@go test ./plugins/policy/renderer/acl -race -tags="${GO_BUILD_TAGS}"
 	@go test ./plugins/policy/renderer/vpptcp -race -tags="${GO_BUILD_TAGS}"
 	@go test ./plugins/service -race -tags="${GO_BUILD_TAGS}"
+	@go test ./plugins/policy/cache -race -tags="${GO_BUILD_TAGS}"
+    @go test ./plugins/policy/cache/namespaceidx -race -tags="${GO_BUILD_TAGS}"
+    @go test ./plugins/policy/cache/podidx -race -tags="${GO_BUILD_TAGS}"
+    @go test ./plugins/policy/cache/policyidx -race -tags="${GO_BUILD_TAGS}"
 	@echo "# done"
 endef
 
@@ -84,6 +92,10 @@ define test_cover_only
     @go test -covermode=count -coverprofile=${COVER_DIR}cov_u9.out ./plugins/policy/renderer/acl -tags="${GO_BUILD_TAGS}"
     @go test -covermode=count -coverprofile=${COVER_DIR}cov_u10.out ./plugins/policy/renderer/vpptcp -tags="${GO_BUILD_TAGS}"
     @go test -covermode=count -coverprofile=${COVER_DIR}cov_u11.out -coverpkg=./plugins/service/processor,./plugins/service/configurator ./plugins/service -tags="${GO_BUILD_TAGS}"
+    @go test -covermode=count -coverprofile=${COVER_DIR}cov_u12.out ./plugins/policy/cache -tags="${GO_BUILD_TAGS}"
+    @go test -covermode=count -coverprofile=${COVER_DIR}cov_u13.out ./plugins/policy/cache/namespaceidx -tags="${GO_BUILD_TAGS}"
+    @go test -covermode=count -coverprofile=${COVER_DIR}cov_u14.out ./plugins/policy/cache/podidx -tags="${GO_BUILD_TAGS}"
+    @go test -covermode=count -coverprofile=${COVER_DIR}cov_u15.out ./plugins/policy/cache/policyidx -tags="${GO_BUILD_TAGS}"
     @echo "# merging coverage results"
     @cd vendor/github.com/wadey/gocovmerge && go install -v
     @gocovmerge ${COVER_DIR}cov_u1.out ${COVER_DIR}cov_u2.out ${COVER_DIR}cov_u3.out \

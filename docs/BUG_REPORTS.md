@@ -282,6 +282,7 @@ Prerequisites:
   in the cluster; on each node in the cluster the user must have passwordless
   access to sudo.
   
+#### Setting up prerequisites
 To enable looging into a node without a password, copy your public key to the
 node:
 ```
@@ -315,5 +316,18 @@ or as follows:
 ```
 usermod -a -G <group-id> <user-id>
 ```
+#### Working with the Contiv-vpp Vagrant test bed 
+The script can be used to collect data from the [Contiv-vpp test bed created with Vagrant][2].
+To collect debug information from this Contiv-vpp test bed, do the
+following steps:
+* In the directory where you created your vagrant test bed, do:
+```
+  vagrant ssh-config > vagrant-ssh.conf
+```
+* To collect the debug information do:
+```
+  ./contiv-vpp-bug-report.sh -u vagrant -m k8s-master -f <path-to-your-vagrant-ssh-config-file>/vagrant-ssh.conf
+```
 
 [1]: ../scripts/contiv-vpp-bug-report.sh
+[2]: ../vagrant/README.md

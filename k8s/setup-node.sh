@@ -151,15 +151,15 @@ elif [[ $(confirm "Do you want to install STN Daemon?") -eq 1 ]]; then
      bash <(curl -s https://raw.githubusercontent.com/contiv/vpp/master/k8s/stn-install.sh)
 fi
 
-if [[ $(docker ps  | grep contiv-cri | wc -l) -gt 0 ]]; then
-    echo "Cri-shim is already running"
-    if [[ $(confirm "Do you want to restart cri-shim?") -eq 1 ]]; then
-        docker stop contiv-cri
-        docker rm contiv-cri
-        bash <(curl -s https://raw.githubusercontent.com/contiv/vpp/master/k8s/cri-install.sh)
-    fi
-elif [[ $(confirm "Do you want to install cri-shim?") -eq 1 ]]; then
-     bash <(curl -s https://raw.githubusercontent.com/contiv/vpp/master/k8s/cri-install.sh)
-fi
+#if [[ $(docker ps  | grep contiv-cri | wc -l) -gt 0 ]]; then
+#    echo "Cri-shim is already running"
+#    if [[ $(confirm "Do you want to restart cri-shim?") -eq 1 ]]; then
+#        docker stop contiv-cri
+#        docker rm contiv-cri
+#        bash <(curl -s https://raw.githubusercontent.com/contiv/vpp/master/k8s/cri-install.sh)
+#    fi
+#elif [[ $(confirm "Do you want to install cri-shim?") -eq 1 ]]; then
+#     bash <(curl -s https://raw.githubusercontent.com/contiv/vpp/master/k8s/cri-install.sh)
+#fi
 
 echo "Configuration of the node finished successfully."

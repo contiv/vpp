@@ -48,4 +48,6 @@ then
     DOCKER_ARGS="-t"
 fi
 
-exec docker exec -i "$DOCKER_ARGS" "$ID" /usr/bin/vppctl
+# Docker args can't be quoted here because otherwise when there are no args, docker would get an argument that is an
+# empty string (causing it to error), instead of no arg at all.
+exec docker exec -i $DOCKER_ARGS "$ID" /usr/bin/vppctl "$@"

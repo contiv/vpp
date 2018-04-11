@@ -4,11 +4,46 @@ set -e
 
 IFS='
 '
+VPPCTL_IN=/tmp/vppctl.in
+VPPCTL_OUT=/tmp/vppctl.out
+
+function init {
+    touch $VPPCTL_OUT
+    mkfifo $VPPCTL_IN
+}
+
+function cleanup {
+    rm -f $VPPCTL_IN $VPPCTL_OUT
+}
+
+function connect {
+    IS_IPC=$1
+    shift
+    if [[ $IS_IPC -eq 1 ]]; then
+        SOCKET=$1
+        shift
+        sudo true # prepare password-less sudo for the next command
+        cat $VPPCTL_IN | sudo netcat -U $SOCKET >$VPPCTL_OUT &
+    else
+        IP=$1
+        PORT=$2
+        shift 2
+    	cat $VPPCTL_IN | netcat $IP $PORT >$VPPCTL_OUT &
+    fi
+    exec 3>$VPPCTL_IN
+}
 
 function vppctl {
-    IP=$1
-    shift
-	echo -e "\n$@\n" | netcat -q 1 $IP 5002
+    echo > $VPPCTL_OUT
+    echo "$@" >&3
+    echo "show version" >&3
+    until grep -q 'vpp v[0-9][0-9]\.' $VPPCTL_OUT; do
+        if [[ $? -ne 1 ]]; then
+            break # other error
+        fi
+        sleep 0.05
+    done
+    head -n -3 $VPPCTL_OUT
 }
 
 function print_packet {
@@ -22,10 +57,11 @@ function print_help_and_exit {
     echo '   -i <VPP-IF-TYPE> : VPP interface *type* to run the packet capture on (e.g. dpdk-input, virtio-input, etc.)'
     echo '                       - available aliases:'
     echo '                         - af-packet-input: afpacket, af-packet, veth'
-    echo '                         - virtio-input: tap (version determined from the VPP config), tap2, tapv2'
+    echo '                         - virtio-input: tap (version determined from the VPP runtime config), tap2, tapv2'
     echo '                         - tapcli-rx: tap (version determined from the VPP config), tap1, tapv1'
     echo '                         - dpdk-input: dpdk, gbe, phys*'
     echo '   -a <VPP-ADDRESS> : IP address or hostname of the VPP to capture packets from'
+    echo '                      - not supported if VPP listens on a UNIX domain socket' 
     echo '                      - default = 127.0.0.1'
     echo '   -r               : apply filter string (passed with -f) as a regexp expression'
     echo '                      - by default the filter is NOT treated as regexp'
@@ -35,7 +71,6 @@ function print_help_and_exit {
 }
 
 function trace {
-    VPPADDR="127.0.0.1"
     INTERFACE=$1
 
     while getopts i:a:rf:h option
@@ -50,6 +85,27 @@ function trace {
         esac
     done
 
+    # connect to VPP-CLI
+    VPPCONFIG="/etc/vpp/contiv-vswitch.conf"
+    PORT=`sed -n 's/.*cli-listen .*:\([0-9]*\)/\1/p' $VPPCONFIG`
+    if [[ -z $PORT ]]; then
+        IS_IPC=1
+        if [[ -n $VPPADDR ]]; then
+            echo "VPP listens on a UNIX domain socket and therefore cannot be accessed by IP address."
+            exit 2
+        fi
+        SOCKET=`sed -n 's/.*cli-listen //p' $VPPCONFIG`
+        if [[ -z SOCKET ]]; then
+            SOCKET="/run/vpp/cli.sock" # default
+        fi
+    else
+        IS_IPC=0
+        if [[ -z $VPPADDR ]]; then
+            VPPADDR="127.0.0.1" # default
+        fi
+    fi
+    connect $IS_IPC $SOCKET $VPPADDR $PORT
+
     # afpacket aliases
     if [[ "$INTERFACE" == "afpacket" ]] || [[ "$INTERFACE" == "af-packet" ]] || [[ "$INTERFACE" == "veth" ]]; then
         INTERFACE="af-packet-input"
@@ -58,7 +114,7 @@ function trace {
     # tapv1 + tapv2 alias
     if [[ "$INTERFACE" == "tap" ]]; then
         # find out the version of the tap used
-        if vppctl $VPPADDR show interface | grep -q tapcli; then
+        if vppctl show interface | grep -q tapcli; then
             INTERFACE="tapcli-rx"
         else
             INTERFACE="virtio-input"
@@ -82,12 +138,12 @@ function trace {
 
     COUNT=0
     while true; do
-        vppctl $VPPADDR clear trace >/dev/null
-        vppctl $VPPADDR trace add $INTERFACE 50 >/dev/null
+        vppctl clear trace >/dev/null
+        vppctl trace add $INTERFACE 50 >/dev/null
 
         IDX=0
         while true; do
-            TRACE=`vppctl $IP show trace`
+            TRACE=`vppctl show trace`
             STATE=0
             PACKET=""
             PACKETIDX=0
@@ -135,7 +191,7 @@ function trace {
                 fi
             fi
             if [[ $PACKETIDX -gt 35 ]]; then
-                echo -e "\nClearing packet trace (some packets may slip uncaptured)..."
+                echo -e "\nClearing packet trace (some packets may slip uncaptured)...\n"
                 break;
             fi
 
@@ -148,4 +204,6 @@ if [[ $# -lt 1 ]]; then
     print_help_and_exit
 fi
 
+init
+trap cleanup EXIT
 trace $@

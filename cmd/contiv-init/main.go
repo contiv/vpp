@@ -135,7 +135,7 @@ func parseSTNConfig() (config *contiv.Config, nicToSteal string, useDHCP bool, e
 		return
 	}
 	if config.TAPInterfaceVersion == 0 {
-		config.TAPInterfaceVersion = 1 // default
+		config.TAPInterfaceVersion = 2 // default
 	}
 
 	// try to find node config and return STN interface name if found

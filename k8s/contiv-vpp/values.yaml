@@ -1,14 +1,14 @@
 contiv:
   tcpStackDisabled: True
   useTAPInterfaces: True
-  tapInterfaceVersion: 1
+  tapInterfaceVersion: 2
   stealFirstNIC: False
   natExternalTraffic: True
   mtuSize: 1500
   ipamConfig:
     podSubnetCIDR: "10.1.0.0/16"
     podNetworkPrefixLen: 24
-    PodIfIPCIDR: 10.2.1.0/24
+    podIfIPCIDR: 10.2.1.0/24
     vppHostSubnetCIDR: "172.30.0.0/16"
     vppHostNetworkPrefixLen: 24
     vxlanCIDR: "192.168.30.0/24"
@@ -81,3 +81,4 @@ govpp:
   healthCheckProbeInterval: 1000000000
   healthCheckReplyTimeout: 500000000
   healthCheckThreshold: 3
+  replyTimeout: 3000000000

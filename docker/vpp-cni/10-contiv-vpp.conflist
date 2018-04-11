@@ -11,7 +11,7 @@
 			"capabilities": {
 				"portMappings": true
 			},
-			"snat": true
+			"externalSetMarkChain": "KUBE-MARK-MASQ"
 		}
 	]
 }

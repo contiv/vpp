@@ -29,6 +29,10 @@ fi
 echo "Installing contiv CNI binary to ${HOST_CNI_BIN_DIR}"
 cp /root/contiv-cni ${HOST_CNI_BIN_DIR}
 
+# Install modified portmap plugin.
+echo "Installing portmap plugin to ${HOST_CNI_BIN_DIR}"
+cp /root/portmap ${HOST_CNI_BIN_DIR}
+
 # Erase all existing CNI config files.
 echo "Erasing old CNI config in ${HOST_CNI_NET_DIR}"
 rm -rf ${HOST_CNI_NET_DIR}/*

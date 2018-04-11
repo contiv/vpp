@@ -9,12 +9,9 @@ WORKDIR /go/src/github.com/contiv/vpp/cmd/contiv-cri
 
 RUN go build -ldflags '-s -w' -o /cri main.go
 
-FROM ubuntu:16.04
+FROM alpine:3.7
 
-# install iproute2 - required by dockershim
-RUN apt-get update && \
-	apt-get install -y --allow-unauthenticated iproute2 && \
-	rm -rf /var/lib/apt/lists/*
+RUN apk --no-cache add iproute2
 
 COPY --from=builder /cri /cri
 

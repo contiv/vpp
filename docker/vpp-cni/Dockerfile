@@ -18,7 +18,7 @@ WORKDIR /go/src/github.com/contiv/vpp/cmd/contiv-cni
 RUN export CGO_ENABLED=0 \
  && mkdir /output/ \
  && cp /cni/loopback /output/ \
- && cp /go/src/github.com/contiv/vpp/docker/vpp-cni/10-contiv-vpp.conf /output/ \
+ && cp /go/src/github.com/contiv/vpp/docker/vpp-cni/10-contiv-vpp.conflist /output/ \
  && cp /go/src/github.com/contiv/vpp/docker/vpp-cni/install.sh /output/ \
  && go build -ldflags '-s -w' -o /output/contiv-cni contiv_cni.go
 

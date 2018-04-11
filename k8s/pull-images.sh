@@ -14,7 +14,7 @@
 # limitations under the License.
 
 sudo docker pull contivvpp/vswitch:latest
-sudo docker pull contivvpp/cri:latest
+#sudo docker pull contivvpp/cri:latest
 sudo docker pull contivvpp/ksr:latest
 sudo docker pull contivvpp/cni:latest
 sudo docker pull contivvpp/stn:latest

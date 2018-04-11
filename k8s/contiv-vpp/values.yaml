@@ -47,6 +47,7 @@ etcd:
     repository: quay.io/coreos/etcd
     tag: v3.1.10
     pullPolicy: IfNotPresent
+  dataDir: /var/etcd
   service:
     #NodePort where contiv-etcd can be reached on any node.
     nodePort: 32379

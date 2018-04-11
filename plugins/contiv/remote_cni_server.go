@@ -442,17 +442,15 @@ func (s *remoteCNIserver) configureMainVPPInterface(config *vswitchConfig, nicNa
 			nicIP, gwIP, err = s.getSTNInterfaceIP("")
 		}
 
-		if err != nil {
-			s.Logger.Warnf("Unable to get STN interface info: %v, skipping STN config", err)
-		}
-
-		if nicIP != "" {
+		if err != nil || nicIP == "" {
+			s.Logger.Errorf("Unable to get STN interface info: %v, disabling the interface.", err)
+			nic := s.physicalInterfaceDisabled(nicName)
+			txn1.VppInterface(nic)
+			nicName = ""
+		} else {
 			s.Logger.Infof("STN-configured interface %s (IP %s, GW %s), skip main interface config.", nicName, nicIP, gwIP)
 			s.stnIP = nicIP
 			s.stnGw = gwIP
-		} else {
-			s.Logger.Infof("STN-configured interface %s, but there is no IP, continue with main interface config.", nicName)
-			useSTN = false
 		}
 	}
 

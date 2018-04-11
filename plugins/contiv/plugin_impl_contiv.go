@@ -179,6 +179,7 @@ func (plugin *Plugin) Init() error {
 		plugin.Config,
 		plugin.myNodeConfig,
 		nodeID,
+		plugin.excludedIPsFromNodeCIDR(),
 		broker)
 	if err != nil {
 		return fmt.Errorf("Can't create new remote CNI server due to error: %v ", err)
@@ -503,4 +504,32 @@ func (plugin *Plugin) handleKsrNodeResync(it datasync.KeyValIterator) error {
 		plugin.Log.Debug("Internal IP of the node is not in ETCD yet.")
 	}
 	return err
+}
+
+func (plugin *Plugin) excludedIPsFromNodeCIDR() []net.IP {
+	if plugin.Config == nil {
+		return nil
+	}
+	var excludedIPs []string
+	for _, oneNodeConfig := range plugin.Config.NodeConfig {
+		if oneNodeConfig.Gateway == "" {
+			continue
+		}
+		excludedIPs = appendIfMissing(excludedIPs, oneNodeConfig.Gateway)
+	}
+	var res []net.IP
+	for _, ip := range excludedIPs {
+		res = append(res, net.ParseIP(ip))
+	}
+	return res
+
+}
+
+func appendIfMissing(slice []string, s string) []string {
+	for _, el := range slice {
+		if el == s {
+			return slice
+		}
+	}
+	return append(slice, s)
 }

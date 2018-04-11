@@ -212,8 +212,8 @@ type vswitchConfig struct {
 // newRemoteCNIServer initializes a new remote CNI server instance.
 func newRemoteCNIServer(logger logging.Logger, vppTxnFactory func() linux.DataChangeDSL, proxy kvdbproxy.Proxy,
 	configuredContainers *containeridx.ConfigIndex, govppChan *api.Channel, index ifaceidx.SwIfIndex, dhcpIndex ifaceidx.DhcpIndex, agentLabel string,
-	config *Config, nodeConfig *OneNodeConfig, nodeID uint8, broker keyval.ProtoBroker) (*remoteCNIserver, error) {
-	ipam, err := ipam.New(logger, nodeID, &config.IPAMConfig, broker)
+	config *Config, nodeConfig *OneNodeConfig, nodeID uint8, nodeExcludeIPs []net.IP, broker keyval.ProtoBroker) (*remoteCNIserver, error) {
+	ipam, err := ipam.New(logger, nodeID, &config.IPAMConfig, nodeExcludeIPs, broker)
 	if err != nil {
 		return nil, err
 	}

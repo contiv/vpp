@@ -105,7 +105,7 @@ func (p *Plugin) Init() (err error) {
 			if err == nil {
 				if p.Resync != nil && p.lastConnErr != nil {
 					p.Log.Info("Starting resync after ETCD reconnect")
-					p.Resync.DoResync()
+					//p.Resync.DoResync()
 					p.lastConnErr = nil
 				}
 				return statuscheck.OK, nil

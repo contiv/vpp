@@ -4,80 +4,8 @@ set -euo pipefail
 
 export K8S_NODE_OS=${K8S_NODE_OS:-ubuntu}
 export K8S_NODES=${K8S_NODES:-1}
-
-echo 'Please choose vagrant provider: '
-PS3='--> '
-options=("VirtualBox" "VMWare_Fusion" "Quit")
-select opt in "${options[@]}"
-do
-    case $opt in
-        "VirtualBox")
-            echo "You chose VirtualBox"
-            export VAGRANT_DEFAULT_PROVIDER="virtualbox"
-            break
-            ;;
-        "VMWare_Fusion")
-            echo "You chose VMWare_Fusion"
-            export VAGRANT_DEFAULT_PROVIDER="vmware_fusion"
-            break
-            ;;
-        "Quit")
-            echo "Exiting..."
-            exit 0
-            ;;
-        *) echo invalid option;;
-    esac
-done
-echo
-
-echo 'Please choose Kubernetes environment: '
-PS3='--> '
-options=("Production" "Development" "Quit")
-select opt in "${options[@]}"
-do
-    case $opt in
-        "Production")
-            echo "You chose Production environment"
-            export K8S_DEPLOYMENT_ENV="prod"
-            break
-            ;;
-        "Development")
-            echo "You chose Development environment"
-            export K8S_DEPLOYMENT_ENV="dev"
-            break
-            ;;
-        "Quit")
-            echo "Exiting..."
-            break
-            ;;
-        *) echo invalid option;;
-    esac
-done
-echo
-
-echo 'Please choose deployment scenario: '
-PS3='--> '
-options=("Without StealFirstNIC" "With StealFirstNIC" "Quit")
-select opt in "${options[@]}"
-do
-    case $opt in
-        "Without StealFirstNIC")
-            echo "You chose deployment without StealFirstNIC"
-            export K8S_DEPLOYMENT_SCENARIO="nostn"
-            break
-            ;;
-        "With StealFirstNIC")
-            echo "You chose deployment with StealFirstNIC"
-            export K8S_DEPLOYMENT_SCENARIO="stn"
-            break
-            ;;
-        "Quit")
-            echo "Exiting..."
-            break
-            ;;
-        *) echo invalid option;;
-    esac
-done
-echo
+export VAGRANT_DEFAULT_PROVIDER=${VAGRANT_DEFAULT_PROVIDER:-virtualbox}
+export K8S_DEPLOYMENT_ENV=${K8S_DEPLOYMENT_ENV:-prod}
+export K8S_DEPLOYMENT_SCENARIO=${K8S_DEPLOYMENT_SCENARIO:-nostn}
 
 vagrant up

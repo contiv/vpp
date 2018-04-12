@@ -178,7 +178,7 @@ else
 fi
 createVPPconfig
 
-if [ $3 = 'nostn' ]; then
+if [ "$3" = 'nostn' ]; then
     #shutdown interface
     ip link set enp0s8 down
     echo "#auto enp0s8" >> /etc/network/interfaces
@@ -191,7 +191,7 @@ set -x
 
 echo Args passed: [[ $@ ]]
 
-if [ "$4" = "dev" ]; then 
+if [ "$4" = "dev" ]; then
 # --------------------------------------------------------
 # ---> Build Contiv/VPP-vswitch Development Image <---
 # --------------------------------------------------------
@@ -261,7 +261,7 @@ echo "export no_proxy='$1,$KUBE_MASTER_IP,$KUBE_WORKER_IP,localhost,127.0.0.1'" 
 source /etc/profile.d/envvar.sh
 source /home/vagrant/.profile
 
-if [ $3 = 'stn' ]; then
+if [ "$3" = 'stn' ]; then
   curl -s https://raw.githubusercontent.com/contiv/vpp/master/k8s/stn-install.sh > /tmp/contiv-stn.sh
   chmod +x /tmp/contiv-stn.sh
   sudo /tmp/contiv-stn.sh
@@ -322,7 +322,7 @@ else
 fi
 createVPPconfig
 
-if [ $3 = 'nostn' ]; then
+if [ "$3" = 'nostn' ]; then
     #shutdown interface
     ip link set ens160 down
     echo "#auto ens160" >> /etc/network/interfaces
@@ -335,7 +335,7 @@ set -x
 
 echo Args passed: [[ $@ ]]
 
-if [ "$3" = "dev" ]; then 
+if [ "$3" = "dev" ]; then
 # --------------------------------------------------------
 # ---> Build Contiv/VPP-vswitch Development Image <---
 # --------------------------------------------------------

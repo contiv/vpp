@@ -24,5 +24,3 @@ rm -rf ./.vagrant
 if [ -f .vagrant-state ] ; then
     rm .vagrant-state
 fi
-
-

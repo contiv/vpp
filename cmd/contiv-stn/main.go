@@ -45,6 +45,8 @@ const (
 
 	configRetryCount = 20                     // number of config attempts in case that an error is returned / config is not applied correctly
 	configRetrySleep = 200 * time.Millisecond // sleep interval between individual config retry attempts
+
+	vppTapInterfaceName = "vpp1" // name of the TAP interface which VPP creates once STN is configured
 )
 
 var (
@@ -595,13 +597,61 @@ func (s *stnServer) checkStatusAfterTimeout() {
 
 		s.statusCheckEnabled = true
 		if !s.statusCheckStarted {
-			s.startStatusCheckLoop()
+			s.startLinkStatusCheckLoop()
+		}
+	}()
+}
+
+// startLinkStatusCheckLoop starts checks of the status of the VPP TAP interface.
+func (s *stnServer) startLinkStatusCheckLoop() {
+	// look up for the TAP interface
+	_, err := s.findLinkByName(vppTapInterfaceName)
+	if err != nil {
+		log.Printf("Error by looking up for interface %s: %v", vppTapInterfaceName, err)
+		// revert all interfaces
+		s.revertAllLinks()
+		return
+	}
+
+	log.Printf("Subscribing for interface %s status updates.", vppTapInterfaceName)
+	s.statusCheckStarted = true
+
+	// start watching for link notifications
+	updCh := make(chan netlink.LinkUpdate)
+	doneCh := make(chan struct{})
+	err = netlink.LinkSubscribe(updCh, doneCh)
+	if err != nil {
+		log.Printf("Error by subscribing for interface updates: %v", err)
+		// revert all interfaces
+		s.revertAllLinks()
+		return
+	}
+
+	// watch for TAP interface link notifications
+	go func() {
+		for linkNotif := range updCh {
+			if s.statusCheckEnabled {
+				linkAttrs := linkNotif.Link.Attrs()
+				if linkAttrs == nil {
+					continue
+				}
+				if linkAttrs.Name == vppTapInterfaceName {
+					log.Printf("Interface %s state change: %v", vppTapInterfaceName, linkNotif.Link.Attrs().OperState)
+					if linkAttrs.OperState == netlink.OperDown {
+						// stop further checking
+						s.statusCheckEnabled = false
+
+						// revert all interfaces
+						s.revertAllLinks()
+					}
+				}
+			}
 		}
 	}()
 }
 
 // statusCheck starts a goroutine that periodically checks the status of contiv-agent.
-func (s *stnServer) startStatusCheckLoop() {
+func (s *stnServer) startAgentStatusCheckLoop() {
 	log.Println("Starting periodic check of status of the contiv-agent")
 
 	s.statusCheckStarted = true
@@ -611,14 +661,14 @@ func (s *stnServer) startStatusCheckLoop() {
 		for {
 			<-ticker.C
 			if s.statusCheckEnabled {
-				s.checkStatus()
+				s.checkAgentStatus()
 			}
 		}
 	}()
 }
 
-// checkStatus synchronously checks the status of contiv-agent and request interface config rollback in case it is not alive.
-func (s *stnServer) checkStatus() {
+// checkAgentStatus synchronously checks the status of contiv-agent and request interface config rollback in case it is not alive.
+func (s *stnServer) checkAgentStatus() {
 	conn, err := net.Dial("tcp", fmt.Sprintf(":%d", *statusCheckPort))
 	if err != nil {
 		log.Printf("Unable to connect to health check probe at port %d, reverting the interfaces", *statusCheckPort)

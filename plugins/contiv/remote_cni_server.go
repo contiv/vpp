@@ -444,9 +444,7 @@ func (s *remoteCNIserver) configureMainVPPInterface(config *vswitchConfig, nicNa
 
 		if err != nil || nicIP == "" {
 			s.Logger.Errorf("Unable to get STN interface info: %v, disabling the interface.", err)
-			nic := s.physicalInterfaceDisabled(nicName)
-			txn1.VppInterface(nic)
-			nicName = ""
+			return err
 		} else {
 			s.Logger.Infof("STN-configured interface %s (IP %s, GW %s), skip main interface config.", nicName, nicIP, gwIP)
 			s.stnIP = nicIP

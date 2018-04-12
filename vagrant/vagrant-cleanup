@@ -1,0 +1,28 @@
+
+#!/bin/bash
+
+set -euo pipefail
+
+if [ -f ./config/init ] ; then
+    rm ./config/init
+fi
+touch ./config/init
+
+if [ -f ./config/cert ] ; then
+    rm ./config/cert
+fi
+touch ./config/cert
+
+if [ -f ./config/*.tar ] ; then
+    rm ./config/*.tar
+fi
+
+vagrant destroy -f
+
+rm -rf ./.vagrant
+
+if [ -f .vagrant-state ] ; then
+    rm .vagrant-state
+fi
+
+

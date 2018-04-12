@@ -200,16 +200,6 @@ func (s *remoteCNIserver) physicalInterface(name string, ipAddress string) *vpp_
 	}
 }
 
-func (s *remoteCNIserver) physicalInterfaceDisabled(name string) *vpp_intf.Interfaces_Interface {
-	return &vpp_intf.Interfaces_Interface{
-		Name:    name,
-		Type:    vpp_intf.InterfaceType_ETHERNET_CSMACD,
-		Enabled: false,
-
-		IpAddresses: []string{},
-	}
-}
-
 func (s *remoteCNIserver) physicalInterfaceLoopback(ipAddress string) *vpp_intf.Interfaces_Interface {
 	return &vpp_intf.Interfaces_Interface{
 		Name:        "loopbackNIC",

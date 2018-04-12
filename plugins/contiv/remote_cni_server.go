@@ -1377,11 +1377,17 @@ func (s *remoteCNIserver) parseCniExtraArgs(input string) map[string]string {
 
 // generateCniReply fills the CNI reply with the data of an interface.
 func (s *remoteCNIserver) generateCniReply(config *PodConfig, nsName string, podIP string) *cni.CNIReply {
+	var ifName string
+	if s.useTAPInterfaces {
+		ifName = config.PodTap.HostIfName
+	} else {
+		ifName = config.Veth1.HostIfName
+	}
 	return &cni.CNIReply{
 		Result: resultOk,
 		Interfaces: []*cni.CNIReply_Interface{
 			{
-				Name:    config.VppIf.Name,
+				Name:    ifName,
 				Sandbox: nsName,
 				IpAddresses: []*cni.CNIReply_Interface_IP{
 					{

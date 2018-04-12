@@ -11,6 +11,17 @@ RUN apk add --update wget \
  && rm /cni.tgz
 COPY . /go/src/github.com/contiv/vpp
 
+# Build a custom version of the portmap plugin, modified for VPP-based networking.
+RUN apk add --update git gcc linux-headers libc-dev \
+ && export CGO_ENABLED=0 \
+ && export CNI_PLUGIN_VERSION=0.7 \
+ && mkdir -p /go/src/github.com/containernetworking \
+ && cd /go/src/github.com/containernetworking \
+ && git clone https://github.com/containernetworking/plugins.git -b v$CNI_PLUGIN_VERSION \
+ && cd plugins/plugins/meta/portmap/ \
+ && git apply /go/src/github.com/contiv/vpp/docker/vpp-cni/portmap.diff \
+ && go build -ldflags '-s -w' -o /portmap
+
 WORKDIR /go/src/github.com/contiv/vpp/cmd/contiv-cni
 
 # we collect & store all files in one folder to make the resulting
@@ -18,9 +29,11 @@ WORKDIR /go/src/github.com/contiv/vpp/cmd/contiv-cni
 RUN export CGO_ENABLED=0 \
  && mkdir /output/ \
  && cp /cni/loopback /output/ \
- && cp /go/src/github.com/contiv/vpp/docker/vpp-cni/10-contiv-vpp.conf /output/ \
+ && cp /go/src/github.com/contiv/vpp/docker/vpp-cni/10-contiv-vpp.conflist /output/ \
  && cp /go/src/github.com/contiv/vpp/docker/vpp-cni/install.sh /output/ \
+ && cp /portmap /output/ \
  && go build -ldflags '-s -w' -o /output/contiv-cni contiv_cni.go
+
 
 FROM alpine:3.7
 

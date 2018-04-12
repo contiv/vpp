@@ -1,0 +1,93 @@
+#!/bin/sh
+curl --silent https://raw.githubusercontent.com/contiv/vpp/master/k8s/contiv-vpp.yaml > /tmp/contiv-vpp.yaml
+
+if [ $DEP_PROV = "virtualbox" ]; then
+	if [ $DEP_SCENARIO = "nostn" ]; then
+	  master_gw_config='\
+    NodeConfig:\
+    - NodeName: \"k8s-master\"\
+      MainVppInterface:\
+        InterfaceName: \"GigabitEthernet0/8/0\"\
+      Gateway: \"192.168.16.100\"'
+	
+	worker_gw_config=''
+	for i in `seq 1 $NUM_K8S_NODES`; do
+	worker_gw_config=$worker_gw_config'\
+    - NodeName: \"k8s-worker'$i'\"\
+      MainVppInterface:\
+        InterfaceName: \"GigabitEthernet0/8/0\"\
+      Gateway: \"192.168.16.100\"'
+	done
+
+	  sed -i "/logs.conf/i \
+	""${master_gw_config}""\
+	""${worker_gw_config}""\
+	" /tmp/contiv-vpp.yaml
+	
+	else
+	  curl -s https://raw.githubusercontent.com/contiv/vpp/master/k8s/stn-install.sh > /tmp/contiv-stn.sh
+	  chmod +x /tmp/contiv-stn.sh
+	  sudo /tmp/contiv-stn.sh
+	master_gw_config='\
+    NodeConfig:\
+    - NodeName: \"k8s-master\"\
+      StealInterface: \"enp0s8\"\
+      Gateway: \"192.168.16.100\"'
+	
+	worker_gw_config=''
+	for i in `seq 1 $NUM_K8S_NODES`; do
+	worker_gw_config=$worker_gw_config'\
+    - NodeName: \"k8s-worker'$i'\"\
+      StealInterface: \"enp0s8\"\
+      Gateway: \"192.168.16.100\"'
+	done
+
+	  sed -i "/logs.conf/i \
+	""${master_gw_config}""\
+	""${worker_gw_config}""\
+	" /tmp/contiv-vpp.yaml
+	fi
+
+else 
+	if [ $DEP_SCENARIO = "nostn" ]; then
+	  master_gw_config='\
+    NodeConfig:\
+    - NodeName: \"k8s-master\"\
+      MainVppInterface:\
+        InterfaceName: \"GigabitEthernet3/0/0\"'
+	
+	worker_gw_config=''
+	for i in `seq 1 $NUM_K8S_NODES`; do
+	worker_gw_config=$worker_gw_config'\
+    - NodeName: \"k8s-worker'$i'\"\
+      MainVppInterface:\
+        InterfaceName: \"GigabitEthernet3/0/0\"'
+	done
+
+	  sed -i "/logs.conf/i \
+	""${master_gw_config}""\
+	""${worker_gw_config}""\
+	" /tmp/contiv-vpp.yaml
+	
+	else
+	  curl -s https://raw.githubusercontent.com/contiv/vpp/master/k8s/stn-install.sh > /tmp/contiv-stn.sh
+	  chmod +x /tmp/contiv-stn.sh
+	  sudo /tmp/contiv-stn.sh
+	master_gw_config='\
+    NodeConfig:\
+    - NodeName: \"k8s-master\"\
+      StealInterface: \"ens160\"'
+	
+	worker_gw_config=''
+	for i in `seq 1 $NUM_K8S_NODES`; do
+	worker_gw_config=$worker_gw_config'\
+    - NodeName: \"k8s-worker'$i'\"\
+      StealInterface: \"ens160\"'
+	done
+
+	  sed -i "/logs.conf/i \
+	""${master_gw_config}""\
+	""${worker_gw_config}""\
+		" /tmp/contiv-vpp.yaml
+	fi
+fi

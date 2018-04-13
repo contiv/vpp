@@ -2,7 +2,14 @@
 
 #### Creating the VPP interface configuration
 You need to find out the PCI address of the network interface that you want
-to be used by VPP. On Debian-based distributions, you can use `lshw`:
+to be used by VPP. On Debian-based distributions, you can use `lshw`(*):
+```
+sudo yum -y install lshw
+```
+\* On CentOS/RedHat/Fedora distributions, `lshw` may not be available by default, install it by
+    ```
+    yum -y install lshw
+    ```
 
 ```
 $ sudo lshw -class network -businfo

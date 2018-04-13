@@ -35,7 +35,7 @@ rm -rf ${HOST_CNI_NET_DIR}/*
 
 # Install our CNI config file.
 echo "Installing new CNI config to ${HOST_CNI_NET_DIR}"
-cp /root/10-contiv-vpp.conf ${HOST_CNI_NET_DIR}
+cp /root/10-contiv-vpp.conflist ${HOST_CNI_NET_DIR}
 
 # Unless told otherwise via SLEEP env. variable, sleep forever. This prevents k8s from restarting the pod repeatedly.
 should_sleep=${SLEEP:-"true"}

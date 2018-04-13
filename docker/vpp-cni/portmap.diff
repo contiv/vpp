@@ -1,0 +1,26 @@
+diff --git a/plugins/meta/portmap/portmap.go b/plugins/meta/portmap/portmap.go
+index 870552f..814835c 100644
+--- a/plugins/meta/portmap/portmap.go
++++ b/plugins/meta/portmap/portmap.go
+@@ -198,11 +198,12 @@ func fillDnatRules(c *chain, config *PortMapConf, containerIP net.IP) {
+ 			copy(hpRule, ruleBase)
+ 
+ 			hpRule = append(hpRule,
+-				"-s", containerIP.String(),
++				//"-s", containerIP.String(),
+ 				"-j", setMarkChainName,
+ 			)
+ 			c.rules = append(c.rules, hpRule)
+ 
++			/*
+ 			if !isV6 {
+ 				// localhost
+ 				localRule := make([]string, len(ruleBase), len(ruleBase)+4)
+@@ -214,6 +215,7 @@ func fillDnatRules(c *chain, config *PortMapConf, containerIP net.IP) {
+ 				)
+ 				c.rules = append(c.rules, localRule)
+ 			}
++			*/
+ 		}
+ 
+ 		// The actual dnat rule

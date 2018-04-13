@@ -24,5 +24,5 @@ cd ..
 
 docker build -t prod-contiv-cni:${TAG} ${DOCKER_BUILD_ARGS} --no-cache --force-rm -f docker/vpp-cni/Dockerfile .
 docker build -t prod-contiv-ksr:${TAG} ${DOCKER_BUILD_ARGS} --no-cache --force-rm -f docker/vpp-ksr/Dockerfile .
-docker build -t prod-contiv-cri:${TAG} ${DOCKER_BUILD_ARGS} --no-cache --force-rm -f docker/vpp-cri/Dockerfile .
+#docker build -t prod-contiv-cri:${TAG} ${DOCKER_BUILD_ARGS} --no-cache --force-rm -f docker/vpp-cri/Dockerfile .
 docker build -t prod-contiv-stn:${TAG} ${DOCKER_BUILD_ARGS} --no-cache --force-rm -f docker/vpp-stn/Dockerfile .

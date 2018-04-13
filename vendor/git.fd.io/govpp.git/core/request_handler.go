@@ -24,10 +24,6 @@ import (
 	"git.fd.io/govpp.git/api"
 )
 
-var (
-	ErrNotConnected = errors.New("not connected to VPP, ignoring the request")
-)
-
 // watchRequests watches for requests on the request API channel and forwards them as messages to VPP.
 func (c *Connection) watchRequests(ch *api.Channel, chMeta *channelMetadata) {
 	for {
@@ -52,7 +48,7 @@ func (c *Connection) watchRequests(ch *api.Channel, chMeta *channelMetadata) {
 func (c *Connection) processRequest(ch *api.Channel, chMeta *channelMetadata, req *api.VppRequest) error {
 	// check whether we are connected to VPP
 	if atomic.LoadUint32(&c.connected) == 0 {
-		err := ErrNotConnected
+		err := errors.New("not connected to VPP, ignoring the request")
 		log.Error(err)
 		sendReply(ch, &api.VppReply{Error: err})
 		return err
@@ -193,11 +189,9 @@ func (c *Connection) GetMessageID(msg api.Message) (uint16, error) {
 
 // messageNameToID returns message ID of a message identified by its name and CRC.
 func (c *Connection) messageNameToID(msgName string, msgCrc string) (uint16, error) {
-	msgKey := msgName + "_" + msgCrc
-
 	// try to get the ID from the map
 	c.msgIDsLock.RLock()
-	id, ok := c.msgIDs[msgKey]
+	id, ok := c.msgIDs[msgName+msgCrc]
 	c.msgIDsLock.RUnlock()
 	if ok {
 		return id, nil
@@ -215,23 +209,8 @@ func (c *Connection) messageNameToID(msgName string, msgCrc string) (uint16, err
 	}
 
 	c.msgIDsLock.Lock()
-	c.msgIDs[msgKey] = id
+	c.msgIDs[msgName+msgCrc] = id
 	c.msgIDsLock.Unlock()
 
 	return id, nil
-}
-
-// LookupByID looks up message name and crc by ID.
-func (c *Connection) LookupByID(ID uint16) (string, error) {
-	if c == nil {
-		return "", errors.New("nil connection passed in")
-	}
-
-	for key, id := range c.msgIDs {
-		if id == ID {
-			return key, nil
-		}
-	}
-
-	return "", fmt.Errorf("unknown message ID: %d", ID)
 }

@@ -62,8 +62,8 @@ while read -r line; do
         then
            echo Deleting entry "$SRC_IP_ADDR":"$PORT"
            echo "nat44 del session in $SRC_IP_ADDR:$PORT $PROTO" | sudo nc -U /run/vpp/cli.sock 1>/dev/null
-           DO_DELETE=false
         fi
+        DO_DELETE=false
         EL=0
         ;;
     *)

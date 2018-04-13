@@ -22,6 +22,7 @@ import (
 
 	"github.com/ligato/cn-infra/logging"
 
+	"github.com/contiv/vpp/plugins/contiv"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	"github.com/contiv/vpp/plugins/policy/cache"
 	"github.com/contiv/vpp/plugins/policy/renderer"
@@ -46,8 +47,9 @@ type PolicyConfigurator struct {
 
 // Deps lists dependencies of PolicyConfigurator.
 type Deps struct {
-	Log   logging.Logger
-	Cache cache.PolicyCacheAPI
+	Log    logging.Logger
+	Cache  cache.PolicyCacheAPI
+	Contiv contiv.API /* to get the NAT-loopback IP */
 }
 
 // PolicyConfiguratorTxn represents a single transaction of the policy configurator.
@@ -455,6 +457,27 @@ func (pct *PolicyConfiguratorTxn) generateRules(direction MatchType, policies Co
 	}
 
 	if hasPolicy && !allAllowed {
+		if direction == MatchIngress {
+			// Allow connections from the virtual NAT-loopback (access to service from itself).
+			natLoopIP := pct.configurator.Contiv.GetNatLoopbackIP()
+			ruleTCPAny := &renderer.ContivRule{
+				Action:      renderer.ActionPermit,
+				Protocol:    renderer.TCP,
+				SrcNetwork:  utils.GetOneHostSubnetFromIP(natLoopIP),
+				DestNetwork: &net.IPNet{},
+				SrcPort:     0,
+				DestPort:    0,
+			}
+			ruleUDPAny := &renderer.ContivRule{
+				Action:      renderer.ActionPermit,
+				Protocol:    renderer.UDP,
+				SrcNetwork:  utils.GetOneHostSubnetFromIP(natLoopIP),
+				DestNetwork: &net.IPNet{},
+				SrcPort:     0,
+				DestPort:    0,
+			}
+			rules = pct.appendRules(rules, ruleTCPAny, ruleUDPAny)
+		}
 		// Deny the rest.
 		ruleTCPNone := &renderer.ContivRule{
 			Action:      renderer.ActionDeny,

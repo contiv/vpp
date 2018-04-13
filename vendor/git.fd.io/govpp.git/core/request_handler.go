@@ -210,6 +210,7 @@ func (c *Connection) messageNameToID(msgName string, msgCrc string) (uint16, err
 
 	c.msgIDsLock.Lock()
 	c.msgIDs[msgName+msgCrc] = id
+	fmt.Printf("Registering message %s under ID: %d\n", msgName, id)
 	c.msgIDsLock.Unlock()
 
 	return id, nil

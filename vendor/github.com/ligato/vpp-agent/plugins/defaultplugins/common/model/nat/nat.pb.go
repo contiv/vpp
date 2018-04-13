@@ -43,6 +43,29 @@ func (x Protocol) String() string {
 	return proto.EnumName(Protocol_name, int32(x))
 }
 
+type TwiceNatMode int32
+
+const (
+	TwiceNatMode_DISABLED TwiceNatMode = 0
+	TwiceNatMode_ENABLED  TwiceNatMode = 1
+	TwiceNatMode_SELF     TwiceNatMode = 2
+)
+
+var TwiceNatMode_name = map[int32]string{
+	0: "DISABLED",
+	1: "ENABLED",
+	2: "SELF",
+}
+var TwiceNatMode_value = map[string]int32{
+	"DISABLED": 0,
+	"ENABLED":  1,
+	"SELF":     2,
+}
+
+func (x TwiceNatMode) String() string {
+	return proto.EnumName(TwiceNatMode_name, int32(x))
+}
+
 // NAT44 global config
 type Nat44Global struct {
 	Forwarding    bool                         `protobuf:"varint,2,opt,name=forwarding,proto3" json:"forwarding,omitempty"`
@@ -160,7 +183,7 @@ type Nat44DNat_DNatConfig_StaticMappings struct {
 	ExternalPort      uint32                                          `protobuf:"varint,4,opt,name=externalPort,proto3" json:"externalPort,omitempty"`
 	LocalIps          []*Nat44DNat_DNatConfig_StaticMappings_LocalIPs `protobuf:"bytes,5,rep,name=local_ips" json:"local_ips,omitempty"`
 	Protocol          Protocol                                        `protobuf:"varint,6,opt,name=protocol,proto3,enum=nat.Protocol" json:"protocol,omitempty"`
-	TwiceNat          bool                                            `protobuf:"varint,7,opt,name=twiceNat,proto3" json:"twiceNat,omitempty"`
+	TwiceNat          TwiceNatMode                                    `protobuf:"varint,7,opt,name=twiceNat,proto3,enum=nat.TwiceNatMode" json:"twiceNat,omitempty"`
 }
 
 func (m *Nat44DNat_DNatConfig_StaticMappings) Reset()         { *m = Nat44DNat_DNatConfig_StaticMappings{} }
@@ -202,4 +225,5 @@ func (*Nat44DNat_DNatConfig_IdentityMappings) ProtoMessage()    {}
 
 func init() {
 	proto.RegisterEnum("nat.Protocol", Protocol_name, Protocol_value)
+	proto.RegisterEnum("nat.TwiceNatMode", TwiceNatMode_name, TwiceNatMode_value)
 }

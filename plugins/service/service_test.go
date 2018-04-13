@@ -63,9 +63,10 @@ const (
 	workerIP     = "192.168.16.20"
 	workerMgmtIP = "172.30.1.2"
 
-	podNetwork = "10.1.0.0/16"
-	namespace1 = "default"
-	namespace2 = "another-ns"
+	podNetwork    = "10.1.0.0/16"
+	natLoopbackIP = "10.1.255.254"
+	namespace1    = "default"
+	namespace2    = "another-ns"
 )
 
 var (
@@ -119,6 +120,7 @@ func TestResyncAndSingleService(t *testing.T) {
 	contiv.SetVxlanBVIIfName(vxlanIfName)
 	contiv.SetHostInterconnectIfName(hostInterIfName)
 	contiv.SetPodNetwork(podNetwork)
+	contiv.SetNatLoopbackIP(natLoopbackIP)
 	contiv.SetPodIfName(pod1, pod1If)
 	contiv.SetPodIfName(pod2, pod2If)
 
@@ -144,6 +146,7 @@ func TestResyncAndSingleService(t *testing.T) {
 		Deps: svc_configurator.Deps{
 			Log:           logger,
 			VPP:           vppPlugins,
+			Contiv:        contiv,
 			NATTxnFactory: txnTracker.NewLinuxDataChangeTxn,
 		},
 	}
@@ -169,6 +172,8 @@ func TestResyncAndSingleService(t *testing.T) {
 
 	Expect(natPlugin.AddressPoolSize()).To(Equal(1))
 	Expect(natPlugin.PoolContainsAddress(nodeIP)).To(BeTrue())
+	Expect(natPlugin.TwiceNatPoolSize()).To(Equal(1))
+	Expect(natPlugin.TwiceNatPoolContainsAddress(natLoopbackIP)).To(BeTrue())
 
 	Expect(natPlugin.NumOfIfsWithFeatures()).To(Equal(3))
 	Expect(natPlugin.GetInterfaceFeatures(mainIfName)).To(Equal(NewNatFeatures(OUTPUT_OUT)))
@@ -204,6 +209,8 @@ func TestResyncAndSingleService(t *testing.T) {
 
 	Expect(natPlugin.AddressPoolSize()).To(Equal(1))
 	Expect(natPlugin.PoolContainsAddress(nodeIP)).To(BeTrue())
+	Expect(natPlugin.TwiceNatPoolSize()).To(Equal(1))
+	Expect(natPlugin.TwiceNatPoolContainsAddress(natLoopbackIP)).To(BeTrue())
 
 	Expect(natPlugin.NumOfIfsWithFeatures()).To(Equal(3))
 	Expect(natPlugin.GetInterfaceFeatures(mainIfName)).To(Equal(NewNatFeatures(OUTPUT_OUT)))
@@ -223,6 +230,8 @@ func TestResyncAndSingleService(t *testing.T) {
 	Expect(natPlugin.IsForwardingEnabled()).To(BeTrue())
 	Expect(natPlugin.AddressPoolSize()).To(Equal(1))
 	Expect(natPlugin.PoolContainsAddress(nodeIP)).To(BeTrue())
+	Expect(natPlugin.TwiceNatPoolSize()).To(Equal(1))
+	Expect(natPlugin.TwiceNatPoolContainsAddress(natLoopbackIP)).To(BeTrue())
 	Expect(natPlugin.NumOfStaticMappings()).To(Equal(0))
 	Expect(natPlugin.NumOfIdentityMappings()).To(Equal(0))
 
@@ -278,6 +287,8 @@ func TestResyncAndSingleService(t *testing.T) {
 	Expect(natPlugin.IsForwardingEnabled()).To(BeTrue())
 	Expect(natPlugin.AddressPoolSize()).To(Equal(1))
 	Expect(natPlugin.PoolContainsAddress(nodeIP)).To(BeTrue())
+	Expect(natPlugin.TwiceNatPoolSize()).To(Equal(1))
+	Expect(natPlugin.TwiceNatPoolContainsAddress(natLoopbackIP)).To(BeTrue())
 	Expect(natPlugin.NumOfIdentityMappings()).To(Equal(0))
 
 	// New interfaces with enabled NAT features.
@@ -367,6 +378,8 @@ func TestResyncAndSingleService(t *testing.T) {
 	Expect(natPlugin.IsForwardingEnabled()).To(BeTrue())
 	Expect(natPlugin.AddressPoolSize()).To(Equal(1))
 	Expect(natPlugin.PoolContainsAddress(nodeIP)).To(BeTrue())
+	Expect(natPlugin.TwiceNatPoolSize()).To(Equal(1))
+	Expect(natPlugin.TwiceNatPoolContainsAddress(natLoopbackIP)).To(BeTrue())
 	Expect(natPlugin.NumOfIdentityMappings()).To(Equal(0))
 
 	// New static mappings.
@@ -384,6 +397,8 @@ func TestResyncAndSingleService(t *testing.T) {
 	Expect(natPlugin.IsForwardingEnabled()).To(BeTrue())
 	Expect(natPlugin.AddressPoolSize()).To(Equal(1))
 	Expect(natPlugin.PoolContainsAddress(nodeIP)).To(BeTrue())
+	Expect(natPlugin.TwiceNatPoolSize()).To(Equal(1))
+	Expect(natPlugin.TwiceNatPoolContainsAddress(natLoopbackIP)).To(BeTrue())
 	Expect(natPlugin.NumOfStaticMappings()).To(Equal(0))
 	Expect(natPlugin.NumOfIdentityMappings()).To(Equal(0))
 	Expect(natPlugin.NumOfIfsWithFeatures()).To(Equal(5))
@@ -414,6 +429,7 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 	contiv.SetVxlanBVIIfName(vxlanIfName)
 	contiv.SetHostInterconnectIfName(hostInterIfName)
 	contiv.SetPodNetwork(podNetwork)
+	contiv.SetNatLoopbackIP(natLoopbackIP)
 	contiv.SetPodIfName(pod1, pod1If)
 	contiv.SetPodIfName(pod2, pod2If)
 
@@ -439,6 +455,7 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 		Deps: svc_configurator.Deps{
 			Log:           logger,
 			VPP:           vppPlugins,
+			Contiv:        contiv,
 			NATTxnFactory: txnTracker.NewLinuxDataChangeTxn,
 		},
 	}
@@ -525,6 +542,8 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 
 	Expect(natPlugin.AddressPoolSize()).To(Equal(1))
 	Expect(natPlugin.PoolContainsAddress(nodeIP)).To(BeTrue())
+	Expect(natPlugin.TwiceNatPoolSize()).To(Equal(1))
+	Expect(natPlugin.TwiceNatPoolContainsAddress(natLoopbackIP)).To(BeTrue())
 
 	Expect(natPlugin.NumOfIfsWithFeatures()).To(Equal(5))
 	Expect(natPlugin.GetInterfaceFeatures(mainIfName)).To(Equal(NewNatFeatures(OUTPUT_OUT)))
@@ -644,6 +663,8 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 	Expect(natPlugin.IsForwardingEnabled()).To(BeTrue())
 	Expect(natPlugin.AddressPoolSize()).To(Equal(1))
 	Expect(natPlugin.PoolContainsAddress(nodeIP)).To(BeTrue())
+	Expect(natPlugin.TwiceNatPoolSize()).To(Equal(1))
+	Expect(natPlugin.TwiceNatPoolContainsAddress(natLoopbackIP)).To(BeTrue())
 	Expect(natPlugin.NumOfIdentityMappings()).To(Equal(0))
 
 	// New interfaces with enabled NAT features.
@@ -755,6 +776,8 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 	Expect(natPlugin.IsForwardingEnabled()).To(BeTrue())
 	Expect(natPlugin.AddressPoolSize()).To(Equal(1))
 	Expect(natPlugin.PoolContainsAddress(nodeIP)).To(BeTrue())
+	Expect(natPlugin.TwiceNatPoolSize()).To(Equal(1))
+	Expect(natPlugin.TwiceNatPoolContainsAddress(natLoopbackIP)).To(BeTrue())
 	Expect(natPlugin.NumOfIdentityMappings()).To(Equal(0))
 	Expect(natPlugin.NumOfIfsWithFeatures()).To(Equal(5))
 	Expect(natPlugin.GetInterfaceFeatures(mainIfName)).To(Equal(NewNatFeatures(OUTPUT_OUT)))
@@ -824,6 +847,8 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 	Expect(natPlugin.IsForwardingEnabled()).To(BeTrue())
 	Expect(natPlugin.AddressPoolSize()).To(Equal(1))
 	Expect(natPlugin.PoolContainsAddress(nodeIP)).To(BeTrue())
+	Expect(natPlugin.TwiceNatPoolSize()).To(Equal(1))
+	Expect(natPlugin.TwiceNatPoolContainsAddress(natLoopbackIP)).To(BeTrue())
 	Expect(natPlugin.NumOfIdentityMappings()).To(Equal(0))
 	Expect(natPlugin.NumOfIfsWithFeatures()).To(Equal(5))
 	Expect(natPlugin.GetInterfaceFeatures(mainIfName)).To(Equal(NewNatFeatures(OUTPUT_OUT)))
@@ -896,6 +921,7 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 		Deps: svc_configurator.Deps{
 			Log:           logger,
 			VPP:           vppPlugins,
+			Contiv:        contiv,
 			NATTxnFactory: txnTracker.NewLinuxDataChangeTxn,
 		},
 	}
@@ -921,6 +947,8 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 
 	Expect(natPlugin.AddressPoolSize()).To(Equal(1))
 	Expect(natPlugin.PoolContainsAddress(nodeIP)).To(BeTrue())
+	Expect(natPlugin.TwiceNatPoolSize()).To(Equal(1))
+	Expect(natPlugin.TwiceNatPoolContainsAddress(natLoopbackIP)).To(BeTrue())
 
 	Expect(natPlugin.NumOfIfsWithFeatures()).To(Equal(5))
 	Expect(natPlugin.GetInterfaceFeatures(mainIfName)).To(Equal(NewNatFeatures(OUTPUT_OUT)))
@@ -954,6 +982,7 @@ func TestWithVXLANButNoGateway(t *testing.T) {
 	contiv.SetVxlanBVIIfName(vxlanIfName)
 	contiv.SetHostInterconnectIfName(hostInterIfName)
 	contiv.SetPodNetwork(podNetwork)
+	contiv.SetNatLoopbackIP(natLoopbackIP)
 	contiv.SetPodIfName(pod1, pod1If)
 	contiv.SetPodIfName(pod2, pod2If)
 
@@ -979,6 +1008,7 @@ func TestWithVXLANButNoGateway(t *testing.T) {
 		Deps: svc_configurator.Deps{
 			Log:           logger,
 			VPP:           vppPlugins,
+			Contiv:        contiv,
 			NATTxnFactory: txnTracker.NewLinuxDataChangeTxn,
 		},
 	}
@@ -1006,6 +1036,8 @@ func TestWithVXLANButNoGateway(t *testing.T) {
 
 	Expect(natPlugin.PoolContainsAddress(nodeIP)).To(BeFalse())
 	Expect(natPlugin.AddressPoolSize()).To(Equal(0))
+	Expect(natPlugin.TwiceNatPoolSize()).To(Equal(1))
+	Expect(natPlugin.TwiceNatPoolContainsAddress(natLoopbackIP)).To(BeTrue())
 
 	Expect(natPlugin.NumOfIfsWithFeatures()).To(Equal(3))
 	Expect(natPlugin.GetInterfaceFeatures(mainIfName)).To(Equal(NewNatFeatures(OUT)))
@@ -1035,6 +1067,7 @@ func TestWithoutVXLAN(t *testing.T) {
 	contiv.SetMainPhysicalIfName(mainIfName)
 	contiv.SetHostInterconnectIfName(hostInterIfName)
 	contiv.SetPodNetwork(podNetwork)
+	contiv.SetNatLoopbackIP(natLoopbackIP)
 	contiv.SetPodIfName(pod1, pod1If)
 	contiv.SetPodIfName(pod2, pod2If)
 
@@ -1060,6 +1093,7 @@ func TestWithoutVXLAN(t *testing.T) {
 		Deps: svc_configurator.Deps{
 			Log:           logger,
 			VPP:           vppPlugins,
+			Contiv:        contiv,
 			NATTxnFactory: txnTracker.NewLinuxDataChangeTxn,
 		},
 	}
@@ -1087,6 +1121,8 @@ func TestWithoutVXLAN(t *testing.T) {
 
 	Expect(natPlugin.PoolContainsAddress(nodeIP)).To(BeFalse())
 	Expect(natPlugin.AddressPoolSize()).To(Equal(0))
+	Expect(natPlugin.TwiceNatPoolSize()).To(Equal(1))
+	Expect(natPlugin.TwiceNatPoolContainsAddress(natLoopbackIP)).To(BeTrue())
 
 	Expect(natPlugin.NumOfIfsWithFeatures()).To(Equal(2))
 	Expect(natPlugin.GetInterfaceFeatures(mainIfName)).To(Equal(NewNatFeatures(IN, OUT)))
@@ -1117,6 +1153,7 @@ func TestWithOtherInterfaces(t *testing.T) {
 	contiv.SetVxlanBVIIfName(vxlanIfName)
 	contiv.SetHostInterconnectIfName(hostInterIfName)
 	contiv.SetPodNetwork(podNetwork)
+	contiv.SetNatLoopbackIP(natLoopbackIP)
 	contiv.SetPodIfName(pod1, pod1If)
 	contiv.SetPodIfName(pod2, pod2If)
 
@@ -1144,6 +1181,7 @@ func TestWithOtherInterfaces(t *testing.T) {
 		Deps: svc_configurator.Deps{
 			Log:           logger,
 			VPP:           vppPlugins,
+			Contiv:        contiv,
 			NATTxnFactory: txnTracker.NewLinuxDataChangeTxn,
 		},
 	}
@@ -1171,6 +1209,8 @@ func TestWithOtherInterfaces(t *testing.T) {
 
 	Expect(natPlugin.AddressPoolSize()).To(Equal(1))
 	Expect(natPlugin.PoolContainsAddress(otherIfIP)).To(BeTrue())
+	Expect(natPlugin.TwiceNatPoolSize()).To(Equal(1))
+	Expect(natPlugin.TwiceNatPoolContainsAddress(natLoopbackIP)).To(BeTrue())
 
 	Expect(natPlugin.NumOfIfsWithFeatures()).To(Equal(5))
 	Expect(natPlugin.GetInterfaceFeatures(mainIfName)).To(Equal(NewNatFeatures(OUT)))
@@ -1203,6 +1243,7 @@ func TestServiceUpdates(t *testing.T) {
 	contiv.SetVxlanBVIIfName(vxlanIfName)
 	contiv.SetHostInterconnectIfName(hostInterIfName)
 	contiv.SetPodNetwork(podNetwork)
+	contiv.SetNatLoopbackIP(natLoopbackIP)
 	contiv.SetPodIfName(pod1, pod1If)
 	contiv.SetPodIfName(pod2, pod2If)
 
@@ -1228,6 +1269,7 @@ func TestServiceUpdates(t *testing.T) {
 		Deps: svc_configurator.Deps{
 			Log:           logger,
 			VPP:           vppPlugins,
+			Contiv:        contiv,
 			NATTxnFactory: txnTracker.NewLinuxDataChangeTxn,
 		},
 	}
@@ -1332,6 +1374,8 @@ func TestServiceUpdates(t *testing.T) {
 
 	Expect(natPlugin.AddressPoolSize()).To(Equal(1))
 	Expect(natPlugin.PoolContainsAddress(nodeIP)).To(BeTrue())
+	Expect(natPlugin.TwiceNatPoolSize()).To(Equal(1))
+	Expect(natPlugin.TwiceNatPoolContainsAddress(natLoopbackIP)).To(BeTrue())
 
 	Expect(natPlugin.NumOfIfsWithFeatures()).To(Equal(5))
 	Expect(natPlugin.GetInterfaceFeatures(mainIfName)).To(Equal(NewNatFeatures(OUTPUT_OUT)))
@@ -1438,6 +1482,8 @@ func TestServiceUpdates(t *testing.T) {
 
 	Expect(natPlugin.AddressPoolSize()).To(Equal(1))
 	Expect(natPlugin.PoolContainsAddress(nodeIP)).To(BeTrue())
+	Expect(natPlugin.TwiceNatPoolSize()).To(Equal(1))
+	Expect(natPlugin.TwiceNatPoolContainsAddress(natLoopbackIP)).To(BeTrue())
 
 	Expect(natPlugin.NumOfIfsWithFeatures()).To(Equal(4))
 	Expect(natPlugin.GetInterfaceFeatures(mainIfName)).To(Equal(NewNatFeatures(OUTPUT_OUT)))
@@ -1501,6 +1547,8 @@ func TestServiceUpdates(t *testing.T) {
 
 	Expect(natPlugin.AddressPoolSize()).To(Equal(1))
 	Expect(natPlugin.PoolContainsAddress(nodeIP)).To(BeTrue())
+	Expect(natPlugin.TwiceNatPoolSize()).To(Equal(1))
+	Expect(natPlugin.TwiceNatPoolContainsAddress(natLoopbackIP)).To(BeTrue())
 
 	Expect(natPlugin.NumOfIfsWithFeatures()).To(Equal(4))
 	Expect(natPlugin.GetInterfaceFeatures(mainIfName)).To(Equal(NewNatFeatures(OUTPUT_OUT)))
@@ -1544,6 +1592,8 @@ func TestServiceUpdates(t *testing.T) {
 
 	Expect(natPlugin.AddressPoolSize()).To(Equal(1))
 	Expect(natPlugin.PoolContainsAddress(nodeIP)).To(BeTrue())
+	Expect(natPlugin.TwiceNatPoolSize()).To(Equal(1))
+	Expect(natPlugin.TwiceNatPoolContainsAddress(natLoopbackIP)).To(BeTrue())
 
 	Expect(natPlugin.NumOfIfsWithFeatures()).To(Equal(3))
 	Expect(natPlugin.GetInterfaceFeatures(mainIfName)).To(Equal(NewNatFeatures(OUTPUT_OUT)))

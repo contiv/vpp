@@ -276,8 +276,9 @@ func (i *IPAM) NextPodIP(podID string) (net.IP, error) {
 	// iterate over all possible IP addresses for pod network prefix
 	// start from the last assigned and take first available IP
 	prefixBits, totalBits := i.podNetworkIPPrefix.Mask.Size()
-	maxSeqID := 1 << uint(totalBits-prefixBits) //max IP addresses in network range
-	for j := last; j < maxSeqID; j++ {          // zero ending IP is reserved for network => skip seqID=0
+	// get the maximum sequence ID available in the provided range; the last valid unicast IP is used as "NAT-loopback"
+	maxSeqID := (1 << uint(totalBits-prefixBits)) - 2
+	for j := last; j < maxSeqID; j++ { // zero ending IP is reserved for network => skip seqID=0
 		ipForAssign, success := i.tryToAllocatePodIP(j, networkPrefix, podID)
 		if success {
 			i.lastAssigned = j

@@ -44,6 +44,7 @@ type StaticMappingContext struct {
 	Protocol      uint8
 	Vrf           uint32
 	TwiceNat      bool
+	SelfTwiceNat  bool
 }
 
 // StaticMappingLbContext groups common fields required for static mapping with load balancer
@@ -183,6 +184,7 @@ func handleNat44StaticMapping(ctx *StaticMappingContext, isAdd, addrOnly bool, v
 		ExternalSwIfIndex: ctx.ExternalIfIdx,
 		VrfID:             ctx.Vrf,
 		TwiceNat:          boolToUint(ctx.TwiceNat),
+		SelfTwiceNat:      boolToUint(ctx.SelfTwiceNat),
 		Out2inOnly:        1,
 		IsAdd:             boolToUint(isAdd),
 	}
@@ -192,6 +194,8 @@ func handleNat44StaticMapping(ctx *StaticMappingContext, isAdd, addrOnly bool, v
 		req.LocalPort = ctx.LocalPort
 		req.ExternalPort = ctx.ExternalPort
 	}
+
+	fmt.Printf("Nat44AddDelStaticMapping: %+v\n", req)
 
 	reply := &nat.Nat44AddDelStaticMappingReply{}
 	if err := vppChan.SendRequest(req).ReceiveReply(reply); err != nil {

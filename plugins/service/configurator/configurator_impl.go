@@ -19,6 +19,7 @@ package configurator
 import (
 	"net"
 
+	"github.com/contiv/vpp/plugins/contiv"
 	"github.com/golang/protobuf/proto"
 	"github.com/ligato/cn-infra/logging"
 
@@ -43,6 +44,7 @@ type ServiceConfigurator struct {
 type Deps struct {
 	Log           logging.Logger
 	VPP           defaultplugins.API /* for DumpNat44Global & DumpNat44DNat */
+	Contiv        contiv.API         /* for GetNatLoopbackIP */
 	NATTxnFactory func() (dsl linux.DataChangeDSL)
 }
 
@@ -254,12 +256,20 @@ func (sc *ServiceConfigurator) Resync(resyncEv *ResyncEventData) error {
 	}
 	// - address pool
 	if resyncEv.ExternalSNAT.ExternalIP != nil {
+		// Address for SNAT:
 		sc.natGlobalCfg.AddressPools = append(sc.natGlobalCfg.AddressPools,
 			&nat.Nat44Global_AddressPools{
 				FirstSrcAddress: resyncEv.ExternalSNAT.ExternalIP.String(),
 				VrfId:           ^uint32(0),
 			})
 	}
+	// Address for self-TwiceNAT:
+	sc.natGlobalCfg.AddressPools = append(sc.natGlobalCfg.AddressPools,
+		&nat.Nat44Global_AddressPools{
+			FirstSrcAddress: sc.Contiv.GetNatLoopbackIP().String(),
+			VrfId:           ^uint32(0),
+			TwiceNat:        true,
+		})
 	// - frontends
 	for frontendIf := range resyncEv.FrontendIfs {
 		sc.natGlobalCfg.NatInterfaces = append(sc.natGlobalCfg.NatInterfaces,
@@ -317,6 +327,7 @@ func (sc *ServiceConfigurator) exportDNATMappings(service *ContivService) []*nat
 					continue
 				}
 				mapping := &nat.Nat44DNat_DNatConfig_StaticMappings{}
+				mapping.TwiceNat = nat.TwiceNatMode_SELF
 				mapping.ExternalIP = nodeIP.String()
 				mapping.ExternalPort = uint32(port.NodePort)
 				switch port.Protocol {
@@ -362,6 +373,7 @@ func (sc *ServiceConfigurator) exportDNATMappings(service *ContivService) []*nat
 				continue
 			}
 			mapping := &nat.Nat44DNat_DNatConfig_StaticMappings{}
+			mapping.TwiceNat = nat.TwiceNatMode_SELF
 			mapping.ExternalIP = externalIP.String()
 			mapping.ExternalPort = uint32(port.Port)
 			switch port.Protocol {

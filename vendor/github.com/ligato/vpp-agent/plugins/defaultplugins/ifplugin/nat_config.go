@@ -704,7 +704,7 @@ func (plugin *NatConfigurator) handleStaticMappingLb(staticMappingLb *nat.Nat44D
 		Protocol:     getProtocol(staticMappingLb.Protocol, plugin.log),
 		LocalIPs:     getLocalIPs(staticMappingLb.LocalIps, plugin.log),
 		Vrf:          staticMappingLb.VrfId,
-		TwiceNat:     staticMappingLb.TwiceNat,
+		TwiceNat:     staticMappingLb.TwiceNat == nat.TwiceNatMode_ENABLED,
 	}
 
 	if len(ctx.LocalIPs) == 0 {
@@ -726,6 +726,8 @@ func (plugin *NatConfigurator) handleStaticMapping(staticMapping *nat.Nat44DNat_
 	if tag == dummyTag && add {
 		plugin.log.Warn("Static mapping will be configured with generic tag")
 	}
+
+	fmt.Printf("handleStaticMapping: %+v\n", staticMapping)
 
 	// Parse local IP address and port
 	lcIPAddr := net.ParseIP(staticMapping.LocalIps[0].LocalIP).To4()
@@ -767,7 +769,8 @@ func (plugin *NatConfigurator) handleStaticMapping(staticMapping *nat.Nat44DNat_
 		ExternalIfIdx: ifIdx,
 		Protocol:      getProtocol(staticMapping.Protocol, plugin.log),
 		Vrf:           staticMapping.VrfId,
-		TwiceNat:      staticMapping.TwiceNat,
+		TwiceNat:      staticMapping.TwiceNat == nat.TwiceNatMode_ENABLED,
+		SelfTwiceNat:  staticMapping.TwiceNat == nat.TwiceNatMode_SELF,
 	}
 
 	if add {

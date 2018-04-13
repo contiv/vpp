@@ -57,7 +57,7 @@ func newDefaultConfig() *ipam.Config {
 	return &ipam.Config{
 		PodIfIPCIDR:             "10.2.1.0/24",
 		PodSubnetCIDR:           "1.2." + str(b10000000) + ".2/17",
-		PodNetworkPrefixLen:     29, // 3 bits left -> 6 free IP addresses (gateway IP + zero ending IP is reserved)
+		PodNetworkPrefixLen:     29, // 3 bits left -> 4 free IP addresses (gateway IP + NAT-loopback IP + network addr + broadcast are reserved)
 		VPPHostSubnetCIDR:       "2.3." + str(b11000000) + ".2/18",
 		VPPHostNetworkPrefixLen: 30, // 2 bit left -> 3 free IP addresses (zero ending IP is reserved)
 		NodeInterconnectCIDR:    "3.4.5." + str(b11000010) + "/26",
@@ -152,12 +152,10 @@ func TestAssigniningIncrementalIPs(t *testing.T) {
 	Expect(i.PodNetwork().Contains(third)).To(BeTrue(), "Pod IP address is not from pod network")
 
 	// exhaust the range
-	for j := 0; j < 3; j++ {
-		assigned, err := i.NextPodIP(podID + "n" + fmt.Sprint(j))
-		Expect(err).To(BeNil())
-		Expect(assigned).NotTo(BeNil())
-		Expect(i.PodNetwork().Contains(assigned)).To(BeTrue(), "Pod IP address is not from pod network")
-	}
+	assigned, err := i.NextPodIP(podID + "4")
+	Expect(err).To(BeNil())
+	Expect(assigned).NotTo(BeNil())
+	Expect(i.PodNetwork().Contains(assigned)).To(BeTrue(), "Pod IP address is not from pod network")
 
 	// expect released ip to be reused
 	reused, err := i.NextPodIP(podID + "2")
@@ -185,8 +183,8 @@ func TestIgnoringOfBadInputForIPRelease(t *testing.T) {
 // TestDistinctAllocations test whether all pod IP addresses are distinct to each other until exhaustion of the whole IP address pool
 func TestDistinctAllocations(t *testing.T) {
 	i := setup(t, newDefaultConfig())
-	assertAllocationOfAllIPAddresses(i, 6, expectedPodNetwork)
-	assertCorrectIPExhaustion(i, 6)
+	assertAllocationOfAllIPAddresses(i, 4, expectedPodNetwork)
+	assertCorrectIPExhaustion(i, 4)
 }
 
 // TestReleaseOfAllIPAddresses tests proper releasing of pod IP addresses by allocating them again. If any pod IP
@@ -194,9 +192,9 @@ func TestDistinctAllocations(t *testing.T) {
 // ipam.NextPodIP(...) will fail by providing all ip addresses or one ip addresses will be allocated twice)
 func TestReleaseOfAllIPAddresses(t *testing.T) {
 	i := setup(t, newDefaultConfig())
-	exhaustPodIPAddresses(i, 6)
-	releaseAllPodAddresses(i, 6)
-	assertAllocationOfAllIPAddresses(i, 6, expectedPodNetwork)
+	exhaustPodIPAddresses(i, 4)
+	releaseAllPodAddresses(i, 4)
+	assertAllocationOfAllIPAddresses(i, 4, expectedPodNetwork)
 }
 
 // TestReleaseOfSomeIPAddresses is variation of TestReleaseOfAllIPAddresses test. Releasing of all pod IP addresses and
@@ -204,10 +202,10 @@ func TestReleaseOfAllIPAddresses(t *testing.T) {
 // only portion of pod IP addresses and assert their reallocation.
 func TestReleaseOfSomeIPAddresses(t *testing.T) {
 	i := setup(t, newDefaultConfig())
-	addresses, podids := exhaustPodIPAddresses(i, 6)
-	releaseSomePodAddresses(i, podids[3:])
-	assertAllocationOfIPAddresses(i, addresses[3:], expectedPodNetwork)
-	assertCorrectIPExhaustion(i, 6)
+	addresses, podids := exhaustPodIPAddresses(i, 4)
+	releaseSomePodAddresses(i, podids[2:])
+	assertAllocationOfIPAddresses(i, addresses[2:], expectedPodNetwork)
+	assertCorrectIPExhaustion(i, 4)
 }
 
 // Test8bitPodIPPoolSize tests pod IP allocation for nice-looking distinct case when subnet/network is aligned to IP Address bytes
@@ -218,7 +216,7 @@ func Test8bitPodIPPoolSize(t *testing.T) {
 	i := setup(t, customConfig)
 
 	podNetwork := network("1.2." + str(int(hostID1)) + ".0/24")
-	maxIPCount := 256 - 2 //2 IPs are reserved
+	maxIPCount := 256 - 4 // 2 IPs are reserved, 2 are not unicast
 
 	assertAllocationOfAllIPAddresses(i, maxIPCount, podNetwork)
 	assertCorrectIPExhaustion(i, maxIPCount)
@@ -233,7 +231,7 @@ func TestBiggerThan8bitPodIPPoolSize(t *testing.T) {
 
 	b00000100 := 1 << 2
 	podNetwork := network("1." + str(b00000100+int(hostID1>>6)) + "." + str(int(hostID1<<2)) + ".0/22")
-	maxIPCount := 256*4 - 2 //2 IPs are reserved
+	maxIPCount := 256*4 - 4 // 2 IPs are reserved, 2 are not unicast
 
 	assertAllocationOfAllIPAddresses(i, maxIPCount, podNetwork)
 	assertCorrectIPExhaustion(i, maxIPCount)

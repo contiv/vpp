@@ -37,10 +37,11 @@ type MockNatPlugin struct {
 	Log logging.Logger
 
 	/* NAT44 global */
-	nat44Global *nat.Nat44Global
-	forwarding  bool
-	addressPool []net.IP
-	interfaces  map[string]NatFeatures // ifname -> NAT features
+	nat44Global  *nat.Nat44Global
+	forwarding   bool
+	addressPool  []net.IP
+	twiceNatPool []net.IP
+	interfaces   map[string]NatFeatures // ifname -> NAT features
 
 	/* NAT44 DNAT */
 	nat44Dnat        map[string]*nat.Nat44DNat_DNatConfig // label -> DNAT config
@@ -60,6 +61,7 @@ func (mnt *MockNatPlugin) resetNat44Global() {
 	mnt.nat44Global = &nat.Nat44Global{}
 	mnt.forwarding = false
 	mnt.addressPool = []net.IP{}
+	mnt.twiceNatPool = []net.IP{}
 	mnt.interfaces = make(map[string]NatFeatures)
 }
 
@@ -134,7 +136,7 @@ func (mnt *MockNatPlugin) ApplyTxn(txn *localclient.Txn) error {
 						}
 					}
 				}
-				// update address pool
+				// update address pools
 				for _, addr := range natGlobal.AddressPools {
 					if addr.VrfId != ^uint32(0) {
 						return errors.New("nat address assigned to invalid vrf")
@@ -145,14 +147,15 @@ func (mnt *MockNatPlugin) ApplyTxn(txn *localclient.Txn) error {
 					if addr.LastSrcAddress != "" {
 						return errors.New("unexpected nat address range")
 					}
-					if addr.TwiceNat {
-						return errors.New("unexpectedly enabled twice nat for nat address")
-					}
 					addrIP := net.ParseIP(addr.FirstSrcAddress)
 					if addrIP == nil {
 						return errors.New("failed to parse nat address")
 					}
-					mnt.addressPool = append(mnt.addressPool, addrIP)
+					if addr.TwiceNat {
+						mnt.twiceNatPool = append(mnt.twiceNatPool, addrIP)
+					} else {
+						mnt.addressPool = append(mnt.addressPool, addrIP)
+					}
 				}
 				// update copy of the configuration
 				mnt.nat44Global = natGlobal
@@ -228,8 +231,8 @@ func (mnt *MockNatPlugin) dnatToStaticMappings(dnat *nat.Nat44DNat_DNatConfig) (
 		sm := &StaticMapping{}
 
 		// fields set to a constant value
-		if staticMapping.TwiceNat {
-			return nil, errors.New("unexpectedly enabled twice nat for static mapping")
+		if staticMapping.TwiceNat != nat.TwiceNatMode_SELF {
+			return nil, errors.New("self-twice-NAT not enabled for static mapping")
 		}
 		if staticMapping.VrfId != 0 {
 			return nil, errors.New("static mapping assigned to invalid vrf")
@@ -360,6 +363,22 @@ func (mnt *MockNatPlugin) AddressPoolSize() int {
 func (mnt *MockNatPlugin) PoolContainsAddress(addr string) bool {
 	addrIP := net.ParseIP(addr)
 	for _, address := range mnt.addressPool {
+		if address.Equal(addrIP) {
+			return true
+		}
+	}
+	return false
+}
+
+// TwiceNatPoolSize returns the number of addresses in the twice-NAT address pool.
+func (mnt *MockNatPlugin) TwiceNatPoolSize() int {
+	return len(mnt.twiceNatPool)
+}
+
+// TwiceNatPoolContainsAddress checks if the given address is in the twice-NAT address pool.
+func (mnt *MockNatPlugin) TwiceNatPoolContainsAddress(addr string) bool {
+	addrIP := net.ParseIP(addr)
+	for _, address := range mnt.twiceNatPool {
 		if address.Equal(addrIP) {
 			return true
 		}

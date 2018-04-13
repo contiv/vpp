@@ -39,6 +39,11 @@ type API interface {
 	// with node IP before being sent out from the node.
 	NatExternalTraffic() bool
 
+	// GetNatLoopbackIP returns the IP address of a virtual loopback, used to route traffic
+	// between clients and services via VPP even if the source and destination are the same
+	// IP addresses and would otherwise be routed locally.
+	GetNatLoopbackIP() net.IP
+
 	// GetNodeIP returns the IP+network address of this node.
 	// With DHCP the node IP may get assigned later or change in the runtime, therefore it is preferred
 	// to watch for node IP via WatchNodeIP().

@@ -602,6 +602,7 @@ type Nat44AddDelStaticMapping struct {
 	ExternalSwIfIndex uint32
 	VrfID             uint32
 	TwiceNat          uint8
+	SelfTwiceNat      uint8
 	Out2inOnly        uint8
 	Tag               []byte `struc:"[64]byte"`
 }
@@ -613,7 +614,7 @@ func (*Nat44AddDelStaticMapping) GetMessageType() api.MessageType {
 	return api.RequestMessage
 }
 func (*Nat44AddDelStaticMapping) GetCrcString() string {
-	return "0372dd53"
+	return "7940cd44"
 }
 func NewNat44AddDelStaticMapping() api.Message {
 	return &Nat44AddDelStaticMapping{}
@@ -668,6 +669,7 @@ type Nat44StaticMappingDetails struct {
 	ExternalSwIfIndex uint32
 	VrfID             uint32
 	TwiceNat          uint8
+	SelfTwiceNat      uint8
 	Out2inOnly        uint8
 	Tag               []byte `struc:"[64]byte"`
 }
@@ -679,7 +681,7 @@ func (*Nat44StaticMappingDetails) GetMessageType() api.MessageType {
 	return api.ReplyMessage
 }
 func (*Nat44StaticMappingDetails) GetCrcString() string {
-	return "fdb4771c"
+	return "ad3196e0"
 }
 func NewNat44StaticMappingDetails() api.Message {
 	return &Nat44StaticMappingDetails{}

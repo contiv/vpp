@@ -32,6 +32,11 @@ import (
 // traffic as opposed to a remote backend.
 const LocalVsRemoteProbRatio uint32 = 2
 
+const (
+	vxlanIdentityNATLabel = "VXLAN_identity_NAT" // name of the identity NAT rule for excluding VXLAN port from dynamic mappings
+	vxlanPort             = 4789                 // port used byt VXLAN
+)
+
 // ServiceConfigurator implements ServiceConfiguratorAPI.
 type ServiceConfigurator struct {
 	Deps
@@ -240,7 +245,7 @@ func (sc *ServiceConfigurator) Resync(resyncEv *ResyncEventData) error {
 				break
 			}
 		}
-		if removed {
+		if removed && dnatConfig.Label != vxlanIdentityNATLabel {
 			deleteDsl.NAT44DNat(dnatConfig.Label)
 		}
 	}
@@ -248,6 +253,21 @@ func (sc *ServiceConfigurator) Resync(resyncEv *ResyncEventData) error {
 	for _, service := range resyncEv.Services {
 		dnat := sc.contivServiceToDNat(service)
 		putDsl.NAT44DNat(dnat)
+	}
+
+	// Add VXLAN identity mapping to exclude VXLAN port from dynamic mappings
+	if resyncEv.ExternalSNAT.ExternalIP != nil {
+		idNat := &nat.Nat44DNat_DNatConfig{
+			Label: vxlanIdentityNATLabel,
+			IdMappings: []*nat.Nat44DNat_DNatConfig_IdentityMappings{
+				{
+					IpAddress: resyncEv.ExternalSNAT.ExternalIP.String(),
+					Protocol:  nat.Protocol_UDP,
+					Port:      vxlanPort,
+				},
+			},
+		}
+		putDsl.NAT44DNat(idNat)
 	}
 
 	// Re-build the global NAT config.

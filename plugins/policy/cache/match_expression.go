@@ -31,6 +31,7 @@ const (
 // getMatchExpressionPods returns all the pods that match a collection of expressions (expressions are ANDed)
 func (pc *PolicyCache) getMatchExpressionPods(namespace string, expressions []*policymodel.Policy_LabelSelector_LabelExpression) []string {
 	var inPodSet, notInPodSet, existsPodSet, notExistPodSet []string
+	var finalSet [][]string
 	// Check if we have empty expressions
 	if len(expressions) == 0 {
 		return []string{}
@@ -96,6 +97,28 @@ func (pc *PolicyCache) getMatchExpressionPods(namespace string, expressions []*p
 		}
 	}
 
-	return utils.Intersect(inPodSet, notInPodSet, existsPodSet, notExistPodSet)
+	if len(inPodSet) != 0 {
+		finalSet = append(finalSet, inPodSet)
+	}
+	if len(notInPodSet) != 0 {
+		finalSet = append(finalSet, notInPodSet)
+	}
+	if len(existsPodSet) != 0 {
+		finalSet = append(finalSet, existsPodSet)
+	}
+	if len(notExistPodSet) != 0 {
+		finalSet = append(finalSet, notExistPodSet)
+	}
+	switch len(finalSet) {
+	case 1:
+		return finalSet[0]
+	case 2:
+		return utils.Intersect(finalSet[0], finalSet[1])
+	case 3:
+		return utils.Intersect(finalSet[0], finalSet[1], finalSet[2])
+	case 4:
+		return utils.Intersect(finalSet[0], finalSet[1], finalSet[2], finalSet[3])
+	}
 
+	return []string{}
 }

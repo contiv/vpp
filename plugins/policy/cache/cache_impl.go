@@ -160,7 +160,7 @@ func (pc *PolicyCache) ListAllPods() (pods []podmodel.ID) {
 func (pc *PolicyCache) LookupPolicy(policy policymodel.ID) (found bool, data *policymodel.Policy) {
 	found, data = pc.configuredPolicies.LookupPolicy(policy.String())
 	if !found {
-		return !found, nil
+		return found, nil
 	}
 	return found, data
 }
@@ -236,7 +236,7 @@ func (pc *PolicyCache) LookupNamespace(namespace nsmodel.ID) (found bool, data *
 	found, data = pc.configuredNamespaces.LookupNamespace(namespace.String())
 
 	if !found {
-		return !found, nil
+		return found, nil
 	}
 
 	return found, data

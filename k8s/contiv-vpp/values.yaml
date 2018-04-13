@@ -1,7 +1,7 @@
 contiv:
   tcpStackDisabled: True
   useTAPInterfaces: True
-  tapInterfaceVersion: 1
+  tapInterfaceVersion: 2
   stealFirstNIC: False
   natExternalTraffic: True
   mtuSize: 1500

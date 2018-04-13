@@ -22,6 +22,7 @@ import (
 
 	"github.com/ligato/cn-infra/db/keyval"
 	"github.com/ligato/cn-infra/logging"
+	"sort"
 )
 
 const (
@@ -58,6 +59,8 @@ type IPAM struct {
 	vxlanCIDR            net.IPNet // IPv4 subnet used for for inter-node VXLAN
 	serviceCIDR          net.IPNet // IPv4 subnet used to allocate ClusterIPs for a service
 
+	excludededIPfromNodeIPrange []uint32 // IPs from the NodeInterconnect CIDR that should not be assigned
+
 	lastAssigned int // counter denoting last assigned IP address
 }
 
@@ -78,7 +81,7 @@ type Config struct {
 }
 
 // New returns new IPAM module to be used on the node specified by the nodeID.
-func New(logger logging.Logger, nodeID uint8, config *Config, broker keyval.ProtoBroker) (*IPAM, error) {
+func New(logger logging.Logger, nodeID uint8, config *Config, nodeInterconnectExcludedIPs []net.IP, broker keyval.ProtoBroker) (*IPAM, error) {
 	// create basic IPAM
 	ipam := &IPAM{
 		logger:       logger,
@@ -99,6 +102,14 @@ func New(logger logging.Logger, nodeID uint8, config *Config, broker keyval.Prot
 	}
 	if err := initializePodIfIPPrefix(ipam, config); err != nil {
 		return nil, err
+	}
+	excludedIPs, err := sortIPv4SliceToUint32(nodeInterconnectExcludedIPs)
+	if err != nil {
+		return nil, err
+	}
+	ipam.excludededIPfromNodeIPrange = excludedIPs
+	if excludedIPs != nil {
+		logger.Info("Following IPs are excluded from NodeCIDR range ", nodeInterconnectExcludedIPs)
 	}
 	logger.Infof("IPAM values loaded: %+v", ipam)
 
@@ -493,7 +504,16 @@ func (i *IPAM) computeNodeIPAddress(nodeID uint8) (net.IP, error) {
 	if err != nil {
 		return nil, err
 	}
-	return uint32ToIpv4(networkIPPartUint32 + uint32(nodeIPPart)), nil
+	computedIP := networkIPPartUint32 + uint32(nodeIPPart)
+
+	// skip excluded IPs (gateway or other invalid address)
+	for _, ex := range i.excludededIPfromNodeIPrange {
+		if ex <= computedIP {
+			computedIP++
+		}
+	}
+
+	return uint32ToIpv4(computedIP), nil
 }
 
 // computeVxlanIPAddress computes IP address of the VXLAN interface based on the given node ID.
@@ -541,6 +561,19 @@ func ipv4ToUint32(ip net.IP) (uint32, error) {
 	return tmp, nil
 }
 
+func sortIPv4SliceToUint32(ips []net.IP) ([]uint32, error) {
+	var res []uint32
+	for _, ip := range ips {
+		converted, err := ipv4ToUint32(ip)
+		if err != nil {
+			return nil, err
+		}
+		res = append(res, converted)
+	}
+	sort.Sort(sortableUint32(res))
+	return res, nil
+}
+
 // uint32ToIpv4 is simple utility function for conversion between IPv4 and uint32.
 func uint32ToIpv4(ip uint32) net.IP {
 	return net.IPv4(byte(ip>>24), byte(ip>>16), byte(ip>>8), byte(ip)).To4()
@@ -562,4 +595,16 @@ func newIPNet(ipNet net.IPNet) net.IPNet {
 // newIP is simple utility function to create defend copy of net.IP.
 func newIP(ip net.IP) net.IP {
 	return net.IPv4(ip[0], ip[1], ip[2], ip[3]).To4()
+}
+
+type sortableUint32 []uint32
+
+func (d sortableUint32) Len() int { return len(d) }
+
+func (d sortableUint32) Less(i, j int) bool {
+	return d[i] <= d[j]
+}
+
+func (d sortableUint32) Swap(i, j int) {
+	d[i], d[j] = d[j], d[i]
 }

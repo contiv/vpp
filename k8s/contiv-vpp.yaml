@@ -24,7 +24,7 @@ data:
   contiv.yaml: |-
     TCPstackDisabled: true
     UseTAPInterfaces: true
-    TAPInterfaceVersion: 1
+    TAPInterfaceVersion: 2
     NatExternalTraffic: true
     MTUSize: 1500
     IPAMConfig:

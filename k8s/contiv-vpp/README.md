@@ -56,7 +56,7 @@ Parameter | Description | Default
 `contiv.mtuSize` | MTU Size | 1500
 `contiv.tcpStackDisabled` | Disable TCP stack | `True`
 `contiv.useTAPInterfaces` | Enable TAP interfaces | `True`
-`contiv.tapInterfaceVersion`| TAP interface version | 1
+`contiv.tapInterfaceVersion`| TAP interface version | 2
 `contiv.stealInterface` | Enable Steal The NIC feature on the specified interface on each node | `""`
 `contiv.stealFirstNIC` | Enable Steal The NIC feature on the first interface on each node | `False`
 `contiv.natExternalTraffic`| NAT cluster-external traffic | `True`

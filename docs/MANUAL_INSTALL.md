@@ -1,5 +1,5 @@
 # Manual Installation
-This document describes hot to use [kubeadm][1] to manually install Kubernetes
+This document describes how to use [kubeadm][1] to manually install Kubernetes
 with Contiv-VPP networking on one or more bare metal or VM hosts. 
 
 ## Preparing your hosts

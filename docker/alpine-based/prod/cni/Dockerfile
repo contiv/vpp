@@ -8,7 +8,7 @@ ADD binaries/contiv-cni .
 ADD binaries/loopback .
 
 # add default CNI config
-ADD cni/10-contiv-vpp.conf .
+ADD cni/10-contiv-vpp.conflist .
 
 # add CNI installation script
 ADD cni/install.sh .

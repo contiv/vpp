@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/ligato/cn-infra/core"
+	"github.com/ligato/cn-infra/datasync/resync"
 	"github.com/ligato/cn-infra/db/keyval/plugin"
 	"github.com/ligato/cn-infra/flavors/local"
 	"github.com/ligato/cn-infra/health/statuscheck"
@@ -38,12 +39,15 @@ type Plugin struct {
 	disabled        bool
 	connection      *BytesConnectionEtcd
 	autoCompactDone chan struct{}
+	reconnectResync bool
+	lastConnErr     error
 }
 
 // Deps lists dependencies of the etcdv3 plugin.
 // If injected, etcd plugin will use StatusCheck to signal the connection status.
 type Deps struct {
 	local.PluginInfraDeps // inject
+	Resync                *resync.Plugin
 }
 
 // Init retrieves etcd configuration and establishes a new connection
@@ -78,6 +82,9 @@ func (p *Plugin) Init() (err error) {
 			return err
 		}
 
+		// Set flag wheter resync will be started after reconnect
+		p.reconnectResync = cfg.ReconnectResync
+
 		if cfg.AutoCompact > 0 {
 			if cfg.AutoCompact < time.Duration(time.Minute*60) {
 				p.Log.Warnf("auto compact option for ETCD is set to less than 60 minutes!")
@@ -100,8 +107,18 @@ func (p *Plugin) Init() (err error) {
 		p.StatusCheck.Register(core.PluginName(p.String()), func() (statuscheck.PluginState, error) {
 			_, _, _, err := p.connection.GetValue(healthCheckProbeKey)
 			if err == nil {
+				if p.reconnectResync && p.lastConnErr != nil {
+					p.Log.Info("Starting resync after ETCD reconnect")
+					if p.Resync != nil {
+						p.Resync.DoResync()
+						p.lastConnErr = nil
+					} else {
+						p.Log.Warn("Expected resync after ETCD reconnect could not start beacuse of missing Resync plugin")
+					}
+				}
 				return statuscheck.OK, nil
 			}
+			p.lastConnErr = err
 			return statuscheck.Error, err
 		})
 	} else {

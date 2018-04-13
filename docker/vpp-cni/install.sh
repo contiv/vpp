@@ -29,13 +29,17 @@ fi
 echo "Installing contiv CNI binary to ${HOST_CNI_BIN_DIR}"
 cp /root/contiv-cni ${HOST_CNI_BIN_DIR}
 
+# Install modified portmap plugin.
+echo "Installing portmap plugin to ${HOST_CNI_BIN_DIR}"
+cp /root/portmap ${HOST_CNI_BIN_DIR}
+
 # Erase all existing CNI config files.
 echo "Erasing old CNI config in ${HOST_CNI_NET_DIR}"
 rm -rf ${HOST_CNI_NET_DIR}/*
 
 # Install our CNI config file.
 echo "Installing new CNI config to ${HOST_CNI_NET_DIR}"
-cp /root/10-contiv-vpp.conf ${HOST_CNI_NET_DIR}
+cp /root/10-contiv-vpp.conflist ${HOST_CNI_NET_DIR}
 
 # Unless told otherwise via SLEEP env. variable, sleep forever. This prevents k8s from restarting the pod repeatedly.
 should_sleep=${SLEEP:-"true"}

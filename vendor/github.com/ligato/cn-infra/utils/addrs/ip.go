@@ -137,10 +137,12 @@ func ParseIPWithPrefix(input string) (addr *net.IPNet, isIpv6 bool, err error) {
 }
 
 // IsIPv6 returns true if provided IP address is IPv6, false otherwise
-func IsIPv6(addr string) (bool, error) {
-	ip := net.ParseIP(addr)
-	if ip == nil {
-		return false, fmt.Errorf("invalid IP address: %q", addr)
+func IsIPv6(address string) (bool, error) {
+	if strings.Contains(address, ":") {
+		return true, nil
+	} else if strings.Contains(address, ".") {
+		return false, nil
+	} else {
+		return false, fmt.Errorf("Unknown IP version. Address: %v", address)
 	}
-	return ip.To4() == nil, nil
 }

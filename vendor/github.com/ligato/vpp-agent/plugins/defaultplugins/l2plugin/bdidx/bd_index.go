@@ -36,7 +36,7 @@ type BDIndex interface {
 	LookupBdForInterface(ifName string) (bdIdx uint32, metadata *l2.BridgeDomains_BridgeDomain, bvi bool, exists bool)
 
 	// WatchNameToIdx allows to subscribe for watching changes in bdIndex mapping
-	WatchNameToIdx(subscriber core.PluginName, pluginChannel chan BdChangeDto)
+	WatchNameToIdx(subscriber core.PluginName, pluginChannel chan ChangeDto)
 }
 
 // BDIndexRW is mapping between indices (used internally in VPP) and Bridge Domain names.
@@ -53,15 +53,15 @@ type BDIndexRW interface {
 	UpdateMetadata(name string, metadata *l2.BridgeDomains_BridgeDomain) (success bool)
 }
 
-// bdIndex is type-safe implementation of mapping between bridge domain name and index.
-// It holds as well metadata of type *l2.BridgeDomains_BridgeDomain.
+// bdIndex is type-safe implementation of mapping between Software interface index
+// and interface name. It holds as well metadata of type *InterfaceMeta.
 type bdIndex struct {
 	mapping idxvpp.NameToIdxRW
 }
 
 // ChangeDto represents an item sent through watch channel in bdIndex.
 // In contrast to NameToIdxDto, it contains typed metadata.
-type BdChangeDto struct {
+type ChangeDto struct {
 	idxvpp.NameToIdxDtoWithoutMeta
 	Metadata *l2.BridgeDomains_BridgeDomain
 }
@@ -89,7 +89,7 @@ func (bdi *bdIndex) RegisterName(name string, idx uint32, ifMeta *l2.BridgeDomai
 func IndexMetadata(metaData interface{}) map[string][]string {
 	indexes := map[string][]string{}
 
-	ifMeta := castBdMetadata(metaData)
+	ifMeta := castMetadata(metaData)
 	if ifMeta == nil {
 		return indexes
 	}
@@ -108,7 +108,7 @@ func IndexMetadata(metaData interface{}) map[string][]string {
 // UnregisterName removes an item identified by name from mapping.
 func (bdi *bdIndex) UnregisterName(name string) (idx uint32, metadata *l2.BridgeDomains_BridgeDomain, exists bool) {
 	idx, meta, exists := bdi.mapping.UnregisterName(name)
-	return idx, castBdMetadata(meta), exists
+	return idx, castMetadata(meta), exists
 }
 
 // UpdateMetadata updates metadata in existing bridge domain entry.
@@ -120,7 +120,7 @@ func (bdi *bdIndex) UpdateMetadata(name string, metadata *l2.BridgeDomains_Bridg
 func (bdi *bdIndex) LookupIdx(name string) (idx uint32, metadata *l2.BridgeDomains_BridgeDomain, exists bool) {
 	idx, meta, exists := bdi.mapping.LookupIdx(name)
 	if exists {
-		metadata = castBdMetadata(meta)
+		metadata = castMetadata(meta)
 	}
 	return idx, metadata, exists
 }
@@ -129,7 +129,7 @@ func (bdi *bdIndex) LookupIdx(name string) (idx uint32, metadata *l2.BridgeDomai
 func (bdi *bdIndex) LookupName(idx uint32) (name string, metadata *l2.BridgeDomains_BridgeDomain, exists bool) {
 	name, meta, exists := bdi.mapping.LookupName(idx)
 	if exists {
-		metadata = castBdMetadata(meta)
+		metadata = castMetadata(meta)
 	}
 	return name, metadata, exists
 }
@@ -140,7 +140,7 @@ func (bdi *bdIndex) LookupBdForInterface(ifName string) (bdIdx uint32, bd *l2.Br
 	for _, bdName := range bdNames {
 		bdIdx, meta, exists := bdi.mapping.LookupIdx(bdName)
 		if exists && meta != nil {
-			bd = castBdMetadata(meta)
+			bd = castMetadata(meta)
 			if bd != nil {
 				for _, iface := range bd.Interfaces {
 					if iface.Name == ifName {
@@ -155,21 +155,21 @@ func (bdi *bdIndex) LookupBdForInterface(ifName string) (bdIdx uint32, bd *l2.Br
 }
 
 // WatchNameToIdx allows to subscribe for watching changes in bdIndex mapping.
-func (bdi *bdIndex) WatchNameToIdx(subscriber core.PluginName, pluginChannel chan BdChangeDto) {
+func (bdi *bdIndex) WatchNameToIdx(subscriber core.PluginName, pluginChannel chan ChangeDto) {
 	ch := make(chan idxvpp.NameToIdxDto)
 	bdi.mapping.Watch(subscriber, nametoidx.ToChan(ch))
 	go func() {
 		for c := range ch {
-			pluginChannel <- BdChangeDto{
+			pluginChannel <- ChangeDto{
 				NameToIdxDtoWithoutMeta: c.NameToIdxDtoWithoutMeta,
-				Metadata:                castBdMetadata(c.Metadata),
+				Metadata:                castMetadata(c.Metadata),
 			}
 
 		}
 	}()
 }
 
-func castBdMetadata(meta interface{}) *l2.BridgeDomains_BridgeDomain {
+func castMetadata(meta interface{}) *l2.BridgeDomains_BridgeDomain {
 	ifMeta, ok := meta.(*l2.BridgeDomains_BridgeDomain)
 	if !ok {
 		return nil

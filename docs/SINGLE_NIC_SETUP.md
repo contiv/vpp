@@ -70,21 +70,23 @@ or individually for every node in the cluster.
 ##### Global configuration:
 Global configuration is used in homogeneous environments where all nodes in 
 a given cluster have the same hardware configuration, for example only a single
-Network Adapter. To enable the STN feature globally, put the `stealTheNIC: True`
+Network Adapter. To enable the STN feature globally, put the `StealFirstNIC: True`
 stanza into the [`contiv-vpp.yaml`][1] deployment file, for example:
 ```
 data:
   contiv.yaml: |-
     TCPstackDisabled: true
     ...
-    stealTheNIC: True
+    StealFirstNIC: True
     ...
     IPAMConfig:
 ```
 
-Note that the Network Adapters on different nodes do not need to be of the 
-same type. You still need to create the respective vswitch configurations on
-every node in the cluster, as shown [above](#Creating-the-VPP-interface-configuration).
+Setting `StealFirstNIC` to `True` will tell the STN Daemon on every node in the 
+cluster to steal the first NIC from the kernel and assign it to VPP. Note that
+the Network Adapters on different nodes do not need to be of the same type. You
+still need to create the respective vswitch configurations on every node in the
+cluster, as shown [above](#Creating-the-VPP-interface-configuration).
 
 ##### Individual configuration:
 Individual configuration is used in heterogeneous environments where each node

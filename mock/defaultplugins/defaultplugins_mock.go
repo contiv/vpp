@@ -114,7 +114,7 @@ func (mvp *MockVppPlugin) GetBDIndexes() bdidx.BDIndex {
 }
 
 // GetFIBIndexes does nothing here.
-func (mvp *MockVppPlugin) GetFIBIndexes() idxvpp.NameToIdx {
+func (mvp *MockVppPlugin) GetFIBIndexes() bdidx.FIBIndexRW {
 	return nil
 }
 

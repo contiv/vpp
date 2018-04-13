@@ -244,14 +244,10 @@ type Port struct {
 
 // String return a human-readable string representation of the Port.
 func (port Port) String() string {
-	protocol := "TCP"
-	if port.Protocol == UDP {
-		protocol = "UDP"
-	}
 	if port.Number == 0 {
-		return protocol + ":ANY"
+		return port.Protocol.String() + ":ANY"
 	}
-	return protocol + ":" + strconv.Itoa(int(port.Number))
+	return port.Protocol.String() + ":" + strconv.Itoa(int(port.Number))
 }
 
 // IPBlock selects a particular CIDR with possible exceptions.

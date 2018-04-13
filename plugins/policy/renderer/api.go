@@ -157,7 +157,7 @@ func (at ActionType) String() string {
 	return "INVALID"
 }
 
-// ProtocolType is either TCP or UDP.
+// ProtocolType is either TCP or UDP or OTHER.
 type ProtocolType int
 
 const (
@@ -166,6 +166,12 @@ const (
 
 	// UDP protocol.
 	UDP
+
+	// OTHER is some NON-UDP, NON-TCP traffic (used ONLY in unit tests).
+	OTHER
+
+	// ANY L4 protocol or even pure L3 traffic (port numbers are ignored).
+	ANY
 )
 
 // String converts ProtocolType into a human-readable string.
@@ -175,6 +181,8 @@ func (at ProtocolType) String() string {
 		return "TCP"
 	case UDP:
 		return "UDP"
+	case ANY:
+		return "ANY"
 	}
 	return "INVALID"
 }

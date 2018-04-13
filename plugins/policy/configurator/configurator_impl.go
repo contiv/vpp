@@ -306,23 +306,15 @@ func (pct *PolicyConfiguratorTxn) generateRules(direction MatchType, policies Co
 			if match.Pods == nil && match.IPBlocks == nil {
 				if len(match.Ports) == 0 {
 					// = match anything on L3 & L4
-					ruleTCPAny := &renderer.ContivRule{
+					ruleAny := &renderer.ContivRule{
 						Action:      renderer.ActionPermit,
 						SrcNetwork:  &net.IPNet{},
 						DestNetwork: &net.IPNet{},
-						Protocol:    renderer.TCP,
+						Protocol:    renderer.ANY,
 						SrcPort:     0,
 						DestPort:    0,
 					}
-					ruleUDPAny := &renderer.ContivRule{
-						Action:      renderer.ActionPermit,
-						SrcNetwork:  &net.IPNet{},
-						DestNetwork: &net.IPNet{},
-						Protocol:    renderer.UDP,
-						SrcPort:     0,
-						DestPort:    0,
-					}
-					rules = pct.appendRules(rules, ruleTCPAny, ruleUDPAny)
+					rules = pct.appendRules(rules, ruleAny)
 					allAllowed = true
 				} else {
 					// = match by L4
@@ -349,30 +341,20 @@ func (pct *PolicyConfiguratorTxn) generateRules(direction MatchType, policies Co
 				if len(match.Ports) == 0 {
 					// Match all ports.
 					// = match by L3
-					ruleTCPAny := &renderer.ContivRule{
+					ruleAny := &renderer.ContivRule{
 						Action:      renderer.ActionPermit,
-						Protocol:    renderer.TCP,
-						SrcNetwork:  &net.IPNet{},
-						DestNetwork: &net.IPNet{},
-						SrcPort:     0,
-						DestPort:    0,
-					}
-					ruleUDPAny := &renderer.ContivRule{
-						Action:      renderer.ActionPermit,
-						Protocol:    renderer.UDP,
+						Protocol:    renderer.ANY,
 						SrcNetwork:  &net.IPNet{},
 						DestNetwork: &net.IPNet{},
 						SrcPort:     0,
 						DestPort:    0,
 					}
 					if direction == MatchIngress {
-						ruleTCPAny.SrcNetwork = peer.IPNet
-						ruleUDPAny.SrcNetwork = peer.IPNet
+						ruleAny.SrcNetwork = peer.IPNet
 					} else {
-						ruleTCPAny.DestNetwork = peer.IPNet
-						ruleUDPAny.DestNetwork = peer.IPNet
+						ruleAny.DestNetwork = peer.IPNet
 					}
-					rules = pct.appendRules(rules, ruleTCPAny, ruleUDPAny)
+					rules = pct.appendRules(rules, ruleAny)
 				} else {
 					// Combine each port with the peer.
 					// = match by L3 & L4
@@ -404,30 +386,20 @@ func (pct *PolicyConfiguratorTxn) generateRules(direction MatchType, policies Co
 				if len(match.Ports) == 0 {
 					// Handle IPBlock with no ports.
 					// = match by L3
-					ruleTCPAny := &renderer.ContivRule{
+					ruleAny := &renderer.ContivRule{
 						Action:      renderer.ActionPermit,
-						Protocol:    renderer.TCP,
-						SrcNetwork:  &net.IPNet{},
-						DestNetwork: &net.IPNet{},
-						SrcPort:     0,
-						DestPort:    0,
-					}
-					ruleUDPAny := &renderer.ContivRule{
-						Action:      renderer.ActionPermit,
-						Protocol:    renderer.UDP,
+						Protocol:    renderer.ANY,
 						SrcNetwork:  &net.IPNet{},
 						DestNetwork: &net.IPNet{},
 						SrcPort:     0,
 						DestPort:    0,
 					}
 					if direction == MatchIngress {
-						ruleTCPAny.SrcNetwork = subnet
-						ruleUDPAny.SrcNetwork = subnet
+						ruleAny.SrcNetwork = subnet
 					} else {
-						ruleTCPAny.DestNetwork = subnet
-						ruleUDPAny.DestNetwork = subnet
+						ruleAny.DestNetwork = subnet
 					}
-					rules = pct.appendRules(rules, ruleTCPAny, ruleUDPAny)
+					rules = pct.appendRules(rules, ruleAny)
 				} else {
 					// Combine each port with the block.
 					// = match by L3 & L4
@@ -460,42 +432,26 @@ func (pct *PolicyConfiguratorTxn) generateRules(direction MatchType, policies Co
 		if direction == MatchIngress {
 			// Allow connections from the virtual NAT-loopback (access to service from itself).
 			natLoopIP := pct.configurator.Contiv.GetNatLoopbackIP()
-			ruleTCPAny := &renderer.ContivRule{
+			ruleAny := &renderer.ContivRule{
 				Action:      renderer.ActionPermit,
-				Protocol:    renderer.TCP,
+				Protocol:    renderer.ANY,
 				SrcNetwork:  utils.GetOneHostSubnetFromIP(natLoopIP),
 				DestNetwork: &net.IPNet{},
 				SrcPort:     0,
 				DestPort:    0,
 			}
-			ruleUDPAny := &renderer.ContivRule{
-				Action:      renderer.ActionPermit,
-				Protocol:    renderer.UDP,
-				SrcNetwork:  utils.GetOneHostSubnetFromIP(natLoopIP),
-				DestNetwork: &net.IPNet{},
-				SrcPort:     0,
-				DestPort:    0,
-			}
-			rules = pct.appendRules(rules, ruleTCPAny, ruleUDPAny)
+			rules = pct.appendRules(rules, ruleAny)
 		}
 		// Deny the rest.
-		ruleTCPNone := &renderer.ContivRule{
+		ruleNone := &renderer.ContivRule{
 			Action:      renderer.ActionDeny,
 			SrcNetwork:  &net.IPNet{},
 			DestNetwork: &net.IPNet{},
-			Protocol:    renderer.TCP,
+			Protocol:    renderer.ANY,
 			SrcPort:     0,
 			DestPort:    0,
 		}
-		ruleUDPNone := &renderer.ContivRule{
-			Action:      renderer.ActionDeny,
-			SrcNetwork:  &net.IPNet{},
-			DestNetwork: &net.IPNet{},
-			Protocol:    renderer.UDP,
-			SrcPort:     0,
-			DestPort:    0,
-		}
-		rules = pct.appendRules(rules, ruleTCPNone, ruleUDPNone)
+		rules = pct.appendRules(rules, ruleNone)
 	}
 
 	return rules

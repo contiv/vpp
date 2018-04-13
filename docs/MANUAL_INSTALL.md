@@ -407,20 +407,6 @@ shutting it down:
   bash <(curl -s https://raw.githubusercontent.com/contiv/vpp/master/k8s/cri-install.sh) --uninstall
 ```
 
-### Tearing down Kubernetes
-You should first drain the node and make sure that the node is empty before
-shutting it down:
-```
-kubectl drain <node name> --delete-local-data --force --ignore-daemonsets
-kubectl delete node <node name>
-```
-Then, on the node being removed, reset all kubeadm installed state:
-```
-rm -rf $HOME/.kube
-sudo su
-kubeadm reset
-```
-
 ### Troubleshooting
 Some of the issues that can occur during the installation are:
 

@@ -19,6 +19,7 @@ package configurator
 import (
 	"net"
 
+	"github.com/contiv/vpp/plugins/contiv"
 	"github.com/golang/protobuf/proto"
 	"github.com/ligato/cn-infra/logging"
 
@@ -48,6 +49,7 @@ type ServiceConfigurator struct {
 type Deps struct {
 	Log           logging.Logger
 	VPP           defaultplugins.API /* for DumpNat44Global & DumpNat44DNat */
+	Contiv        contiv.API         /* for GetNatLoopbackIP */
 	NATTxnFactory func() (dsl linux.DataChangeDSL)
 }
 
@@ -148,7 +150,7 @@ func (sc *ServiceConfigurator) UpdateLocalFrontendIfs(oldIfNames, newIfNames Int
 	// Re-build the list of interfaces with enabled NAT features.
 	sc.natGlobalCfg = proto.Clone(sc.natGlobalCfg).(*nat.Nat44Global)
 	// - keep non-frontends unchanged
-	newNatIfs := []*nat.Nat44Global_NatInterfaces{}
+	newNatIfs := []*nat.Nat44Global_NatInterface{}
 	for _, natIf := range sc.natGlobalCfg.NatInterfaces {
 		if natIf.IsInside || natIf.OutputFeature {
 			newNatIfs = append(newNatIfs, natIf)
@@ -157,7 +159,7 @@ func (sc *ServiceConfigurator) UpdateLocalFrontendIfs(oldIfNames, newIfNames Int
 	// - re-create the list of frontends
 	for frontendIf := range newIfNames {
 		newNatIfs = append(newNatIfs,
-			&nat.Nat44Global_NatInterfaces{
+			&nat.Nat44Global_NatInterface{
 				Name:          frontendIf,
 				IsInside:      false,
 				OutputFeature: false,
@@ -185,7 +187,7 @@ func (sc *ServiceConfigurator) UpdateLocalBackendIfs(oldIfNames, newIfNames Inte
 	// Re-build the list of interfaces with enabled NAT features.
 	sc.natGlobalCfg = proto.Clone(sc.natGlobalCfg).(*nat.Nat44Global)
 	// - keep non-backends unchanged
-	newNatIfs := []*nat.Nat44Global_NatInterfaces{}
+	newNatIfs := []*nat.Nat44Global_NatInterface{}
 	for _, natIf := range sc.natGlobalCfg.NatInterfaces {
 		if !natIf.IsInside || natIf.OutputFeature {
 			newNatIfs = append(newNatIfs, natIf)
@@ -194,7 +196,7 @@ func (sc *ServiceConfigurator) UpdateLocalBackendIfs(oldIfNames, newIfNames Inte
 	// - re-create the list of backends
 	for backendIf := range newIfNames {
 		newNatIfs = append(newNatIfs,
-			&nat.Nat44Global_NatInterfaces{
+			&nat.Nat44Global_NatInterface{
 				Name:          backendIf,
 				IsInside:      true,
 				OutputFeature: false,
@@ -235,7 +237,7 @@ func (sc *ServiceConfigurator) Resync(resyncEv *ResyncEventData) error {
 
 	// Resync DNAT configuration.
 	// - remove obsolete DNATs
-	for _, dnatConfig := range dnatDump.DnatConfig {
+	for _, dnatConfig := range dnatDump.DnatConfigs {
 		removed := true
 		for _, service := range resyncEv.Services {
 			if service.ID.String() == dnatConfig.Label {
@@ -257,7 +259,7 @@ func (sc *ServiceConfigurator) Resync(resyncEv *ResyncEventData) error {
 	if resyncEv.ExternalSNAT.ExternalIP != nil {
 		idNat := &nat.Nat44DNat_DNatConfig{
 			Label: vxlanIdentityNATLabel,
-			IdMappings: []*nat.Nat44DNat_DNatConfig_IdentityMappings{
+			IdMappings: []*nat.Nat44DNat_DNatConfig_IdentityMapping{
 				{
 					IpAddress: resyncEv.ExternalSNAT.ExternalIP.String(),
 					Protocol:  nat.Protocol_UDP,
@@ -274,16 +276,24 @@ func (sc *ServiceConfigurator) Resync(resyncEv *ResyncEventData) error {
 	}
 	// - address pool
 	if resyncEv.ExternalSNAT.ExternalIP != nil {
+		// Address for SNAT:
 		sc.natGlobalCfg.AddressPools = append(sc.natGlobalCfg.AddressPools,
-			&nat.Nat44Global_AddressPools{
+			&nat.Nat44Global_AddressPool{
 				FirstSrcAddress: resyncEv.ExternalSNAT.ExternalIP.String(),
 				VrfId:           ^uint32(0),
 			})
 	}
+	// Address for self-TwiceNAT:
+	sc.natGlobalCfg.AddressPools = append(sc.natGlobalCfg.AddressPools,
+		&nat.Nat44Global_AddressPool{
+			FirstSrcAddress: sc.Contiv.GetNatLoopbackIP().String(),
+			VrfId:           ^uint32(0),
+			TwiceNat:        true,
+		})
 	// - frontends
 	for frontendIf := range resyncEv.FrontendIfs {
 		sc.natGlobalCfg.NatInterfaces = append(sc.natGlobalCfg.NatInterfaces,
-			&nat.Nat44Global_NatInterfaces{
+			&nat.Nat44Global_NatInterface{
 				Name:          frontendIf,
 				IsInside:      false,
 				OutputFeature: false,
@@ -292,7 +302,7 @@ func (sc *ServiceConfigurator) Resync(resyncEv *ResyncEventData) error {
 	// - backends
 	for backendIf := range resyncEv.BackendIfs {
 		sc.natGlobalCfg.NatInterfaces = append(sc.natGlobalCfg.NatInterfaces,
-			&nat.Nat44Global_NatInterfaces{
+			&nat.Nat44Global_NatInterface{
 				Name:          backendIf,
 				IsInside:      true,
 				OutputFeature: false,
@@ -301,7 +311,7 @@ func (sc *ServiceConfigurator) Resync(resyncEv *ResyncEventData) error {
 	//  - post-routing
 	if resyncEv.ExternalSNAT.ExternalIfName != "" {
 		sc.natGlobalCfg.NatInterfaces = append(sc.natGlobalCfg.NatInterfaces,
-			&nat.Nat44Global_NatInterfaces{
+			&nat.Nat44Global_NatInterface{
 				Name:          resyncEv.ExternalSNAT.ExternalIfName,
 				IsInside:      false,
 				OutputFeature: true,
@@ -322,8 +332,8 @@ func (sc *ServiceConfigurator) contivServiceToDNat(service *ContivService) *nat.
 }
 
 // exportDNATMappings exports the corresponding list of D-NAT mappings from a Contiv service.
-func (sc *ServiceConfigurator) exportDNATMappings(service *ContivService) []*nat.Nat44DNat_DNatConfig_StaticMappings {
-	mappings := []*nat.Nat44DNat_DNatConfig_StaticMappings{}
+func (sc *ServiceConfigurator) exportDNATMappings(service *ContivService) []*nat.Nat44DNat_DNatConfig_StaticMapping {
+	mappings := []*nat.Nat44DNat_DNatConfig_StaticMapping{}
 
 	// Export NAT mappings for NodePort services.
 	if service.HasNodePort() {
@@ -336,8 +346,9 @@ func (sc *ServiceConfigurator) exportDNATMappings(service *ContivService) []*nat
 				if port.NodePort == 0 {
 					continue
 				}
-				mapping := &nat.Nat44DNat_DNatConfig_StaticMappings{}
-				mapping.ExternalIP = nodeIP.String()
+				mapping := &nat.Nat44DNat_DNatConfig_StaticMapping{}
+				mapping.TwiceNat = nat.TwiceNatMode_SELF
+				mapping.ExternalIp = nodeIP.String()
 				mapping.ExternalPort = uint32(port.NodePort)
 				switch port.Protocol {
 				case TCP:
@@ -350,8 +361,8 @@ func (sc *ServiceConfigurator) exportDNATMappings(service *ContivService) []*nat
 						// Do not NAT+LB remote backends.
 						continue
 					}
-					local := &nat.Nat44DNat_DNatConfig_StaticMappings_LocalIPs{
-						LocalIP:   backend.IP.String(),
+					local := &nat.Nat44DNat_DNatConfig_StaticMapping_LocalIP{
+						LocalIp:   backend.IP.String(),
 						LocalPort: uint32(backend.Port),
 					}
 					if backend.Local {
@@ -381,8 +392,9 @@ func (sc *ServiceConfigurator) exportDNATMappings(service *ContivService) []*nat
 			if port.Port == 0 {
 				continue
 			}
-			mapping := &nat.Nat44DNat_DNatConfig_StaticMappings{}
-			mapping.ExternalIP = externalIP.String()
+			mapping := &nat.Nat44DNat_DNatConfig_StaticMapping{}
+			mapping.TwiceNat = nat.TwiceNatMode_SELF
+			mapping.ExternalIp = externalIP.String()
 			mapping.ExternalPort = uint32(port.Port)
 			switch port.Protocol {
 			case TCP:
@@ -395,8 +407,8 @@ func (sc *ServiceConfigurator) exportDNATMappings(service *ContivService) []*nat
 					// Do not NAT+LB remote backends.
 					continue
 				}
-				local := &nat.Nat44DNat_DNatConfig_StaticMappings_LocalIPs{
-					LocalIP:   backend.IP.String(),
+				local := &nat.Nat44DNat_DNatConfig_StaticMapping_LocalIP{
+					LocalIp:   backend.IP.String(),
 					LocalPort: uint32(backend.Port),
 				}
 				if backend.Local {

@@ -33,6 +33,7 @@ type MockContiv struct {
 	podNetwork         *net.IPNet
 	tcpStackDisabled   bool
 	natExternalTraffic bool
+	natLoopbackIP      net.IP
 	nodeIP             string
 	nodeIPsubs         []chan string
 	podPreRemovalHooks []contiv.PodActionHook
@@ -130,6 +131,11 @@ func (mc *MockContiv) SetNatExternalTraffic(natExternalTraffic bool) {
 	mc.natExternalTraffic = natExternalTraffic
 }
 
+// SetNatLoopbackIP allows to set what tests will assume the NAT loopback IP is.
+func (mc *MockContiv) SetNatLoopbackIP(natLoopIP string) {
+	mc.natLoopbackIP = net.ParseIP(natLoopIP)
+}
+
 // DeletingPod allows to simulate event of deleting pod - all registered pre-removal hooks
 // are called.
 func (mc *MockContiv) DeletingPod(podID podmodel.ID) {
@@ -189,6 +195,13 @@ func (mc *MockContiv) IsTCPstackDisabled() bool {
 // with node IP before being sent out from the node.
 func (mc *MockContiv) NatExternalTraffic() bool {
 	return mc.natExternalTraffic
+}
+
+// GetNatLoopbackIP returns the IP address of a virtual loopback, used to route traffic
+// between clients and services via VPP even if the source and destination are the same
+// IP addresses and would otherwise be routed locally.
+func (mc *MockContiv) GetNatLoopbackIP() net.IP {
+	return mc.natLoopbackIP
 }
 
 // GetNodeIP returns the IP+network address of this node.

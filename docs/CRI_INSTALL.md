@@ -16,5 +16,10 @@ After installing the CRI Shim, please proceed with cluster initialization,
 as described in the steps below. Alternatively, if the cluster had already
 been initialized before installing the CRI Shim, just reboot the node.
 
+To uninstall run as root (not using sudo):
+```
+  bash <(curl -s https://raw.githubusercontent.com/contiv/vpp/master/k8s/cri-install.sh) --uninstall
+```
+
 [1]: https://kubernetes.io/docs/setup/independent/create-cluster-kubeadm/
 [2]: https://kubernetes.io/docs/setup/independent/install-kubeadm/#installing-kubeadm-kubelet-and-kubectl

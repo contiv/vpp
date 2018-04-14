@@ -5,6 +5,28 @@ set -euo pipefail
 export K8S_NODE_OS=${K8S_NODE_OS:-ubuntu}
 export K8S_NODES=${K8S_NODES:-1}
 
+while true
+do
+read -r -p "Please provide the number of workers for the Kubernetes cluster (0-50) or enter [Q/q] to exit: " input
+
+if [ $input -eq $input 2>/dev/null ]
+then
+  if (( $input >= 0 && $input <= 50))
+  then
+    export K8S_NODES=$input
+    break
+  else
+    echo "Input out of range, please try again..."
+  fi
+elif [ $input == "q" ] || [ $input == "Q" ]
+then
+ echo "Exiting..."
+ exit 0
+else
+ echo "$input is not a valid input"
+fi
+done
+echo
 echo 'Please choose vagrant provider: '
 PS3='--> '
 options=("VirtualBox" "VMWare_Fusion" "Quit")
@@ -48,7 +70,7 @@ do
             ;;
         "Quit")
             echo "Exiting..."
-            break
+            exit 0
             ;;
         *) echo invalid option;;
     esac
@@ -73,11 +95,24 @@ do
             ;;
         "Quit")
             echo "Exiting..."
-            break
+            exit 0
             ;;
         *) echo invalid option;;
     esac
 done
-echo
 
+if [ "$K8S_DEPLOYMENT_ENV" == "prod" ]; then 
+    DEP_ENV="production"
+else 
+    DEP_ENV="development"
+fi
+
+if [ "$K8S_DEPLOYMENT_SCENARIO" == "nostn" ]; then
+    DEP_SCEN="without STN"
+else 
+    DEP_SCEN="with STN"
+fi
+echo
+echo "Creating a $VAGRANT_DEFAULT_PROVIDER $DEP_ENV environment, $DEP_SCEN and $K8S_NODES worker node(s)"
+echo 
 vagrant up

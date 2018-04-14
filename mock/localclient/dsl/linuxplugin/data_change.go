@@ -95,7 +95,7 @@ func (d *MockPutDSL) BD(val *vpp_l2.BridgeDomains_BridgeDomain) linux.PutDSL {
 
 // BDFIB adds a mock request to create or update VPP L2 Forwarding Information
 // Base.
-func (d *MockPutDSL) BDFIB(val *vpp_l2.FibTableEntries_FibTableEntry) linux.PutDSL {
+func (d *MockPutDSL) BDFIB(val *vpp_l2.FibTable_FibEntry) linux.PutDSL {
 	op := dsl.TxnOp{Key: vpp_l2.FibKey(val.BridgeDomain, val.PhysAddress), Value: val}
 	d.parent.Ops = append(d.parent.Ops, op)
 	return d
@@ -123,7 +123,7 @@ func (d *MockPutDSL) ACL(val *vpp_acl.AccessLists_Acl) linux.PutDSL {
 }
 
 // Arp adds a request to create or update VPP L3 ARP.
-func (d *MockPutDSL) Arp(val *vpp_l3.ArpTable_ArpTableEntry) linux.PutDSL {
+func (d *MockPutDSL) Arp(val *vpp_l3.ArpTable_ArpEntry) linux.PutDSL {
 	op := dsl.TxnOp{Key: vpp_l3.ArpEntryKey(val.Interface, val.IpAddress), Value: val}
 	d.parent.Ops = append(d.parent.Ops, op)
 	return d
@@ -158,7 +158,7 @@ func (d *MockPutDSL) AppNamespace(val *vpp_l4.AppNamespaces_AppNamespace) linux.
 }
 
 // StnRule adds a request to create or update VPP Stn rule.
-func (d *MockPutDSL) StnRule(val *vpp_stn.StnRule) linux.PutDSL {
+func (d *MockPutDSL) StnRule(val *vpp_stn.STN_Rule) linux.PutDSL {
 	op := dsl.TxnOp{Key: vpp_stn.Key(val.RuleName), Value: val}
 	d.parent.Ops = append(d.parent.Ops, op)
 	return d

@@ -110,8 +110,9 @@ func (p *Plugin) Init() error {
 
 	p.configurator = &configurator.PolicyConfigurator{
 		Deps: configurator.Deps{
-			Log:   p.Log.NewLogger("-policyConfigurator"),
-			Cache: p.policyCache,
+			Log:    p.Log.NewLogger("-policyConfigurator"),
+			Cache:  p.policyCache,
+			Contiv: p.Contiv,
 		},
 	}
 	p.configurator.Log.SetLevel(logging.DebugLevel)

@@ -401,12 +401,6 @@ shutting it down:
   `/etc/systemd/system/kubelet.service.d/10-kubeadm.conf` (e.g. in
    [Step 1.3][10]), clean them up now.
 
-
-* If you installed the CRI Shim as instructed in [Step 1.4][9], uninstall it now:
-```
-  bash <(curl -s https://raw.githubusercontent.com/contiv/vpp/master/k8s/cri-install.sh) --uninstall
-```
-
 ### Troubleshooting
 Some of the issues that can occur during the installation are:
 
@@ -440,8 +434,7 @@ kubeadm init --token-ttl 0
 [4]: https://kubernetes.io/docs/setup/independent/create-cluster-kubeadm/#pod-network
 [5]: https://kubernetes.io/docs/setup/independent/create-cluster-kubeadm/#joining-your-nodes
 [6]: https://kubernetes.io/docs/setup/independent/install-kubeadm/
-[8]: #tear-down
-[9]: #installing-the-cri-shim-on-your-hosts
+[8]: #tearing-down-kubernetes
 [10]: #setting-up-custom-management-network-on-multi-homed-nodes
 [11]: ../vagrant/README.md
 [12]: CUSTOM_MGMT_NETWORK.md

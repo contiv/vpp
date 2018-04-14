@@ -97,7 +97,7 @@ Setting `StealFirstNIC` to `True` will tell the STN Daemon on every node in the
 cluster to steal the first NIC from the kernel and assign it to VPP. Note that
 the Network Adapters on different nodes do not need to be of the same type. You
 still need to create the respective vswitch configurations on every node in the
-cluster, as shown [above](#Creating-the-VPP-interface-configuration).
+cluster, as shown [above](#creating-the-vpp-interface-configuration).
 
 ##### Individual configuration:
 Individual configuration is used in heterogeneous environments where each node
@@ -114,7 +114,7 @@ Configuration in the [`contiv-vpp.yaml`][1] deployment file, for example:
 ...
 ``` 
 Note that you still have to create the vswitch configuration on the node as
-shown [here](#Creating-the-VPP-interface-configuration).
+shown [here](#creating-the-vpp-interface-configuration).
 
 
 

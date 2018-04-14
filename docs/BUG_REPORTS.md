@@ -2,14 +2,14 @@
 
 ## Bug report structure
 
-- [Deployment description](#desribe-deployment)
+- [Deployment description](#desribe-deployment):
 Briefly describe the deployment, where an issue was spotted.
 Number of k8s nodes, is DHCP/STN/TAP used?
 
-- [Logs](#collecting-the-logs)
+- [Logs](#collecting-the-logs):
 Attach corresponding logs, at least from vswitch pods.
 
-- [Vpp config](#inspect-vpp-config)
+- [Vpp config](#inspect-vpp-config):
 Attach output of the show commands.
 
 - [Basic Collection Example](#basic-example)
@@ -153,6 +153,9 @@ index 3676047..ffa4473 100644
              - name: MICROSERVICE_LABEL
                valueFrom:
 ```
+
+If VPP is the crashing process, please follow the [CORE_FILES](CORE_FILES.md) guide and provide the coredump file.
+
 
 ### Inspect VPP config
 - Configured interfaces (issues related basic node/pod connectivity issues)

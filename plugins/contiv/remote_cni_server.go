@@ -212,8 +212,8 @@ type vswitchConfig struct {
 // newRemoteCNIServer initializes a new remote CNI server instance.
 func newRemoteCNIServer(logger logging.Logger, vppTxnFactory func() linux.DataChangeDSL, proxy kvdbproxy.Proxy,
 	configuredContainers *containeridx.ConfigIndex, govppChan *api.Channel, index ifaceidx.SwIfIndex, dhcpIndex ifaceidx.DhcpIndex, agentLabel string,
-	config *Config, nodeConfig *OneNodeConfig, nodeID uint8, broker keyval.ProtoBroker) (*remoteCNIserver, error) {
-	ipam, err := ipam.New(logger, nodeID, &config.IPAMConfig, broker)
+	config *Config, nodeConfig *OneNodeConfig, nodeID uint8, nodeExcludeIPs []net.IP, broker keyval.ProtoBroker) (*remoteCNIserver, error) {
+	ipam, err := ipam.New(logger, nodeID, &config.IPAMConfig, nodeExcludeIPs, broker)
 	if err != nil {
 		return nil, err
 	}
@@ -442,18 +442,14 @@ func (s *remoteCNIserver) configureMainVPPInterface(config *vswitchConfig, nicNa
 			nicIP, gwIP, err = s.getSTNInterfaceIP("")
 		}
 
-		if err != nil {
-			s.Logger.Warnf("Unable to get STN interface info: %v, skipping STN config", err)
+		if err != nil || nicIP == "" {
+			s.Logger.Errorf("Unable to get STN interface info: %v, disabling the interface.", err)
+			return err
 		}
 
-		if nicIP != "" {
-			s.Logger.Infof("STN-configured interface %s (IP %s, GW %s), skip main interface config.", nicName, nicIP, gwIP)
-			s.stnIP = nicIP
-			s.stnGw = gwIP
-		} else {
-			s.Logger.Infof("STN-configured interface %s, but there is no IP, continue with main interface config.", nicName)
-			useSTN = false
-		}
+		s.Logger.Infof("STN-configured interface %s (IP %s, GW %s), skip main interface config.", nicName, nicIP, gwIP)
+		s.stnIP = nicIP
+		s.stnGw = gwIP
 	}
 
 	// determine main node IP address
@@ -1379,11 +1375,17 @@ func (s *remoteCNIserver) parseCniExtraArgs(input string) map[string]string {
 
 // generateCniReply fills the CNI reply with the data of an interface.
 func (s *remoteCNIserver) generateCniReply(config *PodConfig, nsName string, podIP string) *cni.CNIReply {
+	var ifName string
+	if s.useTAPInterfaces {
+		ifName = config.PodTap.HostIfName
+	} else {
+		ifName = config.Veth1.HostIfName
+	}
 	return &cni.CNIReply{
 		Result: resultOk,
 		Interfaces: []*cni.CNIReply_Interface{
 			{
-				Name:    config.VppIf.Name,
+				Name:    ifName,
 				Sandbox: nsName,
 				IpAddresses: []*cni.CNIReply_Interface_IP{
 					{

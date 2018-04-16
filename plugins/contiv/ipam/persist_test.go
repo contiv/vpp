@@ -26,7 +26,7 @@ import (
 func TestPersistingAllocatedIPs(t *testing.T) {
 	gomega.RegisterTestingT(t)
 	broker := &broker.MockBroker{}
-	myIpam, err := ipam.New(logrus.DefaultLogger(), 1, newDefaultConfig(), broker)
+	myIpam, err := ipam.New(logrus.DefaultLogger(), 1, newDefaultConfig(), nil, broker)
 	gomega.Expect(err).To(gomega.BeNil())
 	gomega.Expect(myIpam).NotTo(gomega.BeNil())
 
@@ -55,7 +55,7 @@ func TestPersistingAllocatedIPs(t *testing.T) {
 	gomega.Expect(broker.Keys()).To(gomega.ContainElement(model.Key("third")))
 
 	// load data by another IPAM instance
-	anotherIPAM, err := ipam.New(logrus.DefaultLogger(), 1, newDefaultConfig(), broker)
+	anotherIPAM, err := ipam.New(logrus.DefaultLogger(), 1, newDefaultConfig(), nil, broker)
 	gomega.Expect(err).To(gomega.BeNil())
 	gomega.Expect(anotherIPAM).NotTo(gomega.BeNil())
 

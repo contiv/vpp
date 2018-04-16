@@ -11,7 +11,7 @@ set -euo pipefail
 
 get_vpp_data() {
   echo "    . $2"
-  ssh -t $SSH_OPTS "$SSH_USER"@"$NODE" echo $1 \| sudo nc -U /run/vpp/cli.sock \> /tmp/$REPORT_DIR/vpp-$2.txt 2>/dev/null
+  ssh -t $SSH_OPTS "$SSH_USER"@"$NODE" echo $1 \| sudo nc -U /run/vpp/cli.sock \> /tmp/$REPORT_DIR/vpp-$2.txt 2>/dev/null || true
 }
 
 usage() {
@@ -83,8 +83,11 @@ for p in $vswitch_pods; do
   IFS=',' read -r -a fields <<< "$p"
   echo "Collecting logs for vswitch" \'"${fields[0]}"\'  "on node" \'"${fields[1]}"\'
   mkdir "$REPORT_DIR"/"${fields[1]}"
-  ssh "$SSH_USER"@"$MASTER" $SSH_OPTS kubectl logs "${fields[0]}" -n kube-system -c contiv-vswitch > "$REPORT_DIR"/"${fields[1]}"/"${fields[0]}".log
   set +e
+  ssh "$SSH_USER"@"$MASTER" $SSH_OPTS kubectl logs "${fields[0]}" -n kube-system -c contiv-vswitch > "$REPORT_DIR"/"${fields[1]}"/"${fields[0]}".log
+  if [ $? -ne 0 ]; then
+    rm "$REPORT_DIR"/"${fields[1]}"/"${fields[0]}".log
+  fi
   ssh "$SSH_USER"@"$MASTER" $SSH_OPTS kubectl logs "${fields[0]}" -n kube-system -c contiv-vswitch -p > "$REPORT_DIR"/"${fields[1]}"/"${fields[0]}"-previous.log 2>/dev/null
   if [ $? -ne 0 ]; then
     rm "$REPORT_DIR"/"${fields[1]}"/"${fields[0]}"-previous.log
@@ -120,18 +123,21 @@ for n in $nodes; do
   ssh "$SSH_USER"@"$NODE" $SSH_OPTS mkdir /tmp/"$REPORT_DIR"
 
   echo " - VPP:"
-  # get_vpp_data <target-vpp-command> <file-name-string> <console-message-string>
+  # get_vpp_data <target-vpp-command> <file-name-string>
   get_vpp_data "sh int" interface
   get_vpp_data "sh int addr" interface-address
   get_vpp_data "sh ip fib" ip-fib
+  get_vpp_data "sh l2fib verbose" l2-fib
   get_vpp_data "sh ip arp" ip-arp
   get_vpp_data "sh vxlan tunnel" vxlan-tunnels
   get_vpp_data "sh nat44 interfaces" nat44-interfaces
   get_vpp_data "sh nat44 static mappings" nat44-static-mappings
-  get_vpp_data "sh nat44 sessions" nat44-sessions
+  get_vpp_data "sh nat44 sessions detail" nat44-sessions
   get_vpp_data "sh acl-plugin acl" acls
   get_vpp_data "sh hardware-interfaces" hardware-info
   get_vpp_data "sh errors" errors
+  get_vpp_data "api trace save trace.api" api-trace
+  get_vpp_data "api trace custom-dump /tmp/trace.api" api-trace
 
   echo " - Logs for contiv-stn"
   ssh -t $SSH_OPTS "$SSH_USER@$NODE" 'sudo docker logs $(sudo docker ps --filter name=contiv-stn --format "{{.ID}}")' \> /tmp/$REPORT_DIR/contiv-stn.log 2>/dev/null || true

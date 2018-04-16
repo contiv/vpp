@@ -68,7 +68,7 @@ func newDefaultConfig() *ipam.Config {
 func setup(t *testing.T, cfg *ipam.Config) *ipam.IPAM {
 	RegisterTestingT(t)
 
-	i, err := ipam.New(logrus.DefaultLogger(), uint8(hostID1), cfg, nil)
+	i, err := ipam.New(logrus.DefaultLogger(), uint8(hostID1), cfg, nil, nil)
 	Expect(err).To(BeNil())
 	return i
 }
@@ -256,17 +256,17 @@ func TestConfigWithBadCIDR(t *testing.T) {
 
 	customConfig := newDefaultConfig()
 	customConfig.PodSubnetCIDR = "1.2.3./19"
-	_, err := ipam.New(logrus.DefaultLogger(), uint8(hostID1), customConfig, nil)
+	_, err := ipam.New(logrus.DefaultLogger(), uint8(hostID1), customConfig, nil, nil)
 	Expect(err).NotTo(BeNil(), "Pod subnet CIDR is unparsable, but IPAM initialization didn't fail")
 
 	customConfig = newDefaultConfig()
 	customConfig.VPPHostSubnetCIDR = "1.2.3./19"
-	_, err = ipam.New(logrus.DefaultLogger(), uint8(hostID1), customConfig, nil)
+	_, err = ipam.New(logrus.DefaultLogger(), uint8(hostID1), customConfig, nil, nil)
 	Expect(err).NotTo(BeNil(), "VSwitch subnet CIDR is unparsable, but IPAM initialization didn't fail")
 
 	customConfig = newDefaultConfig()
 	customConfig.NodeInterconnectCIDR = "1.2.3./19"
-	_, err = ipam.New(logrus.DefaultLogger(), uint8(hostID1), customConfig, nil)
+	_, err = ipam.New(logrus.DefaultLogger(), uint8(hostID1), customConfig, nil, nil)
 	Expect(err).NotTo(BeNil(), "Host subnet CIDR is unparsable, but IPAM initialization didn't fail")
 }
 
@@ -277,14 +277,44 @@ func TestConfigWithBadPrefixSizes(t *testing.T) {
 	customConfig := newDefaultConfig()
 	customConfig.PodSubnetCIDR = "1.2.3.4/19"
 	customConfig.PodNetworkPrefixLen = 18
-	_, err := ipam.New(logrus.DefaultLogger(), uint8(hostID1), customConfig, nil)
+	_, err := ipam.New(logrus.DefaultLogger(), uint8(hostID1), customConfig, nil, nil)
 	Expect(err).NotTo(BeNil())
 
 	customConfig = newDefaultConfig()
 	customConfig.VPPHostSubnetCIDR = "1.2.3.4/19"
 	customConfig.VPPHostNetworkPrefixLen = 18
-	_, err = ipam.New(logrus.DefaultLogger(), uint8(hostID1), customConfig, nil)
+	_, err = ipam.New(logrus.DefaultLogger(), uint8(hostID1), customConfig, nil, nil)
 	Expect(err).NotTo(BeNil())
+}
+
+func TestExcludeGateway(t *testing.T) {
+	RegisterTestingT(t)
+
+	// nodeInterconnect is configure to 3.4.5.192/26
+
+	gw := net.IPv4(3, 4, 5, 194).To4()
+	anotherUsed := net.IPv4(3, 4, 5, 196).To4()
+
+	excluded := []net.IP{anotherUsed, gw}
+	customConfig := newDefaultConfig()
+	ipam, err := ipam.New(logrus.DefaultLogger(), uint8(hostID1), customConfig, excluded, nil)
+	Expect(err).To(BeNil())
+
+	first, err := ipam.NodeIPAddress(1)
+	Expect(err).To(BeNil())
+
+	second, err := ipam.NodeIPAddress(2)
+	Expect(err).To(BeNil())
+
+	third, err := ipam.NodeIPAddress(3)
+	Expect(err).To(BeNil())
+
+	fmt.Println(first, second, third)
+
+	Expect(excluded).NotTo(ContainElement(first))
+	Expect(excluded).NotTo(ContainElement(second))
+	Expect(excluded).NotTo(ContainElement(third))
+
 }
 
 func exhaustPodIPAddresses(i *ipam.IPAM, maxIPCount int) (allocatedIPs []string, allocatedPodIDS []string) {

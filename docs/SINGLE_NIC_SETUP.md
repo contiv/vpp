@@ -2,8 +2,12 @@
 
 #### Installing the STN daemon
 The STN Daemon must be installed on every node in the cluster that has only 
-one NIC. The STN daemon installation should be performed before deployment 
+one NIC. The STN daemon installation(*) should be performed before deployment 
 of the Contiv-VPP plugin.
+
+\* Docker daemon must be present when installing STN.  Also, Docker must be configured to allow shared mount.
+On CentOS, this may not be the case by default.  You can enable it by following the instructions at
+https://docs.portworx.com/knowledgebase/shared-mount-propogation.html.
 
 Run as root (not using sudo):
 ```
@@ -37,11 +41,14 @@ and [contiv-init](../cmd/contiv-init/doc.go).
 
 #### Creating the VPP interface configuration
 First, you need to find out the PCI address of the host's network interface. 
-You can use the `lshw` command.  It is available on Debian-based distributions.
-On CentOS/RedHat/Fedora distributions, you may install it by yum.
+On Debian-based distributions, you can use `lshw`(*):
 ```
 sudo yum -y install lshw
 ```
+\* On CentOS, `lshw` may not be available by default, install it by
+    ```
+    yum -y install lshw
+    ```
 
 ```
 sudo lshw -class network -businfo

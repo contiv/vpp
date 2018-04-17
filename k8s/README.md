@@ -87,16 +87,6 @@ To use the development image for testing with specific version of VPP, see
     - `NatExternalTraffic`: if enabled, traffic with cluster-outside destination is S-NATed
                             with the node IP before being sent out from the node.
 
-#### cri-install.sh
-Contiv-VPP CRI Shim installer / uninstaller, that can be used as follows:
-```
-# install
-./cri-install.sh
-
-# uninstall
-./cri-install.sh --uninstall
-```
-
 #### stn-install.sh
 Contiv-VPP STN daemon installer / uninstaller, that can be used as follows:
 ```

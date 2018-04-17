@@ -44,32 +44,33 @@ To use the development image for testing with specific version of VPP, see
 
   * Pod-to-VPP connectivity (top-level options)
     - `TCPstackDisabled`: if the flag is set to `true`, neither VPP TCP stack nor STN is configured
-      and only VETHs or TAPs are used to connect Pods with VPP;
-    - `TCPChecksumOffloadDisabled`: disable checksum offloading for eth0 of every deployed pod;
-    - `UseL2Interconnect`: use pure L2 node interconnect instead of VXLANs;
+      and only VETHs or TAPs are used to connect Pods with VPP
+    - `TCPChecksumOffloadDisabled`: disable checksum offloading for eth0 of every deployed pod
+    - `UseL2Interconnect`: use pure L2 node interconnect instead of VXLANs
     - `UseTAPInterfaces`: use TAP interfaces instead of VETHs for Pod-to-VPP and VPP-to-Host interconnection
     - `TAPInterfaceVersion`: select `1` to use the standard VPP TAP interface or `2`
       for a faster, virtio-based, VPP TAPv2 interface (default);
     - `StealInterface`: enable Steal The NIC feature on the specified interface on each node;``
     - `StealFirstNIC`: enable Steal The NIC feature on the first interface on each node;
-    - `TAPv2RxRingSize`: number of entries to allocate for TAPv2 Rx ring (default is 256);
-    - `TAPv2TxRingSize`: number of entries to allocate for TAPv2 Tx ring (default is 256).
+    - `TAPv2RxRingSize`: number of entries to allocate for TAPv2 Rx ring (default is 256)
+    - `TAPv2TxRingSize`: number of entries to allocate for TAPv2 Tx ring (default is 256)
     - `NatExternalTraffic`: if enabled, traffic with cluster-outside destination is S-NATed
-                            with the node IP before being sent out from the node (applies for all nodes).
+                            with the node IP before being sent out from the node (applies for all nodes)
     - `MTUSize`: maximum transmission unit (MTU) size (default is 1500)
 
   * IPAM (section `IPAMConfig`)
-    - `PodSubnetCIDR`: subnet used for all pods across all nodes;
+    - `PodSubnetCIDR`: subnet used for all pods across all nodes
+    - `PodIfIPCIDR`: subnet CIDR for VPP-side POD addresses
     - `PodNetworkPrefixLen`: subnet prefix length used for all pods of 1 k8s node
       (pod network = pod subnet for one k8s node);
     - `VPPHostSubnetCIDR`: subnet used in each node for VPP-to-host connectivity;
     - `VPPHostNetworkPrefixLen`: prefix length of the subnet used for VPP-to-host connectivity
-      on 1 k8s node (VPPHost network = VPPHost subnet for one k8s node);
-    - `NodeInterconnectCIDR`: subnet used for main interfaces of all nodes;
+      on 1 k8s node (VPPHost network = VPPHost subnet for one k8s node)
+    - `NodeInterconnectCIDR`: subnet used for main interfaces of all nodes
     - `NodeInterconnectDHCP`: use DHCP to acquire IP for all nodes by default
-    - `VxlanCIDR`: subnet used for VXLAN addressing providing node-interconnect overlay.
+    - `VxlanCIDR`: subnet used for VXLAN addressing providing node-interconnect overlay
     - `ServiceCIDR`: subnet used for allocation of Cluster IPs for services. Default value
-    is the default kubernetes service range `10.96.0.0/12`.
+    is the default kubernetes service range `10.96.0.0/12`
 
   * Node configuration (section `NodeConfig`; one entry for each node)
     - `NodeName`: name of a Kubernetes node;

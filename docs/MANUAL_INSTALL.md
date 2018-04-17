@@ -48,7 +48,7 @@ Bus info          Device      Class      Description
 pci@0000:00:03.0  ens3        network    Virtio network device
 pci@0000:00:04.0  ens4        network    Virtio network device
 ```
-\* On CentOS, `lshw` may not be available by default, install it by
+\* On CentOS/RedHat/Fedora distributions, `lshw` may not be available by default, install it by
     ```
     yum -y install lshw
     ```

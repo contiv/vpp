@@ -45,7 +45,7 @@ On Debian-based distributions, you can use `lshw`(*):
 ```
 sudo yum -y install lshw
 ```
-\* On CentOS, `lshw` may not be available by default, install it by
+\* On CentOS/RedHat/Fedora distributions, `lshw` may not be available by default, install it by
     ```
     yum -y install lshw
     ```

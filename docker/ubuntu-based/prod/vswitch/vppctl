@@ -7,7 +7,7 @@ set -euo pipefail
 get_vswitch_container_id() {
     # There may be more than one vswitch container if an upgrade/redeploy is
     # happening, so go for the newest one.
-    docker ps --format '{{.CreatedAt}} {{.Image}} {{.ID}}' | grep -E "$1@?[^ ]* [^ ]+$" | sort -nr | \
+    docker ps --format '{{.CreatedAt}} {{.Image}} {{.ID}}' | grep -E " $1@?[^ ]* [^ ]+$" | sort -nr | \
         head -n 1 | sed -e 's|.* ||g'
 }
 

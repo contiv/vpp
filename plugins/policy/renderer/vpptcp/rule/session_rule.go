@@ -231,7 +231,7 @@ func ExportSessionRules(rules []*renderer.ContivRule, podID *podmodel.ID, podIP 
 			}
 		}
 
-		// Transport Protocol
+		// Transport Protocol TODO
 		switch rule.Protocol {
 		case renderer.TCP:
 			sessionRule.TransportProto = ProtoTCP

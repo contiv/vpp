@@ -181,6 +181,8 @@ func (at ProtocolType) String() string {
 		return "TCP"
 	case UDP:
 		return "UDP"
+	case OTHER:
+		return "OTHER"
 	case ANY:
 		return "ANY"
 	}

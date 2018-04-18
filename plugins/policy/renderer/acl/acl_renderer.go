@@ -350,7 +350,8 @@ func (art *RendererTxn) renderACL(table *cache.ContivRuleTable) *vpp_acl.AccessL
 			} else {
 				aclRule.Matches.IpRule.Tcp.DestinationPortRange.UpperPort = uint32(rule.DestPort)
 			}
-		} else {
+		}
+		if rule.Protocol == renderer.UDP {
 			aclRule.Matches.IpRule.Udp = &vpp_acl.AccessLists_Acl_Rule_Matches_IpRule_Udp{}
 			aclRule.Matches.IpRule.Udp.SourcePortRange = &vpp_acl.AccessLists_Acl_Rule_Matches_IpRule_Udp_SourcePortRange{}
 			aclRule.Matches.IpRule.Udp.SourcePortRange.LowerPort = uint32(rule.SrcPort)
@@ -498,6 +499,7 @@ func (art *RendererTxn) dumpVppACLConfig() (tables []*cache.ContivRuleTable, has
 				}
 			}
 			// L4
+			rule.Protocol = renderer.ANY
 			if aclRule.Matches.IpRule.Icmp != nil || aclRule.Matches.IpRule.Other != nil {
 				// unhandled, skip
 				art.Log.WithField("rule", aclRule).Warn("Skipping ICMP/Other ACL rule")
@@ -527,7 +529,8 @@ func (art *RendererTxn) dumpVppACLConfig() (tables []*cache.ContivRuleTable, has
 					}
 					rule.DestPort = uint16(aclRule.Matches.IpRule.Tcp.DestinationPortRange.LowerPort)
 				}
-			} else {
+			}
+			if aclRule.Matches.IpRule.Udp != nil {
 				rule.Protocol = renderer.UDP
 				if aclRule.Matches.IpRule.Udp.SourcePortRange != nil {
 					if aclRule.Matches.IpRule.Udp.SourcePortRange.LowerPort != aclRule.Matches.IpRule.Udp.SourcePortRange.UpperPort {

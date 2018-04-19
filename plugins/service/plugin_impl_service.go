@@ -80,8 +80,9 @@ func (p *Plugin) Init() error {
 
 	p.configurator = &configurator.ServiceConfigurator{
 		Deps: configurator.Deps{
-			Log: p.Log.NewLogger("-serviceConfigurator"),
-			VPP: p.VPP,
+			Log:    p.Log.NewLogger("-serviceConfigurator"),
+			VPP:    p.VPP,
+			Contiv: p.Contiv,
 			NATTxnFactory: func() linux.DataChangeDSL {
 				return localclient.DataChangeRequest(p.PluginName)
 			},

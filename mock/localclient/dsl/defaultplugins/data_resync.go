@@ -64,7 +64,7 @@ func (d *MockDataResyncDSL) BD(val *l2.BridgeDomains_BridgeDomain) defaultplugin
 }
 
 // BDFIB adds VPP L2 FIB to the mock RESYNC request.
-func (d *MockDataResyncDSL) BDFIB(val *l2.FibTableEntries_FibTableEntry) defaultplugins.DataResyncDSL {
+func (d *MockDataResyncDSL) BDFIB(val *l2.FibTable_FibEntry) defaultplugins.DataResyncDSL {
 	op := dsl.TxnOp{Key: l2.FibKey(val.BridgeDomain, val.PhysAddress), Value: val}
 	d.Ops = append(d.Ops, op)
 	return d
@@ -93,7 +93,7 @@ func (d *MockDataResyncDSL) ACL(val *acl.AccessLists_Acl) defaultplugins.DataRes
 }
 
 // Arp adds VPP L3 ARP to the RESYNC request.
-func (d *MockDataResyncDSL) Arp(val *l3.ArpTable_ArpTableEntry) defaultplugins.DataResyncDSL {
+func (d *MockDataResyncDSL) Arp(val *l3.ArpTable_ArpEntry) defaultplugins.DataResyncDSL {
 	op := dsl.TxnOp{Key: l3.ArpEntryKey(val.Interface, val.IpAddress), Value: val}
 	d.Ops = append(d.Ops, op)
 	return d
@@ -128,7 +128,7 @@ func (d *MockDataResyncDSL) AppNamespace(val *l4.AppNamespaces_AppNamespace) def
 }
 
 // StnRule adds Stn rule to the RESYNC request.
-func (d *MockDataResyncDSL) StnRule(val *stn.StnRule) defaultplugins.DataResyncDSL {
+func (d *MockDataResyncDSL) StnRule(val *stn.STN_Rule) defaultplugins.DataResyncDSL {
 	op := dsl.TxnOp{Key: stn.Key(val.RuleName), Value: val}
 	d.Ops = append(d.Ops, op)
 	return d

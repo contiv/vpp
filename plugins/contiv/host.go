@@ -244,8 +244,8 @@ func (s *remoteCNIserver) vxlanBridgeDomain(bviInterface string) *vpp_l2.BridgeD
 	}
 }
 
-func (s *remoteCNIserver) vxlanArpEntry(nodeID uint8, hostIP string) *vpp_l3.ArpTable_ArpTableEntry {
-	return &vpp_l3.ArpTable_ArpTableEntry{
+func (s *remoteCNIserver) vxlanArpEntry(nodeID uint8, hostIP string) *vpp_l3.ArpTable_ArpEntry {
+	return &vpp_l3.ArpTable_ArpEntry{
 		Interface:   vxlanBVIInterfaceName,
 		IpAddress:   hostIP,
 		PhysAddress: s.hwAddrForVXLAN(nodeID),
@@ -253,14 +253,14 @@ func (s *remoteCNIserver) vxlanArpEntry(nodeID uint8, hostIP string) *vpp_l3.Arp
 	}
 }
 
-func (s *remoteCNIserver) vxlanFibEntry(macAddr string, outIfName string) *vpp_l2.FibTableEntries_FibTableEntry {
-	return &vpp_l2.FibTableEntries_FibTableEntry{
+func (s *remoteCNIserver) vxlanFibEntry(macAddr string, outIfName string) *vpp_l2.FibTable_FibEntry {
+	return &vpp_l2.FibTable_FibEntry{
 		BridgeDomain:            vxlanBDName,
 		PhysAddress:             macAddr,
 		OutgoingInterface:       outIfName,
 		StaticConfig:            true,
 		BridgedVirtualInterface: false,
-		Action:                  vpp_l2.FibTableEntries_FibTableEntry_FORWARD,
+		Action:                  vpp_l2.FibTable_FibEntry_FORWARD,
 	}
 }
 

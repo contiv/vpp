@@ -41,11 +41,13 @@ dpdk {
     dev 0000:00:04.0
 }
 ```
+If assigning multiple NICs to VPP you will need to include each NIC's PCI address
+in the dpdk stanza in `/etc/vpp/contiv-vswitch.conf`.
 
-#### Assigning multiple NICs to VPP
-On a multi-NIC node, you can assign multiple NICs from the kernel
-for use by VPP. First, you need to install the STN daemon, as described 
-[here][1]. 
+#### Assigning all NICs to VPP
+On a multi-NIC node, it is also possible to assign all NICs from the kernel for
+use by VPP. First, you need to install the STN daemon, as described [here][1],
+since you will want the NICs to revert to the kernel if VPP crashes.
 
 You also need to configure the NICs in the VPP startup config file
 in `/etc/vpp/contiv-vswitch.conf`. For example, to use both the primary and

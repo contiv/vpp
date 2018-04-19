@@ -39,7 +39,7 @@ DPDK setup must be completed **on each node** as follows:
 #### Determining Network Adapter PCI addresses
 You need to find out the PCI address of the network interface that
 you want VPP to use for multi-node pod interconnect. On Debian-based
-distributions, you can use `lshw`:
+distributions, you can use `lshw`(*):
 
 ```
 $ sudo lshw -class network -businfo
@@ -48,6 +48,10 @@ Bus info          Device      Class      Description
 pci@0000:00:03.0  ens3        network    Virtio network device
 pci@0000:00:04.0  ens4        network    Virtio network device
 ```
+\* On CentOS/RedHat/Fedora distributions, `lshw` may not be available by default, install it by
+    ```
+    yum -y install lshw
+    ```
 
 #### Setting up the vswitch to use Network Adapters
 Finally, you need to set up the vswitch to use the network adapters:

@@ -2,8 +2,12 @@
 
 #### Installing the STN daemon
 The STN Daemon must be installed on every node in the cluster that has only 
-one NIC. The STN daemon installation should be performed before deployment 
+one NIC. The STN daemon installation(*) should be performed before deployment 
 of the Contiv-VPP plugin.
+
+\* Docker daemon must be present when installing STN.  Also, Docker must be configured to allow shared mount.
+On CentOS, this may not be the case by default.  You can enable it by following the instructions at
+https://docs.portworx.com/knowledgebase/shared-mount-propogation.html.
 
 Run as root (not using sudo):
 ```
@@ -37,7 +41,14 @@ and [contiv-init](../cmd/contiv-init/doc.go).
 
 #### Creating the VPP interface configuration
 First, you need to find out the PCI address of the host's network interface. 
-On Debian-based distributions you can use `lshw`:
+On Debian-based distributions, you can use `lshw`(*):
+```
+sudo yum -y install lshw
+```
+\* On CentOS/RedHat/Fedora distributions, `lshw` may not be available by default, install it by
+    ```
+    yum -y install lshw
+    ```
 
 ```
 sudo lshw -class network -businfo
@@ -70,21 +81,23 @@ or individually for every node in the cluster.
 ##### Global configuration:
 Global configuration is used in homogeneous environments where all nodes in 
 a given cluster have the same hardware configuration, for example only a single
-Network Adapter. To enable the STN feature globally, put the `stealTheNIC: True`
+Network Adapter. To enable the STN feature globally, put the `StealFirstNIC: True`
 stanza into the [`contiv-vpp.yaml`][1] deployment file, for example:
 ```
 data:
   contiv.yaml: |-
     TCPstackDisabled: true
     ...
-    stealTheNIC: True
+    StealFirstNIC: True
     ...
     IPAMConfig:
 ```
 
-Note that the Network Adapters on different nodes do not need to be of the 
-same type. You still need to create the respective vswitch configurations on
-every node in the cluster, as shown [above](#Creating-the-VPP-interface-configuration).
+Setting `StealFirstNIC` to `True` will tell the STN Daemon on every node in the 
+cluster to steal the first NIC from the kernel and assign it to VPP. Note that
+the Network Adapters on different nodes do not need to be of the same type. You
+still need to create the respective vswitch configurations on every node in the
+cluster, as shown [above](#Creating-the-VPP-interface-configuration).
 
 ##### Individual configuration:
 Individual configuration is used in heterogeneous environments where each node

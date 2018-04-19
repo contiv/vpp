@@ -7,7 +7,7 @@ export K8S_NODES=${K8S_NODES:-1}
 
 while true
 do
-read -r -p "$1 Please provide the number of workers for the Kubernetes cluster (0-50) or enter [Q/q] to exit: " input
+read -r -p "Please provide the number of workers for the Kubernetes cluster (0-50) or enter [Q/q] to exit: " input
 
 if [ $input -eq $input 2>/dev/null ]
 then
@@ -26,7 +26,7 @@ else
  echo "$input is not a valid input"
 fi
 done
-
+echo
 echo 'Please choose vagrant provider: '
 PS3='--> '
 options=("VirtualBox" "VMWare_Fusion" "Quit")
@@ -101,7 +101,7 @@ do
     esac
 done
 
-fi [ "$K8S_DEPLOYMENT_ENV" == "prod" ]; then 
+if [ "$K8S_DEPLOYMENT_ENV" == "prod" ]; then 
     DEP_ENV="production"
 else 
     DEP_ENV="development"
@@ -113,6 +113,6 @@ else
     DEP_SCEN="with STN"
 fi
 echo
-echo "Creating a $VAGRANT_DEFAULT_PROVIDER $DEP_ENV environment, $DEP_SCEN, $K8S_NODES worker nodes"
+echo "Creating a $VAGRANT_DEFAULT_PROVIDER $DEP_ENV environment, $DEP_SCEN and $K8S_NODES worker node(s)"
 echo 
 vagrant up

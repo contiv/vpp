@@ -93,7 +93,7 @@ func (d *MockPutDSL) BD(val *l2.BridgeDomains_BridgeDomain) defaultplugins.PutDS
 
 // BDFIB adds a mock request to create or update VPP L2 Forwarding Information
 // Base.
-func (d *MockPutDSL) BDFIB(val *l2.FibTableEntries_FibTableEntry) defaultplugins.PutDSL {
+func (d *MockPutDSL) BDFIB(val *l2.FibTable_FibEntry) defaultplugins.PutDSL {
 	op := dsl.TxnOp{Key: l2.FibKey(val.BridgeDomain, val.PhysAddress), Value: val}
 	d.parent.Ops = append(d.parent.Ops, op)
 	return d
@@ -121,7 +121,7 @@ func (d *MockPutDSL) ACL(val *acl.AccessLists_Acl) defaultplugins.PutDSL {
 }
 
 // Arp adds a request to create or update VPP L3 ARP.
-func (d *MockPutDSL) Arp(val *l3.ArpTable_ArpTableEntry) defaultplugins.PutDSL {
+func (d *MockPutDSL) Arp(val *l3.ArpTable_ArpEntry) defaultplugins.PutDSL {
 	op := dsl.TxnOp{Key: l3.ArpEntryKey(val.Interface, val.IpAddress), Value: val}
 	d.parent.Ops = append(d.parent.Ops, op)
 	return d
@@ -156,7 +156,7 @@ func (d *MockPutDSL) AppNamespace(val *l4.AppNamespaces_AppNamespace) defaultplu
 }
 
 // StnRule adds a request to create or update Stn rule to the RESYNC request.
-func (d *MockPutDSL) StnRule(val *stn.StnRule) defaultplugins.PutDSL {
+func (d *MockPutDSL) StnRule(val *stn.STN_Rule) defaultplugins.PutDSL {
 	op := dsl.TxnOp{Key: stn.Key(val.RuleName), Value: val}
 	d.parent.Ops = append(d.parent.Ops, op)
 	return d

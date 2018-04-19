@@ -76,13 +76,11 @@ func verifyReflectiveACL(engine *MockACLEngine, contiv contiv.API, ifName string
 	gomega.Expect(acl.Interfaces.Egress).To(gomega.HaveLen(0))
 
 	// TCP any
-	gomega.Expect(rule1.Actions).ToNot(gomega.BeNil())
-	gomega.Expect(rule1.Actions.AclAction).To(gomega.BeEquivalentTo(vpp_acl.AclAction_REFLECT))
-	gomega.Expect(rule1.Matches).ToNot(gomega.BeNil())
-	gomega.Expect(rule1.Matches.MacipRule).To(gomega.BeNil())
-	gomega.Expect(rule1.Matches.IpRule).ToNot(gomega.BeNil())
-	ipRule := rule1.Matches.IpRule
-	gomega.Expect(ipRule.Other).To(gomega.BeNil())
+	gomega.Expect(rule1.AclAction).To(gomega.BeEquivalentTo(vpp_acl.AclAction_REFLECT))
+	gomega.Expect(rule1.Match).ToNot(gomega.BeNil())
+	gomega.Expect(rule1.Match.MacipRule).To(gomega.BeNil())
+	gomega.Expect(rule1.Match.IpRule).ToNot(gomega.BeNil())
+	ipRule := rule1.Match.IpRule
 	gomega.Expect(ipRule.Icmp).To(gomega.BeNil())
 	gomega.Expect(ipRule.Udp).To(gomega.BeNil())
 	gomega.Expect(ipRule.Ip).ToNot(gomega.BeNil())
@@ -99,13 +97,11 @@ func verifyReflectiveACL(engine *MockACLEngine, contiv contiv.API, ifName string
 	gomega.Expect(ipRule.Tcp.DestinationPortRange.UpperPort).To(gomega.BeEquivalentTo(maxPortNum))
 
 	// UDP any
-	gomega.Expect(rule2.Actions).ToNot(gomega.BeNil())
-	gomega.Expect(rule2.Actions.AclAction).To(gomega.BeEquivalentTo(vpp_acl.AclAction_REFLECT))
-	gomega.Expect(rule2.Matches).ToNot(gomega.BeNil())
-	gomega.Expect(rule2.Matches.MacipRule).To(gomega.BeNil())
-	gomega.Expect(rule2.Matches.IpRule).ToNot(gomega.BeNil())
-	ipRule = rule2.Matches.IpRule
-	gomega.Expect(ipRule.Other).To(gomega.BeNil())
+	gomega.Expect(rule2.AclAction).To(gomega.BeEquivalentTo(vpp_acl.AclAction_REFLECT))
+	gomega.Expect(rule2.Match).ToNot(gomega.BeNil())
+	gomega.Expect(rule2.Match.MacipRule).To(gomega.BeNil())
+	gomega.Expect(rule2.Match.IpRule).ToNot(gomega.BeNil())
+	ipRule = rule2.Match.IpRule
 	gomega.Expect(ipRule.Icmp).To(gomega.BeNil())
 	gomega.Expect(ipRule.Tcp).To(gomega.BeNil())
 	gomega.Expect(ipRule.Ip).ToNot(gomega.BeNil())
@@ -120,13 +116,11 @@ func verifyReflectiveACL(engine *MockACLEngine, contiv contiv.API, ifName string
 	gomega.Expect(ipRule.Udp.DestinationPortRange.UpperPort).To(gomega.BeEquivalentTo(maxPortNum))
 
 	// ICMP any
-	gomega.Expect(rule3.Actions).ToNot(gomega.BeNil())
-	gomega.Expect(rule3.Actions.AclAction).To(gomega.BeEquivalentTo(vpp_acl.AclAction_REFLECT))
-	gomega.Expect(rule3.Matches).ToNot(gomega.BeNil())
-	gomega.Expect(rule3.Matches.MacipRule).To(gomega.BeNil())
-	gomega.Expect(rule3.Matches.IpRule).ToNot(gomega.BeNil())
-	ipRule = rule3.Matches.IpRule
-	gomega.Expect(ipRule.Other).To(gomega.BeNil())
+	gomega.Expect(rule3.AclAction).To(gomega.BeEquivalentTo(vpp_acl.AclAction_REFLECT))
+	gomega.Expect(rule3.Match).ToNot(gomega.BeNil())
+	gomega.Expect(rule3.Match.MacipRule).To(gomega.BeNil())
+	gomega.Expect(rule3.Match.IpRule).ToNot(gomega.BeNil())
+	ipRule = rule3.Match.IpRule
 	gomega.Expect(ipRule.Tcp).To(gomega.BeNil())
 	gomega.Expect(ipRule.Udp).To(gomega.BeNil())
 	gomega.Expect(ipRule.Ip).ToNot(gomega.BeNil())

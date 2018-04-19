@@ -338,7 +338,7 @@ func persistVppConfig(contivCfg *contiv.Config, stnData *stn.STNReply, cfg *vppC
 	}
 
 	// prepare ETCD config
-	etcdCfg, err := etcdv3.ConfigToClientv3(etcdConfig)
+	etcdCfg, err := etcdv3.ConfigToClient(etcdConfig)
 	if err != nil {
 		logger.Errorf("Error by constructing ETCD config: %v", err)
 		return err
@@ -417,7 +417,7 @@ func persistVppConfig(contivCfg *contiv.Config, stnData *stn.STNReply, cfg *vppC
 		PhysAddress: contiv.HostInterconnectMAC,
 		Unnumbered: &interfaces.Interfaces_Interface_Unnumbered{
 			IsUnnumbered:    true,
-			InterfaceWithIP: cfg.mainIfName,
+			InterfaceWithIp: cfg.mainIfName,
 		},
 	}
 	err = pb.Put(interfaces.InterfaceKey(tap.Name), tap)
@@ -427,7 +427,7 @@ func persistVppConfig(contivCfg *contiv.Config, stnData *stn.STNReply, cfg *vppC
 	}
 
 	// host interconnect STN
-	stnRule := &stn_nb.StnRule{
+	stnRule := &stn_nb.STN_Rule{
 		RuleName:  "VPP-host-STN",
 		Interface: contiv.TapVPPEndLogicalName,
 		IpAddress: cfg.mainIP.IP.String(),

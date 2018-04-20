@@ -109,13 +109,8 @@ func (cr *ContivRule) Copy() *ContivRule {
 
 // Compare returns -1, 0, 1 if this<cr2 or this==cr2 or this>cr2, respectively.
 // Contiv rules have a total order defined on them.
-// It holds that if cr matches subset of the traffic matched by cr2, then cr<cr2
-// (and vice-versa).
+// It holds that if cr matches subset of the traffic matched by cr2, then cr<cr2.
 func (cr *ContivRule) Compare(cr2 *ContivRule) int {
-	protocolOrder := utils.CompareInts(int(cr.Protocol), int(cr2.Protocol))
-	if protocolOrder != 0 {
-		return protocolOrder
-	}
 	srcIPOrder := utils.CompareIPNets(cr.SrcNetwork, cr2.SrcNetwork)
 	if srcIPOrder != 0 {
 		return srcIPOrder
@@ -124,13 +119,19 @@ func (cr *ContivRule) Compare(cr2 *ContivRule) int {
 	if destIPOrder != 0 {
 		return destIPOrder
 	}
-	srcPortOrder := utils.ComparePorts(cr.SrcPort, cr2.SrcPort)
-	if srcPortOrder != 0 {
-		return srcPortOrder
+	protocolOrder := utils.CompareInts(int(cr.Protocol), int(cr2.Protocol))
+	if protocolOrder != 0 {
+		return protocolOrder
 	}
-	dstPortOrder := utils.ComparePorts(cr.DestPort, cr2.DestPort)
-	if dstPortOrder != 0 {
-		return dstPortOrder
+	if cr.Protocol != ANY {
+		srcPortOrder := utils.ComparePorts(cr.SrcPort, cr2.SrcPort)
+		if srcPortOrder != 0 {
+			return srcPortOrder
+		}
+		dstPortOrder := utils.ComparePorts(cr.DestPort, cr2.DestPort)
+		if dstPortOrder != 0 {
+			return dstPortOrder
+		}
 	}
 	return utils.CompareInts(int(cr.Action), int(cr2.Action))
 }

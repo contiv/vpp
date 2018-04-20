@@ -56,6 +56,7 @@ type StaticMappingLbContext struct {
 	Protocol     uint8
 	Vrf          uint32
 	TwiceNat     bool
+	SelfTwiceNat bool
 }
 
 // IdentityMappingContext groups common fields required for identity mapping
@@ -195,8 +196,6 @@ func handleNat44StaticMapping(ctx *StaticMappingContext, isAdd, addrOnly bool, v
 		req.ExternalPort = ctx.ExternalPort
 	}
 
-	fmt.Printf("Nat44AddDelStaticMapping: %+v\n", req)
-
 	reply := &nat.Nat44AddDelStaticMappingReply{}
 	if err := vppChan.SendRequest(req).ReceiveReply(reply); err != nil {
 		return err
@@ -234,6 +233,7 @@ func handleNat44StaticMappingLb(ctx *StaticMappingLbContext, isAdd bool, vppChan
 		Protocol:     ctx.Protocol,
 		VrfID:        ctx.Vrf,
 		TwiceNat:     boolToUint(ctx.TwiceNat),
+		SelfTwiceNat: boolToUint(ctx.SelfTwiceNat),
 		Out2inOnly:   1,
 		IsAdd:        boolToUint(isAdd),
 	}

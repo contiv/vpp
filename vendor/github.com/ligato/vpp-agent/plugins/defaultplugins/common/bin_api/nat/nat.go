@@ -949,6 +949,7 @@ type Nat44AddDelLbStaticMapping struct {
 	Protocol     uint8
 	VrfID        uint32
 	TwiceNat     uint8
+	SelfTwiceNat uint8
 	Out2inOnly   uint8
 	Tag          []byte `struc:"[64]byte"`
 	LocalNum     uint8  `struc:"sizeof=Locals"`
@@ -962,7 +963,7 @@ func (*Nat44AddDelLbStaticMapping) GetMessageType() api.MessageType {
 	return api.RequestMessage
 }
 func (*Nat44AddDelLbStaticMapping) GetCrcString() string {
-	return "e5127b37"
+	return "316591fb"
 }
 func NewNat44AddDelLbStaticMapping() api.Message {
 	return &Nat44AddDelLbStaticMapping{}
@@ -1013,6 +1014,7 @@ type Nat44LbStaticMappingDetails struct {
 	Protocol     uint8
 	VrfID        uint32
 	TwiceNat     uint8
+	SelfTwiceNat uint8
 	Out2inOnly   uint8
 	Tag          []byte `struc:"[64]byte"`
 	LocalNum     uint8  `struc:"sizeof=Locals"`
@@ -1026,7 +1028,7 @@ func (*Nat44LbStaticMappingDetails) GetMessageType() api.MessageType {
 	return api.ReplyMessage
 }
 func (*Nat44LbStaticMappingDetails) GetCrcString() string {
-	return "c412b942"
+	return "1fb92ca5"
 }
 func NewNat44LbStaticMappingDetails() api.Message {
 	return &Nat44LbStaticMappingDetails{}

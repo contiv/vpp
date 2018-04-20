@@ -457,20 +457,20 @@ func (mae *MockACLEngine) evalACL(acl *vpp_acl.AccessLists_Acl, srcIP, dstIP net
 	}
 
 	for _, rule := range acl.Rules {
-		if rule.Matches.MacipRule != nil {
+		if rule.Match.MacipRule != nil {
 			// unsupported
 			mae.Log.WithField("acl", *acl).Error("MAC-IP rules are not supported")
 			return ACLActionFailure
 		}
-		if rule.Matches.IpRule == nil {
+		if rule.Match.IpRule == nil {
 			// invalid
 			mae.Log.WithField("acl", *acl).Error("Missing IP Rule")
 			return ACLActionFailure
 		}
-		ipRule := rule.Matches.IpRule
-		if ipRule.Icmp != nil || ipRule.Other != nil || ipRule.Ip == nil {
+		ipRule := rule.Match.IpRule
+		if ipRule.Icmp != nil || ipRule.Ip == nil {
 			// unsupported
-			mae.Log.WithField("acl", *acl).Error("Missing IP or found unsupported ICMP/Other section")
+			mae.Log.WithField("acl", *acl).Error("Missing IP or found unsupported ICMP section")
 			return ACLActionFailure
 		}
 
@@ -577,16 +577,11 @@ func (mae *MockACLEngine) evalACL(acl *vpp_acl.AccessLists_Acl, srcIP, dstIP net
 		}
 
 		// Rule matches the packet!
-		if rule.Actions == nil {
-			// invalid
-			mae.Log.WithField("acl", *acl).Error("Missing actions")
-			return ACLActionFailure
-		}
 		mae.Log.WithFields(logging.Fields{
 			"rule": *rule,
 			"acl":  acl.AclName,
 		}).Debug("Connection matched by ACL rule")
-		switch rule.Actions.AclAction {
+		switch rule.AclAction {
 		case vpp_acl.AclAction_DENY:
 			return ACLActionDeny
 		case vpp_acl.AclAction_PERMIT:

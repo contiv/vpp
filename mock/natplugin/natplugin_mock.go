@@ -242,7 +242,7 @@ func (mnt *MockNatPlugin) dnatToStaticMappings(dnat *nat.Nat44DNat_DNatConfig) (
 		}
 
 		// external IP
-		externalIP := net.ParseIP(staticMapping.ExternalIP)
+		externalIP := net.ParseIP(staticMapping.ExternalIp)
 		if externalIP == nil {
 			return nil, errors.New("failed to parse external IP")
 		}
@@ -266,7 +266,7 @@ func (mnt *MockNatPlugin) dnatToStaticMappings(dnat *nat.Nat44DNat_DNatConfig) (
 
 		// locals
 		for _, local := range staticMapping.LocalIps {
-			localIP := net.ParseIP(local.LocalIP)
+			localIP := net.ParseIP(local.LocalIp)
 			if localIP == nil {
 				return nil, errors.New("failed to parse local IP")
 			}
@@ -344,7 +344,7 @@ func (mnt *MockNatPlugin) DumpNat44Global() *nat.Nat44Global {
 func (mnt *MockNatPlugin) DumpNat44DNat() *nat.Nat44DNat {
 	dnat := &nat.Nat44DNat{}
 	for _, dnatCfg := range mnt.nat44Dnat {
-		dnat.DnatConfig = append(dnat.DnatConfig, dnatCfg)
+		dnat.DnatConfigs = append(dnat.DnatConfigs, dnatCfg)
 	}
 	return dnat
 }

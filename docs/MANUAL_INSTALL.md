@@ -39,7 +39,7 @@ DPDK setup must be completed **on each node** as follows:
 #### Determining Network Adapter PCI addresses
 You need to find out the PCI address of the network interface that
 you want VPP to use for multi-node pod interconnect. On Debian-based
-distributions, you can use `lshw`:
+distributions, you can use `lshw`(*):
 
 ```
 $ sudo lshw -class network -businfo
@@ -48,6 +48,10 @@ Bus info          Device      Class      Description
 pci@0000:00:03.0  ens3        network    Virtio network device
 pci@0000:00:04.0  ens4        network    Virtio network device
 ```
+\* On CentOS/RedHat/Fedora distributions, `lshw` may not be available by default, install it by
+    ```
+    yum -y install lshw
+    ```
 
 #### Setting up the vswitch to use Network Adapters
 Finally, you need to set up the vswitch to use the network adapters:
@@ -397,26 +401,6 @@ shutting it down:
   `/etc/systemd/system/kubelet.service.d/10-kubeadm.conf` (e.g. in
    [Step 1.3][10]), clean them up now.
 
-
-* If you installed the CRI Shim as instructed in [Step 1.4][9], uninstall it now:
-```
-  bash <(curl -s https://raw.githubusercontent.com/contiv/vpp/master/k8s/cri-install.sh) --uninstall
-```
-
-### Tearing down Kubernetes
-You should first drain the node and make sure that the node is empty before
-shutting it down:
-```
-kubectl drain <node name> --delete-local-data --force --ignore-daemonsets
-kubectl delete node <node name>
-```
-Then, on the node being removed, reset all kubeadm installed state:
-```
-rm -rf $HOME/.kube
-sudo su
-kubeadm reset
-```
-
 ### Troubleshooting
 Some of the issues that can occur during the installation are:
 
@@ -450,8 +434,7 @@ kubeadm init --token-ttl 0
 [4]: https://kubernetes.io/docs/setup/independent/create-cluster-kubeadm/#pod-network
 [5]: https://kubernetes.io/docs/setup/independent/create-cluster-kubeadm/#joining-your-nodes
 [6]: https://kubernetes.io/docs/setup/independent/install-kubeadm/
-[8]: #tear-down
-[9]: #installing-the-cri-shim-on-your-hosts
+[8]: #tearing-down-kubernetes
 [10]: #setting-up-custom-management-network-on-multi-homed-nodes
 [11]: ../vagrant/README.md
 [12]: CUSTOM_MGMT_NETWORK.md

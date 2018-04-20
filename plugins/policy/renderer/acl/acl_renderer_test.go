@@ -63,54 +63,26 @@ func verifyReflectiveACL(engine *MockACLEngine, contiv contiv.API, ifName string
 	}
 	gomega.Expect(acl).ToNot(gomega.BeNil())
 	gomega.Expect(acl.AclName).To(gomega.BeEquivalentTo(ACLNamePrefix + ReflectiveACLName))
-	gomega.Expect(acl.Rules).To(gomega.HaveLen(2))
-	rule1 := acl.Rules[0]
-	rule2 := acl.Rules[1]
+	gomega.Expect(acl.Rules).To(gomega.HaveLen(1))
+	rule := acl.Rules[0]
 	gomega.Expect(acl.Interfaces).ToNot(gomega.BeNil())
 	for _, ifName := range ifs {
 		gomega.Expect(acl.Interfaces.Ingress).To(gomega.ContainElement(ifName))
 	}
 	gomega.Expect(acl.Interfaces.Egress).To(gomega.HaveLen(0))
 
-	// TCP any
-	gomega.Expect(rule1.AclAction).To(gomega.BeEquivalentTo(vpp_acl.AclAction_REFLECT))
-	gomega.Expect(rule1.Match).ToNot(gomega.BeNil())
-	gomega.Expect(rule1.Match.MacipRule).To(gomega.BeNil())
-	gomega.Expect(rule1.Match.IpRule).ToNot(gomega.BeNil())
-	ipRule := rule1.Match.IpRule
-	gomega.Expect(ipRule.Icmp).To(gomega.BeNil())
-	gomega.Expect(ipRule.Udp).To(gomega.BeNil())
+	// rule to match all traffic
+	gomega.Expect(rule.AclAction).To(gomega.BeEquivalentTo(vpp_acl.AclAction_REFLECT))
+	gomega.Expect(rule.Match).ToNot(gomega.BeNil())
+	gomega.Expect(rule.Match.MacipRule).To(gomega.BeNil())
+	gomega.Expect(rule.Match.IpRule).ToNot(gomega.BeNil())
+	ipRule := rule.Match.IpRule
 	gomega.Expect(ipRule.Ip).ToNot(gomega.BeNil())
-	gomega.Expect(ipRule.Tcp).ToNot(gomega.BeNil())
 	gomega.Expect(ipRule.Ip.SourceNetwork).To(gomega.BeEmpty())
 	gomega.Expect(ipRule.Ip.DestinationNetwork).To(gomega.BeEmpty())
-	gomega.Expect(ipRule.Tcp.TcpFlagsValue).To(gomega.BeEquivalentTo(0))
-	gomega.Expect(ipRule.Tcp.TcpFlagsMask).To(gomega.BeEquivalentTo(0))
-	gomega.Expect(ipRule.Tcp.SourcePortRange).ToNot(gomega.BeNil())
-	gomega.Expect(ipRule.Tcp.DestinationPortRange).ToNot(gomega.BeNil())
-	gomega.Expect(ipRule.Tcp.SourcePortRange.LowerPort).To(gomega.BeEquivalentTo(0))
-	gomega.Expect(ipRule.Tcp.SourcePortRange.UpperPort).To(gomega.BeEquivalentTo(maxPortNum))
-	gomega.Expect(ipRule.Tcp.DestinationPortRange.LowerPort).To(gomega.BeEquivalentTo(0))
-	gomega.Expect(ipRule.Tcp.DestinationPortRange.UpperPort).To(gomega.BeEquivalentTo(maxPortNum))
-
-	// UDP any
-	gomega.Expect(rule2.AclAction).To(gomega.BeEquivalentTo(vpp_acl.AclAction_REFLECT))
-	gomega.Expect(rule2.Match).ToNot(gomega.BeNil())
-	gomega.Expect(rule2.Match.MacipRule).To(gomega.BeNil())
-	gomega.Expect(rule2.Match.IpRule).ToNot(gomega.BeNil())
-	ipRule = rule2.Match.IpRule
 	gomega.Expect(ipRule.Icmp).To(gomega.BeNil())
 	gomega.Expect(ipRule.Tcp).To(gomega.BeNil())
-	gomega.Expect(ipRule.Ip).ToNot(gomega.BeNil())
-	gomega.Expect(ipRule.Udp).ToNot(gomega.BeNil())
-	gomega.Expect(ipRule.Ip.SourceNetwork).To(gomega.BeEmpty())
-	gomega.Expect(ipRule.Ip.DestinationNetwork).To(gomega.BeEmpty())
-	gomega.Expect(ipRule.Udp.SourcePortRange).ToNot(gomega.BeNil())
-	gomega.Expect(ipRule.Udp.DestinationPortRange).ToNot(gomega.BeNil())
-	gomega.Expect(ipRule.Udp.SourcePortRange.LowerPort).To(gomega.BeEquivalentTo(0))
-	gomega.Expect(ipRule.Udp.SourcePortRange.UpperPort).To(gomega.BeEquivalentTo(maxPortNum))
-	gomega.Expect(ipRule.Udp.DestinationPortRange.LowerPort).To(gomega.BeEquivalentTo(0))
-	gomega.Expect(ipRule.Udp.DestinationPortRange.UpperPort).To(gomega.BeEquivalentTo(maxPortNum))
+	gomega.Expect(ipRule.Udp).To(gomega.BeNil())
 }
 
 func verifyGlobalTable(engine *MockACLEngine, contiv contiv.API, expectedToHave bool) {
@@ -142,7 +114,7 @@ func TestEgressRulesOnePod(t *testing.T) {
 
 	// Prepare input data
 	ingress := []*renderer.ContivRule{}
-	egress := []*renderer.ContivRule{Ts3.Rule1 /* UDP not allowed */, Ts3.Rule3, Ts3.Rule4}
+	egress := []*renderer.ContivRule{Ts5.Rule1 /* UDP, OTHER not allowed */, Ts5.Rule2}
 
 	// Prepare mocks.
 	//  -> Contiv plugin
@@ -190,11 +162,14 @@ func TestEgressRulesOnePod(t *testing.T) {
 	gomega.Expect(aclEngine.ConnectionPodToPod(Pod6, Pod1, renderer.TCP, somePort, 8080)).To(gomega.Equal(ConnActionAllow))
 	gomega.Expect(aclEngine.ConnectionPodToPod(Pod6, Pod1, renderer.UDP, somePort, 53)).To(gomega.Equal(ConnActionDenySyn))
 	gomega.Expect(aclEngine.ConnectionPodToPod(Pod6, Pod1, renderer.UDP, somePort, 500)).To(gomega.Equal(ConnActionDenySyn))
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod6, Pod1, renderer.OTHER, 0, 0)).To(gomega.Equal(ConnActionDenySyn))
 	gomega.Expect(aclEngine.ConnectionPodToInternet(Pod1, googleDNS, renderer.TCP, somePort, 80)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionPodToInternet(Pod1, googleDNS, renderer.OTHER, 0, 0)).To(gomega.Equal(ConnActionAllow))
 	gomega.Expect(aclEngine.ConnectionInternetToPod(googleDNS, Pod1, renderer.TCP, somePort, 80)).To(gomega.Equal(ConnActionDenySyn))
 	gomega.Expect(aclEngine.ConnectionInternetToPod("10.10.50.1", Pod1, renderer.TCP, somePort, 80)).To(gomega.Equal(ConnActionAllow))
 	gomega.Expect(aclEngine.ConnectionInternetToPod("10.10.50.1", Pod1, renderer.TCP, somePort, 81)).To(gomega.Equal(ConnActionAllow))
 	gomega.Expect(aclEngine.ConnectionInternetToPod("10.10.50.1", Pod1, renderer.UDP, somePort, 53)).To(gomega.Equal(ConnActionDenySyn))
+	gomega.Expect(aclEngine.ConnectionInternetToPod("10.10.50.1", Pod1, renderer.OTHER, 0, 0)).To(gomega.Equal(ConnActionDenySyn))
 
 	// Try to execute the same change again.
 	err = aclRenderer.NewTxn(false).Render(Pod1, GetOneHostSubnet(Pod1IP), ingress, egress, false).Commit()
@@ -212,7 +187,7 @@ func TestIngressRulesOnePod(t *testing.T) {
 	logger.Debug("TestIngressRulesOnePod")
 
 	// Prepare input data
-	ingress := []*renderer.ContivRule{Ts4.Rule1 /* UDP not allowed */, Ts4.Rule3, Ts4.Rule4}
+	ingress := []*renderer.ContivRule{Ts6.Rule1 /* UDP, OTHER not allowed */, Ts6.Rule2}
 	egress := []*renderer.ContivRule{}
 
 	// Prepare mocks.
@@ -259,9 +234,11 @@ func TestIngressRulesOnePod(t *testing.T) {
 	gomega.Expect(aclEngine.ConnectionPodToPod(Pod1, Pod6, renderer.TCP, somePort, 80)).To(gomega.Equal(ConnActionAllow))
 	gomega.Expect(aclEngine.ConnectionPodToPod(Pod1, Pod1, renderer.TCP, somePort, 80)).To(gomega.Equal(ConnActionAllow))
 	gomega.Expect(aclEngine.ConnectionPodToPod(Pod1, Pod6, renderer.UDP, somePort, 53)).To(gomega.Equal(ConnActionDenySyn))
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod1, Pod6, renderer.OTHER, 0, 0)).To(gomega.Equal(ConnActionDenySyn))
 	gomega.Expect(aclEngine.ConnectionPodToPod(Pod1, Pod1, renderer.UDP, somePort, 53)).To(gomega.Equal(ConnActionAllow)) /* pod can talk to itself */
 	gomega.Expect(aclEngine.ConnectionPodToPod(Pod6, Pod1, renderer.TCP, somePort, 80)).To(gomega.Equal(ConnActionAllow))
 	gomega.Expect(aclEngine.ConnectionPodToPod(Pod6, Pod1, renderer.UDP, somePort, 53)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod6, Pod1, renderer.OTHER, 0, 0)).To(gomega.Equal(ConnActionAllow))
 	gomega.Expect(aclEngine.ConnectionPodToInternet(Pod1, googleDNS, renderer.TCP, somePort, 80)).To(gomega.Equal(ConnActionDenySyn))
 	gomega.Expect(aclEngine.ConnectionPodToInternet(Pod1, "10.10.50.1", renderer.TCP, somePort, 80)).To(gomega.Equal(ConnActionAllow))
 	gomega.Expect(aclEngine.ConnectionPodToInternet(Pod1, "10.10.50.1", renderer.TCP, somePort, 81)).To(gomega.Equal(ConnActionAllow))
@@ -270,6 +247,7 @@ func TestIngressRulesOnePod(t *testing.T) {
 	gomega.Expect(aclEngine.ConnectionInternetToPod(googleDNS, Pod1, renderer.UDP, somePort, 53)).To(gomega.Equal(ConnActionAllow))
 	gomega.Expect(aclEngine.ConnectionInternetToPod(googleDNS, Pod1, renderer.TCP, somePort, 80)).To(gomega.Equal(ConnActionAllow))
 	gomega.Expect(aclEngine.ConnectionInternetToPod(googleDNS, Pod1, renderer.UDP, somePort, 53)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionInternetToPod(googleDNS, Pod1, renderer.OTHER, 0, 0)).To(gomega.Equal(ConnActionAllow))
 
 	// Try to execute the same change again.
 	err = aclRenderer.NewTxn(false).Render(Pod1, GetOneHostSubnet(Pod1IP), ingress, egress, false).Commit()
@@ -288,7 +266,7 @@ func TestEgressRulesTwoPods(t *testing.T) {
 
 	// Prepare input data
 	ingress := []*renderer.ContivRule{}
-	egress := []*renderer.ContivRule{Ts3.Rule1 /* UDP not allowed */, Ts3.Rule3, Ts3.Rule4}
+	egress := []*renderer.ContivRule{Ts5.Rule1 /* UDP, OTHER not allowed */, Ts5.Rule2}
 
 	// Prepare mocks.
 	//  -> Contiv plugin
@@ -347,6 +325,7 @@ func TestEgressRulesTwoPods(t *testing.T) {
 	gomega.Expect(aclEngine.ConnectionPodToPod(Pod2, Pod1, renderer.UDP, somePort, 500)).To(gomega.Equal(ConnActionDenySyn))
 	gomega.Expect(aclEngine.ConnectionPodToPod(Pod6, Pod1, renderer.UDP, somePort, 53)).To(gomega.Equal(ConnActionDenySyn))
 	gomega.Expect(aclEngine.ConnectionPodToPod(Pod6, Pod1, renderer.UDP, somePort, 500)).To(gomega.Equal(ConnActionDenySyn))
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod2, Pod1, renderer.OTHER, 0, 0)).To(gomega.Equal(ConnActionDenySyn))
 	gomega.Expect(aclEngine.ConnectionInternetToPod(googleDNS, Pod1, renderer.TCP, somePort, 80)).To(gomega.Equal(ConnActionDenySyn))
 	gomega.Expect(aclEngine.ConnectionInternetToPod("10.10.50.1", Pod1, renderer.TCP, somePort, 80)).To(gomega.Equal(ConnActionAllow))
 	gomega.Expect(aclEngine.ConnectionInternetToPod("10.10.50.1", Pod1, renderer.TCP, somePort, 81)).To(gomega.Equal(ConnActionAllow))
@@ -360,6 +339,7 @@ func TestEgressRulesTwoPods(t *testing.T) {
 	gomega.Expect(aclEngine.ConnectionPodToPod(Pod1, Pod2, renderer.UDP, somePort, 500)).To(gomega.Equal(ConnActionDenySyn))
 	gomega.Expect(aclEngine.ConnectionPodToPod(Pod6, Pod2, renderer.UDP, somePort, 53)).To(gomega.Equal(ConnActionDenySyn))
 	gomega.Expect(aclEngine.ConnectionPodToPod(Pod6, Pod2, renderer.UDP, somePort, 500)).To(gomega.Equal(ConnActionDenySyn))
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod1, Pod2, renderer.OTHER, 0, 0)).To(gomega.Equal(ConnActionDenySyn))
 	gomega.Expect(aclEngine.ConnectionInternetToPod(googleDNS, Pod2, renderer.TCP, somePort, 80)).To(gomega.Equal(ConnActionDenySyn))
 	gomega.Expect(aclEngine.ConnectionInternetToPod("10.10.50.1", Pod2, renderer.TCP, somePort, 80)).To(gomega.Equal(ConnActionAllow))
 	gomega.Expect(aclEngine.ConnectionInternetToPod("10.10.50.1", Pod2, renderer.TCP, somePort, 81)).To(gomega.Equal(ConnActionAllow))
@@ -387,18 +367,18 @@ func TestCombinedRules(t *testing.T) {
 	// Prepare test data
 	pod1Txn1Cfg := &cache.PodConfig{
 		PodIP:   GetOneHostSubnet(Pod1IP),
-		Ingress: Ts5.Pod1Ingress[1:],
-		Egress:  Ts5.Pod1Egress[:2],
+		Ingress: Ts7.Pod1Ingress[1:],
+		Egress:  Ts7.Pod1Egress[:2],
 	}
 	pod1Txn2Cfg := &cache.PodConfig{
 		PodIP:   GetOneHostSubnet(Pod1IP),
-		Ingress: Ts5.Pod1Ingress,
-		Egress:  Ts5.Pod1Egress,
+		Ingress: Ts7.Pod1Ingress,
+		Egress:  Ts7.Pod1Egress,
 	}
 	pod3Cfg := &cache.PodConfig{
 		PodIP:   GetOneHostSubnet(Pod3IP),
-		Ingress: Ts5.Pod3Ingress,
-		Egress:  Ts5.Pod3Egress,
+		Ingress: Ts7.Pod3Ingress,
+		Egress:  Ts7.Pod3Egress,
 	}
 
 	// Prepare mocks.
@@ -457,6 +437,8 @@ func TestCombinedRules(t *testing.T) {
 	gomega.Expect(aclEngine.ConnectionPodToPod(Pod1, Pod3, renderer.TCP, somePort, 80)).To(gomega.Equal(ConnActionDenySyn))
 	gomega.Expect(aclEngine.ConnectionPodToPod(Pod1, Pod6, renderer.TCP, somePort, 80)).To(gomega.Equal(ConnActionDenySyn))
 	gomega.Expect(aclEngine.ConnectionPodToInternet(Pod1, googleDNS, renderer.TCP, somePort, 80)).To(gomega.Equal(ConnActionDenySyn))
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod1, Pod3, renderer.OTHER, 0, 0)).To(gomega.Equal(ConnActionDenySyn))
+	gomega.Expect(aclEngine.ConnectionPodToInternet(Pod1, googleDNS, renderer.OTHER, 0, 0)).To(gomega.Equal(ConnActionDenySyn))
 	// -> src = pod3
 	gomega.Expect(aclEngine.ConnectionPodToPod(Pod3, Pod1, renderer.UDP, somePort, 161)).To(gomega.Equal(ConnActionAllow))
 	gomega.Expect(aclEngine.ConnectionPodToPod(Pod3, Pod1, renderer.UDP, somePort, 53)).To(gomega.Equal(ConnActionAllow))
@@ -470,13 +452,17 @@ func TestCombinedRules(t *testing.T) {
 	gomega.Expect(aclEngine.ConnectionPodToPod(Pod3, Pod1, renderer.TCP, somePort, 80)).To(gomega.Equal(ConnActionDenySyn))
 	gomega.Expect(aclEngine.ConnectionPodToPod(Pod3, Pod6, renderer.TCP, somePort, 80)).To(gomega.Equal(ConnActionDenySyn))
 	gomega.Expect(aclEngine.ConnectionPodToInternet(Pod3, googleDNS, renderer.TCP, somePort, 80)).To(gomega.Equal(ConnActionDenySyn))
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod3, Pod1, renderer.OTHER, 0, 0)).To(gomega.Equal(ConnActionDenySyn))
+	gomega.Expect(aclEngine.ConnectionPodToInternet(Pod3, googleDNS, renderer.OTHER, 0, 0)).To(gomega.Equal(ConnActionDenySyn))
 	// -> src = internet
 	gomega.Expect(aclEngine.ConnectionInternetToPod(googleDNS, Pod1, renderer.UDP, somePort2, 161)).To(gomega.Equal(ConnActionAllow))
 	gomega.Expect(aclEngine.ConnectionInternetToPod(googleDNS, Pod1, renderer.UDP, somePort2, 53)).To(gomega.Equal(ConnActionAllow))
 	gomega.Expect(aclEngine.ConnectionInternetToPod(googleDNS, Pod1, renderer.TCP, somePort2, 80)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionInternetToPod(googleDNS, Pod1, renderer.OTHER, 0, 0)).To(gomega.Equal(ConnActionAllow))
 	gomega.Expect(aclEngine.ConnectionInternetToPod(googleDNS, Pod3, renderer.UDP, somePort2, 161)).To(gomega.Equal(ConnActionDenySyn))
 	gomega.Expect(aclEngine.ConnectionInternetToPod(googleDNS, Pod3, renderer.UDP, somePort2, 67)).To(gomega.Equal(ConnActionAllow))
 	gomega.Expect(aclEngine.ConnectionInternetToPod(googleDNS, Pod3, renderer.TCP, somePort2, 80)).To(gomega.Equal(ConnActionDenySyn))
+	gomega.Expect(aclEngine.ConnectionInternetToPod(googleDNS, Pod3, renderer.OTHER, 0, 0)).To(gomega.Equal(ConnActionDenySyn))
 
 	// Execute second Renderer transaction (change pod1 config).
 	txn = aclRenderer.NewTxn(false)
@@ -501,6 +487,8 @@ func TestCombinedRules(t *testing.T) {
 	gomega.Expect(aclEngine.ConnectionPodToPod(Pod1, Pod3, renderer.TCP, somePort, 80)).To(gomega.Equal(ConnActionAllow)) /* changed */
 	gomega.Expect(aclEngine.ConnectionPodToPod(Pod1, Pod6, renderer.TCP, somePort, 80)).To(gomega.Equal(ConnActionAllow)) /* changed */
 	gomega.Expect(aclEngine.ConnectionPodToInternet(Pod1, googleDNS, renderer.TCP, somePort, 80)).To(gomega.Equal(ConnActionDenySyn))
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod1, Pod3, renderer.OTHER, 0, 0)).To(gomega.Equal(ConnActionDenySyn))
+	gomega.Expect(aclEngine.ConnectionPodToInternet(Pod1, googleDNS, renderer.OTHER, 0, 0)).To(gomega.Equal(ConnActionDenySyn))
 	// -> src = pod3
 	gomega.Expect(aclEngine.ConnectionPodToPod(Pod3, Pod1, renderer.UDP, somePort, 161)).To(gomega.Equal(ConnActionDenySyn)) /* changed */
 	gomega.Expect(aclEngine.ConnectionPodToPod(Pod3, Pod1, renderer.UDP, somePort, 53)).To(gomega.Equal(ConnActionAllow))
@@ -514,15 +502,20 @@ func TestCombinedRules(t *testing.T) {
 	gomega.Expect(aclEngine.ConnectionPodToPod(Pod3, Pod1, renderer.TCP, somePort, 80)).To(gomega.Equal(ConnActionDenySyn))
 	gomega.Expect(aclEngine.ConnectionPodToPod(Pod3, Pod6, renderer.TCP, somePort, 80)).To(gomega.Equal(ConnActionDenySyn))
 	gomega.Expect(aclEngine.ConnectionPodToInternet(Pod3, googleDNS, renderer.TCP, somePort, 80)).To(gomega.Equal(ConnActionDenySyn))
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod3, Pod1, renderer.OTHER, 0, 0)).To(gomega.Equal(ConnActionDenySyn))
+	gomega.Expect(aclEngine.ConnectionPodToInternet(Pod3, googleDNS, renderer.OTHER, 0, 0)).To(gomega.Equal(ConnActionDenySyn))
 	// -> src = internet
 	gomega.Expect(aclEngine.ConnectionInternetToPod(googleDNS, Pod1, renderer.UDP, somePort2, 161)).To(gomega.Equal(ConnActionDenySyn)) /* changed */
 	gomega.Expect(aclEngine.ConnectionInternetToPod(googleDNS, Pod1, renderer.UDP, somePort2, 53)).To(gomega.Equal(ConnActionDenySyn))  /* changed */
 	gomega.Expect(aclEngine.ConnectionInternetToPod(googleDNS, Pod1, renderer.TCP, somePort2, 80)).To(gomega.Equal(ConnActionDenySyn))  /* changed */
+	gomega.Expect(aclEngine.ConnectionInternetToPod(googleDNS, Pod1, renderer.OTHER, 0, 0)).To(gomega.Equal(ConnActionDenySyn))  /* changed */
 	gomega.Expect(aclEngine.ConnectionInternetToPod(googleDNS, Pod3, renderer.UDP, somePort2, 161)).To(gomega.Equal(ConnActionDenySyn))
 	gomega.Expect(aclEngine.ConnectionInternetToPod(googleDNS, Pod3, renderer.UDP, somePort2, 67)).To(gomega.Equal(ConnActionAllow))
 	gomega.Expect(aclEngine.ConnectionInternetToPod(googleDNS, Pod3, renderer.TCP, somePort2, 80)).To(gomega.Equal(ConnActionDenySyn))
-
+	gomega.Expect(aclEngine.ConnectionInternetToPod(googleDNS, Pod3, renderer.OTHER, 0, 0)).To(gomega.Equal(ConnActionDenySyn))
 }
+
+//////////// TODO: add OTHER ...
 
 func TestCombinedRulesWithResync(t *testing.T) {
 	gomega.RegisterTestingT(t)
@@ -533,18 +526,18 @@ func TestCombinedRulesWithResync(t *testing.T) {
 	// Prepare test data
 	pod1Txn1Cfg := &cache.PodConfig{
 		PodIP:   GetOneHostSubnet(Pod1IP),
-		Ingress: Ts5.Pod1Ingress[1:],
-		Egress:  Ts5.Pod1Egress[:2],
+		Ingress: Ts7.Pod1Ingress[1:],
+		Egress:  Ts7.Pod1Egress[:2],
 	}
 	pod1Txn2Cfg := &cache.PodConfig{
 		PodIP:   GetOneHostSubnet(Pod1IP),
-		Ingress: Ts5.Pod1Ingress,
-		Egress:  Ts5.Pod1Egress,
+		Ingress: Ts7.Pod1Ingress,
+		Egress:  Ts7.Pod1Egress,
 	}
 	pod3Cfg := &cache.PodConfig{
 		PodIP:   GetOneHostSubnet(Pod3IP),
-		Ingress: Ts5.Pod3Ingress,
-		Egress:  Ts5.Pod3Egress,
+		Ingress: Ts7.Pod3Ingress,
+		Egress:  Ts7.Pod3Egress,
 	}
 
 	// Prepare mocks.
@@ -659,13 +652,13 @@ func TestCombinedRulesWithResyncAndRemovedPod(t *testing.T) {
 	// Prepare test data
 	pod1Cfg := &cache.PodConfig{
 		PodIP:   GetOneHostSubnet(Pod1IP),
-		Ingress: Ts5.Pod1Ingress[1:],
-		Egress:  Ts5.Pod1Egress[:2],
+		Ingress: Ts7.Pod1Ingress[1:],
+		Egress:  Ts7.Pod1Egress[:2],
 	}
 	pod3Cfg := &cache.PodConfig{
 		PodIP:   GetOneHostSubnet(Pod3IP),
-		Ingress: Ts5.Pod3Ingress,
-		Egress:  Ts5.Pod3Egress,
+		Ingress: Ts7.Pod3Ingress,
+		Egress:  Ts7.Pod3Egress,
 	}
 
 	// Prepare mocks.
@@ -779,13 +772,13 @@ func TestCombinedRulesWithRemovedPods(t *testing.T) {
 	// Prepare test data
 	pod1Cfg := &cache.PodConfig{
 		PodIP:   GetOneHostSubnet(Pod1IP),
-		Ingress: Ts5.Pod1Ingress[1:],
-		Egress:  Ts5.Pod1Egress[:2],
+		Ingress: Ts7.Pod1Ingress[1:],
+		Egress:  Ts7.Pod1Egress[:2],
 	}
 	pod3Cfg := &cache.PodConfig{
 		PodIP:   GetOneHostSubnet(Pod3IP),
-		Ingress: Ts5.Pod3Ingress,
-		Egress:  Ts5.Pod3Egress,
+		Ingress: Ts7.Pod3Ingress,
+		Egress:  Ts7.Pod3Egress,
 	}
 
 	// Prepare mocks.

@@ -108,11 +108,11 @@ var Ts2 = TestSet1And2{ /* one ingress rule */
 }
 
 // Input data for test-set 3:
-type TestSet3And4 struct {
+type TestSet3To6 struct {
 	Rule1, Rule2 *renderer.ContivRule
 }
 
-var Ts3 = TestSet3And4{ /* multiple egress rules */
+var Ts3 = TestSet3To6{ /* multiple egress rules */
 	Rule1: &renderer.ContivRule{
 		Action:      renderer.ActionPermit,
 		SrcNetwork:  IpNetwork("10.10.0.0/16"),
@@ -125,7 +125,7 @@ var Ts3 = TestSet3And4{ /* multiple egress rules */
 }
 
 // Input data for test-set 4:
-var Ts4 = TestSet3And4{ /* multiple ingress rules */
+var Ts4 = TestSet3To6{ /* multiple ingress rules */
 	Rule1: &renderer.ContivRule{
 		Action:      renderer.ActionPermit,
 		SrcNetwork:  IpNetwork(""),
@@ -137,13 +137,38 @@ var Ts4 = TestSet3And4{ /* multiple ingress rules */
 	Rule2: DenyAll(),
 }
 
+var Ts5 = TestSet3To6{ /* multiple egress rules - only TCP allowed */
+	Rule1: &renderer.ContivRule{
+		Action:      renderer.ActionPermit,
+		SrcNetwork:  IpNetwork("10.10.0.0/16"),
+		DestNetwork: IpNetwork(""),
+		Protocol:    renderer.TCP,
+		SrcPort:     0,
+		DestPort:    0,
+	},
+	Rule2: DenyAll(),
+}
+
+// Input data for test-set 4:
+var Ts6 = TestSet3To6{ /* multiple ingress rules - only TCP allowed */
+	Rule1: &renderer.ContivRule{
+		Action:      renderer.ActionPermit,
+		SrcNetwork:  IpNetwork(""),
+		DestNetwork: IpNetwork("10.10.0.0/16"),
+		Protocol:    renderer.TCP,
+		SrcPort:     0,
+		DestPort:    0,
+	},
+	Rule2: DenyAll(),
+}
+
 // Input data for test-set 5:
-type TestSet5 struct {
+type TestSet7 struct {
 	Pod1Ingress, Pod1Egress []*renderer.ContivRule
 	Pod3Ingress, Pod3Egress []*renderer.ContivRule
 }
 
-var Ts5 = TestSet5{ /* combined ingress with egress */
+var Ts7 = TestSet7{ /* combined ingress with egress */
 	Pod1Ingress: []*renderer.ContivRule{
 		{
 			Action:      renderer.ActionPermit,

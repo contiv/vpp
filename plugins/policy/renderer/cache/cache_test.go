@@ -948,20 +948,20 @@ func TestCombinedRulesEgressOrientation(t *testing.T) {
 	pods := NewPodSet(Pod1, Pod3)
 	pod1Txn1Cfg := &PodConfig{
 		PodIP:   GetOneHostSubnet(Pod1IP),
-		Ingress: Ts5.Pod1Ingress[1:],
-		Egress:  Ts5.Pod1Egress[:2],
+		Ingress: Ts7.Pod1Ingress[1:],
+		Egress:  Ts7.Pod1Egress[:2],
 		Removed: false,
 	}
 	pod1Txn2Cfg := &PodConfig{
 		PodIP:   GetOneHostSubnet(Pod1IP),
-		Ingress: Ts5.Pod1Ingress,
-		Egress:  Ts5.Pod1Egress,
+		Ingress: Ts7.Pod1Ingress,
+		Egress:  Ts7.Pod1Egress,
 		Removed: false,
 	}
 	pod3Cfg := &PodConfig{
 		PodIP:   GetOneHostSubnet(Pod3IP),
-		Ingress: Ts5.Pod3Ingress,
-		Egress:  Ts5.Pod3Egress,
+		Ingress: Ts7.Pod3Ingress,
+		Egress:  Ts7.Pod3Egress,
 		Removed: false,
 	}
 
@@ -975,7 +975,7 @@ func TestCombinedRulesEgressOrientation(t *testing.T) {
 	pod3LocalRules := []*renderer.ContivRule{
 		blockPodEgress(Pod1IP),
 		blockPodEgress(Pod3IP),
-		Ts5.Pod3Egress[0], Ts5.Pod3Egress[1], Ts5.Pod3Egress[2], Ts5.Pod3Egress[3],
+		Ts7.Pod3Egress[0], Ts7.Pod3Egress[1], Ts7.Pod3Egress[2], Ts7.Pod3Egress[3],
 	}
 	globalRules := []*renderer.ContivRule{}
 	globalRules = append(globalRules, modifySrc(Pod1IP, pod1Txn1Cfg.Ingress[0], pod1Txn1Cfg.Ingress[1])...)
@@ -1043,7 +1043,7 @@ func TestCombinedRulesEgressOrientation(t *testing.T) {
 	pod3LocalRulesTxn2 := []*renderer.ContivRule{
 		allowPodEgress(Pod1IP, 80, renderer.TCP), blockPodEgress(Pod1IP),
 		blockPodEgress(Pod3IP),
-		Ts5.Pod3Egress[0], Ts5.Pod3Egress[1], Ts5.Pod3Egress[2], Ts5.Pod3Egress[3],
+		Ts7.Pod3Egress[0], Ts7.Pod3Egress[1], Ts7.Pod3Egress[2], Ts7.Pod3Egress[3],
 	}
 	globalRulesTxn2 := []*renderer.ContivRule{}
 	globalRulesTxn2 = append(globalRulesTxn2, modifySrc(Pod1IP, pod1Txn2Cfg.Ingress[0], pod1Txn2Cfg.Ingress[1], pod1Txn2Cfg.Ingress[2])...)
@@ -1113,20 +1113,20 @@ func TestCombinedRulesIngressOrientation(t *testing.T) {
 	pods := NewPodSet(Pod1, Pod3)
 	pod1Txn1Cfg := &PodConfig{
 		PodIP:   GetOneHostSubnet(Pod1IP),
-		Ingress: Ts5.Pod1Ingress[1:],
-		Egress:  Ts5.Pod1Egress[:2],
+		Ingress: Ts7.Pod1Ingress[1:],
+		Egress:  Ts7.Pod1Egress[:2],
 		Removed: false,
 	}
 	pod1Txn2Cfg := &PodConfig{
 		PodIP:   GetOneHostSubnet(Pod1IP),
-		Ingress: Ts5.Pod1Ingress,
-		Egress:  Ts5.Pod1Egress,
+		Ingress: Ts7.Pod1Ingress,
+		Egress:  Ts7.Pod1Egress,
 		Removed: false,
 	}
 	pod3Cfg := &PodConfig{
 		PodIP:   GetOneHostSubnet(Pod3IP),
-		Ingress: Ts5.Pod3Ingress,
-		Egress:  Ts5.Pod3Egress,
+		Ingress: Ts7.Pod3Ingress,
+		Egress:  Ts7.Pod3Egress,
 		Removed: false,
 	}
 
@@ -1524,20 +1524,20 @@ func TestResyncEgressOrientation(t *testing.T) {
 	pods := NewPodSet(Pod1, Pod3)
 	pod1ResyncCfg := &PodConfig{
 		PodIP:   GetOneHostSubnet(Pod1IP),
-		Ingress: Ts5.Pod1Ingress[1:],
-		Egress:  Ts5.Pod1Egress[:2],
+		Ingress: Ts7.Pod1Ingress[1:],
+		Egress:  Ts7.Pod1Egress[:2],
 		Removed: false,
 	}
 	pod1TxnCfg := &PodConfig{
 		PodIP:   GetOneHostSubnet(Pod1IP),
-		Ingress: Ts5.Pod1Ingress,
-		Egress:  Ts5.Pod1Egress,
+		Ingress: Ts7.Pod1Ingress,
+		Egress:  Ts7.Pod1Egress,
 		Removed: false,
 	}
 	pod3Cfg := &PodConfig{
 		PodIP:   GetOneHostSubnet(Pod3IP),
-		Ingress: Ts5.Pod3Ingress,
-		Egress:  Ts5.Pod3Egress,
+		Ingress: Ts7.Pod3Ingress,
+		Egress:  Ts7.Pod3Egress,
 		Removed: false,
 	}
 
@@ -1559,7 +1559,7 @@ func TestResyncEgressOrientation(t *testing.T) {
 	pod3LocalRules := []*renderer.ContivRule{
 		blockPodEgress(Pod1IP),
 		blockPodEgress(Pod3IP),
-		Ts5.Pod3Egress[0], Ts5.Pod3Egress[1], Ts5.Pod3Egress[2], Ts5.Pod3Egress[3],
+		Ts7.Pod3Egress[0], Ts7.Pod3Egress[1], Ts7.Pod3Egress[2], Ts7.Pod3Egress[3],
 	}
 	pod3LocalTable := NewContivRuleTable("pod3-local")
 	pod3LocalTable.Pods.Add(Pod3)
@@ -1604,7 +1604,7 @@ func TestResyncEgressOrientation(t *testing.T) {
 	pod3LocalRulesTxn2 := []*renderer.ContivRule{
 		allowPodEgress(Pod1IP, 80, renderer.TCP), blockPodEgress(Pod1IP),
 		blockPodEgress(Pod3IP),
-		Ts5.Pod3Egress[0], Ts5.Pod3Egress[1], Ts5.Pod3Egress[2], Ts5.Pod3Egress[3],
+		Ts7.Pod3Egress[0], Ts7.Pod3Egress[1], Ts7.Pod3Egress[2], Ts7.Pod3Egress[3],
 	}
 	globalRulesTxn2 := []*renderer.ContivRule{}
 	globalRulesTxn2 = append(globalRulesTxn2, modifySrc(Pod1IP, pod1TxnCfg.Ingress[0], pod1TxnCfg.Ingress[1], pod1TxnCfg.Ingress[2])...)
@@ -1674,20 +1674,20 @@ func TestResyncIngressOrientation(t *testing.T) {
 	pods := NewPodSet(Pod1, Pod3)
 	pod1ResyncCfg := &PodConfig{
 		PodIP:   GetOneHostSubnet(Pod1IP),
-		Ingress: Ts5.Pod1Ingress[1:],
-		Egress:  Ts5.Pod1Egress[:2],
+		Ingress: Ts7.Pod1Ingress[1:],
+		Egress:  Ts7.Pod1Egress[:2],
 		Removed: false,
 	}
 	pod1TxnCfg := &PodConfig{
 		PodIP:   GetOneHostSubnet(Pod1IP),
-		Ingress: Ts5.Pod1Ingress,
-		Egress:  Ts5.Pod1Egress,
+		Ingress: Ts7.Pod1Ingress,
+		Egress:  Ts7.Pod1Egress,
 		Removed: false,
 	}
 	pod3Cfg := &PodConfig{
 		PodIP:   GetOneHostSubnet(Pod3IP),
-		Ingress: Ts5.Pod3Ingress,
-		Egress:  Ts5.Pod3Egress,
+		Ingress: Ts7.Pod3Ingress,
+		Egress:  Ts7.Pod3Egress,
 		Removed: false,
 	}
 

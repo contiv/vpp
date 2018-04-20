@@ -266,25 +266,17 @@ func (art *RendererTxn) Commit() error {
 // reflectiveACL returns the configuration of the reflective ACL.
 func (art *RendererTxn) reflectiveACL() *vpp_acl.AccessLists_Acl {
 	// Prepare table to render the ACL from.
-	ruleTCPAny := &renderer.ContivRule{
+	ruleAny := &renderer.ContivRule{
 		Action:      renderer.ActionPermit,
 		SrcNetwork:  &net.IPNet{},
 		DestNetwork: &net.IPNet{},
-		Protocol:    renderer.TCP,
-		SrcPort:     0,
-		DestPort:    0,
-	}
-	ruleUDPAny := &renderer.ContivRule{
-		Action:      renderer.ActionPermit,
-		SrcNetwork:  &net.IPNet{},
-		DestNetwork: &net.IPNet{},
-		Protocol:    renderer.UDP,
+		Protocol:    renderer.ANY,
 		SrcPort:     0,
 		DestPort:    0,
 	}
 	table := cache.NewContivRuleTable(ReflectiveACLName)
-	table.Rules = []*renderer.ContivRule{ruleTCPAny, ruleUDPAny}
-	table.NumOfRules = 2
+	table.Rules = []*renderer.ContivRule{ruleAny}
+	table.NumOfRules = 1
 	table.Pods = art.cacheTxn.GetIsolatedPods()
 	// Render the ACL.
 	acl := art.renderACL(table)

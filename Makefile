@@ -72,9 +72,9 @@ define test_race_only
 	@go test ./plugins/policy/renderer/vpptcp -race -tags="${GO_BUILD_TAGS}"
 	@go test ./plugins/service -race -tags="${GO_BUILD_TAGS}"
 	@go test ./plugins/policy/cache -race -tags="${GO_BUILD_TAGS}"
-    @go test ./plugins/policy/cache/namespaceidx -race -tags="${GO_BUILD_TAGS}"
-    @go test ./plugins/policy/cache/podidx -race -tags="${GO_BUILD_TAGS}"
-    @go test ./plugins/policy/cache/policyidx -race -tags="${GO_BUILD_TAGS}"
+	@go test ./plugins/policy/cache/namespaceidx -race -tags="${GO_BUILD_TAGS}"
+	@go test ./plugins/policy/cache/podidx -race -tags="${GO_BUILD_TAGS}"
+	@go test ./plugins/policy/cache/policyidx -race -tags="${GO_BUILD_TAGS}"
 	@echo "# done"
 endef
 

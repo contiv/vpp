@@ -508,7 +508,7 @@ func TestCombinedRules(t *testing.T) {
 	gomega.Expect(aclEngine.ConnectionInternetToPod(googleDNS, Pod1, renderer.UDP, somePort2, 161)).To(gomega.Equal(ConnActionDenySyn)) /* changed */
 	gomega.Expect(aclEngine.ConnectionInternetToPod(googleDNS, Pod1, renderer.UDP, somePort2, 53)).To(gomega.Equal(ConnActionDenySyn))  /* changed */
 	gomega.Expect(aclEngine.ConnectionInternetToPod(googleDNS, Pod1, renderer.TCP, somePort2, 80)).To(gomega.Equal(ConnActionDenySyn))  /* changed */
-	gomega.Expect(aclEngine.ConnectionInternetToPod(googleDNS, Pod1, renderer.OTHER, 0, 0)).To(gomega.Equal(ConnActionDenySyn))  /* changed */
+	gomega.Expect(aclEngine.ConnectionInternetToPod(googleDNS, Pod1, renderer.OTHER, 0, 0)).To(gomega.Equal(ConnActionDenySyn))         /* changed */
 	gomega.Expect(aclEngine.ConnectionInternetToPod(googleDNS, Pod3, renderer.UDP, somePort2, 161)).To(gomega.Equal(ConnActionDenySyn))
 	gomega.Expect(aclEngine.ConnectionInternetToPod(googleDNS, Pod3, renderer.UDP, somePort2, 67)).To(gomega.Equal(ConnActionAllow))
 	gomega.Expect(aclEngine.ConnectionInternetToPod(googleDNS, Pod3, renderer.TCP, somePort2, 80)).To(gomega.Equal(ConnActionDenySyn))

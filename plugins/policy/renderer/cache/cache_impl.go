@@ -699,4 +699,3 @@ func (rct *RendererCacheTxn) allowAll() *renderer.ContivRule {
 		DestPort:    0,
 	}
 }
-

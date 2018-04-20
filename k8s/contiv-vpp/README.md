@@ -78,6 +78,7 @@ Parameter | Description | Default
 `etcd.image.repository` | etcd container image repository | `quay.io/coreos/etcd`
 `etcd.image.tag`| etcd container image tag | `latest`
 `etcd.image.pullPolicy` | etcd container image pull policy | `IfNotPresent`
+`etcd.dataDir` | directory where etcd data should be persisted  | (no value) emptyDir is used
 `etcd.service.nodePort` | Port to be used as the service NodePort | `32379`
 `govpp.healthCheckProbeInterval` | Health check proble interval (nanoseconds) | `1000000000`
 `govpp.healthCheckReplyTimeout` | Health check reply timeout (nanoseconds) | `500000000`

@@ -193,6 +193,9 @@ func (f *FlavorContiv) Inject() bool {
 
 	f.ResyncOrch.PluginLogDeps = *f.LogDeps("resync-orch")
 
+	// we don't want to publish status to etcd
+	f.StatusCheck.Transport = nil
+
 	return true
 }
 

@@ -18,6 +18,7 @@ if [ -f ./config/*.tar ] ; then
 fi
 
 vagrant destroy -f
+vagrant destroy -f
 
 rm -rf ./.vagrant
 

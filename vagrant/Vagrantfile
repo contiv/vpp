@@ -205,13 +205,22 @@ fi
 # --------------------------------------------------------
 
 echo "Exporting Kube Master IP and Kubeadm Token..."
-echo "export KUBE_MASTER_IP=$2" >> /vagrant/config/init
 echo "export KUBEADM_TOKEN=$(kubeadm token generate)" >> /vagrant/config/init
-source /vagrant/config/init
-sed 's/127\.0\.0\.1.*k8s.*/'"$2"' '"$1"'/' -i /etc/hosts
 
-echo "export no_proxy='$1,$KUBE_MASTER_IP,localhost,127.0.0.1'" >> /etc/profile.d/envvar.sh
-echo "export no_proxy='$1,$KUBE_MASTER_IP,localhost,127.0.0.1'" >> /home/vagrant/.profile
+if [ $5 = 'stn' ]; then
+  echo "export KUBE_MASTER_IP=$(hostname -I | cut -f2 -d' ')" >> /vagrant/config/init
+  source /vagrant/config/init
+  sed 's/127\.0\.0\.1.*k8s.*/'"$KUBE_MASTER_IP"' '"$1"'/' -i /etc/hosts
+  echo "export no_proxy='$1,$KUBE_MASTER_IP,localhost,127.0.0.1'" >> /etc/profile.d/envvar.sh
+  echo "export no_proxy='$1,$KUBE_MASTER_IP,localhost,127.0.0.1'" >> /home/vagrant/.profile
+else 
+  echo "export KUBE_MASTER_IP=$2" >> /vagrant/config/init
+  source /vagrant/config/init
+  sed 's/127\.0\.0\.1.*k8s.*/'"$2"' '"$1"'/' -i /etc/hosts
+  echo "export no_proxy='$1,$KUBE_MASTER_IP,localhost,127.0.0.1'" >> /etc/profile.d/envvar.sh
+  echo "export no_proxy='$1,$KUBE_MASTER_IP,localhost,127.0.0.1'" >> /home/vagrant/.profile
+fi
+
 source /etc/profile.d/envvar.sh
 source /home/vagrant/.profile
 
@@ -219,7 +228,7 @@ source /home/vagrant/.profile
 # --------------> Kubeadm & Networking <------------------
 # --------------------------------------------------------
 
-sed -i '4 a Environment="KUBELET_EXTRA_ARGS=--node-ip=$KUBE_MASTER_IP --feature-gates HugePages=false"' /etc/systemd/system/kubelet.service.d/10-kubeadm.conf
+sed -i '4 a Environment="KUBELET_EXTRA_ARGS=--node-ip='"$KUBE_MASTER_IP"' --feature-gates HugePages=false"' /etc/systemd/system/kubelet.service.d/10-kubeadm.conf
 systemctl daemon-reload
 systemctl restart kubelet
 echo "$(kubeadm init --token-ttl 0 --pod-network-cidr="10.0.0.0/8" --apiserver-advertise-address="${KUBE_MASTER_IP}" --token="${KUBEADM_TOKEN}")" >> /vagrant/config/cert
@@ -249,13 +258,18 @@ set -x
 echo Args passed: [[ $@ ]]
 
 source /vagrant/config/init
-export KUBE_WORKER_IP=$2
 
-sed -i '4 a Environment="KUBELET_EXTRA_ARGS=--node-ip=$KUBE_WORKER_IP --feature-gates HugePages=false"' /etc/systemd/system/kubelet.service.d/10-kubeadm.conf
+if [ $3 = 'stn' ]; then
+  export KUBE_WORKER_IP=$(hostname -I | cut -f2 -d' ')
+else 
+  export KUBE_WORKER_IP=$2
+fi
+
+sed -i '4 a Environment="KUBELET_EXTRA_ARGS=--node-ip='"$KUBE_WORKER_IP"' --feature-gates HugePages=false"' /etc/systemd/system/kubelet.service.d/10-kubeadm.conf
 systemctl daemon-reload
 systemctl restart kubelet
 
-sed 's/127\.0\.0\.1.*k8s.*/'"$2"' '"$1"'/' -i /etc/hosts
+sed 's/127\.0\.0\.1.*k8s.*/'"$KUBE_WORKER_IP"' '"$1"'/' -i /etc/hosts
 echo "export no_proxy='$1,$KUBE_MASTER_IP,$KUBE_WORKER_IP,localhost,127.0.0.1'" >> /etc/profile.d/envvar.sh
 echo "export no_proxy='$1,$KUBE_MASTER_IP,$KUBE_WORKER_IP,localhost,127.0.0.1'" >> /home/vagrant/.profile
 source /etc/profile.d/envvar.sh
@@ -372,7 +386,7 @@ source /home/vagrant/.profile
 # --------------> Kubeadm & Networking <------------------
 # --------------------------------------------------------
 
-sed -i '4 a Environment="KUBELET_EXTRA_ARGS=--node-ip=$KUBE_MASTER_IP --feature-gates HugePages=false"' /etc/systemd/system/kubelet.service.d/10-kubeadm.conf
+sed -i '4 a Environment="KUBELET_EXTRA_ARGS=--node-ip='"$KUBE_MASTER_IP"' --feature-gates HugePages=false"' /etc/systemd/system/kubelet.service.d/10-kubeadm.conf
 systemctl daemon-reload
 systemctl restart kubelet
 echo "$(kubeadm init --token-ttl 0 --pod-network-cidr="10.0.0.0/8" --apiserver-advertise-address="${KUBE_MASTER_IP}" --token="${KUBEADM_TOKEN}")" >> /vagrant/config/cert
@@ -404,7 +418,7 @@ echo Args passed: [[ $@ ]]
 source /vagrant/config/init
 export KUBE_WORKER_IP=$(hostname -I | cut -f1 -d' ')
 
-sed -i '4 a Environment="KUBELET_EXTRA_ARGS=--node-ip=$KUBE_WORKER_IP --feature-gates HugePages=false"' /etc/systemd/system/kubelet.service.d/10-kubeadm.conf
+sed -i '4 a Environment="KUBELET_EXTRA_ARGS=--node-ip='"$KUBE_MASTER_IP"' --feature-gates HugePages=false"' /etc/systemd/system/kubelet.service.d/10-kubeadm.conf
 systemctl daemon-reload
 systemctl restart kubelet
 
@@ -464,8 +478,8 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
                 k8smaster.vm.network :private_network, type: "dhcp", auto_config: true, virtualbox__intnet: "vpp"
             else
                 k8smaster.vm.network :private_network, type: "dhcp", auto_config: false, virtualbox__intnet: "vpp"
+                k8smaster.vm.network :private_network, ip: k8smaster_ip, virtualbox__intnet: "true"
             end
-            k8smaster.vm.network :private_network, ip: k8smaster_ip, virtualbox__intnet: "true"
             k8smaster.vm.provider "virtualbox" do |v|
                 v.customize ["modifyvm", :id, "--ioapic", "on"]
                 v.memory = 2048
@@ -498,8 +512,8 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
                     node.vm.network :private_network, type: "dhcp", auto_config: true, virtualbox__intnet: "vpp"
                 else
                     node.vm.network :private_network, type: "dhcp", auto_config: false, virtualbox__intnet: "vpp"
+                    node.vm.network :private_network, ip: node_addr, virtualbox__intnet: "true"
                 end
-                node.vm.network :private_network, ip: node_addr, virtualbox__intnet: "true"
                 node.vm.provider "virtualbox" do |v|
                 v.customize ["modifyvm", :id, "--ioapic", "on"]
                 v.memory = 2048
@@ -608,5 +622,3 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
         end
     end
 end
-
-                

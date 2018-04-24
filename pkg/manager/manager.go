@@ -537,7 +537,7 @@ func newEtcdClient(etcdEndpoint *string) (keyval.ProtoBroker, error) {
 	}
 	db := &etcdv3.BytesConnectionEtcd{}
 	ok := true
-	cfg, err := etcdv3.ConfigToClientv3(config)
+	cfg, err := etcdv3.ConfigToClient(config)
 	if err != nil {
 		return nil, err
 	}

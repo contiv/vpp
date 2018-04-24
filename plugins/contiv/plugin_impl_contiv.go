@@ -25,6 +25,7 @@ import (
 	"strings"
 
 	"git.fd.io/govpp.git/api"
+	"github.com/apparentlymart/go-cidr/cidr"
 	"github.com/contiv/vpp/plugins/contiv/containeridx"
 	"github.com/contiv/vpp/plugins/contiv/containeridx/model"
 	"github.com/contiv/vpp/plugins/contiv/ipam"
@@ -295,6 +296,16 @@ func (plugin *Plugin) NatExternalTraffic() bool {
 		return true
 	}
 	return false
+}
+
+// GetNatLoopbackIP returns the IP address of a virtual loopback, used to route traffic
+// between clients and services via VPP even if the source and destination are the same
+// IP addresses and would otherwise be routed locally.
+func (plugin *Plugin) GetNatLoopbackIP() net.IP {
+	// Last unicast IP from the pod subnet is used as NAT-loopback.
+	podNet := plugin.cniServer.ipam.PodNetwork()
+	_, broadcastIP := cidr.AddressRange(podNet)
+	return cidr.Dec(broadcastIP)
 }
 
 // GetNodeIP returns the IP address of this node.

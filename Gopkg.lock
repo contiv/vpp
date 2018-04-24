@@ -18,7 +18,7 @@
     "core",
     "core/bin_api/vpe"
   ]
-  revision = "37c71c06371e9bf791fd1573051fa774fcb66602"
+  revision = "0456d22f67865977065886ed58778621b21b7ede"
 
 [[projects]]
   branch = "master"
@@ -684,7 +684,6 @@
     "db/keyval",
     "db/keyval/etcdv3",
     "db/keyval/kvproto",
-    "db/keyval/plugin",
     "db/keyval/redis",
     "db/sql",
     "db/sql/cassandra",
@@ -713,8 +712,7 @@
     "utils/safeclose",
     "utils/structs"
   ]
-  revision = "e3b8c2a73fdfb66fe7654d1c3377ed5c1762a3b2"
-  version = "v1.2"
+  revision = "e5bff3cae460e0e45770b9840ddf863da8540d72"
 
 [[projects]]
   name = "github.com/ligato/vpp-agent"
@@ -789,7 +787,7 @@
     "plugins/linuxplugin/l3plugin/linuxcalls",
     "plugins/linuxplugin/nsplugin"
   ]
-  revision = "71161414896a8249e66c46937db0d56b3241f8e5"
+  revision = "0a771d5bfcd355faa7dc2f25eba0e3e6e2c7057d"
 
 [[projects]]
   branch = "master"
@@ -1639,6 +1637,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "962c2392c3cabd0aa98a421d60f3d93ffb02825e0deffb2ad4a8ad5be9d209d7"
+  inputs-digest = "7366c6bb17839a6807b660d1eef150668e4369134498e305fa911ff894459238"
   solver-name = "gps-cdcl"
   solver-version = 1

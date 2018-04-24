@@ -27,7 +27,7 @@
 required = ["github.com/wadey/gocovmerge", "github.com/docker/docker/api", "github.com/docker/swarmkit", "github.com/opencontainers/runc", "golang.org/x/exp/inotify", "github.com/google/cadvisor", "k8s.io/apiserver/pkg/apis/apiserver", "github.com/ugorji/go/codec", "github.com/docker/distribution"]
 
 [[constraint]]
-  revision = "37c71c06371e9bf791fd1573051fa774fcb66602"
+  revision = "0456d22f67865977065886ed58778621b21b7ede"
   name = "git.fd.io/govpp.git"
 
 [[constraint]]
@@ -52,7 +52,7 @@ required = ["github.com/wadey/gocovmerge", "github.com/docker/docker/api", "gith
 
 [[constraint]]
   name = "github.com/ligato/cn-infra"
-  version = "1.2"
+  revision = "e5bff3cae460e0e45770b9840ddf863da8540d72"
 
 [[constraint]]
   name = "github.com/containernetworking/cni"
@@ -85,7 +85,7 @@ required = ["github.com/wadey/gocovmerge", "github.com/docker/docker/api", "gith
 
 [[constraint]]
   name = "github.com/ligato/vpp-agent"
-  revision = "71161414896a8249e66c46937db0d56b3241f8e5"
+  revision = "0a771d5bfcd355faa7dc2f25eba0e3e6e2c7057d"
 
 [[constraint]]
   name = "github.com/prometheus/client_golang"

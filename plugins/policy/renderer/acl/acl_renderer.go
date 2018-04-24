@@ -322,54 +322,53 @@ func (art *RendererTxn) renderACL(table *cache.ContivRuleTable) *vpp_acl.AccessL
 	for i := 0; i < table.NumOfRules; i++ {
 		rule := table.Rules[i]
 		aclRule := &vpp_acl.AccessLists_Acl_Rule{}
-		aclRule.Actions = &vpp_acl.AccessLists_Acl_Rule_Actions{}
 		if rule.Action == renderer.ActionDeny {
-			aclRule.Actions.AclAction = vpp_acl.AclAction_DENY
+			aclRule.AclAction = vpp_acl.AclAction_DENY
 		} else if table.ID == ReflectiveACLName {
-			aclRule.Actions.AclAction = vpp_acl.AclAction_REFLECT
+			aclRule.AclAction = vpp_acl.AclAction_REFLECT
 		} else {
-			aclRule.Actions.AclAction = vpp_acl.AclAction_PERMIT
+			aclRule.AclAction = vpp_acl.AclAction_PERMIT
 		}
-		aclRule.Matches = &vpp_acl.AccessLists_Acl_Rule_Matches{}
-		aclRule.Matches.IpRule = &vpp_acl.AccessLists_Acl_Rule_Matches_IpRule{}
-		aclRule.Matches.IpRule.Ip = &vpp_acl.AccessLists_Acl_Rule_Matches_IpRule_Ip{}
+		aclRule.Match = &vpp_acl.AccessLists_Acl_Rule_Match{}
+		aclRule.Match.IpRule = &vpp_acl.AccessLists_Acl_Rule_Match_IpRule{}
+		aclRule.Match.IpRule.Ip = &vpp_acl.AccessLists_Acl_Rule_Match_IpRule_Ip{}
 		if len(rule.SrcNetwork.IP) > 0 {
-			aclRule.Matches.IpRule.Ip.SourceNetwork = rule.SrcNetwork.String()
+			aclRule.Match.IpRule.Ip.SourceNetwork = rule.SrcNetwork.String()
 		}
 		if len(rule.DestNetwork.IP) > 0 {
-			aclRule.Matches.IpRule.Ip.DestinationNetwork = rule.DestNetwork.String()
+			aclRule.Match.IpRule.Ip.DestinationNetwork = rule.DestNetwork.String()
 		}
 		if rule.Protocol == renderer.TCP {
-			aclRule.Matches.IpRule.Tcp = &vpp_acl.AccessLists_Acl_Rule_Matches_IpRule_Tcp{}
-			aclRule.Matches.IpRule.Tcp.SourcePortRange = &vpp_acl.AccessLists_Acl_Rule_Matches_IpRule_Tcp_SourcePortRange{}
-			aclRule.Matches.IpRule.Tcp.SourcePortRange.LowerPort = uint32(rule.SrcPort)
+			aclRule.Match.IpRule.Tcp = &vpp_acl.AccessLists_Acl_Rule_Match_IpRule_Tcp{}
+			aclRule.Match.IpRule.Tcp.SourcePortRange = &vpp_acl.AccessLists_Acl_Rule_Match_IpRule_PortRange{}
+			aclRule.Match.IpRule.Tcp.SourcePortRange.LowerPort = uint32(rule.SrcPort)
 			if rule.SrcPort == 0 {
-				aclRule.Matches.IpRule.Tcp.SourcePortRange.UpperPort = uint32(maxPortNum)
+				aclRule.Match.IpRule.Tcp.SourcePortRange.UpperPort = uint32(maxPortNum)
 			} else {
-				aclRule.Matches.IpRule.Tcp.SourcePortRange.UpperPort = uint32(rule.SrcPort)
+				aclRule.Match.IpRule.Tcp.SourcePortRange.UpperPort = uint32(rule.SrcPort)
 			}
-			aclRule.Matches.IpRule.Tcp.DestinationPortRange = &vpp_acl.AccessLists_Acl_Rule_Matches_IpRule_Tcp_DestinationPortRange{}
-			aclRule.Matches.IpRule.Tcp.DestinationPortRange.LowerPort = uint32(rule.DestPort)
+			aclRule.Match.IpRule.Tcp.DestinationPortRange = &vpp_acl.AccessLists_Acl_Rule_Match_IpRule_PortRange{}
+			aclRule.Match.IpRule.Tcp.DestinationPortRange.LowerPort = uint32(rule.DestPort)
 			if rule.DestPort == 0 {
-				aclRule.Matches.IpRule.Tcp.DestinationPortRange.UpperPort = uint32(maxPortNum)
+				aclRule.Match.IpRule.Tcp.DestinationPortRange.UpperPort = uint32(maxPortNum)
 			} else {
-				aclRule.Matches.IpRule.Tcp.DestinationPortRange.UpperPort = uint32(rule.DestPort)
+				aclRule.Match.IpRule.Tcp.DestinationPortRange.UpperPort = uint32(rule.DestPort)
 			}
 		} else {
-			aclRule.Matches.IpRule.Udp = &vpp_acl.AccessLists_Acl_Rule_Matches_IpRule_Udp{}
-			aclRule.Matches.IpRule.Udp.SourcePortRange = &vpp_acl.AccessLists_Acl_Rule_Matches_IpRule_Udp_SourcePortRange{}
-			aclRule.Matches.IpRule.Udp.SourcePortRange.LowerPort = uint32(rule.SrcPort)
+			aclRule.Match.IpRule.Udp = &vpp_acl.AccessLists_Acl_Rule_Match_IpRule_Udp{}
+			aclRule.Match.IpRule.Udp.SourcePortRange = &vpp_acl.AccessLists_Acl_Rule_Match_IpRule_PortRange{}
+			aclRule.Match.IpRule.Udp.SourcePortRange.LowerPort = uint32(rule.SrcPort)
 			if rule.SrcPort == 0 {
-				aclRule.Matches.IpRule.Udp.SourcePortRange.UpperPort = uint32(maxPortNum)
+				aclRule.Match.IpRule.Udp.SourcePortRange.UpperPort = uint32(maxPortNum)
 			} else {
-				aclRule.Matches.IpRule.Udp.SourcePortRange.UpperPort = uint32(rule.SrcPort)
+				aclRule.Match.IpRule.Udp.SourcePortRange.UpperPort = uint32(rule.SrcPort)
 			}
-			aclRule.Matches.IpRule.Udp.DestinationPortRange = &vpp_acl.AccessLists_Acl_Rule_Matches_IpRule_Udp_DestinationPortRange{}
-			aclRule.Matches.IpRule.Udp.DestinationPortRange.LowerPort = uint32(rule.DestPort)
+			aclRule.Match.IpRule.Udp.DestinationPortRange = &vpp_acl.AccessLists_Acl_Rule_Match_IpRule_PortRange{}
+			aclRule.Match.IpRule.Udp.DestinationPortRange.LowerPort = uint32(rule.DestPort)
 			if rule.DestPort == 0 {
-				aclRule.Matches.IpRule.Udp.DestinationPortRange.UpperPort = uint32(maxPortNum)
+				aclRule.Match.IpRule.Udp.DestinationPortRange.UpperPort = uint32(maxPortNum)
 			} else {
-				aclRule.Matches.IpRule.Udp.DestinationPortRange.UpperPort = uint32(rule.DestPort)
+				aclRule.Match.IpRule.Udp.DestinationPortRange.UpperPort = uint32(rule.DestPort)
 			}
 		}
 		acl.Rules = append(acl.Rules, aclRule)
@@ -378,22 +377,21 @@ func (art *RendererTxn) renderACL(table *cache.ContivRuleTable) *vpp_acl.AccessL
 	// Allow all ICMP traffic
 	if table.NumOfRules > 0 {
 		aclRule := &vpp_acl.AccessLists_Acl_Rule{}
-		aclRule.Actions = &vpp_acl.AccessLists_Acl_Rule_Actions{}
 		if table.ID == ReflectiveACLName {
-			aclRule.Actions.AclAction = vpp_acl.AclAction_REFLECT
+			aclRule.AclAction = vpp_acl.AclAction_REFLECT
 		} else {
-			aclRule.Actions.AclAction = vpp_acl.AclAction_PERMIT
+			aclRule.AclAction = vpp_acl.AclAction_PERMIT
 		}
-		aclRule.Matches = &vpp_acl.AccessLists_Acl_Rule_Matches{}
-		aclRule.Matches.IpRule = &vpp_acl.AccessLists_Acl_Rule_Matches_IpRule{}
-		aclRule.Matches.IpRule.Ip = &vpp_acl.AccessLists_Acl_Rule_Matches_IpRule_Ip{}
-		aclRule.Matches.IpRule.Icmp = &vpp_acl.AccessLists_Acl_Rule_Matches_IpRule_Icmp{}
-		aclRule.Matches.IpRule.Icmp.IcmpTypeRange = &vpp_acl.AccessLists_Acl_Rule_Matches_IpRule_Icmp_IcmpTypeRange{}
-		aclRule.Matches.IpRule.Icmp.IcmpTypeRange.First = 0
-		aclRule.Matches.IpRule.Icmp.IcmpTypeRange.Last = maxICMPType
-		aclRule.Matches.IpRule.Icmp.IcmpCodeRange = &vpp_acl.AccessLists_Acl_Rule_Matches_IpRule_Icmp_IcmpCodeRange{}
-		aclRule.Matches.IpRule.Icmp.IcmpCodeRange.First = 0
-		aclRule.Matches.IpRule.Icmp.IcmpCodeRange.Last = maxICMPCode
+		aclRule.Match = &vpp_acl.AccessLists_Acl_Rule_Match{}
+		aclRule.Match.IpRule = &vpp_acl.AccessLists_Acl_Rule_Match_IpRule{}
+		aclRule.Match.IpRule.Ip = &vpp_acl.AccessLists_Acl_Rule_Match_IpRule_Ip{}
+		aclRule.Match.IpRule.Icmp = &vpp_acl.AccessLists_Acl_Rule_Match_IpRule_Icmp{}
+		aclRule.Match.IpRule.Icmp.IcmpTypeRange = &vpp_acl.AccessLists_Acl_Rule_Match_IpRule_Icmp_Range{}
+		aclRule.Match.IpRule.Icmp.IcmpTypeRange.First = 0
+		aclRule.Match.IpRule.Icmp.IcmpTypeRange.Last = maxICMPType
+		aclRule.Match.IpRule.Icmp.IcmpCodeRange = &vpp_acl.AccessLists_Acl_Rule_Match_IpRule_Icmp_Range{}
+		aclRule.Match.IpRule.Icmp.IcmpCodeRange.First = 0
+		aclRule.Match.IpRule.Icmp.IcmpCodeRange.Last = maxICMPCode
 		acl.Rules = append(acl.Rules, aclRule)
 	}
 
@@ -482,12 +480,7 @@ func (art *RendererTxn) dumpVppACLConfig() (tables []*cache.ContivRuleTable, has
 		for _, aclRule := range acl.Rules {
 			rule := &renderer.ContivRule{}
 			// Rule Action
-			if aclRule.Actions == nil {
-				// invalid, skip
-				art.Log.WithField("rule", aclRule).Warn("Skipping ACL rule without 'Actions'")
-				continue
-			}
-			switch aclRule.Actions.AclAction {
+			switch aclRule.AclAction {
 			case vpp_acl.AclAction_PERMIT:
 				rule.Action = renderer.ActionPermit
 			case vpp_acl.AclAction_DENY:
@@ -497,28 +490,28 @@ func (art *RendererTxn) dumpVppACLConfig() (tables []*cache.ContivRuleTable, has
 				continue
 			}
 			// Rule IPs
-			if aclRule.Matches == nil {
+			if aclRule.Match == nil {
 				// invalid, skip
 				art.Log.WithField("rule", aclRule).Warn("Skipping ACL rule without 'Matches'")
 				continue
 			}
-			if aclRule.Matches.IpRule == nil {
+			if aclRule.Match.IpRule == nil {
 				// unhandled, skip
 				art.Log.WithField("rule", aclRule).Warn("Skipping ACL MAC-IP rule")
 				continue
 			}
 			rule.SrcNetwork = &net.IPNet{}
 			rule.DestNetwork = &net.IPNet{}
-			if aclRule.Matches.IpRule.Ip != nil {
-				if aclRule.Matches.IpRule.Ip.SourceNetwork != "" {
-					_, rule.SrcNetwork, err = net.ParseCIDR(aclRule.Matches.IpRule.Ip.SourceNetwork)
+			if aclRule.Match.IpRule.Ip != nil {
+				if aclRule.Match.IpRule.Ip.SourceNetwork != "" {
+					_, rule.SrcNetwork, err = net.ParseCIDR(aclRule.Match.IpRule.Ip.SourceNetwork)
 					if err != nil {
 						art.Log.WithField("err", err).Warn("Failed to parse source IP address")
 						continue
 					}
 				}
-				if aclRule.Matches.IpRule.Ip.DestinationNetwork != "" {
-					_, rule.DestNetwork, err = net.ParseCIDR(aclRule.Matches.IpRule.Ip.DestinationNetwork)
+				if aclRule.Match.IpRule.Ip.DestinationNetwork != "" {
+					_, rule.DestNetwork, err = net.ParseCIDR(aclRule.Match.IpRule.Ip.DestinationNetwork)
 					if err != nil {
 						art.Log.WithField("err", err).Warn("Failed to parse destination IP address")
 						continue
@@ -526,61 +519,56 @@ func (art *RendererTxn) dumpVppACLConfig() (tables []*cache.ContivRuleTable, has
 				}
 			}
 			// L4
-			if aclRule.Matches.IpRule.Other != nil {
-				// unhandled, skip
-				art.Log.WithField("rule", aclRule).Warn("Skipping Other ACL rule")
-				continue
-			}
-			if aclRule.Matches.IpRule.Icmp != nil {
+			if aclRule.Match.IpRule.Icmp != nil {
 				// skip ICMP rule
 				continue
-			} else if aclRule.Matches.IpRule.Tcp != nil {
+			} else if aclRule.Match.IpRule.Tcp != nil {
 				rule.Protocol = renderer.TCP
-				if aclRule.Matches.IpRule.Tcp.SourcePortRange != nil {
-					if aclRule.Matches.IpRule.Tcp.SourcePortRange.LowerPort != aclRule.Matches.IpRule.Tcp.SourcePortRange.UpperPort {
-						if aclRule.Matches.IpRule.Tcp.SourcePortRange.LowerPort != 0 ||
-							aclRule.Matches.IpRule.Tcp.SourcePortRange.UpperPort != maxPortNum {
+				if aclRule.Match.IpRule.Tcp.SourcePortRange != nil {
+					if aclRule.Match.IpRule.Tcp.SourcePortRange.LowerPort != aclRule.Match.IpRule.Tcp.SourcePortRange.UpperPort {
+						if aclRule.Match.IpRule.Tcp.SourcePortRange.LowerPort != 0 ||
+							aclRule.Match.IpRule.Tcp.SourcePortRange.UpperPort != maxPortNum {
 							// unhandled, skip
 							art.Log.WithField("rule", aclRule).Warn("Skipping ACL rule with TCP port range")
 							continue
 						}
 					}
-					rule.SrcPort = uint16(aclRule.Matches.IpRule.Tcp.SourcePortRange.LowerPort)
+					rule.SrcPort = uint16(aclRule.Match.IpRule.Tcp.SourcePortRange.LowerPort)
 				}
-				if aclRule.Matches.IpRule.Tcp.DestinationPortRange != nil {
-					if aclRule.Matches.IpRule.Tcp.DestinationPortRange.LowerPort != aclRule.Matches.IpRule.Tcp.DestinationPortRange.UpperPort {
-						if aclRule.Matches.IpRule.Tcp.DestinationPortRange.LowerPort != 0 ||
-							aclRule.Matches.IpRule.Tcp.DestinationPortRange.UpperPort != maxPortNum {
+				if aclRule.Match.IpRule.Tcp.DestinationPortRange != nil {
+					if aclRule.Match.IpRule.Tcp.DestinationPortRange.LowerPort != aclRule.Match.IpRule.Tcp.DestinationPortRange.UpperPort {
+						if aclRule.Match.IpRule.Tcp.DestinationPortRange.LowerPort != 0 ||
+							aclRule.Match.IpRule.Tcp.DestinationPortRange.UpperPort != maxPortNum {
 							// unhandled, skip
 							art.Log.WithField("rule", aclRule).Warn("Skipping ACL rule with TCP port range")
 							continue
 						}
 					}
-					rule.DestPort = uint16(aclRule.Matches.IpRule.Tcp.DestinationPortRange.LowerPort)
+					rule.DestPort = uint16(aclRule.Match.IpRule.Tcp.DestinationPortRange.LowerPort)
 				}
-			} else if aclRule.Matches.IpRule.Udp != nil {
+			} else if aclRule.Match.IpRule.Udp != nil {
 				rule.Protocol = renderer.UDP
-				if aclRule.Matches.IpRule.Udp.SourcePortRange != nil {
-					if aclRule.Matches.IpRule.Udp.SourcePortRange.LowerPort != aclRule.Matches.IpRule.Udp.SourcePortRange.UpperPort {
-						if aclRule.Matches.IpRule.Udp.SourcePortRange.LowerPort != 0 ||
-							aclRule.Matches.IpRule.Udp.SourcePortRange.UpperPort != maxPortNum {
+				if aclRule.Match.IpRule.Udp.SourcePortRange != nil {
+					if aclRule.Match.IpRule.Udp.SourcePortRange.LowerPort != aclRule.Match.IpRule.Udp.SourcePortRange.UpperPort {
+						if aclRule.Match.IpRule.Udp.SourcePortRange.LowerPort != 0 ||
+							aclRule.Match.IpRule.Udp.SourcePortRange.UpperPort != maxPortNum {
 							// unhandled, skip
 							art.Log.WithField("rule", aclRule).Warn("Skipping ACL rule with UDP port range")
 							continue
 						}
 					}
-					rule.SrcPort = uint16(aclRule.Matches.IpRule.Udp.SourcePortRange.LowerPort)
+					rule.SrcPort = uint16(aclRule.Match.IpRule.Udp.SourcePortRange.LowerPort)
 				}
-				if aclRule.Matches.IpRule.Udp.DestinationPortRange != nil {
-					if aclRule.Matches.IpRule.Udp.DestinationPortRange.LowerPort != aclRule.Matches.IpRule.Udp.DestinationPortRange.UpperPort {
-						if aclRule.Matches.IpRule.Udp.DestinationPortRange.LowerPort != 0 ||
-							aclRule.Matches.IpRule.Udp.DestinationPortRange.UpperPort != maxPortNum {
+				if aclRule.Match.IpRule.Udp.DestinationPortRange != nil {
+					if aclRule.Match.IpRule.Udp.DestinationPortRange.LowerPort != aclRule.Match.IpRule.Udp.DestinationPortRange.UpperPort {
+						if aclRule.Match.IpRule.Udp.DestinationPortRange.LowerPort != 0 ||
+							aclRule.Match.IpRule.Udp.DestinationPortRange.UpperPort != maxPortNum {
 							// unhandled, skip
 							art.Log.WithField("rule", aclRule).Warn("Skipping ACL rule with UDP port range")
 							continue
 						}
 					}
-					rule.DestPort = uint16(aclRule.Matches.IpRule.Udp.DestinationPortRange.LowerPort)
+					rule.DestPort = uint16(aclRule.Match.IpRule.Udp.DestinationPortRange.LowerPort)
 				}
 			}
 			// Add rule to the list.

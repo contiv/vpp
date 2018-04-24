@@ -25,12 +25,17 @@ import (
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/logging/logrus"
 
+	. "github.com/contiv/vpp/mock/contiv"
 	. "github.com/contiv/vpp/mock/policycache"
 	. "github.com/contiv/vpp/mock/renderer"
 
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	policymodel "github.com/contiv/vpp/plugins/ksr/model/policy"
 	rendererAPI "github.com/contiv/vpp/plugins/policy/renderer"
+)
+
+const (
+	natLoopbackIP = "10.1.255.254"
 )
 
 func parseIP(ip string) *net.IP {
@@ -84,13 +89,17 @@ func TestSinglePolicySinglePod(t *testing.T) {
 	cache.AddPodConfig(pod1, pod1IP)
 	cache.AddPodConfig(pod2, pod2IP)
 
+	contiv := NewMockContiv()
+	contiv.SetNatLoopbackIP(natLoopbackIP)
+
 	renderer := NewMockRenderer("A", logger)
 
 	// Initialize configurator.
 	configurator := &PolicyConfigurator{
 		Deps: Deps{
-			Log:   logger,
-			Cache: cache,
+			Log:    logger,
+			Cache:  cache,
+			Contiv: contiv,
 		},
 	}
 	configurator.Init(false)
@@ -122,6 +131,11 @@ func TestSinglePolicySinglePod(t *testing.T) {
 	// Allowed by policy1.
 	action = renderer.TestTraffic(pod1, EgressTraffic,
 		parseIP(pod2IP), parseIP(pod1IP), rendererAPI.TCP, 456, 443)
+	gomega.Expect(action).To(gomega.BeEquivalentTo(AllowedTraffic))
+
+	// Always allowed from NAT-loopback.
+	action = renderer.TestTraffic(pod1, EgressTraffic,
+		parseIP(natLoopbackIP), parseIP(pod1IP), rendererAPI.TCP, 456, 100)
 	gomega.Expect(action).To(gomega.BeEquivalentTo(AllowedTraffic))
 
 	// Not covered by any policy.
@@ -185,13 +199,17 @@ func TestSinglePolicyWithIPBlockSinglePod(t *testing.T) {
 	cache.AddPodConfig(pod1, pod1IP)
 	cache.AddPodConfig(pod2, pod2IP)
 
+	contiv := NewMockContiv()
+	contiv.SetNatLoopbackIP(natLoopbackIP)
+
 	renderer := NewMockRenderer("A", logger)
 
 	// Initialize configurator.
 	configurator := &PolicyConfigurator{
 		Deps: Deps{
-			Log:   logger,
-			Cache: cache,
+			Log:    logger,
+			Cache:  cache,
+			Contiv: contiv,
 		},
 	}
 	configurator.Init(false)
@@ -228,6 +246,11 @@ func TestSinglePolicyWithIPBlockSinglePod(t *testing.T) {
 	// Allowed by policy1.
 	action = renderer.TestTraffic(pod1, EgressTraffic,
 		parseIP("192.168.2.20"), parseIP(pod1IP), rendererAPI.TCP, 123, 80)
+	gomega.Expect(action).To(gomega.BeEquivalentTo(AllowedTraffic))
+
+	// Always allowed from NAT-loopback.
+	action = renderer.TestTraffic(pod1, EgressTraffic,
+		parseIP(natLoopbackIP), parseIP(pod1IP), rendererAPI.TCP, 456, 100)
 	gomega.Expect(action).To(gomega.BeEquivalentTo(AllowedTraffic))
 
 	// Not covered by any policy.
@@ -306,13 +329,17 @@ func TestSinglePolicyMultiplePods(t *testing.T) {
 	cache.AddPodConfig(pod2, pod2IP)
 	cache.AddPodConfig(pod3, pod3IP)
 
+	contiv := NewMockContiv()
+	contiv.SetNatLoopbackIP(natLoopbackIP)
+
 	renderer := NewMockRenderer("A", logger)
 
 	// Initialize configurator.
 	configurator := &PolicyConfigurator{
 		Deps: Deps{
-			Log:   logger,
-			Cache: cache,
+			Log:    logger,
+			Cache:  cache,
+			Contiv: contiv,
 		},
 	}
 	configurator.Init(false)
@@ -371,6 +398,14 @@ func TestSinglePolicyMultiplePods(t *testing.T) {
 	action = renderer.TestTraffic(pod2, IngressTraffic,
 		parseIP(pod2IP), parseIP(pod1IP), rendererAPI.TCP, 123, 8000)
 	gomega.Expect(action).To(gomega.BeEquivalentTo(UnmatchedTraffic))
+
+	// Always allowed from NAT-loopback.
+	action = renderer.TestTraffic(pod1, EgressTraffic,
+		parseIP(natLoopbackIP), parseIP(pod1IP), rendererAPI.UDP, 123, 8001)
+	gomega.Expect(action).To(gomega.BeEquivalentTo(AllowedTraffic))
+	action = renderer.TestTraffic(pod2, EgressTraffic,
+		parseIP(natLoopbackIP), parseIP(pod2IP), rendererAPI.UDP, 123, 8001)
+	gomega.Expect(action).To(gomega.BeEquivalentTo(AllowedTraffic))
 
 	// Blocked by policy1 - ip in the "except" range.
 	action = renderer.TestTraffic(pod1, EgressTraffic,
@@ -444,13 +479,17 @@ func TestSinglePolicyWithNestedIPBlocksSinglePod(t *testing.T) {
 	cache.AddPodConfig(pod1, pod1IP)
 	cache.AddPodConfig(pod2, pod2IP)
 
+	contiv := NewMockContiv()
+	contiv.SetNatLoopbackIP(natLoopbackIP)
+
 	renderer := NewMockRenderer("A", logger)
 
 	// Initialize configurator.
 	configurator := &PolicyConfigurator{
 		Deps: Deps{
-			Log:   logger,
-			Cache: cache,
+			Log:    logger,
+			Cache:  cache,
+			Contiv: contiv,
 		},
 	}
 	configurator.Init(false)
@@ -540,13 +579,17 @@ func TestSingleEgressPolicySinglePod(t *testing.T) {
 	cache.AddPodConfig(pod1, pod1IP)
 	cache.AddPodConfig(pod2, pod2IP)
 
+	contiv := NewMockContiv()
+	contiv.SetNatLoopbackIP(natLoopbackIP)
+
 	renderer := NewMockRenderer("A", logger)
 
 	// Initialize configurator.
 	configurator := &PolicyConfigurator{
 		Deps: Deps{
-			Log:   logger,
-			Cache: cache,
+			Log:    logger,
+			Cache:  cache,
+			Contiv: contiv,
 		},
 	}
 	configurator.Init(false)
@@ -583,6 +626,11 @@ func TestSingleEgressPolicySinglePod(t *testing.T) {
 	// Not covered by any policy.
 	action = renderer.TestTraffic(pod1, EgressTraffic,
 		parseIP(pod2IP), parseIP(pod1IP), rendererAPI.TCP, 123, 456)
+	gomega.Expect(action).To(gomega.BeEquivalentTo(UnmatchedTraffic))
+
+	// Not covered by any policy.
+	action = renderer.TestTraffic(pod1, EgressTraffic,
+		parseIP(natLoopbackIP), parseIP(pod1IP), rendererAPI.TCP, 123, 456)
 	gomega.Expect(action).To(gomega.BeEquivalentTo(UnmatchedTraffic))
 
 	// Blocked by policy1 - TCP:100 not allowed.
@@ -641,13 +689,17 @@ func TestSingleEgressPolicyWithIPBlockSinglePod(t *testing.T) {
 	cache.AddPodConfig(pod1, pod1IP)
 	cache.AddPodConfig(pod2, pod2IP)
 
+	contiv := NewMockContiv()
+	contiv.SetNatLoopbackIP(natLoopbackIP)
+
 	renderer := NewMockRenderer("A", logger)
 
 	// Initialize configurator.
 	configurator := &PolicyConfigurator{
 		Deps: Deps{
-			Log:   logger,
-			Cache: cache,
+			Log:    logger,
+			Cache:  cache,
+			Contiv: contiv,
 		},
 	}
 	configurator.Init(false)
@@ -689,6 +741,11 @@ func TestSingleEgressPolicyWithIPBlockSinglePod(t *testing.T) {
 	// Not covered by any policy.
 	action = renderer.TestTraffic(pod1, EgressTraffic,
 		parseIP(pod2IP), parseIP(pod1IP), rendererAPI.TCP, 123, 456)
+	gomega.Expect(action).To(gomega.BeEquivalentTo(UnmatchedTraffic))
+
+	// Not covered by any policy.
+	action = renderer.TestTraffic(pod1, EgressTraffic,
+		parseIP(natLoopbackIP), parseIP(pod1IP), rendererAPI.TCP, 123, 456)
 	gomega.Expect(action).To(gomega.BeEquivalentTo(UnmatchedTraffic))
 
 	// Blocked by policy1 - TCP:100 not allowed.
@@ -768,13 +825,17 @@ func TestSingleBothWaysPolicySinglePod(t *testing.T) {
 	cache.AddPodConfig(pod1, pod1IP)
 	cache.AddPodConfig(pod2, pod2IP)
 
+	contiv := NewMockContiv()
+	contiv.SetNatLoopbackIP(natLoopbackIP)
+
 	renderer := NewMockRenderer("A", logger)
 
 	// Initialize configurator.
 	configurator := &PolicyConfigurator{
 		Deps: Deps{
-			Log:   logger,
-			Cache: cache,
+			Log:    logger,
+			Cache:  cache,
+			Contiv: contiv,
 		},
 	}
 	configurator.Init(false)
@@ -836,6 +897,11 @@ func TestSingleBothWaysPolicySinglePod(t *testing.T) {
 	// Allowed by policy1.
 	action = renderer.TestTraffic(pod1, EgressTraffic,
 		parseIP("10.5.6.7"), parseIP(pod1IP), rendererAPI.TCP, 456, 6000)
+	gomega.Expect(action).To(gomega.BeEquivalentTo(AllowedTraffic))
+
+	// Always allowed from NAT-loopback.
+	action = renderer.TestTraffic(pod1, EgressTraffic,
+		parseIP(natLoopbackIP), parseIP(pod1IP), rendererAPI.TCP, 456, 100)
 	gomega.Expect(action).To(gomega.BeEquivalentTo(AllowedTraffic))
 
 	// Blocked by policy1 - TCP:100 not allowed.
@@ -909,6 +975,9 @@ func TestSinglePolicySinglePodMultipleRenderers(t *testing.T) {
 	cache.AddPodConfig(pod1, pod1IP)
 	cache.AddPodConfig(pod2, pod2IP)
 
+	contiv := NewMockContiv()
+	contiv.SetNatLoopbackIP(natLoopbackIP)
+
 	renderer1 := NewMockRenderer("A", logger)
 	renderer2 := NewMockRenderer("B", logger)
 	renderer3 := NewMockRenderer("C", logger)
@@ -916,8 +985,9 @@ func TestSinglePolicySinglePodMultipleRenderers(t *testing.T) {
 	// Initialize configurator.
 	configurator := &PolicyConfigurator{
 		Deps: Deps{
-			Log:   logger,
-			Cache: cache,
+			Log:    logger,
+			Cache:  cache,
+			Contiv: contiv,
 		},
 	}
 	configurator.Init(true)
@@ -963,6 +1033,11 @@ func TestSinglePolicySinglePodMultipleRenderers(t *testing.T) {
 		parseIP(pod2IP), parseIP(pod1IP), rendererAPI.TCP, 456, 443)
 	gomega.Expect(action).To(gomega.BeEquivalentTo(AllowedTraffic))
 
+	// Always allowed from NAT-loopback.
+	action = renderer1.TestTraffic(pod1, EgressTraffic,
+		parseIP(natLoopbackIP), parseIP(pod1IP), rendererAPI.TCP, 456, 100)
+	gomega.Expect(action).To(gomega.BeEquivalentTo(AllowedTraffic))
+
 	// Not covered by any policy.
 	action = renderer1.TestTraffic(pod1, IngressTraffic,
 		parseIP(pod1IP), parseIP(pod2IP), rendererAPI.TCP, 123, 456)
@@ -990,6 +1065,11 @@ func TestSinglePolicySinglePodMultipleRenderers(t *testing.T) {
 		parseIP(pod2IP), parseIP(pod1IP), rendererAPI.TCP, 456, 443)
 	gomega.Expect(action).To(gomega.BeEquivalentTo(AllowedTraffic))
 
+	// Always allowed from NAT-loopback.
+	action = renderer2.TestTraffic(pod1, EgressTraffic,
+		parseIP(natLoopbackIP), parseIP(pod1IP), rendererAPI.TCP, 456, 100)
+	gomega.Expect(action).To(gomega.BeEquivalentTo(AllowedTraffic))
+
 	// Not covered by any policy.
 	action = renderer2.TestTraffic(pod1, IngressTraffic,
 		parseIP(pod1IP), parseIP(pod2IP), rendererAPI.TCP, 123, 456)
@@ -1015,6 +1095,11 @@ func TestSinglePolicySinglePodMultipleRenderers(t *testing.T) {
 	// Allowed by policy1.
 	action = renderer3.TestTraffic(pod1, EgressTraffic,
 		parseIP(pod2IP), parseIP(pod1IP), rendererAPI.TCP, 456, 443)
+	gomega.Expect(action).To(gomega.BeEquivalentTo(AllowedTraffic))
+
+	// Always allowed from NAT-loopback.
+	action = renderer3.TestTraffic(pod1, EgressTraffic,
+		parseIP(natLoopbackIP), parseIP(pod1IP), rendererAPI.TCP, 456, 100)
 	gomega.Expect(action).To(gomega.BeEquivalentTo(AllowedTraffic))
 
 	// Not covered by any policy.
@@ -1116,13 +1201,17 @@ func TestMultiplePoliciesSinglePod(t *testing.T) {
 	cache.AddPodConfig(pod1, pod1IP)
 	cache.AddPodConfig(pod2, pod2IP)
 
+	contiv := NewMockContiv()
+	contiv.SetNatLoopbackIP(natLoopbackIP)
+
 	renderer := NewMockRenderer("A", logger)
 
 	// Initialize configurator.
 	configurator := &PolicyConfigurator{
 		Deps: Deps{
-			Log:   logger,
-			Cache: cache,
+			Log:    logger,
+			Cache:  cache,
+			Contiv: contiv,
 		},
 	}
 	configurator.Init(false)
@@ -1185,6 +1274,11 @@ func TestMultiplePoliciesSinglePod(t *testing.T) {
 	action = renderer.TestTraffic(pod1, IngressTraffic,
 		parseIP(pod1IP), parseIP(pod2IP), rendererAPI.TCP, 789, 100)
 	gomega.Expect(action).To(gomega.BeEquivalentTo(DeniedTraffic))
+
+	// Always allowed from NAT-loopback.
+	action = renderer.TestTraffic(pod1, EgressTraffic,
+		parseIP(natLoopbackIP), parseIP(pod1IP), rendererAPI.UDP, 789, 444)
+	gomega.Expect(action).To(gomega.BeEquivalentTo(AllowedTraffic))
 
 	// Blocked by policy1 - UDP not allowed.
 	action = renderer.TestTraffic(pod1, IngressTraffic,
@@ -1321,13 +1415,17 @@ func TestMultiplePodsSpecialCases(t *testing.T) {
 	cache.AddPodConfig(pod2, pod2IP)
 	cache.AddPodConfig(pod3, pod3IP)
 
+	contiv := NewMockContiv()
+	contiv.SetNatLoopbackIP(natLoopbackIP)
+
 	renderer := NewMockRenderer("A", logger)
 
 	// Initialize configurator.
 	configurator := &PolicyConfigurator{
 		Deps: Deps{
-			Log:   logger,
-			Cache: cache,
+			Log:    logger,
+			Cache:  cache,
+			Contiv: contiv,
 		},
 	}
 	configurator.Init(false)
@@ -1464,4 +1562,12 @@ func TestMultiplePodsSpecialCases(t *testing.T) {
 	action = renderer.TestTraffic(pod3, EgressTraffic,
 		parseIP("10.5.10.10"), parseIP(pod3IP), rendererAPI.TCP, 123, 9000)
 	gomega.Expect(action).To(gomega.BeEquivalentTo(DeniedTraffic))
+
+	// Always allowed.
+	action = renderer.TestTraffic(pod3, EgressTraffic,
+		parseIP(natLoopbackIP), parseIP(pod3IP), rendererAPI.TCP, 123, 8000)
+	gomega.Expect(action).To(gomega.BeEquivalentTo(AllowedTraffic))
+	action = renderer.TestTraffic(pod1, EgressTraffic,
+		parseIP(natLoopbackIP), parseIP(pod1IP), rendererAPI.TCP, 123, 9000)
+	gomega.Expect(action).To(gomega.BeEquivalentTo(AllowedTraffic))
 }

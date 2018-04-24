@@ -56,12 +56,12 @@ type PodConfig struct {
 	Loopback *vpp_intf.Interfaces_Interface
 	// StnRule is STN rule used to "punt" any traffic via VETHs/TAPs with no match in VPP TCP stack.
 	// Nil if VPP TCP stack is disabled.
-	StnRule *stn.StnRule
+	StnRule *stn.STN_Rule
 	// AppNamespace is the application namespace associated with the pod.
 	// Nil if VPP TCP stack is disabled.
 	AppNamespace *vpp_l4.AppNamespaces_AppNamespace
 	// VppARPEntry is ARP entry configured in VPP to route traffic from VPP to pod.
-	VppARPEntry *vpp_l3.ArpTable_ArpTableEntry
+	VppARPEntry *vpp_l3.ArpTable_ArpEntry
 	// PodARPEntry is ARP entry configured in the pod to route traffic from pod to VPP.
 	PodARPEntry *linux_l3.LinuxStaticArpEntries_ArpEntry
 	// VppRoute is the route from VPP to the container
@@ -372,8 +372,8 @@ func (s *remoteCNIserver) vppRouteFromRequest(request *cni.CNIRequest, podIP str
 	return route
 }
 
-func (s *remoteCNIserver) stnRule(ipAddress net.IP, ifname string) *stn.StnRule {
-	return &stn.StnRule{
+func (s *remoteCNIserver) stnRule(ipAddress net.IP, ifname string) *stn.STN_Rule {
+	return &stn.STN_Rule{
 		RuleName:  "rule-" + ifname,   //used as unique id for rules in etcd (managed by vpp-agent)
 		IpAddress: ipAddress.String(), //ipv4
 		Interface: ifname,
@@ -388,8 +388,8 @@ func (s *remoteCNIserver) appNamespaceFromRequest(request *cni.CNIRequest) *vpp_
 	}
 }
 
-func (s *remoteCNIserver) vppArpEntry(podIfName string, podIP net.IP, macAddr string) *vpp_l3.ArpTable_ArpTableEntry {
-	return &vpp_l3.ArpTable_ArpTableEntry{
+func (s *remoteCNIserver) vppArpEntry(podIfName string, podIP net.IP, macAddr string) *vpp_l3.ArpTable_ArpEntry {
+	return &vpp_l3.ArpTable_ArpEntry{
 		Interface:   podIfName,
 		IpAddress:   podIP.String(),
 		PhysAddress: macAddr,

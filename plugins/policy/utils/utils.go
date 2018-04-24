@@ -273,8 +273,16 @@ func GetOneHostSubnet(hostAddr string) *net.IPNet {
 	if ip == nil {
 		return nil
 	}
-	ipNet := &net.IPNet{IP: ip}
-	if ip.To4() != nil {
+	return GetOneHostSubnetFromIP(ip)
+}
+
+// GetOneHostSubnetFromIP returns the IP subnet that contains only the given host
+// (i.e. /32 for IPv4, /128 for IPv6).
+// Unlike GetOneHostSubnet, host address is not given as a string but rather
+// as an instance of net.IP.
+func GetOneHostSubnetFromIP(hostIP net.IP) *net.IPNet {
+	ipNet := &net.IPNet{IP: hostIP}
+	if hostIP.To4() != nil {
 		ipNet.Mask = net.CIDRMask(net.IPv4len*8, net.IPv4len*8)
 	} else {
 		ipNet.Mask = net.CIDRMask(net.IPv6len*8, net.IPv6len*8)

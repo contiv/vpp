@@ -17,8 +17,6 @@
 package configurator
 
 import (
-	"net"
-
 	"github.com/contiv/vpp/plugins/contiv"
 	"github.com/golang/protobuf/proto"
 	"github.com/ligato/cn-infra/logging"
@@ -44,15 +42,17 @@ const (
 type ServiceConfigurator struct {
 	Deps
 
+	externalSNAT ExternalSNATConfig
 	natGlobalCfg *nat.Nat44Global
-	nodeIPs      []net.IP
+	nodeIPs      *IPAddresses
+	podIPs       *IPAddresses
 }
 
 // Deps lists dependencies of ServiceConfigurator.
 type Deps struct {
 	Log           logging.Logger
 	VPP           defaultplugins.API /* for DumpNat44Global & DumpNat44DNat */
-	Contiv        contiv.API         /* for GetNatLoopbackIP */
+	Contiv        contiv.API         /* for GetNatLoopbackIP, InSTNMode */
 	NATTxnFactory func() (dsl linux.DataChangeDSL)
 }
 
@@ -61,6 +61,31 @@ func (sc *ServiceConfigurator) Init() error {
 	sc.natGlobalCfg = &nat.Nat44Global{
 		Forwarding: true,
 	}
+	return nil
+}
+
+// UpdatePodIPs updates configuration of identity mappings (= what to exclude from NAT)
+// to reflect the changed list of IP addresses of all pods deployed on this node.
+func (sc *ServiceConfigurator) UpdatePodIPs(podIPs *IPAddresses) error {
+	sc.Log.WithFields(logging.Fields{
+		"podIPs": podIPs,
+	}).Debug("ServiceConfigurator - UpdatePodIPs()")
+
+	// Update cached pod IPs.
+	sc.podIPs = podIPs
+
+	// Update DNAT with identity mappings via ligato/vpp-agent.
+	dsl := sc.NATTxnFactory()
+	putDsl := dsl.Put()
+
+	putDsl.NAT44DNat(sc.exportIdentityMappings())
+
+	err := dsl.Send().ReceiveReply()
+	if err != nil {
+		sc.Log.Error(err)
+		return err
+	}
+
 	return nil
 }
 
@@ -115,7 +140,7 @@ func (sc *ServiceConfigurator) DeleteService(service *ContivService) error {
 
 // UpdateNodePortServices updates configuration of nodeport services to reflect
 // changed list of all node IPs in the cluster.
-func (sc *ServiceConfigurator) UpdateNodePortServices(nodeIPs []net.IP, npServices []*ContivService) error {
+func (sc *ServiceConfigurator) UpdateNodePortServices(nodeIPs *IPAddresses, npServices []*ContivService) error {
 	sc.Log.WithFields(logging.Fields{
 		"nodeIPs":    nodeIPs,
 		"npServices": npServices,
@@ -231,6 +256,12 @@ func (sc *ServiceConfigurator) Resync(resyncEv *ResyncEventData) error {
 	// Updated cached internal node IP.
 	sc.nodeIPs = resyncEv.NodeIPs
 
+	// Update cached pod IPs.
+	sc.podIPs = resyncEv.PodIPs
+
+	// Update cached SNAT config.
+	sc.externalSNAT = resyncEv.ExternalSNAT
+
 	// Dump currently configured services.
 	dnatDump, err := sc.VPP.DumpNat44DNat()
 	if err != nil {
@@ -260,25 +291,8 @@ func (sc *ServiceConfigurator) Resync(resyncEv *ResyncEventData) error {
 		dnat := sc.contivServiceToDNat(service)
 		putDsl.NAT44DNat(dnat)
 	}
-
-	// Add DNAT with identities to exclude VXLAN port and main interface IP
-	// (with the exception of node-ports) from dynamic mappings
-	if resyncEv.ExternalSNAT.ExternalIP != nil {
-		idNat := &nat.Nat44DNat_DNatConfig{
-			Label: identityDNATLabel,
-			IdMappings: []*nat.Nat44DNat_DNatConfig_IdentityMapping{
-				{
-					IpAddress: resyncEv.ExternalSNAT.ExternalIP.String(),
-					Protocol:  nat.Protocol_UDP,
-					Port:      vxlanPort,
-				},
-				{
-					IpAddress: resyncEv.ExternalSNAT.ExternalIP.String(),
-				},
-			},
-		}
-		putDsl.NAT44DNat(idNat)
-	}
+	// - identity mappings
+	putDsl.NAT44DNat(sc.exportIdentityMappings())
 
 	// Re-build the global NAT config.
 	sc.natGlobalCfg = &nat.Nat44Global{
@@ -347,7 +361,7 @@ func (sc *ServiceConfigurator) exportDNATMappings(service *ContivService) []*nat
 
 	// Export NAT mappings for NodePort services.
 	if service.HasNodePort() {
-		for _, nodeIP := range sc.nodeIPs {
+		for _, nodeIP := range sc.nodeIPs.list {
 			if nodeIP.To4() != nil {
 				nodeIP = nodeIP.To4()
 			}
@@ -441,6 +455,39 @@ func (sc *ServiceConfigurator) exportDNATMappings(service *ContivService) []*nat
 	}
 
 	return mappings
+}
+
+// exportIdentityMappings returns DNAT configuration with identities to exclude
+// VXLAN port, pod IPs and main interface IP (with the exception of node-ports)
+// from dynamic mappings.
+func (sc *ServiceConfigurator) exportIdentityMappings() *nat.Nat44DNat_DNatConfig {
+	idNat := &nat.Nat44DNat_DNatConfig{
+		Label: identityDNATLabel,
+	}
+
+	if sc.externalSNAT.ExternalIP != nil {
+		vxlanID := &nat.Nat44DNat_DNatConfig_IdentityMapping{
+			IpAddress: sc.externalSNAT.ExternalIP.String(),
+			Protocol:  nat.Protocol_UDP,
+			Port:      vxlanPort,
+		}
+		mainIfID := &nat.Nat44DNat_DNatConfig_IdentityMapping{
+			IpAddress: sc.externalSNAT.ExternalIP.String(),
+		}
+		idNat.IdMappings = append(idNat.IdMappings, vxlanID)
+		idNat.IdMappings = append(idNat.IdMappings, mainIfID)
+
+		if sc.Contiv.InSTNMode() {
+			for _, podIP := range sc.podIPs.list {
+				podID := &nat.Nat44DNat_DNatConfig_IdentityMapping{
+					IpAddress: podIP.String(),
+				}
+				idNat.IdMappings = append(idNat.IdMappings, podID)
+			}
+		}
+	}
+
+	return idNat
 }
 
 // Close deallocates resources held by the configurator.

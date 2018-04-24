@@ -41,6 +41,9 @@ type ServiceProcessor struct {
 	/* nodes */
 	nodes map[int]*nodemodel.NodeInfo
 
+	/* pods */
+	podIPs map[podmodel.ID]net.IP
+
 	/* internal maps */
 	services map[svcmodel.ID]*Service
 	localEps map[podmodel.ID]*LocalEndpoint
@@ -75,6 +78,7 @@ func (sp *ServiceProcessor) Init() error {
 // reset clears the state of the processor.
 func (sp *ServiceProcessor) reset() error {
 	sp.nodes = make(map[int]*nodemodel.NodeInfo)
+	sp.podIPs = make(map[podmodel.ID]net.IP)
 	sp.services = make(map[svcmodel.ID]*Service)
 	sp.localEps = make(map[podmodel.ID]*LocalEndpoint)
 	sp.frontendIfs = configurator.NewInterfaces()
@@ -104,6 +108,7 @@ func (sp *ServiceProcessor) processUpdatedPod(pod *podmodel.Pod) error {
 	sp.Log.WithFields(logging.Fields{
 		"pod": *pod,
 	}).Debug("ServiceProcessor - processUpdatedPod()")
+	podID := podmodel.ID{Name: pod.Name, Namespace: pod.Namespace}
 
 	if pod.IpAddress == "" {
 		return nil
@@ -114,7 +119,19 @@ func (sp *ServiceProcessor) processUpdatedPod(pod *podmodel.Pod) error {
 		return nil
 	}
 
-	podID := podmodel.ID{Name: pod.Name, Namespace: pod.Namespace}
+	// Update the list of all IP addresses of pods deployed on this node.
+	if _, hasIP := sp.podIPs[podID]; !hasIP {
+		sp.podIPs[podID] = podIPAddress
+		podIPs := configurator.NewIPAddresses()
+		for _, podIP := range sp.podIPs {
+			podIPs.Add(podIP)
+		}
+		err := sp.Configurator.UpdatePodIPs(podIPs)
+		if err != nil {
+			return err
+		}
+	}
+
 	localEp := sp.getLocalEndpoint(podID)
 	if localEp.ifName != "" {
 		/* already processed */
@@ -138,7 +155,10 @@ func (sp *ServiceProcessor) processUpdatedPod(pod *podmodel.Pod) error {
 	}
 	newFrontendIfs := sp.frontendIfs.Copy()
 	newFrontendIfs.Add(ifName)
-	sp.Configurator.UpdateLocalFrontendIfs(sp.frontendIfs, newFrontendIfs)
+	err := sp.Configurator.UpdateLocalFrontendIfs(sp.frontendIfs, newFrontendIfs)
+	if err != nil {
+		return err
+	}
 	sp.frontendIfs = newFrontendIfs
 	return nil
 }
@@ -148,6 +168,19 @@ func (sp *ServiceProcessor) processDeletingPod(podNamespace string, podName stri
 	sp.Log.WithFields(logging.Fields{
 		"podID": podID,
 	}).Debug("ServiceProcessor - processDeletingPod()")
+
+	// Update the list of all IP addresses of pods deployed on this node.
+	if _, hasIP := sp.podIPs[podID]; hasIP {
+		delete(sp.podIPs, podID)
+		podIPs := configurator.NewIPAddresses()
+		for _, podIP := range sp.podIPs {
+			podIPs.Add(podIP)
+		}
+		err := sp.Configurator.UpdatePodIPs(podIPs)
+		if err != nil {
+			return err
+		}
+	}
 
 	localEp, hasEntry := sp.localEps[podID]
 	if !hasEntry {
@@ -372,8 +405,8 @@ func (sp *ServiceProcessor) reconfigureNodePorts() error {
 
 // getNodeIPs returns a slice of IP addresses of all nodes in the cluster
 // without duplicities.
-func (sp *ServiceProcessor) getNodeIPs() []net.IP {
-	var nodeIPs []net.IP
+func (sp *ServiceProcessor) getNodeIPs() *configurator.IPAddresses {
+	nodeIPs := configurator.NewIPAddresses()
 	addedNodeIPs := map[string]struct{}{}
 
 	for _, node := range sp.nodes {
@@ -383,7 +416,7 @@ func (sp *ServiceProcessor) getNodeIPs() []net.IP {
 		if _, duplicate := addedNodeIPs[ipAddr]; !duplicate {
 			nodeIP := net.ParseIP(ipAddr)
 			if nodeIP != nil {
-				nodeIPs = append(nodeIPs, nodeIP)
+				nodeIPs.Add(nodeIP)
 			}
 		}
 		addedNodeIPs[ipAddr] = struct{}{}
@@ -393,7 +426,7 @@ func (sp *ServiceProcessor) getNodeIPs() []net.IP {
 		if _, duplicate := addedNodeIPs[ipAddr]; !duplicate {
 			nodeMgmtIP := net.ParseIP(ipAddr)
 			if nodeMgmtIP != nil {
-				nodeIPs = append(nodeIPs, nodeMgmtIP)
+				nodeIPs.Add(nodeMgmtIP)
 			}
 		}
 		addedNodeIPs[ipAddr] = struct{}{}
@@ -490,6 +523,10 @@ func (sp *ServiceProcessor) processResyncEvent(resyncEv *ResyncEventData) error 
 		if podIPAddress == nil || !sp.Contiv.GetPodNetwork().Contains(podIPAddress) {
 			continue
 		}
+
+		// -> pod IP address
+		sp.podIPs[podID] = podIPAddress
+		// -> pod interface
 		ifName, ifExists := sp.Contiv.GetIfName(podID.Namespace, podID.Name)
 		if !ifExists {
 			sp.Log.WithFields(logging.Fields{
@@ -532,6 +569,12 @@ func (sp *ServiceProcessor) processResyncEvent(resyncEv *ResyncEventData) error 
 		}
 	}
 
+	// Build resync data for the service configurator.
+	podIPs := configurator.NewIPAddresses()
+	for _, podIP := range sp.podIPs {
+		podIPs.Add(podIP)
+	}
+	confResyncEv.PodIPs = podIPs
 	confResyncEv.FrontendIfs = sp.frontendIfs
 	confResyncEv.BackendIfs = sp.backendIfs
 	return sp.Configurator.Resync(confResyncEv)

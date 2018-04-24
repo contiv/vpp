@@ -126,14 +126,16 @@ func (mr *MockRenderer) TestTraffic(pod podmodel.ID, direction TrafficDirection,
 		if len(rule.DestNetwork.IP) > 0 && !rule.DestNetwork.Contains(*destIP) {
 			continue
 		}
-		if rule.Protocol != protocol {
-			continue
-		}
-		if rule.SrcPort != 0 && rule.SrcPort != srcPort {
-			continue
-		}
-		if rule.DestPort != 0 && rule.DestPort != destPort {
-			continue
+		if rule.Protocol != renderer.ANY {
+			if rule.Protocol != protocol {
+				continue
+			}
+			if rule.SrcPort != 0 && rule.SrcPort != srcPort {
+				continue
+			}
+			if rule.DestPort != 0 && rule.DestPort != destPort {
+				continue
+			}
 		}
 		// Match!
 		if rule.Action == renderer.ActionPermit {

@@ -108,33 +108,49 @@ var Ts2 = TestSet1And2{ /* one ingress rule */
 }
 
 // Input data for test-set 3:
-type TestSet3And4 struct {
-	Rule1, Rule2, Rule3, Rule4 *renderer.ContivRule
+type TestSet3To6 struct {
+	Rule1, Rule2 *renderer.ContivRule
 }
 
-var Ts3 = TestSet3And4{ /* multiple egress rules */
+var Ts3 = TestSet3To6{ /* multiple egress rules */
 	Rule1: &renderer.ContivRule{
 		Action:      renderer.ActionPermit,
 		SrcNetwork:  IpNetwork("10.10.0.0/16"),
 		DestNetwork: IpNetwork(""),
-		Protocol:    renderer.TCP,
+		Protocol:    renderer.ANY,
 		SrcPort:     0,
 		DestPort:    0,
 	},
-	Rule2: &renderer.ContivRule{
-		Action:      renderer.ActionPermit,
-		SrcNetwork:  IpNetwork("10.10.0.0/16"),
-		DestNetwork: IpNetwork(""),
-		Protocol:    renderer.UDP,
-		SrcPort:     0,
-		DestPort:    0,
-	},
-	Rule3: DenyAllTCP(),
-	Rule4: DenyAllUDP(),
+	Rule2: DenyAll(),
 }
 
 // Input data for test-set 4:
-var Ts4 = TestSet3And4{ /* multiple ingress rules */
+var Ts4 = TestSet3To6{ /* multiple ingress rules */
+	Rule1: &renderer.ContivRule{
+		Action:      renderer.ActionPermit,
+		SrcNetwork:  IpNetwork(""),
+		DestNetwork: IpNetwork("10.10.0.0/16"),
+		Protocol:    renderer.ANY,
+		SrcPort:     0,
+		DestPort:    0,
+	},
+	Rule2: DenyAll(),
+}
+
+var Ts5 = TestSet3To6{ /* multiple egress rules - only TCP allowed */
+	Rule1: &renderer.ContivRule{
+		Action:      renderer.ActionPermit,
+		SrcNetwork:  IpNetwork("10.10.0.0/16"),
+		DestNetwork: IpNetwork(""),
+		Protocol:    renderer.TCP,
+		SrcPort:     0,
+		DestPort:    0,
+	},
+	Rule2: DenyAll(),
+}
+
+// Input data for test-set 4:
+var Ts6 = TestSet3To6{ /* multiple ingress rules - only TCP allowed */
 	Rule1: &renderer.ContivRule{
 		Action:      renderer.ActionPermit,
 		SrcNetwork:  IpNetwork(""),
@@ -143,25 +159,16 @@ var Ts4 = TestSet3And4{ /* multiple ingress rules */
 		SrcPort:     0,
 		DestPort:    0,
 	},
-	Rule2: &renderer.ContivRule{
-		Action:      renderer.ActionPermit,
-		SrcNetwork:  IpNetwork(""),
-		DestNetwork: IpNetwork("10.10.0.0/16"),
-		Protocol:    renderer.UDP,
-		SrcPort:     0,
-		DestPort:    0,
-	},
-	Rule3: DenyAllTCP(),
-	Rule4: DenyAllUDP(),
+	Rule2: DenyAll(),
 }
 
 // Input data for test-set 5:
-type TestSet5 struct {
+type TestSet7 struct {
 	Pod1Ingress, Pod1Egress []*renderer.ContivRule
 	Pod3Ingress, Pod3Egress []*renderer.ContivRule
 }
 
-var Ts5 = TestSet5{ /* combined ingress with egress */
+var Ts7 = TestSet7{ /* combined ingress with egress */
 	Pod1Ingress: []*renderer.ContivRule{
 		{
 			Action:      renderer.ActionPermit,
@@ -179,8 +186,7 @@ var Ts5 = TestSet5{ /* combined ingress with egress */
 			SrcPort:     0,
 			DestPort:    161,
 		},
-		DenyAllTCP(),
-		DenyAllUDP(),
+		DenyAll(),
 	},
 	Pod1Egress: []*renderer.ContivRule{
 		{
@@ -199,8 +205,7 @@ var Ts5 = TestSet5{ /* combined ingress with egress */
 			SrcPort:     0,
 			DestPort:    514,
 		},
-		DenyAllTCP(),
-		DenyAllUDP(),
+		DenyAll(),
 	},
 	Pod3Ingress: []*renderer.ContivRule{
 		{
@@ -219,8 +224,7 @@ var Ts5 = TestSet5{ /* combined ingress with egress */
 			SrcPort:     0,
 			DestPort:    22,
 		},
-		DenyAllTCP(),
-		DenyAllUDP(),
+		DenyAll(),
 	},
 	Pod3Egress: []*renderer.ContivRule{
 		{
@@ -247,8 +251,7 @@ var Ts5 = TestSet5{ /* combined ingress with egress */
 			SrcPort:     0,
 			DestPort:    67,
 		},
-		DenyAllTCP(),
-		DenyAllUDP(),
+		DenyAll(),
 	},
 }
 
@@ -262,50 +265,26 @@ func IpNetwork(addr string) *net.IPNet {
 	return network
 }
 
-func AllowAllTCP() *renderer.ContivRule {
+func AllowAll() *renderer.ContivRule {
 	ruleTCPAny := &renderer.ContivRule{
 		Action:      renderer.ActionPermit,
 		SrcNetwork:  &net.IPNet{},
 		DestNetwork: &net.IPNet{},
-		Protocol:    renderer.TCP,
+		Protocol:    renderer.ANY,
 		SrcPort:     0,
 		DestPort:    0,
 	}
 	return ruleTCPAny
 }
 
-func AllowAllUDP() *renderer.ContivRule {
-	ruleUDPAny := &renderer.ContivRule{
-		Action:      renderer.ActionPermit,
-		SrcNetwork:  &net.IPNet{},
-		DestNetwork: &net.IPNet{},
-		Protocol:    renderer.UDP,
-		SrcPort:     0,
-		DestPort:    0,
-	}
-	return ruleUDPAny
-}
-
-func DenyAllTCP() *renderer.ContivRule {
+func DenyAll() *renderer.ContivRule {
 	ruleTCPNone := &renderer.ContivRule{
 		Action:      renderer.ActionDeny,
 		SrcNetwork:  &net.IPNet{},
 		DestNetwork: &net.IPNet{},
-		Protocol:    renderer.TCP,
+		Protocol:    renderer.ANY,
 		SrcPort:     0,
 		DestPort:    0,
 	}
 	return ruleTCPNone
-}
-
-func DenyAllUDP() *renderer.ContivRule {
-	ruleUDPNone := &renderer.ContivRule{
-		Action:      renderer.ActionDeny,
-		SrcNetwork:  &net.IPNet{},
-		DestNetwork: &net.IPNet{},
-		Protocol:    renderer.UDP,
-		SrcPort:     0,
-		DestPort:    0,
-	}
-	return ruleUDPNone
 }

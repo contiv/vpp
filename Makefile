@@ -72,9 +72,9 @@ define test_race_only
 	@go test ./plugins/policy/renderer/vpptcp -race -tags="${GO_BUILD_TAGS}"
 	@go test ./plugins/service -race -tags="${GO_BUILD_TAGS}"
 	@go test ./plugins/policy/cache -race -tags="${GO_BUILD_TAGS}"
-    @go test ./plugins/policy/cache/namespaceidx -race -tags="${GO_BUILD_TAGS}"
-    @go test ./plugins/policy/cache/podidx -race -tags="${GO_BUILD_TAGS}"
-    @go test ./plugins/policy/cache/policyidx -race -tags="${GO_BUILD_TAGS}"
+	@go test ./plugins/policy/cache/namespaceidx -race -tags="${GO_BUILD_TAGS}"
+	@go test ./plugins/policy/cache/podidx -race -tags="${GO_BUILD_TAGS}"
+	@go test ./plugins/policy/cache/policyidx -race -tags="${GO_BUILD_TAGS}"
 	@echo "# done"
 endef
 
@@ -101,7 +101,8 @@ define test_cover_only
     @gocovmerge ${COVER_DIR}cov_u1.out ${COVER_DIR}cov_u2.out ${COVER_DIR}cov_u3.out \
 		${COVER_DIR}cov_u4.out ${COVER_DIR}cov_u5.out ${COVER_DIR}cov_u6.out \
 		${COVER_DIR}cov_u7.out ${COVER_DIR}cov_u8.out ${COVER_DIR}cov_u9.out \
-		${COVER_DIR}cov_u10.out ${COVER_DIR}cov_u11.out > ${COVER_DIR}coverage.out
+		${COVER_DIR}cov_u10.out ${COVER_DIR}cov_u11.out ${COVER_DIR}cov_u12.out \
+		${COVER_DIR}cov_u13.out ${COVER_DIR}cov_u14.out > ${COVER_DIR}coverage.out
     @echo "# coverage data generated into ${COVER_DIR}coverage.out"
     @echo "# done"
 endef

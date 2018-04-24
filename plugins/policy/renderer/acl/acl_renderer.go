@@ -266,25 +266,17 @@ func (art *RendererTxn) Commit() error {
 // reflectiveACL returns the configuration of the reflective ACL.
 func (art *RendererTxn) reflectiveACL() *vpp_acl.AccessLists_Acl {
 	// Prepare table to render the ACL from.
-	ruleTCPAny := &renderer.ContivRule{
+	ruleAny := &renderer.ContivRule{
 		Action:      renderer.ActionPermit,
 		SrcNetwork:  &net.IPNet{},
 		DestNetwork: &net.IPNet{},
-		Protocol:    renderer.TCP,
-		SrcPort:     0,
-		DestPort:    0,
-	}
-	ruleUDPAny := &renderer.ContivRule{
-		Action:      renderer.ActionPermit,
-		SrcNetwork:  &net.IPNet{},
-		DestNetwork: &net.IPNet{},
-		Protocol:    renderer.UDP,
+		Protocol:    renderer.ANY,
 		SrcPort:     0,
 		DestPort:    0,
 	}
 	table := cache.NewContivRuleTable(ReflectiveACLName)
-	table.Rules = []*renderer.ContivRule{ruleTCPAny, ruleUDPAny}
-	table.NumOfRules = 2
+	table.Rules = []*renderer.ContivRule{ruleAny}
+	table.NumOfRules = 1
 	table.Pods = art.cacheTxn.GetIsolatedPods()
 	// Render the ACL.
 	acl := art.renderACL(table)
@@ -310,15 +302,11 @@ func (art *RendererTxn) getNodeOutputInterfaces() []string {
 
 // renderACL renders ContivRuleTable into the equivalent ACL configuration.
 func (art *RendererTxn) renderACL(table *cache.ContivRuleTable) *vpp_acl.AccessLists_Acl {
-	const (
-		maxPortNum  = ^uint16(0)
-		maxICMPCode = 5
-		maxICMPType = 16
-	)
-
+	const maxPortNum = ^uint16(0)
 	acl := &vpp_acl.AccessLists_Acl{}
 	acl.AclName = ACLNamePrefix + table.ID
 	acl.Interfaces = art.renderInterfaces(table.Pods, table.ID == ReflectiveACLName)
+
 	for i := 0; i < table.NumOfRules; i++ {
 		rule := table.Rules[i]
 		aclRule := &vpp_acl.AccessLists_Acl_Rule{}
@@ -354,7 +342,8 @@ func (art *RendererTxn) renderACL(table *cache.ContivRuleTable) *vpp_acl.AccessL
 			} else {
 				aclRule.Match.IpRule.Tcp.DestinationPortRange.UpperPort = uint32(rule.DestPort)
 			}
-		} else {
+		}
+		if rule.Protocol == renderer.UDP {
 			aclRule.Match.IpRule.Udp = &vpp_acl.AccessLists_Acl_Rule_Match_IpRule_Udp{}
 			aclRule.Match.IpRule.Udp.SourcePortRange = &vpp_acl.AccessLists_Acl_Rule_Match_IpRule_PortRange{}
 			aclRule.Match.IpRule.Udp.SourcePortRange.LowerPort = uint32(rule.SrcPort)
@@ -371,27 +360,6 @@ func (art *RendererTxn) renderACL(table *cache.ContivRuleTable) *vpp_acl.AccessL
 				aclRule.Match.IpRule.Udp.DestinationPortRange.UpperPort = uint32(rule.DestPort)
 			}
 		}
-		acl.Rules = append(acl.Rules, aclRule)
-	}
-
-	// Allow all ICMP traffic
-	if table.NumOfRules > 0 {
-		aclRule := &vpp_acl.AccessLists_Acl_Rule{}
-		if table.ID == ReflectiveACLName {
-			aclRule.AclAction = vpp_acl.AclAction_REFLECT
-		} else {
-			aclRule.AclAction = vpp_acl.AclAction_PERMIT
-		}
-		aclRule.Match = &vpp_acl.AccessLists_Acl_Rule_Match{}
-		aclRule.Match.IpRule = &vpp_acl.AccessLists_Acl_Rule_Match_IpRule{}
-		aclRule.Match.IpRule.Ip = &vpp_acl.AccessLists_Acl_Rule_Match_IpRule_Ip{}
-		aclRule.Match.IpRule.Icmp = &vpp_acl.AccessLists_Acl_Rule_Match_IpRule_Icmp{}
-		aclRule.Match.IpRule.Icmp.IcmpTypeRange = &vpp_acl.AccessLists_Acl_Rule_Match_IpRule_Icmp_Range{}
-		aclRule.Match.IpRule.Icmp.IcmpTypeRange.First = 0
-		aclRule.Match.IpRule.Icmp.IcmpTypeRange.Last = maxICMPType
-		aclRule.Match.IpRule.Icmp.IcmpCodeRange = &vpp_acl.AccessLists_Acl_Rule_Match_IpRule_Icmp_Range{}
-		aclRule.Match.IpRule.Icmp.IcmpCodeRange.First = 0
-		aclRule.Match.IpRule.Icmp.IcmpCodeRange.Last = maxICMPCode
 		acl.Rules = append(acl.Rules, aclRule)
 	}
 
@@ -519,10 +487,12 @@ func (art *RendererTxn) dumpVppACLConfig() (tables []*cache.ContivRuleTable, has
 				}
 			}
 			// L4
+			rule.Protocol = renderer.ANY
 			if aclRule.Match.IpRule.Icmp != nil {
 				// skip ICMP rule
 				continue
-			} else if aclRule.Match.IpRule.Tcp != nil {
+			}
+			if aclRule.Match.IpRule.Tcp != nil {
 				rule.Protocol = renderer.TCP
 				if aclRule.Match.IpRule.Tcp.SourcePortRange != nil {
 					if aclRule.Match.IpRule.Tcp.SourcePortRange.LowerPort != aclRule.Match.IpRule.Tcp.SourcePortRange.UpperPort {
@@ -546,7 +516,8 @@ func (art *RendererTxn) dumpVppACLConfig() (tables []*cache.ContivRuleTable, has
 					}
 					rule.DestPort = uint16(aclRule.Match.IpRule.Tcp.DestinationPortRange.LowerPort)
 				}
-			} else if aclRule.Match.IpRule.Udp != nil {
+			}
+			if aclRule.Match.IpRule.Udp != nil {
 				rule.Protocol = renderer.UDP
 				if aclRule.Match.IpRule.Udp.SourcePortRange != nil {
 					if aclRule.Match.IpRule.Udp.SourcePortRange.LowerPort != aclRule.Match.IpRule.Udp.SourcePortRange.UpperPort {

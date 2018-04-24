@@ -471,11 +471,11 @@ func (sc *ServiceConfigurator) exportIdentityMappings() *nat.Nat44DNat_DNatConfi
 			Protocol:  nat.Protocol_UDP,
 			Port:      vxlanPort,
 		}
-		mainIfID := &nat.Nat44DNat_DNatConfig_IdentityMapping{
-			IpAddress: sc.externalSNAT.ExternalIP.String(),
-		}
+		//mainIfID := &nat.Nat44DNat_DNatConfig_IdentityMapping{
+		//	IpAddress: sc.externalSNAT.ExternalIP.String(),
+		//}
 		idNat.IdMappings = append(idNat.IdMappings, vxlanID)
-		idNat.IdMappings = append(idNat.IdMappings, mainIfID)
+		//idNat.IdMappings = append(idNat.IdMappings, mainIfID)
 
 		if sc.Contiv.InSTNMode() {
 			for _, podIP := range sc.podIPs.list {

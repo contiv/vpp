@@ -299,7 +299,7 @@ func (s *remoteCNIserver) configureVswitchConnectivity() error {
 	} else {
 		expectedIfName = s.interconnectAfpacketName()
 	}
-	if s.config.StealFirstNIC || s.config.StealInterface != "" || (s.nodeConfig != nil && s.nodeConfig.StealInterface != "") {
+	if s.UseSTN() {
 		// For STN case, do not rely on TAP interconnect, since it has been pre-configured by contiv-init.
 		// Let's relay on VXLAN BVI interface name. Note that this may not work in case that VXLANs are disabled.
 		expectedIfName = vxlanBVIInterfaceName
@@ -425,10 +425,7 @@ func (s *remoteCNIserver) configureMainVPPInterface(config *vswitchConfig, nicNa
 	var err error
 	txn1 := s.vppTxnFactory().Put()
 
-	useSTN := false
-	if s.config.StealFirstNIC || s.config.StealInterface != "" || (s.nodeConfig != nil && s.nodeConfig.StealInterface != "") {
-		useSTN = true
-
+	if s.UseSTN() {
 		// get IP address of the STN interface
 		var gwIP string
 		if s.nodeConfig != nil && s.nodeConfig.StealInterface != "" {
@@ -453,7 +450,7 @@ func (s *remoteCNIserver) configureMainVPPInterface(config *vswitchConfig, nicNa
 	}
 
 	// determine main node IP address
-	if !useSTN && useDHCP {
+	if !s.UseSTN() && useDHCP {
 		// ip address will be assigned by DHCP server, not known yet
 		s.Logger.Infof("Configuring %v to use dhcp", nicName)
 	} else if nicIP != "" {
@@ -469,7 +466,7 @@ func (s *remoteCNIserver) configureMainVPPInterface(config *vswitchConfig, nicNa
 		s.Logger.Infof("Configuring %v to use %v", nicName, nodeIP.String())
 	}
 
-	if !useSTN {
+	if !s.UseSTN() {
 		if nicName != "" {
 			// configure the physical NIC
 			s.Logger.Info("Configuring physical NIC ", nicName)
@@ -1551,4 +1548,9 @@ func (s *remoteCNIserver) GetDefaultGatewayIP() net.IP {
 	defer s.Unlock()
 
 	return s.defaultGw
+}
+
+// UseSTN returns true if the cluster was configured to be deployed in the STN mode.
+func (s *remoteCNIserver) UseSTN() bool {
+	return s.config.StealFirstNIC || s.config.StealInterface != "" || (s.nodeConfig != nil && s.nodeConfig.StealInterface != "")
 }

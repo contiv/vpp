@@ -35,6 +35,9 @@ type API interface {
 	// IsTCPstackDisabled returns true if the TCP stack is disabled and only VETHSs/TAPs are configured
 	IsTCPstackDisabled() bool
 
+	// InSTNMode returns true if Contiv operates in the STN mode (single interface for each node).
+	InSTNMode() bool
+
 	// NatExternalTraffic returns true if traffic with cluster-outside destination should be S-NATed
 	// with node IP before being sent out from the node.
 	NatExternalTraffic() bool

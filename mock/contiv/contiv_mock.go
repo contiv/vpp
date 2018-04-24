@@ -32,6 +32,7 @@ type MockContiv struct {
 	podAppNs           map[podmodel.ID]uint32
 	podNetwork         *net.IPNet
 	tcpStackDisabled   bool
+	stnMode            bool
 	natExternalTraffic bool
 	nodeIP             string
 	nodeIPsubs         []chan string
@@ -79,6 +80,11 @@ func (mc *MockContiv) SetContainerIndex(ci *containeridx.ConfigIndex) {
 // SetTCPStackDisabled allows to set flag denoting if the tcpStack is disabled or not.
 func (mc *MockContiv) SetTCPStackDisabled(tcpStackDisabled bool) {
 	mc.tcpStackDisabled = tcpStackDisabled
+}
+
+// SetSTNMode allows to set flag denoting if the STN is used or not.
+func (mc *MockContiv) SetSTNMode(stnMode bool) {
+	mc.stnMode = stnMode
 }
 
 // SetNodeIP allows to set what tests will assume the node IP is.
@@ -183,6 +189,11 @@ func (mc *MockContiv) GetPodNetwork() (podNetwork *net.IPNet) {
 // IsTCPstackDisabled returns true if the tcp stack is disabled and only veths are configured
 func (mc *MockContiv) IsTCPstackDisabled() bool {
 	return mc.tcpStackDisabled
+}
+
+// InSTNMode returns true if Contiv operates in the STN mode (single interface for each node).
+func (mc *MockContiv) InSTNMode() bool {
+	return mc.stnMode
 }
 
 // NatExternalTraffic returns true if traffic with cluster-outside destination should be S-NATed

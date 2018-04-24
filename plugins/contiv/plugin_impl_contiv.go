@@ -282,6 +282,11 @@ func (plugin *Plugin) IsTCPstackDisabled() bool {
 	return plugin.Config.TCPstackDisabled
 }
 
+// InSTNMode returns true if Contiv operates in the STN mode (single interface for each node).
+func (plugin *Plugin) InSTNMode() bool {
+	return plugin.cniServer.UseSTN()
+}
+
 // NatExternalTraffic returns true if traffic with cluster-outside destination should be S-NATed
 // with node IP before being sent out from the node.
 func (plugin *Plugin) NatExternalTraffic() bool {

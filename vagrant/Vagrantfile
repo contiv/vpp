@@ -512,14 +512,6 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
                 v.memory = 2048
                 v.cpus = 2
             end
-            # default router
-            k8smaster.vm.provision "shell",
-              run: "always",
-              inline: "route add default gw 192.168.16.100"
-            # delete default gw on eth0
-            k8smaster.vm.provision "shell",
-              run: "always",
-              inline: "eval `route -n | awk '{ if ($8 ==\"enp0s3\" && $2 != \"0.0.0.0\") print \"route del default gw \" $2; }'`"
             k8smaster.vm.provision "file", source: "./config/vagrant-yaml", destination: "vagrant-yaml"
             k8smaster.vm.provision "shell" do |s|
                 s.inline = provision_every_node
@@ -562,14 +554,6 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
                   v.memory = 2048
                   v.cpus = 2
                 end
-                # default router
-                node.vm.provision "shell",
-                  run: "always",
-                  inline: "route add default gw 192.168.16.100"
-                # delete default gw on eth0
-                node.vm.provision "shell",
-                  run: "always",
-                  inline: "eval `route -n | awk '{ if ($8 ==\"enp0s3\" && $2 != \"0.0.0.0\") print \"route del default gw \" $2; }'`"
                 node.vm.provision "shell" do |s|
                     s.inline = provision_every_node
                     s.args = [http_proxy, https_proxy, dep_env]

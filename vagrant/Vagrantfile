@@ -568,6 +568,7 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
             else
                 k8smaster.vm.network :private_network, type: "dhcp", auto_config: false
             end
+            k8smaster.vm.provision "file", source: "./config/vagrant-yaml", destination: "vagrant-yaml"
             k8smaster.vm.provider "vmware_fusion" do |v|
               v.vmx["memsize"] = "2048"
               v.vmx["numvcpus"] = "2"

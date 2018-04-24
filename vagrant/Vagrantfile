@@ -466,6 +466,25 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
             v.linked_clone = true if Vagrant::VERSION >= "1.8"
             v.customize ['modifyvm', :id, '--paravirtprovider', 'kvm']
         end
+        #Configure VBox Gateway
+        config.vm.define "k8s-gateway" do |gw|
+            gw.vm.hostname = "k8s-gateway"
+            # Interface for K8s Cluster
+            if dep_scenario == 'stn'
+              gw.vm.network :private_network, ip: "10.20.0.100", virtualbox__intnet: "vpp"
+            else
+              gw.vm.network :private_network, ip: "192.168.16.100", virtualbox__intnet: "vpp"
+            end
+            gw.vm.provider "virtualbox" do |v|
+                v.customize ["modifyvm", :id, "--ioapic", "on"]
+                v.memory = 512
+                v.cpus = 1
+            end
+            gw.vm.provision "shell" do |s|
+                s.inline = vbox_provision_gateway
+                s.args = [http_proxy, https_proxy]
+            end
+        end
 
         # Configure VBox Master node
         config.vm.define "k8s-master" do |k8smaster|
@@ -476,6 +495,14 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
             end
             if dep_scenario == 'stn'
                 k8smaster.vm.network :private_network, type: "dhcp", auto_config: true, virtualbox__intnet: "vpp"
+                # default router
+                k8smaster.vm.provision "shell",
+                  run: "always",
+                  inline: "route add default gw 10.20.0.100"
+                # delete default gw on eth0
+                k8smaster.vm.provision "shell",
+                  run: "always",
+                  inline: "eval `route -n | awk '{ if ($8 ==\"enp0s3\" && $2 != \"0.0.0.0\") print \"route del default gw \" $2; }'`"
             else
                 k8smaster.vm.network :private_network, type: "dhcp", auto_config: false, virtualbox__intnet: "vpp"
                 k8smaster.vm.network :private_network, ip: k8smaster_ip, virtualbox__intnet: "true"
@@ -510,14 +537,22 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
                 # Interface for K8s Cluster
                 if dep_scenario == 'stn'
                     node.vm.network :private_network, type: "dhcp", auto_config: true, virtualbox__intnet: "vpp"
+                    # default router
+                    node.vm.provision "shell",
+                      run: "always",
+                      inline: "route add default gw 10.20.0.100"
+                    # delete default gw on eth0
+                    node.vm.provision "shell",
+                      run: "always",
+                      inline: "eval `route -n | awk '{ if ($8 ==\"enp0s3\" && $2 != \"0.0.0.0\") print \"route del default gw \" $2; }'`"
                 else
                     node.vm.network :private_network, type: "dhcp", auto_config: false, virtualbox__intnet: "vpp"
                     node.vm.network :private_network, ip: node_addr, virtualbox__intnet: "true"
                 end
                 node.vm.provider "virtualbox" do |v|
-                v.customize ["modifyvm", :id, "--ioapic", "on"]
-                v.memory = 2048
-                v.cpus = 2
+                  v.customize ["modifyvm", :id, "--ioapic", "on"]
+                  v.memory = 2048
+                  v.cpus = 2
                 end
                 node.vm.provision "shell" do |s|
                     s.inline = provision_every_node
@@ -531,22 +566,6 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
                     s.inline = vbox_bootstrap_worker
                     s.args = [node_name, node_addr, dep_scenario]
                 end
-            end
-        end
-
-        #Configure VBox Gateway
-        config.vm.define "k8s-gateway" do |gw|
-            gw.vm.hostname = "k8s-gateway"
-            # Interface for K8s Cluster
-            gw.vm.network :private_network, ip: "192.168.16.100", virtualbox__intnet: "vpp"
-            gw.vm.provider "virtualbox" do |v|
-                v.customize ["modifyvm", :id, "--ioapic", "on"]
-                v.memory = 512
-                v.cpus = 1
-            end
-            gw.vm.provision "shell" do |s|
-                s.inline = vbox_provision_gateway
-                s.args = [http_proxy, https_proxy]
             end
         end
     else 

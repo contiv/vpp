@@ -79,17 +79,17 @@ echo
 
 echo 'Please choose deployment scenario: '
 PS3='--> '
-options=("Without StealFirstNIC" "With StealFirstNIC" "Quit")
+options=("Without StealTheNIC" "With StealTheNIC" "Quit")
 select opt in "${options[@]}"
 do
     case $opt in
-        "Without StealFirstNIC")
-            echo "You chose deployment without StealFirstNIC"
+        "Without StealTheNIC")
+            echo "You chose deployment without StealTheNIC"
             export K8S_DEPLOYMENT_SCENARIO="nostn"
             break
             ;;
-        "With StealFirstNIC")
-            echo "You chose deployment with StealFirstNIC"
+        "With StealTheNIC")
+            echo "You chose deployment with StealTheNIC"
             export K8S_DEPLOYMENT_SCENARIO="stn"
             break
             ;;
@@ -115,4 +115,4 @@ fi
 echo
 echo "Creating a $VAGRANT_DEFAULT_PROVIDER $DEP_ENV environment, $DEP_SCEN and $K8S_NODES worker node(s)"
 echo 
-vagrant up
+./vagrant-up

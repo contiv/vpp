@@ -104,13 +104,13 @@ func (p Ports) String() string {
 
 // getAllowedEgressPorts returns allowed destination UDP and TCP ports for a given
 // source pod IP wrt. egress rules.
-func getAllowedEgressPorts(srcIP *net.IPNet, egress []*renderer.ContivRule) (tcp, udp Ports) {
+func getAllowedEgressPorts(srcIP *net.IPNet, egress []*renderer.ContivRule) (tcp, udp Ports, any bool) {
 	tcp = NewPorts()
 	udp = NewPorts()
 	hasDeny := false
 	for _, rule := range egress {
 		if rule.Action == renderer.ActionDeny {
-			// This implementation assumes there is only the single default deny-all rule (for UDP&TCP),
+			// This implementation assumes there is only the single default deny-all rule (for ANY protocol),
 			// or no deny rule at all.
 			hasDeny = true
 			continue
@@ -119,27 +119,32 @@ func getAllowedEgressPorts(srcIP *net.IPNet, egress []*renderer.ContivRule) (tcp
 			continue
 		}
 		/* matching ALLOW rule */
-		if rule.Protocol == renderer.TCP {
+		switch rule.Protocol {
+		case renderer.TCP:
 			tcp.Add(rule.DestPort)
-		} else {
+		case renderer.UDP:
 			udp.Add(rule.DestPort)
+		case renderer.ANY:
+			tcp.Add(AnyPort)
+			udp.Add(AnyPort)
+			any = true
 		}
 	}
 	if !hasDeny {
-		return NewPorts(AnyPort), NewPorts(AnyPort)
+		return NewPorts(AnyPort), NewPorts(AnyPort), true
 	}
-	return tcp, udp
+	return tcp, udp, any
 }
 
 // getAllowedIngressPorts returns allowed destination UDP and TCP ports for a given
 // destination pod IP wrt. ingress rules.
-func getAllowedIngressPorts(dstIP *net.IPNet, ingress []*renderer.ContivRule) (tcp, udp Ports) {
+func getAllowedIngressPorts(dstIP *net.IPNet, ingress []*renderer.ContivRule) (tcp, udp Ports, any bool) {
 	tcp = NewPorts()
 	udp = NewPorts()
 	hasDeny := false
 	for _, rule := range ingress {
 		if rule.Action == renderer.ActionDeny {
-			// This implementation assumes there is only the single default deny-all rule (for UDP&TCP),
+			// This implementation assumes there is only the single default deny-all rule (for ANY protocol),
 			// or no deny rule at all.
 			hasDeny = true
 			continue
@@ -148,14 +153,19 @@ func getAllowedIngressPorts(dstIP *net.IPNet, ingress []*renderer.ContivRule) (t
 			continue
 		}
 		/* matching ALLOW rule */
-		if rule.Protocol == renderer.TCP {
+		switch rule.Protocol {
+		case renderer.TCP:
 			tcp.Add(rule.DestPort)
-		} else {
+		case renderer.UDP:
 			udp.Add(rule.DestPort)
+		case renderer.ANY:
+			tcp.Add(AnyPort)
+			udp.Add(AnyPort)
+			any = true
 		}
 	}
 	if !hasDeny {
-		return NewPorts(AnyPort), NewPorts(AnyPort)
+		return NewPorts(AnyPort), NewPorts(AnyPort), true
 	}
-	return tcp, udp
+	return tcp, udp, any
 }

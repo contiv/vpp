@@ -28,19 +28,12 @@ import (
 	"github.com/contiv/vpp/mock/localclient"
 	"github.com/contiv/vpp/plugins/contiv"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
+	"github.com/contiv/vpp/plugins/policy/renderer"
 	vpp_acl "github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/acl"
 )
 
-const (
-	// maxPortNum is the maximum possible port number.
-	maxPortNum = uint32(^uint16(0))
-
-	// maxICMPCode is the maximum possible ICMP code.
-	maxICMPCode = 5
-
-	// maxICMPType is the maximum possible ICMP type.
-	maxICMPType = 16
-)
+// maxPortNum is the maximum possible port number.
+const maxPortNum = uint32(^uint16(0))
 
 // ConnectionAction is one of DENY-SYN, DENY-SYN-ACK, ALLOW, FAILURE.
 type ConnectionAction int
@@ -74,20 +67,6 @@ const (
 
 	// ACLActionFailure is returned by evalACL when it fails.
 	ACLActionFailure
-)
-
-// ProtocolType is one of TCP, UDP, ICMP.
-type ProtocolType int
-
-const (
-	// TCP protocol.
-	TCP ProtocolType = iota
-
-	// UDP protocol.
-	UDP
-
-	// ICMP protocol
-	ICMP
 )
 
 // MockACLEngine simulates ACL evaluation engine from the VPP/ACL plugin.
@@ -241,7 +220,7 @@ func (mae *MockACLEngine) GetNumOfACLChanges() int {
 // ConnectionPodToPod allows to simulate a connection establishment between two pods
 // and tests what the outcome in terms of ACLs would be.
 func (mae *MockACLEngine) ConnectionPodToPod(srcPod podmodel.ID, dstPod podmodel.ID,
-	protocol ProtocolType, srcPort, dstPort uint16) ConnectionAction {
+	protocol renderer.ProtocolType, srcPort, dstPort uint16) ConnectionAction {
 
 	var srcIfName, dstIfName string
 
@@ -302,7 +281,7 @@ func (mae *MockACLEngine) ConnectionPodToPod(srcPod podmodel.ID, dstPod podmodel
 // ConnectionPodToInternet allows to simulate a connection establishment between a pod
 // and a remote destination, returning the outcome in terms of ACLs.
 func (mae *MockACLEngine) ConnectionPodToInternet(srcPod podmodel.ID, dstIP string,
-	protocol ProtocolType, srcPort, dstPort uint16) ConnectionAction {
+	protocol renderer.ProtocolType, srcPort, dstPort uint16) ConnectionAction {
 
 	// Get configuration for the source pod.
 	srcPodCfg, hasCfg := mae.pods[srcPod]
@@ -347,7 +326,7 @@ func (mae *MockACLEngine) ConnectionPodToInternet(srcPod podmodel.ID, dstIP stri
 // ConnectionInternetToPod allows to simulate a connection establishment between
 // a remote source and a destination pod, returning the outcome in terms of ACLs.
 func (mae *MockACLEngine) ConnectionInternetToPod(srcIP string, dstPod podmodel.ID,
-	protocol ProtocolType, srcPort, dstPort uint16) ConnectionAction {
+	protocol renderer.ProtocolType, srcPort, dstPort uint16) ConnectionAction {
 
 	// Get configuration for the destination pod.
 	dstPodCfg, hasCfg := mae.pods[dstPod]
@@ -392,7 +371,7 @@ func (mae *MockACLEngine) ConnectionInternetToPod(srcIP string, dstPod podmodel.
 // testConnection allows to simulate a connection establishment and tests what
 // the outcome in terms of ACLs would be.
 func (mae *MockACLEngine) testConnection(srcIfName string, srcIP net.IP,
-	dstIfName string, dstIP net.IP, protocol ProtocolType, srcPort, dstPort uint16) ConnectionAction {
+	dstIfName string, dstIP net.IP, protocol renderer.ProtocolType, srcPort, dstPort uint16) ConnectionAction {
 
 	mae.Lock()
 	defer mae.Unlock()
@@ -471,7 +450,7 @@ func (mae *MockACLEngine) testConnection(srcIfName string, srcIP net.IP,
 }
 
 func (mae *MockACLEngine) evalACL(acl *vpp_acl.AccessLists_Acl, srcIP, dstIP net.IP,
-	protocol ProtocolType, dstPort uint16) ACLAction {
+	protocol renderer.ProtocolType, dstPort uint16) ACLAction {
 
 	if acl == nil {
 		return ACLActionPermit
@@ -489,9 +468,14 @@ func (mae *MockACLEngine) evalACL(acl *vpp_acl.AccessLists_Acl, srcIP, dstIP net
 			return ACLActionFailure
 		}
 		ipRule := rule.Match.IpRule
-		if ipRule.Ip == nil {
+		if ipRule.Icmp != nil || ipRule.Ip == nil {
 			// unsupported
-			mae.Log.WithField("acl", *acl).Error("Missing IP section")
+			mae.Log.WithField("acl", *acl).Error("Missing IP or found unsupported ICMP section")
+			return ACLActionFailure
+		}
+		if ipRule.Udp != nil && ipRule.Tcp != nil {
+			// invalid
+			mae.Log.WithField("acl", *acl).Error("Both TCP and UDP sections are defined")
 			return ACLActionFailure
 		}
 
@@ -500,7 +484,7 @@ func (mae *MockACLEngine) evalACL(acl *vpp_acl.AccessLists_Acl, srcIP, dstIP net
 			_, srcNetwork, err := net.ParseCIDR(ipRule.Ip.SourceNetwork)
 			if err != nil {
 				// invalid
-				mae.Log.WithField("acl", *acl).Error("Missing source network")
+				mae.Log.WithField("acl", *acl).Error("Invalid source network")
 				return ACLActionFailure
 			}
 			if !srcNetwork.Contains(srcIP) {
@@ -514,7 +498,7 @@ func (mae *MockACLEngine) evalACL(acl *vpp_acl.AccessLists_Acl, srcIP, dstIP net
 			_, dstNetwork, err := net.ParseCIDR(ipRule.Ip.DestinationNetwork)
 			if err != nil {
 				// invalid
-				mae.Log.WithField("acl", *acl).Error("Missing destination network")
+				mae.Log.WithField("acl", *acl).Error("Invalid destination network")
 				return ACLActionFailure
 			}
 			if !dstNetwork.Contains(dstIP) {
@@ -523,122 +507,76 @@ func (mae *MockACLEngine) evalACL(acl *vpp_acl.AccessLists_Acl, srcIP, dstIP net
 			}
 		}
 
-		// check ICMP/TCP/UDP
+		// check L4
 		switch protocol {
-		case TCP:
-			if ipRule.Udp != nil || ipRule.Icmp != nil {
+		case renderer.TCP:
+			if ipRule.Udp != nil {
 				// not matching
 				continue
 			}
-			if ipRule.Tcp == nil {
-				// invalid
-				mae.Log.WithField("acl", *acl).Error("Missing TCP section")
-				return ACLActionFailure
+			if ipRule.Tcp != nil {
+				// check source port range (should be ALL-PORTS)
+				srcPortRange := ipRule.Tcp.SourcePortRange
+				if srcPortRange == nil {
+					// invalid
+					mae.Log.WithField("acl", *acl).Error("Missing source port range")
+					return ACLActionFailure
+				}
+				if srcPortRange.LowerPort != 0 || srcPortRange.UpperPort != maxPortNum {
+					// invalid
+					mae.Log.WithField("acl", *acl).Error("Source port range does not cover all ports")
+					return ACLActionFailure
+				}
+
+				// check destination port range
+				dstPortRange := ipRule.Tcp.DestinationPortRange
+				if dstPortRange == nil {
+					// invalid
+					mae.Log.WithField("acl", *acl).Error("Missing destination port range")
+					return ACLActionFailure
+				}
+				if dstPort < uint16(dstPortRange.LowerPort) || dstPort > uint16(dstPortRange.UpperPort) {
+					// not matching
+					continue
+				}
 			}
 
-			// check source port range (should be ALL-PORTS)
-			srcPortRange := ipRule.Tcp.SourcePortRange
-			if srcPortRange == nil {
-				// invalid
-				mae.Log.WithField("acl", *acl).Error("Missing source port range")
-				return ACLActionFailure
-			}
-			if srcPortRange.LowerPort != 0 || srcPortRange.UpperPort != maxPortNum {
-				// invalid
-				mae.Log.WithField("acl", *acl).Error("Source port range does not cover all ports")
-				return ACLActionFailure
-			}
-
-			// check destination port range
-			dstPortRange := ipRule.Tcp.DestinationPortRange
-			if dstPortRange == nil {
-				// invalid
-				mae.Log.WithField("acl", *acl).Error("Missing destination port range")
-				return ACLActionFailure
-			}
-			if dstPort < uint16(dstPortRange.LowerPort) || dstPort > uint16(dstPortRange.UpperPort) {
+		case renderer.UDP:
+			if ipRule.Tcp != nil {
 				// not matching
 				continue
 			}
+			if ipRule.Udp != nil {
+				// check source port range (should be ALL-PORTS)
+				srcPortRange := ipRule.Udp.SourcePortRange
+				if srcPortRange == nil {
+					// invalid
+					mae.Log.WithField("acl", *acl).Error("Missing source port range")
+					return ACLActionFailure
+				}
+				if srcPortRange.LowerPort != 0 || srcPortRange.UpperPort != maxPortNum {
+					// invalid
+					mae.Log.WithField("acl", *acl).Error("Source port range does not cover all ports")
+					return ACLActionFailure
+				}
 
-		case UDP:
-			if ipRule.Tcp != nil || ipRule.Icmp != nil {
-				// not matching
-				continue
-			}
-			if ipRule.Udp == nil {
-				// invalid
-				mae.Log.WithField("acl", *acl).Error("Missing UDP section")
-				return ACLActionFailure
-			}
-
-			// check source port range (should be ALL-PORTS)
-			srcPortRange := ipRule.Udp.SourcePortRange
-			if srcPortRange == nil {
-				// invalid
-				mae.Log.WithField("acl", *acl).Error("Missing source port range")
-				return ACLActionFailure
-			}
-			if srcPortRange.LowerPort != 0 || srcPortRange.UpperPort != maxPortNum {
-				// invalid
-				mae.Log.WithField("acl", *acl).Error("Source port range does not cover all ports")
-				return ACLActionFailure
-			}
-
-			// check destination port range
-			dstPortRange := ipRule.Udp.DestinationPortRange
-			if dstPortRange == nil {
-				// invalid
-				mae.Log.WithField("acl", *acl).Error("Missing destination port range")
-				return ACLActionFailure
-			}
-			if dstPort < uint16(dstPortRange.LowerPort) || dstPort > uint16(dstPortRange.UpperPort) {
-				// not matching
-				continue
+				// check destination port range
+				dstPortRange := ipRule.Udp.DestinationPortRange
+				if dstPortRange == nil {
+					// invalid
+					mae.Log.WithField("acl", *acl).Error("Missing destination port range")
+					return ACLActionFailure
+				}
+				if dstPort < uint16(dstPortRange.LowerPort) || dstPort > uint16(dstPortRange.UpperPort) {
+					// not matching
+					continue
+				}
 			}
 
-		case ICMP:
+		case renderer.OTHER:
 			if ipRule.Tcp != nil || ipRule.Udp != nil {
 				// not matching
 				continue
-			}
-			if ipRule.Icmp == nil {
-				// invalid
-				mae.Log.WithField("acl", *acl).Error("Missing ICMP section")
-				return ACLActionFailure
-			}
-
-			// check ICMP code range (should be ALL-CODES)
-			codeRange := ipRule.Icmp.IcmpCodeRange
-			if codeRange == nil {
-				// invalid
-				mae.Log.WithField("acl", *acl).Error("Missing ICMP code range")
-				return ACLActionFailure
-			}
-			if codeRange.First != 0 || codeRange.Last != maxICMPCode {
-				// invalid
-				mae.Log.WithField("acl", *acl).Error("ICMP code range does not cover all ports")
-				return ACLActionFailure
-			}
-
-			// check ICMP type range (should be ALL-TYPES)
-			typeRange := ipRule.Icmp.IcmpTypeRange
-			if typeRange == nil {
-				// invalid
-				mae.Log.WithField("acl", *acl).Error("Missing ICMP type range")
-				return ACLActionFailure
-			}
-			if typeRange.First != 0 || typeRange.Last != maxICMPType {
-				// invalid
-				mae.Log.WithField("acl", *acl).Error("ICMP type range does not cover all ports")
-				return ACLActionFailure
-			}
-
-			// Check IP version (should be IPv4 until IPv6 is supported)
-			if ipRule.Icmp.Icmpv6 != false {
-				// invalid
-				mae.Log.WithField("acl", *acl).Error("ICMPv6 is not yet supported")
-				return ACLActionFailure
 			}
 		}
 

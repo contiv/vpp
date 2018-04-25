@@ -137,10 +137,18 @@ func TestSinglePolicySinglePod(t *testing.T) {
 	action = renderer.TestTraffic(pod1, EgressTraffic,
 		parseIP(natLoopbackIP), parseIP(pod1IP), rendererAPI.TCP, 456, 100)
 	gomega.Expect(action).To(gomega.BeEquivalentTo(AllowedTraffic))
+	action = renderer.TestTraffic(pod1, EgressTraffic,
+		parseIP(natLoopbackIP), parseIP(pod1IP), rendererAPI.OTHER, 0, 0)
+	gomega.Expect(action).To(gomega.BeEquivalentTo(AllowedTraffic))
 
 	// Not covered by any policy.
 	action = renderer.TestTraffic(pod1, IngressTraffic,
 		parseIP(pod1IP), parseIP(pod2IP), rendererAPI.TCP, 123, 456)
+	gomega.Expect(action).To(gomega.BeEquivalentTo(UnmatchedTraffic))
+
+	// Not covered by any policy.
+	action = renderer.TestTraffic(pod1, IngressTraffic,
+		parseIP(pod1IP), parseIP(pod2IP), rendererAPI.OTHER, 0, 0)
 	gomega.Expect(action).To(gomega.BeEquivalentTo(UnmatchedTraffic))
 
 	// Blocked by policy1 - TCP:100 not allowed.
@@ -151,6 +159,11 @@ func TestSinglePolicySinglePod(t *testing.T) {
 	// Blocked by policy1 - UDP not allowed.
 	action = renderer.TestTraffic(pod1, EgressTraffic,
 		parseIP(pod2IP), parseIP(pod1IP), rendererAPI.UDP, 123, 80)
+	gomega.Expect(action).To(gomega.BeEquivalentTo(DeniedTraffic))
+
+	// Blocked by policy1 - other protocols not allowed.
+	action = renderer.TestTraffic(pod1, EgressTraffic,
+		parseIP(pod2IP), parseIP(pod1IP), rendererAPI.OTHER, 0, 0)
 	gomega.Expect(action).To(gomega.BeEquivalentTo(DeniedTraffic))
 }
 
@@ -252,10 +265,18 @@ func TestSinglePolicyWithIPBlockSinglePod(t *testing.T) {
 	action = renderer.TestTraffic(pod1, EgressTraffic,
 		parseIP(natLoopbackIP), parseIP(pod1IP), rendererAPI.TCP, 456, 100)
 	gomega.Expect(action).To(gomega.BeEquivalentTo(AllowedTraffic))
+	action = renderer.TestTraffic(pod1, EgressTraffic,
+		parseIP(natLoopbackIP), parseIP(pod1IP), rendererAPI.OTHER, 0, 0)
+	gomega.Expect(action).To(gomega.BeEquivalentTo(AllowedTraffic))
 
 	// Not covered by any policy.
 	action = renderer.TestTraffic(pod1, IngressTraffic,
 		parseIP(pod1IP), parseIP(pod2IP), rendererAPI.TCP, 123, 456)
+	gomega.Expect(action).To(gomega.BeEquivalentTo(UnmatchedTraffic))
+
+	// Not covered by any policy.
+	action = renderer.TestTraffic(pod1, IngressTraffic,
+		parseIP(pod1IP), parseIP(pod2IP), rendererAPI.OTHER, 0, 0)
 	gomega.Expect(action).To(gomega.BeEquivalentTo(UnmatchedTraffic))
 
 	// Blocked by policy1 - TCP:100 not allowed.
@@ -268,9 +289,17 @@ func TestSinglePolicyWithIPBlockSinglePod(t *testing.T) {
 		parseIP(pod2IP), parseIP(pod1IP), rendererAPI.UDP, 123, 80)
 	gomega.Expect(action).To(gomega.BeEquivalentTo(DeniedTraffic))
 
+	// Blocked by policy1 - other protocols not allowed.
+	action = renderer.TestTraffic(pod1, EgressTraffic,
+		parseIP(pod2IP), parseIP(pod1IP), rendererAPI.OTHER, 0, 0)
+	gomega.Expect(action).To(gomega.BeEquivalentTo(DeniedTraffic))
+
 	// Blocked by policy1 - ip from the except range.
 	action = renderer.TestTraffic(pod1, EgressTraffic,
 		parseIP("192.168.2.5"), parseIP(pod1IP), rendererAPI.TCP, 123, 80)
+	gomega.Expect(action).To(gomega.BeEquivalentTo(DeniedTraffic))
+	action = renderer.TestTraffic(pod1, EgressTraffic,
+		parseIP("192.168.2.5"), parseIP(pod1IP), rendererAPI.OTHER, 0, 0)
 	gomega.Expect(action).To(gomega.BeEquivalentTo(DeniedTraffic))
 }
 
@@ -398,6 +427,12 @@ func TestSinglePolicyMultiplePods(t *testing.T) {
 	action = renderer.TestTraffic(pod2, IngressTraffic,
 		parseIP(pod2IP), parseIP(pod1IP), rendererAPI.TCP, 123, 8000)
 	gomega.Expect(action).To(gomega.BeEquivalentTo(UnmatchedTraffic))
+	action = renderer.TestTraffic(pod1, IngressTraffic,
+		parseIP(pod1IP), parseIP(pod2IP), rendererAPI.OTHER, 0, 0)
+	gomega.Expect(action).To(gomega.BeEquivalentTo(UnmatchedTraffic))
+	action = renderer.TestTraffic(pod2, IngressTraffic,
+		parseIP(pod2IP), parseIP(pod1IP), rendererAPI.OTHER, 0, 0)
+	gomega.Expect(action).To(gomega.BeEquivalentTo(UnmatchedTraffic))
 
 	// Always allowed from NAT-loopback.
 	action = renderer.TestTraffic(pod1, EgressTraffic,
@@ -405,6 +440,12 @@ func TestSinglePolicyMultiplePods(t *testing.T) {
 	gomega.Expect(action).To(gomega.BeEquivalentTo(AllowedTraffic))
 	action = renderer.TestTraffic(pod2, EgressTraffic,
 		parseIP(natLoopbackIP), parseIP(pod2IP), rendererAPI.UDP, 123, 8001)
+	gomega.Expect(action).To(gomega.BeEquivalentTo(AllowedTraffic))
+	action = renderer.TestTraffic(pod2, EgressTraffic,
+		parseIP(natLoopbackIP), parseIP(pod1IP), rendererAPI.OTHER, 0, 0)
+	gomega.Expect(action).To(gomega.BeEquivalentTo(AllowedTraffic))
+	action = renderer.TestTraffic(pod2, EgressTraffic,
+		parseIP(natLoopbackIP), parseIP(pod2IP), rendererAPI.OTHER, 0, 0)
 	gomega.Expect(action).To(gomega.BeEquivalentTo(AllowedTraffic))
 
 	// Blocked by policy1 - ip in the "except" range.
@@ -414,6 +455,9 @@ func TestSinglePolicyMultiplePods(t *testing.T) {
 	action = renderer.TestTraffic(pod2, EgressTraffic,
 		parseIP("10.1.10.10"), parseIP(pod2IP), rendererAPI.UDP, 123, 8000)
 	gomega.Expect(action).To(gomega.BeEquivalentTo(DeniedTraffic))
+	action = renderer.TestTraffic(pod2, EgressTraffic,
+		parseIP("10.1.10.10"), parseIP(pod2IP), rendererAPI.OTHER, 0, 0)
+	gomega.Expect(action).To(gomega.BeEquivalentTo(DeniedTraffic))
 
 	// Blocked by policy1 - port not matched.
 	action = renderer.TestTraffic(pod1, EgressTraffic,
@@ -421,6 +465,14 @@ func TestSinglePolicyMultiplePods(t *testing.T) {
 	gomega.Expect(action).To(gomega.BeEquivalentTo(DeniedTraffic))
 	action = renderer.TestTraffic(pod2, EgressTraffic,
 		parseIP(pod3IP), parseIP(pod2IP), rendererAPI.UDP, 123, 8001)
+	gomega.Expect(action).To(gomega.BeEquivalentTo(DeniedTraffic))
+
+	// Blocked by policy1 - other protocols not allowed.
+	action = renderer.TestTraffic(pod1, EgressTraffic,
+		parseIP(pod3IP), parseIP(pod1IP), rendererAPI.OTHER, 0, 0)
+	gomega.Expect(action).To(gomega.BeEquivalentTo(DeniedTraffic))
+	action = renderer.TestTraffic(pod2, EgressTraffic,
+		parseIP(pod3IP), parseIP(pod2IP), rendererAPI.OTHER, 0, 0)
 	gomega.Expect(action).To(gomega.BeEquivalentTo(DeniedTraffic))
 }
 
@@ -630,6 +682,11 @@ func TestSingleEgressPolicySinglePod(t *testing.T) {
 
 	// Not covered by any policy.
 	action = renderer.TestTraffic(pod1, EgressTraffic,
+		parseIP(pod2IP), parseIP(pod1IP), rendererAPI.OTHER, 0, 0)
+	gomega.Expect(action).To(gomega.BeEquivalentTo(UnmatchedTraffic))
+
+	// Not covered by any policy.
+	action = renderer.TestTraffic(pod1, EgressTraffic,
 		parseIP(natLoopbackIP), parseIP(pod1IP), rendererAPI.TCP, 123, 456)
 	gomega.Expect(action).To(gomega.BeEquivalentTo(UnmatchedTraffic))
 
@@ -641,6 +698,11 @@ func TestSingleEgressPolicySinglePod(t *testing.T) {
 	// Blocked by policy1 - UDP not allowed.
 	action = renderer.TestTraffic(pod1, IngressTraffic,
 		parseIP(pod1IP), parseIP(pod2IP), rendererAPI.UDP, 123, 80)
+	gomega.Expect(action).To(gomega.BeEquivalentTo(DeniedTraffic))
+
+	// Blocked by policy1 - other protocols not allowed.
+	action = renderer.TestTraffic(pod1, IngressTraffic,
+		parseIP(pod1IP), parseIP(pod2IP), rendererAPI.OTHER, 0, 0)
 	gomega.Expect(action).To(gomega.BeEquivalentTo(DeniedTraffic))
 }
 
@@ -745,6 +807,11 @@ func TestSingleEgressPolicyWithIPBlockSinglePod(t *testing.T) {
 
 	// Not covered by any policy.
 	action = renderer.TestTraffic(pod1, EgressTraffic,
+		parseIP(pod2IP), parseIP(pod1IP), rendererAPI.OTHER, 0, 0)
+	gomega.Expect(action).To(gomega.BeEquivalentTo(UnmatchedTraffic))
+
+	// Not covered by any policy.
+	action = renderer.TestTraffic(pod1, EgressTraffic,
 		parseIP(natLoopbackIP), parseIP(pod1IP), rendererAPI.TCP, 123, 456)
 	gomega.Expect(action).To(gomega.BeEquivalentTo(UnmatchedTraffic))
 
@@ -756,6 +823,11 @@ func TestSingleEgressPolicyWithIPBlockSinglePod(t *testing.T) {
 	// Blocked by policy1 - UDP not allowed.
 	action = renderer.TestTraffic(pod1, IngressTraffic,
 		parseIP(pod1IP), parseIP(pod2IP), rendererAPI.UDP, 123, 80)
+	gomega.Expect(action).To(gomega.BeEquivalentTo(DeniedTraffic))
+
+	// Blocked by policy1 - other protocols not allowed.
+	action = renderer.TestTraffic(pod1, IngressTraffic,
+		parseIP(pod1IP), parseIP(pod2IP), rendererAPI.OTHER, 0, 0)
 	gomega.Expect(action).To(gomega.BeEquivalentTo(DeniedTraffic))
 
 	// Blocked by policy1 - ip from the except range.
@@ -903,6 +975,9 @@ func TestSingleBothWaysPolicySinglePod(t *testing.T) {
 	action = renderer.TestTraffic(pod1, EgressTraffic,
 		parseIP(natLoopbackIP), parseIP(pod1IP), rendererAPI.TCP, 456, 100)
 	gomega.Expect(action).To(gomega.BeEquivalentTo(AllowedTraffic))
+	action = renderer.TestTraffic(pod1, EgressTraffic,
+		parseIP(natLoopbackIP), parseIP(pod1IP), rendererAPI.OTHER, 0, 0)
+	gomega.Expect(action).To(gomega.BeEquivalentTo(AllowedTraffic))
 
 	// Blocked by policy1 - TCP:100 not allowed.
 	action = renderer.TestTraffic(pod1, IngressTraffic,
@@ -933,6 +1008,15 @@ func TestSingleBothWaysPolicySinglePod(t *testing.T) {
 	action = renderer.TestTraffic(pod1, EgressTraffic,
 		parseIP("10.5.1.1"), parseIP(pod1IP), rendererAPI.UDP, 123, 333)
 	gomega.Expect(action).To(gomega.BeEquivalentTo(DeniedTraffic))
+
+	// Blocked by policy1 - pod1 is isolated wrt. other protocols.
+	action = renderer.TestTraffic(pod1, IngressTraffic,
+		parseIP(pod1IP), parseIP(pod2IP), rendererAPI.OTHER, 0, 0)
+	gomega.Expect(action).To(gomega.BeEquivalentTo(DeniedTraffic))
+	action = renderer.TestTraffic(pod1, EgressTraffic,
+		parseIP(pod2IP), parseIP(pod1IP), rendererAPI.OTHER, 0, 0)
+	gomega.Expect(action).To(gomega.BeEquivalentTo(DeniedTraffic))
+
 }
 
 func TestSinglePolicySinglePodMultipleRenderers(t *testing.T) {
@@ -1037,6 +1121,9 @@ func TestSinglePolicySinglePodMultipleRenderers(t *testing.T) {
 	action = renderer1.TestTraffic(pod1, EgressTraffic,
 		parseIP(natLoopbackIP), parseIP(pod1IP), rendererAPI.TCP, 456, 100)
 	gomega.Expect(action).To(gomega.BeEquivalentTo(AllowedTraffic))
+	action = renderer1.TestTraffic(pod1, EgressTraffic,
+		parseIP(natLoopbackIP), parseIP(pod1IP), rendererAPI.OTHER, 0, 0)
+	gomega.Expect(action).To(gomega.BeEquivalentTo(AllowedTraffic))
 
 	// Not covered by any policy.
 	action = renderer1.TestTraffic(pod1, IngressTraffic,
@@ -1051,6 +1138,11 @@ func TestSinglePolicySinglePodMultipleRenderers(t *testing.T) {
 	// Blocked by policy1 - UDP not allowed.
 	action = renderer1.TestTraffic(pod1, EgressTraffic,
 		parseIP(pod2IP), parseIP(pod1IP), rendererAPI.UDP, 123, 80)
+	gomega.Expect(action).To(gomega.BeEquivalentTo(DeniedTraffic))
+
+	// Blocked by policy1 - other protocols not allowed.
+	action = renderer1.TestTraffic(pod1, EgressTraffic,
+		parseIP(pod2IP), parseIP(pod1IP), rendererAPI.OTHER, 0, 0)
 	gomega.Expect(action).To(gomega.BeEquivalentTo(DeniedTraffic))
 
 	// Renderer 2
@@ -1069,6 +1161,9 @@ func TestSinglePolicySinglePodMultipleRenderers(t *testing.T) {
 	action = renderer2.TestTraffic(pod1, EgressTraffic,
 		parseIP(natLoopbackIP), parseIP(pod1IP), rendererAPI.TCP, 456, 100)
 	gomega.Expect(action).To(gomega.BeEquivalentTo(AllowedTraffic))
+	action = renderer2.TestTraffic(pod1, EgressTraffic,
+		parseIP(natLoopbackIP), parseIP(pod1IP), rendererAPI.OTHER, 0, 0)
+	gomega.Expect(action).To(gomega.BeEquivalentTo(AllowedTraffic))
 
 	// Not covered by any policy.
 	action = renderer2.TestTraffic(pod1, IngressTraffic,
@@ -1083,6 +1178,11 @@ func TestSinglePolicySinglePodMultipleRenderers(t *testing.T) {
 	// Blocked by policy1 - UDP not allowed.
 	action = renderer2.TestTraffic(pod1, EgressTraffic,
 		parseIP(pod2IP), parseIP(pod1IP), rendererAPI.UDP, 123, 80)
+	gomega.Expect(action).To(gomega.BeEquivalentTo(DeniedTraffic))
+
+	// Blocked by policy1 - other protocols not allowed.
+	action = renderer2.TestTraffic(pod1, EgressTraffic,
+		parseIP(pod2IP), parseIP(pod1IP), rendererAPI.OTHER, 0, 0)
 	gomega.Expect(action).To(gomega.BeEquivalentTo(DeniedTraffic))
 
 	// Renderer 3
@@ -1101,6 +1201,9 @@ func TestSinglePolicySinglePodMultipleRenderers(t *testing.T) {
 	action = renderer3.TestTraffic(pod1, EgressTraffic,
 		parseIP(natLoopbackIP), parseIP(pod1IP), rendererAPI.TCP, 456, 100)
 	gomega.Expect(action).To(gomega.BeEquivalentTo(AllowedTraffic))
+	action = renderer3.TestTraffic(pod1, EgressTraffic,
+		parseIP(natLoopbackIP), parseIP(pod1IP), rendererAPI.OTHER, 0, 0)
+	gomega.Expect(action).To(gomega.BeEquivalentTo(AllowedTraffic))
 
 	// Not covered by any policy.
 	action = renderer3.TestTraffic(pod1, IngressTraffic,
@@ -1115,6 +1218,11 @@ func TestSinglePolicySinglePodMultipleRenderers(t *testing.T) {
 	// Blocked by policy1 - UDP not allowed.
 	action = renderer3.TestTraffic(pod1, EgressTraffic,
 		parseIP(pod2IP), parseIP(pod1IP), rendererAPI.UDP, 123, 80)
+	gomega.Expect(action).To(gomega.BeEquivalentTo(DeniedTraffic))
+
+	// Blocked by policy1 - other protocols not allowed.
+	action = renderer3.TestTraffic(pod1, EgressTraffic,
+		parseIP(pod2IP), parseIP(pod1IP), rendererAPI.OTHER, 0, 0)
 	gomega.Expect(action).To(gomega.BeEquivalentTo(DeniedTraffic))
 }
 
@@ -1279,6 +1387,9 @@ func TestMultiplePoliciesSinglePod(t *testing.T) {
 	action = renderer.TestTraffic(pod1, EgressTraffic,
 		parseIP(natLoopbackIP), parseIP(pod1IP), rendererAPI.UDP, 789, 444)
 	gomega.Expect(action).To(gomega.BeEquivalentTo(AllowedTraffic))
+	action = renderer.TestTraffic(pod1, EgressTraffic,
+		parseIP(natLoopbackIP), parseIP(pod1IP), rendererAPI.OTHER, 0, 0)
+	gomega.Expect(action).To(gomega.BeEquivalentTo(AllowedTraffic))
 
 	// Blocked by policy1 - UDP not allowed.
 	action = renderer.TestTraffic(pod1, IngressTraffic,
@@ -1314,6 +1425,15 @@ func TestMultiplePoliciesSinglePod(t *testing.T) {
 	action = renderer.TestTraffic(pod1, EgressTraffic,
 		parseIP("10.5.6.7"), parseIP(pod1IP), rendererAPI.TCP, 456, 6000)
 	gomega.Expect(action).To(gomega.BeEquivalentTo(DeniedTraffic))
+
+	// Blocked by policy1 - other protocols not allowed.
+	action = renderer.TestTraffic(pod1, EgressTraffic,
+		parseIP(pod2IP), parseIP(pod1IP), rendererAPI.OTHER, 0, 0)
+	gomega.Expect(action).To(gomega.BeEquivalentTo(DeniedTraffic))
+	action = renderer.TestTraffic(pod1, IngressTraffic,
+		parseIP(pod1IP), parseIP(pod2IP), rendererAPI.OTHER, 0, 0)
+	gomega.Expect(action).To(gomega.BeEquivalentTo(DeniedTraffic))
+
 }
 
 func TestMultiplePodsSpecialCases(t *testing.T) {
@@ -1479,10 +1599,16 @@ func TestMultiplePodsSpecialCases(t *testing.T) {
 		parseIP(pod3IP), parseIP(pod1IP), rendererAPI.UDP, 123, 9000)
 	gomega.Expect(action).To(gomega.BeEquivalentTo(DeniedTraffic))
 	action = renderer.TestTraffic(pod1, EgressTraffic,
+		parseIP(pod3IP), parseIP(pod1IP), rendererAPI.OTHER, 0, 0)
+	gomega.Expect(action).To(gomega.BeEquivalentTo(DeniedTraffic))
+	action = renderer.TestTraffic(pod1, EgressTraffic,
 		parseIP(pod2IP), parseIP(pod1IP), rendererAPI.UDP, 123, 9000)
 	gomega.Expect(action).To(gomega.BeEquivalentTo(DeniedTraffic))
 	action = renderer.TestTraffic(pod1, EgressTraffic,
 		parseIP("10.10.10.10"), parseIP(pod1IP), rendererAPI.UDP, 123, 9000)
+	gomega.Expect(action).To(gomega.BeEquivalentTo(DeniedTraffic))
+	action = renderer.TestTraffic(pod1, EgressTraffic,
+		parseIP("10.10.10.10"), parseIP(pod1IP), rendererAPI.OTHER, 0, 0)
 	gomega.Expect(action).To(gomega.BeEquivalentTo(DeniedTraffic))
 
 	// Not covered by any policy.
@@ -1493,7 +1619,13 @@ func TestMultiplePodsSpecialCases(t *testing.T) {
 		parseIP(pod1IP), parseIP(pod2IP), rendererAPI.UDP, 123, 8000)
 	gomega.Expect(action).To(gomega.BeEquivalentTo(UnmatchedTraffic))
 	action = renderer.TestTraffic(pod1, IngressTraffic,
+		parseIP(pod1IP), parseIP(pod2IP), rendererAPI.OTHER, 0, 0)
+	gomega.Expect(action).To(gomega.BeEquivalentTo(UnmatchedTraffic))
+	action = renderer.TestTraffic(pod1, IngressTraffic,
 		parseIP(pod1IP), parseIP("10.10.10.10"), rendererAPI.TCP, 123, 9000)
+	gomega.Expect(action).To(gomega.BeEquivalentTo(UnmatchedTraffic))
+	action = renderer.TestTraffic(pod1, IngressTraffic,
+		parseIP(pod1IP), parseIP("10.10.10.10"), rendererAPI.OTHER, 0, 0)
 	gomega.Expect(action).To(gomega.BeEquivalentTo(UnmatchedTraffic))
 
 	// Allowed by policy2.
@@ -1507,7 +1639,13 @@ func TestMultiplePodsSpecialCases(t *testing.T) {
 		parseIP(pod3IP), parseIP(pod2IP), rendererAPI.UDP, 123, 8000)
 	gomega.Expect(action).To(gomega.BeEquivalentTo(AllowedTraffic))
 	action = renderer.TestTraffic(pod2, EgressTraffic,
+		parseIP(pod3IP), parseIP(pod2IP), rendererAPI.OTHER, 0, 0)
+	gomega.Expect(action).To(gomega.BeEquivalentTo(AllowedTraffic))
+	action = renderer.TestTraffic(pod2, EgressTraffic,
 		parseIP("10.10.10.10"), parseIP(pod2IP), rendererAPI.UDP, 123, 8000)
+	gomega.Expect(action).To(gomega.BeEquivalentTo(AllowedTraffic))
+	action = renderer.TestTraffic(pod2, EgressTraffic,
+		parseIP("10.10.10.10"), parseIP(pod2IP), rendererAPI.OTHER, 0, 0)
 	gomega.Expect(action).To(gomega.BeEquivalentTo(AllowedTraffic))
 	action = renderer.TestTraffic(pod2, EgressTraffic,
 		parseIP(pod3IP), parseIP(pod2IP), rendererAPI.TCP, 123, 9000)
@@ -1530,6 +1668,9 @@ func TestMultiplePodsSpecialCases(t *testing.T) {
 		parseIP(pod2IP), parseIP(pod3IP), rendererAPI.UDP, 123, 8000)
 	gomega.Expect(action).To(gomega.BeEquivalentTo(UnmatchedTraffic))
 	action = renderer.TestTraffic(pod2, IngressTraffic,
+		parseIP(pod2IP), parseIP(pod3IP), rendererAPI.OTHER, 0, 0)
+	gomega.Expect(action).To(gomega.BeEquivalentTo(UnmatchedTraffic))
+	action = renderer.TestTraffic(pod2, IngressTraffic,
 		parseIP(pod2IP), parseIP("10.10.10.10"), rendererAPI.TCP, 123, 9000)
 	gomega.Expect(action).To(gomega.BeEquivalentTo(UnmatchedTraffic))
 
@@ -1538,10 +1679,19 @@ func TestMultiplePodsSpecialCases(t *testing.T) {
 		parseIP(pod3IP), parseIP(pod2IP), rendererAPI.TCP, 123, 555)
 	gomega.Expect(action).To(gomega.BeEquivalentTo(AllowedTraffic))
 	action = renderer.TestTraffic(pod3, IngressTraffic,
+		parseIP(pod3IP), parseIP(pod2IP), rendererAPI.OTHER, 0, 0)
+	gomega.Expect(action).To(gomega.BeEquivalentTo(AllowedTraffic))
+	action = renderer.TestTraffic(pod3, IngressTraffic,
 		parseIP(pod3IP), parseIP(pod1IP), rendererAPI.UDP, 123, 777)
 	gomega.Expect(action).To(gomega.BeEquivalentTo(AllowedTraffic))
 	action = renderer.TestTraffic(pod3, IngressTraffic,
+		parseIP(pod3IP), parseIP(pod1IP), rendererAPI.OTHER, 0, 0)
+	gomega.Expect(action).To(gomega.BeEquivalentTo(AllowedTraffic))
+	action = renderer.TestTraffic(pod3, IngressTraffic,
 		parseIP(pod3IP), parseIP("10.5.10.10"), rendererAPI.UDP, 123, 3215)
+	gomega.Expect(action).To(gomega.BeEquivalentTo(AllowedTraffic))
+	action = renderer.TestTraffic(pod3, IngressTraffic,
+		parseIP(pod3IP), parseIP("10.5.10.10"), rendererAPI.OTHER, 0, 0)
 	gomega.Expect(action).To(gomega.BeEquivalentTo(AllowedTraffic))
 
 	// Blocked by policy3.
@@ -1549,7 +1699,13 @@ func TestMultiplePodsSpecialCases(t *testing.T) {
 		parseIP(pod3IP), parseIP("10.5.1.10"), rendererAPI.UDP, 123, 3215)
 	gomega.Expect(action).To(gomega.BeEquivalentTo(DeniedTraffic))
 	action = renderer.TestTraffic(pod3, IngressTraffic,
+		parseIP(pod3IP), parseIP("10.5.1.10"), rendererAPI.OTHER, 0, 0)
+	gomega.Expect(action).To(gomega.BeEquivalentTo(DeniedTraffic))
+	action = renderer.TestTraffic(pod3, IngressTraffic,
 		parseIP(pod3IP), parseIP("78.78.78.10"), rendererAPI.TCP, 123, 777)
+	gomega.Expect(action).To(gomega.BeEquivalentTo(DeniedTraffic))
+	action = renderer.TestTraffic(pod3, IngressTraffic,
+		parseIP(pod3IP), parseIP("78.78.78.10"), rendererAPI.OTHER, 0, 0)
 	gomega.Expect(action).To(gomega.BeEquivalentTo(DeniedTraffic))
 
 	// Blocked by policy4.
@@ -1560,7 +1716,13 @@ func TestMultiplePodsSpecialCases(t *testing.T) {
 		parseIP(pod2IP), parseIP(pod3IP), rendererAPI.UDP, 123, 8000)
 	gomega.Expect(action).To(gomega.BeEquivalentTo(DeniedTraffic))
 	action = renderer.TestTraffic(pod3, EgressTraffic,
+		parseIP(pod2IP), parseIP(pod3IP), rendererAPI.OTHER, 0, 0)
+	gomega.Expect(action).To(gomega.BeEquivalentTo(DeniedTraffic))
+	action = renderer.TestTraffic(pod3, EgressTraffic,
 		parseIP("10.5.10.10"), parseIP(pod3IP), rendererAPI.TCP, 123, 9000)
+	gomega.Expect(action).To(gomega.BeEquivalentTo(DeniedTraffic))
+	action = renderer.TestTraffic(pod3, EgressTraffic,
+		parseIP("10.5.10.10"), parseIP(pod3IP), rendererAPI.OTHER, 0, 0)
 	gomega.Expect(action).To(gomega.BeEquivalentTo(DeniedTraffic))
 
 	// Always allowed.
@@ -1569,5 +1731,11 @@ func TestMultiplePodsSpecialCases(t *testing.T) {
 	gomega.Expect(action).To(gomega.BeEquivalentTo(AllowedTraffic))
 	action = renderer.TestTraffic(pod1, EgressTraffic,
 		parseIP(natLoopbackIP), parseIP(pod1IP), rendererAPI.TCP, 123, 9000)
+	gomega.Expect(action).To(gomega.BeEquivalentTo(AllowedTraffic))
+	action = renderer.TestTraffic(pod3, EgressTraffic,
+		parseIP(natLoopbackIP), parseIP(pod3IP), rendererAPI.OTHER, 0, 0)
+	gomega.Expect(action).To(gomega.BeEquivalentTo(AllowedTraffic))
+	action = renderer.TestTraffic(pod1, EgressTraffic,
+		parseIP(natLoopbackIP), parseIP(pod1IP), rendererAPI.OTHER, 0, 0)
 	gomega.Expect(action).To(gomega.BeEquivalentTo(AllowedTraffic))
 }

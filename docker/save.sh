@@ -17,14 +17,7 @@ set -euo pipefail
 
 # this script exports the built images as a tarball to be loaded
 
-tag=$(git describe --tags)
-
-images='contivvpp/ksr:latest contivvpp/cni:latest contivvpp/cri:latest contivvpp/vswitch:latest'
-
-docker tag prod-contiv-ksr:$tag contivvpp/ksr:latest
-docker tag prod-contiv-cni:$tag contivvpp/cni:latest
-docker tag prod-contiv-cri:$tag contivvpp/cri:latest
-docker tag prod-contiv-vswitch:$tag contivvpp/vswitch:latest
+images='contivvpp/ksr:latest contivvpp/cni:latest contivvpp/stn:latest contivvpp/vswitch:latest'
 
 if [ -f ../vagrant/images.tar ]; then
 	rm ../vagrant/images.tar

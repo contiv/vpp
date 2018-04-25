@@ -23,6 +23,7 @@ import (
 	"github.com/golang/protobuf/proto"
 
 	"github.com/ligato/cn-infra/datasync/syncbase"
+	"github.com/ligato/cn-infra/datasync"
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/vpp-agent/clientv1/linux"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins"
@@ -125,6 +126,7 @@ func (art *RendererTxn) Render(pod podmodel.ID, podIP *net.IPNet, ingress []*ren
 // localclient.
 func (art *RendererTxn) Commit() error {
 	var (
+		aclRawDump       []*vpp_acl.AccessLists_Acl
 		aclDump          []*cache.ContivRuleTable
 		globalTable      *cache.ContivRuleTable
 		hasReflectiveACL bool
@@ -133,10 +135,32 @@ func (art *RendererTxn) Commit() error {
 
 	if art.resync {
 		// Re-synchronize with VPP first.
-		aclDump, hasReflectiveACL, err = art.dumpVppACLConfig()
+		// -> dump ACLs configured on VPP.
+		aclRawDump, aclDump, hasReflectiveACL, err = art.dumpVppACLConfig()
 		if err != nil {
 			return err
 		}
+		// -> get the latest revisions in-sync with VPP
+		keyList := art.renderer.LatestRevs.ListKeys()
+		keys := map[string]struct{}{}
+		for _, key := range keyList {
+			if strings.HasPrefix(key, vpp_acl.KeyPrefix()) {
+				keys[key] = struct{}{}
+			}
+		}
+		for _, acl := range aclRawDump {
+			key := vpp_acl.Key(acl.AclName)
+			if _, hasKey := keys[key]; hasKey {
+				delete(keys, key)
+			} else {
+				value := syncbase.NewChange(key, acl, 0, datasync.Put)
+				art.renderer.LatestRevs.PutWithRevision(key, value)
+			}
+		}
+		for key := range keys {
+			art.renderer.LatestRevs.Del(key)
+		}
+		// -> resync cache with VPP
 		err = art.renderer.cache.Resync(aclDump)
 		if err != nil {
 			return err
@@ -395,19 +419,20 @@ func (art *RendererTxn) renderInterfaces(pods cache.PodSet, ingress bool) *vpp_a
 
 // dumpVppACLConfig dumps current ACL config in the format suitable for the resync
 // of the cache.
-func (art *RendererTxn) dumpVppACLConfig() (tables []*cache.ContivRuleTable, hasReflectiveACL bool, err error) {
+func (art *RendererTxn) dumpVppACLConfig() (acls []*vpp_acl.AccessLists_Acl, tables []*cache.ContivRuleTable, hasReflectiveACL bool, err error) {
 	const maxPortNum = uint32(^uint16(0))
 	tables = []*cache.ContivRuleTable{}
 
 	aclDump, err := art.vpp.DumpACL()
 	if err != nil {
-		return tables, false, err
+		return acls, tables, false, err
 	}
 	for _, acl := range aclDump {
 		if !strings.HasPrefix(acl.AclName, ACLNamePrefix) {
 			/* ACL not installed by this plugin */
 			continue
 		}
+		acls = append(acls, acl)
 		aclName := strings.TrimPrefix(acl.AclName, ACLNamePrefix)
 
 		// Skip the Reflective ACL.
@@ -555,5 +580,5 @@ func (art *RendererTxn) dumpVppACLConfig() (tables []*cache.ContivRuleTable, has
 		tables = append(tables, table)
 	}
 
-	return tables, hasReflectiveACL, nil
+	return acls, tables, hasReflectiveACL, nil
 }

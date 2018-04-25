@@ -9,7 +9,7 @@ if [ $DEP_PROV = "virtualbox" ]; then
       MainVppInterface:\
         InterfaceName: \"GigabitEthernet0/8/0\"\
       Gateway: \"192.168.16.100\"'
-	
+
 	worker_gw_config=''
 	for i in `seq 1 $NUM_K8S_NODES`; do
 	worker_gw_config=$worker_gw_config'\
@@ -23,7 +23,7 @@ if [ $DEP_PROV = "virtualbox" ]; then
 	""${master_gw_config}""\
 	""${worker_gw_config}""\
 	" /tmp/contiv-vpp.yaml
-	
+
 	else
 	  curl -s https://raw.githubusercontent.com/contiv/vpp/master/k8s/stn-install.sh > /tmp/contiv-stn.sh
 	  chmod +x /tmp/contiv-stn.sh
@@ -32,28 +32,28 @@ if [ $DEP_PROV = "virtualbox" ]; then
     NodeConfig:\
     - NodeName: \"k8s-master\"\
       StealInterface: \"enp0s8\"\'
-	
+
 	worker_gw_config=''
 	for i in `seq 1 $NUM_K8S_NODES`; do
 	worker_gw_config=$worker_gw_config'\
     - NodeName: \"k8s-worker'$i'\"\
-      StealInterface: \"enp0s8\"\'
+      StealInterface: \"enp0s8\"'
 	done
 
 	  sed -i "/logs.conf/i \
 	""${master_gw_config}""\
 	""${worker_gw_config}""\
-	" /tmp/contiv-vpp.yaml
+		" /tmp/contiv-vpp.yaml
 	fi
 
-else 
+else
 	if [ $DEP_SCENARIO = "nostn" ]; then
 	  master_gw_config='\
     NodeConfig:\
     - NodeName: \"k8s-master\"\
       MainVppInterface:\
         InterfaceName: \"GigabitEthernet3/0/0\"'
-	
+
 	worker_gw_config=''
 	for i in `seq 1 $NUM_K8S_NODES`; do
 	worker_gw_config=$worker_gw_config'\
@@ -66,7 +66,7 @@ else
 	""${master_gw_config}""\
 	""${worker_gw_config}""\
 	" /tmp/contiv-vpp.yaml
-	
+
 	else
 	  curl -s https://raw.githubusercontent.com/contiv/vpp/master/k8s/stn-install.sh > /tmp/contiv-stn.sh
 	  chmod +x /tmp/contiv-stn.sh
@@ -75,7 +75,7 @@ else
     NodeConfig:\
     - NodeName: \"k8s-master\"\
       StealInterface: \"ens160\"'
-	
+
 	worker_gw_config=''
 	for i in `seq 1 $NUM_K8S_NODES`; do
 	worker_gw_config=$worker_gw_config'\

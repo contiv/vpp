@@ -8,6 +8,8 @@ import (
 	mockdefaultplugins "github.com/contiv/vpp/mock/localclient/dsl/defaultplugins"
 	"github.com/contiv/vpp/mock/localclient/dsl/linuxplugin"
 	"github.com/golang/protobuf/proto"
+	"github.com/ligato/cn-infra/datasync"
+	"github.com/ligato/cn-infra/datasync/syncbase"
 	"github.com/ligato/vpp-agent/clientv1/defaultplugins"
 	"github.com/ligato/vpp-agent/clientv1/linux"
 )
@@ -16,15 +18,15 @@ import (
 type TxnTracker struct {
 	// lock allows to use the same mock localclient from multiple go routines.
 	lock sync.Mutex
-	// AppliedConfig represents the current state of the mock DB.
-	AppliedConfig ConfigSnapshot
+	// LatestRevisions maintains the map of keys & values with revision.
+	LatestRevisions *syncbase.PrevRevisions
 	// CommittedTxns is a list finalized transaction in the order as they were
 	// committed.
 	CommittedTxns []*Txn
 	// PendingTxns is map of pending (uncommitted) transactions.
 	PendingTxns map[*Txn]struct{}
 	// onCommit if defined is executed inside the transaction commit.
-	onCommit func(txn *Txn) error
+	onCommit func(txn *Txn, latestRevs *syncbase.PrevRevisions) error
 }
 
 // ConfigSnapshot represents the current state of a mock DB.
@@ -45,7 +47,7 @@ type Txn struct {
 
 // NewTxnTracker is a constructor for TxnTracker.
 // It is the entry-point to the mock localclient for both linux and vpp.
-func NewTxnTracker(onCommit func(txn *Txn) error) *TxnTracker {
+func NewTxnTracker(onCommit func(txn *Txn, latestRevs *syncbase.PrevRevisions) error) *TxnTracker {
 	tracker := &TxnTracker{onCommit: onCommit}
 	tracker.Clear()
 	return tracker
@@ -73,12 +75,10 @@ func (t *TxnTracker) NewDefaultPluginsDataChangeTxn() defaultplugins.DataChangeD
 func (t *TxnTracker) applyDataChangeTxnOps(ops []dsl.TxnOp) {
 	for _, op := range ops {
 		if op.Value != nil {
-			t.AppliedConfig[op.Key] = op.Value
+			change := syncbase.NewChange(op.Key, op.Value, 0, datasync.Put)
+			t.LatestRevisions.Put(op.Key, change)
 		} else {
-			_, exists := t.AppliedConfig[op.Key]
-			if exists {
-				delete(t.AppliedConfig, op.Key)
-			}
+			t.LatestRevisions.Del(op.Key)
 		}
 	}
 }
@@ -103,15 +103,15 @@ func (t *TxnTracker) NewDefaultPluginsDataResyncTxn() defaultplugins.DataResyncD
 
 // applyDataResyncTxnOps reflects the effect of data resync transaction operations into the mock DB.
 func (t *TxnTracker) applyDataResyncTxnOps(ops []dsl.TxnOp) {
-	t.AppliedConfig = make(map[string]proto.Message) /* clear the previous configuration */
 	for _, op := range ops {
-		t.AppliedConfig[op.Key] = op.Value
+		change := syncbase.NewChange(op.Key, op.Value, 0, datasync.Put)
+		t.LatestRevisions.PutWithRevision(op.Key, change)
 	}
 }
 
 // Clear clears the TxnTracker state. Already created transactions become invalid.
 func (t *TxnTracker) Clear() {
-	t.AppliedConfig = make(map[string]proto.Message)
+	t.LatestRevisions = syncbase.NewLatestRev()
 	t.CommittedTxns = []*Txn{}
 	t.PendingTxns = make(map[*Txn]struct{})
 }
@@ -122,7 +122,7 @@ func (t *TxnTracker) commit(txn *Txn, applyTxnOpsFunc func([]dsl.TxnOp), ops []d
 	t.lock.Lock()
 	defer t.lock.Unlock()
 	if t.onCommit != nil {
-		err = t.onCommit(txn)
+		err = t.onCommit(txn, t.LatestRevisions)
 	}
 	applyTxnOpsFunc(ops)
 	delete(t.PendingTxns, txn)

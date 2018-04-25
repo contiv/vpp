@@ -962,6 +962,39 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 	Expect(natPlugin.HasStaticMapping(staticMappingDNSUDP)).To(BeTrue())
 	Expect(natPlugin.NumOfStaticMappings()).To(Equal(2))
 
+	// Simulate run-time resync.
+	// -> cache mocked VPP configuration
+	vppPlugins.SetNat44Global(natPlugin.DumpNat44Global())
+	vppPlugins.SetNat44Dnat(natPlugin.DumpNat44DNat())
+	// -> let's simulate that while the agent was out-of-sync, the service1 was re-added, while service2 was removed.
+	datasync.Put(svcmodel.Key(service1.Name, service1.Namespace), service1)
+	datasync.Delete(svcmodel.Key(service2.Name, service2.Namespace))
+	resyncEv3 := datasync.Resync(keyPrefixes...)
+	Expect(processor.Resync(resyncEv3)).To(BeNil())
+
+	// Check NAT configuration.
+	Expect(natPlugin.IsForwardingEnabled()).To(BeTrue())
+	Expect(natPlugin.AddressPoolSize()).To(Equal(1))
+	Expect(natPlugin.PoolContainsAddress(nodeIP)).To(BeTrue())
+	Expect(natPlugin.TwiceNatPoolSize()).To(Equal(1))
+	Expect(natPlugin.TwiceNatPoolContainsAddress(natLoopbackIP)).To(BeTrue())
+	Expect(natPlugin.NumOfIdentityMappings()).To(Equal(1))
+	Expect(natPlugin.NumOfIfsWithFeatures()).To(Equal(5))
+	Expect(natPlugin.GetInterfaceFeatures(mainIfName)).To(Equal(NewNatFeatures(OUTPUT_OUT)))
+	Expect(natPlugin.GetInterfaceFeatures(vxlanIfName)).To(Equal(NewNatFeatures(IN, OUT)))
+	Expect(natPlugin.GetInterfaceFeatures(hostInterIfName)).To(Equal(NewNatFeatures(IN, OUT)))
+	Expect(natPlugin.GetInterfaceFeatures(pod1If)).To(Equal(NewNatFeatures(IN, OUT)))
+	Expect(natPlugin.GetInterfaceFeatures(pod2If)).To(Equal(NewNatFeatures(IN, OUT)))
+	Expect(natPlugin.NumOfIdentityMappings()).To(Equal(1))
+	// -> service1 was re-added.
+	Expect(natPlugin.HasStaticMapping(staticMappingHTTP)).To(BeTrue())
+	Expect(natPlugin.HasStaticMapping(staticMappingHTTPS)).To(BeTrue())
+	Expect(natPlugin.HasStaticMapping(staticMappingHTTP2)).To(BeTrue())
+	Expect(natPlugin.HasStaticMapping(staticMappingHTTPS2)).To(BeTrue())
+	Expect(natPlugin.HasStaticMapping(staticMappingHTTPSNodeIP)).To(BeTrue())
+	Expect(natPlugin.HasStaticMapping(staticMappingHTTPSNodeMgmtIP)).To(BeTrue())
+	Expect(natPlugin.NumOfStaticMappings()).To(Equal(6))
+
 	// Cleanup
 	Expect(processor.Close()).To(BeNil())
 	Expect(configurator.Close()).To(BeNil())

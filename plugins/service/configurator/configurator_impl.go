@@ -19,13 +19,16 @@ package configurator
 import (
 	"net"
 
-	"github.com/contiv/vpp/plugins/contiv"
 	"github.com/golang/protobuf/proto"
+
+	"github.com/ligato/cn-infra/datasync/syncbase"
 	"github.com/ligato/cn-infra/logging"
 
 	"github.com/ligato/vpp-agent/clientv1/linux"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/nat"
+
+	"github.com/contiv/vpp/plugins/contiv"
 )
 
 // LocalVsRemoteProbRatio tells how much more likely a local backend is to receive
@@ -51,6 +54,7 @@ type Deps struct {
 	VPP           defaultplugins.API /* for DumpNat44Global & DumpNat44DNat */
 	Contiv        contiv.API         /* for GetNatLoopbackIP */
 	NATTxnFactory func() (dsl linux.DataChangeDSL)
+	LatestRevs    *syncbase.PrevRevisions
 }
 
 // Init initializes service configurator.

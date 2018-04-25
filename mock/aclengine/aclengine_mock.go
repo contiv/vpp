@@ -29,6 +29,7 @@ import (
 	"github.com/contiv/vpp/plugins/contiv"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	"github.com/contiv/vpp/plugins/policy/renderer"
+	"github.com/ligato/cn-infra/datasync/syncbase"
 	vpp_acl "github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/acl"
 )
 
@@ -127,7 +128,7 @@ func (mae *MockACLEngine) RegisterPod(pod podmodel.ID, podIP string, anotherNode
 }
 
 // ApplyTxn applies transaction created by ACL renderer.
-func (mae *MockACLEngine) ApplyTxn(txn *localclient.Txn) error {
+func (mae *MockACLEngine) ApplyTxn(txn *localclient.Txn, latestRevs *syncbase.PrevRevisions) error {
 	mae.Lock()
 	defer mae.Unlock()
 
@@ -153,8 +154,13 @@ func (mae *MockACLEngine) ApplyTxn(txn *localclient.Txn) error {
 			return errors.New("non-ACL changed in txn")
 		}
 		aclName := strings.TrimPrefix(op.Key, vpp_acl.KeyPrefix())
+		foundRev, _ := latestRevs.Get(op.Key)
 		if op.Value != nil {
 			// put ACL
+			_, hasACL := mae.aclConfig.byName[aclName]
+			if hasACL != foundRev {
+				return errors.New("modify vs create ACL operation mismatch")
+			}
 			acl, isACL := op.Value.(*vpp_acl.AccessLists_Acl)
 			if !isACL {
 				return errors.New("failed to cast ACL value")
@@ -165,6 +171,9 @@ func (mae *MockACLEngine) ApplyTxn(txn *localclient.Txn) error {
 			}
 		} else {
 			// remove ACL
+			if !foundRev {
+				return errors.New("cannot remove ACL without latest value/revision")
+			}
 			err := mae.aclConfig.DelACL(aclName)
 			if err != nil {
 				return err

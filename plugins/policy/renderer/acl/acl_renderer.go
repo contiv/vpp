@@ -22,6 +22,7 @@ import (
 
 	"github.com/golang/protobuf/proto"
 
+	"github.com/ligato/cn-infra/datasync/syncbase"
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/vpp-agent/clientv1/linux"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins"
@@ -60,6 +61,7 @@ type Deps struct {
 	Contiv        contiv.API         /* for GetIfName() */
 	VPP           defaultplugins.API /* for DumpACLs() */
 	ACLTxnFactory func() (dsl linux.DataChangeDSL)
+	LatestRevs    *syncbase.PrevRevisions
 }
 
 // RendererTxn represents a single transaction of Renderer.

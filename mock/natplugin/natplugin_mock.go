@@ -23,6 +23,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/ligato/cn-infra/datasync/syncbase"
 	"github.com/ligato/cn-infra/logging"
 
 	"github.com/contiv/vpp/mock/localclient"
@@ -37,11 +38,12 @@ type MockNatPlugin struct {
 	Log logging.Logger
 
 	/* NAT44 global */
-	nat44Global  *nat.Nat44Global
-	forwarding   bool
-	addressPool  []net.IP
-	twiceNatPool []net.IP
-	interfaces   map[string]NatFeatures // ifname -> NAT features
+	defaultNat44Global bool
+	nat44Global        *nat.Nat44Global
+	forwarding         bool
+	addressPool        []net.IP
+	twiceNatPool       []net.IP
+	interfaces         map[string]NatFeatures // ifname -> NAT features
 
 	/* NAT44 DNAT */
 	nat44Dnat        map[string]*nat.Nat44DNat_DNatConfig // label -> DNAT config
@@ -58,6 +60,7 @@ func NewMockNatPlugin(log logging.Logger) *MockNatPlugin {
 }
 
 func (mnt *MockNatPlugin) resetNat44Global() {
+	mnt.defaultNat44Global = true
 	mnt.nat44Global = &nat.Nat44Global{}
 	mnt.forwarding = false
 	mnt.addressPool = []net.IP{}
@@ -72,7 +75,7 @@ func (mnt *MockNatPlugin) resetNat44Dnat() {
 }
 
 // ApplyTxn applies transaction created by the service configurator.
-func (mnt *MockNatPlugin) ApplyTxn(txn *localclient.Txn) error {
+func (mnt *MockNatPlugin) ApplyTxn(txn *localclient.Txn, latestRevs *syncbase.PrevRevisions) error {
 	mnt.Lock()
 	defer mnt.Unlock()
 	mnt.Log.Debug("Applying localclient transaction")
@@ -95,14 +98,19 @@ func (mnt *MockNatPlugin) ApplyTxn(txn *localclient.Txn) error {
 
 	dataChange := txn.LinuxDataChangeTxn
 	for _, op := range dataChange.Ops {
+		foundRev, _ := latestRevs.Get(op.Key)
 		if op.Key == nat.GlobalConfigPrefix() {
-			mnt.resetNat44Global()
 			if op.Value != nil {
 				// put global NAT config
+				if mnt.defaultNat44Global != !foundRev {
+					return errors.New("modify vs create NAT44-global-config operation mismatch")
+				}
 				natGlobal, isNatGlobal := op.Value.(*nat.Nat44Global)
 				if !isNatGlobal {
 					return errors.New("failed to cast NAT global value")
 				}
+				mnt.resetNat44Global()
+				mnt.defaultNat44Global = false
 				// update forwarding
 				mnt.forwarding = natGlobal.Forwarding
 				// update NAT interface features
@@ -159,6 +167,15 @@ func (mnt *MockNatPlugin) ApplyTxn(txn *localclient.Txn) error {
 				}
 				// update copy of the configuration
 				mnt.nat44Global = natGlobal
+			} else {
+				// clean global config
+				if !foundRev {
+					return errors.New("cannot remove global NAT config without latest value/revision")
+				}
+				if mnt.defaultNat44Global {
+					return errors.New("cannot remove empty global NAT config")
+				}
+				mnt.resetNat44Global()
 			}
 
 		} else if strings.HasPrefix(op.Key, nat.DNatPrefix()) {
@@ -169,6 +186,9 @@ func (mnt *MockNatPlugin) ApplyTxn(txn *localclient.Txn) error {
 					return errors.New("failed to cast DNAT config value")
 				}
 				prevDnatConfig, modify := mnt.nat44Dnat[dnatConfig.Label]
+				if modify != foundRev {
+					return errors.New("modify vs create DNAT operation mismatch")
+				}
 				if modify {
 					// remove old static mappings
 					oldSms, err := mnt.dnatToStaticMappings(prevDnatConfig)
@@ -204,6 +224,9 @@ func (mnt *MockNatPlugin) ApplyTxn(txn *localclient.Txn) error {
 
 			} else {
 				// remove DNAT configuration
+				if !foundRev {
+					return errors.New("cannot remove DNAT without latest value/revision")
+				}
 				label := strings.TrimPrefix(op.Key, nat.DNatPrefix())
 				if prevDnatConfig, hasDnat := mnt.nat44Dnat[label]; hasDnat {
 					oldSms, err := mnt.dnatToStaticMappings(prevDnatConfig)

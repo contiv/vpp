@@ -142,6 +142,7 @@ func TestEgressRulesOnePod(t *testing.T) {
 			Contiv:        contiv,
 			VPP:           vppPlugins,
 			ACLTxnFactory: txnTracker.NewLinuxDataChangeTxn,
+			LatestRevs:    txnTracker.LatestRevisions,
 		},
 	}
 	aclRenderer.Init()
@@ -216,6 +217,7 @@ func TestIngressRulesOnePod(t *testing.T) {
 			Contiv:        contiv,
 			VPP:           vppPlugins,
 			ACLTxnFactory: txnTracker.NewLinuxDataChangeTxn,
+			LatestRevs:    txnTracker.LatestRevisions,
 		},
 	}
 	aclRenderer.Init()
@@ -296,6 +298,7 @@ func TestEgressRulesTwoPods(t *testing.T) {
 			Contiv:        contiv,
 			VPP:           vppPlugins,
 			ACLTxnFactory: txnTracker.NewLinuxDataChangeTxn,
+			LatestRevs:    txnTracker.LatestRevisions,
 		},
 	}
 	aclRenderer.Init()
@@ -409,6 +412,7 @@ func TestCombinedRules(t *testing.T) {
 			Contiv:        contiv,
 			VPP:           vppPlugins,
 			ACLTxnFactory: txnTracker.NewLinuxDataChangeTxn,
+			LatestRevs:    txnTracker.LatestRevisions,
 		},
 	}
 	aclRenderer.Init()
@@ -566,6 +570,7 @@ func TestCombinedRulesWithResync(t *testing.T) {
 			Contiv:        contiv,
 			VPP:           vppPlugins,
 			ACLTxnFactory: txnTracker.NewLinuxDataChangeTxn,
+			LatestRevs:    txnTracker.LatestRevisions,
 		},
 	}
 	aclRenderer.Init()
@@ -590,6 +595,7 @@ func TestCombinedRulesWithResync(t *testing.T) {
 			Contiv:        contiv,
 			VPP:           vppPlugins,
 			ACLTxnFactory: txnTracker.NewLinuxDataChangeTxn,
+			LatestRevs:    txnTracker.LatestRevisions,
 		},
 	}
 	aclRenderer.Init()
@@ -751,6 +757,7 @@ func TestCombinedRulesWithResyncAndRemovedPod(t *testing.T) {
 			Contiv:        contiv,
 			VPP:           vppPlugins,
 			ACLTxnFactory: txnTracker.NewLinuxDataChangeTxn,
+			LatestRevs:    txnTracker.LatestRevisions,
 		},
 	}
 	aclRenderer.Init()
@@ -775,6 +782,7 @@ func TestCombinedRulesWithResyncAndRemovedPod(t *testing.T) {
 			Contiv:        contiv,
 			VPP:           vppPlugins,
 			ACLTxnFactory: txnTracker.NewLinuxDataChangeTxn,
+			LatestRevs:    txnTracker.LatestRevisions,
 		},
 	}
 	aclRenderer.Init()
@@ -937,6 +945,7 @@ func TestCombinedRulesWithRemovedPods(t *testing.T) {
 			Contiv:        contiv,
 			VPP:           vppPlugins,
 			ACLTxnFactory: txnTracker.NewLinuxDataChangeTxn,
+			LatestRevs:    txnTracker.LatestRevisions,
 		},
 	}
 	aclRenderer.Init()

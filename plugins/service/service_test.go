@@ -148,6 +148,7 @@ func TestResyncAndSingleService(t *testing.T) {
 			VPP:           vppPlugins,
 			Contiv:        contiv,
 			NATTxnFactory: txnTracker.NewLinuxDataChangeTxn,
+			LatestRevs:    txnTracker.LatestRevisions,
 		},
 	}
 
@@ -457,6 +458,7 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 			VPP:           vppPlugins,
 			Contiv:        contiv,
 			NATTxnFactory: txnTracker.NewLinuxDataChangeTxn,
+			LatestRevs:    txnTracker.LatestRevisions,
 		},
 	}
 
@@ -923,6 +925,7 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 			VPP:           vppPlugins,
 			Contiv:        contiv,
 			NATTxnFactory: txnTracker.NewLinuxDataChangeTxn,
+			LatestRevs:    txnTracker.LatestRevisions,
 		},
 	}
 	processor = &svc_processor.ServiceProcessor{
@@ -1043,6 +1046,7 @@ func TestWithVXLANButNoGateway(t *testing.T) {
 			VPP:           vppPlugins,
 			Contiv:        contiv,
 			NATTxnFactory: txnTracker.NewLinuxDataChangeTxn,
+			LatestRevs:    txnTracker.LatestRevisions,
 		},
 	}
 
@@ -1128,6 +1132,7 @@ func TestWithoutVXLAN(t *testing.T) {
 			VPP:           vppPlugins,
 			Contiv:        contiv,
 			NATTxnFactory: txnTracker.NewLinuxDataChangeTxn,
+			LatestRevs:    txnTracker.LatestRevisions,
 		},
 	}
 
@@ -1216,6 +1221,7 @@ func TestWithOtherInterfaces(t *testing.T) {
 			VPP:           vppPlugins,
 			Contiv:        contiv,
 			NATTxnFactory: txnTracker.NewLinuxDataChangeTxn,
+			LatestRevs:    txnTracker.LatestRevisions,
 		},
 	}
 
@@ -1304,6 +1310,7 @@ func TestServiceUpdates(t *testing.T) {
 			VPP:           vppPlugins,
 			Contiv:        contiv,
 			NATTxnFactory: txnTracker.NewLinuxDataChangeTxn,
+			LatestRevs:    txnTracker.LatestRevisions,
 		},
 	}
 

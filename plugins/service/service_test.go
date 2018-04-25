@@ -132,6 +132,7 @@ func TestResyncAndSingleService(t *testing.T) {
 
 	// -> default VPP plugins
 	vppPlugins := NewMockVppPlugin()
+	vppPlugins.SetNat44Global(&nat.Nat44Global{})
 	vppPlugins.SetNat44Dnat(&nat.Nat44DNat{})
 
 	// -> service label
@@ -442,6 +443,7 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 
 	// -> default VPP plugins
 	vppPlugins := NewMockVppPlugin()
+	vppPlugins.SetNat44Global(&nat.Nat44Global{})
 	vppPlugins.SetNat44Dnat(&nat.Nat44DNat{})
 
 	// -> service label
@@ -1030,6 +1032,7 @@ func TestWithVXLANButNoGateway(t *testing.T) {
 
 	// -> default VPP plugins
 	vppPlugins := NewMockVppPlugin()
+	vppPlugins.SetNat44Global(&nat.Nat44Global{})
 	vppPlugins.SetNat44Dnat(&nat.Nat44DNat{})
 
 	// -> service label
@@ -1116,6 +1119,7 @@ func TestWithoutVXLAN(t *testing.T) {
 
 	// -> default VPP plugins
 	vppPlugins := NewMockVppPlugin()
+	vppPlugins.SetNat44Global(&nat.Nat44Global{})
 	vppPlugins.SetNat44Dnat(&nat.Nat44DNat{})
 
 	// -> service label
@@ -1205,6 +1209,7 @@ func TestWithOtherInterfaces(t *testing.T) {
 	vppPlugins := NewMockVppPlugin()
 	vppPlugins.AddInterface(OtherIfName, 1, otherIfIP+nodePrefix)
 	vppPlugins.AddInterface(OtherIfName2, 2, otherIfIP2+nodePrefix)
+	vppPlugins.SetNat44Global(&nat.Nat44Global{})
 	vppPlugins.SetNat44Dnat(&nat.Nat44DNat{})
 
 	// -> service label
@@ -1294,6 +1299,7 @@ func TestServiceUpdates(t *testing.T) {
 
 	// -> default VPP plugins
 	vppPlugins := NewMockVppPlugin()
+	vppPlugins.SetNat44Global(&nat.Nat44Global{})
 	vppPlugins.SetNat44Dnat(&nat.Nat44DNat{})
 
 	// -> service label

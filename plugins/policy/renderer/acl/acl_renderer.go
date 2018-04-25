@@ -150,12 +150,9 @@ func (art *RendererTxn) Commit() error {
 		}
 		for _, acl := range aclRawDump {
 			key := vpp_acl.Key(acl.AclName)
-			if _, hasKey := keys[key]; hasKey {
-				delete(keys, key)
-			} else {
-				value := syncbase.NewChange(key, acl, 0, datasync.Put)
-				art.renderer.LatestRevs.PutWithRevision(key, value)
-			}
+			value := syncbase.NewChange(key, acl, 0, datasync.Put)
+			art.renderer.LatestRevs.PutWithRevision(key, value)
+			delete(keys, key)
 		}
 		for key := range keys {
 			art.renderer.LatestRevs.Del(key)

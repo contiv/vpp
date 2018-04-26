@@ -479,10 +479,15 @@ func (sc *ServiceConfigurator) exportIdentityMappings() *nat.Nat44DNat_DNatConfi
 
 		if sc.Contiv.InSTNMode() {
 			for _, podIP := range sc.podIPs.list {
-				podID := &nat.Nat44DNat_DNatConfig_IdentityMapping{
-					IpAddress: podIP.String(),
+				podID := &nat.Nat44DNat_DNatConfig_StaticMapping{
+					ExternalIp: podIP.String(),
+					LocalIps: []*nat.Nat44DNat_DNatConfig_StaticMapping_LocalIP{
+						{
+							LocalIp: podIP.String(),
+						},
+					},
 				}
-				idNat.IdMappings = append(idNat.IdMappings, podID)
+				idNat.StMappings = append(idNat.StMappings, podID)
 			}
 		}
 	}

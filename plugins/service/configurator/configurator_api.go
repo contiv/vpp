@@ -46,7 +46,7 @@ type ServiceConfiguratorAPI interface {
 
 	// UpdateNodePortServices updates configuration of nodeport services to reflect
 	// changed list of all node IPs in the cluster.
-	UpdateNodePortServices(nodeIPs []net.IP, npServices []*ContivService) error
+	UpdateNodePortServices(nodeIPs *IPAddresses, npServices []*ContivService) error
 
 	// UpdateLocalFrontendIfs updates the list of interfaces connecting clients
 	// with VPP (enabled out2in VPP/NAT feature).
@@ -333,7 +333,7 @@ func (ifs Interfaces) String() string {
 // ResyncEventData wraps an entire state of K8s services.
 type ResyncEventData struct {
 	// NodeIPs is a list of IP addresses of all nodes in the cluster.
-	NodeIPs []net.IP
+	NodeIPs *IPAddresses
 
 	// ExternalSNAT contains configuration of SNAT, installed to allow access outside the cluster network.
 	ExternalSNAT ExternalSNATConfig
@@ -351,7 +351,7 @@ type ResyncEventData struct {
 // NewResyncEventData is a constructor for ResyncEventData.
 func NewResyncEventData() *ResyncEventData {
 	return &ResyncEventData{
-		NodeIPs:     []net.IP{},
+		NodeIPs:     NewIPAddresses(),
 		Services:    []*ContivService{},
 		FrontendIfs: NewInterfaces(),
 		BackendIfs:  NewInterfaces(),
@@ -360,13 +360,6 @@ func NewResyncEventData() *ResyncEventData {
 
 // String converts ResyncEventData into a human-readable string.
 func (red ResyncEventData) String() string {
-	nodeIPs := ""
-	for idx, nodeIP := range red.NodeIPs {
-		nodeIPs += nodeIP.String()
-		if idx < len(red.NodeIPs)-1 {
-			nodeIPs += ", "
-		}
-	}
 	services := ""
 	for idx, service := range red.Services {
 		services += service.String()
@@ -375,7 +368,7 @@ func (red ResyncEventData) String() string {
 		}
 	}
 	return fmt.Sprintf("ResyncEventData <NodeIPs:[%s] %s Services:[%s], FrontendIfs:%s BackendIfs:%s>",
-		nodeIPs, red.ExternalSNAT.String(), services, red.FrontendIfs.String(),
+		red.NodeIPs.String(), red.ExternalSNAT.String(), services, red.FrontendIfs.String(),
 		red.BackendIfs.String())
 }
 

@@ -166,6 +166,7 @@ dpdk {
 }
 api-trace {
     on
+    nitems 500
 }
 EOF
 }
@@ -333,6 +334,7 @@ dpdk {
 }
 api-trace {
     on
+    nitems 500
 }
 EOF
 }

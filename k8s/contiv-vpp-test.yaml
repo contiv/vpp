@@ -48,7 +48,7 @@ metadata:
   namespace: kube-system
 data:
   govpp.conf: |
-    health-check-probe-interval: 3000000000
+    health-check-probe-interval: 1000000000
     health-check-reply-timeout: 500000000
     health-check-threshold: 3
     reply-timeout: 3000000000
@@ -202,7 +202,7 @@ spec:
       initContainers:
       # This init container extracts/copies VPP LD_PRELOAD libs and default VPP config to the host.
       - name: vpp-init
-        image: contivvpp/vswitch:latest
+        image: dev-contiv-vswitch:0.0.1-1834-g9db308b
         imagePullPolicy: IfNotPresent
         command:
         - /bin/sh
@@ -241,7 +241,7 @@ spec:
         # Runs contiv-vswitch container on each Kubernetes node.
         # It contains the vSwitch VPP and its management agent.
         - name: contiv-vswitch
-          image: contivvpp/vswitch:latest
+          image: dev-contiv-vswitch:0.0.1-1834-g9db308b
           imagePullPolicy: IfNotPresent
           securityContext:
             privileged: true

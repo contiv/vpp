@@ -87,6 +87,7 @@ unix {
 }
 api-trace {
     on
+    nitems 500
 }
 dpdk {
    dev $pciAddr

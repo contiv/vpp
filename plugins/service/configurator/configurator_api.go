@@ -33,10 +33,6 @@ import (
 //     of binary API request that need to be executed to get the NAT
 //     configuration in-sync with the state of K8s services
 type ServiceConfiguratorAPI interface {
-	// UpdatePodIPs updates configuration of identity mappings (= what to exclude from NAT)
-	// to reflect the changed list of IP addresses of all pods deployed on this node.
-	UpdatePodIPs(podIPs *IPAddresses) error
-
 	// AddService installs NAT rules for a newly added service.
 	AddService(service *ContivService) error
 
@@ -339,9 +335,6 @@ type ResyncEventData struct {
 	// NodeIPs is a list of IP addresses of all nodes in the cluster.
 	NodeIPs *IPAddresses
 
-	// PodIPs is a list of IP addresses of all pods deployed on this node.
-	PodIPs *IPAddresses
-
 	// ExternalSNAT contains configuration of SNAT, installed to allow access outside the cluster network.
 	ExternalSNAT ExternalSNATConfig
 
@@ -359,7 +352,6 @@ type ResyncEventData struct {
 func NewResyncEventData() *ResyncEventData {
 	return &ResyncEventData{
 		NodeIPs:     NewIPAddresses(),
-		PodIPs:      NewIPAddresses(),
 		Services:    []*ContivService{},
 		FrontendIfs: NewInterfaces(),
 		BackendIfs:  NewInterfaces(),
@@ -375,8 +367,8 @@ func (red ResyncEventData) String() string {
 			services += ", "
 		}
 	}
-	return fmt.Sprintf("ResyncEventData <NodeIPs:[%s] PodIPs:[%s] %s Services:[%s], FrontendIfs:%s BackendIfs:%s>",
-		red.NodeIPs.String(), red.PodIPs.String(), red.ExternalSNAT.String(), services, red.FrontendIfs.String(),
+	return fmt.Sprintf("ResyncEventData <NodeIPs:[%s] %s Services:[%s], FrontendIfs:%s BackendIfs:%s>",
+		red.NodeIPs.String(), red.ExternalSNAT.String(), services, red.FrontendIfs.String(),
 		red.BackendIfs.String())
 }
 

@@ -45,7 +45,6 @@ type ServiceConfigurator struct {
 	externalSNAT ExternalSNATConfig
 	natGlobalCfg *nat.Nat44Global
 	nodeIPs      *IPAddresses
-	podIPs       *IPAddresses
 }
 
 // Deps lists dependencies of ServiceConfigurator.
@@ -61,31 +60,6 @@ func (sc *ServiceConfigurator) Init() error {
 	sc.natGlobalCfg = &nat.Nat44Global{
 		Forwarding: true,
 	}
-	return nil
-}
-
-// UpdatePodIPs updates configuration of identity mappings (= what to exclude from NAT)
-// to reflect the changed list of IP addresses of all pods deployed on this node.
-func (sc *ServiceConfigurator) UpdatePodIPs(podIPs *IPAddresses) error {
-	sc.Log.WithFields(logging.Fields{
-		"podIPs": podIPs,
-	}).Debug("ServiceConfigurator - UpdatePodIPs()")
-
-	// Update cached pod IPs.
-	sc.podIPs = podIPs
-
-	// Update DNAT with identity mappings via ligato/vpp-agent.
-	dsl := sc.NATTxnFactory()
-	putDsl := dsl.Put()
-
-	putDsl.NAT44DNat(sc.exportIdentityMappings())
-
-	err := dsl.Send().ReceiveReply()
-	if err != nil {
-		sc.Log.Error(err)
-		return err
-	}
-
 	return nil
 }
 
@@ -255,9 +229,6 @@ func (sc *ServiceConfigurator) Resync(resyncEv *ResyncEventData) error {
 
 	// Updated cached internal node IP.
 	sc.nodeIPs = resyncEv.NodeIPs
-
-	// Update cached pod IPs.
-	sc.podIPs = resyncEv.PodIPs
 
 	// Update cached SNAT config.
 	sc.externalSNAT = resyncEv.ExternalSNAT
@@ -458,7 +429,7 @@ func (sc *ServiceConfigurator) exportDNATMappings(service *ContivService) []*nat
 }
 
 // exportIdentityMappings returns DNAT configuration with identities to exclude
-// VXLAN port, pod IPs and main interface IP (with the exception of node-ports)
+// VXLAN port and main interface IP (with the exception of node-ports)
 // from dynamic mappings.
 func (sc *ServiceConfigurator) exportIdentityMappings() *nat.Nat44DNat_DNatConfig {
 	idNat := &nat.Nat44DNat_DNatConfig{
@@ -476,20 +447,6 @@ func (sc *ServiceConfigurator) exportIdentityMappings() *nat.Nat44DNat_DNatConfi
 		}
 		idNat.IdMappings = append(idNat.IdMappings, vxlanID)
 		idNat.IdMappings = append(idNat.IdMappings, mainIfID)
-
-		if sc.Contiv.InSTNMode() {
-			for _, podIP := range sc.podIPs.list {
-				podID := &nat.Nat44DNat_DNatConfig_StaticMapping{
-					ExternalIp: podIP.String(),
-					LocalIps: []*nat.Nat44DNat_DNatConfig_StaticMapping_LocalIP{
-						{
-							LocalIp: podIP.String(),
-						},
-					},
-				}
-				idNat.StMappings = append(idNat.StMappings, podID)
-			}
-		}
 	}
 
 	return idNat

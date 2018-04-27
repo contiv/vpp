@@ -43,6 +43,9 @@ const (
 	// ACLNamePrefix). Reflective ACL is used to allow responses of accepted sessions
 	// regardless of installed policies on the way back.
 	ReflectiveACLName = "REFLECTION"
+
+	ipv4AddrAny = "0.0.0.0/0"
+	ipv6AddrAny = "::/0"
 )
 
 // Renderer renders Contiv Rules into VPP ACLs.
@@ -422,7 +425,7 @@ func (art *RendererTxn) dumpVppACLConfig() (acls []*vpp_acl.AccessLists_Acl, tab
 
 	aclDump, err := art.vpp.DumpACL()
 	if err != nil {
-		return acls, tables, false, err
+		return aclDump, tables, false, err
 	}
 	for _, acl := range aclDump {
 		if !strings.HasPrefix(acl.AclName, ACLNamePrefix) {
@@ -495,14 +498,18 @@ func (art *RendererTxn) dumpVppACLConfig() (acls []*vpp_acl.AccessLists_Acl, tab
 			rule.SrcNetwork = &net.IPNet{}
 			rule.DestNetwork = &net.IPNet{}
 			if aclRule.Match.IpRule.Ip != nil {
-				if aclRule.Match.IpRule.Ip.SourceNetwork != "" {
+				if aclRule.Match.IpRule.Ip.SourceNetwork != "" &&
+					aclRule.Match.IpRule.Ip.SourceNetwork != ipv4AddrAny &&
+					aclRule.Match.IpRule.Ip.SourceNetwork != ipv6AddrAny {
 					_, rule.SrcNetwork, err = net.ParseCIDR(aclRule.Match.IpRule.Ip.SourceNetwork)
 					if err != nil {
 						art.Log.WithField("err", err).Warn("Failed to parse source IP address")
 						continue
 					}
 				}
-				if aclRule.Match.IpRule.Ip.DestinationNetwork != "" {
+				if aclRule.Match.IpRule.Ip.DestinationNetwork != "" &&
+					aclRule.Match.IpRule.Ip.DestinationNetwork != ipv4AddrAny &&
+					aclRule.Match.IpRule.Ip.DestinationNetwork != ipv6AddrAny {
 					_, rule.DestNetwork, err = net.ParseCIDR(aclRule.Match.IpRule.Ip.DestinationNetwork)
 					if err != nil {
 						art.Log.WithField("err", err).Warn("Failed to parse destination IP address")
@@ -577,5 +584,5 @@ func (art *RendererTxn) dumpVppACLConfig() (acls []*vpp_acl.AccessLists_Acl, tab
 		tables = append(tables, table)
 	}
 
-	return acls, tables, hasReflectiveACL, nil
+	return aclDump, tables, hasReflectiveACL, nil
 }

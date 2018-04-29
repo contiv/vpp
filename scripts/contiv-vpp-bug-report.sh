@@ -47,7 +47,7 @@ while getopts "h?f:i:m:u:" opt; do
         usage
         exit 0
         ;;
-    f)  SSH_CONFIG_FILE=$OPTARG
+    f)  SSH_CONFIG_FILE=$(realpath "$OPTARG")
         ;;
     i)  SSH_KEY_FILE=$OPTARG
         ;;

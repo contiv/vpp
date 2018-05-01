@@ -124,8 +124,13 @@ for POD in $PODS; do
     get_vpp_data "sh acl-plugin acl" acls
     get_vpp_data "sh hardware-interfaces" hardware-info
     get_vpp_data "sh errors" errors
-#     get_vpp_data "api trace save trace.api" api-trace-save
-#     get_vpp_data "api trace custom-dump /tmp/trace.api" api-trace-dump
+    #
+    # The api trace data is not being retrieved for now, because of a vpp
+    # crash when dump trace is invoked. This will be re-enabled when the
+    # bug is fixed.
+    #
+    # get_vpp_data "api trace save trace.api" api-trace-save
+    # get_vpp_data "api trace custom-dump /tmp/trace.api" api-trace-dump
     echo
     popd >/dev/null
 

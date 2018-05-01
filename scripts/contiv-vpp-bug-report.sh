@@ -124,10 +124,16 @@ for POD in $PODS; do
     get_vpp_data "sh acl-plugin acl" acls
     get_vpp_data "sh hardware-interfaces" hardware-info
     get_vpp_data "sh errors" errors
-    get_vpp_data "api trace save trace.api" api-trace-save
-    get_vpp_data "api trace custom-dump /tmp/trace.api" api-trace-dump
+    #
+    # The api trace data is not being retrieved for now, because of a vpp
+    # crash when dump trace is invoked. This will be re-enabled when the
+    # bug is fixed.
+    #
+    # get_vpp_data "api trace save trace.api" api-trace-save
+    # get_vpp_data "api trace custom-dump /tmp/trace.api" api-trace-dump
     echo
     popd >/dev/null
+
 done
 
 NODES="$(master_kubectl get nodes -o "'go-template={{range .items}}{{printf \"%s,%s \" (index .metadata).name (index .status.addresses 0).address}}{{end}}'")"
@@ -142,6 +148,8 @@ for NODE in $NODES; do
     then
         NODE_NAME="$NODE_IP"
     fi
+    echo " - Linux IP routes"
+    ssh "$SSH_USER@$NODE_NAME" "${SSH_OPTS[@]}" 'ip route' > linux-ip-route.log 2>&1 || true
     echo " - contiv-stn logs"
     ssh "$SSH_USER@$NODE_NAME" "${SSH_OPTS[@]}" 'CONTAINER=$(sudo docker ps --filter name=contiv-stn --format "{{.ID}}") && [ -n "$CONTAINER" ] && sudo docker logs "$CONTAINER"' > contiv-stn.log 2>&1 || true
     echo

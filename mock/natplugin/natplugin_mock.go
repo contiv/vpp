@@ -254,7 +254,7 @@ func (mnt *MockNatPlugin) dnatToStaticMappings(dnat *nat.Nat44DNat_DNatConfig) (
 		sm := &StaticMapping{}
 
 		// fields set to a constant value
-		if staticMapping.TwiceNat != nat.TwiceNatMode_SELF {
+		if staticMapping.ExternalPort != 0 && staticMapping.TwiceNat != nat.TwiceNatMode_SELF {
 			return nil, errors.New("self-twice-NAT not enabled for static mapping")
 		}
 		if staticMapping.VrfId != 0 {
@@ -296,7 +296,8 @@ func (mnt *MockNatPlugin) dnatToStaticMappings(dnat *nat.Nat44DNat_DNatConfig) (
 			if local.LocalPort > uint32(^uint16(0)) {
 				return nil, errors.New("invalid local port number")
 			}
-			if local.Probability == 0 || local.Probability > uint32(^uint8(0)) {
+			if (staticMapping.ExternalPort != 0 && (local.Probability == 0 || local.Probability > uint32(^uint8(0)))) ||
+				(staticMapping.ExternalPort == 0 && local.Probability != 0) {
 				return nil, errors.New("invalid local probability")
 			}
 			sm.Locals = append(sm.Locals, &Local{

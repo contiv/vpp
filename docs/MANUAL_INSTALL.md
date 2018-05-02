@@ -159,6 +159,15 @@ Install the Contiv-VPP network for your cluster as follows:
   kubectl apply -f ./contiv-vpp.yaml
   ``` 
 
+Beware contiv-etcd data is persisted in `/var/etcd` by default. It has to be cleaned up manually after `kubeadm reset`.
+Otherwise outdated data will be loaded by a subsequent deployment.
+
+You can also generate random subfolder, alternatively:
+
+```
+curl --silent https://raw.githubusercontent.com/contiv/vpp/master/k8s/contiv-vpp.yaml | sed "s/\/var\/etcd\/contiv-data/\/var\/etcd\/contiv-data\/$RANDOM/g" | kubectl apply -f -
+```
+
 #### Deployment Verification
 After some time, all contiv containers should enter the running state:
 ```
@@ -427,6 +436,7 @@ sudo su
 rm -rf $HOME/.kube
 kubeadm reset
 kubeadm init --token-ttl 0
+rm -rf /var/etcd
 ```
 
 [1]: https://kubernetes.io/docs/setup/independent/create-cluster-kubeadm/

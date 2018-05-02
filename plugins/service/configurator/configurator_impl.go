@@ -413,9 +413,9 @@ func (sc *ServiceConfigurator) exportDNATMappings(service *ContivService) []*nat
 					continue
 				}
 				if len(mapping.LocalIps) == 1 {
-					// For single backend we use "1" to represent the probability
+					// For single backend we use "0" to represent the probability
 					// (not really configured).
-					mapping.LocalIps[0].Probability = 1
+					mapping.LocalIps[0].Probability = 0
 				}
 				mappings = append(mappings, mapping)
 			}
@@ -459,9 +459,9 @@ func (sc *ServiceConfigurator) exportDNATMappings(service *ContivService) []*nat
 				continue
 			}
 			if len(mapping.LocalIps) == 1 {
-				// For single backend we use "1" to represent the probability
+				// For single backend we use "0" to represent the probability
 				// (not really configured).
-				mapping.LocalIps[0].Probability = 1
+				mapping.LocalIps[0].Probability = 0
 			}
 			mappings = append(mappings, mapping)
 		}
@@ -486,6 +486,7 @@ func (sc *ServiceConfigurator) exportIdentityMappings() *nat.Nat44DNat_DNatConfi
 		}
 		mainIfID := &nat.Nat44DNat_DNatConfig_IdentityMapping{
 			IpAddress: sc.externalSNAT.ExternalIP.String(),
+			Protocol:  nat.Protocol_UDP, /* Address-only mappings are dumped with UDP as protocol */
 		}
 		idNat.IdMappings = append(idNat.IdMappings, vxlanID)
 		idNat.IdMappings = append(idNat.IdMappings, mainIfID)

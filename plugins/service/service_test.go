@@ -192,7 +192,7 @@ func TestResyncAndSingleService(t *testing.T) {
 	}
 	mainIfID := &IdentityMapping{
 		IP:       net.ParseIP(nodeIP),
-		Protocol: svc_configurator.TCP,
+		Protocol: svc_configurator.UDP,
 		Port:     0,
 	}
 	Expect(natPlugin.NumOfIdentityMappings()).To(Equal(2))
@@ -590,7 +590,7 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 	}
 	mainIfID := &IdentityMapping{
 		IP:       net.ParseIP(nodeIP),
-		Protocol: svc_configurator.TCP,
+		Protocol: svc_configurator.UDP,
 		Port:     0,
 	}
 	Expect(natPlugin.NumOfIdentityMappings()).To(Equal(2))
@@ -1322,7 +1322,7 @@ func TestWithOtherInterfaces(t *testing.T) {
 	}
 	mainIfID := &IdentityMapping{
 		IP:       net.ParseIP(otherIfIP),
-		Protocol: svc_configurator.TCP,
+		Protocol: svc_configurator.UDP,
 		Port:     0,
 	}
 	Expect(natPlugin.NumOfIdentityMappings()).To(Equal(2))
@@ -1529,7 +1529,7 @@ func TestServiceUpdates(t *testing.T) {
 	}
 	mainIfID := &IdentityMapping{
 		IP:       net.ParseIP(nodeIP),
-		Protocol: svc_configurator.TCP,
+		Protocol: svc_configurator.UDP,
 		Port:     0,
 	}
 	Expect(natPlugin.NumOfIdentityMappings()).To(Equal(2))

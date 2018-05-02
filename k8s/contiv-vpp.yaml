@@ -118,7 +118,8 @@ spec:
               mountPath: /var/etcd
       volumes:
         - name: var-etcd
-          emptyDir: {}
+          hostPath:
+             path: /var/etcd
 
 ---
 

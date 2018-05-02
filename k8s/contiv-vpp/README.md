@@ -81,7 +81,7 @@ Parameter | Description | Default
 `etcd.usePersistentVolume` | Use Kubernetes persistent volume  | `False`
 `etcd.persistentVolumeSize` | Size of Kubernetes persistent volume  | `2Gi`
 `etcd.persistentVolumeStorageClass` | Kubernetes persistent volume storage class (use "-" for an empty storage class)  | (no value)
-`etcd.dataDir` | Use hostPath of this directory to persist etcd data (ignored if usePersistentVolume is true) | (no value) emptyDir is used
+`etcd.dataDir` | Use hostPath of this directory to persist etcd data (ignored if usePersistentVolume is true) | `/var/etcd`
 `etcd.service.nodePort` | Port to be used as the service NodePort | `32379`
 `govpp.healthCheckProbeInterval` | Health check proble interval (nanoseconds) | `1000000000`
 `govpp.healthCheckReplyTimeout` | Health check reply timeout (nanoseconds) | `500000000`

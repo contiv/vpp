@@ -436,7 +436,7 @@ sudo su
 rm -rf $HOME/.kube
 kubeadm reset
 kubeadm init --token-ttl 0
-rm -rf /var/etcd
+rm -rf /var/etcd/contiv-data
 ```
 
 [1]: https://kubernetes.io/docs/setup/independent/create-cluster-kubeadm/

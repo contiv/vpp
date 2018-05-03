@@ -78,9 +78,9 @@ Parameter | Description | Default
 `etcd.image.repository` | etcd container image repository | `quay.io/coreos/etcd`
 `etcd.image.tag`| etcd container image tag | `latest`
 `etcd.image.pullPolicy` | etcd container image pull policy | `IfNotPresent`
-`etcd.usePersistentVolume` | Use Kubernetes persistent volume  | `False`
-`etcd.persistentVolumeSize` | Size of Kubernetes persistent volume  | `2Gi`
-`etcd.persistentVolumeStorageClass` | Kubernetes persistent volume storage class (use "-" for an empty storage class)  | (no value)
+`etcd.usePersistentVolume` | Use Kubernetes persistent volume (when enabled, disables dataDir hostPath) | `False`
+`etcd.persistentVolumeSize` | Size of Kubernetes persistent volume | `2Gi`
+`etcd.persistentVolumeStorageClass` | Kubernetes persistent volume storage class (use "-" for an empty storage class) | (no value)
 `etcd.dataDir` | Use hostPath of this directory to persist etcd data (ignored if usePersistentVolume is true) | `/var/etcd`
 `etcd.service.nodePort` | Port to be used as the service NodePort | `32379`
 `govpp.healthCheckProbeInterval` | Health check proble interval (nanoseconds) | `1000000000`

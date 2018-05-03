@@ -19,6 +19,7 @@ import (
 	"sync"
 
 	"github.com/ligato/cn-infra/datasync"
+	kvdbsync_local "github.com/ligato/cn-infra/datasync/kvdbsync/local"
 	"github.com/ligato/cn-infra/datasync/resync"
 	"github.com/ligato/cn-infra/flavors/local"
 	"github.com/ligato/cn-infra/logging"
@@ -136,6 +137,7 @@ func (p *Plugin) Init() error {
 			ACLTxnFactory: func() linux.DataChangeDSL {
 				return localclient.DataChangeRequest(p.PluginName)
 			},
+			LatestRevs: kvdbsync_local.Get().LastRev(),
 		},
 	}
 	p.aclRenderer.Log.SetLevel(logging.DebugLevel)

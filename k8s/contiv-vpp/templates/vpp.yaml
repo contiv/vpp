@@ -171,11 +171,7 @@ spec:
       volumes:
         - name: var-etcd
           hostPath:
-        {{- if .Values.etcd.dataDir }}
-             path:  {{ .Values.etcd.dataDir }}
-        {{ else }}
-             path: /var/etcd
-        {{- end }}
+             path: {{ .Values.etcd.dataDir }}
 {{- end }}
 
 ---

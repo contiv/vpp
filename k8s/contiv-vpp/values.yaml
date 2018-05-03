@@ -50,6 +50,7 @@ etcd:
   service:
     #NodePort where contiv-etcd can be reached on any node.
     nodePort: 32379
+  dataDir: /var/etcd
   usePersistentVolume: false
   persistentVolumeSize: 2Gi
 

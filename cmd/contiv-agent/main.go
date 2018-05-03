@@ -25,7 +25,7 @@ import (
 	"time"
 )
 
-const defaultStartupTimeout = 30 * time.Second
+const defaultStartupTimeout = 45 * time.Second
 
 // Start Agent plugins selected for this example
 func main() {

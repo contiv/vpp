@@ -61,7 +61,7 @@ vswitch:
     #tag:
     pullPolicy: IfNotPresent
   enableLivenessReadinessProbes: true
-  defineMemoryLimits: false
+  defineMemoryLimits: true
   hugePages2miLimit: 1024Mi
   memoryLimit: 1024Mi
 

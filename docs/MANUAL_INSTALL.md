@@ -77,7 +77,7 @@ host, a [custom management network][12] for Kubernetes must be configured.
 
 #### Using Kubernetes 1.10 and above
 In K8s 1.10, support for huge pages in a pod has been introduced. For now, this
-feature must be either disabled or memory limit must be defined with VPP.
+feature must be either disabled or memory limit must be defined for vswitch container.
 
 To disable huge pages, perform the following
 steps as root:

@@ -345,6 +345,12 @@ spec:
               mountPath: /etc/agent
             - name: govpp-plugin-cfg
               mountPath: /etc/govpp
+          {{- if .Values.vswitch.defineMemoryLimits }}
+          resources:
+             limits:
+               hugepages-2Mi: {{ .Values.vswitch.hugePages2miLimit }}
+               memory: {{ .Values.vswitch.memoryLimit }}
+          {{- end }}
 
         # This container installs the Contiv CNI binaries
         # and CNI network config file on each node.

@@ -69,6 +69,9 @@ Parameter | Description | Default
 `contiv.ipamConfig.nodeInterconnectCIDR` | Node interconnect CIDR, uses DHCP if empty | `""`
 `contiv.ipamConfig.serviceCIDR` | Service CIDR | `""`
 `contiv.nodeConfig.*` | List of node configs, see example section in values.yaml | `""`
+`contiv.vswitch.defineMemoryLimits` | define limits for vswitch container | `false`
+`contiv.vswitch.hugePages2miLimit` | limit of memory allocated by 2048Kb hugepages for vswitch container| `1024Mi`
+`contiv.vswitch.memoryLimit` | memory limit for vswitch container | `1024Mi`
 `cni.image.repository` | cni container image repository | `contivvpp/cni`
 `cni.image.tag`| cni container image tag | `latest`
 `cni.image.pullPolicy` | cni container image pull policy | `IfNotPresent`

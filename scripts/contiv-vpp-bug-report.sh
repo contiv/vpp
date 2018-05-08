@@ -132,7 +132,6 @@ for POD in $PODS; do
     get_vpp_data "sh nat44 deterministic sessions" nat44-deterministic-sessions
     get_vpp_data "sh nat44 deterministic timeouts" nat44-deterministic-timeouts
     get_vpp_data "sh nat44 hash tables detail" nat44-hash-tables
-    get_vpp_data "sh nat44 deterministic timeouts" nat44-deterministic-timeouts
     get_vpp_data "sh nat44 sessions detail" nat44-sessions
 
     get_vpp_data "sh acl-plugin acl" acls

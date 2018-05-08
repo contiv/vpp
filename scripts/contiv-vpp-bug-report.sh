@@ -105,7 +105,7 @@ echo " - statefulsets"
 master_kubectl get statefulset -o wide --all-namespaces > k8s-statefulsets.txt 2>/dev/null
 echo " - daemonsets"
 # Don't show 'No resources found.' error on stderr.
-master_kubectl get daemonset -o wide --all-namespaces > k8s-statefulsets.txt 2>/dev/null
+master_kubectl get daemonset -o wide --all-namespaces > k8s-daemonsets.txt 2>/dev/null
 echo
 
 PODS="$(master_kubectl get po -n kube-system -l k8s-app=contiv-vswitch -o "'go-template={{range .items}}{{printf \"%s,%s \" (index .metadata).name (index .spec).nodeName}}{{end}}'")"

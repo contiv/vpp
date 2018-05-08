@@ -100,6 +100,12 @@ master_kubectl get services -o wide --all-namespaces > k8s-services.txt
 echo " - networkpolicy"
 # Don't show 'No resources found.' error on stderr.
 master_kubectl get networkpolicy -o wide --all-namespaces > k8s-policies.txt 2>/dev/null
+echo " - statefulsets"
+# Don't show 'No resources found.' error on stderr.
+master_kubectl get statefulset -o wide --all-namespaces > k8s-statefulsets.txt 2>/dev/null
+echo " - daemonsets"
+# Don't show 'No resources found.' error on stderr.
+master_kubectl get daemonset -o wide --all-namespaces > k8s-statefulsets.txt 2>/dev/null
 echo
 
 PODS="$(master_kubectl get po -n kube-system -l k8s-app=contiv-vswitch -o "'go-template={{range .items}}{{printf \"%s,%s \" (index .metadata).name (index .spec).nodeName}}{{end}}'")"
@@ -118,9 +124,17 @@ for POD in $PODS; do
     get_vpp_data "sh l2fib verbose" l2-fib
     get_vpp_data "sh ip arp" ip-arp
     get_vpp_data "sh vxlan tunnel" vxlan-tunnels
+    # Get NAT44 data
     get_vpp_data "sh nat44 interfaces" nat44-interfaces
     get_vpp_data "sh nat44 static mappings" nat44-static-mappings
+    get_vpp_data "sh nat44 addresses" nat44-addresses
+    get_vpp_data "sh nat44 deterministic mappings" nat44-deterministic-mappings
+    get_vpp_data "sh nat44 deterministic sessions" nat44-deterministic-sessions
+    get_vpp_data "sh nat44 deterministic timeouts" nat44-deterministic-timeouts
+    get_vpp_data "sh nat44 hash tables detail" nat44-hash-tables
+    get_vpp_data "sh nat44 deterministic timeouts" nat44-deterministic-timeouts
     get_vpp_data "sh nat44 sessions detail" nat44-sessions
+
     get_vpp_data "sh acl-plugin acl" acls
     get_vpp_data "sh hardware-interfaces" hardware-info
     get_vpp_data "sh errors" errors

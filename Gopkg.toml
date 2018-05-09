@@ -24,7 +24,17 @@
 #   go-tests = true
 #   unused-packages = true
 
-required = ["github.com/wadey/gocovmerge", "github.com/docker/docker/api", "github.com/docker/swarmkit", "github.com/opencontainers/runc", "golang.org/x/exp/inotify", "github.com/google/cadvisor", "k8s.io/apiserver/pkg/apis/apiserver", "github.com/ugorji/go/codec", "github.com/docker/distribution"]
+required = [
+    "github.com/wadey/gocovmerge",
+    "github.com/docker/docker/api",
+    "github.com/docker/swarmkit",
+    "github.com/opencontainers/runc",
+    "golang.org/x/exp/inotify",
+    "github.com/google/cadvisor",
+    "k8s.io/apiserver/pkg/apis/apiserver",
+    "github.com/ugorji/go/codec",
+    "github.com/docker/distribution"
+]
 
 [[constraint]]
   revision = "0456d22f67865977065886ed58778621b21b7ede"

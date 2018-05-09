@@ -23,6 +23,13 @@ get_vpp_data() {
     master_kubectl exec "$POD_NAME" -n kube-system -c contiv-vswitch /usr/bin/vppctl "$1" > "$2.log" 2>>"$VPP_CMD_ERROR_LOG"
 }
 
+ETCD_CMD_ERROR_LOG="etcd-cmd-errors.log"
+get_etcd_data() {
+    echo " - etcdctl '$1'"
+    echo "- etcdctl '$1':" >> "$ETCD_CMD_ERROR_LOG"
+    master_kubectl exec "$POD_NAME" -n kube-system -- sh -c "$1" > "$2.log" 2>>"$ETCD_CMD_ERROR_LOG"
+}
+
 K8S_CMD_ERROR_LOG="k8s-cmd-errors.log"
 get_k8s_data() {
     echo " - $1"
@@ -145,8 +152,29 @@ for POD in $PODS; do
     # get_vpp_data "api trace custom-dump /tmp/trace.api" api-trace-dump
     echo
     popd >/dev/null
-
 done
+
+KSR_POD="$(master_kubectl get po -n kube-system -l k8s-app=contiv-ksr -o "'go-template={{range .items}}{{printf \"%s,%s\" (index .metadata).name (index .spec).nodeName}}{{end}}'")"
+# Get contiv-ksr logs
+IFS=',' read -r POD_NAME NODE_NAME <<< "$KSR_POD"
+echo "Collecting Kubernetes data for pod $POD_NAME on node $NODE_NAME:"
+mkdir -p "$NODE_NAME"
+pushd "$NODE_NAME" >/dev/null
+get_k8s_data "contiv-ksr log" "logs $POD_NAME -n kube-system" "$POD_NAME.log"
+get_k8s_data "previous contiv-ksr log" "logs $POD_NAME -n kube-system -p" "$POD_NAME-previous.log"
+echo
+popd >/dev/null
+
+CONTIV_ETCD_POD="$(master_kubectl get po -n kube-system -l k8s-app=contiv-etcd -o "'go-template={{range .items}}{{printf \"%s,%s\" (index .metadata).name (index .spec).nodeName}}{{end}}'")"
+# Get contiv-etcd logs
+IFS=',' read -r POD_NAME NODE_NAME <<< "$CONTIV_ETCD_POD"
+echo "Collecting Kubernetes data for pod $POD_NAME on node $NODE_NAME:"
+mkdir -p "$NODE_NAME"
+pushd "$NODE_NAME" >/dev/null
+# Get contiv-etcd data
+get_etcd_data "\"export ETCDCTL_API=3; etcdctl --endpoints=127.0.0.1:32379 get \"/\" --prefix=true\"" etcd_tree
+echo
+popd >/dev/null
 
 NODES="$(master_kubectl get nodes -o "'go-template={{range .items}}{{printf \"%s,%s \" (index .metadata).name (index .status.addresses 0).address}}{{end}}'")"
 for NODE in $NODES; do

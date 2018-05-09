@@ -50,6 +50,9 @@ etcd:
   service:
     #NodePort where contiv-etcd can be reached on any node.
     nodePort: 32379
+  dataDir: /var/etcd
+  usePersistentVolume: false
+  persistentVolumeSize: 2Gi
 
 vswitch:
   image:
@@ -58,6 +61,9 @@ vswitch:
     #tag:
     pullPolicy: IfNotPresent
   enableLivenessReadinessProbes: true
+  defineMemoryLimits: false
+  hugePages2miLimit: 1024Mi
+  memoryLimit: 1024Mi
 
 cni:
   image:

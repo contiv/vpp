@@ -77,7 +77,9 @@ host, a [custom management network][12] for Kubernetes must be configured.
 
 #### Using Kubernetes 1.10 and above
 In K8s 1.10, support for huge pages in a pod has been introduced. For now, this
-feature must be disabled with VPP. To disable huge pages, perform the following
+feature must be either disabled or memory limit must be defined with VPP.
+
+To disable huge pages, perform the following
 steps as root:
 * Using your favorite editor, disable huge pages in the kubelet configuration 
   file (`/etc/systemd/system/kubelet.service.d/10-kubeadm.conf`):
@@ -89,6 +91,15 @@ steps as root:
   systemctl daemon-reload
   systemctl restart kubelet
 ```
+
+To define memory limit, append the following snippet to vswitch container in deployment yaml file:
+```          resources:
+              limits:
+                hugepages-2Mi: 1024Mi
+                memory: 1024Mi
+
+```
+or set `contiv.vswitch.defineMemoryLimits` to `true` in [helm values](../k8s/contiv-vpp/README.md).
 
 ### (2/4) Initializing your master
 Before initializing the master, you may want to [tear down][8] up any
@@ -158,6 +169,15 @@ Install the Contiv-VPP network for your cluster as follows:
   ```
   kubectl apply -f ./contiv-vpp.yaml
   ``` 
+
+Beware contiv-etcd data is persisted in `/var/etcd` by default. It has to be cleaned up manually after `kubeadm reset`.
+Otherwise outdated data will be loaded by a subsequent deployment.
+
+You can also generate random subfolder, alternatively:
+
+```
+curl --silent https://raw.githubusercontent.com/contiv/vpp/master/k8s/contiv-vpp.yaml | sed "s/\/var\/etcd\/contiv-data/\/var\/etcd\/contiv-data\/$RANDOM/g" | kubectl apply -f -
+```
 
 #### Deployment Verification
 After some time, all contiv containers should enter the running state:
@@ -427,6 +447,7 @@ sudo su
 rm -rf $HOME/.kube
 kubeadm reset
 kubeadm init --token-ttl 0
+rm -rf /var/etcd/contiv-data
 ```
 
 [1]: https://kubernetes.io/docs/setup/independent/create-cluster-kubeadm/

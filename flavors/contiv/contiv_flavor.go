@@ -40,6 +40,8 @@ import (
 	"github.com/ligato/cn-infra/servicelabel"
 	"github.com/ligato/vpp-agent/clientv1/linux/localclient"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins"
+	"github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/acl"
+	"github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/nat"
 	"github.com/ligato/vpp-agent/plugins/govppmux"
 	"github.com/ligato/vpp-agent/plugins/linuxplugin"
 	"sync"
@@ -161,6 +163,7 @@ func (f *FlavorContiv) Inject() bool {
 	f.VPP.Deps.PublishStatistics = &datasync.CompositeKVProtoWriter{Adapters: []datasync.KeyProtoValWriter{&f.Stats}}
 	f.VPP.Deps.IfStatePub = &datasync.CompositeKVProtoWriter{Adapters: []datasync.KeyProtoValWriter{&devNullWriter{}}}
 	f.VPP.Deps.WatchEventsMutex = &watchEventsMutex
+	f.VPP.DisableResync(acl.KeyPrefix(), nat.GlobalConfigPrefix(), nat.DNatPrefix())
 
 	grpc.DeclareGRPCPortFlag("grpc")
 	grpcInfraDeps := f.FlavorLocal.InfraDeps("grpc", local.WithConf())

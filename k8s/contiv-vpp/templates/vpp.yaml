@@ -103,14 +103,18 @@ data:
 # This installs the contiv-etcd (ETCD server to be used by Contiv) on the master node in a Kubernetes cluster.
 # In odrer to dump the content of ETCD, you can use the kubectl exec command similar to this:
 #   kubectl exec contiv-etcd-cxqhr -n kube-system etcdctl -- get --endpoints=[127.0.0.1:12379] --prefix="true" ""
-apiVersion: extensions/v1beta1
-kind: DaemonSet
+apiVersion: apps/v1beta2
+kind: StatefulSet
 metadata:
   name: contiv-etcd
   namespace: kube-system
   labels:
     k8s-app: contiv-etcd
 spec:
+  serviceName: contiv-etcd
+  selector:
+    matchLabels:
+      k8s-app: contiv-etcd
   template:
     metadata:
       labels:
@@ -146,15 +150,29 @@ spec:
           volumeMounts:
             - name: var-etcd
               mountPath: /var/etcd
-
+{{- if .Values.etcd.usePersistentVolume }}
+  volumeClaimTemplates:
+  - metadata:
+      name: var-etcd
+    spec:
+      accessModes:
+        - ReadWriteOnce
+      resources:
+        requests:
+          storage: {{ .Values.etcd.persistentVolumeSize }}
+    {{- if .Values.etcd.persistentVolumeStorageClass }}
+    {{- if (eq "-" .Values.etcd.persistentVolumeStorageClass) }}
+      storageClassName: ""
+    {{- else }}
+      storageClassName: "{{ .Values.etcd.persistentVolumeStorageClass }}"
+    {{- end }}
+    {{- end }}
+{{- else }}
       volumes:
         - name: var-etcd
-        {{- if .Values.etcd.dataDir }}
           hostPath:
-             path:  {{ .Values.etcd.dataDir }}
-        {{ else }}
-          emptyDir: {}
-        {{- end }}
+             path: {{ .Values.etcd.dataDir }}
+{{- end }}
 
 ---
 
@@ -183,7 +201,7 @@ metadata:
 data:
   etcd.conf: |
     insecure-transport: true
-    dial-timeout: 5000000000
+    dial-timeout: 10000000000
     endpoints:
       - "127.0.0.1:{{ .Values.etcd.service.nodePort }}"
 
@@ -198,7 +216,7 @@ metadata:
 data:
   etcd.conf: |
     insecure-transport: true
-    dial-timeout: 5000000000
+    dial-timeout: 10000000000
     auto-compact: 600000000000
     endpoints:
       - "127.0.0.1:{{ .Values.etcd.service.nodePort }}"
@@ -327,6 +345,12 @@ spec:
               mountPath: /etc/agent
             - name: govpp-plugin-cfg
               mountPath: /etc/govpp
+          {{- if .Values.vswitch.defineMemoryLimits }}
+          resources:
+             limits:
+               hugepages-2Mi: {{ .Values.vswitch.hugePages2miLimit }}
+               memory: {{ .Values.vswitch.memoryLimit }}
+          {{- end }}
 
         # This container installs the Contiv CNI binaries
         # and CNI network config file on each node.

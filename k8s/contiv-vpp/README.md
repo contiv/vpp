@@ -69,6 +69,9 @@ Parameter | Description | Default
 `contiv.ipamConfig.nodeInterconnectCIDR` | Node interconnect CIDR, uses DHCP if empty | `""`
 `contiv.ipamConfig.serviceCIDR` | Service CIDR | `""`
 `contiv.nodeConfig.*` | List of node configs, see example section in values.yaml | `""`
+`contiv.vswitch.defineMemoryLimits` | define limits for vswitch container | `false`
+`contiv.vswitch.hugePages2miLimit` | limit of memory allocated by 2048Kb hugepages for vswitch container| `1024Mi`
+`contiv.vswitch.memoryLimit` | memory limit for vswitch container | `1024Mi`
 `cni.image.repository` | cni container image repository | `contivvpp/cni`
 `cni.image.tag`| cni container image tag | `latest`
 `cni.image.pullPolicy` | cni container image pull policy | `IfNotPresent`
@@ -78,7 +81,10 @@ Parameter | Description | Default
 `etcd.image.repository` | etcd container image repository | `quay.io/coreos/etcd`
 `etcd.image.tag`| etcd container image tag | `latest`
 `etcd.image.pullPolicy` | etcd container image pull policy | `IfNotPresent`
-`etcd.dataDir` | directory where etcd data should be persisted  | (no value) emptyDir is used
+`etcd.usePersistentVolume` | Use Kubernetes persistent volume (when enabled, disables dataDir hostPath) | `False`
+`etcd.persistentVolumeSize` | Size of Kubernetes persistent volume | `2Gi`
+`etcd.persistentVolumeStorageClass` | Kubernetes persistent volume storage class (use "-" for an empty storage class) | (no value)
+`etcd.dataDir` | Use hostPath of this directory to persist etcd data (ignored if usePersistentVolume is true) | `/var/etcd`
 `etcd.service.nodePort` | Port to be used as the service NodePort | `32379`
 `govpp.healthCheckProbeInterval` | Health check proble interval (nanoseconds) | `1000000000`
 `govpp.healthCheckReplyTimeout` | Health check reply timeout (nanoseconds) | `500000000`

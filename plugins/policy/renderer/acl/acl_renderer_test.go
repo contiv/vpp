@@ -142,6 +142,7 @@ func TestEgressRulesOnePod(t *testing.T) {
 			Contiv:        contiv,
 			VPP:           vppPlugins,
 			ACLTxnFactory: txnTracker.NewLinuxDataChangeTxn,
+			LatestRevs:    txnTracker.LatestRevisions,
 		},
 	}
 	aclRenderer.Init()
@@ -216,6 +217,7 @@ func TestIngressRulesOnePod(t *testing.T) {
 			Contiv:        contiv,
 			VPP:           vppPlugins,
 			ACLTxnFactory: txnTracker.NewLinuxDataChangeTxn,
+			LatestRevs:    txnTracker.LatestRevisions,
 		},
 	}
 	aclRenderer.Init()
@@ -296,6 +298,7 @@ func TestEgressRulesTwoPods(t *testing.T) {
 			Contiv:        contiv,
 			VPP:           vppPlugins,
 			ACLTxnFactory: txnTracker.NewLinuxDataChangeTxn,
+			LatestRevs:    txnTracker.LatestRevisions,
 		},
 	}
 	aclRenderer.Init()
@@ -409,6 +412,7 @@ func TestCombinedRules(t *testing.T) {
 			Contiv:        contiv,
 			VPP:           vppPlugins,
 			ACLTxnFactory: txnTracker.NewLinuxDataChangeTxn,
+			LatestRevs:    txnTracker.LatestRevisions,
 		},
 	}
 	aclRenderer.Init()
@@ -566,6 +570,7 @@ func TestCombinedRulesWithResync(t *testing.T) {
 			Contiv:        contiv,
 			VPP:           vppPlugins,
 			ACLTxnFactory: txnTracker.NewLinuxDataChangeTxn,
+			LatestRevs:    txnTracker.LatestRevisions,
 		},
 	}
 	aclRenderer.Init()
@@ -590,6 +595,7 @@ func TestCombinedRulesWithResync(t *testing.T) {
 			Contiv:        contiv,
 			VPP:           vppPlugins,
 			ACLTxnFactory: txnTracker.NewLinuxDataChangeTxn,
+			LatestRevs:    txnTracker.LatestRevisions,
 		},
 	}
 	aclRenderer.Init()
@@ -645,9 +651,65 @@ func TestCombinedRulesWithResync(t *testing.T) {
 	gomega.Expect(aclEngine.ConnectionInternetToPod(googleDNS, Pod3, renderer.UDP, somePort2, 67)).To(gomega.Equal(ConnActionAllow))
 	gomega.Expect(aclEngine.ConnectionInternetToPod(googleDNS, Pod3, renderer.TCP, somePort2, 80)).To(gomega.Equal(ConnActionDenySyn))
 	gomega.Expect(aclEngine.ConnectionInternetToPod(googleDNS, Pod3, renderer.OTHER, 0, 0)).To(gomega.Equal(ConnActionDenySyn))
-}
 
-//////////// TODO: add OTHER ...
+	// Test run-time resync.
+
+	// Dump ACLs and put them to mock defaultplugins.
+	acls = aclEngine.DumpACLs()
+	vppPlugins.ClearACLs()
+	vppPlugins.AddACL(acls...)
+
+	// Re-sync back to the state after the first transaction.
+	txn = aclRenderer.NewTxn(true)
+	txn.Render(Pod1, pod1Txn1Cfg.PodIP, pod1Txn1Cfg.Ingress, pod1Txn1Cfg.Egress, false)
+	txn.Render(Pod3, pod3Cfg.PodIP, pod3Cfg.Ingress, pod3Cfg.Egress, false)
+	err = txn.Commit()
+	gomega.Expect(err).To(gomega.BeNil())
+	gomega.Expect(txnTracker.CommittedTxns).To(gomega.HaveLen(2))
+
+	// Test ACLs.
+	gomega.Expect(aclEngine.GetNumOfACLs()).To(gomega.Equal(4))
+	verifyReflectiveACL(aclEngine, contiv, Pod1IfName, true, true)
+	verifyReflectiveACL(aclEngine, contiv, Pod3IfName, true, true)
+	verifyGlobalTable(aclEngine, contiv, true)
+
+	// Test connections.
+	// -> src = pod1
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod1, Pod3, renderer.UDP, somePort, 161)).To(gomega.Equal(ConnActionDenySyn))
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod1, Pod6, renderer.UDP, somePort, 161)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod1, Pod6, renderer.UDP, somePort, 162)).To(gomega.Equal(ConnActionDenySyn))
+	gomega.Expect(aclEngine.ConnectionPodToInternet(Pod1, googleDNS, renderer.UDP, somePort, 161)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionPodToInternet(Pod1, googleDNS, renderer.UDP, somePort, 162)).To(gomega.Equal(ConnActionDenySyn))
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod1, Pod3, renderer.TCP, somePort, 80)).To(gomega.Equal(ConnActionDenySyn))
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod1, Pod6, renderer.TCP, somePort, 80)).To(gomega.Equal(ConnActionDenySyn))
+	gomega.Expect(aclEngine.ConnectionPodToInternet(Pod1, googleDNS, renderer.TCP, somePort, 80)).To(gomega.Equal(ConnActionDenySyn))
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod1, Pod3, renderer.OTHER, 0, 0)).To(gomega.Equal(ConnActionDenySyn))
+	gomega.Expect(aclEngine.ConnectionPodToInternet(Pod1, googleDNS, renderer.OTHER, 0, 0)).To(gomega.Equal(ConnActionDenySyn))
+	// -> src = pod3
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod3, Pod1, renderer.UDP, somePort, 161)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod3, Pod1, renderer.UDP, somePort, 53)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod3, Pod1, renderer.UDP, somePort, 514)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod3, Pod6, renderer.UDP, somePort, 161)).To(gomega.Equal(ConnActionDenySyn))
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod3, Pod3, renderer.UDP, somePort, 161)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionPodToInternet(Pod3, googleDNS, renderer.UDP, somePort, 161)).To(gomega.Equal(ConnActionDenySyn))
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod3, Pod1, renderer.TCP, somePort, 22)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod3, Pod6, renderer.TCP, somePort, 22)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionPodToInternet(Pod3, googleDNS, renderer.TCP, somePort, 22)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod3, Pod1, renderer.TCP, somePort, 80)).To(gomega.Equal(ConnActionDenySyn))
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod3, Pod6, renderer.TCP, somePort, 80)).To(gomega.Equal(ConnActionDenySyn))
+	gomega.Expect(aclEngine.ConnectionPodToInternet(Pod3, googleDNS, renderer.TCP, somePort, 80)).To(gomega.Equal(ConnActionDenySyn))
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod3, Pod1, renderer.OTHER, 0, 0)).To(gomega.Equal(ConnActionDenySyn))
+	gomega.Expect(aclEngine.ConnectionPodToInternet(Pod3, googleDNS, renderer.OTHER, 0, 0)).To(gomega.Equal(ConnActionDenySyn))
+	// -> src = internet
+	gomega.Expect(aclEngine.ConnectionInternetToPod(googleDNS, Pod1, renderer.UDP, somePort2, 161)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionInternetToPod(googleDNS, Pod1, renderer.UDP, somePort2, 53)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionInternetToPod(googleDNS, Pod1, renderer.TCP, somePort2, 80)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionInternetToPod(googleDNS, Pod1, renderer.OTHER, 0, 0)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionInternetToPod(googleDNS, Pod3, renderer.UDP, somePort2, 161)).To(gomega.Equal(ConnActionDenySyn))
+	gomega.Expect(aclEngine.ConnectionInternetToPod(googleDNS, Pod3, renderer.UDP, somePort2, 67)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionInternetToPod(googleDNS, Pod3, renderer.TCP, somePort2, 80)).To(gomega.Equal(ConnActionDenySyn))
+	gomega.Expect(aclEngine.ConnectionInternetToPod(googleDNS, Pod3, renderer.OTHER, 0, 0)).To(gomega.Equal(ConnActionDenySyn))
+}
 
 func TestCombinedRulesWithResyncAndRemovedPod(t *testing.T) {
 	gomega.RegisterTestingT(t)
@@ -695,6 +757,7 @@ func TestCombinedRulesWithResyncAndRemovedPod(t *testing.T) {
 			Contiv:        contiv,
 			VPP:           vppPlugins,
 			ACLTxnFactory: txnTracker.NewLinuxDataChangeTxn,
+			LatestRevs:    txnTracker.LatestRevisions,
 		},
 	}
 	aclRenderer.Init()
@@ -719,6 +782,7 @@ func TestCombinedRulesWithResyncAndRemovedPod(t *testing.T) {
 			Contiv:        contiv,
 			VPP:           vppPlugins,
 			ACLTxnFactory: txnTracker.NewLinuxDataChangeTxn,
+			LatestRevs:    txnTracker.LatestRevisions,
 		},
 	}
 	aclRenderer.Init()
@@ -775,6 +839,64 @@ func TestCombinedRulesWithResyncAndRemovedPod(t *testing.T) {
 	gomega.Expect(aclEngine.ConnectionInternetToPod(googleDNS, Pod3, renderer.UDP, somePort2, 67)).To(gomega.Equal(ConnActionAllow))
 	gomega.Expect(aclEngine.ConnectionInternetToPod(googleDNS, Pod3, renderer.TCP, somePort2, 80)).To(gomega.Equal(ConnActionAllow)) /* changed */
 	gomega.Expect(aclEngine.ConnectionInternetToPod(googleDNS, Pod3, renderer.OTHER, 0, 0)).To(gomega.Equal(ConnActionAllow))        /* changed */
+
+	// Test run-time resync.
+
+	// Dump ACLs and put them to mock defaultplugins.
+	acls = aclEngine.DumpACLs()
+	vppPlugins.ClearACLs()
+	vppPlugins.AddACL(acls...)
+
+	// Re-sync back to the state after the first transaction.
+	txn = aclRenderer.NewTxn(true)
+	txn.Render(Pod1, pod1Cfg.PodIP, pod1Cfg.Ingress, pod1Cfg.Egress, false)
+	txn.Render(Pod3, pod3Cfg.PodIP, pod3Cfg.Ingress, pod3Cfg.Egress, false)
+	err = txn.Commit()
+	gomega.Expect(err).To(gomega.BeNil())
+	gomega.Expect(txnTracker.CommittedTxns).To(gomega.HaveLen(2))
+
+	// Test ACLs.
+	gomega.Expect(aclEngine.GetNumOfACLs()).To(gomega.Equal(4))
+	verifyReflectiveACL(aclEngine, contiv, Pod1IfName, true, true)
+	verifyReflectiveACL(aclEngine, contiv, Pod3IfName, true, true)
+	verifyGlobalTable(aclEngine, contiv, true)
+
+	// Test connections.
+	// -> src = pod1
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod1, Pod3, renderer.UDP, somePort, 161)).To(gomega.Equal(ConnActionDenySyn))
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod1, Pod6, renderer.UDP, somePort, 161)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod1, Pod6, renderer.UDP, somePort, 162)).To(gomega.Equal(ConnActionDenySyn))
+	gomega.Expect(aclEngine.ConnectionPodToInternet(Pod1, googleDNS, renderer.UDP, somePort, 161)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionPodToInternet(Pod1, googleDNS, renderer.UDP, somePort, 162)).To(gomega.Equal(ConnActionDenySyn))
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod1, Pod3, renderer.TCP, somePort, 80)).To(gomega.Equal(ConnActionDenySyn))
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod1, Pod6, renderer.TCP, somePort, 80)).To(gomega.Equal(ConnActionDenySyn))
+	gomega.Expect(aclEngine.ConnectionPodToInternet(Pod1, googleDNS, renderer.TCP, somePort, 80)).To(gomega.Equal(ConnActionDenySyn))
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod1, Pod3, renderer.OTHER, 0, 0)).To(gomega.Equal(ConnActionDenySyn))
+	gomega.Expect(aclEngine.ConnectionPodToInternet(Pod1, googleDNS, renderer.OTHER, 0, 0)).To(gomega.Equal(ConnActionDenySyn))
+	// -> src = pod3
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod3, Pod1, renderer.UDP, somePort, 161)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod3, Pod1, renderer.UDP, somePort, 53)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod3, Pod1, renderer.UDP, somePort, 514)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod3, Pod6, renderer.UDP, somePort, 161)).To(gomega.Equal(ConnActionDenySyn))
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod3, Pod3, renderer.UDP, somePort, 161)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionPodToInternet(Pod3, googleDNS, renderer.UDP, somePort, 161)).To(gomega.Equal(ConnActionDenySyn))
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod3, Pod1, renderer.TCP, somePort, 22)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod3, Pod6, renderer.TCP, somePort, 22)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionPodToInternet(Pod3, googleDNS, renderer.TCP, somePort, 22)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod3, Pod1, renderer.TCP, somePort, 80)).To(gomega.Equal(ConnActionDenySyn))
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod3, Pod6, renderer.TCP, somePort, 80)).To(gomega.Equal(ConnActionDenySyn))
+	gomega.Expect(aclEngine.ConnectionPodToInternet(Pod3, googleDNS, renderer.TCP, somePort, 80)).To(gomega.Equal(ConnActionDenySyn))
+	gomega.Expect(aclEngine.ConnectionPodToPod(Pod3, Pod1, renderer.OTHER, 0, 0)).To(gomega.Equal(ConnActionDenySyn))
+	gomega.Expect(aclEngine.ConnectionPodToInternet(Pod3, googleDNS, renderer.OTHER, 0, 0)).To(gomega.Equal(ConnActionDenySyn))
+	// -> src = internet
+	gomega.Expect(aclEngine.ConnectionInternetToPod(googleDNS, Pod1, renderer.UDP, somePort2, 161)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionInternetToPod(googleDNS, Pod1, renderer.UDP, somePort2, 53)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionInternetToPod(googleDNS, Pod1, renderer.TCP, somePort2, 80)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionInternetToPod(googleDNS, Pod1, renderer.OTHER, 0, 0)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionInternetToPod(googleDNS, Pod3, renderer.UDP, somePort2, 161)).To(gomega.Equal(ConnActionDenySyn))
+	gomega.Expect(aclEngine.ConnectionInternetToPod(googleDNS, Pod3, renderer.UDP, somePort2, 67)).To(gomega.Equal(ConnActionAllow))
+	gomega.Expect(aclEngine.ConnectionInternetToPod(googleDNS, Pod3, renderer.TCP, somePort2, 80)).To(gomega.Equal(ConnActionDenySyn))
+	gomega.Expect(aclEngine.ConnectionInternetToPod(googleDNS, Pod3, renderer.OTHER, 0, 0)).To(gomega.Equal(ConnActionDenySyn))
 }
 
 func TestCombinedRulesWithRemovedPods(t *testing.T) {
@@ -823,6 +945,7 @@ func TestCombinedRulesWithRemovedPods(t *testing.T) {
 			Contiv:        contiv,
 			VPP:           vppPlugins,
 			ACLTxnFactory: txnTracker.NewLinuxDataChangeTxn,
+			LatestRevs:    txnTracker.LatestRevisions,
 		},
 	}
 	aclRenderer.Init()

@@ -17,13 +17,19 @@
 package configurator
 
 import (
-	"github.com/contiv/vpp/plugins/contiv"
+	"strings"
+
 	"github.com/golang/protobuf/proto"
+
+	"github.com/ligato/cn-infra/datasync"
+	"github.com/ligato/cn-infra/datasync/syncbase"
 	"github.com/ligato/cn-infra/logging"
 
 	"github.com/ligato/vpp-agent/clientv1/linux"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/nat"
+
+	"github.com/contiv/vpp/plugins/contiv"
 )
 
 // LocalVsRemoteProbRatio tells how much more likely a local backend is to receive
@@ -53,6 +59,7 @@ type Deps struct {
 	VPP           defaultplugins.API /* for DumpNat44Global & DumpNat44DNat */
 	Contiv        contiv.API         /* for GetNatLoopbackIP, InSTNMode */
 	NATTxnFactory func() (dsl linux.DataChangeDSL)
+	LatestRevs    *syncbase.PrevRevisions
 }
 
 // Init initializes service configurator.
@@ -240,6 +247,24 @@ func (sc *ServiceConfigurator) Resync(resyncEv *ResyncEventData) error {
 		return err
 	}
 
+	// Get the latest revisions of DNATs in-sync with VPP.
+	keyList := sc.LatestRevs.ListKeys()
+	keys := map[string]struct{}{}
+	for _, key := range keyList {
+		if strings.HasPrefix(key, nat.DNatPrefix()) {
+			keys[key] = struct{}{}
+		}
+	}
+	for _, dnat := range dnatDump.DnatConfigs {
+		key := nat.DNatKey(dnat.Label)
+		value := syncbase.NewChange(key, dnat, 0, datasync.Put)
+		sc.LatestRevs.PutWithRevision(key, value)
+		delete(keys, key)
+	}
+	for key := range keys {
+		sc.LatestRevs.Del(key)
+	}
+
 	// Resync DNAT configuration.
 	// - remove obsolete DNATs
 	for _, dnatConfig := range dnatDump.DnatConfigs {
@@ -264,6 +289,23 @@ func (sc *ServiceConfigurator) Resync(resyncEv *ResyncEventData) error {
 	}
 	// - identity mappings
 	putDsl.NAT44DNat(sc.exportIdentityMappings())
+
+	// Re-sync global config's last revision with VPP.
+	globalNatDump, err := sc.VPP.DumpNat44Global()
+	if err != nil {
+		sc.Log.Error(err)
+		return err
+	}
+
+	if globalNatDump.Forwarding {
+		// Global NAT was configured by the agent.
+		key := nat.GlobalConfigKey()
+		value := syncbase.NewChange(nat.GlobalConfigKey(), globalNatDump, 0, datasync.Put)
+		sc.LatestRevs.PutWithRevision(key, value)
+	} else {
+		// Not configured by the agent.
+		sc.LatestRevs.Del(nat.GlobalConfigKey())
+	}
 
 	// Re-build the global NAT config.
 	sc.natGlobalCfg = &nat.Nat44Global{
@@ -371,9 +413,9 @@ func (sc *ServiceConfigurator) exportDNATMappings(service *ContivService) []*nat
 					continue
 				}
 				if len(mapping.LocalIps) == 1 {
-					// For single backend we use "1" to represent the probability
+					// For single backend we use "0" to represent the probability
 					// (not really configured).
-					mapping.LocalIps[0].Probability = 1
+					mapping.LocalIps[0].Probability = 0
 				}
 				mappings = append(mappings, mapping)
 			}
@@ -417,9 +459,9 @@ func (sc *ServiceConfigurator) exportDNATMappings(service *ContivService) []*nat
 				continue
 			}
 			if len(mapping.LocalIps) == 1 {
-				// For single backend we use "1" to represent the probability
+				// For single backend we use "0" to represent the probability
 				// (not really configured).
-				mapping.LocalIps[0].Probability = 1
+				mapping.LocalIps[0].Probability = 0
 			}
 			mappings = append(mappings, mapping)
 		}
@@ -444,6 +486,7 @@ func (sc *ServiceConfigurator) exportIdentityMappings() *nat.Nat44DNat_DNatConfi
 		}
 		mainIfID := &nat.Nat44DNat_DNatConfig_IdentityMapping{
 			IpAddress: sc.externalSNAT.ExternalIP.String(),
+			Protocol:  nat.Protocol_UDP, /* Address-only mappings are dumped with UDP as protocol */
 		}
 		idNat.IdMappings = append(idNat.IdMappings, vxlanID)
 		idNat.IdMappings = append(idNat.IdMappings, mainIfID)

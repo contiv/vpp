@@ -77,7 +77,7 @@ func (pp *PolicyProcessor) Process(resync bool, pods []podmodel.ID) error {
 		return nil
 	}
 
-	txn := pp.Configurator.NewTxn(false)
+	txn := pp.Configurator.NewTxn(resync)
 	processedPolicies := make(map[policymodel.ID]*config.ContivPolicy)
 	pp.Log.WithField("pods", pods).Info("Non-empty set of pods sent to Process")
 

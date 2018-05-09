@@ -14,11 +14,20 @@ master_kubectl() {
     ssh "$SSH_USER@$MASTER" "${SSH_OPTS[@]}" kubectl "$@" || true
 }
 
+VPP_CMD_ERROR_LOG="vpp-cmd-errors.log"
 get_vpp_data() {
     echo " - vppctl '$1'"
+    echo "- vppctl '$1':" >> "$VPP_CMD_ERROR_LOG"
     # We need to call out /usr/bin/vppctl because /usr/local/bin/vppctl is a wrapper script that doesn't work inside the
     # container.
-    master_kubectl exec "$POD_NAME" -n kube-system -c contiv-vswitch /usr/bin/vppctl "$1" > "$2.log"
+    master_kubectl exec "$POD_NAME" -n kube-system -c contiv-vswitch /usr/bin/vppctl "$1" > "$2.log" 2>>"$VPP_CMD_ERROR_LOG"
+}
+
+K8S_CMD_ERROR_LOG="k8s-cmd-errors.log"
+get_k8s_data() {
+    echo " - $1"
+    echo "- $1:" >> "$K8S_CMD_ERROR_LOG"
+    master_kubectl "$2" > "$3" 2>>"$K8S_CMD_ERROR_LOG"
 }
 
 usage() {
@@ -89,24 +98,13 @@ pushd "$REPORT_DIR" >/dev/null
 # In general, unexpected stderr messages are not muted so problems collecting logs can be shown.
 
 echo "Collecting global Kubernetes data:"
-echo " - configmaps"
-master_kubectl describe configmaps -n kube-system contiv-agent-cfg > vpp.yaml
-echo " - nodes"
-master_kubectl get nodes -o wide > k8s-nodes.txt
-echo " - pods"
-master_kubectl get pods -o wide --all-namespaces > k8s-pods.txt
-echo " - services"
-master_kubectl get services -o wide --all-namespaces > k8s-services.txt
-echo " - networkpolicy"
-# Don't show 'No resources found.' error on stderr.
-master_kubectl get networkpolicy -o wide --all-namespaces > k8s-policies.txt 2>/dev/null
-echo " - statefulsets"
-# Don't show 'No resources found.' error on stderr.
-master_kubectl get statefulset -o wide --all-namespaces > k8s-statefulsets.txt 2>/dev/null
-echo " - daemonsets"
-# Don't show 'No resources found.' error on stderr.
-master_kubectl get daemonset -o wide --all-namespaces > k8s-daemonsets.txt 2>/dev/null
-echo
+get_k8s_data configmaps "describe configmaps -n kube-system contiv-agent-cfg" vpp-config-maps.yaml
+get_k8s_data nodes "get nodes -o wide" k8s-nodes.txt
+get_k8s_data pods "get pods -o wide --all-namespaces" k8s-pods.txt
+get_k8s_data services "get services -o wide --all-namespaces" k8s-services.txt
+get_k8s_data networkpolicy "get networkpolicy -o wide --all-namespaces" k8s-networkpolicy.txt
+get_k8s_data statefulsets "get statefulsets -o wide --all-namespaces" k8s-statefulsets.txt
+get_k8s_data daemonsets "get daemonsets -o wide --all-namespaces" k8s-daemonsets.txt
 
 PODS="$(master_kubectl get po -n kube-system -l k8s-app=contiv-vswitch -o "'go-template={{range .items}}{{printf \"%s,%s \" (index .metadata).name (index .spec).nodeName}}{{end}}'")"
 for POD in $PODS; do
@@ -114,17 +112,18 @@ for POD in $PODS; do
     echo "Collecting Kubernetes data for pod $POD_NAME on node $NODE_NAME:"
     mkdir -p "$NODE_NAME"
     pushd "$NODE_NAME" >/dev/null
-    echo " - vswitch log"
-    master_kubectl logs "$POD_NAME" -n kube-system -c contiv-vswitch > "$POD_NAME.log"
-    # The previous log might not exist, so don't print the error when trying to get it.
-    master_kubectl logs "$POD_NAME" -n kube-system -c contiv-vswitch -p > "$POD_NAME-previous.log" 2>/dev/null
+    # Get vswitch logs
+    get_k8s_data "vswitch log" "logs $POD_NAME -n kube-system -c contiv-vswitch" "$POD_NAME.log"
+    get_k8s_data "previous vswitch log" "logs $POD_NAME -n kube-system -c contiv-vswitch -p" "$POD_NAME-previous.log"
+
+    # Get vpp data
     get_vpp_data "sh int" interface
     get_vpp_data "sh int addr" interface-address
     get_vpp_data "sh ip fib" ip-fib
     get_vpp_data "sh l2fib verbose" l2-fib
     get_vpp_data "sh ip arp" ip-arp
     get_vpp_data "sh vxlan tunnel" vxlan-tunnels
-    # Get NAT44 data
+    # Get VPP NAT44 data
     get_vpp_data "sh nat44 interfaces" nat44-interfaces
     get_vpp_data "sh nat44 static mappings" nat44-static-mappings
     get_vpp_data "sh nat44 addresses" nat44-addresses

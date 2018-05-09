@@ -162,8 +162,7 @@ test-cover-xml: test-cover
 
 # Get generator tools
 get-generators:
-	$(if $(shell command -v protoc --gogo_out=. 2> /dev/null),$(info # gogo/protobuf is already installed),$(error gogo/protobuf missing, please install it with go get github.com/gogo/protobuf))
-	go get -v github.com/golang/protobuf/protoc-gen-go
+	go install -v ./vendor/github.com/gogo/protobuf/protoc-gen-gogo
 
 # Generate sources
 generate: get-generators
@@ -172,6 +171,11 @@ generate: get-generators
 	cd plugins/contiv/containeridx && go generate
 	cd plugins/ksr && go generate
 	cd cmd/contiv-stn && go generate
+
+# Get linter tools
+get-linters:
+	@echo " => installing linters"
+	go get -v github.com/golang/lint/golint
 
 # Run code analysis
 lint:
@@ -199,8 +203,8 @@ LINKCHECK := $(shell command -v markdown-link-check 2> /dev/null)
 # Get link check tool
 get-linkcheck:
 ifndef LINKCHECK
-	sudo apt-get install npm
-	sudo npm install -g markdown-link-check
+	sudo apt-get update && sudo apt-get install npm
+	npm install -g markdown-link-check
 endif
 
 # Validate links in markdown files
@@ -215,10 +219,15 @@ ifndef DEP
 	go get -v github.com/golang/dep/cmd/dep
 endif
 
-# Install project's dependencies
+# Install Go dependencies
 dep-install: get-dep
-	@echo "# installing project's dependencies"
+	@echo "# installing Go dependencies"
 	$(DEP) ensure -v
+
+# Update Go dependencies
+dep-update: get-dep
+	@echo "# updating Go dependencies"
+	$(DEP) ensure -v -update
 
 describe:
 	./scripts/contiv_describe.sh
@@ -233,7 +242,7 @@ helm-package:
 	install clean test test-race \
 	get-covtools test-cover test-cover-html test-cover-xml \
 	get-generators generate \
-	lint metalinter format check-format \
+	get-linters lint metalinter format check-format \
 	get-linkcheck check-links \
 	get-dep dep-install \
 	describe generate-manifest helm-package

@@ -444,9 +444,31 @@
   name = "github.com/gogo/protobuf"
   packages = [
     "gogoproto",
+    "plugin/compare",
+    "plugin/defaultcheck",
+    "plugin/description",
+    "plugin/embedcheck",
+    "plugin/enumstringer",
+    "plugin/equal",
+    "plugin/face",
+    "plugin/gostring",
+    "plugin/marshalto",
+    "plugin/oneofcheck",
+    "plugin/populate",
+    "plugin/size",
+    "plugin/stringer",
+    "plugin/testgen",
+    "plugin/union",
+    "plugin/unmarshal",
     "proto",
+    "protoc-gen-gogo",
     "protoc-gen-gogo/descriptor",
-    "sortkeys"
+    "protoc-gen-gogo/generator",
+    "protoc-gen-gogo/grpc",
+    "protoc-gen-gogo/plugin",
+    "sortkeys",
+    "vanity",
+    "vanity/command"
   ]
   revision = "342cbe0a04158f6dcb03ca0079991a51a4248c02"
   version = "v0.5"
@@ -1637,6 +1659,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "cadd3c2778b4c34039a13f25ce618222bf5bd497d9fb8ba9ab1d5cad023586b0"
+  inputs-digest = "6956805281b7a14ced8028e78967d48fe9a17b101f5a23401deb8575bc560c83"
   solver-name = "gps-cdcl"
   solver-version = 1

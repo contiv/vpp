@@ -184,8 +184,10 @@ func handleWatchEvent(log logging.Logger, resp func(keyval.BytesWatchResp), ev *
 	}
 
 	if ev.Type == mvccpb.DELETE {
+		log.WithField("key", string(ev.Kv.Key)).Info("BUG: deleted key")
 		resp(NewBytesWatchDelResp(string(ev.Kv.Key), prevKvValue, ev.Kv.ModRevision))
 	} else if ev.IsCreate() || ev.IsModify() {
+		log.WithField("key", string(ev.Kv.Key)).Info("BUG: created/modified key")
 		if ev.Kv.Value != nil {
 			resp(NewBytesWatchPutResp(string(ev.Kv.Key), ev.Kv.Value, prevKvValue, ev.Kv.ModRevision))
 		}
@@ -227,10 +229,41 @@ func watchInternal(log logging.Logger, watcher clientv3.Watcher, closeCh chan st
 	recvChan := watcher.Watch(context.Background(), key, clientv3.WithPrefix(), clientv3.WithPrevKV())
 
 	go func() {
+		var compactRev int64
 		registeredKey := key
 		for {
 			select {
-			case wresp := <-recvChan:
+			case wresp, ok := <-recvChan:
+				if !ok {
+					log.WithField("key", key).Warn("BUG: watch closed")
+					if compactRev != 0 {
+						recvChan = watcher.Watch(context.Background(), key,
+							clientv3.WithPrefix(), clientv3.WithPrevKV(), clientv3.WithRev(compactRev))
+						log.WithFields(logging.Fields{
+							"key": key,
+							"rev": compactRev,
+						}).Warn("BUG: watch re-created")
+						compactRev = 0
+					} else {
+						// create mock channel to prevent from endless spinning
+						recvChan = make(clientv3.WatchChan)
+					}
+					continue
+				}
+				if wresp.Canceled {
+					log.WithField("key", key).Warn("BUG: watch canceled")
+				}
+				err := wresp.Err()
+				if err != nil {
+					log.WithFields(logging.Fields{"key": key, "err": err}).Warn("BUG: watch returned error")
+				}
+				compactRev = wresp.CompactRevision
+				if compactRev != 0 {
+					log.WithFields(logging.Fields{
+						"key": key,
+						"rev": wresp.CompactRevision,
+						}).Warn("BUG: watched data were compacted ")
+				}
 				for _, ev := range wresp.Events {
 					handleWatchEvent(log, resp, ev)
 				}

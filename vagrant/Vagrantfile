@@ -207,7 +207,7 @@ if [ "$4" = "dev" ]; then
 # --------------------------------------------------------
     echo "vagrant" >> /home/vagrant/gopath/src/github.com/contiv/vpp/.dockerignore
     echo "Building development contivpp/vswitch image..."
-    cd /home/vagrant/gopath/src/github.com/contiv/vpp/docker/ubuntu-based/dev; ./build.sh
+    cd /home/vagrant/gopath/src/github.com/contiv/vpp/docker/ubuntu-based; ./build.sh
 fi
 
 # --------------------------------------------------------
@@ -375,7 +375,7 @@ if [ "$3" = "dev" ]; then
 # --------------------------------------------------------
     echo "vagrant" >> /home/vagrant/gopath/src/github.com/contiv/vpp/.dockerignore
     echo "Building development contivpp/vswitch image..."
-    cd /home/vagrant/gopath/src/github.com/contiv/vpp/docker/ubuntu-based/dev; ./build.sh
+    cd /home/vagrant/gopath/src/github.com/contiv/vpp/docker/ubuntu-based; ./build.sh
 fi
 
 # --------------------------------------------------------

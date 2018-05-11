@@ -963,6 +963,28 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 
 	// store configuration internally for other plugins in the internal map
 	if s.configuredContainers != nil {
+		// Remove previous entry for the pod if there is any.
+		podNamesMatch := s.configuredContainers.LookupPodName(config.PodName)
+		for _, containerID := range podNamesMatch {
+			podData, _ := s.configuredContainers.LookupContainer(containerID)
+			if podData.PodNamespace == config.PodNamespace {
+				s.Logger.WithFields(
+					logging.Fields{
+						"name":        config.PodName,
+						"namespace":   config.PodNamespace,
+						"containerID": containerID,
+					}).Info("Removing outdated pod")
+				delRequest := &cni.CNIRequest{
+					ContainerId: containerID,
+				}
+				_, err := s.unconfigureContainerConnectivityWithoutLock(delRequest)
+				if err != nil {
+					s.Logger.Warn("Error while removing outdated pod ", err)
+				}
+				break
+			}
+		}
+
 		err = s.configuredContainers.RegisterContainer(id, podConfigToProto(config))
 		if err != nil {
 			s.Logger.Error(err)
@@ -977,14 +999,19 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 
 // unconfigureContainerConnectivity disconnects the POD from vSwitch VPP.
 func (s *remoteCNIserver) unconfigureContainerConnectivity(request *cni.CNIRequest) (*cni.CNIReply, error) {
-	var err error
-
 	// do not try to disconnect any containers until the base vswitch config is successfully applied
 	s.Lock()
 	for !s.vswitchConnectivityConfigured {
 		s.vswitchCond.Wait()
 	}
 	defer s.Unlock()
+
+	return s.unconfigureContainerConnectivityWithoutLock(request)
+}
+
+// unconfigureContainerConnectivity disconnects the POD from vSwitch VPP the method expect the lock to be already acquired.
+func (s *remoteCNIserver) unconfigureContainerConnectivityWithoutLock(request *cni.CNIRequest) (*cni.CNIReply, error) {
+	var err error
 
 	// configuredContainers should not be nil unless this is a unit test
 	if s.configuredContainers == nil {

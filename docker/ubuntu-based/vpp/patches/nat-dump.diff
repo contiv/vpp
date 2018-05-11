@@ -1,0 +1,48 @@
+diff --git a/src/plugins/nat/nat.c b/src/plugins/nat/nat.c
+index 48575b6..30d7718 100755
+--- a/src/plugins/nat/nat.c
++++ b/src/plugins/nat/nat.c
+@@ -2865,6 +2865,9 @@ nat44_del_session (snat_main_t *sm, ip4_address_t *addr, u16 port,
+   t = is_in ? &tsm->in2out : &tsm->out2in;
+   if (!clib_bihash_search_8_8 (t, &kv, &value))
+     {
++      if (value.value == ~0)
++        return VNET_API_ERROR_UNSPECIFIED;
++
+       s = pool_elt_at_index (tsm->sessions, value.value);
+       kv.key = s->in2out.as_u64;
+       clib_bihash_add_del_8_8 (&tsm->in2out, &kv, 0);
+@@ -2876,7 +2879,10 @@ nat44_del_session (snat_main_t *sm, ip4_address_t *addr, u16 port,
+       if (!clib_bihash_search_8_8 (&tsm->user_hash, &kv, &value))
+         {
+           u = pool_elt_at_index (tsm->users, value.value);
+-          u->nsessions--;
++          if (snat_is_session_static (s))
++            u->nstaticsessions--;
++          else
++            u->nsessions--;
+         }
+       clib_dlist_remove (tsm->list_pool, s->per_user_index);
+       pool_put (tsm->sessions, s);
+diff --git a/src/plugins/nat/nat_api.c b/src/plugins/nat/nat_api.c
+index 598c640..824273a 100644
+--- a/src/plugins/nat/nat_api.c
++++ b/src/plugins/nat/nat_api.c
+@@ -1216,11 +1216,14 @@ vl_api_nat44_user_session_dump_t_handler (vl_api_nat44_user_session_dump_t *
+     {
+       s = pool_elt_at_index (tsm->sessions, session_index);
+ 
+-      send_nat44_user_session_details (s, q, mp->context);
+-
+       elt_index = elt->next;
+       elt = pool_elt_at_index (tsm->list_pool, elt_index);
+       session_index = elt->value;
++
++      if (is_ed_session(s) || is_fwd_bypass_session(s))
++        continue;
++
++      send_nat44_user_session_details (s, q, mp->context);
+     }
+ }
+ 
+

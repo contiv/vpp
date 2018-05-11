@@ -5,6 +5,9 @@ contiv:
   stealFirstNIC: False
   natExternalTraffic: True
   mtuSize: 1500
+  cleanupIdleNATSessions: True
+  tcpNATSessionTimeout: 180
+  otherNATSessionTimeout: 5
   ipamConfig:
     podSubnetCIDR: "10.1.0.0/16"
     podNetworkPrefixLen: 24

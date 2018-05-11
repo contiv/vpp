@@ -18,6 +18,7 @@ package configurator
 
 import (
 	"strings"
+	"time"
 
 	"github.com/golang/protobuf/proto"
 
@@ -30,6 +31,9 @@ import (
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/nat"
 
 	"github.com/contiv/vpp/plugins/contiv"
+
+	govpp "git.fd.io/govpp.git/api"
+	nat_api "github.com/ligato/vpp-agent/plugins/defaultplugins/common/bin_api/nat"
 )
 
 // LocalVsRemoteProbRatio tells how much more likely a local backend is to receive
@@ -42,6 +46,11 @@ const (
 	identityDNATLabel = "DNAT-identities"
 
 	vxlanPort = 4789 // port used byt VXLAN
+)
+
+const (
+	defaultIdleTCPTimeout   = 3 * time.Hour   // inactive timeout for TCP NAT sessions
+	defaultIdleOtherTimeout = 5 * time.Minute // inactive timeout for other NAT sessions
 )
 
 // ServiceConfigurator implements ServiceConfiguratorAPI.
@@ -60,6 +69,7 @@ type Deps struct {
 	Contiv        contiv.API         /* for GetNatLoopbackIP, InSTNMode */
 	NATTxnFactory func() (dsl linux.DataChangeDSL)
 	LatestRevs    *syncbase.PrevRevisions
+	GoVPPChan     *govpp.Channel /* used for direct NAT binary API calls */
 }
 
 // Init initializes service configurator.
@@ -67,6 +77,7 @@ func (sc *ServiceConfigurator) Init() error {
 	sc.natGlobalCfg = &nat.Nat44Global{
 		Forwarding: true,
 	}
+	go sc.idleNATSessionCleanup()
 	return nil
 }
 
@@ -498,4 +509,106 @@ func (sc *ServiceConfigurator) exportIdentityMappings() *nat.Nat44DNat_DNatConfi
 // Close deallocates resources held by the configurator.
 func (sc *ServiceConfigurator) Close() error {
 	return nil
+}
+
+// idleNATSessionCleanup performs periodic cleanup of inactive NAT sessions.
+// This should be removed once VPP supports timing out of the NAT sessions.
+func (sc *ServiceConfigurator) idleNATSessionCleanup() {
+	// run only if requested
+	if !sc.Contiv.CleanupIdleNATSessions() {
+		return
+	}
+
+	tcpTimeout := time.Duration(sc.Contiv.GetTCPNATSessionTimeout()) * time.Minute
+	otherTimeout := time.Duration(sc.Contiv.GetOtherNATSessionTimeout()) * time.Minute
+	if tcpTimeout == 0 {
+		tcpTimeout = defaultIdleTCPTimeout
+	}
+	if otherTimeout == 0 {
+		otherTimeout = defaultIdleOtherTimeout
+	}
+
+	sc.Log.Infof("NAT session cleanup enabled, TCP timeout=%v, other timeout=%v.", tcpTimeout, otherTimeout)
+
+	// VPP counts the time from 0 since its start. Let's assume it is now
+	// (it shouldn't be more than few seconds since its start).
+	zeroTime := time.Now()
+
+	for {
+		<-time.After(otherTimeout)
+
+		sc.Log.Debugf("NAT session cleanup started.")
+
+		natUsers := make([][]byte, 0)
+		delRules := make([]*nat_api.Nat44DelSession, 0)
+		sCount := 0
+
+		// dump NAT users
+		req1 := &nat_api.Nat44UserDump{}
+		reqCtx1 := sc.GoVPPChan.SendMultiRequest(req1)
+		for {
+			msg := &nat_api.Nat44UserDetails{}
+			stop, err := reqCtx1.ReceiveReply(msg)
+			if stop {
+				break // break out of the loop
+			}
+			if err != nil {
+				sc.Log.Errorf("Error by dumping NAT users: %v", err)
+			}
+			natUsers = append(natUsers, msg.IPAddress)
+		}
+
+		// dump NAT sessions per user
+		for _, natUser := range natUsers {
+			req2 := &nat_api.Nat44UserSessionDump{
+				IPAddress: natUser,
+			}
+			reqCtx2 := sc.GoVPPChan.SendMultiRequest(req2)
+
+			for {
+				msg := &nat_api.Nat44UserSessionDetails{}
+				stop, err := reqCtx2.ReceiveReply(msg)
+				if stop {
+					break // break out of the loop
+				}
+				if err != nil {
+					sc.Log.Errorf("Error by dumping NAT sessions: %v", err)
+				}
+				sCount++
+
+				if msg.IsClosed == 0 {
+					// non-closed sessions only, closed are handled by VPP
+					lastHeard := zeroTime.Add(time.Duration(msg.LastHeard) * time.Second)
+					if lastHeard.Before(time.Now()) {
+						if (msg.Protocol == 6 && time.Since(lastHeard) > tcpTimeout) ||
+							(msg.Protocol != 6 && time.Since(lastHeard) > otherTimeout) {
+
+							// inactive session
+							sc.Log.Debugf("Deleting inactive NAT session (proto %d), last heard %v ago: %v", msg.Protocol, time.Since(lastHeard), msg)
+
+							delRules = append(delRules,
+								&nat_api.Nat44DelSession{
+									IsIn:     1,
+									Address:  msg.InsideIPAddress,
+									Port:     msg.InsidePort,
+									Protocol: uint8(msg.Protocol),
+								},
+							)
+						}
+					}
+				}
+			}
+		}
+
+		sc.Log.Debugf("There are %d NAT sessions, %d will be deleted", sCount, len(delRules))
+
+		// delete the old sessions
+		for _, r := range delRules {
+			msg := &nat_api.Nat44DelSessionReply{}
+			err := sc.GoVPPChan.SendRequest(r).ReceiveReply(msg)
+			if err != nil || msg.Retval != 0 {
+				sc.Log.Errorf("Error by deleting NAT session: %v, retval=%d", err, msg.Retval)
+			}
+		}
+	}
 }

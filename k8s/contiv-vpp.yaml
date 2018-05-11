@@ -27,6 +27,9 @@ data:
     TAPInterfaceVersion: 2
     NatExternalTraffic: true
     MTUSize: 1500
+    CleanupIdleNATSessions: true
+    TCPNATSessionTimeout: 180
+    OtherNATSessionTimeout: 5
     IPAMConfig:
       PodSubnetCIDR: 10.1.0.0/16
       PodNetworkPrefixLen: 24

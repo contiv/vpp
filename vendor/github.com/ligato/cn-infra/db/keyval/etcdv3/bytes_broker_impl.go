@@ -184,10 +184,8 @@ func handleWatchEvent(log logging.Logger, resp func(keyval.BytesWatchResp), ev *
 	}
 
 	if ev.Type == mvccpb.DELETE {
-		log.WithField("key", string(ev.Kv.Key)).Info("BUG: deleted key")
 		resp(NewBytesWatchDelResp(string(ev.Kv.Key), prevKvValue, ev.Kv.ModRevision))
 	} else if ev.IsCreate() || ev.IsModify() {
-		log.WithField("key", string(ev.Kv.Key)).Info("BUG: created/modified key")
 		if ev.Kv.Value != nil {
 			resp(NewBytesWatchPutResp(string(ev.Kv.Key), ev.Kv.Value, prevKvValue, ev.Kv.ModRevision))
 		}
@@ -225,56 +223,56 @@ func (db *BytesConnectionEtcd) Watch(resp func(keyval.BytesWatchResp), closeChan
 }
 
 // watchInternal starts the watch subscription for the key.
-func watchInternal(log logging.Logger, watcher clientv3.Watcher, closeCh chan string, key string, resp func(keyval.BytesWatchResp)) error {
-	recvChan := watcher.Watch(context.Background(), key, clientv3.WithPrefix(), clientv3.WithPrevKV())
+func watchInternal(log logging.Logger, watcher clientv3.Watcher, closeCh chan string, prefix string, resp func(keyval.BytesWatchResp)) error {
+	recvChan := watcher.Watch(context.Background(), prefix, clientv3.WithPrefix(), clientv3.WithPrevKV())
 
-	go func() {
+	go func(registeredKey string) {
 		var compactRev int64
-		registeredKey := key
 		for {
 			select {
 			case wresp, ok := <-recvChan:
 				if !ok {
-					log.WithField("key", key).Warn("BUG: watch closed")
+					log.WithField("prefix", prefix).Warn("Watch recv channel was closed")
 					if compactRev != 0 {
-						recvChan = watcher.Watch(context.Background(), key,
+						recvChan = watcher.Watch(context.Background(), prefix,
 							clientv3.WithPrefix(), clientv3.WithPrevKV(), clientv3.WithRev(compactRev))
 						log.WithFields(logging.Fields{
-							"key": key,
-							"rev": compactRev,
-						}).Warn("BUG: watch re-created")
+							"prefix": prefix,
+							"rev":    compactRev,
+						}).Warn("Watch recv channel was re-created")
 						compactRev = 0
-					} else {
-						// create mock channel to prevent from endless spinning
-						recvChan = make(clientv3.WatchChan)
+						continue
 					}
-					continue
+					return
 				}
 				if wresp.Canceled {
-					log.WithField("key", key).Warn("BUG: watch canceled")
+					log.WithField("prefix", prefix).Warn("Watch was canceled")
 				}
 				err := wresp.Err()
 				if err != nil {
-					log.WithFields(logging.Fields{"key": key, "err": err}).Warn("BUG: watch returned error")
+					log.WithFields(logging.Fields{
+						"prefix": prefix,
+						"err":    err,
+					}).Warn("Watch returned error")
 				}
 				compactRev = wresp.CompactRevision
 				if compactRev != 0 {
 					log.WithFields(logging.Fields{
-						"key": key,
-						"rev": wresp.CompactRevision,
-						}).Warn("BUG: watched data were compacted ")
+						"prefix": prefix,
+						"rev":    compactRev,
+					}).Warn("Watched data were compacted ")
 				}
 				for _, ev := range wresp.Events {
 					handleWatchEvent(log, resp, ev)
 				}
 			case closeVal, ok := <-closeCh:
-				if !ok || registeredKey == closeVal {
-					log.WithField("key", key).Debug("Watch ended")
+				if !ok || closeVal == registeredKey {
+					log.WithField("prefix", prefix).Debug("Watch ended")
 					return
 				}
 			}
 		}
-	}()
+	}(prefix)
 	return nil
 }
 

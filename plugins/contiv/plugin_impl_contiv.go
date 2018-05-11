@@ -96,7 +96,10 @@ type Config struct {
 	MTUSize                    uint32
 	StealFirstNIC              bool
 	StealInterface             string
-	NatExternalTraffic         bool // if enabled, traffic with cluster-outside destination is SNATed on node output (for all nodes)
+	NatExternalTraffic         bool   // if enabled, traffic with cluster-outside destination is SNATed on node output (for all nodes)
+	CleanupIdleNATSessions     bool   // if enabled, the agent will periodically check for idle NAT sessions and delete inactive ones
+	TCPNATSessionTimeout       uint32 // NAT session timeout (in minutes) for TCP connections, used in case that CleanupIdleNATSessions is turned on
+	OtherNATSessionTimeout     uint32 // NAT session timeout (in minutes) for non-TCP connections, used in case that CleanupIdleNATSessions is turned on
 	IPAMConfig                 ipam.Config
 	NodeConfig                 []OneNodeConfig
 }
@@ -296,6 +299,21 @@ func (plugin *Plugin) NatExternalTraffic() bool {
 		return true
 	}
 	return false
+}
+
+// CleanupIdleNATSessions returns true if cleanup of idle NAT sessions is enabled.
+func (plugin *Plugin) CleanupIdleNATSessions() bool {
+	return plugin.Config.CleanupIdleNATSessions
+}
+
+// GetTCPNATSessionTimeout returns NAT session timeout (in minutes) for TCP connections, used in case that CleanupIdleNATSessions is turned on.
+func (plugin *Plugin) GetTCPNATSessionTimeout() uint32 {
+	return plugin.Config.TCPNATSessionTimeout
+}
+
+// GetOtherNATSessionTimeout returns NAT session timeout (in minutes) for non-TCP connections, used in case that CleanupIdleNATSessions is turned on.
+func (plugin *Plugin) GetOtherNATSessionTimeout() uint32 {
+	return plugin.Config.OtherNATSessionTimeout
 }
 
 // GetNatLoopbackIP returns the IP address of a virtual loopback, used to route traffic

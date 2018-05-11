@@ -28,22 +28,25 @@ import (
 type MockContiv struct {
 	sync.Mutex
 
-	podIf              map[podmodel.ID]string
-	podAppNs           map[podmodel.ID]uint32
-	podNetwork         *net.IPNet
-	tcpStackDisabled   bool
-	stnMode            bool
-	natExternalTraffic bool
-	natLoopbackIP      net.IP
-	nodeIP             string
-	nodeIPsubs         []chan string
-	podPreRemovalHooks []contiv.PodActionHook
-	mainPhysIf         string
-	otherPhysIfs       []string
-	hostInterconnect   string
-	vxlanBVIIfName     string
-	gwIP               net.IP
-	containerIndex     *containeridx.ConfigIndex
+	podIf                  map[podmodel.ID]string
+	podAppNs               map[podmodel.ID]uint32
+	podNetwork             *net.IPNet
+	tcpStackDisabled       bool
+	stnMode                bool
+	natExternalTraffic     bool
+	cleanupIdleNATSessions bool
+	tcpNATSessionTimeout   uint32
+	otherNATSessionTimeout uint32
+	natLoopbackIP          net.IP
+	nodeIP                 string
+	nodeIPsubs             []chan string
+	podPreRemovalHooks     []contiv.PodActionHook
+	mainPhysIf             string
+	otherPhysIfs           []string
+	hostInterconnect       string
+	vxlanBVIIfName         string
+	gwIP                   net.IP
+	containerIndex         *containeridx.ConfigIndex
 }
 
 // NewMockContiv is a constructor for MockContiv.
@@ -270,4 +273,19 @@ func (mc *MockContiv) RegisterPodPreRemovalHook(hook contiv.PodActionHook) {
 	defer mc.Unlock()
 
 	mc.podPreRemovalHooks = append(mc.podPreRemovalHooks, hook)
+}
+
+// CleanupIdleNATSessions returns true if cleanup of idle NAT sessions is enabled.
+func (mc *MockContiv) CleanupIdleNATSessions() bool {
+	return mc.cleanupIdleNATSessions
+}
+
+// GetTCPNATSessionTimeout returns NAT session timeout (in minutes) for TCP connections, used in case that CleanupIdleNATSessions is turned on.
+func (mc *MockContiv) GetTCPNATSessionTimeout() uint32 {
+	return mc.tcpNATSessionTimeout
+}
+
+// GetOtherNATSessionTimeout returns NAT session timeout (in minutes) for non-TCP connections, used in case that CleanupIdleNATSessions is turned on.
+func (mc *MockContiv) GetOtherNATSessionTimeout() uint32 {
+	return mc.otherNATSessionTimeout
 }

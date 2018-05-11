@@ -3,8 +3,10 @@
 set -euo pipefail
 
 echo "Building contivvpp agent binary..."
+dev_vswitch_ids="$(docker images dev-contiv-vswitch --format "{{.ID}}")"
+dev_vswitch_id="$(echo $dev_vswitch_ids | awk '{print $1;}')"
 docker kill dev-contiv || true
-docker run -v /home/vagrant/gopath/src/github.com/contiv/vpp/:/root/go/src/github.com/contiv/vpp/ -itd --name dev-contiv --rm dev-contiv-vswitch:latest bash
+docker run -v /home/vagrant/gopath/src/github.com/contiv/vpp/:/root/go/src/github.com/contiv/vpp/ -itd --name dev-contiv --rm $dev_vswitch_id bash
 docker exec -it dev-contiv bash -c "cd /root/go/src/github.com/contiv/vpp; make agent; make contiv-init"
 docker kill dev-contiv
 

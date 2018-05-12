@@ -712,7 +712,7 @@
     "utils/safeclose",
     "utils/structs"
   ]
-  revision = "e5bff3cae460e0e45770b9840ddf863da8540d72"
+  revision = "14701b3639f8f0023d726643b7811276df3238ae"
 
 [[projects]]
   name = "github.com/ligato/vpp-agent"
@@ -787,7 +787,7 @@
     "plugins/linuxplugin/l3plugin/linuxcalls",
     "plugins/linuxplugin/nsplugin"
   ]
-  revision = "4db11634e69208566fd09839f17077f28fa19ce4"
+  revision = "93bd6fa0d51f305ce1bf9c583cd54d3475f5ac68"
 
 [[projects]]
   branch = "master"
@@ -1637,6 +1637,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "84fb5f9df738d9e071e59fa800f4b0043cd30439511ef61727d853318f319638"
+  inputs-digest = "0f625246512b579fe0fb62e85a110000db19d039122a5f5e039b66ab83c39fe1"
   solver-name = "gps-cdcl"
   solver-version = 1

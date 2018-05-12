@@ -42,6 +42,15 @@ type API interface {
 	// with node IP before being sent out from the node.
 	NatExternalTraffic() bool
 
+	// CleanupIdleNATSessions returns true if cleanup of idle NAT sessions is enabled.
+	CleanupIdleNATSessions() bool
+
+	// GetTCPNATSessionTimeout returns NAT session timeout (in minutes) for TCP connections, used in case that CleanupIdleNATSessions is turned on.
+	GetTCPNATSessionTimeout() uint32
+
+	// // GetOtherNATSessionTimeout returns NAT session timeout (in minutes) for non-TCP connections, used in case that CleanupIdleNATSessions is turned on.
+	GetOtherNATSessionTimeout() uint32
+
 	// GetNatLoopbackIP returns the IP address of a virtual loopback, used to route traffic
 	// between clients and services via VPP even if the source and destination are the same
 	// IP addresses and would otherwise be routed locally.

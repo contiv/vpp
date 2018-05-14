@@ -328,6 +328,17 @@ func (s *remoteCNIserver) addInterfaceToVxlanBD(bd *vpp_l2.BridgeDomains_BridgeD
 	})
 }
 
+func (s *remoteCNIserver) removeInterfaceFromVxlanBD(bd *vpp_l2.BridgeDomains_BridgeDomain, ifName string) {
+	for i := range bd.Interfaces {
+		if bd.Interfaces[i].Name == ifName {
+			bd.Interfaces[i] = bd.Interfaces[len(bd.Interfaces)-1]
+			bd.Interfaces[len(bd.Interfaces)-1] = nil
+			bd.Interfaces = bd.Interfaces[:len(bd.Interfaces)-1]
+			break
+		}
+	}
+}
+
 func (s *remoteCNIserver) otherHostIP(hostID uint8, hostIPPrefix string) string {
 	// determine next hop IP - either use provided one, or calculate based on hostIPPrefix
 	if hostIPPrefix != "" {

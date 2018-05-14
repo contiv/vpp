@@ -60,6 +60,7 @@ var (
 	otherNatSessionCount        uint64
 	deletedTcpNatSessionCount   uint64
 	deletedOtherNatSessionCount uint64
+	natSessionCleanupErrorCount uint64
 )
 
 // ServiceConfigurator implements ServiceConfiguratorAPI.
@@ -551,6 +552,7 @@ func (sc *ServiceConfigurator) idleNATSessionCleanup() {
 	sc.Stats.RegisterGaugeFunc("otherNatSessionCount", "Total count of non-TCP NAT sessions", otherNatSessionCountGauge)
 	sc.Stats.RegisterGaugeFunc("deletedTcpNatSessionCount", "Total count of deleted TCP NAT sessions", deletedTcpNatSessionCountGauge)
 	sc.Stats.RegisterGaugeFunc("deletedOtherNatSessionCount", "Total count of deleted non-TCP NAT sessions", deletedOtherNatSessionCountGauge)
+	sc.Stats.RegisterGaugeFunc("natSessionCleanupErrorCount", "Count of errors by NAT session cleanup", natSessionCleanupErrorCountGauge)
 
 	// VPP counts the time from 0 since its start. Let's assume it is now
 	// (it shouldn't be more than few seconds since its start).
@@ -630,14 +632,6 @@ func (sc *ServiceConfigurator) idleNATSessionCleanup() {
 						}
 
 						delRules = append(delRules, delRule)
-
-						if msg.Protocol == 6 {
-							atomic.AddUint64(&deletedTcpNatSessionCount, 1)
-							sc.Log.Debugf("XX TCP %d", deletedTcpNatSessionCount)
-						} else {
-							atomic.AddUint64(&deletedOtherNatSessionCount, 1)
-							sc.Log.Debugf("XX OTHER %d", deletedOtherNatSessionCount)
-						}
 					}
 				}
 			}
@@ -654,6 +648,13 @@ func (sc *ServiceConfigurator) idleNATSessionCleanup() {
 			err := sc.GoVPPChan.SendRequest(r).ReceiveReply(msg)
 			if err != nil || msg.Retval != 0 {
 				sc.Log.Errorf("Error by deleting NAT session: %v, retval=%d, req: %v", err, msg.Retval, r)
+				atomic.AddUint64(&natSessionCleanupErrorCount, 1)
+			} else {
+				if r.Protocol == 6 {
+					atomic.AddUint64(&deletedTcpNatSessionCount, 1)
+				} else {
+					atomic.AddUint64(&deletedOtherNatSessionCount, 1)
+				}
 			}
 		}
 	}
@@ -673,4 +674,8 @@ func deletedTcpNatSessionCountGauge() float64 {
 
 func deletedOtherNatSessionCountGauge() float64 {
 	return float64(atomic.LoadUint64(&deletedOtherNatSessionCount))
+}
+
+func natSessionCleanupErrorCountGauge() float64 {
+	return float64(atomic.LoadUint64(&natSessionCleanupErrorCount))
 }

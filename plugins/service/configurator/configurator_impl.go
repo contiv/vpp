@@ -33,7 +33,9 @@ import (
 	"github.com/contiv/vpp/plugins/contiv"
 
 	govpp "git.fd.io/govpp.git/api"
+	"github.com/contiv/vpp/plugins/statscollector"
 	nat_api "github.com/ligato/vpp-agent/plugins/defaultplugins/common/bin_api/nat"
+	"sync/atomic"
 )
 
 // LocalVsRemoteProbRatio tells how much more likely a local backend is to receive
@@ -53,6 +55,13 @@ const (
 	defaultIdleOtherTimeout = 5 * time.Minute // inactive timeout for other NAT sessions
 )
 
+var (
+	tcpNatSessionCount          uint64
+	otherNatSessionCount        uint64
+	deletedTcpNatSessionCount   uint64
+	deletedOtherNatSessionCount uint64
+)
+
 // ServiceConfigurator implements ServiceConfiguratorAPI.
 type ServiceConfigurator struct {
 	Deps
@@ -64,12 +73,13 @@ type ServiceConfigurator struct {
 
 // Deps lists dependencies of ServiceConfigurator.
 type Deps struct {
-	Log           logging.Logger
-	VPP           defaultplugins.API /* for DumpNat44Global & DumpNat44DNat */
-	Contiv        contiv.API         /* for GetNatLoopbackIP, InSTNMode */
-	NATTxnFactory func() (dsl linux.DataChangeDSL)
-	LatestRevs    *syncbase.PrevRevisions
-	GoVPPChan     *govpp.Channel /* used for direct NAT binary API calls */
+	Log            logging.Logger
+	VPP            defaultplugins.API /* for DumpNat44Global & DumpNat44DNat */
+	Contiv         contiv.API         /* for GetNatLoopbackIP, InSTNMode */
+	NATTxnFactory  func() (dsl linux.DataChangeDSL)
+	LatestRevs     *syncbase.PrevRevisions
+	GoVPPChan      *govpp.Channel     /* used for direct NAT binary API calls */
+	StatsCollector statscollector.API /* used for exporting the statistics */
 }
 
 // Init initializes service configurator.
@@ -77,6 +87,10 @@ func (sc *ServiceConfigurator) Init() error {
 	sc.natGlobalCfg = &nat.Nat44Global{
 		Forwarding: true,
 	}
+	return nil
+}
+
+func (sc *ServiceConfigurator) AfterInit() error {
 	go sc.idleNATSessionCleanup()
 	return nil
 }
@@ -530,6 +544,12 @@ func (sc *ServiceConfigurator) idleNATSessionCleanup() {
 
 	sc.Log.Infof("NAT session cleanup enabled, TCP timeout=%v, other timeout=%v.", tcpTimeout, otherTimeout)
 
+	// register gauges
+	sc.StatsCollector.RegisterGauge("tcpNatSessionCount", "Total count of TCP NAT sessions", tcpNatSessionCountGauge)
+	sc.StatsCollector.RegisterGauge("otherNatSessionCount", "Total count of non-TCP NAT sessions", otherNatSessionCountGauge)
+	sc.StatsCollector.RegisterGauge("deletedTcpNatSessionCount", "Total count of deleted TCP NAT sessions", deletedTcpNatSessionCountGauge)
+	sc.StatsCollector.RegisterGauge("deletedOtherNatSessionCount", "Total count of deleted non-TCP NAT sessions", deletedOtherNatSessionCountGauge)
+
 	// VPP counts the time from 0 since its start. Let's assume it is now
 	// (it shouldn't be more than few seconds since its start).
 	zeroTime := time.Now()
@@ -541,7 +561,8 @@ func (sc *ServiceConfigurator) idleNATSessionCleanup() {
 
 		natUsers := make([][]byte, 0)
 		delRules := make([]*nat_api.Nat44DelSession, 0)
-		sCount := 0
+		var tcpCount uint64
+		var otherCount uint64
 
 		// dump NAT users
 		req1 := &nat_api.Nat44UserDump{}
@@ -574,7 +595,11 @@ func (sc *ServiceConfigurator) idleNATSessionCleanup() {
 				if err != nil {
 					sc.Log.Errorf("Error by dumping NAT sessions: %v", err)
 				}
-				sCount++
+				if msg.Protocol == 6 {
+					tcpCount++
+				} else {
+					otherCount++
+				}
 
 				if msg.IsClosed == 0 {
 					// non-closed sessions only, closed are handled by VPP
@@ -594,13 +619,21 @@ func (sc *ServiceConfigurator) idleNATSessionCleanup() {
 									Protocol: uint8(msg.Protocol),
 								},
 							)
+
+							if msg.Protocol == 6 {
+								atomic.AddUint64(&deletedTcpNatSessionCount, 1)
+							} else {
+								atomic.AddUint64(&otherNatSessionCount, 1)
+							}
 						}
 					}
 				}
 			}
 		}
 
-		sc.Log.Debugf("There are %d NAT sessions, %d will be deleted", sCount, len(delRules))
+		sc.Log.Debugf("There are %d TCP / %d other NAT sessions, %d will be deleted", tcpCount, otherCount, len(delRules))
+		atomic.StoreUint64(&tcpNatSessionCount, tcpCount)
+		atomic.StoreUint64(&otherNatSessionCount, otherCount)
 
 		// delete the old sessions
 		for _, r := range delRules {
@@ -611,4 +644,20 @@ func (sc *ServiceConfigurator) idleNATSessionCleanup() {
 			}
 		}
 	}
+}
+
+func tcpNatSessionCountGauge() float64 {
+	return float64(atomic.LoadUint64(&tcpNatSessionCount))
+}
+
+func otherNatSessionCountGauge() float64 {
+	return float64(atomic.LoadUint64(&otherNatSessionCount))
+}
+
+func deletedTcpNatSessionCountGauge() float64 {
+	return float64(atomic.LoadUint64(&deletedTcpNatSessionCount))
+}
+
+func deletedOtherNatSessionCountGauge() float64 {
+	return float64(atomic.LoadUint64(&deletedOtherNatSessionCount))
 }

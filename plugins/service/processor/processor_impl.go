@@ -72,6 +72,10 @@ func (sp *ServiceProcessor) Init() error {
 	return nil
 }
 
+func (sp *ServiceProcessor) AfterInit() error {
+	return nil
+}
+
 // reset clears the state of the processor.
 func (sp *ServiceProcessor) reset() error {
 	sp.nodes = make(map[int]*nodemodel.NodeInfo)

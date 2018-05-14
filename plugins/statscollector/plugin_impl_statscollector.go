@@ -232,6 +232,22 @@ func (p *Plugin) Put(key string, data proto.Message, opts ...datasync.PutOption)
 	return nil
 }
 
+// TODO
+func (p *Plugin) RegisterGauge(name string, help string, valueFunc func() float64) {
+	p.Lock()
+	defer p.Unlock()
+
+	p.Log.Errorf("Registering new gauge: %s", name)
+
+	if p.Prometheus != nil {
+		promLables := prometheus.Labels{
+			nodeLabel: p.ServiceLabel.GetAgentLabel(),
+		}
+
+		p.Prometheus.RegisterGaugeFunc(prometheusStatsPath, "", "", name, help, promLables, valueFunc)
+	}
+}
+
 func (p *Plugin) addNewEntry(key string, data *interfaces.InterfacesState_Interface) (newEntry *stats, created bool) {
 	var (
 		err            error

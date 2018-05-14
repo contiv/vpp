@@ -232,12 +232,12 @@ func (p *Plugin) Put(key string, data proto.Message, opts ...datasync.PutOption)
 	return nil
 }
 
-// TODO
-func (p *Plugin) RegisterGauge(name string, help string, valueFunc func() float64) {
+// RegisterGaugeFunc registers a new gauge with specific name, help string and valueFunc to report status when invoked.
+func (p *Plugin) RegisterGaugeFunc(name string, help string, valueFunc func() float64) {
 	p.Lock()
 	defer p.Unlock()
 
-	p.Log.Errorf("Registering new gauge: %s", name)
+	p.Log.Debugf("Registering new gauge: %s", name)
 
 	if p.Prometheus != nil {
 		promLables := prometheus.Labels{

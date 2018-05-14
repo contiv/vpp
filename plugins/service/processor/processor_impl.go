@@ -72,6 +72,7 @@ func (sp *ServiceProcessor) Init() error {
 	return nil
 }
 
+// AfterInit is called by the plugin infra after init of all plugins is completed.
 func (sp *ServiceProcessor) AfterInit() error {
 	return nil
 }

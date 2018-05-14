@@ -67,12 +67,12 @@ type Plugin struct {
 // Deps defines dependencies of the service plugin.
 type Deps struct {
 	local.PluginInfraDeps
-	Resync         resync.Subscriber
-	Watcher        datasync.KeyValProtoWatcher /* prefixed for KSR-published K8s state data */
-	Contiv         contiv.API                  /* to get the Node IP and all interface names */
-	VPP            defaultplugins.API          /* interface indexes && IP addresses */
-	GoVPP          govppmux.API                /* used for direct NAT binary API calls */
-	StatsCollector statscollector.API          /* used for exporting the statistics */
+	Resync  resync.Subscriber
+	Watcher datasync.KeyValProtoWatcher /* prefixed for KSR-published K8s state data */
+	Contiv  contiv.API                  /* to get the Node IP and all interface names */
+	VPP     defaultplugins.API          /* interface indexes && IP addresses */
+	GoVPP   govppmux.API                /* used for direct NAT binary API calls */
+	Stats   statscollector.API          /* used for exporting the statistics */
 }
 
 // Init initializes the service plugin and starts watching ETCD for K8s configuration.
@@ -98,8 +98,8 @@ func (p *Plugin) Init() error {
 			NATTxnFactory: func() linux.DataChangeDSL {
 				return localclient.DataChangeRequest(p.PluginName)
 			},
-			LatestRevs:     kvdbsync_local.Get().LastRev(),
-			StatsCollector: p.StatsCollector,
+			LatestRevs: kvdbsync_local.Get().LastRev(),
+			Stats:      p.Stats,
 		},
 	}
 	p.configurator.Log.SetLevel(logging.DebugLevel)

@@ -58,7 +58,7 @@ const (
 var (
 	tcpNatSessionCount          uint64
 	otherNatSessionCount        uint64
-	deletedTcpNatSessionCount   uint64
+	deletedTCPNatSessionCount   uint64
 	deletedOtherNatSessionCount uint64
 	natSessionCleanupErrorCount uint64
 )
@@ -550,7 +550,7 @@ func (sc *ServiceConfigurator) idleNATSessionCleanup() {
 	// register gauges
 	sc.Stats.RegisterGaugeFunc("tcpNatSessionCount", "Total count of TCP NAT sessions", tcpNatSessionCountGauge)
 	sc.Stats.RegisterGaugeFunc("otherNatSessionCount", "Total count of non-TCP NAT sessions", otherNatSessionCountGauge)
-	sc.Stats.RegisterGaugeFunc("deletedTcpNatSessionCount", "Total count of deleted TCP NAT sessions", deletedTcpNatSessionCountGauge)
+	sc.Stats.RegisterGaugeFunc("deletedTCPNatSessionCount", "Total count of deleted TCP NAT sessions", deletedTCPNatSessionCountGauge)
 	sc.Stats.RegisterGaugeFunc("deletedOtherNatSessionCount", "Total count of deleted non-TCP NAT sessions", deletedOtherNatSessionCountGauge)
 	sc.Stats.RegisterGaugeFunc("natSessionCleanupErrorCount", "Count of errors by NAT session cleanup", natSessionCleanupErrorCountGauge)
 
@@ -651,7 +651,7 @@ func (sc *ServiceConfigurator) idleNATSessionCleanup() {
 				atomic.AddUint64(&natSessionCleanupErrorCount, 1)
 			} else {
 				if r.Protocol == 6 {
-					atomic.AddUint64(&deletedTcpNatSessionCount, 1)
+					atomic.AddUint64(&deletedTCPNatSessionCount, 1)
 				} else {
 					atomic.AddUint64(&deletedOtherNatSessionCount, 1)
 				}
@@ -668,8 +668,8 @@ func otherNatSessionCountGauge() float64 {
 	return float64(atomic.LoadUint64(&otherNatSessionCount))
 }
 
-func deletedTcpNatSessionCountGauge() float64 {
-	return float64(atomic.LoadUint64(&deletedTcpNatSessionCount))
+func deletedTCPNatSessionCountGauge() float64 {
+	return float64(atomic.LoadUint64(&deletedTCPNatSessionCount))
 }
 
 func deletedOtherNatSessionCountGauge() float64 {

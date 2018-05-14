@@ -21,6 +21,7 @@ import (
 	coreV1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/tools/cache"
 
+	nodeID "github.com/contiv/vpp/plugins/contiv/model/node"
 	"github.com/contiv/vpp/plugins/ksr/model/node"
 	"github.com/golang/protobuf/proto"
 )
@@ -93,6 +94,8 @@ func (nr *NodeReflector) deleteNode(obj interface{}) {
 
 	key := node.Key(k8sNode.GetName())
 	nr.ksrDelete(key)
+
+	nr.deleteNodeIDForName(k8sNode.Name)
 }
 
 // updateNode updates  data of a changed K8s node from the data store.
@@ -175,4 +178,34 @@ func getNodeInfo(kni coreV1.NodeSystemInfo) *node.NodeSystemInfo {
 	pni.System_UUID = kni.SystemUUID
 
 	return pni
+}
+
+// deleteNodeIDForName removes nodeID allocated for defined name. The aim of the function is to
+// cleanup nodeID when a node is removed for a cluster.
+func (nr *NodeReflector) deleteNodeIDForName(name string) error {
+	it, err := nr.Broker.ListValues(nodeID.AllocatedIDsKeyPrefix)
+	if err != nil {
+		return err
+	}
+
+	for {
+
+		kv, stop := it.GetNext()
+
+		if stop {
+			break
+		}
+
+		val := &nodeID.NodeInfo{}
+		err := kv.GetValue(val)
+		if err != nil {
+			return err
+		}
+		if val.Name == name {
+			nr.Broker.Delete(kv.GetKey())
+			nr.Log.Infof("Node ID %v was removed", kv.GetKey())
+			break
+		}
+	}
+	return nil
 }

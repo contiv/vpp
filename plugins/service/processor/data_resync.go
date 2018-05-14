@@ -23,7 +23,6 @@ import (
 	"github.com/ligato/cn-infra/datasync"
 	"github.com/ligato/cn-infra/logging"
 
-	"github.com/contiv/vpp/plugins/contiv"
 	nodemodel "github.com/contiv/vpp/plugins/contiv/model/node"
 	epmodel "github.com/contiv/vpp/plugins/ksr/model/endpoints"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
@@ -99,7 +98,7 @@ func (sc *ServiceProcessor) parseResyncEv(resyncEv datasync.ResyncEvent) *Resync
 			key := evData.GetKey()
 
 			// Parse node RESYNC event
-			if strings.HasPrefix(key, contiv.AllocatedIDsKeyPrefix) {
+			if strings.HasPrefix(key, nodemodel.AllocatedIDsKeyPrefix) {
 				value := &nodemodel.NodeInfo{}
 				err := evData.GetValue(value)
 				if err == nil {

@@ -1,9 +1,11 @@
 #!/bin/bash
 
-#######################################################################
-# This script is used to collect the state of a contiv-vpp cluster when
-# reporting bugs to contiv-vpp developers.
-#######################################################################
+#################################################################
+# Example Usage
+# contiv-vpp-bug-report.sh <cluster-master-node> [<user-id>]
+# <cluster-master-node>: IP address of K8s master node
+# <user-id>:             User id used to login to the k8s master
+#################################################################
 
 set -euo pipefail
 
@@ -14,22 +16,25 @@ master_kubectl() {
 
 VPP_CMD_ERROR_LOG="vpp-cmd-errors.log"
 get_vpp_data() {
-    echo "- vppctl '$1':" | tee -a "$VPP_CMD_ERROR_LOG"
+    echo " - vppctl '$1'"
+    echo "- vppctl '$1':" >> "$VPP_CMD_ERROR_LOG"
     # We need to call out /usr/bin/vppctl because /usr/local/bin/vppctl is a wrapper script that doesn't work inside the
     # container.
-    master_kubectl exec "$POD_NAME" -n kube-system -c contiv-vswitch /usr/bin/vppctl "$1" > "$2.log" 2>> "$VPP_CMD_ERROR_LOG"
+    master_kubectl exec "$POD_NAME" -n kube-system -c contiv-vswitch /usr/bin/vppctl "$1" > "$2.log" 2>>"$VPP_CMD_ERROR_LOG"
 }
 
 ETCD_CMD_ERROR_LOG="etcd-cmd-errors.log"
 get_etcd_data() {
-    echo "- etcdctl '$1':" | tee -a "$ETCD_CMD_ERROR_LOG"
-    master_kubectl exec "$POD_NAME" -n kube-system -- sh -c "$1" > "$2.log" 2>> "$ETCD_CMD_ERROR_LOG"
+    echo " - etcdctl '$1'"
+    echo "- etcdctl '$1':" >> "$ETCD_CMD_ERROR_LOG"
+    master_kubectl exec "$POD_NAME" -n kube-system -- sh -c "$1" > "$2.log" 2>>"$ETCD_CMD_ERROR_LOG"
 }
 
 K8S_CMD_ERROR_LOG="k8s-cmd-errors.log"
 get_k8s_data() {
-    echo  "- $1:" | tee -a "$K8S_CMD_ERROR_LOG"
-    master_kubectl "$2" > "$3" 2>> "$K8S_CMD_ERROR_LOG"
+    echo " - $1"
+    echo "- $1:" >> "$K8S_CMD_ERROR_LOG"
+    master_kubectl "$2" > "$3" 2>>"$K8S_CMD_ERROR_LOG"
 }
 
 usage() {
@@ -108,8 +113,7 @@ get_k8s_data networkpolicy "get networkpolicy -o wide --all-namespaces" k8s-netw
 get_k8s_data statefulsets "get statefulsets -o wide --all-namespaces" k8s-statefulsets.txt
 get_k8s_data daemonsets "get daemonsets -o wide --all-namespaces" k8s-daemonsets.txt
 
-PODS="$(master_kubectl get po -n kube-system -l k8s-app=contiv-vswitch -o \
-    "'go-template={{range .items}}{{printf \"%s,%s \" (index .metadata).name (index .spec).nodeName}}{{end}}'")"
+PODS="$(master_kubectl get po -n kube-system -l k8s-app=contiv-vswitch -o "'go-template={{range .items}}{{printf \"%s,%s \" (index .metadata).name (index .spec).nodeName}}{{end}}'")"
 for POD in $PODS; do
     IFS=',' read -r POD_NAME NODE_NAME <<< "$POD"
     echo "Collecting Kubernetes data for pod $POD_NAME on node $NODE_NAME:"
@@ -150,8 +154,7 @@ for POD in $PODS; do
     popd >/dev/null
 done
 
-KSR_POD="$(master_kubectl get po -n kube-system -l k8s-app=contiv-ksr -o \
-    "'go-template={{range .items}}{{printf \"%s,%s\" (index .metadata).name (index .spec).nodeName}}{{end}}'")"
+KSR_POD="$(master_kubectl get po -n kube-system -l k8s-app=contiv-ksr -o "'go-template={{range .items}}{{printf \"%s,%s\" (index .metadata).name (index .spec).nodeName}}{{end}}'")"
 # Get contiv-ksr logs
 IFS=',' read -r POD_NAME NODE_NAME <<< "$KSR_POD"
 echo "Collecting Kubernetes data for pod $POD_NAME on node $NODE_NAME:"
@@ -162,8 +165,7 @@ get_k8s_data "previous contiv-ksr log" "logs $POD_NAME -n kube-system -p" "$POD_
 echo
 popd >/dev/null
 
-CONTIV_ETCD_POD="$(master_kubectl get po -n kube-system -l k8s-app=contiv-etcd -o \
-    "'go-template={{range .items}}{{printf \"%s,%s\" (index .metadata).name (index .spec).nodeName}}{{end}}'")"
+CONTIV_ETCD_POD="$(master_kubectl get po -n kube-system -l k8s-app=contiv-etcd -o "'go-template={{range .items}}{{printf \"%s,%s\" (index .metadata).name (index .spec).nodeName}}{{end}}'")"
 # Get contiv-etcd logs
 IFS=',' read -r POD_NAME NODE_NAME <<< "$CONTIV_ETCD_POD"
 echo "Collecting Kubernetes data for pod $POD_NAME on node $NODE_NAME:"
@@ -174,8 +176,7 @@ get_etcd_data "\"export ETCDCTL_API=3; etcdctl --endpoints=127.0.0.1:32379 get \
 echo
 popd >/dev/null
 
-NODES="$(master_kubectl get nodes -o \
-    "'go-template={{range .items}}{{printf \"%s,%s \" (index .metadata).name (index .status.addresses 0).address}}{{end}}'")"
+NODES="$(master_kubectl get nodes -o "'go-template={{range .items}}{{printf \"%s,%s \" (index .metadata).name (index .status.addresses 0).address}}{{end}}'")"
 for NODE in $NODES; do
     IFS=',' read -r NODE_NAME NODE_IP <<< "$NODE"
     echo "Collecting non-Kubernetes data for node $NODE_NAME:"
@@ -190,9 +191,7 @@ for NODE in $NODES; do
     echo " - Linux IP routes"
     ssh "$SSH_USER@$NODE_NAME" "${SSH_OPTS[@]}" 'ip route' > linux-ip-route.log 2>&1 || true
     echo " - contiv-stn logs"
-    ssh "$SSH_USER@$NODE_NAME" "${SSH_OPTS[@]}" \
-        'CONTAINER=$(sudo docker ps --filter name=contiv-stn --format "{{.ID}}") && [ -n "$CONTAINER" ] && sudo docker logs "$CONTAINER"' \
-        > contiv-stn.log 2>&1 || true
+    ssh "$SSH_USER@$NODE_NAME" "${SSH_OPTS[@]}" 'CONTAINER=$(sudo docker ps --filter name=contiv-stn --format "{{.ID}}") && [ -n "$CONTAINER" ] && sudo docker logs "$CONTAINER"' > contiv-stn.log 2>&1 || true
     echo
     popd >/dev/null
 done

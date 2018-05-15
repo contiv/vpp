@@ -66,7 +66,7 @@ func (s *remoteCNIserver) nodeResync(dataResyncEv datasync.ResyncEvent) error {
 	data := dataResyncEv.GetValues()
 
 	for prefix, it := range data {
-		if prefix == AllocatedIDsKeyPrefix {
+		if prefix == node.AllocatedIDsKeyPrefix {
 			for {
 				kv, stop := it.GetNext()
 				if stop {
@@ -139,7 +139,7 @@ func (s *remoteCNIserver) processChangeEvent(dataChngEv datasync.ChangeEvent) er
 	key := dataChngEv.GetKey()
 	var err error
 
-	if strings.HasPrefix(key, AllocatedIDsKeyPrefix) {
+	if strings.HasPrefix(key, node.AllocatedIDsKeyPrefix) {
 		rev := dataChngEv.GetRevision()
 		if rev <= s.nodeIDResyncRev {
 			s.Logger.Info("Node id change event was generated before resync, skipping")
@@ -168,10 +168,16 @@ func (s *remoteCNIserver) processChangeEvent(dataChngEv datasync.ChangeEvent) er
 				s.Logger.Infof("IP address or management IP of node %v is not known yet.", nodeInfo.Id)
 			}
 		} else {
-			s.Logger.Info("Node removed: ", nodeInfo.Id)
+			prevNodeInfo := &node.NodeInfo{}
+			_, err := dataChngEv.GetPrevValue(prevNodeInfo)
+			if err != nil {
+				return err
+			}
+
+			s.Logger.Info("Node removed: ", prevNodeInfo.Id)
 
 			// delete routes to the node
-			err = s.deleteRoutesToNode(nodeInfo)
+			err = s.deleteRoutesToNode(prevNodeInfo)
 		}
 	} else {
 		return fmt.Errorf("Unknown key %v", key)
@@ -270,20 +276,91 @@ func (s *remoteCNIserver) addRoutesToNode(nodeInfo *node.NodeInfo) error {
 
 // deleteRoutesToNode delete routes to the node specified by nodeID.
 func (s *remoteCNIserver) deleteRoutesToNode(nodeInfo *node.NodeInfo) error {
-	podsRoute, hostRoute, err := s.computeRoutesToHost(uint8(nodeInfo.Id), nodeInfo.IpAddress)
+	txn := s.vppTxnFactory().Delete()
+	txn2 := s.vppTxnFactory().Delete() // TODO: merge into 1 transaction after vpp-agent supports it
+	hostIP := s.otherHostIP(uint8(nodeInfo.Id), nodeInfo.IpAddress)
+
+	// VXLAN tunnel
+	if !s.useL2Interconnect {
+		vxlanIf, err := s.computeVxlanToHost(uint8(nodeInfo.Id), hostIP)
+		if err != nil {
+			return err
+		}
+		txn.VppInterface(vxlanIf.Name)
+		s.Logger.WithFields(logging.Fields{
+			"srcIP":  vxlanIf.Vxlan.SrcAddress,
+			"destIP": vxlanIf.Vxlan.DstAddress}).Info("Removing vxlan")
+
+		// remove the VXLAN interface from the VXLAN bridge domain
+		s.removeInterfaceFromVxlanBD(s.vxlanBD, vxlanIf.Name)
+
+		// pass deep copy to local client since we are overwriting previously applied config
+		bd := proto.Clone(s.vxlanBD)
+		err = s.vppTxnFactory().Put().BD(bd.(*vpp_l2.BridgeDomains_BridgeDomain)).Send().ReceiveReply()
+		if err != nil {
+			s.Logger.Error(err)
+			return err
+		}
+
+		// static ARP entry
+		vxlanIP, err := s.ipam.VxlanIPAddress(uint8(nodeInfo.Id))
+		if err != nil {
+			s.Logger.Error(err)
+			return err
+		}
+		vxlanArp := s.vxlanArpEntry(uint8(nodeInfo.Id), vxlanIP.String())
+		txn.Arp(vxlanArp.Interface, vxlanArp.IpAddress)
+
+		// static FIB
+		vxlanFib := s.vxlanFibEntry(vxlanArp.PhysAddress, vxlanIf.Name)
+		txn2.BDFIB(vxlanFib.BridgeDomain, vxlanFib.PhysAddress)
+	}
+
+	// static routes
+	var (
+		podsRoute    *vpp_l3.StaticRoutes_Route
+		hostRoute    *vpp_l3.StaticRoutes_Route
+		vxlanNextHop net.IP
+		err          error
+		nextHop      string
+	)
+	if s.useL2Interconnect {
+		// static route directly to other node IP
+		podsRoute, hostRoute, err = s.computeRoutesToHost(uint8(nodeInfo.Id), hostIP)
+		nextHop = hostIP
+	} else {
+		// static route to other node VXLAN BVI
+		vxlanNextHop, err = s.ipam.VxlanIPAddress(uint8(nodeInfo.Id))
+		if err != nil {
+			return err
+		}
+		nextHop = vxlanNextHop.String()
+		podsRoute, hostRoute, err = s.computeRoutesToHost(uint8(nodeInfo.Id), nextHop)
+	}
 	if err != nil {
 		return err
 	}
+	txn.StaticRoute(podsRoute.VrfId, podsRoute.DstIpAddr, podsRoute.NextHopAddr)
+	txn.StaticRoute(hostRoute.VrfId, hostRoute.DstIpAddr, hostRoute.NextHopAddr)
 	s.Logger.Info("Deleting PODs route: ", podsRoute)
 	s.Logger.Info("Deleting host route: ", hostRoute)
 
-	err = s.vppTxnFactory().Delete().
-		StaticRoute(podsRoute.VrfId, podsRoute.DstIpAddr, podsRoute.NextHopAddr).
-		StaticRoute(hostRoute.VrfId, hostRoute.DstIpAddr, hostRoute.NextHopAddr).
-		Send().ReceiveReply()
+	if s.stnIP == "" {
+		managementRoute := s.routeToOtherManagementIP(nodeInfo.ManagementIpAddress, nextHop)
+		txn.StaticRoute(managementRoute.VrfId, managementRoute.DstIpAddr, managementRoute.NextHopAddr)
+		s.Logger.Info("Deleting managementIP route: ", managementRoute)
+	}
 
+	// send the config transaction
+	err = txn.Send().ReceiveReply()
 	if err != nil {
-		return fmt.Errorf("Can't configure vpp to remove route to host %v (and its pods): %v ", nodeInfo.Id, err)
+		return fmt.Errorf("Can't configure VPP to remove routes to node %v: %v ", nodeInfo.Id, err)
+	}
+	if !s.useL2Interconnect {
+		err = txn2.Send().ReceiveReply()
+		if err != nil {
+			return fmt.Errorf("Can't configure VPP to remove FIB to node %v: %v ", nodeInfo.Id, err)
+		}
 	}
 	return nil
 }

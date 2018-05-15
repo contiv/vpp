@@ -542,20 +542,30 @@ func (e nodeAddDelEvent) GetChangeType() datasync.PutDel {
 }
 
 func (e nodeAddDelEvent) GetKey() string {
-	return AllocatedIDsKeyPrefix
+	return node.AllocatedIDsKeyPrefix
 }
 
 func (e nodeAddDelEvent) GetValue(value proto.Message) error {
-	v := value.(*node.NodeInfo)
-	v.Id = otherNodeInfo.Id
-	v.Name = otherNodeInfo.Name
-	v.IpAddress = otherNodeInfo.IpAddress
-	v.ManagementIpAddress = otherNodeInfo.ManagementIpAddress
+	if e.evType == datasync.Put {
+		v := value.(*node.NodeInfo)
+		v.Id = otherNodeInfo.Id
+		v.Name = otherNodeInfo.Name
+		v.IpAddress = otherNodeInfo.IpAddress
+		v.ManagementIpAddress = otherNodeInfo.ManagementIpAddress
+	}
 	return nil
 }
 
 func (e nodeAddDelEvent) GetPrevValue(prevValue proto.Message) (prevValueExist bool, err error) {
-	return false, nil
+	if e.evType == datasync.Put {
+		return false, nil
+	}
+	v := prevValue.(*node.NodeInfo)
+	v.Id = otherNodeInfo.Id
+	v.Name = otherNodeInfo.Name
+	v.IpAddress = otherNodeInfo.IpAddress
+	v.ManagementIpAddress = otherNodeInfo.ManagementIpAddress
+	return true, nil
 }
 
 func (e nodeAddDelEvent) GetRevision() int64 {

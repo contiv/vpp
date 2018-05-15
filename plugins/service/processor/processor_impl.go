@@ -72,6 +72,11 @@ func (sp *ServiceProcessor) Init() error {
 	return nil
 }
 
+// AfterInit is called by the plugin infra after init of all plugins is completed.
+func (sp *ServiceProcessor) AfterInit() error {
+	return nil
+}
+
 // reset clears the state of the processor.
 func (sp *ServiceProcessor) reset() error {
 	sp.nodes = make(map[int]*nodemodel.NodeInfo)

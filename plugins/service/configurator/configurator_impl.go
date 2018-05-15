@@ -652,8 +652,10 @@ func (sc *ServiceConfigurator) idleNATSessionCleanup() {
 			} else {
 				if r.Protocol == 6 {
 					atomic.AddUint64(&deletedTCPNatSessionCount, 1)
+					atomic.StoreUint64(&tcpNatSessionCount, atomic.LoadUint64(&tcpNatSessionCount)-1)
 				} else {
 					atomic.AddUint64(&deletedOtherNatSessionCount, 1)
+					atomic.StoreUint64(&otherNatSessionCount, atomic.LoadUint64(&otherNatSessionCount)-1)
 				}
 			}
 		}

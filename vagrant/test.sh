@@ -62,11 +62,9 @@ then
     exit 1
 fi
 
-echo LOCAL: "$LOCAL"
-
 for (( c=1; c<="$ITERATIONS"; c++ ))
 do
-    echo "************ Iteration "$c" out of "$ITERATIONS" **************"
+    echo "*************** Iteration "$c" out of "$ITERATIONS" ****************"
     .venv/bin/pytest --inventory "$INVENTORY_FILE" -v  k8s_tests/ || true
      cmd "kubectl get po -n kube-system -o wide"
      cmd free

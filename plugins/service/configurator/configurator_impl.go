@@ -60,7 +60,7 @@ var (
 	otherNatSessionCount        uint64
 	deletedTCPNatSessionCount   uint64
 	deletedOtherNatSessionCount uint64
-	natSessionCleanupErrorCount uint64
+	natSessionDeleteErrorCount  uint64
 )
 
 // ServiceConfigurator implements ServiceConfiguratorAPI.
@@ -548,11 +548,11 @@ func (sc *ServiceConfigurator) idleNATSessionCleanup() {
 	sc.Log.Infof("NAT session cleanup enabled, TCP timeout=%v, other timeout=%v.", tcpTimeout, otherTimeout)
 
 	// register gauges
-	sc.Stats.RegisterGaugeFunc("tcpNatSessionCount", "Total count of TCP NAT sessions", tcpNatSessionCountGauge)
-	sc.Stats.RegisterGaugeFunc("otherNatSessionCount", "Total count of non-TCP NAT sessions", otherNatSessionCountGauge)
-	sc.Stats.RegisterGaugeFunc("deletedTCPNatSessionCount", "Total count of deleted TCP NAT sessions", deletedTCPNatSessionCountGauge)
-	sc.Stats.RegisterGaugeFunc("deletedOtherNatSessionCount", "Total count of deleted non-TCP NAT sessions", deletedOtherNatSessionCountGauge)
-	sc.Stats.RegisterGaugeFunc("natSessionCleanupErrorCount", "Count of errors by NAT session cleanup", natSessionCleanupErrorCountGauge)
+	sc.Stats.RegisterGaugeFunc("tcpNatSessions", "Total count of TCP NAT sessions", tcpNatSessionsGauge)
+	sc.Stats.RegisterGaugeFunc("otherNatSessions", "Total count of non-TCP NAT sessions", otherNatSessionsGauge)
+	sc.Stats.RegisterGaugeFunc("deletedTCPNatSessions", "Total count of deleted TCP NAT sessions", deletedTCPNatSessionsGauge)
+	sc.Stats.RegisterGaugeFunc("deletedOtherNatSessions", "Total count of deleted non-TCP NAT sessions", deletedOtherNatSessionsGauge)
+	sc.Stats.RegisterGaugeFunc("natSessionDeleteErrors", "Count of errors by NAT session delete", natSessionDeleteErrorsGauge)
 
 	// VPP counts the time from 0 since its start. Let's assume it is now
 	// (it shouldn't be more than few seconds since its start).
@@ -619,10 +619,10 @@ func (sc *ServiceConfigurator) idleNATSessionCleanup() {
 							Port:     msg.InsidePort,
 							Protocol: uint8(msg.Protocol),
 						}
-						if msg.ExtHostValid == 1 {
+						if msg.ExtHostValid > 0 {
 							delRule.ExtHostValid = 1
 
-							if msg.IsTwicenat == 1 {
+							if msg.IsTwicenat > 0 {
 								delRule.ExtHostAddress = msg.ExtHostNatAddress
 								delRule.ExtHostPort = msg.ExtHostNatPort
 							} else {
@@ -648,7 +648,7 @@ func (sc *ServiceConfigurator) idleNATSessionCleanup() {
 			err := sc.GoVPPChan.SendRequest(r).ReceiveReply(msg)
 			if err != nil || msg.Retval != 0 {
 				sc.Log.Errorf("Error by deleting NAT session: %v, retval=%d, req: %v", err, msg.Retval, r)
-				atomic.AddUint64(&natSessionCleanupErrorCount, 1)
+				atomic.AddUint64(&natSessionDeleteErrorCount, 1)
 			} else {
 				if r.Protocol == 6 {
 					atomic.AddUint64(&deletedTCPNatSessionCount, 1)
@@ -660,22 +660,22 @@ func (sc *ServiceConfigurator) idleNATSessionCleanup() {
 	}
 }
 
-func tcpNatSessionCountGauge() float64 {
+func tcpNatSessionsGauge() float64 {
 	return float64(atomic.LoadUint64(&tcpNatSessionCount))
 }
 
-func otherNatSessionCountGauge() float64 {
+func otherNatSessionsGauge() float64 {
 	return float64(atomic.LoadUint64(&otherNatSessionCount))
 }
 
-func deletedTCPNatSessionCountGauge() float64 {
+func deletedTCPNatSessionsGauge() float64 {
 	return float64(atomic.LoadUint64(&deletedTCPNatSessionCount))
 }
 
-func deletedOtherNatSessionCountGauge() float64 {
+func deletedOtherNatSessionsGauge() float64 {
 	return float64(atomic.LoadUint64(&deletedOtherNatSessionCount))
 }
 
-func natSessionCleanupErrorCountGauge() float64 {
-	return float64(atomic.LoadUint64(&natSessionCleanupErrorCount))
+func natSessionDeleteErrorsGauge() float64 {
+	return float64(atomic.LoadUint64(&natSessionDeleteErrorCount))
 }

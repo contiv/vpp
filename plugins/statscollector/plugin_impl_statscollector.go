@@ -232,6 +232,22 @@ func (p *Plugin) Put(key string, data proto.Message, opts ...datasync.PutOption)
 	return nil
 }
 
+// RegisterGaugeFunc registers a new gauge with specific name, help string and valueFunc to report status when invoked.
+func (p *Plugin) RegisterGaugeFunc(name string, help string, valueFunc func() float64) {
+	p.Lock()
+	defer p.Unlock()
+
+	p.Log.Debugf("Registering new gauge: %s", name)
+
+	if p.Prometheus != nil {
+		promLables := prometheus.Labels{
+			nodeLabel: p.ServiceLabel.GetAgentLabel(),
+		}
+
+		p.Prometheus.RegisterGaugeFunc(prometheusStatsPath, "", "", name, help, promLables, valueFunc)
+	}
+}
+
 func (p *Plugin) addNewEntry(key string, data *interfaces.InterfacesState_Interface) (newEntry *stats, created bool) {
 	var (
 		err            error

@@ -37,6 +37,7 @@ import (
 	epmodel "github.com/contiv/vpp/plugins/ksr/model/endpoints"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	svcmodel "github.com/contiv/vpp/plugins/ksr/model/service"
+	"github.com/contiv/vpp/plugins/statscollector"
 	"github.com/ligato/vpp-agent/plugins/govppmux"
 )
 
@@ -72,6 +73,7 @@ type Deps struct {
 	Contiv  contiv.API                  /* to get the Node IP and all interface names */
 	VPP     defaultplugins.API          /* interface indexes && IP addresses */
 	GoVPP   govppmux.API                /* used for direct NAT binary API calls */
+	Stats   statscollector.API          /* used for exporting the statistics */
 }
 
 // Init initializes the service plugin and starts watching ETCD for K8s configuration.
@@ -98,6 +100,7 @@ func (p *Plugin) Init() error {
 				return localclient.DataChangeRequest(p.PluginName)
 			},
 			LatestRevs: kvdbsync_local.Get().LastRev(),
+			Stats:      p.Stats,
 		},
 	}
 	p.configurator.Log.SetLevel(logging.DebugLevel)
@@ -131,6 +134,9 @@ func (p *Plugin) Init() error {
 // in order to ensure that the resync for this plugin is triggered only after
 // resync of the Contiv plugin has finished.
 func (p *Plugin) AfterInit() error {
+	p.configurator.AfterInit()
+	p.processor.AfterInit()
+
 	if p.Resync != nil {
 		reg := p.Resync.Register(string(p.PluginName))
 		go p.handleResync(reg.StatusChan())

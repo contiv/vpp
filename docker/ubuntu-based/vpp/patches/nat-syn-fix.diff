@@ -1,0 +1,16 @@
+diff --git a/src/plugins/nat/nat.h b/src/plugins/nat/nat.h
+index 42466d4..b32b2f8 100644
+--- a/src/plugins/nat/nat.h
++++ b/src/plugins/nat/nat.h
+@@ -718,7 +718,9 @@ always_inline int
+ nat44_set_tcp_session_state(snat_main_t * sm, snat_session_t * ses,
+                             tcp_header_t * tcp, u32 thread_index)
+ {
+-  if (tcp->flags & TCP_FLAG_FIN && ses->state == SNAT_SESSION_UNKNOWN)
++  if (tcp->flags & TCP_FLAG_SYN)
++    ses->state = SNAT_SESSION_UNKNOWN;
++  else if (tcp->flags & TCP_FLAG_FIN && ses->state == SNAT_SESSION_UNKNOWN)
+     ses->state = SNAT_SESSION_TCP_FIN_WAIT;
+   else if (tcp->flags & TCP_FLAG_FIN && ses->state == SNAT_SESSION_TCP_FIN_WAIT)
+     ses->state = SNAT_SESSION_TCP_CLOSING;
+

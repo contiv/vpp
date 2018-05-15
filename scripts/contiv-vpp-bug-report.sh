@@ -111,6 +111,15 @@ get_k8s_data() {
     master_kubectl "$@"> "$log"
 }
 
+# We need associative arrays, introduced back in 2009 with bash 4.x.
+if ! declare -A TEST_ARRAY >/dev/null 2>&1
+then
+    echo "Error: Your /bin/bash is too old. This script needs at least bash 4.x." >&2
+    echo "If you have a newer bash installed elsewhere, you can use it manually:" >&2
+    echo "/path/to/new/bash $0" >&2
+    exit 1
+fi
+
 # Using an array allows proper handling of paths with whitespace.
 SSH_OPTS=(-o LogLevel=error -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no)
 HAVE_K8S_CONNECTIVITY=1

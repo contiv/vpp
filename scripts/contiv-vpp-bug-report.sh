@@ -258,7 +258,7 @@ then
     echo "Collecting global Kubernetes data:"
     for CMD_INDEX in "${!K8S_COMMANDS[@]}"
     do
-        # Intentional word split on command, because bash doesn't support arrays of arrays. 
+        # Intentional word split on command, because bash doesn't support arrays of arrays.
         get_k8s_data "$CMD_INDEX" ${K8S_COMMANDS[$CMD_INDEX]}
     done
     echo
@@ -326,7 +326,7 @@ then
 
             for CMD_INDEX in "${!LOCAL_COMMANDS[@]}"
             do
-                # Intentional word split on command, because bash doesn't support arrays of arrays. 
+                # Intentional word split on command, because bash doesn't support arrays of arrays.
                 get_shell_data_ssh "$CMD_INDEX" ${LOCAL_COMMANDS[$CMD_INDEX]} </dev/null
             done
 
@@ -341,7 +341,7 @@ then
         echo "Running local commands for this host only:"
         for CMD_INDEX in "${!LOCAL_COMMANDS[@]}"
         do
-            # Intentional word split on command, because bash doesn't support arrays of arrays. 
+            # Intentional word split on command, because bash doesn't support arrays of arrays.
             get_shell_data_local "$CMD_INDEX" ${LOCAL_COMMANDS[$CMD_INDEX]}
         done
 
@@ -365,7 +365,7 @@ then
     echo "Running local commands for this host only:"
     for CMD_INDEX in "${!LOCAL_COMMANDS[@]}"
     do
-        # Intentional word split on command, because bash doesn't support arrays of arrays. 
+        # Intentional word split on command, because bash doesn't support arrays of arrays.
         get_shell_data_local "$CMD_INDEX" ${LOCAL_COMMANDS[$CMD_INDEX]}
     done
 

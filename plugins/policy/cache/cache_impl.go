@@ -1,8 +1,6 @@
 package cache
 
 import (
-	"strings"
-
 	"github.com/ligato/cn-infra/core"
 	"github.com/ligato/cn-infra/datasync"
 	"github.com/ligato/cn-infra/logging"
@@ -168,53 +166,22 @@ func (pc *PolicyCache) LookupPolicy(policy policymodel.ID) (found bool, data *po
 // LookupPoliciesByPod returns IDs of all policies assigned to a given pod.
 func (pc *PolicyCache) LookupPoliciesByPod(pod podmodel.ID) (policies []policymodel.ID) {
 	policies = []policymodel.ID{}
-	policyMap := make(map[string]*policymodel.Policy)
 	dataPolicies := []*policymodel.Policy{}
 
-	found, podData := pc.configuredPods.LookupPod(pod.String())
-	if !found {
-		return nil
+	allPolicies := pc.ListAllPolicies()
+	for _, policyStrID := range allPolicies {
+		found, policyData := pc.LookupPolicy(policyStrID)
+		if !found {
+			continue
+		}
+		dataPolicies = append(dataPolicies, policyData)
 	}
 
-	podLabels := podData.Label
-
-	for _, podLabel := range podLabels {
-		nsLabel := podData.Namespace + "/" + podLabel.Key + "/" + podLabel.Value
-		policyIDs := pc.configuredPolicies.LookupPolicyByNSLabelSelector(nsLabel)
-
-		// Check if we have policies with empty podSelectors:
-		allPolicies := pc.ListAllPolicies()
-		for _, stringPolicy := range allPolicies {
-			found, policyData := pc.LookupPolicy(stringPolicy)
-			if !found {
-				continue
-			}
-			dataPolicies = append(dataPolicies, policyData)
-		}
-
-		for _, dataPolicy := range dataPolicies {
-			if len(dataPolicy.Pods.MatchLabel) == 0 && len(dataPolicy.Pods.MatchExpression) == 0 {
-				policyIDs = append(policyIDs, dataPolicy.Namespace+"/"+dataPolicy.Name)
-			}
-		}
-
-		for _, policyID := range policyIDs {
-			found, policyData := pc.configuredPolicies.LookupPolicy(policyID)
-			if found {
-				policyMap[policyID] = policyData
-			}
-		}
-	}
-
-	for k, v := range policyMap {
-		podByNS := pc.LookupPodsByNSLabelSelector(v.Namespace, v.Pods)
+	for _, policy := range dataPolicies {
+		podByNS := pc.LookupPodsByNSLabelSelector(policy.Namespace, policy.Pods)
 		for _, podID := range podByNS {
 			if podID == pod {
-				parts := strings.Split(k, "/")
-				policyID := policymodel.ID{
-					Name:      parts[1],
-					Namespace: parts[0],
-				}
+				policyID := policymodel.GetID(policy)
 				policies = append(policies, policyID)
 			}
 		}

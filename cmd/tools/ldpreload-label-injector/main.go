@@ -29,7 +29,7 @@ Usage:
 
 Flags:
   -f [input file | "-" ] Sets tool input. You can choose to set tool input from file or from standard input.
-  -o [output file]       Sets tool output to file. If this parameter is ommited, the tool output is standard (terminal/console) output
+  -o [output file]       Sets tool output to file. If this parameter is omitted, the tool output is standard (terminal/console) output
   -d                     Adds ldpreload debug label to yaml kubernetes files
   -p                     Sets the name of container that should be used as proxy. If not set, proxy is not used.
   -h                     Prints this help
@@ -74,7 +74,7 @@ func main() {
 	}
 }
 
-// readInput reads input based on tool command paramers/flags
+// readInput reads input based on tool command parameters/flags
 func readInput() (content string, err error) {
 	if *inputFile == "" {
 		err = fmt.Errorf("Input is not specified, please use -f parameter.\n" + helpContent)
@@ -93,7 +93,7 @@ func readInput() (content string, err error) {
 	return
 }
 
-// writeOutput writes output based on tool command paramers/flags
+// writeOutput writes output based on tool command parameters/flags
 func writeOutput(content string) error {
 	if *outputFile == "" {
 		fmt.Print(content)

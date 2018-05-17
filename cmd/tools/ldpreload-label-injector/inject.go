@@ -153,7 +153,7 @@ func insertLinesConditioned(document string, path []string, condition conditionF
 	var insertions = make([]insertion, 0)
 	visitInsertionPlaces(newTraversingInfo(document, path,
 		func(i traversingInfo) {
-			if hasMappingInUresolvedPath(i) {
+			if hasMappingInUnresolvedPath(i) {
 				return //if there is empty mapping we don't create mapping items just to add labels to it (i.e. we don't create new container to add label to it)
 			}
 			lines := insertLines
@@ -166,15 +166,15 @@ func insertLinesConditioned(document string, path []string, condition conditionF
 			return
 		}, eol))
 
-	//use collected insertion informations and make real insert
+	//use collected insertion information and make real insert
 	for _, insert := range insertions {
 		document = document[:insert.insertionPoint] + insert.text + document[insert.insertionPoint:]
 	}
 	return document
 }
 
-// hasMappingInUresolvedPath checks whether unresolved path has mapping
-func hasMappingInUresolvedPath(i traversingInfo) bool {
+// hasMappingInUnresolvedPath checks whether unresolved path has mapping
+func hasMappingInUnresolvedPath(i traversingInfo) bool {
 	for _, pathPart := range i.unresolvedPath {
 		if pathPart == minusIndentationCharacter {
 			return true
@@ -226,8 +226,8 @@ func createIndentationedInsertionString(i traversingInfo, eol string, insertLine
 }
 
 // traversingInfo is container for data needed to follow block-defined path in yaml block-oriented document and to
-// fullfill information needs of visitor functions (see visitInsertionPlaces function).
-// Each traversed block has new traversingInfo. Some of the information just passed (static info) and some recomputed (dynamic infor)
+// fulfill information needs of visitor functions (see visitInsertionPlaces function).
+// Each traversed block has new traversingInfo. Some of the information just passed (static info) and some recomputed (dynamic info)
 type traversingInfo struct {
 	// static info that doesn't change by traversing
 	document string               //whole document
@@ -261,7 +261,7 @@ func newTraversingInfo(document string, path []string, visitor func(traversingIn
 	}
 }
 
-// newDescending creates new travesing info that should correspond to child block as this traversing info corresponded to parent block
+// newDescending creates new traversing info that should correspond to child block as this traversing info corresponded to parent block
 func (t *traversingInfo) newDescending(blockStart int, blockEnd int, parentBlockIndentation int) traversingInfo {
 	return traversingInfo{
 		document: t.document,

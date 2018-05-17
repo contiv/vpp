@@ -112,7 +112,7 @@ func (s *remoteCNIserver) nodeResync(dataResyncEv datasync.ResyncEvent) error {
 	return err
 }
 
-// nodeChangePropageteEvent handles change in nodes within the k8s cluster (node add / delete)
+// nodeChangePropagateEvent handles change in nodes within the k8s cluster (node add / delete)
 // and configures vswitch (routes to the other nodes) accordingly.
 func (s *remoteCNIserver) nodeChangePropageteEvent(dataChngEv datasync.ChangeEvent) error {
 

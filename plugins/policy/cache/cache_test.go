@@ -357,7 +357,7 @@ func TestLookupPoliciesByPod(t *testing.T) {
 	gomega.Expect(expectParam).To(gomega.ContainElement(policymodel.GetID(testdata.TestPolicy4)))
 
 	expectParam = pc.LookupPoliciesByPod(testPod3)
-	gomega.Expect(expectParam).To(gomega.BeNil())
+	gomega.Expect(expectParam).To(gomega.BeEmpty())
 }
 
 func TestLookupNamespace(t *testing.T) {

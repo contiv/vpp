@@ -245,9 +245,8 @@ func TestAddDelTap(t *testing.T) {
 
 	// CNI Delete
 	reply, err = server.Delete(context.Background(), &req)
-	// TODO: re-enable checks once TAPs are fully supported by the vpp-agent
-	//gomega.Expect(err).To(gomega.BeNil())
-	//gomega.Expect(reply).NotTo(gomega.BeNil())
+	gomega.Expect(err).To(gomega.BeNil())
+	gomega.Expect(reply).NotTo(gomega.BeNil())
 }
 
 func TestConfigureVswitchVeth(t *testing.T) {

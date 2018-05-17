@@ -447,7 +447,7 @@ func (s *stnServer) findLinkByName(ifName string) (netlink.Link, error) {
 	return nil, nil
 }
 
-// setLinkUp moves provided link to UP state. It also checks whether the state change has been successfull and retries if not.
+// setLinkUp moves provided link to UP state. It also checks whether the state change has been successful and retries if not.
 func (s *stnServer) setLinkUp(link netlink.Link) error {
 	log.Printf("Setting interface %s (idx %d) to UP state", link.Attrs().Name, link.Attrs().Index)
 

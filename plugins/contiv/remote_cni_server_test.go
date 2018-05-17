@@ -245,9 +245,8 @@ func TestAddDelTap(t *testing.T) {
 
 	// CNI Delete
 	reply, err = server.Delete(context.Background(), &req)
-	// TODO: re-enable checks once TAPs are fully supported by the vpp-agent
-	//gomega.Expect(err).To(gomega.BeNil())
-	//gomega.Expect(reply).NotTo(gomega.BeNil())
+	gomega.Expect(err).To(gomega.BeNil())
+	gomega.Expect(reply).NotTo(gomega.BeNil())
 }
 
 func TestConfigureVswitchVeth(t *testing.T) {
@@ -319,7 +318,7 @@ func TestNodeAddDelL2(t *testing.T) {
 	err := server.resync()
 	gomega.Expect(err).To(gomega.BeNil())
 
-	err = server.nodeChangePropageteEvent(&nodeAddDelEvent{evType: datasync.Put})
+	err = server.nodeChangePropagateEvent(&nodeAddDelEvent{evType: datasync.Put})
 	gomega.Expect(err).To(gomega.BeNil())
 
 	// check that the VXLAN interface does not exist
@@ -331,7 +330,7 @@ func TestNodeAddDelL2(t *testing.T) {
 	routes := routesViaInLatestRevs(txns.LatestRevisions, nexthopIP)
 	gomega.Expect(len(routes)).To(gomega.BeEquivalentTo(3))
 
-	err = server.nodeChangePropageteEvent(&nodeAddDelEvent{evType: datasync.Delete})
+	err = server.nodeChangePropagateEvent(&nodeAddDelEvent{evType: datasync.Delete})
 	gomega.Expect(err).To(gomega.BeNil())
 }
 
@@ -345,7 +344,7 @@ func TestNodeAddDelVXLAN(t *testing.T) {
 	err := server.resync()
 	gomega.Expect(err).To(gomega.BeNil())
 
-	err = server.nodeChangePropageteEvent(&nodeAddDelEvent{evType: datasync.Put})
+	err = server.nodeChangePropagateEvent(&nodeAddDelEvent{evType: datasync.Put})
 	gomega.Expect(err).To(gomega.BeNil())
 
 	// check that the VXLAN tunnel config has been properly added
@@ -358,7 +357,7 @@ func TestNodeAddDelVXLAN(t *testing.T) {
 	routes := routesViaInLatestRevs(txns.LatestRevisions, nexthopIP.String())
 	gomega.Expect(len(routes)).To(gomega.BeEquivalentTo(3))
 
-	err = server.nodeChangePropageteEvent(&nodeAddDelEvent{evType: datasync.Delete})
+	err = server.nodeChangePropagateEvent(&nodeAddDelEvent{evType: datasync.Delete})
 	gomega.Expect(err).To(gomega.BeNil())
 }
 
@@ -542,20 +541,30 @@ func (e nodeAddDelEvent) GetChangeType() datasync.PutDel {
 }
 
 func (e nodeAddDelEvent) GetKey() string {
-	return AllocatedIDsKeyPrefix
+	return node.AllocatedIDsKeyPrefix
 }
 
 func (e nodeAddDelEvent) GetValue(value proto.Message) error {
-	v := value.(*node.NodeInfo)
-	v.Id = otherNodeInfo.Id
-	v.Name = otherNodeInfo.Name
-	v.IpAddress = otherNodeInfo.IpAddress
-	v.ManagementIpAddress = otherNodeInfo.ManagementIpAddress
+	if e.evType == datasync.Put {
+		v := value.(*node.NodeInfo)
+		v.Id = otherNodeInfo.Id
+		v.Name = otherNodeInfo.Name
+		v.IpAddress = otherNodeInfo.IpAddress
+		v.ManagementIpAddress = otherNodeInfo.ManagementIpAddress
+	}
 	return nil
 }
 
 func (e nodeAddDelEvent) GetPrevValue(prevValue proto.Message) (prevValueExist bool, err error) {
-	return false, nil
+	if e.evType == datasync.Put {
+		return false, nil
+	}
+	v := prevValue.(*node.NodeInfo)
+	v.Id = otherNodeInfo.Id
+	v.Name = otherNodeInfo.Name
+	v.IpAddress = otherNodeInfo.IpAddress
+	v.ManagementIpAddress = otherNodeInfo.ManagementIpAddress
+	return true, nil
 }
 
 func (e nodeAddDelEvent) GetRevision() int64 {

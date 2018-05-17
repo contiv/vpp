@@ -44,6 +44,7 @@ func TestGetMatchExpressionPods(t *testing.T) {
 	pc.configuredPods.RegisterPod(testdata.Pod2, testdata.PodTwo)
 	pc.configuredPods.RegisterPod(testdata.Pod3, testdata.PodThree)
 	pc.configuredPods.RegisterPod(testdata.Pod4, testdata.PodFour)
+	pc.configuredPods.RegisterPod(testdata.Pod5, testdata.PodFive)
 	pc.configuredNamespaces.RegisterNamespace(testdata.Namespace1, testdata.TestNamespace1)
 	pc.configuredNamespaces.RegisterNamespace(testdata.Namespace2, testdata.TestNamespace2)
 
@@ -86,14 +87,14 @@ func TestGetMatchExpressionPods(t *testing.T) {
 		{
 			Key:      "role",
 			Operator: policymodel.Policy_LabelSelector_LabelExpression_IN,
-			Value:    []string{"db"},
+			Value:    []string{"db", "frontend", "space"},
 		},
 	}
 	testExpression6 := []*policymodel.Policy_LabelSelector_LabelExpression{
 		{
 			Key:      "role",
 			Operator: policymodel.Policy_LabelSelector_LabelExpression_NOT_IN,
-			Value:    []string{"db"},
+			Value:    []string{"db", "frontend", "random"},
 		},
 	}
 
@@ -167,6 +168,27 @@ func TestGetMatchExpressionPods(t *testing.T) {
 		},
 	}
 
+	testExpression12 := []*policymodel.Policy_LabelSelector_LabelExpression{
+		{
+			Key:      "app",
+			Operator: policymodel.Policy_LabelSelector_LabelExpression_NOT_IN,
+			Value:    []string{"datastore"},
+		},
+	}
+
+	testExpression13 := []*policymodel.Policy_LabelSelector_LabelExpression{
+		{
+			Key:      "role",
+			Operator: policymodel.Policy_LabelSelector_LabelExpression_NOT_IN,
+			Value:    []string{"random"},
+		},
+		{
+			Key:      "role",
+			Operator: policymodel.Policy_LabelSelector_LabelExpression_DOES_NOT_EXIST,
+			Value:    nil,
+		},
+	}
+
 	expectParam := pc.getMatchExpressionPods(testNamespace, testExpression0)
 	gomega.Expect(expectParam).To(gomega.BeEmpty())
 
@@ -175,7 +197,7 @@ func TestGetMatchExpressionPods(t *testing.T) {
 	gomega.Expect(expectParam).To(gomega.ContainElement(testdata.Pod2))
 
 	expectParam = pc.getMatchExpressionPods(testNamespace, testExpression2)
-	gomega.Expect(expectParam).To(gomega.BeEmpty())
+	gomega.Expect(expectParam).To(gomega.ContainElement(testdata.Pod5))
 
 	expectParam = pc.getMatchExpressionPods(testNamespace, testExpression3)
 	gomega.Expect(expectParam).To(gomega.BeEmpty())
@@ -189,7 +211,7 @@ func TestGetMatchExpressionPods(t *testing.T) {
 	gomega.Expect(expectParam).To(gomega.ContainElement(testdata.Pod2))
 
 	expectParam = pc.getMatchExpressionPods(testNamespace, testExpression6)
-	gomega.Expect(expectParam).To(gomega.BeEmpty())
+	gomega.Expect(expectParam).To(gomega.ContainElement(testdata.Pod5))
 
 	expectParam = pc.getMatchExpressionPods(testNamespace, testExpression7)
 	gomega.Expect(expectParam).To(gomega.BeEmpty())
@@ -207,5 +229,11 @@ func TestGetMatchExpressionPods(t *testing.T) {
 
 	expectParam = pc.getMatchExpressionPods(testNamespace, testExpression11)
 	gomega.Expect(expectParam).To(gomega.ContainElement(testdata.Pod1))
+
+	expectParam = pc.getMatchExpressionPods(testNamespace, testExpression12)
+	gomega.Expect(expectParam).To(gomega.ContainElement(testdata.Pod2))
+
+	expectParam = pc.getMatchExpressionPods(testNamespace, testExpression13)
+	gomega.Expect(expectParam).To(gomega.ContainElement(testdata.Pod5))
 
 }

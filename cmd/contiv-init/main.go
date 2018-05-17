@@ -117,7 +117,7 @@ func releaseNIC(nicName string, useDHCP bool) error {
 }
 
 // parseSTNConfig parses the config file and looks up for STN configuration.
-// In case that STN was requested for this node, returns the interface to be stealed and optionally its name on VPP.
+// In case that STN was requested for this node, returns the interface to be stolen and optionally its name on VPP.
 func parseSTNConfig() (config *contiv.Config, nicToSteal string, useDHCP bool, err error) {
 
 	// read config YAML
@@ -127,11 +127,11 @@ func parseSTNConfig() (config *contiv.Config, nicToSteal string, useDHCP bool, e
 		return
 	}
 
-	// unmarshall the YAML
+	// unmarshal the YAML
 	config = &contiv.Config{}
 	err = yaml.Unmarshal(yamlFile, config)
 	if err != nil {
-		logger.Errorf("Error by unmarshaling YAML: %v", err)
+		logger.Errorf("Error by unmarshalling YAML: %v", err)
 		return
 	}
 	if config.TAPInterfaceVersion == 0 {
@@ -265,7 +265,7 @@ func main() {
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 	sig := <-sigs
-	logger.Debug("%v signal recieved, exiting", sig)
+	logger.Debugf("%v signal received, exiting", sig)
 
 	// request releasing the NIC
 	if nicToSteal != "" {

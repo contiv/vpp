@@ -43,7 +43,7 @@ func NewConfigIndex(logger logging.Logger, owner core.PluginName, title string) 
 
 // RegisterPod adds new pod entry into the mapping
 func (ci *ConfigIndex) RegisterPod(podID string, data *podmodel.Pod) {
-	// make the convertion here id -> string
+	// make the conversion here id -> string
 	ci.mapping.Put(podID, data)
 }
 

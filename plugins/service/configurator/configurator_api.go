@@ -28,7 +28,7 @@ import (
 // the configuration directly via VPP/NAT plugin binary API:
 //   - translates ContivService into the corresponding NAT configuration
 //   - applies out2in and in2out VPP/NAT's features on interfaces connecting
-//     frontends and backends, respectivelly
+//     frontends and backends, respectively
 //   - for each change, calculates the minimal diff, i.e. the smallest set
 //     of binary API request that need to be executed to get the NAT
 //     configuration in-sync with the state of K8s services

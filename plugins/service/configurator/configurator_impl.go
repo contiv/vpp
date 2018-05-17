@@ -33,7 +33,9 @@ import (
 	"github.com/contiv/vpp/plugins/contiv"
 
 	govpp "git.fd.io/govpp.git/api"
+	"github.com/contiv/vpp/plugins/statscollector"
 	nat_api "github.com/ligato/vpp-agent/plugins/defaultplugins/common/bin_api/nat"
+	"sync/atomic"
 )
 
 // LocalVsRemoteProbRatio tells how much more likely a local backend is to receive
@@ -53,6 +55,14 @@ const (
 	defaultIdleOtherTimeout = 5 * time.Minute // inactive timeout for other NAT sessions
 )
 
+var (
+	tcpNatSessionCount          uint64
+	otherNatSessionCount        uint64
+	deletedTCPNatSessionCount   uint64
+	deletedOtherNatSessionCount uint64
+	natSessionDeleteErrorCount  uint64
+)
+
 // ServiceConfigurator implements ServiceConfiguratorAPI.
 type ServiceConfigurator struct {
 	Deps
@@ -69,7 +79,8 @@ type Deps struct {
 	Contiv        contiv.API         /* for GetNatLoopbackIP, InSTNMode */
 	NATTxnFactory func() (dsl linux.DataChangeDSL)
 	LatestRevs    *syncbase.PrevRevisions
-	GoVPPChan     *govpp.Channel /* used for direct NAT binary API calls */
+	GoVPPChan     *govpp.Channel     /* used for direct NAT binary API calls */
+	Stats         statscollector.API /* used for exporting the statistics */
 }
 
 // Init initializes service configurator.
@@ -77,6 +88,12 @@ func (sc *ServiceConfigurator) Init() error {
 	sc.natGlobalCfg = &nat.Nat44Global{
 		Forwarding: true,
 	}
+	return nil
+}
+
+// AfterInit is called by the plugin infra after init of all plugins is completed.
+func (sc *ServiceConfigurator) AfterInit() error {
+	// run async NAT session cleanup routine
 	go sc.idleNATSessionCleanup()
 	return nil
 }
@@ -530,6 +547,13 @@ func (sc *ServiceConfigurator) idleNATSessionCleanup() {
 
 	sc.Log.Infof("NAT session cleanup enabled, TCP timeout=%v, other timeout=%v.", tcpTimeout, otherTimeout)
 
+	// register gauges
+	sc.Stats.RegisterGaugeFunc("tcpNatSessions", "Total count of TCP NAT sessions", tcpNatSessionsGauge)
+	sc.Stats.RegisterGaugeFunc("otherNatSessions", "Total count of non-TCP NAT sessions", otherNatSessionsGauge)
+	sc.Stats.RegisterGaugeFunc("deletedTCPNatSessions", "Total count of deleted TCP NAT sessions", deletedTCPNatSessionsGauge)
+	sc.Stats.RegisterGaugeFunc("deletedOtherNatSessions", "Total count of deleted non-TCP NAT sessions", deletedOtherNatSessionsGauge)
+	sc.Stats.RegisterGaugeFunc("natSessionDeleteErrors", "Count of errors by NAT session delete", natSessionDeleteErrorsGauge)
+
 	// VPP counts the time from 0 since its start. Let's assume it is now
 	// (it shouldn't be more than few seconds since its start).
 	zeroTime := time.Now()
@@ -541,7 +565,8 @@ func (sc *ServiceConfigurator) idleNATSessionCleanup() {
 
 		natUsers := make([][]byte, 0)
 		delRules := make([]*nat_api.Nat44DelSession, 0)
-		sCount := 0
+		var tcpCount uint64
+		var otherCount uint64
 
 		// dump NAT users
 		req1 := &nat_api.Nat44UserDump{}
@@ -574,41 +599,85 @@ func (sc *ServiceConfigurator) idleNATSessionCleanup() {
 				if err != nil {
 					sc.Log.Errorf("Error by dumping NAT sessions: %v", err)
 				}
-				sCount++
+				if msg.Protocol == 6 {
+					tcpCount++
+				} else {
+					otherCount++
+				}
 
-				if msg.IsClosed == 0 {
-					// non-closed sessions only, closed are handled by VPP
-					lastHeard := zeroTime.Add(time.Duration(msg.LastHeard) * time.Second)
-					if lastHeard.Before(time.Now()) {
-						if (msg.Protocol == 6 && time.Since(lastHeard) > tcpTimeout) ||
-							(msg.Protocol != 6 && time.Since(lastHeard) > otherTimeout) {
+				lastHeard := zeroTime.Add(time.Duration(msg.LastHeard) * time.Second)
+				if lastHeard.Before(time.Now()) {
+					if (msg.Protocol == 6 && time.Since(lastHeard) > tcpTimeout) ||
+						(msg.Protocol != 6 && time.Since(lastHeard) > otherTimeout) {
 
-							// inactive session
-							sc.Log.Debugf("Deleting inactive NAT session (proto %d), last heard %v ago: %v", msg.Protocol, time.Since(lastHeard), msg)
+						// inactive session
+						sc.Log.Debugf("Deleting inactive NAT session (proto %d), last heard %v ago: %v", msg.Protocol, time.Since(lastHeard), msg)
 
-							delRules = append(delRules,
-								&nat_api.Nat44DelSession{
-									IsIn:     1,
-									Address:  msg.InsideIPAddress,
-									Port:     msg.InsidePort,
-									Protocol: uint8(msg.Protocol),
-								},
-							)
+						delRule := &nat_api.Nat44DelSession{
+							IsIn:     1,
+							Address:  msg.InsideIPAddress,
+							Port:     msg.InsidePort,
+							Protocol: uint8(msg.Protocol),
 						}
+						if msg.ExtHostValid > 0 {
+							delRule.ExtHostValid = 1
+
+							if msg.IsTwicenat > 0 {
+								delRule.ExtHostAddress = msg.ExtHostNatAddress
+								delRule.ExtHostPort = msg.ExtHostNatPort
+							} else {
+								delRule.ExtHostAddress = msg.ExtHostAddress
+								delRule.ExtHostPort = msg.ExtHostPort
+							}
+						}
+
+						delRules = append(delRules, delRule)
 					}
 				}
 			}
+
 		}
 
-		sc.Log.Debugf("There are %d NAT sessions, %d will be deleted", sCount, len(delRules))
+		sc.Log.Debugf("There are %d TCP / %d other NAT sessions, %d will be deleted", tcpCount, otherCount, len(delRules))
+		atomic.StoreUint64(&tcpNatSessionCount, tcpCount)
+		atomic.StoreUint64(&otherNatSessionCount, otherCount)
 
 		// delete the old sessions
 		for _, r := range delRules {
 			msg := &nat_api.Nat44DelSessionReply{}
 			err := sc.GoVPPChan.SendRequest(r).ReceiveReply(msg)
 			if err != nil || msg.Retval != 0 {
-				sc.Log.Errorf("Error by deleting NAT session: %v, retval=%d", err, msg.Retval)
+				sc.Log.Errorf("Error by deleting NAT session: %v, retval=%d, req: %v", err, msg.Retval, r)
+				atomic.AddUint64(&natSessionDeleteErrorCount, 1)
+			} else {
+				if r.Protocol == 6 {
+					atomic.AddUint64(&deletedTCPNatSessionCount, 1)
+					atomic.StoreUint64(&tcpNatSessionCount, atomic.LoadUint64(&tcpNatSessionCount)-1)
+				} else {
+					atomic.AddUint64(&deletedOtherNatSessionCount, 1)
+					atomic.StoreUint64(&otherNatSessionCount, atomic.LoadUint64(&otherNatSessionCount)-1)
+				}
 			}
 		}
 	}
+}
+
+func tcpNatSessionsGauge() float64 {
+	return float64(atomic.LoadUint64(&tcpNatSessionCount))
+}
+
+func otherNatSessionsGauge() float64 {
+	return float64(atomic.LoadUint64(&otherNatSessionCount))
+}
+
+func deletedTCPNatSessionsGauge() float64 {
+	return float64(atomic.LoadUint64(&deletedTCPNatSessionCount))
+}
+
+func deletedOtherNatSessionsGauge() float64 {
+	return float64(atomic.LoadUint64(&deletedOtherNatSessionCount))
+}
+
+func natSessionDeleteErrorsGauge() float64 {
+	return float64(atomic.LoadUint64(&natSessionDeleteErrorCount))
 }

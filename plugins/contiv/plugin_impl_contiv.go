@@ -30,6 +30,7 @@ import (
 	"github.com/contiv/vpp/plugins/contiv/containeridx/model"
 	"github.com/contiv/vpp/plugins/contiv/ipam"
 	"github.com/contiv/vpp/plugins/contiv/model/cni"
+	"github.com/contiv/vpp/plugins/contiv/model/node"
 	protoNode "github.com/contiv/vpp/plugins/ksr/model/node"
 	"github.com/contiv/vpp/plugins/kvdbproxy"
 	"github.com/ligato/cn-infra/datasync"
@@ -45,7 +46,7 @@ import (
 	"github.com/ligato/vpp-agent/plugins/govppmux"
 )
 
-// Plugin represents the instance of the Contiv network plugin, that transforms CNI requests recieved over
+// Plugin represents the instance of the Contiv network plugin, that transforms CNI requests received over
 // GRPC into configuration for the vswitch VPP in order to connect/disconnect a container into/from the network.
 type Plugin struct {
 	Deps
@@ -159,7 +160,7 @@ func (plugin *Plugin) Init() error {
 	plugin.resyncCh = make(chan datasync.ResyncEvent)
 	plugin.changeCh = make(chan datasync.ChangeEvent)
 
-	plugin.nodeIDwatchReg, err = plugin.Watcher.Watch("contiv-plugin-ids", plugin.nodeIDSchangeChan, plugin.nodeIDsresyncChan, AllocatedIDsKeyPrefix)
+	plugin.nodeIDwatchReg, err = plugin.Watcher.Watch("contiv-plugin-ids", plugin.nodeIDSchangeChan, plugin.nodeIDsresyncChan, node.AllocatedIDsKeyPrefix)
 	if err != nil {
 		return err
 	}

@@ -109,7 +109,7 @@ type remoteCNIserver struct {
 	// this node's main IP address
 	nodeIP string
 
-	// nodeIPsubsribers is a slice of channels that are notified when nodeIP is changed
+	// nodeIPsubscribers is a slice of channels that are notified when nodeIP is changed
 	nodeIPsubscribers []chan string
 
 	// global config
@@ -178,7 +178,7 @@ type remoteCNIserver struct {
 	configuredInThisRun map[string]bool
 
 	// nodeIDResyncRev is the latest revision in the resync event. Buffered changes generated
-	// before the resync revision are ignore
+	// before the resync revision are ignored
 	nodeIDResyncRev int64
 
 	// nodeIDChangeEvs is buffer where change events are stored until resync event is processed
@@ -557,7 +557,7 @@ func (s *remoteCNIserver) getSTNInterfaceIP(ifName string) (ip string, gw string
 		}
 	}
 	if gw == "" {
-		// no deafult gateway in routes, calculate fake gateway address for route pointing to VPP
+		// no default gateway in routes, calculate fake gateway address for route pointing to VPP
 		_, ipNet, _ := net.ParseCIDR(ip)
 		firstIP, lastIP := cidr.AddressRange(ipNet)
 		if cidr.Inc(firstIP).String() != ip {
@@ -1429,7 +1429,7 @@ func (s *remoteCNIserver) generateCniReply(config *PodConfig, nsName string, pod
 	}
 }
 
-// generateCniEmptyOKReply generates CNI reply with OK result code and ampty body.
+// generateCniEmptyOKReply generates CNI reply with OK result code and empty body.
 func (s *remoteCNIserver) generateCniEmptyOKReply() *cni.CNIReply {
 	return &cni.CNIReply{
 		Result: resultOk,

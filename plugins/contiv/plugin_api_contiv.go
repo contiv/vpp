@@ -32,7 +32,7 @@ type API interface {
 	// GetContainerIndex exposes index of configured containers
 	GetContainerIndex() containeridx.Reader
 
-	// IsTCPstackDisabled returns true if the TCP stack is disabled and only VETHSs/TAPs are configured
+	// IsTCPstackDisabled returns true if the TCP stack is disabled and only VETHs/TAPs are configured
 	IsTCPstackDisabled() bool
 
 	// InSTNMode returns true if Contiv operates in the STN mode (single interface for each node).

@@ -319,7 +319,7 @@ func TestNodeAddDelL2(t *testing.T) {
 	err := server.resync()
 	gomega.Expect(err).To(gomega.BeNil())
 
-	err = server.nodeChangePropageteEvent(&nodeAddDelEvent{evType: datasync.Put})
+	err = server.nodeChangePropagateEvent(&nodeAddDelEvent{evType: datasync.Put})
 	gomega.Expect(err).To(gomega.BeNil())
 
 	// check that the VXLAN interface does not exist
@@ -331,7 +331,7 @@ func TestNodeAddDelL2(t *testing.T) {
 	routes := routesViaInLatestRevs(txns.LatestRevisions, nexthopIP)
 	gomega.Expect(len(routes)).To(gomega.BeEquivalentTo(3))
 
-	err = server.nodeChangePropageteEvent(&nodeAddDelEvent{evType: datasync.Delete})
+	err = server.nodeChangePropagateEvent(&nodeAddDelEvent{evType: datasync.Delete})
 	gomega.Expect(err).To(gomega.BeNil())
 }
 
@@ -345,7 +345,7 @@ func TestNodeAddDelVXLAN(t *testing.T) {
 	err := server.resync()
 	gomega.Expect(err).To(gomega.BeNil())
 
-	err = server.nodeChangePropageteEvent(&nodeAddDelEvent{evType: datasync.Put})
+	err = server.nodeChangePropagateEvent(&nodeAddDelEvent{evType: datasync.Put})
 	gomega.Expect(err).To(gomega.BeNil())
 
 	// check that the VXLAN tunnel config has been properly added
@@ -358,7 +358,7 @@ func TestNodeAddDelVXLAN(t *testing.T) {
 	routes := routesViaInLatestRevs(txns.LatestRevisions, nexthopIP.String())
 	gomega.Expect(len(routes)).To(gomega.BeEquivalentTo(3))
 
-	err = server.nodeChangePropageteEvent(&nodeAddDelEvent{evType: datasync.Delete})
+	err = server.nodeChangePropagateEvent(&nodeAddDelEvent{evType: datasync.Delete})
 	gomega.Expect(err).To(gomega.BeNil())
 }
 

@@ -19,13 +19,14 @@ import (
 	"github.com/contiv/vpp/plugins/contiv/containeridx"
 	"github.com/ligato/cn-infra/flavors/local"
 	"github.com/ligato/cn-infra/idxmap"
-	"github.com/onsi/gomega"
-	"net"
-
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/interfaces"
+	"github.com/onsi/gomega"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
+	"github.com/contiv/vpp/mock/contiv"
+	"github.com/contiv/vpp/plugins/contiv/containeridx/model"
+	"github.com/contiv/vpp/plugins/ksr/model/pod"
 	"testing"
 )
 
@@ -40,19 +41,10 @@ type mockPrometheus struct {
 	registerError    error
 }
 
-type nameAndNamespace struct {
-	name      string
-	namespace string
-}
-
-type mockContiv struct {
-	pods map[string]nameAndNamespace
-}
-
 type CollectorTestVars struct {
 	plugin *Plugin
 	pmts   *mockPrometheus
-	cntv   *mockContiv
+	cntv   *contiv.MockContiv
 }
 
 var testVars = CollectorTestVars{
@@ -61,9 +53,7 @@ var testVars = CollectorTestVars{
 		newRegistryError: nil,
 		registerError:    nil,
 	},
-	cntv: &mockContiv{
-		pods: make(map[string]nameAndNamespace),
-	},
+	cntv: contiv.NewMockContiv(),
 }
 
 // TestStatsCollector tests the Statistics collector
@@ -100,7 +90,7 @@ func TestStatsCollector(t *testing.T) {
 	err = testVars.plugin.Init()
 	gomega.Expect(err).To(gomega.BeNil())
 
-	testVars.cntv.pods[testIfPodName] = nameAndNamespace{"test-pod", "test-namespace"}
+	testVars.cntv.SetPodIfName(pod.ID{"test-pod", "test-namespace"}, testIfPodName)
 
 	t.Run("testPutWithWrongArgumentType", testPutWithWrongArgumentType)
 	t.Run("testPutNewPodEntry", testPutNewPodEntry)
@@ -225,7 +215,7 @@ func testDeletePodEntry(t *testing.T) {
 		NamedMappingEvent: idxmap.NamedMappingEvent{
 			Del: false,
 		},
-		Value: &containeridx.Config{
+		Value: &container.Persisted{
 			PodName:      "bogusPodName",
 			PodNamespace: "bogusPodNamespace",
 		},
@@ -243,12 +233,12 @@ func testDeletePodEntry(t *testing.T) {
 	gomega.Expect(len(testVars.plugin.ifStats)).To(gomega.Equal(2))
 
 	// Test Delete event where delete succeeds, but invalid Pod name
-	evt.Value.PodName = testVars.cntv.pods[testIfPodName].name
+	_, evt.Value.PodName, _ = testVars.cntv.GetPodByIf(testIfPodName)
 	testVars.plugin.processPodEvent(evt)
 	gomega.Expect(len(testVars.plugin.ifStats)).To(gomega.Equal(2))
 
 	// Test Delete event where delete succeeds, but invalid Pod name
-	evt.Value.PodNamespace = testVars.cntv.pods[testIfPodName].namespace
+	evt.Value.PodNamespace, _, _ = testVars.cntv.GetPodByIf(testIfPodName)
 	testVars.plugin.processPodEvent(evt)
 	gomega.Expect(len(testVars.plugin.ifStats)).To(gomega.Equal(1))
 }
@@ -339,65 +329,4 @@ func (mp *mockPrometheus) injectNewRegistryFuncError(err error) {
 
 func (mp *mockPrometheus) injectRegisterFuncError(err error) {
 	mp.registerError = err
-}
-
-// GetIfName looks up logical interface name that corresponds to the interface
-// associated with the given pod.
-func (mc *mockContiv) GetIfName(podNamespace string, podName string) (name string, exists bool) {
-	return "", false
-}
-
-// GetNsIndex returns the index of the VPP session namespace associated
-// with the given pod.
-func (mc *mockContiv) GetNsIndex(podNamespace string, podName string) (nsIndex uint32, exists bool) {
-	return 0, false
-}
-
-func (mc *mockContiv) GetPodByIf(ifname string) (podNamespace string, podName string, exists bool) {
-	pod, found := mc.pods[ifname]
-	if found {
-		return pod.namespace, pod.name, true
-	}
-
-	return "", "", false
-}
-
-// GetPodNetwork provides subnet used for allocating pod IP addresses on this host node.
-func (mc *mockContiv) GetPodNetwork() *net.IPNet {
-	return nil
-}
-
-// GetContainerIndex exposes index of configured containers
-func (mc *mockContiv) GetContainerIndex() containeridx.Reader {
-	return nil
-}
-
-// IsTCPstackDisabled returns true if the TCP stack is disabled and only
-// VETHSs/TAPs are configured
-func (mc *mockContiv) IsTCPstackDisabled() bool {
-	return false
-}
-
-// GetNodeIP returns the IP address of this node.
-func (mc *mockContiv) GetNodeIP() net.IP {
-	return nil
-}
-
-// GetPhysicalIfNames returns a slice of names of all configured physical
-// interfaces.
-func (mc *mockContiv) GetPhysicalIfNames() []string {
-	return nil
-}
-
-// GetHostInterconnectIfName returns the name of the TAP/AF_PACKET interface
-// interconnecting VPP with the host stack.
-func (mc *mockContiv) GetHostInterconnectIfName() string {
-	return ""
-}
-
-// GetVxlanBVIIfName returns the name of an BVI interface facing towards VXLAN
-// tunnels to other hosts. Returns an empty string if VXLAN is not used (in L2
-// interconnect mode).
-func (mc *mockContiv) GetVxlanBVIIfName() string {
-	return ""
 }

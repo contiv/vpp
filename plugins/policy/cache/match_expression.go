@@ -40,29 +40,40 @@ func (pc *PolicyCache) getMatchExpressionPods(namespace string, expressions []*p
 	for _, expression := range expressions {
 		switch expression.Operator {
 		case in:
+			podSet := []string{}
 			labels := utils.ConstructLabels(expression.Key, expression.Value)
-			podSet := pc.getPodsByNSLabelSelector(namespace, labels)
-			if len(podSet) == 0 {
+			for _, label := range labels {
+				nsLabelSelector := namespace + "/" + label.Key + "/" + label.Value
+				podSet = append(podSet, pc.configuredPods.LookupPodsByNSLabelSelector(nsLabelSelector)...)
+			}
+			podSet = utils.RemoveDuplicates(podSet)
+			// Add all the pods the first time we get an "in" Pod set
+			if len(inPodSet) == 0 {
+				inPodSet = append(inPodSet, podSet...)
+			}
+			// Common pods for different expressions (values are AND'ed)
+			inPodSet = utils.Intersect(inPodSet, podSet)
+			if len(inPodSet) == 0 {
 				return []string{}
 			}
 
-			inPodSet = append(inPodSet, podSet...)
-
 		case notIn:
 			labels := utils.ConstructLabels(expression.Key, expression.Value)
-			podSet := pc.getPodsByNSLabelSelector(namespace, labels)
-			if len(podSet) == 0 {
-				podNamespaceAll := pc.configuredPods.LookupPodsByNamespace(namespace)
-				if len(podNamespaceAll) == 0 {
-					return []string{}
-				}
-				notInPodSet = append(notInPodSet, podNamespaceAll...)
-				break
+			podSet := []string{}
+			for _, label := range labels {
+				nsLabelSelector := namespace + "/" + label.Key + "/" + label.Value
+				podSet = append(podSet, pc.configuredPods.LookupPodsByNSLabelSelector(nsLabelSelector)...)
 			}
+			podSet = utils.RemoveDuplicates(podSet)
 
 			podNamespaceAll := pc.configuredPods.LookupPodsByNamespace(namespace)
-			pods := utils.Difference(podNamespaceAll, podSet)
-			notInPodSet = append(notInPodSet, pods...)
+			podSet = utils.Difference(podNamespaceAll, podSet)
+			// Add all the pods the first time we get an "in" Pod set
+			if len(notInPodSet) == 0 {
+				notInPodSet = append(notInPodSet, podSet...)
+			}
+			// Common pods for different expressions (values are AND'ed)
+			notInPodSet = utils.Intersect(notInPodSet, podSet)
 			if len(notInPodSet) == 0 {
 				return []string{}
 			}
@@ -72,28 +83,31 @@ func (pc *PolicyCache) getMatchExpressionPods(namespace string, expressions []*p
 			if len(podSet) == 0 {
 				return []string{}
 			}
-
-			existsPodSet = append(existsPodSet, podSet...)
-
-		case doesNotExist:
-			podSet := pc.configuredPods.LookupPodsByNSKey(namespace + "/" + expression.Key)
-			if len(podSet) == 0 {
-				podNamespaceAll := pc.configuredPods.LookupPodsByNamespace(namespace)
-				if len(podNamespaceAll) == 0 {
-					return []string{}
-				}
-
-				notExistPodSet = append(notExistPodSet, podNamespaceAll...)
-				break
+			// Add all the pods the first time we get an "in" Pod set
+			if len(existsPodSet) == 0 {
+				existsPodSet = append(existsPodSet, podSet...)
 			}
-
-			podNamespaceAll := pc.configuredPods.LookupPodsByNamespace(namespace)
-			pods := utils.Difference(podNamespaceAll, podSet)
-			notExistPodSet = append(notExistPodSet, pods...)
-			if len(notExistPodSet) == 0 {
+			// Common pods for different expressions (values are AND'ed)
+			existsPodSet = utils.Intersect(existsPodSet, podSet)
+			if len(existsPodSet) == 0 {
 				return []string{}
 			}
 
+		case doesNotExist:
+			podSet := pc.configuredPods.LookupPodsByNSKey(namespace + "/" + expression.Key)
+
+			podNamespaceAll := pc.configuredPods.LookupPodsByNamespace(namespace)
+			podSet = utils.Difference(podNamespaceAll, podSet)
+
+			// Add all the pods the first time we get an "in" Pod set
+			if len(notExistPodSet) == 0 {
+				notExistPodSet = append(notExistPodSet, podSet...)
+			}
+			// Common pods for different expressions (values are AND'ed)
+			notExistPodSet = utils.Intersect(notExistPodSet, podSet)
+			if len(notExistPodSet) == 0 {
+				return []string{}
+			}
 		}
 	}
 
@@ -109,6 +123,7 @@ func (pc *PolicyCache) getMatchExpressionPods(namespace string, expressions []*p
 	if len(notExistPodSet) != 0 {
 		finalSet = append(finalSet, notExistPodSet)
 	}
+
 	switch len(finalSet) {
 	case 1:
 		return finalSet[0]

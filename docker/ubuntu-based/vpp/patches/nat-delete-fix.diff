@@ -1,8 +1,16 @@
 diff --git a/src/plugins/nat/in2out.c b/src/plugins/nat/in2out.c
-index 6e2bb7b..37145cf 100755
+index 6e2bb7b..b3b7c17 100755
 --- a/src/plugins/nat/in2out.c
 +++ b/src/plugins/nat/in2out.c
-@@ -531,7 +531,7 @@ nat_not_translate_output_feature_fwd (snat_main_t * sm, ip4_header_t * ip,
+@@ -494,6 +494,7 @@ nat_not_translate_output_feature_fwd (snat_main_t * sm, ip4_header_t * ip,
+   udp_header_t *udp;
+   snat_session_t *s = 0;
+   snat_main_per_thread_data_t *tsm = &sm->per_thread_data[thread_index];
++  f64 now = vlib_time_now (sm->vlib_main);
+ 
+   if (!sm->forwarding_enabled)
+     return 0;
+@@ -531,13 +532,16 @@ nat_not_translate_output_feature_fwd (snat_main_t * sm, ip4_header_t * ip,
            if (ip->protocol == IP_PROTOCOL_TCP)
              {
                tcp_header_t *tcp = ip4_next_header(ip);
@@ -11,7 +19,16 @@ index 6e2bb7b..37145cf 100755
                  return 1;
              }
            /* Per-user LRU list maintenance */
-@@ -1370,7 +1370,7 @@ snat_in2out_lb (snat_main_t *sm,
+           clib_dlist_remove (tsm->list_pool, s->per_user_index);
+           clib_dlist_addtail (tsm->list_pool, s->per_user_list_head_index,
+                               s->per_user_index);
++          /* Accounting */
++          s->last_heard = now;
++          s->total_pkts++;
+           return 1;
+         }
+       else
+@@ -1370,7 +1374,7 @@ snat_in2out_lb (snat_main_t *sm,
          {
            if (ip->protocol == IP_PROTOCOL_TCP)
              {
@@ -20,7 +37,7 @@ index 6e2bb7b..37145cf 100755
                  return 0;
              }
            /* Per-user LRU list maintenance */
-@@ -1468,7 +1468,7 @@ snat_in2out_lb (snat_main_t *sm,
+@@ -1468,7 +1472,7 @@ snat_in2out_lb (snat_main_t *sm,
            ip->dst_address.as_u32 = s->ext_host_addr.as_u32;
          }
        tcp->checksum = ip_csum_fold(sum);
@@ -29,7 +46,7 @@ index 6e2bb7b..37145cf 100755
          return s;
      }
    else
-@@ -1725,8 +1725,6 @@ snat_in2out_node_fn_inline (vlib_main_t * vm,
+@@ -1725,8 +1729,6 @@ snat_in2out_node_fn_inline (vlib_main_t * vm,
                                       ip4_header_t /* cheat */,
                                       length /* changed member */);
                tcp0->checksum = ip_csum_fold(sum0);
@@ -38,7 +55,7 @@ index 6e2bb7b..37145cf 100755
              }
            else
              {
-@@ -1919,8 +1917,6 @@ snat_in2out_node_fn_inline (vlib_main_t * vm,
+@@ -1919,8 +1921,6 @@ snat_in2out_node_fn_inline (vlib_main_t * vm,
                                       ip4_header_t /* cheat */,
                                       length /* changed member */);
                tcp1->checksum = ip_csum_fold(sum1);
@@ -47,7 +64,7 @@ index 6e2bb7b..37145cf 100755
              }
            else
              {
-@@ -2150,8 +2146,6 @@ snat_in2out_node_fn_inline (vlib_main_t * vm,
+@@ -2150,8 +2150,6 @@ snat_in2out_node_fn_inline (vlib_main_t * vm,
                                       ip4_header_t /* cheat */,
                                       length /* changed member */);
                tcp0->checksum = ip_csum_fold(sum0);
@@ -56,7 +73,7 @@ index 6e2bb7b..37145cf 100755
              }
            else
              {
-@@ -2668,10 +2662,6 @@ nat44_in2out_reass_node_fn (vlib_main_t * vm,
+@@ -2668,10 +2666,6 @@ nat44_in2out_reass_node_fn (vlib_main_t * vm,
                                   src_address /* changed member */);
            ip0->checksum = ip_csum_fold (sum0);
  
@@ -67,7 +84,7 @@ index 6e2bb7b..37145cf 100755
            if (PREDICT_FALSE (ip4_is_first_fragment (ip0)))
              {
                if (PREDICT_TRUE(proto0 == SNAT_PROTOCOL_TCP))
-@@ -2688,8 +2678,6 @@ nat44_in2out_reass_node_fn (vlib_main_t * vm,
+@@ -2688,8 +2682,6 @@ nat44_in2out_reass_node_fn (vlib_main_t * vm,
                                           ip4_header_t /* cheat */,
                                           length /* changed member */);
                    tcp0->checksum = ip_csum_fold(sum0);
@@ -76,7 +93,7 @@ index 6e2bb7b..37145cf 100755
                  }
                else
                  {
-@@ -2699,6 +2687,10 @@ nat44_in2out_reass_node_fn (vlib_main_t * vm,
+@@ -2699,6 +2691,10 @@ nat44_in2out_reass_node_fn (vlib_main_t * vm,
                  }
              }
  
@@ -672,10 +689,18 @@ index 598c640..42b994d 100644
  }
  
 diff --git a/src/plugins/nat/out2in.c b/src/plugins/nat/out2in.c
-index 1842726..c5f4071 100755
+index 1842726..971d261 100755
 --- a/src/plugins/nat/out2in.c
 +++ b/src/plugins/nat/out2in.c
-@@ -410,7 +410,7 @@ create_bypass_for_fwd(snat_main_t * sm, ip4_header_t * ip, u32 rx_fib_index,
+@@ -342,6 +342,7 @@ create_bypass_for_fwd(snat_main_t * sm, ip4_header_t * ip, u32 rx_fib_index,
+   snat_user_t *u;
+   snat_session_t *s = 0;
+   snat_main_per_thread_data_t *tsm = &sm->per_thread_data[thread_index];
++  f64 now = vlib_time_now (sm->vlib_main);
+ 
+   if (ip->protocol == IP_PROTOCOL_ICMP)
+     {
+@@ -410,13 +411,16 @@ create_bypass_for_fwd(snat_main_t * sm, ip4_header_t * ip, u32 rx_fib_index,
    if (ip->protocol == IP_PROTOCOL_TCP)
      {
        tcp_header_t *tcp = ip4_next_header(ip);
@@ -684,7 +709,16 @@ index 1842726..c5f4071 100755
          return;
      }
    /* Per-user LRU list maintenance */
-@@ -1066,7 +1066,7 @@ snat_out2in_lb (snat_main_t *sm,
+   clib_dlist_remove (tsm->list_pool, s->per_user_index);
+   clib_dlist_addtail (tsm->list_pool, s->per_user_list_head_index,
+                       s->per_user_index);
++  /* Accounting */
++  s->last_heard = now;
++  s->total_pkts++;
+ }
+ 
+ /**
+@@ -1066,7 +1070,7 @@ snat_out2in_lb (snat_main_t *sm,
            ip->src_address.as_u32 = s->ext_host_nat_addr.as_u32;
          }
        tcp->checksum = ip_csum_fold(sum);
@@ -693,7 +727,7 @@ index 1842726..c5f4071 100755
          return s;
      }
    else
-@@ -1302,8 +1302,6 @@ snat_out2in_node_fn (vlib_main_t * vm,
+@@ -1302,8 +1306,6 @@ snat_out2in_node_fn (vlib_main_t * vm,
                                       ip4_header_t /* cheat */,
                                       length /* changed member */);
                tcp0->checksum = ip_csum_fold(sum0);
@@ -702,7 +736,7 @@ index 1842726..c5f4071 100755
              }
            else
              {
-@@ -1476,8 +1474,6 @@ snat_out2in_node_fn (vlib_main_t * vm,
+@@ -1476,8 +1478,6 @@ snat_out2in_node_fn (vlib_main_t * vm,
                                       ip4_header_t /* cheat */,
                                       length /* changed member */);
                tcp1->checksum = ip_csum_fold(sum1);
@@ -711,7 +745,7 @@ index 1842726..c5f4071 100755
              }
            else
              {
-@@ -1686,8 +1682,6 @@ snat_out2in_node_fn (vlib_main_t * vm,
+@@ -1686,8 +1686,6 @@ snat_out2in_node_fn (vlib_main_t * vm,
                                       ip4_header_t /* cheat */,
                                       length /* changed member */);
                tcp0->checksum = ip_csum_fold(sum0);
@@ -720,7 +754,7 @@ index 1842726..c5f4071 100755
              }
            else
              {
-@@ -1949,8 +1943,6 @@ nat44_out2in_reass_node_fn (vlib_main_t * vm,
+@@ -1949,8 +1947,6 @@ nat44_out2in_reass_node_fn (vlib_main_t * vm,
                                           ip4_header_t /* cheat */,
                                           length /* changed member */);
                    tcp0->checksum = ip_csum_fold(sum0);

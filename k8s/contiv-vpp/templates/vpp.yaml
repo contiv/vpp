@@ -128,18 +128,14 @@ spec:
         # Marks this pod as a critical add-on.
         scheduler.alpha.kubernetes.io/critical-pod: ''
     spec:
-      # Allow this pod to be rescheduled while the node is in "critical add-ons only" mode.
       tolerations:
-      - key: node-role.kubernetes.io/master
-        effect: NoSchedule
+      # We need this to schedule on the master no matter what else is going on, so tolerate everything.
+      - key: ''
+        operator: Exists
+        effect: ''
+      # This likely isn't needed due to the above wildcard, but keep it in for now.
       - key: CriticalAddonsOnly
         operator: Exists
-      - key: node.kubernetes.io/not-ready
-        operator: Exists
-        effect: NoExecute
-      - key: node.kubernetes.io/unreachable
-        operator: Exists
-        effect: NoExecute
       # Only run this pod on the master.
       nodeSelector:
         node-role.kubernetes.io/master: ""

@@ -85,7 +85,7 @@ func (msr *MockSessionRules) NewVPPChan() *govppapi.Channel {
 	return channel
 }
 
-// GetErrCount returns the number of errors that have occured so far.
+// GetErrCount returns the number of errors that have occurred so far.
 func (msr *MockSessionRules) GetErrCount() int {
 	return msr.errCount
 }

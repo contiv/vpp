@@ -799,7 +799,7 @@ func (s *remoteCNIserver) configureVswitchVxlanBridgeDomain(config *vswitchConfi
 	return nil
 }
 
-// persistVswitchConfig persits vswitch configuration in ETCD
+// persistVswitchConfig persists vswitch configuration in ETCD
 func (s *remoteCNIserver) persistVswitchConfig(config *vswitchConfig) error {
 	if config.configured {
 		s.Logger.Info("Persisting of vswitch configuration is skipped")

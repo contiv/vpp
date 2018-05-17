@@ -41,7 +41,7 @@ func (s *remoteCNIserver) handleNodeEvents(ctx context.Context, resyncChan chan 
 			resyncEv.Done(nil)
 
 		case changeEv := <-changeChan:
-			err := s.nodeChangePropageteEvent(changeEv)
+			err := s.nodeChangePropagateEvent(changeEv)
 			changeEv.Done(err)
 
 		case <-ctx.Done():
@@ -114,7 +114,7 @@ func (s *remoteCNIserver) nodeResync(dataResyncEv datasync.ResyncEvent) error {
 
 // nodeChangePropagateEvent handles change in nodes within the k8s cluster (node add / delete)
 // and configures vswitch (routes to the other nodes) accordingly.
-func (s *remoteCNIserver) nodeChangePropageteEvent(dataChngEv datasync.ChangeEvent) error {
+func (s *remoteCNIserver) nodeChangePropagateEvent(dataChngEv datasync.ChangeEvent) error {
 
 	// do not handle other nodes until the base vswitch config is successfully applied
 	s.Lock()

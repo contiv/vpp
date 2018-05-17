@@ -19,15 +19,15 @@ import (
 	"github.com/contiv/vpp/plugins/contiv/containeridx"
 	"github.com/ligato/cn-infra/flavors/local"
 	"github.com/ligato/cn-infra/idxmap"
-	"github.com/onsi/gomega"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/interfaces"
+	"github.com/onsi/gomega"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
-	"testing"
-	"github.com/contiv/vpp/plugins/contiv/containeridx/model"
 	"github.com/contiv/vpp/mock/contiv"
+	"github.com/contiv/vpp/plugins/contiv/containeridx/model"
 	"github.com/contiv/vpp/plugins/ksr/model/pod"
+	"testing"
 )
 
 const (
@@ -90,7 +90,7 @@ func TestStatsCollector(t *testing.T) {
 	err = testVars.plugin.Init()
 	gomega.Expect(err).To(gomega.BeNil())
 
-	testVars.cntv.SetPodIfName(pod.ID{"test-pod", "test-namespace"},testIfPodName)
+	testVars.cntv.SetPodIfName(pod.ID{"test-pod", "test-namespace"}, testIfPodName)
 
 	t.Run("testPutWithWrongArgumentType", testPutWithWrongArgumentType)
 	t.Run("testPutNewPodEntry", testPutNewPodEntry)
@@ -233,12 +233,12 @@ func testDeletePodEntry(t *testing.T) {
 	gomega.Expect(len(testVars.plugin.ifStats)).To(gomega.Equal(2))
 
 	// Test Delete event where delete succeeds, but invalid Pod name
-	_,evt.Value.PodName, _ = testVars.cntv.GetPodByIf(testIfPodName)
+	_, evt.Value.PodName, _ = testVars.cntv.GetPodByIf(testIfPodName)
 	testVars.plugin.processPodEvent(evt)
 	gomega.Expect(len(testVars.plugin.ifStats)).To(gomega.Equal(2))
 
 	// Test Delete event where delete succeeds, but invalid Pod name
-	evt.Value.PodNamespace,_,_ = testVars.cntv.GetPodByIf(testIfPodName)
+	evt.Value.PodNamespace, _, _ = testVars.cntv.GetPodByIf(testIfPodName)
 	testVars.plugin.processPodEvent(evt)
 	gomega.Expect(len(testVars.plugin.ifStats)).To(gomega.Equal(1))
 }

@@ -330,12 +330,12 @@ func TestResyncAndSingleService(t *testing.T) {
 			{
 				IP:          net.ParseIP(pod1IP),
 				Port:        8080,
-				Probability: 2,
+				Probability: uint8(svc_configurator.LocalVsRemoteProbRatio),
 			},
 			{
 				IP:          net.ParseIP(pod2IP),
 				Port:        8080,
-				Probability: 2,
+				Probability: uint8(svc_configurator.LocalVsRemoteProbRatio),
 			},
 		},
 	}
@@ -728,12 +728,12 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 			{
 				IP:          net.ParseIP(pod1IP),
 				Port:        8080,
-				Probability: 2,
+				Probability: uint8(svc_configurator.LocalVsRemoteProbRatio),
 			},
 			{
 				IP:          net.ParseIP(pod2IP),
 				Port:        8080,
-				Probability: 2,
+				Probability: uint8(svc_configurator.LocalVsRemoteProbRatio),
 			},
 		},
 	}
@@ -745,12 +745,12 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 			{
 				IP:          net.ParseIP(pod1IP),
 				Port:        8443,
-				Probability: 2,
+				Probability: uint8(svc_configurator.LocalVsRemoteProbRatio),
 			},
 			{
 				IP:          net.ParseIP(pod2IP),
 				Port:        8443,
-				Probability: 2,
+				Probability: uint8(svc_configurator.LocalVsRemoteProbRatio),
 			},
 		},
 	}
@@ -772,7 +772,7 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 			{
 				IP:          net.ParseIP(pod1IP),
 				Port:        10053,
-				Probability: 2,
+				Probability: uint8(svc_configurator.LocalVsRemoteProbRatio),
 			},
 			{
 				IP:          net.ParseIP(pod3IP),
@@ -789,7 +789,7 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 			{
 				IP:          net.ParseIP(pod1IP),
 				Port:        10053,
-				Probability: 2,
+				Probability: uint8(svc_configurator.LocalVsRemoteProbRatio),
 			},
 			{
 				IP:          net.ParseIP(pod3IP),
@@ -846,12 +846,12 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 			{
 				IP:          net.ParseIP(pod1IP),
 				Port:        8443,
-				Probability: 2,
+				Probability: uint8(svc_configurator.LocalVsRemoteProbRatio),
 			},
 			{
 				IP:          net.ParseIP(pod2IP),
 				Port:        8443,
-				Probability: 2,
+				Probability: uint8(svc_configurator.LocalVsRemoteProbRatio),
 			},
 		},
 	}
@@ -863,12 +863,12 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 			{
 				IP:          net.ParseIP(pod1IP),
 				Port:        8443,
-				Probability: 2,
+				Probability: uint8(svc_configurator.LocalVsRemoteProbRatio),
 			},
 			{
 				IP:          net.ParseIP(pod2IP),
 				Port:        8443,
-				Probability: 2,
+				Probability: uint8(svc_configurator.LocalVsRemoteProbRatio),
 			},
 		},
 	}
@@ -1501,12 +1501,12 @@ func TestServiceUpdates(t *testing.T) {
 			{
 				IP:          net.ParseIP(pod1IP),
 				Port:        8080,
-				Probability: 2,
+				Probability: uint8(svc_configurator.LocalVsRemoteProbRatio),
 			},
 			{
 				IP:          net.ParseIP(pod2IP),
 				Port:        8080,
-				Probability: 2,
+				Probability: uint8(svc_configurator.LocalVsRemoteProbRatio),
 			},
 			{
 				IP:          net.ParseIP(pod3IP),
@@ -1621,7 +1621,7 @@ func TestServiceUpdates(t *testing.T) {
 			{
 				IP:          net.ParseIP(pod1IP),
 				Port:        8080,
-				Probability: 2,
+				Probability: uint8(svc_configurator.LocalVsRemoteProbRatio),
 			},
 			{
 				IP:          net.ParseIP(pod3IP),
@@ -1688,7 +1688,7 @@ func TestServiceUpdates(t *testing.T) {
 			{
 				IP:          net.ParseIP(pod1IP),
 				Port:        8443,
-				Probability: 2,
+				Probability: uint8(svc_configurator.LocalVsRemoteProbRatio),
 			},
 			{
 				IP:          net.ParseIP(pod3IP),

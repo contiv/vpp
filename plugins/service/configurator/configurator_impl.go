@@ -38,7 +38,7 @@ import (
 
 // LocalVsRemoteProbRatio tells how much more likely a local backend is to receive
 // traffic as opposed to a remote backend.
-const LocalVsRemoteProbRatio uint32 = 2
+const LocalVsRemoteProbRatio uint32 = 1
 
 const (
 	// Label for DNAT with identities; used to exclude VXLAN port and main interface IP

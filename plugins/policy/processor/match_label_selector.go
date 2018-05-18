@@ -38,7 +38,7 @@ func (pp *PolicyProcessor) isPodLabelSelectorMatch(
 	policyNamespace string) bool {
 
 	if len(matchPodLabels) > 0 && len(matchPodExpressions) > 0 {
-		if !pp.isPodLabelMatch(pod, matchPodLabels, policyNamespace) &&
+		if !pp.isPodLabelMatch(pod, matchPodLabels, policyNamespace) ||
 			!pp.isPodExpressionMatch(pod, matchPodExpressions, policyNamespace) {
 			return false
 		}
@@ -65,25 +65,17 @@ func (pp *PolicyProcessor) isPodLabelSelectorMatch(
 func (pp *PolicyProcessor) isPodLabelMatch(pod *podmodel.Pod,
 	matchPodLabels []*policymodel.Policy_Label, policyNamespace string) bool {
 
-	namespace := pod.Namespace
+	podNamespace := pod.Namespace
 	podLabels := pod.Label
 	labelExists := make(map[string]bool)
+	labelPrefix := podNamespace + "/"
 
 	for _, podLabel := range podLabels {
-		label := namespace + "/" + podLabel.Key + "/" + podLabel.Value
-		labelExists[label] = true
+		keyLabel := labelPrefix + podLabel.Key + "/" + podLabel.Value
+		labelExists[keyLabel] = true
 	}
 
-	isMatch := true
-	for _, matchPodLabel := range matchPodLabels {
-		label := policyNamespace + "/" + matchPodLabel.Key + "/" + matchPodLabel.Value
-		if labelExists[label] != true {
-			isMatch = false
-			break
-		}
-	}
-
-	return isMatch
+	return isMatchLabel(matchPodLabels, labelExists, labelPrefix)
 }
 
 // isPodExpressionMatch finds if pod labels match a collection of pod selector expressions.
@@ -98,41 +90,9 @@ func (pp *PolicyProcessor) isPodExpressionMatch(pod *podmodel.Pod,
 		podMapKey := podNamespace + "/" + podLabel.Key
 		podMap[podMapKey] = podLabel.Value
 	}
+	expressionKeyPrefix := podNamespace + "/"
 
-	for _, matchPodExpression := range matchPodExpressions {
-		switch matchPodExpression.Operator {
-		case in:
-			labels := utils.ConstructLabels(matchPodExpression.Key, matchPodExpression.Value)
-			for _, label := range labels {
-				if podMap[label.Key] == label.Value {
-					break
-				}
-			}
-			return false
-
-		case notIn:
-			labels := utils.ConstructLabels(matchPodExpression.Key, matchPodExpression.Value)
-			for _, label := range labels {
-				if podMap[label.Key] == label.Value {
-					return false
-				}
-			}
-
-		case exists:
-			expressionKey := policyNamespace + "/" + matchPodExpression.Key
-			if podMap[expressionKey] != "" {
-				return true
-			}
-
-		case doesNotExist:
-			expressionKey := policyNamespace + "/" + matchPodExpression.Key
-			if podMap[expressionKey] == "" {
-				return false
-			}
-		}
-	}
-
-	return true
+	return isMatchExpression(matchPodExpressions, podMap, expressionKeyPrefix)
 }
 
 // isNsLabelSelectorMatch finds if namespace LabelSelector matches Pod's namespace labels.
@@ -142,7 +102,7 @@ func (pp *PolicyProcessor) isNsLabelSelectorMatch(
 	matchNsExpressions []*policymodel.Policy_LabelSelector_LabelExpression) bool {
 
 	if len(matchNsLabels) > 0 && len(matchNsExpressions) > 0 {
-		if !pp.isNsLabelMatch(pod, matchNsLabels) &&
+		if !pp.isNsLabelMatch(pod, matchNsLabels) ||
 			!pp.isNsExpressionMatch(pod, matchNsExpressions) {
 			return false
 		}
@@ -178,17 +138,9 @@ func (pp *PolicyProcessor) isNsLabelMatch(pod *podmodel.Pod,
 		label := nsLabel.Key + "/" + nsLabel.Value
 		labelExists[label] = true
 	}
+	labelPrefix := ""
 
-	isMatch := true
-	for _, matchNsLabel := range matchNsLabels {
-		label := matchNsLabel.Key + "/" + matchNsLabel.Value
-		if labelExists[label] != true {
-			isMatch = false
-			break
-		}
-	}
-
-	return isMatch
+	return isMatchLabel(matchNsLabels, labelExists, labelPrefix)
 }
 
 // isNsExpressionMatch finds if pod's namespace labels match a collection of namespace selector expressions.
@@ -203,40 +155,9 @@ func (pp *PolicyProcessor) isNsExpressionMatch(pod *podmodel.Pod,
 	for _, nsLabel := range nsLabels {
 		nsMap[nsLabel.Key] = nsLabel.Value
 	}
+	expressionKeyPrefix := ""
+	return isMatchExpression(matchNsExpressions, nsMap, expressionKeyPrefix)
 
-	for _, matchNsExpression := range matchNsExpressions {
-		switch matchNsExpression.Operator {
-		case in:
-			labels := utils.ConstructLabels(matchNsExpression.Key, matchNsExpression.Value)
-			for _, label := range labels {
-				if nsMap[label.Key] == label.Value {
-					break
-				}
-			}
-			return false
-
-		case notIn:
-			labels := utils.ConstructLabels(matchNsExpression.Key, matchNsExpression.Value)
-			for _, label := range labels {
-				if nsMap[label.Key] == label.Value {
-					return false
-				}
-			}
-
-		case exists:
-			expressionKey := matchNsExpression.Key
-			if nsMap[expressionKey] != "" {
-				return true
-			}
-
-		case doesNotExist:
-			expressionKey := matchNsExpression.Key
-			if nsMap[expressionKey] == "" {
-				return false
-			}
-		}
-	}
-	return true
 }
 
 // isNsUpdateLabelSelectorMatch finds if pod's namespace labels match a collection of namespace selector labels,
@@ -247,7 +168,7 @@ func (pp *PolicyProcessor) isNsUpdateLabelSelectorMatch(
 	matchNsUpdateExpressions []*policymodel.Policy_LabelSelector_LabelExpression) bool {
 
 	if len(matchNsUpdateLabels) > 0 && len(matchNsUpdateExpressions) > 0 {
-		if !pp.isNsUpdateLabelMatch(ns, matchNsUpdateLabels) &&
+		if !pp.isNsUpdateLabelMatch(ns, matchNsUpdateLabels) ||
 			!pp.isNsUpdateExpressionMatch(ns, matchNsUpdateExpressions) {
 			return false
 		}
@@ -283,17 +204,9 @@ func (pp *PolicyProcessor) isNsUpdateLabelMatch(ns *nsmodel.Namespace,
 		label := nsLabel.Key + "/" + nsLabel.Value
 		labelExists[label] = true
 	}
+	labelPrefix := ""
+	return isMatchLabel(matchNsUpdateLabels, labelExists, labelPrefix)
 
-	isMatch := true
-	for _, matchNsLabel := range matchNsUpdateLabels {
-		label := matchNsLabel.Key + "/" + matchNsLabel.Value
-		if labelExists[label] != true {
-			isMatch = false
-			break
-		}
-	}
-
-	return isMatch
 }
 
 // isNsUpdateExpressionMatch finds if pod's namespace labels match a collection of namespace selector expressions,
@@ -308,38 +221,72 @@ func (pp *PolicyProcessor) isNsUpdateExpressionMatch(ns *nsmodel.Namespace,
 	for _, nsLabel := range nsLabels {
 		nsMap[nsLabel.Key] = nsLabel.Value
 	}
+	expressionKeyPrefix := ""
+	return isMatchExpression(matchNsUpdateExpressions, nsMap, expressionKeyPrefix)
 
-	for _, matchNsUpdateExpression := range matchNsUpdateExpressions {
-		switch matchNsUpdateExpression.Operator {
+}
+
+func isMatchLabel(matchLabels []*policymodel.Policy_Label, labelExists map[string]bool, matchLabelPrefix string) bool {
+
+	isMatch := true
+	for _, matchLabel := range matchLabels {
+		label := matchLabelPrefix + matchLabel.Key + "/" + matchLabel.Value
+		if labelExists[label] != true {
+			isMatch = false
+			break
+		}
+	}
+
+	return isMatch
+}
+
+func isMatchExpression(matchExpressions []*policymodel.Policy_LabelSelector_LabelExpression,
+	keyMap map[string]string, expressionKeyPrefix string) bool {
+
+	isMatch := false
+	for _, matchExpression := range matchExpressions {
+		switch matchExpression.Operator {
 		case in:
-			labels := utils.ConstructLabels(matchNsUpdateExpression.Key, matchNsUpdateExpression.Value)
+			labels := utils.ConstructLabels(matchExpression.Key, matchExpression.Value)
 			for _, label := range labels {
-				if nsMap[label.Key] == label.Value {
+				if keyMap[label.Key] == label.Value {
+					isMatch = true
 					break
+				} else {
+					isMatch = false
 				}
 			}
-			return false
+			if !isMatch {
+				return false
+			}
 
 		case notIn:
-			labels := utils.ConstructLabels(matchNsUpdateExpression.Key, matchNsUpdateExpression.Value)
+			labels := utils.ConstructLabels(matchExpression.Key, matchExpression.Value)
 			for _, label := range labels {
-				if nsMap[label.Key] == label.Value {
+				if keyMap[label.Key] == label.Value {
 					return false
+				} else {
+					isMatch = true
 				}
 			}
 
 		case exists:
-			expressionKey := matchNsUpdateExpression.Key
-			if nsMap[expressionKey] != "" {
-				return true
+			expressionKey := expressionKeyPrefix + matchExpression.Key
+			if keyMap[expressionKey] != "" {
+				isMatch = true
+			} else {
+				return false
 			}
 
 		case doesNotExist:
-			expressionKey := matchNsUpdateExpression.Key
-			if nsMap[expressionKey] == "" {
+			expressionKey := expressionKeyPrefix + matchExpression.Key
+			if keyMap[expressionKey] == "" {
 				return false
+			} else {
+				isMatch = true
 			}
 		}
 	}
-	return true
+
+	return isMatch
 }

@@ -100,42 +100,42 @@ func TestLookupPodsByNSLabelSelector(t *testing.T) {
 	pc.configuredPods.RegisterPod(testdata.Pod5, testdata.PodFive)
 	pc.configuredPods.RegisterPod(testdata.Pod6, testdata.PodSix)
 
-	expectParam := pc.LookupPodsByNSLabelSelector(testdata.Namespace1, testdata.CombinationLabel0)
+	expectParam := pc.LookupPodsByLabelSelectorInsideNs(testdata.Namespace1, testdata.CombinationLabel0)
 	gomega.Expect(expectParam).To(gomega.ContainElement(podmodel.GetID(testdata.PodOne)))
 	gomega.Expect(expectParam).To(gomega.ContainElement(podmodel.GetID(testdata.PodTwo)))
 	gomega.Expect(expectParam).To(gomega.ContainElement(podmodel.GetID(testdata.PodFive)))
 	gomega.Expect(expectParam).To(gomega.ContainElement(podmodel.GetID(testdata.PodSix)))
 
-	expectParam = pc.LookupPodsByNSLabelSelector(testdata.Namespace1, testdata.CombinationLabel1)
+	expectParam = pc.LookupPodsByLabelSelectorInsideNs(testdata.Namespace1, testdata.CombinationLabel1)
 	gomega.Expect(expectParam).To(gomega.ContainElement(podmodel.GetID(testdata.PodOne)))
 	gomega.Expect(expectParam).To(gomega.ContainElement(podmodel.GetID(testdata.PodTwo)))
 
-	expectParam = pc.LookupPodsByNSLabelSelector(testdata.Namespace2, testdata.CombinationLabel2)
+	expectParam = pc.LookupPodsByLabelSelectorInsideNs(testdata.Namespace2, testdata.CombinationLabel2)
 	gomega.Expect(expectParam).To(gomega.ContainElement(podmodel.GetID(testdata.PodThree)))
 
-	expectParam = pc.LookupPodsByNSLabelSelector(testdata.Namespace2, testdata.CombinationLabel3)
+	expectParam = pc.LookupPodsByLabelSelectorInsideNs(testdata.Namespace2, testdata.CombinationLabel3)
 	gomega.Expect(expectParam).To(gomega.ContainElement(podmodel.GetID(testdata.PodThree)))
 
-	expectParam = pc.LookupPodsByNSLabelSelector(testdata.Namespace2, testdata.CombinationLabel4)
+	expectParam = pc.LookupPodsByLabelSelectorInsideNs(testdata.Namespace2, testdata.CombinationLabel4)
 	gomega.Expect(expectParam).To(gomega.ContainElement(podmodel.GetID(testdata.PodThree)))
 
-	expectParam = pc.LookupPodsByNSLabelSelector(testdata.Namespace1, testdata.CombinationLabel5)
+	expectParam = pc.LookupPodsByLabelSelectorInsideNs(testdata.Namespace1, testdata.CombinationLabel5)
 	gomega.Expect(expectParam).To(gomega.ContainElement(podmodel.GetID(testdata.PodOne)))
 	gomega.Expect(expectParam).To(gomega.ContainElement(podmodel.GetID(testdata.PodTwo)))
 	gomega.Expect(expectParam).To(gomega.ContainElement(podmodel.GetID(testdata.PodFive)))
 	gomega.Expect(expectParam).To(gomega.ContainElement(podmodel.GetID(testdata.PodSix)))
 
-	expectParam = pc.LookupPodsByNSLabelSelector(testdata.Namespace2, testdata.CombinationLabel6)
+	expectParam = pc.LookupPodsByLabelSelectorInsideNs(testdata.Namespace2, testdata.CombinationLabel6)
 	gomega.Expect(expectParam).To(gomega.ContainElement(podmodel.GetID(testdata.PodFour)))
 
-	expectParam = pc.LookupPodsByNSLabelSelector(testdata.Namespace1, testdata.CombinationLabel7)
+	expectParam = pc.LookupPodsByLabelSelectorInsideNs(testdata.Namespace1, testdata.CombinationLabel7)
 	gomega.Expect(expectParam).To(gomega.BeEmpty())
 
-	expectParam = pc.LookupPodsByNSLabelSelector(testdata.Namespace1, testdata.CombinationLabel12)
+	expectParam = pc.LookupPodsByLabelSelectorInsideNs(testdata.Namespace1, testdata.CombinationLabel12)
 	gomega.Expect(expectParam).To(gomega.ContainElement(podmodel.GetID(testdata.PodFive)))
 	gomega.Expect(expectParam).To(gomega.ContainElement(podmodel.GetID(testdata.PodSix)))
 
-	expectParam = pc.LookupPodsByNSLabelSelector(testdata.Namespace1, testdata.CombinationLabel13)
+	expectParam = pc.LookupPodsByLabelSelectorInsideNs(testdata.Namespace1, testdata.CombinationLabel13)
 	gomega.Expect(expectParam).To(gomega.ContainElement(podmodel.GetID(testdata.PodFive)))
 	gomega.Expect(expectParam).To(gomega.ContainElement(podmodel.GetID(testdata.PodSix)))
 }
@@ -166,7 +166,7 @@ func TestLookupPodsByLabelSelector(t *testing.T) {
 	pc.configuredNamespaces.RegisterNamespace(testdata.Namespace1, testdata.TestNamespace1)
 	pc.configuredNamespaces.RegisterNamespace(testdata.Namespace2, testdata.TestNamespace2)
 
-	expectParam := pc.LookupPodsByLabelSelector(testdata.CombinationLabel0)
+	expectParam := pc.LookupPodsByNsLabelSelector(testdata.CombinationLabel0)
 	gomega.Expect(expectParam).To(gomega.ContainElement(podmodel.GetID(testdata.PodOne)))
 	gomega.Expect(expectParam).To(gomega.ContainElement(podmodel.GetID(testdata.PodTwo)))
 	gomega.Expect(expectParam).To(gomega.ContainElement(podmodel.GetID(testdata.PodThree)))
@@ -174,11 +174,11 @@ func TestLookupPodsByLabelSelector(t *testing.T) {
 	gomega.Expect(expectParam).To(gomega.ContainElement(podmodel.GetID(testdata.PodFive)))
 	gomega.Expect(expectParam).To(gomega.ContainElement(podmodel.GetID(testdata.PodSix)))
 
-	expectParam = pc.LookupPodsByLabelSelector(testdata.CombinationLabel8)
+	expectParam = pc.LookupPodsByNsLabelSelector(testdata.CombinationLabel8)
 	gomega.Expect(expectParam).To(gomega.ContainElement(podmodel.GetID(testdata.PodThree)))
 	gomega.Expect(expectParam).To(gomega.ContainElement(podmodel.GetID(testdata.PodFour)))
 
-	expectParam = pc.LookupPodsByLabelSelector(testdata.CombinationLabel9)
+	expectParam = pc.LookupPodsByNsLabelSelector(testdata.CombinationLabel9)
 	gomega.Expect(expectParam).To(gomega.BeEmpty())
 }
 
@@ -394,39 +394,6 @@ func TestLookupNamespace(t *testing.T) {
 	expectParam1, expectParam2 = pc.LookupNamespace(ns3)
 	gomega.Expect(expectParam1).To(gomega.BeFalse())
 	gomega.Expect(expectParam2).To(gomega.BeNil())
-}
-
-func TestLookupNamespacesByLabelSelector(t *testing.T) {
-	gomega.RegisterTestingT(t)
-
-	logger := logrus.DefaultLogger()
-	logger.SetLevel(logging.DebugLevel)
-	logger.Debug("TestLookupNamespacesByLabelSelector")
-
-	// Create an instance of PolicyCache
-	pc := &PolicyCache{
-		Deps: Deps{
-			Log: logger,
-		},
-	}
-
-	pc.Init()
-
-	pc.configuredNamespaces.RegisterNamespace(testdata.Namespace1, testdata.TestNamespace1)
-	pc.configuredNamespaces.RegisterNamespace(testdata.Namespace2, testdata.TestNamespace2)
-
-	nsLabelSelector1 := "role/random"
-	nsLabelSelector2 := "app/test1"
-	nsLabelSelector3 := "app/test2"
-
-	expectParam := pc.LookupNamespacesByLabelSelector(nsLabelSelector1)
-	gomega.Expect(expectParam).To(gomega.BeEmpty())
-
-	expectParam = pc.LookupNamespacesByLabelSelector(nsLabelSelector2)
-	gomega.Expect(expectParam).To(gomega.ContainElement(namespace.GetID(testdata.TestNamespace2)))
-
-	expectParam = pc.LookupNamespacesByLabelSelector(nsLabelSelector3)
-	gomega.Expect(expectParam).To(gomega.ContainElement(namespace.GetID(testdata.TestNamespace2)))
 }
 
 func TestListAllNamespaces(t *testing.T) {

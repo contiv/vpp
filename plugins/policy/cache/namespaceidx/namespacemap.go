@@ -20,9 +20,13 @@ import (
 	"github.com/ligato/cn-infra/idxmap"
 	"github.com/ligato/cn-infra/idxmap/mem"
 	"github.com/ligato/cn-infra/logging"
+	"github.com/contiv/vpp/plugins/policy/utils"
 )
 
-const namespaceLabelSelectorKey = "namespaceLabelSelectorKey"
+const (
+	namespaceLabelSelectorKey = "namespaceLabelSelectorKey"
+	namespaceKeySelectorKey = "namespaceKeySelectorKey"
+	)
 
 // ConfigIndex implements a cache for configured Namespaces. Primary index is PolicyName.
 type ConfigIndex struct {
@@ -66,6 +70,11 @@ func (ci *ConfigIndex) LookupNamespacesByLabelSelector(namespaceLabelSelector st
 	return ci.mapping.ListNames(namespaceLabelSelectorKey, namespaceLabelSelector)
 }
 
+// LookupNamespacesByKey performs lookup based on secondary index podNamespace/podLabelKey.
+func (ci *ConfigIndex) LookupNamespacesByKey(namespaceKeySelector string) (namespaceIDs []string) {
+	return ci.mapping.ListNames(namespaceKeySelectorKey, namespaceKeySelector)
+}
+
 // ListAll returns all registered namespaces in the mapping.
 func (ci *ConfigIndex) ListAll() (namespaceIDs []string) {
 	return ci.mapping.ListAllNames()
@@ -75,14 +84,17 @@ func (ci *ConfigIndex) ListAll() (namespaceIDs []string) {
 func IndexFunction(data interface{}) map[string][]string {
 	res := map[string][]string{}
 	labels := []string{}
+	keys := []string{}
 
 	if config, ok := data.(*namespacemodel.Namespace); ok && config != nil {
 		for _, v := range config.Label {
 			namespaceSelector := v.Key + "/" + v.Value
 			labels = append(labels, namespaceSelector)
+			keys = append(keys, v.Key)
 		}
-
+		keys = utils.RemoveDuplicates(keys)
 		res[namespaceLabelSelectorKey] = labels
+		res[namespaceKeySelectorKey] = keys
 	}
 	return res
 }

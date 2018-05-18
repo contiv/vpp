@@ -22,7 +22,7 @@ import (
 )
 
 // getPodsByNSLabelSelector returns the pods that match a collection of Label Selectors in the same namespace
-func (pc *PolicyCache) getPodsByNSLabelSelector(namespace string, labels []*policymodel.Policy_Label) []string {
+func (pc *PolicyCache) getMatchLabelPodsInsideNs(namespace string, labels []*policymodel.Policy_Label) []string {
 	// Check if we have empty labels
 	if len(labels) == 0 {
 		return []string{}
@@ -44,8 +44,8 @@ func (pc *PolicyCache) getPodsByNSLabelSelector(namespace string, labels []*poli
 	return current
 }
 
-// getPodsByLabelSelector returns the pods that match a collection of Label Selectors
-func (pc *PolicyCache) getPodsByLabelSelector(labels []*policymodel.Policy_Label) []string {
+// getPodsByLabelSelector returns the pods that match a collection of Namespace (cluster scoped-labels) Label Selectors
+func (pc *PolicyCache) getPodsByNsLabelSelector(labels []*policymodel.Policy_Label) []string {
 	// Check if we have empty labels
 	if len(labels) == 0 {
 		return []string{}

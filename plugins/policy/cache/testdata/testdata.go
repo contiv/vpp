@@ -23,6 +23,7 @@ import (
 const (
 	namespace1 = "ns1"
 	namespace2 = "ns2"
+	namespace3 = "ns3"
 )
 
 var (
@@ -46,11 +47,13 @@ var (
 	NamespaceIDs = []string{
 		namespace1,
 		namespace2,
+		namespace3,
 	}
 
 	// aliases
 	Namespace1 = NamespaceIDs[0]
 	Namespace2 = NamespaceIDs[1]
+	Namespace3 = NamespaceIDs[2]
 
 	PolicyIDs = []string{
 		namespace1 + "/deny-all-traffic",
@@ -148,7 +151,7 @@ var TestNamespace1 = &nsmodel.Namespace{
 }
 
 var TestNamespace2 = &nsmodel.Namespace{
-	Name: "ns2",
+	Name: namespace2,
 	Label: []*nsmodel.Namespace_Label{
 		{
 			Key:   "app",
@@ -172,7 +175,7 @@ var TestNamespace1b = &nsmodel.Namespace{
 }
 
 var TestNamespace2b = &nsmodel.Namespace{
-	Name: "ns2",
+	Name: namespace2,
 	Label: []*nsmodel.Namespace_Label{
 		{
 			Key:   "app",
@@ -180,6 +183,30 @@ var TestNamespace2b = &nsmodel.Namespace{
 		},
 		{
 			Key:   "app",
+			Value: "test3",
+		},
+	},
+}
+
+var TestNamespace3 = &nsmodel.Namespace{
+	Name: namespace1,
+	Label: []*nsmodel.Namespace_Label{
+		{
+			Key:   "role",
+			Value: "db",
+		},
+	},
+}
+
+var TestNamespace4 = &nsmodel.Namespace{
+	Name: namespace3,
+	Label: []*nsmodel.Namespace_Label{
+		{
+			Key:   "random",
+			Value: "test1",
+		},
+		{
+			Key:   "random2",
 			Value: "test3",
 		},
 	},

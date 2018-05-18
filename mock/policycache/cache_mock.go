@@ -57,12 +57,12 @@ func (mpc *MockPolicyCache) LookupPod(pod podmodel.ID) (found bool, data *podmod
 }
 
 // LookupPodsByNSLabelSelector is not implemented by the mock.
-func (mpc *MockPolicyCache) LookupPodsByNSLabelSelector(namespace string, podLabelSelector *policymodel.Policy_LabelSelector) (pods []podmodel.ID) {
+func (mpc *MockPolicyCache) LookupPodsByLabelSelectorInsideNs(namespace string, podLabelSelector *policymodel.Policy_LabelSelector) (pods []podmodel.ID) {
 	return nil
 }
 
-// LookupPodsByLabelSelector is not implemented by the mock.
-func (mpc *MockPolicyCache) LookupPodsByLabelSelector(podLabelSelector *policymodel.Policy_LabelSelector) (pods []podmodel.ID) {
+// LookupPodsByNsLabelSelector is not implemented by the mock.
+func (mpc *MockPolicyCache) LookupPodsByNsLabelSelector(podLabelSelector *policymodel.Policy_LabelSelector) (pods []podmodel.ID) {
 	return nil
 }
 
@@ -94,11 +94,6 @@ func (mpc *MockPolicyCache) ListAllPolicies() (policies []policymodel.ID) {
 // LookupNamespace is not implemented by the mock.
 func (mpc *MockPolicyCache) LookupNamespace(namespace nsmodel.ID) (found bool, data *nsmodel.Namespace) {
 	return false, data
-}
-
-// LookupNamespacesByLabelSelector is not implemented by the mock.
-func (mpc *MockPolicyCache) LookupNamespacesByLabelSelector(nsLabelSelector string) (namespaces []nsmodel.ID) {
-	return nil
 }
 
 // ListAllNamespaces is not implemented by the mock.

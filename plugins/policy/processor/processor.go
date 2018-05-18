@@ -162,7 +162,7 @@ func (pp *PolicyProcessor) AddPod(podID podmodel.ID, pod *podmodel.Pod) error {
 
 	// For every matched policy, find all the pods that have the policy attached.
 	pods := []podmodel.ID{}
-	podPolicies := pp.getPoliciesAssignedToPod(pod)
+	podPolicies := pp.getPoliciesReferencingPod(pod)
 	for _, policy := range podPolicies {
 		pods = append(pods, pp.getPodsAssignedToPolicy(policy)...)
 	}
@@ -182,7 +182,7 @@ func (pp *PolicyProcessor) DelPod(podID podmodel.ID, pod *podmodel.Pod) error {
 
 	// For every matched policy (before removal), find all the pods that have the policy attached.
 	pods := []podmodel.ID{}
-	podPolicies := pp.getPoliciesAssignedToPod(pod)
+	podPolicies := pp.getPoliciesReferencingPod(pod)
 	for _, policy := range podPolicies {
 		pods = append(pods, pp.getPodsAssignedToPolicy(policy)...)
 	}
@@ -225,13 +225,13 @@ func (pp *PolicyProcessor) UpdatePod(podID podmodel.ID, oldPod, newPod *podmodel
 	// For every matched policy (before and now), find all the pods that have the policy attached.
 	pods := []podmodel.ID{}
 	if oldPod.IpAddress != "" {
-		oldPolicies := pp.getPoliciesAssignedToPod(oldPod)
+		oldPolicies := pp.getPoliciesReferencingPod(oldPod)
 		for _, policy := range oldPolicies {
 			pods = append(pods, pp.getPodsAssignedToPolicy(policy)...)
 		}
 	}
 	if newPod.IpAddress != "" {
-		newPolicies := pp.getPoliciesAssignedToPod(newPod)
+		newPolicies := pp.getPoliciesReferencingPod(newPod)
 		for _, policy := range newPolicies {
 			pods = append(pods, pp.getPodsAssignedToPolicy(policy)...)
 		}
@@ -337,11 +337,11 @@ func (pp *PolicyProcessor) UpdateNamespace(oldNs, newNs *nsmodel.Namespace) erro
 		return nil
 	}
 	// For every matched policy (before and now), find all the pods that have the policy attached.
-	oldPolicies := pp.getPoliciesAssignedToNamespace(oldNs)
+	oldPolicies := pp.getPoliciesReferencingNamespace(oldNs)
 	for _, policy := range oldPolicies {
 		pods = append(pods, pp.getPodsAssignedToPolicy(policy)...)
 	}
-	newPolicies := pp.getPoliciesAssignedToNamespace(newNs)
+	newPolicies := pp.getPoliciesReferencingNamespace(newNs)
 	for _, policy := range newPolicies {
 		pods = append(pods, pp.getPodsAssignedToPolicy(policy)...)
 	}
@@ -386,12 +386,12 @@ func (pp *PolicyProcessor) filterHostPods(pods []podmodel.ID) []podmodel.ID {
 func (pp *PolicyProcessor) getPodsAssignedToPolicy(policy *policymodel.Policy) (pods []podmodel.ID) {
 	namespace := policy.Namespace
 	policyLabelSelectors := policy.Pods
-	pods = pp.Cache.LookupPodsByNSLabelSelector(namespace, policyLabelSelectors)
+	pods = pp.Cache.LookupPodsByLabelSelectorInsideNs(namespace, policyLabelSelectors)
 	return pods
 }
 
 // getPoliciesAssignedToPod returns all policies currently assigned to a given pod.
-func (pp *PolicyProcessor) getPoliciesAssignedToPod(pod *podmodel.Pod) (policies map[policymodel.ID]*policymodel.Policy) {
+func (pp *PolicyProcessor) getPoliciesReferencingPod(pod *podmodel.Pod) (policies map[policymodel.ID]*policymodel.Policy) {
 	policies = make(map[policymodel.ID]*policymodel.Policy)
 
 	// Fetch data of all policies from the cache.
@@ -416,22 +416,23 @@ func (pp *PolicyProcessor) getPoliciesAssignedToPod(pod *podmodel.Pod) (policies
 		} else {
 			for _, ingressRules := range dataPolicy.IngressRule {
 				for _, ingressRule := range ingressRules.From {
-					matchLabels := []*policymodel.Policy_Label{}
-					matchExpressions := []*policymodel.Policy_LabelSelector_LabelExpression{}
+					matchPodSelectorLabels := []*policymodel.Policy_Label{}
+					matchPodSelectorExpressions := []*policymodel.Policy_LabelSelector_LabelExpression{}
+					matchNsSelectorLabels := []*policymodel.Policy_Label{}
+					matchNsSelectorExpressions := []*policymodel.Policy_LabelSelector_LabelExpression{}
 
 					if ingressRule.Pods != nil {
-						matchLabels = ingressRule.Pods.MatchLabel
-						matchExpressions = ingressRule.Pods.MatchExpression
+						matchPodSelectorLabels = ingressRule.Pods.MatchLabel
+						matchPodSelectorExpressions = ingressRule.Pods.MatchExpression
 					}
-					isMatchPodSelector := pp.calculateLabelSelectorMatches(pod, matchLabels, matchExpressions, dataPolicy.Namespace)
 
 					if ingressRule.Namespaces != nil {
-						matchLabels = ingressRule.Namespaces.MatchLabel
-						matchExpressions = ingressRule.Namespaces.MatchExpression
+						matchNsSelectorLabels = ingressRule.Namespaces.MatchLabel
+						matchNsSelectorExpressions = ingressRule.Namespaces.MatchExpression
 					}
 
-					isMatchNamespaceSelector := pp.isNamespaceMatchLabel(pod, matchLabels)
-					if !isMatchPodSelector && !isMatchNamespaceSelector {
+					if !pp.isPodLabelSelectorMatch(pod, matchPodSelectorLabels, matchPodSelectorExpressions, dataPolicy.Namespace) &&
+						!pp.isNsLabelSelectorMatch(pod, matchNsSelectorLabels, matchNsSelectorExpressions) {
 						continue
 					}
 
@@ -446,22 +447,23 @@ func (pp *PolicyProcessor) getPoliciesAssignedToPod(pod *podmodel.Pod) (policies
 		} else {
 			for _, egressRules := range dataPolicy.EgressRule {
 				for _, egressRule := range egressRules.To {
-					matchLabels := []*policymodel.Policy_Label{}
-					matchExpressions := []*policymodel.Policy_LabelSelector_LabelExpression{}
+					matchPodSelectorLabels := []*policymodel.Policy_Label{}
+					matchPodSelectorExpressions := []*policymodel.Policy_LabelSelector_LabelExpression{}
+					matchNsSelectorLabels := []*policymodel.Policy_Label{}
+					matchNsSelectorExpressions := []*policymodel.Policy_LabelSelector_LabelExpression{}
 
 					if egressRule.Pods != nil {
-						matchLabels = egressRule.Pods.MatchLabel
-						matchExpressions = egressRule.Pods.MatchExpression
+						matchPodSelectorLabels = egressRule.Pods.MatchLabel
+						matchPodSelectorExpressions = egressRule.Pods.MatchExpression
 					}
-					isMatchPodSelector := pp.calculateLabelSelectorMatches(pod, matchLabels, matchExpressions, dataPolicy.Namespace)
 
 					if egressRule.Namespaces != nil {
-						matchLabels = egressRule.Namespaces.MatchLabel
-						matchExpressions = egressRule.Namespaces.MatchExpression
+						matchNsSelectorLabels = egressRule.Namespaces.MatchLabel
+						matchNsSelectorExpressions = egressRule.Namespaces.MatchExpression
 					}
-					isMatchNamespaceSelector := pp.isNamespaceMatchLabel(pod, matchLabels)
 
-					if !isMatchPodSelector && !isMatchNamespaceSelector {
+					if !pp.isPodLabelSelectorMatch(pod, matchPodSelectorLabels, matchPodSelectorExpressions, dataPolicy.Namespace) &&
+						!pp.isNsLabelSelectorMatch(pod, matchNsSelectorLabels, matchNsSelectorExpressions) {
 						continue
 					}
 
@@ -474,14 +476,8 @@ func (pp *PolicyProcessor) getPoliciesAssignedToPod(pod *podmodel.Pod) (policies
 }
 
 // getPoliciesAssignedToNamespace returns all policies currently assigned to a namespace.
-func (pp *PolicyProcessor) getPoliciesAssignedToNamespace(ns *nsmodel.Namespace) (policies map[policymodel.ID]*policymodel.Policy) {
+func (pp *PolicyProcessor) getPoliciesReferencingNamespace(ns *nsmodel.Namespace) (policies map[policymodel.ID]*policymodel.Policy) {
 	policies = make(map[policymodel.ID]*policymodel.Policy)
-	labelsMap := make(map[string]string)
-
-	nsLabels := ns.Label
-	for _, nsLabel := range nsLabels {
-		labelsMap[nsLabel.Key] = nsLabel.Value
-	}
 
 	// Fetch data of all policies from the cache.
 	allPolicies := pp.Cache.ListAllPolicies()
@@ -503,17 +499,18 @@ func (pp *PolicyProcessor) getPoliciesAssignedToNamespace(ns *nsmodel.Namespace)
 		} else {
 			for _, ingressRules := range dataPolicy.IngressRule {
 				for _, ingressRule := range ingressRules.From {
-					matchLabels := []*policymodel.Policy_Label{}
+					matchNsSelectorLabels := []*policymodel.Policy_Label{}
+					matchNsSelectorExpressions := []*policymodel.Policy_LabelSelector_LabelExpression{}
 
 					if ingressRule.Namespaces != nil {
-						matchLabels = ingressRule.Namespaces.MatchLabel
-						for _, label := range matchLabels {
-							if labelsMap[label.Key] != label.Value {
-								break
-							}
-							policies[dataPolicyID] = dataPolicy
-						}
+						matchNsSelectorLabels = ingressRule.Namespaces.MatchLabel
+						matchNsSelectorExpressions = ingressRule.Namespaces.MatchExpression
 					}
+
+					if !pp.isNsUpdateLabelSelectorMatch(ns, matchNsSelectorLabels, matchNsSelectorExpressions) {
+						continue
+					}
+					policies[dataPolicyID] = dataPolicy
 				}
 			}
 		}
@@ -523,17 +520,18 @@ func (pp *PolicyProcessor) getPoliciesAssignedToNamespace(ns *nsmodel.Namespace)
 		} else {
 			for _, egressRules := range dataPolicy.EgressRule {
 				for _, egressRule := range egressRules.To {
-					matchLabels := []*policymodel.Policy_Label{}
+					matchNsSelectorLabels := []*policymodel.Policy_Label{}
+					matchNsSelectorExpressions := []*policymodel.Policy_LabelSelector_LabelExpression{}
 
-					if egressRule.Namespaces != nil {
-						matchLabels = egressRule.Namespaces.MatchLabel
-						for _, label := range matchLabels {
-							if labelsMap[label.Key] != label.Value {
-								break
-							}
-							policies[dataPolicyID] = dataPolicy
-						}
+					if egressRule != nil {
+						matchNsSelectorLabels = egressRule.Namespaces.MatchLabel
+						matchNsSelectorExpressions = egressRule.Namespaces.MatchExpression
 					}
+
+					if !pp.isNsUpdateLabelSelectorMatch(ns, matchNsSelectorLabels, matchNsSelectorExpressions) {
+						continue
+					}
+					policies[dataPolicyID] = dataPolicy
 				}
 			}
 		}

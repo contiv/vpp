@@ -265,8 +265,6 @@ func isMatchExpression(matchExpressions []*policymodel.Policy_LabelSelector_Labe
 			for _, label := range labels {
 				if keyMap[label.Key] == label.Value {
 					return false
-				} else {
-					isMatch = true
 				}
 				isMatch = true
 			}
@@ -283,8 +281,6 @@ func isMatchExpression(matchExpressions []*policymodel.Policy_LabelSelector_Labe
 			expressionKey := expressionKeyPrefix + matchExpression.Key
 			if keyMap[expressionKey] == "" {
 				return false
-			} else {
-				isMatch = true
 			}
 			isMatch = true
 		}

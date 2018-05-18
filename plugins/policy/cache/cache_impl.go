@@ -85,8 +85,8 @@ func (pc *PolicyCache) LookupPod(pod podmodel.ID) (found bool, data *podmodel.Po
 	return pc.configuredPods.LookupPod(pod.String())
 }
 
-// LookupPodsByLabelSelectorInsideNs evaluates label selector (expression and/or match
-// labels) and returns IDs of matching pods in a namespace.
+// LookupPodsByLabelSelectorInsideNs evaluates pod label selector (expression and/or match
+// labels) in a namespace and returns IDs of matching pods.
 func (pc *PolicyCache) LookupPodsByLabelSelectorInsideNs(policyNamespace string,
 	podLabelSelector *policymodel.Policy_LabelSelector) (pods []podmodel.ID) {
 
@@ -114,8 +114,8 @@ func (pc *PolicyCache) LookupPodsByLabelSelectorInsideNs(policyNamespace string,
 	return utils.UnstringPodID(mePods)
 }
 
-// LookupPodsByNsLabelSelector evaluates label selector (expression and/or match
-// labels) and returns IDs of matching pods.
+// LookupPodsByNsLabelSelector evaluates namespace label selector (expression and/or match
+// labels) and returns IDs of pods in the matched namespaces.
 func (pc *PolicyCache) LookupPodsByNsLabelSelector(
 	namespaceLabelSelector *policymodel.Policy_LabelSelector) (pods []podmodel.ID) {
 	// An empty namespace selector matches all namespaces.

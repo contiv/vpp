@@ -6,8 +6,6 @@
 [![GoDoc](https://godoc.org/github.com/contiv/vpp?status.svg)](https://godoc.org/github.com/contiv/vpp)
 [![GitHub license](https://img.shields.io/badge/license-Apache%20license%202.0-blue.svg)](https://github.com/contiv/vpp/blob/master/LICENSE)
 
-Please note that the content of this repository is currently **WORK IN PROGRESS**.
-
 This Kubernetes network plugin uses FD.io VPP to provide network connectivity
 between PODs. Currently, only Kubernetes 1.9.X versions are supported.
 

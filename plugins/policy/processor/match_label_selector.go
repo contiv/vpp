@@ -30,7 +30,7 @@ const (
 	doesNotExist = policymodel.Policy_LabelSelector_LabelExpression_DOES_NOT_EXIST
 )
 
-// isPodLabelSelectorMatch returns true if all
+// isPodLabelSelectorMatch finds if podLabelSelecor matches Pod's labels or not
 func (pp *PolicyProcessor) isPodLabelSelectorMatch(
 	pod *podmodel.Pod,
 	matchPodLabels []*policymodel.Policy_Label,
@@ -61,7 +61,7 @@ func (pp *PolicyProcessor) isPodLabelSelectorMatch(
 	return true
 }
 
-// isPodLabelMatch returns true/false if pod labels match a collection of pod selector labels (labels are ANDed).
+// isPodLabelMatch finds if pod labels match a collection of pod selector labels.
 func (pp *PolicyProcessor) isPodLabelMatch(pod *podmodel.Pod,
 	matchPodLabels []*policymodel.Policy_Label, policyNamespace string) bool {
 
@@ -86,7 +86,7 @@ func (pp *PolicyProcessor) isPodLabelMatch(pod *podmodel.Pod,
 	return isMatch
 }
 
-// isPodExpressionMatch returns true/false if pod labels match a collection of pod selector expressions (expressions are ANDed).
+// isPodExpressionMatch finds if pod labels match a collection of pod selector expressions.
 func (pp *PolicyProcessor) isPodExpressionMatch(pod *podmodel.Pod,
 	matchPodExpressions []*policymodel.Policy_LabelSelector_LabelExpression, policyNamespace string) bool {
 
@@ -135,7 +135,7 @@ func (pp *PolicyProcessor) isPodExpressionMatch(pod *podmodel.Pod,
 	return true
 }
 
-// isPodLabelSelectorMatch returns true if all
+// isNsLabelSelectorMatch finds if namespace LabelSelector matches Pod's namespace labels.
 func (pp *PolicyProcessor) isNsLabelSelectorMatch(
 	pod *podmodel.Pod,
 	matchNsLabels []*policymodel.Policy_Label,
@@ -165,7 +165,7 @@ func (pp *PolicyProcessor) isNsLabelSelectorMatch(
 	return true
 }
 
-// isNamespaceMatchLabel returns true/false if pod namespace matches a collection of namespace selector labels (labels are ANDed).
+// isNsLabelMatch finds if pod's namespace labels match a collection of namespace selector labels.
 func (pp *PolicyProcessor) isNsLabelMatch(pod *podmodel.Pod,
 	matchNsLabels []*policymodel.Policy_Label) bool {
 	//Get Pod's namespace labels
@@ -191,7 +191,7 @@ func (pp *PolicyProcessor) isNsLabelMatch(pod *podmodel.Pod,
 	return isMatch
 }
 
-// isMatchExpression returns true/false if pod labels match a collection of pod selector expressions (expressions are ANDed).
+// isNsExpressionMatch finds if pod's namespace labels match a collection of namespace selector expressions.
 func (pp *PolicyProcessor) isNsExpressionMatch(pod *podmodel.Pod,
 	matchNsExpressions []*policymodel.Policy_LabelSelector_LabelExpression) bool {
 	//Get Pod's namespace labels
@@ -239,7 +239,8 @@ func (pp *PolicyProcessor) isNsExpressionMatch(pod *podmodel.Pod,
 	return true
 }
 
-// isPodLabelSelectorMatch returns true if all
+// isNsUpdateLabelSelectorMatch finds if pod's namespace labels match a collection of namespace selector labels,
+// after an update in namespace labels
 func (pp *PolicyProcessor) isNsUpdateLabelSelectorMatch(
 	ns *nsmodel.Namespace,
 	matchNsUpdateLabels []*policymodel.Policy_Label,
@@ -269,7 +270,8 @@ func (pp *PolicyProcessor) isNsUpdateLabelSelectorMatch(
 	return true
 }
 
-// isNamespaceMatchLabel returns true/false if pod namespace matches a collection of namespace selector labels (labels are ANDed).
+// isNsUpdateLabelMatch finds if namespace LabelSelector matches Pod's namespace labels,
+// after an update in namespace labels
 func (pp *PolicyProcessor) isNsUpdateLabelMatch(ns *nsmodel.Namespace,
 	matchNsUpdateLabels []*policymodel.Policy_Label) bool {
 	//Get Pod's namespace labels
@@ -294,7 +296,8 @@ func (pp *PolicyProcessor) isNsUpdateLabelMatch(ns *nsmodel.Namespace,
 	return isMatch
 }
 
-// isMatchExpression returns true/false if pod labels match a collection of pod selector expressions (expressions are ANDed).
+// isNsUpdateExpressionMatch finds if pod's namespace labels match a collection of namespace selector expressions,
+// after an update in namespace labels
 func (pp *PolicyProcessor) isNsUpdateExpressionMatch(ns *nsmodel.Namespace,
 	matchNsUpdateExpressions []*policymodel.Policy_LabelSelector_LabelExpression) bool {
 	//Get Pod's namespace labels

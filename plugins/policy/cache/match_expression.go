@@ -28,7 +28,8 @@ const (
 	doesNotExist = policymodel.Policy_LabelSelector_LabelExpression_DOES_NOT_EXIST
 )
 
-// getMatchExpressionPods returns all the pods that match a collection of expressions (expressions are ANDed)
+// getMatchExpressionPodsInsideNs returns all the pods from a given namespace that match a collection of pod label expressions
+// (expressions are ANDed).
 func (pc *PolicyCache) getMatchExpressionPodsInsideNs(namespace string, expressions []*policymodel.Policy_LabelSelector_LabelExpression) []string {
 	var inPodSet, notInPodSet, existsPodSet, notExistPodSet []string
 	var finalSet [][]string
@@ -138,7 +139,8 @@ func (pc *PolicyCache) getMatchExpressionPodsInsideNs(namespace string, expressi
 	return []string{}
 }
 
-// getMatchExpressionPods returns all the pods that match a collection of expressions (expressions are ANDed)
+// getPodsByNsMatchExpression returns all pods from namespaces that match a collection of namespace match expressions
+// (expressions are ANDed).
 func (pc *PolicyCache) getPodsByNsMatchExpression(expressions []*policymodel.Policy_LabelSelector_LabelExpression) []string {
 	var inPodSet, notInPodSet, existsPodSet, notExistPodSet []string
 	var finalSet [][]string

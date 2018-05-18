@@ -16,17 +16,17 @@ package namespaceidx
 
 import (
 	namespacemodel "github.com/contiv/vpp/plugins/ksr/model/namespace"
+	"github.com/contiv/vpp/plugins/policy/utils"
 	"github.com/ligato/cn-infra/core"
 	"github.com/ligato/cn-infra/idxmap"
 	"github.com/ligato/cn-infra/idxmap/mem"
 	"github.com/ligato/cn-infra/logging"
-	"github.com/contiv/vpp/plugins/policy/utils"
 )
 
 const (
 	namespaceLabelSelectorKey = "namespaceLabelSelectorKey"
-	namespaceKeySelectorKey = "namespaceKeySelectorKey"
-	)
+	namespaceKeySelectorKey   = "namespaceKeySelectorKey"
+)
 
 // ConfigIndex implements a cache for configured Namespaces. Primary index is PolicyName.
 type ConfigIndex struct {

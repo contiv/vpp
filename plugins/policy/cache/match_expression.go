@@ -138,7 +138,6 @@ func (pc *PolicyCache) getMatchExpressionPodsInsideNs(namespace string, expressi
 	return []string{}
 }
 
-
 // getMatchExpressionPods returns all the pods that match a collection of expressions (expressions are ANDed)
 func (pc *PolicyCache) getPodsByNsMatchExpression(expressions []*policymodel.Policy_LabelSelector_LabelExpression) []string {
 	var inPodSet, notInPodSet, existsPodSet, notExistPodSet []string

@@ -120,14 +120,14 @@ func TestSecondaryIndexLookup(t *testing.T) {
 		namespaceIDone   = "default"
 		namespaceIDtwo   = "pepsi"
 		namespaceIDthree = "coke"
-		namespaceIDFour = "nike"
+		namespaceIDFour  = "nike"
 	)
 
 	const (
 		label1 = "project/ts1"
 		label2 = "project/ts2"
-		key1 = "project"
-		key2 = "random"
+		key1   = "project"
+		key2   = "random"
 	)
 
 	namespaceDataOne := &nsmodel.Namespace{
@@ -189,7 +189,6 @@ func TestSecondaryIndexLookup(t *testing.T) {
 	lsMatch = idx.LookupNamespacesByLabelSelector(label2)
 	gomega.Expect(lsMatch).To(gomega.ContainElement(namespaceIDone))
 	gomega.Expect(lsMatch).To(gomega.ContainElement(namespaceIDthree))
-
 
 	keyMatch := idx.LookupNamespacesByKey(key2)
 	gomega.Expect(keyMatch).To(gomega.ContainElement(namespaceIDFour))

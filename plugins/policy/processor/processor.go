@@ -424,19 +424,18 @@ func (pp *PolicyProcessor) getPoliciesReferencingPod(pod *podmodel.Pod) (policie
 					if ingressRule.Pods != nil {
 						matchPodSelectorLabels = ingressRule.Pods.MatchLabel
 						matchPodSelectorExpressions = ingressRule.Pods.MatchExpression
-					}
-
-					if ingressRule.Namespaces != nil {
+						if pp.isPodLabelSelectorMatch(pod, matchPodSelectorLabels, matchPodSelectorExpressions, dataPolicy.Namespace) {
+							policies[dataPolicyID] = dataPolicy
+						}
+					} else if ingressRule.Namespaces != nil {
 						matchNsSelectorLabels = ingressRule.Namespaces.MatchLabel
 						matchNsSelectorExpressions = ingressRule.Namespaces.MatchExpression
-					}
-
-					if !pp.isPodLabelSelectorMatch(pod, matchPodSelectorLabels, matchPodSelectorExpressions, dataPolicy.Namespace) &&
-						!pp.isNsLabelSelectorMatch(pod, matchNsSelectorLabels, matchNsSelectorExpressions) {
+						if pp.isNsLabelSelectorMatch(pod, matchNsSelectorLabels, matchNsSelectorExpressions) {
+							policies[dataPolicyID] = dataPolicy
+						}
+					} else {
 						continue
 					}
-
-					policies[dataPolicyID] = dataPolicy
 				}
 			}
 		}
@@ -455,19 +454,18 @@ func (pp *PolicyProcessor) getPoliciesReferencingPod(pod *podmodel.Pod) (policie
 					if egressRule.Pods != nil {
 						matchPodSelectorLabels = egressRule.Pods.MatchLabel
 						matchPodSelectorExpressions = egressRule.Pods.MatchExpression
-					}
-
-					if egressRule.Namespaces != nil {
+						if pp.isPodLabelSelectorMatch(pod, matchPodSelectorLabels, matchPodSelectorExpressions, dataPolicy.Namespace) {
+							policies[dataPolicyID] = dataPolicy
+						}
+					} else if egressRule.Namespaces != nil {
 						matchNsSelectorLabels = egressRule.Namespaces.MatchLabel
 						matchNsSelectorExpressions = egressRule.Namespaces.MatchExpression
-					}
-
-					if !pp.isPodLabelSelectorMatch(pod, matchPodSelectorLabels, matchPodSelectorExpressions, dataPolicy.Namespace) &&
-						!pp.isNsLabelSelectorMatch(pod, matchNsSelectorLabels, matchNsSelectorExpressions) {
+						if pp.isNsLabelSelectorMatch(pod, matchNsSelectorLabels, matchNsSelectorExpressions) {
+							policies[dataPolicyID] = dataPolicy
+						}
+					} else {
 						continue
 					}
-
-					policies[dataPolicyID] = dataPolicy
 				}
 			}
 		}
@@ -505,12 +503,12 @@ func (pp *PolicyProcessor) getPoliciesReferencingNamespace(ns *nsmodel.Namespace
 					if ingressRule.Namespaces != nil {
 						matchNsSelectorLabels = ingressRule.Namespaces.MatchLabel
 						matchNsSelectorExpressions = ingressRule.Namespaces.MatchExpression
-					}
-
-					if !pp.isNsUpdateLabelSelectorMatch(ns, matchNsSelectorLabels, matchNsSelectorExpressions) {
+						if pp.isNsUpdateLabelSelectorMatch(ns, matchNsSelectorLabels, matchNsSelectorExpressions) {
+							policies[dataPolicyID] = dataPolicy
+						}
+					} else {
 						continue
 					}
-					policies[dataPolicyID] = dataPolicy
 				}
 			}
 		}
@@ -523,15 +521,15 @@ func (pp *PolicyProcessor) getPoliciesReferencingNamespace(ns *nsmodel.Namespace
 					matchNsSelectorLabels := []*policymodel.Policy_Label{}
 					matchNsSelectorExpressions := []*policymodel.Policy_LabelSelector_LabelExpression{}
 
-					if egressRule != nil {
+					if egressRule.Namespaces != nil {
 						matchNsSelectorLabels = egressRule.Namespaces.MatchLabel
 						matchNsSelectorExpressions = egressRule.Namespaces.MatchExpression
-					}
-
-					if !pp.isNsUpdateLabelSelectorMatch(ns, matchNsSelectorLabels, matchNsSelectorExpressions) {
+						if pp.isNsUpdateLabelSelectorMatch(ns, matchNsSelectorLabels, matchNsSelectorExpressions) {
+							policies[dataPolicyID] = dataPolicy
+						}
+					} else {
 						continue
 					}
-					policies[dataPolicyID] = dataPolicy
 				}
 			}
 		}

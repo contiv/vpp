@@ -51,12 +51,12 @@ type PolicyCacheAPI interface {
 	// LookupPod returns data of a given Pod.
 	LookupPod(pod podmodel.ID) (found bool, data *podmodel.Pod)
 
-	// LookupPodsByNsLabelSelector evaluates label selector (expression and/or match
-	// labels) and returns IDs of matching pods in a namespace.
+	// LookupPodsByNsLabelSelector evaluates namespace label selector (expression and/or match
+	// labels) and returns IDs of pods in the matched namespaces.
 	LookupPodsByNsLabelSelector(podLabelSelector *policymodel.Policy_LabelSelector) (pods []podmodel.ID)
 
-	// LookupPodsByLabelSelectorInsideNs evaluates label selector (expression and/or match
-	// labels and returns IDs of matching pods.
+	// LookupPodsByLabelSelectorInsideNs evaluates pod label selector (expression and/or match
+	// labels) in a namespace and returns IDs of matching pods.
 	LookupPodsByLabelSelectorInsideNs(policyNamespace string, podLabelSelector *policymodel.Policy_LabelSelector) (pods []podmodel.ID)
 
 	// LookupPodsByNamespace returns IDs of all pods inside a given namespace.

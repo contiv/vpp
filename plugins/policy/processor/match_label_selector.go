@@ -38,7 +38,7 @@ func (pp *PolicyProcessor) isPodLabelSelectorMatch(
 	policyNamespace string) bool {
 
 	if len(matchPodLabels) > 0 && len(matchPodExpressions) > 0 {
-		if !pp.isPodLabelMatch(pod, matchPodLabels, policyNamespace) &&
+		if !pp.isPodLabelMatch(pod, matchPodLabels, policyNamespace) ||
 			!pp.isPodExpressionMatch(pod, matchPodExpressions, policyNamespace) {
 			return false
 		}

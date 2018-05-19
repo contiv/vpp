@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+set -euo pipefail
+
 usage() {
   echo "Randomly reboots nodes in a kubernetes cluster."
   echo
@@ -89,6 +91,14 @@ fi
 
 KUBE_CMD="kubectl get nodes --no-headers"
 
+if [ "$WORKERS_ONLY" = true ] && [ "$MASTER_ONLY" = true ]
+then
+    echo "ERROR: Options '-M' and '-w' can not be specified at the same time."
+    echo
+    usage
+    exit 1
+fi
+
 # Get the selector for nodes (all nodes, master-only, workers-only)
 SELECTOR=""
 if [ "$WORKERS_ONLY" = true ]
@@ -99,27 +109,36 @@ then
     SELECTOR="-l 'node-role.kubernetes.io/master'"
 fi
 
+echo Getting nodes from k8s master...
+K8S_NODES=$(cmd "$MASTER" "$KUBE_CMD $SELECTOR $FORMAT")
+
 NODES=()
 while read -r line; do
     NODES+=("$line")
-done <<< $(cmd "$MASTER" "$KUBE_CMD $SELECTOR $FORMAT")
+done <<< "$K8S_NODES"
 
 if [ -z "${REBOOTS+x}" ]
 then
     REBOOTS=${#NODES[@]}
 fi
 
-let VARIANCE="$TIME / 10"
-if [ "$VARIANCE" -eq 0 ]
+# Interval variance, in percent
+DELTA=10
+if [ "$TIME" -gt "$DELTA" ]
 then
+    let VARIANCE="$TIME / $DELTA"
+else
     VARIANCE=1
 fi
 
-echo Starting at $(date +"%T")
+echo Starting chaos at $(date +"%T")...
+echo
+set +e
+
 for (( c=1; c<="$REBOOTS"; c++ ))
 do
-    let idx="$((RANDOM * ("${#NODES[@]}") / 32768))"
-    NODE="${NODES["$idx"]}"
+    let "IDX = $RANDOM % ${#NODES[@]}"
+    NODE="${NODES["$IDX"]}"
 
     RND_TIME=$RANDOM
     let "RND_TIME %= $VARIANCE * 2"
@@ -129,14 +148,15 @@ do
         dot=2
         t=$(($SLEEP_TIME<$dot?$SLEEP_TIME:$dot))
         echo -ne "                                              "
-        echo -ne "\rRebooting '$NODE' in $SLEEP_TIME seconds"
+        echo -ne "\r>>> Rebooting '$NODE' in $SLEEP_TIME seconds"
         sleep "$t"s
         let SLEEP_TIME="$SLEEP_TIME - $dot"
     done
 
     echo -ne "                                              "
-    echo -ne "\r- Rebooted '$NODE' at $(date +"%T")"
-    cmd "$NODE" "sudo reboot now" 2> /dev/null
+    echo -ne "\r$c: Rebooted '$NODE' at $(date +"%T")"
+    # cmd "$NODE" "sudo reboot now" 2> /dev/null
     echo
 
 done
+echo

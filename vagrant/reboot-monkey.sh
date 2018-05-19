@@ -135,10 +135,18 @@ echo Starting chaos at $(date +"%T")...
 echo
 set +e
 
-for (( c=1; c<="$REBOOTS"; c++ ))
+# For some reason, to get a decent random distribution of nodes, access to
+# $RANDOM must be executed in a tight loop
+RBT=()
+for (( c=0; c<"$REBOOTS"; c++ ))
 do
     let "IDX = $RANDOM % ${#NODES[@]}"
-    NODE="${NODES["$IDX"]}"
+    RBT+=("${NODES["$IDX"]}")
+done
+
+for (( c=0; c<"$REBOOTS"; c++ ))
+do
+    NODE="${RBT[c]}"
 
     RND_TIME=$RANDOM
     let "RND_TIME %= $VARIANCE * 2"
@@ -147,16 +155,23 @@ do
     do
         dot=2
         t=$(($SLEEP_TIME<$dot?$SLEEP_TIME:$dot))
-        echo -ne "                                              "
+        echo -ne "\r\033[2K"
         echo -ne "\r>>> Rebooting '$NODE' in $SLEEP_TIME seconds"
         sleep "$t"s
         let SLEEP_TIME="$SLEEP_TIME - $dot"
     done
 
-    echo -ne "                                              "
-    echo -ne "\r$c: Rebooted '$NODE' at $(date +"%T")"
-    # cmd "$NODE" "sudo reboot now" 2> /dev/null
+    echo -ne "\r\033[2K"
+    echo -ne "\r>>> Rebooting '$NODE' now"
+    VAR=$(cmd "$NODE" "sudo reboot now" 2>&1)
+    IFS=' ' read -r -a KWS <<< "$VAR"
+    echo -ne "\r\033[2K"
+    if [ ${KWS[0]} == "Connection" ]
+    then
+        echo -ne "\r$c: Rebooted '$NODE' on $(date)"
+    else
+        echo -ne "\r$c: Error rebooting '$NODE': $VAR"
+    fi
     echo
-
 done
 echo

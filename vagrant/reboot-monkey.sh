@@ -166,7 +166,7 @@ do
     VAR=$(cmd "$NODE" "sudo reboot now" 2>&1)
     IFS=' ' read -r -a KWS <<< "$VAR"
     echo -ne "\r\033[2K"
-    if [ ${KWS[0]} == "Connection" ]
+    if [ ${KWS[0]} == "Connection" ] && [ ${KWS[1]} == "to" ] && [ ${KWS[3]} == "closed" ]
     then
         echo -ne "\r$c: Rebooted '$NODE' on $(date)"
     else

@@ -38,7 +38,7 @@ traffic by interface simply by using the interface name as a substring to match 
 
 Run the script with option '-h' to get the usage printed:
 ```
-Usage: ./scripts/vpptrace.sh  [-i <VPP-IF-TYPE>]... [-a <VPP-ADDRESS>] [-r] [-f <REGEXP> / <SUBSTRING>]
+Usage: ./vpptrace.sh  [-i <VPP-IF-TYPE>]... [-a <VPP-ADDRESS>] [-r] [-f <REGEXP> / <SUBSTRING>]
    -i <VPP-IF-TYPE> : VPP interface *type* to run the packet capture on (e.g. dpdk-input, virtio-input, etc.)
                        - available aliases:
                          - af-packet-input: afpacket, af-packet, veth

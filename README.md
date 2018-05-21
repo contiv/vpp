@@ -1,6 +1,17 @@
-#Contiv - VPP
-
 # Contiv - VPP
+Cloud-native splits applications into smaller/modular pieces called microservices. Microservices are packaged up and deployed in containers across a network of physical or virtual hosts. Container-housed microservices communicate with each other across the network to deliver the desired application function. Thus the network plays a cruical role enabling application behavior and performance. Contiv-VPP a new network plug-in providing high-performance, scalability and operation simplicity for cloud-native networks. 
+
+## Coud-Native Networking
+
+## Contiv - VPP 
+
+### Overview
+
+### Use-Cases
+
+## Archtecture
+
+### Working with Contiv - VPP
 
 [![Build Status](https://travis-ci.org/contiv/vpp.svg?branch=master)](https://travis-ci.org/contiv/vpp)
 [![Coverage Status](https://coveralls.io/repos/github/contiv/vpp/badge.svg?branch=master)](https://coveralls.io/github/contiv/vpp?branch=master)

@@ -20,9 +20,17 @@ set -e
 if [ -z "${VPP_COMMIT_ID}" ]
 then
     # no specific VPP commit ID
-    docker build -t dev-contiv-vpp:latest --build-arg SKIP_DEBUG_BUILD=${SKIP_DEBUG_BUILD} ${DOCKER_BUILD_ARGS} --force-rm=true .
+    docker build -t dev-contiv-vpp:latest \
+        --build-arg VPP_REPO_URL=${VPP_REPO_URL} \
+        --build-arg VPP_BRANCH_NAME=${VPP_BRANCH_NAME} \
+        --build-arg SKIP_DEBUG_BUILD=${SKIP_DEBUG_BUILD} \
+        ${DOCKER_BUILD_ARGS} --force-rm=true .
 else
     # specific VPP commit ID
-    docker build -t dev-contiv-vpp:${VPP_COMMIT_ID} --build-arg VPP_COMMIT_ID=${VPP_COMMIT_ID} --build-arg SKIP_DEBUG_BUILD=${SKIP_DEBUG_BUILD} ${DOCKER_BUILD_ARGS} --force-rm=true .
+    docker build -t dev-contiv-vpp:${VPP_COMMIT_ID} \
+        --build-arg VPP_REPO_URL=${VPP_REPO_URL} \
+        --build-arg VPP_BRANCH_NAME=${VPP_BRANCH_NAME} \
+        --build-arg VPP_COMMIT_ID=${VPP_COMMIT_ID} \
+        --build-arg SKIP_DEBUG_BUILD=${SKIP_DEBUG_BUILD} \
+        ${DOCKER_BUILD_ARGS} --force-rm=true .
 fi
-

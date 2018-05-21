@@ -90,9 +90,8 @@ $ vpptrace.sh -i tap -f "tapcli-1"
 2. Capture all packets with source or destination IP address 10.1.1.3:
 ```
 $ vpptrace.sh -i tap -i dpdk -f "10.1.1.3"
-```
+
 Or just:
-```
 $ vpptrace.sh "10.1.1.3"
 ```
 

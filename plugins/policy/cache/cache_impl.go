@@ -85,9 +85,8 @@ func (pc *PolicyCache) LookupPod(pod podmodel.ID) (found bool, data *podmodel.Po
 	return pc.configuredPods.LookupPod(pod.String())
 }
 
-// LookupPodsByNSLabelSelector evaluates label selector (expression and/or match
-// labels) and returns IDs of matching pods in a namespace.
-func (pc *PolicyCache) LookupPodsByNSLabelSelector(policyNamespace string,
+// LookupPodsByLabelSelectorInsideNs evaluates pod label selectors in a namespace and returns IDs of matching pods.
+func (pc *PolicyCache) LookupPodsByLabelSelectorInsideNs(policyNamespace string,
 	podLabelSelector *policymodel.Policy_LabelSelector) (pods []podmodel.ID) {
 
 	// An empty podSelector matches all pods in this namespace.
@@ -102,9 +101,13 @@ func (pc *PolicyCache) LookupPodsByNSLabelSelector(policyNamespace string,
 	matchLabels := podLabelSelector.MatchLabel
 	matchExpressions := podLabelSelector.MatchExpression
 
-	mlPods := pc.getPodsByNSLabelSelector(policyNamespace, matchLabels)
-	mePods := pc.getMatchExpressionPods(policyNamespace, matchExpressions)
+	// Get matching pods for policy's pod label selectors
+	mlPods := pc.getMatchLabelPodsInsideNs(policyNamespace, matchLabels)
+	mePods := pc.getMatchExpressionPodsInsideNs(policyNamespace, matchExpressions)
 
+	// If both pod labels and expressions exist,
+	// we need to find the intersection of the returning pods
+	// Requirements are AND'ed
 	if len(matchLabels) > 0 && len(matchExpressions) > 0 {
 		return utils.UnstringPodID(utils.Intersect(mlPods, mePods))
 	}
@@ -114,28 +117,40 @@ func (pc *PolicyCache) LookupPodsByNSLabelSelector(policyNamespace string,
 	return utils.UnstringPodID(mePods)
 }
 
-// LookupPodsByLabelSelector evaluates label selector (expression and/or match
-// labels) and returns IDs of matching pods.
-func (pc *PolicyCache) LookupPodsByLabelSelector(
+// LookupPodsByNsLabelSelector evaluates namespace label selector and returns IDs of pods in the matched namespaces.
+func (pc *PolicyCache) LookupPodsByNsLabelSelector(
 	namespaceLabelSelector *policymodel.Policy_LabelSelector) (pods []podmodel.ID) {
 	// An empty namespace selector matches all namespaces.
 	if len(namespaceLabelSelector.MatchExpression) == 0 && len(namespaceLabelSelector.MatchLabel) == 0 {
 		allPods := pc.configuredPods.ListAll()
 		kubeSystemPods := pc.configuredPods.LookupPodsByNamespace("kube-system")
+		// Excluding "kube-system" pods
 		pods := utils.Difference(allPods, kubeSystemPods)
 
 		pc.Log.WithField("LookupPodsByNSLabelSelector", namespaceLabelSelector).
 			Infof("Empty namespace selector returning pods: %+v", pods)
 		return utils.UnstringPodID(pods)
 	}
-	// List of match labels and match expressions.
-	matchLabels := namespaceLabelSelector.MatchLabel
 
-	namespaceSelectorPods := pc.getPodsByLabelSelector(matchLabels)
-	if len(namespaceSelectorPods) == 0 {
-		return []podmodel.ID{}
+	// List of match labels and match expressions.
+	matchNsLabels := namespaceLabelSelector.MatchLabel
+	matchNsExpressions := namespaceLabelSelector.MatchExpression
+
+	// Get matching pods for policy's namespace label selectors
+	mlPods := pc.getPodsByNsLabelSelector(matchNsLabels)
+	mePods := pc.getPodsByNsMatchExpression(matchNsExpressions)
+
+	// If both namespace labels and expressions exist,
+	// we need to find the intersection of the returning pods
+	// Requirements are AND'ed
+	if len(matchNsLabels) > 0 && len(matchNsExpressions) > 0 {
+		return utils.UnstringPodID(utils.Intersect(mlPods, mePods))
 	}
-	return utils.UnstringPodID(namespaceSelectorPods)
+	if len(matchNsLabels) > 0 {
+		return utils.UnstringPodID(mlPods)
+	}
+	return utils.UnstringPodID(mePods)
+
 }
 
 // LookupPodsByNamespace returns IDs of all pods inside a given namespace.
@@ -146,7 +161,7 @@ func (pc *PolicyCache) LookupPodsByNamespace(namespace string) (pods []podmodel.
 	return pods
 }
 
-// ListAllPods returns IDs of all known pods.
+// ListAllPods returns the IDs of all known pods.
 func (pc *PolicyCache) ListAllPods() (pods []podmodel.ID) {
 	allPods := pc.configuredPods.ListAll()
 	pods = utils.UnstringPodID(allPods)
@@ -154,7 +169,7 @@ func (pc *PolicyCache) ListAllPods() (pods []podmodel.ID) {
 	return pods
 }
 
-// LookupPolicy returns data of a given Policy.
+// LookupPolicy returns the data of a given Policy.
 func (pc *PolicyCache) LookupPolicy(policy policymodel.ID) (found bool, data *policymodel.Policy) {
 	found, data = pc.configuredPolicies.LookupPolicy(policy.String())
 	if !found {
@@ -163,39 +178,42 @@ func (pc *PolicyCache) LookupPolicy(policy policymodel.ID) (found bool, data *po
 	return found, data
 }
 
-// LookupPoliciesByPod returns IDs of all policies assigned to a given pod.
-func (pc *PolicyCache) LookupPoliciesByPod(pod podmodel.ID) (policies []policymodel.ID) {
-	policies = []policymodel.ID{}
-	dataPolicies := []*policymodel.Policy{}
+// LookupPoliciesByPod returns the IDs of all policies assigned to a given pod.
+func (pc *PolicyCache) LookupPoliciesByPod(pod podmodel.ID) (policyIDs []policymodel.ID) {
+	policyIDs = []policymodel.ID{}
+	policyData := []*policymodel.Policy{}
 
-	allPolicies := pc.ListAllPolicies()
-	for _, policyStrID := range allPolicies {
-		found, policyData := pc.LookupPolicy(policyStrID)
+	// Get and store the data from all the policies in cache.
+	policies := pc.ListAllPolicies()
+	for _, policy := range policies {
+		found, data := pc.LookupPolicy(policy)
 		if !found {
 			continue
 		}
-		dataPolicies = append(dataPolicies, policyData)
+		policyData = append(policyData, data)
 	}
 
-	for _, policy := range dataPolicies {
-		podByNS := pc.LookupPodsByNSLabelSelector(policy.Namespace, policy.Pods)
-		for _, podID := range podByNS {
+	// For every policy data if podID matches any of policy's attached pods
+	// save and return the policyID
+	for _, pData := range policyData {
+		podIDs := pc.LookupPodsByLabelSelectorInsideNs(pData.Namespace, pData.Pods)
+		for _, podID := range podIDs {
 			if podID == pod {
-				policyID := policymodel.GetID(policy)
-				policies = append(policies, policyID)
+				policyID := policymodel.GetID(pData)
+				policyIDs = append(policyIDs, policyID)
 			}
 		}
 	}
 
-	return policies
+	return policyIDs
 }
 
 // ListAllPolicies returns IDs of all policies.
-func (pc *PolicyCache) ListAllPolicies() (policies []policymodel.ID) {
+func (pc *PolicyCache) ListAllPolicies() (policyIDs []policymodel.ID) {
 	allPolicies := pc.configuredPolicies.ListAll()
-	policies = utils.UnstringPolicyID(allPolicies)
+	policyIDs = utils.UnstringPolicyID(allPolicies)
 
-	return policies
+	return policyIDs
 }
 
 // LookupNamespace returns data of a given namespace.
@@ -207,14 +225,6 @@ func (pc *PolicyCache) LookupNamespace(namespace nsmodel.ID) (found bool, data *
 	}
 
 	return found, data
-}
-
-// LookupNamespacesByLabelSelector evaluates label selector (expression
-// and/or match labels) and returns IDs of matching namespaces.
-func (pc *PolicyCache) LookupNamespacesByLabelSelector(
-	nsLabelSelector string) []nsmodel.ID {
-	namespaces := pc.configuredNamespaces.LookupNamespacesByLabelSelector(nsLabelSelector)
-	return utils.UnstringNamespaceID(namespaces)
 }
 
 // ListAllNamespaces returns IDs of all known namespaces.

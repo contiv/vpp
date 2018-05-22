@@ -38,13 +38,13 @@ func (pp *PolicyProcessor) calculateMatches(policyData *policymodel.Policy) []co
 				// Find all the pods that match ingress rules pod label selectors
 				if ingressRuleFrom.Pods != nil {
 					ingressLabel := ingressRuleFrom.Pods
-					policyPods := pp.Cache.LookupPodsByNSLabelSelector(namespace, ingressLabel)
+					policyPods := pp.Cache.LookupPodsByLabelSelectorInsideNs(namespace, ingressLabel)
 					ingressPods = append(ingressPods, policyPods...)
 				}
 				// Find all the pods that match ingress rules namespace label selectors
 				if ingressRuleFrom.Namespaces != nil {
 					namespaceLabels := ingressRuleFrom.Namespaces
-					policyPods := pp.Cache.LookupPodsByLabelSelector(namespaceLabels)
+					policyPods := pp.Cache.LookupPodsByNsLabelSelector(namespaceLabels)
 					ingressPods = append(ingressPods, policyPods...)
 				}
 
@@ -109,13 +109,13 @@ func (pp *PolicyProcessor) calculateMatches(policyData *policymodel.Policy) []co
 				// Find all the pods that match egress rules pod label selectors
 				if egressRuleTo.Pods != nil {
 					egressLabel := egressRuleTo.Pods
-					policyPods := pp.Cache.LookupPodsByNSLabelSelector(namespace, egressLabel)
+					policyPods := pp.Cache.LookupPodsByLabelSelectorInsideNs(namespace, egressLabel)
 					egressPods = append(egressPods, policyPods...)
 				}
 				// Find all the pods that match egress rules namespace label selectors
 				if egressRuleTo.Namespaces != nil {
 					namespaceLabels := egressRuleTo.Namespaces
-					policyPods := pp.Cache.LookupPodsByLabelSelector(namespaceLabels)
+					policyPods := pp.Cache.LookupPodsByNsLabelSelector(namespaceLabels)
 					egressPods = append(egressPods, policyPods...)
 				}
 				egressIPBlock := egressRuleTo.IpBlock
@@ -161,41 +161,4 @@ func (pp *PolicyProcessor) calculateMatches(policyData *policymodel.Policy) []co
 		}
 	}
 	return matches
-}
-
-// calculateLabelSelectorMatches returns true if all
-func (pp *PolicyProcessor) calculateLabelSelectorMatches(
-	pod *podmodel.Pod,
-	matchLabels []*policymodel.Policy_Label,
-	matchExpressions []*policymodel.Policy_LabelSelector_LabelExpression,
-	policyNamespace string) bool {
-
-	if len(matchLabels) > 0 && len(matchExpressions) > 0 {
-		evalMatchLabels := pp.isMatchLabel(pod, matchLabels, policyNamespace)
-		evalMatchExpressions := pp.isMatchExpression(pod, matchExpressions, policyNamespace)
-
-		isMatch := evalMatchLabels && evalMatchExpressions
-
-		if !isMatch {
-			return false
-		}
-		return true
-
-	} else if len(matchLabels) == 0 && len(matchExpressions) > 0 {
-		evalMatchExpressions := pp.isMatchExpression(pod, matchExpressions, policyNamespace)
-
-		if !evalMatchExpressions {
-			return false
-		}
-		return true
-	} else if len(matchLabels) > 0 && len(matchExpressions) == 0 {
-		evalMatchLabels := pp.isMatchLabel(pod, matchLabels, policyNamespace)
-
-		if !evalMatchLabels {
-			return false
-		}
-		return true
-	}
-	// empty labelselector selects all pods
-	return true
 }

@@ -91,24 +91,24 @@ func TestGetPodsByNSLabelSelector(t *testing.T) {
 		},
 	}
 
-	expectParam := pc.getPodsByNSLabelSelector(testNamespace, testLabel0)
+	expectParam := pc.getMatchLabelPodsInsideNs(testNamespace, testLabel0)
 	gomega.Expect(expectParam).To(gomega.BeEmpty())
 
-	expectParam = pc.getPodsByNSLabelSelector(testNamespace, testLabel1)
+	expectParam = pc.getMatchLabelPodsInsideNs(testNamespace, testLabel1)
 	gomega.Expect(expectParam).To(gomega.ContainElement(testdata.Pod1))
 	gomega.Expect(expectParam).To(gomega.ContainElement(testdata.Pod2))
 
-	expectParam = pc.getPodsByNSLabelSelector(testNamespace, testLabel2)
+	expectParam = pc.getMatchLabelPodsInsideNs(testNamespace, testLabel2)
 	gomega.Expect(expectParam).To(gomega.BeEmpty())
 
-	expectParam = pc.getPodsByLabelSelector(testLabel0)
+	expectParam = pc.getPodsByNsLabelSelector(testLabel0)
 	gomega.Expect(expectParam).To(gomega.BeEmpty())
 
-	expectParam = pc.getPodsByLabelSelector(testLabel3)
+	expectParam = pc.getPodsByNsLabelSelector(testLabel3)
 	gomega.Expect(expectParam).To(gomega.ContainElement(testdata.Pod3))
 	gomega.Expect(expectParam).To(gomega.ContainElement(testdata.Pod4))
 
-	expectParam = pc.getPodsByLabelSelector(testLabel4)
+	expectParam = pc.getPodsByNsLabelSelector(testLabel4)
 	gomega.Expect(expectParam).To(gomega.BeEmpty())
 
 }

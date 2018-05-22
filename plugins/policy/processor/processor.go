@@ -421,6 +421,8 @@ func (pp *PolicyProcessor) getPoliciesReferencingPod(pod *podmodel.Pod) (policie
 					matchNsSelectorLabels := []*policymodel.Policy_Label{}
 					matchNsSelectorExpressions := []*policymodel.Policy_LabelSelector_LabelExpression{}
 
+					// Only one resource of a Policy Peer can exist (pod or namespace label selectors)
+					// If resource equals to nil then policy is not a match
 					if ingressRule.Pods != nil {
 						matchPodSelectorLabels = ingressRule.Pods.MatchLabel
 						matchPodSelectorExpressions = ingressRule.Pods.MatchExpression
@@ -450,7 +452,8 @@ func (pp *PolicyProcessor) getPoliciesReferencingPod(pod *podmodel.Pod) (policie
 					matchPodSelectorExpressions := []*policymodel.Policy_LabelSelector_LabelExpression{}
 					matchNsSelectorLabels := []*policymodel.Policy_Label{}
 					matchNsSelectorExpressions := []*policymodel.Policy_LabelSelector_LabelExpression{}
-
+					// Only one resource of a Policy Peer can exist (Pod or Namespace)
+					// If resource equals to nil then policy is not a match
 					if egressRule.Pods != nil {
 						matchPodSelectorLabels = egressRule.Pods.MatchLabel
 						matchPodSelectorExpressions = egressRule.Pods.MatchExpression
@@ -489,17 +492,18 @@ func (pp *PolicyProcessor) getPoliciesReferencingNamespace(ns *nsmodel.Namespace
 		dataPolicies = append(dataPolicies, policyData)
 	}
 
-	// Select policies that match pod's labels.
+	// Select policies that match namespace's labels.
 	for _, dataPolicy := range dataPolicies {
 		dataPolicyID := policymodel.GetID(dataPolicy)
 		if len(dataPolicy.IngressRule) == 0 {
-			continue
+			// If Ingress Rule is an empty array, policy matches the PodSelector.
+			policies[dataPolicyID] = dataPolicy
 		} else {
 			for _, ingressRules := range dataPolicy.IngressRule {
 				for _, ingressRule := range ingressRules.From {
 					matchNsSelectorLabels := []*policymodel.Policy_Label{}
 					matchNsSelectorExpressions := []*policymodel.Policy_LabelSelector_LabelExpression{}
-
+					// If resource equals to nil then policy is not a match
 					if ingressRule.Namespaces != nil {
 						matchNsSelectorLabels = ingressRule.Namespaces.MatchLabel
 						matchNsSelectorExpressions = ingressRule.Namespaces.MatchExpression
@@ -514,13 +518,14 @@ func (pp *PolicyProcessor) getPoliciesReferencingNamespace(ns *nsmodel.Namespace
 		}
 
 		if len(dataPolicy.EgressRule) == 0 {
-			continue
+			// If Ingress Rule is an empty array, policy matches the PodSelector.
+			policies[dataPolicyID] = dataPolicy
 		} else {
 			for _, egressRules := range dataPolicy.EgressRule {
 				for _, egressRule := range egressRules.To {
 					matchNsSelectorLabels := []*policymodel.Policy_Label{}
 					matchNsSelectorExpressions := []*policymodel.Policy_LabelSelector_LabelExpression{}
-
+					// If resource equals to nil then policy is not a match
 					if egressRule.Namespaces != nil {
 						matchNsSelectorLabels = egressRule.Namespaces.MatchLabel
 						matchNsSelectorExpressions = egressRule.Namespaces.MatchExpression

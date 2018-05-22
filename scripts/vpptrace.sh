@@ -52,14 +52,49 @@ function print_packet {
     echo -e ""
 }
 
+function get_vpp_input_node {
+    # afpacket aliases
+    if [[ "$1" == "afpacket" ]] || [[ "$1" == "af-packet" ]] || [[ "$1" == "veth" ]]; then
+        echo "af-packet-input"
+    fi
+
+    # tapv1 + tapv2 alias
+    if [[ "$1" == "tap" ]]; then
+        # find out the version of the tap used
+        if vppctl show interface | grep -q tapcli; then
+            echo "tapcli-rx"
+        else
+            echo "virtio-input"
+        fi
+    fi
+
+    # tapv1 aliases
+    if [[ "$1" == "tap1" ]] || [[ "$1" == "tapv1" ]]; then
+        echo "tapcli-rx"
+    fi
+
+    # tapv2 aliases
+    if [[ "$1" == "tap2" ]] || [[ "$1" == "tapv2" ]]; then
+        echo "virtio-input"
+    fi
+
+    # dpdk aliases
+    if [[ "$1" == "dpdk" ]] || [[ "$1" == "gbe" ]] || [[ "$1" == "phys"* ]]; then
+        echo "dpdk-input"
+    fi
+}
+
 function print_help_and_exit {
-    echo "Usage: $0  -i <VPP-IF-TYPE> [-a <VPP-ADDRESS>] [-r] [-f <REGEXP> / <SUBSTRING>]"
+    echo "Usage: $0  [-i <VPP-IF-TYPE>]... [-a <VPP-ADDRESS>] [-r] [-f <REGEXP> / <SUBSTRING>]"
     echo '   -i <VPP-IF-TYPE> : VPP interface *type* to run the packet capture on (e.g. dpdk-input, virtio-input, etc.)'
     echo '                       - available aliases:'
     echo '                         - af-packet-input: afpacket, af-packet, veth'
     echo '                         - virtio-input: tap (version determined from the VPP runtime config), tap2, tapv2'
     echo '                         - tapcli-rx: tap (version determined from the VPP config), tap1, tapv1'
     echo '                         - dpdk-input: dpdk, gbe, phys*'
+    echo '                       - multiple interfaces can be watched at the same time - the option can be repeated with'
+    echo '                         different values'
+    echo '                       - default = dpdk + tap'
     echo '   -a <VPP-ADDRESS> : IP address or hostname of the VPP to capture packets from'
     echo '                      - not supported if VPP listens on a UNIX domain socket' 
     echo '                      - default = 127.0.0.1'
@@ -71,19 +106,24 @@ function print_help_and_exit {
 }
 
 function trace {
-    INTERFACE=$1
+    INTERFACES=()
 
     while getopts i:a:rf:h option
     do
         case "${option}"
             in
-            i) INTERFACE=${OPTARG};;
+            i) INTERFACES+=(${OPTARG});;
             a) VPPADDR=${OPTARG};;
             r) IS_REGEXP=1;;
             f) FILTER=${OPTARG};;
             h) print_help_and_exit;;
         esac
     done
+
+    # default interfaces
+    if [ ${#INTERFACES[@]} -eq 0 ]; then
+        INTERFACES=(dpdk tap)
+    fi
 
     # connect to VPP-CLI
     VPPCONFIG="/etc/vpp/contiv-vswitch.conf"
@@ -106,40 +146,17 @@ function trace {
     fi
     connect $IS_IPC $SOCKET $VPPADDR $PORT
 
-    # afpacket aliases
-    if [[ "$INTERFACE" == "afpacket" ]] || [[ "$INTERFACE" == "af-packet" ]] || [[ "$INTERFACE" == "veth" ]]; then
-        INTERFACE="af-packet-input"
-    fi
-
-    # tapv1 + tapv2 alias
-    if [[ "$INTERFACE" == "tap" ]]; then
-        # find out the version of the tap used
-        if vppctl show interface | grep -q tapcli; then
-            INTERFACE="tapcli-rx"
-        else
-            INTERFACE="virtio-input"
-        fi
-    fi
-
-    # tapv1 aliases
-    if [[ "$INTERFACE" == "tap1" ]] || [[ "$INTERFACE" == "tapv1" ]]; then
-        INTERFACE="tapcli-rx"
-    fi
-
-    # tapv2 aliases
-    if [[ "$INTERFACE" == "tap2" ]] || [[ "$INTERFACE" == "tapv2" ]]; then
-        INTERFACE="virtio-input"
-    fi
-
-    # dpdk aliases
-    if [[ "$INTERFACE" == "dpdk" ]] || [[ "$INTERFACE" == "gbe" ]] || [[ "$INTERFACE" == "phys"* ]]; then
-        INTERFACE="dpdk-input"
-    fi
+    INPUT_NODES=()
+    for INTERFACE in ${INTERFACES[@]}; do
+        INPUT_NODES+=($(get_vpp_input_node $INTERFACE))
+    done
 
     COUNT=0
     while true; do
         vppctl clear trace >/dev/null
-        vppctl trace add $INTERFACE 50 >/dev/null
+        for NODE in ${INPUT_NODES[@]}; do
+            vppctl trace add $NODE 50 >/dev/null
+        done
 
         IDX=0
         while true; do
@@ -200,9 +217,6 @@ function trace {
     done
 }
 
-if [[ $# -lt 1 ]]; then
-    print_help_and_exit
-fi
 
 init
 trap cleanup EXIT

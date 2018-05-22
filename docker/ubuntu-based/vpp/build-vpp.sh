@@ -4,17 +4,25 @@ set -euo pipefail
 
 cd /opt/vpp-agent/dev/
 
-#git clone https://gerrit.fd.io/r/vpp
-#cd ${VPP_DIR}
-#git checkout master
-git clone https://github.com/vpp-dev/vpp.git
+# clone VPP
+if [ "${VPP_REPO_URL}" == "" ]; then
+    git clone https://github.com/FDio/vpp
+else
+    git clone "${VPP_REPO_URL}"
+fi
+
 cd ${VPP_DIR}
-git checkout stable-1801-contiv
-git pull
+
+# checkout a specific branch if specified
+if [ "${VPP_BRANCH_NAME}" != "" ]; then
+    git checkout ${VPP_BRANCH_NAME}
+    git pull
+fi
 
 # check out a specific commit if specified
-# continue and ignore the error if the commit ID isn't specified
-git checkout ${VPP_COMMIT_ID} || true
+if [ "${VPP_COMMIT_ID}" != "" ]; then
+    git checkout ${VPP_COMMIT_ID}
+fi
 
 # clean up old build root
 rm -rf build-root/

@@ -17,8 +17,10 @@ RUN wget -O go.tgz "https://golang.org/dl/go$GOLANG_VERSION.linux-amd64.tar.gz" 
  && tar -C /usr/local -xzf go.tgz \
  && rm go.tgz
 
-# optional argument - a specific VPP commit ID
-ARG VPP_COMMIT_ID="xxx"
+# input arguments
+ARG VPP_REPO_URL
+ARG VPP_BRANCH_NAME
+ARG VPP_COMMIT_ID
 
 # optional argument - skips debug build
 ARG SKIP_DEBUG_BUILD=0

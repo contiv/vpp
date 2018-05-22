@@ -152,15 +152,50 @@ spec:
                   fieldPath: status.podIP
             - name: ETCDCTL_API
               value: "3"
-          command: ["/bin/sh","-c"]
-          args: ["/usr/local/bin/etcd --name=contiv-etcd --data-dir=/var/etcd/contiv-data --advertise-client-urls=http://0.0.0.0:12379 --listen-client-urls=http://0.0.0.0:12379 --listen-peer-urls=http://0.0.0.0:12380"]
+          command:
+            - /bin/sh
+          args:
+            - -c
+            - /usr/local/bin/etcd --name=contiv-etcd --data-dir=/var/etcd/contiv-data
+            {{- if .Values.etcd.secureTransport }}
+              --client-cert-auth --trusted-ca-file=/var/etcd/contiv-secrets/{{ .Values.etcd.secrets.caCert }}
+              --cert-file=/var/etcd/contiv-secrets/{{ .Values.etcd.secrets.serverCert }} --key-file=/var/etcd/contiv-secrets/{{ .Values.etcd.secrets.serverKey }}
+              --peer-client-cert-auth --peer-trusted-ca-file=/var/etcd/contiv-secrets/{{ .Values.etcd.secrets.caCert }}
+              --peer-cert-file=/var/etcd/contiv-secrets/{{ .Values.etcd.secrets.serverCert }} --peer-key-file=/var/etcd/contiv-secrets/{{ .Values.etcd.secrets.serverKey }}
+              --advertise-client-urls=https://0.0.0.0:12379 --listen-client-urls=https://0.0.0.0:12379 --listen-peer-urls=https://0.0.0.0:12380
+            {{- else }}
+              --advertise-client-urls=http://0.0.0.0:12379 --listen-client-urls=http://0.0.0.0:12379 --listen-peer-urls=http://0.0.0.0:12380
+            {{- end }}
           volumeMounts:
-            - name: var-etcd
-              mountPath: /var/etcd
+            - name: etcd-data
+              mountPath: /var/etcd/contiv-data
+            {{- if .Values.etcd.secureTransport }}
+            - name: etcd-secrets
+              mountPath: /var/etcd/contiv-secrets
+              readOnly: true
+            {{- end }}
+      {{- if .Values.etcd.secureTransport }}
+      volumes:
+        - name: etcd-secrets
+          {{- if .Values.etcd.secrets.mountFromHost }}
+          hostPath:
+            path: {{ .Values.etcd.secrets.mountDir }}
+          {{- else }}
+          secret:
+            secretName: contiv-etcd-secrets
+            items:
+            - key: caCert
+              path: {{ .Values.etcd.secrets.caCert }}
+            - key: serverCert
+              path: {{ .Values.etcd.secrets.serverCert }}
+            - key: serverKey
+              path: {{ .Values.etcd.secrets.serverKey }}
+          {{- end }}
+      {{- end }}
 {{- if .Values.etcd.usePersistentVolume }}
   volumeClaimTemplates:
   - metadata:
-      name: var-etcd
+      name: etcd-data
     spec:
       accessModes:
         - ReadWriteOnce
@@ -175,10 +210,39 @@ spec:
     {{- end }}
     {{- end }}
 {{- else }}
+      {{- if not .Values.etcd.secureTransport }}
       volumes:
-        - name: var-etcd
+      {{- end }}
+        - name: etcd-data
           hostPath:
              path: {{ .Values.etcd.dataDir }}
+{{- end }}
+
+
+{{- if .Values.etcd.secureTransport }}
+{{- if not .Values.etcd.secrets.mountFromHost }}
+---
+
+# The following contains k8s Secrets for use with a TLS enabled etcd cluster.
+# For information on populating Secrets, see http://kubernetes.io/docs/user-guide/secrets/
+apiVersion: v1
+kind: Secret
+type: Opaque
+metadata:
+  name: contiv-etcd-secrets
+  namespace: kube-system
+data:
+  caCert: |-
+    {{ .Files.Get .Values.etcd.secrets.caCert | b64enc }}
+  serverCert: |-
+    {{ .Files.Get .Values.etcd.secrets.serverCert | b64enc }}
+  serverKey: |-
+    {{ .Files.Get .Values.etcd.secrets.serverKey | b64enc }}
+  clientCert: |-
+    {{ .Files.Get .Values.etcd.secrets.clientCert | b64enc }}
+  clientKey: |-
+    {{ .Files.Get .Values.etcd.secrets.clientKey | b64enc }}
+{{- end }}
 {{- end }}
 
 ---
@@ -207,7 +271,14 @@ metadata:
   namespace: kube-system
 data:
   etcd.conf: |
+    {{- if .Values.etcd.secureTransport }}
+    insecure-transport: false
+    ca-file: /var/etcd/contiv-secrets/{{ .Values.etcd.secrets.caCert }}
+    cert-file: /var/etcd/contiv-secrets/{{ .Values.etcd.secrets.clientCert }}
+    key-file: /var/etcd/contiv-secrets/{{ .Values.etcd.secrets.clientKey }}
+    {{- else }}
     insecure-transport: true
+    {{- end }}
     dial-timeout: 10000000000
     endpoints:
       - "127.0.0.1:{{ .Values.etcd.service.nodePort }}"
@@ -222,7 +293,14 @@ metadata:
   namespace: kube-system
 data:
   etcd.conf: |
+    {{- if .Values.etcd.secureTransport }}
+    insecure-transport: false
+    ca-file: /var/etcd/contiv-secrets/{{ .Values.etcd.secrets.caCert }}
+    cert-file: /var/etcd/contiv-secrets/{{ .Values.etcd.secrets.clientCert }}
+    key-file: /var/etcd/contiv-secrets/{{ .Values.etcd.secrets.clientKey }}
+    {{- else }}
     insecure-transport: true
+    {{- end }}
     dial-timeout: 10000000000
     auto-compact: 600000000000
     endpoints:
@@ -340,6 +418,11 @@ spec:
           volumeMounts:
             - name: etcd-cfg
               mountPath: /etc/etcd
+              {{- if .Values.etcd.secureTransport }}
+            - name: etcd-secrets
+              mountPath: /var/etcd/contiv-secrets
+              readOnly: true
+              {{- end }}
             - name: vpp-cfg
               mountPath: /etc/vpp
             - name: shm
@@ -375,6 +458,23 @@ spec:
         - name: etcd-cfg
           configMap:
             name: contiv-etcd-cfg
+        {{- if .Values.etcd.secureTransport }}
+        - name: etcd-secrets
+          {{- if .Values.etcd.secrets.mountFromHost }}
+          hostPath:
+            path: {{ .Values.etcd.secrets.mountDir }}
+          {{- else }}
+          secret:
+            secretName: contiv-etcd-secrets
+            items:
+            - key: caCert
+              path: {{ .Values.etcd.secrets.caCert }}
+            - key: clientCert
+              path: {{ .Values.etcd.secrets.clientCert }}
+            - key: clientKey
+              path: {{ .Values.etcd.secrets.clientKey }}
+          {{- end }}
+        {{- end }}
         # Used to install CNI.
         - name: cni-bin-dir
           hostPath:
@@ -456,6 +556,11 @@ spec:
           volumeMounts:
             - name: etcd-cfg
               mountPath: /etc/etcd
+            {{- if .Values.etcd.secureTransport }}
+            - name: etcd-secrets
+              mountPath: /var/etcd/contiv-secrets
+              readOnly: true
+            {{- end }}
           readinessProbe:
             httpGet:
               path: /readiness
@@ -474,6 +579,23 @@ spec:
         - name: etcd-cfg
           configMap:
             name: contiv-etcd-withcompact-cfg
+        {{- if .Values.etcd.secureTransport }}
+        - name: etcd-secrets
+          {{- if .Values.etcd.secrets.mountFromHost }}
+          hostPath:
+            path: {{ .Values.etcd.secrets.mountDir }}
+          {{- else }}
+          secret:
+            secretName: contiv-etcd-secrets
+            items:
+            - key: caCert
+              path: {{ .Values.etcd.secrets.caCert }}
+            - key: clientCert
+              path: {{ .Values.etcd.secrets.clientCert }}
+            - key: clientKey
+              path: {{ .Values.etcd.secrets.clientKey }}
+          {{- end }}
+        {{- end }}
 
 ---
 

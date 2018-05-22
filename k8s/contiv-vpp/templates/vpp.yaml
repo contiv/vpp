@@ -245,6 +245,8 @@ spec:
   selector:
     matchLabels:
       k8s-app: contiv-vswitch
+  updateStrategy:
+    type: RollingUpdate
   template:
     metadata:
       labels:
@@ -425,6 +427,8 @@ metadata:
   labels:
     k8s-app: contiv-ksr
 spec:
+  updateStrategy:
+    type: RollingUpdate
   template:
     metadata:
       labels:

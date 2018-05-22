@@ -86,6 +86,14 @@ Parameter | Description | Default
 `etcd.persistentVolumeStorageClass` | Kubernetes persistent volume storage class (use "-" for an empty storage class) | (no value)
 `etcd.dataDir` | Use hostPath of this directory to persist etcd data (ignored if usePersistentVolume is true) | `/var/etcd`
 `etcd.service.nodePort` | Port to be used as the service NodePort | `32379`
+`etcd.secureTransport` | Secure access to ETCD using SSL/TLS certificates | `false`
+`etcd.secrets.mountFromHost` | If true, SSL/TLS certificates must be present in the mountDir on each host. If false, certificates must be present in the current directory, and will be distributed to each host via k8s secret feature | `true`
+`etcd.secrets.mountDir` | Directory where certificates should be located, in case that mountFromHost is true | `/var/etcd/contiv-secrets`
+`etcd.caCert` | Name of the file with certificate of the certification authority. | `ca.pem`
+`etcd.serverCert` | Name of the file with certificate of the ETCD server. | `server.pem`
+`etcd.serverKey` | Name of the file with private key of the ETCD server. | `server-key.pem`
+`etcd.clientCert` | Name of the file with certificate of the ETCD client. | `client.pem`
+`etcd.clientKey` | Name of the file with private key of the ETCD client. | `client-key.pem`
 `govpp.healthCheckProbeInterval` | Health check proble interval (nanoseconds) | `1000000000`
 `govpp.healthCheckReplyTimeout` | Health check reply timeout (nanoseconds) | `500000000`
 `govpp.healthCheckThreshold` | Health check threshold | 3

@@ -5,8 +5,8 @@
 Kubernetes network policies allow to specify how groups of pods are allowed
 to communicate with each other and other network endpoints. Each policy is represented
 as an instance of the K8s resource `NetworkPolicy`. Using labels a grouping of pods
-is selected for which a list of rules specifies what traffic is allowed separately
-for both directions. Contiv/VPP implements Kubernetes Network API, including the latest
+is selected for which a list of rules specifies what traffic is allowed to and from
+the pods. Contiv/VPP implements Kubernetes Network API, including the latest
 features, such as egress policies and CIDRs.
 
 For VPP as a packet-processing stack this is an overly abstract definition
@@ -206,15 +206,15 @@ ingress and egress rules into a single direction, see [rule transformations][rul
 The order at which the rules are applied for a given pod is important as well.
 The renderer which applies the rules for the destination network stack has 3 valid
 options of ordering:
-    1. Apply the rules in the exact same order as passed by the Configurator
-    2. Apply PERMIT rules before DENY rules: this is possible because there is
-       always only one DENY rule that blocks traffic not matched by any PERMIT rule.
-    3. Apply more-specific rule, i.e covering less traffic, before less-specific ones.
-       ContivRule-s have a total order defined on them using the method `ContivRule.Compare(other)`.
-       It holds that if `cr1` matches subset of the traffic matched by `cr2`, then `cr1<cr2`.
-       This ordering may be helpful if the destination network stack uses
-       *longest prefix match* algorithm for logarithmic rule lookup, as opposed
-       to list-based linear lookup.
+ 1. Apply the rules in the exact same order as passed by the Configurator
+ 2. Apply PERMIT rules before DENY rules: this is possible because there is
+    always only one DENY rule that blocks traffic not matched by any PERMIT rule.
+ 3. Apply more-specific rule, i.e covering less traffic, before less-specific ones.
+    ContivRule-s have a total order defined on them using the method `ContivRule.Compare(other)`.
+    It holds that if `cr1` matches subset of the traffic matched by `cr2`, then `cr1<cr2`.
+    This ordering may be helpful if the destination network stack uses
+    *longest prefix match* algorithm for logarithmic rule lookup, as opposed
+    to list-based linear lookup.
 
 ### Renderers
 
@@ -336,19 +336,19 @@ BuildGlobalTable:
 
 Again, the actual implementation is parametrized allowing to choose the direction
 for which the global table should be build for:
-    1. ingress rules of locally deployed pods -> single egress global table: used by ACL
-    2. egress rules of locally deployed pods -> single ingress global table: used by VPPTCP
+ 1. ingress rules of locally deployed pods -> single egress global table: used by ACL
+ 2. egress rules of locally deployed pods -> single ingress global table: used by VPPTCP
 
 With these transformations, the order at which the rules can be applied is more strict than
 when they originally arrived from the configurator - the order between PERMIT and DENY rules
 now matters.
-The renderer which applies the rules for the destination network stack has now only
-2 valid options of ordering:
-    1. Apply the rules in the exact same order as returned by the Cache for each table.
-       Used by the ACL Renderer.
-    2. Apply more-specific rule before less-specific ones, i.e. the *longest prefix match*
-       algorithm.
-       Used by the VPPTCP Renderer.
+The renderer which applies the rules for the destination network stack has now only two
+valid options of ordering:
+ 1. Apply the rules in the exact same order as returned by the Cache for each table.
+    Used by the ACL Renderer.
+ 2. Apply more-specific rule before less-specific ones, i.e. the *longest prefix match*
+    algorithm.
+    Used by the VPPTCP Renderer.
 
 #### Renderer cache
 

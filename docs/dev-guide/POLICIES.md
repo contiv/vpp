@@ -36,7 +36,7 @@ On the very bottom there is a network stack into which the policies are rendered
 (extensible beyond VPP, see [Renderers](#renderers)).
 Layers in-between perform policy processing with the assistance of in-memory caches.
 
-TODO: diagram with layers
+![Policy plugin layers][layers-diagram]
 
 Every layer is described here in detail with an extra focus on data transformations,
 starting from the top and including references to the actual source code.
@@ -259,7 +259,7 @@ Every namespace (connection with a pod) provides its own local table of session 
 which is only applied against traffic entering VPP from the namespace but
 not confronted with the egress connections. Egress side is matched by a single per-node
 global table. This table is bypassed, however, if communicating pods are deployed
-on the same node.
+on the same node (`fall-through` optimization).
 
 The rules for ingress and egress direction are therefore combined into a single
 selected direction - egress for ACL and ingress for VPPTCP.
@@ -411,7 +411,7 @@ through the NAT, i.e. with possibly VIP as the destination. This is OK because
 the replies have their source already SNAT-ed back to VIP before the packet
 travels through egress ACL of the source pod, matching the entry for reflection.
 
-TODO: diagram of all ACLs
+![ACL rendering][acl-rendering-diagram]
 
 #### VPPTCP Renderer
 
@@ -429,8 +429,12 @@ Session rules are installed into VPP directly through GoVPP (i.e. not using liga
 The cache is used to calculate the minimal number of changes needed to apply
 to get the session rules in-sync with the configuration of K8s policies.
 
-TODO: diagram of all tables
+![Rendering of VPPTCP session rules][session-rules-rendering-diagram]
 
+
+[layers-diagram]: policy-plugin-layers.png "Layering of the Policy plugin"
+[acl-rendering-diagram]: acl-rendering.png "ACL rendering"
+[session-rules-rendering-diagram]: session-rules-rendering.png "Rendering of VPPTCP session rules"
 [services-dev-guide]: SERVICES.md
 [ligato-vpp-agent]: http://github.com/ligato/vpp-agent
 [local-client]: http://github.com/ligato/vpp-agent/tree/pantheon-dev/clientv1

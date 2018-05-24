@@ -215,6 +215,26 @@ spec:
 
       # Init containers are executed before regular containers, must finish successfully before regular ones are started.
       initContainers:
+      # This container installs the Contiv CNI binaries
+      # and CNI network config file on each node.
+      - name: contiv-cni
+        image: contivvpp/cni:latest
+        imagePullPolicy: IfNotPresent
+        env:
+          - name: SLEEP
+            value: "false"
+        volumeMounts:
+          - mountPath: /opt/cni/bin
+            name: cni-bin-dir
+          - mountPath: /etc/cni/net.d
+            name: cni-net-dir
+      # This init container waits until etcd is started
+      - name: wait-foretcd
+        env:
+          - name: ETCDPORT
+            value: "32379"
+        image: busybox
+        command: ['sh', '-c', 'until nc -w 2 127.0.0.1:$ETCDPORT; do echo waiting for etcd; sleep 2; done;']
       # This init container extracts/copies VPP LD_PRELOAD libs and default VPP config to the host.
       - name: vpp-init
         image: contivvpp/vswitch:latest
@@ -302,17 +322,6 @@ spec:
             - name: govpp-plugin-cfg
               mountPath: /etc/govpp
 
-        # This container installs the Contiv CNI binaries
-        # and CNI network config file on each node.
-        - name: contiv-cni
-          image: contivvpp/cni:latest
-          imagePullPolicy: IfNotPresent
-          volumeMounts:
-            - mountPath: /opt/cni/bin
-              name: cni-bin-dir
-            - mountPath: /etc/cni/net.d
-              name: cni-net-dir
-
       volumes:
         # Used to connect to contiv-etcd.
         - name: etcd-cfg
@@ -390,6 +399,15 @@ spec:
       hostNetwork: true
       # This grants the required permissions to contiv-ksr.
       serviceAccountName: contiv-ksr
+
+      initContainers:
+        # This init container waits until etcd is started
+        - name: wait-foretcd
+          env:
+          - name: ETCDPORT
+            value: "32379"
+          image: busybox
+          command: ['sh', '-c', 'until nc -w 2 127.0.0.1:$ETCDPORT; do echo waiting for etcd; sleep 2; done;']
 
       containers:
         - name: contiv-ksr

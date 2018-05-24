@@ -453,6 +453,6 @@ to get the session rules in-sync with the configuration of K8s policies.
 [renderer-api]: http://github.com/contiv/vpp/blob/master/plugins/policy/renderer/api.go
 [renderer-cache]: http://github.com/contiv/vpp/blob/master/plugins/policy/renderer/cache/cache_api.go
 [acl-renderer]: http://github.com/contiv/vpp/blob/master/plugins/policy/renderer/acl/acl_renderer.go
-[acl-model]: http://github.com/ligato/vpp-agent/blob/pantheon-dev/plugins/defaultplugins/common/model/acl/acl.proto
+[acl-model]: http://github.com/ligato/vpp-agent/blob/pantheon-dev/plugins/vpp/model/acl/acl.proto
 [vpptcp-renderer]: http://github.com/contiv/vpp/tree/master/plugins/policy/renderer/vpptcp
 [session-rule]: http://github.com/contiv/vpp/blob/master/plugins/policy/renderer/vpptcp/rule/session_rule.go

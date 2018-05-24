@@ -52,7 +52,7 @@ required = ["github.com/wadey/gocovmerge", "github.com/docker/docker/api", "gith
 
 [[constraint]]
   name = "github.com/ligato/cn-infra"
-  revision = "14701b3639f8f0023d726643b7811276df3238ae"
+  revision = "eb264fe36b0fa13361e1e1998744da6efbb76cc5"
 
 [[constraint]]
   name = "github.com/containernetworking/cni"
@@ -85,7 +85,7 @@ required = ["github.com/wadey/gocovmerge", "github.com/docker/docker/api", "gith
 
 [[constraint]]
   name = "github.com/ligato/vpp-agent"
-  revision = "519684a81d5d30f0131196007b12814f76e83a8b"
+  revision = "22256300299b31db7a2057ffcb9218650279fe09"
 
 [[constraint]]
   name = "github.com/prometheus/client_golang"

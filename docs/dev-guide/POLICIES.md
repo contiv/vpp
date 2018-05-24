@@ -11,7 +11,7 @@ features, such as egress policies and CIDRs.
 
 For VPP as a packet-processing stack this is an overly abstract definition
 for access control between endpoints. K8s Policies with their rules need to be
-mapped to a semantically equivalent set of basic 6-tuple rules:
+mapped to a semantically equivalent set of basic **6-tuple rules**:
 ```
 (source IP, source port, destination IP, destination port, protocol, action)
 ```
@@ -25,7 +25,7 @@ but also as L4 session rules for the [VPPTCP network stack][vpptcp]
 ## Policy plugin
 
 The mapping of Kubernetes network policies to ACLs and VPPTCP session rules
-is implemented by the [policy plugin][policy-plugin] using a data-flow based approach.
+is implemented by the [policy plugin][policy-plugin] using a **data-flow** based approach.
 The plugin is split into multiple components stacked on top of each other,
 with data moving in the direction from the up to the bottom. Each layer obtains
 policy-related data from the layer above and performs transformation that yields
@@ -86,7 +86,7 @@ until more data are available. Typically, policies cannot be installed for a pod
 until it has been assigned an IP address.
 
 If a change carries enough information, processor determines the list of pods
-with a *possibly outdated* policy configuration (all for RESYNC):
+with a **possibly outdated** policy configuration (all for RESYNC):
  * For a changed policy this includes all the pods that the policy had assigned
    before and after the change.
  * For a changed pod (labels, IP address), this results in re-configuration
@@ -114,7 +114,7 @@ to the Configurator for re-configuration.
 
 Main task of the Configurator is to translate ContivPolicy into semantically
 equivalent set of basic 6-tuple rules, split into ingress and egress side
-from the vswitch point of view. 6-tuple is defined as type ContivRule
+from the **vswitch point of view**. 6-tuple is defined as type ContivRule
 in the [Renderer API][renderer-api].
 The rules are then installed by the layer below - Renderer(s). To support multiple
 underlying network stacks, the configurator allows to register multiple renderers,
@@ -196,13 +196,6 @@ their destination IP unset. The ingress rules are supposed to be applied for all
 the traffic entering VPP from the given pod, whereas egress rules should be confronted
 with all the traffic leaving VPP towards the pod.
 
-Not every network stack supports access-control for both directions, however.
-Additionally, [services][services-dev-guide] allow to reference a group of pods
-by VIP but rules only consider real pod IP addresses. This means that translation
-and load-balancing have to happen before the ingress rules are applied, which
-is not possible in VPP. The renderers therefore have to further transform and combine
-ingress and egress rules into a single direction, see [rule transformations][rule-transformations].
-
 The order at which the rules are applied for a given pod is important as well.
 The renderer which applies the rules for the destination network stack has 3 valid
 options of ordering:
@@ -213,8 +206,15 @@ options of ordering:
     ContivRule-s have a total order defined on them using the method `ContivRule.Compare(other)`.
     It holds that if `cr1` matches subset of the traffic matched by `cr2`, then `cr1<cr2`.
     This ordering may be helpful if the destination network stack uses
-    *longest prefix match* algorithm for logarithmic rule lookup, as opposed
+    **longest prefix match** algorithm for logarithmic rule lookup, as opposed
     to list-based linear lookup.
+
+Not every network stack supports access-control for both directions, however.
+Additionally, [services][services-dev-guide] allow to reference a group of pods
+by VIP but rules only consider real pod IP addresses. This means that translation
+and load-balancing have to happen before the ingress rules are applied, which
+is not possible in VPP. The renderers therefore have to further transform and combine
+ingress and egress rules into a single direction, see [rule transformations][rule-transformations].
 
 ### Renderers
 
@@ -245,10 +245,10 @@ ingress with egress as described in the next section.
 
 #### Rule transformations
 
-Both VPP/ACL and VPPTCP have their limitations that prevent them from installing
+Both VPP/ACL and VPPTCP have their limitations that prevent from installing
 ingress and egress rules received from the configurator without any changes.
 
-For VPP/ACL the ingress ACLs cannot be used with the interfaces connecting pods.
+For VPP/ACL the **ingress ACLs** cannot be used with the interfaces connecting pods.
 The reason is that traffic flows through these ACLs before it reaches nat44* graph
 nodes, meaning that the translation of service VIPs executes later.
 However, K8s network policies run below services in the sense that they are meant
@@ -257,12 +257,12 @@ to be applied against the real pod IP address and not the virtual ones.
 VPPTCP, on the other hand, does not even provide per-interface egress AC.
 Every namespace (connection with a pod) provides its own local table of session rules,
 which is only applied against traffic entering VPP from the namespace but
-not confronted with the egress connections. Egress side is matched by a single per-node
-global table. This table is bypassed, however, if communicating pods are deployed
-on the same node (`fall-through` optimization).
+not confronted with the connections initiated in the egress direction.
+Egress side is matched by a single per-node global table. This table is bypassed,
+however, if communicating pods are deployed on the same node (`fall-through` optimization).
 
 The rules for ingress and egress direction are therefore combined into a single
-selected direction - egress for ACL and ingress for VPPTCP.
+selected direction - **egress for ACL** and **ingress for VPPTCP**.
 For simplicity, we will now describe the algorithm specifically for the egress
 side used by ACLs. The same algorithm is used by VPPTCP renderer (implementation
 is parametrized), only source and destination IPs are swapped and the resulting
@@ -303,10 +303,10 @@ CombineRules
             insert into pod1's egress table rule (pod2-IP, ANY, ANY, ANY, ANY, DENY)
 ```
 
-Notice that pod's egress rules are combined with only other *known* pods.
+Notice that pod's egress rules are combined with only other **known** pods.
 The renderer is not supplied with policy configuration for pods without any policy assigned
 or deployed on other nodes. Pod without any policy is open to any traffic therefore
-there are not ingress rules to combine with. Pods deployed on other nodes, however,
+there are no ingress rules to combine with. Pods deployed on other nodes, however,
 may have restrictions imposed on the ingress side. Therefore `CombineRules` is not
 sufficient on its own to ensure that ingress rules are reflected into egress ACLs.
 It is thus necessary to filter traffic leaving the node based on ingress rules
@@ -318,7 +318,7 @@ Global table is build using the following algorithm:
 ```
 BuildGlobalTable:
     input: ingress rules of locally deployed pods
-    output: single egress "global" table of applying all ingress rules for traffic leaving the node
+    output: single egress "global" table applying all ingress rules for traffic leaving the node
 
     create empty global table
 
@@ -346,7 +346,7 @@ The renderer which applies the rules for the destination network stack has now o
 valid options of ordering:
  1. Apply the rules in the exact same order as returned by the Cache for each table.
     Used by the ACL Renderer.
- 2. Apply more-specific rule before less-specific ones, i.e. the *longest prefix match*
+ 2. Apply more-specific rule before less-specific ones, i.e. the **longest prefix match**
     algorithm.
     Used by the VPPTCP Renderer.
 
@@ -356,13 +356,13 @@ Both VPPTCP and ACL renderer create their own instance of the same [Renderer Cac
 The cache maintains a snapshot of all rules currently rendered and allows to easily
 calculate the minimal set of changes that need to be applied in a given transaction.
 The rules are inserted into the cache as received from the configurator - unprocessed
-and split into ingress and egress directions. Internally the cache performs the transformations
+and split into ingress and egress sides. Internally the cache performs the transformations
 described [in the section above](#rule-transformations). Algorithm `CombineRules`
 is implemented by `RendererCacheTxn.buildLocalTable()`. The implementation is parametrized,
 destination to which the rules should be combined is selected during the cache initialization
 (egress for ACL, ingress for VPPTCP).
 
-The rules are grouped into tables represented by type `ContivRuleTable` from the
+The rules are grouped into tables represented by the type `ContivRuleTable` from the
 Cache [API][cache-api] and the full configuration is represented as a list of local tables,
 applied on the ingress or the egress side of pods, and a single global table - generated
 using the `BuildGlobalTable` algorithm implemented by `RendererCacheTxn.rebuildGlobalTable()`,
@@ -401,7 +401,7 @@ can be allowed if is is initiated in the opposite direction. For ACLs it means
 that if the egress ACL of the destination pod allows connection-initiating SYN packet,
 the egress ACL of the source pod should not block the replied SYN-ACK or any other
 packet of that connection. This behaviour is achieved by attaching a so called
-`Reflective ACL` - allowing + reflecting all the traffic - onto to ingress side
+`Reflective ACL` - allowing + **reflecting** all the traffic - onto to ingress side
 of every pod with non-empty egress ACL. The effect is that SYN packet coming to VPP
 from a pod automatically creates a free pass for replies returning to the pod.
 The restrictions imposed by policies are therefore always applied only by the destination
@@ -420,12 +420,12 @@ for the VPPTCP network stack. The renderer uses [cache](#renderer-cache) to conv
 ingress and egress rules into per-namespace (= pod) ingress local tables
 and a single ingress global table.
 
-VPPTCP uses a slightly different representation of policy rule denoted SessionRule
+VPPTCP uses a slightly different representation of the policy rule denoted `SessionRule`
 (tuple with more entries). When put into the context of the target table, ContivRule
 can be easily mapped to SessionRule(s) - this is implemented by `convertContivRule()`
 from [session_rule.go][session-rule].
 
-Session rules are installed into VPP directly through GoVPP (i.e. not using ligato/vpp-agent).
+Session rules are installed into VPP **directly through GoVPP** (i.e. not using ligato/vpp-agent).
 The cache is used to calculate the minimal number of changes needed to apply
 to get the session rules in-sync with the configuration of K8s policies.
 

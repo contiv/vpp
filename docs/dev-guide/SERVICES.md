@@ -255,6 +255,7 @@ VPP guarantees the following ordering between ACL and NAT44 nodes:
  3. routing / switching
  4. acl-plugin-out-ip4-fa = egress ACL
  5. ip4_snat_in2out_output = dynamic SNAT
+
 More information on VPP node ordering can be found in the [Packet Flow guide][packet-flow-dev-guide].
 
 As a consequence, with services in the equation the **ingress ACLs are not eligible

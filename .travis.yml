@@ -4,8 +4,11 @@ language: go
 
 go_import_path: github.com/contiv/vpp
 
+git:
+  depth: 1
+
 go:
-  - 1.9.x
+  - 1.10.x
 
 cache:
   directories:
@@ -15,13 +18,14 @@ env:
   - GO_BUILD_TAGS=mockvpp
 
 before_install:
-  - go get -v github.com/golang/lint/golint
-  - go get github.com/mattn/goveralls
-  - sudo apt-get install npm && npm install -g markdown-link-check
+  - make get-linkcheck
+  - make get-linters
+  - make get-covtools
+  - go get -v github.com/mattn/goveralls
 
 script:
-  - make check_links || true
-  - make check_format
+  - make check-links || true
+  - make check-format
   - make lint
   - make
   - make test-cover

@@ -1,8 +1,11 @@
 package supervisor
 
 import (
+  "context"
   "fmt"
-  
+  "net"
+  "net/http"
+
   "github.com/kolo/xmlrpc"
 )
 
@@ -52,15 +55,34 @@ func New(addr string, port int, username, password string) Client {
   }
 }
 
-func (c Client) url() string { return fmt.Sprintf("http://%s:%s@%s:%d/RPC2", c.user, c.pass, c.addr, c.port) }
+func (c Client) url() string {
+  if c.addr != "" && c.addr[0] == '/' {
+    // unix-domain socket connection
+    return fmt.Sprintf("http://%s:%s@unix/RPC2", c.user, c.pass)
+  } else {
+    // TCP connection
+    return fmt.Sprintf("http://%s:%s@%s:%d/RPC2", c.user, c.pass, c.addr, c.port)
+  }
+}
 
 func (c Client) makeRequest(method string, args, result interface{}) error {
-  xc, err := xmlrpc.NewClient(c.url(), nil)
+  var transport *http.Transport
+
+  if c.addr != "" && c.addr[0] == '/' {
+    // unix-domain socket connection
+    transport = &http.Transport{
+      DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
+        return net.Dial("unix", c.addr)
+      },
+    }
+  }
+
+  xc, err := xmlrpc.NewClient(c.url(), transport)
   if err != nil {
     return err
   }
   defer xc.Close()
-  
+
   err = xc.Call(method, args, result)
   if err != nil {
     return err

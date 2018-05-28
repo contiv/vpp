@@ -142,10 +142,10 @@ to learn how we map the state of Kubernetes services into VPP/NAT configuration.
 
 The VPP/NAT plugin is a relatively recent addition to the VPP toolbox, still lacking
 many features. The most important limitations that manifest themselves in Contiv/VPP are:
-  1. tracking of TCP sessions is still very experimental and has not been properly tested,
-  2. not all dynamically created sessions are currently automatically cleaned up,
-  3. translations are endpoint **independent** (affecting certain communication scenarios,
-     mostly in the STN mode)
+ 1. tracking of TCP sessions is still very experimental and has not been properly tested,
+ 2. not all dynamically created sessions are currently automatically cleaned up,
+ 3. translations are endpoint **independent** (affecting certain communication scenarios,
+    mostly in the STN mode)
 
 ### VPP/NAT support in ligato/vpp-agent
 
@@ -250,11 +250,11 @@ This implies that the destination address translation for services must execute
 outbound traffic is source NAT-ed with the node IP.
 
 VPP guarantees the following ordering between ACL and NAT44 nodes:
-    1. acl-plugin-in-ip4-fa = ingress ACL
-    2. ip4_snat_out2in = destination NAT
-    3. routing / switching
-    4. acl-plugin-out-ip4-fa = egress ACL
-    5. ip4_snat_in2out_output = dynamic SNAT
+ 1. acl-plugin-in-ip4-fa = ingress ACL
+ 2. ip4_snat_out2in = destination NAT
+ 3. routing / switching
+ 4. acl-plugin-out-ip4-fa = egress ACL
+ 5. ip4_snat_in2out_output = dynamic SNAT
 More information on VPP node ordering can be found in the [Packet Flow guide][packet-flow-dev-guide].
 
 As a consequence, with services in the equation the **ingress ACLs are not eligible

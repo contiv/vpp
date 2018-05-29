@@ -39,20 +39,20 @@ import (
 )
 
 const (
-	defaultContivCfgFile   = "/etc/agent/contiv.yaml"
-	defaultEtcdCfgFile     = "/etc/etcd/etcd.conf"
-	defaultSupervisorPort  = 9001
-	defaultStnServerSocket = "/var/run/contiv/stn.sock"
+	defaultContivCfgFile    = "/etc/agent/contiv.yaml"
+	defaultEtcdCfgFile      = "/etc/etcd/etcd.conf"
+	defaultSupervisorSocket = "/run/supervisor.sock"
+	defaultStnServerSocket  = "/var/run/contiv/stn.sock"
 
 	vppProcessName         = "vpp"
 	contivAgentProcessName = "contiv-agent"
 )
 
 var (
-	contivCfgFile   = flag.String("contiv-config", defaultContivCfgFile, "location of the contiv-agent config file")
-	etcdCfgFile     = flag.String("etcd-config", defaultEtcdCfgFile, "location of the ETCD config file")
-	supervisorPort  = flag.Int("supervisor-port", defaultSupervisorPort, "management port of the supervisor process")
-	stnServerSocket = flag.String("stn-server-socket", defaultStnServerSocket, "socket file where STN GRPC server listens for connections")
+	contivCfgFile    = flag.String("contiv-config", defaultContivCfgFile, "location of the contiv-agent config file")
+	etcdCfgFile      = flag.String("etcd-config", defaultEtcdCfgFile, "location of the ETCD config file")
+	supervisorSocket = flag.String("supervisor-socket", defaultSupervisorSocket, "management API socket file of the supervisor process")
+	stnServerSocket  = flag.String("stn-server-socket", defaultStnServerSocket, "socket file where STN GRPC server listens for connections")
 )
 
 var logger logging.Logger // global logger
@@ -238,7 +238,7 @@ func main() {
 	}
 
 	// connect to supervisor API
-	client := supervisor.New("localhost", *supervisorPort, "", "")
+	client := supervisor.New(*supervisorSocket, 0, "", "")
 
 	// start VPP
 	logger.Debug("Starting VPP")
@@ -249,6 +249,12 @@ func main() {
 	}
 
 	if nicToSteal != "" {
+		// Check if the STN Daemon has been initialized
+		if stnData == nil {
+			logger.Errorf("STN configured in vswitch, but STN Daemon not initialized")
+			os.Exit(-1)
+		}
+
 		// configure connectivity on VPP
 		vppCfg, err := configureVpp(contivCfg, stnData, useDHCP)
 		if err != nil {

@@ -55,8 +55,12 @@ func New(addr string, port int, username, password string) Client {
   }
 }
 
+func (c Client) isUnixDomain() bool {
+  return c.addr != "" && c.addr[0] == '/'
+}
+
 func (c Client) url() string {
-  if c.addr != "" && c.addr[0] == '/' {
+  if c.isUnixDomain() {
     // unix-domain socket connection
     return fmt.Sprintf("http://%s:%s@unix/RPC2", c.user, c.pass)
   } else {
@@ -68,7 +72,7 @@ func (c Client) url() string {
 func (c Client) makeRequest(method string, args, result interface{}) error {
   var transport *http.Transport
 
-  if c.addr != "" && c.addr[0] == '/' {
+  if c.isUnixDomain() {
     // unix-domain socket connection
     transport = &http.Transport{
       DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {

@@ -17,12 +17,13 @@ package main
 import (
 	"context"
 	"flag"
-	"fmt"
 	"io/ioutil"
+	"net"
 	"os"
 	"os/signal"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/ghodss/yaml"
 	"github.com/nerdtakula/supervisor"
@@ -41,7 +42,7 @@ const (
 	defaultContivCfgFile    = "/etc/agent/contiv.yaml"
 	defaultEtcdCfgFile      = "/etc/etcd/etcd.conf"
 	defaultSupervisorSocket = "/run/supervisor.sock"
-	defaultStnServerPort    = 50051
+	defaultStnServerSocket  = "/var/run/contiv/stn.sock"
 
 	vppProcessName         = "vpp"
 	contivAgentProcessName = "contiv-agent"
@@ -51,7 +52,7 @@ var (
 	contivCfgFile    = flag.String("contiv-config", defaultContivCfgFile, "location of the contiv-agent config file")
 	etcdCfgFile      = flag.String("etcd-config", defaultEtcdCfgFile, "location of the ETCD config file")
 	supervisorSocket = flag.String("supervisor-socket", defaultSupervisorSocket, "management API socket file of the supervisor process")
-	stnServerPort    = flag.Int("stn-server-port", defaultStnServerPort, "port where STN GRPC server listens for connections")
+	stnServerSocket  = flag.String("stn-server-socket", defaultStnServerSocket, "socket file where STN GRPC server listens for connections")
 )
 
 var logger logging.Logger // global logger
@@ -67,9 +68,8 @@ func stealNIC(nicName string, useDHCP bool) (*stn.STNReply, error) {
 	logger.Debugf("Stealing the NIC: %s", nicName)
 
 	// connect to STN GRPC server
-	conn, err := grpc.Dial(fmt.Sprintf(":%d", *stnServerPort), grpc.WithInsecure())
+	conn, err := stnGrpcConnect()
 	if err != nil {
-		logger.Errorf("Unable to connect to STN GRPC: %v", err)
 		return nil, err
 	}
 	defer conn.Close()
@@ -94,9 +94,8 @@ func releaseNIC(nicName string, useDHCP bool) error {
 	logger.Debugf("Releasing the NIC: %s", nicName)
 
 	// connect to STN GRPC server
-	conn, err := grpc.Dial(fmt.Sprintf(":%d", *stnServerPort), grpc.WithInsecure())
+	conn, err := stnGrpcConnect()
 	if err != nil {
-		logger.Errorf("Unable to connect to STN GRPC: %v", err)
 		return err
 	}
 	defer conn.Close()
@@ -114,6 +113,21 @@ func releaseNIC(nicName string, useDHCP bool) error {
 
 	logger.Debug(reply)
 	return nil
+}
+
+// grpcConnect connects to STN GRPC server.
+func stnGrpcConnect() (*grpc.ClientConn, error) {
+	dialer := grpc.WithDialer(func(addr string, timeout time.Duration) (net.Conn, error) {
+		return net.DialTimeout("unix", addr, timeout)
+	})
+
+	conn, err := grpc.Dial(*stnServerSocket, grpc.WithInsecure(), dialer)
+	if err != nil {
+		logger.Errorf("Unable to connect to STN GRPC: %v", err)
+		return nil, err
+	}
+
+	return conn, nil
 }
 
 // parseSTNConfig parses the config file and looks up for STN configuration.

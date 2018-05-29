@@ -453,6 +453,8 @@ spec:
               mountPath: /dev
             - name: vpp-run
               mountPath: /run/vpp
+            - name: contiv-run
+              mountPath: /var/run/contiv
             - name: contiv-plugin-cfg
               mountPath: /etc/agent
             - name: govpp-plugin-cfg
@@ -516,6 +518,10 @@ spec:
         - name: vpp-run
           hostPath:
             path: /run/vpp
+        # For CNI / STN unix domain socket
+        - name: contiv-run
+          hostPath:
+            path: /var/run/contiv
         # Used to configure contiv plugin.
         - name: contiv-plugin-cfg
           configMap:

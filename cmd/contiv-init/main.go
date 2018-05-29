@@ -235,6 +235,12 @@ func main() {
 	}
 
 	if nicToSteal != "" {
+		// Check if the STN Daemon has been initialized
+		if stnData == nil {
+			logger.Errorf("STN configured in vswitch, but STN Daemon not initialized")
+			os.Exit(-1)
+		}
+
 		// configure connectivity on VPP
 		vppCfg, err := configureVpp(contivCfg, stnData, useDHCP)
 		if err != nil {

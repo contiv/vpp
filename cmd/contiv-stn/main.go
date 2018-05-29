@@ -33,11 +33,12 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/contiv/vpp/cmd/contiv-stn/model/stn"
+	"path/filepath"
 )
 
 const (
-	defaultGRPCServerPort  = 50051 // port where the GRPC STN server listens for client connections
-	defaultStatusCheckPort = 9999  // port that STN server is checking to determine contiv-agent liveness
+	defaultGRPCServerSocket = "/var/run/contiv/stn.sock" // socket file where the GRPC STN server listens for client connections
+	defaultStatusCheckPort  = 9999                       // port that STN server is checking to determine contiv-agent liveness
 
 	initStatusCheckTimeout = 30 * time.Second // initial timeout after which the STN server starts checking of the contiv-agent state
 	statusCheckInterval    = 1 * time.Second  // periodic interval in which the STN server checks for contiv-agent state
@@ -55,8 +56,8 @@ var (
 	// BuildDate contains date of the build, set by the Makefile using ldflags during build.
 	BuildDate string
 
-	grpcServerPort  = flag.Int("grpc", defaultGRPCServerPort, "port where the GRPC STN server listens for client connections")
-	statusCheckPort = flag.Int("statuscheck", defaultStatusCheckPort, "port that STN server is checking to determine contive-agent liveness")
+	grpcServerSocket = flag.String("grpc", defaultGRPCServerSocket, "socket file where the GRPC STN server listens for client connections")
+	statusCheckPort  = flag.Int("statuscheck", defaultStatusCheckPort, "port that STN server is checking to determine contive-agent liveness")
 )
 
 // stnServer represents an instance of the STN GRPC server.
@@ -744,10 +745,11 @@ func main() {
 		log.Fatalf("failed to init ethtool: %v", err)
 	}
 
-	log.Printf("Starting the STN GRPC server at port %d", *grpcServerPort)
+	log.Printf("Starting the STN GRPC server at socket %s", *grpcServerSocket)
 
 	// init GRPC server
-	lis, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", *grpcServerPort))
+	_ = os.Mkdir(filepath.Dir(*grpcServerSocket), 0700)
+	lis, err := net.Listen("unix", *grpcServerSocket)
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)
 	}

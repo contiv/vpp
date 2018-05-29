@@ -43,6 +43,7 @@ import (
 	linux_l3 "github.com/ligato/vpp-agent/plugins/linuxplugin/common/model/l3"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
+	"time"
 )
 
 const (
@@ -57,6 +58,7 @@ const (
 	vethHostEndName               = "vpp1"
 	vethVPPEndLogicalName         = "veth-vpp2"
 	vethVPPEndName                = "vpp2"
+	defaultSTNSocketFile          = "/var/run/contiv/stn.sock"
 
 	// TapHostEndLogicalName is the logical name of the VPP-host interconnect TAP interface (host end)
 	TapHostEndLogicalName = "tap-vpp1"
@@ -524,7 +526,17 @@ func (s *remoteCNIserver) getSTNInterfaceIP(ifName string) (ip string, gw string
 	s.Logger.Debugf("Getting STN info for interface %s", ifName)
 
 	// connect to STN GRPC server
-	conn, err := grpc.Dial(fmt.Sprintf(":%d", 50051), grpc.WithInsecure()) // TODO configurable server port
+	if s.config.STNSocketFile == "" {
+		s.config.STNSocketFile = defaultSTNSocketFile
+	}
+	conn, err := grpc.Dial(
+		s.config.STNSocketFile,
+		grpc.WithInsecure(),
+		grpc.WithDialer(
+			func(addr string, timeout time.Duration) (net.Conn, error) {
+				return net.DialTimeout("unix", addr, timeout)
+			}),
+	)
 	if err != nil {
 		s.Logger.Errorf("Unable to connect to STN GRPC: %v", err)
 		return

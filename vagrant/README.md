@@ -17,7 +17,7 @@ It is organized into two subfolders:
  - (config) - contains the files needed to share cluster information, used
    during the provisioning stage (master IP address, Certificates, hash-keys).
    Editing is not recommended!
- - (vagrant-scripts) - contains scripts for creating, destroying, rebooting
+ - (vagrant) - contains scripts for creating, destroying, rebooting
     and shuting down the VMs that host the K8s cluster.
 
 If you wish to change the default number of nodes, edit and set K8S_NODES 
@@ -55,7 +55,7 @@ export VAGRANT_DEFAULT_PROVIDER=${VAGRANT_DEFAULT_PROVIDER:-vmware_fusion}
 ```
 
 To create and run a K8s cluster with contiv-vpp CNI plugin, run the 
-`vagrant-up` script, located in the vagrant-scripts folder. The `vagrant-up`
+`vagrant-up` script, located in the vagrant folder. The `vagrant-up`
 script can deploy either the *testing environment* (using the -t flag or 
 leave empty) or the *development environment* (use the -d flag) . Instructions
 on how to build the development contiv/vpp-vswitch image can be found in the
@@ -63,34 +63,34 @@ next paragraph.
 
 For the testing environment run:
 ```
-cd vagrant-scripts/
+cd vagrant/
 ./vagrant-up
 ```
 
 For the development environment run:
 ```
-cd vagrant-scripts/
+cd vagrant/
 ./vagrant-up -d
 ```
 
 To destroy and clean-up the cluster run vagrant-cleanup script, located
-inside vagrant-scripts folder:
+inside the vagrant folder:
 ```
-cd vagrant-scripts/
+cd vagrant/
 ./vagrant-cleanup
 ```
 
-To shutdown the cluster run vagrant-shutdown script, located inside
-vagrant-scripts folder:
+To shutdown the cluster run vagrant-shutdown script, located inside the
+vagrant folder:
 ```
-cd vagrant-scripts/
+cd vagrant/
 ./vagrant-shutdown
 ```
 
-To reboot the cluster run vagrant-reload script, located inside
-vagrant-scripts folder:
+To reboot the cluster run vagrant-reload script, located inside the
+vagrant folder:
 ```
-cd vagrant-scripts/
+cd vagrant/
 ./vagrant-reload
 ```
 
@@ -130,7 +130,7 @@ few seconds ago.
 ### Exploring the cluster:
 Once the cluster is up, log into the master:
 ```
-cd vagrant-scripts
+cd vagrant
 
 vagrant ssh k8s-master
 
@@ -238,7 +238,7 @@ index.html.1                100%[=========================================>]    
 #### How to SSH into k8s worker node
 
 ```
-cd vagrant-scripts
+cd vagrant
 
 vagrant status
 

@@ -838,7 +838,7 @@
 [[projects]]
   name = "github.com/nerdtakula/supervisor"
   packages = ["."]
-  revision = "5bf894f54fd79a23fa965bf078b2a094a9d9e20b"
+  revision = "857e93729bfa62df91dcdd3d36c9ac7036edf20a"
 
 [[projects]]
   name = "github.com/onsi/gomega"
@@ -1637,6 +1637,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "25b39bb7c5bdc95084a15d9aac8698fbce77135129a7a371cdc3e8218217fce3"
+  inputs-digest = "3de9577217207e09dec85d9edeb8aacfef708bd8136f31452d06b0b023ef4cf7"
   solver-name = "gps-cdcl"
   solver-version = 1

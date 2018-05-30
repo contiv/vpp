@@ -238,9 +238,7 @@ func main() {
 	}
 
 	// connect to supervisor API
-	// TODO: temporary workaround for supervisor socket connectivity issue
-	client := supervisor.New("localhost", 9001, "", "")
-	//client := supervisor.New(*supervisorSocket, 0, "", "")
+	client := supervisor.New(*supervisorSocket, 0, "", "")
 
 	// start VPP
 	logger.Debug("Starting VPP")

@@ -121,7 +121,7 @@ required = ["github.com/wadey/gocovmerge", "github.com/docker/docker/api", "gith
 
 [[constraint]]
   name = "github.com/nerdtakula/supervisor"
-  revision = "5bf894f54fd79a23fa965bf078b2a094a9d9e20b"
+  revision = "857e93729bfa62df91dcdd3d36c9ac7036edf20a"
 
 [[constraint]]
   name = "github.com/safchain/ethtool"

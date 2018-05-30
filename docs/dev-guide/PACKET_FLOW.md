@@ -9,10 +9,11 @@ packets inside Contiv/VPP Kubernetes cluster under different situations.
 2. [Pod to Pod on another node](#pod-to-pod-on-another-node)
 3. [Pod to Pod in the host network stack](#pod-to-pod-in-the-host-network-stack)
 4. [Host to Pod](#host-to-pod)
-5. [Pod to Service with chosen backend on the same node](#pod-to-service-with-chosen-backend-on-the-same-node)
-6. [Pod to Service with chosen backend on another node](#pod-to-service-with-chosen-backend-on-another-node)
-7. [Pod to Service with chosen backend in the host network stack](#pod-to-service-with-chosen-backend-in-the-host-network-stack)
-8. [Host to Service](#host-to-service)
+5. [Pod To Internet](#pod-to-internet)
+6. [Pod to Service with chosen backend on the same node](#pod-to-service-with-chosen-backend-on-the-same-node)
+7. [Pod to Service with chosen backend on another node](#pod-to-service-with-chosen-backend-on-another-node)
+8. [Pod to Service with chosen backend in the host network stack](#pod-to-service-with-chosen-backend-in-the-host-network-stack)
+9. [Host to Service](#host-to-service)
 
 ## Pod to Pod on the same node
 
@@ -237,7 +238,7 @@ to `serverIP:serverPort` of another "server" pod from a different node:
     (node `acl-plugin-out-ip4-fa`) - the **encapsulated traffic is always permitted**.
 11. `nat44-in2out-output`, i.e. NAT in the post-routing phase, applies the identity
     mapping installed for VXLAN to **prevent from source-NATing of the inter-cluster traffic**.
-    See [development guide for services][nat44-in2out-output] for more details
+    See [development guide for services][services-dev-guide] for more details
     on NAT identities and integration of services with policies.  
 12. **Request arrives via `dpdk-input` to the target node's VPP**.    
 13. Ingress `Reflective ACL` for GbeE permits and reflects the connection.
@@ -852,6 +853,10 @@ Example SYN-ACK packet sent from server `10.20.0.2:8080` back to client `10.1.1.
     window 28960, checksum 0x2bc9
 ```
 
+### Diagram
+
+TODO
+
 ## Host to Pod
 
 ### Request
@@ -995,6 +1000,24 @@ virtio: hw_if_index 9 next-index 4 vring 0 len 74
     window 28960, checksum 0xd4b0
 ```
 
+### Diagram
+
+TODO (minor difference with "Pod to Pod in the host network stack")
+
+## Pod To Internet
+
+### Request
+
+TODO
+
+### Response
+
+TODO
+
+### Diagram
+
+TODO
+
 ## Pod to Service with chosen backend on the same node
 
 ### Request
@@ -1129,7 +1152,7 @@ destined to service `serviceIP:servicePort`, load-balanced to the endpoint
 `serverIP:serverPort` from another node:
 
  - the same steps are taken as for [request between pods on different nodes](#pod-to-pod-on-another-node),
-   except that `nat44-out2in` between client's TAP and `loop0` (the firs pass through this node)
+   except that `nat44-out2in` between client's TAP and `loop0` (the first pass through this node)
    translates destination address `serviceIP:servicePort` to randomly chosen
    endpoint `serverIP:serverPort` from another node (session index is not -1
    in the packet trace)
@@ -1348,8 +1371,8 @@ For response sent from server `serverIP:serverPort`, acting as endpoint for serv
 `serviceIP:servicePort`, back to the client `clientIP:clientPort` deployed on another node:
 
  - the same steps are taken as for [response between pods on different nodes](#pod-to-pod-on-another-node),
-   except that in `nat44-in2out` on the **client's node** translates the source address
-   `serverIP:serverPort` back to service VIP `serviceIP:servicePort` (session is not -1
+   except that in `nat44-in2out` on the **client's node** the source address `serverIP:serverPort`
+   is translated back to service VIP `serviceIP:servicePort` (session is not -1
    in the packet trace)
 
 Example SYN-ACK packet sent from server `10.1.2.4:8080`, acting as endpoint of service
@@ -1721,7 +1744,7 @@ on the same node:
    the dynamic entry created for the connection and translates the source address
    `serverIP:serverPort` back to service VIP `serviceIP:servicePort`    
 
- 
+
 [pod-to-pod-on-the-same-node-diagram]: pod-to-pod-on-the-same-node.png "Pod connecting to pod on the same node"
 [pod-to-pod-on-another-node-diagram]: pod-to-pod-on-another-node.png "Pod connecting to pod on another node"
 [policies-dev-guide]: POLICIES.md

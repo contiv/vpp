@@ -257,6 +257,7 @@ spec:
               mkdir /var/run/contiv
           fi
           chmod 700 /var/run/contiv
+          rm -f /var/run/contiv/cni.sock
           if ip link show vpp1 >/dev/null 2>&1; then
                ip link del vpp1
           fi

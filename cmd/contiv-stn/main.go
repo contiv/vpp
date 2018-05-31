@@ -748,7 +748,11 @@ func main() {
 	log.Printf("Starting the STN GRPC server at socket %s", *grpcServerSocket)
 
 	// init GRPC server
+	if *grpcServerSocket == "" {
+		log.Fatalf("GRPC server socket file must be specified")
+	}
 	_ = os.Mkdir(filepath.Dir(*grpcServerSocket), 0700)
+	syscall.Unlink(*grpcServerSocket)
 	lis, err := net.Listen("unix", *grpcServerSocket)
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)

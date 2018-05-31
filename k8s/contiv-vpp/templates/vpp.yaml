@@ -77,6 +77,9 @@ data:
     {{- end }}
   logs.conf: |
     defaultlevel: {{ .Values.logs.defaultLevel }}
+  grpc.conf: |
+    socket-type: unix
+    endpoint: /var/run/contiv/cni.sock
 
 ---
 
@@ -375,14 +378,16 @@ spec:
         - |
           set -eu
           chmod 700 /run/vpp
-          rm -rf /dev/shm/db /dev/shm/global_vm /dev/shm/vpe-api /vpp-lib64/*
-          cp -r "$LD_PRELOAD_LIB_DIR"/* /vpp-lib64/
-          if [ ! -e /host/etc/vpp/contiv-vswitch.conf ]
-          then
+          rm -rf /dev/shm/db /dev/shm/global_vm /dev/shm/vpe-api
+          if [ ! -e /host/etc/vpp/contiv-vswitch.conf ]; then
               cp /etc/vpp/contiv-vswitch.conf /host/etc/vpp/
           fi
-          if ip link show vpp1 >/dev/null 2>&1
-          then
+          if [ ! -d /var/run/contiv ]; then
+              mkdir /var/run/contiv
+          fi
+          chmod 700 /var/run/contiv
+          rm -f /var/run/contiv/cni.sock
+          if ip link show vpp1 >/dev/null 2>&1; then
                ip link del vpp1
           fi
           cp -f /usr/local/bin/vppctl /host/usr/local/bin/vppctl
@@ -400,6 +405,8 @@ spec:
             mountPath: /dev/shm
           - name: vpp-run
             mountPath: /run/vpp
+          - name: contiv-run
+            mountPath: /var/run/contiv
 
       containers:
         # Runs contiv-vswitch container on each Kubernetes node.

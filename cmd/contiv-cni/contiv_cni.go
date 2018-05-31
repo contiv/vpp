@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
+	"time"
 
 	"github.com/containernetworking/cni/pkg/skel"
 	"github.com/containernetworking/cni/pkg/types"
@@ -39,7 +40,8 @@ type cniConfig struct {
 	PrevResult *map[string]interface{} `json:"prevResult"`
 
 	// GrpcServer is a plugin-specific config, contains location of the gRPC server
-	// where the CNI requests are being forwarded to (server:port tuple, e.g. "localhost:9111").
+	// where the CNI requests are being forwarded to (server:port tuple, e.g. "localhost:9111")
+	// or unix-domain socket path (e.g. "/run/cni.sock").
 	GrpcServer string `json:"grpcServer"`
 }
 
@@ -65,13 +67,28 @@ func parseCNIConfig(bytes []byte) (*cniConfig, error) {
 }
 
 // grpcConnect sets up a connection to the gRPC server specified in grpcServer argument
-// as a server:port tuple (e.g. "localhost:9111").
-func grpcConnect(grpcServer string) (*grpc.ClientConn, cninb.RemoteCNIClient, error) {
-	conn, err := grpc.Dial(grpcServer, grpc.WithInsecure())
-	if err != nil {
-		return nil, nil, err
+// as a server:port tuple (e.g. "localhost:9111") or unix-domain socket path (e.g. "/run/cni.sock").
+func grpcConnect(grpcServer string) (conn *grpc.ClientConn, cni cninb.RemoteCNIClient, err error) {
+
+	if grpcServer != "" && grpcServer[0] == '/' {
+		// unix-domain socket connection
+		conn, err = grpc.Dial(
+			grpcServer,
+			grpc.WithInsecure(),
+			grpc.WithDialer(func(addr string, timeout time.Duration) (net.Conn, error) {
+				return net.DialTimeout("unix", addr, timeout)
+			}),
+		)
+	} else {
+		// TCP socket connection
+		conn, err = grpc.Dial(grpcServer, grpc.WithInsecure())
 	}
-	return conn, cninb.NewRemoteCNIClient(conn), nil
+
+	if err != nil {
+		return
+	}
+	cni = cninb.NewRemoteCNIClient(conn)
+	return
 }
 
 // cmdAdd implements the CNI request to add a container to network.

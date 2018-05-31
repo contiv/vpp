@@ -23,13 +23,13 @@ the associated endpoint object can also be edited manually through the REST
 interface, giving the user full control over the set of endpoints assigned
 to a service.
 
-A Kubernetes service can be published to the cluster and to the outside world in 
+A Kubernetes service can be published to the cluster and to the outside world in
 various ways:
  * `ClusterIP`: exposing the service on a cluster-internal IP
  * `NodePort`: exposing the service on every node’s host stack IP at a static
    port from a pre-determined range (default: 30000-32767),
  * `externalIPs`: an unlimited number of cluster-outside IP addresses that should
-   be routed to one or more cluster nodes, where they get load-balanced across 
+   be routed to one or more cluster nodes, where they get load-balanced across
    endpoints by Kubernetes.
 
 Furthermore, every service defined in the cluster (including the DNS server
@@ -64,16 +64,20 @@ the VPP GigE interface always bypass kube-proxy.
 [VPP/NAT plugin][vpp-nat-plugin] is an implementation of NAT44 and NAT64 for VPP.
 TODO: detailed description from Matus / Giles.
 
-TODO: Basic intro (a sentence or paragraph) about interfaces
-
-In Contiv/VPP the VPP/NAT plugin is used to:
+In Contiv-VPP the VPP/NAT plugin is used in the data-plane to:
  1. Load-balance and forward traffic between services and endpoints,
     i.e **1-to-many NAT**,
- 2. **Dynamically source-NAT** all traffic leaving every node to enable Internet
+ 2. **Dynamically source-NAT** node-outbound traffic to enable Internet
     access for pods with private IPs.
 
+The following subsection describes some key VPP/NAT configuration items, focused
+on features used in the Contiv-VPP data plane.
+Certain aspects of the VPP/NAT configuration are explained in a greater detail
+as they play a pivotal role in the implementation of Kubernetes services for
+Contiv-VPP.
+
 ### Configuration
-#### Interfaces ???
+#### Interface features
 Traffic flowing through an interface won't be NATed unless the VPP/NAT plugin
 is informed whether the interface connects VPP with an internal (`in`) or
 an external network (`out`).
@@ -118,8 +122,19 @@ define nat44_add_del_lb_static_mapping {
  vl_api_nat44_lb_addr_port_t locals[local_num];
 };
 ```
-Fields `out2in_only` and `self_twice_nat` need a special attention:
- * `self-twice-nat` is a special feature added for Contiv to enable access
+Description of fields:
+ * `nat44_lb_addr_port.addr`: IPv4 address of a local endpoint.
+ * `nat44_lb_addr_port.port`: L4 port number of a local endpoint.
+ * `nat44_lb_addr_port.probability`: probability (weight) of the local endpoint
+   to be randomly matched.
+ * `external_addr`: external IPv4 address of the service.
+ * `external_port`: external L4 port number of the service.
+ * `protocol`: IP protocol number of the service (UDP or TCP).
+ * `vrf_id`: internal network VRF ID.
+ * `twice_nat`: translate both the source and destination address with a single
+   rule. Twice NAT is not used in Contiv-VPP - source-NAT is not applied for
+   intra-node traffic.
+ * `self-twice-nat`: a special feature added for Contiv to enable access
    to service from one of its own endpoints (i.e. access from itself). If you hit
    the same endpoint as the request originated from, then the source and
    destination IPs are equal after DNAT translation. This is an issue because
@@ -131,12 +146,17 @@ Fields `out2in_only` and `self_twice_nat` need a special attention:
    that is routed from each pod through TAP back into VPP. We choose the last
    unicast IP address from `PodCIDR` to server as this virtual loopback and
    ensure that it is never allocated to a pod.
- * `out2in-only` tells the NAT plugin to apply the associated static mapping and
-   create a new dynamic entry for a session only if the destination == mappings‘
-   external IP (as DNAT). Under the default configuration, the mapping would
-   apply (as source NAT) also for connections initiated from the local IPs,
-   replacing the source address with the external IP (breaking policies for
-   example).
+ * `out2in-only`: if enabled the NAT plugin will apply the associated static
+   mapping and create a new dynamic entry for a session only if the
+   destination == mappings‘ external IP (as DNAT). Under the default configuration,
+   the mapping would apply (as source NAT) also for connections initiated from
+   the local IPs, replacing the source address with the external IP (breaking
+   policies for example).
+ * `tag`: string tag opaque to VPP/NAT plugin. Used by Contiv-VPP control plane
+   to associate NAT rule with the corresponding service, which is needed by the
+   re-sync procedure.
+ * `local_num`: the number of local endpoints.
+ * `locals`: list of local endpoints.
 
 #### Dynamic source-NAT
 For a dynamic SNAT of the outbound traffic, the interface needs to be further
@@ -165,7 +185,7 @@ lacking many features. The limitations that impact Contiv/VPP are:
  1. Tracking of TCP sessions is still very experimental and has not been fully
     tested
  2. Not all dynamically created sessions are currently automatically cleaned up
- 3. Translations are endpoint **independent**, which affects certain communication 
+ 3. Translations are endpoint **independent**, which affects certain communication
     scenarios, mostly in the STN mode
 
 ## Services implementation in Contiv-VPP control plane
@@ -345,9 +365,9 @@ The plugin and the components it interacts with are split into multiple layers,
 stacked on top of each other, with data moving from the top layer to the bottom
 layer. Each layer obtains service-related data from the layer above and outputs
 the data processed/transformed in some way to the layer below. On the top there
-are K8s state data for endpoints and services as reflected into Etcd by KSR. 
-With each layer the abstraction level decreases until at the very bottom the 
-corresponding set of NAT rules is calculated and installed into the VPP by 
+are K8s state data for endpoints and services as reflected into Etcd by KSR.
+With each layer the abstraction level decreases until at the very bottom the
+corresponding set of NAT rules is calculated and installed into the VPP by
 Ligato/vpp-agent.
 
 The Service plugin consists of two components: the Policy Processor that matches
@@ -356,7 +376,7 @@ data received from the Processor into [protobuf-modelled][nat-model] NAT
 configuration for the Ligato/vpp-agent to install in the VPP.
 
 The southbound of the processor is connected to the northbound of the configurator
-via an interface defined in [configurator_api.go][configurator-api]. For each 
+via an interface defined in [configurator_api.go][configurator-api]. For each
 service, data from Service and Endpoint Kubernetes APIs are combined into
 a minimalistic representation of the service known as `ContivService`.
 Furthermore, the configurator northbound API denotes interfaces connecting VPP

@@ -24,7 +24,7 @@ TAG=${1-latest}
 
 # build the production images
 docker build -t prod-contiv-vswitch:${TAG} ${DOCKER_BUILD_ARGS} --no-cache --force-rm=true -f vswitch/Dockerfile .
-docker build -t prod-contiv-cri:${TAG} ${DOCKER_BUILD_ARGS} --no-cache --force-rm=true -f cri/Dockerfile .
+#docker build -t prod-contiv-cri:${TAG} ${DOCKER_BUILD_ARGS} --no-cache --force-rm=true -f cri/Dockerfile .
 
 # delete the extracted binaries
 rm -rf binaries/

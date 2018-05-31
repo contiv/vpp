@@ -447,6 +447,7 @@ SYN-ACK from the client's node:
 
 The packets traverse the **same sequence of nodes** as for the [communication
 between pods on different nodes][pod-to-pod-on-different-node]:
+
 ![Pod connecting to service endpoint on a different node][pod-to-pod-different-nodes-diagram]
 
 

@@ -129,6 +129,7 @@ the endpoints for service `10.104.221.85:80`, back to client `10.1.1.3:51082`:
 
 The packets traverse the **same sequence of nodes** as for the [communication
 between pods on the same node][pod-to-pod-on-the-same-node]:
+
 ![Pod connecting to service endpoint on the same node][pod-to-pod-on-the-same-node-diagram]
 
 

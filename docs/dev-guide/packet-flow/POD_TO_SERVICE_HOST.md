@@ -131,6 +131,7 @@ acting as one of the endpoints for service `10.104.221.85:80`, back to client
 
 The packets traverse the **same sequence of nodes** regardless of whether the
 host stack is accessed via service IP or [directly][pod-to-host]:
+
 ![Pod connecting to service endpoint in the host stack][pod-to-host-diagram]
 
 

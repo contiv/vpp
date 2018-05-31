@@ -384,8 +384,8 @@ spec:
           fi
           if [ ! -d /var/run/contiv ]; then
               mkdir /var/run/contiv
-              chmod 700 /var/run/contiv
           fi
+          chmod 700 /var/run/contiv
           if ip link show vpp1 >/dev/null 2>&1; then
                ip link del vpp1
           fi

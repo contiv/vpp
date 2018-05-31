@@ -1,5 +1,20 @@
 # Contiv - VPP
 
+![contiv - VPP](https://github.com/contiv/vpp/img/contiv2.png)
+
+Cloud-native splits applications into smaller/modular pieces called microservices. Microservices are packaged up and deployed in containers across a network of physical or virtual hosts. Container-housed microservices communicate with each other across the network to deliver the desired application function. Thus the network plays a crucial role enabling application behavior and performance. 
+
+Contiv-VPP is a new Kubernetes network plugin employing a containerized FD.io dataplane. Highlights include: 
+
+- Containerized FD.io dataplane
+- Operates in use-space for rapid upgradability and, no dependency on linux kernel community for network feature enhancements
+- Full Kubernetes CNI network plugin support
+- Supports Kubernetes network policies and services
+
+Contiv-VPP is built as a Cloud-Native Virtual Network Function (CN-VNF) using components of [Ligato](ligato.io) coupled with the familiar Kubernetes network infrastructure and control. 
+
+### Working with Contiv - VPP
+
 [![Build Status](https://travis-ci.org/contiv/vpp.svg?branch=master)](https://travis-ci.org/contiv/vpp)
 [![Coverage Status](https://coveralls.io/repos/github/contiv/vpp/badge.svg?branch=master)](https://coveralls.io/github/contiv/vpp?branch=master)
 [![Go Report Card](https://goreportcard.com/badge/github.com/contiv/vpp)](https://goreportcard.com/report/github.com/contiv/vpp)

@@ -77,7 +77,14 @@ data:
     {{- end }}
   logs.conf: |
     defaultlevel: {{ .Values.logs.defaultLevel }}
-
+  http.conf: |
+      endpoint: 0.0.0.0:9999
+      server-cert-file: /var/run/contiv/server.crt
+      server-key-file: /var/run/contiv/server.key
+      {{ if .Values.http.enableBasicAuth }}
+      client-basic-auth:
+        - {{ .Values.http.basicAuth | quote }}
+      {{- end }}
 ---
 
 apiVersion: v1
@@ -262,6 +269,19 @@ spec:
     nodePort: {{ .Values.etcd.service.nodePort }}
 
 ---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: contiv-ksr-http-cfg
+  namespace: kube-system
+data:
+  http.conf: |
+    endpoint: 0.0.0.0:9191
+    {{ if .Values.http.enableBasicAuth }}
+    client-basic-auth:
+      - {{ .Values.http.basicAuth | quote }}
+    {{- end }}
+---
 
 # This config map contains ETCD configuration for connecting to the contiv-etcd defined above.
 apiVersion: v1
@@ -417,6 +437,14 @@ spec:
             httpGet:
               path: /readiness
               port: 9999
+{{ if .Values.http.enableServerCert }}
+              scheme: HTTPS
+{{- end }}
+              {{ if .Values.http.enableBasicAuth }}
+              httpHeaders:
+                - name: Authorization
+                  value: "Basic {{ .Values.http.basicAuth | b64enc }}"
+              {{- end }}
             periodSeconds: 3
             timeoutSeconds: 2
             failureThreshold: 3
@@ -425,6 +453,14 @@ spec:
             httpGet:
               path: /liveness
               port: 9999
+              {{ if .Values.http.enableServerCert }}
+              scheme: HTTPS
+              {{- end }}
+              {{ if .Values.http.enableBasicAuth }}
+              httpHeaders:
+                - name: Authorization
+                  value: "Basic {{ .Values.http.basicAuth | b64enc }}"
+              {{- end }}
             periodSeconds: 3
             timeoutSeconds: 2
             failureThreshold: 3
@@ -581,9 +617,13 @@ spec:
           env:
             - name: ETCDV3_CONFIG
               value: "/etc/etcd/etcd.conf"
+            - name: HTTP-PROBE_CONFIG
+              value: "/etc/http/http.conf"
           volumeMounts:
             - name: etcd-cfg
               mountPath: /etc/etcd
+            - name: http-cfg
+              mountPath: /etc/http
             {{- if .Values.etcd.secureTransport }}
             - name: etcd-secrets
               mountPath: /var/etcd/contiv-secrets
@@ -593,12 +633,22 @@ spec:
             httpGet:
               path: /readiness
               port: 9191
+              {{ if .Values.http.enableBasicAuth }}
+              httpHeaders:
+                - name: Authorization
+                  value: "Basic {{ .Values.http.basicAuth | b64enc }}"
+              {{- end }}
             periodSeconds: 1
             initialDelaySeconds: 10
           livenessProbe:
             httpGet:
               path: /liveness
               port: 9191
+              {{ if .Values.http.enableBasicAuth }}
+              httpHeaders:
+                - name: Authorization
+                  value: "Basic {{ .Values.http.basicAuth | b64enc }}"
+              {{- end }}
             periodSeconds: 1
             initialDelaySeconds: 30
 
@@ -607,6 +657,9 @@ spec:
         - name: etcd-cfg
           configMap:
             name: contiv-etcd-withcompact-cfg
+        - name: http-cfg
+          configMap:
+            name: contiv-ksr-http-cfg
         {{- if .Values.etcd.secureTransport }}
         - name: etcd-secrets
           {{- if .Values.etcd.secrets.mountFromHost }}

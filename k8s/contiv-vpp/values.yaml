@@ -104,3 +104,11 @@ govpp:
   healthCheckReplyTimeout: 500000000
   healthCheckThreshold: 3
   replyTimeout: 3000000000
+
+
+http:
+  enableBasicAuth: true
+  enableServerCert: true
+  serverCert: server.crt
+  serverKey: server.key
+  basicAuth: user:pass

@@ -30,7 +30,6 @@ data:
     CleanupIdleNATSessions: True
     TCPNATSessionTimeout: 180
     OtherNATSessionTimeout: 5
-    StealInterface: enp0s3
     IPAMConfig:
       PodSubnetCIDR: 10.1.0.0/16
       PodNetworkPrefixLen: 24

@@ -194,11 +194,11 @@ of its limitations impact Contiv-VPP. They are:
 
 The VPP/NAT plugin for IPv4 is configured through the [vpp/ifplugin][vpp-agent-if-plugin]
 in the [Ligato VPP Agent][ligato-vpp-agent]. The plugin receives a declarative 
-translates a description of the desired NAT configuration on its northbound
-API, translates it into a sequence of [VPP/NAT binary API][vpp-nat-plugin-api]
-calls, which are then sent to GoVPP on the plugin's southbound API. These two 
-levels of the NAT configuration are being kept in sync by the plugin even 
-during VPP and agent restarts.
+description of the desired NAT configuration on its northbound API, translates it
+into a sequence of [VPP/NAT binary API][vpp-nat-plugin-api] calls, which are then
+sent to GoVPP on the plugin's southbound API. These two levels of the NAT
+configuration are being kept in sync by the plugin even during VPP and agent
+restarts.
 
 On the plugin's northbound API the NAT is modeled using a [proto file][nat-model]
 definition. The northbound API model consists of two parts:
@@ -373,7 +373,7 @@ layer. Each layer receives service-related data from the layer above, processes
 and/or transforms the received data and sends it to the layer below. On the top
 of the stack is are K8s state data for endpoints and services as reflected into
 Etcd by KSR. With each layer the abstraction level decreases until at the very
-bottom of the stacj a set of NAT rules is calculated and installed into the VPP
+bottom of the stack a set of NAT rules is calculated and installed into the VPP
 by the Ligato/vpp-agent.
 
 The Service plugin consists of two components: the Policy Processor that matches

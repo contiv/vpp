@@ -217,7 +217,7 @@ func (plugin *Plugin) AfterInit() error {
 func (plugin *Plugin) Close() error {
 	plugin.ctxCancelFunc()
 	plugin.cniServer.close()
-	plugin.nodeIDAllocator.releaseID()
+	//plugin.nodeIDAllocator.releaseID()
 	_, err := safeclose.CloseAll(plugin.govppCh, plugin.nodeIDwatchReg, plugin.watchReg)
 	return err
 }

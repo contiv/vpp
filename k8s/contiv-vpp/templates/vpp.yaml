@@ -123,6 +123,8 @@ spec:
   selector:
     matchLabels:
       k8s-app: contiv-etcd
+  updateStrategy:
+    type: {{ .Values.etcd.updateStrategy }}
   template:
     metadata:
       labels:
@@ -260,8 +262,6 @@ spec:
   # Match contiv-etcd DaemonSet.
   selector:
     k8s-app: contiv-etcd
-  updateStrategy:
-    type: {{ .Values.etcd.updateStrategy }}
   ports:
   - port: 12379
     nodePort: {{ .Values.etcd.service.nodePort }}

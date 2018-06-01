@@ -145,6 +145,8 @@ spec:
   # Match contiv-etcd DaemonSet.
   selector:
     k8s-app: contiv-etcd
+  updateStrategy:
+    type: RollingUpdate
   ports:
   - port: 12379
     nodePort: 32379

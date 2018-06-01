@@ -552,7 +552,7 @@ metadata:
     k8s-app: contiv-ksr
 spec:
   updateStrategy:
-    type: {{ .Values.vswitch.updateStrategy }}
+    type: {{ .Values.ksr.updateStrategy }}
   template:
     metadata:
       labels:

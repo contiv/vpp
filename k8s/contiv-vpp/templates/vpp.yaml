@@ -355,7 +355,7 @@ spec:
       # This container installs the Contiv CNI binaries
       # and CNI network config file on each node.
       - name: contiv-cni
-        image: contivvpp/cni:latest
+        image: {{ .Values.cni.image.repository }}:{{ default .Chart.Version .Values.cni.image.tag }}
         imagePullPolicy: IfNotPresent
         env:
           - name: SLEEP

@@ -529,7 +529,7 @@ func (s *remoteCNIserver) getSTNInterfaceIP(ifName string) (ip string, gw string
 
 	// connect to STN GRPC server
 	if s.config.STNSocketFile == "" {
-		s.config.STNSocketFile = defaultSTNSocketFile
+		s.config.STNSocketFile = DefaultSTNSocketFile
 	}
 	conn, err := grpc.Dial(
 		s.config.STNSocketFile,

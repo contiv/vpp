@@ -113,6 +113,8 @@ func TestResyncAndSingleService(t *testing.T) {
 	//  -> Contiv plugin
 	contiv := NewMockContiv()
 	contiv.SetNatExternalTraffic(true)
+	const localEndpointWeight uint8 = 1
+	contiv.SetServiceLocalEndpointWeight(localEndpointWeight)
 	contiv.SetSTNMode(false)
 	contiv.SetNodeIP(nodeIP + nodePrefix)
 	contiv.SetDefaultGatewayIP(net.ParseIP(defaultGwIP))
@@ -330,12 +332,12 @@ func TestResyncAndSingleService(t *testing.T) {
 			{
 				IP:          net.ParseIP(pod1IP),
 				Port:        8080,
-				Probability: uint8(svc_configurator.LocalVsRemoteProbRatio),
+				Probability: localEndpointWeight,
 			},
 			{
 				IP:          net.ParseIP(pod2IP),
 				Port:        8080,
-				Probability: uint8(svc_configurator.LocalVsRemoteProbRatio),
+				Probability: localEndpointWeight,
 			},
 		},
 	}
@@ -448,6 +450,8 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 	//  -> Contiv plugin
 	contiv := NewMockContiv()
 	contiv.SetNatExternalTraffic(true)
+	const localEndpointWeight uint8 = 2
+	contiv.SetServiceLocalEndpointWeight(localEndpointWeight)
 	contiv.SetSTNMode(false)
 	contiv.SetNodeIP(nodeIP + nodePrefix)
 	contiv.SetDefaultGatewayIP(net.ParseIP(defaultGwIP))
@@ -728,12 +732,12 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 			{
 				IP:          net.ParseIP(pod1IP),
 				Port:        8080,
-				Probability: uint8(svc_configurator.LocalVsRemoteProbRatio),
+				Probability: localEndpointWeight,
 			},
 			{
 				IP:          net.ParseIP(pod2IP),
 				Port:        8080,
-				Probability: uint8(svc_configurator.LocalVsRemoteProbRatio),
+				Probability: localEndpointWeight,
 			},
 		},
 	}
@@ -745,12 +749,12 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 			{
 				IP:          net.ParseIP(pod1IP),
 				Port:        8443,
-				Probability: uint8(svc_configurator.LocalVsRemoteProbRatio),
+				Probability: localEndpointWeight,
 			},
 			{
 				IP:          net.ParseIP(pod2IP),
 				Port:        8443,
-				Probability: uint8(svc_configurator.LocalVsRemoteProbRatio),
+				Probability: localEndpointWeight,
 			},
 		},
 	}
@@ -772,7 +776,7 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 			{
 				IP:          net.ParseIP(pod1IP),
 				Port:        10053,
-				Probability: uint8(svc_configurator.LocalVsRemoteProbRatio),
+				Probability: localEndpointWeight,
 			},
 			{
 				IP:          net.ParseIP(pod3IP),
@@ -789,7 +793,7 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 			{
 				IP:          net.ParseIP(pod1IP),
 				Port:        10053,
-				Probability: uint8(svc_configurator.LocalVsRemoteProbRatio),
+				Probability: localEndpointWeight,
 			},
 			{
 				IP:          net.ParseIP(pod3IP),
@@ -846,12 +850,12 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 			{
 				IP:          net.ParseIP(pod1IP),
 				Port:        8443,
-				Probability: uint8(svc_configurator.LocalVsRemoteProbRatio),
+				Probability: localEndpointWeight,
 			},
 			{
 				IP:          net.ParseIP(pod2IP),
 				Port:        8443,
-				Probability: uint8(svc_configurator.LocalVsRemoteProbRatio),
+				Probability: localEndpointWeight,
 			},
 		},
 	}
@@ -863,12 +867,12 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 			{
 				IP:          net.ParseIP(pod1IP),
 				Port:        8443,
-				Probability: uint8(svc_configurator.LocalVsRemoteProbRatio),
+				Probability: localEndpointWeight,
 			},
 			{
 				IP:          net.ParseIP(pod2IP),
 				Port:        8443,
-				Probability: uint8(svc_configurator.LocalVsRemoteProbRatio),
+				Probability: localEndpointWeight,
 			},
 		},
 	}
@@ -1343,6 +1347,8 @@ func TestServiceUpdates(t *testing.T) {
 	//  -> Contiv plugin
 	contiv := NewMockContiv()
 	contiv.SetNatExternalTraffic(true)
+	const localEndpointWeight uint8 = 4
+	contiv.SetServiceLocalEndpointWeight(localEndpointWeight)
 	contiv.SetSTNMode(false)
 	contiv.SetNodeIP(nodeIP + nodePrefix)
 	contiv.SetDefaultGatewayIP(net.ParseIP(defaultGwIP))
@@ -1501,12 +1507,12 @@ func TestServiceUpdates(t *testing.T) {
 			{
 				IP:          net.ParseIP(pod1IP),
 				Port:        8080,
-				Probability: uint8(svc_configurator.LocalVsRemoteProbRatio),
+				Probability: localEndpointWeight,
 			},
 			{
 				IP:          net.ParseIP(pod2IP),
 				Port:        8080,
-				Probability: uint8(svc_configurator.LocalVsRemoteProbRatio),
+				Probability: localEndpointWeight,
 			},
 			{
 				IP:          net.ParseIP(pod3IP),
@@ -1621,7 +1627,7 @@ func TestServiceUpdates(t *testing.T) {
 			{
 				IP:          net.ParseIP(pod1IP),
 				Port:        8080,
-				Probability: uint8(svc_configurator.LocalVsRemoteProbRatio),
+				Probability: localEndpointWeight,
 			},
 			{
 				IP:          net.ParseIP(pod3IP),
@@ -1688,7 +1694,7 @@ func TestServiceUpdates(t *testing.T) {
 			{
 				IP:          net.ParseIP(pod1IP),
 				Port:        8443,
-				Probability: uint8(svc_configurator.LocalVsRemoteProbRatio),
+				Probability: localEndpointWeight,
 			},
 			{
 				IP:          net.ParseIP(pod3IP),

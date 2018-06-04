@@ -48,8 +48,11 @@ type API interface {
 	// GetTCPNATSessionTimeout returns NAT session timeout (in minutes) for TCP connections, used in case that CleanupIdleNATSessions is turned on.
 	GetTCPNATSessionTimeout() uint32
 
-	// // GetOtherNATSessionTimeout returns NAT session timeout (in minutes) for non-TCP connections, used in case that CleanupIdleNATSessions is turned on.
+	// GetOtherNATSessionTimeout returns NAT session timeout (in minutes) for non-TCP connections, used in case that CleanupIdleNATSessions is turned on.
 	GetOtherNATSessionTimeout() uint32
+
+	// GetServiceLocalEndpointWeight returns the load-balancing weight assigned to locally deployed service endpoints.
+	GetServiceLocalEndpointWeight() uint8
 
 	// GetNatLoopbackIP returns the IP address of a virtual loopback, used to route traffic
 	// between clients and services via VPP even if the source and destination are the same

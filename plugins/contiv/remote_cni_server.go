@@ -58,7 +58,9 @@ const (
 	vethHostEndName               = "vpp1"
 	vethVPPEndLogicalName         = "veth-vpp2"
 	vethVPPEndName                = "vpp2"
-	defaultSTNSocketFile          = "/var/run/contiv/stn.sock"
+
+	// DefaultSTNSocketFile is the default socket file path where CNI GRPC server listens for incoming CNI requests.
+	DefaultSTNSocketFile = "/var/run/contiv/stn.sock"
 
 	// TapHostEndLogicalName is the logical name of the VPP-host interconnect TAP interface (host end)
 	TapHostEndLogicalName = "tap-vpp1"

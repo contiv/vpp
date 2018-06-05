@@ -59,8 +59,8 @@ const (
 	vethVPPEndLogicalName         = "veth-vpp2"
 	vethVPPEndName                = "vpp2"
 
-	// DefaultSTNSocketFile is the default socket file path where CNI GRPC server listens for incoming CNI requests.
-	DefaultSTNSocketFile = "/var/run/contiv/stn.sock"
+	// defaultSTNSocketFile is the default socket file path where CNI GRPC server listens for incoming CNI requests.
+	defaultSTNSocketFile = "/var/run/contiv/stn.sock"
 
 	// TapHostEndLogicalName is the logical name of the VPP-host interconnect TAP interface (host end)
 	TapHostEndLogicalName = "tap-vpp1"
@@ -529,7 +529,7 @@ func (s *remoteCNIserver) getSTNInterfaceIP(ifName string) (ip string, gw string
 
 	// connect to STN GRPC server
 	if s.config.STNSocketFile == "" {
-		s.config.STNSocketFile = DefaultSTNSocketFile
+		s.config.STNSocketFile = defaultSTNSocketFile
 	}
 	conn, err := grpc.Dial(
 		s.config.STNSocketFile,

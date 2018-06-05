@@ -43,6 +43,7 @@ const (
 	defaultEtcdCfgFile      = "/etc/etcd/etcd.conf"
 	defaultSupervisorSocket = "/run/supervisor.sock"
 	defaultStnServerSocket  = "/var/run/contiv/stn.sock"
+	defaultCNISocketFile    = "/var/run/contiv/cni.sock"
 
 	vppProcessName         = "vpp"
 	contivAgentProcessName = "contiv-agent"
@@ -276,7 +277,7 @@ func main() {
 	logger.Debugf("Starting contiv-agent")
 	// remove CNI server socket file
 	// TODO: this should be done automatically by CNI-infra before socket bind, remove once implemented
-	os.Remove(contiv.DefaultSTNSocketFile)
+	os.Remove(defaultCNISocketFile)
 	_, err = client.StartProcess(contivAgentProcessName, false)
 	if err != nil {
 		logger.Errorf("Error by starting contiv-agent process: %v", err)

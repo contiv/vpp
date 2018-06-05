@@ -25,6 +25,9 @@ fi
 
 docker save $images -o ../vagrant/images.tar
 
-for img in $images; do
-	docker rmi $img
-done
+# cleanup unless an argument is specified
+if [ "$#" == 0 ]; then
+    for img in $images; do
+        docker rmi $img
+    done
+fi

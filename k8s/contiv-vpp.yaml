@@ -41,13 +41,11 @@ data:
       NodeInterconnectDHCP: False
   logs.conf: |
     defaultlevel: debug
+  grpc.conf: |
+    socket-type: unix
+    endpoint: /var/run/contiv/cni.sock
   http.conf: |
       endpoint: 0.0.0.0:9999
-      server-cert-file: /var/run/contiv/server.crt
-      server-key-file: /var/run/contiv/server.key
-      client-basic-auth:
-        - "user:pass"
-
 ---
 
 apiVersion: v1
@@ -90,6 +88,8 @@ spec:
   selector:
     matchLabels:
       k8s-app: contiv-etcd
+  updateStrategy:
+    type: RollingUpdate
   template:
     metadata:
       labels:
@@ -161,8 +161,6 @@ metadata:
 data:
   http.conf: |
     endpoint: 0.0.0.0:9191
-    client-basic-auth:
-      - "user:pass"
 
 ---
 # This config map contains ETCD configuration for connecting to the contiv-etcd defined above.
@@ -263,14 +261,16 @@ spec:
         - |
           set -eu
           chmod 700 /run/vpp
-          rm -rf /dev/shm/db /dev/shm/global_vm /dev/shm/vpe-api /vpp-lib64/*
-          cp -r "$LD_PRELOAD_LIB_DIR"/* /vpp-lib64/
-          if [ ! -e /host/etc/vpp/contiv-vswitch.conf ]
-          then
+          rm -rf /dev/shm/db /dev/shm/global_vm /dev/shm/vpe-api
+          if [ ! -e /host/etc/vpp/contiv-vswitch.conf ]; then
               cp /etc/vpp/contiv-vswitch.conf /host/etc/vpp/
           fi
-          if ip link show vpp1 >/dev/null 2>&1
-          then
+          if [ ! -d /var/run/contiv ]; then
+              mkdir /var/run/contiv
+          fi
+          chmod 700 /var/run/contiv
+          rm -f /var/run/contiv/cni.sock
+          if ip link show vpp1 >/dev/null 2>&1; then
                ip link del vpp1
           fi
           cp -f /usr/local/bin/vppctl /host/usr/local/bin/vppctl
@@ -288,6 +288,8 @@ spec:
             mountPath: /dev/shm
           - name: vpp-run
             mountPath: /run/vpp
+          - name: contiv-run
+            mountPath: /var/run/contiv
 
       containers:
         # Runs contiv-vswitch container on each Kubernetes node.
@@ -304,10 +306,6 @@ spec:
             httpGet:
               path: /readiness
               port: 9999
-              scheme: HTTPS
-              httpHeaders:
-                - name: Authorization
-                  value: "Basic dXNlcjpwYXNz"
             periodSeconds: 3
             timeoutSeconds: 2
             failureThreshold: 3
@@ -316,10 +314,6 @@ spec:
             httpGet:
               path: /liveness
               port: 9999
-              scheme: HTTPS
-              httpHeaders:
-                - name: Authorization
-                  value: "Basic dXNlcjpwYXNz"
             periodSeconds: 3
             timeoutSeconds: 2
             failureThreshold: 3
@@ -447,7 +441,7 @@ spec:
           env:
             - name: ETCDV3_CONFIG
               value: "/etc/etcd/etcd.conf"
-            - name: HTTP-PROBE_CONFIG
+            - name: HTTP_CONFIG
               value: "/etc/http/http.conf"
           volumeMounts:
             - name: etcd-cfg
@@ -458,18 +452,12 @@ spec:
             httpGet:
               path: /readiness
               port: 9191
-              httpHeaders:
-                - name: Authorization
-                  value: "Basic dXNlcjpwYXNz"
             periodSeconds: 1
             initialDelaySeconds: 10
           livenessProbe:
             httpGet:
               path: /liveness
               port: 9191
-              httpHeaders:
-                - name: Authorization
-                  value: "Basic dXNlcjpwYXNz"
             periodSeconds: 1
             initialDelaySeconds: 30
 

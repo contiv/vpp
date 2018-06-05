@@ -4,7 +4,7 @@
 	"plugins": [
 		{
 			"type": "contiv-cni",
-			"grpcServer": "127.0.0.1:9111"
+			"grpcServer": "/var/run/contiv/cni.sock"
 		},
 		{
 			"type": "portmap",

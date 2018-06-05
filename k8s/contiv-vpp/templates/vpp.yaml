@@ -36,6 +36,9 @@ data:
     TCPNATSessionTimeout: {{ .Values.contiv.tcpNATSessionTimeout }}
     OtherNATSessionTimeout: {{ .Values.contiv.otherNATSessionTimeout }}
     {{- end }}
+    {{- if .Values.contiv.serviceLocalEndpointWeight }}
+    ServiceLocalEndpointWeight: {{ .Values.contiv.serviceLocalEndpointWeight }}
+    {{- end }}
     IPAMConfig:
       PodSubnetCIDR: {{ .Values.contiv.ipamConfig.podSubnetCIDR }}
       PodNetworkPrefixLen: {{ .Values.contiv.ipamConfig.podNetworkPrefixLen }}
@@ -77,6 +80,9 @@ data:
     {{- end }}
   logs.conf: |
     defaultlevel: {{ .Values.logs.defaultLevel }}
+  grpc.conf: |
+    socket-type: unix
+    endpoint: /var/run/contiv/cni.sock
   http.conf: |
       endpoint: 0.0.0.0:9999
       {{- if .Values.http.enableServerCert }}
@@ -130,6 +136,8 @@ spec:
   selector:
     matchLabels:
       k8s-app: contiv-etcd
+  updateStrategy:
+    type: {{ .Values.etcd.updateStrategy }}
   template:
     metadata:
       labels:
@@ -371,7 +379,7 @@ spec:
     matchLabels:
       k8s-app: contiv-vswitch
   updateStrategy:
-    type: RollingUpdate
+    type: {{ .Values.vswitch.updateStrategy }}
   template:
     metadata:
       labels:
@@ -394,7 +402,7 @@ spec:
       # This container installs the Contiv CNI binaries
       # and CNI network config file on each node.
       - name: contiv-cni
-        image: contivvpp/cni:latest
+        image: {{ .Values.cni.image.repository }}:{{ default .Chart.Version .Values.cni.image.tag }}
         imagePullPolicy: IfNotPresent
         env:
           - name: SLEEP
@@ -422,14 +430,16 @@ spec:
         - |
           set -eu
           chmod 700 /run/vpp
-          rm -rf /dev/shm/db /dev/shm/global_vm /dev/shm/vpe-api /vpp-lib64/*
-          cp -r "$LD_PRELOAD_LIB_DIR"/* /vpp-lib64/
-          if [ ! -e /host/etc/vpp/contiv-vswitch.conf ]
-          then
+          rm -rf /dev/shm/db /dev/shm/global_vm /dev/shm/vpe-api
+          if [ ! -e /host/etc/vpp/contiv-vswitch.conf ]; then
               cp /etc/vpp/contiv-vswitch.conf /host/etc/vpp/
           fi
-          if ip link show vpp1 >/dev/null 2>&1
-          then
+          if [ ! -d /var/run/contiv ]; then
+              mkdir /var/run/contiv
+          fi
+          chmod 700 /var/run/contiv
+          rm -f /var/run/contiv/cni.sock
+          if ip link show vpp1 >/dev/null 2>&1; then
                ip link del vpp1
           fi
           cp -f /usr/local/bin/vppctl /host/usr/local/bin/vppctl
@@ -447,6 +457,8 @@ spec:
             mountPath: /dev/shm
           - name: vpp-run
             mountPath: /run/vpp
+          - name: contiv-run
+            mountPath: /var/run/contiv
 
       containers:
         # Runs contiv-vswitch container on each Kubernetes node.
@@ -626,7 +638,7 @@ metadata:
     k8s-app: contiv-ksr
 spec:
   updateStrategy:
-    type: RollingUpdate
+    type: {{ .Values.ksr.updateStrategy }}
   template:
     metadata:
       labels:

@@ -34,16 +34,17 @@ that yields a less abstract data representation for the layer below. In this way
 the abstraction level decreases with each layer until it reaches the format of
 policy rules used by the target network stack. The top layer of the stack accepts
 K8s state data from Etcd, where it is reflected from the K8s API by the KSR.
-The bottom layer of the stack outputs rendered policies to one or more network stacks
-(e.g. vswitch such as the VPP, host stack, ...) in a format consumable by the
-respective stack. This layer will typically contain a separate [Renderer](#renderers)
-for each network stack. The layers in-between perform policy processing with
-the assistance of in-memory caches.
+The bottom layer of the stack outputs rendered policies to one or more network
+stacks (e.g. vswitch such as the VPP, host stack, ...) in a format consumable
+by the respective stack. This layer will typically contain a separate
+[Renderer](#renderers) for each network stack. The layers in-between perform
+policy processing with the assistance of in-memory caches.
 
 ![Policy plugin layers][layers-diagram]
 
-Every layer is described here in detail with an extra focus on data transformations,
-starting from the top and including references to the actual source code.
+Every layer is described here in detail with an extra focus on data
+transformations, starting from the top and including references to the actual
+source code.
 
 ### Policy Plugin skeleton
 
@@ -88,18 +89,19 @@ The policy processor is notified by the Cache whenever a change related to polic
 configuration occurs. Additionally, it receives a full snapshot from the cache
 during the Resync event.
 
-For each change, the processor decides if the re-configuration needs to be postponed
-until more data is available. Typically, policies cannot be installed for a pod
-until it has been assigned an IP address.
+For each change, the processor decides if the re-configuration needs to be
+postponed until more data is available. Typically, policies cannot be installed
+for a pod until it has been assigned an IP address.
 
 If a change carries enough information, the processor determines the list of pods
 with a **possibly outdated** policy configuration (all pods for RESYNC):
  * For a changed policy this includes all the pods that the policy had assigned
    before and after the change.
  * For a changed pod (labels, IP address), this results in re-configuration
-   of all pods with a policy referencing the changed pod before or after the change.
- * For a changed namespace, all pods with a policy referencing the changed namespace
-   before or after the change need to be re-configured.
+   of all pods with a policy referencing the changed pod before or after
+   the change.
+ * For a changed namespace, all pods with a policy referencing the changed
+   namespace before or after the change need to be re-configured.
 
 _Note_: re-configuration triggered by the processor for a given pod does not
         necessarily cause the rules to be re-written in the network stacks.
@@ -120,10 +122,10 @@ to the Configurator for re-configuration.
 
 ### Configurator
 
-The main task of the Configurator is to translate a ContivPolicy into a semantically
-equivalent set of basic 6-tuple rules, split into ingress and egress side
-from the **vswitch point of view**. A 6-tuple is defined as type `ContivRule`
-in the [Renderer API][renderer-api].
+The main task of the Configurator is to translate a ContivPolicy into
+a semantically equivalent set of basic 6-tuple rules, split into ingress and
+egress side from the **vswitch point of view**. A 6-tuple is defined as type
+`ContivRule` in the [Renderer API][renderer-api].
 
 The rules are installed into a network stack (e.g. a vswitch) by the layer below -
 the Renderer(s). To support multiple underlying network stacks, the configurator
@@ -194,26 +196,27 @@ GenerateRules
 ```
 
 `GenerateRules` is implemented by `PolicyConfiguratorTxn.generateRules()`
-and it is executed for both directions to obtain separate lists of ingress and egress
-Contiv rules.
+and it is executed for both directions to obtain separate lists of ingress and
+egress Contiv rules.
 
 #### ContivRule semantics
 
 Since the pod for which the rules are generated is given, the ingress rules have
 the source IP unset, i.e. 0.0.0.0/ (match all). Conversely, egress rules have
 their destination IP unset. The ingress rules are supposed to be applied for all
-the traffic entering VPP from the given pod, whereas egress rules should be confronted
-with all the traffic leaving VPP towards the pod.
+the traffic entering VPP from the given pod, whereas egress rules should be
+confronted with all the traffic leaving VPP towards the pod.
 
 The order at which the rules are applied for a given pod is important as well.
-The renderer which applies the rules for the destination network stack has 3 valid
-options of ordering:
+The renderer which applies the rules for the destination network stack has 3
+valid options of ordering:
  1. Apply the rules in the exact same order as passed by the Configurator
  2. Apply PERMIT rules before DENY rules: this is possible because there is
     always only one DENY rule that blocks traffic not matched by any PERMIT rule.
  3. Apply more-specific rule, i.e covering less traffic, before less-specific ones.
-    ContivRule-s have a total order defined on them using the method `ContivRule.Compare(other)`.
-    It holds that if `cr1` matches subset of the traffic matched by `cr2`, then `cr1<cr2`.
+    ContivRule-s have a total order defined on them using the method
+    `ContivRule.Compare(other)`. It holds that if `cr1` matches subset of
+    the traffic matched by `cr2`, then `cr1<cr2`.
     This ordering may be helpful if the destination network stack uses the
     **longest prefix match** algorithm for logarithmic rule lookup, as opposed
     to list-based linear lookup.
@@ -222,8 +225,8 @@ Not every network stack supports access-control for both directions, however.
 Additionally, [services][services-dev-guide] allow to reference a group of pods
 by VIP but rules only consider real pod IP addresses. This means that translation
 and load-balancing have to happen before the ingress rules are applied, which
-is not possible in VPP. The renderers therefore have to further transform and combine
-ingress and egress rules into a single direction, as described in
+is not possible in VPP. The renderers therefore have to further transform and
+combine ingress and egress rules into a single direction, as described in
 [rule transformations][rule-transformations].
 
 ### Renderers
@@ -430,8 +433,8 @@ always applied only by the destination pod's egress ACL or by the global (egress
 ACL, not by the source pod's egress ACL. It is important to note that a connection
 is marked for reflection before it goes through the NAT, i.e. with possibly VIP as
 the destination. This is OK because the replies have their source already SNAT-ed
-back to VIP before the packet travels through egress ACL of the source pod, matching
-the entry for reflection.
+back to VIP before the packet travels through egress ACL of the source pod,
+matching the entry for reflection.
 
 ![ACL rendering][acl-rendering-diagram]
 
@@ -455,9 +458,9 @@ the configuration of K8s policies.
 ![Rendering of VPPTCP session rules][session-rules-rendering-diagram]
 
 
-[layers-diagram]: policy-plugin-layers.png "Layering of the Policy plugin"
-[acl-rendering-diagram]: acl-rendering.png "ACL rendering"
-[session-rules-rendering-diagram]: session-rules-rendering.png "Rendering of VPPTCP session rules"
+[layers-diagram]: policies/policy-plugin-layers.png "Layering of the Policy plugin"
+[acl-rendering-diagram]: policies/acl-rendering.png "ACL rendering"
+[session-rules-rendering-diagram]: policies/session-rules-rendering.png "Rendering of VPPTCP session rules"
 [services-dev-guide]: SERVICES.md
 [ligato-vpp-agent]: http://github.com/ligato/vpp-agent
 [local-client]: http://github.com/ligato/vpp-agent/tree/pantheon-dev/clientv1

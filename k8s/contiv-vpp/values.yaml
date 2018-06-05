@@ -8,6 +8,7 @@ contiv:
   cleanupIdleNATSessions: True
   tcpNATSessionTimeout: 180
   otherNATSessionTimeout: 5
+  serviceLocalEndpointWeight: 1
   ipamConfig:
     podSubnetCIDR: "10.1.0.0/16"
     podNetworkPrefixLen: 24
@@ -69,6 +70,7 @@ etcd:
     serverKey: server-key.pem
     clientCert: client.pem
     clientKey: client-key.pem
+  updateStrategy: RollingUpdate
 
 vswitch:
   image:
@@ -80,6 +82,7 @@ vswitch:
   defineMemoryLimits: false
   hugePages2miLimit: 1024Mi
   memoryLimit: 1024Mi
+  updateStrategy: RollingUpdate
 
 cni:
   image:
@@ -94,6 +97,7 @@ ksr:
     # tag defaults to chart version
     #tag:
     pullPolicy: IfNotPresent
+  updateStrategy: RollingUpdate
 
 # GoVPP configuration
 # It contains time intervals used for VPP health probing (in nanoseconds).

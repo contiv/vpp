@@ -3,73 +3,106 @@
 ## Overview
 
 Service is a Kubernetes abstraction providing a convenient single entry point
-of access to a group of pods. In other words, a service can be thought of as a dynamic
-load balancer for a set of pods (and the containers living inside them), automatically
-managed by the framework itself. The set of Pods targeted by a Service is (usually)
-determined by a Label Selector. This label query frequently matches pods created
-by one or more replication controllers.
+of access to a group of pods. In other words, a service can be thought of
+as a dynamic loadbalancer for a set of pods (and the containers living inside
+them), automatically managed by the K8s framework itself. The set of Pods
+targeted by a Service is (usually) determined by a Label Selector. This label
+query frequently matches pods created by one or more replication controllers.
 
 Services provide important features that are standardized across the cluster:
- * load-balancing,
- * service discovery between applications,
- * support for zero-downtime application deployments.
+ * Load-balancing
+ * Service discovery between applications
+ * Support for zero-downtime application deployments
 
-A Service in Kubernetes is a REST object, similar to a Pod. Like all of the REST objects,
-a Service definition can be POSTed to the apiserver to create a new instance.
-Additionally, for Kubernetes-native applications, Kubernetes offers a simple Endpoints
-API that is updated whenever the set of Pods in a service changes. For services
-without label selectors, the associated endpoint object can also be edited manually
-through the REST interface, giving the user a full control over the set of endpoints
-assigned to a service.
+A Service in Kubernetes is a REST object, similar to a Pod. Like all of the REST
+objects, a Service definition can be POSTed to the apiserver to create a new
+instance of the service. Additionally, for Kubernetes-native applications,
+Kubernetes offers a simple Endpoints API for updating the service whenever
+the set of Pods in a service changes. For services without label selectors
+the associated endpoint object can also be edited manually through the REST
+interface, giving the user full control over the set of endpoints assigned
+to a service.
 
-Kubernetes service can be published to the cluster and the outside world in various ways:
- * `ClusterIP`: exposing the service on a cluster-internal IP,
- * `NodePort`: exposing the service on every node’s IP at a static port from a pre-determined
-   range (default: 30000-32767),
- * `externalIPs`: an unlimited number of cluster-outside IP addresses that should be routed
-   to one or more cluster nodes, where they get load-balanced across endpoints by Kubernetes.
+A Kubernetes service can be published to the cluster and to the outside world in
+various ways:
+ * `ClusterIP`: exposing the service on a cluster-internal IP
+ * `NodePort`: exposing the service on every node’s host stack IP at a static
+   port from a pre-determined range (default: 30000-32767),
+ * `externalIPs`: an unlimited number of cluster-outside IP addresses that should
+   be routed to one or more cluster nodes, where they get load-balanced across
+   endpoints by Kubernetes.
 
-Furthermore, every service defined in the cluster (including the DNS server itself)
-is assigned a DNS name `<service-name.service.namespace>`. By default, every pod’s
-DNS search list will include the pod’s own namespace and the cluster’s default domain.
+Furthermore, every service defined in the cluster (including the DNS server
+itself) is assigned a DNS name `<service-name.service.namespace>`. By default,
+every pod’s DNS search list will include the pod’s own namespace and the cluster’s
+default domain.
 
 Contiv/VPP implements Kubernetes services in the full scope of the specification
 for the IP protocol version 4.
 
 ## Kube-proxy
 
-The [Kubernetes network proxy][kube-proxy] is a Kubernetes component running on every node.
-It reflects services and endpoints as defined in the Kubernetes API and can do simple TCP
-and UDP stream forwarding or round robin TCP/UDP load-balancing across a set of backends
-using iptables or [IPVS (IP Virtual Server)][ipvs].
+The [Kubernetes network proxy][kube-proxy] is a Kubernetes component running on
+every node. It reflects services and endpoints as defined in the Kubernetes API
+and can do simple TCP and UDP stream forwarding or round robin TCP/UDP
+load-balancing across a set of backends using iptables or [IPVS (IP Virtual Server)][ipvs].
 
-While other CNI providers rely heavily on kube-proxy for the implementation of services,
-with Contiv/VPP the proxy plays only a second fiddle. For the most part, the load-balancing
-and translation between services and endpoints executes **inside VPP** using
-a high performance [VPP/NAT plugin](#vpp/nat-plugin). The only exception is traffic
-initiated from the host stack of one of the cluster nodes - whether that is a pod
-with the host networking or any application running directly in the host,
-outside of all containers. Clients accessing services from within pods connected
-to VPP or from outside of the cluster always bypass kube-proxy, enjoying
-a high-throughput, low-latency connections with service endpoints.
+While other CNI plugin providers rely heavily on kube-proxy for their services
+implementations, in Contiv/VPP Kube proxy plays a secondary role. For the most
+part, load-balancing and translations between services and endpoints are done
+**inside VPP** using the high performance [VPP-NAT plugin](#the-vpp-nat-plugin).
+The only exception is traffic initiated from the host stack on one of the cluster
+nodes - whether it is a pod with host networking, an application running
+directly on the host (outside of all containers), or an external application
+accessing a service implemented by pods connected to the host network directly
+through the host stack (e.g. in the 2-NIC use case). Clients accessing services
+from within pods connected to VPP or from the outside of the cluster through
+the VPP GigE interface always bypass Kube proxy.
 
-## VPP/NAT plugin
+## The VPP-NAT plugin
 
-[VPP/NAT plugin][vpp-nat-plugin] is an implementation of NAT44 and NAT64 for VPP.
-TODO: detailed description from Matus / Giles.
+[VPP-NAT plugin][vpp-nat-plugin] is an implementation of NAT44 and NAT64 for VPP.
+The target use case is a general IPv4 CPE NAT, a CGN and to act as a NAT44
+in a Openstack deployment. It is intended to be pluggable, in the sense that
+it should be possible to plug the NAT44 function together with the MAP-E IPv4
+to IPv6 translator to create a MAP-E CE, likewise one can plug the NAT44
+together with MAP-T to create a MAP-T CE or 464XLAT.
 
-In Contiv/VPP the VPP/NAT plugin is used to:
- 1. load-balance and forward traffic between services and endpoints, i.e **1-to-many NAT**,
- 2. **dynamically source-NAT** all traffic leaving every node to enable Internet access
-    for pods with private IPs.
+In Contiv-VPP the VPP-NAT plugin is used in the data-plane to:
+ 1. Load-balance and forward traffic between services and endpoints,
+    i.e. **1-to-many NAT**,
+ 2. **Dynamically source-NAT** node-outbound traffic to enable Internet
+    access for pods with private IPs.
 
-1-to-many NAT is configured as a **static mapping** with single **external** IP:port endpoint
-and multiple weighted **local** endpoints. For example (CLI):
+The following subsection describes key VPP-NAT configuration items, focusing
+on features used in the Contiv-VPP data plane. Certain aspects of the VPP-NAT
+configuration are explained in a greater detail as they play a pivotal role
+in the implementation of Kubernetes services in Contiv-VPP.
+
+### Configuration
+#### Interface features
+Traffic flowing through an interface won't be NATed unless the VPP-NAT plugin
+is informed whether the interface connects VPP with an internal (`in`) or
+an external network (`out`). For a given connection, the network types of
+ingress and egress interfaces determine the direction in which the NAT should
+be applied.
+
+CLI example:
+```
+vpp# set interface nat44 out GigabitEthernet0/a/0
+vpp# set interface nat44 in tap1
+```
+
+#### 1-to-many NAT
+1-to-many NAT is a collection of **static mappings**, where each mapping
+consists of one **external** IP:port endpoint and multiple weighted **local**
+endpoints. For example, expressed as a VPP CLI command, a 1-to-many NAT static
+mapping looks as follows:
 ```
 vpp# nat44 add load-balancing static mapping protocol tcp
            external 1.2.3.4:80 local 10.100.10.10:8080 probability 80 local 10.100.10.20:8080 probability 20
 ```
-Static mapping type declaration can be found in the [NAT plugin BIN-API][vpp-nat-plugin-api],
+The type declaration for static mappings can be found in the [NAT plugin BIN-API][vpp-nat-plugin-api],
 request `nat44_add_del_lb_static_mapping`:
 ```
 typeonly define nat44_lb_addr_port {
@@ -92,88 +125,102 @@ define nat44_add_del_lb_static_mapping {
  vl_api_nat44_lb_addr_port_t locals[local_num];
 };
 ```
-Fields `out2in_only` and `self_twice_nat` need a special attention:
- * `self-twice-nat` is a special feature added for Contiv to enable access to service
-   from one of its own endpoints (i.e. access from itself). If you hit the same endpoint
-   as the request originated from, then the source and destination IPs are equal
-   after DNAT translation. This is an issue because the response will not be routed
-   back through the VPP, where it would be SNATed back to the service IP, but instead
-   it will get delivered locally, causing a mismatch between request and response
-   in terms of src/dst IP addresses. So in case the source and destination IPs
-   are equal after DNAT, self-twice-nat tells the NAT plugin to also translate
-   the source with a selected IP address that is routed from each pod through TAP
-   back into VPP. We choose the last unicast IP address from `PodCIDR` to server as this
-   virtual looback and ensure that it is never allocated to a pod.
- * `out2in-only` tells the NAT plugin to apply the associated static mapping and create
-   a new dynamic entry for a session only if the destination == mappings‘ external IP (as DNAT).
-   Under the default configuration, the mapping would apply (as source NAT) also
-   for connections initiated from the local IPs, replacing the source address
-   with the external IP  (breaking policies for example).
+The fields in the above structure are as follows:
+ * `nat44_lb_addr_port.addr`: IPv4 address of a local endpoint.
+ * `nat44_lb_addr_port.port`: L4 port number of a local endpoint.
+ * `nat44_lb_addr_port.probability`: probability (weight) of the local endpoint
+   to be randomly matched.
+ * `external_addr`: external IPv4 address of the service.
+ * `external_port`: external L4 port number of the service.
+ * `protocol`: IP protocol number of the service (UDP or TCP).
+ * `vrf_id`: internal network VRF ID.
+ * `twice_nat`: translate both the source and destination address with a single
+   rule. Twice NAT is not used in Contiv-VPP - source-NAT is not applied for
+   intra-node traffic.
+ * `self-twice-nat`: a special feature added for Contiv to enable access
+   to service from one of its own endpoints (i.e. access from itself). If you hit
+   the same endpoint as the request originated from, then the source and
+   destination IPs are equal after DNAT translation. This is an issue because
+   the response will not be routed back through the VPP, where it would be SNATed
+   back to the service IP, but instead it will get delivered locally, causing
+   a mismatch between request and response in terms of src/dst IP addresses.
+   So in case the source and destination IPs are equal after DNAT, self-twice-nat
+   tells the NAT plugin to also translate the source with a selected IP address
+   that is routed from each pod through TAP back into VPP. We choose the last
+   unicast IP address from `PodCIDR` to server as this virtual loopback and
+   ensure that it is never allocated to a pod.
+ * `out2in-only`: if enabled the NAT plugin will apply the associated static
+   mapping and create a new dynamic entry for a session only if the
+   destination == mappings‘ external IP (as DNAT). Under the default configuration,
+   the mapping would apply (as source NAT) also for connections initiated from
+   the local IPs, replacing the source address with the external IP (breaking
+   policies for example).
+ * `tag`: string tag opaque to VPP-NAT plugin. Used by Contiv-VPP control plane
+   to associate NAT rule with the corresponding service, which is needed by the
+   re-sync procedure.
+ * `local_num`: the number of local endpoints.
+ * `locals`: list of local endpoints.
 
-Traffic flowing through an interface won't be NATed unless the VPP/NAT plugin is informed
-whether the interface connects VPP with an internal (`in`) or an external network (`out`).
-For a given connection, network types of the ingress and egress interfaces determine
-the direction at which the NAT should be applied.
-CLI example:
-```
-vpp# set interface nat44 out GigabitEthernet0/a/0
-vpp# set interface nat44 in tap1
-```
-
-For a dynamic SNAT of the outbound traffic, the interface needs to be further put into
-the post-routing mode, e.g.:
+#### Dynamic source-NAT
+For a dynamic SNAT of the outbound traffic, the interface needs to be further
+put into the post-routing mode.  e.g.:
 ```
 vpp# set interface nat44 out GigabitEthernet0/a/0 output-feature
 ```
 
-Dynamic NAT also requires a non-empty pool of IP address to choose from for translations,
-e.g.:
+Dynamic NAT also requires a non-empty pool of IP address to choose from for
+translations. Using a VPP CLI command, this would be configured as follows:
 ```
 vpp# nat44 add address 1.2.3.4
 ```
 
-In Contiv/VPP we also make use of **identity mappings** - static NAT that lets you
-translate a real address to itself, essentially bypassing NAT.
+#### Identity mappings
+In Contiv/VPP we also use of **identity mappings**. An identity mapping is a
+static NAT mappings that lets a real addresses to be translated to itself,
+essentially bypassing NAT.
 
-See [Mapping of services to VPP/NAT configurations](#mapping-of-services-to-vpp/nat-configurations)
-to learn how we map the state of Kubernetes services into VPP/NAT configuration.
+See [Mapping of services to VPP-NAT configurations](#mapping-of-services-to-vpp-nat-configurations)
+to learn how we map the state of Kubernetes services into VPP-NAT configuration.
 
-### VPP/NAT plugin limitations
+### VPP-NAT plugin limitations
 
-The VPP/NAT plugin is a relatively recent addition to the VPP toolbox, still lacking
-many features. The most important limitations that manifest themselves in Contiv/VPP are:
- 1. tracking of TCP sessions is still very experimental and has not been properly tested,
- 2. not all dynamically created sessions are currently automatically cleaned up,
- 3. translations are endpoint **independent** (affecting certain communication scenarios,
-    mostly in the STN mode)
+The VPP-NAT plugin is a relatively recent addition to the VPP toolbox, and some
+of its limitations impact Contiv-VPP. They are:
+ 1. Tracking of TCP sessions is experimental and has not been fully tested
+ 2. Not all dynamically created sessions are automatically cleaned up
+ 3. Translations are endpoint **independent**, which affects certain communication
+    scenarios, mostly in the STN mode
 
-### VPP/NAT support in ligato/vpp-agent
+## Services implementation in Contiv-VPP control plane
+### VPP-NAT support in the Ligato VPP Agent
 
-[Ligato VPP Agent][ligato-vpp-agent] allows to manage configuration of the VPP/NAT plugin
-for IPv4 using the [vpp/ifplugin][vpp-agent-if-plugin].
-The plugin translates a declarative description of the desired NAT configuration
-(northbound API) into the corresponding sequence of [VPP/NAT binary API][vpp-nat-plugin-api]
-calls (southbound API). These two levels of the NAT configuration are being kept
-in-sync by the plugin even in the case of VPP or agent restarts.
+The VPP-NAT plugin for IPv4 is configured through the [vpp/ifplugin][vpp-agent-if-plugin]
+in the [Ligato VPP Agent][ligato-vpp-agent]. The plugin receives a declarative
+description of the desired NAT configuration on its northbound API, translates it
+into a sequence of [VPP-NAT binary API][vpp-nat-plugin-api] calls, which are then
+sent to GoVPP on the plugin's southbound API. These two levels of the NAT
+configuration are being kept in sync by the plugin even during VPP and agent
+restarts.
 
-For the northbound API, the plugin models NAT using a [proto file][nat-model].
-The model is divided into two parts:
- 1. a global configuration allocating IPs for NAT address pools and marking interfaces
-    to differentiate between internal and external networks attached to VPP,
- 2. a list of labeled destination-NAT instances - each with a set of static and/or identity
-    mappings.
+On the plugin's northbound API the NAT is modeled using a [proto file][nat-model]
+definition. The northbound API model consists of two parts:
+ 1. Global configuration that allocates IPs for NAT address pools and marks
+    interfaces to differentiate between internal and external networks attached
+    to VPP
+ 2. List of labeled destination-NAT instances, each with a set of static
+    and/or identity mappings
 
-### Mapping of services to VPP/NAT configurations
+### Mapping of services to VPP-NAT configurations
 
-In Contiv/VPP, service is implemented as a set of VPP/NAT static mappings,
+In Contiv/VPP, a service is implemented as a set of VPP-NAT static mappings,
 one for every external address. Static mappings of a single service are grouped
-together and exported as a single instance of the [DNAT model][nat-model] (destination NAT)
-for the [Ligato VPP Agent][ligato-vpp-agent] to configure. Every DNAT instance
-is assigned a unique name consisting of the service name and prefixed with the service
-namespace.
+together and exported as a single instance of the [DNAT model][nat-model]
+(destination NAT) for the [Ligato VPP Agent][ligato-vpp-agent] to configure.
+Every DNAT instance is assigned a unique name consisting of the service name
+and prefixed with the service namespace.
 
-The conversion of Kubernetes service definition into the corresponding set of static
-mappings can be described by the following pseudo-code:
+The translation of Kubernetes service definition into the corresponding set
+of static mappings can be described by the following pseudo-code:
 ```
 ServiceToDNAT:
     input: Kubernetes service definition; LocalEndpointWeight (Remote = 1; by default both equal)
@@ -209,45 +256,50 @@ ServiceToDNAT:
 
     return serviceDNAT
 ```
-Notice that every node will have the same set of static mappings configured,
-only the probabilities may differ.
+Note that every node in the cluster will have the same set of static mappings
+configured, only their respective probabilities may differ.
 
 All mappings are configured with `out2in-only` and `self-twice-nat` enabled.
 The latter further requires to specify the IP address of a virtual loopback,
 used to route traffic between clients and services via VPP even if the source
 and the destination are the same endpoint that would otherwise deliver
-packets locally. [Contiv plugin][contiv-plugin] exposes the IP address available
-for the NAT loopback via API `GetNatLoopbackIP()`. It returns the last unicast IP
-address from the range allocated for locally deployed pods. This address is routed
-into VPP from every local pod, but IPAM ensures that it never gets assigned to any
-real interface. The virtual loopback IP is added to `TwiceNAT` address pool
-(extra source NAT for DNAT mappings) in the global NAT configuration
-of the [Ligato VPP Agent][ligato-vpp-agent].
+packets locally. [Contiv plugin][contiv-plugin] exposes the IP address
+available for the NAT loopback via the API `GetNatLoopbackIP()`. It returns
+the last unicast IP address from the range allocated for locally deployed pods.
+This address is routed into VPP from every local pod, but IPAM ensures that it
+never gets assigned to any real interface. The virtual loopback IP is added to
+`TwiceNAT` address pool (extra source NAT for DNAT mappings) in the global NAT
+configuration of the [Ligato VPP Agent][ligato-vpp-agent].
 
-Next we need to mark interfaces with `in` & `nat` features for the VPP/NAT plugin
-to determine the direction at which the NAT should be applied:
- 1. `out` - interfaces through which clients can access service: this is effectively
-    all interfaces - service can be accessed from the host (`tap0`), pod (TAPs),
-    other node (`loop0` for BD with VXLANs), outside of the cluster (`GigE`-s)
-    and even from its own endpoints (TAPs)
- 2. `in` - interfaces connecting service endpoints with VPP: every pod that acts
-    as an endpoint of one or more services has to have its TAP interface marked as `in`
+Next we need to mark interfaces with `in` & `nat` features so that the VPP-NAT
+plugin can determine the direction in which the NAT should be applied:
 
-Lastly, we mark the `GigE` connecting VPP with the default gateway as `output` and
-add Node IP into the NAT main address pool. This enables the dynamic source NAT
-in the post-routing phase for all the packets leaving the node towards Internet.
-It is not desired to source-NAT packets sent internally between cluster nodes, however.
-VXLAN encapsulated traffic therefore needs to be excluded from NAT using an identity
-mapping, installed as a separate DNAT instance,
-see [the next section](#integration-of-services-with-policies) for more details.
+ 1. `out` - denotes interfaces through which clients can access the service:
+    this is effectively all interfaces - service can be accessed from the host
+    (`tap0`), from pods (TAPs), other nodes (`loop0` for BD with VXLANs),
+    from outside of the cluster (`GigE`-s) and even from its own endpoints
+    (TAPs)
 
-### Integration of Services with Policies
+ 2. `in` - denotes interfaces connecting service endpoints with VPP: every pod
+    that acts as an endpoint of one or more services has to have its TAP
+    interface marked as `in`
 
-K8s network policies run below services in the sense that they are defined to be applied
-against real pod IP addresses and not against virtual service IPs.
-This implies that the destination address translation for services must execute
-**before** ACLs are applied. Conversely, any ACLs must be applied before the node
-outbound traffic is source NAT-ed with the node IP.
+Lastly, we mark the `GigE` interface that connects VPP to the default gateway
+as `output` and add the Node IP into the NAT main address pool. This enables
+the dynamic source NAT in the post-routing phase for all the packets leaving
+the node towards Internet. It is not desired to source-NAT packets sent
+internally between cluster nodes, though. VXLAN encapsulated traffic therefore
+needs to be excluded from NAT using an identity mapping, installed as a separate
+DNAT instance, see [the next section](#integration-of-services-with-policies)
+for more details.
+
+### Integration of services with policies
+
+K8s network policies run below services in the sense that they are defined
+to be applied against real pod IP addresses and not against virtual service
+IP addresses. This implies that the destination address translation for services
+must execute **before** ACLs are applied. Conversely, any ACLs must be applied
+before the node outbound traffic is source NAT-ed with the node IP.
 
 VPP guarantees the following ordering between ACL and NAT44 nodes:
  1. acl-plugin-in-ip4-fa = ingress ACL
@@ -258,25 +310,27 @@ VPP guarantees the following ordering between ACL and NAT44 nodes:
 
 More information on VPP node ordering can be found in the [Packet Flow guide][packet-flow-dev-guide].
 
-As a consequence, with services in the equation the **ingress ACLs are not eligible
-for the policy implementation**. Study [Development guide for policies][policies-dev-guide]
-to learn how we can combine ingress and egress policies and end up with semantically
-equivalent egress-only ACLs. Still our implementation of policies assumes that the cluster
-**inter-node traffic is sent with source IP addresses unchanged**. As packets travel
-between nodes VXLAN-encapsulated, we only need to define identity mapping for
-the VXLAN UDP port (4789) to keep them excluded from the source NAT.
+As a consequence, with services in the equation the **ingress ACLs are not
+eligible for the policy implementation**. Study [Development guide for policies][policies-dev-guide]
+to learn how we can combine ingress and egress policies and end up with
+semantically equivalent egress-only ACLs. Still our implementation of policies
+assumes that the cluster **inter-node traffic is sent with source IP addresses
+unchanged**. Because the inter-node traffic uses VXLAN encapsulations, we only
+need to define identity mapping for the VXLAN UDP port (4789) to make sure it's
+excluded from the source NAT.
 
-Another minor instance where services and policies collide, is with the virtual
-NAT loopback used to route traffic between services and their own endpoints via VPP.
-Every pod should be able to talk to itself, regardless of the policies assigned.
-This means that the virtual loopback IP requires a special place in the ACLs: Policy
-Configurator gives every pod with a non-empty policy configuration the same rule
-permitting all traffic originating from the loopback.
+Another minor instance where services and policies collide is with the virtual
+NAT loopback used to route traffic between services and their own endpoints via
+VPP. Every pod should be able to talk to itself, regardless of the policies
+assigned. This means that the virtual loopback IP requires a special place
+in the ACLs: Policy Configurator gives every pod with a non-empty policy
+configuration the same rule permitting all traffic originating from the loopback.
 
-## HostPort
+### HostPort
 
-Very similar to `NodePort` service is a feature called `HostPort` - it allows to expose
-pod's internal port on the host IP and a selected host port number. For example:
+Very similar to `NodePort` service is a feature called `HostPort` - it allows
+to expose pod's internal port on the host IP and a selected host port number.
+For example:
 ```
 apiVersion: v1
 kind: Pod
@@ -292,83 +346,90 @@ spec:
       hostPort: 80
   restartPolicy: Always
 ```
-This feature is deprecated, however, as it limits the number of places the Pod
-can be scheduled - the host port is statically set to a fixed value, which automatically
-excludes all nodes where the same port is already in use as there would be a port collision
-otherwise.
+This feature is deprecated, however, as it limits the number of locations
+where the Pod can be scheduled - the host port is statically set to a fixed
+value, which automatically excludes all nodes where the same port is already
+in use as there would be a port collision otherwise.
 
-Still the feature is supported by Contiv/VPP, as it required no extra time to get it supported.
-The CNI (Container Network Interface) already ships with [Port-mapping plugin][portmap-plugin],
-implementing redirection between host ports and container ports using iptables.
-We only had to enable the plugin in the [CNI configuration file for Contiv/VPP][contiv-cni-conflist].
+Still the feature is supported by Contiv/VPP, as it required no extra effort
+to get it supported. The CNI (Container Network Interface) already ships with
+[Port-mapping plugin][portmap-plugin], implementing redirection between host
+ports and container ports using iptables. We only had to enable the plugin
+in the [CNI configuration file for Contiv/VPP][contiv-cni-conflist].
 Since the forwarding occurs in the realm of iptables on the host stack,
-you will not get the same performance benefits as with `VPP/NAT`-based redirection
-for NodePorts and other service types. Another limitation is that in the 2-NIC solution
-the host port is exposed only with the IP address assigned to the host and not on the
-GigE grabbed by VPP. With single NIC, the STN plugin finds no listeners for host ports,
-thus forwarding the traffic to the host stack, which then returns redirected packets
-back to VPP for final delivery.
+you will not get the same performance benefits as with `VPP-NAT`-based
+redirection for NodePorts and other service types. Another limitation is that
+in the 2-NIC solution the host port is exposed only with the IP address
+assigned to the host and not on the GigE grabbed by VPP. With single NIC,
+the STN plugin finds no listeners for host ports, thus forwarding the traffic
+to the host stack, which then returns redirected packets back to VPP for final
+delivery.
 
-## Service Plugin
+### Service Plugin
 
-The mapping of Kubernetes services to the VPP/NAT configuration is implemented
+The mapping of Kubernetes services to the VPP-NAT configuration is implemented
 by the [service plugin][service-plugin] using a **data-flow** based approach.
 The plugin and the components it interacts with are split into multiple layers,
 stacked on top of each other, with data moving from the top layer to the bottom
-layer. Each layer obtains service-related data from the layer above and outputs
-them processed/transformed in some way into the layer below. On the top there are
-K8s state data for endpoints and services as reflected into Etcd by KSR. With each
-layer the abstraction level decreases until at the very bottom the corresponding
-set of NAT rules is calculated and installed into the VPP by ligato/vpp-agent.
+layer. Each layer receives service-related data from the layer above, processes
+and/or transforms the received data and sends it to the layer below. On the top
+of the stack is are K8s state data for endpoints and services as reflected into
+Etcd by KSR. With each layer the abstraction level decreases until at the very
+bottom of the stack a set of NAT rules is calculated and installed into the VPP
+by the Ligato/vpp-agent.
 
-The plugin itself is split into two components: Policy Processor, matching
-service metadata with endpoints, and Policy Configurator, mapping service data
-received from the Processor into the corresponding [protobuf-modelled][nat-model]
-NAT configuration for the ligato/vpp-agent to install.
+The Service plugin consists of two components: the Policy Processor that matches
+service metadata with endpoints and the Policy Configurator that maps service
+data received from the Processor into [protobuf-modelled][nat-model] NAT
+configuration for the Ligato/vpp-agent to install in the VPP.
 
-The southbound of the processor is connected with the northbound of the configurator
-via interface defined in [configurator_api.go][configurator-api].
-For each service, data from Service and Endpoint Kubernetes APIs are combined into
+The southbound of the processor is connected to the northbound of the configurator
+via an interface defined in [configurator_api.go][configurator-api]. For each
+service, data from Service and Endpoint Kubernetes APIs are combined into
 a minimalistic representation of the service known as `ContivService`.
 Furthermore, the configurator northbound API denotes interfaces connecting VPP
 with external networks as `Frontends`, and those connecting VPP with service
-endpoints as `Backends`. Configuration for the dynamic SNAT (Internet access for pods)
-is passed from the processor into the configurator already during resync
-inside the `ExternalSNATConfig` data type.
+endpoints as `Backends`. Configuration for the dynamic SNAT (Internet access
+for pods) is passed from the processor into the configurator already during
+resync inside the `ExternalSNATConfig` data type.
 
 ![Service plugin layers][layers-diagram]
 
-### Skeleton
+#### Skeleton
 
-The [Service Plugin Skeleton][service-plugin-skeleton] implements the [Ligato plugin API][plugin-intf],
-which makes it pluggable with the Ligato CN-Infra framework.
+The [Service Plugin Skeleton][service-plugin-skeleton] implements the
+[Ligato plugin API][plugin-intf], which makes it pluggable into the Ligato
+CN-Infra framework.
 
 The Resync procedure of the service plugin waits until the Resync procedure
-in the [Contiv plugin][contiv-plugin] has finished. This ensures that connectivity
-between pods and the VPP is established before any NAT rules are installed.
+in the [Contiv plugin][contiv-plugin] has finished. This ensures that
+connectivity between pods and the VPP is established before any NAT rules are
+installed.
 
 Inside the Service Plugin's `Init()` method both Processor and Configurator
 are initialized and dependency injection is performed - at the very minimum,
-every layer must depend on at least the layer below so that it can pass transformed
-data further down the stack.
+every layer must depend on at least the layer below so that it can pass
+transformed data further down the stack.
 
 The Service plugin subscribes to Etcd in `subscribeWatcher()` to watch for
-changes related to [services][svc-model], [endpoints][eps-model], [pods][pod-model] and
-[node IDs/IPs][node-info-model], as reflected from the K8s API into the data store by
-the KSR. Both services and endpoints need to be watched to learn the mapping between
-service VIPs and the real pod IP addresses behind. Pods are monitored so that the set
-of Frontend and Backend interfaces is kept up-to-date. Lastly IP addresses
-of all nodes in the cluster are needed to determine NAT mappings for NodePort services.
+changes related to [services][svc-model], [endpoints][eps-model], [pods][pod-model]
+and [node IDs/IPs][node-info-model], as reflected from the K8s API into the
+data store by the KSR. Both services and endpoints need to be watched to
+learn the mapping between service VIPs and the real pod IP addresses behind.
+Pods are monitored so that the set of Frontend and Backend interfaces is kept
+up-to-date. Lastly, IP addresses of all nodes in the cluster are needed to
+determine NAT mappings for NodePort services.
 
-Once subscribed, state data arrives as datasync events, which are
-propagated by the plugin without any processing into the Processor.
+Once subscribed, state data arrives as datasync events, which are propagated
+by the plugin without any processing into the Processor.
 
-### Processor
+#### Processor
 
 Processor receives and unpacks datasync [update][processor-data-change] and
-[resync][processor-data-resync] events. Service name and namespace is used to match
-[service metadata][svc-model] with the associated [endpoints][eps-model].
-The processor is also notified when locally deployed pod is created/updated or deleted.
+[resync][processor-data-resync] events. Service name and namespace is used
+to match [service metadata][svc-model] with the associated [endpoints][eps-model].
+The processor is also notified when locally deployed pod is created/updated or
+deleted.
 
 Additionally, the processor watches changes in the assignment of
 [cluster and management IPs][node-info-model] for all nodes in the cluster.
@@ -380,45 +441,48 @@ as an endpoint for. If pod matches label selector of at least one service,
 it has to be regarded as Backend. Since any pod can be client of any service,
 all running pods are always also regarded as Frontends.
 
-Immediately after the resync, the set of Frontends also includes all Gigabit Ethernet
-interfaces, `tap0` connecting VPP with the host and `loop0` inside BD with all VXLANs.
-Service may have one or more endpoints deployed on another node, which makes `loop0`
-a potential Backend. Likewise, `tap0` is an entry-point for potential endpoints
+Immediately after the resync, the set of Frontends also includes all GigE
+interfaces, `tap0` interfaces that connect VPP to the host and the `loop0`
+BVI interface in the BD where all VXLAN tunnels are terminated. A service may
+have one or more endpoints deployed on another node, which makes `loop0` a
+potential Backend. Likewise, `tap0` is an entry point for potential endpoints
 in the host networking, thus we automatically mark it as Backend during resync.
-The processor learns the names of all interfaces from the [Contiv plugin][contiv-plugin].
+The processor learns the names of all VPP interfaces from the [Contiv plugin][contiv-plugin].
 
-### Configurator
+#### Configurator
 
-The configurator maps `ContivService` into the corresponding instance of [DNAT model][nat-model]
-for the ligato/vpp-agent to install. Frontends and Backends are reflected as
-`in` & `out` interface features in the global NAT configuration, updated every time
-a pod is created, destroyed, assigned to a service for the first time, or no longer
-acting as a service endpoint.
-If dynamic SNAT is enabled, the node IP (received from the processor) is added into
-the NAT main address pool and the main interface is switched into the post-routing
-NAT mode (`output` feature).
-[Contiv plugin][contiv-plugin] is asked to provide virtual NAT loopback IP address,
-which is then inserted into the `TwiceNAT` address pool.
+The configurator maps `ContivService` instances into corresponding [DNAT model][nat-model]
+instances that are then installed into VPP by the Ligato/vpp-agent. Frontends and
+Backends are reflected as `in` & `out` interface features in the global NAT
+configuration, updated every time a pod is created, destroyed, assigned to
+a service for the first time, or no longer acting as a service endpoint.
 
-Generated NAT global configuration and DNAT instances are sent to the
-[ligato/vpp-agent][ligato-vpp-agent] via the [local client][local-client],
-which updates the VPP/NAT configuration through binary APIs. For each transaction,
-the [vpp/ifplugin][vpp-agent-if-plugin] determines the minimal set of operations
-that need to be executed to reflect the configuration changes.
+If dynamic SNAT is enabled, the node IP (received from the processor) is added
+into the NAT main address pool and the main interface is switched into
+the post-routing NAT mode (`output` feature). The [Contiv plugin][contiv-plugin]
+is asked to provide the virtual NAT loopback IP address, which is then inserted
+into the `TwiceNAT` address pool.
 
-To work-around the [second listed limitation of the VPP/NAT plugin](#vpp/nat-plugin-limitations),
-the configurator runs method `idleNATSessionCleanup()` inside a go-routine, periodically
-cleaning up inactive NAT sessions.
+NAT global configuration and DNAT instances generated in the Configurator are
+sent to the [Ligato/vpp-agent][ligato-vpp-agent] via the [local client][local-client]
+interface. The Ligato/vpp-agent in turn updates the VPP-NAT configuration through
+binary APIs. For each transaction, the [vpp/ifplugin][vpp-agent-if-plugin]
+determines the minimum set of operations that need to be executed to reflect
+the configuration changes.
+
+To work-around the [second listed limitation of the VPP-NAT plugin](#vpp-nat-plugin-limitations),
+the configurator runs the method `idleNATSessionCleanup()` inside a go-routine,
+periodically cleaning up inactive NAT sessions.
 
 ![NAT configuration example][nat-configuration-diagram]
 
 
-[layers-diagram]: service-plugin-layers.png "Layering of the Service plugin"
-[nat-configuration-diagram]: nat-configuration.png "NAT configuration example"
+[layers-diagram]: services/service-plugin-layers.png "Layering of the Service plugin"
+[nat-configuration-diagram]: services/nat-configuration.png "NAT configuration example"
 [ks-services]: https://kubernetes.io/docs/concepts/services-networking/service/
 [kube-proxy]: https://kubernetes.io/docs/reference/command-line-tools-reference/kube-proxy/
 [ipvs]: http://kb.linuxvirtualserver.org/wiki/IPVS
-[vpp-nat-plugin]: https://wiki.fd.io/view/VPP/NAT
+[vpp-nat-plugin]: https://wiki.fd.io/view/VPP-NAT
 [vpp-nat-plugin-api]: https://github.com/vpp-dev/vpp/blob/stable-1801-contiv/src/plugins/nat/nat.api
 [service-plugin]: https://github.com/contiv/vpp/tree/master/plugins/service
 [service-plugin-skeleton]: https://github.com/contiv/vpp/blob/master/plugins/service/plugin_impl_service.go

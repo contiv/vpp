@@ -109,6 +109,11 @@ govpp:
 http:
   enableBasicAuth: true
   enableServerCert: true
+  # if mountFromHost is true, certificates must be present in the mountDir on each host.
+  # if mountFromHost is false, certificates must be present in the current directory, and will be distributed to each host via k8s secret feature.
+  mountFromHost: false
+  mountDir: /var/certs
   serverCert: server.crt
   serverKey: server.key
+  # credentials to be used by basic-auth, format <username>:<password>
   basicAuth: user:pass

@@ -79,12 +79,15 @@ data:
     defaultlevel: {{ .Values.logs.defaultLevel }}
   http.conf: |
       endpoint: 0.0.0.0:9999
-      server-cert-file: /var/run/contiv/server.crt
-      server-key-file: /var/run/contiv/server.key
-      {{ if .Values.http.enableBasicAuth }}
+      {{- if .Values.http.enableServerCert }}
+      server-cert-file: /var/http/{{ .Values.http.serverCert }}
+      server-key-file: /var/http/{{ .Values.http.serverKey }}
+      {{- end }}
+      {{- if .Values.http.enableBasicAuth }}
       client-basic-auth:
         - {{ .Values.http.basicAuth | quote }}
       {{- end }}
+
 ---
 
 apiVersion: v1
@@ -277,12 +280,16 @@ metadata:
 data:
   http.conf: |
     endpoint: 0.0.0.0:9191
-    {{ if .Values.http.enableBasicAuth }}
+    {{- if .Values.http.enableServerCert }}
+    server-cert-file: /var/http/{{ .Values.http.serverCert }}
+    server-key-file: /var/http/{{ .Values.http.serverKey }}
+    {{- end }}
+    {{- if .Values.http.enableBasicAuth }}
     client-basic-auth:
       - {{ .Values.http.basicAuth | quote }}
     {{- end }}
----
 
+---
 # This config map contains ETCD configuration for connecting to the contiv-etcd defined above.
 apiVersion: v1
 kind: ConfigMap
@@ -325,6 +332,26 @@ data:
     auto-compact: 600000000000
     endpoints:
       - "127.0.0.1:{{ .Values.etcd.service.nodePort }}"
+
+{{- if .Values.http.enableServerCert }}
+{{- if not .Values.http.mountFromHost }}
+---
+
+# The following contains k8s Secrets for use with a secured HTTP plugin.
+# For information on populating Secrets, see http://kubernetes.io/docs/user-guide/secrets/
+apiVersion: v1
+kind: Secret
+type: Opaque
+metadata:
+  name: contiv-http-secrets
+  namespace: kube-system
+data:
+  serverCert: |-
+    {{ .Files.Get .Values.http.serverCert | b64enc }}
+  serverKey: |-
+    {{ .Files.Get .Values.http.serverKey | b64enc }}
+{{- end }}
+{{- end }}
 
 ---
 
@@ -437,10 +464,10 @@ spec:
             httpGet:
               path: /readiness
               port: 9999
-{{ if .Values.http.enableServerCert }}
+              {{- if .Values.http.enableServerCert }}
               scheme: HTTPS
-{{- end }}
-              {{ if .Values.http.enableBasicAuth }}
+              {{- end }}
+              {{- if .Values.http.enableBasicAuth }}
               httpHeaders:
                 - name: Authorization
                   value: "Basic {{ .Values.http.basicAuth | b64enc }}"
@@ -453,10 +480,10 @@ spec:
             httpGet:
               path: /liveness
               port: 9999
-              {{ if .Values.http.enableServerCert }}
+              {{- if .Values.http.enableServerCert }}
               scheme: HTTPS
               {{- end }}
-              {{ if .Values.http.enableBasicAuth }}
+              {{- if .Values.http.enableBasicAuth }}
               httpHeaders:
                 - name: Authorization
                   value: "Basic {{ .Values.http.basicAuth | b64enc }}"
@@ -479,6 +506,11 @@ spec:
               {{- if .Values.etcd.secureTransport }}
             - name: etcd-secrets
               mountPath: /var/etcd/contiv-secrets
+              readOnly: true
+              {{- end }}
+              {{- if .Values.http.enableServerCert }}
+            - name: http-secrets
+              mountPath: /var/http
               readOnly: true
               {{- end }}
             - name: vpp-cfg
@@ -522,6 +554,21 @@ spec:
               path: {{ .Values.etcd.secrets.clientCert }}
             - key: clientKey
               path: {{ .Values.etcd.secrets.clientKey }}
+          {{- end }}
+        {{- end }}
+        {{- if .Values.http.enableServerCert }}
+        - name: http-secrets
+          {{- if .Values.http.mountFromHost }}
+          hostPath:
+            path: {{ .Values.http.mountDir }}
+          {{- else }}
+          secret:
+            secretName: contiv-http-secrets
+            items:
+            - key: serverCert
+              path: {{ .Values.http.serverCert }}
+            - key: serverKey
+              path: {{ .Values.http.serverKey }}
           {{- end }}
         {{- end }}
         # Used to install CNI.
@@ -617,7 +664,7 @@ spec:
           env:
             - name: ETCDV3_CONFIG
               value: "/etc/etcd/etcd.conf"
-            - name: HTTP-PROBE_CONFIG
+            - name: HTTP_CONFIG
               value: "/etc/http/http.conf"
           volumeMounts:
             - name: etcd-cfg
@@ -629,11 +676,19 @@ spec:
               mountPath: /var/etcd/contiv-secrets
               readOnly: true
             {{- end }}
+            {{- if .Values.http.enableServerCert }}
+            - name: http-secrets
+              mountPath: /var/http
+              readOnly: true
+            {{- end }}
           readinessProbe:
             httpGet:
               path: /readiness
               port: 9191
-              {{ if .Values.http.enableBasicAuth }}
+              {{- if .Values.http.enableServerCert }}
+              scheme: HTTPS
+              {{- end }}
+              {{- if .Values.http.enableBasicAuth }}
               httpHeaders:
                 - name: Authorization
                   value: "Basic {{ .Values.http.basicAuth | b64enc }}"
@@ -644,7 +699,10 @@ spec:
             httpGet:
               path: /liveness
               port: 9191
-              {{ if .Values.http.enableBasicAuth }}
+              {{- if .Values.http.enableServerCert }}
+              scheme: HTTPS
+              {{- end }}
+              {{- if .Values.http.enableBasicAuth }}
               httpHeaders:
                 - name: Authorization
                   value: "Basic {{ .Values.http.basicAuth | b64enc }}"
@@ -675,6 +733,21 @@ spec:
               path: {{ .Values.etcd.secrets.clientCert }}
             - key: clientKey
               path: {{ .Values.etcd.secrets.clientKey }}
+          {{- end }}
+        {{- end }}
+        {{- if .Values.http.enableServerCert }}
+        - name: http-secrets
+          {{- if .Values.http.mountFromHost }}
+          hostPath:
+            path: {{ .Values.http.mountDir }}
+          {{- else }}
+          secret:
+            secretName: contiv-http-secrets
+            items:
+            - key: serverCert
+              path: {{ .Values.http.serverCert }}
+            - key: serverKey
+              path: {{ .Values.http.serverKey }}
           {{- end }}
         {{- end }}
 

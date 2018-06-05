@@ -30,6 +30,7 @@ data:
     CleanupIdleNATSessions: True
     TCPNATSessionTimeout: 180
     OtherNATSessionTimeout: 5
+    ServiceLocalEndpointWeight: 1
     IPAMConfig:
       PodSubnetCIDR: 10.1.0.0/16
       PodNetworkPrefixLen: 24
@@ -46,6 +47,7 @@ data:
     endpoint: /var/run/contiv/cni.sock
   http.conf: |
       endpoint: 0.0.0.0:9999
+
 ---
 
 apiVersion: v1

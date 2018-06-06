@@ -271,7 +271,7 @@ never gets assigned to any real interface. The virtual loopback IP is added to
 `TwiceNAT` address pool (extra source NAT for DNAT mappings) in the global NAT
 configuration of the [Ligato VPP Agent][ligato-vpp-agent].
 
-Next we need to mark interfaces with `in` & `nat` features so that the VPP-NAT
+Next we need to mark interfaces with `in` & `out` features so that the VPP-NAT
 plugin can determine the direction in which the NAT should be applied:
 
  1. `out` - denotes interfaces through which clients can access the service:

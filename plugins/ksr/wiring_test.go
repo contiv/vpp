@@ -21,6 +21,7 @@ func TestDefaultWiring(t *testing.T) {
 	gomega.Expect(plugin.PluginName).Should(gomega.BeEquivalentTo(defaultName))
 	gomega.Expect(plugin.Log).ShouldNot(gomega.BeNil())
 	gomega.Expect(plugin.PluginConfig).ShouldNot(gomega.BeNil())
+	gomega.Expect(plugin.KubeConfig).ShouldNot(gomega.BeNil())
 }
 
 func TestWithNameDefault(t *testing.T) {
@@ -31,6 +32,7 @@ func TestWithNameDefault(t *testing.T) {
 	gomega.Expect(plugin.PluginName).Should(gomega.BeEquivalentTo(defaultName))
 	gomega.Expect(plugin.Log).Should(gomega.BeNil())
 	gomega.Expect(plugin.PluginConfig).Should(gomega.BeNil())
+	gomega.Expect(plugin.KubeConfig).Should(gomega.BeNil())
 }
 
 func TestWithNameNonDefault(t *testing.T) {
@@ -42,6 +44,7 @@ func TestWithNameNonDefault(t *testing.T) {
 	gomega.Expect(plugin.PluginName).Should(gomega.BeEquivalentTo(name))
 	gomega.Expect(plugin.Log).Should(gomega.BeNil())
 	gomega.Expect(plugin.PluginConfig).Should(gomega.BeNil())
+	gomega.Expect(plugin.KubeConfig).Should(gomega.BeNil())
 }
 
 func TestWithLogNonDefault(t *testing.T) {
@@ -52,6 +55,7 @@ func TestWithLogNonDefault(t *testing.T) {
 	gomega.Expect(err).Should(gomega.BeNil())
 	gomega.Expect(plugin.Log).Should(gomega.BeEquivalentTo(log))
 	gomega.Expect(plugin.PluginConfig).Should(gomega.BeNil())
+	gomega.Expect(plugin.KubeConfig).Should(gomega.BeNil())
 }
 
 func TestNilWiring(t *testing.T) {
@@ -62,6 +66,7 @@ func TestNilWiring(t *testing.T) {
 	gomega.Expect(plugin.PluginName).Should(gomega.BeEquivalentTo(defaultName))
 	gomega.Expect(plugin.Log).ShouldNot(gomega.BeNil())
 	gomega.Expect(plugin.PluginConfig).ShouldNot(gomega.BeNil())
+	gomega.Expect(plugin.KubeConfig).Should(gomega.BeNil())
 }
 
 func TestDefaultWiringOverwriteTrue(t *testing.T) {
@@ -77,6 +82,7 @@ func TestDefaultWiringOverwriteTrue(t *testing.T) {
 	gomega.Expect(plugin.PluginName).Should(gomega.BeEquivalentTo(defaultName))
 	gomega.Expect(plugin.Log).ShouldNot(gomega.BeNil())
 	gomega.Expect(plugin.PluginConfig).ShouldNot(gomega.BeNil())
+	gomega.Expect(plugin.KubeConfig).ShouldNot(gomega.BeNil())
 
 }
 
@@ -89,4 +95,16 @@ func TestWithNamePrefix(t *testing.T) {
 	gomega.Expect(plugin.PluginName).Should(gomega.BeEquivalentTo(name + defaultName))
 	gomega.Expect(plugin.Log).Should(gomega.BeNil())
 	gomega.Expect(plugin.PluginConfig).Should(gomega.BeNil())
+	gomega.Expect(plugin.KubeConfig).Should(gomega.BeNil())
+}
+
+func TestWithKubeConfig(t *testing.T) {
+	gomega.RegisterTestingT(t)
+	plugin := &ksr.Plugin{}
+	err := plugin.Wire(ksr.WithKubeConfig(true))
+	gomega.Expect(err).Should(gomega.BeNil())
+	gomega.Expect(plugin.PluginName).Should(gomega.BeEquivalentTo(defaultName))
+	gomega.Expect(plugin.Log).Should(gomega.BeNil())
+	gomega.Expect(plugin.PluginConfig).Should(gomega.BeNil())
+	gomega.Expect(plugin.KubeConfig).ShouldNot(gomega.BeNil())
 }

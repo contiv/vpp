@@ -185,8 +185,8 @@ func (plugin *Plugin) Init() error {
 	}
 
 	plugin.nodeReflector = &NodeReflector{
-		Reflector: plugin.newReflector("-node", nodeObjType, broker),
-		rootBroker: plugin.Publish.Deps.KvPlugin.NewBroker(""),
+		Reflector:    plugin.newReflector("-node", nodeObjType, broker),
+		rootBroker:   plugin.Publish.Deps.KvPlugin.NewBroker(""),
 		serviceLabel: plugin.ServiceLabel,
 	}
 	// plugin.nodeReflector.Log.SetLevel(logging.DebugLevel)

@@ -100,7 +100,7 @@ and replies with a response, which is then forwarded back to Kubelet.
 As already mentioned, the default setup of Contiv/VPP requires 2 network interfaces
 per node: one controlled by VPP for data facing PODs and one controlled by the host
 network stack for k8s control plane communication. In case that your k8s nodes
-do not provide 2 network interfaces, Contiv/VPP can work in the single node setup,
+do not provide 2 network interfaces, Contiv/VPP can work in the single NIC setup,
 when the interface will be "stolen" from the host network stack just before starting
 the VPP and configured with the same IP address on VPP, as well as 
 on the host-VPP interconnect TAP interface, as it had in the host before it. 

@@ -20,6 +20,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/ligato/vpp-agent/plugins/defaultplugins/common/bin_api/ip"
 	vpp_intf "github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/interfaces"
 	vpp_l2 "github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/l2"
 	vpp_l3 "github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/l3"
@@ -386,4 +387,20 @@ func (s *remoteCNIserver) getHostLinkIPs() ([]string, error) {
 		}
 	}
 	return res, nil
+}
+
+func (s *remoteCNIserver) enableIPNeighborScan() error {
+	s.Logger.Info("Enabling IP neighbor scanning")
+
+	req := &ip.IPScanNeighborEnableDisable{
+		Mode: 1, // enable for IPv4
+	}
+	reply := &ip.IPScanNeighborEnableDisableReply{}
+
+	err := s.govppChan.SendRequest(req).ReceiveReply(reply)
+
+	if err != nil {
+		s.Logger.Error("Error by enabling IP neighbor scanning:", err)
+	}
+	return err
 }

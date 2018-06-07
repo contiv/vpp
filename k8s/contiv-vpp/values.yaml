@@ -8,6 +8,7 @@ contiv:
   cleanupIdleNATSessions: True
   tcpNATSessionTimeout: 180
   otherNATSessionTimeout: 5
+  scanIPNeighbors: True
   ipamConfig:
     podSubnetCIDR: "10.1.0.0/16"
     podNetworkPrefixLen: 24

@@ -36,6 +36,7 @@ data:
     TCPNATSessionTimeout: {{ .Values.contiv.tcpNATSessionTimeout }}
     OtherNATSessionTimeout: {{ .Values.contiv.otherNATSessionTimeout }}
     {{- end }}
+    ScanIPNeighbors: {{ .Values.contiv.scanIPNeighbors }}
     IPAMConfig:
       PodSubnetCIDR: {{ .Values.contiv.ipamConfig.podSubnetCIDR }}
       PodNetworkPrefixLen: {{ .Values.contiv.ipamConfig.podNetworkPrefixLen }}

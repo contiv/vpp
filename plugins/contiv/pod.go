@@ -272,6 +272,7 @@ func (s *remoteCNIserver) veth1FromRequest(request *cni.CNIRequest, podIP string
 		},
 		IpAddresses: []string{podIP},
 		Namespace: &linux_intf.LinuxInterfaces_Interface_Namespace{
+			Name:     request.ContainerId,
 			Type:     linux_intf.LinuxInterfaces_Interface_Namespace_FILE_REF_NS,
 			Filepath: request.NetworkNamespace,
 		},
@@ -343,6 +344,7 @@ func (s *remoteCNIserver) podTAP(request *cni.CNIRequest, podIPNet *net.IPNet) *
 		},
 		HostIfName: s.tapHostNameFromRequest(request),
 		Namespace: &linux_intf.LinuxInterfaces_Interface_Namespace{
+			Name:     request.ContainerId,
 			Type:     linux_intf.LinuxInterfaces_Interface_Namespace_FILE_REF_NS,
 			Filepath: request.NetworkNamespace,
 		},
@@ -399,6 +401,7 @@ func (s *remoteCNIserver) vppArpEntry(podIfName string, podIP net.IP, macAddr st
 
 func (s *remoteCNIserver) podArpEntry(request *cni.CNIRequest, ifName string, macAddr string) *linux_l3.LinuxStaticArpEntries_ArpEntry {
 	containerNs := &linux_l3.LinuxStaticArpEntries_ArpEntry_Namespace{
+		Name:     request.ContainerId,
 		Type:     linux_l3.LinuxStaticArpEntries_ArpEntry_Namespace_FILE_REF_NS,
 		Filepath: request.NetworkNamespace,
 	}
@@ -419,6 +422,7 @@ func (s *remoteCNIserver) podArpEntry(request *cni.CNIRequest, ifName string, ma
 
 func (s *remoteCNIserver) podLinkRouteFromRequest(request *cni.CNIRequest, ifName string) *linux_l3.LinuxStaticRoutes_Route {
 	containerNs := &linux_l3.LinuxStaticRoutes_Route_Namespace{
+		Name:     request.ContainerId,
 		Type:     linux_l3.LinuxStaticRoutes_Route_Namespace_FILE_REF_NS,
 		Filepath: request.NetworkNamespace,
 	}
@@ -436,6 +440,7 @@ func (s *remoteCNIserver) podLinkRouteFromRequest(request *cni.CNIRequest, ifNam
 
 func (s *remoteCNIserver) podDefaultRouteFromRequest(request *cni.CNIRequest, ifName string) *linux_l3.LinuxStaticRoutes_Route {
 	containerNs := &linux_l3.LinuxStaticRoutes_Route_Namespace{
+		Name:     request.ContainerId,
 		Type:     linux_l3.LinuxStaticRoutes_Route_Namespace_FILE_REF_NS,
 		Filepath: request.NetworkNamespace,
 	}

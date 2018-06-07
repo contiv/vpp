@@ -38,10 +38,6 @@ import (
 	"sync/atomic"
 )
 
-// LocalVsRemoteProbRatio tells how much more likely a local backend is to receive
-// traffic as opposed to a remote backend.
-const LocalVsRemoteProbRatio uint32 = 1
-
 const (
 	// Label for DNAT with identities; used to exclude VXLAN port and main interface IP
 	// (with the exception of node-ports) from dynamic mappings.
@@ -76,7 +72,7 @@ type ServiceConfigurator struct {
 type Deps struct {
 	Log           logging.Logger
 	VPP           defaultplugins.API /* for DumpNat44Global & DumpNat44DNat */
-	Contiv        contiv.API         /* for GetNatLoopbackIP, InSTNMode */
+	Contiv        contiv.API         /* for GetNatLoopbackIP, InSTNMode, GetServiceLocalEndpointWeight */
 	NATTxnFactory func() (dsl linux.DataChangeDSL)
 	LatestRevs    *syncbase.PrevRevisions
 	GoVPPChan     *govpp.Channel     /* used for direct NAT binary API calls */
@@ -431,7 +427,7 @@ func (sc *ServiceConfigurator) exportDNATMappings(service *ContivService) []*nat
 						LocalPort: uint32(backend.Port),
 					}
 					if backend.Local {
-						local.Probability = LocalVsRemoteProbRatio
+						local.Probability = uint32(sc.Contiv.GetServiceLocalEndpointWeight())
 					} else {
 						local.Probability = 1
 					}
@@ -477,7 +473,7 @@ func (sc *ServiceConfigurator) exportDNATMappings(service *ContivService) []*nat
 					LocalPort: uint32(backend.Port),
 				}
 				if backend.Local {
-					local.Probability = LocalVsRemoteProbRatio
+					local.Probability = uint32(sc.Contiv.GetServiceLocalEndpointWeight())
 				} else {
 					local.Probability = 1
 				}

@@ -9,6 +9,7 @@ contiv:
   tcpNATSessionTimeout: 180
   otherNATSessionTimeout: 5
   scanIPNeighbors: True
+  serviceLocalEndpointWeight: 1
   ipamConfig:
     podSubnetCIDR: "10.1.0.0/16"
     podNetworkPrefixLen: 24
@@ -108,3 +109,16 @@ govpp:
   healthCheckReplyTimeout: 500000000
   healthCheckThreshold: 3
   replyTimeout: 3000000000
+
+
+http:
+  enableBasicAuth: false
+  enableServerCert: false
+  # if mountFromHost is true, certificates must be present in the mountDir on each host.
+  # if mountFromHost is false, certificates must be present in the current directory, and will be distributed to each host via k8s secret feature.
+  mountFromHost: false
+  mountDir: /var/certs
+  serverCert: server.crt
+  serverKey: server.key
+  # credentials to be used by basic-auth, format <username>:<password>
+  basicAuth: user:pass

@@ -28,34 +28,36 @@ import (
 type MockContiv struct {
 	sync.Mutex
 
-	podIf                  map[podmodel.ID]string
-	podAppNs               map[podmodel.ID]uint32
-	podNetwork             *net.IPNet
-	tcpStackDisabled       bool
-	stnMode                bool
-	natExternalTraffic     bool
-	cleanupIdleNATSessions bool
-	tcpNATSessionTimeout   uint32
-	otherNATSessionTimeout uint32
-	natLoopbackIP          net.IP
-	nodeIP                 string
-	nodeIPsubs             []chan string
-	podPreRemovalHooks     []contiv.PodActionHook
-	mainPhysIf             string
-	otherPhysIfs           []string
-	hostInterconnect       string
-	vxlanBVIIfName         string
-	gwIP                   net.IP
-	containerIndex         *containeridx.ConfigIndex
+	podIf                      map[podmodel.ID]string
+	podAppNs                   map[podmodel.ID]uint32
+	podNetwork                 *net.IPNet
+	tcpStackDisabled           bool
+	stnMode                    bool
+	natExternalTraffic         bool
+	cleanupIdleNATSessions     bool
+	tcpNATSessionTimeout       uint32
+	otherNATSessionTimeout     uint32
+	serviceLocalEndpointWeight uint8
+	natLoopbackIP              net.IP
+	nodeIP                     string
+	nodeIPsubs                 []chan string
+	podPreRemovalHooks         []contiv.PodActionHook
+	mainPhysIf                 string
+	otherPhysIfs               []string
+	hostInterconnect           string
+	vxlanBVIIfName             string
+	gwIP                       net.IP
+	containerIndex             *containeridx.ConfigIndex
 }
 
 // NewMockContiv is a constructor for MockContiv.
 func NewMockContiv() *MockContiv {
 	ci := containeridx.NewConfigIndex(logrus.DefaultLogger(), "test", "title", nil)
 	return &MockContiv{
-		podIf:          make(map[podmodel.ID]string),
-		podAppNs:       make(map[podmodel.ID]uint32),
-		containerIndex: ci,
+		podIf:                      make(map[podmodel.ID]string),
+		podAppNs:                   make(map[podmodel.ID]uint32),
+		containerIndex:             ci,
+		serviceLocalEndpointWeight: 1,
 	}
 }
 
@@ -140,6 +142,12 @@ func (mc *MockContiv) SetNatExternalTraffic(natExternalTraffic bool) {
 	mc.natExternalTraffic = natExternalTraffic
 }
 
+// ServiceLocalEndpointWeight allows to set what tests will assume the weight for load-balancing
+// of locally deployed service endpoints is.
+func (mc *MockContiv) SetServiceLocalEndpointWeight(weight uint8) {
+	mc.serviceLocalEndpointWeight = weight
+}
+
 // SetNatLoopbackIP allows to set what tests will assume the NAT loopback IP is.
 func (mc *MockContiv) SetNatLoopbackIP(natLoopIP string) {
 	mc.natLoopbackIP = net.ParseIP(natLoopIP)
@@ -209,6 +217,11 @@ func (mc *MockContiv) InSTNMode() bool {
 // with node IP before being sent out from the node.
 func (mc *MockContiv) NatExternalTraffic() bool {
 	return mc.natExternalTraffic
+}
+
+// GetServiceLocalEndpointWeight returns the load-balancing weight assigned to locally deployed service endpoints.
+func (mc *MockContiv) GetServiceLocalEndpointWeight() uint8 {
+	return mc.serviceLocalEndpointWeight
 }
 
 // GetNatLoopbackIP returns the IP address of a virtual loopback, used to route traffic

@@ -24,6 +24,8 @@ import (
 	nodeID "github.com/contiv/vpp/plugins/contiv/model/node"
 	"github.com/contiv/vpp/plugins/ksr/model/node"
 	"github.com/golang/protobuf/proto"
+	"github.com/ligato/cn-infra/datasync"
+	"github.com/ligato/cn-infra/servicelabel"
 )
 
 // NodeReflector subscribes to K8s cluster to watch for changes in the
@@ -31,6 +33,10 @@ import (
 // into the selected key-value store.
 type NodeReflector struct {
 	Reflector
+	// rootBroker to access ETCD data store without implicit prefix
+	rootBroker KeyProtoValBroker
+	// serviceLabel determines agent's prefix to be deleted when a node is remove
+	serviceLabel servicelabel.ReaderAPI
 }
 
 // Init subscribes to K8s cluster to watch for changes in the configuration
@@ -96,6 +102,7 @@ func (nr *NodeReflector) deleteNode(obj interface{}) {
 	nr.ksrDelete(key)
 
 	nr.deleteNodeIDForName(k8sNode.Name)
+	nr.removeAgentData(k8sNode.Name)
 }
 
 // updateNode updates  data of a changed K8s node from the data store.
@@ -208,4 +215,15 @@ func (nr *NodeReflector) deleteNodeIDForName(name string) error {
 		}
 	}
 	return nil
+}
+
+// removeAgentData deletes data associated with the given agent name
+func (nr *NodeReflector) removeAgentData(name string) error {
+	if nr.rootBroker == nil || nr.serviceLabel == nil {
+		nr.Log.Debug("root broker or service label is not injected, agent's data will not be deleted")
+		return nil
+	}
+	_, err := nr.rootBroker.Delete(nr.serviceLabel.GetDifferentAgentPrefix(name), datasync.WithPrefix())
+	nr.Log.Infof("data of the agent with service label '%v' removed", name)
+	return err
 }

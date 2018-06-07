@@ -103,6 +103,7 @@ type Config struct {
 	TCPNATSessionTimeout       uint32 // NAT session timeout (in minutes) for TCP connections, used in case that CleanupIdleNATSessions is turned on
 	OtherNATSessionTimeout     uint32 // NAT session timeout (in minutes) for non-TCP connections, used in case that CleanupIdleNATSessions is turned on
 	ScanIPNeighbors            bool   // if enabled, periodically scans and probes IP neighbors to maintain the ARP table
+	ServiceLocalEndpointWeight uint8
 	IPAMConfig                 ipam.Config
 	NodeConfig                 []OneNodeConfig
 }
@@ -319,6 +320,11 @@ func (plugin *Plugin) GetOtherNATSessionTimeout() uint32 {
 	return plugin.Config.OtherNATSessionTimeout
 }
 
+// GetServiceLocalEndpointWeight returns the load-balancing weight assigned to locally deployed service endpoints.
+func (plugin *Plugin) GetServiceLocalEndpointWeight() uint8 {
+	return plugin.Config.ServiceLocalEndpointWeight
+}
+
 // GetNatLoopbackIP returns the IP address of a virtual loopback, used to route traffic
 // between clients and services via VPP even if the source and destination are the same
 // IP addresses and would otherwise be routed locally.
@@ -410,6 +416,11 @@ func (plugin *Plugin) loadExternalConfig() error {
 	// use tap version 2 as default in case that TAPs are enabled
 	if plugin.Config.TAPInterfaceVersion == 0 {
 		plugin.Config.TAPInterfaceVersion = 2
+	}
+
+	// By default connections are equally distributed between service endpoints.
+	if plugin.Config.ServiceLocalEndpointWeight == 0 {
+		plugin.Config.ServiceLocalEndpointWeight = 1
 	}
 
 	return nil

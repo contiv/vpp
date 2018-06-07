@@ -61,6 +61,7 @@ Parameter | Description | Default
 `contiv.stealFirstNIC` | Enable Steal The NIC feature on the first interface on each node | `False`
 `contiv.natExternalTraffic`| NAT cluster-external traffic | `True`
 `contiv.scanIPNeighbors`| Periodically scan and probe IP neighbors to maintain the ARP table | `True`
+`contiv.serviceLocalEndpointWeight` | load-balancing weight for locally deployed service endpoints | 1
 `contiv.ipamConfig.podSubnetCIDR` | Pod subnet CIDR | `10.1.0.0/16`
 `contiv.ipamConfig.podNetworkPrefixLen` | Pod network prefix length | `24`
 `contiv.ipamConfig.PodIfIPCIDR` | Subnet CIDR for VPP-side POD addresses | `10.2.1.0/24`
@@ -100,3 +101,10 @@ Parameter | Description | Default
 `govpp.healthCheckThreshold` | Health check threshold | 3
 `govpp.replyTimeout` | VPP binary API request timeout (nanoseconds) | 3000000000
 `logs.defaultLevel` | Default level of logging | `debug`
+`http.enableBasicAuth` | Enable basic auth for REST endpoints | `false`
+`http.enableServerCert` | Enable HTTPS for REST endpoints | ` false`
+`http.mountFromHost` | If true, SSL/TLS certificates must be present in the mountDir on each host. If false, certificates must be present in the current directory, and will be distributed to each host via k8s secret feature| `false`
+`http.mountDir` | Directory where certificates should be located on all nodes, in case that mountFromHost is true |`/var/certs`
+`http.serverCert` | Name of the file with certificate of the HTTP server | `server.crt`
+`http.serverKey` | Name of the file with private key of the HTTP server |`server.key`
+`http.basicAuth` | credentials to be used by basic-auth, format <username>:<password>| `user:pass`

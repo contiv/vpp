@@ -504,7 +504,7 @@ func (i *IPAM) computeNodeIPAddress(nodeID uint8) (net.IP, error) {
 	if err != nil {
 		return nil, err
 	}
-	// nodeIP Pas
+	// nodeIPpart equal to 0 is not valid for IP address
 	if nodeIPPart == 0 {
 		return nil, fmt.Errorf("no free address for nodeID %v", nodeID)
 	}
@@ -535,6 +535,7 @@ func (i *IPAM) computeVxlanIPAddress(nodeID uint8) (net.IP, error) {
 	if err != nil {
 		return nil, err
 	}
+	// nodeIPpart equal to 0 is not valid for IP address
 	if nodeIPPart == 0 {
 		return nil, fmt.Errorf("no free address for nodeID %v", nodeID)
 	}
@@ -558,10 +559,10 @@ func (i *IPAM) findIP(podID string) (uintIP, error) {
 }
 
 // convertToNodeIPPart converts nodeID to part of IP address that distinguishes network IP address prefix among
-// different nodes. The result doesn't have to be that whole nodeID, because in IP address there can be allocated
-// less space than the size of the nodeID.
+// different nodes.
 func convertToNodeIPPart(nodeID uint8, expectedNodePartBitSize uint8) (res uint8, err error) {
-	// the last valid nodeID correspond to 0 nodeIPpart
+	// the last valid nodeID correspond to 0 nodeIPpart,
+	// this value is valid to be used for subnet, however not for IP address computation
 	if nodeID == (1 << expectedNodePartBitSize) {
 		return 0, nil
 	}
@@ -570,7 +571,7 @@ func convertToNodeIPPart(nodeID uint8, expectedNodePartBitSize uint8) (res uint8
 	if res != nodeID {
 		return 0, fmt.Errorf("nodeID is out of the valid range %v > %v", nodeID, 1<<expectedNodePartBitSize)
 	}
-	return res, nil //TODO this is only trimming nodeID to expected bit count, do we want to map nodeID to some value from config?
+	return res, nil
 }
 
 // ipv4ToUint32 is simple utility function for conversion between IPv4 and uint32.

@@ -30,6 +30,7 @@ data:
     CleanupIdleNATSessions: True
     TCPNATSessionTimeout: 180
     OtherNATSessionTimeout: 5
+    ScanIPNeighbors: true
     ServiceLocalEndpointWeight: 1
     IPAMConfig:
       PodSubnetCIDR: 10.1.0.0/16

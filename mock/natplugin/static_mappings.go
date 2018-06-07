@@ -20,7 +20,7 @@ import (
 	"fmt"
 	"net"
 
-	"github.com/contiv/vpp/plugins/service/configurator"
+	"github.com/contiv/vpp/plugins/service/renderer"
 )
 
 // StaticMappings represents a list of static mappings.
@@ -32,7 +32,7 @@ type StaticMappings struct {
 type StaticMapping struct {
 	ExternalIP   net.IP
 	ExternalPort uint16
-	Protocol     configurator.ProtocolType
+	Protocol     renderer.ProtocolType
 	Locals       []*Local
 }
 

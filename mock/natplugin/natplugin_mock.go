@@ -27,7 +27,7 @@ import (
 	"github.com/ligato/cn-infra/logging"
 
 	"github.com/contiv/vpp/mock/localclient"
-	"github.com/contiv/vpp/plugins/service/configurator"
+	"github.com/contiv/vpp/plugins/service/renderer"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/nat"
 )
 
@@ -274,9 +274,9 @@ func (mnt *MockNatPlugin) dnatToStaticMappings(dnat *nat.Nat44DNat_DNatConfig) (
 		// protocol
 		switch staticMapping.Protocol {
 		case nat.Protocol_TCP:
-			sm.Protocol = configurator.TCP
+			sm.Protocol = renderer.TCP
 		case nat.Protocol_UDP:
-			sm.Protocol = configurator.UDP
+			sm.Protocol = renderer.UDP
 		case nat.Protocol_ICMP:
 			return nil, errors.New("unexpected static mapping for the ICMP protocol")
 		}
@@ -338,9 +338,9 @@ func (mnt *MockNatPlugin) dnatToIdentityMappings(dnat *nat.Nat44DNat_DNatConfig)
 		// protocol
 		switch identityMapping.Protocol {
 		case nat.Protocol_TCP:
-			im.Protocol = configurator.TCP
+			im.Protocol = renderer.TCP
 		case nat.Protocol_UDP:
-			im.Protocol = configurator.UDP
+			im.Protocol = renderer.UDP
 		case nat.Protocol_ICMP:
 			return nil, errors.New("unexpected identity mapping for the ICMP protocol")
 		}

@@ -1580,13 +1580,29 @@ func (s *remoteCNIserver) setNodeIP(nodeIP string) error {
 	return nil
 }
 
-// GetDefaultGatewayIP returns the IP address of the default gateway for external traffic.
-// If the default GW is not configured, the function returns nil.
-func (s *remoteCNIserver) GetDefaultGatewayIP() net.IP {
+// GetDefaultInterface returns the name and the IP address of the interface
+// used by the default route to send packets out from VPP towards the default gateway.
+// If the default GW is not configured, the function returns zero values.
+func (s *remoteCNIserver) GetDefaultInterface() (ifName string, ifAddress net.IP) {
 	s.Lock()
 	defer s.Unlock()
 
-	return s.defaultGw
+	if s.defaultGw != nil {
+		if s.mainPhysicalIf != "" {
+			nodeIP, nodeNet, _ := net.ParseCIDR(s.nodeIP)
+			if nodeNet != nil && nodeNet.Contains(s.defaultGw) {
+				return s.mainPhysicalIf, nodeIP
+			}
+		}
+		for _, physicalIf := range s.nodeConfig.OtherVPPInterfaces {
+			intIP, intNet, _ := net.ParseCIDR(physicalIf.IP)
+			if intNet != nil && intNet.Contains(s.defaultGw) {
+				return physicalIf.InterfaceName, intIP
+			}
+		}
+	}
+
+	return "", nil
 }
 
 // UseSTN returns true if the cluster was configured to be deployed in the STN mode.

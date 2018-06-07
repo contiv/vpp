@@ -60,6 +60,7 @@ Parameter | Description | Default
 `contiv.stealInterface` | Enable Steal The NIC feature on the specified interface on each node | `""`
 `contiv.stealFirstNIC` | Enable Steal The NIC feature on the first interface on each node | `False`
 `contiv.natExternalTraffic`| NAT cluster-external traffic | `True`
+`contiv.scanIPNeighbors`| Periodically scan and probe IP neighbors to maintain the ARP table | `True`
 `contiv.serviceLocalEndpointWeight` | load-balancing weight for locally deployed service endpoints | 1
 `contiv.ipamConfig.podSubnetCIDR` | Pod subnet CIDR | `10.1.0.0/16`
 `contiv.ipamConfig.podNetworkPrefixLen` | Pod network prefix length | `24`

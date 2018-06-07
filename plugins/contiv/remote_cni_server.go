@@ -421,6 +421,10 @@ func (s *remoteCNIserver) configureVswitchNICs(config *vswitchConfig) error {
 		}
 	}
 
+	// enable IP neighbor scanning (to clean up old ARP entries)
+	// TODO: handle by localclient/resync once implemented in VPP agent
+	s.enableIPNeighborScan()
+
 	return nil
 }
 

@@ -102,6 +102,7 @@ type Config struct {
 	CleanupIdleNATSessions     bool   // if enabled, the agent will periodically check for idle NAT sessions and delete inactive ones
 	TCPNATSessionTimeout       uint32 // NAT session timeout (in minutes) for TCP connections, used in case that CleanupIdleNATSessions is turned on
 	OtherNATSessionTimeout     uint32 // NAT session timeout (in minutes) for non-TCP connections, used in case that CleanupIdleNATSessions is turned on
+	ScanIPNeighbors            bool   // if enabled, periodically scans and probes IP neighbors to maintain the ARP table
 	ServiceLocalEndpointWeight uint8
 	IPAMConfig                 ipam.Config
 	NodeConfig                 []OneNodeConfig

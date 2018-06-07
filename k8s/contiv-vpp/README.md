@@ -60,6 +60,8 @@ Parameter | Description | Default
 `contiv.stealInterface` | Enable Steal The NIC feature on the specified interface on each node | `""`
 `contiv.stealFirstNIC` | Enable Steal The NIC feature on the first interface on each node | `False`
 `contiv.natExternalTraffic`| NAT cluster-external traffic | `True`
+`contiv.scanIPNeighbors`| Periodically scan and probe IP neighbors to maintain the ARP table | `True`
+`contiv.serviceLocalEndpointWeight` | load-balancing weight for locally deployed service endpoints | 1
 `contiv.ipamConfig.podSubnetCIDR` | Pod subnet CIDR | `10.1.0.0/16`
 `contiv.ipamConfig.podNetworkPrefixLen` | Pod network prefix length | `24`
 `contiv.ipamConfig.PodIfIPCIDR` | Subnet CIDR for VPP-side POD addresses | `10.2.1.0/24`
@@ -69,6 +71,9 @@ Parameter | Description | Default
 `contiv.ipamConfig.nodeInterconnectCIDR` | Node interconnect CIDR, uses DHCP if empty | `""`
 `contiv.ipamConfig.serviceCIDR` | Service CIDR | `""`
 `contiv.nodeConfig.*` | List of node configs, see example section in values.yaml | `""`
+`contiv.vswitch.defineMemoryLimits` | define limits for vswitch container | `false`
+`contiv.vswitch.hugePages2miLimit` | limit of memory allocated by 2048Kb hugepages for vswitch container| `1024Mi`
+`contiv.vswitch.memoryLimit` | memory limit for vswitch container | `1024Mi`
 `cni.image.repository` | cni container image repository | `contivvpp/cni`
 `cni.image.tag`| cni container image tag | `latest`
 `cni.image.pullPolicy` | cni container image pull policy | `IfNotPresent`
@@ -78,10 +83,28 @@ Parameter | Description | Default
 `etcd.image.repository` | etcd container image repository | `quay.io/coreos/etcd`
 `etcd.image.tag`| etcd container image tag | `latest`
 `etcd.image.pullPolicy` | etcd container image pull policy | `IfNotPresent`
-`etcd.dataDir` | directory where etcd data should be persisted  | (no value) emptyDir is used
+`etcd.usePersistentVolume` | Use Kubernetes persistent volume (when enabled, disables dataDir hostPath) | `False`
+`etcd.persistentVolumeSize` | Size of Kubernetes persistent volume | `2Gi`
+`etcd.persistentVolumeStorageClass` | Kubernetes persistent volume storage class (use "-" for an empty storage class) | (no value)
+`etcd.dataDir` | Use hostPath of this directory to persist etcd data (ignored if usePersistentVolume is true) | `/var/etcd`
 `etcd.service.nodePort` | Port to be used as the service NodePort | `32379`
+`etcd.secureTransport` | Secure access to ETCD using SSL/TLS certificates | `false`
+`etcd.secrets.mountFromHost` | If true, SSL/TLS certificates must be present in the mountDir on each host. If false, certificates must be present in the current directory, and will be distributed to each host via k8s secret feature | `true`
+`etcd.secrets.mountDir` | Directory where certificates should be located, in case that mountFromHost is true | `/var/etcd/contiv-secrets`
+`etcd.caCert` | Name of the file with certificate of the certification authority. | `ca.pem`
+`etcd.serverCert` | Name of the file with certificate of the ETCD server. | `server.pem`
+`etcd.serverKey` | Name of the file with private key of the ETCD server. | `server-key.pem`
+`etcd.clientCert` | Name of the file with certificate of the ETCD client. | `client.pem`
+`etcd.clientKey` | Name of the file with private key of the ETCD client. | `client-key.pem`
 `govpp.healthCheckProbeInterval` | Health check proble interval (nanoseconds) | `1000000000`
 `govpp.healthCheckReplyTimeout` | Health check reply timeout (nanoseconds) | `500000000`
 `govpp.healthCheckThreshold` | Health check threshold | 3
 `govpp.replyTimeout` | VPP binary API request timeout (nanoseconds) | 3000000000
 `logs.defaultLevel` | Default level of logging | `debug`
+`http.enableBasicAuth` | Enable basic auth for REST endpoints | `false`
+`http.enableServerCert` | Enable HTTPS for REST endpoints | ` false`
+`http.mountFromHost` | If true, SSL/TLS certificates must be present in the mountDir on each host. If false, certificates must be present in the current directory, and will be distributed to each host via k8s secret feature| `false`
+`http.mountDir` | Directory where certificates should be located on all nodes, in case that mountFromHost is true |`/var/certs`
+`http.serverCert` | Name of the file with certificate of the HTTP server | `server.crt`
+`http.serverKey` | Name of the file with private key of the HTTP server |`server.key`
+`http.basicAuth` | credentials to be used by basic-auth, format <username>:<password>| `user:pass`

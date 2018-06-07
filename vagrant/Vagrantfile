@@ -69,13 +69,14 @@ EOF
 
 source /etc/profile.d/envvar.sh
 echo "Updating apt lists..."
-apt-get update
+sudo apt-get update
 
 echo "Installing dependency packages..."
-apt-get install -y apt-transport-https \
+sudo apt-get install -y apt-transport-https \
                    ca-certificates \
                    curl \
-                   software-properties-common 
+                   software-properties-common \
+                   htop 
                    
 echo "Adding Kubernetes & Docker repos..."
 curl -s https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add -
@@ -86,13 +87,13 @@ deb [arch=amd64] https://download.docker.com/linux/ubuntu xenial stable
 EOF
 
 echo "Updating apt lists..."
-apt-get update
+sudo apt-get update
 
 echo "Installing Kubernetes Components..."
-apt-get install -y kubelet kubectl kubeadm kubernetes-cni
+sudo apt-get install -y kubelet kubectl kubeadm kubernetes-cni
 
 echo "Installing Docker-CE..."
-apt-get install -y docker-ce
+sudo apt-get install -y docker-ce
 systemctl stop docker
 modprobe overlay
 
@@ -166,6 +167,7 @@ dpdk {
 }
 api-trace {
     on
+    nitems 500
 }
 EOF
 }
@@ -191,13 +193,21 @@ set -x
 
 echo Args passed: [[ $@ ]]
 
+sudo apt-get install -y python-pip \
+                   python-dev \
+                   python-virtualenv \
+                   build-essential \
+   
+sudo pip install --upgrade pip
+sudo pip install --upgrade virtualenv
+
 if [ "$4" = "dev" ]; then
 # --------------------------------------------------------
 # ---> Build Contiv/VPP-vswitch Development Image <---
 # --------------------------------------------------------
     echo "vagrant" >> /home/vagrant/gopath/src/github.com/contiv/vpp/.dockerignore
     echo "Building development contivpp/vswitch image..."
-    cd /home/vagrant/gopath/src/github.com/contiv/vpp/docker/ubuntu-based/dev; ./build.sh
+    cd /home/vagrant/gopath/src/github.com/contiv/vpp/docker; ./build-all.sh
 fi
 
 # --------------------------------------------------------
@@ -333,6 +343,7 @@ dpdk {
 }
 api-trace {
     on
+    nitems 500
 }
 EOF
 }
@@ -364,7 +375,7 @@ if [ "$3" = "dev" ]; then
 # --------------------------------------------------------
     echo "vagrant" >> /home/vagrant/gopath/src/github.com/contiv/vpp/.dockerignore
     echo "Building development contivpp/vswitch image..."
-    cd /home/vagrant/gopath/src/github.com/contiv/vpp/docker/ubuntu-based/dev; ./build.sh
+    cd /home/vagrant/gopath/src/github.com/contiv/vpp/docker/ubuntu-based; ./build.sh
 fi
 
 # --------------------------------------------------------

@@ -1,6 +1,6 @@
 ### Setting up a custom management network on multi-homed nodes
-I
-f the interface you use for Kubernetes management traffic (for example, the
+
+If the interface you use for Kubernetes management traffic (for example, the
 IP address used for `kubeadm join`) is not the one that contains the default
 route out of the host, you need to specify the management node IP address in
 the Kubelet config file. Add the following line to

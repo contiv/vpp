@@ -32,12 +32,16 @@ import (
 const (
 	// SessionRuleTagPrefix is used to tag session rules created for the implementation
 	// of K8s policies.
-	SessionRuleTagPrefix = "contiv/vpp-policy-"
+	SessionRuleTagPrefix = "contiv/vpp-policy"
+
+	// AnyProtocolSessionRuleTag is used to mark rules used to implement
+	// filtering for ANY protocol.
+	AnyProtocolSessionRuleTag = "-ANY"
 
 	// SplitSessionRuleTag is used to mark deny-all rules split into two
 	// (two halves of the IP address space) in order to avoid collision with
 	// the VPP proxy rules.
-	SplitSessionRuleTag = "SPLIT"
+	SplitSessionRuleTag = "-SPLIT"
 
 	// ScopeGlobal is a constant used to set the global scope for a session rule.
 	ScopeGlobal = 1
@@ -215,8 +219,6 @@ func ExportSessionRules(rules []*renderer.ContivRule, podID *podmodel.ID, podIP 
 	}
 
 	for _, rule := range rules {
-		sessionRule := &SessionRule{}
-
 		if rule.DestPort == 0 && rule.Action == renderer.ActionPermit &&
 			((global && len(rule.SrcNetwork.IP) == 0) || (!global && len(rule.DestNetwork.IP) == 0)) {
 			/* do not install allow-all destination rules - it is the default behaviour in the stack */
@@ -231,101 +233,121 @@ func ExportSessionRules(rules []*renderer.ContivRule, podID *podmodel.ID, podIP 
 			}
 		}
 
-		// Transport Protocol
-		switch rule.Protocol {
-		case renderer.TCP:
-			sessionRule.TransportProto = ProtoTCP
-		case renderer.UDP:
-			sessionRule.TransportProto = ProtoUDP
-		default:
-			sessionRule.TransportProto = ProtoTCP
-		}
-
-		// Is IPv4?
-		if global &&
-			(len(rule.SrcNetwork.IP) == 0 || rule.SrcNetwork.IP.To4() != nil) {
-			sessionRule.IsIP4 = 1
-		}
-		if !global &&
-			(len(rule.DestNetwork.IP) == 0 || rule.DestNetwork.IP.To4() != nil) {
-			sessionRule.IsIP4 = 1
-		}
-
-		// Local IP
-		if global {
-			if sessionRule.IsIP4 == 1 {
-				copy(sessionRule.LclIP[:], rule.DestNetwork.IP.To4())
-			} else {
-				copy(sessionRule.LclIP[:], rule.DestNetwork.IP.To16())
-			}
-			lclPlen, _ := rule.DestNetwork.Mask.Size()
-			sessionRule.LclPlen = uint8(lclPlen)
-		} // 0/0 for local tables
-
-		// Local port
-		if global {
-			sessionRule.LclPort = rule.DestPort
+		if rule.Protocol == renderer.ANY {
+			// VPPTCP stack supports only TCP and UDP traffic, no other L4 protocol or pure L3 traffic.
+			// Filtering for ANY protocol is thus implemented as two rules - one for TCP, the other for UDP.
+			ruleTCP := rule.Copy()
+			ruleTCP.Protocol = renderer.TCP
+			ruleUDP := rule.Copy()
+			ruleUDP.Protocol = renderer.UDP
+			sessionRules = append(sessionRules,
+				convertContivRule(ruleTCP, global, nsIndex, SessionRuleTagPrefix+AnyProtocolSessionRuleTag)...)
+			sessionRules = append(sessionRules,
+				convertContivRule(ruleUDP, global, nsIndex, SessionRuleTagPrefix+AnyProtocolSessionRuleTag)...)
 		} else {
-			sessionRule.LclPort = rule.SrcPort /* it is any */
+			sessionRules = append(sessionRules, convertContivRule(rule, global, nsIndex, SessionRuleTagPrefix)...)
 		}
+	}
+	return sessionRules
+}
 
-		// Remote IP
-		rmt := rule.SrcNetwork
-		if !global {
-			rmt = rule.DestNetwork
-		}
-		if len(rmt.IP) > 0 {
-			if sessionRule.IsIP4 == 1 {
-				copy(sessionRule.RmtIP[:], rmt.IP.To4())
-			} else {
-				copy(sessionRule.RmtIP[:], rmt.IP.To16())
-			}
-			rmtPlen, _ := rmt.Mask.Size()
-			sessionRule.RmtPlen = uint8(rmtPlen)
-		}
+// convertContivRule converts Contiv rule for TCP or UDP into the corresponding set of session rules.
+func convertContivRule(rule *renderer.ContivRule, global bool, nsIndex uint32, tagPrefix string) []*SessionRule {
+	// Construct Session rules.
+	sessionRules := []*SessionRule{}
+	sessionRule := &SessionRule{}
 
-		// Remote port
-		if global {
-			sessionRule.RmtPort = rule.SrcPort /* it is any */
+	// Transport Protocol
+	if rule.Protocol == renderer.TCP {
+		sessionRule.TransportProto = ProtoTCP
+	} else {
+		sessionRule.TransportProto = ProtoUDP
+	}
+
+	// Is IPv4?
+	if global &&
+		(len(rule.SrcNetwork.IP) == 0 || rule.SrcNetwork.IP.To4() != nil) {
+		sessionRule.IsIP4 = 1
+	}
+	if !global &&
+		(len(rule.DestNetwork.IP) == 0 || rule.DestNetwork.IP.To4() != nil) {
+		sessionRule.IsIP4 = 1
+	}
+
+	// Local IP
+	if global {
+		if sessionRule.IsIP4 == 1 {
+			copy(sessionRule.LclIP[:], rule.DestNetwork.IP.To4())
 		} else {
-			sessionRule.RmtPort = rule.DestPort
+			copy(sessionRule.LclIP[:], rule.DestNetwork.IP.To16())
 		}
+		lclPlen, _ := rule.DestNetwork.Mask.Size()
+		sessionRule.LclPlen = uint8(lclPlen)
+	} // 0/0 for local tables
 
-		// Action Index
-		if rule.Action == renderer.ActionPermit {
-			sessionRule.ActionIndex = ActionAllow
+	// Local port
+	if global {
+		sessionRule.LclPort = rule.DestPort
+	} else {
+		sessionRule.LclPort = rule.SrcPort /* it is any */
+	}
+
+	// Remote IP
+	rmt := rule.SrcNetwork
+	if !global {
+		rmt = rule.DestNetwork
+	}
+	if len(rmt.IP) > 0 {
+		if sessionRule.IsIP4 == 1 {
+			copy(sessionRule.RmtIP[:], rmt.IP.To4())
 		} else {
-			sessionRule.ActionIndex = ActionDeny
+			copy(sessionRule.RmtIP[:], rmt.IP.To16())
 		}
+		rmtPlen, _ := rmt.Mask.Size()
+		sessionRule.RmtPlen = uint8(rmtPlen)
+	}
 
-		// Application namespace index
-		sessionRule.AppnsIndex = nsIndex
+	// Remote port
+	if global {
+		sessionRule.RmtPort = rule.SrcPort /* it is any */
+	} else {
+		sessionRule.RmtPort = rule.DestPort
+	}
 
-		// Scope
-		if global {
-			sessionRule.Scope = ScopeGlobal
-		} else {
-			sessionRule.Scope = ScopeLocal
-		}
+	// Action Index
+	if rule.Action == renderer.ActionPermit {
+		sessionRule.ActionIndex = ActionAllow
+	} else {
+		sessionRule.ActionIndex = ActionDeny
+	}
 
-		if (global && len(rule.SrcNetwork.IP) == 0) || (!global && len(rule.DestNetwork.IP) == 0) {
-			// Install deny-all as two rules with the all-IPs subnet split in half
-			// to avoid collisions with proxy rules.
-			sessionRule.RmtPlen = 1
-			sessionRule2 := sessionRule.Copy()
-			// 1/1
-			copy(sessionRule.Tag[:], SessionRuleTagPrefix+SplitSessionRuleTag)
-			sessionRules = append(sessionRules, sessionRule)
-			// 1/2
-			sessionRule2.RmtIP[0] = 1 << 7
-			copy(sessionRule2.Tag[:], SessionRuleTagPrefix+SplitSessionRuleTag)
-			sessionRules = append(sessionRules, sessionRule2)
-		} else {
-			// Tag
-			copy(sessionRule.Tag[:], SessionRuleTagPrefix)
-			// Add single rule into the list.
-			sessionRules = append(sessionRules, sessionRule)
-		}
+	// Application namespace index
+	sessionRule.AppnsIndex = nsIndex
+
+	// Scope
+	if global {
+		sessionRule.Scope = ScopeGlobal
+	} else {
+		sessionRule.Scope = ScopeLocal
+	}
+
+	if (global && len(rule.SrcNetwork.IP) == 0) || (!global && len(rule.DestNetwork.IP) == 0) {
+		// Install deny-all as two rules with the all-IPs subnet split in half
+		// to avoid collisions with proxy rules.
+		sessionRule.RmtPlen = 1
+		sessionRule2 := sessionRule.Copy()
+		// 1/1
+		copy(sessionRule.Tag[:], tagPrefix+SplitSessionRuleTag)
+		sessionRules = append(sessionRules, sessionRule)
+		// 1/2
+		sessionRule2.RmtIP[0] = 1 << 7
+		copy(sessionRule2.Tag[:], tagPrefix+SplitSessionRuleTag)
+		sessionRules = append(sessionRules, sessionRule2)
+	} else {
+		// Tag
+		copy(sessionRule.Tag[:], tagPrefix)
+		// Add single rule into the list.
+		sessionRules = append(sessionRules, sessionRule)
 	}
 	return sessionRules
 }
@@ -337,6 +359,10 @@ func ImportSessionRules(rules []*SessionRule, contiv contiv.API, log logging.Log
 	localTables := make(map[podmodel.ID]*cache.ContivRuleTable)
 
 	for _, rule := range rules {
+		// Export contiv rule.
+		contivRule := &renderer.ContivRule{}
+
+		// Tag
 		tagLen := bytes.IndexByte(rule.Tag[:], 0)
 		tag := string(rule.Tag[:tagLen])
 		if strings.HasSuffix(tag, SplitSessionRuleTag) {
@@ -345,19 +371,25 @@ func ImportSessionRules(rules []*SessionRule, contiv contiv.API, log logging.Log
 				continue /* skip this half */
 			}
 			rule.RmtPlen = 0 /* merge */
+			tag = strings.TrimSuffix(tag, SplitSessionRuleTag)
 		}
 
-		// Export contiv rule.
-		contivRule := &renderer.ContivRule{}
-
 		// Transport Protocol
-		switch rule.TransportProto {
-		case ProtoTCP:
-			contivRule.Protocol = renderer.TCP
-		case ProtoUDP:
-			contivRule.Protocol = renderer.UDP
-		default:
-			contivRule.Protocol = renderer.TCP
+		if strings.HasSuffix(tag, AnyProtocolSessionRuleTag) {
+			// Merge session rules originally split to implement filtering for ANY protocol.
+			if rule.TransportProto == ProtoUDP {
+				continue /* skip for UDP */
+			}
+			contivRule.Protocol = renderer.ANY
+		} else {
+			switch rule.TransportProto {
+			case ProtoTCP:
+				contivRule.Protocol = renderer.TCP
+			case ProtoUDP:
+				contivRule.Protocol = renderer.UDP
+			default:
+				contivRule.Protocol = renderer.TCP
+			}
 		}
 
 		// Source and destination IP address.

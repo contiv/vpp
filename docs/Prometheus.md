@@ -141,3 +141,20 @@ Once Prometheus is started with the specified config you should be able access i
 ```
 tester@dev:~/Downloads/prometheus-2.1.0.linux-amd64$ ./prometheus --config.file=config.yml
 ```
+
+If security features is enabled for the HTTP endpoint the config must be adjusted:
+```yaml
+ - job_name: 'contiv_secured'
+
+     scheme: https
+     basic_auth:
+        username: user
+        password: pass
+     metrics_path: /stats
+     tls_config:
+       insecure_skip_verify: true
+       # CA certificate to validate API server certificate with.
+       #[ ca_file: <filename> ]
+     static_configs:
+       - targets: ['localhost:9191']
+```

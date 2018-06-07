@@ -43,6 +43,7 @@ import (
 	linux_l3 "github.com/ligato/vpp-agent/plugins/linuxplugin/common/model/l3"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
+	"time"
 )
 
 const (
@@ -57,6 +58,9 @@ const (
 	vethHostEndName               = "vpp1"
 	vethVPPEndLogicalName         = "veth-vpp2"
 	vethVPPEndName                = "vpp2"
+
+	// defaultSTNSocketFile is the default socket file path where CNI GRPC server listens for incoming CNI requests.
+	defaultSTNSocketFile = "/var/run/contiv/stn.sock"
 
 	// TapHostEndLogicalName is the logical name of the VPP-host interconnect TAP interface (host end)
 	TapHostEndLogicalName = "tap-vpp1"
@@ -109,7 +113,7 @@ type remoteCNIserver struct {
 	// this node's main IP address
 	nodeIP string
 
-	// nodeIPsubsribers is a slice of channels that are notified when nodeIP is changed
+	// nodeIPsubscribers is a slice of channels that are notified when nodeIP is changed
 	nodeIPsubscribers []chan string
 
 	// global config
@@ -178,7 +182,7 @@ type remoteCNIserver struct {
 	configuredInThisRun map[string]bool
 
 	// nodeIDResyncRev is the latest revision in the resync event. Buffered changes generated
-	// before the resync revision are ignore
+	// before the resync revision are ignored
 	nodeIDResyncRev int64
 
 	// nodeIDChangeEvs is buffer where change events are stored until resync event is processed
@@ -299,7 +303,7 @@ func (s *remoteCNIserver) configureVswitchConnectivity() error {
 	} else {
 		expectedIfName = s.interconnectAfpacketName()
 	}
-	if s.config.StealFirstNIC || s.config.StealInterface != "" || (s.nodeConfig != nil && s.nodeConfig.StealInterface != "") {
+	if s.UseSTN() {
 		// For STN case, do not rely on TAP interconnect, since it has been pre-configured by contiv-init.
 		// Let's relay on VXLAN BVI interface name. Note that this may not work in case that VXLANs are disabled.
 		expectedIfName = vxlanBVIInterfaceName
@@ -417,6 +421,10 @@ func (s *remoteCNIserver) configureVswitchNICs(config *vswitchConfig) error {
 		}
 	}
 
+	// enable IP neighbor scanning (to clean up old ARP entries)
+	// TODO: handle by localclient/resync once implemented in VPP agent
+	s.enableIPNeighborScan()
+
 	return nil
 }
 
@@ -425,10 +433,7 @@ func (s *remoteCNIserver) configureMainVPPInterface(config *vswitchConfig, nicNa
 	var err error
 	txn1 := s.vppTxnFactory().Put()
 
-	useSTN := false
-	if s.config.StealFirstNIC || s.config.StealInterface != "" || (s.nodeConfig != nil && s.nodeConfig.StealInterface != "") {
-		useSTN = true
-
+	if s.UseSTN() {
 		// get IP address of the STN interface
 		var gwIP string
 		if s.nodeConfig != nil && s.nodeConfig.StealInterface != "" {
@@ -453,7 +458,7 @@ func (s *remoteCNIserver) configureMainVPPInterface(config *vswitchConfig, nicNa
 	}
 
 	// determine main node IP address
-	if !useSTN && useDHCP {
+	if !s.UseSTN() && useDHCP {
 		// ip address will be assigned by DHCP server, not known yet
 		s.Logger.Infof("Configuring %v to use dhcp", nicName)
 	} else if nicIP != "" {
@@ -469,7 +474,7 @@ func (s *remoteCNIserver) configureMainVPPInterface(config *vswitchConfig, nicNa
 		s.Logger.Infof("Configuring %v to use %v", nicName, nodeIP.String())
 	}
 
-	if !useSTN {
+	if !s.UseSTN() {
 		if nicName != "" {
 			// configure the physical NIC
 			s.Logger.Info("Configuring physical NIC ", nicName)
@@ -527,7 +532,17 @@ func (s *remoteCNIserver) getSTNInterfaceIP(ifName string) (ip string, gw string
 	s.Logger.Debugf("Getting STN info for interface %s", ifName)
 
 	// connect to STN GRPC server
-	conn, err := grpc.Dial(fmt.Sprintf(":%d", 50051), grpc.WithInsecure()) // TODO configurable server port
+	if s.config.STNSocketFile == "" {
+		s.config.STNSocketFile = defaultSTNSocketFile
+	}
+	conn, err := grpc.Dial(
+		s.config.STNSocketFile,
+		grpc.WithInsecure(),
+		grpc.WithDialer(
+			func(addr string, timeout time.Duration) (net.Conn, error) {
+				return net.DialTimeout("unix", addr, timeout)
+			}),
+	)
 	if err != nil {
 		s.Logger.Errorf("Unable to connect to STN GRPC: %v", err)
 		return
@@ -560,7 +575,7 @@ func (s *remoteCNIserver) getSTNInterfaceIP(ifName string) (ip string, gw string
 		}
 	}
 	if gw == "" {
-		// no deafult gateway in routes, calculate fake gateway address for route pointing to VPP
+		// no default gateway in routes, calculate fake gateway address for route pointing to VPP
 		_, ipNet, _ := net.ParseCIDR(ip)
 		firstIP, lastIP := cidr.AddressRange(ipNet)
 		if cidr.Inc(firstIP).String() != ip {
@@ -802,7 +817,7 @@ func (s *remoteCNIserver) configureVswitchVxlanBridgeDomain(config *vswitchConfi
 	return nil
 }
 
-// persistVswitchConfig persits vswitch configuration in ETCD
+// persistVswitchConfig persists vswitch configuration in ETCD
 func (s *remoteCNIserver) persistVswitchConfig(config *vswitchConfig) error {
 	if config.configured {
 		s.Logger.Info("Persisting of vswitch configuration is skipped")
@@ -966,6 +981,28 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 
 	// store configuration internally for other plugins in the internal map
 	if s.configuredContainers != nil {
+		// Remove previous entry for the pod if there is any.
+		podNamesMatch := s.configuredContainers.LookupPodName(config.PodName)
+		for _, containerID := range podNamesMatch {
+			podData, _ := s.configuredContainers.LookupContainer(containerID)
+			if podData.PodNamespace == config.PodNamespace {
+				s.Logger.WithFields(
+					logging.Fields{
+						"name":        config.PodName,
+						"namespace":   config.PodNamespace,
+						"containerID": containerID,
+					}).Info("Removing outdated pod")
+				delRequest := &cni.CNIRequest{
+					ContainerId: containerID,
+				}
+				_, err := s.unconfigureContainerConnectivityWithoutLock(delRequest)
+				if err != nil {
+					s.Logger.Warn("Error while removing outdated pod ", err)
+				}
+				break
+			}
+		}
+
 		err = s.configuredContainers.RegisterContainer(id, podConfigToProto(config))
 		if err != nil {
 			s.Logger.Error(err)
@@ -980,14 +1017,19 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 
 // unconfigureContainerConnectivity disconnects the POD from vSwitch VPP.
 func (s *remoteCNIserver) unconfigureContainerConnectivity(request *cni.CNIRequest) (*cni.CNIReply, error) {
-	var err error
-
 	// do not try to disconnect any containers until the base vswitch config is successfully applied
 	s.Lock()
 	for !s.vswitchConnectivityConfigured {
 		s.vswitchCond.Wait()
 	}
 	defer s.Unlock()
+
+	return s.unconfigureContainerConnectivityWithoutLock(request)
+}
+
+// unconfigureContainerConnectivity disconnects the POD from vSwitch VPP the method expect the lock to be already acquired.
+func (s *remoteCNIserver) unconfigureContainerConnectivityWithoutLock(request *cni.CNIRequest) (*cni.CNIReply, error) {
+	var err error
 
 	// configuredContainers should not be nil unless this is a unit test
 	if s.configuredContainers == nil {
@@ -1405,7 +1447,7 @@ func (s *remoteCNIserver) generateCniReply(config *PodConfig, nsName string, pod
 	}
 }
 
-// generateCniEmptyOKReply generates CNI reply with OK result code and ampty body.
+// generateCniEmptyOKReply generates CNI reply with OK result code and empty body.
 func (s *remoteCNIserver) generateCniEmptyOKReply() *cni.CNIReply {
 	return &cni.CNIReply{
 		Result: resultOk,
@@ -1551,4 +1593,9 @@ func (s *remoteCNIserver) GetDefaultGatewayIP() net.IP {
 	defer s.Unlock()
 
 	return s.defaultGw
+}
+
+// UseSTN returns true if the cluster was configured to be deployed in the STN mode.
+func (s *remoteCNIserver) UseSTN() bool {
+	return s.config.StealFirstNIC || s.config.StealInterface != "" || (s.nodeConfig != nil && s.nodeConfig.StealInterface != "")
 }

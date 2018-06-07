@@ -120,11 +120,14 @@ func TestSecondaryIndexLookup(t *testing.T) {
 		namespaceIDone   = "default"
 		namespaceIDtwo   = "pepsi"
 		namespaceIDthree = "coke"
+		namespaceIDFour  = "nike"
 	)
 
 	const (
 		label1 = "project/ts1"
 		label2 = "project/ts2"
+		key1   = "project"
+		key2   = "random"
 	)
 
 	namespaceDataOne := &nsmodel.Namespace{
@@ -141,7 +144,7 @@ func TestSecondaryIndexLookup(t *testing.T) {
 		},
 	}
 	namespaceDataTwo := &nsmodel.Namespace{
-		Name: namespaceIDone,
+		Name: namespaceIDtwo,
 		Label: []*nsmodel.Namespace_Label{
 			{
 				Key:   "project",
@@ -150,7 +153,7 @@ func TestSecondaryIndexLookup(t *testing.T) {
 		},
 	}
 	namespaceDataThree := &nsmodel.Namespace{
-		Name: namespaceIDone,
+		Name: namespaceIDthree,
 		Label: []*nsmodel.Namespace_Label{
 			{
 				Key:   "project",
@@ -158,15 +161,26 @@ func TestSecondaryIndexLookup(t *testing.T) {
 			},
 		},
 	}
+	namespaceDataFour := &nsmodel.Namespace{
+		Name: namespaceIDFour,
+		Label: []*nsmodel.Namespace_Label{
+			{
+				Key:   "random",
+				Value: "ts5",
+			},
+		},
+	}
 
 	idx.RegisterNamespace(namespaceIDone, namespaceDataOne)
 	idx.RegisterNamespace(namespaceIDtwo, namespaceDataTwo)
 	idx.RegisterNamespace(namespaceIDthree, namespaceDataThree)
+	idx.RegisterNamespace(namespaceIDFour, namespaceDataFour)
 
 	all := idx.ListAll()
 	gomega.Expect(all).To(gomega.ContainElement(namespaceIDone))
 	gomega.Expect(all).To(gomega.ContainElement(namespaceIDtwo))
 	gomega.Expect(all).To(gomega.ContainElement(namespaceIDthree))
+	gomega.Expect(all).To(gomega.ContainElement(namespaceIDFour))
 
 	lsMatch := idx.LookupNamespacesByLabelSelector(label1)
 	gomega.Expect(lsMatch).To(gomega.ContainElement(namespaceIDone))
@@ -176,4 +190,11 @@ func TestSecondaryIndexLookup(t *testing.T) {
 	gomega.Expect(lsMatch).To(gomega.ContainElement(namespaceIDone))
 	gomega.Expect(lsMatch).To(gomega.ContainElement(namespaceIDthree))
 
+	keyMatch := idx.LookupNamespacesByKey(key2)
+	gomega.Expect(keyMatch).To(gomega.ContainElement(namespaceIDFour))
+
+	keyMatch = idx.LookupNamespacesByKey(key1)
+	gomega.Expect(all).To(gomega.ContainElement(namespaceIDone))
+	gomega.Expect(all).To(gomega.ContainElement(namespaceIDtwo))
+	gomega.Expect(all).To(gomega.ContainElement(namespaceIDthree))
 }

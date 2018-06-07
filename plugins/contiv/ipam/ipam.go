@@ -54,7 +54,7 @@ type IPAM struct {
 	vethHostEndIP          net.IP    // IPv4 address for virtual ethernet's host-end on given node
 
 	// node related variables
-	nodeInterconnectDHCP bool      // use DHCP to acquire IP for inter-node interface by default (can be overriden in NodeConfig by defining IP)
+	nodeInterconnectDHCP bool      // use DHCP to acquire IP for inter-node interface by default (can be overridden in NodeConfig by defining IP)
 	nodeInterconnectCIDR net.IPNet // IPv4 subnet used for for inter-node connections
 	vxlanCIDR            net.IPNet // IPv4 subnet used for for inter-node VXLAN
 	serviceCIDR          net.IPNet // IPv4 subnet used to allocate ClusterIPs for a service

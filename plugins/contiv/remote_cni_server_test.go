@@ -52,6 +52,7 @@ import (
 
 	"github.com/contiv/vpp/plugins/contiv/ipam"
 	"github.com/ligato/cn-infra/datasync"
+	"github.com/ligato/cn-infra/datasync/syncbase"
 	"github.com/onsi/gomega"
 )
 
@@ -244,9 +245,8 @@ func TestAddDelTap(t *testing.T) {
 
 	// CNI Delete
 	reply, err = server.Delete(context.Background(), &req)
-	// TODO: re-enable checks once TAPs are fully supported by the vpp-agent
-	//gomega.Expect(err).To(gomega.BeNil())
-	//gomega.Expect(reply).NotTo(gomega.BeNil())
+	gomega.Expect(err).To(gomega.BeNil())
+	gomega.Expect(reply).NotTo(gomega.BeNil())
 }
 
 func TestConfigureVswitchVeth(t *testing.T) {
@@ -318,19 +318,19 @@ func TestNodeAddDelL2(t *testing.T) {
 	err := server.resync()
 	gomega.Expect(err).To(gomega.BeNil())
 
-	err = server.nodeChangePropageteEvent(&nodeAddDelEvent{evType: datasync.Put})
+	err = server.nodeChangePropagateEvent(&nodeAddDelEvent{evType: datasync.Put})
 	gomega.Expect(err).To(gomega.BeNil())
 
 	// check that the VXLAN interface does not exist
-	vxlanIf := interfaceInSnapshot(txns.AppliedConfig, fmt.Sprintf("vxlan%d", otherNodeInfo.Id))
+	vxlanIf := interfaceInLatestRevs(txns.LatestRevisions, fmt.Sprintf("vxlan%d", otherNodeInfo.Id))
 	gomega.Expect(vxlanIf).To(gomega.BeNil())
 
 	// check routes to the other node pointing to node IP
 	nexthopIP := server.ipPrefixToAddress(otherNodeInfo.IpAddress)
-	routes := routesViaInSnapshot(txns.AppliedConfig, nexthopIP)
+	routes := routesViaInLatestRevs(txns.LatestRevisions, nexthopIP)
 	gomega.Expect(len(routes)).To(gomega.BeEquivalentTo(3))
 
-	err = server.nodeChangePropageteEvent(&nodeAddDelEvent{evType: datasync.Delete})
+	err = server.nodeChangePropagateEvent(&nodeAddDelEvent{evType: datasync.Delete})
 	gomega.Expect(err).To(gomega.BeNil())
 }
 
@@ -344,20 +344,20 @@ func TestNodeAddDelVXLAN(t *testing.T) {
 	err := server.resync()
 	gomega.Expect(err).To(gomega.BeNil())
 
-	err = server.nodeChangePropageteEvent(&nodeAddDelEvent{evType: datasync.Put})
+	err = server.nodeChangePropagateEvent(&nodeAddDelEvent{evType: datasync.Put})
 	gomega.Expect(err).To(gomega.BeNil())
 
 	// check that the VXLAN tunnel config has been properly added
-	vxlanIf := interfaceInSnapshot(txns.AppliedConfig, fmt.Sprintf("vxlan%d", otherNodeInfo.Id))
+	vxlanIf := interfaceInLatestRevs(txns.LatestRevisions, fmt.Sprintf("vxlan%d", otherNodeInfo.Id))
 	gomega.Expect(vxlanIf).ToNot(gomega.BeNil())
 	gomega.Expect(otherNodeInfo.IpAddress).To(gomega.ContainSubstring(vxlanIf.Vxlan.DstAddress))
 
 	// check routes to the other node pointing to VXLAN IP
 	nexthopIP, _ := server.ipam.VxlanIPAddress(uint8(otherNodeInfo.Id))
-	routes := routesViaInSnapshot(txns.AppliedConfig, nexthopIP.String())
+	routes := routesViaInLatestRevs(txns.LatestRevisions, nexthopIP.String())
 	gomega.Expect(len(routes)).To(gomega.BeEquivalentTo(3))
 
-	err = server.nodeChangePropageteEvent(&nodeAddDelEvent{evType: datasync.Delete})
+	err = server.nodeChangePropagateEvent(&nodeAddDelEvent{evType: datasync.Delete})
 	gomega.Expect(err).To(gomega.BeNil())
 }
 
@@ -465,8 +465,8 @@ func vppChanMock() (*api.Channel, *govpp.Connection) {
 	return c, conn
 }
 
-func addIfsIntoTheIndex(mapping ifaceidx.SwIfIndexRW) func(txn *localclient.Txn) error {
-	return func(txn *localclient.Txn) error {
+func addIfsIntoTheIndex(mapping ifaceidx.SwIfIndexRW) func(txn *localclient.Txn, latestRevs *syncbase.PrevRevisions) error {
+	return func(txn *localclient.Txn, latestRevs *syncbase.PrevRevisions) error {
 		var cnt uint32 = 1
 		if txn.LinuxDataChangeTxn == nil {
 			// RESYNC not handled
@@ -500,23 +500,29 @@ func dhcpIndexMock() ifaceidx.DhcpIndex {
 	return ifaceidx.NewDHCPIndex(mapping)
 }
 
-// interfaceInSnapshot returns interface of given name from the config snapshot
-func interfaceInSnapshot(snapshot localclient.ConfigSnapshot, ifName string) *vpp_intf.Interfaces_Interface {
-	for key := range snapshot {
+// interfaceInLatestRevs returns interface of given name from the map of latest revisions
+func interfaceInLatestRevs(latestRevs *syncbase.PrevRevisions, ifName string) *vpp_intf.Interfaces_Interface {
+	for _, key := range latestRevs.ListKeys() {
 		if strings.HasPrefix(key, vpp_intf.InterfacePrefix) && strings.HasSuffix(key, ifName) {
-			return snapshot[key].(*vpp_intf.Interfaces_Interface)
+			intf := &vpp_intf.Interfaces_Interface{}
+			_, value := latestRevs.Get(key)
+			value.GetValue(intf)
+			return intf
 		}
 	}
 	return nil
 }
 
-// routesViaInSnapshot returns routes pinting to privided next hop IP from the config snapshot
-func routesViaInSnapshot(snapshot localclient.ConfigSnapshot, nexthopIP string) []*vpp_l3.StaticRoutes_Route {
+// routesViaInLatestRevs returns routes pointing to privided next hop IP from the map of latest revisions
+func routesViaInLatestRevs(latestRevs *syncbase.PrevRevisions, nexthopIP string) []*vpp_l3.StaticRoutes_Route {
 	routes := make([]*vpp_l3.StaticRoutes_Route, 0)
 
-	for key := range snapshot {
+	for _, key := range latestRevs.ListKeys() {
 		if strings.HasPrefix(key, vpp_l3.VrfPrefix) && strings.HasSuffix(key, nexthopIP) {
-			routes = append(routes, snapshot[key].(*vpp_l3.StaticRoutes_Route))
+			route := &vpp_l3.StaticRoutes_Route{}
+			_, value := latestRevs.Get(key)
+			value.GetValue(route)
+			routes = append(routes, route)
 		}
 	}
 
@@ -535,20 +541,30 @@ func (e nodeAddDelEvent) GetChangeType() datasync.PutDel {
 }
 
 func (e nodeAddDelEvent) GetKey() string {
-	return AllocatedIDsKeyPrefix
+	return node.AllocatedIDsKeyPrefix
 }
 
 func (e nodeAddDelEvent) GetValue(value proto.Message) error {
-	v := value.(*node.NodeInfo)
-	v.Id = otherNodeInfo.Id
-	v.Name = otherNodeInfo.Name
-	v.IpAddress = otherNodeInfo.IpAddress
-	v.ManagementIpAddress = otherNodeInfo.ManagementIpAddress
+	if e.evType == datasync.Put {
+		v := value.(*node.NodeInfo)
+		v.Id = otherNodeInfo.Id
+		v.Name = otherNodeInfo.Name
+		v.IpAddress = otherNodeInfo.IpAddress
+		v.ManagementIpAddress = otherNodeInfo.ManagementIpAddress
+	}
 	return nil
 }
 
 func (e nodeAddDelEvent) GetPrevValue(prevValue proto.Message) (prevValueExist bool, err error) {
-	return false, nil
+	if e.evType == datasync.Put {
+		return false, nil
+	}
+	v := prevValue.(*node.NodeInfo)
+	v.Id = otherNodeInfo.Id
+	v.Name = otherNodeInfo.Name
+	v.IpAddress = otherNodeInfo.IpAddress
+	v.ManagementIpAddress = otherNodeInfo.ManagementIpAddress
+	return true, nil
 }
 
 func (e nodeAddDelEvent) GetRevision() int64 {

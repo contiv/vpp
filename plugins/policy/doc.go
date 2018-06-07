@@ -101,8 +101,19 @@
 //    - provides various lookup methods (e.g. by the label selector)
 //
 // * Renderer cache
-//    - to accomplish the task of (efficient) rule rendering, renderers TODO
-//
+//    - the cache allows renderer to easily calculate the minimal set of changes
+//      that need to be applied in a given transaction.
+//    - the rules are grouped into the tables (ContivRuleTable) and the configuration
+//      is represented as a list of local tables, applied on the ingress
+//      or the egress side of pods, and a single global table, applied on the interfaces
+//      connecting the node with the rest of the cluster.
+//    - the list of local tables is minimalistic in the sense that pods with the same
+//      set of rules will share the same local table.
+//    - all tables match only one side of the traffic - either ingress or egress, depending
+//      on the cache orientation as selected in the Init method.
+//    - the cache combines the received ingress and egress Contiv rules into
+//      the single chosen direction in a way that maintains the original semantic
+//      (the global table is introduced to accomplish the task).
 //
 // Diagram
 // -------

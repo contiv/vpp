@@ -22,6 +22,8 @@ import (
 
 	"github.com/golang/protobuf/proto"
 
+	"github.com/ligato/cn-infra/datasync"
+	"github.com/ligato/cn-infra/datasync/syncbase"
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/vpp-agent/clientv1/linux"
 	"github.com/ligato/vpp-agent/plugins/defaultplugins"
@@ -41,6 +43,9 @@ const (
 	// ACLNamePrefix). Reflective ACL is used to allow responses of accepted sessions
 	// regardless of installed policies on the way back.
 	ReflectiveACLName = "REFLECTION"
+
+	ipv4AddrAny = "0.0.0.0/0"
+	ipv6AddrAny = "::/0"
 )
 
 // Renderer renders Contiv Rules into VPP ACLs.
@@ -60,6 +65,7 @@ type Deps struct {
 	Contiv        contiv.API         /* for GetIfName() */
 	VPP           defaultplugins.API /* for DumpACLs() */
 	ACLTxnFactory func() (dsl linux.DataChangeDSL)
+	LatestRevs    *syncbase.PrevRevisions
 }
 
 // RendererTxn represents a single transaction of Renderer.
@@ -123,6 +129,7 @@ func (art *RendererTxn) Render(pod podmodel.ID, podIP *net.IPNet, ingress []*ren
 // localclient.
 func (art *RendererTxn) Commit() error {
 	var (
+		aclRawDump       []*vpp_acl.AccessLists_Acl
 		aclDump          []*cache.ContivRuleTable
 		globalTable      *cache.ContivRuleTable
 		hasReflectiveACL bool
@@ -131,10 +138,29 @@ func (art *RendererTxn) Commit() error {
 
 	if art.resync {
 		// Re-synchronize with VPP first.
-		aclDump, hasReflectiveACL, err = art.dumpVppACLConfig()
+		// -> dump ACLs configured on VPP.
+		aclRawDump, aclDump, hasReflectiveACL, err = art.dumpVppACLConfig()
 		if err != nil {
 			return err
 		}
+		// -> get the latest revisions in-sync with VPP
+		keyList := art.renderer.LatestRevs.ListKeys()
+		keys := map[string]struct{}{}
+		for _, key := range keyList {
+			if strings.HasPrefix(key, vpp_acl.KeyPrefix()) {
+				keys[key] = struct{}{}
+			}
+		}
+		for _, acl := range aclRawDump {
+			key := vpp_acl.Key(acl.AclName)
+			value := syncbase.NewChange(key, acl, 0, datasync.Put)
+			art.renderer.LatestRevs.PutWithRevision(key, value)
+			delete(keys, key)
+		}
+		for key := range keys {
+			art.renderer.LatestRevs.Del(key)
+		}
+		// -> resync cache with VPP
 		err = art.renderer.cache.Resync(aclDump)
 		if err != nil {
 			return err
@@ -266,25 +292,17 @@ func (art *RendererTxn) Commit() error {
 // reflectiveACL returns the configuration of the reflective ACL.
 func (art *RendererTxn) reflectiveACL() *vpp_acl.AccessLists_Acl {
 	// Prepare table to render the ACL from.
-	ruleTCPAny := &renderer.ContivRule{
+	ruleAny := &renderer.ContivRule{
 		Action:      renderer.ActionPermit,
 		SrcNetwork:  &net.IPNet{},
 		DestNetwork: &net.IPNet{},
-		Protocol:    renderer.TCP,
-		SrcPort:     0,
-		DestPort:    0,
-	}
-	ruleUDPAny := &renderer.ContivRule{
-		Action:      renderer.ActionPermit,
-		SrcNetwork:  &net.IPNet{},
-		DestNetwork: &net.IPNet{},
-		Protocol:    renderer.UDP,
+		Protocol:    renderer.ANY,
 		SrcPort:     0,
 		DestPort:    0,
 	}
 	table := cache.NewContivRuleTable(ReflectiveACLName)
-	table.Rules = []*renderer.ContivRule{ruleTCPAny, ruleUDPAny}
-	table.NumOfRules = 2
+	table.Rules = []*renderer.ContivRule{ruleAny}
+	table.NumOfRules = 1
 	table.Pods = art.cacheTxn.GetIsolatedPods()
 	// Render the ACL.
 	acl := art.renderACL(table)
@@ -310,15 +328,11 @@ func (art *RendererTxn) getNodeOutputInterfaces() []string {
 
 // renderACL renders ContivRuleTable into the equivalent ACL configuration.
 func (art *RendererTxn) renderACL(table *cache.ContivRuleTable) *vpp_acl.AccessLists_Acl {
-	const (
-		maxPortNum  = ^uint16(0)
-		maxICMPCode = 5
-		maxICMPType = 16
-	)
-
+	const maxPortNum = ^uint16(0)
 	acl := &vpp_acl.AccessLists_Acl{}
 	acl.AclName = ACLNamePrefix + table.ID
 	acl.Interfaces = art.renderInterfaces(table.Pods, table.ID == ReflectiveACLName)
+
 	for i := 0; i < table.NumOfRules; i++ {
 		rule := table.Rules[i]
 		aclRule := &vpp_acl.AccessLists_Acl_Rule{}
@@ -354,7 +368,8 @@ func (art *RendererTxn) renderACL(table *cache.ContivRuleTable) *vpp_acl.AccessL
 			} else {
 				aclRule.Match.IpRule.Tcp.DestinationPortRange.UpperPort = uint32(rule.DestPort)
 			}
-		} else {
+		}
+		if rule.Protocol == renderer.UDP {
 			aclRule.Match.IpRule.Udp = &vpp_acl.AccessLists_Acl_Rule_Match_IpRule_Udp{}
 			aclRule.Match.IpRule.Udp.SourcePortRange = &vpp_acl.AccessLists_Acl_Rule_Match_IpRule_PortRange{}
 			aclRule.Match.IpRule.Udp.SourcePortRange.LowerPort = uint32(rule.SrcPort)
@@ -371,27 +386,6 @@ func (art *RendererTxn) renderACL(table *cache.ContivRuleTable) *vpp_acl.AccessL
 				aclRule.Match.IpRule.Udp.DestinationPortRange.UpperPort = uint32(rule.DestPort)
 			}
 		}
-		acl.Rules = append(acl.Rules, aclRule)
-	}
-
-	// Allow all ICMP traffic
-	if table.NumOfRules > 0 {
-		aclRule := &vpp_acl.AccessLists_Acl_Rule{}
-		if table.ID == ReflectiveACLName {
-			aclRule.AclAction = vpp_acl.AclAction_REFLECT
-		} else {
-			aclRule.AclAction = vpp_acl.AclAction_PERMIT
-		}
-		aclRule.Match = &vpp_acl.AccessLists_Acl_Rule_Match{}
-		aclRule.Match.IpRule = &vpp_acl.AccessLists_Acl_Rule_Match_IpRule{}
-		aclRule.Match.IpRule.Ip = &vpp_acl.AccessLists_Acl_Rule_Match_IpRule_Ip{}
-		aclRule.Match.IpRule.Icmp = &vpp_acl.AccessLists_Acl_Rule_Match_IpRule_Icmp{}
-		aclRule.Match.IpRule.Icmp.IcmpTypeRange = &vpp_acl.AccessLists_Acl_Rule_Match_IpRule_Icmp_Range{}
-		aclRule.Match.IpRule.Icmp.IcmpTypeRange.First = 0
-		aclRule.Match.IpRule.Icmp.IcmpTypeRange.Last = maxICMPType
-		aclRule.Match.IpRule.Icmp.IcmpCodeRange = &vpp_acl.AccessLists_Acl_Rule_Match_IpRule_Icmp_Range{}
-		aclRule.Match.IpRule.Icmp.IcmpCodeRange.First = 0
-		aclRule.Match.IpRule.Icmp.IcmpCodeRange.Last = maxICMPCode
 		acl.Rules = append(acl.Rules, aclRule)
 	}
 
@@ -425,19 +419,20 @@ func (art *RendererTxn) renderInterfaces(pods cache.PodSet, ingress bool) *vpp_a
 
 // dumpVppACLConfig dumps current ACL config in the format suitable for the resync
 // of the cache.
-func (art *RendererTxn) dumpVppACLConfig() (tables []*cache.ContivRuleTable, hasReflectiveACL bool, err error) {
+func (art *RendererTxn) dumpVppACLConfig() (acls []*vpp_acl.AccessLists_Acl, tables []*cache.ContivRuleTable, hasReflectiveACL bool, err error) {
 	const maxPortNum = uint32(^uint16(0))
 	tables = []*cache.ContivRuleTable{}
 
 	aclDump, err := art.vpp.DumpACL()
 	if err != nil {
-		return tables, false, err
+		return aclDump, tables, false, err
 	}
 	for _, acl := range aclDump {
 		if !strings.HasPrefix(acl.AclName, ACLNamePrefix) {
 			/* ACL not installed by this plugin */
 			continue
 		}
+		acls = append(acls, acl)
 		aclName := strings.TrimPrefix(acl.AclName, ACLNamePrefix)
 
 		// Skip the Reflective ACL.
@@ -503,14 +498,18 @@ func (art *RendererTxn) dumpVppACLConfig() (tables []*cache.ContivRuleTable, has
 			rule.SrcNetwork = &net.IPNet{}
 			rule.DestNetwork = &net.IPNet{}
 			if aclRule.Match.IpRule.Ip != nil {
-				if aclRule.Match.IpRule.Ip.SourceNetwork != "" {
+				if aclRule.Match.IpRule.Ip.SourceNetwork != "" &&
+					aclRule.Match.IpRule.Ip.SourceNetwork != ipv4AddrAny &&
+					aclRule.Match.IpRule.Ip.SourceNetwork != ipv6AddrAny {
 					_, rule.SrcNetwork, err = net.ParseCIDR(aclRule.Match.IpRule.Ip.SourceNetwork)
 					if err != nil {
 						art.Log.WithField("err", err).Warn("Failed to parse source IP address")
 						continue
 					}
 				}
-				if aclRule.Match.IpRule.Ip.DestinationNetwork != "" {
+				if aclRule.Match.IpRule.Ip.DestinationNetwork != "" &&
+					aclRule.Match.IpRule.Ip.DestinationNetwork != ipv4AddrAny &&
+					aclRule.Match.IpRule.Ip.DestinationNetwork != ipv6AddrAny {
 					_, rule.DestNetwork, err = net.ParseCIDR(aclRule.Match.IpRule.Ip.DestinationNetwork)
 					if err != nil {
 						art.Log.WithField("err", err).Warn("Failed to parse destination IP address")
@@ -519,10 +518,12 @@ func (art *RendererTxn) dumpVppACLConfig() (tables []*cache.ContivRuleTable, has
 				}
 			}
 			// L4
+			rule.Protocol = renderer.ANY
 			if aclRule.Match.IpRule.Icmp != nil {
 				// skip ICMP rule
 				continue
-			} else if aclRule.Match.IpRule.Tcp != nil {
+			}
+			if aclRule.Match.IpRule.Tcp != nil {
 				rule.Protocol = renderer.TCP
 				if aclRule.Match.IpRule.Tcp.SourcePortRange != nil {
 					if aclRule.Match.IpRule.Tcp.SourcePortRange.LowerPort != aclRule.Match.IpRule.Tcp.SourcePortRange.UpperPort {
@@ -546,7 +547,8 @@ func (art *RendererTxn) dumpVppACLConfig() (tables []*cache.ContivRuleTable, has
 					}
 					rule.DestPort = uint16(aclRule.Match.IpRule.Tcp.DestinationPortRange.LowerPort)
 				}
-			} else if aclRule.Match.IpRule.Udp != nil {
+			}
+			if aclRule.Match.IpRule.Udp != nil {
 				rule.Protocol = renderer.UDP
 				if aclRule.Match.IpRule.Udp.SourcePortRange != nil {
 					if aclRule.Match.IpRule.Udp.SourcePortRange.LowerPort != aclRule.Match.IpRule.Udp.SourcePortRange.UpperPort {
@@ -582,5 +584,5 @@ func (art *RendererTxn) dumpVppACLConfig() (tables []*cache.ContivRuleTable, has
 		tables = append(tables, table)
 	}
 
-	return tables, hasReflectiveACL, nil
+	return aclDump, tables, hasReflectiveACL, nil
 }

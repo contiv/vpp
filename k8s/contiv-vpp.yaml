@@ -27,6 +27,11 @@ data:
     TAPInterfaceVersion: 2
     NatExternalTraffic: true
     MTUSize: 1500
+    CleanupIdleNATSessions: True
+    TCPNATSessionTimeout: 180
+    OtherNATSessionTimeout: 5
+    ScanIPNeighbors: true
+    ServiceLocalEndpointWeight: 1
     IPAMConfig:
       PodSubnetCIDR: 10.1.0.0/16
       PodNetworkPrefixLen: 24
@@ -38,6 +43,11 @@ data:
       NodeInterconnectDHCP: False
   logs.conf: |
     defaultlevel: debug
+  grpc.conf: |
+    socket-type: unix
+    endpoint: /var/run/contiv/cni.sock
+  http.conf: |
+      endpoint: 0.0.0.0:9999
 
 ---
 
@@ -48,7 +58,7 @@ metadata:
   namespace: kube-system
 data:
   govpp.conf: |
-    health-check-probe-interval: 1000000000
+    health-check-probe-interval: 3000000000
     health-check-reply-timeout: 500000000
     health-check-threshold: 3
     reply-timeout: 3000000000
@@ -69,14 +79,20 @@ data:
 # This installs the contiv-etcd (ETCD server to be used by Contiv) on the master node in a Kubernetes cluster.
 # In odrer to dump the content of ETCD, you can use the kubectl exec command similar to this:
 #   kubectl exec contiv-etcd-cxqhr -n kube-system etcdctl -- get --endpoints=[127.0.0.1:12379] --prefix="true" ""
-apiVersion: extensions/v1beta1
-kind: DaemonSet
+apiVersion: apps/v1beta2
+kind: StatefulSet
 metadata:
   name: contiv-etcd
   namespace: kube-system
   labels:
     k8s-app: contiv-etcd
 spec:
+  serviceName: contiv-etcd
+  selector:
+    matchLabels:
+      k8s-app: contiv-etcd
+  updateStrategy:
+    type: RollingUpdate
   template:
     metadata:
       labels:
@@ -85,10 +101,12 @@ spec:
         # Marks this pod as a critical add-on.
         scheduler.alpha.kubernetes.io/critical-pod: ''
     spec:
-      # Allow this pod to be rescheduled while the node is in "critical add-ons only" mode.
       tolerations:
-      - key: node-role.kubernetes.io/master
-        effect: NoSchedule
+      # We need this to schedule on the master no matter what else is going on, so tolerate everything.
+      - key: ''
+        operator: Exists
+        effect: ''
+      # This likely isn't needed due to the above wildcard, but keep it in for now.
       - key: CriticalAddonsOnly
         operator: Exists
       # Only run this pod on the master.
@@ -107,15 +125,19 @@ spec:
                   fieldPath: status.podIP
             - name: ETCDCTL_API
               value: "3"
-          command: ["/bin/sh","-c"]
-          args: ["/usr/local/bin/etcd --name=contiv-etcd --data-dir=/var/etcd/contiv-data --advertise-client-urls=http://0.0.0.0:12379 --listen-client-urls=http://0.0.0.0:12379 --listen-peer-urls=http://0.0.0.0:12380"]
+          command:
+            - /bin/sh
+          args:
+            - -c
+            - /usr/local/bin/etcd --name=contiv-etcd --data-dir=/var/etcd/contiv-data
+              --advertise-client-urls=http://0.0.0.0:12379 --listen-client-urls=http://0.0.0.0:12379 --listen-peer-urls=http://0.0.0.0:12380
           volumeMounts:
-            - name: var-etcd
-              mountPath: /var/etcd
-
+            - name: etcd-data
+              mountPath: /var/etcd/contiv-data
       volumes:
-        - name: var-etcd
-          emptyDir: {}
+        - name: etcd-data
+          hostPath:
+             path: /var/etcd/contiv-data
 
 ---
 
@@ -134,7 +156,16 @@ spec:
     nodePort: 32379
 
 ---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: contiv-ksr-http-cfg
+  namespace: kube-system
+data:
+  http.conf: |
+    endpoint: 0.0.0.0:9191
 
+---
 # This config map contains ETCD configuration for connecting to the contiv-etcd defined above.
 apiVersion: v1
 kind: ConfigMap
@@ -144,7 +175,7 @@ metadata:
 data:
   etcd.conf: |
     insecure-transport: true
-    dial-timeout: 5000000000
+    dial-timeout: 10000000000
     endpoints:
       - "127.0.0.1:32379"
 
@@ -159,7 +190,7 @@ metadata:
 data:
   etcd.conf: |
     insecure-transport: true
-    dial-timeout: 5000000000
+    dial-timeout: 10000000000
     auto-compact: 600000000000
     endpoints:
       - "127.0.0.1:32379"
@@ -181,6 +212,8 @@ spec:
   selector:
     matchLabels:
       k8s-app: contiv-vswitch
+  updateStrategy:
+    type: RollingUpdate
   template:
     metadata:
       labels:
@@ -200,6 +233,26 @@ spec:
 
       # Init containers are executed before regular containers, must finish successfully before regular ones are started.
       initContainers:
+      # This container installs the Contiv CNI binaries
+      # and CNI network config file on each node.
+      - name: contiv-cni
+        image: contivvpp/cni:latest
+        imagePullPolicy: IfNotPresent
+        env:
+          - name: SLEEP
+            value: "false"
+        volumeMounts:
+          - mountPath: /opt/cni/bin
+            name: cni-bin-dir
+          - mountPath: /etc/cni/net.d
+            name: cni-net-dir
+      # This init container waits until etcd is started
+      - name: wait-foretcd
+        env:
+          - name: ETCDPORT
+            value: "32379"
+        image: busybox
+        command: ['sh', '-c', 'until nc -w 2 127.0.0.1:$ETCDPORT; do echo waiting for etcd; sleep 2; done;']
       # This init container extracts/copies VPP LD_PRELOAD libs and default VPP config to the host.
       - name: vpp-init
         image: contivvpp/vswitch:latest
@@ -211,14 +264,16 @@ spec:
         - |
           set -eu
           chmod 700 /run/vpp
-          rm -rf /dev/shm/db /dev/shm/global_vm /dev/shm/vpe-api /vpp-lib64/*
-          cp -r "$LD_PRELOAD_LIB_DIR"/* /vpp-lib64/
-          if [ ! -e /host/etc/vpp/contiv-vswitch.conf ]
-          then
+          rm -rf /dev/shm/db /dev/shm/global_vm /dev/shm/vpe-api
+          if [ ! -e /host/etc/vpp/contiv-vswitch.conf ]; then
               cp /etc/vpp/contiv-vswitch.conf /host/etc/vpp/
           fi
-          if ip link show vpp1 >/dev/null 2>&1
-          then
+          if [ ! -d /var/run/contiv ]; then
+              mkdir /var/run/contiv
+          fi
+          chmod 700 /var/run/contiv
+          rm -f /var/run/contiv/cni.sock
+          if ip link show vpp1 >/dev/null 2>&1; then
                ip link del vpp1
           fi
           cp -f /usr/local/bin/vppctl /host/usr/local/bin/vppctl
@@ -236,6 +291,8 @@ spec:
             mountPath: /dev/shm
           - name: vpp-run
             mountPath: /run/vpp
+          - name: contiv-run
+            mountPath: /var/run/contiv
 
       containers:
         # Runs contiv-vswitch container on each Kubernetes node.
@@ -282,21 +339,12 @@ spec:
               mountPath: /dev
             - name: vpp-run
               mountPath: /run/vpp
+            - name: contiv-run
+              mountPath: /var/run/contiv
             - name: contiv-plugin-cfg
               mountPath: /etc/agent
             - name: govpp-plugin-cfg
               mountPath: /etc/govpp
-
-        # This container installs the Contiv CNI binaries
-        # and CNI network config file on each node.
-        - name: contiv-cni
-          image: contivvpp/cni:latest
-          imagePullPolicy: IfNotPresent
-          volumeMounts:
-            - mountPath: /opt/cni/bin
-              name: cni-bin-dir
-            - mountPath: /etc/cni/net.d
-              name: cni-net-dir
 
       volumes:
         # Used to connect to contiv-etcd.
@@ -333,6 +381,10 @@ spec:
         - name: vpp-run
           hostPath:
             path: /run/vpp
+        # For CNI / STN unix domain socket
+        - name: contiv-run
+          hostPath:
+            path: /var/run/contiv
         # Used to configure contiv plugin.
         - name: contiv-plugin-cfg
           configMap:
@@ -353,6 +405,8 @@ metadata:
   labels:
     k8s-app: contiv-ksr
 spec:
+  updateStrategy:
+    type: RollingUpdate
   template:
     metadata:
       labels:
@@ -374,6 +428,15 @@ spec:
       # This grants the required permissions to contiv-ksr.
       serviceAccountName: contiv-ksr
 
+      initContainers:
+        # This init container waits until etcd is started
+        - name: wait-foretcd
+          env:
+          - name: ETCDPORT
+            value: "32379"
+          image: busybox
+          command: ['sh', '-c', 'until nc -w 2 127.0.0.1:$ETCDPORT; do echo waiting for etcd; sleep 2; done;']
+
       containers:
         - name: contiv-ksr
           image: contivvpp/ksr:latest
@@ -381,9 +444,13 @@ spec:
           env:
             - name: ETCDV3_CONFIG
               value: "/etc/etcd/etcd.conf"
+            - name: HTTP_CONFIG
+              value: "/etc/http/http.conf"
           volumeMounts:
             - name: etcd-cfg
               mountPath: /etc/etcd
+            - name: http-cfg
+              mountPath: /etc/http
           readinessProbe:
             httpGet:
               path: /readiness
@@ -402,6 +469,9 @@ spec:
         - name: etcd-cfg
           configMap:
             name: contiv-etcd-withcompact-cfg
+        - name: http-cfg
+          configMap:
+            name: contiv-ksr-http-cfg
 
 ---
 

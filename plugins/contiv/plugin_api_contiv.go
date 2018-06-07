@@ -32,12 +32,27 @@ type API interface {
 	// GetContainerIndex exposes index of configured containers
 	GetContainerIndex() containeridx.Reader
 
-	// IsTCPstackDisabled returns true if the TCP stack is disabled and only VETHSs/TAPs are configured
+	// IsTCPstackDisabled returns true if the TCP stack is disabled and only VETHs/TAPs are configured
 	IsTCPstackDisabled() bool
+
+	// InSTNMode returns true if Contiv operates in the STN mode (single interface for each node).
+	InSTNMode() bool
 
 	// NatExternalTraffic returns true if traffic with cluster-outside destination should be S-NATed
 	// with node IP before being sent out from the node.
 	NatExternalTraffic() bool
+
+	// CleanupIdleNATSessions returns true if cleanup of idle NAT sessions is enabled.
+	CleanupIdleNATSessions() bool
+
+	// GetTCPNATSessionTimeout returns NAT session timeout (in minutes) for TCP connections, used in case that CleanupIdleNATSessions is turned on.
+	GetTCPNATSessionTimeout() uint32
+
+	// GetOtherNATSessionTimeout returns NAT session timeout (in minutes) for non-TCP connections, used in case that CleanupIdleNATSessions is turned on.
+	GetOtherNATSessionTimeout() uint32
+
+	// GetServiceLocalEndpointWeight returns the load-balancing weight assigned to locally deployed service endpoints.
+	GetServiceLocalEndpointWeight() uint8
 
 	// GetNatLoopbackIP returns the IP address of a virtual loopback, used to route traffic
 	// between clients and services via VPP even if the source and destination are the same

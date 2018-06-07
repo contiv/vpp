@@ -3,8 +3,8 @@
 This document describes the steps to do *manual* packet tracing (capture) using
 VPP in Kubernetes. Contiv/VPP also ships with a simple bash script
 [vpptrace.sh](../scripts/vpptrace.sh), which allows to *continuously* trace and
-*filter* packets incoming through a given interface type. Documentation for vpptrace.sh
-is available [here](VPPTRACE.md).
+*filter* packets incoming through a given set of interface types.
+Documentation for vpptrace.sh is available [here](VPPTRACE.md).
 
 
 More information about VPP packet tracing is in:

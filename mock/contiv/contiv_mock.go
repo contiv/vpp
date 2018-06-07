@@ -28,30 +28,36 @@ import (
 type MockContiv struct {
 	sync.Mutex
 
-	podIf              map[podmodel.ID]string
-	podAppNs           map[podmodel.ID]uint32
-	podNetwork         *net.IPNet
-	tcpStackDisabled   bool
-	natExternalTraffic bool
-	natLoopbackIP      net.IP
-	nodeIP             string
-	nodeIPsubs         []chan string
-	podPreRemovalHooks []contiv.PodActionHook
-	mainPhysIf         string
-	otherPhysIfs       []string
-	hostInterconnect   string
-	vxlanBVIIfName     string
-	gwIP               net.IP
-	containerIndex     *containeridx.ConfigIndex
+	podIf                      map[podmodel.ID]string
+	podAppNs                   map[podmodel.ID]uint32
+	podNetwork                 *net.IPNet
+	tcpStackDisabled           bool
+	stnMode                    bool
+	natExternalTraffic         bool
+	cleanupIdleNATSessions     bool
+	tcpNATSessionTimeout       uint32
+	otherNATSessionTimeout     uint32
+	serviceLocalEndpointWeight uint8
+	natLoopbackIP              net.IP
+	nodeIP                     string
+	nodeIPsubs                 []chan string
+	podPreRemovalHooks         []contiv.PodActionHook
+	mainPhysIf                 string
+	otherPhysIfs               []string
+	hostInterconnect           string
+	vxlanBVIIfName             string
+	gwIP                       net.IP
+	containerIndex             *containeridx.ConfigIndex
 }
 
 // NewMockContiv is a constructor for MockContiv.
 func NewMockContiv() *MockContiv {
 	ci := containeridx.NewConfigIndex(logrus.DefaultLogger(), "test", "title", nil)
 	return &MockContiv{
-		podIf:          make(map[podmodel.ID]string),
-		podAppNs:       make(map[podmodel.ID]uint32),
-		containerIndex: ci,
+		podIf:                      make(map[podmodel.ID]string),
+		podAppNs:                   make(map[podmodel.ID]uint32),
+		containerIndex:             ci,
+		serviceLocalEndpointWeight: 1,
 	}
 }
 
@@ -80,6 +86,11 @@ func (mc *MockContiv) SetContainerIndex(ci *containeridx.ConfigIndex) {
 // SetTCPStackDisabled allows to set flag denoting if the tcpStack is disabled or not.
 func (mc *MockContiv) SetTCPStackDisabled(tcpStackDisabled bool) {
 	mc.tcpStackDisabled = tcpStackDisabled
+}
+
+// SetSTNMode allows to set flag denoting if the STN is used or not.
+func (mc *MockContiv) SetSTNMode(stnMode bool) {
+	mc.stnMode = stnMode
 }
 
 // SetNodeIP allows to set what tests will assume the node IP is.
@@ -129,6 +140,12 @@ func (mc *MockContiv) SetDefaultGatewayIP(gwIP net.IP) {
 // SetNatExternalTraffic allows to set what tests will assume the state of SNAT is.
 func (mc *MockContiv) SetNatExternalTraffic(natExternalTraffic bool) {
 	mc.natExternalTraffic = natExternalTraffic
+}
+
+// ServiceLocalEndpointWeight allows to set what tests will assume the weight for load-balancing
+// of locally deployed service endpoints is.
+func (mc *MockContiv) SetServiceLocalEndpointWeight(weight uint8) {
+	mc.serviceLocalEndpointWeight = weight
 }
 
 // SetNatLoopbackIP allows to set what tests will assume the NAT loopback IP is.
@@ -191,10 +208,20 @@ func (mc *MockContiv) IsTCPstackDisabled() bool {
 	return mc.tcpStackDisabled
 }
 
+// InSTNMode returns true if Contiv operates in the STN mode (single interface for each node).
+func (mc *MockContiv) InSTNMode() bool {
+	return mc.stnMode
+}
+
 // NatExternalTraffic returns true if traffic with cluster-outside destination should be S-NATed
 // with node IP before being sent out from the node.
 func (mc *MockContiv) NatExternalTraffic() bool {
 	return mc.natExternalTraffic
+}
+
+// GetServiceLocalEndpointWeight returns the load-balancing weight assigned to locally deployed service endpoints.
+func (mc *MockContiv) GetServiceLocalEndpointWeight() uint8 {
+	return mc.serviceLocalEndpointWeight
 }
 
 // GetNatLoopbackIP returns the IP address of a virtual loopback, used to route traffic
@@ -259,4 +286,19 @@ func (mc *MockContiv) RegisterPodPreRemovalHook(hook contiv.PodActionHook) {
 	defer mc.Unlock()
 
 	mc.podPreRemovalHooks = append(mc.podPreRemovalHooks, hook)
+}
+
+// CleanupIdleNATSessions returns true if cleanup of idle NAT sessions is enabled.
+func (mc *MockContiv) CleanupIdleNATSessions() bool {
+	return mc.cleanupIdleNATSessions
+}
+
+// GetTCPNATSessionTimeout returns NAT session timeout (in minutes) for TCP connections, used in case that CleanupIdleNATSessions is turned on.
+func (mc *MockContiv) GetTCPNATSessionTimeout() uint32 {
+	return mc.tcpNATSessionTimeout
+}
+
+// GetOtherNATSessionTimeout returns NAT session timeout (in minutes) for non-TCP connections, used in case that CleanupIdleNATSessions is turned on.
+func (mc *MockContiv) GetOtherNATSessionTimeout() uint32 {
+	return mc.otherNATSessionTimeout
 }

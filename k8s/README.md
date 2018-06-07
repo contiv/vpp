@@ -57,6 +57,8 @@ To use the development image for testing with specific version of VPP, see
     - `NatExternalTraffic`: if enabled, traffic with cluster-outside destination is S-NATed
                             with the node IP before being sent out from the node (applies for all nodes)
     - `MTUSize`: maximum transmission unit (MTU) size (default is 1500)
+    - `ServiceLocalEndpointWeight`: how much more likely a service local endpoint is to receive
+      connection over a remotely deployed one (default is `1`, i.e. equal distribution)
 
   * IPAM (section `IPAMConfig`)
     - `PodSubnetCIDR`: subnet used for all pods across all nodes

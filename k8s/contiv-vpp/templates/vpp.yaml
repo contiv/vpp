@@ -31,6 +31,15 @@ data:
     {{- end }}
     NatExternalTraffic: {{ .Values.contiv.natExternalTraffic }}
     MTUSize: {{ .Values.contiv.mtuSize }}
+    {{- if .Values.contiv.cleanupIdleNATSessions }}
+    CleanupIdleNATSessions: True
+    TCPNATSessionTimeout: {{ .Values.contiv.tcpNATSessionTimeout }}
+    OtherNATSessionTimeout: {{ .Values.contiv.otherNATSessionTimeout }}
+    {{- end }}
+    ScanIPNeighbors: {{ .Values.contiv.scanIPNeighbors }}
+    {{- if .Values.contiv.serviceLocalEndpointWeight }}
+    ServiceLocalEndpointWeight: {{ .Values.contiv.serviceLocalEndpointWeight }}
+    {{- end }}
     IPAMConfig:
       PodSubnetCIDR: {{ .Values.contiv.ipamConfig.podSubnetCIDR }}
       PodNetworkPrefixLen: {{ .Values.contiv.ipamConfig.podNetworkPrefixLen }}
@@ -72,6 +81,19 @@ data:
     {{- end }}
   logs.conf: |
     defaultlevel: {{ .Values.logs.defaultLevel }}
+  grpc.conf: |
+    socket-type: unix
+    endpoint: /var/run/contiv/cni.sock
+  http.conf: |
+      endpoint: 0.0.0.0:9999
+      {{- if .Values.http.enableServerCert }}
+      server-cert-file: /var/http/{{ .Values.http.serverCert }}
+      server-key-file: /var/http/{{ .Values.http.serverKey }}
+      {{- end }}
+      {{- if .Values.http.enableBasicAuth }}
+      client-basic-auth:
+        - {{ .Values.http.basicAuth | quote }}
+      {{- end }}
 
 ---
 
@@ -103,14 +125,20 @@ data:
 # This installs the contiv-etcd (ETCD server to be used by Contiv) on the master node in a Kubernetes cluster.
 # In odrer to dump the content of ETCD, you can use the kubectl exec command similar to this:
 #   kubectl exec contiv-etcd-cxqhr -n kube-system etcdctl -- get --endpoints=[127.0.0.1:12379] --prefix="true" ""
-apiVersion: extensions/v1beta1
-kind: DaemonSet
+apiVersion: apps/v1beta2
+kind: StatefulSet
 metadata:
   name: contiv-etcd
   namespace: kube-system
   labels:
     k8s-app: contiv-etcd
 spec:
+  serviceName: contiv-etcd
+  selector:
+    matchLabels:
+      k8s-app: contiv-etcd
+  updateStrategy:
+    type: {{ .Values.etcd.updateStrategy }}
   template:
     metadata:
       labels:
@@ -119,10 +147,12 @@ spec:
         # Marks this pod as a critical add-on.
         scheduler.alpha.kubernetes.io/critical-pod: ''
     spec:
-      # Allow this pod to be rescheduled while the node is in "critical add-ons only" mode.
       tolerations:
-      - key: node-role.kubernetes.io/master
-        effect: NoSchedule
+      # We need this to schedule on the master no matter what else is going on, so tolerate everything.
+      - key: ''
+        operator: Exists
+        effect: ''
+      # This likely isn't needed due to the above wildcard, but keep it in for now.
       - key: CriticalAddonsOnly
         operator: Exists
       # Only run this pod on the master.
@@ -141,20 +171,98 @@ spec:
                   fieldPath: status.podIP
             - name: ETCDCTL_API
               value: "3"
-          command: ["/bin/sh","-c"]
-          args: ["/usr/local/bin/etcd --name=contiv-etcd --data-dir=/var/etcd/contiv-data --advertise-client-urls=http://0.0.0.0:12379 --listen-client-urls=http://0.0.0.0:12379 --listen-peer-urls=http://0.0.0.0:12380"]
+          command:
+            - /bin/sh
+          args:
+            - -c
+            - /usr/local/bin/etcd --name=contiv-etcd --data-dir=/var/etcd/contiv-data
+            {{- if .Values.etcd.secureTransport }}
+              --client-cert-auth --trusted-ca-file=/var/etcd/contiv-secrets/{{ .Values.etcd.secrets.caCert }}
+              --cert-file=/var/etcd/contiv-secrets/{{ .Values.etcd.secrets.serverCert }} --key-file=/var/etcd/contiv-secrets/{{ .Values.etcd.secrets.serverKey }}
+              --peer-client-cert-auth --peer-trusted-ca-file=/var/etcd/contiv-secrets/{{ .Values.etcd.secrets.caCert }}
+              --peer-cert-file=/var/etcd/contiv-secrets/{{ .Values.etcd.secrets.serverCert }} --peer-key-file=/var/etcd/contiv-secrets/{{ .Values.etcd.secrets.serverKey }}
+              --advertise-client-urls=https://0.0.0.0:12379 --listen-client-urls=https://0.0.0.0:12379 --listen-peer-urls=https://0.0.0.0:12380
+            {{- else }}
+              --advertise-client-urls=http://0.0.0.0:12379 --listen-client-urls=http://0.0.0.0:12379 --listen-peer-urls=http://0.0.0.0:12380
+            {{- end }}
           volumeMounts:
-            - name: var-etcd
-              mountPath: /var/etcd
-
+            - name: etcd-data
+              mountPath: /var/etcd/contiv-data
+            {{- if .Values.etcd.secureTransport }}
+            - name: etcd-secrets
+              mountPath: /var/etcd/contiv-secrets
+              readOnly: true
+            {{- end }}
+      {{- if .Values.etcd.secureTransport }}
       volumes:
-        - name: var-etcd
-        {{- if .Values.etcd.dataDir }}
+        - name: etcd-secrets
+          {{- if .Values.etcd.secrets.mountFromHost }}
           hostPath:
-             path:  {{ .Values.etcd.dataDir }}
-        {{ else }}
-          emptyDir: {}
-        {{- end }}
+            path: {{ .Values.etcd.secrets.mountDir }}
+          {{- else }}
+          secret:
+            secretName: contiv-etcd-secrets
+            items:
+            - key: caCert
+              path: {{ .Values.etcd.secrets.caCert }}
+            - key: serverCert
+              path: {{ .Values.etcd.secrets.serverCert }}
+            - key: serverKey
+              path: {{ .Values.etcd.secrets.serverKey }}
+          {{- end }}
+      {{- end }}
+{{- if .Values.etcd.usePersistentVolume }}
+  volumeClaimTemplates:
+  - metadata:
+      name: etcd-data
+    spec:
+      accessModes:
+        - ReadWriteOnce
+      resources:
+        requests:
+          storage: {{ .Values.etcd.persistentVolumeSize }}
+    {{- if .Values.etcd.persistentVolumeStorageClass }}
+    {{- if (eq "-" .Values.etcd.persistentVolumeStorageClass) }}
+      storageClassName: ""
+    {{- else }}
+      storageClassName: "{{ .Values.etcd.persistentVolumeStorageClass }}"
+    {{- end }}
+    {{- end }}
+{{- else }}
+      {{- if not .Values.etcd.secureTransport }}
+      volumes:
+      {{- end }}
+        - name: etcd-data
+          hostPath:
+             path: {{ .Values.etcd.dataDir }}
+{{- end }}
+
+
+{{- if .Values.etcd.secureTransport }}
+{{- if not .Values.etcd.secrets.mountFromHost }}
+---
+
+# The following contains k8s Secrets for use with a TLS enabled etcd cluster.
+# For information on populating Secrets, see http://kubernetes.io/docs/user-guide/secrets/
+apiVersion: v1
+kind: Secret
+type: Opaque
+metadata:
+  name: contiv-etcd-secrets
+  namespace: kube-system
+data:
+  caCert: |-
+    {{ .Files.Get .Values.etcd.secrets.caCert | b64enc }}
+  serverCert: |-
+    {{ .Files.Get .Values.etcd.secrets.serverCert | b64enc }}
+  serverKey: |-
+    {{ .Files.Get .Values.etcd.secrets.serverKey | b64enc }}
+  clientCert: |-
+    {{ .Files.Get .Values.etcd.secrets.clientCert | b64enc }}
+  clientKey: |-
+    {{ .Files.Get .Values.etcd.secrets.clientKey | b64enc }}
+{{- end }}
+{{- end }}
 
 ---
 
@@ -173,7 +281,24 @@ spec:
     nodePort: {{ .Values.etcd.service.nodePort }}
 
 ---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: contiv-ksr-http-cfg
+  namespace: kube-system
+data:
+  http.conf: |
+    endpoint: 0.0.0.0:9191
+    {{- if .Values.http.enableServerCert }}
+    server-cert-file: /var/http/{{ .Values.http.serverCert }}
+    server-key-file: /var/http/{{ .Values.http.serverKey }}
+    {{- end }}
+    {{- if .Values.http.enableBasicAuth }}
+    client-basic-auth:
+      - {{ .Values.http.basicAuth | quote }}
+    {{- end }}
 
+---
 # This config map contains ETCD configuration for connecting to the contiv-etcd defined above.
 apiVersion: v1
 kind: ConfigMap
@@ -182,8 +307,15 @@ metadata:
   namespace: kube-system
 data:
   etcd.conf: |
+    {{- if .Values.etcd.secureTransport }}
+    insecure-transport: false
+    ca-file: /var/etcd/contiv-secrets/{{ .Values.etcd.secrets.caCert }}
+    cert-file: /var/etcd/contiv-secrets/{{ .Values.etcd.secrets.clientCert }}
+    key-file: /var/etcd/contiv-secrets/{{ .Values.etcd.secrets.clientKey }}
+    {{- else }}
     insecure-transport: true
-    dial-timeout: 5000000000
+    {{- end }}
+    dial-timeout: 10000000000
     endpoints:
       - "127.0.0.1:{{ .Values.etcd.service.nodePort }}"
 
@@ -197,11 +329,38 @@ metadata:
   namespace: kube-system
 data:
   etcd.conf: |
+    {{- if .Values.etcd.secureTransport }}
+    insecure-transport: false
+    ca-file: /var/etcd/contiv-secrets/{{ .Values.etcd.secrets.caCert }}
+    cert-file: /var/etcd/contiv-secrets/{{ .Values.etcd.secrets.clientCert }}
+    key-file: /var/etcd/contiv-secrets/{{ .Values.etcd.secrets.clientKey }}
+    {{- else }}
     insecure-transport: true
-    dial-timeout: 5000000000
+    {{- end }}
+    dial-timeout: 10000000000
     auto-compact: 600000000000
     endpoints:
       - "127.0.0.1:{{ .Values.etcd.service.nodePort }}"
+
+{{- if .Values.http.enableServerCert }}
+{{- if not .Values.http.mountFromHost }}
+---
+
+# The following contains k8s Secrets for use with a secured HTTP plugin.
+# For information on populating Secrets, see http://kubernetes.io/docs/user-guide/secrets/
+apiVersion: v1
+kind: Secret
+type: Opaque
+metadata:
+  name: contiv-http-secrets
+  namespace: kube-system
+data:
+  serverCert: |-
+    {{ .Files.Get .Values.http.serverCert | b64enc }}
+  serverKey: |-
+    {{ .Files.Get .Values.http.serverKey | b64enc }}
+{{- end }}
+{{- end }}
 
 ---
 
@@ -220,6 +379,8 @@ spec:
   selector:
     matchLabels:
       k8s-app: contiv-vswitch
+  updateStrategy:
+    type: {{ .Values.vswitch.updateStrategy }}
   template:
     metadata:
       labels:
@@ -239,6 +400,26 @@ spec:
 
       # Init containers are executed before regular containers, must finish successfully before regular ones are started.
       initContainers:
+      # This container installs the Contiv CNI binaries
+      # and CNI network config file on each node.
+      - name: contiv-cni
+        image: {{ .Values.cni.image.repository }}:{{ default .Chart.Version .Values.cni.image.tag }}
+        imagePullPolicy: IfNotPresent
+        env:
+          - name: SLEEP
+            value: "false"
+        volumeMounts:
+          - mountPath: /opt/cni/bin
+            name: cni-bin-dir
+          - mountPath: /etc/cni/net.d
+            name: cni-net-dir
+      # This init container waits until etcd is started
+      - name: wait-foretcd
+        env:
+          - name: ETCDPORT
+            value: {{ .Values.etcd.service.nodePort | quote }}
+        image: busybox
+        command: ['sh', '-c', 'until nc -w 2 127.0.0.1:$ETCDPORT; do echo waiting for etcd; sleep 2; done;']
       # This init container extracts/copies VPP LD_PRELOAD libs and default VPP config to the host.
       - name: vpp-init
         image: {{ .Values.vswitch.image.repository }}:{{ default .Chart.Version .Values.vswitch.image.tag }}
@@ -250,14 +431,16 @@ spec:
         - |
           set -eu
           chmod 700 /run/vpp
-          rm -rf /dev/shm/db /dev/shm/global_vm /dev/shm/vpe-api /vpp-lib64/*
-          cp -r "$LD_PRELOAD_LIB_DIR"/* /vpp-lib64/
-          if [ ! -e /host/etc/vpp/contiv-vswitch.conf ]
-          then
+          rm -rf /dev/shm/db /dev/shm/global_vm /dev/shm/vpe-api
+          if [ ! -e /host/etc/vpp/contiv-vswitch.conf ]; then
               cp /etc/vpp/contiv-vswitch.conf /host/etc/vpp/
           fi
-          if ip link show vpp1 >/dev/null 2>&1
-          then
+          if [ ! -d /var/run/contiv ]; then
+              mkdir /var/run/contiv
+          fi
+          chmod 700 /var/run/contiv
+          rm -f /var/run/contiv/cni.sock
+          if ip link show vpp1 >/dev/null 2>&1; then
                ip link del vpp1
           fi
           cp -f /usr/local/bin/vppctl /host/usr/local/bin/vppctl
@@ -275,6 +458,8 @@ spec:
             mountPath: /dev/shm
           - name: vpp-run
             mountPath: /run/vpp
+          - name: contiv-run
+            mountPath: /var/run/contiv
 
       containers:
         # Runs contiv-vswitch container on each Kubernetes node.
@@ -292,6 +477,14 @@ spec:
             httpGet:
               path: /readiness
               port: 9999
+              {{- if .Values.http.enableServerCert }}
+              scheme: HTTPS
+              {{- end }}
+              {{- if .Values.http.enableBasicAuth }}
+              httpHeaders:
+                - name: Authorization
+                  value: "Basic {{ .Values.http.basicAuth | b64enc }}"
+              {{- end }}
             periodSeconds: 3
             timeoutSeconds: 2
             failureThreshold: 3
@@ -300,6 +493,14 @@ spec:
             httpGet:
               path: /liveness
               port: 9999
+              {{- if .Values.http.enableServerCert }}
+              scheme: HTTPS
+              {{- end }}
+              {{- if .Values.http.enableBasicAuth }}
+              httpHeaders:
+                - name: Authorization
+                  value: "Basic {{ .Values.http.basicAuth | b64enc }}"
+              {{- end }}
             periodSeconds: 3
             timeoutSeconds: 2
             failureThreshold: 3
@@ -315,6 +516,16 @@ spec:
           volumeMounts:
             - name: etcd-cfg
               mountPath: /etc/etcd
+              {{- if .Values.etcd.secureTransport }}
+            - name: etcd-secrets
+              mountPath: /var/etcd/contiv-secrets
+              readOnly: true
+              {{- end }}
+              {{- if .Values.http.enableServerCert }}
+            - name: http-secrets
+              mountPath: /var/http
+              readOnly: true
+              {{- end }}
             - name: vpp-cfg
               mountPath: /etc/vpp
             - name: shm
@@ -323,27 +534,56 @@ spec:
               mountPath: /dev
             - name: vpp-run
               mountPath: /run/vpp
+            - name: contiv-run
+              mountPath: /var/run/contiv
             - name: contiv-plugin-cfg
               mountPath: /etc/agent
             - name: govpp-plugin-cfg
               mountPath: /etc/govpp
-
-        # This container installs the Contiv CNI binaries
-        # and CNI network config file on each node.
-        - name: contiv-cni
-          image: {{ .Values.cni.image.repository }}:{{ default .Chart.Version .Values.cni.image.tag }}
-          imagePullPolicy: {{ .Values.cni.image.pullPolicy }}
-          volumeMounts:
-            - mountPath: /opt/cni/bin
-              name: cni-bin-dir
-            - mountPath: /etc/cni/net.d
-              name: cni-net-dir
+          {{- if .Values.vswitch.defineMemoryLimits }}
+          resources:
+             limits:
+               hugepages-2Mi: {{ .Values.vswitch.hugePages2miLimit }}
+               memory: {{ .Values.vswitch.memoryLimit }}
+          {{- end }}
 
       volumes:
         # Used to connect to contiv-etcd.
         - name: etcd-cfg
           configMap:
             name: contiv-etcd-cfg
+        {{- if .Values.etcd.secureTransport }}
+        - name: etcd-secrets
+          {{- if .Values.etcd.secrets.mountFromHost }}
+          hostPath:
+            path: {{ .Values.etcd.secrets.mountDir }}
+          {{- else }}
+          secret:
+            secretName: contiv-etcd-secrets
+            items:
+            - key: caCert
+              path: {{ .Values.etcd.secrets.caCert }}
+            - key: clientCert
+              path: {{ .Values.etcd.secrets.clientCert }}
+            - key: clientKey
+              path: {{ .Values.etcd.secrets.clientKey }}
+          {{- end }}
+        {{- end }}
+        {{- if .Values.http.enableServerCert }}
+        - name: http-secrets
+          {{- if .Values.http.mountFromHost }}
+          hostPath:
+            path: {{ .Values.http.mountDir }}
+          {{- else }}
+          secret:
+            secretName: contiv-http-secrets
+            items:
+            - key: serverCert
+              path: {{ .Values.http.serverCert }}
+            - key: serverKey
+              path: {{ .Values.http.serverKey }}
+          {{- end }}
+        {{- end }}
         # Used to install CNI.
         - name: cni-bin-dir
           hostPath:
@@ -374,6 +614,10 @@ spec:
         - name: vpp-run
           hostPath:
             path: /run/vpp
+        # For CNI / STN unix domain socket
+        - name: contiv-run
+          hostPath:
+            path: /var/run/contiv
         # Used to configure contiv plugin.
         - name: contiv-plugin-cfg
           configMap:
@@ -394,6 +638,8 @@ metadata:
   labels:
     k8s-app: contiv-ksr
 spec:
+  updateStrategy:
+    type: {{ .Values.ksr.updateStrategy }}
   template:
     metadata:
       labels:
@@ -415,6 +661,15 @@ spec:
       # This grants the required permissions to contiv-ksr.
       serviceAccountName: contiv-ksr
 
+      initContainers:
+        # This init container waits until etcd is started
+        - name: wait-foretcd
+          env:
+          - name: ETCDPORT
+            value: {{ .Values.etcd.service.nodePort | quote }}
+          image: busybox
+          command: ['sh', '-c', 'until nc -w 2 127.0.0.1:$ETCDPORT; do echo waiting for etcd; sleep 2; done;']
+
       containers:
         - name: contiv-ksr
           image: {{ .Values.ksr.image.repository }}:{{ default .Chart.Version .Values.ksr.image.tag }}
@@ -422,19 +677,49 @@ spec:
           env:
             - name: ETCDV3_CONFIG
               value: "/etc/etcd/etcd.conf"
+            - name: HTTP_CONFIG
+              value: "/etc/http/http.conf"
           volumeMounts:
             - name: etcd-cfg
               mountPath: /etc/etcd
+            - name: http-cfg
+              mountPath: /etc/http
+            {{- if .Values.etcd.secureTransport }}
+            - name: etcd-secrets
+              mountPath: /var/etcd/contiv-secrets
+              readOnly: true
+            {{- end }}
+            {{- if .Values.http.enableServerCert }}
+            - name: http-secrets
+              mountPath: /var/http
+              readOnly: true
+            {{- end }}
           readinessProbe:
             httpGet:
               path: /readiness
               port: 9191
+              {{- if .Values.http.enableServerCert }}
+              scheme: HTTPS
+              {{- end }}
+              {{- if .Values.http.enableBasicAuth }}
+              httpHeaders:
+                - name: Authorization
+                  value: "Basic {{ .Values.http.basicAuth | b64enc }}"
+              {{- end }}
             periodSeconds: 1
             initialDelaySeconds: 10
           livenessProbe:
             httpGet:
               path: /liveness
               port: 9191
+              {{- if .Values.http.enableServerCert }}
+              scheme: HTTPS
+              {{- end }}
+              {{- if .Values.http.enableBasicAuth }}
+              httpHeaders:
+                - name: Authorization
+                  value: "Basic {{ .Values.http.basicAuth | b64enc }}"
+              {{- end }}
             periodSeconds: 1
             initialDelaySeconds: 30
 
@@ -443,6 +728,41 @@ spec:
         - name: etcd-cfg
           configMap:
             name: contiv-etcd-withcompact-cfg
+        - name: http-cfg
+          configMap:
+            name: contiv-ksr-http-cfg
+        {{- if .Values.etcd.secureTransport }}
+        - name: etcd-secrets
+          {{- if .Values.etcd.secrets.mountFromHost }}
+          hostPath:
+            path: {{ .Values.etcd.secrets.mountDir }}
+          {{- else }}
+          secret:
+            secretName: contiv-etcd-secrets
+            items:
+            - key: caCert
+              path: {{ .Values.etcd.secrets.caCert }}
+            - key: clientCert
+              path: {{ .Values.etcd.secrets.clientCert }}
+            - key: clientKey
+              path: {{ .Values.etcd.secrets.clientKey }}
+          {{- end }}
+        {{- end }}
+        {{- if .Values.http.enableServerCert }}
+        - name: http-secrets
+          {{- if .Values.http.mountFromHost }}
+          hostPath:
+            path: {{ .Values.http.mountDir }}
+          {{- else }}
+          secret:
+            secretName: contiv-http-secrets
+            items:
+            - key: serverCert
+              path: {{ .Values.http.serverCert }}
+            - key: serverKey
+              path: {{ .Values.http.serverKey }}
+          {{- end }}
+        {{- end }}
 
 ---
 

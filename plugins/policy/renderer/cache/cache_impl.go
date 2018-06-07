@@ -512,22 +512,16 @@ func (rct *RendererCacheTxn) buildLocalTable(dstPodID podmodel.ID, dstPodCfg *Po
 
 	// Add explicit rules to allow traffic not matched by any rule.
 	if len(table.Rules) > 0 {
-		var allTCP, allUDP bool
+		var allMatched bool
 		for i := 0; i < table.NumOfRules; i++ {
-			if table.Rules[i].DestPort == 0 &&
+			if table.Rules[i].Protocol == renderer.ANY && table.Rules[i].DestPort == 0 &&
 				len(table.Rules[i].SrcNetwork.IP) == 0 && len(table.Rules[i].DestNetwork.IP) == 0 {
-				if table.Rules[i].Protocol == renderer.TCP {
-					allTCP = true
-				} else {
-					allUDP = true
-				}
+				allMatched = true
+				break
 			}
 		}
-		if !allTCP {
-			table.InsertRule(rct.allowAllTCP())
-		}
-		if !allUDP {
-			table.InsertRule(rct.allowAllUDP())
+		if !allMatched {
+			table.InsertRule(rct.allowAll())
 		}
 	}
 
@@ -543,30 +537,68 @@ func (rct *RendererCacheTxn) buildLocalTable(dstPodID podmodel.ID, dstPodCfg *Po
 func (rct *RendererCacheTxn) installLocalRules(dstTable *ContivRuleTable, dstPodCfg *PodConfig, srcPodCfg *PodConfig) {
 	// Determine the set of accessible ports from the source pod point of view.
 	var srcTCP, srcUDP Ports
+	var srcAny bool
 	if rct.cache.orientation == EgressOrientation {
-		srcTCP, srcUDP = getAllowedIngressPorts(dstPodCfg.PodIP, srcPodCfg.Ingress)
+		srcTCP, srcUDP, srcAny = getAllowedIngressPorts(dstPodCfg.PodIP, srcPodCfg.Ingress)
 	} else {
-		srcTCP, srcUDP = getAllowedEgressPorts(dstPodCfg.PodIP, srcPodCfg.Egress)
+		srcTCP, srcUDP, srcAny = getAllowedEgressPorts(dstPodCfg.PodIP, srcPodCfg.Egress)
 	}
 
 	// Determine the set of accessible ports from the destination pod point of view.
 	var dstTCP, dstUDP Ports
+	var dstAny bool
 	if rct.cache.orientation == EgressOrientation {
-		dstTCP, dstUDP = getAllowedEgressPorts(srcPodCfg.PodIP, dstPodCfg.Egress)
+		dstTCP, dstUDP, dstAny = getAllowedEgressPorts(srcPodCfg.PodIP, dstPodCfg.Egress)
 	} else {
-		dstTCP, dstUDP = getAllowedIngressPorts(srcPodCfg.PodIP, dstPodCfg.Ingress)
+		dstTCP, dstUDP, dstAny = getAllowedIngressPorts(srcPodCfg.PodIP, dstPodCfg.Ingress)
 	}
 
-	// Intersect TCP ports
-	if !dstTCP.IsSubsetOf(srcTCP) {
-		allowedTCP := dstTCP.Intersection(srcTCP) /* intersection is certainly not AnyPort */
+	if srcAny {
+		return
+	}
+
+	// Intersect allowed traffic
+	if dstAny || !dstTCP.IsSubsetOf(srcTCP) || !dstUDP.IsSubsetOf(srcUDP) {
+		// cleanup rule subtree with the root node:
+		// 	(egress orientation)  srcIP:ANY:0 -> 0/0:ANY:0
+		// 	(ingress orientation) 0/0:ANY:0   -> srcIP:ANY:0
+		dstTable.RemoveByPredicate(func(rule *renderer.ContivRule) bool {
+			var ipAddr *net.IPNet
+			if rct.cache.orientation == EgressOrientation {
+				ipAddr = rule.SrcNetwork
+			} else {
+				ipAddr = rule.DestNetwork
+			}
+			if len(ipAddr.IP) == 0 {
+				return false
+			}
+			ones, bits := ipAddr.Mask.Size()
+			if ones != bits || !ipAddr.IP.Equal(srcPodCfg.PodIP.IP) {
+				return false
+			}
+			return true
+		})
+		// Intersect TCP.
+		allowedTCP := dstTCP.Intersection(srcTCP)
 		rct.installAllowedPorts(dstTable, srcPodCfg.PodIP, allowedTCP, renderer.TCP)
-	}
-
-	// Intersect UDP ports
-	if !dstUDP.IsSubsetOf(srcUDP) {
-		allowedUDP := dstUDP.Intersection(srcUDP) /* intersection is certainly not AnyPort */
+		// Intersect UDP.
+		allowedUDP := dstUDP.Intersection(srcUDP)
 		rct.installAllowedPorts(dstTable, srcPodCfg.PodIP, allowedUDP, renderer.UDP)
+		// Add the "deny-the-rest" rule.
+		newRule := &renderer.ContivRule{
+			Action:      renderer.ActionDeny,
+			SrcNetwork:  &net.IPNet{},
+			DestNetwork: &net.IPNet{},
+			SrcPort:     AnyPort,
+			DestPort:    AnyPort,
+			Protocol:    renderer.ANY,
+		}
+		if rct.cache.orientation == EgressOrientation {
+			newRule.SrcNetwork = srcPodCfg.PodIP
+		} else {
+			newRule.DestNetwork = srcPodCfg.PodIP
+		}
+		dstTable.InsertRule(newRule)
 	}
 }
 
@@ -574,51 +606,8 @@ func (rct *RendererCacheTxn) installLocalRules(dstTable *ContivRuleTable, dstPod
 // be able to communicate with the table owner only on the selected allowed ports
 // of a given protocol with the rest being blocked.
 func (rct *RendererCacheTxn) installAllowedPorts(dstTable *ContivRuleTable, srcPodIP *net.IPNet, allowedPorts Ports, protocol renderer.ProtocolType) {
-	// cleanup TCP rule subtree with the root node:
-	// 	(egress orientation)  srcIP:0 -> 0/0:0
-	// 	(ingress orientation) 0/0:0   -> srcIP:0
-	dstTable.RemoveByPredicate(func(rule *renderer.ContivRule) bool {
-		if rule.Protocol != protocol {
-			return false
-		}
-		var ipAddr *net.IPNet
-		if rct.cache.orientation == EgressOrientation {
-			ipAddr = rule.SrcNetwork
-		} else {
-			ipAddr = rule.DestNetwork
-		}
-		if len(ipAddr.IP) == 0 {
-			return false
-		}
-		ones, bits := ipAddr.Mask.Size()
-		if ones != bits || !ipAddr.IP.Equal(srcPodIP.IP) {
-			return false
-		}
-		return true
-	})
-
-	// Add explicit rule for each allowed port from the intersection
-	// of ingress with egress.
-	for port := range allowedPorts {
-		newRule := &renderer.ContivRule{
-			Action:      renderer.ActionPermit,
-			SrcNetwork:  &net.IPNet{},
-			DestNetwork: &net.IPNet{},
-			SrcPort:     AnyPort,
-			DestPort:    port,
-			Protocol:    protocol,
-		}
-		if rct.cache.orientation == EgressOrientation {
-			newRule.SrcNetwork = srcPodIP
-		} else {
-			newRule.DestNetwork = srcPodIP
-		}
-		dstTable.InsertRule(newRule)
-	}
-
-	// Add the "deny-the-rest" rule.
-	newRule := &renderer.ContivRule{
-		Action:      renderer.ActionDeny,
+	ruleTemplate := &renderer.ContivRule{
+		Action:      renderer.ActionPermit,
 		SrcNetwork:  &net.IPNet{},
 		DestNetwork: &net.IPNet{},
 		SrcPort:     AnyPort,
@@ -626,11 +615,24 @@ func (rct *RendererCacheTxn) installAllowedPorts(dstTable *ContivRuleTable, srcP
 		Protocol:    protocol,
 	}
 	if rct.cache.orientation == EgressOrientation {
-		newRule.SrcNetwork = srcPodIP
+		ruleTemplate.SrcNetwork = srcPodIP
 	} else {
-		newRule.DestNetwork = srcPodIP
+		ruleTemplate.DestNetwork = srcPodIP
 	}
-	dstTable.InsertRule(newRule)
+
+	if allowedPorts.HasExplicit(AnyPort) {
+		// Allow all traffic for the given protocol.
+		dstTable.InsertRule(ruleTemplate)
+		return
+	}
+
+	// Add explicit rule for each allowed port from the intersection
+	// of ingress with egress.
+	for port := range allowedPorts {
+		newRule := ruleTemplate.Copy()
+		newRule.DestPort = port
+		dstTable.InsertRule(newRule)
+	}
 }
 
 // rebuildGlobalTable rebuilds the content of the global table for the current state
@@ -647,8 +649,7 @@ func (rct *RendererCacheTxn) rebuildGlobalTable() {
 
 	if rct.globalTable.NumOfRules > 0 {
 		// Default action is to allow everything.
-		rct.globalTable.InsertRule(rct.allowAllTCP())
-		rct.globalTable.InsertRule(rct.allowAllUDP())
+		rct.globalTable.InsertRule(rct.allowAll())
 	}
 }
 
@@ -688,26 +689,13 @@ func (rct *RendererCacheTxn) generateTableID() string {
 	return id
 }
 
-func (rct *RendererCacheTxn) allowAllTCP() *renderer.ContivRule {
-	ruleTCPAny := &renderer.ContivRule{
+func (rct *RendererCacheTxn) allowAll() *renderer.ContivRule {
+	return &renderer.ContivRule{
 		Action:      renderer.ActionPermit,
 		SrcNetwork:  &net.IPNet{},
 		DestNetwork: &net.IPNet{},
-		Protocol:    renderer.TCP,
+		Protocol:    renderer.ANY,
 		SrcPort:     0,
 		DestPort:    0,
 	}
-	return ruleTCPAny
-}
-
-func (rct *RendererCacheTxn) allowAllUDP() *renderer.ContivRule {
-	ruleUDPAny := &renderer.ContivRule{
-		Action:      renderer.ActionPermit,
-		SrcNetwork:  &net.IPNet{},
-		DestNetwork: &net.IPNet{},
-		Protocol:    renderer.UDP,
-		SrcPort:     0,
-		DestPort:    0,
-	}
-	return ruleUDPAny
 }

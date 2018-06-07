@@ -33,11 +33,12 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/contiv/vpp/cmd/contiv-stn/model/stn"
+	"path/filepath"
 )
 
 const (
-	defaultGRPCServerPort  = 50051 // port where the GRPC STN server listens for client connections
-	defaultStatusCheckPort = 9999  // port that STN server is checking to determine contive-agent liveness
+	defaultGRPCServerSocket = "/var/run/contiv/stn.sock" // socket file where the GRPC STN server listens for client connections
+	defaultStatusCheckPort  = 9999                       // port that STN server is checking to determine contiv-agent liveness
 
 	initStatusCheckTimeout = 30 * time.Second // initial timeout after which the STN server starts checking of the contiv-agent state
 	statusCheckInterval    = 1 * time.Second  // periodic interval in which the STN server checks for contiv-agent state
@@ -55,8 +56,8 @@ var (
 	// BuildDate contains date of the build, set by the Makefile using ldflags during build.
 	BuildDate string
 
-	grpcServerPort  = flag.Int("grpc", defaultGRPCServerPort, "port where the GRPC STN server listens for client connections")
-	statusCheckPort = flag.Int("statuscheck", defaultStatusCheckPort, "port that STN server is checking to determine contive-agent liveness")
+	grpcServerSocket = flag.String("grpc", defaultGRPCServerSocket, "socket file where the GRPC STN server listens for client connections")
+	statusCheckPort  = flag.Int("statuscheck", defaultStatusCheckPort, "port that STN server is checking to determine contive-agent liveness")
 )
 
 // stnServer represents an instance of the STN GRPC server.
@@ -405,7 +406,7 @@ func (s *stnServer) checkLinkState(ifData *interfaceData) {
 		if err == nil {
 			for _, r := range routes {
 				if r.String() == route.String() {
-					// succesfully configured
+					// successfully configured
 					matched = true
 					break
 				}
@@ -447,7 +448,7 @@ func (s *stnServer) findLinkByName(ifName string) (netlink.Link, error) {
 	return nil, nil
 }
 
-// setLinkUp moves provided link to UP state. It also checks whether the state change has been succesfull and retries if not.
+// setLinkUp moves provided link to UP state. It also checks whether the state change has been successful and retries if not.
 func (s *stnServer) setLinkUp(link netlink.Link) error {
 	log.Printf("Setting interface %s (idx %d) to UP state", link.Attrs().Name, link.Attrs().Index)
 
@@ -467,7 +468,7 @@ func (s *stnServer) setLinkUp(link netlink.Link) error {
 				return nil
 			}
 		}
-		// not configured succesfully
+		// not configured successfully
 		if i < configRetryCount-1 {
 			// wait & retry
 			log.Printf("Link UP check attempt %d failed, retry", i+1)
@@ -483,7 +484,7 @@ func (s *stnServer) setLinkUp(link netlink.Link) error {
 	return nil
 }
 
-// setLinkIP sets an IP address on provided link. It also checks whether the config has been succesfully applied and retries if not.
+// setLinkIP sets an IP address on provided link. It also checks whether the config has been successfully applied and retries if not.
 func (s *stnServer) setLinkIP(link netlink.Link, addr netlink.Addr) error {
 	log.Printf("Adding IP address %s to interface %s (idx %d)", addr.String(), link.Attrs().Name, link.Attrs().Index)
 
@@ -510,7 +511,7 @@ func (s *stnServer) setLinkIP(link netlink.Link, addr netlink.Addr) error {
 			}
 		}
 
-		// not configured succesfully
+		// not configured successfully
 		if i < configRetryCount-1 {
 			// wait & retry
 			log.Printf("IP address config check attempt %d failed, retry", i+1)
@@ -526,7 +527,7 @@ func (s *stnServer) setLinkIP(link netlink.Link, addr netlink.Addr) error {
 	return nil
 }
 
-// addLinkRoute adds a new route referring the provided link. It also checks whether the config has been succesfully applied and retries if not.
+// addLinkRoute adds a new route referring the provided link. It also checks whether the config has been successfully applied and retries if not.
 func (s *stnServer) addLinkRoute(link netlink.Link, route netlink.Route) error {
 	log.Printf("Adding route via interface %s: %v", link.Attrs().Name, route)
 
@@ -547,13 +548,13 @@ func (s *stnServer) addLinkRoute(link netlink.Link, route netlink.Route) error {
 		if err == nil {
 			for _, r := range routes {
 				if r.String() == route.String() {
-					// succesfully configured
+					// successfully configured
 					return nil
 				}
 			}
 		}
 
-		// not configured succesfully
+		// not configured successfully
 		if i < configRetryCount-1 {
 			// wait & retry
 			log.Printf("Route config check attempt %d failed, retry", i+1)
@@ -744,10 +745,15 @@ func main() {
 		log.Fatalf("failed to init ethtool: %v", err)
 	}
 
-	log.Printf("Starting the STN GRPC server at port %d", *grpcServerPort)
+	log.Printf("Starting the STN GRPC server at socket %s", *grpcServerSocket)
 
 	// init GRPC server
-	lis, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", *grpcServerPort))
+	if *grpcServerSocket == "" {
+		log.Fatalf("GRPC server socket file must be specified")
+	}
+	_ = os.Mkdir(filepath.Dir(*grpcServerSocket), 0700)
+	syscall.Unlink(*grpcServerSocket)
+	lis, err := net.Listen("unix", *grpcServerSocket)
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)
 	}
@@ -765,7 +771,7 @@ func main() {
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 	sig := <-sigs
-	log.Printf("%v signal recieved, exiting", sig)
+	log.Printf("%v signal received, exiting", sig)
 
 	// revert links and stop the server
 	server.revertAllLinks()

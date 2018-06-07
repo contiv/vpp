@@ -15,10 +15,14 @@
 
 # fail in case of error
 set -e
+# export all vars
+set -a
 
-# default values for build args and VPP commit ID
+# source VPP commit ID and repo URL
+source ../vpp.env
+
+# default values for build args
 export DOCKER_BUILD_ARGS=""
-export VPP_COMMIT_ID="2c3b8872ed12c4ce6cad24b640971ec7bd78c634"
 export SKIP_DEBUG_BUILD=0
 
 # override defaults from arguments

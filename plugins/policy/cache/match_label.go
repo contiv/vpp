@@ -21,8 +21,9 @@ import (
 	"github.com/contiv/vpp/plugins/policy/utils"
 )
 
-// getPodsByNSLabelSelector returns the pods that match a collection of Label Selectors in the same namespace
-func (pc *PolicyCache) getPodsByNSLabelSelector(namespace string, labels []*policymodel.Policy_Label) []string {
+// getMatchLabelPodsInsideNs returns the pods inside a given namespace that match a collection of Label Selectors.
+// (selectors are ANDed).
+func (pc *PolicyCache) getMatchLabelPodsInsideNs(namespace string, labels []*policymodel.Policy_Label) []string {
 	// Check if we have empty labels
 	if len(labels) == 0 {
 		return []string{}
@@ -44,8 +45,9 @@ func (pc *PolicyCache) getPodsByNSLabelSelector(namespace string, labels []*poli
 	return current
 }
 
-// getPodsByLabelSelector returns the pods that match a collection of Label Selectors
-func (pc *PolicyCache) getPodsByLabelSelector(labels []*policymodel.Policy_Label) []string {
+// getPodsByNsLabelSelector returns all pods from namespaces that match a collection of Namespace (cluster scoped-labels)
+// Label Selectors (label selectors are ANDed).
+func (pc *PolicyCache) getPodsByNsLabelSelector(labels []*policymodel.Policy_Label) []string {
 	// Check if we have empty labels
 	if len(labels) == 0 {
 		return []string{}

@@ -1,154 +1,409 @@
 #!/bin/bash
 
-#################################################################
-# Example Usage
-# contiv-vpp-bug-report.sh <cluster-master-node> [<user-id>]
-# <cluster-master-node>: IP address of K8s master node 
-# <user-id>:             User id used to login to the k8s master
-#################################################################
+# Collect debug information to diagnose Contiv-VPP problems.
 
 set -euo pipefail
 
-get_vpp_data() {
-  echo "    . $2"
-  ssh -t $SSH_OPTS "$SSH_USER"@"$NODE" echo $1 \| sudo nc -U /run/vpp/cli.sock \> /tmp/$REPORT_DIR/vpp-$2.txt 2>/dev/null || true
-}
-
 usage() {
-  echo ""
-  echo "usage: $0 -m <k8s-master-node> [-u <user>] "
-  echo "        [-f <ssh-config-file>]"
-  echo ""
-  echo "<k8s-master-node>: IP address or name of the k8s master node from"
-  echo "        which to retrieve the debug data."
-  echo "<user>: optional username to login into the k8s master node. If"
-  echo "        no username is specified, the current user will be used."
-  echo "        The user must have passwordless access to the k8s master"
-  echo "        node, and must be able to execute passwordless sudo. If"
-  echo "        logging into a node created by vagrant, specify username"
-  echo "        vagrant'."
-  echo "ssh-config-file: optional path to ssh configuration file. The ssh"
-  echo "        configuration file must be specified when logging into"
-  echo "        vagrant nodes."
+    echo "Usage: $0 [OPTION]..."
+    echo
+    echo "Available options:"
+    echo
+    echo "-a                     Do not archive the report into a tar file, keep the"
+    echo "                       contents in the report directory."
+    echo
+    echo "-f <ssh-config-file>   Path to optional ssh configuration file. The ssh"
+    echo "                       configuration file must be specified when logging into"
+    echo "                       vagrant nodes."
+    echo
+    echo "-h                     Display this help message."
+    echo
+    echo "-i <ssh-key-file>      Path to optional path ssh private key file."
+    echo
+    echo "-m <k8s-master-node>   IP address or name of the k8s master node from which to"
+    echo "                       ssh to retrieve the debug data. If not specified, it is"
+    echo "                       assumed that this script is being ran from the master."
+    echo
+    echo "-r <report-directory>  Generate report in this directory, instead of"
+    echo "                       generating one ourselves."
+    echo
+    echo "-s                     Only gather data which can be obtained without calling"
+    echo "                       ssh to another host."
+    echo
+    echo "-u <user>              Username to login into the k8s nodes. If not specified,"
+    echo "                       the current user will be used. The user must be able to"
+    echo "                       login to the at least the k8s master node without a"
+    echo "                       password, and be able to run sudo without a password."
+    echo "                       If the user can login to the other nodes, additional"
+    echo "                       information will be gathered via ssh, unless -l is"
+    echo "                       used. If logging into a node created by vagrant, specify"
+    echo "                       the username 'vagrant'."
+    echo
+    echo "-w                     Do not print script usage warnings."
+
 }
 
-num_args=$#
+# Put args in single quotes, escaping existing single and double quotes, to allow us to safely pass strings through a
+# shell.
+shell_quote() {
+    for arg in "$@"
+    do
+        echo -n "'${arg//\'/\'\"\'\"\'}' "
+    done
+    echo
+}
 
+master_kubectl() {
+    # Any log we pull might fail, so by default we don't kill the script.
+    if [ -n "$MASTER" ]
+    then
+        # The first set of quotes on the kubectl command get us past this shell, and shell_quote is used to properly
+        # escape us through the remote shell.
+        ssh "$SSH_USER@$MASTER" "${SSH_OPTS[@]}" "$(shell_quote kubectl "$@")" || true
+    else
+        kubectl "$@" || true
+    fi
+}
 
-while getopts "h?f:m:u:" opt; do
+get_vpp_data_k8s() {
+    log="$1"
+    shift
+    echo " - vppctl $*"
+    # We need to call out /usr/bin/vppctl because /usr/local/bin/vppctl is a wrapper script that doesn't work inside the
+    # container.
+    master_kubectl exec "$POD_NAME" -n kube-system -c contiv-vswitch /usr/bin/vppctl "$@" > "$log"
+}
+
+get_vpp_data_local() {
+    log="$1"
+    shift
+    echo " - vppctl $*"
+    # Some versions of the vppctl wrapper script check if stdin is a terminal to setup a pseudo tty with docker.
+    # Since we don't want that, make sure stdin isn't.
+    sudo vppctl "$@" > "$log" </dev/null || true
+}
+
+get_shell_data_k8s() {
+    log="$1"
+    shift
+    echo " - $*"
+    master_kubectl exec "$POD_NAME" -n kube-system -- sh -c "$@" > "$log"
+}
+
+get_shell_data_local() {
+    log="$1"
+    shift
+    echo " - $*"
+    "$@" > "$log" || true
+}
+
+get_shell_data_ssh() {
+    log="$1"
+    shift
+    echo " - $*"
+    ssh "$SSH_USER@$NODE_NAME" "${SSH_OPTS[@]}" "$@" > "$log" || true
+}
+
+get_k8s_data() {
+    log="$1"
+    shift
+    echo " - kubectl $*"
+    master_kubectl "$@"> "$log"
+}
+
+# We need associative arrays, introduced back in 2009 with bash 4.x.
+if ! declare -A TEST_ARRAY >/dev/null 2>&1
+then
+    echo "Error: Your /bin/bash is too old. This script needs at least bash 4.x." >&2
+    echo "If you have a newer bash installed elsewhere, you can use it manually:" >&2
+    echo "/path/to/new/bash $0" >&2
+    exit 1
+fi
+
+# Using an array allows proper handling of paths with whitespace.
+SSH_OPTS=(-o LogLevel=error -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no)
+HAVE_K8S_CONNECTIVITY=1
+MASTER=
+SSH_USER=$LOGNAME
+SSH_CONFIG_FILE=
+SSH_KEY_FILE=
+USE_SSH=1
+ARCHIVE=1
+WARNINGS=1
+TIMESTAMP="$(date '+%Y-%m-%d-%H-%M')"
+REPORT_DIR="contiv-vpp-bug-report-$TIMESTAMP"
+STDERR_LOGFILE="script-stderr.log"
+
+# What we want to collect is defined globally in arrays, because sometimes we need to use multiple methods of
+# collection.  The array key is the name of the log file for the given command.
+
+declare -A VPP_COMMANDS
+VPP_COMMANDS["vpp-interface.log"]="sh int"
+VPP_COMMANDS["vpp-interface-address.log"]="sh int addr"
+VPP_COMMANDS["vpp-ip-fib.log"]="sh ip fib"
+VPP_COMMANDS["vpp-l2-fib.log"]="sh l2fib verbose"
+VPP_COMMANDS["vpp-ip-arp.log"]="sh ip arp"
+VPP_COMMANDS["vpp-vxlan-tunnels.log"]="sh vxlan tunnel"
+VPP_COMMANDS["vpp-nat44-interfaces.log"]="sh nat44 interfaces"
+VPP_COMMANDS["vpp-nat44-static-mappings.log"]="sh nat44 static mappings"
+VPP_COMMANDS["vpp-nat44-addresses.log"]="sh nat44 addresses"
+VPP_COMMANDS["vpp-nat44-deterministic-mappings.log"]="sh nat44 deterministic mappings"
+VPP_COMMANDS["vpp-nat44-deterministic-sessions.log"]="sh nat44 deterministic sessions"
+VPP_COMMANDS["vpp-nat44-deterministic-timeouts.log"]="sh nat44 deterministic timeouts"
+VPP_COMMANDS["vpp-nat44-hash-tables.log"]="sh nat44 hash tables detail"
+VPP_COMMANDS["vpp-nat44-sessions.log"]="sh nat44 sessions detail"
+VPP_COMMANDS["vpp-acls.log"]="sh acl-plugin acl"
+VPP_COMMANDS["vpp-hardware-info.log"]="sh hardware-interfaces"
+VPP_COMMANDS["vpp-errors.log"]="sh errors"
+# The api trace data is not being retrieved for now, because of a vpp crash when dump trace is invoked. This will be
+# re-enabled when the bug is fixed.
+#VPP_COMMANDS["api-trace-save.log"]="api trace save trace.api"
+#VPP_COMMANDS["api-trace-dump.log"]="api trace custom-dump /tmp/trace.api"
+
+declare -A LOCAL_COMMANDS
+LOCAL_COMMANDS["linux-ip-route.log"]="ip route"
+LOCAL_COMMANDS["contiv-stn.log"]='CONTAINER=$(sudo docker ps --filter name=contiv-stn --format "{{.ID}}") && [ -n "$CONTAINER" ] && sudo docker logs "$CONTAINER"'
+
+declare -A ETCD_COMMANDS
+ETCD_COMMANDS["etcd-tree.log"]="export ETCDCTL_API=3 && etcdctl --endpoints=127.0.0.1:32379 get / --prefix=true"
+
+declare -A K8S_COMMANDS
+K8S_COMMANDS["k8s-vpp-config-maps.yaml"]="describe configmaps -n kube-system contiv-agent-cfg"
+K8S_COMMANDS["k8s-nodes.txt"]="get nodes -o wide"
+K8S_COMMANDS["k8s-pods.txt"]="get pods -o wide --all-namespaces"
+K8S_COMMANDS["k8s-services.txt"]="get services -o wide --all-namespaces"
+K8S_COMMANDS["k8s-networkpolicy.txt"]="get networkpolicy -o wide --all-namespaces"
+K8S_COMMANDS["k8s-statefulsets.txt"]="get statefulsets -o wide --all-namespaces"
+K8S_COMMANDS["k8s-daemonsets.txt"]="get daemonsets -o wide --all-namespaces"
+
+while getopts "af:hi:m:r:su:w" opt
+do
     case "$opt" in
-    h|\?)
+    a)  ARCHIVE=0
+        ;;
+    f)  SSH_CONFIG_FILE=$(realpath "$OPTARG")
+        ;;
+    h)
         usage
         exit 0
         ;;
-    f)  SSH_CONFIG_FILE=$OPTARG
+    i)  SSH_KEY_FILE=$OPTARG
+        ;;
+    m)  MASTER=$OPTARG
+        ;;
+    r)  REPORT_DIR=$OPTARG
+        ;;
+    s)  USE_SSH=0
         ;;
     u)  SSH_USER=$OPTARG
         ;;
-    m)  MASTER=$OPTARG
+    w)  WARNINGS=0
+        ;;
+    *)
+        # getopts will have already displayed a "illegal option" error.
+        echo
+        usage
+        exit 1
         ;;
     esac
 done
 
-if [ -z "${MASTER+xxx}" ] ; then
-    echo "Error - Master node must be specified"
+if [ -n "$MASTER" -a "$USE_SSH" = "0" ]
+then
+    echo "Error: Conflicting options -m and -s, choose only one." >&2
     exit 1
 fi
 
-if [ -z "${SSH_USER+xxx}" ] ; then
-    SSH_USER=$(whoami)
-elif [ "$SSH_USER" == "vagrant" ] ; then
-        if [ -z "${SSH_CONFIG_FILE+xxx}" ] ; then
-        echo "Error - ssh configuration file must be specified when using vagrant"
+if [ -z "$MASTER" ] && ! kubectl version >/dev/null 2>&1
+then
+    HAVE_K8S_CONNECTIVITY=0
+    if [ "$WARNINGS" = "1" ]
+    then
+        echo >&2
+        echo "WARNING: Cannot contact kubernetes using kubectl. Only minimal local data" >&2
+        echo "will be collected. Did you mean to specify a master with -m?" >&2
+        echo >&2
     fi
 fi
 
-if [ -z "${SSH_CONFIG_FILE+xxx}" ]; then
-    SSH_OPTS=""
-else
-    SSH_OPTS="-F $SSH_CONFIG_FILE"
+if [ "$SSH_USER" == "vagrant" -a -z "$SSH_CONFIG_FILE" -a "$WARNINGS" = "1" ]
+then
+    echo >&2
+    echo "WARNING: You specified a remote user of 'vagrant', but did not specify a" >&2
+    echo "ssh configuration file with the -f option.  There's a good chance this" >&2
+    echo "won't work." >&2
+    echo >&2
 fi
 
-echo "$SSH_OPTS"
+if [ -n "$SSH_CONFIG_FILE" ]
+then
+    SSH_OPTS=("${SSH_OPTS[@]}" -F "$SSH_CONFIG_FILE")
+fi
+if [ -n "$SSH_KEY_FILE" ]
+then
+    SSH_OPTS=("${SSH_OPTS[@]}" -i "$SSH_KEY_FILE")
+fi
 
-
-STAMP="$(date "+%Y-%m-%d-%H-%M")"
-REPORT_DIR="contiv-vpp-bugreport-$STAMP"
 mkdir -p "$REPORT_DIR"
+pushd "$REPORT_DIR" >/dev/null
 
-vswitch_pods="$(ssh "$SSH_USER"@"$MASTER" $SSH_OPTS kubectl get po -n kube-system -l k8s-app=contiv-vswitch -o go-template=\'{{range .items}}{{printf \"%s,%s \" \(index .metadata\).name \(index .spec\).nodeName}}{{end}}\')"
-echo vswitch_pods $vswitch_pods
+# Users running this script won't know what to do with any errors, so assemble anything on stderr into a log for us
+# to be able to examine.
+exec 2> "$STDERR_LOGFILE"
+# To help figure out what has failed, do a trace for this script (which will only get sent to the above log file).
+set -x
 
-for p in $vswitch_pods; do
-  IFS=',' read -r -a fields <<< "$p"
-  echo "Collecting logs for vswitch" \'"${fields[0]}"\'  "on node" \'"${fields[1]}"\'
-  mkdir "$REPORT_DIR"/"${fields[1]}"
-  set +e
-  ssh "$SSH_USER"@"$MASTER" $SSH_OPTS kubectl logs "${fields[0]}" -n kube-system -c contiv-vswitch > "$REPORT_DIR"/"${fields[1]}"/"${fields[0]}".log
-  if [ $? -ne 0 ]; then
-    rm "$REPORT_DIR"/"${fields[1]}"/"${fields[0]}".log
-  fi
-  ssh "$SSH_USER"@"$MASTER" $SSH_OPTS kubectl logs "${fields[0]}" -n kube-system -c contiv-vswitch -p > "$REPORT_DIR"/"${fields[1]}"/"${fields[0]}"-previous.log 2>/dev/null
-  if [ $? -ne 0 ]; then
-    rm "$REPORT_DIR"/"${fields[1]}"/"${fields[0]}"-previous.log
-  fi
-  set -e
+if [ "$HAVE_K8S_CONNECTIVITY" = "1" ]
+then
+    echo "Collecting global Kubernetes data:"
+    for CMD_INDEX in "${!K8S_COMMANDS[@]}"
+    do
+        # Intentional word split on command, because bash doesn't support arrays of arrays.
+        get_k8s_data "$CMD_INDEX" ${K8S_COMMANDS[$CMD_INDEX]}
+    done
+    echo
+
+    master_kubectl get po -n kube-system --no-headers -o \
+        'custom-columns=A:.spec.nodeName,B:.metadata.name,C:.spec.containers[*].name,D:.spec.initContainers[*].name' \
+        | sed -e 's|<none>$||g' | while
+        read NODE_NAME POD_NAME CONTAINERS
+    do
+        if ! grep -q '^contiv-' <<< "$POD_NAME"
+        then
+            continue
+        fi
+
+        echo "Collecting Kubernetes data for pod $POD_NAME on node $NODE_NAME:"
+        mkdir -p "$NODE_NAME"
+        pushd "$NODE_NAME" >/dev/null
+
+        for CONTAINER in ${CONTAINERS//,/ }
+        do
+            get_k8s_data "$POD_NAME-$CONTAINER.log" logs "$POD_NAME" -n kube-system -c "$CONTAINER" </dev/null
+            get_k8s_data "$POD_NAME-$CONTAINER-previous.log" logs "$POD_NAME" -n kube-system -c "$CONTAINER" -p </dev/null
+            # No need to create empty previous logs, it just clutters things up.
+            if [ ! -s "$POD_NAME-$CONTAINER-previous.log" ]
+            then
+                rm -f "$POD_NAME-$CONTAINER-previous.log"
+            fi
+        done
+
+        if grep -q '^contiv-vswitch' <<< "$POD_NAME"
+        then
+            for CMD_INDEX in "${!VPP_COMMANDS[@]}"
+            do
+                get_vpp_data_k8s "$CMD_INDEX" "${VPP_COMMANDS[$CMD_INDEX]}" </dev/null
+            done
+        fi
+
+        if grep -q '^contiv-etcd' <<< "$POD_NAME"
+        then
+            for CMD_INDEX in "${!ETCD_COMMANDS[@]}"
+            do
+                get_shell_data_k8s "$CMD_INDEX" "${ETCD_COMMANDS[$CMD_INDEX]}" </dev/null
+            done
+        fi
+
+        echo
+        popd >/dev/null
+    done
+
+    if [ "$USE_SSH" = "1" ]
+    then
+        master_kubectl get nodes --no-headers -o 'custom-columns=A:.metadata.name,B:.status.addresses[0].address' \
+            | sed -e 's|<none>$||g' | while
+            read NODE_NAME NODE_IP
+        do
+            echo "Collecting local data for node $NODE_NAME:"
+            mkdir -p "$NODE_NAME"
+            pushd "$NODE_NAME" >/dev/null
+            # When we don't have a ssh config file, use the IP instead of the name to handle the case where the machine running
+            # this script cannot resolve the cluster hostnames.
+            if [ -z "${SSH_CONFIG_FILE-}" ]
+            then
+                NODE_NAME="$NODE_IP"
+            fi
+
+            for CMD_INDEX in "${!LOCAL_COMMANDS[@]}"
+            do
+                # Intentional word split on command, because bash doesn't support arrays of arrays.
+                get_shell_data_ssh "$CMD_INDEX" ${LOCAL_COMMANDS[$CMD_INDEX]} </dev/null
+            done
+
+            echo
+            popd >/dev/null
+        done
+    elif [ -z "$MASTER" ]
+    then
+        mkdir -p localhost
+        pushd localhost >/dev/null
+
+        echo "Running local commands for this host only:"
+        for CMD_INDEX in "${!LOCAL_COMMANDS[@]}"
+        do
+            # Intentional word split on command, because bash doesn't support arrays of arrays.
+            get_shell_data_local "$CMD_INDEX" ${LOCAL_COMMANDS[$CMD_INDEX]}
+        done
+
+        echo
+        popd >/dev/null
+    fi
+fi
+
+if [ "$HAVE_K8S_CONNECTIVITY" = "0" ]
+then
+    mkdir -p localhost
+    pushd localhost >/dev/null
+
+    echo "Collecting VPP data for this host only:"
+    for CMD_INDEX in "${!VPP_COMMANDS[@]}"
+    do
+        get_vpp_data_local "$CMD_INDEX" "${VPP_COMMANDS[$CMD_INDEX]}"
+    done
+    echo
+
+    echo "Running local commands for this host only:"
+    for CMD_INDEX in "${!LOCAL_COMMANDS[@]}"
+    do
+        # Intentional word split on command, because bash doesn't support arrays of arrays.
+        get_shell_data_local "$CMD_INDEX" ${LOCAL_COMMANDS[$CMD_INDEX]}
+    done
+
+    echo
+    popd >/dev/null
+fi
+
+# Since we are redirecting stderr during data collection, the user won't see SSH errors.  Give them a clue if we have
+# failures.
+SSH_ERROR=0
+for MSG in 'Permission denied (publickey)' 'ssh: Could not resolve hostname'
+do
+    # We need to match from the beginning of the line, otherwise we'll match the grep command itself.
+    if grep -q "^$MSG" "$STDERR_LOGFILE"
+    then
+        SSH_ERROR=1
+        # Can't print this error to stderr since we are redirecting stderr to the log file.
+        echo "Warning: At least one '$MSG' error found in $REPORT_DIR/$STDERR_LOGFILE."
+    fi
 done
+if [ "$SSH_ERROR" = "1" ]
+then
+    echo "Are you sure your arguments are correct?"
+    echo
+fi
 
-echo ""
-
-echo "Getting Kubernetes data:"
-echo " - configmaps"
-ssh "$SSH_USER"@"$MASTER" $SSH_OPTS kubectl describe configmaps -n kube-system contiv-agent-cfg > "$REPORT_DIR"/vpp.yaml 2>/dev/null
-echo " - nodes"
-ssh "$SSH_USER"@"$MASTER" $SSH_OPTS kubectl get nodes -o wide >  "$REPORT_DIR"/k8s-nodes.txt 2>/dev/null
-echo " - pods"
-ssh "$SSH_USER"@"$MASTER" $SSH_OPTS kubectl get pods -o wide --all-namespaces > "$REPORT_DIR"/k8s-pods.txt 2>/dev/null
-echo " - services"
-ssh "$SSH_USER"@"$MASTER" $SSH_OPTS kubectl get services -o wide --all-namespaces > "$REPORT_DIR"/k8s-services.txt 2>/dev/null
-echo " - networkpolicy"
-ssh "$SSH_USER"@"$MASTER" $SSH_OPTS kubectl get networkpolicy -o wide --all-namespaces > "$REPORT_DIR"/k8s-policies.txt 2>/dev/null
-echo ""
-
-nodes="$(ssh "$SSH_USER"@"$MASTER" $SSH_OPTS kubectl get nodes -o go-template=\'{{range .items}}{{printf \"%s,%s \" \(index .status.addresses 0\).address \(index .metadata\).name}}{{end}}\')"
-for n in $nodes; do
-  IFS=',' read -r -a fields <<< "$n"
-    if [ $SSH_USER == "vagrant" ] ; then
-    NODE="${fields[1]}"
-  else
-    NODE="${fields[0]}"
-  fi
-
-  echo Getting data from \'"${fields[1]}"\':
-  ssh "$SSH_USER"@"$NODE" $SSH_OPTS mkdir /tmp/"$REPORT_DIR"
-
-  echo " - VPP:"
-  # get_vpp_data <target-vpp-command> <file-name-string>
-  get_vpp_data "sh int" interface
-  get_vpp_data "sh int addr" interface-address
-  get_vpp_data "sh ip fib" ip-fib
-  get_vpp_data "sh l2fib verbose" l2-fib
-  get_vpp_data "sh ip arp" ip-arp
-  get_vpp_data "sh vxlan tunnel" vxlan-tunnels
-  get_vpp_data "sh nat44 interfaces" nat44-interfaces
-  get_vpp_data "sh nat44 static mappings" nat44-static-mappings
-  get_vpp_data "sh nat44 sessions detail" nat44-sessions
-  get_vpp_data "sh acl-plugin acl" acls
-  get_vpp_data "sh hardware-interfaces" hardware-info
-  get_vpp_data "sh errors" errors
-  get_vpp_data "api trace save trace.api" api-trace
-  get_vpp_data "api trace custom-dump /tmp/trace.api" api-trace
-
-  echo " - Logs for contiv-stn"
-  ssh -t $SSH_OPTS "$SSH_USER@$NODE" 'sudo docker logs $(sudo docker ps --filter name=contiv-stn --format "{{.ID}}")' \> /tmp/$REPORT_DIR/contiv-stn.log 2>/dev/null || true
-
-
-  ssh "$SSH_USER"@"$NODE" $SSH_OPTS tar -cC /tmp/"$REPORT_DIR"/ . | tar -xC "$REPORT_DIR"/${fields[1]} 2>/dev/null
-
-  echo ""
-done
-
-echo "Creating tar file"
-tar -z -cvf "$REPORT_DIR".tgz "$REPORT_DIR" >/dev/null
-rm -rf "$REPORT_DIR"
-echo "Done."
+popd >/dev/null
+if [ "$ARCHIVE" = "1" ]
+then
+    echo "Creating tar file $REPORT_DIR.tgz..."
+    tar -zcf "$REPORT_DIR.tgz" "$REPORT_DIR"
+    if [ "$SSH_ERROR" = "0" ]
+    then
+        rm -rf "$REPORT_DIR"
+    else
+        echo "Warning: Disabling automatic deletion of $REPORT_DIR directory due to above warning."
+    fi
+    echo "Report finished.  Output is in the file $REPORT_DIR.tgz."
+else
+    echo "Report finished.  Output is in the directory $REPORT_DIR."
+fi

@@ -712,7 +712,7 @@
     "utils/safeclose",
     "utils/structs"
   ]
-  revision = "e5bff3cae460e0e45770b9840ddf863da8540d72"
+  revision = "441419d0105e188a473a6fcf7f0de09bf9532fa6"
 
 [[projects]]
   name = "github.com/ligato/vpp-agent"
@@ -787,7 +787,7 @@
     "plugins/linuxplugin/l3plugin/linuxcalls",
     "plugins/linuxplugin/nsplugin"
   ]
-  revision = "0a771d5bfcd355faa7dc2f25eba0e3e6e2c7057d"
+  revision = "022c3e91fcd2cfa1b584a34ca6f4dbd223fda810"
 
 [[projects]]
   branch = "master"
@@ -838,7 +838,7 @@
 [[projects]]
   name = "github.com/nerdtakula/supervisor"
   packages = ["."]
-  revision = "5bf894f54fd79a23fa965bf078b2a094a9d9e20b"
+  revision = "857e93729bfa62df91dcdd3d36c9ac7036edf20a"
 
 [[projects]]
   name = "github.com/onsi/gomega"
@@ -1637,6 +1637,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "7366c6bb17839a6807b660d1eef150668e4369134498e305fa911ff894459238"
+  inputs-digest = "0bae4a111ce5a0f53cc99c6fcfa3bc0959788c68b9c85b0790caeb479c052a0a"
   solver-name = "gps-cdcl"
   solver-version = 1

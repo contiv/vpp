@@ -17,11 +17,13 @@ package main
 import (
 	"context"
 	"flag"
-	"fmt"
 	"io/ioutil"
+	"net"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
+	"time"
 
 	"github.com/ghodss/yaml"
 	"github.com/nerdtakula/supervisor"
@@ -34,24 +36,24 @@ import (
 
 	"github.com/contiv/vpp/cmd/contiv-stn/model/stn"
 	"github.com/contiv/vpp/plugins/contiv"
-	"strings"
 )
 
 const (
-	defaultContivCfgFile  = "/etc/agent/contiv.yaml"
-	defaultEtcdCfgFile    = "/etc/etcd/etcd.conf"
-	defaultSupervisorPort = 9001
-	defaultStnServerPort  = 50051
+	defaultContivCfgFile    = "/etc/agent/contiv.yaml"
+	defaultEtcdCfgFile      = "/etc/etcd/etcd.conf"
+	defaultSupervisorSocket = "/run/supervisor.sock"
+	defaultStnServerSocket  = "/var/run/contiv/stn.sock"
+	defaultCNISocketFile    = "/var/run/contiv/cni.sock"
 
 	vppProcessName         = "vpp"
 	contivAgentProcessName = "contiv-agent"
 )
 
 var (
-	contivCfgFile  = flag.String("contiv-config", defaultContivCfgFile, "location of the contiv-agent config file")
-	etcdCfgFile    = flag.String("etcd-config", defaultEtcdCfgFile, "location of the ETCD config file")
-	supervisorPort = flag.Int("supervisor-port", defaultSupervisorPort, "management port of the supervisor process")
-	stnServerPort  = flag.Int("stn-server-port", defaultStnServerPort, "port where STN GRPC server listens for connections")
+	contivCfgFile    = flag.String("contiv-config", defaultContivCfgFile, "location of the contiv-agent config file")
+	etcdCfgFile      = flag.String("etcd-config", defaultEtcdCfgFile, "location of the ETCD config file")
+	supervisorSocket = flag.String("supervisor-socket", defaultSupervisorSocket, "management API socket file of the supervisor process")
+	stnServerSocket  = flag.String("stn-server-socket", defaultStnServerSocket, "socket file where STN GRPC server listens for connections")
 )
 
 var logger logging.Logger // global logger
@@ -67,9 +69,8 @@ func stealNIC(nicName string, useDHCP bool) (*stn.STNReply, error) {
 	logger.Debugf("Stealing the NIC: %s", nicName)
 
 	// connect to STN GRPC server
-	conn, err := grpc.Dial(fmt.Sprintf(":%d", *stnServerPort), grpc.WithInsecure())
+	conn, err := stnGrpcConnect()
 	if err != nil {
-		logger.Errorf("Unable to connect to STN GRPC: %v", err)
 		return nil, err
 	}
 	defer conn.Close()
@@ -94,9 +95,8 @@ func releaseNIC(nicName string, useDHCP bool) error {
 	logger.Debugf("Releasing the NIC: %s", nicName)
 
 	// connect to STN GRPC server
-	conn, err := grpc.Dial(fmt.Sprintf(":%d", *stnServerPort), grpc.WithInsecure())
+	conn, err := stnGrpcConnect()
 	if err != nil {
-		logger.Errorf("Unable to connect to STN GRPC: %v", err)
 		return err
 	}
 	defer conn.Close()
@@ -116,8 +116,23 @@ func releaseNIC(nicName string, useDHCP bool) error {
 	return nil
 }
 
+// grpcConnect connects to STN GRPC server.
+func stnGrpcConnect() (*grpc.ClientConn, error) {
+	dialer := grpc.WithDialer(func(addr string, timeout time.Duration) (net.Conn, error) {
+		return net.DialTimeout("unix", addr, timeout)
+	})
+
+	conn, err := grpc.Dial(*stnServerSocket, grpc.WithInsecure(), dialer)
+	if err != nil {
+		logger.Errorf("Unable to connect to STN GRPC: %v", err)
+		return nil, err
+	}
+
+	return conn, nil
+}
+
 // parseSTNConfig parses the config file and looks up for STN configuration.
-// In case that STN was requested for this node, returns the interface to be stealed and optionally its name on VPP.
+// In case that STN was requested for this node, returns the interface to be stolen and optionally its name on VPP.
 func parseSTNConfig() (config *contiv.Config, nicToSteal string, useDHCP bool, err error) {
 
 	// read config YAML
@@ -127,11 +142,11 @@ func parseSTNConfig() (config *contiv.Config, nicToSteal string, useDHCP bool, e
 		return
 	}
 
-	// unmarshall the YAML
+	// unmarshal the YAML
 	config = &contiv.Config{}
 	err = yaml.Unmarshal(yamlFile, config)
 	if err != nil {
-		logger.Errorf("Error by unmarshaling YAML: %v", err)
+		logger.Errorf("Error by unmarshalling YAML: %v", err)
 		return
 	}
 	if config.TAPInterfaceVersion == 0 {
@@ -224,7 +239,7 @@ func main() {
 	}
 
 	// connect to supervisor API
-	client := supervisor.New("localhost", *supervisorPort, "", "")
+	client := supervisor.New(*supervisorSocket, 0, "", "")
 
 	// start VPP
 	logger.Debug("Starting VPP")
@@ -235,6 +250,12 @@ func main() {
 	}
 
 	if nicToSteal != "" {
+		// Check if the STN Daemon has been initialized
+		if stnData == nil {
+			logger.Errorf("STN configured in vswitch, but STN Daemon not initialized")
+			os.Exit(-1)
+		}
+
 		// configure connectivity on VPP
 		vppCfg, err := configureVpp(contivCfg, stnData, useDHCP)
 		if err != nil {
@@ -254,6 +275,9 @@ func main() {
 
 	// start contiv-agent
 	logger.Debugf("Starting contiv-agent")
+	// remove CNI server socket file
+	// TODO: this should be done automatically by CNI-infra before socket bind, remove once implemented
+	os.Remove(defaultCNISocketFile)
 	_, err = client.StartProcess(contivAgentProcessName, false)
 	if err != nil {
 		logger.Errorf("Error by starting contiv-agent process: %v", err)
@@ -265,7 +289,7 @@ func main() {
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 	sig := <-sigs
-	logger.Debug("%v signal recieved, exiting", sig)
+	logger.Debugf("%v signal received, exiting", sig)
 
 	// request releasing the NIC
 	if nicToSteal != "" {

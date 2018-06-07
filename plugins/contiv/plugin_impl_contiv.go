@@ -30,6 +30,7 @@ import (
 	"github.com/contiv/vpp/plugins/contiv/containeridx/model"
 	"github.com/contiv/vpp/plugins/contiv/ipam"
 	"github.com/contiv/vpp/plugins/contiv/model/cni"
+	"github.com/contiv/vpp/plugins/contiv/model/node"
 	protoNode "github.com/contiv/vpp/plugins/ksr/model/node"
 	"github.com/contiv/vpp/plugins/kvdbproxy"
 	"github.com/ligato/cn-infra/datasync"
@@ -45,7 +46,7 @@ import (
 	"github.com/ligato/vpp-agent/plugins/govppmux"
 )
 
-// Plugin represents the instance of the Contiv network plugin, that transforms CNI requests recieved over
+// Plugin represents the instance of the Contiv network plugin, that transforms CNI requests received over
 // GRPC into configuration for the vswitch VPP in order to connect/disconnect a container into/from the network.
 type Plugin struct {
 	Deps
@@ -96,7 +97,13 @@ type Config struct {
 	MTUSize                    uint32
 	StealFirstNIC              bool
 	StealInterface             string
-	NatExternalTraffic         bool // if enabled, traffic with cluster-outside destination is SNATed on node output (for all nodes)
+	STNSocketFile              string
+	NatExternalTraffic         bool   // if enabled, traffic with cluster-outside destination is SNATed on node output (for all nodes)
+	CleanupIdleNATSessions     bool   // if enabled, the agent will periodically check for idle NAT sessions and delete inactive ones
+	TCPNATSessionTimeout       uint32 // NAT session timeout (in minutes) for TCP connections, used in case that CleanupIdleNATSessions is turned on
+	OtherNATSessionTimeout     uint32 // NAT session timeout (in minutes) for non-TCP connections, used in case that CleanupIdleNATSessions is turned on
+	ScanIPNeighbors            bool   // if enabled, periodically scans and probes IP neighbors to maintain the ARP table
+	ServiceLocalEndpointWeight uint8
 	IPAMConfig                 ipam.Config
 	NodeConfig                 []OneNodeConfig
 }
@@ -156,7 +163,7 @@ func (plugin *Plugin) Init() error {
 	plugin.resyncCh = make(chan datasync.ResyncEvent)
 	plugin.changeCh = make(chan datasync.ChangeEvent)
 
-	plugin.nodeIDwatchReg, err = plugin.Watcher.Watch("contiv-plugin-ids", plugin.nodeIDSchangeChan, plugin.nodeIDsresyncChan, AllocatedIDsKeyPrefix)
+	plugin.nodeIDwatchReg, err = plugin.Watcher.Watch("contiv-plugin-ids", plugin.nodeIDSchangeChan, plugin.nodeIDsresyncChan, node.AllocatedIDsKeyPrefix)
 	if err != nil {
 		return err
 	}
@@ -212,7 +219,7 @@ func (plugin *Plugin) AfterInit() error {
 func (plugin *Plugin) Close() error {
 	plugin.ctxCancelFunc()
 	plugin.cniServer.close()
-	plugin.nodeIDAllocator.releaseID()
+	//plugin.nodeIDAllocator.releaseID()
 	_, err := safeclose.CloseAll(plugin.govppCh, plugin.nodeIDwatchReg, plugin.watchReg)
 	return err
 }
@@ -283,6 +290,11 @@ func (plugin *Plugin) IsTCPstackDisabled() bool {
 	return plugin.Config.TCPstackDisabled
 }
 
+// InSTNMode returns true if Contiv operates in the STN mode (single interface for each node).
+func (plugin *Plugin) InSTNMode() bool {
+	return plugin.cniServer.UseSTN()
+}
+
 // NatExternalTraffic returns true if traffic with cluster-outside destination should be S-NATed
 // with node IP before being sent out from the node.
 func (plugin *Plugin) NatExternalTraffic() bool {
@@ -291,6 +303,26 @@ func (plugin *Plugin) NatExternalTraffic() bool {
 		return true
 	}
 	return false
+}
+
+// CleanupIdleNATSessions returns true if cleanup of idle NAT sessions is enabled.
+func (plugin *Plugin) CleanupIdleNATSessions() bool {
+	return plugin.Config.CleanupIdleNATSessions
+}
+
+// GetTCPNATSessionTimeout returns NAT session timeout (in minutes) for TCP connections, used in case that CleanupIdleNATSessions is turned on.
+func (plugin *Plugin) GetTCPNATSessionTimeout() uint32 {
+	return plugin.Config.TCPNATSessionTimeout
+}
+
+// GetOtherNATSessionTimeout returns NAT session timeout (in minutes) for non-TCP connections, used in case that CleanupIdleNATSessions is turned on.
+func (plugin *Plugin) GetOtherNATSessionTimeout() uint32 {
+	return plugin.Config.OtherNATSessionTimeout
+}
+
+// GetServiceLocalEndpointWeight returns the load-balancing weight assigned to locally deployed service endpoints.
+func (plugin *Plugin) GetServiceLocalEndpointWeight() uint8 {
+	return plugin.Config.ServiceLocalEndpointWeight
 }
 
 // GetNatLoopbackIP returns the IP address of a virtual loopback, used to route traffic
@@ -384,6 +416,11 @@ func (plugin *Plugin) loadExternalConfig() error {
 	// use tap version 2 as default in case that TAPs are enabled
 	if plugin.Config.TAPInterfaceVersion == 0 {
 		plugin.Config.TAPInterfaceVersion = 2
+	}
+
+	// By default connections are equally distributed between service endpoints.
+	if plugin.Config.ServiceLocalEndpointWeight == 0 {
+		plugin.Config.ServiceLocalEndpointWeight = 1
 	}
 
 	return nil

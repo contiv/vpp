@@ -72,6 +72,11 @@ func (sp *ServiceProcessor) Init() error {
 	return nil
 }
 
+// AfterInit is called by the plugin infra after init of all plugins is completed.
+func (sp *ServiceProcessor) AfterInit() error {
+	return nil
+}
+
 // reset clears the state of the processor.
 func (sp *ServiceProcessor) reset() error {
 	sp.nodes = make(map[int]*nodemodel.NodeInfo)
@@ -104,6 +109,7 @@ func (sp *ServiceProcessor) processUpdatedPod(pod *podmodel.Pod) error {
 	sp.Log.WithFields(logging.Fields{
 		"pod": *pod,
 	}).Debug("ServiceProcessor - processUpdatedPod()")
+	podID := podmodel.ID{Name: pod.Name, Namespace: pod.Namespace}
 
 	if pod.IpAddress == "" {
 		return nil
@@ -114,7 +120,6 @@ func (sp *ServiceProcessor) processUpdatedPod(pod *podmodel.Pod) error {
 		return nil
 	}
 
-	podID := podmodel.ID{Name: pod.Name, Namespace: pod.Namespace}
 	localEp := sp.getLocalEndpoint(podID)
 	if localEp.ifName != "" {
 		/* already processed */
@@ -138,7 +143,10 @@ func (sp *ServiceProcessor) processUpdatedPod(pod *podmodel.Pod) error {
 	}
 	newFrontendIfs := sp.frontendIfs.Copy()
 	newFrontendIfs.Add(ifName)
-	sp.Configurator.UpdateLocalFrontendIfs(sp.frontendIfs, newFrontendIfs)
+	err := sp.Configurator.UpdateLocalFrontendIfs(sp.frontendIfs, newFrontendIfs)
+	if err != nil {
+		return err
+	}
 	sp.frontendIfs = newFrontendIfs
 	return nil
 }
@@ -372,8 +380,8 @@ func (sp *ServiceProcessor) reconfigureNodePorts() error {
 
 // getNodeIPs returns a slice of IP addresses of all nodes in the cluster
 // without duplicities.
-func (sp *ServiceProcessor) getNodeIPs() []net.IP {
-	var nodeIPs []net.IP
+func (sp *ServiceProcessor) getNodeIPs() *configurator.IPAddresses {
+	nodeIPs := configurator.NewIPAddresses()
 	addedNodeIPs := map[string]struct{}{}
 
 	for _, node := range sp.nodes {
@@ -383,7 +391,7 @@ func (sp *ServiceProcessor) getNodeIPs() []net.IP {
 		if _, duplicate := addedNodeIPs[ipAddr]; !duplicate {
 			nodeIP := net.ParseIP(ipAddr)
 			if nodeIP != nil {
-				nodeIPs = append(nodeIPs, nodeIP)
+				nodeIPs.Add(nodeIP)
 			}
 		}
 		addedNodeIPs[ipAddr] = struct{}{}
@@ -393,7 +401,7 @@ func (sp *ServiceProcessor) getNodeIPs() []net.IP {
 		if _, duplicate := addedNodeIPs[ipAddr]; !duplicate {
 			nodeMgmtIP := net.ParseIP(ipAddr)
 			if nodeMgmtIP != nil {
-				nodeIPs = append(nodeIPs, nodeMgmtIP)
+				nodeIPs.Add(nodeMgmtIP)
 			}
 		}
 		addedNodeIPs[ipAddr] = struct{}{}
@@ -490,6 +498,8 @@ func (sp *ServiceProcessor) processResyncEvent(resyncEv *ResyncEventData) error 
 		if podIPAddress == nil || !sp.Contiv.GetPodNetwork().Contains(podIPAddress) {
 			continue
 		}
+
+		// -> pod interface
 		ifName, ifExists := sp.Contiv.GetIfName(podID.Namespace, podID.Name)
 		if !ifExists {
 			sp.Log.WithFields(logging.Fields{
@@ -532,6 +542,7 @@ func (sp *ServiceProcessor) processResyncEvent(resyncEv *ResyncEventData) error 
 		}
 	}
 
+	// Build resync data for the service configurator.
 	confResyncEv.FrontendIfs = sp.frontendIfs
 	confResyncEv.BackendIfs = sp.backendIfs
 	return sp.Configurator.Resync(confResyncEv)

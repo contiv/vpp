@@ -27,6 +27,14 @@
 required = ["github.com/wadey/gocovmerge", "github.com/docker/docker/api", "github.com/docker/swarmkit", "github.com/opencontainers/runc", "golang.org/x/exp/inotify", "github.com/google/cadvisor", "k8s.io/apiserver/pkg/apis/apiserver", "github.com/ugorji/go/codec", "github.com/docker/distribution"]
 
 [[constraint]]
+  name = "github.com/ligato/vpp-agent"
+  revision = "022c3e91fcd2cfa1b584a34ca6f4dbd223fda810"
+
+[[constraint]]
+  name = "github.com/ligato/cn-infra"
+  revision = "441419d0105e188a473a6fcf7f0de09bf9532fa6"
+
+[[constraint]]
   revision = "0456d22f67865977065886ed58778621b21b7ede"
   name = "git.fd.io/govpp.git"
 
@@ -49,10 +57,6 @@ required = ["github.com/wadey/gocovmerge", "github.com/docker/docker/api", "gith
 [[constraint]]
   name = "github.com/docker/distribution"
   revision = "edc3ab29cdff8694dd6feb85cfeb4b5f1b38ed9c"
-
-[[constraint]]
-  name = "github.com/ligato/cn-infra"
-  revision = "e5bff3cae460e0e45770b9840ddf863da8540d72"
 
 [[constraint]]
   name = "github.com/containernetworking/cni"
@@ -82,10 +86,6 @@ required = ["github.com/wadey/gocovmerge", "github.com/docker/docker/api", "gith
 [[constraint]]
   name = "github.com/golang/protobuf"
   branch = "master"
-
-[[constraint]]
-  name = "github.com/ligato/vpp-agent"
-  revision = "0a771d5bfcd355faa7dc2f25eba0e3e6e2c7057d"
 
 [[constraint]]
   name = "github.com/prometheus/client_golang"
@@ -121,7 +121,7 @@ required = ["github.com/wadey/gocovmerge", "github.com/docker/docker/api", "gith
 
 [[constraint]]
   name = "github.com/nerdtakula/supervisor"
-  revision = "5bf894f54fd79a23fa965bf078b2a094a9d9e20b"
+  revision = "857e93729bfa62df91dcdd3d36c9ac7036edf20a"
 
 [[constraint]]
   name = "github.com/safchain/ethtool"

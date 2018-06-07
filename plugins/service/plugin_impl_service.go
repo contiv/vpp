@@ -19,6 +19,7 @@ import (
 	"sync"
 
 	"github.com/ligato/cn-infra/datasync"
+	kvdbsync_local "github.com/ligato/cn-infra/datasync/kvdbsync/local"
 	"github.com/ligato/cn-infra/datasync/resync"
 	"github.com/ligato/cn-infra/flavors/local"
 	"github.com/ligato/cn-infra/logging"
@@ -32,9 +33,12 @@ import (
 	"github.com/contiv/vpp/plugins/service/configurator"
 	"github.com/contiv/vpp/plugins/service/processor"
 
+	"github.com/contiv/vpp/plugins/contiv/model/node"
 	epmodel "github.com/contiv/vpp/plugins/ksr/model/endpoints"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	svcmodel "github.com/contiv/vpp/plugins/ksr/model/service"
+	"github.com/contiv/vpp/plugins/statscollector"
+	"github.com/ligato/vpp-agent/plugins/govppmux"
 )
 
 // Plugin watches configuration of K8s resources (as reflected by KSR into ETCD)
@@ -68,6 +72,8 @@ type Deps struct {
 	Watcher datasync.KeyValProtoWatcher /* prefixed for KSR-published K8s state data */
 	Contiv  contiv.API                  /* to get the Node IP and all interface names */
 	VPP     defaultplugins.API          /* interface indexes && IP addresses */
+	GoVPP   govppmux.API                /* used for direct NAT binary API calls */
+	Stats   statscollector.API          /* used for exporting the statistics */
 }
 
 // Init initializes the service plugin and starts watching ETCD for K8s configuration.
@@ -78,14 +84,23 @@ func (p *Plugin) Init() error {
 	p.resyncChan = make(chan datasync.ResyncEvent)
 	p.changeChan = make(chan datasync.ChangeEvent)
 
+	const goVPPChanBufSize = 1 << 12
+	goVppCh, err := p.GoVPP.NewAPIChannelBuffered(goVPPChanBufSize, goVPPChanBufSize)
+	if err != nil {
+		return err
+	}
+
 	p.configurator = &configurator.ServiceConfigurator{
 		Deps: configurator.Deps{
-			Log:    p.Log.NewLogger("-serviceConfigurator"),
-			VPP:    p.VPP,
-			Contiv: p.Contiv,
+			Log:       p.Log.NewLogger("-serviceConfigurator"),
+			VPP:       p.VPP,
+			Contiv:    p.Contiv,
+			GoVPPChan: goVppCh,
 			NATTxnFactory: func() linux.DataChangeDSL {
 				return localclient.DataChangeRequest(p.PluginName)
 			},
+			LatestRevs: kvdbsync_local.Get().LastRev(),
+			Stats:      p.Stats,
 		},
 	}
 	p.configurator.Log.SetLevel(logging.DebugLevel)
@@ -119,6 +134,9 @@ func (p *Plugin) Init() error {
 // in order to ensure that the resync for this plugin is triggered only after
 // resync of the Contiv plugin has finished.
 func (p *Plugin) AfterInit() error {
+	p.configurator.AfterInit()
+	p.processor.AfterInit()
+
 	if p.Resync != nil {
 		reg := p.Resync.Register(string(p.PluginName))
 		go p.handleResync(reg.StatusChan())
@@ -129,7 +147,7 @@ func (p *Plugin) AfterInit() error {
 func (p *Plugin) subscribeWatcher() (err error) {
 	p.watchConfigReg, err = p.Watcher.
 		Watch("K8s services", p.changeChan, p.resyncChan,
-			epmodel.KeyPrefix(), podmodel.KeyPrefix(), svcmodel.KeyPrefix(), contiv.AllocatedIDsKeyPrefix)
+			epmodel.KeyPrefix(), podmodel.KeyPrefix(), svcmodel.KeyPrefix(), node.AllocatedIDsKeyPrefix)
 	return err
 }
 

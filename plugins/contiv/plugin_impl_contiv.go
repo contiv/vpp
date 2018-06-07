@@ -103,6 +103,8 @@ type Config struct {
 	TCPNATSessionTimeout       uint32 // NAT session timeout (in minutes) for TCP connections, used in case that CleanupIdleNATSessions is turned on
 	OtherNATSessionTimeout     uint32 // NAT session timeout (in minutes) for non-TCP connections, used in case that CleanupIdleNATSessions is turned on
 	ScanIPNeighbors            bool   // if enabled, periodically scans and probes IP neighbors to maintain the ARP table
+	IPNeighborScanInterval     uint8
+	IPNeighborStaleThreshold   uint8
 	ServiceLocalEndpointWeight uint8
 	IPAMConfig                 ipam.Config
 	NodeConfig                 []OneNodeConfig

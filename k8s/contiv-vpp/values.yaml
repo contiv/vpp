@@ -9,6 +9,8 @@ contiv:
   tcpNATSessionTimeout: 180
   otherNATSessionTimeout: 5
   scanIPNeighbors: True
+  ipNeighborScanInterval: 1
+  ipNeighborStaleThreshold: 4
   serviceLocalEndpointWeight: 1
   ipamConfig:
     podSubnetCIDR: "10.1.0.0/16"

@@ -393,7 +393,9 @@ func (s *remoteCNIserver) enableIPNeighborScan() error {
 	s.Logger.Info("Enabling IP neighbor scanning")
 
 	req := &ip.IPScanNeighborEnableDisable{
-		Mode: 1, // enable for IPv4
+		Mode:           1, // enable for IPv4
+		ScanInterval:   s.config.IPNeighborScanInterval,
+		StaleThreshold: s.config.IPNeighborStaleThreshold,
 	}
 	reply := &ip.IPScanNeighborEnableDisableReply{}
 

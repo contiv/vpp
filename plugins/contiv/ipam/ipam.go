@@ -465,7 +465,10 @@ func applyNodeID(subnetIPPrefix net.IPNet, nodeID uint8, networkPrefixLen uint8)
 	// compute part of IP address representing host
 	subnetPrefixLen, _ := subnetIPPrefix.Mask.Size()
 	nodePartBitSize := networkPrefixLen - uint8(subnetPrefixLen)
-	nodeIPPart := convertToNodeIPPart(nodeID, nodePartBitSize)
+	nodeIPPart, err := convertToNodeIPPart(nodeID, nodePartBitSize)
+	if err != nil {
+		return net.IPNet{}, err
+	}
 
 	// composing network IP prefix from previously computed parts
 	subnetIPPartUint32, err := ipv4ToUint32(subnetIPPrefix.IP)
@@ -497,7 +500,14 @@ func (i *IPAM) computeNodeIPAddress(nodeID uint8) (net.IP, error) {
 	// trimming nodeID if its place in IP address is narrower than actual uint8 size
 	subnetPrefixLen, _ := i.nodeInterconnectCIDR.Mask.Size()
 	nodePartBitSize := 32 - uint8(subnetPrefixLen)
-	nodeIPPart := convertToNodeIPPart(nodeID, nodePartBitSize)
+	nodeIPPart, err := convertToNodeIPPart(nodeID, nodePartBitSize)
+	if err != nil {
+		return nil, err
+	}
+	// nodeIP Pas
+	if nodeIPPart == 0 {
+		return nil, fmt.Errorf("no free address for nodeID %v", nodeID)
+	}
 
 	// combining it to get result IP address
 	networkIPPartUint32, err := ipv4ToUint32(i.nodeInterconnectCIDR.IP)
@@ -521,7 +531,13 @@ func (i *IPAM) computeVxlanIPAddress(nodeID uint8) (net.IP, error) {
 	// trimming nodeID if its place in IP address is narrower than actual uint8 size
 	subnetPrefixLen, _ := i.vxlanCIDR.Mask.Size()
 	nodePartBitSize := 32 - uint8(subnetPrefixLen)
-	nodeIPPart := convertToNodeIPPart(nodeID, nodePartBitSize)
+	nodeIPPart, err := convertToNodeIPPart(nodeID, nodePartBitSize)
+	if err != nil {
+		return nil, err
+	}
+	if nodeIPPart == 0 {
+		return nil, fmt.Errorf("no free address for nodeID %v", nodeID)
+	}
 
 	// combining it to get result IP address
 	networkIPPartUint32, err := ipv4ToUint32(i.vxlanCIDR.IP)
@@ -544,8 +560,17 @@ func (i *IPAM) findIP(podID string) (uintIP, error) {
 // convertToNodeIPPart converts nodeID to part of IP address that distinguishes network IP address prefix among
 // different nodes. The result doesn't have to be that whole nodeID, because in IP address there can be allocated
 // less space than the size of the nodeID.
-func convertToNodeIPPart(nodeID uint8, expectedNodePartBitSize uint8) uint8 {
-	return nodeID & ((1 << expectedNodePartBitSize) - 1) //TODO this is only trimming nodeID to expected bit count, do we want to map nodeID to some value from config?
+func convertToNodeIPPart(nodeID uint8, expectedNodePartBitSize uint8) (res uint8, err error) {
+	// the last valid nodeID correspond to 0 nodeIPpart
+	if nodeID == (1 << expectedNodePartBitSize) {
+		return 0, nil
+	}
+
+	res = nodeID & ((1 << expectedNodePartBitSize) - 1)
+	if res != nodeID {
+		return 0, fmt.Errorf("nodeID is out of the valid range %v > %v", nodeID, 1<<expectedNodePartBitSize)
+	}
+	return res, nil //TODO this is only trimming nodeID to expected bit count, do we want to map nodeID to some value from config?
 }
 
 // ipv4ToUint32 is simple utility function for conversion between IPv4 and uint32.

@@ -287,6 +287,10 @@ func TestExceededVxlanRange(t *testing.T) {
 	fmt.Println(err)
 	Expect(err).NotTo(BeNil())
 
+	_, err = last.VxlanIPAddress(17)
+	fmt.Println(err)
+	Expect(err).NotTo(BeNil())
+
 }
 
 // TestExceededVxlanRange tests the scenario where node IP range is exceeded, whereas the pod subnet is valid for the given nodeID
@@ -305,6 +309,10 @@ func TestExceededNodeIPRange(t *testing.T) {
 	Expect(last).NotTo(BeNil())
 
 	_, err = last.NodeIPAddress(16)
+	fmt.Println(err)
+	Expect(err).NotTo(BeNil())
+
+	_, err = last.NodeIPAddress(17)
 	fmt.Println(err)
 	Expect(err).NotTo(BeNil())
 

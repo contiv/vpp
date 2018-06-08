@@ -57,7 +57,7 @@ etcd:
   service:
     #NodePort where contiv-etcd can be reached on any node.
     nodePort: 32379
-  dataDir: /var/etcd/contiv-data
+  dataDir: /var/etcd
   usePersistentVolume: false
   persistentVolumeSize: 2Gi
   # if secureTransport is enabled, secrets need to point to proper certificates
@@ -66,7 +66,7 @@ etcd:
     # if mountFromHost is true, certificates must be present in the mountDir on each host.
     # if mountFromHost is false, certificates must be present in the current directory, and will be distributed to each host via k8s secret feature.
     mountFromHost: true
-    mountDir: /var/etcd/contiv-secrets
+    mountDir: /var/contiv/etcd-secrets
     # names of individual files in the 'secrets.location' folder
     caCert: ca.pem
     serverCert: server.pem

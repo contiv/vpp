@@ -116,7 +116,7 @@ func (p *Plugin) Init() error {
 	p.nat44Renderer.Log.SetLevel(logging.DebugLevel)
 
 	p.processor.Init()
-	p.nat44Renderer.Init(true)
+	p.nat44Renderer.Init(false)
 
 	// Register renderers.
 	p.processor.RegisterRenderer(p.nat44Renderer)

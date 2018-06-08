@@ -338,8 +338,8 @@ func (rndr *Renderer) Resync(resyncEv *renderer.ResyncEventData) error {
 		// the dynamic SNAT.
 		// Policies require that intra-cluster traffic is not SNATed, but in
 		// the pure L2 mode without VXLANs this cannot be achieved with the VPP/NAT
-		// plugin. On the hand, with VXLANs we can define identity NAT to exclude
-		// VXLAN-encapsulated traffic from being SNATed.
+		// plugin. On the other hand, with VXLANs we can define identity NAT to
+		// exclude VXLAN-encapsulated traffic from being SNATed.
 		if rndr.Contiv.GetVxlanBVIIfName() == "" &&
 			rndr.defaultIfName == rndr.Contiv.GetMainPhysicalIfName() {
 			rndr.defaultIfName = ""

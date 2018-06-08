@@ -484,6 +484,7 @@ determines the minimum set of operations that need to be executed to reflect
 the configuration changes.
 
 To allow access from service to itself, the [Contiv plugin][contiv-plugin] is
+asked to provide the virtual NAT loopback IP address, which is then inserted
 into the `TwiceNAT` address pool. `self-twice-nat` feature is enabled for every
 static mapping.
 

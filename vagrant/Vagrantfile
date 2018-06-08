@@ -13,46 +13,47 @@ BEGIN {
 }
 
 module VagrantPlugins
-    module EnvState
-        class Plugin < Vagrant.plugin('2')
-        name 'EnvState'
+  module EnvState
+    class Plugin < Vagrant.plugin('2')
+    name 'EnvState'
 
-        def self.up_hook(arg)
-            unless File.exist?(STATEFILE)
-            f = File.open(STATEFILE, "w") 
-            ENV.each do |x,y|
-                f.puts "%s=%s" % [x,y]
-            end
-            f.close
-            end
+    def self.up_hook(arg)
+        unless File.exist?(STATEFILE)
+        f = File.open(STATEFILE, "w")
+        ENV.each do |x,y|
+            f.puts "%s=%s" % [x,y]
         end
-
-        def self.destroy_hook(arg)
-            if File.exist?(STATEFILE)
-                File.unlink(STATEFILE)
-            end
-        end
-
-        action_hook(:EnvState, :machine_action_up) do |hook|
-            hook.prepend(method(:up_hook))
-        end
-
-        action_hook(:EnvState, :machine_action_destroy) do |hook|
-            hook.prepend(method(:destroy_hook))
-        end
+        f.close
         end
     end
+
+    def self.destroy_hook(arg)
+        if File.exist?(STATEFILE)
+            File.unlink(STATEFILE)
+        end
+    end
+
+    action_hook(:EnvState, :machine_action_up) do |hook|
+        hook.prepend(method(:up_hook))
+    end
+
+    action_hook(:EnvState, :machine_action_destroy) do |hook|
+        hook.prepend(method(:destroy_hook))
+    end
+    end
+  end
 end
 
 # SET ENV
 http_proxy = ENV['HTTP_PROXY'] || ENV['http_proxy'] || ''
 https_proxy = ENV['HTTPS_PROXY'] || ENV['https_proxy'] || ''
 node_os = ENV['K8S_NODE_OS'] || 'ubuntu'
-base_ip = ENV['K8S_IP_PREFIX'] || '10.20.0.'
+base_ip = ENV['K8S_IP_PREFIX'] || '10.30.0.'
 num_nodes = ENV['K8S_NODES'].to_i == 0 ? 0 : ENV['K8S_NODES'].to_i
 provider = ENV['VAGRANT_DEFAULT_PROVIDER']
 dep_env = ENV['K8S_DEPLOYMENT_ENV']
 dep_scenario = ENV['K8S_DEPLOYMENT_SCENARIO']
+image_tag = ENV['CONTIV_IMAGE_TAG']
 
 provision_every_node = <<SCRIPT
 set -e
@@ -103,34 +104,25 @@ systemctl start docker
 
 
 if [ "$3" == "dev" ]; then 
-    export GO_VERSION=1.9.3
-    echo "Downloading Go $GO_VERSION..."
-    curl --silent https://storage.googleapis.com/golang/go$GO_VERSION.linux-amd64.tar.gz > /tmp/go.tar.gz
+  export GO_VERSION=1.9.3
+  echo "Downloading Go $GO_VERSION..."
+  curl --silent https://storage.googleapis.com/golang/go$GO_VERSION.linux-amd64.tar.gz > /tmp/go.tar.gz
 
-    echo "Extracting Go..."
-    tar -xvzf /tmp/go.tar.gz --directory /home/vagrant >/dev/null 2>&1
+  echo "Extracting Go..."
+  tar -xvzf /tmp/go.tar.gz --directory /home/vagrant >/dev/null 2>&1
 
-    echo "Setting Go environment variables..."
-    mkdir -p /home/vagrant/gopath/bin
-    mkdir -p /home/vagrant/gopath/pkg
-    chmod -R 777 /home/vagrant/gopath
-    
-    echo 'export GOROOT="/home/vagrant/go"' >> /home/vagrant/.bashrc
-    echo 'export GOPATH="/home/vagrant/gopath"' >> /home/vagrant/.bashrc
-    echo 'export PATH="$PATH:$GOROOT/bin:$GOPATH/bin"' >> /home/vagrant/.bashrc
-    
-    source /home/vagrant/.bashrc
-    update-locale LANG=en_US.UTF-8 LANGUAGE=en_US.UTF-8 LC_ALL=en_US.UTF-8
-    echo 'All done!'
-fi
+  echo "Setting Go environment variables..."
+  mkdir -p /home/vagrant/gopath/bin
+  mkdir -p /home/vagrant/gopath/pkg
+  chmod -R 777 /home/vagrant/gopath
 
-if [ -f /vagrant/images.tar ]; then
-    echo "found saved images at /vagrant/images.tar"
-    docker load -i /vagrant/images.tar
-else
-    # Pull the latest images
-    echo "pulling the latest images"
-    bash <(curl -s https://raw.githubusercontent.com/contiv/vpp/master/k8s/pull-images.sh)
+  echo 'export GOROOT="/home/vagrant/go"' >> /home/vagrant/.bashrc
+  echo 'export GOPATH="/home/vagrant/gopath"' >> /home/vagrant/.bashrc
+  echo 'export PATH="$PATH:$GOROOT/bin:$GOPATH/bin"' >> /home/vagrant/.bashrc
+
+  source /home/vagrant/.bashrc
+  update-locale LANG=en_US.UTF-8 LANGUAGE=en_US.UTF-8 LC_ALL=en_US.UTF-8
+  echo 'All done!'
 fi
 
 #Disable swap
@@ -141,7 +133,6 @@ SCRIPT
 vbox_provision_every_node = <<SCRIPT
 set -e
 set -x
-
 #Load uio_pci_generic driver and setup the loading on each boot up
 installPCIUIO() {
    modprobe uio_pci_generic
@@ -151,7 +142,6 @@ installPCIUIO() {
          echo "Module uio_pci_generic was added into /etc/modules"
       fi
 }
-
 #Selects an interface that will be used for node interconnect
 createVPPconfig() {
 mkdir -p /etc/vpp
@@ -171,7 +161,6 @@ api-trace {
 }
 EOF
 }
-
 kernelModule=$(lsmod | grep uio_pci_generic | wc -l)
 if [[ $kernelModule -gt 0 ]]; then
     echo "PCI UIO driver is loaded"
@@ -179,7 +168,6 @@ else
     installPCIUIO
 fi
 createVPPconfig
-
 if [ "$3" = 'nostn' ]; then
     #shutdown interface
     ip link set enp0s8 down
@@ -197,9 +185,25 @@ sudo apt-get install -y python-pip \
                    python-dev \
                    python-virtualenv \
                    build-essential \
-   
+
+#Install pip
 sudo pip install --upgrade pip
 sudo pip install --upgrade virtualenv
+
+if [ -f /vagrant/images.tar ]; then
+    echo "Found saved images at /vagrant/images.tar"
+    docker load -i /vagrant/images.tar
+else
+  # Pull images
+  echo "Pulling contiv-vpp plugin images..."
+  /home/vagrant/gopath/src/github.com/contiv/vpp/k8s/pull-images.sh -b $6
+fi
+
+#Install helm
+export HELM_VERSION=2.9.1
+curl -sL https://storage.googleapis.com/kubernetes-helm/helm-v$HELM_VERSION-linux-amd64.tar.gz > /tmp/helm.tgz
+tar -zxvf /tmp/helm.tgz -C /tmp
+mv /tmp/linux-amd64/helm /usr/local/bin/helm
 
 if [ "$4" = "dev" ]; then
 # --------------------------------------------------------
@@ -252,9 +256,13 @@ echo "Installing Contiv-VPP networking as user"
 sudo -u vagrant -H bash << EOF
 
 echo "Installing Pod Network..."
-chmod +x /home/vagrant/vagrant-yaml
-export DEP_PROV="virtualbox"; export NUM_K8S_NODES=$3; export DEP_SCENARIO=$5; /home/vagrant/vagrant-yaml
-kubectl apply -f /tmp/contiv-vpp.yaml
+
+if [ $6 != "latest" ]; then
+  sed -i "/version: latest/c\version: $IMAGE_TAG" /home/vagrant/gopath/src/github.com/contiv/vpp/k8s/contiv-vpp/Chart.yaml
+fi
+helm template --name vagrant /home/vagrant/gopath/src/github.com/contiv/vpp/k8s/contiv-vpp > /home/vagrant/gopath/src/github.com/contiv/vpp/k8s/contiv-vpp/manifest.yaml
+export NUM_K8S_NODES=$3; export DEP_SCENARIO=$5; /home/vagrant/gopath/src/github.com/contiv/vpp/vagrant/config/vagrant-yaml
+kubectl apply -f /home/vagrant/gopath/src/github.com/contiv/vpp/k8s/contiv-vpp/manifest.yaml
 
 echo "Schedule Pods on master"
 kubectl taint nodes --all node-role.kubernetes.io/master-
@@ -317,339 +325,128 @@ EOF
 chmod +x /etc/network/if-pre-up.d/iptables-restore
 SCRIPT
 
-vmware_provision_every_node = <<SCRIPT
-#Load uio_pci_generic driver and setup the loading on each boot up
-installPCIUIO() {
-   modprobe uio_pci_generic
-      # check if the driver is not already added into the file
-      if ! grep -q "uio_pci_generic" /etc/modules; then
-         echo uio_pci_generic >> /etc/modules
-         echo "Module uio_pci_generic was added into /etc/modules"
-      fi
-}
-
-#Selects an interface that will be used for node interconnect
-createVPPconfig() {
-mkdir -p /etc/vpp
-touch /etc/vpp/contiv-vswitch.conf
-  cat <<EOF >/etc/vpp/contiv-vswitch.conf
-unix {
-   nodaemon
-   cli-listen /run/vpp/cli.sock
-   cli-no-pager
-}
-dpdk {
-   dev 0000:03:00.0
-}
-api-trace {
-    on
-    nitems 500
-}
-EOF
-}
-
-kernelModule=$(lsmod | grep uio_pci_generic | wc -l)
-if [[ $kernelModule -gt 0 ]]; then
-    echo "PCI UIO driver is loaded"
-else
-    installPCIUIO
-fi
-createVPPconfig
-
-if [ "$3" = 'nostn' ]; then
-    #shutdown interface
-    ip link set ens160 down
-    echo "#auto ens160" >> /etc/network/interfaces
-fi
-SCRIPT
-
-vmware_bootstrap_master = <<SCRIPT
-set -e
-set -x
-
-echo Args passed: [[ $@ ]]
-
-if [ "$3" = "dev" ]; then
-# --------------------------------------------------------
-# ---> Build Contiv/VPP-vswitch Development Image <---
-# --------------------------------------------------------
-    echo "vagrant" >> /home/vagrant/gopath/src/github.com/contiv/vpp/.dockerignore
-    echo "Building development contivpp/vswitch image..."
-    cd /home/vagrant/gopath/src/github.com/contiv/vpp/docker/ubuntu-based; ./build.sh
-fi
-
-# --------------------------------------------------------
-# ---> Create token and export it with kube master IP <---
-# --------------------------------------------------------
-
-echo "Exporting Kube Master IP and Kubeadm Token..."
-echo "export KUBE_MASTER_IP=$(hostname -I | cut -f1 -d' ')" >> /vagrant/config/init
-echo "export KUBEADM_TOKEN=$(kubeadm token generate)" >> /vagrant/config/init
-source /vagrant/config/init
-sed 's/127\.0\.0\.1.*k8s.*/'"$KUBE_MASTER_IP"' '"$1"'/' -i /etc/hosts
-
-echo "export no_proxy='$1,$KUBE_MASTER_IP,localhost,127.0.0.1'" >> /etc/profile.d/envvar.sh
-echo "export no_proxy='$1,$KUBE_MASTER_IP,localhost,127.0.0.1'" >> /home/vagrant/.profile
-source /etc/profile.d/envvar.sh
-source /home/vagrant/.profile
-
-# --------------------------------------------------------
-# --------------> Kubeadm & Networking <------------------
-# --------------------------------------------------------
-
-sed -i '4 a Environment="KUBELET_EXTRA_ARGS=--node-ip='"$KUBE_MASTER_IP"' --feature-gates HugePages=false"' /etc/systemd/system/kubelet.service.d/10-kubeadm.conf
-systemctl daemon-reload
-systemctl restart kubelet
-echo "$(kubeadm init --token-ttl 0 --pod-network-cidr="10.0.0.0/8" --apiserver-advertise-address="${KUBE_MASTER_IP}" --token="${KUBEADM_TOKEN}")" >> /vagrant/config/cert
-
-echo "Create folder to store kubernetes and network configuration"
-mkdir -p /home/vagrant/.kube
-sudo cp -i /etc/kubernetes/admin.conf /home/vagrant/.kube/config
-sudo chown vagrant:vagrant -R /home/vagrant/.kube
-
-echo "Installing Contiv-VPP networking as user"
-sudo -u vagrant -H bash << EOF
-
-echo "Installing Pod Network..."
-chmod +x /home/vagrant/vagrant-yaml
-export DEP_PROV="vmware_fusion"; export NUM_K8S_NODES=$2; export DEP_SCENARIO=$4; /home/vagrant/vagrant-yaml
-kubectl apply -f /tmp/contiv-vpp.yaml
-
-echo "Schedule Pods on master"
-kubectl taint nodes --all node-role.kubernetes.io/master-
-EOF
-SCRIPT
-
-vmware_bootstrap_worker = <<SCRIPT
-set -e
-set -x
-
-echo Args passed: [[ $@ ]]
-
-source /vagrant/config/init
-export KUBE_WORKER_IP=$(hostname -I | cut -f1 -d' ')
-
-sed -i '4 a Environment="KUBELET_EXTRA_ARGS=--node-ip='"$KUBE_MASTER_IP"' --feature-gates HugePages=false"' /etc/systemd/system/kubelet.service.d/10-kubeadm.conf
-systemctl daemon-reload
-systemctl restart kubelet
-
-sed 's/127\.0\.0\.1.*k8s.*/'"$KUBE_WORKER_IP"' '"$1"'/' -i /etc/hosts
-echo "export no_proxy='$1,$KUBE_MASTER_IP,$KUBE_WORKER_IP,localhost,127.0.0.1'" >> /etc/profile.d/envvar.sh
-echo "export no_proxy='$1,$KUBE_MASTER_IP,$KUBE_WORKER_IP,localhost,127.0.0.1'" >> /home/vagrant/.profile
-source /etc/profile.d/envvar.sh
-source /home/vagrant/.profile
-
-if [ $2 = 'stn' ]; then
-  curl -s https://raw.githubusercontent.com/contiv/vpp/master/k8s/stn-install.sh > /tmp/contiv-stn.sh
-  chmod +x /tmp/contiv-stn.sh
-  sudo /tmp/contiv-stn.sh
-fi
-
-# Kubeadm join expects kube_master_ip and kubeadm_token
-hash=$(awk 'END {print $NF}' /vagrant/config/cert)
-kubeadm join --token "${KUBEADM_TOKEN}"  "${KUBE_MASTER_IP}":6443 --discovery-token-ca-cert-hash "$hash"
-SCRIPT
-
 VAGRANTFILE_API_VERSION = "2"
-Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
+  Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
     config.vm.box_check_update = false
     if Vagrant.has_plugin?("vagrant-vbguest")
         config.vbguest.auto_update = false
-    end 
+    end
     if node_os == "ubuntu" then
         config.vm.box = "puppetlabs/ubuntu-16.04-64-nocm"
         config.vm.box_version = "1.0.0"
     else
         # Nothing for now, later add more OS
     end
+
     node_ips = num_nodes.times.collect { |n| base_ip + "#{n+10}" }
     node_names = num_nodes.times.collect { |n| "k8s-worker#{n+1}" }
-
     config.ssh.insert_key = false
 
     if Vagrant.has_plugin?("vagrant-cachier")
-        config.cache.scope = :box
-        config.cache.enable :apt
+      config.cache.scope = :box
+      config.cache.enable :apt
+    end
+    config.vm.provider 'virtualbox' do |v|
+      v.linked_clone = true if Vagrant::VERSION >= "1.8"
+      v.customize ['modifyvm', :id, '--paravirtprovider', 'kvm']
     end
 
-    if provider == 'virtualbox'    
-        config.vm.provider 'virtualbox' do |v|
-            v.linked_clone = true if Vagrant::VERSION >= "1.8"
-            v.customize ['modifyvm', :id, '--paravirtprovider', 'kvm']
-        end
-        #Configure VBox Gateway
-        config.vm.define "k8s-gateway" do |gw|
-            gw.vm.hostname = "k8s-gateway"
-            # Interface for K8s Cluster
-            if dep_scenario == 'stn'
-              gw.vm.network :private_network, ip: "10.20.0.100", virtualbox__intnet: "vpp"
-            else
-              gw.vm.network :private_network, ip: "192.168.16.100", virtualbox__intnet: "vpp"
-            end
-            gw.vm.provider "virtualbox" do |v|
-                v.customize ["modifyvm", :id, "--ioapic", "on"]
-                v.memory = 512
-                v.cpus = 1
-            end
-            gw.vm.provision "shell" do |s|
-                s.inline = vbox_provision_gateway
-                s.args = [http_proxy, https_proxy]
-            end
-        end
-
-        # Configure VBox Master node
-        config.vm.define "k8s-master" do |k8smaster|
-            k8smaster.vm.host_name = "k8s-master"
-            k8smaster_ip = base_ip + "2"
-            if dep_env == "dev"
-                k8smaster.vm.synced_folder "../", "/home/vagrant/gopath/src/github.com/contiv/vpp"
-            end
-            if dep_scenario == 'stn'
-                k8smaster.vm.network :private_network, type: "dhcp", auto_config: true, virtualbox__intnet: "vpp"
-                # default router
-                k8smaster.vm.provision "shell",
-                  run: "always",
-                  inline: "route add default gw 10.20.0.100"
-                # delete default gw on eth0
-                k8smaster.vm.provision "shell",
-                  run: "always",
-                  inline: "eval `route -n | awk '{ if ($8 ==\"enp0s3\" && $2 != \"0.0.0.0\") print \"route del default gw \" $2; }'`"
-            else
-                k8smaster.vm.network :private_network, type: "dhcp", auto_config: false, virtualbox__intnet: "vpp"
-                k8smaster.vm.network :private_network, ip: k8smaster_ip, virtualbox__intnet: "true"
-            end
-            k8smaster.vm.provider "virtualbox" do |v|
-                v.customize ["modifyvm", :id, "--ioapic", "on"]
-                v.memory = 2048
-                v.cpus = 2
-            end
-            k8smaster.vm.provision "file", source: "./config/vagrant-yaml", destination: "vagrant-yaml"
-            k8smaster.vm.provision "shell" do |s|
-                s.inline = provision_every_node
-                s.args = [http_proxy, https_proxy, dep_env, num_nodes]
-            end
-            k8smaster.vm.provision "shell" do |s|
-                s.inline = vbox_provision_every_node
-                s.args = [http_proxy, https_proxy, dep_scenario]
-            end
-            k8smaster.vm.provision "shell" do |s|
-                s.inline = vbox_bootstrap_master
-                s.args = ["k8s-master", k8smaster_ip, num_nodes, dep_env, dep_scenario]
-            end
-        end
-
-        # Configure VBox Worker node(s)
-        num_nodes.times do |n|
-            node_name = node_names[n]
-            node_addr = node_ips[n]
-
-            config.vm.define node_name do |node|
-                node.vm.hostname = node_name
-                # Interface for K8s Cluster
-                if dep_scenario == 'stn'
-                    node.vm.network :private_network, type: "dhcp", auto_config: true, virtualbox__intnet: "vpp"
-                    # default router
-                    node.vm.provision "shell",
-                      run: "always",
-                      inline: "route add default gw 10.20.0.100"
-                    # delete default gw on eth0
-                    node.vm.provision "shell",
-                      run: "always",
-                      inline: "eval `route -n | awk '{ if ($8 ==\"enp0s3\" && $2 != \"0.0.0.0\") print \"route del default gw \" $2; }'`"
-                else
-                    node.vm.network :private_network, type: "dhcp", auto_config: false, virtualbox__intnet: "vpp"
-                    node.vm.network :private_network, ip: node_addr, virtualbox__intnet: "true"
-                end
-                node.vm.provider "virtualbox" do |v|
-                  v.customize ["modifyvm", :id, "--ioapic", "on"]
-                  v.memory = 2048
-                  v.cpus = 2
-                end
-                node.vm.provision "shell" do |s|
-                    s.inline = provision_every_node
-                    s.args = [http_proxy, https_proxy, dep_env]
-                end
-                node.vm.provision "shell" do |s|
-                    s.inline = vbox_provision_every_node
-                    s.args = [http_proxy, https_proxy, dep_scenario]
-                end
-                node.vm.provision "shell" do |s|
-                    s.inline = vbox_bootstrap_worker
-                    s.args = [node_name, node_addr, dep_scenario]
-                end
-            end
-        end
-    else 
-        config.vm.provider 'vmware_fusion' do |v|
-            v.linked_clone = true if Vagrant::VERSION >= "1.8"
-        end
-
-        # Configure VMWare Master node
-        config.vm.define "k8s-master" do |k8smaster|
-            k8smaster.vm.host_name = "k8s-master"
-            if dep_env == "dev"
-                k8smaster.vm.synced_folder "../", "/home/vagrant/gopath/src/github.com/contiv/vpp"
-            end
-            if dep_scenario == 'stn'
-                k8smaster.vm.network "public_network", auto_config: false
-                k8smaster.vm.provision "shell",
-                    run: "always",
-                    inline: "ifconfig ens160 10.20.0.2 netmask 255.255.255.0 up"
-            else
-                k8smaster.vm.network :private_network, type: "dhcp", auto_config: false
-            end
-            k8smaster.vm.provision "file", source: "./config/vagrant-yaml", destination: "vagrant-yaml"
-            k8smaster.vm.provider "vmware_fusion" do |v|
-              v.vmx["memsize"] = "2048"
-              v.vmx["numvcpus"] = "2"
-              v.vmx["ethernet1.virtualdev"] = "vmxnet3"
-            end
-            k8smaster.vm.provision "shell" do |s|
-                s.inline = provision_every_node
-                s.args = [http_proxy, https_proxy, dep_env, num_nodes]
-            end
-            k8smaster.vm.provision "shell" do |s|
-                s.inline = vmware_provision_every_node
-                s.args = [http_proxy, https_proxy, dep_scenario]
-            end
-            k8smaster.vm.provision "shell" do |s|
-                s.inline = vmware_bootstrap_master
-                s.args = ["k8s-master", num_nodes, dep_env, dep_scenario]
-            end
-        end
-
-        # Configure VMWare Worker node(s)
-        num_nodes.times do |n|
-            node_name = node_names[n]
-
-            config.vm.define node_name do |node|
-                node.vm.hostname = node_name
-                if dep_scenario == 'stn'
-                    node.vm.network "public_network", auto_config: false
-                    node.vm.provision "shell",
-                        run: "always",
-                        inline: "ifconfig ens160 10.20.0.3 netmask 255.255.255.0 up"
-                else
-                    node.vm.network :private_network, type: "dhcp", auto_config: false
-                end
-                node.vm.provider "vmware_fusion" do |v|
-                  v.vmx["memsize"] = "2048"
-                  v.vmx["numvcpus"] = "2"
-                  v.vmx["ethernet1.virtualdev"] = "vmxnet3"
-                end
-                node.vm.provision "shell" do |s|
-                    s.inline = provision_every_node
-                    s.args = [http_proxy, https_proxy, dep_env, num_nodes]
-                end
-                node.vm.provision "shell" do |s|
-                    s.inline = vmware_provision_every_node
-                    s.args = [http_proxy, https_proxy, dep_scenario]
-                end
-                node.vm.provision "shell" do |s|
-                    s.inline = vmware_bootstrap_worker
-                    s.args = [node_name, dep_scenario]
-                end
-            end
-        end
+    #Configure VBox Gateway
+    config.vm.define "k8s-gateway" do |gw|
+      gw.vm.hostname = "k8s-gateway"
+      # Interface for K8s Cluster
+      gw.vm.network :private_network, ip: "10.20.0.100", virtualbox__intnet: "vpp"
+      gw.vm.provider "virtualbox" do |v|
+        v.customize ["modifyvm", :id, "--ioapic", "on"]
+        v.memory = 512
+        v.cpus = 1
+      end
+      gw.vm.provision "shell" do |s|
+        s.inline = vbox_provision_gateway
+        s.args = [http_proxy, https_proxy]
+      end
     end
+
+    # Configure VBox Master node
+    config.vm.define "k8s-master" do |k8smaster|
+      k8smaster.vm.host_name = "k8s-master"
+      k8smaster_ip = base_ip + "2"
+      k8smaster.vm.synced_folder "../", "/home/vagrant/gopath/src/github.com/contiv/vpp"
+
+      if dep_scenario == 'stn'
+        k8smaster.vm.network :private_network, type: "dhcp", auto_config: true, virtualbox__intnet: "vpp"
+        # default router
+        k8smaster.vm.provision "shell",
+          run: "always",
+          inline: "route add default gw 10.20.0.100"
+        # delete default gw on eth0
+        k8smaster.vm.provision "shell",
+          run: "always",
+          inline: "eval `route -n | awk '{ if ($8 ==\"enp0s3\" && $2 != \"0.0.0.0\") print \"route del default gw \" $2; }'`"
+      else
+        k8smaster.vm.network :private_network, type: "dhcp", auto_config: false, virtualbox__intnet: "vpp"
+        k8smaster.vm.network :private_network, ip: k8smaster_ip, virtualbox__intnet: "true"
+      end
+
+      k8smaster.vm.provider "virtualbox" do |v|
+        v.customize ["modifyvm", :id, "--ioapic", "on"]
+        v.memory = 2048
+        v.cpus = 2
+      end
+      k8smaster.vm.provision "shell" do |s|
+        s.inline = provision_every_node
+        s.args = [http_proxy, https_proxy, dep_env, num_nodes]
+      end
+      k8smaster.vm.provision "shell" do |s|
+        s.inline = vbox_provision_every_node
+        s.args = [http_proxy, https_proxy, dep_scenario]
+      end
+      k8smaster.vm.provision "shell" do |s|
+        s.inline = vbox_bootstrap_master
+        s.args = ["k8s-master", k8smaster_ip, num_nodes, dep_env, dep_scenario, image_tag]
+      end
+    end
+
+    # Configure VBox Worker node(s)
+    num_nodes.times do |n|
+      node_name = node_names[n]
+      node_addr = node_ips[n]
+
+      config.vm.define node_name do |node|
+        node.vm.hostname = node_name
+        # Interface for K8s Cluster
+        if dep_scenario == 'stn'
+          node.vm.network :private_network, type: "dhcp", auto_config: true, virtualbox__intnet: "vpp"
+          # default router
+          node.vm.provision "shell",
+            run: "always",
+            inline: "route add default gw 10.20.0.100"
+          # delete default gw on eth0
+          node.vm.provision "shell",
+            run: "always",
+            inline: "eval `route -n | awk '{ if ($8 ==\"enp0s3\" && $2 != \"0.0.0.0\") print \"route del default gw \" $2; }'`"
+        else
+          node.vm.network :private_network, type: "dhcp", auto_config: false, virtualbox__intnet: "vpp"
+          node.vm.network :private_network, ip: node_addr, virtualbox__intnet: "true"
+        end
+
+        node.vm.provider "virtualbox" do |v|
+          v.customize ["modifyvm", :id, "--ioapic", "on"]
+          v.memory = 2048
+          v.cpus = 2
+        end
+        node.vm.provision "shell" do |s|
+          s.inline = provision_every_node
+          s.args = [http_proxy, https_proxy, dep_env]
+        end
+        node.vm.provision "shell" do |s|
+          s.inline = vbox_provision_every_node
+          s.args = [http_proxy, https_proxy, dep_scenario]
+        end
+        node.vm.provision "shell" do |s|
+          s.inline = vbox_bootstrap_worker
+          s.args = [node_name, node_addr, dep_scenario]
+        end
+      end
+  end
 end

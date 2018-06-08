@@ -37,6 +37,8 @@ data:
     OtherNATSessionTimeout: {{ .Values.contiv.otherNATSessionTimeout }}
     {{- end }}
     ScanIPNeighbors: {{ .Values.contiv.scanIPNeighbors }}
+    IPNeighborScanInterval: {{ .Values.contiv.ipNeighborScanInterval }}
+    IPNeighborStaleThreshold: {{ .Values.contiv.ipNeighborStaleThreshold }}
     {{- if .Values.contiv.serviceLocalEndpointWeight }}
     ServiceLocalEndpointWeight: {{ .Values.contiv.serviceLocalEndpointWeight }}
     {{- end }}

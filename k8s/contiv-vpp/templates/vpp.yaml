@@ -188,8 +188,8 @@ spec:
               --advertise-client-urls=http://0.0.0.0:12379 --listen-client-urls=http://0.0.0.0:12379 --listen-peer-urls=http://0.0.0.0:12380
             {{- end }}
           volumeMounts:
-            - name: etcd-data
-              mountPath: /var/etcd/contiv-data
+            - name: var-etcd
+              mountPath: /var/etcd/
             {{- if .Values.etcd.secureTransport }}
             - name: etcd-secrets
               mountPath: /var/etcd/contiv-secrets
@@ -216,7 +216,7 @@ spec:
 {{- if .Values.etcd.usePersistentVolume }}
   volumeClaimTemplates:
   - metadata:
-      name: etcd-data
+      name: var-etcd
     spec:
       accessModes:
         - ReadWriteOnce
@@ -234,7 +234,7 @@ spec:
       {{- if not .Values.etcd.secureTransport }}
       volumes:
       {{- end }}
-        - name: etcd-data
+        - name: var-etcd
           hostPath:
              path: {{ .Values.etcd.dataDir }}
 {{- end }}

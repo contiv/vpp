@@ -134,12 +134,12 @@ spec:
             - /usr/local/bin/etcd --name=contiv-etcd --data-dir=/var/etcd/contiv-data
               --advertise-client-urls=http://0.0.0.0:12379 --listen-client-urls=http://0.0.0.0:12379 --listen-peer-urls=http://0.0.0.0:12380
           volumeMounts:
-            - name: etcd-data
-              mountPath: /var/etcd/contiv-data
+            - name: var-etcd
+              mountPath: /var/etcd/
       volumes:
-        - name: etcd-data
+        - name: var-etcd
           hostPath:
-             path: /var/etcd/contiv-data
+             path: /var/etcd/
 
 ---
 

@@ -13,21 +13,46 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# set default values for pulling images
+IMAGE_TAG="latest"
+SKIP_DELETE="false"
+
+# override defaults from arguments
+while [ "$1" != "" ]; do
+    case $1 in
+        -b | --branch )
+            shift
+            IMAGE_TAG=$1
+            if [ "${IMAGE_TAG}" == "master" ]; then
+              IMAGE_TAG="latest"
+            fi
+            ;;
+        -s | --skip-delete )
+            SKIP_DELETE="true"
+            echo "Images will not be deleted"
+            ;;            
+        * )
+            echo "Invalid parameter: "$1
+            exit 1
+    esac
+    shift
+done
+
 set -euo pipefail
+echo "Using Images Tag: ${IMAGE_TAG}"
 
 # this script exports the built images as a tarball to be loaded
 
-images='contivvpp/ksr:latest contivvpp/cni:latest contivvpp/stn:latest contivvpp/vswitch:latest'
-
+images="contivvpp/ksr:${IMAGE_TAG} contivvpp/cni:${IMAGE_TAG} contivvpp/stn:${IMAGE_TAG} contivvpp/vswitch:${IMAGE_TAG}"
+echo $images
 if [ -f ../vagrant/images.tar ]; then
-	rm ../vagrant/images.tar
+  rm ../vagrant/images.tar
 fi
 
 docker save $images -o ../vagrant/images.tar
 
-# cleanup unless an argument is specified
-if [ "$#" == 0 ]; then
-    for img in $images; do
-        docker rmi $img
-    done
+if [ "${SKIP_DELETE}" != "true" ]; then
+  for img in $images; do
+    docker rmi $img
+  done
 fi

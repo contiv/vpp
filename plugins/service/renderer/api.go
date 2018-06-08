@@ -70,6 +70,11 @@ import (
 // to resolve any discrepancies. Resync() is always called on the agent startup,
 // but may also be triggered during the runtime - in case a potential data loss
 // between the agent and the data store or the vswitch has been detected.
+//
+// To integrate (VPP-specific) renderer with the ACL-based policies
+// (plugins/policy/renderer/acl), it is required to perform the service address
+// translation for both directions in-between the VPP nodes: `acl-plugin-in-ip4-fa`
+// and `acl-plugin-out-ip4-fa` (i.e. after ingress ACLs, but before egress ACLs).
 type ServiceRendererAPI interface {
 	// AddService is called for a newly added service.
 	AddService(service *ContivService) error

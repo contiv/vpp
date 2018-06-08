@@ -58,6 +58,7 @@ type Plugin struct {
 	wg         sync.WaitGroup
 
 	// delay resync until the contiv plugin has been re-synchronized.
+	resyncCounter  uint
 	pendingResync  datasync.ResyncEvent
 	pendingChanges []datasync.ChangeEvent
 
@@ -101,7 +102,7 @@ func (p *Plugin) Init() error {
 
 	p.nat44Renderer = &nat44.Renderer{
 		Deps: nat44.Deps{
-			Log:       p.Log.NewLogger("-serviceConfigurator"),
+			Log:       p.Log.NewLogger("-nat44Renderer"),
 			VPP:       p.VPP,
 			Contiv:    p.Contiv,
 			GoVPPChan: goVppCh,
@@ -115,7 +116,7 @@ func (p *Plugin) Init() error {
 	p.nat44Renderer.Log.SetLevel(logging.DebugLevel)
 
 	p.processor.Init()
-	p.nat44Renderer.Init(false)
+	p.nat44Renderer.Init(true)
 
 	// Register renderers.
 	p.processor.RegisterRenderer(p.nat44Renderer)
@@ -160,6 +161,7 @@ func (p *Plugin) watchEvents() {
 		select {
 		case resyncConfigEv := <-p.resyncChan:
 			p.resyncLock.Lock()
+			p.resyncCounter++
 			p.pendingResync = resyncConfigEv
 			p.pendingChanges = []datasync.ChangeEvent{}
 			resyncConfigEv.Done(nil)
@@ -168,6 +170,12 @@ func (p *Plugin) watchEvents() {
 
 		case dataChngEv := <-p.changeChan:
 			p.resyncLock.Lock()
+			if p.resyncCounter == 0 {
+				p.Log.WithField("config", dataChngEv).
+					Info("Ignoring data-change received before the first RESYNC")
+				p.resyncLock.Unlock()
+				break
+			}
 			if p.pendingResync != nil {
 				p.pendingChanges = append(p.pendingChanges, dataChngEv)
 				dataChngEv.Done(nil)

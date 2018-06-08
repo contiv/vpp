@@ -90,7 +90,7 @@ var (
 // the post-routing NAT mode (`output` feature) - both during Resync.
 //
 // For more implementation details, please study the developer's guide for
-// services: `docs/SERVICES.md` from the top directory.
+// services: `docs/dev-guide/SERVICES.md` from the top directory.
 type Renderer struct {
 	Deps
 

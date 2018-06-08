@@ -57,7 +57,7 @@ etcd:
   service:
     #NodePort where contiv-etcd can be reached on any node.
     nodePort: 32379
-  dataDir: /var/etcd/contiv-data
+  dataDir: /var/etcd
   usePersistentVolume: false
   persistentVolumeSize: 2Gi
   # if secureTransport is enabled, secrets need to point to proper certificates

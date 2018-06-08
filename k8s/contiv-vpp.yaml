@@ -139,7 +139,7 @@ spec:
       volumes:
         - name: var-etcd
           hostPath:
-             path: /var/etcd/
+             path: /var/etcd
 
 ---
 

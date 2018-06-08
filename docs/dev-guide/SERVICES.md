@@ -510,7 +510,7 @@ periodically cleaning up inactive NAT sessions.
 [ks-services]: https://kubernetes.io/docs/concepts/services-networking/service/
 [kube-proxy]: https://kubernetes.io/docs/reference/command-line-tools-reference/kube-proxy/
 [ipvs]: http://kb.linuxvirtualserver.org/wiki/IPVS
-[vpp-nat-plugin]: https://wiki.fd.io/view/VPP-NAT
+[vpp-nat-plugin]: https://wiki.fd.io/view/VPP/NAT
 [vpp-nat-plugin-api]: https://github.com/vpp-dev/vpp/blob/stable-1801-contiv/src/plugins/nat/nat.api
 [service-plugin]: https://github.com/contiv/vpp/tree/master/plugins/service
 [service-plugin-skeleton]: https://github.com/contiv/vpp/blob/master/plugins/service/plugin_impl_service.go

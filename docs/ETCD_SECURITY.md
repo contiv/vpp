@@ -64,7 +64,7 @@ distribute them as [k8s secrets](https://kubernetes.io/docs/concepts/configurati
 
 #### Option a) Distribute certificates manually
 In this case, you need to copy the `ca.pem`, `client.pem` and `client-key.pem` files
-into a specific folder (`/var/etcd/contiv-secrets` by default) on each worker node.
+into a specific folder (`/var/contiv/etcd-secrets` by default) on each worker node.
 On the master node, you also need to add the `server.pem` and `server-key.pem` into that location.
 
 Then you can generate the Contiv-VPP deployment YAML as follows:

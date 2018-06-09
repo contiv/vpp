@@ -1,6 +1,7 @@
 #!/bin/bash
 
-# Use collected bug report data to show contiv network connectivity.
+# Use the output from the VPP 'show interface' command to compute aggregate
+# and individual throughputs to pods attached to the vswitch in Contiv-VPP.
 
 set -euo pipefail
 

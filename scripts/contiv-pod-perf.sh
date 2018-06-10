@@ -10,11 +10,15 @@ usage() {
     echo
     echo "Available options:"
     echo
+    echo "-c               If specified, output results in csv format. By default, results"
+    echo "                 are output in a table."
+    echo
     echo "-e <end-time>    End of the measurement interval. Any valid output from the"
     echo "                 'date' command is accepted. For example:"
     echo "                 $0 -f <stats-file> -s '2012-03-22 22:01:05 EDT' -e \"\`date\`\""
     echo "                 If either the start or the end of the measurement interval"
-    echo "                 is not specified, it is set to a default value of 1 second."
+    echo "                 is not specified, the measurement interval is set to a default"
+    echo "                 value of 1 second."
     echo
     echo "-f <stats-file>  Path to a file containing the out put from the vppctl command"
     echo "                 'show interfaces'. If the stats file is not specified, output"
@@ -29,8 +33,8 @@ usage() {
     echo "                 $0 -f <stats-file> -s '2012-03-22 22:01:05 EDT' -e \"\`date\`\""
     echo "                 For throughput calculations it is assumed that stats counters"
     echo "                 are cleared at <start-time>. If either the start or the end"
-    echo "                 of the measurement interval is not specified, it is set to a"
-    echo "                 default value of 1 second."
+    echo "                 of the measurement interval is not specified, the measurement"
+    echo "                 interval is set to a default value of 1 second."
     echo
     echo "-v               Verbose, in addition to the aggregate throughput for all pods,"
     echo "                 print throughput for each pod."
@@ -51,10 +55,13 @@ STATS_FILE="-"
 START_TIME=
 END_TIME=
 DELTA=1
+OUTPUT_CSV=
 
-while getopts "e:f:hs:v" opt
+while getopts "ce:f:hs:v" opt
 do
     case "$opt" in
+    c)  OUTPUT_CSV=1
+        ;;
     e)  END_TIME=$OPTARG
         ;;
     f)  STATS_FILE=$OPTARG
@@ -151,19 +158,32 @@ let "RX_PKT_RATE = $TAP_RX_PKTS / $DELTA"
 let "TX_BYTE_RATE = $TAP_TX_BYTES / $DELTA"
 let "RX_BYTE_RATE = $TAP_RX_BYTES / $DELTA"
 
-echo Measurement time interval: "$DELTA" seconds
-echo
-printf "+-----------++-----------------------------------------------++-------------------------------+\n"
-printf "|           ||                   PACKETS/s                   ||            BYTES/s            |\n"
-printf "|           ||---------------+---------------+---------------++---------------+---------------+\n"
-printf "|           ||      Rx:      |   Tx-Actual:  |  Tx-Attempts: ||      Rx:      |       Tx:     |\n"
-printf "|===========++===============+===============+===============++===============+===============+\n"
-printf "| AGGREGATE || %12d  | %12d  | %12d  || %12d  | %12d  |\n"\
-        "$RX_PKT_RATE" "$TX_ACTUAL_PKT_RATE" "$TX_OFFERD_PKT_RATE" "$RX_BYTE_RATE" "$TX_BYTE_RATE"
+if [ -z "$OUTPUT_CSV" ]
+then
+    echo Measurement time interval: "$DELTA" seconds
+    echo
+    printf "+-----------++-----------------------------------------------++-------------------------------+\n"
+    printf "|           ||                   PACKETS/s                   ||            BYTES/s            |\n"
+    printf "|           ||---------------+---------------+---------------++---------------+---------------+\n"
+    printf "|           ||      Rx:      |   Tx-Actual:  |  Tx-Attempts: ||      Rx:      |       Tx:     |\n"
+    printf "|===========++===============+===============+===============++===============+===============+\n"
+    printf "| AGGREGATE || %12d  | %12d  | %12d  || %12d  | %12d  |\n"\
+            "$RX_PKT_RATE" "$TX_ACTUAL_PKT_RATE" "$TX_OFFERD_PKT_RATE" "$RX_BYTE_RATE" "$TX_BYTE_RATE"
+else
+    echo "Interval(sec):,$DELTA"
+    echo ",,"
+    echo "NAME,RX-PKTS,TX-ACTUAL_PKTS,TX-ATTEMPT-PKTS,RX-BYTES,TX-BYTES"
+    printf "AGGREGATE,%d,%d,%d,%d,%d\n" \
+            "$RX_PKT_RATE" "$TX_ACTUAL_PKT_RATE" "$TX_OFFERD_PKT_RATE" "$RX_BYTE_RATE" "$TX_BYTE_RATE"
+fi
 
 if [ $VERBOSE == "1" ]
 then
-    printf "|===========++===============+===============+===============++===============+===============+\n"
+    if [ -z "$OUTPUT_CSV" ]
+    then
+        printf "|===========++===============+===============+===============++===============+===============+\n"
+    fi
+
     for K in "${!INTERFACES[@]}"
     do
         IF_NAME="${INTERFACES[$K]}"
@@ -175,11 +195,20 @@ then
 
             let "TX_BYTE_RATE = ${TX[$IF_NAME,0]} / $DELTA"
             let "RX_BYTE_RATE = ${RX[$IF_NAME,0]} / $DELTA"
-            printf "| %-9s || %12d  | %12d  | %12d  || %12d  | %12d  |\n"\
-                "$IF_NAME" "$RX_PKT_RATE" "$TX_ACTUAL_PKT_RATE" "$TX_OFFERD_PKT_RATE" "$RX_BYTE_RATE" "$TX_BYTE_RATE"
+
+            if [ -z "$OUTPUT_CSV" ]
+            then
+                printf "| %-9s || %12d  | %12d  | %12d  || %12d  | %12d  |\n"\
+                    "$IF_NAME" "$RX_PKT_RATE" "$TX_ACTUAL_PKT_RATE" "$TX_OFFERD_PKT_RATE" "$RX_BYTE_RATE" "$TX_BYTE_RATE"
+            else
+                printf "%s,%d,%d,%d,%d,%d\n" \
+                    "$IF_NAME" "$RX_PKT_RATE" "$TX_ACTUAL_PKT_RATE" "$TX_OFFERD_PKT_RATE" "$RX_BYTE_RATE" "$TX_BYTE_RATE"
+            fi
         fi
     done
 fi
-
-printf "+-----------++-----------------------------------------------++-------------------------------+\n"
-echo
+    if [ -z "$OUTPUT_CSV" ]
+    then
+        printf "+-----------++-----------------------------------------------++-------------------------------+\n"
+        echo
+    fi

@@ -27,30 +27,6 @@ else
 fi
 done
 echo
-echo 'Please choose vagrant provider: '
-PS3='--> '
-options=("VirtualBox" "VMWare_Fusion" "Quit")
-select opt in "${options[@]}"
-do
-    case $opt in
-        "VirtualBox")
-            echo "You chose VirtualBox"
-            export VAGRANT_DEFAULT_PROVIDER="virtualbox"
-            break
-            ;;
-        "VMWare_Fusion")
-            echo "You chose VMWare_Fusion"
-            export VAGRANT_DEFAULT_PROVIDER="vmware_fusion"
-            break
-            ;;
-        "Quit")
-            echo "Exiting..."
-            exit 0
-            ;;
-        *) echo invalid option;;
-    esac
-done
-echo
 
 echo 'Please choose Kubernetes environment: '
 PS3='--> '
@@ -113,6 +89,6 @@ else
     DEP_SCEN="with STN"
 fi
 echo
-echo "Creating a $VAGRANT_DEFAULT_PROVIDER $DEP_ENV environment, $DEP_SCEN and $K8S_NODES worker node(s)"
+echo "Creating a $DEP_ENV environment, $DEP_SCEN and $K8S_NODES worker node(s)"
 echo 
 ./vagrant-up

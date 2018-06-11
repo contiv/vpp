@@ -19,14 +19,28 @@ import (
 	"github.com/contiv/vpp/wiring"
 	"github.com/ligato/cn-infra/config"
 	"github.com/ligato/cn-infra/core"
+	"github.com/ligato/cn-infra/datasync/kvdbsync"
+	"github.com/ligato/cn-infra/db/keyval/etcdv3"
+	"github.com/ligato/cn-infra/health/statuscheck"
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/logging/logrus"
+	"github.com/ligato/cn-infra/rpc/prometheus"
+	"github.com/ligato/cn-infra/rpc/rest"
+	"github.com/ligato/cn-infra/servicelabel"
 )
 
 const (
 	defaultName = "ksr"
 	packageName = "ksr"
+	// MicroserviceLabel is the microservice label used by contiv-ksr.
+	MicroserviceLabel = "contiv-ksr"
 )
+
+// LogsFlagDefault - default file name
+const LogsFlagDefault = "logs.conf"
+
+// LogsFlagUsage used as flag usage (see implementation in declareFlags())
+const LogsFlagUsage = "Location of the configuration files; also set via 'LOGS_CONFIG' env variable."
 
 const (
 	// KubeConfigAdmin is the default location of kubeconfig with admin credentials.
@@ -63,18 +77,103 @@ func DefaultWiring(overwrite bool) wiring.Wiring {
 	ret := func(plugin core.Plugin) error {
 
 		p, ok := plugin.(*Plugin)
-		if ok {
-			if err := p.Wire(WithName(overwrite)); err != nil {
-				return err
+		if ok && overwrite {
+
+			//  Note - all of this could be massively simplified if dependencies has default wiring
+			if p.PluginName == "" {
+				p.PluginName = defaultName
 			}
-			if err := p.Wire(WithLog(overwrite)); err != nil {
-				return err
+			if p.Log == nil {
+				l := logging.ForPlugin(p.Name(), logrus.NewLogRegistry())
+				p.Log = l
 			}
-			if err := p.Wire(WithPluginConfig(overwrite)); err != nil {
-				return err
+			if p.PluginConfig == nil {
+				p.PluginConfig = config.ForPlugin(string(p.PluginName))
 			}
-			if err := p.Wire(WithKubeConfig(overwrite)); err != nil {
-				return err
+			if p.ServiceLabel == nil {
+				sl := &servicelabel.Plugin{}
+				p.ServiceLabel = sl
+				sl.MicroserviceLabel = MicroserviceLabel
+			}
+			if p.StatusCheck == nil {
+				// Initializing a statuscheck, all but the Log coudl be set by sc.DefaultWiring()
+				sc := &statuscheck.Plugin{}
+				p.StatusCheck = sc
+				sc.Deps.PluginName = core.PluginName("status-check")
+				sc.Deps.Log = logging.ForPlugin(string(sc.PluginName), p.Log)
+
+			}
+			if p.KubeConfig == nil {
+				config.ForPlugin("kube", KubeConfigAdmin, KubeConfigUsage)
+			}
+			dbsync := &kvdbsync.Plugin{}
+			if p.Publish == nil {
+				// TODO still need working for p.Publish dbsync == p.Publish
+				// db == plugin.etcdv3, resync == nil, dbPlugName take from dbPlugin
+
+				// Start Initializse a db - this could be replaced with db.DefaultWiring(db)
+				db := &etcdv3.Plugin{}
+				db.Deps.PluginName = "etcdv3"
+				db.Deps.Log = logging.ForPlugin(string(db.Deps.PluginName), p.Log)
+
+				db.Deps.PluginConfig = config.ForPlugin(string(db.Deps.PluginName))
+				db.ServiceLabel = p.ServiceLabel
+				// Initiazlize yet another StatusCheck that statuscheck.Plugin.DefaultWiring() could initizlize
+				sc := &statuscheck.Plugin{}
+				db.Deps.StatusCheck = sc
+				sc.Deps.PluginName = core.PluginName(db.PluginName)
+				sc.Deps.Log = logging.ForPlugin(string(sc.PluginName), p.Log)
+				sc.Deps.Log = logging.ForPlugin(string(sc.PluginName), p.Log)
+				db.ServiceLabel = p.ServiceLabel
+				// End Initializse a db - this could be replaced with db.DefaultWiring(db)
+
+				// All of this could be done by kvdbsync.Plugin.DefaultWiring(db) in the future
+				p.Publish = dbsync
+				p.Publish.Deps.Log = logging.ForPlugin(string(db.PluginName)+"-datasync", p.Log)
+				p.Publish.KvPlugin = db
+				p.Publish.ResyncOrch = nil
+
+			}
+			if p.StatusMonitor == nil {
+				// TODO: This one is done!
+				sm := &statuscheck.Plugin{}
+				p.StatusMonitor = sm
+				sm.Deps.PluginName = core.PluginName("status-check")
+				sm.Deps.Log = logging.ForPlugin(string(sm.Deps.PluginName), p.Log)
+				if dbsync != nil {
+					sm.Transport = dbsync
+				}
+			}
+			if p.StatsCollector.Prometheus == nil {
+				prom := &prometheus.Plugin{}
+				p.StatsCollector.Prometheus = prom
+
+				prom.Deps.PluginName = "prometheus"
+				prom.Deps.PluginConfig = config.ForPlugin(string(prom.Deps.PluginName))
+				prom.ServiceLabel = p.ServiceLabel
+				// Initiazlize yet another StatusCheck that statuscheck.Plugin.DefaultWiring() could initizlize
+				sc := &statuscheck.Plugin{}
+				prom.Deps.StatusCheck = sc
+				sc.Deps.PluginName = core.PluginName(prom.PluginName)
+				sc.Deps.Log = logging.ForPlugin(string(sc.PluginName), p.Log)
+				sc.Deps.Log = logging.ForPlugin(string(sc.PluginName), p.Log)
+
+				http := &rest.ForkPlugin{}
+				prom.HTTP = http
+				rest.DeclareHTTPPortFlag("http-probe")
+				http.Deps.PluginName = "http-probe"
+				http.Deps.Log = logging.ForPlugin(string(http.Deps.PluginName), p.Log)
+				http.Deps.PluginConfig = config.ForPlugin(string(http.Deps.PluginName))
+
+				rp := &rest.Plugin{}
+				http.Deps.DefaultHTTP = rp
+				rest.DeclareHTTPPortFlag("http")
+				rp.Deps.PluginName = "etcdv3"
+				rp.Deps.Log = logging.ForPlugin(string(rp.Deps.PluginName), p.Log)
+
+				rp.Deps.PluginConfig = config.ForPlugin(string(rp.Deps.PluginName))
+
+				http.Deps.DefaultHTTP = rp
 			}
 			return nil
 		}
@@ -82,148 +181,3 @@ func DefaultWiring(overwrite bool) wiring.Wiring {
 	}
 	return ret
 }
-
-// WithNamePrefix wires a PluginName for the Plugin
-// If overwrite is false, existing values will not be overwritten
-// If name is provided, that will be configured as the prefix to PluginName
-func WithNamePrefix(overwrite bool, name ...string) wiring.Wiring {
-	ret := func(plugin core.Plugin) error {
-		p, ok := plugin.(*Plugin)
-		if ok {
-			if overwrite || p.PluginName == "" {
-				p.Wire(WithName(false)) // Make sure worst case we have the Default name
-				if len(name) > 0 {
-					p.PluginName = core.PluginName(name[0] + string(p.PluginName))
-				}
-			}
-			return nil
-		}
-		return fmt.Errorf("Could not convert core.Plugin to *%s.Plugin", packageName)
-	}
-	return ret
-}
-
-// WithName wires a PluginName for the Plugin
-// If overwrite is false, existing values will not be overwritten
-// If name is provided, that will be configured as the PluginName, otherwise a default will be used
-func WithName(overwrite bool, name ...string) wiring.Wiring {
-	ret := func(plugin core.Plugin) error {
-		p, ok := plugin.(*Plugin)
-		if ok {
-			if overwrite || p.PluginName == "" {
-				if len(name) > 0 {
-					p.PluginName = core.PluginName(name[0])
-				} else {
-					p.PluginName = core.PluginName(defaultName)
-				}
-			}
-			return nil
-		}
-		return fmt.Errorf("Could not convert core.Plugin to *%s.Plugin", packageName)
-	}
-	return ret
-}
-
-// WithLog returns a wiring that sets the Log dependency of the Plugin
-// If overwrite is false, WithLog will leave unchanged any existing Log wired in
-// If a log value is provided, it will be wired in, otherwise, a default will be
-// generated and wired in
-func WithLog(overwrite bool, log ...logging.PluginLogger) wiring.Wiring {
-	ret := func(plugin core.Plugin) error {
-		p, ok := plugin.(*Plugin)
-		if ok {
-			if overwrite || p.Log == nil {
-				if len(log) > 0 {
-					p.Log = log[0]
-				} else {
-					p.Log = logging.ForPlugin(p.Name(), logrus.NewLogRegistry())
-				}
-			}
-			return nil
-		}
-		return fmt.Errorf("Could not convert core.Plugin to *%s.Plugin", packageName)
-	}
-	return ret
-}
-
-// WithLogFactory wires a Log dependency generated from the LogFactory (if one is provided)
-// If overwrite is false, existing values will not be overwritten
-// If a factory is provided, it will be used, otherwise, a default LogFactory will be generated and used
-func WithLogFactory(overwrite bool, factory ...logging.LogFactory) wiring.Wiring {
-	ret := func(plugin core.Plugin) error {
-		p, ok := plugin.(*Plugin)
-		if ok {
-			err := p.Wire(WithLog(overwrite, logging.ForPlugin(p.Name(), logrus.NewLogRegistry())))
-			return err
-		}
-		return fmt.Errorf("Could not convert core.Plugin to *%s.Plugin", packageName)
-	}
-	return ret
-}
-
-// WithPluginConfig wires in a PluginConfig for the plugin
-// If overwrite is false, existing values will not be overwritten
-// If cfg is provided, that will be configured as the PluginConfig, otherwise a default will be used
-func WithPluginConfig(overwrite bool, cfg ...config.PluginConfig) wiring.Wiring {
-	ret := func(plugin core.Plugin) error {
-		p, ok := plugin.(*Plugin)
-		if ok {
-			if len(cfg) > 0 {
-				p.PluginConfig = cfg[0]
-			} else {
-				if err := p.Wire(WithName(false)); err != nil {
-					return err
-				}
-				if overwrite || p.PluginConfig == nil {
-					p.PluginConfig = config.ForPlugin(p.Name())
-				}
-			}
-			return nil
-		}
-		return fmt.Errorf("Could not convert core.Plugin to *%s.Plugin", packageName)
-	}
-	return ret
-}
-
-// WithPluginConfig wires in a PluginConfig for the plugin
-// If overwrite is false, existing values will not be overwritten
-// If cfg is provided, that will be configured as the PluginConfig, otherwise a default will be used
-func WithKubeConfig(overwrite bool, cfg ...config.PluginConfig) wiring.Wiring {
-	ret := func(plugin core.Plugin) error {
-		p, ok := plugin.(*Plugin)
-		if ok {
-			if len(cfg) > 0 {
-				p.PluginConfig = cfg[0]
-			} else {
-				if err := p.Wire(WithName(false)); err != nil {
-					return err
-				}
-				if overwrite || p.PluginConfig == nil {
-					p.KubeConfig = config.ForPlugin("kube", KubeConfigAdmin, KubeConfigUsage)
-				}
-			}
-			return nil
-		}
-		return fmt.Errorf("Could not convert core.Plugin to *%s.Plugin", packageName)
-	}
-	return ret
-}
-
-//func WithPublish(overwrite bool,publish...*kvdbsync.Plugin) {
-//	ret := func(plugin core.Plugin) error {
-//		p, ok := plugin.(*Plugin)
-//		if ok {
-//			if len(publish) > 0 {
-//				p.Publish = publish[0]
-//			} else {
-//				pub := &kvdbsync.Plugin{}
-//				pub.Wire(nil)
-//				p.Publish = pub
-//
-//			}
-//		}
-//	}
-//}
-
-
-

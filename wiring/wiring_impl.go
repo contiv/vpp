@@ -81,6 +81,9 @@ func NewAgent(plugin NamedWirablePlugin, wiring ...Wiring) (agent *core.Agent, e
 	}
 
 	np := NamePlugin(plugin, plugin.Name())
+	// Get all Dependent Plugins we need to initialize
+	nps := []*core.NamedPlugin{np}
+	nps = append(nps, ListUniqueNamedPlugins(plugin)...)
 	return newAgentFromPlugins(np), err
 }
 
@@ -102,24 +105,3 @@ func EventLoopWithInterrupt(plugin NamedWirablePlugin, closeChan chan struct{}, 
 	}
 	return core.EventLoopWithInterrupt(agent, closeChan)
 }
-
-// Run is a convenience function to run an EventLoop from a single plugin, provided its Wirable and Named
-// Optionally you can provide a list of wirings to be composed an applied to the plugin
-// If no wirings are provided and the plugin is DefaultWirable, the DefaultWiring will be
-// applied.  This lets you get a running MonitorableEventLoopWithInterupt  in a single simple call:
-//
-// readyCh,errCh := wiring.EventLoop(plugin,closeCh)
-//
-// An EventLoop for a plugin with a custom wiring started with a single simple call:
-//
-// readyCh,errCh  := wiring.EventLoop(plugin, closeCh,customWiring)
-//func Run(plugin NamedWirablePlugin, closeChan chan struct{}, wiring ...Wiring) (<-chan struct{}, <-chan error) {
-//	agent, err := NewAgent(plugin, wiring...)
-//	if err != nil {
-//		errCh := make(chan error, 1)
-//		defer close(errCh)
-//		readyCh := make(chan struct{})
-//		return readyCh, errCh
-//	}
-//	return core.Run(agent, closeChan)
-//}

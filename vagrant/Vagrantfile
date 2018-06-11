@@ -48,7 +48,7 @@ end
 http_proxy = ENV['HTTP_PROXY'] || ENV['http_proxy'] || ''
 https_proxy = ENV['HTTPS_PROXY'] || ENV['https_proxy'] || ''
 node_os = ENV['K8S_NODE_OS'] || 'ubuntu'
-base_ip = ENV['K8S_IP_PREFIX'] || '10.30.0.'
+base_ip = ENV['K8S_IP_PREFIX'] || '10.20.0.'
 num_nodes = ENV['K8S_NODES'].to_i == 0 ? 0 : ENV['K8S_NODES'].to_i
 provider = ENV['VAGRANT_DEFAULT_PROVIDER']
 dep_env = ENV['K8S_DEPLOYMENT_ENV']
@@ -355,7 +355,7 @@ VAGRANTFILE_API_VERSION = "2"
     config.vm.define "k8s-gateway" do |gw|
       gw.vm.hostname = "k8s-gateway"
       # Interface for K8s Cluster
-      gw.vm.network :private_network, ip: "10.20.0.100", virtualbox__intnet: "vpp"
+      gw.vm.network :private_network, ip: "192.168.16.100", virtualbox__intnet: "vpp"
       gw.vm.provider "virtualbox" do |v|
         v.customize ["modifyvm", :id, "--ioapic", "on"]
         v.memory = 512

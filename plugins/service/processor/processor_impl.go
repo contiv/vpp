@@ -54,8 +54,8 @@ type ServiceProcessor struct {
 type Deps struct {
 	Log          logging.Logger
 	ServiceLabel servicelabel.ReaderAPI
-	Contiv       contiv.API         /* to get all interface names and pod IP network */
-	VPP          vpp.API /* interface IP addresses */
+	Contiv       contiv.API /* to get all interface names and pod IP network */
+	VPP          vpp.API    /* interface IP addresses */
 	Configurator configurator.ServiceConfiguratorAPI
 }
 

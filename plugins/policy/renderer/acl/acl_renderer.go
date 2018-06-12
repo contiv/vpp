@@ -63,7 +63,7 @@ type Deps struct {
 	Log           logging.Logger
 	LogFactory    logging.LogFactory /* optional */
 	Contiv        contiv.API         /* for GetIfName() */
-	VPP           vpp.API /* for DumpACLs() */
+	VPP           vpp.API            /* for DumpACLs() */
 	ACLTxnFactory func() (dsl linuxclient.DataChangeDSL)
 	LatestRevs    *syncbase.PrevRevisions
 }

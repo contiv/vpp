@@ -27,8 +27,8 @@ import (
 
 	"github.com/ligato/vpp-agent/clientv1/linux"
 	"github.com/ligato/vpp-agent/clientv1/linux/localclient"
-	"github.com/ligato/vpp-agent/plugins/vpp"
 	"github.com/ligato/vpp-agent/plugins/govppmux"
+	"github.com/ligato/vpp-agent/plugins/vpp"
 
 	"github.com/contiv/vpp/plugins/contiv"
 	"github.com/contiv/vpp/plugins/policy/cache"
@@ -88,7 +88,7 @@ type Deps struct {
 	Resync  resync.Subscriber
 	Watcher datasync.KeyValProtoWatcher /* prefixed for KSR-published K8s state data */
 	Contiv  contiv.API                  /* for GetIfName() */
-	VPP     vpp.API          /* for DumpACLs() */
+	VPP     vpp.API                     /* for DumpACLs() */
 	GoVPP   govppmux.API                /* for VPPTCP Renderer */
 }
 
@@ -103,7 +103,7 @@ func (p *Plugin) Init() error {
 	// Inject dependencies between layers.
 	p.policyCache = &cache.PolicyCache{
 		Deps: cache.Deps{
-			Log:        p.Log.NewLogger("-policyCache"),
+			Log: p.Log.NewLogger("-policyCache"),
 		},
 	}
 	p.policyCache.Log.SetLevel(logging.DebugLevel)

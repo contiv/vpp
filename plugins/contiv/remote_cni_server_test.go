@@ -45,9 +45,9 @@ import (
 	"github.com/ligato/vpp-agent/plugins/vpp/binapi/tap"
 	"github.com/ligato/vpp-agent/plugins/vpp/binapi/vpe"
 	"github.com/ligato/vpp-agent/plugins/vpp/binapi/vxlan"
+	"github.com/ligato/vpp-agent/plugins/vpp/ifplugin/ifaceidx"
 	vpp_intf "github.com/ligato/vpp-agent/plugins/vpp/model/interfaces"
 	vpp_l3 "github.com/ligato/vpp-agent/plugins/vpp/model/l3"
-	"github.com/ligato/vpp-agent/plugins/vpp/ifplugin/ifaceidx"
 
 	"github.com/contiv/vpp/plugins/contiv/ipam"
 	"github.com/ligato/cn-infra/datasync"
@@ -488,13 +488,13 @@ func addIfsIntoTheIndex(mapping ifaceidx.SwIfIndexRW) func(txn *localclient.Txn,
 }
 
 func swIfIndexMock() ifaceidx.SwIfIndexRW {
-	mapping := nametoidx.NewNameToIdx(logrus.DefaultLogger(), "plugin", "swIf", ifaceidx.IndexMetadata)
+	mapping := nametoidx.NewNameToIdx(logrus.DefaultLogger(), "swIf", ifaceidx.IndexMetadata)
 
 	return ifaceidx.NewSwIfIndex(mapping)
 }
 
 func dhcpIndexMock() ifaceidx.DhcpIndex {
-	mapping := nametoidx.NewNameToIdx(logrus.DefaultLogger(), "plugin", "dhcpIf", ifaceidx.IndexDHCPMetadata)
+	mapping := nametoidx.NewNameToIdx(logrus.DefaultLogger(), "dhcpIf", ifaceidx.IndexDHCPMetadata)
 
 	return ifaceidx.NewDHCPIndex(mapping)
 }

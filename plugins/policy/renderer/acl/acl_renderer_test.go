@@ -26,8 +26,8 @@ import (
 
 	. "github.com/contiv/vpp/mock/aclengine"
 	. "github.com/contiv/vpp/mock/contiv"
-	. "github.com/contiv/vpp/mock/vpp"
 	"github.com/contiv/vpp/mock/localclient"
+	. "github.com/contiv/vpp/mock/pluginvpp"
 	"github.com/contiv/vpp/plugins/contiv"
 	"github.com/contiv/vpp/plugins/policy/renderer"
 	"github.com/contiv/vpp/plugins/policy/renderer/cache"
@@ -585,7 +585,7 @@ func TestCombinedRulesWithResync(t *testing.T) {
 
 	// Dump ACLs and put them to mock vpp.
 	acls := aclEngine.DumpACLs()
-	vppPlugins.AddACL(acls...)
+	vppPlugins.AddIPACL(acls...)
 
 	// Simulate restart of ACL Renderer.
 	txnTracker = localclient.NewTxnTracker(aclEngine.ApplyTxn)
@@ -657,7 +657,7 @@ func TestCombinedRulesWithResync(t *testing.T) {
 	// Dump ACLs and put them to mock vpp.
 	acls = aclEngine.DumpACLs()
 	vppPlugins.ClearACLs()
-	vppPlugins.AddACL(acls...)
+	vppPlugins.AddIPACL(acls...)
 
 	// Re-sync back to the state after the first transaction.
 	txn = aclRenderer.NewTxn(true)
@@ -772,7 +772,7 @@ func TestCombinedRulesWithResyncAndRemovedPod(t *testing.T) {
 
 	// Dump ACLs and put them to mock vpp.
 	acls := aclEngine.DumpACLs()
-	vppPlugins.AddACL(acls...)
+	vppPlugins.AddIPACL(acls...)
 
 	// Simulate restart of ACL Renderer.
 	txnTracker = localclient.NewTxnTracker(aclEngine.ApplyTxn)
@@ -845,7 +845,7 @@ func TestCombinedRulesWithResyncAndRemovedPod(t *testing.T) {
 	// Dump ACLs and put them to mock vpp.
 	acls = aclEngine.DumpACLs()
 	vppPlugins.ClearACLs()
-	vppPlugins.AddACL(acls...)
+	vppPlugins.AddIPACL(acls...)
 
 	// Re-sync back to the state after the first transaction.
 	txn = aclRenderer.NewTxn(true)

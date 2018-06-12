@@ -71,7 +71,7 @@ type Deps struct {
 	Resync  resync.Subscriber
 	Watcher datasync.KeyValProtoWatcher /* prefixed for KSR-published K8s state data */
 	Contiv  contiv.API                  /* to get the Node IP and all interface names */
-	VPP     vpp.API          /* interface indexes && IP addresses */
+	VPP     vpp.API                     /* interface indexes && IP addresses */
 	GoVPP   govppmux.API                /* used for direct NAT binary API calls */
 	Stats   statscollector.API          /* used for exporting the statistics */
 }

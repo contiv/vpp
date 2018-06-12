@@ -26,8 +26,8 @@ import (
 
 	. "github.com/contiv/vpp/mock/contiv"
 	. "github.com/contiv/vpp/mock/datasync"
-	. "github.com/contiv/vpp/mock/pluginvpp"
 	. "github.com/contiv/vpp/mock/natplugin"
+	. "github.com/contiv/vpp/mock/pluginvpp"
 	. "github.com/contiv/vpp/mock/servicelabel"
 
 	"github.com/contiv/vpp/mock/localclient"

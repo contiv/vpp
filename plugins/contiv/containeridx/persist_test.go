@@ -25,7 +25,7 @@ import (
 func TestPersistingAllocatedIPs(t *testing.T) {
 	gomega.RegisterTestingT(t)
 	broker := &broker.MockBroker{}
-	idx := NewConfigIndex(logrus.DefaultLogger(),"title", broker)
+	idx := NewConfigIndex(logrus.DefaultLogger(), "title", broker)
 	gomega.Expect(idx).NotTo(gomega.BeNil())
 
 	// register three containers
@@ -54,7 +54,7 @@ func TestPersistingAllocatedIPs(t *testing.T) {
 	gomega.Expect(broker.Keys()).To(gomega.ContainElement(container.Key("third")))
 
 	// load data by another configIndex instance
-	anotherIdx := NewConfigIndex(logrus.DefaultLogger(),"title2", broker)
+	anotherIdx := NewConfigIndex(logrus.DefaultLogger(), "title2", broker)
 	gomega.Expect(anotherIdx).NotTo(gomega.BeNil())
 
 	_, found, err = anotherIdx.UnregisterContainer("third")

@@ -71,8 +71,8 @@ type ServiceConfigurator struct {
 // Deps lists dependencies of ServiceConfigurator.
 type Deps struct {
 	Log           logging.Logger
-	VPP           vpp.API /* for DumpNat44Global & DumpNat44DNat */
-	Contiv        contiv.API         /* for GetNatLoopbackIP, InSTNMode, GetServiceLocalEndpointWeight */
+	VPP           vpp.API    /* for DumpNat44Global & DumpNat44DNat */
+	Contiv        contiv.API /* for GetNatLoopbackIP, InSTNMode, GetServiceLocalEndpointWeight */
 	NATTxnFactory func() (dsl linuxclient.DataChangeDSL)
 	LatestRevs    *syncbase.PrevRevisions
 	GoVPPChan     *govpp.Channel     /* used for direct NAT binary API calls */

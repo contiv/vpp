@@ -32,7 +32,7 @@ type PolicyCache struct {
 
 // Deps lists dependencies of PolicyCache.
 type Deps struct {
-	Log        logging.Logger
+	Log logging.Logger
 }
 
 // Init initializes policy cache.

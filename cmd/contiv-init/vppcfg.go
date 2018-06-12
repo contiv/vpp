@@ -31,17 +31,17 @@ import (
 	"git.fd.io/govpp.git/api"
 	govpp "git.fd.io/govpp.git/core"
 
-	if_vppcalls "github.com/ligato/vpp-agent/plugins/vpp/ifplugin/vppcalls"
-	l3_vppcalls "github.com/ligato/vpp-agent/plugins/vpp/l3plugin/vppcalls"
 	"github.com/ligato/vpp-agent/plugins/govppmux"
 	if_linuxcalls "github.com/ligato/vpp-agent/plugins/linux/ifplugin/linuxcalls"
 	l3_linuxcalls "github.com/ligato/vpp-agent/plugins/linux/l3plugin/linuxcalls"
+	if_vppcalls "github.com/ligato/vpp-agent/plugins/vpp/ifplugin/vppcalls"
+	l3_vppcalls "github.com/ligato/vpp-agent/plugins/vpp/l3plugin/vppcalls"
 
+	if_linux "github.com/ligato/vpp-agent/plugins/linux/model/interfaces"
+	l3_linux "github.com/ligato/vpp-agent/plugins/linux/model/l3"
 	"github.com/ligato/vpp-agent/plugins/vpp/model/interfaces"
 	"github.com/ligato/vpp-agent/plugins/vpp/model/l3"
 	stn_nb "github.com/ligato/vpp-agent/plugins/vpp/model/stn"
-	if_linux "github.com/ligato/vpp-agent/plugins/linux/model/interfaces"
-	l3_linux "github.com/ligato/vpp-agent/plugins/linux/model/l3"
 
 	"github.com/ligato/vpp-agent/plugins/vpp/binapi/dhcp"
 	if_binapi "github.com/ligato/vpp-agent/plugins/vpp/binapi/interfaces"
@@ -520,7 +520,7 @@ func enableArpProxy(ch *api.Channel, loAddr net.IP, hiAddr net.IP, ifIdx uint32)
 
 	// configure proxy arp pool
 	req := &ip_binapi.ProxyArpAddDel{
-		IsAdd:      1,
+		IsAdd: 1,
 		Proxy: ip_binapi.ProxyArp{
 			VrfID:      0,
 			LowAddress: []byte(loAddr.To4()),

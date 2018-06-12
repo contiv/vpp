@@ -19,12 +19,13 @@ import (
 
 	"github.com/ligato/vpp-agent/idxvpp"
 	"github.com/ligato/vpp-agent/idxvpp/nametoidx"
-	"github.com/ligato/vpp-agent/plugins/vpp/model/acl"
-	vppintf "github.com/ligato/vpp-agent/plugins/vpp/model/interfaces"
-	"github.com/ligato/vpp-agent/plugins/vpp/model/nat"
 	"github.com/ligato/vpp-agent/plugins/vpp/ifplugin/ifaceidx"
 	"github.com/ligato/vpp-agent/plugins/vpp/l2plugin/l2idx"
 	"github.com/ligato/vpp-agent/plugins/vpp/l4plugin/nsidx"
+	"github.com/ligato/vpp-agent/plugins/vpp/ipsecplugin/ipsecidx"
+	"github.com/ligato/vpp-agent/plugins/vpp/model/acl"
+	vppintf "github.com/ligato/vpp-agent/plugins/vpp/model/interfaces"
+	"github.com/ligato/vpp-agent/plugins/vpp/model/nat"
 )
 
 // MockVppPlugin is a mock for VPP plugin.
@@ -52,9 +53,14 @@ func (mvp *MockVppPlugin) AddInterface(ifName string, swIfIndex uint32, ip strin
 	})
 }
 
-// DumpACL dumps ACLs added with AddACL().
-func (mvp *MockVppPlugin) DumpACL() (acls []*acl.AccessLists_Acl, err error) {
+// DumpIPACL dumps ACLs added with AddIPACL().
+func (mvp *MockVppPlugin) DumpIPACL() (acls []*acl.AccessLists_Acl, err error) {
 	return mvp.ACLs, nil
+}
+
+// DumpMACIPACL returns empty list of MAC ACLs.
+func (mvp *MockVppPlugin) DumpMACIPACL() (acls []*acl.AccessLists_Acl, err error) {
+	return nil, nil
 }
 
 // ClearACLs clears the list ACLs for the dump.
@@ -62,8 +68,8 @@ func (mvp *MockVppPlugin) ClearACLs() {
 	mvp.ACLs = []*acl.AccessLists_Acl{}
 }
 
-// AddAcl adds ACL for DumpACLs().
-func (mvp *MockVppPlugin) AddACL(acls ...*acl.AccessLists_Acl) {
+// AddIPAcl adds IP ACL for DumpIPACL().
+func (mvp *MockVppPlugin) AddIPACL(acls ...*acl.AccessLists_Acl) {
 	for _, acl := range acls {
 		mvp.ACLs = append(mvp.ACLs, acl)
 	}
@@ -119,7 +125,7 @@ func (mvp *MockVppPlugin) GetFIBIndexes() l2idx.FIBIndexRW {
 }
 
 // GetXConnectIndexes does nothing here.
-func (mvp *MockVppPlugin) GetXConnectIndexes() idxvpp.NameToIdx {
+func (mvp *MockVppPlugin) GetXConnectIndexes() l2idx.XcIndexRW {
 	return nil
 }
 
@@ -144,6 +150,6 @@ func (mvp *MockVppPlugin) GetIPSecSAIndexes() idxvpp.NameToIdx {
 }
 
 // GetIPSecSPDIndexes
-func (mvp *MockVppPlugin) GetIPSecSPDIndexes() idxvpp.NameToIdx {
+func (mvp *MockVppPlugin) GetIPSecSPDIndexes() ipsecidx.SPDIndex {
 	return nil
 }

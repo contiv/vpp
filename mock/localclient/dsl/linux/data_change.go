@@ -1,10 +1,12 @@
 package linux
 
 import (
-	"github.com/ligato/vpp-agent/clientv1/vpp"
 	"github.com/ligato/vpp-agent/clientv1/linux"
+	"github.com/ligato/vpp-agent/clientv1/vpp"
 
 	"github.com/contiv/vpp/mock/localclient/dsl"
+	linux_intf "github.com/ligato/vpp-agent/plugins/linux/model/interfaces"
+	linux_l3 "github.com/ligato/vpp-agent/plugins/linux/model/l3"
 	vpp_acl "github.com/ligato/vpp-agent/plugins/vpp/model/acl"
 	vpp_bfd "github.com/ligato/vpp-agent/plugins/vpp/model/bfd"
 	vpp_intf "github.com/ligato/vpp-agent/plugins/vpp/model/interfaces"
@@ -13,8 +15,6 @@ import (
 	vpp_l4 "github.com/ligato/vpp-agent/plugins/vpp/model/l4"
 	vpp_nat "github.com/ligato/vpp-agent/plugins/vpp/model/nat"
 	vpp_stn "github.com/ligato/vpp-agent/plugins/vpp/model/stn"
-	linux_intf "github.com/ligato/vpp-agent/plugins/linux/model/interfaces"
-	linux_l3 "github.com/ligato/vpp-agent/plugins/linux/model/l3"
 )
 
 // MockDataChangeDSL is mock for DataChangeDSL.

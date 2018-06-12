@@ -6,4 +6,3 @@ then
 else
   echo "No images in docker..."
 fi
-

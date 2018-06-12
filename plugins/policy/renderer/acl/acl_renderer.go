@@ -26,8 +26,8 @@ import (
 	"github.com/ligato/cn-infra/datasync/syncbase"
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/vpp-agent/clientv1/linux"
-	"github.com/ligato/vpp-agent/plugins/defaultplugins"
-	vpp_acl "github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/acl"
+	"github.com/ligato/vpp-agent/plugins/vpp"
+	vpp_acl "github.com/ligato/vpp-agent/plugins/vpp/model/acl"
 
 	"github.com/contiv/vpp/plugins/contiv"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
@@ -63,8 +63,8 @@ type Deps struct {
 	Log           logging.Logger
 	LogFactory    logging.LogFactory /* optional */
 	Contiv        contiv.API         /* for GetIfName() */
-	VPP           defaultplugins.API /* for DumpACLs() */
-	ACLTxnFactory func() (dsl linux.DataChangeDSL)
+	VPP           vpp.API /* for DumpACLs() */
+	ACLTxnFactory func() (dsl linuxclient.DataChangeDSL)
 	LatestRevs    *syncbase.PrevRevisions
 }
 
@@ -72,7 +72,7 @@ type Deps struct {
 type RendererTxn struct {
 	Log      logging.Logger
 	cacheTxn cache.Txn
-	vpp      defaultplugins.API
+	vpp      vpp.API
 	renderer *Renderer
 	resync   bool
 }
@@ -423,7 +423,7 @@ func (art *RendererTxn) dumpVppACLConfig() (acls []*vpp_acl.AccessLists_Acl, tab
 	const maxPortNum = uint32(^uint16(0))
 	tables = []*cache.ContivRuleTable{}
 
-	aclDump, err := art.vpp.DumpACL()
+	aclDump, err := art.vpp.DumpIPACL()
 	if err != nil {
 		return aclDump, tables, false, err
 	}

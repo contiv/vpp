@@ -27,14 +27,14 @@ import (
 	"github.com/ligato/cn-infra/logging"
 
 	"github.com/ligato/vpp-agent/clientv1/linux"
-	"github.com/ligato/vpp-agent/plugins/defaultplugins"
-	"github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/nat"
+	"github.com/ligato/vpp-agent/plugins/vpp"
+	"github.com/ligato/vpp-agent/plugins/vpp/model/nat"
 
 	"github.com/contiv/vpp/plugins/contiv"
 
 	govpp "git.fd.io/govpp.git/api"
 	"github.com/contiv/vpp/plugins/statscollector"
-	nat_api "github.com/ligato/vpp-agent/plugins/defaultplugins/common/bin_api/nat"
+	nat_api "github.com/ligato/vpp-agent/plugins/vpp/binapi/nat"
 	"sync/atomic"
 )
 
@@ -71,9 +71,9 @@ type ServiceConfigurator struct {
 // Deps lists dependencies of ServiceConfigurator.
 type Deps struct {
 	Log           logging.Logger
-	VPP           defaultplugins.API /* for DumpNat44Global & DumpNat44DNat */
+	VPP           vpp.API /* for DumpNat44Global & DumpNat44DNat */
 	Contiv        contiv.API         /* for GetNatLoopbackIP, InSTNMode, GetServiceLocalEndpointWeight */
-	NATTxnFactory func() (dsl linux.DataChangeDSL)
+	NATTxnFactory func() (dsl linuxclient.DataChangeDSL)
 	LatestRevs    *syncbase.PrevRevisions
 	GoVPPChan     *govpp.Channel     /* used for direct NAT binary API calls */
 	Stats         statscollector.API /* used for exporting the statistics */

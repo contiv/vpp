@@ -28,7 +28,7 @@ import (
 
 	"github.com/contiv/vpp/mock/localclient"
 	"github.com/contiv/vpp/plugins/service/configurator"
-	"github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/nat"
+	"github.com/ligato/vpp-agent/plugins/vpp/model/nat"
 )
 
 // MockNatPlugin simulates the VPP/NAT plugin.
@@ -84,8 +84,8 @@ func (mnt *MockNatPlugin) ApplyTxn(txn *localclient.Txn, latestRevs *syncbase.Pr
 		return errors.New("txn is nil")
 	}
 
-	if txn.DefaultPluginsDataChangeTxn != nil || txn.DefaultPluginsDataResyncTxn != nil {
-		return errors.New("defaultplugins txn is not supported")
+	if txn.VPPDataChangeTxn != nil || txn.VPPDataResyncTxn != nil {
+		return errors.New("vpp txn is not supported")
 	}
 
 	if txn.LinuxDataResyncTxn != nil {

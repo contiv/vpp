@@ -20,13 +20,13 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/ligato/vpp-agent/plugins/defaultplugins/common/bin_api/ip"
-	vpp_intf "github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/interfaces"
-	vpp_l2 "github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/l2"
-	vpp_l3 "github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/l3"
-	vpp_l4 "github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/l4"
-	linux_intf "github.com/ligato/vpp-agent/plugins/linuxplugin/common/model/interfaces"
-	linux_l3 "github.com/ligato/vpp-agent/plugins/linuxplugin/common/model/l3"
+	"github.com/ligato/vpp-agent/plugins/vpp/binapi/ip"
+	vpp_intf "github.com/ligato/vpp-agent/plugins/vpp/model/interfaces"
+	vpp_l2 "github.com/ligato/vpp-agent/plugins/vpp/model/l2"
+	vpp_l3 "github.com/ligato/vpp-agent/plugins/vpp/model/l3"
+	vpp_l4 "github.com/ligato/vpp-agent/plugins/vpp/model/l4"
+	linux_intf "github.com/ligato/vpp-agent/plugins/linux/model/interfaces"
+	linux_l3 "github.com/ligato/vpp-agent/plugins/linux/model/l3"
 	"github.com/vishvananda/netlink"
 )
 

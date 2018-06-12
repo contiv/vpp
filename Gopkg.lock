@@ -18,7 +18,7 @@
     "core",
     "core/bin_api/vpe"
   ]
-  revision = "0456d22f67865977065886ed58778621b21b7ede"
+  revision = "061e24913927c85cac21c79b206f409592a0f6a9"
 
 [[projects]]
   branch = "master"
@@ -588,10 +588,22 @@
   revision = "e80d13ce29ede4452c43dea11e79b9bc8a15b478"
 
 [[projects]]
+  name = "github.com/hashicorp/consul"
+  packages = ["api"]
+  revision = "5174058f0d2bda63fa5198ab96c33d9a909c58ed"
+  version = "v1.1.0"
+
+[[projects]]
   branch = "master"
   name = "github.com/hashicorp/go-cleanhttp"
   packages = ["."]
   revision = "d5fe4b57a186c716b0e00b8c301cbd9b4182694d"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/hashicorp/go-rootcerts"
+  packages = ["."]
+  revision = "6bb64b370b90e7ef1fa532be9e591a81c3493e00"
 
 [[projects]]
   branch = "master"
@@ -601,6 +613,12 @@
     "simplelru"
   ]
   revision = "0fb14efe8c47ae851c0034ed7a448854d3d34cf3"
+
+[[projects]]
+  name = "github.com/hashicorp/serf"
+  packages = ["coordinate"]
+  revision = "d6574a5bb1226678d7010325fb6c985db20ee458"
+  version = "v0.8.1"
 
 [[projects]]
   branch = "master"
@@ -682,7 +700,8 @@
     "datasync/resync",
     "datasync/syncbase",
     "db/keyval",
-    "db/keyval/etcdv3",
+    "db/keyval/consul",
+    "db/keyval/etcd",
     "db/keyval/kvproto",
     "db/keyval/redis",
     "db/sql",
@@ -712,82 +731,89 @@
     "utils/safeclose",
     "utils/structs"
   ]
-  revision = "441419d0105e188a473a6fcf7f0de09bf9532fa6"
+  revision = "df5295a976cf70b7086ec7f0666a9bd235450959"
 
 [[projects]]
   name = "github.com/ligato/vpp-agent"
   packages = [
-    "clientv1/defaultplugins",
-    "clientv1/defaultplugins/dbadapter",
     "clientv1/linux",
     "clientv1/linux/dbadapter",
     "clientv1/linux/localclient",
+    "clientv1/vpp",
+    "clientv1/vpp/dbadapter",
     "idxvpp",
     "idxvpp/cacheutil",
     "idxvpp/nametoidx",
-    "plugins/defaultplugins",
-    "plugins/defaultplugins/aclplugin",
-    "plugins/defaultplugins/aclplugin/aclidx",
-    "plugins/defaultplugins/aclplugin/vppcalls",
-    "plugins/defaultplugins/aclplugin/vppdump",
-    "plugins/defaultplugins/common/bin_api/acl",
-    "plugins/defaultplugins/common/bin_api/af_packet",
-    "plugins/defaultplugins/common/bin_api/bfd",
-    "plugins/defaultplugins/common/bin_api/dhcp",
-    "plugins/defaultplugins/common/bin_api/interfaces",
-    "plugins/defaultplugins/common/bin_api/ip",
-    "plugins/defaultplugins/common/bin_api/ipsec",
-    "plugins/defaultplugins/common/bin_api/l2",
-    "plugins/defaultplugins/common/bin_api/memif",
-    "plugins/defaultplugins/common/bin_api/nat",
-    "plugins/defaultplugins/common/bin_api/session",
-    "plugins/defaultplugins/common/bin_api/stats",
-    "plugins/defaultplugins/common/bin_api/stn",
-    "plugins/defaultplugins/common/bin_api/tap",
-    "plugins/defaultplugins/common/bin_api/tapv2",
-    "plugins/defaultplugins/common/bin_api/vpe",
-    "plugins/defaultplugins/common/bin_api/vxlan",
-    "plugins/defaultplugins/common/model/acl",
-    "plugins/defaultplugins/common/model/bfd",
-    "plugins/defaultplugins/common/model/interfaces",
-    "plugins/defaultplugins/common/model/ipsec",
-    "plugins/defaultplugins/common/model/l2",
-    "plugins/defaultplugins/common/model/l3",
-    "plugins/defaultplugins/common/model/l4",
-    "plugins/defaultplugins/common/model/nat",
-    "plugins/defaultplugins/common/model/stn",
-    "plugins/defaultplugins/ifplugin",
-    "plugins/defaultplugins/ifplugin/ifaceidx",
-    "plugins/defaultplugins/ifplugin/vppcalls",
-    "plugins/defaultplugins/ifplugin/vppdump",
-    "plugins/defaultplugins/ipsecplugin",
-    "plugins/defaultplugins/ipsecplugin/ipsecidx",
-    "plugins/defaultplugins/ipsecplugin/vppcalls",
-    "plugins/defaultplugins/l2plugin",
-    "plugins/defaultplugins/l2plugin/bdidx",
-    "plugins/defaultplugins/l2plugin/vppcalls",
-    "plugins/defaultplugins/l2plugin/vppdump",
-    "plugins/defaultplugins/l3plugin",
-    "plugins/defaultplugins/l3plugin/l3idx",
-    "plugins/defaultplugins/l3plugin/vppcalls",
-    "plugins/defaultplugins/l3plugin/vppdump",
-    "plugins/defaultplugins/l4plugin",
-    "plugins/defaultplugins/l4plugin/nsidx",
-    "plugins/defaultplugins/l4plugin/vppcalls",
     "plugins/govppmux",
     "plugins/govppmux/vppcalls",
-    "plugins/linuxplugin",
-    "plugins/linuxplugin/common/model/interfaces",
-    "plugins/linuxplugin/common/model/l3",
-    "plugins/linuxplugin/ifplugin",
-    "plugins/linuxplugin/ifplugin/ifaceidx",
-    "plugins/linuxplugin/ifplugin/linuxcalls",
-    "plugins/linuxplugin/l3plugin",
-    "plugins/linuxplugin/l3plugin/l3idx",
-    "plugins/linuxplugin/l3plugin/linuxcalls",
-    "plugins/linuxplugin/nsplugin"
+    "plugins/linux",
+    "plugins/linux/ifplugin",
+    "plugins/linux/ifplugin/ifaceidx",
+    "plugins/linux/ifplugin/linuxcalls",
+    "plugins/linux/l3plugin",
+    "plugins/linux/l3plugin/l3idx",
+    "plugins/linux/l3plugin/linuxcalls",
+    "plugins/linux/model/interfaces",
+    "plugins/linux/model/l3",
+    "plugins/linux/nsplugin",
+    "plugins/vpp",
+    "plugins/vpp/aclplugin",
+    "plugins/vpp/aclplugin/aclidx",
+    "plugins/vpp/aclplugin/vppcalls",
+    "plugins/vpp/aclplugin/vppdump",
+    "plugins/vpp/binapi/acl",
+    "plugins/vpp/binapi/af_packet",
+    "plugins/vpp/binapi/bfd",
+    "plugins/vpp/binapi/dhcp",
+    "plugins/vpp/binapi/interfaces",
+    "plugins/vpp/binapi/ip",
+    "plugins/vpp/binapi/ipsec",
+    "plugins/vpp/binapi/l2",
+    "plugins/vpp/binapi/memif",
+    "plugins/vpp/binapi/nat",
+    "plugins/vpp/binapi/session",
+    "plugins/vpp/binapi/sr",
+    "plugins/vpp/binapi/stats",
+    "plugins/vpp/binapi/stn",
+    "plugins/vpp/binapi/tap",
+    "plugins/vpp/binapi/tapv2",
+    "plugins/vpp/binapi/vpe",
+    "plugins/vpp/binapi/vxlan",
+    "plugins/vpp/ifplugin",
+    "plugins/vpp/ifplugin/ifaceidx",
+    "plugins/vpp/ifplugin/vppcalls",
+    "plugins/vpp/ifplugin/vppdump",
+    "plugins/vpp/ipsecplugin",
+    "plugins/vpp/ipsecplugin/ipsecidx",
+    "plugins/vpp/ipsecplugin/vppcalls",
+    "plugins/vpp/l2plugin",
+    "plugins/vpp/l2plugin/l2idx",
+    "plugins/vpp/l2plugin/vppcalls",
+    "plugins/vpp/l2plugin/vppdump",
+    "plugins/vpp/l3plugin",
+    "plugins/vpp/l3plugin/l3idx",
+    "plugins/vpp/l3plugin/vppcalls",
+    "plugins/vpp/l3plugin/vppdump",
+    "plugins/vpp/l4plugin",
+    "plugins/vpp/l4plugin/nsidx",
+    "plugins/vpp/l4plugin/vppcalls",
+    "plugins/vpp/model/acl",
+    "plugins/vpp/model/bfd",
+    "plugins/vpp/model/interfaces",
+    "plugins/vpp/model/ipsec",
+    "plugins/vpp/model/l2",
+    "plugins/vpp/model/l3",
+    "plugins/vpp/model/l4",
+    "plugins/vpp/model/nat",
+    "plugins/vpp/model/rpc",
+    "plugins/vpp/model/srv6",
+    "plugins/vpp/model/stn",
+    "plugins/vpp/rpc",
+    "plugins/vpp/srplugin",
+    "plugins/vpp/srplugin/cache",
+    "plugins/vpp/srplugin/vppcalls"
   ]
-  revision = "022c3e91fcd2cfa1b584a34ca6f4dbd223fda810"
+  revision = "a560689bdf566f87e3213c78ca3dc284a3f1c9b1"
 
 [[projects]]
   branch = "master"
@@ -822,6 +848,12 @@
   packages = ["."]
   revision = "cdc0f941c4d0e0e94d85348285568d921891e138"
   version = "v2.1.1"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/mitchellh/go-homedir"
+  packages = ["."]
+  revision = "3864e76763d94a6df2f9960b16a20a33da9f9a66"
 
 [[projects]]
   branch = "master"
@@ -1637,6 +1669,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "0bae4a111ce5a0f53cc99c6fcfa3bc0959788c68b9c85b0790caeb479c052a0a"
+  inputs-digest = "46fdb98c7a422626954e03a1accc8542359a10b96366e4b1ae9452892c439106"
   solver-name = "gps-cdcl"
   solver-version = 1

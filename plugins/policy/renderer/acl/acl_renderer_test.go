@@ -22,11 +22,11 @@ import (
 
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/logging/logrus"
-	vpp_acl "github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/acl"
+	vpp_acl "github.com/ligato/vpp-agent/plugins/vpp/model/acl"
 
 	. "github.com/contiv/vpp/mock/aclengine"
 	. "github.com/contiv/vpp/mock/contiv"
-	. "github.com/contiv/vpp/mock/defaultplugins"
+	. "github.com/contiv/vpp/mock/vpp"
 	"github.com/contiv/vpp/mock/localclient"
 	"github.com/contiv/vpp/plugins/contiv"
 	"github.com/contiv/vpp/plugins/policy/renderer"
@@ -583,7 +583,7 @@ func TestCombinedRulesWithResync(t *testing.T) {
 	gomega.Expect(err).To(gomega.BeNil())
 	gomega.Expect(txnTracker.CommittedTxns).To(gomega.HaveLen(1))
 
-	// Dump ACLs and put them to mock defaultplugins.
+	// Dump ACLs and put them to mock vpp.
 	acls := aclEngine.DumpACLs()
 	vppPlugins.AddACL(acls...)
 
@@ -654,7 +654,7 @@ func TestCombinedRulesWithResync(t *testing.T) {
 
 	// Test run-time resync.
 
-	// Dump ACLs and put them to mock defaultplugins.
+	// Dump ACLs and put them to mock vpp.
 	acls = aclEngine.DumpACLs()
 	vppPlugins.ClearACLs()
 	vppPlugins.AddACL(acls...)
@@ -770,7 +770,7 @@ func TestCombinedRulesWithResyncAndRemovedPod(t *testing.T) {
 	gomega.Expect(err).To(gomega.BeNil())
 	gomega.Expect(txnTracker.CommittedTxns).To(gomega.HaveLen(1))
 
-	// Dump ACLs and put them to mock defaultplugins.
+	// Dump ACLs and put them to mock vpp.
 	acls := aclEngine.DumpACLs()
 	vppPlugins.AddACL(acls...)
 
@@ -842,7 +842,7 @@ func TestCombinedRulesWithResyncAndRemovedPod(t *testing.T) {
 
 	// Test run-time resync.
 
-	// Dump ACLs and put them to mock defaultplugins.
+	// Dump ACLs and put them to mock vpp.
 	acls = aclEngine.DumpACLs()
 	vppPlugins.ClearACLs()
 	vppPlugins.AddACL(acls...)

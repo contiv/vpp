@@ -31,7 +31,7 @@ import (
 	"github.com/ligato/cn-infra/datasync/kvdbsync"
 	local_sync "github.com/ligato/cn-infra/datasync/kvdbsync/local"
 	"github.com/ligato/cn-infra/datasync/resync"
-	"github.com/ligato/cn-infra/db/keyval/etcdv3"
+	"github.com/ligato/cn-infra/db/keyval/etcd"
 	"github.com/ligato/cn-infra/flavors/connectors"
 	"github.com/ligato/cn-infra/health/probe"
 	"github.com/ligato/cn-infra/rpc/grpc"
@@ -39,11 +39,11 @@ import (
 	"github.com/ligato/cn-infra/rpc/rest"
 	"github.com/ligato/cn-infra/servicelabel"
 	"github.com/ligato/vpp-agent/clientv1/linux/localclient"
-	"github.com/ligato/vpp-agent/plugins/defaultplugins"
-	"github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/acl"
-	"github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/nat"
+	"github.com/ligato/vpp-agent/plugins/vpp"
+	"github.com/ligato/vpp-agent/plugins/vpp/model/acl"
+	"github.com/ligato/vpp-agent/plugins/vpp/model/nat"
 	"github.com/ligato/vpp-agent/plugins/govppmux"
-	"github.com/ligato/vpp-agent/plugins/linuxplugin"
+	"github.com/ligato/vpp-agent/plugins/linux"
 	"sync"
 )
 
@@ -76,7 +76,7 @@ type FlavorContiv struct {
 	HealthRPC  probe.Plugin
 	Prometheus prometheus.Plugin
 
-	ETCD            etcdv3.Plugin
+	ETCD            etcd.Plugin
 	ETCDDataSync    kvdbsync.Plugin
 	NodeIDDataSync  kvdbsync.Plugin
 	ServiceDataSync kvdbsync.Plugin
@@ -87,8 +87,8 @@ type FlavorContiv struct {
 
 	LinuxLocalClient localclient.Plugin
 	GoVPP            govppmux.GOVPPPlugin
-	Linux            linuxplugin.Plugin
-	VPP              defaultplugins.Plugin
+	Linux            linux.Plugin
+	VPP              vpp.Plugin
 	GRPC             grpc.Plugin
 	Contiv           contiv.Plugin
 	Policy           policy.Plugin
@@ -128,7 +128,7 @@ func (f *FlavorContiv) Inject() bool {
 	f.HealthRPC.Deps.HTTP = &f.HTTP
 	f.HealthRPC.Deps.StatusCheck = &f.StatusCheck
 
-	f.ETCD.Deps.PluginInfraDeps = *f.InfraDeps("etcdv3", local.WithConf())
+	f.ETCD.Deps.PluginInfraDeps = *f.InfraDeps("etcd", local.WithConf())
 	f.ETCD.Deps.StatusCheck = nil
 	connectors.InjectKVDBSync(&f.ETCDDataSync, &f.ETCD, f.ETCD.PluginName, f.FlavorLocal, &f.ResyncOrch)
 	f.NodeIDDataSync = f.ETCDDataSync
@@ -153,7 +153,7 @@ func (f *FlavorContiv) Inject() bool {
 
 	f.GoVPP.Deps.PluginInfraDeps = *f.FlavorLocal.InfraDeps("govpp", local.WithConf())
 	f.Linux.Watcher = &datasync.CompositeKVProtoWatcher{Adapters: []datasync.KeyValProtoWatcher{&f.KVProxy, local_sync.Get()}}
-	f.Linux.Deps.PluginInfraDeps = *f.FlavorLocal.InfraDeps("linuxplugin", local.WithConf())
+	f.Linux.Deps.PluginInfraDeps = *f.FlavorLocal.InfraDeps("linux", local.WithConf())
 	f.Linux.Deps.WatchEventsMutex = &watchEventsMutex
 
 	f.VPP.Watch = &datasync.CompositeKVProtoWatcher{Adapters: []datasync.KeyValProtoWatcher{&f.KVProxy, local_sync.Get()}}

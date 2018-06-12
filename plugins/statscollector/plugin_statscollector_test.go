@@ -19,7 +19,7 @@ import (
 	"github.com/contiv/vpp/plugins/contiv/containeridx"
 	"github.com/ligato/cn-infra/flavors/local"
 	"github.com/ligato/cn-infra/idxmap"
-	"github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/interfaces"
+	"github.com/ligato/vpp-agent/plugins/vpp/model/interfaces"
 	"github.com/onsi/gomega"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"

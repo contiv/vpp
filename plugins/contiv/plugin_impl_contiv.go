@@ -35,14 +35,14 @@ import (
 	"github.com/contiv/vpp/plugins/kvdbproxy"
 	"github.com/ligato/cn-infra/datasync"
 	"github.com/ligato/cn-infra/datasync/resync"
-	"github.com/ligato/cn-infra/db/keyval/etcdv3"
+	"github.com/ligato/cn-infra/db/keyval/etcd"
 	"github.com/ligato/cn-infra/flavors/local"
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/rpc/grpc"
 	"github.com/ligato/cn-infra/utils/safeclose"
 	"github.com/ligato/vpp-agent/clientv1/linux"
 	linuxlocalclient "github.com/ligato/vpp-agent/clientv1/linux/localclient"
-	"github.com/ligato/vpp-agent/plugins/defaultplugins"
+	"github.com/ligato/vpp-agent/plugins/vpp"
 	"github.com/ligato/vpp-agent/plugins/govppmux"
 )
 
@@ -76,10 +76,10 @@ type Deps struct {
 	local.PluginInfraDeps
 	GRPC    grpc.Server
 	Proxy   *kvdbproxy.Plugin
-	VPP     *defaultplugins.Plugin
+	VPP     *vpp.Plugin
 	GoVPP   govppmux.API
 	Resync  resync.Subscriber
-	ETCD    *etcdv3.Plugin
+	ETCD    *etcd.Plugin
 	Watcher datasync.KeyValProtoWatcher
 }
 
@@ -131,7 +131,7 @@ type InterfaceWithIP struct {
 func (plugin *Plugin) Init() error {
 	broker := plugin.ETCD.NewBroker(plugin.ServiceLabel.GetAgentPrefix())
 	// init map with configured containers
-	plugin.configuredContainers = containeridx.NewConfigIndex(plugin.Log, plugin.PluginName, "containers", broker)
+	plugin.configuredContainers = containeridx.NewConfigIndex(plugin.Log, "containers", broker)
 
 	// load config file
 	plugin.ctx, plugin.ctxCancelFunc = context.WithCancel(context.Background())
@@ -177,7 +177,7 @@ func (plugin *Plugin) Init() error {
 
 	// start the GRPC server handling the CNI requests
 	plugin.cniServer, err = newRemoteCNIServer(plugin.Log,
-		func() linux.DataChangeDSL {
+		func() linuxclient.DataChangeDSL {
 			return linuxlocalclient.DataChangeRequest(plugin.PluginName)
 		},
 		plugin.Proxy,
@@ -194,7 +194,7 @@ func (plugin *Plugin) Init() error {
 	if err != nil {
 		return fmt.Errorf("Can't create new remote CNI server due to error: %v ", err)
 	}
-	cni.RegisterRemoteCNIServer(plugin.GRPC.Server(), plugin.cniServer)
+	cni.RegisterRemoteCNIServer(plugin.GRPC.GetServer(), plugin.cniServer)
 
 	plugin.nodeIPWatcher = make(chan string, 1)
 	go plugin.watchEvents()

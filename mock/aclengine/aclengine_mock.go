@@ -30,7 +30,7 @@ import (
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	"github.com/contiv/vpp/plugins/policy/renderer"
 	"github.com/ligato/cn-infra/datasync/syncbase"
-	vpp_acl "github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/acl"
+	vpp_acl "github.com/ligato/vpp-agent/plugins/vpp/model/acl"
 )
 
 // maxPortNum is the maximum possible port number.
@@ -136,8 +136,8 @@ func (mae *MockACLEngine) ApplyTxn(txn *localclient.Txn, latestRevs *syncbase.Pr
 		return errors.New("txn is nil")
 	}
 
-	if txn.DefaultPluginsDataChangeTxn != nil || txn.DefaultPluginsDataResyncTxn != nil {
-		return errors.New("defaultplugins txn is not supported")
+	if txn.VPPDataChangeTxn != nil || txn.VPPDataResyncTxn != nil {
+		return errors.New("vpp txn is not supported")
 	}
 
 	if txn.LinuxDataResyncTxn != nil {

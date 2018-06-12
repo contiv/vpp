@@ -27,7 +27,7 @@ import (
 
 	"github.com/ligato/vpp-agent/clientv1/linux"
 	"github.com/ligato/vpp-agent/clientv1/linux/localclient"
-	"github.com/ligato/vpp-agent/plugins/defaultplugins"
+	"github.com/ligato/vpp-agent/plugins/vpp"
 	"github.com/ligato/vpp-agent/plugins/govppmux"
 
 	"github.com/contiv/vpp/plugins/contiv"
@@ -88,7 +88,7 @@ type Deps struct {
 	Resync  resync.Subscriber
 	Watcher datasync.KeyValProtoWatcher /* prefixed for KSR-published K8s state data */
 	Contiv  contiv.API                  /* for GetIfName() */
-	VPP     defaultplugins.API          /* for DumpACLs() */
+	VPP     vpp.API          /* for DumpACLs() */
 	GoVPP   govppmux.API                /* for VPPTCP Renderer */
 }
 
@@ -104,7 +104,6 @@ func (p *Plugin) Init() error {
 	p.policyCache = &cache.PolicyCache{
 		Deps: cache.Deps{
 			Log:        p.Log.NewLogger("-policyCache"),
-			PluginName: p.PluginName,
 		},
 	}
 	p.policyCache.Log.SetLevel(logging.DebugLevel)
@@ -134,7 +133,7 @@ func (p *Plugin) Init() error {
 			LogFactory: p.Log,
 			Contiv:     p.Contiv,
 			VPP:        p.VPP,
-			ACLTxnFactory: func() linux.DataChangeDSL {
+			ACLTxnFactory: func() linuxclient.DataChangeDSL {
 				return localclient.DataChangeRequest(p.PluginName)
 			},
 			LatestRevs: kvdbsync_local.Get().LastRev(),

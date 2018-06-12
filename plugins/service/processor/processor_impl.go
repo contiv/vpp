@@ -24,7 +24,7 @@ import (
 	"github.com/ligato/cn-infra/datasync"
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/servicelabel"
-	"github.com/ligato/vpp-agent/plugins/defaultplugins"
+	"github.com/ligato/vpp-agent/plugins/vpp"
 
 	"github.com/contiv/vpp/plugins/contiv"
 	nodemodel "github.com/contiv/vpp/plugins/contiv/model/node"
@@ -55,7 +55,7 @@ type Deps struct {
 	Log          logging.Logger
 	ServiceLabel servicelabel.ReaderAPI
 	Contiv       contiv.API         /* to get all interface names and pod IP network */
-	VPP          defaultplugins.API /* interface IP addresses */
+	VPP          vpp.API /* interface IP addresses */
 	Configurator configurator.ServiceConfiguratorAPI
 }
 

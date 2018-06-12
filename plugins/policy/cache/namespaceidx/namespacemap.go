@@ -17,7 +17,6 @@ package namespaceidx
 import (
 	namespacemodel "github.com/contiv/vpp/plugins/ksr/model/namespace"
 	"github.com/contiv/vpp/plugins/policy/utils"
-	"github.com/ligato/cn-infra/core"
 	"github.com/ligato/cn-infra/idxmap"
 	"github.com/ligato/cn-infra/idxmap/mem"
 	"github.com/ligato/cn-infra/logging"
@@ -34,8 +33,8 @@ type ConfigIndex struct {
 }
 
 // NewConfigIndex creates new instance of ConfigIndex
-func NewConfigIndex(logger logging.Logger, owner core.PluginName, title string) *ConfigIndex {
-	return &ConfigIndex{mapping: mem.NewNamedMapping(logger, owner, title, IndexFunction)}
+func NewConfigIndex(logger logging.Logger, title string) *ConfigIndex {
+	return &ConfigIndex{mapping: mem.NewNamedMapping(logger, title, IndexFunction)}
 }
 
 // RegisterNamespace adds new Namespace entry into the mapping

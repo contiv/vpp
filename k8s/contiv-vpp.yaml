@@ -46,7 +46,7 @@ data:
   logs.conf: |
     defaultlevel: debug
   grpc.conf: |
-    socket-type: unix
+    network: unix
     endpoint: /var/run/contiv/cni.sock
   http.conf: |
       endpoint: 0.0.0.0:9999

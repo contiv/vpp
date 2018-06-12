@@ -84,7 +84,7 @@ data:
   logs.conf: |
     defaultlevel: {{ .Values.logs.defaultLevel }}
   grpc.conf: |
-    socket-type: unix
+    network: unix
     endpoint: /var/run/contiv/cni.sock
   http.conf: |
       endpoint: 0.0.0.0:9999

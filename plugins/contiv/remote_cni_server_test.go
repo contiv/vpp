@@ -165,6 +165,36 @@ func setupTestCNIServer(config *Config, nodeConfig *OneNodeConfig, existingInter
 	return server, txns, configuredContainers, vppMockConn
 }
 
+func TestHwAddress(t *testing.T) {
+	gomega.RegisterTestingT(t)
+
+	server, _, _, conn := setupTestCNIServer(&configVethL2NoTCP, nil)
+	defer conn.Disconnect()
+
+	var addresses []string
+
+	checkUniqueness := func(existing []string, nodeID uint32) (updated []string) {
+		a := server.hwAddrForVXLAN(nodeID)
+		fmt.Println(a)
+		gomega.Expect(existing).NotTo(gomega.ContainElement(a))
+		return append(addresses, a)
+	}
+
+	// the first valid value
+	addresses = checkUniqueness(addresses, 1)
+	addresses = checkUniqueness(addresses, 2)
+	// max value generated in backward compatible way
+	addresses = checkUniqueness(addresses, 255)
+
+	addresses = checkUniqueness(addresses, 256)
+	addresses = checkUniqueness(addresses, 257)
+	addresses = checkUniqueness(addresses, 512)
+
+	// max value
+	addresses = checkUniqueness(addresses, 256*256*256*256-1)
+
+}
+
 func TestAddDelVeth(t *testing.T) {
 	gomega.RegisterTestingT(t)
 
@@ -353,7 +383,7 @@ func TestNodeAddDelVXLAN(t *testing.T) {
 	gomega.Expect(otherNodeInfo.IpAddress).To(gomega.ContainSubstring(vxlanIf.Vxlan.DstAddress))
 
 	// check routes to the other node pointing to VXLAN IP
-	nexthopIP, _ := server.ipam.VxlanIPAddress(uint8(otherNodeInfo.Id))
+	nexthopIP, _ := server.ipam.VxlanIPAddress(otherNodeInfo.Id)
 	routes := routesViaInLatestRevs(txns.LatestRevisions, nexthopIP.String())
 	gomega.Expect(len(routes)).To(gomega.BeEquivalentTo(3))
 

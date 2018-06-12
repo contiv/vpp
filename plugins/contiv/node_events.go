@@ -83,7 +83,7 @@ func (s *remoteCNIserver) nodeResync(dataResyncEv datasync.ResyncEvent) error {
 					return err
 				}
 
-				nodeID := uint8(nodeInfo.Id)
+				nodeID := nodeInfo.Id
 
 				if nodeID != s.ipam.NodeID() {
 					s.Logger.Info("Other node discovered: ", nodeID)
@@ -191,11 +191,11 @@ func (s *remoteCNIserver) addRoutesToNode(nodeInfo *node.NodeInfo) error {
 
 	txn := s.vppTxnFactory().Put()
 	txn2 := s.vppTxnFactory().Put() // TODO: merge into 1 transaction after vpp-agent supports it
-	hostIP := s.otherHostIP(uint8(nodeInfo.Id), nodeInfo.IpAddress)
+	hostIP := s.otherHostIP(nodeInfo.Id, nodeInfo.IpAddress)
 
 	// VXLAN tunnel
 	if !s.useL2Interconnect {
-		vxlanIf, err := s.computeVxlanToHost(uint8(nodeInfo.Id), hostIP)
+		vxlanIf, err := s.computeVxlanToHost(nodeInfo.Id, hostIP)
 		if err != nil {
 			return err
 		}
@@ -212,12 +212,12 @@ func (s *remoteCNIserver) addRoutesToNode(nodeInfo *node.NodeInfo) error {
 		txn.BD(bd.(*vpp_l2.BridgeDomains_BridgeDomain))
 
 		// static ARP entry
-		vxlanIP, err := s.ipam.VxlanIPAddress(uint8(nodeInfo.Id))
+		vxlanIP, err := s.ipam.VxlanIPAddress(nodeInfo.Id)
 		if err != nil {
 			s.Logger.Error(err)
 			return err
 		}
-		vxlanArp := s.vxlanArpEntry(uint8(nodeInfo.Id), vxlanIP.String())
+		vxlanArp := s.vxlanArpEntry(nodeInfo.Id, vxlanIP.String())
 		txn.Arp(vxlanArp)
 
 		// static FIB
@@ -235,16 +235,16 @@ func (s *remoteCNIserver) addRoutesToNode(nodeInfo *node.NodeInfo) error {
 	)
 	if s.useL2Interconnect {
 		// static route directly to other node IP
-		podsRoute, hostRoute, err = s.computeRoutesToHost(uint8(nodeInfo.Id), hostIP)
+		podsRoute, hostRoute, err = s.computeRoutesToHost(nodeInfo.Id, hostIP)
 		nextHop = hostIP
 	} else {
 		// static route to other node VXLAN BVI
-		vxlanNextHop, err = s.ipam.VxlanIPAddress(uint8(nodeInfo.Id))
+		vxlanNextHop, err = s.ipam.VxlanIPAddress(nodeInfo.Id)
 		if err != nil {
 			return err
 		}
 		nextHop = vxlanNextHop.String()
-		podsRoute, hostRoute, err = s.computeRoutesToHost(uint8(nodeInfo.Id), nextHop)
+		podsRoute, hostRoute, err = s.computeRoutesToHost(nodeInfo.Id, nextHop)
 	}
 	if err != nil {
 		return err
@@ -278,11 +278,11 @@ func (s *remoteCNIserver) addRoutesToNode(nodeInfo *node.NodeInfo) error {
 func (s *remoteCNIserver) deleteRoutesToNode(nodeInfo *node.NodeInfo) error {
 	txn := s.vppTxnFactory().Delete()
 	txn2 := s.vppTxnFactory().Delete() // TODO: merge into 1 transaction after vpp-agent supports it
-	hostIP := s.otherHostIP(uint8(nodeInfo.Id), nodeInfo.IpAddress)
+	hostIP := s.otherHostIP(nodeInfo.Id, nodeInfo.IpAddress)
 
 	// VXLAN tunnel
 	if !s.useL2Interconnect {
-		vxlanIf, err := s.computeVxlanToHost(uint8(nodeInfo.Id), hostIP)
+		vxlanIf, err := s.computeVxlanToHost(nodeInfo.Id, hostIP)
 		if err != nil {
 			return err
 		}
@@ -303,12 +303,12 @@ func (s *remoteCNIserver) deleteRoutesToNode(nodeInfo *node.NodeInfo) error {
 		}
 
 		// static ARP entry
-		vxlanIP, err := s.ipam.VxlanIPAddress(uint8(nodeInfo.Id))
+		vxlanIP, err := s.ipam.VxlanIPAddress(nodeInfo.Id)
 		if err != nil {
 			s.Logger.Error(err)
 			return err
 		}
-		vxlanArp := s.vxlanArpEntry(uint8(nodeInfo.Id), vxlanIP.String())
+		vxlanArp := s.vxlanArpEntry(nodeInfo.Id, vxlanIP.String())
 		txn.Arp(vxlanArp.Interface, vxlanArp.IpAddress)
 
 		// static FIB
@@ -326,16 +326,16 @@ func (s *remoteCNIserver) deleteRoutesToNode(nodeInfo *node.NodeInfo) error {
 	)
 	if s.useL2Interconnect {
 		// static route directly to other node IP
-		podsRoute, hostRoute, err = s.computeRoutesToHost(uint8(nodeInfo.Id), hostIP)
+		podsRoute, hostRoute, err = s.computeRoutesToHost(nodeInfo.Id, hostIP)
 		nextHop = hostIP
 	} else {
 		// static route to other node VXLAN BVI
-		vxlanNextHop, err = s.ipam.VxlanIPAddress(uint8(nodeInfo.Id))
+		vxlanNextHop, err = s.ipam.VxlanIPAddress(nodeInfo.Id)
 		if err != nil {
 			return err
 		}
 		nextHop = vxlanNextHop.String()
-		podsRoute, hostRoute, err = s.computeRoutesToHost(uint8(nodeInfo.Id), nextHop)
+		podsRoute, hostRoute, err = s.computeRoutesToHost(nodeInfo.Id, nextHop)
 	}
 	if err != nil {
 		return err

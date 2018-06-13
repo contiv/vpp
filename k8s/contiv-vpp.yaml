@@ -328,7 +328,7 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: spec.nodeName
-            - name: ETCDV3_CONFIG
+            - name: ETCD_CONFIG
               value: "/etc/etcd/etcd.conf"
           volumeMounts:
             - name: etcd-cfg
@@ -444,7 +444,7 @@ spec:
           image: contivvpp/ksr:latest
           imagePullPolicy: IfNotPresent
           env:
-            - name: ETCDV3_CONFIG
+            - name: ETCD_CONFIG
               value: "/etc/etcd/etcd.conf"
             - name: HTTP_CONFIG
               value: "/etc/http/http.conf"

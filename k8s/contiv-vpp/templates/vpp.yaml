@@ -513,7 +513,7 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: spec.nodeName
-            - name: ETCDV3_CONFIG
+            - name: ETCD_CONFIG
               value: "/etc/etcd/etcd.conf"
           volumeMounts:
             - name: etcd-cfg
@@ -677,7 +677,7 @@ spec:
           image: {{ .Values.ksr.image.repository }}:{{ default .Chart.Version .Values.ksr.image.tag }}
           imagePullPolicy: {{ .Values.ksr.image.pullPolicy }}
           env:
-            - name: ETCDV3_CONFIG
+            - name: ETCD_CONFIG
               value: "/etc/etcd/etcd.conf"
             - name: HTTP_CONFIG
               value: "/etc/http/http.conf"

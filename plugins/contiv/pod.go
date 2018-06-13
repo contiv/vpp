@@ -326,6 +326,17 @@ func (s *remoteCNIserver) tapFromRequest(request *cni.CNIRequest, podIP string, 
 		tap.Tap.Version = 2
 		tap.Tap.RxRingSize = uint32(s.tapV2RxRingSize)
 		tap.Tap.TxRingSize = uint32(s.tapV2TxRingSize)
+
+		// TODO: Link MTU is 216 bytes 'off'. This is a temporary hack until
+		//       vpp-agent supports L3-MTU:
+		//
+		// * commit d723161e038d00e59766aa67a6a0dcc350227e4b
+		// Author: Ole Troan <ot@cisco.com>
+		// Date:   Thu Jun 7 10:17:57 2018 +0200
+		//
+		//    MTU: Software interface / Per-protocol MTU support
+		tap.Mtu += 216
+		// TAPv1 uses *huge* VPP-MTU, so we do not need to add anything.
 	}
 	if configureContainerProxy {
 		tap.ContainerIpAddress = containerProxyIP

@@ -43,7 +43,7 @@ and the rest of them deploy on all nodes within the k8s cluster (including the m
 The following section briefly describes the individual Contiv components, which are displayed
 as orange boxes on the picture below:
 
-![Contiv/VPP Architecture][contiv-architecture]
+[![Contiv/VPP Architecture](img/contiv-arch.png)](img/contiv-arch.svg)
 
 
 ### Contiv KSR (Kubernetes State Reflector)
@@ -105,6 +105,3 @@ when the interface will be "stolen" from the host network stack just before star
 the VPP and configured with the same IP address on VPP, as well as 
 on the host-VPP interconnect TAP interface, as it had in the host before it. 
 For more information on STN setup, read the [Single NIC Setup README](SINGLE_NIC_SETUP.md).
-
-
-[contiv-architecture]: architecture.png "Contiv/VPP Architecture"

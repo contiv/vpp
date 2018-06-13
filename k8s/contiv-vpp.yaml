@@ -217,7 +217,7 @@ spec:
       initContainers:
       # This init container extracts/copies VPP LD_PRELOAD libs and default VPP config to the host.
       - name: vpp-init
-        image: contivvpp/vswitch:latest
+        image: contivvpp/vswitch:v1.0
         imagePullPolicy: IfNotPresent
         command:
         - /bin/sh
@@ -256,7 +256,7 @@ spec:
         # Runs contiv-vswitch container on each Kubernetes node.
         # It contains the vSwitch VPP and its management agent.
         - name: contiv-vswitch
-          image: contivvpp/vswitch:latest
+          image: contivvpp/vswitch:v1.0
           imagePullPolicy: IfNotPresent
           securityContext:
             privileged: true
@@ -305,7 +305,7 @@ spec:
         # This container installs the Contiv CNI binaries
         # and CNI network config file on each node.
         - name: contiv-cni
-          image: contivvpp/cni:latest
+          image: contivvpp/cni:v1.0
           imagePullPolicy: IfNotPresent
           volumeMounts:
             - mountPath: /opt/cni/bin
@@ -393,7 +393,7 @@ spec:
 
       containers:
         - name: contiv-ksr
-          image: contivvpp/ksr:latest
+          image: contivvpp/ksr:v1.0
           imagePullPolicy: IfNotPresent
           env:
             - name: ETCDV3_CONFIG

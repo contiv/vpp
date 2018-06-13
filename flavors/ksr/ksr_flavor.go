@@ -86,7 +86,6 @@ func (f *FlavorKsr) Inject() (allReadyInjected bool) {
 
 	f.ETCD.Deps.PluginInfraDeps = *f.InfraDeps("etcdv3", local.WithConf())
 	connectors.InjectKVDBSync(&f.ETCDDataSync, &f.ETCD, f.ETCD.PluginName, f.FlavorLocal, nil)
-	f.ETCD.StatusCheck = nil
 
 	f.Ksr.Deps.PluginInfraDeps = *f.FlavorLocal.InfraDeps("ksr")
 	// Reuse ForPlugin to define configuration file for 3rd party library (k8s client).

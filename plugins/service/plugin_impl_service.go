@@ -30,8 +30,8 @@ import (
 	"github.com/ligato/vpp-agent/plugins/defaultplugins"
 
 	"github.com/contiv/vpp/plugins/contiv"
-	"github.com/contiv/vpp/plugins/service/configurator"
 	"github.com/contiv/vpp/plugins/service/processor"
+	"github.com/contiv/vpp/plugins/service/renderer/nat44"
 
 	"github.com/contiv/vpp/plugins/contiv/model/node"
 	epmodel "github.com/contiv/vpp/plugins/ksr/model/endpoints"
@@ -58,11 +58,12 @@ type Plugin struct {
 	wg         sync.WaitGroup
 
 	// delay resync until the contiv plugin has been re-synchronized.
+	resyncCounter  uint
 	pendingResync  datasync.ResyncEvent
 	pendingChanges []datasync.ChangeEvent
 
-	processor    *processor.ServiceProcessor
-	configurator *configurator.ServiceConfigurator
+	processor     *processor.ServiceProcessor
+	nat44Renderer *nat44.Renderer
 }
 
 // Deps defines dependencies of the service plugin.
@@ -90,9 +91,18 @@ func (p *Plugin) Init() error {
 		return err
 	}
 
-	p.configurator = &configurator.ServiceConfigurator{
-		Deps: configurator.Deps{
-			Log:       p.Log.NewLogger("-serviceConfigurator"),
+	p.processor = &processor.ServiceProcessor{
+		Deps: processor.Deps{
+			Log:          p.Log.NewLogger("-serviceProcessor"),
+			ServiceLabel: p.ServiceLabel,
+			Contiv:       p.Contiv,
+		},
+	}
+	p.processor.Log.SetLevel(logging.DebugLevel)
+
+	p.nat44Renderer = &nat44.Renderer{
+		Deps: nat44.Deps{
+			Log:       p.Log.NewLogger("-nat44Renderer"),
 			VPP:       p.VPP,
 			Contiv:    p.Contiv,
 			GoVPPChan: goVppCh,
@@ -103,21 +113,13 @@ func (p *Plugin) Init() error {
 			Stats:      p.Stats,
 		},
 	}
-	p.configurator.Log.SetLevel(logging.DebugLevel)
+	p.nat44Renderer.Log.SetLevel(logging.DebugLevel)
 
-	p.processor = &processor.ServiceProcessor{
-		Deps: processor.Deps{
-			Log:          p.Log.NewLogger("-serviceProcessor"),
-			ServiceLabel: p.ServiceLabel,
-			Contiv:       p.Contiv,
-			Configurator: p.configurator,
-			VPP:          p.VPP,
-		},
-	}
-	p.processor.Log.SetLevel(logging.DebugLevel)
-
-	p.configurator.Init()
 	p.processor.Init()
+	p.nat44Renderer.Init(false)
+
+	// Register renderers.
+	p.processor.RegisterRenderer(p.nat44Renderer)
 
 	p.ctx, p.cancel = context.WithCancel(context.Background())
 
@@ -134,8 +136,8 @@ func (p *Plugin) Init() error {
 // in order to ensure that the resync for this plugin is triggered only after
 // resync of the Contiv plugin has finished.
 func (p *Plugin) AfterInit() error {
-	p.configurator.AfterInit()
 	p.processor.AfterInit()
+	p.nat44Renderer.AfterInit()
 
 	if p.Resync != nil {
 		reg := p.Resync.Register(string(p.PluginName))
@@ -159,6 +161,7 @@ func (p *Plugin) watchEvents() {
 		select {
 		case resyncConfigEv := <-p.resyncChan:
 			p.resyncLock.Lock()
+			p.resyncCounter++
 			p.pendingResync = resyncConfigEv
 			p.pendingChanges = []datasync.ChangeEvent{}
 			resyncConfigEv.Done(nil)
@@ -167,6 +170,12 @@ func (p *Plugin) watchEvents() {
 
 		case dataChngEv := <-p.changeChan:
 			p.resyncLock.Lock()
+			if p.resyncCounter == 0 {
+				p.Log.WithField("config", dataChngEv).
+					Info("Ignoring data-change received before the first RESYNC")
+				p.resyncLock.Unlock()
+				break
+			}
 			if p.pendingResync != nil {
 				p.pendingChanges = append(p.pendingChanges, dataChngEv)
 				dataChngEv.Done(nil)

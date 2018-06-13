@@ -17,7 +17,6 @@ package contiv
 import (
 	"context"
 	"fmt"
-	"net"
 	"reflect"
 	"strings"
 	"testing"
@@ -274,7 +273,9 @@ func TestConfigureVswitchVeth(t *testing.T) {
 	// using L2 interconnect - no VXLAN IF name
 	gomega.Expect(server.GetVxlanBVIIfName()).To(gomega.BeEmpty())
 	// gateway is configured
-	gomega.Expect(server.GetDefaultGatewayIP().Equal(net.ParseIP("192.168.1.100"))).To(gomega.BeTrue())
+	defaultIfName, defaultIfIP := server.GetDefaultInterface()
+	gomega.Expect(defaultIfIP.String()).To(gomega.Equal("192.168.1.1"))
+	gomega.Expect(defaultIfName).To(gomega.BeEquivalentTo(nodeConfig.MainVPPInterface.InterfaceName))
 	// with extra physical interfaces
 	gomega.Expect(server.GetOtherPhysicalIfNames()).To(gomega.Equal([]string{"GigabitEthernet0/0/0/10"}))
 

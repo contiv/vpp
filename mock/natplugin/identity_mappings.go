@@ -20,7 +20,7 @@ import (
 	"fmt"
 	"net"
 
-	"github.com/contiv/vpp/plugins/service/configurator"
+	"github.com/contiv/vpp/plugins/service/renderer"
 )
 
 // IdentityMappings represents a list of identity mappings.
@@ -32,7 +32,7 @@ type IdentityMappings struct {
 type IdentityMapping struct {
 	IP       net.IP
 	Port     uint16
-	Protocol configurator.ProtocolType
+	Protocol renderer.ProtocolType
 }
 
 // String converts a list of identity mappings into a human-readable string.

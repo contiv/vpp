@@ -24,7 +24,7 @@ import (
 	epmodel "github.com/contiv/vpp/plugins/ksr/model/endpoints"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	svcmodel "github.com/contiv/vpp/plugins/ksr/model/service"
-	"github.com/contiv/vpp/plugins/service/configurator"
+	"github.com/contiv/vpp/plugins/service/renderer"
 )
 
 // Service is used to combine data from the service model with the endpoints.
@@ -32,7 +32,7 @@ type Service struct {
 	sp            *ServiceProcessor
 	meta          *svcmodel.Service
 	endpoints     *epmodel.Endpoints
-	contivSvc     *configurator.ContivService
+	contivSvc     *renderer.ContivService
 	localBackends []podmodel.ID
 	refreshed     bool
 }
@@ -59,7 +59,7 @@ func (s *Service) SetEndpoints(endpoints *epmodel.Endpoints) {
 
 // GetContivService returns the service data represented as ContivService.
 // Returns nil if there are not enough available data.
-func (s *Service) GetContivService() *configurator.ContivService {
+func (s *Service) GetContivService() *renderer.ContivService {
 	if !s.refreshed {
 		s.Refresh()
 	}
@@ -85,14 +85,14 @@ func (s *Service) Refresh() {
 		return
 	}
 
-	s.contivSvc = configurator.NewContivService()
+	s.contivSvc = renderer.NewContivService()
 	s.localBackends = []podmodel.ID{}
 
 	s.contivSvc.ID = svcmodel.GetID(s.meta)
 	if s.meta.ExternalTrafficPolicy == "Local" {
-		s.contivSvc.TrafficPolicy = configurator.NodeLocal
+		s.contivSvc.TrafficPolicy = renderer.NodeLocal
 	} else {
-		s.contivSvc.TrafficPolicy = configurator.ClusterWide
+		s.contivSvc.TrafficPolicy = renderer.ClusterWide
 	}
 
 	// Collect all IP addresses on which the service should be exposed.
@@ -122,21 +122,21 @@ func (s *Service) Refresh() {
 
 	// Fill up the map of service ports.
 	for _, port := range s.meta.Port {
-		sp := &configurator.ServicePort{
+		sp := &renderer.ServicePort{
 			Port:     uint16(port.GetPort()),
 			NodePort: uint16(port.GetNodePort()),
 		}
 		if port.GetProtocol() == "TCP" {
-			sp.Protocol = configurator.TCP
+			sp.Protocol = renderer.TCP
 		} else {
-			sp.Protocol = configurator.UDP
+			sp.Protocol = renderer.UDP
 		}
 		s.contivSvc.Ports[port.Name] = sp
 	}
 
 	// Fill up the map of service backends.
 	for port := range s.contivSvc.Ports {
-		s.contivSvc.Backends[port] = []*configurator.ServiceBackend{}
+		s.contivSvc.Backends[port] = []*renderer.ServiceBackend{}
 	}
 	for _, epSubSet := range s.endpoints.GetEndpointSubsets() {
 		epPorts := epSubSet.GetPorts()
@@ -157,7 +157,7 @@ func (s *Service) Refresh() {
 			for _, epPort := range epPorts {
 				port := epPort.GetName()
 				if _, exposedPort := s.contivSvc.Ports[port]; exposedPort {
-					sb := &configurator.ServiceBackend{}
+					sb := &renderer.ServiceBackend{}
 					sb.IP = epIP
 					sb.Port = uint16(epPort.GetPort())
 					sb.Local = local

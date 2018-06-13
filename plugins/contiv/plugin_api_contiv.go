@@ -84,9 +84,10 @@ type API interface {
 	// Returns an empty string if VXLAN is not used (in L2 interconnect mode).
 	GetVxlanBVIIfName() string
 
-	// GetDefaultGatewayIP returns the IP address of the default gateway for external traffic.
-	// If the default GW is not configured, the function returns nil.
-	GetDefaultGatewayIP() net.IP
+	// GetDefaultInterface returns the name and the IP address of the interface
+	// used by the default route to send packets out from VPP towards the default gateway.
+	// If the default GW is not configured, the function returns zero values.
+	GetDefaultInterface() (ifName string, ifAddress net.IP)
 
 	// RegisterPodPreRemovalHook allows to register callback that will be run for each
 	// pod immediately before its removal.

@@ -372,10 +372,11 @@ func (plugin *Plugin) GetVxlanBVIIfName() string {
 	return plugin.cniServer.GetVxlanBVIIfName()
 }
 
-// GetDefaultGatewayIP returns the IP address of the default gateway for external traffic.
-// If the default GW is not configured, the function returns nil.
-func (plugin *Plugin) GetDefaultGatewayIP() net.IP {
-	return plugin.cniServer.GetDefaultGatewayIP()
+// GetDefaultInterface returns the name and the IP address of the interface
+// used by the default route to send packets out from VPP towards the default gateway.
+// If the default GW is not configured, the function returns zero values.
+func (plugin *Plugin) GetDefaultInterface() (ifName string, ifAddress net.IP) {
+	return plugin.cniServer.GetDefaultInterface()
 }
 
 // RegisterPodPreRemovalHook allows to register callback that will be run for each

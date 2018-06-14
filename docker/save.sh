@@ -43,8 +43,17 @@ echo "Using Images Tag: ${IMAGE_TAG}"
 
 # this script exports the built images as a tarball to be loaded
 
-images="contivvpp/ksr:${IMAGE_TAG} contivvpp/cni:${IMAGE_TAG} contivvpp/stn:${IMAGE_TAG} contivvpp/vswitch:${IMAGE_TAG}"
+IMAGEARCH=""
+BUILDARCH=`uname -m`
+
+if [ ${BUILDARCH} = "aarch64" ]; then
+  IMAGEARCH="-arm64"
+  echo "Using Images Arch: ${IMAGEARCH}"
+fi
+
+images="contivvpp/ksr${IMAGEARCH}:${IMAGE_TAG} contivvpp/cni${IMAGEARCH}:${IMAGE_TAG} contivvpp/stn${IMAGEARCH}:${IMAGE_TAG} contivvpp/vswitch${IMAGEARCH}:${IMAGE_TAG}"
 echo $images
+
 if [ -f ../vagrant/images.tar ]; then
   rm ../vagrant/images.tar
 fi

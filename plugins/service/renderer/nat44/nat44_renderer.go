@@ -17,9 +17,9 @@
 package nat44
 
 import (
+	"net"
 	"strings"
 	"time"
-	"net"
 
 	"github.com/golang/protobuf/proto"
 

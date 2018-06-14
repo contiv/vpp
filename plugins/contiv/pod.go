@@ -348,7 +348,7 @@ func (s *remoteCNIserver) tapFromRequest(request *cni.CNIRequest, podIP string, 
 		// Date:   Thu Jun 7 10:17:57 2018 +0200
 		//
 		//    MTU: Software interface / Per-protocol MTU support
-		tap.Mtu += 216 /* ivalid  L3 pad */ - 14 /* ethernet header */
+		tap.Mtu += 216
 		// TAPv1 uses *huge* VPP-MTU, so we do not need to add anything.
 	}
 	if configureContainerProxy {

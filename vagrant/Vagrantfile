@@ -275,6 +275,11 @@ set -x
 
 echo Args passed: [[ $@ ]]
 
+if [ -f /vagrant/images.tar ]; then
+    echo "Found saved images at /vagrant/images.tar"
+    docker load -i /vagrant/images.tar
+fi
+
 source /vagrant/config/init
 
 if [ $3 = 'stn' ]; then

@@ -1209,15 +1209,18 @@ func (s *remoteCNIserver) unconfigurePodInterface(request *cni.CNIRequest, confi
 		txn1.LinuxArpEntry(config.PodARPEntryName)
 		err := txn1.Send().ReceiveReply()
 		if err != nil {
-			s.Logger.Error(err)
-			return err
+			/* treat error as warning */
+			s.Logger.Warn(err)
+			err = nil
 		}
 	}
 
 	if s.useTAPInterfaces {
 		err := s.vppTxnFactory().Delete().LinuxInterface(config.PodTapName).Send().ReceiveReply()
 		if err != nil {
+			/* treat error as warning */
 			s.Logger.Warn(err)
+			err = nil
 		}
 	}
 

@@ -14,7 +14,7 @@
  * // limitations under the License.
  */
 
-package configurator
+package renderer
 
 import (
 	"fmt"
@@ -23,41 +23,84 @@ import (
 	svcmodel "github.com/contiv/vpp/plugins/ksr/model/service"
 )
 
-// ServiceConfiguratorAPI defines the API of Service Configurator.
-// Until we have NAT44 supported in the vpp-agent, the configurator installs
-// the configuration directly via VPP/NAT plugin binary API:
-//   - translates ContivService into the corresponding NAT configuration
-//   - applies out2in and in2out VPP/NAT's features on interfaces connecting
-//     frontends and backends, respectively
-//   - for each change, calculates the minimal diff, i.e. the smallest set
-//     of binary API request that need to be executed to get the NAT
-//     configuration in-sync with the state of K8s services
-type ServiceConfiguratorAPI interface {
-	// AddService installs NAT rules for a newly added service.
+// ServiceRendererAPI defines the API of Service Renderer.
+//
+// Service Renderer is a pluggable component of the service plugin, sitting below
+// the processor and implementing rendering of ContivService instances into
+// the configuration of the target network stack. The idea is to allow to have
+// alternative and/or complementary Kubernetes service implementations. For example,
+// IPv4 and IPv6 protocols could be handled separately by two different renderers.
+// Similarly, the set of supported vswitches in the data plane can be extended
+// simply by adding new renderers for services and policies. Another use-case is
+// to provide alternative implementation of Kubernetes services for the same
+// stack - one being the default, others possibly experimental or tailor-made
+// for specific applications. The set of renderers to be activated can be
+// configurable or determined from the environment. Every active renderer is
+// given the same set of data from the processor.
+//
+// ServiceRendererAPI is the interface that connects processor's southbound
+// with the renderer's northbound. For a single Kubernetes service, all relevant
+// configuration and state data are wrapped into a single instance of ContivService.
+// The renderer learns the set of external IPs and ports on which the service
+// should be exposed together with corresponding sets of backends (= endpoints).
+// AddService(), DeleteService(), UpdateService() are called every time a service
+// is created, removed or its state/configuration data has changed, respectively.
+// ContivService is referenced by ID unique across all namespaces.
+//
+// The processor also monitors the set of all node IPs in the cluster. Every time
+// a new IP is assigned to any node inside the cluster or an existing node has been
+// deleted, UpdateNodePortServices() is called with the latest list of all node
+// IPs together with a set of NodePort services.
+//
+// Additionally, the processor distinguishes interfaces connecting VPP with
+// potential service clients - denoted as Frontends - from those connecting
+// vswitch with service endpoints - denoted as Backends. Interface can be both
+// Frontend and Backend. The sets of Frontend and Backend interfaces are refreshed
+// by the processor every time a pod is created, destroyed, assigned to a service
+// for the first time, or no longer acting as a service endpoint. For Renderer
+// this classification of interfaces may or may not be useful. It is up to the
+// renderer to either leverage or completely ignore events UpdateLocalFrontendIfs()
+// and UpdateLocalBackendIfs(). Please note that the sets of Frontend & Backend
+// interfaces are specific to the VPP-based networking and not relevant for
+// a different vswitch / network stack.
+//
+// Resync() is used to pass the current snapshot of all data provided
+// by the processor. Upon receipt, the renderer is supposed to make sure that
+// the renderered configuration matches the state of Kubernetes services and
+// to resolve any discrepancies. Resync() is always called on the agent startup,
+// but may also be triggered during the runtime - in case a potential data loss
+// between the agent and the data store or the vswitch has been detected.
+//
+// To integrate (VPP-specific) renderer with the ACL-based policies
+// (plugins/policy/renderer/acl), it is required to perform the service address
+// translation for both directions in-between the VPP nodes: `acl-plugin-in-ip4-fa`
+// and `acl-plugin-out-ip4-fa` (i.e. after ingress ACLs, but before egress ACLs).
+type ServiceRendererAPI interface {
+	// AddService is called for a newly added service.
 	AddService(service *ContivService) error
 
-	// UpdateService reflects a change in the configuration of a service with
-	// the smallest number of VPP/NAT binary API calls necessary.
+	// UpdateService informs renderer about a change in the configuration
+	// or in the state of a service.
 	UpdateService(oldService, newService *ContivService) error
 
-	// DeleteService removes NAT configuration associated with a newly undeployed
-	// service.
+	// DeleteService is called for every removed service.
 	DeleteService(service *ContivService) error
 
-	// UpdateNodePortServices updates configuration of nodeport services to reflect
-	// changed list of all node IPs in the cluster.
+	// UpdateNodePortServices is called whenever the set of node IPs in the cluster
+	// changes.
 	UpdateNodePortServices(nodeIPs *IPAddresses, npServices []*ContivService) error
 
-	// UpdateLocalFrontendIfs updates the list of interfaces connecting clients
-	// with VPP (enabled out2in VPP/NAT feature).
+	// UpdateLocalFrontendIfs gives an update about a changed set of Frontend
+	// interfaces (VPP specific).
 	UpdateLocalFrontendIfs(oldIfNames, newIfNames Interfaces) error
 
-	// UpdateLocalBackendIfs updates the list of interfaces connecting service
-	// backends with VPP (enabled in2out VPP/NAT feature).
+	// UpdateLocalBackendIfs gives an updated about a changed set of backend
+	// interfaces (VPP specific).
 	UpdateLocalBackendIfs(oldIfNames, newIfNames Interfaces) error
 
-	// Resync completely replaces the current NAT configuration with the provided
-	// full state of K8s services.
+	// Resync provides a complete snapshot of all service-related data.
+	// The render should resolve any discrepancies between the state of K8s
+	// services and the currently rendered configuration.
 	Resync(resyncEv *ResyncEventData) error
 }
 
@@ -67,23 +110,24 @@ type ServiceConfiguratorAPI interface {
 //   - endpoints combined with services
 //   - the full list of IP addresses on which the service should be exposed
 //     on this node
-// It is produced in this form and passed to Configurator by Service Processor.
 type ContivService struct {
-	// ID should uniquely identify service across all namespaces.
+	// ID uniquely identifies service across all namespaces.
 	ID svcmodel.ID
 
 	// TrafficPolicy decides if traffic is routed cluster-wide or node-local only.
 	TrafficPolicy TrafficPolicyType
 
 	// ExternalIPs is a set of all IP addresses on which the service
-	// should be exposed on this node.
+	// should be exposed on this node (aside from node IPs for NodePorts, which
+	// are provided separately via the ServiceRendererAPI.UpdateNodePortServices()
+	// method).
 	ExternalIPs *IPAddresses
 
 	// Ports is a map of all ports exposed for this service.
-	Ports map[string]*ServicePort
+	Ports map[string] /* service port name */ *ServicePort
 
-	// Backends map external service ports with corresponding backends.
-	Backends map[string] /*service port*/ []*ServiceBackend
+	// Backends map external service ports with corresponding backends (= endpoints).
+	Backends map[string] /*service port name */ []*ServiceBackend
 }
 
 // TrafficPolicyType is either Cluster-wide routing or Node-local only routing.
@@ -193,11 +237,12 @@ func (pt ProtocolType) String() string {
 	return "INVALID"
 }
 
-// ServiceBackend represents a single service backend.
+// ServiceBackend represents a single service backend (= endpoint).
 type ServiceBackend struct {
 	IP    net.IP /* internal IP address of the backend */
 	Port  uint16 /* backend-local port on which the service listens */
-	Local bool   /* true if the backend is deployed on this node  */
+	Local bool   /* true if the backend is deployed on this node
+	   (can be leveraged for smart load-balancing) */
 }
 
 // String converts Backend into a human-readable string.
@@ -330,21 +375,20 @@ func (ifs Interfaces) String() string {
 	return str
 }
 
-// ResyncEventData wraps an entire state of K8s services.
+// ResyncEventData wraps an entire state of K8s services as provided by the Processor.
 type ResyncEventData struct {
 	// NodeIPs is a list of IP addresses of all nodes in the cluster.
 	NodeIPs *IPAddresses
 
-	// ExternalSNAT contains configuration of SNAT, installed to allow access outside the cluster network.
-	ExternalSNAT ExternalSNATConfig
-
 	// Services is a list of all currently deployed services.
 	Services []*ContivService
 
-	// FrontendIfs is a set of all interfaces connecting clients with VPP.
+	// FrontendIfs is a set of all interfaces connecting clients with VPP
+	// (VPP specific).
 	FrontendIfs Interfaces
 
-	// BackendIfs is a set of all interfaces connecting service backends with VPP.
+	// BackendIfs is a set of all interfaces connecting service backends with VPP
+	// (VPP specific).
 	BackendIfs Interfaces
 }
 
@@ -367,24 +411,6 @@ func (red ResyncEventData) String() string {
 			services += ", "
 		}
 	}
-	return fmt.Sprintf("ResyncEventData <NodeIPs:[%s] %s Services:[%s], FrontendIfs:%s BackendIfs:%s>",
-		red.NodeIPs.String(), red.ExternalSNAT.String(), services, red.FrontendIfs.String(),
-		red.BackendIfs.String())
-}
-
-// ExternalSNATConfig encapsulates configuration concerning SNAT, installed to allow Internet access for pods.
-type ExternalSNATConfig struct {
-	// ExternalIfName is the name of the interface used as the gateway to the external network.
-	// If empty, the SNAT is not configured.
-	ExternalIfName string
-
-	// ExternalIP is the IP address that will be used as the source address in (S)NAT for all traffic leaving
-	// the cluster network.
-	// If nil, the SNAT is not configured.
-	ExternalIP net.IP
-}
-
-// String converts ExternalSNATConfig into a human-readable string.
-func (esc ExternalSNATConfig) String() string {
-	return fmt.Sprintf("SNAT <ExternalIfName: %s, ExternalIP: %s>", esc.ExternalIfName, esc.ExternalIP)
+	return fmt.Sprintf("ResyncEventData <NodeIPs:[%s] Services:[%s], FrontendIfs:%s BackendIfs:%s>",
+		red.NodeIPs.String(), services, red.FrontendIfs.String(), red.BackendIfs.String())
 }

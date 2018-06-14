@@ -8,7 +8,9 @@ RUN apt-get update \
         openssl python libapr1 libnuma1 libmbedcrypto0 libmbedtls10 libmbedx509-0 \
         supervisor \
         # required for disabling TCP checksum offload in containers
-	ethtool \
+        ethtool \
+        # ability to run vpptrace.sh
+        netcat-openbsd \
  && rm -rf /var/lib/apt/lists/*
 
 # use /opt/vpp-agent/dev as the working directory

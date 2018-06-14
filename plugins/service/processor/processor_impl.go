@@ -17,26 +17,26 @@
 package processor
 
 import (
-	"errors"
 	"net"
 	"strings"
 
 	"github.com/ligato/cn-infra/datasync"
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/servicelabel"
-	"github.com/ligato/vpp-agent/plugins/vpp"
 
 	"github.com/contiv/vpp/plugins/contiv"
 	nodemodel "github.com/contiv/vpp/plugins/contiv/model/node"
 	epmodel "github.com/contiv/vpp/plugins/ksr/model/endpoints"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	svcmodel "github.com/contiv/vpp/plugins/ksr/model/service"
-	"github.com/contiv/vpp/plugins/service/configurator"
+	"github.com/contiv/vpp/plugins/service/renderer"
 )
 
 // ServiceProcessor implements ServiceProcessorAPI.
 type ServiceProcessor struct {
 	Deps
+
+	renderers []renderer.ServiceRendererAPI
 
 	/* nodes */
 	nodes map[int]*nodemodel.NodeInfo
@@ -46,8 +46,8 @@ type ServiceProcessor struct {
 	localEps map[podmodel.ID]*LocalEndpoint
 
 	/* local frontend and backend interfaces */
-	frontendIfs configurator.Interfaces
-	backendIfs  configurator.Interfaces
+	frontendIfs renderer.Interfaces
+	backendIfs  renderer.Interfaces
 }
 
 // Deps lists dependencies of ServiceProcessor.
@@ -55,8 +55,6 @@ type Deps struct {
 	Log          logging.Logger
 	ServiceLabel servicelabel.ReaderAPI
 	Contiv       contiv.API /* to get all interface names and pod IP network */
-	VPP          vpp.API    /* interface IP addresses */
-	Configurator configurator.ServiceConfiguratorAPI
 }
 
 // LocalEndpoint represents a node-local endpoint.
@@ -72,7 +70,7 @@ func (sp *ServiceProcessor) Init() error {
 	return nil
 }
 
-// AfterInit is called by the plugin infra after init of all plugins is completed.
+// AfterInit does nothing for the processor.
 func (sp *ServiceProcessor) AfterInit() error {
 	return nil
 }
@@ -82,27 +80,35 @@ func (sp *ServiceProcessor) reset() error {
 	sp.nodes = make(map[int]*nodemodel.NodeInfo)
 	sp.services = make(map[svcmodel.ID]*Service)
 	sp.localEps = make(map[podmodel.ID]*LocalEndpoint)
-	sp.frontendIfs = configurator.NewInterfaces()
-	sp.backendIfs = configurator.NewInterfaces()
+	sp.frontendIfs = renderer.NewInterfaces()
+	sp.backendIfs = renderer.NewInterfaces()
 	return nil
 }
 
 // Update processes a datasync change event associated with the state data
-// of K8s pods, endpoints and services.
-// The data change is stored into the cache and the configurator
-// is notified about any changes related to services that need to be reflected
-// in the VPP NAT configuration.
+// of K8s pods, endpoints, services and nodes.
+// The data change is stored into the cache and all registered renderers
+// are notified about any changes related to services that need to be
+// reflected in the underlying network stack(s).
 func (sp *ServiceProcessor) Update(dataChngEv datasync.ChangeEvent) error {
 	return sp.propagateDataChangeEv(dataChngEv)
 }
 
 // Resync processes a datasync resync event associated with the state data
-// of K8s pods, endpoints and services.
-// The cache content is fully replaced and the configurator receives a full
-// snapshot of Contiv Services at the present state to be (re)installed.
+// of K8s pods, endpoints, services and nodes.
+// The cache content is fully replaced and all registered renderers
+// receive a full snapshot of Contiv Services at the present state to be
+// (re)installed.
 func (sp *ServiceProcessor) Resync(resyncEv datasync.ResyncEvent) error {
 	resyncEvData := sp.parseResyncEv(resyncEv)
 	return sp.processResyncEvent(resyncEvData)
+}
+
+// RegisterRenderer registers a new service renderer.
+// The renderer will be receiving updates for all services on the cluster.
+func (sp *ServiceProcessor) RegisterRenderer(renderer renderer.ServiceRendererAPI) error {
+	sp.renderers = append(sp.renderers, renderer)
+	return nil
 }
 
 func (sp *ServiceProcessor) processUpdatedPod(pod *podmodel.Pod) error {
@@ -138,14 +144,21 @@ func (sp *ServiceProcessor) processUpdatedPod(pod *podmodel.Pod) error {
 	if localEp.svcCount > 0 {
 		newBackendIfs := sp.backendIfs.Copy()
 		newBackendIfs.Add(ifName)
-		sp.Configurator.UpdateLocalBackendIfs(sp.backendIfs, newBackendIfs)
+		for _, renderer := range sp.renderers {
+			err := renderer.UpdateLocalBackendIfs(sp.backendIfs, newBackendIfs)
+			if err != nil {
+				return err
+			}
+		}
 		sp.backendIfs = newBackendIfs
 	}
 	newFrontendIfs := sp.frontendIfs.Copy()
 	newFrontendIfs.Add(ifName)
-	err := sp.Configurator.UpdateLocalFrontendIfs(sp.frontendIfs, newFrontendIfs)
-	if err != nil {
-		return err
+	for _, renderer := range sp.renderers {
+		err := renderer.UpdateLocalFrontendIfs(sp.frontendIfs, newFrontendIfs)
+		if err != nil {
+			return err
+		}
 	}
 	sp.frontendIfs = newFrontendIfs
 	return nil
@@ -169,12 +182,18 @@ func (sp *ServiceProcessor) processDeletingPod(podNamespace string, podName stri
 	if localEp.svcCount > 0 {
 		newBackendIfs := sp.backendIfs.Copy()
 		newBackendIfs.Del(ifName)
-		sp.Configurator.UpdateLocalBackendIfs(sp.backendIfs, newBackendIfs)
+		for _, renderer := range sp.renderers {
+			/* ignore errors */
+			renderer.UpdateLocalBackendIfs(sp.backendIfs, newBackendIfs)
+		}
 		sp.backendIfs = newBackendIfs
 	}
 	newFrontendIfs := sp.frontendIfs.Copy()
 	newFrontendIfs.Del(ifName)
-	sp.Configurator.UpdateLocalFrontendIfs(sp.frontendIfs, newFrontendIfs)
+	for _, renderer := range sp.renderers {
+		/* ignore errors */
+		renderer.UpdateLocalFrontendIfs(sp.frontendIfs, newFrontendIfs)
+	}
 	sp.frontendIfs = newFrontendIfs
 	delete(sp.localEps, podID)
 	return nil
@@ -188,7 +207,7 @@ func (sp *ServiceProcessor) processNewEndpoints(eps *epmodel.Endpoints) error {
 	svcID := svcmodel.ID{Namespace: eps.Namespace, Name: eps.Name}
 	svc := sp.getService(svcID)
 	svc.SetEndpoints(eps)
-	return sp.configureService(svc, nil, []podmodel.ID{})
+	return sp.renderService(svc, nil, []podmodel.ID{})
 }
 
 func (sp *ServiceProcessor) processUpdatedEndpoints(eps *epmodel.Endpoints) error {
@@ -201,7 +220,7 @@ func (sp *ServiceProcessor) processUpdatedEndpoints(eps *epmodel.Endpoints) erro
 	oldContivSvc := svc.GetContivService()
 	oldBackends := svc.GetLocalBackends()
 	svc.SetEndpoints(eps)
-	return sp.configureService(svc, oldContivSvc, oldBackends)
+	return sp.renderService(svc, oldContivSvc, oldBackends)
 }
 
 func (sp *ServiceProcessor) processDeletedEndpoints(epsID epmodel.ID) error {
@@ -214,7 +233,7 @@ func (sp *ServiceProcessor) processDeletedEndpoints(epsID epmodel.ID) error {
 	oldContivSvc := svc.GetContivService()
 	oldBackends := svc.GetLocalBackends()
 	svc.SetEndpoints(nil)
-	return sp.configureService(svc, oldContivSvc, oldBackends)
+	return sp.renderService(svc, oldContivSvc, oldBackends)
 }
 
 func (sp *ServiceProcessor) processNewService(service *svcmodel.Service) error {
@@ -225,7 +244,7 @@ func (sp *ServiceProcessor) processNewService(service *svcmodel.Service) error {
 	svcID := svcmodel.ID{Namespace: service.Namespace, Name: service.Name}
 	svc := sp.getService(svcID)
 	svc.SetMetadata(service)
-	return sp.configureService(svc, nil, []podmodel.ID{})
+	return sp.renderService(svc, nil, []podmodel.ID{})
 }
 
 func (sp *ServiceProcessor) processUpdatedService(service *svcmodel.Service) error {
@@ -238,7 +257,7 @@ func (sp *ServiceProcessor) processUpdatedService(service *svcmodel.Service) err
 	oldContivSvc := svc.GetContivService()
 	oldBackends := svc.GetLocalBackends()
 	svc.SetMetadata(service)
-	return sp.configureService(svc, oldContivSvc, oldBackends)
+	return sp.renderService(svc, oldContivSvc, oldBackends)
 }
 
 func (sp *ServiceProcessor) processDeletedService(serviceID svcmodel.ID) error {
@@ -251,7 +270,7 @@ func (sp *ServiceProcessor) processDeletedService(serviceID svcmodel.ID) error {
 	oldContivSvc := svc.GetContivService()
 	oldBackends := svc.GetLocalBackends()
 	svc.SetMetadata(nil)
-	return sp.configureService(svc, oldContivSvc, oldBackends)
+	return sp.renderService(svc, oldContivSvc, oldBackends)
 }
 
 func (sp *ServiceProcessor) processNewNode(node *nodemodel.NodeInfo) error {
@@ -260,7 +279,7 @@ func (sp *ServiceProcessor) processNewNode(node *nodemodel.NodeInfo) error {
 	}).Debug("ServiceProcessor - processNewNode()")
 
 	sp.nodes[int(node.Id)] = node
-	return sp.reconfigureNodePorts()
+	return sp.renderNodePorts()
 }
 
 func (sp *ServiceProcessor) processUpdatedNode(node *nodemodel.NodeInfo) error {
@@ -269,7 +288,7 @@ func (sp *ServiceProcessor) processUpdatedNode(node *nodemodel.NodeInfo) error {
 	}).Debug("ServiceProcessor - processUpdatedNode()")
 
 	sp.nodes[int(node.Id)] = node
-	return sp.reconfigureNodePorts()
+	return sp.renderNodePorts()
 }
 
 func (sp *ServiceProcessor) processDeletedNode(nodeID int) error {
@@ -279,41 +298,45 @@ func (sp *ServiceProcessor) processDeletedNode(nodeID int) error {
 
 	if _, hasNode := sp.nodes[nodeID]; hasNode {
 		delete(sp.nodes, nodeID)
-		return sp.reconfigureNodePorts()
+		return sp.renderNodePorts()
 	}
 	return nil
 }
 
-// configureService makes all the calls to configurator necessary to get K8s state
-// data of a given service in-sync with VPP NAT configuration.
-func (sp *ServiceProcessor) configureService(svc *Service, oldContivSvc *configurator.ContivService, oldBackends []podmodel.ID) error {
+// renderService reacts to added/removed/changed service.
+func (sp *ServiceProcessor) renderService(svc *Service, oldContivSvc *renderer.ContivService,
+	oldBackends []podmodel.ID) error {
+
 	var err error
 	newContivSvc := svc.GetContivService()
 	newBackends := svc.GetLocalBackends()
 
-	// Configure service.
+	// Render service.
 	if newContivSvc != nil {
 		if oldContivSvc == nil {
-			err = sp.Configurator.AddService(newContivSvc)
-			if err != nil {
-				return err
+			for _, renderer := range sp.renderers {
+				if err = renderer.AddService(newContivSvc); err != nil {
+					return err
+				}
 			}
 		} else {
-			err = sp.Configurator.UpdateService(oldContivSvc, newContivSvc)
-			if err != nil {
-				return err
+			for _, renderer := range sp.renderers {
+				if err = renderer.UpdateService(oldContivSvc, newContivSvc); err != nil {
+					return err
+				}
 			}
 		}
 	} else {
 		if oldContivSvc != nil {
-			err = sp.Configurator.DeleteService(oldContivSvc)
-			if err != nil {
-				return err
+			for _, renderer := range sp.renderers {
+				if err = renderer.DeleteService(oldContivSvc); err != nil {
+					return err
+				}
 			}
 		}
 	}
 
-	// Configure local Backends.
+	// Render local Backends.
 	newBackendIfs := sp.backendIfs.Copy()
 	updateBackends := false
 	// -> handle new backend interfaces
@@ -354,18 +377,23 @@ func (sp *ServiceProcessor) configureService(svc *Service, oldContivSvc *configu
 	}
 	// -> update local backends
 	if updateBackends {
-		err = sp.Configurator.UpdateLocalBackendIfs(sp.backendIfs, newBackendIfs)
+		for _, renderer := range sp.renderers {
+			err = renderer.UpdateLocalBackendIfs(sp.backendIfs, newBackendIfs)
+			if err != nil {
+				return err
+			}
+		}
 		sp.backendIfs = newBackendIfs
 	}
 
 	return err
 }
 
-// reconfigureNodePorts reconfigures all services with a node port.
-func (sp *ServiceProcessor) reconfigureNodePorts() error {
-	sp.Log.Debug("ServiceProcessor - reconfigureNodePorts()")
+// renderNodePorts re-renders all services with a node port.
+func (sp *ServiceProcessor) renderNodePorts() error {
+	sp.Log.Debug("ServiceProcessor - renderNodePorts()")
 
-	var npServices []*configurator.ContivService
+	var npServices []*renderer.ContivService
 	for _, svc := range sp.services {
 		contivSvc := svc.GetContivService()
 		if contivSvc == nil {
@@ -375,13 +403,19 @@ func (sp *ServiceProcessor) reconfigureNodePorts() error {
 			npServices = append(npServices, contivSvc)
 		}
 	}
-	return sp.Configurator.UpdateNodePortServices(sp.getNodeIPs(), npServices)
+	for _, renderer := range sp.renderers {
+		err := renderer.UpdateNodePortServices(sp.getNodeIPs(), npServices)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // getNodeIPs returns a slice of IP addresses of all nodes in the cluster
 // without duplicities.
-func (sp *ServiceProcessor) getNodeIPs() *configurator.IPAddresses {
-	nodeIPs := configurator.NewIPAddresses()
+func (sp *ServiceProcessor) getNodeIPs() *renderer.IPAddresses {
+	nodeIPs := renderer.NewIPAddresses()
 	addedNodeIPs := map[string]struct{}{}
 
 	for _, node := range sp.nodes {
@@ -424,20 +458,11 @@ func (sp *ServiceProcessor) processResyncEvent(resyncEv *ResyncEventData) error 
 	sp.reset()
 
 	// Re-build the current state.
-	confResyncEv := configurator.NewResyncEventData()
+	confResyncEv := renderer.NewResyncEventData()
 
 	// Replace the map of node IDs & IP addresses.
 	sp.nodes = resyncEv.Nodes
 	confResyncEv.NodeIPs = sp.getNodeIPs()
-
-	// Try to get Node IP.
-	nodeIP, nodeNet := sp.Contiv.GetNodeIP()
-	if nodeIP == nil {
-		return errors.New("failed to get Node IP")
-	}
-
-	// Get default gateway IP address.
-	gwIP := sp.Contiv.GetDefaultGatewayIP()
 
 	// Fill up the set of frontend/backend interfaces and local endpoints.
 	// With physical interfaces also build SNAT configuration.
@@ -453,34 +478,11 @@ func (sp *ServiceProcessor) processResyncEvent(resyncEv *ResyncEventData) error 
 		if vxlanBVIIf == "" {
 			sp.backendIfs.Add(mainPhysIf)
 		}
-		if sp.Contiv.NatExternalTraffic() && vxlanBVIIf != "" && gwIP != nil {
-			// If the interface connects node with the default GW, SNAT all egress traffic.
-			// For main interface this is supported only with VXLANs enabled.
-			if nodeNet.Contains(gwIP) {
-				confResyncEv.ExternalSNAT.ExternalIfName = mainPhysIf
-				confResyncEv.ExternalSNAT.ExternalIP = nodeIP
-			}
-		}
-		if confResyncEv.ExternalSNAT.ExternalIfName != mainPhysIf {
-			sp.frontendIfs.Add(mainPhysIf)
-		}
+		sp.frontendIfs.Add(mainPhysIf)
 	}
 	// -> other physical interfaces
 	for _, physIf := range sp.Contiv.GetOtherPhysicalIfNames() {
-		ipAddresses := sp.getInterfaceIPs(physIf)
-		// If the interface connects node with the default GW, SNAT all egress traffic.
-		if sp.Contiv.NatExternalTraffic() && gwIP != nil {
-			for _, ipAddr := range ipAddresses {
-				if ipAddr.Network.Contains(gwIP) {
-					confResyncEv.ExternalSNAT.ExternalIfName = physIf
-					confResyncEv.ExternalSNAT.ExternalIP = ipAddr.IP
-					break
-				}
-			}
-		}
-		if confResyncEv.ExternalSNAT.ExternalIfName != physIf {
-			sp.frontendIfs.Add(physIf)
-		}
+		sp.frontendIfs.Add(physIf)
 	}
 	// -> host interconnect
 	hostInterconnect := sp.Contiv.GetHostInterconnectIfName()
@@ -542,10 +544,15 @@ func (sp *ServiceProcessor) processResyncEvent(resyncEv *ResyncEventData) error 
 		}
 	}
 
-	// Build resync data for the service configurator.
+	// Build resync data for service renderers.
 	confResyncEv.FrontendIfs = sp.frontendIfs
 	confResyncEv.BackendIfs = sp.backendIfs
-	return sp.Configurator.Resync(confResyncEv)
+	for _, renderer := range sp.renderers {
+		if err := renderer.Resync(confResyncEv); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // Close deallocates resource held by the processor.
@@ -569,35 +576,4 @@ func (sp *ServiceProcessor) getLocalEndpoint(podID podmodel.ID) *LocalEndpoint {
 		sp.localEps[podID] = &LocalEndpoint{}
 	}
 	return sp.localEps[podID]
-}
-
-// InterfaceIPAddress encapsulates interface IP address and the network implied by the IP
-// and prefix length.
-type InterfaceIPAddress struct {
-	IP      net.IP
-	Network *net.IPNet
-}
-
-// getInterfaceIPs returns all IP addresses the interface has assigned.
-func (sp *ServiceProcessor) getInterfaceIPs(ifName string) []InterfaceIPAddress {
-	networks := []InterfaceIPAddress{}
-	_, meta, exists := sp.VPP.GetSwIfIndexes().LookupIdx(ifName)
-	if !exists || meta == nil {
-		sp.Log.WithFields(logging.Fields{
-			"ifName": ifName,
-		}).Warn("failed to get interface metadata")
-		return networks
-	}
-	for _, ipAddr := range meta.IpAddresses {
-		ip, ipNet, err := net.ParseCIDR(ipAddr)
-		if err != nil {
-			sp.Log.WithFields(logging.Fields{
-				"ifName": ifName,
-				"err":    err,
-			}).Warn("failed to parse interface IP")
-			continue
-		}
-		networks = append(networks, InterfaceIPAddress{IP: ip, Network: ipNet})
-	}
-	return networks
 }

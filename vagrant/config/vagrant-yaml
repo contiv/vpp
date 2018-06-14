@@ -1,14 +1,13 @@
 #!/bin/sh
 
 if [ $DEP_SCENARIO = "nostn" ]; then
-  sed -i '/NodeInterconnectCIDR/d' /home/vagrant/gopath/src/github.com/contiv/vpp/k8s/contiv-vpp/manifest.yaml
-  sed -i -e '/NodeInterconnectDHCP: False/c\      NodeInterconnectDHCP: True' /home/vagrant/gopath/src/github.com/contiv/vpp/k8s/contiv-vpp/manifest.yaml
+
   master_gw_config='\
     NodeConfig:\
     - NodeName: \"k8s-master\"\
       MainVppInterface:\
         InterfaceName: \"GigabitEthernet0/8/0\"\
-      Gateway: \"10.20.0.100\"'
+      Gateway: \"192.168.16.100\"'
 
   worker_gw_config=''
 for i in `seq 1 $NUM_K8S_NODES`; do
@@ -16,7 +15,7 @@ worker_gw_config=$worker_gw_config'\
     - NodeName: \"k8s-worker'$i'\"\
       MainVppInterface:\
         InterfaceName: \"GigabitEthernet0/8/0\"\
-      Gateway: \"10.20.0.100\"'
+      Gateway: \"192.168.16.100\"'
 done
 
   sed -i "/logs.conf/i \

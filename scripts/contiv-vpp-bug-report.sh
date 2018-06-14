@@ -155,10 +155,8 @@ VPP_COMMANDS["vpp-nat44-sessions.log"]="sh nat44 sessions detail"
 VPP_COMMANDS["vpp-acls.log"]="sh acl-plugin acl"
 VPP_COMMANDS["vpp-hardware-info.log"]="sh hardware-interfaces"
 VPP_COMMANDS["vpp-errors.log"]="sh errors"
-# The api trace data is not being retrieved for now, because of a vpp crash when dump trace is invoked. This will be
-# re-enabled when the bug is fixed.
-#VPP_COMMANDS["api-trace-save.log"]="api trace save trace.api"
-#VPP_COMMANDS["api-trace-dump.log"]="api trace custom-dump /tmp/trace.api"
+VPP_COMMANDS["api-trace-save.log"]="api trace save trace.api"
+VPP_COMMANDS["api-trace-dump.log"]="api trace custom-dump /tmp/trace.api"
 
 declare -A LOCAL_COMMANDS
 LOCAL_COMMANDS["linux-ip-route.log"]="ip route"

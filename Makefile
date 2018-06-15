@@ -243,7 +243,7 @@ helm-package:
 	helm package k8s/contiv-vpp/
 
 helm-yaml:
-	helm template k8s/contiv-vpp > k8s/contiv-vpp.yaml
+	helm template --set vswitch.image.tag=${TAG} --set cni.image.tag=${TAG} --set ksr.image.tag=${TAG} k8s/contiv-vpp > k8s/contiv-vpp.yaml
 
 .PHONY: build all \
 	install clean test test-race \

@@ -25,6 +25,7 @@ source ../vpp.env
 export DOCKER_BUILD_ARGS=""
 export SKIP_DEBUG_BUILD=0
 
+
 # override defaults from arguments
 while [ "$1" != "" ]; do
     case $1 in

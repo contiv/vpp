@@ -258,7 +258,7 @@ sudo -u vagrant -H bash << EOF
 echo "Installing Pod Network..."
 
 if [ $6 != "latest" ]; then
-  sed -i "/version: latest/c\version: $IMAGE_TAG" /home/vagrant/gopath/src/github.com/contiv/vpp/k8s/contiv-vpp/Chart.yaml
+  sed -i -e "s/latest/$6/" /home/vagrant/gopath/src/github.com/contiv/vpp/k8s/contiv-vpp/Chart.yaml
 fi
 helm template --name vagrant /home/vagrant/gopath/src/github.com/contiv/vpp/k8s/contiv-vpp > /home/vagrant/gopath/src/github.com/contiv/vpp/k8s/contiv-vpp/manifest.yaml
 export NUM_K8S_NODES=$3; export DEP_SCENARIO=$5; /home/vagrant/gopath/src/github.com/contiv/vpp/vagrant/config/vagrant-yaml
@@ -274,6 +274,11 @@ set -e
 set -x
 
 echo Args passed: [[ $@ ]]
+
+if [ -f /vagrant/images.tar ]; then
+    echo "Found saved images at /vagrant/images.tar"
+    docker load -i /vagrant/images.tar
+fi
 
 source /vagrant/config/init
 

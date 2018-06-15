@@ -33,10 +33,8 @@ import (
 const (
 	b10000000 = 1 << 7
 	b11000000 = 1<<7 + 1<<6
-	b11000010 = 1<<7 + 1<<6 + 1<<1
-	b10100001 = 1<<7 + 1<<5 + 1
-	b10100101 = 1<<7 + 1<<5 + 1<<2 + 1
-	b11100101 = 1<<7 + 1<<6 + 1<<5 + 1<<2 + 1
+	b11000101 = 1<<7 + 1<<6 + 1<<2 + 1
+	b00000101 = 1<<2 + 1
 
 	incorrectHostIDForIPAllocation = ""
 )
@@ -44,8 +42,8 @@ const (
 var (
 	logger = logrus.DefaultLogger()
 
-	hostID1                        uint8 = b10100001
-	hostID2                        uint8 = b10100101
+	hostID1                        uint8 = 1
+	hostID2                        uint8 = b00000101
 	podID                                = "podID"
 	expectedPodNetwork                   = network("1.2." + str(b10000000+int(hostID1>>5)) + "." + str(int(hostID1<<3)) + "/29")
 	expectedVSwitchNetwork               = network("2.3." + str(b11000000+int(hostID1>>6)) + "." + str(int(hostID1<<2)) + "/30")
@@ -56,12 +54,12 @@ var (
 func newDefaultConfig() *ipam.Config {
 	return &ipam.Config{
 		PodIfIPCIDR:             "10.2.1.0/24",
-		PodSubnetCIDR:           "1.2." + str(b10000000) + ".2/17",
+		PodSubnetCIDR:           "1.2." + str(b10000000) + ".0/17",
 		PodNetworkPrefixLen:     29, // 3 bits left -> 4 free IP addresses (gateway IP + NAT-loopback IP + network addr + broadcast are reserved)
-		VPPHostSubnetCIDR:       "2.3." + str(b11000000) + ".2/18",
+		VPPHostSubnetCIDR:       "2.3." + str(b11000000) + ".0/18",
 		VPPHostNetworkPrefixLen: 30, // 2 bit left -> 3 free IP addresses (zero ending IP is reserved)
-		NodeInterconnectCIDR:    "3.4.5." + str(b11000010) + "/26",
-		VxlanCIDR:               "4.5.6." + str(b11000010) + "/26",
+		NodeInterconnectCIDR:    "3.4.5." + str(b11000000) + "/26",
+		VxlanCIDR:               "4.5.6." + str(b11000000) + "/26",
 	}
 }
 
@@ -95,15 +93,15 @@ func TestDynamicGetters(t *testing.T) {
 	i := setup(t, newDefaultConfig())
 	ip, err := i.NodeIPAddress(hostID2)
 	Expect(err).To(BeNil())
-	Expect(ip).To(BeEquivalentTo(net.IPv4(3, 4, 5, b11100101).To4()))
+	Expect(ip).To(BeEquivalentTo(net.IPv4(3, 4, 5, b11000101).To4()))
 
 	ipNet, err := i.NodeIPWithPrefix(hostID2)
 	Expect(err).To(BeNil())
-	Expect(*ipNet).To(BeEquivalentTo(ipWithNetworkMask("3.4.5." + str(b11100101) + "/26")))
+	Expect(*ipNet).To(BeEquivalentTo(ipWithNetworkMask("3.4.5." + str(b11000101) + "/26")))
 
 	ipNet, err = i.VxlanIPWithPrefix(hostID2)
 	Expect(err).To(BeNil())
-	Expect(*ipNet).To(BeEquivalentTo(ipWithNetworkMask("4.5.6." + str(b11100101) + "/26")))
+	Expect(*ipNet).To(BeEquivalentTo(ipWithNetworkMask("4.5.6." + str(b11000101) + "/26")))
 
 	ipNet, err = i.OtherNodePodNetwork(hostID2)
 	Expect(err).To(BeNil())
@@ -132,13 +130,13 @@ func TestAssigniningIncrementalIPs(t *testing.T) {
 	ip, err := i.NextPodIP(podID)
 	Expect(err).To(BeNil())
 	Expect(ip).NotTo(BeNil())
-	Expect(ip.String()).To(BeEquivalentTo("1.2.133.10"))
+	Expect(ip.String()).To(BeEquivalentTo("1.2.128.10"))
 	Expect(i.PodNetwork().Contains(ip)).To(BeTrue(), "Pod IP address is not from pod network")
 
 	second, err := i.NextPodIP(podID + "2")
 	Expect(err).To(BeNil())
 	Expect(second).NotTo(BeNil())
-	Expect(second.String()).To(BeEquivalentTo("1.2.133.11"))
+	Expect(second.String()).To(BeEquivalentTo("1.2.128.11"))
 	Expect(i.PodNetwork().Contains(second)).To(BeTrue(), "Pod IP address is not from pod network")
 
 	err = i.ReleasePodIP(podID + "2")
@@ -148,7 +146,7 @@ func TestAssigniningIncrementalIPs(t *testing.T) {
 	third, err := i.NextPodIP(podID + "3")
 	Expect(err).To(BeNil())
 	Expect(third).NotTo(BeNil())
-	Expect(third.String()).To(BeEquivalentTo("1.2.133.12"))
+	Expect(third.String()).To(BeEquivalentTo("1.2.128.12"))
 	Expect(i.PodNetwork().Contains(third)).To(BeTrue(), "Pod IP address is not from pod network")
 
 	// exhaust the range
@@ -162,7 +160,7 @@ func TestAssigniningIncrementalIPs(t *testing.T) {
 	Expect(err).To(BeNil())
 	Expect(reused).NotTo(BeNil())
 	Expect(i.PodNetwork().Contains(reused)).To(BeTrue(), "Pod IP address is not from pod network")
-	Expect(reused.String()).To(BeEquivalentTo("1.2.133.11"))
+	Expect(reused.String()).To(BeEquivalentTo("1.2.128.11"))
 
 }
 
@@ -237,15 +235,87 @@ func TestBiggerThan8bitPodIPPoolSize(t *testing.T) {
 	assertCorrectIPExhaustion(i, maxIPCount)
 }
 
-// TestHostIDtrimming test IPAM ability to properly create IP address part corresponding to host ID. More precise the
-// case when 8-bit hostID doesn't fit into less-then-8bit IP Part.
-func TestHostIDtrimming(t *testing.T) {
-	customConfig := newDefaultConfig()
-	customConfig.PodSubnetCIDR = "1.2.3.4/19"
-	customConfig.PodNetworkPrefixLen = 24
-	i := setup(t, customConfig)
+// TestPodNetworkSubnets verifies that the pod subnet corresponding to the last valid nodeID uses the first valid pod subnet
+func TestPodNetworkSubnets(t *testing.T) {
+	RegisterTestingT(t)
 
-	Expect(*i.PodNetwork()).To(BeEquivalentTo(network("1.2." + str(int(hostID1&(1<<5-1))) + ".0/24")))
+	customConfig := newDefaultConfig()
+	customConfig.PodSubnetCIDR = "1.4.1.0/24"
+	customConfig.PodNetworkPrefixLen = 28
+
+	var firstID uint8 = 1
+	var lastID uint8 = 16
+	var outOfRangeId uint8 = 17
+
+	first, err := ipam.New(logrus.DefaultLogger(), firstID, customConfig, nil, nil)
+	Expect(err).To(BeNil())
+	Expect(first).NotTo(BeNil())
+	Expect(first.PodNetwork().String()).To(BeEquivalentTo("1.4.1.16/28"))
+	firstNodeIP, err := first.NodeIPAddress(firstID)
+	Expect(err).To(BeNil())
+	Expect(firstNodeIP.String()).To(BeEquivalentTo("3.4.5.193"))
+
+	// the biggest NodeID uses the podNetwork zero-ending
+	last, err := ipam.New(logrus.DefaultLogger(), 16, customConfig, nil, nil)
+	Expect(err).To(BeNil())
+	Expect(last).NotTo(BeNil())
+	Expect(last.PodNetwork().String()).To(BeEquivalentTo("1.4.1.0/28"))
+	lastNodeIP, err := last.NodeIPAddress(lastID)
+	Expect(err).To(BeNil())
+	Expect(lastNodeIP.String()).To(BeEquivalentTo("3.4.5.208"))
+
+	outOfRange, err := ipam.New(logrus.DefaultLogger(), outOfRangeId, customConfig, nil, nil)
+	Expect(err).NotTo(BeNil())
+	Expect(outOfRange).To(BeNil())
+}
+
+// TestExceededVxlanRange tests the scenario where vxlan IP range is exceeded, whereas the pod subnet is valid for the given nodeID
+func TestExceededVxlanRange(t *testing.T) {
+	RegisterTestingT(t)
+
+	customConfig := newDefaultConfig()
+	customConfig.PodSubnetCIDR = "1.4.1.0/17"
+	customConfig.PodNetworkPrefixLen = 28
+	customConfig.VxlanCIDR = "2.2.2.128/28"
+
+	// valid nodID from pod subnet perspective, however it doesn't fit into vxlan range
+	last, err := ipam.New(logrus.DefaultLogger(), 17, customConfig, nil, nil)
+	Expect(err).To(BeNil())
+	Expect(last).NotTo(BeNil())
+
+	_, err = last.VxlanIPAddress(16)
+	fmt.Println(err)
+	Expect(err).NotTo(BeNil())
+
+	_, err = last.VxlanIPAddress(17)
+	fmt.Println(err)
+	Expect(err).NotTo(BeNil())
+
+}
+
+// TestExceededVxlanRange tests the scenario where node IP range is exceeded, whereas the pod subnet is valid for the given nodeID
+func TestExceededNodeIPRange(t *testing.T) {
+	RegisterTestingT(t)
+
+	customConfig := newDefaultConfig()
+	customConfig.PodSubnetCIDR = "1.4.1.0/17"
+	customConfig.PodNetworkPrefixLen = 28
+	customConfig.VxlanCIDR = "2.2.2.128/25"
+	customConfig.NodeInterconnectCIDR = "3.3.3.0/28"
+
+	// valid nodID from pod subnet perspective, however it doesn't fit into nodeIP range
+	last, err := ipam.New(logrus.DefaultLogger(), 17, customConfig, nil, nil)
+	Expect(err).To(BeNil())
+	Expect(last).NotTo(BeNil())
+
+	_, err = last.NodeIPAddress(16)
+	fmt.Println(err)
+	Expect(err).NotTo(BeNil())
+
+	_, err = last.NodeIPAddress(17)
+	fmt.Println(err)
+	Expect(err).NotTo(BeNil())
+
 }
 
 // TestConfigWithBadCIDR test if IPAM detects incorrect unparsable CIDR string and handles it correctly (initialization returns error)

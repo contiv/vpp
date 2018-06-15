@@ -1,4 +1,4 @@
-FROM ubuntu:16.04
+FROM arm64v8/ubuntu:16.04
 
 RUN apt-get update \
  && apt-get install -y \
@@ -8,9 +8,7 @@ RUN apt-get update \
         openssl python libapr1 libnuma1 \
         supervisor \
         # required for disabling TCP checksum offload in containers
-        ethtool \
-        # ability to run vpptrace.sh
-        netcat-openbsd \
+	ethtool \
  && rm -rf /var/lib/apt/lists/*
 
 # use /opt/vpp-agent/dev as the working directory

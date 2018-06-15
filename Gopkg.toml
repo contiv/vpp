@@ -28,7 +28,7 @@ required = ["github.com/wadey/gocovmerge", "github.com/docker/docker/api", "gith
 
 [[constraint]]
   name = "github.com/ligato/vpp-agent"
-  revision = "a560689bdf566f87e3213c78ca3dc284a3f1c9b1"
+  revision = "33c4acf16d4efebbf2aa14b87813e3a4f2af995f"
 
 [[constraint]]
   name = "github.com/ligato/cn-infra"

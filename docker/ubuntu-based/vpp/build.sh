@@ -16,21 +16,48 @@
 # fail in case of error
 set -e
 
+DOCKERFILETAG=""
+
+BUILDARCH=`uname -m`
+
+if [ ${BUILDARCH} = "aarch64" ] ; then
+  DOCKERFILETAG=".arm64"
+  BUILDARCH="arm64"
+fi
+
+
+if [ ${BUILDARCH} = "x86_64" ] ; then
+  BUILDARCH="amd64"
+fi
+
+
+DOCKERFILE=Dockerfile${DOCKERFILETAG}
+#ALL_ARCH = amd64 arm64
+
+
 # execute the build
 if [ -z "${VPP_COMMIT_ID}" ]
 then
     # no specific VPP commit ID
-    docker build -t dev-contiv-vpp:latest \
+    docker build -t dev-contiv-vpp-${BUILDARCH}:latest \
+        -f ${DOCKERFILE} \
         --build-arg VPP_REPO_URL=${VPP_REPO_URL} \
         --build-arg VPP_BRANCH_NAME=${VPP_BRANCH_NAME} \
         --build-arg SKIP_DEBUG_BUILD=${SKIP_DEBUG_BUILD} \
         ${DOCKER_BUILD_ARGS} --force-rm=true .
+    if [ ${BUILDARCH} = "amd64" ] ; then
+       docker tag  dev-contiv-vpp-${BUILDARCH}:latest dev-contiv-vpp:latest
+    fi
 else
     # specific VPP commit ID
-    docker build -t dev-contiv-vpp:${VPP_COMMIT_ID} \
+    docker build -t dev-contiv-vpp-${BUILDARCH}:${VPP_COMMIT_ID} \
+        -f ${DOCKERFILE} \
         --build-arg VPP_REPO_URL=${VPP_REPO_URL} \
         --build-arg VPP_BRANCH_NAME=${VPP_BRANCH_NAME} \
         --build-arg VPP_COMMIT_ID=${VPP_COMMIT_ID} \
         --build-arg SKIP_DEBUG_BUILD=${SKIP_DEBUG_BUILD} \
         ${DOCKER_BUILD_ARGS} --force-rm=true .
+    if [ ${BUILDARCH} = "amd64" ] ; then
+       docker tag  dev-contiv-vpp-${BUILDARCH}:${VPP_COMMIT_ID} dev-contiv-vpp:${VPP_COMMIT_ID}
+    fi
 fi

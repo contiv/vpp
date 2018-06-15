@@ -23,6 +23,8 @@ while [ "$1" != "" ]; do
         -b | --branch )
             shift
             IMAGE_TAG=$1
+	    # strip "release-" prefix in IMAGE_TAG
+	    IMAGE_TAG=${IMAGE_TAG#release-}
             if [ "${IMAGE_TAG}" == "master" ]; then
               IMAGE_TAG="latest"
             fi

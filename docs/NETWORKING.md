@@ -83,7 +83,13 @@ between each of them is purely L3-based, even for case of the communication
 between 2 PODs within the same node, which seem to be on a single subnet.
 
 #### DPDK-managed data interface
-TODO
+In order to allow inter-node communication between PODs on different
+nodes and between PODs and outside world, Contiv/VPP uses data-plane interfaces
+bound to VPP using DPDK. Each node should have one "main" VPP interface,
+which is unbound from the host network stack and bound to VPP.
+Contiv/VPP control plane automatically configures the interface either
+via DHCP, or with statically assigned address (see `NodeInterconnectCIDR` and
+`NodeInterconnectDHCP` yaml settings).
 
 #### Linux host network stack
 TODO

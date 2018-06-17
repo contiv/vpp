@@ -48,6 +48,8 @@ while [ "$1" != "" ]; do
         -b | --branch-name )
             shift
             BRANCH_NAME=$1
+	    # strip "release-" prefix in BRANCH_NAME
+	    BRANCH_NAME=${BRANCH_NAME#release-}
             echo "Using branch name: ${BRANCH_NAME}"
             ;;
         -s | --skip-upload )

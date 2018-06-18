@@ -155,8 +155,6 @@ VPP_COMMANDS["vpp-nat44-sessions.log"]="sh nat44 sessions detail"
 VPP_COMMANDS["vpp-acls.log"]="sh acl-plugin acl"
 VPP_COMMANDS["vpp-hardware-info.log"]="sh hardware-interfaces"
 VPP_COMMANDS["vpp-errors.log"]="sh errors"
-VPP_COMMANDS["api-trace-save.log"]="api trace save trace.api"
-VPP_COMMANDS["api-trace-dump.log"]="api trace custom-dump /tmp/trace.api"
 
 declare -A LOCAL_COMMANDS
 LOCAL_COMMANDS["linux-ip-route.log"]="ip route"
@@ -292,6 +290,8 @@ then
             do
                 get_vpp_data_k8s "$CMD_INDEX" "${VPP_COMMANDS[$CMD_INDEX]}" </dev/null
             done
+            get_vpp_data_k8s "vpp-api-trace-save.log" "api trace save trace.api" </dev/null
+            get_vpp_data_k8s "vpp-api-trace-dump.log" "api trace custom-dump /tmp/trace.api" </dev/null
         fi
 
         if grep -q '^contiv-etcd' <<< "$POD_NAME"
@@ -358,6 +358,8 @@ then
     do
         get_vpp_data_local "$CMD_INDEX" "${VPP_COMMANDS[$CMD_INDEX]}"
     done
+    get_vpp_data_k8s "vpp-api-trace-save.log" "api trace save trace.api" </dev/null
+    get_vpp_data_k8s "vpp-api-trace-dump.log" "api trace custom-dump /tmp/trace.api" </dev/null
     echo
 
     echo "Running local commands for this host only:"

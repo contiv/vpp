@@ -32,6 +32,11 @@ git reset --hard HEAD
 cp ${VPP_PATCH_DIR}/*.diff . || true
 git apply -v *.diff || true
 
+
+if [ "$(uname -m)" = "aarch64" ] ; then
+  sed -i 's/lib\/x86_64-linux-gnu/lib\/aarch64-linux-gnu/g' build-data/platforms.mk
+fi
+
 # run the production build
 UNATTENDED=y make vpp_configure_args_vpp='--disable-japi --disable-vom' install-dep
 rm -rf /var/lib/apt/lists/*

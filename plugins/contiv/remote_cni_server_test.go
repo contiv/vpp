@@ -17,7 +17,6 @@ package contiv
 import (
 	"context"
 	"fmt"
-	"net"
 	"reflect"
 	"strings"
 	"testing"
@@ -35,20 +34,19 @@ import (
 	"github.com/contiv/vpp/plugins/kvdbproxy"
 	"github.com/golang/protobuf/proto"
 
-	"github.com/ligato/cn-infra/core"
 	"github.com/ligato/cn-infra/logging/logrus"
 	"github.com/ligato/vpp-agent/idxvpp/nametoidx"
-	"github.com/ligato/vpp-agent/plugins/defaultplugins/common/bin_api/af_packet"
-	"github.com/ligato/vpp-agent/plugins/defaultplugins/common/bin_api/dhcp"
-	interfaces_bin "github.com/ligato/vpp-agent/plugins/defaultplugins/common/bin_api/interfaces"
-	"github.com/ligato/vpp-agent/plugins/defaultplugins/common/bin_api/ip"
-	"github.com/ligato/vpp-agent/plugins/defaultplugins/common/bin_api/memif"
-	"github.com/ligato/vpp-agent/plugins/defaultplugins/common/bin_api/tap"
-	"github.com/ligato/vpp-agent/plugins/defaultplugins/common/bin_api/vpe"
-	"github.com/ligato/vpp-agent/plugins/defaultplugins/common/bin_api/vxlan"
-	vpp_intf "github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/interfaces"
-	vpp_l3 "github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/l3"
-	"github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/ifaceidx"
+	"github.com/ligato/vpp-agent/plugins/vpp/binapi/af_packet"
+	"github.com/ligato/vpp-agent/plugins/vpp/binapi/dhcp"
+	interfaces_bin "github.com/ligato/vpp-agent/plugins/vpp/binapi/interfaces"
+	"github.com/ligato/vpp-agent/plugins/vpp/binapi/ip"
+	"github.com/ligato/vpp-agent/plugins/vpp/binapi/memif"
+	"github.com/ligato/vpp-agent/plugins/vpp/binapi/tap"
+	"github.com/ligato/vpp-agent/plugins/vpp/binapi/vpe"
+	"github.com/ligato/vpp-agent/plugins/vpp/binapi/vxlan"
+	"github.com/ligato/vpp-agent/plugins/vpp/ifplugin/ifaceidx"
+	vpp_intf "github.com/ligato/vpp-agent/plugins/vpp/model/interfaces"
+	vpp_l3 "github.com/ligato/vpp-agent/plugins/vpp/model/l3"
 
 	"github.com/contiv/vpp/plugins/contiv/ipam"
 	"github.com/ligato/cn-infra/datasync"
@@ -142,7 +140,7 @@ func setupTestCNIServer(config *Config, nodeConfig *OneNodeConfig, existingInter
 	}
 
 	txns := localclient.NewTxnTracker(addIfsIntoTheIndex(swIfIdx))
-	configuredContainers := containeridx.NewConfigIndex(logrus.DefaultLogger(), core.PluginName("Plugin-name"), "title", nil)
+	configuredContainers := containeridx.NewConfigIndex(logrus.DefaultLogger(), "title", nil)
 
 	vppMockChan, vppMockConn := vppChanMock()
 
@@ -304,7 +302,9 @@ func TestConfigureVswitchVeth(t *testing.T) {
 	// using L2 interconnect - no VXLAN IF name
 	gomega.Expect(server.GetVxlanBVIIfName()).To(gomega.BeEmpty())
 	// gateway is configured
-	gomega.Expect(server.GetDefaultGatewayIP().Equal(net.ParseIP("192.168.1.100"))).To(gomega.BeTrue())
+	defaultIfName, defaultIfIP := server.GetDefaultInterface()
+	gomega.Expect(defaultIfIP.String()).To(gomega.Equal("192.168.1.1"))
+	gomega.Expect(defaultIfName).To(gomega.BeEquivalentTo(nodeConfig.MainVPPInterface.InterfaceName))
 	// with extra physical interfaces
 	gomega.Expect(server.GetOtherPhysicalIfNames()).To(gomega.Equal([]string{"GigabitEthernet0/0/0/10"}))
 
@@ -519,13 +519,13 @@ func addIfsIntoTheIndex(mapping ifaceidx.SwIfIndexRW) func(txn *localclient.Txn,
 }
 
 func swIfIndexMock() ifaceidx.SwIfIndexRW {
-	mapping := nametoidx.NewNameToIdx(logrus.DefaultLogger(), "plugin", "swIf", ifaceidx.IndexMetadata)
+	mapping := nametoidx.NewNameToIdx(logrus.DefaultLogger(), "swIf", ifaceidx.IndexMetadata)
 
 	return ifaceidx.NewSwIfIndex(mapping)
 }
 
 func dhcpIndexMock() ifaceidx.DhcpIndex {
-	mapping := nametoidx.NewNameToIdx(logrus.DefaultLogger(), "plugin", "dhcpIf", ifaceidx.IndexDHCPMetadata)
+	mapping := nametoidx.NewNameToIdx(logrus.DefaultLogger(), "dhcpIf", ifaceidx.IndexDHCPMetadata)
 
 	return ifaceidx.NewDHCPIndex(mapping)
 }

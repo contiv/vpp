@@ -27,8 +27,9 @@ import (
 	"github.com/ligato/cn-infra/logging"
 
 	"github.com/contiv/vpp/mock/localclient"
-	"github.com/contiv/vpp/plugins/service/configurator"
-	"github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/nat"
+
+	"github.com/contiv/vpp/plugins/service/renderer"
+	"github.com/ligato/vpp-agent/plugins/vpp/model/nat"
 )
 
 // MockNatPlugin simulates the VPP/NAT plugin.
@@ -84,8 +85,8 @@ func (mnt *MockNatPlugin) ApplyTxn(txn *localclient.Txn, latestRevs *syncbase.Pr
 		return errors.New("txn is nil")
 	}
 
-	if txn.DefaultPluginsDataChangeTxn != nil || txn.DefaultPluginsDataResyncTxn != nil {
-		return errors.New("defaultplugins txn is not supported")
+	if txn.VPPDataChangeTxn != nil || txn.VPPDataResyncTxn != nil {
+		return errors.New("vpp txn is not supported")
 	}
 
 	if txn.LinuxDataResyncTxn != nil {
@@ -274,9 +275,9 @@ func (mnt *MockNatPlugin) dnatToStaticMappings(dnat *nat.Nat44DNat_DNatConfig) (
 		// protocol
 		switch staticMapping.Protocol {
 		case nat.Protocol_TCP:
-			sm.Protocol = configurator.TCP
+			sm.Protocol = renderer.TCP
 		case nat.Protocol_UDP:
-			sm.Protocol = configurator.UDP
+			sm.Protocol = renderer.UDP
 		case nat.Protocol_ICMP:
 			return nil, errors.New("unexpected static mapping for the ICMP protocol")
 		}
@@ -338,9 +339,9 @@ func (mnt *MockNatPlugin) dnatToIdentityMappings(dnat *nat.Nat44DNat_DNatConfig)
 		// protocol
 		switch identityMapping.Protocol {
 		case nat.Protocol_TCP:
-			im.Protocol = configurator.TCP
+			im.Protocol = renderer.TCP
 		case nat.Protocol_UDP:
-			im.Protocol = configurator.UDP
+			im.Protocol = renderer.UDP
 		case nat.Protocol_ICMP:
 			return nil, errors.New("unexpected identity mapping for the ICMP protocol")
 		}

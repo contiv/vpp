@@ -71,8 +71,8 @@ type ConfigIndex struct {
 }
 
 // NewConfigIndex creates new instance of ConfigIndex
-func NewConfigIndex(logger logging.Logger, owner core.PluginName, title string, broker keyval.ProtoBroker) *ConfigIndex {
-	ci := &ConfigIndex{mapping: mem.NewNamedMapping(logger, owner, title, IndexFunction), broker: broker, logger: logger}
+func NewConfigIndex(logger logging.Logger, title string, broker keyval.ProtoBroker) *ConfigIndex {
+	ci := &ConfigIndex{mapping: mem.NewNamedMapping(logger, title, IndexFunction), broker: broker, logger: logger}
 	ci.loadConfigureContainers()
 	return ci
 }

@@ -242,6 +242,9 @@ generate-manifest:
 helm-package:
 	helm package k8s/contiv-vpp/
 
+helm-yaml:
+	helm template --set vswitch.image.tag=${TAG} --set cni.image.tag=${TAG} --set ksr.image.tag=${TAG} k8s/contiv-vpp > k8s/contiv-vpp.yaml
+
 .PHONY: build all \
 	install clean test test-race \
 	get-covtools test-cover test-cover-html test-cover-xml \
@@ -249,4 +252,4 @@ helm-package:
 	get-linters lint metalinter format check-format \
 	get-linkcheck check-links \
 	get-dep dep-install \
-	describe generate-manifest helm-package
+	describe generate-manifest helm-package helm-yaml

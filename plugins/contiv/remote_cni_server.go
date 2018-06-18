@@ -33,14 +33,14 @@ import (
 	"github.com/ligato/cn-infra/db/keyval"
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/vpp-agent/clientv1/linux"
-	vpp_intf "github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/interfaces"
-	vpp_l2 "github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/l2"
-	vpp_l3 "github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/l3"
-	vpp_l4 "github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/l4"
-	"github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/stn"
-	"github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/ifaceidx"
-	linux_intf "github.com/ligato/vpp-agent/plugins/linuxplugin/common/model/interfaces"
-	linux_l3 "github.com/ligato/vpp-agent/plugins/linuxplugin/common/model/l3"
+	linux_intf "github.com/ligato/vpp-agent/plugins/linux/model/interfaces"
+	linux_l3 "github.com/ligato/vpp-agent/plugins/linux/model/l3"
+	"github.com/ligato/vpp-agent/plugins/vpp/ifplugin/ifaceidx"
+	vpp_intf "github.com/ligato/vpp-agent/plugins/vpp/model/interfaces"
+	vpp_l2 "github.com/ligato/vpp-agent/plugins/vpp/model/l2"
+	vpp_l3 "github.com/ligato/vpp-agent/plugins/vpp/model/l3"
+	vpp_l4 "github.com/ligato/vpp-agent/plugins/vpp/model/l4"
+	"github.com/ligato/vpp-agent/plugins/vpp/model/stn"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"time"
@@ -81,7 +81,7 @@ type remoteCNIserver struct {
 	sync.Mutex
 
 	// VPP local client transaction factory
-	vppTxnFactory func() linux.DataChangeDSL
+	vppTxnFactory func() linuxclient.DataChangeDSL
 
 	// kvdbsync plugin with ability to filter the change events
 	proxy kvdbproxy.Proxy
@@ -214,7 +214,7 @@ type vswitchConfig struct {
 }
 
 // newRemoteCNIServer initializes a new remote CNI server instance.
-func newRemoteCNIServer(logger logging.Logger, vppTxnFactory func() linux.DataChangeDSL, proxy kvdbproxy.Proxy,
+func newRemoteCNIServer(logger logging.Logger, vppTxnFactory func() linuxclient.DataChangeDSL, proxy kvdbproxy.Proxy,
 	configuredContainers *containeridx.ConfigIndex, govppChan *api.Channel, index ifaceidx.SwIfIndex, dhcpIndex ifaceidx.DhcpIndex, agentLabel string,
 	config *Config, nodeConfig *OneNodeConfig, nodeID uint32, nodeExcludeIPs []net.IP, broker keyval.ProtoBroker) (*remoteCNIserver, error) {
 	ipam, err := ipam.New(logger, nodeID, &config.IPAMConfig, nodeExcludeIPs, broker)
@@ -907,7 +907,7 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 	var (
 		podIP                  net.IP
 		persisted              bool
-		revertTxn1, revertTxn2 linux.DeleteDSL
+		revertTxn1, revertTxn2 linuxclient.DeleteDSL
 	)
 
 	// do not connect any containers until the base vswitch config is successfully applied
@@ -952,7 +952,7 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 	}
 	podIPCIDR := podIP.String() + "/32"
 
-	// TODO: merge transactions into one once linuxplugin supports TAPs and all race-conditions are fixed.
+	// TODO: merge transactions into one once linux supports TAPs and all race-conditions are fixed.
 
 	// configure POD interface
 	revertTxn1 = s.vppTxnFactory().Delete()
@@ -1100,7 +1100,7 @@ func (s *remoteCNIserver) unconfigureContainerConnectivityWithoutLock(request *c
 }
 
 // configurePodInterface configures POD's network interface and its routes + ARPs.
-func (s *remoteCNIserver) configurePodInterface(request *cni.CNIRequest, podIP net.IP, config *PodConfig, revertTxn linux.DeleteDSL) error {
+func (s *remoteCNIserver) configurePodInterface(request *cni.CNIRequest, podIP net.IP, config *PodConfig, revertTxn linuxclient.DeleteDSL) error {
 
 	// this is necessary for the latest docker where ipv6 is disabled by default.
 	// OS assigns automatically ipv6 addr to a newly created TAP. We
@@ -1209,15 +1209,18 @@ func (s *remoteCNIserver) unconfigurePodInterface(request *cni.CNIRequest, confi
 		txn1.LinuxArpEntry(config.PodARPEntryName)
 		err := txn1.Send().ReceiveReply()
 		if err != nil {
-			s.Logger.Error(err)
-			return err
+			/* treat error as warning */
+			s.Logger.Warn(err)
+			err = nil
 		}
 	}
 
 	if s.useTAPInterfaces {
 		err := s.vppTxnFactory().Delete().LinuxInterface(config.PodTapName).Send().ReceiveReply()
 		if err != nil {
+			/* treat error as warning */
 			s.Logger.Warn(err)
+			err = nil
 		}
 	}
 
@@ -1241,7 +1244,7 @@ func (s *remoteCNIserver) unconfigurePodInterface(request *cni.CNIRequest, confi
 }
 
 // configurePodVPPSide configures vswitch VPP part of the POD networking.
-func (s *remoteCNIserver) configurePodVPPSide(request *cni.CNIRequest, podIP net.IP, config *PodConfig, revertTxn linux.DeleteDSL) error {
+func (s *remoteCNIserver) configurePodVPPSide(request *cni.CNIRequest, podIP net.IP, config *PodConfig, revertTxn linuxclient.DeleteDSL) error {
 	podIPCIDR := podIP.String() + "/32"
 
 	// prepare the config transaction
@@ -1586,13 +1589,29 @@ func (s *remoteCNIserver) setNodeIP(nodeIP string) error {
 	return nil
 }
 
-// GetDefaultGatewayIP returns the IP address of the default gateway for external traffic.
-// If the default GW is not configured, the function returns nil.
-func (s *remoteCNIserver) GetDefaultGatewayIP() net.IP {
+// GetDefaultInterface returns the name and the IP address of the interface
+// used by the default route to send packets out from VPP towards the default gateway.
+// If the default GW is not configured, the function returns zero values.
+func (s *remoteCNIserver) GetDefaultInterface() (ifName string, ifAddress net.IP) {
 	s.Lock()
 	defer s.Unlock()
 
-	return s.defaultGw
+	if s.defaultGw != nil {
+		if s.mainPhysicalIf != "" {
+			nodeIP, nodeNet, _ := net.ParseCIDR(s.nodeIP)
+			if nodeNet != nil && nodeNet.Contains(s.defaultGw) {
+				return s.mainPhysicalIf, nodeIP
+			}
+		}
+		for _, physicalIf := range s.nodeConfig.OtherVPPInterfaces {
+			intIP, intNet, _ := net.ParseCIDR(physicalIf.IP)
+			if intNet != nil && intNet.Contains(s.defaultGw) {
+				return physicalIf.InterfaceName, intIP
+			}
+		}
+	}
+
+	return "", nil
 }
 
 // UseSTN returns true if the cluster was configured to be deployed in the STN mode.

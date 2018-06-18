@@ -1,7 +1,6 @@
 package cache
 
 import (
-	"github.com/ligato/cn-infra/core"
 	"github.com/ligato/cn-infra/datasync"
 	"github.com/ligato/cn-infra/logging"
 
@@ -33,15 +32,14 @@ type PolicyCache struct {
 
 // Deps lists dependencies of PolicyCache.
 type Deps struct {
-	Log        logging.Logger
-	PluginName core.PluginName
+	Log logging.Logger
 }
 
 // Init initializes policy cache.
 func (pc *PolicyCache) Init() error {
-	pc.configuredPolicies = policyidx.NewConfigIndex(pc.Log, pc.PluginName, "policies")
-	pc.configuredPods = podidx.NewConfigIndex(pc.Log, pc.PluginName, "pods")
-	pc.configuredNamespaces = namespaceidx.NewConfigIndex(pc.Log, pc.PluginName, "namespaces")
+	pc.configuredPolicies = policyidx.NewConfigIndex(pc.Log, "policies")
+	pc.configuredPods = podidx.NewConfigIndex(pc.Log, "pods")
+	pc.configuredNamespaces = namespaceidx.NewConfigIndex(pc.Log, "namespaces")
 
 	pc.watchers = []PolicyCacheWatcher{}
 	return nil

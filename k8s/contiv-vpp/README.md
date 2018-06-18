@@ -61,6 +61,8 @@ Parameter | Description | Default
 `contiv.stealFirstNIC` | Enable Steal The NIC feature on the first interface on each node | `False`
 `contiv.natExternalTraffic`| NAT cluster-external traffic | `True`
 `contiv.scanIPNeighbors`| Periodically scan and probe IP neighbors to maintain the ARP table | `True`
+`contiv.ipNeighborScanInterval`| IP neighbor scan interval in minutes | `1`
+`contiv.ipNeighborStaleThreshold`| Threshold in minutes for neighbor deletion | `4`
 `contiv.serviceLocalEndpointWeight` | load-balancing weight for locally deployed service endpoints | 1
 `contiv.ipamConfig.podSubnetCIDR` | Pod subnet CIDR | `10.1.0.0/16`
 `contiv.ipamConfig.podNetworkPrefixLen` | Pod network prefix length | `24`
@@ -90,7 +92,7 @@ Parameter | Description | Default
 `etcd.service.nodePort` | Port to be used as the service NodePort | `32379`
 `etcd.secureTransport` | Secure access to ETCD using SSL/TLS certificates | `false`
 `etcd.secrets.mountFromHost` | If true, SSL/TLS certificates must be present in the mountDir on each host. If false, certificates must be present in the current directory, and will be distributed to each host via k8s secret feature | `true`
-`etcd.secrets.mountDir` | Directory where certificates should be located, in case that mountFromHost is true | `/var/etcd/contiv-secrets`
+`etcd.secrets.mountDir` | Directory where certificates should be located, in case that mountFromHost is true | `/var/contiv/etcd-secrets`
 `etcd.caCert` | Name of the file with certificate of the certification authority. | `ca.pem`
 `etcd.serverCert` | Name of the file with certificate of the ETCD server. | `server.pem`
 `etcd.serverKey` | Name of the file with private key of the ETCD server. | `server-key.pem`

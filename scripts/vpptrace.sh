@@ -8,47 +8,60 @@ VPPCTL_IN=/tmp/vppctl.in
 VPPCTL_OUT=/tmp/vppctl.out
 
 function init {
-    touch $VPPCTL_OUT
-    mkfifo $VPPCTL_IN
+    # In case a previous run failed without running cleanup.
+    rm -f "$VPPCTL_IN" "$VPPCTL_OUT"
+
+    touch "$VPPCTL_OUT"
+    mkfifo "$VPPCTL_IN"
 }
 
 function cleanup {
-    rm -f $VPPCTL_IN $VPPCTL_OUT
+    # Kill the background netcat we started in connect().
+    for pid in $(jobs -p); do
+        kill -9 "$pid" || true
+    done
+    rm -f "$VPPCTL_IN" "$VPPCTL_OUT"
 }
 
 function connect {
     IS_IPC=$1
     shift
-    if [[ $IS_IPC -eq 1 ]]; then
+    if [[ "$IS_IPC" -eq 1 ]]; then
         SOCKET=$1
         shift
-        sudo true # prepare password-less sudo for the next command
-        cat $VPPCTL_IN | sudo netcat -U $SOCKET >$VPPCTL_OUT &
+        # Don't require sudo if we don't need too.  The vswitch containers won't have sudo.
+        if [ -w "$SOCKET" -a -r "$SOCKET" ]; then
+            cat "$VPPCTL_IN" | netcat -U "$SOCKET" >"$VPPCTL_OUT" &
+        else
+            sudo true # prepare password-less sudo for the next command
+            cat "$VPPCTL_IN" | sudo netcat -U "$SOCKET" >"$VPPCTL_OUT" &
+        fi
     else
+        shift
         IP=$1
         PORT=$2
         shift 2
-    	cat $VPPCTL_IN | netcat $IP $PORT >$VPPCTL_OUT &
+        cat "$VPPCTL_IN" | netcat "$IP" "$PORT" >"$VPPCTL_OUT" &
     fi
-    exec 3>$VPPCTL_IN
+    exec 3>"$VPPCTL_IN"
 }
 
 function vppctl {
-    echo > $VPPCTL_OUT
+    echo > "$VPPCTL_OUT"
     echo "$@" >&3
     echo "show version" >&3
-    until grep -q 'vpp v[0-9][0-9]\.' $VPPCTL_OUT; do
-        if [[ $? -ne 1 ]]; then
+    until grep -q 'vpp v[0-9][0-9]\.' "$VPPCTL_OUT"; do
+        if [[ "$?" -ne 1 ]]; then
             break # other error
         fi
         sleep 0.05
     done
-    head -n -3 $VPPCTL_OUT
+    head -n -3 "$VPPCTL_OUT"
 }
 
 function print_packet {
     echo -e "Packet $1:"
-    echo -e $2
+    echo -e "$2"
     echo -e ""
 }
 
@@ -121,41 +134,41 @@ function trace {
     done
 
     # default interfaces
-    if [ ${#INTERFACES[@]} -eq 0 ]; then
+    if [ "${#INTERFACES[@]}" -eq 0 ]; then
         INTERFACES=(dpdk tap)
     fi
 
     # connect to VPP-CLI
     VPPCONFIG="/etc/vpp/contiv-vswitch.conf"
-    PORT=`sed -n 's/.*cli-listen .*:\([0-9]*\)/\1/p' $VPPCONFIG`
-    if [[ -z $PORT ]]; then
+    PORT=`sed -n 's/.*cli-listen .*:\([0-9]*\)/\1/p' "$VPPCONFIG"`
+    if [[ -z "$PORT" ]]; then
         IS_IPC=1
-        if [[ -n $VPPADDR ]]; then
+        if [[ -n "$VPPADDR" ]]; then
             echo "VPP listens on a UNIX domain socket and therefore cannot be accessed by IP address."
             exit 2
         fi
-        SOCKET=`sed -n 's/.*cli-listen //p' $VPPCONFIG`
+        SOCKET=`sed -n 's/.*cli-listen //p' "$VPPCONFIG"`
         if [[ -z SOCKET ]]; then
             SOCKET="/run/vpp/cli.sock" # default
         fi
     else
         IS_IPC=0
-        if [[ -z $VPPADDR ]]; then
+        if [[ -z "$VPPADDR" ]]; then
             VPPADDR="127.0.0.1" # default
         fi
     fi
-    connect $IS_IPC $SOCKET $VPPADDR $PORT
+    connect "$IS_IPC" "$SOCKET" "$VPPADDR" "$PORT"
 
     INPUT_NODES=()
-    for INTERFACE in ${INTERFACES[@]}; do
-        INPUT_NODES+=($(get_vpp_input_node $INTERFACE))
+    for INTERFACE in "${INTERFACES[@]}"; do
+        INPUT_NODES+=($(get_vpp_input_node "$INTERFACE"))
     done
 
     COUNT=0
     while true; do
         vppctl clear trace >/dev/null
-        for NODE in ${INPUT_NODES[@]}; do
-            vppctl trace add $NODE 50 >/dev/null
+        for NODE in "${INPUT_NODES[@]}"; do
+            vppctl trace add "$NODE" 50 >/dev/null
         done
 
         IDX=0
@@ -166,16 +179,16 @@ function trace {
             PACKETIDX=0
 
             for LINE in $TRACE; do
-                if [[ $STATE -eq 0 ]]; then
+                if [[ "$STATE" -eq 0 ]]; then
                     # looking for "Packet <number>" of the first unconsumed packet
                     if [[ "$LINE" =~ ^Packet[[:space:]]([0-9]+) ]]; then
                         PACKETIDX=${BASH_REMATCH[1]}
-                        if [[ $PACKETIDX -gt $IDX ]]; then
+                        if [[ "$PACKETIDX" -gt "$IDX" ]]; then
                             STATE=1
                             IDX=$PACKETIDX
                         fi
                     fi
-                elif [[ $STATE -eq 1 ]]; then
+                elif [[ "$STATE" -eq 1 ]]; then
                     # looking for the start of the packet trace
                     if ! [[ "${LINE}" =~ ^[[:space:]]$ ]]; then
                         # found line with non-whitespace character
@@ -190,7 +203,7 @@ function trace {
                             if ([[ -n $IS_REGEXP ]] && [[ "$PACKET" =~ "$FILTER" ]]) || \
                                 ([[ -z $IS_REGEXP ]] && [[ "$PACKET" == *"$FILTER"* ]]); then
                                 COUNT=$((COUNT+1))
-                                print_packet $COUNT "$PACKET"
+                                print_packet "$COUNT" "$PACKET"
                             fi
                         fi
                         PACKET=""
@@ -201,13 +214,13 @@ function trace {
                 fi
             done
             if [[ -n "${PACKET// }" ]]; then
-                if ([[ -n $IS_REGEXP ]] && [[ "$PACKET" =~ "$FILTER" ]]) || \
-                    ([[ -z $IS_REGEXP ]] && [[ "$PACKET" == *"$FILTER"* ]]); then
+                if ([[ -n "$IS_REGEXP" ]] && [[ "$PACKET" =~ "$FILTER" ]]) || \
+                    ([[ -z "$IS_REGEXP" ]] && [[ "$PACKET" == *"$FILTER"* ]]); then
                     COUNT=$((COUNT+1))
-                    print_packet $COUNT "$PACKET"
+                    print_packet "$COUNT" "$PACKET"
                 fi
             fi
-            if [[ $PACKETIDX -gt 35 ]]; then
+            if [[ "$PACKETIDX" -gt 35 ]]; then
                 echo -e "\nClearing packet trace (some packets may slip uncaptured)...\n"
                 break;
             fi
@@ -220,4 +233,4 @@ function trace {
 
 init
 trap cleanup EXIT
-trace $@
+trace "$@"

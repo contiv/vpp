@@ -46,13 +46,14 @@ type MockContiv struct {
 	otherPhysIfs               []string
 	hostInterconnect           string
 	vxlanBVIIfName             string
-	gwIP                       net.IP
+	defaultIfName              string
+	defaultIfIP                net.IP
 	containerIndex             *containeridx.ConfigIndex
 }
 
 // NewMockContiv is a constructor for MockContiv.
 func NewMockContiv() *MockContiv {
-	ci := containeridx.NewConfigIndex(logrus.DefaultLogger(), "test", "title", nil)
+	ci := containeridx.NewConfigIndex(logrus.DefaultLogger(), "title", nil)
 	return &MockContiv{
 		podIf:                      make(map[podmodel.ID]string),
 		podAppNs:                   make(map[podmodel.ID]uint32),
@@ -132,9 +133,11 @@ func (mc *MockContiv) SetVxlanBVIIfName(ifName string) {
 	mc.vxlanBVIIfName = ifName
 }
 
-// SetDefaultGatewayIP allows to set what tests will assume the default gateway IP is (can be nil).
-func (mc *MockContiv) SetDefaultGatewayIP(gwIP net.IP) {
-	mc.gwIP = gwIP
+// SetDefaultInterface allows to set what tests will assume the default interface IP
+// and name are (both can be zero values).
+func (mc *MockContiv) SetDefaultInterface(ifName string, ifIP net.IP) {
+	mc.defaultIfName = ifName
+	mc.defaultIfIP = ifIP
 }
 
 // SetNatExternalTraffic allows to set what tests will assume the state of SNAT is.
@@ -273,10 +276,11 @@ func (mc *MockContiv) GetVxlanBVIIfName() string {
 	return mc.vxlanBVIIfName
 }
 
-// GetDefaultGatewayIP returns the IP address of the default gateway for external traffic.
-// If the default GW is not configured, the function returns nil.
-func (mc *MockContiv) GetDefaultGatewayIP() net.IP {
-	return mc.gwIP
+// GetDefaultInterface returns the name and the IP address of the interface
+// used by the default route to send packets out from VPP towards the default gateway.
+// If the default GW is not configured, the function returns zero values.
+func (mc *MockContiv) GetDefaultInterface() (ifName string, ifAddress net.IP) {
+	return mc.defaultIfName, mc.defaultIfIP
 }
 
 // RegisterPodPreRemovalHook allows to register callback that will be run for each

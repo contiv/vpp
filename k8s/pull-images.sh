@@ -13,8 +13,30 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-docker pull contivvpp/vswitch:latest
-#docker pull contivvpp/cri:latest
-docker pull contivvpp/ksr:latest
-docker pull contivvpp/cni:latest
-docker pull contivvpp/stn:latest
+# set default values for pulling images
+IMAGE_TAG="latest"
+
+# override defaults from arguments
+while [ "$1" != "" ]; do
+    case $1 in
+        -b | --branch )
+            shift
+            IMAGE_TAG=$1
+            if [ "${IMAGE_TAG}" == "master" ]; then
+              IMAGE_TAG="latest"
+            fi
+            ;;
+        * )
+            echo "Invalid parameter: "$1
+            exit 1
+    esac
+    shift
+done
+
+echo "Using Images Tag: ${IMAGE_TAG}"
+
+docker pull contivvpp/vswitch:${IMAGE_TAG}
+#docker pull contivvpp/cri:${IMAGE_TAG}
+docker pull contivvpp/ksr:${IMAGE_TAG}
+docker pull contivvpp/cni:${IMAGE_TAG}
+docker pull contivvpp/stn:${IMAGE_TAG}

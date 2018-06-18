@@ -24,29 +24,29 @@ import (
 
 	"github.com/ligato/cn-infra/config"
 	"github.com/ligato/cn-infra/db/keyval"
-	"github.com/ligato/cn-infra/db/keyval/etcdv3"
+	"github.com/ligato/cn-infra/db/keyval/etcd"
 	"github.com/ligato/cn-infra/db/keyval/kvproto"
 	"github.com/ligato/cn-infra/servicelabel"
 
 	"git.fd.io/govpp.git/api"
 	govpp "git.fd.io/govpp.git/core"
 
-	if_vppcalls "github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/vppcalls"
-	l3_vppcalls "github.com/ligato/vpp-agent/plugins/defaultplugins/l3plugin/vppcalls"
 	"github.com/ligato/vpp-agent/plugins/govppmux"
-	if_linuxcalls "github.com/ligato/vpp-agent/plugins/linuxplugin/ifplugin/linuxcalls"
-	l3_linuxcalls "github.com/ligato/vpp-agent/plugins/linuxplugin/l3plugin/linuxcalls"
+	if_linuxcalls "github.com/ligato/vpp-agent/plugins/linux/ifplugin/linuxcalls"
+	l3_linuxcalls "github.com/ligato/vpp-agent/plugins/linux/l3plugin/linuxcalls"
+	if_vppcalls "github.com/ligato/vpp-agent/plugins/vpp/ifplugin/vppcalls"
+	l3_vppcalls "github.com/ligato/vpp-agent/plugins/vpp/l3plugin/vppcalls"
 
-	"github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/interfaces"
-	"github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/l3"
-	stn_nb "github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/stn"
-	if_linux "github.com/ligato/vpp-agent/plugins/linuxplugin/common/model/interfaces"
-	l3_linux "github.com/ligato/vpp-agent/plugins/linuxplugin/common/model/l3"
+	if_linux "github.com/ligato/vpp-agent/plugins/linux/model/interfaces"
+	l3_linux "github.com/ligato/vpp-agent/plugins/linux/model/l3"
+	"github.com/ligato/vpp-agent/plugins/vpp/model/interfaces"
+	"github.com/ligato/vpp-agent/plugins/vpp/model/l3"
+	stn_nb "github.com/ligato/vpp-agent/plugins/vpp/model/stn"
 
-	"github.com/ligato/vpp-agent/plugins/defaultplugins/common/bin_api/dhcp"
-	if_binapi "github.com/ligato/vpp-agent/plugins/defaultplugins/common/bin_api/interfaces"
-	ip_binapi "github.com/ligato/vpp-agent/plugins/defaultplugins/common/bin_api/ip"
-	"github.com/ligato/vpp-agent/plugins/defaultplugins/common/bin_api/vpe"
+	"github.com/ligato/vpp-agent/plugins/vpp/binapi/dhcp"
+	if_binapi "github.com/ligato/vpp-agent/plugins/vpp/binapi/interfaces"
+	ip_binapi "github.com/ligato/vpp-agent/plugins/vpp/binapi/ip"
+	"github.com/ligato/vpp-agent/plugins/vpp/binapi/vpe"
 
 	"github.com/apparentlymart/go-cidr/cidr"
 	"github.com/contiv/vpp/cmd/contiv-stn/model/stn"
@@ -76,7 +76,7 @@ func configureVpp(contivCfg *contiv.Config, stnData *stn.STNReply, useDHCP bool)
 
 	// connect to VPP
 	govpp.SetControlPingMessages(&vpe.ControlPing{}, &vpe.ControlPingReply{})
-	conn, connChan, err := govpp.AsyncConnect(govppmux.NewVppAdapter())
+	conn, connChan, err := govpp.AsyncConnect(govppmux.NewVppAdapter(""))
 	if err != nil {
 		logger.Errorf("Error by connecting to VPP: %v", err)
 		return nil, err
@@ -264,17 +264,18 @@ func configureVpp(contivCfg *contiv.Config, stnData *stn.STNReply, useDHCP bool)
 	}
 
 	// host-end TAP config
-	err = if_linuxcalls.AddInterfaceIP(logger, contiv.TapHostEndName, &net.IPNet{IP: cfg.mainIP.IP, Mask: cfg.mainIP.Mask}, nil)
+	ifNetlinkHandler := if_linuxcalls.NewNetLinkHandler(nil)
+	err = ifNetlinkHandler.AddInterfaceIP(contiv.TapHostEndName, &net.IPNet{IP: cfg.mainIP.IP, Mask: cfg.mainIP.Mask})
 	if err != nil {
 		logger.Errorf("Error by configuring host-end TAP interface IP: %v", err)
 		return nil, err
 	}
-	err = if_linuxcalls.SetInterfaceMac(contiv.TapHostEndName, tapHostEndMacAddr, nil)
+	err = ifNetlinkHandler.SetInterfaceMac(contiv.TapHostEndName, tapHostEndMacAddr)
 	if err != nil {
 		logger.Errorf("Error by configuring host-end TAP interface MAC: %v", err)
 		return nil, err
 	}
-	err = if_linuxcalls.SetInterfaceMTU(contiv.TapHostEndName, int(contivCfg.MTUSize), nil)
+	err = ifNetlinkHandler.SetInterfaceMTU(contiv.TapHostEndName, int(contivCfg.MTUSize))
 	if err != nil {
 		logger.Errorf("Error by configuring host-end TAP interface MTU: %v", err)
 		return nil, err
@@ -289,6 +290,7 @@ func configureVpp(contivCfg *contiv.Config, stnData *stn.STNReply, useDHCP bool)
 	}
 
 	// host routes
+	l3NetlinkHandler := l3_linuxcalls.NewNetLinkHandler(nil)
 	link, err := netlink.LinkByName(contiv.TapHostEndName)
 	if err != nil {
 		logger.Errorf("Unable to find link %s: %v", contiv.TapHostEndName, err)
@@ -308,15 +310,13 @@ func configureVpp(contivCfg *contiv.Config, stnData *stn.STNReply, useDHCP bool)
 		}
 		nextHopIP := net.ParseIP(stnRoute.NextHopIp)
 
-		err = l3_linuxcalls.AddStaticRoute(
+		err = l3NetlinkHandler.AddStaticRoute(
 			fmt.Sprintf("route-to-%s", dstAddr.String()),
 			&netlink.Route{
 				Dst:       dstAddr,
 				Gw:        nextHopIP,
 				LinkIndex: link.Attrs().Index,
-			},
-			logger,
-			nil)
+			})
 		if err != nil {
 			logger.Errorf("Error by configuring host route to %s: %v", dstAddr.String(), err)
 			return nil, err
@@ -328,7 +328,7 @@ func configureVpp(contivCfg *contiv.Config, stnData *stn.STNReply, useDHCP bool)
 
 // persistVppConfig persists VPP configuration in ETCD.
 func persistVppConfig(contivCfg *contiv.Config, stnData *stn.STNReply, cfg *vppCfgCtx, useDHCP bool) error {
-	etcdConfig := &etcdv3.Config{}
+	etcdConfig := &etcd.Config{}
 
 	// parse ETCD config file
 	err := config.ParseConfigFromYamlFile(*etcdCfgFile, etcdConfig)
@@ -338,16 +338,16 @@ func persistVppConfig(contivCfg *contiv.Config, stnData *stn.STNReply, cfg *vppC
 	}
 
 	// prepare ETCD config
-	etcdCfg, err := etcdv3.ConfigToClient(etcdConfig)
+	etcdCfg, err := etcd.ConfigToClient(etcdConfig)
 	if err != nil {
 		logger.Errorf("Error by constructing ETCD config: %v", err)
 		return err
 	}
 
 	// connect in retry loop
-	var conn *etcdv3.BytesConnectionEtcd
+	var conn *etcd.BytesConnectionEtcd
 	for i := 0; i < etcdConnectionRetries; i++ {
-		conn, err = etcdv3.NewEtcdConnectionWithBytes(*etcdCfg, logger)
+		conn, err = etcd.NewEtcdConnectionWithBytes(*etcdCfg, logger)
 		if err != nil {
 			if i == etcdConnectionRetries-1 {
 				logger.Errorf("Error by connecting to ETCD: %v", err)
@@ -520,10 +520,12 @@ func enableArpProxy(ch *api.Channel, loAddr net.IP, hiAddr net.IP, ifIdx uint32)
 
 	// configure proxy arp pool
 	req := &ip_binapi.ProxyArpAddDel{
-		VrfID:      0,
-		IsAdd:      1,
-		LowAddress: []byte(loAddr.To4()),
-		HiAddress:  []byte(hiAddr.To4()),
+		IsAdd: 1,
+		Proxy: ip_binapi.ProxyArp{
+			VrfID:      0,
+			LowAddress: []byte(loAddr.To4()),
+			HiAddress:  []byte(hiAddr.To4()),
+		},
 	}
 	reply := &ip_binapi.ProxyArpAddDelReply{}
 
@@ -561,9 +563,11 @@ func configureDHCP(ch *api.Channel, ifIdx uint32) (chan string, error) {
 	}
 
 	req := &dhcp.DhcpClientConfig{
-		SwIfIndex:     ifIdx,
-		IsAdd:         1,
-		WantDhcpEvent: 1,
+		IsAdd: 1,
+		Client: dhcp.DhcpClient{
+			SwIfIndex:     ifIdx,
+			WantDhcpEvent: 1,
+		},
 	}
 	reply := &dhcp.DhcpClientConfigReply{}
 
@@ -586,10 +590,11 @@ func handleDHCPNotifications(notifCh chan api.Message, dhcpIPChan chan string) {
 			switch notif := msg.(type) {
 			case *dhcp.DhcpComplEvent:
 				var ipAddr string
-				if notif.IsIpv6 == 1 {
-					ipAddr = fmt.Sprintf("%s/%d", net.IP(notif.HostAddress).To16().String(), notif.MaskWidth)
+				lease := notif.Lease
+				if lease.IsIpv6 == 1 {
+					ipAddr = fmt.Sprintf("%s/%d", net.IP(lease.HostAddress).To16().String(), lease.MaskWidth)
 				} else {
-					ipAddr = fmt.Sprintf("%s/%d", net.IP(notif.HostAddress[:4]).To4().String(), notif.MaskWidth)
+					ipAddr = fmt.Sprintf("%s/%d", net.IP(lease.HostAddress[:4]).To4().String(), lease.MaskWidth)
 				}
 				logger.Infof("DHCP event: %v, IP: %s", *notif, ipAddr)
 				// send the IP via channel

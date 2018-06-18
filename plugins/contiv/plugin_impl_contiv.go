@@ -35,15 +35,15 @@ import (
 	"github.com/contiv/vpp/plugins/kvdbproxy"
 	"github.com/ligato/cn-infra/datasync"
 	"github.com/ligato/cn-infra/datasync/resync"
-	"github.com/ligato/cn-infra/db/keyval/etcdv3"
+	"github.com/ligato/cn-infra/db/keyval/etcd"
 	"github.com/ligato/cn-infra/flavors/local"
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/rpc/grpc"
 	"github.com/ligato/cn-infra/utils/safeclose"
 	"github.com/ligato/vpp-agent/clientv1/linux"
 	linuxlocalclient "github.com/ligato/vpp-agent/clientv1/linux/localclient"
-	"github.com/ligato/vpp-agent/plugins/defaultplugins"
 	"github.com/ligato/vpp-agent/plugins/govppmux"
+	"github.com/ligato/vpp-agent/plugins/vpp"
 )
 
 // Plugin represents the instance of the Contiv network plugin, that transforms CNI requests received over
@@ -76,10 +76,10 @@ type Deps struct {
 	local.PluginInfraDeps
 	GRPC    grpc.Server
 	Proxy   *kvdbproxy.Plugin
-	VPP     *defaultplugins.Plugin
+	VPP     *vpp.Plugin
 	GoVPP   govppmux.API
 	Resync  resync.Subscriber
-	ETCD    *etcdv3.Plugin
+	ETCD    *etcd.Plugin
 	Watcher datasync.KeyValProtoWatcher
 }
 
@@ -103,6 +103,8 @@ type Config struct {
 	TCPNATSessionTimeout       uint32 // NAT session timeout (in minutes) for TCP connections, used in case that CleanupIdleNATSessions is turned on
 	OtherNATSessionTimeout     uint32 // NAT session timeout (in minutes) for non-TCP connections, used in case that CleanupIdleNATSessions is turned on
 	ScanIPNeighbors            bool   // if enabled, periodically scans and probes IP neighbors to maintain the ARP table
+	IPNeighborScanInterval     uint8
+	IPNeighborStaleThreshold   uint8
 	ServiceLocalEndpointWeight uint8
 	IPAMConfig                 ipam.Config
 	NodeConfig                 []OneNodeConfig
@@ -129,7 +131,7 @@ type InterfaceWithIP struct {
 func (plugin *Plugin) Init() error {
 	broker := plugin.ETCD.NewBroker(plugin.ServiceLabel.GetAgentPrefix())
 	// init map with configured containers
-	plugin.configuredContainers = containeridx.NewConfigIndex(plugin.Log, plugin.PluginName, "containers", broker)
+	plugin.configuredContainers = containeridx.NewConfigIndex(plugin.Log, "containers", broker)
 
 	// load config file
 	plugin.ctx, plugin.ctxCancelFunc = context.WithCancel(context.Background())
@@ -175,7 +177,7 @@ func (plugin *Plugin) Init() error {
 
 	// start the GRPC server handling the CNI requests
 	plugin.cniServer, err = newRemoteCNIServer(plugin.Log,
-		func() linux.DataChangeDSL {
+		func() linuxclient.DataChangeDSL {
 			return linuxlocalclient.DataChangeRequest(plugin.PluginName)
 		},
 		plugin.Proxy,
@@ -192,7 +194,7 @@ func (plugin *Plugin) Init() error {
 	if err != nil {
 		return fmt.Errorf("Can't create new remote CNI server due to error: %v ", err)
 	}
-	cni.RegisterRemoteCNIServer(plugin.GRPC.Server(), plugin.cniServer)
+	cni.RegisterRemoteCNIServer(plugin.GRPC.GetServer(), plugin.cniServer)
 
 	plugin.nodeIPWatcher = make(chan string, 1)
 	go plugin.watchEvents()
@@ -370,10 +372,11 @@ func (plugin *Plugin) GetVxlanBVIIfName() string {
 	return plugin.cniServer.GetVxlanBVIIfName()
 }
 
-// GetDefaultGatewayIP returns the IP address of the default gateway for external traffic.
-// If the default GW is not configured, the function returns nil.
-func (plugin *Plugin) GetDefaultGatewayIP() net.IP {
-	return plugin.cniServer.GetDefaultGatewayIP()
+// GetDefaultInterface returns the name and the IP address of the interface
+// used by the default route to send packets out from VPP towards the default gateway.
+// If the default GW is not configured, the function returns zero values.
+func (plugin *Plugin) GetDefaultInterface() (ifName string, ifAddress net.IP) {
+	return plugin.cniServer.GetDefaultInterface()
 }
 
 // RegisterPodPreRemovalHook allows to register callback that will be run for each

@@ -24,7 +24,7 @@ import (
 	"golang.org/x/net/context"
 
 	"github.com/ligato/cn-infra/db/keyval"
-	"github.com/ligato/cn-infra/db/keyval/etcdv3"
+	"github.com/ligato/cn-infra/db/keyval/etcd"
 	"github.com/ligato/cn-infra/db/keyval/kvproto"
 	"github.com/ligato/cn-infra/logging/logrus"
 
@@ -49,7 +49,7 @@ const (
 type ContivshimManager struct {
 	// The grpc server.
 	server *grpc.Server
-	// The etcdv3 client
+	// The etcd client
 	etcdEndpoint *string
 	etcdClient   keyval.ProtoBroker
 	// The runtime interface
@@ -525,7 +525,7 @@ func (s *ContivshimManager) ListContainerStats(ctx context.Context, req *kubeapi
 }
 
 func newEtcdClient(etcdEndpoint *string) (keyval.ProtoBroker, error) {
-	config := &etcdv3.Config{
+	config := &etcd.Config{
 		Endpoints:             []string{*etcdEndpoint},
 		DialTimeout:           1 * time.Second,
 		OpTimeout:             3 * time.Second,
@@ -535,15 +535,15 @@ func newEtcdClient(etcdEndpoint *string) (keyval.ProtoBroker, error) {
 		Keyfile:               "",
 		CAfile:                "",
 	}
-	db := &etcdv3.BytesConnectionEtcd{}
+	db := &etcd.BytesConnectionEtcd{}
 	ok := true
-	cfg, err := etcdv3.ConfigToClient(config)
+	cfg, err := etcd.ConfigToClient(config)
 	if err != nil {
 		return nil, err
 	}
 
 	for ok {
-		db, err = etcdv3.NewEtcdConnectionWithBytes(*cfg, logrus.DefaultLogger())
+		db, err = etcd.NewEtcdConnectionWithBytes(*cfg, logrus.DefaultLogger())
 		if err != nil {
 			glog.Errorf("Could not connect to etcd, retrying...: %v", err)
 		} else {

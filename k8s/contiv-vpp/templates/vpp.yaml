@@ -37,6 +37,8 @@ data:
     OtherNATSessionTimeout: {{ .Values.contiv.otherNATSessionTimeout }}
     {{- end }}
     ScanIPNeighbors: {{ .Values.contiv.scanIPNeighbors }}
+    IPNeighborScanInterval: {{ .Values.contiv.ipNeighborScanInterval }}
+    IPNeighborStaleThreshold: {{ .Values.contiv.ipNeighborStaleThreshold }}
     {{- if .Values.contiv.serviceLocalEndpointWeight }}
     ServiceLocalEndpointWeight: {{ .Values.contiv.serviceLocalEndpointWeight }}
     {{- end }}
@@ -82,7 +84,7 @@ data:
   logs.conf: |
     defaultlevel: {{ .Values.logs.defaultLevel }}
   grpc.conf: |
-    socket-type: unix
+    network: unix
     endpoint: /var/run/contiv/cni.sock
   http.conf: |
       endpoint: 0.0.0.0:9999
@@ -177,20 +179,20 @@ spec:
             - -c
             - /usr/local/bin/etcd --name=contiv-etcd --data-dir=/var/etcd/contiv-data
             {{- if .Values.etcd.secureTransport }}
-              --client-cert-auth --trusted-ca-file=/var/etcd/contiv-secrets/{{ .Values.etcd.secrets.caCert }}
-              --cert-file=/var/etcd/contiv-secrets/{{ .Values.etcd.secrets.serverCert }} --key-file=/var/etcd/contiv-secrets/{{ .Values.etcd.secrets.serverKey }}
-              --peer-client-cert-auth --peer-trusted-ca-file=/var/etcd/contiv-secrets/{{ .Values.etcd.secrets.caCert }}
-              --peer-cert-file=/var/etcd/contiv-secrets/{{ .Values.etcd.secrets.serverCert }} --peer-key-file=/var/etcd/contiv-secrets/{{ .Values.etcd.secrets.serverKey }}
+              --client-cert-auth --trusted-ca-file=/var/contiv/etcd-secrets/{{ .Values.etcd.secrets.caCert }}
+              --cert-file=/var/contiv/etcd-secrets/{{ .Values.etcd.secrets.serverCert }} --key-file=/var/contiv/etcd-secrets/{{ .Values.etcd.secrets.serverKey }}
+              --peer-client-cert-auth --peer-trusted-ca-file=/var/contiv/etcd-secrets/{{ .Values.etcd.secrets.caCert }}
+              --peer-cert-file=/var/contiv/etcd-secrets/{{ .Values.etcd.secrets.serverCert }} --peer-key-file=/var/contiv/etcd-secrets/{{ .Values.etcd.secrets.serverKey }}
               --advertise-client-urls=https://0.0.0.0:12379 --listen-client-urls=https://0.0.0.0:12379 --listen-peer-urls=https://0.0.0.0:12380
             {{- else }}
               --advertise-client-urls=http://0.0.0.0:12379 --listen-client-urls=http://0.0.0.0:12379 --listen-peer-urls=http://0.0.0.0:12380
             {{- end }}
           volumeMounts:
-            - name: etcd-data
-              mountPath: /var/etcd/contiv-data
+            - name: var-etcd
+              mountPath: /var/etcd/
             {{- if .Values.etcd.secureTransport }}
             - name: etcd-secrets
-              mountPath: /var/etcd/contiv-secrets
+              mountPath: /var/contiv/etcd-secrets
               readOnly: true
             {{- end }}
       {{- if .Values.etcd.secureTransport }}
@@ -214,7 +216,7 @@ spec:
 {{- if .Values.etcd.usePersistentVolume }}
   volumeClaimTemplates:
   - metadata:
-      name: etcd-data
+      name: var-etcd
     spec:
       accessModes:
         - ReadWriteOnce
@@ -232,7 +234,7 @@ spec:
       {{- if not .Values.etcd.secureTransport }}
       volumes:
       {{- end }}
-        - name: etcd-data
+        - name: var-etcd
           hostPath:
              path: {{ .Values.etcd.dataDir }}
 {{- end }}
@@ -309,9 +311,9 @@ data:
   etcd.conf: |
     {{- if .Values.etcd.secureTransport }}
     insecure-transport: false
-    ca-file: /var/etcd/contiv-secrets/{{ .Values.etcd.secrets.caCert }}
-    cert-file: /var/etcd/contiv-secrets/{{ .Values.etcd.secrets.clientCert }}
-    key-file: /var/etcd/contiv-secrets/{{ .Values.etcd.secrets.clientKey }}
+    ca-file: /var/contiv/etcd-secrets/{{ .Values.etcd.secrets.caCert }}
+    cert-file: /var/contiv/etcd-secrets/{{ .Values.etcd.secrets.clientCert }}
+    key-file: /var/contiv/etcd-secrets/{{ .Values.etcd.secrets.clientKey }}
     {{- else }}
     insecure-transport: true
     {{- end }}
@@ -331,9 +333,9 @@ data:
   etcd.conf: |
     {{- if .Values.etcd.secureTransport }}
     insecure-transport: false
-    ca-file: /var/etcd/contiv-secrets/{{ .Values.etcd.secrets.caCert }}
-    cert-file: /var/etcd/contiv-secrets/{{ .Values.etcd.secrets.clientCert }}
-    key-file: /var/etcd/contiv-secrets/{{ .Values.etcd.secrets.clientKey }}
+    ca-file: /var/contiv/etcd-secrets/{{ .Values.etcd.secrets.caCert }}
+    cert-file: /var/contiv/etcd-secrets/{{ .Values.etcd.secrets.clientCert }}
+    key-file: /var/contiv/etcd-secrets/{{ .Values.etcd.secrets.clientKey }}
     {{- else }}
     insecure-transport: true
     {{- end }}
@@ -511,14 +513,14 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: spec.nodeName
-            - name: ETCDV3_CONFIG
+            - name: ETCD_CONFIG
               value: "/etc/etcd/etcd.conf"
           volumeMounts:
             - name: etcd-cfg
               mountPath: /etc/etcd
               {{- if .Values.etcd.secureTransport }}
             - name: etcd-secrets
-              mountPath: /var/etcd/contiv-secrets
+              mountPath: /var/contiv/etcd-secrets
               readOnly: true
               {{- end }}
               {{- if .Values.http.enableServerCert }}
@@ -675,7 +677,7 @@ spec:
           image: {{ .Values.ksr.image.repository }}:{{ default .Chart.Version .Values.ksr.image.tag }}
           imagePullPolicy: {{ .Values.ksr.image.pullPolicy }}
           env:
-            - name: ETCDV3_CONFIG
+            - name: ETCD_CONFIG
               value: "/etc/etcd/etcd.conf"
             - name: HTTP_CONFIG
               value: "/etc/http/http.conf"
@@ -686,7 +688,7 @@ spec:
               mountPath: /etc/http
             {{- if .Values.etcd.secureTransport }}
             - name: etcd-secrets
-              mountPath: /var/etcd/contiv-secrets
+              mountPath: /var/contiv/etcd-secrets
               readOnly: true
             {{- end }}
             {{- if .Values.http.enableServerCert }}

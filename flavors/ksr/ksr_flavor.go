@@ -20,7 +20,7 @@ import (
 	"github.com/ligato/cn-infra/config"
 	"github.com/ligato/cn-infra/core"
 	"github.com/ligato/cn-infra/datasync/kvdbsync"
-	"github.com/ligato/cn-infra/db/keyval/etcdv3"
+	"github.com/ligato/cn-infra/db/keyval/etcd"
 	"github.com/ligato/cn-infra/flavors/connectors"
 	"github.com/ligato/cn-infra/flavors/local"
 	"github.com/ligato/cn-infra/flavors/rpc"
@@ -58,7 +58,7 @@ type FlavorKsr struct {
 	// RPC flavor for REST-based management.
 	*rpc.FlavorRPC
 	// Plugins for access to ETCD data store.
-	ETCD         etcdv3.Plugin
+	ETCD         etcd.Plugin
 	ETCDDataSync kvdbsync.Plugin
 	// Kubernetes State Reflector plugin works as a reflector for policies, pods
 	// and namespaces.
@@ -84,7 +84,7 @@ func (f *FlavorKsr) Inject() (allReadyInjected bool) {
 	}
 	f.FlavorRPC.Inject()
 
-	f.ETCD.Deps.PluginInfraDeps = *f.InfraDeps("etcdv3", local.WithConf())
+	f.ETCD.Deps.PluginInfraDeps = *f.InfraDeps("etcd", local.WithConf())
 	connectors.InjectKVDBSync(&f.ETCDDataSync, &f.ETCD, f.ETCD.PluginName, f.FlavorLocal, nil)
 
 	f.Ksr.Deps.PluginInfraDeps = *f.FlavorLocal.InfraDeps("ksr")

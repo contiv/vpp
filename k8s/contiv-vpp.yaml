@@ -31,6 +31,8 @@ data:
     TCPNATSessionTimeout: 180
     OtherNATSessionTimeout: 5
     ScanIPNeighbors: true
+    IPNeighborScanInterval: 1
+    IPNeighborStaleThreshold: 4
     ServiceLocalEndpointWeight: 1
     IPAMConfig:
       PodSubnetCIDR: 10.1.0.0/16
@@ -44,7 +46,7 @@ data:
   logs.conf: |
     defaultlevel: debug
   grpc.conf: |
-    socket-type: unix
+    network: unix
     endpoint: /var/run/contiv/cni.sock
   http.conf: |
       endpoint: 0.0.0.0:9999
@@ -132,12 +134,12 @@ spec:
             - /usr/local/bin/etcd --name=contiv-etcd --data-dir=/var/etcd/contiv-data
               --advertise-client-urls=http://0.0.0.0:12379 --listen-client-urls=http://0.0.0.0:12379 --listen-peer-urls=http://0.0.0.0:12380
           volumeMounts:
-            - name: etcd-data
-              mountPath: /var/etcd/contiv-data
+            - name: var-etcd
+              mountPath: /var/etcd/
       volumes:
-        - name: etcd-data
+        - name: var-etcd
           hostPath:
-             path: /var/etcd/contiv-data
+             path: /var/etcd
 
 ---
 
@@ -326,7 +328,7 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: spec.nodeName
-            - name: ETCDV3_CONFIG
+            - name: ETCD_CONFIG
               value: "/etc/etcd/etcd.conf"
           volumeMounts:
             - name: etcd-cfg
@@ -442,7 +444,7 @@ spec:
           image: contivvpp/ksr:latest
           imagePullPolicy: IfNotPresent
           env:
-            - name: ETCDV3_CONFIG
+            - name: ETCD_CONFIG
               value: "/etc/etcd/etcd.conf"
             - name: HTTP_CONFIG
               value: "/etc/http/http.conf"

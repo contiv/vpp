@@ -5,7 +5,7 @@ RUN apt-get update \
         # general tools
         iproute2 iputils-ping inetutils-traceroute \
         # vpp requirements
-        openssl python libapr1 libnuma1 \
+        openssl python libapr1 libnuma1 libmbedcrypto0 libmbedtls10 libmbedx509-0 \
         supervisor \
         # required for disabling TCP checksum offload in containers
         ethtool \

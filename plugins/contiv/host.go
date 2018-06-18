@@ -20,13 +20,13 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/ligato/vpp-agent/plugins/defaultplugins/common/bin_api/ip"
-	vpp_intf "github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/interfaces"
-	vpp_l2 "github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/l2"
-	vpp_l3 "github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/l3"
-	vpp_l4 "github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/l4"
-	linux_intf "github.com/ligato/vpp-agent/plugins/linuxplugin/common/model/interfaces"
-	linux_l3 "github.com/ligato/vpp-agent/plugins/linuxplugin/common/model/l3"
+	linux_intf "github.com/ligato/vpp-agent/plugins/linux/model/interfaces"
+	linux_l3 "github.com/ligato/vpp-agent/plugins/linux/model/l3"
+	"github.com/ligato/vpp-agent/plugins/vpp/binapi/ip"
+	vpp_intf "github.com/ligato/vpp-agent/plugins/vpp/model/interfaces"
+	vpp_l2 "github.com/ligato/vpp-agent/plugins/vpp/model/l2"
+	vpp_l3 "github.com/ligato/vpp-agent/plugins/vpp/model/l3"
+	vpp_l4 "github.com/ligato/vpp-agent/plugins/vpp/model/l4"
 	"github.com/vishvananda/netlink"
 )
 
@@ -128,6 +128,30 @@ func (s *remoteCNIserver) interconnectTap() *vpp_intf.Interfaces_Interface {
 		tap.Tap.Version = 2
 		tap.Tap.RxRingSize = uint32(s.tapV2RxRingSize)
 		tap.Tap.TxRingSize = uint32(s.tapV2TxRingSize)
+
+		// TODO: VPP now recognizes MTU for L3:
+		//
+		// commit ffd78d1ef8fe80d1b756a71d42d5eadda60ae996
+		// Author: Neale Ranns <neale.ranns@cisco.com>
+		// Date:   Fri Feb 9 06:05:16 2018 -0800
+		//
+		//    Improve MTU handling
+		//
+		// - setting MTU on an interface updates the L3 max bytes too
+		// - value cached in the adjacency is also updated
+		// - MTU exceeded generates ICMP to sender
+		//
+		// But TAPv2 has L3-pad incorrectly set to 216 bytes.
+		// Once supported by the vpp-agent, we may fix that by setting
+		// L3-MTU separately:
+		//
+		// * commit d723161e038d00e59766aa67a6a0dcc350227e4b
+		// Author: Ole Troan <ot@cisco.com>
+		// Date:   Thu Jun 7 10:17:57 2018 +0200
+		//
+		//    MTU: Software interface / Per-protocol MTU support
+		tap.Mtu += 216
+		// TAPv1 uses *huge* VPP-MTU, so we do not need to add anything.
 	}
 
 	return tap

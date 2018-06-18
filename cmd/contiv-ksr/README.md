@@ -26,8 +26,8 @@ which the formatted data are stored:
 #### Configuration
 
 The location of the ETCD configuration file is defined either
-with the `--etcdv3-config` argument or through the `ETCDV3_CONFIG`
-environment variable. The attached example configuration file `etcdv3.conf`
+with the `--etcd-config` argument or through the `ETCD_CONFIG`
+environment variable. The attached example configuration file `etcd.conf`
 (used by default if PWD is this directory) assumes that ETCD listens
 on the localhost, port `22379` for client communication.
 
@@ -88,7 +88,7 @@ sudo docker run -p 22379:2379 --name etcd --rm \
 
 Start `contiv-ksr` with:
 ```
-./contiv-ksr [--etcdv3-config <config-filepath>] \
+./contiv-ksr [--etcd-config <config-filepath>] \
              [--http-config <config-filepath>] \
              [--kube-config <config-filepath>]
 ```

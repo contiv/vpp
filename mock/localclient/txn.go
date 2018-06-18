@@ -5,13 +5,13 @@ import (
 	"sync"
 
 	"github.com/contiv/vpp/mock/localclient/dsl"
-	mockdefaultplugins "github.com/contiv/vpp/mock/localclient/dsl/defaultplugins"
-	"github.com/contiv/vpp/mock/localclient/dsl/linuxplugin"
+	mocklinux "github.com/contiv/vpp/mock/localclient/dsl/linux"
+	mockvpp "github.com/contiv/vpp/mock/localclient/dsl/vpp"
 	"github.com/golang/protobuf/proto"
 	"github.com/ligato/cn-infra/datasync"
 	"github.com/ligato/cn-infra/datasync/syncbase"
-	"github.com/ligato/vpp-agent/clientv1/defaultplugins"
 	"github.com/ligato/vpp-agent/clientv1/linux"
+	"github.com/ligato/vpp-agent/clientv1/vpp"
 )
 
 // TxnTracker tracks all transactions executed or pending in the mock localclient.
@@ -36,13 +36,13 @@ type ConfigSnapshot map[string]proto.Message
 // Exactly one of the fields is non-nil.
 type Txn struct {
 	// LinuxDataResyncTxn is non-nil for Linux Plugin's RESYNC transaction.
-	LinuxDataResyncTxn *linuxplugin.MockDataResyncDSL
+	LinuxDataResyncTxn *mocklinux.MockDataResyncDSL
 	// LinuxDataChangeTxn is non-nil for Linux Plugin's Data Change transaction.
-	LinuxDataChangeTxn *linuxplugin.MockDataChangeDSL
-	// DefaultPluginsDataResyncTxn is non-nil for Default Plugins's Data Resync transaction.
-	DefaultPluginsDataResyncTxn *mockdefaultplugins.MockDataResyncDSL
-	// DefaultPluginsDataChangeTxn is non-nil for Default Plugin's Data Change transaction.
-	DefaultPluginsDataChangeTxn *mockdefaultplugins.MockDataChangeDSL
+	LinuxDataChangeTxn *mocklinux.MockDataChangeDSL
+	// VPPDataResyncTxn is non-nil for VPP Plugins's Data Resync transaction.
+	VPPDataResyncTxn *mockvpp.MockDataResyncDSL
+	// VPPDataChangeTxn is non-nil for VPP Plugin's Data Change transaction.
+	VPPDataChangeTxn *mockvpp.MockDataChangeDSL
 }
 
 // NewTxnTracker is a constructor for TxnTracker.
@@ -54,19 +54,19 @@ func NewTxnTracker(onCommit func(txn *Txn, latestRevs *syncbase.PrevRevisions) e
 }
 
 // NewLinuxDataChangeTxn is a factory for DataChange transactions.
-func (t *TxnTracker) NewLinuxDataChangeTxn() linux.DataChangeDSL {
+func (t *TxnTracker) NewLinuxDataChangeTxn() linuxclient.DataChangeDSL {
 	txn := &Txn{}
-	dsl := linuxplugin.NewMockDataChangeDSL(func(Ops []dsl.TxnOp) error { return t.commit(txn, t.applyDataChangeTxnOps, Ops) })
+	dsl := mocklinux.NewMockDataChangeDSL(func(Ops []dsl.TxnOp) error { return t.commit(txn, t.applyDataChangeTxnOps, Ops) })
 	txn.LinuxDataChangeTxn = dsl
 	t.PendingTxns[txn] = struct{}{}
 	return dsl
 }
 
-// NewDefaultPluginsDataChangeTxn is a factory for Default Plugins's DataChange transactions.
-func (t *TxnTracker) NewDefaultPluginsDataChangeTxn() defaultplugins.DataChangeDSL {
+// NewVPPDataChangeTxn is a factory for VPP Plugins's DataChange transactions.
+func (t *TxnTracker) NewVPPDataChangeTxn() vppclient.DataChangeDSL {
 	txn := &Txn{}
-	dsl := mockdefaultplugins.NewMockDataChangeDSL(func(Ops []dsl.TxnOp) error { return t.commit(txn, t.applyDataChangeTxnOps, Ops) })
-	txn.DefaultPluginsDataChangeTxn = dsl
+	dsl := mockvpp.NewMockDataChangeDSL(func(Ops []dsl.TxnOp) error { return t.commit(txn, t.applyDataChangeTxnOps, Ops) })
+	txn.VPPDataChangeTxn = dsl
 	t.PendingTxns[txn] = struct{}{}
 	return dsl
 }
@@ -84,19 +84,19 @@ func (t *TxnTracker) applyDataChangeTxnOps(ops []dsl.TxnOp) {
 }
 
 // NewLinuxDataResyncTxn is a factory for Linux Plugins's RESYNC transactions.
-func (t *TxnTracker) NewLinuxDataResyncTxn() linux.DataResyncDSL {
+func (t *TxnTracker) NewLinuxDataResyncTxn() linuxclient.DataResyncDSL {
 	txn := &Txn{}
-	dsl := linuxplugin.NewMockDataResyncDSL(func(Ops []dsl.TxnOp) error { return t.commit(txn, t.applyDataResyncTxnOps, Ops) })
+	dsl := mocklinux.NewMockDataResyncDSL(func(Ops []dsl.TxnOp) error { return t.commit(txn, t.applyDataResyncTxnOps, Ops) })
 	txn.LinuxDataResyncTxn = dsl
 	t.PendingTxns[txn] = struct{}{}
 	return dsl
 }
 
-// NewDefaultPluginsDataResyncTxn is a factory for default plugins's RESYNC transactions.
-func (t *TxnTracker) NewDefaultPluginsDataResyncTxn() defaultplugins.DataResyncDSL {
+// NewVPPDataResyncTxn is a factory for VPP plugins's RESYNC transactions.
+func (t *TxnTracker) NewVPPDataResyncTxn() vppclient.DataResyncDSL {
 	txn := &Txn{}
-	dsl := mockdefaultplugins.NewMockDataResyncDSL(func(Ops []dsl.TxnOp) error { return t.commit(txn, t.applyDataResyncTxnOps, Ops) })
-	txn.DefaultPluginsDataResyncTxn = dsl
+	dsl := mockvpp.NewMockDataResyncDSL(func(Ops []dsl.TxnOp) error { return t.commit(txn, t.applyDataResyncTxnOps, Ops) })
+	txn.VPPDataResyncTxn = dsl
 	t.PendingTxns[txn] = struct{}{}
 	return dsl
 }

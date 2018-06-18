@@ -22,12 +22,12 @@ import (
 
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/logging/logrus"
-	"github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/nat"
+	"github.com/ligato/vpp-agent/plugins/vpp/model/nat"
 
 	. "github.com/contiv/vpp/mock/contiv"
 	. "github.com/contiv/vpp/mock/datasync"
-	. "github.com/contiv/vpp/mock/defaultplugins"
 	. "github.com/contiv/vpp/mock/natplugin"
+	. "github.com/contiv/vpp/mock/pluginvpp"
 	. "github.com/contiv/vpp/mock/servicelabel"
 
 	"github.com/contiv/vpp/mock/localclient"

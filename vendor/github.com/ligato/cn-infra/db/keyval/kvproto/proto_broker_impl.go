@@ -119,8 +119,8 @@ func putProtoInternal(broker keyval.BytesBroker, serializer keyval.Serializer, k
 	if err != nil {
 		return err
 	}
-	broker.Put(key, binData, opts...)
-	return nil
+
+	return broker.Put(key, binData, opts...)
 }
 
 // Delete removes key-value items stored under <key> from datastore.
@@ -168,7 +168,7 @@ func (pdb *protoBroker) GetValue(key string, reqObj proto.Message) (found bool, 
 }
 
 func getValueProtoInternal(broker keyval.BytesBroker, serializer keyval.Serializer, key string, reqObj proto.Message) (found bool, revision int64, err error) {
-	// get data from etcdv3
+	// get data from etcd
 	resp, found, rev, err := broker.GetValue(key)
 	if err != nil {
 		return false, 0, err

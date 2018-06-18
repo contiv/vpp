@@ -39,40 +39,9 @@ The expected logs would look like the following excerpt:
 For more details, please read the Go documentation for [contiv-stn](../cmd/contiv-stn/doc.go)
 and [contiv-init](../cmd/contiv-init/doc.go).
 
-#### Creating the VPP interface configuration
-First, you need to find out the PCI address of the host's network interface. 
-On Debian-based distributions, you can use `lshw`(*):
-```
-sudo yum -y install lshw
-```
-\* On CentOS/RedHat/Fedora distributions, `lshw` may not be available by default, install it by
-    ```
-    yum -y install lshw
-    ```
-
-```
-sudo lshw -class network -businfo
-Bus info          Device      Class          Description
-========================================================
-pci@0000:03:00.0  ens160      network        VMXNET3 Ethernet Controller
-```
-
-In our case, it would be the `ens3` interface with the PCI address
-`0000:00:03.0`.
-
-
-Now, add or modify the VPP startup config file in `/etc/vpp/contiv-vswitch.conf`
-to contain the proper PCI address:
-```
-unix {
-    nodaemon
-    cli-listen /run/vpp/cli.sock
-    cli-no-pager
-}
-dpdk {
-    dev 0000:00:03.0
-}
-```
+#### Creating VPP interface configuration
+Create the VPP configuration for the hardware interface as described 
+[here](https://github.com/contiv/vpp/blob/master/docs/VPP_CONFIG.md#single-nic-configuration).
 
 #### Configuring STN in Contiv-vpp K8s deployment files
 The STN feature is disabled by default. It needs to be enabled either globally,

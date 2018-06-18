@@ -356,6 +356,8 @@ then
             if [ -n "$MISSING_NODE" ]
             then
                 printf "\x1b[31m%s  ERROR: Missing L2FIB entry (and possibly VXLAN tunnel)\x1b[0m\n" "$MISSING_NODE"
+                ERROR_LINE=$( printf "Missing L2FIB entry (and possibly VXLAN tunnel), node='%s'", "$MISSING_NODE")
+                ERROR_LINES+=("$ERROR_LINE")
             fi
         done
 

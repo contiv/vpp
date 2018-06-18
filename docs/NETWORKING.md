@@ -125,10 +125,22 @@ also has a static ARP entry configured for the IP of the VPP-end TAP interface.
 
 #### VXLANs to other nodes
 In order to provide inter-node POD to POD connectivity via any underlay network 
-(not necessarily a L2 network), Contiv/VPP sets up VXLAN tunnel overlay between 
+(not necessarily a L2 network), Contiv/VPP sets up a VXLAN tunnel overlay between 
 each 2 nodes within the cluster (full mesh). 
 
+All VXLAN tunnels are terminated in one bridge domain on each VPP. The bridge domain
+has learning and flooding disabled, the l2fib of the bridge domain is filled in with 
+a static entry for each VXLAN tunnel. Each bridge domain has a BVI interface which
+interconnects the bridge domain with the main VRF (L3 forwarding). This interface needs
+an unique IP address, which is assigned from the `VxlanCIDR` as describe above.
 
+The main VRF contains several static routes that point to the BVI IP addresses of other nodes.
+For each node, it is a route to PODSubnet and VppHostSubnet of the remote node, as well as a route
+to the management IP address of the remote node. For each of these routes, the next hop IP is the
+BVI interface IP of the remote node, which goes via the BVI interface of the local node.
+
+The VXLAN tunnels and the static routes pointing to them are added/deleted on each VPP,
+whenever a node is added/deleted in the k8s cluster.
 
 
 #### More info

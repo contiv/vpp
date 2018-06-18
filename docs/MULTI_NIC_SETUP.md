@@ -1,7 +1,7 @@
 ### Setting up a node with multiple NICs
 
-* First, condifure interfaces in the VPP startup config, as described here:
-https://github.com/contiv/vpp/blob/master/docs/VPP_CONFIG.md#multi-nic-configuration
+* First, configure hardware interfaces in the VPP startup config, as
+described [here](https://github.com/contiv/vpp/blob/master/docs/VPP_CONFIG.md#multi-nic-configuration).
 
 * For each interface owned by Linux, you need to provide individual
   configuration for each interface used by VPP in the Node Configuration 

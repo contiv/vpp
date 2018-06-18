@@ -85,6 +85,9 @@ unix {
    cli-listen /run/vpp/cli.sock
    cli-no-pager
 }
+nat {
+   endpoint-dependent
+}
 api-trace {
     on
     nitems 500

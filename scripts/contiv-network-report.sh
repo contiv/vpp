@@ -69,6 +69,16 @@ VPP_L2FIB_FILE="vpp-l2-fib.log"
 SHOW_PODS=0
 SHOW_NETWORK=0
 
+NODE_NAMES=()
+PRINT_POD_LINES=()
+
+declare -A IF_IP
+declare -A IF_MAC
+declare -A NODE_HOST_IP
+declare -A NODE_GIGE_IP     # Map <node-name>:<vpp-gige-ip> used to validate VXLAN tunnels
+declare -A MAC_LOOP_NODE    # Map <mac-addr>:<node-name> used for L2FIB validation
+declare -A MAC_LOOP_IP
+
 while getopts "d:hnp" opt
 do
     case "$opt" in
@@ -91,15 +101,6 @@ do
     esac
 done
 
-declare -A NODE_HOST_IP
-declare -A IF_IP
-declare -A IF_MAC
-declare -A MAC_LOOP_NODE
-declare -A MAC_LOOP_IP
-
-NODE_NAMES=()
-PRINT_POD_LINES=()
-
 pushd "$REPORT_DIR" > /dev/null
 
 # Get all nodes in the cluster and their host IP addresses
@@ -119,9 +120,7 @@ then
     readarray -t POD_LINES <<< "$PODS"
 
     HDR=$( echo "${POD_LINES[0]}" | sed -e "s/IP    /POD-IP/g" | sed -e "s/NODE/VPP-IF/g" )
-    echo "$HDR"
     HDR=$( printf "%s  %-13s  %-18s" "$HDR" "VPP-IP" "VPP-MAC" )
-    echo "$HDR"
 fi
 
 # Print header
@@ -200,6 +199,7 @@ do
 
     MAC_LOOP_IP["$LOOP_MAC"]="$LOOP_IP"
     MAC_LOOP_NODE["$LOOP_MAC"]="$nn"
+    NODE_GIGE_IP["$nn"]="${IF_IP[$GIGE_IF_NAME]}"
 
     if [ "$SHOW_PODS" == "1" ]
     then
@@ -240,11 +240,11 @@ do
         PRINT_POD_LINES+=("")
     fi
 done
+echo
 
 # Print per-node Pod connectivity data
 if [ "$SHOW_PODS" == "1" ]
 then
-    echo
     echo "================="
     echo "POD CONNECTIVITY:"
     echo "================="
@@ -310,7 +310,7 @@ then
 
             PRINT_LINE=$( printf "$FORMAT_STRING" "$REMOTE_NODE" "$REMOTE_IP" "$MAC_ADDR" "$IF_NAME" )
 
-            # If the L2FIB entry does not point to the local loop interface, get its VXLAN tunnel
+            # If the L2FIB entry points to a vxlan tunner, validate and print the tunnel info
             if echo "${L2FIB_FIELDS[8]}" | grep -q "vxlan_tunnel"
             then
                 IF_INDEX="${L2FIB_FIELDS[2]}"
@@ -321,11 +321,31 @@ then
                     printf "\x1b[31m%s  ERROR: Missing VXLAN tunnel\x1b[0m\n" "$REMOTE_NODE"
                     continue
                 fi
-                TUNNEL_LINE="${VXLAN_MAP[$IF_INDEX]}"
-                VXLAN_MAP["$IF_INDEX"]=""
 
+                TUNNEL_LINE="${VXLAN_MAP[$IF_INDEX]}"
                 IFS=' ' read -ra TL_FIELDS <<< "$TUNNEL_LINE"
-                PRINT_LINE=$( printf "%s  %-18s  %-18s" "$PRINT_LINE" "${TL_FIELDS[2]}" "${TL_FIELDS[4]}" )
+
+                TUNNEL_SRC_IP="${TL_FIELDS[2]}"
+                TUNNEL_DST_IP="${TL_FIELDS[4]}"
+                PRINT_LINE=$( printf "%s  %-18s  %-18s" "$PRINT_LINE" "$TUNNEL_SRC_IP" "$TUNNEL_DST_IP" )
+
+                LOCAL_GIGE_IP=$( echo "${NODE_GIGE_IP[$nn]}" | awk -F/ '{print $1}' )
+                if [ "$TUNNEL_SRC_IP" != "$LOCAL_GIGE_IP" ]
+                then
+                    ERROR_LINE=$( printf "Invalid VXLAN Tunnel, sw_if_index=%s; bad SRC address '%s' (should be '%s')" \
+                                  "${TL_FIELDS[8]}" "$TUNNEL_SRC_IP" "$LOCAL_GIGE_IP" )
+                    ERROR_LINES+=("$ERROR_LINE")
+                fi
+
+                REMOTE_GIGE_IP=$( echo "${NODE_GIGE_IP[$REMOTE_NODE]}" |  awk -F/ '{print $1}' )
+                if [ "$TUNNEL_DST_IP" != "$REMOTE_GIGE_IP" ]
+                then
+                    ERROR_LINE=$( printf "Invalid VXLAN Tunnel, sw_if_index=%s; bad DST address '%s' (should be '%s')" \
+                                  "${TL_FIELDS[8]}" "$TUNNEL_DST_IP" "$REMOTE_GIGE_IP" )
+                    ERROR_LINES+=("$ERROR_LINE")
+                fi
+
+                VXLAN_MAP["$IF_INDEX"]=""
             fi
             echo "$PRINT_LINE"
         done

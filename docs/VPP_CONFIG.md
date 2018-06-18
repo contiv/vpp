@@ -1,8 +1,9 @@
-## Creating VPP interface configuration
-This document describes how to create the VPP startupconfiguration
+## Creating VPP startup configuration
+This document describes how to create the VPP startup configuration
 file located at `/etc/vpp/contiv-vswitch.conf`.
 
-### Single-NIC configuration
+### Hardware interface configuration
+#### Single-NIC configuration
 You need to configure hardware interfaces for use by VPP. First, you
 needto find out the PCI address of the host's network interface. On 
 Debian-based distributions, you can use `lshw`:
@@ -29,7 +30,7 @@ dpdk {
     dev 0000:00:03.0
 }
 ```
-### Multi-NIC configuration
+#### Multi-NIC configuration
 Similarly to the single-NIC configuration, use lshw to find out the PCI
 addresses of all NICs in the system, for example:
 
@@ -66,7 +67,7 @@ dpdk {
 If assigning multiple NICs to VPP you will need to include each NIC's PCI address
 in the dpdk stanza in `/etc/vpp/contiv-vswitch.conf`.
 
-#### Assigning all NICs to VPP
+##### Assigning all NICs to VPP
 On a multi-NIC node, it is also possible to assign all NICs from the kernel for
 use by VPP. First, you need to install the STN daemon, as described [here][1],
 since you will want the NICs to revert to the kernel if VPP crashes.
@@ -88,7 +89,7 @@ dpdk {
 }
 ```
 
-### Installing `lshw` on CentOS/RedHat/Fedora
+#### Installing `lshw` on CentOS/RedHat/Fedora
 Note: On CentOS/RedHat/Fedora distributions, `lshw` may not be available
 by default, install it by
 ```

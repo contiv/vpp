@@ -20,6 +20,7 @@ import (
 	"strconv"
 	"strings"
 
+	"encoding/binary"
 	linux_intf "github.com/ligato/vpp-agent/plugins/linux/model/interfaces"
 	linux_l3 "github.com/ligato/vpp-agent/plugins/linux/model/l3"
 	"github.com/ligato/vpp-agent/plugins/vpp/binapi/ip"
@@ -248,8 +249,21 @@ func (s *remoteCNIserver) vxlanBVILoopback() (*vpp_intf.Interfaces_Interface, er
 	}, nil
 }
 
-func (s *remoteCNIserver) hwAddrForVXLAN(nodeID uint8) string {
-	return fmt.Sprintf("1a:2b:3c:4d:5e:%02x", nodeID)
+func (s *remoteCNIserver) hwAddrForVXLAN(nodeID uint32) string {
+	if nodeID < 256 {
+		// generate backward compatible MAC address
+		return fmt.Sprintf("1a:2b:3c:4d:5e:%02x", nodeID)
+	}
+	// the first octet is intentionally different from the one above
+	// in order to ensure unique IP foreach nodeID
+
+	res := []byte{0x12, 0x2b, 0, 0, 0, 0}
+
+	// the first two bytes are constant, the last four are equal to nodeID
+	binary.BigEndian.PutUint32(res[2:], nodeID)
+
+	return net.HardwareAddr(res).String()
+
 }
 
 func (s *remoteCNIserver) vxlanBridgeDomain(bviInterface string) *vpp_l2.BridgeDomains_BridgeDomain {
@@ -269,7 +283,7 @@ func (s *remoteCNIserver) vxlanBridgeDomain(bviInterface string) *vpp_l2.BridgeD
 	}
 }
 
-func (s *remoteCNIserver) vxlanArpEntry(nodeID uint8, hostIP string) *vpp_l3.ArpTable_ArpEntry {
+func (s *remoteCNIserver) vxlanArpEntry(nodeID uint32, hostIP string) *vpp_l3.ArpTable_ArpEntry {
 	return &vpp_l3.ArpTable_ArpEntry{
 		Interface:   vxlanBVIInterfaceName,
 		IpAddress:   hostIP,
@@ -289,7 +303,7 @@ func (s *remoteCNIserver) vxlanFibEntry(macAddr string, outIfName string) *vpp_l
 	}
 }
 
-func (s *remoteCNIserver) computeRoutesToHost(hostID uint8, nextHopIP string) (podsRoute *vpp_l3.StaticRoutes_Route, hostRoute *vpp_l3.StaticRoutes_Route, err error) {
+func (s *remoteCNIserver) computeRoutesToHost(hostID uint32, nextHopIP string) (podsRoute *vpp_l3.StaticRoutes_Route, hostRoute *vpp_l3.StaticRoutes_Route, err error) {
 	podsRoute, err = s.routeToOtherHostPods(hostID, nextHopIP)
 	if err != nil {
 		err = fmt.Errorf("Can't construct route to pods of host %v: %v ", hostID, err)
@@ -303,7 +317,7 @@ func (s *remoteCNIserver) computeRoutesToHost(hostID uint8, nextHopIP string) (p
 	return
 }
 
-func (s *remoteCNIserver) routeToOtherHostPods(hostID uint8, nextHopIP string) (*vpp_l3.StaticRoutes_Route, error) {
+func (s *remoteCNIserver) routeToOtherHostPods(hostID uint32, nextHopIP string) (*vpp_l3.StaticRoutes_Route, error) {
 	podNetwork, err := s.ipam.OtherNodePodNetwork(hostID)
 	if err != nil {
 		return nil, fmt.Errorf("Can't compute pod network for host ID %v, error: %v ", hostID, err)
@@ -311,7 +325,7 @@ func (s *remoteCNIserver) routeToOtherHostPods(hostID uint8, nextHopIP string) (
 	return s.routeToOtherHostNetworks(podNetwork, nextHopIP)
 }
 
-func (s *remoteCNIserver) routeToOtherHostStack(hostID uint8, nextHopIP string) (*vpp_l3.StaticRoutes_Route, error) {
+func (s *remoteCNIserver) routeToOtherHostStack(hostID uint32, nextHopIP string) (*vpp_l3.StaticRoutes_Route, error) {
 	hostNw, err := s.ipam.OtherNodeVPPHostNetwork(hostID)
 	if err != nil {
 		return nil, fmt.Errorf("Can't compute vswitch network for host ID %v, error: %v ", hostID, err)
@@ -333,7 +347,7 @@ func (s *remoteCNIserver) routeToOtherHostNetworks(destNetwork *net.IPNet, nextH
 	}, nil
 }
 
-func (s *remoteCNIserver) computeVxlanToHost(hostID uint8, hostIP string) (*vpp_intf.Interfaces_Interface, error) {
+func (s *remoteCNIserver) computeVxlanToHost(hostID uint32, hostIP string) (*vpp_intf.Interfaces_Interface, error) {
 	return &vpp_intf.Interfaces_Interface{
 		Name:    fmt.Sprintf("vxlan%d", hostID),
 		Type:    vpp_intf.InterfaceType_VXLAN_TUNNEL,
@@ -364,7 +378,7 @@ func (s *remoteCNIserver) removeInterfaceFromVxlanBD(bd *vpp_l2.BridgeDomains_Br
 	}
 }
 
-func (s *remoteCNIserver) otherHostIP(hostID uint8, hostIPPrefix string) string {
+func (s *remoteCNIserver) otherHostIP(hostID uint32, hostIPPrefix string) string {
 	// determine next hop IP - either use provided one, or calculate based on hostIPPrefix
 	if hostIPPrefix != "" {
 		// hostIPPrefix defined, just trim prefix length

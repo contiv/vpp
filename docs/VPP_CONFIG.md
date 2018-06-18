@@ -98,10 +98,9 @@ sudo yum -y install lshw
 
 ### Power-saving mode
 In regular operation, VPP takes 100% of one CPU core at all times (poll loop).
-If high performance and low latency is not required - for example, in VM-based
-debug environments on laptops or less powerful serves - you can "slow-down"
-the poll-loop by adding the following stanza to the `unix` section of the VPP 
-startup config file:
+If high performance and low latency is not required you can "slow-down"
+the poll-loop and drastically reduce CPU utilization by adding the following 
+stanza to the `unix` section of the VPP startup config file:
 ```
 unix {
     ...
@@ -109,6 +108,8 @@ unix {
     ...
 }
 ```
+The power-saving mode is especially useful in VM-based development environments 
+running on laptops or less powerful servers. 
 
 ### VPP API trace
 To troubleshoot VPP configuration issues in production environments, it is 

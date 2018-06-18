@@ -1,0 +1,68 @@
+From 85fc15be3863a62fd57d1a6217f555f57f8eb1ce Mon Sep 17 00:00:00 2001
+From: Dave Barach <dave@barachs.net>
+Date: Thu, 14 Jun 2018 18:52:46 -0400
+Subject: [PATCH] configurable per-dispatch-cycle sleep
+
+Workaround for lack of driver interrupt support
+
+Change-Id: Ifc4b98112450664beef67b89ab8a6940a3bf24b5
+Signed-off-by: Dave Barach <dave@barachs.net>
+---
+
+diff --git a/src/vlib/unix/input.c b/src/vlib/unix/input.c
+index 321e443..c56fdc3 100644
+--- a/src/vlib/unix/input.c
++++ b/src/vlib/unix/input.c
+@@ -148,9 +148,23 @@
+     int timeout_ms = 0, max_timeout_ms = 10;
+     f64 vector_rate = vlib_last_vectors_per_main_loop (vm);
+ 
++    if (is_main && um->poll_sleep_usec)
++      {
++	struct timespec ts, tsrem;
++	timeout = 0;
++	timeout_ms = 0;
++	node->input_main_loops_per_call = 0;
++	ts.tv_sec = 0;
++	ts.tv_nsec = 1000 * um->poll_sleep_usec;
++
++	while (nanosleep (&ts, &tsrem) < 0)
++	  {
++	    ts = tsrem;
++	  }
++      }
+     /* If we're not working very hard, decide how long to sleep */
+-    if (is_main && vector_rate < 2 && vm->api_queue_nonempty == 0
+-	&& nm->input_node_counts_by_state[VLIB_NODE_STATE_POLLING] == 0)
++    else if (is_main && vector_rate < 2 && vm->api_queue_nonempty == 0
++	     && nm->input_node_counts_by_state[VLIB_NODE_STATE_POLLING] == 0)
+       {
+ 	ticks_until_expiration = TW (tw_timer_first_expires_in_ticks)
+ 	  ((TWT (tw_timer_wheel) *) nm->timing_wheel);
+diff --git a/src/vlib/unix/main.c b/src/vlib/unix/main.c
+index 786addf..f812b08 100644
+--- a/src/vlib/unix/main.c
++++ b/src/vlib/unix/main.c
+@@ -344,6 +344,8 @@
+ 	um->cli_no_banner = 1;
+       else if (unformat (input, "cli-no-pager"))
+ 	um->cli_no_pager = 1;
++      else if (unformat (input, "poll-sleep-usec %d", &um->poll_sleep_usec))
++	;
+       else if (unformat (input, "cli-pager-buffer-limit %d",
+ 			 &um->cli_pager_buffer_limit))
+ 	;
+diff --git a/src/vlib/unix/unix.h b/src/vlib/unix/unix.h
+index 4c8566b..7856e5b 100644
+--- a/src/vlib/unix/unix.h
++++ b/src/vlib/unix/unix.h
+@@ -102,6 +102,9 @@
+   /* Store the original state of stdin when it's a tty */
+   struct termios tio_stdin;
+   int tio_isset;
++
++  u32 poll_sleep_usec;
++
+ } unix_main_t;
+ 
+ /* Global main structure. */

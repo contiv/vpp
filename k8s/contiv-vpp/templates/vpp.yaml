@@ -42,6 +42,7 @@ data:
     {{- if .Values.contiv.serviceLocalEndpointWeight }}
     ServiceLocalEndpointWeight: {{ .Values.contiv.serviceLocalEndpointWeight }}
     {{- end }}
+    DisableNATVirtualReassembly: {{ .Values.contiv.disableNATVirtualReassembly }}
     IPAMConfig:
       PodSubnetCIDR: {{ .Values.contiv.ipamConfig.podSubnetCIDR }}
       PodNetworkPrefixLen: {{ .Values.contiv.ipamConfig.podNetworkPrefixLen }}

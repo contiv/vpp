@@ -425,6 +425,11 @@ func (s *remoteCNIserver) configureVswitchNICs(config *vswitchConfig) error {
 	// TODO: handle by localclient/resync once implemented in VPP agent
 	s.enableIPNeighborScan()
 
+	// Disable NAT virtual reassembly (drop fragmented packets) if requested
+	if s.config.DisableNATVirtualReassembly {
+		s.disableNatVirtualReassembly()
+	}
+
 	return nil
 }
 

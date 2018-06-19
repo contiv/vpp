@@ -21,6 +21,7 @@ import (
 	"strings"
 
 	"github.com/ligato/vpp-agent/plugins/defaultplugins/common/bin_api/ip"
+	"github.com/ligato/vpp-agent/plugins/defaultplugins/common/bin_api/vpe"
 	vpp_intf "github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/interfaces"
 	vpp_l2 "github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/l2"
 	vpp_l3 "github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/l3"
@@ -405,4 +406,21 @@ func (s *remoteCNIserver) enableIPNeighborScan() error {
 		s.Logger.Error("Error by enabling IP neighbor scanning:", err)
 	}
 	return err
+}
+
+func (s *remoteCNIserver) executeDebugCLI(cmd string) (string, error) {
+	s.Logger.Infof("Executing debug CLI: %s", cmd)
+
+	req := &vpe.CliInband{
+		Cmd: []byte(cmd),
+	}
+	reply := &vpe.CliInbandReply{}
+
+	err := s.govppChan.SendRequest(req).ReceiveReply(reply)
+
+	if err != nil {
+		s.Logger.Error("Error by executing debug CLI:", err)
+		return "", err
+	}
+	return string(reply.Reply), err
 }

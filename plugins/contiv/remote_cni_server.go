@@ -481,6 +481,11 @@ func (s *remoteCNIserver) configureMainVPPInterface(config *vswitchConfig, nicNa
 
 			nic := s.physicalInterface(nicName, s.nodeIP)
 			if useDHCP {
+
+				// enable packet trace on DPDK input
+				// TODO: can be removed once DHCP functionality is stable
+				s.executeDebugCLI("trace add dpdk-input 50")
+
 				// clear IP addresses
 				nic.IpAddresses = []string{}
 				nic.SetDhcpClient = true
@@ -617,6 +622,12 @@ func (s *remoteCNIserver) handleDHCPNotifications(notifCh chan ifaceidx.DhcpIdxD
 }
 
 func (s *remoteCNIserver) applyDHCPdata(notif *ifaceidx.DHCPSettings) {
+	// print packet trace
+	// TODO: can be removed once DHCP functionality is stable
+	trace, _ := s.executeDebugCLI("show trace")
+	fmt.Printf("DHCP data recieved, packet trace: %s", trace)
+	s.executeDebugCLI("clear trace")
+
 	ipAddr := fmt.Sprintf("%s/%d", notif.IPAddress, notif.Mask)
 	s.defaultGw = net.ParseIP(notif.RouterAddress)
 

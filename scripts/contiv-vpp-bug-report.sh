@@ -161,6 +161,7 @@ VPP_COMMANDS["api-trace-dump.log"]="api trace custom-dump /tmp/trace.api"
 declare -A LOCAL_COMMANDS
 LOCAL_COMMANDS["linux-ip-route.log"]="ip route"
 LOCAL_COMMANDS["contiv-stn.log"]='CONTAINER=$(sudo docker ps --filter name=contiv-stn --format "{{.ID}}") && [ -n "$CONTAINER" ] && sudo docker logs "$CONTAINER"'
+LOCAL_COMMANDS["vswitch-version.log"]="curl -m 2 localhost:9999/liveness"
 
 declare -A ETCD_COMMANDS
 ETCD_COMMANDS["etcd-tree.log"]="export ETCDCTL_API=3 && etcdctl --endpoints=127.0.0.1:32379 get / --prefix=true"

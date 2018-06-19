@@ -2,13 +2,9 @@
 
 set -euo pipefail
 
-if $(VBoxManage dhcpserver remove --netname vpp) ; then 
-	echo "Creating VirtualBox DHCP server..."
-	$(VBoxManage dhcpserver add --netname vpp --ip 192.168.16.1 --netmask 255.255.255.0 --lowerip 192.168.16.2 --upperip 192.168.16.254 --enable)
-else
-	echo "Creating VirtualBox DHCP server..."
-	$(VBoxManage dhcpserver add --netname vpp --ip 192.168.16.1 --netmask 255.255.255.0 --lowerip 192.168.16.2 --upperip 192.168.16.254 --enable)
-fi
+VBoxManage dhcpserver remove --netname vpp || :
+echo "Creating VirtualBox DHCP server..."
+VBoxManage dhcpserver add --netname vpp --ip 192.168.16.1 --netmask 255.255.255.0 --lowerip 192.168.16.2 --upperip 192.168.16.254 --enable
 
 export K8S_NODE_OS=${K8S_NODE_OS:-ubuntu}
 export K8S_NODES=${K8S_NODES:-1}

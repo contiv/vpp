@@ -353,14 +353,15 @@ func (s *remoteCNIserver) deleteRoutesToNode(nodeInfo *node.NodeInfo) error {
 
 	// send the config transaction
 	err = txn.Send().ReceiveReply()
-	if err != nil {
-		return fmt.Errorf("Can't configure VPP to remove routes to node %v: %v ", nodeInfo.Id, err)
-	}
 	if !s.useL2Interconnect {
+		// FIBs need to be removed before the VXLAN interface
 		err = txn2.Send().ReceiveReply()
 		if err != nil {
 			return fmt.Errorf("Can't configure VPP to remove FIB to node %v: %v ", nodeInfo.Id, err)
 		}
+	}
+	if err != nil {
+		return fmt.Errorf("Can't configure VPP to remove routes to node %v: %v ", nodeInfo.Id, err)
 	}
 	return nil
 }

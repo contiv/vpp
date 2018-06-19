@@ -37,7 +37,7 @@ type IPAM struct {
 	logger logging.Logger
 	mutex  sync.RWMutex
 
-	nodeID uint8              // identifier of the node for which this IPAM is created for
+	nodeID uint32             // identifier of the node for which this IPAM is created for
 	broker keyval.ProtoBroker // broker that is used for persisting
 
 	// POD related variables
@@ -81,7 +81,7 @@ type Config struct {
 }
 
 // New returns new IPAM module to be used on the node specified by the nodeID.
-func New(logger logging.Logger, nodeID uint8, config *Config, nodeInterconnectExcludedIPs []net.IP, broker keyval.ProtoBroker) (*IPAM, error) {
+func New(logger logging.Logger, nodeID uint32, config *Config, nodeInterconnectExcludedIPs []net.IP, broker keyval.ProtoBroker) (*IPAM, error) {
 	// create basic IPAM
 	ipam := &IPAM{
 		logger:       logger,
@@ -125,14 +125,14 @@ func (i *IPAM) NodeInterconnectDHCPEnabled() bool {
 }
 
 // NodeIPAddress computes IP address of the node based on the provided node ID.
-func (i *IPAM) NodeIPAddress(nodeID uint8) (net.IP, error) {
+func (i *IPAM) NodeIPAddress(nodeID uint32) (net.IP, error) {
 	i.mutex.RLock()
 	defer i.mutex.RUnlock()
 	return i.computeNodeIPAddress(nodeID)
 }
 
 // NodeIPWithPrefix computes node address with prefix length based on the provided node ID.
-func (i *IPAM) NodeIPWithPrefix(nodeID uint8) (*net.IPNet, error) {
+func (i *IPAM) NodeIPWithPrefix(nodeID uint32) (*net.IPNet, error) {
 	i.mutex.RLock()
 	defer i.mutex.RUnlock()
 
@@ -149,14 +149,14 @@ func (i *IPAM) NodeIPWithPrefix(nodeID uint8) (*net.IPNet, error) {
 }
 
 // VxlanIPAddress computes IP address of the VXLAN interface based on the provided node ID.
-func (i *IPAM) VxlanIPAddress(nodeID uint8) (net.IP, error) {
+func (i *IPAM) VxlanIPAddress(nodeID uint32) (net.IP, error) {
 	i.mutex.RLock()
 	defer i.mutex.RUnlock()
 	return i.computeVxlanIPAddress(nodeID)
 }
 
 // VxlanIPWithPrefix computes VXLAN interface address with prefix length based on the provided node ID.
-func (i *IPAM) VxlanIPWithPrefix(nodeID uint8) (*net.IPNet, error) {
+func (i *IPAM) VxlanIPWithPrefix(nodeID uint32) (*net.IPNet, error) {
 	i.mutex.RLock()
 	defer i.mutex.RUnlock()
 
@@ -203,7 +203,7 @@ func (i *IPAM) VPPIfIPPrefix() *net.IP {
 }
 
 // OtherNodeVPPHostNetwork returns VPP-host network of another node identified by nodeID.
-func (i *IPAM) OtherNodeVPPHostNetwork(nodeID uint8) (*net.IPNet, error) {
+func (i *IPAM) OtherNodeVPPHostNetwork(nodeID uint32) (*net.IPNet, error) {
 	i.mutex.RLock()
 	defer i.mutex.RUnlock()
 
@@ -233,7 +233,7 @@ func (i *IPAM) PodNetwork() *net.IPNet {
 }
 
 // OtherNodePodNetwork returns the POD network of another node identified by nodeID.
-func (i *IPAM) OtherNodePodNetwork(nodeID uint8) (*net.IPNet, error) {
+func (i *IPAM) OtherNodePodNetwork(nodeID uint32) (*net.IPNet, error) {
 	i.mutex.RLock()
 	defer i.mutex.RUnlock()
 
@@ -262,7 +262,7 @@ func (i *IPAM) PodGatewayIP() net.IP {
 }
 
 // NodeID returns unique host ID used to calculate the IP addresses.
-func (i *IPAM) NodeID() uint8 {
+func (i *IPAM) NodeID() uint32 {
 	i.mutex.RLock()
 	defer i.mutex.RUnlock()
 	return i.nodeID
@@ -359,7 +359,7 @@ func (i *IPAM) ReleasePodIP(podID string) error {
 }
 
 // initializePodsIPAM initializes POD -related variables of IPAM.
-func initializePodsIPAM(ipam *IPAM, config *Config, nodeID uint8) (err error) {
+func initializePodsIPAM(ipam *IPAM, config *Config, nodeID uint32) (err error) {
 	ipam.podSubnetIPPrefix, ipam.podNetworkIPPrefix, err = convertConfigNotation(config.PodSubnetCIDR, config.PodNetworkPrefixLen, nodeID)
 	if err != nil {
 		return
@@ -375,7 +375,7 @@ func initializePodsIPAM(ipam *IPAM, config *Config, nodeID uint8) (err error) {
 }
 
 // initializeVPPHostIPAM initializes VPP-host interconnect -related variables of IPAM.
-func initializeVPPHostIPAM(ipam *IPAM, config *Config, nodeID uint8) (err error) {
+func initializeVPPHostIPAM(ipam *IPAM, config *Config, nodeID uint32) (err error) {
 	ipam.vppHostSubnetIPPrefix, ipam.vppHostNetworkIPPrefix, err = convertConfigNotation(config.VPPHostSubnetCIDR, config.VPPHostNetworkPrefixLen, nodeID)
 	if err != nil {
 		return
@@ -440,7 +440,7 @@ func initializePodIfIPPrefix(ipam *IPAM, config *Config) (err error) {
 
 // convertConfigNotation converts config notation and given node ID to IPAM structure notation.
 // I.e: input 1.2.3.4/16 (string), /24 (uint8), 5 (uint8) results in 1.2.0.0/16 (IPNet), 1.2.5.0/24 (IPNet)
-func convertConfigNotation(subnetCIDR string, networkPrefixLen uint8, nodeID uint8) (subnetIPPrefix net.IPNet, networkIPPrefix net.IPNet, err error) {
+func convertConfigNotation(subnetCIDR string, networkPrefixLen uint8, nodeID uint32) (subnetIPPrefix net.IPNet, networkIPPrefix net.IPNet, err error) {
 	// convert subnetCIDR to net.IPNet
 	_, pSubnet, err := net.ParseCIDR(subnetCIDR)
 	if err != nil {
@@ -461,7 +461,7 @@ func convertConfigNotation(subnetCIDR string, networkPrefixLen uint8, nodeID uin
 }
 
 // applyNodeID creates network (IPNet) from subnet by adding transformed node ID to it.
-func applyNodeID(subnetIPPrefix net.IPNet, nodeID uint8, networkPrefixLen uint8) (networkIPPrefix net.IPNet, err error) {
+func applyNodeID(subnetIPPrefix net.IPNet, nodeID uint32, networkPrefixLen uint8) (networkIPPrefix net.IPNet, err error) {
 	// compute part of IP address representing host
 	subnetPrefixLen, _ := subnetIPPrefix.Mask.Size()
 	nodePartBitSize := networkPrefixLen - uint8(subnetPrefixLen)
@@ -496,7 +496,7 @@ func (i *IPAM) logAssignedPodIPPool() {
 }
 
 // computeNodeIPAddress computes IP address of node based on the given node ID.
-func (i *IPAM) computeNodeIPAddress(nodeID uint8) (net.IP, error) {
+func (i *IPAM) computeNodeIPAddress(nodeID uint32) (net.IP, error) {
 	// trimming nodeID if its place in IP address is narrower than actual uint8 size
 	subnetPrefixLen, _ := i.nodeInterconnectCIDR.Mask.Size()
 	nodePartBitSize := 32 - uint8(subnetPrefixLen)
@@ -527,7 +527,7 @@ func (i *IPAM) computeNodeIPAddress(nodeID uint8) (net.IP, error) {
 }
 
 // computeVxlanIPAddress computes IP address of the VXLAN interface based on the given node ID.
-func (i *IPAM) computeVxlanIPAddress(nodeID uint8) (net.IP, error) {
+func (i *IPAM) computeVxlanIPAddress(nodeID uint32) (net.IP, error) {
 	// trimming nodeID if its place in IP address is narrower than actual uint8 size
 	subnetPrefixLen, _ := i.vxlanCIDR.Mask.Size()
 	nodePartBitSize := 32 - uint8(subnetPrefixLen)
@@ -560,7 +560,7 @@ func (i *IPAM) findIP(podID string) (uintIP, error) {
 
 // convertToNodeIPPart converts nodeID to part of IP address that distinguishes network IP address prefix among
 // different nodes.
-func convertToNodeIPPart(nodeID uint8, expectedNodePartBitSize uint8) (res uint8, err error) {
+func convertToNodeIPPart(nodeID uint32, expectedNodePartBitSize uint8) (res uint32, err error) {
 	// the last valid nodeID correspond to 0 nodeIPpart,
 	// this value is valid to be used for subnet, however not for IP address computation
 	if nodeID == (1 << expectedNodePartBitSize) {

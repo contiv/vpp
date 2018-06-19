@@ -10,15 +10,15 @@ are depicted on the Node 1, whereas the VPP programming is depicted on the Node 
 
 [![Contiv/VPP Architecture](img/contiv-networking.png)](img/contiv-networking.svg)
 
-## Contiv IPAM (IP Address Management)
+## Contiv/VPP IPAM (IP Address Management)
 
-IPAM in Contiv is based on the concept of **Node ID**. The Node ID is a number
+IPAM in Contiv/VPP is based on the concept of **Node ID**. The Node ID is a number
 that uniquely identifies a node in the k8s cluster. The first node is assigned
 the ID of 1, the second node 2, etc. If a node leaves the cluster, its 
 ID is released back to the pool and will be re-used by the next node.
 
 The Node ID is used to calculate per-node IP subnets for PODs
-and other internal subnets that need to be unique on each node. Apart from Node ID,
+and other internal subnets that need to be unique on each node. Apart from the Node ID,
 the input for IPAM calculations is a set of config knobs, which can be specified
 in the `IPAMConfig` section of the [Contiv/VPP deployment YAML](../k8s/contiv-vpp.yaml):
 
@@ -40,7 +40,7 @@ The only requirement is that this subnet should not collide with any other IPAM 
 
 - **VPPHostSubnetCIDR** (default `172.30.0.0/16`): used for addressing 
 the interconnect of the VPP with the Linux network stack within the same node. 
-Since this subnet needs to  be unique on each node, Node ID is used to determine 
+Since this subnet needs to  be unique on each node, the Node ID is used to determine 
 the actual subnet used on the node with the combination of `VPPHostNetworkPrefixLen`, 
 similarly as for the `PodSubnetCIDR` and `PodNetworkPrefixLen`.
 
@@ -51,14 +51,14 @@ With `VPPHostSubnetCIDR = 172.30.0.0/16`, `VPPHostNetworkPrefixLen = 24` and
 
 - **NodeInterconnectCIDR** (default `192.168.16.0/24`): range for the addresses 
 assigned to the data plane interfaces managed by VPP. Unless DHCP is used 
-(`NodeInterconnectDHCP = True`), Contiv control plane automatically assigns
-an IP address from this range to the DPDK-managed ethernet interface bound to VPP 
+(`NodeInterconnectDHCP = True`), Contiv/VPP control plane automatically assigns
+an IP address from this range to the DPDK-managed ethernet interface bound to the VPP 
 on each node. The actual IP address will be calculated from the Node ID, e.g. with 
 `NodeInterconnectCIDR = 192.168.16.0/24` and `NodeID = 5` the resulting IP
 address assigned to ethernet interface on VPP will be `192.168.16.5`.
 
 - **NodeInterconnectDHCP** (default `False`): instead of assigning the IPs
-for data plane interfaces managed by VPP from the `NodeInterconnectCIDR` by Contiv
+for the data plane interfaces managed by VPP from the `NodeInterconnectCIDR` by Contiv/VPP
 control plane, use DHCP that must be running in the network where the data
 plane interface is connected to. In case that `NodeInterconnectDHCP = True`,
 `NodeInterconnectCIDR` is ignored.
@@ -73,14 +73,14 @@ interface will be `192.168.30.5`.
 
 
 ## VPP Programming
-This section describes how Contiv/VPP control plane programs VPP based on the
-events it receives from k8s. It is not necessarily needed to understand this
+This section describes how Contiv/VPP control plane programs the VPP based on the
+events it receives from k8s. It is not necessarily needed to understand this section
 for basic operation of Contiv/VPP, but it can be very useful for debugging purposes.
 
 Contiv/VPP currently uses a single VRF to forward the traffic between PODs on a node,
 PODs on different nodes, host network stack and DPDK-managed dataplane interface. The forwarding
-between each of them is purely L3-based, even for case of the communication
-between 2 PODs within the same node, which seem to be on a single subnet.
+between each of them is purely L3-based, even for case of communication
+between 2 PODs within the same node.
 
 #### DPDK-managed data interface
 In order to allow inter-node communication between PODs on different
@@ -89,19 +89,59 @@ bound to VPP using DPDK. Each node should have one "main" VPP interface,
 which is unbound from the host network stack and bound to VPP.
 Contiv/VPP control plane automatically configures the interface either
 via DHCP, or with statically assigned address (see `NodeInterconnectCIDR` and
-`NodeInterconnectDHCP` yaml settings).
-
-#### Linux host network stack
-TODO
+`NodeInterconnectDHCP` yaml settings). 
 
 #### PODs on the same node
-TODO
+PODs are connected to VPP using virtio-based TAP interfaces created by VPP,
+with POD-end of the interface placed into the POD container network namespace.
+Each POD is assigned an IP address from the `PodSubnetCIDR`. The allocated IP
+is configured with the prefix length `/32`. Additionally, a static route pointing 
+towards the VPP is configured in the POD network namespace. 
+The  prefix length `/32` means that all IP traffic will be forwarded to the
+default route - VPP. To get rid of unnecessary broadcasts between POD and VPP,
+a static ARP entry is configured for the gateway IP in the POD namespace, as well
+as for POD IP on VPP. Both ends of the TAP interface have a static (non-default) 
+MAC address applied.
 
 #### PODs with hostNetwork=true
-TODO
+PODs with `hostNetwork=true` attribute are not placed into a separate network namespace
+- they use the main host Linux network namespace. Therefore, they are not directly connected
+to the VPP. They rely on the interconnection between the VPP and the host Linux network stack,
+which is described in the next paragraph. Note that in case that these PODs access some service IP,
+their network communication will be NATed in Linux (by iptables rules programmed by kube-proxy)
+as opposed to VPP, which is the case for the PODs connected to VPP directly.
+
+#### Linux host network stack
+In order to interconnect the Linux host network stack with the VPP (to allow the access
+to the cluster resources from the host itself, as well as for the PODs with `hostNetwork=true`),
+VPP creates a TAP interface between VPP and the main network namespace. It is configured with 
+an IP addresses from the `VPPHostSubnetCIDR` range, with `.1` in the latest octet on the VPP side, 
+and `.2` on the host side. The name of the host interface is `vpp1`. The host has two static routes
+pointing to VPP configured: a route to the whole `PodSubnetCIDR` to route traffic targeting
+PODs towards VPP and a route to `ServiceCIDR` (default `10.96.0.0/12`), to route service IP
+targeted traffic that has not been translated by kube-proxy for some reason towards VPP.
+To get rid of unnecessary broadcasts between the main network namespace and VPP, the host
+also has a static ARP entry configured for the IP of the VPP-end TAP interface.
 
 #### VXLANs to other nodes
-TODO
+In order to provide inter-node POD to POD connectivity via any underlay network 
+(not necessarily a L2 network), Contiv/VPP sets up a VXLAN tunnel overlay between 
+each 2 nodes within the cluster (full mesh). 
+
+All VXLAN tunnels are terminated in one bridge domain on each VPP. The bridge domain
+has learning and flooding disabled, the l2fib of the bridge domain is filled in with 
+a static entry for each VXLAN tunnel. Each bridge domain has a BVI interface which
+interconnects the bridge domain with the main VRF (L3 forwarding). This interface needs
+an unique IP address, which is assigned from the `VxlanCIDR` as describe above.
+
+The main VRF contains several static routes that point to the BVI IP addresses of other nodes.
+For each node, it is a route to PODSubnet and VppHostSubnet of the remote node, as well as a route
+to the management IP address of the remote node. For each of these routes, the next hop IP is the
+BVI interface IP of the remote node, which goes via the BVI interface of the local node.
+
+The VXLAN tunnels and the static routes pointing to them are added/deleted on each VPP,
+whenever a node is added/deleted in the k8s cluster.
+
 
 #### More info
 Please refer to the [Packet Flow Dev Guide](dev-guide/PACKET_FLOW.md) for more 

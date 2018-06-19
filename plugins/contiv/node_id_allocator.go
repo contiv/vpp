@@ -70,12 +70,12 @@ func newIDAllocator(etcd *etcd.Plugin, nodeName string, nodeIP string) *idAlloca
 }
 
 // getID returns unique number for the given node
-func (ia *idAllocator) getID() (id uint8, err error) {
+func (ia *idAllocator) getID() (id uint32, err error) {
 	ia.Lock()
 	defer ia.Unlock()
 
 	if ia.allocated {
-		return uint8(ia.ID), nil
+		return ia.ID, nil
 	}
 
 	// check if there is already assign ID for the serviceLabel
@@ -87,7 +87,7 @@ func (ia *idAllocator) getID() (id uint8, err error) {
 	if existingEntry != nil {
 		ia.allocated = true
 		ia.ID = existingEntry.Id
-		return uint8(ia.ID), nil
+		return ia.ID, nil
 	}
 
 	attempts := 0
@@ -115,7 +115,7 @@ func (ia *idAllocator) getID() (id uint8, err error) {
 		}
 	}
 
-	return uint8(ia.ID), nil
+	return ia.ID, nil
 }
 
 func (ia *idAllocator) updateIP(newIP string) error {

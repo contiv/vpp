@@ -17,7 +17,6 @@ package containeridx
 import (
 	"github.com/contiv/vpp/mock/broker"
 	"github.com/contiv/vpp/plugins/contiv/containeridx/model"
-	"github.com/ligato/cn-infra/core"
 	"github.com/ligato/cn-infra/logging/logrus"
 	"github.com/onsi/gomega"
 	"testing"
@@ -26,7 +25,7 @@ import (
 func TestPersistingAllocatedIPs(t *testing.T) {
 	gomega.RegisterTestingT(t)
 	broker := &broker.MockBroker{}
-	idx := NewConfigIndex(logrus.DefaultLogger(), core.PluginName("test"), "title", broker)
+	idx := NewConfigIndex(logrus.DefaultLogger(), "title", broker)
 	gomega.Expect(idx).NotTo(gomega.BeNil())
 
 	// register three containers
@@ -55,7 +54,7 @@ func TestPersistingAllocatedIPs(t *testing.T) {
 	gomega.Expect(broker.Keys()).To(gomega.ContainElement(container.Key("third")))
 
 	// load data by another configIndex instance
-	anotherIdx := NewConfigIndex(logrus.DefaultLogger(), core.PluginName("test"), "title2", broker)
+	anotherIdx := NewConfigIndex(logrus.DefaultLogger(), "title2", broker)
 	gomega.Expect(anotherIdx).NotTo(gomega.BeNil())
 
 	_, found, err = anotherIdx.UnregisterContainer("third")

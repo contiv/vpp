@@ -28,7 +28,7 @@ import (
 	"github.com/contiv/vpp/plugins/policy/renderer"
 	"github.com/contiv/vpp/plugins/policy/renderer/cache"
 	vpptcprule "github.com/contiv/vpp/plugins/policy/renderer/vpptcp/rule"
-	"github.com/ligato/vpp-agent/plugins/defaultplugins/common/bin_api/session"
+	"github.com/ligato/vpp-agent/plugins/vpp/binapi/session"
 )
 
 // Renderer renders Contiv Rules into VPP Session rules.

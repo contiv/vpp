@@ -17,6 +17,7 @@
 package nat44
 
 import (
+	"net"
 	"strings"
 	"time"
 
@@ -27,16 +28,15 @@ import (
 	"github.com/ligato/cn-infra/logging"
 
 	"github.com/ligato/vpp-agent/clientv1/linux"
-	"github.com/ligato/vpp-agent/plugins/defaultplugins"
-	"github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/nat"
+	"github.com/ligato/vpp-agent/plugins/vpp"
+	"github.com/ligato/vpp-agent/plugins/vpp/model/nat"
 
 	"github.com/contiv/vpp/plugins/contiv"
 	"github.com/contiv/vpp/plugins/service/renderer"
 
 	govpp "git.fd.io/govpp.git/api"
 	"github.com/contiv/vpp/plugins/statscollector"
-	nat_api "github.com/ligato/vpp-agent/plugins/defaultplugins/common/bin_api/nat"
-	"net"
+	nat_api "github.com/ligato/vpp-agent/plugins/vpp/binapi/nat"
 	"sync/atomic"
 )
 
@@ -106,9 +106,9 @@ type Renderer struct {
 // Deps lists dependencies of the Renderer.
 type Deps struct {
 	Log           logging.Logger
-	VPP           defaultplugins.API /* for DumpNat44Global & DumpNat44DNat */
-	Contiv        contiv.API         /* for GetNatLoopbackIP, GetServiceLocalEndpointWeight */
-	NATTxnFactory func() (dsl linux.DataChangeDSL)
+	VPP           vpp.API    /* for DumpNat44Global & DumpNat44DNat */
+	Contiv        contiv.API /* for GetNatLoopbackIP, GetServiceLocalEndpointWeight */
+	NATTxnFactory func() (dsl linuxclient.DataChangeDSL)
 	LatestRevs    *syncbase.PrevRevisions
 	GoVPPChan     *govpp.Channel     /* used for direct NAT binary API calls */
 	Stats         statscollector.API /* used for exporting the statistics */

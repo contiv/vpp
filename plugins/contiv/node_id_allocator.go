@@ -23,7 +23,7 @@ import (
 	"github.com/contiv/vpp/flavors/ksr"
 	"github.com/contiv/vpp/plugins/contiv/model/node"
 	"github.com/ligato/cn-infra/db/keyval"
-	"github.com/ligato/cn-infra/db/keyval/etcdv3"
+	"github.com/ligato/cn-infra/db/keyval/etcd"
 	"github.com/ligato/cn-infra/servicelabel"
 	"strconv"
 	"strings"
@@ -46,7 +46,7 @@ var (
 // the allocation is inserted)
 type idAllocator struct {
 	sync.Mutex
-	etcd   *etcdv3.Plugin
+	etcd   *etcd.Plugin
 	broker keyval.ProtoBroker
 
 	allocated bool
@@ -60,7 +60,7 @@ type idAllocator struct {
 }
 
 // newIDAllocator creates new instance of idAllocator
-func newIDAllocator(etcd *etcdv3.Plugin, nodeName string, nodeIP string) *idAllocator {
+func newIDAllocator(etcd *etcd.Plugin, nodeName string, nodeIP string) *idAllocator {
 	return &idAllocator{
 		etcd:     etcd,
 		broker:   etcd.NewBroker(servicelabel.GetDifferentAgentPrefix(ksr.MicroserviceLabel)),
@@ -70,12 +70,12 @@ func newIDAllocator(etcd *etcdv3.Plugin, nodeName string, nodeIP string) *idAllo
 }
 
 // getID returns unique number for the given node
-func (ia *idAllocator) getID() (id uint8, err error) {
+func (ia *idAllocator) getID() (id uint32, err error) {
 	ia.Lock()
 	defer ia.Unlock()
 
 	if ia.allocated {
-		return uint8(ia.ID), nil
+		return ia.ID, nil
 	}
 
 	// check if there is already assign ID for the serviceLabel
@@ -87,7 +87,7 @@ func (ia *idAllocator) getID() (id uint8, err error) {
 	if existingEntry != nil {
 		ia.allocated = true
 		ia.ID = existingEntry.Id
-		return uint8(ia.ID), nil
+		return ia.ID, nil
 	}
 
 	attempts := 0
@@ -115,7 +115,7 @@ func (ia *idAllocator) getID() (id uint8, err error) {
 		}
 	}
 
-	return uint8(ia.ID), nil
+	return ia.ID, nil
 }
 
 func (ia *idAllocator) updateIP(newIP string) error {

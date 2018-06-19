@@ -242,7 +242,7 @@ func (plugin *Plugin) monitorEtcdStatus(closeCh chan struct{}) {
 		case <-time.After(1 * time.Second):
 			sts := plugin.StatusMonitor.GetAllPluginStatus()
 			for k, v := range sts {
-				if k == "etcdv3" {
+				if k == "etcd" {
 					plugin.etcdMonitor.processEtcdMonitorEvent(v.State)
 					plugin.etcdMonitor.checkEtcdTransientError()
 					break

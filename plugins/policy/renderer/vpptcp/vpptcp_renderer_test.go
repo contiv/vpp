@@ -16,14 +16,13 @@ package vpptcp
 
 import (
 	"net"
+	"os"
 	"testing"
 
 	"github.com/onsi/gomega"
 
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/logging/logrus"
-
-	"os"
 
 	. "github.com/contiv/vpp/mock/contiv"
 	. "github.com/contiv/vpp/mock/sessionrules"

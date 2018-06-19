@@ -34,20 +34,19 @@ import (
 	"github.com/contiv/vpp/plugins/kvdbproxy"
 	"github.com/golang/protobuf/proto"
 
-	"github.com/ligato/cn-infra/core"
 	"github.com/ligato/cn-infra/logging/logrus"
 	"github.com/ligato/vpp-agent/idxvpp/nametoidx"
-	"github.com/ligato/vpp-agent/plugins/defaultplugins/common/bin_api/af_packet"
-	"github.com/ligato/vpp-agent/plugins/defaultplugins/common/bin_api/dhcp"
-	interfaces_bin "github.com/ligato/vpp-agent/plugins/defaultplugins/common/bin_api/interfaces"
-	"github.com/ligato/vpp-agent/plugins/defaultplugins/common/bin_api/ip"
-	"github.com/ligato/vpp-agent/plugins/defaultplugins/common/bin_api/memif"
-	"github.com/ligato/vpp-agent/plugins/defaultplugins/common/bin_api/tap"
-	"github.com/ligato/vpp-agent/plugins/defaultplugins/common/bin_api/vpe"
-	"github.com/ligato/vpp-agent/plugins/defaultplugins/common/bin_api/vxlan"
-	vpp_intf "github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/interfaces"
-	vpp_l3 "github.com/ligato/vpp-agent/plugins/defaultplugins/common/model/l3"
-	"github.com/ligato/vpp-agent/plugins/defaultplugins/ifplugin/ifaceidx"
+	"github.com/ligato/vpp-agent/plugins/vpp/binapi/af_packet"
+	"github.com/ligato/vpp-agent/plugins/vpp/binapi/dhcp"
+	interfaces_bin "github.com/ligato/vpp-agent/plugins/vpp/binapi/interfaces"
+	"github.com/ligato/vpp-agent/plugins/vpp/binapi/ip"
+	"github.com/ligato/vpp-agent/plugins/vpp/binapi/memif"
+	"github.com/ligato/vpp-agent/plugins/vpp/binapi/tap"
+	"github.com/ligato/vpp-agent/plugins/vpp/binapi/vpe"
+	"github.com/ligato/vpp-agent/plugins/vpp/binapi/vxlan"
+	"github.com/ligato/vpp-agent/plugins/vpp/ifplugin/ifaceidx"
+	vpp_intf "github.com/ligato/vpp-agent/plugins/vpp/model/interfaces"
+	vpp_l3 "github.com/ligato/vpp-agent/plugins/vpp/model/l3"
 
 	"github.com/contiv/vpp/plugins/contiv/ipam"
 	"github.com/ligato/cn-infra/datasync"
@@ -141,7 +140,7 @@ func setupTestCNIServer(config *Config, nodeConfig *OneNodeConfig, existingInter
 	}
 
 	txns := localclient.NewTxnTracker(addIfsIntoTheIndex(swIfIdx))
-	configuredContainers := containeridx.NewConfigIndex(logrus.DefaultLogger(), core.PluginName("Plugin-name"), "title", nil)
+	configuredContainers := containeridx.NewConfigIndex(logrus.DefaultLogger(), "title", nil)
 
 	vppMockChan, vppMockConn := vppChanMock()
 
@@ -162,6 +161,36 @@ func setupTestCNIServer(config *Config, nodeConfig *OneNodeConfig, existingInter
 	gomega.Expect(err).To(gomega.BeNil())
 
 	return server, txns, configuredContainers, vppMockConn
+}
+
+func TestHwAddress(t *testing.T) {
+	gomega.RegisterTestingT(t)
+
+	server, _, _, conn := setupTestCNIServer(&configVethL2NoTCP, nil)
+	defer conn.Disconnect()
+
+	var addresses []string
+
+	checkUniqueness := func(existing []string, nodeID uint32) (updated []string) {
+		a := server.hwAddrForVXLAN(nodeID)
+		fmt.Println(a)
+		gomega.Expect(existing).NotTo(gomega.ContainElement(a))
+		return append(addresses, a)
+	}
+
+	// the first valid value
+	addresses = checkUniqueness(addresses, 1)
+	addresses = checkUniqueness(addresses, 2)
+	// max value generated in backward compatible way
+	addresses = checkUniqueness(addresses, 255)
+
+	addresses = checkUniqueness(addresses, 256)
+	addresses = checkUniqueness(addresses, 257)
+	addresses = checkUniqueness(addresses, 512)
+
+	// max value
+	addresses = checkUniqueness(addresses, 256*256*256*256-1)
+
 }
 
 func TestAddDelVeth(t *testing.T) {
@@ -354,7 +383,7 @@ func TestNodeAddDelVXLAN(t *testing.T) {
 	gomega.Expect(otherNodeInfo.IpAddress).To(gomega.ContainSubstring(vxlanIf.Vxlan.DstAddress))
 
 	// check routes to the other node pointing to VXLAN IP
-	nexthopIP, _ := server.ipam.VxlanIPAddress(uint8(otherNodeInfo.Id))
+	nexthopIP, _ := server.ipam.VxlanIPAddress(otherNodeInfo.Id)
 	routes := routesViaInLatestRevs(txns.LatestRevisions, nexthopIP.String())
 	gomega.Expect(len(routes)).To(gomega.BeEquivalentTo(3))
 
@@ -490,13 +519,13 @@ func addIfsIntoTheIndex(mapping ifaceidx.SwIfIndexRW) func(txn *localclient.Txn,
 }
 
 func swIfIndexMock() ifaceidx.SwIfIndexRW {
-	mapping := nametoidx.NewNameToIdx(logrus.DefaultLogger(), "plugin", "swIf", ifaceidx.IndexMetadata)
+	mapping := nametoidx.NewNameToIdx(logrus.DefaultLogger(), "swIf", ifaceidx.IndexMetadata)
 
 	return ifaceidx.NewSwIfIndex(mapping)
 }
 
 func dhcpIndexMock() ifaceidx.DhcpIndex {
-	mapping := nametoidx.NewNameToIdx(logrus.DefaultLogger(), "plugin", "dhcpIf", ifaceidx.IndexDHCPMetadata)
+	mapping := nametoidx.NewNameToIdx(logrus.DefaultLogger(), "dhcpIf", ifaceidx.IndexDHCPMetadata)
 
 	return ifaceidx.NewDHCPIndex(mapping)
 }

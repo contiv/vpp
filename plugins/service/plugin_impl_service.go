@@ -27,7 +27,7 @@ import (
 
 	"github.com/ligato/vpp-agent/clientv1/linux"
 	"github.com/ligato/vpp-agent/clientv1/linux/localclient"
-	"github.com/ligato/vpp-agent/plugins/defaultplugins"
+	"github.com/ligato/vpp-agent/plugins/vpp"
 
 	"github.com/contiv/vpp/plugins/contiv"
 	"github.com/contiv/vpp/plugins/service/processor"
@@ -72,7 +72,7 @@ type Deps struct {
 	Resync  resync.Subscriber
 	Watcher datasync.KeyValProtoWatcher /* prefixed for KSR-published K8s state data */
 	Contiv  contiv.API                  /* to get the Node IP and all interface names */
-	VPP     defaultplugins.API          /* interface indexes && IP addresses */
+	VPP     vpp.API                     /* interface indexes && IP addresses */
 	GoVPP   govppmux.API                /* used for direct NAT binary API calls */
 	Stats   statscollector.API          /* used for exporting the statistics */
 }
@@ -106,7 +106,7 @@ func (p *Plugin) Init() error {
 			VPP:       p.VPP,
 			Contiv:    p.Contiv,
 			GoVPPChan: goVppCh,
-			NATTxnFactory: func() linux.DataChangeDSL {
+			NATTxnFactory: func() linuxclient.DataChangeDSL {
 				return localclient.DataChangeRequest(p.PluginName)
 			},
 			LatestRevs: kvdbsync_local.Get().LastRev(),

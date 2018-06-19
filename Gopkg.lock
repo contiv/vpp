@@ -756,6 +756,7 @@
     "plugins/linux/model/interfaces",
     "plugins/linux/model/l3",
     "plugins/linux/nsplugin",
+    "plugins/telemetry",
     "plugins/vpp",
     "plugins/vpp/aclplugin",
     "plugins/vpp/aclplugin/aclidx",
@@ -1669,6 +1670,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "59f8c09d4b9a3bda62f85ba7fb4ff0406a1ac5566af8bfaf9e9a3bc4ce56ac10"
+  inputs-digest = "8a4e85f4ddf8c48a424bda922abdb74eeb1f06f3627d141e46d0edcf6d622186"
   solver-name = "gps-cdcl"
   solver-version = 1

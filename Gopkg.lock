@@ -18,7 +18,7 @@
     "core",
     "core/bin_api/vpe"
   ]
-  revision = "0456d22f67865977065886ed58778621b21b7ede"
+  revision = "e44d8c3905e22f940a100e6331a45412cba9d47e"
 
 [[projects]]
   branch = "master"
@@ -787,7 +787,7 @@
     "plugins/linuxplugin/l3plugin/linuxcalls",
     "plugins/linuxplugin/nsplugin"
   ]
-  revision = "022c3e91fcd2cfa1b584a34ca6f4dbd223fda810"
+  revision = "5b352eca78514f98c82713d03aecf1d4fbedcec4"
 
 [[projects]]
   branch = "master"
@@ -1637,6 +1637,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "0bae4a111ce5a0f53cc99c6fcfa3bc0959788c68b9c85b0790caeb479c052a0a"
+  inputs-digest = "490227283f44e9e77081e2d534914b3c2b05a41aef4508f75c02eb603b03e2d6"
   solver-name = "gps-cdcl"
   solver-version = 1

@@ -76,7 +76,7 @@ func configureVpp(contivCfg *contiv.Config, stnData *stn.STNReply, useDHCP bool)
 
 	// connect to VPP
 	govpp.SetControlPingMessages(&vpe.ControlPing{}, &vpe.ControlPingReply{})
-	conn, connChan, err := govpp.AsyncConnect(govppmux.NewVppAdapter())
+	conn, connChan, err := govpp.AsyncConnect(govppmux.NewVppAdapter(""))
 	if err != nil {
 		logger.Errorf("Error by connecting to VPP: %v", err)
 		return nil, err

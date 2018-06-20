@@ -14,6 +14,8 @@ usage() {
     echo
     echo "Available options:"
     echo
+    echo "-a               Show and validate ARP tables."
+    echo
     echo "-d <report-dir>  Directory with the unzipped bug report collected by the "
     echo "                 'cont-vpp-bug-report.sh' script."
     echo
@@ -57,17 +59,19 @@ check_name() {
     return 0
 }
 
-# K8s file names
+# k8s file names
 NODES_FILE="k8s-nodes.txt"
-PODS_FILE="K8s-pods.txt"
+PODS_FILE="k8s-pods.txt"
 # VPP file names
 VPP_IP_ADDR_FILE="vpp-interface-address.log"
 VPP_MAC_ADDR_FILE="vpp-hardware-info.log"
 VPP_VXLAN_FILE="vpp-vxlan-tunnels.log"
 VPP_L2FIB_FILE="vpp-l2-fib.log"
+VPP_IP_ARP_FILE="vpp-ip-arp.log"
 
 SHOW_PODS=0
 SHOW_NETWORK=0
+SHOW_ARP=0
 
 NODE_NAMES=()
 PRINT_POD_LINES=()
@@ -79,9 +83,11 @@ declare -A NODE_GIGE_IP     # Map <node-name>:<vpp-gige-ip> used to validate VXL
 declare -A MAC_LOOP_NODE    # Map <mac-addr>:<node-name> used for L2FIB validation
 declare -A MAC_LOOP_IP
 
-while getopts "d:hnp" opt
+while getopts "ad:hnps" opt
 do
     case "$opt" in
+    a)  SHOW_ARP=1
+        ;;
     d)  REPORT_DIR=$OPTARG
         ;;
     h)
@@ -104,7 +110,13 @@ done
 pushd "$REPORT_DIR" > /dev/null
 
 # Get all nodes in the cluster and their host IP addresses
-NODES=$(cat "$NODES_FILE" | grep -v "NAME")
+NODES=$( cat "$NODES_FILE" | grep -v "NAME" ) || true
+if [ -z "$NODES" ]
+then
+    echo "Missing or empty vxlan tunnel log: '$nn"/"$NODES'"
+    exit 1
+fi
+
 readarray -t NODE_LINES <<< "$NODES"
 
 for l in "${NODE_LINES[@]}"
@@ -116,7 +128,13 @@ done
 
 if [ "$SHOW_PODS" == "1" ]
 then
-    PODS=$(cat "$PODS_FILE")
+    PODS=$( cat "$PODS_FILE" ) || true
+    if [ -z "$PODS" ]
+    then
+        echo "Missing or empty pods log: '$nn"/"$PODS'"
+        exit 1
+    fi
+
     readarray -t POD_LINES <<< "$PODS"
 
     HDR=$( echo "${POD_LINES[0]}" | sed -e "s/IP    /POD-IP/g" | sed -e "s/NODE/VPP-IF/g" )
@@ -124,8 +142,8 @@ then
 fi
 
 # Print header
-NODE_NAME_LEN=$(max_string_length "${NODE_NAMES[@]}")
-HOST_IP_LEN=$(max_string_length "${NODE_HOST_IP[@]}")
+NODE_NAME_LEN=$( max_string_length "${NODE_NAMES[@]}" )
+HOST_IP_LEN=$( max_string_length "${NODE_HOST_IP[@]}" )
 FORMAT_STRING=$( echo %-"$NODE_NAME_LEN""s   %-""$HOST_IP_LEN""s  %-18s %-18s  %-18s %-18s\n" )
 TOTAL_LEN=$(( $NODE_NAME_LEN + $HOST_IP_LEN + 80 ))
 
@@ -142,8 +160,16 @@ do
     IF_NAMES=()
 
     # Get IP addresses for all interfaces that have an IP address
-    VPP_IP_ADDR=$(cat "$nn"/"$VPP_IP_ADDR_FILE")
+    VPP_IP_ADDR=$( cat "$nn"/"$VPP_IP_ADDR_FILE" ) || true
+    if [ -z "$VPP_IP_ADDR" ]
+    then
+        echo "Missing or empty IP address log: '$nn"/"$VPP_IP_ADDR_FILE'"
+        exit 1
+    fi
+
     readarray -t VPP_IF_IP <<< "$VPP_IP_ADDR"
+
+
     for l in "${VPP_IF_IP[@]}"
     do
         if echo "$l" | grep -q "(up)"
@@ -158,7 +184,12 @@ do
     done
 
     # Get MAC addresses for all interfaces that have an IP address
-    VPP_MAC_ADDR=$(cat "$nn"/"$VPP_MAC_ADDR_FILE" | grep -v "Name" )
+    VPP_MAC_ADDR=$( cat "$nn"/"$VPP_MAC_ADDR_FILE" | grep -v "Name" ) || true
+    if [ -z "$VPP_IP_ADDR" ]
+    then
+        echo "Missing or empty hardware address log: '$nn"/"$VPP_MAC_ADDR_FILE'"
+        exit 1
+    fi
     readarray -t VPP_IF_MAC <<< "$VPP_MAC_ADDR"
     for l in "${VPP_IF_MAC[@]}"
     do
@@ -265,7 +296,13 @@ then
     do
         ERROR_LINES=()
 
-        VXLANS=$( cat "$nn/$VPP_VXLAN_FILE" )
+        VXLANS=$( cat "$nn/$VPP_VXLAN_FILE" ) || true
+        if [ -z "$VXLANS" ]
+        then
+            echo "Missing or empty vxlan tunnel log: '$nn"/"$VXLANS'"
+            exit 1
+        fi
+
         readarray -t VXLAN_LINES <<< "$VXLANS"
 
         unset VXLAN_MAP
@@ -276,7 +313,13 @@ then
             VXLAN_MAP["$IF_IDX"]="$l"
         done
 
-        L2FIB=$( cat "$nn/$VPP_L2FIB_FILE" | grep -v "Mac-Address" | grep -v "L2FIB" )
+        L2FIB=$( cat "$nn/$VPP_L2FIB_FILE" | grep -v "Mac-Address" | grep -v "L2FIB" ) || true
+        if [ -z "$L2FIB" ]
+        then
+            echo "Missing or empty L2FIB table log: '$nn"/"$L2FIB'"
+            exit 1
+        fi
+
         readarray -t L2FIB_LINES <<< "$L2FIB"
 
         # Print node header
@@ -381,5 +424,31 @@ then
             done
         fi
         echo
+    done
+fi
+
+if [ "$SHOW_ARP" == "1" ]
+then
+    echo "======================"
+    echo "VALIDATING ARP TABLES:"
+    echo "======================"
+
+    for nn in "${NODE_NAMES[@]}"
+    do
+        # Print node header
+        printf "%s:\n" "$nn"
+        printf '%0.s-' $( seq 1 $(( ${#nn} + 1 )) )
+        echo
+
+        ARP_TABLE=$( cat "$nn/$VPP_IP_ARP_FILE" ) || true
+        if [ -z "$ARP_TABLE" ]
+        then
+            echo "Missing or empty ARP table log: '$nn"/"$VPP_IP_ARP_FILE'"
+            exit 1
+        fi
+
+        echo "$ARP_TABLE"
+        readarray -t VXLAN_LINES <<< "ARP_TABLE"
+
     done
 fi

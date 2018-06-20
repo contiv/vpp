@@ -57,9 +57,9 @@ check_name() {
     return 0
 }
 
-# K8s file names
+# k8s file names
 NODES_FILE="k8s-nodes.txt"
-PODS_FILE="K8s-pods.txt"
+PODS_FILE="k8s-pods.txt"
 # VPP file names
 VPP_IP_ADDR_FILE="vpp-interface-address.log"
 VPP_MAC_ADDR_FILE="vpp-hardware-info.log"

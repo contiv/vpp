@@ -542,12 +542,19 @@ spec:
               mountPath: /etc/agent
             - name: govpp-plugin-cfg
               mountPath: /etc/govpp
-          {{- if .Values.vswitch.defineMemoryLimits }}
+          {{- if or .Values.vswitch.defineMemoryLimits .Values.vswitch.cpuLimit }}
           resources:
-             limits:
-               hugepages-2Mi: {{ .Values.vswitch.hugePages2miLimit }}
-               memory: {{ .Values.vswitch.memoryLimit }}
+            limits:
           {{- end }}
+            {{- if .Values.vswitch.defineMemoryLimits }}
+              hugepages-2Mi: {{ .Values.vswitch.hugePages2miLimit }}
+              memory: {{ .Values.vswitch.memoryLimit }}
+            {{- end }}
+            {{- if .Values.vswitch.cpuLimit }}
+              cpu: {{ .Values.vswitch.cpuLimit }}
+            requests:
+              cpu: {{ .Values.vswitch.cpuLimit }}
+            {{- end }}
 
       volumes:
         # Used to connect to contiv-etcd.

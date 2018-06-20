@@ -86,6 +86,7 @@ vswitch:
   hugePages2miLimit: 1024Mi
   memoryLimit: 1024Mi
   updateStrategy: RollingUpdate
+  cpuLimit: 0
 
 cni:
   image:

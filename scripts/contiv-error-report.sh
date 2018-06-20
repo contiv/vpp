@@ -91,7 +91,7 @@ do
     then
         echo "Vswitch log:"
         echo "------------"
-        cat "$nn"/"$VSWITCH_LOG_FILE_NAME" | grep -n "$SEARCH_STRING"
+        cat "$nn"/"$VSWITCH_LOG_FILE_NAME" | grep -n "$SEARCH_STRING" || true
     else
         echo "Logfile for contiv-vswitch not present."
     fi

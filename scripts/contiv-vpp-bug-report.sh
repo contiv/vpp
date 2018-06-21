@@ -104,11 +104,64 @@ get_shell_data_ssh() {
     ssh "$SSH_USER@$NODE_NAME" "${SSH_OPTS[@]}" "$@" > "$log" || true
 }
 
+read_shell_data_local() {
+    "$@" || true
+}
+
+read_shell_data_ssh() {
+    ssh "$SSH_USER@$NODE_NAME" "${SSH_OPTS[@]}" "$@" || true
+}
+
+read_node_shell_data() {
+    if [ "$USE_SSH" = "1" ]
+    then
+        read_shell_data_ssh $@
+    else
+        read_shell_data_local $@
+    fi
+}
+
 get_k8s_data() {
     log="$1"
     shift
     echo " - kubectl $*"
     master_kubectl "$@"> "$log"
+}
+
+save_container_nw_report() {
+    # generates Docker container network report for the $NODE_NAME into the $CONTAINER_NW_REPORT_FILE
+    # for each docker container, prints out its interfaces, routing table and ARP table
+    echo " - ${CONTAINER_NW_REPORT_FILE}"
+
+    # get ID + NAME of each container except the pause containers
+    CONTAINERS_TXT=$(read_node_shell_data "sudo docker ps --format '{{.ID}} {{.Names}}' | grep -v pause")
+    while read -r line; do CONTAINERS+=( "$line" ); done <<< "$CONTAINERS_TXT"
+
+    # return in case of no container data (e.g. issues with executing sudo)
+    if [ -z "${CONTAINERS}" ]; then
+        return
+    fi
+
+    # loop over each container
+    for CONTAINER_DATA in "${CONTAINERS[@]}"
+    do
+        # split CONTAINER_DATA to container ID and container Name
+        IFS=' ' read -ra CINFO <<< "$CONTAINER_DATA"
+
+        echo "" >> "${CONTAINER_NW_REPORT_FILE}"
+        echo "Container ${CINFO[1]}" >> "${CONTAINER_NW_REPORT_FILE}"
+
+        PID=$(read_node_shell_data "sudo docker inspect --format '{{.State.Pid}}' ${CINFO[0]}")
+        ADDR=$(read_node_shell_data "sudo nsenter -t ${PID} -n ip addr")
+
+        if [[ $ADDR = *"vpp1:"* ]]; then
+            echo "Host networking" >> "${CONTAINER_NW_REPORT_FILE}"
+        else
+            echo "$ADDR" >> container-report.txt
+            read_node_shell_data "sudo nsenter -t ${PID} -n ip route" >> "${CONTAINER_NW_REPORT_FILE}"
+            read_node_shell_data "sudo nsenter -t ${PID} -n arp -na" >> "${CONTAINER_NW_REPORT_FILE}"
+        fi
+    done
 }
 
 # We need associative arrays, introduced back in 2009 with bash 4.x.
@@ -133,6 +186,7 @@ WARNINGS=1
 TIMESTAMP="$(date '+%Y-%m-%d-%H-%M')"
 REPORT_DIR="contiv-vpp-bug-report-$TIMESTAMP"
 STDERR_LOGFILE="script-stderr.log"
+CONTAINER_NW_REPORT_FILE="container-report.txt"
 
 # What we want to collect is defined globally in arrays, because sometimes we need to use multiple methods of
 # collection.  The array key is the name of the log file for the given command.
@@ -160,6 +214,7 @@ declare -A LOCAL_COMMANDS
 LOCAL_COMMANDS["linux-ip-route.log"]="ip route"
 LOCAL_COMMANDS["contiv-stn.log"]='CONTAINER=$(sudo docker ps --filter name=contiv-stn --format "{{.ID}}") && [ -n "$CONTAINER" ] && sudo docker logs "$CONTAINER"'
 LOCAL_COMMANDS["vswitch-version.log"]="curl -m 2 localhost:9999/liveness"
+LOCAL_COMMANDS["docker-ps.log"]="sudo docker ps"
 
 declare -A ETCD_COMMANDS
 ETCD_COMMANDS["etcd-tree.log"]="export ETCDCTL_API=3 && etcdctl --endpoints=127.0.0.1:32379 get / --prefix=true"
@@ -329,6 +384,9 @@ then
                 get_shell_data_ssh "$CMD_INDEX" ${LOCAL_COMMANDS[$CMD_INDEX]} </dev/null
             done
 
+            # save container network report for this node
+            save_container_nw_report
+
             echo
             popd >/dev/null
         done
@@ -343,6 +401,9 @@ then
             # Intentional word split on command, because bash doesn't support arrays of arrays.
             get_shell_data_local "$CMD_INDEX" ${LOCAL_COMMANDS[$CMD_INDEX]}
         done
+
+        # save container network report for the host
+        save_container_nw_report
 
         echo
         popd >/dev/null

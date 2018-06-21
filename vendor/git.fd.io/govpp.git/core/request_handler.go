@@ -56,7 +56,7 @@ func (c *Connection) processRequest(ch *api.Channel, chMeta *channelMetadata, re
 	if atomic.LoadUint32(&c.connected) == 0 {
 		err := ErrNotConnected
 		log.Error(err)
-		sendReply(ch, &api.VppReply{Error: err})
+		sendReply(ch, &api.VppReply{SeqNum: req.SeqNum, Error: err})
 		return err
 	}
 
@@ -68,7 +68,7 @@ func (c *Connection) processRequest(ch *api.Channel, chMeta *channelMetadata, re
 			"msg_name": req.Message.GetMessageName(),
 			"msg_crc":  req.Message.GetCrcString(),
 		}).Error(err)
-		sendReply(ch, &api.VppReply{Error: err})
+		sendReply(ch, &api.VppReply{SeqNum: req.SeqNum, Error: err})
 		return err
 	}
 
@@ -80,7 +80,7 @@ func (c *Connection) processRequest(ch *api.Channel, chMeta *channelMetadata, re
 			"context": chMeta.id,
 			"msg_id":  msgID,
 		}).Error(err)
-		sendReply(ch, &api.VppReply{Error: err})
+		sendReply(ch, &api.VppReply{SeqNum: req.SeqNum, Error: err})
 		return err
 	}
 
@@ -100,14 +100,15 @@ func (c *Connection) processRequest(ch *api.Channel, chMeta *channelMetadata, re
 	}
 
 	// send the request to VPP
-	err = c.vpp.SendMsg(chMeta.id, data)
+	context := packRequestContext(chMeta.id, req.SeqNum)
+	err = c.vpp.SendMsg(context, data)
 	if err != nil {
-		err = fmt.Errorf("unable to send the messge: %v", err)
+		err = fmt.Errorf("unable to send the message: %v", err)
 		log.WithFields(logger.Fields{
-			"context": chMeta.id,
+			"context": context,
 			"msg_id":  msgID,
 		}).Error(err)
-		sendReply(ch, &api.VppReply{Error: err})
+		sendReply(ch, &api.VppReply{SeqNum: req.SeqNum, Error: err})
 		return err
 	}
 
@@ -116,12 +117,12 @@ func (c *Connection) processRequest(ch *api.Channel, chMeta *channelMetadata, re
 		pingData, _ := c.codec.EncodeMsg(msgControlPing, c.pingReqID)
 
 		log.WithFields(logger.Fields{
-			"context":  chMeta.id,
+			"context":  context,
 			"msg_id":   c.pingReqID,
 			"msg_size": len(pingData),
 		}).Debug("Sending a control ping to VPP.")
 
-		c.vpp.SendMsg(chMeta.id, pingData)
+		c.vpp.SendMsg(context, pingData)
 	}
 
 	return nil
@@ -152,8 +153,9 @@ func msgCallback(context uint32, msgID uint16, data []byte) {
 	}
 
 	// match ch according to the context
+	chanID, seqNum := unpackRequestContext(context)
 	conn.channelsLock.RLock()
-	ch, ok := conn.channels[context]
+	ch, ok := conn.channels[chanID]
 	conn.channelsLock.RUnlock()
 
 	if !ok {
@@ -174,6 +176,7 @@ func msgCallback(context uint32, msgID uint16, data []byte) {
 	// send the data to the channel
 	sendReply(ch, &api.VppReply{
 		MessageID:         msgID,
+		SeqNum:            seqNum,
 		Data:              data,
 		LastReplyReceived: lastReplyReceived,
 	})
@@ -253,4 +256,12 @@ func (c *Connection) LookupByID(ID uint16) (string, error) {
 	}
 
 	return "", fmt.Errorf("unknown message ID: %d", ID)
+}
+
+func packRequestContext(chanID uint16, seqNum uint16) uint32 {
+	return (uint32(chanID) << 16) | uint32(seqNum)
+}
+
+func unpackRequestContext(context uint32) (chanID uint16, seqNum uint16) {
+	return uint16(context >> 16), uint16(context & 0xffff)
 }

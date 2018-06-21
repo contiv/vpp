@@ -77,12 +77,12 @@ type Connection struct {
 	msgIDs     map[string]uint16 // map of message IDs indexed by message name + CRC
 
 	channelsLock sync.RWMutex            // lock for the channels map
-	channels     map[uint32]*api.Channel // map of all API channels indexed by the channel ID
+	channels     map[uint16]*api.Channel // map of all API channels indexed by the channel ID
 
 	notifSubscriptionsLock sync.RWMutex                        // lock for the subscriptions map
 	notifSubscriptions     map[uint16][]*api.NotifSubscription // map od all notification subscriptions indexed by message ID
 
-	maxChannelID uint32 // maximum used client ID
+	maxChannelID uint32 // maximum used channel ID (the real limit is 2^16, 32-bit is used for atomic operations)
 	pingReqID    uint16 // ID if the ControlPing message
 	pingReplyID  uint16 // ID of the ControlPingReply message
 
@@ -92,7 +92,7 @@ type Connection struct {
 
 // channelMetadata contains core-local metadata of an API channel.
 type channelMetadata struct {
-	id        uint32 // channel ID
+	id        uint16 // channel ID
 	multipart uint32 // 1 if multipart request is being processed, 0 otherwise
 }
 
@@ -204,7 +204,7 @@ func newConnection(vppAdapter adapter.VppAdapter) (*Connection, error) {
 	conn = &Connection{
 		vpp:                vppAdapter,
 		codec:              &MsgCodec{},
-		channels:           make(map[uint32]*api.Channel),
+		channels:           make(map[uint16]*api.Channel),
 		msgIDs:             make(map[string]uint16),
 		notifSubscriptions: make(map[uint16][]*api.NotifSubscription),
 	}
@@ -370,7 +370,7 @@ func (c *Connection) NewAPIChannelBuffered(reqChanBufSize, replyChanBufSize int)
 	if c == nil {
 		return nil, errors.New("nil connection passed in")
 	}
-	chID := atomic.AddUint32(&c.maxChannelID, 1)
+	chID := uint16(atomic.AddUint32(&c.maxChannelID, 1) & 0xffff)
 	chMeta := &channelMetadata{id: chID}
 
 	ch := api.NewChannelInternal(chMeta)

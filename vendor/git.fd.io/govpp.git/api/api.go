@@ -236,8 +236,9 @@ func (ch *Channel) receiveReplyInternal(msg Message, expSeqNum uint16) (lastRepl
 		ignore, lastReplyReceived, err = ch.processReply(ch.delayedReply, expSeqNum, msg)
 		if ignore {
 			ch.delayedReply = nil
+		} else {
+			return lastReplyReceived, err
 		}
-		return lastReplyReceived, err
 	}
 
 	timer := time.NewTimer(ch.replyTimeout)

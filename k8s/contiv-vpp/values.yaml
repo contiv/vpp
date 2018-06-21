@@ -125,3 +125,8 @@ http:
   serverKey: server.key
   # credentials to be used by basic-auth, format <username>:<password>
   basicAuth: user:pass
+
+init:
+  image:
+    repository: busybox
+    tag: latest

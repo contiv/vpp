@@ -157,7 +157,7 @@ save_container_nw_report() {
         if [[ $ADDR = *"vpp1:"* ]]; then
             echo "Host networking" >> "${CONTAINER_NW_REPORT_FILE}"
         else
-            echo "$ADDR" >> container-report.txt
+            echo "$ADDR" >> "${CONTAINER_NW_REPORT_FILE}"
             read_node_shell_data "sudo nsenter -t ${PID} -n ip route" >> "${CONTAINER_NW_REPORT_FILE}"
             read_node_shell_data "sudo nsenter -t ${PID} -n arp -na" >> "${CONTAINER_NW_REPORT_FILE}"
         fi
@@ -186,7 +186,7 @@ WARNINGS=1
 TIMESTAMP="$(date '+%Y-%m-%d-%H-%M')"
 REPORT_DIR="contiv-vpp-bug-report-$TIMESTAMP"
 STDERR_LOGFILE="script-stderr.log"
-CONTAINER_NW_REPORT_FILE="container-report.txt"
+CONTAINER_NW_REPORT_FILE="container-nw-report.txt"
 
 # What we want to collect is defined globally in arrays, because sometimes we need to use multiple methods of
 # collection.  The array key is the name of the log file for the given command.

@@ -420,7 +420,7 @@ spec:
         env:
           - name: ETCDPORT
             value: {{ .Values.etcd.service.nodePort | quote }}
-        image: busybox
+        image: {{ .Values.init.image.repository }}:{{ .Values.init.image.tag }}
         command: ['sh', '-c', 'until nc -w 2 127.0.0.1:$ETCDPORT; do echo waiting for etcd; sleep 2; done;']
       # This init container extracts/copies VPP LD_PRELOAD libs and default VPP config to the host.
       - name: vpp-init
@@ -671,7 +671,7 @@ spec:
           env:
           - name: ETCDPORT
             value: {{ .Values.etcd.service.nodePort | quote }}
-          image: busybox
+          image: {{ .Values.init.image.repository }}:{{ .Values.init.image.tag }}
           command: ['sh', '-c', 'until nc -w 2 127.0.0.1:$ETCDPORT; do echo waiting for etcd; sleep 2; done;']
 
       containers:

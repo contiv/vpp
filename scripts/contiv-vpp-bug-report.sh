@@ -115,9 +115,9 @@ read_shell_data_ssh() {
 read_node_shell_data() {
     if [ "$USE_SSH" = "1" ]
     then
-        read_shell_data_ssh $@
+        read_shell_data_ssh "$@"
     else
-        read_shell_data_local $@
+        read_shell_data_local "$@"
     fi
 }
 
@@ -133,33 +133,39 @@ save_container_nw_report() {
     # for each docker container, prints out its interfaces, routing table and ARP table
     echo " - ${CONTAINER_NW_REPORT_FILE}"
 
-    # get ID + NAME of each container except the pause containers
-    CONTAINERS_TXT=$(read_node_shell_data "sudo docker ps --format '{{.ID}} {{.Names}}' | grep -v pause")
-    while read -r line; do CONTAINERS+=( "$line" ); done <<< "$CONTAINERS_TXT"
+    # get ID, name and image of each container except from the pause containers
+    containers_txt=$(read_node_shell_data "sudo docker ps --format '{{.ID}} {{.Names}} {{.Image}}' | grep -vE ' [^ ]+/pause-[^ ]+$'")
 
     # return in case of no container data (e.g. issues with executing sudo)
-    if [ -z "${CONTAINERS}" ]; then
+    if [ -z "${containers_txt}" ]
+    then
         return
     fi
 
-    # loop over each container
-    for CONTAINER_DATA in "${CONTAINERS[@]}"
+    containers=()
+    while read -r line
+    do
+        containers+=( "$line" )
+    done <<< "$containers_txt"
+
+    for container_data in "${containers[@]}"
     do
         # split CONTAINER_DATA to container ID and container Name
-        IFS=' ' read -ra CINFO <<< "$CONTAINER_DATA"
+        IFS=' ' read -ra cinfo <<< "$container_data"
 
-        echo "" >> "${CONTAINER_NW_REPORT_FILE}"
-        echo "Container ${CINFO[1]}" >> "${CONTAINER_NW_REPORT_FILE}"
+        echo >> "$CONTAINER_NW_REPORT_FILE"
+        echo "Container ${cinfo[1]}" >> "$CONTAINER_NW_REPORT_FILE"
 
-        PID=$(read_node_shell_data "sudo docker inspect --format '{{.State.Pid}}' ${CINFO[0]}")
-        ADDR=$(read_node_shell_data "sudo nsenter -t ${PID} -n ip addr")
+        pid=$(read_node_shell_data sudo docker inspect --format '{{.State.Pid}}' "${cinfo[0]}")
+        addr=$(read_node_shell_data sudo nsenter -t "$pid" -n ip addr)
 
-        if [[ $ADDR = *"vpp1:"* ]]; then
-            echo "Host networking" >> "${CONTAINER_NW_REPORT_FILE}"
+        if [[ "$addr" = *"vpp1:"* ]]
+        then
+            echo "Host networking" >> "$CONTAINER_NW_REPORT_FILE"
         else
-            echo "$ADDR" >> "${CONTAINER_NW_REPORT_FILE}"
-            read_node_shell_data "sudo nsenter -t ${PID} -n ip route" >> "${CONTAINER_NW_REPORT_FILE}"
-            read_node_shell_data "sudo nsenter -t ${PID} -n arp -na" >> "${CONTAINER_NW_REPORT_FILE}"
+            echo "$addr" >> "$CONTAINER_NW_REPORT_FILE"
+            read_node_shell_data sudo nsenter -t "$pid" -n ip route >> "$CONTAINER_NW_REPORT_FILE"
+            read_node_shell_data sudo nsenter -t "$pid" -n arp -na >> "$CONTAINER_NW_REPORT_FILE"
         fi
     done
 }
@@ -384,7 +390,6 @@ then
                 get_shell_data_ssh "$CMD_INDEX" ${LOCAL_COMMANDS[$CMD_INDEX]} </dev/null
             done
 
-            # save container network report for this node
             save_container_nw_report
 
             echo
@@ -402,7 +407,6 @@ then
             get_shell_data_local "$CMD_INDEX" ${LOCAL_COMMANDS[$CMD_INDEX]}
         done
 
-        # save container network report for the host
         save_container_nw_report
 
         echo

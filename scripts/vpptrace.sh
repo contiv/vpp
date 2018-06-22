@@ -6,6 +6,7 @@ IFS='
 '
 VPPCTL_IN=/tmp/vppctl.in
 VPPCTL_OUT=/tmp/vppctl.out
+TRACE_BUF_SIZE=1000
 
 function init {
     # In case a previous run failed without running cleanup.
@@ -168,12 +169,12 @@ function trace {
     while true; do
         vppctl clear trace >/dev/null
         for NODE in "${INPUT_NODES[@]}"; do
-            vppctl trace add "$NODE" 50 >/dev/null
+            vppctl trace add "$NODE" "$TRACE_BUF_SIZE" >/dev/null
         done
 
         IDX=0
         while true; do
-            TRACE=`vppctl show trace`
+            TRACE=`vppctl show trace max "$TRACE_BUF_SIZE"`
             STATE=0
             PACKET=""
             PACKETIDX=0
@@ -220,7 +221,7 @@ function trace {
                     print_packet "$COUNT" "$PACKET"
                 fi
             fi
-            if [[ "$PACKETIDX" -gt 35 ]]; then
+            if [[ "$PACKETIDX" -gt $(($TRACE_BUF_SIZE - 20)) ]]; then
                 echo -e "\nClearing packet trace (some packets may slip uncaptured)...\n"
                 break;
             fi

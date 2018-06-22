@@ -89,6 +89,9 @@ api-trace {
     on
     nitems 500
 }
+cpu {
+    workers 1
+}
 dpdk {
    dev $pciAddr
 }

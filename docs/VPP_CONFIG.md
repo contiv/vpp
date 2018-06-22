@@ -26,6 +26,9 @@ unix {
     cli-listen /run/vpp/cli.sock
     cli-no-pager
 }
+cpu {
+    workers 1
+}
 dpdk {
     dev 0000:00:03.0
 }
@@ -60,6 +63,9 @@ unix {
     cli-listen /run/vpp/cli.sock
     cli-no-pager
 }
+cpu {
+    workers 1
+}
 dpdk {
     dev 0000:00:04.0
 }
@@ -82,6 +88,9 @@ unix {
     nodaemon
     cli-listen /run/vpp/cli.sock
     cli-no-pager
+}
+cpu {
+    workers 1
 }
 dpdk {
     dev 0000:00:03.0

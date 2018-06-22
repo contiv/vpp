@@ -87,6 +87,7 @@ vswitch:
   hugePages2miLimit: 1024Mi
   memoryLimit: 1024Mi
   updateStrategy: RollingUpdate
+  cpuLimit: 0
 
 cni:
   image:
@@ -125,3 +126,8 @@ http:
   serverKey: server.key
   # credentials to be used by basic-auth, format <username>:<password>
   basicAuth: user:pass
+
+init:
+  image:
+    repository: busybox
+    tag: latest

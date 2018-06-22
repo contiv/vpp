@@ -421,7 +421,7 @@ spec:
         env:
           - name: ETCDPORT
             value: {{ .Values.etcd.service.nodePort | quote }}
-        image: busybox
+        image: {{ .Values.init.image.repository }}:{{ .Values.init.image.tag }}
         command: ['sh', '-c', 'until nc -w 2 127.0.0.1:$ETCDPORT; do echo waiting for etcd; sleep 2; done;']
       # This init container extracts/copies VPP LD_PRELOAD libs and default VPP config to the host.
       - name: vpp-init
@@ -543,12 +543,19 @@ spec:
               mountPath: /etc/agent
             - name: govpp-plugin-cfg
               mountPath: /etc/govpp
-          {{- if .Values.vswitch.defineMemoryLimits }}
+          {{- if or .Values.vswitch.defineMemoryLimits .Values.vswitch.cpuLimit }}
           resources:
-             limits:
-               hugepages-2Mi: {{ .Values.vswitch.hugePages2miLimit }}
-               memory: {{ .Values.vswitch.memoryLimit }}
+            limits:
           {{- end }}
+            {{- if .Values.vswitch.defineMemoryLimits }}
+              hugepages-2Mi: {{ .Values.vswitch.hugePages2miLimit }}
+              memory: {{ .Values.vswitch.memoryLimit }}
+            {{- end }}
+            {{- if .Values.vswitch.cpuLimit }}
+              cpu: {{ .Values.vswitch.cpuLimit }}
+            requests:
+              cpu: {{ .Values.vswitch.cpuLimit }}
+            {{- end }}
 
       volumes:
         # Used to connect to contiv-etcd.
@@ -672,7 +679,7 @@ spec:
           env:
           - name: ETCDPORT
             value: {{ .Values.etcd.service.nodePort | quote }}
-          image: busybox
+          image: {{ .Values.init.image.repository }}:{{ .Values.init.image.tag }}
           command: ['sh', '-c', 'until nc -w 2 127.0.0.1:$ETCDPORT; do echo waiting for etcd; sleep 2; done;']
 
       containers:

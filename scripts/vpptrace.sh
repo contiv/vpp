@@ -37,6 +37,7 @@ function connect {
             cat "$VPPCTL_IN" | sudo netcat -U "$SOCKET" >"$VPPCTL_OUT" &
         fi
     else
+        shift
         IP=$1
         PORT=$2
         shift 2

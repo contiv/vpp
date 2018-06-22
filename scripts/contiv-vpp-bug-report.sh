@@ -150,7 +150,7 @@ save_container_nw_report() {
 
     for container_data in "${containers[@]}"
     do
-        # split CONTAINER_DATA to container ID and container Name
+        # split $container_data to an array with container ID, name and image
         IFS=' ' read -ra cinfo <<< "$container_data"
 
         echo >> "$CONTAINER_NW_REPORT_FILE"

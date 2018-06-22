@@ -180,18 +180,16 @@ do
     fi
 
     readarray -t VPP_IF_IP <<< "$VPP_IP_ADDR"
-
-
     for l in "${VPP_IF_IP[@]}"
     do
-        if echo "$l" | grep -q "(up)"
+        IFS=' ' read -ra IF_NAME_STATUS <<< "$l"
+        if echo "${IF_NAME_STATUS[1]}" | grep -q "(up):"
         then
-            IFS=' ' read -ra IF_NAME_STATUS <<< "$l"
             IF_NAME=$( trim "${IF_NAME_STATUS[0]}" )
             IF_NAMES+=("$IF_NAME")
-        elif echo "$l" | grep -qoE "\b([0-9]{1,3}\.){3}[0-9]{1,3}\b"
+        elif [ $( trim "${IF_NAME_STATUS[0]}" ) == "L3" ]
         then
-            IF_IP["$IF_NAME"]=$( trim "$l" )
+            IF_IP["$IF_NAME"]=$( trim "${IF_NAME_STATUS[1]}" )
         fi
     done
 
@@ -317,7 +315,7 @@ then
             print_node_header "$nn"
             NODE_ERR_FORMAT=$( echo "\x1b[31m%-""$NODE_NAME_LEN""s   ERROR: %s\x1b[0m\n" )
             printf "\x1b[31mError: Missing or empty vxlan tunnel log %s\x1b[0m\n" "'$nn/$VPP_VXLAN_FILE'"
-            echo "No VXLAN connectivity checking for this node."
+            echo "No VXLAN/L2FIB connectivity checking for this node."
             echo
             continue
         fi
@@ -328,7 +326,7 @@ then
         declare -A VXLAN_MAP
         for l in "${VXLAN_LINES[@]}"
         do
-            IF_IDX=$( echo "$l" | grep -v "No vxlan tunnels" | awk '{print $9}') || true
+            IF_IDX=$( echo "$l" | grep -v "No vxlan tunnels" | awk '{print $13}') || true
             if [ -z "$IF_IDX" ]
             then
                 ERROR_LINE=$( echo "No VXLANs configured for the node" )
@@ -341,8 +339,12 @@ then
         L2FIB=$( cat "$nn/$VPP_L2FIB_FILE" | grep -v "Mac-Address" | grep -v "L2FIB" ) || true
         if [ -z "$L2FIB" ]
         then
-            echo "Missing or empty L2FIB table log: '$nn"/"$L2FIB'"
-            exit 1
+            print_node_header "$nn"
+            NODE_ERR_FORMAT=$( echo "\x1b[31m%-""$NODE_NAME_LEN""s   ERROR: %s\x1b[0m\n" )
+            printf "\x1b[31mError: Missing or empty L2FIB table log %s\x1b[0m\n" "'$nn/$VPP_L2FIB_FILE'"
+            echo "No VXLAN/L2FIB connectivity checking for this node."
+            echo
+            continue
         fi
 
         readarray -t L2FIB_LINES <<< "$L2FIB"
@@ -375,7 +377,7 @@ then
 
             PRINT_LINE=$( printf "$FORMAT_STRING" "$REMOTE_NODE" "$REMOTE_IP" "$MAC_ADDR" "$IF_NAME" )
 
-            # If the L2FIB entry points to a vxlan tunner, validate and print the tunnel info
+            # If the L2FIB entry points to a vxlan tunnel, validate and print the tunnel info
             if echo "${L2FIB_FIELDS[8]}" | grep -q "vxlan_tunnel"
             then
                 IF_INDEX="${L2FIB_FIELDS[2]}"
@@ -390,8 +392,8 @@ then
                 TUNNEL_LINE="${VXLAN_MAP[$IF_INDEX]}"
                 IFS=' ' read -ra TL_FIELDS <<< "$TUNNEL_LINE"
 
-                TUNNEL_SRC_IP="${TL_FIELDS[2]}"
-                TUNNEL_DST_IP="${TL_FIELDS[4]}"
+                TUNNEL_SRC_IP="${TL_FIELDS[4]}"
+                TUNNEL_DST_IP="${TL_FIELDS[6]}"
                 PRINT_LINE=$( printf "%s  %-18s  %-18s" "$PRINT_LINE" "$TUNNEL_SRC_IP" "$TUNNEL_DST_IP" )
 
                 LOCAL_GIGE_IP=$( echo "${NODE_GIGE_IP[$nn]}" | awk -F/ '{print $1}' )

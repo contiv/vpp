@@ -294,14 +294,6 @@ func (s *remoteCNIserver) deleteRoutesToNode(nodeInfo *node.NodeInfo) error {
 		// remove the VXLAN interface from the VXLAN bridge domain
 		s.removeInterfaceFromVxlanBD(s.vxlanBD, vxlanIf.Name)
 
-		// pass deep copy to local client since we are overwriting previously applied config
-		bd := proto.Clone(s.vxlanBD)
-		err = s.vppTxnFactory().Put().BD(bd.(*vpp_l2.BridgeDomains_BridgeDomain)).Send().ReceiveReply()
-		if err != nil {
-			s.Logger.Error(err)
-			return err
-		}
-
 		// static ARP entry
 		vxlanIP, err := s.ipam.VxlanIPAddress(nodeInfo.Id)
 		if err != nil {
@@ -357,6 +349,15 @@ func (s *remoteCNIserver) deleteRoutesToNode(nodeInfo *node.NodeInfo) error {
 		err = txn2.Send().ReceiveReply()
 		if err != nil {
 			return fmt.Errorf("Can't configure VPP to remove FIB to node %v: %v ", nodeInfo.Id, err)
+		}
+
+		// pass deep copy to local client since we are overwriting previously applied config
+		bd := proto.Clone(s.vxlanBD)
+		// interface should be removed from BD after FIB entry tied to interface is deleted
+		err = s.vppTxnFactory().Put().BD(bd.(*vpp_l2.BridgeDomains_BridgeDomain)).Send().ReceiveReply()
+		if err != nil {
+			s.Logger.Error(err)
+			return err
 		}
 	}
 	err = txn.Send().ReceiveReply()

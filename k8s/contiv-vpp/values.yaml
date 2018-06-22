@@ -12,6 +12,7 @@ contiv:
   ipNeighborScanInterval: 1
   ipNeighborStaleThreshold: 4
   serviceLocalEndpointWeight: 1
+  disableNATVirtualReassembly: True
   ipamConfig:
     podSubnetCIDR: "10.1.0.0/16"
     podNetworkPrefixLen: 24

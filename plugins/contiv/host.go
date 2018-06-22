@@ -24,6 +24,7 @@ import (
 	linux_intf "github.com/ligato/vpp-agent/plugins/linux/model/interfaces"
 	linux_l3 "github.com/ligato/vpp-agent/plugins/linux/model/l3"
 	"github.com/ligato/vpp-agent/plugins/vpp/binapi/ip"
+	"github.com/ligato/vpp-agent/plugins/vpp/binapi/nat"
 	"github.com/ligato/vpp-agent/plugins/vpp/binapi/vpe"
 	vpp_intf "github.com/ligato/vpp-agent/plugins/vpp/model/interfaces"
 	vpp_l2 "github.com/ligato/vpp-agent/plugins/vpp/model/l2"
@@ -443,6 +444,22 @@ func (s *remoteCNIserver) enableIPNeighborScan() error {
 
 	if err != nil {
 		s.Logger.Error("Error by enabling IP neighbor scanning:", err)
+	}
+	return err
+}
+
+func (s *remoteCNIserver) disableNatVirtualReassembly() error {
+	s.Logger.Infof("Disabling NAT virtual reassembly")
+
+	req := &nat.NatSetReass{
+		DropFrag: 1, // drop fragmented packets
+	}
+	reply := &nat.NatSetReassReply{}
+
+	err := s.govppChan.SendRequest(req).ReceiveReply(reply)
+
+	if err != nil {
+		s.Logger.Error("Error by disabling NAT virtual reassembly:", err)
 	}
 	return err
 }

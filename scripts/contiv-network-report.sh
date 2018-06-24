@@ -390,7 +390,7 @@ then
             do
                 if [ "${REMOTE_NODES[$i]}" == "$REMOTE_NODE" ]
                 then
-                    unset REMOTE_NODES[$i]
+                    REMOTE_NODES["$i"]=""
                 fi
             done
 
@@ -443,7 +443,7 @@ then
         # Each unmarked remote node means a missing L2FIB entry for the node
         for MISSING_NODE in "${REMOTE_NODES[@]}"
         do
-            if [ -n "$MISSING_NODE" ]
+            if [ "$MISSING_NODE" != "" ]
             then
                 printf "\x1b[31m%s  ERROR: Missing L2FIB entry (and possibly VXLAN tunnel)\x1b[0m\n" "$MISSING_NODE"
                 ERROR_LINE=$( printf "Missing L2FIB entry (and possibly VXLAN tunnel), node='%s'", "$MISSING_NODE")
@@ -512,7 +512,7 @@ then
                     do
                         if [ "${REMOTE_NODES[$i]}" == "$REMOTE_NODE" ]
                         then
-                            unset REMOTE_NODES[$i]
+                            REMOTE_NODES["$i"]=""
                         fi
                     done
 
@@ -533,7 +533,7 @@ then
         # Each unmarked remote node means a missing L2FIB entry for the node
         for MISSING_NODE in "${REMOTE_NODES[@]}"
         do
-            if [ -n "$MISSING_NODE" ] && [ "$MISSING_NODE" != "$nn" ]
+            if [ "$MISSING_NODE" != "" ] && [ "$MISSING_NODE" != "$nn" ]
             then
                 echo "- ERROR: Missing ARP entry for node '"${REMOTE_NODES[$MISSING_NODE]}"'"
                 ERRORS=true

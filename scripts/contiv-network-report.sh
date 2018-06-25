@@ -1,6 +1,7 @@
 #!/bin/bash
 
-# Contiv network connectivity report.
+# Contiv network connectivity report v1.2
+# This version works with Contiv-VPP 1.2+ and Kubernetes 1.10.5+
 
 set -euo pipefail
 
@@ -60,15 +61,17 @@ check_name() {
 }
 
 print_node_header() (
-        node_name="$1"
-        printf "%s:\n" "$node_name"
-        printf '%0.s-' $( seq 1 $(( ${#node_name} + 1 )) )
-        echo
+    node_name="$1"
+    printf "%s:\n" "$node_name"
+    printf '%0.s-' $( seq 1 $(( ${#node_name} + 1 )) )
+    echo
 )
 
 # K8s file names
 NODES_FILE="k8s-nodes.txt"
-PODS_FILE="K8s-pods.txt"
+PODS_FILE="k8s-pods.txt"
+NODE_ADDR_FILE="k8s-node-addresses.txt"
+
 # VPP file names
 VPP_IP_ADDR_FILE="vpp-interface-address.log"
 VPP_MAC_ADDR_FILE="vpp-hardware-info.log"
@@ -123,17 +126,32 @@ pushd "$REPORT_DIR" > /dev/null
 NODES=$( cat "$NODES_FILE" | grep -v "NAME" ) || true
 if [ -z "$NODES" ]
 then
-    echo "Missing or empty vxlan tunnel log: '$nn"/"$NODES'"
+    echo "Missing or empty node log: '$NODES_FILE'"
     exit 1
 fi
 
 readarray -t NODE_LINES <<< "$NODES"
-
 for l in "${NODE_LINES[@]}"
 do
     IFS=' ' read -ra NODE_FIELDS <<< "$l"
     NODE_NAMES+=("${NODE_FIELDS[0]}")
-    NODE_HOST_IP["${NODE_FIELDS[0]}"]="${NODE_FIELDS[5]}"
+    # NODE_HOST_IP["${NODE_FIELDS[0]}"]="${NODE_FIELDS[5]}"
+done
+
+# Get node internal IP addresses
+NODE_ADDRS=$( cat "$NODE_ADDR_FILE"  ) || true
+if [ -z "$NODE_ADDRS" ]
+then
+    echo "Missing or empty node address log: '$NODE_ADDR_FILE'"
+    exit 1
+fi
+
+readarray -t NODE_ADDR_LINES <<< "$NODE_ADDRS"
+for l in "${NODE_ADDR_LINES[@]}"
+do
+    IFS=' ' read -ra NODE_ADDR_FIELDS <<< "$l"
+    IFS=',' read -ra NODE_ADDRESSES <<< "${NODE_ADDR_FIELDS[1]}"
+    NODE_HOST_IP["${NODE_ADDR_FIELDS[0]}"]="${NODE_ADDRESSES[0]}"
 done
 
 if [ "$SHOW_PODS" == "1" ]
@@ -141,7 +159,7 @@ then
     PODS=$( cat "$PODS_FILE" ) || true
     if [ -z "$PODS" ]
     then
-        echo "Missing or empty pods log: '$nn"/"$PODS'"
+        echo "Missing or empty pods log: $PODS'"
         exit 1
     fi
 
@@ -151,7 +169,7 @@ then
     HDR=$( printf "%s  %-13s  %-18s" "$HDR" "VPP-IP" "VPP-MAC" )
 fi
 
-# Print header
+# Create header formatting strings
 NODE_NAME_LEN=$( max_string_length "${NODE_NAMES[@]}" )
 HOST_IP_LEN=$( max_string_length "${NODE_HOST_IP[@]}" )
 FORMAT_STRING=$( echo %-"$NODE_NAME_LEN""s   %-""$HOST_IP_LEN""s  %-18s %-18s  %-18s %-18s\n" )
@@ -180,18 +198,16 @@ do
     fi
 
     readarray -t VPP_IF_IP <<< "$VPP_IP_ADDR"
-
-
     for l in "${VPP_IF_IP[@]}"
     do
-        if echo "$l" | grep -q "(up)"
+        IFS=' ' read -ra IF_NAME_STATUS <<< "$l"
+        if echo "${IF_NAME_STATUS[1]}" | grep -q "(up):"
         then
-            IFS=' ' read -ra IF_NAME_STATUS <<< "$l"
             IF_NAME=$( trim "${IF_NAME_STATUS[0]}" )
             IF_NAMES+=("$IF_NAME")
-        elif echo "$l" | grep -qoE "\b([0-9]{1,3}\.){3}[0-9]{1,3}\b"
+        elif [ $( trim "${IF_NAME_STATUS[0]}" ) == "L3" ]
         then
-            IF_IP["$IF_NAME"]=$( trim "$l" )
+            IF_IP["$IF_NAME"]=$( trim "${IF_NAME_STATUS[1]}" )
         fi
     done
 
@@ -317,7 +333,7 @@ then
             print_node_header "$nn"
             NODE_ERR_FORMAT=$( echo "\x1b[31m%-""$NODE_NAME_LEN""s   ERROR: %s\x1b[0m\n" )
             printf "\x1b[31mError: Missing or empty vxlan tunnel log %s\x1b[0m\n" "'$nn/$VPP_VXLAN_FILE'"
-            echo "No VXLAN connectivity checking for this node."
+            echo "No VXLAN/L2FIB connectivity checking for this node."
             echo
             continue
         fi
@@ -328,7 +344,7 @@ then
         declare -A VXLAN_MAP
         for l in "${VXLAN_LINES[@]}"
         do
-            IF_IDX=$( echo "$l" | grep -v "No vxlan tunnels" | awk '{print $9}') || true
+            IF_IDX=$( echo "$l" | grep -v "No vxlan tunnels" | awk '{print $13}') || true
             if [ -z "$IF_IDX" ]
             then
                 ERROR_LINE=$( echo "No VXLANs configured for the node" )
@@ -341,8 +357,12 @@ then
         L2FIB=$( cat "$nn/$VPP_L2FIB_FILE" | grep -v "Mac-Address" | grep -v "L2FIB" ) || true
         if [ -z "$L2FIB" ]
         then
-            echo "Missing or empty L2FIB table log: '$nn"/"$L2FIB'"
-            exit 1
+            print_node_header "$nn"
+            NODE_ERR_FORMAT=$( echo "\x1b[31m%-""$NODE_NAME_LEN""s   ERROR: %s\x1b[0m\n" )
+            printf "\x1b[31mError: Missing or empty L2FIB table log %s\x1b[0m\n" "'$nn/$VPP_L2FIB_FILE'"
+            echo "No VXLAN/L2FIB connectivity checking for this node."
+            echo
+            continue
         fi
 
         readarray -t L2FIB_LINES <<< "$L2FIB"
@@ -366,8 +386,13 @@ then
             fi
             REMOTE_NODE="${MAC_LOOP_NODE[$MAC_ADDR]}"
             # Mark remote node as processed
-            DELETE=("$REMOTE_NODE")
-            REMOTE_NODES=("${REMOTE_NODES[@]/$DELETE}")
+            for i in "${!REMOTE_NODES[@]}"
+            do
+                if [ "${REMOTE_NODES[$i]}" == "$REMOTE_NODE" ]
+                then
+                    REMOTE_NODES["$i"]=""
+                fi
+            done
 
             REMOTE_IP="${MAC_LOOP_IP[$MAC_ADDR]}"
 
@@ -375,7 +400,7 @@ then
 
             PRINT_LINE=$( printf "$FORMAT_STRING" "$REMOTE_NODE" "$REMOTE_IP" "$MAC_ADDR" "$IF_NAME" )
 
-            # If the L2FIB entry points to a vxlan tunner, validate and print the tunnel info
+            # If the L2FIB entry points to a vxlan tunnel, validate and print the tunnel info
             if echo "${L2FIB_FIELDS[8]}" | grep -q "vxlan_tunnel"
             then
                 IF_INDEX="${L2FIB_FIELDS[2]}"
@@ -390,8 +415,8 @@ then
                 TUNNEL_LINE="${VXLAN_MAP[$IF_INDEX]}"
                 IFS=' ' read -ra TL_FIELDS <<< "$TUNNEL_LINE"
 
-                TUNNEL_SRC_IP="${TL_FIELDS[2]}"
-                TUNNEL_DST_IP="${TL_FIELDS[4]}"
+                TUNNEL_SRC_IP="${TL_FIELDS[4]}"
+                TUNNEL_DST_IP="${TL_FIELDS[6]}"
                 PRINT_LINE=$( printf "%s  %-18s  %-18s" "$PRINT_LINE" "$TUNNEL_SRC_IP" "$TUNNEL_DST_IP" )
 
                 LOCAL_GIGE_IP=$( echo "${NODE_GIGE_IP[$nn]}" | awk -F/ '{print $1}' )
@@ -418,7 +443,7 @@ then
         # Each unmarked remote node means a missing L2FIB entry for the node
         for MISSING_NODE in "${REMOTE_NODES[@]}"
         do
-            if [ -n "$MISSING_NODE" ]
+            if [ "$MISSING_NODE" != "" ]
             then
                 printf "\x1b[31m%s  ERROR: Missing L2FIB entry (and possibly VXLAN tunnel)\x1b[0m\n" "$MISSING_NODE"
                 ERROR_LINE=$( printf "Missing L2FIB entry (and possibly VXLAN tunnel), node='%s'", "$MISSING_NODE")
@@ -481,9 +506,15 @@ then
                 if [ ${MAC_LOOP_NODE[$ARP_MAC]+_} ]
                 then
                     REMOTE_NODE="${MAC_LOOP_NODE[$ARP_MAC]}"
-                    # Mark remote node as processed
-                    DELETE=("$REMOTE_NODE")
-                    REMOTE_NODES=("${REMOTE_NODES[@]/$DELETE}")
+
+                    # Mark node as having an entry in the ARP table
+                    for i in "${!REMOTE_NODES[@]}"
+                    do
+                        if [ "${REMOTE_NODES[$i]}" == "$REMOTE_NODE" ]
+                        then
+                            REMOTE_NODES["$i"]=""
+                        fi
+                    done
 
                     REMOTE_IP="${MAC_LOOP_IP[$ARP_MAC]}"
 
@@ -502,9 +533,9 @@ then
         # Each unmarked remote node means a missing L2FIB entry for the node
         for MISSING_NODE in "${REMOTE_NODES[@]}"
         do
-            if [ -n "$MISSING_NODE" ] && [ "$MISSING_NODE" != "$nn" ]
+            if [ "$MISSING_NODE" != "" ] && [ "$MISSING_NODE" != "$nn" ]
             then
-                echo "- ERROR: Missing ARP entry for node" "'$MISSING_NODE'"
+                echo "- ERROR: Missing ARP entry for node '"${REMOTE_NODES[$MISSING_NODE]}"'"
                 ERRORS=true
             fi
         done

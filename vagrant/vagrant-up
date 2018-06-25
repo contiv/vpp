@@ -17,4 +17,7 @@ export K8S_DEPLOYMENT_ENV=${K8S_DEPLOYMENT_ENV:-prod}
 export K8S_DEPLOYMENT_SCENARIO=${K8S_DEPLOYMENT_SCENARIO:-nostn}
 export CONTIV_IMAGE_TAG=${CONTIV_IMAGE_TAG:-latest}
 
+# temporary - strip "release-" prefix in CONTIV_IMAGE_TAG
+export CONTIV_IMAGE_TAG=${CONTIV_IMAGE_TAG#release-}
+
 vagrant up

@@ -24,10 +24,13 @@ import (
 	linux_intf "github.com/ligato/vpp-agent/plugins/linux/model/interfaces"
 	linux_l3 "github.com/ligato/vpp-agent/plugins/linux/model/l3"
 	"github.com/ligato/vpp-agent/plugins/vpp/binapi/ip"
+	"github.com/ligato/vpp-agent/plugins/vpp/binapi/nat"
+	"github.com/ligato/vpp-agent/plugins/vpp/binapi/vpe"
 	vpp_intf "github.com/ligato/vpp-agent/plugins/vpp/model/interfaces"
 	vpp_l2 "github.com/ligato/vpp-agent/plugins/vpp/model/l2"
 	vpp_l3 "github.com/ligato/vpp-agent/plugins/vpp/model/l3"
 	vpp_l4 "github.com/ligato/vpp-agent/plugins/vpp/model/l4"
+
 	"github.com/vishvananda/netlink"
 )
 
@@ -419,4 +422,37 @@ func (s *remoteCNIserver) enableIPNeighborScan() error {
 		s.Logger.Error("Error by enabling IP neighbor scanning:", err)
 	}
 	return err
+}
+
+func (s *remoteCNIserver) disableNatVirtualReassembly() error {
+	s.Logger.Infof("Disabling NAT virtual reassembly")
+
+	req := &nat.NatSetReass{
+		DropFrag: 1, // drop fragmented packets
+	}
+	reply := &nat.NatSetReassReply{}
+
+	err := s.govppChan.SendRequest(req).ReceiveReply(reply)
+
+	if err != nil {
+		s.Logger.Error("Error by disabling NAT virtual reassembly:", err)
+	}
+	return err
+}
+
+func (s *remoteCNIserver) executeDebugCLI(cmd string) (string, error) {
+	s.Logger.Infof("Executing debug CLI: %s", cmd)
+
+	req := &vpe.CliInband{
+		Cmd: []byte(cmd),
+	}
+	reply := &vpe.CliInbandReply{}
+
+	err := s.govppChan.SendRequest(req).ReceiveReply(reply)
+
+	if err != nil {
+		s.Logger.Error("Error by executing debug CLI:", err)
+		return "", err
+	}
+	return string(reply.Reply), err
 }

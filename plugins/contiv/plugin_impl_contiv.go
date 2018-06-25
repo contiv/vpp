@@ -87,27 +87,28 @@ type Deps struct {
 // It can be injected or loaded from external config file. Injection has priority to external config. To use external
 // config file, add `-contiv-config="<path to config>` argument when running the contiv-agent.
 type Config struct {
-	TCPChecksumOffloadDisabled bool
-	TCPstackDisabled           bool
-	UseL2Interconnect          bool
-	UseTAPInterfaces           bool
-	TAPInterfaceVersion        uint8
-	TAPv2RxRingSize            uint16
-	TAPv2TxRingSize            uint16
-	MTUSize                    uint32
-	StealFirstNIC              bool
-	StealInterface             string
-	STNSocketFile              string
-	NatExternalTraffic         bool   // if enabled, traffic with cluster-outside destination is SNATed on node output (for all nodes)
-	CleanupIdleNATSessions     bool   // if enabled, the agent will periodically check for idle NAT sessions and delete inactive ones
-	TCPNATSessionTimeout       uint32 // NAT session timeout (in minutes) for TCP connections, used in case that CleanupIdleNATSessions is turned on
-	OtherNATSessionTimeout     uint32 // NAT session timeout (in minutes) for non-TCP connections, used in case that CleanupIdleNATSessions is turned on
-	ScanIPNeighbors            bool   // if enabled, periodically scans and probes IP neighbors to maintain the ARP table
-	IPNeighborScanInterval     uint8
-	IPNeighborStaleThreshold   uint8
-	ServiceLocalEndpointWeight uint8
-	IPAMConfig                 ipam.Config
-	NodeConfig                 []OneNodeConfig
+	TCPChecksumOffloadDisabled  bool
+	TCPstackDisabled            bool
+	UseL2Interconnect           bool
+	UseTAPInterfaces            bool
+	TAPInterfaceVersion         uint8
+	TAPv2RxRingSize             uint16
+	TAPv2TxRingSize             uint16
+	MTUSize                     uint32
+	StealFirstNIC               bool
+	StealInterface              string
+	STNSocketFile               string
+	NatExternalTraffic          bool   // if enabled, traffic with cluster-outside destination is SNATed on node output (for all nodes)
+	CleanupIdleNATSessions      bool   // if enabled, the agent will periodically check for idle NAT sessions and delete inactive ones
+	TCPNATSessionTimeout        uint32 // NAT session timeout (in minutes) for TCP connections, used in case that CleanupIdleNATSessions is turned on
+	OtherNATSessionTimeout      uint32 // NAT session timeout (in minutes) for non-TCP connections, used in case that CleanupIdleNATSessions is turned on
+	ScanIPNeighbors             bool   // if enabled, periodically scans and probes IP neighbors to maintain the ARP table
+	IPNeighborScanInterval      uint8
+	IPNeighborStaleThreshold    uint8
+	ServiceLocalEndpointWeight  uint8
+	DisableNATVirtualReassembly bool // if true, NAT plugin will drop fragmented packets
+	IPAMConfig                  ipam.Config
+	NodeConfig                  []OneNodeConfig
 }
 
 // OneNodeConfig represents configuration for one node. It contains only settings specific to given node.

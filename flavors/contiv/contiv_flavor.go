@@ -41,6 +41,7 @@ import (
 	"github.com/ligato/vpp-agent/clientv1/linux/localclient"
 	"github.com/ligato/vpp-agent/plugins/govppmux"
 	"github.com/ligato/vpp-agent/plugins/linux"
+	"github.com/ligato/vpp-agent/plugins/telemetry"
 	"github.com/ligato/vpp-agent/plugins/vpp"
 	"github.com/ligato/vpp-agent/plugins/vpp/model/acl"
 	"github.com/ligato/vpp-agent/plugins/vpp/model/nat"
@@ -89,6 +90,7 @@ type FlavorContiv struct {
 	GoVPP            govppmux.GOVPPPlugin
 	Linux            linux.Plugin
 	VPP              vpp.Plugin
+	Telemetry        telemetry.Plugin
 	GRPC             grpc.Plugin
 	Contiv           contiv.Plugin
 	Policy           policy.Plugin
@@ -164,6 +166,10 @@ func (f *FlavorContiv) Inject() bool {
 	f.VPP.Deps.IfStatePub = &datasync.CompositeKVProtoWriter{Adapters: []datasync.KeyProtoValWriter{&devNullWriter{}}}
 	f.VPP.Deps.WatchEventsMutex = &watchEventsMutex
 	f.VPP.DisableResync(acl.KeyPrefix(), nat.GlobalConfigPrefix(), nat.DNatPrefix())
+
+	f.Telemetry.Deps.PluginInfraDeps = *f.FlavorLocal.InfraDeps("telemetry-plugin")
+	f.Telemetry.Deps.Prometheus = &f.Prometheus
+	f.Telemetry.Deps.GoVppmux = &f.GoVPP
 
 	grpc.DeclareGRPCPortFlag("grpc")
 	grpcInfraDeps := f.FlavorLocal.InfraDeps("grpc", local.WithConf())

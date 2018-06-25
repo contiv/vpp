@@ -756,6 +756,7 @@
     "plugins/linux/model/interfaces",
     "plugins/linux/model/l3",
     "plugins/linux/nsplugin",
+    "plugins/telemetry",
     "plugins/vpp",
     "plugins/vpp/aclplugin",
     "plugins/vpp/aclplugin/aclidx",

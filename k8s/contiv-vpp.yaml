@@ -34,6 +34,7 @@ data:
     IPNeighborScanInterval: 1
     IPNeighborStaleThreshold: 4
     ServiceLocalEndpointWeight: 1
+    DisableNATVirtualReassembly: true
     IPAMConfig:
       PodSubnetCIDR: 10.1.0.0/16
       PodNetworkPrefixLen: 24
@@ -253,7 +254,7 @@ spec:
         env:
           - name: ETCDPORT
             value: "32379"
-        image: busybox
+        image: busybox:latest
         command: ['sh', '-c', 'until nc -w 2 127.0.0.1:$ETCDPORT; do echo waiting for etcd; sleep 2; done;']
       # This init container extracts/copies VPP LD_PRELOAD libs and default VPP config to the host.
       - name: vpp-init
@@ -417,10 +418,12 @@ spec:
         # Marks this pod as a critical add-on.
         scheduler.alpha.kubernetes.io/critical-pod: ''
     spec:
-      # Allow this pod to be rescheduled while the node is in "critical add-ons only" mode.
       tolerations:
-      - key: node-role.kubernetes.io/master
-        effect: NoSchedule
+      # We need this to schedule on the master no matter what else is going on, so tolerate everything.
+      - key: ''
+        operator: Exists
+        effect: ''
+      # This likely isn't needed due to the above wildcard, but keep it in for now.
       - key: CriticalAddonsOnly
         operator: Exists
       # Only run this pod on the master.
@@ -436,7 +439,7 @@ spec:
           env:
           - name: ETCDPORT
             value: "32379"
-          image: busybox
+          image: busybox:latest
           command: ['sh', '-c', 'until nc -w 2 127.0.0.1:$ETCDPORT; do echo waiting for etcd; sleep 2; done;']
 
       containers:

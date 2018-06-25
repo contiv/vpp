@@ -228,6 +228,7 @@ ETCD_COMMANDS["etcd-tree.log"]="export ETCDCTL_API=3 && etcdctl --endpoints=127.
 declare -A K8S_COMMANDS
 K8S_COMMANDS["k8s-vpp-config-maps.yaml"]="describe configmaps -n kube-system contiv-agent-cfg"
 K8S_COMMANDS["k8s-nodes.txt"]="get nodes -o wide"
+K8S_COMMANDS["k8s-node-addresses.txt"]="get nodes --no-headers -o=custom-columns=A:.spec.externalID,B:.status.addresses[*].address"
 K8S_COMMANDS["k8s-pods.txt"]="get pods -o wide --all-namespaces"
 K8S_COMMANDS["k8s-services.txt"]="get services -o wide --all-namespaces"
 K8S_COMMANDS["k8s-networkpolicy.txt"]="get networkpolicy -o wide --all-namespaces"

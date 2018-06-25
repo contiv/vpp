@@ -158,9 +158,12 @@ cpu {
 dpdk {
    dev 0000:00:08.0
 }
+nat {
+   endpoint-dependent
+}
 api-trace {
-    on
-    nitems 500
+   on
+   nitems 500
 }
 EOF
 }

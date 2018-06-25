@@ -26,6 +26,9 @@ unix {
     cli-listen /run/vpp/cli.sock
     cli-no-pager
 }
+nat {
+    endpoint-dependent
+}
 cpu {
     workers 1
 }
@@ -63,6 +66,9 @@ unix {
     cli-listen /run/vpp/cli.sock
     cli-no-pager
 }
+nat {
+    endpoint-dependent
+}
 cpu {
     workers 1
 }
@@ -88,6 +94,9 @@ unix {
     nodaemon
     cli-listen /run/vpp/cli.sock
     cli-no-pager
+}
+nat {
+    endpoint-dependent
 }
 cpu {
     workers 1

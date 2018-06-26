@@ -81,7 +81,10 @@ func configureVpp(contivCfg *contiv.Config, stnData *stn.STNReply, useDHCP bool)
 		logger.Errorf("Error by connecting to VPP: %v", err)
 		return nil, err
 	}
-	defer conn.Disconnect()
+	defer func() {
+		// async disconnect to not block further execution
+		go conn.Disconnect()
+	}()
 
 	// wait until connected or until timeout expires
 	select {

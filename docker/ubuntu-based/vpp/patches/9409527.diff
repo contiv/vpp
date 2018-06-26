@@ -1,0 +1,68 @@
+From 9409527f477ef7e3069b7fc36ca24ca746b9ee5d Mon Sep 17 00:00:00 2001
+From: Matus Fabian <matfabia@cisco.com>
+Date: Mon, 25 Jun 2018 16:42:36 -0700
+Subject: [PATCH] NAT44: fix nat44_ed_not_translate_output_feature (VPP-1329)
+
+Change-Id: Iddb0b848c53da03116524e203c7112c82b401ac5
+Signed-off-by: Matus Fabian <matfabia@cisco.com>
+---
+
+diff --git a/src/plugins/nat/in2out.c b/src/plugins/nat/in2out.c
+index aedcae9..2a41b95 100755
+--- a/src/plugins/nat/in2out.c
++++ b/src/plugins/nat/in2out.c
+@@ -2543,6 +2543,7 @@
+   clib_bihash_kv_16_8_t kv, value;
+   snat_main_per_thread_data_t *tsm = &sm->per_thread_data[thread_index];
+   snat_interface_t *i;
++  snat_session_t *s;
+ 
+   /* src NAT check */
+   make_ed_kv (&kv, &ip->src_address, &ip->dst_address, proto,
+@@ -2555,6 +2556,10 @@
+               sm->inside_fib_index, dst_port, src_port);
+   if (!clib_bihash_search_16_8 (&tsm->in2out_ed, &kv, &value))
+   {
++    s = pool_elt_at_index (tsm->sessions, value.value);
++    if (is_fwd_bypass_session (s))
++      return 0;
++
+     /* hairpinning */
+     pool_foreach (i, sm->output_feature_interfaces,
+     ({
+diff --git a/test/test_nat.py b/test/test_nat.py
+index 8012350..35e89e3 100644
+--- a/test/test_nat.py
++++ b/test/test_nat.py
+@@ -4396,6 +4396,31 @@
+             self.logger.error(ppp("Unexpected or invalid packet:", p))
+             raise
+ 
++    def test_output_feature(self):
++        """ NAT44 interface output feature (in2out postrouting) """
++        self.vapi.nat44_forwarding_enable_disable(1)
++        self.nat44_add_address(self.nat_addr)
++        self.vapi.nat44_interface_add_del_feature(self.pg0.sw_if_index,
++                                                  is_inside=0)
++        self.vapi.nat44_interface_add_del_output_feature(self.pg1.sw_if_index,
++                                                         is_inside=0)
++
++        # in2out
++        pkts = self.create_stream_in(self.pg0, self.pg1)
++        self.pg0.add_stream(pkts)
++        self.pg_enable_capture(self.pg_interfaces)
++        self.pg_start()
++        capture = self.pg1.get_capture(len(pkts))
++        self.verify_capture_out(capture)
++
++        # out2in
++        pkts = self.create_stream_out(self.pg1)
++        self.pg1.add_stream(pkts)
++        self.pg_enable_capture(self.pg_interfaces)
++        self.pg_start()
++        capture = self.pg0.get_capture(len(pkts))
++        self.verify_capture_in(capture, self.pg0)
++
+     def tearDown(self):
+         super(TestNAT44EndpointDependent, self).tearDown()
+         if not self.vpp_dead:

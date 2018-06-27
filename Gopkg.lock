@@ -18,7 +18,7 @@
     "core",
     "core/bin_api/vpe"
   ]
-  revision = "061e24913927c85cac21c79b206f409592a0f6a9"
+  revision = "5276b9439d0f902e125a5113bfa4f1b6622aea18"
 
 [[projects]]
   branch = "master"
@@ -814,7 +814,7 @@
     "plugins/vpp/srplugin/cache",
     "plugins/vpp/srplugin/vppcalls"
   ]
-  revision = "913c11466b544b7c97edc2a212fb81eb5c3bf09b"
+  revision = "f913b639ce506de28616c42feaa37d53c2979d6c"
 
 [[projects]]
   branch = "master"
@@ -1670,6 +1670,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "2edfac2a91ccd5ffee59b90bfb5987f258643d2ea0be41ce5cd50635ba56a567"
+  inputs-digest = "0009eef38e2101f35ce783727e4a067fd2912436842dc5d9c5160ec71f98e84c"
   solver-name = "gps-cdcl"
   solver-version = 1

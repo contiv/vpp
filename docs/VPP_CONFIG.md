@@ -29,9 +29,6 @@ unix {
 nat {
     endpoint-dependent
 }
-cpu {
-    workers 1
-}
 dpdk {
     dev 0000:00:03.0
 }
@@ -69,9 +66,6 @@ unix {
 nat {
     endpoint-dependent
 }
-cpu {
-    workers 1
-}
 dpdk {
     dev 0000:00:04.0
 }
@@ -97,9 +91,6 @@ unix {
 }
 nat {
     endpoint-dependent
-}
-cpu {
-    workers 1
 }
 dpdk {
     dev 0000:00:03.0

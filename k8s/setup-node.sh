@@ -84,6 +84,7 @@ unix {
    nodaemon
    cli-listen /run/vpp/cli.sock
    cli-no-pager
+   poll-sleep-usec 100
 }
 nat {
    endpoint-dependent
@@ -91,9 +92,6 @@ nat {
 api-trace {
     on
     nitems 500
-}
-cpu {
-    workers 1
 }
 dpdk {
    dev $pciAddr

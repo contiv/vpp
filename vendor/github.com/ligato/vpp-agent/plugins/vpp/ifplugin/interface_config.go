@@ -28,6 +28,7 @@ import (
 
 	govppapi "git.fd.io/govpp.git/api"
 	"github.com/ligato/cn-infra/logging"
+	"github.com/ligato/cn-infra/logging/logrus"
 	"github.com/ligato/cn-infra/logging/measure"
 	"github.com/ligato/cn-infra/utils/addrs"
 	"github.com/ligato/cn-infra/utils/safeclose"
@@ -79,10 +80,6 @@ func (plugin *InterfaceConfigurator) Init(logger logging.PluginLogger, goVppMux 
 	plugin.log = logger.NewLogger("-if-conf")
 	plugin.log.Debug("Initializing Interface configurator")
 
-	// Mappings
-	plugin.swIfIndexes = ifaceidx.NewSwIfIndex(nametoidx.NewNameToIdx(plugin.log, "sw_if_indexes", ifaceidx.IndexMetadata))
-	plugin.dhcpIndexes = ifaceidx.NewDHCPIndex(nametoidx.NewNameToIdx(plugin.log, "dhcp_indices", ifaceidx.IndexDHCPMetadata))
-
 	// State notification channel
 	plugin.NotifChan = notifChan
 
@@ -97,19 +94,20 @@ func (plugin *InterfaceConfigurator) Init(logger logging.PluginLogger, goVppMux 
 		return err
 	}
 
+	// Mappings
+	plugin.swIfIndexes = ifaceidx.NewSwIfIndex(nametoidx.NewNameToIdx(plugin.log, "sw_if_indexes", ifaceidx.IndexMetadata))
+	plugin.dhcpIndexes = ifaceidx.NewDHCPIndex(nametoidx.NewNameToIdx(plugin.log, "dhcp_indices", ifaceidx.IndexDHCPMetadata))
+	plugin.uIfaceCache = make(map[string]string)
+	plugin.vxlanMulticastCache = make(map[string]*intf.Interfaces_Interface)
+	if plugin.memifScCache, err = vppdump.DumpMemifSocketDetails(plugin.log, plugin.vppCh,
+		measure.GetTimeLog(memif.MemifSocketFilenameDump{}, plugin.stopwatch)); err != nil {
+		return err
+	}
+
 	// Init AF-packet configurator
 	plugin.linux = linux
 	plugin.afPacketConfigurator = &AFPacketConfigurator{}
 	plugin.afPacketConfigurator.Init(plugin.log, plugin.vppCh, plugin.linux, plugin.swIfIndexes, plugin.stopwatch)
-
-	plugin.uIfaceCache = make(map[string]string)
-	plugin.vxlanMulticastCache = make(map[string]*intf.Interfaces_Interface)
-	// Obtain registered socket filenames
-	plugin.memifScCache, err = vppdump.DumpMemifSocketDetails(plugin.log, plugin.vppCh,
-		measure.GetTimeLog(memif.MemifSocketFilenameDump{}, plugin.stopwatch))
-	if err != nil {
-		return err
-	}
 
 	// DHCP channel
 	plugin.DhcpChan = make(chan govppapi.Message, 1)
@@ -129,6 +127,20 @@ func (plugin *InterfaceConfigurator) Init(logger logging.PluginLogger, goVppMux 
 func (plugin *InterfaceConfigurator) Close() error {
 	_, err := safeclose.CloseAll(plugin.vppCh, plugin.DhcpChan)
 	return err
+}
+
+// clearMapping prepares all in-memory-mappings and other cache fields. All previous cached entries are removed.
+func (plugin *InterfaceConfigurator) clearMapping() error {
+	plugin.swIfIndexes.Clear()
+	plugin.dhcpIndexes.Clear()
+	plugin.uIfaceCache = make(map[string]string)
+	plugin.vxlanMulticastCache = make(map[string]*intf.Interfaces_Interface)
+	var err error
+	if plugin.memifScCache, err = vppdump.DumpMemifSocketDetails(plugin.log, plugin.vppCh,
+		measure.GetTimeLog(memif.MemifSocketFilenameDump{}, plugin.stopwatch)); err != nil {
+		return err
+	}
+	return nil
 }
 
 // GetSwIfIndexes exposes interface name-to-index mapping
@@ -252,8 +264,25 @@ func (plugin *InterfaceConfigurator) ConfigureVPPInterface(iface *intf.Interface
 		errs = append(errs, err)
 	}
 
-	// configure optional mac address
-	if iface.PhysAddress != "" {
+	// TODO: simplify implementation for rx placement when the binary api call will be available (remove dump)
+	if iface.RxPlacementSettings != nil {
+		// Required in order to get vpp internal name. Must be called from here, calling in vppcalls causes
+		// import cycle
+		ifMap, err := vppdump.DumpInterfaces(logrus.DefaultLogger(), plugin.vppCh, plugin.stopwatch)
+		if err != nil {
+			return err
+		}
+		ifData, ok := ifMap[ifIdx]
+		if !ok || ifData == nil {
+			return fmt.Errorf("set rx-placement failed, no data available for interface index %d", ifIdx)
+		}
+		if err := vppcalls.SetRxPlacement(ifData.VPPInternalName, iface.RxPlacementSettings, plugin.vppCh, plugin.stopwatch); err != nil {
+			errs = append(errs, err)
+		}
+	}
+
+	// configure optional mac address (for af packet it is configured in different way)
+	if iface.PhysAddress != "" && iface.Type != intf.InterfaceType_AF_PACKET_INTERFACE {
 		if err := vppcalls.SetInterfaceMac(ifIdx, iface.PhysAddress, plugin.vppCh, plugin.stopwatch); err != nil {
 			errs = append(errs, err)
 		}
@@ -540,8 +569,6 @@ func (plugin *InterfaceConfigurator) modifyVPPInterface(newConfig *intf.Interfac
 				Debug("modifyVPPInterface end. ", err)
 			return err
 		}
-	case intf.InterfaceType_SOFTWARE_LOOPBACK:
-	case intf.InterfaceType_ETHERNET_CSMACD:
 	case intf.InterfaceType_AF_PACKET_INTERFACE:
 		recreate, err := plugin.afPacketConfigurator.ModifyAfPacketInterface(newConfig, oldConfig)
 		if err != nil || recreate {
@@ -552,12 +579,31 @@ func (plugin *InterfaceConfigurator) modifyVPPInterface(newConfig *intf.Interfac
 				Debug("modifyVPPInterface end. ", err)
 			return err
 		}
+	case intf.InterfaceType_SOFTWARE_LOOPBACK:
+	case intf.InterfaceType_ETHERNET_CSMACD:
 	}
 
 	var wasError error
 	// rx mode
 	if !(oldConfig.RxModeSettings == nil && newConfig.RxModeSettings == nil) {
 		wasError = plugin.modifyRxModeForInterfaces(oldConfig, newConfig, ifIdx)
+	}
+
+	// rx placement
+	if newConfig.RxPlacementSettings != nil {
+		// Required in order to get vpp internal name. Must be called from here, calling in vppcalls causes
+		// import cycle
+		ifMap, err := vppdump.DumpInterfaces(logrus.DefaultLogger(), plugin.vppCh, plugin.stopwatch)
+		if err != nil {
+			return err
+		}
+		ifData, ok := ifMap[ifIdx]
+		if !ok || ifData == nil {
+			return fmt.Errorf("set rx-placement for new config failed, no data available for interface index %d", ifIdx)
+		}
+		if err := vppcalls.SetRxPlacement(ifData.VPPInternalName, newConfig.RxPlacementSettings, plugin.vppCh, plugin.stopwatch); err != nil {
+			wasError = err
+		}
 	}
 
 	// admin status
@@ -790,12 +836,12 @@ func (plugin *InterfaceConfigurator) deleteVPPInterface(oldConfig *intf.Interfac
 	plugin.log.WithFields(logging.Fields{"ifname": oldConfig.Name, "swIfIndex": ifIdx}).
 		Debug("deleteVPPInterface begin")
 
-	// Skip setting interface to ADMIN_DOWN unless the type ETHERNET_CSMACD because that one cannot be removed
-	// so at least put it down
-	if oldConfig.Type == intf.InterfaceType_ETHERNET_CSMACD {
+	// Skip setting interface to ADMIN_DOWN unless the type AF_PACKET_INTERFACE
+	if oldConfig.Type != intf.InterfaceType_AF_PACKET_INTERFACE {
+		plugin.log.Infof("Setting interface %v down", oldConfig.Name)
 		// Let's try to do following even if previously error occurred
 		if err := vppcalls.InterfaceAdminDown(ifIdx, plugin.vppCh, plugin.stopwatch); err != nil {
-			plugin.log.Error(err)
+			plugin.log.Errorf("Setting interface down failed: %v", err)
 			wasError = err
 		}
 	}

@@ -54,6 +54,7 @@ provider = ENV['VAGRANT_DEFAULT_PROVIDER']
 dep_env = ENV['K8S_DEPLOYMENT_ENV']
 dep_scenario = ENV['K8S_DEPLOYMENT_SCENARIO']
 image_tag = ENV['CONTIV_IMAGE_TAG']
+k8s_version = ENV['KUBERNETES_VERSION']
 
 provision_every_node = <<SCRIPT
 set -e
@@ -88,10 +89,10 @@ deb [arch=amd64] https://download.docker.com/linux/ubuntu xenial stable
 EOF
 
 echo "Updating apt lists..."
-sudo apt-get update
+sudo apt-get update -q
 
 echo "Installing Kubernetes Components..."
-sudo apt-get install -y kubelet kubectl kubeadm kubernetes-cni
+sudo apt-get install -qy kubelet=$4-00  kubectl=$4-00 kubeadm=$4-00
 
 echo "Installing Docker-CE..."
 sudo apt-get install -y docker-ce
@@ -246,10 +247,18 @@ source /home/vagrant/.profile
 # --------------> Kubeadm & Networking <------------------
 # --------------------------------------------------------
 
-sed -i '1s/.*/KUBELET_EXTRA_ARGS=--node-ip='"$KUBE_MASTER_IP"' --feature-gates HugePages=false/' /etc/default/kubelet
-systemctl daemon-reload
-systemctl restart kubelet
-echo "$(kubeadm init --token-ttl 0 --pod-network-cidr="10.0.0.0/8" --apiserver-advertise-address="${KUBE_MASTER_IP}" --token="${KUBEADM_TOKEN}")" >> /vagrant/config/cert
+split_k8s_version="$(cut -d "." -f 2 <<< "$7")"
+if [ $split_k8s_version = '11' ]; then 
+  sed -i '1s/.*/KUBELET_EXTRA_ARGS=--node-ip='"$KUBE_MASTER_IP"' --feature-gates HugePages=false/' /etc/default/kubelet
+  systemctl daemon-reload
+  systemctl restart kubelet
+  echo "$(kubeadm init --token-ttl 0 --kubernetes-version=v"$7" --pod-network-cidr="10.0.0.0/8" --apiserver-advertise-address="${KUBE_MASTER_IP}" --token="${KUBEADM_TOKEN}")" >> /vagrant/config/cert
+else 
+  sed -i '4 a Environment="KUBELET_EXTRA_ARGS=--node-ip='"$KUBE_MASTER_IP"' --feature-gates HugePages=false"' /etc/systemd/system/kubelet.service.d/10-kubeadm.conf
+  systemctl daemon-reload
+  systemctl restart kubelet
+  echo "$(kubeadm init --token-ttl 0 --kubernetes-version=v"$7" --pod-network-cidr="10.0.0.0/8" --apiserver-advertise-address="${KUBE_MASTER_IP}" --token="${KUBEADM_TOKEN}")" >> /vagrant/config/cert
+fi
 
 echo "Create folder to store kubernetes and network configuration"
 mkdir -p /home/vagrant/.kube
@@ -293,10 +302,6 @@ else
   export KUBE_WORKER_IP=$2
 fi
 
-sed -i '1s/.*/KUBELET_EXTRA_ARGS=--node-ip='"$KUBE_WORKER_IP"' --feature-gates HugePages=false/' /etc/default/kubelet
-systemctl daemon-reload
-systemctl restart kubelet
-
 sed 's/127\.0\.0\.1.*k8s.*/'"$KUBE_WORKER_IP"' '"$1"'/' -i /etc/hosts
 echo "export no_proxy='$1,$KUBE_MASTER_IP,$KUBE_WORKER_IP,localhost,127.0.0.1'" >> /etc/profile.d/envvar.sh
 echo "export no_proxy='$1,$KUBE_MASTER_IP,$KUBE_WORKER_IP,localhost,127.0.0.1'" >> /home/vagrant/.profile
@@ -307,6 +312,17 @@ if [ "$3" = 'stn' ]; then
   curl -s https://raw.githubusercontent.com/contiv/vpp/master/k8s/stn-install.sh > /tmp/contiv-stn.sh
   chmod +x /tmp/contiv-stn.sh
   sudo /tmp/contiv-stn.sh
+fi
+
+split_k8s_version="$(cut -d "." -f 2 <<< "$4")"
+if [ $split_k8s_version = '11' ]; then 
+  sed -i '1s/.*/KUBELET_EXTRA_ARGS=--node-ip='"$KUBE_WORKER_IP"' --feature-gates HugePages=false/' /etc/default/kubelet
+  systemctl daemon-reload
+  systemctl restart kubelet
+else 
+  sed -i '4 a Environment="KUBELET_EXTRA_ARGS=--node-ip='"$KUBE_WORKER_IP"' --feature-gates HugePages=false"' /etc/systemd/system/kubelet.service.d/10-kubeadm.conf
+  systemctl daemon-reload
+  systemctl restart kubelet
 fi
 
 hash=$(awk 'END {print $NF}' /vagrant/config/cert)
@@ -405,7 +421,7 @@ VAGRANTFILE_API_VERSION = "2"
       end
       k8smaster.vm.provision "shell" do |s|
         s.inline = provision_every_node
-        s.args = [http_proxy, https_proxy, dep_env, num_nodes]
+        s.args = [http_proxy, https_proxy, dep_env, k8s_version]
       end
       k8smaster.vm.provision "shell" do |s|
         s.inline = vbox_provision_every_node
@@ -413,7 +429,7 @@ VAGRANTFILE_API_VERSION = "2"
       end
       k8smaster.vm.provision "shell" do |s|
         s.inline = vbox_bootstrap_master
-        s.args = ["k8s-master", k8smaster_ip, num_nodes, dep_env, dep_scenario, image_tag]
+        s.args = ["k8s-master", k8smaster_ip, num_nodes, dep_env, dep_scenario, image_tag, k8s_version]
       end
     end
 
@@ -447,7 +463,7 @@ VAGRANTFILE_API_VERSION = "2"
         end
         node.vm.provision "shell" do |s|
           s.inline = provision_every_node
-          s.args = [http_proxy, https_proxy, dep_env]
+          s.args = [http_proxy, https_proxy, dep_env, k8s_version]
         end
         node.vm.provision "shell" do |s|
           s.inline = vbox_provision_every_node
@@ -455,7 +471,7 @@ VAGRANTFILE_API_VERSION = "2"
         end
         node.vm.provision "shell" do |s|
           s.inline = vbox_bootstrap_worker
-          s.args = [node_name, node_addr, dep_scenario]
+          s.args = [node_name, node_addr, dep_scenario, k8s_version]
         end
       end
   end

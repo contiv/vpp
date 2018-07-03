@@ -274,7 +274,7 @@ if [ $6 != "latest" ]; then
   sed -i -e "s/latest/$6/" /home/vagrant/gopath/src/github.com/contiv/vpp/k8s/contiv-vpp/Chart.yaml
 fi
 
-helm template --name vagrant /home/vagrant/gopath/src/github.com/contiv/vpp/k8s/contiv-vpp > /home/vagrant/gopath/src/github.com/contiv/vpp/k8s/contiv-vpp/manifest.yaml
+helm template --name vagrant --set vswitch.enableCoreDumps=true /home/vagrant/gopath/src/github.com/contiv/vpp/k8s/contiv-vpp > /home/vagrant/gopath/src/github.com/contiv/vpp/k8s/contiv-vpp/manifest.yaml
 export NUM_K8S_NODES=$3; export DEP_SCENARIO=$5; /home/vagrant/gopath/src/github.com/contiv/vpp/vagrant/config/vagrant-yaml
 kubectl apply -f /home/vagrant/gopath/src/github.com/contiv/vpp/k8s/contiv-vpp/manifest.yaml
 

@@ -21,17 +21,15 @@ usage() {
     echo
 }
 
-max_string_length() {
-    m=0
-    for x in "$@"
+get_log_file_name() {
+    for file in "$1"/{.*,*}
     do
-       # echo "$x" >&2
-       if [ "${#x}" -gt "$m" ]
-       then
-          m="${#x}"
-       fi
+        LOG_FILE_NAME=$( echo "$file" | grep "$2" ) || true
+        if [ -n "$LOG_FILE_NAME" ]
+        then
+            echo "$LOG_FILE_NAME"
+        fi
     done
-    echo "$m"
 }
 
 NODE_NAMES=()
@@ -40,7 +38,6 @@ VSWITCH_LOG="contiv-vswitch.log"
 VSWITCH_PREVIOUS_LOG="contiv-vswitch-previous.log"
 SEARCH_STRING="level=error"
 SHOW_PREVIOUS=0
-
 
 while getopts "d:hnps:" opt
 do
@@ -67,7 +64,7 @@ done
 pushd "$REPORT_DIR" > /dev/null
 
 # Get all nodes in the cluster and their host IP addresses
-NODES=$(cat "$NODES_FILE" | grep -v "NAME")
+NODES=$( grep < "$NODES_FILE" -v "NAME")
 readarray -t NODE_LINES <<< "$NODES"
 
 for l in "${NODE_LINES[@]}"
@@ -76,22 +73,19 @@ do
     NODE_NAMES+=("${NODE_FIELDS[0]}")
 done
 
-# Print header
-NODE_NAME_LEN=$(max_string_length "${NODE_NAMES[@]}")
-
 for nn in "${NODE_NAMES[@]}"
 do
     # Print node header
-    printf "%s:\n" "$nn"
+    printf "%s:\\n" "$nn"
     printf '%0.s=' $( seq 1 $(( ${#nn} + 1 )) )
     echo
 
-    VSWITCH_LOG_FILE_NAME=$( ls "$nn" | grep "$VSWITCH_LOG" )
+    VSWITCH_LOG_FILE_NAME=$( get_log_file_name "$nn" "$VSWITCH_LOG" )
     if [ -n "$VSWITCH_LOG_FILE_NAME" ]
     then
         echo "Vswitch log:"
         echo "------------"
-        cat "$nn"/"$VSWITCH_LOG_FILE_NAME" | grep -n "$SEARCH_STRING" || true
+        grep < "$VSWITCH_LOG_FILE_NAME" -n "$SEARCH_STRING" || true
     else
         echo "Logfile for contiv-vswitch not present."
     fi
@@ -99,12 +93,12 @@ do
 
     if [ "$SHOW_PREVIOUS" == "1" ]
     then
-        VSWITCH_LOG_FILE_NAME=$( ls "$nn" | grep "$VSWITCH_PREVIOUS_LOG" ) || true
+        VSWITCH_LOG_FILE_NAME=$( get_log_file_name "$nn" "$VSWITCH_PREVIOUS_LOG" )
         if [ -n "$VSWITCH_LOG_FILE_NAME" ]
         then
             echo "Previous vswitch log:"
             echo "---------------------"
-            cat "$nn"/"$VSWITCH_LOG_FILE_NAME" | grep -n "$SEARCH_STRING"
+            grep < "$VSWITCH_LOG_FILE_NAME" -n "$SEARCH_STRING"
         else
             echo "Previous logfile for contiv-vswitch not present."
         fi

@@ -240,14 +240,16 @@ func (msr *MockSessionRules) msgReplyHandler(request govppmock.MessageDTO) (repl
 
 	if reqName == "session_rules_dump" {
 		// Session dump.
+		msgs := []govppapi.Message{}
 		for _, localTable := range msr.localTable {
 			for _, rule := range localTable {
-				msr.vppMock.MockReply(makeSessionRuleDetails(rule))
+				msgs = append(msgs, makeSessionRuleDetails(rule))
 			}
 		}
 		for _, rule := range msr.globalTable {
-			msr.vppMock.MockReply(makeSessionRuleDetails(rule))
+			msgs = append(msgs, makeSessionRuleDetails(rule))
 		}
+		msr.vppMock.MockReply(msgs...)
 
 	} else if reqName == "control_ping" {
 		// Control ping.

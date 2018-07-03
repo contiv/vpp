@@ -88,6 +88,7 @@ vswitch:
   memoryLimit: 1024Mi
   updateStrategy: RollingUpdate
   cpuLimit: 0
+  enableCoreDumps: false
 
 cni:
   image:

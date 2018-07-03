@@ -447,6 +447,13 @@ spec:
                ip link del vpp1
           fi
           cp -f /usr/local/bin/vppctl /host/usr/local/bin/vppctl
+          {{- if .Values.vswitch.enableCoreDumps }}
+          mkdir -p /run/vpp/dumps
+          sysctl -w debug.exception-trace=1
+          sysctl -w kernel.core_pattern="/run/vpp/dumps/%e-%t"
+          ulimit -c unlimited
+          echo 2 > /proc/sys/fs/suid_dumpable
+          {{- end }}
         resources: {}
         securityContext:
           privileged: true

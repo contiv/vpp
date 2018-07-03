@@ -37,7 +37,7 @@ NODE_NAMES=()
 NODES_FILE="k8s-nodes.txt"
 VSWITCH_LOG="contiv-vswitch.log"
 VSWITCH_PREVIOUS_LOG="contiv-vswitch-previous.log"
-SEARCH_STRING="level=error"
+SEARCH_STRING="level=error\|SIGABRT"
 SHOW_PREVIOUS=0
 
 while getopts "d:hnps:" opt

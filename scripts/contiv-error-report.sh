@@ -28,6 +28,7 @@ get_log_file_name() {
         if [ -n "$LOG_FILE_NAME" ]
         then
             echo "$LOG_FILE_NAME"
+            return
         fi
     done
 }

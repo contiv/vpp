@@ -152,6 +152,8 @@ unix {
    nodaemon
    cli-listen /run/vpp/cli.sock
    cli-no-pager
+   coredump-size unlimited
+   full-coredump
    poll-sleep-usec 100
 }
 dpdk {

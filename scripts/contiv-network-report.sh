@@ -38,7 +38,6 @@ max_string_length() {
     m=0
     for x in "$@"
     do
-       # echo "$x" >&2
        if [ "${#x}" -gt "$m" ]
        then
           m="${#x}"
@@ -123,7 +122,6 @@ pushd "$REPORT_DIR" > /dev/null
 
 # Get all nodes in the cluster and their host IP addresses
 NODES=$( grep < "$NODES_FILE" -v "NAME" ) || true
-echo "$NODES"
 if [ -z "$NODES" ]
 then
     echo "Missing or empty node log: '$NODES_FILE'"
@@ -133,7 +131,6 @@ fi
 readarray -t NODE_LINES <<< "$NODES"
 for l in "${NODE_LINES[@]}"
 do
-    echo Line: "$l"
     IFS=' ' read -ra NODE_FIELDS <<< "$l"
     NODE_NAMES+=("${NODE_FIELDS[0]}")
     NODE_HOST_IP["${NODE_FIELDS[0]}"]="${NODE_FIELDS[5]}"
@@ -236,6 +233,19 @@ do
         elif [ "$F0" == "Ethernet" ]
         then
             IF_MAC["$IF_NAME"]=$( trim "${MAC_FIELDS[2]}" )
+        fi
+    done
+
+    # Handle cases where IP or MAC address was not present in the vpp log
+    for ifn in "${IF_NAMES[@]}"
+    do
+        if [ ! ${IF_IP[$ifn]+_} ]
+        then
+            IF_IP[$ifn]="<none>"
+        fi
+        if [ ! ${IF_MAC[$ifn]+_} ]
+        then
+            IF_MAC[$ifn]="<none>"
         fi
     done
 
@@ -533,7 +543,7 @@ then
         do
             if [ "$MISSING_NODE" != "" ] && [ "$MISSING_NODE" != "$nn" ]
             then
-                echo "- ERROR: Missing ARP entry for node '${REMOTE_NODES[$MISSING_NODE]}'"
+                echo "- ERROR: Missing ARP entry for node '$MISSING_NODE'"
                 ERRORS=true
             fi
         done

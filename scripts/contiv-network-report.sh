@@ -121,10 +121,10 @@ done
 pushd "$REPORT_DIR" > /dev/null
 
 # Get all nodes in the cluster and their host IP addresses
-NODES=$( grep < "$NODES_FILE" -v "NAME" ) || true
+NODES=$( grep -v "NAME " < "$NODES_FILE" ) || true
 if [ -z "$NODES" ]
 then
-    echo "Missing or empty node log: '$NODES_FILE'"
+    echo "ERROR: Missing or empty node log: '$NODES_FILE'"
     exit 1
 fi
 
@@ -140,7 +140,7 @@ done
 NODE_ADDRS=$( cat "$NODE_ADDR_FILE" 2> /dev/null ) || true
 if [ -z "$NODE_ADDRS" ]
 then
-    echo "Missing or empty node address log: '$NODE_ADDR_FILE'"
+    echo "ERROR: Missing or empty node address log: '$NODE_ADDR_FILE'"
 else
     readarray -t NODE_ADDR_LINES <<< "$NODE_ADDRS"
     for l in "${NODE_ADDR_LINES[@]}"
@@ -156,7 +156,7 @@ then
     PODS=$( cat "$PODS_FILE" ) || true
     if [ -z "$PODS" ]
     then
-        echo "Missing or empty pods log: $PODS'"
+        echo "ERROR: Missing or empty pods log: $PODS'"
         exit 1
     fi
 
@@ -209,11 +209,11 @@ do
     done
 
     # Get MAC addresses for all interfaces that have an IP address
-    VPP_MAC_ADDR=$( grep < "$nn"/"$VPP_MAC_ADDR_FILE" -v "Name" ) || true
+    VPP_MAC_ADDR=$( grep -v "Name " < "$nn"/"$VPP_MAC_ADDR_FILE" ) || true
     if [ -z "$VPP_IP_ADDR" ]
     then
         printf "$NODE_ERR_FORMAT" "$MISSING_NODE" ""
-        echo "Missing or empty hardware address log: \\'""$nn""/$VPP_MAC_ADDR_FILE\\'"
+        echo "ERROR: Missing or empty hardware address log: \\'""$nn""/$VPP_MAC_ADDR_FILE\\'"
         exit 1
     fi
     readarray -t VPP_IF_MAC <<< "$VPP_MAC_ADDR"
@@ -236,7 +236,7 @@ do
         fi
     done
 
-    # Handle cases where IP or MAC address was not present in the vpp log
+    # Handle cases where IP or MAC address for an interface was not present in vpp log files
     for ifn in "${IF_NAMES[@]}"
     do
         if [ ! ${IF_IP[$ifn]+_} ]
@@ -363,7 +363,7 @@ then
             fi
         done
 
-        L2FIB=$( grep < "$nn/$VPP_L2FIB_FILE" -v "Mac-Address" | grep -v "L2FIB" ) || true
+        L2FIB=$( grep -v "Mac-Address " < "$nn/$VPP_L2FIB_FILE" | grep -v "L2FIB" ) || true
         if [ -z "$L2FIB" ]
         then
             print_node_header "$nn"

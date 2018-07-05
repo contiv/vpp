@@ -24,8 +24,7 @@ usage() {
 get_log_file_name() {
     for file in "$1"/{.*,*}
     do
-        LOG_FILE_NAME=$( echo "$file" | grep "$2" ) || true
-        if [ -n "$LOG_FILE_NAME" ]
+        if LOG_FILE_NAME=$( echo "$file" | grep "$2" ) && [ -n "$LOG_FILE_NAME" ]
         then
             echo "$LOG_FILE_NAME"
             return
@@ -37,7 +36,7 @@ NODE_NAMES=()
 NODES_FILE="k8s-nodes.txt"
 VSWITCH_LOG="contiv-vswitch.log"
 VSWITCH_PREVIOUS_LOG="contiv-vswitch-previous.log"
-SEARCH_STRING="level=error\|SIGABRT"
+SEARCH_STRING="level=error\\|SIGABRT"
 SHOW_PREVIOUS=0
 
 while getopts "d:hnps:" opt
@@ -65,7 +64,7 @@ done
 pushd "$REPORT_DIR" > /dev/null
 
 # Get all nodes in the cluster and their host IP addresses
-NODES=$( grep < "$NODES_FILE" -v "NAME")
+NODES=$( grep -v "NAME " < "$NODES_FILE" )
 readarray -t NODE_LINES <<< "$NODES"
 
 for l in "${NODE_LINES[@]}"
@@ -86,7 +85,7 @@ do
     then
         echo "Vswitch log:"
         echo "------------"
-        grep < "$VSWITCH_LOG_FILE_NAME" -n "$SEARCH_STRING" || true
+        grep -n "$SEARCH_STRING" < "$VSWITCH_LOG_FILE_NAME" || true
     else
         echo "Logfile for contiv-vswitch not present."
     fi
@@ -99,7 +98,7 @@ do
         then
             echo "Previous vswitch log:"
             echo "---------------------"
-            grep < "$VSWITCH_LOG_FILE_NAME" -n "$SEARCH_STRING"
+            grep -n "$SEARCH_STRING" < "$VSWITCH_LOG_FILE_NAME"
         else
             echo "Previous logfile for contiv-vswitch not present."
         fi

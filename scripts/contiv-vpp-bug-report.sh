@@ -391,7 +391,7 @@ then
                 get_shell_data_ssh "$CMD_INDEX" ${LOCAL_COMMANDS[$CMD_INDEX]} </dev/null
             done
 
-            save_container_nw_report
+            save_container_nw_report </dev/null
 
             echo
             popd >/dev/null

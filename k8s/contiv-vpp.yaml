@@ -238,7 +238,7 @@ spec:
       # This container installs the Contiv CNI binaries
       # and CNI network config file on each node.
       - name: contiv-cni
-        image: contivvpp/cni:release-1.1
+        image: contivvpp/cni:1.1
         imagePullPolicy: IfNotPresent
         env:
           - name: SLEEP
@@ -257,7 +257,7 @@ spec:
         command: ['sh', '-c', 'until nc -w 2 127.0.0.1:$ETCDPORT; do echo waiting for etcd; sleep 2; done;']
       # This init container extracts/copies VPP LD_PRELOAD libs and default VPP config to the host.
       - name: vpp-init
-        image: contivvpp/vswitch:release-1.1
+        image: contivvpp/vswitch:1.1
         imagePullPolicy: IfNotPresent
         command:
         - /bin/sh
@@ -300,7 +300,7 @@ spec:
         # Runs contiv-vswitch container on each Kubernetes node.
         # It contains the vSwitch VPP and its management agent.
         - name: contiv-vswitch
-          image: contivvpp/vswitch:release-1.1
+          image: contivvpp/vswitch:1.1
           imagePullPolicy: IfNotPresent
           securityContext:
             privileged: true
@@ -443,7 +443,7 @@ spec:
 
       containers:
         - name: contiv-ksr
-          image: contivvpp/ksr:release-1.1
+          image: contivvpp/ksr:1.1
           imagePullPolicy: IfNotPresent
           env:
             - name: ETCDV3_CONFIG

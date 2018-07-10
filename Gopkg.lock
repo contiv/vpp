@@ -814,7 +814,7 @@
     "plugins/vpp/srplugin/cache",
     "plugins/vpp/srplugin/vppcalls"
   ]
-  revision = "f913b639ce506de28616c42feaa37d53c2979d6c"
+  revision = "5f8dd1980cafccac70b020d48c0105a80009a840"
 
 [[projects]]
   branch = "master"
@@ -1670,6 +1670,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "0009eef38e2101f35ce783727e4a067fd2912436842dc5d9c5160ec71f98e84c"
+  inputs-digest = "934b1c4914b20cb04e674a9604a3e7ca43c41e1ce37a5e5f18794f815c023a0d"
   solver-name = "gps-cdcl"
   solver-version = 1

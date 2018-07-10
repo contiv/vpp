@@ -44,7 +44,7 @@ type Deps struct {
 	Log              logging.Logger
 	LogFactory       logging.LogFactory /* optional */
 	Contiv           contiv.API         /* for GetNsIndex() */
-	GoVPPChan        *govpp.Channel
+	GoVPPChan        govpp.Channel
 	GoVPPChanBufSize int
 }
 
@@ -288,14 +288,14 @@ func (r *Renderer) updateRules(add, remove []*vpptcprule.SessionRule) error {
 		// reply channels can buffer.
 		j := 0
 		for ; i+j < len(requests) && j < chanBufSize; j++ {
-			r.GoVPPChan.ReqChan <- requests[i+j]
+			r.GoVPPChan.GetRequestChannel() <- requests[i+j]
 		}
 		i += j
 
 		// Wait for VPP responses.
 		r.Log.WithField("count", j).Debug("Waiting for a bunch of BIN API responses")
 		for ; j > 0; j-- {
-			reply := <-r.GoVPPChan.ReplyChan
+			reply := <-r.GoVPPChan.GetReplyChannel()
 			r.Log.WithField("reply", reply).Debug("Received BIN API response")
 			if reply.Error != nil {
 				r.Log.WithField("err", reply.Error).Error(errMsg)
@@ -303,7 +303,7 @@ func (r *Renderer) updateRules(add, remove []*vpptcprule.SessionRule) error {
 				break
 			}
 			msg := &session.SessionRuleAddDelReply{}
-			err := r.GoVPPChan.MsgDecoder.DecodeMsg(reply.Data, msg)
+			err := r.GoVPPChan.GetMessageDecoder().DecodeMsg(reply.Data, msg)
 			if err != nil {
 				r.Log.WithField("err", err).Error(errMsg)
 				wasError = err

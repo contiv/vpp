@@ -110,7 +110,7 @@ type Deps struct {
 	Contiv        contiv.API /* for GetNatLoopbackIP, GetServiceLocalEndpointWeight */
 	NATTxnFactory func() (dsl linuxclient.DataChangeDSL)
 	LatestRevs    *syncbase.PrevRevisions
-	GoVPPChan     *govpp.Channel     /* used for direct NAT binary API calls */
+	GoVPPChan     govpp.Channel      /* used for direct NAT binary API calls */
 	Stats         statscollector.API /* used for exporting the statistics */
 }
 

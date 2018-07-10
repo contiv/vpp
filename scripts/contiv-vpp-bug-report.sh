@@ -221,6 +221,7 @@ LOCAL_COMMANDS["linux-ip-route.log"]="ip route"
 LOCAL_COMMANDS["contiv-stn.log"]='CONTAINER=$(sudo docker ps --filter name=contiv-stn --format "{{.ID}}") && [ -n "$CONTAINER" ] && sudo docker logs "$CONTAINER"'
 LOCAL_COMMANDS["vswitch-version.log"]="curl -m 2 localhost:9999/liveness"
 LOCAL_COMMANDS["docker-ps.log"]="sudo docker ps"
+LOCAL_COMMANDS["core-dump.log"]='mkdir -p /tmp/dumps && sudo tar -zcf /tmp/dumps/`hostname`-dump.tgz /run/vpp/dumps && ls -alR /tmp/dumps'
 
 declare -A ETCD_COMMANDS
 ETCD_COMMANDS["etcd-tree.log"]="export ETCDCTL_API=3 && etcdctl --endpoints=127.0.0.1:32379 get / --prefix=true"
@@ -391,6 +392,8 @@ then
                 get_shell_data_ssh "$CMD_INDEX" ${LOCAL_COMMANDS[$CMD_INDEX]} </dev/null
             done
 
+            RSYNC_SSH="ssh ${SSH_OPTS[@]}"
+            rsync --remove-source-files -e "$RSYNC_SSH" "$SSH_USER@$NODE_NAME:/tmp/dumps/*" . || true </dev/null
             save_container_nw_report </dev/null
 
             echo
@@ -408,6 +411,7 @@ then
             get_shell_data_local "$CMD_INDEX" ${LOCAL_COMMANDS[$CMD_INDEX]}
         done
 
+        mv /tmp/dumps/* . || true
         save_container_nw_report
 
         echo

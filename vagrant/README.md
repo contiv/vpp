@@ -45,7 +45,7 @@ Please choose deployment scenario:
 1) Without StealTheNIC
 2) With StealTheNIC
 3) Quit
---> 1
+--> 1 
 You chose deployment without StealTheNIC
 
 Creating a production environment, without STN and 1 worker node(s)
@@ -67,10 +67,10 @@ Please choose deployment scenario:
 1) Without StealTheNIC
 2) With StealTheNIC
 3) Quit
---> 2
+--> 1
 You chose deployment with StealTheNIC
 
-Creating a production environment, with STN and 1 worker node(s)
+Creating a production environment, without STN and 1 worker node(s)
 ```
 
 To destroy and clean-up the cluster run vagrant-cleanup script, located

@@ -20,57 +20,57 @@ It is organized into two subfolders:
  - (vagrant) - contains scripts for creating, destroying, rebooting
     and shuting down the VMs that host the K8s cluster.
 
-If you wish to change the default number of nodes, edit and set K8S_NODES 
-before running vagrant-up:
-```
-# For a single node setup:
-export K8S_NODES=0
-# For a two node setup:
-export K8S_NODES=1
-```
-
-By default, if you do not specify the number of nodes in the environment 
-variable, two nodes (one master, one worker) are created.
-
-Two vagrant providers are supported: VirtualBox and VmWare Fusion. The default 
-provider is VirtualBox. If you wish to use VmWare Fusion as the default vagrant
-provider, edit the vagrant-up script and set the VAGRANT_DEFAULT_PROVIDER value
-to `vmware_fusion`. You can always switch back to the default `virtualbox`.
-
-Note: to use vmware_fusion, you need to have a valid license and install the 
-vmware_fusion plugin for vagrant:
-```
-vagrant plugin install vagrant-vmware-fusion
-```
-
-- To use the virtualbox provider, set the `VAGRANT_DEFAULT_PROVIDER` variable
-as follows:
-```
-export VAGRANT_DEFAULT_PROVIDER=${VAGRANT_DEFAULT_PROVIDER:-virtualbox}
-```
-- To use the vmware_fusion provider, set the `VAGRANT_DEFAULT_PROVIDER` 
-variable as follows:
-```
-export VAGRANT_DEFAULT_PROVIDER=${VAGRANT_DEFAULT_PROVIDER:-vmware_fusion}
-```
-
 To create and run a K8s cluster with contiv-vpp CNI plugin, run the 
-`vagrant-up` script, located in the vagrant folder. The `vagrant-up`
-script can deploy either the *testing environment* (using the -t flag or 
-leave empty) or the *development environment* (use the -d flag) . Instructions
-on how to build the development contiv/vpp-vswitch image can be found in the
-next paragraph.
+`vagrant-start` script, located in the vagrant folder. The `vagrant-start`
+script prompts the user to select the number of worker nodes of the kubernetes cluster. 
+Zero (0) worker nodes mean that a single-node cluster (with one kubernetes master node) will be deployed. 
+Next, the user is prompted to select either the *production environment* or the *development environment*.
+Instructions on how to build the development contiv/vpp-vswitch image can be found in the
+next paragraph. The last option asks the user to select between *Without StealTheNIC* and *With StealTheNIC*
+Given option With *StealTheNIC* the plugin will "steal" interfaces owned by Linux and use their configuration in VPP.
 
-For the testing environment run:
+For the production environment run:
 ```
-cd vagrant/
-./vagrant-up
+| => ./vagrant-start
+Please provide the number of workers for the Kubernetes cluster (0-50) or enter [Q/q] to exit: 1
+
+Please choose Kubernetes environment:
+1) Production
+2) Development
+3) Quit
+--> 1
+You chose Development environment
+
+Please choose deployment scenario:
+1) Without StealTheNIC
+2) With StealTheNIC
+3) Quit
+--> 1
+You chose deployment without StealTheNIC
+
+Creating a production environment, without STN and 1 worker node(s)
 ```
 
 For the development environment run:
 ```
-cd vagrant/
-./vagrant-up -d
+| => ./vagrant-start
+Please provide the number of workers for the Kubernetes cluster (0-50) or enter [Q/q] to exit: 1
+
+Please choose Kubernetes environment:
+1) Production
+2) Development
+3) Quit
+--> 2
+You chose Development environment
+
+Please choose deployment scenario:
+1) Without StealTheNIC
+2) With StealTheNIC
+3) Quit
+--> 2
+You chose deployment with StealTheNIC
+
+Creating a production environment, with STN and 1 worker node(s)
 ```
 
 To destroy and clean-up the cluster run vagrant-cleanup script, located

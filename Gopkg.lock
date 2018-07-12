@@ -334,6 +334,12 @@
   version = "v1.1.0"
 
 [[projects]]
+  name = "github.com/elazarl/go-bindata-assetfs"
+  packages = ["."]
+  revision = "30f82fa23fd844bd5bb1e5f216db87fd77b5eb43"
+  version = "v1.0.0"
+
+[[projects]]
   name = "github.com/emicklei/go-restful"
   packages = [
     ".",
@@ -756,6 +762,7 @@
     "plugins/linux/model/interfaces",
     "plugins/linux/model/l3",
     "plugins/linux/nsplugin",
+    "plugins/rest",
     "plugins/telemetry",
     "plugins/vpp",
     "plugins/vpp/aclplugin",
@@ -1670,6 +1677,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "934b1c4914b20cb04e674a9604a3e7ca43c41e1ce37a5e5f18794f815c023a0d"
+  inputs-digest = "fc8cea2c7ecbca11630f17aced79115c15b8d28ca421c21fe94d9283c17d0a9a"
   solver-name = "gps-cdcl"
   solver-version = 1

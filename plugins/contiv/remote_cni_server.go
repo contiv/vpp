@@ -794,6 +794,17 @@ func (s *remoteCNIserver) configureVswitchVxlanBridgeDomain(config *vswitchConfi
 	txn.VppInterface(config.vxlanBVI)
 	s.vxlanBVIIfName = config.vxlanBVI.Name
 
+	// route towards POD VRF
+	r1, r2 := s.routesToPodVRF()
+	txn.StaticRoute(r1)
+	txn.StaticRoute(r2)
+	// TODO move to a better place
+
+	// default route from POD VRF
+	r3 := s.defaultRoutePodToMainVRF()
+	txn.StaticRoute(r3)
+	// TODO move to a better place
+
 	// bridge domain for the VXLAN tunnel
 	config.vxlanBD = s.vxlanBridgeDomain(config.vxlanBVI.Name)
 	// create deep copy since the config will be overwritten when a node joins the cluster

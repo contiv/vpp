@@ -278,6 +278,11 @@ func (plugin *Plugin) GetNsIndex(podNamespace string, podName string) (nsIndex u
 	return 0, false
 }
 
+// GetPodSubnet provides subnet used for allocating pod IP addresses across all nodes.
+func (plugin *Plugin) GetPodSubnet() *net.IPNet {
+	return plugin.cniServer.ipam.PodSubnet()
+}
+
 // GetPodNetwork provides subnet used for allocating pod IP addresses on this node.
 func (plugin *Plugin) GetPodNetwork() *net.IPNet {
 	return plugin.cniServer.ipam.PodNetwork()

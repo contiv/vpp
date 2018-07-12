@@ -26,6 +26,9 @@ type API interface {
 	// GetPodByAppNsIndex looks up podName and podNamespace that is associated with the VPP application namespace.
 	GetPodByAppNsIndex(nsIndex uint32) (podNamespace string, podName string, exists bool)
 
+	// GetPodSubnet provides subnet used for allocating pod IP addresses across all nodes.
+	GetPodSubnet() *net.IPNet
+
 	// GetPodNetwork provides subnet used for allocating pod IP addresses on this host node.
 	GetPodNetwork() *net.IPNet
 

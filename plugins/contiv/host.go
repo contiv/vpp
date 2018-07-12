@@ -35,6 +35,8 @@ import (
 )
 
 const (
+	MainVrfID              = 0          // main VPP VRF
+	PodVrfID               = 1          // VRF id of POD VRF
 	vxlanVNI               = 10         // VXLAN Network Identifier (or VXLAN Segment ID)
 	vxlanSplitHorizonGroup = 1          // As VXLAN tunnels are added to a BD, they must be configured with the same and non-zero Split Horizon Group (SHG) number. Otherwise, flood packet may loop among servers with the same VXLAN segment because VXLAN tunnels are fully meshed among servers.
 	vxlanBVIInterfaceName  = "vxlanBVI" // name of the VXLAN BVI interface.
@@ -92,6 +94,29 @@ func (s *remoteCNIserver) defaultRoute(gwIP string, outIfName string) *vpp_l3.St
 		OutgoingInterface: outIfName,
 	}
 	return route
+}
+
+func (s *remoteCNIserver) defaultRoutePodToMainVRF() *vpp_l3.StaticRoutes_Route {
+	route := &vpp_l3.StaticRoutes_Route{
+		DstIpAddr:   "0.0.0.0/0",
+		VrfId:       PodVrfID,
+		LookupVrfId: MainVrfID,
+	}
+	return route
+}
+
+func (s *remoteCNIserver) routesToPodVRF() (*vpp_l3.StaticRoutes_Route, *vpp_l3.StaticRoutes_Route) {
+	r1 := &vpp_l3.StaticRoutes_Route{
+		DstIpAddr:   s.ipam.PodSubnet().String(),
+		VrfId:       MainVrfID,
+		LookupVrfId: PodVrfID,
+	}
+	r2 := &vpp_l3.StaticRoutes_Route{
+		DstIpAddr:   s.ipam.VPPHostSubnet().String(),
+		VrfId:       MainVrfID,
+		LookupVrfId: PodVrfID,
+	}
+	return r1, r2
 }
 
 func (s *remoteCNIserver) routesToHost(nextHopIP string) []*vpp_l3.StaticRoutes_Route {
@@ -225,6 +250,7 @@ func (s *remoteCNIserver) vxlanBVILoopback() (*vpp_intf.Interfaces_Interface, er
 		Enabled:     true,
 		IpAddresses: []string{vxlanIP.String()},
 		PhysAddress: s.hwAddrForVXLAN(s.ipam.NodeID()),
+		Vrf:         PodVrfID,
 	}, nil
 }
 
@@ -314,15 +340,29 @@ func (s *remoteCNIserver) routeToOtherHostStack(hostID uint32, nextHopIP string)
 
 func (s *remoteCNIserver) routeToOtherManagementIP(managementIP string, nextHopIP string) *vpp_l3.StaticRoutes_Route {
 	return &vpp_l3.StaticRoutes_Route{
-		DstIpAddr:   managementIP + "/32",
-		NextHopAddr: nextHopIP,
+		DstIpAddr:         managementIP + "/32",
+		NextHopAddr:       nextHopIP,
+		OutgoingInterface: vxlanBVIInterfaceName, // TODO: not for L2 case
+		VrfId:             PodVrfID,
+		NextHopVrfId:      PodVrfID,
+	}
+}
+
+func (s *remoteCNIserver) routeToOtherManagementIPViaPodVRF(managementIP string) *vpp_l3.StaticRoutes_Route {
+	return &vpp_l3.StaticRoutes_Route{
+		DstIpAddr:    managementIP + "/32",
+		VrfId:        MainVrfID,
+		NextHopVrfId: PodVrfID,
 	}
 }
 
 func (s *remoteCNIserver) routeToOtherHostNetworks(destNetwork *net.IPNet, nextHopIP string) (*vpp_l3.StaticRoutes_Route, error) {
 	return &vpp_l3.StaticRoutes_Route{
-		DstIpAddr:   destNetwork.String(),
-		NextHopAddr: nextHopIP,
+		DstIpAddr:         destNetwork.String(),
+		NextHopAddr:       nextHopIP,
+		OutgoingInterface: vxlanBVIInterfaceName, // TODO: not for L2 case
+		VrfId:             PodVrfID,
+		NextHopVrfId:      PodVrfID,
 	}, nil
 }
 

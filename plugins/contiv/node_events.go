@@ -236,6 +236,7 @@ func (s *remoteCNIserver) addRoutesToNode(nodeInfo *node.NodeInfo) error {
 		// static route directly to other node IP
 		podsRoute, hostRoute, err = s.computeRoutesToHost(nodeInfo.Id, hostIP)
 		nextHop = hostIP
+		// TODO: fix this case for VRFs
 	} else {
 		// static route to other node VXLAN BVI
 		vxlanNextHop, err = s.ipam.VxlanIPAddress(nodeInfo.Id)
@@ -254,9 +255,13 @@ func (s *remoteCNIserver) addRoutesToNode(nodeInfo *node.NodeInfo) error {
 	s.Logger.Info("Adding host route: ", hostRoute)
 
 	if s.stnIP == "" {
-		managementRoute := s.routeToOtherManagementIP(nodeInfo.ManagementIpAddress, nextHop)
-		txn.StaticRoute(managementRoute)
-		s.Logger.Info("Adding managementIP route: ", managementRoute)
+		mgmtRoute1 := s.routeToOtherManagementIP(nodeInfo.ManagementIpAddress, nextHop)
+		txn.StaticRoute(mgmtRoute1)
+		s.Logger.Info("Adding managementIP route: ", mgmtRoute1)
+
+		mgmtRoute2 := s.routeToOtherManagementIPViaPodVRF(nodeInfo.ManagementIpAddress)
+		txn.StaticRoute(mgmtRoute2)
+		s.Logger.Info("Adding managementIP route: ", mgmtRoute2)
 	}
 
 	// send the config transaction
@@ -313,6 +318,7 @@ func (s *remoteCNIserver) deleteRoutesToNode(nodeInfo *node.NodeInfo) error {
 		// static route directly to other node IP
 		podsRoute, hostRoute, err = s.computeRoutesToHost(nodeInfo.Id, hostIP)
 		nextHop = hostIP
+		// TODO: fix this case for VRFs
 	} else {
 		// static route to other node VXLAN BVI
 		vxlanNextHop, err = s.ipam.VxlanIPAddress(nodeInfo.Id)
@@ -331,9 +337,13 @@ func (s *remoteCNIserver) deleteRoutesToNode(nodeInfo *node.NodeInfo) error {
 	s.Logger.Info("Deleting host route: ", hostRoute)
 
 	if s.stnIP == "" {
-		managementRoute := s.routeToOtherManagementIP(nodeInfo.ManagementIpAddress, nextHop)
-		txn.Delete().StaticRoute(managementRoute.VrfId, managementRoute.DstIpAddr, managementRoute.NextHopAddr)
-		s.Logger.Info("Deleting managementIP route: ", managementRoute)
+		mgmtRoute1 := s.routeToOtherManagementIP(nodeInfo.ManagementIpAddress, nextHop)
+		txn.Delete().StaticRoute(mgmtRoute1.VrfId, mgmtRoute1.DstIpAddr, mgmtRoute1.NextHopAddr)
+		s.Logger.Info("Deleting managementIP route: ", mgmtRoute1)
+
+		mgmtRoute2 := s.routeToOtherManagementIPViaPodVRF(nodeInfo.ManagementIpAddress)
+		txn.Delete().StaticRoute(mgmtRoute2.VrfId, mgmtRoute2.DstIpAddr, "")
+		s.Logger.Info("Deleting managementIP route: ", mgmtRoute2)
 	}
 
 	// send the config transaction

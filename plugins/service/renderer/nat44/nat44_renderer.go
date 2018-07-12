@@ -500,6 +500,7 @@ func (rndr *Renderer) exportDNATMappings(service *renderer.ContivService) []*nat
 					continue
 				}
 				mapping := &nat.Nat44DNat_DNatConfig_StaticMapping{}
+				mapping.VrfId = 0 // TODO: main VRF
 				mapping.TwiceNat = nat.TwiceNatMode_SELF
 				mapping.ExternalIp = nodeIP.String()
 				mapping.ExternalPort = uint32(port.NodePort)
@@ -569,6 +570,12 @@ func (rndr *Renderer) exportDNATMappings(service *renderer.ContivService) []*nat
 				} else {
 					local.Probability = 1
 				}
+				// TODO: this will not work in case of mixed HostNetwork and non-HostNetwork backends
+				if rndr.isNodeIP(backend.IP) {
+					mapping.VrfId = 0 // TODO: main VRF
+				} else {
+					mapping.VrfId = 1 // TODO: POD VRF
+				}
 				mapping.LocalIps = append(mapping.LocalIps, local)
 			}
 			if len(mapping.LocalIps) == 0 {
@@ -586,6 +593,15 @@ func (rndr *Renderer) exportDNATMappings(service *renderer.ContivService) []*nat
 	return mappings
 }
 
+func (rndr *Renderer) isNodeIP(ip net.IP) bool {
+	for _, nodeIP := range rndr.nodeIPs.List() {
+		if nodeIP.Equal(ip) {
+			return true
+		}
+	}
+	return false
+}
+
 // exportIdentityMappings returns DNAT configuration with identities to exclude
 // VXLAN port and main interface IP (with the exception of node-ports)
 // from dynamic mappings.
@@ -599,10 +615,12 @@ func (rndr *Renderer) exportIdentityMappings() *nat.Nat44DNat_DNatConfig {
 			IpAddress: rndr.defaultIfIP.String(),
 			Protocol:  nat.Protocol_UDP,
 			Port:      vxlanPort,
+			VrfId:     0, // TODO: main VRF
 		}
 		mainIfID := &nat.Nat44DNat_DNatConfig_IdentityMapping{
 			IpAddress: rndr.defaultIfIP.String(),
 			Protocol:  nat.Protocol_UDP, /* Address-only mappings are dumped with UDP as protocol */
+			VrfId:     0,                // TODO: main VRF
 		}
 		idNat.IdMappings = append(idNat.IdMappings, vxlanID)
 		idNat.IdMappings = append(idNat.IdMappings, mainIfID)

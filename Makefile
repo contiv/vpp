@@ -236,6 +236,13 @@ dep-update: get-dep
 describe:
 	./scripts/contiv_describe.sh
 
+docker-images:
+	cd docker && ./build-all.sh -s
+	cd docker && ./push-all.sh -s
+
+vagrant-images: docker-images
+	cd docker && ./save.sh -s
+
 generate-manifest:
 	helm template k8s/contiv-vpp/ > k8s/contiv-vpp.yaml
 

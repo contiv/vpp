@@ -113,6 +113,9 @@ type remoteCNIserver struct {
 	// this node's main IP address
 	nodeIP string
 
+	// IP addresses of this node present in the host network namespace (Linux)
+	hostIPs []net.IP
+
 	// nodeIPsubscribers is a slice of channels that are notified when nodeIP is changed
 	nodeIPsubscribers []chan string
 
@@ -207,6 +210,7 @@ type vswitchConfig struct {
 	routesToHost     []*vpp_l3.StaticRoutes_Route
 	routeFromHost    *linux_l3.LinuxStaticRoutes_Route
 	routeForServices *linux_l3.LinuxStaticRoutes_Route
+	vrfRoutes        []*vpp_l3.StaticRoutes_Route
 	l4Features       *vpp_l4.L4Features
 
 	vxlanBVI *vpp_intf.Interfaces_Interface
@@ -795,15 +799,16 @@ func (s *remoteCNIserver) configureVswitchVxlanBridgeDomain(config *vswitchConfi
 	s.vxlanBVIIfName = config.vxlanBVI.Name
 
 	// route towards POD VRF
-	r1, r2 := s.routesToPodVRF()
-	txn.StaticRoute(r1)
-	txn.StaticRoute(r2)
+	vrfR1, vrfR2 := s.routesToPodVRF()
+	txn.StaticRoute(vrfR1)
+	txn.StaticRoute(vrfR2)
 	// TODO move to a better place
 
 	// default route from POD VRF
-	r3 := s.defaultRoutePodToMainVRF()
-	txn.StaticRoute(r3)
+	vrfR3 := s.defaultRoutePodToMainVRF()
+	txn.StaticRoute(vrfR3)
 	// TODO move to a better place
+	config.vrfRoutes = []*vpp_l3.StaticRoutes_Route{vrfR1, vrfR2, vrfR3}
 
 	// bridge domain for the VXLAN tunnel
 	config.vxlanBD = s.vxlanBridgeDomain(config.vxlanBVI.Name)
@@ -869,6 +874,11 @@ func (s *remoteCNIserver) persistVswitchConfig(config *vswitchConfig) error {
 	}
 	changes[linux_l3.StaticRouteKey(config.routeFromHost.Name)] = config.routeFromHost
 	changes[linux_l3.StaticRouteKey(config.routeForServices.Name)] = config.routeForServices
+	if config.vrfRoutes != nil {
+		for _, r := range config.vrfRoutes {
+			changes[vpp_l3.RouteKey(r.VrfId, r.DstIpAddr, r.NextHopAddr)] = r
+		}
+	}
 	changes[vpp_l4.FeatureKey()] = config.l4Features
 
 	// persist the changes in ETCD
@@ -1503,6 +1513,14 @@ func (s *remoteCNIserver) GetNodeIP() (ip net.IP, network *net.IPNet) {
 	}
 
 	return nodeIP, nodeNet
+}
+
+// GetHostIPs returns all IP addresses of this node present in the host network namespace (Linux).
+func (s *remoteCNIserver) GetHostIPs() []net.IP {
+	s.Lock()
+	defer s.Unlock()
+
+	return s.hostIPs
 }
 
 // WatchNodeIP adds given channel to the list of subscribers that are notified upon change

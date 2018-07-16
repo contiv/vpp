@@ -348,6 +348,11 @@ func (plugin *Plugin) GetNodeIP() (ip net.IP, network *net.IPNet) {
 	return plugin.cniServer.GetNodeIP()
 }
 
+// // GetHostIPs returns all IP addresses of this node present in the host network namespace (Linux).
+func (plugin *Plugin) GetHostIPs() []net.IP {
+	return plugin.cniServer.GetHostIPs()
+}
+
 // WatchNodeIP adds given channel to the list of subscribers that are notified upon change
 // of nodeIP address. If the channel is not ready to receive notification, the notification is dropped.
 func (plugin *Plugin) WatchNodeIP(subscriber chan string) {

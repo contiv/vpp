@@ -131,7 +131,7 @@ func (s *remoteCNIserver) routesToHost(nextHopIP string) []*vpp_l3.StaticRoutes_
 	routes := make([]*vpp_l3.StaticRoutes_Route, 0)
 	for _, ip := range ips {
 		routes = append(routes, &vpp_l3.StaticRoutes_Route{
-			DstIpAddr:         fmt.Sprintf("%s/32", ip),
+			DstIpAddr:         fmt.Sprintf("%s/32", ip.String()),
 			NextHopAddr:       nextHopIP,
 			OutgoingInterface: s.hostInterconnectIfName,
 		})
@@ -420,14 +420,18 @@ func (s *remoteCNIserver) ipPrefixToAddress(ip string) string {
 	return ip
 }
 
-func (s *remoteCNIserver) getHostLinkIPs() ([]string, error) {
+func (s *remoteCNIserver) getHostLinkIPs() ([]net.IP, error) {
+	if s.hostIPs != nil {
+		return s.hostIPs, nil
+	}
+
 	links, err := netlink.LinkList()
 	if err != nil {
 		s.Logger.Error("Unable to list host links:", err)
 		return nil, err
 	}
 
-	res := make([]string, 0)
+	s.hostIPs = make([]net.IP, 0)
 	for _, l := range links {
 		if !strings.HasPrefix(l.Attrs().Name, "lo") && !strings.HasPrefix(l.Attrs().Name, "docker") &&
 			!strings.HasPrefix(l.Attrs().Name, "virbr") && !strings.HasPrefix(l.Attrs().Name, "vpp") {
@@ -439,11 +443,11 @@ func (s *remoteCNIserver) getHostLinkIPs() ([]string, error) {
 			}
 			// return all IPs
 			for _, addr := range addrList {
-				res = append(res, addr.IP.String())
+				s.hostIPs = append(s.hostIPs, addr.IP)
 			}
 		}
 	}
-	return res, nil
+	return s.hostIPs, nil
 }
 
 func (s *remoteCNIserver) enableIPNeighborScan() error {

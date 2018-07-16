@@ -254,14 +254,14 @@ func (s *remoteCNIserver) addRoutesToNode(nodeInfo *node.NodeInfo) error {
 	s.Logger.Info("Adding PODs route: ", podsRoute)
 	s.Logger.Info("Adding host route: ", hostRoute)
 
-	if s.stnIP == "" {
-		mgmtRoute1 := s.routeToOtherManagementIP(nodeInfo.ManagementIpAddress, nextHop)
-		txn.StaticRoute(mgmtRoute1)
-		s.Logger.Info("Adding managementIP route: ", mgmtRoute1)
+	mgmtRoute1 := s.routeToOtherManagementIP(nodeInfo.ManagementIpAddress, nextHop)
+	txn.StaticRoute(mgmtRoute1)
+	s.Logger.Info("Adding managementIP route: ", mgmtRoute1)
 
+	if s.stnIP == "" {
 		mgmtRoute2 := s.routeToOtherManagementIPViaPodVRF(nodeInfo.ManagementIpAddress)
 		txn.StaticRoute(mgmtRoute2)
-		s.Logger.Info("Adding managementIP route: ", mgmtRoute2)
+		s.Logger.Info("Adding managementIP route via POD VRF: ", mgmtRoute2)
 	}
 
 	// send the config transaction
@@ -336,14 +336,14 @@ func (s *remoteCNIserver) deleteRoutesToNode(nodeInfo *node.NodeInfo) error {
 	s.Logger.Info("Deleting PODs route: ", podsRoute)
 	s.Logger.Info("Deleting host route: ", hostRoute)
 
-	if s.stnIP == "" {
-		mgmtRoute1 := s.routeToOtherManagementIP(nodeInfo.ManagementIpAddress, nextHop)
-		txn.Delete().StaticRoute(mgmtRoute1.VrfId, mgmtRoute1.DstIpAddr, mgmtRoute1.NextHopAddr)
-		s.Logger.Info("Deleting managementIP route: ", mgmtRoute1)
+	mgmtRoute1 := s.routeToOtherManagementIP(nodeInfo.ManagementIpAddress, nextHop)
+	txn.Delete().StaticRoute(mgmtRoute1.VrfId, mgmtRoute1.DstIpAddr, mgmtRoute1.NextHopAddr)
+	s.Logger.Info("Deleting managementIP route: ", mgmtRoute1)
 
+	if s.stnIP == "" {
 		mgmtRoute2 := s.routeToOtherManagementIPViaPodVRF(nodeInfo.ManagementIpAddress)
 		txn.Delete().StaticRoute(mgmtRoute2.VrfId, mgmtRoute2.DstIpAddr, "")
-		s.Logger.Info("Deleting managementIP route: ", mgmtRoute2)
+		s.Logger.Info("Deleting managementIP route via POD VRF: ", mgmtRoute2)
 	}
 
 	// send the config transaction

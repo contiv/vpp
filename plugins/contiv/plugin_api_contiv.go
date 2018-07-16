@@ -67,6 +67,9 @@ type API interface {
 	// to watch for node IP via WatchNodeIP().
 	GetNodeIP() (ip net.IP, network *net.IPNet)
 
+	// GetHostIPs returns all IP addresses of this node present in the host network namespace (Linux).
+	GetHostIPs() []net.IP
+
 	// WatchNodeIP adds given channel to the list of subscribers that are notified upon change
 	// of nodeIP address. If the channel is not ready to receive notification, the notification is dropped.
 	WatchNodeIP(subscriber chan string)

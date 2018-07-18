@@ -223,7 +223,7 @@ LOCAL_COMMANDS["linux-ip-route.log"]="ip route"
 LOCAL_COMMANDS["contiv-stn.log"]='CONTAINER=$(sudo docker ps --filter name=contiv-stn --format "{{.ID}}") && [ -n "$CONTAINER" ] && sudo docker logs "$CONTAINER"'
 LOCAL_COMMANDS["vswitch-version.log"]="curl -m 2 localhost:9999/liveness"
 LOCAL_COMMANDS["docker-ps.log"]="sudo docker ps"
-LOCAL_COMMANDS["core-dump.tar"]="sudo test -d /run/vpp/dumps && sudo tar -c -C /run/vpp dumps"
+LOCAL_COMMANDS["core-dump.tar.xz"]="sudo test -d /run/vpp/dumps && sudo tar -Jc -C /run/vpp dumps"
 
 declare -A ETCD_COMMANDS
 ETCD_COMMANDS["etcd-tree.log"]="export ETCDCTL_API=3 && etcdctl --endpoints=127.0.0.1:32379 get / --prefix=true"
@@ -465,8 +465,8 @@ fi
 popd >/dev/null
 if [ "$ARCHIVE" = "1" ]
 then
-    echo "Creating tar file $REPORT_DIR.tgz..."
-    tar -zcf "$REPORT_DIR.tgz" "$REPORT_DIR"
+    echo "Creating tar file $REPORT_DIR.tar.xz..."
+    tar -Jcf "$REPORT_DIR.tar.xz" "$REPORT_DIR"
     if [ "$SSH_ERROR" = "0" ]
     then
         rm -rf "$REPORT_DIR"

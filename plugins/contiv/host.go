@@ -98,23 +98,26 @@ func (s *remoteCNIserver) defaultRoute(gwIP string, outIfName string) *vpp_l3.St
 
 func (s *remoteCNIserver) defaultRoutePodToMainVRF() *vpp_l3.StaticRoutes_Route {
 	route := &vpp_l3.StaticRoutes_Route{
-		DstIpAddr:   "0.0.0.0/0",
-		VrfId:       PodVrfID,
-		LookupVrfId: MainVrfID,
+		Type:      vpp_l3.StaticRoutes_Route_INTER_VRF,
+		DstIpAddr: "0.0.0.0/0",
+		VrfId:     PodVrfID,
+		ViaVrfId:  MainVrfID,
 	}
 	return route
 }
 
 func (s *remoteCNIserver) routesToPodVRF() (*vpp_l3.StaticRoutes_Route, *vpp_l3.StaticRoutes_Route) {
 	r1 := &vpp_l3.StaticRoutes_Route{
-		DstIpAddr:   s.ipam.PodSubnet().String(),
-		VrfId:       MainVrfID,
-		LookupVrfId: PodVrfID,
+		Type:      vpp_l3.StaticRoutes_Route_INTER_VRF,
+		DstIpAddr: s.ipam.PodSubnet().String(),
+		VrfId:     MainVrfID,
+		ViaVrfId:  PodVrfID,
 	}
 	r2 := &vpp_l3.StaticRoutes_Route{
-		DstIpAddr:   s.ipam.VPPHostSubnet().String(),
-		VrfId:       MainVrfID,
-		LookupVrfId: PodVrfID,
+		Type:      vpp_l3.StaticRoutes_Route_INTER_VRF,
+		DstIpAddr: s.ipam.VPPHostSubnet().String(),
+		VrfId:     MainVrfID,
+		ViaVrfId:  PodVrfID,
 	}
 	return r1, r2
 }
@@ -344,15 +347,15 @@ func (s *remoteCNIserver) routeToOtherManagementIP(managementIP string, nextHopI
 		NextHopAddr:       nextHopIP,
 		OutgoingInterface: vxlanBVIInterfaceName, // TODO: not for L2 case
 		VrfId:             PodVrfID,
-		NextHopVrfId:      PodVrfID,
 	}
 }
 
 func (s *remoteCNIserver) routeToOtherManagementIPViaPodVRF(managementIP string) *vpp_l3.StaticRoutes_Route {
 	return &vpp_l3.StaticRoutes_Route{
-		DstIpAddr:    managementIP + "/32",
-		VrfId:        MainVrfID,
-		NextHopVrfId: PodVrfID,
+		Type:      vpp_l3.StaticRoutes_Route_INTER_VRF,
+		DstIpAddr: managementIP + "/32",
+		VrfId:     MainVrfID,
+		ViaVrfId:  PodVrfID,
 	}
 }
 
@@ -362,7 +365,6 @@ func (s *remoteCNIserver) routeToOtherHostNetworks(destNetwork *net.IPNet, nextH
 		NextHopAddr:       nextHopIP,
 		OutgoingInterface: vxlanBVIInterfaceName, // TODO: not for L2 case
 		VrfId:             PodVrfID,
-		NextHopVrfId:      PodVrfID,
 	}, nil
 }
 

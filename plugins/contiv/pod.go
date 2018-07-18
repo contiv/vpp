@@ -367,9 +367,8 @@ func (s *remoteCNIserver) loopbackFromRequest(request *cni.CNIRequest, loopIP st
 
 func (s *remoteCNIserver) vppRouteFromRequest(request *cni.CNIRequest, podIP string) *vpp_l3.StaticRoutes_Route {
 	route := &vpp_l3.StaticRoutes_Route{
-		DstIpAddr:    podIP,
-		VrfId:        PodVrfID,
-		NextHopVrfId: PodVrfID,
+		DstIpAddr: podIP,
+		VrfId:     PodVrfID,
 	}
 	if s.useTAPInterfaces {
 		route.OutgoingInterface = s.tapNameFromRequest(request)

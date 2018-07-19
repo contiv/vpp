@@ -13,6 +13,7 @@ import (
 	"github.com/ligato/cn-infra/logging"
 
 	"fmt"
+	"git.fd.io/govpp.git/codec"
 	vpptcprule "github.com/contiv/vpp/plugins/policy/renderer/vpptcp/rule"
 	"github.com/ligato/vpp-agent/plugins/vpp/binapi/session"
 )
@@ -80,7 +81,7 @@ func (msr *MockSessionRules) Clear() {
 }
 
 // NewVPPChan creates a new mock VPP channel.
-func (msr *MockSessionRules) NewVPPChan() *govppapi.Channel {
+func (msr *MockSessionRules) NewVPPChan() govppapi.Channel {
 	channel, _ := msr.vppConn.NewAPIChannel()
 	return channel
 }
@@ -274,7 +275,7 @@ func (msr *MockSessionRules) msgReplyHandler(request govppmock.MessageDTO) (repl
 		var retval int32
 
 		// Decode rule.
-		codec := govpp.MsgCodec{}
+		codec := codec.MsgCodec{}
 		ruleAddDel := session.SessionRuleAddDel{}
 		err := codec.DecodeMsg(request.Data, &ruleAddDel)
 		if err != nil {

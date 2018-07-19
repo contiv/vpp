@@ -11,7 +11,7 @@ import (
 // calculateMatches finds the returns a predicate that selects a subset of the traffic by calculating
 // pods that match namespace and pod label selectors for ingress and egress policy and translates IPBlocks
 // in the right format for configurator.
-func (pp *PolicyProcessor) calculateMatches(policyData *policymodel.Policy) []config.Match {
+func (pp *PolicyProcessor) calculateMatches(policyData *policymodel.Policy, podID podmodel.ID) []config.Match {
 	matches := []config.Match{}
 
 	ingressRules := policyData.IngressRule
@@ -72,12 +72,29 @@ func (pp *PolicyProcessor) calculateMatches(policyData *policymodel.Policy) []co
 				if ingressRulePort.Protocol == policymodel.Policy_Port_UDP {
 					ingressPortProtocol = config.UDP
 				}
-				// todo: translate form name to port number
-				ingressPortNumber := uint16(ingressRulePort.Port.Number)
-				ingressPorts = append(ingressPorts, config.Port{
-					Protocol: ingressPortProtocol,
-					Number:   ingressPortNumber,
-				})
+				// A port in kubernetes network policy is either a name (1) or a port number (0)
+				if ingressRulePort.Port.Type == 0 {
+					ingressPortNumber := uint16(ingressRulePort.Port.Number)
+					ingressPorts = append(ingressPorts, config.Port{
+						Protocol: ingressPortProtocol,
+						Number:   ingressPortNumber,
+					})
+				} else {
+					// Obtain data for pod that matches are calculated
+					_, podData := pp.Cache.LookupPod(podID)
+					// If pod has name matching port policy name, find the port that the name is mapped to
+					for _, podContainer := range podData.Container {
+						for _, podPort := range podContainer.Port {
+							if podPort.Name == ingressRulePort.Port.Name {
+								ingressPortNumber := uint16(podPort.ContainerPort)
+								ingressPorts = append(ingressPorts, config.Port{
+									Protocol: ingressPortProtocol,
+									Number:   ingressPortNumber,
+								})
+							}
+						}
+					}
+				}
 			}
 
 			matches = append(matches, config.Match{
@@ -144,12 +161,26 @@ func (pp *PolicyProcessor) calculateMatches(policyData *policymodel.Policy) []co
 				if egressRulePort.Protocol == policymodel.Policy_Port_UDP {
 					egressPortProtocol = config.UDP
 				}
-				// todo: translate form name to port number
-				egressPortNumber := uint16(egressRulePort.Port.Number)
-				egressPorts = append(egressPorts, config.Port{
-					Protocol: egressPortProtocol,
-					Number:   egressPortNumber,
-				})
+
+				if egressRulePort.Port.Type == 0 {
+					egressPortNumber := uint16(egressRulePort.Port.Number)
+					egressPorts = append(egressPorts, config.Port{
+						Protocol: egressPortProtocol,
+						Number:   egressPortNumber,
+					})
+				} else {
+					// if there are egressPods then map the portName to portNumber for every each one of them
+					// without adding IPBlocks, if not do the same for all running pods.
+					if len(egressPods) > 0 {
+						// For all egress pods, find the matching policy port name mapped to a port number
+						portNameMatches := pp.portNameToNumber(egressPods, egressPortProtocol, egressRulePort)
+						matches = append(matches, portNameMatches)
+					} else {
+						newEgressPods := pp.Cache.ListAllPods()
+						portNameMatches := pp.portNameToNumber(newEgressPods, egressPortProtocol, egressRulePort)
+						matches = append(matches, portNameMatches)
+					}
+				}
 			}
 
 			matches = append(matches, config.Match{
@@ -161,4 +192,28 @@ func (pp *PolicyProcessor) calculateMatches(policyData *policymodel.Policy) []co
 		}
 	}
 	return matches
+}
+
+func (pp *PolicyProcessor) portNameToNumber(pods []podmodel.ID, portProtocol config.ProtocolType,
+	rulePort *policymodel.Policy_Port) config.Match {
+	for _, pod := range pods {
+		_, podData := pp.Cache.LookupPod(pod)
+		for _, podContainer := range podData.Container {
+			for _, podPort := range podContainer.Port {
+				if podPort.Name == rulePort.Port.Name {
+					portNumber := uint16(podPort.ContainerPort)
+					port := config.Port{
+						Protocol: portProtocol,
+						Number:   portNumber,
+					}
+					return config.Match{
+						Type:     config.MatchEgress,
+						Pods:     []podmodel.ID{pod},
+						IPBlocks: []config.IPBlock{},
+						Ports:    []config.Port{port},
+					}
+				}
+			}
+		}
+	}
 }

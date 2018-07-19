@@ -117,7 +117,7 @@ func (pp *PolicyProcessor) Process(resync bool, pods []podmodel.ID) error {
 					break
 				}
 
-				matches := pp.calculateMatches(policyData)
+				matches := pp.calculateMatches(policyData, pod)
 
 				contivPolicy = &config.ContivPolicy{
 					ID: policymodel.ID{

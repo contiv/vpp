@@ -236,7 +236,6 @@ func (s *remoteCNIserver) addRoutesToNode(nodeInfo *node.NodeInfo) error {
 		// static route directly to other node IP
 		podsRoute, hostRoute, err = s.computeRoutesToHost(nodeInfo.Id, hostIP)
 		nextHop = hostIP
-		// TODO: fix this case for VRFs
 	} else {
 		// static route to other node VXLAN BVI
 		vxlanNextHop, err = s.ipam.VxlanIPAddress(nodeInfo.Id)
@@ -318,7 +317,6 @@ func (s *remoteCNIserver) deleteRoutesToNode(nodeInfo *node.NodeInfo) error {
 		// static route directly to other node IP
 		podsRoute, hostRoute, err = s.computeRoutesToHost(nodeInfo.Id, hostIP)
 		nextHop = hostIP
-		// TODO: fix this case for VRFs
 	} else {
 		// static route to other node VXLAN BVI
 		vxlanNextHop, err = s.ipam.VxlanIPAddress(nodeInfo.Id)

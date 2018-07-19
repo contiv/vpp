@@ -345,12 +345,17 @@ func (s *remoteCNIserver) routeToOtherHostStack(hostID uint32, nextHopIP string)
 }
 
 func (s *remoteCNIserver) routeToOtherManagementIP(managementIP string, nextHopIP string) *vpp_l3.StaticRoutes_Route {
-	return &vpp_l3.StaticRoutes_Route{
-		DstIpAddr:         managementIP + "/32",
-		NextHopAddr:       nextHopIP,
-		OutgoingInterface: vxlanBVIInterfaceName, // TODO: not for L2 case
-		VrfId:             s.GetPodVrfId(),
+	r := &vpp_l3.StaticRoutes_Route{
+		DstIpAddr:   managementIP + "/32",
+		NextHopAddr: nextHopIP,
 	}
+	if s.useL2Interconnect {
+		r.VrfId = s.GetMainVrfId()
+	} else {
+		r.OutgoingInterface = vxlanBVIInterfaceName
+		r.VrfId = s.GetPodVrfId()
+	}
+	return r
 }
 
 func (s *remoteCNIserver) routeToOtherManagementIPViaPodVRF(managementIP string) *vpp_l3.StaticRoutes_Route {
@@ -363,12 +368,17 @@ func (s *remoteCNIserver) routeToOtherManagementIPViaPodVRF(managementIP string)
 }
 
 func (s *remoteCNIserver) routeToOtherHostNetworks(destNetwork *net.IPNet, nextHopIP string) (*vpp_l3.StaticRoutes_Route, error) {
-	return &vpp_l3.StaticRoutes_Route{
-		DstIpAddr:         destNetwork.String(),
-		NextHopAddr:       nextHopIP,
-		OutgoingInterface: vxlanBVIInterfaceName, // TODO: not for L2 case
-		VrfId:             s.GetPodVrfId(),
-	}, nil
+	r := &vpp_l3.StaticRoutes_Route{
+		DstIpAddr:   destNetwork.String(),
+		NextHopAddr: nextHopIP,
+	}
+	if s.useL2Interconnect {
+		r.VrfId = s.GetMainVrfId()
+	} else {
+		r.OutgoingInterface = vxlanBVIInterfaceName
+		r.VrfId = s.GetPodVrfId()
+	}
+	return r, nil
 }
 
 func (s *remoteCNIserver) computeVxlanToHost(hostID uint32, hostIP string) (*vpp_intf.Interfaces_Interface, error) {

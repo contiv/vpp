@@ -15,10 +15,11 @@
     "adapter/mock/binapi",
     "adapter/vppapiclient",
     "api",
+    "codec",
     "core",
     "core/bin_api/vpe"
   ]
-  revision = "5276b9439d0f902e125a5113bfa4f1b6622aea18"
+  revision = "f1bef4a3c66f4408afdeb64cda62ccd8562d0fc6"
 
 [[projects]]
   branch = "master"
@@ -737,7 +738,8 @@
     "utils/safeclose",
     "utils/structs"
   ]
-  revision = "4d93554a7a67744435ec5a207435cc3d55df4c02"
+  revision = "99b1f3ef1874097c64653096589cd5c166e37d81"
+  version = "v1.4.0"
 
 [[projects]]
   name = "github.com/ligato/vpp-agent"
@@ -821,7 +823,7 @@
     "plugins/vpp/srplugin/cache",
     "plugins/vpp/srplugin/vppcalls"
   ]
-  revision = "5f8dd1980cafccac70b020d48c0105a80009a840"
+  revision = "06c81a53a091037b91e646000b390db559bc52ca"
 
 [[projects]]
   branch = "master"
@@ -1677,6 +1679,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "fc8cea2c7ecbca11630f17aced79115c15b8d28ca421c21fe94d9283c17d0a9a"
+  inputs-digest = "7b3ed19c794139838366c4396c17782edfac2063aed3e4588585395c206fca45"
   solver-name = "gps-cdcl"
   solver-version = 1

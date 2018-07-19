@@ -25,6 +25,7 @@ import (
 	govppmock "git.fd.io/govpp.git/adapter/mock"
 	"git.fd.io/govpp.git/adapter/mock/binapi"
 	"git.fd.io/govpp.git/api"
+	"git.fd.io/govpp.git/codec"
 	govpp "git.fd.io/govpp.git/core"
 
 	"github.com/contiv/vpp/mock/localclient"
@@ -413,7 +414,7 @@ func TestVeth1NameFromRequest(t *testing.T) {
 	gomega.Expect(hostIfName).To(gomega.BeEquivalentTo("eth0"))
 }
 
-func vppChanMock() (*api.Channel, *govpp.Connection) {
+func vppChanMock() (api.Channel, *govpp.Connection) {
 	vppMock := &mock.VppAdapter{}
 	vppMock.RegisterBinAPITypes(interfaces_bin.Types)
 	vppMock.RegisterBinAPITypes(memif.Types)
@@ -433,7 +434,7 @@ func vppChanMock() (*api.Channel, *govpp.Connection) {
 		logrus.DefaultLogger().Debug("MockReplyHandler ", request.MsgID, " ", reqName)
 
 		if reqName == "sw_interface_dump" {
-			codec := govpp.MsgCodec{}
+			codec := &codec.MsgCodec{}
 			ifDump := interfaces_bin.SwInterfaceDump{}
 			err := codec.DecodeMsg(request.Data, &ifDump)
 			if err != nil {

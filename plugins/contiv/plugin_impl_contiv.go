@@ -105,6 +105,8 @@ type Config struct {
 	ScanIPNeighbors             bool   // if enabled, periodically scans and probes IP neighbors to maintain the ARP table
 	IPNeighborScanInterval      uint8
 	IPNeighborStaleThreshold    uint8
+	MainVRFID                   uint32
+	PodVRFID                    uint32
 	ServiceLocalEndpointWeight  uint8
 	DisableNATVirtualReassembly bool // if true, NAT plugin will drop fragmented packets
 	IPAMConfig                  ipam.Config
@@ -394,6 +396,16 @@ func (plugin *Plugin) GetDefaultInterface() (ifName string, ifAddress net.IP) {
 // pod immediately before its removal.
 func (plugin *Plugin) RegisterPodPreRemovalHook(hook PodActionHook) {
 	plugin.cniServer.RegisterPodPreRemovalHook(hook)
+}
+
+// GetMainVrfId returns the ID of the main network connectivity VRF.
+func (plugin *Plugin) GetMainVrfId() uint32 {
+	return plugin.cniServer.GetMainVrfId()
+}
+
+// GetPodVrfId returns the ID of the POD VRF.
+func (plugin *Plugin) GetPodVrfId() uint32 {
+	return plugin.cniServer.GetPodVrfId()
 }
 
 // handleResync handles resync events of the plugin. Called automatically by the plugin infra.

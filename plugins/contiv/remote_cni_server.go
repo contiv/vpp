@@ -58,6 +58,8 @@ const (
 	vethHostEndName               = "vpp1"
 	vethVPPEndLogicalName         = "veth-vpp2"
 	vethVPPEndName                = "vpp2"
+	defaultMainVrfID              = 0
+	defaultPodVrfID               = 1
 
 	// defaultSTNSocketFile is the default socket file path where CNI GRPC server listens for incoming CNI requests.
 	defaultSTNSocketFile = "/var/run/contiv/stn.sock"
@@ -347,6 +349,13 @@ func (s *remoteCNIserver) configureVswitchConnectivity() error {
 			s.Logger.Error(err)
 			return err
 		}
+	}
+
+	// configure inter-VRF routing
+	err = s.configureVswitchVrfRoutes(config)
+	if err != nil {
+		s.Logger.Error(err)
+		return err
 	}
 
 	// persist vswitch configuration in ETCD
@@ -798,18 +807,6 @@ func (s *remoteCNIserver) configureVswitchVxlanBridgeDomain(config *vswitchConfi
 	txn.VppInterface(config.vxlanBVI)
 	s.vxlanBVIIfName = config.vxlanBVI.Name
 
-	// route towards POD VRF
-	vrfR1, vrfR2 := s.routesToPodVRF()
-	txn.StaticRoute(vrfR1)
-	txn.StaticRoute(vrfR2)
-	// TODO move to a better place
-
-	// default route from POD VRF
-	vrfR3 := s.defaultRoutePodToMainVRF()
-	txn.StaticRoute(vrfR3)
-	// TODO move to a better place
-	config.vrfRoutes = []*vpp_l3.StaticRoutes_Route{vrfR1, vrfR2, vrfR3}
-
 	// bridge domain for the VXLAN tunnel
 	config.vxlanBD = s.vxlanBridgeDomain(config.vxlanBVI.Name)
 	// create deep copy since the config will be overwritten when a node joins the cluster
@@ -826,6 +823,23 @@ func (s *remoteCNIserver) configureVswitchVxlanBridgeDomain(config *vswitchConfi
 			return err
 		}
 	}
+
+	return nil
+}
+
+// configureVswitchVrfRoutes configures inter-VRF routing
+func (s *remoteCNIserver) configureVswitchVrfRoutes(config *vswitchConfig) error {
+	txn := s.vppTxnFactory().Put()
+
+	// routes towards POD VRF
+	vrfR1, vrfR2 := s.routesToPodVRF()
+	txn.StaticRoute(vrfR1)
+	txn.StaticRoute(vrfR2)
+
+	// default route from POD VRF
+	vrfR3 := s.defaultRoutePodToMainVRF()
+	txn.StaticRoute(vrfR3)
+	config.vrfRoutes = []*vpp_l3.StaticRoutes_Route{vrfR1, vrfR2, vrfR3}
 
 	return nil
 }
@@ -1586,4 +1600,20 @@ func (s *remoteCNIserver) GetDefaultInterface() (ifName string, ifAddress net.IP
 // UseSTN returns true if the cluster was configured to be deployed in the STN mode.
 func (s *remoteCNIserver) UseSTN() bool {
 	return s.config.StealFirstNIC || s.config.StealInterface != "" || (s.nodeConfig != nil && s.nodeConfig.StealInterface != "")
+}
+
+// GetMainVrfId returns the ID of the main network connectivity VRF.
+func (s *remoteCNIserver) GetMainVrfId() uint32 {
+	if s.config.MainVRFID != 0 && s.config.PodVRFID != 0 {
+		return s.config.MainVRFID
+	}
+	return defaultMainVrfID
+}
+
+// GetPodVrfId returns the ID of the POD VRF.
+func (s *remoteCNIserver) GetPodVrfId() uint32 {
+	if s.config.MainVRFID != 0 && s.config.PodVRFID != 0 {
+		return s.config.PodVRFID
+	}
+	return defaultPodVrfID
 }

@@ -35,8 +35,6 @@ import (
 )
 
 const (
-	MainVrfID              = 0          // main VPP VRF
-	PodVrfID               = 1          // VRF id of POD VRF
 	vxlanVNI               = 10         // VXLAN Network Identifier (or VXLAN Segment ID)
 	vxlanSplitHorizonGroup = 1          // As VXLAN tunnels are added to a BD, they must be configured with the same and non-zero Split Horizon Group (SHG) number. Otherwise, flood packet may loop among servers with the same VXLAN segment because VXLAN tunnels are fully meshed among servers.
 	vxlanBVIInterfaceName  = "vxlanBVI" // name of the VXLAN BVI interface.
@@ -92,6 +90,7 @@ func (s *remoteCNIserver) defaultRoute(gwIP string, outIfName string) *vpp_l3.St
 		DstIpAddr:         "0.0.0.0/0",
 		NextHopAddr:       gwIP,
 		OutgoingInterface: outIfName,
+		VrfId:             s.GetMainVrfId(),
 	}
 	return route
 }
@@ -100,8 +99,8 @@ func (s *remoteCNIserver) defaultRoutePodToMainVRF() *vpp_l3.StaticRoutes_Route 
 	route := &vpp_l3.StaticRoutes_Route{
 		Type:      vpp_l3.StaticRoutes_Route_INTER_VRF,
 		DstIpAddr: "0.0.0.0/0",
-		VrfId:     PodVrfID,
-		ViaVrfId:  MainVrfID,
+		VrfId:     s.GetPodVrfId(),
+		ViaVrfId:  s.GetMainVrfId(),
 	}
 	return route
 }
@@ -110,14 +109,14 @@ func (s *remoteCNIserver) routesToPodVRF() (*vpp_l3.StaticRoutes_Route, *vpp_l3.
 	r1 := &vpp_l3.StaticRoutes_Route{
 		Type:      vpp_l3.StaticRoutes_Route_INTER_VRF,
 		DstIpAddr: s.ipam.PodSubnet().String(),
-		VrfId:     MainVrfID,
-		ViaVrfId:  PodVrfID,
+		VrfId:     s.GetMainVrfId(),
+		ViaVrfId:  s.GetPodVrfId(),
 	}
 	r2 := &vpp_l3.StaticRoutes_Route{
 		Type:      vpp_l3.StaticRoutes_Route_INTER_VRF,
 		DstIpAddr: s.ipam.VPPHostSubnet().String(),
-		VrfId:     MainVrfID,
-		ViaVrfId:  PodVrfID,
+		VrfId:     s.GetMainVrfId(),
+		ViaVrfId:  s.GetPodVrfId(),
 	}
 	return r1, r2
 }
@@ -137,6 +136,7 @@ func (s *remoteCNIserver) routesToHost(nextHopIP string) []*vpp_l3.StaticRoutes_
 			DstIpAddr:         fmt.Sprintf("%s/32", ip.String()),
 			NextHopAddr:       nextHopIP,
 			OutgoingInterface: s.hostInterconnectIfName,
+			VrfId:             s.GetMainVrfId(),
 		})
 	}
 
@@ -150,6 +150,7 @@ func (s *remoteCNIserver) interconnectTap() *vpp_intf.Interfaces_Interface {
 		Type:    vpp_intf.InterfaceType_TAP_INTERFACE,
 		Mtu:     s.config.MTUSize,
 		Enabled: true,
+		Vrf:     s.GetMainVrfId(),
 		Tap: &vpp_intf.Interfaces_Interface_Tap{
 			HostIfName: TapHostEndName,
 		},
@@ -216,6 +217,7 @@ func (s *remoteCNIserver) interconnectAfpacket() *vpp_intf.Interfaces_Interface 
 		Type:    vpp_intf.InterfaceType_AF_PACKET_INTERFACE,
 		Mtu:     s.config.MTUSize,
 		Enabled: true,
+		Vrf:     s.GetMainVrfId(),
 		Afpacket: &vpp_intf.Interfaces_Interface_Afpacket{
 			HostIfName: vethVPPEndName,
 		},
@@ -225,10 +227,10 @@ func (s *remoteCNIserver) interconnectAfpacket() *vpp_intf.Interfaces_Interface 
 
 func (s *remoteCNIserver) physicalInterface(name string, ipAddress string) *vpp_intf.Interfaces_Interface {
 	return &vpp_intf.Interfaces_Interface{
-		Name:    name,
-		Type:    vpp_intf.InterfaceType_ETHERNET_CSMACD,
-		Enabled: true,
-
+		Name:        name,
+		Type:        vpp_intf.InterfaceType_ETHERNET_CSMACD,
+		Enabled:     true,
+		Vrf:         s.GetMainVrfId(),
 		IpAddresses: []string{ipAddress},
 	}
 }
@@ -238,6 +240,7 @@ func (s *remoteCNIserver) physicalInterfaceLoopback(ipAddress string) *vpp_intf.
 		Name:        "loopbackNIC",
 		Type:        vpp_intf.InterfaceType_SOFTWARE_LOOPBACK,
 		Enabled:     true,
+		Vrf:         s.GetMainVrfId(),
 		IpAddresses: []string{ipAddress},
 	}
 }
@@ -253,7 +256,7 @@ func (s *remoteCNIserver) vxlanBVILoopback() (*vpp_intf.Interfaces_Interface, er
 		Enabled:     true,
 		IpAddresses: []string{vxlanIP.String()},
 		PhysAddress: s.hwAddrForVXLAN(s.ipam.NodeID()),
-		Vrf:         PodVrfID,
+		Vrf:         s.GetPodVrfId(),
 	}, nil
 }
 
@@ -346,7 +349,7 @@ func (s *remoteCNIserver) routeToOtherManagementIP(managementIP string, nextHopI
 		DstIpAddr:         managementIP + "/32",
 		NextHopAddr:       nextHopIP,
 		OutgoingInterface: vxlanBVIInterfaceName, // TODO: not for L2 case
-		VrfId:             PodVrfID,
+		VrfId:             s.GetPodVrfId(),
 	}
 }
 
@@ -354,8 +357,8 @@ func (s *remoteCNIserver) routeToOtherManagementIPViaPodVRF(managementIP string)
 	return &vpp_l3.StaticRoutes_Route{
 		Type:      vpp_l3.StaticRoutes_Route_INTER_VRF,
 		DstIpAddr: managementIP + "/32",
-		VrfId:     MainVrfID,
-		ViaVrfId:  PodVrfID,
+		VrfId:     s.GetMainVrfId(),
+		ViaVrfId:  s.GetPodVrfId(),
 	}
 }
 
@@ -364,7 +367,7 @@ func (s *remoteCNIserver) routeToOtherHostNetworks(destNetwork *net.IPNet, nextH
 		DstIpAddr:         destNetwork.String(),
 		NextHopAddr:       nextHopIP,
 		OutgoingInterface: vxlanBVIInterfaceName, // TODO: not for L2 case
-		VrfId:             PodVrfID,
+		VrfId:             s.GetPodVrfId(),
 	}, nil
 }
 
@@ -373,6 +376,7 @@ func (s *remoteCNIserver) computeVxlanToHost(hostID uint32, hostIP string) (*vpp
 		Name:    fmt.Sprintf("vxlan%d", hostID),
 		Type:    vpp_intf.InterfaceType_VXLAN_TUNNEL,
 		Enabled: true,
+		Vrf:     s.GetMainVrfId(),
 		Vxlan: &vpp_intf.Interfaces_Interface_Vxlan{
 			SrcAddress: s.ipPrefixToAddress(s.nodeIP),
 			DstAddress: hostIP,

@@ -98,4 +98,10 @@ type API interface {
 	// RegisterPodPreRemovalHook allows to register callback that will be run for each
 	// pod immediately before its removal.
 	RegisterPodPreRemovalHook(hook PodActionHook)
+
+	// GetMainVrfId returns the ID of the main network connectivity VRF.
+	GetMainVrfId() uint32
+
+	// GetPodVrfId returns the ID of the POD VRF.
+	GetPodVrfId() uint32
 }

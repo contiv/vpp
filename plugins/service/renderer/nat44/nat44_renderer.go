@@ -524,10 +524,11 @@ func (rndr *Renderer) exportDNATMappings(service *renderer.ContivService) []*nat
 						local.Probability = 1
 					}
 					// TODO: this will not work in case of mixed HostNetwork and non-HostNetwork backends
+					// until https://jira.fd.io/browse/VPP-1345 is implemented
 					if rndr.isNodeLocalIP(backend.IP) {
-						mapping.VrfId = 0 // TODO: main VRF
+						mapping.VrfId = rndr.Contiv.GetMainVrfId()
 					} else {
-						mapping.VrfId = 1 // TODO: POD VRF
+						mapping.VrfId = rndr.Contiv.GetPodVrfId()
 					}
 					mapping.LocalIps = append(mapping.LocalIps, local)
 				}
@@ -576,10 +577,11 @@ func (rndr *Renderer) exportDNATMappings(service *renderer.ContivService) []*nat
 					local.Probability = 1
 				}
 				// TODO: this will not work in case of mixed HostNetwork and non-HostNetwork backends
+				// until https://jira.fd.io/browse/VPP-1345 is implemented
 				if rndr.isNodeLocalIP(backend.IP) {
-					mapping.VrfId = 0 // TODO: main VRF
+					mapping.VrfId = rndr.Contiv.GetMainVrfId()
 				} else {
-					mapping.VrfId = 1 // TODO: POD VRF
+					mapping.VrfId = rndr.Contiv.GetPodVrfId()
 				}
 				mapping.LocalIps = append(mapping.LocalIps, local)
 			}
@@ -627,12 +629,12 @@ func (rndr *Renderer) exportIdentityMappings() *nat.Nat44DNat_DNatConfig {
 			IpAddress: rndr.defaultIfIP.String(),
 			Protocol:  nat.Protocol_UDP,
 			Port:      vxlanPort,
-			VrfId:     0, // TODO: main VRF
+			VrfId:     rndr.Contiv.GetMainVrfId(),
 		}
 		mainIfID := &nat.Nat44DNat_DNatConfig_IdentityMapping{
 			IpAddress: rndr.defaultIfIP.String(),
 			Protocol:  nat.Protocol_UDP, /* Address-only mappings are dumped with UDP as protocol */
-			VrfId:     0,                // TODO: main VRF
+			VrfId:     rndr.Contiv.GetMainVrfId(),
 		}
 		idNat.IdMappings = append(idNat.IdMappings, vxlanID)
 		idNat.IdMappings = append(idNat.IdMappings, mainIfID)

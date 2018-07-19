@@ -87,7 +87,7 @@ type remoteCNIserver struct {
 	proxy kvdbproxy.Proxy
 
 	// GoVPP channel for direct binary API calls (if needed)
-	govppChan *api.Channel
+	govppChan api.Channel
 
 	// VPP interface index map
 	swIfIndex ifaceidx.SwIfIndex
@@ -215,7 +215,7 @@ type vswitchConfig struct {
 
 // newRemoteCNIServer initializes a new remote CNI server instance.
 func newRemoteCNIServer(logger logging.Logger, vppTxnFactory func() linuxclient.DataChangeDSL, proxy kvdbproxy.Proxy,
-	configuredContainers *containeridx.ConfigIndex, govppChan *api.Channel, index ifaceidx.SwIfIndex, dhcpIndex ifaceidx.DhcpIndex, agentLabel string,
+	configuredContainers *containeridx.ConfigIndex, govppChan api.Channel, index ifaceidx.SwIfIndex, dhcpIndex ifaceidx.DhcpIndex, agentLabel string,
 	config *Config, nodeConfig *OneNodeConfig, nodeID uint32, nodeExcludeIPs []net.IP, broker keyval.ProtoBroker) (*remoteCNIserver, error) {
 	ipam, err := ipam.New(logger, nodeID, &config.IPAMConfig, nodeExcludeIPs, broker)
 	if err != nil {

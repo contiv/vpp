@@ -484,7 +484,7 @@ func persistVppConfig(contivCfg *contiv.Config, stnData *stn.STNReply, cfg *vppC
 }
 
 // findHwInterfaceIdx finds index & name of the first available hardware NIC.
-func findHwInterfaceIdx(ch *api.Channel) (uint32, string, error) {
+func findHwInterfaceIdx(ch api.Channel) (uint32, string, error) {
 	req := &if_binapi.SwInterfaceDump{}
 	reqCtx := ch.SendMultiRequest(req)
 
@@ -517,7 +517,7 @@ func findHwInterfaceIdx(ch *api.Channel) (uint32, string, error) {
 }
 
 // enableArpProxy enables ARP proxy on specified interface on VPP.
-func enableArpProxy(ch *api.Channel, loAddr net.IP, hiAddr net.IP, ifIdx uint32) error {
+func enableArpProxy(ch api.Channel, loAddr net.IP, hiAddr net.IP, ifIdx uint32) error {
 
 	logger.Debugf("Enabling ARP proxy for IP range %s - %s, ifIdx %d", loAddr.String(), hiAddr.String(), ifIdx)
 
@@ -553,7 +553,7 @@ func enableArpProxy(ch *api.Channel, loAddr net.IP, hiAddr net.IP, ifIdx uint32)
 }
 
 // configureDHCP configures DHCP on an interface on VPP. Returns Go channel where assigned IP will be delivered.
-func configureDHCP(ch *api.Channel, ifIdx uint32) (chan string, error) {
+func configureDHCP(ch api.Channel, ifIdx uint32) (chan string, error) {
 	dhcpNotifChan := make(chan api.Message)
 	dhcpIPChan := make(chan string)
 

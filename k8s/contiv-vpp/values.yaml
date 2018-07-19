@@ -89,6 +89,7 @@ vswitch:
   updateStrategy: RollingUpdate
   cpuLimit: 0
   enableCoreDumps: false
+  coreDumpsDir: /var/contiv/dumps
 
 cni:
   image:

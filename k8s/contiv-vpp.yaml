@@ -280,6 +280,10 @@ spec:
                ip link del vpp1
           fi
           cp -f /usr/local/bin/vppctl /host/usr/local/bin/vppctl
+          sysctl -w debug.exception-trace=1
+          sysctl -w kernel.core_pattern="/var/contiv/dumps/%e-%t"
+          ulimit -c unlimited
+          echo 2 > /proc/sys/fs/suid_dumpable
         resources: {}
         securityContext:
           privileged: true
@@ -296,6 +300,8 @@ spec:
             mountPath: /run/vpp
           - name: contiv-run
             mountPath: /var/run/contiv
+          - name: core-dumps
+            mountPath: /var/contiv/dumps
 
       containers:
         # Runs contiv-vswitch container on each Kubernetes node.
@@ -348,6 +354,8 @@ spec:
               mountPath: /etc/agent
             - name: govpp-plugin-cfg
               mountPath: /etc/govpp
+            - name: core-dumps
+              mountPath: /var/contiv/dumps
 
       volumes:
         # Used to connect to contiv-etcd.
@@ -396,6 +404,10 @@ spec:
         - name: govpp-plugin-cfg
           configMap:
             name: govpp-cfg
+        # Used for vswitch core dumps
+        - name: core-dumps
+          hostPath:
+            path: /var/contiv/dumps
 
 ---
 

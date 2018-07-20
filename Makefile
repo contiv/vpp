@@ -240,11 +240,11 @@ docker-images:
 	cd docker && ./build-all.sh -s
 	cd docker && ./push-all.sh -s
 
-vagrant-images:
-	cd docker && ./save.sh -s
-
 docker-dev: agent contiv-init
 	cd docker/development && ./build.sh
+
+vagrant-images:
+	cd docker && ./save.sh -s
 
 generate-manifest:
 	helm template k8s/contiv-vpp/ > k8s/contiv-vpp.yaml
@@ -262,4 +262,5 @@ helm-yaml:
 	get-linters lint metalinter format check-format \
 	get-linkcheck check-links \
 	get-dep dep-install \
+	docker-images docker-dev vagrant-images\
 	describe generate-manifest helm-package helm-yaml

@@ -336,7 +336,7 @@ then
     do
         ERROR_LINES=()
 
-        VXLANS=$( cat "$nn/$VPP_VXLAN_FILE" 2> /dev/null ) || true
+        VXLANS=$( grep "^\\[[0-9]*\\] " < "$nn/$VPP_VXLAN_FILE" 2> /dev/null ) || true
         if [ -z "$VXLANS" ]
         then
             print_node_header "$nn"

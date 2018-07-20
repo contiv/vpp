@@ -209,11 +209,11 @@ do
     done
 
     # Get MAC addresses for all interfaces that have an IP address
-    VPP_MAC_ADDR=$( grep -v "Name " < "$nn"/"$VPP_MAC_ADDR_FILE" ) || true
+    VPP_MAC_ADDR=$( grep -v "Name " < "$nn/$VPP_MAC_ADDR_FILE" ) || true
     if [ -z "$VPP_IP_ADDR" ]
     then
         printf "$NODE_ERR_FORMAT" "$MISSING_NODE" ""
-        echo "ERROR: Missing or empty hardware address log: \\'""$nn""/$VPP_MAC_ADDR_FILE\\'"
+        echo "ERROR: Missing or empty hardware address log: \\'$nn/$VPP_MAC_ADDR_FILE\\'"
         exit 1
     fi
     readarray -t VPP_IF_MAC <<< "$VPP_MAC_ADDR"

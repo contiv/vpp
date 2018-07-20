@@ -24,9 +24,9 @@ usage() {
 get_log_file_name() {
     for file in "$1"/{.*,*}
     do
-        if LOG_FILE_NAME=$( echo "$file" | grep "$2" ) && [ -n "$LOG_FILE_NAME" ]
+        if log_file_name=$( echo "$file" | grep "$2" ) && [ -n "$log_file_name" ]
         then
-            echo "$LOG_FILE_NAME"
+            echo "$log_file_name"
             return
         fi
     done

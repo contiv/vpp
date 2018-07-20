@@ -94,7 +94,8 @@ get_shell_data_local() {
     log="$1"
     shift
     echo " - $*"
-    "$@" > "$log" || true
+    # We pass this to another shell so shell expressions (like variable assignments and tests) work properly.
+    sh -c "$@" > "$log" || true
 }
 
 get_shell_data_ssh() {
@@ -105,7 +106,8 @@ get_shell_data_ssh() {
 }
 
 read_shell_data_local() {
-    "$@" || true
+    # We pass this to another shell so shell expressions (like variable assignments and tests) work properly.
+    sh -c "$@" || true
 }
 
 read_shell_data_ssh() {
@@ -137,7 +139,7 @@ save_container_nw_report() {
     containers_txt=$(read_node_shell_data "sudo docker ps --format '{{.ID}} {{.Names}} {{.Image}}' | grep -vE ' [^ ]+/pause-[^ ]+$'")
 
     # return in case of no container data (e.g. issues with executing sudo)
-    if [ -z "${containers_txt}" ]
+    if [ -z "$containers_txt" ]
     then
         return
     fi
@@ -156,16 +158,16 @@ save_container_nw_report() {
         echo >> "$CONTAINER_NW_REPORT_FILE"
         echo "Container ${cinfo[1]}" >> "$CONTAINER_NW_REPORT_FILE"
 
-        pid=$(read_node_shell_data sudo docker inspect --format '{{.State.Pid}}' "${cinfo[0]}")
-        addr=$(read_node_shell_data sudo nsenter -t "$pid" -n ip addr)
+        pid=$(read_node_shell_data "sudo docker inspect --format '{{.State.Pid}}' \"${cinfo[0]}\"")
+        addr=$(read_node_shell_data "sudo nsenter -t \"$pid\" -n ip addr")
 
         if [[ "$addr" = *"vpp1:"* ]]
         then
             echo "Host networking" >> "$CONTAINER_NW_REPORT_FILE"
         else
             echo "$addr" >> "$CONTAINER_NW_REPORT_FILE"
-            read_node_shell_data sudo nsenter -t "$pid" -n ip route >> "$CONTAINER_NW_REPORT_FILE"
-            read_node_shell_data sudo nsenter -t "$pid" -n arp -na >> "$CONTAINER_NW_REPORT_FILE"
+            read_node_shell_data "sudo nsenter -t \"$pid\" -n ip route" >> "$CONTAINER_NW_REPORT_FILE"
+            read_node_shell_data "sudo nsenter -t \"$pid\" -n arp -na" >> "$CONTAINER_NW_REPORT_FILE"
         fi
     done
 }
@@ -221,6 +223,7 @@ LOCAL_COMMANDS["linux-ip-route.log"]="ip route"
 LOCAL_COMMANDS["contiv-stn.log"]='CONTAINER=$(sudo docker ps --filter name=contiv-stn --format "{{.ID}}") && [ -n "$CONTAINER" ] && sudo docker logs "$CONTAINER"'
 LOCAL_COMMANDS["vswitch-version.log"]="curl -m 2 localhost:9999/liveness"
 LOCAL_COMMANDS["docker-ps.log"]="sudo docker ps"
+LOCAL_COMMANDS["core-dump.tar.xz"]="sudo test -d /var/contiv/dumps && sudo tar -Jc -C /var/contiv dumps"
 
 declare -A ETCD_COMMANDS
 ETCD_COMMANDS["etcd-tree.log"]="export ETCDCTL_API=3 && etcdctl --endpoints=127.0.0.1:32379 get / --prefix=true"
@@ -387,11 +390,11 @@ then
 
             for CMD_INDEX in "${!LOCAL_COMMANDS[@]}"
             do
-                # Intentional word split on command, because bash doesn't support arrays of arrays.
-                get_shell_data_ssh "$CMD_INDEX" ${LOCAL_COMMANDS[$CMD_INDEX]} </dev/null
+                # The command is quoted so shell expressions (like variable assignments and tests) work properly.
+                get_shell_data_ssh "$CMD_INDEX" "${LOCAL_COMMANDS[$CMD_INDEX]}" </dev/null
             done
 
-            save_container_nw_report
+            save_container_nw_report </dev/null
 
             echo
             popd >/dev/null
@@ -404,8 +407,8 @@ then
         echo "Running local commands for this host only:"
         for CMD_INDEX in "${!LOCAL_COMMANDS[@]}"
         do
-            # Intentional word split on command, because bash doesn't support arrays of arrays.
-            get_shell_data_local "$CMD_INDEX" ${LOCAL_COMMANDS[$CMD_INDEX]}
+            # The command is quoted so shell expressions (like variable assignments and tests) work properly.
+            get_shell_data_local "$CMD_INDEX" "${LOCAL_COMMANDS[$CMD_INDEX]}"
         done
 
         save_container_nw_report
@@ -425,15 +428,15 @@ then
     do
         get_vpp_data_local "$CMD_INDEX" "${VPP_COMMANDS[$CMD_INDEX]}"
     done
-    get_vpp_data_k8s "vpp-api-trace-save.log" "api trace save trace.api" </dev/null
-    get_vpp_data_k8s "vpp-api-trace-dump.log" "api trace custom-dump /tmp/trace.api" </dev/null
+    get_vpp_data_local "vpp-api-trace-save.log" "api trace save trace.api" </dev/null
+    get_vpp_data_local "vpp-api-trace-dump.log" "api trace custom-dump /tmp/trace.api" </dev/null
     echo
 
     echo "Running local commands for this host only:"
     for CMD_INDEX in "${!LOCAL_COMMANDS[@]}"
     do
-        # Intentional word split on command, because bash doesn't support arrays of arrays.
-        get_shell_data_local "$CMD_INDEX" ${LOCAL_COMMANDS[$CMD_INDEX]}
+        # The command is quoted so shell expressions (like variable assignments and tests) work properly.
+        get_shell_data_local "$CMD_INDEX" "${LOCAL_COMMANDS[$CMD_INDEX]}"
     done
 
     echo
@@ -462,8 +465,8 @@ fi
 popd >/dev/null
 if [ "$ARCHIVE" = "1" ]
 then
-    echo "Creating tar file $REPORT_DIR.tgz..."
-    tar -zcf "$REPORT_DIR.tgz" "$REPORT_DIR"
+    echo "Creating tar file $REPORT_DIR.tar.xz..."
+    tar -Jcf "$REPORT_DIR.tar.xz" "$REPORT_DIR"
     if [ "$SSH_ERROR" = "0" ]
     then
         rm -rf "$REPORT_DIR"

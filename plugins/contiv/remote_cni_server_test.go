@@ -25,6 +25,7 @@ import (
 	govppmock "git.fd.io/govpp.git/adapter/mock"
 	"git.fd.io/govpp.git/adapter/mock/binapi"
 	"git.fd.io/govpp.git/api"
+	"git.fd.io/govpp.git/codec"
 	govpp "git.fd.io/govpp.git/core"
 
 	"github.com/contiv/vpp/mock/localclient"
@@ -208,8 +209,8 @@ func TestAddDelVeth(t *testing.T) {
 	gomega.Expect(err).To(gomega.BeNil())
 	gomega.Expect(reply).NotTo(gomega.BeNil())
 
-	gomega.Expect(len(txns.PendingTxns)).To(gomega.BeEquivalentTo(2)) // not applied reverts
-	gomega.Expect(len(txns.CommittedTxns)).To(gomega.BeEquivalentTo(3))
+	gomega.Expect(len(txns.PendingTxns)).To(gomega.BeEquivalentTo(1)) // not applied revert
+	gomega.Expect(len(txns.CommittedTxns)).To(gomega.BeEquivalentTo(1))
 	// TODO add asserts for txns(one linux plugin txn and one default plugins txn) / currently applied config
 
 	res := configuredContainers.LookupPodName(podName)
@@ -234,7 +235,7 @@ func TestConfigureVswitchDHCP(t *testing.T) {
 	err := server.resync()
 	gomega.Expect(err).To(gomega.BeNil())
 
-	gomega.Expect(len(txns.CommittedTxns)).To(gomega.BeEquivalentTo(5))
+	gomega.Expect(len(txns.CommittedTxns)).To(gomega.BeEquivalentTo(3))
 	// TODO add asserts for txns(one linux plugin txn and one default plugins txn) / currently applied config
 
 	// node IP is empty since DHCP reply have not been received
@@ -243,7 +244,7 @@ func TestConfigureVswitchDHCP(t *testing.T) {
 	gomega.Expect(server.GetHostInterconnectIfName()).ToNot(gomega.BeEmpty())
 
 	server.close()
-	gomega.Expect(len(txns.CommittedTxns)).To(gomega.BeEquivalentTo(6))
+	gomega.Expect(len(txns.CommittedTxns)).To(gomega.BeEquivalentTo(4))
 }
 
 func TestAddDelTap(t *testing.T) {
@@ -261,8 +262,8 @@ func TestAddDelTap(t *testing.T) {
 	gomega.Expect(err).To(gomega.BeNil())
 	gomega.Expect(reply).NotTo(gomega.BeNil())
 
-	gomega.Expect(len(txns.PendingTxns)).To(gomega.BeEquivalentTo(2)) // not applied reverts
-	gomega.Expect(len(txns.CommittedTxns)).To(gomega.BeEquivalentTo(4))
+	gomega.Expect(len(txns.PendingTxns)).To(gomega.BeEquivalentTo(1)) // not applied revert
+	gomega.Expect(len(txns.CommittedTxns)).To(gomega.BeEquivalentTo(1))
 	// TODO add asserts for txns(one linux plugin txn and one default plugins txn) / currently applied config
 
 	res := configuredContainers.LookupPodName(podName)
@@ -287,7 +288,7 @@ func TestConfigureVswitchVeth(t *testing.T) {
 	err := server.resync()
 	gomega.Expect(err).To(gomega.BeNil())
 
-	gomega.Expect(len(txns.CommittedTxns)).To(gomega.BeEquivalentTo(5))
+	gomega.Expect(len(txns.CommittedTxns)).To(gomega.BeEquivalentTo(4))
 	// TODO add asserts for txns(one linux plugin txn and one default plugins txn) / currently applied config
 
 	// check physical interface name
@@ -309,7 +310,7 @@ func TestConfigureVswitchVeth(t *testing.T) {
 	gomega.Expect(server.GetOtherPhysicalIfNames()).To(gomega.Equal([]string{"GigabitEthernet0/0/0/10"}))
 
 	server.close()
-	gomega.Expect(len(txns.CommittedTxns)).To(gomega.BeEquivalentTo(6))
+	gomega.Expect(len(txns.CommittedTxns)).To(gomega.BeEquivalentTo(5))
 }
 
 func TestConfigureVswitchTap(t *testing.T) {
@@ -322,7 +323,7 @@ func TestConfigureVswitchTap(t *testing.T) {
 	err := server.resync()
 	gomega.Expect(err).To(gomega.BeNil())
 
-	gomega.Expect(len(txns.CommittedTxns)).To(gomega.BeEquivalentTo(5))
+	gomega.Expect(len(txns.CommittedTxns)).To(gomega.BeEquivalentTo(3))
 	// TODO add asserts for txns(one linux plugin txn and one default plugins txn) / currently applied config
 
 	// node IP must not be empty
@@ -335,7 +336,7 @@ func TestConfigureVswitchTap(t *testing.T) {
 	gomega.Expect(server.GetVxlanBVIIfName()).ToNot(gomega.BeEmpty())
 
 	server.close()
-	gomega.Expect(len(txns.CommittedTxns)).To(gomega.BeEquivalentTo(6))
+	gomega.Expect(len(txns.CommittedTxns)).To(gomega.BeEquivalentTo(4))
 }
 
 func TestNodeAddDelL2(t *testing.T) {
@@ -413,7 +414,7 @@ func TestVeth1NameFromRequest(t *testing.T) {
 	gomega.Expect(hostIfName).To(gomega.BeEquivalentTo("eth0"))
 }
 
-func vppChanMock() (*api.Channel, *govpp.Connection) {
+func vppChanMock() (api.Channel, *govpp.Connection) {
 	vppMock := &mock.VppAdapter{}
 	vppMock.RegisterBinAPITypes(interfaces_bin.Types)
 	vppMock.RegisterBinAPITypes(memif.Types)
@@ -433,7 +434,7 @@ func vppChanMock() (*api.Channel, *govpp.Connection) {
 		logrus.DefaultLogger().Debug("MockReplyHandler ", request.MsgID, " ", reqName)
 
 		if reqName == "sw_interface_dump" {
-			codec := govpp.MsgCodec{}
+			codec := &codec.MsgCodec{}
 			ifDump := interfaces_bin.SwInterfaceDump{}
 			err := codec.DecodeMsg(request.Data, &ifDump)
 			if err != nil {

@@ -25,12 +25,19 @@ unix {
     nodaemon
     cli-listen /run/vpp/cli.sock
     cli-no-pager
+    coredump-size unlimited
+    full-coredump
+    poll-sleep-usec 100
 }
 nat {
     endpoint-dependent
 }
 dpdk {
     dev 0000:00:03.0
+}
+api-trace {
+   on
+   nitems 500
 }
 ```
 #### Multi-NIC configuration
@@ -62,12 +69,19 @@ unix {
     nodaemon
     cli-listen /run/vpp/cli.sock
     cli-no-pager
+    coredump-size unlimited
+    full-coredump
+    poll-sleep-usec 100
 }
 nat {
     endpoint-dependent
 }
 dpdk {
     dev 0000:00:04.0
+}
+api-trace {
+   on
+   nitems 500
 }
 ```
 If assigning multiple NICs to VPP you will need to include each NIC's PCI address
@@ -88,6 +102,9 @@ unix {
     nodaemon
     cli-listen /run/vpp/cli.sock
     cli-no-pager
+    coredump-size unlimited
+    full-coredump
+    poll-sleep-usec 100
 }
 nat {
     endpoint-dependent
@@ -95,6 +112,10 @@ nat {
 dpdk {
     dev 0000:00:03.0
     dev 0000:00:04.0
+}
+api-trace {
+   on
+   nitems 500
 }
 ```
 

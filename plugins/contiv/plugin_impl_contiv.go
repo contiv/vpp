@@ -50,7 +50,7 @@ import (
 // GRPC into configuration for the vswitch VPP in order to connect/disconnect a container into/from the network.
 type Plugin struct {
 	Deps
-	govppCh *api.Channel
+	govppCh api.Channel
 
 	configuredContainers *containeridx.ConfigIndex
 	cniServer            *remoteCNIserver

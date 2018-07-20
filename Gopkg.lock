@@ -15,10 +15,11 @@
     "adapter/mock/binapi",
     "adapter/vppapiclient",
     "api",
+    "codec",
     "core",
     "core/bin_api/vpe"
   ]
-  revision = "5276b9439d0f902e125a5113bfa4f1b6622aea18"
+  revision = "f1bef4a3c66f4408afdeb64cda62ccd8562d0fc6"
 
 [[projects]]
   branch = "master"
@@ -332,6 +333,12 @@
   packages = ["."]
   revision = "44cc805cf13205b55f69e14bcb69867d1ae92f98"
   version = "v1.1.0"
+
+[[projects]]
+  name = "github.com/elazarl/go-bindata-assetfs"
+  packages = ["."]
+  revision = "30f82fa23fd844bd5bb1e5f216db87fd77b5eb43"
+  version = "v1.0.0"
 
 [[projects]]
   name = "github.com/emicklei/go-restful"
@@ -731,7 +738,8 @@
     "utils/safeclose",
     "utils/structs"
   ]
-  revision = "4d93554a7a67744435ec5a207435cc3d55df4c02"
+  revision = "99b1f3ef1874097c64653096589cd5c166e37d81"
+  version = "v1.4.0"
 
 [[projects]]
   name = "github.com/ligato/vpp-agent"
@@ -756,6 +764,7 @@
     "plugins/linux/model/interfaces",
     "plugins/linux/model/l3",
     "plugins/linux/nsplugin",
+    "plugins/rest",
     "plugins/telemetry",
     "plugins/vpp",
     "plugins/vpp/aclplugin",
@@ -814,7 +823,7 @@
     "plugins/vpp/srplugin/cache",
     "plugins/vpp/srplugin/vppcalls"
   ]
-  revision = "f913b639ce506de28616c42feaa37d53c2979d6c"
+  revision = "06c81a53a091037b91e646000b390db559bc52ca"
 
 [[projects]]
   branch = "master"
@@ -1670,6 +1679,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "0009eef38e2101f35ce783727e4a067fd2912436842dc5d9c5160ec71f98e84c"
+  inputs-digest = "7b3ed19c794139838366c4396c17782edfac2063aed3e4588585395c206fca45"
   solver-name = "gps-cdcl"
   solver-version = 1

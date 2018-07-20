@@ -190,7 +190,6 @@ func (s *remoteCNIserver) processChangeEvent(dataChngEv datasync.ChangeEvent) er
 func (s *remoteCNIserver) addRoutesToNode(nodeInfo *node.NodeInfo) error {
 
 	txn := s.vppTxnFactory().Put()
-	txn2 := s.vppTxnFactory().Put() // TODO: merge into 1 transaction after vpp-agent supports it
 	hostIP := s.otherHostIP(nodeInfo.Id, nodeInfo.IpAddress)
 
 	// VXLAN tunnel
@@ -222,7 +221,7 @@ func (s *remoteCNIserver) addRoutesToNode(nodeInfo *node.NodeInfo) error {
 
 		// static FIB
 		vxlanFib := s.vxlanFibEntry(vxlanArp.PhysAddress, vxlanIf.Name)
-		txn2.BDFIB(vxlanFib)
+		txn.BDFIB(vxlanFib)
 	}
 
 	// static routes
@@ -265,18 +264,12 @@ func (s *remoteCNIserver) addRoutesToNode(nodeInfo *node.NodeInfo) error {
 	if err != nil {
 		return fmt.Errorf("Can't configure VPP to add routes to node %v: %v ", nodeInfo.Id, err)
 	}
-	if !s.useL2Interconnect {
-		err = txn2.Send().ReceiveReply()
-		if err != nil {
-			return fmt.Errorf("Can't configure VPP to add FIB to node %v: %v ", nodeInfo.Id, err)
-		}
-	}
 	return nil
 }
 
 // deleteRoutesToNode delete routes to the node specified by nodeID.
 func (s *remoteCNIserver) deleteRoutesToNode(nodeInfo *node.NodeInfo) error {
-	txn := s.vppTxnFactory().Delete()
+	txn := s.vppTxnFactory()
 	txn2 := s.vppTxnFactory().Delete() // TODO: merge into 1 transaction after vpp-agent supports it
 	hostIP := s.otherHostIP(nodeInfo.Id, nodeInfo.IpAddress)
 
@@ -286,7 +279,7 @@ func (s *remoteCNIserver) deleteRoutesToNode(nodeInfo *node.NodeInfo) error {
 		if err != nil {
 			return err
 		}
-		txn.VppInterface(vxlanIf.Name)
+		txn.Delete().VppInterface(vxlanIf.Name)
 		s.Logger.WithFields(logging.Fields{
 			"srcIP":  vxlanIf.Vxlan.SrcAddress,
 			"destIP": vxlanIf.Vxlan.DstAddress}).Info("Removing vxlan")
@@ -301,7 +294,7 @@ func (s *remoteCNIserver) deleteRoutesToNode(nodeInfo *node.NodeInfo) error {
 			return err
 		}
 		vxlanArp := s.vxlanArpEntry(nodeInfo.Id, vxlanIP.String())
-		txn.Arp(vxlanArp.Interface, vxlanArp.IpAddress)
+		txn.Delete().Arp(vxlanArp.Interface, vxlanArp.IpAddress)
 
 		// static FIB
 		vxlanFib := s.vxlanFibEntry(vxlanArp.PhysAddress, vxlanIf.Name)
@@ -332,14 +325,14 @@ func (s *remoteCNIserver) deleteRoutesToNode(nodeInfo *node.NodeInfo) error {
 	if err != nil {
 		return err
 	}
-	txn.StaticRoute(podsRoute.VrfId, podsRoute.DstIpAddr, podsRoute.NextHopAddr)
-	txn.StaticRoute(hostRoute.VrfId, hostRoute.DstIpAddr, hostRoute.NextHopAddr)
+	txn.Delete().StaticRoute(podsRoute.VrfId, podsRoute.DstIpAddr, podsRoute.NextHopAddr)
+	txn.Delete().StaticRoute(hostRoute.VrfId, hostRoute.DstIpAddr, hostRoute.NextHopAddr)
 	s.Logger.Info("Deleting PODs route: ", podsRoute)
 	s.Logger.Info("Deleting host route: ", hostRoute)
 
 	if s.stnIP == "" {
 		managementRoute := s.routeToOtherManagementIP(nodeInfo.ManagementIpAddress, nextHop)
-		txn.StaticRoute(managementRoute.VrfId, managementRoute.DstIpAddr, managementRoute.NextHopAddr)
+		txn.Delete().StaticRoute(managementRoute.VrfId, managementRoute.DstIpAddr, managementRoute.NextHopAddr)
 		s.Logger.Info("Deleting managementIP route: ", managementRoute)
 	}
 
@@ -354,11 +347,7 @@ func (s *remoteCNIserver) deleteRoutesToNode(nodeInfo *node.NodeInfo) error {
 		// pass deep copy to local client since we are overwriting previously applied config
 		bd := proto.Clone(s.vxlanBD)
 		// interface should be removed from BD after FIB entry tied to interface is deleted
-		err = s.vppTxnFactory().Put().BD(bd.(*vpp_l2.BridgeDomains_BridgeDomain)).Send().ReceiveReply()
-		if err != nil {
-			s.Logger.Error(err)
-			return err
-		}
+		txn.Put().BD(bd.(*vpp_l2.BridgeDomains_BridgeDomain))
 	}
 	err = txn.Send().ReceiveReply()
 	if err != nil {

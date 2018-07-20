@@ -448,9 +448,8 @@ spec:
           fi
           cp -f /usr/local/bin/vppctl /host/usr/local/bin/vppctl
           {{- if .Values.vswitch.enableCoreDumps }}
-          mkdir -p /run/vpp/dumps
           sysctl -w debug.exception-trace=1
-          sysctl -w kernel.core_pattern="/run/vpp/dumps/%e-%t"
+          sysctl -w kernel.core_pattern="{{ .Values.vswitch.coreDumpsDir }}/%e-%t"
           ulimit -c unlimited
           echo 2 > /proc/sys/fs/suid_dumpable
           {{- end }}
@@ -470,6 +469,10 @@ spec:
             mountPath: /run/vpp
           - name: contiv-run
             mountPath: /var/run/contiv
+          {{- if .Values.vswitch.enableCoreDumps }}
+          - name: core-dumps
+            mountPath: {{ .Values.vswitch.coreDumpsDir }}
+          {{- end }}
 
       containers:
         # Runs contiv-vswitch container on each Kubernetes node.
@@ -550,6 +553,10 @@ spec:
               mountPath: /etc/agent
             - name: govpp-plugin-cfg
               mountPath: /etc/govpp
+            {{- if .Values.vswitch.enableCoreDumps }}
+            - name: core-dumps
+              mountPath: {{ .Values.vswitch.coreDumpsDir }}
+            {{- end }}
           {{- if or .Values.vswitch.defineMemoryLimits .Values.vswitch.cpuLimit }}
           resources:
             limits:
@@ -643,6 +650,12 @@ spec:
         - name: govpp-plugin-cfg
           configMap:
             name: govpp-cfg
+        {{- if .Values.vswitch.enableCoreDumps }}
+        # Used for vswitch core dumps
+        - name: core-dumps
+          hostPath:
+            path: {{ .Values.vswitch.coreDumpsDir }}
+        {{- end }}
 
 ---
 

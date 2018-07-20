@@ -323,11 +323,11 @@ func (mc *MockContiv) GetHostIPs() []net.IP {
 }
 
 // GetMainVrfID returns the ID of the main network connectivity VRF.
-func (mc *MockContiv) GetMainVrfId() uint32 {
+func (mc *MockContiv) GetMainVrfID() uint32 {
 	return mc.mainVrfId
 }
 
 // GetPodVrfID returns the ID of the POD VRF.
-func (mc *MockContiv) GetPodVrfId() uint32 {
+func (mc *MockContiv) GetPodVrfID() uint32 {
 	return mc.podVrfId
 }

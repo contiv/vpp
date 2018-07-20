@@ -829,6 +829,7 @@ func (s *remoteCNIserver) configureVswitchVxlanBridgeDomain(config *vswitchConfi
 
 // configureVswitchVrfRoutes configures inter-VRF routing
 func (s *remoteCNIserver) configureVswitchVrfRoutes(config *vswitchConfig) error {
+	var err error
 	txn := s.vppTxnFactory().Put()
 
 	// routes towards POD VRF
@@ -840,6 +841,15 @@ func (s *remoteCNIserver) configureVswitchVrfRoutes(config *vswitchConfig) error
 	vrfR3 := s.defaultRoutePodToMainVRF()
 	txn.StaticRoute(vrfR3)
 	config.vrfRoutes = []*vpp_l3.StaticRoutes_Route{vrfR1, vrfR2, vrfR3}
+
+	// execute the config transaction
+	if !config.configured {
+		err = txn.Send().ReceiveReply()
+		if err != nil {
+			s.Logger.Error(err)
+			return err
+		}
+	}
 
 	return nil
 }

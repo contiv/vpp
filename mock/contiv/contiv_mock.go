@@ -30,7 +30,11 @@ type MockContiv struct {
 
 	podIf                      map[podmodel.ID]string
 	podAppNs                   map[podmodel.ID]uint32
+	podSubnet                  *net.IPNet
 	podNetwork                 *net.IPNet
+	hostIPs                    []net.IP
+	mainVrfId                  uint32
+	podVrfId                   uint32
 	tcpStackDisabled           bool
 	stnMode                    bool
 	natExternalTraffic         bool
@@ -76,6 +80,7 @@ func (mc *MockContiv) SetPodAppNsIndex(pod podmodel.ID, nsIndex uint32) {
 // SetPodNetwork allows to set what tests will assume as the pod subnet
 // for the current host node.
 func (mc *MockContiv) SetPodNetwork(podNetwork string) {
+	_, mc.podSubnet, _ = net.ParseCIDR(podNetwork)
 	_, mc.podNetwork, _ = net.ParseCIDR(podNetwork)
 }
 
@@ -305,4 +310,24 @@ func (mc *MockContiv) GetTCPNATSessionTimeout() uint32 {
 // GetOtherNATSessionTimeout returns NAT session timeout (in minutes) for non-TCP connections, used in case that CleanupIdleNATSessions is turned on.
 func (mc *MockContiv) GetOtherNATSessionTimeout() uint32 {
 	return mc.otherNATSessionTimeout
+}
+
+// GetPodSubnet provides subnet used for allocating pod IP addresses across all nodes.
+func (mc *MockContiv) GetPodSubnet() *net.IPNet {
+	return mc.podSubnet
+}
+
+// GetHostIPs returns all IP addresses of this node present in the host network namespace (Linux).
+func (mc *MockContiv) GetHostIPs() []net.IP {
+	return mc.hostIPs
+}
+
+// GetMainVrfId returns the ID of the main network connectivity VRF.
+func (mc *MockContiv) GetMainVrfId() uint32 {
+	return mc.mainVrfId
+}
+
+// GetPodVrfId returns the ID of the POD VRF.
+func (mc *MockContiv) GetPodVrfId() uint32 {
+	return mc.podVrfId
 }

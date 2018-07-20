@@ -1612,16 +1612,16 @@ func (s *remoteCNIserver) UseSTN() bool {
 	return s.config.StealFirstNIC || s.config.StealInterface != "" || (s.nodeConfig != nil && s.nodeConfig.StealInterface != "")
 }
 
-// GetMainVrfId returns the ID of the main network connectivity VRF.
-func (s *remoteCNIserver) GetMainVrfId() uint32 {
+// GetMainVrfID returns the ID of the main network connectivity VRF.
+func (s *remoteCNIserver) GetMainVrfID() uint32 {
 	if s.config.MainVRFID != 0 && s.config.PodVRFID != 0 {
 		return s.config.MainVRFID
 	}
 	return defaultMainVrfID
 }
 
-// GetPodVrfId returns the ID of the POD VRF.
-func (s *remoteCNIserver) GetPodVrfId() uint32 {
+// GetPodVrfID returns the ID of the POD VRF.
+func (s *remoteCNIserver) GetPodVrfID() uint32 {
 	if s.config.MainVRFID != 0 && s.config.PodVRFID != 0 {
 		return s.config.PodVRFID
 	}

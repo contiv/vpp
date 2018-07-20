@@ -350,7 +350,7 @@ func (plugin *Plugin) GetNodeIP() (ip net.IP, network *net.IPNet) {
 	return plugin.cniServer.GetNodeIP()
 }
 
-// // GetHostIPs returns all IP addresses of this node present in the host network namespace (Linux).
+// GetHostIPs returns all IP addresses of this node present in the host network namespace (Linux).
 func (plugin *Plugin) GetHostIPs() []net.IP {
 	return plugin.cniServer.GetHostIPs()
 }
@@ -398,14 +398,14 @@ func (plugin *Plugin) RegisterPodPreRemovalHook(hook PodActionHook) {
 	plugin.cniServer.RegisterPodPreRemovalHook(hook)
 }
 
-// GetMainVrfId returns the ID of the main network connectivity VRF.
-func (plugin *Plugin) GetMainVrfId() uint32 {
-	return plugin.cniServer.GetMainVrfId()
+// GetMainVrfID returns the ID of the main network connectivity VRF.
+func (plugin *Plugin) GetMainVrfID() uint32 {
+	return plugin.cniServer.GetMainVrfID()
 }
 
-// GetPodVrfId returns the ID of the POD VRF.
-func (plugin *Plugin) GetPodVrfId() uint32 {
-	return plugin.cniServer.GetPodVrfId()
+// GetPodVrfID returns the ID of the POD VRF.
+func (plugin *Plugin) GetPodVrfID() uint32 {
+	return plugin.cniServer.GetPodVrfID()
 }
 
 // handleResync handles resync events of the plugin. Called automatically by the plugin infra.

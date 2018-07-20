@@ -99,9 +99,9 @@ type API interface {
 	// pod immediately before its removal.
 	RegisterPodPreRemovalHook(hook PodActionHook)
 
-	// GetMainVrfId returns the ID of the main network connectivity VRF.
-	GetMainVrfId() uint32
+	// GetMainVrfID returns the ID of the main network connectivity VRF.
+	GetMainVrfID() uint32
 
-	// GetPodVrfId returns the ID of the POD VRF.
-	GetPodVrfId() uint32
+	// GetPodVrfID returns the ID of the POD VRF.
+	GetPodVrfID() uint32
 }

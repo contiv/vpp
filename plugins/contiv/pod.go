@@ -298,7 +298,7 @@ func (s *remoteCNIserver) afpacketFromRequest(request *cni.CNIRequest, podIP str
 		Type:    vpp_intf.InterfaceType_AF_PACKET_INTERFACE,
 		Mtu:     s.config.MTUSize,
 		Enabled: true,
-		Vrf:     s.GetPodVrfId(),
+		Vrf:     s.GetPodVrfID(),
 		Afpacket: &vpp_intf.Interfaces_Interface_Afpacket{
 			HostIfName: s.veth2HostIfNameFromRequest(request),
 		},
@@ -317,7 +317,7 @@ func (s *remoteCNIserver) tapFromRequest(request *cni.CNIRequest, podIP string, 
 		Type:    vpp_intf.InterfaceType_TAP_INTERFACE,
 		Mtu:     s.config.MTUSize,
 		Enabled: true,
-		Vrf:     s.GetPodVrfId(),
+		Vrf:     s.GetPodVrfID(),
 		Tap: &vpp_intf.Interfaces_Interface_Tap{
 			HostIfName: s.tapTmpHostNameFromRequest(request),
 		},
@@ -361,14 +361,14 @@ func (s *remoteCNIserver) loopbackFromRequest(request *cni.CNIRequest, loopIP st
 		Type:        vpp_intf.InterfaceType_SOFTWARE_LOOPBACK,
 		Enabled:     true,
 		IpAddresses: []string{loopIP},
-		Vrf:         s.GetPodVrfId(),
+		Vrf:         s.GetPodVrfID(),
 	}
 }
 
 func (s *remoteCNIserver) vppRouteFromRequest(request *cni.CNIRequest, podIP string) *vpp_l3.StaticRoutes_Route {
 	route := &vpp_l3.StaticRoutes_Route{
 		DstIpAddr: podIP,
-		VrfId:     s.GetPodVrfId(),
+		VrfId:     s.GetPodVrfID(),
 	}
 	if s.useTAPInterfaces {
 		route.OutgoingInterface = s.tapNameFromRequest(request)

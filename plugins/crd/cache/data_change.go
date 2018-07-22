@@ -21,6 +21,7 @@ import (
 
 	nodemodel "github.com/contiv/vpp/plugins/ksr/model/node"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
+	"github.com/ligato/cn-infra/logging"
 )
 
 // changePropagateEvent propagates CHANGE in the K8s configuration into the Cache.
@@ -28,6 +29,7 @@ func (ctc *ContivTelemetryCache) changePropagateEvent(dataChngEv datasync.Change
 	var err error
 	var diff bool
 	key := dataChngEv.GetKey()
+	ctc.Log.SetLevel(logging.DebugLevel)
 	ctc.Log.Debug("Received CHANGE key ", key)
 
 	// Propagate Pod CHANGE event
@@ -57,6 +59,7 @@ func (ctc *ContivTelemetryCache) changePropagateEvent(dataChngEv datasync.Change
 			// todo - add updated pod in cache
 
 		} else {
+			ctc.Log.Infof("Pod added with value: %v", value)
 			// podID used here
 			// todo - add pod to cache
 		}

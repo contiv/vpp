@@ -46,6 +46,7 @@ func (ctc *ContivTelemetryCache) resyncParseEvent(resyncEv datasync.ResyncEvent)
 	var numPod, numNode int
 
 	event := NewDataResyncEvent()
+	ctc.Log.Debug("Received RESYNC Event ", resyncEv)
 
 	for key, resyncData := range resyncEv.GetValues() {
 		ctc.Log.Debug("Received RESYNC key ", key)

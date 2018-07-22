@@ -18,13 +18,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-const (
-	CTGroup         = "contivvpptelemetry"
-	CTVGroupVersion = "v1"
-	CTPlural        = "contivtelemtries"
-	CNTFullName     = CTPlural + "." + CTGroup
-)
-
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // ContivTelemetry describes contiv telemetry custom resource
@@ -40,9 +33,22 @@ type ContivTelemetry struct {
 // ContivTelemetrySpec is the spec for the contiv telemetry resource
 type ContivTelemetrySpec struct {
 	// Message and SomeValue are example custom spec fields
-	Node  []string `json:"node"`
-	Agent []string `json:"component"`
+	Node  []ContivNode `json:"node"`
+	Agent []ContivNode `json:"component"`
 }
+
+// ContivNode is the spec for the contiv telemetry resource
+type ContivNode struct {
+	Name string `json:"name"`
+	Value string `json:"value"`
+}
+
+// ContivNode is the spec for the contiv telemetry resource
+type ContivAgent struct {
+	Name string `json:"name"`
+	Value string `json:"value"`
+}
+
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // ContivTelemetryList is a list of ContivTelemetry resource
@@ -52,3 +58,4 @@ type ContivTelemetryList struct {
 
 	Items []ContivTelemetry `json:"items"`
 }
+

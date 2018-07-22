@@ -17,18 +17,23 @@
 package crd
 
 import (
+	"os"
+
+	"github.com/contiv/vpp/flavors/ksr"
 	"github.com/contiv/vpp/plugins/crd"
 	"github.com/ligato/cn-infra/config"
 	"github.com/ligato/cn-infra/core"
+	"github.com/ligato/cn-infra/datasync/kvdbsync"
+	"github.com/ligato/cn-infra/datasync/resync"
+	"github.com/ligato/cn-infra/db/keyval/etcd"
+	"github.com/ligato/cn-infra/flavors/connectors"
 	"github.com/ligato/cn-infra/flavors/local"
+	"github.com/ligato/cn-infra/servicelabel"
 )
 
 const (
 	// MicroserviceLabel is the microservice label used by contiv-crd.
 	MicroserviceLabel = "contiv-crd"
-
-	// KubeConfigAdmin is the default location of kubeconfig with admin credentials.
-	KubeConfigAdmin = "/etc/kubernetes/admin.conf"
 
 	// KubeConfigUsage explains the purpose of 'kube-config' flag.
 	KubeConfigUsage = "Path to the kubeconfig file to use for the client connection to K8s cluster"
@@ -52,7 +57,17 @@ func WithPlugins(listPlugins func(local *FlavorCrd) []*core.NamedPlugin) core.Wi
 type FlavorCrd struct {
 	// Local flavor is used to access the Infra (logger, service label, status check)
 	*local.FlavorLocal
+
+	// Plugins for access to ETCD data store.
+	ETCD         etcd.Plugin
+	ETCDDataSync kvdbsync.Plugin
+	CrdDataSync  kvdbsync.Plugin
+
 	Crd crd.Plugin
+
+	// resync should the last plugin in the flavor in order to give
+	// the others enough time to register
+	ResyncOrch resync.Plugin
 
 	injected bool
 }
@@ -69,9 +84,22 @@ func (f *FlavorCrd) Inject() (allReadyInjected bool) {
 	}
 	f.FlavorLocal.Inject()
 
-	f.Crd.Deps.PluginInfraDeps = *f.FlavorLocal.InfraDeps("crd")
-	// Reuse ForPlugin to define configuration file for 3rd party library (k8s client).
+	// KubeConfigAdmin is the default location of kubeconfig with admin credentials.
+	KubeConfigAdmin := os.Getenv("HOME") + "/.kube/config"
 	f.Crd.Deps.KubeConfig = config.ForPlugin("kube", KubeConfigAdmin, KubeConfigUsage)
+
+	f.ETCD.Deps.PluginInfraDeps = *f.InfraDeps("etcd", local.WithConf())
+	f.ETCD.Deps.StatusCheck = nil
+	connectors.InjectKVDBSync(&f.ETCDDataSync, &f.ETCD, f.ETCD.PluginName, f.FlavorLocal, &f.ResyncOrch)
+
+	f.CrdDataSync = f.ETCDDataSync
+	f.CrdDataSync.PluginInfraDeps = *f.InfraDeps("crd-datasync")
+	f.CrdDataSync.Deps.PluginInfraDeps.ServiceLabel = servicelabel.OfDifferentAgent(ksr.MicroserviceLabel)
+
+	f.Crd.Deps.PluginInfraDeps = *f.FlavorLocal.InfraDeps("crd")
+	f.Crd.Deps.Resync = &f.ResyncOrch
+	f.Crd.Deps.Watcher = &f.CrdDataSync
+	f.ResyncOrch.PluginLogDeps = *f.LogDeps("resync-orch")
 
 	return true
 }

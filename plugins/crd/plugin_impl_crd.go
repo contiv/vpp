@@ -18,9 +18,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
-	"syscall"
 
-	"github.com/contiv/vpp/plugins/contiv"
 	"github.com/contiv/vpp/plugins/crd/cache"
 	"github.com/contiv/vpp/plugins/crd/controller"
 	nodemodel "github.com/contiv/vpp/plugins/ksr/model/node"
@@ -31,19 +29,11 @@ import (
 	"github.com/ligato/cn-infra/flavors/local"
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/utils/safeclose"
-	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
-	k8sCache "k8s.io/client-go/tools/cache"
-	"k8s.io/client-go/tools/clientcmd"
-	"k8s.io/client-go/util/workqueue"
 
-	"os"
-	"os/signal"
-
-	"github.com/contiv/vpp/plugins/crd/handler"
 	crdClientSet "github.com/contiv/vpp/plugins/crd/pkg/client/clientset/versioned"
-	crdResourceInformer "github.com/contiv/vpp/plugins/crd/pkg/client/informers/externalversions/contivtelemetry/v1"
+	"k8s.io/client-go/tools/clientcmd"
 )
 
 // Plugin watches configuration of K8s resources (as reflected by KSR into ETCD)
@@ -51,11 +41,6 @@ import (
 // set of network stacks.
 type Plugin struct {
 	Deps
-
-	k8sClientConfig *rest.Config
-	k8sClient       *kubernetes.Clientset
-
-	crdClient *crdClientSet.Clientset
 
 	resyncChan chan datasync.ResyncEvent
 	changeChan chan datasync.ChangeEvent
@@ -83,7 +68,6 @@ type Deps struct {
 	// Kubeconfig with k8s cluster address and access credentials to use.
 	KubeConfig config.PluginConfig
 
-	Contiv  contiv.Plugin
 	Resync  resync.Subscriber
 	Watcher datasync.KeyValProtoWatcher /* prefixed for KSR-published K8s state data */
 }
@@ -96,91 +80,41 @@ func (p *Plugin) Init() error {
 	p.resyncChan = make(chan datasync.ResyncEvent)
 	p.changeChan = make(chan datasync.ChangeEvent)
 
+	p.ctx, p.cancel = context.WithCancel(context.Background())
+
 	kubeconfig := p.KubeConfig.GetConfigName()
 	p.Log.WithField("kubeconfig", kubeconfig).Info("Loading kubernetes client config")
-	p.k8sClientConfig, err = clientcmd.BuildConfigFromFlags("", kubeconfig)
+	k8sClientConfig, err := clientcmd.BuildConfigFromFlags("", kubeconfig)
 	if err != nil {
 		return fmt.Errorf("failed to build kubernetes client config: %s", err)
 	}
 
-	p.k8sClient, err = kubernetes.NewForConfig(p.k8sClientConfig)
+	k8sClient, err := kubernetes.NewForConfig(k8sClientConfig)
 	if err != nil {
 		return fmt.Errorf("failed to build kubernetes client: %s", err)
 	}
 
-	p.crdClient, err = crdClientSet.NewForConfig(p.k8sClientConfig)
+	crdClient, err := crdClientSet.NewForConfig(k8sClientConfig)
 	if err != nil {
 		return fmt.Errorf("failed to build crd Client: %s", err)
 	}
 
-	// Create a custom resource informer (generated from the code generator)
-	// Pass the custom resource client, while looking all namespaces for listing and watching.
-	informer := crdResourceInformer.NewContivTelemetryInformer(
-		p.crdClient,
-		meta_v1.NamespaceAll,
-		0,
-		k8sCache.Indexers{},
-	)
-
-	// Create a new queue in that when the informer gets a resource from listing or watching,
-	// adding the identifying key to the queue for the handler
-	queue := workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter())
-
-	// Add event handlers to handle the three types of events for resources (add, update, delete)
-	informer.AddEventHandler(k8sCache.ResourceEventHandlerFuncs{
-		AddFunc: func(obj interface{}) {
-			// Converting the resource object into a key
-			key, err := k8sCache.MetaNamespaceKeyFunc(obj)
-			p.Log.Infof("Add ContivTelemetry resource: %s", key)
-			if err == nil {
-				// Adding the key to the queue for the handler to get
-				queue.Add(key)
-			}
-		},
-		UpdateFunc: func(oldObj, newObj interface{}) {
-			key, err := k8sCache.MetaNamespaceKeyFunc(newObj)
-			p.Log.Infof("Update ContivTelemetry resource: %s", key)
-			if err == nil {
-				queue.Add(key)
-			}
-		},
-		DeleteFunc: func(obj interface{}) {
-			key, err := k8sCache.DeletionHandlingMetaNamespaceKeyFunc(obj)
-			p.Log.Infof("Delete ContivTelemetry resource: %s", key)
-			if err == nil {
-				queue.Add(key)
-			}
-		},
-	})
-
-	// Init Controller object to handle logging, connections, informing (listing and watching),
-	// the queue, and the handler
 	p.controller = &controller.ContivTelemetryController{
-		Log:          p.Log,
-		Clientset:    p.k8sClient,
-		Queue:        queue,
-		Informer:     informer,
-		EventHandler: &handler.Default{},
+		Deps: controller.Deps{
+			Log: p.Log.NewLogger("-crdController"),
+		},
+		K8sClient: k8sClient,
+		CrdClient: crdClient,
 	}
+	p.controller.Log.SetLevel(logging.DebugLevel)
 
-	// use a channel to synchronize the finalization for a graceful shutdown
-	stopCh := make(chan struct{})
-	defer close(stopCh)
-
-	// run the controller loop to process items
-	go p.controller.Run(stopCh)
-
-	// use a channel to handle OS signals to terminate and gracefully shut
-	sigTerm := make(chan os.Signal, 1)
-	signal.Notify(sigTerm, syscall.SIGTERM)
-	signal.Notify(sigTerm, syscall.SIGINT)
-	<-sigTerm
+	// Init and run the controller
+	p.controller.Init()
+	go p.controller.Run(p.ctx.Done())
 
 	// This where we initialize all layers
 	//p.cache.Init()
 	//p.processor.Init()
-
-	p.ctx, p.cancel = context.WithCancel(context.Background())
 
 	go p.watchEvents()
 	err = p.subscribeWatcher()
@@ -250,13 +184,6 @@ func (p *Plugin) watchEvents() {
 }
 
 func (p *Plugin) handleResync(resyncChan chan resync.StatusEvent) {
-	// block until NodeIP is set
-	nodeIPWatcher := make(chan string, 1)
-	p.Contiv.WatchNodeIP(nodeIPWatcher)
-	nodeIP, nodeNet := p.Contiv.GetNodeIP()
-	if nodeIP == nil || nodeNet == nil {
-		<-nodeIPWatcher
-	}
 
 	for {
 		select {

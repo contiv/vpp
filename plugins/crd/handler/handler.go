@@ -25,8 +25,6 @@ type Handler interface {
 	ObjectDeleted(obj interface{})
 	//
 	ObjectUpdated(oldObj, newObj interface{})
-	//
-	ObjectRead(obj interface{})
 }
 
 // Default handler implements Handler interface,
@@ -49,9 +47,5 @@ func (d *Default) ObjectDeleted(obj interface{}) {
 }
 
 func (d *Default) ObjectUpdated(oldObj, newObj interface{}) {
-
-}
-
-func (d *Default) ObjectRead(obj interface{}) {
 
 }

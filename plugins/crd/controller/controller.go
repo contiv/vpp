@@ -18,53 +18,112 @@ import (
 	"fmt"
 	"time"
 
-	log "github.com/Sirupsen/logrus"
 	"github.com/contiv/vpp/plugins/crd/handler"
 	"github.com/ligato/cn-infra/logging"
-	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
+
+	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	k8sCache "k8s.io/client-go/tools/cache"
+
+	crdClientSet "github.com/contiv/vpp/plugins/crd/pkg/client/clientset/versioned"
+	crdResourceInformer "github.com/contiv/vpp/plugins/crd/pkg/client/informers/externalversions/contivtelemetry/v1"
 )
 
 // Controller struct defines how a controller should encapsulate
 // logging, client connectivity, informing (list and watching)
 // queueing, and handling of resource changes
 type ContivTelemetryController struct {
-	Log          logging.Logger
-	Clientset    kubernetes.Interface
-	Queue        workqueue.RateLimitingInterface
-	Informer     cache.SharedIndexInformer
-	EventHandler handler.Handler
+	Deps
+
+	K8sClient *kubernetes.Clientset
+	CrdClient *crdClientSet.Clientset
+
+	clientset    kubernetes.Interface
+	queue        workqueue.RateLimitingInterface
+	informer     k8sCache.SharedIndexInformer
+	eventHandler handler.Handler
+	//Lister     listers.ContivTelemetryLister
+}
+
+type Deps struct {
+	Log logging.Logger
+}
+
+func (ctc *ContivTelemetryController) Init() error {
+	// Create a custom resource informer (generated from the code generator)
+	// Pass the custom resource client, while looking all namespaces for listing and watching.
+	ctc.informer = crdResourceInformer.NewContivTelemetryInformer(
+		ctc.CrdClient,
+		meta_v1.NamespaceAll,
+		0,
+		k8sCache.Indexers{},
+	)
+
+	// Create a new queue in that when the informer gets a resource from listing or watching,
+	// adding the identifying key to the queue for the handler
+	ctc.queue = workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter())
+
+	// Add event handlers to handle the three types of events for resources (add, update, delete)
+	ctc.informer.AddEventHandler(k8sCache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj interface{}) {
+			// Converting the resource object into a key
+			key, err := k8sCache.MetaNamespaceKeyFunc(obj)
+			ctc.Log.Infof("Add ContivTelemetry resource: %s", key)
+			if err == nil {
+				// Adding the key to the queue for the handler to get
+				ctc.queue.Add(key)
+			}
+		},
+		UpdateFunc: func(oldObj, newObj interface{}) {
+			key, err := k8sCache.MetaNamespaceKeyFunc(newObj)
+			ctc.Log.Infof("Update ContivTelemetry resource: %s", key)
+			if err == nil {
+				ctc.queue.Add(key)
+			}
+		},
+		DeleteFunc: func(obj interface{}) {
+			key, err := k8sCache.DeletionHandlingMetaNamespaceKeyFunc(obj)
+			ctc.Log.Infof("Delete ContivTelemetry resource: %s", key)
+			if err == nil {
+				ctc.queue.Add(key)
+			}
+		},
+	})
+
+	ctc.eventHandler = &handler.Default{}
+
+	return nil
 }
 
 // Run this in the plugin_crd_impl, it's the controller loop
-func (ctc *ContivTelemetryController) Run(stopCh <-chan struct{}) {
+func (ctc *ContivTelemetryController) Run(ctx <-chan struct{}) {
 	// handle a panic with logging and exiting
 	defer utilruntime.HandleCrash()
 	// ignore new items and shutdown when done
-	defer ctc.Queue.ShutDown()
+	defer ctc.queue.ShutDown()
 
 	ctc.Log.Info("Controller-Run: Initiating...")
 
 	// runs the informer to list and watch on a goroutine
-	go ctc.Informer.Run(stopCh)
+	go ctc.informer.Run(ctx)
 
 	// populate resources one after synchronization
-	if !cache.WaitForCacheSync(stopCh, ctc.HasSynced) {
+	if !k8sCache.WaitForCacheSync(ctx, ctc.HasSynced) {
 		utilruntime.HandleError(fmt.Errorf("Error syncing cache"))
 		return
 	}
 	ctc.Log.Info("Controller.Run: cache sync complete")
 
 	// runWorker method runs every second using a stop channel
-	wait.Until(ctc.runWorker, time.Second, stopCh)
+	wait.Until(ctc.runWorker, time.Second, ctx)
 }
 
 // When informer hasSynced, controller is synced
 func (ctc *ContivTelemetryController) HasSynced() bool {
-	return ctc.Informer.HasSynced()
+	return ctc.informer.HasSynced()
 }
 
 // runWorker processes new items in the queue
@@ -82,15 +141,15 @@ func (ctc *ContivTelemetryController) runWorker() {
 
 // processNextItem retrieves next queued item, acts accordingly for object CRUD
 func (ctc *ContivTelemetryController) processNextItem() bool {
-	log.Info("Controller.processNextItem: start")
+	ctc.Log.Info("Controller.processNextItem: start")
 
 	// get the next item (blocking) from the queue and process or
 	// quit if shutdown requested
-	key, quit := ctc.Queue.Get()
+	key, quit := ctc.queue.Get()
 	if quit {
 		return false
 	}
-	defer ctc.Queue.Done(key)
+	defer ctc.queue.Done(key)
 
 	// assert the string out of the key (format `namespace/name`)
 	keyRaw := key.(string)
@@ -100,14 +159,14 @@ func (ctc *ContivTelemetryController) processNextItem() bool {
 	//
 	// on error retry the queue key given number of times (5 here)
 	// on failure forget the queue key and throw an error
-	item, exists, err := ctc.Informer.GetIndexer().GetByKey(keyRaw)
+	item, exists, err := ctc.informer.GetIndexer().GetByKey(keyRaw)
 	if err != nil {
-		if ctc.Queue.NumRequeues(key) < 5 {
+		if ctc.queue.NumRequeues(key) < 5 {
 			ctc.Log.Errorf("Controller.processNextItem: Failed processing item with key: %s, error: %v, retrying...", key, err)
-			ctc.Queue.AddRateLimited(key)
+			ctc.queue.AddRateLimited(key)
 		} else {
 			ctc.Log.Errorf("Controller.processNextItem: Failed processing item with key: %s, error: %v, retrying...", key, err)
-			ctc.Queue.Forget(key)
+			ctc.queue.Forget(key)
 			utilruntime.HandleError(err)
 		}
 	}
@@ -118,12 +177,12 @@ func (ctc *ContivTelemetryController) processNextItem() bool {
 	// in every case forget the key from the queue
 	if exists {
 		ctc.Log.Infof("Controller.processNextItem: object created detected: %s", keyRaw)
-		ctc.EventHandler.ObjectCreated(item)
-		ctc.Queue.Forget(key)
+		ctc.eventHandler.ObjectCreated(item)
+		ctc.queue.Forget(key)
 	} else {
 		ctc.Log.Infof("Controller.processNextItem: object deleted detected: %s", keyRaw)
-		ctc.EventHandler.ObjectDeleted(item)
-		ctc.Queue.Forget(key)
+		ctc.eventHandler.ObjectDeleted(item)
+		ctc.queue.Forget(key)
 	}
 
 	// keep the worker loop running by returning true

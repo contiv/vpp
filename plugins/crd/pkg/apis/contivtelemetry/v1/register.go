@@ -18,9 +18,10 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"github.com/contiv/vpp/plugins/crd/pkg/apis/contivtelemetry"
 )
 
-var SchemeGroupVersion = schema.GroupVersion{Group: CTGroup, Version: CTVGroupVersion}
+var SchemeGroupVersion = schema.GroupVersion{Group: contivtelemetry.GroupName, Version: "v1"}
 
 var (
 	SchemeBuilder = runtime.NewSchemeBuilder(addKnownTypes)

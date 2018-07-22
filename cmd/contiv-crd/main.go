@@ -15,8 +15,18 @@
 package main
 
 import (
-	"github.com/ligato/cn-infra/core"
+	"flag"
+
 	"github.com/contiv/vpp/flavors/crd"
+	"github.com/ligato/cn-infra/core"
+)
+
+const (
+	defaultEtcdCfgFile = "/etc/etcd/etcd.conf"
+)
+
+var (
+	etcdCfgFile = flag.String("etcd-config", defaultEtcdCfgFile, "location of the ETCD config file")
 )
 
 // contiv-ksr main entry point.

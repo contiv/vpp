@@ -234,7 +234,9 @@ func (p *Plugin) handleResync(resyncChan chan resync.StatusEvent) {
 
 // Close stops watching of KSR reflected data.
 func (p *Plugin) Close() error {
-	p.cancel()
+	if p.cancel != nil {
+		p.cancel()
+	}
 	p.wg.Wait()
 	safeclose.CloseAll(p.watchConfigReg, p.resyncChan, p.changeChan)
 	return nil

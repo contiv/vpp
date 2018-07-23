@@ -322,12 +322,27 @@ func (mc *MockContiv) GetHostIPs() []net.IP {
 	return mc.hostIPs
 }
 
+// SetHostIPs sets IP addresses of this node present in the host network namespace (Linux).
+func (mc *MockContiv) SetHostIPs(ips []net.IP) {
+	mc.hostIPs = ips
+}
+
 // GetMainVrfID returns the ID of the main network connectivity VRF.
 func (mc *MockContiv) GetMainVrfID() uint32 {
 	return mc.mainVrfId
 }
 
+// SetMainVrfID sets the ID of the main network connectivity VRF.
+func (mc *MockContiv) SetMainVrfID(id uint32) {
+	mc.mainVrfId = id
+}
+
 // GetPodVrfID returns the ID of the POD VRF.
 func (mc *MockContiv) GetPodVrfID() uint32 {
 	return mc.podVrfId
+}
+
+// SetPodVrfID sets the ID of the POD VRF.
+func (mc *MockContiv) SetPodVrfID(id uint32) {
+	mc.podVrfId = id
 }

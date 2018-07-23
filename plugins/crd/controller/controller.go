@@ -108,7 +108,7 @@ func (ctc *ContivTelemetryController) Run(ctx <-chan struct{}) {
 	ctc.Log.Info("Controller-Run: Initiating...")
 
 	// runs the informer to list and watch on a goroutine
-	go ctc.informer.Run(ctx)
+	// go ctc.informer.Run(ctx)
 
 	// populate resources one after synchronization
 	if !k8sCache.WaitForCacheSync(ctx, ctc.HasSynced) {

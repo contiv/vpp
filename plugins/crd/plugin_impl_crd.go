@@ -113,6 +113,14 @@ func (p *Plugin) Init() error {
 	go p.controller.Run(p.ctx.Done())
 
 	// This where we initialize all layers
+	p.cache = &cache.ContivTelemetryCache{
+		Deps: cache.Deps{
+			Log:  p.Log.NewLogger("-telemetryCache"),
+		},
+	}
+	p.cache.Log.SetLevel(logging.DebugLevel)
+	p.cache.Init()
+
 	//p.cache.Init()
 	//p.processor.Init()
 

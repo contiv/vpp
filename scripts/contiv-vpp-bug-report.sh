@@ -185,7 +185,8 @@ fi
 SSH_OPTS=(-o LogLevel=error -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no)
 HAVE_K8S_CONNECTIVITY=1
 MASTER=
-SSH_USER=$LOGNAME
+# Use whoami instead of POSIX variables LOGNAME or USER, for compatibility with bash for windows.
+SSH_USER=$(whoami)
 SSH_CONFIG_FILE=
 SSH_KEY_FILE=
 USE_SSH=1

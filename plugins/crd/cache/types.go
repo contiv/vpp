@@ -45,8 +45,8 @@ type NodeLiveness struct {
 
 //NodeLivenessDTO is used to associate NodeLiveness Data with a node name and send it over channel for processing
 type NodeLivenessDTO struct {
-	nodeName string
-	nodeInfo *NodeLiveness
+	NodeName string
+	NodeInfo *NodeLiveness
 }
 
 //NodeTelemetry holds the unmarshalled node telemetry JSON data
@@ -56,8 +56,8 @@ type NodeTelemetry struct {
 }
 //NodeTelemetryDTO is used to associate NodeTelemetry data with a node name to be sent over a channel for processing
 type NodeTelemetryDTO struct {
-	nodeName string
-	nodeInfo map[string]NodeTelemetry
+	NodeName string
+	NodeInfo map[string]NodeTelemetry
 }
 
 type output struct {
@@ -82,8 +82,8 @@ type NodeL2Fib struct {
 
 //NodeL2FibsDTO associates a map of NodeL2Fib data with a node name to be sent over a channel for processing
 type NodeL2FibsDTO struct {
-	nodeName string
-	nodeInfo map[string]NodeL2Fib
+	NodeName string
+	NodeInfo map[string]NodeL2Fib
 }
 
 //NodeInterface holds unmarshalled Interface JSON data
@@ -101,8 +101,8 @@ type NodeInterface struct {
 
 //NodeInterfacesDTO associates a map of Node interfaces with a node name to be sent over a channel for processing
 type NodeInterfacesDTO struct {
-	nodeName string
-	nodeInfo map[int]NodeInterface
+	NodeName string
+	NodeInfo map[int]NodeInterface
 }
 
 type vxlan struct {
@@ -121,8 +121,8 @@ type NodeIPArp struct {
 
 //NodeIPArpDTO associates an IP Arp table with a node name to be sent over a channel for processing.
 type NodeIPArpDTO struct {
-	nodeInfo []NodeIPArp
-	nodeName string
+	NodeInfo []NodeIPArp
+	NodeName string
 }
 
 type tap struct {
@@ -143,6 +143,6 @@ type bdinterfaces struct {
 
 //NodeBridgeDomainsDTO associates a map of bridge domains with a node name to be sent over a channel for processing.
 type NodeBridgeDomainsDTO struct {
-	nodeName string
-	nodeInfo map[int]NodeBridgeDomains
+	NodeName string
+	NodeInfo map[int]NodeBridgeDomains
 }

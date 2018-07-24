@@ -13,5 +13,47 @@
  * // See the License for the specific language governing permissions and
  * // limitations under the License.
  */
-
 package processor
+
+import (
+	"github.com/contiv/vpp/plugins/crd/cache"
+	"github.com/ligato/cn-infra/logging"
+)
+
+
+type ContivTelemetryProcessor struct {
+Deps
+
+dbChannel chan interface{}
+nodesDB cache.Nodes
+
+
+}
+type Deps struct {
+
+	Log logging.Logger
+}
+
+
+func (p *ContivTelemetryProcessor) Init() error {
+
+	p.nodesDB = cache.NewNodesDB(p.Log)
+	p.dbChannel = make(chan interface{})
+	 return nil
+}
+
+func (p *ContivTelemetryProcessor)CollectNodeInfo(node *cache.Node){
+
+	p.collectAgentInfo(node)
+
+	p.ProcessNodeData()
+
+	p.nodesDB.PopulateNodeMaps(node)
+
+}
+
+func (p *ContivTelemetryProcessor)ValidateNodeInfo(nodelist []*cache.Node){
+
+	p.nodesDB.ValidateLoopIFAddresses(nodelist)
+
+}

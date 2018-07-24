@@ -163,6 +163,9 @@ dpdk {
 nat {
    endpoint-dependent
 }
+acl-plugin {
+   use tuple merge 0
+}
 api-trace {
    on
    nitems 500
@@ -440,7 +443,7 @@ VAGRANTFILE_API_VERSION = "2"
       k8smaster.vm.provider "virtualbox" do |v|
         v.customize ["modifyvm", :id, "--ioapic", "on"]
         #v.customize ["modifyvm", :id, "--vram", "128"]
-        v.memory = 2048 
+        v.memory = 3096
         v.cpus = 2
       end
       k8smaster.vm.provision "shell" do |s|
@@ -482,7 +485,7 @@ VAGRANTFILE_API_VERSION = "2"
 
         node.vm.provider "virtualbox" do |v|
           v.customize ["modifyvm", :id, "--ioapic", "on"]
-          v.memory = 2048
+          v.memory = 3096
           v.cpus = 2
         end
         node.vm.provision "shell" do |s|

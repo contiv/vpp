@@ -34,6 +34,7 @@ import (
 
 	crdClientSet "github.com/contiv/vpp/plugins/crd/pkg/client/clientset/versioned"
 	"k8s.io/client-go/tools/clientcmd"
+	nodeinfomodel "github.com/contiv/vpp/plugins/contiv/model/node"
 )
 
 // Plugin watches configuration of K8s resources (as reflected by KSR into ETCD)
@@ -147,7 +148,7 @@ func (p *Plugin) AfterInit() error {
 func (p *Plugin) subscribeWatcher() (err error) {
 	p.watchConfigReg, err = p.Watcher.
 		Watch("ContivTelemetry Resources", p.changeChan, p.resyncChan,
-			podmodel.KeyPrefix(), nodemodel.KeyPrefix())
+			podmodel.KeyPrefix(), nodemodel.KeyPrefix(), nodeinfomodel.AllocatedIDsKeyPrefix)
 	return err
 }
 

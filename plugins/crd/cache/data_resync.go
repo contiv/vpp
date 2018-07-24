@@ -21,8 +21,10 @@ import (
 
 	nodemodel "github.com/contiv/vpp/plugins/ksr/model/node"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
+	nodeinfomodel "github.com/contiv/vpp/plugins/contiv/model/node"
 
-	"github.com/ligato/cn-infra/logging"
+	"strings"
+	"fmt"
 )
 
 // DataResyncEvent wraps an entire state of K8s that should be reflected into VPP.
@@ -32,73 +34,96 @@ type DataResyncEvent struct {
 	// add more types here
 }
 
-// NewDataResyncEvent creates an empty instance of DataResyncEvent.
-func NewDataResyncEvent() *DataResyncEvent {
-	return &DataResyncEvent{
-		Pods:  []*podmodel.Pod{},
-		Nodes: []*nodemodel.Node{},
-		// init more types here
-	}
-}
-
 // resyncParseEvent parses K8s configuration RESYNC event for use by the Config Processor.
 func (ctc *ContivTelemetryCache) resyncParseEvent(resyncEv datasync.ResyncEvent) error {
-	var numPod, numNode int
 
-	event := NewDataResyncEvent()
-	ctc.Log.Debug("Received RESYNC Event ", resyncEv)
-
-	for key, resyncData := range resyncEv.GetValues() {
-		ctc.Log.Debug("Received RESYNC key ", key)
+	for resyncKey, resyncData := range resyncEv.GetValues() {
 
 		for {
 			evData, stop := resyncData.GetNext()
-
 			if stop {
 				break
 			}
+
 			key := evData.GetKey()
+			switch resyncKey {
+			case nodeinfomodel.AllocatedIDsKeyPrefix:
+				ctc.parseAndCacheNodeInfoData(key, evData)
 
-			// Parse pod RESYNC event
-			_, _, err := podmodel.ParsePodFromKey(key)
-			if err != nil {
-				return err
-			}
-			podValue := &podmodel.Pod{}
-			err = evData.GetValue(podValue)
-			if err != nil {
-				return err
-			}
+			case podmodel.KeyPrefix():
+				ctc.parseAndCachePodData(key, evData)
 
-			event.Pods = append(event.Pods, podValue)
-			//podID := podmodel.GetID(value).String()
-			// todo register pod in cache
-			numPod++
-			continue
+			case nodemodel.KeyPrefix():
+				ctc.parseAndCacheNodeData(key, evData)
 
-			// Parse node RESYNC event
-			_, err = nodemodel.ParseNodeFromKey(key)
-			if err != nil {
-				return err
+			default:
+				ctc.Log.Errorf("Unknown RESYNC Key %s, key %s", resyncKey, key)
 			}
-			nodeValue := &nodemodel.Node{}
-			err = evData.GetValue(nodeValue)
-			if err != nil {
-				return err
-			}
-			event.Nodes = append(event.Nodes, nodeValue)
-			// nodeID := nodemodel.GetID(value).String()
-			// todo register node in cache
-			numNode++
-			continue
 		}
 	}
-
-	ctc.Log.WithFields(logging.Fields{
-		"num-pods":  numPod,
-		"num-nodes": numNode,
-	}).Debug("Parsed RESYNC event")
-
 	return nil
 
+}
+
+func (ctc *ContivTelemetryCache) parseAndCacheNodeInfoData(key string, evData datasync.KeyVal) error {
+	nodeIdParts := strings.Split(key, "/")
+	if len(nodeIdParts) != 2 {
+		err := fmt.Errorf("invalid key %s", key)
+		ctc.Log.Error(err)
+		return err
+	}
+
+	nodeInfoValue := &nodeinfomodel.NodeInfo{}
+	err := evData.GetValue(nodeInfoValue)
+	if err != nil {
+		err1 := fmt.Errorf("could not parse node info data for key %s, error %s", key, err)
+		ctc.Log.Error(err1)
+		return err1
+	}
+
+	ctc.Log.Infof("*** parseAndCacheNodeInfoData: key %s, value %+v", nodeIdParts[1], nodeInfoValue)
+	// TODO: Register nodeInfoValue in cache.
+	return nil
+}
+
+func (ctc *ContivTelemetryCache) parseAndCachePodData(key string, evData datasync.KeyVal) error {
+	pod, namespace, err := podmodel.ParsePodFromKey(key)
+	if err != nil {
+		err := fmt.Errorf("invalid key %s", key)
+		ctc.Log.Error(err)
+		return err
+	}
+
+	podValue := &podmodel.Pod{}
+	err = evData.GetValue(podValue)
+	if err != nil {
+		err1 := fmt.Errorf("could not parse node info data for key %s, error %s", key, err)
+		ctc.Log.Error(err1)
+		return err1
+	}
+
+	ctc.Log.Infof("*** parseAndCachePodData: pod %s, namespace %s, value %+v", pod, namespace, podValue)
+	// TODO: Register podValue in cache.
+	return nil
+}
+
+func (ctc *ContivTelemetryCache) parseAndCacheNodeData(key string, evData datasync.KeyVal) error {
+	node, err := nodemodel.ParseNodeFromKey(key)
+	if err != nil {
+		err := fmt.Errorf("invalid key %s", key)
+		ctc.Log.Error(err)
+		return err
+	}
+
+	nodeValue := &nodemodel.Node{}
+	err = evData.GetValue(nodeValue)
+	if err != nil {
+		err1 := fmt.Errorf("could not parse node info data for key %s, error %s", key, err)
+		ctc.Log.Error(err1)
+		return err1
+	}
+
+	ctc.Log.Infof("*** parseAndCacheNodeData: node %s, value %+v", node, nodeValue)
+	// TODO: Register nodeValue in cache.
+	return nil
 }

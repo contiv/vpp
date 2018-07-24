@@ -143,6 +143,7 @@ func (s *Service) Refresh() {
 		epAddrs := epSubSet.GetAddresses()
 		for _, epAddr := range epAddrs {
 			var local bool
+			var hostNetwork bool
 			epIP := net.ParseIP(epAddr.GetIp())
 			if epIP == nil {
 				s.sp.Log.WithFields(logging.Fields{
@@ -154,6 +155,10 @@ func (s *Service) Refresh() {
 			if epAddr.GetNodeName() == "" || epAddr.GetNodeName() == s.sp.ServiceLabel.GetAgentLabel() {
 				local = true
 			}
+			if !s.sp.Contiv.GetPodSubnet().Contains(epIP) {
+				hostNetwork = true
+			}
+
 			for _, epPort := range epPorts {
 				port := epPort.GetName()
 				if _, exposedPort := s.contivSvc.Ports[port]; exposedPort {
@@ -161,6 +166,7 @@ func (s *Service) Refresh() {
 					sb.IP = epIP
 					sb.Port = uint16(epPort.GetPort())
 					sb.Local = local
+					sb.HostNetwork = hostNetwork
 					s.contivSvc.Backends[port] = append(s.contivSvc.Backends[port], sb)
 				}
 			}

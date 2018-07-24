@@ -34,6 +34,7 @@ type StaticMapping struct {
 	ExternalPort uint16
 	Protocol     renderer.ProtocolType
 	Locals       []*Local
+	VrfID        uint32
 }
 
 // Local represents a single backend for VPP NAT mapping.
@@ -140,6 +141,7 @@ func (sm *StaticMapping) Copy() *StaticMapping {
 		ExternalIP:   dupIP(sm.ExternalIP),
 		ExternalPort: sm.ExternalPort,
 		Protocol:     sm.Protocol,
+		VrfID:        sm.VrfID,
 	}
 	for _, local := range sm.Locals {
 		smCopy.Locals = append(smCopy.Locals, &Local{
@@ -155,7 +157,8 @@ func (sm *StaticMapping) Copy() *StaticMapping {
 func (sm *StaticMapping) Equals(sm2 *StaticMapping) bool {
 	if !sm.ExternalIP.Equal(sm2.ExternalIP) ||
 		sm.ExternalPort != sm2.ExternalPort ||
-		sm.Protocol != sm2.Protocol {
+		sm.Protocol != sm2.Protocol ||
+		sm.VrfID != sm2.VrfID {
 		return false
 	}
 	if len(sm.Locals) != len(sm2.Locals) {

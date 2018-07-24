@@ -523,6 +523,13 @@ func (rndr *Renderer) exportDNATMappings(service *renderer.ContivService) []*nat
 					} else {
 						local.Probability = 1
 					}
+					// TODO: this will not work in case of mixed HostNetwork and non-HostNetwork backends
+					// until https://jira.fd.io/browse/VPP-1345 is implemented
+					if rndr.isNodeLocalIP(backend.IP) {
+						mapping.VrfId = rndr.Contiv.GetMainVrfID()
+					} else {
+						mapping.VrfId = rndr.Contiv.GetPodVrfID()
+					}
 					mapping.LocalIps = append(mapping.LocalIps, local)
 				}
 				if len(mapping.LocalIps) == 0 {
@@ -569,6 +576,13 @@ func (rndr *Renderer) exportDNATMappings(service *renderer.ContivService) []*nat
 				} else {
 					local.Probability = 1
 				}
+				// TODO: this will not work in case of mixed HostNetwork and non-HostNetwork backends
+				// until https://jira.fd.io/browse/VPP-1345 is implemented
+				if rndr.isNodeLocalIP(backend.IP) {
+					mapping.VrfId = rndr.Contiv.GetMainVrfID()
+				} else {
+					mapping.VrfId = rndr.Contiv.GetPodVrfID()
+				}
 				mapping.LocalIps = append(mapping.LocalIps, local)
 			}
 			if len(mapping.LocalIps) == 0 {
@@ -586,6 +600,22 @@ func (rndr *Renderer) exportDNATMappings(service *renderer.ContivService) []*nat
 	return mappings
 }
 
+// isNodeLocalIP returns true if the given IP is local to the current node, false otherwise.
+func (rndr *Renderer) isNodeLocalIP(ip net.IP) bool {
+	nodeIP, _ := rndr.Contiv.GetNodeIP()
+	if ip.Equal(nodeIP) {
+		return true
+	}
+
+	for _, hostIP := range rndr.Contiv.GetHostIPs() {
+		if hostIP.Equal(ip) {
+			return true
+		}
+	}
+
+	return false
+}
+
 // exportIdentityMappings returns DNAT configuration with identities to exclude
 // VXLAN port and main interface IP (with the exception of node-ports)
 // from dynamic mappings.
@@ -599,10 +629,12 @@ func (rndr *Renderer) exportIdentityMappings() *nat.Nat44DNat_DNatConfig {
 			IpAddress: rndr.defaultIfIP.String(),
 			Protocol:  nat.Protocol_UDP,
 			Port:      vxlanPort,
+			VrfId:     rndr.Contiv.GetMainVrfID(),
 		}
 		mainIfID := &nat.Nat44DNat_DNatConfig_IdentityMapping{
 			IpAddress: rndr.defaultIfIP.String(),
 			Protocol:  nat.Protocol_UDP, /* Address-only mappings are dumped with UDP as protocol */
+			VrfId:     rndr.Contiv.GetMainVrfID(),
 		}
 		idNat.IdMappings = append(idNat.IdMappings, vxlanID)
 		idNat.IdMappings = append(idNat.IdMappings, mainIfID)

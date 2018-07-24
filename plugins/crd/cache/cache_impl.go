@@ -26,6 +26,7 @@ import (
 // The cache allows to get notified about changes via convenient callbacks.
 type ContivTelemetryCache struct {
 	Deps
+	Synced bool
 	// todo - here add the maps you have in your db implementation
 }
 
@@ -56,10 +57,5 @@ func (ctc *ContivTelemetryCache) Update(dataChngEv datasync.ChangeEvent) error {
 // Resync processes a datasync resync event associated with K8s State data.
 // The cache content is full replaced with the received data.
 func (ctc *ContivTelemetryCache) Resync(resyncEv datasync.ResyncEvent) error {
-	err := ctc.resyncParseEvent(resyncEv)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return ctc.resyncParseEvent(resyncEv)
 }

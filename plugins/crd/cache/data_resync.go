@@ -19,12 +19,12 @@ package cache
 import (
 	"github.com/ligato/cn-infra/datasync"
 
+	nodeinfomodel "github.com/contiv/vpp/plugins/contiv/model/node"
 	nodemodel "github.com/contiv/vpp/plugins/ksr/model/node"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
-	nodeinfomodel "github.com/contiv/vpp/plugins/contiv/model/node"
 
-	"strings"
 	"fmt"
+	"strings"
 )
 
 // DataResyncEvent wraps an entire state of K8s that should be reflected into VPP.
@@ -36,9 +36,10 @@ type DataResyncEvent struct {
 
 // resyncParseEvent parses K8s configuration RESYNC event for use by the Config Processor.
 func (ctc *ContivTelemetryCache) resyncParseEvent(resyncEv datasync.ResyncEvent) error {
+	err := error(nil)
+	ctc.Synced = true
 
 	for resyncKey, resyncData := range resyncEv.GetValues() {
-
 		for {
 			evData, stop := resyncData.GetNext()
 			if stop {
@@ -48,37 +49,42 @@ func (ctc *ContivTelemetryCache) resyncParseEvent(resyncEv datasync.ResyncEvent)
 			key := evData.GetKey()
 			switch resyncKey {
 			case nodeinfomodel.AllocatedIDsKeyPrefix:
-				ctc.parseAndCacheNodeInfoData(key, evData)
+				err = ctc.parseAndCacheNodeInfoData(key, evData)
 
 			case podmodel.KeyPrefix():
-				ctc.parseAndCachePodData(key, evData)
+				err = ctc.parseAndCachePodData(key, evData)
 
 			case nodemodel.KeyPrefix():
-				ctc.parseAndCacheNodeData(key, evData)
+				err = ctc.parseAndCacheNodeData(key, evData)
 
 			default:
-				ctc.Log.Errorf("Unknown RESYNC Key %s, key %s", resyncKey, key)
+				err = fmt.Errorf("unknown RESYNC Key %s, key %s", resyncKey, key)
+			}
+
+			if err != nil {
+				ctc.Log.Error(err)
+				ctc.Synced = false
 			}
 		}
 	}
-	return nil
 
+	if ctc.Synced == false {
+		return fmt.Errorf("%s", "datasync error, cache may be out of sync")
+	} else {
+		return nil
+	}
 }
 
 func (ctc *ContivTelemetryCache) parseAndCacheNodeInfoData(key string, evData datasync.KeyVal) error {
 	nodeIdParts := strings.Split(key, "/")
 	if len(nodeIdParts) != 2 {
-		err := fmt.Errorf("invalid key %s", key)
-		ctc.Log.Error(err)
-		return err
+		return fmt.Errorf("invalid key %s", key)
 	}
 
 	nodeInfoValue := &nodeinfomodel.NodeInfo{}
 	err := evData.GetValue(nodeInfoValue)
 	if err != nil {
-		err1 := fmt.Errorf("could not parse node info data for key %s, error %s", key, err)
-		ctc.Log.Error(err1)
-		return err1
+		return fmt.Errorf("could not parse node info data for key %s, error %s", key, err)
 	}
 
 	ctc.Log.Infof("*** parseAndCacheNodeInfoData: key %s, value %+v", nodeIdParts[1], nodeInfoValue)
@@ -89,17 +95,13 @@ func (ctc *ContivTelemetryCache) parseAndCacheNodeInfoData(key string, evData da
 func (ctc *ContivTelemetryCache) parseAndCachePodData(key string, evData datasync.KeyVal) error {
 	pod, namespace, err := podmodel.ParsePodFromKey(key)
 	if err != nil {
-		err := fmt.Errorf("invalid key %s", key)
-		ctc.Log.Error(err)
-		return err
+		return fmt.Errorf("invalid key %s", key)
 	}
 
 	podValue := &podmodel.Pod{}
 	err = evData.GetValue(podValue)
 	if err != nil {
-		err1 := fmt.Errorf("could not parse node info data for key %s, error %s", key, err)
-		ctc.Log.Error(err1)
-		return err1
+		return fmt.Errorf("could not parse node info data for key %s, error %s", key, err)
 	}
 
 	ctc.Log.Infof("*** parseAndCachePodData: pod %s, namespace %s, value %+v", pod, namespace, podValue)
@@ -110,17 +112,13 @@ func (ctc *ContivTelemetryCache) parseAndCachePodData(key string, evData datasyn
 func (ctc *ContivTelemetryCache) parseAndCacheNodeData(key string, evData datasync.KeyVal) error {
 	node, err := nodemodel.ParseNodeFromKey(key)
 	if err != nil {
-		err := fmt.Errorf("invalid key %s", key)
-		ctc.Log.Error(err)
-		return err
+		return fmt.Errorf("invalid key %s", key)
 	}
 
 	nodeValue := &nodemodel.Node{}
 	err = evData.GetValue(nodeValue)
 	if err != nil {
-		err1 := fmt.Errorf("could not parse node info data for key %s, error %s", key, err)
-		ctc.Log.Error(err1)
-		return err1
+		return fmt.Errorf("could not parse node info data for key %s, error %s", key, err)
 	}
 
 	ctc.Log.Infof("*** parseAndCacheNodeData: node %s, value %+v", node, nodeValue)

@@ -118,6 +118,7 @@ func (p *Plugin) Init() error {
 		Deps: cache.Deps{
 			Log:  p.Log.NewLogger("-telemetryCache"),
 		},
+		Synced: false,
 	}
 	p.cache.Log.SetLevel(logging.DebugLevel)
 	p.cache.Init()

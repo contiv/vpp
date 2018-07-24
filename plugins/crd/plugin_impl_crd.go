@@ -35,6 +35,7 @@ import (
 	crdClientSet "github.com/contiv/vpp/plugins/crd/pkg/client/clientset/versioned"
 	"k8s.io/client-go/tools/clientcmd"
 	nodeinfomodel "github.com/contiv/vpp/plugins/contiv/model/node"
+	"github.com/contiv/vpp/plugins/crd/processor"
 )
 
 // Plugin watches configuration of K8s resources (as reflected by KSR into ETCD)
@@ -60,7 +61,7 @@ type Plugin struct {
 
 	controller *controller.ContivTelemetryController
 	cache      *cache.ContivTelemetryCache
-	// processor  *processor.ContivTelemetryProcessor
+	processor  *processor.ContivTelemetryProcessor
 }
 
 // Deps defines dependencies of policy plugin.
@@ -123,8 +124,12 @@ func (p *Plugin) Init() error {
 	p.cache.Log.SetLevel(logging.DebugLevel)
 	p.cache.Init()
 
-	//p.cache.Init()
-	//p.processor.Init()
+	p.processor = &processor.ContivTelemetryProcessor{
+		Deps: processor.Deps{
+			Log:  p.Log.NewLogger("-telemetryProcessor"),
+		},
+	}
+	p.processor.Init()
 
 	go p.watchEvents()
 	err = p.subscribeWatcher()

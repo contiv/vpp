@@ -24,7 +24,7 @@ COPY binaries/contiv-init binaries/contiv-agent /usr/bin/
 
 # add VPP binaries (add also extracts from .tar.gz)
 ADD binaries/vpp.tar.gz .
-RUN dpkg -i vpp/vpp-lib_*.deb vpp/vpp_*.deb vpp/vpp-plugins_*.deb vpp/vpp-dbg_*.deb vpp/vpp-dev_*.deb && \
+RUN dpkg -i vpp/vpp-lib_*.deb vpp/vpp_*.deb vpp/vpp-plugins_*.deb && \
     rm -rf vpp
 
 # add defualt VPP startup config as contiv-vswitch.conf

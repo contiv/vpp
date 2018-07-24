@@ -57,5 +57,5 @@ func (ctc *ContivTelemetryCache) Update(dataChngEv datasync.ChangeEvent) error {
 // Resync processes a datasync resync event associated with K8s State data.
 // The cache content is full replaced with the received data.
 func (ctc *ContivTelemetryCache) Resync(resyncEv datasync.ResyncEvent) error {
-	return ctc.resyncParseEvent(resyncEv)
+	return ctc.processResyncEvent(resyncEv)
 }

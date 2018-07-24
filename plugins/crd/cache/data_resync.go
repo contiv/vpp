@@ -34,10 +34,12 @@ type DataResyncEvent struct {
 	// add more types here
 }
 
-// resyncParseEvent parses K8s configuration RESYNC event for use by the Config Processor.
-func (ctc *ContivTelemetryCache) resyncParseEvent(resyncEv datasync.ResyncEvent) error {
+// processResyncEvent parses K8s configuration RESYNC event for use by the Config Processor.
+func (ctc *ContivTelemetryCache) processResyncEvent(resyncEv datasync.ResyncEvent) error {
 	err := error(nil)
 	ctc.Synced = true
+
+	// TODO: Clear all data from cache
 
 	for resyncKey, resyncData := range resyncEv.GetValues() {
 		for {

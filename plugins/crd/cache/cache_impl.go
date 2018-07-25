@@ -33,7 +33,7 @@ type ContivTelemetryCache struct {
 	// todo - here add the maps you have in your db implementation
 	Cache      *Cache
 	k8sNodeMap map[string]*nodemodel.Node
-	processor *Processor
+	Processor *ContivTelemetryProcessor
 }
 
 // Deps lists dependencies of PolicyCache.
@@ -85,11 +85,11 @@ func (ctc *ContivTelemetryCache) ListAllNodes() []Node {
 
 // LookupNode return node data for nodes that match a node name passed
 // to the function in the nodenames slice.
-func (ctc *ContivTelemetryCache) LookupNode(nodenames []string) []Node {
-	nodeslice := make([]Node, 0)
+func (ctc *ContivTelemetryCache) LookupNode(nodenames []string) []*Node {
+	nodeslice := make([]*Node, 0)
 	for _, name := range nodenames {
 		node := ctc.Cache.nMap[name]
-		nodeslice = append(nodeslice, *node)
+		nodeslice = append(nodeslice, node)
 	}
 	return nodeslice
 }
@@ -137,6 +137,7 @@ func (c *Cache) SetNodeLiveness(name string, nLive *NodeLiveness) error {
 	if err != nil {
 		return err
 	}
+	c.logger.Debugf("Recevied Liveness %+v for node %+v",nLive,name)
 	node.NodeLiveness = nLive
 	return nil
 }
@@ -147,6 +148,7 @@ func (c *Cache) SetNodeInterfaces(name string, nInt map[int]NodeInterface) error
 	if err != nil {
 		return err
 	}
+	c.logger.Debugf("Recevied Interfaces %+v for node %+v",nInt,name)
 	node.NodeInterfaces = nInt
 	return nil
 
@@ -158,6 +160,7 @@ func (c *Cache) SetNodeBridgeDomain(name string, nBridge map[int]NodeBridgeDomai
 	if err != nil {
 		return err
 	}
+	c.logger.Debugf("Recevied Bridge domain %+v for node %+v",nBridge,name)
 	node.NodeBridgeDomains = nBridge
 	return nil
 }
@@ -168,6 +171,7 @@ func (c *Cache) SetNodeL2Fibs(name string, nL2F map[string]NodeL2Fib) error {
 	if err != nil {
 		return err
 	}
+	c.logger.Debugf("Recevied L2Fibs %+v for node %+v",nL2F,name)
 	node.NodeL2Fibs = nL2F
 	return nil
 }
@@ -188,6 +192,7 @@ func (c *Cache) SetNodeIPARPs(name string, nArps []NodeIPArp) error {
 	if err != nil {
 		return err
 	}
+	c.logger.Debugf("Recevied IPARPS %+v for node %+v",nArps,name)
 	node.NodeIPArp = nArps
 	return nil
 
@@ -334,6 +339,7 @@ func (c *Cache) ValidateLoopIFAddresses(nodelist []*Node) bool {
 			c.logger.Errorf("No MAC entry found for %+v", node)
 			delete(nodemap, node)
 		}
+		return false
 	}
 	return true
 }

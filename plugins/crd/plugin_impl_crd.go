@@ -127,9 +127,10 @@ func (p *Plugin) Init() error {
 		Deps: cache.Deps{
 			Log: p.Log.NewLogger("-telemetryProcessor"),
 		},
+		Cache:p.cache.Cache,
 	}
 	p.processor.Init()
-
+    p.cache.Processor = p.processor
 	go p.watchEvents()
 	err = p.subscribeWatcher()
 	if err != nil {

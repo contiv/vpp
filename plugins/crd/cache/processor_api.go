@@ -19,5 +19,4 @@ package cache
 type Processor interface {
 	CollectNodeInfo(node *Node)
 	ValidateNodeInfo(nodelist []*Node)
-	collectAgentInfo(node *Node)
 }

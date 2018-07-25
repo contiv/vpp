@@ -36,19 +36,18 @@ const (
 	arpURL            = "/arps"
 )
 
-// ContivTelemetryProcessor defines the processor's data structures and
-// dependencies
+// ContivTelemetryProcessor defines the processor's data structures and dependencies
 type ContivTelemetryProcessor struct {
 	Deps
 	dbChannel chan interface{}
 	Cache *Cache
-	Processor *ContivTelemetryProcessor
 }
 
 
 // Init initializes the processor
 func (p *ContivTelemetryProcessor) Init() error {
 	p.dbChannel = make(chan interface{})
+	go p.ProcessNodeData()
 	return nil
 }
 
@@ -58,10 +57,6 @@ func (p *ContivTelemetryProcessor) CollectNodeInfo(node *Node) {
 
 	p.collectAgentInfo(node)
 
-	p.ProcessNodeData()
-
-	p.Cache.PopulateNodeMaps(node)
-
 }
 
 // ValidateNodeInfo checks the consistency of the node data in the cache. It
@@ -69,6 +64,10 @@ func (p *ContivTelemetryProcessor) CollectNodeInfo(node *Node) {
 // connectivity between nodes or pods. All sata inconsistencies found during
 // validation are reported to the CRD.
 func (p *ContivTelemetryProcessor) ValidateNodeInfo(nodelist []*Node) {
+
+	for _,node := range nodelist{
+		p.Cache.PopulateNodeMaps(node)
+	}
 
 	p.Cache.ValidateLoopIFAddresses(nodelist)
 

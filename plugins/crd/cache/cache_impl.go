@@ -16,14 +16,14 @@
 package cache
 
 import (
+	nodemodel "github.com/contiv/vpp/plugins/ksr/model/node"
 	"github.com/ligato/cn-infra/datasync"
 	"github.com/ligato/cn-infra/logging"
-	nodemodel "github.com/contiv/vpp/plugins/ksr/model/node"
 
 	"sort"
 )
 
-// NodeTelemetryCache is used for a in-memory storage of K8s State data
+// ContivTelemetryCache is used for a in-memory storage of K8s State data
 // The cache processes K8s State data updates and RESYNC events through Update()
 // and Resync() APIs, respectively.
 // The cache allows to get notified about changes via convenient callbacks.
@@ -31,9 +31,9 @@ type ContivTelemetryCache struct {
 	Deps
 	Synced bool
 	// todo - here add the maps you have in your db implementation
-	nameMap map[string]*Node
-	loopIPMap map[string]*Node
-	gigEIPMap map[string]*Node
+	nameMap    map[string]*Node
+	loopIPMap  map[string]*Node
+	gigEIPMap  map[string]*Node
 	loopMACMap map[string]*Node
 	k8sNodeMap map[string]*nodemodel.Node
 }
@@ -73,30 +73,33 @@ func (ctc *ContivTelemetryCache) Resync(resyncEv datasync.ResyncEvent) error {
 	return ctc.processResyncEvent(resyncEv)
 }
 
-
-func (ctc *ContivTelemetryCache) ListAllNodes() []Node{
+// ListAllNodes returns node data for all nodes in the cache.
+func (ctc *ContivTelemetryCache) ListAllNodes() []Node {
 	var str []string
-	for k := range ctc.nameMap{
+	for k := range ctc.nameMap {
 		str = append(str, k)
 	}
 	var nodeList []Node
 	sort.Strings(str)
-	for _,name := range str  {
-		nodeList = append(nodeList,*ctc.nameMap[name])
+	for _, name := range str {
+		nodeList = append(nodeList, *ctc.nameMap[name])
 	}
 	return nodeList
 }
 
-func (ctc *ContivTelemetryCache)LookupNode(nodenames []string) []Node{
-nodeslice := make([]Node,0)
-	for _, name := range nodenames{
+// LookupNode return node data for nodes that match a node name passed
+// to the function in the nodenames slice.
+func (ctc *ContivTelemetryCache) LookupNode(nodenames []string) []Node {
+	nodeslice := make([]Node, 0)
+	for _, name := range nodenames {
 		node := ctc.nameMap[name]
-		nodeslice = append(nodeslice,*node)
+		nodeslice = append(nodeslice, *node)
 	}
 	return nodeslice
 }
 
-func (ctc *ContivTelemetryCache)DeleteNode(nodenames []string){
-
+// DeleteNode deletes from teh cache those nodes that match a node name passed
+// to the function in the nodenames slice.
+func (ctc *ContivTelemetryCache) DeleteNode(nodenames []string) {
 
 }

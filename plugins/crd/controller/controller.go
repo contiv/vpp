@@ -32,9 +32,9 @@ import (
 	crdResourceInformer "github.com/contiv/vpp/plugins/crd/pkg/client/informers/externalversions/contivtelemetry/v1"
 )
 
-// Controller struct defines how a controller should encapsulate
-// logging, client connectivity, informing (list and watching)
-// queueing, and handling of resource changes
+// ContivTelemetryController struct defines how a controller should encapsulate
+// logging, client connectivity, informing (list and watching) queueing, and
+// handling of resource changes
 type ContivTelemetryController struct {
 	Deps
 
@@ -48,10 +48,12 @@ type ContivTelemetryController struct {
 	//Lister     listers.ContivTelemetryLister
 }
 
+// Deps defines dependencies for the CRD plugin
 type Deps struct {
 	Log logging.Logger
 }
 
+// Init performs the initialization of ContivTelemetryController
 func (ctc *ContivTelemetryController) Init() error {
 	// Create a custom resource informer (generated from the code generator)
 	// Pass the custom resource client, while looking all namespaces for listing and watching.
@@ -121,7 +123,7 @@ func (ctc *ContivTelemetryController) Run(ctx <-chan struct{}) {
 	wait.Until(ctc.runWorker, time.Second, ctx)
 }
 
-// When informer hasSynced, controller is synced
+// HasSynced indicates when the controller is synced up with the K8s.
 func (ctc *ContivTelemetryController) HasSynced() bool {
 	return ctc.informer.HasSynced()
 }

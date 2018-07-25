@@ -15,16 +15,18 @@
 package v1
 
 import (
+	"github.com/contiv/vpp/plugins/crd/pkg/apis/contivtelemetry"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"github.com/contiv/vpp/plugins/crd/pkg/apis/contivtelemetry"
 )
 
-var SchemeGroupVersion = schema.GroupVersion{Group: contivtelemetry.GroupName, Version: "v1"}
-
 var (
+	// SchemeGroupVersion defines the group version
+	SchemeGroupVersion = schema.GroupVersion{Group: contivtelemetry.GroupName, Version: "v1"}
+	// SchemeBuilder is the schema builder for the CRD API
 	SchemeBuilder = runtime.NewSchemeBuilder(addKnownTypes)
+	// AddToScheme is...
 	AddToScheme   = SchemeBuilder.AddToScheme
 )
 

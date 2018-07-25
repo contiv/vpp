@@ -1,3 +1,17 @@
+// Copyright (c) 2018 Cisco and/or its affiliates.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at:
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package cache
 
 import (
@@ -160,25 +174,25 @@ func (nDB *NodesDB) GetAllNodes() []*Node {
 //It also checks to make sure that there are no duplicate addresses within the map.
 func (nDB *NodesDB) PopulateNodeMaps(node *Node) {
 
-		loopIF, err := nDB.getNodeLoopIFInfo(node)
-		if err != nil {
-			nDB.logger.Error(err)
-		}
-		for i := range loopIF.IPAddresses {
-			if ip, ok := nDB.loopIPMap[loopIF.IPAddresses[i]]; !ok && ip != nil {
-				//TODO: Report an error back to the controller; store it somewhere, report it at the end of the function
-				nDB.logger.Errorf("Duplicate IP found: %s", ip)
-			} else {
-				for i := range loopIF.IPAddresses {
-					nDB.loopIPMap[loopIF.IPAddresses[i]] = node
-				}
+	loopIF, err := nDB.getNodeLoopIFInfo(node)
+	if err != nil {
+		nDB.logger.Error(err)
+	}
+	for i := range loopIF.IPAddresses {
+		if ip, ok := nDB.loopIPMap[loopIF.IPAddresses[i]]; !ok && ip != nil {
+			//TODO: Report an error back to the controller; store it somewhere, report it at the end of the function
+			nDB.logger.Errorf("Duplicate IP found: %s", ip)
+		} else {
+			for i := range loopIF.IPAddresses {
+				nDB.loopIPMap[loopIF.IPAddresses[i]] = node
 			}
 		}
-		if mac, ok := nDB.loopMACMap[loopIF.PhysAddress]; !ok && mac != nil {
-			nDB.logger.Errorf("Duplicate MAC address found: %s", mac)
-		} else {
-			nDB.loopMACMap[loopIF.PhysAddress] = node
-		}
+	}
+	if mac, ok := nDB.loopMACMap[loopIF.PhysAddress]; !ok && mac != nil {
+		nDB.logger.Errorf("Duplicate MAC address found: %s", mac)
+	} else {
+		nDB.loopMACMap[loopIF.PhysAddress] = node
+	}
 }
 
 //Small helper function that returns the loop interface of a node

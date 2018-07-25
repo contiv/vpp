@@ -18,9 +18,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+// ContivTelemetry describes contiv telemetry custom resource
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-// ContivTelemetry describes contiv telemetry custom resource
 type ContivTelemetry struct {
 	// TypeMeta is the metadata for the resource, like kind and apiversion
 	metav1.TypeMeta `json:",inline"`
@@ -39,23 +39,21 @@ type ContivTelemetrySpec struct {
 
 // ContivNode is the spec for the contiv telemetry resource
 type ContivNode struct {
-	Name string `json:"name"`
+	Name  string `json:"name"`
 	Value string `json:"value"`
 }
 
-// ContivNode is the spec for the contiv telemetry resource
+// ContivAgent is the spec for the contiv telemetry resource
 type ContivAgent struct {
-	Name string `json:"name"`
+	Name  string `json:"name"`
 	Value string `json:"value"`
 }
 
-
-// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // ContivTelemetryList is a list of ContivTelemetry resource
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type ContivTelemetryList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata"`
 
 	Items []ContivTelemetry `json:"items"`
 }
-

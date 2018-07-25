@@ -13,7 +13,6 @@
 // limitations under the License.
 
 // Package crd defines flavor used for the contiv-crd agent.
-
 package crd
 
 import (

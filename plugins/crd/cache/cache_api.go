@@ -35,10 +35,10 @@ type NodeTelemetryCacheAPI interface {
 	Resync(resyncEv datasync.ResyncEvent) error
 
 	// LookupNodeInfo returns data of a given node or list of nodes.
-	// LookupNode() Node
+	 LookupNode(nodename []string) []Node
 
 	// LookupNodeInfo returns data of all nodes.
-	// ListAllNodes() []Node
+	 ListAllNodes() []Node
 
 	// LookupNodeInfo returns data of a given pod or list of nodes.
 	// LookupPod() Pod

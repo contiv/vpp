@@ -69,7 +69,7 @@ type Plugin struct {
 	// Policy Cache: layers 1-3
 	policyCache *cache.PolicyCache
 
-	// Policy Processor: layer 2
+	// Policy ContivTelemetryProcessor: layer 2
 	processor *processor.PolicyProcessor
 
 	// Policy Configurator: layer 3

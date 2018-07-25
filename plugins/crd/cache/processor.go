@@ -12,13 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package processor
+package cache
 
 import (
-	"encoding/json"
-	"github.com/contiv/vpp/plugins/crd/cache"
-	"io/ioutil"
 	"net/http"
+	"io/ioutil"
+	"encoding/json"
 )
 
 const (
@@ -35,12 +34,48 @@ const (
 	telemetryURL      = "/telemetry"
 	arpPort           = ":9999"
 	arpURL            = "/arps"
-	nodeHTTPCalls     = 5
 )
 
-//Gathers a number of data points for every node in the Node List
+// ContivTelemetryProcessor defines the processor's data structures and dependencies
+type ContivTelemetryProcessor struct {
+	Deps
+	dbChannel chan interface{}
+	Cache *Cache
+}
 
-func (p *ContivTelemetryProcessor) collectAgentInfo(node *cache.Node) {
+
+// Init initializes the processor
+func (p *ContivTelemetryProcessor) Init() error {
+	p.dbChannel = make(chan interface{})
+	go p.ProcessNodeData()
+	return nil
+}
+
+// CollectNodeInfo collects node data from all agents in the Contiv
+// cluster and puts it in the cache
+func (p *ContivTelemetryProcessor) CollectNodeInfo(node *Node) {
+
+	p.collectAgentInfo(node)
+
+}
+
+// ValidateNodeInfo checks the consistency of the node data in the cache. It
+// checks the ARP tables, ... . Data inconsistencies may cause loss of
+// connectivity between nodes or pods. All sata inconsistencies found during
+// validation are reported to the CRD.
+func (p *ContivTelemetryProcessor) ValidateNodeInfo(nodelist []*Node) {
+
+	for _,node := range nodelist{
+		p.Cache.PopulateNodeMaps(node)
+	}
+
+	p.Cache.ValidateLoopIFAddresses(nodelist)
+
+}
+
+
+//Gathers a number of data points for every node in the Node List
+func (p *ContivTelemetryProcessor) collectAgentInfo(node *Node) {
 	client := http.Client{
 		Transport:     nil,
 		CheckRedirect: nil,
@@ -73,92 +108,93 @@ over the plugins node database channel to node_db_processor.go where it will be 
 processed, and added to the node database.
 */
 
-func (p *ContivTelemetryProcessor) getLivenessInfo(client http.Client, node *cache.Node) {
+func (p *ContivTelemetryProcessor) getLivenessInfo(client http.Client, node *Node) {
 	res, err := client.Get("http://" + node.ManIPAdr + livenessPort + livenessURL)
 	if err != nil {
 		p.Log.Error(err)
-		p.dbChannel <- cache.NodeLivenessDTO{node.Name, nil}
+		p.dbChannel <- NodeLivenessDTO{node.Name, nil}
 		return
 	}
 	b, _ := ioutil.ReadAll(res.Body)
 	b = []byte(b)
-	nodeInfo := &cache.NodeLiveness{}
+	nodeInfo := &NodeLiveness{}
 	json.Unmarshal(b, nodeInfo)
-	p.dbChannel <- cache.NodeLivenessDTO{node.Name, nodeInfo}
+	p.dbChannel <- NodeLivenessDTO{node.Name, nodeInfo}
 
 }
 
-func (p *ContivTelemetryProcessor) getInterfaceInfo(client http.Client, node *cache.Node) {
+func (p *ContivTelemetryProcessor) getInterfaceInfo(client http.Client, node *Node) {
 	res, err := client.Get("http://" + node.ManIPAdr + interfacePort + interfaceURL)
 	if err != nil {
 		p.Log.Error(err)
-		p.dbChannel <- cache.NodeInterfacesDTO{node.Name, nil}
+		p.dbChannel <- NodeInterfacesDTO{node.Name, nil}
 		return
 	}
 	b, _ := ioutil.ReadAll(res.Body)
 	b = []byte(b)
 
-	nodeInterfaces := make(map[int]cache.NodeInterface, 0)
+	nodeInterfaces := make(map[int]NodeInterface, 0)
 	json.Unmarshal(b, &nodeInterfaces)
-	p.dbChannel <- cache.NodeInterfacesDTO{node.Name, nodeInterfaces}
+	p.dbChannel <- NodeInterfacesDTO{node.Name, nodeInterfaces}
 
 }
-func (p *ContivTelemetryProcessor) getBridgeDomainInfo(client http.Client, node *cache.Node) {
+func (p *ContivTelemetryProcessor) getBridgeDomainInfo(client http.Client, node *Node) {
 	res, err := client.Get("http://" + node.ManIPAdr + bridgeDomainsPort + bridgeDomainURL)
 	if err != nil {
 		p.Log.Error(err)
-		p.dbChannel <- cache.NodeBridgeDomainsDTO{node.Name, nil}
+		p.dbChannel <- NodeBridgeDomainsDTO{node.Name, nil}
 		return
 	}
 	b, _ := ioutil.ReadAll(res.Body)
 	b = []byte(b)
 
-	nodeBridgeDomains := make(map[int]cache.NodeBridgeDomains)
+	nodeBridgeDomains := make(map[int]NodeBridgeDomains)
 	json.Unmarshal(b, &nodeBridgeDomains)
-	p.dbChannel <- cache.NodeBridgeDomainsDTO{node.Name, nodeBridgeDomains}
+	p.dbChannel <- NodeBridgeDomainsDTO{node.Name, nodeBridgeDomains}
 
 }
 
-func (p *ContivTelemetryProcessor) getL2FibInfo(client http.Client, node *cache.Node) {
+func (p *ContivTelemetryProcessor) getL2FibInfo(client http.Client, node *Node) {
 	res, err := client.Get("http://" + node.ManIPAdr + l2FibsPort + l2FibsURL)
 	if err != nil {
 		p.Log.Error(err)
-		p.dbChannel <- cache.NodeL2FibsDTO{node.Name, nil}
+		p.dbChannel <- NodeL2FibsDTO{node.Name, nil}
 		return
 	}
 	b, _ := ioutil.ReadAll(res.Body)
 	b = []byte(b)
-	nodel2fibs := make(map[string]cache.NodeL2Fib)
+	nodel2fibs := make(map[string]NodeL2Fib)
 	json.Unmarshal(b, &nodel2fibs)
-	p.dbChannel <- cache.NodeL2FibsDTO{node.Name, nodel2fibs}
+	p.dbChannel <- NodeL2FibsDTO{node.Name, nodel2fibs}
 
 }
 
-func (p *ContivTelemetryProcessor) getTelemetryInfo(client http.Client, node *cache.Node) {
+func (p *ContivTelemetryProcessor) getTelemetryInfo(client http.Client, node *Node) {
 	res, err := client.Get("http://" + node.ManIPAdr + telemetryPort + telemetryURL)
 	if err != nil {
 		p.Log.Error(err)
-		p.dbChannel <- cache.NodeTelemetryDTO{node.Name, nil}
+		p.dbChannel <- NodeTelemetryDTO{node.Name, nil}
 		return
 	}
 	b, _ := ioutil.ReadAll(res.Body)
 	b = []byte(b)
-	nodetelemetry := make(map[string]cache.NodeTelemetry)
+	nodetelemetry := make(map[string]NodeTelemetry)
 	json.Unmarshal(b, &nodetelemetry)
-	p.dbChannel <- cache.NodeTelemetryDTO{node.Name, nodetelemetry}
+	p.dbChannel <- NodeTelemetryDTO{node.Name, nodetelemetry}
 }
 
-func (p *ContivTelemetryProcessor) getIPArpInfo(client http.Client, node *cache.Node) {
+func (p *ContivTelemetryProcessor) getIPArpInfo(client http.Client, node *Node) {
 	res, err := client.Get("http://" + node.ManIPAdr + arpPort + arpURL)
 	if err != nil {
 		p.Log.Error(err)
-		p.dbChannel <- cache.NodeIPArpDTO{[]cache.NodeIPArp{}, ""}
+		p.dbChannel <- NodeIPArpDTO{[]NodeIPArp{}, ""}
 		return
 	}
 	b, _ := ioutil.ReadAll(res.Body)
 
 	b = []byte(b)
-	nodeiparpslice := make([]cache.NodeIPArp, 0)
+	nodeiparpslice := make([]NodeIPArp, 0)
 	json.Unmarshal(b, &nodeiparpslice)
-	p.dbChannel <- cache.NodeIPArpDTO{nodeiparpslice, node.Name}
+	p.dbChannel <- NodeIPArpDTO{nodeiparpslice, node.Name}
 }
+

@@ -71,7 +71,7 @@ func (red ResyncEventData) String() string {
 			services += ", "
 		}
 	}
-	return fmt.Sprintf("ResyncEventData <Nodes:%v Pods:[%s] Endpoint:[%s] Services:[%s]>",
+	return fmt.Sprintf("ResyncEventData <Cache:%v Pods:[%s] Endpoint:[%s] Services:[%s]>",
 		red.Nodes, pods, endpoints, services)
 }
 

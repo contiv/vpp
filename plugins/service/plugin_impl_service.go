@@ -21,7 +21,6 @@ import (
 	"github.com/ligato/cn-infra/datasync"
 	kvdbsync_local "github.com/ligato/cn-infra/datasync/kvdbsync/local"
 	"github.com/ligato/cn-infra/datasync/resync"
-	"github.com/ligato/cn-infra/flavors/local"
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/utils/safeclose"
 
@@ -38,6 +37,8 @@ import (
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	svcmodel "github.com/contiv/vpp/plugins/ksr/model/service"
 	"github.com/contiv/vpp/plugins/statscollector"
+	"github.com/ligato/cn-infra/infra"
+	"github.com/ligato/cn-infra/servicelabel"
 	"github.com/ligato/vpp-agent/plugins/govppmux"
 )
 
@@ -68,13 +69,14 @@ type Plugin struct {
 
 // Deps defines dependencies of the service plugin.
 type Deps struct {
-	local.PluginInfraDeps
-	Resync  resync.Subscriber
-	Watcher datasync.KeyValProtoWatcher /* prefixed for KSR-published K8s state data */
-	Contiv  contiv.API                  /* to get the Node IP and all interface names */
-	VPP     vpp.API                     /* interface indexes && IP addresses */
-	GoVPP   govppmux.API                /* used for direct NAT binary API calls */
-	Stats   statscollector.API          /* used for exporting the statistics */
+	infra.Deps
+	ServiceLabel servicelabel.ReaderAPI
+	Resync       resync.Subscriber
+	Watcher      datasync.KeyValProtoWatcher /* prefixed for KSR-published K8s state data */
+	Contiv       contiv.API                  /* to get the Node IP and all interface names */
+	VPP          vpp.API                     /* interface indexes && IP addresses */
+	GoVPP        govppmux.API                /* used for direct NAT binary API calls */
+	Stats        statscollector.API          /* used for exporting the statistics */
 }
 
 // Init initializes the service plugin and starts watching ETCD for K8s configuration.
@@ -107,7 +109,7 @@ func (p *Plugin) Init() error {
 			Contiv:    p.Contiv,
 			GoVPPChan: goVppCh,
 			NATTxnFactory: func() linuxclient.DataChangeDSL {
-				return localclient.DataChangeRequest(p.PluginName)
+				return localclient.DataChangeRequest(p.String())
 			},
 			LatestRevs: kvdbsync_local.Get().LastRev(),
 			Stats:      p.Stats,

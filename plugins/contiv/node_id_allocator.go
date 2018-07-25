@@ -20,8 +20,8 @@ import (
 	"sort"
 	"sync"
 
-	"github.com/contiv/vpp/flavors/ksr"
 	"github.com/contiv/vpp/plugins/contiv/model/node"
+	"github.com/contiv/vpp/plugins/ksr"
 	"github.com/ligato/cn-infra/db/keyval"
 	"github.com/ligato/cn-infra/db/keyval/etcd"
 	"github.com/ligato/cn-infra/servicelabel"

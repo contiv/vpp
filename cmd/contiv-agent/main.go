@@ -15,40 +15,199 @@
 package main
 
 import (
-	"github.com/ligato/cn-infra/core"
-
+	"github.com/contiv/vpp/plugins/contiv"
+	"github.com/ligato/cn-infra/datasync/kvdbsync/local"
 	"os"
-	"os/signal"
-	"syscall"
 
-	"github.com/contiv/vpp/flavors/contiv"
+	"github.com/contiv/vpp/plugins/ksr"
+	"github.com/contiv/vpp/plugins/kvdbproxy"
+	"github.com/contiv/vpp/plugins/policy"
+	"github.com/contiv/vpp/plugins/service"
+	"github.com/contiv/vpp/plugins/statscollector"
+	"github.com/ligato/cn-infra/agent"
+	"github.com/ligato/cn-infra/datasync"
+	"github.com/ligato/cn-infra/datasync/kvdbsync"
+	"github.com/ligato/cn-infra/datasync/resync"
+	"github.com/ligato/cn-infra/db/keyval/etcd"
+	"github.com/ligato/cn-infra/health/probe"
+	"github.com/ligato/cn-infra/health/statuscheck"
+	"github.com/ligato/cn-infra/logging/logmanager"
+	"github.com/ligato/cn-infra/logging/logrus"
+	"github.com/ligato/cn-infra/rpc/grpc"
+	"github.com/ligato/cn-infra/rpc/prometheus"
+	"github.com/ligato/cn-infra/rpc/rest"
+	"github.com/ligato/cn-infra/servicelabel"
+	"github.com/ligato/vpp-agent/clientv1/linux/localclient"
+	"github.com/ligato/vpp-agent/plugins/govppmux"
+	"github.com/ligato/vpp-agent/plugins/linux"
+	vpp_rest "github.com/ligato/vpp-agent/plugins/rest"
+	"github.com/ligato/vpp-agent/plugins/telemetry"
+	"github.com/ligato/vpp-agent/plugins/vpp"
+	"sync"
 	"time"
 )
 
 const defaultStartupTimeout = 45 * time.Second
 
-// Start Agent plugins selected for this example
-func main() {
-	// Create new agent
-	agentVar := contiv.NewAgent(core.WithTimeout(getStartupTimeout()))
-	core.EventLoopWithInterrupt(agentVar, closeChanFiredBySigterm())
+type ContivAgent struct {
+	Resync      *resync.Plugin
+	LogManger   *logmanager.Plugin
+	HTTP        *rest.Plugin
+	HealthProbe *probe.Plugin
+	Prometheus  *prometheus.Plugin
+
+	ETCDDataSync    *kvdbsync.Plugin
+	NodeIDDataSync  *kvdbsync.Plugin
+	ServiceDataSync *kvdbsync.Plugin
+	PolicyDataSync  *kvdbsync.Plugin
+
+	KVProxy *kvdbproxy.Plugin
+	Stats   *statscollector.Plugin
+
+	LinuxLocalClient *localclient.Plugin
+	GoVPP            *govppmux.GOVPPPlugin
+	Linux            *linux.Plugin
+	VPP              *vpp.Plugin
+	VPPrest          *vpp_rest.Plugin
+	Telemetry        *telemetry.Plugin
+	GRPC             *grpc.Plugin
+	Contiv           *contiv.Plugin
+	Policy           *policy.Plugin
+	Service          *service.Plugin
 }
 
-//TODO apply graceful shutdown also to other usages of CN-infra agent plugins
+func (c *ContivAgent) String() string {
+	return "ContivAgent"
+}
 
-// closeChanFiredBySigterm creates close channel for CN-infra agent that will close when SIGTERM will be detected from surrounding OS
-func closeChanFiredBySigterm() chan struct{} {
-	// detect SIGTERM as part of pod delete
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, syscall.SIGTERM)
+func (c *ContivAgent) Init() error {
+	return nil
+}
 
-	// convert SIGTERM detection to start of plugin shutdown in agent
-	closeChan := make(chan struct{})
-	go func() {
-		<-sigChan
-		close(closeChan)
-	}()
-	return closeChan
+func (c *ContivAgent) AfterInit() error {
+	c.Resync.DoResync()
+	return nil
+}
+
+func (c *ContivAgent) Close() error {
+	return nil
+}
+
+func main() {
+
+	ksrServicelabel := servicelabel.NewPlugin()
+	ksrServicelabel.SetName("ksrServiceLabel")
+	ksrServicelabel.MicroserviceLabel = ksr.MicroserviceLabel
+
+	useKSRprefix := kvdbsync.UseDeps(func(deps *kvdbsync.Deps) {
+		deps.KvPlugin = &etcd.DefaultPlugin
+		deps.ResyncOrch = &resync.DefaultPlugin
+		deps.ServiceLabel = ksrServicelabel
+	})
+
+	etcdDataSync := kvdbsync.NewPlugin(kvdbsync.UseDeps(func(deps *kvdbsync.Deps) {
+		deps.KvPlugin = &etcd.DefaultPlugin
+		deps.ResyncOrch = &resync.DefaultPlugin
+	}))
+
+	nodeIDDataSync := kvdbsync.NewPlugin(useKSRprefix)
+	nodeIDDataSync.SetName("nodeIdDataSync")
+
+	serviceDataSync := kvdbsync.NewPlugin(useKSRprefix)
+	serviceDataSync.SetName("serviceDataSync")
+
+	policyDataSync := kvdbsync.NewPlugin(useKSRprefix)
+	policyDataSync.SetName("policyDataSync")
+
+	//TODO vpp rest, telemetry
+
+	watcher := &datasync.CompositeKVProtoWatcher{Adapters: []datasync.KeyValProtoWatcher{&kvdbproxy.DefaultPlugin, local.Get()}}
+
+	var watchEventsMutex sync.Mutex
+
+	vppPlugin := vpp.NewPlugin(
+		vpp.UseDeps(func(deps *vpp.Deps) {
+			deps.GoVppmux = &govppmux.DefaultPlugin
+			deps.Publish = etcdDataSync
+			deps.Watch = watcher
+			deps.WatchEventsMutex = &watchEventsMutex
+		}),
+	)
+
+	linuxPlugin := linux.NewPlugin(
+		linux.UseDeps(func(deps *linux.Deps) {
+			deps.VPP = vppPlugin
+			deps.Watcher = watcher
+			deps.WatchEventsMutex = &watchEventsMutex
+		}),
+	)
+
+	vppPlugin.Linux = linuxPlugin
+
+	// we don't want to publish status to etcd
+	statuscheck.DefaultPlugin.Transport = nil
+
+	kvdbproxy.DefaultPlugin.KVDB = etcdDataSync
+	grpc.DefaultPlugin.HTTP = &rest.DefaultPlugin
+
+	contivPlugin := contiv.NewPlugin(contiv.UseDeps(func(deps *contiv.Deps) {
+		deps.Resync = &resync.DefaultPlugin
+		deps.GoVPP = &govppmux.DefaultPlugin
+		deps.GRPC = &grpc.DefaultPlugin
+		deps.VPP = vppPlugin
+		deps.Proxy = &kvdbproxy.DefaultPlugin
+		deps.ETCD = &etcd.DefaultPlugin
+		deps.Watcher = nodeIDDataSync
+		//TODO contiv config default val /etc/agent/contiv.yaml
+	}))
+
+	statscollector.DefaultPlugin.Contiv = contivPlugin
+	statscollector.DefaultPlugin.Prometheus = &prometheus.DefaultPlugin
+
+	policyPlugin := policy.NewPlugin(policy.UseDeps(func(deps *policy.Deps) {
+		deps.Resync = &resync.DefaultPlugin
+		deps.Watcher = policyDataSync
+		deps.Contiv = contivPlugin
+		deps.GoVPP = &govppmux.DefaultPlugin
+		deps.VPP = vppPlugin
+	}))
+
+	servicePlugin := service.NewPlugin(service.UseDeps(func(deps *service.Deps) {
+		deps.Resync = &resync.DefaultPlugin
+		deps.Watcher = serviceDataSync
+		deps.Contiv = contivPlugin
+		deps.VPP = vppPlugin
+		deps.GoVPP = &govppmux.DefaultPlugin
+		deps.Stats = &statscollector.DefaultPlugin
+	}))
+
+	contivAgent := &ContivAgent{
+		Resync:          &resync.DefaultPlugin,
+		LogManger:       &logmanager.DefaultPlugin,
+		HTTP:            &rest.DefaultPlugin,
+		HealthProbe:     &probe.DefaultPlugin,
+		Prometheus:      &prometheus.DefaultPlugin,
+		ETCDDataSync:    etcdDataSync,
+		NodeIDDataSync:  nodeIDDataSync,
+		ServiceDataSync: serviceDataSync,
+		PolicyDataSync:  policyDataSync,
+		GoVPP:           &govppmux.DefaultPlugin,
+		VPP:             vppPlugin,
+		Linux:           linuxPlugin,
+		KVProxy:         &kvdbproxy.DefaultPlugin,
+		Contiv:          contivPlugin,
+		Stats:           &statscollector.DefaultPlugin,
+		Policy:          policyPlugin,
+		Service:         servicePlugin,
+	}
+
+	a := agent.NewAgent(agent.AllPlugins(contivAgent))
+	if err := a.Run(); err != nil {
+		logrus.DefaultLogger().Fatal(err)
+	}
+
+	//agent.WithTimeout(getStartupTimeout())
+
 }
 
 func getStartupTimeout() time.Duration {

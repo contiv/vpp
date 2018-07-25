@@ -12,10 +12,23 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package kvdbproxy
+package contiv
 
 import (
+	"github.com/ligato/cn-infra/config"
 	"github.com/ligato/cn-infra/logging"
+	"github.com/ligato/cn-infra/servicelabel"
+	"github.com/namsral/flag"
+)
+
+const (
+	ConfigFlagName = "contiv"
+
+	// ContivConfigPath is the default location of Agent's Contiv plugin. This path reflects configuration in k8s/contiv-vpp.yaml.
+	ContivConfigPath = "/etc/agent/contiv.yaml"
+
+	// ContivConfigPathUsage explains the purpose of 'kube-config' flag.
+	ContivConfigPathUsage = "Path to the Agent's Contiv plugin configuration yaml file."
 )
 
 var DefaultPlugin = *NewPlugin()
@@ -24,7 +37,8 @@ var DefaultPlugin = *NewPlugin()
 func NewPlugin(opts ...Option) *Plugin {
 	p := &Plugin{}
 
-	p.PluginName = "kvdbproxy"
+	p.PluginName = "contiv"
+	p.ServiceLabel = &servicelabel.DefaultPlugin
 
 	for _, o := range opts {
 		o(p)
@@ -34,6 +48,11 @@ func NewPlugin(opts ...Option) *Plugin {
 		p.Deps.Log = logging.ForPlugin(p.String())
 	}
 
+	if p.Deps.PluginConfig == nil {
+		p.Deps.PluginConfig = config.ForPlugin(p.String(), func(set *config.FlagSet) {
+			set.String(ConfigFlagName, ContivConfigPath, ContivConfigPathUsage)
+		})
+	}
 	return p
 }
 
@@ -45,4 +64,18 @@ func UseDeps(cb func(*Deps)) Option {
 	return func(p *Plugin) {
 		cb(&p.Deps)
 	}
+}
+
+func getConfig(c interface{}) (found bool, err error) {
+	f := flag.Lookup(ConfigFlagName)
+	if f == nil {
+		return false, nil
+	}
+	fileName := f.Value.String()
+	err = config.ParseConfigFromYamlFile(fileName, c)
+	if err != nil {
+		return false, err
+	}
+
+	return true, nil
 }

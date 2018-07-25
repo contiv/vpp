@@ -19,7 +19,7 @@ import (
 
 	"github.com/golang/protobuf/proto"
 	"github.com/ligato/cn-infra/datasync"
-	"github.com/ligato/cn-infra/flavors/local"
+	"github.com/ligato/cn-infra/infra"
 	"github.com/ligato/cn-infra/utils/safeclose"
 )
 
@@ -49,7 +49,7 @@ type kvsyncDelegate interface {
 
 // Deps group the dependencies of the Plugin
 type Deps struct {
-	local.PluginInfraDeps
+	infra.Deps
 
 	KVDB kvsyncDelegate
 }

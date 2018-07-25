@@ -27,7 +27,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 
 	"github.com/contiv/vpp/plugins/ksr/model/node"
-	"github.com/ligato/cn-infra/flavors/local"
+	"github.com/ligato/cn-infra/logging"
 )
 
 type NodeTestVars struct {
@@ -43,9 +43,6 @@ var nodeTestVars NodeTestVars
 func TestNodeReflector(t *testing.T) {
 	gomega.RegisterTestingT(t)
 
-	flavorLocal := &local.FlavorLocal{}
-	flavorLocal.Inject()
-
 	nodeTestVars.k8sListWatch = &mockK8sListWatch{}
 	nodeTestVars.mockKvBroker = newMockKeyProtoValBroker()
 
@@ -56,7 +53,7 @@ func TestNodeReflector(t *testing.T) {
 
 	nodeTestVars.nodeReflector = &NodeReflector{
 		Reflector: Reflector{
-			Log:               flavorLocal.LoggerFor("node-reflector"),
+			Log:               logging.ForPlugin("node-reflector"),
 			K8sClientset:      &kubernetes.Clientset{},
 			K8sListWatch:      nodeTestVars.k8sListWatch,
 			Broker:            nodeTestVars.mockKvBroker,

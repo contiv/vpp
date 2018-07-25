@@ -16,7 +16,7 @@ package ksr
 
 import (
 	"fmt"
-	"github.com/ligato/cn-infra/flavors/local"
+	"github.com/ligato/cn-infra/logging"
 	"github.com/onsi/gomega"
 	"sync"
 	"testing"
@@ -36,16 +36,13 @@ var rrTestVars ReflectorRegistryTestVars
 func TestReflectorRegistry(t *testing.T) {
 	gomega.RegisterTestingT(t)
 
-	flavorLocal := &local.FlavorLocal{}
-	flavorLocal.Inject()
-
 	rrTestVars.reflectorRegistry = &ReflectorRegistry{
 		lock:       sync.RWMutex{},
 		reflectors: make(map[string]*Reflector),
 	}
 
 	rrTestVars.mockReflector = &Reflector{
-		Log:               flavorLocal.LoggerFor("mock-reflector"),
+		Log:               logging.ForPlugin("mock-reflector"),
 		K8sClientset:      nil,
 		K8sListWatch:      &k8sCache{},
 		Broker:            nil,

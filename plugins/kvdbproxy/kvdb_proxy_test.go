@@ -20,7 +20,6 @@ import (
 
 	"github.com/ligato/cn-infra/datasync"
 	"github.com/ligato/cn-infra/logging"
-	"github.com/ligato/cn-infra/logging/logrus"
 	"github.com/onsi/gomega"
 )
 
@@ -30,7 +29,7 @@ func TestWatch(t *testing.T) {
 	kvdbMock := NewKvdbsyncMock()
 
 	plugin := Plugin{}
-	plugin.Deps.Log = logging.ForPlugin("proxy", logrus.NewLogRegistry())
+	plugin.Deps.Log = logging.ForPlugin("proxy")
 	plugin.Deps.KVDB = kvdbMock
 
 	err := plugin.Init()

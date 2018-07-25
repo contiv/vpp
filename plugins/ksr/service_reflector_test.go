@@ -27,7 +27,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 
 	"github.com/contiv/vpp/plugins/ksr/model/service"
-	"github.com/ligato/cn-infra/flavors/local"
+	"github.com/ligato/cn-infra/logging"
 )
 
 type ServiceTestVars struct {
@@ -44,9 +44,6 @@ var serviceTestVars ServiceTestVars
 func TestServiceReflector(t *testing.T) {
 	gomega.RegisterTestingT(t)
 
-	flavorLocal := &local.FlavorLocal{}
-	flavorLocal.Inject()
-
 	serviceTestVars.k8sListWatch = &mockK8sListWatch{}
 	serviceTestVars.mockKvBroker = newMockKeyProtoValBroker()
 
@@ -57,7 +54,7 @@ func TestServiceReflector(t *testing.T) {
 
 	serviceTestVars.svcReflector = &ServiceReflector{
 		Reflector: Reflector{
-			Log:               flavorLocal.LoggerFor("service-reflector"),
+			Log:               logging.ForPlugin("service-reflector"),
 			K8sClientset:      &kubernetes.Clientset{},
 			K8sListWatch:      serviceTestVars.k8sListWatch,
 			Broker:            serviceTestVars.mockKvBroker,

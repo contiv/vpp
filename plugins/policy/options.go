@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package statscollector
+package policy
 
 import (
 	"github.com/ligato/cn-infra/logging"
@@ -24,7 +24,7 @@ var DefaultPlugin = *NewPlugin()
 func NewPlugin(opts ...Option) *Plugin {
 	p := &Plugin{}
 
-	p.PluginName = "statscollector"
+	p.PluginName = "policy"
 
 	for _, o := range opts {
 		o(p)

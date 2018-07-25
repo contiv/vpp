@@ -61,9 +61,9 @@ type Renderer struct {
 // Deps lists dependencies of Renderer.
 type Deps struct {
 	Log           logging.Logger
-	LogFactory    logging.LogFactory /* optional */
-	Contiv        contiv.API         /* for GetIfName() */
-	VPP           vpp.API            /* for DumpACLs() */
+	LogFactory    logging.LoggerFactory /* optional */
+	Contiv        contiv.API            /* for GetIfName() */
+	VPP           vpp.API               /* for DumpACLs() */
 	ACLTxnFactory func() (dsl linuxclient.DataChangeDSL)
 	LatestRevs    *syncbase.PrevRevisions
 }

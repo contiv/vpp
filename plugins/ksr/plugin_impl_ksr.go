@@ -35,10 +35,11 @@ import (
 
 	"github.com/ligato/cn-infra/config"
 	"github.com/ligato/cn-infra/datasync/kvdbsync"
-	"github.com/ligato/cn-infra/flavors/local"
 	"github.com/ligato/cn-infra/health/statuscheck"
 	"github.com/ligato/cn-infra/health/statuscheck/model/status"
+	"github.com/ligato/cn-infra/infra"
 	"github.com/ligato/cn-infra/logging"
+	"github.com/ligato/cn-infra/servicelabel"
 	"github.com/ligato/cn-infra/utils/safeclose"
 )
 
@@ -83,7 +84,8 @@ type EtcdMonitor struct {
 
 // Deps defines dependencies of ksr plugin.
 type Deps struct {
-	local.PluginInfraDeps
+	infra.Deps
+	ServiceLabel servicelabel.ReaderAPI
 	// Kubeconfig with k8s cluster address and access credentials to use.
 	KubeConfig config.PluginConfig
 	// broker is used to propagate changes into a key-value datastore.
@@ -113,8 +115,8 @@ func (plugin *Plugin) Init() error {
 		reflectors: make(map[string]*Reflector),
 	}
 
-	kubeconfig := plugin.KubeConfig.GetConfigName()
-	plugin.Log.WithField("kubeconfig", kubeconfig).Info("Loading kubernetes client config")
+	kubeconfig := getKubeConfig()
+	plugin.Log.WithField(ConfigFlagName, kubeconfig).Info("Loading kubernetes client config")
 	plugin.k8sClientConfig, err = clientcmd.BuildConfigFromFlags("", kubeconfig)
 	if err != nil {
 		return fmt.Errorf("failed to build kubernetes client config: %s", err)

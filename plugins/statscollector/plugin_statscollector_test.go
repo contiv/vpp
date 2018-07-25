@@ -17,7 +17,6 @@ package statscollector
 import (
 	"fmt"
 	"github.com/contiv/vpp/plugins/contiv/containeridx"
-	"github.com/ligato/cn-infra/flavors/local"
 	"github.com/ligato/cn-infra/idxmap"
 	"github.com/ligato/vpp-agent/plugins/vpp/model/interfaces"
 	"github.com/onsi/gomega"
@@ -27,6 +26,9 @@ import (
 	"github.com/contiv/vpp/mock/contiv"
 	"github.com/contiv/vpp/plugins/contiv/containeridx/model"
 	"github.com/contiv/vpp/plugins/ksr/model/pod"
+	"github.com/ligato/cn-infra/infra"
+	"github.com/ligato/cn-infra/logging"
+	"github.com/ligato/cn-infra/servicelabel"
 	"testing"
 )
 
@@ -60,14 +62,14 @@ var testVars = CollectorTestVars{
 func TestStatsCollector(t *testing.T) {
 	gomega.RegisterTestingT(t)
 
-	fl := &local.FlavorLocal{}
-	fl.Inject()
-
 	testVars.plugin = &Plugin{
 		Deps: Deps{
-			Contiv:          testVars.cntv,
-			Prometheus:      testVars.pmts,
-			PluginInfraDeps: *fl.InfraDeps("stats-test"),
+			ServiceLabel: servicelabel.NewPlugin(),
+			Contiv:       testVars.cntv,
+			Prometheus:   testVars.pmts,
+			Deps: infra.Deps{
+				Log: logging.ForPlugin("stats-test"),
+			},
 		},
 	}
 

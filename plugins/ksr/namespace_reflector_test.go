@@ -25,7 +25,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 
 	proto "github.com/contiv/vpp/plugins/ksr/model/namespace"
-	"github.com/ligato/cn-infra/flavors/local"
+	"github.com/ligato/cn-infra/logging"
 )
 
 type NamespaceTestVars struct {
@@ -42,9 +42,6 @@ var nsTestVars NamespaceTestVars
 func TestNamespaceReflector(t *testing.T) {
 	gomega.RegisterTestingT(t)
 
-	flavorLocal := &local.FlavorLocal{}
-	flavorLocal.Inject()
-
 	nsTestVars.k8sListWatch = &mockK8sListWatch{}
 	nsTestVars.mockKvBroker = newMockKeyProtoValBroker()
 
@@ -55,7 +52,7 @@ func TestNamespaceReflector(t *testing.T) {
 
 	nsTestVars.nsReflector = &NamespaceReflector{
 		Reflector: Reflector{
-			Log:               flavorLocal.LoggerFor("namespace-reflector"),
+			Log:               logging.ForPlugin("namespace-reflector"),
 			K8sClientset:      &kubernetes.Clientset{},
 			K8sListWatch:      nsTestVars.k8sListWatch,
 			Broker:            nsTestVars.mockKvBroker,

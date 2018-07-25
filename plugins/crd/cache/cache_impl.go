@@ -121,16 +121,6 @@ func NewCache(logger logging.Logger) (n *Cache) {
 		logger}
 }
 
-func (c *Cache) GetCache() *Cache {
-	return &Cache{
-		c.nMap,
-		c.loopIPMap,
-		c.gigEIPMap,
-		c.loopMACMap,
-		c.errorReport,
-		c.logger}
-}
-
 //SetNodeLiveness is a simple function to set a nodes liveness given its name.
 func (c *Cache) SetNodeLiveness(name string, nLive *NodeLiveness) error {
 	node, err := c.GetNode(name)

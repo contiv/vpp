@@ -48,7 +48,7 @@ type NodeTelemetryCacheAPI interface {
 	// LookupEtcdInfo() EtcdInfo
 }
 
-//Cache defines functions to be implemented that that allow the interaction with the Node Cache.
+//Nodes defines functions to be implemented that that allow the interaction with the Node Cache.
 type Nodes interface {
 	AddNode(ID uint32, nodeName, IPAdr, ManIPAdr string) error
 	DeleteNode(key string) error

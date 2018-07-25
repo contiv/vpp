@@ -89,6 +89,8 @@ func (ctc *ContivTelemetryCache) parseAndCacheNodeInfoData(key string, evData da
 
 	ctc.Log.Infof("*** parseAndCacheNodeInfoData: key %s, value %+v", nodeIDParts[1], nodeInfoValue)
 	// TODO: Register nodeInfoValue in cache.
+	ctc.Cache.AddNode(nodeInfoValue.Id,nodeInfoValue.Name,nodeInfoValue.IpAddress,nodeInfoValue.ManagementIpAddress)
+
 	return nil
 }
 

@@ -34,7 +34,6 @@ import (
 
 	nodeinfomodel "github.com/contiv/vpp/plugins/contiv/model/node"
 	crdClientSet "github.com/contiv/vpp/plugins/crd/pkg/client/clientset/versioned"
-	"github.com/contiv/vpp/plugins/crd/processor"
 	"k8s.io/client-go/tools/clientcmd"
 )
 
@@ -61,7 +60,7 @@ type Plugin struct {
 
 	controller *controller.ContivTelemetryController
 	cache      *cache.ContivTelemetryCache
-	processor  *processor.ContivTelemetryProcessor
+	processor  *cache.ContivTelemetryProcessor
 }
 
 // Deps defines dependencies of policy plugin.
@@ -124,8 +123,8 @@ func (p *Plugin) Init() error {
 	p.cache.Log.SetLevel(logging.DebugLevel)
 	p.cache.Init()
 
-	p.processor = &processor.ContivTelemetryProcessor{
-		Deps: processor.Deps{
+	p.processor = &cache.ContivTelemetryProcessor{
+		Deps: cache.Deps{
 			Log: p.Log.NewLogger("-telemetryProcessor"),
 		},
 	}
@@ -154,7 +153,7 @@ func (p *Plugin) AfterInit() error {
 func (p *Plugin) subscribeWatcher() (err error) {
 	p.watchConfigReg, err = p.Watcher.
 		Watch("ContivTelemetry Resources", p.changeChan, p.resyncChan,
-			podmodel.KeyPrefix(), nodemodel.KeyPrefix(), nodeinfomodel.AllocatedIDsKeyPrefix)
+		podmodel.KeyPrefix(), nodemodel.KeyPrefix(), nodeinfomodel.AllocatedIDsKeyPrefix)
 	return err
 }
 

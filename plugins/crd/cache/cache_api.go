@@ -47,3 +47,19 @@ type NodeTelemetryCacheAPI interface {
 	// LookupNodeInfo returns data of a given node or list of nodes.
 	// LookupEtcdInfo() EtcdInfo
 }
+
+//Cache defines functions to be implemented that that allow the interaction with the Node Cache.
+type Nodes interface {
+	AddNode(ID uint32, nodeName, IPAdr, ManIPAdr string) error
+	DeleteNode(key string) error
+	GetNode(key string) (*Node, error)
+	GetAllNodes() []*Node
+	SetNodeLiveness(name string, nL *NodeLiveness) error
+	SetNodeInterfaces(name string, nInt map[int]NodeInterface) error
+	SetNodeBridgeDomain(name string, nBridge map[int]NodeBridgeDomains) error
+	SetNodeL2Fibs(name string, nL2f map[string]NodeL2Fib) error
+	SetNodeTelemetry(name string, nTele map[string]NodeTelemetry) error
+	SetNodeIPARPs(name string, nArps []NodeIPArp) error
+	PopulateNodeMaps(node *Node)
+	ValidateLoopIFAddresses(nodelist []*Node) bool
+}

@@ -19,8 +19,8 @@ import (
 	nodemodel "github.com/contiv/vpp/plugins/ksr/model/node"
 	"github.com/ligato/cn-infra/datasync"
 	"github.com/ligato/cn-infra/logging"
-
 	"sort"
+	"github.com/pkg/errors"
 )
 
 // ContivTelemetryCache is used for a in-memory storage of K8s State data
@@ -31,11 +31,9 @@ type ContivTelemetryCache struct {
 	Deps
 	Synced bool
 	// todo - here add the maps you have in your db implementation
-	nameMap    map[string]*Node
-	loopIPMap  map[string]*Node
-	gigEIPMap  map[string]*Node
-	loopMACMap map[string]*Node
+	Cache      *Cache
 	k8sNodeMap map[string]*nodemodel.Node
+	processor *Processor
 }
 
 // Deps lists dependencies of PolicyCache.
@@ -46,11 +44,9 @@ type Deps struct {
 // Init initializes policy cache.
 func (ctc *ContivTelemetryCache) Init() error {
 	// todo - here initialize your maps
-	ctc.loopMACMap = make(map[string]*Node)
-	ctc.loopIPMap = make(map[string]*Node)
-	ctc.gigEIPMap = make(map[string]*Node)
-	ctc.nameMap = make(map[string]*Node)
+	ctc.Cache = NewCache(ctc.Log)
 	ctc.k8sNodeMap = make(map[string]*nodemodel.Node)
+	ctc.Log.Infof("Cache has been initialized")
 	return nil
 }
 
@@ -76,13 +72,13 @@ func (ctc *ContivTelemetryCache) Resync(resyncEv datasync.ResyncEvent) error {
 // ListAllNodes returns node data for all nodes in the cache.
 func (ctc *ContivTelemetryCache) ListAllNodes() []Node {
 	var str []string
-	for k := range ctc.nameMap {
+	for k := range ctc.Cache.nMap {
 		str = append(str, k)
 	}
 	var nodeList []Node
 	sort.Strings(str)
 	for _, name := range str {
-		nodeList = append(nodeList, *ctc.nameMap[name])
+		nodeList = append(nodeList, *ctc.Cache.nMap[name])
 	}
 	return nodeList
 }
@@ -92,7 +88,7 @@ func (ctc *ContivTelemetryCache) ListAllNodes() []Node {
 func (ctc *ContivTelemetryCache) LookupNode(nodenames []string) []Node {
 	nodeslice := make([]Node, 0)
 	for _, name := range nodenames {
-		node := ctc.nameMap[name]
+		node := ctc.Cache.nMap[name]
 		nodeslice = append(nodeslice, *node)
 	}
 	return nodeslice
@@ -102,4 +98,242 @@ func (ctc *ContivTelemetryCache) LookupNode(nodenames []string) []Node {
 // to the function in the nodenames slice.
 func (ctc *ContivTelemetryCache) DeleteNode(nodenames []string) {
 
+}
+
+//Cache holds various maps which all take different keys but point to the same underlying value.
+type Cache struct {
+	nMap        map[string]*Node
+	loopIPMap   map[string]*Node
+	gigEIPMap   map[string]*Node
+	loopMACMap  map[string]*Node
+	errorReport map[string][]string
+	logger      logging.Logger
+}
+
+//NewCache returns a pointer to a new node cache
+func NewCache(logger logging.Logger) (n *Cache) {
+	return &Cache{
+		make(map[string]*Node),
+		make(map[string]*Node),
+		make(map[string]*Node),
+		make(map[string]*Node),
+		make(map[string][]string),
+		logger}
+}
+
+func (c *Cache) GetCache() *Cache {
+	return &Cache{
+		c.nMap,
+		c.loopIPMap,
+		c.gigEIPMap,
+		c.loopMACMap,
+		c.errorReport,
+		c.logger}
+}
+
+//SetNodeLiveness is a simple function to set a nodes liveness given its name.
+func (c *Cache) SetNodeLiveness(name string, nLive *NodeLiveness) error {
+	node, err := c.GetNode(name)
+	if err != nil {
+		return err
+	}
+	node.NodeLiveness = nLive
+	return nil
+}
+
+//SetNodeInterfaces is a simple function to set a nodes interface given its name.
+func (c *Cache) SetNodeInterfaces(name string, nInt map[int]NodeInterface) error {
+	node, err := c.GetNode(name)
+	if err != nil {
+		return err
+	}
+	node.NodeInterfaces = nInt
+	return nil
+
+}
+
+//SetNodeBridgeDomain is a simple function to set a nodes bridge domain given its name.
+func (c *Cache) SetNodeBridgeDomain(name string, nBridge map[int]NodeBridgeDomains) error {
+	node, err := c.GetNode(name)
+	if err != nil {
+		return err
+	}
+	node.NodeBridgeDomains = nBridge
+	return nil
+}
+
+//SetNodeL2Fibs is a simple function to set a nodes l2 fibs given its name.
+func (c *Cache) SetNodeL2Fibs(name string, nL2F map[string]NodeL2Fib) error {
+	node, err := c.GetNode(name)
+	if err != nil {
+		return err
+	}
+	node.NodeL2Fibs = nL2F
+	return nil
+}
+
+//SetNodeTelemetry is a simple function to set a nodes telemetry data given its name.
+func (c *Cache) SetNodeTelemetry(name string, nTele map[string]NodeTelemetry) error {
+	node, err := c.GetNode(name)
+	if err != nil {
+		return err
+	}
+	node.NodeTelemetry = nTele
+	return nil
+}
+
+//SetNodeIPARPs is a simple function to set a nodes ip arp table given its name.
+func (c *Cache) SetNodeIPARPs(name string, nArps []NodeIPArp) error {
+	node, err := c.GetNode(name)
+	if err != nil {
+		return err
+	}
+	node.NodeIPArp = nArps
+	return nil
+
+}
+
+//GetNode returns a pointer to a node for the given key.
+//Returns an error if that key is not found.
+func (c *Cache) GetNode(key string) (n *Node, err error) {
+	if node, ok := c.nMap[key]; ok {
+		return node, nil
+	}
+	err = errors.Errorf("value with given key not found: %s", key)
+	return nil, err
+}
+
+//DeleteNode deletes node with the given key.
+//Returns an error if the key is not found.
+func (c *Cache) DeleteNode(key string) error {
+	_, err := c.GetNode(key)
+	if err != nil {
+		return err
+	}
+	delete(c.nMap, key)
+	return nil
+}
+
+//AddNode adds a new node with the given information.
+//Returns an error if the node is already in the database
+func (c *Cache) AddNode(ID uint32, nodeName, IPAdr, ManIPAdr string) error {
+	n := &Node{IPAdr: IPAdr, ManIPAdr: ManIPAdr, ID: ID, Name: nodeName}
+	_, err := c.GetNode(nodeName)
+	if err == nil {
+		err = errors.Errorf("duplicate key found: %s", nodeName)
+		return err
+	}
+	c.nMap[nodeName] = n
+	c.gigEIPMap[IPAdr] = n
+	return nil
+}
+
+//GetAllNodes returns an ordered slice of all nodes in a database organized by name.
+func (c *Cache) GetAllNodes() []*Node {
+	var str []string
+	for k := range c.nMap {
+		str = append(str, k)
+	}
+	var nList []*Node
+	sort.Strings(str)
+	for _, v := range str {
+		n, _ := c.GetNode(v)
+		nList = append(nList, n)
+	}
+	return nList
+}
+
+//PopulateNodeMaps populates two of the node maps: the ip and mac address map
+//It also checks to make sure that there are no duplicate addresses within the map.
+func (c *Cache) PopulateNodeMaps(node *Node) {
+
+	loopIF, err := c.getNodeLoopIFInfo(node)
+	if err != nil {
+		c.logger.Error(err)
+	}
+	for i := range loopIF.IPAddresses {
+		if ip, ok := c.loopIPMap[loopIF.IPAddresses[i]]; !ok && ip != nil {
+			//TODO: Report an error back to the controller; store it somewhere, report it at the end of the function
+			c.logger.Errorf("Duplicate IP found: %s", ip)
+		} else {
+			for i := range loopIF.IPAddresses {
+				c.loopIPMap[loopIF.IPAddresses[i]] = node
+			}
+		}
+	}
+	if mac, ok := c.loopMACMap[loopIF.PhysAddress]; !ok && mac != nil {
+		c.logger.Errorf("Duplicate MAC address found: %s", mac)
+	} else {
+		c.loopMACMap[loopIF.PhysAddress] = node
+	}
+}
+
+//Small helper function that returns the loop interface of a node
+func (c *Cache) getNodeLoopIFInfo(node *Node) (NodeInterface, error) {
+	for _, ifs := range node.NodeInterfaces {
+		if ifs.VppInternalName == "loop0" {
+			return ifs, nil
+		}
+	}
+	err := errors.Errorf("Node %s does not have a loop interface")
+	return NodeInterface{}, err
+}
+
+/*ValidateLoopIFAddresses validates the the entries of node ARP tables to make sure that
+the number of entries is correct as well as making sure that each entry's
+ip address and mac address correspond to the correct node in the network.*/
+func (c *Cache) ValidateLoopIFAddresses(nodelist []*Node) bool {
+	nodemap := make(map[string]bool)
+	for key := range c.nMap {
+		nodemap[key] = true
+	}
+	for _, node := range nodelist {
+		nLoopIF, err := c.getNodeLoopIFInfo(node)
+		if err != nil {
+			c.logger.Error(err)
+			c.logger.Errorf("Cannot process node ARP Table because loop interface info is missing.")
+			continue
+		}
+		for _, arp := range node.NodeIPArp {
+			if node.NodeInterfaces[int(arp.Interface)].VppInternalName != "loop0" {
+				continue
+			}
+
+			nLoopIFTwo, ok := node.NodeInterfaces[int(arp.Interface)]
+			if !ok {
+				c.logger.Errorf("Loop Interface in ARP Table not found: %d", arp.Interface)
+			}
+			if nLoopIF.VppInternalName != nLoopIFTwo.VppInternalName {
+				continue
+			}
+			macNode, ok := c.loopMACMap[arp.MacAddress]
+			addressNotFound := false
+			if !ok {
+				c.logger.Errorf("Node for MAC Address %s not found", arp.MacAddress)
+				addressNotFound = true
+			}
+			ipNode, ok := c.loopIPMap[arp.IPAddress+"/24"]
+
+			if !ok {
+				c.logger.Errorf("Node %s could not find Node with IP Address %s", node.Name, arp.IPAddress)
+				addressNotFound = true
+			}
+			if addressNotFound {
+				continue
+			}
+			if macNode.Name != ipNode.Name {
+				c.logger.Errorf("MAC and IP point to different nodes: %s and %s in ARP Table %+v",
+					macNode.Name, ipNode.Name, arp)
+
+			}
+			delete(nodemap, node.Name)
+		}
+	}
+	if len(nodemap) > 0 {
+		for node := range nodemap {
+			c.logger.Errorf("No MAC entry found for %+v", node)
+			delete(nodemap, node)
+		}
+	}
+	return true
 }

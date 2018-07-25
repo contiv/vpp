@@ -27,7 +27,7 @@ var (
 	// SchemeBuilder is the schema builder for the CRD API
 	SchemeBuilder = runtime.NewSchemeBuilder(addKnownTypes)
 	// AddToScheme is...
-	AddToScheme   = SchemeBuilder.AddToScheme
+	AddToScheme = SchemeBuilder.AddToScheme
 )
 
 // Kind takes an unqualified kind and returns back a Group qualified GroupKind

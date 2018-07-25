@@ -30,8 +30,7 @@ import (
 	"github.com/unrolled/render"
 
 	aclcalls "github.com/ligato/vpp-agent/plugins/vpp/aclplugin/vppcalls"
-	acldump "github.com/ligato/vpp-agent/plugins/vpp/aclplugin/vppdump"
-	ifplugin "github.com/ligato/vpp-agent/plugins/vpp/ifplugin/vppdump"
+	ifplugin "github.com/ligato/vpp-agent/plugins/vpp/ifplugin/vppcalls"
 	l2plugin "github.com/ligato/vpp-agent/plugins/vpp/l2plugin/vppdump"
 	l3plugin "github.com/ligato/vpp-agent/plugins/vpp/l3plugin/vppdump"
 	"github.com/ligato/vpp-agent/plugins/vpp/model/acl"
@@ -52,7 +51,13 @@ func (plugin *Plugin) interfacesGetHandler(formatter *render.Render) http.Handle
 		}
 		defer ch.Close()
 
-		res, err := ifplugin.DumpInterfaces(plugin.Log, ch, nil)
+		ifHandler, err := ifplugin.NewIfVppHandler(ch, plugin.Log, nil)
+		if err != nil {
+			plugin.Log.Errorf("Error creating VPP handler: %v", err)
+			formatter.JSON(w, http.StatusInternalServerError, err)
+			return
+		}
+		res, err := ifHandler.DumpInterfaces()
 		if err != nil {
 			plugin.Log.Errorf("Error: %v", err)
 			formatter.JSON(w, http.StatusInternalServerError, err)
@@ -257,13 +262,19 @@ func (plugin *Plugin) interfaceACLGetHandler(formatter *render.Render) http.Hand
 		defer ch.Close()
 
 		swIndex := uint32(swIndexuInt64)
-		res, err := acldump.DumpInterfaceIPAcls(plugin.Deps.Log, swIndex, ch, nil)
+		aclHandler, err := aclcalls.NewAclVppHandler(ch, ch, nil)
+		if err != nil {
+			plugin.Log.Errorf("Error creating VPP handler: %v", err)
+			formatter.JSON(w, http.StatusInternalServerError, err)
+			return
+		}
+		res, err := aclHandler.DumpInterfaceIPAcls(swIndex)
 		if err != nil {
 			plugin.Deps.Log.Errorf("Error: %v", err)
 			formatter.JSON(w, http.StatusInternalServerError, err)
 			return
 		}
-		res, err = acldump.DumpInterfaceMACIPAcls(plugin.Log, swIndex, ch, nil)
+		res, err = aclHandler.DumpInterfaceMACIPAcls(swIndex)
 		if err != nil {
 			plugin.Log.Errorf("Error: %v", err)
 			formatter.JSON(w, http.StatusInternalServerError, err)
@@ -289,8 +300,13 @@ func (plugin *Plugin) ipACLGetHandler(formatter *render.Render) http.HandlerFunc
 			return
 		}
 		defer ch.Close()
-
-		res, err := acldump.DumpIPACL(nil, plugin.Deps.Log, ch, nil)
+		aclHandler, err := aclcalls.NewAclVppHandler(ch, ch, nil)
+		if err != nil {
+			plugin.Log.Errorf("Error creating VPP handler: %v", err)
+			formatter.JSON(w, http.StatusInternalServerError, err)
+			return
+		}
+		res, err := aclHandler.DumpIPACL(nil)
 		if err != nil {
 			plugin.Deps.Log.Errorf("Error: %v", err)
 			formatter.JSON(w, http.StatusInternalServerError, err)
@@ -314,8 +330,13 @@ func (plugin *Plugin) macipACLGetHandler(formatter *render.Render) http.HandlerF
 			formatter.JSON(w, http.StatusInternalServerError, err)
 			return
 		}
-
-		res, err := acldump.DumpMACIPACL(nil, plugin.Deps.Log, ch, nil)
+		aclHandler, err := aclcalls.NewAclVppHandler(ch, ch, nil)
+		if err != nil {
+			plugin.Log.Errorf("Error creating VPP handler: %v", err)
+			formatter.JSON(w, http.StatusInternalServerError, err)
+			return
+		}
+		res, err := aclHandler.DumpMACIPACL(nil)
 		if err != nil {
 			plugin.Log.Errorf("Error: %v", err)
 			formatter.JSON(w, http.StatusInternalServerError, err)
@@ -427,7 +448,13 @@ func (plugin *Plugin) ipACLPostHandler(formatter *render.Render) http.HandlerFun
 		var aclIndex struct {
 			Idx uint32 `json:"acl_index"`
 		}
-		aclIndex.Idx, err = aclcalls.AddIPAcl(aclParam.Rules, aclParam.AclName, plugin.Deps.Log, ch, nil)
+		aclHandler, err := aclcalls.NewAclVppHandler(ch, ch, nil)
+		if err != nil {
+			plugin.Log.Errorf("Error creating VPP handler: %v", err)
+			formatter.JSON(w, http.StatusInternalServerError, err)
+			return
+		}
+		aclIndex.Idx, err = aclHandler.AddIPAcl(aclParam.Rules, aclParam.AclName)
 		if err != nil {
 			plugin.Deps.Log.Errorf("Error: %v", err)
 			formatter.JSON(w, http.StatusInternalServerError, aclIndex)
@@ -468,7 +495,13 @@ func (plugin *Plugin) macipACLPostHandler(formatter *render.Render) http.Handler
 		var aclIndex struct {
 			Idx uint32 `json:"acl_index"`
 		}
-		aclIndex.Idx, err = aclcalls.AddMacIPAcl(aclParam.Rules, aclParam.AclName, plugin.Deps.Log, ch, nil)
+		aclHandler, err := aclcalls.NewAclVppHandler(ch, ch, nil)
+		if err != nil {
+			plugin.Log.Errorf("Error creating VPP handler: %v", err)
+			formatter.JSON(w, http.StatusInternalServerError, err)
+			return
+		}
+		aclIndex.Idx, err = aclHandler.AddMacIPAcl(aclParam.Rules, aclParam.AclName)
 		if err != nil {
 			plugin.Log.Errorf("Error: %v", err)
 			formatter.JSON(w, http.StatusInternalServerError, aclIndex)

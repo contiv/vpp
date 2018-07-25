@@ -17,18 +17,14 @@ package logmanager
 import (
 	"fmt"
 	"net/http"
+	"os"
 	"strings"
 
 	"github.com/gorilla/mux"
-	"github.com/unrolled/render"
-
-	"os"
-
-	"github.com/ligato/cn-infra/config"
-	"github.com/ligato/cn-infra/core"
+	"github.com/ligato/cn-infra/infra"
 	"github.com/ligato/cn-infra/logging"
-	log "github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/rpc/rest"
+	"github.com/unrolled/render"
 )
 
 // LoggerData encapsulates parameters of a logger represented as strings.
@@ -43,19 +39,17 @@ const (
 	levelVarName  = "level"
 )
 
-// Plugin allows to manage log levels of the loggers using HTTP.
+// Plugin allows to manage log levels of the loggers.
 type Plugin struct {
 	Deps
+
 	*Conf
 }
 
 // Deps groups dependencies injected into the plugin so that they are
 // logically separated from other plugin fields.
 type Deps struct {
-	Log                 logging.PluginLogger //inject
-	PluginName          core.PluginName      //inject
-	config.PluginConfig                      //inject
-
+	infra.Deps
 	LogRegistry logging.Registry  // inject
 	HTTP        rest.HTTPHandlers // inject
 }
@@ -126,6 +120,7 @@ func (lm *Plugin) Init() error {
 					logCfgEntry.Name, err)
 			}
 		}
+
 	}
 
 	return nil
@@ -202,22 +197,22 @@ func (lm *Plugin) listLoggersHandler(formatter *render.Render) http.HandlerFunc 
 }
 
 // convert log level string representation to DebugLevel value
-func stringToLogLevel(level string) log.LogLevel {
+func stringToLogLevel(level string) logging.LogLevel {
 	level = strings.ToLower(level)
 	switch level {
 	case "debug":
-		return log.DebugLevel
+		return logging.DebugLevel
 	case "info":
-		return log.InfoLevel
+		return logging.InfoLevel
 	case "warn":
-		return log.WarnLevel
+		return logging.WarnLevel
 	case "error":
-		return log.ErrorLevel
+		return logging.ErrorLevel
 	case "fatal":
-		return log.FatalLevel
+		return logging.FatalLevel
 	case "panic":
-		return log.PanicLevel
+		return logging.PanicLevel
 	}
 
-	return log.InfoLevel
+	return logging.InfoLevel
 }

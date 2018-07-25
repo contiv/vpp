@@ -21,9 +21,11 @@ import (
 
 	govppapi "git.fd.io/govpp.git/api"
 	"github.com/ligato/cn-infra/datasync"
-	"github.com/ligato/cn-infra/flavors/local"
+	"github.com/ligato/cn-infra/health/statuscheck"
+	"github.com/ligato/cn-infra/infra"
 	"github.com/ligato/cn-infra/logging/measure"
 	"github.com/ligato/cn-infra/messaging"
+	"github.com/ligato/cn-infra/servicelabel"
 	"github.com/ligato/cn-infra/utils/safeclose"
 	"github.com/ligato/vpp-agent/idxvpp"
 	"github.com/ligato/vpp-agent/idxvpp/nametoidx"
@@ -129,9 +131,9 @@ type Plugin struct {
 	omittedPrefixes  []string // list of keys which won't be resynced
 
 	// From config file
+	enableStopwatch bool
 	ifMtu           uint32
 	resyncStrategy  string
-	enableStopwatch bool
 
 	// Common
 	statusCheckReg bool
@@ -142,15 +144,16 @@ type Plugin struct {
 // Deps groups injected dependencies of plugin so that they do not mix with
 // other plugin fieldsMtu.
 type Deps struct {
-	// inject all below
-	local.PluginInfraDeps
+	infra.Deps
+	StatusCheck  statuscheck.PluginStatusWriter
+	ServiceLabel servicelabel.ReaderAPI
 
 	Publish           datasync.KeyProtoValWriter
 	PublishStatistics datasync.KeyProtoValWriter
 	Watch             datasync.KeyValProtoWatcher
 	IfStatePub        datasync.KeyProtoValWriter
 	GoVppmux          govppmux.API
-	Linux             linuxpluginAPI
+	Linux             LinuxpluginAPI
 	GRPCSvc           rpc.GRPCService
 
 	DataSyncs        map[string]datasync.KeyProtoValWriter
@@ -165,7 +168,7 @@ type PluginConfig struct {
 	StatusPublishers []string `json:"status-publishers"`
 }
 
-type linuxpluginAPI interface {
+type LinuxpluginAPI interface {
 	// GetLinuxIfIndexes gives access to mapping of logical names (used in ETCD configuration) to corresponding Linux
 	// interface indexes. This mapping is especially helpful for plugins that need to watch for newly added or deleted
 	// Linux interfaces.
@@ -263,7 +266,7 @@ func (plugin *Plugin) GetIPSecSPDIndexes() ipsecidx.SPDIndex {
 // Init gets handlers for ETCD and Messaging and delegates them to ifConfigurator & ifStateUpdater.
 func (plugin *Plugin) Init() error {
 	plugin.Log.Debug("Initializing default plugins")
-	flag.Parse()
+	//flag.Parse()
 
 	// Read config file and set all related fields
 	plugin.fromConfigFile()
@@ -640,11 +643,12 @@ func (plugin *Plugin) fromConfigFile() {
 			plugin.ifMtu = config.Mtu
 			plugin.Log.Infof("Default MTU set to %v", plugin.ifMtu)
 		}
-		plugin.enableStopwatch = config.Stopwatch
-		if plugin.enableStopwatch {
-			plugin.Log.Infof("stopwatch enabled for %v", plugin.PluginName)
+
+		if config.Stopwatch {
+			plugin.enableStopwatch = true
+			plugin.Log.Info("stopwatch enabled for VPP plugins")
 		} else {
-			plugin.Log.Infof("stopwatch disabled for %v", plugin.PluginName)
+			plugin.Log.Info("stopwatch disabled VPP plugins")
 		}
 		// return skip (if set) or value from config
 		plugin.resyncStrategy = plugin.resolveResyncStrategy(config.Strategy)

@@ -1,10 +1,24 @@
+// Copyright (c) 2018 Cisco and/or its affiliates.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at:
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package processor
 
 import (
 	"encoding/json"
+	"github.com/contiv/vpp/plugins/crd/cache"
 	"io/ioutil"
 	"net/http"
-	"github.com/contiv/vpp/plugins/crd/cache"
 )
 
 const (
@@ -34,19 +48,19 @@ func (p *ContivTelemetryProcessor) collectAgentInfo(node *cache.Node) {
 		Timeout:       timeout,
 	}
 
-		go p.getLivenessInfo(client, node)
+	go p.getLivenessInfo(client, node)
 
-		go p.getInterfaceInfo(client, node)
+	go p.getInterfaceInfo(client, node)
 
-		go p.getBridgeDomainInfo(client, node)
+	go p.getBridgeDomainInfo(client, node)
 
-		go p.getL2FibInfo(client, node)
+	go p.getL2FibInfo(client, node)
 
-		//TODO: Implement getTelemetry correctly.
-		//Does not parse information correctly
-		//go p.getTelemetryInfo(client, node)
+	//TODO: Implement getTelemetry correctly.
+	//Does not parse information correctly
+	//go p.getTelemetryInfo(client, node)
 
-		go p.getIPArpInfo(client, node)
+	go p.getIPArpInfo(client, node)
 
 }
 
@@ -63,14 +77,14 @@ func (p *ContivTelemetryProcessor) getLivenessInfo(client http.Client, node *cac
 	res, err := client.Get("http://" + node.ManIPAdr + livenessPort + livenessURL)
 	if err != nil {
 		p.Log.Error(err)
-		p.dbChannel <- cache.NodeLivenessDTO{node.Name,nil}
+		p.dbChannel <- cache.NodeLivenessDTO{node.Name, nil}
 		return
 	}
 	b, _ := ioutil.ReadAll(res.Body)
 	b = []byte(b)
 	nodeInfo := &cache.NodeLiveness{}
 	json.Unmarshal(b, nodeInfo)
-	p.dbChannel <- cache.NodeLivenessDTO{ node.Name, nodeInfo}
+	p.dbChannel <- cache.NodeLivenessDTO{node.Name, nodeInfo}
 
 }
 
@@ -78,7 +92,7 @@ func (p *ContivTelemetryProcessor) getInterfaceInfo(client http.Client, node *ca
 	res, err := client.Get("http://" + node.ManIPAdr + interfacePort + interfaceURL)
 	if err != nil {
 		p.Log.Error(err)
-		p.dbChannel <- cache.NodeInterfacesDTO{ node.Name,  nil}
+		p.dbChannel <- cache.NodeInterfacesDTO{node.Name, nil}
 		return
 	}
 	b, _ := ioutil.ReadAll(res.Body)
@@ -86,7 +100,7 @@ func (p *ContivTelemetryProcessor) getInterfaceInfo(client http.Client, node *ca
 
 	nodeInterfaces := make(map[int]cache.NodeInterface, 0)
 	json.Unmarshal(b, &nodeInterfaces)
-	p.dbChannel <- cache.NodeInterfacesDTO{ node.Name, nodeInterfaces}
+	p.dbChannel <- cache.NodeInterfacesDTO{node.Name, nodeInterfaces}
 
 }
 func (p *ContivTelemetryProcessor) getBridgeDomainInfo(client http.Client, node *cache.Node) {
@@ -101,7 +115,7 @@ func (p *ContivTelemetryProcessor) getBridgeDomainInfo(client http.Client, node 
 
 	nodeBridgeDomains := make(map[int]cache.NodeBridgeDomains)
 	json.Unmarshal(b, &nodeBridgeDomains)
-	p.dbChannel <- cache.NodeBridgeDomainsDTO{ node.Name,  nodeBridgeDomains}
+	p.dbChannel <- cache.NodeBridgeDomainsDTO{node.Name, nodeBridgeDomains}
 
 }
 
@@ -109,14 +123,14 @@ func (p *ContivTelemetryProcessor) getL2FibInfo(client http.Client, node *cache.
 	res, err := client.Get("http://" + node.ManIPAdr + l2FibsPort + l2FibsURL)
 	if err != nil {
 		p.Log.Error(err)
-		p.dbChannel <- cache.NodeL2FibsDTO{node.Name,  nil}
+		p.dbChannel <- cache.NodeL2FibsDTO{node.Name, nil}
 		return
 	}
 	b, _ := ioutil.ReadAll(res.Body)
 	b = []byte(b)
 	nodel2fibs := make(map[string]cache.NodeL2Fib)
 	json.Unmarshal(b, &nodel2fibs)
-	p.dbChannel <- cache.NodeL2FibsDTO{ node.Name,  nodel2fibs}
+	p.dbChannel <- cache.NodeL2FibsDTO{node.Name, nodel2fibs}
 
 }
 
@@ -124,21 +138,21 @@ func (p *ContivTelemetryProcessor) getTelemetryInfo(client http.Client, node *ca
 	res, err := client.Get("http://" + node.ManIPAdr + telemetryPort + telemetryURL)
 	if err != nil {
 		p.Log.Error(err)
-		p.dbChannel <- cache.NodeTelemetryDTO{node.Name,  nil}
+		p.dbChannel <- cache.NodeTelemetryDTO{node.Name, nil}
 		return
 	}
 	b, _ := ioutil.ReadAll(res.Body)
 	b = []byte(b)
 	nodetelemetry := make(map[string]cache.NodeTelemetry)
 	json.Unmarshal(b, &nodetelemetry)
-	p.dbChannel <- cache.NodeTelemetryDTO{ node.Name,  nodetelemetry}
+	p.dbChannel <- cache.NodeTelemetryDTO{node.Name, nodetelemetry}
 }
 
 func (p *ContivTelemetryProcessor) getIPArpInfo(client http.Client, node *cache.Node) {
 	res, err := client.Get("http://" + node.ManIPAdr + arpPort + arpURL)
 	if err != nil {
 		p.Log.Error(err)
-		p.dbChannel <- cache.NodeIPArpDTO{[]cache.NodeIPArp{},  ""}
+		p.dbChannel <- cache.NodeIPArpDTO{[]cache.NodeIPArp{}, ""}
 		return
 	}
 	b, _ := ioutil.ReadAll(res.Body)
@@ -146,5 +160,5 @@ func (p *ContivTelemetryProcessor) getIPArpInfo(client http.Client, node *cache.
 	b = []byte(b)
 	nodeiparpslice := make([]cache.NodeIPArp, 0)
 	json.Unmarshal(b, &nodeiparpslice)
-	p.dbChannel <- cache.NodeIPArpDTO{ nodeiparpslice,  node.Name}
+	p.dbChannel <- cache.NodeIPArpDTO{nodeiparpslice, node.Name}
 }

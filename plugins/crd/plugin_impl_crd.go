@@ -32,10 +32,10 @@ import (
 
 	"k8s.io/client-go/kubernetes"
 
-	crdClientSet "github.com/contiv/vpp/plugins/crd/pkg/client/clientset/versioned"
-	"k8s.io/client-go/tools/clientcmd"
 	nodeinfomodel "github.com/contiv/vpp/plugins/contiv/model/node"
+	crdClientSet "github.com/contiv/vpp/plugins/crd/pkg/client/clientset/versioned"
 	"github.com/contiv/vpp/plugins/crd/processor"
+	"k8s.io/client-go/tools/clientcmd"
 )
 
 // Plugin watches configuration of K8s resources (as reflected by KSR into ETCD)
@@ -117,7 +117,7 @@ func (p *Plugin) Init() error {
 	// This where we initialize all layers
 	p.cache = &cache.ContivTelemetryCache{
 		Deps: cache.Deps{
-			Log:  p.Log.NewLogger("-telemetryCache"),
+			Log: p.Log.NewLogger("-telemetryCache"),
 		},
 		Synced: false,
 	}
@@ -126,7 +126,7 @@ func (p *Plugin) Init() error {
 
 	p.processor = &processor.ContivTelemetryProcessor{
 		Deps: processor.Deps{
-			Log:  p.Log.NewLogger("-telemetryProcessor"),
+			Log: p.Log.NewLogger("-telemetryProcessor"),
 		},
 	}
 	p.processor.Init()

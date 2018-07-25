@@ -54,6 +54,7 @@ type NodeTelemetry struct {
 	Command string   `json:"command"`
 	Output  []output `json:"output"`
 }
+
 //NodeTelemetryDTO is used to associate NodeTelemetry data with a node name to be sent over a channel for processing
 type NodeTelemetryDTO struct {
 	NodeName string

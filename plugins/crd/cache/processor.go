@@ -15,9 +15,9 @@
 package cache
 
 import (
-	"net/http"
-	"io/ioutil"
 	"encoding/json"
+	"io/ioutil"
+	"net/http"
 )
 
 const (
@@ -40,9 +40,8 @@ const (
 type ContivTelemetryProcessor struct {
 	Deps
 	dbChannel chan interface{}
-	Cache *Cache
+	Cache     *Cache
 }
-
 
 // Init initializes the processor
 func (p *ContivTelemetryProcessor) Init() error {
@@ -65,14 +64,13 @@ func (p *ContivTelemetryProcessor) CollectNodeInfo(node *Node) {
 // validation are reported to the CRD.
 func (p *ContivTelemetryProcessor) ValidateNodeInfo(nodelist []*Node) {
 
-	for _,node := range nodelist{
+	for _, node := range nodelist {
 		p.Cache.PopulateNodeMaps(node)
 	}
 
 	p.Cache.ValidateLoopIFAddresses(nodelist)
 
 }
-
 
 //Gathers a number of data points for every node in the Node List
 func (p *ContivTelemetryProcessor) collectAgentInfo(node *Node) {
@@ -197,4 +195,3 @@ func (p *ContivTelemetryProcessor) getIPArpInfo(client http.Client, node *Node) 
 	json.Unmarshal(b, &nodeiparpslice)
 	p.dbChannel <- NodeIPArpDTO{nodeiparpslice, node.Name}
 }
-

@@ -19,8 +19,8 @@ package cache
 //Then it updates the node with the name from the DTO with the specific data from the DTO.
 func (p *ContivTelemetryProcessor) ProcessNodeData() {
 	for data := range p.dbChannel {
-	//for {
-	//	data := <-p.dbChannel
+		//for {
+		//	data := <-p.dbChannel
 		switch data.(type) {
 		case NodeLivenessDTO:
 			nlDto := data.(NodeLivenessDTO)

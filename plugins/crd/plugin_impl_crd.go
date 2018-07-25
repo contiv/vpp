@@ -127,10 +127,10 @@ func (p *Plugin) Init() error {
 		Deps: cache.Deps{
 			Log: p.Log.NewLogger("-telemetryProcessor"),
 		},
-		Cache:p.cache.Cache,
+		Cache: p.cache.Cache,
 	}
 	p.processor.Init()
-    p.cache.Processor = p.processor
+	p.cache.Processor = p.processor
 	go p.watchEvents()
 	err = p.subscribeWatcher()
 	if err != nil {
@@ -154,7 +154,7 @@ func (p *Plugin) AfterInit() error {
 func (p *Plugin) subscribeWatcher() (err error) {
 	p.watchConfigReg, err = p.Watcher.
 		Watch("ContivTelemetry Resources", p.changeChan, p.resyncChan,
-		podmodel.KeyPrefix(), nodemodel.KeyPrefix(), nodeinfomodel.AllocatedIDsKeyPrefix)
+			podmodel.KeyPrefix(), nodemodel.KeyPrefix(), nodeinfomodel.AllocatedIDsKeyPrefix)
 	return err
 }
 

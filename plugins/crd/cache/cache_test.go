@@ -1,11 +1,11 @@
 package cache
 
 import (
-"testing"
+	"testing"
 
-"github.com/onsi/gomega"
-	"github.com/ligato/cn-infra/logging/logrus"
 	"fmt"
+	"github.com/ligato/cn-infra/logging/logrus"
+	"github.com/onsi/gomega"
 )
 
 //Checks adding a new node.
@@ -201,7 +201,7 @@ func TestNodesDB_SetNodeL2Fibs(t *testing.T) {
 	gomega.Expect(node.ManIPAdr).To(gomega.Equal("10"))
 
 	nfib := NodeL2Fib{1, 2, "test", true, false}
-	nfibs :=make(map[string]NodeL2Fib)
+	nfibs := make(map[string]NodeL2Fib)
 	nfibs[node.Name] = nfib
 
 	err := db.SetNodeL2Fibs("NENODE", nfibs)
@@ -230,7 +230,7 @@ func TestNodesDB_ValidateLoopIFAddresses(t *testing.T) {
 		true,
 		"11",
 		1,
-		vxlan{"", "", 1,},
+		vxlan{"", "", 1},
 		[]string{"11"},
 		tap{}}
 	nodeinterfaces := map[int]NodeInterface{}
@@ -247,7 +247,7 @@ func TestNodesDB_ValidateLoopIFAddresses(t *testing.T) {
 		true,
 		"10",
 		1,
-		vxlan{"", "", 1,},
+		vxlan{"", "", 1},
 		[]string{"10"},
 		tap{}}
 	nodeinterfaces2 := map[int]NodeInterface{}
@@ -262,13 +262,13 @@ func TestNodesDB_ValidateLoopIFAddresses(t *testing.T) {
 	db.SetNodeIPARPs("k8s_master", nodeiparps1)
 	node, _ = db.GetNode("k8s_master")
 	db.SetNodeInterfaces("k8s_master", nodeinterfaces)
-	node,ok  = db.GetNode("k8s_master")
+	node, ok = db.GetNode("k8s_master")
 	db.loopMACMap[node.NodeInterfaces[3].PhysAddress] = node
 	db.loopIPMap[node.NodeInterfaces[3].IPAddresses[0]+"/24"] = node
 
 	db.SetNodeIPARPs("k8s-worker1", nodeiparps2)
 	db.SetNodeInterfaces("k8s-worker1", nodeinterfaces2)
-	node,ok = db.GetNode("k8s-worker1")
+	node, ok = db.GetNode("k8s-worker1")
 	db.loopMACMap[node.NodeInterfaces[3].PhysAddress] = node
 	db.loopIPMap[node.NodeInterfaces[3].IPAddresses[0]+"/24"] = node
 
@@ -276,7 +276,7 @@ func TestNodesDB_ValidateLoopIFAddresses(t *testing.T) {
 	success := db.ValidateLoopIFAddresses(nlist)
 	gomega.Expect(success).To(gomega.BeEquivalentTo(true))
 
-	db.AddNode(1,"NoMacFoundNode","12","12")
+	db.AddNode(1, "NoMacFoundNode", "12", "12")
 	nlist = db.GetAllNodes()
 	fmt.Println("Expecting errors for node not in ARP table...")
 	success = db.ValidateLoopIFAddresses(nlist)

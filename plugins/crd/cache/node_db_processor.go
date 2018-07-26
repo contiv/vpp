@@ -14,7 +14,7 @@
 
 package cache
 
-//ProcessNodeData reads data sent to the plugins cache channel.
+//ProcessNodeData reads data sent to the cache channel.
 //It decides how to process the data received based on the type of Data Transfer Object.
 //Then it updates the node with the name from the DTO with the specific data from the DTO.
 func (p *ContivTelemetryProcessor) ProcessNodeData() {

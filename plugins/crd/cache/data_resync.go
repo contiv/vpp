@@ -38,7 +38,7 @@ func (ctc *ContivTelemetryCache) processResyncEvent(resyncEv datasync.ResyncEven
 	ctc.Synced = true
 
 	// TODO: Clear all data from cache
-
+	ctc.ClearCache()
 	for resyncKey, resyncData := range resyncEv.GetValues() {
 		for {
 			evData, stop := resyncData.GetNext()
@@ -89,7 +89,10 @@ func (ctc *ContivTelemetryCache) parseAndCacheNodeInfoData(key string, evData da
 
 	ctc.Log.Infof("*** parseAndCacheNodeInfoData: key %s, value %+v", nodeIDParts[1], nodeInfoValue)
 	// TODO: Register nodeInfoValue in cache.
-	ctc.Cache.AddNode(nodeInfoValue.Id, nodeInfoValue.Name, nodeInfoValue.IpAddress, nodeInfoValue.ManagementIpAddress)
+	err = ctc.AddNode(nodeInfoValue.Id, nodeInfoValue.Name, nodeInfoValue.IpAddress, nodeInfoValue.ManagementIpAddress)
+	if err != nil {
+		ctc.Log.Error(err)
+	}
 	newNode := ctc.LookupNode([]string{nodeInfoValue.Name})
 	go ctc.Processor.CollectNodeInfo(newNode[0])
 	return nil

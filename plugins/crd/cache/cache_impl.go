@@ -70,16 +70,8 @@ func (ctc *ContivTelemetryCache) Resync(resyncEv datasync.ResyncEvent) error {
 }
 
 // ListAllNodes returns node data for all nodes in the cache.
-func (ctc *ContivTelemetryCache) ListAllNodes() []Node {
-	var str []string
-	for k := range ctc.Cache.nMap {
-		str = append(str, k)
-	}
-	var nodeList []Node
-	sort.Strings(str)
-	for _, name := range str {
-		nodeList = append(nodeList, *ctc.Cache.nMap[name])
-	}
+func (ctc *ContivTelemetryCache) ListAllNodes() []*Node {
+	nodeList := ctc.Cache.GetAllNodes()
 	return nodeList
 }
 
@@ -94,20 +86,56 @@ func (ctc *ContivTelemetryCache) LookupNode(nodenames []string) []*Node {
 	return nodeslice
 }
 
-// DeleteNode deletes from teh cache those nodes that match a node name passed
+// DeleteNode deletes from the cache those nodes that match a node name passed
 // to the function in the nodenames slice.
 func (ctc *ContivTelemetryCache) DeleteNode(nodenames []string) {
+	for _, str := range nodenames {
+		node, err := ctc.Cache.GetNode(str)
+		if err != nil {
+			ctc.Log.Error(err)
+		}
+		delete(ctc.Cache.nMap, node.Name)
+		delete(ctc.Cache.gigEIPMap, node.IPAdr)
+		for _, intf := range node.NodeInterfaces {
+			if intf.VppInternalName == "loop0" {
+				delete(ctc.Cache.loopMACMap, intf.PhysAddress)
+				for _, ip := range intf.IPAddresses {
+					delete(ctc.Cache.loopIPMap, ip)
+				}
+			}
+
+		}
+	}
 
 }
+//AddNode will add a node to the Contiv Telemetry cache with the given parameters.
+func (ctc *ContivTelemetryCache) AddNode(ID uint32, nodeName, IPAdr, ManIPAdr string) error {
+	n := &Node{IPAdr: IPAdr, ManIPAdr: ManIPAdr, ID: ID, Name: nodeName}
+	_, err := ctc.Cache.GetNode(nodeName)
+	if err == nil {
+		err = errors.Errorf("duplicate key found: %s", nodeName)
+		return err
+	}
+	ctc.Cache.nMap[nodeName] = n
+	ctc.Cache.gigEIPMap[IPAdr] = n
+	ctc.Log.Debugf("Success adding node %+v to ctc.Cache %+v", nodeName, ctc.Cache)
+	return nil
+}
 
-//Cache holds various maps which all take different keys but point to the same underlying value.
-type Cache struct {
-	nMap        map[string]*Node
-	loopIPMap   map[string]*Node
-	gigEIPMap   map[string]*Node
-	loopMACMap  map[string]*Node
-	errorReport map[string][]string
-	logger      logging.Logger
+//Clear cache with delete all the values in each of the individual cache maps.
+func (ctc *ContivTelemetryCache) ClearCache() {
+	for _, node := range ctc.Cache.nMap {
+		delete(ctc.Cache.nMap, node.Name)
+		delete(ctc.Cache.gigEIPMap, node.IPAdr)
+		for _, intf := range node.NodeInterfaces {
+			if intf.VppInternalName == "loop0" {
+				delete(ctc.Cache.loopMACMap, intf.PhysAddress)
+				for _, ip := range intf.IPAddresses {
+					delete(ctc.Cache.loopIPMap, ip)
+				}
+			}
+		}
+	}
 }
 
 //NewCache returns a pointer to a new node cache
@@ -198,30 +226,8 @@ func (c *Cache) GetNode(key string) (n *Node, err error) {
 	return nil, err
 }
 
-//DeleteNode deletes node with the given key.
-//Returns an error if the key is not found.
-func (c *Cache) DeleteNode(key string) error {
-	_, err := c.GetNode(key)
-	if err != nil {
-		return err
-	}
-	delete(c.nMap, key)
-	return nil
-}
-
-//AddNode adds a new node with the given information.
+//addNode adds a new node with the given information.
 //Returns an error if the node is already in the database
-func (c *Cache) AddNode(ID uint32, nodeName, IPAdr, ManIPAdr string) error {
-	n := &Node{IPAdr: IPAdr, ManIPAdr: ManIPAdr, ID: ID, Name: nodeName}
-	_, err := c.GetNode(nodeName)
-	if err == nil {
-		err = errors.Errorf("duplicate key found: %s", nodeName)
-		return err
-	}
-	c.nMap[nodeName] = n
-	c.gigEIPMap[IPAdr] = n
-	return nil
-}
 
 //GetAllNodes returns an ordered slice of all nodes in a database organized by name.
 func (c *Cache) GetAllNodes() []*Node {

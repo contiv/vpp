@@ -14,6 +14,8 @@
 
 package cache
 
+import "github.com/ligato/cn-infra/logging"
+
 // here goes different cache types
 
 //Node is a struct to hold all relevant information of a kubernetes node.
@@ -30,6 +32,16 @@ type Node struct {
 	NodeL2Fibs        map[string]NodeL2Fib
 	NodeTelemetry     map[string]NodeTelemetry
 	NodeIPArp         []NodeIPArp
+}
+
+//Cache holds various maps which all take different keys but point to the same underlying value.
+type Cache struct {
+	nMap        map[string]*Node
+	loopIPMap   map[string]*Node
+	gigEIPMap   map[string]*Node
+	loopMACMap  map[string]*Node
+	errorReport map[string][]string
+	logger      logging.Logger
 }
 
 //NodeLiveness holds the unmarshalled node liveness JSON data

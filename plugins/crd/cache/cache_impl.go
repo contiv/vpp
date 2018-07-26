@@ -50,7 +50,7 @@ func (ctc *ContivTelemetryCache) Init() error {
 	return nil
 }
 
-// Update processes a datasync change event associated with K8s State data.
+// Update processes a data sync change event associated with K8s State data.
 // The change is applied into the cache and all subscribed watchers are
 // notified.
 // The function will forward any error returned by a watcher.
@@ -63,7 +63,7 @@ func (ctc *ContivTelemetryCache) Update(dataChngEv datasync.ChangeEvent) error {
 	return nil
 }
 
-// Resync processes a datasync resync event associated with K8s State data.
+// Resync processes a data sync re sync event associated with K8s State data.
 // The cache content is full replaced with the received data.
 func (ctc *ContivTelemetryCache) Resync(resyncEv datasync.ResyncEvent) error {
 	return ctc.processResyncEvent(resyncEv)
@@ -76,7 +76,7 @@ func (ctc *ContivTelemetryCache) ListAllNodes() []*Node {
 }
 
 // LookupNode return node data for nodes that match a node name passed
-// to the function in the nodenames slice.
+// to the function in the node names slice.
 func (ctc *ContivTelemetryCache) LookupNode(nodenames []string) []*Node {
 	nodeslice := make([]*Node, 0)
 	for _, name := range nodenames {
@@ -87,7 +87,7 @@ func (ctc *ContivTelemetryCache) LookupNode(nodenames []string) []*Node {
 }
 
 // DeleteNode deletes from the cache those nodes that match a node name passed
-// to the function in the nodenames slice.
+// to the function in the node names slice.
 func (ctc *ContivTelemetryCache) DeleteNode(nodenames []string) {
 	for _, str := range nodenames {
 		node, err := ctc.Cache.GetNode(str)
@@ -170,7 +170,7 @@ func (c *Cache) SetNodeLiveness(name string, nLive *NodeLiveness) error {
 	if err != nil {
 		return err
 	}
-	c.logger.Debugf("Recevied Liveness %+v for node %+v", nLive, name)
+	c.logger.Debugf("Received Liveness %+v for node %+v", nLive, name)
 	node.NodeLiveness = nLive
 	return nil
 }
@@ -181,7 +181,7 @@ func (c *Cache) SetNodeInterfaces(name string, nInt map[int]NodeInterface) error
 	if err != nil {
 		return err
 	}
-	c.logger.Debugf("Recevied Interfaces %+v for node %+v", nInt, name)
+	c.logger.Debugf("Received Interfaces %+v for node %+v", nInt, name)
 	node.NodeInterfaces = nInt
 	return nil
 
@@ -193,7 +193,7 @@ func (c *Cache) SetNodeBridgeDomain(name string, nBridge map[int]NodeBridgeDomai
 	if err != nil {
 		return err
 	}
-	c.logger.Debugf("Recevied Bridge domain %+v for node %+v", nBridge, name)
+	c.logger.Debugf("Received Bridge domain %+v for node %+v", nBridge, name)
 	node.NodeBridgeDomains = nBridge
 	return nil
 }
@@ -204,7 +204,7 @@ func (c *Cache) SetNodeL2Fibs(name string, nL2F map[string]NodeL2Fib) error {
 	if err != nil {
 		return err
 	}
-	c.logger.Debugf("Recevied L2Fibs %+v for node %+v", nL2F, name)
+	c.logger.Debugf("Received L2Fibs %+v for node %+v", nL2F, name)
 	node.NodeL2Fibs = nL2F
 	return nil
 }
@@ -225,7 +225,7 @@ func (c *Cache) SetNodeIPARPs(name string, nArps []NodeIPArp) error {
 	if err != nil {
 		return err
 	}
-	c.logger.Debugf("Recevied IPARPS %+v for node %+v", nArps, name)
+	c.logger.Debugf("Received IPARPS %+v for node %+v", nArps, name)
 	node.NodeIPArp = nArps
 	return nil
 

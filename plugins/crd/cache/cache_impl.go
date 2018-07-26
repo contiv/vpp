@@ -123,6 +123,20 @@ func (ctc *ContivTelemetryCache) AddNode(ID uint32, nodeName, IPAdr, ManIPAdr st
 	return nil
 }
 
+//AddNode will add a node to the Contiv Telemetry cache with the given parameters.
+func (c *Cache) AddNode(ID uint32, nodeName, IPAdr, ManIPAdr string) error {
+	n := &Node{IPAdr: IPAdr, ManIPAdr: ManIPAdr, ID: ID, Name: nodeName}
+	_, err := c.GetNode(nodeName)
+	if err == nil {
+		err = errors.Errorf("duplicate key found: %s", nodeName)
+		return err
+	}
+	c.nMap[nodeName] = n
+	c.gigEIPMap[IPAdr] = n
+	c.logger.Debugf("Success adding node %+v to ctc.Cache %+v", nodeName, c)
+	return nil
+}
+
 //ClearCache with delete all the values in each of the individual cache maps.
 func (ctc *ContivTelemetryCache) ClearCache() {
 	for _, node := range ctc.Cache.nMap {

@@ -272,14 +272,10 @@ func TestNodesDB_ValidateLoopIFAddresses(t *testing.T) {
 	db.loopMACMap[node.NodeInterfaces[3].PhysAddress] = node
 	db.loopIPMap[node.NodeInterfaces[3].IPAddresses[0]+"/24"] = node
 
-	nlist := db.GetAllNodes()
-	success := db.ValidateLoopIFAddresses(nlist)
-	gomega.Expect(success).To(gomega.BeEquivalentTo(true))
+	db.ValidateLoopIFAddresses()
 
 	db.AddNode(1, "NoMacFoundNode", "12", "12")
-	nlist = db.GetAllNodes()
 	fmt.Println("Expecting errors for node not in ARP table...")
-	success = db.ValidateLoopIFAddresses(nlist)
-	gomega.Expect(success).To(gomega.BeEquivalentTo(false))
+	db.ValidateLoopIFAddresses()
 
 }

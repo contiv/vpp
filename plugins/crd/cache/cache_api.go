@@ -57,6 +57,7 @@ type NodeTelemetryCacheAPI interface {
 //Nodes defines functions to be implemented that that allow the interaction with the Node Cache.
 type Nodes interface {
 	GetNode(key string) (*Node, error)
+	AddNode(ID uint32, nodeName, IPAdr, ManIPAdr string) error
 	GetAllNodes() []*Node
 	SetNodeLiveness(name string, nL *NodeLiveness) error
 	SetNodeInterfaces(name string, nInt map[int]NodeInterface) error

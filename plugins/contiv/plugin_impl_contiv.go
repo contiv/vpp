@@ -105,6 +105,8 @@ type Config struct {
 	ScanIPNeighbors             bool   // if enabled, periodically scans and probes IP neighbors to maintain the ARP table
 	IPNeighborScanInterval      uint8
 	IPNeighborStaleThreshold    uint8
+	MainVRFID                   uint32
+	PodVRFID                    uint32
 	ServiceLocalEndpointWeight  uint8
 	DisableNATVirtualReassembly bool // if true, NAT plugin will drop fragmented packets
 	IPAMConfig                  ipam.Config
@@ -278,6 +280,11 @@ func (plugin *Plugin) GetNsIndex(podNamespace string, podName string) (nsIndex u
 	return 0, false
 }
 
+// GetPodSubnet provides subnet used for allocating pod IP addresses across all nodes.
+func (plugin *Plugin) GetPodSubnet() *net.IPNet {
+	return plugin.cniServer.ipam.PodSubnet()
+}
+
 // GetPodNetwork provides subnet used for allocating pod IP addresses on this node.
 func (plugin *Plugin) GetPodNetwork() *net.IPNet {
 	return plugin.cniServer.ipam.PodNetwork()
@@ -343,6 +350,11 @@ func (plugin *Plugin) GetNodeIP() (ip net.IP, network *net.IPNet) {
 	return plugin.cniServer.GetNodeIP()
 }
 
+// GetHostIPs returns all IP addresses of this node present in the host network namespace (Linux).
+func (plugin *Plugin) GetHostIPs() []net.IP {
+	return plugin.cniServer.GetHostIPs()
+}
+
 // WatchNodeIP adds given channel to the list of subscribers that are notified upon change
 // of nodeIP address. If the channel is not ready to receive notification, the notification is dropped.
 func (plugin *Plugin) WatchNodeIP(subscriber chan string) {
@@ -384,6 +396,16 @@ func (plugin *Plugin) GetDefaultInterface() (ifName string, ifAddress net.IP) {
 // pod immediately before its removal.
 func (plugin *Plugin) RegisterPodPreRemovalHook(hook PodActionHook) {
 	plugin.cniServer.RegisterPodPreRemovalHook(hook)
+}
+
+// GetMainVrfID returns the ID of the main network connectivity VRF.
+func (plugin *Plugin) GetMainVrfID() uint32 {
+	return plugin.cniServer.GetMainVrfID()
+}
+
+// GetPodVrfID returns the ID of the POD VRF.
+func (plugin *Plugin) GetPodVrfID() uint32 {
+	return plugin.cniServer.GetPodVrfID()
 }
 
 // handleResync handles resync events of the plugin. Called automatically by the plugin infra.

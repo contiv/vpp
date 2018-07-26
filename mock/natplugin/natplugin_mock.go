@@ -258,12 +258,12 @@ func (mnt *MockNatPlugin) dnatToStaticMappings(dnat *nat.Nat44DNat_DNatConfig) (
 		if staticMapping.ExternalPort != 0 && staticMapping.TwiceNat != nat.TwiceNatMode_SELF {
 			return nil, errors.New("self-twice-NAT not enabled for static mapping")
 		}
-		if staticMapping.VrfId != 0 {
-			return nil, errors.New("static mapping assigned to invalid vrf")
-		}
 		if staticMapping.ExternalInterface != "" {
 			return nil, errors.New("static mapping with external interface is not expected")
 		}
+
+		// VRF
+		sm.VrfID = staticMapping.VrfId
 
 		// external IP
 		externalIP := net.ParseIP(staticMapping.ExternalIp)
@@ -322,12 +322,12 @@ func (mnt *MockNatPlugin) dnatToIdentityMappings(dnat *nat.Nat44DNat_DNatConfig)
 		im := &IdentityMapping{}
 
 		// fields set to a constant value
-		if identityMapping.VrfId != 0 {
-			return nil, errors.New("identity mapping assigned to invalid vrf")
-		}
 		if identityMapping.AddressedInterface != "" {
 			return nil, errors.New("identity mapping with interface is not expected")
 		}
+
+		// VRF
+		im.VrfID = identityMapping.VrfId
 
 		// IP addr
 		ip := net.ParseIP(identityMapping.IpAddress)

@@ -33,6 +33,7 @@ type IdentityMapping struct {
 	IP       net.IP
 	Port     uint16
 	Protocol renderer.ProtocolType
+	VrfID    uint32
 }
 
 // String converts a list of identity mappings into a human-readable string.
@@ -115,5 +116,5 @@ func (im *IdentityMapping) String() string {
 
 // Equals compares this identity mapping with <im2>.
 func (im *IdentityMapping) Equals(im2 *IdentityMapping) bool {
-	return im.IP.Equal(im2.IP) && im.Port == im2.Port && im.Protocol == im2.Protocol
+	return im.VrfID == im2.VrfID && im.IP.Equal(im2.IP) && im.Port == im2.Port && im.Protocol == im2.Protocol
 }

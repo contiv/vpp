@@ -239,10 +239,10 @@ func (pt ProtocolType) String() string {
 
 // ServiceBackend represents a single service backend (= endpoint).
 type ServiceBackend struct {
-	IP    net.IP /* internal IP address of the backend */
-	Port  uint16 /* backend-local port on which the service listens */
-	Local bool   /* true if the backend is deployed on this node
-	   (can be leveraged for smart load-balancing) */
+	IP          net.IP /* internal IP address of the backend */
+	Port        uint16 /* backend-local port on which the service listens */
+	Local       bool   /* true if the backend is deployed on this node (can be leveraged for smart load-balancing) */
+	HostNetwork bool   /* true if the backend uses host networking */
 }
 
 // String converts Backend into a human-readable string.

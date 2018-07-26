@@ -16,20 +16,38 @@ package cache
 
 import (
 	"github.com/ligato/cn-infra/datasync"
-
+	nodeinfomodel "github.com/contiv/vpp/plugins/contiv/model/node"
 	nodemodel "github.com/contiv/vpp/plugins/ksr/model/node"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
-	"github.com/ligato/cn-infra/logging"
+
+
+	"strings"
+	"fmt"
 )
 
 // changePropagateEvent propagates CHANGE in the K8s configuration into the Cache.
 func (ctc *ContivTelemetryCache) changePropagateEvent(dataChngEv datasync.ChangeEvent) error {
-	var err error
-	var diff bool
+	err := error(nil)
 	key := dataChngEv.GetKey()
-	ctc.Log.SetLevel(logging.DebugLevel)
-	ctc.Log.Debug("Received CHANGE key ", key)
 
+	ctc.Log.Infof("Received CHANGE event %+v, key %s, rev %d", dataChngEv, dataChngEv.GetRevision())
+	ctc.Log.Info( "Pod prefix: ", podmodel.KeyPrefix())
+
+	switch {
+	case strings.HasPrefix(key, nodeinfomodel.AllocatedIDsKeyPrefix):
+		ctc.Log.Info("NodeInfo change received")
+
+	case strings.HasPrefix(key, nodemodel.KeyPrefix()):
+		ctc.Log.Info("Node change received")
+
+	case strings.HasPrefix(key, podmodel.KeyPrefix()):
+		ctc.Log.Info("Pod change received")
+
+	default:
+		err = fmt.Errorf("unknown DATA CHANGE key %s", key)
+	}
+
+	/*
 	// Propagate Pod CHANGE event
 	// use this to get pod name and pod namespace
 	// podName, podNs, err := podmodel.ParsePodFromKey(key)
@@ -91,6 +109,6 @@ func (ctc *ContivTelemetryCache) changePropagateEvent(dataChngEv datasync.Change
 			//nodeID := nodemodel.GetID(&prevValue).String()
 		}
 	}
-
-	return nil
+	*/
+	return err
 }

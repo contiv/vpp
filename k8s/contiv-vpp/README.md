@@ -53,7 +53,7 @@ The following tables lists the configurable parameters of the Contiv-VPP chart a
 
 Parameter | Description | Default
 --------- | ----------- | -------
-`contiv.mtuSize` | MTU Size | 1500
+`contiv.mtuSize` | MTU Size | 1450
 `contiv.tcpStackDisabled` | Disable TCP stack | `True`
 `contiv.useTAPInterfaces` | Enable TAP interfaces | `True`
 `contiv.tapInterfaceVersion`| TAP interface version | 2

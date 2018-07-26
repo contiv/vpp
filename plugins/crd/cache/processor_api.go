@@ -19,5 +19,5 @@ package cache
 //It also validates that all of the information for the nodes is correct.
 type Processor interface {
 	CollectNodeInfo(node *Node)
-	ValidateNodeInfo(nodelist []*Node)
+	ValidateNodeInfo()
 }

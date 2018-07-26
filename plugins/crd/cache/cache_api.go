@@ -36,7 +36,13 @@ type NodeTelemetryCacheAPI interface {
 	LookupNode(nodename []string) []*Node
 
 	// LookupNodeInfo returns data of all nodes.
-	ListAllNodes() []Node
+	ListAllNodes() []*Node
+
+	ClearCache()
+
+	AddNode(ID uint32, nodeName, IPAdr, ManIPAdr string) error
+
+	DeleteNode(nodenames []string)
 
 	// LookupNodeInfo returns data of a given pod or list of nodes.
 	// LookupPod() Pod
@@ -50,9 +56,8 @@ type NodeTelemetryCacheAPI interface {
 
 //Nodes defines functions to be implemented that that allow the interaction with the Node Cache.
 type Nodes interface {
-	AddNode(ID uint32, nodeName, IPAdr, ManIPAdr string) error
-	DeleteNode(key string) error
 	GetNode(key string) (*Node, error)
+	AddNode(ID uint32, nodeName, IPAdr, ManIPAdr string) error
 	GetAllNodes() []*Node
 	SetNodeLiveness(name string, nL *NodeLiveness) error
 	SetNodeInterfaces(name string, nInt map[int]NodeInterface) error
@@ -61,5 +66,5 @@ type Nodes interface {
 	SetNodeTelemetry(name string, nTele map[string]NodeTelemetry) error
 	SetNodeIPARPs(name string, nArps []NodeIPArp) error
 	PopulateNodeMaps(node *Node)
-	ValidateLoopIFAddresses(nodelist []*Node) bool
+	ValidateLoopIFAddresses()
 }

@@ -50,7 +50,7 @@ func (ctc *ContivTelemetryCache) Init() error {
 	return nil
 }
 
-// Update processes a datasync change event associated with K8s State data.
+// Update processes a data sync change event associated with K8s State data.
 // The change is applied into the cache and all subscribed watchers are
 // notified.
 // The function will forward any error returned by a watcher.
@@ -63,28 +63,20 @@ func (ctc *ContivTelemetryCache) Update(dataChngEv datasync.ChangeEvent) error {
 	return nil
 }
 
-// Resync processes a datasync resync event associated with K8s State data.
+// Resync processes a data sync re sync event associated with K8s State data.
 // The cache content is full replaced with the received data.
 func (ctc *ContivTelemetryCache) Resync(resyncEv datasync.ResyncEvent) error {
 	return ctc.processResyncEvent(resyncEv)
 }
 
 // ListAllNodes returns node data for all nodes in the cache.
-func (ctc *ContivTelemetryCache) ListAllNodes() []Node {
-	var str []string
-	for k := range ctc.Cache.nMap {
-		str = append(str, k)
-	}
-	var nodeList []Node
-	sort.Strings(str)
-	for _, name := range str {
-		nodeList = append(nodeList, *ctc.Cache.nMap[name])
-	}
+func (ctc *ContivTelemetryCache) ListAllNodes() []*Node {
+	nodeList := ctc.Cache.GetAllNodes()
 	return nodeList
 }
 
 // LookupNode return node data for nodes that match a node name passed
-// to the function in the nodenames slice.
+// to the function in the node names slice.
 func (ctc *ContivTelemetryCache) LookupNode(nodenames []string) []*Node {
 	nodeslice := make([]*Node, 0)
 	for _, name := range nodenames {
@@ -94,20 +86,71 @@ func (ctc *ContivTelemetryCache) LookupNode(nodenames []string) []*Node {
 	return nodeslice
 }
 
-// DeleteNode deletes from teh cache those nodes that match a node name passed
-// to the function in the nodenames slice.
+// DeleteNode deletes from the cache those nodes that match a node name passed
+// to the function in the node names slice.
 func (ctc *ContivTelemetryCache) DeleteNode(nodenames []string) {
+	for _, str := range nodenames {
+		node, err := ctc.Cache.GetNode(str)
+		if err != nil {
+			ctc.Log.Error(err)
+		}
+		delete(ctc.Cache.nMap, node.Name)
+		delete(ctc.Cache.gigEIPMap, node.IPAdr)
+		for _, intf := range node.NodeInterfaces {
+			if intf.VppInternalName == "loop0" {
+				delete(ctc.Cache.loopMACMap, intf.PhysAddress)
+				for _, ip := range intf.IPAddresses {
+					delete(ctc.Cache.loopIPMap, ip)
+				}
+			}
+
+		}
+	}
 
 }
 
-//Cache holds various maps which all take different keys but point to the same underlying value.
-type Cache struct {
-	nMap        map[string]*Node
-	loopIPMap   map[string]*Node
-	gigEIPMap   map[string]*Node
-	loopMACMap  map[string]*Node
-	errorReport map[string][]string
-	logger      logging.Logger
+//AddNode will add a node to the Contiv Telemetry cache with the given parameters.
+func (ctc *ContivTelemetryCache) AddNode(ID uint32, nodeName, IPAdr, ManIPAdr string) error {
+	n := &Node{IPAdr: IPAdr, ManIPAdr: ManIPAdr, ID: ID, Name: nodeName}
+	_, err := ctc.Cache.GetNode(nodeName)
+	if err == nil {
+		err = errors.Errorf("duplicate key found: %s", nodeName)
+		return err
+	}
+	ctc.Cache.nMap[nodeName] = n
+	ctc.Cache.gigEIPMap[IPAdr] = n
+	ctc.Log.Debugf("Success adding node %+v to ctc.Cache %+v", nodeName, ctc.Cache)
+	return nil
+}
+
+//AddNode will add a node to the Contiv Telemetry cache with the given parameters.
+func (c *Cache) AddNode(ID uint32, nodeName, IPAdr, ManIPAdr string) error {
+	n := &Node{IPAdr: IPAdr, ManIPAdr: ManIPAdr, ID: ID, Name: nodeName}
+	_, err := c.GetNode(nodeName)
+	if err == nil {
+		err = errors.Errorf("duplicate key found: %s", nodeName)
+		return err
+	}
+	c.nMap[nodeName] = n
+	c.gigEIPMap[IPAdr] = n
+	c.logger.Debugf("Success adding node %+v to ctc.Cache %+v", nodeName, c)
+	return nil
+}
+
+//ClearCache with delete all the values in each of the individual cache maps.
+func (ctc *ContivTelemetryCache) ClearCache() {
+	for _, node := range ctc.Cache.nMap {
+		delete(ctc.Cache.nMap, node.Name)
+		delete(ctc.Cache.gigEIPMap, node.IPAdr)
+		for _, intf := range node.NodeInterfaces {
+			if intf.VppInternalName == "loop0" {
+				delete(ctc.Cache.loopMACMap, intf.PhysAddress)
+				for _, ip := range intf.IPAddresses {
+					delete(ctc.Cache.loopIPMap, ip)
+				}
+			}
+		}
+	}
 }
 
 //NewCache returns a pointer to a new node cache
@@ -127,7 +170,7 @@ func (c *Cache) SetNodeLiveness(name string, nLive *NodeLiveness) error {
 	if err != nil {
 		return err
 	}
-	c.logger.Debugf("Recevied Liveness %+v for node %+v", nLive, name)
+	c.logger.Debugf("Received Liveness %+v for node %+v", nLive, name)
 	node.NodeLiveness = nLive
 	return nil
 }
@@ -138,7 +181,7 @@ func (c *Cache) SetNodeInterfaces(name string, nInt map[int]NodeInterface) error
 	if err != nil {
 		return err
 	}
-	c.logger.Debugf("Recevied Interfaces %+v for node %+v", nInt, name)
+	c.logger.Debugf("Received Interfaces %+v for node %+v", nInt, name)
 	node.NodeInterfaces = nInt
 	return nil
 
@@ -150,7 +193,7 @@ func (c *Cache) SetNodeBridgeDomain(name string, nBridge map[int]NodeBridgeDomai
 	if err != nil {
 		return err
 	}
-	c.logger.Debugf("Recevied Bridge domain %+v for node %+v", nBridge, name)
+	c.logger.Debugf("Received Bridge domain %+v for node %+v", nBridge, name)
 	node.NodeBridgeDomains = nBridge
 	return nil
 }
@@ -161,7 +204,7 @@ func (c *Cache) SetNodeL2Fibs(name string, nL2F map[string]NodeL2Fib) error {
 	if err != nil {
 		return err
 	}
-	c.logger.Debugf("Recevied L2Fibs %+v for node %+v", nL2F, name)
+	c.logger.Debugf("Received L2Fibs %+v for node %+v", nL2F, name)
 	node.NodeL2Fibs = nL2F
 	return nil
 }
@@ -182,7 +225,7 @@ func (c *Cache) SetNodeIPARPs(name string, nArps []NodeIPArp) error {
 	if err != nil {
 		return err
 	}
-	c.logger.Debugf("Recevied IPARPS %+v for node %+v", nArps, name)
+	c.logger.Debugf("Received IPARPS %+v for node %+v", nArps, name)
 	node.NodeIPArp = nArps
 	return nil
 
@@ -198,30 +241,8 @@ func (c *Cache) GetNode(key string) (n *Node, err error) {
 	return nil, err
 }
 
-//DeleteNode deletes node with the given key.
-//Returns an error if the key is not found.
-func (c *Cache) DeleteNode(key string) error {
-	_, err := c.GetNode(key)
-	if err != nil {
-		return err
-	}
-	delete(c.nMap, key)
-	return nil
-}
-
-//AddNode adds a new node with the given information.
+//addNode adds a new node with the given information.
 //Returns an error if the node is already in the database
-func (c *Cache) AddNode(ID uint32, nodeName, IPAdr, ManIPAdr string) error {
-	n := &Node{IPAdr: IPAdr, ManIPAdr: ManIPAdr, ID: ID, Name: nodeName}
-	_, err := c.GetNode(nodeName)
-	if err == nil {
-		err = errors.Errorf("duplicate key found: %s", nodeName)
-		return err
-	}
-	c.nMap[nodeName] = n
-	c.gigEIPMap[IPAdr] = n
-	return nil
-}
 
 //GetAllNodes returns an ordered slice of all nodes in a database organized by name.
 func (c *Cache) GetAllNodes() []*Node {
@@ -277,7 +298,8 @@ func (c *Cache) getNodeLoopIFInfo(node *Node) (NodeInterface, error) {
 /*ValidateLoopIFAddresses validates the the entries of node ARP tables to make sure that
 the number of entries is correct as well as making sure that each entry's
 ip address and mac address correspond to the correct node in the network.*/
-func (c *Cache) ValidateLoopIFAddresses(nodelist []*Node) bool {
+func (c *Cache) ValidateLoopIFAddresses() {
+	nodelist := c.GetAllNodes()
 	nodemap := make(map[string]bool)
 	for key := range c.nMap {
 		nodemap[key] = true
@@ -323,13 +345,16 @@ func (c *Cache) ValidateLoopIFAddresses(nodelist []*Node) bool {
 			}
 			delete(nodemap, node.Name)
 		}
+
+	}
+	if len(nodemap) == 0 {
+		c.logger.Info("Validation of Node Data successful.")
 	}
 	if len(nodemap) > 0 {
 		for node := range nodemap {
 			c.logger.Errorf("No MAC entry found for %+v", node)
 			delete(nodemap, node)
 		}
-		return false
 	}
-	return true
+
 }

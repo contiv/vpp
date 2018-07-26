@@ -17,10 +17,8 @@ package cache
 //ProcessNodeData reads data sent to the cache channel.
 //It decides how to process the data received based on the type of Data Transfer Object.
 //Then it updates the node with the name from the DTO with the specific data from the DTO.
-func (p *ContivTelemetryProcessor) ProcessNodeData() {
-	for data := range p.dbChannel {
-		//for {
-		//	data := <-p.dbChannel
+func (p *ContivTelemetryProcessor) ProcessNodeData(nodename string) {
+	for _,data := range p.dtoMap[nodename] {
 		switch data.(type) {
 		case NodeLivenessDTO:
 			nlDto := data.(NodeLivenessDTO)
@@ -44,4 +42,31 @@ func (p *ContivTelemetryProcessor) ProcessNodeData() {
 			p.Log.Error("Unknown data type")
 		}
 	}
+	node, err := p.Cache.GetNode(nodename)
+	if err!=nil {
+		p.Log.Error(err)
+	}
+	p.Cache.PopulateNodeMaps(node)
+}
+
+func (p *ContivTelemetryProcessor) ProcessNodeResponses() {
+	for nodename := range p.nodeResponseChannel {
+		if len(p.dtoMap[nodename]) == numDTOs {
+			p.ProcessNodeData(nodename)
+		}
+		haveAllNetworkData := true
+		for nodename := range p.dtoMap  {
+			if len(p.dtoMap[nodename]) != numDTOs {
+				haveAllNetworkData = false
+				break
+			}
+		}
+		if haveAllNetworkData {
+			p.ValidateNodeInfo()
+			for nodename := range p.dtoMap  {
+				p.dtoMap[nodename] = p.dtoMap[nodename][0:0]
+			}
+		}
+	}
+
 }

@@ -283,7 +283,8 @@ func (c *Cache) getNodeLoopIFInfo(node *Node) (NodeInterface, error) {
 /*ValidateLoopIFAddresses validates the the entries of node ARP tables to make sure that
 the number of entries is correct as well as making sure that each entry's
 ip address and mac address correspond to the correct node in the network.*/
-func (c *Cache) ValidateLoopIFAddresses(nodelist []*Node) bool {
+func (c *Cache) ValidateLoopIFAddresses()  {
+	nodelist := c.GetAllNodes()
 	nodemap := make(map[string]bool)
 	for key := range c.nMap {
 		nodemap[key] = true
@@ -335,7 +336,5 @@ func (c *Cache) ValidateLoopIFAddresses(nodelist []*Node) bool {
 			c.logger.Errorf("No MAC entry found for %+v", node)
 			delete(nodemap, node)
 		}
-		return false
 	}
-	return true
 }

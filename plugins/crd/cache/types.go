@@ -21,6 +21,10 @@ import "github.com/ligato/cn-infra/logging"
 //Node is a struct to hold all relevant information of a kubernetes node.
 //It is populated with various information such as the interfaces and L2Fibs
 //as well as the name and IP Addresses.
+
+//Update this whenever a new DTO type is added.
+const numDTOs  = 5
+
 type Node struct {
 	ID                uint32
 	IPAdr             string
@@ -59,6 +63,7 @@ type NodeLiveness struct {
 type NodeLivenessDTO struct {
 	NodeName string
 	NodeInfo *NodeLiveness
+	err       error
 }
 
 //NodeTelemetry holds the unmarshalled node telemetry JSON data
@@ -71,6 +76,7 @@ type NodeTelemetry struct {
 type NodeTelemetryDTO struct {
 	NodeName string
 	NodeInfo map[string]NodeTelemetry
+	err      error
 }
 
 type output struct {
@@ -97,6 +103,7 @@ type NodeL2Fib struct {
 type NodeL2FibsDTO struct {
 	NodeName string
 	NodeInfo map[string]NodeL2Fib
+	err      error
 }
 
 //NodeInterface holds unmarshalled Interface JSON data
@@ -116,6 +123,7 @@ type NodeInterface struct {
 type NodeInterfacesDTO struct {
 	NodeName string
 	NodeInfo map[int]NodeInterface
+	err      error
 }
 
 type vxlan struct {
@@ -136,6 +144,7 @@ type NodeIPArp struct {
 type NodeIPArpDTO struct {
 	NodeInfo []NodeIPArp
 	NodeName string
+	err      error
 }
 
 type tap struct {
@@ -158,4 +167,5 @@ type bdinterfaces struct {
 type NodeBridgeDomainsDTO struct {
 	NodeName string
 	NodeInfo map[int]NodeBridgeDomains
+	err    error
 }

@@ -65,5 +65,5 @@ type Nodes interface {
 	SetNodeTelemetry(name string, nTele map[string]NodeTelemetry) error
 	SetNodeIPARPs(name string, nArps []NodeIPArp) error
 	PopulateNodeMaps(node *Node)
-	ValidateLoopIFAddresses(nodelist []*Node) bool
+	ValidateLoopIFAddresses()
 }

@@ -17,14 +17,12 @@ package cache
 import "github.com/ligato/cn-infra/logging"
 
 // here goes different cache types
+//Update this whenever a new DTO type is added.
+const numDTOs = 5
 
 //Node is a struct to hold all relevant information of a kubernetes node.
 //It is populated with various information such as the interfaces and L2Fibs
 //as well as the name and IP Addresses.
-
-//Update this whenever a new DTO type is added.
-const numDTOs  = 5
-
 type Node struct {
 	ID                uint32
 	IPAdr             string
@@ -63,7 +61,7 @@ type NodeLiveness struct {
 type NodeLivenessDTO struct {
 	NodeName string
 	NodeInfo *NodeLiveness
-	err       error
+	err      error
 }
 
 //NodeTelemetry holds the unmarshalled node telemetry JSON data
@@ -167,5 +165,5 @@ type bdinterfaces struct {
 type NodeBridgeDomainsDTO struct {
 	NodeName string
 	NodeInfo map[int]NodeBridgeDomains
-	err    error
+	err      error
 }

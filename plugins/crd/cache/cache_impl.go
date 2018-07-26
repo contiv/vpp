@@ -108,6 +108,7 @@ func (ctc *ContivTelemetryCache) DeleteNode(nodenames []string) {
 	}
 
 }
+
 //AddNode will add a node to the Contiv Telemetry cache with the given parameters.
 func (ctc *ContivTelemetryCache) AddNode(ID uint32, nodeName, IPAdr, ManIPAdr string) error {
 	n := &Node{IPAdr: IPAdr, ManIPAdr: ManIPAdr, ID: ID, Name: nodeName}
@@ -122,7 +123,7 @@ func (ctc *ContivTelemetryCache) AddNode(ID uint32, nodeName, IPAdr, ManIPAdr st
 	return nil
 }
 
-//Clear cache with delete all the values in each of the individual cache maps.
+//ClearCache with delete all the values in each of the individual cache maps.
 func (ctc *ContivTelemetryCache) ClearCache() {
 	for _, node := range ctc.Cache.nMap {
 		delete(ctc.Cache.nMap, node.Name)
@@ -283,7 +284,7 @@ func (c *Cache) getNodeLoopIFInfo(node *Node) (NodeInterface, error) {
 /*ValidateLoopIFAddresses validates the the entries of node ARP tables to make sure that
 the number of entries is correct as well as making sure that each entry's
 ip address and mac address correspond to the correct node in the network.*/
-func (c *Cache) ValidateLoopIFAddresses()  {
+func (c *Cache) ValidateLoopIFAddresses() {
 	nodelist := c.GetAllNodes()
 	nodemap := make(map[string]bool)
 	for key := range c.nMap {
@@ -330,6 +331,10 @@ func (c *Cache) ValidateLoopIFAddresses()  {
 			}
 			delete(nodemap, node.Name)
 		}
+
+	}
+	if len(nodemap) == 0 {
+		c.logger.Info("Validation of Node Data successful.")
 	}
 	if len(nodemap) > 0 {
 		for node := range nodemap {
@@ -337,4 +342,5 @@ func (c *Cache) ValidateLoopIFAddresses()  {
 			delete(nodemap, node)
 		}
 	}
+
 }

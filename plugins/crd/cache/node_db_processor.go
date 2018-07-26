@@ -18,7 +18,7 @@ package cache
 //It decides how to process the data received based on the type of Data Transfer Object.
 //Then it updates the node with the name from the DTO with the specific data from the DTO.
 func (p *ContivTelemetryProcessor) ProcessNodeData(nodename string) {
-	for _,data := range p.dtoMap[nodename] {
+	for _, data := range p.dtoMap[nodename] {
 		switch data.(type) {
 		case NodeLivenessDTO:
 			nlDto := data.(NodeLivenessDTO)
@@ -43,19 +43,22 @@ func (p *ContivTelemetryProcessor) ProcessNodeData(nodename string) {
 		}
 	}
 	node, err := p.Cache.GetNode(nodename)
-	if err!=nil {
+	if err != nil {
 		p.Log.Error(err)
 	}
 	p.Cache.PopulateNodeMaps(node)
 }
 
+//ProcessNodeResponses will read the nodeDTO map and make sure that each node has
+//enough DTOS to fully process information. It then clears the node DTO map after it
+//is finished with it.
 func (p *ContivTelemetryProcessor) ProcessNodeResponses() {
 	for nodename := range p.nodeResponseChannel {
 		if len(p.dtoMap[nodename]) == numDTOs {
 			p.ProcessNodeData(nodename)
 		}
 		haveAllNetworkData := true
-		for nodename := range p.dtoMap  {
+		for nodename := range p.dtoMap {
 			if len(p.dtoMap[nodename]) != numDTOs {
 				haveAllNetworkData = false
 				break
@@ -63,7 +66,7 @@ func (p *ContivTelemetryProcessor) ProcessNodeResponses() {
 		}
 		if haveAllNetworkData {
 			p.ValidateNodeInfo()
-			for nodename := range p.dtoMap  {
+			for nodename := range p.dtoMap {
 				p.dtoMap[nodename] = p.dtoMap[nodename][0:0]
 			}
 		}

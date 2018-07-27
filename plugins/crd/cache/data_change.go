@@ -132,8 +132,11 @@ func (nic *nodeInfoChange) DeleteRecord(ctc *ContivTelemetryCache, names []strin
 	return nil
 }
 
-// changePropagateEvent propagates CHANGE in the K8s configuration into the Cache.
-func (ctc *ContivTelemetryCache) changePropagateEvent(dataChngEv datasync.ChangeEvent) error {
+// Update processes a data sync change event associated with K8s State data.
+// The change is applied into the cache and all subscribed watchers are
+// notified.
+// The function will forward any error returned by a watcher.
+func (ctc *ContivTelemetryCache) Update(dataChngEv datasync.ChangeEvent) error {
 	err := error(nil)
 	key := dataChngEv.GetKey()
 	var dcp dataChangeProcessor

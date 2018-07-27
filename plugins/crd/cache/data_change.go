@@ -16,81 +16,179 @@ package cache
 
 import (
 	"github.com/ligato/cn-infra/datasync"
-
+	"github.com/golang/protobuf/proto"
+	nodeinfomodel "github.com/contiv/vpp/plugins/contiv/model/node"
 	nodemodel "github.com/contiv/vpp/plugins/ksr/model/node"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
-	"github.com/ligato/cn-infra/logging"
+
+
+	"strings"
+	"fmt"
 )
+
+type dataChangeProcessor interface {
+	GetNames(key string) ([]string, error)
+	GetValueProto() proto.Message
+	AddRecord(ctc *ContivTelemetryCache, names []string, record proto.Message) error
+	UpdateRecord(ctc *ContivTelemetryCache, names []string, oldRecord proto.Message, newRecord proto.Message) error
+	DeleteRecord(ctc *ContivTelemetryCache, names []string) error
+}
+
+// dataChangeProcessor implementation for K8s pod data
+type podChange struct {}
+
+func (pc *podChange) GetNames(key string) ([]string, error) {
+	pod, namespace, err := podmodel.ParsePodFromKey(key)
+	return []string{pod, namespace}, err
+}
+
+func (pc *podChange) GetValueProto() proto.Message {
+	return &podmodel.Pod{}
+}
+
+func (pc *podChange) AddRecord(ctc *ContivTelemetryCache, names []string, record proto.Message) error {
+	ctc.Log.Infof("Adding pod %s in namespace %s, podValue %+v", names[0], names[1], record)
+	// TODO: ctc.addPod(names[0], names[1], podValue)
+	return nil
+}
+
+func (pc *podChange) UpdateRecord(ctc *ContivTelemetryCache,
+	names []string, oldRecord proto.Message, newRecord proto.Message) error {
+	ctc.Log.Infof("Updating pod %s in namespace %s, podValue %+v, prevPodValue %+v",
+		names[0], names[1], oldRecord, newRecord)
+	// TODO: ctc.updatePod(names[0], names[1], prevPodValue, podValue)
+	return nil
+}
+
+func (pc *podChange) DeleteRecord(ctc *ContivTelemetryCache, names []string) error {
+	ctc.Log.Infof("Deleting pod %s in namespace %s", names[0], names[1])
+	// TODO: ctc.deletePod(names[0], names[1])
+	return nil
+}
+
+// dataChangeProcessor implementation for K8s node data
+type nodeChange struct {}
+
+func (nc *nodeChange) GetNames(key string) ([]string, error) {
+	node, err := nodemodel.ParseNodeFromKey(key)
+	return []string{node}, err
+}
+
+func (nc *nodeChange) GetValueProto() proto.Message {
+	return &nodemodel.Node{}
+}
+
+func (nc *nodeChange) AddRecord(ctc *ContivTelemetryCache, names []string, record proto.Message) error {
+	ctc.Log.Infof("Adding node %s, nodeValue %+v", names[0], record)
+	// TODO: ctc.addNode(names[0], podValue)
+	return nil
+}
+
+func (nc *nodeChange) UpdateRecord(ctc *ContivTelemetryCache,
+	names []string, oldRecord proto.Message, newRecord proto.Message) error {
+	ctc.Log.Infof("Updating node %s, nodeValue %+v, prevNodeValue %+v", names[0], oldRecord, newRecord)
+	// TODO: ctc.updatePod(names[0], prevPodValue, podValue)
+	return nil
+}
+
+func (nc *nodeChange) DeleteRecord(ctc *ContivTelemetryCache, names []string) error {
+	ctc.Log.Infof("Deleting node %s", names[0])
+	// TODO: ctc.deletePod(names[0])
+	return nil
+}
+
+// dataChangeProcessor implementation for nodeIndo data
+type nodeInfoChange struct {}
+
+func (nic *nodeInfoChange) GetNames(key string) ([]string, error) {
+	nodeParts := strings.Split(key, "/")
+	if len(nodeParts) != 2 {
+		return nil, fmt.Errorf("invalid nodeInfo key %s", key)
+	}
+	return []string{nodeParts[1]}, nil
+}
+
+func (nic *nodeInfoChange) GetValueProto() proto.Message {
+	return &nodeinfomodel.NodeInfo{}
+}
+
+func (nic *nodeInfoChange) AddRecord(ctc *ContivTelemetryCache, names []string, record proto.Message) error {
+	ctc.Log.Infof("Adding nodeInfo %s, nodeValue %+v", names[0], record)
+	// TODO: return ctc.addNodeInfo(names[0], podValue)
+	return nil
+}
+
+func (nic *nodeInfoChange) UpdateRecord(ctc *ContivTelemetryCache,
+	names []string, oldRecord proto.Message, newRecord proto.Message) error {
+	ctc.Log.Infof("Updating nodeInfo %s, nodeInfoValue %+v, prevNodeInfoValue %+v",
+		names[0], oldRecord, newRecord)
+	// TODO: return ctc.updateNodeInfonames[0], prevPodValue, podValue)
+	return nil
+}
+
+func (nic *nodeInfoChange) DeleteRecord(ctc *ContivTelemetryCache, names []string) error {
+	ctc.Log.Infof("Deleting nodeInfo %s", names[0])
+	// TODO: return ctc.deleteNodeInfo(names[0])
+	return nil
+}
 
 // changePropagateEvent propagates CHANGE in the K8s configuration into the Cache.
 func (ctc *ContivTelemetryCache) changePropagateEvent(dataChngEv datasync.ChangeEvent) error {
-	var err error
-	var diff bool
+	err := error(nil)
 	key := dataChngEv.GetKey()
-	ctc.Log.SetLevel(logging.DebugLevel)
-	ctc.Log.Debug("Received CHANGE key ", key)
+	var dcp dataChangeProcessor
 
-	// Propagate Pod CHANGE event
-	// use this to get pod name and pod namespace
-	// podName, podNs, err := podmodel.ParsePodFromKey(key)
-	if err == nil {
-		var value, prevValue podmodel.Pod
-		// use this to create a podID and use it to store/delete/update in pod Cache
-		// podID := podmodel.ID{Name: podName, Namespace: podNs}
+	ctc.Log.Infof("Received CHANGE event key %s, type %+v, rev %d",
+		key, dataChngEv.GetChangeType(), dataChngEv.GetRevision())
 
-		if err = dataChngEv.GetValue(&value); err != nil {
-			return err
-		}
+	// Determine which data is changing
+	switch {
+	case strings.HasPrefix(key, nodeinfomodel.AllocatedIDsKeyPrefix):
+		dcp = &nodeInfoChange{}
 
-		if diff, err = dataChngEv.GetPrevValue(&prevValue); err != nil {
-			return err
-		}
+	case strings.HasPrefix(key, nodemodel.KeyPrefix()):
+		dcp = &nodeChange{}
 
-		if datasync.Delete == dataChngEv.GetChangeType() {
-			// podID used here
-			// todo - remove
+	case strings.HasPrefix(key, podmodel.KeyPrefix()):
+		dcp = &podChange{}
 
-		} else if diff {
-			// podID used here to remove and then update
-			// key remains the same
-			// todo - remove old pod in cache
-			// todo - add updated pod in cache
-
-		} else {
-			ctc.Log.Infof("Pod added with value: %v", value)
-			// podID used here
-			// todo - add pod to cache
-		}
-		return nil
+	default:
+		return fmt.Errorf("unknown DATA CHANGE key %s", key)
 	}
 
-	// Propagate Pod CHANGE event
-	// use this to get node name
-	// nodeName, err := nodemodel.ParseNodeFromKey(key)
-	// Propagate Namespace CHANGE event
-	_, err = nodemodel.ParseNodeFromKey(key)
-	if err == nil {
-		var value, prevValue nodemodel.Node
-
-		if err = dataChngEv.GetValue(&value); err != nil {
-			return err
-		}
-
-		if diff, err = dataChngEv.GetPrevValue(&prevValue); err != nil {
-			return err
-		}
-
-		if datasync.Delete == dataChngEv.GetChangeType() {
-			//nodeID := nodemodel.GetID(&prevValue).String()
-
-		} else if diff {
-			//newNodeID := nodemodel.GetID(&prevValue).String()
-			//oldNodeID := nodemodel.GetID(&prevValue).String()
-
-		} else {
-			//nodeID := nodemodel.GetID(&prevValue).String()
-		}
+	names, err := dcp.GetNames(key)
+	if err != nil {
+		return err
 	}
 
-	return nil
+	// Determine the type of & perform the data change operation
+	switch dataChngEv.GetChangeType() {
+	case datasync.Delete:
+		err = dcp.DeleteRecord(ctc, names)
+
+	case datasync.Put:
+		newRecord := dcp.GetValueProto()
+		if err := dataChngEv.GetValue(newRecord); err != nil {
+			err = fmt.Errorf("could not get new proto data for key %s, error %s", key, err)
+			break
+		}
+
+		oldRecord := dcp.GetValueProto()
+		exists, err := dataChngEv.GetPrevValue(oldRecord)
+		if err != nil {
+			err = fmt.Errorf("could not get previous proto data for key %s, error %s", key, err)
+			break
+		}
+
+		if exists {
+			err = dcp.UpdateRecord(ctc, names, oldRecord, newRecord)
+		} else {
+			err = dcp.AddRecord(ctc, names, newRecord)
+		}
+
+	default:
+		err = fmt.Errorf("unknown event change type %+v", dataChngEv.GetChangeType())
+	}
+
+	return err
 }

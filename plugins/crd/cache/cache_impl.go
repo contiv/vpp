@@ -55,12 +55,7 @@ func (ctc *ContivTelemetryCache) Init() error {
 // notified.
 // The function will forward any error returned by a watcher.
 func (ctc *ContivTelemetryCache) Update(dataChngEv datasync.ChangeEvent) error {
-	err := ctc.changePropagateEvent(dataChngEv)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return ctc.changePropagateEvent(dataChngEv)
 }
 
 // Resync processes a data sync re sync event associated with K8s State data.

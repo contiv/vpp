@@ -51,14 +51,14 @@ func TestNodesDB_DeleteNode(t *testing.T) {
 	gomega.Expect(ok).To(gomega.BeNil())
 	gomega.Expect(node.IPAdr).To(gomega.Equal("10"))
 
-	err := db.DeleteNode("k8s_master")
-	gomega.Expect(err).To(gomega.BeNil())
-	node, err = db.GetNode("k8s_master")
+	//err := db.DeleteNode("k8s_master")
+	//gomega.Expect(err).To(gomega.BeNil())
+	node, err := db.GetNode("k8s_master")
 	gomega.Expect(node).To(gomega.BeNil())
 	gomega.Expect(err).To(gomega.Not(gomega.BeNil()))
 
-	err = db.DeleteNode("k8s_master")
-	gomega.Expect(err).To(gomega.Not(gomega.BeNil()))
+	//err = db.DeleteNode("k8s_master")
+	//gomega.Expect(err).To(gomega.Not(gomega.BeNil()))
 
 }
 

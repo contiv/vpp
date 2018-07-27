@@ -40,15 +40,15 @@ const (
 // ContivTelemetryProcessor defines the processor's data structures and dependencies
 type ContivTelemetryProcessor struct {
 	Deps
-	nodeResponseChannel chan string
+	nodeResponseChannel chan interface{}
 	Cache               *Cache
-	dtoMap              map[string][]interface{}
+	dtoMap              []interface{}
 }
 
 // Init initializes the processor
 func (p *ContivTelemetryProcessor) Init() error {
-	p.nodeResponseChannel = make(chan string)
-	p.dtoMap = make(map[string][]interface{})
+	p.nodeResponseChannel = make(chan interface{})
+	p.dtoMap = make([]interface{}, 0)
 	go p.ProcessNodeResponses()
 	go p.retrieveNetworkInfoOnTimerExpiry()
 	return nil
@@ -57,9 +57,7 @@ func (p *ContivTelemetryProcessor) Init() error {
 // CollectNodeInfo collects node data from all agents in the Contiv
 // cluster and puts it in the cache
 func (p *ContivTelemetryProcessor) CollectNodeInfo(node *Node) {
-
 	p.collectAgentInfo(node)
-
 }
 
 // ValidateNodeInfo checks the consistency of the node data in the cache. It
@@ -68,9 +66,10 @@ func (p *ContivTelemetryProcessor) CollectNodeInfo(node *Node) {
 // validation are reported to the CRD.
 func (p *ContivTelemetryProcessor) ValidateNodeInfo() {
 
-	//for _, node := range nodelist {
-	//	p.Cache.PopulateNodeMaps(node)
-	//}
+	nodelist := p.Cache.GetAllNodes()
+	for _, node := range nodelist {
+		p.Cache.PopulateNodeMaps(node)
+	}
 	p.Log.Info("Beginning validation of Node Data")
 
 	p.Cache.ValidateLoopIFAddresses()
@@ -122,22 +121,18 @@ object is created to hold the struct of information as well as the name and is s
 over the plugins node database channel to node_db_processor.go where it will be read,
 processed, and added to the node database.
 */
-
 func (p *ContivTelemetryProcessor) getLivenessInfo(client http.Client, node *Node) {
 	res, err := client.Get("http://" + node.ManIPAdr + livenessPort + livenessURL)
 	if err != nil {
 		p.Log.Error(err)
-		p.dtoMap[node.Name] = append(p.dtoMap[node.Name], NodeLivenessDTO{node.Name, nil, err})
-		p.nodeResponseChannel <- node.Name
+		p.nodeResponseChannel <- NodeLivenessDTO{node.Name, nil, err}
 		return
 	}
 	b, _ := ioutil.ReadAll(res.Body)
 	b = []byte(b)
 	nodeInfo := &NodeLiveness{}
 	json.Unmarshal(b, nodeInfo)
-	p.dtoMap[node.Name] = append(p.dtoMap[node.Name], NodeLivenessDTO{node.Name, nodeInfo, nil})
-	//p.nodeResponseChannel <- NodeLivenessDTO{node.Name, nodeInfo}
-	p.nodeResponseChannel <- node.Name
+	p.nodeResponseChannel <- NodeLivenessDTO{node.Name, nodeInfo, nil}
 
 }
 
@@ -145,8 +140,7 @@ func (p *ContivTelemetryProcessor) getInterfaceInfo(client http.Client, node *No
 	res, err := client.Get("http://" + node.ManIPAdr + interfacePort + interfaceURL)
 	if err != nil {
 		p.Log.Error(err)
-		//p.nodeResponseChannel <- NodeInterfacesDTO{node.Name, nil}
-		p.dtoMap[node.Name] = append(p.dtoMap[node.Name], NodeInterfacesDTO{node.Name, nil, err})
+		p.nodeResponseChannel <- NodeInterfacesDTO{node.Name, nil, err}
 		p.nodeResponseChannel <- node.Name
 		return
 	}
@@ -155,16 +149,13 @@ func (p *ContivTelemetryProcessor) getInterfaceInfo(client http.Client, node *No
 
 	nodeInterfaces := make(map[int]NodeInterface, 0)
 	json.Unmarshal(b, &nodeInterfaces)
-	//p.nodeResponseChannel <- NodeInterfacesDTO{node.Name, nodeInterfaces}
-	p.dtoMap[node.Name] = append(p.dtoMap[node.Name], NodeInterfacesDTO{node.Name, nodeInterfaces, nil})
-	p.nodeResponseChannel <- node.Name
+	p.nodeResponseChannel <- NodeInterfacesDTO{node.Name, nodeInterfaces, nil}
 }
 func (p *ContivTelemetryProcessor) getBridgeDomainInfo(client http.Client, node *Node) {
 	res, err := client.Get("http://" + node.ManIPAdr + bridgeDomainsPort + bridgeDomainURL)
 	if err != nil {
 		p.Log.Error(err)
-		//p.nodeResponseChannel <- NodeBridgeDomainsDTO{node.Name, nil}
-		p.dtoMap[node.Name] = append(p.dtoMap[node.Name], NodeBridgeDomainsDTO{node.Name, nil, err})
+		p.nodeResponseChannel <- NodeBridgeDomainsDTO{node.Name, nil, err}
 		return
 	}
 	b, _ := ioutil.ReadAll(res.Body)
@@ -172,54 +163,42 @@ func (p *ContivTelemetryProcessor) getBridgeDomainInfo(client http.Client, node 
 
 	nodeBridgeDomains := make(map[int]NodeBridgeDomains)
 	json.Unmarshal(b, &nodeBridgeDomains)
-	//p.nodeResponseChannel <- NodeBridgeDomainsDTO{node.Name, nodeBridgeDomains}
-	p.dtoMap[node.Name] = append(p.dtoMap[node.Name], NodeBridgeDomainsDTO{node.Name, nodeBridgeDomains, nil})
-	p.nodeResponseChannel <- node.Name
+	p.nodeResponseChannel <- NodeBridgeDomainsDTO{node.Name, nodeBridgeDomains, nil}
 }
 
 func (p *ContivTelemetryProcessor) getL2FibInfo(client http.Client, node *Node) {
 	res, err := client.Get("http://" + node.ManIPAdr + l2FibsPort + l2FibsURL)
 	if err != nil {
 		p.Log.Error(err)
-		//p.nodeResponseChannel <- NodeL2FibsDTO{node.Name, nil}
-		p.dtoMap[node.Name] = append(p.dtoMap[node.Name], NodeL2FibsDTO{node.Name, nil, err})
-		p.nodeResponseChannel <- node.Name
+		p.nodeResponseChannel <- NodeL2FibsDTO{node.Name, nil, err}
 		return
 	}
 	b, _ := ioutil.ReadAll(res.Body)
 	b = []byte(b)
 	nodel2fibs := make(map[string]NodeL2Fib)
 	json.Unmarshal(b, &nodel2fibs)
-	//p.nodeResponseChannel <- NodeL2FibsDTO{node.Name, nodel2fibs}
-	p.dtoMap[node.Name] = append(p.dtoMap[node.Name], NodeL2FibsDTO{node.Name, nodel2fibs, nil})
-	p.nodeResponseChannel <- node.Name
+	p.nodeResponseChannel <- NodeL2FibsDTO{node.Name, nodel2fibs, nil}
 }
 
 func (p *ContivTelemetryProcessor) getTelemetryInfo(client http.Client, node *Node) {
 	res, err := client.Get("http://" + node.ManIPAdr + telemetryPort + telemetryURL)
 	if err != nil {
 		p.Log.Error(err)
-		//p.nodeResponseChannel <- NodeTelemetryDTO{node.Name, nil}
-		p.dtoMap[node.Name] = append(p.dtoMap[node.Name], NodeTelemetryDTO{node.Name, nil, err})
-		p.nodeResponseChannel <- node.Name
+		p.nodeResponseChannel <- NodeTelemetryDTO{node.Name, nil, err}
 		return
 	}
 	b, _ := ioutil.ReadAll(res.Body)
 	b = []byte(b)
 	nodetelemetry := make(map[string]NodeTelemetry)
 	json.Unmarshal(b, &nodetelemetry)
-	//p.nodeResponseChannel <- NodeTelemetryDTO{node.Name, nodetelemetry}
-	p.dtoMap[node.Name] = append(p.dtoMap[node.Name], nodetelemetry)
-	p.nodeResponseChannel <- node.Name
+	p.nodeResponseChannel <- NodeTelemetryDTO{node.Name, nodetelemetry, nil}
 }
 
 func (p *ContivTelemetryProcessor) getIPArpInfo(client http.Client, node *Node) {
 	res, err := client.Get("http://" + node.ManIPAdr + arpPort + arpURL)
 	if err != nil {
 		p.Log.Error(err)
-		//p.nodeResponseChannel <- NodeIPArpDTO{[]NodeIPArp{}, ""}
-		p.dtoMap[node.Name] = append(p.dtoMap[node.Name], NodeIPArpDTO{nil, node.Name, err})
-		p.nodeResponseChannel <- node.Name
+		p.nodeResponseChannel <- NodeIPArpDTO{[]NodeIPArp{}, node.Name, err}
 		return
 	}
 	b, _ := ioutil.ReadAll(res.Body)
@@ -227,7 +206,5 @@ func (p *ContivTelemetryProcessor) getIPArpInfo(client http.Client, node *Node) 
 	b = []byte(b)
 	nodeiparpslice := make([]NodeIPArp, 0)
 	json.Unmarshal(b, &nodeiparpslice)
-	//p.nodeResponseChannel <- NodeIPArpDTO{nodeiparpslice, node.Name}
-	p.dtoMap[node.Name] = append(p.dtoMap[node.Name], NodeIPArpDTO{nodeiparpslice, node.Name, nil})
-	p.nodeResponseChannel <- node.Name
+	p.nodeResponseChannel <- NodeIPArpDTO{nodeiparpslice, node.Name, nil}
 }

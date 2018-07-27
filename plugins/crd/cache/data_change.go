@@ -141,9 +141,6 @@ func (ctc *ContivTelemetryCache) Update(dataChngEv datasync.ChangeEvent) error {
 	key := dataChngEv.GetKey()
 	var dcp dataChangeProcessor
 
-	ctc.Log.Infof("Received CHANGE event key %s, type %+v, rev %d",
-		key, dataChngEv.GetChangeType(), dataChngEv.GetRevision())
-
 	// Determine which data is changing
 	switch {
 	case strings.HasPrefix(key, nodeinfomodel.AllocatedIDsKeyPrefix):

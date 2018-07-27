@@ -15,15 +15,14 @@
 package cache
 
 import (
-	"github.com/ligato/cn-infra/datasync"
-	"github.com/golang/protobuf/proto"
 	nodeinfomodel "github.com/contiv/vpp/plugins/contiv/model/node"
 	nodemodel "github.com/contiv/vpp/plugins/ksr/model/node"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
+	"github.com/golang/protobuf/proto"
+	"github.com/ligato/cn-infra/datasync"
 
-
-	"strings"
 	"fmt"
+	"strings"
 )
 
 type dataChangeProcessor interface {
@@ -35,7 +34,7 @@ type dataChangeProcessor interface {
 }
 
 // dataChangeProcessor implementation for K8s pod data
-type podChange struct {}
+type podChange struct{}
 
 func (pc *podChange) GetNames(key string) ([]string, error) {
 	pod, namespace, err := podmodel.ParsePodFromKey(key)
@@ -67,7 +66,7 @@ func (pc *podChange) DeleteRecord(ctc *ContivTelemetryCache, names []string) err
 }
 
 // dataChangeProcessor implementation for K8s node data
-type nodeChange struct {}
+type nodeChange struct{}
 
 func (nc *nodeChange) GetNames(key string) ([]string, error) {
 	node, err := nodemodel.ParseNodeFromKey(key)
@@ -98,7 +97,7 @@ func (nc *nodeChange) DeleteRecord(ctc *ContivTelemetryCache, names []string) er
 }
 
 // dataChangeProcessor implementation for nodeIndo data
-type nodeInfoChange struct {}
+type nodeInfoChange struct{}
 
 func (nic *nodeInfoChange) GetNames(key string) ([]string, error) {
 	nodeParts := strings.Split(key, "/")

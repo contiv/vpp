@@ -17,7 +17,7 @@ package cache
 
 import (
 	nodemodel "github.com/contiv/vpp/plugins/ksr/model/node"
-		"github.com/ligato/cn-infra/logging"
+	"github.com/ligato/cn-infra/logging"
 	"github.com/pkg/errors"
 	"sort"
 )

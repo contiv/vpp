@@ -14,62 +14,66 @@
 
 package cache
 
-//ProcessNodeData reads data sent to the cache channel.
-//It decides how to process the data received based on the type of Data Transfer Object.
-//Then it updates the node with the name from the DTO with the specific data from the DTO.
-func (p *ContivTelemetryProcessor) ProcessNodeData(nodename string) {
-	for _, data := range p.dtoMap[nodename] {
-		switch data.(type) {
-		case NodeLivenessDTO:
-			nlDto := data.(NodeLivenessDTO)
-			p.Cache.SetNodeLiveness(nlDto.NodeName, nlDto.NodeInfo)
-		case NodeInterfacesDTO:
-			niDto := data.(NodeInterfacesDTO)
-			p.Cache.SetNodeInterfaces(niDto.NodeName, niDto.NodeInfo)
-		case NodeBridgeDomainsDTO:
-			nbdDto := data.(NodeBridgeDomainsDTO)
-			p.Cache.SetNodeBridgeDomain(nbdDto.NodeName, nbdDto.NodeInfo)
-		case NodeL2FibsDTO:
-			nl2fDto := data.(NodeL2FibsDTO)
-			p.Cache.SetNodeL2Fibs(nl2fDto.NodeName, nl2fDto.NodeInfo)
-		case NodeTelemetryDTO:
-			ntDto := data.(NodeTelemetryDTO)
-			p.Cache.SetNodeTelemetry(ntDto.NodeName, ntDto.NodeInfo)
-		case NodeIPArpDTO:
-			nipaDto := data.(NodeIPArpDTO)
-			p.Cache.SetNodeIPARPs(nipaDto.NodeName, nipaDto.NodeInfo)
-		default:
-			p.Log.Error("Unknown data type")
-		}
-	}
-	node, err := p.Cache.GetNode(nodename)
-	if err != nil {
-		p.Log.Error(err)
-	}
-	p.Cache.PopulateNodeMaps(node)
-}
-
 //ProcessNodeResponses will read the nodeDTO map and make sure that each node has
 //enough DTOS to fully process information. It then clears the node DTO map after it
 //is finished with it.
 func (p *ContivTelemetryProcessor) ProcessNodeResponses() {
-	for nodename := range p.nodeResponseChannel {
-		if len(p.dtoMap[nodename]) == numDTOs {
-			p.ProcessNodeData(nodename)
-		}
-		haveAllNetworkData := true
-		for nodename := range p.dtoMap {
-			if len(p.dtoMap[nodename]) != numDTOs {
-				haveAllNetworkData = false
-				break
-			}
-		}
-		if haveAllNetworkData {
+	for data := range p.nodeResponseChannel {
+		nodelist := p.Cache.GetAllNodes()
+		p.dtoMap = append(p.dtoMap, data)
+		if len(p.dtoMap) == numDTOs*len(nodelist) {
+			p.SetNodeData()
 			p.ValidateNodeInfo()
-			for nodename := range p.dtoMap {
-				p.dtoMap[nodename] = p.dtoMap[nodename][0:0]
-			}
+			p.dtoMap = p.dtoMap[0:0]
 		}
+	}
+}
+
+// SetNodeData will iterate through the dtoMap, read the type of dto, and assign the dto info to the name
+// associated with the DTO.
+func (p *ContivTelemetryProcessor) SetNodeData() {
+	for _, data := range p.dtoMap {
+		switch data.(type) {
+		case NodeLivenessDTO:
+			nlDto := data.(NodeLivenessDTO)
+			if nlDto.err != nil {
+				p.Cache.report = append(p.Cache.report, nlDto.err.Error())
+			}
+			p.Cache.SetNodeLiveness(nlDto.NodeName, nlDto.NodeInfo)
+		case NodeInterfacesDTO:
+			niDto := data.(NodeInterfacesDTO)
+			if niDto.err != nil {
+				p.Cache.report = append(p.Cache.report, niDto.err.Error())
+			}
+			p.Cache.SetNodeInterfaces(niDto.NodeName, niDto.NodeInfo)
+		case NodeBridgeDomainsDTO:
+			nbdDto := data.(NodeBridgeDomainsDTO)
+			if nbdDto.err != nil {
+				p.Cache.report = append(p.Cache.report, nbdDto.err.Error())
+			}
+			p.Cache.SetNodeBridgeDomain(nbdDto.NodeName, nbdDto.NodeInfo)
+		case NodeL2FibsDTO:
+			nl2fDto := data.(NodeL2FibsDTO)
+			if nl2fDto.err != nil {
+				p.Cache.report = append(p.Cache.report, nl2fDto.err.Error())
+			}
+			p.Cache.SetNodeL2Fibs(nl2fDto.NodeName, nl2fDto.NodeInfo)
+		case NodeTelemetryDTO:
+			ntDto := data.(NodeTelemetryDTO)
+			if ntDto.err != nil {
+				p.Cache.report = append(p.Cache.report, ntDto.err.Error())
+			}
+			p.Cache.SetNodeTelemetry(ntDto.NodeName, ntDto.NodeInfo)
+		case NodeIPArpDTO:
+			nipaDto := data.(NodeIPArpDTO)
+			if nipaDto.err != nil {
+				p.Cache.report = append(p.Cache.report, nipaDto.err.Error())
+			}
+			p.Cache.SetNodeIPARPs(nipaDto.NodeName, nipaDto.NodeInfo)
+		default:
+			p.Log.Error("Unknown data type")
+		}
+
 	}
 
 }

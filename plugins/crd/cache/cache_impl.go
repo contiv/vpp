@@ -110,6 +110,7 @@ func (ctc *ContivTelemetryCache) AddNode(ID uint32, nodeName, IPAdr, ManIPAdr st
 	_, err := ctc.Cache.GetNode(nodeName)
 	if err == nil {
 		err = errors.Errorf("duplicate key found: %s", nodeName)
+		ctc.Cache.report = append(ctc.Cache.report, errors.Errorf("duplicate key found: %s", nodeName).Error())
 		return err
 	}
 	ctc.Cache.nMap[nodeName] = n
@@ -124,6 +125,7 @@ func (c *Cache) AddNode(ID uint32, nodeName, IPAdr, ManIPAdr string) error {
 	_, err := c.GetNode(nodeName)
 	if err == nil {
 		err = errors.Errorf("duplicate key found: %s", nodeName)
+		c.report = append(c.report, err.Error())
 		return err
 	}
 	c.nMap[nodeName] = n
@@ -155,7 +157,7 @@ func NewCache(logger logging.Logger) (n *Cache) {
 		make(map[string]*Node),
 		make(map[string]*Node),
 		make(map[string]*Node),
-		make(map[string][]string),
+		make([]string, 0),
 		logger}
 }
 
@@ -257,7 +259,6 @@ func (c *Cache) GetAllNodes() []*Node {
 //PopulateNodeMaps populates two of the node maps: the ip and mac address map
 //It also checks to make sure that there are no duplicate addresses within the map.
 func (c *Cache) PopulateNodeMaps(node *Node) {
-
 	loopIF, err := c.getNodeLoopIFInfo(node)
 	if err != nil {
 		c.logger.Error(err)
@@ -266,6 +267,7 @@ func (c *Cache) PopulateNodeMaps(node *Node) {
 		if ip, ok := c.loopIPMap[loopIF.IPAddresses[i]]; !ok && ip != nil {
 			//TODO: Report an error back to the controller; store it somewhere, report it at the end of the function
 			c.logger.Errorf("Duplicate IP found: %s", ip)
+			c.report = append(c.report, errors.Errorf("Duplicate IP found: %s", ip).Error())
 		} else {
 			for i := range loopIF.IPAddresses {
 				c.loopIPMap[loopIF.IPAddresses[i]] = node
@@ -274,6 +276,7 @@ func (c *Cache) PopulateNodeMaps(node *Node) {
 	}
 	if mac, ok := c.loopMACMap[loopIF.PhysAddress]; !ok && mac != nil {
 		c.logger.Errorf("Duplicate MAC address found: %s", mac)
+		c.report = append(c.report, errors.Errorf("Duplicate MAC address found: %s", mac).Error())
 	} else {
 		c.loopMACMap[loopIF.PhysAddress] = node
 	}
@@ -287,6 +290,7 @@ func (c *Cache) getNodeLoopIFInfo(node *Node) (NodeInterface, error) {
 		}
 	}
 	err := errors.Errorf("Node %s does not have a loop interface")
+	c.report = append(c.report, err.Error())
 	return NodeInterface{}, err
 }
 
@@ -304,6 +308,8 @@ func (c *Cache) ValidateLoopIFAddresses() {
 		if err != nil {
 			c.logger.Error(err)
 			c.logger.Errorf("Cannot process node ARP Table because loop interface info is missing.")
+			c.report = append(c.report, err.Error())
+			c.report = append(c.report, errors.Errorf("Cannot process node ARP Table because loop interface info is missing.").Error())
 			continue
 		}
 		for _, arp := range node.NodeIPArp {
@@ -314,6 +320,7 @@ func (c *Cache) ValidateLoopIFAddresses() {
 			nLoopIFTwo, ok := node.NodeInterfaces[int(arp.Interface)]
 			if !ok {
 				c.logger.Errorf("Loop Interface in ARP Table not found: %d", arp.Interface)
+				c.report = append(c.report, errors.Errorf("Loop Interface in ARP Table not found: %d", arp.Interface).Error())
 			}
 			if nLoopIF.VppInternalName != nLoopIFTwo.VppInternalName {
 				continue
@@ -322,12 +329,16 @@ func (c *Cache) ValidateLoopIFAddresses() {
 			addressNotFound := false
 			if !ok {
 				c.logger.Errorf("Node for MAC Address %s not found", arp.MacAddress)
+				c.report = append(c.report, errors.Errorf("Node for MAC Address %s not found", arp.MacAddress).Error())
 				addressNotFound = true
 			}
 			ipNode, ok := c.loopIPMap[arp.IPAddress+"/24"]
 
 			if !ok {
 				c.logger.Errorf("Node %s could not find Node with IP Address %s", node.Name, arp.IPAddress)
+				c.report = append(c.report, errors.Errorf("Node %s could not find Node with IP Address %s",
+					node.Name,
+					arp.IPAddress).Error())
 				addressNotFound = true
 			}
 			if addressNotFound {
@@ -336,6 +347,8 @@ func (c *Cache) ValidateLoopIFAddresses() {
 			if macNode.Name != ipNode.Name {
 				c.logger.Errorf("MAC and IP point to different nodes: %s and %s in ARP Table %+v",
 					macNode.Name, ipNode.Name, arp)
+				c.report = append(c.report, errors.Errorf("MAC and IP point to different nodes: %s and %s in ARP Table %+v",
+					macNode.Name, ipNode.Name, arp).Error())
 
 			}
 			delete(nodemap, node.Name)
@@ -344,10 +357,12 @@ func (c *Cache) ValidateLoopIFAddresses() {
 	}
 	if len(nodemap) == 0 {
 		c.logger.Info("Validation of Node Data successful.")
+		c.report = append(c.report, "Validation of Node IP Arp Table successful.")
 	}
 	if len(nodemap) > 0 {
 		for node := range nodemap {
 			c.logger.Errorf("No MAC entry found for %+v", node)
+			c.report = append(c.report, errors.Errorf("No MAC entry found for %+v", node).Error())
 			delete(nodemap, node)
 		}
 	}

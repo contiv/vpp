@@ -38,12 +38,12 @@ type Node struct {
 
 //Cache holds various maps which all take different keys but point to the same underlying value.
 type Cache struct {
-	nMap        map[string]*Node
-	loopIPMap   map[string]*Node
-	gigEIPMap   map[string]*Node
-	loopMACMap  map[string]*Node
-	errorReport map[string][]string
-	logger      logging.Logger
+	nMap       map[string]*Node
+	loopIPMap  map[string]*Node
+	gigEIPMap  map[string]*Node
+	loopMACMap map[string]*Node
+	report     []string
+	logger     logging.Logger
 }
 
 //NodeLiveness holds the unmarshalled node liveness JSON data

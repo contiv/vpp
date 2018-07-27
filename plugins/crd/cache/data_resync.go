@@ -87,14 +87,15 @@ func (ctc *ContivTelemetryCache) parseAndCacheNodeInfoData(key string, evData da
 		return fmt.Errorf("could not parse node info data for key %s, error %s", key, err)
 	}
 
-	ctc.Log.Infof("*** parseAndCacheNodeInfoData: key %s, value %+v", nodeIDParts[1], nodeInfoValue)
-	// TODO: Register nodeInfoValue in cache.
+	ctc.Log.Infof("parseAndCacheNodeInfoData: key %s, value %+v", nodeIDParts[1], nodeInfoValue)
 	err = ctc.AddNode(nodeInfoValue.Id, nodeInfoValue.Name, nodeInfoValue.IpAddress, nodeInfoValue.ManagementIpAddress)
 	if err != nil {
 		ctc.Log.Error(err)
 	}
 	newNode := ctc.LookupNode([]string{nodeInfoValue.Name})
+
 	go ctc.Processor.CollectNodeInfo(newNode[0])
+
 	return nil
 }
 
@@ -110,7 +111,7 @@ func (ctc *ContivTelemetryCache) parseAndCachePodData(key string, evData datasyn
 		return fmt.Errorf("could not parse node info data for key %s, error %s", key, err)
 	}
 
-	ctc.Log.Infof("*** parseAndCachePodData: pod %s, namespace %s, value %+v", pod, namespace, podValue)
+	ctc.Log.Infof("parseAndCachePodData: pod %s, namespace %s, value %+v", pod, namespace, podValue)
 	// TODO: Register podValue in cache.
 	return nil
 }
@@ -127,7 +128,7 @@ func (ctc *ContivTelemetryCache) parseAndCacheNodeData(key string, evData datasy
 		return fmt.Errorf("could not parse node info data for key %s, error %s", key, err)
 	}
 
-	ctc.Log.Infof("*** parseAndCacheNodeData: node %s, value %+v", node, nodeValue)
+	ctc.Log.Infof("parseAndCacheNodeData: node %s, value %+v", node, nodeValue)
 	// TODO: Register nodeValue in cache.
 	return nil
 }

@@ -210,18 +210,23 @@ func (p *Plugin) handleResync(resyncChan chan resync.StatusEvent) {
 				if p.pendingResync != nil {
 					p.Log.WithField("config", p.pendingResync).Info("Applying delayed RESYNC config")
 					err = p.cache.Resync(p.pendingResync)
+					if err != nil {
+						p.Log.Error(err)
+						// TODO: fatal error: we need to either restart ourselves or keep resyncing until we succeed
+					}
 					for i := 0; err == nil && i < len(p.pendingChanges); i++ {
 						dataChngEv := p.pendingChanges[i]
 						p.Log.WithField("config", dataChngEv).Info("Applying delayed data-change")
 						err = p.cache.Update(dataChngEv)
+						if err != nil {
+							p.Log.Error(err)
+							// TODO: fatal error: we need to either restart ourselves or keep resyncing until we succeed
+						}
 					}
 					p.pendingResync = nil
 					p.pendingChanges = []datasync.ChangeEvent{}
 				}
 				p.resyncLock.Unlock()
-			}
-			if err != nil {
-				p.Log.Error(err)
 			}
 			ev.Ack()
 		case <-p.ctx.Done():

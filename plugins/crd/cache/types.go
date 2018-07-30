@@ -14,7 +14,10 @@
 
 package cache
 
-import "github.com/ligato/cn-infra/logging"
+import (
+	"github.com/ligato/cn-infra/logging"
+	"github.com/ligato/vpp-agent/plugins/vpp/model/interfaces"
+)
 
 // here goes different cache types
 //Update this whenever a new DTO type is added.
@@ -36,7 +39,7 @@ type Node struct {
 	NodeIPArp         []NodeIPArp
 }
 
-//Cache holds various maps which all take different keys but point to the same underlying value.
+//ContivTelemetryCache holds various maps which all take different keys but point to the same underlying value.
 type Cache struct {
 	nMap       map[string]*Node
 	loopIPMap  map[string]*Node
@@ -106,15 +109,15 @@ type NodeL2FibsDTO struct {
 
 //NodeInterface holds unmarshalled Interface JSON data
 type NodeInterface struct {
-	VppInternalName string   `json:"vpp_internal_name"`
-	Name            string   `json:"name"`
-	IfType          uint32   `json:"type,omitempty"`
-	Enabled         bool     `json:"enabled,omitempty"`
-	PhysAddress     string   `json:"phys_address,omitempty"`
-	Mtu             uint32   `json:"mtu,omitempty"`
-	Vxlan           vxlan    `json:"vxlan,omitempty"`
-	IPAddresses     []string `json:"ip_addresses,omitempty"`
-	Tap             tap      `json:"tap,omitempty"`
+	VppInternalName string                   `json:"vpp_internal_name"`
+	Name            string                   `json:"name"`
+	IfType          interfaces.InterfaceType `json:"type,omitempty"`
+	Enabled         bool                     `json:"enabled,omitempty"`
+	PhysAddress     string                   `json:"phys_address,omitempty"`
+	Mtu             uint32                   `json:"mtu,omitempty"`
+	Vxlan           vxlan                    `json:"vxlan,omitempty"`
+	IPAddresses     []string                 `json:"ip_addresses,omitempty"`
+	Tap             tap                      `json:"tap,omitempty"`
 }
 
 //NodeInterfacesDTO associates a map of Node interfaces with a node name to be sent over a channel for processing

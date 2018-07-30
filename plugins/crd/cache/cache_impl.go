@@ -19,12 +19,13 @@ import (
 	nodemodel "github.com/contiv/vpp/plugins/ksr/model/node"
 	"github.com/ligato/cn-infra/datasync"
 	"github.com/ligato/cn-infra/logging"
+	"github.com/ligato/vpp-agent/plugins/vpp/model/interfaces"
 	"github.com/pkg/errors"
 	"sort"
-	"strings"
 )
+
 const subnetmask = "/24"
-const vxlan_tunnel = "vxlan_tunnel"
+const vppVNI = 10
 
 // ContivTelemetryCache is used for a in-memory storage of K8s State data
 // The cache processes K8s State data updates and RESYNC events through Update()
@@ -49,7 +50,7 @@ func (ctc *ContivTelemetryCache) Init() error {
 	// todo - here initialize your maps
 	ctc.Cache = NewCache(ctc.Log)
 	ctc.k8sNodeMap = make(map[string]*nodemodel.Node)
-	ctc.Log.Infof("Cache has been initialized")
+	ctc.Log.Infof("ContivTelemetryCache has been initialized")
 	return nil
 }
 
@@ -118,7 +119,7 @@ func (ctc *ContivTelemetryCache) AddNode(ID uint32, nodeName, IPAdr, ManIPAdr st
 	}
 	ctc.Cache.nMap[nodeName] = n
 	ctc.Cache.gigEIPMap[IPAdr] = n
-	ctc.Log.Debugf("Success adding node %+v to ctc.Cache %+v", nodeName, ctc.Cache)
+	ctc.Log.Debugf("Success adding node %+v to ctc.ContivTelemetryCache %+v", nodeName, ctc.Cache)
 	return nil
 }
 
@@ -133,14 +134,13 @@ func (c *Cache) AddNode(ID uint32, nodeName, IPAdr, ManIPAdr string) error {
 	}
 	c.nMap[nodeName] = n
 	c.gigEIPMap[IPAdr] = n
-	c.logger.Debugf("Success adding node %+v to ctc.Cache %+v", nodeName, c)
+	c.logger.Debugf("Success adding node %+v to ctc.ContivTelemetryCache %+v", nodeName, c)
 	return nil
 }
 
 //ClearCache with delete all the values in each of the individual cache maps.
 func (ctc *ContivTelemetryCache) ClearCache() {
 	for _, node := range ctc.Cache.nMap {
-		delete(ctc.Cache.nMap, node.Name)
 		delete(ctc.Cache.gigEIPMap, node.IPAdr)
 		for _, intf := range node.NodeInterfaces {
 			if intf.VppInternalName == "loop0" {
@@ -267,21 +267,33 @@ func (c *Cache) PopulateNodeMaps(node *Node) {
 		c.logger.Error(err)
 	}
 	for i := range loopIF.IPAddresses {
-		if ip, ok := c.loopIPMap[loopIF.IPAddresses[i]]; !ok && ip != nil {
-			//TODO: Report an error back to the controller; store it somewhere, report it at the end of the function
-			c.logger.Errorf("Duplicate IP found: %s", ip)
-			c.report = append(c.report, errors.Errorf("Duplicate IP found: %s", ip).Error())
+		if loopIF.IPAddresses[i] == "" {
+			c.report = append(c.report, "Detected an empty IP address for node %+v", node.Name)
 		} else {
-			for i := range loopIF.IPAddresses {
-				c.loopIPMap[loopIF.IPAddresses[i]] = node
+
+			if ip, ok := c.loopIPMap[loopIF.IPAddresses[i]]; ok {
+				//TODO: Report an error back to the controller; store it somewhere, report it at the end of the function
+				c.logger.Errorf("Duplicate IP found: %s", ip)
+				c.report = append(c.report, errors.Errorf("Duplicate IP found: %s", ip).Error())
+			} else {
+				for i := range loopIF.IPAddresses {
+					c.loopIPMap[loopIF.IPAddresses[i]] = node
+				}
+
 			}
 		}
 	}
-	if mac, ok := c.loopMACMap[loopIF.PhysAddress]; !ok && mac != nil {
-		c.logger.Errorf("Duplicate MAC address found: %s", mac)
-		c.report = append(c.report, errors.Errorf("Duplicate MAC address found: %s", mac).Error())
+	if loopIF.PhysAddress ==""{
+		c.report = append(c.report, "Detected empty MAC address for node %+v",node.Name)
 	} else {
-		c.loopMACMap[loopIF.PhysAddress] = node
+		if mac, ok := c.loopMACMap[loopIF.PhysAddress]; ok {
+			c.logger.Errorf("Duplicate MAC address found: %s", mac)
+			c.report = append(c.report, errors.Errorf("Duplicate MAC address found: %s", mac).Error())
+		} else {
+			c.loopMACMap[loopIF.PhysAddress] = node
+		}
+		c.nMap[node.Name] = node
+		c.gigEIPMap[node.IPAdr] = node
 	}
 }
 
@@ -372,16 +384,20 @@ func (c *Cache) ValidateLoopIFAddresses() {
 
 }
 
+//ValidateL2Connections makes sure that each node in the cache has the right amount of vxlan_tunnels for the number of
+//nodes as well as checking that each vxlan_tunnel points to a node that has a corresponding but opposite tunnel itself.
 func (c *Cache) ValidateL2Connections() {
 	nodelist := c.GetAllNodes()
 	nodemap := make(map[string]bool)
 	for key := range c.nMap {
 		nodemap[key] = true
 	}
+	//For each node in the cache
 	for _, node := range nodelist {
 		bdhasLoopIF := false
 		hasVXLanBD := false
 		var vxLanBD NodeBridgeDomains
+		//Make sure there is a bridge domain with the name vxlanBD
 		for _, bdomain := range node.NodeBridgeDomains {
 			if bdomain.Name == "vxlanBD" {
 				vxLanBD = bdomain
@@ -389,33 +405,50 @@ func (c *Cache) ValidateL2Connections() {
 				break
 			}
 		}
+		//if there is not then report an error and move on.
 		if !hasVXLanBD {
 			c.report = append(c.report, errors.Errorf("Node %+v does not have a vxlan BD", node.Name).Error())
 			continue
 		}
+		//Create a list with each of the indices of the xvlanBD.
 		bDomainidxs := make([]uint32, 0)
 		for _, intf := range vxLanBD.Interfaces {
 			bDomainidxs = append(bDomainidxs, intf.SwIfIndex)
 		}
+
 		i := 0
+		//for each index in the vxlanBD
 		for _, intfidx := range bDomainidxs {
-			if node.NodeInterfaces[int(intfidx)].VppInternalName == "loop0" {
+			//check if one of the indices point to the loop interface
+			//if it does, increment a counter and set a boolean to true
+			if node.NodeInterfaces[int(intfidx)].IfType == interfaces.InterfaceType_SOFTWARE_LOOPBACK {
 				bdhasLoopIF = true
 				i++
+				continue
 			}
-			if str := node.NodeInterfaces[int(intfidx)].VppInternalName; strings.Contains(str, vxlan_tunnel) {
+			//check if one of the indices points to a vxlan_tunnel interface
+			if node.NodeInterfaces[int(intfidx)].IfType == interfaces.InterfaceType_VXLAN_TUNNEL {
+				if node.NodeInterfaces[int(intfidx)].Vxlan.Vni != vppVNI {
+					c.report = append(c.report, errors.Errorf("unexpected VNI: got %+v expected %+v",
+						node.NodeInterfaces[int(intfidx)].Vxlan.Vni,vppVNI).Error())
+					continue
+
+				}
 				vxlantun := node.NodeInterfaces[int(intfidx)]
-				srcipNode,ok := c.gigEIPMap[vxlantun.Vxlan.SrcAddress+subnetmask]
-				if !ok{
+				srcipNode, ok := c.gigEIPMap[vxlantun.Vxlan.SrcAddress+subnetmask]
+				//try to find node with src ip address of the tunnel and make sure it is the same as the current node.
+				if !ok {
 					c.report = append(c.report, errors.Errorf("Error finding node with src IP %+v",
 						vxlantun.Vxlan.SrcAddress).Error())
 					continue
 				}
 				if srcipNode.Name != node.Name {
-					c.report = append(c.report, errors.Errorf("vxlan_tunnel %+v has source ip %v which points "+
+					c.report = append(c.report, errors.Errorf("vxljan_tunnel %+v has source ip %v which points "+
 						"to different node than %+v.", vxlantun, vxlantun.Vxlan.SrcAddress, node.Name).Error())
 					continue
 				}
+				//try to find node with dst ip address in tunnel and validate it has a vxlan_tunnel that is the opposite
+				//of the current vxlan_tunnel and increment the counter if it does.
 				dstipNode, ok := c.gigEIPMap[vxlantun.Vxlan.DstAddress+subnetmask]
 				if !ok {
 					c.report = append(c.report, errors.Errorf("Node with dst ip %+v in vxlan_tunnel %+v not found",
@@ -423,7 +456,7 @@ func (c *Cache) ValidateL2Connections() {
 					continue
 				}
 				matchingTunnelFound := false
-				for _, dstIntf := range dstipNode.NodeInterfaces  {
+				for _, dstIntf := range dstipNode.NodeInterfaces {
 					if dstIntf.IfType == vxlantun.IfType {
 						if dstIntf.Vxlan.DstAddress == vxlantun.Vxlan.SrcAddress {
 							matchingTunnelFound = true
@@ -438,20 +471,22 @@ func (c *Cache) ValidateL2Connections() {
 				i++
 			}
 		}
+		//checks if there are an unequal amount vxlan tunnels for the current node versus the total number of nodes
 		if i != len(nodelist) {
-			c.report = append(c.report, errors.Errorf("number of vxlan tunnels for node %+v does " +
-				"not match number of nodes on network\n",node.Name).Error())
+			c.report = append(c.report, errors.Errorf("number of vxlan tunnels for node %+v does "+
+				"not match number of nodes on network\n", node.Name).Error())
 		}
 
 		if !bdhasLoopIF {
 			c.report = append(c.report, errors.Errorf("bridge domain %+v has no loop interface",
 				node.NodeBridgeDomains).Error())
+			continue
 		}
-		delete(nodemap,node.Name)
+		delete(nodemap, node.Name)
 	}
-
+	//make sure that each node has been successfully validated
 	if len(nodemap) > 0 {
-		for node := range nodemap  {
+		for node := range nodemap {
 			c.report = append(c.report, errors.Errorf("error validating info for node %+v\n", node).Error())
 		}
 	} else {

@@ -264,13 +264,13 @@ func TestNodesDB_ValidateLoopIFAddresses(t *testing.T) {
 	db.SetNodeInterfaces("k8s_master", nodeinterfaces)
 	node, ok = db.GetNode("k8s_master")
 	db.loopMACMap[node.NodeInterfaces[3].PhysAddress] = node
-	db.loopIPMap[node.NodeInterfaces[3].IPAddresses[0]+"/24"] = node
+	db.loopIPMap[node.NodeInterfaces[3].IPAddresses[0]+subnetmask] = node
 
 	db.SetNodeIPARPs("k8s-worker1", nodeiparps2)
 	db.SetNodeInterfaces("k8s-worker1", nodeinterfaces2)
 	node, ok = db.GetNode("k8s-worker1")
 	db.loopMACMap[node.NodeInterfaces[3].PhysAddress] = node
-	db.loopIPMap[node.NodeInterfaces[3].IPAddresses[0]+"/24"] = node
+	db.loopIPMap[node.NodeInterfaces[3].IPAddresses[0]+subnetmask] = node
 
 	db.ValidateLoopIFAddresses()
 
@@ -278,4 +278,67 @@ func TestNodesDB_ValidateLoopIFAddresses(t *testing.T) {
 	fmt.Println("Expecting errors for node not in ARP table...")
 	db.ValidateLoopIFAddresses()
 
+}
+
+func TestCache_ValidateL2Connections(t *testing.T) {
+	gomega.RegisterTestingT(t)
+	logger := logrus.DefaultLogger()
+	db := NewCache(logger)
+	db.AddNode(1, "k8s_master", "10", "10")
+	node, ok := db.GetNode("k8s_master")
+	gomega.Expect(ok).To(gomega.BeNil())
+	gomega.Expect(node.IPAdr).To(gomega.Equal("10"))
+	gomega.Expect(node.Name).To(gomega.Equal("k8s_master"))
+	gomega.Expect(node.ID).To(gomega.Equal(uint32(1)))
+	gomega.Expect(node.ManIPAdr).To(gomega.Equal("10"))
+	nodeinterface1 := NodeInterface{
+		"loop0",
+		"loop0",
+		3,
+		true,
+		"11",
+		1,
+		vxlan{"", "", 1},
+		[]string{"11"},
+		tap{}}
+	nodeinterfaces := map[int]NodeInterface{}
+	nodeinterfaces[3] = nodeinterface1
+
+	nodeiparp1 := NodeIPArp{3, "10", "10", true}
+	nodeiparps1 := make([]NodeIPArp, 0)
+	nodeiparps1 = append(nodeiparps1, nodeiparp1)
+
+	nodeinterface2 := NodeInterface{
+		"loop0",
+		"loop0",
+		3,
+		true,
+		"10",
+		1,
+		vxlan{"", "", 1},
+		[]string{"10"},
+		tap{}}
+	nodeinterfaces2 := map[int]NodeInterface{}
+	nodeinterfaces2[3] = nodeinterface2
+
+	nodeiparp2 := NodeIPArp{3, "11", "11", true}
+	nodeiparps2 := make([]NodeIPArp, 0)
+	nodeiparps2 = append(nodeiparps2, nodeiparp2)
+
+	db.AddNode(2, "k8s-worker1", "11", "11")
+
+	db.SetNodeIPARPs("k8s_master", nodeiparps1)
+	node, _ = db.GetNode("k8s_master")
+	db.SetNodeInterfaces("k8s_master", nodeinterfaces)
+	node, ok = db.GetNode("k8s_master")
+	db.loopMACMap[node.NodeInterfaces[3].PhysAddress] = node
+	db.loopIPMap[node.NodeInterfaces[3].IPAddresses[0]+subnetmask] = node
+
+	db.SetNodeIPARPs("k8s-worker1", nodeiparps2)
+	db.SetNodeInterfaces("k8s-worker1", nodeinterfaces2)
+	node, ok = db.GetNode("k8s-worker1")
+	db.loopMACMap[node.NodeInterfaces[3].PhysAddress] = node
+	db.loopIPMap[node.NodeInterfaces[3].IPAddresses[0]+subnetmask] = node
+
+	db.ValidateL2Connections()
 }

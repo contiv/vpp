@@ -40,9 +40,9 @@ const (
 // ContivTelemetryProcessor defines the processor's data structures and dependencies
 type ContivTelemetryProcessor struct {
 	Deps
-	nodeResponseChannel chan interface{}
-	Cache               *Cache
-	dtoMap              []interface{}
+	nodeResponseChannel  chan interface{}
+	ContivTelemetryCache *ContivTelemetryCache
+	dtoMap               []interface{}
 }
 
 // Init initializes the processor
@@ -66,17 +66,17 @@ func (p *ContivTelemetryProcessor) CollectNodeInfo(node *Node) {
 // validation are reported to the CRD.
 func (p *ContivTelemetryProcessor) ValidateNodeInfo() {
 
-	nodelist := p.Cache.GetAllNodes()
+	nodelist := p.ContivTelemetryCache.Cache.GetAllNodes()
 	for _, node := range nodelist {
-		p.Cache.PopulateNodeMaps(node)
+		p.ContivTelemetryCache.Cache.PopulateNodeMaps(node)
 	}
 	p.Log.Info("Beginning validation of Node Data")
 
-	p.Cache.ValidateLoopIFAddresses()
+	p.ContivTelemetryCache.Cache.ValidateLoopIFAddresses()
 
-	p.Cache.ValidateL2Connections()
+	p.ContivTelemetryCache.Cache.ValidateL2Connections()
 
-	p.Log.Info(p.Cache.report)
+	p.Log.Info(p.ContivTelemetryCache.Cache.report)
 
 }
 
@@ -108,8 +108,9 @@ func (p *ContivTelemetryProcessor) collectAgentInfo(node *Node) {
 func (p *ContivTelemetryProcessor) retrieveNetworkInfoOnTimerExpiry() {
 	ticker := time.NewTicker(1 * time.Minute)
 	for range ticker.C {
-		nodelist := p.Cache.GetAllNodes()
+		nodelist := p.ContivTelemetryCache.Cache.GetAllNodes()
 		p.Log.Info("Timer has expired; Beginning gathering of information.")
+		p.ContivTelemetryCache.Cache.report = p.ContivTelemetryCache.Cache.report[0:0]
 		for _, node := range nodelist {
 			p.CollectNodeInfo(node)
 		}

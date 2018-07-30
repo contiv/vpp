@@ -39,7 +39,7 @@ type Node struct {
 	NodeIPArp         []NodeIPArp
 }
 
-//ContivTelemetryCache holds various maps which all take different keys but point to the same underlying value.
+//Cache holds various maps which all take different keys but point to the same underlying value.
 type Cache struct {
 	nMap       map[string]*Node
 	loopIPMap  map[string]*Node

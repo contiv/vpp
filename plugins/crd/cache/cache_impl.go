@@ -283,8 +283,8 @@ func (c *Cache) PopulateNodeMaps(node *Node) {
 			}
 		}
 	}
-	if loopIF.PhysAddress ==""{
-		c.report = append(c.report, "Detected empty MAC address for node %+v",node.Name)
+	if loopIF.PhysAddress == "" {
+		c.report = append(c.report, "Detected empty MAC address for node %+v", node.Name)
 	} else {
 		if mac, ok := c.loopMACMap[loopIF.PhysAddress]; ok {
 			c.logger.Errorf("Duplicate MAC address found: %s", mac)
@@ -430,7 +430,7 @@ func (c *Cache) ValidateL2Connections() {
 			if node.NodeInterfaces[int(intfidx)].IfType == interfaces.InterfaceType_VXLAN_TUNNEL {
 				if node.NodeInterfaces[int(intfidx)].Vxlan.Vni != vppVNI {
 					c.report = append(c.report, errors.Errorf("unexpected VNI: got %+v expected %+v",
-						node.NodeInterfaces[int(intfidx)].Vxlan.Vni,vppVNI).Error())
+						node.NodeInterfaces[int(intfidx)].Vxlan.Vni, vppVNI).Error())
 					continue
 
 				}

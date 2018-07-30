@@ -30,6 +30,10 @@ cd vpp
 cd ../dev
 ./build.sh ${TAG}
 
+# build vpp-binaries image
+cd ../vpp-binaries
+./build.sh ${TAG}
+
 # build production images
 cd ../prod
 ./build.sh ${TAG}

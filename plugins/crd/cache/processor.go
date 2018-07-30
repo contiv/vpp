@@ -74,6 +74,10 @@ func (p *ContivTelemetryProcessor) ValidateNodeInfo() {
 
 	p.Cache.ValidateLoopIFAddresses()
 
+	p.Cache.ValidateL2Connections()
+
+	p.Log.Info(p.Cache.report)
+
 }
 
 //Gathers a number of data points for every node in the Node List

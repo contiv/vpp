@@ -21,7 +21,10 @@ import (
 	"github.com/ligato/cn-infra/logging"
 	"github.com/pkg/errors"
 	"sort"
+	"strings"
 )
+const subnetmask = "/24"
+const vxlan_tunnel = "vxlan_tunnel"
 
 // ContivTelemetryCache is used for a in-memory storage of K8s State data
 // The cache processes K8s State data updates and RESYNC events through Update()
@@ -365,6 +368,94 @@ func (c *Cache) ValidateLoopIFAddresses() {
 			c.report = append(c.report, errors.Errorf("No MAC entry found for %+v", node).Error())
 			delete(nodemap, node)
 		}
+	}
+
+}
+
+func (c *Cache) ValidateL2Connections() {
+	nodelist := c.GetAllNodes()
+	nodemap := make(map[string]bool)
+	for key := range c.nMap {
+		nodemap[key] = true
+	}
+	for _, node := range nodelist {
+		bdhasLoopIF := false
+		hasVXLanBD := false
+		var vxLanBD NodeBridgeDomains
+		for _, bdomain := range node.NodeBridgeDomains {
+			if bdomain.Name == "vxlanBD" {
+				vxLanBD = bdomain
+				hasVXLanBD = true
+				break
+			}
+		}
+		if !hasVXLanBD {
+			c.report = append(c.report, errors.Errorf("Node %+v does not have a vxlan BD", node.Name).Error())
+			continue
+		}
+		bDomainidxs := make([]uint32, 0)
+		for _, intf := range vxLanBD.Interfaces {
+			bDomainidxs = append(bDomainidxs, intf.SwIfIndex)
+		}
+		i := 0
+		for _, intfidx := range bDomainidxs {
+			if node.NodeInterfaces[int(intfidx)].VppInternalName == "loop0" {
+				bdhasLoopIF = true
+				i++
+			}
+			if str := node.NodeInterfaces[int(intfidx)].VppInternalName; strings.Contains(str, vxlan_tunnel) {
+				vxlantun := node.NodeInterfaces[int(intfidx)]
+				srcipNode,ok := c.gigEIPMap[vxlantun.Vxlan.SrcAddress+subnetmask]
+				if !ok{
+					c.report = append(c.report, errors.Errorf("Error finding node with src IP %+v",
+						vxlantun.Vxlan.SrcAddress).Error())
+					continue
+				}
+				if srcipNode.Name != node.Name {
+					c.report = append(c.report, errors.Errorf("vxlan_tunnel %+v has source ip %v which points "+
+						"to different node than %+v.", vxlantun, vxlantun.Vxlan.SrcAddress, node.Name).Error())
+					continue
+				}
+				dstipNode, ok := c.gigEIPMap[vxlantun.Vxlan.DstAddress+subnetmask]
+				if !ok {
+					c.report = append(c.report, errors.Errorf("Node with dst ip %+v in vxlan_tunnel %+v not found",
+						vxlantun.Vxlan.DstAddress, vxlantun).Error())
+					continue
+				}
+				matchingTunnelFound := false
+				for _, dstIntf := range dstipNode.NodeInterfaces  {
+					if dstIntf.IfType == vxlantun.IfType {
+						if dstIntf.Vxlan.DstAddress == vxlantun.Vxlan.SrcAddress {
+							matchingTunnelFound = true
+						}
+					}
+				}
+				if !matchingTunnelFound {
+					c.report = append(c.report, errors.Errorf("no matching vxlan_tunnel found for vxlan %+v",
+						vxlantun).Error())
+					continue
+				}
+				i++
+			}
+		}
+		if i != len(nodelist) {
+			c.report = append(c.report, errors.Errorf("number of vxlan tunnels for node %+v does " +
+				"not match number of nodes on network\n",node.Name).Error())
+		}
+
+		if !bdhasLoopIF {
+			c.report = append(c.report, errors.Errorf("bridge domain %+v has no loop interface",
+				node.NodeBridgeDomains).Error())
+		}
+		delete(nodemap,node.Name)
+	}
+
+	if len(nodemap) > 0 {
+		for node := range nodemap  {
+			c.report = append(c.report, errors.Errorf("error validating info for node %+v\n", node).Error())
+		}
+	} else {
+		c.report = append(c.report, "Success validating L2 connections")
 	}
 
 }

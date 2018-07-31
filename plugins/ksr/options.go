@@ -46,8 +46,7 @@ func NewPlugin(opts ...Option) *Plugin {
 	p.PluginName = "ksr"
 	p.ServiceLabel = &servicelabel.DefaultPlugin
 	p.StatusMonitor = &statuscheck.DefaultPlugin
-	p.StatsCollector.Prometheus = &prometheus.DefaultPlugin
-
+	p.Prometheus = &prometheus.DefaultPlugin
 	for _, o := range opts {
 		o(p)
 	}
@@ -57,7 +56,7 @@ func NewPlugin(opts ...Option) *Plugin {
 	}
 	if p.Deps.KubeConfig == nil {
 		p.Deps.KubeConfig = config.ForPlugin(p.String(), func(flags *config.FlagSet) {
-			flags.String(ConfigFlagName, KubeConfigAdmin, KubeConfigUsage)
+			flags.String(ConfigFlagName, "", KubeConfigUsage)
 		})
 	}
 

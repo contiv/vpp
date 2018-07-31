@@ -204,7 +204,7 @@ func (p *Plugin) Put(key string, data proto.Message, opts ...datasync.PutOption)
 	defer p.Unlock()
 
 	p.Log.Debugf("Statistic data with key %v received", key)
-	if strings.HasPrefix(key, interfaces.InterfaceStateKeyPrefix()) {
+	if strings.HasPrefix(key, interfaces.Prefix) {
 		var (
 			entry *stats
 			found bool

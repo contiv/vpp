@@ -147,7 +147,7 @@ func (art *RendererTxn) Commit() error {
 		keyList := art.renderer.LatestRevs.ListKeys()
 		keys := map[string]struct{}{}
 		for _, key := range keyList {
-			if strings.HasPrefix(key, vpp_acl.KeyPrefix()) {
+			if strings.HasPrefix(key, vpp_acl.Prefix) {
 				keys[key] = struct{}{}
 			}
 		}

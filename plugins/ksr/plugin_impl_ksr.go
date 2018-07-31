@@ -39,6 +39,7 @@ import (
 	"github.com/ligato/cn-infra/health/statuscheck/model/status"
 	"github.com/ligato/cn-infra/infra"
 	"github.com/ligato/cn-infra/logging"
+	"github.com/ligato/cn-infra/rpc/prometheus"
 	"github.com/ligato/cn-infra/servicelabel"
 	"github.com/ligato/cn-infra/utils/safeclose"
 )
@@ -91,6 +92,8 @@ type Deps struct {
 	// broker is used to propagate changes into a key-value datastore.
 	// contiv-ksr uses ETCD as datastore.
 	Publish *kvdbsync.Plugin
+	// Prometheus used to publish statistics
+	Prometheus *prometheus.Plugin
 }
 
 // Reflector object types
@@ -200,6 +203,7 @@ func (plugin *Plugin) Init() error {
 
 	plugin.StatsCollector.Log = plugin.Log.NewLogger("-metrics")
 	plugin.StatsCollector.serviceLabel = plugin.Publish.ServiceLabel.GetAgentLabel()
+	plugin.StatsCollector.Prometheus = plugin.Prometheus
 	err = plugin.StatsCollector.Init()
 	if err != nil {
 		plugin.Log.WithField("rwErr", err).Error("Failed to initialize Stats Collector")

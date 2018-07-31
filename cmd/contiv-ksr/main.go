@@ -53,6 +53,8 @@ func main() {
 		deps.ResyncOrch = &resync.DefaultPlugin
 	}))
 
+	ksr.DefaultPlugin.Publish = etcdDataSync
+
 	contivKSR := &ContivKSR{
 		ServiceLabel: &servicelabel.DefaultPlugin,
 		HealthProbe:  &probe.DefaultPlugin,

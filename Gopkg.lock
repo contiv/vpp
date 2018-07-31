@@ -56,10 +56,7 @@
 
 [[projects]]
   name = "github.com/Shopify/sarama"
-  packages = [
-    ".",
-    "mocks"
-  ]
+  packages = ["."]
   revision = "3b1b38866a79f06deddf0487d5c27ba0697ccd65"
   version = "v1.15.0"
 
@@ -132,12 +129,6 @@
   packages = ["."]
   revision = "2ee87856327ba09384cabd113bc6b5d174e9ec0f"
   version = "v3.5.1"
-
-[[projects]]
-  name = "github.com/bsm/sarama-cluster"
-  packages = ["."]
-  revision = "3001c2453136632aa3219a58ea3795bb584b83b5"
-  version = "v2.1.12"
 
 [[projects]]
   name = "github.com/containernetworking/cni"
@@ -418,30 +409,6 @@
   revision = "84f4bee7c0a6db40e3166044c7983c1c32125429"
 
 [[projects]]
-  name = "github.com/go-redis/redis"
-  packages = [
-    ".",
-    "internal",
-    "internal/consistenthash",
-    "internal/hashtag",
-    "internal/pool",
-    "internal/proto"
-  ]
-  revision = "8b4fa6d443e35ca8b1c37be877285252430b06a3"
-  version = "v6.8.3"
-
-[[projects]]
-  branch = "master"
-  name = "github.com/gocql/gocql"
-  packages = [
-    ".",
-    "internal/lru",
-    "internal/murmur",
-    "internal/streams"
-  ]
-  revision = "1303a32993a1242a6fb58dc497a3b8a54ffd257d"
-
-[[projects]]
   name = "github.com/godbus/dbus"
   packages = ["."]
   revision = "a389bdde4dd695d414e47b755e95e72b7826432c"
@@ -590,27 +557,9 @@
 
 [[projects]]
   branch = "master"
-  name = "github.com/hailocab/go-hostpool"
-  packages = ["."]
-  revision = "e80d13ce29ede4452c43dea11e79b9bc8a15b478"
-
-[[projects]]
-  name = "github.com/hashicorp/consul"
-  packages = ["api"]
-  revision = "5174058f0d2bda63fa5198ab96c33d9a909c58ed"
-  version = "v1.1.0"
-
-[[projects]]
-  branch = "master"
   name = "github.com/hashicorp/go-cleanhttp"
   packages = ["."]
   revision = "d5fe4b57a186c716b0e00b8c301cbd9b4182694d"
-
-[[projects]]
-  branch = "master"
-  name = "github.com/hashicorp/go-rootcerts"
-  packages = ["."]
-  revision = "6bb64b370b90e7ef1fa532be9e591a81c3493e00"
 
 [[projects]]
   branch = "master"
@@ -620,18 +569,6 @@
     "simplelru"
   ]
   revision = "0fb14efe8c47ae851c0034ed7a448854d3d34cf3"
-
-[[projects]]
-  name = "github.com/hashicorp/serf"
-  packages = ["coordinate"]
-  revision = "d6574a5bb1226678d7010325fb6c985db20ee458"
-  version = "v0.8.1"
-
-[[projects]]
-  branch = "master"
-  name = "github.com/howeyc/crc16"
-  packages = ["."]
-  revision = "2b2a61e366a66d3efb279e46176e7291001e0354"
 
 [[projects]]
   branch = "master"
@@ -679,67 +616,44 @@
   revision = "0826b98aaa29c0766956cb40d45cf7482a597671"
 
 [[projects]]
-  branch = "master"
-  name = "github.com/kr/pretty"
-  packages = ["."]
-  revision = "cfb55aafdaf3ec08f0db22699ab822c50091b1c4"
-
-[[projects]]
   name = "github.com/kr/pty"
   packages = ["."]
   revision = "282ce0e5322c82529687d609ee670fac7c7d917c"
   version = "v1.1.1"
 
 [[projects]]
-  branch = "master"
-  name = "github.com/kr/text"
-  packages = ["."]
-  revision = "7cafcd837844e784b526369c9bce262804aebc60"
-
-[[projects]]
   name = "github.com/ligato/cn-infra"
   packages = [
+    "agent",
     "config",
-    "core",
     "datasync",
     "datasync/kvdbsync",
     "datasync/kvdbsync/local",
     "datasync/resync",
     "datasync/syncbase",
     "db/keyval",
-    "db/keyval/consul",
     "db/keyval/etcd",
     "db/keyval/kvproto",
-    "db/keyval/redis",
-    "db/sql",
-    "db/sql/cassandra",
-    "flavors/connectors",
-    "flavors/local",
-    "flavors/rpc",
     "health/probe",
     "health/statuscheck",
     "health/statuscheck/model/status",
     "idxmap",
     "idxmap/mem",
+    "infra",
     "logging",
     "logging/logmanager",
     "logging/logrus",
     "logging/measure",
     "messaging",
-    "messaging/kafka",
-    "messaging/kafka/client",
-    "messaging/kafka/mux",
     "rpc/grpc",
     "rpc/prometheus",
     "rpc/rest",
     "servicelabel",
     "utils/addrs",
-    "utils/clienttls",
-    "utils/safeclose",
-    "utils/structs"
+    "utils/once",
+    "utils/safeclose"
   ]
-  revision = "99b1f3ef1874097c64653096589cd5c166e37d81"
-  version = "v1.4.0"
+  revision = "52432e9cff91cd15e5cd0001be7e1034253adf0a"
 
 [[projects]]
   name = "github.com/ligato/vpp-agent"
@@ -765,12 +679,12 @@
     "plugins/linux/model/l3",
     "plugins/linux/nsplugin",
     "plugins/rest",
+    "plugins/rest/resturl",
     "plugins/telemetry",
     "plugins/vpp",
     "plugins/vpp/aclplugin",
     "plugins/vpp/aclplugin/aclidx",
     "plugins/vpp/aclplugin/vppcalls",
-    "plugins/vpp/aclplugin/vppdump",
     "plugins/vpp/binapi/acl",
     "plugins/vpp/binapi/af_packet",
     "plugins/vpp/binapi/bfd",
@@ -792,18 +706,15 @@
     "plugins/vpp/ifplugin",
     "plugins/vpp/ifplugin/ifaceidx",
     "plugins/vpp/ifplugin/vppcalls",
-    "plugins/vpp/ifplugin/vppdump",
     "plugins/vpp/ipsecplugin",
     "plugins/vpp/ipsecplugin/ipsecidx",
     "plugins/vpp/ipsecplugin/vppcalls",
     "plugins/vpp/l2plugin",
     "plugins/vpp/l2plugin/l2idx",
     "plugins/vpp/l2plugin/vppcalls",
-    "plugins/vpp/l2plugin/vppdump",
     "plugins/vpp/l3plugin",
     "plugins/vpp/l3plugin/l3idx",
     "plugins/vpp/l3plugin/vppcalls",
-    "plugins/vpp/l3plugin/vppdump",
     "plugins/vpp/l4plugin",
     "plugins/vpp/l4plugin/nsidx",
     "plugins/vpp/l4plugin/vppcalls",
@@ -823,7 +734,8 @@
     "plugins/vpp/srplugin/cache",
     "plugins/vpp/srplugin/vppcalls"
   ]
-  revision = "06c81a53a091037b91e646000b390db559bc52ca"
+  revision = "f2456ef605aeb206278ea2152eec048563a4ad1a"
+  source = "github.com/ondrej-fabry/vpp-agent"
 
 [[projects]]
   branch = "master"
@@ -842,12 +754,6 @@
   revision = "32fa128f234d041f196a9f3e0fea5ac9772c08e1"
 
 [[projects]]
-  branch = "master"
-  name = "github.com/maraino/go-mock"
-  packages = ["."]
-  revision = "c0658195ada54274d527cb1b09ff1d31765509d6"
-
-[[projects]]
   name = "github.com/matttproud/golang_protobuf_extensions"
   packages = ["pbutil"]
   revision = "3247c84500bff8d9fb6d579d800f20b3e091582c"
@@ -858,12 +764,6 @@
   packages = ["."]
   revision = "cdc0f941c4d0e0e94d85348285568d921891e138"
   version = "v2.1.1"
-
-[[projects]]
-  branch = "master"
-  name = "github.com/mitchellh/go-homedir"
-  packages = ["."]
-  revision = "3864e76763d94a6df2f9960b16a20a33da9f9a66"
 
 [[projects]]
   branch = "master"
@@ -1125,12 +1025,6 @@
   name = "github.com/wadey/gocovmerge"
   packages = ["."]
   revision = "b5bfa59ec0adc420475f97f89b58045c721d761c"
-
-[[projects]]
-  branch = "master"
-  name = "github.com/willfaught/gockle"
-  packages = ["."]
-  revision = "4f254e1e0f0a12485963192ff605f61f1933e71f"
 
 [[projects]]
   branch = "master"
@@ -1679,6 +1573,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "7b3ed19c794139838366c4396c17782edfac2063aed3e4588585395c206fca45"
+  inputs-digest = "df0b94db813e828504273e56cb980bcf3d47091bbab38004776cb6725d59c4e0"
   solver-name = "gps-cdcl"
   solver-version = 1

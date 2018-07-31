@@ -173,6 +173,7 @@ func main() {
 	}))
 
 	servicePlugin := service.NewPlugin(service.UseDeps(func(deps *service.Deps) {
+		deps.ServiceLabel = &servicelabel.DefaultPlugin
 		deps.Resync = &resync.DefaultPlugin
 		deps.Watcher = serviceDataSync
 		deps.Contiv = contivPlugin

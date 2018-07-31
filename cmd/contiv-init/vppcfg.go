@@ -120,6 +120,12 @@ func configureVpp(contivCfg *contiv.Config, stnData *stn.STNReply, useDHCP bool)
 		return nil, err
 	}
 
+	routeHandler, err := l3_vppcalls.NewRouteVppHandler(ch, nil, logger, nil)
+	if err != nil {
+		logger.Errorf("Unable to create routeHandler", err)
+		return nil, err
+	}
+
 	cfg := &vppCfgCtx{}
 
 	// determine hardware NIC interface index
@@ -227,7 +233,7 @@ func configureVpp(contivCfg *contiv.Config, stnData *stn.STNReply, useDHCP bool)
 				OutIface:    cfg.mainIfIdx,
 			}
 			logger.Debug("Configuring static route: ", sRoute)
-			err = l3_vppcalls.VppAddRoute(sRoute, ch, nil)
+			err = routeHandler.VppAddRoute(ifVppHandler, sRoute)
 			if err != nil {
 				logger.Errorf("Error by configuring route: %v", err)
 				return nil, err

@@ -26,7 +26,7 @@ data:
     UseTAPInterfaces: true
     TAPInterfaceVersion: 2
     NatExternalTraffic: true
-    MTUSize: 1500
+    MTUSize: 1450
     CleanupIdleNATSessions: True
     TCPNATSessionTimeout: 180
     OtherNATSessionTimeout: 5

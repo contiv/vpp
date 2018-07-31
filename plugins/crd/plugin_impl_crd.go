@@ -131,6 +131,7 @@ func (p *Plugin) Init() error {
 	}
 	p.processor.Init()
 	p.cache.Processor = p.processor
+
 	go p.watchEvents()
 	err = p.subscribeWatcher()
 	if err != nil {

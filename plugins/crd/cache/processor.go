@@ -37,6 +37,8 @@ type ContivTelemetryProcessor struct {
 	Deps
 	nodeResponseChannel chan interface{}
 	Cache               *Cache
+	ticker				*time.Ticker
+	collectionInterval	time.Duration
 	dtoMap              []interface{}
 	agentPort           string
 }
@@ -46,6 +48,8 @@ func (p *ContivTelemetryProcessor) Init() error {
 	p.nodeResponseChannel = make(chan interface{})
 	p.dtoMap = make([]interface{}, 0)
 	p.agentPort = agentPort
+	p.collectionInterval = 1 * time.Minute
+	p.ticker = time.NewTicker(p.collectionInterval)
 	go p.ProcessNodeResponses()
 	go p.retrieveNetworkInfoOnTimerExpiry()
 	return nil
@@ -99,14 +103,12 @@ func (p *ContivTelemetryProcessor) collectAgentInfo(node *Node) {
 }
 
 func (p *ContivTelemetryProcessor) retrieveNetworkInfoOnTimerExpiry() {
-	ticker := time.NewTicker(1 * time.Minute)
-	for range ticker.C {
+	for range p.ticker.C {
 		nodelist := p.Cache.GetAllNodes()
 		p.Log.Info("Timer has expired; Beginning gathering of information.")
 		for _, node := range nodelist {
 			p.CollectNodeInfo(node)
 		}
-
 	}
 }
 

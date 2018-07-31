@@ -15,24 +15,31 @@
 package cache
 
 import (
+	"encoding/json"
 	"github.com/ligato/cn-infra/logging/logrus"
 	"github.com/onsi/gomega"
-		"io/ioutil"
+	"io/ioutil"
 	"net/http"
 	"testing"
-	"encoding/json"
-	)
+	"time"
+)
+
+const (
+	testAgentPort = ":8080"
+)
 
 type processorTestVars struct {
-	srv      *http.Server
-	log      *logrus.Logger
-	nodeInfo *NodeLiveness
+	srv       *http.Server
+	log       *logrus.Logger
+	processor *ContivTelemetryProcessor
+	nodeInfo  *NodeLiveness
+	client    *http.Client
 }
 
 var ptv processorTestVars
 
 func (ptv *processorTestVars) startMockHTTPServer() {
-	ptv.srv = &http.Server{Addr: ":8080"}
+	ptv.srv = &http.Server{Addr: testAgentPort}
 
 	go func() {
 		if err := ptv.srv.ListenAndServe(); err != nil {
@@ -44,12 +51,15 @@ func (ptv *processorTestVars) startMockHTTPServer() {
 
 }
 
-func registerHandlers() {
+func registerHTTPHandlers() {
 	// Register handler for getting NodeInfo data
 	http.HandleFunc(livenessURL, func(w http.ResponseWriter, r *http.Request) {
 		data, err := json.Marshal(ptv.nodeInfo)
 		if err != nil {
 			ptv.log.Error("Error marshalling NodeInfo data, err: ", err)
+			w.WriteHeader(500)
+			w.Header().Set("Content-Type", "application/json")
+			return
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.Write(data)
@@ -62,43 +72,54 @@ func (ptv *processorTestVars) shutdownMockHTTPServer() {
 	}
 }
 
-func TestProcessor(t *testing.T) {
-	gomega.RegisterTestingT(t)
-	// Initialize log
-	ptv.log = logrus.DefaultLogger()
-
-	// Start the mock HTTP Server
-	ptv.startMockHTTPServer()
-	registerHandlers()
-
-	// Do testing
-	t.Run("mockClient", testMockClient)
-
-	// Shutdown the mock HTTP server
-	ptv.shutdownMockHTTPServer()
+func (ptv *processorTestVars) initTestData() {
+	// Initialize NodeLiveness response
+	ptv.nodeInfo = &NodeLiveness{
+		BuildVersion: "v1.2-alpha-179-g4e2d712",
+		BuildDate:    "2018-07-19T09:54+00:00",
+		State:        1,
+		StartTime:    1532891958,
+		LastChange:   1532891971,
+		LastUpdate:   1532997235,
+		CommitHash:   "v1.2-alpha-179-g4e2d712",
+	}
 }
 
-func testMockClient(t *testing.T) {
-	client := http.Client{
+func TestProcessor(t *testing.T) {
+	gomega.RegisterTestingT(t)
+
+	// Initialize & start mock objects
+	ptv.log = logrus.DefaultLogger()
+	ptv.startMockHTTPServer()
+	registerHTTPHandlers()
+	ptv.initTestData()
+
+	ptv.client = &http.Client{
 		Transport:     nil,
 		CheckRedirect: nil,
 		Jar:           nil,
 		Timeout:       timeout,
 	}
 
-	// Create NodeLiveness response
-	ptv.nodeInfo = &NodeLiveness{
-		BuildVersion: "v1.1",
-		BuildDate:    "2019-07-30",
-		State:        1,
-		StartTime:    1,
-		LastChange:   10,
-		LastUpdate:   10,
-		CommitHash:   "1234567890",
-	}
+	ptv.processor = &ContivTelemetryProcessor{}
+	ptv.processor.Deps.Log = ptv.log
+	ptv.processor.Cache = NewCache(ptv.log)
+	ptv.processor.Init()
+	ptv.processor.ticker.Stop() // Do not periodically poll agents - we will run updates manually from tests
+	ptv.processor.agentPort = testAgentPort
+	ptv.processor.Cache.AddNode(1, "k8s-master", "10.20.0.2", "localhost")
 
+	// Do testing
+	t.Run("mockClient", testMockClient)
+	t.Run("getLivenessInfo", testGetLivenessInfo)
+
+	// Shutdown the mock HTTP server
+	ptv.shutdownMockHTTPServer()
+}
+
+func testMockClient(t *testing.T) {
 	// Get response from the server
-	res, err := client.Get("http://" + "localhost" + ":8080" + livenessURL)
+	res, err := ptv.client.Get("http://" + "localhost" + testAgentPort + livenessURL)
 	if err != nil {
 		ptv.log.Error("Error receiving nodeInfo, err: ", err)
 		return
@@ -112,8 +133,8 @@ func testMockClient(t *testing.T) {
 	ptv.log.Info("Received nodeInfo: ", nodeInfo)
 
 	// Modify response
-	ptv.nodeInfo.BuildVersion = "v1.2"
-	res, err = client.Get("http://" + "localhost" + ":8080" + livenessURL)
+	ptv.nodeInfo.BuildVersion = "v1.55"
+	res, err = ptv.client.Get("http://" + "localhost" + testAgentPort + livenessURL)
 	if err != nil {
 		ptv.log.Error("Error receiving nodeInfo, err: ", err)
 		return
@@ -125,4 +146,13 @@ func testMockClient(t *testing.T) {
 	json.Unmarshal(b, nodeInfo1)
 	// Received data should be the same as the modified data
 	ptv.log.Info("Received nodeInfo: ", nodeInfo1)
+}
+
+func testGetLivenessInfo(t *testing.T) {
+	node, err := ptv.processor.Cache.GetNode("k8s-master")
+	gomega.Expect(err).To(gomega.BeNil())
+
+	ptv.processor.getLivenessInfo(*ptv.client, node)
+	time.Sleep(1 * time.Microsecond)
+	ptv.log.Info("DTO Map:", ptv.processor.dtoMap)
 }

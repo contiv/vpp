@@ -494,3 +494,63 @@ func (c *Cache) ValidateL2Connections() {
 	}
 
 }
+
+func (c *Cache)ValidateFibEntries(){
+	nodelist := c.GetAllNodes()
+	nodemap := make(map[string]bool)
+	for key := range c.nMap {
+		nodemap[key] = true
+	}
+
+	for _,node := range nodelist  {
+		fibhasLoopIF := false
+		if len(node.NodeL2Fibs) != len(nodelist) {
+			c.report = c.report //error not right amount of entries
+			continue
+		}
+		loopIf,err := c.getNodeLoopIFInfo(node)
+		if err!=nil {
+			c.report = append(c.report, err.Error())
+		}
+		fibcount:= 0
+		for _, fib := range node.NodeL2Fibs  {
+			if fib.PhysAddress == loopIf.PhysAddress {
+				fibhasLoopIF = true
+				fibcount++
+				continue
+			}
+				intf := node.NodeInterfaces[int(fib.OutgoingInterfaceSwIfIdx)]
+				macnode := c.gigEIPMap[intf.Vxlan.DstAddress+subnetmask]
+				remoteloopif,err := c.getNodeLoopIFInfo(macnode)
+				if err != nil{
+					c.report = append(c.report, )//err no loop interface for the node
+					continue
+				}
+				if remoteloopif.PhysAddress == fib.PhysAddress {
+					fibcount++
+					continue
+				} else {
+					c.report = append(c.report,errors.Errorf("Fib MAC %+v is different than actual MAC " +
+						"%+v",fib.PhysAddress,remoteloopif.PhysAddress).Error() )
+				}
+			}
+
+			if !fibhasLoopIF{
+				c.report = append(c.report, ) //error fib for loop if missing
+				continue
+			}
+			delete(nodemap,node.Name)
+		}
+
+		if len(nodemap) > 0{
+			for node := range nodemap  {
+				c.report = append(c.report, errors.Errorf("Error processing fib for node %+v",node).Error())
+			}
+
+		} else {
+			c.report = append(c.report, "Success validating Fib entries")
+		}
+
+
+	}
+

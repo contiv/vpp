@@ -76,6 +76,8 @@ func (p *ContivTelemetryProcessor) ValidateNodeInfo() {
 
 	p.ContivTelemetryCache.Cache.ValidateL2Connections()
 
+	p.ContivTelemetryCache.Cache.ValidateFibEntries()
+
 	p.Log.Info(p.ContivTelemetryCache.Cache.report)
 
 }

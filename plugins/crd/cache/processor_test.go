@@ -15,6 +15,7 @@
 package cache
 
 import (
+	"context"
 	"encoding/json"
 	"github.com/ligato/cn-infra/logging/logrus"
 	"github.com/onsi/gomega"
@@ -22,7 +23,6 @@ import (
 	"net/http"
 	"testing"
 	"time"
-	"context"
 )
 
 const (

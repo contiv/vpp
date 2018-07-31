@@ -124,7 +124,7 @@ over the plugins node database channel to node_db_processor.go where it will be 
 processed, and added to the node database.
 */
 func (p *ContivTelemetryProcessor) getLivenessInfo(client http.Client, node *Node) {
-	res, err := client.Get(p.getAgentUrl(node.ManIPAdr, livenessURL))
+	res, err := client.Get(p.getAgentURL(node.ManIPAdr, livenessURL))
 	if err != nil {
 		p.Log.Error(err)
 		p.nodeResponseChannel <- NodeLivenessDTO{node.Name, nil, err}
@@ -139,7 +139,7 @@ func (p *ContivTelemetryProcessor) getLivenessInfo(client http.Client, node *Nod
 }
 
 func (p *ContivTelemetryProcessor) getInterfaceInfo(client http.Client, node *Node) {
-	res, err := client.Get(p.getAgentUrl(node.ManIPAdr, interfaceURL))
+	res, err := client.Get(p.getAgentURL(node.ManIPAdr, interfaceURL))
 	if err != nil {
 		p.Log.Error(err)
 		p.nodeResponseChannel <- NodeInterfacesDTO{node.Name, nil, err}
@@ -154,7 +154,7 @@ func (p *ContivTelemetryProcessor) getInterfaceInfo(client http.Client, node *No
 	p.nodeResponseChannel <- NodeInterfacesDTO{node.Name, nodeInterfaces, nil}
 }
 func (p *ContivTelemetryProcessor) getBridgeDomainInfo(client http.Client, node *Node) {
-	res, err := client.Get(p.getAgentUrl(node.ManIPAdr, bridgeDomainURL))
+	res, err := client.Get(p.getAgentURL(node.ManIPAdr, bridgeDomainURL))
 	if err != nil {
 		p.Log.Error(err)
 		p.nodeResponseChannel <- NodeBridgeDomainsDTO{node.Name, nil, err}
@@ -169,7 +169,7 @@ func (p *ContivTelemetryProcessor) getBridgeDomainInfo(client http.Client, node 
 }
 
 func (p *ContivTelemetryProcessor) getL2FibInfo(client http.Client, node *Node) {
-	res, err := client.Get(p.getAgentUrl(node.ManIPAdr, l2FibsURL))
+	res, err := client.Get(p.getAgentURL(node.ManIPAdr, l2FibsURL))
 	if err != nil {
 		p.Log.Error(err)
 		p.nodeResponseChannel <- NodeL2FibsDTO{node.Name, nil, err}
@@ -183,7 +183,7 @@ func (p *ContivTelemetryProcessor) getL2FibInfo(client http.Client, node *Node) 
 }
 
 func (p *ContivTelemetryProcessor) getTelemetryInfo(client http.Client, node *Node) {
-	res, err := client.Get(p.getAgentUrl(node.ManIPAdr, telemetryURL))
+	res, err := client.Get(p.getAgentURL(node.ManIPAdr, telemetryURL))
 	if err != nil {
 		p.Log.Error(err)
 		p.nodeResponseChannel <- NodeTelemetryDTO{node.Name, nil, err}
@@ -197,7 +197,7 @@ func (p *ContivTelemetryProcessor) getTelemetryInfo(client http.Client, node *No
 }
 
 func (p *ContivTelemetryProcessor) getIPArpInfo(client http.Client, node *Node) {
-	res, err := client.Get(p.getAgentUrl(node.ManIPAdr, arpURL))
+	res, err := client.Get(p.getAgentURL(node.ManIPAdr, arpURL))
 	if err != nil {
 		p.Log.Error(err)
 		p.nodeResponseChannel <- NodeIPArpDTO{[]NodeIPArp{}, node.Name, err}
@@ -211,7 +211,7 @@ func (p *ContivTelemetryProcessor) getIPArpInfo(client http.Client, node *Node) 
 	p.nodeResponseChannel <- NodeIPArpDTO{nodeiparpslice, node.Name, nil}
 }
 
-// getAgentUrl creates the URL for the data we're trying to retrieve
-func (p *ContivTelemetryProcessor) getAgentUrl(ipAddr string, url string) string {
+// getAgentURL creates the URL for the data we're trying to retrieve
+func (p *ContivTelemetryProcessor) getAgentURL(ipAddr string, url string) string {
 	return "http://" + ipAddr + p.agentPort + url
 }

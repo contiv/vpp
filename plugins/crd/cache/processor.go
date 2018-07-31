@@ -16,6 +16,7 @@ package cache
 
 import (
 	"encoding/json"
+	"github.com/pkg/errors"
 	"io/ioutil"
 	"net/http"
 	"time"
@@ -78,7 +79,9 @@ func (p *ContivTelemetryProcessor) ValidateNodeInfo() {
 
 	p.ContivTelemetryCache.Cache.ValidateFibEntries()
 
-	p.Log.Info(p.ContivTelemetryCache.Cache.report)
+	for _, entry := range p.ContivTelemetryCache.Cache.report {
+		p.Log.Info(entry)
+	}
 
 }
 
@@ -134,6 +137,9 @@ func (p *ContivTelemetryProcessor) getLivenessInfo(client http.Client, node *Nod
 		p.Log.Error(err)
 		p.nodeResponseChannel <- NodeLivenessDTO{node.Name, nil, err}
 		return
+	} else if res.StatusCode < 200 || res.StatusCode > 299 {
+		err := errors.Errorf("HTTP response is: %+v", res.Status)
+		p.nodeResponseChannel <- NodeLivenessDTO{node.Name, nil, err}
 	}
 	b, _ := ioutil.ReadAll(res.Body)
 	b = []byte(b)
@@ -150,6 +156,9 @@ func (p *ContivTelemetryProcessor) getInterfaceInfo(client http.Client, node *No
 		p.nodeResponseChannel <- NodeInterfacesDTO{node.Name, nil, err}
 		p.nodeResponseChannel <- node.Name
 		return
+	} else if res.StatusCode < 200 || res.StatusCode > 299 {
+		err := errors.Errorf("HTTP response is: %+v", res.Status)
+		p.nodeResponseChannel <- NodeInterfacesDTO{node.Name, nil, err}
 	}
 	b, _ := ioutil.ReadAll(res.Body)
 	b = []byte(b)
@@ -164,6 +173,9 @@ func (p *ContivTelemetryProcessor) getBridgeDomainInfo(client http.Client, node 
 		p.Log.Error(err)
 		p.nodeResponseChannel <- NodeBridgeDomainsDTO{node.Name, nil, err}
 		return
+	} else if res.StatusCode < 200 || res.StatusCode > 299 {
+		err := errors.Errorf("HTTP response is: %+v", res.Status)
+		p.nodeResponseChannel <- NodeBridgeDomainsDTO{node.Name, nil, err}
 	}
 	b, _ := ioutil.ReadAll(res.Body)
 	b = []byte(b)
@@ -179,6 +191,9 @@ func (p *ContivTelemetryProcessor) getL2FibInfo(client http.Client, node *Node) 
 		p.Log.Error(err)
 		p.nodeResponseChannel <- NodeL2FibsDTO{node.Name, nil, err}
 		return
+	} else if res.StatusCode < 200 || res.StatusCode > 299 {
+		err := errors.Errorf("HTTP response is: %+v", res.Status)
+		p.nodeResponseChannel <- NodeL2FibsDTO{node.Name, nil, err}
 	}
 	b, _ := ioutil.ReadAll(res.Body)
 	b = []byte(b)
@@ -193,6 +208,9 @@ func (p *ContivTelemetryProcessor) getTelemetryInfo(client http.Client, node *No
 		p.Log.Error(err)
 		p.nodeResponseChannel <- NodeTelemetryDTO{node.Name, nil, err}
 		return
+	} else if res.StatusCode < 200 || res.StatusCode > 299 {
+		err := errors.Errorf("HTTP response is: %+v", res.Status)
+		p.nodeResponseChannel <- NodeTelemetryDTO{node.Name, nil, err}
 	}
 	b, _ := ioutil.ReadAll(res.Body)
 	b = []byte(b)
@@ -207,6 +225,9 @@ func (p *ContivTelemetryProcessor) getIPArpInfo(client http.Client, node *Node) 
 		p.Log.Error(err)
 		p.nodeResponseChannel <- NodeIPArpDTO{[]NodeIPArp{}, node.Name, err}
 		return
+	} else if res.StatusCode < 200 || res.StatusCode > 299 {
+		err := errors.Errorf("HTTP response is: %+v", res.Status)
+		p.nodeResponseChannel <- NodeIPArpDTO{nil, node.Name, err}
 	}
 	b, _ := ioutil.ReadAll(res.Body)
 

@@ -37,6 +37,7 @@ type Node struct {
 	NodeL2Fibs        map[string]NodeL2Fib
 	NodeTelemetry     map[string]NodeTelemetry
 	NodeIPArp         []NodeIPArp
+	report            []string
 }
 
 //Cache holds various maps which all take different keys but point to the same underlying value.
@@ -46,7 +47,8 @@ type Cache struct {
 	gigEIPMap  map[string]*Node
 	loopMACMap map[string]*Node
 	report     []string
-	logger     logging.Logger
+
+	logger logging.Logger
 }
 
 //NodeLiveness holds the unmarshalled node liveness JSON data

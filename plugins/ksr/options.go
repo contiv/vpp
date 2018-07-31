@@ -21,6 +21,7 @@ import (
 	"github.com/ligato/cn-infra/rpc/prometheus"
 	"github.com/ligato/cn-infra/servicelabel"
 	"github.com/namsral/flag"
+	"os"
 )
 
 const (
@@ -56,7 +57,7 @@ func NewPlugin(opts ...Option) *Plugin {
 	}
 	if p.Deps.KubeConfig == nil {
 		p.Deps.KubeConfig = config.ForPlugin(p.String(), func(flags *config.FlagSet) {
-			flags.String(ConfigFlagName, "", KubeConfigUsage)
+			flags.String(ConfigFlagName, KubeConfigAdmin, KubeConfigUsage)
 		})
 	}
 
@@ -76,7 +77,11 @@ func UseDeps(cb func(*Deps)) Option {
 func getKubeConfig() string {
 	f := flag.Lookup(ConfigFlagName)
 	if f != nil {
-		return f.Value.String()
+		val := f.Value.String()
+		if _, err := os.Stat(val); !os.IsNotExist(err) {
+			return val
+		}
+
 	}
 	return ""
 }

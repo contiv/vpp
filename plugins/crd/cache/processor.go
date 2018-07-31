@@ -22,19 +22,14 @@ import (
 )
 
 const (
-	livenessPort      = ":9999"
-	livenessURL       = "/liveness"
-	timeout           = 100000000000
-	interfacePort     = ":9999"
-	interfaceURL      = "/interfaces"
-	bridgeDomainsPort = ":9999"
-	bridgeDomainURL   = "/bridgedomains"
-	l2FibsPort        = ":9999"
-	l2FibsURL         = "/l2fibs"
-	telemetryPort     = ":9999"
-	telemetryURL      = "/telemetry"
-	arpPort           = ":9999"
-	arpURL            = "/arps"
+	agentPort       = ":9999"
+	livenessURL     = "/liveness"
+	timeout         = 100000000000
+	interfaceURL    = "/interfaces"
+	bridgeDomainURL = "/bridgedomains"
+	l2FibsURL       = "/l2fibs"
+	telemetryURL    = "/telemetry"
+	arpURL          = "/arps"
 )
 
 // ContivTelemetryProcessor defines the processor's data structures and dependencies
@@ -42,13 +37,22 @@ type ContivTelemetryProcessor struct {
 	Deps
 	nodeResponseChannel chan interface{}
 	Cache               *Cache
-	dtoMap              []interface{}
+	ticker              *time.Ticker
+	collectionInterval  time.Duration
+	dtoList             []interface{}
+	agentPort           string
 }
 
-// Init initializes the processor
+// Init initializes the processor.
 func (p *ContivTelemetryProcessor) Init() error {
+	// initialize structures, dependencies and attributes
 	p.nodeResponseChannel = make(chan interface{})
-	p.dtoMap = make([]interface{}, 0)
+	p.dtoList = make([]interface{}, 0)
+	p.agentPort = agentPort
+	p.collectionInterval = 1 * time.Minute
+	p.ticker = time.NewTicker(p.collectionInterval)
+
+	// Start goroutines
 	go p.ProcessNodeResponses()
 	go p.retrieveNetworkInfoOnTimerExpiry()
 	return nil
@@ -102,14 +106,12 @@ func (p *ContivTelemetryProcessor) collectAgentInfo(node *Node) {
 }
 
 func (p *ContivTelemetryProcessor) retrieveNetworkInfoOnTimerExpiry() {
-	ticker := time.NewTicker(1 * time.Minute)
-	for range ticker.C {
+	for range p.ticker.C {
 		nodelist := p.Cache.GetAllNodes()
 		p.Log.Info("Timer has expired; Beginning gathering of information.")
 		for _, node := range nodelist {
 			p.CollectNodeInfo(node)
 		}
-
 	}
 }
 
@@ -122,7 +124,7 @@ over the plugins node database channel to node_db_processor.go where it will be 
 processed, and added to the node database.
 */
 func (p *ContivTelemetryProcessor) getLivenessInfo(client http.Client, node *Node) {
-	res, err := client.Get("http://" + node.ManIPAdr + livenessPort + livenessURL)
+	res, err := client.Get(p.getAgentURL(node.ManIPAdr, livenessURL))
 	if err != nil {
 		p.Log.Error(err)
 		p.nodeResponseChannel <- NodeLivenessDTO{node.Name, nil, err}
@@ -137,7 +139,7 @@ func (p *ContivTelemetryProcessor) getLivenessInfo(client http.Client, node *Nod
 }
 
 func (p *ContivTelemetryProcessor) getInterfaceInfo(client http.Client, node *Node) {
-	res, err := client.Get("http://" + node.ManIPAdr + interfacePort + interfaceURL)
+	res, err := client.Get(p.getAgentURL(node.ManIPAdr, interfaceURL))
 	if err != nil {
 		p.Log.Error(err)
 		p.nodeResponseChannel <- NodeInterfacesDTO{node.Name, nil, err}
@@ -152,7 +154,7 @@ func (p *ContivTelemetryProcessor) getInterfaceInfo(client http.Client, node *No
 	p.nodeResponseChannel <- NodeInterfacesDTO{node.Name, nodeInterfaces, nil}
 }
 func (p *ContivTelemetryProcessor) getBridgeDomainInfo(client http.Client, node *Node) {
-	res, err := client.Get("http://" + node.ManIPAdr + bridgeDomainsPort + bridgeDomainURL)
+	res, err := client.Get(p.getAgentURL(node.ManIPAdr, bridgeDomainURL))
 	if err != nil {
 		p.Log.Error(err)
 		p.nodeResponseChannel <- NodeBridgeDomainsDTO{node.Name, nil, err}
@@ -167,7 +169,7 @@ func (p *ContivTelemetryProcessor) getBridgeDomainInfo(client http.Client, node 
 }
 
 func (p *ContivTelemetryProcessor) getL2FibInfo(client http.Client, node *Node) {
-	res, err := client.Get("http://" + node.ManIPAdr + l2FibsPort + l2FibsURL)
+	res, err := client.Get(p.getAgentURL(node.ManIPAdr, l2FibsURL))
 	if err != nil {
 		p.Log.Error(err)
 		p.nodeResponseChannel <- NodeL2FibsDTO{node.Name, nil, err}
@@ -181,7 +183,7 @@ func (p *ContivTelemetryProcessor) getL2FibInfo(client http.Client, node *Node) 
 }
 
 func (p *ContivTelemetryProcessor) getTelemetryInfo(client http.Client, node *Node) {
-	res, err := client.Get("http://" + node.ManIPAdr + telemetryPort + telemetryURL)
+	res, err := client.Get(p.getAgentURL(node.ManIPAdr, telemetryURL))
 	if err != nil {
 		p.Log.Error(err)
 		p.nodeResponseChannel <- NodeTelemetryDTO{node.Name, nil, err}
@@ -195,7 +197,7 @@ func (p *ContivTelemetryProcessor) getTelemetryInfo(client http.Client, node *No
 }
 
 func (p *ContivTelemetryProcessor) getIPArpInfo(client http.Client, node *Node) {
-	res, err := client.Get("http://" + node.ManIPAdr + arpPort + arpURL)
+	res, err := client.Get(p.getAgentURL(node.ManIPAdr, arpURL))
 	if err != nil {
 		p.Log.Error(err)
 		p.nodeResponseChannel <- NodeIPArpDTO{[]NodeIPArp{}, node.Name, err}
@@ -207,4 +209,9 @@ func (p *ContivTelemetryProcessor) getIPArpInfo(client http.Client, node *Node) 
 	nodeiparpslice := make([]NodeIPArp, 0)
 	json.Unmarshal(b, &nodeiparpslice)
 	p.nodeResponseChannel <- NodeIPArpDTO{nodeiparpslice, node.Name, nil}
+}
+
+// getAgentURL creates the URL for the data we're trying to retrieve
+func (p *ContivTelemetryProcessor) getAgentURL(ipAddr string, url string) string {
+	return "http://" + ipAddr + p.agentPort + url
 }

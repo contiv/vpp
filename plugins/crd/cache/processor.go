@@ -37,19 +37,22 @@ type ContivTelemetryProcessor struct {
 	Deps
 	nodeResponseChannel chan interface{}
 	Cache               *Cache
-	ticker				*time.Ticker
-	collectionInterval	time.Duration
-	dtoMap              []interface{}
+	ticker              *time.Ticker
+	collectionInterval  time.Duration
+	dtoList             []interface{}
 	agentPort           string
 }
 
-// Init initializes the processor
+// Init initializes the processor.
 func (p *ContivTelemetryProcessor) Init() error {
+	// initialize structures, dependencies and attributes
 	p.nodeResponseChannel = make(chan interface{})
-	p.dtoMap = make([]interface{}, 0)
+	p.dtoList = make([]interface{}, 0)
 	p.agentPort = agentPort
 	p.collectionInterval = 1 * time.Minute
 	p.ticker = time.NewTicker(p.collectionInterval)
+
+	// Start goroutines
 	go p.ProcessNodeResponses()
 	go p.retrieveNetworkInfoOnTimerExpiry()
 	return nil

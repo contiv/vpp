@@ -22,6 +22,7 @@ import (
 	"net/http"
 	"testing"
 	"time"
+	"context"
 )
 
 const (
@@ -31,9 +32,14 @@ const (
 type processorTestVars struct {
 	srv       *http.Server
 	log       *logrus.Logger
-	processor *ContivTelemetryProcessor
-	nodeInfo  *NodeLiveness
 	client    *http.Client
+	processor *ContivTelemetryProcessor
+
+	// Mock data
+	nodeInfo          *NodeLiveness
+	nodeInterfaces    map[int]NodeInterface
+	nodeBridgeDomains map[int]NodeBridgeDomains
+	nodel2fibs        map[string]NodeL2Fib
 }
 
 var ptv processorTestVars
@@ -64,10 +70,24 @@ func registerHTTPHandlers() {
 		w.Header().Set("Content-Type", "application/json")
 		w.Write(data)
 	})
+
+	// Register handler for getting interface data
+	http.HandleFunc(interfaceURL, func(w http.ResponseWriter, r *http.Request) {
+		data, err := json.Marshal(ptv.nodeInterfaces)
+		if err != nil {
+			ptv.log.Error("Error marshalling nodeInterfaces, err: ", err)
+			w.WriteHeader(500)
+			w.Header().Set("Content-Type", "application/json")
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Write(data)
+	})
+
 }
 
 func (ptv *processorTestVars) shutdownMockHTTPServer() {
-	if err := ptv.srv.Shutdown(nil); err != nil {
+	if err := ptv.srv.Shutdown(context.TODO()); err != nil {
 		panic(err)
 	}
 }
@@ -82,6 +102,73 @@ func (ptv *processorTestVars) initTestData() {
 		LastChange:   1532891971,
 		LastUpdate:   1532997235,
 		CommitHash:   "v1.2-alpha-179-g4e2d712",
+	}
+
+	// Initilize interfaces data
+	ptv.nodeInterfaces = map[int]NodeInterface{
+		0: {
+			VppInternalName: "local0",
+			Name:            "local0",
+		},
+		1: {
+			VppInternalName: "GigabitEthernet0/8",
+			Name:            "GigabitEthernet0/8",
+			IfType:          1,
+			Enabled:         true,
+			PhysAddress:     "08:00:27:c1:dd:42",
+			Mtu:             9202,
+			IPAddresses:     []string{"192.168.16.3"},
+		},
+		2: {
+			VppInternalName: "tap0",
+			Name:            "tap-vpp2",
+			IfType:          3,
+			Enabled:         true,
+			PhysAddress:     "01:23:45:67:89:42",
+			Mtu:             1500,
+			IPAddresses:     []string{"172.30.3.1/24"},
+			Tap:             tap{Version: 2},
+		},
+		3: {
+			VppInternalName: "tap1",
+			Name:            "tap3aa4d77d27d0bf3",
+			IfType:          3,
+			Enabled:         true,
+			PhysAddress:     "02:fe:fc:07:21:82",
+			Mtu:             1500,
+			IPAddresses:     []string{"10.2.1.7/32"},
+			Tap:             tap{Version: 2},
+		},
+		4: {
+			VppInternalName: "loop0",
+			Name:            "vxlanBVI",
+			Enabled:         true,
+			PhysAddress:     "1a:2b:3c:4d:5e:03",
+			Mtu:             1500,
+			IPAddresses:     []string{"192.168.30.3/24"},
+		},
+		5: {
+			VppInternalName: "vxlan_tunnel0",
+			Name:            "vxlan1",
+			IfType:          5,
+			Enabled:         true,
+			Vxlan: vxlan{
+				SrcAddress: "192.168.16.3",
+				DstAddress: "192.168.16.1",
+				Vni:        10,
+			},
+		},
+		6: {
+			VppInternalName: "vxlan_tunnel1",
+			Name:            "vxlan2",
+			IfType:          5,
+			Enabled:         true,
+			Vxlan: vxlan{
+				SrcAddress: "192.168.16.3",
+				DstAddress: "192.168.16.2",
+				Vni:        10,
+			},
+		},
 	}
 }
 
@@ -111,10 +198,10 @@ func TestProcessor(t *testing.T) {
 
 	// Do testing
 	t.Run("mockClient", testMockClient)
-	t.Run("getLivenessInfo", testGetLivenessInfo)
+	t.Run("collectAgentInfoNoError", testCollectAgentInfoNoError)
 
 	// Shutdown the mock HTTP server
-	ptv.shutdownMockHTTPServer()
+	// ptv.shutdownMockHTTPServer()
 }
 
 func testMockClient(t *testing.T) {
@@ -148,11 +235,12 @@ func testMockClient(t *testing.T) {
 	ptv.log.Info("Received nodeInfo: ", nodeInfo1)
 }
 
-func testGetLivenessInfo(t *testing.T) {
+func testCollectAgentInfoNoError(t *testing.T) {
 	node, err := ptv.processor.Cache.GetNode("k8s-master")
 	gomega.Expect(err).To(gomega.BeNil())
 
-	ptv.processor.getLivenessInfo(*ptv.client, node)
+	ptv.processor.collectAgentInfo(node)
 	time.Sleep(1 * time.Microsecond)
-	ptv.log.Info("DTO Map:", ptv.processor.dtoMap)
+	ptv.log.Info("Cache nodes:", ptv.processor.Cache.nMap)
+	ptv.log.Info("Cache report:", ptv.processor.Cache.report)
 }

@@ -16,24 +16,20 @@
 # fail in case of error
 set -e
 
-# uncomment to pull newest base images
-#docker pull ligato/dev-vpp-agent:pantheon-dev
-#docker pull ligato/vpp-agent:pantheon-dev
+# takes dev docker image name + tag to extract from as the argument
+IMAGE=${1}
 
-# obtain the current git tag for tagging the Docker images
-TAG=`git describe --tags`
+# run the dev image as the "extract" container
+echo "extracting binaries from ${IMAGE}"
+CID=$(docker run -itd ${IMAGE} bash)
 
-cd vpp
-./build.sh
+# prepare the folder with the binaries
+rm -rf binaries
+mkdir -p binaries
 
-# build development image
-cd ../dev
-./build.sh ${TAG}
+# extract VPP binaries
+docker exec ${CID} /bin/bash -c 'mkdir -p /root/vpp && cp /opt/vpp-agent/dev/vpp/build-root/*.deb /root/vpp/ && cd /root && tar -zcvf /root/vpp.tar.gz vpp/*'
+docker cp ${CID}:/root/vpp.tar.gz binaries/
 
-# build vpp-binaries image
-cd ../vpp-binaries
-./build.sh ${TAG}
-
-# build production images
-cd ../prod
-./build.sh ${TAG}
+# delete the "extract" container
+docker rm -f ${CID}

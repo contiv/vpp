@@ -23,8 +23,7 @@ import (
 	"net/http"
 	"testing"
 	"time"
-	"fmt"
-)
+	)
 
 const (
 	testAgentPort = ":8080"
@@ -60,47 +59,40 @@ func (ptv *processorTestVars) startMockHTTPServer() {
 }
 
 func registerHTTPHandlers() {
-	// Register handler for getting NodeInfo data
-	http.HandleFunc(livenessURL, func(w http.ResponseWriter, r *http.Request) {
-		fmt.Printf("*** URL: %s\n", r.URL)
-		data, err := json.Marshal(ptv.nodeLiveness)
+	// Register handler for all test data
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		var data interface{}
+
+		switch r.URL.Path {
+		case livenessURL:
+			data = ptv.nodeLiveness
+		case interfaceURL:
+			data = ptv.nodeInterfaces
+		case l2FibsURL:
+			data = ptv.nodeL2Fibs
+		case bridgeDomainURL:
+			data = ptv.nodeBridgeDomains
+		case arpURL:
+			data = ptv.nodeIPArps
+		default:
+			ptv.log.Error("unknown URL: ", r.URL)
+			w.WriteHeader(404)
+			w.Write([]byte("Unknown path" + r.URL.Path))
+			return
+		}
+
+		buf, err := json.Marshal(data)
 		if err != nil {
 			ptv.log.Error("Error marshalling NodeInfo data, err: ", err)
 			w.WriteHeader(500)
 			w.Header().Set("Content-Type", "application/json")
 			return
 		}
+
 		w.Header().Set("Content-Type", "application/json")
-		w.Write(data)
+		w.Write(buf)
 	})
 
-	// Register handler for getting interface data
-	http.HandleFunc(interfaceURL, func(w http.ResponseWriter, r *http.Request) {
-		fmt.Printf("*** URL: %s\n", r.URL)
-		data, err := json.Marshal(ptv.nodeInterfaces)
-		if err != nil {
-			ptv.log.Error("Error marshalling nodeInterfaces, err: ", err)
-			w.WriteHeader(500)
-			w.Header().Set("Content-Type", "application/json")
-			return
-		}
-		w.Header().Set("Content-Type", "application/json")
-		w.Write(data)
-	})
-
-	// Register handler for getting L2FIB data
-	http.HandleFunc(l2FibsURL, func(w http.ResponseWriter, r *http.Request) {
-		fmt.Printf("*** URL: %s\n", r.URL)
-		data, err := json.Marshal(ptv.nodeL2Fibs)
-		if err != nil {
-			ptv.log.Error("Error marshalling l2FibsURL, err: ", err)
-			w.WriteHeader(500)
-			w.Header().Set("Content-Type", "application/json")
-			return
-		}
-		w.Header().Set("Content-Type", "application/json")
-		w.Write(data)
-	})
 }
 
 func (ptv *processorTestVars) shutdownMockHTTPServer() {
@@ -280,6 +272,8 @@ func TestProcessor(t *testing.T) {
 	ptv.processor.Init()
 	ptv.processor.ticker.Stop() // Do not periodically poll agents - we will run updates manually from tests
 	ptv.processor.agentPort = testAgentPort
+
+	// Int test data in the cache (emulate successful discovery of a single node)
 	ptv.processor.Cache.AddNode(1, "k8s-master", "10.20.0.2", "localhost")
 
 	// Do testing
@@ -327,10 +321,7 @@ func testCollectAgentInfoNoError(t *testing.T) {
 
 	ptv.processor.collectAgentInfo(node)
 
-	time.Sleep(10 * time.Millisecond)
-
-	ptv.log.Info("Cache nodes:", ptv.processor.Cache.nMap)
-	ptv.log.Info("Cache report:", ptv.processor.Cache.report)
+	time.Sleep(20 * time.Millisecond)
 
 	gomega.Expect(node.NodeLiveness).To(gomega.BeEquivalentTo(ptv.nodeLiveness))
 	gomega.Expect(node.NodeInterfaces).To(gomega.BeEquivalentTo(ptv.nodeInterfaces))

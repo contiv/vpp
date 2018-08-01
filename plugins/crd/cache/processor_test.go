@@ -23,7 +23,7 @@ import (
 	"net/http"
 	"testing"
 	"time"
-	)
+)
 
 const (
 	testAgentPort = ":8080"

@@ -268,13 +268,13 @@ func TestProcessor(t *testing.T) {
 
 	ptv.processor = &ContivTelemetryProcessor{}
 	ptv.processor.Deps.Log = ptv.log
-	ptv.processor.Cache = NewCache(ptv.log)
+	ptv.processor.ContivTelemetryCache.Cache = NewCache(ptv.log)
 	ptv.processor.Init()
 	ptv.processor.ticker.Stop() // Do not periodically poll agents - we will run updates manually from tests
 	ptv.processor.agentPort = testAgentPort
 
 	// Int test data in the cache (emulate successful discovery of a single node)
-	ptv.processor.Cache.AddNode(1, "k8s-master", "10.20.0.2", "localhost")
+	ptv.processor.ContivTelemetryCache.Cache.AddNode(1, "k8s-master", "10.20.0.2", "localhost")
 
 	// Do testing
 	t.Run("mockClient", testMockClient)
@@ -316,7 +316,7 @@ func testMockClient(t *testing.T) {
 }
 
 func testCollectAgentInfoNoError(t *testing.T) {
-	node, err := ptv.processor.Cache.GetNode("k8s-master")
+	node, err := ptv.processor.ContivTelemetryCache.Cache.GetNode("k8s-master")
 	gomega.Expect(err).To(gomega.BeNil())
 
 	ptv.processor.collectAgentInfo(node)

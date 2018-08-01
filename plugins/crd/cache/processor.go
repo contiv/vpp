@@ -16,7 +16,7 @@ package cache
 
 import (
 	"encoding/json"
-	"github.com/pkg/errors"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"time"
@@ -36,17 +36,17 @@ const (
 // ContivTelemetryProcessor defines the processor's data structures and dependencies
 type ContivTelemetryProcessor struct {
 	Deps
-	nodeResponseChannel  chan interface{}
+	nodeResponseChannel  chan *NodeDTO
 	ContivTelemetryCache *ContivTelemetryCache
-	dtoList              []interface{}
+	dtoList              []*NodeDTO
 	ticker               *time.Ticker
 	collectionInterval   time.Duration
 	agentPort            string
 }
 
 func (p *ContivTelemetryProcessor) init() {
-	p.nodeResponseChannel = make(chan interface{})
-	p.dtoList = make([]interface{}, 0)
+	p.nodeResponseChannel = make(chan *NodeDTO)
+	p.dtoList = make([]*NodeDTO, 0)
 	p.agentPort = agentPort
 	p.collectionInterval = 1 * time.Minute
 	p.ticker = time.NewTicker(p.collectionInterval)
@@ -88,8 +88,8 @@ func (p *ContivTelemetryProcessor) ValidateNodeInfo() {
 
 	for _, entry := range p.ContivTelemetryCache.Cache.report {
 		p.Log.Info(entry)
-		for _, node :=  range p.ContivTelemetryCache.Cache.nMap  {
-			p.Log.Infof("Report for %+v",node.Name)
+		for _, node := range p.ContivTelemetryCache.Cache.nMap {
+			p.Log.Infof("Report for %+v", node.Name)
 			p.Log.Info(node.report)
 			node.report = node.report[0:0]
 		}
@@ -106,19 +106,24 @@ func (p *ContivTelemetryProcessor) collectAgentInfo(node *Node) {
 		Timeout:       timeout,
 	}
 
-	go p.getLivenessInfo(client, node)
+	go p.getNodeDTOInfo(client, node, livenessURL, &NodeLiveness{})
 
-	go p.getInterfaceInfo(client, node)
+	nodeInterfaces := make(nodeInterfacesMapType, 0)
+	go p.getNodeDTOInfo(client, node, interfaceURL, &nodeInterfaces)
 
-	go p.getBridgeDomainInfo(client, node)
+	nodeBridgeDomains := make(nodeBridgeDomainMapTypes, 0)
+	go p.getNodeDTOInfo(client, node, bridgeDomainURL, &nodeBridgeDomains)
 
-	go p.getL2FibInfo(client, node)
+	nodel2fibs := make(nodeL2FibMapTypes, 0)
+	go p.getNodeDTOInfo(client, node, l2FibsURL, &nodel2fibs)
 
 	//TODO: Implement getTelemetry correctly.
 	//Does not parse information correctly
-	//go p.getTelemetryInfo(client, node)
+	//nodetelemetry := make(map[string]NodeTelemetry)
+	//go p.getNodeDTOInfo(client, node, telemetryURL, &nodetelemetry)
 
-	go p.getIPArpInfo(client, node)
+	nodeiparpslice := make(nodeIPARPMapTypes, 0)
+	go p.getNodeDTOInfo(client, node, arpURL, &nodeiparpslice)
 
 }
 
@@ -144,110 +149,22 @@ object is created to hold the struct of information as well as the name and is s
 over the plugins node database channel to node_db_processor.go where it will be read,
 processed, and added to the node database.
 */
-func (p *ContivTelemetryProcessor) getLivenessInfo(client http.Client, node *Node) {
-	res, err := client.Get(p.getAgentURL(node.ManIPAdr, livenessURL))
+func (p *ContivTelemetryProcessor) getNodeDTOInfo(client http.Client, node *Node, url string, nodeInfo interface{}) {
+	res, err := client.Get(p.getAgentURL(node.ManIPAdr, url))
 	if err != nil {
+		err := fmt.Errorf("getNodeDTOInfo: url: %s cleintGet Error: %s", url, err.Error())
 		p.Log.Error(err)
-		p.nodeResponseChannel <- NodeLivenessDTO{node.Name, nil, err}
+		p.nodeResponseChannel <- &NodeDTO{node.Name, nil, err}
 		return
 	} else if res.StatusCode < 200 || res.StatusCode > 299 {
-		err := errors.Errorf("HTTP response is: %+v", res.Status)
-		p.nodeResponseChannel <- NodeLivenessDTO{node.Name, nil, err}
+		err := fmt.Errorf("getNodeDTOInfo: url: %s HTTP responsres.Status: %s", url, res.Status)
+		p.nodeResponseChannel <- &NodeDTO{node.Name, nil, err}
 	}
 	b, _ := ioutil.ReadAll(res.Body)
 	b = []byte(b)
-	nodeInfo := &NodeLiveness{}
 	json.Unmarshal(b, nodeInfo)
-	p.nodeResponseChannel <- NodeLivenessDTO{node.Name, nodeInfo, nil}
+	p.nodeResponseChannel <- &NodeDTO{node.Name, nodeInfo, nil}
 
-}
-
-func (p *ContivTelemetryProcessor) getInterfaceInfo(client http.Client, node *Node) {
-	res, err := client.Get(p.getAgentURL(node.ManIPAdr, interfaceURL))
-	if err != nil {
-		p.Log.Error(err)
-		p.nodeResponseChannel <- NodeInterfacesDTO{node.Name, nil, err}
-		p.nodeResponseChannel <- node.Name
-		return
-	} else if res.StatusCode < 200 || res.StatusCode > 299 {
-		err := errors.Errorf("HTTP response is: %+v", res.Status)
-		p.nodeResponseChannel <- NodeInterfacesDTO{node.Name, nil, err}
-	}
-	b, _ := ioutil.ReadAll(res.Body)
-	b = []byte(b)
-
-	nodeInterfaces := make(map[int]NodeInterface, 0)
-	json.Unmarshal(b, &nodeInterfaces)
-	p.nodeResponseChannel <- NodeInterfacesDTO{node.Name, nodeInterfaces, nil}
-}
-func (p *ContivTelemetryProcessor) getBridgeDomainInfo(client http.Client, node *Node) {
-	res, err := client.Get(p.getAgentURL(node.ManIPAdr, bridgeDomainURL))
-	if err != nil {
-		p.Log.Error(err)
-		p.nodeResponseChannel <- NodeBridgeDomainsDTO{node.Name, nil, err}
-		return
-	} else if res.StatusCode < 200 || res.StatusCode > 299 {
-		err := errors.Errorf("HTTP response is: %+v", res.Status)
-		p.nodeResponseChannel <- NodeBridgeDomainsDTO{node.Name, nil, err}
-	}
-	b, _ := ioutil.ReadAll(res.Body)
-	b = []byte(b)
-
-	nodeBridgeDomains := make(map[int]NodeBridgeDomains)
-	json.Unmarshal(b, &nodeBridgeDomains)
-	p.nodeResponseChannel <- NodeBridgeDomainsDTO{node.Name, nodeBridgeDomains, nil}
-}
-
-func (p *ContivTelemetryProcessor) getL2FibInfo(client http.Client, node *Node) {
-	res, err := client.Get(p.getAgentURL(node.ManIPAdr, l2FibsURL))
-	if err != nil {
-		p.Log.Error(err)
-		p.nodeResponseChannel <- NodeL2FibsDTO{node.Name, nil, err}
-		return
-	} else if res.StatusCode < 200 || res.StatusCode > 299 {
-		err := errors.Errorf("HTTP response is: %+v", res.Status)
-		p.nodeResponseChannel <- NodeL2FibsDTO{node.Name, nil, err}
-	}
-	b, _ := ioutil.ReadAll(res.Body)
-	b = []byte(b)
-	nodel2fibs := make(map[string]NodeL2Fib)
-	json.Unmarshal(b, &nodel2fibs)
-	p.nodeResponseChannel <- NodeL2FibsDTO{node.Name, nodel2fibs, nil}
-}
-
-func (p *ContivTelemetryProcessor) getTelemetryInfo(client http.Client, node *Node) {
-	res, err := client.Get(p.getAgentURL(node.ManIPAdr, telemetryURL))
-	if err != nil {
-		p.Log.Error(err)
-		p.nodeResponseChannel <- NodeTelemetryDTO{node.Name, nil, err}
-		return
-	} else if res.StatusCode < 200 || res.StatusCode > 299 {
-		err := errors.Errorf("HTTP response is: %+v", res.Status)
-		p.nodeResponseChannel <- NodeTelemetryDTO{node.Name, nil, err}
-	}
-	b, _ := ioutil.ReadAll(res.Body)
-	b = []byte(b)
-	nodetelemetry := make(map[string]NodeTelemetry)
-	json.Unmarshal(b, &nodetelemetry)
-	p.nodeResponseChannel <- NodeTelemetryDTO{node.Name, nodetelemetry, nil}
-}
-
-func (p *ContivTelemetryProcessor) getIPArpInfo(client http.Client, node *Node) {
-	res, err := client.Get(p.getAgentURL(node.ManIPAdr, arpURL))
-	if err != nil {
-		p.Log.Error(err)
-		p.nodeResponseChannel <- NodeIPArpDTO{[]NodeIPArp{}, node.Name, err}
-		return
-	} else if res.StatusCode < 200 || res.StatusCode > 299 {
-		err := errors.Errorf("HTTP response is: %+v", res.Status)
-		p.nodeResponseChannel <- NodeIPArpDTO{nil, node.Name, err}
-	}
-	b, _ := ioutil.ReadAll(res.Body)
-
-	b = []byte(b)
-	nodeiparpslice := make([]NodeIPArp, 0)
-	json.Unmarshal(b, &nodeiparpslice)
-	p.nodeResponseChannel <- NodeIPArpDTO{nodeiparpslice, node.Name, nil}
 }
 
 // getAgentURL creates the URL for the data we're trying to retrieve

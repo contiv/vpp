@@ -43,15 +43,18 @@ type ContivTelemetryProcessor struct {
 	agentPort           string
 }
 
-// Init initializes the processor.
-func (p *ContivTelemetryProcessor) Init() error {
-	// initialize structures, dependencies and attributes
+func (p *ContivTelemetryProcessor) init() {
 	p.nodeResponseChannel = make(chan interface{})
 	p.dtoList = make([]interface{}, 0)
 	p.agentPort = agentPort
 	p.collectionInterval = 1 * time.Minute
 	p.ticker = time.NewTicker(p.collectionInterval)
+}
 
+// Init initializes the processor.
+func (p *ContivTelemetryProcessor) Init() error {
+	// initialize structures, dependencies and attributes
+	p.init()
 	// Start goroutines
 	go p.ProcessNodeResponses()
 	go p.retrieveNetworkInfoOnTimerExpiry()

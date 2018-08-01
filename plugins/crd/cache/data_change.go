@@ -102,7 +102,7 @@ type nodeInfoChange struct{}
 func (nic *nodeInfoChange) GetNames(key string) ([]string, error) {
 	nodeParts := strings.Split(key, "/")
 	if len(nodeParts) != 2 {
-		return nil, fmt.Errorf("invalid nodeInfo key %s", key)
+		return nil, fmt.Errorf("invalid nodeLiveness key %s", key)
 	}
 	return []string{nodeParts[1]}, nil
 }
@@ -112,21 +112,21 @@ func (nic *nodeInfoChange) GetValueProto() proto.Message {
 }
 
 func (nic *nodeInfoChange) AddRecord(ctc *ContivTelemetryCache, names []string, record proto.Message) error {
-	ctc.Log.Infof("Adding nodeInfo %s, nodeValue %+v", names[0], record)
+	ctc.Log.Infof("Adding nodeLiveness %s, nodeValue %+v", names[0], record)
 	// TODO: return ctc.addNodeInfo(names[0], podValue)
 	return nil
 }
 
 func (nic *nodeInfoChange) UpdateRecord(ctc *ContivTelemetryCache,
 	names []string, oldRecord proto.Message, newRecord proto.Message) error {
-	ctc.Log.Infof("Updating nodeInfo %s, nodeInfoValue %+v, prevNodeInfoValue %+v",
+	ctc.Log.Infof("Updating nodeLiveness %s, nodeInfoValue %+v, prevNodeInfoValue %+v",
 		names[0], oldRecord, newRecord)
 	// TODO: return ctc.updateNodeInfonames[0], prevPodValue, podValue)
 	return nil
 }
 
 func (nic *nodeInfoChange) DeleteRecord(ctc *ContivTelemetryCache, names []string) error {
-	ctc.Log.Infof("Deleting nodeInfo %s", names[0])
+	ctc.Log.Infof("Deleting nodeLiveness %s", names[0])
 	// TODO: return ctc.deleteNodeInfo(names[0])
 	return nil
 }

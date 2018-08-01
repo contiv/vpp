@@ -25,7 +25,8 @@ CLEANUP="false"
 # list of images we are tagging & pushing
 IMAGES=()
 #IMAGES_VPP=("cni" "ksr" "cri" "stn" "vswitch")
-IMAGES_VPP=("cni" "ksr" "stn" "vswitch" "vpp-binaries")
+IMAGES_VPP=("cni" "ksr" "stn" "vswitch")
+IMAGES_BIN=("vpp-binaries")
 
 IMAGEARCH=""
 RUNARCH=""
@@ -176,6 +177,30 @@ do
     fi
 done
 
+for IMAGE in "${IMAGES_BIN[@]}"
+do
+    if [ "${BRANCH_NAME}" == "master" ]
+    then
+        # master branch - tag with the vpp tag
+        echo "Tagging as contivvpp/${IMAGE}${IMAGEARCH}:${VPP}"
+        docker tag prod-contiv-${IMAGE}${IMAGEARCH}:${VPP} contivvpp/${IMAGE}${IMAGEARCH}:${VPP}
+
+        if [ ${BUILDARCH} = "amd64" ] ; then
+            echo "Tagging as contivvpp/${IMAGE}${IMAGEARCH}:${VPP}"
+            docker tag prod-contiv-${IMAGE}${IMAGEARCH}:${VPP} contivvpp/${IMAGE}:${VPP}
+        fi
+
+        # push the images
+        if [ "${SKIP_UPLOAD}" != "true" ]
+        then
+            docker push contivvpp/${IMAGE}${IMAGEARCH}:${VPP}
+            if [ ${BUILDARCH} = "amd64" ] ; then
+                docker push contivvpp/${IMAGE}:${VPP}
+            fi
+        fi
+    fi
+done
+
 if [ "${DEV_UPLOAD}" == "true" ]
 then
     if [ "${BRANCH_NAME}" == "master" ]
@@ -225,4 +250,5 @@ fi
 if [ "${CLEANUP}" == "true" ]
 then
     docker images | fgrep "${TAG}" | awk '{print $3}' | sort -u | xargs docker rmi -f || true
+    docker images | fgrep "${VPP}" | awk '{print $3}' | sort -u | xargs docker rmi -f || true
 fi

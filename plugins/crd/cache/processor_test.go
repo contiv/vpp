@@ -275,6 +275,7 @@ func TestProcessor(t *testing.T) {
 		Timeout:       timeout,
 	}
 
+<<<<<<< HEAD
 	// Init & populate the test data
 	ptv.initTestData()
 
@@ -291,6 +292,11 @@ func TestProcessor(t *testing.T) {
 		},
 	}
 	ptv.processor.ContivTelemetryCache.Init()
+=======
+	ptv.processor = &ContivTelemetryProcessor{}
+	ptv.processor.Deps.Log = ptv.log
+	ptv.processor.ContivTelemetryCache.Cache = NewCache(ptv.log)
+>>>>>>> upstream/contiv-crd
 	ptv.processor.Init()
 
 	// Override default processor behavior
@@ -298,6 +304,10 @@ func TestProcessor(t *testing.T) {
 	ptv.processor.agentPort = testAgentPort // Override agentPort
 
 	// Int test data in the cache (emulate successful discovery of a single node)
+<<<<<<< HEAD
+=======
+	ptv.processor.ContivTelemetryCache.Cache.AddNode(1, "k8s-master", "10.20.0.2", "localhost")
+>>>>>>> upstream/contiv-crd
 
 	// Do testing
 	t.Run("mockClient", testMockClient)
@@ -345,8 +355,13 @@ func testMockClient(t *testing.T) {
 }
 
 func testCollectAgentInfoNoError(t *testing.T) {
+<<<<<<< HEAD
 	nodes := ptv.processor.ContivTelemetryCache.LookupNode([]string{"k8s-master"})
 	gomega.Expect(len(nodes)).To(gomega.Equal(1))
+=======
+	node, err := ptv.processor.ContivTelemetryCache.Cache.GetNode("k8s-master")
+	gomega.Expect(err).To(gomega.BeNil())
+>>>>>>> upstream/contiv-crd
 
 	ptv.processor.collectAgentInfo(nodes[0])
 

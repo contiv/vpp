@@ -83,35 +83,35 @@ type PolicyCacheAPI interface {
 
 // PolicyCacheWatcher defines interface that a PolicyCache watcher must implement.
 type PolicyCacheWatcher interface {
-	// Resync is called by Policy Cache during a RESYNC event.
+	// Resync is called by Policy contivTelemetryCache during a RESYNC event.
 	Resync(data *DataResyncEvent) error
 
-	// AddPod is called by Policy Cache when a new pod is created.
+	// AddPod is called by Policy contivTelemetryCache when a new pod is created.
 	AddPod(podID podmodel.ID, pod *podmodel.Pod) error
 
-	// DelPod is called by Policy Cache after a pod was removed.
+	// DelPod is called by Policy contivTelemetryCache after a pod was removed.
 	DelPod(podID podmodel.ID, pod *podmodel.Pod) error
 
-	// UpdatePod is called by Policy Cache when data of a pod were modified.
+	// UpdatePod is called by Policy contivTelemetryCache when data of a pod were modified.
 	UpdatePod(podID podmodel.ID, oldPod, newPod *podmodel.Pod) error
 
-	// AddPolicy is called by Policy Cache when a new policy is created.
+	// AddPolicy is called by Policy contivTelemetryCache when a new policy is created.
 	AddPolicy(policy *policymodel.Policy) error
 
-	// DelPolicy is called by Policy Cache after a policy was removed.
+	// DelPolicy is called by Policy contivTelemetryCache after a policy was removed.
 	DelPolicy(policy *policymodel.Policy) error
 
-	// UpdatePolicy is called by Policy Cache when date of a policy were
+	// UpdatePolicy is called by Policy contivTelemetryCache when date of a policy were
 	// modified.
 	UpdatePolicy(oldPolicy, newPolicy *policymodel.Policy) error
 
-	// AddNamespace is called by Policy Cache when a new namespace is created.
+	// AddNamespace is called by Policy contivTelemetryCache when a new namespace is created.
 	AddNamespace(ns *nsmodel.Namespace) error
 
-	// DelNamespace is called by Policy Cache after a namespace was removed.
+	// DelNamespace is called by Policy contivTelemetryCache after a namespace was removed.
 	DelNamespace(ns *nsmodel.Namespace) error
 
-	// UpdateNamespace is called by Policy Cache when data of a namespace were
+	// UpdateNamespace is called by Policy contivTelemetryCache when data of a namespace were
 	// modified.
 	UpdateNamespace(oldNs, newNs *nsmodel.Namespace) error
 }

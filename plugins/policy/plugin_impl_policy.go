@@ -66,7 +66,7 @@ type Plugin struct {
 	// Policy Plugin consists of multiple layers.
 	// The plugin itself is layer 1.
 
-	// Policy Cache: layers 1-3
+	// Policy contivTelemetryCache: layers 1-3
 	policyCache *cache.PolicyCache
 
 	// Policy ContivTelemetryProcessor: layer 2

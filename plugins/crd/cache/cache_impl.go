@@ -18,9 +18,13 @@ package cache
 import (
 	nodemodel "github.com/contiv/vpp/plugins/ksr/model/node"
 	"github.com/ligato/cn-infra/logging"
+	"github.com/ligato/vpp-agent/plugins/vpp/model/interfaces"
 	"github.com/pkg/errors"
 	"sort"
 )
+
+const subnetmask = "/24"
+const vppVNI = 10
 
 // ContivTelemetryCache is used for a in-memory storage of K8s State data
 // The cache processes K8s State data updates and RESYNC events through Update()
@@ -45,7 +49,7 @@ func (ctc *ContivTelemetryCache) Init() error {
 	// todo - here initialize your maps
 	ctc.Cache = NewCache(ctc.Log)
 	ctc.k8sNodeMap = make(map[string]*nodemodel.Node)
-	ctc.Log.Infof("Cache has been initialized")
+	ctc.Log.Infof("ContivTelemetryCache has been initialized")
 	return nil
 }
 
@@ -95,12 +99,13 @@ func (ctc *ContivTelemetryCache) AddNode(ID uint32, nodeName, IPAdr, ManIPAdr st
 	_, err := ctc.Cache.GetNode(nodeName)
 	if err == nil {
 		err = errors.Errorf("duplicate key found: %s", nodeName)
-		ctc.Cache.report = append(ctc.Cache.report, errors.Errorf("duplicate key found: %s", nodeName).Error())
+		ctc.Cache.nMap[nodeName].report = append(ctc.Cache.nMap[nodeName].report, errors.Errorf(
+			"duplicate key found: %s", nodeName).Error())
 		return err
 	}
 	ctc.Cache.nMap[nodeName] = n
 	ctc.Cache.gigEIPMap[IPAdr] = n
-	ctc.Log.Debugf("Success adding node %+v to ctc.Cache %+v", nodeName, ctc.Cache)
+	ctc.Log.Debugf("Success adding node %+v to ctc.ContivTelemetryCache %+v", nodeName, ctc.Cache)
 	return nil
 }
 
@@ -110,19 +115,18 @@ func (c *Cache) AddNode(ID uint32, nodeName, IPAdr, ManIPAdr string) error {
 	_, err := c.GetNode(nodeName)
 	if err == nil {
 		err = errors.Errorf("duplicate key found: %s", nodeName)
-		c.report = append(c.report, err.Error())
+		c.nMap[nodeName].report = append(c.nMap[nodeName].report, err.Error())
 		return err
 	}
 	c.nMap[nodeName] = n
 	c.gigEIPMap[IPAdr] = n
-	c.logger.Debugf("Success adding node %+v to ctc.Cache %+v", nodeName, c)
+	c.logger.Debugf("Success adding node %+v to ctc.ContivTelemetryCache %+v", nodeName, c)
 	return nil
 }
 
 //ClearCache with delete all the values in each of the individual cache maps.
 func (ctc *ContivTelemetryCache) ClearCache() {
 	for _, node := range ctc.Cache.nMap {
-		delete(ctc.Cache.nMap, node.Name)
 		delete(ctc.Cache.gigEIPMap, node.IPAdr)
 		for _, intf := range node.NodeInterfaces {
 			if intf.VppInternalName == "loop0" {
@@ -249,21 +253,37 @@ func (c *Cache) PopulateNodeMaps(node *Node) {
 		c.logger.Error(err)
 	}
 	for i := range loopIF.IPAddresses {
-		if ip, ok := c.loopIPMap[loopIF.IPAddresses[i]]; !ok && ip != nil {
-			//TODO: Report an error back to the controller; store it somewhere, report it at the end of the function
-			c.logger.Errorf("Duplicate IP found: %s", ip)
-			c.report = append(c.report, errors.Errorf("Duplicate IP found: %s", ip).Error())
+		if loopIF.IPAddresses[i] == "" {
+			c.nMap[node.Name].report = append(c.nMap[node.Name].report,
+				"Detected an empty IP address for node %+v", node.Name)
 		} else {
-			for i := range loopIF.IPAddresses {
-				c.loopIPMap[loopIF.IPAddresses[i]] = node
+
+			if ip, ok := c.loopIPMap[loopIF.IPAddresses[i]]; ok {
+				//TODO: Report an error back to the controller; store it somewhere, report it at the end of the function
+				c.logger.Errorf("Duplicate IP found: %s", ip)
+				c.nMap[node.Name].report = append(c.nMap[node.Name].report, errors.Errorf(
+					"Duplicate IP found: %s", ip).Error())
+			} else {
+				for i := range loopIF.IPAddresses {
+					c.loopIPMap[loopIF.IPAddresses[i]] = node
+				}
+
 			}
 		}
 	}
-	if mac, ok := c.loopMACMap[loopIF.PhysAddress]; !ok && mac != nil {
-		c.logger.Errorf("Duplicate MAC address found: %s", mac)
-		c.report = append(c.report, errors.Errorf("Duplicate MAC address found: %s", mac).Error())
+	if loopIF.PhysAddress == "" {
+		c.nMap[node.Name].report = append(c.nMap[node.Name].report,
+			"Detected empty MAC address for node %+v", node.Name)
 	} else {
-		c.loopMACMap[loopIF.PhysAddress] = node
+		if mac, ok := c.loopMACMap[loopIF.PhysAddress]; ok {
+			c.logger.Errorf("Duplicate MAC address found: %s", mac)
+			c.nMap[node.Name].report = append(c.nMap[node.Name].report, errors.Errorf(
+				"Duplicate MAC address found: %s", mac).Error())
+		} else {
+			c.loopMACMap[loopIF.PhysAddress] = node
+		}
+		c.nMap[node.Name] = node
+		c.gigEIPMap[node.IPAdr] = node
 	}
 }
 
@@ -275,7 +295,7 @@ func (c *Cache) getNodeLoopIFInfo(node *Node) (NodeInterface, error) {
 		}
 	}
 	err := errors.Errorf("Node %s does not have a loop interface")
-	c.report = append(c.report, err.Error())
+	c.nMap[node.Name].report = append(c.nMap[node.Name].report, err.Error())
 	return NodeInterface{}, err
 }
 
@@ -293,8 +313,9 @@ func (c *Cache) ValidateLoopIFAddresses() {
 		if err != nil {
 			c.logger.Error(err)
 			c.logger.Errorf("Cannot process node ARP Table because loop interface info is missing.")
-			c.report = append(c.report, err.Error())
-			c.report = append(c.report, errors.Errorf("Cannot process node ARP Table because loop interface info is missing.").Error())
+			c.nMap[node.Name].report = append(c.nMap[node.Name].report, err.Error())
+			c.nMap[node.Name].report = append(c.nMap[node.Name].report, errors.Errorf(
+				"Cannot process node ARP Table because loop interface info is missing.").Error())
 			continue
 		}
 		for _, arp := range node.NodeIPArp {
@@ -305,7 +326,8 @@ func (c *Cache) ValidateLoopIFAddresses() {
 			nLoopIFTwo, ok := node.NodeInterfaces[int(arp.Interface)]
 			if !ok {
 				c.logger.Errorf("Loop Interface in ARP Table not found: %d", arp.Interface)
-				c.report = append(c.report, errors.Errorf("Loop Interface in ARP Table not found: %d", arp.Interface).Error())
+				c.nMap[node.Name].report = append(c.nMap[node.Name].report, errors.Errorf(
+					"Loop Interface in ARP Table not found: %d", arp.Interface).Error())
 			}
 			if nLoopIF.VppInternalName != nLoopIFTwo.VppInternalName {
 				continue
@@ -314,14 +336,16 @@ func (c *Cache) ValidateLoopIFAddresses() {
 			addressNotFound := false
 			if !ok {
 				c.logger.Errorf("Node for MAC Address %s not found", arp.MacAddress)
-				c.report = append(c.report, errors.Errorf("Node for MAC Address %s not found", arp.MacAddress).Error())
+				c.nMap[node.Name].report = append(c.nMap[node.Name].report, errors.Errorf(
+					"Node for MAC Address %s not found", arp.MacAddress).Error())
 				addressNotFound = true
 			}
 			ipNode, ok := c.loopIPMap[arp.IPAddress+"/24"]
 
 			if !ok {
 				c.logger.Errorf("Node %s could not find Node with IP Address %s", node.Name, arp.IPAddress)
-				c.report = append(c.report, errors.Errorf("Node %s could not find Node with IP Address %s",
+				c.nMap[node.Name].report = append(c.nMap[node.Name].report, errors.Errorf(
+					"Node %s could not find Node with IP Address %s",
 					node.Name,
 					arp.IPAddress).Error())
 				addressNotFound = true
@@ -332,7 +356,8 @@ func (c *Cache) ValidateLoopIFAddresses() {
 			if macNode.Name != ipNode.Name {
 				c.logger.Errorf("MAC and IP point to different nodes: %s and %s in ARP Table %+v",
 					macNode.Name, ipNode.Name, arp)
-				c.report = append(c.report, errors.Errorf("MAC and IP point to different nodes: %s and %s in ARP Table %+v",
+				c.nMap[node.Name].report = append(c.nMap[node.Name].report, errors.Errorf(
+					"MAC and IP point to different nodes: %s and %s in ARP Table %+v",
 					macNode.Name, ipNode.Name, arp).Error())
 
 			}
@@ -341,8 +366,7 @@ func (c *Cache) ValidateLoopIFAddresses() {
 
 	}
 	if len(nodemap) == 0 {
-		c.logger.Info("Validation of Node Data successful.")
-		c.report = append(c.report, "Validation of Node IP Arp Table successful.")
+		c.report = append(c.report, "Success validating node IP ARP table")
 	}
 	if len(nodemap) > 0 {
 		for node := range nodemap {
@@ -351,4 +375,238 @@ func (c *Cache) ValidateLoopIFAddresses() {
 			delete(nodemap, node)
 		}
 	}
+}
+
+//ValidateL2Connections makes sure that each node in the cache has the right amount of vxlan_tunnels for the number of
+//nodes as well as checking that each vxlan_tunnel points to a node that has a corresponding but opposite tunnel itself.
+func (c *Cache) ValidateL2Connections() {
+	nodelist := c.GetAllNodes()
+	nodemap := make(map[string]bool)
+	for key := range c.nMap {
+		nodemap[key] = true
+	}
+	//For each node in the cache
+	for _, node := range nodelist {
+		nodevxlanmap := make(map[string]bool)
+		for key := range c.nMap {
+			nodevxlanmap[key] = true
+		}
+		bdhasLoopIF := false
+		hasVXLanBD := false
+		var vxLanBD NodeBridgeDomains
+		//Make sure there is a bridge domain with the name vxlanBD
+		for _, bdomain := range node.NodeBridgeDomains {
+			if bdomain.Name == "vxlanBD" {
+				vxLanBD = bdomain
+				hasVXLanBD = true
+				break
+			}
+		}
+		//if there is not then report an error and move on.
+		if !hasVXLanBD {
+			c.nMap[node.Name].report = append(c.nMap[node.Name].report, errors.Errorf(
+				"Node %+v does not have a vxlan BD", node.Name).Error())
+			continue
+		}
+		//Create a list with each of the indices of the xvlanBD.
+		bDomainidxs := make([]uint32, 0)
+		for _, intf := range vxLanBD.Interfaces {
+			bDomainidxs = append(bDomainidxs, intf.SwIfIndex)
+		}
+
+		i := 0
+		//for each index in the vxlanBD
+		for _, intfidx := range bDomainidxs {
+			//check if one of the indices point to the loop interface
+			//if it does, increment a counter and set a boolean to true
+			if node.NodeInterfaces[int(intfidx)].IfType == interfaces.InterfaceType_SOFTWARE_LOOPBACK {
+				bdhasLoopIF = true
+				i++
+				str := node.NodeInterfaces[int(intfidx)].PhysAddress
+				delete(nodevxlanmap, c.loopMACMap[str].Name)
+				continue
+			}
+			//check if one of the indices points to a vxlan_tunnel interface
+			if node.NodeInterfaces[int(intfidx)].IfType == interfaces.InterfaceType_VXLAN_TUNNEL {
+				if node.NodeInterfaces[int(intfidx)].Vxlan.Vni != vppVNI {
+					c.nMap[node.Name].report = append(c.nMap[node.Name].report, errors.Errorf(
+						"unexpected VNI: got %+v expected %+v",
+						node.NodeInterfaces[int(intfidx)].Vxlan.Vni, vppVNI).Error())
+					continue
+
+				}
+				vxlantun := node.NodeInterfaces[int(intfidx)]
+				srcipNode, ok := c.gigEIPMap[vxlantun.Vxlan.SrcAddress+subnetmask]
+
+				//try to find node with src ip address of the tunnel and make sure it is the same as the current node.
+				if !ok {
+					c.nMap[node.Name].report = append(c.nMap[node.Name].report, errors.Errorf(
+						"Error finding node with src IP %+v",
+						vxlantun.Vxlan.SrcAddress).Error())
+					continue
+				}
+				if srcipNode.Name != node.Name {
+					c.nMap[node.Name].report = append(c.nMap[node.Name].report, errors.Errorf(
+						"vxljan_tunnel %+v has source ip %v which points "+
+							"to different node than %+v.", vxlantun, vxlantun.Vxlan.SrcAddress, node.Name).Error())
+					continue
+				}
+
+				//try to find node with dst ip address in tunnel and validate it has a vxlan_tunnel that is the opposite
+				//of the current vxlan_tunnel and increment the counter if it does.
+				dstipNode, ok := c.gigEIPMap[vxlantun.Vxlan.DstAddress+subnetmask]
+				if !ok {
+					c.nMap[node.Name].report = append(c.nMap[node.Name].report, errors.Errorf(
+						"Node with dst ip %+v in vxlan_tunnel %+v not found",
+						vxlantun.Vxlan.DstAddress, vxlantun).Error())
+					continue
+				}
+				matchingTunnelFound := false
+				for _, dstIntf := range dstipNode.NodeInterfaces {
+					if dstIntf.IfType == vxlantun.IfType {
+						if dstIntf.Vxlan.DstAddress == vxlantun.Vxlan.SrcAddress {
+							matchingTunnelFound = true
+						}
+					}
+				}
+				if !matchingTunnelFound {
+					c.nMap[node.Name].report = append(c.nMap[node.Name].report, errors.Errorf(
+						"no matching vxlan_tunnel found for vxlan %+v",
+						vxlantun).Error())
+					continue
+				}
+				i++
+				str := node.NodeInterfaces[int(intfidx)].Vxlan.DstAddress
+				delete(nodevxlanmap, c.gigEIPMap[str+subnetmask].Name)
+
+			}
+		}
+		//checks if there are an unequal amount vxlan tunnels for the current node versus the total number of nodes
+		if i != len(nodelist) {
+			c.nMap[node.Name].report = append(c.nMap[node.Name].report, errors.Errorf(
+				"number of vxlan tunnels for node %+v does "+
+					"not match number of nodes on network\n", node.Name).Error())
+		}
+
+		if !bdhasLoopIF {
+			c.nMap[node.Name].report = append(c.nMap[node.Name].report, errors.Errorf(
+				"bridge domain %+v has no loop interface",
+				node.NodeBridgeDomains).Error())
+			continue
+		}
+		if len(nodevxlanmap) > 0 {
+			c.nMap[node.Name].report = append(c.nMap[node.Name].report, errors.Errorf(
+				"Missing vxlan entries for node %+v:", node.Name).Error())
+			for node := range nodevxlanmap {
+				c.nMap[node].report = append(c.nMap[node].report, node)
+			}
+		}
+
+		delete(nodemap, node.Name)
+
+	}
+	//make sure that each node has been successfully validated
+	if len(nodemap) > 0 {
+		for node := range nodemap {
+			c.report = append(c.report, errors.Errorf("error validating info for node %+v\n", node).Error())
+		}
+	} else {
+		c.report = append(c.report, "Success validating L2 connections")
+	}
+
+}
+
+//ValidateFibEntries will validate that each nodes fib entries ip address point to the right loop interface and the
+//mac addresses match
+func (c *Cache) ValidateFibEntries() {
+	nodelist := c.GetAllNodes()
+	nodemap := make(map[string]bool)
+	for key := range c.nMap {
+		nodemap[key] = true
+	}
+
+	for _, node := range nodelist {
+		nodefibmap := make(map[string]bool)
+		for key := range c.nMap {
+			nodefibmap[key] = true
+		}
+		fibhasLoopIF := false
+		if len(node.NodeL2Fibs) != len(nodelist) {
+			c.nMap[node.Name].report = c.nMap[node.Name].report //error not right amount of entries
+			continue
+		}
+		loopIf, err := c.getNodeLoopIFInfo(node)
+		if err != nil {
+			c.nMap[node.Name].report = append(c.nMap[node.Name].report, err.Error())
+			continue
+		}
+
+		fibcount := 0
+		var vxLanBD int
+		for bdomainidx, bdomain := range node.NodeBridgeDomains {
+			if bdomain.Name == "vxlanBD" {
+				vxLanBD = bdomainidx
+				break
+			}
+		}
+		for _, fib := range node.NodeL2Fibs {
+			if int(fib.BridgeDomainIdx) != vxLanBD {
+				continue
+			}
+			if fib.PhysAddress == loopIf.PhysAddress {
+				fibhasLoopIF = true
+				fibcount++
+				delete(nodefibmap, c.loopMACMap[fib.PhysAddress].Name)
+				continue
+			}
+			intf := node.NodeInterfaces[int(fib.OutgoingInterfaceSwIfIdx)]
+			macnode := c.gigEIPMap[intf.Vxlan.DstAddress+subnetmask]
+			remoteloopif, err := c.getNodeLoopIFInfo(macnode)
+			if err != nil {
+				c.nMap[node.Name].report = append(c.nMap[node.Name].report, err.Error()) //err no loop interface for the node
+				continue
+			}
+			if remoteloopif.PhysAddress == fib.PhysAddress {
+				delete(nodefibmap, c.loopMACMap[fib.PhysAddress].Name)
+				fibcount++
+				continue
+			} else {
+				c.nMap[node.Name].report = append(c.nMap[node.Name].report, errors.Errorf(
+					"Fib MAC %+v is different than actual MAC "+
+						"%+v", fib.PhysAddress, remoteloopif.PhysAddress).Error())
+			}
+			if len(nodefibmap) > 0 {
+				c.nMap[node.Name].report = append(c.nMap[node.Name].report, errors.Errorf(
+					"Missing Fib entries for node %+v", node.Name).Error())
+				for node := range nodefibmap {
+					c.nMap[node].report = append(c.nMap[node].report, node)
+				}
+			}
+		}
+
+		if !fibhasLoopIF {
+			c.nMap[node.Name].report = append(c.nMap[node.Name].report, errors.Errorf(
+				"Fib for node %+v loop interface missing",
+				node.Name).Error()) //error fib for loop if missing
+			continue
+		}
+
+		if fibcount != len(nodelist) {
+			c.nMap[node.Name].report = append(c.nMap[node.Name].report, errors.Errorf(
+				"Unequal amount of fib entries for node %+v",
+				node.Name).Error())
+		}
+		delete(nodemap, node.Name)
+	}
+
+	if len(nodemap) > 0 {
+		for node := range nodemap {
+			c.nMap[node].report = append(c.nMap[node].report, errors.Errorf(
+				"Error processing fib for node %+v", node).Error())
+		}
+
+	} else {
+		c.report = append(c.report, "Success validating Fib entries")
+	}
+
 }

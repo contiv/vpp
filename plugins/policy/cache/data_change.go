@@ -24,7 +24,7 @@ import (
 	policymodel "github.com/contiv/vpp/plugins/ksr/model/policy"
 )
 
-// changePropagateEvent propagates CHANGE in the K8s configuration into the Cache.
+// changePropagateEvent propagates CHANGE in the K8s configuration into the contivTelemetryCache.
 func (pc *PolicyCache) changePropagateEvent(dataChngEv datasync.ChangeEvent) error {
 	var err error
 	var diff bool

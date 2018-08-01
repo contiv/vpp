@@ -33,7 +33,7 @@ import (
 // PolicyProcessor processes K8s State data and generates a set of Contiv
 // policies for each pod with outdated configuration.
 // PolicyProcessor implements the PolicyCacheWatcher interface to watch
-// for changes and RESYNC events via the Policy Cache. For each change,
+// for changes and RESYNC events via the Policy contivTelemetryCache. For each change,
 // it decides if the re-configuration is ready to go or if it needs to be postponed
 // until more data are available. If the change carries enough information,
 // the processor first determines the list of pods with outdated policy config

@@ -14,7 +14,10 @@
 
 package cache
 
-import "github.com/ligato/cn-infra/logging"
+import (
+	"github.com/ligato/cn-infra/logging"
+	"github.com/ligato/vpp-agent/plugins/vpp/model/interfaces"
+)
 
 // here goes different cache types
 //Update this whenever a new DTO type is added.
@@ -34,6 +37,7 @@ type Node struct {
 	NodeL2Fibs        map[string]NodeL2Fib
 	NodeTelemetry     map[string]NodeTelemetry
 	NodeIPArp         []NodeIPArp
+	report            []string
 }
 
 //Cache holds various maps which all take different keys but point to the same underlying value.
@@ -43,7 +47,8 @@ type Cache struct {
 	gigEIPMap  map[string]*Node
 	loopMACMap map[string]*Node
 	report     []string
-	logger     logging.Logger
+
+	logger logging.Logger
 }
 
 //NodeLiveness holds the unmarshalled node liveness JSON data
@@ -106,15 +111,15 @@ type NodeL2FibsDTO struct {
 
 //NodeInterface holds unmarshalled Interface JSON data
 type NodeInterface struct {
-	VppInternalName string   `json:"vpp_internal_name"`
-	Name            string   `json:"name"`
-	IfType          uint32   `json:"type,omitempty"`
-	Enabled         bool     `json:"enabled,omitempty"`
-	PhysAddress     string   `json:"phys_address,omitempty"`
-	Mtu             uint32   `json:"mtu,omitempty"`
-	Vxlan           vxlan    `json:"vxlan,omitempty"`
-	IPAddresses     []string `json:"ip_addresses,omitempty"`
-	Tap             tap      `json:"tap,omitempty"`
+	VppInternalName string                   `json:"vpp_internal_name"`
+	Name            string                   `json:"name"`
+	IfType          interfaces.InterfaceType `json:"type,omitempty"`
+	Enabled         bool                     `json:"enabled,omitempty"`
+	PhysAddress     string                   `json:"phys_address,omitempty"`
+	Mtu             uint32                   `json:"mtu,omitempty"`
+	Vxlan           vxlan                    `json:"vxlan,omitempty"`
+	IPAddresses     []string                 `json:"ip_addresses,omitempty"`
+	Tap             tap                      `json:"tap,omitempty"`
 }
 
 //NodeInterfacesDTO associates a map of Node interfaces with a node name to be sent over a channel for processing

@@ -62,24 +62,23 @@ type NodeLiveness struct {
 	CommitHash   string `json:"commit_hash"`
 }
 
-//NodeLivenessDTO is used to associate NodeLiveness Data with a node name and send it over channel for processing
-type NodeLivenessDTO struct {
+// NodeDTO holds generic node information to be sent over a channel and associated with a name in the cache.
+type NodeDTO struct {
 	NodeName string
-	NodeInfo *NodeLiveness
+	NodeInfo interface{}
 	err      error
 }
+
+type nodeInterfacesMapType map[int]NodeInterface
+type nodeBridgeDomainMapTypes map[int]NodeBridgeDomains
+type nodeL2FibMapTypes map[string]NodeL2Fib
+type nodeTelemetryMapTypes map[string]NodeTelemetry
+type nodeIPARPMapTypes []NodeIPArp
 
 //NodeTelemetry holds the unmarshalled node telemetry JSON data
 type NodeTelemetry struct {
 	Command string   `json:"command"`
 	Output  []output `json:"output"`
-}
-
-//NodeTelemetryDTO is used to associate NodeTelemetry data with a node name to be sent over a channel for processing
-type NodeTelemetryDTO struct {
-	NodeName string
-	NodeInfo map[string]NodeTelemetry
-	err      error
 }
 
 type output struct {
@@ -102,13 +101,6 @@ type NodeL2Fib struct {
 	BridgedVirtualInterface  bool   `json:"bridged_virtual_interface"`
 }
 
-//NodeL2FibsDTO associates a map of NodeL2Fib data with a node name to be sent over a channel for processing
-type NodeL2FibsDTO struct {
-	NodeName string
-	NodeInfo map[string]NodeL2Fib
-	err      error
-}
-
 //NodeInterface holds unmarshalled Interface JSON data
 type NodeInterface struct {
 	VppInternalName string                   `json:"vpp_internal_name"`
@@ -120,13 +112,6 @@ type NodeInterface struct {
 	Vxlan           vxlan                    `json:"vxlan,omitempty"`
 	IPAddresses     []string                 `json:"ip_addresses,omitempty"`
 	Tap             tap                      `json:"tap,omitempty"`
-}
-
-//NodeInterfacesDTO associates a map of Node interfaces with a node name to be sent over a channel for processing
-type NodeInterfacesDTO struct {
-	NodeName string
-	NodeInfo map[int]NodeInterface
-	err      error
 }
 
 type vxlan struct {
@@ -143,13 +128,6 @@ type NodeIPArp struct {
 	Static     bool   `json:"Static"`
 }
 
-//NodeIPArpDTO associates an IP Arp table with a node name to be sent over a channel for processing.
-type NodeIPArpDTO struct {
-	NodeInfo []NodeIPArp
-	NodeName string
-	err      error
-}
-
 type tap struct {
 	Version    uint32 `json:"version"`
 	HostIfName string `json:"host_if_name"`
@@ -164,11 +142,4 @@ type NodeBridgeDomains struct {
 
 type bdinterfaces struct {
 	SwIfIndex uint32 `json:"sw_if_index"`
-}
-
-//NodeBridgeDomainsDTO associates a map of bridge domains with a node name to be sent over a channel for processing.
-type NodeBridgeDomainsDTO struct {
-	NodeName string
-	NodeInfo map[int]NodeBridgeDomains
-	err      error
 }

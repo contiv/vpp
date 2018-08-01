@@ -395,12 +395,18 @@ func (c *Cache) ValidateL2Connections() {
 		hasVXLanBD := false
 		var vxLanBD NodeBridgeDomains
 		//Make sure there is a bridge domain with the name vxlanBD
+		vxlanBDCount := 0
 		for _, bdomain := range node.NodeBridgeDomains {
 			if bdomain.Name == "vxlanBD" {
 				vxLanBD = bdomain
 				hasVXLanBD = true
-				break
+				vxlanBDCount++
 			}
+		}
+		if vxlanBDCount > 1 {
+			c.nMap[node.Name].report = append(c.nMap[node.Name].report, errors.Errorf(
+				"Node %+v has multiple vxlanBD bridge domains", node.Name).Error())
+			continue
 		}
 		//if there is not then report an error and move on.
 		if !hasVXLanBD {
@@ -508,7 +514,7 @@ func (c *Cache) ValidateL2Connections() {
 	//make sure that each node has been successfully validated
 	if len(nodemap) > 0 {
 		for node := range nodemap {
-			c.report = append(c.report, errors.Errorf("error validating info for node %+v\n", node).Error())
+			c.report = append(c.report, errors.Errorf("error validating BD info for node %+v\n", node).Error())
 		}
 	} else {
 		c.report = append(c.report, "Success validating L2 connections")

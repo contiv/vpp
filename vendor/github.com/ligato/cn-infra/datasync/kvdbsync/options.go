@@ -17,7 +17,8 @@ package kvdbsync
 import (
 	"fmt"
 
-	"github.com/ligato/cn-infra/infra"
+	"github.com/ligato/cn-infra/datasync/resync"
+	"github.com/ligato/cn-infra/db/keyval"
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/servicelabel"
 )
@@ -28,18 +29,17 @@ func NewPlugin(opts ...Option) *Plugin {
 
 	p.PluginName = "kvdb"
 	p.ServiceLabel = &servicelabel.DefaultPlugin
+	p.ResyncOrch = &resync.DefaultPlugin
 
 	for _, o := range opts {
 		o(p)
 	}
 
-	prefix := p.String()
+	name := p.String()
 	if p.Deps.KvPlugin != nil {
-		if kvdb, ok := p.Deps.KvPlugin.(fmt.Stringer); ok {
-			prefix = kvdb.String()
-		}
+		name = fmt.Sprintf("%s-%s", name, p.Deps.KvPlugin.String())
 	}
-	p.Deps.PluginName = infra.PluginName(prefix + "-datasync")
+	p.Deps.SetName(name + "-datasync")
 
 	if p.Deps.Log == nil {
 		p.Deps.Log = logging.ForPlugin(p.String())
@@ -55,5 +55,12 @@ type Option func(*Plugin)
 func UseDeps(cb func(*Deps)) Option {
 	return func(p *Plugin) {
 		cb(&p.Deps)
+	}
+}
+
+// UseKV returns Option that sets KvPlugin dependency.
+func UseKV(kv keyval.KvProtoPlugin) Option {
+	return func(p *Plugin) {
+		p.KvPlugin = kv
 	}
 }

@@ -61,7 +61,7 @@ type stats struct {
 
 // Deps groups the dependencies of the Plugin.
 type Deps struct {
-	infra.Deps
+	infra.PluginDeps
 	ServiceLabel servicelabel.ReaderAPI
 	// Contiv plugin is used to lookup pod related to interfaces statistics
 	Contiv contiv.API

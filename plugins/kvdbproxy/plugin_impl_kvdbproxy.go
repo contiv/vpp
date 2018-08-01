@@ -34,7 +34,7 @@ import (
 type Plugin struct {
 	Deps
 	sync.Mutex
-	ignoreList map[string]datasync.PutDel
+	ignoreList map[string]datasync.Op
 	closeChan  chan interface{}
 }
 
@@ -49,14 +49,14 @@ type kvsyncDelegate interface {
 
 // Deps group the dependencies of the Plugin
 type Deps struct {
-	infra.Deps
+	infra.PluginDeps
 
 	KVDB kvsyncDelegate
 }
 
 // Init initializes internal members of the plugin.
 func (plugin *Plugin) Init() error {
-	plugin.ignoreList = map[string]datasync.PutDel{}
+	plugin.ignoreList = map[string]datasync.Op{}
 	plugin.closeChan = make(chan interface{})
 	return nil
 }
@@ -68,7 +68,7 @@ func (plugin *Plugin) Close() error {
 
 // AddIgnoreEntry adds the entry into ignore list. The first change event matching the given key and operation
 // is skipped. Once the event is skipped the entry is removed from the list.
-func (plugin *Plugin) AddIgnoreEntry(key string, op datasync.PutDel) {
+func (plugin *Plugin) AddIgnoreEntry(key string, op datasync.Op) {
 	plugin.Lock()
 	defer plugin.Unlock()
 	plugin.ignoreList[key] = op

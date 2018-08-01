@@ -74,7 +74,7 @@ type Plugin struct {
 
 // Deps groups the dependencies of the Plugin.
 type Deps struct {
-	infra.Deps
+	infra.PluginDeps
 	ServiceLabel servicelabel.ReaderAPI
 	GRPC         grpc.Server
 	Proxy        *kvdbproxy.Plugin
@@ -432,7 +432,7 @@ func (plugin *Plugin) handleResync(resyncChan chan resync.StatusEvent) {
 // loadExternalConfig attempts to load external configuration from a YAML file.
 func (plugin *Plugin) loadExternalConfig() error {
 	externalCfg := &Config{}
-	found, err := getConfig(externalCfg) // It tries to lookup `PluginName + "-config"` in the executable arguments.
+	found, err := plugin.Cfg.LoadValue(externalCfg) // It tries to lookup `PluginName + "-config"` in the executable arguments.
 	if err != nil {
 		return fmt.Errorf("External Contiv plugin configuration could not load or other problem happened: %v", err)
 	}

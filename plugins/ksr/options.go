@@ -20,8 +20,6 @@ import (
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/rpc/prometheus"
 	"github.com/ligato/cn-infra/servicelabel"
-	"github.com/namsral/flag"
-	"os"
 )
 
 const (
@@ -56,9 +54,7 @@ func NewPlugin(opts ...Option) *Plugin {
 		p.Deps.Log = logging.ForPlugin(p.String())
 	}
 	if p.Deps.KubeConfig == nil {
-		p.Deps.KubeConfig = config.ForPlugin(p.String(), func(flags *config.FlagSet) {
-			flags.String(ConfigFlagName, KubeConfigAdmin, KubeConfigUsage)
-		})
+		p.Deps.KubeConfig = config.ForPlugin(p.String(), config.WithCustomizedFlag(ConfigFlagName, KubeConfigAdmin, KubeConfigAdmin))
 	}
 
 	return p
@@ -72,16 +68,4 @@ func UseDeps(cb func(*Deps)) Option {
 	return func(p *Plugin) {
 		cb(&p.Deps)
 	}
-}
-
-func getKubeConfig() string {
-	f := flag.Lookup(ConfigFlagName)
-	if f != nil {
-		val := f.Value.String()
-		if _, err := os.Stat(val); !os.IsNotExist(err) {
-			return val
-		}
-
-	}
-	return ""
 }

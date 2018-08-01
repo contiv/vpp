@@ -131,6 +131,12 @@
   version = "v3.5.1"
 
 [[projects]]
+  name = "github.com/bshuster-repo/logrus-logstash-hook"
+  packages = ["."]
+  revision = "dbc1e22735aa6ed7bd9579a407c17bc7c4a4e046"
+  version = "v0.4.1"
+
+[[projects]]
   name = "github.com/containernetworking/cni"
   packages = [
     "libcni",
@@ -351,6 +357,18 @@
   packages = ["kmsgparser"]
   revision = "5ba4d492e455a77d25dcf0d2c4acc9f2afebef4e"
   version = "v2.0.0"
+
+[[projects]]
+  name = "github.com/evalphobia/logrus_fluent"
+  packages = ["."]
+  revision = "76779e73f35d90f5a873e7feaf6691999b2c5db4"
+  version = "v0.4.0"
+
+[[projects]]
+  name = "github.com/fluent/fluent-logger-golang"
+  packages = ["fluent"]
+  revision = "8bbc2356beaf021b04c9bd5cdc76ea5a7ccb40ec"
+  version = "v1.3.0"
 
 [[projects]]
   name = "github.com/fsnotify/fsnotify"
@@ -653,7 +671,7 @@
     "utils/once",
     "utils/safeclose"
   ]
-  revision = "52432e9cff91cd15e5cd0001be7e1034253adf0a"
+  revision = "7838b46f7be1b8c032d8f478c3da744c86d3f4c2"
 
 [[projects]]
   name = "github.com/ligato/vpp-agent"
@@ -734,8 +752,7 @@
     "plugins/vpp/srplugin/cache",
     "plugins/vpp/srplugin/vppcalls"
   ]
-  revision = "f2456ef605aeb206278ea2152eec048563a4ad1a"
-  source = "github.com/ondrej-fabry/vpp-agent"
+  revision = "c2b9574244b4150a120b6061f59e97dc237bd9dd"
 
 [[projects]]
   branch = "master"
@@ -874,6 +891,12 @@
   version = "v2.0.1"
 
 [[projects]]
+  name = "github.com/philhofer/fwd"
+  packages = ["."]
+  revision = "bb6d471dc95d4fe11e432687f8b70ff496cf3136"
+  version = "v1.0.0"
+
+[[projects]]
   name = "github.com/pierrec/lz4"
   packages = ["."]
   revision = "2fcda4cb7018ce05a25959d2fe08c83e3329f169"
@@ -964,7 +987,10 @@
 
 [[projects]]
   name = "github.com/sirupsen/logrus"
-  packages = ["."]
+  packages = [
+    ".",
+    "hooks/syslog"
+  ]
   revision = "d682213848ed68c0a260ca37d6dd5ace8423f5ba"
   version = "v1.0.4"
 
@@ -988,6 +1014,12 @@
   name = "github.com/syndtr/gocapability"
   packages = ["capability"]
   revision = "db04d3cc01c8b54962a58ec7e491717d06cfcc16"
+
+[[projects]]
+  name = "github.com/tinylib/msgp"
+  packages = ["msgp"]
+  revision = "b2b6a672cf1e5b90748f79b8b81fc8c5cf0571a1"
+  version = "1.0.2"
 
 [[projects]]
   name = "github.com/ugorji/go"
@@ -1573,6 +1605,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "df0b94db813e828504273e56cb980bcf3d47091bbab38004776cb6725d59c4e0"
+  inputs-digest = "b08b674872a26a9ba29534ecf3d2c251d6c2f42fbca8a63c7da7ecae1c9b15e5"
   solver-name = "gps-cdcl"
   solver-version = 1

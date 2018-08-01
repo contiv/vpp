@@ -85,7 +85,7 @@ type Plugin struct {
 
 // Deps defines dependencies of policy plugin.
 type Deps struct {
-	infra.Deps
+	infra.PluginDeps
 	Resync  resync.Subscriber
 	Watcher datasync.KeyValProtoWatcher /* prefixed for KSR-published K8s state data */
 	Contiv  contiv.API                  /* for GetIfName() */

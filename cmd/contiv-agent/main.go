@@ -65,7 +65,7 @@ type ContivAgent struct {
 	Stats   *statscollector.Plugin
 
 	LinuxLocalClient *localclient.Plugin
-	GoVPP            *govppmux.GOVPPPlugin
+	GoVPP            *govppmux.Plugin
 	Linux            *linux.Plugin
 	VPP              *vpp.Plugin
 	VPPrest          *vpp_rest.Plugin
@@ -95,9 +95,8 @@ func (c *ContivAgent) Close() error {
 
 func main() {
 
-	ksrServicelabel := servicelabel.NewPlugin()
+	ksrServicelabel := servicelabel.NewPlugin(servicelabel.UseLabel(ksr.MicroserviceLabel))
 	ksrServicelabel.SetName("ksrServiceLabel")
-	ksrServicelabel.MicroserviceLabel = ksr.MicroserviceLabel
 
 	useKSRprefix := kvdbsync.UseDeps(func(deps *kvdbsync.Deps) {
 		deps.KvPlugin = &etcd.DefaultPlugin
@@ -119,9 +118,9 @@ func main() {
 	policyDataSync := kvdbsync.NewPlugin(useKSRprefix)
 	policyDataSync.SetName("policyDataSync")
 
-	//TODO vpp rest, telemetry
+	//TODO  telemetry
 
-	watcher := &datasync.CompositeKVProtoWatcher{Adapters: []datasync.KeyValProtoWatcher{&kvdbproxy.DefaultPlugin, local.Get()}}
+	watcher := &datasync.KVProtoWatchers{&kvdbproxy.DefaultPlugin, local.Get()}
 
 	var watchEventsMutex sync.Mutex
 
@@ -129,7 +128,7 @@ func main() {
 		vpp.UseDeps(func(deps *vpp.Deps) {
 			deps.GoVppmux = &govppmux.DefaultPlugin
 			deps.Publish = etcdDataSync
-			deps.Watch = watcher
+			deps.Watcher = watcher
 			deps.WatchEventsMutex = &watchEventsMutex
 		}),
 	)
@@ -143,6 +142,12 @@ func main() {
 	)
 
 	vppPlugin.Linux = linuxPlugin
+
+	vppRest := vpp_rest.NewPlugin(vpp_rest.UseDeps(func(deps *vpp_rest.Deps) {
+		deps.GoVppmux = &govppmux.DefaultPlugin
+		deps.VPP = vppPlugin
+		deps.HTTPHandlers = &rest.DefaultPlugin
+	}))
 
 	// we don't want to publish status to etcd
 	statuscheck.DefaultPlugin.Transport = nil
@@ -158,7 +163,6 @@ func main() {
 		deps.Proxy = &kvdbproxy.DefaultPlugin
 		deps.ETCD = &etcd.DefaultPlugin
 		deps.Watcher = nodeIDDataSync
-		//TODO contiv config default val /etc/agent/contiv.yaml
 	}))
 
 	statscollector.DefaultPlugin.Contiv = contivPlugin
@@ -194,6 +198,7 @@ func main() {
 		PolicyDataSync:  policyDataSync,
 		GoVPP:           &govppmux.DefaultPlugin,
 		VPP:             vppPlugin,
+		VPPrest:         vppRest,
 		Linux:           linuxPlugin,
 		KVProxy:         &kvdbproxy.DefaultPlugin,
 		Contiv:          contivPlugin,
@@ -202,12 +207,10 @@ func main() {
 		Service:         servicePlugin,
 	}
 
-	a := agent.NewAgent(agent.AllPlugins(contivAgent))
+	a := agent.NewAgent(agent.AllPlugins(contivAgent), agent.StartTimeout(getStartupTimeout()))
 	if err := a.Run(); err != nil {
 		logrus.DefaultLogger().Fatal(err)
 	}
-
-	//agent.WithTimeout(getStartupTimeout())
 
 }
 

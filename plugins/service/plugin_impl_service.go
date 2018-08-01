@@ -69,7 +69,7 @@ type Plugin struct {
 
 // Deps defines dependencies of the service plugin.
 type Deps struct {
-	infra.Deps
+	infra.PluginDeps
 	ServiceLabel servicelabel.ReaderAPI
 	Resync       resync.Subscriber
 	Watcher      datasync.KeyValProtoWatcher /* prefixed for KSR-published K8s state data */

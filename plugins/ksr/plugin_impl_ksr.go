@@ -85,7 +85,7 @@ type EtcdMonitor struct {
 
 // Deps defines dependencies of ksr plugin.
 type Deps struct {
-	infra.Deps
+	infra.PluginDeps
 	ServiceLabel servicelabel.ReaderAPI
 	// Kubeconfig with k8s cluster address and access credentials to use.
 	KubeConfig config.PluginConfig
@@ -118,7 +118,7 @@ func (plugin *Plugin) Init() error {
 		reflectors: make(map[string]*Reflector),
 	}
 
-	kubeconfig := getKubeConfig()
+	kubeconfig := plugin.KubeConfig.GetConfigName()
 	plugin.Log.WithField(ConfigFlagName, kubeconfig).Info("Loading kubernetes client config")
 	plugin.k8sClientConfig, err = clientcmd.BuildConfigFromFlags("", kubeconfig)
 	if err != nil {

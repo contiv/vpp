@@ -18,7 +18,6 @@ import (
 	"github.com/ligato/cn-infra/config"
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/servicelabel"
-	"github.com/namsral/flag"
 )
 
 const (
@@ -48,10 +47,8 @@ func NewPlugin(opts ...Option) *Plugin {
 		p.Deps.Log = logging.ForPlugin(p.String())
 	}
 
-	if p.Deps.PluginConfig == nil {
-		p.Deps.PluginConfig = config.ForPlugin(p.String(), func(set *config.FlagSet) {
-			set.String(ConfigFlagName, ContivConfigPath, ContivConfigPathUsage)
-		})
+	if p.Deps.Cfg == nil {
+		p.Deps.Cfg = config.ForPlugin(p.String(), config.WithCustomizedFlag(ConfigFlagName, ContivConfigPath, ContivConfigPathUsage))
 	}
 	return p
 }
@@ -64,18 +61,4 @@ func UseDeps(cb func(*Deps)) Option {
 	return func(p *Plugin) {
 		cb(&p.Deps)
 	}
-}
-
-func getConfig(c interface{}) (found bool, err error) {
-	f := flag.Lookup(ConfigFlagName)
-	if f == nil {
-		return false, nil
-	}
-	fileName := f.Value.String()
-	err = config.ParseConfigFromYamlFile(fileName, c)
-	if err != nil {
-		return false, err
-	}
-
-	return true, nil
 }

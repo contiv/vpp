@@ -50,7 +50,7 @@ func (kv *KvdbsyncMock) Delete(key string, opts ...datasync.DelOption) (existed 
 }
 
 // AddIgnoreEntry is a mock function that currently does nothing.
-func (kv *KvdbsyncMock) AddIgnoreEntry(key string, op datasync.PutDel) {
+func (kv *KvdbsyncMock) AddIgnoreEntry(key string, op datasync.Op) {
 
 }
 
@@ -71,10 +71,10 @@ func (r *regMock) Close() error {
 
 type changeEventMock struct {
 	key        string
-	changeType datasync.PutDel
+	changeType datasync.Op
 }
 
-func newChangeEventMock(key string, change datasync.PutDel) *changeEventMock {
+func newChangeEventMock(key string, change datasync.Op) *changeEventMock {
 	return &changeEventMock{key: key, changeType: change}
 }
 
@@ -96,6 +96,6 @@ func (ce *changeEventMock) GetRevision() int64 {
 	return 0
 }
 
-func (ce *changeEventMock) GetChangeType() datasync.PutDel {
+func (ce *changeEventMock) GetChangeType() datasync.Op {
 	return ce.changeType
 }

@@ -23,7 +23,7 @@ import (
 	"net/http"
 	"testing"
 	"time"
-)
+	)
 
 const (
 	testAgentPort = ":8080"
@@ -266,19 +266,29 @@ func TestProcessor(t *testing.T) {
 		Timeout:       timeout,
 	}
 
-	ptv.processor = &ContivTelemetryProcessor{}
-	ptv.processor.Deps.Log = ptv.log
-	ptv.processor.Cache = NewCache(ptv.log)
+	ptv.processor = &ContivTelemetryProcessor{
+		Deps: Deps {
+			Log: ptv.log,
+		},
+		ContivTelemetryCache: &ContivTelemetryCache{
+			Deps: Deps{
+				Log: ptv.log,
+			},
+			Synced: false,
+		},
+	}
+	ptv.processor.ContivTelemetryCache.Init()
 	ptv.processor.Init()
 	ptv.processor.ticker.Stop() // Do not periodically poll agents - we will run updates manually from tests
-	ptv.processor.agentPort = testAgentPort
+	ptv.processor.agentPort = testAgentPort // Override agentPort
 
 	// Int test data in the cache (emulate successful discovery of a single node)
-	ptv.processor.Cache.AddNode(1, "k8s-master", "10.20.0.2", "localhost")
+	ptv.processor.ContivTelemetryCache.AddNode(1, "k8s-master", "10.20.0.2", "localhost")
 
 	// Do testing
 	t.Run("mockClient", testMockClient)
 	t.Run("collectAgentInfoNoError", testCollectAgentInfoNoError)
+	t.Run("testCollectAgentInfoWithHTTPError", testCollectAgentInfoWithHTTPError)
 
 	// Shutdown the mock HTTP server
 	// ptv.shutdownMockHTTPServer()
@@ -316,16 +326,21 @@ func testMockClient(t *testing.T) {
 }
 
 func testCollectAgentInfoNoError(t *testing.T) {
-	node, err := ptv.processor.Cache.GetNode("k8s-master")
-	gomega.Expect(err).To(gomega.BeNil())
+	nodes := ptv.processor.ContivTelemetryCache.LookupNode([]string{"k8s-master"})
+	// node, err := ptv.processor.ContivTelemetryCache.LookupNode("k8s-master")
+	gomega.Expect(len(nodes)).To(gomega.Equal(1))
 
-	ptv.processor.collectAgentInfo(node)
+	ptv.processor.collectAgentInfo(nodes[0])
 
 	time.Sleep(20 * time.Millisecond)
 
-	gomega.Expect(node.NodeLiveness).To(gomega.BeEquivalentTo(ptv.nodeLiveness))
-	gomega.Expect(node.NodeInterfaces).To(gomega.BeEquivalentTo(ptv.nodeInterfaces))
-	gomega.Expect(node.NodeBridgeDomains).To(gomega.BeEquivalentTo(ptv.nodeBridgeDomains))
-	gomega.Expect(node.NodeL2Fibs).To(gomega.BeEquivalentTo(ptv.nodeL2Fibs))
-	gomega.Expect(node.NodeIPArp).To(gomega.BeEquivalentTo(ptv.nodeIPArps))
+	gomega.Expect(nodes[0].NodeLiveness).To(gomega.BeEquivalentTo(ptv.nodeLiveness))
+	gomega.Expect(nodes[0].NodeInterfaces).To(gomega.BeEquivalentTo(ptv.nodeInterfaces))
+	gomega.Expect(nodes[0].NodeBridgeDomains).To(gomega.BeEquivalentTo(ptv.nodeBridgeDomains))
+	gomega.Expect(nodes[0].NodeL2Fibs).To(gomega.BeEquivalentTo(ptv.nodeL2Fibs))
+	gomega.Expect(nodes[0].NodeIPArp).To(gomega.BeEquivalentTo(ptv.nodeIPArps))
+}
+
+func testCollectAgentInfoWithHTTPError(t *testing.T) {
+
 }

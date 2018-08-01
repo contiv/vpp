@@ -88,6 +88,11 @@ func (p *ContivTelemetryProcessor) ValidateNodeInfo() {
 
 	for _, entry := range p.ContivTelemetryCache.Cache.report {
 		p.Log.Info(entry)
+		for _, node :=  range p.ContivTelemetryCache.Cache.nMap  {
+			p.Log.Infof("Report for %+v",node.Name)
+			p.Log.Info(node.report)
+			node.report = node.report[0:0]
+		}
 	}
 
 }

@@ -508,7 +508,7 @@ func (c *Cache) ValidateL2Connections() {
 	//make sure that each node has been successfully validated
 	if len(nodemap) > 0 {
 		for node := range nodemap {
-			c.report = append(c.report, errors.Errorf("error validating info for node %+v\n", node).Error())
+			c.report = append(c.report, errors.Errorf("error validating BD info for node %+v\n", node).Error())
 		}
 	} else {
 		c.report = append(c.report, "Success validating L2 connections")

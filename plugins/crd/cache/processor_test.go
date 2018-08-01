@@ -36,10 +36,11 @@ type processorTestVars struct {
 	processor *ContivTelemetryProcessor
 
 	// Mock data
-	nodeInfo          *NodeLiveness
+	nodeLiveness      *NodeLiveness
 	nodeInterfaces    map[int]NodeInterface
 	nodeBridgeDomains map[int]NodeBridgeDomains
-	nodel2fibs        map[string]NodeL2Fib
+	nodeL2Fibs        map[string]NodeL2Fib
+	nodeIPArps        []NodeIPArp
 }
 
 var ptv processorTestVars
@@ -58,30 +59,38 @@ func (ptv *processorTestVars) startMockHTTPServer() {
 }
 
 func registerHTTPHandlers() {
-	// Register handler for getting NodeInfo data
-	http.HandleFunc(livenessURL, func(w http.ResponseWriter, r *http.Request) {
-		data, err := json.Marshal(ptv.nodeInfo)
+	// Register handler for all test data
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		var data interface{}
+
+		switch r.URL.Path {
+		case livenessURL:
+			data = ptv.nodeLiveness
+		case interfaceURL:
+			data = ptv.nodeInterfaces
+		case l2FibsURL:
+			data = ptv.nodeL2Fibs
+		case bridgeDomainURL:
+			data = ptv.nodeBridgeDomains
+		case arpURL:
+			data = ptv.nodeIPArps
+		default:
+			ptv.log.Error("unknown URL: ", r.URL)
+			w.WriteHeader(404)
+			w.Write([]byte("Unknown path" + r.URL.Path))
+			return
+		}
+
+		buf, err := json.Marshal(data)
 		if err != nil {
 			ptv.log.Error("Error marshalling NodeInfo data, err: ", err)
 			w.WriteHeader(500)
 			w.Header().Set("Content-Type", "application/json")
 			return
 		}
-		w.Header().Set("Content-Type", "application/json")
-		w.Write(data)
-	})
 
-	// Register handler for getting interface data
-	http.HandleFunc(interfaceURL, func(w http.ResponseWriter, r *http.Request) {
-		data, err := json.Marshal(ptv.nodeInterfaces)
-		if err != nil {
-			ptv.log.Error("Error marshalling nodeInterfaces, err: ", err)
-			w.WriteHeader(500)
-			w.Header().Set("Content-Type", "application/json")
-			return
-		}
 		w.Header().Set("Content-Type", "application/json")
-		w.Write(data)
+		w.Write(buf)
 	})
 
 }
@@ -94,7 +103,7 @@ func (ptv *processorTestVars) shutdownMockHTTPServer() {
 
 func (ptv *processorTestVars) initTestData() {
 	// Initialize NodeLiveness response
-	ptv.nodeInfo = &NodeLiveness{
+	ptv.nodeLiveness = &NodeLiveness{
 		BuildVersion: "v1.2-alpha-179-g4e2d712",
 		BuildDate:    "2018-07-19T09:54+00:00",
 		State:        1,
@@ -104,7 +113,7 @@ func (ptv *processorTestVars) initTestData() {
 		CommitHash:   "v1.2-alpha-179-g4e2d712",
 	}
 
-	// Initilize interfaces data
+	// Initialize interfaces data
 	ptv.nodeInterfaces = map[int]NodeInterface{
 		0: {
 			VppInternalName: "local0",
@@ -170,6 +179,75 @@ func (ptv *processorTestVars) initTestData() {
 			},
 		},
 	}
+
+	// Initialize bridge domains data
+	ptv.nodeBridgeDomains = map[int]NodeBridgeDomains{
+		1: {
+			Name:       "vxlanBD",
+			Forward:    true,
+			Interfaces: []bdinterfaces{},
+		},
+		2: {
+			Name:    "vxlanBD",
+			Forward: true,
+			Interfaces: []bdinterfaces{
+				{SwIfIndex: 4},
+				{SwIfIndex: 5},
+				{SwIfIndex: 6},
+			},
+		},
+	}
+
+	// Initialize L2 Fib data
+	ptv.nodeL2Fibs = map[string]NodeL2Fib{
+		"1a:2b:3c:4d:5e:01": {
+			BridgeDomainIdx:          2,
+			OutgoingInterfaceSwIfIdx: 5,
+			PhysAddress:              "1a:2b:3c:4d:5e:01",
+			StaticConfig:             true,
+		},
+		"1a:2b:3c:4d:5e:02": {
+			BridgeDomainIdx:          2,
+			OutgoingInterfaceSwIfIdx: 6,
+			PhysAddress:              "1a:2b:3c:4d:5e:02",
+			StaticConfig:             true,
+		},
+		"1a:2b:3c:4d:5e:03": {
+			BridgeDomainIdx:          2,
+			OutgoingInterfaceSwIfIdx: 4,
+			PhysAddress:              "1a:2b:3c:4d:5e:03",
+			StaticConfig:             true,
+			BridgedVirtualInterface:  true,
+		},
+	}
+
+	// Initialize ARP Table data
+	ptv.nodeIPArps = []NodeIPArp{
+		{
+			Interface:  4,
+			IPAddress:  "192.168.30.1",
+			MacAddress: "1a:2b:3c:4d:5e:01",
+			Static:     true,
+		},
+		{
+			Interface:  4,
+			IPAddress:  "192.168.30.2",
+			MacAddress: "1a:2b:3c:4d:5e:02",
+			Static:     true,
+		},
+		{
+			Interface:  2,
+			IPAddress:  "172.30.3.2",
+			MacAddress: "96:ff:16:6e:60:6f",
+			Static:     true,
+		},
+		{
+			Interface:  3,
+			IPAddress:  "10.1.3.7",
+			MacAddress: "00:00:00:00:00:02",
+			Static:     true,
+		},
+	}
 }
 
 func TestProcessor(t *testing.T) {
@@ -194,6 +272,8 @@ func TestProcessor(t *testing.T) {
 	ptv.processor.Init()
 	ptv.processor.ticker.Stop() // Do not periodically poll agents - we will run updates manually from tests
 	ptv.processor.agentPort = testAgentPort
+
+	// Int test data in the cache (emulate successful discovery of a single node)
 	ptv.processor.Cache.AddNode(1, "k8s-master", "10.20.0.2", "localhost")
 
 	// Do testing
@@ -208,7 +288,7 @@ func testMockClient(t *testing.T) {
 	// Get response from the server
 	res, err := ptv.client.Get("http://" + "localhost" + testAgentPort + livenessURL)
 	if err != nil {
-		ptv.log.Error("Error receiving nodeInfo, err: ", err)
+		ptv.log.Error("Error receiving nodeLiveness, err: ", err)
 		return
 	}
 
@@ -217,13 +297,13 @@ func testMockClient(t *testing.T) {
 	nodeInfo := &NodeLiveness{}
 	json.Unmarshal(b, nodeInfo)
 	// Received data should be the same as the data created above
-	ptv.log.Info("Received nodeInfo: ", nodeInfo)
+	ptv.log.Info("Received nodeLiveness: ", nodeInfo)
 
 	// Modify response
-	ptv.nodeInfo.BuildVersion = "v1.55"
+	ptv.nodeLiveness.BuildVersion = "v1.55"
 	res, err = ptv.client.Get("http://" + "localhost" + testAgentPort + livenessURL)
 	if err != nil {
-		ptv.log.Error("Error receiving nodeInfo, err: ", err)
+		ptv.log.Error("Error receiving nodeLiveness, err: ", err)
 		return
 	}
 
@@ -232,7 +312,7 @@ func testMockClient(t *testing.T) {
 	nodeInfo1 := &NodeLiveness{}
 	json.Unmarshal(b, nodeInfo1)
 	// Received data should be the same as the modified data
-	ptv.log.Info("Received nodeInfo: ", nodeInfo1)
+	ptv.log.Info("Received nodeLiveness: ", nodeInfo1)
 }
 
 func testCollectAgentInfoNoError(t *testing.T) {
@@ -240,7 +320,12 @@ func testCollectAgentInfoNoError(t *testing.T) {
 	gomega.Expect(err).To(gomega.BeNil())
 
 	ptv.processor.collectAgentInfo(node)
-	time.Sleep(1 * time.Microsecond)
-	ptv.log.Info("Cache nodes:", ptv.processor.Cache.nMap)
-	ptv.log.Info("Cache report:", ptv.processor.Cache.report)
+
+	time.Sleep(20 * time.Millisecond)
+
+	gomega.Expect(node.NodeLiveness).To(gomega.BeEquivalentTo(ptv.nodeLiveness))
+	gomega.Expect(node.NodeInterfaces).To(gomega.BeEquivalentTo(ptv.nodeInterfaces))
+	gomega.Expect(node.NodeBridgeDomains).To(gomega.BeEquivalentTo(ptv.nodeBridgeDomains))
+	gomega.Expect(node.NodeL2Fibs).To(gomega.BeEquivalentTo(ptv.nodeL2Fibs))
+	gomega.Expect(node.NodeIPArp).To(gomega.BeEquivalentTo(ptv.nodeIPArps))
 }

@@ -20,20 +20,20 @@ package cache
 func (p *ContivTelemetryProcessor) ProcessNodeResponses() {
 	for data := range p.nodeResponseChannel {
 		nodelist := p.ContivTelemetryCache.Cache.GetAllNodes()
-		p.dtoMap = append(p.dtoMap, data)
-		if len(p.dtoMap) == numDTOs*len(nodelist) {
+		p.dtoList = append(p.dtoList, data)
+		if len(p.dtoList) == numDTOs*len(nodelist) {
 			p.SetNodeData()
 			p.ValidateNodeInfo()
-			p.dtoMap = p.dtoMap[0:0]
+			p.dtoList = p.dtoList[0:0]
 			p.ContivTelemetryCache.ClearCache()
 		}
 	}
 }
 
-// SetNodeData will iterate through the dtoMap, read the type of dto, and assign the dto info to the name
+// SetNodeData will iterate through the dtoList, read the type of dto, and assign the dto info to the name
 // associated with the DTO.
 func (p *ContivTelemetryProcessor) SetNodeData() {
-	for _, data := range p.dtoMap {
+	for _, data := range p.dtoList {
 		switch data.(type) {
 		case NodeLivenessDTO:
 			nlDto := data.(NodeLivenessDTO)

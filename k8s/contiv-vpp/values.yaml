@@ -4,7 +4,7 @@ contiv:
   tapInterfaceVersion: 2
   stealFirstNIC: False
   natExternalTraffic: True
-  mtuSize: 1500
+  mtuSize: 1450
   cleanupIdleNATSessions: True
   tcpNATSessionTimeout: 180
   otherNATSessionTimeout: 5

@@ -32,8 +32,9 @@ type DataResyncEvent struct {
 	// add more types here
 }
 
-// processResyncEvent parses K8s configuration RESYNC event for use by the Config Processor.
-func (ctc *ContivTelemetryCache) processResyncEvent(resyncEv datasync.ResyncEvent) error {
+// Resync processes a data sync re sync event associated with K8s State data.
+// The cache content is full replaced with the received data.
+func (ctc *ContivTelemetryCache) Resync(resyncEv datasync.ResyncEvent) error {
 	err := error(nil)
 	ctc.Synced = true
 

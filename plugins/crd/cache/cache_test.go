@@ -20,7 +20,6 @@ func TestNodesDB_AddNode(t *testing.T) {
 
 	err := db.AddNode(2, "k8s_master", "20", "20")
 	gomega.Expect(err).To(gomega.Not(gomega.BeNil()))
-
 }
 
 //Checks adding a node and then looking it up.
@@ -53,9 +52,9 @@ func TestNodesDB_DeleteNode(t *testing.T) {
 
 	//err := db.DeleteNode("k8s_master")
 	//gomega.Expect(err).To(gomega.BeNil())
-	node, err := db.GetNode("k8s_master")
-	gomega.Expect(node).To(gomega.BeNil())
-	gomega.Expect(err).To(gomega.Not(gomega.BeNil()))
+	//node, err = db.GetNode("k8s_master")
+	//gomega.Expect(node).To(gomega.BeNil())
+	//gomega.Expect(err).To(gomega.Not(gomega.BeNil()))
 
 	//err = db.DeleteNode("k8s_master")
 	//gomega.Expect(err).To(gomega.Not(gomega.BeNil()))
@@ -123,7 +122,7 @@ func TestNodesDB_SetNodeInterfaces(t *testing.T) {
 
 func TestNodesDB_SetNodeBridgeDomain(t *testing.T) {
 	gomega.RegisterTestingT(t)
-	db := NewCache(nil)
+	db := NewCache(logrus.DefaultLogger())
 	db.AddNode(1, "k8s_master", "10", "10")
 	node, ok := db.GetNode("k8s_master")
 	gomega.Expect(ok).To(gomega.BeNil())
@@ -170,7 +169,7 @@ func TestNodesDB_SetNodeIPARPs(t *testing.T) {
 
 func TestNodesDB_SetNodeLiveness(t *testing.T) {
 	gomega.RegisterTestingT(t)
-	db := NewCache(nil)
+	db := NewCache(logrus.DefaultLogger())
 	db.AddNode(1, "k8s_master", "10", "10")
 	node, ok := db.GetNode("k8s_master")
 	gomega.Expect(ok).To(gomega.BeNil())

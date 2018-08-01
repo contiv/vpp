@@ -17,7 +17,6 @@ package cache
 
 import (
 	nodemodel "github.com/contiv/vpp/plugins/ksr/model/node"
-	"github.com/ligato/cn-infra/datasync"
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/vpp-agent/plugins/vpp/model/interfaces"
 	"github.com/pkg/errors"
@@ -52,20 +51,6 @@ func (ctc *ContivTelemetryCache) Init() error {
 	ctc.k8sNodeMap = make(map[string]*nodemodel.Node)
 	ctc.Log.Infof("ContivTelemetryCache has been initialized")
 	return nil
-}
-
-// Update processes a data sync change event associated with K8s State data.
-// The change is applied into the cache and all subscribed watchers are
-// notified.
-// The function will forward any error returned by a watcher.
-func (ctc *ContivTelemetryCache) Update(dataChngEv datasync.ChangeEvent) error {
-	return ctc.changePropagateEvent(dataChngEv)
-}
-
-// Resync processes a data sync re sync event associated with K8s State data.
-// The cache content is full replaced with the received data.
-func (ctc *ContivTelemetryCache) Resync(resyncEv datasync.ResyncEvent) error {
-	return ctc.processResyncEvent(resyncEv)
 }
 
 // ListAllNodes returns node data for all nodes in the cache.
@@ -390,7 +375,6 @@ func (c *Cache) ValidateLoopIFAddresses() {
 			delete(nodemap, node)
 		}
 	}
-
 }
 
 //ValidateL2Connections makes sure that each node in the cache has the right amount of vxlan_tunnels for the number of

@@ -185,7 +185,8 @@ fi
 SSH_OPTS=(-o LogLevel=error -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no)
 HAVE_K8S_CONNECTIVITY=1
 MASTER=
-SSH_USER=$LOGNAME
+# Use whoami instead of POSIX variables LOGNAME or USER, for compatibility with bash for windows.
+SSH_USER=$(whoami)
 SSH_CONFIG_FILE=
 SSH_KEY_FILE=
 USE_SSH=1
@@ -205,7 +206,7 @@ VPP_COMMANDS["vpp-interface-address.log"]="sh int addr"
 VPP_COMMANDS["vpp-ip-fib.log"]="sh ip fib"
 VPP_COMMANDS["vpp-l2-fib.log"]="sh l2fib verbose"
 VPP_COMMANDS["vpp-ip-arp.log"]="sh ip arp"
-VPP_COMMANDS["vpp-vxlan-tunnels.log"]="sh vxlan tunnel"
+VPP_COMMANDS["vpp-vxlan-tunnels.log"]="sh vxlan tunnel raw"
 VPP_COMMANDS["vpp-nat44-interfaces.log"]="sh nat44 interfaces"
 VPP_COMMANDS["vpp-nat44-static-mappings.log"]="sh nat44 static mappings"
 VPP_COMMANDS["vpp-nat44-addresses.log"]="sh nat44 addresses"

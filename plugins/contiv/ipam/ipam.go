@@ -194,6 +194,14 @@ func (i *IPAM) VPPHostNetwork() *net.IPNet {
 	return &vSwitchNetwork
 }
 
+// VPPHostSubnet returns vswitch base subnet used to connect VPP to its host Linux Stack on all nodes.
+func (i *IPAM) VPPHostSubnet() *net.IPNet {
+	i.mutex.RLock()
+	defer i.mutex.RUnlock()
+	vSwitchNetwork := newIPNet(i.vppHostSubnetIPPrefix) // defensive copy
+	return &vSwitchNetwork
+}
+
 // VPPIfIPPrefix returns VPP-side interface IP address prefix.
 func (i *IPAM) VPPIfIPPrefix() *net.IP {
 	i.mutex.RLock()

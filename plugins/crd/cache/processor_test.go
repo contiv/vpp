@@ -23,17 +23,19 @@ import (
 	"net/http"
 	"testing"
 	"time"
-	)
+	"fmt"
+)
 
 const (
 	testAgentPort = ":8080"
 )
 
 type processorTestVars struct {
-	srv       *http.Server
-	log       *logrus.Logger
-	client    *http.Client
-	processor *ContivTelemetryProcessor
+	srv         *http.Server
+	injectError bool
+	log         *logrus.Logger
+	client      *http.Client
+	processor   *ContivTelemetryProcessor
 
 	// Mock data
 	nodeLiveness      *NodeLiveness
@@ -61,6 +63,11 @@ func (ptv *processorTestVars) startMockHTTPServer() {
 func registerHTTPHandlers() {
 	// Register handler for all test data
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		if ptv.injectError {
+			w.WriteHeader(404)
+			w.Write([]byte("page not found - invalid path: " + r.URL.Path))
+			return
+		}
 		var data interface{}
 
 		switch r.URL.Path {
@@ -255,9 +262,11 @@ func TestProcessor(t *testing.T) {
 
 	// Initialize & start mock objects
 	ptv.log = logrus.DefaultLogger()
+
+	// Init the mock HTTP Server
 	ptv.startMockHTTPServer()
 	registerHTTPHandlers()
-	ptv.initTestData()
+	ptv.injectError = false
 
 	ptv.client = &http.Client{
 		Transport:     nil,
@@ -266,8 +275,12 @@ func TestProcessor(t *testing.T) {
 		Timeout:       timeout,
 	}
 
+	// Init & populate the test data
+	ptv.initTestData()
+
+	// Init the cache and the processor (object under test)
 	ptv.processor = &ContivTelemetryProcessor{
-		Deps: Deps {
+		Deps: Deps{
 			Log: ptv.log,
 		},
 		ContivTelemetryCache: &ContivTelemetryCache{
@@ -279,15 +292,21 @@ func TestProcessor(t *testing.T) {
 	}
 	ptv.processor.ContivTelemetryCache.Init()
 	ptv.processor.Init()
-	ptv.processor.ticker.Stop() // Do not periodically poll agents - we will run updates manually from tests
+
+	// Override default processor behavior
+	ptv.processor.ticker.Stop()             // Do not periodically poll agents
 	ptv.processor.agentPort = testAgentPort // Override agentPort
 
 	// Int test data in the cache (emulate successful discovery of a single node)
-	ptv.processor.ContivTelemetryCache.AddNode(1, "k8s-master", "10.20.0.2", "localhost")
 
 	// Do testing
 	t.Run("mockClient", testMockClient)
+
+	ptv.processor.ContivTelemetryCache.AddNode(1, "k8s-master", "10.20.0.2", "localhost")
 	t.Run("collectAgentInfoNoError", testCollectAgentInfoNoError)
+
+	ptv.processor.ContivTelemetryCache.ClearCache()
+	ptv.processor.ContivTelemetryCache.AddNode(1, "k8s-master", "10.20.0.2", "localhost")
 	t.Run("testCollectAgentInfoWithHTTPError", testCollectAgentInfoWithHTTPError)
 
 	// Shutdown the mock HTTP server
@@ -327,7 +346,6 @@ func testMockClient(t *testing.T) {
 
 func testCollectAgentInfoNoError(t *testing.T) {
 	nodes := ptv.processor.ContivTelemetryCache.LookupNode([]string{"k8s-master"})
-	// node, err := ptv.processor.ContivTelemetryCache.LookupNode("k8s-master")
 	gomega.Expect(len(nodes)).To(gomega.Equal(1))
 
 	ptv.processor.collectAgentInfo(nodes[0])
@@ -342,5 +360,13 @@ func testCollectAgentInfoNoError(t *testing.T) {
 }
 
 func testCollectAgentInfoWithHTTPError(t *testing.T) {
+	nodes := ptv.processor.ContivTelemetryCache.LookupNode([]string{"k8s-master"})
+	gomega.Expect(len(nodes)).To(gomega.Equal(1))
+	ptv.injectError = true
 
+	ptv.processor.collectAgentInfo(nodes[0])
+
+	time.Sleep(10 * time.Millisecond)
+	ptv.log.Info("Errors: ", ptv.processor.ContivTelemetryCache.Cache.report)
+	fmt.Println(ptv.processor.ContivTelemetryCache.Cache.report)
 }

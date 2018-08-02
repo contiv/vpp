@@ -21,7 +21,7 @@ import (
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/logging/logrus"
 	"github.com/onsi/gomega"
-		"net/http"
+	"net/http"
 	"testing"
 	"time"
 )

@@ -289,6 +289,7 @@ func TestNodesDB_ValidateLoopIFAddresses(t *testing.T) {
 	db.ValidateLoopIFAddresses()
 	fmt.Println("Done expecting errors...")
 	fmt.Println("Removing extra arp entry...")
+	fmt.Println("Done...")
 
 
 }

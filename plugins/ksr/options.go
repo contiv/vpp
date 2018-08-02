@@ -36,6 +36,7 @@ const (
 	KubeConfigUsage = "Path to the kubeconfig file to use for the client connection to K8s cluster"
 )
 
+// DefaultPlugin is default instance of Plugin.
 var DefaultPlugin = *NewPlugin()
 
 // NewPlugin creates a new Plugin with the provides Options
@@ -54,7 +55,7 @@ func NewPlugin(opts ...Option) *Plugin {
 		p.Deps.Log = logging.ForPlugin(p.String())
 	}
 	if p.Deps.KubeConfig == nil {
-		p.Deps.KubeConfig = config.ForPlugin(p.String(), config.WithCustomizedFlag(ConfigFlagName, KubeConfigAdmin, KubeConfigAdmin))
+		p.Deps.KubeConfig = config.ForPlugin(p.String(), config.WithCustomizedFlag(ConfigFlagName, KubeConfigAdmin, KubeConfigUsage))
 	}
 
 	return p

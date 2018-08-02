@@ -25,6 +25,7 @@ import (
 	"github.com/ligato/cn-infra/servicelabel"
 )
 
+// ContivKSR reflects kubernetes data into contiv/vpp's etcd.
 type ContivKSR struct {
 	ServiceLabel servicelabel.ReaderAPI
 	HealthProbe  *probe.Plugin
@@ -36,10 +37,12 @@ func (c *ContivKSR) String() string {
 	return "KSR"
 }
 
+// Init is called at startup phase. Method added in order to implement Plugin interface.
 func (c *ContivKSR) Init() error {
 	return nil
 }
 
+// Close is called at cleanup phase. Method added in order to implement Plugin interface.
 func (c *ContivKSR) Close() error {
 	return nil
 }

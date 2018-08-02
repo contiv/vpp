@@ -21,6 +21,7 @@ import (
 )
 
 const (
+	// ConfigFlagName is name of flag that can be used to define config for contiv plugin
 	ConfigFlagName = "contiv"
 
 	// ContivConfigPath is the default location of Agent's Contiv plugin. This path reflects configuration in k8s/contiv-vpp.yaml.
@@ -29,8 +30,6 @@ const (
 	// ContivConfigPathUsage explains the purpose of 'kube-config' flag.
 	ContivConfigPathUsage = "Path to the Agent's Contiv plugin configuration yaml file."
 )
-
-var DefaultPlugin = *NewPlugin()
 
 // NewPlugin creates a new Plugin with the provides Options
 func NewPlugin(opts ...Option) *Plugin {

@@ -16,9 +16,6 @@ package main
 
 import (
 	"github.com/contiv/vpp/plugins/contiv"
-	"github.com/ligato/cn-infra/datasync/kvdbsync/local"
-	"os"
-
 	"github.com/contiv/vpp/plugins/ksr"
 	"github.com/contiv/vpp/plugins/kvdbproxy"
 	"github.com/contiv/vpp/plugins/policy"
@@ -27,6 +24,7 @@ import (
 	"github.com/ligato/cn-infra/agent"
 	"github.com/ligato/cn-infra/datasync"
 	"github.com/ligato/cn-infra/datasync/kvdbsync"
+	"github.com/ligato/cn-infra/datasync/kvdbsync/local"
 	"github.com/ligato/cn-infra/datasync/resync"
 	"github.com/ligato/cn-infra/db/keyval/etcd"
 	"github.com/ligato/cn-infra/health/probe"
@@ -45,12 +43,14 @@ import (
 	"github.com/ligato/vpp-agent/plugins/vpp"
 	"github.com/ligato/vpp-agent/plugins/vpp/model/acl"
 	"github.com/ligato/vpp-agent/plugins/vpp/model/nat"
+	"os"
 	"sync"
 	"time"
 )
 
 const defaultStartupTimeout = 45 * time.Second
 
+// ContivAgent manages vswitch in contiv/vpp solution
 type ContivAgent struct {
 	Resync      *resync.Plugin
 	LogManger   *logmanager.Plugin
@@ -82,15 +82,18 @@ func (c *ContivAgent) String() string {
 	return "ContivAgent"
 }
 
+// Init is called in startup phase. Method added in order to implement Plugin interface.
 func (c *ContivAgent) Init() error {
 	return nil
 }
 
+// AfterInit triggers the first resync.
 func (c *ContivAgent) AfterInit() error {
 	c.Resync.DoResync()
 	return nil
 }
 
+// Close is called in agent's cleanup phase. Method added in order to implement Plugin interface.
 func (c *ContivAgent) Close() error {
 	return nil
 }

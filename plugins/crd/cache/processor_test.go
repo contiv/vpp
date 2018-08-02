@@ -17,6 +17,8 @@ package cache
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/logging/logrus"
 	"github.com/onsi/gomega"
 	"io/ioutil"
@@ -30,10 +32,11 @@ const (
 )
 
 type processorTestVars struct {
-	srv       *http.Server
-	log       *logrus.Logger
-	client    *http.Client
-	processor *ContivTelemetryProcessor
+	srv         *http.Server
+	injectError bool
+	log         *logrus.Logger
+	client      *http.Client
+	processor   *ContivTelemetryProcessor
 
 	// Mock data
 	nodeLiveness      *NodeLiveness
@@ -61,6 +64,11 @@ func (ptv *processorTestVars) startMockHTTPServer() {
 func registerHTTPHandlers() {
 	// Register handler for all test data
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		if ptv.injectError {
+			w.WriteHeader(404)
+			w.Write([]byte("page not found - invalid path: " + r.URL.Path))
+			return
+		}
 		var data interface{}
 
 		switch r.URL.Path {
@@ -255,9 +263,12 @@ func TestProcessor(t *testing.T) {
 
 	// Initialize & start mock objects
 	ptv.log = logrus.DefaultLogger()
+	ptv.log.SetLevel(logging.ErrorLevel)
+
+	// Init the mock HTTP Server
 	ptv.startMockHTTPServer()
 	registerHTTPHandlers()
-	ptv.initTestData()
+	ptv.injectError = false
 
 	ptv.client = &http.Client{
 		Transport:     nil,
@@ -266,19 +277,40 @@ func TestProcessor(t *testing.T) {
 		Timeout:       timeout,
 	}
 
-	ptv.processor = &ContivTelemetryProcessor{}
-	ptv.processor.Deps.Log = ptv.log
-	ptv.processor.ContivTelemetryCache.Cache = NewCache(ptv.log)
-	ptv.processor.Init()
-	ptv.processor.ticker.Stop() // Do not periodically poll agents - we will run updates manually from tests
-	ptv.processor.agentPort = testAgentPort
+	// Init & populate the test data
+	ptv.initTestData()
 
-	// Int test data in the cache (emulate successful discovery of a single node)
-	ptv.processor.ContivTelemetryCache.Cache.addNode(1, "k8s-master", "10.20.0.2", "localhost")
+	// Init the cache and the processor (object under test)
+	ptv.processor = &ContivTelemetryProcessor{
+		Deps: Deps{
+			Log: ptv.log,
+		},
+		ContivTelemetryCache: &ContivTelemetryCache{
+			Deps: Deps{
+				Log: ptv.log,
+			},
+			Synced: false,
+		},
+	}
+	ptv.processor.ContivTelemetryCache.Init()
+	ptv.processor.Init()
+
+
+	// Override default processor behavior
+	ptv.processor.ticker.Stop()             // Do not periodically poll agents
+	ptv.processor.agentPort = testAgentPort // Override agentPort
+
 
 	// Do testing
-	t.Run("mockClient", testMockClient)
+	// t.Run("mockClient", testMockClient)
+
+	ptv.processor.ContivTelemetryCache.AddNode(1, "k8s-master", "10.20.0.2", "localhost")
 	t.Run("collectAgentInfoNoError", testCollectAgentInfoNoError)
+
+	ptv.processor.ContivTelemetryCache.ClearCache()
+	ptv.processor.ContivTelemetryCache.AddNode(1, "k8s-master", "10.20.0.2", "localhost")
+	ptv.processor.ContivTelemetryCache.Cache.report = []string{}
+	t.Run("testCollectAgentInfoWithHTTPError", testCollectAgentInfoWithHTTPError)
 
 	// Shutdown the mock HTTP server
 	// ptv.shutdownMockHTTPServer()
@@ -321,11 +353,34 @@ func testCollectAgentInfoNoError(t *testing.T) {
 
 	ptv.processor.collectAgentInfo(node)
 
-	time.Sleep(20 * time.Millisecond)
+	cycles := 0
+	for {
+		if node.NodeLiveness != nil && node.NodeInterfaces != nil &&
+			node.NodeBridgeDomains != nil && node.NodeL2Fibs != nil && node.NodeIPArp != nil {
+			break
+		}
+		time.Sleep(1 * time.Millisecond)
+		cycles++
+	}
+	fmt.Println("          Slept for ", cycles, " milliseconds")
 
 	gomega.Expect(node.NodeLiveness).To(gomega.BeEquivalentTo(ptv.nodeLiveness))
 	gomega.Expect(node.NodeInterfaces).To(gomega.BeEquivalentTo(ptv.nodeInterfaces))
 	gomega.Expect(node.NodeBridgeDomains).To(gomega.BeEquivalentTo(ptv.nodeBridgeDomains))
 	gomega.Expect(node.NodeL2Fibs).To(gomega.BeEquivalentTo(ptv.nodeL2Fibs))
 	gomega.Expect(node.NodeIPArp).To(gomega.BeEquivalentTo(ptv.nodeIPArps))
+}
+
+func testCollectAgentInfoWithHTTPError(t *testing.T) {
+	nodes := ptv.processor.ContivTelemetryCache.LookupNode([]string{"k8s-master"})
+	gomega.Expect(len(nodes)).To(gomega.Equal(1))
+	ptv.injectError = true
+
+	ptv.processor.collectAgentInfo(nodes[0])
+
+	time.Sleep(50 * time.Millisecond)
+	fmt.Println("Number of reports: ", len(ptv.processor.ContivTelemetryCache.Cache.report))
+	for i, r := range ptv.processor.ContivTelemetryCache.Cache.report {
+		fmt.Printf("%d: %s\n", i, r)
+	}
 }

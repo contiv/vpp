@@ -38,7 +38,7 @@ func (p *ContivTelemetryProcessor) SetNodeData() {
 	for _, data := range p.dtoList {
 		if data.NodeInfo == nil {
 			p.ContivTelemetryCache.Cache.report = append(p.ContivTelemetryCache.Cache.report, errors.Errorf(
-				"Node %+v has nodeDTO %+v with nil node info", data.NodeName, data).Error())
+				"Node %+v has nodeDTO %+v  and http error %s", data.NodeName, data,data.err).Error())
 			continue
 		}
 		switch data.NodeInfo.(type) {

@@ -126,17 +126,10 @@ func (c *Cache) AddNode(ID uint32, nodeName, IPAdr, ManIPAdr string) error {
 
 //ClearCache with delete all the values in each of the individual cache maps.
 func (ctc *ContivTelemetryCache) ClearCache() {
-	for _, node := range ctc.Cache.nMap {
-		delete(ctc.Cache.gigEIPMap, node.IPAdr)
-		for _, intf := range node.NodeInterfaces {
-			if intf.VppInternalName == "loop0" {
-				delete(ctc.Cache.loopMACMap, intf.PhysAddress)
-				for _, ip := range intf.IPAddresses {
-					delete(ctc.Cache.loopIPMap, ip)
-				}
-			}
-		}
-	}
+	ctc.Cache.nMap = make(map[string]*Node)
+	ctc.Cache.gigEIPMap = make(map[string]*Node)
+	ctc.Cache.loopMACMap = make(map[string]*Node)
+	ctc.Cache.loopIPMap = make(map[string]*Node)
 }
 
 //NewCache returns a pointer to a new node cache

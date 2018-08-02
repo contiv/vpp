@@ -14,6 +14,8 @@
 
 package cache
 
+import "github.com/pkg/errors"
+
 //ProcessNodeResponses will read the nodeDTO map and make sure that each node has
 //enough DTOS to fully process information. It then clears the node DTO map after it
 //is finished with it.
@@ -34,6 +36,11 @@ func (p *ContivTelemetryProcessor) ProcessNodeResponses() {
 // associated with the DTO.
 func (p *ContivTelemetryProcessor) SetNodeData() {
 	for _, data := range p.dtoList {
+		if data.NodeInfo == nil {
+			p.ContivTelemetryCache.Cache.report = append(p.ContivTelemetryCache.Cache.report, errors.Errorf(
+				"Node %+v has nodeDTO %+v with nil node info", data.NodeName, data).Error())
+			continue
+		}
 		switch data.NodeInfo.(type) {
 		case *NodeLiveness:
 			nl := data.NodeInfo.(*NodeLiveness)

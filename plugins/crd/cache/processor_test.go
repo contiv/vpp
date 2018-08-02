@@ -17,14 +17,14 @@ package cache
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/logging/logrus"
 	"github.com/onsi/gomega"
 	"io/ioutil"
 	"net/http"
 	"testing"
 	"time"
-	"fmt"
-	"github.com/ligato/cn-infra/logging"
 )
 
 const (
@@ -355,10 +355,10 @@ func testCollectAgentInfoNoError(t *testing.T) {
 	for {
 		if node.NodeLiveness != nil && node.NodeInterfaces != nil &&
 			node.NodeBridgeDomains != nil && node.NodeL2Fibs != nil && node.NodeIPArp != nil {
-				break
+			break
 		}
-		time.Sleep(1* time.Millisecond)
-		cycles += 1
+		time.Sleep(1 * time.Millisecond)
+		cycles++
 	}
 	fmt.Println("          Slept for ", cycles, " milliseconds")
 

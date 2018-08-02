@@ -290,6 +290,20 @@ func TestNodesDB_ValidateLoopIFAddresses(t *testing.T) {
 	fmt.Println("Done expecting errors...")
 	fmt.Println("Removing extra arp entry...")
 	fmt.Println("Done...")
+	fmt.Println("Adding extra node to cache...")
+	fmt.Println("Expecting errors for extra node...")
+	db.addNode(3, "BlahNode", "11", "11")
+	node2, _ := db.GetNode("BlahNode")
+	db.loopMACMap[node.NodeInterfaces[3].PhysAddress] = node2
+	db.ValidateLoopIFAddresses()
+	db.loopMACMap[node.NodeInterfaces[3].PhysAddress] = node
+	db.deleteNode("BlahNode")
+
+	node, _ = db.GetNode("k8s_master")
+	nodeinterfaces = make(map[int]NodeInterface)
+	db.SetNodeInterfaces(node.Name, nodeinterfaces)
+	fmt.Println("Expecting errors for missing interface for k8s_master...")
+	db.ValidateLoopIFAddresses()
 
 }
 

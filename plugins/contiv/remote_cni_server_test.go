@@ -562,12 +562,12 @@ func routesViaInLatestRevs(latestRevs *syncbase.PrevRevisions, nexthopIP string)
 
 // nodeAddDelEvent simulates addition of a k8s node into a cluster
 type nodeAddDelEvent struct {
-	evType datasync.PutDel
+	evType datasync.Op
 }
 
 func (e *nodeAddDelEvent) Done(error) {}
 
-func (e nodeAddDelEvent) GetChangeType() datasync.PutDel {
+func (e nodeAddDelEvent) GetChangeType() datasync.Op {
 	return e.evType
 }
 

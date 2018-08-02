@@ -16,6 +16,7 @@ package statscollector
 
 import (
 	"github.com/ligato/cn-infra/logging"
+	"github.com/ligato/cn-infra/rpc/prometheus"
 	"github.com/ligato/cn-infra/servicelabel"
 )
 
@@ -28,6 +29,7 @@ func NewPlugin(opts ...Option) *Plugin {
 
 	p.PluginName = "statscollector"
 	p.ServiceLabel = &servicelabel.DefaultPlugin
+	p.Prometheus = &prometheus.DefaultPlugin
 
 	for _, o := range opts {
 		o(p)

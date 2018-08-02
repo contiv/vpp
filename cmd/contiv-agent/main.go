@@ -52,8 +52,7 @@ const defaultStartupTimeout = 45 * time.Second
 
 // ContivAgent manages vswitch in contiv/vpp solution
 type ContivAgent struct {
-	Resync      *resync.Plugin
-	LogManger   *logmanager.Plugin
+	LogManager  *logmanager.Plugin
 	HTTP        *rest.Plugin
 	HealthProbe *probe.Plugin
 	Prometheus  *prometheus.Plugin
@@ -89,7 +88,7 @@ func (c *ContivAgent) Init() error {
 
 // AfterInit triggers the first resync.
 func (c *ContivAgent) AfterInit() error {
-	c.Resync.DoResync()
+	resync.DefaultPlugin.DoResync()
 	return nil
 }
 
@@ -121,8 +120,6 @@ func main() {
 	nodeIDDataSync := newKSRprefixSync("nodeIdDataSync")
 	serviceDataSync := newKSRprefixSync("serviceDataSync")
 	policyDataSync := newKSRprefixSync("policyDataSync")
-
-	//TODO  telemetry
 
 	watcher := &datasync.KVProtoWatchers{&kvdbproxy.DefaultPlugin, local.Get()}
 
@@ -161,40 +158,27 @@ func main() {
 	grpc.DefaultPlugin.HTTP = &rest.DefaultPlugin
 
 	contivPlugin := contiv.NewPlugin(contiv.UseDeps(func(deps *contiv.Deps) {
-		deps.Resync = &resync.DefaultPlugin
-		deps.GoVPP = &govppmux.DefaultPlugin
-		deps.GRPC = &grpc.DefaultPlugin
 		deps.VPP = vppPlugin
-		deps.Proxy = &kvdbproxy.DefaultPlugin
-		deps.ETCD = &etcd.DefaultPlugin
 		deps.Watcher = nodeIDDataSync
 	}))
 
 	statscollector.DefaultPlugin.Contiv = contivPlugin
-	statscollector.DefaultPlugin.Prometheus = &prometheus.DefaultPlugin
 	vppPlugin.PublishStatistics = &statscollector.DefaultPlugin
 
 	policyPlugin := policy.NewPlugin(policy.UseDeps(func(deps *policy.Deps) {
-		deps.Resync = &resync.DefaultPlugin
 		deps.Watcher = policyDataSync
 		deps.Contiv = contivPlugin
-		deps.GoVPP = &govppmux.DefaultPlugin
 		deps.VPP = vppPlugin
 	}))
 
 	servicePlugin := service.NewPlugin(service.UseDeps(func(deps *service.Deps) {
-		deps.ServiceLabel = &servicelabel.DefaultPlugin
-		deps.Resync = &resync.DefaultPlugin
 		deps.Watcher = serviceDataSync
 		deps.Contiv = contivPlugin
 		deps.VPP = vppPlugin
-		deps.GoVPP = &govppmux.DefaultPlugin
-		deps.Stats = &statscollector.DefaultPlugin
 	}))
 
 	contivAgent := &ContivAgent{
-		Resync:          &resync.DefaultPlugin,
-		LogManger:       &logmanager.DefaultPlugin,
+		LogManager:      &logmanager.DefaultPlugin,
 		HTTP:            &rest.DefaultPlugin,
 		HealthProbe:     &probe.DefaultPlugin,
 		Prometheus:      &prometheus.DefaultPlugin,
@@ -205,6 +189,7 @@ func main() {
 		GoVPP:           &govppmux.DefaultPlugin,
 		VPP:             vppPlugin,
 		VPPrest:         vppRest,
+		Telemetry:       &telemetry.DefaultPlugin,
 		Linux:           linuxPlugin,
 		KVProxy:         &kvdbproxy.DefaultPlugin,
 		Contiv:          contivPlugin,

@@ -15,7 +15,9 @@
 package policy
 
 import (
+	"github.com/ligato/cn-infra/datasync/resync"
 	"github.com/ligato/cn-infra/logging"
+	"github.com/ligato/vpp-agent/plugins/govppmux"
 )
 
 // NewPlugin creates a new Plugin with the provides Options
@@ -23,6 +25,8 @@ func NewPlugin(opts ...Option) *Plugin {
 	p := &Plugin{}
 
 	p.PluginName = "policy"
+	p.Resync = &resync.DefaultPlugin
+	p.GoVPP = &govppmux.DefaultPlugin
 
 	for _, o := range opts {
 		o(p)

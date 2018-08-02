@@ -67,7 +67,7 @@ func TestStatsCollector(t *testing.T) {
 			ServiceLabel: servicelabel.NewPlugin(),
 			Contiv:       testVars.cntv,
 			Prometheus:   testVars.pmts,
-			Deps: infra.Deps{
+			PluginDeps: infra.PluginDeps{
 				Log: logging.ForPlugin("stats-test"),
 			},
 		},
@@ -105,7 +105,7 @@ func TestStatsCollector(t *testing.T) {
 }
 
 func testPutWithWrongArgumentType(t *testing.T) {
-	key := interfaces.Prefix + "stat1"
+	key := interfaces.StatePrefix + "stat1"
 
 	// test with wrong argument type
 	stat := &interfaces.InterfacesState_Interface_Statistics{}
@@ -114,7 +114,7 @@ func testPutWithWrongArgumentType(t *testing.T) {
 
 func testPutNewPodEntry(t *testing.T) {
 
-	key := interfaces.Prefix + testIfPodName
+	key := interfaces.StatePrefix + testIfPodName
 
 	// test with wrong argument type
 	stat := &interfaces.InterfacesState_Interface_Statistics{
@@ -147,7 +147,7 @@ func testPutNewPodEntry(t *testing.T) {
 
 func testPutExistingPodEntry(t *testing.T) {
 
-	key := interfaces.Prefix + testIfPodName
+	key := interfaces.StatePrefix + testIfPodName
 
 	// test with wrong argument type
 	stat := &interfaces.InterfacesState_Interface_Statistics{
@@ -181,7 +181,7 @@ func testPutExistingPodEntry(t *testing.T) {
 
 func testPutNewContivEntry(t *testing.T) {
 
-	key := interfaces.Prefix + testCntvIfName
+	key := interfaces.StatePrefix + testCntvIfName
 
 	// test with wrong argument type
 	stat := &interfaces.InterfacesState_Interface_Statistics{

@@ -154,11 +154,16 @@ func (p *ContivTelemetryProcessor) getNodeDTOInfo(client http.Client, node *Node
 	if err != nil {
 		err := fmt.Errorf("getNodeDTOInfo: url: %s cleintGet Error: %s", url, err.Error())
 		p.Log.Error(err)
+		p.ContivTelemetryCache.Cache.nMap[node.Name].report = append(p.ContivTelemetryCache.Cache.nMap[node.Name].report,
+			err.Error())
 		p.nodeResponseChannel <- &NodeDTO{node.Name, nil, err}
 		return
 	} else if res.StatusCode < 200 || res.StatusCode > 299 {
 		err := fmt.Errorf("getNodeDTOInfo: url: %s HTTP responsres.Status: %s", url, res.Status)
 		p.nodeResponseChannel <- &NodeDTO{node.Name, nil, err}
+		p.Log.Error(err)
+		p.ContivTelemetryCache.Cache.nMap[node.Name].report = append(p.ContivTelemetryCache.Cache.nMap[node.Name].report,
+			err.Error())
 		return
 	}
 	b, _ := ioutil.ReadAll(res.Body)

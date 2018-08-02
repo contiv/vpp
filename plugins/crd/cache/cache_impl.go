@@ -93,7 +93,7 @@ func (ctc *ContivTelemetryCache) DeleteNode(nodenames []string) {
 
 }
 
-//AddNode will add a node to the Contiv Telemetry cache with the given parameters.
+//addNode will add a node to the Contiv Telemetry cache with the given parameters.
 func (ctc *ContivTelemetryCache) AddNode(ID uint32, nodeName, IPAdr, ManIPAdr string) error {
 	n := &Node{IPAdr: IPAdr, ManIPAdr: ManIPAdr, ID: ID, Name: nodeName}
 	_, err := ctc.Cache.GetNode(nodeName)
@@ -109,8 +109,8 @@ func (ctc *ContivTelemetryCache) AddNode(ID uint32, nodeName, IPAdr, ManIPAdr st
 	return nil
 }
 
-//AddNode will add a node to the Contiv Telemetry cache with the given parameters.
-func (c *Cache) AddNode(ID uint32, nodeName, IPAdr, ManIPAdr string) error {
+//addNode will add a node to the Contiv Telemetry cache with the given parameters.
+func (c *Cache) addNode(ID uint32, nodeName, IPAdr, ManIPAdr string) error {
 	n := &Node{IPAdr: IPAdr, ManIPAdr: ManIPAdr, ID: ID, Name: nodeName}
 	_, err := c.GetNode(nodeName)
 	if err == nil {
@@ -220,8 +220,23 @@ func (c *Cache) GetNode(key string) (n *Node, err error) {
 	return nil, err
 }
 
-//addNode adds a new node with the given information.
-//Returns an error if the node is already in the database
+func (ctc *Cache) deleteNode(key string) {
+		node, err := ctc.GetNode(key)
+		if err != nil {
+			ctc.logger.Error(err)
+		}
+		delete(ctc.nMap, node.Name)
+		delete(ctc.gigEIPMap, node.IPAdr)
+		for _, intf := range node.NodeInterfaces {
+			if intf.VppInternalName == "loop0" {
+				delete(ctc.loopMACMap, intf.PhysAddress)
+				for _, ip := range intf.IPAddresses {
+					delete(ctc.loopIPMap, ip)
+				}
+			}
+
+		}
+}
 
 //GetAllNodes returns an ordered slice of all nodes in a database organized by name.
 func (c *Cache) GetAllNodes() []*Node {
@@ -287,7 +302,7 @@ func (c *Cache) getNodeLoopIFInfo(node *Node) (NodeInterface, error) {
 			return ifs, nil
 		}
 	}
-	err := errors.Errorf("Node %s does not have a loop interface")
+	err := errors.Errorf("Node %s does not have a loop interface",node.Name)
 	c.nMap[node.Name].report = append(c.nMap[node.Name].report, err.Error())
 	return NodeInterface{}, err
 }
@@ -328,7 +343,7 @@ func (c *Cache) ValidateLoopIFAddresses() {
 			macNode, ok := c.loopMACMap[arp.MacAddress]
 			addressNotFound := false
 			if !ok {
-				c.logger.Errorf("Node for MAC Address %s not found", arp.MacAddress)
+				c.logger.Errorf("Node %s cound not find node with MAC Address %s",node.Name, arp.MacAddress)
 				c.nMap[node.Name].report = append(c.nMap[node.Name].report, errors.Errorf(
 					"Node for MAC Address %s not found", arp.MacAddress).Error())
 				addressNotFound = true

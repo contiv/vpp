@@ -274,7 +274,7 @@ func TestProcessor(t *testing.T) {
 	ptv.processor.agentPort = testAgentPort
 
 	// Int test data in the cache (emulate successful discovery of a single node)
-	ptv.processor.ContivTelemetryCache.Cache.AddNode(1, "k8s-master", "10.20.0.2", "localhost")
+	ptv.processor.ContivTelemetryCache.Cache.addNode(1, "k8s-master", "10.20.0.2", "localhost")
 
 	// Do testing
 	t.Run("mockClient", testMockClient)

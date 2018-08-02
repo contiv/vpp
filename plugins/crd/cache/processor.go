@@ -128,9 +128,7 @@ func (p *ContivTelemetryProcessor) collectAgentInfo(node *Node) {
 }
 
 func (p *ContivTelemetryProcessor) retrieveNetworkInfoOnTimerExpiry() {
-
-	ticker := time.NewTicker(1 * time.Minute)
-	for range ticker.C {
+	for range p.ticker.C {
 		nodelist := p.ContivTelemetryCache.Cache.GetAllNodes()
 
 		p.Log.Info("Timer has expired; Beginning gathering of information.")

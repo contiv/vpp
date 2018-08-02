@@ -79,7 +79,7 @@ func (p *ContivTelemetryProcessor) SetNodeData() {
 			}
 			p.ContivTelemetryCache.Cache.SetNodeIPARPs(data.NodeName, *nipaDto)
 		default:
-			p.Log.Errorf("Unknown data type: %+v", data.NodeInfo)
+			p.Log.Errorf("Node %+v has unknown data type: %+v", data.NodeName, data.NodeInfo)
 		}
 
 	}

@@ -155,9 +155,9 @@ func (p *ContivTelemetryProcessor) getNodeDTOInfo(client http.Client, node *Node
 		p.nodeResponseChannel <- &NodeDTO{node.Name, nil, err}
 		return
 	} else if res.StatusCode < 200 || res.StatusCode > 299 {
-		err := fmt.Errorf("getNodeDTOInfo: url: %s HTTP responsres.Status: %s", url, res.Status)
-		p.nodeResponseChannel <- &NodeDTO{node.Name, nil, err}
+		err := fmt.Errorf("getNodeDTOInfo: url: %s HTTP res.Status: %s", url, res.Status)
 		p.Log.Error(err)
+		p.nodeResponseChannel <- &NodeDTO{node.Name, nil, err}
 		return
 	}
 	b, _ := ioutil.ReadAll(res.Body)
@@ -170,4 +170,17 @@ func (p *ContivTelemetryProcessor) getNodeDTOInfo(client http.Client, node *Node
 // getAgentURL creates the URL for the data we're trying to retrieve
 func (p *ContivTelemetryProcessor) getAgentURL(ipAddr string, url string) string {
 	return "http://" + ipAddr + p.agentPort + url
+}
+
+// waitForValidationToFinish waits until the node cache has been cleared at
+// the end of data validation
+func (p *ContivTelemetryProcessor) waitForValidationToFinish() int {
+	cycles := 0
+	for {
+		if len(p.ContivTelemetryCache.Cache.nMap) == 0 {
+			return cycles
+		}
+		time.Sleep(1 * time.Millisecond)
+		cycles++
+	}
 }

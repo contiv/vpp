@@ -18,6 +18,7 @@ import (
 	"github.com/ligato/cn-infra/logging"
 )
 
+// DefaultPlugin is default instance of Plugin.
 var DefaultPlugin = *NewPlugin()
 
 // NewPlugin creates a new Plugin with the provides Options

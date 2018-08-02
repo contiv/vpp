@@ -281,8 +281,8 @@ func TestNodesDB_ValidateLoopIFAddresses(t *testing.T) {
 	db.deleteNode("NoMacFoundNode")
 	fmt.Println("Done...")
 	fmt.Println("Adding extra arp entry to node k8s_master...")
-	nodeiparp3 := NodeIPArp{3,"extraIP","extraMAC",true}
-	nodeiparps1 = append(nodeiparps1,nodeiparp3)
+	nodeiparp3 := NodeIPArp{3, "extraIP", "extraMAC", true}
+	nodeiparps1 = append(nodeiparps1, nodeiparp3)
 	db.SetNodeIPARPs("k8s_master", nodeiparps1)
 	fmt.Println("Done...")
 	fmt.Println("Expecting mac not found and ip not found errors for extra ip arp entry...")
@@ -290,7 +290,6 @@ func TestNodesDB_ValidateLoopIFAddresses(t *testing.T) {
 	fmt.Println("Done expecting errors...")
 	fmt.Println("Removing extra arp entry...")
 	fmt.Println("Done...")
-
 
 }
 

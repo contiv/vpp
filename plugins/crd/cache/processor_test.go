@@ -295,11 +295,9 @@ func TestProcessor(t *testing.T) {
 	ptv.processor.ContivTelemetryCache.Init()
 	ptv.processor.Init()
 
-
 	// Override default processor behavior
 	ptv.processor.ticker.Stop()             // Do not periodically poll agents
 	ptv.processor.agentPort = testAgentPort // Override agentPort
-
 
 	// Do testing
 	// t.Run("mockClient", testMockClient)

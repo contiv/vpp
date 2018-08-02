@@ -93,7 +93,7 @@ func (ctc *ContivTelemetryCache) DeleteNode(nodenames []string) {
 
 }
 
-//addNode will add a node to the Contiv Telemetry cache with the given parameters.
+//AddNode will add a node to the Contiv Telemetry cache with the given parameters.
 func (ctc *ContivTelemetryCache) AddNode(ID uint32, nodeName, IPAdr, ManIPAdr string) error {
 	n := &Node{IPAdr: IPAdr, ManIPAdr: ManIPAdr, ID: ID, Name: nodeName}
 	_, err := ctc.Cache.GetNode(nodeName)
@@ -220,22 +220,22 @@ func (c *Cache) GetNode(key string) (n *Node, err error) {
 	return nil, err
 }
 
-func (ctc *Cache) deleteNode(key string) {
-		node, err := ctc.GetNode(key)
-		if err != nil {
-			ctc.logger.Error(err)
-		}
-		delete(ctc.nMap, node.Name)
-		delete(ctc.gigEIPMap, node.IPAdr)
-		for _, intf := range node.NodeInterfaces {
-			if intf.VppInternalName == "loop0" {
-				delete(ctc.loopMACMap, intf.PhysAddress)
-				for _, ip := range intf.IPAddresses {
-					delete(ctc.loopIPMap, ip)
-				}
+func (c *Cache) deleteNode(key string) {
+	node, err := c.GetNode(key)
+	if err != nil {
+		c.logger.Error(err)
+	}
+	delete(c.nMap, node.Name)
+	delete(c.gigEIPMap, node.IPAdr)
+	for _, intf := range node.NodeInterfaces {
+		if intf.VppInternalName == "loop0" {
+			delete(c.loopMACMap, intf.PhysAddress)
+			for _, ip := range intf.IPAddresses {
+				delete(c.loopIPMap, ip)
 			}
-
 		}
+
+	}
 }
 
 //GetAllNodes returns an ordered slice of all nodes in a database organized by name.
@@ -302,7 +302,7 @@ func (c *Cache) getNodeLoopIFInfo(node *Node) (NodeInterface, error) {
 			return ifs, nil
 		}
 	}
-	err := errors.Errorf("Node %s does not have a loop interface",node.Name)
+	err := errors.Errorf("Node %s does not have a loop interface", node.Name)
 	c.nMap[node.Name].report = append(c.nMap[node.Name].report, err.Error())
 	return NodeInterface{}, err
 }
@@ -343,7 +343,7 @@ func (c *Cache) ValidateLoopIFAddresses() {
 			macNode, ok := c.loopMACMap[arp.MacAddress]
 			addressNotFound := false
 			if !ok {
-				c.logger.Errorf("Node %s cound not find node with MAC Address %s",node.Name, arp.MacAddress)
+				c.logger.Errorf("Node %s cound not find node with MAC Address %s", node.Name, arp.MacAddress)
 				c.nMap[node.Name].report = append(c.nMap[node.Name].report, errors.Errorf(
 					"Node for MAC Address %s not found", arp.MacAddress).Error())
 				addressNotFound = true

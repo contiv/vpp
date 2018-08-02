@@ -13,12 +13,12 @@ import (
 func TestNodesDB_AddNode(t *testing.T) {
 	gomega.RegisterTestingT(t)
 	db := NewCache(logrus.DefaultLogger())
-	db.AddNode(1, "k8s_master", "10", "20")
+	db.addNode(1, "k8s_master", "10", "20")
 	node, ok := db.GetNode("k8s_master")
 	gomega.Expect(ok).To(gomega.BeNil())
 	gomega.Expect(node.IPAdr).To(gomega.Equal("10"))
 
-	err := db.AddNode(2, "k8s_master", "20", "20")
+	err := db.addNode(2, "k8s_master", "20", "20")
 	gomega.Expect(err).To(gomega.Not(gomega.BeNil()))
 }
 
@@ -27,7 +27,7 @@ func TestNodesDB_AddNode(t *testing.T) {
 func TestNodesDB_GetNode(t *testing.T) {
 	gomega.RegisterTestingT(t)
 	db := NewCache(logrus.DefaultLogger())
-	db.AddNode(1, "k8s_master", "10", "10")
+	db.addNode(1, "k8s_master", "10", "10")
 	node, ok := db.GetNode("k8s_master")
 	gomega.Expect(ok).To(gomega.BeNil())
 	gomega.Expect(node.IPAdr).To(gomega.Equal("10"))
@@ -45,7 +45,7 @@ func TestNodesDB_GetNode(t *testing.T) {
 func TestNodesDB_DeleteNode(t *testing.T) {
 	gomega.RegisterTestingT(t)
 	db := NewCache(logrus.DefaultLogger())
-	db.AddNode(1, "k8s_master", "10", "10")
+	db.addNode(1, "k8s_master", "10", "10")
 	node, ok := db.GetNode("k8s_master")
 	gomega.Expect(ok).To(gomega.BeNil())
 	gomega.Expect(node.IPAdr).To(gomega.Equal("10"))
@@ -66,7 +66,7 @@ func TestNodesDB_DeleteNode(t *testing.T) {
 func TestNodesDB_GetAllNodes(t *testing.T) {
 	gomega.RegisterTestingT(t)
 	db := NewCache(logrus.DefaultLogger())
-	db.AddNode(1, "k8s_master", "10", "10")
+	db.addNode(1, "k8s_master", "10", "10")
 	node, ok := db.GetNode("k8s_master")
 	gomega.Expect(ok).To(gomega.BeNil())
 	gomega.Expect(node.IPAdr).To(gomega.Equal("10"))
@@ -74,7 +74,7 @@ func TestNodesDB_GetAllNodes(t *testing.T) {
 	gomega.Expect(node.ID).To(gomega.Equal(uint32(1)))
 	gomega.Expect(node.ManIPAdr).To(gomega.Equal("10"))
 
-	db.AddNode(2, "k8s_master2", "10", "10")
+	db.addNode(2, "k8s_master2", "10", "10")
 	node, ok = db.GetNode("k8s_master2")
 	gomega.Expect(ok).To(gomega.BeNil())
 	gomega.Expect(node.IPAdr).To(gomega.Equal("10"))
@@ -82,7 +82,7 @@ func TestNodesDB_GetAllNodes(t *testing.T) {
 	gomega.Expect(node.ID).To(gomega.Equal(uint32(2)))
 	gomega.Expect(node.ManIPAdr).To(gomega.Equal("10"))
 
-	db.AddNode(3, "Ak8s_master3", "10", "10")
+	db.addNode(3, "Ak8s_master3", "10", "10")
 	node, ok = db.GetNode("Ak8s_master3")
 	gomega.Expect(ok).To(gomega.BeNil())
 	gomega.Expect(node.IPAdr).To(gomega.Equal("10"))
@@ -99,7 +99,7 @@ func TestNodesDB_GetAllNodes(t *testing.T) {
 func TestNodesDB_SetNodeInterfaces(t *testing.T) {
 	gomega.RegisterTestingT(t)
 	db := NewCache(logrus.DefaultLogger())
-	db.AddNode(1, "k8s_master", "10", "10")
+	db.addNode(1, "k8s_master", "10", "10")
 	node, ok := db.GetNode("k8s_master")
 	gomega.Expect(ok).To(gomega.BeNil())
 	gomega.Expect(node.IPAdr).To(gomega.Equal("10"))
@@ -123,7 +123,7 @@ func TestNodesDB_SetNodeInterfaces(t *testing.T) {
 func TestNodesDB_SetNodeBridgeDomain(t *testing.T) {
 	gomega.RegisterTestingT(t)
 	db := NewCache(logrus.DefaultLogger())
-	db.AddNode(1, "k8s_master", "10", "10")
+	db.addNode(1, "k8s_master", "10", "10")
 	node, ok := db.GetNode("k8s_master")
 	gomega.Expect(ok).To(gomega.BeNil())
 	gomega.Expect(node.IPAdr).To(gomega.Equal("10"))
@@ -147,7 +147,7 @@ func TestNodesDB_SetNodeBridgeDomain(t *testing.T) {
 func TestNodesDB_SetNodeIPARPs(t *testing.T) {
 	gomega.RegisterTestingT(t)
 	db := NewCache(logrus.DefaultLogger())
-	db.AddNode(1, "k8s_master", "10", "10")
+	db.addNode(1, "k8s_master", "10", "10")
 	node, ok := db.GetNode("k8s_master")
 	gomega.Expect(ok).To(gomega.BeNil())
 	gomega.Expect(node.IPAdr).To(gomega.Equal("10"))
@@ -170,7 +170,7 @@ func TestNodesDB_SetNodeIPARPs(t *testing.T) {
 func TestNodesDB_SetNodeLiveness(t *testing.T) {
 	gomega.RegisterTestingT(t)
 	db := NewCache(logrus.DefaultLogger())
-	db.AddNode(1, "k8s_master", "10", "10")
+	db.addNode(1, "k8s_master", "10", "10")
 	node, ok := db.GetNode("k8s_master")
 	gomega.Expect(ok).To(gomega.BeNil())
 	gomega.Expect(node.IPAdr).To(gomega.Equal("10"))
@@ -191,7 +191,7 @@ func TestNodesDB_SetNodeLiveness(t *testing.T) {
 func TestNodesDB_SetNodeL2Fibs(t *testing.T) {
 	gomega.RegisterTestingT(t)
 	db := NewCache(logrus.DefaultLogger())
-	db.AddNode(1, "k8s_master", "10", "10")
+	db.addNode(1, "k8s_master", "10", "10")
 	node, ok := db.GetNode("k8s_master")
 	gomega.Expect(ok).To(gomega.BeNil())
 	gomega.Expect(node.IPAdr).To(gomega.Equal("10"))
@@ -215,7 +215,7 @@ func TestNodesDB_ValidateLoopIFAddresses(t *testing.T) {
 	gomega.RegisterTestingT(t)
 	logger := logrus.DefaultLogger()
 	db := NewCache(logger)
-	db.AddNode(1, "k8s_master", "10", "10")
+	db.addNode(1, "k8s_master", "10", "10")
 	node, ok := db.GetNode("k8s_master")
 	gomega.Expect(ok).To(gomega.BeNil())
 	gomega.Expect(node.IPAdr).To(gomega.Equal("10"))
@@ -256,7 +256,7 @@ func TestNodesDB_ValidateLoopIFAddresses(t *testing.T) {
 	nodeiparps2 := make([]NodeIPArp, 0)
 	nodeiparps2 = append(nodeiparps2, nodeiparp2)
 
-	db.AddNode(2, "k8s-worker1", "11", "11")
+	db.addNode(2, "k8s-worker1", "11", "11")
 
 	db.SetNodeIPARPs("k8s_master", nodeiparps1)
 	node, _ = db.GetNode("k8s_master")
@@ -273,9 +273,23 @@ func TestNodesDB_ValidateLoopIFAddresses(t *testing.T) {
 
 	db.ValidateLoopIFAddresses()
 
-	db.AddNode(1, "NoMacFoundNode", "12", "12")
+	db.addNode(1, "NoMacFoundNode", "12", "12")
 	fmt.Println("Expecting errors for node not in ARP table...")
 	db.ValidateLoopIFAddresses()
+	fmt.Println("Expected errors over for NoMacFoundNode...")
+	fmt.Println("Removing NoMacFound from cache...")
+	db.deleteNode("NoMacFoundNode")
+	fmt.Println("Done...")
+	fmt.Println("Adding extra arp entry to node k8s_master...")
+	nodeiparp3 := NodeIPArp{3, "extraIP", "extraMAC", true}
+	nodeiparps1 = append(nodeiparps1, nodeiparp3)
+	db.SetNodeIPARPs("k8s_master", nodeiparps1)
+	fmt.Println("Done...")
+	fmt.Println("Expecting mac not found and ip not found errors for extra ip arp entry...")
+	db.ValidateLoopIFAddresses()
+	fmt.Println("Done expecting errors...")
+	fmt.Println("Removing extra arp entry...")
+	fmt.Println("Done...")
 
 }
 
@@ -283,7 +297,7 @@ func TestCache_ValidateL2Connections(t *testing.T) {
 	gomega.RegisterTestingT(t)
 	logger := logrus.DefaultLogger()
 	db := NewCache(logger)
-	db.AddNode(1, "k8s_master", "10", "10")
+	db.addNode(1, "k8s_master", "10", "10")
 	node, ok := db.GetNode("k8s_master")
 	gomega.Expect(ok).To(gomega.BeNil())
 	gomega.Expect(node.IPAdr).To(gomega.Equal("10"))
@@ -324,7 +338,7 @@ func TestCache_ValidateL2Connections(t *testing.T) {
 	nodeiparps2 := make([]NodeIPArp, 0)
 	nodeiparps2 = append(nodeiparps2, nodeiparp2)
 
-	db.AddNode(2, "k8s-worker1", "11", "11")
+	db.addNode(2, "k8s-worker1", "11", "11")
 
 	db.SetNodeIPARPs("k8s_master", nodeiparps1)
 	node, _ = db.GetNode("k8s_master")
@@ -339,4 +353,5 @@ func TestCache_ValidateL2Connections(t *testing.T) {
 	db.loopMACMap[node.NodeInterfaces[3].PhysAddress] = node
 	db.loopIPMap[node.NodeInterfaces[3].IPAddresses[0]+subnetmask] = node
 	db.ValidateL2Connections()
+
 }

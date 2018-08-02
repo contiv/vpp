@@ -58,6 +58,7 @@ type NodeTelemetryCacheAPI interface {
 type Nodes interface {
 	GetNode(key string) (*Node, error)
 	AddNode(ID uint32, nodeName, IPAdr, ManIPAdr string) error
+	deleteNode(key string)
 	GetAllNodes() []*Node
 	SetNodeLiveness(name string, nL *NodeLiveness) error
 	SetNodeInterfaces(name string, nInt map[int]NodeInterface) error

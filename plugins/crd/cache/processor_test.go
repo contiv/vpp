@@ -24,6 +24,7 @@ import (
 	"net/http"
 	"testing"
 	"time"
+	"strings"
 )
 
 const (
@@ -298,6 +299,7 @@ func TestProcessor(t *testing.T) {
 	ptv.processor.ticker.Stop()             // Do not periodically poll agents
 	ptv.processor.agentPort = testAgentPort // Override agentPort
 
+	// Do the testing
 	t.Run("collectAgentInfoNoError", testCollectAgentInfoNoError)
 	t.Run("testCollectAgentInfoWithHTTPError", testCollectAgentInfoWithHTTPError)
 
@@ -347,8 +349,12 @@ func testCollectAgentInfoWithHTTPError(t *testing.T) {
 	fmt.Printf("           Slept for %d ms waiting for validation to finish\n",
 		ptv.processor.waitForValidationToFinish())
 
-	fmt.Println("Number of reports: ", len(ptv.processor.ContivTelemetryCache.Cache.report))
-	for i, r := range ptv.processor.ContivTelemetryCache.Cache.report {
-		fmt.Printf("%d: %s\n", i, r)
+	numHttpErrs := 0
+	for _, r := range ptv.processor.ContivTelemetryCache.Cache.report {
+		if strings.Contains(r, "404 Not Found") {
+			numHttpErrs++
+		}
 	}
+	gomega.Expect(numHttpErrs).To(gomega.Equal(numDTOs))
 }
+

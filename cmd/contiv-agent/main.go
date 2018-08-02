@@ -103,25 +103,24 @@ func main() {
 	ksrServicelabel := servicelabel.NewPlugin(servicelabel.UseLabel(ksr.MicroserviceLabel))
 	ksrServicelabel.SetName("ksrServiceLabel")
 
-	useKSRprefix := kvdbsync.UseDeps(func(deps *kvdbsync.Deps) {
-		deps.KvPlugin = &etcd.DefaultPlugin
-		deps.ResyncOrch = &resync.DefaultPlugin
-		deps.ServiceLabel = ksrServicelabel
-	})
+	newKSRprefixSync := func(name string) *kvdbsync.Plugin {
+		return kvdbsync.NewPlugin(
+			kvdbsync.UseDeps(func(deps *kvdbsync.Deps) {
+				deps.KvPlugin = &etcd.DefaultPlugin
+				deps.ResyncOrch = &resync.DefaultPlugin
+				deps.ServiceLabel = ksrServicelabel
+				deps.SetName(name)
+			}))
+	}
 
 	etcdDataSync := kvdbsync.NewPlugin(kvdbsync.UseDeps(func(deps *kvdbsync.Deps) {
 		deps.KvPlugin = &etcd.DefaultPlugin
 		deps.ResyncOrch = &resync.DefaultPlugin
 	}))
 
-	nodeIDDataSync := kvdbsync.NewPlugin(useKSRprefix)
-	nodeIDDataSync.SetName("nodeIdDataSync")
-
-	serviceDataSync := kvdbsync.NewPlugin(useKSRprefix)
-	serviceDataSync.SetName("serviceDataSync")
-
-	policyDataSync := kvdbsync.NewPlugin(useKSRprefix)
-	policyDataSync.SetName("policyDataSync")
+	nodeIDDataSync := newKSRprefixSync("nodeIdDataSync")
+	serviceDataSync := newKSRprefixSync("serviceDataSync")
+	policyDataSync := newKSRprefixSync("policyDataSync")
 
 	//TODO  telemetry
 

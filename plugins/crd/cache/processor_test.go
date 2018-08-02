@@ -22,9 +22,9 @@ import (
 	"github.com/ligato/cn-infra/logging/logrus"
 	"github.com/onsi/gomega"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
-	"strings"
 )
 
 const (
@@ -357,4 +357,3 @@ func testCollectAgentInfoWithHTTPError(t *testing.T) {
 	}
 	gomega.Expect(numHttpErrs).To(gomega.Equal(numDTOs))
 }
-

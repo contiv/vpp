@@ -67,35 +67,51 @@ echo Args passed: [[ $@ ]]
 cat <<EOF >/etc/profile.d/envvar.sh
 export http_proxy='#{http_proxy}'
 export https_proxy='#{https_proxy}'
+export HTTP_PROXY='#{http_proxy}'
+export HTTPS_PROXY='#{https_proxy}'
 EOF
 
 source /etc/profile.d/envvar.sh
 echo "Updating apt lists..."
-sudo apt-get update
+sudo -E apt-get update
 
 echo "Installing dependency packages..."
-sudo apt-get install -y apt-transport-https \
+sudo -E apt-get install -y apt-transport-https \
                    ca-certificates \
                    curl \
                    software-properties-common \
                    htop 
                    
 echo "Adding Kubernetes & Docker repos..."
-curl -s https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add -
-curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add -
-cat <<EOF >/etc/apt/sources.list.d/kubernetes.list
-deb http://apt.kubernetes.io/ kubernetes-xenial main
-deb [arch=amd64] https://download.docker.com/linux/ubuntu xenial stable
-EOF
+curl -fsSL https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo -E apt-key add -
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo -E apt-key add -
+sudo -E add-apt-repository "deb http://apt.kubernetes.io/ kubernetes-xenial main"
+sudo -E add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu xenial stable"
 
 echo "Updating apt lists..."
-sudo apt-get update -q
+sudo -E apt-get update -q
 
 echo "Installing Kubernetes Components..."
-sudo apt-get install -qy kubelet=$4-00  kubectl=$4-00 kubeadm=$4-00
+sudo -E apt-get install -qy kubelet=$4-00  kubectl=$4-00 kubeadm=$4-00
 
 echo "Installing Docker-CE..."
-sudo apt-get install -y docker-ce
+sudo -E apt-get install -y docker-ce
+# Setup the proxy if needed
+if [ "#{http_proxy}" != "" ] ; then
+  sudo mkdir -p /etc/systemd/system/docker.service.d
+  sudo echo "[Service]
+Environment=\"HTTP_PROXY='#{http_proxy}'"" >> /etc/systemd/system/docker.service.d/http-proxy.conf
+  sudo systemctl daemon-reload
+  sudo systemctl restart docker
+fi
+if [ "${http_proxy}" != "" ] ; then
+  sudo mkdir -p /etc/systemd/system/docker.service.d
+  sudo echo "[Service]
+Environment=\"HTTPS_PROXY='#{http_proxy}'"" >> /etc/systemd/system/docker.service.d/http-proxy.conf
+  sudo systemctl daemon-reload
+  sudo systemctl restart docker
+fi
+
 systemctl stop docker
 modprobe overlay
 
@@ -194,14 +210,14 @@ set -x
 
 echo Args passed: [[ $@ ]]
 
-sudo apt-get install -y python-pip \
+sudo -E apt-get install -y python-pip \
                    python-dev \
                    python-virtualenv \
                    build-essential 
 
 #Install pip
-sudo pip install --upgrade pip
-sudo pip install --upgrade virtualenv
+sudo -E pip install --upgrade pip
+sudo -E pip install --upgrade virtualenv
 
 # Pull images if not present
 if [ -f /vagrant/images.tar ]; then
@@ -209,7 +225,7 @@ if [ -f /vagrant/images.tar ]; then
     docker load -i /vagrant/images.tar
 else
   echo "Pulling contiv-vpp plugin images..."
-  /home/vagrant/gopath/src/github.com/contiv/vpp/k8s/pull-images.sh -b $6
+  sudo -E /home/vagrant/gopath/src/github.com/contiv/vpp/k8s/pull-images.sh -b $6
 fi
 
 #Install helm
@@ -224,7 +240,7 @@ mv /tmp/linux-amd64/helm /usr/local/bin/helm
 # --------------------------------------------------------
 
 if [ "$4" = "dev" ]; then
-    sudo apt-get install -y xorg \
+    sudo -E apt-get install -y xorg \
                             openbox
     echo "Downloading and installing Goland..."
     export GOLAND_VERSION=2018.1.5

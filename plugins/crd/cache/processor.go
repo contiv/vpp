@@ -159,6 +159,7 @@ func (p *ContivTelemetryProcessor) getNodeDTOInfo(client http.Client, node *Node
 	} else if res.StatusCode < 200 || res.StatusCode > 299 {
 		err := fmt.Errorf("getNodeDTOInfo: url: %s HTTP responsres.Status: %s", url, res.Status)
 		p.nodeResponseChannel <- &NodeDTO{node.Name, nil, err}
+		return
 	}
 	b, _ := ioutil.ReadAll(res.Body)
 	b = []byte(b)

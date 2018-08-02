@@ -367,5 +367,4 @@ func TestCache_ValidateL2Connections(t *testing.T) {
 	db.loopMACMap[node.NodeInterfaces[3].PhysAddress] = node
 	db.loopIPMap[node.NodeInterfaces[3].IPAddresses[0]+subnetmask] = node
 	db.ValidateL2Connections()
-
 }

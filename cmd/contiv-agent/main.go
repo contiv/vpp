@@ -43,6 +43,8 @@ import (
 	vpp_rest "github.com/ligato/vpp-agent/plugins/rest"
 	"github.com/ligato/vpp-agent/plugins/telemetry"
 	"github.com/ligato/vpp-agent/plugins/vpp"
+	"github.com/ligato/vpp-agent/plugins/vpp/model/acl"
+	"github.com/ligato/vpp-agent/plugins/vpp/model/nat"
 	"sync"
 	"time"
 )
@@ -142,6 +144,7 @@ func main() {
 	)
 
 	vppPlugin.Linux = linuxPlugin
+	vppPlugin.DisableResync(acl.Prefix, nat.GlobalConfigPrefix(), nat.DNatPrefix())
 
 	vppRest := vpp_rest.NewPlugin(vpp_rest.UseDeps(func(deps *vpp_rest.Deps) {
 		deps.GoVppmux = &govppmux.DefaultPlugin
@@ -167,6 +170,7 @@ func main() {
 
 	statscollector.DefaultPlugin.Contiv = contivPlugin
 	statscollector.DefaultPlugin.Prometheus = &prometheus.DefaultPlugin
+	vppPlugin.PublishStatistics = &statscollector.DefaultPlugin
 
 	policyPlugin := policy.NewPlugin(policy.UseDeps(func(deps *policy.Deps) {
 		deps.Resync = &resync.DefaultPlugin

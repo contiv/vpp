@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/ligato/cn-infra/logging/logrus"
 	"github.com/onsi/gomega"
+	"github.com/ligato/vpp-agent/plugins/vpp/model/interfaces"
 )
 
 //Checks adding a new node.
@@ -307,7 +308,7 @@ func TestNodesDB_ValidateLoopIFAddresses(t *testing.T) {
 
 }
 
-func TestCache_ValidateL2Connections(t *testing.T) {
+func TestNodesDB_ValidateL2Connections(t *testing.T) {
 	gomega.RegisterTestingT(t)
 	logger := logrus.DefaultLogger()
 	db := NewCache(logger)
@@ -321,7 +322,7 @@ func TestCache_ValidateL2Connections(t *testing.T) {
 	nodeinterface1 := NodeInterface{
 		"loop0",
 		"loop0",
-		3,
+		interfaces.InterfaceType_SOFTWARE_LOOPBACK,
 		true,
 		"11",
 		1,
@@ -338,7 +339,7 @@ func TestCache_ValidateL2Connections(t *testing.T) {
 	nodeinterface2 := NodeInterface{
 		"loop0",
 		"loop0",
-		3,
+		interfaces.InterfaceType_SOFTWARE_LOOPBACK,
 		true,
 		"10",
 		1,
@@ -366,5 +367,58 @@ func TestCache_ValidateL2Connections(t *testing.T) {
 	node, ok = db.GetNode("k8s-worker1")
 	db.loopMACMap[node.NodeInterfaces[3].PhysAddress] = node
 	db.loopIPMap[node.NodeInterfaces[3].IPAddresses[0]+subnetmask] = node
-	db.ValidateL2Connections()
+	node,_ = db.GetNode("k8s_master")
+	bdif1_1 := bdinterfaces{3}
+	bdif1_2 := bdinterfaces{5}
+	nodebd1 := NodeBridgeDomains{
+		[]bdinterfaces{bdif1_1,bdif1_2},
+		"vxlanBD",
+		true,
+	}
+	nodebdmap1 := make(map[int]NodeBridgeDomains)
+	nodebdmap1[1] = nodebd1
+	nodevxlaninterface1 := NodeInterface{
+		"vxlan_tunnel0",
+		"vxlan2",
+		interfaces.InterfaceType_VXLAN_TUNNEL,
+		true,
+		"",
+		0,
+		vxlan{node.IPAdr,"11",
+		10,},[]string{},tap{},
+
+	}
+	nodeinterfaces[5] = nodevxlaninterface1
+	db.SetNodeInterfaces("k8s_master",nodeinterfaces)
+	db.SetNodeBridgeDomain("k8s_master",nodebdmap1)
+
+	node,_ = db.GetNode("k8s-worker1")
+	bdif2_1 := bdinterfaces{3}
+	bdif2_2 := bdinterfaces{4}
+	nodebd2 := NodeBridgeDomains{
+		[]bdinterfaces{bdif2_1,bdif2_2},
+		"vxlanBD",
+		true,
+	}
+	nodebdmap2 := make(map[int]NodeBridgeDomains)
+	nodebdmap2[1] = nodebd2
+	nodevxlaninterface2 := NodeInterface{
+		"vxlan_tunnel0",
+		"vxlan2",
+		interfaces.InterfaceType_VXLAN_TUNNEL,
+		true,
+		"",
+		0,
+		vxlan{node.IPAdr,"10",
+			10,},[]string{},tap{},
+
+	}
+	nodeinterfaces2[4] = nodevxlaninterface2
+	db.SetNodeBridgeDomain("k8s-worker1",nodebdmap2)
+	db.SetNodeInterfaces("k8s-worker1",nodeinterfaces2)
+	db.gigEIPMap[node.IPAdr+subnetmask] = node
+	node,_ = db.GetNode("k8s_master")
+	db.gigEIPMap[node.IPAdr+subnetmask] = node
+
+ 	db.ValidateL2Connections()
 }

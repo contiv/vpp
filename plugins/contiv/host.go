@@ -95,14 +95,20 @@ func (s *remoteCNIserver) defaultRoute(gwIP string, outIfName string) *vpp_l3.St
 	return route
 }
 
-func (s *remoteCNIserver) defaultRoutePodToMainVRF() *vpp_l3.StaticRoutes_Route {
-	route := &vpp_l3.StaticRoutes_Route{
+func (s *remoteCNIserver) routesPodToMainVRF() (*vpp_l3.StaticRoutes_Route, *vpp_l3.StaticRoutes_Route) {
+	r1 := &vpp_l3.StaticRoutes_Route{
 		Type:      vpp_l3.StaticRoutes_Route_INTER_VRF,
 		DstIpAddr: "0.0.0.0/0",
 		VrfId:     s.GetPodVrfID(),
 		ViaVrfId:  s.GetMainVrfID(),
 	}
-	return route
+	r2 := &vpp_l3.StaticRoutes_Route{
+		Type:      vpp_l3.StaticRoutes_Route_INTER_VRF,
+		DstIpAddr: s.ipam.VPPHostNetwork().String(),
+		VrfId:     s.GetPodVrfID(),
+		ViaVrfId:  s.GetMainVrfID(),
+	}
+	return r1, r2
 }
 
 func (s *remoteCNIserver) routesToPodVRF() (*vpp_l3.StaticRoutes_Route, *vpp_l3.StaticRoutes_Route) {
@@ -119,6 +125,15 @@ func (s *remoteCNIserver) routesToPodVRF() (*vpp_l3.StaticRoutes_Route, *vpp_l3.
 		ViaVrfId:  s.GetPodVrfID(),
 	}
 	return r1, r2
+}
+
+func (s *remoteCNIserver) AddDropRoutesIntoPodVRF() error {
+	err := s.addDropRoute(s.GetPodVrfID(), s.ipam.PodSubnet())
+	if err != nil {
+		return err
+	}
+	err = s.addDropRoute(s.GetPodVrfID(), s.ipam.VPPHostSubnet())
+	return err
 }
 
 func (s *remoteCNIserver) routesToHost(nextHopIP string) []*vpp_l3.StaticRoutes_Route {
@@ -515,4 +530,27 @@ func (s *remoteCNIserver) executeDebugCLI(cmd string) (string, error) {
 		return "", err
 	}
 	return string(reply.Reply), err
+}
+
+func (s *remoteCNIserver) addDropRoute(vrfID uint32, dstAddr *net.IPNet) error {
+	s.Logger.Info("Adding drop route in VRF %d to %s", vrfID, dstAddr)
+
+	prefix, _ := dstAddr.Mask.Size()
+	req := &ip.IPAddDelRoute{
+		TableID:          vrfID,
+		IsAdd:            1,
+		IsDrop:           1,
+		IsIpv6:           0,
+		IsMultipath:      1,
+		DstAddress:       []byte(dstAddr.IP.To4()),
+		DstAddressLength: byte(prefix),
+	}
+	reply := &ip.IPAddDelRouteReply{}
+
+	err := s.govppChan.SendRequest(req).ReceiveReply(reply)
+
+	if err != nil {
+		s.Logger.Error("Error by adding drop route:", err)
+	}
+	return err
 }

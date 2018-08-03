@@ -832,15 +832,16 @@ func (s *remoteCNIserver) configureVswitchVrfRoutes(config *vswitchConfig) error
 	var err error
 	txn := s.vppTxnFactory().Put()
 
-	// routes towards POD VRF
+	// routes from main towards POD VRF: PodSubnet + VPPHostSubnet
 	vrfR1, vrfR2 := s.routesToPodVRF()
 	txn.StaticRoute(vrfR1)
 	txn.StaticRoute(vrfR2)
 
-	// default route from POD VRF
-	vrfR3 := s.defaultRoutePodToMainVRF()
+	// routes from POD towards main VRF: default route + VPPHostNetwork
+	vrfR3, vrfR4 := s.routesPodToMainVRF()
 	txn.StaticRoute(vrfR3)
-	config.vrfRoutes = []*vpp_l3.StaticRoutes_Route{vrfR1, vrfR2, vrfR3}
+	txn.StaticRoute(vrfR4)
+	config.vrfRoutes = []*vpp_l3.StaticRoutes_Route{vrfR1, vrfR2, vrfR3, vrfR4}
 
 	// execute the config transaction
 	if !config.configured {
@@ -849,6 +850,18 @@ func (s *remoteCNIserver) configureVswitchVrfRoutes(config *vswitchConfig) error
 			s.Logger.Error(err)
 			return err
 		}
+	}
+
+	// add DROP routes into POD VRF to avoid loops: the same routes that point from main VRF to POD VRF are installed
+	// into POD VRF as DROP, to not go back into the main VRF via default route in case that PODs are not reachable
+	//
+	// TODO: after DROP routes are supported in vpp-agent, program this via localclient
+	// until that this does not work in case of restart
+	// https://gerrit.fd.io/r/#/c/13877/ should still avoid the loops on dataplane side in that case
+	err = s.AddDropRoutesIntoPodVRF()
+	if err != nil {
+		s.Logger.Error(err)
+		return err
 	}
 
 	return nil

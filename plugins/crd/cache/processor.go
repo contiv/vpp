@@ -114,13 +114,13 @@ func (p *ContivTelemetryProcessor) collectAgentInfo(node *Node) {
 
 	go p.getNodeInfo(client, node, livenessURL, &NodeLiveness{})
 
-	nodeInterfaces := make(nodeInterfacesMapType, 0)
+	nodeInterfaces := make(nodeInterfaces, 0)
 	go p.getNodeInfo(client, node, interfaceURL, &nodeInterfaces)
 
-	nodeBridgeDomains := make(nodeBridgeDomainMapTypes, 0)
+	nodeBridgeDomains := make(nodeBridgeDomains, 0)
 	go p.getNodeInfo(client, node, bridgeDomainURL, &nodeBridgeDomains)
 
-	nodel2fibs := make(nodeL2FibMapTypes, 0)
+	nodel2fibs := make(nodeL2FibTable, 0)
 	go p.getNodeInfo(client, node, l2FibsURL, &nodel2fibs)
 
 	//TODO: Implement getTelemetry correctly.
@@ -128,7 +128,7 @@ func (p *ContivTelemetryProcessor) collectAgentInfo(node *Node) {
 	//nodetelemetry := make(map[string]NodeTelemetry)
 	//go p.getNodeInfo(client, node, telemetryURL, &nodetelemetry)
 
-	nodeiparpslice := make(nodeIPARPMapTypes, 0)
+	nodeiparpslice := make(nodeIPArpTable, 0)
 	go p.getNodeInfo(client, node, arpURL, &nodeiparpslice)
 
 }
@@ -220,20 +220,20 @@ func (p *ContivTelemetryProcessor) SetNodeData() {
 		case *NodeLiveness:
 			nl := data.NodeInfo.(*NodeLiveness)
 			p.ContivTelemetryCache.Cache.SetNodeLiveness(data.NodeName, nl)
-		case *nodeInterfacesMapType:
-			niDto := data.NodeInfo.(*nodeInterfacesMapType)
+		case *nodeInterfaces:
+			niDto := data.NodeInfo.(*nodeInterfaces)
 			p.ContivTelemetryCache.Cache.SetNodeInterfaces(data.NodeName, *niDto)
-		case *nodeBridgeDomainMapTypes:
-			nbdDto := data.NodeInfo.(*nodeBridgeDomainMapTypes)
+		case *nodeBridgeDomains:
+			nbdDto := data.NodeInfo.(*nodeBridgeDomains)
 			p.ContivTelemetryCache.Cache.SetNodeBridgeDomain(data.NodeName, *nbdDto)
-		case *nodeL2FibMapTypes:
-			nl2fDto := data.NodeInfo.(*nodeL2FibMapTypes)
+		case *nodeL2FibTable:
+			nl2fDto := data.NodeInfo.(*nodeL2FibTable)
 			p.ContivTelemetryCache.Cache.SetNodeL2Fibs(data.NodeName, *nl2fDto)
-		case *nodeTelemetryMapTypes:
-			ntDto := data.NodeInfo.(*nodeTelemetryMapTypes)
+		case *nodeTelemetries:
+			ntDto := data.NodeInfo.(*nodeTelemetries)
 			p.ContivTelemetryCache.Cache.SetNodeTelemetry(data.NodeName, *ntDto)
-		case *nodeIPARPMapTypes:
-			nipaDto := data.NodeInfo.(*nodeIPARPMapTypes)
+		case *nodeIPArpTable:
+			nipaDto := data.NodeInfo.(*nodeIPArpTable)
 			p.ContivTelemetryCache.Cache.SetNodeIPARPs(data.NodeName, *nipaDto)
 		default:
 			p.Log.Errorf("Node %+v has unknown data type: %+v", data.NodeName, data.NodeInfo)

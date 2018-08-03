@@ -162,7 +162,7 @@ func (c *Cache) SetNodeInterfaces(name string, nInt map[int]NodeInterface) error
 }
 
 //SetNodeBridgeDomain is a simple function to set a nodes bridge domain given its name.
-func (c *Cache) SetNodeBridgeDomain(name string, nBridge map[int]NodeBridgeDomains) error {
+func (c *Cache) SetNodeBridgeDomain(name string, nBridge map[int]NodeBridgeDomain) error {
 	node, err := c.GetNode(name)
 	if err != nil {
 		return err
@@ -173,7 +173,7 @@ func (c *Cache) SetNodeBridgeDomain(name string, nBridge map[int]NodeBridgeDomai
 }
 
 //SetNodeL2Fibs is a simple function to set a nodes l2 fibs given its name.
-func (c *Cache) SetNodeL2Fibs(name string, nL2F map[string]NodeL2Fib) error {
+func (c *Cache) SetNodeL2Fibs(name string, nL2F map[string]NodeL2FibEntry) error {
 	node, err := c.GetNode(name)
 	if err != nil {
 		return err
@@ -194,7 +194,7 @@ func (c *Cache) SetNodeTelemetry(name string, nTele map[string]NodeTelemetry) er
 }
 
 //SetNodeIPARPs is a simple function to set a nodes ip arp table given its name.
-func (c *Cache) SetNodeIPARPs(name string, nArps []NodeIPArp) error {
+func (c *Cache) SetNodeIPARPs(name string, nArps []NodeIPArpEntry) error {
 	node, err := c.GetNode(name)
 	if err != nil {
 		return err
@@ -396,7 +396,7 @@ func (c *Cache) ValidateL2Connections() {
 		}
 		bdhasLoopIF := false
 		hasVXLanBD := false
-		var vxLanBD NodeBridgeDomains
+		var vxLanBD NodeBridgeDomain
 		//Make sure there is a bridge domain with the name vxlanBD
 		vxlanBDCount := 0
 		for _, bdomain := range node.NodeBridgeDomains {

@@ -133,15 +133,15 @@ func TestNodesDB_SetNodeBridgeDomain(t *testing.T) {
 	gomega.Expect(node.ManIPAdr).To(gomega.Equal("10"))
 
 	var ifs []bdinterfaces
-	nodeBD := NodeBridgeDomains{ifs, "", false}
-	nodesBD := make(map[int]NodeBridgeDomains)
+	nodeBD := NodeBridgeDomain{ifs, "", false}
+	nodesBD := make(map[int]NodeBridgeDomain)
 	nodesBD[0] = nodeBD
 
 	err := db.SetNodeBridgeDomain("NENODE", nodesBD)
 	gomega.Expect(err).To(gomega.Not(gomega.BeNil()))
 	err = db.SetNodeBridgeDomain("k8s_master", nodesBD)
 	gomega.Expect(err).To(gomega.BeNil())
-	gomega.Expect(node.NodeBridgeDomains[0]).To(gomega.BeEquivalentTo(NodeBridgeDomains{ifs, "", false}))
+	gomega.Expect(node.NodeBridgeDomains[0]).To(gomega.BeEquivalentTo(NodeBridgeDomain{ifs, "", false}))
 
 }
 
@@ -156,8 +156,8 @@ func TestNodesDB_SetNodeIPARPs(t *testing.T) {
 	gomega.Expect(node.ID).To(gomega.Equal(uint32(1)))
 	gomega.Expect(node.ManIPAdr).To(gomega.Equal("10"))
 
-	nodeiparps := make([]NodeIPArp, 0)
-	nodeiparp := NodeIPArp{1, "1.2.3.4", "12:34:56:78", false}
+	nodeiparps := make([]NodeIPArpEntry, 0)
+	nodeiparp := NodeIPArpEntry{1, "1.2.3.4", "12:34:56:78", false}
 	nodeiparps = append(nodeiparps, nodeiparp)
 
 	err := db.SetNodeIPARPs("NENODE", nodeiparps)
@@ -165,7 +165,7 @@ func TestNodesDB_SetNodeIPARPs(t *testing.T) {
 	err = db.SetNodeIPARPs("k8s_master", nodeiparps)
 	gomega.Expect(err).To(gomega.BeNil())
 
-	gomega.Expect(nodeiparps[0]).To(gomega.BeEquivalentTo(NodeIPArp{1, "1.2.3.4", "12:34:56:78", false}))
+	gomega.Expect(nodeiparps[0]).To(gomega.BeEquivalentTo(NodeIPArpEntry{1, "1.2.3.4", "12:34:56:78", false}))
 }
 
 func TestNodesDB_SetNodeLiveness(t *testing.T) {
@@ -200,8 +200,8 @@ func TestNodesDB_SetNodeL2Fibs(t *testing.T) {
 	gomega.Expect(node.ID).To(gomega.Equal(uint32(1)))
 	gomega.Expect(node.ManIPAdr).To(gomega.Equal("10"))
 
-	nfib := NodeL2Fib{1, 2, "test", true, false}
-	nfibs := make(map[string]NodeL2Fib)
+	nfib := NodeL2FibEntry{1, 2, "test", true, false}
+	nfibs := make(map[string]NodeL2FibEntry)
 	nfibs[node.Name] = nfib
 
 	err := db.SetNodeL2Fibs("NENODE", nfibs)
@@ -209,7 +209,7 @@ func TestNodesDB_SetNodeL2Fibs(t *testing.T) {
 	err = db.SetNodeL2Fibs("k8s_master", nfibs)
 	gomega.Expect(err).To(gomega.BeNil())
 
-	gomega.Expect(node.NodeL2Fibs[node.Name]).To(gomega.BeEquivalentTo(NodeL2Fib{1, 2, "test", true, false}))
+	gomega.Expect(node.NodeL2Fibs[node.Name]).To(gomega.BeEquivalentTo(NodeL2FibEntry{1, 2, "test", true, false}))
 
 }
 func TestNodesDB_ValidateLoopIFAddresses(t *testing.T) {
@@ -236,8 +236,8 @@ func TestNodesDB_ValidateLoopIFAddresses(t *testing.T) {
 	nodeinterfaces := map[int]NodeInterface{}
 	nodeinterfaces[3] = nodeinterface1
 
-	nodeiparp1 := NodeIPArp{3, "10", "10", true}
-	nodeiparps1 := make([]NodeIPArp, 0)
+	nodeiparp1 := NodeIPArpEntry{3, "10", "10", true}
+	nodeiparps1 := make([]NodeIPArpEntry, 0)
 	nodeiparps1 = append(nodeiparps1, nodeiparp1)
 
 	nodeinterface2 := NodeInterface{
@@ -253,8 +253,8 @@ func TestNodesDB_ValidateLoopIFAddresses(t *testing.T) {
 	nodeinterfaces2 := map[int]NodeInterface{}
 	nodeinterfaces2[3] = nodeinterface2
 
-	nodeiparp2 := NodeIPArp{3, "11", "11", true}
-	nodeiparps2 := make([]NodeIPArp, 0)
+	nodeiparp2 := NodeIPArpEntry{3, "11", "11", true}
+	nodeiparps2 := make([]NodeIPArpEntry, 0)
 	nodeiparps2 = append(nodeiparps2, nodeiparp2)
 
 	db.addNode(2, "k8s-worker1", "11", "11")
@@ -282,7 +282,7 @@ func TestNodesDB_ValidateLoopIFAddresses(t *testing.T) {
 	db.deleteNode("NoMacFoundNode")
 	fmt.Println("Done...")
 	fmt.Println("Adding extra arp entry to node k8s_master...")
-	nodeiparp3 := NodeIPArp{3, "extraIP", "extraMAC", true}
+	nodeiparp3 := NodeIPArpEntry{3, "extraIP", "extraMAC", true}
 	nodeiparps1 = append(nodeiparps1, nodeiparp3)
 	db.SetNodeIPARPs("k8s_master", nodeiparps1)
 	fmt.Println("Done...")
@@ -332,8 +332,8 @@ func TestNodesDB_ValidateL2Connections(t *testing.T) {
 	nodeinterfaces := map[int]NodeInterface{}
 	nodeinterfaces[3] = nodeinterface1
 
-	nodeiparp1 := NodeIPArp{3, "10", "10", true}
-	nodeiparps1 := make([]NodeIPArp, 0)
+	nodeiparp1 := NodeIPArpEntry{3, "10", "10", true}
+	nodeiparps1 := make([]NodeIPArpEntry, 0)
 	nodeiparps1 = append(nodeiparps1, nodeiparp1)
 
 	nodeinterface2 := NodeInterface{
@@ -349,8 +349,8 @@ func TestNodesDB_ValidateL2Connections(t *testing.T) {
 	nodeinterfaces2 := map[int]NodeInterface{}
 	nodeinterfaces2[3] = nodeinterface2
 
-	nodeiparp2 := NodeIPArp{3, "11", "11", true}
-	nodeiparps2 := make([]NodeIPArp, 0)
+	nodeiparp2 := NodeIPArpEntry{3, "11", "11", true}
+	nodeiparps2 := make([]NodeIPArpEntry, 0)
 	nodeiparps2 = append(nodeiparps2, nodeiparp2)
 
 	db.addNode(2, "k8s-worker1", "11", "11")
@@ -370,12 +370,12 @@ func TestNodesDB_ValidateL2Connections(t *testing.T) {
 	node, _ = db.GetNode("k8s_master")
 	bdif1_1 := bdinterfaces{3}
 	bdif1_2 := bdinterfaces{5}
-	nodebd1 := NodeBridgeDomains{
+	nodebd1 := NodeBridgeDomain{
 		[]bdinterfaces{bdif1_1, bdif1_2},
 		"vxlanBD",
 		true,
 	}
-	nodebdmap1 := make(map[int]NodeBridgeDomains)
+	nodebdmap1 := make(map[int]NodeBridgeDomain)
 	nodebdmap1[1] = nodebd1
 	nodevxlaninterface1 := NodeInterface{
 		"vxlan_tunnel0",
@@ -394,12 +394,12 @@ func TestNodesDB_ValidateL2Connections(t *testing.T) {
 	node, _ = db.GetNode("k8s-worker1")
 	bdif2_1 := bdinterfaces{3}
 	bdif2_2 := bdinterfaces{4}
-	nodebd2 := NodeBridgeDomains{
+	nodebd2 := NodeBridgeDomain{
 		[]bdinterfaces{bdif2_1, bdif2_2},
 		"vxlanBD",
 		true,
 	}
-	nodebdmap2 := make(map[int]NodeBridgeDomains)
+	nodebdmap2 := make(map[int]NodeBridgeDomain)
 	nodebdmap2[1] = nodebd2
 	nodevxlaninterface2 := NodeInterface{
 		"vxlan_tunnel0",

@@ -62,10 +62,10 @@ type Nodes interface {
 	GetAllNodes() []*Node
 	SetNodeLiveness(name string, nL *NodeLiveness) error
 	SetNodeInterfaces(name string, nInt map[int]NodeInterface) error
-	SetNodeBridgeDomain(name string, nBridge map[int]NodeBridgeDomains) error
-	SetNodeL2Fibs(name string, nL2f map[string]NodeL2Fib) error
+	SetNodeBridgeDomain(name string, nBridge map[int]NodeBridgeDomain) error
+	SetNodeL2Fibs(name string, nL2f map[string]NodeL2FibEntry) error
 	SetNodeTelemetry(name string, nTele map[string]NodeTelemetry) error
-	SetNodeIPARPs(name string, nArps []NodeIPArp) error
+	SetNodeIPARPs(name string, nArps []NodeIPArpEntry) error
 	PopulateNodeMaps(node *Node)
 	ValidateLoopIFAddresses()
 }

@@ -44,9 +44,9 @@ type processorTestVars struct {
 	// Mock data
 	nodeLiveness      *NodeLiveness
 	nodeInterfaces    map[int]NodeInterface
-	nodeBridgeDomains map[int]NodeBridgeDomains
-	nodeL2Fibs        map[string]NodeL2Fib
-	nodeIPArps        []NodeIPArp
+	nodeBridgeDomains map[int]NodeBridgeDomain
+	nodeL2Fibs        map[string]NodeL2FibEntry
+	nodeIPArps        []NodeIPArpEntry
 }
 
 var ptv processorTestVars
@@ -197,7 +197,7 @@ func (ptv *processorTestVars) initTestData() {
 	}
 
 	// Initialize bridge domains data
-	ptv.nodeBridgeDomains = map[int]NodeBridgeDomains{
+	ptv.nodeBridgeDomains = map[int]NodeBridgeDomain{
 		1: {
 			Name:       "vxlanBD",
 			Forward:    true,
@@ -215,7 +215,7 @@ func (ptv *processorTestVars) initTestData() {
 	}
 
 	// Initialize L2 Fib data
-	ptv.nodeL2Fibs = map[string]NodeL2Fib{
+	ptv.nodeL2Fibs = map[string]NodeL2FibEntry{
 		"1a:2b:3c:4d:5e:01": {
 			BridgeDomainIdx:          2,
 			OutgoingInterfaceSwIfIdx: 5,
@@ -238,7 +238,7 @@ func (ptv *processorTestVars) initTestData() {
 	}
 
 	// Initialize ARP Table data
-	ptv.nodeIPArps = []NodeIPArp{
+	ptv.nodeIPArps = []NodeIPArpEntry{
 		{
 			Interface:  4,
 			IPAddress:  "192.168.30.1",

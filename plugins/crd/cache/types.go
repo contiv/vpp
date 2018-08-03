@@ -33,10 +33,10 @@ type Node struct {
 	Name              string
 	NodeLiveness      *NodeLiveness
 	NodeInterfaces    map[int]NodeInterface
-	NodeBridgeDomains map[int]NodeBridgeDomains
-	NodeL2Fibs        map[string]NodeL2Fib
+	NodeBridgeDomains map[int]NodeBridgeDomain
+	NodeL2Fibs        map[string]NodeL2FibEntry
 	NodeTelemetry     map[string]NodeTelemetry
-	NodeIPArp         []NodeIPArp
+	NodeIPArp         []NodeIPArpEntry
 	report            []string
 }
 
@@ -69,11 +69,11 @@ type NodeDTO struct {
 	err      error
 }
 
-type nodeInterfacesMapType map[int]NodeInterface
-type nodeBridgeDomainMapTypes map[int]NodeBridgeDomains
-type nodeL2FibMapTypes map[string]NodeL2Fib
-type nodeTelemetryMapTypes map[string]NodeTelemetry
-type nodeIPARPMapTypes []NodeIPArp
+type nodeInterfaces map[int]NodeInterface
+type nodeBridgeDomains map[int]NodeBridgeDomain
+type nodeL2FibTable map[string]NodeL2FibEntry
+type nodeTelemetries map[string]NodeTelemetry
+type nodeIPArpTable []NodeIPArpEntry
 
 //NodeTelemetry holds the unmarshalled node telemetry JSON data
 type NodeTelemetry struct {
@@ -92,8 +92,8 @@ type outputEntry struct {
 	reason   string
 }
 
-//NodeL2Fib holds unmarshalled L2Fib JSON data
-type NodeL2Fib struct {
+//NodeL2FibEntry holds unmarshalled L2Fib JSON data
+type NodeL2FibEntry struct {
 	BridgeDomainIdx          uint32 `json:"bridge_domain_idx"`
 	OutgoingInterfaceSwIfIdx uint32 `json:"outgoing_interface_sw_if_idx"`
 	PhysAddress              string `json:"phys_address"`
@@ -120,8 +120,8 @@ type vxlan struct {
 	Vni        uint32 `json:"vni"`
 }
 
-//NodeIPArp holds unmarshalled IP ARP data
-type NodeIPArp struct {
+//NodeIPArpEntry holds unmarshalled IP ARP data
+type NodeIPArpEntry struct {
 	Interface  uint32 `json:"interface"`
 	IPAddress  string `json:"IPAddress"`
 	MacAddress string `json:"MacAddress"`
@@ -133,8 +133,8 @@ type tap struct {
 	HostIfName string `json:"host_if_name"`
 }
 
-//NodeBridgeDomains holds the unmarshalled bridge domain data.
-type NodeBridgeDomains struct {
+//NodeBridgeDomain holds the unmarshalled bridge domain data.
+type NodeBridgeDomain struct {
 	Interfaces []bdinterfaces `json:"interfaces"`
 	Name       string         `json:"name"`
 	Forward    bool           `json:"forward"`

@@ -349,11 +349,11 @@ func testCollectAgentInfoWithHTTPError(t *testing.T) {
 	fmt.Printf("           Slept for %d ms waiting for validation to finish\n",
 		ptv.processor.waitForValidationToFinish())
 
-	numHttpErrs := 0
+	numHTTPErrs := 0
 	for _, r := range ptv.processor.ContivTelemetryCache.Cache.report {
 		if strings.Contains(r, "404 Not Found") {
-			numHttpErrs++
+			numHTTPErrs++
 		}
 	}
-	gomega.Expect(numHttpErrs).To(gomega.Equal(numDTOs))
+	gomega.Expect(numHTTPErrs).To(gomega.Equal(numDTOs))
 }

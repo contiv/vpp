@@ -22,6 +22,7 @@ import (
 	"github.com/ligato/cn-infra/logging/logrus"
 	"github.com/onsi/gomega"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 )
@@ -298,6 +299,7 @@ func TestProcessor(t *testing.T) {
 	ptv.processor.ticker.Stop()             // Do not periodically poll agents
 	ptv.processor.agentPort = testAgentPort // Override agentPort
 
+	// Do the testing
 	t.Run("collectAgentInfoNoError", testCollectAgentInfoNoError)
 	t.Run("testCollectAgentInfoWithHTTPError", testCollectAgentInfoWithHTTPError)
 
@@ -347,8 +349,11 @@ func testCollectAgentInfoWithHTTPError(t *testing.T) {
 	fmt.Printf("           Slept for %d ms waiting for validation to finish\n",
 		ptv.processor.waitForValidationToFinish())
 
-	fmt.Println("Number of reports: ", len(ptv.processor.ContivTelemetryCache.Cache.report))
-	for i, r := range ptv.processor.ContivTelemetryCache.Cache.report {
-		fmt.Printf("%d: %s\n", i, r)
+	numHTTPErrs := 0
+	for _, r := range ptv.processor.ContivTelemetryCache.Cache.report {
+		if strings.Contains(r, "404 Not Found") {
+			numHTTPErrs++
+		}
 	}
+	gomega.Expect(numHTTPErrs).To(gomega.Equal(numDTOs))
 }

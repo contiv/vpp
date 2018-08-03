@@ -419,22 +419,21 @@ func TestNodesDB_ValidateL2Connections(t *testing.T) {
 	db.gigEIPMap[node.IPAdr+subnetmask] = node
 	db.ValidateL2Connections()
 
-	db.logger.Info("Setting vxlan_vni to 11, expecting error...")
+	fmt.Println("Setting vxlan_vni to 11, expecting error...")
 	nodevxlaninterface2.Vxlan.Vni = 11
 	nodeinterfaces2[4] = nodevxlaninterface2
 	db.SetNodeInterfaces("k8s-worker1", nodeinterfaces2)
 	db.ValidateL2Connections()
 	nodelist := db.GetAllNodes()
 	db.printnodelogs(nodelist)
-	db.logger.Info("Setting vxlan_vni back to normal...")
+	fmt.Println("Setting vxlan_vni back to normal...")
 	nodevxlaninterface2.Vxlan.Vni = 10
 	nodeinterfaces2[4] = nodevxlaninterface2
 	db.SetNodeInterfaces("k8s-worker1", nodeinterfaces2)
 	db.ValidateL2Connections()
-	db.logger.Info("Deleting k8s-worker1 from gigE Map...")
 	node, _ = db.GetNode("k8s-worker1")
-	delete(db.gigEIPMap, node.Name)
-
+	db.addNode(43,"extranode","15","15")
+	db.ValidateL2Connections()
 }
 
 func (c *Cache) printnodelogs(nodelist []*Node) {
@@ -446,5 +445,7 @@ func (c *Cache) printnodelogs(nodelist []*Node) {
 		for _, str := range node.report {
 			fmt.Println(str)
 		}
+		node.report = node.report[0:0]
 	}
+	c.report = c.report[0:0]
 }

@@ -509,6 +509,7 @@ func (c *Cache) ValidateL2Connections() {
 			for node := range nodevxlanmap {
 				c.nMap[node].report = append(c.nMap[node].report, node)
 			}
+			continue
 		}
 
 		delete(nodemap, node.Name)
@@ -521,7 +522,7 @@ func (c *Cache) ValidateL2Connections() {
 		}
 	} else {
 		c.report = append(c.report, "Success validating L2 connections")
-		c.logger.Info("Success validating L2 connections.")
+		//c.logger.Info("Success validating L2 connections.")
 	}
 
 }

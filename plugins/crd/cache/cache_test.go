@@ -432,7 +432,7 @@ func TestNodesDB_ValidateL2Connections(t *testing.T) {
 	db.SetNodeInterfaces("k8s-worker1", nodeinterfaces2)
 	db.ValidateL2Connections()
 	node, _ = db.GetNode("k8s-worker1")
-	db.addNode(43,"extranode","15","15")
+	db.addNode(43, "extranode", "15", "15")
 	db.ValidateL2Connections()
 }
 

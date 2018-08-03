@@ -67,8 +67,8 @@ type ContivAgent struct {
 
 	LinuxLocalClient *localclient.Plugin
 	GoVPP            *govppmux.Plugin
-	Linux            *linux.Plugin
 	VPP              *vpp.Plugin
+	Linux            *linux.Plugin
 	VPPrest          *vpp_rest.Plugin
 	Telemetry        *telemetry.Plugin
 	GRPC             *grpc.Plugin

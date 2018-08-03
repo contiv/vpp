@@ -77,38 +77,24 @@ func (ctc *ContivTelemetryCache) DeleteNode(nodenames []string) {
 		node, err := ctc.Cache.GetNode(str)
 		if err != nil {
 			ctc.Log.Error(err)
+			return
 		}
-		delete(ctc.Cache.nMap, node.Name)
-		delete(ctc.Cache.gigEIPMap, node.IPAdr)
-		for _, intf := range node.NodeInterfaces {
-			if intf.VppInternalName == "loop0" {
-				delete(ctc.Cache.loopMACMap, intf.PhysAddress)
-				for _, ip := range intf.IPAddresses {
-					delete(ctc.Cache.loopIPMap, ip)
-				}
-			}
+		ctc.Cache.deleteNode(node.Name)
 
-		}
 	}
 
 }
 
 //AddNode will add a node to the Contiv Telemetry cache with the given parameters.
 func (ctc *ContivTelemetryCache) AddNode(ID uint32, nodeName, IPAdr, ManIPAdr string) error {
-	n := &Node{IPAdr: IPAdr, ManIPAdr: ManIPAdr, ID: ID, Name: nodeName}
-	_, err := ctc.Cache.GetNode(nodeName)
-	if err == nil {
-		err = errors.Errorf("duplicate key found: %s", nodeName)
-		ctc.Cache.nMap[nodeName].report = append(ctc.Cache.nMap[nodeName].report, errors.Errorf(
-			"duplicate key found: %s", nodeName).Error())
+	err := ctc.Cache.addNode(ID, nodeName, IPAdr, ManIPAdr)
+	if err != nil {
 		return err
 	}
-	ctc.Cache.nMap[nodeName] = n
-	ctc.Log.Debugf("Success adding node %+v to ctc.ContivTelemetryCache %+v", nodeName, ctc.Cache)
 	return nil
 }
 
-//addNode will add a node to the Contiv Telemetry cache with the given parameters.
+//addNode will add a node to the node cache with the given parameters.
 func (c *Cache) addNode(ID uint32, nodeName, IPAdr, ManIPAdr string) error {
 	n := &Node{IPAdr: IPAdr, ManIPAdr: ManIPAdr, ID: ID, Name: nodeName}
 	_, err := c.GetNode(nodeName)
@@ -453,7 +439,7 @@ func (c *Cache) ValidateL2Connections() {
 			if node.NodeInterfaces[int(intfidx)].IfType == interfaces.InterfaceType_VXLAN_TUNNEL {
 				if node.NodeInterfaces[int(intfidx)].Vxlan.Vni != vppVNI {
 					c.nMap[node.Name].report = append(c.nMap[node.Name].report, errors.Errorf(
-						"unexpected VNI: got %+v expected %+v",
+						"unexpected VNI for node %+v: got %+v expected %+v", node.Name,
 						node.NodeInterfaces[int(intfidx)].Vxlan.Vni, vppVNI).Error())
 					continue
 
@@ -507,8 +493,8 @@ func (c *Cache) ValidateL2Connections() {
 		//checks if there are an unequal amount vxlan tunnels for the current node versus the total number of nodes
 		if i != len(nodelist) {
 			c.nMap[node.Name].report = append(c.nMap[node.Name].report, errors.Errorf(
-				"number of vxlan tunnels for node %+v does "+
-					"not match number of nodes on network\n", node.Name).Error())
+				"number of valid vxlan tunnels for node %+v does "+
+					"not match number of nodes on network: got %+v, expected %+v", node.Name, i, len(nodelist)).Error())
 		}
 
 		if !bdhasLoopIF {
@@ -519,7 +505,7 @@ func (c *Cache) ValidateL2Connections() {
 		}
 		if len(nodevxlanmap) > 0 {
 			c.nMap[node.Name].report = append(c.nMap[node.Name].report, errors.Errorf(
-				"Missing vxlan entries for node %+v:", node.Name).Error())
+				"Missing valid vxlan entries for node %+v:", node.Name).Error())
 			for node := range nodevxlanmap {
 				c.nMap[node].report = append(c.nMap[node].report, node)
 			}
@@ -531,7 +517,7 @@ func (c *Cache) ValidateL2Connections() {
 	//make sure that each node has been successfully validated
 	if len(nodemap) > 0 {
 		for node := range nodemap {
-			c.report = append(c.report, errors.Errorf("error validating BD info for node %+v\n", node).Error())
+			c.report = append(c.report, errors.Errorf("error validating BD info for node %+v", node).Error())
 		}
 	} else {
 		c.report = append(c.report, "Success validating L2 connections")

@@ -104,7 +104,6 @@ func (ctc *ContivTelemetryCache) AddNode(ID uint32, nodeName, IPAdr, ManIPAdr st
 		return err
 	}
 	ctc.Cache.nMap[nodeName] = n
-	ctc.Cache.gigEIPMap[IPAdr] = n
 	ctc.Log.Debugf("Success adding node %+v to ctc.ContivTelemetryCache %+v", nodeName, ctc.Cache)
 	return nil
 }
@@ -293,14 +292,13 @@ func (c *Cache) PopulateNodeMaps(node *Node) {
 		c.nMap[node.Name].report = append(c.nMap[node.Name].report,
 			"Detected empty MAC address for node %+v", node.Name)
 	} else {
-		if mac, ok := c.loopMACMap[loopIF.PhysAddress]; ok {
-			c.logger.Errorf("Duplicate MAC address found: %s", mac)
+		if _, ok := c.loopMACMap[loopIF.PhysAddress]; ok {
+			c.logger.Errorf("Duplicate MAC address found: %s", loopIF.PhysAddress)
 			c.nMap[node.Name].report = append(c.nMap[node.Name].report, errors.Errorf(
-				"Duplicate MAC address found: %s", mac).Error())
+				"Duplicate MAC address found: %s", loopIF.PhysAddress).Error())
 		} else {
 			c.loopMACMap[loopIF.PhysAddress] = node
 		}
-		c.nMap[node.Name] = node
 		c.gigEIPMap[node.IPAdr] = node
 	}
 }
@@ -537,6 +535,7 @@ func (c *Cache) ValidateL2Connections() {
 		}
 	} else {
 		c.report = append(c.report, "Success validating L2 connections")
+		c.logger.Info("Success validating L2 connections.")
 	}
 
 }

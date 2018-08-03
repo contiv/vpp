@@ -17,10 +17,10 @@ package cache
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/pkg/errors"
 	"io/ioutil"
 	"net/http"
 	"time"
-	"github.com/pkg/errors"
 )
 
 const (
@@ -190,6 +190,7 @@ func (p *ContivTelemetryProcessor) waitForValidationToFinish() int {
 		cycles++
 	}
 }
+
 //ProcessNodeResponses will read the nodeDTO map and make sure that each node has
 //enough DTOS to fully process information. It then clears the node DTO map after it
 //is finished with it.

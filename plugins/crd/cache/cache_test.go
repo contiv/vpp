@@ -432,19 +432,18 @@ func TestNodesDB_ValidateL2Connections(t *testing.T) {
 	db.SetNodeInterfaces("k8s-worker1", nodeinterfaces2)
 	db.ValidateL2Connections()
 	db.logger.Info("Deleting k8s-worker1 from gigE Map...")
-	node,_ = db.GetNode("k8s-worker1")
-	delete(db.gigEIPMap,node.Name)
+	node, _ = db.GetNode("k8s-worker1")
+	delete(db.gigEIPMap, node.Name)
 
 }
 
-
-func (c *Cache)printnodelogs(nodelist []*Node){
+func (c *Cache) printnodelogs(nodelist []*Node) {
 	fmt.Println("Report for cache")
-	for _,str := range c.report  {
+	for _, str := range c.report {
 		fmt.Println(str)
 	}
-	for _, node := range nodelist  {
-		for _, str := range node.report  {
+	for _, node := range nodelist {
+		for _, str := range node.report {
 			fmt.Println(str)
 		}
 	}

@@ -87,7 +87,7 @@ func (ctc *ContivTelemetryCache) DeleteNode(nodenames []string) {
 
 //AddNode will add a node to the Contiv Telemetry cache with the given parameters.
 func (ctc *ContivTelemetryCache) AddNode(ID uint32, nodeName, IPAdr, ManIPAdr string) error {
-	err := ctc.Cache.addNode(ID,nodeName,IPAdr,ManIPAdr)
+	err := ctc.Cache.addNode(ID, nodeName, IPAdr, ManIPAdr)
 	if err != nil {
 		return err
 	}
@@ -439,7 +439,7 @@ func (c *Cache) ValidateL2Connections() {
 			if node.NodeInterfaces[int(intfidx)].IfType == interfaces.InterfaceType_VXLAN_TUNNEL {
 				if node.NodeInterfaces[int(intfidx)].Vxlan.Vni != vppVNI {
 					c.nMap[node.Name].report = append(c.nMap[node.Name].report, errors.Errorf(
-						"unexpected VNI for node %+v: got %+v expected %+v",node.Name,
+						"unexpected VNI for node %+v: got %+v expected %+v", node.Name,
 						node.NodeInterfaces[int(intfidx)].Vxlan.Vni, vppVNI).Error())
 					continue
 
@@ -494,7 +494,7 @@ func (c *Cache) ValidateL2Connections() {
 		if i != len(nodelist) {
 			c.nMap[node.Name].report = append(c.nMap[node.Name].report, errors.Errorf(
 				"number of valid vxlan tunnels for node %+v does "+
-					"not match number of nodes on network: got %+v, expected %+v", node.Name,i,len(nodelist)).Error())
+					"not match number of nodes on network: got %+v, expected %+v", node.Name, i, len(nodelist)).Error())
 		}
 
 		if !bdhasLoopIF {

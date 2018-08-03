@@ -114,7 +114,7 @@ func configureVpp(contivCfg *contiv.Config, stnData *stn.STNReply, useDHCP bool)
 		return nil, err
 	}
 
-	stnVppHandler, err := if_vppcalls.NewStnVppHandler(ch, nil)
+	stnVppHandler, err := if_vppcalls.NewStnVppHandler(ch, nil, logger, nil)
 	if err != nil {
 		logger.Errorf("Unable to create stnVppHandler", err)
 		return nil, err

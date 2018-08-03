@@ -136,7 +136,7 @@ func (d *MockDataResyncDSL) StnRule(val *stn.STN_Rule) vppclient.DataResyncDSL {
 
 // NAT44Global adds a request to RESYNC global configuration for NAT44
 func (d *MockDataResyncDSL) NAT44Global(val *nat.Nat44Global) vppclient.DataResyncDSL {
-	op := dsl.TxnOp{Key: nat.GlobalConfigKey(), Value: val}
+	op := dsl.TxnOp{Key: nat.GlobalPrefix, Value: val}
 	d.Ops = append(d.Ops, op)
 	return d
 }

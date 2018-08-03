@@ -143,7 +143,7 @@ func main() {
 	)
 
 	vppPlugin.Linux = linuxPlugin
-	vppPlugin.DisableResync(acl.Prefix, nat.GlobalConfigPrefix(), nat.DNatPrefix())
+	vppPlugin.DisableResync(acl.Prefix, nat.GlobalPrefix, nat.DNatPrefix)
 
 	vppRest := vpp_rest.NewPlugin(vpp_rest.UseDeps(func(deps *vpp_rest.Deps) {
 		deps.GoVppmux = &govppmux.DefaultPlugin

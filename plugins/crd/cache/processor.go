@@ -20,6 +20,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"time"
+	"github.com/pkg/errors"
 )
 
 const (
@@ -111,24 +112,24 @@ func (p *ContivTelemetryProcessor) collectAgentInfo(node *Node) {
 		Timeout:       p.httpClientTimeout,
 	}
 
-	go p.getNodeDTOInfo(client, node, livenessURL, &NodeLiveness{})
+	go p.getNodeInfo(client, node, livenessURL, &NodeLiveness{})
 
 	nodeInterfaces := make(nodeInterfacesMapType, 0)
-	go p.getNodeDTOInfo(client, node, interfaceURL, &nodeInterfaces)
+	go p.getNodeInfo(client, node, interfaceURL, &nodeInterfaces)
 
 	nodeBridgeDomains := make(nodeBridgeDomainMapTypes, 0)
-	go p.getNodeDTOInfo(client, node, bridgeDomainURL, &nodeBridgeDomains)
+	go p.getNodeInfo(client, node, bridgeDomainURL, &nodeBridgeDomains)
 
 	nodel2fibs := make(nodeL2FibMapTypes, 0)
-	go p.getNodeDTOInfo(client, node, l2FibsURL, &nodel2fibs)
+	go p.getNodeInfo(client, node, l2FibsURL, &nodel2fibs)
 
 	//TODO: Implement getTelemetry correctly.
 	//Does not parse information correctly
 	//nodetelemetry := make(map[string]NodeTelemetry)
-	//go p.getNodeDTOInfo(client, node, telemetryURL, &nodetelemetry)
+	//go p.getNodeInfo(client, node, telemetryURL, &nodetelemetry)
 
 	nodeiparpslice := make(nodeIPARPMapTypes, 0)
-	go p.getNodeDTOInfo(client, node, arpURL, &nodeiparpslice)
+	go p.getNodeInfo(client, node, arpURL, &nodeiparpslice)
 
 }
 
@@ -152,15 +153,15 @@ object is created to hold the struct of information as well as the name and is s
 over the plugins node database channel to node_db_processor.go where it will be read,
 processed, and added to the node database.
 */
-func (p *ContivTelemetryProcessor) getNodeDTOInfo(client http.Client, node *Node, url string, nodeInfo interface{}) {
+func (p *ContivTelemetryProcessor) getNodeInfo(client http.Client, node *Node, url string, nodeInfo interface{}) {
 	res, err := client.Get(p.getAgentURL(node.ManIPAdr, url))
 	if err != nil {
-		err := fmt.Errorf("getNodeDTOInfo: url: %s cleintGet Error: %s", url, err.Error())
+		err := fmt.Errorf("getNodeInfo: url: %s cleintGet Error: %s", url, err.Error())
 		p.Log.Error(err)
 		p.nodeResponseChannel <- &NodeDTO{node.Name, nil, err}
 		return
 	} else if res.StatusCode < 200 || res.StatusCode > 299 {
-		err := fmt.Errorf("getNodeDTOInfo: url: %s HTTP res.Status: %s", url, res.Status)
+		err := fmt.Errorf("getNodeInfo: url: %s HTTP res.Status: %s", url, res.Status)
 		p.Log.Error(err)
 		p.nodeResponseChannel <- &NodeDTO{node.Name, nil, err}
 		return
@@ -188,4 +189,55 @@ func (p *ContivTelemetryProcessor) waitForValidationToFinish() int {
 		time.Sleep(1 * time.Millisecond)
 		cycles++
 	}
+}
+//ProcessNodeResponses will read the nodeDTO map and make sure that each node has
+//enough DTOS to fully process information. It then clears the node DTO map after it
+//is finished with it.
+func (p *ContivTelemetryProcessor) ProcessNodeResponses() {
+	for data := range p.nodeResponseChannel {
+		nodelist := p.ContivTelemetryCache.Cache.GetAllNodes()
+		p.dtoList = append(p.dtoList, data)
+		if len(p.dtoList) == numDTOs*len(nodelist) {
+			p.SetNodeData()
+			p.ValidateNodeInfo()
+			p.dtoList = p.dtoList[0:0]
+			p.validationInProgress = false
+		}
+	}
+}
+
+// SetNodeData will iterate through the dtoList, read the type of dto, and assign the dto info to the name
+// associated with the DTO.
+func (p *ContivTelemetryProcessor) SetNodeData() {
+	for _, data := range p.dtoList {
+		if data.err != nil {
+			p.ContivTelemetryCache.Cache.report = append(p.ContivTelemetryCache.Cache.report, errors.Errorf(
+				"Node %+v has nodeDTO %+v and http error %s", data.NodeName, data, data.err).Error())
+			continue
+		}
+		switch data.NodeInfo.(type) {
+		case *NodeLiveness:
+			nl := data.NodeInfo.(*NodeLiveness)
+			p.ContivTelemetryCache.Cache.SetNodeLiveness(data.NodeName, nl)
+		case *nodeInterfacesMapType:
+			niDto := data.NodeInfo.(*nodeInterfacesMapType)
+			p.ContivTelemetryCache.Cache.SetNodeInterfaces(data.NodeName, *niDto)
+		case *nodeBridgeDomainMapTypes:
+			nbdDto := data.NodeInfo.(*nodeBridgeDomainMapTypes)
+			p.ContivTelemetryCache.Cache.SetNodeBridgeDomain(data.NodeName, *nbdDto)
+		case *nodeL2FibMapTypes:
+			nl2fDto := data.NodeInfo.(*nodeL2FibMapTypes)
+			p.ContivTelemetryCache.Cache.SetNodeL2Fibs(data.NodeName, *nl2fDto)
+		case *nodeTelemetryMapTypes:
+			ntDto := data.NodeInfo.(*nodeTelemetryMapTypes)
+			p.ContivTelemetryCache.Cache.SetNodeTelemetry(data.NodeName, *ntDto)
+		case *nodeIPARPMapTypes:
+			nipaDto := data.NodeInfo.(*nodeIPARPMapTypes)
+			p.ContivTelemetryCache.Cache.SetNodeIPARPs(data.NodeName, *nipaDto)
+		default:
+			p.Log.Errorf("Node %+v has unknown data type: %+v", data.NodeName, data.NodeInfo)
+		}
+
+	}
+
 }

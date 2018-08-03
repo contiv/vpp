@@ -139,6 +139,7 @@ func (ctc *ContivTelemetryCache) ClearCache() {
 	ctc.Cache.gigEIPMap = make(map[string]*Node)
 	ctc.Cache.loopMACMap = make(map[string]*Node)
 	ctc.Cache.loopIPMap = make(map[string]*Node)
+	ctc.Cache.report = []string{}
 }
 
 //NewCache returns a pointer to a new node cache

@@ -25,7 +25,7 @@ import (
 const (
 	agentPort       = ":9999"
 	livenessURL     = "/liveness"
-	timeout         = 100000000000
+	timeout         = 10
 	interfaceURL    = "/interfaces"
 	bridgeDomainURL = "/bridgedomains"
 	l2FibsURL       = "/l2fibs"
@@ -41,7 +41,9 @@ type ContivTelemetryProcessor struct {
 	dtoList              []*NodeDTO
 	ticker               *time.Ticker
 	collectionInterval   time.Duration
+	httpClientTimeout    time.Duration
 	agentPort            string
+	validationInProgress bool
 }
 
 func (p *ContivTelemetryProcessor) init() {
@@ -50,6 +52,8 @@ func (p *ContivTelemetryProcessor) init() {
 	p.agentPort = agentPort
 	p.collectionInterval = 1 * time.Minute
 	p.ticker = time.NewTicker(p.collectionInterval)
+	p.httpClientTimeout = timeout * time.Second
+	p.validationInProgress = false
 }
 
 // Init initializes the processor.
@@ -65,6 +69,7 @@ func (p *ContivTelemetryProcessor) Init() error {
 // CollectNodeInfo collects node data from all agents in the Contiv
 // cluster and puts it in the cache
 func (p *ContivTelemetryProcessor) CollectNodeInfo(node *Node) {
+	p.validationInProgress = true
 	p.collectAgentInfo(node)
 }
 
@@ -103,7 +108,7 @@ func (p *ContivTelemetryProcessor) collectAgentInfo(node *Node) {
 		Transport:     nil,
 		CheckRedirect: nil,
 		Jar:           nil,
-		Timeout:       timeout,
+		Timeout:       p.httpClientTimeout,
 	}
 
 	go p.getNodeDTOInfo(client, node, livenessURL, &NodeLiveness{})
@@ -132,7 +137,7 @@ func (p *ContivTelemetryProcessor) retrieveNetworkInfoOnTimerExpiry() {
 		nodelist := p.ContivTelemetryCache.Cache.GetAllNodes()
 
 		p.Log.Info("Timer has expired; Beginning gathering of information.")
-		p.ContivTelemetryCache.Cache.report = p.ContivTelemetryCache.Cache.report[0:0]
+		p.ContivTelemetryCache.ClearCache()
 		for _, node := range nodelist {
 			p.CollectNodeInfo(node)
 		}
@@ -177,7 +182,7 @@ func (p *ContivTelemetryProcessor) getAgentURL(ipAddr string, url string) string
 func (p *ContivTelemetryProcessor) waitForValidationToFinish() int {
 	cycles := 0
 	for {
-		if len(p.ContivTelemetryCache.Cache.nMap) == 0 {
+		if !p.validationInProgress {
 			return cycles
 		}
 		time.Sleep(1 * time.Millisecond)

@@ -36,47 +36,29 @@ func (p *ContivTelemetryProcessor) ProcessNodeResponses() {
 // associated with the DTO.
 func (p *ContivTelemetryProcessor) SetNodeData() {
 	for _, data := range p.dtoList {
-		if data.NodeInfo == nil {
+		if data.err != nil {
 			p.ContivTelemetryCache.Cache.report = append(p.ContivTelemetryCache.Cache.report, errors.Errorf(
-				"Node %+v has nodeDTO %+v  and http error %s", data.NodeName, data, data.err).Error())
+				"Node %+v has nodeDTO %+v and http error %s", data.NodeName, data, data.err).Error())
 			continue
 		}
 		switch data.NodeInfo.(type) {
 		case *NodeLiveness:
 			nl := data.NodeInfo.(*NodeLiveness)
-			if data.err != nil {
-				p.ContivTelemetryCache.Cache.report = append(p.ContivTelemetryCache.Cache.report, data.err.Error())
-			}
 			p.ContivTelemetryCache.Cache.SetNodeLiveness(data.NodeName, nl)
 		case *nodeInterfacesMapType:
 			niDto := data.NodeInfo.(*nodeInterfacesMapType)
-			if data.err != nil {
-				p.ContivTelemetryCache.Cache.report = append(p.ContivTelemetryCache.Cache.report, data.err.Error())
-			}
 			p.ContivTelemetryCache.Cache.SetNodeInterfaces(data.NodeName, *niDto)
 		case *nodeBridgeDomainMapTypes:
 			nbdDto := data.NodeInfo.(*nodeBridgeDomainMapTypes)
-			if data.err != nil {
-				p.ContivTelemetryCache.Cache.report = append(p.ContivTelemetryCache.Cache.report, data.err.Error())
-			}
 			p.ContivTelemetryCache.Cache.SetNodeBridgeDomain(data.NodeName, *nbdDto)
 		case *nodeL2FibMapTypes:
 			nl2fDto := data.NodeInfo.(*nodeL2FibMapTypes)
-			if data.err != nil {
-				p.ContivTelemetryCache.Cache.report = append(p.ContivTelemetryCache.Cache.report, data.err.Error())
-			}
 			p.ContivTelemetryCache.Cache.SetNodeL2Fibs(data.NodeName, *nl2fDto)
 		case *nodeTelemetryMapTypes:
 			ntDto := data.NodeInfo.(*nodeTelemetryMapTypes)
-			if data.err != nil {
-				p.ContivTelemetryCache.Cache.report = append(p.ContivTelemetryCache.Cache.report, data.err.Error())
-			}
 			p.ContivTelemetryCache.Cache.SetNodeTelemetry(data.NodeName, *ntDto)
 		case *nodeIPARPMapTypes:
 			nipaDto := data.NodeInfo.(*nodeIPARPMapTypes)
-			if data.err != nil {
-				p.ContivTelemetryCache.Cache.report = append(p.ContivTelemetryCache.Cache.report, data.err.Error())
-			}
 			p.ContivTelemetryCache.Cache.SetNodeIPARPs(data.NodeName, *nipaDto)
 		default:
 			p.Log.Errorf("Node %+v has unknown data type: %+v", data.NodeName, data.NodeInfo)

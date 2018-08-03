@@ -324,18 +324,19 @@ func (c *Cache) ValidateLoopIFAddresses() {
 			c.nMap[node.Name].report = append(c.nMap[node.Name].report, err.Error())
 			c.nMap[node.Name].report = append(c.nMap[node.Name].report, errors.Errorf(
 				"Cannot process node ARP Table because loop interface info is missing.").Error())
-			continue
+
 		}
 		for _, arp := range node.NodeIPArp {
 			if node.NodeInterfaces[int(arp.Interface)].VppInternalName != "loop0" {
-				continue
+
 			}
 
 			nLoopIFTwo, ok := node.NodeInterfaces[int(arp.Interface)]
 			if !ok {
-				c.logger.Errorf("Loop Interface in ARP Table not found: %d", arp.Interface)
+				c.logger.Errorf("Loop Interface for ARP Table entry  %d not found", arp.Interface)
 				c.nMap[node.Name].report = append(c.nMap[node.Name].report, errors.Errorf(
 					"Loop Interface in ARP Table not found: %d", arp.Interface).Error())
+				continue
 			}
 			if nLoopIF.VppInternalName != nLoopIFTwo.VppInternalName {
 				continue

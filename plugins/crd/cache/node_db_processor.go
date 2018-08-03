@@ -27,7 +27,7 @@ func (p *ContivTelemetryProcessor) ProcessNodeResponses() {
 			p.SetNodeData()
 			p.ValidateNodeInfo()
 			p.dtoList = p.dtoList[0:0]
-			p.ContivTelemetryCache.ClearCache()
+			p.validationInProgress = false
 		}
 	}
 }

@@ -28,12 +28,15 @@ import (
 )
 
 const (
-	testAgentPort = ":8080"
+	noError        = iota
+	inject404Error = iota
+	injectDelay    = iota
+	testAgentPort  = ":8080"
 )
 
 type processorTestVars struct {
 	srv         *http.Server
-	injectError bool
+	injectError int
 	log         *logrus.Logger
 	client      *http.Client
 	processor   *ContivTelemetryProcessor
@@ -64,11 +67,16 @@ func (ptv *processorTestVars) startMockHTTPServer() {
 func registerHTTPHandlers() {
 	// Register handler for all test data
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		if ptv.injectError {
+		if ptv.injectError == inject404Error {
 			w.WriteHeader(404)
 			w.Write([]byte("page not found - invalid path: " + r.URL.Path))
 			return
 		}
+
+		if ptv.injectError == injectDelay {
+			time.Sleep(3 * time.Second)
+		}
+
 		var data interface{}
 
 		switch r.URL.Path {
@@ -268,7 +276,7 @@ func TestProcessor(t *testing.T) {
 	// Init the mock HTTP Server
 	ptv.startMockHTTPServer()
 	registerHTTPHandlers()
-	ptv.injectError = false
+	ptv.injectError = noError
 
 	ptv.client = &http.Client{
 		Transport:     nil,
@@ -301,7 +309,8 @@ func TestProcessor(t *testing.T) {
 
 	// Do the testing
 	t.Run("collectAgentInfoNoError", testCollectAgentInfoNoError)
-	t.Run("testCollectAgentInfoWithHTTPError", testCollectAgentInfoWithHTTPError)
+	t.Run("collectAgentInfoWithHTTPError", testCollectAgentInfoWithHTTPError)
+	t.Run("collectAgentInfoWithTimeout", testCollectAgentInfoWithTimeout)
 
 	// Shutdown the mock HTTP server
 	// ptv.shutdownMockHTTPServer()
@@ -324,7 +333,7 @@ func testCollectAgentInfoNoError(t *testing.T) {
 		time.Sleep(1 * time.Millisecond)
 		cycles++
 	}
-	fmt.Printf("           Slept for %d ms waiting for cache updates\n", cycles)
+	fmt.Printf("              Waited %d ms for cache updates\n", cycles)
 
 	gomega.Expect(node.NodeLiveness).To(gomega.BeEquivalentTo(ptv.nodeLiveness))
 	gomega.Expect(node.NodeInterfaces).To(gomega.BeEquivalentTo(ptv.nodeInterfaces))
@@ -332,21 +341,22 @@ func testCollectAgentInfoNoError(t *testing.T) {
 	gomega.Expect(node.NodeL2Fibs).To(gomega.BeEquivalentTo(ptv.nodeL2Fibs))
 	gomega.Expect(node.NodeIPArp).To(gomega.BeEquivalentTo(ptv.nodeIPArps))
 
-	fmt.Printf("           Slept for %d ms waiting for validation to finish\n",
+	fmt.Printf("              Waited %d ms for validation to finish\n",
 		ptv.processor.waitForValidationToFinish())
+	printErrorReport()
 }
 
 func testCollectAgentInfoWithHTTPError(t *testing.T) {
-	ptv.processor.ContivTelemetryCache.Cache.report = []string{}
+	ptv.processor.ContivTelemetryCache.ClearCache()
 	ptv.processor.ContivTelemetryCache.AddNode(1, "k8s-master", "10.20.0.2", "localhost")
 
 	nodes := ptv.processor.ContivTelemetryCache.LookupNode([]string{"k8s-master"})
 	gomega.Expect(len(nodes)).To(gomega.Equal(1))
-	ptv.injectError = true
+	ptv.injectError = inject404Error
 
 	ptv.processor.CollectNodeInfo(nodes[0])
 
-	fmt.Printf("           Slept for %d ms waiting for validation to finish\n",
+	fmt.Printf("              Waited %d ms for validation to finish\n",
 		ptv.processor.waitForValidationToFinish())
 
 	numHTTPErrs := 0
@@ -356,4 +366,37 @@ func testCollectAgentInfoWithHTTPError(t *testing.T) {
 		}
 	}
 	gomega.Expect(numHTTPErrs).To(gomega.Equal(numDTOs))
+	printErrorReport()
+}
+
+func testCollectAgentInfoWithTimeout(t *testing.T) {
+	ptv.processor.ContivTelemetryCache.ClearCache()
+	ptv.processor.httpClientTimeout = 1
+	ptv.processor.ContivTelemetryCache.AddNode(1, "k8s-master", "10.20.0.2", "localhost")
+
+	nodes := ptv.processor.ContivTelemetryCache.LookupNode([]string{"k8s-master"})
+	gomega.Expect(len(nodes)).To(gomega.Equal(1))
+	ptv.injectError = injectDelay
+
+	ptv.processor.CollectNodeInfo(nodes[0])
+
+	fmt.Printf("              Waited %d ms for validation to finish\n",
+		ptv.processor.waitForValidationToFinish())
+
+	numTimeoutErrs := 0
+	for _, r := range ptv.processor.ContivTelemetryCache.Cache.report {
+		if strings.Contains(r, "Timeout exceeded") {
+			numTimeoutErrs++
+		}
+	}
+	gomega.Expect(numTimeoutErrs).To(gomega.Equal(numDTOs))
+	printErrorReport()
+}
+
+func printErrorReport() {
+	fmt.Println("Error Report")
+	fmt.Println("============")
+	for _, rl := range ptv.processor.ContivTelemetryCache.Cache.report {
+		fmt.Println(rl)
+	}
 }

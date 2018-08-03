@@ -98,7 +98,7 @@ func (plugin *Plugin) Watch(resyncName string, changeChan chan datasync.ChangeEv
 				if found && op == m.GetChangeType() {
 					plugin.Log.Infof("Change for %v is ignored", m.GetKey())
 					delete(plugin.ignoreList, m.GetKey())
-				} else {
+				} else if changeChan != nil {
 					plugin.Log.Infof("Change for %v is about to be applied", m.GetKey())
 					changeChan <- m
 				}

@@ -5,8 +5,8 @@ import (
 
 	"fmt"
 	"github.com/ligato/cn-infra/logging/logrus"
-	"github.com/onsi/gomega"
 	"github.com/ligato/vpp-agent/plugins/vpp/model/interfaces"
+	"github.com/onsi/gomega"
 )
 
 //Checks adding a new node.
@@ -367,11 +367,11 @@ func TestNodesDB_ValidateL2Connections(t *testing.T) {
 	node, ok = db.GetNode("k8s-worker1")
 	db.loopMACMap[node.NodeInterfaces[3].PhysAddress] = node
 	db.loopIPMap[node.NodeInterfaces[3].IPAddresses[0]+subnetmask] = node
-	node,_ = db.GetNode("k8s_master")
+	node, _ = db.GetNode("k8s_master")
 	bdif1_1 := bdinterfaces{3}
 	bdif1_2 := bdinterfaces{5}
 	nodebd1 := NodeBridgeDomains{
-		[]bdinterfaces{bdif1_1,bdif1_2},
+		[]bdinterfaces{bdif1_1, bdif1_2},
 		"vxlanBD",
 		true,
 	}
@@ -384,19 +384,18 @@ func TestNodesDB_ValidateL2Connections(t *testing.T) {
 		true,
 		"",
 		0,
-		vxlan{node.IPAdr,"11",
-		10,},[]string{},tap{},
-
+		vxlan{node.IPAdr, "11",
+			10}, []string{}, tap{},
 	}
 	nodeinterfaces[5] = nodevxlaninterface1
-	db.SetNodeInterfaces("k8s_master",nodeinterfaces)
-	db.SetNodeBridgeDomain("k8s_master",nodebdmap1)
+	db.SetNodeInterfaces("k8s_master", nodeinterfaces)
+	db.SetNodeBridgeDomain("k8s_master", nodebdmap1)
 
-	node,_ = db.GetNode("k8s-worker1")
+	node, _ = db.GetNode("k8s-worker1")
 	bdif2_1 := bdinterfaces{3}
 	bdif2_2 := bdinterfaces{4}
 	nodebd2 := NodeBridgeDomains{
-		[]bdinterfaces{bdif2_1,bdif2_2},
+		[]bdinterfaces{bdif2_1, bdif2_2},
 		"vxlanBD",
 		true,
 	}
@@ -409,16 +408,15 @@ func TestNodesDB_ValidateL2Connections(t *testing.T) {
 		true,
 		"",
 		0,
-		vxlan{node.IPAdr,"10",
-			10,},[]string{},tap{},
-
+		vxlan{node.IPAdr, "10",
+			10}, []string{}, tap{},
 	}
 	nodeinterfaces2[4] = nodevxlaninterface2
-	db.SetNodeBridgeDomain("k8s-worker1",nodebdmap2)
-	db.SetNodeInterfaces("k8s-worker1",nodeinterfaces2)
+	db.SetNodeBridgeDomain("k8s-worker1", nodebdmap2)
+	db.SetNodeInterfaces("k8s-worker1", nodeinterfaces2)
 	db.gigEIPMap[node.IPAdr+subnetmask] = node
-	node,_ = db.GetNode("k8s_master")
+	node, _ = db.GetNode("k8s_master")
 	db.gigEIPMap[node.IPAdr+subnetmask] = node
 
- 	db.ValidateL2Connections()
+	db.ValidateL2Connections()
 }

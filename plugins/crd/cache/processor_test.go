@@ -343,7 +343,7 @@ func testCollectAgentInfoNoError(t *testing.T) {
 
 	fmt.Printf("              Waited %d ms for validation to finish\n",
 		ptv.processor.waitForValidationToFinish())
-	printErrorReport()
+	printErrorReport(ptv.processor.ContivTelemetryCache.Cache.report)
 }
 
 func testCollectAgentInfoWithHTTPError(t *testing.T) {
@@ -366,7 +366,7 @@ func testCollectAgentInfoWithHTTPError(t *testing.T) {
 		}
 	}
 	gomega.Expect(numHTTPErrs).To(gomega.Equal(numDTOs))
-	printErrorReport()
+	printErrorReport(ptv.processor.ContivTelemetryCache.Cache.report)
 }
 
 func testCollectAgentInfoWithTimeout(t *testing.T) {
@@ -390,13 +390,13 @@ func testCollectAgentInfoWithTimeout(t *testing.T) {
 		}
 	}
 	gomega.Expect(numTimeoutErrs).To(gomega.Equal(numDTOs))
-	printErrorReport()
+	printErrorReport(ptv.processor.ContivTelemetryCache.Cache.report)
 }
 
-func printErrorReport() {
+func printErrorReport(report []string) {
 	fmt.Println("Error Report")
 	fmt.Println("============")
-	for _, rl := range ptv.processor.ContivTelemetryCache.Cache.report {
+	for _, rl := range report {
 		fmt.Println(rl)
 	}
 }

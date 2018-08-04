@@ -135,7 +135,6 @@ func (p *ContivTelemetryProcessor) collectAgentInfo(node *Node) {
 }
 
 func (p *ContivTelemetryProcessor) retrieveNetworkInfoOnTimerExpiry() {
-	fmt.Println("Starting retrieveNetworkInfoOnTimerExpiry...")
 	for range p.ticker.C {
 		nodelist := p.ContivTelemetryCache.Cache.GetAllNodes()
 

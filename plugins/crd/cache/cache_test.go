@@ -419,32 +419,223 @@ func TestNodesDB_ValidateL2Connections(t *testing.T) {
 	db.gigEIPMap[node.IPAdr+subnetmask] = node
 	db.ValidateL2Connections()
 
-	db.logger.Info("Setting vxlan_vni to 11, expecting error...")
+	fmt.Println("Setting vxlan_vni to 11, expecting error...")
 	nodevxlaninterface2.Vxlan.Vni = 11
 	nodeinterfaces2[4] = nodevxlaninterface2
 	db.SetNodeInterfaces("k8s-worker1", nodeinterfaces2)
 	db.ValidateL2Connections()
 	nodelist := db.GetAllNodes()
 	db.printnodelogs(nodelist)
-	db.logger.Info("Setting vxlan_vni back to normal...")
+	fmt.Println("Setting vxlan_vni back to normal...")
 	nodevxlaninterface2.Vxlan.Vni = 10
 	nodeinterfaces2[4] = nodevxlaninterface2
 	db.SetNodeInterfaces("k8s-worker1", nodeinterfaces2)
 	db.ValidateL2Connections()
-	db.logger.Info("Deleting k8s-worker1 from gigE Map...")
 	node, _ = db.GetNode("k8s-worker1")
-	delete(db.gigEIPMap, node.Name)
+
+	nodeinterface2.IfType = interfaces.InterfaceType_TAP_INTERFACE
+	nodeinterfaces2[3] = nodeinterface2
+	db.SetNodeInterfaces("k8s-worker1", nodeinterfaces2)
+	fmt.Println("Expecting errors as bd has no loop interface.")
+	db.ValidateL2Connections()
+	db.printnodelogs(nodelist)
+	fmt.Println("Done expecting errors")
+	nodeinterface2.IfType = interfaces.InterfaceType_SOFTWARE_LOOPBACK
+	nodeinterfaces2[3] = nodeinterface2
+	db.SetNodeInterfaces("k8s-worker1", nodeinterfaces2)
+	db.ValidateL2Connections()
+	db.printnodelogs(nodelist)
+
+	fmt.Println("Deleting node with ip 10 from gigE map" +
+		". Expecting errors for missing ip")
+	delete(db.gigEIPMap, node.NodeInterfaces[4].Vxlan.DstAddress+subnetmask)
+	db.ValidateL2Connections()
+	db.printnodelogs(nodelist)
+	fmt.Println("Done expecting errors")
+	node, _ = db.GetNode("k8s_master")
+	db.gigEIPMap["10"+subnetmask] = node
+	db.ValidateL2Connections()
+	db.printnodelogs(nodelist)
+
+	fmt.Println("Unmatching vxlan tunnel. Expecting error...")
+
+	nodevxlaninterface1.Vxlan.DstAddress = "20"
+	nodeinterfaces[5] = nodevxlaninterface1
+	db.SetNodeInterfaces("k8s_master", nodeinterfaces)
+	db.ValidateL2Connections()
+	db.printnodelogs(nodelist)
+	fmt.Println("Done expecting errors...")
+	nodevxlaninterface1.Vxlan.DstAddress = "11"
+	nodeinterfaces[5] = nodevxlaninterface1
+	db.SetNodeInterfaces("k8s_master", nodeinterfaces)
+	db.ValidateL2Connections()
+	db.printnodelogs(nodelist)
+
+	fmt.Println("Expecting error for mismatched index of bridge domain")
+	bdif2_2.SwIfIndex = 5
+	nodebd2 = NodeBridgeDomain{
+		[]bdinterfaces{bdif2_1, bdif2_2},
+		"vxlanBD",
+		true,
+	}
+	nodebdmap2 = make(map[int]NodeBridgeDomain)
+	nodebdmap2[1] = nodebd2
+	db.SetNodeBridgeDomain("k8s-worker1", nodebdmap2)
+	db.ValidateL2Connections()
+	db.printnodelogs(nodelist)
+	fmt.Println("Done expecting errors...")
+	bdif2_2.SwIfIndex = 4
+	nodebd2 = NodeBridgeDomain{
+		[]bdinterfaces{bdif2_1, bdif2_2},
+		"vxlanBD",
+		true,
+	}
+	nodebdmap2 = make(map[int]NodeBridgeDomain)
+	nodebdmap2[1] = nodebd2
+	db.SetNodeBridgeDomain("k8s-worker1", nodebdmap2)
+	db.ValidateL2Connections()
+	db.printnodelogs(nodelist)
+
+	fmt.Println("Adding extra node in place of existing one...")
+	db.addNode(1, "extraNode", "54321", "54321")
+	node, _ = db.GetNode("extraNode")
+	db.gigEIPMap["10/24"] = node
+	db.ValidateL2Connections()
+	db.printnodelogs(nodelist)
+	fmt.Println("Done expecting errors...")
+	node, _ = db.GetNode("k8s_master")
+	db.gigEIPMap["10/24"] = node
+	db.deleteNode("extraNode")
+	db.ValidateL2Connections()
+	db.printnodelogs(nodelist)
+
+}
+func TestCache_ValidateFibEntries(t *testing.T) {
+	gomega.RegisterTestingT(t)
+	logger := logrus.DefaultLogger()
+	db := NewCache(logger)
+	db.addNode(1, "k8s_master", "10", "10")
+	node, ok := db.GetNode("k8s_master")
+	gomega.Expect(ok).To(gomega.BeNil())
+	gomega.Expect(node.IPAdr).To(gomega.Equal("10"))
+	gomega.Expect(node.Name).To(gomega.Equal("k8s_master"))
+	gomega.Expect(node.ID).To(gomega.Equal(uint32(1)))
+	gomega.Expect(node.ManIPAdr).To(gomega.Equal("10"))
+	nodeinterface1 := NodeInterface{
+		"loop0",
+		"loop0",
+		interfaces.InterfaceType_SOFTWARE_LOOPBACK,
+		true,
+		"11",
+		1,
+		vxlan{"", "", 1},
+		[]string{"11"},
+		tap{}}
+	nodeinterfaces := map[int]NodeInterface{}
+	nodeinterfaces[3] = nodeinterface1
+
+	nodeiparp1 := NodeIPArpEntry{3, "10", "10", true}
+	nodeiparps1 := make([]NodeIPArpEntry, 0)
+	nodeiparps1 = append(nodeiparps1, nodeiparp1)
+
+	nodeinterface2 := NodeInterface{
+		"loop0",
+		"loop0",
+		interfaces.InterfaceType_SOFTWARE_LOOPBACK,
+		true,
+		"10",
+		1,
+		vxlan{"", "", 1},
+		[]string{"10"},
+		tap{}}
+	nodeinterfaces2 := map[int]NodeInterface{}
+	nodeinterfaces2[3] = nodeinterface2
+
+	nodeiparp2 := NodeIPArpEntry{3, "11", "11", true}
+	nodeiparps2 := make([]NodeIPArpEntry, 0)
+	nodeiparps2 = append(nodeiparps2, nodeiparp2)
+
+	db.addNode(2, "k8s-worker1", "11", "11")
+
+	db.SetNodeIPARPs("k8s_master", nodeiparps1)
+	node, _ = db.GetNode("k8s_master")
+	db.SetNodeInterfaces("k8s_master", nodeinterfaces)
+	node, ok = db.GetNode("k8s_master")
+	db.loopMACMap[node.NodeInterfaces[3].PhysAddress] = node
+	db.loopIPMap[node.NodeInterfaces[3].IPAddresses[0]+subnetmask] = node
+
+	db.SetNodeIPARPs("k8s-worker1", nodeiparps2)
+	db.SetNodeInterfaces("k8s-worker1", nodeinterfaces2)
+	node, ok = db.GetNode("k8s-worker1")
+	db.loopMACMap[node.NodeInterfaces[3].PhysAddress] = node
+	db.loopIPMap[node.NodeInterfaces[3].IPAddresses[0]+subnetmask] = node
+	node, _ = db.GetNode("k8s_master")
+	bdif1_1 := bdinterfaces{3}
+	bdif1_2 := bdinterfaces{5}
+	nodebd1 := NodeBridgeDomain{
+		[]bdinterfaces{bdif1_1, bdif1_2},
+		"vxlanBD",
+		true,
+	}
+	nodebdmap1 := make(map[int]NodeBridgeDomain)
+	nodebdmap1[1] = nodebd1
+	nodevxlaninterface1 := NodeInterface{
+		"vxlan_tunnel0",
+		"vxlan2",
+		interfaces.InterfaceType_VXLAN_TUNNEL,
+		true,
+		"",
+		0,
+		vxlan{node.IPAdr, "11",
+			10}, []string{}, tap{},
+	}
+	nodeinterfaces[5] = nodevxlaninterface1
+	db.SetNodeInterfaces("k8s_master", nodeinterfaces)
+	db.SetNodeBridgeDomain("k8s_master", nodebdmap1)
+
+	node, _ = db.GetNode("k8s-worker1")
+	bdif2_1 := bdinterfaces{3}
+	bdif2_2 := bdinterfaces{4}
+	nodebd2 := NodeBridgeDomain{
+		[]bdinterfaces{bdif2_1, bdif2_2},
+		"vxlanBD",
+		true,
+	}
+	nodebdmap2 := make(map[int]NodeBridgeDomain)
+	nodebdmap2[1] = nodebd2
+	nodevxlaninterface2 := NodeInterface{
+		"vxlan_tunnel0",
+		"vxlan2",
+		interfaces.InterfaceType_VXLAN_TUNNEL,
+		true,
+		"",
+		0,
+		vxlan{node.IPAdr, "10",
+			10}, []string{}, tap{},
+	}
+	nodeinterfaces2[4] = nodevxlaninterface2
+	db.SetNodeBridgeDomain("k8s-worker1", nodebdmap2)
+	db.SetNodeInterfaces("k8s-worker1", nodeinterfaces2)
+	db.gigEIPMap[node.IPAdr+subnetmask] = node
+	node, _ = db.GetNode("k8s_master")
+	db.gigEIPMap[node.IPAdr+subnetmask] = node
+
+	nodelist := db.GetAllNodes()
+	db.ValidateFibEntries()
+	db.printnodelogs(nodelist)
 
 }
 
 func (c *Cache) printnodelogs(nodelist []*Node) {
-	fmt.Println("Report for cache")
-	for _, str := range c.report {
-		fmt.Println(str)
-	}
+
 	for _, node := range nodelist {
 		for _, str := range node.report {
 			fmt.Println(str)
 		}
+		node.report = node.report[0:0]
 	}
+	for _, str := range c.report {
+		fmt.Println(str)
+	}
+	c.report = c.report[0:0]
 }

@@ -312,7 +312,7 @@ func TestProcessor(t *testing.T) {
 	ptv.processor.Init()
 
 	// Override default processor behavior
-	ptv.processor.ticker.Stop()             // Do not periodically poll agents
+	ptv.processor.ticker.Stop() // Do not periodically poll agents
 	ptv.processor.ticker = newMockTicker()
 	ptv.processor.agentPort = testAgentPort // Override agentPort
 

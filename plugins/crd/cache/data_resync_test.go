@@ -116,7 +116,6 @@ func (drd *dataResyncTestData) createTestData() {
 					ManagementIpAddress: "10.20.0.10",
 				},
 			},
-
 		},
 	}
 }

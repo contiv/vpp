@@ -8,8 +8,8 @@ import (
 )
 
 type validatorTestVars struct {
-	log   *logrus.Logger
-	processor   *ContivTelemetryProcessor
+	log       *logrus.Logger
+	processor *ContivTelemetryProcessor
 
 	// Mock data
 	nodesData []nodeData

@@ -25,13 +25,6 @@ import (
 	"strings"
 )
 
-// DataResyncEvent wraps an entire state of K8s that should be reflected into VPP.
-type DataResyncEvent struct {
-	Pods  []*podmodel.Pod
-	Nodes []*nodemodel.Node
-	// add more types here
-}
-
 // Resync processes a data sync re sync event associated with K8s State data.
 // The cache content is full replaced with the received data.
 func (ctc *ContivTelemetryCache) Resync(resyncEv datasync.ResyncEvent) error {

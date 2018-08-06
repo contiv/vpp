@@ -16,7 +16,7 @@
 package cache
 
 import (
-	nodemodel "github.com/contiv/vpp/plugins/ksr/model/node"
+	"github.com/contiv/vpp/plugins/ksr/model/node"
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/vpp-agent/plugins/vpp/model/interfaces"
 	"github.com/pkg/errors"
@@ -34,9 +34,9 @@ type ContivTelemetryCache struct {
 	Deps
 	Synced bool
 	// todo - here add the maps you have in your db implementation
-	Cache      *Cache
-	k8sNodeMap map[string]*nodemodel.Node
-	Processor  *ContivTelemetryProcessor
+	Cache *Cache
+
+	Processor *ContivTelemetryProcessor
 }
 
 // Deps lists dependencies of PolicyCache.
@@ -48,7 +48,6 @@ type Deps struct {
 func (ctc *ContivTelemetryCache) Init() error {
 	// todo - here initialize your maps
 	ctc.Cache = NewCache(ctc.Log)
-	ctc.k8sNodeMap = make(map[string]*nodemodel.Node)
 	ctc.Log.Infof("ContivTelemetryCache has been initialized")
 	return nil
 }
@@ -94,7 +93,20 @@ func (ctc *ContivTelemetryCache) AddNode(ID uint32, nodeName, IPAdr, ManIPAdr st
 	return nil
 }
 
-//addNode will add a node to the node cache with the given parameters.
+//AddK8sNode will add a k8s type node to the Contiv Telemtry cache, making sure there are no duplicates.
+func (ctc *ContivTelemetryCache) AddK8sNode(name string, PodCIDR string, ProviderID string,
+	Addresses []*node.NodeAddress, NodeInfo *node.NodeSystemInfo) error {
+
+	newNode := k8sNode{name, PodCIDR, ProviderID, Addresses, NodeInfo}
+	_, ok := ctc.Cache.k8sNodeMap[name]
+	if ok {
+		return errors.Errorf("Duplicate k8s node with name %+v found", name)
+	}
+	ctc.Cache.k8sNodeMap[name] = &newNode
+	return nil
+}
+
+//addNode will add a node to the node cache with the given parameters, making sure there are no duplicates.
 func (c *Cache) addNode(ID uint32, nodeName, IPAdr, ManIPAdr string) error {
 	n := &Node{IPAdr: IPAdr, ManIPAdr: ManIPAdr, ID: ID, Name: nodeName}
 	_, err := c.GetNode(nodeName)
@@ -134,6 +146,7 @@ func NewCache(logger logging.Logger) (n *Cache) {
 		make(map[string]*Node),
 		make(map[string]*Node),
 		make(map[string]*Node),
+		make(map[string]*k8sNode),
 		make([]string, 0),
 		logger}
 }
@@ -626,6 +639,41 @@ func (c *Cache) ValidateFibEntries() {
 
 	} else {
 		c.report = append(c.report, "Success validating Fib entries")
+	}
+
+}
+
+//ValidateK8sNodeInfo will make sure that the cache has the same amount of k8s and etcd nodes and that each node has an
+//equal opposite node.
+func (c *Cache) ValidateK8sNodeInfo() {
+	nodeList := c.GetAllNodes()
+	nodeMap := make(map[string]bool)
+	for key := range c.nMap {
+		nodeMap[key] = true
+	}
+	k8sNodeMap := make(map[string]bool)
+	for key := range c.k8sNodeMap {
+		k8sNodeMap[key] = true
+	}
+	for _, node := range nodeList {
+		k8sNode, ok := c.k8sNodeMap[node.Name]
+		if !ok {
+			node.report = append(node.report, errors.Errorf("node with name %+v missing in k8s node map",
+				node.Name).Error())
+			continue
+		}
+		if node.Name == k8sNode.Name {
+			delete(nodeMap, node.Name)
+			delete(k8sNodeMap, k8sNode.Name)
+		}
+
+	}
+
+	if len(k8sNodeMap) > 0 {
+		c.report = append(c.report, errors.Errorf("Missing nodes for following k8snodes:").Error())
+		for node := range k8sNodeMap {
+			c.report = append(c.report, errors.Errorf("node: %+v", node).Error())
+		}
 	}
 
 }

@@ -504,7 +504,7 @@ func addIfsIntoTheIndex(mapping ifaceidx.SwIfIndexRW) func(txn *localclient.Txn,
 			return nil
 		}
 		for _, op := range txn.LinuxDataChangeTxn.Ops {
-			if op.Value != nil /* Put */ && strings.HasPrefix(op.Key, vpp_intf.InterfaceKeyPrefix()) {
+			if op.Value != nil /* Put */ && strings.HasPrefix(op.Key, vpp_intf.Prefix) {
 				name, err := vpp_intf.ParseNameFromKey(op.Key)
 				if err != nil {
 					return err
@@ -534,7 +534,7 @@ func dhcpIndexMock() ifaceidx.DhcpIndex {
 // interfaceInLatestRevs returns interface of given name from the map of latest revisions
 func interfaceInLatestRevs(latestRevs *syncbase.PrevRevisions, ifName string) *vpp_intf.Interfaces_Interface {
 	for _, key := range latestRevs.ListKeys() {
-		if strings.HasPrefix(key, vpp_intf.InterfacePrefix) && strings.HasSuffix(key, ifName) {
+		if strings.HasPrefix(key, vpp_intf.Prefix) && strings.HasSuffix(key, ifName) {
 			intf := &vpp_intf.Interfaces_Interface{}
 			_, value := latestRevs.Get(key)
 			value.GetValue(intf)
@@ -562,12 +562,12 @@ func routesViaInLatestRevs(latestRevs *syncbase.PrevRevisions, nexthopIP string)
 
 // nodeAddDelEvent simulates addition of a k8s node into a cluster
 type nodeAddDelEvent struct {
-	evType datasync.PutDel
+	evType datasync.Op
 }
 
 func (e *nodeAddDelEvent) Done(error) {}
 
-func (e nodeAddDelEvent) GetChangeType() datasync.PutDel {
+func (e nodeAddDelEvent) GetChangeType() datasync.Op {
 	return e.evType
 }
 

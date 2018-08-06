@@ -9,8 +9,9 @@ import (
 	"github.com/contiv/vpp/plugins/contiv/containeridx"
 	"github.com/golang/protobuf/proto"
 	"github.com/ligato/cn-infra/datasync"
-	"github.com/ligato/cn-infra/flavors/local"
+	"github.com/ligato/cn-infra/infra"
 	prometheusplugin "github.com/ligato/cn-infra/rpc/prometheus"
+	"github.com/ligato/cn-infra/servicelabel"
 	"github.com/ligato/vpp-agent/plugins/vpp/model/interfaces"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -60,8 +61,8 @@ type stats struct {
 
 // Deps groups the dependencies of the Plugin.
 type Deps struct {
-	local.PluginInfraDeps
-
+	infra.PluginDeps
+	ServiceLabel servicelabel.ReaderAPI
 	// Contiv plugin is used to lookup pod related to interfaces statistics
 	Contiv contiv.API
 
@@ -203,7 +204,7 @@ func (p *Plugin) Put(key string, data proto.Message, opts ...datasync.PutOption)
 	defer p.Unlock()
 
 	p.Log.Debugf("Statistic data with key %v received", key)
-	if strings.HasPrefix(key, interfaces.InterfaceStateKeyPrefix()) {
+	if strings.HasPrefix(key, interfaces.StatePrefix) {
 		var (
 			entry *stats
 			found bool

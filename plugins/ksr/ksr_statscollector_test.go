@@ -17,12 +17,12 @@ package ksr
 import (
 	"fmt"
 	"github.com/contiv/vpp/plugins/ksr/model/ksrapi"
-	"github.com/ligato/cn-infra/flavors/local"
 	"github.com/onsi/gomega"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	dto "github.com/prometheus/client_model/go"
 
+	"github.com/ligato/cn-infra/logging"
 	"testing"
 )
 
@@ -54,16 +54,13 @@ var scTestVars StatsCollectorTestVars
 func TestStatsCollector(t *testing.T) {
 	gomega.RegisterTestingT(t)
 
-	flavorLocal := &local.FlavorLocal{}
-	flavorLocal.Inject()
-
 	scTestVars.mockPrometheus = &mockPrometheus{
 		newRegistryError: nil,
 		registerError:    nil,
 	}
 
 	scTestVars.statsCollector = &StatsCollector{
-		Log:          flavorLocal.LoggerFor("stats-collector"),
+		Log:          logging.ForPlugin("stats-collector"),
 		serviceLabel: "StatsCollectorTest",
 		Prometheus:   scTestVars.mockPrometheus,
 	}

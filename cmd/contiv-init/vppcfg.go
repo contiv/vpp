@@ -108,6 +108,24 @@ func configureVpp(contivCfg *contiv.Config, stnData *stn.STNReply, useDHCP bool)
 	}
 	defer ch.Close()
 
+	ifVppHandler, err := if_vppcalls.NewIfVppHandler(ch, logger, nil)
+	if err != nil {
+		logger.Errorf("Unable to create ifVppHandler", err)
+		return nil, err
+	}
+
+	stnVppHandler, err := if_vppcalls.NewStnVppHandler(ch, nil, logger, nil)
+	if err != nil {
+		logger.Errorf("Unable to create stnVppHandler", err)
+		return nil, err
+	}
+
+	routeHandler, err := l3_vppcalls.NewRouteVppHandler(ch, nil, logger, nil)
+	if err != nil {
+		logger.Errorf("Unable to create routeHandler", err)
+		return nil, err
+	}
+
 	cfg := &vppCfgCtx{}
 
 	// determine hardware NIC interface index
@@ -118,21 +136,21 @@ func configureVpp(contivCfg *contiv.Config, stnData *stn.STNReply, useDHCP bool)
 	}
 
 	// interface tag
-	err = if_vppcalls.SetInterfaceTag(cfg.mainIfName, cfg.mainIfIdx, ch, nil)
+	err = ifVppHandler.SetInterfaceTag(cfg.mainIfName, cfg.mainIfIdx)
 	if err != nil {
 		logger.Errorf("Error by setting the interface %s tag: %v", cfg.mainIfName, err)
 		return nil, err
 	}
 
 	// interface MTU
-	err = if_vppcalls.SetInterfaceMtu(cfg.mainIfIdx, contivCfg.MTUSize, ch, nil)
+	err = ifVppHandler.SetInterfaceMtu(cfg.mainIfIdx, contivCfg.MTUSize)
 	if err != nil {
 		logger.Errorf("Error by setting the interface %s MTU: %v", cfg.mainIfName, err)
 		return nil, err
 	}
 
 	// interface up
-	err = if_vppcalls.InterfaceAdminUp(cfg.mainIfIdx, ch, nil)
+	err = ifVppHandler.InterfaceAdminUp(cfg.mainIfIdx)
 	if err != nil {
 		logger.Errorf("Error by enabling the interface %s: %v", cfg.mainIfName, err)
 		return nil, err
@@ -187,7 +205,7 @@ func configureVpp(contivCfg *contiv.Config, stnData *stn.STNReply, useDHCP bool)
 			ip, addr, _ := net.ParseCIDR(stnAddr)
 			addr.IP = ip
 
-			err = if_vppcalls.AddInterfaceIP(cfg.mainIfIdx, addr, ch, nil)
+			err = ifVppHandler.AddInterfaceIP(cfg.mainIfIdx, addr)
 			if err != nil {
 				logger.Errorf("Error by configuring interface IP: %v", err)
 				return nil, err
@@ -215,7 +233,7 @@ func configureVpp(contivCfg *contiv.Config, stnData *stn.STNReply, useDHCP bool)
 				OutIface:    cfg.mainIfIdx,
 			}
 			logger.Debug("Configuring static route: ", sRoute)
-			err = l3_vppcalls.VppAddRoute(sRoute, ch, nil)
+			err = routeHandler.VppAddRoute(ifVppHandler, sRoute)
 			if err != nil {
 				logger.Errorf("Error by configuring route: %v", err)
 				return nil, err
@@ -224,43 +242,43 @@ func configureVpp(contivCfg *contiv.Config, stnData *stn.STNReply, useDHCP bool)
 	}
 
 	// interconnect TAP
-	tapIdx, err := if_vppcalls.AddTapInterface(
+	tapIdx, err := ifVppHandler.AddTapInterface(
 		contiv.TapVPPEndLogicalName,
 		&interfaces.Interfaces_Interface_Tap{
 			HostIfName: contiv.TapHostEndName,
 			Version:    uint32(contivCfg.TAPInterfaceVersion),
-		}, ch, nil)
+		})
 	if err != nil {
 		logger.Errorf("Error by adding TAP interface: %v", err)
 		return nil, err
 	}
 
-	err = if_vppcalls.SetInterfaceMac(tapIdx, contiv.HostInterconnectMAC, ch, nil)
+	err = ifVppHandler.SetInterfaceMac(tapIdx, contiv.HostInterconnectMAC)
 	if err != nil {
 		logger.Errorf("Error by setting the MAC for TAP: %v", err)
 		return nil, err
 	}
 
-	err = if_vppcalls.SetInterfaceMtu(tapIdx, contivCfg.MTUSize, ch, nil)
+	err = ifVppHandler.SetInterfaceMtu(tapIdx, contivCfg.MTUSize)
 	if err != nil {
 		logger.Errorf("Error by setting the MTU on TAP interface: %v", err)
 		return nil, err
 	}
 
-	err = if_vppcalls.InterfaceAdminUp(tapIdx, ch, nil)
+	err = ifVppHandler.InterfaceAdminUp(tapIdx)
 	if err != nil {
 		logger.Errorf("Error by enabling the TAP interface: %v", err)
 		return nil, err
 	}
 
-	if_vppcalls.SetUnnumberedIP(tapIdx, cfg.mainIfIdx, ch, nil)
+	ifVppHandler.SetUnnumberedIP(tapIdx, cfg.mainIfIdx)
 	if err != nil {
 		logger.Errorf("Error by setting the TAP interface as unnumbered: %v", err)
 		return nil, err
 	}
 
 	// interconnect STN
-	if_vppcalls.AddStnRule(tapIdx, &cfg.mainIP.IP, ch, nil)
+	stnVppHandler.AddStnRule(tapIdx, &cfg.mainIP.IP)
 	if err != nil {
 		logger.Errorf("Error by adding STN rule: %v", err)
 		return nil, err

@@ -100,7 +100,7 @@ func (mnt *MockNatPlugin) ApplyTxn(txn *localclient.Txn, latestRevs *syncbase.Pr
 	dataChange := txn.LinuxDataChangeTxn
 	for _, op := range dataChange.Ops {
 		foundRev, _ := latestRevs.Get(op.Key)
-		if op.Key == nat.GlobalConfigPrefix() {
+		if op.Key == nat.GlobalPrefix {
 			if op.Value != nil {
 				// put global NAT config
 				if mnt.defaultNat44Global != !foundRev {
@@ -179,7 +179,7 @@ func (mnt *MockNatPlugin) ApplyTxn(txn *localclient.Txn, latestRevs *syncbase.Pr
 				mnt.resetNat44Global()
 			}
 
-		} else if strings.HasPrefix(op.Key, nat.DNatPrefix()) {
+		} else if strings.HasPrefix(op.Key, nat.DNatPrefix) {
 			if op.Value != nil {
 				// put DNAT config
 				dnatConfig, isDnatConfig := op.Value.(*nat.Nat44DNat_DNatConfig)
@@ -228,7 +228,7 @@ func (mnt *MockNatPlugin) ApplyTxn(txn *localclient.Txn, latestRevs *syncbase.Pr
 				if !foundRev {
 					return errors.New("cannot remove DNAT without latest value/revision")
 				}
-				label := strings.TrimPrefix(op.Key, nat.DNatPrefix())
+				label := strings.TrimPrefix(op.Key, nat.DNatPrefix)
 				if prevDnatConfig, hasDnat := mnt.nat44Dnat[label]; hasDnat {
 					oldSms, err := mnt.dnatToStaticMappings(prevDnatConfig)
 					if err != nil {

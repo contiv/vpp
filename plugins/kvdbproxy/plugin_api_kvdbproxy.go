@@ -9,7 +9,7 @@ import (
 type Proxy interface {
 	// AddIgnoreEntry adds the entry into ignore list. The first change event matching the given key and operation
 	// is skipped. Once the event is skipped the entry is removed from the list.
-	AddIgnoreEntry(key string, op datasync.PutDel)
+	AddIgnoreEntry(key string, op datasync.Op)
 
 	// Watch forwards the subscription request to the injected kvdbsync plugin. The change events
 	// are filtered based on the plugin ignore list. The resync events are untouched.

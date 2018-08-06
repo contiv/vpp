@@ -61,9 +61,9 @@ type Renderer struct {
 // Deps lists dependencies of Renderer.
 type Deps struct {
 	Log           logging.Logger
-	LogFactory    logging.LogFactory /* optional */
-	Contiv        contiv.API         /* for GetIfName() */
-	VPP           vpp.API            /* for DumpACLs() */
+	LogFactory    logging.LoggerFactory /* optional */
+	Contiv        contiv.API            /* for GetIfName() */
+	VPP           vpp.API               /* for DumpACLs() */
 	ACLTxnFactory func() (dsl linuxclient.DataChangeDSL)
 	LatestRevs    *syncbase.PrevRevisions
 }
@@ -147,7 +147,7 @@ func (art *RendererTxn) Commit() error {
 		keyList := art.renderer.LatestRevs.ListKeys()
 		keys := map[string]struct{}{}
 		for _, key := range keyList {
-			if strings.HasPrefix(key, vpp_acl.KeyPrefix()) {
+			if strings.HasPrefix(key, vpp_acl.Prefix) {
 				keys[key] = struct{}{}
 			}
 		}

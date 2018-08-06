@@ -365,7 +365,7 @@ func (rndr *Renderer) Resync(resyncEv *renderer.ResyncEventData) error {
 	keyList := rndr.LatestRevs.ListKeys()
 	keys := map[string]struct{}{}
 	for _, key := range keyList {
-		if strings.HasPrefix(key, nat.DNatPrefix()) {
+		if strings.HasPrefix(key, nat.DNatPrefix) {
 			keys[key] = struct{}{}
 		}
 	}
@@ -413,12 +413,12 @@ func (rndr *Renderer) Resync(resyncEv *renderer.ResyncEventData) error {
 
 	if globalNatDump.Forwarding {
 		// Global NAT was configured by the agent.
-		key := nat.GlobalConfigKey()
-		value := syncbase.NewChange(nat.GlobalConfigKey(), globalNatDump, 0, datasync.Put)
+		key := nat.GlobalPrefix
+		value := syncbase.NewChange(nat.GlobalPrefix, globalNatDump, 0, datasync.Put)
 		rndr.LatestRevs.PutWithRevision(key, value)
 	} else {
 		// Not configured by the agent.
-		rndr.LatestRevs.Del(nat.GlobalConfigKey())
+		rndr.LatestRevs.Del(nat.GlobalPrefix)
 	}
 
 	// Re-build the global NAT config.

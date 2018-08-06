@@ -42,8 +42,8 @@ type Renderer struct {
 // Deps lists dependencies of Renderer.
 type Deps struct {
 	Log              logging.Logger
-	LogFactory       logging.LogFactory /* optional */
-	Contiv           contiv.API         /* for GetNsIndex() */
+	LogFactory       logging.LoggerFactory /* optional */
+	Contiv           contiv.API            /* for GetNsIndex() */
 	GoVPPChan        govpp.Channel
 	GoVPPChanBufSize int
 }

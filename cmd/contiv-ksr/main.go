@@ -15,13 +15,58 @@
 package main
 
 import (
-	"github.com/contiv/vpp/flavors/ksr"
-	"github.com/ligato/cn-infra/core"
+	"github.com/contiv/vpp/plugins/ksr"
+	"github.com/ligato/cn-infra/agent"
+	"github.com/ligato/cn-infra/datasync/kvdbsync"
+	"github.com/ligato/cn-infra/datasync/resync"
+	"github.com/ligato/cn-infra/db/keyval/etcd"
+	"github.com/ligato/cn-infra/health/probe"
+	"github.com/ligato/cn-infra/logging/logrus"
+	"github.com/ligato/cn-infra/servicelabel"
 )
 
-// contiv-ksr main entry point.
+// ContivKSR reflects kubernetes data into contiv/vpp's etcd.
+type ContivKSR struct {
+	ServiceLabel servicelabel.ReaderAPI
+	HealthProbe  *probe.Plugin
+	DataSyncETCD *kvdbsync.Plugin
+	KSR          *ksr.Plugin
+}
+
+func (c *ContivKSR) String() string {
+	return "KSR"
+}
+
+// Init is called at startup phase. Method added in order to implement Plugin interface.
+func (c *ContivKSR) Init() error {
+	return nil
+}
+
+// Close is called at cleanup phase. Method added in order to implement Plugin interface.
+func (c *ContivKSR) Close() error {
+	return nil
+}
+
 func main() {
-	// contiv-ksr is a CN-infra based agent.
-	agentVar := ksr.NewAgent()
-	core.EventLoopWithInterrupt(agentVar, nil)
+
+	servicelabel.DefaultPlugin.MicroserviceLabel = ksr.MicroserviceLabel
+
+	etcdDataSync := kvdbsync.NewPlugin(kvdbsync.UseDeps(func(deps *kvdbsync.Deps) {
+		deps.KvPlugin = &etcd.DefaultPlugin
+		deps.ResyncOrch = &resync.DefaultPlugin
+	}))
+
+	ksr.DefaultPlugin.Publish = etcdDataSync
+
+	contivKSR := &ContivKSR{
+		ServiceLabel: &servicelabel.DefaultPlugin,
+		HealthProbe:  &probe.DefaultPlugin,
+		DataSyncETCD: etcdDataSync,
+		KSR:          &ksr.DefaultPlugin,
+	}
+
+	a := agent.NewAgent(agent.AllPlugins(contivKSR))
+	if err := a.Run(); err != nil {
+		logrus.DefaultLogger().Fatal(err)
+	}
 }

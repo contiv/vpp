@@ -36,9 +36,10 @@ import (
 	"github.com/ligato/cn-infra/datasync"
 	"github.com/ligato/cn-infra/datasync/resync"
 	"github.com/ligato/cn-infra/db/keyval/etcd"
-	"github.com/ligato/cn-infra/flavors/local"
+	"github.com/ligato/cn-infra/infra"
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/rpc/grpc"
+	"github.com/ligato/cn-infra/servicelabel"
 	"github.com/ligato/cn-infra/utils/safeclose"
 	"github.com/ligato/vpp-agent/clientv1/linux"
 	linuxlocalclient "github.com/ligato/vpp-agent/clientv1/linux/localclient"
@@ -73,14 +74,15 @@ type Plugin struct {
 
 // Deps groups the dependencies of the Plugin.
 type Deps struct {
-	local.PluginInfraDeps
-	GRPC    grpc.Server
-	Proxy   *kvdbproxy.Plugin
-	VPP     *vpp.Plugin
-	GoVPP   govppmux.API
-	Resync  resync.Subscriber
-	ETCD    *etcd.Plugin
-	Watcher datasync.KeyValProtoWatcher
+	infra.PluginDeps
+	ServiceLabel servicelabel.ReaderAPI
+	GRPC         grpc.Server
+	Proxy        *kvdbproxy.Plugin
+	VPP          *vpp.Plugin
+	GoVPP        govppmux.API
+	Resync       resync.Subscriber
+	ETCD         *etcd.Plugin
+	Watcher      datasync.KeyValProtoWatcher
 }
 
 // Config represents configuration for the Contiv plugin.
@@ -181,7 +183,7 @@ func (plugin *Plugin) Init() error {
 	// start the GRPC server handling the CNI requests
 	plugin.cniServer, err = newRemoteCNIServer(plugin.Log,
 		func() linuxclient.DataChangeDSL {
-			return linuxlocalclient.DataChangeRequest(plugin.PluginName)
+			return linuxlocalclient.DataChangeRequest(plugin.String())
 		},
 		plugin.Proxy,
 		plugin.configuredContainers,
@@ -430,7 +432,7 @@ func (plugin *Plugin) handleResync(resyncChan chan resync.StatusEvent) {
 // loadExternalConfig attempts to load external configuration from a YAML file.
 func (plugin *Plugin) loadExternalConfig() error {
 	externalCfg := &Config{}
-	found, err := plugin.PluginConfig.GetValue(externalCfg) // It tries to lookup `PluginName + "-config"` in the executable arguments.
+	found, err := plugin.Cfg.LoadValue(externalCfg) // It tries to lookup `PluginName + "-config"` in the executable arguments.
 	if err != nil {
 		return fmt.Errorf("External Contiv plugin configuration could not load or other problem happened: %v", err)
 	}

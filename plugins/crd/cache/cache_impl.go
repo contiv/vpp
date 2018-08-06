@@ -670,7 +670,7 @@ func (c *Cache) ValidateK8sNodeInfo() {
 	}
 
 	if len(k8sNodeMap) > 0 {
-		c.report = append(c.report, errors.Errorf("Missing k8snode for following nodes:").Error())
+		c.report = append(c.report, errors.Errorf("Missing nodes for following k8snodes:").Error())
 		for node := range k8sNodeMap {
 			c.report = append(c.report, errors.Errorf("node: %+v", node).Error())
 		}

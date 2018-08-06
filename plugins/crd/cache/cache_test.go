@@ -432,20 +432,96 @@ func TestNodesDB_ValidateL2Connections(t *testing.T) {
 	db.SetNodeInterfaces("k8s-worker1", nodeinterfaces2)
 	db.ValidateL2Connections()
 	node, _ = db.GetNode("k8s-worker1")
-	db.addNode(43, "extranode", "15", "15")
+
+	nodeinterface2.IfType = interfaces.InterfaceType_TAP_INTERFACE
+	nodeinterfaces2[3] = nodeinterface2
+	db.SetNodeInterfaces("k8s-worker1",nodeinterfaces2)
+	fmt.Println("Expecting errors as bd has no loop interface.")
 	db.ValidateL2Connections()
+	db.printnodelogs(nodelist)
+	fmt.Println("Done expecting errors" )
+	nodeinterface2.IfType = interfaces.InterfaceType_SOFTWARE_LOOPBACK
+	nodeinterfaces2[3] = nodeinterface2
+	db.SetNodeInterfaces("k8s-worker1",nodeinterfaces2)
+	db.ValidateL2Connections()
+	db.printnodelogs(nodelist)
+
+	fmt.Println("Deleting node with ip 10 from gigE map" +
+		". Expecting errors for missing ip")
+	delete(db.gigEIPMap,node.NodeInterfaces[4].Vxlan.DstAddress+subnetmask)
+	db.ValidateL2Connections()
+	db.printnodelogs(nodelist)
+	fmt.Println("Done expecting errors")
+	node,_  = db.GetNode("k8s_master")
+	db.gigEIPMap["10"+subnetmask] = node
+	db.ValidateL2Connections()
+	db.printnodelogs(nodelist)
+
+	fmt.Println("Unmatching vxlan tunnel. Expecting error...")
+
+	nodevxlaninterface1.Vxlan.DstAddress = "20"
+	nodeinterfaces[5] = nodevxlaninterface1
+	db.SetNodeInterfaces("k8s_master", nodeinterfaces)
+	db.ValidateL2Connections()
+	db.printnodelogs(nodelist)
+	fmt.Println("Done expecting errors...")
+	nodevxlaninterface1.Vxlan.DstAddress = "11"
+	nodeinterfaces[5] = nodevxlaninterface1
+	db.SetNodeInterfaces("k8s_master", nodeinterfaces)
+	db.ValidateL2Connections()
+	db.printnodelogs(nodelist)
+
+	fmt.Println("Expecting error for mismatched index of bridge domain")
+	bdif2_2.SwIfIndex = 5
+	nodebd2 = NodeBridgeDomain{
+		[]bdinterfaces{bdif2_1, bdif2_2},
+		"vxlanBD",
+		true,
+	}
+	nodebdmap2 = make(map[int]NodeBridgeDomain)
+	nodebdmap2[1] = nodebd2
+	db.SetNodeBridgeDomain("k8s-worker1", nodebdmap2)
+	db.ValidateL2Connections()
+	db.printnodelogs(nodelist)
+	fmt.Println("Done expecting errors...")
+	bdif2_2.SwIfIndex = 4
+	nodebd2 = NodeBridgeDomain{
+		[]bdinterfaces{bdif2_1, bdif2_2},
+		"vxlanBD",
+		true,
+	}
+	nodebdmap2 = make(map[int]NodeBridgeDomain)
+	nodebdmap2[1] = nodebd2
+	db.SetNodeBridgeDomain("k8s-worker1", nodebdmap2)
+	db.ValidateL2Connections()
+	db.printnodelogs(nodelist)
+
+	fmt.Println("Adding node different node in place of existing one...")
+	db.addNode(1,"extraNode","54321","54321")
+	node,_ = db.GetNode("extraNode")
+	db.gigEIPMap["10/24"] = node
+	db.ValidateL2Connections()
+	db.printnodelogs(nodelist)
+	fmt.Println("Done expecting errors...")
+	node,_ = db.GetNode("k8s_master")
+	db.gigEIPMap["10/24"] = node
+	db.deleteNode("extraNode")
+	db.ValidateL2Connections()
+	db.printnodelogs(nodelist)
+
+
 }
 
 func (c *Cache) printnodelogs(nodelist []*Node) {
-	fmt.Println("Report for cache")
-	for _, str := range c.report {
-		fmt.Println(str)
-	}
+
 	for _, node := range nodelist {
 		for _, str := range node.report {
 			fmt.Println(str)
 		}
 		node.report = node.report[0:0]
+	}
+	for _, str := range c.report {
+		fmt.Println(str)
 	}
 	c.report = c.report[0:0]
 }

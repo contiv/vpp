@@ -428,6 +428,12 @@ func (c *Cache) ValidateL2Connections() {
 		for _, intfidx := range bDomainidxs {
 			//check if one of the indices point to the loop interface
 			//if it does, increment a counter and set a boolean to true
+			if node.NodeInterfaces[int(intfidx)].VppInternalName==""{
+				c.nMap[node.Name].report = append(c.nMap[node.Name].report, errors.Errorf(
+					"BD index %+v for node %+v does not point to a valid interface.", intfidx,node.Name).Error())
+				continue
+
+			}
 			if node.NodeInterfaces[int(intfidx)].IfType == interfaces.InterfaceType_SOFTWARE_LOOPBACK {
 				bdhasLoopIF = true
 				i++
@@ -456,8 +462,9 @@ func (c *Cache) ValidateL2Connections() {
 				}
 				if srcipNode.Name != node.Name {
 					c.nMap[node.Name].report = append(c.nMap[node.Name].report, errors.Errorf(
-						"vxljan_tunnel %+v has source ip %v which points "+
-							"to different node than %+v.", vxlantun, vxlantun.Vxlan.SrcAddress, node.Name).Error())
+						"vxlan_tunnel %+v has source ip %v which points "+
+							"to node %+v rather than %+v.", vxlantun.Vxlan, vxlantun.Vxlan.SrcAddress,srcipNode.Name,
+							node.Name).Error())
 					continue
 				}
 

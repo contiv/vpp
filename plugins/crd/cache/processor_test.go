@@ -40,6 +40,7 @@ type processorTestVars struct {
 	log         *logrus.Logger
 	client      *http.Client
 	processor   *ContivTelemetryProcessor
+	tickerChan  chan time.Time
 
 	// Mock data
 	nodeLiveness      *NodeLiveness
@@ -61,7 +62,6 @@ func (ptv *processorTestVars) startMockHTTPServer() {
 			gomega.Expect(err).To(gomega.BeNil())
 		}
 	}()
-
 }
 
 func registerHTTPHandlers() {
@@ -114,6 +114,12 @@ func registerHTTPHandlers() {
 func (ptv *processorTestVars) shutdownMockHTTPServer() {
 	if err := ptv.srv.Shutdown(context.TODO()); err != nil {
 		panic(err)
+	}
+}
+
+func newMockTicker() *time.Ticker {
+	return &time.Ticker{
+		C: ptv.tickerChan,
 	}
 }
 
@@ -273,6 +279,8 @@ func TestProcessor(t *testing.T) {
 	ptv.log = logrus.DefaultLogger()
 	ptv.log.SetLevel(logging.ErrorLevel)
 
+	ptv.tickerChan = make(chan time.Time)
+
 	// Init the mock HTTP Server
 	ptv.startMockHTTPServer()
 	registerHTTPHandlers()
@@ -282,7 +290,7 @@ func TestProcessor(t *testing.T) {
 		Transport:     nil,
 		CheckRedirect: nil,
 		Jar:           nil,
-		Timeout:       timeout,
+		Timeout:       clientTimeout,
 	}
 
 	// Init & populate the test data
@@ -304,7 +312,8 @@ func TestProcessor(t *testing.T) {
 	ptv.processor.Init()
 
 	// Override default processor behavior
-	ptv.processor.ticker.Stop()             // Do not periodically poll agents
+	ptv.processor.ticker.Stop() // Do not periodically poll agents
+	ptv.processor.ticker = newMockTicker()
 	ptv.processor.agentPort = testAgentPort // Override agentPort
 
 	// Do the testing
@@ -322,7 +331,7 @@ func testCollectAgentInfoNoError(t *testing.T) {
 	node, err := ptv.processor.ContivTelemetryCache.Cache.GetNode("k8s-master")
 	gomega.Expect(err).To(gomega.BeNil())
 
-	ptv.processor.CollectNodeInfo(node)
+	ptv.tickerChan <- time.Time{}
 
 	cycles := 0
 	for {
@@ -343,7 +352,7 @@ func testCollectAgentInfoNoError(t *testing.T) {
 
 	fmt.Printf("              Waited %d ms for validation to finish\n",
 		ptv.processor.waitForValidationToFinish())
-	printErrorReport()
+	printErrorReport(ptv.processor.ContivTelemetryCache.Cache.report)
 }
 
 func testCollectAgentInfoWithHTTPError(t *testing.T) {
@@ -354,7 +363,8 @@ func testCollectAgentInfoWithHTTPError(t *testing.T) {
 	gomega.Expect(len(nodes)).To(gomega.Equal(1))
 	ptv.injectError = inject404Error
 
-	ptv.processor.CollectNodeInfo(nodes[0])
+	ptv.processor.validationInProgress = true
+	ptv.tickerChan <- time.Time{}
 
 	fmt.Printf("              Waited %d ms for validation to finish\n",
 		ptv.processor.waitForValidationToFinish())
@@ -366,7 +376,7 @@ func testCollectAgentInfoWithHTTPError(t *testing.T) {
 		}
 	}
 	gomega.Expect(numHTTPErrs).To(gomega.Equal(numDTOs))
-	printErrorReport()
+	printErrorReport(ptv.processor.ContivTelemetryCache.Cache.report)
 }
 
 func testCollectAgentInfoWithTimeout(t *testing.T) {
@@ -378,7 +388,8 @@ func testCollectAgentInfoWithTimeout(t *testing.T) {
 	gomega.Expect(len(nodes)).To(gomega.Equal(1))
 	ptv.injectError = injectDelay
 
-	ptv.processor.CollectNodeInfo(nodes[0])
+	ptv.processor.validationInProgress = true
+	ptv.tickerChan <- time.Time{}
 
 	fmt.Printf("              Waited %d ms for validation to finish\n",
 		ptv.processor.waitForValidationToFinish())
@@ -390,13 +401,13 @@ func testCollectAgentInfoWithTimeout(t *testing.T) {
 		}
 	}
 	gomega.Expect(numTimeoutErrs).To(gomega.Equal(numDTOs))
-	printErrorReport()
+	printErrorReport(ptv.processor.ContivTelemetryCache.Cache.report)
 }
 
-func printErrorReport() {
+func printErrorReport(report []string) {
 	fmt.Println("Error Report")
 	fmt.Println("============")
-	for _, rl := range ptv.processor.ContivTelemetryCache.Cache.report {
+	for _, rl := range report {
 		fmt.Println(rl)
 	}
 }

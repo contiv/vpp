@@ -8,8 +8,8 @@ import (
 )
 
 type validatorTestVars struct {
-	log   *logrus.Logger
-	cache *ContivTelemetryCache
+	log       *logrus.Logger
+	processor *ContivTelemetryProcessor
 
 	// Mock data
 	nodesData []nodeData
@@ -35,31 +35,51 @@ func TestValidator(t *testing.T) {
 
 	// Initialize & start mock objects
 	vtv.log = logrus.DefaultLogger()
-	vtv.log.SetLevel(logging.ErrorLevel)
+	vtv.log.SetLevel(logging.DebugLevel)
 
-	vtv.initTestData()
+	vtv.createTestData()
 
 	// Initialize the cache
-	vtv.cache = &ContivTelemetryCache{
+	vtv.processor = &ContivTelemetryProcessor{
 		Deps: Deps{
 			Log: vtv.log,
 		},
-		Synced: false,
+		ContivTelemetryCache: &ContivTelemetryCache{
+			Deps: Deps{
+				Log: vtv.log,
+			},
+			Synced: false,
+		},
 	}
-	vtv.cache.Init()
+	vtv.processor.ContivTelemetryCache.Init()
 
 	// Populate cache data
+	cache := vtv.processor.ContivTelemetryCache
 	for _, node := range vtv.nodesData {
-		vtv.cache.AddNode(node.ID, node.nodeName, node.IPAdr, node.ManIPAdr)
-		vtv.cache.Cache.SetNodeLiveness(node.nodeName, node.liveness)
-		vtv.cache.Cache.SetNodeInterfaces(node.nodeName, node.interfaces)
-		vtv.cache.Cache.SetNodeBridgeDomain(node.nodeName, node.bds)
-		vtv.cache.Cache.SetNodeL2Fibs(node.nodeName, node.l2FibTable)
-		vtv.cache.Cache.SetNodeIPARPs(node.nodeName, node.arpTable)
+		cache.AddNode(node.ID, node.nodeName, node.IPAdr, node.ManIPAdr)
+		cache.Cache.SetNodeLiveness(node.nodeName, node.liveness)
+		cache.Cache.SetNodeInterfaces(node.nodeName, node.interfaces)
+		cache.Cache.SetNodeBridgeDomain(node.nodeName, node.bds)
+		cache.Cache.SetNodeL2Fibs(node.nodeName, node.l2FibTable)
+		cache.Cache.SetNodeIPARPs(node.nodeName, node.arpTable)
 	}
+
+	// Do the testing
+	t.Run("testBasicOkTopology", testBasicOkTopology)
+
 }
 
-func (v *validatorTestVars) initTestData() {
+func testBasicOkTopology(t *testing.T) {
+	vtv.processor.ValidateNodeInfo()
+
+	printErrorReport(vtv.processor.ContivTelemetryCache.Cache.report)
+}
+
+// createTestData creates a test vector that roughly corresponds to a 3-node
+// vagrant topology (1 master, 2 workers). The created topology is defect-free,
+// i.e. defect must be injected into the topology individually for each test
+// case.
+func (v *validatorTestVars) createTestData() {
 	v.nodesData = []nodeData{}
 
 	// Initialize k8s-master
@@ -84,7 +104,7 @@ func (v *validatorTestVars) initTestData() {
 				Name:            "local0",
 			},
 			1: {
-				VppInternalName: "GigabitEthernet0/8",
+				VppInternalName: "GigabitEthernet0  /8",
 				Name:            "GigabitEthernet0/8",
 				IfType:          1,
 				Enabled:         true,
@@ -143,7 +163,7 @@ func (v *validatorTestVars) initTestData() {
 				},
 			},
 		},
-		bds: nodeBridgeDomains{
+		bds: map[int]NodeBridgeDomain{
 			1: {
 				Name:       "vxlanBD",
 				Forward:    true,
@@ -376,9 +396,9 @@ func (v *validatorTestVars) initTestData() {
 				VppInternalName: "loop0",
 				Name:            "vxlanBVI",
 				Enabled:         true,
-				PhysAddress:     "1a:2b:3c:4d:5e:02",
+				PhysAddress:     "1a:2b:3c:4d:5e:01",
 				Mtu:             1500,
-				IPAddresses:     []string{"192.168.30.2/24"},
+				IPAddresses:     []string{"192.168.30.1/24"},
 			},
 			4: {
 				VppInternalName: "vxlan_tunnel0",

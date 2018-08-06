@@ -24,14 +24,15 @@ import (
 )
 
 const (
-	agentPort       = ":9999"
-	livenessURL     = "/liveness"
-	timeout         = 10
-	interfaceURL    = "/interfaces"
-	bridgeDomainURL = "/bridgedomains"
-	l2FibsURL       = "/l2fibs"
-	telemetryURL    = "/telemetry"
-	arpURL          = "/arps"
+	agentPort          = ":9999"
+	livenessURL        = "/liveness"
+	interfaceURL       = "/interfaces"
+	bridgeDomainURL    = "/bridgedomains"
+	l2FibsURL          = "/l2fibs"
+	telemetryURL       = "/telemetry"
+	arpURL             = "/arps"
+	clientTimeout      = 10 // HTTP client timeout, in seconds
+	collectionInterval = 1  // data collection interval, in minutes
 )
 
 // ContivTelemetryProcessor defines the processor's data structures and dependencies
@@ -51,9 +52,9 @@ func (p *ContivTelemetryProcessor) init() {
 	p.nodeResponseChannel = make(chan *NodeDTO)
 	p.dtoList = make([]*NodeDTO, 0)
 	p.agentPort = agentPort
-	p.collectionInterval = 1 * time.Minute
+	p.collectionInterval = collectionInterval * time.Minute
 	p.ticker = time.NewTicker(p.collectionInterval)
-	p.httpClientTimeout = timeout * time.Second
+	p.httpClientTimeout = clientTimeout * time.Second
 	p.validationInProgress = false
 }
 

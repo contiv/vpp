@@ -428,13 +428,14 @@ func (c *Cache) ValidateL2Connections() {
 		for _, intfidx := range bDomainidxs {
 			//check if one of the indices point to the loop interface
 			//if it does, increment a counter and set a boolean to true
-			if node.NodeInterfaces[int(intfidx)].VppInternalName==""{
+			intfidxInterface,ok  := node.NodeInterfaces[int(intfidx)]
+			if !ok{
 				c.nMap[node.Name].report = append(c.nMap[node.Name].report, errors.Errorf(
 					"BD index %+v for node %+v does not point to a valid interface.", intfidx,node.Name).Error())
 				continue
 
 			}
-			if node.NodeInterfaces[int(intfidx)].IfType == interfaces.InterfaceType_SOFTWARE_LOOPBACK {
+			if intfidxInterface.IfType == interfaces.InterfaceType_SOFTWARE_LOOPBACK {
 				bdhasLoopIF = true
 				i++
 				str := node.NodeInterfaces[int(intfidx)].PhysAddress
@@ -442,7 +443,7 @@ func (c *Cache) ValidateL2Connections() {
 				continue
 			}
 			//check if one of the indices points to a vxlan_tunnel interface
-			if node.NodeInterfaces[int(intfidx)].IfType == interfaces.InterfaceType_VXLAN_TUNNEL {
+			if intfidxInterface.IfType == interfaces.InterfaceType_VXLAN_TUNNEL {
 				if node.NodeInterfaces[int(intfidx)].Vxlan.Vni != vppVNI {
 					c.nMap[node.Name].report = append(c.nMap[node.Name].report, errors.Errorf(
 						"unexpected VNI for node %+v: got %+v expected %+v", node.Name,

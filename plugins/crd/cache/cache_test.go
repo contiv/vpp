@@ -435,24 +435,24 @@ func TestNodesDB_ValidateL2Connections(t *testing.T) {
 
 	nodeinterface2.IfType = interfaces.InterfaceType_TAP_INTERFACE
 	nodeinterfaces2[3] = nodeinterface2
-	db.SetNodeInterfaces("k8s-worker1",nodeinterfaces2)
+	db.SetNodeInterfaces("k8s-worker1", nodeinterfaces2)
 	fmt.Println("Expecting errors as bd has no loop interface.")
 	db.ValidateL2Connections()
 	db.printnodelogs(nodelist)
-	fmt.Println("Done expecting errors" )
+	fmt.Println("Done expecting errors")
 	nodeinterface2.IfType = interfaces.InterfaceType_SOFTWARE_LOOPBACK
 	nodeinterfaces2[3] = nodeinterface2
-	db.SetNodeInterfaces("k8s-worker1",nodeinterfaces2)
+	db.SetNodeInterfaces("k8s-worker1", nodeinterfaces2)
 	db.ValidateL2Connections()
 	db.printnodelogs(nodelist)
 
 	fmt.Println("Deleting node with ip 10 from gigE map" +
 		". Expecting errors for missing ip")
-	delete(db.gigEIPMap,node.NodeInterfaces[4].Vxlan.DstAddress+subnetmask)
+	delete(db.gigEIPMap, node.NodeInterfaces[4].Vxlan.DstAddress+subnetmask)
 	db.ValidateL2Connections()
 	db.printnodelogs(nodelist)
 	fmt.Println("Done expecting errors")
-	node,_  = db.GetNode("k8s_master")
+	node, _ = db.GetNode("k8s_master")
 	db.gigEIPMap["10"+subnetmask] = node
 	db.ValidateL2Connections()
 	db.printnodelogs(nodelist)
@@ -497,18 +497,17 @@ func TestNodesDB_ValidateL2Connections(t *testing.T) {
 	db.printnodelogs(nodelist)
 
 	fmt.Println("Adding extra node in place of existing one...")
-	db.addNode(1,"extraNode","54321","54321")
-	node,_ = db.GetNode("extraNode")
+	db.addNode(1, "extraNode", "54321", "54321")
+	node, _ = db.GetNode("extraNode")
 	db.gigEIPMap["10/24"] = node
 	db.ValidateL2Connections()
 	db.printnodelogs(nodelist)
 	fmt.Println("Done expecting errors...")
-	node,_ = db.GetNode("k8s_master")
+	node, _ = db.GetNode("k8s_master")
 	db.gigEIPMap["10/24"] = node
 	db.deleteNode("extraNode")
 	db.ValidateL2Connections()
 	db.printnodelogs(nodelist)
-
 
 }
 func TestCache_ValidateFibEntries(t *testing.T) {

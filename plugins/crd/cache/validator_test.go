@@ -37,7 +37,7 @@ func TestValidator(t *testing.T) {
 	vtv.log = logrus.DefaultLogger()
 	vtv.log.SetLevel(logging.DebugLevel)
 
-	vtv.initTestData()
+	vtv.createTestData()
 
 	// Initialize the cache
 	vtv.processor = &ContivTelemetryProcessor{
@@ -75,7 +75,11 @@ func testBasicOkTopology(t *testing.T) {
 	printErrorReport(vtv.processor.ContivTelemetryCache.Cache.report)
 }
 
-func (v *validatorTestVars) initTestData() {
+// createTestData creates a test vector that roughly corresponds to a 3-node
+// vagrant topology (1 master, 2 workers). The created topology is defect-free,
+// i.e. defect must be injected into the topology individually for each test
+// case.
+func (v *validatorTestVars) createTestData() {
 	v.nodesData = []nodeData{}
 
 	// Initialize k8s-master
@@ -100,7 +104,7 @@ func (v *validatorTestVars) initTestData() {
 				Name:            "local0",
 			},
 			1: {
-				VppInternalName: "GigabitEthernet0/8",
+				VppInternalName: "GigabitEthernet0  /8",
 				Name:            "GigabitEthernet0/8",
 				IfType:          1,
 				Enabled:         true,

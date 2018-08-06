@@ -14,7 +14,9 @@
 
 package cache
 
-import "github.com/ligato/cn-infra/datasync"
+import (
+	"github.com/ligato/cn-infra/datasync"
+)
 
 // NodeTelemetryCacheAPI defines the API of NodeTelemetryCache used for
 // a non-persistent storage of K8s State data with fast lookups.
@@ -58,7 +60,7 @@ type NodeTelemetryCacheAPI interface {
 type Nodes interface {
 	GetNode(key string) (*Node, error)
 	AddNode(ID uint32, nodeName, IPAdr, ManIPAdr string) error
-	deleteNode(key string)
+
 	GetAllNodes() []*Node
 	SetNodeLiveness(name string, nL *NodeLiveness) error
 	SetNodeInterfaces(name string, nInt map[int]NodeInterface) error

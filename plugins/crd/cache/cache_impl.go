@@ -34,7 +34,7 @@ type ContivTelemetryCache struct {
 	Deps
 	Synced bool
 	// todo - here add the maps you have in your db implementation
-	Cache *Cache
+	Cache     *Cache
 	Processor Processor
 }
 

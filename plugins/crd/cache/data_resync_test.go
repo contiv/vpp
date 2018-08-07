@@ -199,7 +199,6 @@ func testResyncNodeInfoBadData(t *testing.T) {
 	gomega.Expect(len(drd.logWriter.log)).To(gomega.Equal(1))
 }
 
-
 func testResyncNodeInfoAddNodeFail(t *testing.T) {
 	drd.logWriter.clearLog()
 	drd.createNewResyncKvIterator()

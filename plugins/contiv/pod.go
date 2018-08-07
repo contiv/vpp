@@ -486,6 +486,10 @@ func uint32ToIpv4(ip uint32) net.IP {
 // verifyPodIP verifies that the specified namespace contains the interface with the specified IP address
 // and waits until it is actually configured, or returns an error after timeout.
 func (s *remoteCNIserver) verifyPodIP(nsPath string, ifName string, ip net.IP) error {
+	if s.test {
+		return nil
+	}
+
 	// Lock the OS Thread so we don't accidentally switch namespaces
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()

@@ -22,9 +22,9 @@ import (
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 
 	"fmt"
-	"strings"
 	"regexp"
 	"strconv"
+	"strings"
 )
 
 // Resync processes a data sync re sync event associated with K8s State data.
@@ -33,8 +33,9 @@ func (ctc *ContivTelemetryCache) Resync(resyncEv datasync.ResyncEvent) error {
 	err := error(nil)
 	ctc.Synced = true
 
-	// TODO: Clear all data from cache
-	ctc.ClearCache()
+	// Delete all previous data from cache, we are starting from scratch again
+	ctc.ReinitializeCache()
+
 	for resyncKey, resyncData := range resyncEv.GetValues() {
 		for {
 			evData, stop := resyncData.GetNext()
@@ -73,11 +74,10 @@ func (ctc *ContivTelemetryCache) Resync(resyncEv datasync.ResyncEvent) error {
 
 func (ctc *ContivTelemetryCache) parseAndCacheNodeInfoData(key string, evData datasync.KeyVal) error {
 	pattern := fmt.Sprintf("%s[0-9]*$", nodeinfomodel.AllocatedIDsKeyPrefix)
-	matched, err := regexp.Match(pattern, []byte(key));
+	matched, err := regexp.Match(pattern, []byte(key))
 	if !matched || err != nil {
 		return fmt.Errorf("invalid key %s", key)
 	}
-	nodeIDParts := strings.Split(key, "/")
 
 	nodeInfoValue := &nodeinfomodel.NodeInfo{}
 	err = evData.GetValue(nodeInfoValue)
@@ -87,10 +87,16 @@ func (ctc *ContivTelemetryCache) parseAndCacheNodeInfoData(key string, evData da
 
 	id, _ := strconv.Atoi(strings.Split(key, "/")[1])
 	if nodeInfoValue.Id != uint32(id) {
-		return fmt.Errorf("invalid key '%s' or node id '%d'", key, nodeInfoValue)
+		// TODO: Add to error report
+		return fmt.Errorf("invalid key '%s' or node id '%d'", key, nodeInfoValue.Id)
 	}
 
-	ctc.Log.Infof("parseAndCacheNodeInfoData: key %s, value %+v", nodeIDParts[1], nodeInfoValue)
+	if nodeInfoValue.Id == 0 || nodeInfoValue.Name == "" ||
+		nodeInfoValue.IpAddress == "" || nodeInfoValue.ManagementIpAddress == "" {
+		// TODO: Add to error report
+		return fmt.Errorf("invalid nodeInfo data: '%+v'", nodeInfoValue)
+	}
+
 	err = ctc.AddNode(nodeInfoValue.Id, nodeInfoValue.Name, nodeInfoValue.IpAddress, nodeInfoValue.ManagementIpAddress)
 	if err != nil {
 		ctc.Log.Error(err)

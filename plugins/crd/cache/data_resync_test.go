@@ -6,22 +6,22 @@ import (
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/logging/logrus"
 
-	nodeinfomodel "github.com/contiv/vpp/plugins/contiv/model/node"
-
 	"encoding/json"
-	"github.com/onsi/gomega"
-	"testing"
-	"sync/atomic"
-	"time"
 	"fmt"
+	nodeinfomodel "github.com/contiv/vpp/plugins/contiv/model/node"
+	"github.com/onsi/gomega"
+	"sync/atomic"
+	"testing"
+	"time"
 )
 
 type dataResyncTestData struct {
-	log       *logrus.Logger
-	logWriter *mockLogWriter
-	resyncEv  *mockDrKeyValIterator
-	processor *mockProcessor
-	cache     *ContivTelemetryCache
+	log             *logrus.Logger
+	logWriter       *mockLogWriter
+	resyncEv        *mockDrKeyValIterator
+	processor       *mockProcessor
+	cache           *ContivTelemetryCache
+	injectGetValErr bool
 }
 
 type mockDrKeyValIterator struct {
@@ -66,8 +66,10 @@ func (mkv *mockKeyVal) GetRevision() int64 {
 
 func (mkv *mockKeyVal) GetValue(value proto.Message) error {
 	if buf, err := json.Marshal(mkv.value); err == nil {
-		json.Unmarshal(buf, value)
-		return nil
+		if drd.injectGetValErr {
+			buf[0] = 0
+		}
+		return json.Unmarshal(buf, value)
 	} else {
 		return err
 	}
@@ -94,7 +96,7 @@ type mockLogWriter struct {
 	log []string
 }
 
-func (mlw *mockLogWriter)Write(p []byte) (n int, err error) {
+func (mlw *mockLogWriter) Write(p []byte) (n int, err error) {
 	logStr := string(p)
 	mlw.log = append(mlw.log, logStr)
 	return len(logStr), nil
@@ -111,9 +113,9 @@ func TestDataResync(t *testing.T) {
 	gomega.RegisterTestingT(t)
 
 	// Initialize & start mock objects
-	drd.logWriter = &mockLogWriter{ log: []string{} }
+	drd.logWriter = &mockLogWriter{log: []string{}}
 	drd.log = logrus.DefaultLogger()
-	drd.log.SetLevel(logging.DebugLevel)
+	drd.log.SetLevel(logging.ErrorLevel)
 	drd.log.SetOutput(drd.logWriter)
 
 	drd.processor = &mockProcessor{}
@@ -127,10 +129,12 @@ func TestDataResync(t *testing.T) {
 	drd.cache.Processor = drd.processor
 
 	t.Run("testResyncNodeInfoOk", testResyncNodeInfoOk)
-	for i, l := range drd.logWriter.log {
-		fmt.Printf("%d: %s", i, l)
-	}
 	t.Run("testResyncNodeInfoBadKey", testResyncNodeInfoBadKey)
+	t.Run("testResyncNodeInfoBadId", testResyncNodeInfoBadId)
+	t.Run("testResyncNodeInfoBadProto", testResyncNodeInfoBadProto)
+	t.Run("testResyncNodeInfoAddNodeFail", testResyncNodeInfoAddNodeFail)
+	t.Run("testResyncNodeInfoBadData", testResyncNodeInfoBadData)
+
 	for i, l := range drd.logWriter.log {
 		fmt.Printf("%d: %s", i, l)
 	}
@@ -143,7 +147,7 @@ func testResyncNodeInfoOk(t *testing.T) {
 	drd.cache.Resync(drd.resyncEv)
 
 	gomega.Expect(len(drd.cache.Cache.nMap)).To(gomega.Equal(3))
-	time.Sleep(1*time.Millisecond)
+	time.Sleep(1 * time.Millisecond)
 	numCollects := atomic.LoadInt32(&drd.processor.collectCnt)
 	gomega.Expect(numCollects).To(gomega.BeEquivalentTo(3))
 }
@@ -156,6 +160,55 @@ func testResyncNodeInfoBadKey(t *testing.T) {
 	drd.cache.Resync(drd.resyncEv)
 
 	gomega.Expect(len(drd.cache.Cache.nMap)).To(gomega.Equal(0))
+	gomega.Expect(len(drd.logWriter.log)).To(gomega.Equal(3))
+}
+
+func testResyncNodeInfoBadId(t *testing.T) {
+	drd.logWriter.clearLog()
+	drd.createNewResyncKvIterator()
+	drd.createNodeInfoBadIdTestData()
+
+	drd.cache.Resync(drd.resyncEv)
+
+	gomega.Expect(len(drd.cache.Cache.nMap)).To(gomega.Equal(0))
+	gomega.Expect(len(drd.logWriter.log)).To(gomega.Equal(1))
+}
+
+func testResyncNodeInfoBadProto(t *testing.T) {
+	drd.logWriter.clearLog()
+	drd.createNewResyncKvIterator()
+	drd.createNodeInfoOkTestData()
+	drd.injectGetValErr = true
+
+	drd.cache.Resync(drd.resyncEv)
+
+	drd.injectGetValErr = false
+
+	gomega.Expect(len(drd.cache.Cache.nMap)).To(gomega.Equal(0))
+	gomega.Expect(len(drd.logWriter.log)).To(gomega.Equal(3))
+}
+
+func testResyncNodeInfoBadData(t *testing.T) {
+	drd.logWriter.clearLog()
+	drd.createNewResyncKvIterator()
+	drd.createNodeInfoBadTestData()
+
+	drd.cache.Resync(drd.resyncEv)
+
+	gomega.Expect(len(drd.cache.Cache.nMap)).To(gomega.Equal(0))
+	gomega.Expect(len(drd.logWriter.log)).To(gomega.Equal(1))
+}
+
+
+func testResyncNodeInfoAddNodeFail(t *testing.T) {
+	drd.logWriter.clearLog()
+	drd.createNewResyncKvIterator()
+	drd.createNodeInfoDuplicateNameTestData()
+
+	drd.cache.Resync(drd.resyncEv)
+
+	gomega.Expect(len(drd.cache.Cache.nMap)).To(gomega.Equal(1))
+	gomega.Expect(len(drd.logWriter.log)).To(gomega.Equal(1))
 }
 
 func (d *dataResyncTestData) createNewResyncKvIterator() {
@@ -232,6 +285,64 @@ func (d *dataResyncTestData) createNodeInfoBadKeyTestData() {
 					Name:                "k8s-master",
 					IpAddress:           "192.168.16.3/24",
 					ManagementIpAddress: "10.20.0.2",
+				},
+			},
+		},
+	}
+}
+
+func (d *dataResyncTestData) createNodeInfoBadIdTestData() {
+	d.resyncEv.values[nodeinfomodel.AllocatedIDsKeyPrefix] = &mockKeyValIterator{
+		items: []datasync.KeyVal{
+			&mockKeyVal{
+				key: nodeinfomodel.AllocatedIDsKeyPrefix + "1",
+				rev: 1,
+				value: &nodeinfomodel.NodeInfo{
+					Id:                  2,
+					Name:                "k8s-worker2",
+					IpAddress:           "192.168.16.1/24",
+					ManagementIpAddress: "10.20.0.11",
+				},
+			},
+		},
+	}
+}
+
+func (d *dataResyncTestData) createNodeInfoBadTestData() {
+	d.resyncEv.values[nodeinfomodel.AllocatedIDsKeyPrefix] = &mockKeyValIterator{
+		items: []datasync.KeyVal{
+			&mockKeyVal{
+				key: nodeinfomodel.AllocatedIDsKeyPrefix + "1",
+				rev: 1,
+				value: &nodeinfomodel.NodeInfo{
+					Id: 1,
+				},
+			},
+		},
+	}
+}
+
+func (d *dataResyncTestData) createNodeInfoDuplicateNameTestData() {
+	d.resyncEv.values[nodeinfomodel.AllocatedIDsKeyPrefix] = &mockKeyValIterator{
+		items: []datasync.KeyVal{
+			&mockKeyVal{
+				key: nodeinfomodel.AllocatedIDsKeyPrefix + "1",
+				rev: 1,
+				value: &nodeinfomodel.NodeInfo{
+					Id:                  1,
+					Name:                "k8s-worker2",
+					IpAddress:           "192.168.16.1/24",
+					ManagementIpAddress: "10.20.0.11",
+				},
+			},
+			&mockKeyVal{
+				key: nodeinfomodel.AllocatedIDsKeyPrefix + "2",
+				rev: 1,
+				value: &nodeinfomodel.NodeInfo{
+					Id:                  2,
+					Name:                "k8s-worker2",
+					IpAddress:           "192.168.16.2/24",
+					ManagementIpAddress: "10.20.0.10",
 				},
 			},
 		},

@@ -1077,6 +1077,13 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 		}
 	}
 
+	// verify that the POD has the allocated IP address configured / wait until it is actually configured
+	err = s.verifyPodIP(request.NetworkNamespace, request.InterfaceName, podIP)
+	if err != nil {
+		s.Logger.Error(err)
+		return s.generateCniErrorReply(err)
+	}
+
 	// prepare and send reply for the CNI request
 	reply = s.generateCniReply(config, request.NetworkNamespace, podIPCIDR)
 	return reply, nil

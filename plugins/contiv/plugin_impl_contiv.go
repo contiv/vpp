@@ -35,6 +35,7 @@ import (
 	"github.com/contiv/vpp/plugins/kvdbproxy"
 	"github.com/ligato/cn-infra/datasync"
 	"github.com/ligato/cn-infra/datasync/resync"
+	"github.com/ligato/cn-infra/db/keyval"
 	"github.com/ligato/cn-infra/db/keyval/etcd"
 	"github.com/ligato/cn-infra/infra"
 	"github.com/ligato/cn-infra/logging"
@@ -82,6 +83,7 @@ type Deps struct {
 	GoVPP        govppmux.API
 	Resync       resync.Subscriber
 	ETCD         *etcd.Plugin
+	Bolt         keyval.KvProtoPlugin
 	Watcher      datasync.KeyValProtoWatcher
 }
 
@@ -134,9 +136,9 @@ type InterfaceWithIP struct {
 
 // Init initializes the Contiv plugin. Called automatically by plugin infra upon contiv-agent startup.
 func (plugin *Plugin) Init() error {
-	broker := plugin.ETCD.NewBroker(plugin.ServiceLabel.GetAgentPrefix())
 	// init map with configured containers
-	plugin.configuredContainers = containeridx.NewConfigIndex(plugin.Log, "containers", broker)
+	plugin.configuredContainers = containeridx.NewConfigIndex(plugin.Log, "containers",
+		plugin.ETCD.NewBroker(plugin.ServiceLabel.GetAgentPrefix()))
 
 	// load config file
 	plugin.ctx, plugin.ctxCancelFunc = context.WithCancel(context.Background())
@@ -195,7 +197,7 @@ func (plugin *Plugin) Init() error {
 		plugin.myNodeConfig,
 		nodeID,
 		plugin.excludedIPsFromNodeCIDR(),
-		broker)
+		plugin.Bolt.NewBroker(plugin.ServiceLabel.GetAgentPrefix()))
 	if err != nil {
 		return fmt.Errorf("Can't create new remote CNI server due to error: %v ", err)
 	}

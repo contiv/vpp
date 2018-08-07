@@ -88,15 +88,19 @@ data:
     network: unix
     endpoint: /var/run/contiv/cni.sock
   http.conf: |
-      endpoint: 0.0.0.0:9999
-      {{- if .Values.http.enableServerCert }}
-      server-cert-file: /var/http/{{ .Values.http.serverCert }}
-      server-key-file: /var/http/{{ .Values.http.serverKey }}
-      {{- end }}
-      {{- if .Values.http.enableBasicAuth }}
-      client-basic-auth:
-        - {{ .Values.http.basicAuth | quote }}
-      {{- end }}
+    endpoint: 0.0.0.0:9999
+    {{- if .Values.http.enableServerCert }}
+    server-cert-file: /var/http/{{ .Values.http.serverCert }}
+    server-key-file: /var/http/{{ .Values.http.serverKey }}
+    {{- end }}
+    {{- if .Values.http.enableBasicAuth }}
+    client-basic-auth:
+      - {{ .Values.http.basicAuth | quote }}
+    {{- end }}
+  bolt.conf: |
+    db-path: /var/run/contiv/bolt.db
+    file-mode: 432
+    lock-timeout: 0
 
 ---
 
@@ -526,6 +530,12 @@ spec:
                   fieldPath: spec.nodeName
             - name: ETCD_CONFIG
               value: "/etc/etcd/etcd.conf"
+            - name: BOLT_CONFIG
+              value: "/etc/agent/bolt.conf"
+            {{- if .Values.bolt.debug }}
+            - name: DEBUG_BOLT_CLIENT
+              value: "true"
+            {{- end}}
           volumeMounts:
             - name: etcd-cfg
               mountPath: /etc/etcd

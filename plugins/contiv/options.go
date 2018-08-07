@@ -18,6 +18,7 @@ import (
 	"github.com/contiv/vpp/plugins/kvdbproxy"
 	"github.com/ligato/cn-infra/config"
 	"github.com/ligato/cn-infra/datasync/resync"
+	"github.com/ligato/cn-infra/db/keyval/bolt"
 	"github.com/ligato/cn-infra/db/keyval/etcd"
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/rpc/grpc"
@@ -47,6 +48,7 @@ func NewPlugin(opts ...Option) *Plugin {
 	p.GRPC = &grpc.DefaultPlugin
 	p.Proxy = &kvdbproxy.DefaultPlugin
 	p.ETCD = &etcd.DefaultPlugin
+	p.Bolt = &bolt.DefaultPlugin
 
 	for _, o := range opts {
 		o(p)

@@ -161,6 +161,14 @@
   version = "v3.5.1"
 
 [[projects]]
+  branch = "master"
+  digest = "1:965fa961ce7d2a2b0586ff1510c7268d9a8db78c0f08e15c3510ce7cceb963a9"
+  name = "github.com/boltdb/bolt"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "fd01fc79c553a8e99d512a07e8e0c63d4a3ccfc5"
+
+[[projects]]
   digest = "1:7b81d2ed76bf960333a8020c4b8c22abd6072f0b54ad31c66e90e6a17a19315a"
   name = "github.com/bshuster-repo/logrus-logstash-hook"
   packages = ["."]
@@ -784,7 +792,7 @@
   version = "v1.1.1"
 
 [[projects]]
-  digest = "1:537f1c4385cf97eda59f2dba8448b6707a42bedb76a73f6a972b58c1fe55ef98"
+  digest = "1:60ecaa59c98b5ad46e8dd879f276a04e49c8145366a4b493b60fd23632b698dd"
   name = "github.com/ligato/cn-infra"
   packages = [
     "agent",
@@ -795,6 +803,7 @@
     "datasync/resync",
     "datasync/syncbase",
     "db/keyval",
+    "db/keyval/bolt",
     "db/keyval/etcd",
     "db/keyval/kvproto",
     "health/probe",
@@ -817,7 +826,7 @@
     "utils/safeclose",
   ]
   pruneopts = "UT"
-  revision = "7838b46f7be1b8c032d8f478c3da744c86d3f4c2"
+  revision = "4903fd7f8a498f0a6038df2ac6fe762697dea1f8"
 
 [[projects]]
   digest = "1:070c5f739a39ebea3b82eb5a55007e0fedaca35e8c07a505db3188adfee018b5"
@@ -900,7 +909,7 @@
     "plugins/vpp/srplugin/vppcalls",
   ]
   pruneopts = "UT"
-  revision = "101afd9ef8e776f94e1df7f8bfdf72ad7dbcb7cf"
+  revision = "e3900b61375e30e33ee50b3fd0f8a442f8fea4a8"
 
 [[projects]]
   branch = "master"
@@ -1909,6 +1918,7 @@
     "github.com/ligato/cn-infra/datasync/resync",
     "github.com/ligato/cn-infra/datasync/syncbase",
     "github.com/ligato/cn-infra/db/keyval",
+    "github.com/ligato/cn-infra/db/keyval/bolt",
     "github.com/ligato/cn-infra/db/keyval/etcd",
     "github.com/ligato/cn-infra/db/keyval/kvproto",
     "github.com/ligato/cn-infra/health/probe",

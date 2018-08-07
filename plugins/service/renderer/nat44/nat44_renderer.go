@@ -523,12 +523,10 @@ func (rndr *Renderer) exportDNATMappings(service *renderer.ContivService) []*nat
 					} else {
 						local.Probability = 1
 					}
-					// TODO: this will not work in case of mixed HostNetwork and non-HostNetwork backends
-					// until https://jira.fd.io/browse/VPP-1345 is implemented
 					if rndr.isNodeLocalIP(backend.IP) {
-						mapping.VrfId = rndr.Contiv.GetMainVrfID()
+						local.VrfId = rndr.Contiv.GetMainVrfID()
 					} else {
-						mapping.VrfId = rndr.Contiv.GetPodVrfID()
+						local.VrfId = rndr.Contiv.GetPodVrfID()
 					}
 					mapping.LocalIps = append(mapping.LocalIps, local)
 				}
@@ -576,12 +574,10 @@ func (rndr *Renderer) exportDNATMappings(service *renderer.ContivService) []*nat
 				} else {
 					local.Probability = 1
 				}
-				// TODO: this will not work in case of mixed HostNetwork and non-HostNetwork backends
-				// until https://jira.fd.io/browse/VPP-1345 is implemented
 				if rndr.isNodeLocalIP(backend.IP) {
-					mapping.VrfId = rndr.Contiv.GetMainVrfID()
+					local.VrfId = rndr.Contiv.GetMainVrfID()
 				} else {
-					mapping.VrfId = rndr.Contiv.GetPodVrfID()
+					local.VrfId = rndr.Contiv.GetPodVrfID()
 				}
 				mapping.LocalIps = append(mapping.LocalIps, local)
 			}

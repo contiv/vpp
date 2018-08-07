@@ -77,8 +77,6 @@ type PodConfig struct {
 	PodDefaultRoute *linux_l3.LinuxStaticRoutes_Route
 }
 
-const podInterfaceName = "eth0" // name of the main interface in the POD network namespace
-
 // podConfigToProto transform config structure to structure that will be persisted
 // Beware: Intentionally not all data from config will be persisted, only necessary ones.
 func podConfigToProto(cfg *PodConfig) *container.Persisted {

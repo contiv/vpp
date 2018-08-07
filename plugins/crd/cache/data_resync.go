@@ -23,6 +23,8 @@ import (
 
 	"fmt"
 	"strings"
+	"regexp"
+	"strconv"
 )
 
 // Resync processes a data sync re sync event associated with K8s State data.
@@ -70,15 +72,22 @@ func (ctc *ContivTelemetryCache) Resync(resyncEv datasync.ResyncEvent) error {
 }
 
 func (ctc *ContivTelemetryCache) parseAndCacheNodeInfoData(key string, evData datasync.KeyVal) error {
-	nodeIDParts := strings.Split(key, "/")
-	if len(nodeIDParts) != 2 {
+	pattern := fmt.Sprintf("%s[0-9]*$", nodeinfomodel.AllocatedIDsKeyPrefix)
+	matched, err := regexp.Match(pattern, []byte(key));
+	if !matched || err != nil {
 		return fmt.Errorf("invalid key %s", key)
 	}
+	nodeIDParts := strings.Split(key, "/")
 
 	nodeInfoValue := &nodeinfomodel.NodeInfo{}
-	err := evData.GetValue(nodeInfoValue)
+	err = evData.GetValue(nodeInfoValue)
 	if err != nil {
 		return fmt.Errorf("could not parse node info data for key %s, error %s", key, err)
+	}
+
+	id, _ := strconv.Atoi(strings.Split(key, "/")[1])
+	if nodeInfoValue.Id != uint32(id) {
+		return fmt.Errorf("invalid key '%s' or node id '%d'", key, nodeInfoValue)
 	}
 
 	ctc.Log.Infof("parseAndCacheNodeInfoData: key %s, value %+v", nodeIDParts[1], nodeInfoValue)
@@ -86,8 +95,8 @@ func (ctc *ContivTelemetryCache) parseAndCacheNodeInfoData(key string, evData da
 	if err != nil {
 		ctc.Log.Error(err)
 	}
-	newNode := ctc.LookupNode([]string{nodeInfoValue.Name})
 
+	newNode := ctc.LookupNode([]string{nodeInfoValue.Name})
 	go ctc.Processor.CollectNodeInfo(newNode[0])
 
 	return nil

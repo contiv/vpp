@@ -75,7 +75,7 @@ func testBasicOkTopology(t *testing.T) {
 	printErrorReport(vtv.processor.ContivTelemetryCache.Cache.report)
 }
 
-// createTestData creates a test vector that roughly corresponds to a 3-node
+// createNodeInfoOkTestData creates a test vector that roughly corresponds to a 3-node
 // vagrant topology (1 master, 2 workers). The created topology is defect-free,
 // i.e. defect must be injected into the topology individually for each test
 // case.

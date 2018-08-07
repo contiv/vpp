@@ -36,7 +36,7 @@ type ContivTelemetryCache struct {
 	// todo - here add the maps you have in your db implementation
 	Cache      *Cache
 	k8sNodeMap map[string]*nodemodel.Node
-	Processor  *ContivTelemetryProcessor
+	Processor  Processor
 }
 
 // Deps lists dependencies of PolicyCache.

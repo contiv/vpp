@@ -34,9 +34,8 @@ type ContivTelemetryCache struct {
 	Deps
 	Synced bool
 	// todo - here add the maps you have in your db implementation
-	Cache *Cache
-
-	Processor *ContivTelemetryProcessor
+	Cache     *Cache
+	Processor Processor
 }
 
 // Deps lists dependencies of PolicyCache.
@@ -121,7 +120,8 @@ func (c *Cache) addNode(ID uint32, nodeName, IPAdr, ManIPAdr string) error {
 	return nil
 }
 
-//ClearCache with delete all the values in each of the individual cache maps.
+//ClearCache with clear all cache data except for the base nMap that contains
+// the discovered nodes..
 func (ctc *ContivTelemetryCache) ClearCache() {
 	// Clear collected data for each node
 	for _, node := range ctc.Cache.nMap {
@@ -137,6 +137,13 @@ func (ctc *ContivTelemetryCache) ClearCache() {
 	ctc.Cache.loopMACMap = make(map[string]*Node)
 	ctc.Cache.loopIPMap = make(map[string]*Node)
 	ctc.Cache.report = []string{}
+}
+
+// ReinitializeCache completely re-initializes the cache, clearing all
+// data including  the discovered nodes.
+func (ctc *ContivTelemetryCache) ReinitializeCache() {
+	ctc.ClearCache()
+	ctc.Cache.nMap = make(map[string]*Node)
 }
 
 //NewCache returns a pointer to a new node cache

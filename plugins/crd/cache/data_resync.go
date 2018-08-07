@@ -22,6 +22,8 @@ import (
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 
 	"fmt"
+	"regexp"
+	"strconv"
 	"strings"
 )
 
@@ -31,8 +33,9 @@ func (ctc *ContivTelemetryCache) Resync(resyncEv datasync.ResyncEvent) error {
 	err := error(nil)
 	ctc.Synced = true
 
-	// TODO: Clear all data from cache
-	ctc.ClearCache()
+	// Delete all previous data from cache, we are starting from scratch again
+	ctc.ReinitializeCache()
+
 	for resyncKey, resyncData := range resyncEv.GetValues() {
 		for {
 			evData, stop := resyncData.GetNext()
@@ -70,24 +73,36 @@ func (ctc *ContivTelemetryCache) Resync(resyncEv datasync.ResyncEvent) error {
 }
 
 func (ctc *ContivTelemetryCache) parseAndCacheNodeInfoData(key string, evData datasync.KeyVal) error {
-	nodeIDParts := strings.Split(key, "/")
-	if len(nodeIDParts) != 2 {
+	pattern := fmt.Sprintf("%s[0-9]*$", nodeinfomodel.AllocatedIDsKeyPrefix)
+	matched, err := regexp.Match(pattern, []byte(key))
+	if !matched || err != nil {
 		return fmt.Errorf("invalid key %s", key)
 	}
 
 	nodeInfoValue := &nodeinfomodel.NodeInfo{}
-	err := evData.GetValue(nodeInfoValue)
+	err = evData.GetValue(nodeInfoValue)
 	if err != nil {
 		return fmt.Errorf("could not parse node info data for key %s, error %s", key, err)
 	}
 
-	ctc.Log.Infof("parseAndCacheNodeInfoData: key %s, value %+v", nodeIDParts[1], nodeInfoValue)
+	id, _ := strconv.Atoi(strings.Split(key, "/")[1])
+	if nodeInfoValue.Id != uint32(id) {
+		// TODO: Add to error report
+		return fmt.Errorf("invalid key '%s' or node id '%d'", key, nodeInfoValue.Id)
+	}
+
+	if nodeInfoValue.Id == 0 || nodeInfoValue.Name == "" ||
+		nodeInfoValue.IpAddress == "" || nodeInfoValue.ManagementIpAddress == "" {
+		// TODO: Add to error report
+		return fmt.Errorf("invalid nodeInfo data: '%+v'", nodeInfoValue)
+	}
+
 	err = ctc.AddNode(nodeInfoValue.Id, nodeInfoValue.Name, nodeInfoValue.IpAddress, nodeInfoValue.ManagementIpAddress)
 	if err != nil {
 		ctc.Log.Error(err)
 	}
-	newNode := ctc.LookupNode([]string{nodeInfoValue.Name})
 
+	newNode := ctc.LookupNode([]string{nodeInfoValue.Name})
 	go ctc.Processor.CollectNodeInfo(newNode[0])
 
 	return nil
@@ -123,7 +138,6 @@ func (ctc *ContivTelemetryCache) parseAndCacheNodeData(key string, evData datasy
 	}
 
 	ctc.Log.Infof("parseAndCacheNodeData: node %s, value %+v", node, nodeValue)
-	// TODO: Register nodeValue in cache.
 	ctc.AddK8sNode(nodeValue.Name, nodeValue.Pod_CIDR, nodeValue.Provider_ID, nodeValue.Addresses, nodeValue.NodeInfo)
 	return nil
 }

@@ -65,14 +65,14 @@ func (mkv *mockKeyVal) GetRevision() int64 {
 }
 
 func (mkv *mockKeyVal) GetValue(value proto.Message) error {
-	if buf, err := json.Marshal(mkv.value); err == nil {
+	buf, err := json.Marshal(mkv.value)
+	if err == nil {
 		if drd.injectGetValErr {
 			buf[0] = 0
 		}
 		return json.Unmarshal(buf, value)
-	} else {
-		return err
 	}
+	return err
 }
 
 // mockProcessor emulates the Processor, effectively making sure no
@@ -130,7 +130,7 @@ func TestDataResync(t *testing.T) {
 
 	t.Run("testResyncNodeInfoOk", testResyncNodeInfoOk)
 	t.Run("testResyncNodeInfoBadKey", testResyncNodeInfoBadKey)
-	t.Run("testResyncNodeInfoBadId", testResyncNodeInfoBadId)
+	t.Run("testResyncNodeInfoBadID", testResyncNodeInfoBadID)
 	t.Run("testResyncNodeInfoBadProto", testResyncNodeInfoBadProto)
 	t.Run("testResyncNodeInfoAddNodeFail", testResyncNodeInfoAddNodeFail)
 	t.Run("testResyncNodeInfoBadData", testResyncNodeInfoBadData)
@@ -163,10 +163,10 @@ func testResyncNodeInfoBadKey(t *testing.T) {
 	gomega.Expect(len(drd.logWriter.log)).To(gomega.Equal(3))
 }
 
-func testResyncNodeInfoBadId(t *testing.T) {
+func testResyncNodeInfoBadID(t *testing.T) {
 	drd.logWriter.clearLog()
 	drd.createNewResyncKvIterator()
-	drd.createNodeInfoBadIdTestData()
+	drd.createNodeInfoBadIDTestData()
 
 	drd.cache.Resync(drd.resyncEv)
 
@@ -290,7 +290,7 @@ func (d *dataResyncTestData) createNodeInfoBadKeyTestData() {
 	}
 }
 
-func (d *dataResyncTestData) createNodeInfoBadIdTestData() {
+func (d *dataResyncTestData) createNodeInfoBadIDTestData() {
 	d.resyncEv.values[nodeinfomodel.AllocatedIDsKeyPrefix] = &mockKeyValIterator{
 		items: []datasync.KeyVal{
 			&mockKeyVal{

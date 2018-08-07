@@ -139,8 +139,8 @@ func (ctc *ContivTelemetryCache) ClearCache() {
 	ctc.Cache.report = []string{}
 }
 
-// NukeCache completely re-initializes the cache, clearing all data including
-// the discovered nodes.
+// ReinitializeCache completely re-initializes the cache, clearing all
+// data including  the discovered nodes.
 func (ctc *ContivTelemetryCache) ReinitializeCache() {
 	ctc.ClearCache()
 	ctc.Cache.nMap = make(map[string]*Node)

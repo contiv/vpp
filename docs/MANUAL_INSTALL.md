@@ -395,14 +395,6 @@ To uninstall the network plugin itself, use `kubectl`:
 kubectl delete -f https://raw.githubusercontent.com/contiv/vpp/master/k8s/contiv-vpp.yaml
 ```
 
-To uninstall the CRI shim, execute as root (not using sudo) on each node:
-```
-bash <(curl -s https://raw.githubusercontent.com/contiv/vpp/master/k8s/cri-install.sh) --uninstall
-```
-
-After uninstalling CRI, reboot each node, or re-initialize the Kubernetes
-cluster using `kubeadm reset` and `kubeadm init --token-ttl 0`.
-
 ### Tearing down Kubernetes
 * First, drain the node and make sure that the node is empty before
 shutting it down:

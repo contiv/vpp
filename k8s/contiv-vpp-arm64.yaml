@@ -26,7 +26,7 @@ data:
     UseTAPInterfaces: true
     TAPInterfaceVersion: 2
     NatExternalTraffic: true
-    MTUSize: 1450
+    MTUSize: 1500
     CleanupIdleNATSessions: True
     TCPNATSessionTimeout: 180
     OtherNATSessionTimeout: 5
@@ -350,7 +350,10 @@ spec:
               mountPath: /etc/agent
             - name: govpp-plugin-cfg
               mountPath: /etc/govpp
-
+          resources:          
+            limits:
+              hugepages-1Gi: 8Gi
+              memory: 8Gi
       volumes:
         # Used to connect to contiv-etcd.
         - name: etcd-cfg

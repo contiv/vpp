@@ -262,9 +262,6 @@ func (mnt *MockNatPlugin) dnatToStaticMappings(dnat *nat.Nat44DNat_DNatConfig) (
 			return nil, errors.New("static mapping with external interface is not expected")
 		}
 
-		// VRF
-		sm.VrfID = staticMapping.VrfId
-
 		// external IP
 		externalIP := net.ParseIP(staticMapping.ExternalIp)
 		if externalIP == nil {
@@ -305,6 +302,7 @@ func (mnt *MockNatPlugin) dnatToStaticMappings(dnat *nat.Nat44DNat_DNatConfig) (
 				IP:          localIP,
 				Port:        uint16(local.LocalPort),
 				Probability: uint8(local.Probability),
+				VrfID:       local.VrfId,
 			})
 		}
 

@@ -34,7 +34,6 @@ type StaticMapping struct {
 	ExternalPort uint16
 	Protocol     renderer.ProtocolType
 	Locals       []*Local
-	VrfID        uint32
 }
 
 // Local represents a single backend for VPP NAT mapping.
@@ -42,6 +41,7 @@ type Local struct {
 	IP          net.IP
 	Port        uint16
 	Probability uint8
+	VrfID       uint32
 }
 
 // String converts a list of static mappings into a human-readable string.
@@ -141,13 +141,13 @@ func (sm *StaticMapping) Copy() *StaticMapping {
 		ExternalIP:   dupIP(sm.ExternalIP),
 		ExternalPort: sm.ExternalPort,
 		Protocol:     sm.Protocol,
-		VrfID:        sm.VrfID,
 	}
 	for _, local := range sm.Locals {
 		smCopy.Locals = append(smCopy.Locals, &Local{
 			IP:          dupIP(local.IP),
 			Port:        local.Port,
 			Probability: local.Probability,
+			VrfID:       local.VrfID,
 		})
 	}
 	return smCopy
@@ -157,8 +157,7 @@ func (sm *StaticMapping) Copy() *StaticMapping {
 func (sm *StaticMapping) Equals(sm2 *StaticMapping) bool {
 	if !sm.ExternalIP.Equal(sm2.ExternalIP) ||
 		sm.ExternalPort != sm2.ExternalPort ||
-		sm.Protocol != sm2.Protocol ||
-		sm.VrfID != sm2.VrfID {
+		sm.Protocol != sm2.Protocol {
 		return false
 	}
 	if len(sm.Locals) != len(sm2.Locals) {
@@ -167,7 +166,7 @@ func (sm *StaticMapping) Equals(sm2 *StaticMapping) bool {
 	for _, local := range sm.Locals {
 		found := false
 		for _, local2 := range sm2.Locals {
-			if local.IP.Equal(local2.IP) && local.Port == local2.Port && local.Probability == local2.Probability {
+			if local.IP.Equal(local2.IP) && local.Port == local2.Port && local.Probability == local2.Probability && local.VrfID == local2.VrfID {
 				found = true
 				break
 			}

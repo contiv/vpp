@@ -820,7 +820,7 @@
   revision = "7838b46f7be1b8c032d8f478c3da744c86d3f4c2"
 
 [[projects]]
-  digest = "1:30c91fda923acac6516a878e15143fe348464655c978e055a90d87a2f56a72e2"
+  digest = "1:070c5f739a39ebea3b82eb5a55007e0fedaca35e8c07a505db3188adfee018b5"
   name = "github.com/ligato/vpp-agent"
   packages = [
     "clientv1/linux",
@@ -900,7 +900,7 @@
     "plugins/vpp/srplugin/vppcalls",
   ]
   pruneopts = "UT"
-  revision = "11f873d938061001179988ad5c44fd5690f2736b"
+  revision = "101afd9ef8e776f94e1df7f8bfdf72ad7dbcb7cf"
 
 [[projects]]
   branch = "master"

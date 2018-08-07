@@ -15,12 +15,8 @@
 package contiv
 
 import (
-	"fmt"
-	"net"
-	"strconv"
-	"strings"
-
 	"encoding/binary"
+	"fmt"
 	linux_intf "github.com/ligato/vpp-agent/plugins/linux/model/interfaces"
 	linux_l3 "github.com/ligato/vpp-agent/plugins/linux/model/l3"
 	"github.com/ligato/vpp-agent/plugins/vpp/binapi/ip"
@@ -30,6 +26,9 @@ import (
 	vpp_l2 "github.com/ligato/vpp-agent/plugins/vpp/model/l2"
 	vpp_l3 "github.com/ligato/vpp-agent/plugins/vpp/model/l3"
 	vpp_l4 "github.com/ligato/vpp-agent/plugins/vpp/model/l4"
+	"net"
+	"strconv"
+	"strings"
 
 	"github.com/vishvananda/netlink"
 )

@@ -113,6 +113,7 @@ func (ctc *ContivTelemetryCache) parseAndCacheNodeInfoData(key string, evData da
 	}
 
 	newNode := ctc.LookupNode([]string{nodeInfoValue.Name})
+
 	go ctc.Processor.CollectNodeInfo(newNode[0])
 
 	return nil
@@ -132,7 +133,8 @@ func (ctc *ContivTelemetryCache) parseAndCachePodData(key string, evData datasyn
 	}
 
 	ctc.Log.Infof("parseAndCachePodData: pod %s, namespace %s, value %+v", pod, namespace, podValue)
-	// TODO: Register podValue in cache.
+	ctc.AddPod(podValue.Name, podValue.Namespace, podValue.Label, podValue.IpAddress, podValue.HostIpAddress, podValue.Container)
+
 	return nil
 }
 

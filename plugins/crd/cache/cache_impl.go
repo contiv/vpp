@@ -235,7 +235,7 @@ func (c *Cache) GetNode(key string) (n *Node, err error) {
 	return nil, err
 }
 
-func (c *Cache) deleteNode(key string) error{
+func (c *Cache) deleteNode(key string) error {
 	node, err := c.GetNode(key)
 	if err != nil {
 		c.logger.Error(err)

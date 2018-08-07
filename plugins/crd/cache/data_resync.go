@@ -22,10 +22,10 @@ import (
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 
 	"fmt"
+	"github.com/pkg/errors"
 	"regexp"
 	"strconv"
 	"strings"
-	"github.com/pkg/errors"
 )
 
 // Resync processes a data sync re sync event associated with K8s State data.
@@ -88,7 +88,6 @@ func (ctc *ContivTelemetryCache) parseAndCacheNodeInfoData(key string, evData da
 
 	id, _ := strconv.Atoi(strings.Split(key, "/")[1])
 	if nodeInfoValue.Id != uint32(id) {
-		// TODO: Add to error report
 		ctc.Cache.report = append(ctc.Cache.report, errors.Errorf("invalid key '%s' or node id '%d'",
 			key, nodeInfoValue.Id).Error())
 		return fmt.Errorf("invalid key '%s' or node id '%d'", key, nodeInfoValue.Id)
@@ -96,7 +95,6 @@ func (ctc *ContivTelemetryCache) parseAndCacheNodeInfoData(key string, evData da
 
 	if nodeInfoValue.Id == 0 || nodeInfoValue.Name == "" ||
 		nodeInfoValue.IpAddress == "" || nodeInfoValue.ManagementIpAddress == "" {
-		// TODO: Add to error report
 		ctc.Cache.report = append(ctc.Cache.report, errors.Errorf("invalid nodeInfo data: '%+v'",
 			nodeInfoValue).Error())
 		return fmt.Errorf("invalid nodeInfo data: '%+v'", nodeInfoValue)

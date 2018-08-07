@@ -200,12 +200,12 @@ func TestCache_SetNodeTelemetry(t *testing.T) {
 	gomega.Expect(node.ID).To(gomega.Equal(uint32(1)))
 	gomega.Expect(node.ManIPAdr).To(gomega.Equal("10"))
 
-	ntele:= NodeTelemetry{"d",[]output{}}
+	ntele := NodeTelemetry{"d", []output{}}
 	nTeleMap := make(map[string]NodeTelemetry)
 	nTeleMap["k8s_master"] = ntele
-	err := db.SetNodeTelemetry("k8s_master",nTeleMap)
+	err := db.SetNodeTelemetry("k8s_master", nTeleMap)
 	gomega.Expect(err).To(gomega.BeNil())
-	err= db.SetNodeTelemetry("N.E.Node",nTeleMap)
+	err = db.SetNodeTelemetry("N.E.Node", nTeleMap)
 	gomega.Expect(err).To(gomega.Not(gomega.BeNil()))
 }
 

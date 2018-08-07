@@ -45,7 +45,7 @@ data:
       VxlanCIDR: 192.168.30.0/24
       NodeInterconnectDHCP: False
   logs.conf: |
-    defaultlevel: debug
+    default-level: debug
   grpc.conf: |
     network: unix
     endpoint: /var/run/contiv/cni.sock

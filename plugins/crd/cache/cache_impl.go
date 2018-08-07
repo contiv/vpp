@@ -235,10 +235,11 @@ func (c *Cache) GetNode(key string) (n *Node, err error) {
 	return nil, err
 }
 
-func (c *Cache) deleteNode(key string) {
+func (c *Cache) deleteNode(key string) error{
 	node, err := c.GetNode(key)
 	if err != nil {
 		c.logger.Error(err)
+		return err
 	}
 	delete(c.nMap, node.Name)
 	delete(c.gigEIPMap, node.IPAdr)
@@ -251,6 +252,7 @@ func (c *Cache) deleteNode(key string) {
 		}
 
 	}
+	return nil
 }
 
 //GetAllNodes returns an ordered slice of all nodes in a database organized by name.

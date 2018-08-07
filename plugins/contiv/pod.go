@@ -541,7 +541,6 @@ func (s *remoteCNIserver) verifyPodIP(nsPath string, ifName string, ip net.IP) e
 					return nil
 				}
 			}
-			break
 		}
 		s.Logger.Debugf("IP address %s not yet found on the %s interface in the namespace %s, waiting", ip, ifName, nsPath)
 		time.Sleep(10 * time.Millisecond)

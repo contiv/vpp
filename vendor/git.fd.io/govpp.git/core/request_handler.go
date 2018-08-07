@@ -163,7 +163,7 @@ func msgCallback(context uint32, msgID uint16, data []byte) {
 		log.WithFields(logger.Fields{
 			"channel_id": chanID,
 			"msg_id":     msgID,
-		}).Error("Channel ID not known, ignoring the message.")
+		}).Debug("Channel ID not known, ignoring the message.")
 		return
 	}
 

@@ -332,17 +332,18 @@ func TestResyncAndSingleService(t *testing.T) {
 	// New static mappings.
 	Expect(natPlugin.NumOfStaticMappings()).To(Equal(2))
 	staticMapping1 := &StaticMapping{
-		VrfID:        podVrfID,
 		ExternalIP:   net.ParseIP("10.96.0.1"),
 		ExternalPort: 80,
 		Protocol:     svc_renderer.TCP,
 		Locals: []*Local{
 			{
+				VrfID:       podVrfID,
 				IP:          net.ParseIP(pod1IP),
 				Port:        8080,
 				Probability: localEndpointWeight,
 			},
 			{
+				VrfID:       podVrfID,
 				IP:          net.ParseIP(pod2IP),
 				Port:        8080,
 				Probability: localEndpointWeight,
@@ -740,14 +741,15 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 		ExternalIP:   net.ParseIP("10.96.0.1"),
 		ExternalPort: 80,
 		Protocol:     svc_renderer.TCP,
-		VrfID:        podVrfID,
 		Locals: []*Local{
 			{
+				VrfID:       podVrfID,
 				IP:          net.ParseIP(pod1IP),
 				Port:        8080,
 				Probability: localEndpointWeight,
 			},
 			{
+				VrfID:       podVrfID,
 				IP:          net.ParseIP(pod2IP),
 				Port:        8080,
 				Probability: localEndpointWeight,
@@ -758,14 +760,15 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 		ExternalIP:   net.ParseIP("10.96.0.1"),
 		ExternalPort: 443,
 		Protocol:     svc_renderer.TCP,
-		VrfID:        podVrfID,
 		Locals: []*Local{
 			{
+				VrfID:       podVrfID,
 				IP:          net.ParseIP(pod1IP),
 				Port:        8443,
 				Probability: localEndpointWeight,
 			},
 			{
+				VrfID:       podVrfID,
 				IP:          net.ParseIP(pod2IP),
 				Port:        8443,
 				Probability: localEndpointWeight,
@@ -786,14 +789,15 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 		ExternalIP:   net.ParseIP("10.96.0.10"),
 		ExternalPort: 53,
 		Protocol:     svc_renderer.TCP,
-		VrfID:        podVrfID,
 		Locals: []*Local{
 			{
+				VrfID:       podVrfID,
 				IP:          net.ParseIP(pod1IP),
 				Port:        10053,
 				Probability: localEndpointWeight,
 			},
 			{
+				VrfID:       podVrfID,
 				IP:          net.ParseIP(pod3IP),
 				Port:        53,
 				Probability: 1,
@@ -804,14 +808,15 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 		ExternalIP:   net.ParseIP("10.96.0.10"),
 		ExternalPort: 53,
 		Protocol:     svc_renderer.UDP,
-		VrfID:        podVrfID,
 		Locals: []*Local{
 			{
+				VrfID:       podVrfID,
 				IP:          net.ParseIP(pod1IP),
 				Port:        10053,
 				Probability: localEndpointWeight,
 			},
 			{
+				VrfID:       podVrfID,
 				IP:          net.ParseIP(pod3IP),
 				Port:        53,
 				Probability: 1,
@@ -862,14 +867,15 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 		ExternalIP:   net.ParseIP(nodeIP),
 		ExternalPort: 30443,
 		Protocol:     svc_renderer.TCP,
-		VrfID:        podVrfID,
 		Locals: []*Local{
 			{
+				VrfID:       podVrfID,
 				IP:          net.ParseIP(pod1IP),
 				Port:        8443,
 				Probability: localEndpointWeight,
 			},
 			{
+				VrfID:       podVrfID,
 				IP:          net.ParseIP(pod2IP),
 				Port:        8443,
 				Probability: localEndpointWeight,
@@ -880,14 +886,15 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 		ExternalIP:   net.ParseIP(mgmtIP),
 		ExternalPort: 30443,
 		Protocol:     svc_renderer.TCP,
-		VrfID:        podVrfID,
 		Locals: []*Local{
 			{
+				VrfID:       podVrfID,
 				IP:          net.ParseIP(pod1IP),
 				Port:        8443,
 				Probability: localEndpointWeight,
 			},
 			{
+				VrfID:       podVrfID,
 				IP:          net.ParseIP(pod2IP),
 				Port:        8443,
 				Probability: localEndpointWeight,
@@ -1530,19 +1537,21 @@ func TestServiceUpdates(t *testing.T) {
 		ExternalIP:   net.ParseIP("10.96.0.1"),
 		ExternalPort: 80,
 		Protocol:     svc_renderer.TCP,
-		VrfID:        podVrfID,
 		Locals: []*Local{
 			{
+				VrfID:       podVrfID,
 				IP:          net.ParseIP(pod1IP),
 				Port:        8080,
 				Probability: localEndpointWeight,
 			},
 			{
+				VrfID:       podVrfID,
 				IP:          net.ParseIP(pod2IP),
 				Port:        8080,
 				Probability: localEndpointWeight,
 			},
 			{
+				VrfID:       podVrfID,
 				IP:          net.ParseIP(pod3IP),
 				Port:        8080,
 				Probability: 1,
@@ -1653,14 +1662,15 @@ func TestServiceUpdates(t *testing.T) {
 		ExternalIP:   net.ParseIP("10.96.0.1"),
 		ExternalPort: 80,
 		Protocol:     svc_renderer.TCP,
-		VrfID:        podVrfID,
 		Locals: []*Local{
 			{
+				VrfID:       podVrfID,
 				IP:          net.ParseIP(pod1IP),
 				Port:        8080,
 				Probability: localEndpointWeight,
 			},
 			{
+				VrfID:       podVrfID,
 				IP:          net.ParseIP(pod3IP),
 				Port:        8080,
 				Probability: 1,
@@ -1721,14 +1731,15 @@ func TestServiceUpdates(t *testing.T) {
 		ExternalIP:   net.ParseIP("10.96.0.1"),
 		ExternalPort: 443,
 		Protocol:     svc_renderer.TCP,
-		VrfID:        podVrfID,
 		Locals: []*Local{
 			{
+				VrfID:       podVrfID,
 				IP:          net.ParseIP(pod1IP),
 				Port:        8443,
 				Probability: localEndpointWeight,
 			},
 			{
+				VrfID:       podVrfID,
 				IP:          net.ParseIP(pod3IP),
 				Port:        443,
 				Probability: 1,

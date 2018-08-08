@@ -106,6 +106,14 @@ func (mlw *mockLogWriter) clearLog() {
 	mlw.log = []string{}
 }
 
+func (mlw *mockLogWriter) printLog() {
+	fmt.Println("Error log:")
+	fmt.Println("==========")
+	for i, l := range mlw.log {
+		fmt.Printf("%d: %s", i, l)
+	}
+}
+
 // drd holds all the data structures required for the DataResync test
 var drd dataResyncTestData
 

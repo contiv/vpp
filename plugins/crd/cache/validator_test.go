@@ -13,17 +13,16 @@ type validatorTestVars struct {
 	processor *ContivTelemetryProcessor
 	logWriter *mockLogWriter
 
-
 	// Mock data
 	nodeInfoData []*nodeData
 	k8sNodeData  []*nodemodel.Node
 }
 
 type nodeData struct {
-	ID        uint32
-	nodeName  string
-	IPAdr     string
-	ManIPAdr  string
+	ID       uint32
+	nodeName string
+	IPAdr    string
+	ManIPAdr string
 
 	liveness   *NodeLiveness
 	interfaces nodeInterfaces
@@ -109,7 +108,6 @@ func testK8sNodeToNodeInfoMissingK8snValidation(t *testing.T) {
 
 	printErrorReport(vtv.processor.ContivTelemetryCache.Cache.report)
 }
-
 
 func populateNodeInfoDataInCache(cache *ContivTelemetryCache) {
 	for _, node := range vtv.nodeInfoData {

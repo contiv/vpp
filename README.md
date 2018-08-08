@@ -25,6 +25,8 @@ You can get started with Contiv-VPP in one of two ways:
 In order to report a bug, please file an issue in GitHub. Please provide
 the information described in [Bug Reports README](docs/BUG_REPORTS.md).
 
+## Communication Channels
+Slack Channel: [https://contivvpp.slack.com/](https://contivvpp.slack.com/)
 
 ## Contributing
 

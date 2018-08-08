@@ -25,6 +25,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
 )
 
 const (
@@ -43,11 +44,11 @@ type processorTestVars struct {
 	tickerChan  chan time.Time
 
 	// Mock data
-	nodeLiveness      *NodeLiveness
-	nodeInterfaces    map[int]NodeInterface
-	nodeBridgeDomains map[int]NodeBridgeDomain
-	nodeL2Fibs        map[string]NodeL2FibEntry
-	nodeIPArps        []NodeIPArpEntry
+	nodeLiveness      *telemetrymodel.NodeLiveness
+	nodeInterfaces    map[int]telemetrymodel.NodeInterface
+	nodeBridgeDomains map[int]telemetrymodel.NodeBridgeDomain
+	nodeL2Fibs        map[string]telemetrymodel.NodeL2FibEntry
+	nodeIPArps        []telemetrymodel.NodeIPArpEntry
 }
 
 var ptv processorTestVars
@@ -125,7 +126,7 @@ func newMockTicker() *time.Ticker {
 
 func (ptv *processorTestVars) initTestData() {
 	// Initialize NodeLiveness response
-	ptv.nodeLiveness = &NodeLiveness{
+	ptv.nodeLiveness = &telemetrymodel.NodeLiveness{
 		BuildVersion: "v1.2-alpha-179-g4e2d712",
 		BuildDate:    "2018-07-19T09:54+00:00",
 		State:        1,
@@ -136,7 +137,7 @@ func (ptv *processorTestVars) initTestData() {
 	}
 
 	// Initialize interfaces data
-	ptv.nodeInterfaces = map[int]NodeInterface{
+	ptv.nodeInterfaces = map[int]telemetrymodel.NodeInterface{
 		0: {
 			VppInternalName: "local0",
 			Name:            "local0",
@@ -158,7 +159,7 @@ func (ptv *processorTestVars) initTestData() {
 			PhysAddress:     "01:23:45:67:89:42",
 			Mtu:             1500,
 			IPAddresses:     []string{"172.30.3.1/24"},
-			Tap:             tap{Version: 2},
+			Tap:             telemetrymodel.Tap{Version: 2},
 		},
 		3: {
 			VppInternalName: "tap1",
@@ -168,7 +169,7 @@ func (ptv *processorTestVars) initTestData() {
 			PhysAddress:     "02:fe:fc:07:21:82",
 			Mtu:             1500,
 			IPAddresses:     []string{"10.2.1.7/32"},
-			Tap:             tap{Version: 2},
+			Tap:             telemetrymodel.Tap{Version: 2},
 		},
 		4: {
 			VppInternalName: "loop0",
@@ -183,7 +184,7 @@ func (ptv *processorTestVars) initTestData() {
 			Name:            "vxlan1",
 			IfType:          5,
 			Enabled:         true,
-			Vxlan: vxlan{
+			Vxlan: telemetrymodel.Vxlan{
 				SrcAddress: "192.168.16.3",
 				DstAddress: "192.168.16.1",
 				Vni:        10,
@@ -194,7 +195,7 @@ func (ptv *processorTestVars) initTestData() {
 			Name:            "vxlan2",
 			IfType:          5,
 			Enabled:         true,
-			Vxlan: vxlan{
+			Vxlan: telemetrymodel.Vxlan{
 				SrcAddress: "192.168.16.3",
 				DstAddress: "192.168.16.2",
 				Vni:        10,
@@ -203,16 +204,16 @@ func (ptv *processorTestVars) initTestData() {
 	}
 
 	// Initialize bridge domains data
-	ptv.nodeBridgeDomains = map[int]NodeBridgeDomain{
+	ptv.nodeBridgeDomains = map[int]telemetrymodel.NodeBridgeDomain{
 		1: {
 			Name:       "vxlanBD",
 			Forward:    true,
-			Interfaces: []bdinterfaces{},
+			Interfaces: []telemetrymodel.BDinterfaces{},
 		},
 		2: {
 			Name:    "vxlanBD",
 			Forward: true,
-			Interfaces: []bdinterfaces{
+			Interfaces: []telemetrymodel.BDinterfaces{
 				{SwIfIndex: 4},
 				{SwIfIndex: 5},
 				{SwIfIndex: 6},
@@ -221,7 +222,7 @@ func (ptv *processorTestVars) initTestData() {
 	}
 
 	// Initialize L2 Fib data
-	ptv.nodeL2Fibs = map[string]NodeL2FibEntry{
+	ptv.nodeL2Fibs = map[string]telemetrymodel.NodeL2FibEntry{
 		"1a:2b:3c:4d:5e:01": {
 			BridgeDomainIdx:          2,
 			OutgoingInterfaceSwIfIdx: 5,
@@ -244,7 +245,7 @@ func (ptv *processorTestVars) initTestData() {
 	}
 
 	// Initialize ARP Table data
-	ptv.nodeIPArps = []NodeIPArpEntry{
+	ptv.nodeIPArps = []telemetrymodel.NodeIPArpEntry{
 		{
 			Interface:  4,
 			IPAddress:  "192.168.30.1",

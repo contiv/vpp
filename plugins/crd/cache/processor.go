@@ -21,6 +21,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"time"
+	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
 )
 
 const (
@@ -34,6 +35,12 @@ const (
 	clientTimeout      = 10 // HTTP client timeout, in seconds
 	collectionInterval = 1  // data collection interval, in minutes
 )
+// NodeDTO holds generic node information to be sent over a channel and associated with a name in the cache.
+type NodeDTO struct {
+	NodeName string
+	NodeInfo interface{}
+	err      error
+}
 
 // ContivTelemetryProcessor defines the processor's data structures and dependencies
 type ContivTelemetryProcessor struct {
@@ -70,7 +77,7 @@ func (p *ContivTelemetryProcessor) Init() error {
 
 // CollectNodeInfo collects node data from all agents in the Contiv
 // cluster and puts it in the cache
-func (p *ContivTelemetryProcessor) CollectNodeInfo(node *Node) {
+func (p *ContivTelemetryProcessor) CollectNodeInfo(node *telemetrymodel.Node) {
 	p.validationInProgress = true
 	p.collectAgentInfo(node)
 }
@@ -101,15 +108,15 @@ func (p *ContivTelemetryProcessor) ValidateNodeInfo() {
 		p.Log.Info(entry)
 		for _, node := range p.ContivTelemetryCache.Cache.nMap {
 			p.Log.Infof("Report for %+v", node.Name)
-			p.Log.Info(node.report)
-			node.report = node.report[0:0]
+			p.Log.Info(node.Report)
+			node.Report = node.Report[0:0]
 		}
 	}
 
 }
 
 //Gathers a number of data points for every node in the Node List
-func (p *ContivTelemetryProcessor) collectAgentInfo(node *Node) {
+func (p *ContivTelemetryProcessor) collectAgentInfo(node *telemetrymodel.Node) {
 	client := http.Client{
 		Transport:     nil,
 		CheckRedirect: nil,
@@ -117,15 +124,15 @@ func (p *ContivTelemetryProcessor) collectAgentInfo(node *Node) {
 		Timeout:       p.httpClientTimeout,
 	}
 
-	go p.getNodeInfo(client, node, livenessURL, &NodeLiveness{})
+	go p.getNodeInfo(client, node, livenessURL, &telemetrymodel.NodeLiveness{})
 
-	nodeInterfaces := make(nodeInterfaces, 0)
+	nodeInterfaces := make(telemetrymodel.NodeInterfaces, 0)
 	go p.getNodeInfo(client, node, interfaceURL, &nodeInterfaces)
 
-	nodeBridgeDomains := make(nodeBridgeDomains, 0)
+	nodeBridgeDomains := make(telemetrymodel.NodeBridgeDomains, 0)
 	go p.getNodeInfo(client, node, bridgeDomainURL, &nodeBridgeDomains)
 
-	nodel2fibs := make(nodeL2FibTable, 0)
+	nodel2fibs := make(telemetrymodel.NodeL2FibTable, 0)
 	go p.getNodeInfo(client, node, l2FibsURL, &nodel2fibs)
 
 	//TODO: Implement getTelemetry correctly.
@@ -133,7 +140,7 @@ func (p *ContivTelemetryProcessor) collectAgentInfo(node *Node) {
 	//nodetelemetry := make(map[string]NodeTelemetry)
 	//go p.getNodeInfo(client, node, telemetryURL, &nodetelemetry)
 
-	nodeiparpslice := make(nodeIPArpTable, 0)
+	nodeiparpslice := make(telemetrymodel.NodeIPArpTable, 0)
 	go p.getNodeInfo(client, node, arpURL, &nodeiparpslice)
 
 }
@@ -158,7 +165,7 @@ object is created to hold the struct of information as well as the name and is s
 over the plugins node database channel to node_db_processor.go where it will be read,
 processed, and added to the node database.
 */
-func (p *ContivTelemetryProcessor) getNodeInfo(client http.Client, node *Node, url string, nodeInfo interface{}) {
+func (p *ContivTelemetryProcessor) getNodeInfo(client http.Client, node *telemetrymodel.Node, url string, nodeInfo interface{}) {
 	res, err := client.Get(p.getAgentURL(node.ManIPAdr, url))
 	if err != nil {
 		err := fmt.Errorf("getNodeInfo: url: %s cleintGet Error: %s", url, err.Error())
@@ -222,23 +229,23 @@ func (p *ContivTelemetryProcessor) SetNodeData() {
 			continue
 		}
 		switch data.NodeInfo.(type) {
-		case *NodeLiveness:
-			nl := data.NodeInfo.(*NodeLiveness)
+		case *telemetrymodel.NodeLiveness:
+			nl := data.NodeInfo.(*telemetrymodel.NodeLiveness)
 			p.ContivTelemetryCache.Cache.SetNodeLiveness(data.NodeName, nl)
-		case *nodeInterfaces:
-			niDto := data.NodeInfo.(*nodeInterfaces)
+		case *telemetrymodel.NodeInterfaces:
+			niDto := data.NodeInfo.(*telemetrymodel.NodeInterfaces)
 			p.ContivTelemetryCache.Cache.SetNodeInterfaces(data.NodeName, *niDto)
-		case *nodeBridgeDomains:
-			nbdDto := data.NodeInfo.(*nodeBridgeDomains)
+		case *telemetrymodel.NodeBridgeDomains:
+			nbdDto := data.NodeInfo.(*telemetrymodel.NodeBridgeDomains)
 			p.ContivTelemetryCache.Cache.SetNodeBridgeDomain(data.NodeName, *nbdDto)
-		case *nodeL2FibTable:
-			nl2fDto := data.NodeInfo.(*nodeL2FibTable)
+		case *telemetrymodel.NodeL2FibTable:
+			nl2fDto := data.NodeInfo.(*telemetrymodel.NodeL2FibTable)
 			p.ContivTelemetryCache.Cache.SetNodeL2Fibs(data.NodeName, *nl2fDto)
-		case *nodeTelemetries:
-			ntDto := data.NodeInfo.(*nodeTelemetries)
+		case *telemetrymodel.NodeTelemetries:
+			ntDto := data.NodeInfo.(*telemetrymodel.NodeTelemetries)
 			p.ContivTelemetryCache.Cache.SetNodeTelemetry(data.NodeName, *ntDto)
-		case *nodeIPArpTable:
-			nipaDto := data.NodeInfo.(*nodeIPArpTable)
+		case *telemetrymodel.NodeIPArpTable:
+			nipaDto := data.NodeInfo.(*telemetrymodel.NodeIPArpTable)
 			p.ContivTelemetryCache.Cache.SetNodeIPARPs(data.NodeName, *nipaDto)
 		default:
 			p.Log.Errorf("Node %+v has unknown data type: %+v", data.NodeName, data.NodeInfo)

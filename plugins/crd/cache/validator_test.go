@@ -6,6 +6,7 @@ import (
 	"github.com/ligato/cn-infra/logging/logrus"
 	"github.com/onsi/gomega"
 	"testing"
+	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
 )
 
 type validatorTestVars struct {
@@ -24,11 +25,11 @@ type nodeData struct {
 	IPAdr    string
 	ManIPAdr string
 
-	liveness   *NodeLiveness
-	interfaces nodeInterfaces
-	bds        nodeBridgeDomains
-	l2FibTable nodeL2FibTable
-	arpTable   nodeIPArpTable
+	liveness   *telemetrymodel.NodeLiveness
+	interfaces telemetrymodel.NodeInterfaces
+	bds        telemetrymodel.NodeBridgeDomains
+	l2FibTable telemetrymodel.NodeL2FibTable
+	arpTable   telemetrymodel.NodeIPArpTable
 }
 
 var vtv validatorTestVars
@@ -140,7 +141,7 @@ func (v *validatorTestVars) createNodeInfoTestData() {
 		IPAdr:    "192.168.16.3/24",
 		ManIPAdr: "10.20.0.2",
 
-		liveness: &NodeLiveness{
+		liveness: &telemetrymodel.NodeLiveness{
 			BuildVersion: "v1.2-alpha-179-g4e2d712",
 			BuildDate:    "2018-07-19T09:54+00:00",
 			State:        1,
@@ -149,7 +150,7 @@ func (v *validatorTestVars) createNodeInfoTestData() {
 			LastUpdate:   1532997235,
 			CommitHash:   "v1.2-alpha-179-g4e2d712",
 		},
-		interfaces: nodeInterfaces{
+		interfaces: telemetrymodel.NodeInterfaces{
 			0: {
 				VppInternalName: "local0",
 				Name:            "local0",
@@ -171,7 +172,7 @@ func (v *validatorTestVars) createNodeInfoTestData() {
 				PhysAddress:     "01:23:45:67:89:42",
 				Mtu:             1500,
 				IPAddresses:     []string{"172.30.3.1/24"},
-				Tap:             tap{Version: 2},
+				Tap:             telemetrymodel.Tap{Version: 2},
 			},
 			3: {
 				VppInternalName: "tap1",
@@ -181,7 +182,7 @@ func (v *validatorTestVars) createNodeInfoTestData() {
 				PhysAddress:     "02:fe:fc:07:21:82",
 				Mtu:             1500,
 				IPAddresses:     []string{"10.2.1.7/32"},
-				Tap:             tap{Version: 2},
+				Tap:             telemetrymodel.Tap{Version: 2},
 			},
 			4: {
 				VppInternalName: "loop0",
@@ -196,7 +197,7 @@ func (v *validatorTestVars) createNodeInfoTestData() {
 				Name:            "vxlan1",
 				IfType:          5,
 				Enabled:         true,
-				Vxlan: vxlan{
+				Vxlan: telemetrymodel.Vxlan{
 					SrcAddress: "192.168.16.3",
 					DstAddress: "192.168.16.1",
 					Vni:        10,
@@ -207,7 +208,7 @@ func (v *validatorTestVars) createNodeInfoTestData() {
 				Name:            "vxlan2",
 				IfType:          5,
 				Enabled:         true,
-				Vxlan: vxlan{
+				Vxlan: telemetrymodel.Vxlan{
 					SrcAddress: "192.168.16.3",
 					DstAddress: "192.168.16.2",
 					Vni:        10,

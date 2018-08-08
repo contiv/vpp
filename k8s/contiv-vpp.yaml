@@ -249,6 +249,8 @@ spec:
             name: cni-bin-dir
           - mountPath: /etc/cni/net.d
             name: cni-net-dir
+          - mountPath: /var/run/contiv
+            name: contiv-run
       # This init container waits until etcd is started
       - name: wait-foretcd
         env:

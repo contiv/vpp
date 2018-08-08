@@ -24,7 +24,7 @@ kubectl apply -f manifest.yaml
 To install without tiller for arm64, you can generate the manifest from this chart and install via kubectl:
 
 ```console
-helm template --name my-release ../contiv-vpp -f ./values-arm64.yaml > manifest-arm64.yaml
+helm template --name my-release ../contiv-vpp -f ./values-arm64.yaml,./values.yaml > manifest-arm64.yaml
 kubectl apply -f manifest-arm64.yaml
 ```
 

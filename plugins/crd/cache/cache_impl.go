@@ -122,7 +122,7 @@ func (ctc *ContivTelemetryCache) AddK8sNode(name string, PodCIDR string, Provide
 				ctc.Cache.hostIPMap[ip.Address] = contivNode
 
 				for _, pod := range ctc.Cache.podMap {
-					if pod.HostIpAddress == ip.Address {
+					if pod.HostIPAddress == ip.Address {
 						fmt.Println("Line 116: ", contivNode)
 						contivNode.PodMap[pod.Name] = pod
 						break
@@ -160,11 +160,11 @@ func (c *Cache) addNode(ID uint32, nodeName, IPAdr, ManIPAdr string) error {
 func (ctc *ContivTelemetryCache) AddPod(Name, Namespace string, Label []*pod2.Pod_Label, IPAddress, HostIPAddress string,
 	Container []*pod2.Pod_Container) error {
 	// TODO: add container to telemetry pod struct
-	labels := make([]*telemetrymodel.Pod_Label, 0)
+	labels := make([]*telemetrymodel.PodLabel, 0)
 	for _, l := range Label {
-		labels = append(labels, &telemetrymodel.Pod_Label{Key: l.Key, Value: l.Value})
+		labels = append(labels, &telemetrymodel.PodLabel{Key: l.Key, Value: l.Value})
 	}
-	newPod := telemetrymodel.Pod{Name: Name, Namespace: Namespace, Label: labels, IpAddress: IPAddress, HostIpAddress: HostIPAddress}
+	newPod := telemetrymodel.Pod{Name: Name, Namespace: Namespace, Label: labels, IPAddress: IPAddress, HostIPAddress: HostIPAddress}
 	_, ok := ctc.Cache.podMap[Name]
 	if ok {
 		return errors.Errorf("Duplicate pod with name %+v found", Name)
@@ -361,7 +361,7 @@ func (c *Cache) PopulateNodeMaps(node *telemetrymodel.Node) {
 
 			if ip, ok := c.loopIPMap[loopIF.IPAddresses[i]]; ok {
 				//TODO: Report an error back to the controller; store it somewhere, report it at the end of the function
-				errString := fmt.Sprint("Duplicate IP found: %s", ip)
+				errString := fmt.Sprintf("Duplicate IP found: %+v", ip)
 				c.logErrAndAppendToNodeReport(node.Name, errString)
 			} else {
 				c.loopIPMap[loopIF.IPAddresses[i]] = node
@@ -394,7 +394,7 @@ func (c *Cache) PopulateNodeMaps(node *telemetrymodel.Node) {
 			}
 		}
 		for _, pod := range c.podMap {
-			if pod.HostIpAddress == nodeHostIP {
+			if pod.HostIPAddress == nodeHostIP {
 				node.PodMap[pod.Name] = pod
 			}
 		}
@@ -793,10 +793,10 @@ func (c *Cache) ValidatePodInfo() {
 		podMap[key] = true
 	}
 	for _, pod := range c.podMap {
-		node, ok := c.hostIPMap[pod.HostIpAddress]
+		node, ok := c.hostIPMap[pod.HostIPAddress]
 		if !ok {
 			c.report = append(c.report, errors.Errorf("Error finding node for host ip %+v from pod %+v",
-				pod.HostIpAddress, pod.Name).Error())
+				pod.HostIPAddress, pod.Name).Error())
 			continue
 		}
 		podPtr, ok := node.PodMap[pod.Name]
@@ -823,9 +823,9 @@ func (c *Cache) ValidatePodInfo() {
 		i := 0
 		for _, adr := range k8snode.Addresses {
 			if adr.Type == 3 {
-				if adr.Address != pod.HostIpAddress {
+				if adr.Address != pod.HostIPAddress {
 					errString := fmt.Sprintf("pod host ip %+v does not match with k8snode ip %+v",
-						pod.HostIpAddress, adr.Address)
+						pod.HostIPAddress, adr.Address)
 					c.logErrAndAppendToNodeReport(node.Name, errString)
 					continue
 				}

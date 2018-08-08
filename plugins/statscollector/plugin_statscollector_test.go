@@ -90,7 +90,7 @@ func TestStatsCollector(t *testing.T) {
 	err = testVars.plugin.Init()
 	gomega.Expect(err).To(gomega.BeNil())
 
-	testVars.cntv.SetPodIfName(pod.ID{"test-pod", "test-namespace"}, testIfPodName)
+	testVars.cntv.SetPodIfName(pod.ID{Name: "test-pod", Namespace: "test-namespace"}, testIfPodName)
 
 	t.Run("testPutWithWrongArgumentType", testPutWithWrongArgumentType)
 	t.Run("testPutNewPodEntry", testPutNewPodEntry)

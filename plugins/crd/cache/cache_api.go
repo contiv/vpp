@@ -15,8 +15,8 @@
 package cache
 
 import (
-	"github.com/ligato/cn-infra/datasync"
 	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
+	"github.com/ligato/cn-infra/datasync"
 )
 
 // NodeTelemetryCacheAPI defines the API of NodeTelemetryCache used for

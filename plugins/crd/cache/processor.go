@@ -17,11 +17,11 @@ package cache
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
 	"github.com/pkg/errors"
 	"io/ioutil"
 	"net/http"
 	"time"
-	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
 )
 
 const (
@@ -35,6 +35,7 @@ const (
 	clientTimeout      = 10 // HTTP client timeout, in seconds
 	collectionInterval = 1  // data collection interval, in minutes
 )
+
 // NodeDTO holds generic node information to be sent over a channel and associated with a name in the cache.
 type NodeDTO struct {
 	NodeName string

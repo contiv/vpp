@@ -39,7 +39,6 @@ type Node struct {
 	PodMap            map[string]*Pod
 }
 
-
 //NodeLiveness holds the unmarshalled node liveness JSON data
 type NodeLiveness struct {
 	BuildVersion string `json:"build_version"`
@@ -51,12 +50,19 @@ type NodeLiveness struct {
 	CommitHash   string `json:"commit_hash"`
 }
 
-
-
+// NodeInterfaces defines a map of NodeInterface
 type NodeInterfaces map[int]NodeInterface
+
+// NodeBridgeDomains defines a map of NodeBridgeDomain
 type NodeBridgeDomains map[int]NodeBridgeDomain
+
+// NodeL2FibTable defines a map of NodeL2FibEntry
 type NodeL2FibTable map[string]NodeL2FibEntry
+
+// NodeTelemetries defines a map of NodeTelemetry
 type NodeTelemetries map[string]NodeTelemetry
+
+// NodeIPArpTable defines an array of NodeIPArpEntry
 type NodeIPArpTable []NodeIPArpEntry
 
 //NodeTelemetry holds the unmarshalled node telemetry JSON data
@@ -65,11 +71,13 @@ type NodeTelemetry struct {
 	Output  []Output `json:"output"`
 }
 
+//Output holds the unmarshalled node telemetry output
 type Output struct {
 	command string
 	output  []OutputEntry
 }
 
+//OutputEntry holds the unmarshalled node output telemetry data
 type OutputEntry struct {
 	nodeName string
 	count    int
@@ -98,6 +106,7 @@ type NodeInterface struct {
 	Tap             Tap                      `json:"tap,omitempty"`
 }
 
+// Vxlan contains vxlan parameter data
 type Vxlan struct {
 	SrcAddress string `json:"src_address"`
 	DstAddress string `json:"dst_address"`
@@ -112,6 +121,7 @@ type NodeIPArpEntry struct {
 	Static     bool   `json:"Static"`
 }
 
+// Tap contains tap parameter data
 type Tap struct {
 	Version    uint32 `json:"version"`
 	HostIfName string `json:"host_if_name"`
@@ -124,11 +134,12 @@ type NodeBridgeDomain struct {
 	Forward    bool           `json:"forward"`
 }
 
+//BDinterfaces containersbridge parameter data
 type BDinterfaces struct {
 	SwIfIndex uint32 `json:"sw_if_index"`
 }
 
-
+//Pod contains pod parameter data
 type Pod struct {
 	// Name of the pod unique within the namespace.
 	// Cannot be updated.
@@ -140,22 +151,23 @@ type Pod struct {
 	Namespace string `protobuf:"bytes,2,opt,name=namespace" json:"namespace,omitempty"`
 	// A list of labels attached to this pod.
 	// +optional
-	Label []*Pod_Label `protobuf:"bytes,3,rep,name=label" json:"label,omitempty"`
+	Label []*PodLabel `protobuf:"bytes,3,rep,name=label" json:"label,omitempty"`
 	// IP address allocated to the pod. Routable at least within the cluster.
 	// Empty if not yet allocated.
 	// +optional
-	IpAddress string `protobuf:"bytes,4,opt,name=ip_address,json=ipAddress" json:"ip_address,omitempty"`
+	IPAddress string `protobuf:"bytes,4,opt,name=ip_address,json=ipAddress" json:"ip_address,omitempty"`
 	// IP address of the host to which the pod is assigned.
 	// Empty if not yet scheduled.
 	// +optional
-	HostIpAddress string `protobuf:"bytes,5,opt,name=host_ip_address,json=hostIpAddress" json:"host_ip_address,omitempty"`
+	HostIPAddress string `protobuf:"bytes,5,opt,name=host_ip_address,json=hostIpAddress" json:"host_ip_address,omitempty"`
 	// List of containers belonging to the pod.
 	// Containers cannot currently be added or removed.
 	// There must be at least one container in a Pod.
 	// Cannot be updated.
 }
 
-type Pod_Label struct {
+//PodLabel contains key/value pair info
+type PodLabel struct {
 	Key   string `protobuf:"bytes,1,opt,name=key" json:"key,omitempty"`
 	Value string `protobuf:"bytes,2,opt,name=value" json:"value,omitempty"`
 }

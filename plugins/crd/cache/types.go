@@ -15,9 +15,9 @@
 package cache
 
 import (
-	"github.com/ligato/cn-infra/logging"
-	"github.com/contiv/vpp/plugins/ksr/model/node"
 	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
+	"github.com/contiv/vpp/plugins/ksr/model/node"
+	"github.com/ligato/cn-infra/logging"
 )
 
 // here goes different cache types
@@ -37,4 +37,3 @@ type Cache struct {
 
 	logger logging.Logger
 }
-

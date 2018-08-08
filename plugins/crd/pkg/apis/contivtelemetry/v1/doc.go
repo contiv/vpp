@@ -17,7 +17,6 @@
 
 package v1
 
-
 // in the ...../contiv/vpp folder, execute the following command to generate the
 // zz_generated_deepcopy.go file.  This is required each time the types.go structures
 // are changed.  The CRD code in the controller folder make use of the deep copy

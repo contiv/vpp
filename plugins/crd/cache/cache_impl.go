@@ -64,7 +64,10 @@ func (ctc *ContivTelemetryCache) ListAllNodes() []*Node {
 func (ctc *ContivTelemetryCache) LookupNode(nodenames []string) []*Node {
 	nodeslice := make([]*Node, 0)
 	for _, name := range nodenames {
-		node := ctc.Cache.nMap[name]
+		node, ok := ctc.Cache.nMap[name]
+		if !ok {
+			continue
+		}
 		nodeslice = append(nodeslice, node)
 	}
 	fmt.Println("Return from LookupNode:", nodeslice)
@@ -107,20 +110,21 @@ func (ctc *ContivTelemetryCache) AddK8sNode(name string, PodCIDR string, Provide
 	ctc.Cache.k8sNodeMap[name] = &newNode
 	for _, ip := range Addresses {
 		if ip.Type == 3 {
-			contivNode := ctc.LookupNode([]string{name})
+			contivNode, err := ctc.Cache.GetNode(name)
 			fmt.Println("Line 110:", contivNode)
-			if len(contivNode) == 1 {
-				ctc.Cache.hostIPMap[ip.Address] = contivNode[0]
+			if err == nil {
+				ctc.Cache.hostIPMap[ip.Address] = contivNode
 
 				for _, pod := range ctc.Cache.podMap {
 					if pod.HostIpAddress == ip.Address {
-						fmt.Println("Line 116: ", contivNode[0])
-						contivNode[0].podMap[pod.Name] = pod
+						fmt.Println("Line 116: ", contivNode)
+						contivNode.podMap[pod.Name] = pod
 						break
 					}
 				}
 			} else {
-				ctc.Cache.report = append(ctc.Cache.report, "Error looking up node %+v, k8s node has no valid counterpart", name)
+				ctc.Cache.report = append(ctc.Cache.report, errors.Errorf(
+					"Error looking up node %+v, k8s node has no valid counterpart", name).Error())
 			}
 			break
 		}
@@ -145,15 +149,16 @@ func (c *Cache) addNode(ID uint32, nodeName, IPAdr, ManIPAdr string) error {
 	return nil
 }
 
-func (ctc *ContivTelemetryCache) AddPod(Name, Namespace string, Label []*pod2.Pod_Label, IpAddress, HostIpAddress string,
+//AddPod adds a pod with the given parameters to the contiv telemetry cache
+func (ctc *ContivTelemetryCache) AddPod(Name, Namespace string, Label []*pod2.Pod_Label, IPAddress, HostIPAddress string,
 	Container []*pod2.Pod_Container) error {
-	newPod := pod2.Pod{Name: Name, Namespace: Namespace, Label: Label, IpAddress: IpAddress, HostIpAddress: HostIpAddress, Container: Container}
+	newPod := pod2.Pod{Name: Name, Namespace: Namespace, Label: Label, IpAddress: IPAddress, HostIpAddress: HostIPAddress, Container: Container}
 	_, ok := ctc.Cache.podMap[Name]
 	if ok {
 		return errors.Errorf("Duplicate pod with name %+v found", Name)
 	}
 	ctc.Cache.podMap[Name] = &newPod
-	node, ok := ctc.Cache.hostIPMap[HostIpAddress]
+	node, ok := ctc.Cache.hostIPMap[HostIPAddress]
 	if ok {
 		fmt.Println("Line 155: ", node)
 		node.podMap[Name] = &newPod
@@ -343,7 +348,6 @@ func (c *Cache) PopulateNodeMaps(node *Node) {
 		} else {
 
 			if ip, ok := c.loopIPMap[loopIF.IPAddresses[i]]; ok {
-				//TODO: Report an error back to the controller; store it somewhere, report it at the end of the function
 				c.logger.Errorf("Duplicate IP found: %s", ip)
 				c.nMap[node.Name].report = append(c.nMap[node.Name].report, errors.Errorf(
 					"Duplicate IP found: %s", ip).Error())
@@ -367,6 +371,24 @@ func (c *Cache) PopulateNodeMaps(node *Node) {
 			c.loopMACMap[loopIF.PhysAddress] = node
 		}
 		c.gigEIPMap[node.IPAdr] = node
+		k8snode, ok := c.k8sNodeMap[node.Name]
+		nodeHostIP := ""
+		if !ok {
+			node.report = append(node.report, errors.Errorf("Could not find k8s node counterpart for node %+v",
+				node.Name).Error())
+		} else {
+			for _, adr := range k8snode.Addresses {
+				if adr.Type == 3 {
+					c.hostIPMap[adr.Address] = node
+					nodeHostIP = adr.Address
+				}
+			}
+		}
+		for _, pod := range c.podMap {
+			if pod.HostIpAddress == nodeHostIP {
+				node.podMap[pod.Name] = pod
+			}
+		}
 	}
 }
 
@@ -753,6 +775,8 @@ func (c *Cache) ValidateK8sNodeInfo() {
 
 }
 
+//ValidatePodInfo will check to see that each pod has a valid host ip address node and that the information correctly
+//correlates between the nodes and the pods.
 func (c *Cache) ValidatePodInfo() {
 
 	podMap := make(map[string]bool)
@@ -811,7 +835,7 @@ func (c *Cache) ValidatePodInfo() {
 	}
 
 	if len(podMap) > 0 {
-		for _, p := range podMap {
+		for p := range podMap {
 			c.report = append(c.report, errors.Errorf("error processing pod %+v", p).Error())
 		}
 

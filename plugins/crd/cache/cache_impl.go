@@ -17,6 +17,7 @@ package cache
 
 import (
 	"fmt"
+	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
 	"github.com/contiv/vpp/plugins/ksr/model/node"
 	pod2 "github.com/contiv/vpp/plugins/ksr/model/pod"
 	"github.com/ligato/cn-infra/logging"
@@ -54,15 +55,15 @@ func (ctc *ContivTelemetryCache) Init() error {
 }
 
 // ListAllNodes returns node data for all nodes in the cache.
-func (ctc *ContivTelemetryCache) ListAllNodes() []*Node {
+func (ctc *ContivTelemetryCache) ListAllNodes() []*telemetrymodel.Node {
 	nodeList := ctc.Cache.GetAllNodes()
 	return nodeList
 }
 
 // LookupNode return node data for nodes that match a node name passed
 // to the function in the node names slice.
-func (ctc *ContivTelemetryCache) LookupNode(nodenames []string) []*Node {
-	nodeslice := make([]*Node, 0)
+func (ctc *ContivTelemetryCache) LookupNode(nodenames []string) []*telemetrymodel.Node {
+	nodeslice := make([]*telemetrymodel.Node, 0)
 	for _, name := range nodenames {
 		node, ok := ctc.Cache.nMap[name]
 		if !ok {
@@ -98,6 +99,11 @@ func (ctc *ContivTelemetryCache) AddNode(ID uint32, nodeName, IPAdr, ManIPAdr st
 	return nil
 }
 
+func (c *Cache) logErrAndAppendToNodeReport(nodeName string, errString string) {
+	c.nMap[nodeName].Report = append(c.nMap[nodeName].Report, errString)
+	c.logger.Errorf(errString)
+}
+
 //AddK8sNode will add a k8s type node to the Contiv Telemtry cache, making sure there are no duplicates.
 func (ctc *ContivTelemetryCache) AddK8sNode(name string, PodCIDR string, ProviderID string,
 	Addresses []*node.NodeAddress, NodeInfo *node.NodeSystemInfo) error {
@@ -116,9 +122,9 @@ func (ctc *ContivTelemetryCache) AddK8sNode(name string, PodCIDR string, Provide
 				ctc.Cache.hostIPMap[ip.Address] = contivNode
 
 				for _, pod := range ctc.Cache.podMap {
-					if pod.HostIpAddress == ip.Address {
+					if pod.HostIPAddress == ip.Address {
 						fmt.Println("Line 116: ", contivNode)
-						contivNode.podMap[pod.Name] = pod
+						contivNode.PodMap[pod.Name] = pod
 						break
 					}
 				}
@@ -135,12 +141,13 @@ func (ctc *ContivTelemetryCache) AddK8sNode(name string, PodCIDR string, Provide
 
 //addNode will add a node to the node cache with the given parameters, making sure there are no duplicates.
 func (c *Cache) addNode(ID uint32, nodeName, IPAdr, ManIPAdr string) error {
-	n := &Node{IPAdr: IPAdr, ManIPAdr: ManIPAdr, ID: ID, Name: nodeName}
-	n.podMap = make(map[string]*pod2.Pod)
+	n := &telemetrymodel.Node{IPAdr: IPAdr, ManIPAdr: ManIPAdr, ID: ID, Name: nodeName}
+
+	n.PodMap = make(map[string]*telemetrymodel.Pod)
 	_, err := c.GetNode(nodeName)
 	if err == nil {
 		err = errors.Errorf("duplicate key found: %s", nodeName)
-		c.nMap[nodeName].report = append(c.nMap[nodeName].report, err.Error())
+		c.logErrAndAppendToNodeReport(nodeName, err.Error())
 		return err
 	}
 	c.nMap[nodeName] = n
@@ -152,7 +159,12 @@ func (c *Cache) addNode(ID uint32, nodeName, IPAdr, ManIPAdr string) error {
 //AddPod adds a pod with the given parameters to the contiv telemetry cache
 func (ctc *ContivTelemetryCache) AddPod(Name, Namespace string, Label []*pod2.Pod_Label, IPAddress, HostIPAddress string,
 	Container []*pod2.Pod_Container) error {
-	newPod := pod2.Pod{Name: Name, Namespace: Namespace, Label: Label, IpAddress: IPAddress, HostIpAddress: HostIPAddress, Container: Container}
+	// TODO: add container to telemetry pod struct
+	labels := make([]*telemetrymodel.PodLabel, 0)
+	for _, l := range Label {
+		labels = append(labels, &telemetrymodel.PodLabel{Key: l.Key, Value: l.Value})
+	}
+	newPod := telemetrymodel.Pod{Name: Name, Namespace: Namespace, Label: labels, IPAddress: IPAddress, HostIPAddress: HostIPAddress}
 	_, ok := ctc.Cache.podMap[Name]
 	if ok {
 		return errors.Errorf("Duplicate pod with name %+v found", Name)
@@ -161,7 +173,7 @@ func (ctc *ContivTelemetryCache) AddPod(Name, Namespace string, Label []*pod2.Po
 	node, ok := ctc.Cache.hostIPMap[HostIPAddress]
 	if ok {
 		fmt.Println("Line 155: ", node)
-		node.podMap[Name] = &newPod
+		node.PodMap[Name] = &newPod
 	}
 	return nil
 }
@@ -179,16 +191,16 @@ func (ctc *ContivTelemetryCache) ClearCache() {
 		node.NodeIPArp = nil
 	}
 	// Clear secondary index maps
-	ctc.Cache.gigEIPMap = make(map[string]*Node)
-	ctc.Cache.loopMACMap = make(map[string]*Node)
-	ctc.Cache.loopIPMap = make(map[string]*Node)
+	ctc.Cache.gigEIPMap = make(map[string]*telemetrymodel.Node)
+	ctc.Cache.loopMACMap = make(map[string]*telemetrymodel.Node)
+	ctc.Cache.loopIPMap = make(map[string]*telemetrymodel.Node)
 	ctc.Cache.report = []string{}
 }
 
-func (c *Cache) lookupPod(name string) (*pod2.Pod, error) {
+func (c *Cache) lookupPod(name string) (*telemetrymodel.Pod, error) {
 	pod, ok := c.podMap[name]
 	if !ok {
-		return &pod2.Pod{}, errors.Errorf("Pod with name %+v not found", name)
+		return nil, errors.Errorf("Pod with name %+v not found", name)
 	}
 	return pod, nil
 }
@@ -205,25 +217,25 @@ func (c *Cache) lookupK8sNode(name string) (*node.Node, error) {
 // data including  the discovered nodes.
 func (ctc *ContivTelemetryCache) ReinitializeCache() {
 	ctc.ClearCache()
-	ctc.Cache.nMap = make(map[string]*Node)
+	ctc.Cache.nMap = make(map[string]*telemetrymodel.Node)
 }
 
 //NewCache returns a pointer to a new node cache
 func NewCache(logger logging.Logger) (n *Cache) {
 	return &Cache{
-		make(map[string]*Node),
-		make(map[string]*Node),
-		make(map[string]*Node),
-		make(map[string]*Node),
+		make(map[string]*telemetrymodel.Node),
+		make(map[string]*telemetrymodel.Node),
+		make(map[string]*telemetrymodel.Node),
+		make(map[string]*telemetrymodel.Node),
 		make(map[string]*node.Node),
-		make(map[string]*Node),
-		make(map[string]*pod2.Pod),
+		make(map[string]*telemetrymodel.Node),
+		make(map[string]*telemetrymodel.Pod),
 		make([]string, 0),
 		logger}
 }
 
 //SetNodeLiveness is a simple function to set a nodes liveness given its name.
-func (c *Cache) SetNodeLiveness(name string, nLive *NodeLiveness) error {
+func (c *Cache) SetNodeLiveness(name string, nLive *telemetrymodel.NodeLiveness) error {
 	node, err := c.GetNode(name)
 	if err != nil {
 		return err
@@ -234,7 +246,7 @@ func (c *Cache) SetNodeLiveness(name string, nLive *NodeLiveness) error {
 }
 
 //SetNodeInterfaces is a simple function to set a nodes interface given its name.
-func (c *Cache) SetNodeInterfaces(name string, nInt map[int]NodeInterface) error {
+func (c *Cache) SetNodeInterfaces(name string, nInt map[int]telemetrymodel.NodeInterface) error {
 	node, err := c.GetNode(name)
 	if err != nil {
 		return err
@@ -246,7 +258,7 @@ func (c *Cache) SetNodeInterfaces(name string, nInt map[int]NodeInterface) error
 }
 
 //SetNodeBridgeDomain is a simple function to set a nodes bridge domain given its name.
-func (c *Cache) SetNodeBridgeDomain(name string, nBridge map[int]NodeBridgeDomain) error {
+func (c *Cache) SetNodeBridgeDomain(name string, nBridge map[int]telemetrymodel.NodeBridgeDomain) error {
 	node, err := c.GetNode(name)
 	if err != nil {
 		return err
@@ -257,7 +269,7 @@ func (c *Cache) SetNodeBridgeDomain(name string, nBridge map[int]NodeBridgeDomai
 }
 
 //SetNodeL2Fibs is a simple function to set a nodes l2 fibs given its name.
-func (c *Cache) SetNodeL2Fibs(name string, nL2F map[string]NodeL2FibEntry) error {
+func (c *Cache) SetNodeL2Fibs(name string, nL2F map[string]telemetrymodel.NodeL2FibEntry) error {
 	node, err := c.GetNode(name)
 	if err != nil {
 		return err
@@ -268,7 +280,7 @@ func (c *Cache) SetNodeL2Fibs(name string, nL2F map[string]NodeL2FibEntry) error
 }
 
 //SetNodeTelemetry is a simple function to set a nodes telemetry data given its name.
-func (c *Cache) SetNodeTelemetry(name string, nTele map[string]NodeTelemetry) error {
+func (c *Cache) SetNodeTelemetry(name string, nTele map[string]telemetrymodel.NodeTelemetry) error {
 	node, err := c.GetNode(name)
 	if err != nil {
 		return err
@@ -278,7 +290,7 @@ func (c *Cache) SetNodeTelemetry(name string, nTele map[string]NodeTelemetry) er
 }
 
 //SetNodeIPARPs is a simple function to set a nodes ip arp table given its name.
-func (c *Cache) SetNodeIPARPs(name string, nArps []NodeIPArpEntry) error {
+func (c *Cache) SetNodeIPARPs(name string, nArps []telemetrymodel.NodeIPArpEntry) error {
 	node, err := c.GetNode(name)
 	if err != nil {
 		return err
@@ -291,7 +303,7 @@ func (c *Cache) SetNodeIPARPs(name string, nArps []NodeIPArpEntry) error {
 
 //GetNode returns a pointer to a node for the given key.
 //Returns an error if that key is not found.
-func (c *Cache) GetNode(key string) (n *Node, err error) {
+func (c *Cache) GetNode(key string) (n *telemetrymodel.Node, err error) {
 	if node, ok := c.nMap[key]; ok {
 		return node, nil
 	}
@@ -320,12 +332,12 @@ func (c *Cache) deleteNode(key string) error {
 }
 
 //GetAllNodes returns an ordered slice of all nodes in a database organized by name.
-func (c *Cache) GetAllNodes() []*Node {
+func (c *Cache) GetAllNodes() []*telemetrymodel.Node {
 	var str []string
 	for k := range c.nMap {
 		str = append(str, k)
 	}
-	var nList []*Node
+	var nList []*telemetrymodel.Node
 	sort.Strings(str)
 	for _, v := range str {
 		n, _ := c.GetNode(v)
@@ -336,34 +348,33 @@ func (c *Cache) GetAllNodes() []*Node {
 
 //PopulateNodeMaps populates two of the node maps: the ip and mac address map
 //It also checks to make sure that there are no duplicate addresses within the map.
-func (c *Cache) PopulateNodeMaps(node *Node) {
+func (c *Cache) PopulateNodeMaps(node *telemetrymodel.Node) {
 	loopIF, err := c.getNodeLoopIFInfo(node)
 	if err != nil {
 		c.logger.Error(err)
 	}
 	for i := range loopIF.IPAddresses {
 		if loopIF.IPAddresses[i] == "" {
-			c.nMap[node.Name].report = append(c.nMap[node.Name].report,
-				"Detected an empty IP address for node %+v", node.Name)
+			c.logErrAndAppendToNodeReport(node.Name,
+				fmt.Sprintf("Detected an empty IP address for node %+v", node.Name))
 		} else {
 
 			if ip, ok := c.loopIPMap[loopIF.IPAddresses[i]]; ok {
-				c.logger.Errorf("Duplicate IP found: %s", ip)
-				c.nMap[node.Name].report = append(c.nMap[node.Name].report, errors.Errorf(
-					"Duplicate IP found: %s", ip).Error())
+				//TODO: Report an error back to the controller; store it somewhere, report it at the end of the function
+				errString := fmt.Sprintf("Duplicate IP found: %+v", ip)
+				c.logErrAndAppendToNodeReport(node.Name, errString)
 			} else {
 				c.loopIPMap[loopIF.IPAddresses[i]] = node
 			}
 		}
 	}
 	if loopIF.PhysAddress == "" {
-		c.nMap[node.Name].report = append(c.nMap[node.Name].report,
-			"Detected empty MAC address for node %+v", node.Name)
+		c.logErrAndAppendToNodeReport(node.Name,
+			fmt.Sprintf("Detected empty MAC address for node %+v", node.Name))
 	} else {
 		if _, ok := c.loopMACMap[loopIF.PhysAddress]; ok {
-			c.logger.Errorf("Duplicate MAC address found: %s", loopIF.PhysAddress)
-			c.nMap[node.Name].report = append(c.nMap[node.Name].report, errors.Errorf(
-				"Duplicate MAC address found: %s", loopIF.PhysAddress).Error())
+			errString := fmt.Sprintf("Duplicate MAC address found: %s", loopIF.PhysAddress)
+			c.logErrAndAppendToNodeReport(node.Name, errString)
 		} else {
 			c.loopMACMap[loopIF.PhysAddress] = node
 		}
@@ -371,8 +382,9 @@ func (c *Cache) PopulateNodeMaps(node *Node) {
 		k8snode, ok := c.k8sNodeMap[node.Name]
 		nodeHostIP := ""
 		if !ok {
-			node.report = append(node.report, errors.Errorf("Could not find k8s node counterpart for node %+v",
-				node.Name).Error())
+			errString := fmt.Sprintf("Could not find k8s node counterpart for node %+v",
+				node.Name)
+			c.logErrAndAppendToNodeReport(node.Name, errString)
 		} else {
 			for _, adr := range k8snode.Addresses {
 				if adr.Type == 3 {
@@ -382,8 +394,8 @@ func (c *Cache) PopulateNodeMaps(node *Node) {
 			}
 		}
 		for _, pod := range c.podMap {
-			if pod.HostIpAddress == nodeHostIP {
-				node.podMap[pod.Name] = pod
+			if pod.HostIPAddress == nodeHostIP {
+				node.PodMap[pod.Name] = pod
 			}
 		}
 	}
@@ -391,15 +403,15 @@ func (c *Cache) PopulateNodeMaps(node *Node) {
 }
 
 //Small helper function that returns the loop interface of a node
-func (c *Cache) getNodeLoopIFInfo(node *Node) (NodeInterface, error) {
+func (c *Cache) getNodeLoopIFInfo(node *telemetrymodel.Node) (telemetrymodel.NodeInterface, error) {
 	for _, ifs := range node.NodeInterfaces {
 		if ifs.VppInternalName == "loop0" {
 			return ifs, nil
 		}
 	}
 	err := errors.Errorf("Node %s does not have a loop interface", node.Name)
-	c.nMap[node.Name].report = append(c.nMap[node.Name].report, err.Error())
-	return NodeInterface{}, err
+	c.logErrAndAppendToNodeReport(node.Name, err.Error())
+	return telemetrymodel.NodeInterface{}, err
 }
 
 /*ValidateLoopIFAddresses validates the the entries of node ARP tables to make sure that
@@ -414,12 +426,10 @@ func (c *Cache) ValidateLoopIFAddresses() {
 	for _, node := range nodelist {
 		nLoopIF, err := c.getNodeLoopIFInfo(node)
 		if err != nil {
-			c.logger.Error(err)
-			c.logger.Errorf("Cannot process node ARP Table because loop interface info is missing.")
-			c.nMap[node.Name].report = append(c.nMap[node.Name].report, err.Error())
-			c.nMap[node.Name].report = append(c.nMap[node.Name].report, errors.Errorf(
-				"Cannot process node ARP Table because loop interface info is missing.").Error())
+			c.logErrAndAppendToNodeReport(node.Name, err.Error())
 
+			errString := fmt.Sprintf("Cannot process node ARP Table because loop interface info is missing.")
+			c.logErrAndAppendToNodeReport(node.Name, errString)
 		}
 		for _, arp := range node.NodeIPArp {
 			if node.NodeInterfaces[int(arp.Interface)].VppInternalName != "loop0" {
@@ -428,9 +438,8 @@ func (c *Cache) ValidateLoopIFAddresses() {
 
 			nLoopIFTwo, ok := node.NodeInterfaces[int(arp.Interface)]
 			if !ok {
-				c.logger.Errorf("Loop Interface for ARP Table entry  %d not found", arp.Interface)
-				c.nMap[node.Name].report = append(c.nMap[node.Name].report, errors.Errorf(
-					"Loop Interface in ARP Table not found: %d", arp.Interface).Error())
+				errString := fmt.Sprintf("Loop Interface for ARP Table entry  %d not found", arp.Interface)
+				c.logErrAndAppendToNodeReport(node.Name, errString)
 				continue
 			}
 			if nLoopIF.VppInternalName != nLoopIFTwo.VppInternalName {
@@ -439,30 +448,24 @@ func (c *Cache) ValidateLoopIFAddresses() {
 			macNode, ok := c.loopMACMap[arp.MacAddress]
 			addressNotFound := false
 			if !ok {
-				c.logger.Errorf("Node %s cound not find node with MAC Address %s", node.Name, arp.MacAddress)
-				c.nMap[node.Name].report = append(c.nMap[node.Name].report, errors.Errorf(
-					"Node for MAC Address %s not found", arp.MacAddress).Error())
+				errString := fmt.Sprintf("Node %s cound not find node with MAC Address %s", node.Name, arp.MacAddress)
+				c.logErrAndAppendToNodeReport(node.Name, errString)
 				addressNotFound = true
 			}
 			ipNode, ok := c.loopIPMap[arp.IPAddress+"/24"]
 
 			if !ok {
-				c.logger.Errorf("Node %s could not find Node with IP Address %s", node.Name, arp.IPAddress)
-				c.nMap[node.Name].report = append(c.nMap[node.Name].report, errors.Errorf(
-					"Node %s could not find Node with IP Address %s",
-					node.Name,
-					arp.IPAddress).Error())
+				errString := fmt.Sprintf("Node %s could not find Node with IP Address %s", node.Name, arp.IPAddress)
+				c.logErrAndAppendToNodeReport(node.Name, errString)
 				addressNotFound = true
 			}
 			if addressNotFound {
 				continue
 			}
 			if macNode.Name != ipNode.Name {
-				c.logger.Errorf("MAC and IP point to different nodes: %s and %s in ARP Table %+v",
+				errString := fmt.Sprintf("MAC and IP point to different nodes: %s and %s in ARP Table %+v",
 					macNode.Name, ipNode.Name, arp)
-				c.nMap[node.Name].report = append(c.nMap[node.Name].report, errors.Errorf(
-					"MAC and IP point to different nodes: %s and %s in ARP Table %+v",
-					macNode.Name, ipNode.Name, arp).Error())
+				c.logErrAndAppendToNodeReport(node.Name, errString)
 
 			}
 			delete(nodemap, node.Name)
@@ -497,7 +500,7 @@ func (c *Cache) ValidateL2Connections() {
 		}
 		bdhasLoopIF := false
 		hasVXLanBD := false
-		var vxLanBD NodeBridgeDomain
+		var vxLanBD telemetrymodel.NodeBridgeDomain
 		//Make sure there is a bridge domain with the name vxlanBD
 		vxlanBDCount := 0
 		for _, bdomain := range node.NodeBridgeDomains {
@@ -508,14 +511,14 @@ func (c *Cache) ValidateL2Connections() {
 			}
 		}
 		if vxlanBDCount > 1 {
-			c.nMap[node.Name].report = append(c.nMap[node.Name].report, errors.Errorf(
-				"Node %+v has multiple vxlanBD bridge domains", node.Name).Error())
+			errString := fmt.Sprintf("Node %+v has multiple vxlanBD bridge domains", node.Name)
+			c.logErrAndAppendToNodeReport(node.Name, errString)
 			continue
 		}
 		//if there is not then report an error and move on.
 		if !hasVXLanBD {
-			c.nMap[node.Name].report = append(c.nMap[node.Name].report, errors.Errorf(
-				"Node %+v does not have a vxlan BD", node.Name).Error())
+			errString := fmt.Sprintf("Node %+v does not have a vxlan BD", node.Name)
+			c.logErrAndAppendToNodeReport(node.Name, errString)
 			continue
 		}
 		//Create a list with each of the indices of the xvlanBD.
@@ -531,8 +534,9 @@ func (c *Cache) ValidateL2Connections() {
 			//if it does, increment a counter and set a boolean to true
 			intfidxInterface, ok := node.NodeInterfaces[int(intfidx)]
 			if !ok {
-				c.nMap[node.Name].report = append(c.nMap[node.Name].report, errors.Errorf(
-					"BD index %+v for node %+v does not point to a valid interface.", intfidx, node.Name).Error())
+				errString := fmt.Sprintf("BD index %+v for node %+v does not point to a valid interface.",
+					intfidx, node.Name)
+				c.logErrAndAppendToNodeReport(node.Name, errString)
 				continue
 
 			}
@@ -546,9 +550,9 @@ func (c *Cache) ValidateL2Connections() {
 			//check if one of the indices points to a vxlan_tunnel interface
 			if intfidxInterface.IfType == interfaces.InterfaceType_VXLAN_TUNNEL {
 				if node.NodeInterfaces[int(intfidx)].Vxlan.Vni != vppVNI {
-					c.nMap[node.Name].report = append(c.nMap[node.Name].report, errors.Errorf(
-						"unexpected VNI for node %+v: got %+v expected %+v", node.Name,
-						node.NodeInterfaces[int(intfidx)].Vxlan.Vni, vppVNI).Error())
+					errString := fmt.Sprintf("unexpected VNI for node %+v: got %+v expected %+v",
+						node.Name, node.NodeInterfaces[int(intfidx)].Vxlan.Vni, vppVNI)
+					c.logErrAndAppendToNodeReport(node.Name, errString)
 					continue
 
 				}
@@ -557,16 +561,15 @@ func (c *Cache) ValidateL2Connections() {
 
 				//try to find node with src ip address of the tunnel and make sure it is the same as the current node.
 				if !ok {
-					c.nMap[node.Name].report = append(c.nMap[node.Name].report, errors.Errorf(
-						"Error finding node with src IP %+v",
-						vxlantun.Vxlan.SrcAddress).Error())
+					errString := fmt.Sprintf("Error finding node with src IP %+v",
+						vxlantun.Vxlan.SrcAddress)
+					c.logErrAndAppendToNodeReport(node.Name, errString)
 					continue
 				}
 				if srcipNode.Name != node.Name {
-					c.nMap[node.Name].report = append(c.nMap[node.Name].report, errors.Errorf(
-						"vxlan_tunnel %+v has source ip %v which points "+
-							"to node %+v rather than %+v.", vxlantun.Vxlan, vxlantun.Vxlan.SrcAddress, srcipNode.Name,
-						node.Name).Error())
+					errString := fmt.Sprintf("vxlan_tunnel %+v has source ip %v which points "+
+						"to a different node than %+v.", vxlantun, vxlantun.Vxlan.SrcAddress, node.Name)
+					c.logErrAndAppendToNodeReport(node.Name, errString)
 					continue
 				}
 
@@ -574,9 +577,9 @@ func (c *Cache) ValidateL2Connections() {
 				//of the current vxlan_tunnel and increment the counter if it does.
 				dstipNode, ok := c.gigEIPMap[vxlantun.Vxlan.DstAddress+subnetmask]
 				if !ok {
-					c.nMap[node.Name].report = append(c.nMap[node.Name].report, errors.Errorf(
-						"Node with dst ip %+v in vxlan_tunnel %+v not found",
-						vxlantun.Vxlan.DstAddress, vxlantun).Error())
+					errString := fmt.Sprintf("Node with dst ip %+v in vxlan_tunnel %+v not found",
+						vxlantun.Vxlan.DstAddress, vxlantun)
+					c.logErrAndAppendToNodeReport(node.Name, errString)
 					continue
 				}
 				matchingTunnelFound := false
@@ -588,9 +591,9 @@ func (c *Cache) ValidateL2Connections() {
 					}
 				}
 				if !matchingTunnelFound {
-					c.nMap[node.Name].report = append(c.nMap[node.Name].report, errors.Errorf(
-						"no matching vxlan_tunnel found for vxlan %+v",
-						vxlantun).Error())
+					errString := fmt.Sprintf("no matching vxlan_tunnel found for vxlan %+v",
+						vxlantun)
+					c.logErrAndAppendToNodeReport(node.Name, errString)
 					continue
 				}
 				i++
@@ -601,22 +604,22 @@ func (c *Cache) ValidateL2Connections() {
 		}
 		//checks if there are an unequal amount vxlan tunnels for the current node versus the total number of nodes
 		if i != len(nodelist) {
-			c.nMap[node.Name].report = append(c.nMap[node.Name].report, errors.Errorf(
-				"number of valid vxlan tunnels for node %+v does "+
-					"not match number of nodes on network: got %+v, expected %+v", node.Name, i, len(nodelist)).Error())
+			errString := fmt.Sprintf("number of valid vxlan tunnels for node %+v does "+
+				"not match number of nodes on network: got %+v, expected %+v", node.Name, i, len(nodelist))
+			c.logErrAndAppendToNodeReport(node.Name, errString)
 		}
 
 		if !bdhasLoopIF {
-			c.nMap[node.Name].report = append(c.nMap[node.Name].report, errors.Errorf(
-				"bridge domain %+v has no loop interface",
-				node.NodeBridgeDomains).Error())
+			errString := fmt.Sprintf("bridge domain %+v has no loop interface",
+				node.NodeBridgeDomains)
+			c.logErrAndAppendToNodeReport(node.Name, errString)
 			continue
 		}
 		if len(nodevxlanmap) > 0 {
-			c.nMap[node.Name].report = append(c.nMap[node.Name].report, errors.Errorf(
-				"Missing valid vxlan entries for node %+v:", node.Name).Error())
+			errString := fmt.Sprintf("Missing valid vxlan entries for node %+v:", node.Name)
+			c.logErrAndAppendToNodeReport(node.Name, errString)
 			for node := range nodevxlanmap {
-				c.nMap[node].report = append(c.nMap[node].report, node)
+				c.logErrAndAppendToNodeReport(node, node)
 			}
 			continue
 		}
@@ -652,12 +655,14 @@ func (c *Cache) ValidateFibEntries() {
 		}
 		fibhasLoopIF := false
 		if len(node.NodeL2Fibs) != len(nodelist) {
-			c.nMap[node.Name].report = c.nMap[node.Name].report //error not right amount of entries
+			errString := fmt.Sprintf("Incorrect number of L2 fib entries: %d for node %+v: expecting %d",
+				len(node.NodeL2Fibs), node.Name, len(nodelist))
+			c.logErrAndAppendToNodeReport(node.Name, errString)
 			continue
 		}
 		loopIf, err := c.getNodeLoopIFInfo(node)
 		if err != nil {
-			c.nMap[node.Name].report = append(c.nMap[node.Name].report, err.Error())
+			c.logErrAndAppendToNodeReport(node.Name, err.Error())
 			continue
 		}
 
@@ -682,14 +687,13 @@ func (c *Cache) ValidateFibEntries() {
 			intf := node.NodeInterfaces[int(fib.OutgoingInterfaceSwIfIdx)]
 			macnode, ok := c.gigEIPMap[intf.Vxlan.DstAddress+subnetmask]
 			if !ok {
-				c.nMap[node.Name].report = append(c.nMap[node.Name].report, errors.Errorf(
-					"GigE IP address %s does not exist in gigEIPMap", intf.Vxlan.DstAddress).Error())
+				errString := fmt.Sprintf("GigE IP address %s does not exist in gigEIPMap", intf.Vxlan.DstAddress)
+				c.logErrAndAppendToNodeReport(node.Name, errString)
 				continue
 			}
 			remoteloopif, err := c.getNodeLoopIFInfo(macnode)
 			if err != nil {
-				// err no loop interface for the node
-				c.nMap[node.Name].report = append(c.nMap[node.Name].report, err.Error())
+				c.logErrAndAppendToNodeReport(node.Name, err.Error())
 				continue
 			}
 			if remoteloopif.PhysAddress == fib.PhysAddress {
@@ -697,38 +701,38 @@ func (c *Cache) ValidateFibEntries() {
 				fibcount++
 				continue
 			} else {
-				c.nMap[node.Name].report = append(c.nMap[node.Name].report, errors.Errorf(
-					"Fib MAC %+v is different than actual MAC "+
-						"%+v", fib.PhysAddress, remoteloopif.PhysAddress).Error())
+				errString := fmt.Sprintf("Fib MAC %+v is different than actual MAC "+
+					"%+v", fib.PhysAddress, remoteloopif.PhysAddress)
+				c.logErrAndAppendToNodeReport(node.Name, errString)
 			}
 			if len(nodefibmap) > 0 {
-				c.nMap[node.Name].report = append(c.nMap[node.Name].report, errors.Errorf(
-					"Missing Fib entries for node %+v", node.Name).Error())
+				errString := fmt.Sprintf("Missing Fib entries for node %+v", node.Name)
+				c.logErrAndAppendToNodeReport(node.Name, errString)
 				for node := range nodefibmap {
-					c.nMap[node].report = append(c.nMap[node].report, node)
+					c.logErrAndAppendToNodeReport(node, node)
 				}
 			}
 		}
 
 		if !fibhasLoopIF {
-			c.nMap[node.Name].report = append(c.nMap[node.Name].report, errors.Errorf(
-				"Fib for node %+v loop interface missing",
-				node.Name).Error()) //error fib for loop if missing
+			errString := fmt.Sprintf("Fib for node %+v loop interface missing",
+				node.Name)
+			c.logErrAndAppendToNodeReport(node.Name, errString)
 			continue
 		}
 
 		if fibcount != len(nodelist) {
-			c.nMap[node.Name].report = append(c.nMap[node.Name].report, errors.Errorf(
-				"Unequal amount of fib entries for node %+v",
-				node.Name).Error())
+			errString := fmt.Sprintf("Unequal amount of fib entries for node %+v",
+				node.Name)
+			c.logErrAndAppendToNodeReport(node.Name, errString)
 		}
 		delete(nodemap, node.Name)
 	}
 
 	if len(nodemap) > 0 {
 		for node := range nodemap {
-			c.nMap[node].report = append(c.nMap[node].report, errors.Errorf(
-				"Error processing fib for node %+v", node).Error())
+			errString := fmt.Sprintf("Error processing fib for node %+v", node)
+			c.logErrAndAppendToNodeReport(node, errString)
 		}
 
 	} else {
@@ -752,8 +756,9 @@ func (c *Cache) ValidateK8sNodeInfo() {
 	for _, node := range nodeList {
 		k8sNode, ok := c.k8sNodeMap[node.Name]
 		if !ok {
-			node.report = append(node.report, errors.Errorf("node with name %+v missing in k8s node map",
-				node.Name).Error())
+			errString := fmt.Sprintf("node with name %+v missing in k8s node map",
+				node.Name)
+			c.logErrAndAppendToNodeReport(node.Name, errString)
 			continue
 		}
 		if node.Name == k8sNode.Name {
@@ -788,45 +793,49 @@ func (c *Cache) ValidatePodInfo() {
 		podMap[key] = true
 	}
 	for _, pod := range c.podMap {
-		node, ok := c.hostIPMap[pod.HostIpAddress]
+		node, ok := c.hostIPMap[pod.HostIPAddress]
 		if !ok {
 			c.report = append(c.report, errors.Errorf("Error finding node for host ip %+v from pod %+v",
-				pod.HostIpAddress, pod.Name).Error())
+				pod.HostIPAddress, pod.Name).Error())
 			continue
 		}
-		podPtr, ok := node.podMap[pod.Name]
+		podPtr, ok := node.PodMap[pod.Name]
 		if !ok {
 			c.report = append(c.report, errors.Errorf("pod %+v in node %+v podMap not found",
 				pod.Name, node.Name).Error())
 			continue
 		}
 		if pod != podPtr {
-			node.report = append(node.report, errors.Errorf("node podmap pod %+v is not the same as cache podmap pod %+v",
-				podPtr.Name, pod.Name).Error())
+			errString := fmt.Sprintf("node podmap pod %+v is not the same as cache podmap pod %+v",
+				podPtr.Name, pod.Name)
+			c.logErrAndAppendToNodeReport(node.Name, errString)
 			continue
 		}
 		k8snode, ok := c.k8sNodeMap[node.Name]
 
 		if !ok {
-			node.report = append(node.report, errors.Errorf("cannot find k8snode in k8sNodeMap for node with name %+v",
-				node.Name).Error())
+			errString := fmt.Sprintf("cannot find k8snode in k8sNodeMap for node with name %+v",
+				node.Name)
+			c.logErrAndAppendToNodeReport(node.Name, errString)
 			continue
 		}
 
 		i := 0
 		for _, adr := range k8snode.Addresses {
 			if adr.Type == 3 {
-				if adr.Address != pod.HostIpAddress {
-					node.report = append(node.report, errors.Errorf("pod host ip %+v does not match with k8snode ip %+v",
-						pod.HostIpAddress, adr.Address).Error())
+				if adr.Address != pod.HostIPAddress {
+					errString := fmt.Sprintf("pod host ip %+v does not match with k8snode ip %+v",
+						pod.HostIPAddress, adr.Address)
+					c.logErrAndAppendToNodeReport(node.Name, errString)
 					continue
 				}
 				i++
 			}
 			if adr.Type == 1 {
 				if adr.Address != node.Name {
-					node.report = append(node.report, errors.Errorf("pod host name %+v does not match node name %+v",
-						adr.Address, node.Name).Error())
+					errString := fmt.Sprintf("pod host name %+v does not match node name %+v",
+						adr.Address, node.Name)
+					c.logErrAndAppendToNodeReport(node.Name, errString)
 					continue
 				}
 				i++

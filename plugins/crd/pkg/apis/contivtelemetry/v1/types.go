@@ -15,6 +15,7 @@
 package v1
 
 import (
+	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -27,26 +28,13 @@ type ContivTelemetry struct {
 	// ObjectMeta contains the metadata for the particular object
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 	// Spec is the custom resource spec
-	Spec ContivTelemetrySpec `json:"spec"`
+	Spec   ContivTelemetrySpec   `json:"spec,omitempty"`
+	Status ContivTelemetryStatus `json:"status,omitempty"`
 }
 
 // ContivTelemetrySpec is the spec for the contiv telemetry resource
 type ContivTelemetrySpec struct {
-	// Message and SomeValue are example custom spec fields
-	Node  []ContivNode `json:"node"`
-	Agent []ContivNode `json:"component"`
-}
-
-// ContivNode is the spec for the contiv telemetry resource
-type ContivNode struct {
-	Name  string `json:"name"`
-	Value string `json:"value"`
-}
-
-// ContivAgent is the spec for the contiv telemetry resource
-type ContivAgent struct {
-	Name  string `json:"name"`
-	Value string `json:"value"`
+	ReportPollingPeriodSeconds uint32 `json:"report_polling_period_seconds"`
 }
 
 // ContivTelemetryList is a list of ContivTelemetry resource
@@ -56,4 +44,9 @@ type ContivTelemetryList struct {
 	metav1.ListMeta `json:"metadata"`
 
 	Items []ContivTelemetry `json:"items"`
+}
+
+// ContivTelemetryStatus is the state for the contiv telemetry resource
+type ContivTelemetryStatus struct {
+	Nodes []telemetrymodel.Node `json:"nodes"`
 }

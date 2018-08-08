@@ -1,6 +1,7 @@
 package cache
 
 import (
+	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
 	nodemodel "github.com/contiv/vpp/plugins/ksr/model/node"
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/logging/logrus"
@@ -24,11 +25,11 @@ type nodeData struct {
 	IPAdr    string
 	ManIPAdr string
 
-	liveness   *NodeLiveness
-	interfaces nodeInterfaces
-	bds        nodeBridgeDomains
-	l2FibTable nodeL2FibTable
-	arpTable   nodeIPArpTable
+	liveness   *telemetrymodel.NodeLiveness
+	interfaces telemetrymodel.NodeInterfaces
+	bds        telemetrymodel.NodeBridgeDomains
+	l2FibTable telemetrymodel.NodeL2FibTable
+	arpTable   telemetrymodel.NodeIPArpTable
 }
 
 var vtv validatorTestVars
@@ -140,7 +141,7 @@ func (v *validatorTestVars) createNodeInfoTestData() {
 		IPAdr:    "192.168.16.3/24",
 		ManIPAdr: "10.20.0.2",
 
-		liveness: &NodeLiveness{
+		liveness: &telemetrymodel.NodeLiveness{
 			BuildVersion: "v1.2-alpha-179-g4e2d712",
 			BuildDate:    "2018-07-19T09:54+00:00",
 			State:        1,
@@ -149,7 +150,7 @@ func (v *validatorTestVars) createNodeInfoTestData() {
 			LastUpdate:   1532997235,
 			CommitHash:   "v1.2-alpha-179-g4e2d712",
 		},
-		interfaces: nodeInterfaces{
+		interfaces: telemetrymodel.NodeInterfaces{
 			0: {
 				VppInternalName: "local0",
 				Name:            "local0",
@@ -171,7 +172,7 @@ func (v *validatorTestVars) createNodeInfoTestData() {
 				PhysAddress:     "01:23:45:67:89:42",
 				Mtu:             1500,
 				IPAddresses:     []string{"172.30.3.1/24"},
-				Tap:             tap{Version: 2},
+				Tap:             telemetrymodel.Tap{Version: 2},
 			},
 			3: {
 				VppInternalName: "tap1",
@@ -181,7 +182,7 @@ func (v *validatorTestVars) createNodeInfoTestData() {
 				PhysAddress:     "02:fe:fc:07:21:82",
 				Mtu:             1500,
 				IPAddresses:     []string{"10.2.1.7/32"},
-				Tap:             tap{Version: 2},
+				Tap:             telemetrymodel.Tap{Version: 2},
 			},
 			4: {
 				VppInternalName: "loop0",
@@ -196,7 +197,7 @@ func (v *validatorTestVars) createNodeInfoTestData() {
 				Name:            "vxlan1",
 				IfType:          5,
 				Enabled:         true,
-				Vxlan: vxlan{
+				Vxlan: telemetrymodel.Vxlan{
 					SrcAddress: "192.168.16.3",
 					DstAddress: "192.168.16.1",
 					Vni:        10,
@@ -207,25 +208,25 @@ func (v *validatorTestVars) createNodeInfoTestData() {
 				Name:            "vxlan2",
 				IfType:          5,
 				Enabled:         true,
-				Vxlan: vxlan{
+				Vxlan: telemetrymodel.Vxlan{
 					SrcAddress: "192.168.16.3",
 					DstAddress: "192.168.16.2",
 					Vni:        10,
 				},
 			},
 		},
-		bds: map[int]NodeBridgeDomain{
+		bds: map[int]telemetrymodel.NodeBridgeDomain{
 			1: {
 				Name:    "vxlanBD",
 				Forward: true,
-				Interfaces: []bdinterfaces{
+				Interfaces: []telemetrymodel.BDinterfaces{
 					{SwIfIndex: 4},
 					{SwIfIndex: 5},
 					{SwIfIndex: 6},
 				},
 			},
 		},
-		l2FibTable: nodeL2FibTable{
+		l2FibTable: telemetrymodel.NodeL2FibTable{
 			"1a:2b:3c:4d:5e:01": {
 				BridgeDomainIdx:          2,
 				OutgoingInterfaceSwIfIdx: 5,
@@ -246,7 +247,7 @@ func (v *validatorTestVars) createNodeInfoTestData() {
 				BridgedVirtualInterface:  true,
 			},
 		},
-		arpTable: nodeIPArpTable{
+		arpTable: telemetrymodel.NodeIPArpTable{
 			{
 				Interface:  4,
 				IPAddress:  "192.168.30.1",
@@ -282,7 +283,7 @@ func (v *validatorTestVars) createNodeInfoTestData() {
 		IPAdr:    "192.168.16.2/24",
 		ManIPAdr: "10.20.0.10",
 
-		liveness: &NodeLiveness{
+		liveness: &telemetrymodel.NodeLiveness{
 			BuildVersion: "v1.2-alpha-179-g4e2d712",
 			BuildDate:    "2018-07-19T09:54+00:00",
 			State:        1,
@@ -291,7 +292,7 @@ func (v *validatorTestVars) createNodeInfoTestData() {
 			LastUpdate:   1533335002,
 			CommitHash:   "v1.2-alpha-179-g4e2d712",
 		},
-		interfaces: nodeInterfaces{
+		interfaces: telemetrymodel.NodeInterfaces{
 			0: {
 				VppInternalName: "local0",
 			},
@@ -312,7 +313,7 @@ func (v *validatorTestVars) createNodeInfoTestData() {
 				PhysAddress:     "01:23:45:67:89:42",
 				Mtu:             1500,
 				IPAddresses:     []string{"172.30.1.1/24"},
-				Tap:             tap{Version: 2},
+				Tap:             telemetrymodel.Tap{Version: 2},
 			},
 			3: {
 				VppInternalName: "loop0",
@@ -327,7 +328,7 @@ func (v *validatorTestVars) createNodeInfoTestData() {
 				Name:            "vxlan1",
 				IfType:          5,
 				Enabled:         true,
-				Vxlan: vxlan{
+				Vxlan: telemetrymodel.Vxlan{
 					SrcAddress: "192.168.16.2",
 					DstAddress: "192.168.16.1",
 					Vni:        10,
@@ -338,25 +339,25 @@ func (v *validatorTestVars) createNodeInfoTestData() {
 				Name:            "vxlan3",
 				IfType:          5,
 				Enabled:         true,
-				Vxlan: vxlan{
+				Vxlan: telemetrymodel.Vxlan{
 					SrcAddress: "192.168.16.2",
 					DstAddress: "192.168.16.3",
 					Vni:        10,
 				},
 			},
 		},
-		bds: nodeBridgeDomains{
+		bds: telemetrymodel.NodeBridgeDomains{
 			1: {
 				Name:    "vxlanBD",
 				Forward: true,
-				Interfaces: []bdinterfaces{
+				Interfaces: []telemetrymodel.BDinterfaces{
 					{SwIfIndex: 3},
 					{SwIfIndex: 4},
 					{SwIfIndex: 5},
 				},
 			},
 		},
-		l2FibTable: nodeL2FibTable{
+		l2FibTable: telemetrymodel.NodeL2FibTable{
 			"1a:2b:3c:4d:5e:01": {
 				BridgeDomainIdx:          2,
 				OutgoingInterfaceSwIfIdx: 4,
@@ -377,7 +378,7 @@ func (v *validatorTestVars) createNodeInfoTestData() {
 				BridgedVirtualInterface:  true,
 			},
 		},
-		arpTable: nodeIPArpTable{
+		arpTable: telemetrymodel.NodeIPArpTable{
 			{
 				Interface:  3,
 				IPAddress:  "192.168.30.1",
@@ -401,7 +402,7 @@ func (v *validatorTestVars) createNodeInfoTestData() {
 		IPAdr:    "192.168.16.1/24",
 		ManIPAdr: "10.20.0.11",
 
-		liveness: &NodeLiveness{
+		liveness: &telemetrymodel.NodeLiveness{
 			BuildVersion: "v1.2-alpha-179-g4e2d712",
 			BuildDate:    "2018-07-19T09:54+00:00",
 			State:        1,
@@ -410,7 +411,7 @@ func (v *validatorTestVars) createNodeInfoTestData() {
 			LastUpdate:   1533336124,
 			CommitHash:   "v1.2-alpha-179-g4e2d712",
 		},
-		interfaces: nodeInterfaces{
+		interfaces: telemetrymodel.NodeInterfaces{
 			0: {
 				VppInternalName: "local0",
 			},
@@ -431,7 +432,7 @@ func (v *validatorTestVars) createNodeInfoTestData() {
 				PhysAddress:     "01:23:45:67:89:42",
 				Mtu:             1500,
 				IPAddresses:     []string{"172.30.3.1/24"},
-				Tap:             tap{Version: 2},
+				Tap:             telemetrymodel.Tap{Version: 2},
 			},
 			3: {
 				VppInternalName: "loop0",
@@ -446,7 +447,7 @@ func (v *validatorTestVars) createNodeInfoTestData() {
 				Name:            "vxlan2",
 				IfType:          5,
 				Enabled:         true,
-				Vxlan: vxlan{
+				Vxlan: telemetrymodel.Vxlan{
 					SrcAddress: "192.168.16.1",
 					DstAddress: "192.168.16.2",
 					Vni:        10,
@@ -457,25 +458,25 @@ func (v *validatorTestVars) createNodeInfoTestData() {
 				Name:            "vxlan3",
 				IfType:          5,
 				Enabled:         true,
-				Vxlan: vxlan{
+				Vxlan: telemetrymodel.Vxlan{
 					SrcAddress: "192.168.16.1",
 					DstAddress: "192.168.16.3",
 					Vni:        10,
 				},
 			},
 		},
-		bds: nodeBridgeDomains{
+		bds: telemetrymodel.NodeBridgeDomains{
 			1: {
 				Name:    "vxlanBD",
 				Forward: true,
-				Interfaces: []bdinterfaces{
+				Interfaces: []telemetrymodel.BDinterfaces{
 					{SwIfIndex: 3},
 					{SwIfIndex: 4},
 					{SwIfIndex: 5},
 				},
 			},
 		},
-		l2FibTable: nodeL2FibTable{
+		l2FibTable: telemetrymodel.NodeL2FibTable{
 			"1a:2b:3c:4d:5e:01": {
 				BridgeDomainIdx:          1,
 				OutgoingInterfaceSwIfIdx: 3,
@@ -496,7 +497,7 @@ func (v *validatorTestVars) createNodeInfoTestData() {
 				BridgedVirtualInterface:  true,
 			},
 		},
-		arpTable: nodeIPArpTable{
+		arpTable: telemetrymodel.NodeIPArpTable{
 			{
 				Interface:  3,
 				IPAddress:  "192.168.30.2",

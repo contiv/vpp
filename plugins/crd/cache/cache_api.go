@@ -15,6 +15,7 @@
 package cache
 
 import (
+	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
 	"github.com/ligato/cn-infra/datasync"
 )
 
@@ -35,10 +36,10 @@ type NodeTelemetryCacheAPI interface {
 	Resync(resyncEv datasync.ResyncEvent) error
 
 	// LookupNodeInfo returns data of a given node or list of nodes.
-	LookupNode(nodename []string) []*Node
+	LookupNode(nodename []string) []*telemetrymodel.Node
 
 	// LookupNodeInfo returns data of all nodes.
-	ListAllNodes() []*Node
+	ListAllNodes() []*telemetrymodel.Node
 
 	ClearCache()
 
@@ -58,16 +59,15 @@ type NodeTelemetryCacheAPI interface {
 
 //Nodes defines functions to be implemented that that allow the interaction with the Node ContivTelemetryCache.
 type Nodes interface {
-	GetNode(key string) (*Node, error)
+	GetNode(key string) (*telemetrymodel.Node, error)
 	AddNode(ID uint32, nodeName, IPAdr, ManIPAdr string) error
-
-	GetAllNodes() []*Node
-	SetNodeLiveness(name string, nL *NodeLiveness) error
-	SetNodeInterfaces(name string, nInt map[int]NodeInterface) error
-	SetNodeBridgeDomain(name string, nBridge map[int]NodeBridgeDomain) error
-	SetNodeL2Fibs(name string, nL2f map[string]NodeL2FibEntry) error
-	SetNodeTelemetry(name string, nTele map[string]NodeTelemetry) error
-	SetNodeIPARPs(name string, nArps []NodeIPArpEntry) error
-	PopulateNodeMaps(node *Node)
+	GetAllNodes() []*telemetrymodel.Node
+	SetNodeLiveness(name string, nL *telemetrymodel.NodeLiveness) error
+	SetNodeInterfaces(name string, nInt map[int]telemetrymodel.NodeInterface) error
+	SetNodeBridgeDomain(name string, nBridge map[int]telemetrymodel.NodeBridgeDomain) error
+	SetNodeL2Fibs(name string, nL2f map[string]telemetrymodel.NodeL2FibEntry) error
+	SetNodeTelemetry(name string, nTele map[string]telemetrymodel.NodeTelemetry) error
+	SetNodeIPARPs(name string, nArps []telemetrymodel.NodeIPArpEntry) error
+	PopulateNodeMaps(node *telemetrymodel.Node)
 	ValidateLoopIFAddresses()
 }

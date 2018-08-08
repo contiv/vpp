@@ -14,10 +14,12 @@
 
 package cache
 
+import "github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
+
 //Processor defines the API of the Node Processor which gos out and
 //collects important information for the node and updates the cache with it.
 //It also validates that all of the information for the nodes is correct.
 type Processor interface {
-	CollectNodeInfo(node *Node)
+	CollectNodeInfo(node *telemetrymodel.Node)
 	ValidateNodeInfo()
 }

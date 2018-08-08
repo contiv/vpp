@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"fmt"
+	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
 	"github.com/ligato/cn-infra/logging/logrus"
 	"github.com/ligato/vpp-agent/plugins/vpp/model/interfaces"
 	"github.com/onsi/gomega"
@@ -109,8 +110,8 @@ func TestNodesDB_SetNodeInterfaces(t *testing.T) {
 	gomega.Expect(node.ManIPAdr).To(gomega.Equal("10"))
 
 	var ips []string
-	nodeIFs := make(map[int]NodeInterface)
-	nodeIF := NodeInterface{"Test", "Testing", 0, true, "", 0, vxlan{}, ips, tap{}}
+	nodeIFs := make(map[int]telemetrymodel.NodeInterface)
+	nodeIF := telemetrymodel.NodeInterface{"Test", "Testing", 0, true, "", 0, telemetrymodel.Vxlan{}, ips, telemetrymodel.Tap{}}
 	nodeIFs[0] = nodeIF
 
 	err := db.SetNodeInterfaces("NENODE", nodeIFs)
@@ -132,16 +133,16 @@ func TestNodesDB_SetNodeBridgeDomain(t *testing.T) {
 	gomega.Expect(node.ID).To(gomega.Equal(uint32(1)))
 	gomega.Expect(node.ManIPAdr).To(gomega.Equal("10"))
 
-	var ifs []bdinterfaces
-	nodeBD := NodeBridgeDomain{ifs, "", false}
-	nodesBD := make(map[int]NodeBridgeDomain)
+	var ifs []telemetrymodel.BDinterfaces
+	nodeBD := telemetrymodel.NodeBridgeDomain{ifs, "", false}
+	nodesBD := make(map[int]telemetrymodel.NodeBridgeDomain)
 	nodesBD[0] = nodeBD
 
 	err := db.SetNodeBridgeDomain("NENODE", nodesBD)
 	gomega.Expect(err).To(gomega.Not(gomega.BeNil()))
 	err = db.SetNodeBridgeDomain("k8s_master", nodesBD)
 	gomega.Expect(err).To(gomega.BeNil())
-	gomega.Expect(node.NodeBridgeDomains[0]).To(gomega.BeEquivalentTo(NodeBridgeDomain{ifs, "", false}))
+	gomega.Expect(node.NodeBridgeDomains[0]).To(gomega.BeEquivalentTo(telemetrymodel.NodeBridgeDomain{ifs, "", false}))
 
 }
 
@@ -156,8 +157,8 @@ func TestNodesDB_SetNodeIPARPs(t *testing.T) {
 	gomega.Expect(node.ID).To(gomega.Equal(uint32(1)))
 	gomega.Expect(node.ManIPAdr).To(gomega.Equal("10"))
 
-	nodeiparps := make([]NodeIPArpEntry, 0)
-	nodeiparp := NodeIPArpEntry{1, "1.2.3.4", "12:34:56:78", false}
+	nodeiparps := make([]telemetrymodel.NodeIPArpEntry, 0)
+	nodeiparp := telemetrymodel.NodeIPArpEntry{1, "1.2.3.4", "12:34:56:78", false}
 	nodeiparps = append(nodeiparps, nodeiparp)
 
 	err := db.SetNodeIPARPs("NENODE", nodeiparps)
@@ -165,7 +166,7 @@ func TestNodesDB_SetNodeIPARPs(t *testing.T) {
 	err = db.SetNodeIPARPs("k8s_master", nodeiparps)
 	gomega.Expect(err).To(gomega.BeNil())
 
-	gomega.Expect(nodeiparps[0]).To(gomega.BeEquivalentTo(NodeIPArpEntry{1, "1.2.3.4", "12:34:56:78", false}))
+	gomega.Expect(nodeiparps[0]).To(gomega.BeEquivalentTo(telemetrymodel.NodeIPArpEntry{1, "1.2.3.4", "12:34:56:78", false}))
 }
 
 func TestNodesDB_SetNodeLiveness(t *testing.T) {
@@ -179,13 +180,13 @@ func TestNodesDB_SetNodeLiveness(t *testing.T) {
 	gomega.Expect(node.ID).To(gomega.Equal(uint32(1)))
 	gomega.Expect(node.ManIPAdr).To(gomega.Equal("10"))
 
-	nlive := NodeLiveness{"54321", "12345", 0, 0, 0, 0, ""}
+	nlive := telemetrymodel.NodeLiveness{"54321", "12345", 0, 0, 0, 0, ""}
 	err := db.SetNodeLiveness("NENODE", &nlive)
 	gomega.Expect(err).To(gomega.Not(gomega.BeNil()))
 	err = db.SetNodeLiveness("k8s_master", &nlive)
 	gomega.Expect(err).To(gomega.BeNil())
 
-	gomega.Expect(node.NodeLiveness).To(gomega.BeEquivalentTo(&NodeLiveness{"54321", "12345", 0, 0, 0, 0, ""}))
+	gomega.Expect(node.NodeLiveness).To(gomega.BeEquivalentTo(&telemetrymodel.NodeLiveness{"54321", "12345", 0, 0, 0, 0, ""}))
 
 }
 
@@ -200,8 +201,8 @@ func TestCache_SetNodeTelemetry(t *testing.T) {
 	gomega.Expect(node.ID).To(gomega.Equal(uint32(1)))
 	gomega.Expect(node.ManIPAdr).To(gomega.Equal("10"))
 
-	ntele := NodeTelemetry{"d", []output{}}
-	nTeleMap := make(map[string]NodeTelemetry)
+	ntele := telemetrymodel.NodeTelemetry{"d", []telemetrymodel.Output{}}
+	nTeleMap := make(map[string]telemetrymodel.NodeTelemetry)
 	nTeleMap["k8s_master"] = ntele
 	err := db.SetNodeTelemetry("k8s_master", nTeleMap)
 	gomega.Expect(err).To(gomega.BeNil())
@@ -220,8 +221,8 @@ func TestNodesDB_SetNodeL2Fibs(t *testing.T) {
 	gomega.Expect(node.ID).To(gomega.Equal(uint32(1)))
 	gomega.Expect(node.ManIPAdr).To(gomega.Equal("10"))
 
-	nfib := NodeL2FibEntry{1, 2, "test", true, false}
-	nfibs := make(map[string]NodeL2FibEntry)
+	nfib := telemetrymodel.NodeL2FibEntry{1, 2, "test", true, false}
+	nfibs := make(map[string]telemetrymodel.NodeL2FibEntry)
 	nfibs[node.Name] = nfib
 
 	err := db.SetNodeL2Fibs("NENODE", nfibs)
@@ -229,7 +230,7 @@ func TestNodesDB_SetNodeL2Fibs(t *testing.T) {
 	err = db.SetNodeL2Fibs("k8s_master", nfibs)
 	gomega.Expect(err).To(gomega.BeNil())
 
-	gomega.Expect(node.NodeL2Fibs[node.Name]).To(gomega.BeEquivalentTo(NodeL2FibEntry{1, 2, "test", true, false}))
+	gomega.Expect(node.NodeL2Fibs[node.Name]).To(gomega.BeEquivalentTo(telemetrymodel.NodeL2FibEntry{1, 2, "test", true, false}))
 
 }
 func TestNodesDB_ValidateLoopIFAddresses(t *testing.T) {
@@ -243,38 +244,38 @@ func TestNodesDB_ValidateLoopIFAddresses(t *testing.T) {
 	gomega.Expect(node.Name).To(gomega.Equal("k8s_master"))
 	gomega.Expect(node.ID).To(gomega.Equal(uint32(1)))
 	gomega.Expect(node.ManIPAdr).To(gomega.Equal("10"))
-	nodeinterface1 := NodeInterface{
+	nodeinterface1 := telemetrymodel.NodeInterface{
 		"loop0",
 		"loop0",
 		3,
 		true,
 		"11",
 		1,
-		vxlan{"", "", 1},
+		telemetrymodel.Vxlan{"", "", 1},
 		[]string{"11"},
-		tap{}}
-	nodeinterfaces := map[int]NodeInterface{}
+		telemetrymodel.Tap{}}
+	nodeinterfaces := map[int]telemetrymodel.NodeInterface{}
 	nodeinterfaces[3] = nodeinterface1
 
-	nodeiparp1 := NodeIPArpEntry{3, "10", "10", true}
-	nodeiparps1 := make([]NodeIPArpEntry, 0)
+	nodeiparp1 := telemetrymodel.NodeIPArpEntry{3, "10", "10", true}
+	nodeiparps1 := make([]telemetrymodel.NodeIPArpEntry, 0)
 	nodeiparps1 = append(nodeiparps1, nodeiparp1)
 
-	nodeinterface2 := NodeInterface{
+	nodeinterface2 := telemetrymodel.NodeInterface{
 		"loop0",
 		"loop0",
 		3,
 		true,
 		"10",
 		1,
-		vxlan{"", "", 1},
+		telemetrymodel.Vxlan{"", "", 1},
 		[]string{"10"},
-		tap{}}
-	nodeinterfaces2 := map[int]NodeInterface{}
+		telemetrymodel.Tap{}}
+	nodeinterfaces2 := map[int]telemetrymodel.NodeInterface{}
 	nodeinterfaces2[3] = nodeinterface2
 
-	nodeiparp2 := NodeIPArpEntry{3, "11", "11", true}
-	nodeiparps2 := make([]NodeIPArpEntry, 0)
+	nodeiparp2 := telemetrymodel.NodeIPArpEntry{3, "11", "11", true}
+	nodeiparps2 := make([]telemetrymodel.NodeIPArpEntry, 0)
 	nodeiparps2 = append(nodeiparps2, nodeiparp2)
 
 	db.addNode(2, "k8s-worker1", "11", "11")
@@ -302,7 +303,7 @@ func TestNodesDB_ValidateLoopIFAddresses(t *testing.T) {
 	db.deleteNode("NoMacFoundNode")
 	fmt.Println("Done...")
 	fmt.Println("Adding extra arp entry to node k8s_master...")
-	nodeiparp3 := NodeIPArpEntry{3, "extraIP", "extraMAC", true}
+	nodeiparp3 := telemetrymodel.NodeIPArpEntry{3, "extraIP", "extraMAC", true}
 	nodeiparps1 = append(nodeiparps1, nodeiparp3)
 	db.SetNodeIPARPs("k8s_master", nodeiparps1)
 	fmt.Println("Done...")
@@ -321,7 +322,7 @@ func TestNodesDB_ValidateLoopIFAddresses(t *testing.T) {
 	db.deleteNode("BlahNode")
 
 	node, _ = db.GetNode("k8s_master")
-	nodeinterfaces = make(map[int]NodeInterface)
+	nodeinterfaces = make(map[int]telemetrymodel.NodeInterface)
 	db.SetNodeInterfaces(node.Name, nodeinterfaces)
 	fmt.Println("Expecting errors for missing interface for k8s_master...")
 	db.ValidateLoopIFAddresses()
@@ -339,38 +340,38 @@ func TestNodesDB_ValidateL2Connections(t *testing.T) {
 	gomega.Expect(node.Name).To(gomega.Equal("k8s_master"))
 	gomega.Expect(node.ID).To(gomega.Equal(uint32(1)))
 	gomega.Expect(node.ManIPAdr).To(gomega.Equal("10"))
-	nodeinterface1 := NodeInterface{
+	nodeinterface1 := telemetrymodel.NodeInterface{
 		"loop0",
 		"loop0",
 		interfaces.InterfaceType_SOFTWARE_LOOPBACK,
 		true,
 		"11",
 		1,
-		vxlan{"", "", 1},
+		telemetrymodel.Vxlan{"", "", 1},
 		[]string{"11"},
-		tap{}}
-	nodeinterfaces := map[int]NodeInterface{}
+		telemetrymodel.Tap{}}
+	nodeinterfaces := map[int]telemetrymodel.NodeInterface{}
 	nodeinterfaces[3] = nodeinterface1
 
-	nodeiparp1 := NodeIPArpEntry{3, "10", "10", true}
-	nodeiparps1 := make([]NodeIPArpEntry, 0)
+	nodeiparp1 := telemetrymodel.NodeIPArpEntry{3, "10", "10", true}
+	nodeiparps1 := make([]telemetrymodel.NodeIPArpEntry, 0)
 	nodeiparps1 = append(nodeiparps1, nodeiparp1)
 
-	nodeinterface2 := NodeInterface{
+	nodeinterface2 := telemetrymodel.NodeInterface{
 		"loop0",
 		"loop0",
 		interfaces.InterfaceType_SOFTWARE_LOOPBACK,
 		true,
 		"10",
 		1,
-		vxlan{"", "", 1},
+		telemetrymodel.Vxlan{"", "", 1},
 		[]string{"10"},
-		tap{}}
-	nodeinterfaces2 := map[int]NodeInterface{}
+		telemetrymodel.Tap{}}
+	nodeinterfaces2 := map[int]telemetrymodel.NodeInterface{}
 	nodeinterfaces2[3] = nodeinterface2
 
-	nodeiparp2 := NodeIPArpEntry{3, "11", "11", true}
-	nodeiparps2 := make([]NodeIPArpEntry, 0)
+	nodeiparp2 := telemetrymodel.NodeIPArpEntry{3, "11", "11", true}
+	nodeiparps2 := make([]telemetrymodel.NodeIPArpEntry, 0)
 	nodeiparps2 = append(nodeiparps2, nodeiparp2)
 
 	db.addNode(2, "k8s-worker1", "11", "11")
@@ -388,48 +389,48 @@ func TestNodesDB_ValidateL2Connections(t *testing.T) {
 	db.loopMACMap[node.NodeInterfaces[3].PhysAddress] = node
 	db.loopIPMap[node.NodeInterfaces[3].IPAddresses[0]+subnetmask] = node
 	node, _ = db.GetNode("k8s_master")
-	bdif1_1 := bdinterfaces{3}
-	bdif1_2 := bdinterfaces{5}
-	nodebd1 := NodeBridgeDomain{
-		[]bdinterfaces{bdif1_1, bdif1_2},
+	bdif1_1 := telemetrymodel.BDinterfaces{3}
+	bdif1_2 := telemetrymodel.BDinterfaces{5}
+	nodebd1 := telemetrymodel.NodeBridgeDomain{
+		[]telemetrymodel.BDinterfaces{bdif1_1, bdif1_2},
 		"vxlanBD",
 		true,
 	}
-	nodebdmap1 := make(map[int]NodeBridgeDomain)
+	nodebdmap1 := make(map[int]telemetrymodel.NodeBridgeDomain)
 	nodebdmap1[1] = nodebd1
-	nodevxlaninterface1 := NodeInterface{
+	nodevxlaninterface1 := telemetrymodel.NodeInterface{
 		"vxlan_tunnel0",
 		"vxlan2",
 		interfaces.InterfaceType_VXLAN_TUNNEL,
 		true,
 		"",
 		0,
-		vxlan{node.IPAdr, "11",
-			10}, []string{}, tap{},
+		telemetrymodel.Vxlan{node.IPAdr, "11",
+			10}, []string{}, telemetrymodel.Tap{},
 	}
 	nodeinterfaces[5] = nodevxlaninterface1
 	db.SetNodeInterfaces("k8s_master", nodeinterfaces)
 	db.SetNodeBridgeDomain("k8s_master", nodebdmap1)
 
 	node, _ = db.GetNode("k8s-worker1")
-	bdif2_1 := bdinterfaces{3}
-	bdif2_2 := bdinterfaces{4}
-	nodebd2 := NodeBridgeDomain{
-		[]bdinterfaces{bdif2_1, bdif2_2},
+	bdif2_1 := telemetrymodel.BDinterfaces{3}
+	bdif2_2 := telemetrymodel.BDinterfaces{4}
+	nodebd2 := telemetrymodel.NodeBridgeDomain{
+		[]telemetrymodel.BDinterfaces{bdif2_1, bdif2_2},
 		"vxlanBD",
 		true,
 	}
-	nodebdmap2 := make(map[int]NodeBridgeDomain)
+	nodebdmap2 := make(map[int]telemetrymodel.NodeBridgeDomain)
 	nodebdmap2[1] = nodebd2
-	nodevxlaninterface2 := NodeInterface{
+	nodevxlaninterface2 := telemetrymodel.NodeInterface{
 		"vxlan_tunnel0",
 		"vxlan2",
 		interfaces.InterfaceType_VXLAN_TUNNEL,
 		true,
 		"",
 		0,
-		vxlan{node.IPAdr, "10",
-			10}, []string{}, tap{},
+		telemetrymodel.Vxlan{node.IPAdr, "10",
+			10}, []string{}, telemetrymodel.Tap{},
 	}
 	nodeinterfaces2[4] = nodevxlaninterface2
 	db.SetNodeBridgeDomain("k8s-worker1", nodebdmap2)
@@ -493,24 +494,24 @@ func TestNodesDB_ValidateL2Connections(t *testing.T) {
 
 	fmt.Println("Expecting error for mismatched index of bridge domain")
 	bdif2_2.SwIfIndex = 5
-	nodebd2 = NodeBridgeDomain{
-		[]bdinterfaces{bdif2_1, bdif2_2},
+	nodebd2 = telemetrymodel.NodeBridgeDomain{
+		[]telemetrymodel.BDinterfaces{bdif2_1, bdif2_2},
 		"vxlanBD",
 		true,
 	}
-	nodebdmap2 = make(map[int]NodeBridgeDomain)
+	nodebdmap2 = make(map[int]telemetrymodel.NodeBridgeDomain)
 	nodebdmap2[1] = nodebd2
 	db.SetNodeBridgeDomain("k8s-worker1", nodebdmap2)
 	db.ValidateL2Connections()
 	db.printnodelogs(nodelist)
 	fmt.Println("Done expecting errors...")
 	bdif2_2.SwIfIndex = 4
-	nodebd2 = NodeBridgeDomain{
-		[]bdinterfaces{bdif2_1, bdif2_2},
+	nodebd2 = telemetrymodel.NodeBridgeDomain{
+		[]telemetrymodel.BDinterfaces{bdif2_1, bdif2_2},
 		"vxlanBD",
 		true,
 	}
-	nodebdmap2 = make(map[int]NodeBridgeDomain)
+	nodebdmap2 = make(map[int]telemetrymodel.NodeBridgeDomain)
 	nodebdmap2[1] = nodebd2
 	db.SetNodeBridgeDomain("k8s-worker1", nodebdmap2)
 	db.ValidateL2Connections()
@@ -541,38 +542,38 @@ func TestCache_ValidateFibEntries(t *testing.T) {
 	gomega.Expect(node.Name).To(gomega.Equal("k8s_master"))
 	gomega.Expect(node.ID).To(gomega.Equal(uint32(1)))
 	gomega.Expect(node.ManIPAdr).To(gomega.Equal("10"))
-	nodeinterface1 := NodeInterface{
+	nodeinterface1 := telemetrymodel.NodeInterface{
 		"loop0",
 		"loop0",
 		interfaces.InterfaceType_SOFTWARE_LOOPBACK,
 		true,
 		"11",
 		1,
-		vxlan{"", "", 1},
+		telemetrymodel.Vxlan{"", "", 1},
 		[]string{"11"},
-		tap{}}
-	nodeinterfaces := map[int]NodeInterface{}
+		telemetrymodel.Tap{}}
+	nodeinterfaces := map[int]telemetrymodel.NodeInterface{}
 	nodeinterfaces[3] = nodeinterface1
 
-	nodeiparp1 := NodeIPArpEntry{3, "10", "10", true}
-	nodeiparps1 := make([]NodeIPArpEntry, 0)
+	nodeiparp1 := telemetrymodel.NodeIPArpEntry{3, "10", "10", true}
+	nodeiparps1 := make([]telemetrymodel.NodeIPArpEntry, 0)
 	nodeiparps1 = append(nodeiparps1, nodeiparp1)
 
-	nodeinterface2 := NodeInterface{
+	nodeinterface2 := telemetrymodel.NodeInterface{
 		"loop0",
 		"loop0",
 		interfaces.InterfaceType_SOFTWARE_LOOPBACK,
 		true,
 		"10",
 		1,
-		vxlan{"", "", 1},
+		telemetrymodel.Vxlan{"", "", 1},
 		[]string{"10"},
-		tap{}}
-	nodeinterfaces2 := map[int]NodeInterface{}
+		telemetrymodel.Tap{}}
+	nodeinterfaces2 := map[int]telemetrymodel.NodeInterface{}
 	nodeinterfaces2[3] = nodeinterface2
 
-	nodeiparp2 := NodeIPArpEntry{3, "11", "11", true}
-	nodeiparps2 := make([]NodeIPArpEntry, 0)
+	nodeiparp2 := telemetrymodel.NodeIPArpEntry{3, "11", "11", true}
+	nodeiparps2 := make([]telemetrymodel.NodeIPArpEntry, 0)
 	nodeiparps2 = append(nodeiparps2, nodeiparp2)
 
 	db.addNode(2, "k8s-worker1", "11", "11")
@@ -590,48 +591,48 @@ func TestCache_ValidateFibEntries(t *testing.T) {
 	db.loopMACMap[node.NodeInterfaces[3].PhysAddress] = node
 	db.loopIPMap[node.NodeInterfaces[3].IPAddresses[0]+subnetmask] = node
 	node, _ = db.GetNode("k8s_master")
-	bdif1_1 := bdinterfaces{3}
-	bdif1_2 := bdinterfaces{5}
-	nodebd1 := NodeBridgeDomain{
-		[]bdinterfaces{bdif1_1, bdif1_2},
+	bdif1_1 := telemetrymodel.BDinterfaces{3}
+	bdif1_2 := telemetrymodel.BDinterfaces{5}
+	nodebd1 := telemetrymodel.NodeBridgeDomain{
+		[]telemetrymodel.BDinterfaces{bdif1_1, bdif1_2},
 		"vxlanBD",
 		true,
 	}
-	nodebdmap1 := make(map[int]NodeBridgeDomain)
+	nodebdmap1 := make(map[int]telemetrymodel.NodeBridgeDomain)
 	nodebdmap1[1] = nodebd1
-	nodevxlaninterface1 := NodeInterface{
+	nodevxlaninterface1 := telemetrymodel.NodeInterface{
 		"vxlan_tunnel0",
 		"vxlan2",
 		interfaces.InterfaceType_VXLAN_TUNNEL,
 		true,
 		"",
 		0,
-		vxlan{node.IPAdr, "11",
-			10}, []string{}, tap{},
+		telemetrymodel.Vxlan{node.IPAdr, "11",
+			10}, []string{}, telemetrymodel.Tap{},
 	}
 	nodeinterfaces[5] = nodevxlaninterface1
 	db.SetNodeInterfaces("k8s_master", nodeinterfaces)
 	db.SetNodeBridgeDomain("k8s_master", nodebdmap1)
 
 	node, _ = db.GetNode("k8s-worker1")
-	bdif2_1 := bdinterfaces{3}
-	bdif2_2 := bdinterfaces{4}
-	nodebd2 := NodeBridgeDomain{
-		[]bdinterfaces{bdif2_1, bdif2_2},
+	bdif2_1 := telemetrymodel.BDinterfaces{3}
+	bdif2_2 := telemetrymodel.BDinterfaces{4}
+	nodebd2 := telemetrymodel.NodeBridgeDomain{
+		[]telemetrymodel.BDinterfaces{bdif2_1, bdif2_2},
 		"vxlanBD",
 		true,
 	}
-	nodebdmap2 := make(map[int]NodeBridgeDomain)
+	nodebdmap2 := make(map[int]telemetrymodel.NodeBridgeDomain)
 	nodebdmap2[1] = nodebd2
-	nodevxlaninterface2 := NodeInterface{
+	nodevxlaninterface2 := telemetrymodel.NodeInterface{
 		"vxlan_tunnel0",
 		"vxlan2",
 		interfaces.InterfaceType_VXLAN_TUNNEL,
 		true,
 		"",
 		0,
-		vxlan{node.IPAdr, "10",
-			10}, []string{}, tap{},
+		telemetrymodel.Vxlan{node.IPAdr, "10",
+			10}, []string{}, telemetrymodel.Tap{},
 	}
 	nodeinterfaces2[4] = nodevxlaninterface2
 	db.SetNodeBridgeDomain("k8s-worker1", nodebdmap2)
@@ -646,13 +647,13 @@ func TestCache_ValidateFibEntries(t *testing.T) {
 
 }
 
-func (c *Cache) printnodelogs(nodelist []*Node) {
+func (c *Cache) printnodelogs(nodelist []*telemetrymodel.Node) {
 
 	for _, node := range nodelist {
-		for _, str := range node.report {
+		for _, str := range node.Report {
 			fmt.Println(str)
 		}
-		node.report = node.report[0:0]
+		node.Report = node.Report[0:0]
 	}
 	for _, str := range c.report {
 		fmt.Println(str)

@@ -256,7 +256,7 @@ spec:
         env:
           - name: ETCDPORT
             value: "32379"
-        image: busybox:latest
+        image: arm64v8/busybox:latest
         command: ['sh', '-c', 'until nc -w 2 127.0.0.1:$ETCDPORT; do echo waiting for etcd; sleep 2; done;']
       # This init container extracts/copies VPP LD_PRELOAD libs and default VPP config to the host.
       - name: vpp-init
@@ -441,12 +441,12 @@ spec:
           env:
           - name: ETCDPORT
             value: "32379"
-          image: busybox:latest
+          image: arm64v8/busybox:latest
           command: ['sh', '-c', 'until nc -w 2 127.0.0.1:$ETCDPORT; do echo waiting for etcd; sleep 2; done;']
 
       containers:
         - name: contiv-ksr
-          image: contivvpp/ksr-arm64:latest
+          image: contivvpp/ksr:latest
           imagePullPolicy: IfNotPresent
           env:
             - name: ETCD_CONFIG

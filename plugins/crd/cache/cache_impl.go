@@ -352,10 +352,7 @@ func (c *Cache) PopulateNodeMaps(node *Node) {
 				c.nMap[node.Name].report = append(c.nMap[node.Name].report, errors.Errorf(
 					"Duplicate IP found: %s", ip).Error())
 			} else {
-				for i := range loopIF.IPAddresses {
-					c.loopIPMap[loopIF.IPAddresses[i]] = node
-				}
-
+				c.loopIPMap[loopIF.IPAddresses[i]] = node
 			}
 		}
 	}
@@ -390,6 +387,7 @@ func (c *Cache) PopulateNodeMaps(node *Node) {
 			}
 		}
 	}
+	c.gigEIPMap[node.IPAdr] = node
 }
 
 //Small helper function that returns the loop interface of a node
@@ -682,10 +680,16 @@ func (c *Cache) ValidateFibEntries() {
 				continue
 			}
 			intf := node.NodeInterfaces[int(fib.OutgoingInterfaceSwIfIdx)]
-			macnode := c.gigEIPMap[intf.Vxlan.DstAddress+subnetmask]
+			macnode, ok := c.gigEIPMap[intf.Vxlan.DstAddress+subnetmask]
+			if !ok {
+				c.nMap[node.Name].report = append(c.nMap[node.Name].report, errors.Errorf(
+					"GigE IP address %s does not exist in gigEIPMap", intf.Vxlan.DstAddress).Error())
+				continue
+			}
 			remoteloopif, err := c.getNodeLoopIFInfo(macnode)
 			if err != nil {
-				c.nMap[node.Name].report = append(c.nMap[node.Name].report, err.Error()) //err no loop interface for the node
+				// err no loop interface for the node
+				c.nMap[node.Name].report = append(c.nMap[node.Name].report, err.Error())
 				continue
 			}
 			if remoteloopif.PhysAddress == fib.PhysAddress {

@@ -16,6 +16,7 @@ package cache
 
 import (
 	"github.com/contiv/vpp/plugins/ksr/model/node"
+	pod2 "github.com/contiv/vpp/plugins/ksr/model/pod"
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/vpp-agent/plugins/vpp/model/interfaces"
 )
@@ -39,6 +40,7 @@ type Node struct {
 	NodeTelemetry     map[string]NodeTelemetry
 	NodeIPArp         []NodeIPArpEntry
 	report            []string
+	podMap            map[string]*pod2.Pod
 }
 
 //Cache holds various maps which all take different keys but point to the same underlying value.
@@ -47,7 +49,9 @@ type Cache struct {
 	loopIPMap  map[string]*Node
 	gigEIPMap  map[string]*Node
 	loopMACMap map[string]*Node
-	k8sNodeMap map[string]*k8sNode
+	k8sNodeMap map[string]*node.Node
+	hostIPMap  map[string]*Node
+	podMap     map[string]*pod2.Pod
 	report     []string
 
 	logger logging.Logger
@@ -144,12 +148,4 @@ type NodeBridgeDomain struct {
 
 type bdinterfaces struct {
 	SwIfIndex uint32 `json:"sw_if_index"`
-}
-
-type k8sNode struct {
-	Name       string
-	PodCIDR    string
-	ProviderID string
-	Addresses  []*node.NodeAddress
-	NodeInfo   *node.NodeSystemInfo
 }

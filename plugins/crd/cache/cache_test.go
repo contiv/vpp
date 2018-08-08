@@ -51,14 +51,14 @@ func TestNodesDB_DeleteNode(t *testing.T) {
 	gomega.Expect(ok).To(gomega.BeNil())
 	gomega.Expect(node.IPAdr).To(gomega.Equal("10"))
 
-	//err := db.DeleteNode("k8s_master")
-	//gomega.Expect(err).To(gomega.BeNil())
-	//node, err = db.GetNode("k8s_master")
-	//gomega.Expect(node).To(gomega.BeNil())
-	//gomega.Expect(err).To(gomega.Not(gomega.BeNil()))
+	err := db.deleteNode("k8s_master")
+	gomega.Expect(err).To(gomega.BeNil())
+	node, err = db.GetNode("k8s_master")
+	gomega.Expect(node).To(gomega.BeNil())
+	gomega.Expect(err).To(gomega.Not(gomega.BeNil()))
 
-	//err = db.DeleteNode("k8s_master")
-	//gomega.Expect(err).To(gomega.Not(gomega.BeNil()))
+	err = db.deleteNode("k8s_master")
+	gomega.Expect(err).To(gomega.Not(gomega.BeNil()))
 
 }
 
@@ -187,6 +187,26 @@ func TestNodesDB_SetNodeLiveness(t *testing.T) {
 
 	gomega.Expect(node.NodeLiveness).To(gomega.BeEquivalentTo(&NodeLiveness{"54321", "12345", 0, 0, 0, 0, ""}))
 
+}
+
+func TestCache_SetNodeTelemetry(t *testing.T) {
+	gomega.RegisterTestingT(t)
+	db := NewCache(logrus.DefaultLogger())
+	db.addNode(1, "k8s_master", "10", "10")
+	node, ok := db.GetNode("k8s_master")
+	gomega.Expect(ok).To(gomega.BeNil())
+	gomega.Expect(node.IPAdr).To(gomega.Equal("10"))
+	gomega.Expect(node.Name).To(gomega.Equal("k8s_master"))
+	gomega.Expect(node.ID).To(gomega.Equal(uint32(1)))
+	gomega.Expect(node.ManIPAdr).To(gomega.Equal("10"))
+
+	ntele := NodeTelemetry{"d", []output{}}
+	nTeleMap := make(map[string]NodeTelemetry)
+	nTeleMap["k8s_master"] = ntele
+	err := db.SetNodeTelemetry("k8s_master", nTeleMap)
+	gomega.Expect(err).To(gomega.BeNil())
+	err = db.SetNodeTelemetry("N.E.Node", nTeleMap)
+	gomega.Expect(err).To(gomega.Not(gomega.BeNil()))
 }
 
 func TestNodesDB_SetNodeL2Fibs(t *testing.T) {

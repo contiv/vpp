@@ -95,6 +95,8 @@ func (p *ContivTelemetryProcessor) ValidateNodeInfo() {
 
 	p.ContivTelemetryCache.Cache.ValidateK8sNodeInfo()
 
+	p.ContivTelemetryCache.Cache.ValidatePodInfo()
+
 	for _, entry := range p.ContivTelemetryCache.Cache.report {
 		p.Log.Info(entry)
 		for _, node := range p.ContivTelemetryCache.Cache.nMap {

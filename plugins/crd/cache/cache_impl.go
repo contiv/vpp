@@ -16,7 +16,9 @@
 package cache
 
 import (
+	"fmt"
 	"github.com/contiv/vpp/plugins/ksr/model/node"
+	pod2 "github.com/contiv/vpp/plugins/ksr/model/pod"
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/vpp-agent/plugins/vpp/model/interfaces"
 	"github.com/pkg/errors"
@@ -62,9 +64,13 @@ func (ctc *ContivTelemetryCache) ListAllNodes() []*Node {
 func (ctc *ContivTelemetryCache) LookupNode(nodenames []string) []*Node {
 	nodeslice := make([]*Node, 0)
 	for _, name := range nodenames {
-		node := ctc.Cache.nMap[name]
+		node, ok := ctc.Cache.nMap[name]
+		if !ok {
+			continue
+		}
 		nodeslice = append(nodeslice, node)
 	}
+	fmt.Println("Return from LookupNode:", nodeslice)
 	return nodeslice
 }
 
@@ -96,18 +102,41 @@ func (ctc *ContivTelemetryCache) AddNode(ID uint32, nodeName, IPAdr, ManIPAdr st
 func (ctc *ContivTelemetryCache) AddK8sNode(name string, PodCIDR string, ProviderID string,
 	Addresses []*node.NodeAddress, NodeInfo *node.NodeSystemInfo) error {
 
-	newNode := k8sNode{name, PodCIDR, ProviderID, Addresses, NodeInfo}
+	newNode := node.Node{Name: name, Pod_CIDR: PodCIDR, Provider_ID: ProviderID, Addresses: Addresses, NodeInfo: NodeInfo}
 	_, ok := ctc.Cache.k8sNodeMap[name]
 	if ok {
 		return errors.Errorf("Duplicate k8s node with name %+v found", name)
 	}
 	ctc.Cache.k8sNodeMap[name] = &newNode
+	for _, ip := range Addresses {
+		if ip.Type == 3 {
+			contivNode, err := ctc.Cache.GetNode(name)
+			fmt.Println("Line 110:", contivNode)
+			if err == nil {
+				ctc.Cache.hostIPMap[ip.Address] = contivNode
+
+				for _, pod := range ctc.Cache.podMap {
+					if pod.HostIpAddress == ip.Address {
+						fmt.Println("Line 116: ", contivNode)
+						contivNode.podMap[pod.Name] = pod
+						break
+					}
+				}
+			} else {
+				ctc.Cache.report = append(ctc.Cache.report, errors.Errorf(
+					"Error looking up node %+v, k8s node has no valid counterpart", name).Error())
+			}
+			break
+		}
+	}
+
 	return nil
 }
 
 //addNode will add a node to the node cache with the given parameters, making sure there are no duplicates.
 func (c *Cache) addNode(ID uint32, nodeName, IPAdr, ManIPAdr string) error {
 	n := &Node{IPAdr: IPAdr, ManIPAdr: ManIPAdr, ID: ID, Name: nodeName}
+	n.podMap = make(map[string]*pod2.Pod)
 	_, err := c.GetNode(nodeName)
 	if err == nil {
 		err = errors.Errorf("duplicate key found: %s", nodeName)
@@ -117,6 +146,23 @@ func (c *Cache) addNode(ID uint32, nodeName, IPAdr, ManIPAdr string) error {
 	c.nMap[nodeName] = n
 	c.gigEIPMap[IPAdr] = n
 	c.logger.Debugf("Success adding node %+v to ctc.ContivTelemetryCache %+v", nodeName, c)
+	return nil
+}
+
+//AddPod adds a pod with the given parameters to the contiv telemetry cache
+func (ctc *ContivTelemetryCache) AddPod(Name, Namespace string, Label []*pod2.Pod_Label, IPAddress, HostIPAddress string,
+	Container []*pod2.Pod_Container) error {
+	newPod := pod2.Pod{Name: Name, Namespace: Namespace, Label: Label, IpAddress: IPAddress, HostIpAddress: HostIPAddress, Container: Container}
+	_, ok := ctc.Cache.podMap[Name]
+	if ok {
+		return errors.Errorf("Duplicate pod with name %+v found", Name)
+	}
+	ctc.Cache.podMap[Name] = &newPod
+	node, ok := ctc.Cache.hostIPMap[HostIPAddress]
+	if ok {
+		fmt.Println("Line 155: ", node)
+		node.podMap[Name] = &newPod
+	}
 	return nil
 }
 
@@ -139,6 +185,22 @@ func (ctc *ContivTelemetryCache) ClearCache() {
 	ctc.Cache.report = []string{}
 }
 
+func (c *Cache) lookupPod(name string) (*pod2.Pod, error) {
+	pod, ok := c.podMap[name]
+	if !ok {
+		return &pod2.Pod{}, errors.Errorf("Pod with name %+v not found", name)
+	}
+	return pod, nil
+}
+
+func (c *Cache) lookupK8sNode(name string) (*node.Node, error) {
+	node, ok := c.k8sNodeMap[name]
+	if !ok {
+		return node, errors.Errorf("k8s node with name %+v not found", name)
+	}
+	return node, nil
+}
+
 // ReinitializeCache completely re-initializes the cache, clearing all
 // data including  the discovered nodes.
 func (ctc *ContivTelemetryCache) ReinitializeCache() {
@@ -153,7 +215,9 @@ func NewCache(logger logging.Logger) (n *Cache) {
 		make(map[string]*Node),
 		make(map[string]*Node),
 		make(map[string]*Node),
-		make(map[string]*k8sNode),
+		make(map[string]*node.Node),
+		make(map[string]*Node),
+		make(map[string]*pod2.Pod),
 		make([]string, 0),
 		logger}
 }
@@ -235,10 +299,11 @@ func (c *Cache) GetNode(key string) (n *Node, err error) {
 	return nil, err
 }
 
-func (c *Cache) deleteNode(key string) {
+func (c *Cache) deleteNode(key string) error {
 	node, err := c.GetNode(key)
 	if err != nil {
 		c.logger.Error(err)
+		return err
 	}
 	delete(c.nMap, node.Name)
 	delete(c.gigEIPMap, node.IPAdr)
@@ -251,6 +316,7 @@ func (c *Cache) deleteNode(key string) {
 		}
 
 	}
+	return nil
 }
 
 //GetAllNodes returns an ordered slice of all nodes in a database organized by name.
@@ -282,7 +348,6 @@ func (c *Cache) PopulateNodeMaps(node *Node) {
 		} else {
 
 			if ip, ok := c.loopIPMap[loopIF.IPAddresses[i]]; ok {
-				//TODO: Report an error back to the controller; store it somewhere, report it at the end of the function
 				c.logger.Errorf("Duplicate IP found: %s", ip)
 				c.nMap[node.Name].report = append(c.nMap[node.Name].report, errors.Errorf(
 					"Duplicate IP found: %s", ip).Error())
@@ -301,6 +366,25 @@ func (c *Cache) PopulateNodeMaps(node *Node) {
 				"Duplicate MAC address found: %s", loopIF.PhysAddress).Error())
 		} else {
 			c.loopMACMap[loopIF.PhysAddress] = node
+		}
+		c.gigEIPMap[node.IPAdr] = node
+		k8snode, ok := c.k8sNodeMap[node.Name]
+		nodeHostIP := ""
+		if !ok {
+			node.report = append(node.report, errors.Errorf("Could not find k8s node counterpart for node %+v",
+				node.Name).Error())
+		} else {
+			for _, adr := range k8snode.Addresses {
+				if adr.Type == 3 {
+					c.hostIPMap[adr.Address] = node
+					nodeHostIP = adr.Address
+				}
+			}
+		}
+		for _, pod := range c.podMap {
+			if pod.HostIpAddress == nodeHostIP {
+				node.podMap[pod.Name] = pod
+			}
 		}
 	}
 	c.gigEIPMap[node.IPAdr] = node
@@ -684,6 +768,83 @@ func (c *Cache) ValidateK8sNodeInfo() {
 		for node := range k8sNodeMap {
 			c.report = append(c.report, errors.Errorf("node: %+v", node).Error())
 		}
+	}
+	if len(nodeMap) > 0 {
+		c.report = append(c.report, errors.Errorf("Missing nodes for following nodes:").Error())
+		for node := range k8sNodeMap {
+			c.report = append(c.report, errors.Errorf("node: %+v", node).Error())
+		}
+
+	}
+
+}
+
+//ValidatePodInfo will check to see that each pod has a valid host ip address node and that the information correctly
+//correlates between the nodes and the pods.
+func (c *Cache) ValidatePodInfo() {
+
+	podMap := make(map[string]bool)
+	for key := range c.podMap {
+		podMap[key] = true
+	}
+	for _, pod := range c.podMap {
+		node, ok := c.hostIPMap[pod.HostIpAddress]
+		if !ok {
+			c.report = append(c.report, errors.Errorf("Error finding node for host ip %+v from pod %+v",
+				pod.HostIpAddress, pod.Name).Error())
+			continue
+		}
+		podPtr, ok := node.podMap[pod.Name]
+		if !ok {
+			c.report = append(c.report, errors.Errorf("pod %+v in node %+v podMap not found",
+				pod.Name, node.Name).Error())
+			continue
+		}
+		if pod != podPtr {
+			node.report = append(node.report, errors.Errorf("node podmap pod %+v is not the same as cache podmap pod %+v",
+				podPtr.Name, pod.Name).Error())
+			continue
+		}
+		k8snode, ok := c.k8sNodeMap[node.Name]
+
+		if !ok {
+			node.report = append(node.report, errors.Errorf("cannot find k8snode in k8sNodeMap for node with name %+v",
+				node.Name).Error())
+			continue
+		}
+
+		i := 0
+		for _, adr := range k8snode.Addresses {
+			if adr.Type == 3 {
+				if adr.Address != pod.HostIpAddress {
+					node.report = append(node.report, errors.Errorf("pod host ip %+v does not match with k8snode ip %+v",
+						pod.HostIpAddress, adr.Address).Error())
+					continue
+				}
+				i++
+			}
+			if adr.Type == 1 {
+				if adr.Address != node.Name {
+					node.report = append(node.report, errors.Errorf("pod host name %+v does not match node name %+v",
+						adr.Address, node.Name).Error())
+					continue
+				}
+				i++
+			}
+		}
+		if i != 2 {
+			continue
+		}
+		delete(podMap, pod.Name)
+	}
+
+	if len(podMap) > 0 {
+		for p := range podMap {
+			c.report = append(c.report, errors.Errorf("error processing pod %+v", p).Error())
+		}
+
+	} else {
+		c.report = append(c.report, "Success validating pod info.")
 	}
 
 }

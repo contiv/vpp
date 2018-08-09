@@ -89,9 +89,9 @@ func (p *ContivTelemetryProcessor) CollectNodeInfo(node *telemetrymodel.Node) {
 // validation are reported to the CRD.
 func (p *ContivTelemetryProcessor) ValidateNodeInfo() {
 
-	nodelist := p.ContivTelemetryCache.Cache.GetAllNodes()
+	nodelist := p.ContivTelemetryCache.VppCache.RetrieveAllNodes()
 	for _, node := range nodelist {
-		p.ContivTelemetryCache.Cache.PopulateNodeMaps(node)
+		p.ContivTelemetryCache.PopulateNodeMaps(node)
 	}
 	p.Log.Info("Beginning validation of Node Data")
 
@@ -107,7 +107,7 @@ func (p *ContivTelemetryProcessor) ValidateNodeInfo() {
 
 	for _, entry := range p.ContivTelemetryCache.report {
 		p.Log.Info(entry)
-		for _, node := range p.ContivTelemetryCache.Cache.nMap {
+		for _, node := range p.ContivTelemetryCache.VppCache.nMap {
 			p.Log.Infof("Report for %+v", node.Name)
 			p.Log.Info(node.Report)
 			node.Report = node.Report[0:0]
@@ -148,10 +148,10 @@ func (p *ContivTelemetryProcessor) collectAgentInfo(node *telemetrymodel.Node) {
 
 func (p *ContivTelemetryProcessor) retrieveNetworkInfoOnTimerExpiry() {
 	for range p.ticker.C {
-		nodelist := p.ContivTelemetryCache.Cache.GetAllNodes()
+		nodelist := p.ContivTelemetryCache.VppCache.RetrieveAllNodes()
 
 		p.Log.Info("Timer has expired; Beginning gathering of information.")
-		p.ContivTelemetryCache.ClearCache()
+		p.ContivTelemetryCache.ClearVppCache()
 		for _, node := range nodelist {
 			p.CollectNodeInfo(node)
 		}
@@ -209,7 +209,7 @@ func (p *ContivTelemetryProcessor) waitForValidationToFinish() int {
 //is finished with it.
 func (p *ContivTelemetryProcessor) ProcessNodeResponses() {
 	for data := range p.nodeResponseChannel {
-		nodelist := p.ContivTelemetryCache.Cache.GetAllNodes()
+		nodelist := p.ContivTelemetryCache.VppCache.RetrieveAllNodes()
 		p.dtoList = append(p.dtoList, data)
 		fmt.Println("dtoList:", p.dtoList)
 		fmt.Println("nodeList:", nodelist)
@@ -234,22 +234,22 @@ func (p *ContivTelemetryProcessor) SetNodeData() {
 		switch data.NodeInfo.(type) {
 		case *telemetrymodel.NodeLiveness:
 			nl := data.NodeInfo.(*telemetrymodel.NodeLiveness)
-			p.ContivTelemetryCache.Cache.SetNodeLiveness(data.NodeName, nl)
+			p.ContivTelemetryCache.VppCache.SetNodeLiveness(data.NodeName, nl)
 		case *telemetrymodel.NodeInterfaces:
 			niDto := data.NodeInfo.(*telemetrymodel.NodeInterfaces)
-			p.ContivTelemetryCache.Cache.SetNodeInterfaces(data.NodeName, *niDto)
+			p.ContivTelemetryCache.VppCache.SetNodeInterfaces(data.NodeName, *niDto)
 		case *telemetrymodel.NodeBridgeDomains:
 			nbdDto := data.NodeInfo.(*telemetrymodel.NodeBridgeDomains)
-			p.ContivTelemetryCache.Cache.SetNodeBridgeDomain(data.NodeName, *nbdDto)
+			p.ContivTelemetryCache.VppCache.SetNodeBridgeDomain(data.NodeName, *nbdDto)
 		case *telemetrymodel.NodeL2FibTable:
 			nl2fDto := data.NodeInfo.(*telemetrymodel.NodeL2FibTable)
-			p.ContivTelemetryCache.Cache.SetNodeL2Fibs(data.NodeName, *nl2fDto)
+			p.ContivTelemetryCache.VppCache.SetNodeL2Fibs(data.NodeName, *nl2fDto)
 		case *telemetrymodel.NodeTelemetries:
 			ntDto := data.NodeInfo.(*telemetrymodel.NodeTelemetries)
-			p.ContivTelemetryCache.Cache.SetNodeTelemetry(data.NodeName, *ntDto)
+			p.ContivTelemetryCache.VppCache.SetNodeTelemetry(data.NodeName, *ntDto)
 		case *telemetrymodel.NodeIPArpTable:
 			nipaDto := data.NodeInfo.(*telemetrymodel.NodeIPArpTable)
-			p.ContivTelemetryCache.Cache.SetNodeIPARPs(data.NodeName, *nipaDto)
+			p.ContivTelemetryCache.VppCache.SetNodeIPARPs(data.NodeName, *nipaDto)
 		default:
 			p.Log.Errorf("Node %+v has unknown data type: %+v", data.NodeName, data.NodeInfo)
 		}

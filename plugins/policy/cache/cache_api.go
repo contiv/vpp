@@ -86,7 +86,7 @@ type PolicyCacheWatcher interface {
 	// Resync is called by Policy contivTelemetryCache during a RESYNC event.
 	Resync(data *DataResyncEvent) error
 
-	// AddPod is called by Policy contivTelemetryCache when a new pod is created.
+	// addPod is called by Policy contivTelemetryCache when a new pod is created.
 	AddPod(podID podmodel.ID, pod *podmodel.Pod) error
 
 	// DelPod is called by Policy contivTelemetryCache after a pod was removed.

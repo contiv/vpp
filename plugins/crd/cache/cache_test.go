@@ -14,13 +14,13 @@ import (
 //Checks expected error for adding duplicate node.
 func TestNodesDB_AddNode(t *testing.T) {
 	gomega.RegisterTestingT(t)
-	db := NewCache(logrus.DefaultLogger())
-	db.addNode(1, "k8s_master", "10", "20")
-	node, ok := db.GetNode("k8s_master")
+	db := NewVppCache(logrus.DefaultLogger())
+	db.createNode(1, "k8s_master", "10", "20")
+	node, ok := db.RetrieveNode("k8s_master")
 	gomega.Expect(ok).To(gomega.BeNil())
 	gomega.Expect(node.IPAdr).To(gomega.Equal("10"))
 
-	err := db.addNode(2, "k8s_master", "20", "20")
+	err := db.createNode(2, "k8s_master", "20", "20")
 	gomega.Expect(err).To(gomega.Not(gomega.BeNil()))
 }
 
@@ -28,16 +28,16 @@ func TestNodesDB_AddNode(t *testing.T) {
 //Checks looking up a non-existent key.
 func TestNodesDB_GetNode(t *testing.T) {
 	gomega.RegisterTestingT(t)
-	db := NewCache(logrus.DefaultLogger())
-	db.addNode(1, "k8s_master", "10", "10")
-	node, ok := db.GetNode("k8s_master")
+	db := NewVppCache(logrus.DefaultLogger())
+	db.createNode(1, "k8s_master", "10", "10")
+	node, ok := db.RetrieveNode("k8s_master")
 	gomega.Expect(ok).To(gomega.BeNil())
 	gomega.Expect(node.IPAdr).To(gomega.Equal("10"))
 	gomega.Expect(node.Name).To(gomega.Equal("k8s_master"))
 	gomega.Expect(node.ID).To(gomega.Equal(uint32(1)))
 	gomega.Expect(node.ManIPAdr).To(gomega.Equal("10"))
 
-	nodeTwo, err := db.GetNode("NonExistentNode")
+	nodeTwo, err := db.RetrieveNode("NonExistentNode")
 	gomega.Ω(err.Error()).Should(gomega.Equal("value with given key not found: NonExistentNode"))
 	gomega.Expect(nodeTwo).To(gomega.BeNil())
 }
@@ -46,15 +46,15 @@ func TestNodesDB_GetNode(t *testing.T) {
 //Checks whether expected error is returned when deleting non-existent key.
 func TestNodesDB_DeleteNode(t *testing.T) {
 	gomega.RegisterTestingT(t)
-	db := NewCache(logrus.DefaultLogger())
-	db.addNode(1, "k8s_master", "10", "10")
-	node, ok := db.GetNode("k8s_master")
+	db := NewVppCache(logrus.DefaultLogger())
+	db.createNode(1, "k8s_master", "10", "10")
+	node, ok := db.RetrieveNode("k8s_master")
 	gomega.Expect(ok).To(gomega.BeNil())
 	gomega.Expect(node.IPAdr).To(gomega.Equal("10"))
 
 	err := db.deleteNode("k8s_master")
 	gomega.Expect(err).To(gomega.BeNil())
-	node, err = db.GetNode("k8s_master")
+	node, err = db.RetrieveNode("k8s_master")
 	gomega.Expect(node).To(gomega.BeNil())
 	gomega.Expect(err).To(gomega.Not(gomega.BeNil()))
 
@@ -67,32 +67,32 @@ func TestNodesDB_DeleteNode(t *testing.T) {
 //Then, the list is checked to see if it is in order.
 func TestNodesDB_GetAllNodes(t *testing.T) {
 	gomega.RegisterTestingT(t)
-	db := NewCache(logrus.DefaultLogger())
-	db.addNode(1, "k8s_master", "10", "10")
-	node, ok := db.GetNode("k8s_master")
+	db := NewVppCache(logrus.DefaultLogger())
+	db.createNode(1, "k8s_master", "10", "10")
+	node, ok := db.RetrieveNode("k8s_master")
 	gomega.Expect(ok).To(gomega.BeNil())
 	gomega.Expect(node.IPAdr).To(gomega.Equal("10"))
 	gomega.Expect(node.Name).To(gomega.Equal("k8s_master"))
 	gomega.Expect(node.ID).To(gomega.Equal(uint32(1)))
 	gomega.Expect(node.ManIPAdr).To(gomega.Equal("10"))
 
-	db.addNode(2, "k8s_master2", "10", "10")
-	node, ok = db.GetNode("k8s_master2")
+	db.createNode(2, "k8s_master2", "10", "10")
+	node, ok = db.RetrieveNode("k8s_master2")
 	gomega.Expect(ok).To(gomega.BeNil())
 	gomega.Expect(node.IPAdr).To(gomega.Equal("10"))
 	gomega.Expect(node.Name).To(gomega.Equal("k8s_master2"))
 	gomega.Expect(node.ID).To(gomega.Equal(uint32(2)))
 	gomega.Expect(node.ManIPAdr).To(gomega.Equal("10"))
 
-	db.addNode(3, "Ak8s_master3", "10", "10")
-	node, ok = db.GetNode("Ak8s_master3")
+	db.createNode(3, "Ak8s_master3", "10", "10")
+	node, ok = db.RetrieveNode("Ak8s_master3")
 	gomega.Expect(ok).To(gomega.BeNil())
 	gomega.Expect(node.IPAdr).To(gomega.Equal("10"))
 	gomega.Expect(node.Name).To(gomega.Equal("Ak8s_master3"))
 	gomega.Expect(node.ID).To(gomega.Equal(uint32(3)))
 	gomega.Expect(node.ManIPAdr).To(gomega.Equal("10"))
 
-	nodeList := db.GetAllNodes()
+	nodeList := db.RetrieveAllNodes()
 	gomega.Expect(len(nodeList)).To(gomega.Equal(3))
 	gomega.Expect(nodeList[0].Name).To(gomega.Equal("Ak8s_master3"))
 
@@ -100,9 +100,9 @@ func TestNodesDB_GetAllNodes(t *testing.T) {
 
 func TestNodesDB_SetNodeInterfaces(t *testing.T) {
 	gomega.RegisterTestingT(t)
-	db := NewCache(logrus.DefaultLogger())
-	db.addNode(1, "k8s_master", "10", "10")
-	node, ok := db.GetNode("k8s_master")
+	db := NewVppCache(logrus.DefaultLogger())
+	db.createNode(1, "k8s_master", "10", "10")
+	node, ok := db.RetrieveNode("k8s_master")
 	gomega.Expect(ok).To(gomega.BeNil())
 	gomega.Expect(node.IPAdr).To(gomega.Equal("10"))
 	gomega.Expect(node.Name).To(gomega.Equal("k8s_master"))
@@ -124,9 +124,9 @@ func TestNodesDB_SetNodeInterfaces(t *testing.T) {
 
 func TestNodesDB_SetNodeBridgeDomain(t *testing.T) {
 	gomega.RegisterTestingT(t)
-	db := NewCache(logrus.DefaultLogger())
-	db.addNode(1, "k8s_master", "10", "10")
-	node, ok := db.GetNode("k8s_master")
+	db := NewVppCache(logrus.DefaultLogger())
+	db.createNode(1, "k8s_master", "10", "10")
+	node, ok := db.RetrieveNode("k8s_master")
 	gomega.Expect(ok).To(gomega.BeNil())
 	gomega.Expect(node.IPAdr).To(gomega.Equal("10"))
 	gomega.Expect(node.Name).To(gomega.Equal("k8s_master"))
@@ -148,9 +148,9 @@ func TestNodesDB_SetNodeBridgeDomain(t *testing.T) {
 
 func TestNodesDB_SetNodeIPARPs(t *testing.T) {
 	gomega.RegisterTestingT(t)
-	db := NewCache(logrus.DefaultLogger())
-	db.addNode(1, "k8s_master", "10", "10")
-	node, ok := db.GetNode("k8s_master")
+	db := NewVppCache(logrus.DefaultLogger())
+	db.createNode(1, "k8s_master", "10", "10")
+	node, ok := db.RetrieveNode("k8s_master")
 	gomega.Expect(ok).To(gomega.BeNil())
 	gomega.Expect(node.IPAdr).To(gomega.Equal("10"))
 	gomega.Expect(node.Name).To(gomega.Equal("k8s_master"))
@@ -171,9 +171,9 @@ func TestNodesDB_SetNodeIPARPs(t *testing.T) {
 
 func TestNodesDB_SetNodeLiveness(t *testing.T) {
 	gomega.RegisterTestingT(t)
-	db := NewCache(logrus.DefaultLogger())
-	db.addNode(1, "k8s_master", "10", "10")
-	node, ok := db.GetNode("k8s_master")
+	db := NewVppCache(logrus.DefaultLogger())
+	db.createNode(1, "k8s_master", "10", "10")
+	node, ok := db.RetrieveNode("k8s_master")
 	gomega.Expect(ok).To(gomega.BeNil())
 	gomega.Expect(node.IPAdr).To(gomega.Equal("10"))
 	gomega.Expect(node.Name).To(gomega.Equal("k8s_master"))
@@ -192,9 +192,9 @@ func TestNodesDB_SetNodeLiveness(t *testing.T) {
 
 func TestCache_SetNodeTelemetry(t *testing.T) {
 	gomega.RegisterTestingT(t)
-	db := NewCache(logrus.DefaultLogger())
-	db.addNode(1, "k8s_master", "10", "10")
-	node, ok := db.GetNode("k8s_master")
+	db := NewVppCache(logrus.DefaultLogger())
+	db.createNode(1, "k8s_master", "10", "10")
+	node, ok := db.RetrieveNode("k8s_master")
 	gomega.Expect(ok).To(gomega.BeNil())
 	gomega.Expect(node.IPAdr).To(gomega.Equal("10"))
 	gomega.Expect(node.Name).To(gomega.Equal("k8s_master"))
@@ -212,9 +212,9 @@ func TestCache_SetNodeTelemetry(t *testing.T) {
 
 func TestNodesDB_SetNodeL2Fibs(t *testing.T) {
 	gomega.RegisterTestingT(t)
-	db := NewCache(logrus.DefaultLogger())
-	db.addNode(1, "k8s_master", "10", "10")
-	node, ok := db.GetNode("k8s_master")
+	db := NewVppCache(logrus.DefaultLogger())
+	db.createNode(1, "k8s_master", "10", "10")
+	node, ok := db.RetrieveNode("k8s_master")
 	gomega.Expect(ok).To(gomega.BeNil())
 	gomega.Expect(node.IPAdr).To(gomega.Equal("10"))
 	gomega.Expect(node.Name).To(gomega.Equal("k8s_master"))
@@ -236,9 +236,11 @@ func TestNodesDB_SetNodeL2Fibs(t *testing.T) {
 func TestNodesDB_ValidateLoopIFAddresses(t *testing.T) {
 	gomega.RegisterTestingT(t)
 	logger := logrus.DefaultLogger()
-	db := NewCache(logger)
-	db.addNode(1, "k8s_master", "10", "10")
-	node, ok := db.GetNode("k8s_master")
+	db := NewVppCache(logger)
+	ctc := ContivTelemetryCache{Deps{}, true, &VppCache{}, &K8sCache{}, nil, []string{}}
+	ctc.VppCache = db
+	db.createNode(1, "k8s_master", "10", "10")
+	node, ok := db.RetrieveNode("k8s_master")
 	gomega.Expect(ok).To(gomega.BeNil())
 	gomega.Expect(node.IPAdr).To(gomega.Equal("10"))
 	gomega.Expect(node.Name).To(gomega.Equal("k8s_master"))
@@ -278,26 +280,26 @@ func TestNodesDB_ValidateLoopIFAddresses(t *testing.T) {
 	nodeiparps2 := make([]telemetrymodel.NodeIPArpEntry, 0)
 	nodeiparps2 = append(nodeiparps2, nodeiparp2)
 
-	db.addNode(2, "k8s-worker1", "11", "11")
+	db.createNode(2, "k8s-worker1", "11", "11")
 
 	db.SetNodeIPARPs("k8s_master", nodeiparps1)
-	node, _ = db.GetNode("k8s_master")
+	node, _ = db.RetrieveNode("k8s_master")
 	db.SetNodeInterfaces("k8s_master", nodeinterfaces)
-	node, ok = db.GetNode("k8s_master")
+	node, ok = db.RetrieveNode("k8s_master")
 	db.loopMACMap[node.NodeInterfaces[3].PhysAddress] = node
 	db.loopIPMap[node.NodeInterfaces[3].IPAddresses[0]+subnetmask] = node
 
 	db.SetNodeIPARPs("k8s-worker1", nodeiparps2)
 	db.SetNodeInterfaces("k8s-worker1", nodeinterfaces2)
-	node, ok = db.GetNode("k8s-worker1")
+	node, ok = db.RetrieveNode("k8s-worker1")
 	db.loopMACMap[node.NodeInterfaces[3].PhysAddress] = node
 	db.loopIPMap[node.NodeInterfaces[3].IPAddresses[0]+subnetmask] = node
 
-	db.ValidateLoopIFAddresses()
+	ctc.ValidateLoopIFAddresses()
 
-	db.addNode(1, "NoMacFoundNode", "12", "12")
+	db.createNode(1, "NoMacFoundNode", "12", "12")
 	fmt.Println("Expecting errors for node not in ARP table...")
-	db.ValidateLoopIFAddresses()
+	ctc.ValidateLoopIFAddresses()
 	fmt.Println("Expected errors over for NoMacFoundNode...")
 	fmt.Println("Removing NoMacFound from cache...")
 	db.deleteNode("NoMacFoundNode")
@@ -308,33 +310,35 @@ func TestNodesDB_ValidateLoopIFAddresses(t *testing.T) {
 	db.SetNodeIPARPs("k8s_master", nodeiparps1)
 	fmt.Println("Done...")
 	fmt.Println("Expecting mac not found and ip not found errors for extra ip arp entry...")
-	db.ValidateLoopIFAddresses()
+	ctc.ValidateLoopIFAddresses()
 	fmt.Println("Done expecting errors...")
 	fmt.Println("Removing extra arp entry...")
 	fmt.Println("Done...")
 	fmt.Println("Adding extra node to cache...")
 	fmt.Println("Expecting errors for extra node...")
-	db.addNode(3, "BlahNode", "11", "11")
-	node2, _ := db.GetNode("BlahNode")
+	db.createNode(3, "BlahNode", "11", "11")
+	node2, _ := db.RetrieveNode("BlahNode")
 	db.loopMACMap[node.NodeInterfaces[3].PhysAddress] = node2
-	db.ValidateLoopIFAddresses()
+	ctc.ValidateLoopIFAddresses()
 	db.loopMACMap[node.NodeInterfaces[3].PhysAddress] = node
 	db.deleteNode("BlahNode")
 
-	node, _ = db.GetNode("k8s_master")
+	node, _ = db.RetrieveNode("k8s_master")
 	nodeinterfaces = make(map[int]telemetrymodel.NodeInterface)
 	db.SetNodeInterfaces(node.Name, nodeinterfaces)
 	fmt.Println("Expecting errors for missing interface for k8s_master...")
-	db.ValidateLoopIFAddresses()
+	ctc.ValidateLoopIFAddresses()
 
 }
 
 func TestNodesDB_ValidateL2Connections(t *testing.T) {
 	gomega.RegisterTestingT(t)
 	logger := logrus.DefaultLogger()
-	db := NewCache(logger)
-	db.addNode(1, "k8s_master", "10", "10")
-	node, ok := db.GetNode("k8s_master")
+	db := NewVppCache(logger)
+	ctc := ContivTelemetryCache{Deps{}, true, &VppCache{}, &K8sCache{}, nil, []string{}}
+	ctc.VppCache = db
+	db.createNode(1, "k8s_master", "10", "10")
+	node, ok := db.RetrieveNode("k8s_master")
 	gomega.Expect(ok).To(gomega.BeNil())
 	gomega.Expect(node.IPAdr).To(gomega.Equal("10"))
 	gomega.Expect(node.Name).To(gomega.Equal("k8s_master"))
@@ -374,21 +378,21 @@ func TestNodesDB_ValidateL2Connections(t *testing.T) {
 	nodeiparps2 := make([]telemetrymodel.NodeIPArpEntry, 0)
 	nodeiparps2 = append(nodeiparps2, nodeiparp2)
 
-	db.addNode(2, "k8s-worker1", "11", "11")
+	db.createNode(2, "k8s-worker1", "11", "11")
 
 	db.SetNodeIPARPs("k8s_master", nodeiparps1)
-	node, _ = db.GetNode("k8s_master")
+	node, _ = db.RetrieveNode("k8s_master")
 	db.SetNodeInterfaces("k8s_master", nodeinterfaces)
-	node, ok = db.GetNode("k8s_master")
+	node, ok = db.RetrieveNode("k8s_master")
 	db.loopMACMap[node.NodeInterfaces[3].PhysAddress] = node
 	db.loopIPMap[node.NodeInterfaces[3].IPAddresses[0]+subnetmask] = node
 
 	db.SetNodeIPARPs("k8s-worker1", nodeiparps2)
 	db.SetNodeInterfaces("k8s-worker1", nodeinterfaces2)
-	node, ok = db.GetNode("k8s-worker1")
+	node, ok = db.RetrieveNode("k8s-worker1")
 	db.loopMACMap[node.NodeInterfaces[3].PhysAddress] = node
 	db.loopIPMap[node.NodeInterfaces[3].IPAddresses[0]+subnetmask] = node
-	node, _ = db.GetNode("k8s_master")
+	node, _ = db.RetrieveNode("k8s_master")
 	bdif1_1 := telemetrymodel.BDinterfaces{3}
 	bdif1_2 := telemetrymodel.BDinterfaces{5}
 	nodebd1 := telemetrymodel.NodeBridgeDomain{
@@ -412,7 +416,7 @@ func TestNodesDB_ValidateL2Connections(t *testing.T) {
 	db.SetNodeInterfaces("k8s_master", nodeinterfaces)
 	db.SetNodeBridgeDomain("k8s_master", nodebdmap1)
 
-	node, _ = db.GetNode("k8s-worker1")
+	node, _ = db.RetrieveNode("k8s-worker1")
 	bdif2_1 := telemetrymodel.BDinterfaces{3}
 	bdif2_2 := telemetrymodel.BDinterfaces{4}
 	nodebd2 := telemetrymodel.NodeBridgeDomain{
@@ -436,46 +440,46 @@ func TestNodesDB_ValidateL2Connections(t *testing.T) {
 	db.SetNodeBridgeDomain("k8s-worker1", nodebdmap2)
 	db.SetNodeInterfaces("k8s-worker1", nodeinterfaces2)
 	db.gigEIPMap[node.IPAdr+subnetmask] = node
-	node, _ = db.GetNode("k8s_master")
+	node, _ = db.RetrieveNode("k8s_master")
 	db.gigEIPMap[node.IPAdr+subnetmask] = node
-	db.ValidateL2Connections()
+	ctc.ValidateL2Connections()
 
 	fmt.Println("Setting vxlan_vni to 11, expecting error...")
 	nodevxlaninterface2.Vxlan.Vni = 11
 	nodeinterfaces2[4] = nodevxlaninterface2
 	db.SetNodeInterfaces("k8s-worker1", nodeinterfaces2)
-	db.ValidateL2Connections()
-	nodelist := db.GetAllNodes()
+	ctc.ValidateL2Connections()
+	nodelist := db.RetrieveAllNodes()
 	db.printnodelogs(nodelist)
 	fmt.Println("Setting vxlan_vni back to normal...")
 	nodevxlaninterface2.Vxlan.Vni = 10
 	nodeinterfaces2[4] = nodevxlaninterface2
-	db.SetNodeInterfaces("k8s-worker1", nodeinterfaces2)
-	db.ValidateL2Connections()
-	node, _ = db.GetNode("k8s-worker1")
+	ctc.VppCache.SetNodeInterfaces("k8s-worker1", nodeinterfaces2)
+	ctc.ValidateL2Connections()
+	node, _ = db.RetrieveNode("k8s-worker1")
 
 	nodeinterface2.IfType = interfaces.InterfaceType_TAP_INTERFACE
 	nodeinterfaces2[3] = nodeinterface2
 	db.SetNodeInterfaces("k8s-worker1", nodeinterfaces2)
 	fmt.Println("Expecting errors as bd has no loop interface.")
-	db.ValidateL2Connections()
+	ctc.ValidateL2Connections()
 	db.printnodelogs(nodelist)
 	fmt.Println("Done expecting errors")
 	nodeinterface2.IfType = interfaces.InterfaceType_SOFTWARE_LOOPBACK
 	nodeinterfaces2[3] = nodeinterface2
 	db.SetNodeInterfaces("k8s-worker1", nodeinterfaces2)
-	db.ValidateL2Connections()
+	ctc.ValidateL2Connections()
 	db.printnodelogs(nodelist)
 
 	fmt.Println("Deleting node with ip 10 from gigE map" +
 		". Expecting errors for missing ip")
 	delete(db.gigEIPMap, node.NodeInterfaces[4].Vxlan.DstAddress+subnetmask)
-	db.ValidateL2Connections()
+	ctc.ValidateL2Connections()
 	db.printnodelogs(nodelist)
 	fmt.Println("Done expecting errors")
-	node, _ = db.GetNode("k8s_master")
+	node, _ = db.RetrieveNode("k8s_master")
 	db.gigEIPMap["10"+subnetmask] = node
-	db.ValidateL2Connections()
+	ctc.ValidateL2Connections()
 	db.printnodelogs(nodelist)
 
 	fmt.Println("Unmatching vxlan tunnel. Expecting error...")
@@ -483,13 +487,13 @@ func TestNodesDB_ValidateL2Connections(t *testing.T) {
 	nodevxlaninterface1.Vxlan.DstAddress = "20"
 	nodeinterfaces[5] = nodevxlaninterface1
 	db.SetNodeInterfaces("k8s_master", nodeinterfaces)
-	db.ValidateL2Connections()
+	ctc.ValidateL2Connections()
 	db.printnodelogs(nodelist)
 	fmt.Println("Done expecting errors...")
 	nodevxlaninterface1.Vxlan.DstAddress = "11"
 	nodeinterfaces[5] = nodevxlaninterface1
 	db.SetNodeInterfaces("k8s_master", nodeinterfaces)
-	db.ValidateL2Connections()
+	ctc.ValidateL2Connections()
 	db.printnodelogs(nodelist)
 
 	fmt.Println("Expecting error for mismatched index of bridge domain")
@@ -502,7 +506,7 @@ func TestNodesDB_ValidateL2Connections(t *testing.T) {
 	nodebdmap2 = make(map[int]telemetrymodel.NodeBridgeDomain)
 	nodebdmap2[1] = nodebd2
 	db.SetNodeBridgeDomain("k8s-worker1", nodebdmap2)
-	db.ValidateL2Connections()
+	ctc.ValidateL2Connections()
 	db.printnodelogs(nodelist)
 	fmt.Println("Done expecting errors...")
 	bdif2_2.SwIfIndex = 4
@@ -514,29 +518,31 @@ func TestNodesDB_ValidateL2Connections(t *testing.T) {
 	nodebdmap2 = make(map[int]telemetrymodel.NodeBridgeDomain)
 	nodebdmap2[1] = nodebd2
 	db.SetNodeBridgeDomain("k8s-worker1", nodebdmap2)
-	db.ValidateL2Connections()
+	ctc.ValidateL2Connections()
 	db.printnodelogs(nodelist)
 
 	fmt.Println("Adding extra node in place of existing one...")
-	db.addNode(1, "extraNode", "54321", "54321")
-	node, _ = db.GetNode("extraNode")
+	db.createNode(1, "extraNode", "54321", "54321")
+	node, _ = db.RetrieveNode("extraNode")
 	db.gigEIPMap["10/24"] = node
-	db.ValidateL2Connections()
+	ctc.ValidateL2Connections()
 	db.printnodelogs(nodelist)
 	fmt.Println("Done expecting errors...")
-	node, _ = db.GetNode("k8s_master")
+	node, _ = db.RetrieveNode("k8s_master")
 	db.gigEIPMap["10/24"] = node
 	db.deleteNode("extraNode")
-	db.ValidateL2Connections()
+	ctc.ValidateL2Connections()
 	db.printnodelogs(nodelist)
 
 }
 func TestCache_ValidateFibEntries(t *testing.T) {
 	gomega.RegisterTestingT(t)
 	logger := logrus.DefaultLogger()
-	db := NewCache(logger)
-	db.addNode(1, "k8s_master", "10", "10")
-	node, ok := db.GetNode("k8s_master")
+	db := NewVppCache(logger)
+	ctc := ContivTelemetryCache{Deps{}, true, &VppCache{}, &K8sCache{}, nil, []string{}}
+	ctc.VppCache = db
+	db.createNode(1, "k8s_master", "10", "10")
+	node, ok := db.RetrieveNode("k8s_master")
 	gomega.Expect(ok).To(gomega.BeNil())
 	gomega.Expect(node.IPAdr).To(gomega.Equal("10"))
 	gomega.Expect(node.Name).To(gomega.Equal("k8s_master"))
@@ -576,21 +582,21 @@ func TestCache_ValidateFibEntries(t *testing.T) {
 	nodeiparps2 := make([]telemetrymodel.NodeIPArpEntry, 0)
 	nodeiparps2 = append(nodeiparps2, nodeiparp2)
 
-	db.addNode(2, "k8s-worker1", "11", "11")
+	db.createNode(2, "k8s-worker1", "11", "11")
 
 	db.SetNodeIPARPs("k8s_master", nodeiparps1)
-	node, _ = db.GetNode("k8s_master")
+	node, _ = db.RetrieveNode("k8s_master")
 	db.SetNodeInterfaces("k8s_master", nodeinterfaces)
-	node, ok = db.GetNode("k8s_master")
+	node, ok = db.RetrieveNode("k8s_master")
 	db.loopMACMap[node.NodeInterfaces[3].PhysAddress] = node
 	db.loopIPMap[node.NodeInterfaces[3].IPAddresses[0]+subnetmask] = node
 
 	db.SetNodeIPARPs("k8s-worker1", nodeiparps2)
 	db.SetNodeInterfaces("k8s-worker1", nodeinterfaces2)
-	node, ok = db.GetNode("k8s-worker1")
+	node, ok = db.RetrieveNode("k8s-worker1")
 	db.loopMACMap[node.NodeInterfaces[3].PhysAddress] = node
 	db.loopIPMap[node.NodeInterfaces[3].IPAddresses[0]+subnetmask] = node
-	node, _ = db.GetNode("k8s_master")
+	node, _ = db.RetrieveNode("k8s_master")
 	bdif1_1 := telemetrymodel.BDinterfaces{3}
 	bdif1_2 := telemetrymodel.BDinterfaces{5}
 	nodebd1 := telemetrymodel.NodeBridgeDomain{
@@ -614,7 +620,7 @@ func TestCache_ValidateFibEntries(t *testing.T) {
 	db.SetNodeInterfaces("k8s_master", nodeinterfaces)
 	db.SetNodeBridgeDomain("k8s_master", nodebdmap1)
 
-	node, _ = db.GetNode("k8s-worker1")
+	node, _ = db.RetrieveNode("k8s-worker1")
 	bdif2_1 := telemetrymodel.BDinterfaces{3}
 	bdif2_2 := telemetrymodel.BDinterfaces{4}
 	nodebd2 := telemetrymodel.NodeBridgeDomain{
@@ -638,16 +644,16 @@ func TestCache_ValidateFibEntries(t *testing.T) {
 	db.SetNodeBridgeDomain("k8s-worker1", nodebdmap2)
 	db.SetNodeInterfaces("k8s-worker1", nodeinterfaces2)
 	db.gigEIPMap[node.IPAdr+subnetmask] = node
-	node, _ = db.GetNode("k8s_master")
+	node, _ = db.RetrieveNode("k8s_master")
 	db.gigEIPMap[node.IPAdr+subnetmask] = node
 
-	nodelist := db.GetAllNodes()
-	db.ValidateFibEntries()
+	nodelist := db.RetrieveAllNodes()
+	ctc.ValidateFibEntries()
 	db.printnodelogs(nodelist)
 
 }
 
-func (c *Cache) printnodelogs(nodelist []*telemetrymodel.Node) {
+func (ctc *VppCache) printnodelogs(nodelist []*telemetrymodel.Node) {
 
 	for _, node := range nodelist {
 		for _, str := range node.Report {
@@ -655,8 +661,5 @@ func (c *Cache) printnodelogs(nodelist []*telemetrymodel.Node) {
 		}
 		node.Report = node.Report[0:0]
 	}
-	for _, str := range c.report {
-		fmt.Println(str)
-	}
-	c.report = c.report[0:0]
+
 }

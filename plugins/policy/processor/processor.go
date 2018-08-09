@@ -148,7 +148,7 @@ func (pp *PolicyProcessor) Resync(data *cache.DataResyncEvent) error {
 	return pp.Process(true, pp.Cache.ListAllPods())
 }
 
-// AddPod processes the event of newly added pod. The processor will postpone
+// addPod processes the event of newly added pod. The processor will postpone
 // the reconfiguration until all needed data are available (IP address).
 func (pp *PolicyProcessor) AddPod(podID podmodel.ID, pod *podmodel.Pod) error {
 	pp.Log.WithField("pod", pod).Info("Pod was added")

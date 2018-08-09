@@ -725,10 +725,7 @@ func (rndr *Renderer) idleNATSessionCleanup() {
 				if lastHeard.Before(time.Now()) {
 					if (msg.Protocol == 6 && time.Since(lastHeard) > tcpTimeout) ||
 						(msg.Protocol != 6 && time.Since(lastHeard) > otherTimeout) {
-
 						// inactive session
-						rndr.Log.Debugf("Deleting inactive NAT session (proto %d), last heard %v ago: %v", msg.Protocol, time.Since(lastHeard), msg)
-
 						delRule := &nat_api.Nat44DelSession{
 							IsIn:     1,
 							Address:  msg.InsideIPAddress,
@@ -763,7 +760,7 @@ func (rndr *Renderer) idleNATSessionCleanup() {
 			msg := &nat_api.Nat44DelSessionReply{}
 			err := rndr.GoVPPChan.SendRequest(r).ReceiveReply(msg)
 			if err != nil || msg.Retval != 0 {
-				rndr.Log.Errorf("Error by deleting NAT session: %v, retval=%d, req: %v", err, msg.Retval, r)
+				rndr.Log.Warnf("Error by deleting NAT session: %v, retval=%d, req: %v", err, msg.Retval, r)
 				atomic.AddUint64(&natSessionDeleteErrorCount, 1)
 			} else {
 				if r.Protocol == 6 {

@@ -1946,6 +1946,7 @@
     "github.com/ligato/vpp-agent/plugins/vpp/binapi/memif",
     "github.com/ligato/vpp-agent/plugins/vpp/binapi/nat",
     "github.com/ligato/vpp-agent/plugins/vpp/binapi/session",
+    "github.com/ligato/vpp-agent/plugins/vpp/binapi/stats",
     "github.com/ligato/vpp-agent/plugins/vpp/binapi/tap",
     "github.com/ligato/vpp-agent/plugins/vpp/binapi/vpe",
     "github.com/ligato/vpp-agent/plugins/vpp/binapi/vxlan",

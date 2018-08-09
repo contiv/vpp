@@ -21,10 +21,12 @@ import (
 	"strings"
 
 	"encoding/binary"
+	"git.fd.io/govpp.git/api"
 	linux_intf "github.com/ligato/vpp-agent/plugins/linux/model/interfaces"
 	linux_l3 "github.com/ligato/vpp-agent/plugins/linux/model/l3"
 	"github.com/ligato/vpp-agent/plugins/vpp/binapi/ip"
 	"github.com/ligato/vpp-agent/plugins/vpp/binapi/nat"
+	"github.com/ligato/vpp-agent/plugins/vpp/binapi/stats"
 	"github.com/ligato/vpp-agent/plugins/vpp/binapi/vpe"
 	vpp_intf "github.com/ligato/vpp-agent/plugins/vpp/model/interfaces"
 	vpp_l2 "github.com/ligato/vpp-agent/plugins/vpp/model/l2"
@@ -512,6 +514,25 @@ func (s *remoteCNIserver) disableNatVirtualReassembly() error {
 	if err != nil {
 		s.Logger.Error("Error by disabling NAT virtual reassembly:", err)
 	}
+	return err
+}
+
+func (s *remoteCNIserver) subscribeVnetFibCounters() error {
+
+	notifChan := make(chan api.Message, 1)
+	_, err := s.govppChan.SubscribeNotification(notifChan, stats.NewVnetIP4FibCounters)
+
+	if err != nil {
+		s.Logger.Error("Error by subscribing to NewVnetIP4FibCounters:", err)
+	}
+
+	// read from the notif channel in a go routine to not block once the channel is full
+	go func() {
+		for {
+			<-notifChan
+		}
+	}()
+
 	return err
 }
 

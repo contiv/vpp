@@ -94,7 +94,7 @@ func NewVPPCache(logger logging.Logger) (n *VppCache) {
 		make(map[string]*telemetrymodel.Node),
 		logger,
 		make(map[string]*telemetrymodel.Node),
-		}
+	}
 }
 
 //SetNodeLiveness is a simple function to set a nodes liveness given its name.
@@ -223,7 +223,6 @@ func (ctc *ContivTelemetryCache) PopulateNodeMaps(node *telemetrymodel.Node) {
 		} else {
 
 			if ip, ok := ctc.VppCache.loopIPMap[loopIF.IPAddresses[i]]; ok {
-				//TODO: Report an error back to the controller; store it somewhere, report it at the end of the function
 				errString := fmt.Sprintf("Duplicate IP found: %+v", ip)
 				ctc.VppCache.logErrAndAppendToNodeReport(node.Name, errString)
 			} else {
@@ -254,6 +253,10 @@ func (ctc *ContivTelemetryCache) PopulateNodeMaps(node *telemetrymodel.Node) {
 					ctc.VppCache.hostIPMap[adr.Address] = node
 					nodeHostIP = adr.Address
 				}
+			}
+			if nodeHostIP == "" {
+				errString := fmt.Sprintf("K8s node %+v does not have a valid type 3 host ip address", k8snode.Name)
+				ctc.VppCache.logErrAndAppendToNodeReport(node.Name, errString)
 			}
 		}
 		for _, pod := range ctc.K8sCache.podMap {

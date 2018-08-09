@@ -18,19 +18,19 @@ import (
 	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
 	"github.com/contiv/vpp/plugins/ksr/model/node"
 	pod2 "github.com/contiv/vpp/plugins/ksr/model/pod"
-	"github.com/pkg/errors"
 	"github.com/ligato/cn-infra/logging"
+	"github.com/pkg/errors"
 )
 
-
-
+//K8sCache holds k8s related information separate from vpp related information
 type K8sCache struct {
 	k8sNodeMap map[string]*node.Node
 	podMap     map[string]*telemetrymodel.Pod
 	logger     logging.Logger
 }
 
-func NewK8sCache(logger logging.Logger)*K8sCache{
+//NewK8sCache will return a pointer to a new cache which holds various types of k8s related information.
+func NewK8sCache(logger logging.Logger) *K8sCache {
 	return &K8sCache{
 		make(map[string]*node.Node),
 		make(map[string]*telemetrymodel.Pod),
@@ -38,10 +38,8 @@ func NewK8sCache(logger logging.Logger)*K8sCache{
 	}
 }
 
-
-
-//AddK8sNode will add a k8s type node to the Contiv Telemtry cache, making sure there are no duplicates.
-func (k *K8sCache) AddK8sNode(name string, PodCIDR string, ProviderID string,
+//addK8sNode will add a k8s type node to the Contiv Telemtry cache, making sure there are no duplicates.
+func (k *K8sCache) addK8sNode(name string, PodCIDR string, ProviderID string,
 	Addresses []*node.NodeAddress, NodeInfo *node.NodeSystemInfo) error {
 	newNode := node.Node{Name: name, Pod_CIDR: PodCIDR, Provider_ID: ProviderID, Addresses: Addresses, NodeInfo: NodeInfo}
 	_, ok := k.k8sNodeMap[name]
@@ -53,8 +51,8 @@ func (k *K8sCache) AddK8sNode(name string, PodCIDR string, ProviderID string,
 	return nil
 }
 
-//AddPod adds a pod with the given parameters to the contiv telemetry cache
-func (k *K8sCache) AddPod(Name, Namespace string, Label []*pod2.Pod_Label, IPAddress, HostIPAddress string,
+//addPod adds a pod with the given parameters to the contiv telemetry cache
+func (k *K8sCache) addPod(Name, Namespace string, Label []*pod2.Pod_Label, IPAddress, HostIPAddress string,
 	Container []*pod2.Pod_Container) error {
 	// TODO: add container to telemetry pod struct
 	labels := make([]*telemetrymodel.PodLabel, 0)
@@ -88,6 +86,12 @@ func (k *K8sCache) RetrieveK8sNode(name string) (*node.Node, error) {
 	return node, nil
 }
 
-func (c *VppCache)DeletePod(name string)(error){
-return nil
+func (k *K8sCache) deletePod(name string) error {
+	_, ok := k.podMap[name]
+	if !ok {
+		return errors.Errorf("pod with name %+v not found", name)
+	}
+	delete(k.podMap, name)
+
+	return nil
 }

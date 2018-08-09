@@ -31,7 +31,8 @@ type ContivTelemetryCache struct {
 	Deps
 	Synced bool
 	// todo - here add the maps you have in your db implementation
-	Cache     *Cache
+	VppCache  *VppCache
+	K8sCache  *K8sCache
 	Processor Processor
 	report    []string
 }
@@ -44,14 +45,15 @@ type Deps struct {
 // Init initializes policy cache.
 func (ctc *ContivTelemetryCache) Init() error {
 	// todo - here initialize your maps
-	ctc.Cache = NewCache(ctc.Log)
+	ctc.VppCache = NewVPPCache(ctc.Log)
+	ctc.K8sCache = NewK8sCache(ctc.Log)
 	ctc.Log.Infof("ContivTelemetryCache has been initialized")
 	return nil
 }
 
 // ListAllNodes returns node data for all nodes in the cache.
 func (ctc *ContivTelemetryCache) ListAllNodes() []*telemetrymodel.Node {
-	nodeList := ctc.Cache.GetAllNodes()
+	nodeList := ctc.VppCache.GetAllNodes()
 	return nodeList
 }
 
@@ -60,7 +62,7 @@ func (ctc *ContivTelemetryCache) ListAllNodes() []*telemetrymodel.Node {
 func (ctc *ContivTelemetryCache) LookupNode(nodenames []string) []*telemetrymodel.Node {
 	nodeslice := make([]*telemetrymodel.Node, 0)
 	for _, name := range nodenames {
-		node, ok := ctc.Cache.nMap[name]
+		node, ok := ctc.VppCache.nMap[name]
 		if !ok {
 			continue
 		}
@@ -73,12 +75,12 @@ func (ctc *ContivTelemetryCache) LookupNode(nodenames []string) []*telemetrymode
 // to the function in the node names slice.
 func (ctc *ContivTelemetryCache) DeleteNode(nodenames []string) {
 	for _, str := range nodenames {
-		node, err := ctc.Cache.GetNode(str)
+		node, err := ctc.VppCache.GetNode(str)
 		if err != nil {
 			ctc.Log.Error(err)
 			return
 		}
-		ctc.Cache.deleteNode(node.Name)
+		ctc.VppCache.deleteNode(node.Name)
 
 	}
 
@@ -86,7 +88,7 @@ func (ctc *ContivTelemetryCache) DeleteNode(nodenames []string) {
 
 //AddNode will add a node to the Contiv Telemetry cache with the given parameters.
 func (ctc *ContivTelemetryCache) AddNode(ID uint32, nodeName, IPAdr, ManIPAdr string) error {
-	err := ctc.Cache.addNode(ID, nodeName, IPAdr, ManIPAdr)
+	err := ctc.VppCache.addNode(ID, nodeName, IPAdr, ManIPAdr)
 	if err != nil {
 		return err
 	}

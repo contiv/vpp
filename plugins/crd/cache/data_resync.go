@@ -135,7 +135,7 @@ func (ctc *ContivTelemetryCache) parseAndCachePodData(key string, evData datasyn
 	}
 
 	ctc.Log.Infof("parseAndCachePodData: pod %s, namespace %s, value %+v", pod, namespace, podValue)
-	ctc.AddPod(podValue.Name, podValue.Namespace, podValue.Label, podValue.IpAddress, podValue.HostIpAddress, podValue.Container)
+	ctc.K8sCache.AddPod(podValue.Name, podValue.Namespace, podValue.Label, podValue.IpAddress, podValue.HostIpAddress, podValue.Container)
 
 	return nil
 }
@@ -157,6 +157,6 @@ func (ctc *ContivTelemetryCache) parseAndCacheNodeData(key string, evData datasy
 	}
 
 	ctc.Log.Infof("parseAndCacheNodeData: node %s, value %+v", node, nodeValue)
-	ctc.AddK8sNode(nodeValue.Name, nodeValue.Pod_CIDR, nodeValue.Provider_ID, nodeValue.Addresses, nodeValue.NodeInfo)
+	ctc.K8sCache.AddK8sNode(nodeValue.Name, nodeValue.Pod_CIDR, nodeValue.Provider_ID, nodeValue.Addresses, nodeValue.NodeInfo)
 	return nil
 }

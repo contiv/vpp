@@ -1,36 +1,38 @@
 # Manual Installation On Cavium Thunderx
 This document describes how to use [kubeadm][1] to manually install Kubernetes
-with Contiv-VPP networking on one or more Cavium ThunderX bare metal machines 
+with Contiv-VPP networking on one or more Cavium ThunderX bare metal machines
 provided by [packet][18].
 
 ## Preparing your hosts
 
-### Host-specific configurations
-Packet’s Cavium Thunderx is default using [bonded network configuration][20].
-For purposes of Kubernetes with Contiv-VPP there is need to remove bonding and
-properly configure the network - see [Instructions][19] - you need to choose
-the third option "Using eth0 with a publicly-connected VLAN and eth1 on a private VLAN".
-Warning! Disabling bonding will remove public connectivity from your server 
-and you will have to use [SOS][23] to connect. 
+### Host-specific configuration
+* Packet’s Cavium Thunderx's are using [bonded network configuration][20] by default. Kubernetes with Contiv-VPP doesn't support bonding, which needs to be removed.
 
-Please install docker according these [instructions][36].
+  WARNING:
+  Disabling bonding will remove public connectivity from your server
+  and you will have to use [SOS][23] to connect.
+  QUESTION: can
 
-Check the drivers used in machine according [33.6.1. SR-IOV: Prerequisites and sample Application Notes][30].
-Verify PF devices capabilities using lspci and search for Kernel driver in use: thunder-nic.
-Verify VF devices capabilities and drivers using lspci and search for Kernel driver in use: thunder-nicvf.
+* Configure the network according to [Packet's l2 configuation instruction][19] - section "C #3: Using eth0 with a publicly-connected VLAN and eth1 on a private VLAN".
 
-Drivers are probably in use what is set up by these kernel parameters:
-```
-$ cat /boot/config-4.10.0-38-generic | grep CONFIG_THUNDER_NIC
-CONFIG_THUNDER_NIC_PF=m
-CONFIG_THUNDER_NIC_VF=m
-CONFIG_THUNDER_NIC_BGX=m
-CONFIG_THUNDER_NIC_RGX=m
-```
-  
+* [Install docker][36].
+
+* Check the drivers used on the host according to [34.6.1. SR-IOV: Prerequisites and sample Application Notes][30].
+
+    * In particular, verify PF and VF device capabilities
+
+* Check that drivers are loadable by looking for CONFIG_THUNDER_NIC in your boot config:
+  ```
+  $ grep CONFIG_THUNDER_NIC /boot/config-$(uname -r)
+  CONFIG_THUNDER_NIC_PF=m
+  CONFIG_THUNDER_NIC_VF=m
+  CONFIG_THUNDER_NIC_BGX=m
+  CONFIG_THUNDER_NIC_RGX=m
+  ```
+
 ### Setting up Network Adapter(s)
 #### Setting up DPDK
-DPDK setup must be completed **on each node** as follows:
+DPDK setup must be set up **on each node** as follows:
 
 - Load the VFIO PCI driver:
   ```
@@ -46,15 +48,15 @@ DPDK setup must be completed **on each node** as follows:
   ```
 
   Please note that this driver needs to be loaded upon each server bootup,
-  so you may want to add `vfio_pci` into the `/etc/modules` file, 
-  or a file in the `/etc/modules-load.d/` directory. For example, the 
+  so you may want to add `vfio_pci` into the `/etc/modules` file,
+  or a file in the `/etc/modules-load.d/` directory. For example, the
   `/etc/modules` file could look as follows:
   ```
   # /etc/modules: kernel modules to load at boot time.
   #
   # This file contains the names of kernel modules that should be loaded
   # at boot time, one per line. Lines beginning with "#" are ignored.
-  vfio-pci 
+  vfio-pci
   ```
 #### Determining Network Adapter PCI addresses
 You need to find out the PCI address of the network interface that
@@ -99,20 +101,23 @@ distributions, you can use `lshw`(*):
     yum -y install lshw
     ```
 
-Notice that the previous command lists a lot of items. 
-The reason is that the inbuilt NIC found in the Cavium ThunderX SoC family 
-is the card with virtual functions (VF) in [SR-IOV][29] context.
+Notice that the previous command lists a lot of items.
+The reason is that the built-in NIC found in the Cavium ThunderX SoC family
+is a card with [SR-IOV][29] virtual functions (VF).
 
 #### Customization on the target machine
-To use this card in context of Kubernetes with Contiv-VPP network plugin
-there is the need to follow instructions at [the DPDK pages - Linux prerequisites][31]: 
+To use this card (COMMENT: which card?) in context of Kubernetes with Contiv-VPP network plugin
+there is the need to follow instructions at [the DPDK pages - Linux prerequisites][31]:
+(COMMENT: are we duplicating what's on the DPDK page? If so, we don't need to link to it, since it's just going to confuse people, like it confused me)
 Required Kernel version >= 3.2
-This manual describe the successful deployment on machine with Ubuntu 18.04.1 LTS
-and linux kernel 4.15.0-20-generic (Kubernetes master node) and on machine 
-Ubuntu 16.04.5 LTS and linux kernel 4.10.0-38-generic (Kubernetes slave node).
+
+This manual describes the successful deployment on a Ubuntu 18.04.1 LTS
+Kubernetes master node with 4.15.0-20-generic Linux kernel and a Ubuntu 16.04.5 LTS
+Kubernetes slave node with 4.10.0-38-generic Linux kernel.
 
 * glibc >= 2.7 (for features related to cpuset). The version can be checked using the ldd --version command.
   ```
+  COMMENT: Ubuntu 16.04 has this version, should we specify how to update it?
   $ ldd --version
   ldd (Ubuntu GLIBC 2.23-0ubuntu10) 2.23
   ```
@@ -121,21 +126,22 @@ Ubuntu 16.04.5 LTS and linux kernel 4.10.0-38-generic (Kubernetes slave node).
   $ cat /boot/config-4.10.0-38-generic | grep HUGETLBFS
   CONFIG_SYS_SUPPORTS_HUGETLBFS=y
   CONFIG_HUGETLBFS=y
-  $ cat /boot/config-4.10.0-38-generic | grep PROC_PAGE_MONITOR 
+  $ cat /boot/config-4.10.0-38-generic | grep PROC_PAGE_MONITOR
   CONFIG_PROC_PAGE_MONITOR=y
-  $ cat /boot/config-4.10.0-38-generic | grep HPET 
+  $ cat /boot/config-4.10.0-38-generic | grep HPET
   # CONFIG_HPET is not set
   ```
   HUGETLBFS option must be enabled in the running kernel
 
   The allocation of hugepages should be done at boot time or as soon as possible after system boot to prevent memory from being fragmented in physical memory. To reserve hugepages at boot time, a parameter is passed to the Linux kernel on the kernel command line. Add these parameters to the file /etc/default/grub:
   ```
+  COMMENT: this is confusing, later we're working with 16 hugepages, let's make it consistent
   default_hugepagesz=1G hugepagesz=1G hugepages=4
   ```
 
   For Ubuntu 18.04 you need also to add the parameter iommu.passthrough=1 to the file /etc/default/grub according this [webpage][32].
 
-  The file /etc/default/grub should look like this or similarly
+  The file /etc/default/grub should look like this:
   ```
   GRUB_DEFAULT=0
   #GRUB_HIDDEN_TIMEOUT=0
@@ -159,7 +165,7 @@ Ubuntu 16.04.5 LTS and linux kernel 4.10.0-38-generic (Kubernetes slave node).
 
   You can check memory allocation:
   ```
-  $ grep "uge" /proc/meminfo
+  $ grep "Huge" /proc/meminfo
   AnonHugePages:         0 kB
   ShmemHugePages:        0 kB
   HugePages_Total:      16
@@ -176,8 +182,7 @@ Finally, you need to set up the vswitch to use the network adapters:
 
 
 ## Installing Kubernetes with Contiv-vpp CNI plugin
-After the nodes you will be using in your K8s cluster are prepared, you can 
-install the cluster using [kubeadm][1].
+After the nodes have been configured, you can install the cluster using [kubeadm][1].
 
 ### (1/4) Installing Kubeadm on your hosts
 For first-time installation, see [Installing kubeadm][6]. To update an
@@ -185,17 +190,17 @@ existing installation,  you should do a `apt-get update && apt-get upgrade`
 or `yum update` to get the latest version of kubeadm.
 
 On each host with multiple NICs where the NIC that will be used for Kubernetes
-management traffic is not the one pointed to by the default route out of the 
+management traffic is not the one pointed to by the default route out of the
 host, a [custom management network][12] for Kubernetes must be configured.
 
 #### Using Kubernetes 1.10 and above
 In K8s 1.10, support for huge pages in a pod has been introduced. For now, this
 feature must be either disabled or memory limit must be defined for vswitch container.
 
-Successfuly was tested this case:
+This case was successfully tested:
 To define memory limit, append the following snippet to vswitch container in deployment yaml file:
 ```
-          resources:          
+          resources:
             limits:
               hugepages-1Gi: 8Gi
               memory: 8Gi
@@ -210,8 +215,8 @@ root:
 ```
 kubeadm init --token-ttl 0 --pod-network-cidr=10.1.0.0/16
 ```
-**Note:** `kubeadm init` will autodetect the network interface to advertise
-the master on as the interface with the default gateway. If you want to use a
+**Note:** `kubeadm init` will autodetect the network interface associated with
+default gateway to advertise the master's IP. If you want to use a
 different interface (i.e. a custom management network setup), specify the
 `--apiserver-advertise-address=<ip-address>` argument to kubeadm init. For
 example:
@@ -220,15 +225,15 @@ kubeadm init --token-ttl 0 --pod-network-cidr=10.1.0.0/16 --apiserver-advertise-
 ```
 **Note:** The CIDR specified with the flag `--pod-network-cidr` is used by
 kube-proxy, and it **must include** the `PodSubnetCIDR` from the `IPAMConfig`
-section in the Contiv-vpp config map in Contiv-vpp's deployment file 
+section in the Contiv-vpp config map in Contiv-vpp's deployment file
 ([contiv-vpp.yaml](../k8s/contiv-vpp.yaml)). Pods in the host network namespace
 are a special case; they share their respective interfaces and IP addresses with
 the host. For proxying to work properly it is therefore required for services
-with backends running on the host to also **include the node management IP** 
-within the `--pod-network-cidr` subnet. For example, with the default 
-`PodSubnetCIDR=10.1.0.0/16` and `PodIfIPCIDR=10.2.1.0/24`, the subnet 
-`10.3.0.0/16` could be allocated for the management network and 
-`--pod-network-cidr` could be defined as `10.0.0.0/8`, so as to include IP 
+with backends running on the host to also **include the node management IP**
+within the `--pod-network-cidr` subnet. For example, with the default
+`PodSubnetCIDR=10.1.0.0/16` and `PodIfIPCIDR=10.2.1.0/24`, the subnet
+`10.3.0.0/16` could be allocated for the management network and
+`--pod-network-cidr` could be defined as `10.0.0.0/8`, so as to include IP
 addresses of all pods in all network namespaces:
 ```
 kubeadm init --token-ttl 0 --pod-network-cidr=10.0.0.0/8 --apiserver-advertise-address=10.3.1.1
@@ -250,20 +255,20 @@ sudo chown $(id -u):$(id -g) $HOME/.kube/config
 ### (3/4) Installing the Contiv-VPP pod network
 Install the Contiv-VPP network for your cluster as follows:
 
-- If you do not use the STN feature, install Contiv-vpp as follows: 
+- If you do not use the STN feature, install Contiv-vpp as follows:
   ```
   kubectl apply -f https://raw.githubusercontent.com/contiv/vpp/master/k8s/contiv-vpp-arm64.yaml
   ```
-  
+
 - If you use the STN feature, download the `contiv-vpp.yaml` file:
   ```
   wget https://raw.githubusercontent.com/contiv/vpp/master/k8s/contiv-vpp-arm64.yaml
   ```
-  Then edit the STN configuration as described [here][16]. Finally, create 
+  Then edit the STN configuration as described [here][16]. Finally, create
   the Contiv-vpp deployment from the edited file:
   ```
   kubectl apply -f ./contiv-vpp-arm64.yaml
-  ``` 
+  ```
 
 Beware contiv-etcd data is persisted in `/var/etcd` by default. It has to be cleaned up manually after `kubeadm reset`.
 Otherwise outdated data will be loaded by a subsequent deployment.
@@ -291,13 +296,13 @@ Verify that the VPP successfully grabbed the network interface specified in
 the VPP startup config (`VirtualFunctionEthernet1/0/2` in our case):
 ```
 $ docker exec -it  `docker ps | grep "\/usr\/bin\/supervisor" | cut --delimiter=" " --fields=1` /usr/bin/vppctl
-    _______    _        _   _____  ___ 
+    _______    _        _   _____  ___
  __/ __/ _ \  (_)__    | | / / _ \/ _ \
  _/ _// // / / / _ \   | |/ / ___/ ___/
- /_/ /____(_)_/\___/   |___/_/  /_/    
+ /_/ /____(_)_/\___/   |___/_/  /_/
 
-vpp# show interface 
-              Name               Idx    State  MTU (L3/IP4/IP6/MPLS)     Counter          Count     
+vpp# show interface
+              Name               Idx    State  MTU (L3/IP4/IP6/MPLS)     Counter          Count
 VirtualFunctionEthernet1/0/2      1      up          9000/0/0/0     rx packets                  1031
                                                                     rx bytes                   66879
                                                                     tx packets                  1043
@@ -305,7 +310,7 @@ VirtualFunctionEthernet1/0/2      1      up          9000/0/0/0     rx packets  
                                                                     drops                        498
                                                                     ip4                           52
                                                                     tx-error                       1
-local0                            0     down          0/0/0/0       
+local0                            0     down          0/0/0/0
 loop0                             3      up          9000/0/0/0     rx packets                    47
                                                                     rx bytes                    4641
                                                                     tx packets                   118
@@ -333,7 +338,7 @@ tap2                              6      up          1500/0/0/0     rx packets  
                                                                     drops                         51
                                                                     ip4                       106839
                                                                     ip6                           38
-vpp# show interface addr 
+vpp# show interface addr
 VirtualFunctionEthernet1/0/2 (up):
   L3 192.168.16.1/24
 local0 (dn):
@@ -346,7 +351,7 @@ tap1 (up):
   L3 10.2.1.2/32
 tap2 (up):
   L3 10.2.1.3/32
-vpp# 
+vpp#
 
 ```
 
@@ -370,12 +375,12 @@ by kubeadm init. For example:
 ```
 kubeadm join --token <token> <master-ip>:<master-port> --discovery-token-ca-cert-hash sha256:<hash>
 ```
-After starting kubernetes you can whenever display this command on kubernetes master machine e.g.:
+After starting kubernetes you can look at how a join command looks like:
 ```
-$ sudo kubeadm token create --print-join-command 
+$ sudo kubeadm token create --print-join-command
 kubeadm join 147.75.98.202:6443 --token v7qx7g.dkiy12lxt6sd534q --discovery-token-ca-cert-hash sha256:73e924e696ddb0a7016d7e70053b46664ab5361b3b8e6099cb55dadaa202fd67
 ```
-More details can be found int the [kubeadm manual][5].
+More details can be found in the [kubeadm manual][5].
 
 #### Deployment Verification
 After some time, all contiv containers should enter the running state:
@@ -404,12 +409,12 @@ our case):
 ```
 $ docker exec -it  `docker ps | grep "\/usr\/bin\/supervisor" | cut --delimiter=" " --fields=1` /usr/bin/vppctl
 ...
-vpp# show interface 
-              Name               Idx    State  MTU (L3/IP4/IP6/MPLS)     Counter          Count     
+vpp# show interface
+              Name               Idx    State  MTU (L3/IP4/IP6/MPLS)     Counter          Count
 VirtualFunctionEthernet1/0/2      1      up          9000/0/0/0     rx packets                  1031
 ...
 ```
-From the vpp CLI on a joined node you can also ping coredns to verify
+You can also ping coredns from VPP on a joined node to verify
 node-to-node connectivity. For example:
 ```apple js
 vpp# ping 10.1.1.2
@@ -419,7 +424,7 @@ vpp# ping 10.1.1.2
 64 bytes from 10.1.1.2: icmp_seq=5 ttl=63 time=.8852 ms
 
 Statistics: 5 sent, 4 received, 20% packet loss
-vpp# 
+vpp#
 ```
 ### Deploying example applications
 #### Simple deployment
@@ -459,7 +464,7 @@ You can check the pods' connectivity in one of the following ways:
 ```
 
 #### Deploying pods on different nodes
-to enable pod deployment on the master, untaint the master first:
+To enable pod deployment on the master, untaint the master first:
 ```
 kubectl taint nodes --all node-role.kubernetes.io/master-
 ```
@@ -538,9 +543,10 @@ nginx-64f497f8fd-sv6bh   1/1       Running   0          14s       10.1.2.3   cvp
 
 ```
 Then verify how describe above...
+COMMENT: what is this? ^^
 
 Note:
-To delete deployment issue the commnad: `kubectl delete deployment/nginx`
+To delete the deployment, issue the commnad `kubectl delete deployment/nginx`
 
 ### Uninstalling Contiv-VPP
 To uninstall the network plugin itself, use `kubectl`:
@@ -612,8 +618,6 @@ rm -rf /var/etcd/contiv-data
 [18]: https://www.packet.net/bare-metal/servers/c1-large-arm/
 [19]: https://help.packet.net/technical/networking/layer-2-configurations
 [20]: https://help.packet.net/technical/networking/lacp-bonding
-[30]: https://doc.dpdk.org/guides/nics/thunderx.html
-[36]: https://help.packet.net/hardware/arm/docker-on-arm
 [23]: https://help.packet.net/technical/networking/sos-serial-over-ssh
 [24]: https://hub.docker.com/r/stanislavchlebec/vswitch-arm64/tags/
 [25]: https://github.com/coreos/etcd/blob/17be3b551a0b8b8335dade33154fa2267527e377/Documentation/op-guide/supported-platform.md
@@ -621,6 +625,8 @@ rm -rf /var/etcd/contiv-data
 [27]: https://help.packet.net/technical/networking/layer-2-configurations
 [28]: https://help.packet.net/technical/networking/layer-2-overview
 [29]: https://blog.scottlowe.org/2009/12/02/what-is-sr-iov/
-[31]: https://doc.dpdk.org/guides/linux_gsg/sys_reqs.html
+[30]: https://doc.dpdk.org/guides/nics/thunderx.html#sr-iov-prerequisites-and-sample-application-notes
+[31]: https://doc.dpdk.org/guides/linux_gsg/sys_reqs.html#running-dpdk-applications
 [32]: https://certification.ubuntu.com/hardware/201609-25110/
 [35]: MULTI_NIC_SETUP_CAVIUM.md
+[36]: https://help.packet.net/hardware/arm/docker-on-arm

@@ -51,6 +51,9 @@ data:
     endpoint: /var/run/contiv/cni.sock
   http.conf: |
       endpoint: 0.0.0.0:9999
+  telemetry.conf: |
+    polling-interval: 30000000000
+    disabled: true
 
 ---
 
@@ -333,6 +336,8 @@ spec:
                   fieldPath: spec.nodeName
             - name: ETCD_CONFIG
               value: "/etc/etcd/etcd.conf"
+            - name: TELEMETRY_CONFIG
+              value: "/etc/agent/telemetry.conf"
           volumeMounts:
             - name: etcd-cfg
               mountPath: /etc/etcd

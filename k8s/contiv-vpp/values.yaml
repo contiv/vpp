@@ -129,6 +129,10 @@ http:
   # credentials to be used by basic-auth, format <username>:<password>
   basicAuth: user:pass
 
+telemetry:
+  pollingInterval: 30000000000
+  disabled: true
+
 init:
   image:
     repository: busybox

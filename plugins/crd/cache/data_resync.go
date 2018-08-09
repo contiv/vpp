@@ -60,7 +60,7 @@ func (ctc *ContivTelemetryCache) Resync(resyncEv datasync.ResyncEvent) error {
 			}
 
 			if err != nil {
-				ctc.Cache.report = append(ctc.Cache.report, err.Error())
+				ctc.report = append(ctc.report, err.Error())
 				ctc.Log.Error(err)
 				ctc.Synced = false
 			}
@@ -68,7 +68,7 @@ func (ctc *ContivTelemetryCache) Resync(resyncEv datasync.ResyncEvent) error {
 	}
 
 	if ctc.Synced == false {
-		ctc.Cache.report = append(ctc.Cache.report, errors.Errorf("%s",
+		ctc.report = append(ctc.report, errors.Errorf("%s",
 			"datasync error, cache may be out of sync").Error())
 		return fmt.Errorf("%s", "datasync error, cache may be out of sync")
 	}
@@ -77,38 +77,39 @@ func (ctc *ContivTelemetryCache) Resync(resyncEv datasync.ResyncEvent) error {
 }
 
 func (ctc *ContivTelemetryCache) parseAndCacheNodeInfoData(key string, evData datasync.KeyVal) error {
+	fmt.Println("Adding VppNode")
 	pattern := fmt.Sprintf("%s[0-9]*$", nodeinfomodel.AllocatedIDsKeyPrefix)
 	matched, err := regexp.Match(pattern, []byte(key))
 	if !matched || err != nil {
-		ctc.Cache.report = append(ctc.Cache.report, errors.Errorf("invalid key %s", key).Error())
+		ctc.report = append(ctc.report, errors.Errorf("invalid key %s", key).Error())
 		return fmt.Errorf("invalid key %s", key)
 	}
 
 	nodeInfoValue := &nodeinfomodel.NodeInfo{}
 	err = evData.GetValue(nodeInfoValue)
 	if err != nil {
-		ctc.Cache.report = append(ctc.Cache.report, errors.Errorf("could not parse node info data for key %s, error %s",
+		ctc.report = append(ctc.report, errors.Errorf("could not parse node info data for key %s, error %s",
 			key, err).Error())
 		return fmt.Errorf("could not parse node info data for key %s, error %s", key, err)
 	}
 
 	id, _ := strconv.Atoi(strings.Split(key, "/")[1])
 	if nodeInfoValue.Id != uint32(id) {
-		ctc.Cache.report = append(ctc.Cache.report, errors.Errorf("invalid key '%s' or node id '%d'",
+		ctc.report = append(ctc.report, errors.Errorf("invalid key '%s' or node id '%d'",
 			key, nodeInfoValue.Id).Error())
 		return fmt.Errorf("invalid key '%s' or node id '%d'", key, nodeInfoValue.Id)
 	}
 
 	if nodeInfoValue.Id == 0 || nodeInfoValue.Name == "" ||
 		nodeInfoValue.IpAddress == "" || nodeInfoValue.ManagementIpAddress == "" {
-		ctc.Cache.report = append(ctc.Cache.report, errors.Errorf("invalid nodeInfo data: '%+v'",
+		ctc.report = append(ctc.report, errors.Errorf("invalid nodeInfo data: '%+v'",
 			nodeInfoValue).Error())
 		return fmt.Errorf("invalid nodeInfo data: '%+v'", nodeInfoValue)
 	}
 
 	err = ctc.AddNode(nodeInfoValue.Id, nodeInfoValue.Name, nodeInfoValue.IpAddress, nodeInfoValue.ManagementIpAddress)
 	if err != nil {
-		ctc.Cache.report = append(ctc.Cache.report, err.Error())
+		ctc.report = append(ctc.report, err.Error())
 		ctc.Log.Error(err)
 	}
 
@@ -120,9 +121,10 @@ func (ctc *ContivTelemetryCache) parseAndCacheNodeInfoData(key string, evData da
 }
 
 func (ctc *ContivTelemetryCache) parseAndCachePodData(key string, evData datasync.KeyVal) error {
+	fmt.Println("Adding Pod")
 	pod, namespace, err := podmodel.ParsePodFromKey(key)
 	if err != nil {
-		ctc.Cache.report = append(ctc.Cache.report, errors.Errorf("invalid key %s", key).Error())
+		ctc.report = append(ctc.report, errors.Errorf("invalid key %s", key).Error())
 		return fmt.Errorf("invalid key %s", key)
 	}
 
@@ -139,16 +141,17 @@ func (ctc *ContivTelemetryCache) parseAndCachePodData(key string, evData datasyn
 }
 
 func (ctc *ContivTelemetryCache) parseAndCacheNodeData(key string, evData datasync.KeyVal) error {
+	fmt.Println("Adding K8sNode")
 	node, err := nodemodel.ParseNodeFromKey(key)
 	if err != nil {
-		ctc.Cache.report = append(ctc.Cache.report, errors.Errorf("invalid key %s", key).Error())
+		ctc.report = append(ctc.report, errors.Errorf("invalid key %s", key).Error())
 		return fmt.Errorf("invalid key %s", key)
 	}
 
 	nodeValue := &nodemodel.Node{}
 	err = evData.GetValue(nodeValue)
 	if err != nil {
-		ctc.Cache.report = append(ctc.Cache.report, errors.Errorf("could not parse node info data for key %s, error %s",
+		ctc.report = append(ctc.report, errors.Errorf("could not parse node info data for key %s, error %s",
 			key, err).Error())
 		return fmt.Errorf("could not parse node info data for key %s, error %s", key, err)
 	}

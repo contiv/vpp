@@ -45,7 +45,7 @@ type Deps struct {
 // Init initializes policy cache.
 func (ctc *ContivTelemetryCache) Init() error {
 	// todo - here initialize your maps
-	ctc.VppCache = NewVPPCache(ctc.Log)
+	ctc.VppCache = NewVppCache(ctc.Log)
 	ctc.K8sCache = NewK8sCache(ctc.Log)
 	ctc.Log.Infof("ContivTelemetryCache has been initialized")
 	return nil
@@ -53,7 +53,7 @@ func (ctc *ContivTelemetryCache) Init() error {
 
 // ListAllNodes returns node data for all nodes in the cache.
 func (ctc *ContivTelemetryCache) ListAllNodes() []*telemetrymodel.Node {
-	nodeList := ctc.VppCache.GetAllNodes()
+	nodeList := ctc.VppCache.RetrieveAllNodes()
 	return nodeList
 }
 
@@ -75,7 +75,7 @@ func (ctc *ContivTelemetryCache) LookupNode(nodenames []string) []*telemetrymode
 // to the function in the node names slice.
 func (ctc *ContivTelemetryCache) DeleteNode(nodenames []string) {
 	for _, str := range nodenames {
-		node, err := ctc.VppCache.GetNode(str)
+		node, err := ctc.VppCache.RetrieveNode(str)
 		if err != nil {
 			ctc.Log.Error(err)
 			return

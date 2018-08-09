@@ -47,7 +47,7 @@ func (pc *podChange) GetValueProto() proto.Message {
 
 func (pc *podChange) AddRecord(ctc *ContivTelemetryCache, names []string, record proto.Message) error {
 	ctc.Log.Infof("Adding pod %s in namespace %s, podValue %+v", names[0], names[1], record)
-	// TODO: ctc.addPod(names[0], names[1], podValue)
+	// TODO: ctc.createPod(names[0], names[1], podValue)
 	return nil
 }
 

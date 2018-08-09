@@ -89,7 +89,7 @@ func (p *ContivTelemetryProcessor) CollectNodeInfo(node *telemetrymodel.Node) {
 // validation are reported to the CRD.
 func (p *ContivTelemetryProcessor) ValidateNodeInfo() {
 
-	nodelist := p.ContivTelemetryCache.VppCache.GetAllNodes()
+	nodelist := p.ContivTelemetryCache.VppCache.RetrieveAllNodes()
 	for _, node := range nodelist {
 		p.ContivTelemetryCache.PopulateNodeMaps(node)
 	}
@@ -148,7 +148,7 @@ func (p *ContivTelemetryProcessor) collectAgentInfo(node *telemetrymodel.Node) {
 
 func (p *ContivTelemetryProcessor) retrieveNetworkInfoOnTimerExpiry() {
 	for range p.ticker.C {
-		nodelist := p.ContivTelemetryCache.VppCache.GetAllNodes()
+		nodelist := p.ContivTelemetryCache.VppCache.RetrieveAllNodes()
 
 		p.Log.Info("Timer has expired; Beginning gathering of information.")
 		p.ContivTelemetryCache.ClearCache()
@@ -209,7 +209,7 @@ func (p *ContivTelemetryProcessor) waitForValidationToFinish() int {
 //is finished with it.
 func (p *ContivTelemetryProcessor) ProcessNodeResponses() {
 	for data := range p.nodeResponseChannel {
-		nodelist := p.ContivTelemetryCache.VppCache.GetAllNodes()
+		nodelist := p.ContivTelemetryCache.VppCache.RetrieveAllNodes()
 		p.dtoList = append(p.dtoList, data)
 		fmt.Println("dtoList:", p.dtoList)
 		fmt.Println("nodeList:", nodelist)

@@ -329,7 +329,7 @@ func TestProcessor(t *testing.T) {
 func testCollectAgentInfoNoError(t *testing.T) {
 	ptv.processor.ContivTelemetryCache.AddNode(1, "k8s-master", "10.20.0.2", "localhost")
 
-	node, err := ptv.processor.ContivTelemetryCache.VppCache.GetNode("k8s-master")
+	node, err := ptv.processor.ContivTelemetryCache.VppCache.RetrieveNode("k8s-master")
 	gomega.Expect(err).To(gomega.BeNil())
 
 	ptv.tickerChan <- time.Time{}

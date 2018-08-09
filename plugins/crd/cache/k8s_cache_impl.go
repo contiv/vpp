@@ -15,10 +15,10 @@
 package cache
 
 import (
-	"github.com/contiv/vpp/plugins/ksr/model/node"
-	"github.com/pkg/errors"
 	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
+	"github.com/contiv/vpp/plugins/ksr/model/node"
 	pod2 "github.com/contiv/vpp/plugins/ksr/model/pod"
+	"github.com/pkg/errors"
 )
 
 //AddK8sNode will add a k8s type node to the Contiv Telemtry cache, making sure there are no duplicates.
@@ -30,7 +30,6 @@ func (ctc *ContivTelemetryCache) AddK8sNode(name string, PodCIDR string, Provide
 		return errors.Errorf("Duplicate k8s node with name %+v found", name)
 	}
 	ctc.Cache.k8sNodeMap[name] = &newNode
-
 
 	return nil
 }
@@ -56,7 +55,7 @@ func (ctc *ContivTelemetryCache) AddPod(Name, Namespace string, Label []*pod2.Po
 	return nil
 }
 
-
+//RetrievePod will retrieve a pod from the cache with the given name or return an error if it is not found.
 func (c *Cache) RetrievePod(name string) (*telemetrymodel.Pod, error) {
 	pod, ok := c.podMap[name]
 	if !ok {
@@ -65,6 +64,7 @@ func (c *Cache) RetrievePod(name string) (*telemetrymodel.Pod, error) {
 	return pod, nil
 }
 
+//RetrieveK8sNode will retrieve a k8s node from the cache with the given name or return an error if it is not found.gi
 func (c *Cache) RetrieveK8sNode(name string) (*node.Node, error) {
 	node, ok := c.k8sNodeMap[name]
 	if !ok {
@@ -72,4 +72,3 @@ func (c *Cache) RetrieveK8sNode(name string) (*node.Node, error) {
 	}
 	return node, nil
 }
-

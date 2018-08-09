@@ -15,13 +15,13 @@
 package cache
 
 import (
+	"fmt"
+	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
 	"github.com/contiv/vpp/plugins/ksr/model/node"
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/vpp-agent/plugins/vpp/model/interfaces"
 	"github.com/pkg/errors"
 	"sort"
-	"fmt"
-	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
 )
 
 // here goes different cache types
@@ -37,7 +37,7 @@ type Cache struct {
 	k8sNodeMap map[string]*node.Node
 	hostIPMap  map[string]*telemetrymodel.Node
 	podMap     map[string]*telemetrymodel.Pod
-	logger logging.Logger
+	logger     logging.Logger
 }
 
 func (c *Cache) logErrAndAppendToNodeReport(nodeName string, errString string) {
@@ -62,7 +62,6 @@ func (c *Cache) addNode(ID uint32, nodeName, IPAdr, ManIPAdr string) error {
 	return nil
 }
 
-
 //ClearCache with clear all cache data except for the base nMap that contains
 // the discovered nodes..
 func (ctc *ContivTelemetryCache) ClearCache() {
@@ -81,7 +80,6 @@ func (ctc *ContivTelemetryCache) ClearCache() {
 	ctc.Cache.loopIPMap = make(map[string]*telemetrymodel.Node)
 
 }
-
 
 // ReinitializeCache completely re-initializes the cache, clearing all
 // data including  the discovered nodes.

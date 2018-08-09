@@ -105,7 +105,6 @@ func (p *ContivTelemetryProcessor) ValidateNodeInfo() {
 
 	p.ContivTelemetryCache.ValidatePodInfo()
 
-
 	for _, entry := range p.ContivTelemetryCache.report {
 		p.Log.Info(entry)
 		for _, node := range p.ContivTelemetryCache.Cache.nMap {

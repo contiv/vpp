@@ -16,8 +16,8 @@
 package cache
 
 import (
-	"github.com/ligato/cn-infra/logging"
 	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
+	"github.com/ligato/cn-infra/logging"
 )
 
 const subnetmask = "/24"
@@ -92,7 +92,3 @@ func (ctc *ContivTelemetryCache) AddNode(ID uint32, nodeName, IPAdr, ManIPAdr st
 	}
 	return nil
 }
-
-
-
-

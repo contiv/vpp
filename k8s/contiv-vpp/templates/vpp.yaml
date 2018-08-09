@@ -97,6 +97,9 @@ data:
       client-basic-auth:
         - {{ .Values.http.basicAuth | quote }}
       {{- end }}
+  telemetry.conf: |
+    polling-interval: {{ .Values.telemetry.pollingInterval | int64 }}
+    disabled: {{ .Values.telemetry.disabled }}
 
 ---
 
@@ -528,6 +531,8 @@ spec:
                   fieldPath: spec.nodeName
             - name: ETCD_CONFIG
               value: "/etc/etcd/etcd.conf"
+            - name: TELEMETRY_CONFIG
+              value: "/etc/agent/telemetry.conf"
           volumeMounts:
             - name: etcd-cfg
               mountPath: /etc/etcd

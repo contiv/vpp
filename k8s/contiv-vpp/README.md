@@ -113,3 +113,5 @@ Parameter | Description | Default
 `http.serverCert` | Name of the file with certificate of the HTTP server | `server.crt`
 `http.serverKey` | Name of the file with private key of the HTTP server |`server.key`
 `http.basicAuth` | credentials to be used by basic-auth, format <username>:<password>| `user:pass`
+`telemetry.pollingInterval` | Default polling interval for telemetry plugin (nanoseconds) | `30000000000`
+`telemetry.disabled` | Disables the telemetry plugin | `true`

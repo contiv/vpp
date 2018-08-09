@@ -92,7 +92,6 @@ func NewVppCache(logger logging.Logger) (n *VppCache) {
 		make(map[string]*telemetrymodel.Node),
 		make(map[string]*telemetrymodel.Node),
 		logger,
-
 	}
 }
 
@@ -208,8 +207,6 @@ func (c *VppCache) RetrieveAllNodes() []*telemetrymodel.Node {
 	return nList
 }
 
-
-
 //Small helper function that returns the loop interface of a node
 func (c *VppCache) getNodeLoopIFInfo(node *telemetrymodel.Node) (telemetrymodel.NodeInterface, error) {
 	for _, ifs := range node.NodeInterfaces {
@@ -221,5 +218,3 @@ func (c *VppCache) getNodeLoopIFInfo(node *telemetrymodel.Node) (telemetrymodel.
 	c.logErrAndAppendToNodeReport(node.Name, err.Error())
 	return telemetrymodel.NodeInterface{}, err
 }
-
-

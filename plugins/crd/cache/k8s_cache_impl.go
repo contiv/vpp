@@ -117,8 +117,8 @@ func (k *K8sCache) updateK8sNode(name string, PodCIDR string, ProviderID string,
 	return nil
 }
 
-func (k *K8sCache)updatePod(Name, Namespace string, Label []*telemetrymodel.PodLabel, IPAddress, HostIPAddress string) error{
-		pod, ok := k.podMap[Name]
+func (k *K8sCache) updatePod(Name, Namespace string, Label []*telemetrymodel.PodLabel, IPAddress, HostIPAddress string) error {
+	pod, ok := k.podMap[Name]
 	if !ok {
 		return errors.Errorf("Cannot find pod %+v in k8s cache pod map", Name)
 	}

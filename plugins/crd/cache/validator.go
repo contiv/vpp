@@ -17,9 +17,9 @@ package cache
 
 import (
 	"fmt"
-	"github.com/pkg/errors"
-	"github.com/ligato/vpp-agent/plugins/vpp/model/interfaces"
 	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
+	"github.com/ligato/vpp-agent/plugins/vpp/model/interfaces"
+	"github.com/pkg/errors"
 )
 
 //PopulateNodeMaps populates many of needed node maps for processing once all of the information has been retrieved.

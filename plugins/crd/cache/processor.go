@@ -95,17 +95,17 @@ func (p *ContivTelemetryProcessor) ValidateNodeInfo() {
 	}
 	p.Log.Info("Beginning validation of Node Data")
 
-	p.ContivTelemetryCache.Cache.ValidateLoopIFAddresses()
+	p.ContivTelemetryCache.ValidateLoopIFAddresses()
 
-	p.ContivTelemetryCache.Cache.ValidateL2Connections()
+	p.ContivTelemetryCache.ValidateL2Connections()
 
-	p.ContivTelemetryCache.Cache.ValidateFibEntries()
+	p.ContivTelemetryCache.ValidateFibEntries()
 
-	p.ContivTelemetryCache.Cache.ValidateK8sNodeInfo()
+	p.ContivTelemetryCache.ValidateK8sNodeInfo()
 
-	p.ContivTelemetryCache.Cache.ValidatePodInfo()
+	p.ContivTelemetryCache.ValidatePodInfo()
 
-	for _, entry := range p.ContivTelemetryCache.Cache.report {
+	for _, entry := range p.ContivTelemetryCache.report {
 		p.Log.Info(entry)
 		for _, node := range p.ContivTelemetryCache.Cache.nMap {
 			p.Log.Infof("Report for %+v", node.Name)
@@ -211,6 +211,8 @@ func (p *ContivTelemetryProcessor) ProcessNodeResponses() {
 	for data := range p.nodeResponseChannel {
 		nodelist := p.ContivTelemetryCache.Cache.GetAllNodes()
 		p.dtoList = append(p.dtoList, data)
+		fmt.Println("dtoList:", p.dtoList)
+		fmt.Println("nodeList:", nodelist)
 		if len(p.dtoList) == numDTOs*len(nodelist) {
 			p.SetNodeData()
 			p.ValidateNodeInfo()
@@ -225,7 +227,7 @@ func (p *ContivTelemetryProcessor) ProcessNodeResponses() {
 func (p *ContivTelemetryProcessor) SetNodeData() {
 	for _, data := range p.dtoList {
 		if data.err != nil {
-			p.ContivTelemetryCache.Cache.report = append(p.ContivTelemetryCache.Cache.report, errors.Errorf(
+			p.ContivTelemetryCache.report = append(p.ContivTelemetryCache.report, errors.Errorf(
 				"Node %+v has nodeDTO %+v and http error %s", data.NodeName, data, data.err).Error())
 			continue
 		}

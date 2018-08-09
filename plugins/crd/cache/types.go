@@ -13,27 +13,3 @@
 // limitations under the License.
 
 package cache
-
-import (
-	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
-	"github.com/contiv/vpp/plugins/ksr/model/node"
-	"github.com/ligato/cn-infra/logging"
-)
-
-// here goes different cache types
-//Update this whenever a new DTO type is added.
-const numDTOs = 5
-
-//Cache holds various maps which all take different keys but point to the same underlying value.
-type Cache struct {
-	nMap       map[string]*telemetrymodel.Node
-	loopIPMap  map[string]*telemetrymodel.Node
-	gigEIPMap  map[string]*telemetrymodel.Node
-	loopMACMap map[string]*telemetrymodel.Node
-	k8sNodeMap map[string]*node.Node
-	hostIPMap  map[string]*telemetrymodel.Node
-	podMap     map[string]*telemetrymodel.Pod
-	report     []string
-
-	logger logging.Logger
-}

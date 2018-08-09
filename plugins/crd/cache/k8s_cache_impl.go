@@ -54,7 +54,6 @@ func (k *K8sCache) createK8sNode(name string, PodCIDR string, ProviderID string,
 //createPod adds a pod with the given parameters to the contiv telemetry cache
 func (k *K8sCache) createPod(Name, Namespace string, Label []*pod2.Pod_Label, IPAddress, HostIPAddress string,
 	Container []*pod2.Pod_Container) error {
-	// TODO: add container to telemetry pod struct
 	labels := make([]*telemetrymodel.PodLabel, 0)
 	for _, l := range Label {
 		labels = append(labels, &telemetrymodel.PodLabel{Key: l.Key, Value: l.Value})
@@ -127,4 +126,9 @@ func (k *K8sCache) updatePod(Name, Namespace string, Label []*telemetrymodel.Pod
 	pod.IPAddress = IPAddress
 	pod.HostIPAddress = HostIPAddress
 	return nil
+}
+
+func (k *K8sCache) clearK8sCache() {
+	k.podMap = make(map[string]*telemetrymodel.Pod)
+	k.k8sNodeMap = make(map[string]*node.Node)
 }

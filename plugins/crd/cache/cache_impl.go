@@ -88,7 +88,7 @@ func (ctc *ContivTelemetryCache) DeleteNode(nodenames []string) {
 
 //AddNode will add a node to the Contiv Telemetry cache with the given parameters.
 func (ctc *ContivTelemetryCache) AddNode(ID uint32, nodeName, IPAdr, ManIPAdr string) error {
-	err := ctc.VppCache.addNode(ID, nodeName, IPAdr, ManIPAdr)
+	err := ctc.VppCache.createNode(ID, nodeName, IPAdr, ManIPAdr)
 	if err != nil {
 		return err
 	}

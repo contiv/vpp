@@ -40,8 +40,8 @@ func (c *VppCache) logErrAndAppendToNodeReport(nodeName string, errString string
 	c.logger.Errorf(errString)
 }
 
-//addNode will add a node to the node cache with the given parameters, making sure there are no duplicates.
-func (c *VppCache) addNode(ID uint32, nodeName, IPAdr, ManIPAdr string) error {
+//createNode will add a node to the node cache with the given parameters, making sure there are no duplicates.
+func (c *VppCache) createNode(ID uint32, nodeName, IPAdr, ManIPAdr string) error {
 	n := &telemetrymodel.Node{IPAdr: IPAdr, ManIPAdr: ManIPAdr, ID: ID, Name: nodeName}
 
 	n.PodMap = make(map[string]*telemetrymodel.Pod)
@@ -57,9 +57,66 @@ func (c *VppCache) addNode(ID uint32, nodeName, IPAdr, ManIPAdr string) error {
 	return nil
 }
 
-//ClearCache with clear all cache data except for the base nMap that contains
+//RetrieveNode returns a pointer to a node for the given key.
+//Returns an error if that key is not found.
+func (c *VppCache) RetrieveNode(key string) (n *telemetrymodel.Node, err error) {
+	if node, ok := c.nMap[key]; ok {
+		return node, nil
+	}
+	err = errors.Errorf("value with given key not found: %s", key)
+	return nil, err
+}
+
+func (c *VppCache) deleteNode(key string) error {
+	node, err := c.RetrieveNode(key)
+	if err != nil {
+		c.logger.Error(err)
+		return err
+	}
+	delete(c.nMap, node.Name)
+	delete(c.gigEIPMap, node.IPAdr)
+	for _, intf := range node.NodeInterfaces {
+		if intf.VppInternalName == "loop0" {
+			delete(c.loopMACMap, intf.PhysAddress)
+			for _, ip := range intf.IPAddresses {
+				delete(c.loopIPMap, ip)
+			}
+		}
+
+	}
+	return nil
+}
+
+//RetrieveAllNodes returns an ordered slice of all nodes in a database organized by name.
+func (c *VppCache) RetrieveAllNodes() []*telemetrymodel.Node {
+	var str []string
+	for k := range c.nMap {
+		str = append(str, k)
+	}
+	var nList []*telemetrymodel.Node
+	sort.Strings(str)
+	for _, v := range str {
+		n, _ := c.RetrieveNode(v)
+		nList = append(nList, n)
+	}
+	return nList
+}
+
+func (c *VppCache) updateNode(ID uint32, nodeName, IPAdr, ManIPAdr string) error {
+	node, ok := c.nMap[nodeName]
+
+	if !ok {
+		return errors.Errorf("Node with name %+v not found in vpp cache", nodeName)
+	}
+	node.IPAdr = IPAdr
+	node.ID = ID
+	node.ManIPAdr = ManIPAdr
+	return nil
+}
+
+//ClearVppCache with clear all vpp cache data except for the base nMap that contains
 // the discovered nodes..
-func (ctc *ContivTelemetryCache) ClearCache() {
+func (ctc *ContivTelemetryCache) ClearVppCache() {
 	// Clear collected data for each node
 	for _, node := range ctc.VppCache.nMap {
 		node.NodeInterfaces = nil
@@ -79,7 +136,7 @@ func (ctc *ContivTelemetryCache) ClearCache() {
 // ReinitializeCache completely re-initializes the cache, clearing all
 // data including  the discovered nodes.
 func (ctc *ContivTelemetryCache) ReinitializeCache() {
-	ctc.ClearCache()
+	ctc.ClearVppCache()
 	ctc.VppCache.nMap = make(map[string]*telemetrymodel.Node)
 }
 
@@ -160,51 +217,6 @@ func (c *VppCache) SetNodeIPARPs(name string, nArps []telemetrymodel.NodeIPArpEn
 	node.NodeIPArp = nArps
 	return nil
 
-}
-
-//RetrieveNode returns a pointer to a node for the given key.
-//Returns an error if that key is not found.
-func (c *VppCache) RetrieveNode(key string) (n *telemetrymodel.Node, err error) {
-	if node, ok := c.nMap[key]; ok {
-		return node, nil
-	}
-	err = errors.Errorf("value with given key not found: %s", key)
-	return nil, err
-}
-
-func (c *VppCache) deleteNode(key string) error {
-	node, err := c.RetrieveNode(key)
-	if err != nil {
-		c.logger.Error(err)
-		return err
-	}
-	delete(c.nMap, node.Name)
-	delete(c.gigEIPMap, node.IPAdr)
-	for _, intf := range node.NodeInterfaces {
-		if intf.VppInternalName == "loop0" {
-			delete(c.loopMACMap, intf.PhysAddress)
-			for _, ip := range intf.IPAddresses {
-				delete(c.loopIPMap, ip)
-			}
-		}
-
-	}
-	return nil
-}
-
-//RetrieveAllNodes returns an ordered slice of all nodes in a database organized by name.
-func (c *VppCache) RetrieveAllNodes() []*telemetrymodel.Node {
-	var str []string
-	for k := range c.nMap {
-		str = append(str, k)
-	}
-	var nList []*telemetrymodel.Node
-	sort.Strings(str)
-	for _, v := range str {
-		n, _ := c.RetrieveNode(v)
-		nList = append(nList, n)
-	}
-	return nList
 }
 
 //Small helper function that returns the loop interface of a node

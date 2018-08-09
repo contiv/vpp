@@ -151,7 +151,7 @@ func (p *ContivTelemetryProcessor) retrieveNetworkInfoOnTimerExpiry() {
 		nodelist := p.ContivTelemetryCache.VppCache.RetrieveAllNodes()
 
 		p.Log.Info("Timer has expired; Beginning gathering of information.")
-		p.ContivTelemetryCache.ClearCache()
+		p.ContivTelemetryCache.ClearVppCache()
 		for _, node := range nodelist {
 			p.CollectNodeInfo(node)
 		}

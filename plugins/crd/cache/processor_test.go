@@ -353,11 +353,10 @@ func testCollectAgentInfoNoError(t *testing.T) {
 
 	fmt.Printf("              Waited %d ms for validation to finish\n",
 		ptv.processor.waitForValidationToFinish())
-	printErrorReport(ptv.processor.ContivTelemetryCache.VppCache.report)
 }
 
 func testCollectAgentInfoWithHTTPError(t *testing.T) {
-	ptv.processor.ContivTelemetryCache.ClearCache()
+	ptv.processor.ContivTelemetryCache.ClearVppCache()
 	ptv.processor.ContivTelemetryCache.AddNode(1, "k8s-master", "10.20.0.2", "localhost")
 
 	nodes := ptv.processor.ContivTelemetryCache.LookupNode([]string{"k8s-master"})
@@ -381,8 +380,8 @@ func testCollectAgentInfoWithHTTPError(t *testing.T) {
 }
 
 func testCollectAgentInfoWithTimeout(t *testing.T) {
-	ptv.processor.ContivTelemetryCache.ClearCache()
-	ptv.processor.httpClientTimeout = 1
+	ptv.processor.ContivTelemetryCache.ClearVppCache()
+	ptv.processor.httpClientTimeogut = 1
 	ptv.processor.ContivTelemetryCache.AddNode(1, "k8s-master", "10.20.0.2", "localhost")
 
 	nodes := ptv.processor.ContivTelemetryCache.LookupNode([]string{"k8s-master"})

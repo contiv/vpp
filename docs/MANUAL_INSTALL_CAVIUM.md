@@ -11,7 +11,6 @@ provided by [packet][18].
   WARNING:
   Disabling bonding will remove public connectivity from your server
   and you will have to use [SOS][23] to connect.
-  QUESTION: can
 
 * Configure the network according to [Packet's l2 configuation instruction][19] - section "C #3: Using eth0 with a publicly-connected VLAN and eth1 on a private VLAN".
 
@@ -106,49 +105,28 @@ The reason is that the built-in NIC found in the Cavium ThunderX SoC family
 is a card with [SR-IOV][29] virtual functions (VF).
 
 #### Customization on the target machine
-To use this card (COMMENT: which card?) in context of Kubernetes with Contiv-VPP network plugin
-there is the need to follow instructions at [the DPDK pages - Linux prerequisites][31]:
-(COMMENT: are we duplicating what's on the DPDK page? If so, we don't need to link to it, since it's just going to confuse people, like it confused me)
-Required Kernel version >= 3.2
-
 This manual describes the successful deployment on a Ubuntu 18.04.1 LTS
 Kubernetes master node with 4.15.0-20-generic Linux kernel and a Ubuntu 16.04.5 LTS
 Kubernetes slave node with 4.10.0-38-generic Linux kernel.
 
-* glibc >= 2.7 (for features related to cpuset). The version can be checked using the ldd --version command.
-  ```
-  COMMENT: Ubuntu 16.04 has this version, should we specify how to update it?
-  $ ldd --version
-  ldd (Ubuntu GLIBC 2.23-0ubuntu10) 2.23
-  ```
-* kernel configuration
-  ```
-  $ cat /boot/config-4.10.0-38-generic | grep HUGETLBFS
-  CONFIG_SYS_SUPPORTS_HUGETLBFS=y
-  CONFIG_HUGETLBFS=y
-  $ cat /boot/config-4.10.0-38-generic | grep PROC_PAGE_MONITOR
-  CONFIG_PROC_PAGE_MONITOR=y
-  $ cat /boot/config-4.10.0-38-generic | grep HPET
-  # CONFIG_HPET is not set
-  ```
-  HUGETLBFS option must be enabled in the running kernel
+* For Ubuntu 18.04 you need to [add the parameter][32] `iommu.passthrough=1` to the file `/etc/default/grub`.
 
-  The allocation of hugepages should be done at boot time or as soon as possible after system boot to prevent memory from being fragmented in physical memory. To reserve hugepages at boot time, a parameter is passed to the Linux kernel on the kernel command line. Add these parameters to the file /etc/default/grub:
-  ```
-  COMMENT: this is confusing, later we're working with 16 hugepages, let's make it consistent
-  default_hugepagesz=1G hugepagesz=1G hugepages=4
-  ```
+* To use the card built-in in the Cavium Thunderx in context of Kubernetes with Contiv-VPP network plugin
+  there is the need to follow instructions at [the DPDK pages - Linux prerequisites][31].
 
-  For Ubuntu 18.04 you need also to add the parameter iommu.passthrough=1 to the file /etc/default/grub according this [webpage][32].
+* To mention the most important thing from DPDK setup instructions you need to setup 1GB hugepages.
+  The allocation of hugepages should be done at boot time or as soon as possible 
+  after system boot to prevent memory from being fragmented in physical memory. 
+  Add parameters `hugepagesz=1GB hugepages=16 default_hugepagesz=1GB` to the file `/etc/default/grub`:
 
-  The file /etc/default/grub should look like this:
+  The file `/etc/default/grub` should look like this (for Ubuntu 18.04):
   ```
   GRUB_DEFAULT=0
   #GRUB_HIDDEN_TIMEOUT=0
   GRUB_HIDDEN_TIMEOUT_QUIET=true
   GRUB_TIMEOUT=10
   GRUB_DISTRIBUTOR=Ubuntu
-  GRUB_CMDLINE_LINUX="console=ttyAMA0,115200n8 biosdevname=0 net.ifnames=1 crashkernel=auto LANG=en_US.UTF-8 iommu.passthrough=1 hugepagesz=1GB hugepages=16 default_hugepagesz=1GB iomem=relaxed"
+  GRUB_CMDLINE_LINUX="console=ttyAMA0,115200n8 biosdevname=0 net.ifnames=1 crashkernel=auto LANG=en_US.UTF-8 iommu.passthrough=1 hugepagesz=1GB hugepages=16 default_hugepagesz=1GB"
   GRUB_TERMINAL=serial
   GRUB_SERIAL_COMMAND="serial"
   ```
@@ -158,7 +136,7 @@ Kubernetes slave node with 4.10.0-38-generic Linux kernel.
   mkdir /mnt/huge
   mount -t hugetlbfs nodev /mnt/huge_1GB pagesize=1GB
   ```
-  or add this line to /etc/fstab file to make the mount point permanent across reboots
+  or add this line to `/etc/fstab` file to make the mount point permanent across reboots:
   ```
   nodev /mnt/huge_1GB hugetlbfs pagesize=1GB 0 0
   ```
@@ -169,7 +147,7 @@ Kubernetes slave node with 4.10.0-38-generic Linux kernel.
   AnonHugePages:         0 kB
   ShmemHugePages:        0 kB
   HugePages_Total:      16
-  HugePages_Free:       11
+  HugePages_Free:       16
   HugePages_Rsvd:        0
   HugePages_Surp:        0
   Hugepagesize:    1048576 kB
@@ -283,10 +261,10 @@ curl --silent https://raw.githubusercontent.com/contiv/vpp/master/k8s/contiv-vpp
 After some time, all contiv containers should enter the running state:
 ```
 $ kubectl get pods -n kube-system -o wide | grep contiv
-NAME                                             READY     STATUS    RESTARTS   AGE       IP              NODE
-contiv-etcd-0                                    1/1       Running   0          1d        147.75.98.202   cvpp
-contiv-ksr-4pw9s                                 1/1       Running   0          1d        147.75.98.202   cvpp
-contiv-vswitch-ptx7n                             1/1       Running   0          1d        147.75.98.202   cvpp
+NAME                                   READY     STATUS    RESTARTS   AGE       IP              NODE
+contiv-etcd-0                          1/1       Running   0          1d        147.75.98.202   cvpp
+contiv-ksr-4pw9s                       1/1       Running   0          1d        147.75.98.202   cvpp
+contiv-vswitch-ptx7n                   1/1       Running   0          1d        147.75.98.202   cvpp
 ```
 In particular, make sure that the Contiv-VPP pod IP addresses are the same as
 the IP address specified in the `--apiserver-advertise-address=<ip-address>`
@@ -355,7 +333,7 @@ vpp#
 
 ```
 
-You should also see the interface to kube-dns (`tap1` and `tap2`) and to the
+You should also see the interfaces to coredns (`tap1` and `tap2`) and to the
 node's IP stack (`tap0`).
 
 #### Master Isolation (Optional)
@@ -386,19 +364,19 @@ More details can be found in the [kubeadm manual][5].
 After some time, all contiv containers should enter the running state:
 ```
 $ kubectl get pods -n kube-system -o wide
-NAME                                             READY     STATUS    RESTARTS   AGE       IP              NODE
-contiv-etcd-0                                    1/1       Running   0          1d        147.75.98.202   cvpp
-contiv-ksr-4pw9s                                 1/1       Running   0          1d        147.75.98.202   cvpp
-contiv-vswitch-ptx7n                             1/1       Running   0          1d        147.75.98.202   cvpp
-contiv-vswitch-rvh8p                             1/1       Running   0          14s       147.75.72.194   cvpp-slave2
-coredns-78fcdf6894-lvcj4                         1/1       Running   0          1d        10.1.1.2        cvpp
-coredns-78fcdf6894-tsxhl                         1/1       Running   0          1d        10.1.1.3        cvpp
-etcd-cvpp                                        1/1       Running   0          1d        147.75.98.202   cvpp
-kube-apiserver-cvpp                              1/1       Running   0          1d        147.75.98.202   cvpp
-kube-controller-manager-cvpp                     1/1       Running   0          1d        147.75.98.202   cvpp
-kube-proxy-8dfjz                                 1/1       Running   0          14s       147.75.72.194   cvpp-slave2
-kube-proxy-9p6rq                                 1/1       Running   0          1d        147.75.98.202   cvpp
-kube-scheduler-cvp                               1/1       Running   0          1d        147.75.98.202   cvpp
+NAME                                   READY     STATUS    RESTARTS   AGE       IP              NODE
+contiv-etcd-0                          1/1       Running   0          1d        147.75.98.202   cvpp
+contiv-ksr-4pw9s                       1/1       Running   0          1d        147.75.98.202   cvpp
+contiv-vswitch-ptx7n                   1/1       Running   0          1d        147.75.98.202   cvpp
+contiv-vswitch-rvh8p                   1/1       Running   0          14s       147.75.72.194   cvpp-slave2
+coredns-78fcdf6894-lvcj4               1/1       Running   0          1d        10.1.1.2        cvpp
+coredns-78fcdf6894-tsxhl               1/1       Running   0          1d        10.1.1.3        cvpp
+etcd-cvpp                              1/1       Running   0          1d        147.75.98.202   cvpp
+kube-apiserver-cvpp                    1/1       Running   0          1d        147.75.98.202   cvpp
+kube-controller-manager-cvpp           1/1       Running   0          1d        147.75.98.202   cvpp
+kube-proxy-8dfjz                       1/1       Running   0          14s       147.75.72.194   cvpp-slave2
+kube-proxy-9p6rq                       1/1       Running   0          1d        147.75.98.202   cvpp
+kube-scheduler-cvp                     1/1       Running   0          1d        147.75.98.202   cvpp
 ```
 In particular, verify that a vswitch pod and a kube-proxy pod is running on
 each joined node, as shown above.
@@ -542,8 +520,7 @@ nginx-64f497f8fd-j5q4b   1/1       Running   0          34m       10.1.1.8   cvp
 nginx-64f497f8fd-sv6bh   1/1       Running   0          14s       10.1.2.3   cvpp-slave2
 
 ```
-Then verify how describe above...
-COMMENT: what is this? ^^
+Again you can try to verify connection by starting busybox and trying to access the webpages in deployed pods.
 
 Note:
 To delete the deployment, issue the commnad `kubectl delete deployment/nginx`

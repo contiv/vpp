@@ -89,6 +89,7 @@ func (plugin *NatConfigurator) Init(logger logging.PluginLogger, goVppMux govppm
 	enableStopwatch bool) (err error) {
 	// Logger
 	plugin.log = logger.NewLogger("-nat-conf")
+	plugin.log.SetLevel(logging.DebugLevel)
 	plugin.log.Debug("Initializing NAT configurator")
 
 	// Configurator-wide stopwatch instance
@@ -220,6 +221,7 @@ func (plugin *NatConfigurator) ModifyNatGlobalConfig(oldConfig, newConfig *nat.N
 	// Forwarding
 	if oldConfig.Forwarding != newConfig.Forwarding {
 		if err := plugin.natHandler.SetNat44Forwarding(newConfig.Forwarding); err != nil {
+			plugin.log.Errorf("Error by setting NAT forwarding: %v", err)
 			return err
 		}
 	}
@@ -227,24 +229,30 @@ func (plugin *NatConfigurator) ModifyNatGlobalConfig(oldConfig, newConfig *nat.N
 	// Inside/outside interfaces
 	toSetIn, toSetOut, toUnsetIn, toUnsetOut := diffInterfaces(oldConfig.NatInterfaces, newConfig.NatInterfaces)
 	if err := plugin.disableNatInterfaces(toUnsetIn); err != nil {
+		plugin.log.Errorf("Error by disabling NAT IN interfaces: %v", err)
 		return err
 	}
 	if err := plugin.disableNatInterfaces(toUnsetOut); err != nil {
+		plugin.log.Errorf("Error by disabling NAT OUT interfaces: %v", err)
 		return err
 	}
 	if err := plugin.enableNatInterfaces(toSetIn); err != nil {
+		plugin.log.Errorf("Error by enabling NAT IN interfaces: %v", err)
 		return err
 	}
 	if err := plugin.enableNatInterfaces(toSetOut); err != nil {
+		plugin.log.Errorf("Error by enabling NAT OUT interfaces: %v", err)
 		return err
 	}
 
 	// Address pool
 	toAdd, toRemove := diffAddressPools(oldConfig.AddressPools, newConfig.AddressPools)
 	if err := plugin.delAddressPool(toRemove); err != nil {
+		plugin.log.Errorf("Error by deleting NAT address pool: %v", err)
 		return err
 	}
 	if err := plugin.addAddressPool(toAdd); err != nil {
+		plugin.log.Errorf("Error by adding NAT address pool: %v", err)
 		return err
 	}
 
@@ -462,6 +470,7 @@ func (plugin *NatConfigurator) enableNatInterfaces(natInterfaces []*nat.Nat44Glo
 			if natInterface.OutputFeature {
 				// enable nat interface and output feature
 				if err = plugin.natHandler.EnableNat44InterfaceOutput(ifIdx, natInterface.IsInside); err != nil {
+					plugin.log.Error(err)
 					return
 				}
 				if natInterface.IsInside {
@@ -472,6 +481,7 @@ func (plugin *NatConfigurator) enableNatInterfaces(natInterfaces []*nat.Nat44Glo
 			} else {
 				// enable interface only
 				if err = plugin.natHandler.EnableNat44Interface(ifIdx, natInterface.IsInside); err != nil {
+					plugin.log.Error(err)
 					return
 				}
 				if natInterface.IsInside {

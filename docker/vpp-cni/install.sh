@@ -17,6 +17,7 @@
 # Defaults can be overridden via environment variables.
 HOST_CNI_BIN_DIR=${CNI_BIN_DIR:-/opt/cni/bin}
 HOST_CNI_NET_DIR=${CNI_NET_DIR:-/etc/cni/net.d}
+HOST_LOG_FILE=${HOST_LOG_FILE:-/var/run/contiv/cni.log}
 
 # Install loopback CNI binary if it does not exist yet.
 if [ ! -e "${HOST_CNI_BIN_DIR}/loopback" ]
@@ -40,6 +41,10 @@ rm -rf ${HOST_CNI_NET_DIR}/*
 # Install our CNI config file.
 echo "Installing new CNI config to ${HOST_CNI_NET_DIR}"
 cp /root/10-contiv-vpp.conflist ${HOST_CNI_NET_DIR}
+
+# Delete old log file.
+echo "Deleting old contiv CNI logfile ${HOST_LOG_FILE}"
+rm -f ${HOST_LOG_FILE}
 
 # Unless told otherwise via SLEEP env. variable, sleep forever. This prevents k8s from restarting the pod repeatedly.
 should_sleep=${SLEEP:-"true"}

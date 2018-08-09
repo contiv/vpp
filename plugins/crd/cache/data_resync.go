@@ -77,7 +77,6 @@ func (ctc *ContivTelemetryCache) Resync(resyncEv datasync.ResyncEvent) error {
 }
 
 func (ctc *ContivTelemetryCache) parseAndCacheNodeInfoData(key string, evData datasync.KeyVal) error {
-	fmt.Println("Adding VppNode")
 	pattern := fmt.Sprintf("%s[0-9]*$", nodeinfomodel.AllocatedIDsKeyPrefix)
 	matched, err := regexp.Match(pattern, []byte(key))
 	if !matched || err != nil {
@@ -121,7 +120,6 @@ func (ctc *ContivTelemetryCache) parseAndCacheNodeInfoData(key string, evData da
 }
 
 func (ctc *ContivTelemetryCache) parseAndCachePodData(key string, evData datasync.KeyVal) error {
-	fmt.Println("Adding Pod")
 	pod, namespace, err := podmodel.ParsePodFromKey(key)
 	if err != nil {
 		ctc.report = append(ctc.report, errors.Errorf("invalid key %s", key).Error())
@@ -141,7 +139,6 @@ func (ctc *ContivTelemetryCache) parseAndCachePodData(key string, evData datasyn
 }
 
 func (ctc *ContivTelemetryCache) parseAndCacheNodeData(key string, evData datasync.KeyVal) error {
-	fmt.Println("Adding K8sNode")
 	node, err := nodemodel.ParseNodeFromKey(key)
 	if err != nil {
 		ctc.report = append(ctc.report, errors.Errorf("invalid key %s", key).Error())

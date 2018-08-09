@@ -211,8 +211,6 @@ func (p *ContivTelemetryProcessor) ProcessNodeResponses() {
 	for data := range p.nodeResponseChannel {
 		nodelist := p.ContivTelemetryCache.VppCache.RetrieveAllNodes()
 		p.dtoList = append(p.dtoList, data)
-		fmt.Println("dtoList:", p.dtoList)
-		fmt.Println("nodeList:", nodelist)
 		if len(p.dtoList) == numDTOs*len(nodelist) {
 			p.SetNodeData()
 			p.ValidateNodeInfo()

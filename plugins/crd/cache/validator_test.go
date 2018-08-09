@@ -75,7 +75,7 @@ func testErrorFreeTopologyValidation(t *testing.T) {
 
 	vtv.processor.ValidateNodeInfo()
 
-	printErrorReport(vtv.processor.ContivTelemetryCache.VppCache.report)
+	printErrorReport(vtv.processor.ContivTelemetryCache.report)
 }
 
 func testK8sNodeToNodeInfoOkValidation(t *testing.T) {
@@ -83,9 +83,9 @@ func testK8sNodeToNodeInfoOkValidation(t *testing.T) {
 	populateNodeInfoDataInCache(vtv.processor.ContivTelemetryCache)
 	populateK8sNodeDataInCache(vtv.processor.ContivTelemetryCache)
 
-	vtv.processor.ContivTelemetryCache.VppCache.ValidateK8sNodeInfo()
+	vtv.processor.ContivTelemetryCache.ValidateK8sNodeInfo()
 
-	printErrorReport(vtv.processor.ContivTelemetryCache.VppCache.report)
+	printErrorReport(vtv.processor.ContivTelemetryCache.report)
 }
 
 func testK8sNodeToNodeInfoMissingNiValidation(t *testing.T) {
@@ -94,20 +94,20 @@ func testK8sNodeToNodeInfoMissingNiValidation(t *testing.T) {
 	populateK8sNodeDataInCache(vtv.processor.ContivTelemetryCache)
 	vtv.processor.ContivTelemetryCache.DeleteNode([]string{"k8s-master"})
 
-	vtv.processor.ContivTelemetryCache.VppCache.ValidateK8sNodeInfo()
+	vtv.processor.ContivTelemetryCache.ValidateK8sNodeInfo()
 
-	printErrorReport(vtv.processor.ContivTelemetryCache.VppCache.report)
+	printErrorReport(vtv.processor.ContivTelemetryCache.report)
 }
 
 func testK8sNodeToNodeInfoMissingK8snValidation(t *testing.T) {
 	vtv.processor.ContivTelemetryCache.ReinitializeCache()
 	populateNodeInfoDataInCache(vtv.processor.ContivTelemetryCache)
 	populateK8sNodeDataInCache(vtv.processor.ContivTelemetryCache)
-	delete(vtv.processor.ContivTelemetryCache.VppCache.k8sNodeMap, "k8s-master")
+	vtv.processor.ContivTelemetryCache.K8sCache.deleteK8sNode("k8s-master")
 
-	vtv.processor.ContivTelemetryCache.VppCache.ValidateK8sNodeInfo()
+	vtv.processor.ContivTelemetryCache.ValidateK8sNodeInfo()
 
-	printErrorReport(vtv.processor.ContivTelemetryCache.VppCache.report)
+	printErrorReport(vtv.processor.ContivTelemetryCache.report)
 }
 
 func populateNodeInfoDataInCache(cache *ContivTelemetryCache) {
@@ -123,7 +123,8 @@ func populateNodeInfoDataInCache(cache *ContivTelemetryCache) {
 
 func populateK8sNodeDataInCache(cache *ContivTelemetryCache) {
 	for _, node := range vtv.k8sNodeData {
-		cache.AddK8sNode(node.Name, node.Pod_CIDR, node.Provider_ID, node.Addresses, node.NodeInfo)
+		cache.K8sCache.createK8sNode(node.Name, node.Pod_CIDR, node.Provider_ID, node.Addresses, node.NodeInfo)
+
 	}
 }
 

@@ -176,6 +176,7 @@ func TestProcessor(t *testing.T) {
 	t.Run("collectAgentInfoNoError", testCollectAgentInfoNoError)
 	t.Run("collectAgentInfoWithHTTPError", testCollectAgentInfoWithHTTPError)
 	t.Run("collectAgentInfoWithTimeout", testCollectAgentInfoWithTimeout)
+	t.Run("collectAgentInfoValidationInProgress", testCollectAgentInfoValidationInProgress)
 
 	// Shutdown the mock HTTP server
 	// ptv.shutdownMockHTTPServer()
@@ -186,7 +187,7 @@ func testCollectAgentInfoNoError(t *testing.T) {
 
 	node, err := ptv.processor.ContivTelemetryCache.VppCache.retrieveNode("k8s-master")
 	gomega.Expect(err).To(gomega.BeNil())
-	
+
 	// Kick the processor to collect & validate data, give it an opportunity
 	// to run and wait for it to complete
 	ptv.tickerChan <- time.Time{}
@@ -201,6 +202,7 @@ func testCollectAgentInfoNoError(t *testing.T) {
 }
 
 func testCollectAgentInfoWithHTTPError(t *testing.T) {
+	ptv.logWriter.clearLog()
 	ptv.processor.ContivTelemetryCache.ReinitializeCache()
 	ptv.processor.ContivTelemetryCache.AddVppNode(1, "k8s-master", "10.20.0.2", "localhost")
 
@@ -210,20 +212,17 @@ func testCollectAgentInfoWithHTTPError(t *testing.T) {
 
 	// Kick the processor to collect & validate data, give it an opportunity
 	// to run and wait for it to complete
-	ptv.tickerChan <- time.Time{}
+	// ptv.tickerChan <- time.Time{}
+	ptv.processor.RetrieveNetworkInfo()
 	time.Sleep(1 * time.Millisecond)
 	ptv.processor.waitForValidationToFinish()
 
-	numHTTPErrs := 0
-	for _, r := range ptv.processor.ContivTelemetryCache.report {
-		if strings.Contains(r, "404 Not Found") {
-			numHTTPErrs++
-		}
-	}
-	gomega.Expect(numHTTPErrs).To(gomega.Equal(numDTOs))
+	gomega.Expect(grep(ptv.processor.ContivTelemetryCache.report, "404 Not Found")).
+		To(gomega.Equal(numDTOs))
 }
 
 func testCollectAgentInfoWithTimeout(t *testing.T) {
+	ptv.logWriter.clearLog()
 	ptv.processor.ContivTelemetryCache.ReinitializeCache()
 	ptv.processor.httpClientTimeout = 1
 	ptv.processor.ContivTelemetryCache.AddVppNode(1, "k8s-master", "10.20.0.2", "localhost")
@@ -238,13 +237,32 @@ func testCollectAgentInfoWithTimeout(t *testing.T) {
 	time.Sleep(1 * time.Millisecond)
 	ptv.processor.waitForValidationToFinish()
 
-	numTimeoutErrs := 0
-	for _, r := range ptv.processor.ContivTelemetryCache.report {
-		if strings.Contains(r, "Timeout exceeded") {
-			numTimeoutErrs++
+	gomega.Expect(grep(ptv.processor.ContivTelemetryCache.report, "Timeout exceeded")).
+		To(gomega.Equal(numDTOs))
+}
+
+func testCollectAgentInfoValidationInProgress(t *testing.T) {
+	ptv.logWriter.clearLog()
+	ptv.processor.ContivTelemetryCache.ReinitializeCache()
+
+	ptv.processor.validationInProgress = true
+
+	ptv.processor.RetrieveNetworkInfo()
+	time.Sleep(1 * time.Millisecond)
+
+	ptv.processor.validationInProgress = false
+
+	gomega.Expect(grep(ptv.logWriter.log, "Skipping data collection")).To(gomega.Equal(1))
+}
+
+func grep(output []string, pattern string) int {
+	cnt := 0
+	for _, l := range output {
+		if strings.Contains(l, pattern) {
+			cnt++
 		}
 	}
-	gomega.Expect(numTimeoutErrs).To(gomega.Equal(numDTOs))
+	return cnt
 }
 
 func printErrorReport(report []string) {

@@ -24,7 +24,23 @@
 #   go-tests = true
 #   unused-packages = true
 
-required = ["github.com/wadey/gocovmerge", "github.com/docker/docker/api", "github.com/docker/swarmkit", "github.com/opencontainers/runc", "golang.org/x/exp/inotify", "github.com/google/cadvisor", "k8s.io/apiserver/pkg/apis/apiserver", "github.com/ugorji/go/codec", "github.com/docker/distribution"]
+required = [
+  "github.com/wadey/gocovmerge",
+  "github.com/docker/docker/api",
+  "github.com/docker/swarmkit",
+  "github.com/opencontainers/runc",
+  "golang.org/x/exp/inotify",
+  "k8s.io/apiserver/pkg/apis/apiserver",
+  "github.com/ugorji/go/codec",
+  "github.com/docker/distribution",
+  "github.com/golang/protobuf/protoc-gen-go",
+  "k8s.io/code-generator/cmd/client-gen",
+  "k8s.io/code-generator/cmd/deepcopy-gen",
+  "k8s.io/code-generator/cmd/defaulter-gen",
+  "k8s.io/code-generator/cmd/informer-gen",
+  "k8s.io/code-generator/cmd/lister-gen"
+]
+
 
 [[constraint]]
   name = "github.com/ligato/vpp-agent"
@@ -46,9 +62,6 @@ required = ["github.com/wadey/gocovmerge", "github.com/docker/docker/api", "gith
   revision = "1c81e2a794c6e26a4c650142ae8893c47f619764"
   name = "github.com/opencontainers/runc"
 
-[[constraint]]
-  name = "k8s.io/apiserver"
-  revision = "a35277792fddcf69f8cbbb8a9cb7727b23077409"
 
 [[constraint]]
   name = "github.com/ugorji/go"
@@ -75,10 +88,6 @@ required = ["github.com/wadey/gocovmerge", "github.com/docker/docker/api", "gith
   revision = "008b217844f8738cc47ef9ff108dc41dc37736cc"
 
 [[constraint]]
-  name = "github.com/google/cadvisor"
-  revision = "cda62a43857256fbc95dd31e7c810888f00f8ec7"
-
-[[constraint]]
   name = "github.com/docker/swarmkit"
   source = "https://github.com/dmcgowan/swarmkit.git"
   revision = "8bdecc57887ffc598b63d6433f58e0d2852112c3"
@@ -96,28 +105,39 @@ required = ["github.com/wadey/gocovmerge", "github.com/docker/docker/api", "gith
   name = "golang.org/x/net"
 
 [[constraint]]
-  name = "google.golang.org/grpc"
-  version = "1.2.1"
+  name = "k8s.io/apiserver"
+  version = "kubernetes-1.11.1"
+
+[[override]]
+  name = "k8s.io/api"
+  version = "kubernetes-1.11.1"
+
+[[override]]
+  name = "k8s.io/apiextensions-apiserver"
+  version = "kubernetes-1.11.1"
+
+[[override]]
+  name = "k8s.io/apimachinery"
+  version = "kubernetes-1.11.1"
+
+[[constraint]]
+  name = "k8s.io/client-go"
+  version = "8.0.0"
+
+[[override]]
+  name = "k8s.io/code-generator"
+  version = "kubernetes-1.11.1"
+
+[[override]]
+  name = "k8s.io/kubernetes"
+  # kubernetes-1.11.1 resolves to b1b29978270dc22fecc592ac55d903350454310a
+  # We set the revision to work around a transitive constraint issue introduced
+  # in an interaction between k8s.io/client-go and k8s.io/kubernetes
+  revision = "b1b29978270dc22fecc592ac55d903350454310a"
 
 [[constraint]]
   name = "golang.org/x/exp"
   revision = "292a51b8d262487dab23a588950e8052d63d9113"
-
-[[constraint]]
-  name = "k8s.io/kubernetes"
-  version = "=1.8.0"
-
-[[constraint]]
-  name = "k8s.io/api"
-  version = "kubernetes-1.8.0"
-
-[[constraint]]
-  name = "k8s.io/apimachinery"
-  version = "kubernetes-1.8.0"
-
-[[constraint]]
-  name = "k8s.io/client-go"
-  revision = "82aa063804cf055e16e8911250f888bc216e8b61"
 
 [[constraint]]
   name = "github.com/nerdtakula/supervisor"

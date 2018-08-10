@@ -35,6 +35,8 @@ import (
 	nodeinfomodel "github.com/contiv/vpp/plugins/contiv/model/node"
 	crdClientSet "github.com/contiv/vpp/plugins/crd/pkg/client/clientset/versioned"
 	"k8s.io/client-go/tools/clientcmd"
+	//apiextcs "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
+
 )
 
 // Plugin watches configuration of K8s resources (as reflected by KSR into ETCD)
@@ -100,12 +102,18 @@ func (p *Plugin) Init() error {
 		return fmt.Errorf("failed to build crd Client: %s", err)
 	}
 
+	//apiclientset, err := apiextcs.NewForConfig(k8sClientConfig)
+	//if err != nil {
+	//	return fmt.Errorf("failed to build api Client: %s", err)
+	//}
+
 	p.controller = &controller.ContivTelemetryController{
 		Deps: controller.Deps{
 			Log: p.Log.NewLogger("-crdController"),
 		},
 		K8sClient: k8sClient,
 		CrdClient: crdClient,
+		//ApiClient: apiclientset,
 	}
 	p.controller.Log.SetLevel(logging.DebugLevel)
 

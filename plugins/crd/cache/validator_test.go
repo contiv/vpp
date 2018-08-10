@@ -1,12 +1,12 @@
 package cache
 
 import (
-	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
+		"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
 	nodemodel "github.com/contiv/vpp/plugins/ksr/model/node"
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/logging/logrus"
 	"github.com/onsi/gomega"
-	"testing"
+			"testing"
 )
 
 type validatorTestVars struct {
@@ -72,10 +72,11 @@ func TestValidator(t *testing.T) {
 
 func testErrorFreeTopologyValidation(t *testing.T) {
 	populateNodeInfoDataInCache(vtv.processor.ContivTelemetryCache)
+	populateK8sNodeDataInCache(vtv.processor.ContivTelemetryCache)
 
 	vtv.processor.validateNodeInfo()
 
-	printErrorReport(vtv.processor.ContivTelemetryCache.report)
+	gomega.Expect(len(vtv.processor.ContivTelemetryCache.report)).To(gomega.Equal(3))
 }
 
 func testK8sNodeToNodeInfoOkValidation(t *testing.T) {
@@ -85,7 +86,7 @@ func testK8sNodeToNodeInfoOkValidation(t *testing.T) {
 
 	vtv.processor.ContivTelemetryCache.ValidateK8sNodeInfo()
 
-	printErrorReport(vtv.processor.ContivTelemetryCache.report)
+	gomega.Expect(len(vtv.processor.ContivTelemetryCache.report)).To(gomega.Equal(0))
 }
 
 func testK8sNodeToNodeInfoMissingNiValidation(t *testing.T) {
@@ -96,7 +97,7 @@ func testK8sNodeToNodeInfoMissingNiValidation(t *testing.T) {
 
 	vtv.processor.ContivTelemetryCache.ValidateK8sNodeInfo()
 
-	printErrorReport(vtv.processor.ContivTelemetryCache.report)
+	gomega.Expect(len(vtv.processor.ContivTelemetryCache.report)).To(gomega.Equal(2))
 }
 
 func testK8sNodeToNodeInfoMissingK8snValidation(t *testing.T) {
@@ -107,7 +108,7 @@ func testK8sNodeToNodeInfoMissingK8snValidation(t *testing.T) {
 
 	vtv.processor.ContivTelemetryCache.ValidateK8sNodeInfo()
 
-	printErrorReport(vtv.processor.ContivTelemetryCache.report)
+	gomega.Expect(len(vtv.processor.ContivTelemetryCache.report)).To(gomega.Equal(2))
 }
 
 func populateNodeInfoDataInCache(cache *ContivTelemetryCache) {

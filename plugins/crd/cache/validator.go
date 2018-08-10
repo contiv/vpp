@@ -443,7 +443,7 @@ func (ctc *ContivTelemetryCache) ValidateK8sNodeInfo() {
 	}
 	if len(nodeMap) > 0 {
 		ctc.report = append(ctc.report, errors.Errorf("Missing nodes for following nodes:").Error())
-		for node := range k8sNodeMap {
+		for node := range nodeMap {
 			ctc.report = append(ctc.report, errors.Errorf("node: %+v", node).Error())
 		}
 

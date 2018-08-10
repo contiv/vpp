@@ -35,7 +35,8 @@ import (
 	nodeinfomodel "github.com/contiv/vpp/plugins/contiv/model/node"
 	crdClientSet "github.com/contiv/vpp/plugins/crd/pkg/client/clientset/versioned"
 	"k8s.io/client-go/tools/clientcmd"
-	//apiextcs "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
+
+	apiextcs "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 
 )
 
@@ -102,10 +103,10 @@ func (p *Plugin) Init() error {
 		return fmt.Errorf("failed to build crd Client: %s", err)
 	}
 
-	//apiclientset, err := apiextcs.NewForConfig(k8sClientConfig)
-	//if err != nil {
-	//	return fmt.Errorf("failed to build api Client: %s", err)
-	//}
+	apiclientset, err := apiextcs.NewForConfig(k8sClientConfig)
+	if err != nil {
+		return fmt.Errorf("failed to build api Client: %s", err)
+	}
 
 	p.controller = &controller.ContivTelemetryController{
 		Deps: controller.Deps{
@@ -113,7 +114,7 @@ func (p *Plugin) Init() error {
 		},
 		K8sClient: k8sClient,
 		CrdClient: crdClient,
-		//ApiClient: apiclientset,
+		ApiClient: apiclientset,
 	}
 	p.controller.Log.SetLevel(logging.DebugLevel)
 

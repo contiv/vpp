@@ -62,6 +62,9 @@ required = [
   revision = "1c81e2a794c6e26a4c650142ae8893c47f619764"
   name = "github.com/opencontainers/runc"
 
+[[override]]
+  name = "google.golang.org/grpc"
+  version = "1.2.1"
 
 [[constraint]]
   name = "github.com/ugorji/go"

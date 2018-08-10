@@ -31,9 +31,11 @@ import (
 	crdClientSet "github.com/contiv/vpp/plugins/crd/pkg/client/clientset/versioned"
 	crdResourceInformer "github.com/contiv/vpp/plugins/crd/pkg/client/informers/externalversions/contivtelemetry/v1"
 
-	//apiextcs "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
+	apiextcs "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
+	apiextv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
+	meta "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	//"github.com/contiv-old/vpp/plugins/crd/pkg/apis/contivtelemetry/v1"
+	"github.com/contiv/vpp/plugins/crd/pkg/apis/contivtelemetry/v1"
 	)
 
 // ContivTelemetryController struct defines how a controller should encapsulate
@@ -44,7 +46,7 @@ type ContivTelemetryController struct {
 
 	K8sClient *kubernetes.Clientset
 	CrdClient *crdClientSet.Clientset
-	//ApiClient    *apiextcs.Clientset
+	ApiClient    *apiextcs.Clientset
 
 	clientset    kubernetes.Interface
 	queue        workqueue.RateLimitingInterface
@@ -196,32 +198,32 @@ func (ctc *ContivTelemetryController) processNextItem() bool {
 	return true
 }
 
-//// Create the CRD resource, ignore error if it already exists
-//func (ctc *ContivTelemetryController) createCRD(FullName, Group, Version, Plural, Name string) error {
-//
-//	var validation *apiextv1beta1.CustomResourceValidation
-//	switch Name {
-//	case "CrdExample":
-//		//validation = exampleCrdValidation()
-//	case "CrdExampleEmbed":
-//		//validation = exampleCrdEmbedValidation()
-//	default:
-//		validation = &apiextv1beta1.CustomResourceValidation{}
-//	}
-//	crd := &apiextv1beta1.CustomResourceDefinition{
-//		ObjectMeta: meta.ObjectMeta{Name: FullName},
-//		Spec: apiextv1beta1.CustomResourceDefinitionSpec{
-//			Group:   Group,
-//			Version: Version,
-//			Scope:   apiextv1beta1.NamespaceScoped,
-//			Names: apiextv1beta1.CustomResourceDefinitionNames{
-//				Plural: Plural,
-//				Kind:   Name,
-//			},
-//			Validation: validation,
-//		},
-//	}
-//	_, cserr := ctc.ApiClient.ApiextensionsV1beta1().CustomResourceDefinitions().Create(crd)
-//
-//	return cserr
-//}
+// Create the CRD resource, ignore error if it already exists
+func (ctc *ContivTelemetryController) createCRD(FullName, Group, Version, Plural, Name string) error {
+
+	var validation *apiextv1beta1.CustomResourceValidation
+	switch Name {
+	case "CrdExample":
+		//validation = exampleCrdValidation()
+	case "CrdExampleEmbed":
+		//validation = exampleCrdEmbedValidation()
+	default:
+		validation = &apiextv1beta1.CustomResourceValidation{}
+	}
+	crd := &apiextv1beta1.CustomResourceDefinition{
+		ObjectMeta: meta.ObjectMeta{Name: FullName},
+		Spec: apiextv1beta1.CustomResourceDefinitionSpec{
+			Group:   Group,
+			Version: Version,
+			Scope:   apiextv1beta1.NamespaceScoped,
+			Names: apiextv1beta1.CustomResourceDefinitionNames{
+				Plural: Plural,
+				Kind:   Name,
+			},
+			Validation: validation,
+		},
+	}
+	_, cserr := ctc.ApiClient.ApiextensionsV1beta1().CustomResourceDefinitions().Create(crd)
+
+	return cserr
+}

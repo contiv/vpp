@@ -160,10 +160,12 @@ type Pod struct {
 	// Empty if not yet scheduled.
 	// +optional
 	HostIPAddress string `protobuf:"bytes,5,opt,name=host_ip_address,json=hostIpAddress" json:"host_ip_address,omitempty"`
-	// List of containers belonging to the pod.
-	// Containers cannot currently be added or removed.
-	// There must be at least one container in a Pod.
-	// Cannot be updated.
+	// Name of the interface on VPP through which the pod is connected
+	// to VPP. Will be empty for host-network pods.
+	VppIfName string
+	// IP address of the interface on VPP through which the pod is
+	// connected to VPP. Will be empty for host-network pods.
+	VppIfIpAddr string
 }
 
 //PodLabel contains key/value pair info

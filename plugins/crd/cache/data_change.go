@@ -79,7 +79,7 @@ func (nc *nodeChange) GetValueProto() proto.Message {
 
 func (nc *nodeChange) AddRecord(ctc *ContivTelemetryCache, names []string, record proto.Message) error {
 	ctc.Log.Infof("Adding node %s, nodeValue %+v", names[0], record)
-	// TODO: ctc.createNode(names[0], podValue)
+	// TODO: ctc.CreateNode(names[0], podValue)
 	return nil
 }
 

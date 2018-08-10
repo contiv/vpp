@@ -73,7 +73,7 @@ func TestValidator(t *testing.T) {
 func testErrorFreeTopologyValidation(t *testing.T) {
 	populateNodeInfoDataInCache(vtv.processor.ContivTelemetryCache)
 
-	vtv.processor.ValidateNodeInfo()
+	vtv.processor.validateNodeInfo()
 
 	printErrorReport(vtv.processor.ContivTelemetryCache.report)
 }
@@ -112,7 +112,7 @@ func testK8sNodeToNodeInfoMissingK8snValidation(t *testing.T) {
 
 func populateNodeInfoDataInCache(cache *ContivTelemetryCache) {
 	for _, node := range vtv.nodeInfoData {
-		cache.AddNode(node.ID, node.nodeName, node.IPAdr, node.ManIPAdr)
+		cache.AddVppNode(node.ID, node.nodeName, node.IPAdr, node.ManIPAdr)
 		cache.VppCache.SetNodeLiveness(node.nodeName, node.liveness)
 		cache.VppCache.SetNodeInterfaces(node.nodeName, node.interfaces)
 		cache.VppCache.SetNodeBridgeDomain(node.nodeName, node.bds)

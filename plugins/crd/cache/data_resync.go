@@ -67,6 +67,8 @@ func (ctc *ContivTelemetryCache) Resync(resyncEv datasync.ResyncEvent) error {
 		}
 	}
 
+	ctc.Processor.RetrieveNetworkInfo()
+
 	if ctc.Synced == false {
 		ctc.report = append(ctc.report, errors.Errorf("%s",
 			"datasync error, cache may be out of sync").Error())
@@ -106,15 +108,12 @@ func (ctc *ContivTelemetryCache) parseAndCacheNodeInfoData(key string, evData da
 		return fmt.Errorf("invalid nodeInfo data: '%+v'", nodeInfoValue)
 	}
 
-	err = ctc.AddNode(nodeInfoValue.Id, nodeInfoValue.Name, nodeInfoValue.IpAddress, nodeInfoValue.ManagementIpAddress)
+	err = ctc.VppCache.CreateNode(nodeInfoValue.Id, nodeInfoValue.Name,
+		nodeInfoValue.IpAddress, nodeInfoValue.ManagementIpAddress)
 	if err != nil {
 		ctc.report = append(ctc.report, err.Error())
-		ctc.Log.Error(err)
+		return fmt.Errorf("failed to add vpp node, error: '%s'", err)
 	}
-
-	newNode := ctc.LookupNode([]string{nodeInfoValue.Name})
-
-	go ctc.Processor.CollectNodeInfo(newNode[0])
 
 	return nil
 }

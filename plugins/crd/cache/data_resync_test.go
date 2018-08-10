@@ -9,8 +9,8 @@ import (
 	"encoding/json"
 	"fmt"
 	nodeinfomodel "github.com/contiv/vpp/plugins/contiv/model/node"
-	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
 	"github.com/onsi/gomega"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -79,16 +79,11 @@ func (mkv *mockKeyVal) GetValue(value proto.Message) error {
 // mockProcessor emulates the Processor, effectively making sure no
 // data collection is started during the unit test.
 type mockProcessor struct {
-	collectCnt  int32
-	validateCnt int32
+	retrieveCnt int32
 }
 
-func (mp *mockProcessor) CollectNodeInfo(node *telemetrymodel.Node) {
-	atomic.AddInt32(&mp.collectCnt, 1)
-}
-
-func (mp *mockProcessor) ValidateNodeInfo() {
-	atomic.AddInt32(&mp.validateCnt, 1)
+func (mp *mockProcessor) RetrieveNetworkInfo() {
+	atomic.AddInt32(&mp.retrieveCnt, 1)
 }
 
 // mockLogWriter collects all error logs into a buffer for analysis
@@ -113,6 +108,16 @@ func (mlw *mockLogWriter) printLog() {
 	for i, l := range mlw.log {
 		fmt.Printf("%d: %s", i, l)
 	}
+}
+
+func (mlw *mockLogWriter) countErrors() int {
+	cnt := 0
+	for _, logLine := range mlw.log {
+		if strings.Contains(logLine, "level=error") {
+			cnt++
+		}
+	}
+	return cnt
 }
 
 // drd holds all the data structures required for the DataResync test
@@ -143,10 +148,6 @@ func TestDataResync(t *testing.T) {
 	t.Run("testResyncNodeInfoBadProto", testResyncNodeInfoBadProto)
 	t.Run("testResyncNodeInfoAddNodeFail", testResyncNodeInfoAddNodeFail)
 	t.Run("testResyncNodeInfoBadData", testResyncNodeInfoBadData)
-
-	for i, l := range drd.logWriter.log {
-		fmt.Printf("%d: %s", i, l)
-	}
 }
 
 func testResyncNodeInfoOk(t *testing.T) {
@@ -157,8 +158,8 @@ func testResyncNodeInfoOk(t *testing.T) {
 
 	gomega.Expect(len(drd.cache.VppCache.nMap)).To(gomega.Equal(3))
 	time.Sleep(1 * time.Millisecond)
-	numCollects := atomic.LoadInt32(&drd.processor.collectCnt)
-	gomega.Expect(numCollects).To(gomega.BeEquivalentTo(3))
+	numCollects := atomic.LoadInt32(&drd.processor.retrieveCnt)
+	gomega.Expect(numCollects).To(gomega.BeEquivalentTo(1))
 }
 
 func testResyncNodeInfoBadKey(t *testing.T) {
@@ -216,7 +217,8 @@ func testResyncNodeInfoAddNodeFail(t *testing.T) {
 	drd.cache.Resync(drd.resyncEv)
 
 	gomega.Expect(len(drd.cache.VppCache.nMap)).To(gomega.Equal(1))
-	//gomega.Expect(len(drd.logWriter.log)).To(gomega.Equal(1))
+	numErrs := drd.logWriter.countErrors()
+	gomega.Expect(numErrs).To(gomega.Equal(2))
 }
 
 func (d *dataResyncTestData) createNewResyncKvIterator() {

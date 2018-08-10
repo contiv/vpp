@@ -399,4 +399,3 @@ func (ptv *processorTestVars) initTestData() {
 		},
 	}
 }
-

@@ -20,10 +20,12 @@ import (
 	pod2 "github.com/contiv/vpp/plugins/ksr/model/pod"
 	"github.com/ligato/cn-infra/logging"
 	"github.com/pkg/errors"
+	"sync"
 )
 
 //K8sCache holds k8s related information separate from vpp related information
 type K8sCache struct {
+	lock       *sync.Mutex
 	k8sNodeMap map[string]*node.Node
 	podMap     map[string]*telemetrymodel.Pod
 	logger     logging.Logger
@@ -32,6 +34,7 @@ type K8sCache struct {
 //NewK8sCache will return a pointer to a new cache which holds various types of k8s related information.
 func NewK8sCache(logger logging.Logger) *K8sCache {
 	return &K8sCache{
+		&sync.Mutex{},
 		make(map[string]*node.Node),
 		make(map[string]*telemetrymodel.Pod),
 		logger,
@@ -41,6 +44,8 @@ func NewK8sCache(logger logging.Logger) *K8sCache {
 //createK8sNode will add a k8s type node to the Contiv Telemtry cache, making sure there are no duplicates.
 func (k *K8sCache) createK8sNode(name string, PodCIDR string, ProviderID string,
 	Addresses []*node.NodeAddress, NodeInfo *node.NodeSystemInfo) error {
+	k.lock.Lock()
+	defer k.lock.Unlock()
 	newNode := node.Node{Name: name, Pod_CIDR: PodCIDR, Provider_ID: ProviderID, Addresses: Addresses, NodeInfo: NodeInfo}
 	_, ok := k.k8sNodeMap[name]
 	if ok {
@@ -54,6 +59,8 @@ func (k *K8sCache) createK8sNode(name string, PodCIDR string, ProviderID string,
 //createPod adds a pod with the given parameters to the contiv telemetry cache
 func (k *K8sCache) createPod(Name, Namespace string, Label []*pod2.Pod_Label, IPAddress, HostIPAddress string,
 	Container []*pod2.Pod_Container) error {
+	k.lock.Lock()
+	defer k.lock.Unlock()
 	labels := make([]*telemetrymodel.PodLabel, 0)
 	for _, l := range Label {
 		labels = append(labels, &telemetrymodel.PodLabel{Key: l.Key, Value: l.Value})
@@ -69,6 +76,8 @@ func (k *K8sCache) createPod(Name, Namespace string, Label []*pod2.Pod_Label, IP
 
 //RetrievePod will retrieve a pod from the cache with the given name or return an error if it is not found.
 func (k *K8sCache) RetrievePod(name string) (*telemetrymodel.Pod, error) {
+	k.lock.Lock()
+	defer k.lock.Unlock()
 	pod, ok := k.podMap[name]
 	if !ok {
 		return nil, errors.Errorf("Pod with name %+v not found", name)
@@ -78,6 +87,8 @@ func (k *K8sCache) RetrievePod(name string) (*telemetrymodel.Pod, error) {
 
 //RetrieveK8sNode will retrieve a k8s node from the cache with the given name or return an error if it is not found.gi
 func (k *K8sCache) RetrieveK8sNode(name string) (*node.Node, error) {
+	k.lock.Lock()
+	defer k.lock.Unlock()
 	node, ok := k.k8sNodeMap[name]
 	if !ok {
 		return node, errors.Errorf("k8s node with name %+v not found", name)
@@ -86,6 +97,8 @@ func (k *K8sCache) RetrieveK8sNode(name string) (*node.Node, error) {
 }
 
 func (k *K8sCache) deletePod(name string) error {
+	k.lock.Lock()
+	defer k.lock.Unlock()
 	_, ok := k.podMap[name]
 	if !ok {
 		return errors.Errorf("pod with name %+v not found", name)
@@ -95,6 +108,8 @@ func (k *K8sCache) deletePod(name string) error {
 }
 
 func (k *K8sCache) deleteK8sNode(name string) error {
+	k.lock.Lock()
+	defer k.lock.Unlock()
 	_, ok := k.k8sNodeMap[name]
 	if !ok {
 		return errors.Errorf("k8s node with name %+v not found", name)
@@ -105,6 +120,8 @@ func (k *K8sCache) deleteK8sNode(name string) error {
 
 func (k *K8sCache) updateK8sNode(name string, PodCIDR string, ProviderID string,
 	Addresses []*node.NodeAddress, NodeInfo *node.NodeSystemInfo) error {
+	k.lock.Lock()
+	defer k.lock.Unlock()
 	k8snode, ok := k.k8sNodeMap[name]
 	if !ok {
 		return errors.Errorf("Cannot find k8s node %+v in k8s cache node map", name)
@@ -117,6 +134,8 @@ func (k *K8sCache) updateK8sNode(name string, PodCIDR string, ProviderID string,
 }
 
 func (k *K8sCache) updatePod(Name, Namespace string, Label []*telemetrymodel.PodLabel, IPAddress, HostIPAddress string) error {
+	k.lock.Lock()
+	defer k.lock.Unlock()
 	pod, ok := k.podMap[Name]
 	if !ok {
 		return errors.Errorf("Cannot find pod %+v in k8s cache pod map", Name)
@@ -129,6 +148,8 @@ func (k *K8sCache) updatePod(Name, Namespace string, Label []*telemetrymodel.Pod
 }
 
 func (k *K8sCache) clearK8sCache() {
+	k.lock.Lock()
+	defer k.lock.Unlock()
 	k.podMap = make(map[string]*telemetrymodel.Pod)
 	k.k8sNodeMap = make(map[string]*node.Node)
 }

@@ -39,6 +39,7 @@ type processorTestVars struct {
 	srv         *http.Server
 	injectError int
 	log         *logrus.Logger
+	logWriter   *mockLogWriter
 	client      *http.Client
 	processor   *ContivTelemetryProcessor
 	tickerChan  chan time.Time
@@ -127,10 +128,13 @@ func newMockTicker() *time.Ticker {
 func TestProcessor(t *testing.T) {
 	gomega.RegisterTestingT(t)
 
-	// Initialize & start mock objects
+	// Initialize the mock logger
+	ptv.logWriter = &mockLogWriter{log: []string{}}
 	ptv.log = logrus.DefaultLogger()
 	ptv.log.SetLevel(logging.DebugLevel)
+	ptv.log.SetOutput(ptv.logWriter)
 
+	// Initialize mock-ticker channel
 	ptv.tickerChan = make(chan time.Time)
 
 	// Init the mock HTTP Server
@@ -148,7 +152,7 @@ func TestProcessor(t *testing.T) {
 	// Init & populate the test data
 	ptv.initTestData()
 
-	// Init the cache and the processor (object under test)
+	// Init the cache and the processor (the objects under test)
 	ptv.processor = &ContivTelemetryProcessor{
 		Deps: Deps{
 			Log: ptv.log,
@@ -182,18 +186,12 @@ func testCollectAgentInfoNoError(t *testing.T) {
 
 	node, err := ptv.processor.ContivTelemetryCache.VppCache.retrieveNode("k8s-master")
 	gomega.Expect(err).To(gomega.BeNil())
-
+	
+	// Kick the processor to collect & validate data, give it an opportunity
+	// to run and wait for it to complete
 	ptv.tickerChan <- time.Time{}
-
-	cycles := 0
-	for {
-		if node.NodeLiveness != nil && node.NodeInterfaces != nil &&
-			node.NodeBridgeDomains != nil && node.NodeL2Fibs != nil && node.NodeIPArp != nil {
-			break
-		}
-		time.Sleep(1 * time.Millisecond)
-		cycles++
-	}
+	time.Sleep(1 * time.Millisecond)
+	ptv.processor.waitForValidationToFinish()
 
 	gomega.Expect(node.NodeLiveness).To(gomega.BeEquivalentTo(ptv.nodeLiveness))
 	gomega.Expect(node.NodeInterfaces).To(gomega.BeEquivalentTo(ptv.nodeInterfaces))
@@ -210,8 +208,11 @@ func testCollectAgentInfoWithHTTPError(t *testing.T) {
 	gomega.Expect(len(nodes)).To(gomega.Equal(1))
 	ptv.injectError = inject404Error
 
+	// Kick the processor to collect & validate data, give it an opportunity
+	// to run and wait for it to complete
 	ptv.tickerChan <- time.Time{}
-	time.Sleep(10 * time.Millisecond)
+	time.Sleep(1 * time.Millisecond)
+	ptv.processor.waitForValidationToFinish()
 
 	numHTTPErrs := 0
 	for _, r := range ptv.processor.ContivTelemetryCache.report {
@@ -231,8 +232,11 @@ func testCollectAgentInfoWithTimeout(t *testing.T) {
 	gomega.Expect(len(nodes)).To(gomega.Equal(1))
 	ptv.injectError = injectDelay
 
+	// Kick the processor to collect & validate data, give it an opportunity
+	// to run and wait for it to complete
 	ptv.tickerChan <- time.Time{}
-	time.Sleep(1 * time.Second)
+	time.Sleep(1 * time.Millisecond)
+	ptv.processor.waitForValidationToFinish()
 
 	numTimeoutErrs := 0
 	for _, r := range ptv.processor.ContivTelemetryCache.report {

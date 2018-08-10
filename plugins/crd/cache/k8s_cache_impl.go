@@ -98,7 +98,7 @@ func (k *K8sCache) RetrieveK8sNode(name string) (*node.Node, error) {
 
 func (k *K8sCache) deletePod(name string) error {
 	_, err := k.RetrievePod(name)
-	if err!=nil {
+	if err != nil {
 		return errors.Errorf("pod with name %+v not found", name)
 	}
 	delete(k.podMap, name)
@@ -107,7 +107,7 @@ func (k *K8sCache) deletePod(name string) error {
 
 func (k *K8sCache) deleteK8sNode(name string) error {
 	_, err := k.RetrieveK8sNode(name)
-	if err!=nil {
+	if err != nil {
 		return errors.Errorf("k8s node with name %+v not found", name)
 	}
 	delete(k.k8sNodeMap, name)
@@ -117,7 +117,7 @@ func (k *K8sCache) deleteK8sNode(name string) error {
 func (k *K8sCache) updateK8sNode(name string, PodCIDR string, ProviderID string,
 	Addresses []*node.NodeAddress, NodeInfo *node.NodeSystemInfo) error {
 	k8snode, err := k.RetrieveK8sNode(name)
-	if err!=nil {
+	if err != nil {
 		return errors.Errorf("Cannot find k8s node %+v in k8s cache node map", name)
 	}
 	k8snode.Addresses = Addresses
@@ -129,7 +129,7 @@ func (k *K8sCache) updateK8sNode(name string, PodCIDR string, ProviderID string,
 
 func (k *K8sCache) updatePod(Name, Namespace string, Label []*telemetrymodel.PodLabel, IPAddress, HostIPAddress string) error {
 	pod, err := k.RetrievePod(Name)
-	if err!=nil {
+	if err != nil {
 		return errors.Errorf("Cannot find pod %+v in k8s cache pod map", Name)
 	}
 	pod.Label = Label

@@ -81,11 +81,14 @@ func (vc *VppCache) RetrieveNode(key string) (n *telemetrymodel.Node, err error)
 	return vc.retrieveNode(key)
 }
 
-func (vc *VppCache) DeleteNode(key string) error {
+// DeleteNode handles node deletions from the cache. If the node identified
+// by 'nodeName" is present in the cache, it is deleted and nil error is
+// returned; otherwise, an error is returned.
+func (vc *VppCache) DeleteNode(nodeName string) error {
 	vc.lock.Lock()
 	defer vc.lock.Unlock()
 
-	node, err := vc.retrieveNode(key)
+	node, err := vc.retrieveNode(nodeName)
 	if err != nil {
 		vc.logger.Error(err)
 		return err
@@ -123,6 +126,9 @@ func (vc *VppCache) RetrieveAllNodes() []*telemetrymodel.Node {
 	return nList
 }
 
+// UpdateNode handles updates of node data in the cache. If the node identified
+// by 'nodeName' exists, its data is updated and nil error is returned.
+// otherwise, an error is returned.
 func (vc *VppCache) UpdateNode(ID uint32, nodeName, IPAdr, ManIPAdr string) error {
 	vc.lock.Lock()
 	defer vc.lock.Unlock()

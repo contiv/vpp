@@ -75,7 +75,7 @@ func (ctc *ContivTelemetryCache) LookupNode(nodenames []string) []*telemetrymode
 // to the function in the node names slice.
 func (ctc *ContivTelemetryCache) DeleteNode(nodenames []string) {
 	for _, str := range nodenames {
-		node, err := ctc.VppCache.retrieveNode(str)
+		node, err := ctc.VppCache.RetrieveNode(str)
 		if err != nil {
 			ctc.Log.Error(err)
 			return

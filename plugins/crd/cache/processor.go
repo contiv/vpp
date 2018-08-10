@@ -77,6 +77,8 @@ func (p *ContivTelemetryProcessor) Init() error {
 	return nil
 }
 
+// RetrieveNetworkInfo triggers the processor to retrieve vpp data from all
+// agents in the cluster and validate it.
 func (p *ContivTelemetryProcessor) RetrieveNetworkInfo() {
 	p.networkInfoGetCh <- true
 }

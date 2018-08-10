@@ -124,6 +124,133 @@ func newMockTicker() *time.Ticker {
 	}
 }
 
+func TestProcessor(t *testing.T) {
+	gomega.RegisterTestingT(t)
+
+	// Initialize & start mock objects
+	ptv.log = logrus.DefaultLogger()
+	ptv.log.SetLevel(logging.DebugLevel)
+
+	ptv.tickerChan = make(chan time.Time)
+
+	// Init the mock HTTP Server
+	ptv.startMockHTTPServer()
+	registerHTTPHandlers()
+	ptv.injectError = noError
+
+	ptv.client = &http.Client{
+		Transport:     nil,
+		CheckRedirect: nil,
+		Jar:           nil,
+		Timeout:       clientTimeout,
+	}
+
+	// Init & populate the test data
+	ptv.initTestData()
+
+	// Init the cache and the processor (object under test)
+	ptv.processor = &ContivTelemetryProcessor{
+		Deps: Deps{
+			Log: ptv.log,
+		},
+		ContivTelemetryCache: &ContivTelemetryCache{
+			Deps: Deps{
+				Log: ptv.log,
+			},
+			Synced: false,
+		},
+	}
+	ptv.processor.ContivTelemetryCache.Init()
+	ptv.processor.Init()
+
+	// Override default processor behavior
+	ptv.processor.ticker.Stop() // Do not periodically poll agents
+	ptv.processor.ticker = newMockTicker()
+	ptv.processor.agentPort = testAgentPort // Override agentPort
+
+	// Do the testing
+	t.Run("collectAgentInfoNoError", testCollectAgentInfoNoError)
+	t.Run("collectAgentInfoWithHTTPError", testCollectAgentInfoWithHTTPError)
+	t.Run("collectAgentInfoWithTimeout", testCollectAgentInfoWithTimeout)
+
+	// Shutdown the mock HTTP server
+	// ptv.shutdownMockHTTPServer()
+}
+
+func testCollectAgentInfoNoError(t *testing.T) {
+	ptv.processor.ContivTelemetryCache.AddVppNode(1, "k8s-master", "10.20.0.2", "localhost")
+
+	node, err := ptv.processor.ContivTelemetryCache.VppCache.retrieveNode("k8s-master")
+	gomega.Expect(err).To(gomega.BeNil())
+
+	ptv.tickerChan <- time.Time{}
+
+	cycles := 0
+	for {
+		if node.NodeLiveness != nil && node.NodeInterfaces != nil &&
+			node.NodeBridgeDomains != nil && node.NodeL2Fibs != nil && node.NodeIPArp != nil {
+			break
+		}
+		time.Sleep(1 * time.Millisecond)
+		cycles++
+	}
+
+	gomega.Expect(node.NodeLiveness).To(gomega.BeEquivalentTo(ptv.nodeLiveness))
+	gomega.Expect(node.NodeInterfaces).To(gomega.BeEquivalentTo(ptv.nodeInterfaces))
+	gomega.Expect(node.NodeBridgeDomains).To(gomega.BeEquivalentTo(ptv.nodeBridgeDomains))
+	gomega.Expect(node.NodeL2Fibs).To(gomega.BeEquivalentTo(ptv.nodeL2Fibs))
+	gomega.Expect(node.NodeIPArp).To(gomega.BeEquivalentTo(ptv.nodeIPArps))
+}
+
+func testCollectAgentInfoWithHTTPError(t *testing.T) {
+	ptv.processor.ContivTelemetryCache.ReinitializeCache()
+	ptv.processor.ContivTelemetryCache.AddVppNode(1, "k8s-master", "10.20.0.2", "localhost")
+
+	nodes := ptv.processor.ContivTelemetryCache.LookupNode([]string{"k8s-master"})
+	gomega.Expect(len(nodes)).To(gomega.Equal(1))
+	ptv.injectError = inject404Error
+
+	ptv.tickerChan <- time.Time{}
+	time.Sleep(10 * time.Millisecond)
+
+	numHTTPErrs := 0
+	for _, r := range ptv.processor.ContivTelemetryCache.report {
+		if strings.Contains(r, "404 Not Found") {
+			numHTTPErrs++
+		}
+	}
+	gomega.Expect(numHTTPErrs).To(gomega.Equal(numDTOs))
+}
+
+func testCollectAgentInfoWithTimeout(t *testing.T) {
+	ptv.processor.ContivTelemetryCache.ReinitializeCache()
+	ptv.processor.httpClientTimeout = 1
+	ptv.processor.ContivTelemetryCache.AddVppNode(1, "k8s-master", "10.20.0.2", "localhost")
+
+	nodes := ptv.processor.ContivTelemetryCache.LookupNode([]string{"k8s-master"})
+	gomega.Expect(len(nodes)).To(gomega.Equal(1))
+	ptv.injectError = injectDelay
+
+	ptv.tickerChan <- time.Time{}
+	time.Sleep(1 * time.Second)
+
+	numTimeoutErrs := 0
+	for _, r := range ptv.processor.ContivTelemetryCache.report {
+		if strings.Contains(r, "Timeout exceeded") {
+			numTimeoutErrs++
+		}
+	}
+	gomega.Expect(numTimeoutErrs).To(gomega.Equal(numDTOs))
+}
+
+func printErrorReport(report []string) {
+	fmt.Println("Error Report")
+	fmt.Println("============")
+	for _, rl := range report {
+		fmt.Println(rl)
+	}
+}
+
 func (ptv *processorTestVars) initTestData() {
 	// Initialize NodeLiveness response
 	ptv.nodeLiveness = &telemetrymodel.NodeLiveness{
@@ -273,140 +400,3 @@ func (ptv *processorTestVars) initTestData() {
 	}
 }
 
-func TestProcessor(t *testing.T) {
-	gomega.RegisterTestingT(t)
-
-	// Initialize & start mock objects
-	ptv.log = logrus.DefaultLogger()
-	ptv.log.SetLevel(logging.InfoLevel)
-
-	ptv.tickerChan = make(chan time.Time)
-
-	// Init the mock HTTP Server
-	ptv.startMockHTTPServer()
-	registerHTTPHandlers()
-	ptv.injectError = noError
-
-	ptv.client = &http.Client{
-		Transport:     nil,
-		CheckRedirect: nil,
-		Jar:           nil,
-		Timeout:       clientTimeout,
-	}
-
-	// Init & populate the test data
-	ptv.initTestData()
-
-	// Init the cache and the processor (object under test)
-	ptv.processor = &ContivTelemetryProcessor{
-		Deps: Deps{
-			Log: ptv.log,
-		},
-		ContivTelemetryCache: &ContivTelemetryCache{
-			Deps: Deps{
-				Log: ptv.log,
-			},
-			Synced: false,
-		},
-	}
-	ptv.processor.ContivTelemetryCache.Init()
-	ptv.processor.Init()
-
-	// Override default processor behavior
-	ptv.processor.ticker.Stop() // Do not periodically poll agents
-	ptv.processor.ticker = newMockTicker()
-	ptv.processor.agentPort = testAgentPort // Override agentPort
-
-	// Do the testing
-	t.Run("collectAgentInfoNoError", testCollectAgentInfoNoError)
-	t.Run("collectAgentInfoWithHTTPError", testCollectAgentInfoWithHTTPError)
-	t.Run("collectAgentInfoWithTimeout", testCollectAgentInfoWithTimeout)
-
-	// Shutdown the mock HTTP server
-	// ptv.shutdownMockHTTPServer()
-}
-
-func testCollectAgentInfoNoError(t *testing.T) {
-	ptv.processor.ContivTelemetryCache.AddVppNode(1, "k8s-master", "10.20.0.2", "localhost")
-
-	node, err := ptv.processor.ContivTelemetryCache.VppCache.retrieveNode("k8s-master")
-	gomega.Expect(err).To(gomega.BeNil())
-
-	ptv.tickerChan <- time.Time{}
-
-	cycles := 0
-	for {
-		if node.NodeLiveness != nil && node.NodeInterfaces != nil &&
-			node.NodeBridgeDomains != nil && node.NodeL2Fibs != nil && node.NodeIPArp != nil {
-			break
-		}
-		time.Sleep(1 * time.Millisecond)
-		cycles++
-	}
-	fmt.Printf("              Waited %d ms for cache updates\n", cycles)
-
-	gomega.Expect(node.NodeLiveness).To(gomega.BeEquivalentTo(ptv.nodeLiveness))
-	gomega.Expect(node.NodeInterfaces).To(gomega.BeEquivalentTo(ptv.nodeInterfaces))
-	gomega.Expect(node.NodeBridgeDomains).To(gomega.BeEquivalentTo(ptv.nodeBridgeDomains))
-	gomega.Expect(node.NodeL2Fibs).To(gomega.BeEquivalentTo(ptv.nodeL2Fibs))
-	gomega.Expect(node.NodeIPArp).To(gomega.BeEquivalentTo(ptv.nodeIPArps))
-
-	fmt.Printf("              Waited %d ms for validation to finish\n",
-		ptv.processor.waitForValidationToFinish())
-}
-
-func testCollectAgentInfoWithHTTPError(t *testing.T) {
-	ptv.processor.ContivTelemetryCache.ReinitializeCache()
-	ptv.processor.ContivTelemetryCache.AddVppNode(1, "k8s-master", "10.20.0.2", "localhost")
-
-	nodes := ptv.processor.ContivTelemetryCache.LookupNode([]string{"k8s-master"})
-	gomega.Expect(len(nodes)).To(gomega.Equal(1))
-	ptv.injectError = inject404Error
-
-	ptv.tickerChan <- time.Time{}
-
-	time.Sleep(1 * time.Millisecond)
-	fmt.Printf("              Waited %d ms for validation to finish\n",
-		ptv.processor.waitForValidationToFinish())
-
-	numHTTPErrs := 0
-	for _, r := range ptv.processor.ContivTelemetryCache.report {
-		if strings.Contains(r, "404 Not Found") {
-			numHTTPErrs++
-		}
-	}
-	gomega.Expect(numHTTPErrs).To(gomega.Equal(numDTOs))
-}
-
-func testCollectAgentInfoWithTimeout(t *testing.T) {
-	ptv.processor.ContivTelemetryCache.ReinitializeCache()
-	ptv.processor.httpClientTimeout = 1
-	ptv.processor.ContivTelemetryCache.AddVppNode(1, "k8s-master", "10.20.0.2", "localhost")
-
-	nodes := ptv.processor.ContivTelemetryCache.LookupNode([]string{"k8s-master"})
-	gomega.Expect(len(nodes)).To(gomega.Equal(1))
-	ptv.injectError = injectDelay
-
-	ptv.tickerChan <- time.Time{}
-
-	time.Sleep(1 * time.Millisecond)
-	fmt.Printf("              Waited %d ms for validation to finish\n",
-		ptv.processor.waitForValidationToFinish())
-
-	numTimeoutErrs := 0
-	for _, r := range ptv.processor.ContivTelemetryCache.report {
-		if strings.Contains(r, "Timeout exceeded") {
-			numTimeoutErrs++
-		}
-	}
-	gomega.Expect(numTimeoutErrs).To(gomega.Equal(numDTOs))
-	printErrorReport(ptv.processor.ContivTelemetryCache.report)
-}
-
-func printErrorReport(report []string) {
-	fmt.Println("Error Report")
-	fmt.Println("============")
-	for _, rl := range report {
-		fmt.Println(rl)
-	}
-}

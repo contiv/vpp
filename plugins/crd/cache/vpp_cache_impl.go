@@ -19,6 +19,7 @@ import (
 	"github.com/ligato/cn-infra/logging"
 	"github.com/pkg/errors"
 	"sort"
+	"sync"
 )
 
 // here goes different cache types
@@ -27,6 +28,7 @@ const numDTOs = 5
 
 //VppCache holds various maps which all take different keys but point to the same underlying value.
 type VppCache struct {
+	lock       *sync.Mutex
 	nMap       map[string]*telemetrymodel.Node
 	loopIPMap  map[string]*telemetrymodel.Node
 	gigEIPMap  map[string]*telemetrymodel.Node
@@ -35,51 +37,66 @@ type VppCache struct {
 	logger     logging.Logger
 }
 
-func (c *VppCache) logErrAndAppendToNodeReport(nodeName string, errString string) {
-	c.nMap[nodeName].Report = append(c.nMap[nodeName].Report, errString)
-	c.logger.Errorf(errString)
+func (vc *VppCache) logErrAndAppendToNodeReport(nodeName string, errString string) {
+	vc.nMap[nodeName].Report = append(vc.nMap[nodeName].Report, errString)
+	vc.logger.Errorf(errString)
 }
 
-//createNode will add a node to the node cache with the given parameters, making sure there are no duplicates.
-func (c *VppCache) createNode(ID uint32, nodeName, IPAdr, ManIPAdr string) error {
-	n := &telemetrymodel.Node{IPAdr: IPAdr, ManIPAdr: ManIPAdr, ID: ID, Name: nodeName}
-
-	n.PodMap = make(map[string]*telemetrymodel.Pod)
-	_, err := c.RetrieveNode(nodeName)
-	if err == nil {
-		err = errors.Errorf("duplicate key found: %s", nodeName)
-		c.logErrAndAppendToNodeReport(nodeName, err.Error())
-		return err
-	}
-	c.nMap[nodeName] = n
-	c.gigEIPMap[IPAdr] = n
-	c.logger.Debugf("Success adding node %+v to ctc.ContivTelemetryCache %+v", nodeName, c)
-	return nil
-}
-
-//RetrieveNode returns a pointer to a node for the given key.
-//Returns an error if that key is not found.
-func (c *VppCache) RetrieveNode(key string) (n *telemetrymodel.Node, err error) {
-	if node, ok := c.nMap[key]; ok {
+// retrieveNode returns a pointer to a node for the given key.
+// Returns an error if that key is not found.
+func (vc *VppCache) retrieveNode(key string) (n *telemetrymodel.Node, err error) {
+	if node, ok := vc.nMap[key]; ok {
 		return node, nil
 	}
 	err = errors.Errorf("value with given key not found: %s", key)
 	return nil, err
 }
 
-func (c *VppCache) deleteNode(key string) error {
-	node, err := c.RetrieveNode(key)
-	if err != nil {
-		c.logger.Error(err)
+// CreateNode will add a node to the node cache with the given parameters,
+// making sure there are no duplicates.
+func (vc *VppCache) CreateNode(ID uint32, nodeName, IPAdr, ManIPAdr string) error {
+	vc.lock.Lock()
+	defer vc.lock.Unlock()
+
+	n := &telemetrymodel.Node{IPAdr: IPAdr, ManIPAdr: ManIPAdr, ID: ID, Name: nodeName}
+
+	n.PodMap = make(map[string]*telemetrymodel.Pod)
+	_, err := vc.retrieveNode(nodeName)
+	if err == nil {
+		err = errors.Errorf("duplicate key found: %s", nodeName)
+		vc.logErrAndAppendToNodeReport(nodeName, err.Error())
 		return err
 	}
-	delete(c.nMap, node.Name)
-	delete(c.gigEIPMap, node.IPAdr)
+	vc.nMap[nodeName] = n
+	vc.gigEIPMap[IPAdr] = n
+	vc.logger.Debugf("Success adding node %+vc to ctc.ContivTelemetryCache %+vc", nodeName, vc)
+	return nil
+}
+
+// RetrieveNode returns a pointer to a node for the given key.
+// Returns an error if that key is not found.
+func (vc *VppCache) RetrieveNode(key string) (n *telemetrymodel.Node, err error) {
+	vc.lock.Lock()
+	defer vc.lock.Unlock()
+	return vc.retrieveNode(key)
+}
+
+func (vc *VppCache) DeleteNode(key string) error {
+	vc.lock.Lock()
+	defer vc.lock.Unlock()
+
+	node, err := vc.retrieveNode(key)
+	if err != nil {
+		vc.logger.Error(err)
+		return err
+	}
+	delete(vc.nMap, node.Name)
+	delete(vc.gigEIPMap, node.IPAdr)
 	for _, intf := range node.NodeInterfaces {
 		if intf.VppInternalName == "loop0" {
-			delete(c.loopMACMap, intf.PhysAddress)
+			delete(vc.loopMACMap, intf.PhysAddress)
 			for _, ip := range intf.IPAddresses {
-				delete(c.loopIPMap, ip)
+				delete(vc.loopIPMap, ip)
 			}
 		}
 
@@ -88,25 +105,31 @@ func (c *VppCache) deleteNode(key string) error {
 }
 
 //RetrieveAllNodes returns an ordered slice of all nodes in a database organized by name.
-func (c *VppCache) RetrieveAllNodes() []*telemetrymodel.Node {
+func (vc *VppCache) RetrieveAllNodes() []*telemetrymodel.Node {
+	vc.lock.Lock()
+	defer vc.lock.Unlock()
+
 	var str []string
-	for k := range c.nMap {
+	for k := range vc.nMap {
 		str = append(str, k)
 	}
 	var nList []*telemetrymodel.Node
 	sort.Strings(str)
 	for _, v := range str {
-		n, _ := c.RetrieveNode(v)
+		n, _ := vc.retrieveNode(v)
 		nList = append(nList, n)
 	}
 	return nList
 }
 
-func (c *VppCache) updateNode(ID uint32, nodeName, IPAdr, ManIPAdr string) error {
-	node, ok := c.nMap[nodeName]
+func (vc *VppCache) UpdateNode(ID uint32, nodeName, IPAdr, ManIPAdr string) error {
+	vc.lock.Lock()
+	defer vc.lock.Unlock()
+
+	node, ok := vc.nMap[nodeName]
 
 	if !ok {
-		return errors.Errorf("Node with name %+v not found in vpp cache", nodeName)
+		return errors.Errorf("Node with name %+vc not found in vpp cache", nodeName)
 	}
 	node.IPAdr = IPAdr
 	node.ID = ID
@@ -116,9 +139,10 @@ func (c *VppCache) updateNode(ID uint32, nodeName, IPAdr, ManIPAdr string) error
 
 //ClearVppCache with clear all vpp cache data except for the base nMap that contains
 // the discovered nodes..
-func (ctc *ContivTelemetryCache) ClearVppCache() {
+func (vc *VppCache) ClearCache() {
+
 	// Clear collected data for each node
-	for _, node := range ctc.VppCache.nMap {
+	for _, node := range vc.nMap {
 		node.NodeInterfaces = nil
 		node.NodeBridgeDomains = nil
 		node.NodeL2Fibs = nil
@@ -127,79 +151,94 @@ func (ctc *ContivTelemetryCache) ClearVppCache() {
 		node.NodeIPArp = nil
 	}
 	// Clear secondary index maps
-	ctc.VppCache.gigEIPMap = make(map[string]*telemetrymodel.Node)
-	ctc.VppCache.loopMACMap = make(map[string]*telemetrymodel.Node)
-	ctc.VppCache.loopIPMap = make(map[string]*telemetrymodel.Node)
-
+	vc.gigEIPMap = make(map[string]*telemetrymodel.Node)
+	vc.loopMACMap = make(map[string]*telemetrymodel.Node)
+	vc.loopIPMap = make(map[string]*telemetrymodel.Node)
 }
 
 // ReinitializeCache completely re-initializes the cache, clearing all
 // data including  the discovered nodes.
-func (ctc *ContivTelemetryCache) ReinitializeCache() {
-	ctc.ClearVppCache()
-	ctc.VppCache.nMap = make(map[string]*telemetrymodel.Node)
+func (vc *VppCache) ReinitializeCache() {
+	vc.ClearCache()
+	vc.nMap = make(map[string]*telemetrymodel.Node)
 }
 
 //NewVppCache returns a pointer to a new node cache
 func NewVppCache(logger logging.Logger) (n *VppCache) {
 	return &VppCache{
-		make(map[string]*telemetrymodel.Node),
-		make(map[string]*telemetrymodel.Node),
-		make(map[string]*telemetrymodel.Node),
-		make(map[string]*telemetrymodel.Node),
-		make(map[string]*telemetrymodel.Node),
-		logger,
+		lock:       &sync.Mutex{},
+		nMap:       make(map[string]*telemetrymodel.Node),
+		loopIPMap:  make(map[string]*telemetrymodel.Node),
+		gigEIPMap:  make(map[string]*telemetrymodel.Node),
+		loopMACMap: make(map[string]*telemetrymodel.Node),
+		hostIPMap:  make(map[string]*telemetrymodel.Node),
+		logger:     logger,
 	}
 }
 
 //SetNodeLiveness is a simple function to set a nodes liveness given its name.
-func (c *VppCache) SetNodeLiveness(name string, nLive *telemetrymodel.NodeLiveness) error {
-	node, err := c.RetrieveNode(name)
+func (vc *VppCache) SetNodeLiveness(name string, nLive *telemetrymodel.NodeLiveness) error {
+	vc.lock.Lock()
+	defer vc.lock.Unlock()
+
+	node, err := vc.retrieveNode(name)
 	if err != nil {
 		return err
 	}
-	c.logger.Debugf("Received Liveness %+v for node %+v", nLive, name)
+	vc.logger.Debugf("Received Liveness %+vc for node %+vc", nLive, name)
 	node.NodeLiveness = nLive
 	return nil
 }
 
 //SetNodeInterfaces is a simple function to set a nodes interface given its name.
-func (c *VppCache) SetNodeInterfaces(name string, nInt map[int]telemetrymodel.NodeInterface) error {
-	node, err := c.RetrieveNode(name)
+func (vc *VppCache) SetNodeInterfaces(name string, nInt map[int]telemetrymodel.NodeInterface) error {
+	vc.lock.Lock()
+	defer vc.lock.Unlock()
+
+	node, err := vc.retrieveNode(name)
 	if err != nil {
 		return err
 	}
-	c.logger.Debugf("Received Interfaces %+v for node %+v", nInt, name)
+	vc.logger.Debugf("Received Interfaces %+vc for node %+vc", nInt, name)
 	node.NodeInterfaces = nInt
 	return nil
 
 }
 
 //SetNodeBridgeDomain is a simple function to set a nodes bridge domain given its name.
-func (c *VppCache) SetNodeBridgeDomain(name string, nBridge map[int]telemetrymodel.NodeBridgeDomain) error {
-	node, err := c.RetrieveNode(name)
+func (vc *VppCache) SetNodeBridgeDomain(name string, nBridge map[int]telemetrymodel.NodeBridgeDomain) error {
+	vc.lock.Lock()
+	defer vc.lock.Unlock()
+
+	node, err := vc.retrieveNode(name)
 	if err != nil {
 		return err
 	}
-	c.logger.Debugf("Received Bridge domain %+v for node %+v", nBridge, name)
+	vc.logger.Debugf("Received Bridge domain %+vc for node %+vc", nBridge, name)
 	node.NodeBridgeDomains = nBridge
 	return nil
 }
 
 //SetNodeL2Fibs is a simple function to set a nodes l2 fibs given its name.
-func (c *VppCache) SetNodeL2Fibs(name string, nL2F map[string]telemetrymodel.NodeL2FibEntry) error {
-	node, err := c.RetrieveNode(name)
+func (vc *VppCache) SetNodeL2Fibs(name string, nL2F map[string]telemetrymodel.NodeL2FibEntry) error {
+	vc.lock.Lock()
+	defer vc.lock.Unlock()
+
+	node, err := vc.retrieveNode(name)
 	if err != nil {
 		return err
 	}
-	c.logger.Debugf("Received L2Fibs %+v for node %+v", nL2F, name)
+	vc.logger.Debugf("Received L2Fibs %+vc for node %+vc", nL2F, name)
 	node.NodeL2Fibs = nL2F
 	return nil
 }
 
 //SetNodeTelemetry is a simple function to set a nodes telemetry data given its name.
-func (c *VppCache) SetNodeTelemetry(name string, nTele map[string]telemetrymodel.NodeTelemetry) error {
-	node, err := c.RetrieveNode(name)
+func (vc *VppCache) SetNodeTelemetry(name string, nTele map[string]telemetrymodel.NodeTelemetry) error {
+	vc.lock.Lock()
+	defer vc.lock.Unlock()
+
+	node, err := vc.retrieveNode(name)
 	if err != nil {
 		return err
 	}
@@ -208,25 +247,28 @@ func (c *VppCache) SetNodeTelemetry(name string, nTele map[string]telemetrymodel
 }
 
 //SetNodeIPARPs is a simple function to set a nodes ip arp table given its name.
-func (c *VppCache) SetNodeIPARPs(name string, nArps []telemetrymodel.NodeIPArpEntry) error {
-	node, err := c.RetrieveNode(name)
+func (vc *VppCache) SetNodeIPARPs(name string, nArps []telemetrymodel.NodeIPArpEntry) error {
+	vc.lock.Lock()
+	defer vc.lock.Unlock()
+
+	node, err := vc.retrieveNode(name)
 	if err != nil {
 		return err
 	}
-	c.logger.Debugf("Received IPARPS %+v for node %+v", nArps, name)
+	vc.logger.Debugf("Received IPARPS %+vc for node %+vc", nArps, name)
 	node.NodeIPArp = nArps
 	return nil
 
 }
 
 //Small helper function that returns the loop interface of a node
-func (c *VppCache) getNodeLoopIFInfo(node *telemetrymodel.Node) (telemetrymodel.NodeInterface, error) {
+func (vc *VppCache) getNodeLoopIFInfo(node *telemetrymodel.Node) (telemetrymodel.NodeInterface, error) {
 	for _, ifs := range node.NodeInterfaces {
 		if ifs.VppInternalName == "loop0" {
 			return ifs, nil
 		}
 	}
 	err := errors.Errorf("Node %s does not have a loop interface", node.Name)
-	c.logErrAndAppendToNodeReport(node.Name, err.Error())
+	vc.logErrAndAppendToNodeReport(node.Name, err.Error())
 	return telemetrymodel.NodeInterface{}, err
 }

@@ -75,12 +75,12 @@ func (ctc *ContivTelemetryCache) LookupNode(nodenames []string) []*telemetrymode
 // to the function in the node names slice.
 func (ctc *ContivTelemetryCache) DeleteNode(nodenames []string) {
 	for _, str := range nodenames {
-		node, err := ctc.VppCache.RetrieveNode(str)
+		node, err := ctc.VppCache.retrieveNode(str)
 		if err != nil {
 			ctc.Log.Error(err)
 			return
 		}
-		ctc.VppCache.deleteNode(node.Name)
+		ctc.VppCache.DeleteNode(node.Name)
 
 	}
 
@@ -88,9 +88,36 @@ func (ctc *ContivTelemetryCache) DeleteNode(nodenames []string) {
 
 //AddNode will add a node to the Contiv Telemetry cache with the given parameters.
 func (ctc *ContivTelemetryCache) AddNode(ID uint32, nodeName, IPAdr, ManIPAdr string) error {
-	err := ctc.VppCache.createNode(ID, nodeName, IPAdr, ManIPAdr)
+	err := ctc.VppCache.CreateNode(ID, nodeName, IPAdr, ManIPAdr)
 	if err != nil {
 		return err
 	}
 	return nil
+}
+
+//ClearVppCache with clear all vpp cache data except for the base nMap that contains
+// the discovered nodes..
+func (ctc *ContivTelemetryCache) ClearVppCache() {
+
+	// Clear collected data for each node
+	for _, node := range ctc.VppCache.nMap {
+		node.NodeInterfaces = nil
+		node.NodeBridgeDomains = nil
+		node.NodeL2Fibs = nil
+		node.NodeLiveness = nil
+		node.NodeTelemetry = nil
+		node.NodeIPArp = nil
+	}
+	// Clear secondary index maps
+	ctc.VppCache.gigEIPMap = make(map[string]*telemetrymodel.Node)
+	ctc.VppCache.loopMACMap = make(map[string]*telemetrymodel.Node)
+	ctc.VppCache.loopIPMap = make(map[string]*telemetrymodel.Node)
+
+}
+
+// ReinitializeCache completely re-initializes the cache, clearing all
+// data including  the discovered nodes.
+func (ctc *ContivTelemetryCache) ReinitializeCache() {
+	ctc.ClearVppCache()
+	ctc.VppCache.nMap = make(map[string]*telemetrymodel.Node)
 }

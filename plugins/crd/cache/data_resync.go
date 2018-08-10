@@ -106,15 +106,20 @@ func (ctc *ContivTelemetryCache) parseAndCacheNodeInfoData(key string, evData da
 		return fmt.Errorf("invalid nodeInfo data: '%+v'", nodeInfoValue)
 	}
 
-	err = ctc.AddNode(nodeInfoValue.Id, nodeInfoValue.Name, nodeInfoValue.IpAddress, nodeInfoValue.ManagementIpAddress)
+	err = ctc.VppCache.CreateNode(nodeInfoValue.Id, nodeInfoValue.Name,
+		nodeInfoValue.IpAddress, nodeInfoValue.ManagementIpAddress)
 	if err != nil {
 		ctc.report = append(ctc.report, err.Error())
-		ctc.Log.Error(err)
+		return fmt.Errorf("failed to add vpp node, error: '%s'", err)
 	}
 
-	newNode := ctc.LookupNode([]string{nodeInfoValue.Name})
+	newNode, err := ctc.VppCache.RetrieveNode(nodeInfoValue.Name)
+	if err != nil {
+		ctc.report = append(ctc.report, err.Error())
+		return fmt.Errorf("failed to retrieve vpp node that was just added, error: '%s'", err)
+	}
 
-	go ctc.Processor.CollectNodeInfo(newNode[0])
+	go ctc.Processor.CollectNodeInfo(newNode)
 
 	return nil
 }

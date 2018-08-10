@@ -327,7 +327,7 @@ func TestProcessor(t *testing.T) {
 }
 
 func testCollectAgentInfoNoError(t *testing.T) {
-	ptv.processor.ContivTelemetryCache.AddNode(1, "k8s-master", "10.20.0.2", "localhost")
+	ptv.processor.ContivTelemetryCache.AddVppNode(1, "k8s-master", "10.20.0.2", "localhost")
 
 	node, err := ptv.processor.ContivTelemetryCache.VppCache.retrieveNode("k8s-master")
 	gomega.Expect(err).To(gomega.BeNil())
@@ -356,8 +356,8 @@ func testCollectAgentInfoNoError(t *testing.T) {
 }
 
 func testCollectAgentInfoWithHTTPError(t *testing.T) {
-	ptv.processor.ContivTelemetryCache.ClearVppCache()
-	ptv.processor.ContivTelemetryCache.AddNode(1, "k8s-master", "10.20.0.2", "localhost")
+	ptv.processor.ContivTelemetryCache.ClearCache()
+	ptv.processor.ContivTelemetryCache.AddVppNode(1, "k8s-master", "10.20.0.2", "localhost")
 
 	nodes := ptv.processor.ContivTelemetryCache.LookupNode([]string{"k8s-master"})
 	gomega.Expect(len(nodes)).To(gomega.Equal(1))
@@ -380,9 +380,9 @@ func testCollectAgentInfoWithHTTPError(t *testing.T) {
 }
 
 func testCollectAgentInfoWithTimeout(t *testing.T) {
-	ptv.processor.ContivTelemetryCache.ClearVppCache()
+	ptv.processor.ContivTelemetryCache.ClearCache()
 	ptv.processor.httpClientTimeout = 1
-	ptv.processor.ContivTelemetryCache.AddNode(1, "k8s-master", "10.20.0.2", "localhost")
+	ptv.processor.ContivTelemetryCache.AddVppNode(1, "k8s-master", "10.20.0.2", "localhost")
 
 	nodes := ptv.processor.ContivTelemetryCache.LookupNode([]string{"k8s-master"})
 	gomega.Expect(len(nodes)).To(gomega.Equal(1))

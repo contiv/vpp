@@ -14,6 +14,7 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+	"strings"
 )
 
 type dataResyncTestData struct {
@@ -115,6 +116,16 @@ func (mlw *mockLogWriter) printLog() {
 	}
 }
 
+func (mlw *mockLogWriter)countErrors() int {
+	cnt := 0
+	for _, logLine := range mlw.log {
+		if strings.Contains(logLine, "level=error") {
+			cnt++
+		}
+	}
+	return cnt
+}
+
 // drd holds all the data structures required for the DataResync test
 var drd dataResyncTestData
 
@@ -143,10 +154,6 @@ func TestDataResync(t *testing.T) {
 	t.Run("testResyncNodeInfoBadProto", testResyncNodeInfoBadProto)
 	t.Run("testResyncNodeInfoAddNodeFail", testResyncNodeInfoAddNodeFail)
 	t.Run("testResyncNodeInfoBadData", testResyncNodeInfoBadData)
-
-	for i, l := range drd.logWriter.log {
-		fmt.Printf("%d: %s", i, l)
-	}
 }
 
 func testResyncNodeInfoOk(t *testing.T) {
@@ -216,7 +223,8 @@ func testResyncNodeInfoAddNodeFail(t *testing.T) {
 	drd.cache.Resync(drd.resyncEv)
 
 	gomega.Expect(len(drd.cache.VppCache.nMap)).To(gomega.Equal(1))
-	//gomega.Expect(len(drd.logWriter.log)).To(gomega.Equal(1))
+	numErrs := drd.logWriter.countErrors()
+	gomega.Expect(numErrs).To(gomega.Equal(2))
 }
 
 func (d *dataResyncTestData) createNewResyncKvIterator() {

@@ -81,43 +81,26 @@ func (ctc *ContivTelemetryCache) DeleteNode(nodenames []string) {
 			return
 		}
 		ctc.VppCache.DeleteNode(node.Name)
-
 	}
-
 }
 
-//AddNode will add a node to the Contiv Telemetry cache with the given parameters.
-func (ctc *ContivTelemetryCache) AddNode(ID uint32, nodeName, IPAdr, ManIPAdr string) error {
-	err := ctc.VppCache.CreateNode(ID, nodeName, IPAdr, ManIPAdr)
-	if err != nil {
-		return err
-	}
-	return nil
+// AddVppNode will add a vpp node to the Contiv Telemetry cache with
+// the given parameters.
+func (ctc *ContivTelemetryCache) AddVppNode(ID uint32, nodeName, IPAdr, ManIPAdr string) error {
+	return ctc.VppCache.CreateNode(ID, nodeName, IPAdr, ManIPAdr)
 }
 
-//ClearVppCache with clear all vpp cache data except for the base nMap that contains
-// the discovered nodes..
-func (ctc *ContivTelemetryCache) ClearVppCache() {
-
-	// Clear collected data for each node
-	for _, node := range ctc.VppCache.nMap {
-		node.NodeInterfaces = nil
-		node.NodeBridgeDomains = nil
-		node.NodeL2Fibs = nil
-		node.NodeLiveness = nil
-		node.NodeTelemetry = nil
-		node.NodeIPArp = nil
-	}
-	// Clear secondary index maps
-	ctc.VppCache.gigEIPMap = make(map[string]*telemetrymodel.Node)
-	ctc.VppCache.loopMACMap = make(map[string]*telemetrymodel.Node)
-	ctc.VppCache.loopIPMap = make(map[string]*telemetrymodel.Node)
-
+// ClearCache with clear all Contiv Telemetry cache data except for the
+// data discovered from etcd updates.
+func (ctc *ContivTelemetryCache) ClearCache() {
+	ctc.VppCache.ClearCache()
+	// TODO: clear k8s cache
 }
 
-// ReinitializeCache completely re-initializes the cache, clearing all
-// data including  the discovered nodes.
+// ReinitializeCache completely re-initializes the Contiv Telemetry cache,
+// clearing all data, including discovered vpp and k8s nodes and discovered
+// k8s pods.
 func (ctc *ContivTelemetryCache) ReinitializeCache() {
-	ctc.ClearVppCache()
-	ctc.VppCache.nMap = make(map[string]*telemetrymodel.Node)
+	ctc.VppCache.ReinitializeCache()
+	// TODO: re-initialize k8s cache
 }

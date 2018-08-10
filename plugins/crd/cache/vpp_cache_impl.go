@@ -90,8 +90,7 @@ func (vc *VppCache) DeleteNode(key string) error {
 		vc.logger.Error(err)
 		return err
 	}
-	delete(vc.nMap, node.Name)
-	delete(vc.gigEIPMap, node.IPAdr)
+
 	for _, intf := range node.NodeInterfaces {
 		if intf.VppInternalName == "loop0" {
 			delete(vc.loopMACMap, intf.PhysAddress)
@@ -101,6 +100,8 @@ func (vc *VppCache) DeleteNode(key string) error {
 		}
 
 	}
+	delete(vc.nMap, node.Name)
+	delete(vc.gigEIPMap, node.IPAdr)
 	return nil
 }
 
@@ -137,7 +138,7 @@ func (vc *VppCache) UpdateNode(ID uint32, nodeName, IPAdr, ManIPAdr string) erro
 	return nil
 }
 
-//ClearVppCache with clear all vpp cache data except for the base nMap that contains
+//ClearCache with clear all vpp cache data except for the base nMap that contains
 // the discovered nodes..
 func (vc *VppCache) ClearCache() {
 

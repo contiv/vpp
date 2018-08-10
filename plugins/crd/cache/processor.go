@@ -47,6 +47,7 @@ type NodeDTO struct {
 type ContivTelemetryProcessor struct {
 	Deps
 	nodeResponseChannel  chan *NodeDTO
+	networkInfoGetCh     chan bool
 	ContivTelemetryCache *ContivTelemetryCache
 	dtoList              []*NodeDTO
 	ticker               *time.Ticker
@@ -58,6 +59,7 @@ type ContivTelemetryProcessor struct {
 
 func (p *ContivTelemetryProcessor) init() {
 	p.nodeResponseChannel = make(chan *NodeDTO)
+	p.networkInfoGetCh = make(chan bool)
 	p.dtoList = make([]*NodeDTO, 0)
 	p.agentPort = agentPort
 	p.collectionInterval = collectionInterval * time.Minute
@@ -70,24 +72,67 @@ func (p *ContivTelemetryProcessor) init() {
 func (p *ContivTelemetryProcessor) Init() error {
 	// initialize structures, dependencies and attributes
 	p.init()
-	// Start goroutines
-	go p.ProcessNodeResponses()
-	go p.retrieveNetworkInfoOnTimerExpiry()
+	// Start the processor
+	go p.nodeEventProcessor()
 	return nil
 }
 
-// CollectNodeInfo collects node data from all agents in the Contiv
-// cluster and puts it in the cache
-func (p *ContivTelemetryProcessor) CollectNodeInfo(node *telemetrymodel.Node) {
+func (p *ContivTelemetryProcessor) RetrieveNetworkInfo() {
+	p.networkInfoGetCh <- true
+}
+
+func (p *ContivTelemetryProcessor) nodeEventProcessor() {
+	for {
+		select {
+		case _, ok := <-p.ticker.C:
+			p.Log.Info("Timer-triggered data collection & validation, status:", ok)
+			if !ok {
+				return
+			}
+			p.startNodeInfoCollection()
+
+		case _, ok := <-p.networkInfoGetCh:
+			p.Log.Info("Externally triggered data collection & validation, status: ", ok)
+			if !ok {
+				return
+			}
+			p.startNodeInfoCollection()
+
+		case data, ok := <-p.nodeResponseChannel:
+			p.Log.Info("Received DTO, status: ", ok)
+			if !ok {
+				return
+			}
+			p.processNodeResponse(data)
+		}
+	}
+}
+
+func (p *ContivTelemetryProcessor) startNodeInfoCollection() {
+	if p.validationInProgress {
+		p.Log.Info("Skipping data collection/validation - previous run still in progress")
+		return
+	}
 	p.validationInProgress = true
+	p.ContivTelemetryCache.ClearCache()
+
+	nodelist := p.ContivTelemetryCache.ListAllNodes()
+	for _, node := range nodelist {
+		p.collectNodeInfo(node)
+	}
+}
+
+// collectNodeInfo collects node data from all agents in the Contiv
+// cluster and puts it in the cache
+func (p *ContivTelemetryProcessor) collectNodeInfo(node *telemetrymodel.Node) {
 	p.collectAgentInfo(node)
 }
 
-// ValidateNodeInfo checks the consistency of the node data in the cache. It
+// validateNodeInfo checks the consistency of the node data in the cache. It
 // checks the ARP tables, ... . Data inconsistencies may cause loss of
 // connectivity between nodes or pods. All sata inconsistencies found during
 // validation are reported to the CRD.
-func (p *ContivTelemetryProcessor) ValidateNodeInfo() {
+func (p *ContivTelemetryProcessor) validateNodeInfo() {
 
 	nodelist := p.ContivTelemetryCache.ListAllNodes()
 	for _, node := range nodelist {
@@ -113,7 +158,6 @@ func (p *ContivTelemetryProcessor) ValidateNodeInfo() {
 			node.Report = node.Report[0:0]
 		}
 	}
-
 }
 
 //Gathers a number of data points for every node in the Node List
@@ -143,20 +187,6 @@ func (p *ContivTelemetryProcessor) collectAgentInfo(node *telemetrymodel.Node) {
 
 	nodeiparpslice := make(telemetrymodel.NodeIPArpTable, 0)
 	go p.getNodeInfo(client, node, arpURL, &nodeiparpslice)
-
-}
-
-func (p *ContivTelemetryProcessor) retrieveNetworkInfoOnTimerExpiry() {
-	for range p.ticker.C {
-		p.Log.Info("Timer has expired; Beginning gathering of information.")
-
-		p.ContivTelemetryCache.ClearCache()
-		nodelist := p.ContivTelemetryCache.ListAllNodes()
-
-		for _, node := range nodelist {
-			p.CollectNodeInfo(node)
-		}
-	}
 }
 
 /* Here are the several functions that run as goroutines to collect information
@@ -205,25 +235,23 @@ func (p *ContivTelemetryProcessor) waitForValidationToFinish() int {
 	}
 }
 
-//ProcessNodeResponses will read the nodeDTO map and make sure that each node has
-//enough DTOS to fully process information. It then clears the node DTO map after it
+//nodeResponseProcessor will read the nodeDTO map and make sure that each node has
+//enough DTOs to fully process information. It then clears the node DTO map after it
 //is finished with it.
-func (p *ContivTelemetryProcessor) ProcessNodeResponses() {
-	for data := range p.nodeResponseChannel {
-		nodelist := p.ContivTelemetryCache.VppCache.RetrieveAllNodes()
-		p.dtoList = append(p.dtoList, data)
-		if len(p.dtoList) == numDTOs*len(nodelist) {
-			p.SetNodeData()
-			p.ValidateNodeInfo()
-			p.dtoList = p.dtoList[0:0]
-			p.validationInProgress = false
-		}
+func (p *ContivTelemetryProcessor) processNodeResponse(data *NodeDTO) {
+	nodelist := p.ContivTelemetryCache.ListAllNodes()
+	p.dtoList = append(p.dtoList, data)
+	if len(p.dtoList) == numDTOs*len(nodelist) {
+		p.setNodeData()
+		p.validateNodeInfo()
+		p.dtoList = p.dtoList[0:0]
+		p.validationInProgress = false
 	}
 }
 
-// SetNodeData will iterate through the dtoList, read the type of dto, and assign the dto info to the name
+// setNodeData will iterate through the dtoList, read the type of dto, and assign the dto info to the name
 // associated with the DTO.
-func (p *ContivTelemetryProcessor) SetNodeData() {
+func (p *ContivTelemetryProcessor) setNodeData() {
 	for _, data := range p.dtoList {
 		if data.err != nil {
 			p.ContivTelemetryCache.report = append(p.ContivTelemetryCache.report, errors.Errorf(
@@ -252,7 +280,5 @@ func (p *ContivTelemetryProcessor) SetNodeData() {
 		default:
 			p.Log.Errorf("Node %+v has unknown data type: %+v", data.NodeName, data.NodeInfo)
 		}
-
 	}
-
 }

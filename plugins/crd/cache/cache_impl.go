@@ -95,6 +95,7 @@ func (ctc *ContivTelemetryCache) AddVppNode(ID uint32, nodeName, IPAdr, ManIPAdr
 func (ctc *ContivTelemetryCache) ClearCache() {
 	ctc.VppCache.ClearCache()
 	// TODO: clear k8s cache
+	ctc.report = []string{}
 }
 
 // ReinitializeCache completely re-initializes the Contiv Telemetry cache,
@@ -103,4 +104,5 @@ func (ctc *ContivTelemetryCache) ClearCache() {
 func (ctc *ContivTelemetryCache) ReinitializeCache() {
 	ctc.VppCache.ReinitializeCache()
 	// TODO: re-initialize k8s cache
+	ctc.report = []string{}
 }

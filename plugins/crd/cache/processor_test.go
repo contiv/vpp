@@ -278,7 +278,7 @@ func TestProcessor(t *testing.T) {
 
 	// Initialize & start mock objects
 	ptv.log = logrus.DefaultLogger()
-	ptv.log.SetLevel(logging.ErrorLevel)
+	ptv.log.SetLevel(logging.InfoLevel)
 
 	ptv.tickerChan = make(chan time.Time)
 
@@ -356,16 +356,16 @@ func testCollectAgentInfoNoError(t *testing.T) {
 }
 
 func testCollectAgentInfoWithHTTPError(t *testing.T) {
-	ptv.processor.ContivTelemetryCache.ClearCache()
+	ptv.processor.ContivTelemetryCache.ReinitializeCache()
 	ptv.processor.ContivTelemetryCache.AddVppNode(1, "k8s-master", "10.20.0.2", "localhost")
 
 	nodes := ptv.processor.ContivTelemetryCache.LookupNode([]string{"k8s-master"})
 	gomega.Expect(len(nodes)).To(gomega.Equal(1))
 	ptv.injectError = inject404Error
 
-	ptv.processor.validationInProgress = true
 	ptv.tickerChan <- time.Time{}
 
+	time.Sleep(1 * time.Millisecond)
 	fmt.Printf("              Waited %d ms for validation to finish\n",
 		ptv.processor.waitForValidationToFinish())
 
@@ -376,11 +376,10 @@ func testCollectAgentInfoWithHTTPError(t *testing.T) {
 		}
 	}
 	gomega.Expect(numHTTPErrs).To(gomega.Equal(numDTOs))
-	printErrorReport(ptv.processor.ContivTelemetryCache.report)
 }
 
 func testCollectAgentInfoWithTimeout(t *testing.T) {
-	ptv.processor.ContivTelemetryCache.ClearCache()
+	ptv.processor.ContivTelemetryCache.ReinitializeCache()
 	ptv.processor.httpClientTimeout = 1
 	ptv.processor.ContivTelemetryCache.AddVppNode(1, "k8s-master", "10.20.0.2", "localhost")
 
@@ -388,9 +387,9 @@ func testCollectAgentInfoWithTimeout(t *testing.T) {
 	gomega.Expect(len(nodes)).To(gomega.Equal(1))
 	ptv.injectError = injectDelay
 
-	ptv.processor.validationInProgress = true
 	ptv.tickerChan <- time.Time{}
 
+	time.Sleep(1 * time.Millisecond)
 	fmt.Printf("              Waited %d ms for validation to finish\n",
 		ptv.processor.waitForValidationToFinish())
 

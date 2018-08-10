@@ -150,6 +150,7 @@ func (vc *VppCache) ClearCache() {
 		node.NodeLiveness = nil
 		node.NodeTelemetry = nil
 		node.NodeIPArp = nil
+		node.Report = []string{}
 	}
 	// Clear secondary index maps
 	vc.gigEIPMap = make(map[string]*telemetrymodel.Node)

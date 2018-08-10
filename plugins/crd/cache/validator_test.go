@@ -73,7 +73,7 @@ func TestValidator(t *testing.T) {
 func testErrorFreeTopologyValidation(t *testing.T) {
 	populateNodeInfoDataInCache(vtv.processor.ContivTelemetryCache)
 
-	vtv.processor.ValidateNodeInfo()
+	vtv.processor.validateNodeInfo()
 
 	printErrorReport(vtv.processor.ContivTelemetryCache.report)
 }

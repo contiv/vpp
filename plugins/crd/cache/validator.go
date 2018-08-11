@@ -20,6 +20,8 @@ import (
 	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
 	"github.com/ligato/vpp-agent/plugins/vpp/model/interfaces"
 	"github.com/pkg/errors"
+	"strconv"
+	"strings"
 )
 
 //PopulateNodeMaps populates many of needed node maps for processing once all of the information has been retrieved.
@@ -522,5 +524,62 @@ func (ctc *ContivTelemetryCache) ValidatePodInfo() {
 	} else {
 		ctc.report = append(ctc.report, "Success validating pod info.")
 	}
+}
 
+//ValidateTapToPod will find the appropriate tap interface for each pod and cache that information in the pod.
+func (ctc *ContivTelemetryCache) ValidateTapToPod() {
+	podMap := make(map[string]bool)
+	for key := range ctc.K8sCache.podMap {
+		podMap[key] = true
+	}
+	for _, pod := range ctc.K8sCache.podMap {
+		vppnode, ok := ctc.VppCache.hostIPMap[pod.HostIPAddress]
+		if !ok {
+			ctc.report = ctc.report //log error
+		}
+		k8snode, err := ctc.K8sCache.RetrieveK8sNode(vppnode.Name)
+		if err != nil {
+			ctc.report = append(ctc.report, err.Error())
+		}
+		str := strings.Split(k8snode.Pod_CIDR, "/")
+		mask := str[1]
+		i, err := strconv.Atoi(mask)
+		if err != nil {
+			ctc.report = append(ctc.report, err.Error())
+		}
+		bitmask := maskLength2Mask(i)
+		for _, intf := range vppnode.NodeInterfaces {
+			if strings.Contains(intf.VppInternalName, "tap") {
+				for _, ip := range intf.IPAddresses {
+					podIP := ip2uint32(pod.IPAddress)
+					tapIP := ip2uint32(ip)
+					if (podIP & bitmask) == (tapIP & bitmask) {
+						pod.VppIfIpAddr = ip
+						pod.VppIfName = intf.VppInternalName
+					}
+				}
+			}
+		}
+	}
+}
+
+func maskLength2Mask(ml int) uint32 {
+	var mask uint32
+	for i := 0; i < 32-ml; i++ {
+		mask = mask << 1
+		mask++
+	}
+	return mask
+}
+
+func ip2uint32(ipAddress string) uint32 {
+	var ipu uint32
+	parts := strings.Split(ipAddress, ".")
+	for _, p := range parts {
+		// num, _ := strconv.ParseUint(p, 10, 32)
+		num, _ := strconv.Atoi(p)
+		ipu = (ipu << 8) + uint32(num)
+		//fmt.Printf("%d: num: 0x%x, ipu: 0x%x\n", i, num, ipu)
+	}
+	return ipu
 }

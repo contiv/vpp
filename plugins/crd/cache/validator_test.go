@@ -1,12 +1,13 @@
 package cache
 
 import (
-		"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
+	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
 	nodemodel "github.com/contiv/vpp/plugins/ksr/model/node"
+	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/logging/logrus"
 	"github.com/onsi/gomega"
-			"testing"
+	"testing"
 )
 
 type validatorTestVars struct {
@@ -17,6 +18,7 @@ type validatorTestVars struct {
 	// Mock data
 	nodeInfoData []*nodeData
 	k8sNodeData  []*nodemodel.Node
+	k8sPodData   []*podmodel.Pod
 }
 
 type nodeData struct {
@@ -45,6 +47,7 @@ func TestValidator(t *testing.T) {
 
 	vtv.createNodeInfoTestData()
 	vtv.createK8sNodeTestData()
+	vtv.createK8sPodTestData()
 
 	// Initialize the cache
 	vtv.processor = &ContivTelemetryProcessor{
@@ -73,6 +76,7 @@ func TestValidator(t *testing.T) {
 func testErrorFreeTopologyValidation(t *testing.T) {
 	populateNodeInfoDataInCache(vtv.processor.ContivTelemetryCache)
 	populateK8sNodeDataInCache(vtv.processor.ContivTelemetryCache)
+	populateK8sPodDataInCache(vtv.processor.ContivTelemetryCache)
 
 	vtv.processor.validateNodeInfo()
 
@@ -125,11 +129,17 @@ func populateNodeInfoDataInCache(cache *ContivTelemetryCache) {
 func populateK8sNodeDataInCache(cache *ContivTelemetryCache) {
 	for _, node := range vtv.k8sNodeData {
 		cache.K8sCache.createK8sNode(node.Name, node.Pod_CIDR, node.Provider_ID, node.Addresses, node.NodeInfo)
-
 	}
 }
 
-// createNodeInfoOkTestData creates a test vector that roughly corresponds to a 3-node
+func populateK8sPodDataInCache(cache *ContivTelemetryCache) {
+	for _, pod := range vtv.k8sPodData {
+		cache.K8sCache.createPod(pod.Name, pod.Namespace, pod.Label,
+			pod.IpAddress, pod.HostIpAddress, []*podmodel.Pod_Container{})
+	}
+}
+
+// createNodeInfoTestData creates a test vector that roughly corresponds to a 3-node
 // vagrant topology (1 master, 2 workers). The created topology is defect-free,
 // i.e. defect must be injected into the topology individually for each test
 // case.
@@ -586,4 +596,177 @@ func (v *validatorTestVars) createK8sNodeTestData() {
 	}
 	v.k8sNodeData = append(v.k8sNodeData, k8sWorker2)
 
+}
+
+func (v *validatorTestVars) createK8sPodTestData() {
+	v.k8sPodData = []*podmodel.Pod{
+		{
+			Name:      "contiv-etcd-0",
+			Namespace: "kube-system",
+			Label: []*podmodel.Pod_Label{
+				{Key: "controller-revision-bash", Value: "contiv-etcd-695db96cd9"},
+				{Key: "k8s-app", Value: "contiv-etcd"},
+				{Key: "statefulset.kubernetes.io/pod-name", Value: "contiv-etcd"},
+			},
+			IpAddress:     "10.20.0.2",
+			HostIpAddress: "10.20.0.2",
+		},
+		{
+			Name:      "contiv-ksr-mt9nj",
+			Namespace: "kube-system",
+			Label: []*podmodel.Pod_Label{
+				{Key: "controller-revision-bash", Value: "1646389250"},
+				{Key: "k8s-app", Value: "contiv-ksr"},
+			},
+			IpAddress:     "10.20.0.2",
+			HostIpAddress: "10.20.0.2",
+		},
+		{
+			Name:      "contiv-vswitch-jxz5w",
+			Namespace: "kube-system",
+			Label: []*podmodel.Pod_Label{
+				{Key: "controller-revision-bash", Value: "3065736184"},
+				{Key: "k8s-app", Value: "contiv-vswitch"},
+				{Key: "pod-template-generation", Value: "1"},
+			},
+			IpAddress:     "10.20.0.11",
+			HostIpAddress: "10.20.0.11",
+		},
+		{
+			Name:      "contiv-vswitch-765tb",
+			Namespace: "kube-system",
+			Label: []*podmodel.Pod_Label{
+				{Key: "controller-revision-bash", Value: "3065736184"},
+				{Key: "k8s-app", Value: "contiv-vswitch"},
+				{Key: "pod-template-generation", Value: "1"},
+			},
+			IpAddress:     "10.20.0.10",
+			HostIpAddress: "10.20.0.10",
+		},
+		{
+			Name:      "contiv-vswitch-xrt99",
+			Namespace: "kube-system",
+			Label: []*podmodel.Pod_Label{
+				{Key: "controller-revision-hash", Value: "3065736184"},
+				{Key: "k8s-app", Value: "contiv-vswitch"},
+				{Key: "pod-template-generation", Value: "1"},
+			},
+			IpAddress:     "10.20.0.2",
+			HostIpAddress: "10.20.0.2",
+		},
+		{
+			Name:      "etcd-k8s-master",
+			Namespace: "kube-system",
+			Label: []*podmodel.Pod_Label{
+				{Key: "component", Value: "etcd"},
+				{Key: "tier", Value: "control-plane"},
+			},
+			IpAddress:     "10.20.0.2",
+			HostIpAddress: "10.20.0.2",
+		},
+		{
+			Name:      "kube-controller-manager-k8s-master",
+			Namespace: "kube-system",
+			Label: []*podmodel.Pod_Label{
+				{Key: "component", Value: "kube-controller-manager"},
+				{Key: "tier", Value: "control-plane"},
+			},
+			IpAddress:     "10.20.0.2",
+			HostIpAddress: "10.20.0.2",
+		},
+		{
+			Name:      "kube-scheduler-k8s-master",
+			Namespace: "kube-system",
+			Label: []*podmodel.Pod_Label{
+				{Key: "component", Value: "kube-scheduler"},
+				{Key: "tier", Value: "control-plane"},
+			},
+			IpAddress:     "10.20.0.2",
+			HostIpAddress: "10.20.0.2",
+		},
+		{
+			Name:      "kube-apiserver-k8s-master",
+			Namespace: "kube-system",
+			Label: []*podmodel.Pod_Label{
+				{Key: "component", Value: "kube-apiserver"},
+				{Key: "tier", Value: "control-plane"},
+			},
+			IpAddress:     "10.20.0.2",
+			HostIpAddress: "10.20.0.2",
+		},
+		{
+			Name:      "kube-dns-86f4d74b45-ztgjq",
+			Namespace: "kube-system",
+			Label: []*podmodel.Pod_Label{
+				{Key: "controller-revision-hash", Value: "4290830601"},
+				{Key: "k8s-app", Value: "kube-dns"},
+			},
+			IpAddress:     "10.1.3.10",
+			HostIpAddress: "10.20.0.2",
+		},
+
+		{
+			Name:      "kube-proxy-ltlkc",
+			Namespace: "kube-system",
+			Label: []*podmodel.Pod_Label{
+				{Key: "controller-revision-hash", Value: "928422017"},
+				{Key: "k8s-app", Value: "kube-proxy"},
+				{Key: "pod-template-generation", Value: "1"},
+			},
+			IpAddress:     "10.20.0.10",
+			HostIpAddress: "10.20.0.10",
+		},
+		{
+			Name:      "kube-proxy-bqjhx",
+			Namespace: "kube-system",
+			Label: []*podmodel.Pod_Label{
+				{Key: "controller-revision-hash", Value: "928422017"},
+				{Key: "k8s-app", Value: "kube-proxy"},
+				{Key: "pod-template-generation", Value: "1"},
+			},
+			IpAddress:     "10.20.0.2",
+			HostIpAddress: "10.20.0.2",
+		},
+		{
+			Name:      "kube-proxy-pfnzj",
+			Namespace: "kube-system",
+			Label: []*podmodel.Pod_Label{
+				{Key: "controller-revision-hash", Value: "928422017"},
+				{Key: "k8s-app", Value: "kube-proxy"},
+				{Key: "pod-template-generation", Value: "1"},
+			},
+			IpAddress:     "10.20.0.11",
+			HostIpAddress: "10.20.0.11",
+		},
+		{
+			Name:      "nginx-65899c769f-bhwl4",
+			Namespace: "default",
+			Label: []*podmodel.Pod_Label{
+				{Key: "pod-template-hash", Value: "2145573259"},
+				{Key: "run", Value: "nginx"},
+			},
+			IpAddress:     "10.1.3.9",
+			HostIpAddress: "10.20.0.2",
+		},
+		{
+			Name:      "nginx-65899c769f-dg5v7",
+			Namespace: "default",
+			Label: []*podmodel.Pod_Label{
+				{Key: "pod-template-hash", Value: "2145573259"},
+				{Key: "run", Value: "nginx"},
+			},
+			IpAddress:     "10.1.1.4",
+			HostIpAddress: "10.20.0.11",
+		},
+		{
+			Name:      "nginx-65899c769f-dg5v7",
+			Namespace: "default",
+			Label: []*podmodel.Pod_Label{
+				{Key: "pod-template-hash", Value: "2145573259"},
+				{Key: "run", Value: "nginx"},
+			},
+			IpAddress:     "10.1.2.6",
+			HostIpAddress: "10.20.0.10",
+		},
+	}
 }

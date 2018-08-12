@@ -31,10 +31,10 @@ type ContivTelemetryCache struct {
 	Deps
 	Synced bool
 	// todo - here add the maps you have in your db implementation
-	VppCache  *VppCache
+	VppCache  VppCache
 	K8sCache  *K8sCache
 	Processor Processor
-	report    []string
+	Report    map[string][]string
 }
 
 // Deps lists dependencies of PolicyCache.
@@ -51,19 +51,19 @@ func (ctc *ContivTelemetryCache) Init() error {
 	return nil
 }
 
-// ListAllNodes returns node data for all nodes in the cache.
-func (ctc *ContivTelemetryCache) ListAllNodes() []*telemetrymodel.Node {
+// ListAllVppNodes returns node data for all nodes in the cache.
+func (ctc *ContivTelemetryCache) ListAllVppNodes() []*telemetrymodel.Node {
 	nodeList := ctc.VppCache.RetrieveAllNodes()
 	return nodeList
 }
 
-// LookupNode return node data for nodes that match a node name passed
+// LookupVppNodes return node data for nodes that match a node name passed
 // to the function in the node names slice.
-func (ctc *ContivTelemetryCache) LookupNode(nodenames []string) []*telemetrymodel.Node {
+func (ctc *ContivTelemetryCache) LookupVppNodes(nodenames []string) []*telemetrymodel.Node {
 	nodeslice := make([]*telemetrymodel.Node, 0)
 	for _, name := range nodenames {
-		node, ok := ctc.VppCache.nMap[name]
-		if !ok {
+		node, err := ctc.VppCache.RetrieveNode(name)
+		if err != nil {
 			continue
 		}
 		nodeslice = append(nodeslice, node)
@@ -71,9 +71,9 @@ func (ctc *ContivTelemetryCache) LookupNode(nodenames []string) []*telemetrymode
 	return nodeslice
 }
 
-// DeleteNode deletes from the cache those nodes that match a node name passed
+// DeleteVppNode deletes from the cache those nodes that match a node name passed
 // to the function in the node names slice.
-func (ctc *ContivTelemetryCache) DeleteNode(nodenames []string) {
+func (ctc *ContivTelemetryCache) DeleteVppNode(nodenames []string) {
 	for _, str := range nodenames {
 		node, err := ctc.VppCache.RetrieveNode(str)
 		if err != nil {
@@ -95,7 +95,7 @@ func (ctc *ContivTelemetryCache) AddVppNode(ID uint32, nodeName, IPAdr, ManIPAdr
 func (ctc *ContivTelemetryCache) ClearCache() {
 	ctc.VppCache.ClearCache()
 	// TODO: clear k8s cache
-	ctc.report = []string{}
+	ctc.Report = make(map[string][]string)
 }
 
 // ReinitializeCache completely re-initializes the Contiv Telemetry cache,
@@ -104,5 +104,14 @@ func (ctc *ContivTelemetryCache) ClearCache() {
 func (ctc *ContivTelemetryCache) ReinitializeCache() {
 	ctc.VppCache.ReinitializeCache()
 	// TODO: re-initialize k8s cache
-	ctc.report = []string{}
+	ctc.Report = make(map[string][]string)
+}
+
+func (ctc *ContivTelemetryCache) logErrAndAppendToNodeReport(nodeName string, errString string) {
+	ctc.appendToNodeReport(nodeName, errString)
+	ctc.Log.Errorf(errString)
+}
+
+func (ctc *ContivTelemetryCache) appendToNodeReport(nodeName string, errString string) {
+	ctc.Report[nodeName] = append(ctc.Report[nodeName], errString)
 }

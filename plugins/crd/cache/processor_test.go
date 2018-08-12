@@ -206,7 +206,7 @@ func testCollectAgentInfoWithHTTPError(t *testing.T) {
 	ptv.processor.ContivTelemetryCache.ReinitializeCache()
 	ptv.processor.ContivTelemetryCache.AddVppNode(1, "k8s-master", "10.20.0.2", "localhost")
 
-	nodes := ptv.processor.ContivTelemetryCache.LookupNode([]string{"k8s-master"})
+	nodes := ptv.processor.ContivTelemetryCache.LookupVppNodes([]string{"k8s-master"})
 	gomega.Expect(len(nodes)).To(gomega.Equal(1))
 	ptv.injectError = inject404Error
 
@@ -217,7 +217,7 @@ func testCollectAgentInfoWithHTTPError(t *testing.T) {
 	time.Sleep(1 * time.Millisecond)
 	ptv.processor.waitForValidationToFinish()
 
-	gomega.Expect(grep(ptv.processor.ContivTelemetryCache.report, "404 Not Found")).
+	gomega.Expect(grep(ptv.processor.ContivTelemetryCache.Report, "404 Not Found")).
 		To(gomega.Equal(numDTOs))
 }
 
@@ -227,7 +227,7 @@ func testCollectAgentInfoWithTimeout(t *testing.T) {
 	ptv.processor.httpClientTimeout = 1
 	ptv.processor.ContivTelemetryCache.AddVppNode(1, "k8s-master", "10.20.0.2", "localhost")
 
-	nodes := ptv.processor.ContivTelemetryCache.LookupNode([]string{"k8s-master"})
+	nodes := ptv.processor.ContivTelemetryCache.LookupVppNodes([]string{"k8s-master"})
 	gomega.Expect(len(nodes)).To(gomega.Equal(1))
 	ptv.injectError = injectDelay
 
@@ -237,7 +237,7 @@ func testCollectAgentInfoWithTimeout(t *testing.T) {
 	time.Sleep(1 * time.Millisecond)
 	ptv.processor.waitForValidationToFinish()
 
-	gomega.Expect(grep(ptv.processor.ContivTelemetryCache.report, "Timeout exceeded")).
+	gomega.Expect(grep(ptv.processor.ContivTelemetryCache.Report, "Timeout exceeded")).
 		To(gomega.Equal(numDTOs))
 }
 

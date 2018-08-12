@@ -119,6 +119,7 @@ func (p *Plugin) Init() error {
 			Log: p.Log.NewLogger("-telemetryCache"),
 		},
 		Synced: false,
+		Report: make(map[string][]string),
 	}
 	p.cache.Log.SetLevel(logging.DebugLevel)
 	p.cache.Init()

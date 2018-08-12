@@ -80,7 +80,7 @@ func testErrorFreeTopologyValidation(t *testing.T) {
 
 	vtv.processor.validateNodeInfo()
 
-	gomega.Expect(len(vtv.processor.ContivTelemetryCache.report)).To(gomega.Equal(3))
+	gomega.Expect(len(vtv.processor.ContivTelemetryCache.Report)).To(gomega.Equal(3))
 }
 
 func testK8sNodeToNodeInfoOkValidation(t *testing.T) {
@@ -90,18 +90,18 @@ func testK8sNodeToNodeInfoOkValidation(t *testing.T) {
 
 	vtv.processor.ContivTelemetryCache.ValidateK8sNodeInfo()
 
-	gomega.Expect(len(vtv.processor.ContivTelemetryCache.report)).To(gomega.Equal(0))
+	gomega.Expect(len(vtv.processor.ContivTelemetryCache.Report)).To(gomega.Equal(0))
 }
 
 func testK8sNodeToNodeInfoMissingNiValidation(t *testing.T) {
 	vtv.processor.ContivTelemetryCache.ReinitializeCache()
 	populateNodeInfoDataInCache(vtv.processor.ContivTelemetryCache)
 	populateK8sNodeDataInCache(vtv.processor.ContivTelemetryCache)
-	vtv.processor.ContivTelemetryCache.DeleteNode([]string{"k8s-master"})
+	vtv.processor.ContivTelemetryCache.DeleteVppNode([]string{"k8s-master"})
 
 	vtv.processor.ContivTelemetryCache.ValidateK8sNodeInfo()
 
-	gomega.Expect(len(vtv.processor.ContivTelemetryCache.report)).To(gomega.Equal(2))
+	gomega.Expect(len(vtv.processor.ContivTelemetryCache.Report)).To(gomega.Equal(2))
 }
 
 func testK8sNodeToNodeInfoMissingK8snValidation(t *testing.T) {
@@ -112,7 +112,7 @@ func testK8sNodeToNodeInfoMissingK8snValidation(t *testing.T) {
 
 	vtv.processor.ContivTelemetryCache.ValidateK8sNodeInfo()
 
-	gomega.Expect(len(vtv.processor.ContivTelemetryCache.report)).To(gomega.Equal(2))
+	gomega.Expect(len(vtv.processor.ContivTelemetryCache.Report)).To(gomega.Equal(2))
 }
 
 func populateNodeInfoDataInCache(cache *ContivTelemetryCache) {

@@ -18,7 +18,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
-	"github.com/pkg/errors"
 	"io/ioutil"
 	"net/http"
 	"time"
@@ -118,7 +117,7 @@ func (p *ContivTelemetryProcessor) startNodeInfoCollection() {
 	p.validationInProgress = true
 	p.ContivTelemetryCache.ClearCache()
 
-	nodelist := p.ContivTelemetryCache.ListAllNodes()
+	nodelist := p.ContivTelemetryCache.ListAllVppNodes()
 	for _, node := range nodelist {
 		p.collectNodeInfo(node)
 	}
@@ -136,7 +135,7 @@ func (p *ContivTelemetryProcessor) collectNodeInfo(node *telemetrymodel.Node) {
 // validation are reported to the CRD.
 func (p *ContivTelemetryProcessor) validateNodeInfo() {
 
-	nodelist := p.ContivTelemetryCache.ListAllNodes()
+	nodelist := p.ContivTelemetryCache.ListAllVppNodes()
 	for _, node := range nodelist {
 		p.ContivTelemetryCache.PopulateNodeMaps(node)
 	}
@@ -144,17 +143,17 @@ func (p *ContivTelemetryProcessor) validateNodeInfo() {
 
 	p.ContivTelemetryCache.ValidateLoopIFAddresses()
 
-	p.ContivTelemetryCache.ValidateL2Connections()
+	p.ContivTelemetryCache.ValidateL2Connectivity()
 
-	p.ContivTelemetryCache.ValidateFibEntries()
+	p.ContivTelemetryCache.ValidateL2FibEntries()
 
 	p.ContivTelemetryCache.ValidateK8sNodeInfo()
 
 	p.ContivTelemetryCache.ValidatePodInfo()
 
-	for _, entry := range p.ContivTelemetryCache.report {
+	for _, entry := range p.ContivTelemetryCache.Report {
 		p.Log.Info(entry)
-		for _, node := range p.ContivTelemetryCache.VppCache.nMap {
+		for _, node := range p.ContivTelemetryCache.VppCache.RetrieveAllNodes() {
 			p.Log.Infof("Report for %+v", node.Name)
 			p.Log.Info(node.Report)
 			node.Report = node.Report[0:0]
@@ -199,7 +198,9 @@ object is created to hold the struct of information as well as the name and is s
 over the plugins node database channel to node_db_processor.go where it will be read,
 processed, and added to the node database.
 */
-func (p *ContivTelemetryProcessor) getNodeInfo(client http.Client, node *telemetrymodel.Node, url string, nodeInfo interface{}) {
+func (p *ContivTelemetryProcessor) getNodeInfo(client http.Client, node *telemetrymodel.Node, url string,
+	nodeInfo interface{}) {
+
 	res, err := client.Get(p.getAgentURL(node.ManIPAdr, url))
 	if err != nil {
 		err := fmt.Errorf("getNodeInfo: url: %s cleintGet Error: %s", url, err.Error())
@@ -212,11 +213,12 @@ func (p *ContivTelemetryProcessor) getNodeInfo(client http.Client, node *telemet
 		p.nodeResponseChannel <- &NodeDTO{node.Name, nil, err}
 		return
 	}
+
 	b, _ := ioutil.ReadAll(res.Body)
 	b = []byte(b)
 	json.Unmarshal(b, nodeInfo)
-	p.nodeResponseChannel <- &NodeDTO{node.Name, nodeInfo, nil}
 
+	p.nodeResponseChannel <- &NodeDTO{node.Name, nodeInfo, nil}
 }
 
 // getAgentURL creates the URL for the data we're trying to retrieve
@@ -237,11 +239,11 @@ func (p *ContivTelemetryProcessor) waitForValidationToFinish() int {
 	}
 }
 
-//nodeResponseProcessor will read the nodeDTO map and make sure that each node has
-//enough DTOs to fully process information. It then clears the node DTO map after it
-//is finished with it.
+// nodeResponseProcessor will read the nodeDTO map and make sure that each
+// node has enough DTOs to fully process information. It then clears the
+// node DTO map after it is finished with it.
 func (p *ContivTelemetryProcessor) processNodeResponse(data *NodeDTO) {
-	nodelist := p.ContivTelemetryCache.ListAllNodes()
+	nodelist := p.ContivTelemetryCache.ListAllVppNodes()
 	p.dtoList = append(p.dtoList, data)
 	if len(p.dtoList) == numDTOs*len(nodelist) {
 		p.setNodeData()
@@ -251,36 +253,42 @@ func (p *ContivTelemetryProcessor) processNodeResponse(data *NodeDTO) {
 	}
 }
 
-// setNodeData will iterate through the dtoList, read the type of dto, and assign the dto info to the name
-// associated with the DTO.
+// setNodeData will iterate through the dtoList, read the type of dto, and
+// assign the dto info to the name associated with the DTO.
 func (p *ContivTelemetryProcessor) setNodeData() {
 	for _, data := range p.dtoList {
+		err := error(nil)
+
 		if data.err != nil {
-			p.ContivTelemetryCache.report = append(p.ContivTelemetryCache.report, errors.Errorf(
-				"Node %+v has nodeDTO %+v and http error %s", data.NodeName, data, data.err).Error())
+			err = fmt.Errorf("node %+v has nodeDTO %+v and http error %s", data.NodeName, data, data.err)
+			p.ContivTelemetryCache.logErrAndAppendToNodeReport(data.NodeName, err.Error())
 			continue
 		}
+
 		switch data.NodeInfo.(type) {
 		case *telemetrymodel.NodeLiveness:
 			nl := data.NodeInfo.(*telemetrymodel.NodeLiveness)
-			p.ContivTelemetryCache.VppCache.SetNodeLiveness(data.NodeName, nl)
+			err = p.ContivTelemetryCache.VppCache.SetNodeLiveness(data.NodeName, nl)
 		case *telemetrymodel.NodeInterfaces:
 			niDto := data.NodeInfo.(*telemetrymodel.NodeInterfaces)
-			p.ContivTelemetryCache.VppCache.SetNodeInterfaces(data.NodeName, *niDto)
+			err = p.ContivTelemetryCache.VppCache.SetNodeInterfaces(data.NodeName, *niDto)
 		case *telemetrymodel.NodeBridgeDomains:
 			nbdDto := data.NodeInfo.(*telemetrymodel.NodeBridgeDomains)
-			p.ContivTelemetryCache.VppCache.SetNodeBridgeDomain(data.NodeName, *nbdDto)
+			err = p.ContivTelemetryCache.VppCache.SetNodeBridgeDomain(data.NodeName, *nbdDto)
 		case *telemetrymodel.NodeL2FibTable:
 			nl2fDto := data.NodeInfo.(*telemetrymodel.NodeL2FibTable)
-			p.ContivTelemetryCache.VppCache.SetNodeL2Fibs(data.NodeName, *nl2fDto)
+			err = p.ContivTelemetryCache.VppCache.SetNodeL2Fibs(data.NodeName, *nl2fDto)
 		case *telemetrymodel.NodeTelemetries:
 			ntDto := data.NodeInfo.(*telemetrymodel.NodeTelemetries)
-			p.ContivTelemetryCache.VppCache.SetNodeTelemetry(data.NodeName, *ntDto)
+			err = p.ContivTelemetryCache.VppCache.SetNodeTelemetry(data.NodeName, *ntDto)
 		case *telemetrymodel.NodeIPArpTable:
 			nipaDto := data.NodeInfo.(*telemetrymodel.NodeIPArpTable)
-			p.ContivTelemetryCache.VppCache.SetNodeIPARPs(data.NodeName, *nipaDto)
+			err = p.ContivTelemetryCache.VppCache.SetNodeIPARPs(data.NodeName, *nipaDto)
 		default:
-			p.Log.Errorf("Node %+v has unknown data type: %+v", data.NodeName, data.NodeInfo)
+			err = fmt.Errorf("node %+v has unknown data type: %+v", data.NodeName, data.NodeInfo)
+		}
+		if err != nil {
+			p.ContivTelemetryCache.logErrAndAppendToNodeReport(data.NodeName, err.Error())
 		}
 	}
 }

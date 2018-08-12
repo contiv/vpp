@@ -237,7 +237,7 @@ func TestNodesDB_ValidateLoopIFAddresses(t *testing.T) {
 	gomega.RegisterTestingT(t)
 	logger := logrus.DefaultLogger()
 	db := NewVppCache(logger)
-	ctc := ContivTelemetryCache{Deps{}, true, &VppCache{}, &K8sCache{}, nil, []string{}}
+	ctc := ContivTelemetryCache{Deps{}, true, &VppDataStore{}, &K8sCache{}, nil, []string{}}
 	ctc.VppCache = db
 	db.CreateNode(1, "k8s_master", "10", "10")
 	node, ok := db.retrieveNode("k8s_master")
@@ -335,7 +335,7 @@ func TestNodesDB_ValidateL2Connections(t *testing.T) {
 	gomega.RegisterTestingT(t)
 	logger := logrus.DefaultLogger()
 	db := NewVppCache(logger)
-	ctc := ContivTelemetryCache{Deps{}, true, &VppCache{}, &K8sCache{}, nil, []string{}}
+	ctc := ContivTelemetryCache{Deps{}, true, &VppDataStore{}, &K8sCache{}, nil, []string{}}
 	ctc.VppCache = db
 	db.CreateNode(1, "k8s_master", "10", "10")
 	node, ok := db.retrieveNode("k8s_master")
@@ -442,44 +442,44 @@ func TestNodesDB_ValidateL2Connections(t *testing.T) {
 	db.gigEIPMap[node.IPAdr+subnetmask] = node
 	node, _ = db.retrieveNode("k8s_master")
 	db.gigEIPMap[node.IPAdr+subnetmask] = node
-	ctc.ValidateL2Connections()
+	ctc.ValidateL2Connectivity()
 
 	fmt.Println("Setting vxlan_vni to 11, expecting error...")
 	nodevxlaninterface2.Vxlan.Vni = 11
 	nodeinterfaces2[4] = nodevxlaninterface2
 	db.SetNodeInterfaces("k8s-worker1", nodeinterfaces2)
-	ctc.ValidateL2Connections()
+	ctc.ValidateL2Connectivity()
 	nodelist := db.RetrieveAllNodes()
 	db.printnodelogs(nodelist)
 	fmt.Println("Setting vxlan_vni back to normal...")
 	nodevxlaninterface2.Vxlan.Vni = 10
 	nodeinterfaces2[4] = nodevxlaninterface2
 	ctc.VppCache.SetNodeInterfaces("k8s-worker1", nodeinterfaces2)
-	ctc.ValidateL2Connections()
+	ctc.ValidateL2Connectivity()
 	node, _ = db.retrieveNode("k8s-worker1")
 
 	nodeinterface2.IfType = interfaces.InterfaceType_TAP_INTERFACE
 	nodeinterfaces2[3] = nodeinterface2
 	db.SetNodeInterfaces("k8s-worker1", nodeinterfaces2)
 	fmt.Println("Expecting errors as bd has no loop interface.")
-	ctc.ValidateL2Connections()
+	ctc.ValidateL2Connectivity()
 	db.printnodelogs(nodelist)
 	fmt.Println("Done expecting errors")
 	nodeinterface2.IfType = interfaces.InterfaceType_SOFTWARE_LOOPBACK
 	nodeinterfaces2[3] = nodeinterface2
 	db.SetNodeInterfaces("k8s-worker1", nodeinterfaces2)
-	ctc.ValidateL2Connections()
+	ctc.ValidateL2Connectivity()
 	db.printnodelogs(nodelist)
 
 	fmt.Println("Deleting node with ip 10 from gigE map" +
 		". Expecting errors for missing ip")
 	delete(db.gigEIPMap, node.NodeInterfaces[4].Vxlan.DstAddress+subnetmask)
-	ctc.ValidateL2Connections()
+	ctc.ValidateL2Connectivity()
 	db.printnodelogs(nodelist)
 	fmt.Println("Done expecting errors")
 	node, _ = db.retrieveNode("k8s_master")
 	db.gigEIPMap["10"+subnetmask] = node
-	ctc.ValidateL2Connections()
+	ctc.ValidateL2Connectivity()
 	db.printnodelogs(nodelist)
 
 	fmt.Println("Unmatching vxlan tunnel. Expecting error...")
@@ -487,13 +487,13 @@ func TestNodesDB_ValidateL2Connections(t *testing.T) {
 	nodevxlaninterface1.Vxlan.DstAddress = "20"
 	nodeinterfaces[5] = nodevxlaninterface1
 	db.SetNodeInterfaces("k8s_master", nodeinterfaces)
-	ctc.ValidateL2Connections()
+	ctc.ValidateL2Connectivity()
 	db.printnodelogs(nodelist)
 	fmt.Println("Done expecting errors...")
 	nodevxlaninterface1.Vxlan.DstAddress = "11"
 	nodeinterfaces[5] = nodevxlaninterface1
 	db.SetNodeInterfaces("k8s_master", nodeinterfaces)
-	ctc.ValidateL2Connections()
+	ctc.ValidateL2Connectivity()
 	db.printnodelogs(nodelist)
 
 	fmt.Println("Expecting error for mismatched index of bridge domain")
@@ -506,7 +506,7 @@ func TestNodesDB_ValidateL2Connections(t *testing.T) {
 	nodebdmap2 = make(map[int]telemetrymodel.NodeBridgeDomain)
 	nodebdmap2[1] = nodebd2
 	db.SetNodeBridgeDomain("k8s-worker1", nodebdmap2)
-	ctc.ValidateL2Connections()
+	ctc.ValidateL2Connectivity()
 	db.printnodelogs(nodelist)
 	fmt.Println("Done expecting errors...")
 	bdif2_2.SwIfIndex = 4
@@ -518,20 +518,20 @@ func TestNodesDB_ValidateL2Connections(t *testing.T) {
 	nodebdmap2 = make(map[int]telemetrymodel.NodeBridgeDomain)
 	nodebdmap2[1] = nodebd2
 	db.SetNodeBridgeDomain("k8s-worker1", nodebdmap2)
-	ctc.ValidateL2Connections()
+	ctc.ValidateL2Connectivity()
 	db.printnodelogs(nodelist)
 
 	fmt.Println("Adding extra node in place of existing one...")
 	db.CreateNode(1, "extraNode", "54321", "54321")
 	node, _ = db.retrieveNode("extraNode")
 	db.gigEIPMap["10/24"] = node
-	ctc.ValidateL2Connections()
+	ctc.ValidateL2Connectivity()
 	db.printnodelogs(nodelist)
 	fmt.Println("Done expecting errors...")
 	node, _ = db.retrieveNode("k8s_master")
 	db.gigEIPMap["10/24"] = node
 	db.DeleteNode("extraNode")
-	ctc.ValidateL2Connections()
+	ctc.ValidateL2Connectivity()
 	db.printnodelogs(nodelist)
 
 }
@@ -539,7 +539,7 @@ func TestCache_ValidateFibEntries(t *testing.T) {
 	gomega.RegisterTestingT(t)
 	logger := logrus.DefaultLogger()
 	db := NewVppCache(logger)
-	ctc := ContivTelemetryCache{Deps{}, true, &VppCache{}, &K8sCache{}, nil, []string{}}
+	ctc := ContivTelemetryCache{Deps{}, true, &VppDataStore{}, &K8sCache{}, nil, []string{}}
 	ctc.VppCache = db
 	db.CreateNode(1, "k8s_master", "10", "10")
 	node, ok := db.retrieveNode("k8s_master")
@@ -648,12 +648,12 @@ func TestCache_ValidateFibEntries(t *testing.T) {
 	db.gigEIPMap[node.IPAdr+subnetmask] = node
 
 	nodelist := db.RetrieveAllNodes()
-	ctc.ValidateFibEntries()
+	ctc.ValidateL2FibEntries()
 	db.printnodelogs(nodelist)
 
 }
 
-func (vc *VppCache) printnodelogs(nodelist []*telemetrymodel.Node) {
+func (vds *VppDataStore) printnodelogs(nodelist []*telemetrymodel.Node) {
 
 	for _, node := range nodelist {
 		for _, str := range node.Report {

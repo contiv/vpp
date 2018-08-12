@@ -19,12 +19,12 @@ import (
 	"github.com/ligato/cn-infra/datasync"
 )
 
-// NodeTelemetryCacheAPI defines the API of NodeTelemetryCache used for
+// TelemetryCacheAPI defines the API of NodeTelemetryCache used for
 // a non-persistent storage of K8s State data with fast lookups.
 // The cache processes K8s State data updates and RESYNC events through Update()
 // and Resync() APIs, respectively.
 // The cache allows to get notified about changes via convenient callbacks.
-type NodeTelemetryCacheAPI interface {
+type TelemetryCacheAPI interface {
 	// Update processes a datasync change event associated with K8s State data.
 	// The change is applied into the cache.
 	Update(dataChngEv datasync.ChangeEvent) error
@@ -55,19 +55,4 @@ type NodeTelemetryCacheAPI interface {
 
 	// LookupNodeInfo returns data of a given node or list of nodes.
 	// LookupEtcdInfo() EtcdInfo
-}
-
-//Nodes defines functions to be implemented that that allow the interaction with the Node ContivTelemetryCache.
-type Nodes interface {
-	GetNode(key string) (*telemetrymodel.Node, error)
-	AddNode(ID uint32, nodeName, IPAdr, ManIPAdr string) error
-	GetAllNodes() []*telemetrymodel.Node
-	SetNodeLiveness(name string, nL *telemetrymodel.NodeLiveness) error
-	SetNodeInterfaces(name string, nInt map[int]telemetrymodel.NodeInterface) error
-	SetNodeBridgeDomain(name string, nBridge map[int]telemetrymodel.NodeBridgeDomain) error
-	SetNodeL2Fibs(name string, nL2f map[string]telemetrymodel.NodeL2FibEntry) error
-	SetNodeTelemetry(name string, nTele map[string]telemetrymodel.NodeTelemetry) error
-	SetNodeIPARPs(name string, nArps []telemetrymodel.NodeIPArpEntry) error
-	PopulateNodeMaps(node *telemetrymodel.Node)
-	ValidateLoopIFAddresses()
 }

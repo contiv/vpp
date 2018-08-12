@@ -59,6 +59,7 @@ func TestValidator(t *testing.T) {
 				Log: vtv.log,
 			},
 			Synced: false,
+			Report: make(map[string][]string),
 		},
 	}
 	vtv.processor.ContivTelemetryCache.Init()
@@ -108,7 +109,7 @@ func testK8sNodeToNodeInfoMissingK8snValidation(t *testing.T) {
 	vtv.processor.ContivTelemetryCache.ReinitializeCache()
 	populateNodeInfoDataInCache(vtv.processor.ContivTelemetryCache)
 	populateK8sNodeDataInCache(vtv.processor.ContivTelemetryCache)
-	vtv.processor.ContivTelemetryCache.K8sCache.deleteK8sNode("k8s-master")
+	vtv.processor.ContivTelemetryCache.K8sCache.DeleteK8sNode("k8s-master")
 
 	vtv.processor.ContivTelemetryCache.ValidateK8sNodeInfo()
 
@@ -128,13 +129,13 @@ func populateNodeInfoDataInCache(cache *ContivTelemetryCache) {
 
 func populateK8sNodeDataInCache(cache *ContivTelemetryCache) {
 	for _, node := range vtv.k8sNodeData {
-		cache.K8sCache.createK8sNode(node.Name, node.Pod_CIDR, node.Provider_ID, node.Addresses, node.NodeInfo)
+		cache.K8sCache.CreateK8sNode(node.Name, node.Pod_CIDR, node.Provider_ID, node.Addresses, node.NodeInfo)
 	}
 }
 
 func populateK8sPodDataInCache(cache *ContivTelemetryCache) {
 	for _, pod := range vtv.k8sPodData {
-		cache.K8sCache.createPod(pod.Name, pod.Namespace, pod.Label,
+		cache.K8sCache.CreatePod(pod.Name, pod.Namespace, pod.Label,
 			pod.IpAddress, pod.HostIpAddress, []*podmodel.Pod_Container{})
 	}
 }
@@ -759,7 +760,7 @@ func (v *validatorTestVars) createK8sPodTestData() {
 			HostIpAddress: "10.20.0.11",
 		},
 		{
-			Name:      "nginx-65899c769f-dg5v7",
+			Name:      "nginx-65899c769f-qc8mf",
 			Namespace: "default",
 			Label: []*podmodel.Pod_Label{
 				{Key: "pod-template-hash", Value: "2145573259"},

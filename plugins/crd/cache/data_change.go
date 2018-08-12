@@ -47,7 +47,7 @@ func (pc *podChange) GetValueProto() proto.Message {
 
 func (pc *podChange) AddRecord(ctc *ContivTelemetryCache, names []string, record proto.Message) error {
 	ctc.Log.Infof("Adding pod %s in namespace %s, podValue %+v", names[0], names[1], record)
-	// TODO: ctc.createPod(names[0], names[1], podValue)
+	// TODO: ctc.CreatePod(names[0], names[1], podValue)
 	return nil
 }
 
@@ -55,13 +55,13 @@ func (pc *podChange) UpdateRecord(ctc *ContivTelemetryCache,
 	names []string, oldRecord proto.Message, newRecord proto.Message) error {
 	ctc.Log.Infof("Updating pod %s in namespace %s, podValue %+v, prevPodValue %+v",
 		names[0], names[1], oldRecord, newRecord)
-	// TODO: ctc.updatePod(names[0], names[1], prevPodValue, podValue)
+	// TODO: ctc.UpdatePod(names[0], names[1], prevPodValue, podValue)
 	return nil
 }
 
 func (pc *podChange) DeleteRecord(ctc *ContivTelemetryCache, names []string) error {
 	ctc.Log.Infof("Deleting pod %s in namespace %s", names[0], names[1])
-	// TODO: ctc.deletePod(names[0], names[1])
+	// TODO: ctc.DeletePod(names[0], names[1])
 	return nil
 }
 
@@ -86,13 +86,13 @@ func (nc *nodeChange) AddRecord(ctc *ContivTelemetryCache, names []string, recor
 func (nc *nodeChange) UpdateRecord(ctc *ContivTelemetryCache,
 	names []string, oldRecord proto.Message, newRecord proto.Message) error {
 	ctc.Log.Infof("Updating node %s, nodeValue %+v, prevNodeValue %+v", names[0], oldRecord, newRecord)
-	// TODO: ctc.updatePod(names[0], prevPodValue, podValue)
+	// TODO: ctc.UpdatePod(names[0], prevPodValue, podValue)
 	return nil
 }
 
 func (nc *nodeChange) DeleteRecord(ctc *ContivTelemetryCache, names []string) error {
 	ctc.Log.Infof("Deleting node %s", names[0])
-	// TODO: ctc.deletePod(names[0])
+	// TODO: ctc.DeletePod(names[0])
 	return nil
 }
 

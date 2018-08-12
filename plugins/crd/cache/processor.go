@@ -141,7 +141,7 @@ func (p *ContivTelemetryProcessor) validateNodeInfo() {
 	}
 	p.Log.Info("Beginning validation of Node Data")
 
-	p.ContivTelemetryCache.ValidateLoopIFAddresses()
+	p.ContivTelemetryCache.ValidateArpTables()
 
 	p.ContivTelemetryCache.ValidateL2Connectivity()
 

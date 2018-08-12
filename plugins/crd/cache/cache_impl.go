@@ -32,7 +32,7 @@ type ContivTelemetryCache struct {
 	Synced bool
 	// todo - here add the maps you have in your db implementation
 	VppCache  VppCache
-	K8sCache  *K8sCache
+	K8sCache  K8sCache
 	Processor Processor
 	Report    map[string][]string
 }
@@ -113,5 +113,8 @@ func (ctc *ContivTelemetryCache) logErrAndAppendToNodeReport(nodeName string, er
 }
 
 func (ctc *ContivTelemetryCache) appendToNodeReport(nodeName string, errString string) {
+	if ctc.Report[nodeName] == nil {
+		ctc.Report[nodeName] = make([]string,0)
+	}
 	ctc.Report[nodeName] = append(ctc.Report[nodeName], errString)
 }

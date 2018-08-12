@@ -23,7 +23,7 @@ import (
 	"sync"
 )
 
-// VppCache is the data sotre for data retrieved from VPPs in the Contiv cluster.
+// VppCache defines the operations on the VPP node data store.
 type VppCache interface {
 	CreateNode(ID uint32, nodeName, IPAdr, ManIPAdr string) error
 	RetrieveNode(nodeName string) (*telemetrymodel.Node, error)
@@ -45,8 +45,6 @@ type VppCache interface {
 	SetNodeIPARPs(name string, nArps []telemetrymodel.NodeIPArpEntry) error
 
 	SetSecondaryNodeIndices(node *telemetrymodel.Node) []string
-
-	GetNodeLoopIFInfo(node *telemetrymodel.Node) (*telemetrymodel.NodeInterface, error)
 
 	ClearCache()
 	ReinitializeCache()
@@ -289,9 +287,9 @@ func (vds *VppDataStore) SetSecondaryNodeIndices(node *telemetrymodel.Node) []st
 
 	errReport := make([]string, 0)
 
-	loopIF, err := vds.GetNodeLoopIFInfo(node)
+	loopIF, err := GetNodeLoopIFInfo(node)
 	if err != nil {
-		errReport = append(errReport, err.Error())
+		errReport = append(errReport, "node %s does not have a loop interface", node.Name)
 		return errReport
 	}
 
@@ -363,17 +361,6 @@ func (vds *VppDataStore) RetrieveNodeByGigEIPAddr(ipAddress string) (*telemetrym
 		return node, nil
 	}
 	return nil, fmt.Errorf("node for Loop MAC address %s not found", ipAddress)
-}
-
-//Small helper function that returns the loop interface of a node
-func (vds *VppDataStore) GetNodeLoopIFInfo(node *telemetrymodel.Node) (*telemetrymodel.NodeInterface, error) {
-	for _, ifs := range node.NodeInterfaces {
-		if ifs.VppInternalName == "loop0" {
-			return &ifs, nil
-		}
-	}
-	err := errors.Errorf("node %s does not have a loop interface", node.Name)
-	return nil, err
 }
 
 // retrieveNode returns a pointer to a node for the given key.

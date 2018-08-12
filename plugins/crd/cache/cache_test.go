@@ -37,8 +37,8 @@ func TestNodesDB_GetNode(t *testing.T) {
 	gomega.Expect(node.ID).To(gomega.Equal(uint32(1)))
 	gomega.Expect(node.ManIPAdr).To(gomega.Equal("10"))
 
-	nodeTwo, err := db.retrieveNode("NonExistentNode")
-	gomega.Ω(err.Error()).Should(gomega.Equal("value with given key not found: NonExistentNode"))
+	nodeTwo, ok := db.retrieveNode("NonExistentNode")
+	gomega.Ω(ok).Should(gomega.BeFalse())
 	gomega.Expect(nodeTwo).To(gomega.BeNil())
 }
 
@@ -54,9 +54,9 @@ func TestNodesDB_DeleteNode(t *testing.T) {
 
 	err := db.DeleteNode("k8s_master")
 	gomega.Expect(err).To(gomega.BeNil())
-	node, err = db.retrieveNode("k8s_master")
+	node, ok = db.retrieveNode("k8s_master")
 	gomega.Expect(node).To(gomega.BeNil())
-	gomega.Expect(err).To(gomega.Not(gomega.BeNil()))
+	gomega.Expect(ok).To(gomega.BeTrue())
 
 	err = db.DeleteNode("k8s_master")
 	gomega.Expect(err).To(gomega.Not(gomega.BeNil()))
@@ -237,7 +237,8 @@ func TestNodesDB_ValidateLoopIFAddresses(t *testing.T) {
 	gomega.RegisterTestingT(t)
 	logger := logrus.DefaultLogger()
 	db := NewVppCache(logger)
-	ctc := ContivTelemetryCache{Deps{}, true, &VppDataStore{}, &K8sCache{}, nil, []string{}}
+	ctc := ContivTelemetryCache{Deps{}, true, &VppDataStore{}, &K8sDataStore{}, nil,
+	map[string][]string{}}
 	ctc.VppCache = db
 	db.CreateNode(1, "k8s_master", "10", "10")
 	node, ok := db.retrieveNode("k8s_master")
@@ -295,11 +296,11 @@ func TestNodesDB_ValidateLoopIFAddresses(t *testing.T) {
 	db.loopMACMap[node.NodeInterfaces[3].PhysAddress] = node
 	db.loopIPMap[node.NodeInterfaces[3].IPAddresses[0]+subnetmask] = node
 
-	ctc.ValidateLoopIFAddresses()
+	ctc.ValidateArpTables()
 
 	db.CreateNode(1, "NoMacFoundNode", "12", "12")
 	fmt.Println("Expecting errors for node not in ARP table...")
-	ctc.ValidateLoopIFAddresses()
+	ctc.ValidateArpTables()
 	fmt.Println("Expected errors over for NoMacFoundNode...")
 	fmt.Println("Removing NoMacFound from cache...")
 	db.DeleteNode("NoMacFoundNode")
@@ -310,7 +311,7 @@ func TestNodesDB_ValidateLoopIFAddresses(t *testing.T) {
 	db.SetNodeIPARPs("k8s_master", nodeiparps1)
 	fmt.Println("Done...")
 	fmt.Println("Expecting mac not found and ip not found errors for extra ip arp entry...")
-	ctc.ValidateLoopIFAddresses()
+	ctc.ValidateArpTables()
 	fmt.Println("Done expecting errors...")
 	fmt.Println("Removing extra arp entry...")
 	fmt.Println("Done...")
@@ -319,7 +320,7 @@ func TestNodesDB_ValidateLoopIFAddresses(t *testing.T) {
 	db.CreateNode(3, "BlahNode", "11", "11")
 	node2, _ := db.retrieveNode("BlahNode")
 	db.loopMACMap[node.NodeInterfaces[3].PhysAddress] = node2
-	ctc.ValidateLoopIFAddresses()
+	ctc.ValidateArpTables()
 	db.loopMACMap[node.NodeInterfaces[3].PhysAddress] = node
 	db.DeleteNode("BlahNode")
 
@@ -327,7 +328,7 @@ func TestNodesDB_ValidateLoopIFAddresses(t *testing.T) {
 	nodeinterfaces = make(map[int]telemetrymodel.NodeInterface)
 	db.SetNodeInterfaces(node.Name, nodeinterfaces)
 	fmt.Println("Expecting errors for missing interface for k8s_master...")
-	ctc.ValidateLoopIFAddresses()
+	ctc.ValidateArpTables()
 
 }
 
@@ -335,7 +336,8 @@ func TestNodesDB_ValidateL2Connections(t *testing.T) {
 	gomega.RegisterTestingT(t)
 	logger := logrus.DefaultLogger()
 	db := NewVppCache(logger)
-	ctc := ContivTelemetryCache{Deps{}, true, &VppDataStore{}, &K8sCache{}, nil, []string{}}
+	ctc := ContivTelemetryCache{Deps{}, true, &VppDataStore{}, &K8sDataStore{},
+	nil, map[string][]string{}}
 	ctc.VppCache = db
 	db.CreateNode(1, "k8s_master", "10", "10")
 	node, ok := db.retrieveNode("k8s_master")
@@ -539,7 +541,8 @@ func TestCache_ValidateFibEntries(t *testing.T) {
 	gomega.RegisterTestingT(t)
 	logger := logrus.DefaultLogger()
 	db := NewVppCache(logger)
-	ctc := ContivTelemetryCache{Deps{}, true, &VppDataStore{}, &K8sCache{}, nil, []string{}}
+	ctc := ContivTelemetryCache{Deps{}, true, &VppDataStore{}, &K8sDataStore{},
+	nil, map[string][]string{}}
 	ctc.VppCache = db
 	db.CreateNode(1, "k8s_master", "10", "10")
 	node, ok := db.retrieveNode("k8s_master")

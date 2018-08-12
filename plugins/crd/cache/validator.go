@@ -19,8 +19,10 @@ import (
 	"fmt"
 	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
 	"github.com/ligato/vpp-agent/plugins/vpp/model/interfaces"
-		"strconv"
+	node2 "github.com/contiv/vpp/plugins/ksr/model/node"
 	"strings"
+	"strconv"
+	"github.com/pkg/errors"
 )
 
 const (
@@ -37,20 +39,20 @@ func (ctc *ContivTelemetryCache) PopulateNodeMaps(node *telemetrymodel.Node) {
 	}
 
 	// TODO: replace with k8s getter
-	k8snode, ok := ctc.K8sCache.k8sNodeMap[node.Name]
-	if !ok {
+	k8snode, err := ctc.K8sCache.RetrieveK8sNode(node.Name)
+	if err != nil{
 		errString := fmt.Sprintf("node %s discovered in Contiv, but not present in K8s", node.Name)
 		ctc.appendToNodeReport(node.Name, errString)
 	} else {
 		for _, adr := range k8snode.Addresses {
 			switch adr.Type {
-			case 1:
+			case node2.NodeAddress_NodeHostName:
 				if adr.Address != node.Name {
 					errString := fmt.Sprintf("Inconsistent K8s host name for node %s, host name:,%s",
 						k8snode.Name, adr.Address)
 					ctc.appendToNodeReport(node.Name, errString)
 				}
-			case 3:
+			case node2.NodeAddress_NodeInternalIP:
 				if adr.Address != node.ManIPAdr {
 					errString := fmt.Sprintf("Inconsistent Host IP Address for node %s: Contiv: %s, K8s %s",
 						k8snode.Name, node.ManIPAdr, adr.Address)
@@ -68,75 +70,80 @@ func (ctc *ContivTelemetryCache) PopulateNodeMaps(node *telemetrymodel.Node) {
 	}
 }
 
-// ValidateLoopIFAddresses validates the the entries of node ARP tables to
+// ValidateArpTables validates the the entries of node ARP tables to
 // make sure that the number of entries is correct as well as making sure
 // that each entry's ip address and mac address correspond to the correct
 // node in the network.
-func (ctc *ContivTelemetryCache) ValidateLoopIFAddresses() {
+func (ctc *ContivTelemetryCache) ValidateArpTables() {
+	errCnt := 0
 	nodeList := ctc.VppCache.RetrieveAllNodes()
 
-	nodeMap := make(map[string]bool)
 	for _, node := range nodeList {
-		nodeMap[node.Name] = true
-	}
 
-	for _, node := range nodeList {
-		nLoopIF, err := ctc.VppCache.GetNodeLoopIFInfo(node)
-		if err != nil {
-			errString := fmt.Sprintf("Cannot process ARP Table because loop interface info is missing, err %s",
-				err.Error())
-			ctc.logErrAndAppendToNodeReport(node.Name, errString)
-		}
-		for _, arp := range node.NodeIPArp {
-			if node.NodeInterfaces[int(arp.Interface)].VppInternalName != "loop0" {
-
+		loopNodeMap := make(map[string]bool)
+		for _, n := range nodeList {
+			if n.Name != node.Name {
+				loopNodeMap[n.Name] = true
 			}
+		}
 
-			nLoopIFTwo, ok := node.NodeInterfaces[int(arp.Interface)]
-			if !ok {
-				errString := fmt.Sprintf("Loop Interface for ARP Table entry  %d not found", arp.Interface)
-				ctc.logErrAndAppendToNodeReport(node.Name, errString)
+		for _, arpTableEntry := range node.NodeIPArp {
+			if !arpTableEntry.Static {
 				continue
 			}
-			if nLoopIF.VppInternalName != nLoopIFTwo.VppInternalName {
+
+			arpIf, ok := node.NodeInterfaces[int(arpTableEntry.Interface)]
+			if !ok {
+				errString := fmt.Sprintf("ARP Table entry %+v: interface with ifIndex not found", arpTableEntry)
+				ctc.appendToNodeReport(node.Name, errString)
+				errCnt++
+				continue
+			}
+
+			if arpIf.IfType != interfaces.InterfaceType_SOFTWARE_LOOPBACK || arpIf.Name != "vxlanBVI" {
 				continue
 			}
 
 			addressNotFound := false
-			macNode, err := ctc.VppCache.RetrieveNodeByLoopMacAddr(arp.MacAddress)
+			macNode, err := ctc.VppCache.RetrieveNodeByLoopMacAddr(arpTableEntry.MacAddress)
 			if err != nil {
-				errString := fmt.Sprintf("Node %s cound not find node with MAC Address %s",
-					node.Name, arp.MacAddress)
-				ctc.logErrAndAppendToNodeReport(node.Name, errString)
+				errString := fmt.Sprintf("ARP Table entry %+v: no remote node for MAC Address", arpTableEntry)
+				ctc.appendToNodeReport(node.Name, errString)
 				addressNotFound = true
+				errCnt++
 			}
-			ipNode, err := ctc.VppCache.RetrieveNodeByLoopIPAddr(arp.IPAddress + "/24")
+			ipNode, err := ctc.VppCache.RetrieveNodeByLoopIPAddr(arpTableEntry.IPAddress + "/24")
 
 			if err != nil {
-				errString := fmt.Sprintf("Node %s could not find Node with IP Address %s",
-					node.Name, arp.IPAddress)
-				ctc.logErrAndAppendToNodeReport(node.Name, errString)
+				errString := fmt.Sprintf("ARP Table entry %+v: no remote node for IP Address", arpTableEntry)
+				ctc.appendToNodeReport(node.Name, errString)
 				addressNotFound = true
+				errCnt++
 			}
+
 			if addressNotFound {
 				continue
 			}
+
 			if macNode.Name != ipNode.Name {
-				errString := fmt.Sprintf("MAC and IP point to different nodes: %s and %s in ARP Table %+v",
-					macNode.Name, ipNode.Name, arp)
-				ctc.logErrAndAppendToNodeReport(node.Name, errString)
+				errString := fmt.Sprintf("ARP Table entry %+v: MAC -> node %s, IP -> nodes %s",
+					arpTableEntry, macNode.Name, ipNode.Name)
+				ctc.appendToNodeReport(node.Name, errString)
+				errCnt++
 			}
-			delete(nodeMap, node.Name)
+
+			delete(loopNodeMap, ipNode.Name)
+		}
+
+		for nodeName := range loopNodeMap {
+			ctc.appendToNodeReport(nodeName, fmt.Sprintf("ARP Table: No MAC entry  for node %s", node.Name))
+			errCnt++
 		}
 	}
-
-	if len(nodeMap) == 0 {
-		ctc.logErrAndAppendToNodeReport(globalMsg, fmt.Sprintf("Success validating node IP ARP table"))
+	if errCnt == 0 {
+		ctc.appendToNodeReport(globalMsg, fmt.Sprintf("ARP Table Validation: OK"))
 	} else {
-		for node := range nodeMap {
-			ctc.logErrAndAppendToNodeReport(globalMsg, fmt.Sprintf("No MAC entry found for %s", node))
-			delete(nodeMap, node)
-		}
+		ctc.appendToNodeReport(globalMsg, fmt.Sprintf("ARP Table Validation: %d errors found", errCnt))
 	}
 }
 
@@ -341,7 +348,7 @@ func (ctc *ContivTelemetryCache) ValidateL2FibEntries() {
 			ctc.appendToNodeReport(node.Name, errString)
 			continue
 		}
-		loopIf, err := ctc.VppCache.GetNodeLoopIFInfo(node)
+		loopIf, err := GetNodeLoopIFInfo(node)
 		if err != nil {
 			ctc.appendToNodeReport(node.Name, err.Error())
 			continue
@@ -383,7 +390,7 @@ func (ctc *ContivTelemetryCache) ValidateL2FibEntries() {
 				continue
 			}
 
-			remoteLoopIF, err := ctc.VppCache.GetNodeLoopIFInfo(macNode)
+			remoteLoopIF, err := GetNodeLoopIFInfo(macNode)
 			if err != nil {
 				ctc.appendToNodeReport(node.Name, err.Error())
 				continue
@@ -626,3 +633,14 @@ func ip2uint32(ipAddress string) uint32 {
 	}
 	return ipu
 }
+
+func GetNodeLoopIFInfo(node *telemetrymodel.Node) (*telemetrymodel.NodeInterface, error) {
+	for _, ifs := range node.NodeInterfaces {
+		if ifs.VppInternalName == "loop0" {
+			return &ifs, nil
+		}
+	}
+	err := errors.Errorf("node %s does not have a loop interface", node.Name)
+	return nil, err
+}
+

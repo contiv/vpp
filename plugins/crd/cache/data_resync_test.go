@@ -156,7 +156,7 @@ func testResyncNodeInfoOk(t *testing.T) {
 
 	drd.cache.Resync(drd.resyncEv)
 
-	gomega.Expect(len(drd.cache.VppCache.nMap)).To(gomega.Equal(3))
+	gomega.Expect(len(drd.cache.VppCache.RetrieveAllNodes())).To(gomega.Equal(3))
 	time.Sleep(1 * time.Millisecond)
 	numCollects := atomic.LoadInt32(&drd.processor.retrieveCnt)
 	gomega.Expect(numCollects).To(gomega.BeEquivalentTo(1))
@@ -169,7 +169,7 @@ func testResyncNodeInfoBadKey(t *testing.T) {
 
 	drd.cache.Resync(drd.resyncEv)
 
-	gomega.Expect(len(drd.cache.VppCache.nMap)).To(gomega.Equal(0))
+	gomega.Expect(len(drd.cache.VppCache.RetrieveAllNodes())).To(gomega.Equal(0))
 	gomega.Expect(len(drd.logWriter.log)).To(gomega.Equal(3))
 }
 
@@ -180,7 +180,7 @@ func testResyncNodeInfoBadID(t *testing.T) {
 
 	drd.cache.Resync(drd.resyncEv)
 
-	gomega.Expect(len(drd.cache.VppCache.nMap)).To(gomega.Equal(0))
+	gomega.Expect(len(drd.cache.VppCache.RetrieveAllNodes())).To(gomega.Equal(0))
 	gomega.Expect(len(drd.logWriter.log)).To(gomega.Equal(1))
 }
 
@@ -194,7 +194,7 @@ func testResyncNodeInfoBadProto(t *testing.T) {
 
 	drd.injectGetValErr = false
 
-	gomega.Expect(len(drd.cache.VppCache.nMap)).To(gomega.Equal(0))
+	gomega.Expect(len(drd.cache.VppCache.RetrieveAllNodes())).To(gomega.Equal(0))
 	gomega.Expect(len(drd.logWriter.log)).To(gomega.Equal(3))
 }
 
@@ -205,7 +205,7 @@ func testResyncNodeInfoBadData(t *testing.T) {
 
 	drd.cache.Resync(drd.resyncEv)
 
-	gomega.Expect(len(drd.cache.VppCache.nMap)).To(gomega.Equal(0))
+	gomega.Expect(len(drd.cache.VppCache.RetrieveAllNodes())).To(gomega.Equal(0))
 	gomega.Expect(len(drd.logWriter.log)).To(gomega.Equal(1))
 }
 
@@ -216,7 +216,7 @@ func testResyncNodeInfoAddNodeFail(t *testing.T) {
 
 	drd.cache.Resync(drd.resyncEv)
 
-	gomega.Expect(len(drd.cache.VppCache.nMap)).To(gomega.Equal(1))
+	gomega.Expect(len(drd.cache.VppCache.RetrieveAllNodes())).To(gomega.Equal(1))
 	numErrs := drd.logWriter.countErrors()
 	gomega.Expect(numErrs).To(gomega.Equal(2))
 }

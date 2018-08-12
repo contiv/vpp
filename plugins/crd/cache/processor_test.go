@@ -185,7 +185,7 @@ func TestProcessor(t *testing.T) {
 func testCollectAgentInfoNoError(t *testing.T) {
 	ptv.processor.ContivTelemetryCache.AddVppNode(1, "k8s-master", "10.20.0.2", "localhost")
 
-	node, err := ptv.processor.ContivTelemetryCache.VppCache.retrieveNode("k8s-master")
+	node, err := ptv.processor.ContivTelemetryCache.VppCache.RetrieveNode("k8s-master")
 	gomega.Expect(err).To(gomega.BeNil())
 
 	// Kick the processor to collect & validate data, give it an opportunity
@@ -217,7 +217,7 @@ func testCollectAgentInfoWithHTTPError(t *testing.T) {
 	time.Sleep(1 * time.Millisecond)
 	ptv.processor.waitForValidationToFinish()
 
-	gomega.Expect(grep(ptv.processor.ContivTelemetryCache.Report, "404 Not Found")).
+	gomega.Expect(grep(ptv.processor.ContivTelemetryCache.Report["k8s-master"], "404 Not Found")).
 		To(gomega.Equal(numDTOs))
 }
 
@@ -237,7 +237,7 @@ func testCollectAgentInfoWithTimeout(t *testing.T) {
 	time.Sleep(1 * time.Millisecond)
 	ptv.processor.waitForValidationToFinish()
 
-	gomega.Expect(grep(ptv.processor.ContivTelemetryCache.Report, "Timeout exceeded")).
+	gomega.Expect(grep(ptv.processor.ContivTelemetryCache.Report["k8s-master"], "Timeout exceeded")).
 		To(gomega.Equal(numDTOs))
 }
 

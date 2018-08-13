@@ -81,6 +81,7 @@ func testErrorFreeTopologyValidation(t *testing.T) {
 
 	vtv.processor.validateNodeInfo()
 
+	vtv.processor.ContivTelemetryCache.Report.printReport()
 	gomega.Expect(len(vtv.processor.ContivTelemetryCache.Report)).To(gomega.Equal(3))
 }
 

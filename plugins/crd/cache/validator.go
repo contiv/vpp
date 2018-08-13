@@ -38,7 +38,6 @@ func (ctc *ContivTelemetryCache) PopulateNodeMaps(node *telemetrymodel.Node) {
 		ctc.appendToNodeReport(node.Name, r)
 	}
 
-	// TODO: replace with k8s getter
 	k8snode, err := ctc.K8sCache.RetrieveK8sNode(node.Name)
 	if err != nil{
 		errString := fmt.Sprintf("node %s discovered in Contiv, but not present in K8s", node.Name)
@@ -62,8 +61,7 @@ func (ctc *ContivTelemetryCache) PopulateNodeMaps(node *telemetrymodel.Node) {
 		}
 	}
 
-	// TODO: replace with k8s getter
-	for _, pod := range ctc.K8sCache.podMap {
+	for _, pod := range ctc.K8sCache.RetrieveAllPods() {
 		if pod.HostIPAddress == node.ManIPAdr {
 			node.PodMap[pod.Name] = pod
 		}
@@ -459,13 +457,13 @@ func (ctc *ContivTelemetryCache) ValidateK8sNodeInfo() {
 	}
 
 	k8sNodeMap := make(map[string]bool)
-	for key := range ctc.K8sCache.k8sNodeMap {
-		k8sNodeMap[key] = true
+	for _, k8sNode := range ctc.K8sCache.RetrieveAllK8sNodes() {
+		k8sNodeMap[k8sNode.Name] = true
 	}
 
 	for _, node := range nodeList {
-		k8sNode, ok := ctc.K8sCache.k8sNodeMap[node.Name]
-		if !ok {
+		k8sNode, err := ctc.K8sCache.RetrieveK8sNode(node.Name)
+		if err != nil{
 			errString := fmt.Sprintf("node with name %s not present in the k8s node map", node.Name)
 			ctc.appendToNodeReport(node.Name, errString)
 			continue
@@ -494,11 +492,12 @@ func (ctc *ContivTelemetryCache) ValidateK8sNodeInfo() {
 //correlates between the nodes and the pods.
 func (ctc *ContivTelemetryCache) ValidatePodInfo() {
 
+	podList := ctc.K8sCache.RetrieveAllPods()
 	podMap := make(map[string]bool)
-	for key := range ctc.K8sCache.podMap {
-		podMap[key] = true
+	for _, pod := range podList {
+		podMap[pod.Name] = true
 	}
-	for _, pod := range ctc.K8sCache.podMap {
+	for _, pod := range podList {
 		node, err := ctc.VppCache.RetrieveNodeByHostIPAddr(pod.HostIPAddress)
 		if err != nil {
 			ctc.appendToNodeReport(globalMsg, fmt.Sprintf("Error finding node for host ip %s from pod %s",
@@ -516,15 +515,16 @@ func (ctc *ContivTelemetryCache) ValidatePodInfo() {
 				pod.Name, node.Name))
 			continue
 		}
+
 		if pod != podPtr {
 			errString := fmt.Sprintf("node podmap pod %+v is not the same as cache podmap pod %+v",
 				podPtr.Name, pod.Name)
 			ctc.appendToNodeReport(node.Name, errString)
 			continue
 		}
-		k8snode, ok := ctc.K8sCache.k8sNodeMap[node.Name]
 
-		if !ok {
+		k8snode, err := ctc.K8sCache.RetrieveK8sNode(node.Name)
+		if err != nil {
 			errString := fmt.Sprintf("cannot find k8snode in k8sNodeMap for node with name %+v",
 				node.Name)
 			ctc.logErrAndAppendToNodeReport(node.Name, errString)
@@ -570,11 +570,13 @@ func (ctc *ContivTelemetryCache) ValidatePodInfo() {
 
 //ValidateTapToPod will find the appropriate tap interface for each pod and cache that information in the pod.
 func (ctc *ContivTelemetryCache) ValidateTapToPod() {
+	podList := ctc.K8sCache.RetrieveAllPods()
+
 	podMap := make(map[string]bool)
-	for key := range ctc.K8sCache.podMap {
-		podMap[key] = true
+	for _, pod := range podList {
+		podMap[pod.Name] = true
 	}
-	for _, pod := range ctc.K8sCache.podMap {
+	for _, pod := range podList {
 		vppNode, err := ctc.VppCache.RetrieveNodeByHostIPAddr(pod.HostIPAddress)
 		if err != nil {
 			ctc.logErrAndAppendToNodeReport(globalMsg,

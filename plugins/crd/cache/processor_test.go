@@ -17,7 +17,6 @@ package cache
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/logging/logrus"
@@ -263,14 +262,6 @@ func grep(output []string, pattern string) int {
 		}
 	}
 	return cnt
-}
-
-func printErrorReport(report []string) {
-	fmt.Println("Error Report")
-	fmt.Println("============")
-	for _, rl := range report {
-		fmt.Println(rl)
-	}
 }
 
 func (ptv *processorTestVars) initTestData() {

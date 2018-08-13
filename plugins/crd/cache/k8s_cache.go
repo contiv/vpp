@@ -21,6 +21,7 @@ import (
 	"github.com/ligato/cn-infra/logging"
 	"github.com/pkg/errors"
 	"sync"
+	"sort"
 )
 
 // K8sCache defines the operations on the K8s data store / cache.
@@ -32,12 +33,16 @@ type K8sCache interface {
 		Addresses []*node.NodeAddress, nodeInfo *node.NodeSystemInfo) error
 	DeleteK8sNode(nodeName string) error
 
+	RetrieveAllK8sNodes() []*node.Node
+
 	CreatePod(name string, namespace string, label []*pod2.Pod_Label, IPAddress,
 		hostIPAdd string, container []*pod2.Pod_Container) error
 	RetrievePod(name string) (*telemetrymodel.Pod, error)
 	UpdatePod(name string, namespace string, label []*telemetrymodel.PodLabel,
 		IPAddress, hostIPAddress string, container []*pod2.Pod_Container) error
 	DeletePod(name string) error
+
+	RetrieveAllPods() []*telemetrymodel.Pod
 
 	ClearCache()
 	ReinitializeCache()
@@ -113,6 +118,23 @@ func (k *K8sDataStore) DeleteK8sNode(name string) error {
 	return nil
 }
 
+func (k *K8sDataStore) RetrieveAllK8sNodes() []*node.Node {
+	k.lock.Lock()
+	defer k.lock.Unlock()
+
+	var str []string
+	for k := range k.k8sNodeMap {
+		str = append(str, k)
+	}
+	var nList []*node.Node
+	sort.Strings(str)
+	for _, v := range str {
+		n, _ := k.retrieveK8sNode(v)
+		nList = append(nList, n)
+	}
+	return nList
+}
+
 // CreatePod adds a pod with the given parameters to the contiv telemetry cache
 func (k *K8sDataStore) CreatePod(name, Namespace string, label []*pod2.Pod_Label, IPAddress,
 hostIPAddress string, container []*pod2.Pod_Container) error {
@@ -173,6 +195,23 @@ func (k *K8sDataStore) DeletePod(name string) error {
 	}
 	delete(k.podMap, name)
 	return nil
+}
+
+func (k *K8sDataStore) RetrieveAllPods() []*telemetrymodel.Pod {
+	k.lock.Lock()
+	defer k.lock.Unlock()
+
+	var str []string
+	for k := range k.podMap {
+		str = append(str, k)
+	}
+	var nList []*telemetrymodel.Pod
+	sort.Strings(str)
+	for _, v := range str {
+		p, _ := k.retrievePod(v)
+		nList = append(nList, p)
+	}
+	return nList
 }
 
 func (k *K8sDataStore) ClearCache() {

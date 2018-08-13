@@ -16,12 +16,15 @@
 package cache
 
 import (
+	"fmt"
 	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
 	"github.com/ligato/cn-infra/logging"
 )
 
 const subnetmask = "/24"
 const vppVNI = 10
+
+type Report map[string][]string
 
 // ContivTelemetryCache is used for a in-memory storage of K8s State data
 // The cache processes K8s State data updates and RESYNC events through Update()
@@ -34,7 +37,7 @@ type ContivTelemetryCache struct {
 	VppCache  VppCache
 	K8sCache  K8sCache
 	Processor Processor
-	Report    map[string][]string
+	Report    Report
 }
 
 // Deps lists dependencies of PolicyCache.
@@ -114,7 +117,19 @@ func (ctc *ContivTelemetryCache) logErrAndAppendToNodeReport(nodeName string, er
 
 func (ctc *ContivTelemetryCache) appendToNodeReport(nodeName string, errString string) {
 	if ctc.Report[nodeName] == nil {
-		ctc.Report[nodeName] = make([]string,0)
+		ctc.Report[nodeName] = make([]string, 0)
 	}
 	ctc.Report[nodeName] = append(ctc.Report[nodeName], errString)
+}
+
+func (r Report) printReport() {
+	fmt.Println("Error Report:")
+	fmt.Println("=============")
+	for k, rl := range r {
+		fmt.Printf("Key: %s\n", k)
+		for i, line := range rl {
+			fmt.Printf("  %d: %s\n", i, line)
+		}
+		fmt.Println()
+	}
 }

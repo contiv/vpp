@@ -10,38 +10,6 @@ import (
 	"github.com/onsi/gomega"
 )
 
-//Checks adding a new node.
-//Checks expected error for adding duplicate node.
-func TestNodesDB_AddNode(t *testing.T) {
-	gomega.RegisterTestingT(t)
-	db := NewVppDataStore(logrus.DefaultLogger())
-	db.CreateNode(1, "k8s_master", "10", "20")
-	node, ok := db.retrieveNode("k8s_master")
-	gomega.Expect(ok).To(gomega.BeNil())
-	gomega.Expect(node.IPAdr).To(gomega.Equal("10"))
-
-	err := db.CreateNode(2, "k8s_master", "20", "20")
-	gomega.Expect(err).To(gomega.Not(gomega.BeNil()))
-}
-
-//Checks adding a node and then looking it up.
-//Checks looking up a non-existent key.
-func TestNodesDB_GetNode(t *testing.T) {
-	gomega.RegisterTestingT(t)
-	db := NewVppDataStore(logrus.DefaultLogger())
-	db.CreateNode(1, "k8s_master", "10", "10")
-	node, ok := db.retrieveNode("k8s_master")
-	gomega.Expect(ok).To(gomega.BeNil())
-	gomega.Expect(node.IPAdr).To(gomega.Equal("10"))
-	gomega.Expect(node.Name).To(gomega.Equal("k8s_master"))
-	gomega.Expect(node.ID).To(gomega.Equal(uint32(1)))
-	gomega.Expect(node.ManIPAdr).To(gomega.Equal("10"))
-
-	nodeTwo, ok := db.retrieveNode("NonExistentNode")
-	gomega.Ω(ok).Should(gomega.BeFalse())
-	gomega.Expect(nodeTwo).To(gomega.BeNil())
-}
-
 //Checks adding a node and then deleting it.
 //Checks whether expected error is returned when deleting non-existent key.
 func TestNodesDB_DeleteNode(t *testing.T) {

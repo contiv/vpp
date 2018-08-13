@@ -22,10 +22,10 @@ import (
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 
 	"fmt"
+	"github.com/contiv/vpp/plugins/crd/api"
 	"regexp"
 	"strconv"
 	"strings"
-	"github.com/contiv/vpp/plugins/crd/api"
 )
 
 // Resync processes a data sync re sync event associated with K8s State data.

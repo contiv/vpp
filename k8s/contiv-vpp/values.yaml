@@ -137,3 +137,6 @@ init:
   image:
     repository: busybox
     tag: latest
+
+bolt:
+  debug: false

@@ -52,7 +52,7 @@ data:
   http.conf: |
     endpoint: 0.0.0.0:9999
   bolt.conf: |
-    db-path: /var/run/contiv/bolt.db
+    db-path: /var/bolt/bolt.db
     file-mode: 432
     lock-timeout: 0
   telemetry.conf: |
@@ -345,6 +345,8 @@ spec:
             - name: TELEMETRY_CONFIG
               value: "/etc/agent/telemetry.conf"
           volumeMounts:
+            - name: var-bolt
+              mountPath: /var/bolt
             - name: etcd-cfg
               mountPath: /etc/etcd
             - name: vpp-cfg
@@ -409,6 +411,9 @@ spec:
         - name: govpp-plugin-cfg
           configMap:
             name: govpp-cfg
+        - name: var-bolt
+          hostPath:
+            path: /var/bolt
 
 ---
 

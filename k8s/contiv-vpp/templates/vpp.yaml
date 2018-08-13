@@ -98,7 +98,7 @@ data:
       - {{ .Values.http.basicAuth | quote }}
     {{- end }}
   bolt.conf: |
-    db-path: /var/run/contiv/bolt.db
+    db-path: /var/bolt/bolt.db
     file-mode: 432
     lock-timeout: 0
   telemetry.conf: |
@@ -568,6 +568,8 @@ spec:
             - name: TELEMETRY_CONFIG
               value: "/etc/agent/telemetry.conf"
           volumeMounts:
+            - name: var-bolt
+              mountPath: /var/bolt
             - name: etcd-cfg
               mountPath: /etc/etcd
               {{- if .Values.etcd.secureTransport }}
@@ -697,6 +699,28 @@ spec:
           hostPath:
             path: {{ .Values.vswitch.coreDumpsDir }}
         {{- end }}
+{{- if not .Values.bolt.usePersistentVolume }}
+        - name: var-bolt
+          hostPath:
+            path: {{ .Values.bolt.dataDir }}
+        {{- else }}
+  volumeClaimTemplates:
+  - metadata:
+      name: var-bolt
+    spec:
+      accessModes:
+        - ReadWriteOnce
+      resources:
+        requests:
+          storage: {{ .Values.bolt.persistentVolumeSize }}
+    {{- if .Values.bolt.persistentVolumeStorageClass }}
+    {{- if (eq "-" .Values.bolt.persistentVolumeStorageClass) }}
+      storageClassName: ""
+    {{- else }}
+      storageClassName: "{{ .Values.bolt.persistentVolumeStorageClass }}"
+    {{- end }}
+    {{- end }}
+{{- end }}
 
 ---
 

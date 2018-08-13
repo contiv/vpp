@@ -448,6 +448,7 @@ rm -rf $HOME/.kube
 kubeadm reset
 kubeadm init --token-ttl 0
 rm -rf /var/etcd/contiv-data
+rm -rf /var/bolt/bolt.db
 ```
 
 [1]: https://kubernetes.io/docs/setup/independent/create-cluster-kubeadm/

@@ -249,11 +249,17 @@ vagrant-images:
 generate-manifest:
 	helm template k8s/contiv-vpp/ > k8s/contiv-vpp.yaml
 
+generate-manifest-arm64:
+	helm template k8s/contiv-vpp -f k8s/contiv-vpp/values-arm64.yaml,k8s/contiv-vpp/values.yaml > k8s/contiv-vpp-arm64.yaml
+
 helm-package:
 	helm package k8s/contiv-vpp/
 
 helm-yaml:
 	helm template --set vswitch.image.tag=${TAG} --set cni.image.tag=${TAG} --set ksr.image.tag=${TAG} k8s/contiv-vpp > k8s/contiv-vpp.yaml
+
+helm-yaml-arm64:
+	helm template --set vswitch.image.tag=${TAG} --set cni.image.tag=${TAG} --set ksr.image.tag=${TAG} k8s/contiv-vpp -f k8s/contiv-vpp/values-arm64.yaml,k8s/contiv-vpp/values.yaml > k8s/contiv-vpp-arm64.yaml
 
 .PHONY: build all \
 	install clean test test-race \
@@ -263,4 +269,5 @@ helm-yaml:
 	get-linkcheck check-links \
 	get-dep dep-install \
 	docker-images docker-dev vagrant-images\
-	describe generate-manifest helm-package helm-yaml
+	describe generate-manifest helm-package helm-yaml \
+	generate-manifest-arm64 helm-yaml-arm64

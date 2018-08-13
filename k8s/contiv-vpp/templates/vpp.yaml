@@ -172,7 +172,11 @@ spec:
 
       containers:
         - name: contiv-etcd
+          {{- if .Values.Arm64Platform }}
+          image: {{ .Values.etcd_arm64.image.repository }}:{{ .Values.etcd_arm64.image.tag }}
+          {{- else }}
           image: {{ .Values.etcd.image.repository }}:{{ .Values.etcd.image.tag }}
+          {{- end }}
           imagePullPolicy: {{ .Values.etcd.image.pullPolicy }}
           env:
             - name: CONTIV_ETCD_IP
@@ -181,6 +185,10 @@ spec:
                   fieldPath: status.podIP
             - name: ETCDCTL_API
               value: "3"
+            {{- if .Values.Arm64Platform }}
+            - name: ETCD_UNSUPPORTED_ARCH
+              value: "arm64"
+            {{- end }}
           command:
             - /bin/sh
           args:
@@ -413,7 +421,11 @@ spec:
       # This container installs the Contiv CNI binaries
       # and CNI network config file on each node.
       - name: contiv-cni
+        {{- if .Values.Arm64Platform }}
+        image: {{ .Values.cni_arm64.image.repository }}:{{ default .Chart.Version .Values.cni.image.tag }}
+        {{- else }}
         image: {{ .Values.cni.image.repository }}:{{ default .Chart.Version .Values.cni.image.tag }}
+        {{- end }}
         imagePullPolicy: IfNotPresent
         env:
           - name: SLEEP
@@ -430,11 +442,19 @@ spec:
         env:
           - name: ETCDPORT
             value: {{ .Values.etcd.service.nodePort | quote }}
+        {{- if .Values.Arm64Platform }}
+        image: {{ .Values.init_arm64.image.repository }}:{{ .Values.init.image.tag }}
+        {{- else }}
         image: {{ .Values.init.image.repository }}:{{ .Values.init.image.tag }}
+        {{- end }}
         command: ['sh', '-c', 'until nc -w 2 127.0.0.1:$ETCDPORT; do echo waiting for etcd; sleep 2; done;']
       # This init container extracts/copies VPP LD_PRELOAD libs and default VPP config to the host.
       - name: vpp-init
-        image: {{ .Values.vswitch.image.repository }}:{{ default .Chart.Version .Values.vswitch.image.tag }}
+        {{- if .Values.Arm64Platform }}
+        image: {{ .Values.vswitch_arm64.image.repository }}:{{ default .Chart.Version .Values.vswitch.image.tag }}
+        {{- else }}
+        image: {{ .Values.vswitch.image.repository }}:{{ default .Chart.Version .Values.cni.image.tag }}
+        {{- end }}
         imagePullPolicy: {{ .Values.vswitch.image.pullPolicy }}
         command:
         - /bin/sh
@@ -487,7 +507,11 @@ spec:
         # Runs contiv-vswitch container on each Kubernetes node.
         # It contains the vSwitch VPP and its management agent.
         - name: contiv-vswitch
-          image: {{ .Values.vswitch.image.repository }}:{{ default .Chart.Version .Values.vswitch.image.tag }}
+          {{- if .Values.Arm64Platform }}
+          image: {{ .Values.vswitch_arm64.image.repository }}:{{ default .Chart.Version .Values.vswitch.image.tag }}
+          {{- else }}
+          image: {{ .Values.vswitch.image.repository }}:{{ default .Chart.Version .Values.cni.image.tag }}
+          {{- end }}
           imagePullPolicy: {{ .Values.vswitch.image.pullPolicy }}
           securityContext:
             privileged: true
@@ -716,7 +740,11 @@ spec:
           env:
           - name: ETCDPORT
             value: {{ .Values.etcd.service.nodePort | quote }}
+          {{- if .Values.Arm64Platform }}
+          image: {{ .Values.init_arm64.image.repository }}:{{ .Values.init.image.tag }}
+          {{- else }}
           image: {{ .Values.init.image.repository }}:{{ .Values.init.image.tag }}
+          {{- end }}
           command: ['sh', '-c', 'until nc -w 2 127.0.0.1:$ETCDPORT; do echo waiting for etcd; sleep 2; done;']
 
       containers:

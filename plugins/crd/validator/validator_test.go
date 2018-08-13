@@ -1,4 +1,4 @@
-package cache
+package validator
 
 import (
 	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"

@@ -25,6 +25,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"github.com/contiv/vpp/plugins/crd/api"
 )
 
 // Resync processes a data sync re sync event associated with K8s State data.
@@ -59,7 +60,7 @@ func (ctc *ContivTelemetryCache) Resync(resyncEv datasync.ResyncEvent) error {
 			}
 
 			if err != nil {
-				ctc.Report.logErrAndAppendToNodeReport(globalMsg, err.Error())
+				ctc.Report.LogErrAndAppendToNodeReport(api.GlobalMsg, err.Error())
 				ctc.Synced = false
 			}
 		}
@@ -69,7 +70,7 @@ func (ctc *ContivTelemetryCache) Resync(resyncEv datasync.ResyncEvent) error {
 
 	if ctc.Synced == false {
 		retErr := fmt.Errorf("datasync error, cache may be out of sync")
-		ctc.Report.appendToNodeReport(globalMsg, retErr.Error())
+		ctc.Report.AppendToNodeReport(api.GlobalMsg, retErr.Error())
 		return retErr
 
 	}
@@ -82,7 +83,7 @@ func (ctc *ContivTelemetryCache) parseAndCacheNodeInfoData(key string, evData da
 	matched, err := regexp.Match(pattern, []byte(key))
 	if !matched || err != nil {
 		retErr := fmt.Errorf("invalid key %s", key)
-		ctc.Report.appendToNodeReport(globalMsg, retErr.Error())
+		ctc.Report.AppendToNodeReport(api.GlobalMsg, retErr.Error())
 		return retErr
 	}
 
@@ -90,21 +91,21 @@ func (ctc *ContivTelemetryCache) parseAndCacheNodeInfoData(key string, evData da
 	err = evData.GetValue(nodeInfoValue)
 	if err != nil {
 		retErr := fmt.Errorf("could not parse node info data for key %s, error %s", key, err)
-		ctc.Report.appendToNodeReport(globalMsg, retErr.Error())
+		ctc.Report.AppendToNodeReport(api.GlobalMsg, retErr.Error())
 		return retErr
 	}
 
 	id, _ := strconv.Atoi(strings.Split(key, "/")[1])
 	if nodeInfoValue.Id != uint32(id) {
 		retErr := fmt.Errorf("invalid key '%s' or node id '%d'", key, nodeInfoValue.Id)
-		ctc.Report.appendToNodeReport(globalMsg, retErr.Error())
+		ctc.Report.AppendToNodeReport(api.GlobalMsg, retErr.Error())
 		return retErr
 	}
 
 	if nodeInfoValue.Id == 0 || nodeInfoValue.Name == "" ||
 		nodeInfoValue.IpAddress == "" || nodeInfoValue.ManagementIpAddress == "" {
 		retErr := fmt.Errorf("invalid nodeInfo data: '%+v'", nodeInfoValue)
-		ctc.Report.appendToNodeReport(globalMsg, retErr.Error())
+		ctc.Report.AppendToNodeReport(api.GlobalMsg, retErr.Error())
 		return retErr
 	}
 
@@ -112,7 +113,7 @@ func (ctc *ContivTelemetryCache) parseAndCacheNodeInfoData(key string, evData da
 		nodeInfoValue.IpAddress, nodeInfoValue.ManagementIpAddress)
 	if err != nil {
 		retErr := fmt.Errorf("failed to add vpp node, error: '%s'", err)
-		ctc.Report.appendToNodeReport(globalMsg, retErr.Error())
+		ctc.Report.AppendToNodeReport(api.GlobalMsg, retErr.Error())
 		return retErr
 	}
 
@@ -122,7 +123,7 @@ func (ctc *ContivTelemetryCache) parseAndCacheNodeInfoData(key string, evData da
 func (ctc *ContivTelemetryCache) parseAndCachePodData(key string, evData datasync.KeyVal) error {
 	pod, namespace, err := podmodel.ParsePodFromKey(key)
 	if err != nil {
-		ctc.Report.appendToNodeReport(globalMsg, fmt.Sprintf("invalid key %s", key))
+		ctc.Report.AppendToNodeReport(api.GlobalMsg, fmt.Sprintf("invalid key %s", key))
 		return fmt.Errorf("invalid key %s", key)
 	}
 
@@ -142,7 +143,7 @@ func (ctc *ContivTelemetryCache) parseAndCacheNodeData(key string, evData datasy
 	node, err := nodemodel.ParseNodeFromKey(key)
 	if err != nil {
 		retErr := fmt.Errorf("invalid key %s", key)
-		ctc.Report.appendToNodeReport(globalMsg, retErr.Error())
+		ctc.Report.AppendToNodeReport(api.GlobalMsg, retErr.Error())
 		return retErr
 	}
 
@@ -150,7 +151,7 @@ func (ctc *ContivTelemetryCache) parseAndCacheNodeData(key string, evData datasy
 	err = evData.GetValue(nodeValue)
 	if err != nil {
 		retErr := fmt.Errorf("could not parse node info data for key %s, error %s", key, err)
-		ctc.Report.appendToNodeReport(globalMsg, retErr.Error())
+		ctc.Report.AppendToNodeReport(api.GlobalMsg, retErr.Error())
 		return retErr
 	}
 

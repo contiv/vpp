@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package cache
+package datastore
 
 import (
 	"fmt"
@@ -21,37 +21,6 @@ import (
 	"sort"
 	"sync"
 )
-
-// VppCache defines the operations on the VPP node data store.
-type VppCache interface {
-	CreateNode(ID uint32, nodeName, IPAdr, ManIPAdr string) error
-	RetrieveNode(nodeName string) (*telemetrymodel.Node, error)
-	UpdateNode(ID uint32, nodeName, IPAdr, ManIPAdr string) error
-	DeleteNode(nodeName string) error
-
-	RetrieveNodeByHostIPAddr(ipAddr string) (*telemetrymodel.Node, error)
-	RetrieveNodeByLoopMacAddr(macAddress string) (*telemetrymodel.Node, error)
-	RetrieveNodeByLoopIPAddr(ipAddress string) (*telemetrymodel.Node, error)
-	RetrieveNodeByGigEIPAddr(ipAddress string) (*telemetrymodel.Node, error)
-
-	RetrieveAllNodes() []*telemetrymodel.Node
-
-	SetNodeLiveness(name string, nL *telemetrymodel.NodeLiveness) error
-	SetNodeInterfaces(name string, nInt map[int]telemetrymodel.NodeInterface) error
-	SetNodeBridgeDomain(name string, nBridge map[int]telemetrymodel.NodeBridgeDomain) error
-	SetNodeL2Fibs(name string, nL2f map[string]telemetrymodel.NodeL2FibEntry) error
-	SetNodeTelemetry(name string, nTele map[string]telemetrymodel.NodeTelemetry) error
-	SetNodeIPARPs(name string, nArps []telemetrymodel.NodeIPArpEntry) error
-
-	SetSecondaryNodeIndices(node *telemetrymodel.Node) []string
-
-	ClearCache()
-	ReinitializeCache()
-}
-
-// here goes different cache types
-//Update this whenever a new DTO type is added.
-const numDTOs = 5
 
 //VppDataStore holds various maps which all take different keys but point to the same underlying value.
 type VppDataStore struct {
@@ -287,7 +256,7 @@ func (vds *VppDataStore) SetSecondaryNodeIndices(node *telemetrymodel.Node) []st
 
 	errReport := make([]string, 0)
 
-	loopIF, err := getNodeLoopIFInfo(node)
+	loopIF, err := GetNodeLoopIFInfo(node)
 	if err != nil {
 		errReport = append(errReport, "node %s does not have a loop interface", node.Name)
 		return errReport
@@ -314,7 +283,7 @@ func (vds *VppDataStore) SetSecondaryNodeIndices(node *telemetrymodel.Node) []st
 	}
 
 	if loopIF.PhysAddress == "" {
-		errReport = append(errReport, fmt.Sprintf("empty MAC address for Loop if %d", loopIF.Name))
+		errReport = append(errReport, fmt.Sprintf("empty MAC address for Loop if %s", loopIF.Name))
 	} else {
 		if _, ok := vds.loopMACMap[loopIF.PhysAddress]; ok {
 			errReport = append(errReport,
@@ -361,6 +330,17 @@ func (vds *VppDataStore) RetrieveNodeByGigEIPAddr(ipAddress string) (*telemetrym
 		return node, nil
 	}
 	return nil, fmt.Errorf("node for Loop MAC address %s not found", ipAddress)
+}
+
+// GetNodeLoopIFInfo gets the loop interface for the given node
+func GetNodeLoopIFInfo(node *telemetrymodel.Node) (*telemetrymodel.NodeInterface, error) {
+	for _, ifs := range node.NodeInterfaces {
+		if ifs.VppInternalName == "loop0" {
+			return &ifs, nil
+		}
+	}
+	err := errors.Errorf("node %s does not have a loop interface", node.Name)
+	return nil, err
 }
 
 // retrieveNode returns a pointer to a node for the given key.

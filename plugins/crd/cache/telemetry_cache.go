@@ -18,6 +18,7 @@ package cache
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/contiv/vpp/plugins/crd/api"
 	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
 	node2 "github.com/contiv/vpp/plugins/ksr/model/node"
 
@@ -27,10 +28,10 @@ import (
 	"time"
 )
 
-const subnetmask = "/24"
-const vppVNI = 10
-
 const (
+	// here goes different cache types
+	//Update this whenever a new DTO type is added.
+	numDTOs            = 5
 	agentPort          = ":9999"
 	livenessURL        = "/liveness"
 	interfaceURL       = "/interfaces"
@@ -50,10 +51,10 @@ type ContivTelemetryCache struct {
 	Deps
 
 	Synced    bool
-	VppCache  VppCache
-	K8sCache  K8sCache
-	Processor ContivTelemetryProcessor
-	Report    *Report
+	VppCache  api.VppCache
+	K8sCache  api.K8sCache
+	Processor api.ContivTelemetryProcessor
+	Report    api.Report
 
 	nodeResponseChannel  chan *NodeDTO
 	networkInfoGetCh     chan bool
@@ -68,13 +69,6 @@ type ContivTelemetryCache struct {
 // Deps lists dependencies of PolicyCache.
 type Deps struct {
 	Log logging.Logger
-}
-
-// Report holds error/warning messages recorded during data collection /
-// validation
-type Report struct {
-	Log  logging.Logger
-	Data map[string][]string
 }
 
 // NodeDTO holds generic node information to be sent over a channel
@@ -119,7 +113,7 @@ func (ctc *ContivTelemetryCache) retrieveNetworkInfo() {
 func (ctc *ContivTelemetryCache) ClearCache() {
 	ctc.VppCache.ClearCache()
 	// ctc.K8sCache.ClearCache()
-	ctc.Report.clear()
+	ctc.Report.Clear()
 }
 
 // ReinitializeCache completely re-initializes the Contiv Telemetry cache,
@@ -128,7 +122,7 @@ func (ctc *ContivTelemetryCache) ClearCache() {
 func (ctc *ContivTelemetryCache) ReinitializeCache() {
 	ctc.VppCache.ReinitializeCache()
 	// ctc.K8sCache.ReinitializeCache()
-	ctc.Report.clear()
+	ctc.Report.Clear()
 }
 
 func (ctc *ContivTelemetryCache) nodeEventProcessor() {
@@ -192,9 +186,9 @@ func (ctc *ContivTelemetryCache) validateNodeInfo() {
 	ctc.Processor.Validate()
 
 	for _, n := range nodelist {
-		ctc.Report.appendToNodeReport(n.Name, "Report done.")
+		ctc.Report.AppendToNodeReport(n.Name, "Report done.")
 	}
-	ctc.Report.printReport()
+	ctc.Report.Print()
 }
 
 //Gathers a number of data points for every node in the Node List
@@ -263,13 +257,13 @@ func (ctc *ContivTelemetryCache) getNodeInfo(client http.Client, node *telemetry
 func (ctc *ContivTelemetryCache) populateNodeMaps(node *telemetrymodel.Node) {
 	errReport := ctc.VppCache.SetSecondaryNodeIndices(node)
 	for _, r := range errReport {
-		ctc.Report.appendToNodeReport(node.Name, r)
+		ctc.Report.AppendToNodeReport(node.Name, r)
 	}
 
 	k8snode, err := ctc.K8sCache.RetrieveK8sNode(node.Name)
 	if err != nil {
 		errString := fmt.Sprintf("node %s discovered in Contiv, but not present in K8s", node.Name)
-		ctc.Report.appendToNodeReport(node.Name, errString)
+		ctc.Report.AppendToNodeReport(node.Name, errString)
 	} else {
 		for _, adr := range k8snode.Addresses {
 			switch adr.Type {
@@ -277,13 +271,13 @@ func (ctc *ContivTelemetryCache) populateNodeMaps(node *telemetrymodel.Node) {
 				if adr.Address != node.Name {
 					errString := fmt.Sprintf("Inconsistent K8s host name for node %s, host name:,%s",
 						k8snode.Name, adr.Address)
-					ctc.Report.appendToNodeReport(node.Name, errString)
+					ctc.Report.AppendToNodeReport(node.Name, errString)
 				}
 			case node2.NodeAddress_NodeInternalIP:
 				if adr.Address != node.ManIPAdr {
 					errString := fmt.Sprintf("Inconsistent Host IP Address for node %s: Contiv: %s, K8s %s",
 						k8snode.Name, node.ManIPAdr, adr.Address)
-					ctc.Report.appendToNodeReport(node.Name, errString)
+					ctc.Report.AppendToNodeReport(node.Name, errString)
 				}
 			}
 		}
@@ -336,7 +330,7 @@ func (ctc *ContivTelemetryCache) setNodeData() {
 
 		if data.err != nil {
 			err = fmt.Errorf("node %+v has nodeDTO %+v and http error %s", data.NodeName, data, data.err)
-			ctc.Report.logErrAndAppendToNodeReport(data.NodeName, err.Error())
+			ctc.Report.LogErrAndAppendToNodeReport(data.NodeName, err.Error())
 			continue
 		}
 
@@ -363,35 +357,7 @@ func (ctc *ContivTelemetryCache) setNodeData() {
 			err = fmt.Errorf("node %+v has unknown data type: %+v", data.NodeName, data.NodeInfo)
 		}
 		if err != nil {
-			ctc.Report.logErrAndAppendToNodeReport(data.NodeName, err.Error())
+			ctc.Report.LogErrAndAppendToNodeReport(data.NodeName, err.Error())
 		}
-	}
-}
-
-func (r *Report) logErrAndAppendToNodeReport(nodeName string, errString string) {
-	r.appendToNodeReport(nodeName, errString)
-	r.Log.Errorf(errString)
-}
-
-func (r *Report) appendToNodeReport(nodeName string, errString string) {
-	if r.Data[nodeName] == nil {
-		r.Data[nodeName] = make([]string, 0)
-	}
-	r.Data[nodeName] = append(r.Data[nodeName], errString)
-}
-
-func (r *Report) clear() {
-	r.Data = make(map[string][]string)
-}
-
-func (r *Report) printReport() {
-	fmt.Println("Error Report:")
-	fmt.Println("=============")
-	for k, rl := range r.Data {
-		fmt.Printf("Key: %s\n", k)
-		for i, line := range rl {
-			fmt.Printf("  %d: %s\n", i, line)
-		}
-		fmt.Println()
 	}
 }

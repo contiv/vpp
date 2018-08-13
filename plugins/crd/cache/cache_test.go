@@ -288,13 +288,13 @@ func TestNodesDB_ValidateLoopIFAddresses(t *testing.T) {
 	db.SetNodeInterfaces("k8s_master", nodeinterfaces)
 	node, ok = db.retrieveNode("k8s_master")
 	db.loopMACMap[node.NodeInterfaces[3].PhysAddress] = node
-	db.loopIPMap[node.NodeInterfaces[3].IPAddresses[0]+subnetmask] = node
+	db.loopIPMap[node.NodeInterfaces[3].IPAddresses[0]+SubnetMask] = node
 
 	db.SetNodeIPARPs("k8s-worker1", nodeiparps2)
 	db.SetNodeInterfaces("k8s-worker1", nodeinterfaces2)
 	node, ok = db.retrieveNode("k8s-worker1")
 	db.loopMACMap[node.NodeInterfaces[3].PhysAddress] = node
-	db.loopIPMap[node.NodeInterfaces[3].IPAddresses[0]+subnetmask] = node
+	db.loopIPMap[node.NodeInterfaces[3].IPAddresses[0]+SubnetMask] = node
 
 	ctc.ValidateArpTables()
 
@@ -387,13 +387,13 @@ func TestNodesDB_ValidateL2Connections(t *testing.T) {
 	db.SetNodeInterfaces("k8s_master", nodeinterfaces)
 	node, ok = db.retrieveNode("k8s_master")
 	db.loopMACMap[node.NodeInterfaces[3].PhysAddress] = node
-	db.loopIPMap[node.NodeInterfaces[3].IPAddresses[0]+subnetmask] = node
+	db.loopIPMap[node.NodeInterfaces[3].IPAddresses[0]+SubnetMask] = node
 
 	db.SetNodeIPARPs("k8s-worker1", nodeiparps2)
 	db.SetNodeInterfaces("k8s-worker1", nodeinterfaces2)
 	node, ok = db.retrieveNode("k8s-worker1")
 	db.loopMACMap[node.NodeInterfaces[3].PhysAddress] = node
-	db.loopIPMap[node.NodeInterfaces[3].IPAddresses[0]+subnetmask] = node
+	db.loopIPMap[node.NodeInterfaces[3].IPAddresses[0]+SubnetMask] = node
 	node, _ = db.retrieveNode("k8s_master")
 	bdif1_1 := telemetrymodel.BDinterfaces{3}
 	bdif1_2 := telemetrymodel.BDinterfaces{5}
@@ -441,9 +441,9 @@ func TestNodesDB_ValidateL2Connections(t *testing.T) {
 	nodeinterfaces2[4] = nodevxlaninterface2
 	db.SetNodeBridgeDomain("k8s-worker1", nodebdmap2)
 	db.SetNodeInterfaces("k8s-worker1", nodeinterfaces2)
-	db.gigEIPMap[node.IPAdr+subnetmask] = node
+	db.gigEIPMap[node.IPAdr+SubnetMask] = node
 	node, _ = db.retrieveNode("k8s_master")
-	db.gigEIPMap[node.IPAdr+subnetmask] = node
+	db.gigEIPMap[node.IPAdr+SubnetMask] = node
 	ctc.ValidateL2Connectivity()
 
 	fmt.Println("Setting vxlan_vni to 11, expecting error...")
@@ -475,12 +475,12 @@ func TestNodesDB_ValidateL2Connections(t *testing.T) {
 
 	fmt.Println("Deleting node with ip 10 from gigE map" +
 		". Expecting errors for missing ip")
-	delete(db.gigEIPMap, node.NodeInterfaces[4].Vxlan.DstAddress+subnetmask)
+	delete(db.gigEIPMap, node.NodeInterfaces[4].Vxlan.DstAddress+SubnetMask)
 	ctc.ValidateL2Connectivity()
 	db.printnodelogs(nodelist)
 	fmt.Println("Done expecting errors")
 	node, _ = db.retrieveNode("k8s_master")
-	db.gigEIPMap["10"+subnetmask] = node
+	db.gigEIPMap["10"+SubnetMask] = node
 	ctc.ValidateL2Connectivity()
 	db.printnodelogs(nodelist)
 
@@ -592,13 +592,13 @@ func TestCache_ValidateFibEntries(t *testing.T) {
 	db.SetNodeInterfaces("k8s_master", nodeinterfaces)
 	node, ok = db.retrieveNode("k8s_master")
 	db.loopMACMap[node.NodeInterfaces[3].PhysAddress] = node
-	db.loopIPMap[node.NodeInterfaces[3].IPAddresses[0]+subnetmask] = node
+	db.loopIPMap[node.NodeInterfaces[3].IPAddresses[0]+SubnetMask] = node
 
 	db.SetNodeIPARPs("k8s-worker1", nodeiparps2)
 	db.SetNodeInterfaces("k8s-worker1", nodeinterfaces2)
 	node, ok = db.retrieveNode("k8s-worker1")
 	db.loopMACMap[node.NodeInterfaces[3].PhysAddress] = node
-	db.loopIPMap[node.NodeInterfaces[3].IPAddresses[0]+subnetmask] = node
+	db.loopIPMap[node.NodeInterfaces[3].IPAddresses[0]+SubnetMask] = node
 	node, _ = db.retrieveNode("k8s_master")
 	bdif1_1 := telemetrymodel.BDinterfaces{3}
 	bdif1_2 := telemetrymodel.BDinterfaces{5}
@@ -646,9 +646,9 @@ func TestCache_ValidateFibEntries(t *testing.T) {
 	nodeinterfaces2[4] = nodevxlaninterface2
 	db.SetNodeBridgeDomain("k8s-worker1", nodebdmap2)
 	db.SetNodeInterfaces("k8s-worker1", nodeinterfaces2)
-	db.gigEIPMap[node.IPAdr+subnetmask] = node
+	db.gigEIPMap[node.IPAdr+SubnetMask] = node
 	node, _ = db.retrieveNode("k8s_master")
-	db.gigEIPMap[node.IPAdr+subnetmask] = node
+	db.gigEIPMap[node.IPAdr+SubnetMask] = node
 
 	nodelist := db.RetrieveAllNodes()
 	ctc.ValidateL2FibEntries()

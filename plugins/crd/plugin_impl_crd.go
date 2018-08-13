@@ -19,8 +19,10 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/contiv/vpp/plugins/crd/api"
 	"github.com/contiv/vpp/plugins/crd/cache"
 	"github.com/contiv/vpp/plugins/crd/controller"
+	"github.com/contiv/vpp/plugins/crd/validator"
 	nodemodel "github.com/contiv/vpp/plugins/ksr/model/node"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	"github.com/ligato/cn-infra/config"
@@ -33,6 +35,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 
 	nodeinfomodel "github.com/contiv/vpp/plugins/contiv/model/node"
+	"github.com/contiv/vpp/plugins/crd/datastore"
 	crdClientSet "github.com/contiv/vpp/plugins/crd/pkg/client/clientset/versioned"
 	"k8s.io/client-go/tools/clientcmd"
 )
@@ -60,7 +63,7 @@ type Plugin struct {
 
 	controller *controller.ContivTelemetryController
 	cache      *cache.ContivTelemetryCache
-	processor  cache.ContivTelemetryProcessor
+	processor  api.ContivTelemetryProcessor
 }
 
 // Deps defines dependencies of policy plugin.
@@ -119,18 +122,15 @@ func (p *Plugin) Init() error {
 			Log: p.Log.NewLogger("-telemetryCache"),
 		},
 		Synced:   false,
-		VppCache: cache.NewVppDataStore(),
-		K8sCache: cache.NewK8sDataStore(),
-		Report: &cache.Report{
-			Log:  p.Log.NewLogger("-report"),
-			Data: make(map[string][]string),
-		},
+		VppCache: datastore.NewVppDataStore(),
+		K8sCache: datastore.NewK8sDataStore(),
+		Report:   datastore.NewSimpleReport(p.Log.NewLogger("-report")),
 	}
 	p.cache.Log.SetLevel(logging.DebugLevel)
 	p.cache.Init()
 
-	p.processor = &cache.Validator{
-		Deps: cache.Deps{
+	p.processor = &validator.Validator{
+		Deps: validator.Deps{
 			Log: p.Log.NewLogger("-telemetryProcessor"),
 		},
 		VppCache: p.cache.VppCache,

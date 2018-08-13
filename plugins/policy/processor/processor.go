@@ -46,7 +46,7 @@ type PolicyProcessor struct {
 	podIPAddressMap map[podmodel.ID]net.IP
 }
 
-// Deps lists dependencies of Policy Processor.
+// Deps lists dependencies of Policy ContivTelemetryProcessor.
 type Deps struct {
 	Log          logging.Logger
 	Cache        cache.PolicyCacheAPI
@@ -54,7 +54,7 @@ type Deps struct {
 	Configurator config.PolicyConfiguratorAPI
 }
 
-// Init initializes the Policy Processor.
+// Init initializes the Policy ContivTelemetryProcessor.
 func (pp *PolicyProcessor) Init() error {
 	pp.podIPAddressMap = make(map[podmodel.ID]net.IP)
 	pp.Cache.Watch(pp)

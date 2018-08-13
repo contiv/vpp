@@ -60,7 +60,7 @@ type Plugin struct {
 
 	controller *controller.ContivTelemetryController
 	cache      *cache.ContivTelemetryCache
-	processor  *cache.ContivTelemetryProcessor
+	processor  cache.ContivTelemetryProcessor
 }
 
 // Deps defines dependencies of policy plugin.
@@ -118,18 +118,26 @@ func (p *Plugin) Init() error {
 		Deps: cache.Deps{
 			Log: p.Log.NewLogger("-telemetryCache"),
 		},
-		Synced: false,
+		Synced:   false,
+		VppCache: cache.NewVppDataStore(),
+		K8sCache: cache.NewK8sDataStore(),
+		Report: &cache.Report{
+			Log:  p.Log.NewLogger("-report"),
+			Data: make(map[string][]string),
+		},
 	}
 	p.cache.Log.SetLevel(logging.DebugLevel)
 	p.cache.Init()
 
-	p.processor = &cache.ContivTelemetryProcessor{
+	p.processor = &cache.Validator{
 		Deps: cache.Deps{
 			Log: p.Log.NewLogger("-telemetryProcessor"),
 		},
-		ContivTelemetryCache: p.cache,
+		VppCache: p.cache.VppCache,
+		K8sCache: p.cache.K8sCache,
+		Report:   p.cache.Report,
 	}
-	p.processor.Init()
+	// p.processor.Init()
 	p.cache.Processor = p.processor
 
 	go p.watchEvents()

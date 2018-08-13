@@ -165,7 +165,7 @@ type Pod struct {
 	VppIfName string
 	// IP address of the interface on VPP through which the pod is
 	// connected to VPP. Will be empty for host-network pods.
-	VppIfIpAddr string
+	VppIfIPAddr string
 }
 
 //PodLabel contains key/value pair info

@@ -17,7 +17,6 @@ package cache
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/logging/logrus"
@@ -185,7 +184,7 @@ func TestProcessor(t *testing.T) {
 func testCollectAgentInfoNoError(t *testing.T) {
 	ptv.processor.ContivTelemetryCache.AddVppNode(1, "k8s-master", "10.20.0.2", "localhost")
 
-	node, err := ptv.processor.ContivTelemetryCache.VppCache.retrieveNode("k8s-master")
+	node, err := ptv.processor.ContivTelemetryCache.VppCache.RetrieveNode("k8s-master")
 	gomega.Expect(err).To(gomega.BeNil())
 
 	// Kick the processor to collect & validate data, give it an opportunity
@@ -206,7 +205,7 @@ func testCollectAgentInfoWithHTTPError(t *testing.T) {
 	ptv.processor.ContivTelemetryCache.ReinitializeCache()
 	ptv.processor.ContivTelemetryCache.AddVppNode(1, "k8s-master", "10.20.0.2", "localhost")
 
-	nodes := ptv.processor.ContivTelemetryCache.LookupNode([]string{"k8s-master"})
+	nodes := ptv.processor.ContivTelemetryCache.LookupVppNodes([]string{"k8s-master"})
 	gomega.Expect(len(nodes)).To(gomega.Equal(1))
 	ptv.injectError = inject404Error
 
@@ -217,7 +216,7 @@ func testCollectAgentInfoWithHTTPError(t *testing.T) {
 	time.Sleep(1 * time.Millisecond)
 	ptv.processor.waitForValidationToFinish()
 
-	gomega.Expect(grep(ptv.processor.ContivTelemetryCache.report, "404 Not Found")).
+	gomega.Expect(grep(ptv.processor.ContivTelemetryCache.Report["k8s-master"], "404 Not Found")).
 		To(gomega.Equal(numDTOs))
 }
 
@@ -227,7 +226,7 @@ func testCollectAgentInfoWithTimeout(t *testing.T) {
 	ptv.processor.httpClientTimeout = 1
 	ptv.processor.ContivTelemetryCache.AddVppNode(1, "k8s-master", "10.20.0.2", "localhost")
 
-	nodes := ptv.processor.ContivTelemetryCache.LookupNode([]string{"k8s-master"})
+	nodes := ptv.processor.ContivTelemetryCache.LookupVppNodes([]string{"k8s-master"})
 	gomega.Expect(len(nodes)).To(gomega.Equal(1))
 	ptv.injectError = injectDelay
 
@@ -237,7 +236,7 @@ func testCollectAgentInfoWithTimeout(t *testing.T) {
 	time.Sleep(1 * time.Millisecond)
 	ptv.processor.waitForValidationToFinish()
 
-	gomega.Expect(grep(ptv.processor.ContivTelemetryCache.report, "Timeout exceeded")).
+	gomega.Expect(grep(ptv.processor.ContivTelemetryCache.Report["k8s-master"], "Timeout exceeded")).
 		To(gomega.Equal(numDTOs))
 }
 
@@ -263,14 +262,6 @@ func grep(output []string, pattern string) int {
 		}
 	}
 	return cnt
-}
-
-func printErrorReport(report []string) {
-	fmt.Println("Error Report")
-	fmt.Println("============")
-	for _, rl := range report {
-		fmt.Println(rl)
-	}
 }
 
 func (ptv *processorTestVars) initTestData() {
@@ -355,11 +346,6 @@ func (ptv *processorTestVars) initTestData() {
 	// Initialize bridge domains data
 	ptv.nodeBridgeDomains = map[int]telemetrymodel.NodeBridgeDomain{
 		1: {
-			Name:       "vxlanBD",
-			Forward:    true,
-			Interfaces: []telemetrymodel.BDinterfaces{},
-		},
-		2: {
 			Name:    "vxlanBD",
 			Forward: true,
 			Interfaces: []telemetrymodel.BDinterfaces{
@@ -373,19 +359,19 @@ func (ptv *processorTestVars) initTestData() {
 	// Initialize L2 Fib data
 	ptv.nodeL2Fibs = map[string]telemetrymodel.NodeL2FibEntry{
 		"1a:2b:3c:4d:5e:01": {
-			BridgeDomainIdx:          2,
+			BridgeDomainIdx:          1,
 			OutgoingInterfaceSwIfIdx: 5,
 			PhysAddress:              "1a:2b:3c:4d:5e:01",
 			StaticConfig:             true,
 		},
 		"1a:2b:3c:4d:5e:02": {
-			BridgeDomainIdx:          2,
+			BridgeDomainIdx:          1,
 			OutgoingInterfaceSwIfIdx: 6,
 			PhysAddress:              "1a:2b:3c:4d:5e:02",
 			StaticConfig:             true,
 		},
 		"1a:2b:3c:4d:5e:03": {
-			BridgeDomainIdx:          2,
+			BridgeDomainIdx:          1,
 			OutgoingInterfaceSwIfIdx: 4,
 			PhysAddress:              "1a:2b:3c:4d:5e:03",
 			StaticConfig:             true,

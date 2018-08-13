@@ -121,7 +121,7 @@ func (p *Plugin) Init() error {
 		Synced:   false,
 		VppCache: cache.NewVppDataStore(),
 		K8sCache: cache.NewK8sDataStore(),
-		Report: cache.Report{
+		Report: &cache.Report{
 			Log:  p.Log.NewLogger("-report"),
 			Data: make(map[string][]string),
 		},

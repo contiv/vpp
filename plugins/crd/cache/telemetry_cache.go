@@ -58,7 +58,7 @@ type ContivTelemetryCache struct {
 	VppCache  VppCache
 	K8sCache  K8sCache
 	Processor Processor
-	Report    Report
+	Report    *Report
 
 	nodeResponseChannel  chan *NodeDTO
 	networkInfoGetCh     chan bool

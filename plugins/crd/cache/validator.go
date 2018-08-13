@@ -37,7 +37,7 @@ type Validator struct {
 
 	VppCache VppCache
 	K8sCache K8sCache
-	Report   Report
+	Report   *Report
 }
 
 func (v *Validator) Validate() {

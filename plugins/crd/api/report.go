@@ -15,9 +15,13 @@
 package api
 
 const (
+	// GlobalMsg defines the report bin where to put global (i.e.
+	// non-node-specific) status/error messages
 	GlobalMsg = "global"
 )
 
+// Report is the interface for collecting validation status/error messages
+// and for printing them out.
 type Report interface {
 	LogErrAndAppendToNodeReport(nodeName string, errString string)
 	AppendToNodeReport(nodeName string, errString string)

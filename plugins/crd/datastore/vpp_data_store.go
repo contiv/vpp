@@ -283,7 +283,7 @@ func (vds *VppDataStore) SetSecondaryNodeIndices(node *telemetrymodel.Node) []st
 	}
 
 	if loopIF.PhysAddress == "" {
-		errReport = append(errReport, fmt.Sprintf("empty MAC address for Loop if %d", loopIF.Name))
+		errReport = append(errReport, fmt.Sprintf("empty MAC address for Loop if %s", loopIF.Name))
 	} else {
 		if _, ok := vds.loopMACMap[loopIF.PhysAddress]; ok {
 			errReport = append(errReport,
@@ -332,6 +332,7 @@ func (vds *VppDataStore) RetrieveNodeByGigEIPAddr(ipAddress string) (*telemetrym
 	return nil, fmt.Errorf("node for Loop MAC address %s not found", ipAddress)
 }
 
+// GetNodeLoopIFInfo gets the loop interface for the given node
 func GetNodeLoopIFInfo(node *telemetrymodel.Node) (*telemetrymodel.NodeInterface, error) {
 	for _, ifs := range node.NodeInterfaces {
 		if ifs.VppInternalName == "loop0" {

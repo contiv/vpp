@@ -26,6 +26,7 @@ type SimpleReport struct {
 	Data map[string][]string
 }
 
+// NewSimpleReport creates a new SimpleReport instance
 func NewSimpleReport(log logging.Logger) *SimpleReport {
 	return &SimpleReport{
 		Log:  log,
@@ -33,11 +34,14 @@ func NewSimpleReport(log logging.Logger) *SimpleReport {
 	}
 }
 
+// LogErrAndAppendToNodeReport log an error and appends the string to
+// the status log
 func (r *SimpleReport) LogErrAndAppendToNodeReport(nodeName string, errString string) {
 	r.AppendToNodeReport(nodeName, errString)
 	r.Log.Errorf(errString)
 }
 
+// AppendToNodeReport appends the string to the status log
 func (r *SimpleReport) AppendToNodeReport(nodeName string, errString string) {
 	if r.Data[nodeName] == nil {
 		r.Data[nodeName] = make([]string, 0)
@@ -45,10 +49,12 @@ func (r *SimpleReport) AppendToNodeReport(nodeName string, errString string) {
 	r.Data[nodeName] = append(r.Data[nodeName], errString)
 }
 
+// Clear clears the status log
 func (r *SimpleReport) Clear() {
 	r.Data = make(map[string][]string)
 }
 
+// Print prints the status log
 func (r *SimpleReport) Print() {
 	fmt.Println("Error SimpleReport:")
 	fmt.Println("=============")

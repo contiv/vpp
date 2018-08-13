@@ -17,7 +17,9 @@ package api
 import "github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
 
 const (
+	// SubnetMask defines the default subnet mask for pod addressing - TODO: must be refactored to consider CIDR
 	SubnetMask = "/24"
+	// VppVNI defines the default VNI for L2 connectivity - TODO: must be refactored to support configured values
 	VppVNI     = 10
 )
 

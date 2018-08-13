@@ -122,3 +122,7 @@ Parameter | Description | Default
 `http.basicAuth` | credentials to be used by basic-auth, format <username>:<password>| `user:pass`
 `telemetry.pollingInterval` | Default polling interval for telemetry plugin (nanoseconds) | `30000000000`
 `telemetry.disabled` | Disables the telemetry plugin | `true`
+`bolt.usePersistentVolume` | Use Kubernetes persistent volume (when enabled, disables dataDir hostPath) | `False`
+`bolt.persistentVolumeSize` | Size of Kubernetes persistent volume | `2Gi`
+`bolt.persistentVolumeStorageClass` | Kubernetes persistent volume storage class (use "-" for an empty storage class) | (no value)
+`bolt.dataDir` | Use hostPath of this directory to persist bolt data (ignored if usePersistentVolume is true) | `/var/bolt`

@@ -90,6 +90,7 @@ func (handler *natVppHandler) SetNat44Forwarding(enableFwd bool) error {
 		return err
 	}
 	if reply.Retval < 0 {
+		fmt.Errorf("CONTIV DBG level=error: %s returned %d", reply.GetMessageName(), reply.Retval)
 		return fmt.Errorf("%s returned %d", reply.GetMessageName(), reply.Retval)
 	}
 
@@ -113,6 +114,7 @@ func (handler *natVppHandler) handleNat44Interface(ifIdx uint32, isInside, isAdd
 		return err
 	}
 	if reply.Retval < 0 {
+		fmt.Errorf("CONTIV DBG level=error: %s returned %d", reply.GetMessageName(), reply.Retval)
 		return fmt.Errorf("%s returned %d", reply.GetMessageName(), reply.Retval)
 	}
 
@@ -136,6 +138,7 @@ func (handler *natVppHandler) handleNat44InterfaceOutputFeature(ifIdx uint32, is
 		return err
 	}
 	if reply.Retval < 0 {
+		fmt.Errorf("CONTIV DBG level=error: %s returned %d", reply.GetMessageName(), reply.Retval)
 		return fmt.Errorf("%s returned %d", reply.GetMessageName(), reply.Retval)
 	}
 
@@ -161,6 +164,7 @@ func (handler *natVppHandler) handleNat44AddressPool(first, last []byte, vrf uin
 		return err
 	}
 	if reply.Retval < 0 {
+		fmt.Errorf("CONTIV DBG level=error: %s returned %d", reply.GetMessageName(), reply.Retval)
 		return fmt.Errorf("%s returned %d", reply.GetMessageName(), reply.Retval)
 	}
 
@@ -199,6 +203,7 @@ func (handler *natVppHandler) handleNat44StaticMapping(ctx *StaticMappingContext
 		return err
 	}
 	if reply.Retval < 0 {
+		fmt.Errorf("CONTIV DBG level=error: %s returned %d", reply.GetMessageName(), reply.Retval)
 		return fmt.Errorf("%s returned %d", reply.GetMessageName(), reply.Retval)
 	}
 
@@ -241,6 +246,7 @@ func (handler *natVppHandler) handleNat44StaticMappingLb(ctx *StaticMappingLbCon
 		return err
 	}
 	if reply.Retval < 0 {
+		fmt.Errorf("CONTIV DBG level=error: %s returned %d", reply.GetMessageName(), reply.Retval)
 		return fmt.Errorf("%s returned %d", reply.GetMessageName(), reply.Retval)
 	}
 
@@ -280,6 +286,7 @@ func (handler *natVppHandler) handleNat44IdentityMapping(ctx *IdentityMappingCon
 		return err
 	}
 	if reply.Retval < 0 {
+		fmt.Errorf("CONTIV DBG level=error: %s returned %d", reply.GetMessageName(), reply.Retval)
 		return fmt.Errorf("%s returned %d", reply.GetMessageName(), reply.Retval)
 	}
 

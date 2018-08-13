@@ -151,14 +151,10 @@ func (p *ContivTelemetryProcessor) validateNodeInfo() {
 
 	p.ContivTelemetryCache.ValidatePodInfo()
 
-	for _, entry := range p.ContivTelemetryCache.Report {
-		p.Log.Info(entry)
-		for _, node := range p.ContivTelemetryCache.VppCache.RetrieveAllNodes() {
-			p.Log.Infof("Report for %+v", node.Name)
-			p.Log.Info(node.Report)
-			node.Report = node.Report[0:0]
-		}
+	for _, n := range nodelist {
+		p.ContivTelemetryCache.appendToNodeReport(n.Name, "Report done.")
 	}
+	p.ContivTelemetryCache.Report.printReport()
 }
 
 //Gathers a number of data points for every node in the Node List

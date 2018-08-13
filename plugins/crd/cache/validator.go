@@ -278,10 +278,10 @@ func (ctc *ContivTelemetryCache) ValidateL2Connectivity() {
 				i++
 
 				dstAddr := node.NodeInterfaces[int(intfidx)].Vxlan.DstAddress
-				if node, err := ctc.VppCache.RetrieveNodeByGigEIPAddr(dstAddr + subnetmask); err != nil {
-					delete(nodeVxlanMap, node.Name)
+				if n1, err := ctc.VppCache.RetrieveNodeByGigEIPAddr(dstAddr + subnetmask); err == nil {
+					delete(nodeVxlanMap, n1.Name)
 				} else {
-					ctc.logErrAndAppendToNodeReport(node.Name,
+					ctc.logErrAndAppendToNodeReport(n1.Name,
 						fmt.Sprintf("validator internal error: inconsistent GigE Address index, dest addr %s",
 							dstAddr))
 				}
@@ -302,10 +302,9 @@ func (ctc *ContivTelemetryCache) ValidateL2Connectivity() {
 			continue
 		}
 		if len(nodeVxlanMap) > 0 {
-			errString := fmt.Sprintf("missing valid vxlan entries for node %+v:", node.Name)
-			ctc.logErrAndAppendToNodeReport(node.Name, errString)
 			for node := range nodeVxlanMap {
-				ctc.logErrAndAppendToNodeReport(node, node)
+				ctc.logErrAndAppendToNodeReport(node,
+					fmt.Sprintf("vxlan entry missing for node %s", node))
 			}
 			continue
 		}
@@ -369,7 +368,7 @@ func (ctc *ContivTelemetryCache) ValidateL2FibEntries() {
 			if fib.PhysAddress == loopIf.PhysAddress {
 				fibHasLoopIF = true
 				fibEntryCount++
-				if n, err := ctc.VppCache.RetrieveNodeByLoopMacAddr(fib.PhysAddress); err != nil {
+				if n, err := ctc.VppCache.RetrieveNodeByLoopMacAddr(fib.PhysAddress); err == nil {
 					delete(nodeFibMap, n.Name)
 				} else {
 					ctc.logErrAndAppendToNodeReport(node.Name,
@@ -395,7 +394,7 @@ func (ctc *ContivTelemetryCache) ValidateL2FibEntries() {
 			}
 
 			if remoteLoopIF.PhysAddress == fib.PhysAddress {
-				if n, err := ctc.VppCache.RetrieveNodeByLoopMacAddr(fib.PhysAddress); err != nil {
+				if n, err := ctc.VppCache.RetrieveNodeByLoopMacAddr(fib.PhysAddress); err == nil {
 					delete(nodeFibMap, n.Name)
 					fibEntryCount++
 				} else {
@@ -436,8 +435,8 @@ func (ctc *ContivTelemetryCache) ValidateL2FibEntries() {
 
 	if len(nodemap) > 0 {
 		for node := range nodemap {
-			errString := fmt.Sprintf("Error processing fib for node %+v", node)
-			ctc.logErrAndAppendToNodeReport(node, errString)
+			errString := fmt.Sprintf("Error processing fib for node %s", node)
+			ctc.appendToNodeReport(node, errString)
 		}
 
 	} else {
@@ -500,13 +499,9 @@ func (ctc *ContivTelemetryCache) ValidatePodInfo() {
 	for _, pod := range podList {
 		node, err := ctc.VppCache.RetrieveNodeByHostIPAddr(pod.HostIPAddress)
 		if err != nil {
-			ctc.appendToNodeReport(globalMsg, fmt.Sprintf("Error finding node for host ip %s from pod %s",
-				pod.HostIPAddress, pod.Name))
+			ctc.appendToNodeReport(globalMsg, fmt.Sprintf("Error finding node for Pod %s with host ip %s",
+				pod.Name, pod.HostIPAddress))
 			continue
-		} else {
-			ctc.logErrAndAppendToNodeReport(node.Name,
-				fmt.Sprintf("validator internal error: inconsistent Host IP Address index, IP %s",
-					pod.HostIPAddress))
 		}
 
 		podPtr, ok := node.PodMap[pod.Name]

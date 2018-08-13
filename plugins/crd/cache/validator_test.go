@@ -81,8 +81,7 @@ func testErrorFreeTopologyValidation(t *testing.T) {
 
 	vtv.processor.validateNodeInfo()
 
-	vtv.processor.ContivTelemetryCache.Report.printReport()
-	gomega.Expect(len(vtv.processor.ContivTelemetryCache.Report)).To(gomega.Equal(3))
+	gomega.Expect(len(vtv.processor.ContivTelemetryCache.Report[globalMsg])).To(gomega.Equal(4))
 }
 
 func testK8sNodeToNodeInfoOkValidation(t *testing.T) {
@@ -242,19 +241,19 @@ func (v *validatorTestVars) createNodeInfoTestData() {
 		},
 		l2FibTable: telemetrymodel.NodeL2FibTable{
 			"1a:2b:3c:4d:5e:01": {
-				BridgeDomainIdx:          2,
+				BridgeDomainIdx:          1,
 				OutgoingInterfaceSwIfIdx: 5,
 				PhysAddress:              "1a:2b:3c:4d:5e:01",
 				StaticConfig:             true,
 			},
 			"1a:2b:3c:4d:5e:02": {
-				BridgeDomainIdx:          2,
+				BridgeDomainIdx:          1,
 				OutgoingInterfaceSwIfIdx: 6,
 				PhysAddress:              "1a:2b:3c:4d:5e:02",
 				StaticConfig:             true,
 			},
 			"1a:2b:3c:4d:5e:03": {
-				BridgeDomainIdx:          2,
+				BridgeDomainIdx:          1,
 				OutgoingInterfaceSwIfIdx: 4,
 				PhysAddress:              "1a:2b:3c:4d:5e:03",
 				StaticConfig:             true,
@@ -373,19 +372,19 @@ func (v *validatorTestVars) createNodeInfoTestData() {
 		},
 		l2FibTable: telemetrymodel.NodeL2FibTable{
 			"1a:2b:3c:4d:5e:01": {
-				BridgeDomainIdx:          2,
+				BridgeDomainIdx:          1,
 				OutgoingInterfaceSwIfIdx: 4,
 				PhysAddress:              "1a:2b:3c:4d:5e:01",
 				StaticConfig:             true,
 			},
 			"1a:2b:3c:4d:5e:02": {
-				BridgeDomainIdx:          2,
+				BridgeDomainIdx:          1,
 				OutgoingInterfaceSwIfIdx: 3,
 				PhysAddress:              "1a:2b:3c:4d:5e:02",
 				StaticConfig:             true,
 			},
 			"1a:2b:3c:4d:5e:03": {
-				BridgeDomainIdx:          2,
+				BridgeDomainIdx:          1,
 				OutgoingInterfaceSwIfIdx: 5,
 				PhysAddress:              "1a:2b:3c:4d:5e:03",
 				StaticConfig:             true,

@@ -1,24 +1,32 @@
 package validator
 
 import (
+	"fmt"
+	"github.com/contiv/vpp/plugins/crd/api"
 	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
+	"github.com/contiv/vpp/plugins/crd/datastore"
 	nodemodel "github.com/contiv/vpp/plugins/ksr/model/node"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/logging/logrus"
 	"github.com/onsi/gomega"
+	"strings"
 	"testing"
 )
 
 type validatorTestVars struct {
 	log       *logrus.Logger
-	processor *ContivTelemetryProcessor
+	processor *Validator
 	logWriter *mockLogWriter
 
 	// Mock data
 	nodeInfoData []*nodeData
 	k8sNodeData  []*nodemodel.Node
 	k8sPodData   []*podmodel.Pod
+
+	vppCache *datastore.VppDataStore
+	k8sCache *datastore.K8sDataStore
+	report   *datastore.SimpleReport
 }
 
 type nodeData struct {
@@ -34,6 +42,40 @@ type nodeData struct {
 	arpTable   telemetrymodel.NodeIPArpTable
 }
 
+// mockLogWriter collects all error logs into a buffer for analysis
+// by gomega assertions.
+type mockLogWriter struct {
+	log []string
+}
+
+func (mlw *mockLogWriter) Write(p []byte) (n int, err error) {
+	logStr := string(p)
+	mlw.log = append(mlw.log, logStr)
+	return len(logStr), nil
+}
+
+func (mlw *mockLogWriter) clearLog() {
+	mlw.log = []string{}
+}
+
+func (mlw *mockLogWriter) printLog() {
+	fmt.Println("Error log:")
+	fmt.Println("==========")
+	for i, l := range mlw.log {
+		fmt.Printf("%d: %s", i, l)
+	}
+}
+
+func (mlw *mockLogWriter) countErrors() int {
+	cnt := 0
+	for _, logLine := range mlw.log {
+		if strings.Contains(logLine, "level=error") {
+			cnt++
+		}
+	}
+	return cnt
+}
+
 var vtv validatorTestVars
 
 func TestValidator(t *testing.T) {
@@ -45,24 +87,23 @@ func TestValidator(t *testing.T) {
 	vtv.log.SetLevel(logging.ErrorLevel)
 	vtv.log.SetOutput(vtv.logWriter)
 
+	vtv.vppCache = datastore.NewVppDataStore()
+	vtv.k8sCache = datastore.NewK8sDataStore()
+	vtv.report = datastore.NewSimpleReport(vtv.log)
+
 	vtv.createNodeInfoTestData()
 	vtv.createK8sNodeTestData()
 	vtv.createK8sPodTestData()
 
 	// Initialize the cache
-	vtv.processor = &ContivTelemetryProcessor{
+	vtv.processor = &Validator{
 		Deps: Deps{
 			Log: vtv.log,
 		},
-		ContivTelemetryCache: &ContivTelemetryCache{
-			Deps: Deps{
-				Log: vtv.log,
-			},
-			Synced: false,
-			Report: make(map[string][]string),
-		},
+		VppCache: vtv.vppCache,
+		K8sCache: vtv.k8sCache,
+		Report:   vtv.report,
 	}
-	vtv.processor.ContivTelemetryCache.Init()
 
 	// Populate cache data
 
@@ -75,69 +116,67 @@ func TestValidator(t *testing.T) {
 }
 
 func testErrorFreeTopologyValidation(t *testing.T) {
-	populateNodeInfoDataInCache(vtv.processor.ContivTelemetryCache)
-	populateK8sNodeDataInCache(vtv.processor.ContivTelemetryCache)
-	populateK8sPodDataInCache(vtv.processor.ContivTelemetryCache)
+	resetAllCaches()
+	vtv.processor.Validate()
 
-	vtv.processor.validateNodeInfo()
-
-	gomega.Expect(len(vtv.processor.ContivTelemetryCache.Report[globalMsg])).To(gomega.Equal(4))
+	gomega.Expect(len(vtv.report.Data[api.GlobalMsg])).To(gomega.Equal(4))
 }
 
 func testK8sNodeToNodeInfoOkValidation(t *testing.T) {
-	vtv.processor.ContivTelemetryCache.ReinitializeCache()
-	populateNodeInfoDataInCache(vtv.processor.ContivTelemetryCache)
-	populateK8sNodeDataInCache(vtv.processor.ContivTelemetryCache)
+	resetAllCaches()
+	vtv.processor.ValidateK8sNodeInfo()
 
-	vtv.processor.ContivTelemetryCache.ValidateK8sNodeInfo()
-
-	gomega.Expect(len(vtv.processor.ContivTelemetryCache.Report)).To(gomega.Equal(0))
+	gomega.Expect(len(vtv.report.Data[api.GlobalMsg])).To(gomega.Equal(0))
 }
 
 func testK8sNodeToNodeInfoMissingNiValidation(t *testing.T) {
-	vtv.processor.ContivTelemetryCache.ReinitializeCache()
-	populateNodeInfoDataInCache(vtv.processor.ContivTelemetryCache)
-	populateK8sNodeDataInCache(vtv.processor.ContivTelemetryCache)
-	vtv.processor.ContivTelemetryCache.DeleteVppNode([]string{"k8s-master"})
+	resetAllCaches()
+	vtv.processor.VppCache.DeleteNode("k8s-master")
 
-	vtv.processor.ContivTelemetryCache.ValidateK8sNodeInfo()
+	vtv.processor.ValidateK8sNodeInfo()
 
-	gomega.Expect(len(vtv.processor.ContivTelemetryCache.Report)).To(gomega.Equal(2))
+	gomega.Expect(len(vtv.report.Data[api.GlobalMsg])).To(gomega.Equal(2))
 }
 
 func testK8sNodeToNodeInfoMissingK8snValidation(t *testing.T) {
-	vtv.processor.ContivTelemetryCache.ReinitializeCache()
-	populateNodeInfoDataInCache(vtv.processor.ContivTelemetryCache)
-	populateK8sNodeDataInCache(vtv.processor.ContivTelemetryCache)
-	vtv.processor.ContivTelemetryCache.K8sCache.DeleteK8sNode("k8s-master")
+	resetAllCaches()
+	vtv.processor.K8sCache.DeleteK8sNode("k8s-master")
 
-	vtv.processor.ContivTelemetryCache.ValidateK8sNodeInfo()
+	vtv.processor.ValidateK8sNodeInfo()
 
-	gomega.Expect(len(vtv.processor.ContivTelemetryCache.Report)).To(gomega.Equal(2))
+	gomega.Expect(len(vtv.report.Data[api.GlobalMsg])).To(gomega.Equal(2))
 }
 
-func populateNodeInfoDataInCache(cache *ContivTelemetryCache) {
+func populateNodeInfoDataInCache(cache *datastore.VppDataStore) {
 	for _, node := range vtv.nodeInfoData {
-		cache.AddVppNode(node.ID, node.nodeName, node.IPAdr, node.ManIPAdr)
-		cache.VppCache.SetNodeLiveness(node.nodeName, node.liveness)
-		cache.VppCache.SetNodeInterfaces(node.nodeName, node.interfaces)
-		cache.VppCache.SetNodeBridgeDomain(node.nodeName, node.bds)
-		cache.VppCache.SetNodeL2Fibs(node.nodeName, node.l2FibTable)
-		cache.VppCache.SetNodeIPARPs(node.nodeName, node.arpTable)
+		cache.CreateNode(node.ID, node.nodeName, node.IPAdr, node.ManIPAdr)
+		cache.SetNodeLiveness(node.nodeName, node.liveness)
+		cache.SetNodeInterfaces(node.nodeName, node.interfaces)
+		cache.SetNodeBridgeDomain(node.nodeName, node.bds)
+		cache.SetNodeL2Fibs(node.nodeName, node.l2FibTable)
+		cache.SetNodeIPARPs(node.nodeName, node.arpTable)
 	}
 }
 
-func populateK8sNodeDataInCache(cache *ContivTelemetryCache) {
+func populateK8sNodeDataInCache(cache *datastore.K8sDataStore) {
 	for _, node := range vtv.k8sNodeData {
-		cache.K8sCache.CreateK8sNode(node.Name, node.Pod_CIDR, node.Provider_ID, node.Addresses, node.NodeInfo)
+		cache.CreateK8sNode(node.Name, node.Pod_CIDR, node.Provider_ID, node.Addresses, node.NodeInfo)
 	}
 }
 
-func populateK8sPodDataInCache(cache *ContivTelemetryCache) {
+func populateK8sPodDataInCache(cache *datastore.K8sDataStore) {
 	for _, pod := range vtv.k8sPodData {
-		cache.K8sCache.CreatePod(pod.Name, pod.Namespace, pod.Label,
+		cache.CreatePod(pod.Name, pod.Namespace, pod.Label,
 			pod.IpAddress, pod.HostIpAddress, []*podmodel.Pod_Container{})
 	}
+}
+
+func resetAllCaches() {
+	vtv.vppCache.ReinitializeCache()
+	vtv.k8sCache.ReinitializeCache()
+	populateNodeInfoDataInCache(vtv.vppCache)
+	populateK8sNodeDataInCache(vtv.k8sCache)
+
 }
 
 // createNodeInfoTestData creates a test vector that roughly corresponds to a 3-node

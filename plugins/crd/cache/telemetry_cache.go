@@ -58,6 +58,7 @@ type ContivTelemetryCache struct {
 
 	nodeResponseChannel  chan *NodeDTO
 	networkInfoGetCh     chan bool
+	dsUpdateChannel      chan *DsUpdateDTO
 	dtoList              []*NodeDTO
 	ticker               *time.Ticker
 	collectionInterval   time.Duration
@@ -71,12 +72,19 @@ type Deps struct {
 	Log logging.Logger
 }
 
-// NodeDTO holds generic node information to be sent over a channel
-// and associated with a name in the cache.
+// NodeDTO is the Data Transfer Object (DTO) for sending data received from
+// Contiv node Agent to the cache thread.
 type NodeDTO struct {
 	NodeName string
 	NodeInfo interface{}
 	err      error
+}
+
+// DsUpdateDTO is the Data Transfer Object (DTO) for updates received from
+// Contiv etcd to the cache thread.
+type DsUpdateDTO struct {
+	clearCache bool
+	Update     interface{}
 }
 
 // Init initializes policy cache.
@@ -97,6 +105,7 @@ func (ctc *ContivTelemetryCache) init() {
 	ctc.validationInProgress = false
 
 	ctc.nodeResponseChannel = make(chan *NodeDTO)
+	ctc.dsUpdateChannel = make(chan *DsUpdateDTO)
 	ctc.networkInfoGetCh = make(chan bool)
 	ctc.dtoList = make([]*NodeDTO, 0)
 	ctc.ticker = time.NewTicker(ctc.collectionInterval)
@@ -143,11 +152,18 @@ func (ctc *ContivTelemetryCache) nodeEventProcessor() {
 			ctc.startNodeInfoCollection()
 
 		case data, ok := <-ctc.nodeResponseChannel:
-			ctc.Log.Info("Received DTO, status: ", ok)
+			ctc.Log.Info("Received node response DTO, status: ", ok)
 			if !ok {
 				return
 			}
 			ctc.processNodeResponse(data)
+
+		case data, ok := <-ctc.dsUpdateChannel:
+			ctc.Log.Info("Received dsUpdate DTO, status: ", ok)
+			if !ok {
+				return
+			}
+			ctc.processDataStoreUpdate(data)
 		}
 	}
 }
@@ -360,4 +376,7 @@ func (ctc *ContivTelemetryCache) setNodeData() {
 			ctc.Report.LogErrAndAppendToNodeReport(data.NodeName, err.Error())
 		}
 	}
+}
+
+func (ctc *ContivTelemetryCache) processDataStoreUpdate(data *DsUpdateDTO) {
 }

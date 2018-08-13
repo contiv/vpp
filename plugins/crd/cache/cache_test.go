@@ -14,7 +14,7 @@ import (
 //Checks expected error for adding duplicate node.
 func TestNodesDB_AddNode(t *testing.T) {
 	gomega.RegisterTestingT(t)
-	db := NewVppCache(logrus.DefaultLogger())
+	db := NewVppDataStore(logrus.DefaultLogger())
 	db.CreateNode(1, "k8s_master", "10", "20")
 	node, ok := db.retrieveNode("k8s_master")
 	gomega.Expect(ok).To(gomega.BeNil())
@@ -28,7 +28,7 @@ func TestNodesDB_AddNode(t *testing.T) {
 //Checks looking up a non-existent key.
 func TestNodesDB_GetNode(t *testing.T) {
 	gomega.RegisterTestingT(t)
-	db := NewVppCache(logrus.DefaultLogger())
+	db := NewVppDataStore(logrus.DefaultLogger())
 	db.CreateNode(1, "k8s_master", "10", "10")
 	node, ok := db.retrieveNode("k8s_master")
 	gomega.Expect(ok).To(gomega.BeNil())
@@ -46,7 +46,7 @@ func TestNodesDB_GetNode(t *testing.T) {
 //Checks whether expected error is returned when deleting non-existent key.
 func TestNodesDB_DeleteNode(t *testing.T) {
 	gomega.RegisterTestingT(t)
-	db := NewVppCache(logrus.DefaultLogger())
+	db := NewVppDataStore(logrus.DefaultLogger())
 	db.CreateNode(1, "k8s_master", "10", "10")
 	node, ok := db.retrieveNode("k8s_master")
 	gomega.Expect(ok).To(gomega.BeNil())
@@ -67,7 +67,7 @@ func TestNodesDB_DeleteNode(t *testing.T) {
 //Then, the list is checked to see if it is in order.
 func TestNodesDB_GetAllNodes(t *testing.T) {
 	gomega.RegisterTestingT(t)
-	db := NewVppCache(logrus.DefaultLogger())
+	db := NewVppDataStore(logrus.DefaultLogger())
 	db.CreateNode(1, "k8s_master", "10", "10")
 	node, ok := db.retrieveNode("k8s_master")
 	gomega.Expect(ok).To(gomega.BeNil())
@@ -100,7 +100,7 @@ func TestNodesDB_GetAllNodes(t *testing.T) {
 
 func TestNodesDB_SetNodeInterfaces(t *testing.T) {
 	gomega.RegisterTestingT(t)
-	db := NewVppCache(logrus.DefaultLogger())
+	db := NewVppDataStore(logrus.DefaultLogger())
 	db.CreateNode(1, "k8s_master", "10", "10")
 	node, ok := db.retrieveNode("k8s_master")
 	gomega.Expect(ok).To(gomega.BeNil())
@@ -124,7 +124,7 @@ func TestNodesDB_SetNodeInterfaces(t *testing.T) {
 
 func TestNodesDB_SetNodeBridgeDomain(t *testing.T) {
 	gomega.RegisterTestingT(t)
-	db := NewVppCache(logrus.DefaultLogger())
+	db := NewVppDataStore(logrus.DefaultLogger())
 	db.CreateNode(1, "k8s_master", "10", "10")
 	node, ok := db.retrieveNode("k8s_master")
 	gomega.Expect(ok).To(gomega.BeNil())
@@ -148,7 +148,7 @@ func TestNodesDB_SetNodeBridgeDomain(t *testing.T) {
 
 func TestNodesDB_SetNodeIPARPs(t *testing.T) {
 	gomega.RegisterTestingT(t)
-	db := NewVppCache(logrus.DefaultLogger())
+	db := NewVppDataStore(logrus.DefaultLogger())
 	db.CreateNode(1, "k8s_master", "10", "10")
 	node, ok := db.retrieveNode("k8s_master")
 	gomega.Expect(ok).To(gomega.BeNil())
@@ -171,7 +171,7 @@ func TestNodesDB_SetNodeIPARPs(t *testing.T) {
 
 func TestNodesDB_SetNodeLiveness(t *testing.T) {
 	gomega.RegisterTestingT(t)
-	db := NewVppCache(logrus.DefaultLogger())
+	db := NewVppDataStore(logrus.DefaultLogger())
 	db.CreateNode(1, "k8s_master", "10", "10")
 	node, ok := db.retrieveNode("k8s_master")
 	gomega.Expect(ok).To(gomega.BeNil())
@@ -192,7 +192,7 @@ func TestNodesDB_SetNodeLiveness(t *testing.T) {
 
 func TestCache_SetNodeTelemetry(t *testing.T) {
 	gomega.RegisterTestingT(t)
-	db := NewVppCache(logrus.DefaultLogger())
+	db := NewVppDataStore(logrus.DefaultLogger())
 	db.CreateNode(1, "k8s_master", "10", "10")
 	node, ok := db.retrieveNode("k8s_master")
 	gomega.Expect(ok).To(gomega.BeNil())
@@ -212,7 +212,7 @@ func TestCache_SetNodeTelemetry(t *testing.T) {
 
 func TestNodesDB_SetNodeL2Fibs(t *testing.T) {
 	gomega.RegisterTestingT(t)
-	db := NewVppCache(logrus.DefaultLogger())
+	db := NewVppDataStore(logrus.DefaultLogger())
 	db.CreateNode(1, "k8s_master", "10", "10")
 	node, ok := db.retrieveNode("k8s_master")
 	gomega.Expect(ok).To(gomega.BeNil())
@@ -236,9 +236,9 @@ func TestNodesDB_SetNodeL2Fibs(t *testing.T) {
 func TestNodesDB_ValidateLoopIFAddresses(t *testing.T) {
 	gomega.RegisterTestingT(t)
 	logger := logrus.DefaultLogger()
-	db := NewVppCache(logger)
+	db := NewVppDataStore(logger)
 	ctc := ContivTelemetryCache{Deps{}, true, &VppDataStore{}, &K8sDataStore{}, nil,
-	map[string][]string{}}
+		map[string][]string{}}
 	ctc.VppCache = db
 	db.CreateNode(1, "k8s_master", "10", "10")
 	node, ok := db.retrieveNode("k8s_master")
@@ -335,9 +335,9 @@ func TestNodesDB_ValidateLoopIFAddresses(t *testing.T) {
 func TestNodesDB_ValidateL2Connections(t *testing.T) {
 	gomega.RegisterTestingT(t)
 	logger := logrus.DefaultLogger()
-	db := NewVppCache(logger)
+	db := NewVppDataStore(logger)
 	ctc := ContivTelemetryCache{Deps{}, true, &VppDataStore{}, &K8sDataStore{},
-	nil, map[string][]string{}}
+		nil, map[string][]string{}}
 	ctc.VppCache = db
 	db.CreateNode(1, "k8s_master", "10", "10")
 	node, ok := db.retrieveNode("k8s_master")
@@ -540,9 +540,9 @@ func TestNodesDB_ValidateL2Connections(t *testing.T) {
 func TestCache_ValidateFibEntries(t *testing.T) {
 	gomega.RegisterTestingT(t)
 	logger := logrus.DefaultLogger()
-	db := NewVppCache(logger)
+	db := NewVppDataStore(logger)
 	ctc := ContivTelemetryCache{Deps{}, true, &VppDataStore{}, &K8sDataStore{},
-	nil, map[string][]string{}}
+		nil, map[string][]string{}}
 	ctc.VppCache = db
 	db.CreateNode(1, "k8s_master", "10", "10")
 	node, ok := db.retrieveNode("k8s_master")

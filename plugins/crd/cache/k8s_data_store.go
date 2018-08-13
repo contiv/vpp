@@ -18,10 +18,9 @@ import (
 	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
 	"github.com/contiv/vpp/plugins/ksr/model/node"
 	pod2 "github.com/contiv/vpp/plugins/ksr/model/pod"
-	"github.com/ligato/cn-infra/logging"
-	"github.com/pkg/errors"
-	"sync"
+		"github.com/pkg/errors"
 	"sort"
+	"sync"
 )
 
 // K8sCache defines the operations on the K8s data store / cache.
@@ -48,15 +47,16 @@ type K8sCache interface {
 	ReinitializeCache()
 }
 
-//K8sDataStore holds k8s related information separate from vpp related information
+//K8sDataStore implements the K8sCache interface. The K8sDataStore structure
+// holds k8s related information separate from vpp related information
 type K8sDataStore struct {
 	lock       *sync.Mutex
 	k8sNodeMap map[string]*node.Node
 	podMap     map[string]*telemetrymodel.Pod
 }
 
-//NewK8sCache will return a pointer to a new cache which holds various types of k8s related information.
-func NewK8sCache(logger logging.Logger) *K8sDataStore {
+// NewK8sDataStore will return a pointer to a new cache which holds various types of k8s related information.
+func NewK8sDataStore() *K8sDataStore {
 	return &K8sDataStore{
 		&sync.Mutex{},
 		make(map[string]*node.Node),
@@ -137,7 +137,7 @@ func (k *K8sDataStore) RetrieveAllK8sNodes() []*node.Node {
 
 // CreatePod adds a pod with the given parameters to the contiv telemetry cache
 func (k *K8sDataStore) CreatePod(name, Namespace string, label []*pod2.Pod_Label, IPAddress,
-hostIPAddress string, container []*pod2.Pod_Container) error {
+	hostIPAddress string, container []*pod2.Pod_Container) error {
 	k.lock.Lock()
 	defer k.lock.Unlock()
 

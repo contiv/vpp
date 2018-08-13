@@ -17,8 +17,7 @@ package cache
 import (
 	"fmt"
 	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
-	"github.com/ligato/cn-infra/logging"
-	"github.com/pkg/errors"
+		"github.com/pkg/errors"
 	"sort"
 	"sync"
 )
@@ -177,6 +176,7 @@ func (vds *VppDataStore) ClearCache() {
 	vds.gigEIPMap = make(map[string]*telemetrymodel.Node)
 	vds.loopMACMap = make(map[string]*telemetrymodel.Node)
 	vds.loopIPMap = make(map[string]*telemetrymodel.Node)
+	vds.hostIPMap = make(map[string]*telemetrymodel.Node)
 }
 
 // ReinitializeCache completely re-initializes the cache, clearing all
@@ -186,8 +186,8 @@ func (vds *VppDataStore) ReinitializeCache() {
 	vds.nMap = make(map[string]*telemetrymodel.Node)
 }
 
-//NewVppCache returns a pointer to a new node cache
-func NewVppCache(logger logging.Logger) (n *VppDataStore) {
+//NewVppDataStore returns a reference to a new Vpp data store
+func NewVppDataStore() (n *VppDataStore) {
 	return &VppDataStore{
 		lock:       &sync.Mutex{},
 		nMap:       make(map[string]*telemetrymodel.Node),

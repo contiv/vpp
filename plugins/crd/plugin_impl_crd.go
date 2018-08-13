@@ -60,7 +60,7 @@ type Plugin struct {
 
 	controller *controller.ContivTelemetryController
 	cache      *cache.ContivTelemetryCache
-	processor  cache.Processor
+	processor  cache.ContivTelemetryProcessor
 }
 
 // Deps defines dependencies of policy plugin.

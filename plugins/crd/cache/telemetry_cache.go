@@ -42,11 +42,6 @@ const (
 	collectionInterval = 1  // data collection interval, in minutes
 )
 
-type TelemetryCache interface {
-	ClearCache()
-	ReinitializeCache()
-}
-
 // ContivTelemetryCache is used for a in-memory storage of K8s State data
 // The cache processes K8s State data updates and RESYNC events through Update()
 // and Resync() APIs, respectively.
@@ -57,7 +52,7 @@ type ContivTelemetryCache struct {
 	Synced    bool
 	VppCache  VppCache
 	K8sCache  K8sCache
-	Processor Processor
+	Processor ContivTelemetryProcessor
 	Report    *Report
 
 	nodeResponseChannel  chan *NodeDTO
@@ -75,12 +70,15 @@ type Deps struct {
 	Log logging.Logger
 }
 
+// Report holds error/warning messages recorded during data collection /
+// validation
 type Report struct {
 	Log  logging.Logger
 	Data map[string][]string
 }
 
-// NodeDTO holds generic node information to be sent over a channel and associated with a name in the cache.
+// NodeDTO holds generic node information to be sent over a channel
+// and associated with a name in the cache.
 type NodeDTO struct {
 	NodeName string
 	NodeInfo interface{}

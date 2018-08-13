@@ -76,7 +76,7 @@ func (mkv *mockKeyVal) GetValue(value proto.Message) error {
 	return err
 }
 
-// mockProcessor emulates the Processor, effectively making sure no
+// mockProcessor emulates the ContivTelemetryProcessor, effectively making sure no
 // data collection is started during the unit test.
 type mockProcessor struct {
 	retrieveCnt int32

@@ -28,10 +28,12 @@ const (
 	globalMsg = "global"
 )
 
-type Processor interface {
+// ContivTelemetryProcessor defines the methods for the telemetry processor.
+type ContivTelemetryProcessor interface {
 	Validate()
 }
 
+// Validator is the implementation of the ContivTelemetryProcessor interface.
 type Validator struct {
 	Deps
 
@@ -40,6 +42,8 @@ type Validator struct {
 	Report   *Report
 }
 
+// Validate performes the validation of telemetry data collected from a
+// Contiv cluster.
 func (v *Validator) Validate() {
 	v.ValidateArpTables()
 	v.ValidateL2Connectivity()
@@ -325,7 +329,7 @@ func (v *Validator) ValidateL2FibEntries() {
 			v.Report.appendToNodeReport(node.Name, errString)
 			continue
 		}
-		loopIf, err := GetNodeLoopIFInfo(node)
+		loopIf, err := getNodeLoopIFInfo(node)
 		if err != nil {
 			v.Report.appendToNodeReport(node.Name, err.Error())
 			continue
@@ -367,7 +371,7 @@ func (v *Validator) ValidateL2FibEntries() {
 				continue
 			}
 
-			remoteLoopIF, err := GetNodeLoopIFInfo(macNode)
+			remoteLoopIF, err := getNodeLoopIFInfo(macNode)
 			if err != nil {
 				v.Report.appendToNodeReport(node.Name, err.Error())
 				continue
@@ -581,7 +585,7 @@ func (v *Validator) ValidateTapToPod() {
 					podIP := ip2uint32(pod.IPAddress)
 					tapIP := ip2uint32(ip)
 					if (podIP & bitmask) == (tapIP & bitmask) {
-						pod.VppIfIpAddr = ip
+						pod.VppIfIPAddr = ip
 						pod.VppIfName = intf.VppInternalName
 					}
 				}
@@ -611,7 +615,7 @@ func ip2uint32(ipAddress string) uint32 {
 	return ipu
 }
 
-func GetNodeLoopIFInfo(node *telemetrymodel.Node) (*telemetrymodel.NodeInterface, error) {
+func getNodeLoopIFInfo(node *telemetrymodel.Node) (*telemetrymodel.NodeInterface, error) {
 	for _, ifs := range node.NodeInterfaces {
 		if ifs.VppInternalName == "loop0" {
 			return &ifs, nil

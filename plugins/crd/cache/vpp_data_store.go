@@ -95,7 +95,7 @@ func (vds *VppDataStore) RetrieveNode(nodeName string) (n *telemetrymodel.Node, 
 	return nil, fmt.Errorf("node %s not found", nodeName)
 }
 
-// DeleteVppNode handles node deletions from the cache. If the node identified
+// DeleteNode handles node deletions from the cache. If the node identified
 // by 'nodeName" is present in the cache, it is deleted and nil error is
 // returned; otherwise, an error is returned.
 func (vds *VppDataStore) DeleteNode(nodeName string) error {
@@ -287,15 +287,15 @@ func (vds *VppDataStore) SetSecondaryNodeIndices(node *telemetrymodel.Node) []st
 
 	errReport := make([]string, 0)
 
-	loopIF, err := GetNodeLoopIFInfo(node)
+	loopIF, err := getNodeLoopIFInfo(node)
 	if err != nil {
 		errReport = append(errReport, "node %s does not have a loop interface", node.Name)
 		return errReport
 	}
 
-	if nIp, ok := vds.hostIPMap[node.ManIPAdr]; ok {
+	if nIP, ok := vds.hostIPMap[node.ManIPAdr]; ok {
 		errReport = append(errReport,
-			fmt.Sprintf("duplicate Host IP Address %s, hosts %s, %s", node.ManIPAdr, nIp.Name, node.Name))
+			fmt.Sprintf("duplicate Host IP Address %s, hosts %s, %s", node.ManIPAdr, nIP.Name, node.Name))
 	} else {
 		vds.hostIPMap[node.ManIPAdr] = node
 	}

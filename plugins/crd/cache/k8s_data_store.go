@@ -43,7 +43,6 @@ type K8sCache interface {
 
 	RetrieveAllPods() []*telemetrymodel.Pod
 
-	ClearCache()
 	ReinitializeCache()
 }
 
@@ -55,7 +54,8 @@ type K8sDataStore struct {
 	podMap     map[string]*telemetrymodel.Pod
 }
 
-// NewK8sDataStore will return a pointer to a new cache which holds various types of k8s related information.
+// NewK8sDataStore will return a pointer to a new cache which holds various
+// types of k8s related information.
 func NewK8sDataStore() *K8sDataStore {
 	return &K8sDataStore{
 		&sync.Mutex{},
@@ -90,6 +90,8 @@ func (k *K8sDataStore) RetrieveK8sNode(name string) (*node.Node, error) {
 	return k.retrieveK8sNode(name)
 }
 
+// UpdateK8sNode updates the specified node in the K8s cache. If the node
+// is found, its data is updated; otherwise, an error is returned.
 func (k *K8sDataStore) UpdateK8sNode(name string, PodCIDR string, ProviderID string,
 	Addresses []*node.NodeAddress, NodeInfo *node.NodeSystemInfo) error {
 	k.lock.Lock()
@@ -106,6 +108,8 @@ func (k *K8sDataStore) UpdateK8sNode(name string, PodCIDR string, ProviderID str
 	return nil
 }
 
+// DeleteK8sNode deletes the specified node from the K8s cache. If the node
+// is found, the node is deleted; otherwise, an error is returned.
 func (k *K8sDataStore) DeleteK8sNode(name string) error {
 	k.lock.Lock()
 	defer k.lock.Unlock()
@@ -118,6 +122,7 @@ func (k *K8sDataStore) DeleteK8sNode(name string) error {
 	return nil
 }
 
+// RetrieveAllK8sNodes returns a list of all nodes in the data store.
 func (k *K8sDataStore) RetrieveAllK8sNodes() []*node.Node {
 	k.lock.Lock()
 	defer k.lock.Unlock()
@@ -135,7 +140,8 @@ func (k *K8sDataStore) RetrieveAllK8sNodes() []*node.Node {
 	return nList
 }
 
-// CreatePod adds a pod with the given parameters to the contiv telemetry cache
+// CreatePod adds a pod with the given parameters to the contiv telemetry
+// cache.
 func (k *K8sDataStore) CreatePod(name, Namespace string, label []*pod2.Pod_Label, IPAddress,
 	hostIPAddress string, container []*pod2.Pod_Container) error {
 	k.lock.Lock()
@@ -169,6 +175,8 @@ func (k *K8sDataStore) RetrievePod(name string) (*telemetrymodel.Pod, error) {
 	return k.retrievePod(name)
 }
 
+// UpdatePod updates the specified pod in the K8s cache. If the pod
+// is found, its data is updated; otherwise, an error is returned.
 func (k *K8sDataStore) UpdatePod(name string, namespace string, label []*telemetrymodel.PodLabel,
 	IPAddress, hostIPAddress string, container []*pod2.Pod_Container) error {
 	k.lock.Lock()
@@ -185,6 +193,8 @@ func (k *K8sDataStore) UpdatePod(name string, namespace string, label []*telemet
 	return nil
 }
 
+// DeletePod deletes the specified pod from the K8s cache. If the pod
+// is found, the pod is deleted; otherwise, an error is returned.
 func (k *K8sDataStore) DeletePod(name string) error {
 	k.lock.Lock()
 	defer k.lock.Unlock()
@@ -197,6 +207,7 @@ func (k *K8sDataStore) DeletePod(name string) error {
 	return nil
 }
 
+// RetrieveAllPods returns a list of all pods in the data store.
 func (k *K8sDataStore) RetrieveAllPods() []*telemetrymodel.Pod {
 	k.lock.Lock()
 	defer k.lock.Unlock()
@@ -214,16 +225,13 @@ func (k *K8sDataStore) RetrieveAllPods() []*telemetrymodel.Pod {
 	return nList
 }
 
-func (k *K8sDataStore) ClearCache() {
+// ReinitializeCache will clear all data from the data store
+func (k *K8sDataStore) ReinitializeCache() {
 	k.lock.Lock()
 	defer k.lock.Unlock()
 
 	k.podMap = make(map[string]*telemetrymodel.Pod)
 	k.k8sNodeMap = make(map[string]*node.Node)
-}
-
-func (k *K8sDataStore) ReinitializeCache() {
-	k.ClearCache()
 }
 
 // retrieveK8sNode is an internal function (no locks) used to retrieve

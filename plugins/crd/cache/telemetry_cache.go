@@ -84,7 +84,7 @@ type NodeDTO struct {
 // Contiv etcd to the cache thread.
 type DsUpdateDTO struct {
 	clearCache bool
-	Update interface{}
+	Update     interface{}
 }
 
 // Init initializes policy cache.

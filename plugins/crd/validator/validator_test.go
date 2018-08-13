@@ -2,6 +2,7 @@ package validator
 
 import (
 	"fmt"
+	"github.com/contiv/vpp/plugins/crd/api"
 	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
 	"github.com/contiv/vpp/plugins/crd/datastore"
 	nodemodel "github.com/contiv/vpp/plugins/ksr/model/node"
@@ -11,7 +12,6 @@ import (
 	"github.com/onsi/gomega"
 	"strings"
 	"testing"
-	"github.com/contiv/vpp/plugins/crd/api"
 )
 
 type validatorTestVars struct {
@@ -171,7 +171,7 @@ func populateK8sPodDataInCache(cache *datastore.K8sDataStore) {
 	}
 }
 
-func resetAllCaches(){
+func resetAllCaches() {
 	vtv.vppCache.ReinitializeCache()
 	vtv.k8sCache.ReinitializeCache()
 	populateNodeInfoDataInCache(vtv.vppCache)

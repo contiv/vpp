@@ -18,7 +18,7 @@ package cache
 import (
 	"fmt"
 	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
-		"github.com/ligato/vpp-agent/plugins/vpp/model/interfaces"
+	"github.com/ligato/vpp-agent/plugins/vpp/model/interfaces"
 	"github.com/pkg/errors"
 	"strconv"
 	"strings"

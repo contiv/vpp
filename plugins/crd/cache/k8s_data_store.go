@@ -18,7 +18,7 @@ import (
 	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
 	"github.com/contiv/vpp/plugins/ksr/model/node"
 	pod2 "github.com/contiv/vpp/plugins/ksr/model/pod"
-		"github.com/pkg/errors"
+	"github.com/pkg/errors"
 	"sort"
 	"sync"
 )

@@ -17,7 +17,7 @@ package cache
 import (
 	"fmt"
 	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
-		"github.com/pkg/errors"
+	"github.com/pkg/errors"
 	"sort"
 	"sync"
 )

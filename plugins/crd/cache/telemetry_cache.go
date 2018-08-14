@@ -20,11 +20,12 @@ import (
 	"fmt"
 	"github.com/contiv/vpp/plugins/crd/api"
 	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
-	node2 "github.com/contiv/vpp/plugins/ksr/model/node"
-
+	nodemodel "github.com/contiv/vpp/plugins/ksr/model/node"
+	"github.com/ligato/cn-infra/datasync"
 	"github.com/ligato/cn-infra/logging"
 	"io/ioutil"
 	"net/http"
+	"reflect"
 	"time"
 )
 
@@ -57,8 +58,7 @@ type ContivTelemetryCache struct {
 	Report    api.Report
 
 	nodeResponseChannel  chan *NodeDTO
-	networkInfoGetCh     chan bool
-	dsUpdateChannel      chan *DsUpdateDTO
+	dsUpdateChannel      chan interface{}
 	dtoList              []*NodeDTO
 	ticker               *time.Ticker
 	collectionInterval   time.Duration
@@ -80,18 +80,11 @@ type NodeDTO struct {
 	err      error
 }
 
-// DsUpdateDTO is the Data Transfer Object (DTO) for updates received from
-// Contiv etcd to the cache thread.
-type DsUpdateDTO struct {
-	clearCache bool
-	Update     interface{}
-}
-
 // Init initializes policy cache.
 func (ctc *ContivTelemetryCache) Init() error {
 	ctc.init()
 
-	// Start the processor
+	// Start the telemetryCache
 	go ctc.nodeEventProcessor()
 
 	ctc.Log.Infof("ContivTelemetryCache init done")
@@ -105,16 +98,9 @@ func (ctc *ContivTelemetryCache) init() {
 	ctc.validationInProgress = false
 
 	ctc.nodeResponseChannel = make(chan *NodeDTO)
-	ctc.dsUpdateChannel = make(chan *DsUpdateDTO)
-	ctc.networkInfoGetCh = make(chan bool)
+	ctc.dsUpdateChannel = make(chan interface{})
 	ctc.dtoList = make([]*NodeDTO, 0)
 	ctc.ticker = time.NewTicker(ctc.collectionInterval)
-}
-
-// retrieveNetworkInfo triggers the processor to retrieve vpp data from all
-// agents in the cluster and validate it.
-func (ctc *ContivTelemetryCache) retrieveNetworkInfo() {
-	ctc.networkInfoGetCh <- true
 }
 
 // ClearCache with clear all Contiv Telemetry cache data except for the
@@ -144,13 +130,6 @@ func (ctc *ContivTelemetryCache) nodeEventProcessor() {
 			}
 			ctc.startNodeInfoCollection()
 
-		case _, ok := <-ctc.networkInfoGetCh:
-			ctc.Log.Info("Externally triggered data collection & validation, status: ", ok)
-			if !ok {
-				return
-			}
-			ctc.startNodeInfoCollection()
-
 		case data, ok := <-ctc.nodeResponseChannel:
 			ctc.Log.Info("Received node response DTO, status: ", ok)
 			if !ok {
@@ -164,6 +143,7 @@ func (ctc *ContivTelemetryCache) nodeEventProcessor() {
 				return
 			}
 			ctc.processDataStoreUpdate(data)
+			ctc.startNodeInfoCollection()
 		}
 	}
 }
@@ -283,13 +263,13 @@ func (ctc *ContivTelemetryCache) populateNodeMaps(node *telemetrymodel.Node) {
 	} else {
 		for _, adr := range k8snode.Addresses {
 			switch adr.Type {
-			case node2.NodeAddress_NodeHostName:
+			case nodemodel.NodeAddress_NodeHostName:
 				if adr.Address != node.Name {
 					errString := fmt.Sprintf("Inconsistent K8s host name for node %s, host name:,%s",
 						k8snode.Name, adr.Address)
 					ctc.Report.AppendToNodeReport(node.Name, errString)
 				}
-			case node2.NodeAddress_NodeInternalIP:
+			case nodemodel.NodeAddress_NodeInternalIP:
 				if adr.Address != node.ManIPAdr {
 					errString := fmt.Sprintf("Inconsistent Host IP Address for node %s: Contiv: %s, K8s %s",
 						k8snode.Name, node.ManIPAdr, adr.Address)
@@ -378,5 +358,22 @@ func (ctc *ContivTelemetryCache) setNodeData() {
 	}
 }
 
-func (ctc *ContivTelemetryCache) processDataStoreUpdate(data *DsUpdateDTO) {
+func (ctc *ContivTelemetryCache) processDataStoreUpdate(data interface{}) {
+	switch data.(type) {
+
+	case datasync.ResyncEvent:
+		resyncEv := data.(datasync.ResyncEvent)
+		ctc.resync(resyncEv)
+
+	case datasync.ChangeEvent:
+		dataChngEv := data.(datasync.ChangeEvent)
+		if err := ctc.update(dataChngEv); err != nil {
+			ctc.Log.Errorf("data update error, %s", err.Error())
+			ctc.Synced = false
+			// TODO: initiate resync at this point
+		}
+
+	default:
+		ctc.Log.Errorf("unknown type received, %s", reflect.TypeOf(data))
+	}
 }

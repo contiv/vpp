@@ -28,9 +28,18 @@ import (
 	"strings"
 )
 
-// Resync processes a data sync re sync event associated with K8s State data.
-// The cache content is full replaced with the received data.
+// Resync sends the resync event passed as an argument to the ctc telemetryCache
+// thread, where it processed in the function below (resync)
 func (ctc *ContivTelemetryCache) Resync(resyncEv datasync.ResyncEvent) error {
+	ctc.dsUpdateChannel <- resyncEv
+	return nil
+}
+
+// resync is an internal function that processes a data sync re sync event
+// associated with K8s State data. The function executes in context of the
+// ctc telemetryCache thread. The cache content is fully replaced with the received
+// data.
+func (ctc *ContivTelemetryCache) resync(resyncEv datasync.ResyncEvent) error {
 	err := error(nil)
 	ctc.Synced = true
 
@@ -66,15 +75,12 @@ func (ctc *ContivTelemetryCache) Resync(resyncEv datasync.ResyncEvent) error {
 		}
 	}
 
-	ctc.retrieveNetworkInfo()
-
 	if ctc.Synced == false {
 		retErr := fmt.Errorf("datasync error, cache may be out of sync")
 		ctc.Report.AppendToNodeReport(api.GlobalMsg, retErr.Error())
 		return retErr
 
 	}
-
 	return nil
 }
 

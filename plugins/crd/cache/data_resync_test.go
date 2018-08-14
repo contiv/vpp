@@ -14,6 +14,7 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+	"github.com/contiv/vpp/plugins/crd/datastore"
 )
 
 type dataResyncTestData struct {
@@ -82,7 +83,7 @@ type mockProcessor struct {
 	retrieveCnt int32
 }
 
-func (mp *mockProcessor) RetrieveNetworkInfo() {
+func (mp *mockProcessor) Validate() {
 	atomic.AddInt32(&mp.retrieveCnt, 1)
 }
 
@@ -137,7 +138,10 @@ func TestDataResync(t *testing.T) {
 		Deps: Deps{
 			Log: drd.log,
 		},
-		Synced: false,
+		Synced:   false,
+		VppCache: datastore.NewVppDataStore(),
+		K8sCache: datastore.NewK8sDataStore(),
+		Report:   datastore.NewSimpleReport(drd.log),
 	}
 	drd.cache.Init()
 	drd.cache.Processor = drd.processor

@@ -140,6 +140,8 @@ func TestProcessor(t *testing.T) {
 	ptv.tickerChan = make(chan time.Time)
 	// Initialize report
 	ptv.report = datastore.NewSimpleReport(ptv.log)
+	// Suppress printing of output report to screen during testing
+	ptv.report.Output = &nullWriter{}
 
 	// Init the mock HTTP Server
 	ptv.startMockHTTPServer()
@@ -159,7 +161,7 @@ func TestProcessor(t *testing.T) {
 	// Init the cache and the telemetryCache (the objects under test)
 	ptv.telemetryCache = &ContivTelemetryCache{
 		Deps: Deps{
-			Log: drd.log,
+			Log: ptv.log,
 		},
 		Synced:   false,
 		VppCache: datastore.NewVppDataStore(),
@@ -209,7 +211,7 @@ func testCollectAgentInfoWithHTTPError(t *testing.T) {
 	ptv.telemetryCache.VppCache.CreateNode(1, "k8s-master", "10.20.0.2", "localhost")
 
 	_, err := ptv.telemetryCache.VppCache.RetrieveNode("k8s-master")
-	gomega.Expect(err).To(gomega.Not(gomega.BeNil()))
+	gomega.Expect(err).To(gomega.BeNil())
 	ptv.injectError = inject404Error
 
 	// Kick the telemetryCache to collect & validate data, give it an opportunity
@@ -230,7 +232,7 @@ func testCollectAgentInfoWithTimeout(t *testing.T) {
 	ptv.telemetryCache.VppCache.CreateNode(1, "k8s-master", "10.20.0.2", "localhost")
 
 	_, err := ptv.telemetryCache.VppCache.RetrieveNode("k8s-master")
-	gomega.Expect(err).To(gomega.Not(gomega.BeNil()))
+	gomega.Expect(err).To(gomega.BeNil())
 	ptv.injectError = injectDelay
 
 	// Kick the telemetryCache to collect & validate data, give it an opportunity

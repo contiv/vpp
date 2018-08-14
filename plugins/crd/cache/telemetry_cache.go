@@ -32,7 +32,7 @@ import (
 const (
 	// here goes different cache types
 	//Update this whenever a new DTO type is added.
-	numDTOs            = 5
+	numDTOs            = 6
 	agentPort          = ":9999"
 	livenessURL        = "/liveness"
 	interfaceURL       = "/interfaces"
@@ -42,6 +42,7 @@ const (
 	arpURL             = "/arps"
 	clientTimeout      = 10 // HTTP client timeout, in seconds
 	collectionInterval = 1  // data collection interval, in minutes
+	staticRouteURL     = "/staticroutes"
 )
 
 // ContivTelemetryCache is used for a in-memory storage of K8s State data
@@ -217,6 +218,9 @@ func (ctc *ContivTelemetryCache) collectAgentInfo(node *telemetrymodel.Node) {
 
 	nodeiparpslice := make(telemetrymodel.NodeIPArpTable, 0)
 	go ctc.getNodeInfo(client, node, arpURL, &nodeiparpslice)
+
+	nodestaticroutes := make(telemetrymodel.NodeStaticRoutes, 0)
+	go ctc.getNodeInfo(client, node, staticRouteURL, &nodestaticroutes)
 }
 
 /* Here are the several functions that run as goroutines to collect information
@@ -245,9 +249,12 @@ func (ctc *ContivTelemetryCache) getNodeInfo(client http.Client, node *telemetry
 
 	b, _ := ioutil.ReadAll(res.Body)
 	b = []byte(b)
-	json.Unmarshal(b, nodeInfo)
-
-	ctc.nodeResponseChannel <- &NodeDTO{node.Name, nodeInfo, nil}
+	err = json.Unmarshal(b, nodeInfo)
+	if err != nil {
+		errString := fmt.Sprintf("Error unmarshaling data for node %+v: %+v", node.Name, err)
+		ctc.Report.AppendToNodeReport(node.Name, errString)
+	}
+	ctc.nodeResponseChannel <- &NodeDTO{node.Name, nodeInfo, err}
 }
 
 // populateNodeMaps populates many of needed node maps for processing once
@@ -352,6 +359,9 @@ func (ctc *ContivTelemetryCache) setNodeData() {
 		case *telemetrymodel.NodeIPArpTable:
 			nipaDto := data.NodeInfo.(*telemetrymodel.NodeIPArpTable)
 			err = ctc.VppCache.SetNodeIPARPs(data.NodeName, *nipaDto)
+		case *telemetrymodel.NodeStaticRoutes:
+			nSrDto := data.NodeInfo.(*telemetrymodel.NodeStaticRoutes)
+			err = ctc.VppCache.SetNodeStaticRoutes(data.NodeName, *nSrDto)
 		default:
 			err = fmt.Errorf("node %+v has unknown data type: %+v", data.NodeName, data.NodeInfo)
 		}

@@ -22,6 +22,7 @@ import (
 	"github.com/contiv/vpp/plugins/crd/datastore"
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/vpp-agent/plugins/vpp/model/interfaces"
+	"github.com/pkg/errors"
 	"strconv"
 	"strings"
 )
@@ -48,6 +49,7 @@ func (v *Validator) Validate() {
 	v.ValidateL2FibEntries()
 	v.ValidateK8sNodeInfo()
 	v.ValidatePodInfo()
+	//v.ValidateStaticRoutes()
 }
 
 // ValidateArpTables validates the the entries of node ARP tables to
@@ -585,11 +587,27 @@ func (v *Validator) ValidateTapToPod() {
 					if (podIP & bitmask) == (tapIP & bitmask) {
 						pod.VppIfIPAddr = ip
 						pod.VppIfName = intf.VppInternalName
+						delete(podMap, pod.Name)
 					}
 				}
 			}
 		}
 	}
+	if len(podMap) > 0 {
+		for pod := range podMap {
+			errString := errors.Errorf("Did not find valid tap for pod %+v", pod)
+			fmt.Println(errString)
+		}
+	}
+}
+
+//ValidateStaticRoutes validates that static routes were successfully gathered for each node.
+func (v *Validator) ValidateStaticRoutes() {
+	nodelist := v.VppCache.RetrieveAllNodes()
+	for _, node := range nodelist {
+		fmt.Println(node.NodeStaticRoutes)
+	}
+
 }
 
 func maskLength2Mask(ml int) uint32 {

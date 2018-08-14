@@ -35,6 +35,7 @@ type Node struct {
 	NodeL2Fibs        map[string]NodeL2FibEntry
 	NodeTelemetry     map[string]NodeTelemetry
 	NodeIPArp         []NodeIPArpEntry
+	NodeStaticRoutes  []NodeStaticRoute
 	Report            []string
 	PodMap            map[string]*Pod
 }
@@ -64,6 +65,24 @@ type NodeTelemetries map[string]NodeTelemetry
 
 // NodeIPArpTable defines an array of NodeIPArpEntry
 type NodeIPArpTable []NodeIPArpEntry
+
+// NodeStaticRoutes defines an array of NodeStaticRoute object
+type NodeStaticRoutes []NodeStaticRoute
+
+type NodeStaticRoute struct {
+	VrfId       uint32  `json:"vrf_id"`
+	TableName   string  `json:"table_name"`
+	DstAddr     dstAddr `json:"dst_addr"`
+	NextHopAddr string  `json:"next_hop_addr"`
+	OutIface    uint32  `json:"out_iface"`
+	Weight      uint32  `json:"weight"`
+	Preference  uint32  `json:"preference"`
+}
+
+type dstAddr struct {
+	Ip   string `json:"IP"`
+	Mask string `json:"Mask"`
+}
 
 //NodeTelemetry holds the unmarshalled node telemetry JSON data
 type NodeTelemetry struct {

@@ -113,7 +113,7 @@ func TestValidator(t *testing.T) {
 	t.Run("testK8sNodeToNodeInfoOkValidation", testK8sNodeToNodeInfoOkValidation)
 	t.Run("testK8sNodeToNodeInfoMissingNiValidation", testK8sNodeToNodeInfoMissingNiValidation)
 	t.Run("testK8sNodeToNodeInfoMissingK8snValidation", testK8sNodeToNodeInfoMissingK8snValidation)
-	t.Run("testNodesDBValidateL2Connections", testNodesDBgValidateL2Connections)
+	t.Run("testNodesDBValidateL2Connections", testNodesDBValidateL2Connections)
 }
 
 func testErrorFreeTopologyValidation(t *testing.T) {

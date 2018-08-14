@@ -108,7 +108,6 @@ func (ctc *ContivTelemetryCache) init() {
 func (ctc *ContivTelemetryCache) ClearCache() {
 	ctc.VppCache.ClearCache()
 	// ctc.K8sCache.ClearCache()
-	ctc.Report.Clear()
 }
 
 // ReinitializeCache completely re-initializes the Contiv Telemetry cache,
@@ -153,10 +152,13 @@ func (ctc *ContivTelemetryCache) startNodeInfoCollection() {
 		ctc.Log.Info("Skipping data collection/validation - previous run still in progress")
 		return
 	}
-	ctc.validationInProgress = true
-	ctc.ClearCache()
-
 	nodelist := ctc.VppCache.RetrieveAllNodes()
+	if len(nodelist) == 0 {
+		return
+	}
+
+	ctc.ClearCache()
+	ctc.validationInProgress = true
 	for _, node := range nodelist {
 		ctc.collectNodeInfo(node)
 	}
@@ -363,6 +365,7 @@ func (ctc *ContivTelemetryCache) processDataStoreUpdate(data interface{}) {
 
 	case datasync.ResyncEvent:
 		resyncEv := data.(datasync.ResyncEvent)
+		ctc.Report.Clear()
 		ctc.resync(resyncEv)
 
 	case datasync.ChangeEvent:

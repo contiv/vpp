@@ -113,7 +113,7 @@ func TestValidator(t *testing.T) {
 	t.Run("testK8sNodeToNodeInfoOkValidation", testK8sNodeToNodeInfoOkValidation)
 	t.Run("testK8sNodeToNodeInfoMissingNiValidation", testK8sNodeToNodeInfoMissingNiValidation)
 	t.Run("testK8sNodeToNodeInfoMissingK8snValidation", testK8sNodeToNodeInfoMissingK8snValidation)
-	t.Run("testNodesDB_ValidateL2Connections", testNodesDB_ValidateL2Connections)
+	t.Run("testNodesDBValidateL2Connections", testNodesDBgValidateL2Connections)
 }
 
 func testErrorFreeTopologyValidation(t *testing.T) {
@@ -822,7 +822,7 @@ func (v *validatorTestVars) createK8sPodTestData() {
 		},
 	}
 }
-func testNodesDB_ValidateL2Connections(t *testing.T) {
+func testNodesDBValidateL2Connections(t *testing.T) {
 	resetAllCaches()
 
 	vtv.vppCache.CreateNode(1, "k8s_master", "10", "10")

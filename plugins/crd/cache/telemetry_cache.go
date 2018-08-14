@@ -127,6 +127,7 @@ func (ctc *ContivTelemetryCache) nodeEventProcessor() {
 			if !ok {
 				return
 			}
+			ctc.Report.Clear()
 			ctc.startNodeInfoCollection()
 
 		case data, ok := <-ctc.nodeResponseChannel:

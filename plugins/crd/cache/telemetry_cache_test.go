@@ -18,6 +18,7 @@ import (
 	"context"
 	"encoding/json"
 	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
+	"github.com/contiv/vpp/plugins/crd/datastore"
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/logging/logrus"
 	"github.com/onsi/gomega"
@@ -25,7 +26,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-	"github.com/contiv/vpp/plugins/crd/datastore"
 )
 
 const (

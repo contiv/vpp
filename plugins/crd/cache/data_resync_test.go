@@ -9,13 +9,13 @@ import (
 	"encoding/json"
 	"fmt"
 	nodeinfomodel "github.com/contiv/vpp/plugins/contiv/model/node"
+	"github.com/contiv/vpp/plugins/crd/api"
+	"github.com/contiv/vpp/plugins/crd/datastore"
 	"github.com/onsi/gomega"
 	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
-	"github.com/contiv/vpp/plugins/crd/datastore"
-	"github.com/contiv/vpp/plugins/crd/api"
 )
 
 type dataResyncTestData struct {
@@ -96,7 +96,7 @@ func (mp *mockProcessor) waitForValidate() int {
 		if numCollects > 0 {
 			break
 		}
-		time.Sleep(1*time.Millisecond)
+		time.Sleep(1 * time.Millisecond)
 		cnt++
 	}
 	return cnt
@@ -136,7 +136,7 @@ func (mlw *mockLogWriter) countErrors() int {
 	return cnt
 }
 
-type nullWriter struct {}
+type nullWriter struct{}
 
 func (nw *nullWriter) Write(p []byte) (n int, err error) {
 	return len(p), nil

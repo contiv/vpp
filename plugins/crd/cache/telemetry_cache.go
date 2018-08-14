@@ -40,9 +40,10 @@ const (
 	l2FibsURL          = "/l2fibs"
 	telemetryURL       = "/telemetry"
 	arpURL             = "/arps"
+	staticRouteURL     = "/staticroutes"
 	clientTimeout      = 10 // HTTP client timeout, in seconds
 	collectionInterval = 1  // data collection interval, in minutes
-	staticRouteURL     = "/staticroutes"
+
 )
 
 // ContivTelemetryCache is used for a in-memory storage of K8s State data

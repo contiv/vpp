@@ -277,7 +277,7 @@ func TestVppDataStore_RetrieveNodeByHostIPAddr(t *testing.T) {
 
 	node, err := db.RetrieveNodeByGigEIPAddr(node.IPAdr)
 	gomega.Expect(err).To(gomega.BeNil())
-	db.hostIPMap["10"] = node
+	db.HostIPMap["10"] = node
 
 	node, err = db.RetrieveNodeByHostIPAddr("10")
 	gomega.Expect(err).To(gomega.BeNil())
@@ -301,7 +301,7 @@ func TestVppDataStore_RetrieveNodeByLoopIPAddr(t *testing.T) {
 	node, err := db.RetrieveNodeByGigEIPAddr(node.IPAdr)
 	gomega.Expect(err).To(gomega.BeNil())
 
-	db.loopIPMap["10"] = node
+	db.LoopIPMap["10"] = node
 	node, err = db.RetrieveNodeByLoopIPAddr("10")
 	gomega.Expect(err).To(gomega.BeNil())
 
@@ -324,9 +324,12 @@ func TestVppDataStore_RetrieveNodeByLoopMacAddr(t *testing.T) {
 	node, err := db.RetrieveNodeByGigEIPAddr(node.IPAdr)
 	gomega.Expect(err).To(gomega.BeNil())
 
-	db.loopMACMap["10"] = node
+	db.LoopMACMap["10"] = node
 	node, err = db.RetrieveNodeByLoopMacAddr("10")
 	gomega.Expect(err).To(gomega.BeNil())
+
+	_, err = db.RetrieveNodeByLoopMacAddr("0123012031023")
+	gomega.Expect(err).To(gomega.Not(gomega.BeNil()))
 
 }
 
@@ -403,8 +406,14 @@ func TestGetNodeLoopIFInfo(t *testing.T) {
 	gomega.Expect(node.Name).To(gomega.Equal("k8s_master"))
 	gomega.Expect(node.ID).To(gomega.Equal(uint32(1)))
 	gomega.Expect(node.ManIPAdr).To(gomega.Equal("10"))
-	loopif := telemetrymodel.NodeInterface{"loop0", "loop0", 1, true, "12", 10, nil, nil, nil}
+	loopif := telemetrymodel.NodeInterface{"loop0", "loop0", 1, true, "12", 10, telemetrymodel.Vxlan{}, nil, telemetrymodel.Tap{}}
 	interfaces := make(map[int]telemetrymodel.NodeInterface)
 	interfaces[3] = loopif
+	db.SetNodeInterfaces(node.Name, interfaces)
+	_, err := GetNodeLoopIFInfo(node)
+	gomega.Expect(err).To(gomega.BeNil())
+	delete(interfaces, 3)
+	_, err = GetNodeLoopIFInfo(node)
+	gomega.Expect(err).To(gomega.Not(gomega.BeNil()))
 
 }

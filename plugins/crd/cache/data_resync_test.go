@@ -9,6 +9,8 @@ import (
 	"encoding/json"
 	"fmt"
 	nodeinfomodel "github.com/contiv/vpp/plugins/contiv/model/node"
+	"github.com/contiv/vpp/plugins/crd/api"
+	"github.com/contiv/vpp/plugins/crd/datastore"
 	"github.com/onsi/gomega"
 	"strings"
 	"sync/atomic"
@@ -22,6 +24,7 @@ type dataResyncTestData struct {
 	resyncEv        *mockDrKeyValIterator
 	processor       *mockProcessor
 	cache           *ContivTelemetryCache
+	report          *datastore.SimpleReport
 	injectGetValErr bool
 }
 
@@ -82,8 +85,21 @@ type mockProcessor struct {
 	retrieveCnt int32
 }
 
-func (mp *mockProcessor) RetrieveNetworkInfo() {
+func (mp *mockProcessor) Validate() {
 	atomic.AddInt32(&mp.retrieveCnt, 1)
+}
+
+func (mp *mockProcessor) waitForValidate() int {
+	cnt := 0
+	for {
+		numCollects := atomic.LoadInt32(&mp.retrieveCnt)
+		if numCollects > 0 {
+			break
+		}
+		time.Sleep(1 * time.Millisecond)
+		cnt++
+	}
+	return cnt
 }
 
 // mockLogWriter collects all error logs into a buffer for analysis
@@ -120,6 +136,12 @@ func (mlw *mockLogWriter) countErrors() int {
 	return cnt
 }
 
+type nullWriter struct{}
+
+func (nw *nullWriter) Write(p []byte) (n int, err error) {
+	return len(p), nil
+}
+
 // drd holds all the data structures required for the DataResync test
 var drd dataResyncTestData
 
@@ -131,16 +153,22 @@ func TestDataResync(t *testing.T) {
 	drd.log = logrus.DefaultLogger()
 	drd.log.SetLevel(logging.ErrorLevel)
 	drd.log.SetOutput(drd.logWriter)
+	drd.report = datastore.NewSimpleReport(drd.log)
+	drd.report.Output = &nullWriter{}
 
 	drd.processor = &mockProcessor{}
 	drd.cache = &ContivTelemetryCache{
 		Deps: Deps{
 			Log: drd.log,
 		},
-		Synced: false,
+		Synced:   false,
+		VppCache: datastore.NewVppDataStore(),
+		K8sCache: datastore.NewK8sDataStore(),
+		Report:   drd.report,
 	}
 	drd.cache.Init()
 	drd.cache.Processor = drd.processor
+	drd.processor.retrieveCnt = 0
 
 	t.Run("testResyncNodeInfoOk", testResyncNodeInfoOk)
 	t.Run("testResyncNodeInfoBadKey", testResyncNodeInfoBadKey)
@@ -155,11 +183,9 @@ func testResyncNodeInfoOk(t *testing.T) {
 	drd.createNodeInfoOkTestData()
 
 	drd.cache.Resync(drd.resyncEv)
+	drd.processor.waitForValidate()
 
 	gomega.Expect(len(drd.cache.VppCache.RetrieveAllNodes())).To(gomega.Equal(3))
-	time.Sleep(1 * time.Millisecond)
-	numCollects := atomic.LoadInt32(&drd.processor.retrieveCnt)
-	gomega.Expect(numCollects).To(gomega.BeEquivalentTo(1))
 }
 
 func testResyncNodeInfoBadKey(t *testing.T) {
@@ -167,10 +193,12 @@ func testResyncNodeInfoBadKey(t *testing.T) {
 	drd.createNewResyncKvIterator()
 	drd.createNodeInfoBadKeyTestData()
 
-	drd.cache.Resync(drd.resyncEv)
+	drd.cache.resync(drd.resyncEv)
 
 	gomega.Expect(len(drd.cache.VppCache.RetrieveAllNodes())).To(gomega.Equal(0))
 	gomega.Expect(len(drd.logWriter.log)).To(gomega.Equal(3))
+	gomega.Expect(drd.cache.validationInProgress).To(gomega.BeFalse())
+	gomega.Expect(len(drd.report.Data[api.GlobalMsg])).To(gomega.Equal(4))
 }
 
 func testResyncNodeInfoBadID(t *testing.T) {
@@ -178,10 +206,12 @@ func testResyncNodeInfoBadID(t *testing.T) {
 	drd.createNewResyncKvIterator()
 	drd.createNodeInfoBadIDTestData()
 
-	drd.cache.Resync(drd.resyncEv)
+	drd.cache.resync(drd.resyncEv)
 
 	gomega.Expect(len(drd.cache.VppCache.RetrieveAllNodes())).To(gomega.Equal(0))
 	gomega.Expect(len(drd.logWriter.log)).To(gomega.Equal(1))
+	gomega.Expect(drd.cache.validationInProgress).To(gomega.BeFalse())
+	gomega.Expect(len(drd.report.Data[api.GlobalMsg])).To(gomega.Equal(2))
 }
 
 func testResyncNodeInfoBadProto(t *testing.T) {
@@ -190,12 +220,14 @@ func testResyncNodeInfoBadProto(t *testing.T) {
 	drd.createNodeInfoOkTestData()
 	drd.injectGetValErr = true
 
-	drd.cache.Resync(drd.resyncEv)
+	drd.cache.resync(drd.resyncEv)
 
 	drd.injectGetValErr = false
 
 	gomega.Expect(len(drd.cache.VppCache.RetrieveAllNodes())).To(gomega.Equal(0))
 	gomega.Expect(len(drd.logWriter.log)).To(gomega.Equal(3))
+	gomega.Expect(drd.cache.validationInProgress).To(gomega.BeFalse())
+	gomega.Expect(len(drd.report.Data[api.GlobalMsg])).To(gomega.Equal(4))
 }
 
 func testResyncNodeInfoBadData(t *testing.T) {
@@ -203,10 +235,12 @@ func testResyncNodeInfoBadData(t *testing.T) {
 	drd.createNewResyncKvIterator()
 	drd.createNodeInfoBadTestData()
 
-	drd.cache.Resync(drd.resyncEv)
+	drd.cache.resync(drd.resyncEv)
 
 	gomega.Expect(len(drd.cache.VppCache.RetrieveAllNodes())).To(gomega.Equal(0))
 	gomega.Expect(len(drd.logWriter.log)).To(gomega.Equal(1))
+	gomega.Expect(drd.cache.validationInProgress).To(gomega.BeFalse())
+	gomega.Expect(len(drd.report.Data[api.GlobalMsg])).To(gomega.Equal(2))
 }
 
 func testResyncNodeInfoAddNodeFail(t *testing.T) {
@@ -214,11 +248,13 @@ func testResyncNodeInfoAddNodeFail(t *testing.T) {
 	drd.createNewResyncKvIterator()
 	drd.createNodeInfoDuplicateNameTestData()
 
-	drd.cache.Resync(drd.resyncEv)
+	drd.cache.resync(drd.resyncEv)
 
 	gomega.Expect(len(drd.cache.VppCache.RetrieveAllNodes())).To(gomega.Equal(1))
 	numErrs := drd.logWriter.countErrors()
-	gomega.Expect(numErrs).To(gomega.Equal(2))
+	gomega.Expect(numErrs).To(gomega.Equal(1))
+	gomega.Expect(drd.cache.validationInProgress).To(gomega.BeFalse())
+	gomega.Expect(len(drd.report.Data[api.GlobalMsg])).To(gomega.Equal(2))
 }
 
 func (d *dataResyncTestData) createNewResyncKvIterator() {

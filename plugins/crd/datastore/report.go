@@ -17,20 +17,24 @@ package datastore
 import (
 	"fmt"
 	"github.com/ligato/cn-infra/logging"
+	"io"
+	"os"
 )
 
 // SimpleReport holds error/warning messages recorded during data collection /
 // validation
 type SimpleReport struct {
-	Log  logging.Logger
-	Data map[string][]string
+	Log    logging.Logger
+	Data   map[string][]string
+	Output io.Writer
 }
 
 // NewSimpleReport creates a new SimpleReport instance
 func NewSimpleReport(log logging.Logger) *SimpleReport {
 	return &SimpleReport{
-		Log:  log,
-		Data: make(map[string][]string),
+		Log:    log,
+		Data:   make(map[string][]string),
+		Output: os.Stdout,
 	}
 }
 
@@ -56,13 +60,13 @@ func (r *SimpleReport) Clear() {
 
 // Print prints the status log
 func (r *SimpleReport) Print() {
-	fmt.Println("Error SimpleReport:")
-	fmt.Println("=============")
+	fmt.Fprintln(r.Output, "Error Report:")
+	fmt.Fprintln(r.Output, "=============")
 	for k, rl := range r.Data {
-		fmt.Printf("Key: %s\n", k)
+		fmt.Fprintf(r.Output, "Key: %s\n", k)
 		for i, line := range rl {
-			fmt.Printf("  %d: %s\n", i, line)
+			fmt.Fprintf(r.Output, "  %d: %s\n", i, line)
 		}
-		fmt.Println()
+		fmt.Fprintln(r.Output)
 	}
 }

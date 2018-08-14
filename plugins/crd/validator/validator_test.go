@@ -110,7 +110,6 @@ func TestValidator(t *testing.T) {
 
 	// Do the testing
 	t.Run("testErrorFreeTopologyValidation", testErrorFreeTopologyValidation)
-
 	t.Run("testK8sNodeToNodeInfoOkValidation", testK8sNodeToNodeInfoOkValidation)
 	t.Run("testK8sNodeToNodeInfoMissingNiValidation", testK8sNodeToNodeInfoMissingNiValidation)
 	t.Run("testK8sNodeToNodeInfoMissingK8snValidation", testK8sNodeToNodeInfoMissingK8snValidation)
@@ -119,6 +118,13 @@ func TestValidator(t *testing.T) {
 
 func testErrorFreeTopologyValidation(t *testing.T) {
 	resetAllCaches()
+	for _, node := range vtv.vppCache.RetrieveAllNodes() {
+		errReport := vtv.processor.VppCache.SetSecondaryNodeIndices(node)
+		for _, r := range errReport {
+			vtv.processor.Report.AppendToNodeReport(node.Name, r)
+		}
+	}
+
 	vtv.processor.Validate()
 
 	gomega.Expect(len(vtv.report.Data[api.GlobalMsg])).To(gomega.Equal(4))
@@ -126,27 +132,31 @@ func testErrorFreeTopologyValidation(t *testing.T) {
 
 func testK8sNodeToNodeInfoOkValidation(t *testing.T) {
 	resetAllCaches()
+	vtv.report.Clear()
+
 	vtv.processor.ValidateK8sNodeInfo()
 
-	gomega.Expect(len(vtv.report.Data[api.GlobalMsg])).To(gomega.Equal(0))
+	gomega.Expect(len(vtv.report.Data)).To(gomega.Equal(0))
 }
 
 func testK8sNodeToNodeInfoMissingNiValidation(t *testing.T) {
 	resetAllCaches()
+	vtv.report.Clear()
 	vtv.processor.VppCache.DeleteNode("k8s-master")
 
 	vtv.processor.ValidateK8sNodeInfo()
 
-	gomega.Expect(len(vtv.report.Data[api.GlobalMsg])).To(gomega.Equal(2))
+	gomega.Expect(len(vtv.report.Data["k8s-master"])).To(gomega.Equal(1))
 }
 
 func testK8sNodeToNodeInfoMissingK8snValidation(t *testing.T) {
 	resetAllCaches()
+	vtv.report.Clear()
 	vtv.processor.K8sCache.DeleteK8sNode("k8s-master")
 
 	vtv.processor.ValidateK8sNodeInfo()
 
-	gomega.Expect(len(vtv.report.Data[api.GlobalMsg])).To(gomega.Equal(2))
+	gomega.Expect(len(vtv.report.Data["k8s-master"])).To(gomega.Equal(2))
 }
 
 func populateNodeInfoDataInCache(cache *datastore.VppDataStore) {

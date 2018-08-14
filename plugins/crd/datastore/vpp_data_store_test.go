@@ -328,7 +328,7 @@ func TestVppDataStore_RetrieveNodeByLoopMacAddr(t *testing.T) {
 	node, err = db.RetrieveNodeByLoopMacAddr("10")
 	gomega.Expect(err).To(gomega.BeNil())
 
-	_,err = db.RetrieveNodeByLoopMacAddr("0123012031023")
+	_, err = db.RetrieveNodeByLoopMacAddr("0123012031023")
 	gomega.Expect(err).To(gomega.Not(gomega.BeNil()))
 
 }
@@ -409,11 +409,11 @@ func TestGetNodeLoopIFInfo(t *testing.T) {
 	loopif := telemetrymodel.NodeInterface{"loop0", "loop0", 1, true, "12", 10, telemetrymodel.Vxlan{}, nil, telemetrymodel.Tap{}}
 	interfaces := make(map[int]telemetrymodel.NodeInterface)
 	interfaces[3] = loopif
-	db.SetNodeInterfaces(node.Name,interfaces)
-	_,err := GetNodeLoopIFInfo(node)
+	db.SetNodeInterfaces(node.Name, interfaces)
+	_, err := GetNodeLoopIFInfo(node)
 	gomega.Expect(err).To(gomega.BeNil())
-	delete(interfaces,3)
-	_,err = GetNodeLoopIFInfo(node)
+	delete(interfaces, 3)
+	_, err = GetNodeLoopIFInfo(node)
 	gomega.Expect(err).To(gomega.Not(gomega.BeNil()))
 
 }

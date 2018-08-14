@@ -16,9 +16,9 @@ package datastore
 
 import (
 	"github.com/contiv/vpp/plugins/ksr/model/node"
+	pod2 "github.com/contiv/vpp/plugins/ksr/model/pod"
 	"github.com/onsi/gomega"
 	"testing"
-	pod2 "github.com/contiv/vpp/plugins/ksr/model/pod"
 )
 
 func TestNewK8sDataStore(t *testing.T) {
@@ -52,7 +52,7 @@ func TestK8sDataStore_CreatePod(t *testing.T) {
 	gomega.RegisterTestingT(t)
 	db := NewK8sDataStore()
 
-	labels := []*pod2.Pod_Label{&pod2.Pod_Label{Key:"123",Value:"431"},}
+	labels := []*pod2.Pod_Label{&pod2.Pod_Label{Key: "123", Value: "431"}}
 	db.CreatePod("k8s-pod1", "namespace1", labels, "1.2.3.4", "hostip", nil)
 	pod, err := db.RetrievePod("k8s-pod1")
 	gomega.Expect(err).To(gomega.BeNil())

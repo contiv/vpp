@@ -9,10 +9,10 @@ import (
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/logging/logrus"
+	"github.com/ligato/vpp-agent/plugins/vpp/model/interfaces"
 	"github.com/onsi/gomega"
 	"strings"
 	"testing"
-	"github.com/ligato/vpp-agent/plugins/vpp/model/interfaces"
 )
 
 type validatorTestVars struct {
@@ -950,7 +950,7 @@ func testNodesDB_ValidateL2Connections(t *testing.T) {
 	delete(vtv.vppCache.GigEIPMap, node.NodeInterfaces[4].Vxlan.DstAddress+api.SubnetMask)
 	vtv.processor.ValidateL2Connectivity()
 	fmt.Println("Done expecting errors")
-	node, _ =vtv.vppCache.RetrieveNode("k8s_master")
+	node, _ = vtv.vppCache.RetrieveNode("k8s_master")
 	vtv.vppCache.GigEIPMap["10"+api.SubnetMask] = node
 	vtv.processor.ValidateL2Connectivity()
 
@@ -999,6 +999,5 @@ func testNodesDB_ValidateL2Connections(t *testing.T) {
 	vtv.vppCache.GigEIPMap["10/24"] = node
 	vtv.vppCache.DeleteNode("extraNode")
 	vtv.processor.ValidateL2Connectivity()
-
 
 }

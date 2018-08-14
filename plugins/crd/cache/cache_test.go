@@ -109,7 +109,6 @@ func TestNodesDB_ValidateLoopIFAddresses(t *testing.T) {
 
 }
 
-
 func TestCache_ValidateFibEntries(t *testing.T) {
 	gomega.RegisterTestingT(t)
 	logger := logrus.DefaultLogger()

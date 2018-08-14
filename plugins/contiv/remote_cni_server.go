@@ -438,6 +438,10 @@ func (s *remoteCNIserver) configureVswitchNICs(config *vswitchConfig) error {
 	// TODO: handle by localclient/resync once implemented in VPP agent
 	s.enableIPNeighborScan()
 
+	// subscribe to VnetFibCounters to get rid of the not wanted notifications and errors from GoVPP
+	// TODO: this is just a workaround until non-subscribed notifications are properly ignored by GoVPP
+	s.subscribeVnetFibCounters()
+
 	// Disable NAT virtual reassembly (drop fragmented packets) if requested
 	if s.config.DisableNATVirtualReassembly {
 		s.disableNatVirtualReassembly()

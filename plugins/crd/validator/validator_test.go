@@ -114,6 +114,9 @@ func TestValidator(t *testing.T) {
 	t.Run("testK8sNodeToNodeInfoMissingNiValidation", testK8sNodeToNodeInfoMissingNiValidation)
 	t.Run("testK8sNodeToNodeInfoMissingK8snValidation", testK8sNodeToNodeInfoMissingK8snValidation)
 	t.Run("testNodesDBValidateL2Connections", testNodesDBValidateL2Connections)
+	t.Run("testNodesDBValidateLoopIFAddresses", testNodesDBValidateLoopIFAddresses)
+	t.Run("testCacheValidateFibEntries", testCacheValidateFibEntries)
+
 }
 
 func testErrorFreeTopologyValidation(t *testing.T) {
@@ -157,6 +160,406 @@ func testK8sNodeToNodeInfoMissingK8snValidation(t *testing.T) {
 	vtv.processor.ValidateK8sNodeInfo()
 
 	gomega.Expect(len(vtv.report.Data["k8s-master"])).To(gomega.Equal(2))
+}
+
+func testNodesDBValidateL2Connections(t *testing.T) {
+	resetAllCaches()
+	vtv.report.Clear()
+
+	vtv.vppCache.CreateNode(1, "k8s_master", "10", "10")
+	node, ok := vtv.vppCache.RetrieveNode("k8s_master")
+	gomega.Expect(ok).To(gomega.BeNil())
+	gomega.Expect(node.IPAdr).To(gomega.Equal("10"))
+	gomega.Expect(node.Name).To(gomega.Equal("k8s_master"))
+	gomega.Expect(node.ID).To(gomega.Equal(uint32(1)))
+	gomega.Expect(node.ManIPAdr).To(gomega.Equal("10"))
+	nodeinterface1 := telemetrymodel.NodeInterface{
+		"loop0",
+		"loop0",
+		interfaces.InterfaceType_SOFTWARE_LOOPBACK,
+		true,
+		"11",
+		1,
+		telemetrymodel.Vxlan{"", "", 1},
+		[]string{"11"},
+		telemetrymodel.Tap{}}
+	nodeinterfaces := map[int]telemetrymodel.NodeInterface{}
+	nodeinterfaces[3] = nodeinterface1
+
+	nodeiparp1 := telemetrymodel.NodeIPArpEntry{3, "10", "10", true}
+	nodeiparps1 := make([]telemetrymodel.NodeIPArpEntry, 0)
+	nodeiparps1 = append(nodeiparps1, nodeiparp1)
+
+	nodeinterface2 := telemetrymodel.NodeInterface{
+		"loop0",
+		"loop0",
+		interfaces.InterfaceType_SOFTWARE_LOOPBACK,
+		true,
+		"10",
+		1,
+		telemetrymodel.Vxlan{"", "", 1},
+		[]string{"10"},
+		telemetrymodel.Tap{}}
+	nodeinterfaces2 := map[int]telemetrymodel.NodeInterface{}
+	nodeinterfaces2[3] = nodeinterface2
+
+	nodeiparp2 := telemetrymodel.NodeIPArpEntry{3, "11", "11", true}
+	nodeiparps2 := make([]telemetrymodel.NodeIPArpEntry, 0)
+	nodeiparps2 = append(nodeiparps2, nodeiparp2)
+
+	vtv.vppCache.CreateNode(2, "k8s-worker1", "11", "11")
+
+	vtv.vppCache.SetNodeIPARPs("k8s_master", nodeiparps1)
+	node, _ = vtv.vppCache.RetrieveNode("k8s_master")
+	vtv.vppCache.SetNodeInterfaces("k8s_master", nodeinterfaces)
+	node, _ = vtv.vppCache.RetrieveNode("k8s_master")
+	vtv.vppCache.LoopMACMap[node.NodeInterfaces[3].PhysAddress] = node
+	vtv.vppCache.LoopIPMap[node.NodeInterfaces[3].IPAddresses[0]+api.SubnetMask] = node
+
+	vtv.vppCache.SetNodeIPARPs("k8s-worker1", nodeiparps2)
+	vtv.vppCache.SetNodeInterfaces("k8s-worker1", nodeinterfaces2)
+	node, ok = vtv.vppCache.RetrieveNode("k8s-worker1")
+	vtv.vppCache.LoopMACMap[node.NodeInterfaces[3].PhysAddress] = node
+	vtv.vppCache.LoopIPMap[node.NodeInterfaces[3].IPAddresses[0]+api.SubnetMask] = node
+	node, _ = vtv.vppCache.RetrieveNode("k8s_master")
+	bdif1_1 := telemetrymodel.BDinterfaces{3}
+	bdif1_2 := telemetrymodel.BDinterfaces{5}
+	nodebd1 := telemetrymodel.NodeBridgeDomain{
+		[]telemetrymodel.BDinterfaces{bdif1_1, bdif1_2},
+		"vxlanBD",
+		true,
+	}
+	nodebdmap1 := make(map[int]telemetrymodel.NodeBridgeDomain)
+	nodebdmap1[1] = nodebd1
+	nodevxlaninterface1 := telemetrymodel.NodeInterface{
+		"vxlan_tunnel0",
+		"vxlan2",
+		interfaces.InterfaceType_VXLAN_TUNNEL,
+		true,
+		"",
+		0,
+		telemetrymodel.Vxlan{node.IPAdr, "11",
+			10}, []string{}, telemetrymodel.Tap{},
+	}
+	nodeinterfaces[5] = nodevxlaninterface1
+	vtv.vppCache.SetNodeInterfaces("k8s_master", nodeinterfaces)
+	vtv.vppCache.SetNodeBridgeDomain("k8s_master", nodebdmap1)
+
+	node, _ = vtv.vppCache.RetrieveNode("k8s-worker1")
+	bdif2_1 := telemetrymodel.BDinterfaces{3}
+	bdif2_2 := telemetrymodel.BDinterfaces{4}
+	nodebd2 := telemetrymodel.NodeBridgeDomain{
+		[]telemetrymodel.BDinterfaces{bdif2_1, bdif2_2},
+		"vxlanBD",
+		true,
+	}
+	nodebdmap2 := make(map[int]telemetrymodel.NodeBridgeDomain)
+	nodebdmap2[1] = nodebd2
+	nodevxlaninterface2 := telemetrymodel.NodeInterface{
+		"vxlan_tunnel0",
+		"vxlan2",
+		interfaces.InterfaceType_VXLAN_TUNNEL,
+		true,
+		"",
+		0,
+		telemetrymodel.Vxlan{node.IPAdr, "10",
+			10}, []string{}, telemetrymodel.Tap{},
+	}
+	nodeinterfaces2[4] = nodevxlaninterface2
+	vtv.vppCache.SetNodeBridgeDomain("k8s-worker1", nodebdmap2)
+	vtv.vppCache.SetNodeInterfaces("k8s-worker1", nodeinterfaces2)
+	vtv.vppCache.GigEIPMap[node.IPAdr+api.SubnetMask] = node
+	node, _ = vtv.vppCache.RetrieveNode("k8s_master")
+	vtv.vppCache.GigEIPMap[node.IPAdr+api.SubnetMask] = node
+	vtv.processor.Validate()
+
+	fmt.Println("Setting vxlan_vni to 11, expecting error...")
+	nodevxlaninterface2.Vxlan.Vni = 11
+	nodeinterfaces2[4] = nodevxlaninterface2
+	vtv.vppCache.SetNodeInterfaces("k8s-worker1", nodeinterfaces2)
+	vtv.processor.ValidateL2Connectivity()
+	fmt.Println("Setting vxlan_vni back to normal...")
+	nodevxlaninterface2.Vxlan.Vni = 10
+	nodeinterfaces2[4] = nodevxlaninterface2
+	vtv.vppCache.SetNodeInterfaces("k8s-worker1", nodeinterfaces2)
+	vtv.processor.ValidateL2Connectivity()
+	node, _ = vtv.vppCache.RetrieveNode("k8s-worker1")
+
+	nodeinterface2.IfType = interfaces.InterfaceType_TAP_INTERFACE
+	nodeinterfaces2[3] = nodeinterface2
+	vtv.vppCache.SetNodeInterfaces("k8s-worker1", nodeinterfaces2)
+	fmt.Println("Expecting errors as bd has no loop interface.")
+	vtv.processor.ValidateL2Connectivity()
+	fmt.Println("Done expecting errors")
+	nodeinterface2.IfType = interfaces.InterfaceType_SOFTWARE_LOOPBACK
+	nodeinterfaces2[3] = nodeinterface2
+	vtv.vppCache.SetNodeInterfaces("k8s-worker1", nodeinterfaces2)
+	vtv.processor.ValidateL2Connectivity()
+
+	fmt.Println("Deleting node with ip 10 from gigE map" +
+		". Expecting errors for missing ip")
+	delete(vtv.vppCache.GigEIPMap, node.NodeInterfaces[4].Vxlan.DstAddress+api.SubnetMask)
+	vtv.processor.ValidateL2Connectivity()
+	fmt.Println("Done expecting errors")
+	node, _ = vtv.vppCache.RetrieveNode("k8s_master")
+	vtv.vppCache.GigEIPMap["10"+api.SubnetMask] = node
+	vtv.processor.ValidateL2Connectivity()
+
+	fmt.Println("Unmatching vxlan tunnel. Expecting error...")
+
+	nodevxlaninterface1.Vxlan.DstAddress = "20"
+	nodeinterfaces[5] = nodevxlaninterface1
+	vtv.vppCache.SetNodeInterfaces("k8s_master", nodeinterfaces)
+	vtv.processor.ValidateL2Connectivity()
+	fmt.Println("Done expecting errors...")
+	nodevxlaninterface1.Vxlan.DstAddress = "11"
+	nodeinterfaces[5] = nodevxlaninterface1
+	vtv.vppCache.SetNodeInterfaces("k8s_master", nodeinterfaces)
+	vtv.processor.ValidateL2Connectivity()
+
+	fmt.Println("Expecting error for mismatched index of bridge domain")
+	bdif2_2.SwIfIndex = 5
+	nodebd2 = telemetrymodel.NodeBridgeDomain{
+		[]telemetrymodel.BDinterfaces{bdif2_1, bdif2_2},
+		"vxlanBD",
+		true,
+	}
+	nodebdmap2 = make(map[int]telemetrymodel.NodeBridgeDomain)
+	nodebdmap2[1] = nodebd2
+	vtv.vppCache.SetNodeBridgeDomain("k8s-worker1", nodebdmap2)
+	vtv.processor.ValidateL2Connectivity()
+	fmt.Println("Done expecting errors...")
+	bdif2_2.SwIfIndex = 4
+	nodebd2 = telemetrymodel.NodeBridgeDomain{
+		[]telemetrymodel.BDinterfaces{bdif2_1, bdif2_2},
+		"vxlanBD",
+		true,
+	}
+	nodebdmap2 = make(map[int]telemetrymodel.NodeBridgeDomain)
+	nodebdmap2[1] = nodebd2
+	vtv.vppCache.SetNodeBridgeDomain("k8s-worker1", nodebdmap2)
+	vtv.processor.ValidateL2Connectivity()
+
+	fmt.Println("Adding extra node in place of existing one...")
+	vtv.vppCache.CreateNode(1, "extraNode", "54321", "54321")
+	node, _ = vtv.vppCache.RetrieveNode("extraNode")
+	vtv.vppCache.GigEIPMap["10/24"] = node
+	vtv.processor.ValidateL2Connectivity()
+	fmt.Println("Done expecting errors...")
+	node, _ = vtv.vppCache.RetrieveNode("k8s_master")
+	vtv.vppCache.GigEIPMap["10/24"] = node
+	vtv.vppCache.DeleteNode("extraNode")
+	vtv.processor.ValidateL2Connectivity()
+
+}
+
+func testNodesDBValidateLoopIFAddresses(t *testing.T) {
+	resetAllCaches()
+	vtv.report.Clear()
+
+	vtv.vppCache.CreateNode(1, "k8s_master", "10", "10")
+	node, err := vtv.vppCache.RetrieveNode("k8s_master")
+	gomega.Expect(err).To(gomega.BeNil())
+	gomega.Expect(node.IPAdr).To(gomega.Equal("10"))
+	gomega.Expect(node.Name).To(gomega.Equal("k8s_master"))
+	gomega.Expect(node.ID).To(gomega.Equal(uint32(1)))
+	gomega.Expect(node.ManIPAdr).To(gomega.Equal("10"))
+	nodeinterface1 := telemetrymodel.NodeInterface{
+		"loop0",
+		"loop0",
+		3,
+		true,
+		"11",
+		1,
+		telemetrymodel.Vxlan{"", "", 1},
+		[]string{"11"},
+		telemetrymodel.Tap{}}
+	nodeinterfaces := map[int]telemetrymodel.NodeInterface{}
+	nodeinterfaces[3] = nodeinterface1
+
+	nodeiparp1 := telemetrymodel.NodeIPArpEntry{3, "10", "10", true}
+	nodeiparps1 := make([]telemetrymodel.NodeIPArpEntry, 0)
+	nodeiparps1 = append(nodeiparps1, nodeiparp1)
+
+	nodeinterface2 := telemetrymodel.NodeInterface{
+		"loop0",
+		"loop0",
+		3,
+		true,
+		"10",
+		1,
+		telemetrymodel.Vxlan{"", "", 1},
+		[]string{"10"},
+		telemetrymodel.Tap{}}
+	nodeinterfaces2 := map[int]telemetrymodel.NodeInterface{}
+	nodeinterfaces2[3] = nodeinterface2
+
+	nodeiparp2 := telemetrymodel.NodeIPArpEntry{3, "11", "11", true}
+	nodeiparps2 := make([]telemetrymodel.NodeIPArpEntry, 0)
+	nodeiparps2 = append(nodeiparps2, nodeiparp2)
+
+	vtv.vppCache.CreateNode(2, "k8s-worker1", "11", "11")
+
+	vtv.vppCache.SetNodeIPARPs("k8s_master", nodeiparps1)
+	node, _ = vtv.vppCache.RetrieveNode("k8s_master")
+	vtv.vppCache.SetNodeInterfaces("k8s_master", nodeinterfaces)
+	node, err = vtv.vppCache.RetrieveNode("k8s_master")
+	vtv.vppCache.LoopMACMap[node.NodeInterfaces[3].PhysAddress] = node
+	vtv.vppCache.LoopIPMap[node.NodeInterfaces[3].IPAddresses[0]+api.SubnetMask] = node
+
+	vtv.vppCache.SetNodeIPARPs("k8s-worker1", nodeiparps2)
+	vtv.vppCache.SetNodeInterfaces("k8s-worker1", nodeinterfaces2)
+	node, err = vtv.vppCache.RetrieveNode("k8s-worker1")
+	vtv.vppCache.LoopMACMap[node.NodeInterfaces[3].PhysAddress] = node
+	vtv.vppCache.LoopIPMap[node.NodeInterfaces[3].IPAddresses[0]+api.SubnetMask] = node
+
+	vtv.processor.ValidateArpTables()
+
+	vtv.vppCache.CreateNode(1, "NoMacFoundNode", "12", "12")
+	fmt.Println("Expecting errors for node not in ARP table...")
+	vtv.processor.ValidateArpTables()
+	fmt.Println("Expected errors over for NoMacFoundNode...")
+	fmt.Println("Removing NoMacFound from cache...")
+	vtv.vppCache.DeleteNode("NoMacFoundNode")
+	fmt.Println("Done...")
+	fmt.Println("Adding extra arp entry to node k8s_master...")
+	nodeiparp3 := telemetrymodel.NodeIPArpEntry{3, "extraIP", "extraMAC", true}
+	nodeiparps1 = append(nodeiparps1, nodeiparp3)
+	vtv.vppCache.SetNodeIPARPs("k8s_master", nodeiparps1)
+	fmt.Println("Done...")
+	fmt.Println("Expecting mac not found and ip not found errors for extra ip arp entry...")
+	vtv.processor.ValidateArpTables()
+	fmt.Println("Done expecting errors...")
+	fmt.Println("Removing extra arp entry...")
+	fmt.Println("Done...")
+	fmt.Println("Adding extra node to cache...")
+	fmt.Println("Expecting errors for extra node...")
+	vtv.vppCache.CreateNode(3, "BlahNode", "11", "11")
+	node2, _ := vtv.vppCache.RetrieveNode("BlahNode")
+	vtv.vppCache.LoopMACMap[node.NodeInterfaces[3].PhysAddress] = node2
+	vtv.processor.ValidateArpTables()
+	vtv.vppCache.LoopMACMap[node.NodeInterfaces[3].PhysAddress] = node
+	vtv.vppCache.DeleteNode("BlahNode")
+
+	node, _ = vtv.vppCache.RetrieveNode("k8s_master")
+	nodeinterfaces = make(map[int]telemetrymodel.NodeInterface)
+	vtv.vppCache.SetNodeInterfaces(node.Name, nodeinterfaces)
+	fmt.Println("Expecting errors for missing interface for k8s_master...")
+	vtv.processor.ValidateArpTables()
+
+}
+
+func testCacheValidateFibEntries(t *testing.T) {
+	resetAllCaches()
+	vtv.report.Clear()
+
+	vtv.vppCache.CreateNode(1, "k8s_master", "10", "10")
+	node, err := vtv.vppCache.RetrieveNode("k8s_master")
+	gomega.Expect(err).To(gomega.BeNil())
+	gomega.Expect(node.IPAdr).To(gomega.Equal("10"))
+	gomega.Expect(node.Name).To(gomega.Equal("k8s_master"))
+	gomega.Expect(node.ID).To(gomega.Equal(uint32(1)))
+	gomega.Expect(node.ManIPAdr).To(gomega.Equal("10"))
+	nodeinterface1 := telemetrymodel.NodeInterface{
+		"loop0",
+		"loop0",
+		interfaces.InterfaceType_SOFTWARE_LOOPBACK,
+		true,
+		"11",
+		1,
+		telemetrymodel.Vxlan{"", "", 1},
+		[]string{"11"},
+		telemetrymodel.Tap{}}
+	nodeinterfaces := map[int]telemetrymodel.NodeInterface{}
+	nodeinterfaces[3] = nodeinterface1
+
+	nodeiparp1 := telemetrymodel.NodeIPArpEntry{3, "10", "10", true}
+	nodeiparps1 := make([]telemetrymodel.NodeIPArpEntry, 0)
+	nodeiparps1 = append(nodeiparps1, nodeiparp1)
+
+	nodeinterface2 := telemetrymodel.NodeInterface{
+		"loop0",
+		"loop0",
+		interfaces.InterfaceType_SOFTWARE_LOOPBACK,
+		true,
+		"10",
+		1,
+		telemetrymodel.Vxlan{"", "", 1},
+		[]string{"10"},
+		telemetrymodel.Tap{}}
+	nodeinterfaces2 := map[int]telemetrymodel.NodeInterface{}
+	nodeinterfaces2[3] = nodeinterface2
+
+	nodeiparp2 := telemetrymodel.NodeIPArpEntry{3, "11", "11", true}
+	nodeiparps2 := make([]telemetrymodel.NodeIPArpEntry, 0)
+	nodeiparps2 = append(nodeiparps2, nodeiparp2)
+
+	vtv.vppCache.CreateNode(2, "k8s-worker1", "11", "11")
+
+	vtv.vppCache.SetNodeIPARPs("k8s_master", nodeiparps1)
+	node, _ = vtv.vppCache.RetrieveNode("k8s_master")
+	vtv.vppCache.SetNodeInterfaces("k8s_master", nodeinterfaces)
+	node, err = vtv.vppCache.RetrieveNode("k8s_master")
+	vtv.vppCache.LoopMACMap[node.NodeInterfaces[3].PhysAddress] = node
+	vtv.vppCache.LoopIPMap[node.NodeInterfaces[3].IPAddresses[0]+api.SubnetMask] = node
+
+	vtv.vppCache.SetNodeIPARPs("k8s-worker1", nodeiparps2)
+	vtv.vppCache.SetNodeInterfaces("k8s-worker1", nodeinterfaces2)
+	node, err = vtv.vppCache.RetrieveNode("k8s-worker1")
+	vtv.vppCache.LoopMACMap[node.NodeInterfaces[3].PhysAddress] = node
+	vtv.vppCache.LoopIPMap[node.NodeInterfaces[3].IPAddresses[0]+api.SubnetMask] = node
+	node, _ = vtv.vppCache.RetrieveNode("k8s_master")
+	bdif1_1 := telemetrymodel.BDinterfaces{3}
+	bdif1_2 := telemetrymodel.BDinterfaces{5}
+	nodebd1 := telemetrymodel.NodeBridgeDomain{
+		[]telemetrymodel.BDinterfaces{bdif1_1, bdif1_2},
+		"vxlanBD",
+		true,
+	}
+	nodebdmap1 := make(map[int]telemetrymodel.NodeBridgeDomain)
+	nodebdmap1[1] = nodebd1
+	nodevxlaninterface1 := telemetrymodel.NodeInterface{
+		"vxlan_tunnel0",
+		"vxlan2",
+		interfaces.InterfaceType_VXLAN_TUNNEL,
+		true,
+		"",
+		0,
+		telemetrymodel.Vxlan{node.IPAdr, "11",
+			10}, []string{}, telemetrymodel.Tap{},
+	}
+	nodeinterfaces[5] = nodevxlaninterface1
+	vtv.vppCache.SetNodeInterfaces("k8s_master", nodeinterfaces)
+	vtv.vppCache.SetNodeBridgeDomain("k8s_master", nodebdmap1)
+
+	node, _ = vtv.vppCache.RetrieveNode("k8s-worker1")
+	bdif2_1 := telemetrymodel.BDinterfaces{3}
+	bdif2_2 := telemetrymodel.BDinterfaces{4}
+	nodebd2 := telemetrymodel.NodeBridgeDomain{
+		[]telemetrymodel.BDinterfaces{bdif2_1, bdif2_2},
+		"vxlanBD",
+		true,
+	}
+	nodebdmap2 := make(map[int]telemetrymodel.NodeBridgeDomain)
+	nodebdmap2[1] = nodebd2
+	nodevxlaninterface2 := telemetrymodel.NodeInterface{
+		"vxlan_tunnel0",
+		"vxlan2",
+		interfaces.InterfaceType_VXLAN_TUNNEL,
+		true,
+		"",
+		0,
+		telemetrymodel.Vxlan{node.IPAdr, "10",
+			10}, []string{}, telemetrymodel.Tap{},
+	}
+	nodeinterfaces2[4] = nodevxlaninterface2
+	vtv.vppCache.SetNodeBridgeDomain("k8s-worker1", nodebdmap2)
+	vtv.vppCache.SetNodeInterfaces("k8s-worker1", nodeinterfaces2)
+	vtv.vppCache.GigEIPMap[node.IPAdr+api.SubnetMask] = node
+	node, _ = vtv.vppCache.RetrieveNode("k8s_master")
+	vtv.vppCache.GigEIPMap[node.IPAdr+api.SubnetMask] = node
+
+	vtv.processor.ValidateL2FibEntries()
 }
 
 func populateNodeInfoDataInCache(cache *datastore.VppDataStore) {
@@ -821,193 +1224,4 @@ func (v *validatorTestVars) createK8sPodTestData() {
 			HostIpAddress: "10.20.0.10",
 		},
 	}
-}
-func testNodesDBValidateL2Connections(t *testing.T) {
-	resetAllCaches()
-
-	vtv.vppCache.CreateNode(1, "k8s_master", "10", "10")
-	node, ok := vtv.vppCache.RetrieveNode("k8s_master")
-	gomega.Expect(ok).To(gomega.BeNil())
-	gomega.Expect(node.IPAdr).To(gomega.Equal("10"))
-	gomega.Expect(node.Name).To(gomega.Equal("k8s_master"))
-	gomega.Expect(node.ID).To(gomega.Equal(uint32(1)))
-	gomega.Expect(node.ManIPAdr).To(gomega.Equal("10"))
-	nodeinterface1 := telemetrymodel.NodeInterface{
-		"loop0",
-		"loop0",
-		interfaces.InterfaceType_SOFTWARE_LOOPBACK,
-		true,
-		"11",
-		1,
-		telemetrymodel.Vxlan{"", "", 1},
-		[]string{"11"},
-		telemetrymodel.Tap{}}
-	nodeinterfaces := map[int]telemetrymodel.NodeInterface{}
-	nodeinterfaces[3] = nodeinterface1
-
-	nodeiparp1 := telemetrymodel.NodeIPArpEntry{3, "10", "10", true}
-	nodeiparps1 := make([]telemetrymodel.NodeIPArpEntry, 0)
-	nodeiparps1 = append(nodeiparps1, nodeiparp1)
-
-	nodeinterface2 := telemetrymodel.NodeInterface{
-		"loop0",
-		"loop0",
-		interfaces.InterfaceType_SOFTWARE_LOOPBACK,
-		true,
-		"10",
-		1,
-		telemetrymodel.Vxlan{"", "", 1},
-		[]string{"10"},
-		telemetrymodel.Tap{}}
-	nodeinterfaces2 := map[int]telemetrymodel.NodeInterface{}
-	nodeinterfaces2[3] = nodeinterface2
-
-	nodeiparp2 := telemetrymodel.NodeIPArpEntry{3, "11", "11", true}
-	nodeiparps2 := make([]telemetrymodel.NodeIPArpEntry, 0)
-	nodeiparps2 = append(nodeiparps2, nodeiparp2)
-
-	vtv.vppCache.CreateNode(2, "k8s-worker1", "11", "11")
-
-	vtv.vppCache.SetNodeIPARPs("k8s_master", nodeiparps1)
-	node, _ = vtv.vppCache.RetrieveNode("k8s_master")
-	vtv.vppCache.SetNodeInterfaces("k8s_master", nodeinterfaces)
-	node, _ = vtv.vppCache.RetrieveNode("k8s_master")
-	vtv.vppCache.LoopMACMap[node.NodeInterfaces[3].PhysAddress] = node
-	vtv.vppCache.LoopIPMap[node.NodeInterfaces[3].IPAddresses[0]+api.SubnetMask] = node
-
-	vtv.vppCache.SetNodeIPARPs("k8s-worker1", nodeiparps2)
-	vtv.vppCache.SetNodeInterfaces("k8s-worker1", nodeinterfaces2)
-	node, ok = vtv.vppCache.RetrieveNode("k8s-worker1")
-	vtv.vppCache.LoopMACMap[node.NodeInterfaces[3].PhysAddress] = node
-	vtv.vppCache.LoopIPMap[node.NodeInterfaces[3].IPAddresses[0]+api.SubnetMask] = node
-	node, _ = vtv.vppCache.RetrieveNode("k8s_master")
-	bdif1_1 := telemetrymodel.BDinterfaces{3}
-	bdif1_2 := telemetrymodel.BDinterfaces{5}
-	nodebd1 := telemetrymodel.NodeBridgeDomain{
-		[]telemetrymodel.BDinterfaces{bdif1_1, bdif1_2},
-		"vxlanBD",
-		true,
-	}
-	nodebdmap1 := make(map[int]telemetrymodel.NodeBridgeDomain)
-	nodebdmap1[1] = nodebd1
-	nodevxlaninterface1 := telemetrymodel.NodeInterface{
-		"vxlan_tunnel0",
-		"vxlan2",
-		interfaces.InterfaceType_VXLAN_TUNNEL,
-		true,
-		"",
-		0,
-		telemetrymodel.Vxlan{node.IPAdr, "11",
-			10}, []string{}, telemetrymodel.Tap{},
-	}
-	nodeinterfaces[5] = nodevxlaninterface1
-	vtv.vppCache.SetNodeInterfaces("k8s_master", nodeinterfaces)
-	vtv.vppCache.SetNodeBridgeDomain("k8s_master", nodebdmap1)
-
-	node, _ = vtv.vppCache.RetrieveNode("k8s-worker1")
-	bdif2_1 := telemetrymodel.BDinterfaces{3}
-	bdif2_2 := telemetrymodel.BDinterfaces{4}
-	nodebd2 := telemetrymodel.NodeBridgeDomain{
-		[]telemetrymodel.BDinterfaces{bdif2_1, bdif2_2},
-		"vxlanBD",
-		true,
-	}
-	nodebdmap2 := make(map[int]telemetrymodel.NodeBridgeDomain)
-	nodebdmap2[1] = nodebd2
-	nodevxlaninterface2 := telemetrymodel.NodeInterface{
-		"vxlan_tunnel0",
-		"vxlan2",
-		interfaces.InterfaceType_VXLAN_TUNNEL,
-		true,
-		"",
-		0,
-		telemetrymodel.Vxlan{node.IPAdr, "10",
-			10}, []string{}, telemetrymodel.Tap{},
-	}
-	nodeinterfaces2[4] = nodevxlaninterface2
-	vtv.vppCache.SetNodeBridgeDomain("k8s-worker1", nodebdmap2)
-	vtv.vppCache.SetNodeInterfaces("k8s-worker1", nodeinterfaces2)
-	vtv.vppCache.GigEIPMap[node.IPAdr+api.SubnetMask] = node
-	node, _ = vtv.vppCache.RetrieveNode("k8s_master")
-	vtv.vppCache.GigEIPMap[node.IPAdr+api.SubnetMask] = node
-	vtv.processor.Validate()
-
-	fmt.Println("Setting vxlan_vni to 11, expecting error...")
-	nodevxlaninterface2.Vxlan.Vni = 11
-	nodeinterfaces2[4] = nodevxlaninterface2
-	vtv.vppCache.SetNodeInterfaces("k8s-worker1", nodeinterfaces2)
-	vtv.processor.ValidateL2Connectivity()
-	fmt.Println("Setting vxlan_vni back to normal...")
-	nodevxlaninterface2.Vxlan.Vni = 10
-	nodeinterfaces2[4] = nodevxlaninterface2
-	vtv.vppCache.SetNodeInterfaces("k8s-worker1", nodeinterfaces2)
-	vtv.processor.ValidateL2Connectivity()
-	node, _ = vtv.vppCache.RetrieveNode("k8s-worker1")
-
-	nodeinterface2.IfType = interfaces.InterfaceType_TAP_INTERFACE
-	nodeinterfaces2[3] = nodeinterface2
-	vtv.vppCache.SetNodeInterfaces("k8s-worker1", nodeinterfaces2)
-	fmt.Println("Expecting errors as bd has no loop interface.")
-	vtv.processor.ValidateL2Connectivity()
-	fmt.Println("Done expecting errors")
-	nodeinterface2.IfType = interfaces.InterfaceType_SOFTWARE_LOOPBACK
-	nodeinterfaces2[3] = nodeinterface2
-	vtv.vppCache.SetNodeInterfaces("k8s-worker1", nodeinterfaces2)
-	vtv.processor.ValidateL2Connectivity()
-
-	fmt.Println("Deleting node with ip 10 from gigE map" +
-		". Expecting errors for missing ip")
-	delete(vtv.vppCache.GigEIPMap, node.NodeInterfaces[4].Vxlan.DstAddress+api.SubnetMask)
-	vtv.processor.ValidateL2Connectivity()
-	fmt.Println("Done expecting errors")
-	node, _ = vtv.vppCache.RetrieveNode("k8s_master")
-	vtv.vppCache.GigEIPMap["10"+api.SubnetMask] = node
-	vtv.processor.ValidateL2Connectivity()
-
-	fmt.Println("Unmatching vxlan tunnel. Expecting error...")
-
-	nodevxlaninterface1.Vxlan.DstAddress = "20"
-	nodeinterfaces[5] = nodevxlaninterface1
-	vtv.vppCache.SetNodeInterfaces("k8s_master", nodeinterfaces)
-	vtv.processor.ValidateL2Connectivity()
-	fmt.Println("Done expecting errors...")
-	nodevxlaninterface1.Vxlan.DstAddress = "11"
-	nodeinterfaces[5] = nodevxlaninterface1
-	vtv.vppCache.SetNodeInterfaces("k8s_master", nodeinterfaces)
-	vtv.processor.ValidateL2Connectivity()
-
-	fmt.Println("Expecting error for mismatched index of bridge domain")
-	bdif2_2.SwIfIndex = 5
-	nodebd2 = telemetrymodel.NodeBridgeDomain{
-		[]telemetrymodel.BDinterfaces{bdif2_1, bdif2_2},
-		"vxlanBD",
-		true,
-	}
-	nodebdmap2 = make(map[int]telemetrymodel.NodeBridgeDomain)
-	nodebdmap2[1] = nodebd2
-	vtv.vppCache.SetNodeBridgeDomain("k8s-worker1", nodebdmap2)
-	vtv.processor.ValidateL2Connectivity()
-	fmt.Println("Done expecting errors...")
-	bdif2_2.SwIfIndex = 4
-	nodebd2 = telemetrymodel.NodeBridgeDomain{
-		[]telemetrymodel.BDinterfaces{bdif2_1, bdif2_2},
-		"vxlanBD",
-		true,
-	}
-	nodebdmap2 = make(map[int]telemetrymodel.NodeBridgeDomain)
-	nodebdmap2[1] = nodebd2
-	vtv.vppCache.SetNodeBridgeDomain("k8s-worker1", nodebdmap2)
-	vtv.processor.ValidateL2Connectivity()
-
-	fmt.Println("Adding extra node in place of existing one...")
-	vtv.vppCache.CreateNode(1, "extraNode", "54321", "54321")
-	node, _ = vtv.vppCache.RetrieveNode("extraNode")
-	vtv.vppCache.GigEIPMap["10/24"] = node
-	vtv.processor.ValidateL2Connectivity()
-	fmt.Println("Done expecting errors...")
-	node, _ = vtv.vppCache.RetrieveNode("k8s_master")
-	vtv.vppCache.GigEIPMap["10/24"] = node
-	vtv.vppCache.DeleteNode("extraNode")
-	vtv.processor.ValidateL2Connectivity()
-
 }

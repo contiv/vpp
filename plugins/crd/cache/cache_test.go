@@ -10,7 +10,6 @@ import (
 	"github.com/onsi/gomega"
 )
 
-
 func TestNodesDB_ValidateLoopIFAddresses(t *testing.T) {
 	gomega.RegisterTestingT(t)
 	logger := logrus.DefaultLogger()

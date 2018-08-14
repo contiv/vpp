@@ -15,17 +15,17 @@
 package datastore
 
 import (
-	"testing"
-	"github.com/onsi/gomega"
 	"github.com/contiv/vpp/plugins/ksr/model/node"
+	"github.com/onsi/gomega"
+	"testing"
 )
 
 func TestNewK8sDataStore(t *testing.T) {
 	gomega.RegisterTestingT(t)
 	db := NewK8sDataStore()
 	nodeAddresses := []*node.NodeAddress{}
-	nodeAddresses = append(nodeAddresses, &node.NodeAddress{Type:3,Address:"54321"})
-	db.CreateK8sNode("k8s-master","123","12345",nodeAddresses,&node.NodeSystemInfo{})
+	nodeAddresses = append(nodeAddresses, &node.NodeAddress{Type: 3, Address: "54321"})
+	db.CreateK8sNode("k8s-master", "123", "12345", nodeAddresses, &node.NodeSystemInfo{})
 	node, err := db.retrieveK8sNode("k8s-master")
 	gomega.Expect(err).To(gomega.BeNil())
 	gomega.Expect(node.Name).To(gomega.BeEquivalentTo("k8s-master"))
@@ -36,13 +36,13 @@ func TestK8sDataStore_CreateK8sNode(t *testing.T) {
 	gomega.RegisterTestingT(t)
 	db := NewK8sDataStore()
 	nodeAddresses := []*node.NodeAddress{}
-	nodeAddresses = append(nodeAddresses, &node.NodeAddress{Type:3,Address:"54321"})
-	db.CreateK8sNode("k8s-master","123","12345",nodeAddresses,&node.NodeSystemInfo{})
+	nodeAddresses = append(nodeAddresses, &node.NodeAddress{Type: 3, Address: "54321"})
+	db.CreateK8sNode("k8s-master", "123", "12345", nodeAddresses, &node.NodeSystemInfo{})
 	node, err := db.retrieveK8sNode("k8s-master")
 	gomega.Expect(err).To(gomega.BeNil())
 	gomega.Expect(node.Name).To(gomega.BeEquivalentTo("k8s-master"))
 
-	err = db.CreateK8sNode("k8s-master","","",nil,nil)
+	err = db.CreateK8sNode("k8s-master", "", "", nil, nil)
 	gomega.Expect(err).To(gomega.Not(gomega.BeNil()))
 
 }
@@ -50,12 +50,12 @@ func TestK8sDataStore_CreateK8sNode(t *testing.T) {
 func TestK8sDataStore_CreatePod(t *testing.T) {
 	gomega.RegisterTestingT(t)
 	db := NewK8sDataStore()
-	db.CreatePod("k8s-pod1","namespace1",nil,"1.2.3.4","hostip",nil)
+	db.CreatePod("k8s-pod1", "namespace1", nil, "1.2.3.4", "hostip", nil)
 	pod, err := db.retrievePod("k8s-pod1")
 	gomega.Expect(err).To(gomega.BeNil())
 	gomega.Expect(pod.Name).To(gomega.BeEquivalentTo("k8s-pod1"))
 
-	err = db.CreatePod("k8s-pod1","",nil,"","",nil)
+	err = db.CreatePod("k8s-pod1", "", nil, "", "", nil)
 	gomega.Expect(err).To(gomega.Not(gomega.BeNil()))
 }
 
@@ -63,8 +63,8 @@ func TestK8sDataStore_DeleteK8sNode(t *testing.T) {
 	gomega.RegisterTestingT(t)
 	db := NewK8sDataStore()
 	nodeAddresses := []*node.NodeAddress{}
-	nodeAddresses = append(nodeAddresses, &node.NodeAddress{Type:3,Address:"54321"})
-	db.CreateK8sNode("k8s-master","123","12345",nodeAddresses,&node.NodeSystemInfo{})
+	nodeAddresses = append(nodeAddresses, &node.NodeAddress{Type: 3, Address: "54321"})
+	db.CreateK8sNode("k8s-master", "123", "12345", nodeAddresses, &node.NodeSystemInfo{})
 	node, err := db.retrieveK8sNode("k8s-master")
 	gomega.Expect(err).To(gomega.BeNil())
 	gomega.Expect(node.Name).To(gomega.BeEquivalentTo("k8s-master"))
@@ -79,7 +79,7 @@ func TestK8sDataStore_DeleteK8sNode(t *testing.T) {
 func TestK8sDataStore_DeletePod(t *testing.T) {
 	gomega.RegisterTestingT(t)
 	db := NewK8sDataStore()
-	db.CreatePod("k8s-pod1","namespace1",nil,"1.2.3.4","hostip",nil)
+	db.CreatePod("k8s-pod1", "namespace1", nil, "1.2.3.4", "hostip", nil)
 	pod, err := db.retrievePod("k8s-pod1")
 	gomega.Expect(err).To(gomega.BeNil())
 	gomega.Expect(pod.Name).To(gomega.BeEquivalentTo("k8s-pod1"))
@@ -95,13 +95,13 @@ func TestK8sDataStore_RetrieveK8sNode(t *testing.T) {
 	gomega.RegisterTestingT(t)
 	db := NewK8sDataStore()
 	nodeAddresses := []*node.NodeAddress{}
-	nodeAddresses = append(nodeAddresses, &node.NodeAddress{Type:3,Address:"54321"})
-	db.CreateK8sNode("k8s-master","123","12345",nodeAddresses,&node.NodeSystemInfo{})
+	nodeAddresses = append(nodeAddresses, &node.NodeAddress{Type: 3, Address: "54321"})
+	db.CreateK8sNode("k8s-master", "123", "12345", nodeAddresses, &node.NodeSystemInfo{})
 	node, err := db.retrieveK8sNode("k8s-master")
 	gomega.Expect(err).To(gomega.BeNil())
 	gomega.Expect(node.Name).To(gomega.BeEquivalentTo("k8s-master"))
 
-	_,err = db.retrieveK8sNode("blah")
+	_, err = db.retrieveK8sNode("blah")
 	gomega.Expect(err).To(gomega.Not(gomega.BeNil()))
 
 }
@@ -109,12 +109,12 @@ func TestK8sDataStore_RetrieveK8sNode(t *testing.T) {
 func TestK8sDataStore_RetrievePod(t *testing.T) {
 	gomega.RegisterTestingT(t)
 	db := NewK8sDataStore()
-	db.CreatePod("k8s-pod1","namespace1",nil,"1.2.3.4","hostip",nil)
+	db.CreatePod("k8s-pod1", "namespace1", nil, "1.2.3.4", "hostip", nil)
 	pod, err := db.retrievePod("k8s-pod1")
 	gomega.Expect(err).To(gomega.BeNil())
 	gomega.Expect(pod.Name).To(gomega.BeEquivalentTo("k8s-pod1"))
 
-	_,err = db.retrievePod("blah")
+	_, err = db.retrievePod("blah")
 	gomega.Expect(err).To(gomega.Not(gomega.BeNil()))
 }
 
@@ -122,19 +122,18 @@ func TestK8sDataStore_UpdateK8sNode(t *testing.T) {
 	gomega.RegisterTestingT(t)
 	db := NewK8sDataStore()
 	nodeAddresses := []*node.NodeAddress{}
-	nodeAddresses = append(nodeAddresses, &node.NodeAddress{Type:3,Address:"54321"})
-	db.CreateK8sNode("k8s-master","123","12345",nodeAddresses,&node.NodeSystemInfo{})
+	nodeAddresses = append(nodeAddresses, &node.NodeAddress{Type: 3, Address: "54321"})
+	db.CreateK8sNode("k8s-master", "123", "12345", nodeAddresses, &node.NodeSystemInfo{})
 	node, err := db.retrieveK8sNode("k8s-master")
 	gomega.Expect(err).To(gomega.BeNil())
 	gomega.Expect(node.Name).To(gomega.BeEquivalentTo("k8s-master"))
 
-	db.UpdateK8sNode("k8s-master","321","54321",nil,nil)
+	db.UpdateK8sNode("k8s-master", "321", "54321", nil, nil)
 	node, err = db.retrieveK8sNode("k8s-master")
 	gomega.Expect(err).To(gomega.BeNil())
 	gomega.Expect(node.NodeInfo).To(gomega.BeNil())
 
-
-	err = db.UpdateK8sNode("blah","","",nil,nil)
+	err = db.UpdateK8sNode("blah", "", "", nil, nil)
 	gomega.Expect(err).To(gomega.Not(gomega.BeNil()))
 
 }
@@ -142,18 +141,18 @@ func TestK8sDataStore_UpdateK8sNode(t *testing.T) {
 func TestK8sDataStore_UpdatePod(t *testing.T) {
 	gomega.RegisterTestingT(t)
 	db := NewK8sDataStore()
-	db.CreatePod("k8s-pod1","namespace1",nil,"1.2.3.4","hostip",nil)
+	db.CreatePod("k8s-pod1", "namespace1", nil, "1.2.3.4", "hostip", nil)
 	pod, err := db.retrievePod("k8s-pod1")
 	gomega.Expect(err).To(gomega.BeNil())
 	gomega.Expect(pod.Name).To(gomega.BeEquivalentTo("k8s-pod1"))
 
-	db.UpdatePod(pod.Name,"oekfe",nil,"4.32.1","",nil)
+	db.UpdatePod(pod.Name, "oekfe", nil, "4.32.1", "", nil)
 	pod, err = db.retrievePod("k8s-pod1")
 	gomega.Expect(err).To(gomega.BeNil())
 	gomega.Expect(pod.Name).To(gomega.BeEquivalentTo("k8s-pod1"))
 	gomega.Expect(pod.Namespace).To(gomega.BeEquivalentTo("oekfe"))
 
-	err = db.UpdatePod("bla","",nil,"","",nil)
+	err = db.UpdatePod("bla", "", nil, "", "", nil)
 	gomega.Expect(err).To(gomega.Not(gomega.BeNil()))
 }
 
@@ -161,13 +160,13 @@ func TestK8sDataStore_RetrieveAllK8sNodes(t *testing.T) {
 	gomega.RegisterTestingT(t)
 	db := NewK8sDataStore()
 	nodeAddresses := []*node.NodeAddress{}
-	nodeAddresses = append(nodeAddresses, &node.NodeAddress{Type:3,Address:"54321"})
-	db.CreateK8sNode("k8s-master","123","12345",nodeAddresses,&node.NodeSystemInfo{})
+	nodeAddresses = append(nodeAddresses, &node.NodeAddress{Type: 3, Address: "54321"})
+	db.CreateK8sNode("k8s-master", "123", "12345", nodeAddresses, &node.NodeSystemInfo{})
 	node, err := db.retrieveK8sNode("k8s-master")
 	gomega.Expect(err).To(gomega.BeNil())
 	gomega.Expect(node.Name).To(gomega.BeEquivalentTo("k8s-master"))
 
-	db.CreateK8sNode("k8s-worker1","2","432",nil,nil)
+	db.CreateK8sNode("k8s-worker1", "2", "432", nil, nil)
 
 	k8snodelist := db.RetrieveAllK8sNodes()
 
@@ -179,12 +178,12 @@ func TestK8sDataStore_RetrieveAllK8sNodes(t *testing.T) {
 func TestK8sDataStore_RetrieveAllPods(t *testing.T) {
 	gomega.RegisterTestingT(t)
 	db := NewK8sDataStore()
-	db.CreatePod("k8s-pod1","namespace1",nil,"1.2.3.4","hostip",nil)
+	db.CreatePod("k8s-pod1", "namespace1", nil, "1.2.3.4", "hostip", nil)
 	pod, err := db.retrievePod("k8s-pod1")
 	gomega.Expect(err).To(gomega.BeNil())
 	gomega.Expect(pod.Name).To(gomega.BeEquivalentTo("k8s-pod1"))
 
-	db.CreatePod("pod2","",nil,"","k",nil)
+	db.CreatePod("pod2", "", nil, "", "k", nil)
 
 	podlist := db.RetrieveAllPods()
 

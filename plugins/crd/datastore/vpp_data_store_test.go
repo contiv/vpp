@@ -15,9 +15,9 @@
 package datastore
 
 import (
+	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
 	"github.com/onsi/gomega"
 	"testing"
-	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
 )
 
 //Checks adding a new node.
@@ -200,7 +200,6 @@ func TestVppDataStore_SetNodeLiveness(t *testing.T) {
 
 }
 
-
 func TestVppDataStore_SetNodeTelemetry(t *testing.T) {
 	gomega.RegisterTestingT(t)
 	db := NewVppDataStore()
@@ -260,7 +259,7 @@ func TestVppDataStore_RetrieveNodeByGigEIPAddr(t *testing.T) {
 	gomega.Expect(err).To(gomega.BeNil())
 	gomega.Expect(node.Name).To(gomega.BeEquivalentTo("k8s_master"))
 
-	node,err = db.RetrieveNodeByGigEIPAddr("blah")
+	node, err = db.RetrieveNodeByGigEIPAddr("blah")
 	gomega.Expect(err).To(gomega.Not(gomega.BeNil()))
 
 }
@@ -280,7 +279,7 @@ func TestVppDataStore_RetrieveNodeByHostIPAddr(t *testing.T) {
 	gomega.Expect(err).To(gomega.BeNil())
 	db.hostIPMap["10"] = node
 
-	node,err = db.RetrieveNodeByHostIPAddr("10")
+	node, err = db.RetrieveNodeByHostIPAddr("10")
 	gomega.Expect(err).To(gomega.BeNil())
 
 	node, err = db.RetrieveNodeByHostIPAddr("blah")
@@ -306,7 +305,7 @@ func TestVppDataStore_RetrieveNodeByLoopIPAddr(t *testing.T) {
 	node, err = db.RetrieveNodeByLoopIPAddr("10")
 	gomega.Expect(err).To(gomega.BeNil())
 
-	node,err = db.RetrieveNodeByLoopIPAddr("blah")
+	node, err = db.RetrieveNodeByLoopIPAddr("blah")
 	gomega.Expect(err).To(gomega.Not(gomega.BeNil()))
 
 }
@@ -342,18 +341,17 @@ func TestVppDataStore_UpdateNode(t *testing.T) {
 	gomega.Expect(node.ID).To(gomega.Equal(uint32(1)))
 	gomega.Expect(node.ManIPAdr).To(gomega.Equal("10"))
 
-	err := db.UpdateNode(1,"k8s_master","20","20")
+	err := db.UpdateNode(1, "k8s_master", "20", "20")
 	gomega.Expect(err).To(gomega.BeNil())
 	node, err = db.RetrieveNode("k8s_master")
 
 	gomega.Expect(err).To(gomega.BeNil())
 	gomega.Expect(node.IPAdr).To(gomega.BeEquivalentTo("20"))
 
-	err = db.UpdateNode(1,"blah","2","2")
+	err = db.UpdateNode(1, "blah", "2", "2")
 	gomega.Expect(err).To(gomega.Not(gomega.BeNil()))
 
 }
-
 
 func TestVppDataStore_ClearCache(t *testing.T) {
 	gomega.RegisterTestingT(t)
@@ -366,10 +364,10 @@ func TestVppDataStore_ClearCache(t *testing.T) {
 	gomega.Expect(node.ID).To(gomega.Equal(uint32(1)))
 	gomega.Expect(node.ManIPAdr).To(gomega.Equal("10"))
 
-	db.CreateNode(2,"blah","20","20")
+	db.CreateNode(2, "blah", "20", "20")
 	db.ClearCache()
 
-	_,err := db.retrieveNode("k8s_master")
+	_, err := db.retrieveNode("k8s_master")
 	gomega.Expect(err).To(gomega.Not(gomega.BeNil()))
 
 	_, err = db.retrieveNode("blah")
@@ -389,7 +387,7 @@ func TestVppDataStore_ReinitializeCache(t *testing.T) {
 	gomega.Expect(node.ManIPAdr).To(gomega.Equal("10"))
 
 	db.ReinitializeCache()
-	_,err := db.retrieveNode("k8s_master")
+	_, err := db.retrieveNode("k8s_master")
 
 	gomega.Expect(err).To(gomega.Not(gomega.BeNil()))
 
@@ -405,8 +403,8 @@ func TestGetNodeLoopIFInfo(t *testing.T) {
 	gomega.Expect(node.Name).To(gomega.Equal("k8s_master"))
 	gomega.Expect(node.ID).To(gomega.Equal(uint32(1)))
 	gomega.Expect(node.ManIPAdr).To(gomega.Equal("10"))
-	loopif := telemetrymodel.NodeInterface{"loop0","loop0",1,true,"12",10,nil,nil,nil}
+	loopif := telemetrymodel.NodeInterface{"loop0", "loop0", 1, true, "12", 10, nil, nil, nil}
 	interfaces := make(map[int]telemetrymodel.NodeInterface)
 	interfaces[3] = loopif
-	
+
 }

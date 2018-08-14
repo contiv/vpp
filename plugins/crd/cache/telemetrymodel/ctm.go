@@ -69,8 +69,9 @@ type NodeIPArpTable []NodeIPArpEntry
 // NodeStaticRoutes defines an array of NodeStaticRoute object
 type NodeStaticRoutes []NodeStaticRoute
 
+//NodeStaticRoute holds the unmarshalled node static route JSON data.
 type NodeStaticRoute struct {
-	VrfId       uint32  `json:"vrf_id"`
+	VrfID       uint32  `json:"vrf_id"`
 	TableName   string  `json:"table_name"`
 	DstAddr     dstAddr `json:"dst_addr"`
 	NextHopAddr string  `json:"next_hop_addr"`
@@ -80,7 +81,7 @@ type NodeStaticRoute struct {
 }
 
 type dstAddr struct {
-	Ip   string `json:"IP"`
+	IP   string `json:"IP"`
 	Mask string `json:"Mask"`
 }
 

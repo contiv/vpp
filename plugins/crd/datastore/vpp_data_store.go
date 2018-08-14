@@ -26,11 +26,11 @@ import (
 type VppDataStore struct {
 	lock *sync.Mutex
 
-	nMap       map[string]*telemetrymodel.Node
-	loopIPMap  map[string]*telemetrymodel.Node
-	gigEIPMap  map[string]*telemetrymodel.Node
-	loopMACMap map[string]*telemetrymodel.Node
-	hostIPMap  map[string]*telemetrymodel.Node
+	NodeMap    map[string]*telemetrymodel.Node
+	LoopIPMap  map[string]*telemetrymodel.Node
+	GigEIPMap  map[string]*telemetrymodel.Node
+	LoopMACMap map[string]*telemetrymodel.Node
+	HostIPMap  map[string]*telemetrymodel.Node
 }
 
 // CreateNode will add a node to the node cache with the given parameters,
@@ -45,8 +45,8 @@ func (vds *VppDataStore) CreateNode(ID uint32, nodeName, IPAdr, ManIPAdr string)
 
 	n := &telemetrymodel.Node{IPAdr: IPAdr, ManIPAdr: ManIPAdr, ID: ID, Name: nodeName}
 	n.PodMap = make(map[string]*telemetrymodel.Pod)
-	vds.nMap[nodeName] = n
-	vds.gigEIPMap[IPAdr] = n
+	vds.NodeMap[nodeName] = n
+	vds.GigEIPMap[IPAdr] = n
 
 	return nil
 }
@@ -78,15 +78,15 @@ func (vds *VppDataStore) DeleteNode(nodeName string) error {
 
 	for _, intf := range node.NodeInterfaces {
 		if intf.VppInternalName == "loop0" {
-			delete(vds.loopMACMap, intf.PhysAddress)
+			delete(vds.LoopMACMap, intf.PhysAddress)
 			for _, ip := range intf.IPAddresses {
-				delete(vds.loopIPMap, ip)
+				delete(vds.LoopIPMap, ip)
 			}
 		}
 	}
 
-	delete(vds.nMap, node.Name)
-	delete(vds.gigEIPMap, node.IPAdr)
+	delete(vds.NodeMap, node.Name)
+	delete(vds.GigEIPMap, node.IPAdr)
 
 	return nil
 }
@@ -97,7 +97,7 @@ func (vds *VppDataStore) RetrieveAllNodes() []*telemetrymodel.Node {
 	defer vds.lock.Unlock()
 
 	var str []string
-	for k := range vds.nMap {
+	for k := range vds.NodeMap {
 		str = append(str, k)
 	}
 	var nList []*telemetrymodel.Node
@@ -116,7 +116,7 @@ func (vds *VppDataStore) UpdateNode(ID uint32, nodeName, IPAdr, ManIPAdr string)
 	vds.lock.Lock()
 	defer vds.lock.Unlock()
 
-	node, ok := vds.nMap[nodeName]
+	node, ok := vds.NodeMap[nodeName]
 
 	if !ok {
 		return errors.Errorf("Node with name %+vds not found in vpp cache", nodeName)
@@ -127,12 +127,12 @@ func (vds *VppDataStore) UpdateNode(ID uint32, nodeName, IPAdr, ManIPAdr string)
 	return nil
 }
 
-//ClearCache with clear all vpp cache data except for the base nMap that contains
+//ClearCache with clear all vpp cache data except for the base NodeMap that contains
 // the discovered nodes..
 func (vds *VppDataStore) ClearCache() {
 
 	// Clear collected data for each node
-	for _, node := range vds.nMap {
+	for _, node := range vds.NodeMap {
 		node.NodeInterfaces = nil
 		node.NodeBridgeDomains = nil
 		node.NodeL2Fibs = nil
@@ -142,28 +142,28 @@ func (vds *VppDataStore) ClearCache() {
 		node.Report = []string{}
 	}
 	// Clear secondary index maps
-	vds.gigEIPMap = make(map[string]*telemetrymodel.Node)
-	vds.loopMACMap = make(map[string]*telemetrymodel.Node)
-	vds.loopIPMap = make(map[string]*telemetrymodel.Node)
-	vds.hostIPMap = make(map[string]*telemetrymodel.Node)
+	vds.GigEIPMap = make(map[string]*telemetrymodel.Node)
+	vds.LoopMACMap = make(map[string]*telemetrymodel.Node)
+	vds.LoopIPMap = make(map[string]*telemetrymodel.Node)
+	vds.HostIPMap = make(map[string]*telemetrymodel.Node)
 }
 
 // ReinitializeCache completely re-initializes the cache, clearing all
 // data including  the discovered nodes.
 func (vds *VppDataStore) ReinitializeCache() {
 	vds.ClearCache()
-	vds.nMap = make(map[string]*telemetrymodel.Node)
+	vds.NodeMap = make(map[string]*telemetrymodel.Node)
 }
 
 //NewVppDataStore returns a reference to a new Vpp data store
 func NewVppDataStore() (n *VppDataStore) {
 	return &VppDataStore{
 		lock:       &sync.Mutex{},
-		nMap:       make(map[string]*telemetrymodel.Node),
-		loopIPMap:  make(map[string]*telemetrymodel.Node),
-		gigEIPMap:  make(map[string]*telemetrymodel.Node),
-		loopMACMap: make(map[string]*telemetrymodel.Node),
-		hostIPMap:  make(map[string]*telemetrymodel.Node),
+		NodeMap:    make(map[string]*telemetrymodel.Node),
+		LoopIPMap:  make(map[string]*telemetrymodel.Node),
+		GigEIPMap:  make(map[string]*telemetrymodel.Node),
+		LoopMACMap: make(map[string]*telemetrymodel.Node),
+		HostIPMap:  make(map[string]*telemetrymodel.Node),
 	}
 }
 
@@ -262,22 +262,22 @@ func (vds *VppDataStore) SetSecondaryNodeIndices(node *telemetrymodel.Node) []st
 		return errReport
 	}
 
-	if nIP, ok := vds.hostIPMap[node.ManIPAdr]; ok {
+	if nIP, ok := vds.HostIPMap[node.ManIPAdr]; ok {
 		errReport = append(errReport,
 			fmt.Sprintf("duplicate Host IP Address %s, hosts %s, %s", node.ManIPAdr, nIP.Name, node.Name))
 	} else {
-		vds.hostIPMap[node.ManIPAdr] = node
+		vds.HostIPMap[node.ManIPAdr] = node
 	}
 
 	for _, ipAddr := range loopIF.IPAddresses {
 		if ipAddr == "" {
 			errReport = append(errReport, fmt.Sprintf("empty IP address for Loop if %s", loopIF.Name))
 		} else {
-			if _, ok := vds.loopIPMap[ipAddr]; ok {
+			if _, ok := vds.LoopIPMap[ipAddr]; ok {
 				errReport = append(errReport,
 					fmt.Sprintf("duplicate Loop IP Address %s, interfqce %s", ipAddr, loopIF.Name))
 			} else {
-				vds.loopIPMap[ipAddr] = node
+				vds.LoopIPMap[ipAddr] = node
 			}
 		}
 	}
@@ -285,21 +285,21 @@ func (vds *VppDataStore) SetSecondaryNodeIndices(node *telemetrymodel.Node) []st
 	if loopIF.PhysAddress == "" {
 		errReport = append(errReport, fmt.Sprintf("empty MAC address for Loop if %s", loopIF.Name))
 	} else {
-		if _, ok := vds.loopMACMap[loopIF.PhysAddress]; ok {
+		if _, ok := vds.LoopMACMap[loopIF.PhysAddress]; ok {
 			errReport = append(errReport,
 				fmt.Sprintf("duplicate Loop MAC Address %s, interface %s", loopIF.PhysAddress, loopIF.Name))
 		} else {
-			vds.loopMACMap[loopIF.PhysAddress] = node
+			vds.LoopMACMap[loopIF.PhysAddress] = node
 		}
 	}
-	vds.gigEIPMap[node.IPAdr] = node
+	vds.GigEIPMap[node.IPAdr] = node
 	return errReport
 }
 
 // RetrieveNodeByHostIPAddr returns a reference to node dat for the specified
 // management (host) IP address.
 func (vds *VppDataStore) RetrieveNodeByHostIPAddr(ipAddr string) (*telemetrymodel.Node, error) {
-	if node, ok := vds.hostIPMap[ipAddr]; ok {
+	if node, ok := vds.HostIPMap[ipAddr]; ok {
 		return node, nil
 	}
 	return nil, fmt.Errorf("node for IP address %s not found", ipAddr)
@@ -308,7 +308,7 @@ func (vds *VppDataStore) RetrieveNodeByHostIPAddr(ipAddr string) (*telemetrymode
 // RetrieveNodeByLoopMacAddr returns a reference to node dat for the specified
 // loopback Loop0 MAC address.
 func (vds *VppDataStore) RetrieveNodeByLoopMacAddr(macAddress string) (*telemetrymodel.Node, error) {
-	if node, ok := vds.loopMACMap[macAddress]; ok {
+	if node, ok := vds.LoopMACMap[macAddress]; ok {
 		return node, nil
 	}
 	return nil, fmt.Errorf("node for Loop MAC address %s not found", macAddress)
@@ -317,7 +317,7 @@ func (vds *VppDataStore) RetrieveNodeByLoopMacAddr(macAddress string) (*telemetr
 // RetrieveNodeByLoopIPAddr returns a reference to node dat for the specified
 // loopback Loop0 IP address.
 func (vds *VppDataStore) RetrieveNodeByLoopIPAddr(ipAddress string) (*telemetrymodel.Node, error) {
-	if node, ok := vds.loopIPMap[ipAddress]; ok {
+	if node, ok := vds.LoopIPMap[ipAddress]; ok {
 		return node, nil
 	}
 	return nil, fmt.Errorf("node for Loop MAC address %s not found", ipAddress)
@@ -326,7 +326,7 @@ func (vds *VppDataStore) RetrieveNodeByLoopIPAddr(ipAddress string) (*telemetrym
 // RetrieveNodeByGigEIPAddr returns a reference to node dat for the specified
 // VPP GigE IP address.
 func (vds *VppDataStore) RetrieveNodeByGigEIPAddr(ipAddress string) (*telemetrymodel.Node, error) {
-	if node, ok := vds.gigEIPMap[ipAddress]; ok {
+	if node, ok := vds.GigEIPMap[ipAddress]; ok {
 		return node, nil
 	}
 	return nil, fmt.Errorf("node for Loop MAC address %s not found", ipAddress)
@@ -346,6 +346,6 @@ func GetNodeLoopIFInfo(node *telemetrymodel.Node) (*telemetrymodel.NodeInterface
 // retrieveNode returns a pointer to a node for the given key.
 // Returns an error if that key is not found.
 func (vds *VppDataStore) retrieveNode(key string) (*telemetrymodel.Node, bool) {
-	node, ok := vds.nMap[key]
+	node, ok := vds.NodeMap[key]
 	return node, ok
 }

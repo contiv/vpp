@@ -127,7 +127,7 @@ func newMockTicker() *time.Ticker {
 	}
 }
 
-func TestProcessor(t *testing.T) {
+func TestTelemetryCache(t *testing.T) {
 	gomega.RegisterTestingT(t)
 
 	// Initialize the mock logger

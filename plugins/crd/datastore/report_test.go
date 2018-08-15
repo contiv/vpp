@@ -18,16 +18,25 @@ import (
 	"github.com/ligato/cn-infra/logging/logrus"
 	"testing"
 	"time"
+	"github.com/onsi/gomega"
 )
 
 func TestSimpleReport_AppendToNodeReport(t *testing.T) {
+	gomega.RegisterTestingT(t)
 	report := NewSimpleReport(logrus.DefaultLogger())
 	report.LogErrAndAppendToNodeReport("nodeName", "ErrorString")
 	report.SetTimeStamp(time.Now())
+
 	time := report.GetTimeStamp()
 	report.SetTimeStamp(time)
+	time2 := report.GetTimeStamp()
+	gomega.Expect(time).To(gomega.BeEquivalentTo(time2))
+
+	str := report.Data["nodeName"]
+	gomega.Expect(str[0]).To(gomega.BeEquivalentTo("ErrorString"))
 	report.Print()
 	report.Clear()
 	report.Print()
 
 }
+

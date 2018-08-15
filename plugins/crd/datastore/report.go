@@ -26,9 +26,9 @@ import (
 // SimpleReport holds error/warning messages recorded during data collection /
 // validation
 type SimpleReport struct {
-	Log    logging.Logger
-	Data   telemetrymodel.Reports
-	Output io.Writer
+	Log       logging.Logger
+	Data      telemetrymodel.Reports
+	Output    io.Writer
 	TimeStamp time.Time
 }
 

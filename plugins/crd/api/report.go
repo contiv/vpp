@@ -15,8 +15,8 @@
 package api
 
 import (
-	"time"
 	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
+	"time"
 )
 
 const (

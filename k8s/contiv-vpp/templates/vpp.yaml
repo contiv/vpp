@@ -84,6 +84,9 @@ data:
     {{- end }}
   logs.conf: |
     default-level: {{ .Values.logs.defaultLevel }}
+    loggers:
+      - name: statscollector
+        level: info
   grpc.conf: |
     network: unix
     endpoint: /var/run/contiv/cni.sock

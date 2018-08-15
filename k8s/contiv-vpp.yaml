@@ -46,6 +46,9 @@ data:
       NodeInterconnectDHCP: False
   logs.conf: |
     default-level: debug
+    loggers:
+      - name: statscollector
+        level: info
   grpc.conf: |
     network: unix
     endpoint: /var/run/contiv/cni.sock

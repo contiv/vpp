@@ -21,6 +21,9 @@ import (
 // see doc.go for instructions on how to generate the deep copy routines when
 // the structs in this file change.
 
+//Reports is the per node array of report lines generated from validate()
+type Reports map[string][]string
+
 //Node is a struct to hold all relevant information of a kubernetes node.
 //It is populated with various information such as the interfaces and L2Fibs
 //as well as the name and IP Addresses.

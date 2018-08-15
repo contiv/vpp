@@ -58,4 +58,5 @@ type ContivTelemetryReportList struct {
 // ContivTelemetryReportStatus is the state for the contiv telemetry report
 type ContivTelemetryReportStatus struct {
 	Nodes []telemetrymodel.Node `json:"nodes"`
+	Reports  telemetrymodel.Reports`json:"reports"`
 }

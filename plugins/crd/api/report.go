@@ -14,6 +14,8 @@
 
 package api
 
+import "github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
+
 const (
 	// GlobalMsg defines the report bin where to put global (i.e.
 	// non-node-specific) status/error messages
@@ -27,4 +29,5 @@ type Report interface {
 	AppendToNodeReport(nodeName string, errString string)
 	Clear()
 	Print()
+	RetrieveReport() telemetrymodel.Reports
 }

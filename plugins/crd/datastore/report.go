@@ -19,13 +19,14 @@ import (
 	"github.com/ligato/cn-infra/logging"
 	"io"
 	"os"
+	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
 )
 
 // SimpleReport holds error/warning messages recorded during data collection /
 // validation
 type SimpleReport struct {
 	Log    logging.Logger
-	Data   map[string][]string
+	Data   telemetrymodel.Reports
 	Output io.Writer
 }
 
@@ -33,9 +34,13 @@ type SimpleReport struct {
 func NewSimpleReport(log logging.Logger) *SimpleReport {
 	return &SimpleReport{
 		Log:    log,
-		Data:   make(map[string][]string),
+		Data:   make(telemetrymodel.Reports),
 		Output: os.Stdout,
 	}
+}
+
+func (r *SimpleReport) RetrieveReport() telemetrymodel.Reports {
+	return r.Data
 }
 
 // LogErrAndAppendToNodeReport log an error and appends the string to

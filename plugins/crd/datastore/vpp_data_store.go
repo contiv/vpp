@@ -302,7 +302,7 @@ func (vds *VppDataStore) RetrieveNodeByHostIPAddr(ipAddr string) (*telemetrymode
 	if node, ok := vds.HostIPMap[ipAddr]; ok {
 		return node, nil
 	}
-	return nil, fmt.Errorf("node for IP address %s not found", ipAddr)
+	return nil, fmt.Errorf("node for Host IP address %s not found", ipAddr)
 }
 
 // RetrieveNodeByLoopMacAddr returns a reference to node dat for the specified
@@ -320,7 +320,7 @@ func (vds *VppDataStore) RetrieveNodeByLoopIPAddr(ipAddress string) (*telemetrym
 	if node, ok := vds.LoopIPMap[ipAddress]; ok {
 		return node, nil
 	}
-	return nil, fmt.Errorf("node for Loop MAC address %s not found", ipAddress)
+	return nil, fmt.Errorf("node for Loop IP address %s not found", ipAddress)
 }
 
 // RetrieveNodeByGigEIPAddr returns a reference to node dat for the specified
@@ -329,7 +329,7 @@ func (vds *VppDataStore) RetrieveNodeByGigEIPAddr(ipAddress string) (*telemetrym
 	if node, ok := vds.GigEIPMap[ipAddress]; ok {
 		return node, nil
 	}
-	return nil, fmt.Errorf("node for Loop MAC address %s not found", ipAddress)
+	return nil, fmt.Errorf("node for GigE IP address %s not found", ipAddress)
 }
 
 // GetNodeLoopIFInfo gets the loop interface for the given node

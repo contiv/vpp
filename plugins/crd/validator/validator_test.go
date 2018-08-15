@@ -96,7 +96,7 @@ func TestValidator(t *testing.T) {
 	vtv.createK8sNodeTestData()
 	vtv.createK8sPodTestData()
 
-	// Initialize the cache
+	// Initialize the validator
 	vtv.processor = &Validator{
 		Deps: Deps{
 			Log: vtv.log,
@@ -105,8 +105,6 @@ func TestValidator(t *testing.T) {
 		K8sCache: vtv.k8sCache,
 		Report:   vtv.report,
 	}
-
-	// Populate cache data
 
 	// Do the testing
 	t.Run("testErrorFreeTopologyValidation", testErrorFreeTopologyValidation)
@@ -119,13 +117,7 @@ func TestValidator(t *testing.T) {
 }
 
 func testErrorFreeTopologyValidation(t *testing.T) {
-	resetAllCaches()
-	for _, node := range vtv.vppCache.RetrieveAllNodes() {
-		errReport := vtv.processor.VppCache.SetSecondaryNodeIndices(node)
-		for _, r := range errReport {
-			vtv.processor.Report.AppendToNodeReport(node.Name, r)
-		}
-	}
+	resetToInitialErrorFreeState()
 
 	vtv.processor.Validate()
 
@@ -133,146 +125,64 @@ func testErrorFreeTopologyValidation(t *testing.T) {
 }
 
 func testK8sNodeToNodeInfoOkValidation(t *testing.T) {
-	resetAllCaches()
-	vtv.report.Clear()
-
+	resetToInitialErrorFreeState()
 	vtv.processor.ValidateK8sNodeInfo()
-
 	gomega.Expect(len(vtv.report.Data)).To(gomega.Equal(0))
 }
 
 func testK8sNodeToNodeInfoMissingNiValidation(t *testing.T) {
-	resetAllCaches()
-	vtv.report.Clear()
+	resetToInitialErrorFreeState()
+	// INJECT FAULT:: missing vpp node
 	vtv.processor.VppCache.DeleteNode("k8s-master")
 
 	vtv.processor.ValidateK8sNodeInfo()
-
 	gomega.Expect(len(vtv.report.Data["k8s-master"])).To(gomega.Equal(1))
 }
 
 func testK8sNodeToNodeInfoMissingK8snValidation(t *testing.T) {
-	resetAllCaches()
-	vtv.report.Clear()
+	resetToInitialErrorFreeState()
+	// INJECT FAULT:: missing K8s node
 	vtv.processor.K8sCache.DeleteK8sNode("k8s-master")
 
 	vtv.processor.ValidateK8sNodeInfo()
-
 	gomega.Expect(len(vtv.report.Data["k8s-master"])).To(gomega.Equal(2))
 }
 
 func testNodesDBValidateL2Connections(t *testing.T) {
-	resetAllCaches()
+	resetToInitialErrorFreeState()
+
+	// INJECT FAULT: Set node/k8s-master interface/5 vxlan_vni to 11
+	ifc := vtv.vppCache.NodeMap["k8s-master"].NodeInterfaces[5]
+	ifc.Vxlan.Vni = 11
+	vtv.vppCache.NodeMap["k8s-master"].NodeInterfaces[5] = ifc
+
+	vtv.processor.ValidateL2Connectivity()
+	gomega.Expect(len(vtv.report.Data[api.GlobalMsg])).To(gomega.Equal(1))
+	gomega.Expect(len(vtv.report.Data["k8s-master"])).To(gomega.Equal(1))
+
+	// Restore data back to error free state
+	ifc = vtv.vppCache.NodeMap["k8s-master"].NodeInterfaces[5]
+	ifc.Vxlan.Vni = 10
+	vtv.vppCache.NodeMap["k8s-master"].NodeInterfaces[5] = ifc
+
+	// INJECT FAULT: Set node/k8s-master interface/5 vxlan_dst IP address to 11
+	ifc = vtv.vppCache.NodeMap["k8s-master"].NodeInterfaces[5]
+	ifc.Vxlan.DstAddress = "192.168.16.5"
+	vtv.vppCache.NodeMap["k8s-master"].NodeInterfaces[5] = ifc
 	vtv.report.Clear()
 
-	vtv.vppCache.CreateNode(1, "k8s_master", "10", "10")
-	node, ok := vtv.vppCache.RetrieveNode("k8s_master")
-	gomega.Expect(ok).To(gomega.BeNil())
-	gomega.Expect(node.IPAdr).To(gomega.Equal("10"))
-	gomega.Expect(node.Name).To(gomega.Equal("k8s_master"))
-	gomega.Expect(node.ID).To(gomega.Equal(uint32(1)))
-	gomega.Expect(node.ManIPAdr).To(gomega.Equal("10"))
-	nodeinterface1 := telemetrymodel.NodeInterface{
-		"loop0",
-		"loop0",
-		interfaces.InterfaceType_SOFTWARE_LOOPBACK,
-		true,
-		"11",
-		1,
-		telemetrymodel.Vxlan{"", "", 1},
-		[]string{"11"},
-		telemetrymodel.Tap{}}
-	nodeinterfaces := map[int]telemetrymodel.NodeInterface{}
-	nodeinterfaces[3] = nodeinterface1
+	vtv.processor.ValidateL2Connectivity()
+	gomega.Expect(len(vtv.report.Data[api.GlobalMsg])).To(gomega.Equal(1))
+	gomega.Expect(len(vtv.report.Data["k8s-master"])).To(gomega.Equal(4))
+	gomega.Expect(len(vtv.report.Data["k8s-worker2"])).To(gomega.Equal(1))
 
-	nodeiparp1 := telemetrymodel.NodeIPArpEntry{3, "10", "10", true}
-	nodeiparps1 := make([]telemetrymodel.NodeIPArpEntry, 0)
-	nodeiparps1 = append(nodeiparps1, nodeiparp1)
+	// Restore data back to error free state
+	ifc = vtv.vppCache.NodeMap["k8s-master"].NodeInterfaces[5]
+	ifc.Vxlan.DstAddress = "192.168.16.3"
+	vtv.vppCache.NodeMap["k8s-master"].NodeInterfaces[5] = ifc
+	vtv.report.Clear()
 
-	nodeinterface2 := telemetrymodel.NodeInterface{
-		"loop0",
-		"loop0",
-		interfaces.InterfaceType_SOFTWARE_LOOPBACK,
-		true,
-		"10",
-		1,
-		telemetrymodel.Vxlan{"", "", 1},
-		[]string{"10"},
-		telemetrymodel.Tap{}}
-	nodeinterfaces2 := map[int]telemetrymodel.NodeInterface{}
-	nodeinterfaces2[3] = nodeinterface2
-
-	nodeiparp2 := telemetrymodel.NodeIPArpEntry{3, "11", "11", true}
-	nodeiparps2 := make([]telemetrymodel.NodeIPArpEntry, 0)
-	nodeiparps2 = append(nodeiparps2, nodeiparp2)
-
-	vtv.vppCache.CreateNode(2, "k8s-worker1", "11", "11")
-
-	vtv.vppCache.SetNodeIPARPs("k8s_master", nodeiparps1)
-	node, _ = vtv.vppCache.RetrieveNode("k8s_master")
-	vtv.vppCache.SetNodeInterfaces("k8s_master", nodeinterfaces)
-	node, _ = vtv.vppCache.RetrieveNode("k8s_master")
-	vtv.vppCache.LoopMACMap[node.NodeInterfaces[3].PhysAddress] = node
-	vtv.vppCache.LoopIPMap[node.NodeInterfaces[3].IPAddresses[0]+api.SubnetMask] = node
-
-	vtv.vppCache.SetNodeIPARPs("k8s-worker1", nodeiparps2)
-	vtv.vppCache.SetNodeInterfaces("k8s-worker1", nodeinterfaces2)
-	node, ok = vtv.vppCache.RetrieveNode("k8s-worker1")
-	vtv.vppCache.LoopMACMap[node.NodeInterfaces[3].PhysAddress] = node
-	vtv.vppCache.LoopIPMap[node.NodeInterfaces[3].IPAddresses[0]+api.SubnetMask] = node
-	node, _ = vtv.vppCache.RetrieveNode("k8s_master")
-	bdif1_1 := telemetrymodel.BDinterfaces{3}
-	bdif1_2 := telemetrymodel.BDinterfaces{5}
-	nodebd1 := telemetrymodel.NodeBridgeDomain{
-		[]telemetrymodel.BDinterfaces{bdif1_1, bdif1_2},
-		"vxlanBD",
-		true,
-	}
-	nodebdmap1 := make(map[int]telemetrymodel.NodeBridgeDomain)
-	nodebdmap1[1] = nodebd1
-	nodevxlaninterface1 := telemetrymodel.NodeInterface{
-		"vxlan_tunnel0",
-		"vxlan2",
-		interfaces.InterfaceType_VXLAN_TUNNEL,
-		true,
-		"",
-		0,
-		telemetrymodel.Vxlan{node.IPAdr, "11",
-			10}, []string{}, telemetrymodel.Tap{},
-	}
-	nodeinterfaces[5] = nodevxlaninterface1
-	vtv.vppCache.SetNodeInterfaces("k8s_master", nodeinterfaces)
-	vtv.vppCache.SetNodeBridgeDomain("k8s_master", nodebdmap1)
-
-	node, _ = vtv.vppCache.RetrieveNode("k8s-worker1")
-	bdif2_1 := telemetrymodel.BDinterfaces{3}
-	bdif2_2 := telemetrymodel.BDinterfaces{4}
-	nodebd2 := telemetrymodel.NodeBridgeDomain{
-		[]telemetrymodel.BDinterfaces{bdif2_1, bdif2_2},
-		"vxlanBD",
-		true,
-	}
-	nodebdmap2 := make(map[int]telemetrymodel.NodeBridgeDomain)
-	nodebdmap2[1] = nodebd2
-	nodevxlaninterface2 := telemetrymodel.NodeInterface{
-		"vxlan_tunnel0",
-		"vxlan2",
-		interfaces.InterfaceType_VXLAN_TUNNEL,
-		true,
-		"",
-		0,
-		telemetrymodel.Vxlan{node.IPAdr, "10",
-			10}, []string{}, telemetrymodel.Tap{},
-	}
-	nodeinterfaces2[4] = nodevxlaninterface2
-	vtv.vppCache.SetNodeBridgeDomain("k8s-worker1", nodebdmap2)
-	vtv.vppCache.SetNodeInterfaces("k8s-worker1", nodeinterfaces2)
-	vtv.vppCache.GigEIPMap[node.IPAdr+api.SubnetMask] = node
-	node, _ = vtv.vppCache.RetrieveNode("k8s_master")
-	vtv.vppCache.GigEIPMap[node.IPAdr+api.SubnetMask] = node
-	vtv.processor.Validate()
-
-	fmt.Println("Setting vxlan_vni to 11, expecting error...")
+	/*
 	nodevxlaninterface2.Vxlan.Vni = 11
 	nodeinterfaces2[4] = nodevxlaninterface2
 	vtv.vppCache.SetNodeInterfaces("k8s-worker1", nodeinterfaces2)
@@ -349,14 +259,14 @@ func testNodesDBValidateL2Connections(t *testing.T) {
 	vtv.vppCache.GigEIPMap["10/24"] = node
 	vtv.vppCache.DeleteNode("extraNode")
 	vtv.processor.ValidateL2Connectivity()
-
+	*/
 }
 
 func testNodesDBValidateLoopIFAddresses(t *testing.T) {
-	resetAllCaches()
-	vtv.report.Clear()
+	resetToInitialErrorFreeState()
 
 	vtv.vppCache.CreateNode(1, "k8s_master", "10", "10")
+
 	node, err := vtv.vppCache.RetrieveNode("k8s_master")
 	gomega.Expect(err).To(gomega.BeNil())
 	gomega.Expect(node.IPAdr).To(gomega.Equal("10"))
@@ -449,7 +359,7 @@ func testNodesDBValidateLoopIFAddresses(t *testing.T) {
 }
 
 func testCacheValidateFibEntries(t *testing.T) {
-	resetAllCaches()
+	resetToInitialErrorFreeState()
 	vtv.report.Clear()
 
 	vtv.vppCache.CreateNode(1, "k8s_master", "10", "10")
@@ -585,12 +495,21 @@ func populateK8sPodDataInCache(cache *datastore.K8sDataStore) {
 	}
 }
 
-func resetAllCaches() {
+func resetToInitialErrorFreeState() {
 	vtv.vppCache.ReinitializeCache()
 	vtv.k8sCache.ReinitializeCache()
+	vtv.report.Clear()
+	vtv.logWriter.clearLog()
 	populateNodeInfoDataInCache(vtv.vppCache)
 	populateK8sNodeDataInCache(vtv.k8sCache)
+//	populateK8sPodDataInCache(vtv.k8sCache)
 
+	for _, node := range vtv.vppCache.RetrieveAllNodes() {
+		errReport := vtv.processor.VppCache.SetSecondaryNodeIndices(node)
+		for _, r := range errReport {
+			vtv.processor.Report.AppendToNodeReport(node.Name, r)
+		}
+	}
 }
 
 // createNodeInfoTestData creates a test vector that roughly corresponds to a 3-node

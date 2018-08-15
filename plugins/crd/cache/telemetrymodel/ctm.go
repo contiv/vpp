@@ -35,6 +35,7 @@ type Node struct {
 	NodeL2Fibs        map[string]NodeL2FibEntry
 	NodeTelemetry     map[string]NodeTelemetry
 	NodeIPArp         []NodeIPArpEntry
+	NodeStaticRoutes  []NodeStaticRoute
 	Report            []string
 	PodMap            map[string]*Pod
 }
@@ -64,6 +65,25 @@ type NodeTelemetries map[string]NodeTelemetry
 
 // NodeIPArpTable defines an array of NodeIPArpEntry
 type NodeIPArpTable []NodeIPArpEntry
+
+// NodeStaticRoutes defines an array of NodeStaticRoute object
+type NodeStaticRoutes []NodeStaticRoute
+
+//NodeStaticRoute holds the unmarshalled node static route JSON data.
+type NodeStaticRoute struct {
+	VrfID       uint32  `json:"vrf_id"`
+	TableName   string  `json:"table_name"`
+	DstAddr     dstAddr `json:"dst_addr"`
+	NextHopAddr string  `json:"next_hop_addr"`
+	OutIface    uint32  `json:"out_iface"`
+	Weight      uint32  `json:"weight"`
+	Preference  uint32  `json:"preference"`
+}
+
+type dstAddr struct {
+	IP   string `json:"IP"`
+	Mask string `json:"Mask"`
+}
 
 //NodeTelemetry holds the unmarshalled node telemetry JSON data
 type NodeTelemetry struct {
@@ -160,10 +180,12 @@ type Pod struct {
 	// Empty if not yet scheduled.
 	// +optional
 	HostIPAddress string `protobuf:"bytes,5,opt,name=host_ip_address,json=hostIpAddress" json:"host_ip_address,omitempty"`
-	// List of containers belonging to the pod.
-	// Containers cannot currently be added or removed.
-	// There must be at least one container in a Pod.
-	// Cannot be updated.
+	// Name of the interface on VPP through which the pod is connected
+	// to VPP. Will be empty for host-network pods.
+	VppIfName string
+	// IP address of the interface on VPP through which the pod is
+	// connected to VPP. Will be empty for host-network pods.
+	VppIfIPAddr string
 }
 
 //PodLabel contains key/value pair info

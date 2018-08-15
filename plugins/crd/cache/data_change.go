@@ -47,7 +47,7 @@ func (pc *podChange) GetValueProto() proto.Message {
 
 func (pc *podChange) AddRecord(ctc *ContivTelemetryCache, names []string, record proto.Message) error {
 	ctc.Log.Infof("Adding pod %s in namespace %s, podValue %+v", names[0], names[1], record)
-	// TODO: ctc.addPod(names[0], names[1], podValue)
+	// TODO: ctc.CreatePod(names[0], names[1], podValue)
 	return nil
 }
 
@@ -55,13 +55,13 @@ func (pc *podChange) UpdateRecord(ctc *ContivTelemetryCache,
 	names []string, oldRecord proto.Message, newRecord proto.Message) error {
 	ctc.Log.Infof("Updating pod %s in namespace %s, podValue %+v, prevPodValue %+v",
 		names[0], names[1], oldRecord, newRecord)
-	// TODO: ctc.updatePod(names[0], names[1], prevPodValue, podValue)
+	// TODO: ctc.UpdatePod(names[0], names[1], prevPodValue, podValue)
 	return nil
 }
 
 func (pc *podChange) DeleteRecord(ctc *ContivTelemetryCache, names []string) error {
 	ctc.Log.Infof("Deleting pod %s in namespace %s", names[0], names[1])
-	// TODO: ctc.deletePod(names[0], names[1])
+	// TODO: ctc.DeletePod(names[0], names[1])
 	return nil
 }
 
@@ -79,20 +79,20 @@ func (nc *nodeChange) GetValueProto() proto.Message {
 
 func (nc *nodeChange) AddRecord(ctc *ContivTelemetryCache, names []string, record proto.Message) error {
 	ctc.Log.Infof("Adding node %s, nodeValue %+v", names[0], record)
-	// TODO: ctc.addNode(names[0], podValue)
+	// TODO: ctc.CreateNode(names[0], podValue)
 	return nil
 }
 
 func (nc *nodeChange) UpdateRecord(ctc *ContivTelemetryCache,
 	names []string, oldRecord proto.Message, newRecord proto.Message) error {
 	ctc.Log.Infof("Updating node %s, nodeValue %+v, prevNodeValue %+v", names[0], oldRecord, newRecord)
-	// TODO: ctc.updatePod(names[0], prevPodValue, podValue)
+	// TODO: ctc.UpdatePod(names[0], prevPodValue, podValue)
 	return nil
 }
 
 func (nc *nodeChange) DeleteRecord(ctc *ContivTelemetryCache, names []string) error {
 	ctc.Log.Infof("Deleting node %s", names[0])
-	// TODO: ctc.deletePod(names[0])
+	// TODO: ctc.DeletePod(names[0])
 	return nil
 }
 
@@ -131,11 +131,18 @@ func (nic *nodeInfoChange) DeleteRecord(ctc *ContivTelemetryCache, names []strin
 	return nil
 }
 
+// Update sends the update event passed as an argument to the ctc telemetryCache
+//// thread, where it processed in the function below (update). )
+func (ctc *ContivTelemetryCache) Update(dataChngEv datasync.ChangeEvent) error {
+	ctc.dsUpdateChannel <- dataChngEv
+	return nil
+}
+
 // Update processes a data sync change event associated with K8s State data.
 // The change is applied into the cache and all subscribed watchers are
 // notified.
 // The function will forward any error returned by a watcher.
-func (ctc *ContivTelemetryCache) Update(dataChngEv datasync.ChangeEvent) error {
+func (ctc *ContivTelemetryCache) update(dataChngEv datasync.ChangeEvent) error {
 	err := error(nil)
 	key := dataChngEv.GetKey()
 	var dcp dataChangeProcessor

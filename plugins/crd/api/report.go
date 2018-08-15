@@ -14,6 +14,8 @@
 
 package api
 
+import "time"
+
 const (
 	// GlobalMsg defines the report bin where to put global (i.e.
 	// non-node-specific) status/error messages
@@ -25,6 +27,8 @@ const (
 type Report interface {
 	LogErrAndAppendToNodeReport(nodeName string, errString string)
 	AppendToNodeReport(nodeName string, errString string)
+	SetTimeStamp(time time.Time)
+	GetTimeStamp() time.Time
 	Clear()
 	Print()
 }

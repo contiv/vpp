@@ -67,6 +67,7 @@ type ContivTelemetryCache struct {
 	httpClientTimeout    time.Duration
 	agentPort            string
 	validationInProgress bool
+	databaseVersion      uint32
 }
 
 // Deps lists dependencies of PolicyCache.
@@ -80,6 +81,7 @@ type NodeDTO struct {
 	NodeName string
 	NodeInfo interface{}
 	err      error
+	version  uint32
 }
 
 // Init initializes policy cache.
@@ -103,6 +105,7 @@ func (ctc *ContivTelemetryCache) init() {
 	ctc.dsUpdateChannel = make(chan interface{})
 	ctc.dtoList = make([]*NodeDTO, 0)
 	ctc.ticker = time.NewTicker(ctc.collectionInterval)
+	ctc.databaseVersion = 0
 }
 
 // ClearCache with clear all Contiv Telemetry cache data except for the
@@ -117,7 +120,7 @@ func (ctc *ContivTelemetryCache) ClearCache() {
 // k8s pods.
 func (ctc *ContivTelemetryCache) ReinitializeCache() {
 	ctc.VppCache.ReinitializeCache()
-	// ctc.K8sCache.ReinitializeCache()
+	ctc.K8sCache.ReinitializeCache()
 	ctc.Report.Clear()
 }
 
@@ -144,6 +147,8 @@ func (ctc *ContivTelemetryCache) nodeEventProcessor() {
 			if !ok {
 				return
 			}
+			ctc.databaseVersion++
+			ctc.dtoList = ctc.dtoList[0:0]
 			ctc.processDataStoreUpdate(data)
 			ctc.startNodeInfoCollection()
 		}
@@ -185,6 +190,7 @@ func (ctc *ContivTelemetryCache) validateNodeInfo() {
 	}
 	ctc.Log.Info("Beginning validation of Node Data")
 	ctc.Processor.Validate()
+	ctc.Report.SetTimeStamp(time.Now())
 
 	for _, n := range nodelist {
 		ctc.Report.AppendToNodeReport(n.Name, "Report done.")
@@ -201,16 +207,16 @@ func (ctc *ContivTelemetryCache) collectAgentInfo(node *telemetrymodel.Node) {
 		Timeout:       ctc.httpClientTimeout,
 	}
 
-	go ctc.getNodeInfo(client, node, livenessURL, &telemetrymodel.NodeLiveness{})
+	go ctc.getNodeInfo(client, node, livenessURL, &telemetrymodel.NodeLiveness{}, ctc.databaseVersion)
 
 	nodeInterfaces := make(telemetrymodel.NodeInterfaces, 0)
-	go ctc.getNodeInfo(client, node, interfaceURL, &nodeInterfaces)
+	go ctc.getNodeInfo(client, node, interfaceURL, &nodeInterfaces, ctc.databaseVersion)
 
 	nodeBridgeDomains := make(telemetrymodel.NodeBridgeDomains, 0)
-	go ctc.getNodeInfo(client, node, bridgeDomainURL, &nodeBridgeDomains)
+	go ctc.getNodeInfo(client, node, bridgeDomainURL, &nodeBridgeDomains, ctc.databaseVersion)
 
 	nodel2fibs := make(telemetrymodel.NodeL2FibTable, 0)
-	go ctc.getNodeInfo(client, node, l2FibsURL, &nodel2fibs)
+	go ctc.getNodeInfo(client, node, l2FibsURL, &nodel2fibs, ctc.databaseVersion)
 
 	//TODO: Implement getTelemetry correctly.
 	//Does not parse information correctly
@@ -218,10 +224,10 @@ func (ctc *ContivTelemetryCache) collectAgentInfo(node *telemetrymodel.Node) {
 	//go ctc.getNodeInfo(client, node, telemetryURL, &nodetelemetry)
 
 	nodeiparpslice := make(telemetrymodel.NodeIPArpTable, 0)
-	go ctc.getNodeInfo(client, node, arpURL, &nodeiparpslice)
+	go ctc.getNodeInfo(client, node, arpURL, &nodeiparpslice, ctc.databaseVersion)
 
 	nodestaticroutes := make(telemetrymodel.NodeStaticRoutes, 0)
-	go ctc.getNodeInfo(client, node, staticRouteURL, &nodestaticroutes)
+	go ctc.getNodeInfo(client, node, staticRouteURL, &nodestaticroutes, ctc.databaseVersion)
 }
 
 /* Here are the several functions that run as goroutines to collect information
@@ -233,18 +239,18 @@ over the plugins node database channel to node_db_processor.go where it will be 
 processed, and added to the node database.
 */
 func (ctc *ContivTelemetryCache) getNodeInfo(client http.Client, node *telemetrymodel.Node, url string,
-	nodeInfo interface{}) {
+	nodeInfo interface{}, version uint32) {
 
 	res, err := client.Get(ctc.getAgentURL(node.ManIPAdr, url))
 	if err != nil {
 		err := fmt.Errorf("getNodeInfo: url: %s cleintGet Error: %s", url, err.Error())
 		ctc.Log.Error(err)
-		ctc.nodeResponseChannel <- &NodeDTO{node.Name, nil, err}
+		ctc.nodeResponseChannel <- &NodeDTO{node.Name, nil, err, version}
 		return
 	} else if res.StatusCode < 200 || res.StatusCode > 299 {
 		err := fmt.Errorf("getNodeInfo: url: %s HTTP res.Status: %s", url, res.Status)
 		ctc.Log.Error(err)
-		ctc.nodeResponseChannel <- &NodeDTO{node.Name, nil, err}
+		ctc.nodeResponseChannel <- &NodeDTO{node.Name, nil, err, version}
 		return
 	}
 
@@ -255,7 +261,7 @@ func (ctc *ContivTelemetryCache) getNodeInfo(client http.Client, node *telemetry
 		errString := fmt.Sprintf("Error unmarshaling data for node %+v: %+v", node.Name, err)
 		ctc.Report.AppendToNodeReport(node.Name, errString)
 	}
-	ctc.nodeResponseChannel <- &NodeDTO{node.Name, nodeInfo, err}
+	ctc.nodeResponseChannel <- &NodeDTO{node.Name, nodeInfo, err, version}
 }
 
 // populateNodeMaps populates many of needed node maps for processing once
@@ -320,7 +326,9 @@ func (ctc *ContivTelemetryCache) waitForValidationToFinish() int {
 // node DTO map after it is finished with it.
 func (ctc *ContivTelemetryCache) processNodeResponse(data *NodeDTO) {
 	nodelist := ctc.VppCache.RetrieveAllNodes()
-	ctc.dtoList = append(ctc.dtoList, data)
+	if data.version >= ctc.databaseVersion {
+		ctc.dtoList = append(ctc.dtoList, data)
+	}
 	if len(ctc.dtoList) == numDTOs*len(nodelist) {
 		ctc.setNodeData()
 		ctc.validateNodeInfo()

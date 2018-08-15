@@ -1,4 +1,4 @@
-### Setting up a node with multiple NICs
+### ARM64 Cavium Thunderx - Setting up a node with multiple NICs
 
 * First, configure hardware interfaces in the VPP startup config, as
 described [here](./VPP_CONFIG_CAVIUM.md#multi-nic-configuration).

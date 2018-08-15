@@ -1,4 +1,4 @@
-## Creating VPP startup configuration
+## ARM64 Cavium Thunderx - Creating VPP startup configuration
 This document describes how to create the VPP startup configuration
 file located at `/etc/vpp/contiv-vswitch.conf`.
 

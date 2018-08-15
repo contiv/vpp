@@ -12,23 +12,22 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package api
+package datastore
 
-import "time"
-
-const (
-	// GlobalMsg defines the report bin where to put global (i.e.
-	// non-node-specific) status/error messages
-	GlobalMsg = "global"
+import (
+	"github.com/ligato/cn-infra/logging/logrus"
+	"testing"
+	"time"
 )
 
-// Report is the interface for collecting validation status/error messages
-// and for printing them out.
-type Report interface {
-	LogErrAndAppendToNodeReport(nodeName string, errString string)
-	AppendToNodeReport(nodeName string, errString string)
-	SetTimeStamp(time time.Time)
-	GetTimeStamp() time.Time
-	Clear()
-	Print()
+func TestSimpleReport_AppendToNodeReport(t *testing.T) {
+	report := NewSimpleReport(logrus.DefaultLogger())
+	report.LogErrAndAppendToNodeReport("nodeName", "ErrorString")
+	report.SetTimeStamp(time.Now())
+	time := report.GetTimeStamp()
+	report.SetTimeStamp(time)
+	report.Print()
+	report.Clear()
+	report.Print()
+
 }

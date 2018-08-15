@@ -163,7 +163,7 @@ func (v *Validator) ValidateL2Connectivity() {
 			errCnt++
 			v.Report.AppendToNodeReport(node.Name, errString)
 			continue
-		} else if vxlanBDCount == 0{
+		} else if vxlanBDCount == 0 {
 			errCnt++
 			errString := fmt.Sprintf("No vxlan BD - skipping L2 validation")
 			v.Report.AppendToNodeReport(node.Name, errString)

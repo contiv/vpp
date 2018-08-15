@@ -20,6 +20,7 @@ import (
 	"github.com/ligato/cn-infra/logging"
 	"io"
 	"os"
+	"time"
 )
 
 // SimpleReport holds error/warning messages recorded during data collection /
@@ -28,6 +29,7 @@ type SimpleReport struct {
 	Log    logging.Logger
 	Data   telemetrymodel.Reports
 	Output io.Writer
+	TimeStamp time.Time
 }
 
 // NewSimpleReport creates a new SimpleReport instance
@@ -67,6 +69,7 @@ func (r *SimpleReport) Clear() {
 // Print prints the status log
 func (r *SimpleReport) Print() {
 	fmt.Fprintln(r.Output, "Error Report:")
+	fmt.Fprintln(r.Output, "Time-stamp:", r.GetTimeStamp())
 	fmt.Fprintln(r.Output, "=============")
 	for k, rl := range r.Data {
 		fmt.Fprintf(r.Output, "Key: %s\n", k)
@@ -75,4 +78,14 @@ func (r *SimpleReport) Print() {
 		}
 		fmt.Fprintln(r.Output)
 	}
+}
+
+//SetTimeStamp sets the reports timestamp based on the time passed.
+func (r *SimpleReport) SetTimeStamp(time time.Time) {
+	r.TimeStamp = time
+}
+
+//GetTimeStamp returns the reports time stamp.
+func (r *SimpleReport) GetTimeStamp() time.Time {
+	return r.TimeStamp
 }

@@ -12,27 +12,30 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package api
+package datastore
 
 import (
+	"github.com/ligato/cn-infra/logging/logrus"
+	"github.com/onsi/gomega"
+	"testing"
 	"time"
-	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
 )
 
-const (
-	// GlobalMsg defines the report bin where to put global (i.e.
-	// non-node-specific) status/error messages
-	GlobalMsg = "global"
-)
+func TestSimpleReport_AppendToNodeReport(t *testing.T) {
+	gomega.RegisterTestingT(t)
+	report := NewSimpleReport(logrus.DefaultLogger())
+	report.LogErrAndAppendToNodeReport("nodeName", "ErrorString")
+	report.SetTimeStamp(time.Now())
 
-// Report is the interface for collecting validation status/error messages
-// and for printing them out.
-type Report interface {
-	LogErrAndAppendToNodeReport(nodeName string, errString string)
-	AppendToNodeReport(nodeName string, errString string)
-	SetTimeStamp(time time.Time)
-	GetTimeStamp() time.Time
-	Clear()
-	Print()
-	RetrieveReport() telemetrymodel.Reports
+	time := report.GetTimeStamp()
+	report.SetTimeStamp(time)
+	time2 := report.GetTimeStamp()
+	gomega.Expect(time).To(gomega.BeEquivalentTo(time2))
+
+	str := report.Data["nodeName"]
+	gomega.Expect(str[0]).To(gomega.BeEquivalentTo("ErrorString"))
+	report.Print()
+	report.Clear()
+	report.Print()
+
 }

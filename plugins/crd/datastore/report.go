@@ -74,10 +74,12 @@ func (r *SimpleReport) Print() {
 	}
 }
 
+//SetTimeStamp sets the reports timestamp based on the time passed.
 func (r *SimpleReport) SetTimeStamp(time time.Time) {
 	r.TimeStamp = time
 }
 
+//GetTimeStamp returns the reports time stamp.
 func (r *SimpleReport) GetTimeStamp() time.Time {
 	return r.TimeStamp
 }

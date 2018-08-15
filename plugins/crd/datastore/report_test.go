@@ -16,9 +16,9 @@ package datastore
 
 import (
 	"github.com/ligato/cn-infra/logging/logrus"
+	"github.com/onsi/gomega"
 	"testing"
 	"time"
-	"github.com/onsi/gomega"
 )
 
 func TestSimpleReport_AppendToNodeReport(t *testing.T) {
@@ -39,4 +39,3 @@ func TestSimpleReport_AppendToNodeReport(t *testing.T) {
 	report.Print()
 
 }
-

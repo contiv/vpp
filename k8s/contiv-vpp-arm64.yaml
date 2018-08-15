@@ -350,10 +350,6 @@ spec:
               mountPath: /etc/agent
             - name: govpp-plugin-cfg
               mountPath: /etc/govpp
-          resources:          
-            limits:
-              hugepages-1Gi: 8Gi
-              memory: 8Gi
       volumes:
         # Used to connect to contiv-etcd.
         - name: etcd-cfg

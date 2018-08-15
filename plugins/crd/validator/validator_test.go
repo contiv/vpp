@@ -114,6 +114,7 @@ func TestValidator(t *testing.T) {
 	t.Run("testNodesDBValidateL2Connections", testNodesDBValidateL2Connections)
 	t.Run("testNodesDBValidateLoopIFAddresses", testNodesDBValidateLoopIFAddresses)
 	t.Run("testCacheValidateFibEntries", testCacheValidateFibEntries)
+
 }
 
 func testErrorFreeTopologyValidation(t *testing.T) {

@@ -194,6 +194,19 @@ func (vds *VppDataStore) SetNodeInterfaces(nodeName string, nInt map[int]telemet
 
 }
 
+//SetNodeStaticRoutes is a simple function to set a nodes static routes given its name.
+func (vds *VppDataStore) SetNodeStaticRoutes(nodeName string, nSrs []telemetrymodel.NodeStaticRoute) error {
+	vds.lock.Lock()
+	defer vds.lock.Unlock()
+
+	node, ok := vds.retrieveNode(nodeName)
+	if !ok {
+		return fmt.Errorf("failed to set NodeStaticRoutes for node %s", nodeName)
+	}
+	node.NodeStaticRoutes = nSrs
+	return nil
+}
+
 //SetNodeBridgeDomain is a simple function to set a nodes bridge domain given its name.
 func (vds *VppDataStore) SetNodeBridgeDomain(nodeName string, nBridge map[int]telemetrymodel.NodeBridgeDomain) error {
 	vds.lock.Lock()

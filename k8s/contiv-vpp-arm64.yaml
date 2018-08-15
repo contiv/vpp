@@ -365,7 +365,6 @@ spec:
               mountPath: /etc/agent
             - name: govpp-plugin-cfg
               mountPath: /etc/govpp
-
       volumes:
         # Used to connect to contiv-etcd.
         - name: etcd-cfg

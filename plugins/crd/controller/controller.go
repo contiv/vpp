@@ -42,10 +42,9 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/apimachinery/pkg/util/runtime"
 
-	contivcache "github.com/contiv/vpp/plugins/crd/cache"
-	telemetry "github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
 	factory "github.com/contiv/vpp/plugins/crd/pkg/client/informers/externalversions"
 
+	"github.com/contiv/vpp/plugins/crd/api"
 )
 
 // ContivTelemetryController struct defines how a controller should encapsulate
@@ -58,8 +57,6 @@ type ContivTelemetryController struct {
 	CrdClient *crdClientSet.Clientset
 	ApiClient    *apiextcs.Clientset
 
-	ContivTelemetryCache *contivcache.ContivTelemetryCache
-
 	clientset    kubernetes.Interface
 	queue        workqueue.RateLimitingInterface
 	informer     k8sCache.SharedIndexInformer
@@ -71,6 +68,15 @@ type ContivTelemetryController struct {
 // Deps defines dependencies for the CRD plugin
 type Deps struct {
 	Log logging.Logger
+}
+
+type ControllerReport struct {
+	Deps
+
+	Ctlr *ContivTelemetryController
+	VppCache api.VppCache
+	K8sCache api.K8sCache
+	Report   api.Report
 }
 
 // Init performs the initialization of ContivTelemetryController
@@ -138,9 +144,6 @@ func (ctc *ContivTelemetryController) Init() error {
 	})
 
 	ctc.eventHandler = &handler.Default{}
-
-
-	ctc.genReport()
 
 	return nil
 }
@@ -281,32 +284,35 @@ func contivTelemetryReportValidation() *apiextv1beta1.CustomResourceValidation {
 }
 
 // updates the CRD status in Kubernetes with the current status from the sfc-controller
-func (ctc *ContivTelemetryController) updateContivTelemetryStatus() error {
+func (cr *ControllerReport) GenerateCRDReport() {
 	// Fetch crdContivTelemetry from K8s cache
 	// The name in sfc is the namespace/name, which is the "namespace key". Split it out.
+
+	ctc := cr.Ctlr
+
 	key := "john"
 	namespace, name, err := cache.SplitMetaNamespaceKey(key)
 	if err != nil {
 		runtime.HandleError(fmt.Errorf("invalid resource key: %s", key))
-		return nil
+		return
 	}
 	if namespace == "" {
 		namespace = "default"
 	}
 
-	//crdContivTelemetryReport, errGet := ctc.contivTelemetryReportLister.ContivTelemetryReports(namespace).Get(name)
-	//if errGet != nil {
-	//	ctc.Log.Errorf("Could not get '%s' with namespace '%s", name, namespace)
-	//	return errGet
-	//}
+	_, errGet := ctc.contivTelemetryReportLister.ContivTelemetryReports(namespace).Get(name)
+	if errGet != nil {
+		ctc.Log.Errorf("Could not get '%s' with namespace '%s, err: %v", name, namespace, errGet)
+		//return errGet
+	}
 
 	crdContivTelemetryReport := &v1.ContivTelemetryReport{
 		ObjectMeta: meta_v1.ObjectMeta{
 			Name: name,
-			Namespace: namespace,
+			//Namespace: namespace,
 		},
 		TypeMeta: meta_v1.TypeMeta{
-			Kind: v1.CRDContivTelemetryReport,
+			Kind: "ContivTelemetryReport",
 			APIVersion: v1.CRDGroupVersion,
 		},
 		Spec: v1.ContivTelemetryReportSpec {
@@ -316,14 +322,14 @@ func (ctc *ContivTelemetryController) updateContivTelemetryStatus() error {
 
 	crdContivTelemetryReportCopy := crdContivTelemetryReport.DeepCopy()
 
-	n := telemetry.Node{
-		Name: "johnNode",
-	}
-	crdContivTelemetryReportCopy.Status.Nodes = append(crdContivTelemetryReportCopy.Status.Nodes, n)
-
-	//for _, node := range ctc.ContivTelemetryCache.Cache.GetAllNodes() {
-	//	crdContivTelemetryCopy.Status.Nodes = append(crdContivTelemetryCopy.Status.Nodes, *node)
+	//n := telemetry.Node{
+	//	Name: "johnNode",
 	//}
+	//crdContivTelemetryReportCopy.Status.Nodes = append(crdContivTelemetryReportCopy.Status.Nodes, n)
+
+	for _, node := range cr.VppCache.RetrieveAllNodes() {
+		crdContivTelemetryReportCopy.Status.Nodes = append(crdContivTelemetryReportCopy.Status.Nodes, *node)
+	}
 
 
 	// Until #38113 is merged, we must use Update instead of UpdateStatus to
@@ -331,22 +337,30 @@ func (ctc *ContivTelemetryController) updateContivTelemetryStatus() error {
 	// allow changes to the Spec of the resource, which is ideal for ensuring
 	// nothing other than resource status has been updated.
 	//_, errUpdate := ctc.CrdClient.ContivtelemetryV1().ContivTelemetryReports(namespace).Update(crdContivTelemetryReportCopy)
-	_, errUpdate := ctc.CrdClient.ContivtelemetryV1().ContivTelemetryReports(namespace).Create(crdContivTelemetryReportCopy)
-	if errUpdate != nil {
-			ctc.Log.Errorf("Could not UPDATE '%s'  err: %v, namespace '%s, and value: %v",
-				name, errUpdate, namespace, crdContivTelemetryReportCopy)
-	}
-	return errUpdate
-	}
-
-func (ctc *ContivTelemetryController) genReport() {
-	ticker := time.NewTicker(30 * time.Second)
-	go func() {
-		for t := range ticker.C {
-			ctc.Log.Infof("Tick at: %v", t)
-			if ctc.HasSynced() {
-				ctc.updateContivTelemetryStatus()
+	_, err = ctc.CrdClient.ContivtelemetryV1().ContivTelemetryReports(namespace).Create(crdContivTelemetryReportCopy)
+	if err != nil {
+		if apierrors.IsAlreadyExists(err) {
+			_, err := ctc.CrdClient.ContivtelemetryV1().ContivTelemetryReports(namespace).UpdateStatus(crdContivTelemetryReportCopy)
+			if err != nil {
+				ctc.Log.Errorf("Could not update '%s'  err: %v, namespace '%s, and value: %v",
+					name, err, namespace, crdContivTelemetryReportCopy)
 			}
+			return
+		} else {
+			ctc.Log.Errorf("Could not create '%s'  err: %v, namespace '%s, and value: %v",
+				name, err, namespace, crdContivTelemetryReportCopy)
 		}
-	}()
+	}
 }
+
+//func (ctc *ContivTelemetryController) genReport() {
+//	ticker := time.NewTicker(30 * time.Second)
+//	go func() {
+//		for t := range ticker.C {
+//			ctc.Log.Infof("Tick at: %v", t)
+//			if ctc.HasSynced() {
+//				ctc.updateContivTelemetryStatus()
+//			}
+//		}
+//	}()
+//}

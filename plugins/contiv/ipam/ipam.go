@@ -353,7 +353,8 @@ func (i *IPAM) ReleasePodIP(podID string) error {
 
 	ip, err := i.findIP(podID)
 	if err != nil {
-		return fmt.Errorf("Can't release pod IP: %v", err)
+		i.logger.Warnf("Unable to find pod(%v) IP: %v", podID, err)
+		return nil
 	}
 	err = i.deleteAssignedIP(podID)
 	if err != nil {

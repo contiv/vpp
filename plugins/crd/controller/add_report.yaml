@@ -1,0 +1,8 @@
+apiVersion: contivtelemetry.vpp/v1
+kind: ContivTelemetryReport
+metadata:
+  name: john
+  labels:
+    bar: foo
+
+

@@ -17,12 +17,12 @@ limitations under the License.
 package status
 
 import (
+	"fmt"
 	"sort"
 	"sync"
 	"time"
 
 	clientset "k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/kubernetes/scheme"
 
 	"github.com/golang/glog"
 	"k8s.io/api/core/v1"
@@ -37,6 +37,7 @@ import (
 	kubepod "k8s.io/kubernetes/pkg/kubelet/pod"
 	kubetypes "k8s.io/kubernetes/pkg/kubelet/types"
 	"k8s.io/kubernetes/pkg/kubelet/util/format"
+	statusutil "k8s.io/kubernetes/pkg/util/pod"
 )
 
 // A wrapper around v1.PodStatus that includes a version to enforce that stale pod statuses are
@@ -121,11 +122,22 @@ func NewManager(kubeClient clientset.Interface, podManager kubepod.Manager, podD
 	}
 }
 
-// isStatusEqual returns true if the given pod statuses are equal, false otherwise.
+// isPodStatusByKubeletEqual returns true if the given pod statuses are equal when non-kubelet-owned
+// pod conditions are excluded.
 // This method normalizes the status before comparing so as to make sure that meaningless
 // changes will be ignored.
-func isStatusEqual(oldStatus, status *v1.PodStatus) bool {
-	return apiequality.Semantic.DeepEqual(status, oldStatus)
+func isPodStatusByKubeletEqual(oldStatus, status *v1.PodStatus) bool {
+	oldCopy := oldStatus.DeepCopy()
+	for _, c := range status.Conditions {
+		if kubetypes.PodConditionByKubelet(c.Type) {
+			_, oc := podutil.GetPodCondition(oldCopy, c.Type)
+			if oc == nil || oc.Status != c.Status {
+				return false
+			}
+		}
+	}
+	oldCopy.Conditions = status.Conditions
+	return apiequality.Semantic.DeepEqual(oldCopy, status)
 }
 
 func (m *manager) Start() {
@@ -162,11 +174,16 @@ func (m *manager) GetPodStatus(uid types.UID) (v1.PodStatus, bool) {
 func (m *manager) SetPodStatus(pod *v1.Pod, status v1.PodStatus) {
 	m.podStatusesLock.Lock()
 	defer m.podStatusesLock.Unlock()
-	// Make sure we're caching a deep copy.
-	status, err := copyStatus(&status)
-	if err != nil {
-		return
+
+	for _, c := range pod.Status.Conditions {
+		if !kubetypes.PodConditionByKubelet(c.Type) {
+			glog.Errorf("Kubelet is trying to update pod condition %q for pod %q. "+
+				"But it is not owned by kubelet.", string(c.Type), format.Pod(pod))
+		}
 	}
+	// Make sure we're caching a deep copy.
+	status = *status.DeepCopy()
+
 	// Force a status update if deletion timestamp is set. This is necessary
 	// because if the pod is in the non-running state, the pod worker still
 	// needs to be able to trigger an update and/or deletion.
@@ -205,29 +222,28 @@ func (m *manager) SetContainerReadiness(podUID types.UID, containerID kubecontai
 	}
 
 	// Make sure we're not updating the cached version.
-	status, err := copyStatus(&oldStatus.status)
-	if err != nil {
-		return
-	}
+	status := *oldStatus.status.DeepCopy()
 	containerStatus, _, _ = findContainerStatus(&status, containerID.String())
 	containerStatus.Ready = ready
 
-	// Update pod condition.
-	readyConditionIndex := -1
-	for i, condition := range status.Conditions {
-		if condition.Type == v1.PodReady {
-			readyConditionIndex = i
-			break
+	// updateConditionFunc updates the corresponding type of condition
+	updateConditionFunc := func(conditionType v1.PodConditionType, condition v1.PodCondition) {
+		conditionIndex := -1
+		for i, condition := range status.Conditions {
+			if condition.Type == conditionType {
+				conditionIndex = i
+				break
+			}
+		}
+		if conditionIndex != -1 {
+			status.Conditions[conditionIndex] = condition
+		} else {
+			glog.Warningf("PodStatus missing %s type condition: %+v", conditionType, status)
+			status.Conditions = append(status.Conditions, condition)
 		}
 	}
-	readyCondition := GeneratePodReadyCondition(&pod.Spec, status.ContainerStatuses, status.Phase)
-	if readyConditionIndex != -1 {
-		status.Conditions[readyConditionIndex] = readyCondition
-	} else {
-		glog.Warningf("PodStatus missing PodReady condition: %+v", status)
-		status.Conditions = append(status.Conditions, readyCondition)
-	}
-
+	updateConditionFunc(v1.PodReady, GeneratePodReadyCondition(&pod.Spec, status.Conditions, status.ContainerStatuses, status.Phase))
+	updateConditionFunc(v1.ContainersReady, GenerateContainersReadyCondition(&pod.Spec, status.ContainerStatuses, status.Phase))
 	m.updateStatusInternal(pod, status, false)
 }
 
@@ -256,10 +272,7 @@ func (m *manager) TerminatePod(pod *v1.Pod) {
 	if cachedStatus, ok := m.podStatuses[pod.UID]; ok {
 		oldStatus = &cachedStatus.status
 	}
-	status, err := copyStatus(oldStatus)
-	if err != nil {
-		return
-	}
+	status := *oldStatus.DeepCopy()
 	for i := range status.ContainerStatuses {
 		status.ContainerStatuses[i].State = v1.ContainerState{
 			Terminated: &v1.ContainerStateTerminated{},
@@ -271,6 +284,32 @@ func (m *manager) TerminatePod(pod *v1.Pod) {
 		}
 	}
 	m.updateStatusInternal(pod, status, true)
+}
+
+// checkContainerStateTransition ensures that no container is trying to transition
+// from a terminated to non-terminated state, which is illegal and indicates a
+// logical error in the kubelet.
+func checkContainerStateTransition(oldStatuses, newStatuses []v1.ContainerStatus, restartPolicy v1.RestartPolicy) error {
+	// If we should always restart, containers are allowed to leave the terminated state
+	if restartPolicy == v1.RestartPolicyAlways {
+		return nil
+	}
+	for _, oldStatus := range oldStatuses {
+		// Skip any container that wasn't terminated
+		if oldStatus.State.Terminated == nil {
+			continue
+		}
+		// Skip any container that failed but is allowed to restart
+		if oldStatus.State.Terminated.ExitCode != 0 && restartPolicy == v1.RestartPolicyOnFailure {
+			continue
+		}
+		for _, newStatus := range newStatuses {
+			if oldStatus.Name == newStatus.Name && newStatus.State.Terminated == nil {
+				return fmt.Errorf("terminated container %v attempted illegal transition to non-terminated state", newStatus.Name)
+			}
+		}
+	}
+	return nil
 }
 
 // updateStatusInternal updates the internal status cache, and queues an update to the api server if
@@ -287,27 +326,24 @@ func (m *manager) updateStatusInternal(pod *v1.Pod, status v1.PodStatus, forceUp
 		oldStatus = pod.Status
 	}
 
-	// Set ReadyCondition.LastTransitionTime.
-	if _, readyCondition := podutil.GetPodCondition(&status, v1.PodReady); readyCondition != nil {
-		// Need to set LastTransitionTime.
-		lastTransitionTime := metav1.Now()
-		_, oldReadyCondition := podutil.GetPodCondition(&oldStatus, v1.PodReady)
-		if oldReadyCondition != nil && readyCondition.Status == oldReadyCondition.Status {
-			lastTransitionTime = oldReadyCondition.LastTransitionTime
-		}
-		readyCondition.LastTransitionTime = lastTransitionTime
+	// Check for illegal state transition in containers
+	if err := checkContainerStateTransition(oldStatus.ContainerStatuses, status.ContainerStatuses, pod.Spec.RestartPolicy); err != nil {
+		glog.Errorf("Status update on pod %v/%v aborted: %v", pod.Namespace, pod.Name, err)
+		return false
+	}
+	if err := checkContainerStateTransition(oldStatus.InitContainerStatuses, status.InitContainerStatuses, pod.Spec.RestartPolicy); err != nil {
+		glog.Errorf("Status update on pod %v/%v aborted: %v", pod.Namespace, pod.Name, err)
+		return false
 	}
 
+	// Set ReadyCondition.LastTransitionTime.
+	updateLastTransitionTime(&status, &oldStatus, v1.PodReady)
+
 	// Set InitializedCondition.LastTransitionTime.
-	if _, initCondition := podutil.GetPodCondition(&status, v1.PodInitialized); initCondition != nil {
-		// Need to set LastTransitionTime.
-		lastTransitionTime := metav1.Now()
-		_, oldInitCondition := podutil.GetPodCondition(&oldStatus, v1.PodInitialized)
-		if oldInitCondition != nil && initCondition.Status == oldInitCondition.Status {
-			lastTransitionTime = oldInitCondition.LastTransitionTime
-		}
-		initCondition.LastTransitionTime = lastTransitionTime
-	}
+	updateLastTransitionTime(&status, &oldStatus, v1.PodInitialized)
+
+	// Set PodScheduledCondition.LastTransitionTime.
+	updateLastTransitionTime(&status, &oldStatus, v1.PodScheduled)
 
 	// ensure that the start time does not change across updates.
 	if oldStatus.StartTime != nil && !oldStatus.StartTime.IsZero() {
@@ -321,7 +357,7 @@ func (m *manager) updateStatusInternal(pod *v1.Pod, status v1.PodStatus, forceUp
 	normalizeStatus(pod, &status)
 	// The intent here is to prevent concurrent updates to a pod's status from
 	// clobbering each other so the phase of a pod progresses monotonically.
-	if isCached && isStatusEqual(&cachedStatus.status, &status) && !forceUpdate {
+	if isCached && isPodStatusByKubeletEqual(&cachedStatus.status, &status) && !forceUpdate {
 		glog.V(3).Infof("Ignoring same status for pod %q, status: %+v", format.Pod(pod), status)
 		return false // No new status.
 	}
@@ -346,6 +382,21 @@ func (m *manager) updateStatusInternal(pod *v1.Pod, status v1.PodStatus, forceUp
 			format.Pod(pod), status)
 		return false
 	}
+}
+
+// updateLastTransitionTime updates the LastTransitionTime of a pod condition.
+func updateLastTransitionTime(status, oldStatus *v1.PodStatus, conditionType v1.PodConditionType) {
+	_, condition := podutil.GetPodCondition(status, conditionType)
+	if condition == nil {
+		return
+	}
+	// Need to set LastTransitionTime.
+	lastTransitionTime := metav1.Now()
+	_, oldCondition := podutil.GetPodCondition(oldStatus, conditionType)
+	if oldCondition != nil && condition.Status == oldCondition.Status {
+		lastTransitionTime = oldCondition.LastTransitionTime
+	}
+	condition.LastTransitionTime = lastTransitionTime
 }
 
 // deletePodStatus simply removes the given pod from the status cache.
@@ -420,7 +471,7 @@ func (m *manager) syncPod(uid types.UID, status versionedPodStatus) {
 	}
 
 	// TODO: make me easier to express from client code
-	pod, err := m.kubeClient.Core().Pods(status.podNamespace).Get(status.podName, metav1.GetOptions{})
+	pod, err := m.kubeClient.CoreV1().Pods(status.podNamespace).Get(status.podName, metav1.GetOptions{})
 	if errors.IsNotFound(err) {
 		glog.V(3).Infof("Pod %q (%s) does not exist on the server", status.podName, uid)
 		// If the Pod is deleted the status will be cleared in
@@ -439,9 +490,10 @@ func (m *manager) syncPod(uid types.UID, status versionedPodStatus) {
 		m.deletePodStatus(uid)
 		return
 	}
-	pod.Status = status.status
-	// TODO: handle conflict as a retry, make that easier too.
-	newPod, err := m.kubeClient.Core().Pods(pod.Namespace).UpdateStatus(pod)
+
+	oldStatus := pod.Status.DeepCopy()
+	newPod, patchBytes, err := statusutil.PatchPodStatus(m.kubeClient, pod.Namespace, pod.Name, *oldStatus, mergePodStatus(*oldStatus, status.status))
+	glog.V(3).Infof("Patch status for pod %q with %q", format.Pod(pod), patchBytes)
 	if err != nil {
 		glog.Warningf("Failed to update status for pod %q: %v", format.Pod(pod), err)
 		return
@@ -456,7 +508,7 @@ func (m *manager) syncPod(uid types.UID, status versionedPodStatus) {
 		deleteOptions := metav1.NewDeleteOptions(0)
 		// Use the pod UID as the precondition for deletion to prevent deleting a newly created pod with the same name and namespace.
 		deleteOptions.Preconditions = metav1.NewUIDPreconditions(string(pod.UID))
-		err = m.kubeClient.Core().Pods(pod.Namespace).Delete(pod.Name, deleteOptions)
+		err = m.kubeClient.CoreV1().Pods(pod.Namespace).Delete(pod.Name, deleteOptions)
 		if err != nil {
 			glog.Warningf("Failed to delete status for pod %q: %v", format.Pod(pod), err)
 			return
@@ -513,13 +565,10 @@ func (m *manager) needsReconcile(uid types.UID, status v1.PodStatus) bool {
 		pod = mirrorPod
 	}
 
-	podStatus, err := copyStatus(&pod.Status)
-	if err != nil {
-		return false
-	}
-	normalizeStatus(pod, &podStatus)
+	podStatus := pod.Status.DeepCopy()
+	normalizeStatus(pod, podStatus)
 
-	if isStatusEqual(&podStatus, &status) {
+	if isPodStatusByKubeletEqual(podStatus, &status) {
 		// If the status from the source is the same with the cached status,
 		// reconcile is not needed. Just return.
 		return false
@@ -532,7 +581,7 @@ func (m *manager) needsReconcile(uid types.UID, status v1.PodStatus) bool {
 
 // We add this function, because apiserver only supports *RFC3339* now, which means that the timestamp returned by
 // apiserver has no nanosecond information. However, the timestamp returned by metav1.Now() contains nanosecond,
-// so when we do comparison between status from apiserver and cached status, isStatusEqual() will always return false.
+// so when we do comparison between status from apiserver and cached status, isPodStatusByKubeletEqual() will always return false.
 // There is related issue #15262 and PR #15263 about this.
 // In fact, the best way to solve this is to do it on api side. However, for now, we normalize the status locally in
 // kubelet temporarily.
@@ -587,12 +636,35 @@ func normalizeStatus(pod *v1.Pod, status *v1.PodStatus) *v1.PodStatus {
 	return status
 }
 
-func copyStatus(source *v1.PodStatus) (v1.PodStatus, error) {
-	clone, err := scheme.Scheme.DeepCopy(source)
-	if err != nil {
-		glog.Errorf("Failed to clone status %+v: %v", source, err)
-		return v1.PodStatus{}, err
+// mergePodStatus merges oldPodStatus and newPodStatus where pod conditions
+// not owned by kubelet is preserved from oldPodStatus
+func mergePodStatus(oldPodStatus, newPodStatus v1.PodStatus) v1.PodStatus {
+	podConditions := []v1.PodCondition{}
+	for _, c := range oldPodStatus.Conditions {
+		if !kubetypes.PodConditionByKubelet(c.Type) {
+			podConditions = append(podConditions, c)
+		}
 	}
-	status := *clone.(*v1.PodStatus)
-	return status, nil
+
+	for _, c := range newPodStatus.Conditions {
+		if kubetypes.PodConditionByKubelet(c.Type) {
+			podConditions = append(podConditions, c)
+		}
+	}
+	newPodStatus.Conditions = podConditions
+	return newPodStatus
+}
+
+// NeedToReconcilePodReadiness returns if the pod "Ready" condition need to be reconcile
+func NeedToReconcilePodReadiness(pod *v1.Pod) bool {
+	if len(pod.Spec.ReadinessGates) == 0 {
+		return false
+	}
+	podReadyCondition := GeneratePodReadyCondition(&pod.Spec, pod.Status.Conditions, pod.Status.ContainerStatuses, pod.Status.Phase)
+	i, curCondition := podutil.GetPodConditionFromList(pod.Status.Conditions, v1.PodReady)
+	// Only reconcile if "Ready" condition is present
+	if i >= 0 && curCondition.Status != podReadyCondition.Status {
+		return true
+	}
+	return false
 }

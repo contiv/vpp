@@ -23,6 +23,11 @@ contiv-ksr:
 	@echo "# building contiv-ksr"
 	cd cmd/contiv-ksr && go build -v -i -ldflags "${LDFLAGS}"
 
+# Build contiv-crd
+contiv-crd:
+	@echo "# building contiv-crd"
+	cd cmd/contiv-crd && go build -v -i -ldflags "-linkmode external -extldflags -static"
+
 # Build contiv-cni
 contiv-cni:
 	@echo "# building contiv-cni"
@@ -53,6 +58,7 @@ install:
 	@echo "# installing commands"
 	cd cmd/contiv-agent && go install -v -ldflags "${LDFLAGS}" -tags="${GO_BUILD_TAGS}"
 	cd cmd/contiv-ksr && go install -v -ldflags "${LDFLAGS}"
+	cd cmd/contiv-crd && go install -v -ldflags "${LDFLAGS}"
 	cd cmd/contiv-cri && go install -v -ldflags "${LDFLAGS}"
 	cd cmd/contiv-cni && go install -v -ldflags "${LDFLAGS}"
 	cd cmd/contiv-stn && go install -v -ldflags "${LDFLAGS}"
@@ -65,6 +71,7 @@ clean:
 	rm -f cmd/contiv-agent/contiv-agent
 	rm -f cmd/contiv-cni/contiv-cni
 	rm -f cmd/contiv-ksr/contiv-ksr
+	rm -f cmd/contiv-crd/contiv-crd
 	rm -f cmd/contiv-cri/contiv-cri
 	rm -f cmd/contiv-stn/contiv-stn
 	rm -f cmd/contiv-init/contiv-init

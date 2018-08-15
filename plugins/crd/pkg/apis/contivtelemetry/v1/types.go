@@ -19,34 +19,43 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// ContivTelemetry describes contiv telemetry custom resource
+// CRD Constants
+const (
+	CRDGroup                   string = "contivtelemetry.vpp"
+	CRDGroupVersion            string = "v1"
+	CRDContivTelemetryReport        string = "contivtelemetryreport"
+	CRDContivTelemetryReportPlural        string = "contivtelemetryreports"
+	CRDFullContivTelemetryReportsName      string = CRDContivTelemetryReportPlural + "." + CRDGroup
+)
+
+// ContivTelemetryReport describes contiv telemetry custom resource
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-type ContivTelemetry struct {
+type ContivTelemetryReport struct {
 	// TypeMeta is the metadata for the resource, like kind and apiversion
 	metav1.TypeMeta `json:",inline"`
 	// ObjectMeta contains the metadata for the particular object
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 	// Spec is the custom resource spec
-	Spec   ContivTelemetrySpec   `json:"spec,omitempty"`
-	Status ContivTelemetryStatus `json:"status,omitempty"`
+	Spec   ContivTelemetryReportSpec   `json:"spec,omitempty"`
+	Status ContivTelemetryReportStatus `json:"status,omitempty"`
 }
 
-// ContivTelemetrySpec is the spec for the contiv telemetry resource
-type ContivTelemetrySpec struct {
+// ContivTelemetryReportSpec is the spec for the contiv telemetry resource
+type ContivTelemetryReportSpec struct {
 	ReportPollingPeriodSeconds uint32 `json:"report_polling_period_seconds"`
 }
 
-// ContivTelemetryList is a list of ContivTelemetry resource
+// ContivTelemetryReportList is a list of ContivTelemetryReport resource
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-type ContivTelemetryList struct {
+type ContivTelemetryReportList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata"`
 
-	Items []ContivTelemetry `json:"items"`
+	Items []ContivTelemetryReport `json:"items"`
 }
 
-// ContivTelemetryStatus is the state for the contiv telemetry resource
-type ContivTelemetryStatus struct {
+// ContivTelemetryReportStatus is the state for the contiv telemetry report
+type ContivTelemetryReportStatus struct {
 	Nodes []telemetrymodel.Node `json:"nodes"`
 }

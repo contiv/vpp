@@ -22,17 +22,17 @@ import (
 	testing "k8s.io/client-go/testing"
 )
 
-type FakeContivvpptelemetryV1 struct {
+type FakeContivtelemetryV1 struct {
 	*testing.Fake
 }
 
-func (c *FakeContivvpptelemetryV1) ContivTelemetries(namespace string) v1.ContivTelemetryInterface {
-	return &FakeContivTelemetries{c, namespace}
+func (c *FakeContivtelemetryV1) ContivTelemetryReports(namespace string) v1.ContivTelemetryReportInterface {
+	return &FakeContivTelemetryReports{c, namespace}
 }
 
 // RESTClient returns a RESTClient that is used to communicate
 // with API server by this client implementation.
-func (c *FakeContivvpptelemetryV1) RESTClient() rest.Interface {
+func (c *FakeContivtelemetryV1) RESTClient() rest.Interface {
 	var ret *rest.RESTClient
 	return ret
 }

@@ -13,13 +13,12 @@ go_library(
         "runtime.go",
         "whitelist.go",
     ],
+    importpath = "k8s.io/kubernetes/pkg/kubelet/sysctl",
     deps = [
-        "//pkg/api/v1/helper:go_default_library",
-        "//pkg/api/validation:go_default_library",
-        "//pkg/apis/extensions/validation:go_default_library",
+        "//pkg/apis/core/validation:go_default_library",
+        "//pkg/apis/policy/validation:go_default_library",
         "//pkg/kubelet/container:go_default_library",
         "//pkg/kubelet/lifecycle:go_default_library",
-        "//vendor/k8s.io/api/core/v1:go_default_library",
     ],
 )
 
@@ -29,8 +28,8 @@ go_test(
         "namespace_test.go",
         "whitelist_test.go",
     ],
-    library = ":go_default_library",
-    deps = ["//vendor/k8s.io/api/core/v1:go_default_library"],
+    embed = [":go_default_library"],
+    deps = ["//pkg/security/podsecuritypolicy/sysctl:go_default_library"],
 )
 
 filegroup(

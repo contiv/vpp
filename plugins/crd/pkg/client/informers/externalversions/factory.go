@@ -170,9 +170,9 @@ type SharedInformerFactory interface {
 	ForResource(resource schema.GroupVersionResource) (GenericInformer, error)
 	WaitForCacheSync(stopCh <-chan struct{}) map[reflect.Type]bool
 
-	Contivvpptelemetry() contivtelemetry.Interface
+	Contivtelemetry() contivtelemetry.Interface
 }
 
-func (f *sharedInformerFactory) Contivvpptelemetry() contivtelemetry.Interface {
+func (f *sharedInformerFactory) Contivtelemetry() contivtelemetry.Interface {
 	return contivtelemetry.New(f, f.namespace, f.tweakListOptions)
 }

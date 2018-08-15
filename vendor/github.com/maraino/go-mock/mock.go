@@ -139,8 +139,6 @@ func match(actual, expected interface{}) bool {
 			}
 		}
 	}
-
-	return false
 }
 
 // Slice is a helper to define AnyIfType arguments for slices and their elements.
@@ -313,6 +311,7 @@ func (m *Mock) Called(arguments ...interface{}) *MockResult {
 				values = f.call.Call(values)
 			}
 
+			f.ReturnValues = []interface{}{}
 			for i := range values {
 				f.ReturnValues = append(f.ReturnValues, values[i].Interface())
 			}

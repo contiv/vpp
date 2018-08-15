@@ -23,22 +23,22 @@ import (
 	rest "k8s.io/client-go/rest"
 )
 
-type ContivvpptelemetryV1Interface interface {
+type ContivtelemetryV1Interface interface {
 	RESTClient() rest.Interface
-	ContivTelemetriesGetter
+	ContivTelemetryReportsGetter
 }
 
-// ContivvpptelemetryV1Client is used to interact with features provided by the contivvpptelemetry group.
-type ContivvpptelemetryV1Client struct {
+// ContivtelemetryV1Client is used to interact with features provided by the contivtelemetry.vpp group.
+type ContivtelemetryV1Client struct {
 	restClient rest.Interface
 }
 
-func (c *ContivvpptelemetryV1Client) ContivTelemetries(namespace string) ContivTelemetryInterface {
-	return newContivTelemetries(c, namespace)
+func (c *ContivtelemetryV1Client) ContivTelemetryReports(namespace string) ContivTelemetryReportInterface {
+	return newContivTelemetryReports(c, namespace)
 }
 
-// NewForConfig creates a new ContivvpptelemetryV1Client for the given config.
-func NewForConfig(c *rest.Config) (*ContivvpptelemetryV1Client, error) {
+// NewForConfig creates a new ContivtelemetryV1Client for the given config.
+func NewForConfig(c *rest.Config) (*ContivtelemetryV1Client, error) {
 	config := *c
 	if err := setConfigDefaults(&config); err != nil {
 		return nil, err
@@ -47,12 +47,12 @@ func NewForConfig(c *rest.Config) (*ContivvpptelemetryV1Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &ContivvpptelemetryV1Client{client}, nil
+	return &ContivtelemetryV1Client{client}, nil
 }
 
-// NewForConfigOrDie creates a new ContivvpptelemetryV1Client for the given config and
+// NewForConfigOrDie creates a new ContivtelemetryV1Client for the given config and
 // panics if there is an error in the config.
-func NewForConfigOrDie(c *rest.Config) *ContivvpptelemetryV1Client {
+func NewForConfigOrDie(c *rest.Config) *ContivtelemetryV1Client {
 	client, err := NewForConfig(c)
 	if err != nil {
 		panic(err)
@@ -60,9 +60,9 @@ func NewForConfigOrDie(c *rest.Config) *ContivvpptelemetryV1Client {
 	return client
 }
 
-// New creates a new ContivvpptelemetryV1Client for the given RESTClient.
-func New(c rest.Interface) *ContivvpptelemetryV1Client {
-	return &ContivvpptelemetryV1Client{c}
+// New creates a new ContivtelemetryV1Client for the given RESTClient.
+func New(c rest.Interface) *ContivtelemetryV1Client {
+	return &ContivtelemetryV1Client{c}
 }
 
 func setConfigDefaults(config *rest.Config) error {
@@ -80,7 +80,7 @@ func setConfigDefaults(config *rest.Config) error {
 
 // RESTClient returns a RESTClient that is used to communicate
 // with API server by this client implementation.
-func (c *ContivvpptelemetryV1Client) RESTClient() rest.Interface {
+func (c *ContivtelemetryV1Client) RESTClient() rest.Interface {
 	if c == nil {
 		return nil
 	}

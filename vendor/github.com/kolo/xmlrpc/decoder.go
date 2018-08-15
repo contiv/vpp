@@ -12,13 +12,19 @@ import (
 	"time"
 )
 
-const iso8601 = "20060102T15:04:05"
+const (
+	iso8601        = "20060102T15:04:05"
+	iso8601Z       = "20060102T15:04:05Z07:00"
+	iso8601Hyphen  = "2006-01-02T15:04:05"
+	iso8601HyphenZ = "2006-01-02T15:04:05Z07:00"
+)
 
 var (
 	// CharsetReader is a function to generate reader which converts a non UTF-8
 	// charset into UTF-8.
 	CharsetReader func(string, io.Reader) (io.Reader, error)
 
+	timeLayouts     = []string{iso8601, iso8601Z, iso8601Hyphen, iso8601HyphenZ}
 	invalidXmlError = errors.New("invalid xml")
 )
 
@@ -321,7 +327,15 @@ func (dec *decoder) decodeValue(val reflect.Value) error {
 				val.SetString(str)
 			}
 		case "dateTime.iso8601":
-			t, err := time.Parse(iso8601, string(data))
+			var t time.Time
+			var err error
+
+			for _, layout := range timeLayouts {
+				t, err = time.Parse(layout, string(data))
+				if err == nil {
+					break
+				}
+			}
 			if err != nil {
 				return err
 			}

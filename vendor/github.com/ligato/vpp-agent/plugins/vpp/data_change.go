@@ -156,7 +156,9 @@ func (plugin *Plugin) changePropagateRequest(dataChng datasync.ChangeEvent, call
 				return false, err
 			}
 		} else {
-			plugin.Log.Warnf("Key '%s' not supported", key)
+			// Vrf
+			// TODO vrf not implemented yet
+			plugin.Log.Warn("VRFs are not supported yet")
 		}
 	} else if strings.HasPrefix(key, l3.ArpKeyPrefix()) {
 		_, _, err := l3.ParseArpKey(key)

@@ -30,13 +30,23 @@ import (
 
 	crdClientSet "github.com/contiv/vpp/plugins/crd/pkg/client/clientset/versioned"
 	crdResourceInformer "github.com/contiv/vpp/plugins/crd/pkg/client/informers/externalversions/contivtelemetry/v1"
+	listers "github.com/contiv/vpp/plugins/crd/pkg/client/listers/contivtelemetry/v1"
 
 	apiextcs "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	apiextv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	meta "k8s.io/apimachinery/pkg/apis/meta/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 
+	"reflect"
 	"github.com/contiv/vpp/plugins/crd/pkg/apis/contivtelemetry/v1"
-	)
+	"k8s.io/client-go/tools/cache"
+	"k8s.io/apimachinery/pkg/util/runtime"
+
+	contivcache "github.com/contiv/vpp/plugins/crd/cache"
+	telemetry "github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
+	factory "github.com/contiv/vpp/plugins/crd/pkg/client/informers/externalversions"
+
+)
 
 // ContivTelemetryController struct defines how a controller should encapsulate
 // logging, client connectivity, informing (list and watching) queueing, and
@@ -48,11 +58,14 @@ type ContivTelemetryController struct {
 	CrdClient *crdClientSet.Clientset
 	ApiClient    *apiextcs.Clientset
 
+	ContivTelemetryCache *contivcache.ContivTelemetryCache
+
 	clientset    kubernetes.Interface
 	queue        workqueue.RateLimitingInterface
 	informer     k8sCache.SharedIndexInformer
 	eventHandler handler.Handler
 	//Lister     listers.ContivTelemetryLister
+	contivTelemetryReportLister listers.ContivTelemetryReportLister
 }
 
 // Deps defines dependencies for the CRD plugin
@@ -62,14 +75,36 @@ type Deps struct {
 
 // Init performs the initialization of ContivTelemetryController
 func (ctc *ContivTelemetryController) Init() error {
+
+	var err error
+	var crdname string
+
+	crdname = reflect.TypeOf(v1.ContivTelemetryReport{}).Name()
+	err = ctc.createCRD(v1.CRDFullContivTelemetryReportsName,
+		v1.CRDGroup,
+		v1.CRDGroupVersion,
+		v1.CRDContivTelemetryReportPlural,
+		crdname)
+
+	if err != nil {
+		ctc.Log.Error("Error initializing CRD")
+		return err
+	}
+
 	// Create a custom resource informer (generated from the code generator)
 	// Pass the custom resource client, while looking all namespaces for listing and watching.
-	ctc.informer = crdResourceInformer.NewContivTelemetryInformer(
+	ctc.informer = crdResourceInformer.NewContivTelemetryReportInformer(
 		ctc.CrdClient,
 		meta_v1.NamespaceAll,
 		0,
 		k8sCache.Indexers{},
 	)
+
+	//ctc.contivTelemetryReportLister = listers.NewContivTelemetryReportLister(ctc.informer.GetIndexer())
+
+	sharedFactory := factory.NewSharedInformerFactory(ctc.CrdClient, time.Second*30)
+	informer := sharedFactory.Contivtelemetry().V1().ContivTelemetryReports()
+	ctc.contivTelemetryReportLister = informer.Lister()
 
 	// Create a new queue in that when the informer gets a resource from listing or watching,
 	// adding the identifying key to the queue for the handler
@@ -104,6 +139,9 @@ func (ctc *ContivTelemetryController) Init() error {
 
 	ctc.eventHandler = &handler.Default{}
 
+
+	ctc.genReport()
+
 	return nil
 }
 
@@ -117,7 +155,7 @@ func (ctc *ContivTelemetryController) Run(ctx <-chan struct{}) {
 	ctc.Log.Info("Controller-Run: Initiating...")
 
 	// runs the informer to list and watch on a goroutine
-	// go ctc.informer.Run(ctx)
+	go ctc.informer.Run(ctx)
 
 	// populate resources one after synchronization
 	if !k8sCache.WaitForCacheSync(ctx, ctc.HasSynced) {
@@ -203,10 +241,8 @@ func (ctc *ContivTelemetryController) createCRD(FullName, Group, Version, Plural
 
 	var validation *apiextv1beta1.CustomResourceValidation
 	switch Name {
-	case "CrdExample":
-		//validation = exampleCrdValidation()
-	case "CrdExampleEmbed":
-		//validation = exampleCrdEmbedValidation()
+	case "ContivTelemetryReport":
+		validation = contivTelemetryReportValidation()
 	default:
 		validation = &apiextv1beta1.CustomResourceValidation{}
 	}
@@ -224,6 +260,93 @@ func (ctc *ContivTelemetryController) createCRD(FullName, Group, Version, Plural
 		},
 	}
 	_, cserr := ctc.ApiClient.ApiextensionsV1beta1().CustomResourceDefinitions().Create(crd)
+	if apierrors.IsAlreadyExists(cserr) {
+		return nil
+	}
 
 	return cserr
+}
+
+// contivTelemetryReportValidation generates OpenAPIV3 validator for CrdExample CRD
+func contivTelemetryReportValidation() *apiextv1beta1.CustomResourceValidation {
+	validation := &apiextv1beta1.CustomResourceValidation{
+		OpenAPIV3Schema: &apiextv1beta1.JSONSchemaProps{
+			Properties: map[string]apiextv1beta1.JSONSchemaProps{
+				"spec": apiextv1beta1.JSONSchemaProps{
+				},
+			},
+		},
+	}
+	return validation
+}
+
+// updates the CRD status in Kubernetes with the current status from the sfc-controller
+func (ctc *ContivTelemetryController) updateContivTelemetryStatus() error {
+	// Fetch crdContivTelemetry from K8s cache
+	// The name in sfc is the namespace/name, which is the "namespace key". Split it out.
+	key := "john"
+	namespace, name, err := cache.SplitMetaNamespaceKey(key)
+	if err != nil {
+		runtime.HandleError(fmt.Errorf("invalid resource key: %s", key))
+		return nil
+	}
+	if namespace == "" {
+		namespace = "default"
+	}
+
+	//crdContivTelemetryReport, errGet := ctc.contivTelemetryReportLister.ContivTelemetryReports(namespace).Get(name)
+	//if errGet != nil {
+	//	ctc.Log.Errorf("Could not get '%s' with namespace '%s", name, namespace)
+	//	return errGet
+	//}
+
+	crdContivTelemetryReport := &v1.ContivTelemetryReport{
+		ObjectMeta: meta_v1.ObjectMeta{
+			Name: name,
+			Namespace: namespace,
+		},
+		TypeMeta: meta_v1.TypeMeta{
+			Kind: v1.CRDContivTelemetryReport,
+			APIVersion: v1.CRDGroupVersion,
+		},
+		Spec: v1.ContivTelemetryReportSpec {
+			ReportPollingPeriodSeconds: 10,
+		},
+	}
+
+	crdContivTelemetryReportCopy := crdContivTelemetryReport.DeepCopy()
+
+	n := telemetry.Node{
+		Name: "johnNode",
+	}
+	crdContivTelemetryReportCopy.Status.Nodes = append(crdContivTelemetryReportCopy.Status.Nodes, n)
+
+	//for _, node := range ctc.ContivTelemetryCache.Cache.GetAllNodes() {
+	//	crdContivTelemetryCopy.Status.Nodes = append(crdContivTelemetryCopy.Status.Nodes, *node)
+	//}
+
+
+	// Until #38113 is merged, we must use Update instead of UpdateStatus to
+	// update the Status block of the NetworkNode resource. UpdateStatus will not
+	// allow changes to the Spec of the resource, which is ideal for ensuring
+	// nothing other than resource status has been updated.
+	//_, errUpdate := ctc.CrdClient.ContivtelemetryV1().ContivTelemetryReports(namespace).Update(crdContivTelemetryReportCopy)
+	_, errUpdate := ctc.CrdClient.ContivtelemetryV1().ContivTelemetryReports(namespace).Create(crdContivTelemetryReportCopy)
+	if errUpdate != nil {
+			ctc.Log.Errorf("Could not UPDATE '%s'  err: %v, namespace '%s, and value: %v",
+				name, errUpdate, namespace, crdContivTelemetryReportCopy)
+	}
+	return errUpdate
+	}
+
+func (ctc *ContivTelemetryController) genReport() {
+	ticker := time.NewTicker(30 * time.Second)
+	go func() {
+		for t := range ticker.C {
+			ctc.Log.Infof("Tick at: %v", t)
+			if ctc.HasSynced() {
+				ctc.updateContivTelemetryStatus()
+			}
+		}
+	}()
 }

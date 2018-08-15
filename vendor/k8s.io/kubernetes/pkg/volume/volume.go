@@ -37,6 +37,19 @@ type Volume interface {
 	MetricsProvider
 }
 
+// BlockVolume interface provides methods to generate global map path
+// and pod device map path.
+type BlockVolume interface {
+	// GetGlobalMapPath returns a global map path which contains
+	// symbolic links associated to a block device.
+	// ex. plugins/kubernetes.io/{PluginName}/{DefaultKubeletVolumeDevicesDirName}/{volumePluginDependentPath}/{pod uuid}
+	GetGlobalMapPath(spec *Spec) (string, error)
+	// GetPodDeviceMapPath returns a pod device map path
+	// and name of a symbolic link associated to a block device.
+	// ex. pods/{podUid}}/{DefaultKubeletVolumeDevicesDirName}/{escapeQualifiedPluginName}/{volumeName}
+	GetPodDeviceMapPath() (string, string)
+}
+
 // MetricsProvider exposes metrics (e.g. used,available space) related to a
 // Volume.
 type MetricsProvider interface {
@@ -118,6 +131,7 @@ type Mounter interface {
 	// idempotent.
 	SetUpAt(dir string, fsGroup *int64) error
 	// GetAttributes returns the attributes of the mounter.
+	// This function is called after SetUp()/SetUpAt().
 	GetAttributes() Attributes
 }
 
@@ -132,13 +146,44 @@ type Unmounter interface {
 	TearDownAt(dir string) error
 }
 
+// BlockVolumeMapper interface provides methods to set up/map the volume.
+type BlockVolumeMapper interface {
+	BlockVolume
+	// SetUpDevice prepares the volume to a self-determined directory path,
+	// which may or may not exist yet and returns combination of physical
+	// device path of a block volume and error.
+	// If the plugin is non-attachable, it should prepare the device
+	// in /dev/ (or where appropriate) and return unique device path.
+	// Unique device path across kubelet node reboot is required to avoid
+	// unexpected block volume destruction.
+	// If the plugin is attachable, it should not do anything here,
+	// just return empty string for device path.
+	// Instead, attachable plugin have to return unique device path
+	// at attacher.Attach() and attacher.WaitForAttach().
+	// This may be called more than once, so implementations must be idempotent.
+	SetUpDevice() (string, error)
+
+	// Map maps the block device path for the specified spec and pod.
+	MapDevice(devicePath, globalMapPath, volumeMapPath, volumeMapName string, podUID types.UID) error
+}
+
+// BlockVolumeUnmapper interface provides methods to cleanup/unmap the volumes.
+type BlockVolumeUnmapper interface {
+	BlockVolume
+	// TearDownDevice removes traces of the SetUpDevice procedure under
+	// a self-determined directory.
+	// If the plugin is non-attachable, this method detaches the volume
+	// from a node.
+	TearDownDevice(mapPath string, devicePath string) error
+}
+
 // Provisioner is an interface that creates templates for PersistentVolumes
 // and can create the volume as a new resource in the infrastructure provider.
 type Provisioner interface {
 	// Provision creates the resource by allocating the underlying volume in a
 	// storage system. This method should block until completion and returns
 	// PersistentVolume representing the created storage resource.
-	Provision() (*v1.PersistentVolume, error)
+	Provision(selectedNode *v1.Node, allowedTopologies []v1.TopologySelectorTerm) (*v1.PersistentVolume, error)
 }
 
 // Deleter removes the resource from the underlying storage provider. Calls
@@ -195,8 +240,10 @@ type BulkVolumeVerifier interface {
 
 // Detacher can detach a volume from a node.
 type Detacher interface {
-	// Detach the given device from the node with the given Name.
-	Detach(deviceName string, nodeName types.NodeName) error
+	// Detach the given volume from the node with the given Name.
+	// volumeName is name of the volume as returned from plugin's
+	// GetVolumeName().
+	Detach(volumeName string, nodeName types.NodeName) error
 
 	// UnmountDevice unmounts the global mount of the disk. This
 	// should only be called once all bind mounts have been

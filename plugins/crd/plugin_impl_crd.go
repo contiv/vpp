@@ -108,20 +108,6 @@ func (p *Plugin) Init() error {
 		return fmt.Errorf("failed to build api Client: %s", err)
 	}
 
-	p.controller = &controller.ContivTelemetryController{
-		Deps: controller.Deps{
-			Log: p.Log.NewLogger("-crdController"),
-		},
-		K8sClient: k8sClient,
-		CrdClient: crdClient,
-		ApiClient: apiclientset,
-	}
-	p.controller.Log.SetLevel(logging.DebugLevel)
-
-	// Init and run the controller
-	p.controller.Init()
-	go p.controller.Run(p.ctx.Done())
-
 	// This where we initialize all layers
 	p.cache = &cache.ContivTelemetryCache{
 		Deps: cache.Deps{
@@ -141,6 +127,20 @@ func (p *Plugin) Init() error {
 	p.processor.Init()
 	p.cache.Processor = p.processor
 
+	p.controller = &controller.ContivTelemetryController{
+		Deps: controller.Deps{
+			Log: p.Log.NewLogger("-crdController"),
+		},
+		K8sClient: k8sClient,
+		CrdClient: crdClient,
+		ApiClient: apiclientset,
+		ContivTelemetryCache: p.cache,
+	}
+	p.controller.Log.SetLevel(logging.DebugLevel)
+
+	// Init and run the controller
+	p.controller.Init()
+	go p.controller.Run(p.ctx.Done())
 	go p.watchEvents()
 	err = p.subscribeWatcher()
 	if err != nil {

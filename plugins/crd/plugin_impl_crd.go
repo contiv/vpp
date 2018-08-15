@@ -40,7 +40,6 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 
 	apiextcs "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
-
 )
 
 // Plugin watches configuration of K8s resources (as reflected by KSR into ETCD)
@@ -117,7 +116,7 @@ func (p *Plugin) Init() error {
 		},
 		K8sClient: k8sClient,
 		CrdClient: crdClient,
-		ApiClient: apiclientset,
+		APIClient: apiclientset,
 	}
 	p.controller.Log.SetLevel(logging.DebugLevel)
 
@@ -144,14 +143,14 @@ func (p *Plugin) Init() error {
 	}
 	p.cache.Processor = p.processor
 
-	controllerReport := &controller.ControllerReport{
+	controllerReport := &controller.CRDReport{
 		Deps: controller.Deps{
 			Log: p.Log.NewLogger("-controllerReporter"),
 		},
 		VppCache: p.cache.VppCache,
 		K8sCache: p.cache.K8sCache,
 		Report:   p.cache.Report,
-		Ctlr: p.controller,
+		Ctlr:     p.controller,
 	}
 	p.cache.ControllerReport = controllerReport
 

@@ -21,11 +21,11 @@ import (
 
 // CRD Constants
 const (
-	CRDGroup                   string = "contivtelemetry.vpp"
-	CRDGroupVersion            string = "v1"
-	CRDContivTelemetryReport        string = "contivtelemetryreport"
-	CRDContivTelemetryReportPlural        string = "contivtelemetryreports"
-	CRDFullContivTelemetryReportsName      string = CRDContivTelemetryReportPlural + "." + CRDGroup
+	CRDGroup                          string = "contivtelemetry.vpp"
+	CRDGroupVersion                   string = "v1"
+	CRDContivTelemetryReport          string = "contivtelemetryreport"
+	CRDContivTelemetryReportPlural    string = "contivtelemetryreports"
+	CRDFullContivTelemetryReportsName string = CRDContivTelemetryReportPlural + "." + CRDGroup
 )
 
 // ContivTelemetryReport describes contiv telemetry custom resource
@@ -57,6 +57,6 @@ type ContivTelemetryReportList struct {
 
 // ContivTelemetryReportStatus is the state for the contiv telemetry report
 type ContivTelemetryReportStatus struct {
-	Nodes []telemetrymodel.Node `json:"nodes"`
-	Reports  telemetrymodel.Reports`json:"reports"`
+	Nodes   []telemetrymodel.Node  `json:"nodes"`
+	Reports telemetrymodel.Reports `json:"reports"`
 }

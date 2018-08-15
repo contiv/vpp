@@ -16,10 +16,10 @@ package datastore
 
 import (
 	"fmt"
+	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
 	"github.com/ligato/cn-infra/logging"
 	"io"
 	"os"
-	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
 )
 
 // SimpleReport holds error/warning messages recorded during data collection /
@@ -39,6 +39,7 @@ func NewSimpleReport(log logging.Logger) *SimpleReport {
 	}
 }
 
+// RetrieveReport returns the map of report strings
 func (r *SimpleReport) RetrieveReport() telemetrymodel.Reports {
 	return r.Data
 }

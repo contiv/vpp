@@ -32,15 +32,15 @@ import (
 	crdResourceInformer "github.com/contiv/vpp/plugins/crd/pkg/client/informers/externalversions/contivtelemetry/v1"
 	listers "github.com/contiv/vpp/plugins/crd/pkg/client/listers/contivtelemetry/v1"
 
-	apiextcs "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	apiextv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
-	meta "k8s.io/apimachinery/pkg/apis/meta/v1"
+	apiextcs "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	meta "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"reflect"
 	"github.com/contiv/vpp/plugins/crd/pkg/apis/contivtelemetry/v1"
-	"k8s.io/client-go/tools/cache"
 	"k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/client-go/tools/cache"
+	"reflect"
 
 	factory "github.com/contiv/vpp/plugins/crd/pkg/client/informers/externalversions"
 
@@ -55,7 +55,7 @@ type ContivTelemetryController struct {
 
 	K8sClient *kubernetes.Clientset
 	CrdClient *crdClientSet.Clientset
-	ApiClient    *apiextcs.Clientset
+	APIClient *apiextcs.Clientset
 
 	clientset    kubernetes.Interface
 	queue        workqueue.RateLimitingInterface
@@ -70,10 +70,11 @@ type Deps struct {
 	Log logging.Logger
 }
 
-type ControllerReport struct {
+//CRDReport implements generation of reports to CRD
+type CRDReport struct {
 	Deps
 
-	Ctlr *ContivTelemetryController
+	Ctlr     *ContivTelemetryController
 	VppCache api.VppCache
 	K8sCache api.K8sCache
 	Report   api.Report
@@ -262,7 +263,7 @@ func (ctc *ContivTelemetryController) createCRD(FullName, Group, Version, Plural
 			Validation: validation,
 		},
 	}
-	_, cserr := ctc.ApiClient.ApiextensionsV1beta1().CustomResourceDefinitions().Create(crd)
+	_, cserr := ctc.APIClient.ApiextensionsV1beta1().CustomResourceDefinitions().Create(crd)
 	if apierrors.IsAlreadyExists(cserr) {
 		return nil
 	}
@@ -275,16 +276,15 @@ func contivTelemetryReportValidation() *apiextv1beta1.CustomResourceValidation {
 	validation := &apiextv1beta1.CustomResourceValidation{
 		OpenAPIV3Schema: &apiextv1beta1.JSONSchemaProps{
 			Properties: map[string]apiextv1beta1.JSONSchemaProps{
-				"spec": apiextv1beta1.JSONSchemaProps{
-				},
+				"spec": {},
 			},
 		},
 	}
 	return validation
 }
 
-// updates the CRD status in Kubernetes with the current status from the sfc-controller
-func (cr *ControllerReport) GenerateCRDReport() {
+//GenerateCRDReport updates the CRD status in Kubernetes with the current status from the sfc-controller
+func (cr *CRDReport) GenerateCRDReport() {
 	// Fetch crdContivTelemetry from K8s cache
 	// The name in sfc is the namespace/name, which is the "namespace key". Split it out.
 
@@ -309,14 +309,14 @@ func (cr *ControllerReport) GenerateCRDReport() {
 
 		crdContivTelemetryReport = &v1.ContivTelemetryReport{
 			ObjectMeta: meta_v1.ObjectMeta{
-				Name: name,
+				Name:      name,
 				Namespace: "default",
 			},
 			TypeMeta: meta_v1.TypeMeta{
-				Kind: "ContivTelemetryReport",
+				Kind:       "ContivTelemetryReport",
 				APIVersion: v1.CRDGroupVersion,
 			},
-			Spec: v1.ContivTelemetryReportSpec {
+			Spec: v1.ContivTelemetryReportSpec{
 				ReportPollingPeriodSeconds: 10,
 			},
 		}
@@ -338,7 +338,7 @@ func (cr *ControllerReport) GenerateCRDReport() {
 	// nothing other than resource status has been updated.
 	//_, errUpdate := ctc.CrdClient.ContivtelemetryV1().ContivTelemetryReports(namespace).Update(crdContivTelemetryReportCopy)
 
-	if shouldCreate  {
+	if shouldCreate {
 		ctc.Log.Infof("Create '%s' namespace '%s, and value: %v", name, namespace, crdContivTelemetryReportCopy)
 		_, err = ctc.CrdClient.ContivtelemetryV1().ContivTelemetryReports("default").Create(crdContivTelemetryReportCopy)
 		if err != nil {

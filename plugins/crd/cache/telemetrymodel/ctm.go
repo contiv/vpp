@@ -113,24 +113,41 @@ type NodeL2FibEntry struct {
 	BridgedVirtualInterface  bool   `json:"bridged_virtual_interface"`
 }
 
-//NodeInterface holds unmarshalled Interface JSON data
-type NodeInterface struct {
-	VppInternalName string                   `json:"vpp_internal_name"`
-	Name            string                   `json:"name"`
-	IfType          interfaces.InterfaceType `json:"type,omitempty"`
-	Enabled         bool                     `json:"enabled,omitempty"`
-	PhysAddress     string                   `json:"phys_address,omitempty"`
-	Mtu             uint32                   `json:"mtu,omitempty"`
-	Vxlan           Vxlan                    `json:"vxlan,omitempty"`
-	IPAddresses     []string                 `json:"ip_addresses,omitempty"`
-	Tap             Tap                      `json:"tap,omitempty"`
-}
-
 // Vxlan contains vxlan parameter data
 type Vxlan struct {
 	SrcAddress string `json:"src_address"`
 	DstAddress string `json:"dst_address"`
 	Vni        uint32 `json:"vni"`
+}
+
+//NodeInterface holds unmarshalled Interface JSON data
+type NodeInterface struct {
+	If     Interface     `json:"interface"`
+	IfMeta InterfaceMeta `json:"interface_meta"`
+}
+
+type Interface struct {
+	Name        string                   `json:"name"`
+	IfType      interfaces.InterfaceType `json:"type,omitempty"`
+	Enabled     bool                     `json:"enabled,omitempty"`
+	PhysAddress string                   `json:"phys_address,omitempty"`
+	Mtu         uint32                   `json:"mtu,omitempty"`
+	Vrf         uint32                   `json:"vrf,omitempty"`
+	IPAddresses []string                 `json:"ip_addresses,omitempty"`
+	Vxlan       Vxlan                    `json:"vxlan,omitempty"`
+	Tap         Tap                      `json:"tap,omitempty"`
+}
+
+type InterfaceMeta struct {
+	SwIfIndex       uint32 `json:"sw_if_index"`
+	Tag             string `json:"tag"`
+	VppInternalName string `json:"internal_name"`
+}
+
+// Tap contains tap parameter data
+type Tap struct {
+	Version    uint32 `json:"version"`
+	HostIfName string `json:"host_if_name"`
 }
 
 //NodeIPArpEntry holds unmarshalled IP ARP data
@@ -139,12 +156,6 @@ type NodeIPArpEntry struct {
 	IPAddress  string `json:"IPAddress"`
 	MacAddress string `json:"MacAddress"`
 	Static     bool   `json:"Static"`
-}
-
-// Tap contains tap parameter data
-type Tap struct {
-	Version    uint32 `json:"version"`
-	HostIfName string `json:"host_if_name"`
 }
 
 //NodeBridgeDomain holds the unmarshalled bridge domain data.

@@ -77,9 +77,9 @@ func (vds *VppDataStore) DeleteNode(nodeName string) error {
 	}
 
 	for _, intf := range node.NodeInterfaces {
-		if intf.VppInternalName == "loop0" {
-			delete(vds.LoopMACMap, intf.PhysAddress)
-			for _, ip := range intf.IPAddresses {
+		if intf.IfMeta.VppInternalName == "loop0" {
+			delete(vds.LoopMACMap, intf.If.PhysAddress)
+			for _, ip := range intf.If.IPAddresses {
 				delete(vds.LoopIPMap, ip)
 			}
 		}
@@ -282,27 +282,27 @@ func (vds *VppDataStore) SetSecondaryNodeIndices(node *telemetrymodel.Node) []st
 		vds.HostIPMap[node.ManIPAdr] = node
 	}
 
-	for _, ipAddr := range loopIF.IPAddresses {
+	for _, ipAddr := range loopIF.If.IPAddresses {
 		if ipAddr == "" {
-			errReport = append(errReport, fmt.Sprintf("empty IP address for Loop if %s", loopIF.Name))
+			errReport = append(errReport, fmt.Sprintf("empty IP address for Loop if %s", loopIF.If.Name))
 		} else {
 			if _, ok := vds.LoopIPMap[ipAddr]; ok {
 				errReport = append(errReport,
-					fmt.Sprintf("duplicate Loop IP Address %s, interfqce %s", ipAddr, loopIF.Name))
+					fmt.Sprintf("duplicate Loop IP Address %s, interface %s", ipAddr, loopIF.If.Name))
 			} else {
 				vds.LoopIPMap[ipAddr] = node
 			}
 		}
 	}
 
-	if loopIF.PhysAddress == "" {
-		errReport = append(errReport, fmt.Sprintf("empty MAC address for Loop if %s", loopIF.Name))
+	if loopIF.If.PhysAddress == "" {
+		errReport = append(errReport, fmt.Sprintf("empty MAC address for Loop if %s", loopIF.If.Name))
 	} else {
-		if _, ok := vds.LoopMACMap[loopIF.PhysAddress]; ok {
+		if _, ok := vds.LoopMACMap[loopIF.If.PhysAddress]; ok {
 			errReport = append(errReport,
-				fmt.Sprintf("duplicate Loop MAC Address %s, interface %s", loopIF.PhysAddress, loopIF.Name))
+				fmt.Sprintf("duplicate Loop MAC Address %s, interface %s", loopIF.If.PhysAddress, loopIF.If.Name))
 		} else {
-			vds.LoopMACMap[loopIF.PhysAddress] = node
+			vds.LoopMACMap[loopIF.If.PhysAddress] = node
 		}
 	}
 	vds.GigEIPMap[node.IPAdr] = node
@@ -348,7 +348,7 @@ func (vds *VppDataStore) RetrieveNodeByGigEIPAddr(ipAddress string) (*telemetrym
 // GetNodeLoopIFInfo gets the loop interface for the given node
 func GetNodeLoopIFInfo(node *telemetrymodel.Node) (*telemetrymodel.NodeInterface, error) {
 	for _, ifs := range node.NodeInterfaces {
-		if ifs.VppInternalName == "loop0" {
+		if ifs.IfMeta.VppInternalName == "loop0" {
 			return &ifs, nil
 		}
 	}

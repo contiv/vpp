@@ -35,7 +35,7 @@ const (
 	numDTOs            = 6
 	agentPort          = ":9999"
 	livenessURL        = "/liveness"
-	interfaceURL       = "/interfaces"
+	interfaceURL       = "/vpp/dump/v1/interfaces"
 	bridgeDomainURL    = "/bridgedomains"
 	l2FibsURL          = "/l2fibs"
 	telemetryURL       = "/telemetry"

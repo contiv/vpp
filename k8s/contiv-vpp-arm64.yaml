@@ -45,12 +45,19 @@ data:
       VxlanCIDR: 192.168.30.0/24
       NodeInterconnectDHCP: False
   logs.conf: |
-    defaultlevel: debug
+    default-level: debug
   grpc.conf: |
     network: unix
     endpoint: /var/run/contiv/cni.sock
   http.conf: |
-      endpoint: 0.0.0.0:9999
+    endpoint: 0.0.0.0:9999
+  bolt.conf: |
+    db-path: /var/bolt/bolt.db
+    file-mode: 432
+    lock-timeout: 0
+  telemetry.conf: |
+    polling-interval: 30000000000
+    disabled: true
 
 ---
 
@@ -251,6 +258,8 @@ spec:
             name: cni-bin-dir
           - mountPath: /etc/cni/net.d
             name: cni-net-dir
+          - mountPath: /var/run/contiv
+            name: contiv-run
       # This init container waits until etcd is started
       - name: wait-foretcd
         env:
@@ -333,7 +342,13 @@ spec:
                   fieldPath: spec.nodeName
             - name: ETCD_CONFIG
               value: "/etc/etcd/etcd.conf"
+            - name: BOLT_CONFIG
+              value: "/etc/agent/bolt.conf"
+            - name: TELEMETRY_CONFIG
+              value: "/etc/agent/telemetry.conf"
           volumeMounts:
+            - name: var-bolt
+              mountPath: /var/bolt
             - name: etcd-cfg
               mountPath: /etc/etcd
             - name: vpp-cfg
@@ -350,7 +365,6 @@ spec:
               mountPath: /etc/agent
             - name: govpp-plugin-cfg
               mountPath: /etc/govpp
-
       volumes:
         # Used to connect to contiv-etcd.
         - name: etcd-cfg
@@ -398,6 +412,9 @@ spec:
         - name: govpp-plugin-cfg
           configMap:
             name: govpp-cfg
+        - name: var-bolt
+          hostPath:
+            path: /var/bolt
 
 ---
 
@@ -446,7 +463,7 @@ spec:
 
       containers:
         - name: contiv-ksr
-          image: contivvpp/ksr:latest
+          image: contivvpp/ksr-arm64:latest
           imagePullPolicy: IfNotPresent
           env:
             - name: ETCD_CONFIG

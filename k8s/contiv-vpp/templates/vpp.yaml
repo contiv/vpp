@@ -778,7 +778,11 @@ spec:
 
       containers:
         - name: contiv-ksr
+          {{- if .Values.Arm64Platform }}
+          image: {{ .Values.ksr_arm64.image.repository }}:{{ default .Chart.Version .Values.ksr.image.tag }}
+          {{- else }}
           image: {{ .Values.ksr.image.repository }}:{{ default .Chart.Version .Values.ksr.image.tag }}
+          {{- end }}
           imagePullPolicy: {{ .Values.ksr.image.pullPolicy }}
           env:
             - name: ETCD_CONFIG

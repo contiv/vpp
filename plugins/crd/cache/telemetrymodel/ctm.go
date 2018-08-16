@@ -35,7 +35,7 @@ type Node struct {
 	NodeL2Fibs        map[string]NodeL2FibEntry
 	NodeTelemetry     map[string]NodeTelemetry
 	NodeIPArp         []NodeIPArpEntry
-	NodeStaticRoutes  []NodeStaticRoute
+	NodeStaticRoutes  []NodeIPRoute
 	Report            []string
 	PodMap            map[string]*Pod
 }
@@ -66,18 +66,147 @@ type NodeTelemetries map[string]NodeTelemetry
 // NodeIPArpTable defines an array of NodeIPArpEntry
 type NodeIPArpTable []NodeIPArpEntry
 
-// NodeStaticRoutes defines an array of NodeStaticRoute object
-type NodeStaticRoutes []NodeStaticRoute
+// NodeStaticRoutes defines an array of NodeIPRoute object
+type NodeStaticRoutes []NodeIPRoute
 
-//NodeStaticRoute holds the unmarshalled node static route JSON data.
-type NodeStaticRoute struct {
-	VrfID       uint32  `json:"vrf_id"`
-	TableName   string  `json:"table_name"`
-	DstAddr     dstAddr `json:"dst_addr"`
-	NextHopAddr string  `json:"next_hop_addr"`
-	OutIface    uint32  `json:"out_iface"`
-	Weight      uint32  `json:"weight"`
-	Preference  uint32  `json:"preference"`
+//NodeInterface holds unmarshalled Interface JSON data
+type NodeInterface struct {
+	If     Interface     `json:"interface"`
+	IfMeta InterfaceMeta `json:"interface_meta"`
+}
+
+// Interface contains interface parameter data
+type Interface struct {
+	Name        string                   `json:"name"`
+	IfType      interfaces.InterfaceType `json:"type,omitempty"`
+	Enabled     bool                     `json:"enabled,omitempty"`
+	PhysAddress string                   `json:"phys_address,omitempty"`
+	Mtu         uint32                   `json:"mtu,omitempty"`
+	Vrf         uint32                   `json:"vrf,omitempty"`
+	IPAddresses []string                 `json:"ip_addresses,omitempty"`
+	Vxlan       Vxlan                    `json:"vxlan,omitempty"`
+	Tap         Tap                      `json:"tap,omitempty"`
+}
+
+// InterfaceMeta defines the interface VPP internal metadata
+type InterfaceMeta struct {
+	SwIfIndex       uint32 `json:"sw_if_index"`
+	Tag             string `json:"tag"`
+	VppInternalName string `json:"internal_name"`
+}
+
+// Vxlan contains vxlan parameter data
+type Vxlan struct {
+	SrcAddress string `json:"src_address"`
+	DstAddress string `json:"dst_address"`
+	Vni        uint32 `json:"vni"`
+}
+
+// Tap contains tap parameter data
+type Tap struct {
+	Version    uint32 `json:"version"`
+	HostIfName string `json:"host_if_name"`
+}
+
+// NodeBridgeDomain holds the unmarshalled bridge domain data.
+type NodeBridgeDomain struct {
+	Bd     BridgeDomain     `json:"bridge_domain"`
+	BdMeta BridgeDomainMeta `json:"bridge_domain_meta"`
+}
+
+// BridgeDomain defines the Bridge Domain main data set
+type BridgeDomain struct {
+	Interfaces []BdInterface `json:"interfaces"`
+	Name       string        `json:"name"`
+	Forward    bool          `json:"forward"`
+}
+
+// BridgeDomainMeta defines the Bridge Domain VPP internal metadata
+type BridgeDomainMeta struct {
+	BdID      uint32           `json:"bridge_domain_id"`
+	BdID2Name BdID2NameMapping `json:"bridge_domain_id_to_name"`
+}
+
+// BdInterface defines the BD Interface data
+type BdInterface struct {
+	Name            string `json:"name"`
+	BVI             bool   `json:"bridged_virtual_interface,omitempty"`
+	SplitHorizonGrp uint32 `json:"split_horizon_group"`
+}
+
+// BdID2NameMapping defines the mapping of BD ifIndices to interface Names
+type BdID2NameMapping map[uint32]string
+
+//NodeL2FibEntry holds unmarshalled L2Fib JSON data
+type NodeL2FibEntry struct {
+	Fe     L2FibEntry     `json:"fib"`
+	FeMeta L2FibEntryMeta `json:"fib_meta"`
+}
+
+// L2FibEntry defines the L2 FIB entry data set
+type L2FibEntry struct {
+	BridgeDomainName        string `json:"bridge_domain"`
+	OutgoingIfName          string `json:"outgoing_interface"`
+	PhysAddress             string `json:"phys_address"`
+	StaticConfig            bool   `json:"static_config,omitempty"`
+	BridgedVirtualInterface bool   `json:"bridged_virtual_interface,omitempty"`
+}
+
+// L2FibEntryMeta defines the L2FIB entry VPP internal metadata
+type L2FibEntryMeta struct {
+	BridgeDomainID  uint32 `json:"bridge_domain_id"`
+	OutgoingIfIndex uint32 `json:"outgoing_interface_sw_if_idx"`
+}
+
+//NodeIPArpEntry holds unmarshalled IP ARP data
+type NodeIPArpEntry struct {
+	Ae     IPArpEntry     `json:"Arp"`
+	AeMeta IPArpEntryMeta `json:"Meta"`
+}
+
+// IPArpEntry defines the IP ARP Entry entry data set
+type IPArpEntry struct {
+	Interface   string `json:"interface"`
+	IPAddress   string `json:"ip_address"`
+	PhysAddress string `json:"phys_address"`
+	Static      bool   `json:"static,omitempty"`
+}
+
+// IPArpEntryMeta defines the IP ARP Entry VPP internal metadata
+type IPArpEntryMeta struct {
+	IfIndex uint32 `json:"SwIfIndex"`
+}
+
+// NodeIPRoute holds the unmarshalled node static route JSON data.
+type NodeIPRoute struct {
+	Ipr     IPRoute     `json:"Route"`
+	IprMeta IPRouteMeta `json:"Meta"`
+}
+
+// IPRoute defines the IP Route entry data set
+type IPRoute struct {
+	VrfID       uint32 `json:"vrf_id"`
+	DstAddr     string `json:"dst_ip_addr"`
+	NextHopAddr string `json:"next_hop_addr"`
+	OutIface    string `json:"outgoing_interface"`
+	Weight      uint32 `json:"weight"`
+}
+
+// IPRouteMeta defines the IP Route VPP internal metadata
+type IPRouteMeta struct {
+	TableName         string `json:"TableName"`
+	OutgoingIfIdx     uint32 `json:"OutgoingIfIdx"`
+	Afi               uint32 `json:"Afi"`
+	IsLocal           bool   `json:"IsLocal,omitempty"`
+	IsUDPEncap        bool   `json:"IsUDPEncap,omitempty"`
+	IsUnreach         bool   `json:"IsUnreach,omitempty"`
+	IsProhibit        bool   `json:"IsProhibit,omitempty"`
+	IsResolveHost     bool   `json:"IsResolveHost,omitempty"`
+	IsResolveAttached bool   `json:"IsResolveAttached,omitempty"`
+	IsDvr             bool   `json:"IsDvr,omitempty"`
+	IsSourceLookup    bool   `json:"IsSourceLookup,omitempty"`
+	NextHopID         uint32 `json:"NextHopID"`
+	RpfID             uint32 `json:"RpfID"`
 }
 
 type dstAddr struct {
@@ -102,61 +231,6 @@ type OutputEntry struct {
 	nodeName string
 	count    int
 	reason   string
-}
-
-//NodeL2FibEntry holds unmarshalled L2Fib JSON data
-type NodeL2FibEntry struct {
-	BridgeDomainIdx          uint32 `json:"bridge_domain_idx"`
-	OutgoingInterfaceSwIfIdx uint32 `json:"outgoing_interface_sw_if_idx"`
-	PhysAddress              string `json:"phys_address"`
-	StaticConfig             bool   `json:"static_config"`
-	BridgedVirtualInterface  bool   `json:"bridged_virtual_interface"`
-}
-
-//NodeInterface holds unmarshalled Interface JSON data
-type NodeInterface struct {
-	VppInternalName string                   `json:"vpp_internal_name"`
-	Name            string                   `json:"name"`
-	IfType          interfaces.InterfaceType `json:"type,omitempty"`
-	Enabled         bool                     `json:"enabled,omitempty"`
-	PhysAddress     string                   `json:"phys_address,omitempty"`
-	Mtu             uint32                   `json:"mtu,omitempty"`
-	Vxlan           Vxlan                    `json:"vxlan,omitempty"`
-	IPAddresses     []string                 `json:"ip_addresses,omitempty"`
-	Tap             Tap                      `json:"tap,omitempty"`
-}
-
-// Vxlan contains vxlan parameter data
-type Vxlan struct {
-	SrcAddress string `json:"src_address"`
-	DstAddress string `json:"dst_address"`
-	Vni        uint32 `json:"vni"`
-}
-
-//NodeIPArpEntry holds unmarshalled IP ARP data
-type NodeIPArpEntry struct {
-	Interface  uint32 `json:"interface"`
-	IPAddress  string `json:"IPAddress"`
-	MacAddress string `json:"MacAddress"`
-	Static     bool   `json:"Static"`
-}
-
-// Tap contains tap parameter data
-type Tap struct {
-	Version    uint32 `json:"version"`
-	HostIfName string `json:"host_if_name"`
-}
-
-//NodeBridgeDomain holds the unmarshalled bridge domain data.
-type NodeBridgeDomain struct {
-	Interfaces []BDinterfaces `json:"interfaces"`
-	Name       string         `json:"name"`
-	Forward    bool           `json:"forward"`
-}
-
-//BDinterfaces containersbridge parameter data
-type BDinterfaces struct {
-	SwIfIndex uint32 `json:"sw_if_index"`
 }
 
 //Pod contains pod parameter data

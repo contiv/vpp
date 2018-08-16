@@ -230,7 +230,7 @@ func testNodesDBValidateL2Connections(t *testing.T) {
 		fmt.Println("Expecting error for mismatched index of bridge domain")
 		bdif2_2.SwIfIndex = 5
 		nodebd2 = telemetrymodel.NodeBridgeDomain{
-			[]telemetrymodel.BDinterfaces{bdif2_1, bdif2_2},
+			[]telemetrymodel.BdInterface{bdif2_1, bdif2_2},
 			"vxlanBD",
 			true,
 		}
@@ -241,7 +241,7 @@ func testNodesDBValidateL2Connections(t *testing.T) {
 		fmt.Println("Done expecting errors...")
 		bdif2_2.SwIfIndex = 4
 		nodebd2 = telemetrymodel.NodeBridgeDomain{
-			[]telemetrymodel.BDinterfaces{bdif2_1, bdif2_2},
+			[]telemetrymodel.BdInterface{bdif2_1, bdif2_2},
 			"vxlanBD",
 			true,
 		}
@@ -419,10 +419,10 @@ func testCacheValidateFibEntries(t *testing.T) {
 	vtv.vppCache.LoopMACMap[node.NodeInterfaces[3].PhysAddress] = node
 	vtv.vppCache.LoopIPMap[node.NodeInterfaces[3].IPAddresses[0]+api.SubnetMask] = node
 	node, _ = vtv.vppCache.RetrieveNode("k8s_master")
-	bdif1_1 := telemetrymodel.BDinterfaces{3}
-	bdif1_2 := telemetrymodel.BDinterfaces{5}
+	bdif1_1 := telemetrymodel.BdInterface{3}
+	bdif1_2 := telemetrymodel.BdInterface{5}
 	nodebd1 := telemetrymodel.NodeBridgeDomain{
-		[]telemetrymodel.BDinterfaces{bdif1_1, bdif1_2},
+		[]telemetrymodel.BdInterface{bdif1_1, bdif1_2},
 		"vxlanBD",
 		true,
 	}
@@ -443,10 +443,10 @@ func testCacheValidateFibEntries(t *testing.T) {
 	vtv.vppCache.SetNodeBridgeDomain("k8s_master", nodebdmap1)
 
 	node, _ = vtv.vppCache.RetrieveNode("k8s-worker1")
-	bdif2_1 := telemetrymodel.BDinterfaces{3}
-	bdif2_2 := telemetrymodel.BDinterfaces{4}
+	bdif2_1 := telemetrymodel.BdInterface{3}
+	bdif2_2 := telemetrymodel.BdInterface{4}
 	nodebd2 := telemetrymodel.NodeBridgeDomain{
-		[]telemetrymodel.BDinterfaces{bdif2_1, bdif2_2},
+		[]telemetrymodel.BdInterface{bdif2_1, bdif2_2},
 		"vxlanBD",
 		true,
 	}
@@ -605,7 +605,7 @@ func (v *validatorTestVars) createNodeInfoTestData() {
 			1: {
 				Name:    "vxlanBD",
 				Forward: true,
-				Interfaces: []telemetrymodel.BDinterfaces{
+				Interfaces: []telemetrymodel.BdInterface{
 					{SwIfIndex: 4},
 					{SwIfIndex: 5},
 					{SwIfIndex: 6},
@@ -635,28 +635,28 @@ func (v *validatorTestVars) createNodeInfoTestData() {
 		},
 		arpTable: telemetrymodel.NodeIPArpTable{
 			{
-				Interface:  4,
-				IPAddress:  "192.168.30.1",
-				MacAddress: "1a:2b:3c:4d:5e:01",
-				Static:     true,
+				Interface:   4,
+				IPAddress:   "192.168.30.1",
+				PhysAddress: "1a:2b:3c:4d:5e:01",
+				Static:      true,
 			},
 			{
-				Interface:  4,
-				IPAddress:  "192.168.30.2",
-				MacAddress: "1a:2b:3c:4d:5e:02",
-				Static:     true,
+				Interface:   4,
+				IPAddress:   "192.168.30.2",
+				PhysAddress: "1a:2b:3c:4d:5e:02",
+				Static:      true,
 			},
 			{
-				Interface:  2,
-				IPAddress:  "172.30.3.2",
-				MacAddress: "96:ff:16:6e:60:6f",
-				Static:     true,
+				Interface:   2,
+				IPAddress:   "172.30.3.2",
+				PhysAddress: "96:ff:16:6e:60:6f",
+				Static:      true,
 			},
 			{
-				Interface:  3,
-				IPAddress:  "10.1.3.7",
-				MacAddress: "00:00:00:00:00:02",
-				Static:     true,
+				Interface:   3,
+				IPAddress:   "10.1.3.7",
+				PhysAddress: "00:00:00:00:00:02",
+				Static:      true,
 			},
 		},
 	}
@@ -736,7 +736,7 @@ func (v *validatorTestVars) createNodeInfoTestData() {
 			1: {
 				Name:    "vxlanBD",
 				Forward: true,
-				Interfaces: []telemetrymodel.BDinterfaces{
+				Interfaces: []telemetrymodel.BdInterface{
 					{SwIfIndex: 3},
 					{SwIfIndex: 4},
 					{SwIfIndex: 5},
@@ -766,16 +766,16 @@ func (v *validatorTestVars) createNodeInfoTestData() {
 		},
 		arpTable: telemetrymodel.NodeIPArpTable{
 			{
-				Interface:  3,
-				IPAddress:  "192.168.30.1",
-				MacAddress: "1a:2b:3c:4d:5e:01",
-				Static:     true,
+				Interface:   3,
+				IPAddress:   "192.168.30.1",
+				PhysAddress: "1a:2b:3c:4d:5e:01",
+				Static:      true,
 			},
 			{
-				Interface:  3,
-				IPAddress:  "192.168.30.3",
-				MacAddress: "1a:2b:3c:4d:5e:03",
-				Static:     true,
+				Interface:   3,
+				IPAddress:   "192.168.30.3",
+				PhysAddress: "1a:2b:3c:4d:5e:03",
+				Static:      true,
 			},
 		},
 	}
@@ -855,7 +855,7 @@ func (v *validatorTestVars) createNodeInfoTestData() {
 			1: {
 				Name:    "vxlanBD",
 				Forward: true,
-				Interfaces: []telemetrymodel.BDinterfaces{
+				Interfaces: []telemetrymodel.BdInterface{
 					{SwIfIndex: 3},
 					{SwIfIndex: 4},
 					{SwIfIndex: 5},
@@ -885,16 +885,16 @@ func (v *validatorTestVars) createNodeInfoTestData() {
 		},
 		arpTable: telemetrymodel.NodeIPArpTable{
 			{
-				Interface:  3,
-				IPAddress:  "192.168.30.2",
-				MacAddress: "1a:2b:3c:4d:5e:02",
-				Static:     true,
+				Interface:   3,
+				IPAddress:   "192.168.30.2",
+				PhysAddress: "1a:2b:3c:4d:5e:02",
+				Static:      true,
 			},
 			{
-				Interface:  3,
-				IPAddress:  "192.168.30.3",
-				MacAddress: "1a:2b:3c:4d:5e:03",
-				Static:     true,
+				Interface:   3,
+				IPAddress:   "192.168.30.3",
+				PhysAddress: "1a:2b:3c:4d:5e:03",
+				Static:      true,
 			},
 		},
 	}

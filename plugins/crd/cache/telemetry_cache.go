@@ -35,12 +35,12 @@ const (
 	numDTOs            = 6
 	agentPort          = ":9999"
 	livenessURL        = "/liveness"
-	interfaceURL       = "/interfaces"
-	bridgeDomainURL    = "/bridgedomains"
-	l2FibsURL          = "/l2fibs"
+	interfaceURL       = "/vpp/dump/v1/interfaces"
+	bridgeDomainURL    = "/vpp/dump/v1/bd"
+	l2FibsURL          = "//vpp/dump/v1/fib"
 	telemetryURL       = "/telemetry"
-	arpURL             = "/arps"
-	staticRouteURL     = "/staticroutes"
+	arpURL             = "/vpp/dump/v1/arps"
+	staticRouteURL     = "/vpp/dump/v1/routes"
 	clientTimeout      = 10 // HTTP client timeout, in seconds
 	collectionInterval = 1  // data collection interval, in minutes
 

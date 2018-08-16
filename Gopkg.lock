@@ -10,7 +10,7 @@
   version = "v0.18.0"
 
 [[projects]]
-  digest = "1:f63a4d6e8e1dfaed3ec7e7c374dc37ce6c3208a5f5b6982bfdc704cb00a0aaef"
+  digest = "1:c88ea3ab249c48aa687c5dbd594e17e75926b2daeb3055c2491229d9a1c8bef7"
   name = "git.fd.io/govpp.git"
   packages = [
     "adapter",
@@ -22,7 +22,7 @@
     "core",
   ]
   pruneopts = "UT"
-  revision = "5df690ab830bcf5eb9ffe4d86ceaa4154d7b859b"
+  revision = "0ed38dbb620ef88a2007179265f37742ee46c305"
   source = "github.com/ligato/govpp"
 
 [[projects]]
@@ -829,7 +829,7 @@
   revision = "98e10610edaf49aa2ca14c97302bc252cd6fdb63"
 
 [[projects]]
-  digest = "1:de094a1451794cfa71d60be1a56597d20cf7b7595ee8b9e8f30ddd952e663c7d"
+  digest = "1:a9eccdf4ebdc7d429c1688540a71013ef4b875e123a455806f180f8789d81eff"
   name = "github.com/ligato/vpp-agent"
   packages = [
     "clientv1/linux",
@@ -909,7 +909,7 @@
     "plugins/vpp/srplugin/vppcalls",
   ]
   pruneopts = "UT"
-  revision = "bf574d893128a6455a3001939394e9a5012a4761"
+  revision = "5fc188c8d9e0ce7ed2898ff2db940864013d7c48"
 
 [[projects]]
   branch = "master"

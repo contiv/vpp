@@ -46,7 +46,6 @@ import (
 	"github.com/ligato/vpp-agent/plugins/vpp/binapi/dhcp"
 	if_binapi "github.com/ligato/vpp-agent/plugins/vpp/binapi/interfaces"
 	ip_binapi "github.com/ligato/vpp-agent/plugins/vpp/binapi/ip"
-	"github.com/ligato/vpp-agent/plugins/vpp/binapi/vpe"
 
 	"github.com/apparentlymart/go-cidr/cidr"
 	"github.com/contiv/vpp/cmd/contiv-stn/model/stn"
@@ -75,7 +74,6 @@ func configureVpp(contivCfg *contiv.Config, stnData *stn.STNReply, useDHCP bool)
 	var err error
 
 	// connect to VPP
-	govpp.SetControlPingMessages(&vpe.ControlPing{}, &vpe.ControlPingReply{})
 	conn, connChan, err := govpp.AsyncConnect(govppmux.NewVppAdapter(""))
 	if err != nil {
 		logger.Errorf("Error by connecting to VPP: %v", err)
@@ -108,23 +106,11 @@ func configureVpp(contivCfg *contiv.Config, stnData *stn.STNReply, useDHCP bool)
 	}
 	defer ch.Close()
 
-	ifVppHandler, err := if_vppcalls.NewIfVppHandler(ch, logger, nil)
-	if err != nil {
-		logger.Errorf("Unable to create ifVppHandler", err)
-		return nil, err
-	}
+	ifVppHandler := if_vppcalls.NewIfVppHandler(ch, logger, nil)
 
-	stnVppHandler, err := if_vppcalls.NewStnVppHandler(ch, nil, logger, nil)
-	if err != nil {
-		logger.Errorf("Unable to create stnVppHandler", err)
-		return nil, err
-	}
+	stnVppHandler := if_vppcalls.NewStnVppHandler(ch, nil, logger, nil)
 
-	routeHandler, err := l3_vppcalls.NewRouteVppHandler(ch, nil, logger, nil)
-	if err != nil {
-		logger.Errorf("Unable to create routeHandler", err)
-		return nil, err
-	}
+	routeHandler := l3_vppcalls.NewRouteVppHandler(ch, nil, logger, nil)
 
 	cfg := &vppCfgCtx{}
 
@@ -227,13 +213,13 @@ func configureVpp(contivCfg *contiv.Config, stnData *stn.STNReply, useDHCP bool)
 			}
 			nextHopIP := net.ParseIP(stnRoute.NextHopIp).To4()
 
-			sRoute := &l3_vppcalls.Route{
-				DstAddr:     *dstAddr,
-				NextHopAddr: nextHopIP,
-				OutIface:    cfg.mainIfIdx,
+			sRoute := &l3.StaticRoutes_Route{
+				DstIpAddr:         dstAddr.String(),
+				NextHopAddr:       nextHopIP.String(),
+				OutgoingInterface: cfg.mainIfName,
 			}
 			logger.Debug("Configuring static route: ", sRoute)
-			err = routeHandler.VppAddRoute(ifVppHandler, sRoute)
+			err = routeHandler.VppAddRoute(ifVppHandler, sRoute, cfg.mainIfIdx)
 			if err != nil {
 				logger.Errorf("Error by configuring route: %v", err)
 				return nil, err
@@ -578,19 +564,19 @@ func configureDHCP(ch api.Channel, ifIdx uint32) (chan string, error) {
 	logger.Debugf("Enabling DHCP on the interface idx %d", ifIdx)
 
 	// subscribe for the DHCP notifications from VPP
-	_, err := ch.SubscribeNotification(dhcpNotifChan, dhcp.NewDhcpComplEvent)
+	_, err := ch.SubscribeNotification(dhcpNotifChan, dhcp.NewDHCPComplEvent)
 	if err != nil {
 		return nil, err
 	}
 
-	req := &dhcp.DhcpClientConfig{
+	req := &dhcp.DHCPClientConfig{
 		IsAdd: 1,
-		Client: dhcp.DhcpClient{
+		Client: dhcp.DHCPClient{
 			SwIfIndex:     ifIdx,
-			WantDhcpEvent: 1,
+			WantDHCPEvent: 1,
 		},
 	}
-	reply := &dhcp.DhcpClientConfigReply{}
+	reply := &dhcp.DHCPClientConfigReply{}
 
 	// configure DHCP on the interface
 	err = ch.SendRequest(req).ReceiveReply(reply)
@@ -609,10 +595,10 @@ func handleDHCPNotifications(notifCh chan api.Message, dhcpIPChan chan string) {
 		select {
 		case msg := <-notifCh:
 			switch notif := msg.(type) {
-			case *dhcp.DhcpComplEvent:
+			case *dhcp.DHCPComplEvent:
 				var ipAddr string
 				lease := notif.Lease
-				if lease.IsIpv6 == 1 {
+				if lease.IsIPv6 == 1 {
 					ipAddr = fmt.Sprintf("%s/%d", net.IP(lease.HostAddress).To16().String(), lease.MaskWidth)
 				} else {
 					ipAddr = fmt.Sprintf("%s/%d", net.IP(lease.HostAddress[:4]).To4().String(), lease.MaskWidth)

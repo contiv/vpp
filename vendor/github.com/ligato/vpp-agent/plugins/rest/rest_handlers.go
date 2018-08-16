@@ -23,12 +23,11 @@ import (
 	"net/http"
 
 	govppapi "git.fd.io/govpp.git/api"
-	"git.fd.io/govpp.git/core/bin_api/vpe"
 	"github.com/ligato/vpp-agent/plugins/govppmux/vppcalls"
-	"github.com/unrolled/render"
-
 	"github.com/ligato/vpp-agent/plugins/rest/resturl"
+	"github.com/ligato/vpp-agent/plugins/vpp/binapi/vpe"
 	"github.com/ligato/vpp-agent/plugins/vpp/model/interfaces"
+	"github.com/unrolled/render"
 )
 
 // Registers access list REST handlers
@@ -103,7 +102,7 @@ func (plugin *Plugin) registerNatHandlers() {
 	})
 	// GET DNAT config
 	plugin.registerHTTPHandler(resturl.NatDNat, GET, func() (interface{}, error) {
-		return plugin.natHandler.NAT44DNatDump()
+		return plugin.natHandler.Nat44DNatDump()
 	})
 }
 

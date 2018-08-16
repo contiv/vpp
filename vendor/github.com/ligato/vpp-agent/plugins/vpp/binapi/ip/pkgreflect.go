@@ -6,6 +6,8 @@ import "reflect"
 
 var Types = map[string]reflect.Type{
 	"Address": reflect.TypeOf((*Address)(nil)).Elem(),
+	"AddressFamily": reflect.TypeOf((*AddressFamily)(nil)).Elem(),
+	"AddressUnion": reflect.TypeOf((*AddressUnion)(nil)).Elem(),
 	"FibMplsLabel": reflect.TypeOf((*FibMplsLabel)(nil)).Elem(),
 	"FibPath": reflect.TypeOf((*FibPath)(nil)).Elem(),
 	"IP4Address": reflect.TypeOf((*IP4Address)(nil)).Elem(),
@@ -82,6 +84,7 @@ var Types = map[string]reflect.Type{
 	"ProxyArpIntfcEnableDisableReply": reflect.TypeOf((*ProxyArpIntfcEnableDisableReply)(nil)).Elem(),
 	"ResetFib": reflect.TypeOf((*ResetFib)(nil)).Elem(),
 	"ResetFibReply": reflect.TypeOf((*ResetFibReply)(nil)).Elem(),
+	"Services": reflect.TypeOf((*Services)(nil)).Elem(),
 	"SetArpNeighborLimit": reflect.TypeOf((*SetArpNeighborLimit)(nil)).Elem(),
 	"SetArpNeighborLimitReply": reflect.TypeOf((*SetArpNeighborLimitReply)(nil)).Elem(),
 	"SetIPFlowHash": reflect.TypeOf((*SetIPFlowHash)(nil)).Elem(),
@@ -196,5 +199,7 @@ var Variables = map[string]reflect.Value{
 }
 
 var Consts = map[string]reflect.Value{
+	"ADDRESS_IP4": reflect.ValueOf(ADDRESS_IP4),
+	"ADDRESS_IP6": reflect.ValueOf(ADDRESS_IP6),
 }
 

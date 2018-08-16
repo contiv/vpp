@@ -15,6 +15,7 @@ var Types = map[string]reflect.Type{
 	"IP6FibCounter": reflect.TypeOf((*IP6FibCounter)(nil)).Elem(),
 	"IP6MfibCounter": reflect.TypeOf((*IP6MfibCounter)(nil)).Elem(),
 	"IP6NbrCounter": reflect.TypeOf((*IP6NbrCounter)(nil)).Elem(),
+	"Services": reflect.TypeOf((*Services)(nil)).Elem(),
 	"StatsGetPollerDelay": reflect.TypeOf((*StatsGetPollerDelay)(nil)).Elem(),
 	"StatsGetPollerDelayReply": reflect.TypeOf((*StatsGetPollerDelayReply)(nil)).Elem(),
 	"UDPEncapCounter": reflect.TypeOf((*UDPEncapCounter)(nil)).Elem(),

@@ -23,6 +23,7 @@ var Types = map[string]reflect.Type{
 	"HwInterfaceSetMtuReply": reflect.TypeOf((*HwInterfaceSetMtuReply)(nil)).Elem(),
 	"InterfaceNameRenumber": reflect.TypeOf((*InterfaceNameRenumber)(nil)).Elem(),
 	"InterfaceNameRenumberReply": reflect.TypeOf((*InterfaceNameRenumberReply)(nil)).Elem(),
+	"Services": reflect.TypeOf((*Services)(nil)).Elem(),
 	"SwInterfaceAddDelAddress": reflect.TypeOf((*SwInterfaceAddDelAddress)(nil)).Elem(),
 	"SwInterfaceAddDelAddressReply": reflect.TypeOf((*SwInterfaceAddDelAddressReply)(nil)).Elem(),
 	"SwInterfaceClearStats": reflect.TypeOf((*SwInterfaceClearStats)(nil)).Elem(),

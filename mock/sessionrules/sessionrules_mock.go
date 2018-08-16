@@ -8,7 +8,6 @@ import (
 	govppmock "git.fd.io/govpp.git/adapter/mock"
 	govppapi "git.fd.io/govpp.git/api"
 	govpp "git.fd.io/govpp.git/core"
-	"git.fd.io/govpp.git/core/bin_api/vpe"
 
 	"github.com/ligato/cn-infra/logging"
 
@@ -16,6 +15,7 @@ import (
 	"git.fd.io/govpp.git/codec"
 	vpptcprule "github.com/contiv/vpp/plugins/policy/renderer/vpptcp/rule"
 	"github.com/ligato/vpp-agent/plugins/vpp/binapi/session"
+	"github.com/ligato/vpp-agent/plugins/vpp/binapi/vpe"
 )
 
 // MockSessionRules simulates session rules from VPPTCP stack.

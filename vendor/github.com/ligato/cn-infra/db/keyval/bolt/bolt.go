@@ -147,6 +147,7 @@ func (client *Client) ListValues(keyPrefix string) (keyval.BytesKeyValIterator, 
 
 			pair := &kvPair{Key: string(k)}
 			pair.Value = append([]byte(nil), v...) // value needs to be copied
+
 			pairs = append(pairs, pair)
 		}
 

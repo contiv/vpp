@@ -10,7 +10,7 @@
   version = "v0.18.0"
 
 [[projects]]
-  digest = "1:32a873de77bbc77c70ee27fc58fdaaa0064ab3217ba07da87a632bf22dd21f62"
+  digest = "1:c88ea3ab249c48aa687c5dbd594e17e75926b2daeb3055c2491229d9a1c8bef7"
   name = "git.fd.io/govpp.git"
   packages = [
     "adapter",
@@ -20,10 +20,10 @@
     "api",
     "codec",
     "core",
-    "core/bin_api/vpe",
   ]
   pruneopts = "UT"
-  revision = "f1bef4a3c66f4408afdeb64cda62ccd8562d0fc6"
+  revision = "0ed38dbb620ef88a2007179265f37742ee46c305"
+  source = "github.com/ligato/govpp"
 
 [[projects]]
   branch = "master"
@@ -792,7 +792,7 @@
   version = "v1.1.1"
 
 [[projects]]
-  digest = "1:60ecaa59c98b5ad46e8dd879f276a04e49c8145366a4b493b60fd23632b698dd"
+  digest = "1:264c5a5a6cc5579e34635045c662ad12dffe29a392dadc3eb3a3066b27544377"
   name = "github.com/ligato/cn-infra"
   packages = [
     "agent",
@@ -826,10 +826,10 @@
     "utils/safeclose",
   ]
   pruneopts = "UT"
-  revision = "4903fd7f8a498f0a6038df2ac6fe762697dea1f8"
+  revision = "98e10610edaf49aa2ca14c97302bc252cd6fdb63"
 
 [[projects]]
-  digest = "1:070c5f739a39ebea3b82eb5a55007e0fedaca35e8c07a505db3188adfee018b5"
+  digest = "1:a9eccdf4ebdc7d429c1688540a71013ef4b875e123a455806f180f8789d81eff"
   name = "github.com/ligato/vpp-agent"
   packages = [
     "clientv1/linux",
@@ -909,7 +909,7 @@
     "plugins/vpp/srplugin/vppcalls",
   ]
   pruneopts = "UT"
-  revision = "e3900b61375e30e33ee50b3fd0f8a442f8fea4a8"
+  revision = "5fc188c8d9e0ce7ed2898ff2db940864013d7c48"
 
 [[projects]]
   branch = "master"
@@ -1896,7 +1896,6 @@
     "git.fd.io/govpp.git/api",
     "git.fd.io/govpp.git/codec",
     "git.fd.io/govpp.git/core",
-    "git.fd.io/govpp.git/core/bin_api/vpe",
     "github.com/apparentlymart/go-cidr/cidr",
     "github.com/containernetworking/cni/pkg/skel",
     "github.com/containernetworking/cni/pkg/types",

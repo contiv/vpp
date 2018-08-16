@@ -359,24 +359,24 @@ func (v *Validator) ValidateL2FibEntries() {
 		}
 
 		for _, fib := range node.NodeL2Fibs {
-			if int(fib.BridgeDomainIdx) != vxLanBD {
+			if int(fib.FeMeta.BridgeDomainId) != vxLanBD {
 				continue
 			}
 
-			if fib.PhysAddress == loopIf.If.PhysAddress {
+			if fib.Fe.PhysAddress == loopIf.If.PhysAddress {
 				fibHasLoopIF = true
 				fibEntryCount++
-				if n, err := v.VppCache.RetrieveNodeByLoopMacAddr(fib.PhysAddress); err == nil {
+				if n, err := v.VppCache.RetrieveNodeByLoopMacAddr(fib.Fe.PhysAddress); err == nil {
 					delete(nodeFibMap, n.Name)
 				} else {
 					v.Report.LogErrAndAppendToNodeReport(node.Name,
 						fmt.Sprintf("validator internal error: inconsistent MadAddress index, MAC %s",
-							fib.PhysAddress))
+							fib.Fe.PhysAddress))
 				}
 				continue
 			}
 
-			intf := node.NodeInterfaces[int(fib.OutgoingInterfaceSwIfIdx)]
+			intf := node.NodeInterfaces[int(fib.FeMeta.OutgoingIfIndex)]
 			macNode, err := v.VppCache.RetrieveNodeByGigEIPAddr(intf.If.Vxlan.DstAddress + api.SubnetMask)
 			if err != nil {
 				errString := fmt.Sprintf("GigE IP address %s does not exist in gigEIPMap",
@@ -391,19 +391,19 @@ func (v *Validator) ValidateL2FibEntries() {
 				continue
 			}
 
-			if remoteLoopIF.If.PhysAddress == fib.PhysAddress {
-				if n, err := v.VppCache.RetrieveNodeByLoopMacAddr(fib.PhysAddress); err == nil {
+			if remoteLoopIF.If.PhysAddress == fib.Fe.PhysAddress {
+				if n, err := v.VppCache.RetrieveNodeByLoopMacAddr(fib.Fe.PhysAddress); err == nil {
 					delete(nodeFibMap, n.Name)
 					fibEntryCount++
 				} else {
 					v.Report.AppendToNodeReport(node.Name,
 						fmt.Sprintf("validator internal error: inconsistent MAC Address index, MAC %s",
-							fib.PhysAddress))
+							fib.Fe.PhysAddress))
 				}
 				continue
 			} else {
 				errString := fmt.Sprintf("Fib MAC %+v is different than actual MAC "+
-					"%+v", fib.PhysAddress, remoteLoopIF.If.PhysAddress)
+					"%+v", fib.Fe.PhysAddress, remoteLoopIF.If.PhysAddress)
 				v.Report.AppendToNodeReport(node.Name, errString)
 			}
 

@@ -135,6 +135,25 @@ type BdInterface struct {
 // BdId2NameMapping defines the mapping of BD ifIndices to interface Names
 type BdId2NameMapping map[uint32]string
 
+//NodeL2FibEntry holds unmarshalled L2Fib JSON data
+type NodeL2FibEntry struct {
+	Fe     L2FibEntry     `json:"fib"`
+	FeMeta L2FibEntryMeta `json:"fib_meta"`
+}
+
+type L2FibEntry struct {
+	BridgeDomainName        string `json:"bridge_domain"`
+	OutgoingIfName          string `json:"outgoing_interface"`
+	PhysAddress             string `json:"phys_address"`
+	StaticConfig            bool   `json:"static_config,omitempty"`
+	BridgedVirtualInterface bool   `json:"bridged_virtual_interface,omitempty"`
+}
+
+type L2FibEntryMeta struct {
+	BridgeDomainId  uint32 `json:"bridge_domain_id"`
+	OutgoingIfIndex uint32 `json:"outgoing_interface_sw_if_idx"`
+}
+
 // NodeStaticRoute holds the unmarshalled node static route JSON data.
 type NodeStaticRoute struct {
 	VrfID       uint32  `json:"vrf_id"`
@@ -168,15 +187,6 @@ type OutputEntry struct {
 	nodeName string
 	count    int
 	reason   string
-}
-
-//NodeL2FibEntry holds unmarshalled L2Fib JSON data
-type NodeL2FibEntry struct {
-	BridgeDomainIdx          uint32 `json:"bridge_domain_idx"`
-	OutgoingInterfaceSwIfIdx uint32 `json:"outgoing_interface_sw_if_idx"`
-	PhysAddress              string `json:"phys_address"`
-	StaticConfig             bool   `json:"static_config"`
-	BridgedVirtualInterface  bool   `json:"bridged_virtual_interface"`
 }
 
 //NodeIPArpEntry holds unmarshalled IP ARP data

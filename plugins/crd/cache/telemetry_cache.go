@@ -37,7 +37,7 @@ const (
 	livenessURL        = "/liveness"
 	interfaceURL       = "/vpp/dump/v1/interfaces"
 	bridgeDomainURL    = "/vpp/dump/v1/bd"
-	l2FibsURL          = "/l2fibs"
+	l2FibsURL          = "//vpp/dump/v1/fib"
 	telemetryURL       = "/telemetry"
 	arpURL             = "/arps"
 	staticRouteURL     = "/staticroutes"

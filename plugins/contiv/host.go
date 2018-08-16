@@ -561,7 +561,7 @@ func (s *remoteCNIserver) addDropRoute(vrfID uint32, dstAddr *net.IPNet) error {
 		TableID:          vrfID,
 		IsAdd:            1,
 		IsDrop:           1,
-		IsIpv6:           0,
+		IsIPv6:           0,
 		IsMultipath:      1,
 		DstAddress:       []byte(dstAddr.IP.To4()),
 		DstAddressLength: byte(prefix),

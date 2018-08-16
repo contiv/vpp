@@ -387,28 +387,28 @@ func (ptv *processorTestVars) initTestData() {
 	// Initialize ARP Table data
 	ptv.nodeIPArps = []telemetrymodel.NodeIPArpEntry{
 		{
-			Interface:  4,
-			IPAddress:  "192.168.30.1",
-			MacAddress: "1a:2b:3c:4d:5e:01",
-			Static:     true,
+			Interface:   4,
+			IPAddress:   "192.168.30.1",
+			PhysAddress: "1a:2b:3c:4d:5e:01",
+			Static:      true,
 		},
 		{
-			Interface:  4,
-			IPAddress:  "192.168.30.2",
-			MacAddress: "1a:2b:3c:4d:5e:02",
-			Static:     true,
+			Interface:   4,
+			IPAddress:   "192.168.30.2",
+			PhysAddress: "1a:2b:3c:4d:5e:02",
+			Static:      true,
 		},
 		{
-			Interface:  2,
-			IPAddress:  "172.30.3.2",
-			MacAddress: "96:ff:16:6e:60:6f",
-			Static:     true,
+			Interface:   2,
+			IPAddress:   "172.30.3.2",
+			PhysAddress: "96:ff:16:6e:60:6f",
+			Static:      true,
 		},
 		{
-			Interface:  3,
-			IPAddress:  "10.1.3.7",
-			MacAddress: "00:00:00:00:00:02",
-			Static:     true,
+			Interface:   3,
+			IPAddress:   "10.1.3.7",
+			PhysAddress: "00:00:00:00:00:02",
+			Static:      true,
 		},
 	}
 }

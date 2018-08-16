@@ -39,7 +39,7 @@ const (
 	bridgeDomainURL    = "/vpp/dump/v1/bd"
 	l2FibsURL          = "//vpp/dump/v1/fib"
 	telemetryURL       = "/telemetry"
-	arpURL             = "/arps"
+	arpURL             = "/vpp/dump/v1/arps"
 	staticRouteURL     = "/staticroutes"
 	clientTimeout      = 10 // HTTP client timeout, in seconds
 	collectionInterval = 1  // data collection interval, in minutes

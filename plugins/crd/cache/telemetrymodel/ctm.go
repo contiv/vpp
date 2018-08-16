@@ -154,6 +154,23 @@ type L2FibEntryMeta struct {
 	OutgoingIfIndex uint32 `json:"outgoing_interface_sw_if_idx"`
 }
 
+//NodeIPArpEntry holds unmarshalled IP ARP data
+type NodeIPArpEntry struct {
+	Ae     IPArpEntry     `json:"Arp"`
+	AeMeta IPArpEntryMeta `json:"Meta"`
+}
+
+type IPArpEntry struct {
+	Interface   string `json:"interface"`
+	IPAddress   string `json:"ip_address"`
+	PhysAddress string `json:"phys_address"`
+	Static      bool   `json:"static,omitempty"`
+}
+
+type IPArpEntryMeta struct {
+	IfIndex uint32 `json:"SwIfIndex"`
+}
+
 // NodeStaticRoute holds the unmarshalled node static route JSON data.
 type NodeStaticRoute struct {
 	VrfID       uint32  `json:"vrf_id"`
@@ -187,14 +204,6 @@ type OutputEntry struct {
 	nodeName string
 	count    int
 	reason   string
-}
-
-//NodeIPArpEntry holds unmarshalled IP ARP data
-type NodeIPArpEntry struct {
-	Interface  uint32 `json:"interface"`
-	IPAddress  string `json:"IPAddress"`
-	MacAddress string `json:"MacAddress"`
-	Static     bool   `json:"Static"`
 }
 
 //Pod contains pod parameter data

@@ -70,11 +70,11 @@ func (v *Validator) ValidateArpTables() {
 		}
 
 		for _, arpTableEntry := range node.NodeIPArp {
-			if !arpTableEntry.Static {
+			if !arpTableEntry.Ae.Static {
 				continue
 			}
 
-			arpIf, ok := node.NodeInterfaces[int(arpTableEntry.Interface)]
+			arpIf, ok := node.NodeInterfaces[int(arpTableEntry.AeMeta.IfIndex)]
 			if !ok {
 				errString := fmt.Sprintf("ARP Table entry %+v: interface with ifIndex not found", arpTableEntry)
 				v.Report.AppendToNodeReport(node.Name, errString)
@@ -87,14 +87,14 @@ func (v *Validator) ValidateArpTables() {
 			}
 
 			addressNotFound := false
-			macNode, err := v.VppCache.RetrieveNodeByLoopMacAddr(arpTableEntry.MacAddress)
+			macNode, err := v.VppCache.RetrieveNodeByLoopMacAddr(arpTableEntry.Ae.PhysAddress)
 			if err != nil {
 				errString := fmt.Sprintf("ARP Table entry %+v: no remote node for MAC Address", arpTableEntry)
 				v.Report.AppendToNodeReport(node.Name, errString)
 				addressNotFound = true
 				errCnt++
 			}
-			ipNode, err := v.VppCache.RetrieveNodeByLoopIPAddr(arpTableEntry.IPAddress + "/24")
+			ipNode, err := v.VppCache.RetrieveNodeByLoopIPAddr(arpTableEntry.Ae.IPAddress + "/24")
 
 			if err != nil {
 				errString := fmt.Sprintf("ARP Table entry %+v: no remote node for IP Address", arpTableEntry)

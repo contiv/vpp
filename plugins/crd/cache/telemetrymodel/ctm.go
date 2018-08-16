@@ -35,7 +35,7 @@ type Node struct {
 	NodeL2Fibs        map[string]NodeL2FibEntry
 	NodeTelemetry     map[string]NodeTelemetry
 	NodeIPArp         []NodeIPArpEntry
-	NodeStaticRoutes  []NodeStaticRoute
+	NodeStaticRoutes  []NodeIPRoute
 	Report            []string
 	PodMap            map[string]*Pod
 }
@@ -66,8 +66,8 @@ type NodeTelemetries map[string]NodeTelemetry
 // NodeIPArpTable defines an array of NodeIPArpEntry
 type NodeIPArpTable []NodeIPArpEntry
 
-// NodeStaticRoutes defines an array of NodeStaticRoute object
-type NodeStaticRoutes []NodeStaticRoute
+// NodeStaticRoutes defines an array of NodeIPRoute object
+type NodeStaticRoutes []NodeIPRoute
 
 //NodeInterface holds unmarshalled Interface JSON data
 type NodeInterface struct {
@@ -171,15 +171,34 @@ type IPArpEntryMeta struct {
 	IfIndex uint32 `json:"SwIfIndex"`
 }
 
-// NodeStaticRoute holds the unmarshalled node static route JSON data.
-type NodeStaticRoute struct {
+// NodeIPRoute holds the unmarshalled node static route JSON data.
+type NodeIPRoute struct {
+	Ipr     IPRoute     `json:"Route"`
+	IprMeta IPRouteMeta `json:"Meta"`
+}
+
+type IPRoute struct {
 	VrfID       uint32  `json:"vrf_id"`
-	TableName   string  `json:"table_name"`
-	DstAddr     dstAddr `json:"dst_addr"`
+	DstAddr     string `json:"dst_ip_addr"`
 	NextHopAddr string  `json:"next_hop_addr"`
-	OutIface    uint32  `json:"out_iface"`
+	OutIface    string  `json:"outgoing_interface"`
 	Weight      uint32  `json:"weight"`
-	Preference  uint32  `json:"preference"`
+}
+
+type IPRouteMeta struct {
+	TableName         string `json:"TableName"`
+	OutgoingIfIdx     uint32 `json:"OutgoingIfIdx"`
+	Afi               uint32 `json:"Afi"`
+	IsLocal           bool   `json:"IsLocal,omitempty"`
+	IsUDPEncap        bool   `json:"IsUDPEncap,omitempty"`
+	IsUnreach         bool   `json:"IsUnreach,omitempty"`
+	IsProhibit        bool   `json:"IsProhibit,omitempty"`
+	IsResolveHost     bool   `json:"IsResolveHost,omitempty"`
+	IsResolveAttached bool   `json:"IsResolveAttached,omitempty"`
+	IsDvr             bool   `json:"IsDvr,omitempty"`
+	IsSourceLookup    bool   `json:"IsSourceLookup,omitempty"`
+	NextHopID         uint32 `json:"NextHopID"`
+	RpfID             uint32 `json:"RpfID"`
 }
 
 type dstAddr struct {

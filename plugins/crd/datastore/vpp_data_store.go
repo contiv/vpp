@@ -195,7 +195,7 @@ func (vds *VppDataStore) SetNodeInterfaces(nodeName string, nInt map[int]telemet
 }
 
 //SetNodeStaticRoutes is a simple function to set a nodes static routes given its name.
-func (vds *VppDataStore) SetNodeStaticRoutes(nodeName string, nSrs []telemetrymodel.NodeStaticRoute) error {
+func (vds *VppDataStore) SetNodeStaticRoutes(nodeName string, nSrs []telemetrymodel.NodeIPRoute) error {
 	vds.lock.Lock()
 	defer vds.lock.Unlock()
 

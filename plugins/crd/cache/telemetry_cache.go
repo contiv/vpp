@@ -40,7 +40,7 @@ const (
 	l2FibsURL          = "//vpp/dump/v1/fib"
 	telemetryURL       = "/telemetry"
 	arpURL             = "/vpp/dump/v1/arps"
-	staticRouteURL     = "/staticroutes"
+	staticRouteURL     = "/vpp/dump/v1/routes"
 	clientTimeout      = 10 // HTTP client timeout, in seconds
 	collectionInterval = 1  // data collection interval, in minutes
 

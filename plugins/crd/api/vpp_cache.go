@@ -43,7 +43,7 @@ type VppCache interface {
 	SetNodeL2Fibs(name string, nL2f map[string]telemetrymodel.NodeL2FibEntry) error
 	SetNodeTelemetry(name string, nTele map[string]telemetrymodel.NodeTelemetry) error
 	SetNodeIPARPs(name string, nArps []telemetrymodel.NodeIPArpEntry) error
-	SetNodeStaticRoutes(nodeName string, nSrs []telemetrymodel.NodeStaticRoute) error
+	SetNodeStaticRoutes(nodeName string, nSrs []telemetrymodel.NodeIPRoute) error
 
 	SetSecondaryNodeIndices(node *telemetrymodel.Node) []string
 

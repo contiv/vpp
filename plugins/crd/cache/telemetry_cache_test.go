@@ -353,7 +353,7 @@ func (ptv *processorTestVars) initTestData() {
 		1: {
 			Name:    "vxlanBD",
 			Forward: true,
-			Interfaces: []telemetrymodel.BDinterfaces{
+			Interfaces: []telemetrymodel.BdInterface{
 				{SwIfIndex: 4},
 				{SwIfIndex: 5},
 				{SwIfIndex: 6},

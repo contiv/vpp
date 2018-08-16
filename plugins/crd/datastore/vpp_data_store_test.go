@@ -143,7 +143,7 @@ func TestVppDataStore_SetNodeBridgeDomain(t *testing.T) {
 	gomega.Expect(node.ID).To(gomega.Equal(uint32(1)))
 	gomega.Expect(node.ManIPAdr).To(gomega.Equal("10"))
 
-	var ifs []telemetrymodel.BDinterfaces
+	var ifs []telemetrymodel.BdInterface
 	nodeBD := telemetrymodel.NodeBridgeDomain{ifs, "", false}
 	nodesBD := make(map[int]telemetrymodel.NodeBridgeDomain)
 	nodesBD[0] = nodeBD

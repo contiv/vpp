@@ -36,7 +36,7 @@ const (
 	agentPort          = ":9999"
 	livenessURL        = "/liveness"
 	interfaceURL       = "/vpp/dump/v1/interfaces"
-	bridgeDomainURL    = "/bridgedomains"
+	bridgeDomainURL    = "/vpp/dump/v1/bd"
 	l2FibsURL          = "/l2fibs"
 	telemetryURL       = "/telemetry"
 	arpURL             = "/arps"

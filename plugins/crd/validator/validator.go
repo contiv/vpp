@@ -154,7 +154,7 @@ func (v *Validator) ValidateL2Connectivity() {
 		//Make sure there is a bridge domain with the name vxlanBD
 		vxlanBDCount := 0
 		for _, bdomain := range node.NodeBridgeDomains {
-			if bdomain.Name == "vxlanBD" {
+			if bdomain.Bd.Name == "vxlanBD" {
 				vxLanBD = bdomain
 				vxlanBDCount++
 			}
@@ -174,15 +174,14 @@ func (v *Validator) ValidateL2Connectivity() {
 
 		i := 0
 		//for each index in the vxlanBD
-		for _, intf := range vxLanBD.Interfaces {
+		for ifIndex := range vxLanBD.BdMeta.BdId2Name {
 			//check if one of the indices point to the loop interface
 			//if it does, increment a counter and set a boolean to true
-			intfidx := intf.SwIfIndex
-			intfidxInterface, ok := node.NodeInterfaces[int(intfidx)]
+			intfidxInterface, ok := node.NodeInterfaces[int(ifIndex)]
 			if !ok {
 				errCnt++
 				errString := fmt.Sprintf("BD index %d for node %s does not point to a valid interface",
-					intfidx, node.Name)
+					ifIndex, node.Name)
 				v.Report.AppendToNodeReport(node.Name, errString)
 				continue
 			}
@@ -191,7 +190,7 @@ func (v *Validator) ValidateL2Connectivity() {
 			if intfidxInterface.If.IfType == interfaces.InterfaceType_SOFTWARE_LOOPBACK {
 				bdHasLoopIF = true
 				i++
-				macAddr := node.NodeInterfaces[int(intfidx)].If.PhysAddress
+				macAddr := node.NodeInterfaces[int(ifIndex)].If.PhysAddress
 				if n, err := v.VppCache.RetrieveNodeByLoopMacAddr(macAddr); err == nil {
 					delete(nodeVxlanMap, n.Name)
 				} else {
@@ -205,17 +204,17 @@ func (v *Validator) ValidateL2Connectivity() {
 
 			// Check if one of the indices points to a vxlan_tunnel interface
 			if intfidxInterface.If.IfType == interfaces.InterfaceType_VXLAN_TUNNEL {
-				if node.NodeInterfaces[int(intfidx)].If.Vxlan.Vni != api.VppVNI {
+				if node.NodeInterfaces[int(ifIndex)].If.Vxlan.Vni != api.VppVNI {
 					errCnt++
 					errString := fmt.Sprintf("bad VNI for %s (%s): got %d expected %d",
-						node.NodeInterfaces[int(intfidx)].If.Name,
-						node.NodeInterfaces[int(intfidx)].IfMeta.VppInternalName,
-						node.NodeInterfaces[int(intfidx)].If.Vxlan.Vni,
+						node.NodeInterfaces[int(ifIndex)].If.Name,
+						node.NodeInterfaces[int(ifIndex)].IfMeta.VppInternalName,
+						node.NodeInterfaces[int(ifIndex)].If.Vxlan.Vni,
 						api.VppVNI)
 					v.Report.AppendToNodeReport(node.Name, errString)
 				}
 
-				vxlantun := node.NodeInterfaces[int(intfidx)]
+				vxlantun := node.NodeInterfaces[int(ifIndex)]
 				srcipNode, err := v.VppCache.RetrieveNodeByGigEIPAddr(vxlantun.If.Vxlan.SrcAddress + api.SubnetMask)
 
 				// Try to find node with src ip address of the tunnel and make
@@ -266,7 +265,7 @@ func (v *Validator) ValidateL2Connectivity() {
 				}
 				i++
 
-				dstAddr := node.NodeInterfaces[int(intfidx)].If.Vxlan.DstAddress
+				dstAddr := node.NodeInterfaces[int(ifIndex)].If.Vxlan.DstAddress
 				if n1, err := v.VppCache.RetrieveNodeByGigEIPAddr(dstAddr + api.SubnetMask); err == nil {
 					delete(nodeVxlanMap, n1.Name)
 				} else {
@@ -353,7 +352,7 @@ func (v *Validator) ValidateL2FibEntries() {
 		fibEntryCount := 0
 		var vxLanBD int
 		for bdomainIdx, bdomain := range node.NodeBridgeDomains {
-			if bdomain.Name == "vxlanBD" {
+			if bdomain.Bd.Name == "vxlanBD" {
 				vxLanBD = bdomainIdx
 				break
 			}

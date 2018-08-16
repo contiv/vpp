@@ -69,7 +69,73 @@ type NodeIPArpTable []NodeIPArpEntry
 // NodeStaticRoutes defines an array of NodeStaticRoute object
 type NodeStaticRoutes []NodeStaticRoute
 
-//NodeStaticRoute holds the unmarshalled node static route JSON data.
+//NodeInterface holds unmarshalled Interface JSON data
+type NodeInterface struct {
+	If     Interface     `json:"interface"`
+	IfMeta InterfaceMeta `json:"interface_meta"`
+}
+
+type Interface struct {
+	Name        string                   `json:"name"`
+	IfType      interfaces.InterfaceType `json:"type,omitempty"`
+	Enabled     bool                     `json:"enabled,omitempty"`
+	PhysAddress string                   `json:"phys_address,omitempty"`
+	Mtu         uint32                   `json:"mtu,omitempty"`
+	Vrf         uint32                   `json:"vrf,omitempty"`
+	IPAddresses []string                 `json:"ip_addresses,omitempty"`
+	Vxlan       Vxlan                    `json:"vxlan,omitempty"`
+	Tap         Tap                      `json:"tap,omitempty"`
+}
+
+type InterfaceMeta struct {
+	SwIfIndex       uint32 `json:"sw_if_index"`
+	Tag             string `json:"tag"`
+	VppInternalName string `json:"internal_name"`
+}
+
+// Vxlan contains vxlan parameter data
+type Vxlan struct {
+	SrcAddress string `json:"src_address"`
+	DstAddress string `json:"dst_address"`
+	Vni        uint32 `json:"vni"`
+}
+
+// Tap contains tap parameter data
+type Tap struct {
+	Version    uint32 `json:"version"`
+	HostIfName string `json:"host_if_name"`
+}
+
+// NodeBridgeDomain holds the unmarshalled bridge domain data.
+type NodeBridgeDomain struct {
+	Bd     BridgeDomain     `json:"bridge_domain"`
+	BdMeta BridgeDomainMeta `json:"bridge_domain_meta"`
+}
+
+// BridgeDomainMeta defines the Bridge Domain main data set
+type BridgeDomain struct {
+	Interfaces []BdInterface `json:"interfaces"`
+	Name       string        `json:"name"`
+	Forward    bool          `json:"forward"`
+}
+
+// BridgeDomainMeta defines the Bridge Domain VPP internal metadata
+type BridgeDomainMeta struct {
+	BdID      uint32           `json:"bridge_domain_id"`
+	BdId2Name BdId2NameMapping `json:"bridge_domain_id_to_name"`
+}
+
+// BdInterface defines the BD Interface data
+type BdInterface struct {
+	Name            string `json:"name"`
+	BVI             bool   `json:"bridged_virtual_interface,omitempty"`
+	SplitHorizonGrp uint32 `json:"split_horizon_group"`
+}
+
+// BdId2NameMapping defines the mapping of BD ifIndices to interface Names
+type BdId2NameMapping map[uint32]string
+
+// NodeStaticRoute holds the unmarshalled node static route JSON data.
 type NodeStaticRoute struct {
 	VrfID       uint32  `json:"vrf_id"`
 	TableName   string  `json:"table_name"`
@@ -113,61 +179,12 @@ type NodeL2FibEntry struct {
 	BridgedVirtualInterface  bool   `json:"bridged_virtual_interface"`
 }
 
-// Vxlan contains vxlan parameter data
-type Vxlan struct {
-	SrcAddress string `json:"src_address"`
-	DstAddress string `json:"dst_address"`
-	Vni        uint32 `json:"vni"`
-}
-
-//NodeInterface holds unmarshalled Interface JSON data
-type NodeInterface struct {
-	If     Interface     `json:"interface"`
-	IfMeta InterfaceMeta `json:"interface_meta"`
-}
-
-type Interface struct {
-	Name        string                   `json:"name"`
-	IfType      interfaces.InterfaceType `json:"type,omitempty"`
-	Enabled     bool                     `json:"enabled,omitempty"`
-	PhysAddress string                   `json:"phys_address,omitempty"`
-	Mtu         uint32                   `json:"mtu,omitempty"`
-	Vrf         uint32                   `json:"vrf,omitempty"`
-	IPAddresses []string                 `json:"ip_addresses,omitempty"`
-	Vxlan       Vxlan                    `json:"vxlan,omitempty"`
-	Tap         Tap                      `json:"tap,omitempty"`
-}
-
-type InterfaceMeta struct {
-	SwIfIndex       uint32 `json:"sw_if_index"`
-	Tag             string `json:"tag"`
-	VppInternalName string `json:"internal_name"`
-}
-
-// Tap contains tap parameter data
-type Tap struct {
-	Version    uint32 `json:"version"`
-	HostIfName string `json:"host_if_name"`
-}
-
 //NodeIPArpEntry holds unmarshalled IP ARP data
 type NodeIPArpEntry struct {
 	Interface  uint32 `json:"interface"`
 	IPAddress  string `json:"IPAddress"`
 	MacAddress string `json:"MacAddress"`
 	Static     bool   `json:"Static"`
-}
-
-//NodeBridgeDomain holds the unmarshalled bridge domain data.
-type NodeBridgeDomain struct {
-	Interfaces []BDinterfaces `json:"interfaces"`
-	Name       string         `json:"name"`
-	Forward    bool           `json:"forward"`
-}
-
-//BDinterfaces containersbridge parameter data
-type BDinterfaces struct {
-	SwIfIndex uint32 `json:"sw_if_index"`
 }
 
 //Pod contains pod parameter data

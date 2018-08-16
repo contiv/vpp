@@ -29,8 +29,8 @@ import (
 	k8sCache "k8s.io/client-go/tools/cache"
 
 	crdClientSet "github.com/contiv/vpp/plugins/crd/pkg/client/clientset/versioned"
-	crdResourceInformer "github.com/contiv/vpp/plugins/crd/pkg/client/informers/externalversions/contivtelemetry/v1"
 	listers "github.com/contiv/vpp/plugins/crd/pkg/client/listers/contivtelemetry/v1"
+	informers "github.com/contiv/vpp/plugins/crd/pkg/client/informers/externalversions/contivtelemetry/v1"
 
 	apiextv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	apiextcs "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
@@ -59,7 +59,7 @@ type ContivTelemetryController struct {
 
 	clientset    kubernetes.Interface
 	queue        workqueue.RateLimitingInterface
-	informer     k8sCache.SharedIndexInformer
+	informer     informers.ContivTelemetryReportInformer
 	eventHandler handler.Handler
 	//Lister     listers.ContivTelemetryLister
 	contivTelemetryReportLister listers.ContivTelemetryReportLister
@@ -98,27 +98,20 @@ func (ctc *ContivTelemetryController) Init() error {
 		return err
 	}
 
-	// Create a custom resource informer (generated from the code generator)
-	// Pass the custom resource client, while looking all namespaces for listing and watching.
-	ctc.informer = crdResourceInformer.NewContivTelemetryReportInformer(
-		ctc.CrdClient,
-		meta_v1.NamespaceAll,
-		0,
-		k8sCache.Indexers{},
-	)
+
 
 	//ctc.contivTelemetryReportLister = listers.NewContivTelemetryReportLister(ctc.informer.GetIndexer())
 
 	sharedFactory := factory.NewSharedInformerFactory(ctc.CrdClient, time.Second*30)
-	informer := sharedFactory.Contivtelemetry().V1().ContivTelemetryReports()
-	ctc.contivTelemetryReportLister = informer.Lister()
+	ctc.informer = sharedFactory.Contivtelemetry().V1().ContivTelemetryReports()
+	ctc.contivTelemetryReportLister = ctc.informer.Lister()
 
 	// Create a new queue in that when the informer gets a resource from listing or watching,
 	// adding the identifying key to the queue for the handler
 	ctc.queue = workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter())
 
 	// Add event handlers to handle the three types of events for resources (add, update, delete)
-	ctc.informer.AddEventHandler(k8sCache.ResourceEventHandlerFuncs{
+	ctc.informer.Informer().AddEventHandler(k8sCache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			// Converting the resource object into a key
 			key, err := k8sCache.MetaNamespaceKeyFunc(obj)
@@ -159,7 +152,7 @@ func (ctc *ContivTelemetryController) Run(ctx <-chan struct{}) {
 	ctc.Log.Info("Controller-Run: Initiating...")
 
 	// runs the informer to list and watch on a goroutine
-	go ctc.informer.Run(ctx)
+	go ctc.informer.Informer().Run(ctx)
 
 	// populate resources one after synchronization
 	if !k8sCache.WaitForCacheSync(ctx, ctc.HasSynced) {
@@ -174,7 +167,7 @@ func (ctc *ContivTelemetryController) Run(ctx <-chan struct{}) {
 
 // HasSynced indicates when the controller is synced up with the K8s.
 func (ctc *ContivTelemetryController) HasSynced() bool {
-	return ctc.informer.HasSynced()
+	return ctc.informer.Informer().HasSynced()
 }
 
 // runWorker processes new items in the queue
@@ -210,7 +203,7 @@ func (ctc *ContivTelemetryController) processNextItem() bool {
 	//
 	// on error retry the queue key given number of times (5 here)
 	// on failure forget the queue key and throw an error
-	item, exists, err := ctc.informer.GetIndexer().GetByKey(keyRaw)
+	item, exists, err := ctc.informer.Informer().GetIndexer().GetByKey(keyRaw)
 	if err != nil {
 		if ctc.queue.NumRequeues(key) < 5 {
 			ctc.Log.Errorf("Controller.processNextItem: Failed processing item with key: %s, error: %v, retrying...", key, err)
@@ -290,14 +283,11 @@ func (cr *CRDReport) GenerateCRDReport() {
 
 	ctc := cr.Ctlr
 
-	key := "contivtelemetryreport"
+	key := "default/contivtelemetryreport"
 	namespace, name, err := cache.SplitMetaNamespaceKey(key)
 	if err != nil {
 		runtime.HandleError(fmt.Errorf("invalid resource key: %s", key))
 		return
-	}
-	if namespace == "" {
-		//namespace = "default"
 	}
 
 	var crdContivTelemetryReport *v1.ContivTelemetryReport
@@ -310,7 +300,7 @@ func (cr *CRDReport) GenerateCRDReport() {
 		crdContivTelemetryReport = &v1.ContivTelemetryReport{
 			ObjectMeta: meta_v1.ObjectMeta{
 				Name:      name,
-				Namespace: "default",
+				Namespace: namespace,
 			},
 			TypeMeta: meta_v1.TypeMeta{
 				Kind:       "ContivTelemetryReport",
@@ -336,21 +326,13 @@ func (cr *CRDReport) GenerateCRDReport() {
 	// update the Status block of the NetworkNode resource. UpdateStatus will not
 	// allow changes to the Spec of the resource, which is ideal for ensuring
 	// nothing other than resource status has been updated.
-	//_, errUpdate := ctc.CrdClient.ContivtelemetryV1().ContivTelemetryReports(namespace).Update(crdContivTelemetryReportCopy)
 
 	if shouldCreate {
 		ctc.Log.Infof("Create '%s' namespace '%s, and value: %v", name, namespace, crdContivTelemetryReportCopy)
-		_, err = ctc.CrdClient.ContivtelemetryV1().ContivTelemetryReports("default").Create(crdContivTelemetryReportCopy)
+		_, err = ctc.CrdClient.ContivtelemetryV1().ContivTelemetryReports(namespace).Create(crdContivTelemetryReportCopy)
 		if err != nil {
 			ctc.Log.Errorf("Could not create '%s'  err: %v, namespace '%s', and value: %v",
 				name, err, namespace, crdContivTelemetryReportCopy)
-			if apierrors.IsAlreadyExists(err) {
-				_, err := ctc.CrdClient.ContivtelemetryV1().ContivTelemetryReports("default").Update(crdContivTelemetryReportCopy)
-				if err != nil {
-					ctc.Log.Errorf("Could not update after object exists '%s'  err: %v, namespace '%s",
-						name, err, namespace)
-				}
-			}
 		}
 	} else {
 		ctc.Log.Infof("Update '%s' namespace '%s, and value: %v", name, namespace, crdContivTelemetryReportCopy)
@@ -360,17 +342,4 @@ func (cr *CRDReport) GenerateCRDReport() {
 				name, err, namespace, crdContivTelemetryReportCopy)
 		}
 	}
-	//if err != nil {
-	//	if apierrors.IsAlreadyExists(err) {
-	//		_, err := ctc.CrdClient.ContivtelemetryV1().ContivTelemetryReports(namespace).Update(crdContivTelemetryReportCopy)
-	//		if err != nil {
-	//			ctc.Log.Errorf("Could not update '%s'  err: %v, namespace '%s, and value: %v",
-	//				name, err, namespace, crdContivTelemetryReportCopy)
-	//		}
-	//		return
-	//	} else {
-	//		ctc.Log.Errorf("Could not create '%s'  err: %v, namespace '%s, and value: %v",
-	//			name, err, namespace, crdContivTelemetryReportCopy)
-	//	}
-	//}
 }

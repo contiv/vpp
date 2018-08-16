@@ -28,15 +28,16 @@ required = ["github.com/wadey/gocovmerge", "github.com/docker/docker/api", "gith
 
 [[constraint]]
   name = "github.com/ligato/vpp-agent"
-  revision = "e3900b61375e30e33ee50b3fd0f8a442f8fea4a8"
+  revision = "bf574d893128a6455a3001939394e9a5012a4761"
 
 [[constraint]]
   name = "github.com/ligato/cn-infra"
-  revision = "4903fd7f8a498f0a6038df2ac6fe762697dea1f8"
+  revision = "98e10610edaf49aa2ca14c97302bc252cd6fdb63"
 
 [[constraint]]
-  revision = "f1bef4a3c66f4408afdeb64cda62ccd8562d0fc6"
+  revision = "5df690ab830bcf5eb9ffe4d86ceaa4154d7b859b"
   name = "git.fd.io/govpp.git"
+  source = "github.com/ligato/govpp"
 
 [[constraint]]
   revision = "b5bfa59ec0adc420475f97f89b58045c721d761c"

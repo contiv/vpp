@@ -33,6 +33,7 @@ var Types = map[string]reflect.Type{
 	"MapAnotherSegmentReply": reflect.TypeOf((*MapAnotherSegmentReply)(nil)).Elem(),
 	"ResetSession": reflect.TypeOf((*ResetSession)(nil)).Elem(),
 	"ResetSessionReply": reflect.TypeOf((*ResetSessionReply)(nil)).Elem(),
+	"Services": reflect.TypeOf((*Services)(nil)).Elem(),
 	"SessionEnableDisable": reflect.TypeOf((*SessionEnableDisable)(nil)).Elem(),
 	"SessionEnableDisableReply": reflect.TypeOf((*SessionEnableDisableReply)(nil)).Elem(),
 	"SessionRuleAddDel": reflect.TypeOf((*SessionRuleAddDel)(nil)).Elem(),

@@ -90,6 +90,8 @@ data:
   grpc.conf: |
     network: unix
     endpoint: /var/run/contiv/cni.sock
+    force-socket-removal: true
+    permission: 700
   http.conf: |
     endpoint: 0.0.0.0:9999
     {{- if .Values.http.enableServerCert }}

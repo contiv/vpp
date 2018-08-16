@@ -50,9 +50,9 @@ func (f *genericInformer) Lister() cache.GenericLister {
 // TODO extend this to unknown resources with a client pool
 func (f *sharedInformerFactory) ForResource(resource schema.GroupVersionResource) (GenericInformer, error) {
 	switch resource {
-	// Group=contivvpptelemetry, Version=v1
-	case v1.SchemeGroupVersion.WithResource("contivtelemetries"):
-		return &genericInformer{resource: resource.GroupResource(), informer: f.Contivvpptelemetry().V1().ContivTelemetries().Informer()}, nil
+	// Group=contivtelemetry.vpp, Version=v1
+	case v1.SchemeGroupVersion.WithResource("contivtelemetryreports"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Contivtelemetry().V1().ContivTelemetryReports().Informer()}, nil
 
 	}
 

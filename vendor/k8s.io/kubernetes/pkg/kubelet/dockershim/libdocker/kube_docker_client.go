@@ -18,6 +18,7 @@ package libdocker
 
 import (
 	"bytes"
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -35,7 +36,6 @@ import (
 	dockerapi "github.com/docker/docker/client"
 	dockermessage "github.com/docker/docker/pkg/jsonmessage"
 	dockerstdcopy "github.com/docker/docker/pkg/stdcopy"
-	"golang.org/x/net/context"
 )
 
 // kubeDockerClient is a wrapped layer of docker client for kubelet internal use. This layer is added to:
@@ -114,6 +114,21 @@ func (d *kubeDockerClient) InspectContainer(id string) (*dockertypes.ContainerJS
 	ctx, cancel := d.getTimeoutContext()
 	defer cancel()
 	containerJSON, err := d.client.ContainerInspect(ctx, id)
+	if ctxErr := contextError(ctx); ctxErr != nil {
+		return nil, ctxErr
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &containerJSON, nil
+}
+
+// InspectContainerWithSize is currently only used for Windows container stats
+func (d *kubeDockerClient) InspectContainerWithSize(id string) (*dockertypes.ContainerJSON, error) {
+	ctx, cancel := d.getTimeoutContext()
+	defer cancel()
+	// Inspects the container including the fields SizeRw and SizeRootFs.
+	containerJSON, _, err := d.client.ContainerInspectWithRaw(ctx, id, true)
 	if ctxErr := contextError(ctx); ctxErr != nil {
 		return nil, ctxErr
 	}
@@ -322,7 +337,7 @@ func (p *progressReporter) start() {
 			case <-ticker.C:
 				progress, timestamp := p.progress.get()
 				// If there is no progress for p.imagePullProgressDeadline, cancel the operation.
-				if time.Now().Sub(timestamp) > p.imagePullProgressDeadline {
+				if time.Since(timestamp) > p.imagePullProgressDeadline {
 					glog.Errorf("Cancel pulling image %q because of no progress for %v, latest progress: %q", p.image, p.imagePullProgressDeadline, progress)
 					p.cancel()
 					return
@@ -520,6 +535,27 @@ func (d *kubeDockerClient) ResizeContainerTTY(id string, height, width uint) err
 		Height: height,
 		Width:  width,
 	})
+}
+
+// GetContainerStats is currently only used for Windows container stats
+func (d *kubeDockerClient) GetContainerStats(id string) (*dockertypes.StatsJSON, error) {
+	ctx, cancel := d.getCancelableContext()
+	defer cancel()
+
+	response, err := d.client.ContainerStats(ctx, id, false)
+	if err != nil {
+		return nil, err
+	}
+
+	dec := json.NewDecoder(response.Body)
+	var stats dockertypes.StatsJSON
+	err = dec.Decode(&stats)
+	if err != nil {
+		return nil, err
+	}
+
+	defer response.Body.Close()
+	return &stats, nil
 }
 
 // redirectResponseToOutputStream redirect the response stream to stdout and stderr. When tty is true, all stream will

@@ -16,6 +16,7 @@ package datastore
 
 import (
 	"fmt"
+	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
 	"github.com/ligato/cn-infra/logging"
 	"io"
 	"os"
@@ -26,7 +27,7 @@ import (
 // validation
 type SimpleReport struct {
 	Log       logging.Logger
-	Data      map[string][]string
+	Data      telemetrymodel.Reports
 	Output    io.Writer
 	TimeStamp time.Time
 }
@@ -35,9 +36,14 @@ type SimpleReport struct {
 func NewSimpleReport(log logging.Logger) *SimpleReport {
 	return &SimpleReport{
 		Log:    log,
-		Data:   make(map[string][]string),
+		Data:   make(telemetrymodel.Reports),
 		Output: os.Stdout,
 	}
+}
+
+// RetrieveReport returns the map of report strings
+func (r *SimpleReport) RetrieveReport() telemetrymodel.Reports {
+	return r.Data
 }
 
 // LogErrAndAppendToNodeReport log an error and appends the string to

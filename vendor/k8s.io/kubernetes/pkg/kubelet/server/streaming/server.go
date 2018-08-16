@@ -20,20 +20,21 @@ import (
 	"crypto/tls"
 	"errors"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"path"
 	"time"
 
-	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	restful "github.com/emicklei/go-restful"
 
 	"k8s.io/apimachinery/pkg/types"
 	remotecommandconsts "k8s.io/apimachinery/pkg/util/remotecommand"
 	"k8s.io/client-go/tools/remotecommand"
-	runtimeapi "k8s.io/kubernetes/pkg/kubelet/apis/cri/v1alpha1/runtime"
+	runtimeapi "k8s.io/kubernetes/pkg/kubelet/apis/cri/runtime/v1alpha2"
 	"k8s.io/kubernetes/pkg/kubelet/server/portforward"
 	remotecommandserver "k8s.io/kubernetes/pkg/kubelet/server/remotecommand"
 )
@@ -71,6 +72,7 @@ type Config struct {
 	Addr string
 	// The optional base URL for constructing streaming URLs. If empty, the baseURL will be
 	// constructed from the serve address.
+	// Note that for port "0", the URL port will be set to actual port in use.
 	BaseURL *url.URL
 
 	// How long to leave idle connections open for.
@@ -158,9 +160,24 @@ type server struct {
 	server  *http.Server
 }
 
-func (s *server) GetExec(req *runtimeapi.ExecRequest) (*runtimeapi.ExecResponse, error) {
+func validateExecRequest(req *runtimeapi.ExecRequest) error {
 	if req.ContainerId == "" {
-		return nil, grpc.Errorf(codes.InvalidArgument, "missing required container_id")
+		return status.Errorf(codes.InvalidArgument, "missing required container_id")
+	}
+	if req.Tty && req.Stderr {
+		// If TTY is set, stderr cannot be true because multiplexing is not
+		// supported.
+		return status.Errorf(codes.InvalidArgument, "tty and stderr cannot both be true")
+	}
+	if !req.Stdin && !req.Stdout && !req.Stderr {
+		return status.Errorf(codes.InvalidArgument, "one of stdin, stdout, or stderr must be set")
+	}
+	return nil
+}
+
+func (s *server) GetExec(req *runtimeapi.ExecRequest) (*runtimeapi.ExecResponse, error) {
+	if err := validateExecRequest(req); err != nil {
+		return nil, err
 	}
 	token, err := s.cache.Insert(req)
 	if err != nil {
@@ -171,9 +188,24 @@ func (s *server) GetExec(req *runtimeapi.ExecRequest) (*runtimeapi.ExecResponse,
 	}, nil
 }
 
-func (s *server) GetAttach(req *runtimeapi.AttachRequest) (*runtimeapi.AttachResponse, error) {
+func validateAttachRequest(req *runtimeapi.AttachRequest) error {
 	if req.ContainerId == "" {
-		return nil, grpc.Errorf(codes.InvalidArgument, "missing required container_id")
+		return status.Errorf(codes.InvalidArgument, "missing required container_id")
+	}
+	if req.Tty && req.Stderr {
+		// If TTY is set, stderr cannot be true because multiplexing is not
+		// supported.
+		return status.Errorf(codes.InvalidArgument, "tty and stderr cannot both be true")
+	}
+	if !req.Stdin && !req.Stdout && !req.Stderr {
+		return status.Errorf(codes.InvalidArgument, "one of stdin, stdout, and stderr must be set")
+	}
+	return nil
+}
+
+func (s *server) GetAttach(req *runtimeapi.AttachRequest) (*runtimeapi.AttachResponse, error) {
+	if err := validateAttachRequest(req); err != nil {
+		return nil, err
 	}
 	token, err := s.cache.Insert(req)
 	if err != nil {
@@ -186,7 +218,7 @@ func (s *server) GetAttach(req *runtimeapi.AttachRequest) (*runtimeapi.AttachRes
 
 func (s *server) GetPortForward(req *runtimeapi.PortForwardRequest) (*runtimeapi.PortForwardResponse, error) {
 	if req.PodSandboxId == "" {
-		return nil, grpc.Errorf(codes.InvalidArgument, "missing required pod_sandbox_id")
+		return nil, status.Errorf(codes.InvalidArgument, "missing required pod_sandbox_id")
 	}
 	token, err := s.cache.Insert(req)
 	if err != nil {
@@ -203,10 +235,16 @@ func (s *server) Start(stayUp bool) error {
 		return errors.New("stayUp=false is not yet implemented")
 	}
 
+	listener, err := net.Listen("tcp", s.config.Addr)
+	if err != nil {
+		return err
+	}
+	// Use the actual address as baseURL host. This handles the "0" port case.
+	s.config.BaseURL.Host = listener.Addr().String()
 	if s.config.TLSConfig != nil {
-		return s.server.ListenAndServeTLS("", "") // Use certs from TLSConfig.
+		return s.server.ServeTLS(listener, "", "") // Use certs from TLSConfig.
 	} else {
-		return s.server.ListenAndServe()
+		return s.server.Serve(listener)
 	}
 }
 
@@ -239,8 +277,8 @@ func (s *server) serveExec(req *restful.Request, resp *restful.Response) {
 
 	streamOpts := &remotecommandserver.Options{
 		Stdin:  exec.Stdin,
-		Stdout: true,
-		Stderr: !exec.Tty,
+		Stdout: exec.Stdout,
+		Stderr: exec.Stderr,
 		TTY:    exec.Tty,
 	}
 
@@ -273,8 +311,8 @@ func (s *server) serveAttach(req *restful.Request, resp *restful.Response) {
 
 	streamOpts := &remotecommandserver.Options{
 		Stdin:  attach.Stdin,
-		Stdout: true,
-		Stderr: !attach.Tty,
+		Stdout: attach.Stdout,
+		Stderr: attach.Stderr,
 		TTY:    attach.Tty,
 	}
 	remotecommandserver.ServeAttach(
@@ -332,11 +370,11 @@ var _ remotecommandserver.Attacher = &criAdapter{}
 var _ portforward.PortForwarder = &criAdapter{}
 
 func (a *criAdapter) ExecInContainer(podName string, podUID types.UID, container string, cmd []string, in io.Reader, out, err io.WriteCloser, tty bool, resize <-chan remotecommand.TerminalSize, timeout time.Duration) error {
-	return a.Exec(container, cmd, in, out, err, tty, resize)
+	return a.Runtime.Exec(container, cmd, in, out, err, tty, resize)
 }
 
 func (a *criAdapter) AttachContainer(podName string, podUID types.UID, container string, in io.Reader, out, err io.WriteCloser, tty bool, resize <-chan remotecommand.TerminalSize) error {
-	return a.Attach(container, in, out, err, tty, resize)
+	return a.Runtime.Attach(container, in, out, err, tty, resize)
 }
 
 func (a *criAdapter) PortForward(podName string, podUID types.UID, port int32, stream io.ReadWriteCloser) error {

@@ -16,4 +16,4 @@
 
 package v1
 
-type ContivTelemetryExpansion interface{}
+type ContivTelemetryReportExpansion interface{}

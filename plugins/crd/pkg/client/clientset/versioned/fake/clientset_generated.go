@@ -18,8 +18,8 @@ package fake
 
 import (
 	clientset "github.com/contiv/vpp/plugins/crd/pkg/client/clientset/versioned"
-	contivvpptelemetryv1 "github.com/contiv/vpp/plugins/crd/pkg/client/clientset/versioned/typed/contivtelemetry/v1"
-	fakecontivvpptelemetryv1 "github.com/contiv/vpp/plugins/crd/pkg/client/clientset/versioned/typed/contivtelemetry/v1/fake"
+	contivtelemetryv1 "github.com/contiv/vpp/plugins/crd/pkg/client/clientset/versioned/typed/contivtelemetry/v1"
+	fakecontivtelemetryv1 "github.com/contiv/vpp/plugins/crd/pkg/client/clientset/versioned/typed/contivtelemetry/v1/fake"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/discovery"
@@ -69,12 +69,12 @@ func (c *Clientset) Discovery() discovery.DiscoveryInterface {
 
 var _ clientset.Interface = &Clientset{}
 
-// ContivvpptelemetryV1 retrieves the ContivvpptelemetryV1Client
-func (c *Clientset) ContivvpptelemetryV1() contivvpptelemetryv1.ContivvpptelemetryV1Interface {
-	return &fakecontivvpptelemetryv1.FakeContivvpptelemetryV1{Fake: &c.Fake}
+// ContivtelemetryV1 retrieves the ContivtelemetryV1Client
+func (c *Clientset) ContivtelemetryV1() contivtelemetryv1.ContivtelemetryV1Interface {
+	return &fakecontivtelemetryv1.FakeContivtelemetryV1{Fake: &c.Fake}
 }
 
-// Contivvpptelemetry retrieves the ContivvpptelemetryV1Client
-func (c *Clientset) Contivvpptelemetry() contivvpptelemetryv1.ContivvpptelemetryV1Interface {
-	return &fakecontivvpptelemetryv1.FakeContivvpptelemetryV1{Fake: &c.Fake}
+// Contivtelemetry retrieves the ContivtelemetryV1Client
+func (c *Clientset) Contivtelemetry() contivtelemetryv1.ContivtelemetryV1Interface {
+	return &fakecontivtelemetryv1.FakeContivtelemetryV1{Fake: &c.Fake}
 }

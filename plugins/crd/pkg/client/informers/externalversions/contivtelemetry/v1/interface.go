@@ -22,8 +22,8 @@ import (
 
 // Interface provides access to all the informers in this group version.
 type Interface interface {
-	// ContivTelemetries returns a ContivTelemetryInformer.
-	ContivTelemetries() ContivTelemetryInformer
+	// ContivTelemetryReports returns a ContivTelemetryReportInformer.
+	ContivTelemetryReports() ContivTelemetryReportInformer
 }
 
 type version struct {
@@ -37,7 +37,7 @@ func New(f internalinterfaces.SharedInformerFactory, namespace string, tweakList
 	return &version{factory: f, namespace: namespace, tweakListOptions: tweakListOptions}
 }
 
-// ContivTelemetries returns a ContivTelemetryInformer.
-func (v *version) ContivTelemetries() ContivTelemetryInformer {
-	return &contivTelemetryInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
+// ContivTelemetryReports returns a ContivTelemetryReportInformer.
+func (v *version) ContivTelemetryReports() ContivTelemetryReportInformer {
+	return &contivTelemetryReportInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
 }

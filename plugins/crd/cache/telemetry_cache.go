@@ -53,11 +53,12 @@ const (
 type ContivTelemetryCache struct {
 	Deps
 
-	Synced    bool
-	VppCache  api.VppCache
-	K8sCache  api.K8sCache
-	Processor api.ContivTelemetryProcessor
-	Report    api.Report
+	Synced           bool
+	VppCache         api.VppCache
+	K8sCache         api.K8sCache
+	Processor        api.ContivTelemetryProcessor
+	Report           api.Report
+	ControllerReport api.ContivTelemetryControllerReport
 
 	nodeResponseChannel  chan *NodeDTO
 	dsUpdateChannel      chan interface{}
@@ -196,6 +197,7 @@ func (ctc *ContivTelemetryCache) validateNodeInfo() {
 		ctc.Report.AppendToNodeReport(n.Name, "Report done.")
 	}
 	ctc.Report.Print()
+	ctc.ControllerReport.GenerateCRDReport()
 }
 
 //Gathers a number of data points for every node in the Node List

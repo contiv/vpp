@@ -16,10 +16,10 @@
 
 package v1
 
-// ContivTelemetryListerExpansion allows custom methods to be added to
-// ContivTelemetryLister.
-type ContivTelemetryListerExpansion interface{}
+// ContivTelemetryReportListerExpansion allows custom methods to be added to
+// ContivTelemetryReportLister.
+type ContivTelemetryReportListerExpansion interface{}
 
-// ContivTelemetryNamespaceListerExpansion allows custom methods to be added to
-// ContivTelemetryNamespaceLister.
-type ContivTelemetryNamespaceListerExpansion interface{}
+// ContivTelemetryReportNamespaceListerExpansion allows custom methods to be added to
+// ContivTelemetryReportNamespaceLister.
+type ContivTelemetryReportNamespaceListerExpansion interface{}

@@ -17,11 +17,15 @@ limitations under the License.
 package metrics
 
 import (
+	"fmt"
 	"sync"
 	"time"
 
 	"github.com/golang/glog"
 	"github.com/prometheus/client_golang/prometheus"
+	corev1 "k8s.io/api/core/v1"
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
+	"k8s.io/kubernetes/pkg/features"
 	kubecontainer "k8s.io/kubernetes/pkg/kubelet/container"
 )
 
@@ -30,10 +34,6 @@ const (
 	PodWorkerLatencyKey          = "pod_worker_latency_microseconds"
 	PodStartLatencyKey           = "pod_start_latency_microseconds"
 	CgroupManagerOperationsKey   = "cgroup_manager_latency_microseconds"
-	DockerOperationsLatencyKey   = "docker_operations_latency_microseconds"
-	DockerOperationsKey          = "docker_operations"
-	DockerOperationsErrorsKey    = "docker_operations_errors"
-	DockerOperationsTimeoutKey   = "docker_operations_timeout"
 	PodWorkerStartLatencyKey     = "pod_worker_start_latency_microseconds"
 	PLEGRelistLatencyKey         = "pleg_relist_latency_microseconds"
 	PLEGRelistIntervalKey        = "pleg_relist_interval_microseconds"
@@ -48,6 +48,20 @@ const (
 	RuntimeOperationsKey        = "runtime_operations"
 	RuntimeOperationsLatencyKey = "runtime_operations_latency_microseconds"
 	RuntimeOperationsErrorsKey  = "runtime_operations_errors"
+	// Metrics keys of device plugin operations
+	DevicePluginRegistrationCountKey = "device_plugin_registration_count"
+	DevicePluginAllocationLatencyKey = "device_plugin_alloc_latency_microseconds"
+
+	// Metric keys for node config
+	AssignedConfigKey             = "node_config_assigned"
+	ActiveConfigKey               = "node_config_active"
+	LastKnownGoodConfigKey        = "node_config_last_known_good"
+	ConfigErrorKey                = "node_config_error"
+	ConfigSourceLabelKey          = "node_config_source"
+	ConfigSourceLabelValueLocal   = "local"
+	ConfigUIDLabelKey             = "node_config_uid"
+	ConfigResourceVersionLabelKey = "node_config_resource_version"
+	KubeletConfigKeyLabelKey      = "node_config_kubelet_key"
 )
 
 var (
@@ -87,39 +101,6 @@ var (
 			Name:      PodWorkerStartLatencyKey,
 			Help:      "Latency in microseconds from seeing a pod to starting a worker.",
 		},
-	)
-	// TODO(random-liu): Move the following docker metrics into shim once dockertools is deprecated.
-	DockerOperationsLatency = prometheus.NewSummaryVec(
-		prometheus.SummaryOpts{
-			Subsystem: KubeletSubsystem,
-			Name:      DockerOperationsLatencyKey,
-			Help:      "Latency in microseconds of Docker operations. Broken down by operation type.",
-		},
-		[]string{"operation_type"},
-	)
-	DockerOperations = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Subsystem: KubeletSubsystem,
-			Name:      DockerOperationsKey,
-			Help:      "Cumulative number of Docker operations by operation type.",
-		},
-		[]string{"operation_type"},
-	)
-	DockerOperationsErrors = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Subsystem: KubeletSubsystem,
-			Name:      DockerOperationsErrorsKey,
-			Help:      "Cumulative number of Docker operation errors by operation type.",
-		},
-		[]string{"operation_type"},
-	)
-	DockerOperationsTimeout = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Subsystem: KubeletSubsystem,
-			Name:      DockerOperationsTimeoutKey,
-			Help:      "Cumulative number of Docker operation timeout by operation type.",
-		},
-		[]string{"operation_type"},
 	)
 	PLEGRelistLatency = prometheus.NewSummary(
 		prometheus.SummaryOpts{
@@ -168,71 +149,69 @@ var (
 		},
 		[]string{"eviction_signal"},
 	)
-	VolumeStatsCapacityBytes = prometheus.NewGaugeVec(
-		prometheus.GaugeOpts{
+	DevicePluginRegistrationCount = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
 			Subsystem: KubeletSubsystem,
-			Name:      VolumeStatsCapacityBytesKey,
-			Help:      "Capacity in bytes of the volume",
+			Name:      DevicePluginRegistrationCountKey,
+			Help:      "Cumulative number of device plugin registrations. Broken down by resource name.",
 		},
-		[]string{"namespace", "persistentvolumeclaim"},
+		[]string{"resource_name"},
 	)
-	VolumeStatsAvailableBytes = prometheus.NewGaugeVec(
-		prometheus.GaugeOpts{
+	DevicePluginAllocationLatency = prometheus.NewSummaryVec(
+		prometheus.SummaryOpts{
 			Subsystem: KubeletSubsystem,
-			Name:      VolumeStatsAvailableBytesKey,
-			Help:      "Number of available bytes in the volume",
+			Name:      DevicePluginAllocationLatencyKey,
+			Help:      "Latency in microseconds to serve a device plugin Allocation request. Broken down by resource name.",
 		},
-		[]string{"namespace", "persistentvolumeclaim"},
+		[]string{"resource_name"},
 	)
-	VolumeStatsUsedBytes = prometheus.NewGaugeVec(
+
+	// Metrics for node config
+
+	AssignedConfig = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Subsystem: KubeletSubsystem,
-			Name:      VolumeStatsUsedBytesKey,
-			Help:      "Number of used bytes in the volume",
+			Name:      AssignedConfigKey,
+			Help:      "The node's understanding of intended config. The count is always 1.",
 		},
-		[]string{"namespace", "persistentvolumeclaim"},
+		[]string{ConfigSourceLabelKey, ConfigUIDLabelKey, ConfigResourceVersionLabelKey, KubeletConfigKeyLabelKey},
 	)
-	VolumeStatsInodes = prometheus.NewGaugeVec(
+	ActiveConfig = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Subsystem: KubeletSubsystem,
-			Name:      VolumeStatsInodesKey,
-			Help:      "Maximum number of inodes in the volume",
+			Name:      ActiveConfigKey,
+			Help:      "The config source the node is actively using. The count is always 1.",
 		},
-		[]string{"namespace", "persistentvolumeclaim"},
+		[]string{ConfigSourceLabelKey, ConfigUIDLabelKey, ConfigResourceVersionLabelKey, KubeletConfigKeyLabelKey},
 	)
-	VolumeStatsInodesFree = prometheus.NewGaugeVec(
+	LastKnownGoodConfig = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Subsystem: KubeletSubsystem,
-			Name:      VolumeStatsInodesFreeKey,
-			Help:      "Number of free inodes in the volume",
+			Name:      LastKnownGoodConfigKey,
+			Help:      "The config source the node will fall back to when it encounters certain errors. The count is always 1.",
 		},
-		[]string{"namespace", "persistentvolumeclaim"},
+		[]string{ConfigSourceLabelKey, ConfigUIDLabelKey, ConfigResourceVersionLabelKey, KubeletConfigKeyLabelKey},
 	)
-	VolumeStatsInodesUsed = prometheus.NewGaugeVec(
+	ConfigError = prometheus.NewGauge(
 		prometheus.GaugeOpts{
 			Subsystem: KubeletSubsystem,
-			Name:      VolumeStatsInodesUsedKey,
-			Help:      "Number of used inodes in the volume",
+			Name:      ConfigErrorKey,
+			Help:      "This metric is true (1) if the node is experiencing a configuration-related error, false (0) otherwise.",
 		},
-		[]string{"namespace", "persistentvolumeclaim"},
 	)
 )
 
 var registerMetrics sync.Once
 
 // Register all metrics.
-func Register(containerCache kubecontainer.RuntimeCache) {
+func Register(containerCache kubecontainer.RuntimeCache, collectors ...prometheus.Collector) {
 	// Register the metrics.
 	registerMetrics.Do(func() {
 		prometheus.MustRegister(PodWorkerLatency)
 		prometheus.MustRegister(PodStartLatency)
-		prometheus.MustRegister(DockerOperationsLatency)
 		prometheus.MustRegister(CgroupManagerLatency)
 		prometheus.MustRegister(PodWorkerStartLatency)
 		prometheus.MustRegister(ContainersPerPodCount)
-		prometheus.MustRegister(DockerOperations)
-		prometheus.MustRegister(DockerOperationsErrors)
-		prometheus.MustRegister(DockerOperationsTimeout)
 		prometheus.MustRegister(newPodAndContainerCollector(containerCache))
 		prometheus.MustRegister(PLEGRelistLatency)
 		prometheus.MustRegister(PLEGRelistInterval)
@@ -240,12 +219,17 @@ func Register(containerCache kubecontainer.RuntimeCache) {
 		prometheus.MustRegister(RuntimeOperationsLatency)
 		prometheus.MustRegister(RuntimeOperationsErrors)
 		prometheus.MustRegister(EvictionStatsAge)
-		prometheus.MustRegister(VolumeStatsCapacityBytes)
-		prometheus.MustRegister(VolumeStatsAvailableBytes)
-		prometheus.MustRegister(VolumeStatsUsedBytes)
-		prometheus.MustRegister(VolumeStatsInodes)
-		prometheus.MustRegister(VolumeStatsInodesFree)
-		prometheus.MustRegister(VolumeStatsInodesUsed)
+		prometheus.MustRegister(DevicePluginRegistrationCount)
+		prometheus.MustRegister(DevicePluginAllocationLatency)
+		if utilfeature.DefaultFeatureGate.Enabled(features.DynamicKubeletConfig) {
+			prometheus.MustRegister(AssignedConfig)
+			prometheus.MustRegister(ActiveConfig)
+			prometheus.MustRegister(LastKnownGoodConfig)
+			prometheus.MustRegister(ConfigError)
+		}
+		for _, collector := range collectors {
+			prometheus.MustRegister(collector)
+		}
 	})
 }
 
@@ -302,4 +286,89 @@ func (pc *podAndContainerCollector) Collect(ch chan<- prometheus.Metric) {
 		runningContainerCountDesc,
 		prometheus.GaugeValue,
 		float64(runningContainers))
+}
+
+const configMapAPIPathFmt = "/api/v1/namespaces/%s/configmaps/%s"
+
+func configLabels(source *corev1.NodeConfigSource) (map[string]string, error) {
+	if source == nil {
+		return map[string]string{
+			// prometheus requires all of the labels that can be set on the metric
+			ConfigSourceLabelKey:          "local",
+			ConfigUIDLabelKey:             "",
+			ConfigResourceVersionLabelKey: "",
+			KubeletConfigKeyLabelKey:      "",
+		}, nil
+	}
+	if source.ConfigMap != nil {
+		return map[string]string{
+			ConfigSourceLabelKey:          fmt.Sprintf(configMapAPIPathFmt, source.ConfigMap.Namespace, source.ConfigMap.Name),
+			ConfigUIDLabelKey:             string(source.ConfigMap.UID),
+			ConfigResourceVersionLabelKey: source.ConfigMap.ResourceVersion,
+			KubeletConfigKeyLabelKey:      source.ConfigMap.KubeletConfigKey,
+		}, nil
+	}
+	return nil, fmt.Errorf("unrecognized config source type, all source subfields were nil")
+}
+
+// track labels across metric updates, so we can delete old label sets and prevent leaks
+var assignedConfigLabels map[string]string = map[string]string{}
+
+func SetAssignedConfig(source *corev1.NodeConfigSource) error {
+	// compute the timeseries labels from the source
+	labels, err := configLabels(source)
+	if err != nil {
+		return err
+	}
+	// clean up the old timeseries (WithLabelValues creates a new one for each distinct label set)
+	AssignedConfig.Delete(assignedConfigLabels)
+	// record the new timeseries
+	assignedConfigLabels = labels
+	// expose the new timeseries with a constant count of 1
+	AssignedConfig.With(assignedConfigLabels).Set(1)
+	return nil
+}
+
+// track labels across metric updates, so we can delete old label sets and prevent leaks
+var activeConfigLabels map[string]string = map[string]string{}
+
+func SetActiveConfig(source *corev1.NodeConfigSource) error {
+	// compute the timeseries labels from the source
+	labels, err := configLabels(source)
+	if err != nil {
+		return err
+	}
+	// clean up the old timeseries (WithLabelValues creates a new one for each distinct label set)
+	ActiveConfig.Delete(activeConfigLabels)
+	// record the new timeseries
+	activeConfigLabels = labels
+	// expose the new timeseries with a constant count of 1
+	ActiveConfig.With(activeConfigLabels).Set(1)
+	return nil
+}
+
+// track labels across metric updates, so we can delete old label sets and prevent leaks
+var lastKnownGoodConfigLabels map[string]string = map[string]string{}
+
+func SetLastKnownGoodConfig(source *corev1.NodeConfigSource) error {
+	// compute the timeseries labels from the source
+	labels, err := configLabels(source)
+	if err != nil {
+		return err
+	}
+	// clean up the old timeseries (WithLabelValues creates a new one for each distinct label set)
+	LastKnownGoodConfig.Delete(lastKnownGoodConfigLabels)
+	// record the new timeseries
+	lastKnownGoodConfigLabels = labels
+	// expose the new timeseries with a constant count of 1
+	LastKnownGoodConfig.With(lastKnownGoodConfigLabels).Set(1)
+	return nil
+}
+
+func SetConfigError(err bool) {
+	if err {
+		ConfigError.Set(1)
+	} else {
+		ConfigError.Set(0)
+	}
 }

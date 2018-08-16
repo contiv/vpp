@@ -18,7 +18,6 @@ package cm
 
 import (
 	"fmt"
-	"path"
 	"strings"
 	"sync"
 	"time"
@@ -31,8 +30,8 @@ import (
 	cgroupfs "github.com/opencontainers/runc/libcontainer/cgroups/fs"
 	"k8s.io/api/core/v1"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
-	v1qos "k8s.io/kubernetes/pkg/api/v1/helper/qos"
 	"k8s.io/kubernetes/pkg/api/v1/resource"
+	v1qos "k8s.io/kubernetes/pkg/apis/core/v1/helper/qos"
 	kubefeatures "k8s.io/kubernetes/pkg/features"
 )
 
@@ -56,22 +55,22 @@ type qosContainerManagerImpl struct {
 	cgroupManager      CgroupManager
 	activePods         ActivePodsFunc
 	getNodeAllocatable func() v1.ResourceList
-	cgroupRoot         string
+	cgroupRoot         CgroupName
 	qosReserved        map[v1.ResourceName]int64
 }
 
-func NewQOSContainerManager(subsystems *CgroupSubsystems, cgroupRoot string, nodeConfig NodeConfig) (QOSContainerManager, error) {
+func NewQOSContainerManager(subsystems *CgroupSubsystems, cgroupRoot CgroupName, nodeConfig NodeConfig, cgroupManager CgroupManager) (QOSContainerManager, error) {
 	if !nodeConfig.CgroupsPerQOS {
 		return &qosContainerManagerNoop{
-			cgroupRoot: CgroupName(nodeConfig.CgroupRoot),
+			cgroupRoot: cgroupRoot,
 		}, nil
 	}
 
 	return &qosContainerManagerImpl{
 		subsystems:    subsystems,
-		cgroupManager: NewCgroupManager(subsystems, nodeConfig.CgroupDriver),
+		cgroupManager: cgroupManager,
 		cgroupRoot:    cgroupRoot,
-		qosReserved:   nodeConfig.ExperimentalQOSReserved,
+		qosReserved:   nodeConfig.QOSReserved,
 	}, nil
 }
 
@@ -82,22 +81,19 @@ func (m *qosContainerManagerImpl) GetQOSContainersInfo() QOSContainersInfo {
 func (m *qosContainerManagerImpl) Start(getNodeAllocatable func() v1.ResourceList, activePods ActivePodsFunc) error {
 	cm := m.cgroupManager
 	rootContainer := m.cgroupRoot
-	if !cm.Exists(CgroupName(rootContainer)) {
-		return fmt.Errorf("root container %s doesn't exist", rootContainer)
+	if !cm.Exists(rootContainer) {
+		return fmt.Errorf("root container %v doesn't exist", rootContainer)
 	}
 
 	// Top level for Qos containers are created only for Burstable
 	// and Best Effort classes
-	qosClasses := map[v1.PodQOSClass]string{
-		v1.PodQOSBurstable:  path.Join(rootContainer, strings.ToLower(string(v1.PodQOSBurstable))),
-		v1.PodQOSBestEffort: path.Join(rootContainer, strings.ToLower(string(v1.PodQOSBestEffort))),
+	qosClasses := map[v1.PodQOSClass]CgroupName{
+		v1.PodQOSBurstable:  NewCgroupName(rootContainer, strings.ToLower(string(v1.PodQOSBurstable))),
+		v1.PodQOSBestEffort: NewCgroupName(rootContainer, strings.ToLower(string(v1.PodQOSBestEffort))),
 	}
 
 	// Create containers for both qos classes
 	for qosClass, containerName := range qosClasses {
-		// get the container's absolute name
-		absoluteContainerName := CgroupName(containerName)
-
 		resourceParameters := &ResourceConfig{}
 		// the BestEffort QoS class has a statically configured minShares value
 		if qosClass == v1.PodQOSBestEffort {
@@ -107,7 +103,7 @@ func (m *qosContainerManagerImpl) Start(getNodeAllocatable func() v1.ResourceLis
 
 		// containerConfig object stores the cgroup specifications
 		containerConfig := &CgroupConfig{
-			Name:               absoluteContainerName,
+			Name:               containerName,
 			ResourceParameters: resourceParameters,
 		}
 
@@ -117,7 +113,7 @@ func (m *qosContainerManagerImpl) Start(getNodeAllocatable func() v1.ResourceLis
 		}
 
 		// check if it exists
-		if !cm.Exists(absoluteContainerName) {
+		if !cm.Exists(containerName) {
 			if err := cm.Create(containerConfig); err != nil {
 				return fmt.Errorf("failed to create top level %v QOS cgroup : %v", qosClass, err)
 			}
@@ -194,9 +190,6 @@ func (m *qosContainerManagerImpl) setCPUCgroupConfig(configs map[v1.PodQOSClass]
 
 	// set burstable shares based on current observe state
 	burstableCPUShares := MilliCPUToShares(burstablePodCPURequest)
-	if burstableCPUShares < uint64(MinShares) {
-		burstableCPUShares = uint64(MinShares)
-	}
 	configs[v1.PodQOSBurstable].ResourceParameters.CpuShares = &burstableCPUShares
 	return nil
 }
@@ -282,11 +275,11 @@ func (m *qosContainerManagerImpl) UpdateCgroups() error {
 
 	qosConfigs := map[v1.PodQOSClass]*CgroupConfig{
 		v1.PodQOSBurstable: {
-			Name:               CgroupName(m.qosContainersInfo.Burstable),
+			Name:               m.qosContainersInfo.Burstable,
 			ResourceParameters: &ResourceConfig{},
 		},
 		v1.PodQOSBestEffort: {
-			Name:               CgroupName(m.qosContainersInfo.BestEffort),
+			Name:               m.qosContainersInfo.BestEffort,
 			ResourceParameters: &ResourceConfig{},
 		},
 	}
@@ -303,43 +296,46 @@ func (m *qosContainerManagerImpl) UpdateCgroups() error {
 		}
 	}
 
-	for resource, percentReserve := range m.qosReserved {
-		switch resource {
-		case v1.ResourceMemory:
-			m.setMemoryReserve(qosConfigs, percentReserve)
+	if utilfeature.DefaultFeatureGate.Enabled(kubefeatures.QOSReserved) {
+		for resource, percentReserve := range m.qosReserved {
+			switch resource {
+			case v1.ResourceMemory:
+				m.setMemoryReserve(qosConfigs, percentReserve)
+			}
+		}
+
+		updateSuccess := true
+		for _, config := range qosConfigs {
+			err := m.cgroupManager.Update(config)
+			if err != nil {
+				updateSuccess = false
+			}
+		}
+		if updateSuccess {
+			glog.V(4).Infof("[ContainerManager]: Updated QoS cgroup configuration")
+			return nil
+		}
+
+		// If the resource can adjust the ResourceConfig to increase likelihood of
+		// success, call the adjustment function here.  Otherwise, the Update() will
+		// be called again with the same values.
+		for resource, percentReserve := range m.qosReserved {
+			switch resource {
+			case v1.ResourceMemory:
+				m.retrySetMemoryReserve(qosConfigs, percentReserve)
+			}
 		}
 	}
-	updateSuccess := true
+
 	for _, config := range qosConfigs {
 		err := m.cgroupManager.Update(config)
 		if err != nil {
-			updateSuccess = false
-		}
-	}
-	if updateSuccess {
-		glog.V(2).Infof("[ContainerManager]: Updated QoS cgroup configuration")
-		return nil
-	}
-
-	// If the resource can adjust the ResourceConfig to increase likelihood of
-	// success, call the adjustment function here.  Otherwise, the Update() will
-	// be called again with the same values.
-	for resource, percentReserve := range m.qosReserved {
-		switch resource {
-		case v1.ResourceMemory:
-			m.retrySetMemoryReserve(qosConfigs, percentReserve)
-		}
-	}
-
-	for _, config := range qosConfigs {
-		err := m.cgroupManager.Update(config)
-		if err != nil {
-			glog.V(2).Infof("[ContainerManager]: Failed to update QoS cgroup configuration")
+			glog.Errorf("[ContainerManager]: Failed to update QoS cgroup configuration")
 			return err
 		}
 	}
 
-	glog.V(2).Infof("[ContainerManager]: Updated QoS cgroup configuration on retry")
+	glog.V(4).Infof("[ContainerManager]: Updated QoS cgroup configuration")
 	return nil
 }
 

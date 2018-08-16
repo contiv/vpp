@@ -38,6 +38,8 @@ import (
 	"github.com/contiv/vpp/plugins/crd/datastore"
 	crdClientSet "github.com/contiv/vpp/plugins/crd/pkg/client/clientset/versioned"
 	"k8s.io/client-go/tools/clientcmd"
+
+	apiextcs "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 )
 
 // Plugin watches configuration of K8s resources (as reflected by KSR into ETCD)
@@ -103,18 +105,20 @@ func (p *Plugin) Init() error {
 		return fmt.Errorf("failed to build crd Client: %s", err)
 	}
 
+	apiclientset, err := apiextcs.NewForConfig(k8sClientConfig)
+	if err != nil {
+		return fmt.Errorf("failed to build api Client: %s", err)
+	}
+
 	p.controller = &controller.ContivTelemetryController{
 		Deps: controller.Deps{
 			Log: p.Log.NewLogger("-crdController"),
 		},
 		K8sClient: k8sClient,
 		CrdClient: crdClient,
+		APIClient: apiclientset,
 	}
 	p.controller.Log.SetLevel(logging.DebugLevel)
-
-	// Init and run the controller
-	p.controller.Init()
-	go p.controller.Run(p.ctx.Done())
 
 	// This where we initialize all layers
 	p.cache = &cache.ContivTelemetryCache{
@@ -137,9 +141,22 @@ func (p *Plugin) Init() error {
 		K8sCache: p.cache.K8sCache,
 		Report:   p.cache.Report,
 	}
-	// p.processor.Init()
 	p.cache.Processor = p.processor
 
+	controllerReport := &controller.CRDReport{
+		Deps: controller.Deps{
+			Log: p.Log.NewLogger("-controllerReporter"),
+		},
+		VppCache: p.cache.VppCache,
+		K8sCache: p.cache.K8sCache,
+		Report:   p.cache.Report,
+		Ctlr:     p.controller,
+	}
+	p.cache.ControllerReport = controllerReport
+
+	// Init and run the controller
+	p.controller.Init()
+	go p.controller.Run(p.ctx.Done())
 	go p.watchEvents()
 	err = p.subscribeWatcher()
 	if err != nil {

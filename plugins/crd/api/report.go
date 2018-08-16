@@ -14,7 +14,10 @@
 
 package api
 
-import "time"
+import (
+	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
+	"time"
+)
 
 const (
 	// GlobalMsg defines the report bin where to put global (i.e.
@@ -31,4 +34,5 @@ type Report interface {
 	GetTimeStamp() time.Time
 	Clear()
 	Print()
+	RetrieveReport() telemetrymodel.Reports
 }

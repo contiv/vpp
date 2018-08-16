@@ -6,7 +6,7 @@ import (
 	"io"
 	"strconv"
 
-	"github.com/go-redis/redis/internal"
+	"github.com/go-redis/redis/internal/util"
 )
 
 const bytesAllocLimit = 1024 * 1024 // 1mb
@@ -18,6 +18,16 @@ const (
 	StringReply = '$'
 	ArrayReply  = '*'
 )
+
+//------------------------------------------------------------------------------
+
+const Nil = RedisError("redis: nil")
+
+type RedisError string
+
+func (e RedisError) Error() string { return string(e) }
+
+//------------------------------------------------------------------------------
 
 type MultiBulkParse func(*Reader, int64) (interface{}, error)
 
@@ -66,7 +76,7 @@ func (r *Reader) ReadLine() ([]byte, error) {
 		return nil, fmt.Errorf("redis: reply is empty")
 	}
 	if isNilReply(line) {
-		return nil, internal.Nil
+		return nil, Nil
 	}
 	return line, nil
 }
@@ -81,11 +91,11 @@ func (r *Reader) ReadReply(m MultiBulkParse) (interface{}, error) {
 	case ErrorReply:
 		return nil, ParseErrorReply(line)
 	case StatusReply:
-		return parseStatusValue(line), nil
+		return parseTmpStatusReply(line), nil
 	case IntReply:
-		return parseInt(line[1:], 10, 64)
+		return util.ParseInt(line[1:], 10, 64)
 	case StringReply:
-		return r.readTmpBytesValue(line)
+		return r.readTmpBytesReply(line)
 	case ArrayReply:
 		n, err := parseArrayLen(line)
 		if err != nil {
@@ -105,7 +115,7 @@ func (r *Reader) ReadIntReply() (int64, error) {
 	case ErrorReply:
 		return 0, ParseErrorReply(line)
 	case IntReply:
-		return parseInt(line[1:], 10, 64)
+		return util.ParseInt(line[1:], 10, 64)
 	default:
 		return 0, fmt.Errorf("redis: can't parse int reply: %.100q", line)
 	}
@@ -120,9 +130,9 @@ func (r *Reader) ReadTmpBytesReply() ([]byte, error) {
 	case ErrorReply:
 		return nil, ParseErrorReply(line)
 	case StringReply:
-		return r.readTmpBytesValue(line)
+		return r.readTmpBytesReply(line)
 	case StatusReply:
-		return parseStatusValue(line), nil
+		return parseTmpStatusReply(line), nil
 	default:
 		return nil, fmt.Errorf("redis: can't parse string reply: %.100q", line)
 	}
@@ -151,7 +161,7 @@ func (r *Reader) ReadFloatReply() (float64, error) {
 	if err != nil {
 		return 0, err
 	}
-	return parseFloat(b, 64)
+	return util.ParseFloat(b, 64)
 }
 
 func (r *Reader) ReadArrayReply(m MultiBulkParse) (interface{}, error) {
@@ -219,9 +229,9 @@ func (r *Reader) ReadScanReply() ([]string, uint64, error) {
 	return keys, cursor, err
 }
 
-func (r *Reader) readTmpBytesValue(line []byte) ([]byte, error) {
+func (r *Reader) readTmpBytesReply(line []byte) ([]byte, error) {
 	if isNilReply(line) {
-		return nil, internal.Nil
+		return nil, Nil
 	}
 
 	replyLen, err := strconv.Atoi(string(line[1:]))
@@ -241,7 +251,7 @@ func (r *Reader) ReadInt() (int64, error) {
 	if err != nil {
 		return 0, err
 	}
-	return parseInt(b, 10, 64)
+	return util.ParseInt(b, 10, 64)
 }
 
 func (r *Reader) ReadUint() (uint64, error) {
@@ -249,7 +259,7 @@ func (r *Reader) ReadUint() (uint64, error) {
 	if err != nil {
 		return 0, err
 	}
-	return parseUint(b, 10, 64)
+	return util.ParseUint(b, 10, 64)
 }
 
 // --------------------------------------------------------------------
@@ -284,18 +294,6 @@ func readN(r io.Reader, b []byte, n int) ([]byte, error) {
 	return b, nil
 }
 
-func formatInt(n int64) string {
-	return strconv.FormatInt(n, 10)
-}
-
-func formatUint(u uint64) string {
-	return strconv.FormatUint(u, 10)
-}
-
-func formatFloat(f float64) string {
-	return strconv.FormatFloat(f, 'f', -1, 64)
-}
-
 func isNilReply(b []byte) bool {
 	return len(b) == 3 &&
 		(b[0] == StringReply || b[0] == ArrayReply) &&
@@ -303,32 +301,16 @@ func isNilReply(b []byte) bool {
 }
 
 func ParseErrorReply(line []byte) error {
-	return internal.RedisError(string(line[1:]))
+	return RedisError(string(line[1:]))
 }
 
-func parseStatusValue(line []byte) []byte {
+func parseTmpStatusReply(line []byte) []byte {
 	return line[1:]
 }
 
 func parseArrayLen(line []byte) (int64, error) {
 	if isNilReply(line) {
-		return 0, internal.Nil
+		return 0, Nil
 	}
-	return parseInt(line[1:], 10, 64)
-}
-
-func atoi(b []byte) (int, error) {
-	return strconv.Atoi(internal.BytesToString(b))
-}
-
-func parseInt(b []byte, base int, bitSize int) (int64, error) {
-	return strconv.ParseInt(internal.BytesToString(b), base, bitSize)
-}
-
-func parseUint(b []byte, base int, bitSize int) (uint64, error) {
-	return strconv.ParseUint(internal.BytesToString(b), base, bitSize)
-}
-
-func parseFloat(b []byte, bitSize int) (float64, error) {
-	return strconv.ParseFloat(internal.BytesToString(b), bitSize)
+	return util.ParseInt(line[1:], 10, 64)
 }

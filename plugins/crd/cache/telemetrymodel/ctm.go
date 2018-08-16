@@ -75,6 +75,7 @@ type NodeInterface struct {
 	IfMeta InterfaceMeta `json:"interface_meta"`
 }
 
+// Interface contains interface parameter data
 type Interface struct {
 	Name        string                   `json:"name"`
 	IfType      interfaces.InterfaceType `json:"type,omitempty"`
@@ -87,6 +88,7 @@ type Interface struct {
 	Tap         Tap                      `json:"tap,omitempty"`
 }
 
+// InterfaceMeta defines the interface VPP internal metadata
 type InterfaceMeta struct {
 	SwIfIndex       uint32 `json:"sw_if_index"`
 	Tag             string `json:"tag"`
@@ -112,7 +114,7 @@ type NodeBridgeDomain struct {
 	BdMeta BridgeDomainMeta `json:"bridge_domain_meta"`
 }
 
-// BridgeDomainMeta defines the Bridge Domain main data set
+// BridgeDomain defines the Bridge Domain main data set
 type BridgeDomain struct {
 	Interfaces []BdInterface `json:"interfaces"`
 	Name       string        `json:"name"`
@@ -122,7 +124,7 @@ type BridgeDomain struct {
 // BridgeDomainMeta defines the Bridge Domain VPP internal metadata
 type BridgeDomainMeta struct {
 	BdID      uint32           `json:"bridge_domain_id"`
-	BdId2Name BdId2NameMapping `json:"bridge_domain_id_to_name"`
+	BdID2Name BdID2NameMapping `json:"bridge_domain_id_to_name"`
 }
 
 // BdInterface defines the BD Interface data
@@ -132,8 +134,8 @@ type BdInterface struct {
 	SplitHorizonGrp uint32 `json:"split_horizon_group"`
 }
 
-// BdId2NameMapping defines the mapping of BD ifIndices to interface Names
-type BdId2NameMapping map[uint32]string
+// BdID2NameMapping defines the mapping of BD ifIndices to interface Names
+type BdID2NameMapping map[uint32]string
 
 //NodeL2FibEntry holds unmarshalled L2Fib JSON data
 type NodeL2FibEntry struct {
@@ -141,6 +143,7 @@ type NodeL2FibEntry struct {
 	FeMeta L2FibEntryMeta `json:"fib_meta"`
 }
 
+// L2FibEntry defines the L2 FIB entry data set
 type L2FibEntry struct {
 	BridgeDomainName        string `json:"bridge_domain"`
 	OutgoingIfName          string `json:"outgoing_interface"`
@@ -149,8 +152,9 @@ type L2FibEntry struct {
 	BridgedVirtualInterface bool   `json:"bridged_virtual_interface,omitempty"`
 }
 
+// L2FibEntryMeta defines the L2FIB entry VPP internal metadata
 type L2FibEntryMeta struct {
-	BridgeDomainId  uint32 `json:"bridge_domain_id"`
+	BridgeDomainID  uint32 `json:"bridge_domain_id"`
 	OutgoingIfIndex uint32 `json:"outgoing_interface_sw_if_idx"`
 }
 
@@ -160,6 +164,7 @@ type NodeIPArpEntry struct {
 	AeMeta IPArpEntryMeta `json:"Meta"`
 }
 
+// IPArpEntry defines the IP ARP Entry entry data set
 type IPArpEntry struct {
 	Interface   string `json:"interface"`
 	IPAddress   string `json:"ip_address"`
@@ -167,6 +172,7 @@ type IPArpEntry struct {
 	Static      bool   `json:"static,omitempty"`
 }
 
+// IPArpEntryMeta defines the IP ARP Entry VPP internal metadata
 type IPArpEntryMeta struct {
 	IfIndex uint32 `json:"SwIfIndex"`
 }
@@ -177,14 +183,16 @@ type NodeIPRoute struct {
 	IprMeta IPRouteMeta `json:"Meta"`
 }
 
+// IPRoute defines the IP Route entry data set
 type IPRoute struct {
-	VrfID       uint32  `json:"vrf_id"`
+	VrfID       uint32 `json:"vrf_id"`
 	DstAddr     string `json:"dst_ip_addr"`
-	NextHopAddr string  `json:"next_hop_addr"`
-	OutIface    string  `json:"outgoing_interface"`
-	Weight      uint32  `json:"weight"`
+	NextHopAddr string `json:"next_hop_addr"`
+	OutIface    string `json:"outgoing_interface"`
+	Weight      uint32 `json:"weight"`
 }
 
+// IPRouteMeta defines the IP Route VPP internal metadata
 type IPRouteMeta struct {
 	TableName         string `json:"TableName"`
 	OutgoingIfIdx     uint32 `json:"OutgoingIfIdx"`

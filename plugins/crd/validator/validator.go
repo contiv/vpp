@@ -174,7 +174,7 @@ func (v *Validator) ValidateL2Connectivity() {
 
 		i := 0
 		//for each index in the vxlanBD
-		for ifIndex := range vxLanBD.BdMeta.BdId2Name {
+		for ifIndex := range vxLanBD.BdMeta.BdID2Name {
 			//check if one of the indices point to the loop interface
 			//if it does, increment a counter and set a boolean to true
 			intfidxInterface, ok := node.NodeInterfaces[int(ifIndex)]
@@ -359,7 +359,7 @@ func (v *Validator) ValidateL2FibEntries() {
 		}
 
 		for _, fib := range node.NodeL2Fibs {
-			if int(fib.FeMeta.BridgeDomainId) != vxLanBD {
+			if int(fib.FeMeta.BridgeDomainID) != vxLanBD {
 				continue
 			}
 

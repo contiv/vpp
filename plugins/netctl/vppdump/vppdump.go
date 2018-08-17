@@ -22,7 +22,7 @@ import (
 	"strings"
 )
 
-//VppDumpCmd will receive a nodeName and dumpType and find the desired information from the dumpType for the node.
+//VppDumpCmd will receive a nodeName and dumpType and finds the desired information from the dumpType for the node.
 func VppDumpCmd(nodeName string, dumpType string) {
 	if nodeName == "" || dumpType == "" {
 		helpText := http.Crawl("localhost:9999")

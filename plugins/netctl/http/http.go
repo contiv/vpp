@@ -15,14 +15,14 @@
 package http
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"bytes"
-	"encoding/json"
 )
 
-//GetNodeInfo will do an http request for the given command and return an indented string to print.
+//GetNodeInfo will make an http request for the given command and return an indented slice of bytes.
 func GetNodeInfo(ipAddr string, cmd string) []byte {
 	client := http.Client{
 		Transport:     nil,
@@ -45,7 +45,7 @@ func GetNodeInfo(ipAddr string, cmd string) []byte {
 	b, _ := ioutil.ReadAll(res.Body)
 	b = []byte(b)
 	var out bytes.Buffer
-	err = json.Indent(&out,b,"","  ")
+	err = json.Indent(&out, b, "", "  ")
 	if err != nil {
 		fmt.Printf(err.Error())
 	}

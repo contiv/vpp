@@ -32,6 +32,7 @@ import (
 	"github.com/ligato/cn-infra/datasync"
 	"github.com/ligato/cn-infra/db/keyval"
 	"github.com/ligato/cn-infra/logging"
+	"github.com/ligato/cn-infra/rpc/rest"
 	"github.com/ligato/vpp-agent/clientv1/linux"
 	linux_intf "github.com/ligato/vpp-agent/plugins/linux/model/interfaces"
 	linux_l3 "github.com/ligato/vpp-agent/plugins/linux/model/l3"
@@ -222,8 +223,8 @@ type vswitchConfig struct {
 // newRemoteCNIServer initializes a new remote CNI server instance.
 func newRemoteCNIServer(logger logging.Logger, vppTxnFactory func() linuxclient.DataChangeDSL, proxy kvdbproxy.Proxy,
 	configuredContainers *containeridx.ConfigIndex, govppChan api.Channel, index ifaceidx.SwIfIndex, dhcpIndex ifaceidx.DhcpIndex, agentLabel string,
-	config *Config, nodeConfig *OneNodeConfig, nodeID uint32, nodeExcludeIPs []net.IP, broker keyval.ProtoBroker) (*remoteCNIserver, error) {
-	ipam, err := ipam.New(logger, nodeID, &config.IPAMConfig, nodeExcludeIPs, broker)
+	config *Config, nodeConfig *OneNodeConfig, nodeID uint32, nodeExcludeIPs []net.IP, broker keyval.ProtoBroker, http rest.HTTPHandlers) (*remoteCNIserver, error) {
+	ipam, err := ipam.New(logger, nodeID, agentLabel, &config.IPAMConfig, nodeExcludeIPs, broker, http)
 	if err != nil {
 		return nil, err
 	}

@@ -40,6 +40,7 @@ import (
 	"github.com/ligato/cn-infra/infra"
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/rpc/grpc"
+	"github.com/ligato/cn-infra/rpc/rest"
 	"github.com/ligato/cn-infra/servicelabel"
 	"github.com/ligato/cn-infra/utils/safeclose"
 	"github.com/ligato/vpp-agent/clientv1/linux"
@@ -85,6 +86,7 @@ type Deps struct {
 	ETCD         *etcd.Plugin
 	Bolt         keyval.KvProtoPlugin
 	Watcher      datasync.KeyValProtoWatcher
+	HTTPHandlers rest.HTTPHandlers
 }
 
 // Config represents configuration for the Contiv plugin.
@@ -197,7 +199,8 @@ func (plugin *Plugin) Init() error {
 		plugin.myNodeConfig,
 		nodeID,
 		plugin.excludedIPsFromNodeCIDR(),
-		plugin.Bolt.NewBroker(plugin.ServiceLabel.GetAgentPrefix()))
+		plugin.Bolt.NewBroker(plugin.ServiceLabel.GetAgentPrefix()),
+		plugin.HTTPHandlers)
 	if err != nil {
 		return fmt.Errorf("Can't create new remote CNI server due to error: %v ", err)
 	}

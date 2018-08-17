@@ -22,6 +22,7 @@ import (
 	"github.com/ligato/cn-infra/db/keyval/etcd"
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/rpc/grpc"
+	"github.com/ligato/cn-infra/rpc/rest"
 	"github.com/ligato/cn-infra/servicelabel"
 	"github.com/ligato/vpp-agent/plugins/govppmux"
 )
@@ -49,6 +50,7 @@ func NewPlugin(opts ...Option) *Plugin {
 	p.Proxy = &kvdbproxy.DefaultPlugin
 	p.ETCD = &etcd.DefaultPlugin
 	p.Bolt = &bolt.DefaultPlugin
+	p.HTTPHandlers = &rest.DefaultPlugin
 
 	for _, o := range opts {
 		o(p)

@@ -37,6 +37,11 @@ import (
 	"github.com/vishvananda/netns"
 )
 
+const (
+	verifyPodRetries    = 100                   // number of retries for verifying POD connectivity
+	verifyPodRetrySleep = 30 * time.Millisecond // sleep between attempts to verify POD connectivity
+)
+
 // PodConfig groups applied configuration for a container
 type PodConfig struct {
 	// ID identifies the Pod
@@ -517,22 +522,22 @@ func (s *remoteCNIserver) verifyPodIP(nsPath string, ifName string, ip net.IP) e
 
 	// loop until the interface can be found
 	var link netlink.Link
-	for i := 0; i < 100; i++ {
+	for i := 0; i < verifyPodRetries; i++ {
 		link, err = netlink.LinkByName(ifName)
 		if link != nil {
 			break
 		}
 		s.Logger.Debugf("Link %s not yet found in the namespace %s, waiting", ifName, nsPath)
-		time.Sleep(10 * time.Millisecond)
+		time.Sleep(verifyPodRetrySleep)
 	}
 	if link == nil {
-		err := fmt.Errorf("cannot find the link %s in the namespace %s", ifName, nsPath)
+		err := fmt.Errorf("cannot find the link %s in the namespace %s within %v", ifName, nsPath, verifyPodRetries*verifyPodRetrySleep)
 		s.Logger.Error(err)
 		return err
 	}
 
 	// loop until the interface IP can be found
-	for i := 0; i < 100; i++ {
+	for i := 0; i < verifyPodRetries; i++ {
 		addr, err := netlink.AddrList(link, netlink.FAMILY_V4)
 		if err == nil {
 			for _, a := range addr {
@@ -543,10 +548,10 @@ func (s *remoteCNIserver) verifyPodIP(nsPath string, ifName string, ip net.IP) e
 			}
 		}
 		s.Logger.Debugf("IP address %s not yet found on the %s interface in the namespace %s, waiting", ip, ifName, nsPath)
-		time.Sleep(10 * time.Millisecond)
+		time.Sleep(verifyPodRetrySleep)
 	}
 
-	err = fmt.Errorf("cannot find the IP address %s on the %s interface in the namespace %s", ip, ifName, nsPath)
+	err = fmt.Errorf("cannot find the IP address %s on the %s interface in the namespace %s within %v", ip, ifName, nsPath, verifyPodRetries*verifyPodRetrySleep)
 	s.Logger.Error(err)
 	return err
 }

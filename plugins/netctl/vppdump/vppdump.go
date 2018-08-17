@@ -18,21 +18,28 @@ package vppdump
 import (
 	"fmt"
 	"github.com/contiv/vpp/plugins/netctl/http"
+	"github.com/contiv/vpp/plugins/netctl/nodes"
+	"strings"
 )
 
+//VppDumpCmd will receive a nodeName and dumpType and find the desired information from the dumpType for the node.
 func VppDumpCmd(nodeName string, dumpType string) {
-	fmt.Printf("vppdump %s %s\n", nodeName, dumpType)
-
-	switch dumpType {
-	case "interfaces":
-		b := http.GetNodeInfo(nodeName, "vpp/dump/v1/interfaces")
-		fmt.Printf("%s\n", b)
-	case "bridgedomains":
-		b := http.GetNodeInfo(nodeName, "vpp/dump/v1/bd")
-		fmt.Printf("%s\n", b)
-		
-	default:
-		fmt.Printf("Unknown command: %s",dumpType)
+	if nodeName == "" || dumpType == "" {
+		helpText := http.Crawl("localhost:9999")
+		fmt.Printf("Command usage: netctl vppdump %s <cmd>:\n", nodeName)
+		for num, txt := range helpText {
+			txt = strings.TrimPrefix(txt, "/vpp/dump/v1/")
+			fmt.Printf("cmd %+v: %s\n", num, txt)
+		}
+		return
 	}
-
+	fmt.Printf("vppdump %s %s\n", nodeName, dumpType)
+	ipAdr := nodes.FindIPForNodeName(nodeName)
+	if ipAdr == "" {
+		fmt.Printf("Unknown node name %s", nodeName)
+		return
+	}
+	cmd := fmt.Sprintf("vpp/dump/v1/%s", dumpType)
+	b := http.GetNodeInfo(ipAdr, cmd)
+	fmt.Printf("%s", b)
 }

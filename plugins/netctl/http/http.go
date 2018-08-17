@@ -1,3 +1,17 @@
+// Copyright (c) 2018 Cisco and/or its affiliates.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at:
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
 package http
 
 import (
@@ -8,12 +22,13 @@ import (
 	"encoding/json"
 )
 
+//GetNodeInfo will do an http request for the given command and return an indented string to print.
 func GetNodeInfo(ipAddr string, cmd string) []byte {
 	client := http.Client{
 		Transport:     nil,
 		CheckRedirect: nil,
 		Jar:           nil,
-		Timeout:       30000000000000,
+		Timeout:       30000000,
 	}
 	url := fmt.Sprintf("http://%s:9999/%s", ipAddr, cmd)
 	res, err := client.Get(url)
@@ -35,9 +50,5 @@ func GetNodeInfo(ipAddr string, cmd string) []byte {
 		fmt.Printf(err.Error())
 	}
 
-	if err != nil {
-		errString := fmt.Sprintf("Error unmarshaling data for ip %+v: %+v", ipAddr, err)
-		fmt.Printf(errString)
-	}
 	return out.Bytes()
 }

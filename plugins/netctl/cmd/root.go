@@ -35,14 +35,19 @@ var cmdNodes = &cobra.Command{
 var cmdVppDump = &cobra.Command{
 	Use:   "vppdump nodename ",
 	Short: "Print anything to the screen",
-	Args:  cobra.MinimumNArgs(2),
+	Args:  cobra.MinimumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		nodeName := args[0]
-		vppDumpType := args[1]
-		vppdump.VppDumpCmd(nodeName, vppDumpType)
+		if len(args) == 2 {
+			vppDumpType := args[1]
+			vppdump.VppDumpCmd(nodeName, vppDumpType)
+		} else {
+			vppdump.VppDumpCmd(nodeName, "")
+		}
 	},
 }
 
+//Execute will execute the command netctlcd
 func Execute() {
 	var rootCmd = &cobra.Command{Use: "netctl"}
 	rootCmd.AddCommand(cmdNodes)

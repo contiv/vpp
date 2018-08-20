@@ -20,6 +20,13 @@ import (
 	"net/http"
 )
 
+const (
+	// Prefix is versioned prefix for REST urls
+	Prefix = "/contiv/v1/"
+	// PluginURL is versioned URL (using prefix) for IPAM REST endpoint
+	PluginURL = Prefix + "ipam"
+)
+
 type ipamData struct {
 	NodeID         uint32 `json:"nodeId"`
 	NodeName       string `json:"nodeName"`
@@ -33,8 +40,8 @@ func (i *IPAM) registerHandlers(http rest.HTTPHandlers) {
 		i.logger.Warnf("No http handler provided, skipping registration of IPAM REST handlers")
 		return
 	}
-	http.RegisterHTTPHandler("/ipam", i.ipamGetHandler, "GET")
-	i.logger.Infof("IPAM REST handler registered: GET /ipam")
+	http.RegisterHTTPHandler(PluginURL, i.ipamGetHandler, "GET")
+	i.logger.Infof("IPAM REST handler registered: GET %v", PluginURL)
 }
 
 func (i *IPAM) ipamGetHandler(formatter *render.Render) http.HandlerFunc {

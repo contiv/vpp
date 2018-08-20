@@ -99,6 +99,10 @@ type API interface {
 	// pod immediately before its removal.
 	RegisterPodPreRemovalHook(hook PodActionHook)
 
+	// RegisterPodPostAddHook allows to register callback that will be run for each
+	// pod once it is added and before the CNI reply is sent.
+	RegisterPodPostAddHook(hook PodActionHook)
+
 	// GetMainVrfID returns the ID of the main network connectivity VRF.
 	GetMainVrfID() uint32
 

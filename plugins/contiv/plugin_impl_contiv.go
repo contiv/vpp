@@ -405,6 +405,12 @@ func (plugin *Plugin) RegisterPodPreRemovalHook(hook PodActionHook) {
 	plugin.cniServer.RegisterPodPreRemovalHook(hook)
 }
 
+// RegisterPodPostAddHook allows to register callback that will be run for each
+// pod once it is added and before the CNI reply is sent.
+func (plugin *Plugin) RegisterPodPostAddHook(hook PodActionHook) {
+	plugin.cniServer.RegisterPodPostAddHook(hook)
+}
+
 // GetMainVrfID returns the ID of the main network connectivity VRF.
 func (plugin *Plugin) GetMainVrfID() uint32 {
 	return plugin.cniServer.GetMainVrfID()

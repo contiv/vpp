@@ -128,6 +128,9 @@ type remoteCNIserver struct {
 	// podPreRemovalHooks is a slice of callbacks called before a pod removal
 	podPreRemovalHooks []PodActionHook
 
+	// podPostAddHooks is a slice of callbacks called once pod is added
+	podPostAddHook []PodActionHook
+
 	// node specific configuration
 	nodeConfig *OneNodeConfig
 
@@ -1080,6 +1083,15 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 		return s.generateCniErrorReply(err)
 	}
 
+	// Run all registered post add hooks.
+	for _, hook := range s.podPostAddHook {
+		err = hook(config.PodNamespace, config.PodName)
+		if err != nil {
+			// treat error as warning
+			s.Logger.WithField("err", err).Warn("Pod post add hook has failed")
+			err = nil
+		}
+	}
 	// prepare and send reply for the CNI request
 	reply = s.generateCniReply(config, request.NetworkNamespace, podIPCIDR)
 	return reply, nil
@@ -1579,6 +1591,15 @@ func (s *remoteCNIserver) RegisterPodPreRemovalHook(hook PodActionHook) {
 	defer s.Unlock()
 
 	s.podPreRemovalHooks = append(s.podPreRemovalHooks, hook)
+}
+
+// RegisterPodPostAddHook allows to register callback that will be run for each
+// pod once it is added and before the CNI reply is sent.
+func (s *remoteCNIserver) RegisterPodPostAddHook(hook PodActionHook) {
+	s.Lock()
+	defer s.Unlock()
+
+	s.podPostAddHook = append(s.podPostAddHook, hook)
 }
 
 // setNodeIP updates nodeIP and propagate the change to subscribers

@@ -140,9 +140,6 @@ Do you want to pull the latest images? [Y/n] y
 latest: Pulling from contivvpp/vswitch
 Digest: sha256:51d875236ae4e59d03805900875b002f539fec8ab68b94156ba47cad3fef8630
 Status: Image is up to date for contivvpp/vswitch:latest
-latest: Pulling from contivvpp/cri
-Digest: sha256:e7c34140d4bfdecb7f37022da8a1e57c5377cc77af776acbb2f7b1aeff577365
-Status: Image is up to date for contivvpp/cri:latest
 latest: Pulling from contivvpp/ksr
 Digest: sha256:abf120fd901af3c8e265c5ddab9f918823999f5cd934ea8b7538c2e0b30411c2
 Status: Image is up to date for contivvpp/ksr:latest
@@ -165,7 +162,5 @@ Status: Image is up to date for contivvpp/kube-proxy:v1.8.3
 v1.8.4: Pulling from contivvpp/kube-proxy
 Digest: sha256:50bf7bfc1d4b6732b41a234f9697b0e7db30d310f4c94c288eb43c3070d91073
 Status: Image is up to date for contivvpp/kube-proxy:v1.8.4
-Cri-shim is already running
-Do you want to restart cri-shim? [Y/n] n
 Configuration of the node finished successfully.
 ```

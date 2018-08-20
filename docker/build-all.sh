@@ -54,7 +54,7 @@ done
 cd ubuntu-based
 ./build.sh
 
-# builds the new images (vpp-cni, vpp-ksr, vpp-cri)
+# builds the new images (vpp-cni, vpp-ksr)
 cd ..
 ./build-new.sh
 

@@ -8,7 +8,7 @@ LDFLAGS = -s -w -X $(CNINFRA_AGENT).BuildVersion=$(VERSION) -X $(CNINFRA_AGENT).
 COVER_DIR ?= /tmp/
 
 # Build commands
-build: agent contiv-ksr contiv-cni contiv-cri contiv-stn contiv-init ldpreload-inject-tool
+build: agent contiv-ksr contiv-cni contiv-stn contiv-init ldpreload-inject-tool
 
 # Run all
 all: lint build test install
@@ -27,11 +27,6 @@ contiv-ksr:
 contiv-cni:
 	@echo "# building contiv-cni"
 	cd cmd/contiv-cni && go build -v -i -ldflags "-linkmode external -extldflags -static"
-
-# Build contiv-cri
-contiv-cri:
-	@echo "# building contiv-cri"
-	cd cmd/contiv-cri && go build -v -i -ldflags "${LDFLAGS}"
 
 # Build contiv-stn
 contiv-stn:
@@ -53,7 +48,6 @@ install:
 	@echo "# installing commands"
 	cd cmd/contiv-agent && go install -v -ldflags "${LDFLAGS}" -tags="${GO_BUILD_TAGS}"
 	cd cmd/contiv-ksr && go install -v -ldflags "${LDFLAGS}"
-	cd cmd/contiv-cri && go install -v -ldflags "${LDFLAGS}"
 	cd cmd/contiv-cni && go install -v -ldflags "${LDFLAGS}"
 	cd cmd/contiv-stn && go install -v -ldflags "${LDFLAGS}"
 	cd cmd/contiv-init && go install -v -ldflags "${LDFLAGS}"
@@ -65,7 +59,6 @@ clean:
 	rm -f cmd/contiv-agent/contiv-agent
 	rm -f cmd/contiv-cni/contiv-cni
 	rm -f cmd/contiv-ksr/contiv-ksr
-	rm -f cmd/contiv-cri/contiv-cri
 	rm -f cmd/contiv-stn/contiv-stn
 	rm -f cmd/contiv-init/contiv-init
 	rm -f cmd/tools/ldpreload-label-injector/ldpreload-label-injector

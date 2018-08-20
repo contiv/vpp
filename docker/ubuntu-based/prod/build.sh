@@ -41,11 +41,9 @@ DOCKERFILE=Dockerfile${DOCKERFILE_tag}
 
 # build the production images
 docker build -t prod-contiv-vswitch-${BUILDARCH}:${TAG} ${DOCKER_BUILD_ARGS} --no-cache --force-rm=true -f vswitch/${DOCKERFILE} .
-#docker build -t prod-contiv-cri-${BUILDARCH}:${TAG} ${DOCKER_BUILD_ARGS} --no-cache --force-rm=true -f cri/${DOCKERFILE} .
 
 if [ ${BUILDARCH} = "amd64" ] ; then
   docker tag prod-contiv-vswitch-${BUILDARCH}:${TAG} prod-contiv-vswitch:${TAG}
-  #docker tag prod-contiv-cri-${BUILDARCH}:${TAG} prod-contiv-cri:${TAG} 
 fi
 
 # delete the extracted binaries

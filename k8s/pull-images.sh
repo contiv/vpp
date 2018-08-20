@@ -38,7 +38,6 @@ done
 echo "Using Images Tag: ${IMAGE_TAG}"
 
 docker pull contivvpp/vswitch:${IMAGE_TAG}
-#docker pull contivvpp/cri:${IMAGE_TAG}
 docker pull contivvpp/ksr:${IMAGE_TAG}
 docker pull contivvpp/cni:${IMAGE_TAG}
 docker pull contivvpp/stn:${IMAGE_TAG}

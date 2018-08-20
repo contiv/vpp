@@ -18,7 +18,6 @@ Resource          ${CURDIR}/all_libs.robot
 
 *** Variables ***
 ${NV_PLUGIN_PATH}    ${CURDIR}/../../../k8s/contiv-vpp.yaml
-${CRI_INSTALL_PATH}    ${CURDIR}/../../../k8s/cri-install.sh
 ${PULL_IMAGES_PATH}    ${CURDIR}/../../../k8s/pull-images.sh
 ${PROXY_INSTALL_PATH}    ${CURDIR}/../../../k8s/proxy-install.sh
 ${CLIENT_POD_FILE}    ${CURDIR}/../resources/ubuntu-client.yaml
@@ -44,10 +43,8 @@ Reinit_One_Node_Kube_Cluster
 #    SSHLibrary.Set_Client_Configuration    timeout=${SSH_TIMEOUT}    prompt=$
     SshCommons.Switch_And_Execute_Command    ${testbed_connection}    sudo rm -rf $HOME/.kube
     KubeAdm.Reset    ${testbed_connection}
-    Uninstall_Cri    ${normal_tag}
     Docker_Pull_Contiv_Vpp    ${normal_tag}    ${vpp_tag}
     Docker_Pull_Custom_Kube_Proxy
-    Install_Cri    ${normal_tag}
     ${stdout} =    KubeAdm.Init    ${testbed_connection}
     BuiltIn.Log    ${stdout}
     BuiltIn.Should_Contain    ${stdout}    Your Kubernetes master has initialized successfully
@@ -74,10 +71,8 @@ Reinit_Multinode_Kube_Cluster
     \    SshCommons.Execute_Command_And_Log    sudo rm -rf ~/.kube
     \    KubeAdm.Reset    ${connection}
     \    SshCommons.Execute_Command_And_Log    sudo modprobe uio_pci_generic
-    \    Uninstall_Cri    ${normal_tag}
     \    Docker_Pull_Contiv_Vpp    ${normal_tag}    ${vpp_tag}
     \    Docker_Pull_Custom_Kube_Proxy
-    \    Install_Cri    ${normal_tag}
     # init master
     ${init_stdout} =    KubeAdm.Init    ${testbed_connection}
     BuiltIn.Log    ${init_stdout}
@@ -109,32 +104,6 @@ Get_Docker_Tags
     ${vpp_tag} =    BuiltIn.Set_Variable    ${normal_tag}-${VPP}
     Builtin.Log    ${vpp_tag}
     [Return]    ${normal_tag}    ${vpp_tag}
-
-Prepare_Cri_Script
-    [Arguments]    ${normal_tag}
-    [Documentation]    Copy cri-install.sh to result folder and perform docker image tag edit.
-    ...    Return path to the edited script.
-    Builtin.Log_Many    ${normal_tag}
-    ${file_path} =    BuiltIn.Set_Variable    ${RESULTS_FOLDER}/cri-install.sh
-    # TODO: Add error checking for OperatingSystem calls.
-    OperatingSystem.Run    cp -f ${CRI_INSTALL_PATH} ${file_path}
-    OperatingSystem.Run    sed -i 's@contivvpp/cri@contivvpp/cri:${normal_tag}@g' ${file_path}
-    [Return]    ${file_path}
-
-Uninstall_Cri
-    [Arguments]    ${normal_tag}
-    [Documentation]    Prepare and execute script with uninstall flag on active connection.
-    BuiltIn.Log_Many    ${normal_tag}
-    ${file_path} =    Prepare_Cri_Script    ${normal_tag}
-    # A hack to move -u flag after the uploaded file name.
-    SshCommons.Execute_Command_With_Copied_File    ${file_path}    bash -c 'cat $0 | sudo bash /dev/stdin -u'    ignore_stderr=${True}    ignore_rc=${True}
-
-Install_Cri
-    [Arguments]    ${normal_tag}
-    [Documentation]    Prepare and execute script on active connection.
-    BuiltIn.Log_Many    ${normal_tag}
-    ${file_path} =    Prepare_Cri_Script    ${normal_tag}
-    SshCommons.Execute_Command_With_Copied_File    ${file_path}    sudo bash    ignore_stderr=${True}
 
 Docker_Pull_Contiv_Vpp
     [Arguments]    ${normal_tag}    ${vpp_tag}

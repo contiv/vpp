@@ -24,4 +24,18 @@
 //		Calculated POD IPs: 10.1.5.2 - 10.1.5.254 (/24)
 //		Calculated VPP-host interconnect IPs: 172.30.5.1, 172.30.5.2 (/24)
 //  	Calculated Node Interconnect IP:  192.168.16.5 (/24)
+//
+// Additionally the package provides REST endpoint for getting some of IPAM informations from node on URL
+// GET /contiv/v1/ipam.
+//
+// Example:
+//
+//      $ curl localhost:9999/contiv/v1/ipam
+//      {
+//        "nodeId": 1,
+//        "nodeName": "vagrant-arch.vagrantup.com",
+//        "nodeIP": "192.168.16.1",
+//        "podNetwork": "10.1.1.0/24",
+//        "vppHostNetwork": "172.30.1.0/24"
+//      }
 package ipam

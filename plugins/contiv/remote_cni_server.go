@@ -128,6 +128,9 @@ type remoteCNIserver struct {
 	// podPreRemovalHooks is a slice of callbacks called before a pod removal
 	podPreRemovalHooks []PodActionHook
 
+	// podPostAddHooks is a slice of callbacks called once pod is added
+	podPostAddHook []PodActionHook
+
 	// node specific configuration
 	nodeConfig *OneNodeConfig
 
@@ -284,7 +287,23 @@ func (s *remoteCNIserver) close() {
 // Add handles CNI Add request, connects the container to the network.
 func (s *remoteCNIserver) Add(ctx context.Context, request *cni.CNIRequest) (*cni.CNIReply, error) {
 	s.Info("Add request received ", *request)
-	return s.configureContainerConnectivity(request)
+
+	extraArgs := s.parseCniExtraArgs(request.ExtraArguments)
+
+	reply, err := s.configureContainerConnectivity(request)
+	if err != nil {
+		return reply, err
+	}
+	// Run all registered post add hooks. Once remote cni server lock is released.
+	for _, hook := range s.podPostAddHook {
+		err = hook(extraArgs[podNamespaceExtraArg], extraArgs[podNameExtraArg])
+		if err != nil {
+			// treat error as warning
+			s.Logger.WithField("err", err).Warn("Pod post add hook has failed")
+			err = nil
+		}
+	}
+	return reply, err
 }
 
 // Delete handles CNI Delete request, disconnects the container from the network.
@@ -972,12 +991,12 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 	// prepare config details struct
 	extraArgs := s.parseCniExtraArgs(request.ExtraArguments)
 	config := &PodConfig{
+		ID:           request.ContainerId,
 		PodName:      extraArgs[podNameExtraArg],
 		PodNamespace: extraArgs[podNamespaceExtraArg],
 	}
 
-	id := request.ContainerId
-	config.ID = id
+	id := config.ID
 
 	defer func() {
 		if err != nil {
@@ -1579,6 +1598,15 @@ func (s *remoteCNIserver) RegisterPodPreRemovalHook(hook PodActionHook) {
 	defer s.Unlock()
 
 	s.podPreRemovalHooks = append(s.podPreRemovalHooks, hook)
+}
+
+// RegisterPodPostAddHook allows to register callback that will be run for each
+// pod once it is added and before the CNI reply is sent.
+func (s *remoteCNIserver) RegisterPodPostAddHook(hook PodActionHook) {
+	s.Lock()
+	defer s.Unlock()
+
+	s.podPostAddHook = append(s.podPostAddHook, hook)
 }
 
 // setNodeIP updates nodeIP and propagate the change to subscribers

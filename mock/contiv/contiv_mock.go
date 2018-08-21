@@ -46,6 +46,7 @@ type MockContiv struct {
 	nodeIP                     string
 	nodeIPsubs                 []chan string
 	podPreRemovalHooks         []contiv.PodActionHook
+	podPostAddHooks            []contiv.PodActionHook
 	mainPhysIf                 string
 	otherPhysIfs               []string
 	hostInterconnect           string
@@ -295,6 +296,15 @@ func (mc *MockContiv) RegisterPodPreRemovalHook(hook contiv.PodActionHook) {
 	defer mc.Unlock()
 
 	mc.podPreRemovalHooks = append(mc.podPreRemovalHooks, hook)
+}
+
+// RegisterPodPostAddHook allows to register callback that will be run for each
+// pod once it is added and before the CNI reply is sent.
+func (mc *MockContiv) RegisterPodPostAddHook(hook contiv.PodActionHook) {
+	mc.Lock()
+	defer mc.Unlock()
+
+	mc.podPostAddHooks = append(mc.podPostAddHooks, hook)
 }
 
 // CleanupIdleNATSessions returns true if cleanup of idle NAT sessions is enabled.

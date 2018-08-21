@@ -70,6 +70,7 @@ type LocalEndpoint struct {
 func (sp *ServiceProcessor) Init() error {
 	sp.reset()
 	sp.Contiv.RegisterPodPreRemovalHook(sp.processDeletingPod)
+	sp.Contiv.RegisterPodPostAddHook(sp.processNewPod)
 	return nil
 }
 
@@ -120,6 +121,41 @@ func (sp *ServiceProcessor) RegisterRenderer(renderer renderer.ServiceRendererAP
 	defer sp.Unlock()
 
 	sp.renderers = append(sp.renderers, renderer)
+	return nil
+}
+
+func (sp *ServiceProcessor) processNewPod(podNamespace string, podName string) error {
+	sp.Lock()
+	defer sp.Unlock()
+
+	sp.Log.WithFields(logging.Fields{
+		"name":      podName,
+		"namespace": podNamespace,
+	}).Debug("ServiceProcessor - processNewPod()")
+	podID := podmodel.ID{Name: podName, Namespace: podNamespace}
+
+	localEp := sp.getLocalEndpoint(podID)
+
+	ifName, ifExists := sp.Contiv.GetIfName(podID.Namespace, podID.Name)
+	if !ifExists {
+		sp.Log.WithFields(logging.Fields{
+			"pod-ns":   podID.Namespace,
+			"pod-name": podID.Name,
+		}).Warn("Failed to get pod interface name")
+		return nil
+	}
+
+	localEp.ifName = ifName
+
+	newFrontendIfs := sp.frontendIfs.Copy()
+	newFrontendIfs.Add(ifName)
+	for _, renderer := range sp.renderers {
+		err := renderer.UpdateLocalFrontendIfs(sp.frontendIfs, newFrontendIfs)
+		if err != nil {
+			return err
+		}
+	}
+	sp.frontendIfs = newFrontendIfs
 	return nil
 }
 

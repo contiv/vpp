@@ -29,8 +29,8 @@ import (
 	k8sCache "k8s.io/client-go/tools/cache"
 
 	crdClientSet "github.com/contiv/vpp/plugins/crd/pkg/client/clientset/versioned"
-	listers "github.com/contiv/vpp/plugins/crd/pkg/client/listers/contivtelemetry/v1"
 	informers "github.com/contiv/vpp/plugins/crd/pkg/client/informers/externalversions/contivtelemetry/v1"
+	listers "github.com/contiv/vpp/plugins/crd/pkg/client/listers/contivtelemetry/v1"
 
 	apiextv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	apiextcs "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
@@ -97,8 +97,6 @@ func (ctc *ContivTelemetryController) Init() error {
 		ctc.Log.Error("Error initializing CRD")
 		return err
 	}
-
-
 
 	//ctc.contivTelemetryReportLister = listers.NewContivTelemetryReportLister(ctc.informer.GetIndexer())
 

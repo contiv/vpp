@@ -16,10 +16,9 @@ package crd
 
 import (
 	"github.com/ligato/cn-infra/config"
-	"github.com/ligato/cn-infra/health/statuscheck"
 	"github.com/ligato/cn-infra/logging"
-	"github.com/ligato/cn-infra/rpc/prometheus"
 	"github.com/ligato/cn-infra/servicelabel"
+	"os"
 )
 
 const (
@@ -28,9 +27,6 @@ const (
 
 	// MicroserviceLabel is the microservice label used by contiv-ksr.
 	MicroserviceLabel = "contiv-crd"
-
-	// KubeConfigAdmin is the default location of kubeconfig with admin credentials.
-	KubeConfigAdmin = "/etc/kubernetes/admin.conf"
 
 	// KubeConfigUsage explains the purpose of 'kube-config' flag.
 	KubeConfigUsage = "Path to the kubeconfig file to use for the client connection to K8s cluster"
@@ -45,8 +41,6 @@ func NewPlugin(opts ...Option) *Plugin {
 
 	p.PluginName = "crd"
 	p.ServiceLabel = &servicelabel.DefaultPlugin
-	p.StatusMonitor = &statuscheck.DefaultPlugin
-	p.Prometheus = &prometheus.DefaultPlugin
 	for _, o := range opts {
 		o(p)
 	}
@@ -54,6 +48,7 @@ func NewPlugin(opts ...Option) *Plugin {
 	if p.Deps.Log == nil {
 		p.Deps.Log = logging.ForPlugin(p.String())
 	}
+	KubeConfigAdmin := os.Getenv("HOME") + "/.kube/config"
 	if p.Deps.KubeConfig == nil {
 		p.Deps.KubeConfig = config.ForPlugin(p.String(), config.WithCustomizedFlag(ConfigFlagName, KubeConfigAdmin, KubeConfigUsage))
 	}

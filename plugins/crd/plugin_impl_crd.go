@@ -38,11 +38,9 @@ import (
 	crdClientSet "github.com/contiv/vpp/plugins/crd/pkg/client/clientset/versioned"
 	"k8s.io/client-go/tools/clientcmd"
 
-	apiextcs "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	"github.com/ligato/cn-infra/infra"
 	"github.com/ligato/cn-infra/servicelabel"
-	"github.com/ligato/cn-infra/health/statuscheck"
-	"github.com/ligato/cn-infra/rpc/prometheus"
+	apiextcs "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 )
 
 // Plugin watches configuration of K8s resources (as reflected by KSR into ETCD)
@@ -55,7 +53,6 @@ type Plugin struct {
 	changeChan chan datasync.ChangeEvent
 
 	watchConfigReg datasync.WatchRegistration
-	StatusMonitor  statuscheck.StatusReader
 
 	resyncLock sync.Mutex
 	ctx        context.Context
@@ -81,8 +78,6 @@ type Deps struct {
 
 	Resync  resync.Subscriber
 	Watcher datasync.KeyValProtoWatcher /* prefixed for KSR-published K8s state data */
-	// Prometheus used to publish statistics
-	Prometheus *prometheus.Plugin
 }
 
 // Init initializes policy layers and caches and starts watching contiv-etcd for K8s configuration.

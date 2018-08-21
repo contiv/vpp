@@ -15,21 +15,19 @@
 package main
 
 import (
+	"github.com/contiv/vpp/plugins/crd"
+	"github.com/contiv/vpp/plugins/ksr"
 	"github.com/ligato/cn-infra/agent"
 	"github.com/ligato/cn-infra/datasync/kvdbsync"
 	"github.com/ligato/cn-infra/datasync/resync"
 	"github.com/ligato/cn-infra/db/keyval/etcd"
-	"github.com/ligato/cn-infra/health/probe"
 	"github.com/ligato/cn-infra/logging/logrus"
 	"github.com/ligato/cn-infra/servicelabel"
-	"github.com/contiv/vpp/plugins/crd"
 )
 
 // ContivCRD is a custom resource to provide Contiv-VPP telemetry information.
 type ContivCRD struct {
 	ServiceLabel servicelabel.ReaderAPI
-	HealthProbe  *probe.Plugin
-	DataSyncETCD *kvdbsync.Plugin
 	CRD          *crd.Plugin
 }
 
@@ -42,6 +40,12 @@ func (c *ContivCRD) Init() error {
 	return nil
 }
 
+// AfterInit triggers the first resync.
+func (c *ContivCRD) AfterInit() error {
+	resync.DefaultPlugin.DoResync()
+	return nil
+}
+
 // Close is called at cleanup phase. Method added in order to implement Plugin interface.
 func (c *ContivCRD) Close() error {
 	return nil
@@ -51,15 +55,25 @@ func main() {
 
 	servicelabel.DefaultPlugin.MicroserviceLabel = crd.MicroserviceLabel
 
-	etcdDataSync := kvdbsync.NewPlugin(kvdbsync.UseDeps(func(deps *kvdbsync.Deps) {
-		deps.KvPlugin = &etcd.DefaultPlugin
-		deps.ResyncOrch = &resync.DefaultPlugin
-	}))
+	ksrServicelabel := servicelabel.NewPlugin(servicelabel.UseLabel(ksr.MicroserviceLabel))
+	ksrServicelabel.SetName("ksrServiceLabel")
+
+	newKSRprefixSync := func(name string) *kvdbsync.Plugin {
+		return kvdbsync.NewPlugin(
+			kvdbsync.UseDeps(func(deps *kvdbsync.Deps) {
+				deps.KvPlugin = &etcd.DefaultPlugin
+				deps.ResyncOrch = &resync.DefaultPlugin
+				deps.ServiceLabel = ksrServicelabel
+				deps.SetName(name)
+			}))
+	}
+	crdDataSync := newKSRprefixSync("crdDataSync")
+
+	crd.DefaultPlugin.Watcher = crdDataSync
+	crd.DefaultPlugin.Resync = &resync.DefaultPlugin
 
 	ContivCRD := &ContivCRD{
 		ServiceLabel: &servicelabel.DefaultPlugin,
-		HealthProbe:  &probe.DefaultPlugin,
-		DataSyncETCD: etcdDataSync,
 		CRD:          &crd.DefaultPlugin,
 	}
 

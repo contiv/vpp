@@ -124,7 +124,7 @@ func (sp *ServiceProcessor) RegisterRenderer(renderer renderer.ServiceRendererAP
 	return nil
 }
 
-func (sp *ServiceProcessor) processNewPod(podName string, podNamespace string) error {
+func (sp *ServiceProcessor) processNewPod(podNamespace string, podName string) error {
 	sp.Lock()
 	defer sp.Unlock()
 

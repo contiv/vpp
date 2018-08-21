@@ -287,7 +287,23 @@ func (s *remoteCNIserver) close() {
 // Add handles CNI Add request, connects the container to the network.
 func (s *remoteCNIserver) Add(ctx context.Context, request *cni.CNIRequest) (*cni.CNIReply, error) {
 	s.Info("Add request received ", *request)
-	return s.configureContainerConnectivity(request)
+
+	extraArgs := s.parseCniExtraArgs(request.ExtraArguments)
+
+	reply, err := s.configureContainerConnectivity(request)
+	if err != nil {
+		return reply, err
+	}
+	// Run all registered post add hooks. Once remote cni server lock is released.
+	for _, hook := range s.podPostAddHook {
+		err = hook(extraArgs[podNamespaceExtraArg], extraArgs[podNameExtraArg])
+		if err != nil {
+			// treat error as warning
+			s.Logger.WithField("err", err).Warn("Pod post add hook has failed")
+			err = nil
+		}
+	}
+	return reply, err
 }
 
 // Delete handles CNI Delete request, disconnects the container from the network.
@@ -975,12 +991,12 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 	// prepare config details struct
 	extraArgs := s.parseCniExtraArgs(request.ExtraArguments)
 	config := &PodConfig{
+		ID:           request.ContainerId,
 		PodName:      extraArgs[podNameExtraArg],
 		PodNamespace: extraArgs[podNamespaceExtraArg],
 	}
 
-	id := request.ContainerId
-	config.ID = id
+	id := config.ID
 
 	defer func() {
 		if err != nil {
@@ -1083,15 +1099,6 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 		return s.generateCniErrorReply(err)
 	}
 
-	// Run all registered post add hooks.
-	for _, hook := range s.podPostAddHook {
-		err = hook(config.PodNamespace, config.PodName)
-		if err != nil {
-			// treat error as warning
-			s.Logger.WithField("err", err).Warn("Pod post add hook has failed")
-			err = nil
-		}
-	}
 	// prepare and send reply for the CNI request
 	reply = s.generateCniReply(config, request.NetworkNamespace, podIPCIDR)
 	return reply, nil

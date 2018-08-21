@@ -15,18 +15,15 @@
 package crd
 
 import (
+	"os"
+
 	"github.com/ligato/cn-infra/config"
 	"github.com/ligato/cn-infra/logging"
-	"github.com/ligato/cn-infra/servicelabel"
-	"os"
 )
 
 const (
 	// ConfigFlagName is name of the flag that defines kubeconfig location
 	ConfigFlagName = "kube-config"
-
-	// MicroserviceLabel is the microservice label used by contiv-ksr.
-	MicroserviceLabel = "contiv-crd"
 
 	// KubeConfigUsage explains the purpose of 'kube-config' flag.
 	KubeConfigUsage = "Path to the kubeconfig file to use for the client connection to K8s cluster"
@@ -40,7 +37,6 @@ func NewPlugin(opts ...Option) *Plugin {
 	p := &Plugin{}
 
 	p.PluginName = "crd"
-	p.ServiceLabel = &servicelabel.DefaultPlugin
 	for _, o := range opts {
 		o(p)
 	}

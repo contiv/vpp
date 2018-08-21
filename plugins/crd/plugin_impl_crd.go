@@ -39,7 +39,6 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 
 	"github.com/ligato/cn-infra/infra"
-	"github.com/ligato/cn-infra/servicelabel"
 	apiextcs "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 )
 
@@ -72,7 +71,6 @@ type Plugin struct {
 // Deps defines dependencies of policy plugin.
 type Deps struct {
 	infra.PluginDeps
-	ServiceLabel servicelabel.ReaderAPI
 	// Kubeconfig with k8s cluster address and access credentials to use.
 	KubeConfig config.PluginConfig
 

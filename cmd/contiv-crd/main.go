@@ -27,8 +27,7 @@ import (
 
 // ContivCRD is a custom resource to provide Contiv-VPP telemetry information.
 type ContivCRD struct {
-	ServiceLabel servicelabel.ReaderAPI
-	CRD          *crd.Plugin
+	CRD *crd.Plugin
 }
 
 func (c *ContivCRD) String() string {
@@ -53,8 +52,6 @@ func (c *ContivCRD) Close() error {
 
 func main() {
 
-	servicelabel.DefaultPlugin.MicroserviceLabel = crd.MicroserviceLabel
-
 	ksrServicelabel := servicelabel.NewPlugin(servicelabel.UseLabel(ksr.MicroserviceLabel))
 	ksrServicelabel.SetName("ksrServiceLabel")
 
@@ -62,7 +59,6 @@ func main() {
 		return kvdbsync.NewPlugin(
 			kvdbsync.UseDeps(func(deps *kvdbsync.Deps) {
 				deps.KvPlugin = &etcd.DefaultPlugin
-				deps.ResyncOrch = &resync.DefaultPlugin
 				deps.ServiceLabel = ksrServicelabel
 				deps.SetName(name)
 			}))
@@ -73,8 +69,7 @@ func main() {
 	crd.DefaultPlugin.Resync = &resync.DefaultPlugin
 
 	ContivCRD := &ContivCRD{
-		ServiceLabel: &servicelabel.DefaultPlugin,
-		CRD:          &crd.DefaultPlugin,
+		CRD: &crd.DefaultPlugin,
 	}
 
 	a := agent.NewAgent(agent.AllPlugins(ContivCRD))

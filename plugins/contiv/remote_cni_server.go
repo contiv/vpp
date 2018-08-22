@@ -1111,7 +1111,39 @@ func (s *remoteCNIserver) unconfigureContainerConnectivity(request *cni.CNIReque
 	for !s.vswitchConnectivityConfigured {
 		s.vswitchCond.Wait()
 	}
+	s.Unlock()
+
+	var err error
+	// configuredContainers should not be nil unless this is a unit test
+	if s.configuredContainers == nil {
+		err = fmt.Errorf("configuration was not stored for container: %s", request.ContainerId)
+		s.Logger.Warn(err)
+		return s.generateCniEmptyOKReply(), nil
+	}
+
+	id := request.ContainerId
+	// load container config
+	config, found := s.configuredContainers.LookupContainer(id)
+	if !found {
+		s.Logger.Warnf("cannot find configuration for container: %s\n", id)
+		reply := s.generateCniEmptyOKReply()
+		return reply, nil
+	}
+
+	// Run all registered pre-removal hooks, before lock is acquired
+	for _, hook := range s.podPreRemovalHooks {
+		err = hook(config.PodNamespace, config.PodName)
+		if err != nil {
+			// treat error as warning
+			s.Logger.WithField("err", err).Warn("Pod pre-removal hook has failed")
+			err = nil
+		}
+	}
+
+	s.Lock()
 	defer s.Unlock()
+
+	s.Logger.Infof("Delete hooks executed, processing of del request started %v %v", config.PodName, config.PodNamespace)
 
 	return s.unconfigureContainerConnectivityWithoutLock(request)
 }
@@ -1134,16 +1166,6 @@ func (s *remoteCNIserver) unconfigureContainerConnectivityWithoutLock(request *c
 		s.Logger.Warnf("cannot find configuration for container: %s\n", id)
 		reply := s.generateCniEmptyOKReply()
 		return reply, nil
-	}
-
-	// Run all registered pre-removal hooks.
-	for _, hook := range s.podPreRemovalHooks {
-		err = hook(config.PodNamespace, config.PodName)
-		if err != nil {
-			// treat error as warning
-			s.Logger.WithField("err", err).Warn("Pod pre-removal hook has failed")
-			err = nil
-		}
 	}
 
 	txn := s.vppTxnFactory().Delete()

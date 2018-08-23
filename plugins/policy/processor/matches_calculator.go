@@ -174,11 +174,11 @@ func (pp *PolicyProcessor) calculateMatches(policyData *policymodel.Policy, podI
 					if len(egressPods) > 0 {
 						// For all egress pods, find the matching policy port name mapped to a port number
 						portNameMatches := pp.portNameToNumber(egressPods, egressPortProtocol, egressRulePort)
-						matches = append(matches, portNameMatches)
+						matches = append(matches, portNameMatches...)
 					} else {
 						newEgressPods := pp.Cache.ListAllPods()
 						portNameMatches := pp.portNameToNumber(newEgressPods, egressPortProtocol, egressRulePort)
-						matches = append(matches, portNameMatches)
+						matches = append(matches, portNameMatches...)
 					}
 				}
 			}
@@ -195,7 +195,8 @@ func (pp *PolicyProcessor) calculateMatches(policyData *policymodel.Policy, podI
 }
 
 func (pp *PolicyProcessor) portNameToNumber(pods []podmodel.ID, portProtocol config.ProtocolType,
-	rulePort *policymodel.Policy_Port) config.Match {
+	rulePort *policymodel.Policy_Port) []config.Match {
+	matches := []config.Match{}
 	for _, pod := range pods {
 		_, podData := pp.Cache.LookupPod(pod)
 		for _, podContainer := range podData.Container {
@@ -206,14 +207,15 @@ func (pp *PolicyProcessor) portNameToNumber(pods []podmodel.ID, portProtocol con
 						Protocol: portProtocol,
 						Number:   portNumber,
 					}
-					return config.Match{
+					matches = append(matches, config.Match{
 						Type:     config.MatchEgress,
 						Pods:     []podmodel.ID{pod},
 						IPBlocks: []config.IPBlock{},
 						Ports:    []config.Port{port},
-					}
+					})
 				}
 			}
 		}
 	}
+	return matches
 }

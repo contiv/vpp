@@ -4,7 +4,7 @@ This folder contains Docker files + scripts for building Contiv-VPP Docker image
 (also available on [Dockerhub](https://hub.docker.com/u/contivvpp/)).
 It is organized into two subfolders:
 
- - [ubuntu-based](ubuntu-based) - contains scripts for building containers based on Ubuntu Linux - VPP vSwitch and CRI,
+ - [ubuntu-based](ubuntu-based) - contains scripts for building containers based on Ubuntu Linux - VPP vSwitch,
  - [alpine-based](alpine-based) - contains scripts for building containers based on Alpine Linux: CNI and KSR.
 
 To build all the images, execute:

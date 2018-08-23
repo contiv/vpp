@@ -25,33 +25,32 @@ import (
 	"git.fd.io/govpp.git/adapter"
 	"git.fd.io/govpp.git/adapter/mock/binapi"
 	"git.fd.io/govpp.git/api"
-	"git.fd.io/govpp.git/core"
-
+	"git.fd.io/govpp.git/codec"
 	"github.com/lunixbochs/struc"
 )
 
 type replyMode int
 
 const (
-	_                replyMode = 0
-	useRepliesQueue            = 1 // use replies in the queue
-	useReplyHandlers           = 2 // use reply handler
+	_                replyMode = iota
+	useRepliesQueue            // use replies in the queue
+	useReplyHandlers           // use reply handler
 )
 
 // VppAdapter represents a mock VPP adapter that can be used for unit/integration testing instead of the vppapiclient adapter.
 type VppAdapter struct {
-	callback func(context uint32, msgId uint16, data []byte)
+	callback adapter.MsgCallback
 
+	msgIDSeq     uint16
+	access       sync.RWMutex
 	msgNameToIds map[string]uint16
 	msgIDsToName map[uint16]string
-	msgIDSeq     uint16
 	binAPITypes  map[string]reflect.Type
-	access       sync.RWMutex
 
-	replies       []reply            // FIFO queue of messages
-	replyHandlers []ReplyHandler     // callbacks that are able to calculate mock responses
-	repliesLock   sync.Mutex         // mutex for the queue
-	mode          replyMode          // mode in which the mock operates
+	repliesLock   sync.Mutex     // mutex for the queue
+	replies       []reply        // FIFO queue of messages
+	replyHandlers []ReplyHandler // callbacks that are able to calculate mock responses
+	mode          replyMode      // mode in which the mock operates
 }
 
 // defaultReply is a default reply message that mock adapter returns for a request.
@@ -79,7 +78,7 @@ type MsgWithContext struct {
 	Multipart bool
 
 	/* set by mock adapter */
-	hasCtx    bool
+	hasCtx bool
 }
 
 // ReplyHandler is a type that allows to extend the behaviour of VPP mock.
@@ -178,7 +177,7 @@ func (a *VppAdapter) ReplyBytes(request MessageDTO, reply api.Message) ([]byte, 
 	log.Println("ReplyBytes ", replyMsgID, " ", reply.GetMessageName(), " clientId: ", request.ClientID)
 
 	buf := new(bytes.Buffer)
-	struc.Pack(buf, &core.VppReplyHeader{VlMsgID: replyMsgID, Context: request.ClientID})
+	struc.Pack(buf, &codec.VppReplyHeader{VlMsgID: replyMsgID, Context: request.ClientID})
 	struc.Pack(buf, reply)
 
 	return buf.Bytes(), nil
@@ -211,8 +210,6 @@ func (a *VppAdapter) GetMsgID(msgName string, msgCrc string) (uint16, error) {
 	a.msgNameToIds[msgName] = msgID
 	a.msgIDsToName[msgID] = msgName
 
-	log.Println("VPP GetMessageId ", msgID, " name:", msgName, " crc:", msgCrc)
-
 	return msgID, nil
 }
 
@@ -238,7 +235,7 @@ func (a *VppAdapter) SendMsg(clientID uint32, data []byte) error {
 			replyHandler := a.replyHandlers[i]
 
 			buf := bytes.NewReader(data)
-			reqHeader := core.VppRequestHeader{}
+			reqHeader := codec.VppRequestHeader{}
 			struc.Unpack(buf, &reqHeader)
 
 			a.access.Lock()
@@ -252,11 +249,12 @@ func (a *VppAdapter) SendMsg(clientID uint32, data []byte) error {
 				Data:     data,
 			})
 			if finished {
-				a.callback(clientID, msgID, reply)
+				a.callback(msgID, clientID, reply)
 				return nil
 			}
 		}
 		fallthrough
+
 	case useRepliesQueue:
 		a.repliesLock.Lock()
 		defer a.repliesLock.Unlock()
@@ -273,16 +271,16 @@ func (a *VppAdapter) SendMsg(clientID uint32, data []byte) error {
 					context = setSeqNum(context, msg.SeqNum)
 				}
 				if msg.Msg.GetMessageType() == api.ReplyMessage {
-					struc.Pack(buf, &core.VppReplyHeader{VlMsgID: msgID, Context: context})
-				} else if msg.Msg.GetMessageType() == api.EventMessage {
-					struc.Pack(buf, &core.VppEventHeader{VlMsgID: msgID, Context: context})
+					struc.Pack(buf, &codec.VppReplyHeader{VlMsgID: msgID, Context: context})
 				} else if msg.Msg.GetMessageType() == api.RequestMessage {
-					struc.Pack(buf, &core.VppRequestHeader{VlMsgID: msgID, Context: context})
+					struc.Pack(buf, &codec.VppRequestHeader{VlMsgID: msgID, Context: context})
+				} else if msg.Msg.GetMessageType() == api.EventMessage {
+					struc.Pack(buf, &codec.VppEventHeader{VlMsgID: msgID})
 				} else {
-					struc.Pack(buf, &core.VppOtherHeader{VlMsgID: msgID})
+					struc.Pack(buf, &codec.VppOtherHeader{VlMsgID: msgID})
 				}
 				struc.Pack(buf, msg.Msg)
-				a.callback(context, msgID, buf.Bytes())
+				a.callback(msgID, context, buf.Bytes())
 			}
 
 			a.replies = a.replies[1:]
@@ -299,15 +297,15 @@ func (a *VppAdapter) SendMsg(clientID uint32, data []byte) error {
 		// return default reply
 		buf := new(bytes.Buffer)
 		msgID := uint16(defaultReplyMsgID)
-		struc.Pack(buf, &core.VppReplyHeader{VlMsgID: msgID, Context: clientID})
+		struc.Pack(buf, &codec.VppReplyHeader{VlMsgID: msgID, Context: clientID})
 		struc.Pack(buf, &defaultReply{})
-		a.callback(clientID, msgID, buf.Bytes())
+		a.callback(msgID, clientID, buf.Bytes())
 	}
 	return nil
 }
 
 // SetMsgCallback sets a callback function that will be called by the adapter whenever a message comes from the mock.
-func (a *VppAdapter) SetMsgCallback(cb func(context uint32, msgID uint16, data []byte)) {
+func (a *VppAdapter) SetMsgCallback(cb adapter.MsgCallback) {
 	a.callback = cb
 }
 
@@ -392,4 +390,3 @@ func setMultipart(context uint32, isMultipart bool) (newContext uint32) {
 	}
 	return context
 }
-

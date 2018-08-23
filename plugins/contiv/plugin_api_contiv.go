@@ -26,6 +26,9 @@ type API interface {
 	// GetPodByAppNsIndex looks up podName and podNamespace that is associated with the VPP application namespace.
 	GetPodByAppNsIndex(nsIndex uint32) (podNamespace string, podName string, exists bool)
 
+	// GetPodSubnet provides subnet used for allocating pod IP addresses across all nodes.
+	GetPodSubnet() *net.IPNet
+
 	// GetPodNetwork provides subnet used for allocating pod IP addresses on this host node.
 	GetPodNetwork() *net.IPNet
 
@@ -64,6 +67,9 @@ type API interface {
 	// to watch for node IP via WatchNodeIP().
 	GetNodeIP() (ip net.IP, network *net.IPNet)
 
+	// GetHostIPs returns all IP addresses of this node present in the host network namespace (Linux).
+	GetHostIPs() []net.IP
+
 	// WatchNodeIP adds given channel to the list of subscribers that are notified upon change
 	// of nodeIP address. If the channel is not ready to receive notification, the notification is dropped.
 	WatchNodeIP(subscriber chan string)
@@ -92,4 +98,14 @@ type API interface {
 	// RegisterPodPreRemovalHook allows to register callback that will be run for each
 	// pod immediately before its removal.
 	RegisterPodPreRemovalHook(hook PodActionHook)
+
+	// RegisterPodPostAddHook allows to register callback that will be run for each
+	// pod once it is added and before the CNI reply is sent.
+	RegisterPodPostAddHook(hook PodActionHook)
+
+	// GetMainVrfID returns the ID of the main network connectivity VRF.
+	GetMainVrfID() uint32
+
+	// GetPodVrfID returns the ID of the POD VRF.
+	GetPodVrfID() uint32
 }

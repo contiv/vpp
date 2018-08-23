@@ -35,10 +35,12 @@ import (
 
 	"github.com/ligato/cn-infra/config"
 	"github.com/ligato/cn-infra/datasync/kvdbsync"
-	"github.com/ligato/cn-infra/flavors/local"
 	"github.com/ligato/cn-infra/health/statuscheck"
 	"github.com/ligato/cn-infra/health/statuscheck/model/status"
+	"github.com/ligato/cn-infra/infra"
 	"github.com/ligato/cn-infra/logging"
+	"github.com/ligato/cn-infra/rpc/prometheus"
+	"github.com/ligato/cn-infra/servicelabel"
 	"github.com/ligato/cn-infra/utils/safeclose"
 )
 
@@ -83,12 +85,15 @@ type EtcdMonitor struct {
 
 // Deps defines dependencies of ksr plugin.
 type Deps struct {
-	local.PluginInfraDeps
+	infra.PluginDeps
+	ServiceLabel servicelabel.ReaderAPI
 	// Kubeconfig with k8s cluster address and access credentials to use.
 	KubeConfig config.PluginConfig
 	// broker is used to propagate changes into a key-value datastore.
 	// contiv-ksr uses ETCD as datastore.
 	Publish *kvdbsync.Plugin
+	// Prometheus used to publish statistics
+	Prometheus *prometheus.Plugin
 }
 
 // Reflector object types
@@ -114,7 +119,7 @@ func (plugin *Plugin) Init() error {
 	}
 
 	kubeconfig := plugin.KubeConfig.GetConfigName()
-	plugin.Log.WithField("kubeconfig", kubeconfig).Info("Loading kubernetes client config")
+	plugin.Log.WithField(ConfigFlagName, kubeconfig).Info("Loading kubernetes client config")
 	plugin.k8sClientConfig, err = clientcmd.BuildConfigFromFlags("", kubeconfig)
 	if err != nil {
 		return fmt.Errorf("failed to build kubernetes client config: %s", err)
@@ -198,6 +203,7 @@ func (plugin *Plugin) Init() error {
 
 	plugin.StatsCollector.Log = plugin.Log.NewLogger("-metrics")
 	plugin.StatsCollector.serviceLabel = plugin.Publish.ServiceLabel.GetAgentLabel()
+	plugin.StatsCollector.Prometheus = plugin.Prometheus
 	err = plugin.StatsCollector.Init()
 	if err != nil {
 		plugin.Log.WithField("rwErr", err).Error("Failed to initialize Stats Collector")

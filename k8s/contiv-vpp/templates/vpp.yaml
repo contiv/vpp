@@ -83,20 +83,32 @@ data:
     {{- end }}
     {{- end }}
   logs.conf: |
-    defaultlevel: {{ .Values.logs.defaultLevel }}
+    default-level: {{ .Values.logs.defaultLevel }}
+    loggers:
+      - name: statscollector
+        level: info
   grpc.conf: |
     network: unix
     endpoint: /var/run/contiv/cni.sock
+    force-socket-removal: true
+    permission: 700
   http.conf: |
-      endpoint: 0.0.0.0:9999
-      {{- if .Values.http.enableServerCert }}
-      server-cert-file: /var/http/{{ .Values.http.serverCert }}
-      server-key-file: /var/http/{{ .Values.http.serverKey }}
-      {{- end }}
-      {{- if .Values.http.enableBasicAuth }}
-      client-basic-auth:
-        - {{ .Values.http.basicAuth | quote }}
-      {{- end }}
+    endpoint: 0.0.0.0:9999
+    {{- if .Values.http.enableServerCert }}
+    server-cert-file: /var/http/{{ .Values.http.serverCert }}
+    server-key-file: /var/http/{{ .Values.http.serverKey }}
+    {{- end }}
+    {{- if .Values.http.enableBasicAuth }}
+    client-basic-auth:
+      - {{ .Values.http.basicAuth | quote }}
+    {{- end }}
+  bolt.conf: |
+    db-path: /var/bolt/bolt.db
+    file-mode: 432
+    lock-timeout: 0
+  telemetry.conf: |
+    polling-interval: {{ .Values.telemetry.pollingInterval | int64 }}
+    disabled: {{ .Values.telemetry.disabled }}
 
 ---
 
@@ -165,7 +177,11 @@ spec:
 
       containers:
         - name: contiv-etcd
+          {{- if .Values.Arm64Platform }}
+          image: {{ .Values.etcd_arm64.image.repository }}:{{ .Values.etcd_arm64.image.tag }}
+          {{- else }}
           image: {{ .Values.etcd.image.repository }}:{{ .Values.etcd.image.tag }}
+          {{- end }}
           imagePullPolicy: {{ .Values.etcd.image.pullPolicy }}
           env:
             - name: CONTIV_ETCD_IP
@@ -174,6 +190,10 @@ spec:
                   fieldPath: status.podIP
             - name: ETCDCTL_API
               value: "3"
+            {{- if .Values.Arm64Platform }}
+            - name: ETCD_UNSUPPORTED_ARCH
+              value: "arm64"
+            {{- end }}
           command:
             - /bin/sh
           args:
@@ -406,7 +426,11 @@ spec:
       # This container installs the Contiv CNI binaries
       # and CNI network config file on each node.
       - name: contiv-cni
+        {{- if .Values.Arm64Platform }}
+        image: {{ .Values.cni_arm64.image.repository }}:{{ default .Chart.Version .Values.cni.image.tag }}
+        {{- else }}
         image: {{ .Values.cni.image.repository }}:{{ default .Chart.Version .Values.cni.image.tag }}
+        {{- end }}
         imagePullPolicy: IfNotPresent
         env:
           - name: SLEEP
@@ -416,16 +440,26 @@ spec:
             name: cni-bin-dir
           - mountPath: /etc/cni/net.d
             name: cni-net-dir
+          - mountPath: /var/run/contiv
+            name: contiv-run
       # This init container waits until etcd is started
       - name: wait-foretcd
         env:
           - name: ETCDPORT
             value: {{ .Values.etcd.service.nodePort | quote }}
+        {{- if .Values.Arm64Platform }}
+        image: {{ .Values.init_arm64.image.repository }}:{{ .Values.init.image.tag }}
+        {{- else }}
         image: {{ .Values.init.image.repository }}:{{ .Values.init.image.tag }}
+        {{- end }}
         command: ['sh', '-c', 'until nc -w 2 127.0.0.1:$ETCDPORT; do echo waiting for etcd; sleep 2; done;']
       # This init container extracts/copies VPP LD_PRELOAD libs and default VPP config to the host.
       - name: vpp-init
-        image: {{ .Values.vswitch.image.repository }}:{{ default .Chart.Version .Values.vswitch.image.tag }}
+        {{- if .Values.Arm64Platform }}
+        image: {{ .Values.vswitch_arm64.image.repository }}:{{ default .Chart.Version .Values.vswitch.image.tag }}
+        {{- else }}
+        image: {{ .Values.vswitch.image.repository }}:{{ default .Chart.Version .Values.cni.image.tag }}
+        {{- end }}
         imagePullPolicy: {{ .Values.vswitch.image.pullPolicy }}
         command:
         - /bin/sh
@@ -448,9 +482,8 @@ spec:
           fi
           cp -f /usr/local/bin/vppctl /host/usr/local/bin/vppctl
           {{- if .Values.vswitch.enableCoreDumps }}
-          mkdir -p /run/vpp/dumps
           sysctl -w debug.exception-trace=1
-          sysctl -w kernel.core_pattern="/run/vpp/dumps/%e-%t"
+          sysctl -w kernel.core_pattern="{{ .Values.vswitch.coreDumpsDir }}/%e-%t"
           ulimit -c unlimited
           echo 2 > /proc/sys/fs/suid_dumpable
           {{- end }}
@@ -470,12 +503,20 @@ spec:
             mountPath: /run/vpp
           - name: contiv-run
             mountPath: /var/run/contiv
+          {{- if .Values.vswitch.enableCoreDumps }}
+          - name: core-dumps
+            mountPath: {{ .Values.vswitch.coreDumpsDir }}
+          {{- end }}
 
       containers:
         # Runs contiv-vswitch container on each Kubernetes node.
         # It contains the vSwitch VPP and its management agent.
         - name: contiv-vswitch
-          image: {{ .Values.vswitch.image.repository }}:{{ default .Chart.Version .Values.vswitch.image.tag }}
+          {{- if .Values.Arm64Platform }}
+          image: {{ .Values.vswitch_arm64.image.repository }}:{{ default .Chart.Version .Values.vswitch.image.tag }}
+          {{- else }}
+          image: {{ .Values.vswitch.image.repository }}:{{ default .Chart.Version .Values.cni.image.tag }}
+          {{- end }}
           imagePullPolicy: {{ .Values.vswitch.image.pullPolicy }}
           securityContext:
             privileged: true
@@ -523,7 +564,17 @@ spec:
                   fieldPath: spec.nodeName
             - name: ETCD_CONFIG
               value: "/etc/etcd/etcd.conf"
+            - name: BOLT_CONFIG
+              value: "/etc/agent/bolt.conf"
+            {{- if .Values.bolt.debug }}
+            - name: DEBUG_BOLT_CLIENT
+              value: "true"
+            {{- end}}
+            - name: TELEMETRY_CONFIG
+              value: "/etc/agent/telemetry.conf"
           volumeMounts:
+            - name: var-bolt
+              mountPath: /var/bolt
             - name: etcd-cfg
               mountPath: /etc/etcd
               {{- if .Values.etcd.secureTransport }}
@@ -550,6 +601,10 @@ spec:
               mountPath: /etc/agent
             - name: govpp-plugin-cfg
               mountPath: /etc/govpp
+            {{- if .Values.vswitch.enableCoreDumps }}
+            - name: core-dumps
+              mountPath: {{ .Values.vswitch.coreDumpsDir }}
+            {{- end }}
           {{- if or .Values.vswitch.defineMemoryLimits .Values.vswitch.cpuLimit }}
           resources:
             limits:
@@ -643,6 +698,34 @@ spec:
         - name: govpp-plugin-cfg
           configMap:
             name: govpp-cfg
+        {{- if .Values.vswitch.enableCoreDumps }}
+        # Used for vswitch core dumps
+        - name: core-dumps
+          hostPath:
+            path: {{ .Values.vswitch.coreDumpsDir }}
+        {{- end }}
+{{- if not .Values.bolt.usePersistentVolume }}
+        - name: var-bolt
+          hostPath:
+            path: {{ .Values.bolt.dataDir }}
+        {{- else }}
+  volumeClaimTemplates:
+  - metadata:
+      name: var-bolt
+    spec:
+      accessModes:
+        - ReadWriteOnce
+      resources:
+        requests:
+          storage: {{ .Values.bolt.persistentVolumeSize }}
+    {{- if .Values.bolt.persistentVolumeStorageClass }}
+    {{- if (eq "-" .Values.bolt.persistentVolumeStorageClass) }}
+      storageClassName: ""
+    {{- else }}
+      storageClassName: "{{ .Values.bolt.persistentVolumeStorageClass }}"
+    {{- end }}
+    {{- end }}
+{{- end }}
 
 ---
 
@@ -686,12 +769,20 @@ spec:
           env:
           - name: ETCDPORT
             value: {{ .Values.etcd.service.nodePort | quote }}
+          {{- if .Values.Arm64Platform }}
+          image: {{ .Values.init_arm64.image.repository }}:{{ .Values.init.image.tag }}
+          {{- else }}
           image: {{ .Values.init.image.repository }}:{{ .Values.init.image.tag }}
+          {{- end }}
           command: ['sh', '-c', 'until nc -w 2 127.0.0.1:$ETCDPORT; do echo waiting for etcd; sleep 2; done;']
 
       containers:
         - name: contiv-ksr
+          {{- if .Values.Arm64Platform }}
+          image: {{ .Values.ksr_arm64.image.repository }}:{{ default .Chart.Version .Values.ksr.image.tag }}
+          {{- else }}
           image: {{ .Values.ksr.image.repository }}:{{ default .Chart.Version .Values.ksr.image.tag }}
+          {{- end }}
           imagePullPolicy: {{ .Values.ksr.image.pullPolicy }}
           env:
             - name: ETCD_CONFIG

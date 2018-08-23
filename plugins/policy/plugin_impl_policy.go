@@ -21,7 +21,6 @@ import (
 	"github.com/ligato/cn-infra/datasync"
 	kvdbsync_local "github.com/ligato/cn-infra/datasync/kvdbsync/local"
 	"github.com/ligato/cn-infra/datasync/resync"
-	"github.com/ligato/cn-infra/flavors/local"
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/utils/safeclose"
 
@@ -40,6 +39,7 @@ import (
 	nsmodel "github.com/contiv/vpp/plugins/ksr/model/namespace"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	policymodel "github.com/contiv/vpp/plugins/ksr/model/policy"
+	"github.com/ligato/cn-infra/infra"
 )
 
 // Plugin watches configuration of K8s resources (as reflected by KSR into ETCD)
@@ -85,7 +85,7 @@ type Plugin struct {
 
 // Deps defines dependencies of policy plugin.
 type Deps struct {
-	local.PluginInfraDeps
+	infra.PluginDeps
 	Resync  resync.Subscriber
 	Watcher datasync.KeyValProtoWatcher /* prefixed for KSR-published K8s state data */
 	Contiv  contiv.API                  /* for GetIfName() */
@@ -135,7 +135,7 @@ func (p *Plugin) Init() error {
 			Contiv:     p.Contiv,
 			VPP:        p.VPP,
 			ACLTxnFactory: func() linuxclient.DataChangeDSL {
-				return localclient.DataChangeRequest(p.PluginName)
+				return localclient.DataChangeRequest(p.String())
 			},
 			LatestRevs: kvdbsync_local.Get().LastRev(),
 		},

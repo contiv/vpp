@@ -20,38 +20,14 @@ import (
 	"net"
 	"time"
 
-	govppapi "git.fd.io/govpp.git/api"
-	"github.com/ligato/cn-infra/logging/measure"
 	"github.com/ligato/cn-infra/utils/addrs"
 	ipsec_api "github.com/ligato/vpp-agent/plugins/vpp/binapi/ipsec"
 	"github.com/ligato/vpp-agent/plugins/vpp/model/ipsec"
 )
 
-// IPSecMessages is list of used VPP messages for compatibility check
-var IPSecMessages = []govppapi.Message{
-	&ipsec_api.IpsecSpdAddDel{},
-	&ipsec_api.IpsecSpdAddDelReply{},
-	&ipsec_api.IpsecInterfaceAddDelSpd{},
-	&ipsec_api.IpsecInterfaceAddDelSpdReply{},
-	&ipsec_api.IpsecSpdAddDelEntry{},
-	&ipsec_api.IpsecSpdAddDelEntryReply{},
-	&ipsec_api.IpsecSadAddDelEntry{},
-	&ipsec_api.IpsecSadAddDelEntryReply{},
-	&ipsec_api.IpsecSpdDump{},
-	&ipsec_api.IpsecSpdDetails{},
-	&ipsec_api.IpsecTunnelIfAddDel{},
-	&ipsec_api.IpsecTunnelIfAddDelReply{},
-	&ipsec_api.IpsecSaDump{},
-	&ipsec_api.IpsecSaDetails{},
-	&ipsec_api.IpsecTunnelIfSetKey{},
-	&ipsec_api.IpsecTunnelIfSetKeyReply{},
-	&ipsec_api.IpsecTunnelIfSetSa{},
-	&ipsec_api.IpsecTunnelIfSetSaReply{},
-}
-
-func tunnelIfAddDel(tunnel *ipsec.TunnelInterfaces_Tunnel, isAdd bool, vppChan *govppapi.Channel, stopwatch *measure.Stopwatch) (uint32, error) {
+func (handler *ipSecVppHandler) tunnelIfAddDel(tunnel *ipsec.TunnelInterfaces_Tunnel, isAdd bool) (uint32, error) {
 	defer func(t time.Time) {
-		stopwatch.TimeLog(ipsec_api.IpsecTunnelIfAddDel{}).LogTimeEntry(time.Since(t))
+		handler.stopwatch.TimeLog(ipsec_api.IpsecTunnelIfAddDel{}).LogTimeEntry(time.Since(t))
 	}(time.Now())
 
 	localCryptoKey, err := hex.DecodeString(tunnel.LocalCryptoKey)
@@ -92,7 +68,7 @@ func tunnelIfAddDel(tunnel *ipsec.TunnelInterfaces_Tunnel, isAdd bool, vppChan *
 	}
 
 	reply := &ipsec_api.IpsecTunnelIfAddDelReply{}
-	if err := vppChan.SendRequest(req).ReceiveReply(reply); err != nil {
+	if err := handler.callsChannel.SendRequest(req).ReceiveReply(reply); err != nil {
 		return 0, err
 	}
 	if reply.Retval != 0 {
@@ -102,21 +78,19 @@ func tunnelIfAddDel(tunnel *ipsec.TunnelInterfaces_Tunnel, isAdd bool, vppChan *
 	return reply.SwIfIndex, nil
 }
 
-// AddSPD adds SPD to VPP via binary API
-func AddTunnelInterface(tunnel *ipsec.TunnelInterfaces_Tunnel, vppChan *govppapi.Channel, stopwatch *measure.Stopwatch) (uint32, error) {
-	return tunnelIfAddDel(tunnel, true, vppChan, stopwatch)
+func (handler *ipSecVppHandler) AddTunnelInterface(tunnel *ipsec.TunnelInterfaces_Tunnel) (uint32, error) {
+	return handler.tunnelIfAddDel(tunnel, true)
 }
 
-// DelSPD deletes SPD from VPP via binary API
-func DelTunnelInterface(ifIdx uint32, tunnel *ipsec.TunnelInterfaces_Tunnel, vppChan *govppapi.Channel, stopwatch *measure.Stopwatch) error {
+func (handler *ipSecVppHandler) DelTunnelInterface(ifIdx uint32, tunnel *ipsec.TunnelInterfaces_Tunnel) error {
 	// Note: ifIdx is not used now, tunnel shiould be matched based on paramters
-	_, err := tunnelIfAddDel(tunnel, false, vppChan, stopwatch)
+	_, err := handler.tunnelIfAddDel(tunnel, false)
 	return err
 }
 
-func spdAddDel(spdID uint32, isAdd bool, vppChan *govppapi.Channel, stopwatch *measure.Stopwatch) error {
+func (handler *ipSecVppHandler) spdAddDel(spdID uint32, isAdd bool) error {
 	defer func(t time.Time) {
-		stopwatch.TimeLog(ipsec_api.IpsecSpdAddDel{}).LogTimeEntry(time.Since(t))
+		handler.stopwatch.TimeLog(ipsec_api.IpsecSpdAddDel{}).LogTimeEntry(time.Since(t))
 	}(time.Now())
 
 	req := &ipsec_api.IpsecSpdAddDel{
@@ -125,7 +99,7 @@ func spdAddDel(spdID uint32, isAdd bool, vppChan *govppapi.Channel, stopwatch *m
 	}
 
 	reply := &ipsec_api.IpsecSpdAddDelReply{}
-	if err := vppChan.SendRequest(req).ReceiveReply(reply); err != nil {
+	if err := handler.callsChannel.SendRequest(req).ReceiveReply(reply); err != nil {
 		return err
 	}
 	if reply.Retval != 0 {
@@ -135,19 +109,17 @@ func spdAddDel(spdID uint32, isAdd bool, vppChan *govppapi.Channel, stopwatch *m
 	return nil
 }
 
-// AddSPD adds SPD to VPP via binary API
-func AddSPD(spdID uint32, vppChan *govppapi.Channel, stopwatch *measure.Stopwatch) error {
-	return spdAddDel(spdID, true, vppChan, stopwatch)
+func (handler *ipSecVppHandler) AddSPD(spdID uint32) error {
+	return handler.spdAddDel(spdID, true)
 }
 
-// DelSPD deletes SPD from VPP via binary API
-func DelSPD(spdID uint32, vppChan *govppapi.Channel, stopwatch *measure.Stopwatch) error {
-	return spdAddDel(spdID, false, vppChan, stopwatch)
+func (handler *ipSecVppHandler) DelSPD(spdID uint32) error {
+	return handler.spdAddDel(spdID, false)
 }
 
-func interfaceAddDelSpd(spdID, swIfIdx uint32, isAdd bool, vppChan *govppapi.Channel, stopwatch *measure.Stopwatch) error {
+func (handler *ipSecVppHandler) interfaceAddDelSpd(spdID, swIfIdx uint32, isAdd bool) error {
 	defer func(t time.Time) {
-		stopwatch.TimeLog(ipsec_api.IpsecInterfaceAddDelSpd{}).LogTimeEntry(time.Since(t))
+		handler.stopwatch.TimeLog(ipsec_api.IpsecInterfaceAddDelSpd{}).LogTimeEntry(time.Since(t))
 	}(time.Now())
 
 	req := &ipsec_api.IpsecInterfaceAddDelSpd{
@@ -157,7 +129,7 @@ func interfaceAddDelSpd(spdID, swIfIdx uint32, isAdd bool, vppChan *govppapi.Cha
 	}
 
 	reply := &ipsec_api.IpsecInterfaceAddDelSpdReply{}
-	if err := vppChan.SendRequest(req).ReceiveReply(reply); err != nil {
+	if err := handler.callsChannel.SendRequest(req).ReceiveReply(reply); err != nil {
 		return err
 	}
 	if reply.Retval != 0 {
@@ -167,19 +139,17 @@ func interfaceAddDelSpd(spdID, swIfIdx uint32, isAdd bool, vppChan *govppapi.Cha
 	return nil
 }
 
-// InterfaceAddSPD adds SPD interface assignment to VPP via binary API
-func InterfaceAddSPD(spdID, swIfIdx uint32, vppChan *govppapi.Channel, stopwatch *measure.Stopwatch) error {
-	return interfaceAddDelSpd(spdID, swIfIdx, true, vppChan, stopwatch)
+func (handler *ipSecVppHandler) InterfaceAddSPD(spdID, swIfIdx uint32) error {
+	return handler.interfaceAddDelSpd(spdID, swIfIdx, true)
 }
 
-// InterfaceDelSPD deletes SPD interface assignment from VPP via binary API
-func InterfaceDelSPD(spdID, swIfIdx uint32, vppChan *govppapi.Channel, stopwatch *measure.Stopwatch) error {
-	return interfaceAddDelSpd(spdID, swIfIdx, false, vppChan, stopwatch)
+func (handler *ipSecVppHandler) InterfaceDelSPD(spdID, swIfIdx uint32) error {
+	return handler.interfaceAddDelSpd(spdID, swIfIdx, false)
 }
 
-func spdAddDelEntry(spdID, saID uint32, spd *ipsec.SecurityPolicyDatabases_SPD_PolicyEntry, isAdd bool, vppChan *govppapi.Channel, stopwatch *measure.Stopwatch) error {
+func (handler *ipSecVppHandler) spdAddDelEntry(spdID, saID uint32, spd *ipsec.SecurityPolicyDatabases_SPD_PolicyEntry, isAdd bool) error {
 	defer func(t time.Time) {
-		stopwatch.TimeLog(ipsec_api.IpsecSpdAddDelEntry{}).LogTimeEntry(time.Since(t))
+		handler.stopwatch.TimeLog(ipsec_api.IpsecSpdAddDelEntry{}).LogTimeEntry(time.Since(t))
 	}(time.Now())
 
 	req := &ipsec_api.IpsecSpdAddDelEntry{
@@ -207,13 +177,13 @@ func spdAddDelEntry(spdID, saID uint32, spd *ipsec.SecurityPolicyDatabases_SPD_P
 			return err
 		}
 		if isIPv6 {
-			req.IsIpv6 = 1
+			req.IsIPv6 = 1
 			req.RemoteAddressStart = net.ParseIP(spd.RemoteAddrStart).To16()
 			req.RemoteAddressStop = net.ParseIP(spd.RemoteAddrStop).To16()
 			req.LocalAddressStart = net.ParseIP(spd.LocalAddrStart).To16()
 			req.LocalAddressStop = net.ParseIP(spd.LocalAddrStop).To16()
 		} else {
-			req.IsIpv6 = 0
+			req.IsIPv6 = 0
 			req.RemoteAddressStart = net.ParseIP(spd.RemoteAddrStart).To4()
 			req.RemoteAddressStop = net.ParseIP(spd.RemoteAddrStop).To4()
 			req.LocalAddressStart = net.ParseIP(spd.LocalAddrStart).To4()
@@ -227,7 +197,7 @@ func spdAddDelEntry(spdID, saID uint32, spd *ipsec.SecurityPolicyDatabases_SPD_P
 	}
 
 	reply := &ipsec_api.IpsecSpdAddDelEntryReply{}
-	if err := vppChan.SendRequest(req).ReceiveReply(reply); err != nil {
+	if err := handler.callsChannel.SendRequest(req).ReceiveReply(reply); err != nil {
 		return err
 	}
 	if reply.Retval != 0 {
@@ -237,19 +207,17 @@ func spdAddDelEntry(spdID, saID uint32, spd *ipsec.SecurityPolicyDatabases_SPD_P
 	return nil
 }
 
-// AddSPDEntry adds SPD policy entry to VPP via binary API
-func AddSPDEntry(spdID, saID uint32, spd *ipsec.SecurityPolicyDatabases_SPD_PolicyEntry, vppChan *govppapi.Channel, stopwatch *measure.Stopwatch) error {
-	return spdAddDelEntry(spdID, saID, spd, true, vppChan, stopwatch)
+func (handler *ipSecVppHandler) AddSPDEntry(spdID, saID uint32, spd *ipsec.SecurityPolicyDatabases_SPD_PolicyEntry) error {
+	return handler.spdAddDelEntry(spdID, saID, spd, true)
 }
 
-// DelSPDEntry deletes SPD policy entry from VPP via binary API
-func DelSPDEntry(spdID, saID uint32, spd *ipsec.SecurityPolicyDatabases_SPD_PolicyEntry, vppChan *govppapi.Channel, stopwatch *measure.Stopwatch) error {
-	return spdAddDelEntry(spdID, saID, spd, false, vppChan, stopwatch)
+func (handler *ipSecVppHandler) DelSPDEntry(spdID, saID uint32, spd *ipsec.SecurityPolicyDatabases_SPD_PolicyEntry) error {
+	return handler.spdAddDelEntry(spdID, saID, spd, false)
 }
 
-func sadAddDelEntry(saID uint32, sa *ipsec.SecurityAssociations_SA, isAdd bool, vppChan *govppapi.Channel, stopwatch *measure.Stopwatch) error {
+func (handler *ipSecVppHandler) sadAddDelEntry(saID uint32, sa *ipsec.SecurityAssociations_SA, isAdd bool) error {
 	defer func(t time.Time) {
-		stopwatch.TimeLog(ipsec_api.IpsecSadAddDelEntry{}).LogTimeEntry(time.Since(t))
+		handler.stopwatch.TimeLog(ipsec_api.IpsecSadAddDelEntry{}).LogTimeEntry(time.Since(t))
 	}(time.Now())
 
 	cryptoKey, err := hex.DecodeString(sa.CryptoKey)
@@ -283,18 +251,18 @@ func sadAddDelEntry(saID uint32, sa *ipsec.SecurityAssociations_SA, isAdd bool, 
 			return err
 		}
 		if isIPv6 {
-			req.IsTunnelIpv6 = 1
+			req.IsTunnelIPv6 = 1
 			req.TunnelSrcAddress = net.ParseIP(sa.TunnelSrcAddr).To16()
 			req.TunnelDstAddress = net.ParseIP(sa.TunnelDstAddr).To16()
 		} else {
-			req.IsTunnelIpv6 = 0
+			req.IsTunnelIPv6 = 0
 			req.TunnelSrcAddress = net.ParseIP(sa.TunnelSrcAddr).To4()
 			req.TunnelDstAddress = net.ParseIP(sa.TunnelDstAddr).To4()
 		}
 	}
 
 	reply := &ipsec_api.IpsecSadAddDelEntryReply{}
-	if err := vppChan.SendRequest(req).ReceiveReply(reply); err != nil {
+	if err := handler.callsChannel.SendRequest(req).ReceiveReply(reply); err != nil {
 		return err
 	}
 	if reply.Retval != 0 {
@@ -304,14 +272,12 @@ func sadAddDelEntry(saID uint32, sa *ipsec.SecurityAssociations_SA, isAdd bool, 
 	return nil
 }
 
-// AddSAEntry adds SA to VPP via binary API
-func AddSAEntry(saID uint32, sa *ipsec.SecurityAssociations_SA, vppChan *govppapi.Channel, stopwatch *measure.Stopwatch) error {
-	return sadAddDelEntry(saID, sa, true, vppChan, stopwatch)
+func (handler *ipSecVppHandler) AddSAEntry(saID uint32, sa *ipsec.SecurityAssociations_SA) error {
+	return handler.sadAddDelEntry(saID, sa, true)
 }
 
-// DelSAEntry deletes SA from VPP via binary API
-func DelSAEntry(saID uint32, sa *ipsec.SecurityAssociations_SA, vppChan *govppapi.Channel, stopwatch *measure.Stopwatch) error {
-	return sadAddDelEntry(saID, sa, false, vppChan, stopwatch)
+func (handler *ipSecVppHandler) DelSAEntry(saID uint32, sa *ipsec.SecurityAssociations_SA) error {
+	return handler.sadAddDelEntry(saID, sa, false)
 }
 
 func boolToUint(value bool) uint8 {

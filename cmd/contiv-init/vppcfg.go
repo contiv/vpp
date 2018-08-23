@@ -46,7 +46,6 @@ import (
 	"github.com/ligato/vpp-agent/plugins/vpp/binapi/dhcp"
 	if_binapi "github.com/ligato/vpp-agent/plugins/vpp/binapi/interfaces"
 	ip_binapi "github.com/ligato/vpp-agent/plugins/vpp/binapi/ip"
-	"github.com/ligato/vpp-agent/plugins/vpp/binapi/vpe"
 
 	"github.com/apparentlymart/go-cidr/cidr"
 	"github.com/contiv/vpp/cmd/contiv-stn/model/stn"
@@ -75,7 +74,6 @@ func configureVpp(contivCfg *contiv.Config, stnData *stn.STNReply, useDHCP bool)
 	var err error
 
 	// connect to VPP
-	govpp.SetControlPingMessages(&vpe.ControlPing{}, &vpe.ControlPingReply{})
 	conn, connChan, err := govpp.AsyncConnect(govppmux.NewVppAdapter(""))
 	if err != nil {
 		logger.Errorf("Error by connecting to VPP: %v", err)
@@ -108,6 +106,12 @@ func configureVpp(contivCfg *contiv.Config, stnData *stn.STNReply, useDHCP bool)
 	}
 	defer ch.Close()
 
+	ifVppHandler := if_vppcalls.NewIfVppHandler(ch, logger, nil)
+
+	stnVppHandler := if_vppcalls.NewStnVppHandler(ch, nil, logger, nil)
+
+	routeHandler := l3_vppcalls.NewRouteVppHandler(ch, nil, logger, nil)
+
 	cfg := &vppCfgCtx{}
 
 	// determine hardware NIC interface index
@@ -118,21 +122,21 @@ func configureVpp(contivCfg *contiv.Config, stnData *stn.STNReply, useDHCP bool)
 	}
 
 	// interface tag
-	err = if_vppcalls.SetInterfaceTag(cfg.mainIfName, cfg.mainIfIdx, ch, nil)
+	err = ifVppHandler.SetInterfaceTag(cfg.mainIfName, cfg.mainIfIdx)
 	if err != nil {
 		logger.Errorf("Error by setting the interface %s tag: %v", cfg.mainIfName, err)
 		return nil, err
 	}
 
 	// interface MTU
-	err = if_vppcalls.SetInterfaceMtu(cfg.mainIfIdx, contivCfg.MTUSize, ch, nil)
+	err = ifVppHandler.SetInterfaceMtu(cfg.mainIfIdx, contivCfg.MTUSize)
 	if err != nil {
 		logger.Errorf("Error by setting the interface %s MTU: %v", cfg.mainIfName, err)
 		return nil, err
 	}
 
 	// interface up
-	err = if_vppcalls.InterfaceAdminUp(cfg.mainIfIdx, ch, nil)
+	err = ifVppHandler.InterfaceAdminUp(cfg.mainIfIdx)
 	if err != nil {
 		logger.Errorf("Error by enabling the interface %s: %v", cfg.mainIfName, err)
 		return nil, err
@@ -187,7 +191,7 @@ func configureVpp(contivCfg *contiv.Config, stnData *stn.STNReply, useDHCP bool)
 			ip, addr, _ := net.ParseCIDR(stnAddr)
 			addr.IP = ip
 
-			err = if_vppcalls.AddInterfaceIP(cfg.mainIfIdx, addr, ch, nil)
+			err = ifVppHandler.AddInterfaceIP(cfg.mainIfIdx, addr)
 			if err != nil {
 				logger.Errorf("Error by configuring interface IP: %v", err)
 				return nil, err
@@ -209,13 +213,13 @@ func configureVpp(contivCfg *contiv.Config, stnData *stn.STNReply, useDHCP bool)
 			}
 			nextHopIP := net.ParseIP(stnRoute.NextHopIp).To4()
 
-			sRoute := &l3_vppcalls.Route{
-				DstAddr:     *dstAddr,
-				NextHopAddr: nextHopIP,
-				OutIface:    cfg.mainIfIdx,
+			sRoute := &l3.StaticRoutes_Route{
+				DstIpAddr:         dstAddr.String(),
+				NextHopAddr:       nextHopIP.String(),
+				OutgoingInterface: cfg.mainIfName,
 			}
 			logger.Debug("Configuring static route: ", sRoute)
-			err = l3_vppcalls.VppAddRoute(sRoute, ch, nil)
+			err = routeHandler.VppAddRoute(ifVppHandler, sRoute, cfg.mainIfIdx)
 			if err != nil {
 				logger.Errorf("Error by configuring route: %v", err)
 				return nil, err
@@ -224,43 +228,43 @@ func configureVpp(contivCfg *contiv.Config, stnData *stn.STNReply, useDHCP bool)
 	}
 
 	// interconnect TAP
-	tapIdx, err := if_vppcalls.AddTapInterface(
+	tapIdx, err := ifVppHandler.AddTapInterface(
 		contiv.TapVPPEndLogicalName,
 		&interfaces.Interfaces_Interface_Tap{
 			HostIfName: contiv.TapHostEndName,
 			Version:    uint32(contivCfg.TAPInterfaceVersion),
-		}, ch, nil)
+		})
 	if err != nil {
 		logger.Errorf("Error by adding TAP interface: %v", err)
 		return nil, err
 	}
 
-	err = if_vppcalls.SetInterfaceMac(tapIdx, contiv.HostInterconnectMAC, ch, nil)
+	err = ifVppHandler.SetInterfaceMac(tapIdx, contiv.HostInterconnectMAC)
 	if err != nil {
 		logger.Errorf("Error by setting the MAC for TAP: %v", err)
 		return nil, err
 	}
 
-	err = if_vppcalls.SetInterfaceMtu(tapIdx, contivCfg.MTUSize, ch, nil)
+	err = ifVppHandler.SetInterfaceMtu(tapIdx, contivCfg.MTUSize)
 	if err != nil {
 		logger.Errorf("Error by setting the MTU on TAP interface: %v", err)
 		return nil, err
 	}
 
-	err = if_vppcalls.InterfaceAdminUp(tapIdx, ch, nil)
+	err = ifVppHandler.InterfaceAdminUp(tapIdx)
 	if err != nil {
 		logger.Errorf("Error by enabling the TAP interface: %v", err)
 		return nil, err
 	}
 
-	if_vppcalls.SetUnnumberedIP(tapIdx, cfg.mainIfIdx, ch, nil)
+	ifVppHandler.SetUnnumberedIP(tapIdx, cfg.mainIfIdx)
 	if err != nil {
 		logger.Errorf("Error by setting the TAP interface as unnumbered: %v", err)
 		return nil, err
 	}
 
 	// interconnect STN
-	if_vppcalls.AddStnRule(tapIdx, &cfg.mainIP.IP, ch, nil)
+	stnVppHandler.AddStnRule(tapIdx, &cfg.mainIP.IP)
 	if err != nil {
 		logger.Errorf("Error by adding STN rule: %v", err)
 		return nil, err
@@ -484,7 +488,7 @@ func persistVppConfig(contivCfg *contiv.Config, stnData *stn.STNReply, cfg *vppC
 }
 
 // findHwInterfaceIdx finds index & name of the first available hardware NIC.
-func findHwInterfaceIdx(ch *api.Channel) (uint32, string, error) {
+func findHwInterfaceIdx(ch api.Channel) (uint32, string, error) {
 	req := &if_binapi.SwInterfaceDump{}
 	reqCtx := ch.SendMultiRequest(req)
 
@@ -517,7 +521,7 @@ func findHwInterfaceIdx(ch *api.Channel) (uint32, string, error) {
 }
 
 // enableArpProxy enables ARP proxy on specified interface on VPP.
-func enableArpProxy(ch *api.Channel, loAddr net.IP, hiAddr net.IP, ifIdx uint32) error {
+func enableArpProxy(ch api.Channel, loAddr net.IP, hiAddr net.IP, ifIdx uint32) error {
 
 	logger.Debugf("Enabling ARP proxy for IP range %s - %s, ifIdx %d", loAddr.String(), hiAddr.String(), ifIdx)
 
@@ -553,26 +557,26 @@ func enableArpProxy(ch *api.Channel, loAddr net.IP, hiAddr net.IP, ifIdx uint32)
 }
 
 // configureDHCP configures DHCP on an interface on VPP. Returns Go channel where assigned IP will be delivered.
-func configureDHCP(ch *api.Channel, ifIdx uint32) (chan string, error) {
+func configureDHCP(ch api.Channel, ifIdx uint32) (chan string, error) {
 	dhcpNotifChan := make(chan api.Message)
 	dhcpIPChan := make(chan string)
 
 	logger.Debugf("Enabling DHCP on the interface idx %d", ifIdx)
 
 	// subscribe for the DHCP notifications from VPP
-	_, err := ch.SubscribeNotification(dhcpNotifChan, dhcp.NewDhcpComplEvent)
+	_, err := ch.SubscribeNotification(dhcpNotifChan, dhcp.NewDHCPComplEvent)
 	if err != nil {
 		return nil, err
 	}
 
-	req := &dhcp.DhcpClientConfig{
+	req := &dhcp.DHCPClientConfig{
 		IsAdd: 1,
-		Client: dhcp.DhcpClient{
+		Client: dhcp.DHCPClient{
 			SwIfIndex:     ifIdx,
-			WantDhcpEvent: 1,
+			WantDHCPEvent: 1,
 		},
 	}
-	reply := &dhcp.DhcpClientConfigReply{}
+	reply := &dhcp.DHCPClientConfigReply{}
 
 	// configure DHCP on the interface
 	err = ch.SendRequest(req).ReceiveReply(reply)
@@ -591,10 +595,10 @@ func handleDHCPNotifications(notifCh chan api.Message, dhcpIPChan chan string) {
 		select {
 		case msg := <-notifCh:
 			switch notif := msg.(type) {
-			case *dhcp.DhcpComplEvent:
+			case *dhcp.DHCPComplEvent:
 				var ipAddr string
 				lease := notif.Lease
-				if lease.IsIpv6 == 1 {
+				if lease.IsIPv6 == 1 {
 					ipAddr = fmt.Sprintf("%s/%d", net.IP(lease.HostAddress).To16().String(), lease.MaskWidth)
 				} else {
 					ipAddr = fmt.Sprintf("%s/%d", net.IP(lease.HostAddress[:4]).To4().String(), lease.MaskWidth)

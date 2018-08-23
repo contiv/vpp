@@ -21,16 +21,15 @@ import (
 	"net"
 	"strings"
 
+	govppapi "git.fd.io/govpp.git/api"
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/logging/measure"
 	"github.com/ligato/cn-infra/utils/safeclose"
 	"github.com/ligato/vpp-agent/idxvpp"
 	"github.com/ligato/vpp-agent/idxvpp/nametoidx"
 	"github.com/ligato/vpp-agent/plugins/govppmux"
-	"github.com/ligato/vpp-agent/plugins/vpp/binapi/stn"
 	"github.com/ligato/vpp-agent/plugins/vpp/ifplugin/ifaceidx"
 	"github.com/ligato/vpp-agent/plugins/vpp/ifplugin/vppcalls"
-	"github.com/ligato/vpp-agent/plugins/vpp/ifplugin/vppdump"
 	modelStn "github.com/ligato/vpp-agent/plugins/vpp/model/stn"
 )
 
@@ -46,7 +45,9 @@ type StnConfigurator struct {
 	unstoredIndexes  idxvpp.NameToIdxRW
 	unstoredIndexSeq uint32
 	// VPP
-	vppChan vppcalls.VPPChannel
+	vppChan govppapi.Channel
+	// VPP API handler
+	stnHandler vppcalls.StnVppAPI
 	// Stopwatch
 	stopwatch *measure.Stopwatch
 }
@@ -70,6 +71,11 @@ func (plugin *StnConfigurator) Init(logger logging.PluginLogger, goVppMux govppm
 	plugin.log = logger.NewLogger("-stn-conf")
 	plugin.log.Debug("Initializing STN configurator")
 
+	// Configurator-wide stopwatch instance
+	if enableStopwatch {
+		plugin.stopwatch = measure.NewStopwatch("STN-configurator", plugin.log)
+	}
+
 	// Init VPP API channel
 	plugin.vppChan, err = goVppMux.NewAPIChannel()
 	if err != nil {
@@ -82,15 +88,8 @@ func (plugin *StnConfigurator) Init(logger logging.PluginLogger, goVppMux govppm
 	plugin.unstoredIndexes = nametoidx.NewNameToIdx(plugin.log, "stn-unstored-indexes", nil)
 	plugin.allIndexesSeq, plugin.unstoredIndexSeq = 1, 1
 
-	// Stopwatch
-	if enableStopwatch {
-		plugin.stopwatch = measure.NewStopwatch("stnConfigurator", plugin.log)
-	}
-
-	// Check VPP message compatibility
-	if err := vppcalls.CheckMsgCompatibilityForStn(plugin.vppChan); err != nil {
-		return err
-	}
+	// VPP API handler
+	plugin.stnHandler = vppcalls.NewStnVppHandler(plugin.vppChan, plugin.ifIndexes, plugin.log, plugin.stopwatch)
 
 	return nil
 }
@@ -136,7 +135,7 @@ func (plugin *StnConfigurator) Add(rule *modelStn.STN_Rule) error {
 	} else {
 		plugin.log.Debugf("adding STN rule: %+v", rule)
 		// Create and register new stn
-		if err := vppcalls.AddStnRule(stnRule.IfaceIdx, &stnRule.IPAddress, plugin.vppChan, plugin.stopwatch); err != nil {
+		if err := plugin.stnHandler.AddStnRule(stnRule.IfaceIdx, &stnRule.IPAddress); err != nil {
 			return err
 		}
 		plugin.indexSTNRule(rule, false)
@@ -164,7 +163,7 @@ func (plugin *StnConfigurator) Delete(rule *modelStn.STN_Rule) error {
 	plugin.log.Debugf("STN rule: %+v was stored in VPP, trying to delete it. %+v", stnRule)
 
 	// Remove rule
-	if err := vppcalls.DelStnRule(stnRule.IfaceIdx, &stnRule.IPAddress, plugin.vppChan, plugin.stopwatch); err != nil {
+	if err := plugin.stnHandler.DelStnRule(stnRule.IfaceIdx, &stnRule.IPAddress); err != nil {
 		return err
 	}
 
@@ -199,13 +198,13 @@ func (plugin *StnConfigurator) Modify(ruleOld *modelStn.STN_Rule, ruleNew *model
 }
 
 // Dump STN rules configured on the VPP
-func (plugin *StnConfigurator) Dump() ([]*stn.StnRulesDetails, error) {
-	rules, err := vppdump.DumpStnRules(plugin.vppChan, plugin.stopwatch)
+func (plugin *StnConfigurator) Dump() (*vppcalls.StnDetails, error) {
+	stnDetails, err := plugin.stnHandler.DumpStnRules()
 	if err != nil {
 		return nil, err
 	}
-	plugin.log.Debugf("found %d configured STN rules", len(rules))
-	return rules, nil
+	plugin.log.Debugf("found %d configured STN rules", len(stnDetails.Rules))
+	return stnDetails, nil
 }
 
 // Close GOVPP channel.

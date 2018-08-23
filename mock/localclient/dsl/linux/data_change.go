@@ -166,7 +166,7 @@ func (d *MockPutDSL) StnRule(val *vpp_stn.STN_Rule) linuxclient.PutDSL {
 
 // NAT44Global adds a request to set global configuration for NAT44
 func (d *MockPutDSL) NAT44Global(val *vpp_nat.Nat44Global) linuxclient.PutDSL {
-	op := dsl.TxnOp{Key: vpp_nat.GlobalConfigKey(), Value: val}
+	op := dsl.TxnOp{Key: vpp_nat.GlobalPrefix, Value: val}
 	d.parent.Ops = append(d.parent.Ops, op)
 	return d
 }
@@ -318,7 +318,7 @@ func (d *MockDeleteDSL) StnRule(ruleName string) linuxclient.DeleteDSL {
 
 // NAT44Global adds a request to remove global configuration for NAT44
 func (d *MockDeleteDSL) NAT44Global() linuxclient.DeleteDSL {
-	op := dsl.TxnOp{Key: vpp_nat.GlobalConfigKey()}
+	op := dsl.TxnOp{Key: vpp_nat.GlobalPrefix}
 	d.parent.Ops = append(d.parent.Ops, op)
 	return d
 }

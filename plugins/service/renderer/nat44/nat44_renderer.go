@@ -110,7 +110,7 @@ type Deps struct {
 	Contiv        contiv.API /* for GetNatLoopbackIP, GetServiceLocalEndpointWeight */
 	NATTxnFactory func() (dsl linuxclient.DataChangeDSL)
 	LatestRevs    *syncbase.PrevRevisions
-	GoVPPChan     *govpp.Channel     /* used for direct NAT binary API calls */
+	GoVPPChan     govpp.Channel      /* used for direct NAT binary API calls */
 	Stats         statscollector.API /* used for exporting the statistics */
 }
 
@@ -365,7 +365,7 @@ func (rndr *Renderer) Resync(resyncEv *renderer.ResyncEventData) error {
 	keyList := rndr.LatestRevs.ListKeys()
 	keys := map[string]struct{}{}
 	for _, key := range keyList {
-		if strings.HasPrefix(key, nat.DNatPrefix()) {
+		if strings.HasPrefix(key, nat.DNatPrefix) {
 			keys[key] = struct{}{}
 		}
 	}
@@ -413,12 +413,12 @@ func (rndr *Renderer) Resync(resyncEv *renderer.ResyncEventData) error {
 
 	if globalNatDump.Forwarding {
 		// Global NAT was configured by the agent.
-		key := nat.GlobalConfigKey()
-		value := syncbase.NewChange(nat.GlobalConfigKey(), globalNatDump, 0, datasync.Put)
+		key := nat.GlobalPrefix
+		value := syncbase.NewChange(nat.GlobalPrefix, globalNatDump, 0, datasync.Put)
 		rndr.LatestRevs.PutWithRevision(key, value)
 	} else {
 		// Not configured by the agent.
-		rndr.LatestRevs.Del(nat.GlobalConfigKey())
+		rndr.LatestRevs.Del(nat.GlobalPrefix)
 	}
 
 	// Re-build the global NAT config.
@@ -523,6 +523,11 @@ func (rndr *Renderer) exportDNATMappings(service *renderer.ContivService) []*nat
 					} else {
 						local.Probability = 1
 					}
+					if rndr.isNodeLocalIP(backend.IP) {
+						local.VrfId = rndr.Contiv.GetMainVrfID()
+					} else {
+						local.VrfId = rndr.Contiv.GetPodVrfID()
+					}
 					mapping.LocalIps = append(mapping.LocalIps, local)
 				}
 				if len(mapping.LocalIps) == 0 {
@@ -569,6 +574,11 @@ func (rndr *Renderer) exportDNATMappings(service *renderer.ContivService) []*nat
 				} else {
 					local.Probability = 1
 				}
+				if rndr.isNodeLocalIP(backend.IP) {
+					local.VrfId = rndr.Contiv.GetMainVrfID()
+				} else {
+					local.VrfId = rndr.Contiv.GetPodVrfID()
+				}
 				mapping.LocalIps = append(mapping.LocalIps, local)
 			}
 			if len(mapping.LocalIps) == 0 {
@@ -586,6 +596,22 @@ func (rndr *Renderer) exportDNATMappings(service *renderer.ContivService) []*nat
 	return mappings
 }
 
+// isNodeLocalIP returns true if the given IP is local to the current node, false otherwise.
+func (rndr *Renderer) isNodeLocalIP(ip net.IP) bool {
+	nodeIP, _ := rndr.Contiv.GetNodeIP()
+	if ip.Equal(nodeIP) {
+		return true
+	}
+
+	for _, hostIP := range rndr.Contiv.GetHostIPs() {
+		if hostIP.Equal(ip) {
+			return true
+		}
+	}
+
+	return false
+}
+
 // exportIdentityMappings returns DNAT configuration with identities to exclude
 // VXLAN port and main interface IP (with the exception of node-ports)
 // from dynamic mappings.
@@ -599,10 +625,12 @@ func (rndr *Renderer) exportIdentityMappings() *nat.Nat44DNat_DNatConfig {
 			IpAddress: rndr.defaultIfIP.String(),
 			Protocol:  nat.Protocol_UDP,
 			Port:      vxlanPort,
+			VrfId:     rndr.Contiv.GetMainVrfID(),
 		}
 		mainIfID := &nat.Nat44DNat_DNatConfig_IdentityMapping{
 			IpAddress: rndr.defaultIfIP.String(),
 			Protocol:  nat.Protocol_UDP, /* Address-only mappings are dumped with UDP as protocol */
+			VrfId:     rndr.Contiv.GetMainVrfID(),
 		}
 		idNat.IdMappings = append(idNat.IdMappings, vxlanID)
 		idNat.IdMappings = append(idNat.IdMappings, mainIfID)
@@ -697,10 +725,7 @@ func (rndr *Renderer) idleNATSessionCleanup() {
 				if lastHeard.Before(time.Now()) {
 					if (msg.Protocol == 6 && time.Since(lastHeard) > tcpTimeout) ||
 						(msg.Protocol != 6 && time.Since(lastHeard) > otherTimeout) {
-
 						// inactive session
-						rndr.Log.Debugf("Deleting inactive NAT session (proto %d), last heard %v ago: %v", msg.Protocol, time.Since(lastHeard), msg)
-
 						delRule := &nat_api.Nat44DelSession{
 							IsIn:     1,
 							Address:  msg.InsideIPAddress,
@@ -735,7 +760,7 @@ func (rndr *Renderer) idleNATSessionCleanup() {
 			msg := &nat_api.Nat44DelSessionReply{}
 			err := rndr.GoVPPChan.SendRequest(r).ReceiveReply(msg)
 			if err != nil || msg.Retval != 0 {
-				rndr.Log.Errorf("Error by deleting NAT session: %v, retval=%d, req: %v", err, msg.Retval, r)
+				rndr.Log.Warnf("Error by deleting NAT session: %v, retval=%d, req: %v", err, msg.Retval, r)
 				atomic.AddUint64(&natSessionDeleteErrorCount, 1)
 			} else {
 				if r.Protocol == 6 {

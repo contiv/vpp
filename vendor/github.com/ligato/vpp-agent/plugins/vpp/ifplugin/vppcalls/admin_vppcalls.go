@@ -18,13 +18,28 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/ligato/cn-infra/logging/measure"
 	"github.com/ligato/vpp-agent/plugins/vpp/binapi/interfaces"
 )
 
-func interfaceSetFlags(ifIdx uint32, adminUp bool, vppChan VPPChannel, stopwatch *measure.Stopwatch) error {
+func (handler *ifVppHandler) InterfaceAdminDown(ifIdx uint32) error {
+	return handler.interfaceSetFlags(ifIdx, false)
+}
+
+func (handler *ifVppHandler) InterfaceAdminUp(ifIdx uint32) error {
+	return handler.interfaceSetFlags(ifIdx, true)
+}
+
+func (handler *ifVppHandler) SetInterfaceTag(tag string, ifIdx uint32) error {
+	return handler.handleInterfaceTag(tag, ifIdx, true)
+}
+
+func (handler *ifVppHandler) RemoveInterfaceTag(tag string, ifIdx uint32) error {
+	return handler.handleInterfaceTag(tag, ifIdx, false)
+}
+
+func (handler *ifVppHandler) interfaceSetFlags(ifIdx uint32, adminUp bool) error {
 	defer func(t time.Time) {
-		stopwatch.TimeLog(interfaces.SwInterfaceSetFlagsReply{}).LogTimeEntry(time.Since(t))
+		handler.stopwatch.TimeLog(interfaces.SwInterfaceSetFlagsReply{}).LogTimeEntry(time.Since(t))
 	}(time.Now())
 
 	req := &interfaces.SwInterfaceSetFlags{
@@ -37,7 +52,7 @@ func interfaceSetFlags(ifIdx uint32, adminUp bool, vppChan VPPChannel, stopwatch
 	}
 
 	reply := &interfaces.SwInterfaceSetFlagsReply{}
-	if err := vppChan.SendRequest(req).ReceiveReply(reply); err != nil {
+	if err := handler.callsChannel.SendRequest(req).ReceiveReply(reply); err != nil {
 		return err
 	}
 	if reply.Retval != 0 {
@@ -47,19 +62,9 @@ func interfaceSetFlags(ifIdx uint32, adminUp bool, vppChan VPPChannel, stopwatch
 	return nil
 }
 
-// InterfaceAdminDown calls binary API SwInterfaceSetFlagsReply with AdminUpDown=0.
-func InterfaceAdminDown(ifIdx uint32, vppChan VPPChannel, stopwatch *measure.Stopwatch) error {
-	return interfaceSetFlags(ifIdx, false, vppChan, stopwatch)
-}
-
-// InterfaceAdminUp calls binary API SwInterfaceSetFlagsReply with AdminUpDown=1.
-func InterfaceAdminUp(ifIdx uint32, vppChan VPPChannel, stopwatch *measure.Stopwatch) error {
-	return interfaceSetFlags(ifIdx, true, vppChan, stopwatch)
-}
-
-func handleInterfaceTag(tag string, ifIdx uint32, isAdd bool, vppChan VPPChannel, stopwatch *measure.Stopwatch) error {
+func (handler *ifVppHandler) handleInterfaceTag(tag string, ifIdx uint32, isAdd bool) error {
 	defer func(t time.Time) {
-		stopwatch.TimeLog(interfaces.SwInterfaceTagAddDel{}).LogTimeEntry(time.Since(t))
+		handler.stopwatch.TimeLog(interfaces.SwInterfaceTagAddDel{}).LogTimeEntry(time.Since(t))
 	}(time.Now())
 
 	req := &interfaces.SwInterfaceTagAddDel{
@@ -73,7 +78,7 @@ func handleInterfaceTag(tag string, ifIdx uint32, isAdd bool, vppChan VPPChannel
 	}
 
 	reply := &interfaces.SwInterfaceTagAddDelReply{}
-	if err := vppChan.SendRequest(req).ReceiveReply(reply); err != nil {
+	if err := handler.callsChannel.SendRequest(req).ReceiveReply(reply); err != nil {
 		return err
 	}
 	if reply.Retval != 0 {
@@ -83,12 +88,9 @@ func handleInterfaceTag(tag string, ifIdx uint32, isAdd bool, vppChan VPPChannel
 	return nil
 }
 
-// SetInterfaceTag registers new interface index/tag pair
-func SetInterfaceTag(tag string, ifIdx uint32, vppChan VPPChannel, stopwatch *measure.Stopwatch) error {
-	return handleInterfaceTag(tag, ifIdx, true, vppChan, stopwatch)
-}
-
-// RemoveInterfaceTag un-registers new interface index/tag pair
-func RemoveInterfaceTag(tag string, ifIdx uint32, vppChan VPPChannel, stopwatch *measure.Stopwatch) error {
-	return handleInterfaceTag(tag, ifIdx, false, vppChan, stopwatch)
+func boolToUint(input bool) uint8 {
+	if input {
+		return 1
+	}
+	return 0
 }

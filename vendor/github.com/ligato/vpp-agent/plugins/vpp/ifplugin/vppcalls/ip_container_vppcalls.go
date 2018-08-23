@@ -18,7 +18,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/ligato/cn-infra/logging/measure"
 	"github.com/ligato/cn-infra/utils/addrs"
 	"github.com/ligato/vpp-agent/plugins/vpp/binapi/ip"
 )
@@ -28,9 +27,9 @@ const (
 	removeContainerIP uint8 = 0
 )
 
-func sendAndLogMessageForVpp(ifIdx uint32, addr string, isAdd uint8, vppChan VPPChannel, stopwatch *measure.Stopwatch) error {
+func (handler *ifVppHandler) sendAndLogMessageForVpp(ifIdx uint32, addr string, isAdd uint8) error {
 	defer func(t time.Time) {
-		stopwatch.TimeLog(ip.IPContainerProxyAddDel{}).LogTimeEntry(time.Since(t))
+		handler.stopwatch.TimeLog(ip.IPContainerProxyAddDel{}).LogTimeEntry(time.Since(t))
 	}(time.Now())
 
 	req := &ip.IPContainerProxyAddDel{
@@ -54,7 +53,7 @@ func sendAndLogMessageForVpp(ifIdx uint32, addr string, isAdd uint8, vppChan VPP
 	}
 
 	reply := &ip.IPContainerProxyAddDelReply{}
-	if err := vppChan.SendRequest(req).ReceiveReply(reply); err != nil {
+	if err := handler.callsChannel.SendRequest(req).ReceiveReply(reply); err != nil {
 		return err
 	}
 	if reply.Retval != 0 {
@@ -64,12 +63,10 @@ func sendAndLogMessageForVpp(ifIdx uint32, addr string, isAdd uint8, vppChan VPP
 	return nil
 }
 
-// AddContainerIP calls IPContainerProxyAddDel VPP API with IsAdd=1
-func AddContainerIP(ifIdx uint32, addr string, vppChan VPPChannel, stopwatch *measure.Stopwatch) error {
-	return sendAndLogMessageForVpp(ifIdx, addr, addContainerIP, vppChan, stopwatch)
+func (handler *ifVppHandler) AddContainerIP(ifIdx uint32, addr string) error {
+	return handler.sendAndLogMessageForVpp(ifIdx, addr, addContainerIP)
 }
 
-// DelContainerIP calls IPContainerProxyAddDel VPP API with IsAdd=0
-func DelContainerIP(ifIdx uint32, addr string, vppChan VPPChannel, stopwatch *measure.Stopwatch) error {
-	return sendAndLogMessageForVpp(ifIdx, addr, removeContainerIP, vppChan, stopwatch)
+func (handler *ifVppHandler) DelContainerIP(ifIdx uint32, addr string) error {
+	return handler.sendAndLogMessageForVpp(ifIdx, addr, removeContainerIP)
 }

@@ -19,7 +19,7 @@ import (
 
 	"github.com/golang/protobuf/proto"
 	"github.com/ligato/cn-infra/datasync"
-	"github.com/ligato/cn-infra/flavors/local"
+	"github.com/ligato/cn-infra/infra"
 	"github.com/ligato/cn-infra/utils/safeclose"
 )
 
@@ -34,7 +34,7 @@ import (
 type Plugin struct {
 	Deps
 	sync.Mutex
-	ignoreList map[string]datasync.PutDel
+	ignoreList map[string]datasync.Op
 	closeChan  chan interface{}
 }
 
@@ -49,14 +49,14 @@ type kvsyncDelegate interface {
 
 // Deps group the dependencies of the Plugin
 type Deps struct {
-	local.PluginInfraDeps
+	infra.PluginDeps
 
 	KVDB kvsyncDelegate
 }
 
 // Init initializes internal members of the plugin.
 func (plugin *Plugin) Init() error {
-	plugin.ignoreList = map[string]datasync.PutDel{}
+	plugin.ignoreList = map[string]datasync.Op{}
 	plugin.closeChan = make(chan interface{})
 	return nil
 }
@@ -68,7 +68,7 @@ func (plugin *Plugin) Close() error {
 
 // AddIgnoreEntry adds the entry into ignore list. The first change event matching the given key and operation
 // is skipped. Once the event is skipped the entry is removed from the list.
-func (plugin *Plugin) AddIgnoreEntry(key string, op datasync.PutDel) {
+func (plugin *Plugin) AddIgnoreEntry(key string, op datasync.Op) {
 	plugin.Lock()
 	defer plugin.Unlock()
 	plugin.ignoreList[key] = op
@@ -98,7 +98,7 @@ func (plugin *Plugin) Watch(resyncName string, changeChan chan datasync.ChangeEv
 				if found && op == m.GetChangeType() {
 					plugin.Log.Infof("Change for %v is ignored", m.GetKey())
 					delete(plugin.ignoreList, m.GetKey())
-				} else {
+				} else if changeChan != nil {
 					plugin.Log.Infof("Change for %v is about to be applied", m.GetKey())
 					changeChan <- m
 				}

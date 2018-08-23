@@ -19,7 +19,6 @@ import (
 	"net"
 	"time"
 
-	"github.com/ligato/cn-infra/logging/measure"
 	"github.com/ligato/cn-infra/utils/addrs"
 	"github.com/ligato/vpp-agent/plugins/vpp/binapi/stn"
 )
@@ -30,9 +29,9 @@ type StnRule struct {
 	IfaceIdx  uint32
 }
 
-func addDelStnRule(ifIdx uint32, addr *net.IP, isAdd bool, vppChan VPPChannel, stopwatch *measure.Stopwatch) error {
+func (handler *stnVppHandler) addDelStnRule(ifIdx uint32, addr *net.IP, isAdd bool) error {
 	defer func(t time.Time) {
-		stopwatch.TimeLog(stn.StnAddDelRule{}).LogTimeEntry(time.Since(t))
+		handler.stopwatch.TimeLog(stn.StnAddDelRule{}).LogTimeEntry(time.Since(t))
 	}(time.Now())
 
 	// prepare the message
@@ -54,7 +53,7 @@ func addDelStnRule(ifIdx uint32, addr *net.IP, isAdd bool, vppChan VPPChannel, s
 	}
 
 	reply := &stn.StnAddDelRuleReply{}
-	if err = vppChan.SendRequest(req).ReceiveReply(reply); err != nil {
+	if err = handler.callsChannel.SendRequest(req).ReceiveReply(reply); err != nil {
 		return err
 	}
 	if reply.Retval != 0 {
@@ -65,13 +64,11 @@ func addDelStnRule(ifIdx uint32, addr *net.IP, isAdd bool, vppChan VPPChannel, s
 
 }
 
-// AddStnRule calls StnAddDelRule bin API with IsAdd=1
-func AddStnRule(ifIdx uint32, addr *net.IP, vppChan VPPChannel, stopwatch *measure.Stopwatch) error {
-	return addDelStnRule(ifIdx, addr, true, vppChan, stopwatch)
+func (handler *stnVppHandler) AddStnRule(ifIdx uint32, addr *net.IP) error {
+	return handler.addDelStnRule(ifIdx, addr, true)
 
 }
 
-// DelStnRule calls StnAddDelRule bin API with IsAdd=0
-func DelStnRule(ifIdx uint32, addr *net.IP, vppChan VPPChannel, stopwatch *measure.Stopwatch) error {
-	return addDelStnRule(ifIdx, addr, false, vppChan, stopwatch)
+func (handler *stnVppHandler) DelStnRule(ifIdx uint32, addr *net.IP) error {
+	return handler.addDelStnRule(ifIdx, addr, false)
 }

@@ -18,28 +18,27 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/ligato/cn-infra/logging/measure"
 	"github.com/ligato/vpp-agent/plugins/vpp/binapi/dhcp"
 )
 
-func handleInterfaceDHCP(ifIdx uint32, hostName string, isAdd bool, vppChan VPPChannel, stopwatch *measure.Stopwatch) error {
+func (handler *ifVppHandler) handleInterfaceDHCP(ifIdx uint32, hostName string, isAdd bool) error {
 	defer func(t time.Time) {
-		stopwatch.TimeLog(dhcp.DhcpClientConfig{}).LogTimeEntry(time.Since(t))
+		handler.stopwatch.TimeLog(dhcp.DHCPClientConfig{}).LogTimeEntry(time.Since(t))
 	}(time.Now())
 
-	req := &dhcp.DhcpClientConfig{
-		Client: dhcp.DhcpClient{
+	req := &dhcp.DHCPClientConfig{
+		Client: dhcp.DHCPClient{
 			SwIfIndex:     ifIdx,
 			Hostname:      []byte(hostName),
-			WantDhcpEvent: 1,
+			WantDHCPEvent: 1,
 		},
 	}
 	if isAdd {
 		req.IsAdd = 1
 	}
 
-	reply := &dhcp.DhcpClientConfigReply{}
-	if err := vppChan.SendRequest(req).ReceiveReply(reply); err != nil {
+	reply := &dhcp.DHCPClientConfigReply{}
+	if err := handler.callsChannel.SendRequest(req).ReceiveReply(reply); err != nil {
 		return err
 	}
 	if reply.Retval != 0 {
@@ -49,12 +48,10 @@ func handleInterfaceDHCP(ifIdx uint32, hostName string, isAdd bool, vppChan VPPC
 	return nil
 }
 
-// SetInterfaceAsDHCPClient sets provided interface as a DHCP client
-func SetInterfaceAsDHCPClient(ifIdx uint32, hostName string, vppChan VPPChannel, stopwatch *measure.Stopwatch) (err error) {
-	return handleInterfaceDHCP(ifIdx, hostName, true, vppChan, stopwatch)
+func (handler *ifVppHandler) SetInterfaceAsDHCPClient(ifIdx uint32, hostName string) error {
+	return handler.handleInterfaceDHCP(ifIdx, hostName, true)
 }
 
-// UnsetInterfaceAsDHCPClient un-sets interface as DHCP client
-func UnsetInterfaceAsDHCPClient(ifIdx uint32, hostName string, vppChan VPPChannel, stopwatch *measure.Stopwatch) (err error) {
-	return handleInterfaceDHCP(ifIdx, hostName, false, vppChan, stopwatch)
+func (handler *ifVppHandler) UnsetInterfaceAsDHCPClient(ifIdx uint32, hostName string) error {
+	return handler.handleInterfaceDHCP(ifIdx, hostName, false)
 }

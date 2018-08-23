@@ -41,6 +41,7 @@ type Local struct {
 	IP          net.IP
 	Port        uint16
 	Probability uint8
+	VrfID       uint32
 }
 
 // String converts a list of static mappings into a human-readable string.
@@ -146,6 +147,7 @@ func (sm *StaticMapping) Copy() *StaticMapping {
 			IP:          dupIP(local.IP),
 			Port:        local.Port,
 			Probability: local.Probability,
+			VrfID:       local.VrfID,
 		})
 	}
 	return smCopy
@@ -164,7 +166,7 @@ func (sm *StaticMapping) Equals(sm2 *StaticMapping) bool {
 	for _, local := range sm.Locals {
 		found := false
 		for _, local2 := range sm2.Locals {
-			if local.IP.Equal(local2.IP) && local.Port == local2.Port && local.Probability == local2.Probability {
+			if local.IP.Equal(local2.IP) && local.Port == local2.Port && local.Probability == local2.Probability && local.VrfID == local2.VrfID {
 				found = true
 				break
 			}

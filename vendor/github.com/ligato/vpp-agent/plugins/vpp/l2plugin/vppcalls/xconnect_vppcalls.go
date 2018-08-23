@@ -18,32 +18,20 @@ import (
 	"fmt"
 	"time"
 
-	govppapi "git.fd.io/govpp.git/api"
-	"github.com/ligato/cn-infra/logging/measure"
 	l2ba "github.com/ligato/vpp-agent/plugins/vpp/binapi/l2"
 )
 
-// XConnectMessages is list of used VPP messages for compatibility check
-var XConnectMessages = []govppapi.Message{
-	&l2ba.L2XconnectDump{},
-	&l2ba.L2XconnectDetails{},
-	&l2ba.SwInterfaceSetL2Xconnect{},
-	&l2ba.SwInterfaceSetL2XconnectReply{},
+func (handler *xConnectVppHandler) AddL2XConnect(rxIfIdx uint32, txIfIdx uint32) error {
+	return handler.addDelXConnect(rxIfIdx, txIfIdx, true)
 }
 
-// AddL2XConnect creates xConnect between two existing interfaces.
-func AddL2XConnect(rxIfIdx uint32, txIfIdx uint32, vppChan VPPChannel, stopwatch *measure.Stopwatch) error {
-	return addDelXConnect(rxIfIdx, txIfIdx, true, vppChan, stopwatch)
+func (handler *xConnectVppHandler) DeleteL2XConnect(rxIfIdx uint32, txIfIdx uint32) error {
+	return handler.addDelXConnect(rxIfIdx, txIfIdx, false)
 }
 
-// DeleteL2XConnect removes xConnect between two interfaces.
-func DeleteL2XConnect(rxIfIdx uint32, txIfIdx uint32, vppChan VPPChannel, stopwatch *measure.Stopwatch) error {
-	return addDelXConnect(rxIfIdx, txIfIdx, false, vppChan, stopwatch)
-}
-
-func addDelXConnect(rxIfaceIdx uint32, txIfaceIdx uint32, enable bool, vppChan VPPChannel, stopwatch *measure.Stopwatch) error {
+func (handler *xConnectVppHandler) addDelXConnect(rxIfaceIdx uint32, txIfaceIdx uint32, enable bool) error {
 	defer func(t time.Time) {
-		stopwatch.TimeLog(l2ba.SwInterfaceSetL2Xconnect{}).LogTimeEntry(time.Since(t))
+		handler.stopwatch.TimeLog(l2ba.SwInterfaceSetL2Xconnect{}).LogTimeEntry(time.Since(t))
 	}(time.Now())
 
 	req := &l2ba.SwInterfaceSetL2Xconnect{
@@ -53,7 +41,7 @@ func addDelXConnect(rxIfaceIdx uint32, txIfaceIdx uint32, enable bool, vppChan V
 	}
 
 	reply := &l2ba.SwInterfaceSetL2XconnectReply{}
-	if err := vppChan.SendRequest(req).ReceiveReply(reply); err != nil {
+	if err := handler.callsChannel.SendRequest(req).ReceiveReply(reply); err != nil {
 		return err
 	}
 	if reply.Retval != 0 {

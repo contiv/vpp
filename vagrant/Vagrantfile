@@ -67,35 +67,51 @@ echo Args passed: [[ $@ ]]
 cat <<EOF >/etc/profile.d/envvar.sh
 export http_proxy='#{http_proxy}'
 export https_proxy='#{https_proxy}'
+export HTTP_PROXY='#{http_proxy}'
+export HTTPS_PROXY='#{https_proxy}'
 EOF
 
 source /etc/profile.d/envvar.sh
 echo "Updating apt lists..."
-sudo apt-get update
+sudo -E apt-get update
 
 echo "Installing dependency packages..."
-sudo apt-get install -y apt-transport-https \
+sudo -E apt-get install -y apt-transport-https \
                    ca-certificates \
                    curl \
                    software-properties-common \
                    htop 
                    
 echo "Adding Kubernetes & Docker repos..."
-curl -s https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add -
-curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add -
-cat <<EOF >/etc/apt/sources.list.d/kubernetes.list
-deb http://apt.kubernetes.io/ kubernetes-xenial main
-deb [arch=amd64] https://download.docker.com/linux/ubuntu xenial stable
-EOF
+curl -fsSL https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo -E apt-key add -
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo -E apt-key add -
+sudo -E add-apt-repository "deb http://apt.kubernetes.io/ kubernetes-xenial main"
+sudo -E add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu xenial stable"
 
 echo "Updating apt lists..."
-sudo apt-get update -q
+sudo -E apt-get update -q
 
 echo "Installing Kubernetes Components..."
-sudo apt-get install -qy kubelet=$4-00  kubectl=$4-00 kubeadm=$4-00
+sudo -E apt-get install -qy kubelet=$4-00  kubectl=$4-00 kubeadm=$4-00
 
 echo "Installing Docker-CE..."
-sudo apt-get install -y docker-ce
+sudo -E apt-get install -y docker-ce
+# Setup the proxy if needed
+if [ "#{http_proxy}" != "" ] ; then
+  sudo mkdir -p /etc/systemd/system/docker.service.d
+  sudo echo "[Service]
+Environment=\"HTTP_PROXY='#{http_proxy}'"" >> /etc/systemd/system/docker.service.d/http-proxy.conf
+  sudo systemctl daemon-reload
+  sudo systemctl restart docker
+fi
+if [ "${http_proxy}" != "" ] ; then
+  sudo mkdir -p /etc/systemd/system/docker.service.d
+  sudo echo "[Service]
+Environment=\"HTTPS_PROXY='#{http_proxy}'"" >> /etc/systemd/system/docker.service.d/http-proxy.conf
+  sudo systemctl daemon-reload
+  sudo systemctl restart docker
+fi
+
 systemctl stop docker
 modprobe overlay
 
@@ -105,7 +121,7 @@ systemctl start docker
 
 
 if [ "$3" == "dev" ]; then 
-  export GO_VERSION=1.9.3
+  export GO_VERSION=1.10.3
   echo "Downloading Go $GO_VERSION..."
   curl --silent https://storage.googleapis.com/golang/go$GO_VERSION.linux-amd64.tar.gz > /tmp/go.tar.gz
 
@@ -121,7 +137,6 @@ if [ "$3" == "dev" ]; then
   echo 'export GOPATH="/home/vagrant/gopath"' >> /home/vagrant/.bashrc
   echo 'export PATH="$PATH:$GOROOT/bin:$GOPATH/bin"' >> /home/vagrant/.bashrc
 
-  source /home/vagrant/.bashrc
   update-locale LANG=en_US.UTF-8 LANGUAGE=en_US.UTF-8 LC_ALL=en_US.UTF-8
   echo 'All done!'
 fi
@@ -134,6 +149,7 @@ SCRIPT
 vbox_provision_every_node = <<SCRIPT
 set -e
 set -x
+
 #Load uio_pci_generic driver and setup the loading on each boot up
 installPCIUIO() {
    modprobe uio_pci_generic
@@ -143,6 +159,7 @@ installPCIUIO() {
          echo "Module uio_pci_generic was added into /etc/modules"
       fi
 }
+
 #Selects an interface that will be used for node interconnect
 createVPPconfig() {
 mkdir -p /etc/vpp
@@ -152,6 +169,8 @@ unix {
    nodaemon
    cli-listen /run/vpp/cli.sock
    cli-no-pager
+   coredump-size unlimited
+   full-coredump
    poll-sleep-usec 100
 }
 dpdk {
@@ -160,18 +179,23 @@ dpdk {
 nat {
    endpoint-dependent
 }
+acl-plugin {
+   use tuple merge 0
+}
 api-trace {
    on
    nitems 500
 }
 EOF
 }
+
 kernelModule=$(lsmod | grep uio_pci_generic | wc -l)
 if [[ $kernelModule -gt 0 ]]; then
     echo "PCI UIO driver is loaded"
 else
     installPCIUIO
 fi
+
 createVPPconfig
 if [ "$3" = 'nostn' ]; then
     #shutdown interface
@@ -186,37 +210,51 @@ set -x
 
 echo Args passed: [[ $@ ]]
 
-sudo apt-get install -y python-pip \
+sudo -E apt-get install -y python-pip \
                    python-dev \
                    python-virtualenv \
-                   build-essential \
+                   build-essential 
 
 #Install pip
-sudo pip install --upgrade pip
-sudo pip install --upgrade virtualenv
+sudo -E pip install --upgrade pip
+sudo -E pip install --upgrade virtualenv
 
+# Pull images if not present
 if [ -f /vagrant/images.tar ]; then
     echo "Found saved images at /vagrant/images.tar"
     docker load -i /vagrant/images.tar
 else
-  # Pull images
   echo "Pulling contiv-vpp plugin images..."
-  /home/vagrant/gopath/src/github.com/contiv/vpp/k8s/pull-images.sh -b $6
+  sudo -E /home/vagrant/gopath/src/github.com/contiv/vpp/k8s/pull-images.sh -b $6
 fi
 
 #Install helm
+echo "Downloading and installing Helm..."
 export HELM_VERSION=2.9.1
 curl -sL https://storage.googleapis.com/kubernetes-helm/helm-v$HELM_VERSION-linux-amd64.tar.gz > /tmp/helm.tgz
 tar -zxvf /tmp/helm.tgz -C /tmp
 mv /tmp/linux-amd64/helm /usr/local/bin/helm
 
-if [ "$4" = "dev" ]; then
 # --------------------------------------------------------
 # ---> Build Contiv/VPP-vswitch Development Image <---
 # --------------------------------------------------------
-    echo "vagrant" >> /home/vagrant/gopath/src/github.com/contiv/vpp/.dockerignore
-    echo "Building development contivpp/vswitch image..."
-    cd /home/vagrant/gopath/src/github.com/contiv/vpp/docker; ./build-all.sh
+
+if [ "$4" = "dev" ]; then
+    sudo -E apt-get install -y xorg \
+                            openbox
+    echo "Downloading and installing Goland..."
+    export GOLAND_VERSION=2018.1.5
+    curl -sL https://download.jetbrains.com/go/goland-$GOLAND_VERSION.tar.gz > /tmp/goland.tar.gz
+    tar -xvzf /tmp/goland.tar.gz --directory /home/vagrant >/dev/null 2>&1
+
+    if [ -f /vagrant/dev-contiv-vswitch.tar ]; then
+        echo "Found saved dev image at /vagrant/dev-contiv-vswitch.tar"
+        docker load -i /vagrant/dev-contiv-vswitch.tar
+    else
+        echo "vagrant" >> /home/vagrant/gopath/src/github.com/contiv/vpp/.dockerignore
+        echo "Building development contivpp/vswitch image..."
+        cd /home/vagrant/gopath/src/github.com/contiv/vpp/docker; ./build-all.sh
+    fi
 fi
 
 # --------------------------------------------------------
@@ -232,7 +270,7 @@ if [ $5 = 'stn' ]; then
   sed 's/127\.0\.0\.1.*k8s.*/'"$KUBE_MASTER_IP"' '"$1"'/' -i /etc/hosts
   echo "export no_proxy='$1,$KUBE_MASTER_IP,localhost,127.0.0.1'" >> /etc/profile.d/envvar.sh
   echo "export no_proxy='$1,$KUBE_MASTER_IP,localhost,127.0.0.1'" >> /home/vagrant/.profile
-else 
+else
   echo "export KUBE_MASTER_IP=$2" >> /vagrant/config/init
   source /vagrant/config/init
   sed 's/127\.0\.0\.1.*k8s.*/'"$2"' '"$1"'/' -i /etc/hosts
@@ -247,13 +285,15 @@ source /home/vagrant/.profile
 # --------------> Kubeadm & Networking <------------------
 # --------------------------------------------------------
 
+# Based on kubernetes version, disable hugepages in Kubelet
+# Initialize Kubernetes master
 split_k8s_version="$(cut -d "." -f 2 <<< "$7")"
-if [ $split_k8s_version = '11' ]; then 
+if [ $split_k8s_version = '11' ]; then
   sed -i '1s/.*/KUBELET_EXTRA_ARGS=--node-ip='"$KUBE_MASTER_IP"' --feature-gates HugePages=false/' /etc/default/kubelet
   systemctl daemon-reload
   systemctl restart kubelet
   echo "$(kubeadm init --token-ttl 0 --kubernetes-version=v"$7" --pod-network-cidr="10.0.0.0/8" --apiserver-advertise-address="${KUBE_MASTER_IP}" --token="${KUBEADM_TOKEN}")" >> /vagrant/config/cert
-else 
+else
   sed -i '4 a Environment="KUBELET_EXTRA_ARGS=--node-ip='"$KUBE_MASTER_IP"' --feature-gates HugePages=false"' /etc/systemd/system/kubelet.service.d/10-kubeadm.conf
   systemctl daemon-reload
   systemctl restart kubelet
@@ -269,7 +309,6 @@ echo "Installing Contiv-VPP networking as user"
 sudo -u vagrant -H bash << EOF
 
 echo "Installing Pod Network..."
-
 if [ $6 != "latest" ]; then
   sed -i -e "s/latest/$6/" /home/vagrant/gopath/src/github.com/contiv/vpp/k8s/contiv-vpp/Chart.yaml
 fi
@@ -289,6 +328,7 @@ set -x
 
 echo Args passed: [[ $@ ]]
 
+# Load images if present
 if [ -f /vagrant/images.tar ]; then
     echo "Found saved images at /vagrant/images.tar"
     docker load -i /vagrant/images.tar
@@ -298,7 +338,7 @@ source /vagrant/config/init
 
 if [ $3 = 'stn' ]; then
   export KUBE_WORKER_IP=$(hostname -I | cut -f2 -d' ')
-else 
+else
   export KUBE_WORKER_IP=$2
 fi
 
@@ -314,12 +354,14 @@ if [ "$3" = 'stn' ]; then
   sudo /tmp/contiv-stn.sh
 fi
 
+# Based on kubernetes version, disable hugepages in Kubelet
+# Join the kubernetes cluster
 split_k8s_version="$(cut -d "." -f 2 <<< "$4")"
-if [ $split_k8s_version = '11' ]; then 
+if [ $split_k8s_version = '11' ]; then
   sed -i '1s/.*/KUBELET_EXTRA_ARGS=--node-ip='"$KUBE_WORKER_IP"' --feature-gates HugePages=false/' /etc/default/kubelet
   systemctl daemon-reload
   systemctl restart kubelet
-else 
+else
   sed -i '4 a Environment="KUBELET_EXTRA_ARGS=--node-ip='"$KUBE_WORKER_IP"' --feature-gates HugePages=false"' /etc/systemd/system/kubelet.service.d/10-kubeadm.conf
   systemctl daemon-reload
   systemctl restart kubelet
@@ -384,7 +426,7 @@ VAGRANTFILE_API_VERSION = "2"
       gw.vm.network :private_network, ip: "192.168.16.100", virtualbox__intnet: "vpp"
       gw.vm.provider "virtualbox" do |v|
         v.customize ["modifyvm", :id, "--ioapic", "on"]
-        v.memory = 512
+        v.memory = 256
         v.cpus = 1
       end
       gw.vm.provision "shell" do |s|
@@ -416,8 +458,9 @@ VAGRANTFILE_API_VERSION = "2"
 
       k8smaster.vm.provider "virtualbox" do |v|
         v.customize ["modifyvm", :id, "--ioapic", "on"]
-        v.memory = 2048
-        v.cpus = 2
+        #v.customize ["modifyvm", :id, "--vram", "128"]
+        v.memory = 4096
+        v.cpus = 4
       end
       k8smaster.vm.provision "shell" do |s|
         s.inline = provision_every_node
@@ -458,8 +501,8 @@ VAGRANTFILE_API_VERSION = "2"
 
         node.vm.provider "virtualbox" do |v|
           v.customize ["modifyvm", :id, "--ioapic", "on"]
-          v.memory = 2048
-          v.cpus = 2
+          v.memory = 4096
+          v.cpus = 4
         end
         node.vm.provision "shell" do |s|
           s.inline = provision_every_node

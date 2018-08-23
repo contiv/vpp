@@ -150,10 +150,10 @@ func (mae *MockACLEngine) ApplyTxn(txn *localclient.Txn, latestRevs *syncbase.Pr
 
 	dataChange := txn.LinuxDataChangeTxn
 	for _, op := range dataChange.Ops {
-		if !strings.HasPrefix(op.Key, vpp_acl.KeyPrefix()) {
+		if !strings.HasPrefix(op.Key, vpp_acl.Prefix) {
 			return errors.New("non-ACL changed in txn")
 		}
-		aclName := strings.TrimPrefix(op.Key, vpp_acl.KeyPrefix())
+		aclName := strings.TrimPrefix(op.Key, vpp_acl.Prefix)
 		foundRev, _ := latestRevs.Get(op.Key)
 		if op.Value != nil {
 			// put ACL

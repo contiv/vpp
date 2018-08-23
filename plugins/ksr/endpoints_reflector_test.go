@@ -26,7 +26,8 @@ import (
 	"k8s.io/client-go/kubernetes"
 
 	"github.com/contiv/vpp/plugins/ksr/model/endpoints"
-	"github.com/ligato/cn-infra/flavors/local"
+
+	"github.com/ligato/cn-infra/logging"
 )
 
 type EndpointsTestVars struct {
@@ -42,9 +43,6 @@ var epTestVars EndpointsTestVars
 func TestEndpointsReflector(t *testing.T) {
 	gomega.RegisterTestingT(t)
 
-	flavorLocal := &local.FlavorLocal{}
-	flavorLocal.Inject()
-
 	epTestVars.k8sListWatch = &mockK8sListWatch{}
 	epTestVars.mockKvBroker = newMockKeyProtoValBroker()
 
@@ -55,7 +53,7 @@ func TestEndpointsReflector(t *testing.T) {
 
 	epTestVars.epsReflector = &EndpointsReflector{
 		Reflector: Reflector{
-			Log:               flavorLocal.LoggerFor("endpoints-reflector"),
+			Log:               logging.ForPlugin("endpoints-reflector"),
 			K8sClientset:      &kubernetes.Clientset{},
 			K8sListWatch:      epTestVars.k8sListWatch,
 			Broker:            epTestVars.mockKvBroker,

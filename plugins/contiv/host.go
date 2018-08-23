@@ -21,10 +21,12 @@ import (
 	"strings"
 
 	"encoding/binary"
+	"git.fd.io/govpp.git/api"
 	linux_intf "github.com/ligato/vpp-agent/plugins/linux/model/interfaces"
 	linux_l3 "github.com/ligato/vpp-agent/plugins/linux/model/l3"
 	"github.com/ligato/vpp-agent/plugins/vpp/binapi/ip"
 	"github.com/ligato/vpp-agent/plugins/vpp/binapi/nat"
+	"github.com/ligato/vpp-agent/plugins/vpp/binapi/stats"
 	"github.com/ligato/vpp-agent/plugins/vpp/binapi/vpe"
 	vpp_intf "github.com/ligato/vpp-agent/plugins/vpp/model/interfaces"
 	vpp_l2 "github.com/ligato/vpp-agent/plugins/vpp/model/l2"
@@ -90,8 +92,50 @@ func (s *remoteCNIserver) defaultRoute(gwIP string, outIfName string) *vpp_l3.St
 		DstIpAddr:         "0.0.0.0/0",
 		NextHopAddr:       gwIP,
 		OutgoingInterface: outIfName,
+		VrfId:             s.GetMainVrfID(),
 	}
 	return route
+}
+
+func (s *remoteCNIserver) routesPodToMainVRF() (*vpp_l3.StaticRoutes_Route, *vpp_l3.StaticRoutes_Route) {
+	r1 := &vpp_l3.StaticRoutes_Route{
+		Type:      vpp_l3.StaticRoutes_Route_INTER_VRF,
+		DstIpAddr: "0.0.0.0/0",
+		VrfId:     s.GetPodVrfID(),
+		ViaVrfId:  s.GetMainVrfID(),
+	}
+	r2 := &vpp_l3.StaticRoutes_Route{
+		Type:      vpp_l3.StaticRoutes_Route_INTER_VRF,
+		DstIpAddr: s.ipam.VPPHostNetwork().String(),
+		VrfId:     s.GetPodVrfID(),
+		ViaVrfId:  s.GetMainVrfID(),
+	}
+	return r1, r2
+}
+
+func (s *remoteCNIserver) routesToPodVRF() (*vpp_l3.StaticRoutes_Route, *vpp_l3.StaticRoutes_Route) {
+	r1 := &vpp_l3.StaticRoutes_Route{
+		Type:      vpp_l3.StaticRoutes_Route_INTER_VRF,
+		DstIpAddr: s.ipam.PodSubnet().String(),
+		VrfId:     s.GetMainVrfID(),
+		ViaVrfId:  s.GetPodVrfID(),
+	}
+	r2 := &vpp_l3.StaticRoutes_Route{
+		Type:      vpp_l3.StaticRoutes_Route_INTER_VRF,
+		DstIpAddr: s.ipam.VPPHostSubnet().String(),
+		VrfId:     s.GetMainVrfID(),
+		ViaVrfId:  s.GetPodVrfID(),
+	}
+	return r1, r2
+}
+
+func (s *remoteCNIserver) AddDropRoutesIntoPodVRF() error {
+	err := s.addDropRoute(s.GetPodVrfID(), s.ipam.PodSubnet())
+	if err != nil {
+		return err
+	}
+	err = s.addDropRoute(s.GetPodVrfID(), s.ipam.VPPHostSubnet())
+	return err
 }
 
 func (s *remoteCNIserver) routesToHost(nextHopIP string) []*vpp_l3.StaticRoutes_Route {
@@ -106,9 +150,10 @@ func (s *remoteCNIserver) routesToHost(nextHopIP string) []*vpp_l3.StaticRoutes_
 	routes := make([]*vpp_l3.StaticRoutes_Route, 0)
 	for _, ip := range ips {
 		routes = append(routes, &vpp_l3.StaticRoutes_Route{
-			DstIpAddr:         fmt.Sprintf("%s/32", ip),
+			DstIpAddr:         fmt.Sprintf("%s/32", ip.String()),
 			NextHopAddr:       nextHopIP,
 			OutgoingInterface: s.hostInterconnectIfName,
+			VrfId:             s.GetMainVrfID(),
 		})
 	}
 
@@ -122,6 +167,7 @@ func (s *remoteCNIserver) interconnectTap() *vpp_intf.Interfaces_Interface {
 		Type:    vpp_intf.InterfaceType_TAP_INTERFACE,
 		Mtu:     s.config.MTUSize,
 		Enabled: true,
+		Vrf:     s.GetMainVrfID(),
 		Tap: &vpp_intf.Interfaces_Interface_Tap{
 			HostIfName: TapHostEndName,
 		},
@@ -188,6 +234,7 @@ func (s *remoteCNIserver) interconnectAfpacket() *vpp_intf.Interfaces_Interface 
 		Type:    vpp_intf.InterfaceType_AF_PACKET_INTERFACE,
 		Mtu:     s.config.MTUSize,
 		Enabled: true,
+		Vrf:     s.GetMainVrfID(),
 		Afpacket: &vpp_intf.Interfaces_Interface_Afpacket{
 			HostIfName: vethVPPEndName,
 		},
@@ -197,10 +244,10 @@ func (s *remoteCNIserver) interconnectAfpacket() *vpp_intf.Interfaces_Interface 
 
 func (s *remoteCNIserver) physicalInterface(name string, ipAddress string) *vpp_intf.Interfaces_Interface {
 	return &vpp_intf.Interfaces_Interface{
-		Name:    name,
-		Type:    vpp_intf.InterfaceType_ETHERNET_CSMACD,
-		Enabled: true,
-
+		Name:        name,
+		Type:        vpp_intf.InterfaceType_ETHERNET_CSMACD,
+		Enabled:     true,
+		Vrf:         s.GetMainVrfID(),
 		IpAddresses: []string{ipAddress},
 	}
 }
@@ -210,6 +257,7 @@ func (s *remoteCNIserver) physicalInterfaceLoopback(ipAddress string) *vpp_intf.
 		Name:        "loopbackNIC",
 		Type:        vpp_intf.InterfaceType_SOFTWARE_LOOPBACK,
 		Enabled:     true,
+		Vrf:         s.GetMainVrfID(),
 		IpAddresses: []string{ipAddress},
 	}
 }
@@ -225,6 +273,7 @@ func (s *remoteCNIserver) vxlanBVILoopback() (*vpp_intf.Interfaces_Interface, er
 		Enabled:     true,
 		IpAddresses: []string{vxlanIP.String()},
 		PhysAddress: s.hwAddrForVXLAN(s.ipam.NodeID()),
+		Vrf:         s.GetPodVrfID(),
 	}, nil
 }
 
@@ -313,17 +362,40 @@ func (s *remoteCNIserver) routeToOtherHostStack(hostID uint32, nextHopIP string)
 }
 
 func (s *remoteCNIserver) routeToOtherManagementIP(managementIP string, nextHopIP string) *vpp_l3.StaticRoutes_Route {
-	return &vpp_l3.StaticRoutes_Route{
+	r := &vpp_l3.StaticRoutes_Route{
 		DstIpAddr:   managementIP + "/32",
 		NextHopAddr: nextHopIP,
+	}
+	if s.useL2Interconnect {
+		r.VrfId = s.GetMainVrfID()
+	} else {
+		r.OutgoingInterface = vxlanBVIInterfaceName
+		r.VrfId = s.GetPodVrfID()
+	}
+	return r
+}
+
+func (s *remoteCNIserver) routeToOtherManagementIPViaPodVRF(managementIP string) *vpp_l3.StaticRoutes_Route {
+	return &vpp_l3.StaticRoutes_Route{
+		Type:      vpp_l3.StaticRoutes_Route_INTER_VRF,
+		DstIpAddr: managementIP + "/32",
+		VrfId:     s.GetMainVrfID(),
+		ViaVrfId:  s.GetPodVrfID(),
 	}
 }
 
 func (s *remoteCNIserver) routeToOtherHostNetworks(destNetwork *net.IPNet, nextHopIP string) (*vpp_l3.StaticRoutes_Route, error) {
-	return &vpp_l3.StaticRoutes_Route{
+	r := &vpp_l3.StaticRoutes_Route{
 		DstIpAddr:   destNetwork.String(),
 		NextHopAddr: nextHopIP,
-	}, nil
+	}
+	if s.useL2Interconnect {
+		r.VrfId = s.GetMainVrfID()
+	} else {
+		r.OutgoingInterface = vxlanBVIInterfaceName
+		r.VrfId = s.GetPodVrfID()
+	}
+	return r, nil
 }
 
 func (s *remoteCNIserver) computeVxlanToHost(hostID uint32, hostIP string) (*vpp_intf.Interfaces_Interface, error) {
@@ -331,6 +403,7 @@ func (s *remoteCNIserver) computeVxlanToHost(hostID uint32, hostIP string) (*vpp
 		Name:    fmt.Sprintf("vxlan%d", hostID),
 		Type:    vpp_intf.InterfaceType_VXLAN_TUNNEL,
 		Enabled: true,
+		Vrf:     s.GetMainVrfID(),
 		Vxlan: &vpp_intf.Interfaces_Interface_Vxlan{
 			SrcAddress: s.ipPrefixToAddress(s.nodeIP),
 			DstAddress: hostIP,
@@ -380,14 +453,18 @@ func (s *remoteCNIserver) ipPrefixToAddress(ip string) string {
 	return ip
 }
 
-func (s *remoteCNIserver) getHostLinkIPs() ([]string, error) {
+func (s *remoteCNIserver) getHostLinkIPs() ([]net.IP, error) {
+	if s.hostIPs != nil {
+		return s.hostIPs, nil
+	}
+
 	links, err := netlink.LinkList()
 	if err != nil {
 		s.Logger.Error("Unable to list host links:", err)
 		return nil, err
 	}
 
-	res := make([]string, 0)
+	s.hostIPs = make([]net.IP, 0)
 	for _, l := range links {
 		if !strings.HasPrefix(l.Attrs().Name, "lo") && !strings.HasPrefix(l.Attrs().Name, "docker") &&
 			!strings.HasPrefix(l.Attrs().Name, "virbr") && !strings.HasPrefix(l.Attrs().Name, "vpp") {
@@ -399,11 +476,11 @@ func (s *remoteCNIserver) getHostLinkIPs() ([]string, error) {
 			}
 			// return all IPs
 			for _, addr := range addrList {
-				res = append(res, addr.IP.String())
+				s.hostIPs = append(s.hostIPs, addr.IP)
 			}
 		}
 	}
-	return res, nil
+	return s.hostIPs, nil
 }
 
 func (s *remoteCNIserver) enableIPNeighborScan() error {
@@ -440,6 +517,25 @@ func (s *remoteCNIserver) disableNatVirtualReassembly() error {
 	return err
 }
 
+func (s *remoteCNIserver) subscribeVnetFibCounters() error {
+
+	notifChan := make(chan api.Message, 1)
+	_, err := s.govppChan.SubscribeNotification(notifChan, stats.NewVnetIP4FibCounters)
+
+	if err != nil {
+		s.Logger.Error("Error by subscribing to NewVnetIP4FibCounters:", err)
+	}
+
+	// read from the notif channel in a go routine to not block once the channel is full
+	go func() {
+		for {
+			<-notifChan
+		}
+	}()
+
+	return err
+}
+
 func (s *remoteCNIserver) executeDebugCLI(cmd string) (string, error) {
 	s.Logger.Infof("Executing debug CLI: %s", cmd)
 
@@ -455,4 +551,27 @@ func (s *remoteCNIserver) executeDebugCLI(cmd string) (string, error) {
 		return "", err
 	}
 	return string(reply.Reply), err
+}
+
+func (s *remoteCNIserver) addDropRoute(vrfID uint32, dstAddr *net.IPNet) error {
+	s.Logger.Info("Adding drop route in VRF %d to %s", vrfID, dstAddr)
+
+	prefix, _ := dstAddr.Mask.Size()
+	req := &ip.IPAddDelRoute{
+		TableID:          vrfID,
+		IsAdd:            1,
+		IsDrop:           1,
+		IsIPv6:           0,
+		IsMultipath:      1,
+		DstAddress:       []byte(dstAddr.IP.To4()),
+		DstAddressLength: byte(prefix),
+	}
+	reply := &ip.IPAddDelRouteReply{}
+
+	err := s.govppChan.SendRequest(req).ReceiveReply(reply)
+
+	if err != nil {
+		s.Logger.Error("Error by adding drop route:", err)
+	}
+	return err
 }

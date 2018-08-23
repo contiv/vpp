@@ -19,19 +19,17 @@ import (
 	"net"
 	"time"
 
-	"github.com/ligato/cn-infra/logging/measure"
 	"github.com/ligato/vpp-agent/plugins/vpp/binapi/vxlan"
 	intf "github.com/ligato/vpp-agent/plugins/vpp/model/interfaces"
 )
 
-func addDelVxlanTunnel(iface *intf.Interfaces_Interface_Vxlan, encVrf, multicastIf uint32, isAdd bool, vppChan VPPChannel,
-	stopwatch *measure.Stopwatch) (swIdx uint32, err error) {
+func (handler *ifVppHandler) addDelVxlanTunnel(iface *intf.Interfaces_Interface_Vxlan, encVrf, multicastIf uint32, isAdd bool) (swIdx uint32, err error) {
 	defer func(t time.Time) {
-		stopwatch.TimeLog(vxlan.VxlanAddDelTunnel{}).LogTimeEntry(time.Since(t))
+		handler.stopwatch.TimeLog(vxlan.VxlanAddDelTunnel{}).LogTimeEntry(time.Since(t))
 	}(time.Now())
 
 	// this is temporary fix to solve creation of VRF table for VXLAN
-	if err := CreateVrfIfNeeded(encVrf, vppChan); err != nil {
+	if err := handler.CreateVrfIfNeeded(encVrf); err != nil {
 		return 0, err
 	}
 
@@ -49,7 +47,7 @@ func addDelVxlanTunnel(iface *intf.Interfaces_Interface_Vxlan, encVrf, multicast
 	if srcAddr == nil && dstAddr == nil {
 		srcAddr = net.ParseIP(iface.SrcAddress).To16()
 		dstAddr = net.ParseIP(iface.DstAddress).To16()
-		req.IsIpv6 = 1
+		req.IsIPv6 = 1
 		if srcAddr == nil || dstAddr == nil {
 			return 0, fmt.Errorf("invalid VXLAN address, src: %s, dst: %s", srcAddr, dstAddr)
 		}
@@ -61,7 +59,7 @@ func addDelVxlanTunnel(iface *intf.Interfaces_Interface_Vxlan, encVrf, multicast
 	req.DstAddress = []byte(dstAddr)
 
 	reply := &vxlan.VxlanAddDelTunnelReply{}
-	if err = vppChan.SendRequest(req).ReceiveReply(reply); err != nil {
+	if err = handler.callsChannel.SendRequest(req).ReceiveReply(reply); err != nil {
 		return 0, err
 	}
 	if reply.Retval != 0 {
@@ -71,19 +69,17 @@ func addDelVxlanTunnel(iface *intf.Interfaces_Interface_Vxlan, encVrf, multicast
 	return reply.SwIfIndex, nil
 }
 
-// AddVxlanTunnel calls AddDelVxlanTunnelReq with flag add=1.
-func AddVxlanTunnel(ifName string, vxlanIntf *intf.Interfaces_Interface_Vxlan, encapVrf, multicastIf uint32, vppChan VPPChannel, stopwatch *measure.Stopwatch) (swIndex uint32, err error) {
-	swIfIdx, err := addDelVxlanTunnel(vxlanIntf, encapVrf, multicastIf, true, vppChan, stopwatch)
+func (handler *ifVppHandler) AddVxlanTunnel(ifName string, vxlanIntf *intf.Interfaces_Interface_Vxlan, encapVrf, multicastIf uint32) (swIndex uint32, err error) {
+	swIfIdx, err := handler.addDelVxlanTunnel(vxlanIntf, encapVrf, multicastIf, true)
 	if err != nil {
 		return 0, err
 	}
-	return swIfIdx, SetInterfaceTag(ifName, swIfIdx, vppChan, stopwatch)
+	return swIfIdx, handler.SetInterfaceTag(ifName, swIfIdx)
 }
 
-// DeleteVxlanTunnel calls AddDelVxlanTunnelReq with flag add=0.
-func DeleteVxlanTunnel(ifName string, idx uint32, vxlanIntf *intf.Interfaces_Interface_Vxlan, vppChan VPPChannel, stopwatch *measure.Stopwatch) error {
-	if _, err := addDelVxlanTunnel(vxlanIntf, 0, 0, false, vppChan, stopwatch); err != nil {
+func (handler *ifVppHandler) DeleteVxlanTunnel(ifName string, idx uint32, vxlanIntf *intf.Interfaces_Interface_Vxlan) error {
+	if _, err := handler.addDelVxlanTunnel(vxlanIntf, 0, 0, false); err != nil {
 		return err
 	}
-	return RemoveInterfaceTag(ifName, idx, vppChan, stopwatch)
+	return handler.RemoveInterfaceTag(ifName, idx)
 }

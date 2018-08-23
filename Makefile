@@ -2,8 +2,8 @@ VERSION := $(shell git describe --always --tags --dirty)
 COMMIT  := $(shell git rev-parse HEAD)
 DATE    := $(shell date +'%Y-%m-%dT%H:%M%:z')
 
-CNINFRA_CORE := github.com/contiv/vpp/vendor/github.com/ligato/cn-infra/core
-LDFLAGS = -s -w -X $(CNINFRA_CORE).BuildVersion=$(VERSION) -X $(CNINFRA_CORE).CommitHash=$(VERSION) -X $(CNINFRA_CORE).BuildDate=$(DATE)
+CNINFRA_AGENT := github.com/contiv/vpp/vendor/github.com/ligato/cn-infra/agent
+LDFLAGS = -s -w -X $(CNINFRA_AGENT).BuildVersion=$(VERSION) -X $(CNINFRA_AGENT).CommitHash=$(VERSION) -X $(CNINFRA_AGENT).BuildDate=$(DATE)
 
 COVER_DIR ?= /tmp/
 
@@ -208,7 +208,7 @@ LINKCHECK := $(shell command -v markdown-link-check 2> /dev/null)
 get-linkcheck:
 ifndef LINKCHECK
 	sudo apt-get update && sudo apt-get install npm
-	npm install -g markdown-link-check
+	npm install -g markdown-link-check@3.6.2
 endif
 
 # Validate links in markdown files
@@ -236,14 +236,30 @@ dep-update: get-dep
 describe:
 	./scripts/contiv_describe.sh
 
+docker-images:
+	cd docker && ./build-all.sh -s
+	cd docker && ./push-all.sh -s
+
+docker-dev: agent contiv-init
+	cd docker/development && ./build.sh
+
+vagrant-images:
+	cd docker && ./save.sh -s
+
 generate-manifest:
 	helm template k8s/contiv-vpp/ > k8s/contiv-vpp.yaml
+
+generate-manifest-arm64:
+	helm template k8s/contiv-vpp -f k8s/contiv-vpp/values-arm64.yaml,k8s/contiv-vpp/values.yaml > k8s/contiv-vpp-arm64.yaml
 
 helm-package:
 	helm package k8s/contiv-vpp/
 
 helm-yaml:
 	helm template --set vswitch.image.tag=${TAG} --set cni.image.tag=${TAG} --set ksr.image.tag=${TAG} k8s/contiv-vpp > k8s/contiv-vpp.yaml
+
+helm-yaml-arm64:
+	helm template --set vswitch.image.tag=${TAG} --set cni.image.tag=${TAG} --set ksr.image.tag=${TAG} k8s/contiv-vpp -f k8s/contiv-vpp/values-arm64.yaml,k8s/contiv-vpp/values.yaml > k8s/contiv-vpp-arm64.yaml
 
 .PHONY: build all \
 	install clean test test-race \
@@ -252,4 +268,6 @@ helm-yaml:
 	get-linters lint metalinter format check-format \
 	get-linkcheck check-links \
 	get-dep dep-install \
-	describe generate-manifest helm-package helm-yaml
+	docker-images docker-dev vagrant-images\
+	describe generate-manifest helm-package helm-yaml \
+	generate-manifest-arm64 helm-yaml-arm64

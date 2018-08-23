@@ -65,6 +65,9 @@ const (
 	natLoopbackIP = "10.1.255.254"
 	namespace1    = "default"
 	namespace2    = "another-ns"
+
+	mainVrfID = 1
+	podVrfID  = 2
 )
 
 var (
@@ -124,6 +127,9 @@ func TestResyncAndSingleService(t *testing.T) {
 	contiv.SetNatLoopbackIP(natLoopbackIP)
 	contiv.SetPodIfName(pod1, pod1If)
 	contiv.SetPodIfName(pod2, pod2If)
+	contiv.SetMainVrfID(mainVrfID)
+	contiv.SetPodVrfID(podVrfID)
+	contiv.SetHostIPs([]net.IP{net.ParseIP(nodeIP), net.ParseIP(mgmtIP)})
 
 	// -> NAT plugin
 	natPlugin := NewMockNatPlugin(logger)
@@ -189,11 +195,13 @@ func TestResyncAndSingleService(t *testing.T) {
 		IP:       net.ParseIP(nodeIP),
 		Protocol: svc_renderer.UDP,
 		Port:     4789,
+		VrfID:    mainVrfID,
 	}
 	mainIfID := &IdentityMapping{
 		IP:       net.ParseIP(nodeIP),
 		Protocol: svc_renderer.UDP,
 		Port:     0,
+		VrfID:    mainVrfID,
 	}
 	Expect(natPlugin.NumOfIdentityMappings()).To(Equal(2))
 	Expect(natPlugin.HasIdentityMapping(vxlanID)).To(BeTrue())
@@ -329,11 +337,13 @@ func TestResyncAndSingleService(t *testing.T) {
 		Protocol:     svc_renderer.TCP,
 		Locals: []*Local{
 			{
+				VrfID:       podVrfID,
 				IP:          net.ParseIP(pod1IP),
 				Port:        8080,
 				Probability: localEndpointWeight,
 			},
 			{
+				VrfID:       podVrfID,
 				IP:          net.ParseIP(pod2IP),
 				Port:        8080,
 				Probability: localEndpointWeight,
@@ -461,6 +471,9 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 	contiv.SetNatLoopbackIP(natLoopbackIP)
 	contiv.SetPodIfName(pod1, pod1If)
 	contiv.SetPodIfName(pod2, pod2If)
+	contiv.SetMainVrfID(mainVrfID)
+	contiv.SetPodVrfID(podVrfID)
+	contiv.SetHostIPs([]net.IP{net.ParseIP(nodeIP), net.ParseIP(mgmtIP)})
 
 	// -> NAT plugin
 	natPlugin := NewMockNatPlugin(logger)
@@ -588,11 +601,13 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 		IP:       net.ParseIP(nodeIP),
 		Protocol: svc_renderer.UDP,
 		Port:     4789,
+		VrfID:    mainVrfID,
 	}
 	mainIfID := &IdentityMapping{
 		IP:       net.ParseIP(nodeIP),
 		Protocol: svc_renderer.UDP,
 		Port:     0,
+		VrfID:    mainVrfID,
 	}
 	Expect(natPlugin.NumOfIdentityMappings()).To(Equal(2))
 	Expect(natPlugin.HasIdentityMapping(vxlanID)).To(BeTrue())
@@ -728,11 +743,13 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 		Protocol:     svc_renderer.TCP,
 		Locals: []*Local{
 			{
+				VrfID:       podVrfID,
 				IP:          net.ParseIP(pod1IP),
 				Port:        8080,
 				Probability: localEndpointWeight,
 			},
 			{
+				VrfID:       podVrfID,
 				IP:          net.ParseIP(pod2IP),
 				Port:        8080,
 				Probability: localEndpointWeight,
@@ -745,11 +762,13 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 		Protocol:     svc_renderer.TCP,
 		Locals: []*Local{
 			{
+				VrfID:       podVrfID,
 				IP:          net.ParseIP(pod1IP),
 				Port:        8443,
 				Probability: localEndpointWeight,
 			},
 			{
+				VrfID:       podVrfID,
 				IP:          net.ParseIP(pod2IP),
 				Port:        8443,
 				Probability: localEndpointWeight,
@@ -772,11 +791,13 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 		Protocol:     svc_renderer.TCP,
 		Locals: []*Local{
 			{
+				VrfID:       podVrfID,
 				IP:          net.ParseIP(pod1IP),
 				Port:        10053,
 				Probability: localEndpointWeight,
 			},
 			{
+				VrfID:       podVrfID,
 				IP:          net.ParseIP(pod3IP),
 				Port:        53,
 				Probability: 1,
@@ -789,11 +810,13 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 		Protocol:     svc_renderer.UDP,
 		Locals: []*Local{
 			{
+				VrfID:       podVrfID,
 				IP:          net.ParseIP(pod1IP),
 				Port:        10053,
 				Probability: localEndpointWeight,
 			},
 			{
+				VrfID:       podVrfID,
 				IP:          net.ParseIP(pod3IP),
 				Port:        53,
 				Probability: 1,
@@ -846,11 +869,13 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 		Protocol:     svc_renderer.TCP,
 		Locals: []*Local{
 			{
+				VrfID:       podVrfID,
 				IP:          net.ParseIP(pod1IP),
 				Port:        8443,
 				Probability: localEndpointWeight,
 			},
 			{
+				VrfID:       podVrfID,
 				IP:          net.ParseIP(pod2IP),
 				Port:        8443,
 				Probability: localEndpointWeight,
@@ -863,11 +888,13 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 		Protocol:     svc_renderer.TCP,
 		Locals: []*Local{
 			{
+				VrfID:       podVrfID,
 				IP:          net.ParseIP(pod1IP),
 				Port:        8443,
 				Probability: localEndpointWeight,
 			},
 			{
+				VrfID:       podVrfID,
 				IP:          net.ParseIP(pod2IP),
 				Port:        8443,
 				Probability: localEndpointWeight,
@@ -1071,6 +1098,9 @@ func TestWithVXLANButNoGateway(t *testing.T) {
 	contiv.SetNatLoopbackIP(natLoopbackIP)
 	contiv.SetPodIfName(pod1, pod1If)
 	contiv.SetPodIfName(pod2, pod2If)
+	contiv.SetMainVrfID(mainVrfID)
+	contiv.SetPodVrfID(podVrfID)
+	contiv.SetHostIPs([]net.IP{net.ParseIP(nodeIP), net.ParseIP(mgmtIP)})
 
 	// -> NAT plugin
 	natPlugin := NewMockNatPlugin(logger)
@@ -1158,6 +1188,9 @@ func TestWithoutVXLAN(t *testing.T) {
 	contiv.SetNatLoopbackIP(natLoopbackIP)
 	contiv.SetPodIfName(pod1, pod1If)
 	contiv.SetPodIfName(pod2, pod2If)
+	contiv.SetMainVrfID(mainVrfID)
+	contiv.SetPodVrfID(podVrfID)
+	contiv.SetHostIPs([]net.IP{net.ParseIP(nodeIP), net.ParseIP(mgmtIP)})
 
 	// -> NAT plugin
 	natPlugin := NewMockNatPlugin(logger)
@@ -1246,6 +1279,9 @@ func TestWithOtherInterfaces(t *testing.T) {
 	contiv.SetNatLoopbackIP(natLoopbackIP)
 	contiv.SetPodIfName(pod1, pod1If)
 	contiv.SetPodIfName(pod2, pod2If)
+	contiv.SetMainVrfID(mainVrfID)
+	contiv.SetPodVrfID(podVrfID)
+	contiv.SetHostIPs([]net.IP{net.ParseIP(nodeIP), net.ParseIP(mgmtIP)})
 
 	// -> NAT plugin
 	natPlugin := NewMockNatPlugin(logger)
@@ -1316,11 +1352,13 @@ func TestWithOtherInterfaces(t *testing.T) {
 		IP:       net.ParseIP(otherIfIP),
 		Protocol: svc_renderer.UDP,
 		Port:     4789,
+		VrfID:    mainVrfID,
 	}
 	mainIfID := &IdentityMapping{
 		IP:       net.ParseIP(otherIfIP),
 		Protocol: svc_renderer.UDP,
 		Port:     0,
+		VrfID:    mainVrfID,
 	}
 	Expect(natPlugin.NumOfIdentityMappings()).To(Equal(2))
 	Expect(natPlugin.HasIdentityMapping(vxlanID)).To(BeTrue())
@@ -1353,6 +1391,9 @@ func TestServiceUpdates(t *testing.T) {
 	contiv.SetNatLoopbackIP(natLoopbackIP)
 	contiv.SetPodIfName(pod1, pod1If)
 	contiv.SetPodIfName(pod2, pod2If)
+	contiv.SetMainVrfID(mainVrfID)
+	contiv.SetPodVrfID(podVrfID)
+	contiv.SetHostIPs([]net.IP{net.ParseIP(nodeIP), net.ParseIP(mgmtIP)})
 
 	// -> NAT plugin
 	natPlugin := NewMockNatPlugin(logger)
@@ -1498,16 +1539,19 @@ func TestServiceUpdates(t *testing.T) {
 		Protocol:     svc_renderer.TCP,
 		Locals: []*Local{
 			{
+				VrfID:       podVrfID,
 				IP:          net.ParseIP(pod1IP),
 				Port:        8080,
 				Probability: localEndpointWeight,
 			},
 			{
+				VrfID:       podVrfID,
 				IP:          net.ParseIP(pod2IP),
 				Port:        8080,
 				Probability: localEndpointWeight,
 			},
 			{
+				VrfID:       podVrfID,
 				IP:          net.ParseIP(pod3IP),
 				Port:        8080,
 				Probability: 1,
@@ -1524,11 +1568,13 @@ func TestServiceUpdates(t *testing.T) {
 		IP:       net.ParseIP(nodeIP),
 		Protocol: svc_renderer.UDP,
 		Port:     4789,
+		VrfID:    mainVrfID,
 	}
 	mainIfID := &IdentityMapping{
 		IP:       net.ParseIP(nodeIP),
 		Protocol: svc_renderer.UDP,
 		Port:     0,
+		VrfID:    mainVrfID,
 	}
 	Expect(natPlugin.NumOfIdentityMappings()).To(Equal(2))
 	Expect(natPlugin.HasIdentityMapping(vxlanID)).To(BeTrue())
@@ -1618,11 +1664,13 @@ func TestServiceUpdates(t *testing.T) {
 		Protocol:     svc_renderer.TCP,
 		Locals: []*Local{
 			{
+				VrfID:       podVrfID,
 				IP:          net.ParseIP(pod1IP),
 				Port:        8080,
 				Probability: localEndpointWeight,
 			},
 			{
+				VrfID:       podVrfID,
 				IP:          net.ParseIP(pod3IP),
 				Port:        8080,
 				Probability: 1,
@@ -1685,11 +1733,13 @@ func TestServiceUpdates(t *testing.T) {
 		Protocol:     svc_renderer.TCP,
 		Locals: []*Local{
 			{
+				VrfID:       podVrfID,
 				IP:          net.ParseIP(pod1IP),
 				Port:        8443,
 				Probability: localEndpointWeight,
 			},
 			{
+				VrfID:       podVrfID,
 				IP:          net.ParseIP(pod3IP),
 				Port:        443,
 				Probability: 1,
@@ -1753,6 +1803,9 @@ func TestWithSNATOnly(t *testing.T) {
 	contiv.SetNatLoopbackIP(natLoopbackIP)
 	contiv.SetPodIfName(pod1, pod1If)
 	contiv.SetPodIfName(pod2, pod2If)
+	contiv.SetMainVrfID(mainVrfID)
+	contiv.SetPodVrfID(podVrfID)
+	contiv.SetHostIPs([]net.IP{net.ParseIP(nodeIP), net.ParseIP(mgmtIP)})
 
 	// -> NAT plugin
 	natPlugin := NewMockNatPlugin(logger)
@@ -1880,11 +1933,13 @@ func TestWithSNATOnly(t *testing.T) {
 		IP:       net.ParseIP(nodeIP),
 		Protocol: svc_renderer.UDP,
 		Port:     4789,
+		VrfID:    mainVrfID,
 	}
 	mainIfID := &IdentityMapping{
 		IP:       net.ParseIP(nodeIP),
 		Protocol: svc_renderer.UDP,
 		Port:     0,
+		VrfID:    mainVrfID,
 	}
 	Expect(natPlugin.NumOfIdentityMappings()).To(Equal(2))
 	Expect(natPlugin.HasIdentityMapping(vxlanID)).To(BeTrue())

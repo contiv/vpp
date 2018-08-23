@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
+	"os"
 	"time"
 
 	"github.com/containernetworking/cni/pkg/skel"
@@ -28,7 +29,10 @@ import (
 
 	cnisb "github.com/containernetworking/cni/pkg/types/current"
 	cninb "github.com/contiv/vpp/plugins/contiv/model/cni"
+	log "github.com/sirupsen/logrus"
 )
+
+const defaultLogFile = "/tmp/contiv-cni.log"
 
 // cniConfig represents the CNI configuration, usually located in the /etc/cni/net.d/
 // folder, automatically picked by the executor of the CNI plugin and passed in via the standard input.
@@ -43,6 +47,10 @@ type cniConfig struct {
 	// where the CNI requests are being forwarded to (server:port tuple, e.g. "localhost:9111")
 	// or unix-domain socket path (e.g. "/run/cni.sock").
 	GrpcServer string `json:"grpcServer"`
+
+	// LogFile is a plugin-specific config, specifies location of the CNI plugin log file.
+	// If empty, plugin logs into defaultLogFile.
+	LogFile string `json:"logFile"`
 }
 
 // parseCNIConfig parses CNI config from JSON (in bytes) to cniConfig struct.
@@ -64,6 +72,20 @@ func parseCNIConfig(bytes []byte) (*cniConfig, error) {
 	}
 
 	return conf, nil
+}
+
+// initLog initializes logging into the specified file
+func initLog(fileName string) error {
+	if fileName == "" {
+		fileName = defaultLogFile
+	}
+	f, err := os.OpenFile(fileName, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
+	if err != nil {
+		return err
+	}
+	log.SetOutput(f)
+	log.SetLevel(log.DebugLevel)
+	return nil
 }
 
 // grpcConnect sets up a connection to the gRPC server specified in grpcServer argument
@@ -94,15 +116,32 @@ func grpcConnect(grpcServer string) (conn *grpc.ClientConn, cni cninb.RemoteCNIC
 // cmdAdd implements the CNI request to add a container to network.
 // It forwards the request to he remote gRPC server and prints the result received from gRPC.
 func cmdAdd(args *skel.CmdArgs) error {
+	start := time.Now()
+
 	// parse CNI config
 	cfg, err := parseCNIConfig(args.StdinData)
 	if err != nil {
+		log.Errorf("Unable to parse CNI config: %v", err)
 		return err
 	}
+
+	// init the logger
+	err = initLog(cfg.LogFile)
+	if err != nil {
+		log.Errorf("Unable to initialize logging: %v", err)
+		return err
+	}
+	log.WithFields(log.Fields{
+		"ContainerID": args.ContainerID,
+		"Netns":       args.Netns,
+		"IfName":      args.IfName,
+		"Args":        args.Args,
+	}).Debug("CNI ADD request")
 
 	// connect to the remote CNI handler over gRPC
 	conn, c, err := grpcConnect(cfg.GrpcServer)
 	if err != nil {
+		log.Errorf("Unable to connect to GRPC server %s: %v", cfg.GrpcServer, err)
 		return err
 	}
 	defer conn.Close()
@@ -117,6 +156,7 @@ func cmdAdd(args *skel.CmdArgs) error {
 		ExtraNwConfig:    string(args.StdinData),
 	})
 	if err != nil {
+		log.Errorf("Error by executing remote CNI Add request: %v", err)
 		return err
 	}
 
@@ -137,12 +177,14 @@ func cmdAdd(args *skel.CmdArgs) error {
 			// append interface ip address info
 			_, ipAddr, err := net.ParseCIDR(ip.Address)
 			if err != nil {
+				log.Error(err)
 				return err
 			}
 			var gwAddr net.IP
 			if ip.Gateway != "" {
 				gwAddr = net.ParseIP(ip.Gateway)
 				if err != nil {
+					log.Error(err)
 					return err
 				}
 			}
@@ -163,10 +205,12 @@ func cmdAdd(args *skel.CmdArgs) error {
 	for _, route := range r.Routes {
 		_, dstIP, err := net.ParseCIDR(route.Dst)
 		if err != nil {
+			log.Error(err)
 			return err
 		}
 		gwAddr := net.ParseIP(route.Gw)
 		if err != nil {
+			log.Error(err)
 			return err
 		}
 		result.Routes = append(result.Routes, &types.Route{
@@ -183,28 +227,46 @@ func cmdAdd(args *skel.CmdArgs) error {
 		result.DNS.Options = dns.Options
 	}
 
+	log.WithFields(log.Fields{"Result": result}).Debugf("CNI ADD request OK, took %s", time.Since(start))
+
 	return result.Print()
 }
 
 // cmdDel implements the CNI request to delete a container from network.
 // It forwards the request to he remote gRPC server and returns the result received from gRPC.
 func cmdDel(args *skel.CmdArgs) error {
+	start := time.Now()
+
 	// parse CNI config
-	n, err := parseCNIConfig(args.StdinData)
+	cfg, err := parseCNIConfig(args.StdinData)
 	if err != nil {
+		log.Errorf("Unable to parse CNI config: %v", err)
 		return err
 	}
 
-	// connect to remote CNI handler over gRPC
-	conn, c, err := grpcConnect(n.GrpcServer)
+	err = initLog(cfg.LogFile)
 	if err != nil {
+		log.Errorf("Unable to initialize logging: %v", err)
+		return err
+	}
+	log.WithFields(log.Fields{
+		"ContainerID": args.ContainerID,
+		"Netns":       args.Netns,
+		"IfName":      args.IfName,
+		"Args":        args.Args,
+	}).Debug("CNI DEL request")
+
+	// connect to remote CNI handler over gRPC
+	conn, c, err := grpcConnect(cfg.GrpcServer)
+	if err != nil {
+		log.Errorf("Unable to connect to GRPC server %s: %v", cfg.GrpcServer, err)
 		return err
 	}
 	defer conn.Close()
 
 	// execute the DELETE request
 	_, err = c.Delete(context.Background(), &cninb.CNIRequest{
-		Version:          n.CNIVersion,
+		Version:          cfg.CNIVersion,
 		ContainerId:      args.ContainerID,
 		InterfaceName:    args.IfName,
 		NetworkNamespace: args.Netns,
@@ -212,8 +274,11 @@ func cmdDel(args *skel.CmdArgs) error {
 		ExtraNwConfig:    string(args.StdinData),
 	})
 	if err != nil {
+		log.Errorf("Error by executing remote CNI Delete request: %v", err)
 		return err
 	}
+
+	log.Debugf("CNI DEL request OK, took %s", time.Since(start))
 
 	return nil
 }

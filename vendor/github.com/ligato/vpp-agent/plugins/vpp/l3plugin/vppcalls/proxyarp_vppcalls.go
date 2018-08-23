@@ -18,44 +18,29 @@ import (
 	"fmt"
 	"time"
 
-	govppapi "git.fd.io/govpp.git/api"
-	"github.com/ligato/cn-infra/logging"
-	"github.com/ligato/cn-infra/logging/measure"
 	"github.com/ligato/vpp-agent/plugins/vpp/binapi/ip"
 )
 
-// ProxyArpMessages is list of used VPP messages for compatibility check
-var ProxyArpMessages = []govppapi.Message{
-	&ip.ProxyArpIntfcEnableDisable{},
-	&ip.ProxyArpIntfcEnableDisableReply{},
-	&ip.ProxyArpAddDel{},
-	&ip.ProxyArpAddDelReply{},
+func (handler *proxyArpVppHandler) EnableProxyArpInterface(swIfIdx uint32) error {
+	return handler.vppAddDelProxyArpInterface(swIfIdx, true)
 }
 
-// EnableProxyArpInterface enables interface for proxy ARP
-func EnableProxyArpInterface(swIfIdx uint32, vppChan VPPChannel, log logging.Logger, stopwatch *measure.Stopwatch) error {
-	return vppAddDelProxyArpInterface(swIfIdx, vppChan, true, log, stopwatch)
+func (handler *proxyArpVppHandler) DisableProxyArpInterface(swIfIdx uint32) error {
+	return handler.vppAddDelProxyArpInterface(swIfIdx, false)
 }
 
-// DisableProxyArpInterface disables interface for proxy ARP
-func DisableProxyArpInterface(swIfIdx uint32, vppChan VPPChannel, log logging.Logger, stopwatch *measure.Stopwatch) error {
-	return vppAddDelProxyArpInterface(swIfIdx, vppChan, false, log, stopwatch)
+func (handler *proxyArpVppHandler) AddProxyArpRange(firstIP, lastIP []byte) error {
+	return handler.vppAddDelProxyArpRange(firstIP, lastIP, true)
 }
 
-// AddProxyArpRange adds new IP range for proxy ARP
-func AddProxyArpRange(firstIP, lastIP []byte, vppChan VPPChannel, log logging.Logger, stopwatch *measure.Stopwatch) error {
-	return vppAddDelProxyArpRange(firstIP, lastIP, vppChan, true, log, stopwatch)
-}
-
-// DeleteProxyArpRange removes proxy ARP IP range
-func DeleteProxyArpRange(firstIP, lastIP []byte, vppChan VPPChannel, log logging.Logger, stopwatch *measure.Stopwatch) error {
-	return vppAddDelProxyArpRange(firstIP, lastIP, vppChan, false, log, stopwatch)
+func (handler *proxyArpVppHandler) DeleteProxyArpRange(firstIP, lastIP []byte) error {
+	return handler.vppAddDelProxyArpRange(firstIP, lastIP, false)
 }
 
 // vppAddDelProxyArpInterface adds or removes proxy ARP interface entry according to provided input
-func vppAddDelProxyArpInterface(swIfIdx uint32, vppChan VPPChannel, enable bool, log logging.Logger, stopwatch *measure.Stopwatch) error {
+func (handler *proxyArpVppHandler) vppAddDelProxyArpInterface(swIfIdx uint32, enable bool) error {
 	defer func(t time.Time) {
-		stopwatch.TimeLog(ip.ProxyArpIntfcEnableDisable{}).LogTimeEntry(time.Since(t))
+		handler.stopwatch.TimeLog(ip.ProxyArpIntfcEnableDisable{}).LogTimeEntry(time.Since(t))
 	}(time.Now())
 
 	req := &ip.ProxyArpIntfcEnableDisable{}
@@ -68,22 +53,22 @@ func vppAddDelProxyArpInterface(swIfIdx uint32, vppChan VPPChannel, enable bool,
 
 	// Send message
 	reply := &ip.ProxyArpIntfcEnableDisableReply{}
-	if err := vppChan.SendRequest(req).ReceiveReply(reply); err != nil {
+	if err := handler.callsChannel.SendRequest(req).ReceiveReply(reply); err != nil {
 		return err
 	}
 	if reply.Retval != 0 {
 		return fmt.Errorf("%s returned %d", reply.GetMessageName(), reply.Retval)
 	}
 
-	log.Debugf("interface %v enabled for proxy arp: %v", req.SwIfIndex, enable)
+	handler.log.Debugf("interface %v enabled for proxy arp: %v", req.SwIfIndex, enable)
 
 	return nil
 }
 
 // vppAddDelProxyArpRange adds or removes proxy ARP range according to provided input
-func vppAddDelProxyArpRange(firstIP, lastIP []byte, vppChan VPPChannel, isAdd bool, log logging.Logger, stopwatch *measure.Stopwatch) error {
+func (handler *proxyArpVppHandler) vppAddDelProxyArpRange(firstIP, lastIP []byte, isAdd bool) error {
 	defer func(t time.Time) {
-		stopwatch.TimeLog(ip.ProxyArpAddDel{}).LogTimeEntry(time.Since(t))
+		handler.stopwatch.TimeLog(ip.ProxyArpAddDel{}).LogTimeEntry(time.Since(t))
 	}(time.Now())
 
 	req := &ip.ProxyArpAddDel{}
@@ -99,14 +84,14 @@ func vppAddDelProxyArpRange(firstIP, lastIP []byte, vppChan VPPChannel, isAdd bo
 
 	// Send message
 	reply := &ip.ProxyArpAddDelReply{}
-	if err := vppChan.SendRequest(req).ReceiveReply(reply); err != nil {
+	if err := handler.callsChannel.SendRequest(req).ReceiveReply(reply); err != nil {
 		return err
 	}
 	if reply.Retval != 0 {
 		return fmt.Errorf("%s returned %d", reply.GetMessageName(), reply.Retval)
 	}
 
-	log.Debugf("proxy arp range: %v - %v added: %v", req.Proxy.LowAddress, req.Proxy.HiAddress, isAdd)
+	handler.log.Debugf("proxy arp range: %v - %v added: %v", req.Proxy.LowAddress, req.Proxy.HiAddress, isAdd)
 
 	return nil
 }

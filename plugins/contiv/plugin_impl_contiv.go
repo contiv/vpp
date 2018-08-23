@@ -35,10 +35,13 @@ import (
 	"github.com/contiv/vpp/plugins/kvdbproxy"
 	"github.com/ligato/cn-infra/datasync"
 	"github.com/ligato/cn-infra/datasync/resync"
+	"github.com/ligato/cn-infra/db/keyval"
 	"github.com/ligato/cn-infra/db/keyval/etcd"
-	"github.com/ligato/cn-infra/flavors/local"
+	"github.com/ligato/cn-infra/infra"
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/rpc/grpc"
+	"github.com/ligato/cn-infra/rpc/rest"
+	"github.com/ligato/cn-infra/servicelabel"
 	"github.com/ligato/cn-infra/utils/safeclose"
 	"github.com/ligato/vpp-agent/clientv1/linux"
 	linuxlocalclient "github.com/ligato/vpp-agent/clientv1/linux/localclient"
@@ -50,7 +53,7 @@ import (
 // GRPC into configuration for the vswitch VPP in order to connect/disconnect a container into/from the network.
 type Plugin struct {
 	Deps
-	govppCh *api.Channel
+	govppCh api.Channel
 
 	configuredContainers *containeridx.ConfigIndex
 	cniServer            *remoteCNIserver
@@ -73,14 +76,17 @@ type Plugin struct {
 
 // Deps groups the dependencies of the Plugin.
 type Deps struct {
-	local.PluginInfraDeps
-	GRPC    grpc.Server
-	Proxy   *kvdbproxy.Plugin
-	VPP     *vpp.Plugin
-	GoVPP   govppmux.API
-	Resync  resync.Subscriber
-	ETCD    *etcd.Plugin
-	Watcher datasync.KeyValProtoWatcher
+	infra.PluginDeps
+	ServiceLabel servicelabel.ReaderAPI
+	GRPC         grpc.Server
+	Proxy        *kvdbproxy.Plugin
+	VPP          *vpp.Plugin
+	GoVPP        govppmux.API
+	Resync       resync.Subscriber
+	ETCD         *etcd.Plugin
+	Bolt         keyval.KvProtoPlugin
+	Watcher      datasync.KeyValProtoWatcher
+	HTTPHandlers rest.HTTPHandlers
 }
 
 // Config represents configuration for the Contiv plugin.
@@ -105,6 +111,8 @@ type Config struct {
 	ScanIPNeighbors             bool   // if enabled, periodically scans and probes IP neighbors to maintain the ARP table
 	IPNeighborScanInterval      uint8
 	IPNeighborStaleThreshold    uint8
+	MainVRFID                   uint32
+	PodVRFID                    uint32
 	ServiceLocalEndpointWeight  uint8
 	DisableNATVirtualReassembly bool // if true, NAT plugin will drop fragmented packets
 	IPAMConfig                  ipam.Config
@@ -130,9 +138,9 @@ type InterfaceWithIP struct {
 
 // Init initializes the Contiv plugin. Called automatically by plugin infra upon contiv-agent startup.
 func (plugin *Plugin) Init() error {
-	broker := plugin.ETCD.NewBroker(plugin.ServiceLabel.GetAgentPrefix())
 	// init map with configured containers
-	plugin.configuredContainers = containeridx.NewConfigIndex(plugin.Log, "containers", broker)
+	plugin.configuredContainers = containeridx.NewConfigIndex(plugin.Log, "containers",
+		plugin.ETCD.NewBroker(plugin.ServiceLabel.GetAgentPrefix()))
 
 	// load config file
 	plugin.ctx, plugin.ctxCancelFunc = context.WithCancel(context.Background())
@@ -179,7 +187,7 @@ func (plugin *Plugin) Init() error {
 	// start the GRPC server handling the CNI requests
 	plugin.cniServer, err = newRemoteCNIServer(plugin.Log,
 		func() linuxclient.DataChangeDSL {
-			return linuxlocalclient.DataChangeRequest(plugin.PluginName)
+			return linuxlocalclient.DataChangeRequest(plugin.String())
 		},
 		plugin.Proxy,
 		plugin.configuredContainers,
@@ -191,7 +199,8 @@ func (plugin *Plugin) Init() error {
 		plugin.myNodeConfig,
 		nodeID,
 		plugin.excludedIPsFromNodeCIDR(),
-		broker)
+		plugin.Bolt.NewBroker(plugin.ServiceLabel.GetAgentPrefix()),
+		plugin.HTTPHandlers)
 	if err != nil {
 		return fmt.Errorf("Can't create new remote CNI server due to error: %v ", err)
 	}
@@ -278,6 +287,11 @@ func (plugin *Plugin) GetNsIndex(podNamespace string, podName string) (nsIndex u
 	return 0, false
 }
 
+// GetPodSubnet provides subnet used for allocating pod IP addresses across all nodes.
+func (plugin *Plugin) GetPodSubnet() *net.IPNet {
+	return plugin.cniServer.ipam.PodSubnet()
+}
+
 // GetPodNetwork provides subnet used for allocating pod IP addresses on this node.
 func (plugin *Plugin) GetPodNetwork() *net.IPNet {
 	return plugin.cniServer.ipam.PodNetwork()
@@ -343,6 +357,11 @@ func (plugin *Plugin) GetNodeIP() (ip net.IP, network *net.IPNet) {
 	return plugin.cniServer.GetNodeIP()
 }
 
+// GetHostIPs returns all IP addresses of this node present in the host network namespace (Linux).
+func (plugin *Plugin) GetHostIPs() []net.IP {
+	return plugin.cniServer.GetHostIPs()
+}
+
 // WatchNodeIP adds given channel to the list of subscribers that are notified upon change
 // of nodeIP address. If the channel is not ready to receive notification, the notification is dropped.
 func (plugin *Plugin) WatchNodeIP(subscriber chan string) {
@@ -386,6 +405,22 @@ func (plugin *Plugin) RegisterPodPreRemovalHook(hook PodActionHook) {
 	plugin.cniServer.RegisterPodPreRemovalHook(hook)
 }
 
+// RegisterPodPostAddHook allows to register callback that will be run for each
+// pod once it is added and before the CNI reply is sent.
+func (plugin *Plugin) RegisterPodPostAddHook(hook PodActionHook) {
+	plugin.cniServer.RegisterPodPostAddHook(hook)
+}
+
+// GetMainVrfID returns the ID of the main network connectivity VRF.
+func (plugin *Plugin) GetMainVrfID() uint32 {
+	return plugin.cniServer.GetMainVrfID()
+}
+
+// GetPodVrfID returns the ID of the POD VRF.
+func (plugin *Plugin) GetPodVrfID() uint32 {
+	return plugin.cniServer.GetPodVrfID()
+}
+
 // handleResync handles resync events of the plugin. Called automatically by the plugin infra.
 func (plugin *Plugin) handleResync(resyncChan chan resync.StatusEvent) {
 	for {
@@ -408,7 +443,7 @@ func (plugin *Plugin) handleResync(resyncChan chan resync.StatusEvent) {
 // loadExternalConfig attempts to load external configuration from a YAML file.
 func (plugin *Plugin) loadExternalConfig() error {
 	externalCfg := &Config{}
-	found, err := plugin.PluginConfig.GetValue(externalCfg) // It tries to lookup `PluginName + "-config"` in the executable arguments.
+	found, err := plugin.Cfg.LoadValue(externalCfg) // It tries to lookup `PluginName + "-config"` in the executable arguments.
 	if err != nil {
 		return fmt.Errorf("External Contiv plugin configuration could not load or other problem happened: %v", err)
 	}

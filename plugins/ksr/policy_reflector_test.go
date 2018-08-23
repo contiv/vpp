@@ -33,7 +33,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 
 	"github.com/contiv/vpp/plugins/ksr/model/policy"
-	"github.com/ligato/cn-infra/flavors/local"
+	"github.com/ligato/cn-infra/logging"
 )
 
 type PolicyTestVars struct {
@@ -49,9 +49,6 @@ var policyTestVars PolicyTestVars
 func TestPolicyReflector(t *testing.T) {
 	gomega.RegisterTestingT(t)
 
-	flavorLocal := &local.FlavorLocal{}
-	flavorLocal.Inject()
-
 	policyTestVars.k8sListWatch = &mockK8sListWatch{}
 	policyTestVars.mockKvBroker = newMockKeyProtoValBroker()
 
@@ -62,7 +59,7 @@ func TestPolicyReflector(t *testing.T) {
 
 	policyTestVars.policyReflector = &PolicyReflector{
 		Reflector: Reflector{
-			Log:               flavorLocal.LoggerFor("policy-reflector"),
+			Log:               logging.ForPlugin("policy-reflector"),
 			K8sClientset:      &kubernetes.Clientset{},
 			K8sListWatch:      policyTestVars.k8sListWatch,
 			Broker:            policyTestVars.mockKvBroker,

@@ -16,14 +16,15 @@ package vppcalls
 
 import (
 	"fmt"
-	"net"
 	"time"
 
+	"net"
+
 	govppapi "git.fd.io/govpp.git/api"
-	"github.com/ligato/cn-infra/logging/measure"
 	"github.com/ligato/cn-infra/utils/addrs"
 	"github.com/ligato/vpp-agent/plugins/vpp/binapi/ip"
 	ifvppcalls "github.com/ligato/vpp-agent/plugins/vpp/ifplugin/vppcalls"
+	"github.com/ligato/vpp-agent/plugins/vpp/model/l3"
 )
 
 var RouteMessages = []govppapi.Message{
@@ -33,18 +34,6 @@ var RouteMessages = []govppapi.Message{
 	&ip.IPFibDetails{},
 	&ip.IP6FibDump{},
 	&ip.IP6FibDetails{},
-}
-
-// Route represents a forward IP route entry with the parameters of gateway
-// to which packets should be forwarded when a given routing table entry is applied.
-type Route struct {
-	VrfID       uint32    `json:"vrf_id"`
-	TableName   string    `json:"table_name"`
-	DstAddr     net.IPNet `json:"dst_addr"`
-	NextHopAddr net.IP    `json:"next_hop_addr"`
-	OutIface    uint32    `json:"out_iface"`
-	Weight      uint32    `json:"weight"`
-	Preference  uint32    `json:"preference"`
 }
 
 const (
@@ -62,9 +51,9 @@ const (
 )
 
 // vppAddDelRoute adds or removes route, according to provided input. Every route has to contain VRF ID (default is 0).
-func vppAddDelRoute(route *Route, vppChan VPPChannel, delete bool, stopwatch *measure.Stopwatch) error {
+func (handler *routeHandler) vppAddDelRoute(route *l3.StaticRoutes_Route, rtIfIdx uint32, delete bool) error {
 	defer func(t time.Time) {
-		stopwatch.TimeLog(ip.IPAddDelRoute{}).LogTimeEntry(time.Since(t))
+		handler.stopwatch.TimeLog(ip.IPAddDelRoute{}).LogTimeEntry(time.Since(t))
 	}(time.Now())
 
 	req := &ip.IPAddDelRoute{}
@@ -75,40 +64,47 @@ func vppAddDelRoute(route *Route, vppChan VPPChannel, delete bool, stopwatch *me
 	}
 
 	// Destination address (route set identifier)
-	ipAddr := route.DstAddr.IP
-	prefix, _ := route.DstAddr.Mask.Size()
-	isIpv6, err := addrs.IsIPv6(ipAddr.String())
+	parsedDstIP, isIpv6, err := addrs.ParseIPWithPrefix(route.DstIpAddr)
 	if err != nil {
 		return err
 	}
+	parsedNextHopIP := net.ParseIP(route.NextHopAddr)
+	prefix, _ := parsedDstIP.Mask.Size()
 	if isIpv6 {
-		req.IsIpv6 = 1
-		req.DstAddress = []byte(ipAddr.To16())
+		req.IsIPv6 = 1
+		req.DstAddress = []byte(parsedDstIP.IP.To16())
+		req.NextHopAddress = []byte(parsedNextHopIP.To16())
 	} else {
-		req.IsIpv6 = 0
-		req.DstAddress = []byte(ipAddr.To4())
+		req.IsIPv6 = 0
+		req.DstAddress = []byte(parsedDstIP.IP.To4())
+		req.NextHopAddress = []byte(parsedNextHopIP.To4())
 	}
 	req.DstAddressLength = byte(prefix)
 
-	// Next hop address and parameters
-	req.NextHopAddress = []byte(route.NextHopAddr)
-	req.NextHopSwIfIndex = route.OutIface
+	// Common route parameters
 	req.NextHopWeight = uint8(route.Weight)
 	req.NextHopPreference = uint8(route.Preference)
-	req.NextHopTableID = route.VrfID
 	req.NextHopViaLabel = NextHopViaLabelUnset
 	req.ClassifyTableIndex = ClassifyTableIndexUnset
-	req.IsDrop = 0
 
-	// VRF
-	req.TableID = route.VrfID
+	// VRF/Other route parameters based on type
+	req.TableID = route.VrfId
+	if route.Type == l3.StaticRoutes_Route_INTER_VRF {
+		req.NextHopSwIfIndex = rtIfIdx
+		req.NextHopTableID = route.ViaVrfId
+	} else if route.Type == l3.StaticRoutes_Route_DROP {
+		req.IsDrop = 1
+	} else {
+		req.NextHopSwIfIndex = rtIfIdx
+		req.NextHopTableID = route.VrfId
+	}
 
 	// Multi path is always true
 	req.IsMultipath = 1
 
 	// Send message
 	reply := &ip.IPAddDelRouteReply{}
-	if err = vppChan.SendRequest(req).ReceiveReply(reply); err != nil {
+	if err := handler.callsChannel.SendRequest(req).ReceiveReply(reply); err != nil {
 		return err
 	}
 	if reply.Retval != 0 {
@@ -118,15 +114,18 @@ func vppAddDelRoute(route *Route, vppChan VPPChannel, delete bool, stopwatch *me
 	return nil
 }
 
-// VppAddRoute adds new route, according to provided input. Every route has to contain VRF ID (default is 0).
-func VppAddRoute(route *Route, vppChan ifvppcalls.VPPChannel, stopwatch *measure.Stopwatch) error {
-	if err := ifvppcalls.CreateVrfIfNeeded(route.VrfID, vppChan); err != nil {
+func (handler *routeHandler) VppAddRoute(ifHandler ifvppcalls.IfVppWrite, route *l3.StaticRoutes_Route, rtIfIdx uint32) error {
+	if err := ifHandler.CreateVrfIfNeeded(route.VrfId); err != nil {
 		return err
 	}
-	return vppAddDelRoute(route, vppChan, false, stopwatch)
+	if route.Type == l3.StaticRoutes_Route_INTER_VRF {
+		if err := ifHandler.CreateVrfIfNeeded(route.ViaVrfId); err != nil {
+			return err
+		}
+	}
+	return handler.vppAddDelRoute(route, rtIfIdx, false)
 }
 
-// VppDelRoute removes old route, according to provided input. Every route has to contain VRF ID (default is 0).
-func VppDelRoute(route *Route, vppChan VPPChannel, stopwatch *measure.Stopwatch) error {
-	return vppAddDelRoute(route, vppChan, true, stopwatch)
+func (handler *routeHandler) VppDelRoute(route *l3.StaticRoutes_Route, rtIfIdx uint32) error {
+	return handler.vppAddDelRoute(route, rtIfIdx, true)
 }

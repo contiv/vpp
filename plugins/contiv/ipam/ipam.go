@@ -22,6 +22,7 @@ import (
 
 	"github.com/ligato/cn-infra/db/keyval"
 	"github.com/ligato/cn-infra/logging"
+	"github.com/ligato/cn-infra/rpc/rest"
 	"sort"
 )
 
@@ -37,8 +38,9 @@ type IPAM struct {
 	logger logging.Logger
 	mutex  sync.RWMutex
 
-	nodeID uint32             // identifier of the node for which this IPAM is created for
-	broker keyval.ProtoBroker // broker that is used for persisting
+	nodeID   uint32             // identifier of the node for which this IPAM is created for
+	nodeName string             // node name for which this IPAM is created for
+	broker   keyval.ProtoBroker // broker that is used for persisting
 
 	// POD related variables
 	podSubnetIPPrefix   net.IPNet        // IPv4 subnet from which individual POD networks are allocated, this is subnet for all PODs across all nodes
@@ -81,13 +83,14 @@ type Config struct {
 }
 
 // New returns new IPAM module to be used on the node specified by the nodeID.
-func New(logger logging.Logger, nodeID uint32, config *Config, nodeInterconnectExcludedIPs []net.IP, broker keyval.ProtoBroker) (*IPAM, error) {
+func New(logger logging.Logger, nodeID uint32, nodeName string, config *Config, nodeInterconnectExcludedIPs []net.IP, broker keyval.ProtoBroker, http rest.HTTPHandlers) (*IPAM, error) {
 	// create basic IPAM
 	ipam := &IPAM{
 		logger:       logger,
 		nodeID:       nodeID,
 		lastAssigned: 1,
 		broker:       broker,
+		nodeName:     nodeName,
 	}
 
 	// computing IPAM struct variables from IPAM config
@@ -113,6 +116,7 @@ func New(logger logging.Logger, nodeID uint32, config *Config, nodeInterconnectE
 	}
 	logger.Infof("IPAM values loaded: %+v", ipam)
 
+	ipam.registerHandlers(http)
 	return ipam, nil
 }
 
@@ -191,6 +195,14 @@ func (i *IPAM) VPPHostNetwork() *net.IPNet {
 	i.mutex.RLock()
 	defer i.mutex.RUnlock()
 	vSwitchNetwork := newIPNet(i.vppHostNetworkIPPrefix) // defensive copy
+	return &vSwitchNetwork
+}
+
+// VPPHostSubnet returns vswitch base subnet used to connect VPP to its host Linux Stack on all nodes.
+func (i *IPAM) VPPHostSubnet() *net.IPNet {
+	i.mutex.RLock()
+	defer i.mutex.RUnlock()
+	vSwitchNetwork := newIPNet(i.vppHostSubnetIPPrefix) // defensive copy
 	return &vSwitchNetwork
 }
 
@@ -345,7 +357,8 @@ func (i *IPAM) ReleasePodIP(podID string) error {
 
 	ip, err := i.findIP(podID)
 	if err != nil {
-		return fmt.Errorf("Can't release pod IP: %v", err)
+		i.logger.Warnf("Unable to find pod(%v) IP: %v", podID, err)
+		return nil
 	}
 	err = i.deleteAssignedIP(podID)
 	if err != nil {

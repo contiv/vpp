@@ -30,6 +30,7 @@ import (
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	svcmodel "github.com/contiv/vpp/plugins/ksr/model/service"
 	"github.com/contiv/vpp/plugins/service/renderer"
+	"sync"
 )
 
 // ServiceProcessor implements ServiceProcessorAPI.
@@ -48,6 +49,8 @@ type ServiceProcessor struct {
 	/* local frontend and backend interfaces */
 	frontendIfs renderer.Interfaces
 	backendIfs  renderer.Interfaces
+
+	sync.Mutex
 }
 
 // Deps lists dependencies of ServiceProcessor.
@@ -67,6 +70,7 @@ type LocalEndpoint struct {
 func (sp *ServiceProcessor) Init() error {
 	sp.reset()
 	sp.Contiv.RegisterPodPreRemovalHook(sp.processDeletingPod)
+	sp.Contiv.RegisterPodPostAddHook(sp.processNewPod)
 	return nil
 }
 
@@ -91,6 +95,9 @@ func (sp *ServiceProcessor) reset() error {
 // are notified about any changes related to services that need to be
 // reflected in the underlying network stack(s).
 func (sp *ServiceProcessor) Update(dataChngEv datasync.ChangeEvent) error {
+	sp.Lock()
+	defer sp.Unlock()
+
 	return sp.propagateDataChangeEv(dataChngEv)
 }
 
@@ -100,6 +107,9 @@ func (sp *ServiceProcessor) Update(dataChngEv datasync.ChangeEvent) error {
 // receive a full snapshot of Contiv Services at the present state to be
 // (re)installed.
 func (sp *ServiceProcessor) Resync(resyncEv datasync.ResyncEvent) error {
+	sp.Lock()
+	defer sp.Unlock()
+
 	resyncEvData := sp.parseResyncEv(resyncEv)
 	return sp.processResyncEvent(resyncEvData)
 }
@@ -107,7 +117,45 @@ func (sp *ServiceProcessor) Resync(resyncEv datasync.ResyncEvent) error {
 // RegisterRenderer registers a new service renderer.
 // The renderer will be receiving updates for all services on the cluster.
 func (sp *ServiceProcessor) RegisterRenderer(renderer renderer.ServiceRendererAPI) error {
+	sp.Lock()
+	defer sp.Unlock()
+
 	sp.renderers = append(sp.renderers, renderer)
+	return nil
+}
+
+func (sp *ServiceProcessor) processNewPod(podNamespace string, podName string) error {
+	sp.Lock()
+	defer sp.Unlock()
+
+	sp.Log.WithFields(logging.Fields{
+		"name":      podName,
+		"namespace": podNamespace,
+	}).Debug("ServiceProcessor - processNewPod()")
+	podID := podmodel.ID{Name: podName, Namespace: podNamespace}
+
+	localEp := sp.getLocalEndpoint(podID)
+
+	ifName, ifExists := sp.Contiv.GetIfName(podID.Namespace, podID.Name)
+	if !ifExists {
+		sp.Log.WithFields(logging.Fields{
+			"pod-ns":   podID.Namespace,
+			"pod-name": podID.Name,
+		}).Warn("Failed to get pod interface name")
+		return nil
+	}
+
+	localEp.ifName = ifName
+
+	newFrontendIfs := sp.frontendIfs.Copy()
+	newFrontendIfs.Add(ifName)
+	for _, renderer := range sp.renderers {
+		err := renderer.UpdateLocalFrontendIfs(sp.frontendIfs, newFrontendIfs)
+		if err != nil {
+			return err
+		}
+	}
+	sp.frontendIfs = newFrontendIfs
 	return nil
 }
 
@@ -165,6 +213,9 @@ func (sp *ServiceProcessor) processUpdatedPod(pod *podmodel.Pod) error {
 }
 
 func (sp *ServiceProcessor) processDeletingPod(podNamespace string, podName string) error {
+	sp.Lock()
+	defer sp.Unlock()
+
 	podID := podmodel.ID{Name: podName, Namespace: podNamespace}
 	sp.Log.WithFields(logging.Fields{
 		"podID": podID,

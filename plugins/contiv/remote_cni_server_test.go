@@ -25,6 +25,7 @@ import (
 	govppmock "git.fd.io/govpp.git/adapter/mock"
 	"git.fd.io/govpp.git/adapter/mock/binapi"
 	"git.fd.io/govpp.git/api"
+	"git.fd.io/govpp.git/codec"
 	govpp "git.fd.io/govpp.git/core"
 
 	"github.com/contiv/vpp/mock/localclient"
@@ -156,6 +157,7 @@ func setupTestCNIServer(config *Config, nodeConfig *OneNodeConfig, existingInter
 		nodeConfig,
 		1,
 		nil,
+		nil,
 		nil)
 	server.test = true
 	gomega.Expect(err).To(gomega.BeNil())
@@ -208,8 +210,8 @@ func TestAddDelVeth(t *testing.T) {
 	gomega.Expect(err).To(gomega.BeNil())
 	gomega.Expect(reply).NotTo(gomega.BeNil())
 
-	gomega.Expect(len(txns.PendingTxns)).To(gomega.BeEquivalentTo(2)) // not applied reverts
-	gomega.Expect(len(txns.CommittedTxns)).To(gomega.BeEquivalentTo(3))
+	gomega.Expect(len(txns.PendingTxns)).To(gomega.BeEquivalentTo(1)) // not applied revert
+	gomega.Expect(len(txns.CommittedTxns)).To(gomega.BeEquivalentTo(1))
 	// TODO add asserts for txns(one linux plugin txn and one default plugins txn) / currently applied config
 
 	res := configuredContainers.LookupPodName(podName)
@@ -234,7 +236,7 @@ func TestConfigureVswitchDHCP(t *testing.T) {
 	err := server.resync()
 	gomega.Expect(err).To(gomega.BeNil())
 
-	gomega.Expect(len(txns.CommittedTxns)).To(gomega.BeEquivalentTo(5))
+	gomega.Expect(len(txns.CommittedTxns)).To(gomega.BeEquivalentTo(4))
 	// TODO add asserts for txns(one linux plugin txn and one default plugins txn) / currently applied config
 
 	// node IP is empty since DHCP reply have not been received
@@ -243,7 +245,7 @@ func TestConfigureVswitchDHCP(t *testing.T) {
 	gomega.Expect(server.GetHostInterconnectIfName()).ToNot(gomega.BeEmpty())
 
 	server.close()
-	gomega.Expect(len(txns.CommittedTxns)).To(gomega.BeEquivalentTo(6))
+	gomega.Expect(len(txns.CommittedTxns)).To(gomega.BeEquivalentTo(5))
 }
 
 func TestAddDelTap(t *testing.T) {
@@ -261,8 +263,8 @@ func TestAddDelTap(t *testing.T) {
 	gomega.Expect(err).To(gomega.BeNil())
 	gomega.Expect(reply).NotTo(gomega.BeNil())
 
-	gomega.Expect(len(txns.PendingTxns)).To(gomega.BeEquivalentTo(2)) // not applied reverts
-	gomega.Expect(len(txns.CommittedTxns)).To(gomega.BeEquivalentTo(4))
+	gomega.Expect(len(txns.PendingTxns)).To(gomega.BeEquivalentTo(1)) // not applied revert
+	gomega.Expect(len(txns.CommittedTxns)).To(gomega.BeEquivalentTo(1))
 	// TODO add asserts for txns(one linux plugin txn and one default plugins txn) / currently applied config
 
 	res := configuredContainers.LookupPodName(podName)
@@ -322,7 +324,7 @@ func TestConfigureVswitchTap(t *testing.T) {
 	err := server.resync()
 	gomega.Expect(err).To(gomega.BeNil())
 
-	gomega.Expect(len(txns.CommittedTxns)).To(gomega.BeEquivalentTo(5))
+	gomega.Expect(len(txns.CommittedTxns)).To(gomega.BeEquivalentTo(4))
 	// TODO add asserts for txns(one linux plugin txn and one default plugins txn) / currently applied config
 
 	// node IP must not be empty
@@ -335,7 +337,7 @@ func TestConfigureVswitchTap(t *testing.T) {
 	gomega.Expect(server.GetVxlanBVIIfName()).ToNot(gomega.BeEmpty())
 
 	server.close()
-	gomega.Expect(len(txns.CommittedTxns)).To(gomega.BeEquivalentTo(6))
+	gomega.Expect(len(txns.CommittedTxns)).To(gomega.BeEquivalentTo(5))
 }
 
 func TestNodeAddDelL2(t *testing.T) {
@@ -406,14 +408,14 @@ func TestVeth1NameFromRequest(t *testing.T) {
 		"testlabel",
 		&configVethL2NoTCP,
 		nil,
-		1, nil, nil)
+		1, nil, nil, nil)
 	gomega.Expect(err).To(gomega.BeNil())
 
 	hostIfName := server.veth1HostIfNameFromRequest(&req)
 	gomega.Expect(hostIfName).To(gomega.BeEquivalentTo("eth0"))
 }
 
-func vppChanMock() (*api.Channel, *govpp.Connection) {
+func vppChanMock() (api.Channel, *govpp.Connection) {
 	vppMock := &mock.VppAdapter{}
 	vppMock.RegisterBinAPITypes(interfaces_bin.Types)
 	vppMock.RegisterBinAPITypes(memif.Types)
@@ -433,7 +435,7 @@ func vppChanMock() (*api.Channel, *govpp.Connection) {
 		logrus.DefaultLogger().Debug("MockReplyHandler ", request.MsgID, " ", reqName)
 
 		if reqName == "sw_interface_dump" {
-			codec := govpp.MsgCodec{}
+			codec := &codec.MsgCodec{}
 			ifDump := interfaces_bin.SwInterfaceDump{}
 			err := codec.DecodeMsg(request.Data, &ifDump)
 			if err != nil {
@@ -503,7 +505,7 @@ func addIfsIntoTheIndex(mapping ifaceidx.SwIfIndexRW) func(txn *localclient.Txn,
 			return nil
 		}
 		for _, op := range txn.LinuxDataChangeTxn.Ops {
-			if op.Value != nil /* Put */ && strings.HasPrefix(op.Key, vpp_intf.InterfaceKeyPrefix()) {
+			if op.Value != nil /* Put */ && strings.HasPrefix(op.Key, vpp_intf.Prefix) {
 				name, err := vpp_intf.ParseNameFromKey(op.Key)
 				if err != nil {
 					return err
@@ -533,7 +535,7 @@ func dhcpIndexMock() ifaceidx.DhcpIndex {
 // interfaceInLatestRevs returns interface of given name from the map of latest revisions
 func interfaceInLatestRevs(latestRevs *syncbase.PrevRevisions, ifName string) *vpp_intf.Interfaces_Interface {
 	for _, key := range latestRevs.ListKeys() {
-		if strings.HasPrefix(key, vpp_intf.InterfacePrefix) && strings.HasSuffix(key, ifName) {
+		if strings.HasPrefix(key, vpp_intf.Prefix) && strings.HasSuffix(key, ifName) {
 			intf := &vpp_intf.Interfaces_Interface{}
 			_, value := latestRevs.Get(key)
 			value.GetValue(intf)
@@ -561,12 +563,12 @@ func routesViaInLatestRevs(latestRevs *syncbase.PrevRevisions, nexthopIP string)
 
 // nodeAddDelEvent simulates addition of a k8s node into a cluster
 type nodeAddDelEvent struct {
-	evType datasync.PutDel
+	evType datasync.Op
 }
 
 func (e *nodeAddDelEvent) Done(error) {}
 
-func (e nodeAddDelEvent) GetChangeType() datasync.PutDel {
+func (e nodeAddDelEvent) GetChangeType() datasync.Op {
 	return e.evType
 }
 

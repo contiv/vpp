@@ -100,7 +100,7 @@ func (mnt *MockNatPlugin) ApplyTxn(txn *localclient.Txn, latestRevs *syncbase.Pr
 	dataChange := txn.LinuxDataChangeTxn
 	for _, op := range dataChange.Ops {
 		foundRev, _ := latestRevs.Get(op.Key)
-		if op.Key == nat.GlobalConfigPrefix() {
+		if op.Key == nat.GlobalPrefix {
 			if op.Value != nil {
 				// put global NAT config
 				if mnt.defaultNat44Global != !foundRev {
@@ -179,7 +179,7 @@ func (mnt *MockNatPlugin) ApplyTxn(txn *localclient.Txn, latestRevs *syncbase.Pr
 				mnt.resetNat44Global()
 			}
 
-		} else if strings.HasPrefix(op.Key, nat.DNatPrefix()) {
+		} else if strings.HasPrefix(op.Key, nat.DNatPrefix) {
 			if op.Value != nil {
 				// put DNAT config
 				dnatConfig, isDnatConfig := op.Value.(*nat.Nat44DNat_DNatConfig)
@@ -228,7 +228,7 @@ func (mnt *MockNatPlugin) ApplyTxn(txn *localclient.Txn, latestRevs *syncbase.Pr
 				if !foundRev {
 					return errors.New("cannot remove DNAT without latest value/revision")
 				}
-				label := strings.TrimPrefix(op.Key, nat.DNatPrefix())
+				label := strings.TrimPrefix(op.Key, nat.DNatPrefix)
 				if prevDnatConfig, hasDnat := mnt.nat44Dnat[label]; hasDnat {
 					oldSms, err := mnt.dnatToStaticMappings(prevDnatConfig)
 					if err != nil {
@@ -257,9 +257,6 @@ func (mnt *MockNatPlugin) dnatToStaticMappings(dnat *nat.Nat44DNat_DNatConfig) (
 		// fields set to a constant value
 		if staticMapping.ExternalPort != 0 && staticMapping.TwiceNat != nat.TwiceNatMode_SELF {
 			return nil, errors.New("self-twice-NAT not enabled for static mapping")
-		}
-		if staticMapping.VrfId != 0 {
-			return nil, errors.New("static mapping assigned to invalid vrf")
 		}
 		if staticMapping.ExternalInterface != "" {
 			return nil, errors.New("static mapping with external interface is not expected")
@@ -305,6 +302,7 @@ func (mnt *MockNatPlugin) dnatToStaticMappings(dnat *nat.Nat44DNat_DNatConfig) (
 				IP:          localIP,
 				Port:        uint16(local.LocalPort),
 				Probability: uint8(local.Probability),
+				VrfID:       local.VrfId,
 			})
 		}
 
@@ -322,12 +320,12 @@ func (mnt *MockNatPlugin) dnatToIdentityMappings(dnat *nat.Nat44DNat_DNatConfig)
 		im := &IdentityMapping{}
 
 		// fields set to a constant value
-		if identityMapping.VrfId != 0 {
-			return nil, errors.New("identity mapping assigned to invalid vrf")
-		}
 		if identityMapping.AddressedInterface != "" {
 			return nil, errors.New("identity mapping with interface is not expected")
 		}
+
+		// VRF
+		im.VrfID = identityMapping.VrfId
 
 		// IP addr
 		ip := net.ParseIP(identityMapping.IpAddress)

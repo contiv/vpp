@@ -42,7 +42,7 @@ type MockKeyVal struct {
 // MockChangeEvent implements ChangeEvent interface.
 type MockChangeEvent struct {
 	mds       *MockDataSync
-	eventType datasync.PutDel
+	eventType datasync.Op
 	MockKeyVal
 	prevVal proto.Message
 }
@@ -173,7 +173,7 @@ func (mche *MockChangeEvent) Done(err error) {
 }
 
 // GetChangeType returns either "Put" or "Delete".
-func (mche *MockChangeEvent) GetChangeType() datasync.PutDel {
+func (mche *MockChangeEvent) GetChangeType() datasync.Op {
 	return mche.eventType
 }
 

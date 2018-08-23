@@ -42,9 +42,9 @@ type Renderer struct {
 // Deps lists dependencies of Renderer.
 type Deps struct {
 	Log              logging.Logger
-	LogFactory       logging.LogFactory /* optional */
-	Contiv           contiv.API         /* for GetNsIndex() */
-	GoVPPChan        *govpp.Channel
+	LogFactory       logging.LoggerFactory /* optional */
+	Contiv           contiv.API            /* for GetNsIndex() */
+	GoVPPChan        govpp.Channel
 	GoVPPChanBufSize int
 }
 
@@ -237,7 +237,7 @@ func (art *RendererTxn) dumpRules() (rules []*vpptcprule.SessionRule, err error)
 
 // makeSessionRuleAddDelReq creates an instance of SessionRuleAddDel bin API
 // request.
-func (r *Renderer) makeSessionRuleAddDelReq(rule *vpptcprule.SessionRule, add bool) *govpp.VppRequest {
+func (r *Renderer) makeSessionRuleAddDelReq(rule *vpptcprule.SessionRule, add bool) govpp.Message {
 	isAdd := uint8(0)
 	if add {
 		isAdd = uint8(1)
@@ -258,10 +258,8 @@ func (r *Renderer) makeSessionRuleAddDelReq(rule *vpptcprule.SessionRule, add bo
 		Tag:            rule.Tag[:],
 	}
 	r.Log.WithField("msg:", *msg).Debug("Sending BIN API Request to VPP.")
-	req := &govpp.VppRequest{
-		Message: msg,
-	}
-	return req
+
+	return msg
 }
 
 // updateRules adds/removes selected rules to/from VPP Session rule tables.
@@ -269,7 +267,7 @@ func (r *Renderer) updateRules(add, remove []*vpptcprule.SessionRule) error {
 	const errMsg = "failed to update VPPTCP session rule"
 
 	// Prepare VPP requests.
-	requests := []*govpp.VppRequest{}
+	var requests []govpp.Message
 	for _, delRule := range remove {
 		requests = append(requests, r.makeSessionRuleAddDelReq(delRule, false))
 	}
@@ -287,23 +285,18 @@ func (r *Renderer) updateRules(add, remove []*vpptcprule.SessionRule) error {
 		// Send multiple VPP requests at once, but no more than what govpp request
 		// reply channels can buffer.
 		j := 0
+		var reqCtxs []govpp.RequestCtx
 		for ; i+j < len(requests) && j < chanBufSize; j++ {
-			r.GoVPPChan.ReqChan <- requests[i+j]
+			reqCtxs = append(reqCtxs, r.GoVPPChan.SendRequest(requests[i+j]))
 		}
 		i += j
 
 		// Wait for VPP responses.
 		r.Log.WithField("count", j).Debug("Waiting for a bunch of BIN API responses")
 		for ; j > 0; j-- {
-			reply := <-r.GoVPPChan.ReplyChan
-			r.Log.WithField("reply", reply).Debug("Received BIN API response")
-			if reply.Error != nil {
-				r.Log.WithField("err", reply.Error).Error(errMsg)
-				wasError = reply.Error
-				break
-			}
+
 			msg := &session.SessionRuleAddDelReply{}
-			err := r.GoVPPChan.MsgDecoder.DecodeMsg(reply.Data, msg)
+			err := reqCtxs[len(reqCtxs)-j].ReceiveReply(msg)
 			if err != nil {
 				r.Log.WithField("err", err).Error(errMsg)
 				wasError = err

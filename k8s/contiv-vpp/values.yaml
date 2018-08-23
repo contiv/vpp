@@ -4,7 +4,7 @@ contiv:
   tapInterfaceVersion: 2
   stealFirstNIC: False
   natExternalTraffic: True
-  mtuSize: 1500
+  mtuSize: 1450
   cleanupIdleNATSessions: True
   tcpNATSessionTimeout: 180
   otherNATSessionTimeout: 5
@@ -89,6 +89,7 @@ vswitch:
   updateStrategy: RollingUpdate
   cpuLimit: 0
   enableCoreDumps: false
+  coreDumpsDir: /var/contiv/dumps
 
 cni:
   image:
@@ -128,7 +129,17 @@ http:
   # credentials to be used by basic-auth, format <username>:<password>
   basicAuth: user:pass
 
+telemetry:
+  pollingInterval: 30000000000
+  disabled: true
+
 init:
   image:
     repository: busybox
     tag: latest
+
+bolt:
+  debug: false
+  dataDir: /var/bolt
+  persistentVolumeSize: 2Gi
+  usePersistentVolume: false

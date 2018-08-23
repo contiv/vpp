@@ -27,7 +27,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 
 	"github.com/contiv/vpp/plugins/ksr/model/pod"
-	"github.com/ligato/cn-infra/flavors/local"
+	"github.com/ligato/cn-infra/logging"
 )
 
 type PodTestVars struct {
@@ -43,9 +43,6 @@ var podTestVars PodTestVars
 func TestPodReflector(t *testing.T) {
 	gomega.RegisterTestingT(t)
 
-	flavorLocal := &local.FlavorLocal{}
-	flavorLocal.Inject()
-
 	podTestVars.k8sListWatch = &mockK8sListWatch{}
 	podTestVars.mockKvBroker = newMockKeyProtoValBroker()
 
@@ -56,7 +53,7 @@ func TestPodReflector(t *testing.T) {
 
 	podTestVars.podReflector = &PodReflector{
 		Reflector: Reflector{
-			Log:               flavorLocal.LoggerFor("pod-reflector"),
+			Log:               logging.ForPlugin("pod-reflector"),
 			K8sClientset:      &kubernetes.Clientset{},
 			K8sListWatch:      podTestVars.k8sListWatch,
 			Broker:            podTestVars.mockKvBroker,

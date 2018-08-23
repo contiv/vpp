@@ -19,30 +19,22 @@ import (
 	"net"
 	"time"
 
-	govppapi "git.fd.io/govpp.git/api"
-	"github.com/ligato/cn-infra/logging/measure"
 	"github.com/ligato/cn-infra/utils/addrs"
 	"github.com/ligato/vpp-agent/plugins/vpp/binapi/ip"
 )
-
-// ArpMessages is list of used VPP messages for compatibility check
-var ArpMessages = []govppapi.Message{
-	&ip.IPNeighborAddDel{},
-	&ip.IPNeighborAddDelReply{},
-}
 
 // ArpEntry represents ARP entry for interface
 type ArpEntry struct {
 	Interface  uint32
 	IPAddress  net.IP
-	MacAddress net.HardwareAddr
+	MacAddress string
 	Static     bool
 }
 
 // vppAddDelArp adds or removes ARP entry according to provided input
-func vppAddDelArp(entry *ArpEntry, vppChan VPPChannel, delete bool, stopwatch *measure.Stopwatch) error {
+func (handler *arpVppHandler) vppAddDelArp(entry *ArpEntry, delete bool) error {
 	defer func(t time.Time) {
-		stopwatch.TimeLog(ip.IPNeighborAddDel{}).LogTimeEntry(time.Since(t))
+		handler.stopwatch.TimeLog(ip.IPNeighborAddDel{}).LogTimeEntry(time.Since(t))
 	}(time.Now())
 
 	req := &ip.IPNeighborAddDel{}
@@ -57,10 +49,10 @@ func vppAddDelArp(entry *ArpEntry, vppChan VPPChannel, delete bool, stopwatch *m
 		return err
 	}
 	if isIpv6 {
-		req.IsIpv6 = 1
+		req.IsIPv6 = 1
 		req.DstAddress = []byte(entry.IPAddress.To16())
 	} else {
-		req.IsIpv6 = 0
+		req.IsIPv6 = 0
 		req.DstAddress = []byte(entry.IPAddress.To4())
 	}
 	if entry.Static {
@@ -68,13 +60,17 @@ func vppAddDelArp(entry *ArpEntry, vppChan VPPChannel, delete bool, stopwatch *m
 	} else {
 		req.IsStatic = 0
 	}
-	req.MacAddress = []byte(entry.MacAddress)
+	macAddr, err := net.ParseMAC(entry.MacAddress)
+	if err != nil {
+		return err
+	}
+	req.MacAddress = []byte(macAddr)
 	req.IsNoAdjFib = 1
 	req.SwIfIndex = entry.Interface
 
 	// Send message
 	reply := &ip.IPNeighborAddDelReply{}
-	if err = vppChan.SendRequest(req).ReceiveReply(reply); err != nil {
+	if err = handler.callsChannel.SendRequest(req).ReceiveReply(reply); err != nil {
 		return err
 	}
 	if reply.Retval != 0 {
@@ -84,12 +80,10 @@ func vppAddDelArp(entry *ArpEntry, vppChan VPPChannel, delete bool, stopwatch *m
 	return nil
 }
 
-// VppAddArp adds ARP entry according to provided input
-func VppAddArp(entry *ArpEntry, vppChan VPPChannel, stopwatch *measure.Stopwatch) error {
-	return vppAddDelArp(entry, vppChan, false, stopwatch)
+func (handler *arpVppHandler) VppAddArp(entry *ArpEntry) error {
+	return handler.vppAddDelArp(entry, false)
 }
 
-// VppDelArp removes old ARP entry according to provided input
-func VppDelArp(entry *ArpEntry, vppChan VPPChannel, stopwatch *measure.Stopwatch) error {
-	return vppAddDelArp(entry, vppChan, true, stopwatch)
+func (handler *arpVppHandler) VppDelArp(entry *ArpEntry) error {
+	return handler.vppAddDelArp(entry, true)
 }

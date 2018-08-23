@@ -19,16 +19,14 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/ligato/cn-infra/logging/measure"
 	"github.com/ligato/vpp-agent/plugins/vpp/binapi/tap"
 	"github.com/ligato/vpp-agent/plugins/vpp/binapi/tapv2"
 	"github.com/ligato/vpp-agent/plugins/vpp/model/interfaces"
 )
 
-// AddTapInterface calls TapConnect bin API.
-func AddTapInterface(ifName string, tapIf *interfaces.Interfaces_Interface_Tap, vppChan VPPChannel, stopwatch *measure.Stopwatch) (swIfIdx uint32, err error) {
+func (handler *ifVppHandler) AddTapInterface(ifName string, tapIf *interfaces.Interfaces_Interface_Tap) (swIfIdx uint32, err error) {
 	defer func(t time.Time) {
-		stopwatch.TimeLog(tap.TapConnect{}).LogTimeEntry(time.Since(t))
+		handler.stopwatch.TimeLog(tap.TapConnect{}).LogTimeEntry(time.Since(t))
 	}(time.Now())
 
 	if tapIf == nil || tapIf.HostIfName == "" {
@@ -55,7 +53,7 @@ func AddTapInterface(ifName string, tapIf *interfaces.Interfaces_Interface_Tap, 
 		}
 
 		reply := &tapv2.TapCreateV2Reply{}
-		err = vppChan.SendRequest(req).ReceiveReply(reply)
+		err = handler.callsChannel.SendRequest(req).ReceiveReply(reply)
 		retval = reply.Retval
 		swIfIdx = reply.SwIfIndex
 		msgName = reply.GetMessageName()
@@ -67,7 +65,7 @@ func AddTapInterface(ifName string, tapIf *interfaces.Interfaces_Interface_Tap, 
 		}
 
 		reply := &tap.TapConnectReply{}
-		err = vppChan.SendRequest(req).ReceiveReply(reply)
+		err = handler.callsChannel.SendRequest(req).ReceiveReply(reply)
 		retval = reply.Retval
 		swIfIdx = reply.SwIfIndex
 		msgName = reply.GetMessageName()
@@ -79,13 +77,12 @@ func AddTapInterface(ifName string, tapIf *interfaces.Interfaces_Interface_Tap, 
 		return 0, fmt.Errorf("%s returned %d", msgName, retval)
 	}
 
-	return swIfIdx, SetInterfaceTag(ifName, swIfIdx, vppChan, stopwatch)
+	return swIfIdx, handler.SetInterfaceTag(ifName, swIfIdx)
 }
 
-// DeleteTapInterface calls TapDelete bin API.
-func DeleteTapInterface(ifName string, idx uint32, version uint32, vppChan VPPChannel, stopwatch *measure.Stopwatch) error {
+func (handler *ifVppHandler) DeleteTapInterface(ifName string, idx uint32, version uint32) error {
 	defer func(t time.Time) {
-		stopwatch.TimeLog(tap.TapDelete{}).LogTimeEntry(time.Since(t))
+		handler.stopwatch.TimeLog(tap.TapDelete{}).LogTimeEntry(time.Since(t))
 	}(time.Now())
 
 	var (
@@ -99,7 +96,7 @@ func DeleteTapInterface(ifName string, idx uint32, version uint32, vppChan VPPCh
 		}
 
 		reply := &tapv2.TapDeleteV2Reply{}
-		err = vppChan.SendRequest(req).ReceiveReply(reply)
+		err = handler.callsChannel.SendRequest(req).ReceiveReply(reply)
 		retval = reply.Retval
 		msgName = reply.GetMessageName()
 	} else {
@@ -108,7 +105,7 @@ func DeleteTapInterface(ifName string, idx uint32, version uint32, vppChan VPPCh
 		}
 
 		reply := &tap.TapDeleteReply{}
-		err = vppChan.SendRequest(req).ReceiveReply(reply)
+		err = handler.callsChannel.SendRequest(req).ReceiveReply(reply)
 		retval = reply.Retval
 		msgName = reply.GetMessageName()
 	}
@@ -119,5 +116,5 @@ func DeleteTapInterface(ifName string, idx uint32, version uint32, vppChan VPPCh
 		return fmt.Errorf("%s returned %d", msgName, retval)
 	}
 
-	return RemoveInterfaceTag(ifName, idx, vppChan, stopwatch)
+	return handler.RemoveInterfaceTag(ifName, idx)
 }

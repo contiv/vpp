@@ -1,3 +1,4 @@
+---
 apiVersion: extensions/v1beta1
 kind: Deployment
 metadata:
@@ -11,19 +12,19 @@ spec:
         ldpreload: "true"
     spec:
       containers:
-      - image: networkstatic/iperf3
-        imagePullPolicy: IfNotPresent
-        name: client
-        command: ["bash"]
-        args: ["-c", "while true; do sleep 30; done;"]
-        securityContext:
-          privileged: true
-        env:
-          # ldpreload-related env vars
-          - name: VCL_APP_SCOPE_GLOBAL
-            value: ""
-          - name: VCL_APP_SCOPE_LOCAL
-            value: ""
-          # enable verbose VCL debugs, do not use for production
-          - name: VCL_DEBUG
-            value: "3"
+        - image: networkstatic/iperf3
+          imagePullPolicy: IfNotPresent
+          name: client
+          command: ["bash"]
+          args: ["-c", "while true; do sleep 30; done;"]
+          securityContext:
+            privileged: true
+          env:
+            # ldpreload-related env vars
+            - name: VCL_APP_SCOPE_GLOBAL
+              value: ""
+            - name: VCL_APP_SCOPE_LOCAL
+              value: ""
+            # enable verbose VCL debugs, do not use for production
+            - name: VCL_DEBUG
+              value: "3"

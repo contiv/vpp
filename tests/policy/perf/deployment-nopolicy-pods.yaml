@@ -1,3 +1,4 @@
+---
 apiVersion: apps/v1beta2
 kind: Deployment
 metadata:
@@ -15,8 +16,8 @@ spec:
         role: backend
     spec:
       containers:
-      - name: busybox
-        image: busybox
-        command:
-          - sleep
-          - "3600"
+        - name: busybox
+          image: busybox
+          command:
+            - sleep
+            - "3600"

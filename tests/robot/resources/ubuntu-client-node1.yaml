@@ -1,3 +1,4 @@
+---
 apiVersion: extensions/v1beta1
 kind: Deployment
 metadata:
@@ -10,11 +11,11 @@ spec:
         app: ubuntu-client
     spec:
       containers:
-      - image: rastislavszabo/ubuntu
-        imagePullPolicy: IfNotPresent
-        name: ubuntu-client
-        # Just spin & wait forever
-        command: [ "/bin/bash", "-c", "--" ]
-        args: [ "while true; do sleep 30; done;" ]
+        - image: rastislavszabo/ubuntu
+          imagePullPolicy: IfNotPresent
+          name: ubuntu-client
+          # Just spin & wait forever
+          command: ["/bin/bash", "-c", "--"]
+          args: ["while true; do sleep 30; done;"]
       nodeSelector:
         location: client_node

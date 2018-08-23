@@ -1,3 +1,4 @@
+---
 apiVersion: v1
 kind: Pod
 metadata:
@@ -7,12 +8,12 @@ metadata:
     role: db
 spec:
   containers:
-  - image: ciscolabs/epapp
-    command:
-      - sleep
-      - "3600"
-    imagePullPolicy: IfNotPresent
-    name: pod1
+    - image: ciscolabs/epapp
+      command:
+        - sleep
+        - "3600"
+      imagePullPolicy: IfNotPresent
+      name: pod1
   restartPolicy: Always
 
 ---
@@ -25,12 +26,12 @@ metadata:
     role: frontend
 spec:
   containers:
-  - image: ciscolabs/epapp
-    command:
-      - sleep
-      - "3600"
-    imagePullPolicy: IfNotPresent
-    name: pod2
+    - image: ciscolabs/epapp
+      command:
+        - sleep
+        - "3600"
+      imagePullPolicy: IfNotPresent
+      name: pod2
   restartPolicy: Always
 
 ---
@@ -43,11 +44,10 @@ metadata:
     role: backend
 spec:
   containers:
-  - image: ciscolabs/epapp
-    command:
-      - sleep
-      - "3600"
-    imagePullPolicy: IfNotPresent
-    name: pod3
+    - image: ciscolabs/epapp
+      command:
+        - sleep
+        - "3600"
+      imagePullPolicy: IfNotPresent
+      name: pod3
   restartPolicy: Always
-

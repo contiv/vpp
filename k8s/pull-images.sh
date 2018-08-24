@@ -37,7 +37,15 @@ done
 
 echo "Using Images Tag: ${IMAGE_TAG}"
 
-docker pull contivvpp/vswitch:${IMAGE_TAG}
-docker pull contivvpp/ksr:${IMAGE_TAG}
-docker pull contivvpp/cni:${IMAGE_TAG}
-docker pull contivvpp/stn:${IMAGE_TAG}
+IMAGEARCH=""
+BUILDARCH=`uname -m`
+
+if [ ${BUILDARCH} = "aarch64" ] ; then
+  IMAGEARCH="-arm64"
+  BUILDARCH="arm64"
+fi
+
+docker pull contivvpp/vswitch${IMAGEARCH}:${IMAGE_TAG}
+docker pull contivvpp/ksr${IMAGEARCH}:${IMAGE_TAG}
+docker pull contivvpp/cni${IMAGEARCH}:${IMAGE_TAG}
+docker pull contivvpp/stn${IMAGEARCH}:${IMAGE_TAG}

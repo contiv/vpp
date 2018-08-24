@@ -829,7 +829,7 @@
   revision = "98e10610edaf49aa2ca14c97302bc252cd6fdb63"
 
 [[projects]]
-  digest = "1:a9eccdf4ebdc7d429c1688540a71013ef4b875e123a455806f180f8789d81eff"
+  digest = "1:f35a527597f8794be32e2d5959a4e3eb8a48f8276350941e008bdb9827ad6e46"
   name = "github.com/ligato/vpp-agent"
   packages = [
     "clientv1/linux",
@@ -909,7 +909,7 @@
     "plugins/vpp/srplugin/vppcalls",
   ]
   pruneopts = "UT"
-  revision = "5fc188c8d9e0ce7ed2898ff2db940864013d7c48"
+  revision = "e7870d2269d575dbc34575c0447579c38a82f493"
 
 [[projects]]
   branch = "master"
@@ -1984,6 +1984,7 @@
     "github.com/sirupsen/logrus",
     "github.com/spf13/pflag",
     "github.com/ugorji/go/codec",
+    "github.com/unrolled/render",
     "github.com/vishvananda/netlink",
     "github.com/vishvananda/netns",
     "github.com/wadey/gocovmerge",

@@ -525,7 +525,7 @@ func resetToInitialErrorFreeState() {
 func (v *validatorTestVars) createNodeTestData() error {
 	v.nodeInfoData = []*nodeData{}
 
-	rawData := getTestData()
+	rawData := getRawNodeTestData()
 	for node, data := range rawData {
 		ni := &nodeinfomodel.NodeInfo{}
 		if err := json.Unmarshal([]byte(data["nodeinfo"]), ni); err != nil {

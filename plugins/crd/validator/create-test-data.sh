@@ -31,7 +31,7 @@ package validator
 type rawNodeTestData map[string]map[string]string
 
 func getRawNodeTestData() rawNodeTestData {
-\treturn rawValidatorTestData{
+\treturn rawNodeTestData{
 '
 
 VPP_DUMP_PFX=":9999/vpp/dump/v1/"
@@ -79,7 +79,7 @@ VT_POD_RAW_DATA+=$'
 package validator
 
 func getRawPodTestData() []string {
-\treturn rawValidatorTestData{
+\treturn []string{
 '
 
 ETCD_K8S_POD_PFX="/vnf-agent/contiv-ksr/k8s/pod/"
@@ -106,8 +106,8 @@ VT_K8SNODE_RAW_DATA+=$'
 
 package validator
 
-func getRawPodTestData() []string {
-\treturn rawValidatorTestData{
+func getRawK8sNodeTestData() []string {
+\treturn []string{
 '
 
 ETCD_K8S_NODE_PFX="/vnf-agent/contiv-ksr/k8s/node/"
@@ -117,7 +117,6 @@ readarray -t K8SNODE_LINES <<< "$K8SNODE_INFO"
 for l in "${K8SNODE_LINES[@]}"
 do
     K8SNODE=$( echo "$l" | python -mjson.tool | sed -e 's|    |\t|g' | sed -e 's/\(^[\t}].*$\)/\t\t\1/' )
-    echo NODE: "$K8SNODE"
     VT_K8SNODE_RAW_DATA+=$( printf "\n\t\t\`%s\`,\n" "$K8SNODE" )
 done
 

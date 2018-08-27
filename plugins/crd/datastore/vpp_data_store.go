@@ -260,6 +260,19 @@ func (vds *VppDataStore) SetNodeIPARPs(nodeName string, nArps []telemetrymodel.N
 
 }
 
+func (vds *VppDataStore)SetNodeIPam(nodeName string, nIPam telemetrymodel.IPamEntry)error{
+	vds.lock.Lock()
+	defer vds.lock.Unlock()
+
+	node, ok := vds.retrieveNode(nodeName)
+	if !ok {
+		return fmt.Errorf("failed to set NodeIPam for node %s", nodeName)
+	}
+	node.NodeIPam = nIPam
+	return nil
+
+}
+
 // SetSecondaryNodeIndices populates many of needed node maps for processing
 // once all of the information has been retrieved. It also checks to make
 // sure that there are no duplicate addresses within the map.

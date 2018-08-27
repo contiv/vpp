@@ -4,7 +4,8 @@ HELP_TEXT=\'''${0##*/}''\'
 HELP_TEXT+=$' scans a running Contiv cluster and generates test data used
 in validator unit tests. The test data is generated in json format and
 unmarshalled by test setup routines in \'validator_test.g\'. The script is
-typically run when type definitions for data in CRD caches changes.
+typically run when type definitions for data in CRD caches changes. The
+generated files should be checked in.
 
 The script generates the following files:
 - pod_raw_data_test.go:     contains K8s pod data obtained from etcd, where
@@ -97,6 +98,7 @@ do
 
     # Get data from the node
     LIVENESS=$( curl -s "$IP_ADDR":9999/liveness | python -mjson.tool | sed -e 's|    |\t|g' | sed -e 's/\(^[\t}].*$\)/\t\t\t\1/' )
+    IPAM=$( curl -s "$IP_ADDR":9999/contiv/v1/ipam | python -mjson.tool | sed -e 's|    |\t|g' | sed -e 's/\(^[\t}].*$\)/\t\t\t\1/' )
     INTERFACES=$( get_data "$IP_ADDR" "interfaces" )
     BD=$( get_data "$IP_ADDR" "bd" )
     L2FIB=$( get_data "$IP_ADDR" "fib" )
@@ -106,6 +108,7 @@ do
     # Create the data structure for the node
     VT_NODE_RAW_DATA+=$( printf "\t\t\t\"nodeinfo\": \`%s\`,\n" "$NODEINFO" )
     VT_NODE_RAW_DATA+=$( printf "\n\t\t\t\"liveness\": \`%s\`,\n" "$LIVENESS" )
+    VT_NODE_RAW_DATA+=$( printf "\n\t\t\t\"ipam\": \`%s\`,\n" "$IPAM" )
     VT_NODE_RAW_DATA+=$( printf "\n\t\t\t\"interfaces\": \`%s\`,\n" "$INTERFACES" )
     VT_NODE_RAW_DATA+=$( printf "\n\t\t\t\"bridgedomains\": \`%s\`,\n" "$BD" )
     VT_NODE_RAW_DATA+=$( printf "\n\t\t\t\"l2fib\": \`%s\`,\n" "$L2FIB" )

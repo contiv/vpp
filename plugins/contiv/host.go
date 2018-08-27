@@ -129,13 +129,11 @@ func (s *remoteCNIserver) routesToPodVRF() (*vpp_l3.StaticRoutes_Route, *vpp_l3.
 	return r1, r2
 }
 
-func (s *remoteCNIserver) AddDropRoutesIntoPodVRF() error {
-	err := s.addDropRoute(s.GetPodVrfID(), s.ipam.PodSubnet())
-	if err != nil {
-		return err
-	}
-	err = s.addDropRoute(s.GetPodVrfID(), s.ipam.VPPHostSubnet())
-	return err
+func (s *remoteCNIserver) dropRoutesIntoPodVRF() (*vpp_l3.StaticRoutes_Route, *vpp_l3.StaticRoutes_Route) {
+	r1 := s.dropRoute(s.GetPodVrfID(), s.ipam.PodSubnet())
+
+	r2 := s.dropRoute(s.GetPodVrfID(), s.ipam.VPPHostSubnet())
+	return r1, r2
 }
 
 func (s *remoteCNIserver) routesToHost(nextHopIP string) []*vpp_l3.StaticRoutes_Route {
@@ -553,25 +551,13 @@ func (s *remoteCNIserver) executeDebugCLI(cmd string) (string, error) {
 	return string(reply.Reply), err
 }
 
-func (s *remoteCNIserver) addDropRoute(vrfID uint32, dstAddr *net.IPNet) error {
-	s.Logger.Info("Adding drop route in VRF %d to %s", vrfID, dstAddr)
+func (s *remoteCNIserver) dropRoute(vrfID uint32, dstAddr *net.IPNet) *vpp_l3.StaticRoutes_Route {
+	s.Logger.Infof("Adding drop route in VRF %d to %s", vrfID, dstAddr)
 
-	prefix, _ := dstAddr.Mask.Size()
-	req := &ip.IPAddDelRoute{
-		TableID:          vrfID,
-		IsAdd:            1,
-		IsDrop:           1,
-		IsIPv6:           0,
-		IsMultipath:      1,
-		DstAddress:       []byte(dstAddr.IP.To4()),
-		DstAddressLength: byte(prefix),
+	return &vpp_l3.StaticRoutes_Route{
+		Type:      vpp_l3.StaticRoutes_Route_DROP,
+		DstIpAddr: dstAddr.String(),
+		VrfId:     vrfID,
 	}
-	reply := &ip.IPAddDelRouteReply{}
 
-	err := s.govppChan.SendRequest(req).ReceiveReply(reply)
-
-	if err != nil {
-		s.Logger.Error("Error by adding drop route:", err)
-	}
-	return err
 }

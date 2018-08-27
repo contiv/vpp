@@ -495,13 +495,6 @@ func resetToInitialErrorFreeState() {
 		gomega.Panic()
 	}
 
-	for _, node := range vtv.vppCache.RetrieveAllNodes() {
-		errReport := vtv.processor.VppCache.SetSecondaryNodeIndices(node)
-		for _, r := range errReport {
-			vtv.processor.Report.AppendToNodeReport(node.Name, r)
-		}
-	}
-
 	if err := vtv.createK8sPodTestData(); err != nil {
 		vtv.log.SetOutput(os.Stdout)
 		vtv.log.Error(err)
@@ -512,6 +505,21 @@ func resetToInitialErrorFreeState() {
 		vtv.log.SetOutput(os.Stdout)
 		vtv.log.Error(err)
 		gomega.Panic()
+	}
+
+	for _, node := range vtv.vppCache.RetrieveAllNodes() {
+		errReport := vtv.processor.VppCache.SetSecondaryNodeIndices(node)
+		for _, r := range errReport {
+			vtv.processor.Report.AppendToNodeReport(node.Name, r)
+		}
+
+		// Code replicated from ContivTelemetryCache.populateNodeMaps() -
+		// need to inject pod data into each node.
+		for _, pod := range vtv.k8sCache.RetrieveAllPods() {
+			if pod.HostIPAddress == node.ManIPAdr {
+				node.PodMap[pod.Name] = pod
+			}
+		}
 	}
 }
 

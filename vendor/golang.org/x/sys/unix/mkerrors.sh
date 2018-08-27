@@ -196,6 +196,7 @@ struct ltchars {
 #include <linux/watchdog.h>
 #include <linux/hdreg.h>
 #include <linux/rtc.h>
+#include <mtd/ubi-user.h>
 #include <net/route.h>
 #include <asm/termbits.h>
 
@@ -296,6 +297,7 @@ includes_SunOS='
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/sockio.h>
+#include <sys/stat.h>
 #include <sys/mman.h>
 #include <sys/wait.h>
 #include <sys/ioctl.h>
@@ -437,7 +439,8 @@ ccflags="$@"
 		$2 ~ /^SECCOMP_MODE_/ ||
 		$2 ~ /^SPLICE_/ ||
 		$2 !~ /^AUDIT_RECORD_MAGIC/ &&
-		$2 ~ /^[A-Z0-9_]+_MAGIC2?$/ ||
+		$2 !~ /IOC_MAGIC/ &&
+		$2 ~ /^[A-Z][A-Z0-9_]+_MAGIC2?$/ ||
 		$2 ~ /^(VM|VMADDR)_/ ||
 		$2 ~ /^IOCTL_VM_SOCKETS_/ ||
 		$2 ~ /^(TASKSTATS|TS)_/ ||
@@ -445,6 +448,7 @@ ccflags="$@"
 		$2 ~ /^GENL_/ ||
 		$2 ~ /^STATX_/ ||
 		$2 ~ /^RENAME/ ||
+		$2 ~ /^UBI_IOC[A-Z]/ ||
 		$2 ~ /^UTIME_/ ||
 		$2 ~ /^XATTR_(CREATE|REPLACE|NO(DEFAULT|FOLLOW|SECURITY)|SHOWCOMPRESSION)/ ||
 		$2 ~ /^ATTR_(BIT_MAP_COUNT|(CMN|VOL|FILE)_)/ ||

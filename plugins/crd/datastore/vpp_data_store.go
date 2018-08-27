@@ -261,7 +261,7 @@ func (vds *VppDataStore) SetNodeIPARPs(nodeName string, nArps []telemetrymodel.N
 }
 
 //SetNodeIPam is a simple function to set the node with the given node name's ipam
-func (vds *VppDataStore)SetNodeIPam(nodeName string, nIPam telemetrymodel.IPamEntry)error{
+func (vds *VppDataStore) SetNodeIPam(nodeName string, nIPam telemetrymodel.IPamEntry) error {
 	vds.lock.Lock()
 	defer vds.lock.Unlock()
 

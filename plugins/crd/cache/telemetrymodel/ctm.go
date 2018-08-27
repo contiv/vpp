@@ -39,7 +39,7 @@ type Node struct {
 	NodeTelemetry     map[string]NodeTelemetry
 	NodeIPArp         []NodeIPArpEntry
 	NodeStaticRoutes  []NodeIPRoute
-	NodeIPam          IPamEntry
+	NodeIPam          *IPamEntry
 	Report            []string
 	PodMap            map[string]*Pod
 }
@@ -147,11 +147,12 @@ type NodeL2FibEntry struct {
 	FeMeta L2FibEntryMeta `json:"fib_meta"`
 }
 
+//IPamEntry holds unmarchalled ipam JSON data
 type IPamEntry struct {
-	NodeID uint32 `json:"nodeId"`
-	NodeName string `json:"nodeName"`
-	NodeIP string `json:"nodeIP"`
-	PodNetwork string `json:"podNetwork"`
+	NodeID         uint32 `json:"nodeId"`
+	NodeName       string `json:"nodeName"`
+	NodeIP         string `json:"nodeIP"`
+	PodNetwork     string `json:"podNetwork"`
 	VppHostNetwork string `json:"vppHostNetwork"`
 }
 

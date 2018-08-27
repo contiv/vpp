@@ -233,7 +233,7 @@ func (ctc *ContivTelemetryCache) collectAgentInfo(node *telemetrymodel.Node) {
 	go ctc.getNodeInfo(client, node, staticRouteURL, &nodestaticroutes, ctc.databaseVersion)
 
 	nodeipam := telemetrymodel.IPamEntry{}
-	go ctc.getNodeInfo(client,node,ipamURL,&nodeipam,ctc.databaseVersion)
+	go ctc.getNodeInfo(client, node, ipamURL, &nodeipam, ctc.databaseVersion)
 }
 
 /* Here are the several functions that run as goroutines to collect information
@@ -379,7 +379,7 @@ func (ctc *ContivTelemetryCache) setNodeData() {
 			err = ctc.VppCache.SetNodeStaticRoutes(data.NodeName, *nSrDto)
 		case *telemetrymodel.IPamEntry:
 			nipamDto := data.NodeInfo.(*telemetrymodel.IPamEntry)
-			err = ctc.VppCache.SetNodeIPam(data.NodeName,*nipamDto)
+			err = ctc.VppCache.SetNodeIPam(data.NodeName, *nipamDto)
 		default:
 			err = fmt.Errorf("node %+v has unknown data type: %+v", data.NodeName, data.NodeInfo)
 		}

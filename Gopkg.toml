@@ -33,7 +33,12 @@ required = [
     "github.com/google/cadvisor",
     "k8s.io/apiserver/pkg/apis/apiserver",
     "github.com/ugorji/go/codec",
-    "github.com/docker/distribution"
+    "github.com/docker/distribution",
+    "k8s.io/code-generator/cmd/client-gen",
+    "k8s.io/code-generator/cmd/deepcopy-gen",
+    "k8s.io/code-generator/cmd/defaulter-gen",
+    "k8s.io/code-generator/cmd/informer-gen",
+    "k8s.io/code-generator/cmd/lister-gen"
 ]
 
 [[constraint]]
@@ -142,6 +147,15 @@ required = [
   name = "github.com/apparentlymart/go-cidr"
   revision = "2bd8b58cf4275aeb086ade613de226773e29e853"
 
+[[override]]
+  name = "k8s.io/code-generator"
+  version = "kubernetes-1.11.0"
+
 [prune]
   go-tests = true
   unused-packages = true
+
+  [[prune.project]]
+    name = "k8s.io/code-generator"
+    unused-packages = false
+    go-tests = false

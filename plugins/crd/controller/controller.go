@@ -113,7 +113,7 @@ func (ctc *ContivTelemetryController) Init() error {
 		AddFunc: func(obj interface{}) {
 			// Converting the resource object into a key
 			key, err := k8sCache.MetaNamespaceKeyFunc(obj)
-			ctc.Log.Infof("Add ContivTelemetry resource: %s", key)
+			ctc.Log.Debug("Add ContivTelemetry resource: %s", key)
 			if err == nil {
 				// Adding the key to the queue for the handler to get
 				ctc.queue.Add(key)
@@ -121,14 +121,14 @@ func (ctc *ContivTelemetryController) Init() error {
 		},
 		UpdateFunc: func(oldObj, newObj interface{}) {
 			key, err := k8sCache.MetaNamespaceKeyFunc(newObj)
-			ctc.Log.Infof("Update ContivTelemetry resource: %s", key)
+			ctc.Log.Debug("Update ContivTelemetry resource: %s", key)
 			if err == nil {
 				ctc.queue.Add(key)
 			}
 		},
 		DeleteFunc: func(obj interface{}) {
 			key, err := k8sCache.DeletionHandlingMetaNamespaceKeyFunc(obj)
-			ctc.Log.Infof("Delete ContivTelemetry resource: %s", key)
+			ctc.Log.Debug("Delete ContivTelemetry resource: %s", key)
 			if err == nil {
 				ctc.queue.Add(key)
 			}

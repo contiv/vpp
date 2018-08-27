@@ -149,10 +149,48 @@ func testK8sNodeToNodeInfoMissingK8snValidation(t *testing.T) {
 func testNodesDBValidateL2Connections(t *testing.T) {
 	resetToInitialErrorFreeState()
 
+	// INJECT FAULT: Add a bogus bridge domain with the same name as VxlanBD.
+	bd := vtv.vppCache.NodeMap["k8s-master"].NodeBridgeDomains
+	gomega.Expect(len(bd)).To(gomega.Equal(1))
+
+	bogusBd := telemetrymodel.NodeBridgeDomain{
+		Bd: telemetrymodel.BridgeDomain{
+			Name: vtv.vppCache.NodeMap["k8s-master"].NodeBridgeDomains[1].Bd.Name,
+		},
+		BdMeta: telemetrymodel.BridgeDomainMeta{
+			BdID: 2,
+			BdID2Name: telemetrymodel.BdID2NameMapping{
+				2: vtv.vppCache.NodeMap["k8s-master"].NodeBridgeDomains[1].Bd.Name,
+			},
+		},
+	}
+	bd[2] = bogusBd
+	vtv.report.Clear()
+
+	vtv.processor.ValidateL2Connectivity()
+	gomega.Expect(len(vtv.report.Data[api.GlobalMsg])).To(gomega.Equal(1))
+	gomega.Expect(len(vtv.report.Data["k8s-master"])).To(gomega.Equal(2))
+
+	delete(bd, 2)
+
+	// INJECT FAULT: No Bridge Domain present on node;
+	// NOTE: This TC MUST be executed after the previous one, it depends on
+	// the same setup
+	delete(bd, 1)
+
+	vtv.report.Clear()
+
+	vtv.processor.ValidateL2Connectivity()
+	gomega.Expect(len(vtv.report.Data[api.GlobalMsg])).To(gomega.Equal(1))
+	gomega.Expect(len(vtv.report.Data["k8s-master"])).To(gomega.Equal(2))
+
+	resetToInitialErrorFreeState()
+
 	// INJECT FAULT: Set node/k8s-master interface/5 vxlan_vni to 11
 	ifc := vtv.vppCache.NodeMap["k8s-master"].NodeInterfaces[5]
 	ifc.If.Vxlan.Vni = 11
 	vtv.vppCache.NodeMap["k8s-master"].NodeInterfaces[5] = ifc
+	vtv.report.Clear()
 
 	vtv.processor.ValidateL2Connectivity()
 	gomega.Expect(len(vtv.report.Data[api.GlobalMsg])).To(gomega.Equal(1))

@@ -37,14 +37,7 @@ import (
 
 	"github.com/ligato/cn-infra/logging/logrus"
 	"github.com/ligato/vpp-agent/idxvpp/nametoidx"
-	"github.com/ligato/vpp-agent/plugins/vpp/binapi/af_packet"
-	"github.com/ligato/vpp-agent/plugins/vpp/binapi/dhcp"
 	interfaces_bin "github.com/ligato/vpp-agent/plugins/vpp/binapi/interfaces"
-	"github.com/ligato/vpp-agent/plugins/vpp/binapi/ip"
-	"github.com/ligato/vpp-agent/plugins/vpp/binapi/memif"
-	"github.com/ligato/vpp-agent/plugins/vpp/binapi/tap"
-	"github.com/ligato/vpp-agent/plugins/vpp/binapi/vpe"
-	"github.com/ligato/vpp-agent/plugins/vpp/binapi/vxlan"
 	"github.com/ligato/vpp-agent/plugins/vpp/ifplugin/ifaceidx"
 	vpp_intf "github.com/ligato/vpp-agent/plugins/vpp/model/interfaces"
 	vpp_l3 "github.com/ligato/vpp-agent/plugins/vpp/model/l3"
@@ -416,15 +409,7 @@ func TestVeth1NameFromRequest(t *testing.T) {
 }
 
 func vppChanMock() (api.Channel, *govpp.Connection) {
-	vppMock := &mock.VppAdapter{}
-	vppMock.RegisterBinAPITypes(interfaces_bin.Types)
-	vppMock.RegisterBinAPITypes(memif.Types)
-	vppMock.RegisterBinAPITypes(tap.Types)
-	vppMock.RegisterBinAPITypes(af_packet.Types)
-	vppMock.RegisterBinAPITypes(vpe.Types)
-	vppMock.RegisterBinAPITypes(vxlan.Types)
-	vppMock.RegisterBinAPITypes(ip.Types)
-	vppMock.RegisterBinAPITypes(dhcp.Types)
+	vppMock := mock.NewVppAdapter()
 
 	vppMock.MockReplyHandler(func(request govppmock.MessageDTO) (reply []byte, msgID uint16, prepared bool) {
 		reqName, found := vppMock.GetMsgNameByID(request.MsgID)

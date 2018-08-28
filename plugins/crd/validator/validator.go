@@ -634,7 +634,6 @@ func (v *Validator) ValidateTapToPod() {
 					tapIp := strings.Split(ip, "/")
 					podIP := ip2uint32(pod.IPAddress)
 					tapIP := ip2uint32(tapIp[0])
-					fmt.Printf("ip: %s, PodIP: %x, TapIP: %x, bitmask: %x\n", ip, podIP, tapIP, bitmask)
 					if (podIP & bitmask) == (tapIP & bitmask) {
 						pod.VppIfIPAddr = ip
 						pod.VppIfInternalName = intf.IfMeta.VppInternalName

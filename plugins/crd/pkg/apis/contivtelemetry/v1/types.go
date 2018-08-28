@@ -21,42 +21,42 @@ import (
 
 // CRD Constants
 const (
-	CRDGroup                          string = "contivtelemetry.vpp"
+	CRDGroup                          string = "contiv.vpp"
 	CRDGroupVersion                   string = "v1"
-	CRDContivTelemetryReport          string = "contivtelemetryreport"
-	CRDContivTelemetryReportPlural    string = "contivtelemetryreports"
+	CRDContivTelemetryReport          string = "telemetryreport"
+	CRDContivTelemetryReportPlural    string = "telemetryreports"
 	CRDFullContivTelemetryReportsName string = CRDContivTelemetryReportPlural + "." + CRDGroup
 )
 
-// ContivTelemetryReport describes contiv telemetry custom resource
+// TelemetryReport describes contiv telemetry custom resource
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-type ContivTelemetryReport struct {
+type TelemetryReport struct {
 	// TypeMeta is the metadata for the resource, like kind and apiversion
 	metav1.TypeMeta `json:",inline"`
 	// ObjectMeta contains the metadata for the particular object
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 	// Spec is the custom resource spec
-	Spec   ContivTelemetryReportSpec   `json:"spec,omitempty"`
-	Status ContivTelemetryReportStatus `json:"status,omitempty"`
+	Spec   TelemetryReportSpec   `json:"spec,omitempty"`
+	Status TelemetryReportStatus `json:"status,omitempty"`
 }
 
-// ContivTelemetryReportSpec is the spec for the contiv telemetry resource
-type ContivTelemetryReportSpec struct {
+// TelemetryReportSpec is the spec for the contiv telemetry resource
+type TelemetryReportSpec struct {
 	ReportPollingPeriodSeconds uint32 `json:"report_polling_period_seconds"`
 }
 
-// ContivTelemetryReportList is a list of ContivTelemetryReport resource
+// TelemetryReportList is a list of ContivTelemetryReport resource
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-type ContivTelemetryReportList struct {
+type TelemetryReportList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata"`
 
-	Items []ContivTelemetryReport `json:"items"`
+	Items []TelemetryReport `json:"items"`
 }
 
-// ContivTelemetryReportStatus is the state for the contiv telemetry report
-type ContivTelemetryReportStatus struct {
+// TelemetryReportStatus is the state for the contiv telemetry report
+type TelemetryReportStatus struct {
 	Nodes   []telemetrymodel.Node  `json:"nodes"`
 	Reports telemetrymodel.Reports `json:"reports"`
 }

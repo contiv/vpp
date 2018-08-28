@@ -25,7 +25,7 @@ import (
 
 type ContivtelemetryV1Interface interface {
 	RESTClient() rest.Interface
-	ContivTelemetryReportsGetter
+	TelemetryReportsGetter
 }
 
 // ContivtelemetryV1Client is used to interact with features provided by the contivtelemetry.vpp group.
@@ -33,8 +33,8 @@ type ContivtelemetryV1Client struct {
 	restClient rest.Interface
 }
 
-func (c *ContivtelemetryV1Client) ContivTelemetryReports(namespace string) ContivTelemetryReportInterface {
-	return newContivTelemetryReports(c, namespace)
+func (c *ContivtelemetryV1Client) TelemetryReports(namespace string) TelemetryReportInterface {
+	return newTelemetryReports(c, namespace)
 }
 
 // NewForConfig creates a new ContivtelemetryV1Client for the given config.

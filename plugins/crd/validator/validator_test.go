@@ -168,8 +168,8 @@ func testNodesDBValidateL2Connections(t *testing.T) {
 		},
 	}
 	bd[2] = bogusBd
-	vtv.report.Clear()
 
+	vtv.report.Clear()
 	vtv.processor.ValidateL2Connectivity()
 	gomega.Expect(len(vtv.report.Data[api.GlobalMsg])).To(gomega.Equal(1))
 	gomega.Expect(len(vtv.report.Data[nodeKey])).To(gomega.Equal(2))
@@ -183,7 +183,6 @@ func testNodesDBValidateL2Connections(t *testing.T) {
 	delete(bd, 1)
 
 	vtv.report.Clear()
-
 	vtv.processor.ValidateL2Connectivity()
 	gomega.Expect(len(vtv.report.Data[api.GlobalMsg])).To(gomega.Equal(1))
 	gomega.Expect(len(vtv.report.Data[nodeKey])).To(gomega.Equal(2))

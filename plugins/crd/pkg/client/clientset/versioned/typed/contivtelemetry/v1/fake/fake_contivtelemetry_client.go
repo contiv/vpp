@@ -26,8 +26,8 @@ type FakeContivtelemetryV1 struct {
 	*testing.Fake
 }
 
-func (c *FakeContivtelemetryV1) ContivTelemetryReports(namespace string) v1.ContivTelemetryReportInterface {
-	return &FakeContivTelemetryReports{c, namespace}
+func (c *FakeContivtelemetryV1) TelemetryReports(namespace string) v1.TelemetryReportInterface {
+	return &FakeTelemetryReports{c, namespace}
 }
 
 // RESTClient returns a RESTClient that is used to communicate

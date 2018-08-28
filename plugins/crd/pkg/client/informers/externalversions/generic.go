@@ -51,8 +51,8 @@ func (f *genericInformer) Lister() cache.GenericLister {
 func (f *sharedInformerFactory) ForResource(resource schema.GroupVersionResource) (GenericInformer, error) {
 	switch resource {
 	// Group=contivtelemetry.vpp, Version=v1
-	case v1.SchemeGroupVersion.WithResource("contivtelemetryreports"):
-		return &genericInformer{resource: resource.GroupResource(), informer: f.Contivtelemetry().V1().ContivTelemetryReports().Informer()}, nil
+	case v1.SchemeGroupVersion.WithResource("telemetryreports"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Contivtelemetry().V1().TelemetryReports().Informer()}, nil
 
 	}
 

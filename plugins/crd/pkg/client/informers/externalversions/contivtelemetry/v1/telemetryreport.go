@@ -29,59 +29,59 @@ import (
 	cache "k8s.io/client-go/tools/cache"
 )
 
-// ContivTelemetryReportInformer provides access to a shared informer and lister for
-// ContivTelemetryReports.
-type ContivTelemetryReportInformer interface {
+// TelemetryReportInformer provides access to a shared informer and lister for
+// TelemetryReports.
+type TelemetryReportInformer interface {
 	Informer() cache.SharedIndexInformer
-	Lister() v1.ContivTelemetryReportLister
+	Lister() v1.TelemetryReportLister
 }
 
-type contivTelemetryReportInformer struct {
+type telemetryReportInformer struct {
 	factory          internalinterfaces.SharedInformerFactory
 	tweakListOptions internalinterfaces.TweakListOptionsFunc
 	namespace        string
 }
 
-// NewContivTelemetryReportInformer constructs a new informer for ContivTelemetryReport type.
+// NewTelemetryReportInformer constructs a new informer for TelemetryReport type.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
-func NewContivTelemetryReportInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers) cache.SharedIndexInformer {
-	return NewFilteredContivTelemetryReportInformer(client, namespace, resyncPeriod, indexers, nil)
+func NewTelemetryReportInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers) cache.SharedIndexInformer {
+	return NewFilteredTelemetryReportInformer(client, namespace, resyncPeriod, indexers, nil)
 }
 
-// NewFilteredContivTelemetryReportInformer constructs a new informer for ContivTelemetryReport type.
+// NewFilteredTelemetryReportInformer constructs a new informer for TelemetryReport type.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
-func NewFilteredContivTelemetryReportInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers, tweakListOptions internalinterfaces.TweakListOptionsFunc) cache.SharedIndexInformer {
+func NewFilteredTelemetryReportInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers, tweakListOptions internalinterfaces.TweakListOptionsFunc) cache.SharedIndexInformer {
 	return cache.NewSharedIndexInformer(
 		&cache.ListWatch{
 			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.ContivtelemetryV1().ContivTelemetryReports(namespace).List(options)
+				return client.ContivtelemetryV1().TelemetryReports(namespace).List(options)
 			},
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.ContivtelemetryV1().ContivTelemetryReports(namespace).Watch(options)
+				return client.ContivtelemetryV1().TelemetryReports(namespace).Watch(options)
 			},
 		},
-		&contivtelemetryv1.ContivTelemetryReport{},
+		&contivtelemetryv1.TelemetryReport{},
 		resyncPeriod,
 		indexers,
 	)
 }
 
-func (f *contivTelemetryReportInformer) defaultInformer(client versioned.Interface, resyncPeriod time.Duration) cache.SharedIndexInformer {
-	return NewFilteredContivTelemetryReportInformer(client, f.namespace, resyncPeriod, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}, f.tweakListOptions)
+func (f *telemetryReportInformer) defaultInformer(client versioned.Interface, resyncPeriod time.Duration) cache.SharedIndexInformer {
+	return NewFilteredTelemetryReportInformer(client, f.namespace, resyncPeriod, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}, f.tweakListOptions)
 }
 
-func (f *contivTelemetryReportInformer) Informer() cache.SharedIndexInformer {
-	return f.factory.InformerFor(&contivtelemetryv1.ContivTelemetryReport{}, f.defaultInformer)
+func (f *telemetryReportInformer) Informer() cache.SharedIndexInformer {
+	return f.factory.InformerFor(&contivtelemetryv1.TelemetryReport{}, f.defaultInformer)
 }
 
-func (f *contivTelemetryReportInformer) Lister() v1.ContivTelemetryReportLister {
-	return v1.NewContivTelemetryReportLister(f.Informer().GetIndexer())
+func (f *telemetryReportInformer) Lister() v1.TelemetryReportLister {
+	return v1.NewTelemetryReportLister(f.Informer().GetIndexer())
 }

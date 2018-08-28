@@ -19,69 +19,69 @@ package v1
 import (
 	time "time"
 
-	contivtelemetryv1 "github.com/contiv/vpp/plugins/crd/pkg/apis/contivtelemetry/v1"
+	nodeconfigv1 "github.com/contiv/vpp/plugins/crd/pkg/apis/nodeconfig/v1"
 	versioned "github.com/contiv/vpp/plugins/crd/pkg/client/clientset/versioned"
 	internalinterfaces "github.com/contiv/vpp/plugins/crd/pkg/client/informers/externalversions/internalinterfaces"
-	v1 "github.com/contiv/vpp/plugins/crd/pkg/client/listers/contivtelemetry/v1"
+	v1 "github.com/contiv/vpp/plugins/crd/pkg/client/listers/nodeconfig/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	watch "k8s.io/apimachinery/pkg/watch"
 	cache "k8s.io/client-go/tools/cache"
 )
 
-// TelemetryReportInformer provides access to a shared informer and lister for
-// TelemetryReports.
-type TelemetryReportInformer interface {
+// NodeConfigInformer provides access to a shared informer and lister for
+// NodeConfigs.
+type NodeConfigInformer interface {
 	Informer() cache.SharedIndexInformer
-	Lister() v1.TelemetryReportLister
+	Lister() v1.NodeConfigLister
 }
 
-type telemetryReportInformer struct {
+type nodeConfigInformer struct {
 	factory          internalinterfaces.SharedInformerFactory
 	tweakListOptions internalinterfaces.TweakListOptionsFunc
 	namespace        string
 }
 
-// NewTelemetryReportInformer constructs a new informer for TelemetryReport type.
+// NewNodeConfigInformer constructs a new informer for NodeConfig type.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
-func NewTelemetryReportInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers) cache.SharedIndexInformer {
-	return NewFilteredTelemetryReportInformer(client, namespace, resyncPeriod, indexers, nil)
+func NewNodeConfigInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers) cache.SharedIndexInformer {
+	return NewFilteredNodeConfigInformer(client, namespace, resyncPeriod, indexers, nil)
 }
 
-// NewFilteredTelemetryReportInformer constructs a new informer for TelemetryReport type.
+// NewFilteredNodeConfigInformer constructs a new informer for NodeConfig type.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
-func NewFilteredTelemetryReportInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers, tweakListOptions internalinterfaces.TweakListOptionsFunc) cache.SharedIndexInformer {
+func NewFilteredNodeConfigInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers, tweakListOptions internalinterfaces.TweakListOptionsFunc) cache.SharedIndexInformer {
 	return cache.NewSharedIndexInformer(
 		&cache.ListWatch{
 			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.ContivV1().TelemetryReports(namespace).List(options)
+				return client.ContivV1().NodeConfigs(namespace).List(options)
 			},
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.ContivV1().TelemetryReports(namespace).Watch(options)
+				return client.ContivV1().NodeConfigs(namespace).Watch(options)
 			},
 		},
-		&contivtelemetryv1.TelemetryReport{},
+		&nodeconfigv1.NodeConfig{},
 		resyncPeriod,
 		indexers,
 	)
 }
 
-func (f *telemetryReportInformer) defaultInformer(client versioned.Interface, resyncPeriod time.Duration) cache.SharedIndexInformer {
-	return NewFilteredTelemetryReportInformer(client, f.namespace, resyncPeriod, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}, f.tweakListOptions)
+func (f *nodeConfigInformer) defaultInformer(client versioned.Interface, resyncPeriod time.Duration) cache.SharedIndexInformer {
+	return NewFilteredNodeConfigInformer(client, f.namespace, resyncPeriod, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}, f.tweakListOptions)
 }
 
-func (f *telemetryReportInformer) Informer() cache.SharedIndexInformer {
-	return f.factory.InformerFor(&contivtelemetryv1.TelemetryReport{}, f.defaultInformer)
+func (f *nodeConfigInformer) Informer() cache.SharedIndexInformer {
+	return f.factory.InformerFor(&nodeconfigv1.NodeConfig{}, f.defaultInformer)
 }
 
-func (f *telemetryReportInformer) Lister() v1.TelemetryReportLister {
-	return v1.NewTelemetryReportLister(f.Informer().GetIndexer())
+func (f *nodeConfigInformer) Lister() v1.NodeConfigLister {
+	return v1.NewNodeConfigLister(f.Informer().GetIndexer())
 }

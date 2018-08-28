@@ -24,6 +24,7 @@ import (
 	versioned "github.com/contiv/vpp/plugins/crd/pkg/client/clientset/versioned"
 	contivtelemetry "github.com/contiv/vpp/plugins/crd/pkg/client/informers/externalversions/contivtelemetry"
 	internalinterfaces "github.com/contiv/vpp/plugins/crd/pkg/client/informers/externalversions/internalinterfaces"
+	nodeconfig "github.com/contiv/vpp/plugins/crd/pkg/client/informers/externalversions/nodeconfig"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
@@ -170,9 +171,14 @@ type SharedInformerFactory interface {
 	ForResource(resource schema.GroupVersionResource) (GenericInformer, error)
 	WaitForCacheSync(stopCh <-chan struct{}) map[reflect.Type]bool
 
-	Contivtelemetry() contivtelemetry.Interface
+	Contiv() contivtelemetry.Interface
+	Contiv() nodeconfig.Interface
 }
 
-func (f *sharedInformerFactory) Contivtelemetry() contivtelemetry.Interface {
+func (f *sharedInformerFactory) Contiv() contivtelemetry.Interface {
 	return contivtelemetry.New(f, f.namespace, f.tweakListOptions)
+}
+
+func (f *sharedInformerFactory) Contiv() nodeconfig.Interface {
+	return nodeconfig.New(f, f.namespace, f.tweakListOptions)
 }

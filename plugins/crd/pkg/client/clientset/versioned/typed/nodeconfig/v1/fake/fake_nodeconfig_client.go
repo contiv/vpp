@@ -17,7 +17,7 @@
 package fake
 
 import (
-	v1 "github.com/contiv/vpp/plugins/crd/pkg/client/clientset/versioned/typed/contivtelemetry/v1"
+	v1 "github.com/contiv/vpp/plugins/crd/pkg/client/clientset/versioned/typed/nodeconfig/v1"
 	rest "k8s.io/client-go/rest"
 	testing "k8s.io/client-go/testing"
 )

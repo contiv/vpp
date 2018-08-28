@@ -18,8 +18,10 @@ package fake
 
 import (
 	clientset "github.com/contiv/vpp/plugins/crd/pkg/client/clientset/versioned"
-	contivtelemetryv1 "github.com/contiv/vpp/plugins/crd/pkg/client/clientset/versioned/typed/contivtelemetry/v1"
-	fakecontivtelemetryv1 "github.com/contiv/vpp/plugins/crd/pkg/client/clientset/versioned/typed/contivtelemetry/v1/fake"
+	contivv1 "github.com/contiv/vpp/plugins/crd/pkg/client/clientset/versioned/typed/contivtelemetry/v1"
+	fakecontivv1 "github.com/contiv/vpp/plugins/crd/pkg/client/clientset/versioned/typed/contivtelemetry/v1/fake"
+	contivv1 "github.com/contiv/vpp/plugins/crd/pkg/client/clientset/versioned/typed/nodeconfig/v1"
+	fakecontivv1 "github.com/contiv/vpp/plugins/crd/pkg/client/clientset/versioned/typed/nodeconfig/v1/fake"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/discovery"
@@ -69,12 +71,22 @@ func (c *Clientset) Discovery() discovery.DiscoveryInterface {
 
 var _ clientset.Interface = &Clientset{}
 
-// ContivtelemetryV1 retrieves the ContivtelemetryV1Client
-func (c *Clientset) ContivtelemetryV1() contivtelemetryv1.ContivtelemetryV1Interface {
-	return &fakecontivtelemetryv1.FakeContivtelemetryV1{Fake: &c.Fake}
+// ContivV1 retrieves the ContivV1Client
+func (c *Clientset) ContivV1() contivv1.ContivV1Interface {
+	return &fakecontivv1.FakeContivV1{Fake: &c.Fake}
 }
 
-// Contivtelemetry retrieves the ContivtelemetryV1Client
-func (c *Clientset) Contivtelemetry() contivtelemetryv1.ContivtelemetryV1Interface {
-	return &fakecontivtelemetryv1.FakeContivtelemetryV1{Fake: &c.Fake}
+// Contiv retrieves the ContivV1Client
+func (c *Clientset) Contiv() contivv1.ContivV1Interface {
+	return &fakecontivv1.FakeContivV1{Fake: &c.Fake}
+}
+
+// ContivV1 retrieves the ContivV1Client
+func (c *Clientset) ContivV1() contivv1.ContivV1Interface {
+	return &fakecontivv1.FakeContivV1{Fake: &c.Fake}
+}
+
+// Contiv retrieves the ContivV1Client
+func (c *Clientset) Contiv() contivv1.ContivV1Interface {
+	return &fakecontivv1.FakeContivV1{Fake: &c.Fake}
 }

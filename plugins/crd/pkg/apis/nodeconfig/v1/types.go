@@ -15,47 +15,49 @@
 package v1
 
 import (
-	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
+	"github.com/contiv/vpp/plugins/contiv"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // CRD Constants
 const (
-	CRDGroup                          string = "contiv.vpp"
-	CRDGroupVersion                   string = "v1"
-	CRDContivTelemetryReportPlural    string = "telemetryreports"
-	CRDFullContivTelemetryReportsName string = CRDContivTelemetryReportPlural + "." + CRDGroup
+	CRDGroup                    string = "contiv.vpp"
+	CRDGroupVersion             string = "v1"
+	CRDContivNodeConfigPlural   string = "nodeconfigs"
+	CRDFullContivNodeConfigName string = CRDContivNodeConfigPlural + "." + CRDGroup
 )
 
-// TelemetryReport describes contiv telemetry custom resource
+// NodeConfig describes contiv node configuration custom resource
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-type TelemetryReport struct {
+type NodeConfig struct {
 	// TypeMeta is the metadata for the resource, like kind and apiversion
 	metav1.TypeMeta `json:",inline"`
 	// ObjectMeta contains the metadata for the particular object
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 	// Spec is the custom resource spec
-	Spec   TelemetryReportSpec   `json:"spec,omitempty"`
-	Status TelemetryReportStatus `json:"status,omitempty"`
+	Spec   NodeConfigSpec   `json:"spec,omitempty"`
+	Status NodeConfigStatus `json:"status,omitempty"`
 }
 
-// TelemetryReportSpec is the spec for the contiv telemetry resource
-type TelemetryReportSpec struct {
-	ReportPollingPeriodSeconds uint32 `json:"report_polling_period_seconds"`
+// NodeConfigSpec is the spec for the contiv node configuration  resource
+type NodeConfigSpec struct {
+	OneNodeConfig *contiv.OneNodeConfig
 }
 
-// TelemetryReportList is a list of ContivTelemetryReport resource
+// NodeConfigList is a list of node configuration resource
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-type TelemetryReportList struct {
+type NodeConfigList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata"`
 
-	Items []TelemetryReport `json:"items"`
+	Items []NodeConfig `json:"items"`
 }
 
-// TelemetryReportStatus is the state for the contiv telemetry report
-type TelemetryReportStatus struct {
-	Nodes   []telemetrymodel.Node  `json:"nodes"`
-	Reports telemetrymodel.Reports `json:"reports"`
+// NodeConfigStatus is the state for the contiv ode configuration
+type NodeConfigStatus struct {
+	//Nodes   []telemetrymodel.Node  `json:"nodes"`
+	//Reports telemetrymodel.Reports `json:"reports"`
+	State   string `json:"state,omitempty"`
+	Message string `json:"message,omitempty"`
 }

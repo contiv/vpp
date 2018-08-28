@@ -152,7 +152,7 @@ validateNodeBD:
 		}
 
 		// Validate that there is exactly one bridge domain with the name vxlanBD
-		var vxLanBD *telemetrymodel.NodeBridgeDomain = nil
+		var vxLanBD *telemetrymodel.NodeBridgeDomain
 
 		for _, bdomain := range node.NodeBridgeDomains {
 			if bdomain.Bd.Name == "vxlanBD" {

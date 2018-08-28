@@ -209,7 +209,7 @@ func testNodesDBValidateL2Connections(t *testing.T) {
 	// first found vxlan_interface
 	k, ifp = vtv.findFirstVxlanInterface(nodeKey)
 	gomega.Expect(ifp).To(gomega.Not(gomega.BeNil()))
-	dstIpAddr := ifp.If.Vxlan.DstAddress
+	dstIPAddr := ifp.If.Vxlan.DstAddress
 	ifp.If.Vxlan.DstAddress = "1.2.3.4"
 	vtv.vppCache.NodeMap[nodeKey].NodeInterfaces[k] = *ifp
 
@@ -218,12 +218,12 @@ func testNodesDBValidateL2Connections(t *testing.T) {
 
 	gomega.Expect(len(vtv.report.Data[api.GlobalMsg])).To(gomega.Equal(1))
 	gomega.Expect(len(vtv.report.Data[nodeKey])).To(gomega.Equal(4))
-	node, err := vtv.vppCache.RetrieveNodeByGigEIPAddr(dstIpAddr + "/24") // TODO: handle CIDR mask peoperly
+	node, err := vtv.vppCache.RetrieveNodeByGigEIPAddr(dstIPAddr + "/24") // TODO: handle CIDR mask peoperly
 	gomega.Expect(err).To(gomega.BeNil())
 	gomega.Expect(len(vtv.report.Data[node.Name])).To(gomega.Equal(1))
 
 	// Restore data back to error free state
-	ifp.If.Vxlan.DstAddress = dstIpAddr
+	ifp.If.Vxlan.DstAddress = dstIPAddr
 	vtv.vppCache.NodeMap[nodeKey].NodeInterfaces[k] = *ifp
 
 	// ----------------------------------------
@@ -258,7 +258,6 @@ func testNodesDBValidateL2Connections(t *testing.T) {
 
 	// ----------------------------------------------------------------------
 	// INJECT FAULT: Duplicate BVI interface
-
 
 	/*
 		nodevxlaninterface2.Vxlan.Vni = 11

@@ -144,7 +144,7 @@ func (v *Validator) ValidateL2Connectivity() {
 		nodeMap[node.Name] = true
 	}
 
-	validateNodeBD:
+validateNodeBD:
 	for _, node := range nodeList {
 		nodeVxlanMap := make(map[string]bool)
 		for _, n := range nodeList {
@@ -216,7 +216,7 @@ func (v *Validator) ValidateL2Connectivity() {
 
 				if n, err := v.VppCache.RetrieveNodeByLoopMacAddr(nodeIfc.If.PhysAddress); err != nil {
 					errCnt++
-					errString := fmt.Sprintf("validator internal error: bad MAC Addr index, " +
+					errString := fmt.Sprintf("validator internal error: bad MAC Addr index, "+
 						"MAC Addr %s, BVI %s (ifIndex %d, ifName %s)",
 						nodeIfc.If.PhysAddress, bdIfc.Name, ifIndex, nodeIfc.If.Name)
 					v.Report.AppendToNodeReport(node.Name, errString)
@@ -245,7 +245,7 @@ func (v *Validator) ValidateL2Connectivity() {
 				}
 
 				vxlanTunnelIfc := node.NodeInterfaces[int(ifIndex)]
-				srcIpNode, err := v.VppCache.RetrieveNodeByGigEIPAddr(vxlanTunnelIfc.If.Vxlan.SrcAddress + api.SubnetMask)
+				srcIPNode, err := v.VppCache.RetrieveNodeByGigEIPAddr(vxlanTunnelIfc.If.Vxlan.SrcAddress + api.SubnetMask)
 
 				// Try to find node with src ip address of the tunnel and make
 				// sure it is the same as the current node.
@@ -257,7 +257,7 @@ func (v *Validator) ValidateL2Connectivity() {
 					continue
 				}
 
-				if srcIpNode.Name != node.Name {
+				if srcIPNode.Name != node.Name {
 					errCnt++
 					errString := fmt.Sprintf("vxlan_tunnel %s has source ip %s which points "+
 						"to a different node than %s.",
@@ -310,7 +310,7 @@ func (v *Validator) ValidateL2Connectivity() {
 		//checks if there are an unequal amount vxlan tunnels for the current node versus the total number of nodes
 		if i != len(nodeList) {
 			errCnt++
-			errString := fmt.Sprintf("the number of valid BD interfaces does not match the number of nodes " +
+			errString := fmt.Sprintf("the number of valid BD interfaces does not match the number of nodes "+
 				"in cluster: got %d, expected %d", i, len(nodeList))
 			v.Report.AppendToNodeReport(node.Name, errString)
 		}
@@ -631,9 +631,9 @@ func (v *Validator) ValidateTapToPod() {
 		for _, intf := range vppNode.NodeInterfaces {
 			if strings.Contains(intf.IfMeta.VppInternalName, "tap") {
 				for _, ip := range intf.If.IPAddresses {
-					tapIp := strings.Split(ip, "/")
+					ipAddr := strings.Split(ip, "/")
 					podIP := ip2uint32(pod.IPAddress)
-					tapIP := ip2uint32(tapIp[0])
+					tapIP := ip2uint32(ipAddr[0])
 					if (podIP & bitmask) == (tapIP & bitmask) {
 						pod.VppIfIPAddr = ip
 						pod.VppIfInternalName = intf.IfMeta.VppInternalName

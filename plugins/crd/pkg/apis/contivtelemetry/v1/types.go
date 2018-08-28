@@ -24,7 +24,7 @@ const (
 	CRDGroup                          string = "contiv.vpp"
 	CRDGroupVersion                   string = "v1"
 	CRDContivTelemetryReport          string = "telemetryreport"
-	CRDContivTelemetryReportPlural    string = "ttelemetryreports"
+	CRDContivTelemetryReportPlural    string = "telemetryreports"
 	CRDFullContivTelemetryReportsName string = CRDContivTelemetryReportPlural + "." + CRDGroup
 )
 

@@ -15,6 +15,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"github.com/ligato/vpp-agent/plugins/vpp/model/interfaces"
 )
 
 type validatorTestVars struct {
@@ -190,8 +191,8 @@ func testNodesDBValidateL2Connections(t *testing.T) {
 	ifc := vtv.vppCache.NodeMap["k8s-master"].NodeInterfaces[5]
 	ifc.If.Vxlan.Vni = 11
 	vtv.vppCache.NodeMap["k8s-master"].NodeInterfaces[5] = ifc
-	vtv.report.Clear()
 
+	vtv.report.Clear()
 	vtv.processor.ValidateL2Connectivity()
 	gomega.Expect(len(vtv.report.Data[api.GlobalMsg])).To(gomega.Equal(1))
 	gomega.Expect(len(vtv.report.Data["k8s-master"])).To(gomega.Equal(1))
@@ -202,21 +203,52 @@ func testNodesDBValidateL2Connections(t *testing.T) {
 	vtv.vppCache.NodeMap["k8s-master"].NodeInterfaces[5] = ifc
 
 	// INJECT FAULT: Set node/k8s-master interface/5 vxlan_dst IP address to 11
-	ifc = vtv.vppCache.NodeMap["k8s-master"].NodeInterfaces[5]
-	ifc.If.Vxlan.DstAddress = "192.168.16.5"
-	vtv.vppCache.NodeMap["k8s-master"].NodeInterfaces[5] = ifc
-	vtv.report.Clear()
+	for k, ifc := range vtv.vppCache.NodeMap["k8s-master"].NodeInterfaces {
+		if ifc.If.IfType == interfaces.InterfaceType_VXLAN_TUNNEL {
+			dstIpAddr := ifc.If.Vxlan.DstAddress
+			ifc.If.Vxlan.DstAddress = "1.2.3.4"
+			vtv.vppCache.NodeMap["k8s-master"].NodeInterfaces[k] = ifc
 
-	vtv.processor.ValidateL2Connectivity()
-	gomega.Expect(len(vtv.report.Data[api.GlobalMsg])).To(gomega.Equal(1))
-	gomega.Expect(len(vtv.report.Data["k8s-master"])).To(gomega.Equal(4))
-	gomega.Expect(len(vtv.report.Data["k8s-worker2"])).To(gomega.Equal(1))
+			vtv.report.Clear()
+			vtv.processor.ValidateL2Connectivity()
 
-	// Restore data back to error free state
-	ifc = vtv.vppCache.NodeMap["k8s-master"].NodeInterfaces[5]
-	ifc.If.Vxlan.DstAddress = "192.168.16.3"
-	vtv.vppCache.NodeMap["k8s-master"].NodeInterfaces[5] = ifc
-	vtv.report.Clear()
+			gomega.Expect(len(vtv.report.Data[api.GlobalMsg])).To(gomega.Equal(1))
+			gomega.Expect(len(vtv.report.Data["k8s-master"])).To(gomega.Equal(4))
+			node, err := vtv.vppCache.RetrieveNodeByGigEIPAddr(dstIpAddr + "/24") // TODO: proper mask
+			gomega.Expect(err).To(gomega.BeNil())
+			gomega.Expect(len(vtv.report.Data[node.Name])).To(gomega.Equal(1))
+
+			// Restore data back to error free state
+			ifc.If.Vxlan.DstAddress = dstIpAddr
+			vtv.vppCache.NodeMap["k8s-master"].NodeInterfaces[k] = ifc
+
+			break
+		}
+	}
+
+	// INJECT FAULT: Invalid BD interface index
+	nbd := vtv.vppCache.NodeMap["k8s-master"].NodeBridgeDomains
+	gomega.Expect(len(nbd)).To(gomega.Equal(1))
+
+	for _, vxlanBd := range nbd {
+		// Create an invalid ifIndex for a BD interface (invalid key in the BdID2Name map)
+		keys := make([]uint32, 0)
+		for k := range vxlanBd.BdMeta.BdID2Name {
+			keys = append(keys, k)
+		}
+
+		vxlanBd.BdMeta.BdID2Name[keys[0]*100] = vxlanBd.BdMeta.BdID2Name[keys[0]]
+		delete(vxlanBd.BdMeta.BdID2Name, keys[0])
+
+		vtv.report.Clear()
+		vtv.processor.ValidateL2Connectivity()
+
+		gomega.Expect(len(vtv.report.Data[api.GlobalMsg])).To(gomega.Equal(1))
+		gomega.Expect(len(vtv.report.Data["k8s-master"])).To(gomega.Equal(4))
+
+		break
+	}
+
 
 	/*
 		nodevxlaninterface2.Vxlan.Vni = 11

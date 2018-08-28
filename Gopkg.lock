@@ -42,8 +42,8 @@
   name = "github.com/Microsoft/go-winio"
   packages = ["."]
   pruneopts = "UT"
-  revision = "78a084671df137c2acfcacaa730d7e7dc285ac39"
-  version = "v0.4.10"
+  revision = "97e4973ce50b2ff5f09635a57e2b88a037aae829"
+  version = "v0.4.11"
 
 [[projects]]
   branch = "master"
@@ -77,7 +77,7 @@
   revision = "2bd8b58cf4275aeb086ade613de226773e29e853"
 
 [[projects]]
-  digest = "1:980a2ad81399a6f5067a11be92453b1ac1ec9e4222829ecc6e71bec8361ebc91"
+  digest = "1:dff3ae66636fe64137fa5cbd2b5a472c64cfe8d687b456306b0eebbb41b633f5"
   name = "github.com/aws/aws-sdk-go"
   packages = [
     "aws",
@@ -109,8 +109,8 @@
     "service/sts",
   ]
   pruneopts = "UT"
-  revision = "66974140c322f22c1daaf95a18930ea6a9e4d21e"
-  version = "v1.15.16"
+  revision = "4324bc9d8865bdb3e6aa86ec7772ca1272d2750e"
+  version = "v1.15.21"
 
 [[projects]]
   branch = "master"
@@ -1244,9 +1244,14 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:1823635465fafd46fb48e79ed2a8fd05464543d625d008d9142a144f785b7a88"
+  digest = "1:c4f1af26da9d6bce5fc007fac6805524249bdb5ae2297c6e24d2bd2f84505b2d"
   name = "golang.org/x/tools"
-  packages = ["cover"]
+  packages = [
+    "cover",
+    "go/ast/astutil",
+    "imports",
+    "internal/fastwalk",
+  ]
   pruneopts = "UT"
   revision = "c1406c36efe20fb423f43a73518f0454febeed1f"
 
@@ -1528,6 +1533,51 @@
   version = "kubernetes-1.11.0"
 
 [[projects]]
+  digest = "1:43ef9a37919f7a8948b7de4c05d20692f763adc40f15c9d330c544ae05d93947"
+  name = "k8s.io/code-generator"
+  packages = [
+    "cmd/client-gen",
+    "cmd/client-gen/args",
+    "cmd/client-gen/generators",
+    "cmd/client-gen/generators/fake",
+    "cmd/client-gen/generators/scheme",
+    "cmd/client-gen/generators/util",
+    "cmd/client-gen/path",
+    "cmd/client-gen/types",
+    "cmd/deepcopy-gen",
+    "cmd/deepcopy-gen/args",
+    "cmd/defaulter-gen",
+    "cmd/defaulter-gen/args",
+    "cmd/informer-gen",
+    "cmd/informer-gen/args",
+    "cmd/informer-gen/generators",
+    "cmd/lister-gen",
+    "cmd/lister-gen/args",
+    "cmd/lister-gen/generators",
+    "pkg/util",
+  ]
+  pruneopts = ""
+  revision = "6702109cc68eb6fe6350b83e14407c8d7309fd1a"
+  version = "kubernetes-1.11.0"
+
+[[projects]]
+  branch = "master"
+  digest = "1:5249c83f0fb9e277b2d28c19eca814feac7ef05dc762e4deaf0a2e4b1a7c5df3"
+  name = "k8s.io/gengo"
+  packages = [
+    "args",
+    "examples/deepcopy-gen/generators",
+    "examples/defaulter-gen/generators",
+    "examples/set-gen/sets",
+    "generator",
+    "namer",
+    "parser",
+    "types",
+  ]
+  pruneopts = "UT"
+  revision = "4242d8e6c5dba56827bb7bcf14ad11cda38f3991"
+
+[[projects]]
   branch = "master"
   digest = "1:a2c842a1e0aed96fd732b535514556323a6f5edfded3b63e5e0ab1bce188aa54"
   name = "k8s.io/kube-openapi"
@@ -1595,17 +1645,13 @@
     "github.com/ligato/vpp-agent/plugins/rest",
     "github.com/ligato/vpp-agent/plugins/telemetry",
     "github.com/ligato/vpp-agent/plugins/vpp",
-    "github.com/ligato/vpp-agent/plugins/vpp/binapi/af_packet",
     "github.com/ligato/vpp-agent/plugins/vpp/binapi/dhcp",
     "github.com/ligato/vpp-agent/plugins/vpp/binapi/interfaces",
     "github.com/ligato/vpp-agent/plugins/vpp/binapi/ip",
-    "github.com/ligato/vpp-agent/plugins/vpp/binapi/memif",
     "github.com/ligato/vpp-agent/plugins/vpp/binapi/nat",
     "github.com/ligato/vpp-agent/plugins/vpp/binapi/session",
     "github.com/ligato/vpp-agent/plugins/vpp/binapi/stats",
-    "github.com/ligato/vpp-agent/plugins/vpp/binapi/tap",
     "github.com/ligato/vpp-agent/plugins/vpp/binapi/vpe",
-    "github.com/ligato/vpp-agent/plugins/vpp/binapi/vxlan",
     "github.com/ligato/vpp-agent/plugins/vpp/ifplugin/ifaceidx",
     "github.com/ligato/vpp-agent/plugins/vpp/ifplugin/vppcalls",
     "github.com/ligato/vpp-agent/plugins/vpp/ipsecplugin/ipsecidx",
@@ -1664,6 +1710,11 @@
     "k8s.io/client-go/tools/clientcmd",
     "k8s.io/client-go/util/flowcontrol",
     "k8s.io/client-go/util/workqueue",
+    "k8s.io/code-generator/cmd/client-gen",
+    "k8s.io/code-generator/cmd/deepcopy-gen",
+    "k8s.io/code-generator/cmd/defaulter-gen",
+    "k8s.io/code-generator/cmd/informer-gen",
+    "k8s.io/code-generator/cmd/lister-gen",
   ]
   solver-name = "gps-cdcl"
   solver-version = 1

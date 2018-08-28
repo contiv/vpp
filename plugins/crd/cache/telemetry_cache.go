@@ -32,13 +32,14 @@ import (
 const (
 	// here goes different cache types
 	//Update this whenever a new DTO type is added.
-	numDTOs            = 6
+	numDTOs            = 7
 	agentPort          = ":9999"
 	livenessURL        = "/liveness"
 	interfaceURL       = "/vpp/dump/v1/interfaces"
 	bridgeDomainURL    = "/vpp/dump/v1/bd"
-	l2FibsURL          = "//vpp/dump/v1/fib"
+	l2FibsURL          = "/vpp/dump/v1/fib"
 	telemetryURL       = "/telemetry"
+	ipamURL            = "/contiv/v1/ipam"
 	arpURL             = "/vpp/dump/v1/arps"
 	staticRouteURL     = "/vpp/dump/v1/routes"
 	clientTimeout      = 10 // HTTP client timeout, in seconds
@@ -230,6 +231,9 @@ func (ctc *ContivTelemetryCache) collectAgentInfo(node *telemetrymodel.Node) {
 
 	nodestaticroutes := make(telemetrymodel.NodeStaticRoutes, 0)
 	go ctc.getNodeInfo(client, node, staticRouteURL, &nodestaticroutes, ctc.databaseVersion)
+
+	nodeipam := telemetrymodel.IPamEntry{}
+	go ctc.getNodeInfo(client, node, ipamURL, &nodeipam, ctc.databaseVersion)
 }
 
 /* Here are the several functions that run as goroutines to collect information
@@ -373,6 +377,9 @@ func (ctc *ContivTelemetryCache) setNodeData() {
 		case *telemetrymodel.NodeStaticRoutes:
 			nSrDto := data.NodeInfo.(*telemetrymodel.NodeStaticRoutes)
 			err = ctc.VppCache.SetNodeStaticRoutes(data.NodeName, *nSrDto)
+		case *telemetrymodel.IPamEntry:
+			nipamDto := data.NodeInfo.(*telemetrymodel.IPamEntry)
+			err = ctc.VppCache.SetNodeIPam(data.NodeName, *nipamDto)
 		default:
 			err = fmt.Errorf("node %+v has unknown data type: %+v", data.NodeName, data.NodeInfo)
 		}

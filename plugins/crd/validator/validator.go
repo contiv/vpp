@@ -161,13 +161,13 @@ func (v *Validator) ValidateL2Connectivity() {
 		}
 
 		if vxlanBDCount > 1 {
-			errString := fmt.Sprintf("Multiple vxlanBD bridge domains - skipping L2 validation")
+			errString := fmt.Sprintf("multiple vxlanBD bridge domains - skipping L2 validation")
 			errCnt++
 			v.Report.AppendToNodeReport(node.Name, errString)
 			continue
 		} else if vxlanBDCount == 0 {
 			errCnt++
-			errString := fmt.Sprintf("No vxlan BD - skipping L2 validation")
+			errString := fmt.Sprintf("no vxlan BD - skipping L2 validation")
 			v.Report.AppendToNodeReport(node.Name, errString)
 			continue
 		}
@@ -221,7 +221,7 @@ func (v *Validator) ValidateL2Connectivity() {
 				// sure it is the same as the current node.
 				if err != nil {
 					errCnt++
-					errString := fmt.Sprintf("Error finding node with src IP %s",
+					errString := fmt.Sprintf("error finding node with src IP %s",
 						vxlantun.If.Vxlan.SrcAddress)
 					v.Report.AppendToNodeReport(node.Name, errString)
 					continue
@@ -242,7 +242,7 @@ func (v *Validator) ValidateL2Connectivity() {
 				dstipNode, err := v.VppCache.RetrieveNodeByGigEIPAddr(vxlantun.If.Vxlan.DstAddress + api.SubnetMask)
 				if err != nil {
 					errCnt++
-					errString := fmt.Sprintf("Node with dst ip %s in vxlan_tunnel %s not found",
+					errString := fmt.Sprintf("node with dst ip %s in vxlan_tunnel %s not found",
 						vxlantun.If.Vxlan.DstAddress, vxlantun.If.Name)
 					v.Report.AppendToNodeReport(node.Name, errString)
 					continue
@@ -307,8 +307,7 @@ func (v *Validator) ValidateL2Connectivity() {
 	//make sure that each node has been successfully validated
 	if len(nodeMap) > 0 {
 		for nodeName := range nodeMap {
-			errCnt++
-			v.Report.AppendToNodeReport(nodeName, fmt.Sprintf("failed to validate BD info"))
+			v.Report.AppendToNodeReport(nodeName, fmt.Sprintf("failed to validate node's Bridge Domain"))
 		}
 	}
 

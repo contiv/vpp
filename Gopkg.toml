@@ -38,16 +38,17 @@ required = [
 
 [[constraint]]
   name = "github.com/ligato/vpp-agent"
-  revision = "e7870d2269d575dbc34575c0447579c38a82f493"
+  source = "github.com/lukasmacko/vpp-agent"
+  revision = "88e0651639b56338f799c6f9552290c95cf60d1d"
 
 [[constraint]]
   name = "github.com/ligato/cn-infra"
-  revision = "98e10610edaf49aa2ca14c97302bc252cd6fdb63"
+  branch = "master"
 
 [[constraint]]
-  revision = "0ed38dbb620ef88a2007179265f37742ee46c305"
+  branch = "master"
   name = "git.fd.io/govpp.git"
-  source = "github.com/ligato/govpp"
+  source = "github.com/FDio/govpp"
 
 [[constraint]]
   revision = "b5bfa59ec0adc420475f97f89b58045c721d761c"
@@ -79,7 +80,7 @@ required = [
 
 [[constraint]]
   name = "github.com/docker/docker"
-  revision = "008b217844f8738cc47ef9ff108dc41dc37736cc"
+  revision = "3dfb26ab3cbf961298f8ce3f94659b5fe4146ceb"
 
 [[constraint]]
   name = "github.com/google/cadvisor"
@@ -141,6 +142,10 @@ required = [
 [[constraint]]
   name = "github.com/apparentlymart/go-cidr"
   revision = "2bd8b58cf4275aeb086ade613de226773e29e853"
+
+[[override]]
+  name = "github.com/docker/libnetwork"
+  revision = "9ffeaf7d8b64fa0eb64cc27835dc1a5a90328024"
 
 [prune]
   go-tests = true

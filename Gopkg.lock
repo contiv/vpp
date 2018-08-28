@@ -10,7 +10,8 @@
   version = "v0.26.0"
 
 [[projects]]
-  digest = "1:c88ea3ab249c48aa687c5dbd594e17e75926b2daeb3055c2491229d9a1c8bef7"
+  branch = "master"
+  digest = "1:3320b3be9b07621a48922afb37d8cfc2c86f0ebf04c5d7412425d7d8509b9940"
   name = "git.fd.io/govpp.git"
   packages = [
     "adapter",
@@ -22,8 +23,8 @@
     "core",
   ]
   pruneopts = "UT"
-  revision = "0ed38dbb620ef88a2007179265f37742ee46c305"
-  source = "github.com/ligato/govpp"
+  revision = "892683bef86cacc2ccda2b4df2b079171bd92164"
+  source = "github.com/FDio/govpp"
 
 [[projects]]
   branch = "master"
@@ -144,6 +145,14 @@
   version = "v0.4.1"
 
 [[projects]]
+  branch = "master"
+  digest = "1:fc8dbcc2a5de7c093e167828ebbdf551641761d2ad75431d3a167d467a264115"
+  name = "github.com/containerd/continuity"
+  packages = ["pathdriver"]
+  pruneopts = "UT"
+  revision = "c7c5070e6f6e090ab93b0a61eb921f2196fc3383"
+
+[[projects]]
   digest = "1:fdd07ff1d3b56a4338688dca999e7a09eacab635d450ca9338bfdd81fd817d9e"
   name = "github.com/containernetworking/cni"
   packages = [
@@ -158,7 +167,7 @@
   version = "v0.6.0"
 
 [[projects]]
-  digest = "1:78c50fbac6adb72e7b55afeb23390e8c5fdfb2983ad42240e549cc25bc8486a8"
+  digest = "1:85fce1e2e3ec72eecab2a2fd8fb85d7a825f0d5cd841652fe0ad980bbe22dd4a"
   name = "github.com/coreos/etcd"
   packages = [
     "auth/authpb",
@@ -168,10 +177,11 @@
     "etcdserver/etcdserverpb",
     "mvcc/mvccpb",
     "pkg/tlsutil",
+    "pkg/types",
   ]
   pruneopts = "UT"
-  revision = "66722b1ada68fcd5227db853ee92003169a975c8"
-  version = "v3.2.0"
+  revision = "fca8add78a9d926166eb739b8e4a124434025ba3"
+  version = "v3.3.9"
 
 [[projects]]
   digest = "1:85968a9e07d94b5f3d15993b9884ab5fcc41c8b7b6418df8b6a3baa387bb8d68"
@@ -223,7 +233,7 @@
   revision = "edc3ab29cdff8694dd6feb85cfeb4b5f1b38ed9c"
 
 [[projects]]
-  digest = "1:6531ce20da52a4ac353c6b9458495eef6c66b702c3e937db8a85f2decf99b75b"
+  digest = "1:9478748e6b297a5f9cd54324f682b7ec3f5e965125fe55cfcb6b9bc5bc1231f2"
   name = "github.com/docker/docker"
   packages = [
     "api",
@@ -239,17 +249,13 @@
     "api/types/swarm/runtime",
     "api/types/versions",
     "opts",
-    "pkg/archive",
     "pkg/fileutils",
     "pkg/homedir",
     "pkg/idtools",
     "pkg/ioutils",
-    "pkg/jsonlog",
-    "pkg/jsonmessage",
     "pkg/longpath",
     "pkg/mount",
     "pkg/pools",
-    "pkg/promise",
     "pkg/stdcopy",
     "pkg/symlink",
     "pkg/system",
@@ -257,7 +263,7 @@
     "pkg/term/windows",
   ]
   pruneopts = "UT"
-  revision = "008b217844f8738cc47ef9ff108dc41dc37736cc"
+  revision = "3dfb26ab3cbf961298f8ce3f94659b5fe4146ceb"
 
 [[projects]]
   digest = "1:805b4286fab4c1f4e3e3510f78ab9ed1c3742d2207c540213c4966edb3722e1e"
@@ -301,6 +307,13 @@
   pruneopts = "UT"
   revision = "47565b4f722fb6ceae66b95f853feed578a4a51c"
   version = "v0.3.3"
+
+[[projects]]
+  digest = "1:00d0d550a1f1d7ca03270ebc1e136f21f6b9dab37f0c37e9a90d56d2f7afcff9"
+  name = "github.com/docker/libnetwork"
+  packages = ["ipamutils"]
+  pruneopts = "UT"
+  revision = "9ffeaf7d8b64fa0eb64cc27835dc1a5a90328024"
 
 [[projects]]
   digest = "1:0ee5244369ea6bb697e9dbbbb7c56f397a4fb01a91fb78fab1bcb25099139ed8"
@@ -375,11 +388,17 @@
   version = "v1.4.7"
 
 [[projects]]
-  digest = "1:966a69c49e18a71e2cf54a281acca9992f6189efa97fcd27064dae12d7303f06"
+  digest = "1:027133e2c23fd4ff467e66d928ab4a64f7fd7cb2f77acdb580c483f7389d22d7"
   name = "github.com/fsouza/go-dockerclient"
-  packages = ["."]
+  packages = [
+    ".",
+    "internal/archive",
+    "internal/jsonmessage",
+    "internal/term",
+  ]
   pruneopts = "UT"
-  revision = "9e921e30db8bcc1221fa0485ad9ce5b195fb4445"
+  revision = "8842d40dbf5ee062d80f9dc429db31a0fe0cdc73"
+  version = "v1.2.2"
 
 [[projects]]
   digest = "1:0594af97b2f4cec6554086eeace6597e20a4b69466eb4ada25adf9f4300dddd2"
@@ -401,6 +420,14 @@
   version = "v1.0.0"
 
 [[projects]]
+  digest = "1:aacef5f5e45685f2aeda5534d0a750dee6859de7e9088cdd06192787bb01ae6d"
+  name = "github.com/go-errors/errors"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "a6af135bd4e28680facf08a3d206b454abc877a4"
+  version = "v1.0.1"
+
+[[projects]]
   digest = "1:fe8a03a8222d5b913f256972933d26d24ad7c8286692a42943bc01633cc8fce3"
   name = "github.com/go-ini/ini"
   packages = ["."]
@@ -417,10 +444,12 @@
   version = "v4.1.0"
 
 [[projects]]
-  digest = "1:b7a8552c62868d867795b63eaf4f45d3e92d36db82b428e680b9c95a8c33e5b1"
+  digest = "1:9886f20fc7188af1fb9059c6b6b29da154f87a05986a84ab297a5b6a779f230f"
   name = "github.com/gogo/protobuf"
   packages = [
+    "gogoproto",
     "proto",
+    "protoc-gen-gogo/descriptor",
     "sortkeys",
   ]
   pruneopts = "UT"
@@ -573,14 +602,6 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:77cb3be9b21ba7f1a4701e870c84ea8b66e7d74c7c8951c58155fdadae9414ec"
-  name = "github.com/hashicorp/go-cleanhttp"
-  packages = ["."]
-  pruneopts = "UT"
-  revision = "d5fe4b57a186c716b0e00b8c301cbd9b4182694d"
-
-[[projects]]
-  branch = "master"
   digest = "1:cf296baa185baae04a9a7004efee8511d08e2f5f51d4cbe5375da89722d681db"
   name = "github.com/hashicorp/golang-lru"
   packages = [
@@ -634,6 +655,7 @@
   revision = "959962c1b48bbdbfbba4d59d58a8c15ff3fb9b22"
 
 [[projects]]
+  branch = "master"
   digest = "1:264c5a5a6cc5579e34635045c662ad12dffe29a392dadc3eb3a3066b27544377"
   name = "github.com/ligato/cn-infra"
   packages = [
@@ -668,10 +690,10 @@
     "utils/safeclose",
   ]
   pruneopts = "UT"
-  revision = "98e10610edaf49aa2ca14c97302bc252cd6fdb63"
+  revision = "13ca0c133006b3921b48bb28cc41bdc37b9ff033"
 
 [[projects]]
-  digest = "1:f35a527597f8794be32e2d5959a4e3eb8a48f8276350941e008bdb9827ad6e46"
+  digest = "1:179387ed280d77dae90d2154c5e43af56ee665a6b6d241b163e05e4c5fb6bb12"
   name = "github.com/ligato/vpp-agent"
   packages = [
     "clientv1/linux",
@@ -751,7 +773,8 @@
     "plugins/vpp/srplugin/vppcalls",
   ]
   pruneopts = "UT"
-  revision = "e7870d2269d575dbc34575c0447579c38a82f493"
+  revision = "88e0651639b56338f799c6f9552290c95cf60d1d"
+  source = "github.com/lukasmacko/vpp-agent"
 
 [[projects]]
   branch = "master"
@@ -1257,25 +1280,48 @@
   version = "v1.1.0"
 
 [[projects]]
-  digest = "1:2b235a29dd809925b0149f8625d9b9f8dcb92fdb6f1f661ac6188e419098cd96"
+  branch = "master"
+  digest = "1:077c1c599507b3b3e9156d17d36e1e61928ee9b53a5b420f10f28ebd4a0b275c"
+  name = "google.golang.org/genproto"
+  packages = ["googleapis/rpc/status"]
+  pruneopts = "UT"
+  revision = "c66870c02cf823ceb633bcd05be3c7cda29976f4"
+
+[[projects]]
+  digest = "1:7ccedf0aab474a6aef9d7222cd2429a34fddb996bbd1f60ec0f9fe69d80b36ae"
   name = "google.golang.org/grpc"
   packages = [
     ".",
+    "balancer",
+    "balancer/base",
+    "balancer/roundrobin",
     "codes",
+    "connectivity",
     "credentials",
+    "encoding",
+    "encoding/proto",
     "grpclog",
+    "health/grpc_health_v1",
     "internal",
+    "internal/backoff",
+    "internal/channelz",
+    "internal/envconfig",
+    "internal/grpcrand",
+    "internal/transport",
     "keepalive",
     "metadata",
     "naming",
     "peer",
+    "resolver",
+    "resolver/dns",
+    "resolver/passthrough",
     "stats",
+    "status",
     "tap",
-    "transport",
   ]
   pruneopts = "UT"
-  revision = "8050b9cbc271307e5a716a9d782803d09b0d6f2d"
-  version = "v1.2.1"
+  revision = "32fb0ac620c32ba40a4626ddf94d90d12cce3455"
+  version = "v1.14.0"
 
 [[projects]]
   digest = "1:2d1fbdc6777e5408cabeb02bf336305e724b925ff4546ded0fa8715a7267922a"

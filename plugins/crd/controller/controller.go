@@ -59,10 +59,10 @@ type ContivTelemetryController struct {
 
 	clientset    kubernetes.Interface
 	queue        workqueue.RateLimitingInterface
-	informer     informers.ContivTelemetryReportInformer
+	informer     informers.TelemetryReportInformer
 	eventHandler handler.Handler
 	//Lister     listers.ContivTelemetryLister
-	contivTelemetryReportLister listers.ContivTelemetryReportLister
+	contivTelemetryReportLister listers.TelemetryReportLister
 }
 
 // Deps defines dependencies for the CRD plugin
@@ -86,7 +86,7 @@ func (ctc *ContivTelemetryController) Init() error {
 	var err error
 	var crdname string
 
-	crdname = reflect.TypeOf(v1.ContivTelemetryReport{}).Name()
+	crdname = reflect.TypeOf(v1.TelemetryReport{}).Name()
 	err = ctc.createCRD(v1.CRDFullContivTelemetryReportsName,
 		v1.CRDGroup,
 		v1.CRDGroupVersion,
@@ -98,10 +98,8 @@ func (ctc *ContivTelemetryController) Init() error {
 		return err
 	}
 
-	//ctc.contivTelemetryReportLister = listers.NewContivTelemetryReportLister(ctc.informer.GetIndexer())
-
 	sharedFactory := factory.NewSharedInformerFactory(ctc.CrdClient, time.Second*30)
-	ctc.informer = sharedFactory.Contivtelemetry().V1().ContivTelemetryReports()
+	ctc.informer = sharedFactory.Contivtelemetry().V1().TelemetryReports()
 	ctc.contivTelemetryReportLister = ctc.informer.Lister()
 
 	// Create a new queue in that when the informer gets a resource from listing or watching,
@@ -236,7 +234,7 @@ func (ctc *ContivTelemetryController) createCRD(FullName, Group, Version, Plural
 
 	var validation *apiextv1beta1.CustomResourceValidation
 	switch Name {
-	case "ContivTelemetryReport":
+	case "TelemetryReport":
 		validation = contivTelemetryReportValidation()
 	default:
 		validation = &apiextv1beta1.CustomResourceValidation{}
@@ -281,30 +279,30 @@ func (cr *CRDReport) GenerateCRDReport() {
 
 	ctc := cr.Ctlr
 
-	key := "default/contivtelemetryreport"
+	key := "default/default-telemetry"
 	namespace, name, err := cache.SplitMetaNamespaceKey(key)
 	if err != nil {
 		runtime.HandleError(fmt.Errorf("invalid resource key: %s", key))
 		return
 	}
 
-	var crdContivTelemetryReport *v1.ContivTelemetryReport
+	var crdTelemetryReport *v1.TelemetryReport
 	shouldCreate := false
 
-	crdContivTelemetryReport, errGet := ctc.contivTelemetryReportLister.ContivTelemetryReports(namespace).Get(name)
+	crdTelemetryReport, errGet := ctc.contivTelemetryReportLister.TelemetryReports(namespace).Get(name)
 	if errGet != nil {
 		ctc.Log.Errorf("Could not get '%s' with namespace '%s', err: %v", name, namespace, errGet)
 
-		crdContivTelemetryReport = &v1.ContivTelemetryReport{
+		crdTelemetryReport = &v1.TelemetryReport{
 			ObjectMeta: meta_v1.ObjectMeta{
 				Name:      name,
 				Namespace: namespace,
 			},
 			TypeMeta: meta_v1.TypeMeta{
-				Kind:       "ContivTelemetryReport",
+				Kind:       "TelemetryReport",
 				APIVersion: v1.CRDGroupVersion,
 			},
-			Spec: v1.ContivTelemetryReportSpec{
+			Spec: v1.TelemetryReportSpec{
 				ReportPollingPeriodSeconds: 10,
 			},
 		}
@@ -312,13 +310,13 @@ func (cr *CRDReport) GenerateCRDReport() {
 		shouldCreate = true
 	}
 
-	crdContivTelemetryReportCopy := crdContivTelemetryReport.DeepCopy()
+	crdTelemetryReportCopy := crdTelemetryReport.DeepCopy()
 
 	for _, node := range cr.VppCache.RetrieveAllNodes() {
-		crdContivTelemetryReportCopy.Status.Nodes = append(crdContivTelemetryReportCopy.Status.Nodes, *node)
+		crdTelemetryReportCopy.Status.Nodes = append(crdTelemetryReportCopy.Status.Nodes, *node)
 	}
 
-	crdContivTelemetryReportCopy.Status.Reports = cr.Report.RetrieveReport().DeepCopy()
+	crdTelemetryReportCopy.Status.Reports = cr.Report.RetrieveReport().DeepCopy()
 
 	// Until #38113 is merged, we must use Update instead of UpdateStatus to
 	// update the Status block of the NetworkNode resource. UpdateStatus will not
@@ -326,18 +324,18 @@ func (cr *CRDReport) GenerateCRDReport() {
 	// nothing other than resource status has been updated.
 
 	if shouldCreate {
-		ctc.Log.Infof("Create '%s' namespace '%s, and value: %v", name, namespace, crdContivTelemetryReportCopy)
-		_, err = ctc.CrdClient.ContivtelemetryV1().ContivTelemetryReports(namespace).Create(crdContivTelemetryReportCopy)
+		ctc.Log.Debug("Create '%s' namespace '%s, and value: %v", name, namespace, crdTelemetryReportCopy)
+		_, err = ctc.CrdClient.ContivtelemetryV1().TelemetryReports(namespace).Create(crdTelemetryReportCopy)
 		if err != nil {
 			ctc.Log.Errorf("Could not create '%s'  err: %v, namespace '%s', and value: %v",
-				name, err, namespace, crdContivTelemetryReportCopy)
+				name, err, namespace, crdTelemetryReportCopy)
 		}
 	} else {
-		ctc.Log.Infof("Update '%s' namespace '%s, and value: %v", name, namespace, crdContivTelemetryReportCopy)
-		_, err := ctc.CrdClient.ContivtelemetryV1().ContivTelemetryReports(crdContivTelemetryReportCopy.Namespace).Update(crdContivTelemetryReportCopy)
+		ctc.Log.Debug("Update '%s' namespace '%s, and value: %v", name, namespace, crdTelemetryReportCopy)
+		_, err := ctc.CrdClient.ContivtelemetryV1().TelemetryReports(crdTelemetryReportCopy.Namespace).Update(crdTelemetryReportCopy)
 		if err != nil {
 			ctc.Log.Errorf("Could not update '%s'  err: %v, namespace '%s', and value: %v",
-				name, err, namespace, crdContivTelemetryReportCopy)
+				name, err, namespace, crdTelemetryReportCopy)
 		}
 	}
 }

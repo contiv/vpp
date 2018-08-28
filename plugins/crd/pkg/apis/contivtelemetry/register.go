@@ -16,5 +16,5 @@ package contivtelemetry
 
 const (
 	// GroupName defines the CRD group name for the contiv telemetry CRD
-	GroupName = "contivtelemetry.vpp"
+	GroupName = "contiv.vpp"
 )

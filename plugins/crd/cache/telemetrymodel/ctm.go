@@ -222,11 +222,6 @@ type IPRouteMeta struct {
 	RpfID             uint32 `json:"RpfID"`
 }
 
-type dstAddr struct {
-	IP   string `json:"IP"`
-	Mask string `json:"Mask"`
-}
-
 //NodeTelemetry holds the unmarshalled node telemetry JSON data
 type NodeTelemetry struct {
 	Command string   `json:"command"`
@@ -250,33 +245,39 @@ type OutputEntry struct {
 type Pod struct {
 	// Name of the pod unique within the namespace.
 	// Cannot be updated.
-	Name string `protobuf:"bytes,1,opt,name=name" json:"name,omitempty"`
+	Name string `json:"name,omitempty"`
 	// Namespace the pod is inserted into.
 	// An empty namespace is equivalent to the "default" namespace, but "default"
 	// is the canonical representation.
 	// Cannot be updated.
-	Namespace string `protobuf:"bytes,2,opt,name=namespace" json:"namespace,omitempty"`
+	Namespace string `json:"namespace,omitempty"`
 	// A list of labels attached to this pod.
 	// +optional
-	Label []*PodLabel `protobuf:"bytes,3,rep,name=label" json:"label,omitempty"`
+	Label []*PodLabel `json:"label,omitempty"`
 	// IP address allocated to the pod. Routable at least within the cluster.
 	// Empty if not yet allocated.
 	// +optional
-	IPAddress string `protobuf:"bytes,4,opt,name=ip_address,json=ipAddress" json:"ip_address,omitempty"`
+	IPAddress string `json:"ip_address,omitempty"`
 	// IP address of the host to which the pod is assigned.
 	// Empty if not yet scheduled.
 	// +optional
-	HostIPAddress string `protobuf:"bytes,5,opt,name=host_ip_address,json=hostIpAddress" json:"host_ip_address,omitempty"`
+	HostIPAddress string `json:"host_ip_address,omitempty"`
 	// Name of the interface on VPP through which the pod is connected
 	// to VPP. Will be empty for host-network pods.
-	VppIfName string
+	VppIfName string `json:"vpp_if_name,omitempty"`
+	// Internal name of the interface on VPP through which the pod is connected
+	// to VPP. Will be empty for host-network pods.
+	VppIfInternalName string `json:"vpp_if_internal_name,omitempty"`
 	// IP address of the interface on VPP through which the pod is
 	// connected to VPP. Will be empty for host-network pods.
-	VppIfIPAddr string
+	VppIfIPAddr string `json:"vpp_if_ip_addr,omitempty"`
+	// Software IfIndex of the interface on VPP through which the pod is
+	// connected to VPP. Will be empty for host-network pods.
+	VppSwIfIdx uint32 `json:"vpp_if_ip_addr,omitempty"`
 }
 
 //PodLabel contains key/value pair info
 type PodLabel struct {
-	Key   string `protobuf:"bytes,1,opt,name=key" json:"key,omitempty"`
-	Value string `protobuf:"bytes,2,opt,name=value" json:"value,omitempty"`
+	Key   string `json:"key,omitempty"`
+	Value string `json:"value,omitempty"`
 }

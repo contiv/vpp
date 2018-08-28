@@ -49,6 +49,7 @@ func (v *Validator) Validate() {
 	v.ValidateL2FibEntries()
 	v.ValidateK8sNodeInfo()
 	v.ValidatePodInfo()
+	v.ValidateTapToPod()
 	//v.ValidateStaticRoutes()
 }
 
@@ -596,7 +597,14 @@ func (v *Validator) ValidateTapToPod() {
 	for _, pod := range podList {
 		podMap[pod.Name] = true
 	}
+
 	for _, pod := range podList {
+		// Skip host network pods - they do not have an associated tap
+		if pod.IPAddress == pod.HostIPAddress {
+			delete(podMap, pod.Name)
+			continue
+		}
+
 		vppNode, err := v.VppCache.RetrieveNodeByHostIPAddr(pod.HostIPAddress)
 		if err != nil {
 			v.Report.LogErrAndAppendToNodeReport(api.GlobalMsg,
@@ -623,11 +631,15 @@ func (v *Validator) ValidateTapToPod() {
 		for _, intf := range vppNode.NodeInterfaces {
 			if strings.Contains(intf.IfMeta.VppInternalName, "tap") {
 				for _, ip := range intf.If.IPAddresses {
+					tapIp := strings.Split(ip, "/")
 					podIP := ip2uint32(pod.IPAddress)
-					tapIP := ip2uint32(ip)
+					tapIP := ip2uint32(tapIp[0])
+					fmt.Printf("ip: %s, PodIP: %x, TapIP: %x, bitmask: %x\n", ip, podIP, tapIP, bitmask)
 					if (podIP & bitmask) == (tapIP & bitmask) {
 						pod.VppIfIPAddr = ip
-						pod.VppIfName = intf.IfMeta.VppInternalName
+						pod.VppIfInternalName = intf.IfMeta.VppInternalName
+						pod.VppIfName = intf.If.Name
+						pod.VppSwIfIdx = intf.IfMeta.SwIfIndex
 						delete(podMap, pod.Name)
 					}
 				}

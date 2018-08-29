@@ -120,7 +120,7 @@ func testErrorFreeTopologyValidation(t *testing.T) {
 
 	vtv.processor.Validate()
 
-	gomega.Expect(len(vtv.report.Data[api.GlobalMsg])).To(gomega.Equal(4))
+	gomega.Expect(len(vtv.report.Data[api.GlobalMsg])).To(gomega.Equal(5))
 }
 
 func testK8sNodeToNodeInfoOkValidation(t *testing.T) {

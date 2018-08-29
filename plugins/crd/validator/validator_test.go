@@ -336,15 +336,23 @@ func testNodesDBValidateL2Connections(t *testing.T) {
 	// Restore data back to error free state
 	resetToInitialErrorFreeState()
 
-}
+	// -------------------------------------------------
+	// INJECT FAULT: Invalid entry in the GigE IP Address map
+	nl := vtv.vppCache.RetrieveAllNodes()
+	gomega.Expect(len(nl)).To(gomega.BeNumerically(">=", 2))
+	a0 := strings.Split(nl[0].IPAddr, "/")
+	a1:= strings.Split(nl[1].IPAddr, "/")
+	vtv.vppCache.GigEIPMap[a0[0]] = vtv.vppCache.GigEIPMap[a1[0]]
 
-func (v *validatorTestVars) findFirstVxlanInterface(nodeKey string) (int, *telemetrymodel.NodeInterface) {
-	for k, ifc := range v.vppCache.NodeMap[nodeKey].NodeInterfaces {
-		if ifc.If.IfType == interfaces.InterfaceType_VXLAN_TUNNEL {
-			return k, &ifc
-		}
-	}
-	return -1, nil
+	// Perform test
+	vtv.report.Clear()
+	vtv.processor.ValidateL2Connectivity()
+
+	gomega.Expect(len(vtv.report.Data[api.GlobalMsg])).To(gomega.Equal(1))
+	gomega.Expect(len(vtv.report.Data[nl[0].Name])).To(gomega.Equal(6))
+
+	// Restore data back to error free state
+	resetToInitialErrorFreeState()
 }
 
 func (v *validatorTestVars) findFirstVxlanInterface(nodeKey string) (int, *telemetrymodel.NodeInterface) {

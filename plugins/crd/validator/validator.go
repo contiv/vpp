@@ -663,8 +663,10 @@ func (v *Validator) ValidateStaticRoutes() {
 
 }
 
+//Vrf is a type declaration to help simplify a map of maps
 type Vrf = map[string]telemetrymodel.NodeIPRoute
 
+//ValidateL3 will validate each nodes and pods l3 connectivity for any errors
 func (v *Validator) ValidateL3() {
 	nodeList := v.VppCache.RetrieveAllNodes()
 	for _, node := range nodeList {
@@ -679,7 +681,7 @@ func (v *Validator) ValidateL3() {
 			ip, mask := separateIPandMask(pod.IPAddress)
 			lookUpRoute := vrfMap[1][ip+mask]
 			if lookUpRoute.Ipr.NextHopAddr != pod.IPAddress {
-				errString := fmt.Sprintf("Pod %s IP %s does not match with route %+v next hop IP %s",pod.Name, pod.IPAddress, lookUpRoute, lookUpRoute.Ipr.NextHopAddr)
+				errString := fmt.Sprintf("Pod %s IP %s does not match with route %+v next hop IP %s", pod.Name, pod.IPAddress, lookUpRoute, lookUpRoute.Ipr.NextHopAddr)
 				v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
 			}
 			if pod.VppSwIfIdx != lookUpRoute.IprMeta.OutgoingIfIdx {
@@ -732,12 +734,12 @@ func ip2uint32(ipAddress string) uint32 {
 	return ipu
 }
 
-func separateIPandMask(ipAddress string)(string, string){
-	s := strings.Split(ipAddress,"/")
-	if len(s)==2 {
-		return s[0],s[1]
+func separateIPandMask(ipAddress string) (string, string) {
+	s := strings.Split(ipAddress, "/")
+	if len(s) == 2 {
+		return s[0], s[1]
 	}
-	return s[0],""
+	return s[0], ""
 }
 
 func printS(errCnt int) string {

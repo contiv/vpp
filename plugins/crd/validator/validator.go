@@ -796,6 +796,55 @@ func (v *Validator) ValidateL3() {
 				routeMap[route.Ipr.DstAddr] = true
 			}
 		}
+
+		//validate remote nodes connectivity to current node
+		for _, othNode := range nodeList {
+			if othNode.Name == node.Name {
+				continue
+			}
+			podNwIP := othNode.NodeIPam.PodNetwork
+			route, ok := vrfMap[1][podNwIP]
+			if !ok {
+				numErrs++
+				//err
+			}
+			//look for vxlanBD, make sure the route outgoing interface idx points to vxlanBVI
+			for _, bd := range node.NodeBridgeDomains {
+				if bd.Bd.Name == "vxlanBD" {
+					if bd.BdMeta.BdID2Name[route.IprMeta.OutgoingIfIdx] != "vxlanBVI" {
+						numErrs++
+						//err
+					}
+				}
+				for _, intf := range bd.Bd.Interfaces {
+					if intf.Name == "vxlanBVI" {
+						if !intf.BVI {
+							numErrs++
+							//err
+						}
+					}
+				}
+			}
+			//find remote node vxlanBD, find the interface which the idx points to, make sure that one of the
+			//ip addresses is the same as the main nodes routes next hop ip
+			for _, bd := range othNode.NodeBridgeDomains {
+				for id, name := range bd.BdMeta.BdID2Name {
+					if name == "vxlanBVI" {
+						intf := othNode.NodeInterfaces[int(id)]
+						matchingIPFound := false
+						for _, ip := range intf.If.IPAddresses {
+							if ip == route.Ipr.NextHopAddr+"/24" {
+								matchingIPFound = true
+							}
+						}
+						if !matchingIPFound {
+							errString := fmt.Sprintf("no matching ip found in remote node %s interface %s to match current node %s route next hop %s", othNode.Name, intf.If.Name, node.Name, route.Ipr.NextHopAddr)
+							v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
+						}
+					}
+				}
+			}
+		}
 	}
 	for routeIP, bl := range routeMap {
 		if !bl {

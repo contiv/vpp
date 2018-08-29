@@ -22,8 +22,8 @@ import (
 	"strings"
 )
 
-//VppDumpCmd will receive a nodeName and dumpType and finds the desired information from the dumpType for the node.
-func VppDumpCmd(nodeName string, dumpType string) {
+//DumpCmd will receive a nodeName and dumpType and finds the desired information from the dumpType for the node.
+func DumpCmd(nodeName string, dumpType string) {
 	if nodeName == "" || dumpType == "" {
 		helpText := http.Crawl("localhost:9999")
 		fmt.Printf("Command usage: netctl vppdump %s <cmd>:\n", nodeName)

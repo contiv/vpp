@@ -39,9 +39,9 @@ var cmdVppDump = &cobra.Command{
 		nodeName := args[0]
 		if len(args) == 2 {
 			vppDumpType := args[1]
-			vppdump.VppDumpCmd(nodeName, vppDumpType)
+			vppdump.DumpCmd(nodeName, vppDumpType)
 		} else {
-			vppdump.VppDumpCmd(nodeName, "")
+			vppdump.DumpCmd(nodeName, "")
 		}
 	},
 }

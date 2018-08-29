@@ -341,7 +341,7 @@ func testNodesDBValidateL2Connections(t *testing.T) {
 	nl := vtv.vppCache.RetrieveAllNodes()
 	gomega.Expect(len(nl)).To(gomega.BeNumerically(">=", 2))
 	a0 := strings.Split(nl[0].IPAddr, "/")
-	a1:= strings.Split(nl[1].IPAddr, "/")
+	a1 := strings.Split(nl[1].IPAddr, "/")
 	vtv.vppCache.GigEIPMap[a0[0]] = vtv.vppCache.GigEIPMap[a1[0]]
 
 	// Perform test

@@ -272,7 +272,7 @@ type Pod struct {
 	VppIfIPAddr string `json:"vpp_if_ip_addr,omitempty"`
 	// Software IfIndex of the interface on VPP through which the pod is
 	// connected to VPP. Will be empty for host-network pods.
-	VppSwIfIdx uint32 `json:"vpp_if_ip_idx,omitempty"`
+	VppSwIfIdx uint32 `json:"vpp_sw_if_idx,omitempty"`
 }
 
 //PodLabel contains key/value pair info

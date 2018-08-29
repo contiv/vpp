@@ -673,25 +673,40 @@ func (v *Validator) ValidateL3() {
 			v.Report.LogErrAndAppendToNodeReport(node.Name, err.Error())
 		}
 		for _, pod := range node.PodMap {
-			if pod.IPAddress == node.ManIPAdr {
+			if pod.IPAddress == node.ManIPAddr {
+				// Skip over host network pods
 				continue
 			}
-			ip, mask := separateIPandMask(pod.IPAddress)
-			lookUpRoute := vrfMap[1][ip+mask]
+
+			// Validate routes to local Pods
+			lookUpRoute, ok := vrfMap[1][pod.IPAddress+"/32"]
+			if !ok {
+				errString := fmt.Sprintf("route for Pod %s with IP Address %s does not exist ",
+					pod.Name, pod.IPAddress)
+				v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
+				continue
+			}
+
 			if lookUpRoute.Ipr.NextHopAddr != pod.IPAddress {
-				errString := fmt.Sprintf("Pod %s IP %s does not match with route %+v next hop IP %s", pod.Name, pod.IPAddress, lookUpRoute, lookUpRoute.Ipr.NextHopAddr)
+				errString := fmt.Sprintf("Pod %s: next hop %s in route does not match the Pod IP Address %s",
+					pod.Name, lookUpRoute.Ipr.NextHopAddr, pod.IPAddress)
 				v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
 			}
+
 			if pod.VppSwIfIdx != lookUpRoute.IprMeta.OutgoingIfIdx {
-				errString := fmt.Sprintf("Pod interface index %d does not match static route interface index %d", pod.VppSwIfIdx, lookUpRoute.IprMeta.OutgoingIfIdx)
+				errString := fmt.Sprintf("Pod interface index %d does not match static route interface index %d",
+					pod.VppSwIfIdx, lookUpRoute.IprMeta.OutgoingIfIdx)
 				v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
 			}
-			if pod.VppIfInternalName != lookUpRoute.Ipr.OutIface {
-				errString := fmt.Sprintf("Name of pod interface %s differs from route interface name %s", pod.VppIfInternalName, lookUpRoute.Ipr.OutIface)
+
+			if pod.VppIfName != lookUpRoute.Ipr.OutIface {
+				errString := fmt.Sprintf("Name of pod interface %s differs from route interface name %s",
+					pod.VppIfInternalName, lookUpRoute.Ipr.OutIface)
 				v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
 			}
 		}
 	}
+
 	v.Report.AppendToNodeReport(api.GlobalMsg, "success validating l3 info.")
 }
 
@@ -703,6 +718,7 @@ func (v *Validator) createVrfMap(node *telemetrymodel.Node) (map[uint32]Vrf, err
 			vrfMap[route.Ipr.VrfID] = make(Vrf, 0)
 			vrf = vrfMap[route.Ipr.VrfID]
 		}
+
 		if !strings.Contains(route.IprMeta.TableName, "-VRF:") {
 			continue
 		}

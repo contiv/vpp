@@ -51,6 +51,7 @@ func (v *Validator) Validate() {
 	v.ValidatePodInfo()
 	v.ValidateTapToPod()
 	//v.ValidateStaticRoutes()
+	v.ValidateL3()
 }
 
 // ValidateArpTables validates the the entries of node ARP tables to
@@ -662,6 +663,54 @@ func (v *Validator) ValidateStaticRoutes() {
 
 }
 
+type Vrf = map[string]telemetrymodel.NodeIPRoute
+
+func (v *Validator) ValidateL3() {
+	nodeList := v.VppCache.RetrieveAllNodes()
+	for _, node := range nodeList {
+		vrfMap, err := v.createVrfMap(node)
+		if err != nil {
+			v.Report.LogErrAndAppendToNodeReport(node.Name, err.Error())
+		}
+		for _, pod := range node.PodMap {
+			if pod.IPAddress == node.ManIPAdr {
+				continue
+			}
+			ip, mask := separateIPandMask(pod.IPAddress)
+			lookUpRoute := vrfMap[1][ip+mask]
+			if lookUpRoute.Ipr.NextHopAddr != pod.IPAddress {
+				errString := fmt.Sprintf("Pod %s IP %s does not match with route %+v next hop IP %s",pod.Name, pod.IPAddress, lookUpRoute, lookUpRoute.Ipr.NextHopAddr)
+				v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
+			}
+			if pod.VppSwIfIdx != lookUpRoute.IprMeta.OutgoingIfIdx {
+				errString := fmt.Sprintf("Pod interface index %d does not match static route interface index %d", pod.VppSwIfIdx, lookUpRoute.IprMeta.OutgoingIfIdx)
+				v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
+			}
+			if pod.VppIfInternalName != lookUpRoute.Ipr.OutIface {
+				errString := fmt.Sprintf("Name of pod interface %s differs from route interface name %s", pod.VppIfInternalName, lookUpRoute.Ipr.OutIface)
+				v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
+			}
+		}
+	}
+	v.Report.AppendToNodeReport(api.GlobalMsg, "success validating l3 info.")
+}
+
+func (v *Validator) createVrfMap(node *telemetrymodel.Node) (map[uint32]Vrf, error) {
+	vrfMap := make(map[uint32]Vrf, 0)
+	for _, route := range node.NodeStaticRoutes {
+		vrf, ok := vrfMap[route.Ipr.VrfID]
+		if !ok {
+			vrfMap[route.Ipr.VrfID] = make(Vrf, 0)
+			vrf = vrfMap[route.Ipr.VrfID]
+		}
+		if !strings.Contains(route.IprMeta.TableName, "-VRF:") {
+			continue
+		}
+		vrf[route.Ipr.DstAddr] = route
+	}
+	return vrfMap, nil
+}
+
 func maskLength2Mask(ml int) uint32 {
 	var mask uint32
 	for i := 0; i < 32-ml; i++ {
@@ -681,6 +730,14 @@ func ip2uint32(ipAddress string) uint32 {
 		//fmt.Printf("%d: num: 0x%x, ipu: 0x%x\n", i, num, ipu)
 	}
 	return ipu
+}
+
+func separateIPandMask(ipAddress string)(string, string){
+	s := strings.Split(ipAddress,"/")
+	if len(s)==2 {
+		return s[0],s[1]
+	}
+	return s[0],""
 }
 
 func printS(errCnt int) string {

@@ -21,24 +21,24 @@ import (
 
 	"github.com/contiv/vpp/plugins/crd/api"
 	"github.com/contiv/vpp/plugins/crd/cache"
-	"github.com/contiv/vpp/plugins/crd/controller"
+	"github.com/contiv/vpp/plugins/crd/datastore"
 	"github.com/contiv/vpp/plugins/crd/validator"
-	nodemodel "github.com/contiv/vpp/plugins/ksr/model/node"
-	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	"github.com/ligato/cn-infra/config"
 	"github.com/ligato/cn-infra/datasync"
 	"github.com/ligato/cn-infra/datasync/resync"
+	"github.com/ligato/cn-infra/infra"
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/utils/safeclose"
 
-	"k8s.io/client-go/kubernetes"
-
 	nodeinfomodel "github.com/contiv/vpp/plugins/contiv/model/node"
-	"github.com/contiv/vpp/plugins/crd/datastore"
+	"github.com/contiv/vpp/plugins/crd/controller/telemetry"
 	crdClientSet "github.com/contiv/vpp/plugins/crd/pkg/client/clientset/versioned"
+	nodemodel "github.com/contiv/vpp/plugins/ksr/model/node"
+	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
+
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 
-	"github.com/ligato/cn-infra/infra"
 	apiextcs "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 )
 
@@ -63,9 +63,9 @@ type Plugin struct {
 	pendingResync  datasync.ResyncEvent
 	pendingChanges []datasync.ChangeEvent
 
-	controller *controller.ContivCRDController
-	cache      *cache.ContivTelemetryCache
-	processor  api.ContivTelemetryProcessor
+	telemetryController *telemetry.Controller
+	cache               *cache.ContivTelemetryCache
+	processor           api.ContivTelemetryProcessor
 }
 
 // Deps defines dependencies of policy plugin.
@@ -110,15 +110,15 @@ func (p *Plugin) Init() error {
 		return fmt.Errorf("failed to build api Client: %s", err)
 	}
 
-	p.controller = &controller.ContivCRDController{
-		Deps: controller.Deps{
-			Log: p.Log.NewLogger("-crdController"),
+	p.telemetryController = &telemetry.Controller{
+		Deps: telemetry.Deps{
+			Log: p.Log.NewLogger("-telemetryController"),
 		},
 		K8sClient: k8sClient,
 		CrdClient: crdClient,
 		APIClient: apiclientset,
 	}
-	p.controller.Log.SetLevel(logging.DebugLevel)
+	p.telemetryController.Log.SetLevel(logging.DebugLevel)
 
 	// This where we initialize all layers
 	p.cache = &cache.ContivTelemetryCache{
@@ -143,8 +143,20 @@ func (p *Plugin) Init() error {
 	}
 	p.cache.Processor = p.processor
 
-	// Init and run the controller
+	controllerReport := &telemetry.CRDReport{
+		Deps: telemetry.Deps{
+			Log: p.Log.NewLogger("-telemetryReporter"),
+		},
+		VppCache: p.cache.VppCache,
+		K8sCache: p.cache.K8sCache,
+		Report:   p.cache.Report,
+		Ctlr:     p.telemetryController,
+	}
+	p.cache.ControllerReport = controllerReport
 
+	// Init and run the controller
+	p.telemetryController.Init()
+	go p.telemetryController.Run(p.ctx.Done())
 	go p.watchEvents()
 	err = p.subscribeWatcher()
 	if err != nil {

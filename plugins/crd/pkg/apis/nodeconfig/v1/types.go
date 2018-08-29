@@ -15,7 +15,6 @@
 package v1
 
 import (
-	"github.com/contiv/vpp/plugins/contiv"
 	"github.com/contiv/vpp/plugins/crd/pkg/apis/nodeconfig"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -43,7 +42,7 @@ type NodeConfig struct {
 
 // NodeConfigSpec is the spec for the contiv node configuration  resource
 type NodeConfigSpec struct {
-	OneNodeConfig *contiv.OneNodeConfig
+	//OneNodeConfig *contiv.OneNodeConfig
 }
 
 // NodeConfigList is a list of node configuration resource

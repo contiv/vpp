@@ -673,7 +673,7 @@ func (v *Validator) ValidateL3() {
 			v.Report.LogErrAndAppendToNodeReport(node.Name, err.Error())
 		}
 		for _, pod := range node.PodMap {
-			if pod.IPAddress == node.ManIPAdr {
+			if pod.IPAddress == node.ManIPAddr {
 				continue
 			}
 			ip, mask := separateIPandMask(pod.IPAddress)

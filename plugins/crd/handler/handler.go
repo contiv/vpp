@@ -49,11 +49,14 @@ func (d *Default) Init() error {
 	return nil
 }
 
+// ObjectCreated is called when a CRD object is created
 func (d *Default) ObjectCreated(obj interface{}) {
 }
 
+// ObjectDeleted is called when a CRD object is deleted
 func (d *Default) ObjectDeleted(obj interface{}) {
 }
 
+// ObjectUpdated is called when a CRD object is updated
 func (d *Default) ObjectUpdated(obj interface{}) {
 }

@@ -17,7 +17,8 @@
 package versioned
 
 import (
-	contivtelemetryv1 "github.com/contiv/vpp/plugins/crd/pkg/client/clientset/versioned/typed/contivtelemetry/v1"
+	nodeconfigv1 "github.com/contiv/vpp/plugins/crd/pkg/client/clientset/versioned/typed/nodeconfig/v1"
+	telemetryv1 "github.com/contiv/vpp/plugins/crd/pkg/client/clientset/versioned/typed/telemetry/v1"
 	discovery "k8s.io/client-go/discovery"
 	rest "k8s.io/client-go/rest"
 	flowcontrol "k8s.io/client-go/util/flowcontrol"
@@ -25,27 +26,42 @@ import (
 
 type Interface interface {
 	Discovery() discovery.DiscoveryInterface
-	ContivtelemetryV1() contivtelemetryv1.ContivtelemetryV1Interface
+	NodeconfigV1() nodeconfigv1.NodeconfigV1Interface
 	// Deprecated: please explicitly pick a version if possible.
-	Contivtelemetry() contivtelemetryv1.ContivtelemetryV1Interface
+	Nodeconfig() nodeconfigv1.NodeconfigV1Interface
+	TelemetryV1() telemetryv1.TelemetryV1Interface
+	// Deprecated: please explicitly pick a version if possible.
+	Telemetry() telemetryv1.TelemetryV1Interface
 }
 
 // Clientset contains the clients for groups. Each group has exactly one
 // version included in a Clientset.
 type Clientset struct {
 	*discovery.DiscoveryClient
-	contivtelemetryV1 *contivtelemetryv1.ContivtelemetryV1Client
+	nodeconfigV1 *nodeconfigv1.NodeconfigV1Client
+	telemetryV1  *telemetryv1.TelemetryV1Client
 }
 
-// ContivtelemetryV1 retrieves the ContivtelemetryV1Client
-func (c *Clientset) ContivtelemetryV1() contivtelemetryv1.ContivtelemetryV1Interface {
-	return c.contivtelemetryV1
+// NodeconfigV1 retrieves the NodeconfigV1Client
+func (c *Clientset) NodeconfigV1() nodeconfigv1.NodeconfigV1Interface {
+	return c.nodeconfigV1
 }
 
-// Deprecated: Contivtelemetry retrieves the default version of ContivtelemetryClient.
+// Deprecated: Nodeconfig retrieves the default version of NodeconfigClient.
 // Please explicitly pick a version.
-func (c *Clientset) Contivtelemetry() contivtelemetryv1.ContivtelemetryV1Interface {
-	return c.contivtelemetryV1
+func (c *Clientset) Nodeconfig() nodeconfigv1.NodeconfigV1Interface {
+	return c.nodeconfigV1
+}
+
+// TelemetryV1 retrieves the TelemetryV1Client
+func (c *Clientset) TelemetryV1() telemetryv1.TelemetryV1Interface {
+	return c.telemetryV1
+}
+
+// Deprecated: Telemetry retrieves the default version of TelemetryClient.
+// Please explicitly pick a version.
+func (c *Clientset) Telemetry() telemetryv1.TelemetryV1Interface {
+	return c.telemetryV1
 }
 
 // Discovery retrieves the DiscoveryClient
@@ -64,7 +80,11 @@ func NewForConfig(c *rest.Config) (*Clientset, error) {
 	}
 	var cs Clientset
 	var err error
-	cs.contivtelemetryV1, err = contivtelemetryv1.NewForConfig(&configShallowCopy)
+	cs.nodeconfigV1, err = nodeconfigv1.NewForConfig(&configShallowCopy)
+	if err != nil {
+		return nil, err
+	}
+	cs.telemetryV1, err = telemetryv1.NewForConfig(&configShallowCopy)
 	if err != nil {
 		return nil, err
 	}
@@ -80,7 +100,8 @@ func NewForConfig(c *rest.Config) (*Clientset, error) {
 // panics if there is an error in the config.
 func NewForConfigOrDie(c *rest.Config) *Clientset {
 	var cs Clientset
-	cs.contivtelemetryV1 = contivtelemetryv1.NewForConfigOrDie(c)
+	cs.nodeconfigV1 = nodeconfigv1.NewForConfigOrDie(c)
+	cs.telemetryV1 = telemetryv1.NewForConfigOrDie(c)
 
 	cs.DiscoveryClient = discovery.NewDiscoveryClientForConfigOrDie(c)
 	return &cs
@@ -89,7 +110,8 @@ func NewForConfigOrDie(c *rest.Config) *Clientset {
 // New creates a new Clientset for the given RESTClient.
 func New(c rest.Interface) *Clientset {
 	var cs Clientset
-	cs.contivtelemetryV1 = contivtelemetryv1.New(c)
+	cs.nodeconfigV1 = nodeconfigv1.New(c)
+	cs.telemetryV1 = telemetryv1.New(c)
 
 	cs.DiscoveryClient = discovery.NewDiscoveryClient(c)
 	return &cs

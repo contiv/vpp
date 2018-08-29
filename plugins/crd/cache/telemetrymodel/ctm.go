@@ -29,8 +29,8 @@ type Reports map[string][]string
 //as well as the name and IP Addresses.
 type Node struct {
 	ID                uint32
-	IPAdr             string
-	ManIPAdr          string
+	IPAddr            string
+	ManIPAddr         string
 	Name              string
 	NodeLiveness      *NodeLiveness
 	NodeInterfaces    map[int]NodeInterface
@@ -40,7 +40,6 @@ type Node struct {
 	NodeIPArp         []NodeIPArpEntry
 	NodeStaticRoutes  []NodeIPRoute
 	NodeIPam          *IPamEntry
-	Report            []string
 	PodMap            map[string]*Pod
 }
 

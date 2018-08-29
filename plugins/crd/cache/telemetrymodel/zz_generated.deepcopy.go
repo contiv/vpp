@@ -302,11 +302,6 @@ func (in *Node) DeepCopyInto(out *Node) {
 		*out = new(IPamEntry)
 		**out = **in
 	}
-	if in.Report != nil {
-		in, out := &in.Report, &out.Report
-		*out = make([]string, len(*in))
-		copy(*out, *in)
-	}
 	if in.PodMap != nil {
 		in, out := &in.PodMap, &out.PodMap
 		*out = make(map[string]*Pod, len(*in))

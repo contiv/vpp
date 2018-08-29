@@ -226,7 +226,7 @@ validateNodeBD:
 					delete(nodeVxlanMap, n.Name)
 				}
 			} else {
-				// This is a regular BD interface - it should be a VXLAN_tunnel interface
+				// Make sure that the type of a regular BD interface is VXLAN_tunnel interface
 				if nodeIfc.If.IfType != interfaces.InterfaceType_VXLAN_TUNNEL {
 					errCnt++
 					errString := fmt.Sprintf("invalid BD interface type %+v, BVI %s (ifIndex %d, ifName %s)",
@@ -235,7 +235,8 @@ validateNodeBD:
 					continue
 				}
 
-				if node.NodeInterfaces[int(ifIndex)].If.Vxlan.Vni != api.VppVNI {
+				// Make sure the VXLAN tunnel's VNI is correct (value '10')
+				if nodeIfc.If.Vxlan.Vni != api.VppVNI {
 					errCnt++
 					errString := fmt.Sprintf("bad VNI for %s (%s): got %d, expected %d",
 						node.NodeInterfaces[int(ifIndex)].If.Name,
@@ -245,15 +246,12 @@ validateNodeBD:
 					v.Report.AppendToNodeReport(node.Name, errString)
 				}
 
-				vxlanTunnelIfc := node.NodeInterfaces[int(ifIndex)]
-				srcIPNode, err := v.VppCache.RetrieveNodeByGigEIPAddr(vxlanTunnelIfc.If.Vxlan.SrcAddress + api.SubnetMask)
-
-				// Try to find node with src ip address of the tunnel and make
-				// sure it is the same as the current node.
+				// Make sure the VXLAN's tunnel source IP address points to the current node.
+				srcIPNode, err := v.VppCache.RetrieveNodeByGigEIPAddr(nodeIfc.If.Vxlan.SrcAddress)
 				if err != nil {
 					errCnt++
 					errString := fmt.Sprintf("error finding node with src IP %s",
-						vxlanTunnelIfc.If.Vxlan.SrcAddress)
+						nodeIfc.If.Vxlan.SrcAddress)
 					v.Report.AppendToNodeReport(node.Name, errString)
 					continue
 				}
@@ -262,7 +260,7 @@ validateNodeBD:
 					errCnt++
 					errString := fmt.Sprintf("vxlan_tunnel %s has source ip %s which points "+
 						"to a different node than %s.",
-						vxlanTunnelIfc.If.Name, vxlanTunnelIfc.If.Vxlan.SrcAddress, node.Name)
+						nodeIfc.If.Name, nodeIfc.If.Vxlan.SrcAddress, node.Name)
 					v.Report.AppendToNodeReport(node.Name, errString)
 					continue
 				}
@@ -270,19 +268,19 @@ validateNodeBD:
 				// Try to find node with dst ip address in tunnel and validate
 				// it has a vxlan_tunnel that is the opposite of the current
 				// vxlan_tunnel and increment the counter if it does.
-				dstipNode, err := v.VppCache.RetrieveNodeByGigEIPAddr(vxlanTunnelIfc.If.Vxlan.DstAddress + api.SubnetMask)
+				dstipNode, err := v.VppCache.RetrieveNodeByGigEIPAddr(nodeIfc.If.Vxlan.DstAddress)
 				if err != nil {
 					errCnt++
 					errString := fmt.Sprintf("node with dst ip %s in vxlan_tunnel %s not found",
-						vxlanTunnelIfc.If.Vxlan.DstAddress, vxlanTunnelIfc.If.Name)
+						nodeIfc.If.Vxlan.DstAddress, nodeIfc.If.Name)
 					v.Report.AppendToNodeReport(node.Name, errString)
 					continue
 				}
 
 				matchingTunnelFound := false
 				for _, dstIntf := range dstipNode.NodeInterfaces {
-					if dstIntf.If.IfType == vxlanTunnelIfc.If.IfType {
-						if dstIntf.If.Vxlan.DstAddress == vxlanTunnelIfc.If.Vxlan.SrcAddress {
+					if dstIntf.If.IfType == nodeIfc.If.IfType {
+						if dstIntf.If.Vxlan.DstAddress == nodeIfc.If.Vxlan.SrcAddress {
 							matchingTunnelFound = true
 						}
 					}
@@ -291,13 +289,13 @@ validateNodeBD:
 				if !matchingTunnelFound {
 					errCnt++
 					errString := fmt.Sprintf("no matching vxlan_tunnel found on remote node %s for vxlan %s",
-						dstipNode.Name, vxlanTunnelIfc.If.Name)
+						dstipNode.Name, nodeIfc.If.Name)
 					v.Report.AppendToNodeReport(node.Name, errString)
 				}
 				i++
 
 				dstAddr := node.NodeInterfaces[int(ifIndex)].If.Vxlan.DstAddress
-				if n1, err := v.VppCache.RetrieveNodeByGigEIPAddr(dstAddr + api.SubnetMask); err == nil {
+				if n1, err := v.VppCache.RetrieveNodeByGigEIPAddr(dstAddr); err == nil {
 					delete(nodeVxlanMap, n1.Name)
 				} else {
 					errCnt++
@@ -325,7 +323,7 @@ validateNodeBD:
 		if len(nodeVxlanMap) > 0 {
 			for n := range nodeVxlanMap {
 				errCnt++
-				errString := fmt.Sprintf("vxlan entry missing or invalid for remote node %s", n)
+				errString := fmt.Sprintf("BD interface missing or invalid for node %s", n)
 				v.Report.AppendToNodeReport(node.Name, errString)
 			}
 			continue
@@ -406,7 +404,7 @@ func (v *Validator) ValidateL2FibEntries() {
 			}
 
 			intf := node.NodeInterfaces[int(fib.FeMeta.OutgoingIfIndex)]
-			macNode, err := v.VppCache.RetrieveNodeByGigEIPAddr(intf.If.Vxlan.DstAddress + api.SubnetMask)
+			macNode, err := v.VppCache.RetrieveNodeByGigEIPAddr(intf.If.Vxlan.DstAddress)
 			if err != nil {
 				errString := fmt.Sprintf("gigE IP address %s does not exist in gigEIPMap",
 					intf.If.Vxlan.DstAddress)

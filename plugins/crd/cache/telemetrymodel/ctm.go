@@ -29,8 +29,8 @@ type Reports map[string][]string
 //as well as the name and IP Addresses.
 type Node struct {
 	ID                uint32
-	IPAdr             string
-	ManIPAdr          string
+	IPAddr            string
+	ManIPAddr         string
 	Name              string
 	NodeLiveness      *NodeLiveness
 	NodeInterfaces    map[int]NodeInterface
@@ -40,7 +40,6 @@ type Node struct {
 	NodeIPArp         []NodeIPArpEntry
 	NodeStaticRoutes  []NodeIPRoute
 	NodeIPam          *IPamEntry
-	Report            []string
 	PodMap            map[string]*Pod
 }
 
@@ -273,7 +272,7 @@ type Pod struct {
 	VppIfIPAddr string `json:"vpp_if_ip_addr,omitempty"`
 	// Software IfIndex of the interface on VPP through which the pod is
 	// connected to VPP. Will be empty for host-network pods.
-	VppSwIfIdx uint32 `json:"vpp_if_ip_addr,omitempty"`
+	VppSwIfIdx uint32 `json:"vpp_sw_if_idx,omitempty"`
 }
 
 //PodLabel contains key/value pair info

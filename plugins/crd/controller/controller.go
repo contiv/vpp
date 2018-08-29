@@ -324,18 +324,18 @@ func (cr *CRDReport) GenerateCRDReport() {
 	// nothing other than resource status has been updated.
 
 	if shouldCreate {
-		ctc.Log.Debug("Create '%s' namespace '%s, and value: %v", name, namespace, crdTelemetryReportCopy)
+		ctc.Log.Debug("Create '%s' namespace '%s", name, namespace)
 		_, err = ctc.CrdClient.ContivtelemetryV1().TelemetryReports(namespace).Create(crdTelemetryReportCopy)
 		if err != nil {
-			ctc.Log.Errorf("Could not create '%s'  err: %v, namespace '%s', and value: %v",
-				name, err, namespace, crdTelemetryReportCopy)
+			ctc.Log.Errorf("Could not create '%s'  err: %v, namespace '%s'",
+				name, err, namespace)
 		}
 	} else {
-		ctc.Log.Debug("Update '%s' namespace '%s, and value: %v", name, namespace, crdTelemetryReportCopy)
+		ctc.Log.Debug("Update '%s' namespace '%s", name, namespace)
 		_, err := ctc.CrdClient.ContivtelemetryV1().TelemetryReports(crdTelemetryReportCopy.Namespace).Update(crdTelemetryReportCopy)
 		if err != nil {
-			ctc.Log.Errorf("Could not update '%s'  err: %v, namespace '%s', and value: %v",
-				name, err, namespace, crdTelemetryReportCopy)
+			ctc.Log.Errorf("Could not update '%s'  err: %v, namespace '%s'",
+				name, err, namespace)
 		}
 	}
 }

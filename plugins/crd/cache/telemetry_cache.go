@@ -247,7 +247,7 @@ processed, and added to the node database.
 func (ctc *ContivTelemetryCache) getNodeInfo(client http.Client, node *telemetrymodel.Node, url string,
 	nodeInfo interface{}, version uint32) {
 
-	res, err := client.Get(ctc.getAgentURL(node.ManIPAdr, url))
+	res, err := client.Get(ctc.getAgentURL(node.ManIPAddr, url))
 	if err != nil {
 		err := fmt.Errorf("getNodeInfo: url: %s cleintGet Error: %s", url, err.Error())
 		ctc.Log.Error(err)
@@ -293,9 +293,9 @@ func (ctc *ContivTelemetryCache) populateNodeMaps(node *telemetrymodel.Node) {
 					ctc.Report.AppendToNodeReport(node.Name, errString)
 				}
 			case nodemodel.NodeAddress_NodeInternalIP:
-				if adr.Address != node.ManIPAdr {
+				if adr.Address != node.ManIPAddr {
 					errString := fmt.Sprintf("Inconsistent Host IP Address for node %s: Contiv: %s, K8s %s",
-						k8snode.Name, node.ManIPAdr, adr.Address)
+						k8snode.Name, node.ManIPAddr, adr.Address)
 					ctc.Report.AppendToNodeReport(node.Name, errString)
 				}
 			}
@@ -303,7 +303,7 @@ func (ctc *ContivTelemetryCache) populateNodeMaps(node *telemetrymodel.Node) {
 	}
 
 	for _, pod := range ctc.K8sCache.RetrieveAllPods() {
-		if pod.HostIPAddress == node.ManIPAdr {
+		if pod.HostIPAddress == node.ManIPAddr {
 			node.PodMap[pod.Name] = pod
 		}
 	}

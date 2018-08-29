@@ -49,7 +49,9 @@ func (v *Validator) Validate() {
 	v.ValidateL2FibEntries()
 	v.ValidateK8sNodeInfo()
 	v.ValidatePodInfo()
+	v.ValidateTapToPod()
 	//v.ValidateStaticRoutes()
+	v.ValidateL3()
 }
 
 // ValidateArpTables validates the the entries of node ARP tables to
@@ -143,70 +145,100 @@ func (v *Validator) ValidateL2Connectivity() {
 		nodeMap[node.Name] = true
 	}
 
+validateNodeBD:
 	for _, node := range nodeList {
 		nodeVxlanMap := make(map[string]bool)
 		for _, n := range nodeList {
 			nodeVxlanMap[n.Name] = true
 		}
 
-		bdHasLoopIF := false
-		var vxLanBD telemetrymodel.NodeBridgeDomain
-		//Make sure there is a bridge domain with the name vxlanBD
-		vxlanBDCount := 0
+		// Validate that there is exactly one bridge domain with the name vxlanBD
+		var vxLanBD *telemetrymodel.NodeBridgeDomain
+
 		for _, bdomain := range node.NodeBridgeDomains {
 			if bdomain.Bd.Name == "vxlanBD" {
-				vxLanBD = bdomain
-				vxlanBDCount++
+				if vxLanBD != nil {
+					errString := fmt.Sprintf("multiple vxlanBD bridge domains - skipping L2 validation")
+					errCnt++
+					v.Report.AppendToNodeReport(node.Name, errString)
+					continue validateNodeBD
+				}
+				vxLanBD = &bdomain
 			}
 		}
 
-		if vxlanBDCount > 1 {
-			errString := fmt.Sprintf("Multiple vxlanBD bridge domains - skipping L2 validation")
+		if vxLanBD == nil {
 			errCnt++
-			v.Report.AppendToNodeReport(node.Name, errString)
-			continue
-		} else if vxlanBDCount == 0 {
-			errCnt++
-			errString := fmt.Sprintf("No vxlan BD - skipping L2 validation")
+			errString := fmt.Sprintf("no vxlan BD - skipping L2 validation")
 			v.Report.AppendToNodeReport(node.Name, errString)
 			continue
 		}
 
 		i := 0
-		//for each index in the vxlanBD
-		for ifIndex := range vxLanBD.BdMeta.BdID2Name {
+		bdName2Id := make(map[string]uint32)
+		for id, name := range vxLanBD.BdMeta.BdID2Name {
+			bdName2Id[name] = id
+		}
+
+		// Validate interfaces listed in the BD
+		hasBviIfc := false
+		for _, bdIfc := range vxLanBD.Bd.Interfaces {
+			ifIndex := bdName2Id[bdIfc.Name]
+
 			//check if one of the indices point to the loop interface
 			//if it does, increment a counter and set a boolean to true
-			intfidxInterface, ok := node.NodeInterfaces[int(ifIndex)]
+			nodeIfc, ok := node.NodeInterfaces[int(ifIndex)]
 			if !ok {
 				errCnt++
-				errString := fmt.Sprintf("BD index %d for node %s does not point to a valid interface",
-					ifIndex, node.Name)
+				errString := fmt.Sprintf("ifIndex %d invalid for BD interface %s", ifIndex, bdIfc.Name)
 				v.Report.AppendToNodeReport(node.Name, errString)
 				continue
 			}
 
-			// Check if we have a lopp0 interface - there must be exactly one
-			if intfidxInterface.If.IfType == interfaces.InterfaceType_SOFTWARE_LOOPBACK {
-				bdHasLoopIF = true
-				i++
-				macAddr := node.NodeInterfaces[int(ifIndex)].If.PhysAddress
-				if n, err := v.VppCache.RetrieveNodeByLoopMacAddr(macAddr); err == nil {
-					delete(nodeVxlanMap, n.Name)
-				} else {
+			if bdIfc.BVI {
+				if hasBviIfc {
 					errCnt++
-					v.Report.AppendToNodeReport(node.Name,
-						fmt.Sprintf("validator internal error: inconsistent MadAddress index, MAC %s",
-							macAddr))
+					errString := fmt.Sprintf("duplicate BVI, type %+v, BVI %s (ifIndex %d, ifName %s)",
+						nodeIfc.If.IfType, bdIfc.Name, ifIndex, nodeIfc.If.Name)
+					v.Report.AppendToNodeReport(node.Name, errString)
 				}
-				continue
-			}
 
-			// Check if one of the indices points to a vxlan_tunnel interface
-			if intfidxInterface.If.IfType == interfaces.InterfaceType_VXLAN_TUNNEL {
-				if node.NodeInterfaces[int(ifIndex)].If.Vxlan.Vni != api.VppVNI {
+				// BVI must be a software loopback interface
+				if nodeIfc.If.IfType != interfaces.InterfaceType_SOFTWARE_LOOPBACK {
 					errCnt++
-					errString := fmt.Sprintf("bad VNI for %s (%s): got %d expected %d",
+					errString := fmt.Sprintf("invalid BVI type %+v, BVI %s (ifIndex %d, ifName %s)",
+						nodeIfc.If.IfType, bdIfc.Name, ifIndex, nodeIfc.If.Name)
+					v.Report.AppendToNodeReport(node.Name, errString)
+					continue
+				}
+
+				hasBviIfc = true
+				i++
+
+				if n, err := v.VppCache.RetrieveNodeByLoopMacAddr(nodeIfc.If.PhysAddress); err != nil {
+					errCnt++
+					errString := fmt.Sprintf("validator internal error: bad MAC Addr index, "+
+						"MAC Addr %s, BVI %s (ifIndex %d, ifName %s)",
+						nodeIfc.If.PhysAddress, bdIfc.Name, ifIndex, nodeIfc.If.Name)
+					v.Report.AppendToNodeReport(node.Name, errString)
+					continue
+				} else {
+					delete(nodeVxlanMap, n.Name)
+				}
+			} else {
+				// Make sure that the type of a regular BD interface is VXLAN_tunnel interface
+				if nodeIfc.If.IfType != interfaces.InterfaceType_VXLAN_TUNNEL {
+					errCnt++
+					errString := fmt.Sprintf("invalid BD interface type %+v, BVI %s (ifIndex %d, ifName %s)",
+						nodeIfc.If.IfType, bdIfc.Name, ifIndex, nodeIfc.If.Name)
+					v.Report.AppendToNodeReport(node.Name, errString)
+					continue
+				}
+
+				// Make sure the VXLAN tunnel's VNI is correct (value '10')
+				if nodeIfc.If.Vxlan.Vni != api.VppVNI {
+					errCnt++
+					errString := fmt.Sprintf("bad VNI for %s (%s): got %d, expected %d",
 						node.NodeInterfaces[int(ifIndex)].If.Name,
 						node.NodeInterfaces[int(ifIndex)].IfMeta.VppInternalName,
 						node.NodeInterfaces[int(ifIndex)].If.Vxlan.Vni,
@@ -214,24 +246,21 @@ func (v *Validator) ValidateL2Connectivity() {
 					v.Report.AppendToNodeReport(node.Name, errString)
 				}
 
-				vxlantun := node.NodeInterfaces[int(ifIndex)]
-				srcipNode, err := v.VppCache.RetrieveNodeByGigEIPAddr(vxlantun.If.Vxlan.SrcAddress + api.SubnetMask)
-
-				// Try to find node with src ip address of the tunnel and make
-				// sure it is the same as the current node.
+				// Make sure the VXLAN's tunnel source IP address points to the current node.
+				srcIPNode, err := v.VppCache.RetrieveNodeByGigEIPAddr(nodeIfc.If.Vxlan.SrcAddress)
 				if err != nil {
 					errCnt++
-					errString := fmt.Sprintf("Error finding node with src IP %s",
-						vxlantun.If.Vxlan.SrcAddress)
+					errString := fmt.Sprintf("error finding node with src IP %s",
+						nodeIfc.If.Vxlan.SrcAddress)
 					v.Report.AppendToNodeReport(node.Name, errString)
 					continue
 				}
 
-				if srcipNode.Name != node.Name {
+				if srcIPNode.Name != node.Name {
 					errCnt++
 					errString := fmt.Sprintf("vxlan_tunnel %s has source ip %s which points "+
 						"to a different node than %s.",
-						vxlantun.If.Name, vxlantun.If.Vxlan.SrcAddress, node.Name)
+						nodeIfc.If.Name, nodeIfc.If.Vxlan.SrcAddress, node.Name)
 					v.Report.AppendToNodeReport(node.Name, errString)
 					continue
 				}
@@ -239,19 +268,19 @@ func (v *Validator) ValidateL2Connectivity() {
 				// Try to find node with dst ip address in tunnel and validate
 				// it has a vxlan_tunnel that is the opposite of the current
 				// vxlan_tunnel and increment the counter if it does.
-				dstipNode, err := v.VppCache.RetrieveNodeByGigEIPAddr(vxlantun.If.Vxlan.DstAddress + api.SubnetMask)
+				dstipNode, err := v.VppCache.RetrieveNodeByGigEIPAddr(nodeIfc.If.Vxlan.DstAddress)
 				if err != nil {
 					errCnt++
-					errString := fmt.Sprintf("Node with dst ip %s in vxlan_tunnel %s not found",
-						vxlantun.If.Vxlan.DstAddress, vxlantun.If.Name)
+					errString := fmt.Sprintf("node with dst ip %s in vxlan_tunnel %s not found",
+						nodeIfc.If.Vxlan.DstAddress, nodeIfc.If.Name)
 					v.Report.AppendToNodeReport(node.Name, errString)
 					continue
 				}
 
 				matchingTunnelFound := false
 				for _, dstIntf := range dstipNode.NodeInterfaces {
-					if dstIntf.If.IfType == vxlantun.If.IfType {
-						if dstIntf.If.Vxlan.DstAddress == vxlantun.If.Vxlan.SrcAddress {
+					if dstIntf.If.IfType == nodeIfc.If.IfType {
+						if dstIntf.If.Vxlan.DstAddress == nodeIfc.If.Vxlan.SrcAddress {
 							matchingTunnelFound = true
 						}
 					}
@@ -260,13 +289,13 @@ func (v *Validator) ValidateL2Connectivity() {
 				if !matchingTunnelFound {
 					errCnt++
 					errString := fmt.Sprintf("no matching vxlan_tunnel found on remote node %s for vxlan %s",
-						dstipNode.Name, vxlantun.If.Name)
+						dstipNode.Name, nodeIfc.If.Name)
 					v.Report.AppendToNodeReport(node.Name, errString)
 				}
 				i++
 
 				dstAddr := node.NodeInterfaces[int(ifIndex)].If.Vxlan.DstAddress
-				if n1, err := v.VppCache.RetrieveNodeByGigEIPAddr(dstAddr + api.SubnetMask); err == nil {
+				if n1, err := v.VppCache.RetrieveNodeByGigEIPAddr(dstAddr); err == nil {
 					delete(nodeVxlanMap, n1.Name)
 				} else {
 					errCnt++
@@ -280,23 +309,22 @@ func (v *Validator) ValidateL2Connectivity() {
 		//checks if there are an unequal amount vxlan tunnels for the current node versus the total number of nodes
 		if i != len(nodeList) {
 			errCnt++
-			errString := fmt.Sprintf("number of vxlan tunnels for node %s does "+
-				"not match number of nodes in cluster: got %d, expected %d", node.Name, i, len(nodeList))
+			errString := fmt.Sprintf("the number of valid BD interfaces does not match the number of nodes "+
+				"in cluster: got %d, expected %d", i, len(nodeList))
 			v.Report.AppendToNodeReport(node.Name, errString)
 		}
 
-		if !bdHasLoopIF {
+		if !hasBviIfc {
 			errCnt++
-			errString := fmt.Sprintf("bridge domain %+v has no loop interface",
-				node.NodeBridgeDomains)
+			errString := fmt.Sprintf("BVI in the Contiv cluster Vxlan BD is invalid or missing")
 			v.Report.AppendToNodeReport(node.Name, errString)
 			continue
 		}
 		if len(nodeVxlanMap) > 0 {
 			for n := range nodeVxlanMap {
 				errCnt++
-				v.Report.AppendToNodeReport(node.Name,
-					fmt.Sprintf("vxlan entry missing for node %s", n))
+				errString := fmt.Sprintf("BD interface missing or invalid for node %s", n)
+				v.Report.AppendToNodeReport(node.Name, errString)
 			}
 			continue
 		}
@@ -307,8 +335,7 @@ func (v *Validator) ValidateL2Connectivity() {
 	//make sure that each node has been successfully validated
 	if len(nodeMap) > 0 {
 		for nodeName := range nodeMap {
-			errCnt++
-			v.Report.AppendToNodeReport(nodeName, fmt.Sprintf("failed to validate BD info"))
+			v.Report.AppendToNodeReport(nodeName, fmt.Sprintf("failed to validate the Contiv cluster Vxlan BD"))
 		}
 	}
 
@@ -316,7 +343,7 @@ func (v *Validator) ValidateL2Connectivity() {
 		v.Report.AppendToNodeReport(api.GlobalMsg, "L2 connectivity validation: OK")
 	} else {
 		v.Report.AppendToNodeReport(api.GlobalMsg,
-			fmt.Sprintf("L2 connectivity validation: found %d errors", errCnt))
+			fmt.Sprintf("L2 connectivity validation: %d errors found", errCnt))
 	}
 }
 
@@ -338,7 +365,7 @@ func (v *Validator) ValidateL2FibEntries() {
 
 		fibHasLoopIF := false
 		if len(node.NodeL2Fibs) != len(nodeList) {
-			errString := fmt.Sprintf("Incorrect number of L2 fib entries: %d for node %+v: expecting %d",
+			errString := fmt.Sprintf("incorrect number of L2 fib entries: %d for node %+v: expecting %d",
 				len(node.NodeL2Fibs), node.Name, len(nodeList))
 			v.Report.AppendToNodeReport(node.Name, errString)
 			continue
@@ -377,9 +404,9 @@ func (v *Validator) ValidateL2FibEntries() {
 			}
 
 			intf := node.NodeInterfaces[int(fib.FeMeta.OutgoingIfIndex)]
-			macNode, err := v.VppCache.RetrieveNodeByGigEIPAddr(intf.If.Vxlan.DstAddress + api.SubnetMask)
+			macNode, err := v.VppCache.RetrieveNodeByGigEIPAddr(intf.If.Vxlan.DstAddress)
 			if err != nil {
-				errString := fmt.Sprintf("GigE IP address %s does not exist in gigEIPMap",
+				errString := fmt.Sprintf("gigE IP address %s does not exist in gigEIPMap",
 					intf.If.Vxlan.DstAddress)
 				v.Report.AppendToNodeReport(node.Name, errString)
 				continue
@@ -402,13 +429,13 @@ func (v *Validator) ValidateL2FibEntries() {
 				}
 				continue
 			} else {
-				errString := fmt.Sprintf("Fib MAC %+v is different than actual MAC "+
+				errString := fmt.Sprintf("fib MAC %+v is different than actual MAC "+
 					"%+v", fib.Fe.PhysAddress, remoteLoopIF.If.PhysAddress)
 				v.Report.AppendToNodeReport(node.Name, errString)
 			}
 
 			if len(nodeFibMap) > 0 {
-				errString := fmt.Sprintf("Missing Fib entries for node %+v", node.Name)
+				errString := fmt.Sprintf("missing Fib entries for node %+v", node.Name)
 				v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
 				for node := range nodeFibMap {
 					v.Report.AppendToNodeReport(node, node)
@@ -497,7 +524,7 @@ func (v *Validator) ValidatePodInfo() {
 	for _, pod := range podList {
 		node, err := v.VppCache.RetrieveNodeByHostIPAddr(pod.HostIPAddress)
 		if err != nil {
-			v.Report.AppendToNodeReport(api.GlobalMsg, fmt.Sprintf("Error finding node for Pod %s with host ip %s",
+			v.Report.AppendToNodeReport(api.GlobalMsg, fmt.Sprintf("error finding node for Pod %s with host ip %s",
 				pod.Name, pod.HostIPAddress))
 			continue
 		}
@@ -557,7 +584,7 @@ func (v *Validator) ValidatePodInfo() {
 		}
 
 	} else {
-		v.Report.AppendToNodeReport(api.GlobalMsg, "Success validating pod info.")
+		v.Report.AppendToNodeReport(api.GlobalMsg, "success validating pod info.")
 	}
 }
 
@@ -569,7 +596,14 @@ func (v *Validator) ValidateTapToPod() {
 	for _, pod := range podList {
 		podMap[pod.Name] = true
 	}
+
 	for _, pod := range podList {
+		// Skip host network pods - they do not have an associated tap
+		if pod.IPAddress == pod.HostIPAddress {
+			delete(podMap, pod.Name)
+			continue
+		}
+
 		vppNode, err := v.VppCache.RetrieveNodeByHostIPAddr(pod.HostIPAddress)
 		if err != nil {
 			v.Report.LogErrAndAppendToNodeReport(api.GlobalMsg,
@@ -596,11 +630,14 @@ func (v *Validator) ValidateTapToPod() {
 		for _, intf := range vppNode.NodeInterfaces {
 			if strings.Contains(intf.IfMeta.VppInternalName, "tap") {
 				for _, ip := range intf.If.IPAddresses {
+					ipAddr := strings.Split(ip, "/")
 					podIP := ip2uint32(pod.IPAddress)
-					tapIP := ip2uint32(ip)
+					tapIP := ip2uint32(ipAddr[0])
 					if (podIP & bitmask) == (tapIP & bitmask) {
 						pod.VppIfIPAddr = ip
-						pod.VppIfName = intf.IfMeta.VppInternalName
+						pod.VppIfInternalName = intf.IfMeta.VppInternalName
+						pod.VppIfName = intf.If.Name
+						pod.VppSwIfIdx = intf.IfMeta.SwIfIndex
 						delete(podMap, pod.Name)
 					}
 				}
@@ -624,6 +661,56 @@ func (v *Validator) ValidateStaticRoutes() {
 
 }
 
+//Vrf is a type declaration to help simplify a map of maps
+type Vrf = map[string]telemetrymodel.NodeIPRoute
+
+//ValidateL3 will validate each nodes and pods l3 connectivity for any errors
+func (v *Validator) ValidateL3() {
+	nodeList := v.VppCache.RetrieveAllNodes()
+	for _, node := range nodeList {
+		vrfMap, err := v.createVrfMap(node)
+		if err != nil {
+			v.Report.LogErrAndAppendToNodeReport(node.Name, err.Error())
+		}
+		for _, pod := range node.PodMap {
+			if pod.IPAddress == node.ManIPAdr {
+				continue
+			}
+			ip, mask := separateIPandMask(pod.IPAddress)
+			lookUpRoute := vrfMap[1][ip+mask]
+			if lookUpRoute.Ipr.NextHopAddr != pod.IPAddress {
+				errString := fmt.Sprintf("Pod %s IP %s does not match with route %+v next hop IP %s", pod.Name, pod.IPAddress, lookUpRoute, lookUpRoute.Ipr.NextHopAddr)
+				v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
+			}
+			if pod.VppSwIfIdx != lookUpRoute.IprMeta.OutgoingIfIdx {
+				errString := fmt.Sprintf("Pod interface index %d does not match static route interface index %d", pod.VppSwIfIdx, lookUpRoute.IprMeta.OutgoingIfIdx)
+				v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
+			}
+			if pod.VppIfInternalName != lookUpRoute.Ipr.OutIface {
+				errString := fmt.Sprintf("Name of pod interface %s differs from route interface name %s", pod.VppIfInternalName, lookUpRoute.Ipr.OutIface)
+				v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
+			}
+		}
+	}
+	v.Report.AppendToNodeReport(api.GlobalMsg, "success validating l3 info.")
+}
+
+func (v *Validator) createVrfMap(node *telemetrymodel.Node) (map[uint32]Vrf, error) {
+	vrfMap := make(map[uint32]Vrf, 0)
+	for _, route := range node.NodeStaticRoutes {
+		vrf, ok := vrfMap[route.Ipr.VrfID]
+		if !ok {
+			vrfMap[route.Ipr.VrfID] = make(Vrf, 0)
+			vrf = vrfMap[route.Ipr.VrfID]
+		}
+		if !strings.Contains(route.IprMeta.TableName, "-VRF:") {
+			continue
+		}
+		vrf[route.Ipr.DstAddr] = route
+	}
+	return vrfMap, nil
+}
+
 func maskLength2Mask(ml int) uint32 {
 	var mask uint32
 	for i := 0; i < 32-ml; i++ {
@@ -643,6 +730,14 @@ func ip2uint32(ipAddress string) uint32 {
 		//fmt.Printf("%d: num: 0x%x, ipu: 0x%x\n", i, num, ipu)
 	}
 	return ipu
+}
+
+func separateIPandMask(ipAddress string) (string, string) {
+	s := strings.Split(ipAddress, "/")
+	if len(s) == 2 {
+		return s[0], s[1]
+	}
+	return s[0], ""
 }
 
 func printS(errCnt int) string {

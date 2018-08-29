@@ -12,15 +12,19 @@ between PODs. Currently, only Kubernetes 1.9.X and higher versions are supported
 
 ## Quickstart
 You can get started with Contiv-VPP in one of two ways:
-* Use the [Contiv-VPP Vagrant Installation][1] instructions to start a 
+* Use the [Contiv-VPP Vagrant Installation][1] instructions to start a
   simulated Kubernetes cluster with a couple of hosts running in VirtualBox
-  VMs. This is the easiest way to bring up a cluster for exploring the 
+  VMs. This is the easiest way to bring up a cluster for exploring the
   capabilities and features of Contiv-VPP.
-   
+
 * Use the [Contiv-specific kubeadm install][2] instructions to manually
   install Kubernetes with Contiv-VPP networking on one or more bare-metal
-  
-  
+
+* Use the [Arm64-specific kubeadm install][6] instructions to manually
+  install Kubernetes with Contiv-VPP networking on one or more bare-metal
+  of Arm64 platform.
+
+
 ## Reporting Bugs
 In order to report a bug, please file an issue in GitHub. Please provide
 the information described in [Bug Reports README](docs/BUG_REPORTS.md).
@@ -34,17 +38,17 @@ Contributions to VPP-Agent are welcome. We use the standard pull request
 model. You can either pick an open issue and assign it to yourself or open
 a new issue and discuss your feature.
 
-In any case, before submitting your pull request please check the 
-[Coding style][3] and cover the newly added code with tests and 
+In any case, before submitting your pull request please check the
+[Coding style][3] and cover the newly added code with tests and
 documentation (Contiv-VPP adopted the coding style used in the [Ligato][5]
-project). Upon submission, each patch is run through the `go fmt` and 
+project). Upon submission, each patch is run through the `go fmt` and
 `golint` tools.
 
 
 The tool used for managing third-party dependencies is [Dep][4]. After
- adding or updating a dependency in `Gopkg.toml` run `make install-dep` to 
+ adding or updating a dependency in `Gopkg.toml` run `make install-dep` to
 download the specified dependencies into the vendor folder. Please make sure
-that each dependency in the `Gopkg.toml` has a specific `version` defined 
+that each dependency in the `Gopkg.toml` has a specific `version` defined
 (a specific commit ID or a git tag).
 
 [1]: vagrant/README.md
@@ -52,3 +56,4 @@ that each dependency in the `Gopkg.toml` has a specific `version` defined
 [3]: https://github.com/ligato/cn-infra/blob/master/docs/guidelines/CODINGSTYLE.md
 [4]: https://github.com/golang/dep
 [5]: https://github.com/ligato
+[6]: docs/arm64/MANUAL_INSTALL_ARM64.md

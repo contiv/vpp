@@ -15,8 +15,8 @@
 package handler
 
 import (
-	"github.com/contiv/vpp/plugins/crd/handlers/nodeconfig"
-	"github.com/contiv/vpp/plugins/crd/handlers/telemetry"
+	"github.com/contiv/vpp/plugins/crd/handler/nodeconfig"
+	"github.com/contiv/vpp/plugins/crd/handler/telemetry"
 )
 
 // Handler is implemented by any handler.
@@ -29,18 +29,17 @@ type Handler interface {
 	//
 	ObjectDeleted(obj interface{})
 	//
-	ObjectUpdated(oldObj, newObj interface{})
+	ObjectUpdated(obj interface{})
 }
 
 // Map maps each event handler function to a name for easily lookup
 var Map = map[string]interface{}{
 	"default":    &Default{},
-	"telemetry":  &telemetry.TelemetryHandler{},
-	"nodeConfig": &nodeconfig.NodeConfigHandler{},
+	"telemetry":  &telemetry.Handler{},
+	"nodeConfig": &nodeconfig.Handler{},
 }
 
-// Default handler implements Handler interface,
-// print each event with JSON format
+// Default handler implements Handler interface
 type Default struct {
 }
 
@@ -51,13 +50,10 @@ func (d *Default) Init() error {
 }
 
 func (d *Default) ObjectCreated(obj interface{}) {
-
 }
 
 func (d *Default) ObjectDeleted(obj interface{}) {
-
 }
 
-func (d *Default) ObjectUpdated(oldObj, newObj interface{}) {
-
+func (d *Default) ObjectUpdated(obj interface{}) {
 }

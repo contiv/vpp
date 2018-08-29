@@ -16,35 +16,37 @@ package telemetry
 
 import (
 	"fmt"
+	"reflect"
 	"time"
 
-	"github.com/ligato/cn-infra/logging"
+	"k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/util/workqueue"
-
-	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
-	k8sCache "k8s.io/client-go/tools/cache"
-
-	handler "github.com/contiv/vpp/plugins/crd/handler/telemetry"
-	"github.com/contiv/vpp/plugins/crd/pkg/apis/telemetry/v1"
-	crdClientSet "github.com/contiv/vpp/plugins/crd/pkg/client/clientset/versioned"
-	factory "github.com/contiv/vpp/plugins/crd/pkg/client/informers/externalversions"
-	telemetryInformers "github.com/contiv/vpp/plugins/crd/pkg/client/informers/externalversions/telemetry/v1"
-	telemetryListers "github.com/contiv/vpp/plugins/crd/pkg/client/listers/telemetry/v1"
 
 	apiextv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	apiextcs "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	meta "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	"k8s.io/apimachinery/pkg/util/runtime"
-	"k8s.io/client-go/tools/cache"
-	"reflect"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	k8sCache "k8s.io/client-go/tools/cache"
 
 	"github.com/contiv/vpp/plugins/crd/api"
+	"github.com/contiv/vpp/plugins/crd/handler"
+	"github.com/contiv/vpp/plugins/crd/handler/telemetry"
+	"github.com/contiv/vpp/plugins/crd/pkg/apis/telemetry/v1"
+	"github.com/contiv/vpp/plugins/crd/utils"
+	"github.com/ligato/cn-infra/logging"
+
+	crdClientSet "github.com/contiv/vpp/plugins/crd/pkg/client/clientset/versioned"
+	factory "github.com/contiv/vpp/plugins/crd/pkg/client/informers/externalversions"
+	informers "github.com/contiv/vpp/plugins/crd/pkg/client/informers/externalversions/telemetry/v1"
+	listers "github.com/contiv/vpp/plugins/crd/pkg/client/listers/telemetry/v1"
 )
+
+const maxRetries = 5
+
+var serverStartTime time.Time
 
 // Controller struct defines how a controller should encapsulate
 // logging, client connectivity, informing (list and watching) queueing, and
@@ -59,10 +61,10 @@ type Controller struct {
 	clientset kubernetes.Interface
 	queue     workqueue.RateLimitingInterface
 	// Telemetry CRD specifics
-	telemetryInformer     telemetryInformers.TelemetryReportInformer
-	telemetryReportLister telemetryListers.TelemetryReportLister
+	telemetryInformer     informers.TelemetryReportInformer
+	telemetryReportLister listers.TelemetryReportLister
 	// event handlers for Telemetry CRDs
-	eventHandler handler.TelemetryHandler
+	eventHandler handler.Handler
 }
 
 // Deps defines dependencies for the CRD plugin
@@ -80,18 +82,27 @@ type CRDReport struct {
 	Report   api.Report
 }
 
-// Init performs the initialization of ContivTelemetry
+// Event indicate the informerEvent
+type Event struct {
+	key         string
+	eventType   string
+	resource    interface{}
+	oldResource interface{}
+}
+
+// Init performs the initialization of Telemetry Controller
 func (c *Controller) Init() error {
 
-	var err error
-	var crdname string
+	var newEvent Event
 
-	crdname = reflect.TypeOf(v1.TelemetryReport{}).Name()
-	err = c.createCRD(v1.CRDFullContivTelemetryReportsName,
+	c.Log.Info("Telemetry-Controller: initializing...")
+
+	crdName := reflect.TypeOf(v1.TelemetryReport{}).Name()
+	err := c.createCRD(v1.CRDFullContivTelemetryReportsName,
 		v1.CRDGroup,
 		v1.CRDGroupVersion,
 		v1.CRDContivTelemetryReportPlural,
-		crdname)
+		crdName)
 
 	if err != nil {
 		c.Log.Error("Error initializing CRD")
@@ -109,31 +120,34 @@ func (c *Controller) Init() error {
 	// Add event handlers to handle the three types of events for resources (add, update, delete)
 	c.telemetryInformer.Informer().AddEventHandler(k8sCache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
-			// Converting the resource object into a key
-			key, err := k8sCache.MetaNamespaceKeyFunc(obj)
-			c.Log.Debug("Add ContivTelemetry resource: %s", key)
+			newEvent.key, err = k8sCache.MetaNamespaceKeyFunc(obj)
+			newEvent.eventType = "create"
+			c.Log.Infof("Add Telemetry resource with key: %s", newEvent.key)
 			if err == nil {
-				// Adding the key to the queue for the handler to get
-				c.queue.Add(key)
+				c.queue.Add(newEvent)
 			}
 		},
-		UpdateFunc: func(oldObj, newObj interface{}) {
-			key, err := k8sCache.MetaNamespaceKeyFunc(newObj)
-			c.Log.Debug("Update ContivTelemetry resource: %s", key)
+		UpdateFunc: func(old, new interface{}) {
+			newEvent.key, err = k8sCache.MetaNamespaceKeyFunc(new)
+			newEvent.resource = new
+			newEvent.oldResource = old
+			newEvent.eventType = "update"
+			c.Log.Infof("Update Telemetry resource with key: %s", newEvent.key)
 			if err == nil {
-				c.queue.Add(key)
+				c.queue.Add(newEvent)
 			}
 		},
 		DeleteFunc: func(obj interface{}) {
-			key, err := k8sCache.DeletionHandlingMetaNamespaceKeyFunc(obj)
-			c.Log.Debug("Delete ContivTelemetry resource: %s", key)
+			newEvent.key, err = k8sCache.DeletionHandlingMetaNamespaceKeyFunc(obj)
+			newEvent.eventType = "delete"
+			c.Log.Infof("Delete Telemetry resource with key: %s", newEvent.key)
 			if err == nil {
-				c.queue.Add(key)
+				c.queue.Add(newEvent)
 			}
 		},
 	})
 
-	c.eventHandler = handler.TelemetryHandler{}
+	c.eventHandler = &telemetry.Handler{}
 
 	return nil
 }
@@ -145,7 +159,7 @@ func (c *Controller) Run(ctx <-chan struct{}) {
 	// ignore new items and shutdown when done
 	defer c.queue.ShutDown()
 
-	c.Log.Info("Controller-Run: Initiating...")
+	c.Log.Info("Telemetry-Controller: starting...")
 
 	// runs the informer to list and watch on a goroutine
 	go c.telemetryInformer.Informer().Run(ctx)
@@ -168,74 +182,89 @@ func (c *Controller) HasSynced() bool {
 
 // runWorker processes new items in the queue
 func (c *Controller) runWorker() {
-	c.Log.Info("Controller-runWorker: Starting..")
+	c.Log.Info("Telemetry-Controller: running...")
 
 	// invoke processNextItem to fetch and consume the next change
 	// to a watched or listed resource
 	for c.processNextItem() {
-		c.Log.Info("Controller-runWorker: processing next item...")
+		c.Log.Info("Telemetry-Controller-runWorker: processing next item...")
 	}
 
-	c.Log.Info("Controller-runWorker: Completed")
+	c.Log.Info("Telemetry-Controller-runWorker: Completed")
 }
 
 // processNextItem retrieves next queued item, acts accordingly for object CRUD
 func (c *Controller) processNextItem() bool {
-	c.Log.Info("Controller.processNextItem: start")
-
 	// get the next item (blocking) from the queue and process or
 	// quit if shutdown requested
-	key, quit := c.queue.Get()
+	newEvent, quit := c.queue.Get()
 	if quit {
 		return false
 	}
-	defer c.queue.Done(key)
+	defer c.queue.Done(newEvent)
 
-	// assert the string out of the key (format `namespace/name`)
-	keyRaw := key.(string)
-
-	// Get the string key and get the object out of the indexer.
-	// item is the object of the resource, it was created if exists = true
-	//
-	// on error retry the queue key given number of times (5 here)
-	// on failure forget the queue key and throw an error
-	item, exists, err := c.telemetryInformer.Informer().GetIndexer().GetByKey(keyRaw)
-	if err != nil {
-		if c.queue.NumRequeues(key) < 5 {
-			c.Log.Errorf("Controller.processNextItem: Failed processing item with key: %s, error: %v, retrying...", key, err)
-			c.queue.AddRateLimited(key)
-		} else {
-			c.Log.Errorf("Controller.processNextItem: Failed processing item with key: %s, error: %v, retrying...", key, err)
-			c.queue.Forget(key)
-			utilruntime.HandleError(err)
-		}
-	}
-
-	// if item exists run the ObjectCreated method (item created or updated)
-	// if item does not exist run the ObjectDeleted method (item deleted)
-	//
-	// in every case forget the key from the queue
-	if exists {
-		c.Log.Infof("Controller.processNextItem: object created detected: %s", keyRaw)
-		c.eventHandler.ObjectCreated(item)
-		c.queue.Forget(key)
+	err := c.processItem(newEvent.(Event))
+	if err == nil {
+		// If there is no error reset the rate limit counters
+		c.queue.Forget(newEvent)
+	} else if c.queue.NumRequeues(newEvent) < maxRetries {
+		c.Log.Errorf("Error processing %s (will retry): %v", newEvent.(Event).key, err)
+		c.queue.AddRateLimited(newEvent)
 	} else {
-		c.Log.Infof("Controller.processNextItem: object deleted detected: %s", keyRaw)
-		c.eventHandler.ObjectDeleted(item)
-		c.queue.Forget(key)
+		// err != nil and too many retries
+		c.Log.Errorf("Error processing %s (giving up): %v", newEvent.(Event).key, err)
+		c.queue.Forget(newEvent)
+		utilruntime.HandleError(err)
 	}
 
 	// keep the worker loop running by returning true
 	return true
 }
 
+// processItem processes the next item from the queue and send the event update
+// to the telemetry event handler
+func (c *Controller) processItem(newEvent Event) error {
+	obj, _, err := c.telemetryInformer.Informer().GetIndexer().GetByKey(newEvent.key)
+	if err != nil {
+		return fmt.Errorf("Error fetching object with key %s from store: %v", newEvent.key, err)
+	}
+	// get object's metadata
+	objectMeta := utils.GetObjectMetaData(obj)
+
+	// process events based on its type
+	switch newEvent.eventType {
+	case "create":
+		// compare CreationTimestamp and serverStartTime and alert only on latest events
+		if objectMeta.CreationTimestamp.Sub(serverStartTime).Seconds() > 0 {
+			c.eventHandler.ObjectCreated(obj)
+			return nil
+		}
+	case "update":
+		updateEvent := Event{
+			key:         newEvent.key,
+			oldResource: newEvent.oldResource,
+			resource:    newEvent.resource,
+		}
+		c.eventHandler.ObjectUpdated(updateEvent)
+		return nil
+	case "delete":
+		deleteEvent := Event{
+			key: newEvent.key,
+		}
+		c.eventHandler.ObjectDeleted(deleteEvent)
+		return nil
+	}
+	return nil
+}
+
 // Create the CRD resource, ignore error if it already exists
 func (c *Controller) createCRD(FullName, Group, Version, Plural, Name string) error {
+	c.Log.Info("Creating Telemetry CRD")
 
 	var validation *apiextv1beta1.CustomResourceValidation
 	switch Name {
 	case "TelemetryReport":
-		validation = contivTelemetryReportValidation()
+		validation = telemetryReportValidation()
 	default:
 		validation = &apiextv1beta1.CustomResourceValidation{}
 	}
@@ -260,8 +289,8 @@ func (c *Controller) createCRD(FullName, Group, Version, Plural, Name string) er
 	return err
 }
 
-// contivTelemetryReportValidation generates OpenAPIV3 validator for CrdExample CRD
-func contivTelemetryReportValidation() *apiextv1beta1.CustomResourceValidation {
+// telemetryReportValidation generates OpenAPIV3 validator for Telemetry CRD
+func telemetryReportValidation() *apiextv1beta1.CustomResourceValidation {
 	validation := &apiextv1beta1.CustomResourceValidation{
 		OpenAPIV3Schema: &apiextv1beta1.JSONSchemaProps{
 			Properties: map[string]apiextv1beta1.JSONSchemaProps{
@@ -280,7 +309,7 @@ func (cr *CRDReport) GenerateCRDReport() {
 	tc := cr.Ctlr
 
 	key := "default/default-telemetry"
-	namespace, name, err := cache.SplitMetaNamespaceKey(key)
+	namespace, name, err := k8sCache.SplitMetaNamespaceKey(key)
 	if err != nil {
 		runtime.HandleError(fmt.Errorf("invalid resource key: %s", key))
 		return
@@ -294,11 +323,11 @@ func (cr *CRDReport) GenerateCRDReport() {
 		cr.Log.Errorf("Could not get '%s' with namespace '%s', err: %v", name, namespace, errGet)
 
 		crdTelemetryReport = &v1.TelemetryReport{
-			ObjectMeta: meta_v1.ObjectMeta{
+			ObjectMeta: meta.ObjectMeta{
 				Name:      name,
 				Namespace: namespace,
 			},
-			TypeMeta: meta_v1.TypeMeta{
+			TypeMeta: meta.TypeMeta{
 				Kind:       "TelemetryReport",
 				APIVersion: v1.CRDGroupVersion,
 			},

@@ -16,28 +16,27 @@
 
 package telemetry
 
-// TelemetryHandler handler implements Handler interface,
-// print each event with JSON format
-type TelemetryHandler struct {
+// Handler handler implements Handler interface
+type Handler struct {
 }
 
 // Init initializes handler configuration
-// Do nothing for default handler
-func (th *TelemetryHandler) Init() error {
+// Do nothing for telemetry handler
+func (h *Handler) Init() error {
 	return nil
 }
 
 // ObjectCreated is called when a CRD object is created
-func (th *TelemetryHandler) ObjectCreated(obj interface{}) {
-
+func (h *Handler) ObjectCreated(obj interface{}) {
+	//fmt.Printf("Object created with value: %v", obj)
 }
 
 // ObjectDeleted is called when a CRD object is deleted
-func (th *TelemetryHandler) ObjectDeleted(obj interface{}) {
-
+func (h *Handler) ObjectDeleted(obj interface{}) {
+	//fmt.Printf("Object deleted with value: %v", obj)
 }
 
 // ObjectUpdated is called when a CRD object is updated
-func (th *TelemetryHandler) ObjectUpdated(oldObj, newObj interface{}) {
-
+func (h *Handler) ObjectUpdated(obj interface{}) {
+	//fmt.Printf("Object updated with value: %v", obj)
 }

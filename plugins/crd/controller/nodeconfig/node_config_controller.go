@@ -12,62 +12,57 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package controller
+package nodeconfig
 
 import (
 	"fmt"
-	"github.com/contiv/vagrant-vpp/plugins/crd/pkg/apis/contivtelemetry/v1"
+	"reflect"
 	"time"
 
-	"github.com/contiv/vpp/plugins/crd/handler"
-	"github.com/ligato/cn-infra/logging"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/util/workqueue"
-
-	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
-	k8sCache "k8s.io/client-go/tools/cache"
-
-	crdClientSet "github.com/contiv/vpp/plugins/crd/pkg/client/clientset/versioned"
-	nodeConfigInformers "github.com/contiv/vpp/plugins/crd/pkg/client/informers/externalversions/nodeconfig/v1"
-	telemetryInformers "github.com/contiv/vpp/plugins/crd/pkg/client/informers/externalversions/telemetry/v1"
-	nodeConfigListers "github.com/contiv/vpp/plugins/crd/pkg/client/listers/nodeconfig/v1"
-	telemetryListers "github.com/contiv/vpp/plugins/crd/pkg/client/listers/telemetry/v1"
 
 	apiextv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	apiextcs "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	meta "k8s.io/apimachinery/pkg/apis/meta/v1"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	k8sCache "k8s.io/client-go/tools/cache"
 
-	nodeConfig "github.com/contiv/vpp/plugins/crd/pkg/apis/nodeconfig/v1"
-	telemetry "github.com/contiv/vpp/plugins/crd/pkg/apis/telemetry/v1"
-	"k8s.io/apimachinery/pkg/util/runtime"
-	"k8s.io/client-go/tools/cache"
-	"reflect"
+	"github.com/contiv/vpp/plugins/crd/handler"
+	"github.com/contiv/vpp/plugins/crd/handler/nodeconfig"
+	"github.com/contiv/vpp/plugins/crd/pkg/apis/nodeconfig/v1"
+	"github.com/contiv/vpp/plugins/crd/utils"
+	"github.com/ligato/cn-infra/logging"
 
+	crdClientSet "github.com/contiv/vpp/plugins/crd/pkg/client/clientset/versioned"
 	factory "github.com/contiv/vpp/plugins/crd/pkg/client/informers/externalversions"
-
-	"github.com/contiv/vpp/plugins/crd/api"
+	informers "github.com/contiv/vpp/plugins/crd/pkg/client/informers/externalversions/nodeconfig/v1"
+	listers "github.com/contiv/vpp/plugins/crd/pkg/client/listers/nodeconfig/v1"
 )
 
-// TelemetryController struct defines how a controller should encapsulate
+const maxRetries = 5
+
+var serverStartTime time.Time
+
+// Controller struct defines how a controller should encapsulate
 // logging, client connectivity, informing (list and watching) queueing, and
 // handling of resource changes
-type NodeConfigController struct {
+type Controller struct {
 	Deps
+
+	K8sClient *kubernetes.Clientset
+	CrdClient *crdClientSet.Clientset
+	APIClient *apiextcs.Clientset
 
 	clientset kubernetes.Interface
 	queue     workqueue.RateLimitingInterface
-	// telemetry CRD specifics
-	telemetryInformer     telemetryInformers.TelemetryReportInformer
-	telemetryReportLister telemetryListers.TelemetryReportLister
-	//node configuration CRD specifics
-	nodeConfigInformer nodeConfigInformers.NodeConfigInformer
-	nodeConfigListers  nodeConfigListers.NodeConfigLister
-	// event handlers for different CRDs
-	eventHandler    handler.Handler
-	helperInterface interface{}
+	// NodeConfig CRD specifics
+	nodeConfigInformer informers.NodeConfigInformer
+	nodeConfigLister   listers.NodeConfigLister
+	// event handlers for NodeConfig CRDs
+	eventHandler handler.Handler
 }
 
 // Deps defines dependencies for the CRD plugin
@@ -75,151 +70,188 @@ type Deps struct {
 	Log logging.Logger
 }
 
-//CRDReport implements generation of reports to CRD
-type CRDReport struct {
-	Deps
-
-	Ctlr     *TelemetryController
-	VppCache api.VppCache
-	K8sCache api.K8sCache
-	Report   api.Report
+// Event indicate the informerEvent
+type Event struct {
+	key         string
+	eventType   string
+	resource    interface{}
+	oldResource interface{}
 }
 
-// Init performs the initialization of ContivTelemetryController
-func (tc *TelemetryController) Start() error {
+// Init performs the initialization of NodeConfig Controller
+func (c *Controller) Init() error {
 
-	var err error
-	var crdname string
+	var newEvent Event
 
-	crdname = reflect.TypeOf(telemetry.TelemetryReport{}).Name()
-	err = tc.createCRD(v1.CRDFullContivTelemetryReportsName,
+	c.Log.Info("NodeConfig-Controller: initializing...")
+
+	crdName := reflect.TypeOf(v1.NodeConfig{}).Name()
+	err := c.createCRD(v1.CRDFullContivNodeConfigName,
 		v1.CRDGroup,
 		v1.CRDGroupVersion,
-		v1.CRDContivTelemetryReportPlural,
-		crdname)
+		v1.CRDContivNodeConfigPlural,
+		crdName)
 
 	if err != nil {
-		tc.Log.Error("Error initializing CRD")
+		c.Log.Error("Error initializing CRD")
 		return err
 	}
 
-	sharedFactory := factory.NewSharedInformerFactory(tc.CrdClient, time.Second*30)
-
-	tc.telemetryInformer = sharedFactory.Telemetry().V1().TelemetryReports()
-	tc.telemetryReportLister = tc.telemetryInformer.Lister()
-
-	tc.nodeConfigInformer = sharedFactory.Nodeconfig().V1().NodeConfigs()
-	tc.nodeConfigListers = tc.nodeConfigInformer.Lister()
+	sharedFactory := factory.NewSharedInformerFactory(c.CrdClient, time.Second*30)
+	c.nodeConfigInformer = sharedFactory.Nodeconfig().V1().NodeConfigs()
+	c.nodeConfigLister = c.nodeConfigInformer.Lister()
 
 	// Create a new queue in that when the informer gets a resource from listing or watching,
 	// adding the identifying key to the queue for the handler
-	tc.queue = workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter())
+	c.queue = workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter())
 
-	tc.addInformers()
-
-	tc.eventHandler = &handler.Default{}
+	// Add event handlers to handle the three types of events for resources (add, update, delete)
+	c.nodeConfigInformer.Informer().AddEventHandler(k8sCache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj interface{}) {
+			newEvent.key, err = k8sCache.MetaNamespaceKeyFunc(obj)
+			newEvent.eventType = "create"
+			c.Log.Infof("Add NodeConfig resource with key: %s", newEvent.key)
+			if err == nil {
+				c.queue.Add(newEvent)
+			}
+		},
+		UpdateFunc: func(old, new interface{}) {
+			newEvent.key, err = k8sCache.MetaNamespaceKeyFunc(new)
+			newEvent.resource = new
+			newEvent.oldResource = old
+			newEvent.eventType = "update"
+			c.Log.Infof("Update Telemetry resource with key: %s", newEvent.key)
+			if err == nil {
+				c.queue.Add(newEvent)
+			}
+		},
+		DeleteFunc: func(obj interface{}) {
+			newEvent.key, err = k8sCache.DeletionHandlingMetaNamespaceKeyFunc(obj)
+			newEvent.eventType = "delete"
+			c.Log.Infof("Delete NodeConfig resource with key: %s", newEvent.key)
+			if err == nil {
+				c.queue.Add(newEvent)
+			}
+		},
+	})
+	c.eventHandler = &nodeconfig.Handler{}
 
 	return nil
 }
 
 // Run this in the plugin_crd_impl, it's the controller loop
-func (tc *TelemetryController) Run(ctx <-chan struct{}) {
+func (c *Controller) Run(ctx <-chan struct{}) {
 	// handle a panic with logging and exiting
 	defer utilruntime.HandleCrash()
 	// ignore new items and shutdown when done
-	defer tc.queue.ShutDown()
+	defer c.queue.ShutDown()
 
-	tc.Log.Info("Controller-Run: Initiating...")
+	c.Log.Info("NodeConfig-Controller: Starting...")
 
 	// runs the informer to list and watch on a goroutine
-	go tc.informer.Informer().Run(ctx)
+	go c.nodeConfigInformer.Informer().Run(ctx)
 
 	// populate resources one after synchronization
-	if !k8sCache.WaitForCacheSync(ctx, tc.HasSynced) {
+	if !k8sCache.WaitForCacheSync(ctx, c.HasSynced) {
 		utilruntime.HandleError(fmt.Errorf("Error syncing cache"))
 		return
 	}
-	tc.Log.Info("Controller.Run: cache sync complete")
+	c.Log.Info("Controller.Run: cache sync complete")
 
 	// runWorker method runs every second using a stop channel
-	wait.Until(tc.runWorker, time.Second, ctx)
+	wait.Until(c.runWorker, time.Second, ctx)
 }
 
 // HasSynced indicates when the controller is synced up with the K8s.
-func (tc *TelemetryController) HasSynced() bool {
-	return tc.informer.Informer().HasSynced()
+func (c *Controller) HasSynced() bool {
+	return c.nodeConfigInformer.Informer().HasSynced()
 }
 
 // runWorker processes new items in the queue
-func (tc *TelemetryController) runWorker() {
-	tc.Log.Info("Controller-runWorker: Starting..")
+func (c *Controller) runWorker() {
+	c.Log.Info("NodeConfig-Controller: Running..")
 
 	// invoke processNextItem to fetch and consume the next change
 	// to a watched or listed resource
-	for tc.processNextItem() {
-		tc.Log.Info("Controller-runWorker: processing next item...")
+	for c.processNextItem() {
+		c.Log.Info("NodeConfig-Controller-runWorker: processing next item...")
 	}
 
-	tc.Log.Info("Controller-runWorker: Completed")
+	c.Log.Info("NodeConfig-Controller-runWorker: Completed")
 }
 
 // processNextItem retrieves next queued item, acts accordingly for object CRUD
-func (tc *TelemetryController) processNextItem() bool {
-	tc.Log.Info("Controller.processNextItem: start")
-
+func (c *Controller) processNextItem() bool {
 	// get the next item (blocking) from the queue and process or
 	// quit if shutdown requested
-	key, quit := tc.queue.Get()
+	newEvent, quit := c.queue.Get()
 	if quit {
 		return false
 	}
-	defer tc.queue.Done(key)
+	defer c.queue.Done(newEvent)
 
-	// assert the string out of the key (format `namespace/name`)
-	keyRaw := key.(string)
-
-	// Get the string key and get the object out of the indexer.
-	// item is the object of the resource, it was created if exists = true
-	//
-	// on error retry the queue key given number of times (5 here)
-	// on failure forget the queue key and throw an error
-	item, exists, err := tc.informer.Informer().GetIndexer().GetByKey(keyRaw)
-	if err != nil {
-		if tc.queue.NumRequeues(key) < 5 {
-			tc.Log.Errorf("Controller.processNextItem: Failed processing item with key: %s, error: %v, retrying...", key, err)
-			tc.queue.AddRateLimited(key)
-		} else {
-			tc.Log.Errorf("Controller.processNextItem: Failed processing item with key: %s, error: %v, retrying...", key, err)
-			tc.queue.Forget(key)
-			utilruntime.HandleError(err)
-		}
-	}
-
-	// if item exists run the ObjectCreated method (item created or updated)
-	// if item does not exist run the ObjectDeleted method (item deleted)
-	//
-	// in every case forget the key from the queue
-	if exists {
-		tc.Log.Infof("Controller.processNextItem: object created detected: %s", keyRaw)
-		tc.eventHandler.ObjectCreated(item)
-		tc.queue.Forget(key)
+	err := c.processItem(newEvent.(Event))
+	if err == nil {
+		// If there is no error reset the rate limit counters
+		c.queue.Forget(newEvent)
+	} else if c.queue.NumRequeues(newEvent) < maxRetries {
+		c.Log.Errorf("Error processing %s (will retry): %v", newEvent.(Event).key, err)
+		c.queue.AddRateLimited(newEvent)
 	} else {
-		tc.Log.Infof("Controller.processNextItem: object deleted detected: %s", keyRaw)
-		tc.eventHandler.ObjectDeleted(item)
-		tc.queue.Forget(key)
+		// err != nil and too many retries
+		c.Log.Errorf("Error processing %s (giving up): %v", newEvent.(Event).key, err)
+		c.queue.Forget(newEvent)
+		utilruntime.HandleError(err)
 	}
 
 	// keep the worker loop running by returning true
 	return true
 }
 
+// processItem processes the next item from the queue and send the event update
+// to the node config event handler
+func (c *Controller) processItem(newEvent Event) error {
+	obj, _, err := c.nodeConfigInformer.Informer().GetIndexer().GetByKey(newEvent.key)
+	if err != nil {
+		return fmt.Errorf("Error fetching object with key %s from store: %v", newEvent.key, err)
+	}
+	// get object's metadata
+	objectMeta := utils.GetObjectMetaData(obj)
+
+	// process events based on its type
+	switch newEvent.eventType {
+	case "create":
+		// compare CreationTimestamp and serverStartTime and alert only on latest events
+		if objectMeta.CreationTimestamp.Sub(serverStartTime).Seconds() > 0 {
+			c.eventHandler.ObjectCreated(obj)
+			return nil
+		}
+	case "update":
+		updateEvent := Event{
+			key:         newEvent.key,
+			oldResource: newEvent.oldResource,
+			resource:    newEvent.resource,
+		}
+		c.eventHandler.ObjectUpdated(updateEvent)
+		return nil
+	case "delete":
+		deleteEvent := Event{
+			key: newEvent.key,
+		}
+		c.eventHandler.ObjectDeleted(deleteEvent)
+		return nil
+	}
+	return nil
+}
+
 // Create the CRD resource, ignore error if it already exists
-func (tc *ContivTelemetryController) createCRD(FullName, Group, Version, Plural, Name string) error {
+func (c *Controller) createCRD(FullName, Group, Version, Plural, Name string) error {
+	c.Log.Info("Creating NodeConfig CRD")
 
 	var validation *apiextv1beta1.CustomResourceValidation
 	switch Name {
-	case "TelemetryReport":
-		validation = contivTelemetryReportValidation()
+	case "NodeConfig":
+		validation = nodeConfigValidation()
 	default:
 		validation = &apiextv1beta1.CustomResourceValidation{}
 	}
@@ -236,16 +268,16 @@ func (tc *ContivTelemetryController) createCRD(FullName, Group, Version, Plural,
 			Validation: validation,
 		},
 	}
-	_, cserr := tc.APIClient.ApiextensionsV1beta1().CustomResourceDefinitions().Create(crd)
-	if apierrors.IsAlreadyExists(cserr) {
+	_, err := c.APIClient.ApiextensionsV1beta1().CustomResourceDefinitions().Create(crd)
+	if apierrors.IsAlreadyExists(err) {
 		return nil
 	}
 
-	return cserr
+	return err
 }
 
-// contivTelemetryReportValidation generates OpenAPIV3 validator for CrdExample CRD
-func contivTelemetryReportValidation() *apiextv1beta1.CustomResourceValidation {
+// nodeConfigValidation generates OpenAPIV3 validator for NodeConfig CRD
+func nodeConfigValidation() *apiextv1beta1.CustomResourceValidation {
 	validation := &apiextv1beta1.CustomResourceValidation{
 		OpenAPIV3Schema: &apiextv1beta1.JSONSchemaProps{
 			Properties: map[string]apiextv1beta1.JSONSchemaProps{
@@ -254,72 +286,4 @@ func contivTelemetryReportValidation() *apiextv1beta1.CustomResourceValidation {
 		},
 	}
 	return validation
-}
-
-//GenerateCRDReport updates the CRD status in Kubernetes with the current status from the sfc-controller
-func (cr *CRDReport) GenerateCRDReport() {
-	// Fetch crdContivTelemetry from K8s cache
-	// The name in sfc is the namespace/name, which is the "namespace key". Split it out.
-
-	ctc := cr.Ctlr
-
-	key := "default/default-telemetry"
-	namespace, name, err := cache.SplitMetaNamespaceKey(key)
-	if err != nil {
-		runtime.HandleError(fmt.Errorf("invalid resource key: %s", key))
-		return
-	}
-
-	var crdTelemetryReport *telemetry.TelemetryReport
-	shouldCreate := false
-
-	crdTelemetryReport, errGet := tc.telemetryReportLister.TelemetryReports(namespace).Get(name)
-	if errGet != nil {
-		tc.Log.Errorf("Could not get '%s' with namespace '%s', err: %v", name, namespace, errGet)
-
-		crdTelemetryReport = &telemetry.TelemetryReport{
-			ObjectMeta: meta_v1.ObjectMeta{
-				Name:      name,
-				Namespace: namespace,
-			},
-			TypeMeta: meta_v1.TypeMeta{
-				Kind:       "TelemetryReport",
-				APIVersion: v1.CRDGroupVersion,
-			},
-			Spec: telemetry.TelemetryReportSpec{
-				ReportPollingPeriodSeconds: 10,
-			},
-		}
-
-		shouldCreate = true
-	}
-
-	crdTelemetryReportCopy := crdTelemetryReport.DeepCopy()
-
-	for _, node := range cr.VppCache.RetrieveAllNodes() {
-		crdTelemetryReportCopy.Status.Nodes = append(crdTelemetryReportCopy.Status.Nodes, *node)
-	}
-
-	crdTelemetryReportCopy.Status.Reports = cr.Report.RetrieveReport().DeepCopy()
-
-	// Until #38113 is merged, we must use Update instead of UpdateStatus to
-	// update the Status block of the NetworkNode resource. UpdateStatus will not
-	// allow changes to the Spec of the resource, which is ideal for ensuring
-	// nothing other than resource status has been updated.
-
-	if shouldCreate {
-		tc.Log.Debug("Create '%s' namespace '%s, and value: %v", name, namespace, crdTelemetryReportCopy)
-		_, err = tc.CrdClient.TelemetryV1().TelemetryReports(namespace).Create(crdTelemetryReportCopy)
-		if err != nil {
-			tc.Log.Errorf("Could not create '%s'  err: %v, namespace '%s', and value: %v",
-				name, err, namespace, crdTelemetryReportCopy)
-		}
-	} else {
-		tc.Log.Debug("Update '%s' namespace '%s, and value: %v", name, namespace, crdTelemetryReportCopy)
-		_, err := tc.CrdClient.TelemetryV1().TelemetryReports(namespace).Update(crdTelemetryReportCopy)
-		if err != nil {
-			tc.Log.Errorf("Could not update '%s'  err: %v, namespace '%s', and value: %v",
-				name, err, namespace, crdTelemetryReportCopy)
-		}
-	}
 }

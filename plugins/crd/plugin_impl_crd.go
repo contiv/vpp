@@ -31,6 +31,7 @@ import (
 	"github.com/ligato/cn-infra/utils/safeclose"
 
 	nodeinfomodel "github.com/contiv/vpp/plugins/contiv/model/node"
+	"github.com/contiv/vpp/plugins/crd/controller/nodeconfig"
 	"github.com/contiv/vpp/plugins/crd/controller/telemetry"
 	crdClientSet "github.com/contiv/vpp/plugins/crd/pkg/client/clientset/versioned"
 	nodemodel "github.com/contiv/vpp/plugins/ksr/model/node"
@@ -63,9 +64,10 @@ type Plugin struct {
 	pendingResync  datasync.ResyncEvent
 	pendingChanges []datasync.ChangeEvent
 
-	telemetryController *telemetry.Controller
-	cache               *cache.ContivTelemetryCache
-	processor           api.ContivTelemetryProcessor
+	telemetryController  *telemetry.Controller
+	nodeConfigController *nodeconfig.Controller
+	cache                *cache.ContivTelemetryCache
+	processor            api.ContivTelemetryProcessor
 }
 
 // Deps defines dependencies of policy plugin.
@@ -154,9 +156,20 @@ func (p *Plugin) Init() error {
 	}
 	p.cache.ControllerReport = controllerReport
 
-	// Init and run the controller
+	p.nodeConfigController = &nodeconfig.Controller{
+		Deps: nodeconfig.Deps{
+			Log: p.Log.NewLogger("-nodeConfigController"),
+		},
+		K8sClient: k8sClient,
+		CrdClient: crdClient,
+		APIClient: apiclientset,
+	}
+	p.telemetryController.Log.SetLevel(logging.DebugLevel)
+
+	// Init and run the controllers
 	p.telemetryController.Init()
-	go p.telemetryController.Run(p.ctx.Done())
+	p.nodeConfigController.Init()
+
 	go p.watchEvents()
 	err = p.subscribeWatcher()
 	if err != nil {
@@ -174,6 +187,8 @@ func (p *Plugin) AfterInit() error {
 		reg := p.Resync.Register(string(p.PluginName))
 		go p.handleResync(reg.StatusChan())
 	}
+	go p.telemetryController.Run(p.ctx.Done())
+	go p.nodeConfigController.Run(p.ctx.Done())
 	return nil
 }
 

@@ -16,28 +16,28 @@
 
 package nodeconfig
 
-// NodeConfigHandler handler implements Handler interface,
-// print each event with JSON format
-type NodeConfigHandler struct {
+// Handler handler implements Handler interface,
+type Handler struct {
 }
 
 // Init initializes handler configuration
-// Do nothing for default handler
-func (nch *NodeConfigHandler) Init() error {
+// NodeConfig Handler will be taking action on resource CRUD
+func (h *Handler) Init() error {
 	return nil
 }
 
 // ObjectCreated is called when a CRD object is created
-func (nch *NodeConfigHandler) ObjectCreated(obj interface{}) {
-
+func (h *Handler) ObjectCreated(obj interface{}) {
+	//fmt.Printf("Object created with value: %v", obj)
 }
 
 // ObjectDeleted is called when a CRD object is deleted
-func (nch *NodeConfigHandler) ObjectDeleted(obj interface{}) {
+func (h *Handler) ObjectDeleted(obj interface{}) {
+	//fmt.Printf("Object deleted with value: %v", obj)
 
 }
 
 // ObjectUpdated is called when a CRD object is updated
-func (nch *NodeConfigHandler) ObjectUpdated(oldObj, newObj interface{}) {
-
+func (h *Handler) ObjectUpdated(obj interface{}) {
+	//fmt.Printf("Object updated with value: %v", obj)
 }

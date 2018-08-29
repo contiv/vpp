@@ -18,10 +18,10 @@ package fake
 
 import (
 	clientset "github.com/contiv/vpp/plugins/crd/pkg/client/clientset/versioned"
-	contivv1 "github.com/contiv/vpp/plugins/crd/pkg/client/clientset/versioned/typed/contivtelemetry/v1"
-	fakecontivv1 "github.com/contiv/vpp/plugins/crd/pkg/client/clientset/versioned/typed/contivtelemetry/v1/fake"
-	contivv1 "github.com/contiv/vpp/plugins/crd/pkg/client/clientset/versioned/typed/nodeconfig/v1"
-	fakecontivv1 "github.com/contiv/vpp/plugins/crd/pkg/client/clientset/versioned/typed/nodeconfig/v1/fake"
+	nodeconfigv1 "github.com/contiv/vpp/plugins/crd/pkg/client/clientset/versioned/typed/nodeconfig/v1"
+	fakenodeconfigv1 "github.com/contiv/vpp/plugins/crd/pkg/client/clientset/versioned/typed/nodeconfig/v1/fake"
+	telemetryv1 "github.com/contiv/vpp/plugins/crd/pkg/client/clientset/versioned/typed/telemetry/v1"
+	faketelemetryv1 "github.com/contiv/vpp/plugins/crd/pkg/client/clientset/versioned/typed/telemetry/v1/fake"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/discovery"
@@ -71,22 +71,22 @@ func (c *Clientset) Discovery() discovery.DiscoveryInterface {
 
 var _ clientset.Interface = &Clientset{}
 
-// ContivV1 retrieves the ContivV1Client
-func (c *Clientset) ContivV1() contivv1.ContivV1Interface {
-	return &fakecontivv1.FakeContivV1{Fake: &c.Fake}
+// NodeconfigV1 retrieves the NodeconfigV1Client
+func (c *Clientset) NodeconfigV1() nodeconfigv1.NodeconfigV1Interface {
+	return &fakenodeconfigv1.FakeNodeconfigV1{Fake: &c.Fake}
 }
 
-// Contiv retrieves the ContivV1Client
-func (c *Clientset) Contiv() contivv1.ContivV1Interface {
-	return &fakecontivv1.FakeContivV1{Fake: &c.Fake}
+// Nodeconfig retrieves the NodeconfigV1Client
+func (c *Clientset) Nodeconfig() nodeconfigv1.NodeconfigV1Interface {
+	return &fakenodeconfigv1.FakeNodeconfigV1{Fake: &c.Fake}
 }
 
-// ContivV1 retrieves the ContivV1Client
-func (c *Clientset) ContivV1() contivv1.ContivV1Interface {
-	return &fakecontivv1.FakeContivV1{Fake: &c.Fake}
+// TelemetryV1 retrieves the TelemetryV1Client
+func (c *Clientset) TelemetryV1() telemetryv1.TelemetryV1Interface {
+	return &faketelemetryv1.FakeTelemetryV1{Fake: &c.Fake}
 }
 
-// Contiv retrieves the ContivV1Client
-func (c *Clientset) Contiv() contivv1.ContivV1Interface {
-	return &fakecontivv1.FakeContivV1{Fake: &c.Fake}
+// Telemetry retrieves the TelemetryV1Client
+func (c *Clientset) Telemetry() telemetryv1.TelemetryV1Interface {
+	return &faketelemetryv1.FakeTelemetryV1{Fake: &c.Fake}
 }

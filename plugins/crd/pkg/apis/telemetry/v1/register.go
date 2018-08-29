@@ -15,7 +15,7 @@
 package v1
 
 import (
-	"github.com/contiv/vpp/plugins/crd/pkg/apis/contivtelemetry"
+	"github.com/contiv/vpp/plugins/crd/pkg/apis/telemetry"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -23,7 +23,7 @@ import (
 
 var (
 	// SchemeGroupVersion defines the group version
-	SchemeGroupVersion = schema.GroupVersion{Group: contivtelemetry.GroupName, Version: "v1"}
+	SchemeGroupVersion = schema.GroupVersion{Group: telemetry.GroupName, Version: "v1"}
 	// SchemeBuilder is the schema builder for the CRD API
 	SchemeBuilder = runtime.NewSchemeBuilder(addKnownTypes)
 	// AddToScheme is...
@@ -40,7 +40,7 @@ func Resource(resource string) schema.GroupResource {
 	return SchemeGroupVersion.WithResource(resource).GroupResource()
 }
 
-// Adds the list of known types to Scheme.
+// Adds the list of known types to API Scheme.
 func addKnownTypes(scheme *runtime.Scheme) error {
 	scheme.AddKnownTypes(SchemeGroupVersion,
 		&TelemetryReport{},

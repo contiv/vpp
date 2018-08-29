@@ -20,6 +20,7 @@ import (
 	"fmt"
 
 	v1 "github.com/contiv/vpp/plugins/crd/pkg/apis/nodeconfig/v1"
+	telemetryv1 "github.com/contiv/vpp/plugins/crd/pkg/apis/telemetry/v1"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	cache "k8s.io/client-go/tools/cache"
 )
@@ -50,17 +51,13 @@ func (f *genericInformer) Lister() cache.GenericLister {
 // TODO extend this to unknown resources with a client pool
 func (f *sharedInformerFactory) ForResource(resource schema.GroupVersionResource) (GenericInformer, error) {
 	switch resource {
-	// Group=contiv.vpp, Version=v1
+	// Group=nodeconfig.contiv.vpp, Version=v1
 	case v1.SchemeGroupVersion.WithResource("nodeconfigs"):
-		return &genericInformer{resource: resource.GroupResource(), informer: f.Contiv().V1().NodeConfigs().Informer()}, nil
-	case v1.SchemeGroupVersion.WithResource("telemetryreports"):
-		return &genericInformer{resource: resource.GroupResource(), informer: f.Contiv().V1().TelemetryReports().Informer()}, nil
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Nodeconfig().V1().NodeConfigs().Informer()}, nil
 
-		// Group=contiv.vpp, Version=v1
-	case v1.SchemeGroupVersion.WithResource("nodeconfigs"):
-		return &genericInformer{resource: resource.GroupResource(), informer: f.Contiv().V1().NodeConfigs().Informer()}, nil
-	case v1.SchemeGroupVersion.WithResource("telemetryreports"):
-		return &genericInformer{resource: resource.GroupResource(), informer: f.Contiv().V1().TelemetryReports().Informer()}, nil
+		// Group=telemetry.contiv.vpp, Version=v1
+	case telemetryv1.SchemeGroupVersion.WithResource("telemetryreports"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Telemetry().V1().TelemetryReports().Informer()}, nil
 
 	}
 

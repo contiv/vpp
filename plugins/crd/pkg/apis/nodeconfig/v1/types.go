@@ -16,12 +16,13 @@ package v1
 
 import (
 	"github.com/contiv/vpp/plugins/contiv"
+	"github.com/contiv/vpp/plugins/crd/pkg/apis/nodeconfig"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // CRD Constants
 const (
-	CRDGroup                    string = "contiv.vpp"
+	CRDGroup                    string = nodeconfig.GroupName
 	CRDGroupVersion             string = "v1"
 	CRDContivNodeConfigPlural   string = "nodeconfigs"
 	CRDFullContivNodeConfigName string = CRDContivNodeConfigPlural + "." + CRDGroup

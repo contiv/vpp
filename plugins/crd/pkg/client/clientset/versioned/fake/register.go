@@ -17,7 +17,8 @@
 package fake
 
 import (
-	contivv1 "github.com/contiv/vpp/plugins/crd/pkg/apis/nodeconfig/v1"
+	nodeconfigv1 "github.com/contiv/vpp/plugins/crd/pkg/apis/nodeconfig/v1"
+	telemetryv1 "github.com/contiv/vpp/plugins/crd/pkg/apis/telemetry/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
@@ -48,6 +49,6 @@ func init() {
 // After this, RawExtensions in Kubernetes types will serialize kube-aggregator types
 // correctly.
 func AddToScheme(scheme *runtime.Scheme) {
-	contivv1.AddToScheme(scheme)
-	contivv1.AddToScheme(scheme)
+	nodeconfigv1.AddToScheme(scheme)
+	telemetryv1.AddToScheme(scheme)
 }

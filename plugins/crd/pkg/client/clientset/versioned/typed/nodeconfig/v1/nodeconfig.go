@@ -52,7 +52,7 @@ type nodeConfigs struct {
 }
 
 // newNodeConfigs returns a NodeConfigs
-func newNodeConfigs(c *ContivV1Client, namespace string) *nodeConfigs {
+func newNodeConfigs(c *NodeconfigV1Client, namespace string) *nodeConfigs {
 	return &nodeConfigs{
 		client: c.RESTClient(),
 		ns:     namespace,

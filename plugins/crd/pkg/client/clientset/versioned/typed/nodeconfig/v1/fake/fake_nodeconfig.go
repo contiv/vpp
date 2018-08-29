@@ -28,13 +28,13 @@ import (
 
 // FakeNodeConfigs implements NodeConfigInterface
 type FakeNodeConfigs struct {
-	Fake *FakeContivV1
+	Fake *FakeNodeconfigV1
 	ns   string
 }
 
-var nodeconfigsResource = schema.GroupVersionResource{Group: "contiv.vpp", Version: "v1", Resource: "nodeconfigs"}
+var nodeconfigsResource = schema.GroupVersionResource{Group: "nodeconfig.contiv.vpp", Version: "v1", Resource: "nodeconfigs"}
 
-var nodeconfigsKind = schema.GroupVersionKind{Group: "contiv.vpp", Version: "v1", Kind: "NodeConfig"}
+var nodeconfigsKind = schema.GroupVersionKind{Group: "nodeconfig.contiv.vpp", Version: "v1", Kind: "NodeConfig"}
 
 // Get takes name of the nodeConfig, and returns the corresponding nodeConfig object, and an error if there is any.
 func (c *FakeNodeConfigs) Get(name string, options v1.GetOptions) (result *nodeconfigv1.NodeConfig, err error) {

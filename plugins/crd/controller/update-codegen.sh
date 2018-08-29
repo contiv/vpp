@@ -25,7 +25,7 @@ CODEGEN_PKG=${CODEGEN_PKG:-$(cd ${SCRIPT_ROOT}; ls -d -1 ./vendor/k8s.io/code-ge
 ${CODEGEN_PKG}/generate-groups.sh "deepcopy,client,informer,lister" \
   github.com/contiv/vpp/plugins/crd/pkg/client \
   github.com/contiv/vpp/plugins/crd/pkg/apis \
-  "contivtelemetry:v1 nodeconfig:v1" \
+  "telemetry:v1 nodeconfig:v1" \
   --go-header-file ${SCRIPT_ROOT}/plugins/crd/controller/custom-boilerplate.go.txt
 
 # generate controller plugin model deepcopy

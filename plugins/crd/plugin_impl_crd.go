@@ -63,7 +63,7 @@ type Plugin struct {
 	pendingResync  datasync.ResyncEvent
 	pendingChanges []datasync.ChangeEvent
 
-	controller *controller.ContivTelemetryController
+	controller *controller.ContivCRDController
 	cache      *cache.ContivTelemetryCache
 	processor  api.ContivTelemetryProcessor
 }
@@ -110,7 +110,7 @@ func (p *Plugin) Init() error {
 		return fmt.Errorf("failed to build api Client: %s", err)
 	}
 
-	p.controller = &controller.ContivTelemetryController{
+	p.controller = &controller.ContivCRDController{
 		Deps: controller.Deps{
 			Log: p.Log.NewLogger("-crdController"),
 		},
@@ -143,20 +143,8 @@ func (p *Plugin) Init() error {
 	}
 	p.cache.Processor = p.processor
 
-	controllerReport := &controller.CRDReport{
-		Deps: controller.Deps{
-			Log: p.Log.NewLogger("-controllerReporter"),
-		},
-		VppCache: p.cache.VppCache,
-		K8sCache: p.cache.K8sCache,
-		Report:   p.cache.Report,
-		Ctlr:     p.controller,
-	}
-	p.cache.ControllerReport = controllerReport
-
 	// Init and run the controller
-	p.controller.Init()
-	go p.controller.Run(p.ctx.Done())
+
 	go p.watchEvents()
 	err = p.subscribeWatcher()
 	if err != nil {

@@ -17,22 +17,22 @@
 package fake
 
 import (
-	v1 "github.com/contiv/vpp/plugins/crd/pkg/client/clientset/versioned/typed/nodeconfig/v1"
+	v1 "github.com/contiv/vpp/plugins/crd/pkg/client/clientset/versioned/typed/telemetry/v1"
 	rest "k8s.io/client-go/rest"
 	testing "k8s.io/client-go/testing"
 )
 
-type FakeNodeconfigV1 struct {
+type FakeTelemetryV1 struct {
 	*testing.Fake
 }
 
-func (c *FakeNodeconfigV1) NodeConfigs(namespace string) v1.NodeConfigInterface {
-	return &FakeNodeConfigs{c, namespace}
+func (c *FakeTelemetryV1) TelemetryReports(namespace string) v1.TelemetryReportInterface {
+	return &FakeTelemetryReports{c, namespace}
 }
 
 // RESTClient returns a RESTClient that is used to communicate
 // with API server by this client implementation.
-func (c *FakeNodeconfigV1) RESTClient() rest.Interface {
+func (c *FakeTelemetryV1) RESTClient() rest.Interface {
 	var ret *rest.RESTClient
 	return ret
 }

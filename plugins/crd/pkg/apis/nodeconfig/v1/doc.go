@@ -13,7 +13,7 @@
 // limitations under the License.
 
 // +k8s:deepcopy-gen=package
-// +groupName=contiv.vpp
+// +groupName=nodeconfig.contiv.vpp
 
 package v1
 

@@ -59,13 +59,13 @@ func NewFilteredNodeConfigInformer(client versioned.Interface, namespace string,
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.ContivV1().NodeConfigs(namespace).List(options)
+				return client.NodeconfigV1().NodeConfigs(namespace).List(options)
 			},
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.ContivV1().NodeConfigs(namespace).Watch(options)
+				return client.NodeconfigV1().NodeConfigs(namespace).Watch(options)
 			},
 		},
 		&nodeconfigv1.NodeConfig{},

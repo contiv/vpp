@@ -23,22 +23,22 @@ import (
 	rest "k8s.io/client-go/rest"
 )
 
-type ContivV1Interface interface {
+type NodeconfigV1Interface interface {
 	RESTClient() rest.Interface
 	NodeConfigsGetter
 }
 
-// ContivV1Client is used to interact with features provided by the contiv.vpp group.
-type ContivV1Client struct {
+// NodeconfigV1Client is used to interact with features provided by the nodeconfig.contiv.vpp group.
+type NodeconfigV1Client struct {
 	restClient rest.Interface
 }
 
-func (c *ContivV1Client) NodeConfigs(namespace string) NodeConfigInterface {
+func (c *NodeconfigV1Client) NodeConfigs(namespace string) NodeConfigInterface {
 	return newNodeConfigs(c, namespace)
 }
 
-// NewForConfig creates a new ContivV1Client for the given config.
-func NewForConfig(c *rest.Config) (*ContivV1Client, error) {
+// NewForConfig creates a new NodeconfigV1Client for the given config.
+func NewForConfig(c *rest.Config) (*NodeconfigV1Client, error) {
 	config := *c
 	if err := setConfigDefaults(&config); err != nil {
 		return nil, err
@@ -47,12 +47,12 @@ func NewForConfig(c *rest.Config) (*ContivV1Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &ContivV1Client{client}, nil
+	return &NodeconfigV1Client{client}, nil
 }
 
-// NewForConfigOrDie creates a new ContivV1Client for the given config and
+// NewForConfigOrDie creates a new NodeconfigV1Client for the given config and
 // panics if there is an error in the config.
-func NewForConfigOrDie(c *rest.Config) *ContivV1Client {
+func NewForConfigOrDie(c *rest.Config) *NodeconfigV1Client {
 	client, err := NewForConfig(c)
 	if err != nil {
 		panic(err)
@@ -60,9 +60,9 @@ func NewForConfigOrDie(c *rest.Config) *ContivV1Client {
 	return client
 }
 
-// New creates a new ContivV1Client for the given RESTClient.
-func New(c rest.Interface) *ContivV1Client {
-	return &ContivV1Client{c}
+// New creates a new NodeconfigV1Client for the given RESTClient.
+func New(c rest.Interface) *NodeconfigV1Client {
+	return &NodeconfigV1Client{c}
 }
 
 func setConfigDefaults(config *rest.Config) error {
@@ -80,7 +80,7 @@ func setConfigDefaults(config *rest.Config) error {
 
 // RESTClient returns a RESTClient that is used to communicate
 // with API server by this client implementation.
-func (c *ContivV1Client) RESTClient() rest.Interface {
+func (c *NodeconfigV1Client) RESTClient() rest.Interface {
 	if c == nil {
 		return nil
 	}

@@ -16,5 +16,5 @@ package nodeconfig
 
 const (
 	// GroupName defines the CRD group name for the contiv telemetry CRD
-	GroupName = "contiv.vpp"
+	GroupName = "nodeconfig.contiv.vpp"
 )

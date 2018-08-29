@@ -17,28 +17,28 @@
 package v1
 
 import (
-	v1 "github.com/contiv/vpp/plugins/crd/pkg/apis/nodeconfig/v1"
+	v1 "github.com/contiv/vpp/plugins/crd/pkg/apis/telemetry/v1"
 	"github.com/contiv/vpp/plugins/crd/pkg/client/clientset/versioned/scheme"
 	serializer "k8s.io/apimachinery/pkg/runtime/serializer"
 	rest "k8s.io/client-go/rest"
 )
 
-type ContivV1Interface interface {
+type TelemetryV1Interface interface {
 	RESTClient() rest.Interface
-	NodeConfigsGetter
+	TelemetryReportsGetter
 }
 
-// ContivV1Client is used to interact with features provided by the contiv.vpp group.
-type ContivV1Client struct {
+// TelemetryV1Client is used to interact with features provided by the telemetry.contiv.vpp group.
+type TelemetryV1Client struct {
 	restClient rest.Interface
 }
 
-func (c *ContivV1Client) NodeConfigs(namespace string) NodeConfigInterface {
-	return newNodeConfigs(c, namespace)
+func (c *TelemetryV1Client) TelemetryReports(namespace string) TelemetryReportInterface {
+	return newTelemetryReports(c, namespace)
 }
 
-// NewForConfig creates a new ContivV1Client for the given config.
-func NewForConfig(c *rest.Config) (*ContivV1Client, error) {
+// NewForConfig creates a new TelemetryV1Client for the given config.
+func NewForConfig(c *rest.Config) (*TelemetryV1Client, error) {
 	config := *c
 	if err := setConfigDefaults(&config); err != nil {
 		return nil, err
@@ -47,12 +47,12 @@ func NewForConfig(c *rest.Config) (*ContivV1Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &ContivV1Client{client}, nil
+	return &TelemetryV1Client{client}, nil
 }
 
-// NewForConfigOrDie creates a new ContivV1Client for the given config and
+// NewForConfigOrDie creates a new TelemetryV1Client for the given config and
 // panics if there is an error in the config.
-func NewForConfigOrDie(c *rest.Config) *ContivV1Client {
+func NewForConfigOrDie(c *rest.Config) *TelemetryV1Client {
 	client, err := NewForConfig(c)
 	if err != nil {
 		panic(err)
@@ -60,9 +60,9 @@ func NewForConfigOrDie(c *rest.Config) *ContivV1Client {
 	return client
 }
 
-// New creates a new ContivV1Client for the given RESTClient.
-func New(c rest.Interface) *ContivV1Client {
-	return &ContivV1Client{c}
+// New creates a new TelemetryV1Client for the given RESTClient.
+func New(c rest.Interface) *TelemetryV1Client {
+	return &TelemetryV1Client{c}
 }
 
 func setConfigDefaults(config *rest.Config) error {
@@ -80,7 +80,7 @@ func setConfigDefaults(config *rest.Config) error {
 
 // RESTClient returns a RESTClient that is used to communicate
 // with API server by this client implementation.
-func (c *ContivV1Client) RESTClient() rest.Interface {
+func (c *TelemetryV1Client) RESTClient() rest.Interface {
 	if c == nil {
 		return nil
 	}

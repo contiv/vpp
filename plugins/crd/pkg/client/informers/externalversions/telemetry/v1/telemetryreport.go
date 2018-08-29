@@ -19,10 +19,10 @@ package v1
 import (
 	time "time"
 
-	contivtelemetryv1 "github.com/contiv/vpp/plugins/crd/pkg/apis/contivtelemetry/v1"
+	telemetryv1 "github.com/contiv/vpp/plugins/crd/pkg/apis/telemetry/v1"
 	versioned "github.com/contiv/vpp/plugins/crd/pkg/client/clientset/versioned"
 	internalinterfaces "github.com/contiv/vpp/plugins/crd/pkg/client/informers/externalversions/internalinterfaces"
-	v1 "github.com/contiv/vpp/plugins/crd/pkg/client/listers/contivtelemetry/v1"
+	v1 "github.com/contiv/vpp/plugins/crd/pkg/client/listers/telemetry/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -59,16 +59,16 @@ func NewFilteredTelemetryReportInformer(client versioned.Interface, namespace st
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.ContivV1().TelemetryReports(namespace).List(options)
+				return client.TelemetryV1().TelemetryReports(namespace).List(options)
 			},
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.ContivV1().TelemetryReports(namespace).Watch(options)
+				return client.TelemetryV1().TelemetryReports(namespace).Watch(options)
 			},
 		},
-		&contivtelemetryv1.TelemetryReport{},
+		&telemetryv1.TelemetryReport{},
 		resyncPeriod,
 		indexers,
 	)
@@ -79,7 +79,7 @@ func (f *telemetryReportInformer) defaultInformer(client versioned.Interface, re
 }
 
 func (f *telemetryReportInformer) Informer() cache.SharedIndexInformer {
-	return f.factory.InformerFor(&contivtelemetryv1.TelemetryReport{}, f.defaultInformer)
+	return f.factory.InformerFor(&telemetryv1.TelemetryReport{}, f.defaultInformer)
 }
 
 func (f *telemetryReportInformer) Lister() v1.TelemetryReportLister {

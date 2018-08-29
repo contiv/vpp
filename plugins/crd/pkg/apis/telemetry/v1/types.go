@@ -16,12 +16,13 @@ package v1
 
 import (
 	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
+	"github.com/contiv/vpp/plugins/crd/pkg/apis/telemetry"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // CRD Constants
 const (
-	CRDGroup                          string = "contiv.vpp"
+	CRDGroup                          string = telemetry.GroupName
 	CRDGroupVersion                   string = "v1"
 	CRDContivTelemetryReportPlural    string = "telemetryreports"
 	CRDFullContivTelemetryReportsName string = CRDContivTelemetryReportPlural + "." + CRDGroup

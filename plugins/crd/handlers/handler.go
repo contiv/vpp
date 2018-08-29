@@ -14,6 +14,11 @@
 
 package handler
 
+import (
+	"github.com/contiv/vpp/plugins/crd/handlers/nodeconfig"
+	"github.com/contiv/vpp/plugins/crd/handlers/telemetry"
+)
+
 // Handler is implemented by any handler.
 // The Handle method is used to process an event
 type Handler interface {
@@ -27,6 +32,13 @@ type Handler interface {
 	ObjectUpdated(oldObj, newObj interface{})
 }
 
+// Map maps each event handler function to a name for easily lookup
+var Map = map[string]interface{}{
+	"default":    &Default{},
+	"telemetry":  &telemetry.TelemetryHandler{},
+	"nodeConfig": &nodeconfig.NodeConfigHandler{},
+}
+
 // Default handler implements Handler interface,
 // print each event with JSON format
 type Default struct {
@@ -38,17 +50,14 @@ func (d *Default) Init() error {
 	return nil
 }
 
-// ObjectCreated is called when a CRD object is created
 func (d *Default) ObjectCreated(obj interface{}) {
 
 }
 
-// ObjectDeleted is called when a CRD object is deleted
 func (d *Default) ObjectDeleted(obj interface{}) {
 
 }
 
-// ObjectUpdated is called when a CRD object is updated
 func (d *Default) ObjectUpdated(oldObj, newObj interface{}) {
 
 }

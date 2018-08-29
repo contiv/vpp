@@ -19,8 +19,8 @@ import (
 	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
 	"github.com/pkg/errors"
 	"sort"
-	"sync"
 	"strings"
+	"sync"
 )
 
 //VppDataStore holds various maps which all take different keys but point to the same underlying value.
@@ -48,7 +48,7 @@ func (vds *VppDataStore) CreateNode(ID uint32, nodeName, IPAddr, ManIPAdr string
 	n.PodMap = make(map[string]*telemetrymodel.Pod)
 	vds.NodeMap[nodeName] = n
 
-	ipa :=  strings.Split(IPAddr, "/")
+	ipa := strings.Split(IPAddr, "/")
 	vds.GigEIPMap[ipa[0]] = n
 
 	return nil

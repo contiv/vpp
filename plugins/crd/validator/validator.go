@@ -289,7 +289,7 @@ validateNodeBD:
 					errCnt++
 					errString := fmt.Sprintf("no matching vxlan_tunnel found on remote node %s for vxlan %s",
 						dstipNode.Name, nodeIfc.If.Name)
-					v.Report.AppendToNodeReport(node.Name, errString)
+ 					  v.Report.AppendToNodeReport(node.Name, errString)
 				}
 				i++
 

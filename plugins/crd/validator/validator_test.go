@@ -347,6 +347,15 @@ func (v *validatorTestVars) findFirstVxlanInterface(nodeKey string) (int, *telem
 	return -1, nil
 }
 
+func (v *validatorTestVars) findFirstVxlanInterface(nodeKey string) (int, *telemetrymodel.NodeInterface) {
+	for k, ifc := range v.vppCache.NodeMap[nodeKey].NodeInterfaces {
+		if ifc.If.IfType == interfaces.InterfaceType_VXLAN_TUNNEL {
+			return k, &ifc
+		}
+	}
+	return -1, nil
+}
+
 /*
 func testNodesDBValidateLoopIFAddresses(t *testing.T) {
 	resetToInitialErrorFreeState()

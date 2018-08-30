@@ -22,8 +22,8 @@ import (
 	"github.com/ligato/cn-infra/datasync/kvdbsync"
 	"github.com/ligato/cn-infra/logging"
 
-	"github.com/contiv/vpp/plugins/crd/pkg/apis/nodeconfig/v1"
 	"github.com/contiv/vpp/plugins/crd/handler/nodeconfig/model"
+	"github.com/contiv/vpp/plugins/crd/pkg/apis/nodeconfig/v1"
 )
 
 // Handler handler implements Handler interface,

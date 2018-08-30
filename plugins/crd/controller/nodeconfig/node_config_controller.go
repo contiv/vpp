@@ -34,8 +34,8 @@ import (
 	"github.com/contiv/vpp/plugins/crd/handler/nodeconfig"
 	"github.com/contiv/vpp/plugins/crd/pkg/apis/nodeconfig/v1"
 	"github.com/contiv/vpp/plugins/crd/utils"
-	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/datasync/kvdbsync"
+	"github.com/ligato/cn-infra/logging"
 
 	crdClientSet "github.com/contiv/vpp/plugins/crd/pkg/client/clientset/versioned"
 	factory "github.com/contiv/vpp/plugins/crd/pkg/client/informers/externalversions"

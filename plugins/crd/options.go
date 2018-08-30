@@ -18,8 +18,8 @@ import (
 	"os"
 
 	"github.com/ligato/cn-infra/config"
-	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/datasync/resync"
+	"github.com/ligato/cn-infra/logging"
 )
 
 const (

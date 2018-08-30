@@ -77,7 +77,7 @@ type Deps struct {
 	// Kubeconfig with k8s cluster address and access credentials to use.
 	KubeConfig config.PluginConfig
 
-	Resync  resync.Subscriber
+	Resync resync.Subscriber
 
 	/* both Publish and Watcher are prefixed for KSR-published K8s state data */
 	Watcher datasync.KeyValProtoWatcher

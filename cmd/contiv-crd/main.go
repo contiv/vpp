@@ -51,22 +51,17 @@ func (c *ContivCRD) Close() error {
 }
 
 func main() {
-
 	ksrServicelabel := servicelabel.NewPlugin(servicelabel.UseLabel(ksr.MicroserviceLabel))
 	ksrServicelabel.SetName("ksrServiceLabel")
 
-	newKSRprefixSync := func(name string) *kvdbsync.Plugin {
-		return kvdbsync.NewPlugin(
-			kvdbsync.UseDeps(func(deps *kvdbsync.Deps) {
-				deps.KvPlugin = &etcd.DefaultPlugin
-				deps.ServiceLabel = ksrServicelabel
-				deps.SetName(name)
-			}))
-	}
-	crdDataSync := newKSRprefixSync("crdDataSync")
+	ksrDataSync := kvdbsync.NewPlugin(kvdbsync.UseDeps(func(deps *kvdbsync.Deps) {
+		deps.KvPlugin = &etcd.DefaultPlugin
+		deps.ServiceLabel = ksrServicelabel
+		deps.SetName("ksrDataSync")
+	}))
 
-	crd.DefaultPlugin.Watcher = crdDataSync
-	crd.DefaultPlugin.Resync = &resync.DefaultPlugin
+	crd.DefaultPlugin.Watcher = ksrDataSync
+	crd.DefaultPlugin.Publish = ksrDataSync
 
 	ContivCRD := &ContivCRD{
 		CRD: &crd.DefaultPlugin,

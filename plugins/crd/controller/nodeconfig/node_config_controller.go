@@ -34,6 +34,7 @@ import (
 	"github.com/contiv/vpp/plugins/crd/handler/nodeconfig"
 	"github.com/contiv/vpp/plugins/crd/pkg/apis/nodeconfig/v1"
 	"github.com/contiv/vpp/plugins/crd/utils"
+	"github.com/ligato/cn-infra/datasync/kvdbsync"
 	"github.com/ligato/cn-infra/logging"
 
 	crdClientSet "github.com/contiv/vpp/plugins/crd/pkg/client/clientset/versioned"
@@ -67,7 +68,8 @@ type Controller struct {
 
 // Deps defines dependencies for the CRD plugin
 type Deps struct {
-	Log logging.Logger
+	Log     logging.Logger
+	Publish *kvdbsync.Plugin // KeyProtoValWriter does not define Delete
 }
 
 // Event indicate the informerEvent
@@ -110,6 +112,7 @@ func (c *Controller) Init() error {
 		AddFunc: func(obj interface{}) {
 			newEvent.key, err = k8sCache.MetaNamespaceKeyFunc(obj)
 			newEvent.eventType = "create"
+			newEvent.resource = obj
 			c.Log.Infof("Add NodeConfig resource with key: %s", newEvent.key)
 			if err == nil {
 				c.queue.Add(newEvent)
@@ -120,7 +123,7 @@ func (c *Controller) Init() error {
 			newEvent.resource = new
 			newEvent.oldResource = old
 			newEvent.eventType = "update"
-			c.Log.Infof("Update Telemetry resource with key: %s", newEvent.key)
+			c.Log.Infof("Update NodeConfig resource with key: %s", newEvent.key)
 			if err == nil {
 				c.queue.Add(newEvent)
 			}
@@ -128,13 +131,19 @@ func (c *Controller) Init() error {
 		DeleteFunc: func(obj interface{}) {
 			newEvent.key, err = k8sCache.DeletionHandlingMetaNamespaceKeyFunc(obj)
 			newEvent.eventType = "delete"
+			newEvent.resource = obj
 			c.Log.Infof("Delete NodeConfig resource with key: %s", newEvent.key)
 			if err == nil {
 				c.queue.Add(newEvent)
 			}
 		},
 	})
-	c.eventHandler = &nodeconfig.Handler{}
+	c.eventHandler = &nodeconfig.Handler{
+		Deps: nodeconfig.Deps{
+			Log:     c.Log,
+			Publish: c.Publish,
+		},
+	}
 
 	return nil
 }
@@ -210,35 +219,23 @@ func (c *Controller) processNextItem() bool {
 
 // processItem processes the next item from the queue and send the event update
 // to the node config event handler
-func (c *Controller) processItem(newEvent Event) error {
-	obj, _, err := c.nodeConfigInformer.Informer().GetIndexer().GetByKey(newEvent.key)
-	if err != nil {
-		return fmt.Errorf("Error fetching object with key %s from store: %v", newEvent.key, err)
-	}
-	// get object's metadata
-	objectMeta := utils.GetObjectMetaData(obj)
+func (c *Controller) processItem(event Event) error {
 
 	// process events based on its type
-	switch newEvent.eventType {
+	switch event.eventType {
 	case "create":
+		// get object's metadata
+		objectMeta := utils.GetObjectMetaData(event.resource)
 		// compare CreationTimestamp and serverStartTime and alert only on latest events
 		if objectMeta.CreationTimestamp.Sub(serverStartTime).Seconds() > 0 {
-			c.eventHandler.ObjectCreated(obj)
+			c.eventHandler.ObjectCreated(event.resource)
 			return nil
 		}
 	case "update":
-		updateEvent := Event{
-			key:         newEvent.key,
-			oldResource: newEvent.oldResource,
-			resource:    newEvent.resource,
-		}
-		c.eventHandler.ObjectUpdated(updateEvent)
+		c.eventHandler.ObjectUpdated(event.resource)
 		return nil
 	case "delete":
-		deleteEvent := Event{
-			key: newEvent.key,
-		}
-		c.eventHandler.ObjectDeleted(deleteEvent)
+		c.eventHandler.ObjectDeleted(event.resource)
 		return nil
 	}
 	return nil

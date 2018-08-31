@@ -110,6 +110,7 @@ func TestValidator(t *testing.T) {
 	t.Run("testK8sNodeToNodeInfoMissingNiValidation", testK8sNodeToNodeInfoMissingNiValidation)
 	t.Run("testK8sNodeToNodeInfoMissingK8snValidation", testK8sNodeToNodeInfoMissingK8snValidation)
 	t.Run("testNodesDBValidateL2Connections", testNodesDBValidateL2Connections)
+	t.Run("testValidateL2FibEntries", testValidateL2FibEntries)
 	// t.Run("testNodesDBValidateLoopIFAddresses", testNodesDBValidateLoopIFAddresses)
 	// t.Run("testCacheValidateFibEntries", testCacheValidateFibEntries)
 
@@ -353,6 +354,71 @@ func testNodesDBValidateL2Connections(t *testing.T) {
 
 	// Restore data back to error free state
 	resetToInitialErrorFreeState()
+}
+
+func testValidateL2FibEntries(t *testing.T) {
+	nodeKey := "k8s-master"
+	resetToInitialErrorFreeState()
+
+	// -------------------------------------------
+	// INJECT FAULT: Wrong number of L2Fub entries
+	node, err := vtv.processor.VppCache.RetrieveNode(nodeKey)
+	gomega.Expect(err).To(gomega.BeNil())
+	bogusFibKey := "90:87:65:43:21"
+	node.NodeL2Fibs[bogusFibKey] = telemetrymodel.NodeL2FibEntry{
+		Fe: telemetrymodel.L2FibEntry{
+			BridgeDomainName:        "vxlanBD",
+			OutgoingIfName:          "vxlan10",
+			PhysAddress:             bogusFibKey,
+			StaticConfig:            true,
+			BridgedVirtualInterface: false,
+		},
+		FeMeta: telemetrymodel.L2FibEntryMeta{
+			BridgeDomainID:  1,
+			OutgoingIfIndex: 100,
+		},
+	}
+
+	// Perform test
+	vtv.report.Clear()
+	vtv.processor.ValidateL2FibEntries()
+
+	gomega.Expect(len(vtv.report.Data[api.GlobalMsg])).To(gomega.Equal(1))
+	gomega.Expect(len(vtv.report.Data[nodeKey])).To(gomega.Equal(2))
+
+	// Restore data back to error free state
+	delete(node.NodeL2Fibs, bogusFibKey)
+
+	// ------------------------------------
+	// INJECT FAULT: Missing loop interface
+	node, err = vtv.processor.VppCache.RetrieveNode(nodeKey)
+	gomega.Expect(err).To(gomega.BeNil())
+	for k, ifc := range node.NodeInterfaces {
+		if ifc.IfMeta.VppInternalName == "loop0" {
+			ifc.IfMeta.VppInternalName = "bogusName"
+			node.NodeInterfaces[k] = ifc
+			break
+		}
+	}
+
+	// Perform test
+	vtv.report.Clear()
+	vtv.processor.ValidateL2FibEntries()
+
+	gomega.Expect(len(vtv.report.Data[api.GlobalMsg])).To(gomega.Equal(1))
+	for _, n := range vtv.vppCache.RetrieveAllNodes() {
+		gomega.Expect(len(vtv.report.Data[n.Name])).To(gomega.Equal(2))
+	}
+
+	// Restore data back to error free state
+	for k, ifc := range node.NodeInterfaces {
+		if ifc.IfMeta.VppInternalName == "bogusName" {
+			ifc.IfMeta.VppInternalName = "loop0"
+			node.NodeInterfaces[k] = ifc
+			break
+		}
+	}
+
 }
 
 func (v *validatorTestVars) findFirstVxlanInterface(nodeKey string) (int, *telemetrymodel.NodeInterface) {

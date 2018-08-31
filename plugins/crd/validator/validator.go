@@ -350,6 +350,7 @@ validateNodeBD:
 // ValidateL2FibEntries will validate that each nodes fib entries ip address
 // point to the right loop interface and the mac addresses match
 func (v *Validator) ValidateL2FibEntries() {
+	errCnt := 0
 	nodeList := v.VppCache.RetrieveAllNodes()
 
 	nodemap := make(map[string]bool)
@@ -363,16 +364,20 @@ func (v *Validator) ValidateL2FibEntries() {
 			nodeFibMap[n.Name] = true
 		}
 
-		fibHasLoopIF := false
 		if len(node.NodeL2Fibs) != len(nodeList) {
-			errString := fmt.Sprintf("incorrect number of L2 fib entries: %d for node %+v: expecting %d",
-				len(node.NodeL2Fibs), node.Name, len(nodeList))
+			errCnt++
+			errString := fmt.Sprintf("incorrect number of L2 fib entries: have %d, expecting %d",
+				len(node.NodeL2Fibs), len(nodeList))
 			v.Report.AppendToNodeReport(node.Name, errString)
-			continue
+			// continue
 		}
+
+		fibHasLoopIF := false
 		loopIf, err := datastore.GetNodeLoopIFInfo(node)
 		if err != nil {
-			v.Report.AppendToNodeReport(node.Name, err.Error())
+			errCnt++
+			errString := fmt.Sprintf("loop interface not found, skipping L2 FIB validation")
+			v.Report.AppendToNodeReport(node.Name, errString)
 			continue
 		}
 
@@ -387,6 +392,7 @@ func (v *Validator) ValidateL2FibEntries() {
 
 		for _, fib := range node.NodeL2Fibs {
 			if int(fib.FeMeta.BridgeDomainID) != vxLanBD {
+				// skip over entries in other BDs
 				continue
 			}
 
@@ -396,16 +402,26 @@ func (v *Validator) ValidateL2FibEntries() {
 				if n, err := v.VppCache.RetrieveNodeByLoopMacAddr(fib.Fe.PhysAddress); err == nil {
 					delete(nodeFibMap, n.Name)
 				} else {
-					v.Report.LogErrAndAppendToNodeReport(node.Name,
-						fmt.Sprintf("validator internal error: inconsistent MadAddress index, MAC %s",
-							fib.Fe.PhysAddress))
+					errCnt++
+					errString := fmt.Sprintf("validator internal error: inconsistent MadAddress index, MAC %s",
+						fib.Fe.PhysAddress)
+					v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
 				}
 				continue
 			}
 
-			intf := node.NodeInterfaces[int(fib.FeMeta.OutgoingIfIndex)]
+			intf, ok := node.NodeInterfaces[int(fib.FeMeta.OutgoingIfIndex)]
+			if !ok {
+				errCnt++
+				errString := fmt.Sprintf("interface for L2 fib entry '%s' not found; ifName %s, ifIndex %d",
+					fib.Fe.PhysAddress, fib.Fe.OutgoingIfName, fib.FeMeta.OutgoingIfIndex)
+				v.Report.AppendToNodeReport(node.Name, errString)
+				continue
+
+			}
 			macNode, err := v.VppCache.RetrieveNodeByGigEIPAddr(intf.If.Vxlan.DstAddress)
 			if err != nil {
+				errCnt++
 				errString := fmt.Sprintf("gigE IP address %s does not exist in gigEIPMap",
 					intf.If.Vxlan.DstAddress)
 				v.Report.AppendToNodeReport(node.Name, errString)
@@ -414,7 +430,10 @@ func (v *Validator) ValidateL2FibEntries() {
 
 			remoteLoopIF, err := datastore.GetNodeLoopIFInfo(macNode)
 			if err != nil {
-				v.Report.AppendToNodeReport(node.Name, err.Error())
+				errCnt++
+				errString := fmt.Sprintf("invalid L2 fib entry '%s':missing loop interface on remote node %s",
+					fib.Fe.PhysAddress, macNode.Name)
+				v.Report.AppendToNodeReport(node.Name, errString)
 				continue
 			}
 
@@ -423,19 +442,22 @@ func (v *Validator) ValidateL2FibEntries() {
 					delete(nodeFibMap, n.Name)
 					fibEntryCount++
 				} else {
+					errCnt++
 					v.Report.AppendToNodeReport(node.Name,
 						fmt.Sprintf("validator internal error: inconsistent MAC Address index, MAC %s",
 							fib.Fe.PhysAddress))
 				}
 				continue
 			} else {
+				errCnt++
 				errString := fmt.Sprintf("fib MAC %+v is different than actual MAC "+
 					"%+v", fib.Fe.PhysAddress, remoteLoopIF.If.PhysAddress)
 				v.Report.AppendToNodeReport(node.Name, errString)
 			}
 
 			if len(nodeFibMap) > 0 {
-				errString := fmt.Sprintf("missing Fib entries for node %+v", node.Name)
+				errCnt++
+				errString := fmt.Sprintf("missing Fib entries for node %s", node.Name)
 				v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
 				for node := range nodeFibMap {
 					v.Report.AppendToNodeReport(node, node)
@@ -444,15 +466,17 @@ func (v *Validator) ValidateL2FibEntries() {
 		}
 
 		if !fibHasLoopIF {
-			errString := fmt.Sprintf("Fib for node %+v loop interface missing",
+			errCnt++
+			errString := fmt.Sprintf("fib for node %s loop interface missing",
 				node.Name)
 			v.Report.AppendToNodeReport(node.Name, errString)
 			continue
 		}
 
 		if fibEntryCount != len(nodeList) {
-			errString := fmt.Sprintf("Unequal amount of fib entries for node %+v",
-				node.Name)
+			errCnt++
+			errString := fmt.Sprintf("unexpected number of valid L2 fib entries: have %d, expecting %d",
+				fibEntryCount, len(nodeList))
 			v.Report.AppendToNodeReport(node.Name, errString)
 		}
 		delete(nodemap, node.Name)
@@ -460,18 +484,24 @@ func (v *Validator) ValidateL2FibEntries() {
 
 	if len(nodemap) > 0 {
 		for node := range nodemap {
+			errCnt++
 			errString := fmt.Sprintf("Error processing fib for node %s", node)
 			v.Report.AppendToNodeReport(node, errString)
 		}
 
-	} else {
-		v.Report.AppendToNodeReport(api.GlobalMsg, "Success validating Fib entries")
 	}
 
+	if errCnt == 0 {
+		v.Report.AppendToNodeReport(api.GlobalMsg, "L2 Fib validation: OK")
+	} else {
+		v.Report.AppendToNodeReport(api.GlobalMsg,
+			fmt.Sprintf("L2 Fib validation: %d errors found", errCnt))
+	}
 }
 
-//ValidateK8sNodeInfo will make sure that the cache has the same amount of k8s and etcd nodes and that each node has an
-//equal opposite node.
+// ValidateK8sNodeInfo will make sure that the cache has the same number
+// of k8s nodes and etcd nodes and that each node in one database has a
+// counterpart node in the other database.
 func (v *Validator) ValidateK8sNodeInfo() {
 	nodeList := v.VppCache.RetrieveAllNodes()
 

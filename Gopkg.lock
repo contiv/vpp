@@ -781,8 +781,7 @@
     "plugins/vpp/srplugin/vppcalls",
   ]
   pruneopts = "UT"
-  revision = "ca4d99264d286e4724c2120d8d8db813dd2c3a8b"
-  source = "github.com/lukasmacko/vpp-agent"
+  revision = "e405d107888acdc4d3b0767d43e7e92b6fb955d1"
 
 [[projects]]
   branch = "master"

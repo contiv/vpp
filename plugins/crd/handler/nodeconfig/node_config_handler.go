@@ -69,9 +69,9 @@ func (h *Handler) ObjectDeleted(obj interface{}) {
 }
 
 // ObjectUpdated is called when a CRD object is updated
-func (h *Handler) ObjectUpdated(obj interface{}) {
-	h.Log.Debugf("Object updated with value: %v", obj)
-	nodeConfig, ok := obj.(*v1.NodeConfig)
+func (h *Handler) ObjectUpdated(oldObj, newObj interface{}) {
+	h.Log.Debugf("Object updated with value: %v", newObj)
+	nodeConfig, ok := newObj.(*v1.NodeConfig)
 	if !ok {
 		h.Log.Warn("Failed to cast updated node-config object")
 		return

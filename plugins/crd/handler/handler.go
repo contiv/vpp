@@ -29,7 +29,7 @@ type Handler interface {
 	//
 	ObjectDeleted(obj interface{})
 	//
-	ObjectUpdated(obj interface{})
+	ObjectUpdated(oldObj, newObj interface{})
 }
 
 // Map maps each event handler function to a name for easily lookup
@@ -58,5 +58,5 @@ func (d *Default) ObjectDeleted(obj interface{}) {
 }
 
 // ObjectUpdated is called when a CRD object is updated
-func (d *Default) ObjectUpdated(obj interface{}) {
+func (d *Default) ObjectUpdated(oldObj, newObj interface{}) {
 }

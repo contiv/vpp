@@ -361,7 +361,7 @@ func testValidateL2FibEntries(t *testing.T) {
 	resetToInitialErrorFreeState()
 
 	// -------------------------------------------
-	// INJECT FAULT: Wrong number of L2Fub entries
+	// INJECT FAULT: Wrong number of L2Fib entries
 	node, err := vtv.processor.VppCache.RetrieveNode(nodeKey)
 	gomega.Expect(err).To(gomega.BeNil())
 	bogusFibKey := "90:87:65:43:21"
@@ -389,8 +389,8 @@ func testValidateL2FibEntries(t *testing.T) {
 	// Restore data back to error free state
 	delete(node.NodeL2Fibs, bogusFibKey)
 
-	// ------------------------------------
-	// INJECT FAULT: Missing loop interface
+	// ------------------------------------------------
+	// INJECT FAULT: Missing loop interface on the node
 	node, err = vtv.processor.VppCache.RetrieveNode(nodeKey)
 	gomega.Expect(err).To(gomega.BeNil())
 	for k, ifc := range node.NodeInterfaces {
@@ -419,6 +419,31 @@ func testValidateL2FibEntries(t *testing.T) {
 		}
 	}
 
+	// ------------------------------------------------
+	// INJECT FAULT: Missing loop interface L2Fib entry
+	node, err = vtv.processor.VppCache.RetrieveNode(nodeKey)
+	gomega.Expect(err).To(gomega.BeNil())
+
+	var key string
+	var fibEntry telemetrymodel.NodeL2FibEntry
+	for key, fibEntry = range node.NodeL2Fibs {
+		if fibEntry.Fe.BridgedVirtualInterface {
+			delete(node.NodeL2Fibs, key)
+			break
+		}
+	}
+
+	// Perform test
+	vtv.report.Clear()
+	vtv.processor.ValidateL2FibEntries()
+
+	gomega.Expect(len(vtv.report.Data[api.GlobalMsg])).To(gomega.Equal(1))
+	//for _, n := range vtv.vppCache.RetrieveAllNodes() {
+	//	gomega.Expect(len(vtv.report.Data[n.Name])).To(gomega.Equal(2))
+	//}
+
+	// Restore data back to error free state
+	node.NodeL2Fibs[key] = fibEntry
 }
 
 func (v *validatorTestVars) findFirstVxlanInterface(nodeKey string) (int, *telemetrymodel.NodeInterface) {

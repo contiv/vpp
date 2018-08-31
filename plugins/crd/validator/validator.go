@@ -467,8 +467,7 @@ func (v *Validator) ValidateL2FibEntries() {
 
 		if !fibHasLoopIF {
 			errCnt++
-			errString := fmt.Sprintf("fib for node %s loop interface missing",
-				node.Name)
+			errString := fmt.Sprintf("loop interface missing in L2 fib")
 			v.Report.AppendToNodeReport(node.Name, errString)
 			continue
 		}

@@ -131,7 +131,6 @@ var brokenAuthHeaderProviders = []string{
 	"https://multisport.todaysplan.com.au/rest/oauth/access_token",
 	"https://whats.todaysplan.com.au/rest/oauth/access_token",
 	"https://stackoverflow.com/oauth/access_token",
-	"https://account.health.nokia.com",
 }
 
 // brokenAuthHeaderDomains lists broken providers that issue dynamic endpoints.

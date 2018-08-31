@@ -176,15 +176,11 @@ func (v *Validator) validateVrf1PodRoutes(node telemetrymodel.Node, vrfMap map[u
 			routeMap[podIfIProute.Ipr.DstAddr] = false
 		}
 
-		_, ok = routeMap[lookUpRoute.Ipr.DstAddr]
-
-		if !ok {
+		_, ok = routeMap[lookUpRoute.Ipr.DstAddr]; if !ok {
 			routeMap[lookUpRoute.Ipr.DstAddr] = true
 		}
 
-		_, ok = routeMap[podIfIProute.Ipr.DstAddr]
-
-		if !ok {
+		_, ok = routeMap[podIfIProute.Ipr.DstAddr]; if !ok {
 			routeMap[podIfIProute.Ipr.DstAddr] = true
 		}
 

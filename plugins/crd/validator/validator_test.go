@@ -374,7 +374,7 @@ func testValidateL2FibEntries(t *testing.T) {
 			BridgedVirtualInterface: false,
 		},
 		FeMeta: telemetrymodel.L2FibEntryMeta{
-			BridgeDomainID: 1,
+			BridgeDomainID:  1,
 			OutgoingIfIndex: 100,
 		},
 	}

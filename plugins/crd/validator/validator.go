@@ -403,9 +403,9 @@ func (v *Validator) ValidateL2FibEntries() {
 					delete(nodeFibMap, n.Name)
 				} else {
 					errCnt++
-					v.Report.LogErrAndAppendToNodeReport(node.Name,
-						fmt.Sprintf("validator internal error: inconsistent MadAddress index, MAC %s",
-							fib.Fe.PhysAddress))
+					errString := fmt.Sprintf("validator internal error: inconsistent MadAddress index, MAC %s",
+						fib.Fe.PhysAddress)
+					v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
 				}
 				continue
 			}
@@ -414,7 +414,7 @@ func (v *Validator) ValidateL2FibEntries() {
 			if !ok {
 				errCnt++
 				errString := fmt.Sprintf("interface for L2 fib entry '%s' not found; ifName %s, ifIndex %d",
-				fib.Fe.PhysAddress, fib.Fe.OutgoingIfName, fib.FeMeta.OutgoingIfIndex)
+					fib.Fe.PhysAddress, fib.Fe.OutgoingIfName, fib.FeMeta.OutgoingIfIndex)
 				v.Report.AppendToNodeReport(node.Name, errString)
 				continue
 
@@ -434,7 +434,6 @@ func (v *Validator) ValidateL2FibEntries() {
 				errString := fmt.Sprintf("invalid L2 fib entry '%s':missing loop interface on remote node %s",
 					fib.Fe.PhysAddress, macNode.Name)
 				v.Report.AppendToNodeReport(node.Name, errString)
-
 				continue
 			}
 

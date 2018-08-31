@@ -18,6 +18,7 @@ import (
 	"os"
 
 	"github.com/ligato/cn-infra/config"
+	"github.com/ligato/cn-infra/datasync/resync"
 	"github.com/ligato/cn-infra/logging"
 )
 
@@ -37,6 +38,7 @@ func NewPlugin(opts ...Option) *Plugin {
 	p := &Plugin{}
 
 	p.PluginName = "crd"
+	p.Resync = &resync.DefaultPlugin
 	for _, o := range opts {
 		o(p)
 	}

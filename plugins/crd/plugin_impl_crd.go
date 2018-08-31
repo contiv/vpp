@@ -25,6 +25,7 @@ import (
 	"github.com/contiv/vpp/plugins/crd/validator"
 	"github.com/ligato/cn-infra/config"
 	"github.com/ligato/cn-infra/datasync"
+	"github.com/ligato/cn-infra/datasync/kvdbsync"
 	"github.com/ligato/cn-infra/datasync/resync"
 	"github.com/ligato/cn-infra/infra"
 	"github.com/ligato/cn-infra/logging"
@@ -76,8 +77,11 @@ type Deps struct {
 	// Kubeconfig with k8s cluster address and access credentials to use.
 	KubeConfig config.PluginConfig
 
-	Resync  resync.Subscriber
-	Watcher datasync.KeyValProtoWatcher /* prefixed for KSR-published K8s state data */
+	Resync resync.Subscriber
+
+	/* both Publish and Watcher are prefixed for KSR-published K8s state data */
+	Watcher datasync.KeyValProtoWatcher
+	Publish *kvdbsync.Plugin // KeyProtoValWriter does not define Delete
 }
 
 // Init initializes policy layers and caches and starts watching contiv-etcd for K8s configuration.
@@ -158,7 +162,8 @@ func (p *Plugin) Init() error {
 
 	p.nodeConfigController = &nodeconfig.Controller{
 		Deps: nodeconfig.Deps{
-			Log: p.Log.NewLogger("-nodeConfigController"),
+			Log:     p.Log.NewLogger("-nodeConfigController"),
+			Publish: p.Publish,
 		},
 		K8sClient: k8sClient,
 		CrdClient: crdClient,

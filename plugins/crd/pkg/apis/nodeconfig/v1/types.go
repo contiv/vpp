@@ -40,9 +40,20 @@ type NodeConfig struct {
 	Status NodeConfigStatus `json:"status,omitempty"`
 }
 
-// NodeConfigSpec is the spec for the contiv node configuration  resource
+// InterfaceConfig encapsulates configuration for single interface.
+type InterfaceConfig struct {
+	InterfaceName string `json:"interfaceName"`
+	IP            string `json:"ip,omitempty"`
+	UseDHCP       bool   `json:"useDHCP,omitempty"`
+}
+
+// NodeConfigSpec is the spec for the contiv node configuration resource.
 type NodeConfigSpec struct {
-	//OneNodeConfig *contiv.OneNodeConfig
+	MainVPPInterface   InterfaceConfig   `json:"mainVPPInterface,omitempty"`   // main VPP interface used for the inter-node connectivity
+	OtherVPPInterfaces []InterfaceConfig `json:"otherVPPInterfaces,omitempty"` // other interfaces on VPP, not necessarily used for inter-node connectivity
+	StealInterface     string            `json:"stealInterface,omitempty"`     // interface to be stolen from the host stack and bound to VPP
+	Gateway            string            `json:"gateway,omitempty"`            // IP address of the default gateway
+	NatExternalTraffic bool              `json:"natExternalTraffic,omitempty"` // whether to NAT external traffic or not
 }
 
 // NodeConfigList is a list of node configuration resource

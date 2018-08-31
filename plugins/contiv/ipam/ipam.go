@@ -64,6 +64,8 @@ type IPAM struct {
 	excludededIPfromNodeIPrange []uint32 // IPs from the NodeInterconnect CIDR that should not be assigned
 
 	lastAssigned int // counter denoting last assigned IP address
+
+	config *Config // ipam configuration
 }
 
 type uintIP = uint32
@@ -91,6 +93,7 @@ func New(logger logging.Logger, nodeID uint32, nodeName string, config *Config, 
 		lastAssigned: 1,
 		broker:       broker,
 		nodeName:     nodeName,
+		config:       config,
 	}
 
 	// computing IPAM struct variables from IPAM config

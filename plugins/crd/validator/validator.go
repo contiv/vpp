@@ -872,38 +872,38 @@ func (v *Validator) ValidateL3() {
 		}
 
 		//validate local route to host
-		localRoute,ok := vrfMap[0][node.ManIPAddr+"/32"]
+		localRoute, ok := vrfMap[0][node.ManIPAddr+"/32"]
 		if !ok {
-			errString := fmt.Sprintf("missing route with dst IP %s for node %s",node.ManIPAddr+"/32",node.Name)
-			v.Report.LogErrAndAppendToNodeReport(node.Name,errString)
+			errString := fmt.Sprintf("missing route with dst IP %s for node %s", node.ManIPAddr+"/32", node.Name)
+			v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
 			numErrs++
 		}
 
 		tapIntf := node.NodeInterfaces[int(localRoute.IprMeta.OutgoingIfIdx)]
-		if tapIntf.IfMeta.Tag!="tap-vpp2" {
+		if tapIntf.IfMeta.Tag != "tap-vpp2" {
 			errString := fmt.Sprintf("node %s interface with idx %d from route with ip %s does not match tag tap-vpp2 instead is %s",
-				node.Name,localRoute.IprMeta.OutgoingIfIdx,localRoute.Ipr.DstAddr,tapIntf.IfMeta.Tag)
-			v.Report.LogErrAndAppendToNodeReport(node.Name,errString)
+				node.Name, localRoute.IprMeta.OutgoingIfIdx, localRoute.Ipr.DstAddr, tapIntf.IfMeta.Tag)
+			v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
 			numErrs++
 
 		}
-		if tapIntf.IfMeta.SwIfIndex!= localRoute.IprMeta.OutgoingIfIdx{
+		if tapIntf.IfMeta.SwIfIndex != localRoute.IprMeta.OutgoingIfIdx {
 			errString := fmt.Sprintf("tap interface index %d dot not match route outgoing index %d",
-				tapIntf.IfMeta.SwIfIndex,localRoute.IprMeta.OutgoingIfIdx)
-			v.Report.LogErrAndAppendToNodeReport(node.Name,errString)
+				tapIntf.IfMeta.SwIfIndex, localRoute.IprMeta.OutgoingIfIdx)
+			v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
 			numErrs++
 			//err mismatch indexes
 		}
 		if localRoute.Ipr.NextHopAddr == "" {
 			errString := fmt.Sprintf("local route with dst ip %s is missing a next hop ip", localRoute.Ipr.DstAddr)
-			v.Report.LogErrAndAppendToNodeReport(node.Name,errString)
+			v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
 			numErrs++
 		}
 
 		defaultRoute, ok := vrfMap[1]["0.0.0.0/0"]
 		if !ok {
-			errString := fmt.Sprintf("default route 0.0.0.0/0 missing for node %s",node.Name)
-			v.Report.LogErrAndAppendToNodeReport(node.Name,errString)
+			errString := fmt.Sprintf("default route 0.0.0.0/0 missing for node %s", node.Name)
+			v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
 			numErrs++
 			//err default route is missing
 		}
@@ -911,7 +911,7 @@ func (v *Validator) ValidateL3() {
 		if defaultRoute.IprMeta.OutgoingIfIdx != 0 {
 			errString := fmt.Sprintf("expeceted default route 0.0.0.0/0 to have outgoing interface index of 0, got %d",
 				defaultRoute.IprMeta.OutgoingIfIdx)
-			v.Report.LogErrAndAppendToNodeReport(node.Name,errString)
+			v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
 			numErrs++
 			//err index does not match vrf 0 index - mismatch
 		}
@@ -921,7 +921,6 @@ func (v *Validator) ValidateL3() {
 			if othNode.Name == node.Name {
 				continue
 			}
-
 
 			podNwIP := othNode.NodeIPam.PodNetwork
 			route, ok := vrfMap[1][podNwIP]
@@ -970,17 +969,18 @@ func (v *Validator) ValidateL3() {
 			vrf0ToRemoteRoute, ok := vrfMap[0][othNode.ManIPAddr+"/32"]
 			if !ok {
 				errString := fmt.Sprintf("could not find route to node %s with ip %s from vrf0",
-					othNode.Name,othNode.ManIPAddr+"/32")
-				v.Report.LogErrAndAppendToNodeReport(node.Name,errString)
+					othNode.Name, othNode.ManIPAddr+"/32")
+				v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
 				//err
 				numErrs++
 			}
+			//
 			if vrf0ToRemoteRoute.Ipr.DstAddr != othNode.ManIPAddr+"/32" {
 				errString := fmt.Sprintf("vrf0 to remote route dst ip %s is different than node %s man ip %s",
-					vrf0ToRemoteRoute.Ipr.DstAddr, node.Name,node.ManIPAddr)
-				v.Report.LogErrAndAppendToNodeReport(node.Name,errString)
-			//err wrong dest.
-			numErrs++
+					vrf0ToRemoteRoute.Ipr.DstAddr, node.Name, node.ManIPAddr)
+				v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
+				//err wrong dest.
+				numErrs++
 			}
 			if vrf0ToRemoteRoute.Ipr.ViaVRFID != 1 {
 				//err expected id of via vrf to be 1
@@ -997,9 +997,9 @@ func (v *Validator) ValidateL3() {
 	}
 	if numErrs == 0 {
 		v.Report.AppendToNodeReport(api.GlobalMsg, "success validating l3 info.")
-	}else {
-		errString := fmt.Sprintf("%d Errors in L3 validation...",numErrs)
-		v.Report.AppendToNodeReport(api.GlobalMsg,errString)
+	} else {
+		errString := fmt.Sprintf("%d Errors in L3 validation...", numErrs)
+		v.Report.AppendToNodeReport(api.GlobalMsg, errString)
 	}
 
 }

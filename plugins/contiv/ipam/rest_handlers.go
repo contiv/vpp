@@ -27,12 +27,25 @@ const (
 	PluginURL = Prefix + "ipam"
 )
 
+type config struct {
+	PodIfIPCIDR             string `json:"podIfIPCIDR"`
+	PodSubnetCIDR           string `json:"podSubnetCIRDR"`
+	PodNetworkPrefixLen     uint8  `json:"podNetworkPrefixLen"`
+	VPPHostSubnetCIDR       string `json:"vppHostSubnetCIDR"`
+	VPPHostNetworkPrefixLen uint8  `json:"vppHostNetworkPrefixLen"`
+	NodeInterconnectCIDR    string `json:"nodeInterconnectCIDR"`
+	NodeInterconnectDHCP    bool   `json:"nodeInterconnectDHCP"`
+	VxlanCIDR               string `json:"vxlanCIDR"`
+	ServiceCIDR             string `json:"serviceCIDR"`
+}
+
 type ipamData struct {
-	NodeID         uint32 `json:"nodeId"`
-	NodeName       string `json:"nodeName"`
-	NodeIP         string `json:"nodeIP"`
-	PodNetwork     string `json:"podNetwork"`
-	VppHostNetwork string `json:"vppHostNetwork"`
+	NodeID         uint32  `json:"nodeId"`
+	NodeName       string  `json:"nodeName"`
+	NodeIP         string  `json:"nodeIP"`
+	PodNetwork     string  `json:"podNetwork"`
+	VppHostNetwork string  `json:"vppHostNetwork"`
+	Config         *config `json:"config"`
 }
 
 func (i *IPAM) registerHandlers(http rest.HTTPHandlers) {
@@ -61,6 +74,17 @@ func (i *IPAM) ipamGetHandler(formatter *render.Render) http.HandlerFunc {
 			NodeIP:         nodeIP.String(),
 			PodNetwork:     i.PodNetwork().String(),
 			VppHostNetwork: i.VPPHostNetwork().String(),
+			Config: &config{
+				PodIfIPCIDR:             i.config.PodIfIPCIDR,
+				PodSubnetCIDR:           i.config.PodSubnetCIDR,
+				PodNetworkPrefixLen:     i.config.PodNetworkPrefixLen,
+				VPPHostSubnetCIDR:       i.config.VPPHostSubnetCIDR,
+				VPPHostNetworkPrefixLen: i.config.VPPHostNetworkPrefixLen,
+				NodeInterconnectCIDR:    i.config.NodeInterconnectCIDR,
+				NodeInterconnectDHCP:    i.config.NodeInterconnectDHCP,
+				VxlanCIDR:               i.config.VxlanCIDR,
+				ServiceCIDR:             i.config.ServiceCIDR,
+			},
 		})
 	}
 }

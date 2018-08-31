@@ -66,7 +66,7 @@ func (v *Validator) ValidateL3() {
 		numErrs += v.validateVrf0GigERoutes(*node, vrfMap, routeMap)
 
 		//function to validate vrf 0 local routes, errors found are added to total error count.
-		numErrs += v.validateVrf0LocalRoute(*node, vrfMap, routeMap)
+		numErrs += v.validateVrf0LocalHostRoute(*node, vrfMap, routeMap)
 
 		//function to validate vrf 1 default route, errors found are added to total error count
 		numErrs += v.validateVrf1DefaultRoute(*node, vrfMap, routeMap)
@@ -353,7 +353,7 @@ func (v *Validator) validateRemoteNodeRoutes(node telemetrymodel.Node, vrfMap ma
 	return numErrs
 }
 
-func (v *Validator) validateVrf0LocalRoute(node telemetrymodel.Node, vrfMap map[uint32]Vrf, routeMap map[string]bool) int {
+func (v *Validator) validateVrf0LocalHostRoute(node telemetrymodel.Node, vrfMap map[uint32]Vrf, routeMap map[string]bool) int {
 	//validate local route to host and that the interface is correct
 	numErrs := 0
 	localRoute, ok := vrfMap[0][node.ManIPAddr+"/32"]

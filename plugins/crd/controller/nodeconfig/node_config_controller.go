@@ -53,7 +53,6 @@ var serverStartTime time.Time
 type Controller struct {
 	Deps
 
-	K8sClient *kubernetes.Clientset
 	CrdClient *crdClientSet.Clientset
 	APIClient *apiextcs.Clientset
 
@@ -83,7 +82,7 @@ type Event struct {
 // Init performs the initialization of NodeConfig Controller
 func (c *Controller) Init() error {
 
-	var newEvent Event
+	var event Event
 
 	c.Log.Info("NodeConfig-Controller: initializing...")
 
@@ -110,31 +109,31 @@ func (c *Controller) Init() error {
 	// Add event handlers to handle the three types of events for resources (add, update, delete)
 	c.nodeConfigInformer.Informer().AddEventHandler(k8sCache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
-			newEvent.key, err = k8sCache.MetaNamespaceKeyFunc(obj)
-			newEvent.eventType = "create"
-			newEvent.resource = obj
-			c.Log.Infof("Add NodeConfig resource with key: %s", newEvent.key)
+			event.key, err = k8sCache.MetaNamespaceKeyFunc(obj)
+			event.eventType = "create"
+			event.resource = obj
+			c.Log.Infof("Add NodeConfig resource with key: %s", event.key)
 			if err == nil {
-				c.queue.Add(newEvent)
+				c.queue.Add(event)
 			}
 		},
-		UpdateFunc: func(old, new interface{}) {
-			newEvent.key, err = k8sCache.MetaNamespaceKeyFunc(new)
-			newEvent.resource = new
-			newEvent.oldResource = old
-			newEvent.eventType = "update"
-			c.Log.Infof("Update NodeConfig resource with key: %s", newEvent.key)
+		UpdateFunc: func(oldObj, newObj interface{}) {
+			event.key, err = k8sCache.MetaNamespaceKeyFunc(newObj)
+			event.resource = newObj
+			event.oldResource = oldObj
+			event.eventType = "update"
+			c.Log.Infof("Update NodeConfig resource with key: %s", event.key)
 			if err == nil {
-				c.queue.Add(newEvent)
+				c.queue.Add(event)
 			}
 		},
 		DeleteFunc: func(obj interface{}) {
-			newEvent.key, err = k8sCache.DeletionHandlingMetaNamespaceKeyFunc(obj)
-			newEvent.eventType = "delete"
-			newEvent.resource = obj
-			c.Log.Infof("Delete NodeConfig resource with key: %s", newEvent.key)
+			event.key, err = k8sCache.DeletionHandlingMetaNamespaceKeyFunc(obj)
+			event.eventType = "delete"
+			event.resource = obj
+			c.Log.Infof("Delete NodeConfig resource with key: %s", event.key)
 			if err == nil {
-				c.queue.Add(newEvent)
+				c.queue.Add(event)
 			}
 		},
 	})
@@ -193,23 +192,23 @@ func (c *Controller) runWorker() {
 func (c *Controller) processNextItem() bool {
 	// get the next item (blocking) from the queue and process or
 	// quit if shutdown requested
-	newEvent, quit := c.queue.Get()
+	event, quit := c.queue.Get()
 	if quit {
 		return false
 	}
-	defer c.queue.Done(newEvent)
+	defer c.queue.Done(event)
 
-	err := c.processItem(newEvent.(Event))
+	err := c.processItem(event.(Event))
 	if err == nil {
 		// If there is no error reset the rate limit counters
-		c.queue.Forget(newEvent)
-	} else if c.queue.NumRequeues(newEvent) < maxRetries {
-		c.Log.Errorf("Error processing %s (will retry): %v", newEvent.(Event).key, err)
-		c.queue.AddRateLimited(newEvent)
+		c.queue.Forget(event)
+	} else if c.queue.NumRequeues(event) < maxRetries {
+		c.Log.Errorf("Error processing %s (will retry): %v", event.(Event).key, err)
+		c.queue.AddRateLimited(event)
 	} else {
 		// err != nil and too many retries
-		c.Log.Errorf("Error processing %s (giving up): %v", newEvent.(Event).key, err)
-		c.queue.Forget(newEvent)
+		c.Log.Errorf("Error processing %s (giving up): %v", event.(Event).key, err)
+		c.queue.Forget(event)
 		utilruntime.HandleError(err)
 	}
 
@@ -232,7 +231,7 @@ func (c *Controller) processItem(event Event) error {
 			return nil
 		}
 	case "update":
-		c.eventHandler.ObjectUpdated(event.resource)
+		c.eventHandler.ObjectUpdated(event.oldResource, event.resource)
 		return nil
 	case "delete":
 		c.eventHandler.ObjectDeleted(event.resource)

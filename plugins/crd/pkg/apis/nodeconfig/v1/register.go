@@ -44,6 +44,7 @@ func Resource(resource string) schema.GroupResource {
 func addKnownTypes(scheme *runtime.Scheme) error {
 	scheme.AddKnownTypes(SchemeGroupVersion,
 		&NodeConfig{},
+		&NodeConfigList{},
 		&metav1.Status{},
 	)
 	metav1.AddToGroupVersion(scheme, SchemeGroupVersion)

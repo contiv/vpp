@@ -67,8 +67,6 @@ type NodeConfigList struct {
 
 // NodeConfigStatus is the state for the contiv ode configuration
 type NodeConfigStatus struct {
-	//Nodes   []telemetrymodel.Node  `json:"nodes"`
-	//Reports telemetrymodel.Reports `json:"reports"`
 	State   string `json:"state,omitempty"`
 	Message string `json:"message,omitempty"`
 }

@@ -16,6 +16,7 @@ package datastore
 
 import (
 	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
+	"github.com/ligato/vpp-agent/plugins/vpp/model/interfaces"
 	"github.com/onsi/gomega"
 	"testing"
 )
@@ -119,9 +120,23 @@ func TestVppDataStore_SetNodeInterfaces(t *testing.T) {
 	gomega.Expect(node.ID).To(gomega.Equal(uint32(1)))
 	gomega.Expect(node.ManIPAddr).To(gomega.Equal("10"))
 
-	var ips []string
 	nodeIFs := make(map[int]telemetrymodel.NodeInterface)
-	nodeIF := telemetrymodel.NodeInterface{"Test", "Testing", 0, true, "", 0, telemetrymodel.Vxlan{}, ips, telemetrymodel.Tap{}}
+	nodeIF := telemetrymodel.NodeInterface{
+		If: telemetrymodel.Interface{
+			Name:        "Testing",
+			IfType:      interfaces.InterfaceType_VXLAN_TUNNEL,
+			Enabled:     true,
+			PhysAddress: "",
+			Mtu:         1500,
+			Vrf:         0,
+			Vxlan:       telemetrymodel.Vxlan{},
+			IPAddresses: []string{"192,168.20.1"},
+		},
+		IfMeta: telemetrymodel.InterfaceMeta{
+			SwIfIndex:       1,
+			VppInternalName: "Test",
+		},
+	}
 	nodeIFs[0] = nodeIF
 
 	err := db.SetNodeInterfaces("NENODE", nodeIFs)
@@ -129,7 +144,7 @@ func TestVppDataStore_SetNodeInterfaces(t *testing.T) {
 	err = db.SetNodeInterfaces("k8s_master", nodeIFs)
 	gomega.Expect(err).To(gomega.BeNil())
 
-	gomega.Expect(nodeIFs[0].VppInternalName).To(gomega.BeEquivalentTo("Test"))
+	gomega.Expect(nodeIFs[0].IfMeta.VppInternalName).To(gomega.BeEquivalentTo("Test"))
 }
 
 func TestVppDataStore_SetNodeBridgeDomain(t *testing.T) {
@@ -143,8 +158,14 @@ func TestVppDataStore_SetNodeBridgeDomain(t *testing.T) {
 	gomega.Expect(node.ID).To(gomega.Equal(uint32(1)))
 	gomega.Expect(node.ManIPAddr).To(gomega.Equal("10"))
 
-	var ifs []telemetrymodel.BdInterface
-	nodeBD := telemetrymodel.NodeBridgeDomain{ifs, "", false}
+	nodeBD := telemetrymodel.NodeBridgeDomain{
+		Bd: telemetrymodel.BridgeDomain{
+			Interfaces: []telemetrymodel.BdInterface{
+				{Name: "someInterface", BVI: true, SplitHorizonGrp: 1},
+			},
+		},
+		BdMeta: telemetrymodel.BridgeDomainMeta{},
+	}
 	nodesBD := make(map[int]telemetrymodel.NodeBridgeDomain)
 	nodesBD[0] = nodeBD
 
@@ -152,8 +173,7 @@ func TestVppDataStore_SetNodeBridgeDomain(t *testing.T) {
 	gomega.Expect(err).To(gomega.Not(gomega.BeNil()))
 	err = db.SetNodeBridgeDomain("k8s_master", nodesBD)
 	gomega.Expect(err).To(gomega.BeNil())
-	gomega.Expect(node.NodeBridgeDomains[0]).To(gomega.BeEquivalentTo(telemetrymodel.NodeBridgeDomain{ifs, "", false}))
-
+	gomega.Expect(node.NodeBridgeDomains[0].Bd.Interfaces[0].BVI).To(gomega.BeTrue())
 }
 
 func TestVppDataStore_SetNodeIPARPs(t *testing.T) {
@@ -168,7 +188,16 @@ func TestVppDataStore_SetNodeIPARPs(t *testing.T) {
 	gomega.Expect(node.ManIPAddr).To(gomega.Equal("10"))
 
 	nodeiparps := make([]telemetrymodel.NodeIPArpEntry, 0)
-	nodeiparp := telemetrymodel.NodeIPArpEntry{1, "1.2.3.4", "12:34:56:78", false}
+	nodeiparp := telemetrymodel.NodeIPArpEntry{
+		Ae: telemetrymodel.IPArpEntry{
+			IPAddress:   "1.2.3.4",
+			PhysAddress: "12:34:56:78",
+			Static:      true,
+		},
+		AeMeta: telemetrymodel.IPArpEntryMeta{
+			IfIndex: 1,
+		},
+	}
 	nodeiparps = append(nodeiparps, nodeiparp)
 
 	err := db.SetNodeIPARPs("NENODE", nodeiparps)
@@ -176,7 +205,16 @@ func TestVppDataStore_SetNodeIPARPs(t *testing.T) {
 	err = db.SetNodeIPARPs("k8s_master", nodeiparps)
 	gomega.Expect(err).To(gomega.BeNil())
 
-	gomega.Expect(nodeiparps[0]).To(gomega.BeEquivalentTo(telemetrymodel.NodeIPArpEntry{1, "1.2.3.4", "12:34:56:78", false}))
+	gomega.Expect(nodeiparps[0]).To(gomega.BeEquivalentTo(telemetrymodel.NodeIPArpEntry{
+		Ae: telemetrymodel.IPArpEntry{
+			IPAddress:   "1.2.3.4",
+			PhysAddress: "12:34:56:78",
+			Static:      true,
+		},
+		AeMeta: telemetrymodel.IPArpEntryMeta{
+			IfIndex: 1,
+		},
+	}))
 }
 
 func TestVppDataStore_SetNodeLiveness(t *testing.T) {
@@ -231,7 +269,19 @@ func TestVppDataStore_SetNodeL2Fibs(t *testing.T) {
 	gomega.Expect(node.ID).To(gomega.Equal(uint32(1)))
 	gomega.Expect(node.ManIPAddr).To(gomega.Equal("10"))
 
-	nfib := telemetrymodel.NodeL2FibEntry{1, 2, "test", true, false}
+	nfib := telemetrymodel.NodeL2FibEntry{
+		Fe: telemetrymodel.L2FibEntry{
+			BridgeDomainName:        "someBdName",
+			OutgoingIfName:          "someOutgoingIfName",
+			PhysAddress:             "aa:bb:cc:dd:ee:ff",
+			StaticConfig:            true,
+			BridgedVirtualInterface: true,
+		},
+		FeMeta: telemetrymodel.L2FibEntryMeta{
+			BridgeDomainID:  1,
+			OutgoingIfIndex: 1,
+		},
+	}
 	nfibs := make(map[string]telemetrymodel.NodeL2FibEntry)
 	nfibs[node.Name] = nfib
 
@@ -240,8 +290,19 @@ func TestVppDataStore_SetNodeL2Fibs(t *testing.T) {
 	err = db.SetNodeL2Fibs("k8s_master", nfibs)
 	gomega.Expect(err).To(gomega.BeNil())
 
-	gomega.Expect(node.NodeL2Fibs[node.Name]).To(gomega.BeEquivalentTo(telemetrymodel.NodeL2FibEntry{1, 2, "test", true, false}))
-
+	gomega.Expect(node.NodeL2Fibs[node.Name]).To(gomega.BeEquivalentTo(telemetrymodel.NodeL2FibEntry{
+		Fe: telemetrymodel.L2FibEntry{
+			BridgeDomainName:        "someBdName",
+			OutgoingIfName:          "someOutgoingIfName",
+			PhysAddress:             "aa:bb:cc:dd:ee:ff",
+			StaticConfig:            true,
+			BridgedVirtualInterface: true,
+		},
+		FeMeta: telemetrymodel.L2FibEntryMeta{
+			BridgeDomainID:  1,
+			OutgoingIfIndex: 1,
+		},
+	}))
 }
 
 func TestVppDataStore_RetrieveNodeByGigEIPAddr(t *testing.T) {
@@ -406,7 +467,29 @@ func TestGetNodeLoopIFInfo(t *testing.T) {
 	gomega.Expect(node.Name).To(gomega.Equal("k8s_master"))
 	gomega.Expect(node.ID).To(gomega.Equal(uint32(1)))
 	gomega.Expect(node.ManIPAddr).To(gomega.Equal("10"))
-	loopif := telemetrymodel.NodeInterface{"loop0", "loop0", 1, true, "12", 10, telemetrymodel.Vxlan{}, nil, telemetrymodel.Tap{}}
+	loopif := telemetrymodel.NodeInterface{
+		If: telemetrymodel.Interface{
+			Name:        "loop0",
+			IfType:      interfaces.InterfaceType_VXLAN_TUNNEL,
+			Enabled:     true,
+			PhysAddress: "aa:bb:cc:dd:ee:ff",
+			Mtu:         1500,
+			Vrf:         0,
+			IPAddresses: []string{"1.2.3.4"},
+			Vxlan:       telemetrymodel.Vxlan{
+				SrcAddress: "10.20.30.40",
+				DstAddress: "11.22.33.44",
+				Vni: 10,
+			},
+			Tap:         telemetrymodel.Tap{
+				Version: 2,
+			},
+		},
+		IfMeta: telemetrymodel.InterfaceMeta{
+			VppInternalName: "loop0",
+			SwIfIndex: 10,
+		},
+	}
 	interfaces := make(map[int]telemetrymodel.NodeInterface)
 	interfaces[3] = loopif
 	db.SetNodeInterfaces(node.Name, interfaces)

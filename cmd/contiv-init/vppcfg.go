@@ -564,7 +564,7 @@ func configureDHCP(ch api.Channel, ifIdx uint32) (chan string, error) {
 	logger.Debugf("Enabling DHCP on the interface idx %d", ifIdx)
 
 	// subscribe for the DHCP notifications from VPP
-	_, err := ch.SubscribeNotification(dhcpNotifChan, dhcp.NewDHCPComplEvent)
+	_, err := ch.SubscribeNotification(dhcpNotifChan, dhcp.NewDHCPComplEvent())
 	if err != nil {
 		return nil, err
 	}

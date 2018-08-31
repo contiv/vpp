@@ -11,6 +11,7 @@ import (
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/logging/logrus"
+	"github.com/ligato/vpp-agent/plugins/vpp/model/interfaces"
 	"github.com/onsi/gomega"
 	"os"
 	"strings"
@@ -109,6 +110,7 @@ func TestValidator(t *testing.T) {
 	t.Run("testK8sNodeToNodeInfoMissingNiValidation", testK8sNodeToNodeInfoMissingNiValidation)
 	t.Run("testK8sNodeToNodeInfoMissingK8snValidation", testK8sNodeToNodeInfoMissingK8snValidation)
 	t.Run("testNodesDBValidateL2Connections", testNodesDBValidateL2Connections)
+	t.Run("testValidateL2FibEntries", testValidateL2FibEntries)
 	// t.Run("testNodesDBValidateLoopIFAddresses", testNodesDBValidateLoopIFAddresses)
 	// t.Run("testCacheValidateFibEntries", testCacheValidateFibEntries)
 
@@ -119,7 +121,7 @@ func testErrorFreeTopologyValidation(t *testing.T) {
 
 	vtv.processor.Validate()
 
-	gomega.Expect(len(vtv.report.Data[api.GlobalMsg])).To(gomega.Equal(4))
+	gomega.Expect(len(vtv.report.Data[api.GlobalMsg])).To(gomega.Equal(5))
 }
 
 func testK8sNodeToNodeInfoOkValidation(t *testing.T) {
@@ -147,155 +149,285 @@ func testK8sNodeToNodeInfoMissingK8snValidation(t *testing.T) {
 }
 
 func testNodesDBValidateL2Connections(t *testing.T) {
+	nodeKey := "k8s-master"
 	resetToInitialErrorFreeState()
 
+	// ----------------------------------------------------------------------
 	// INJECT FAULT: Add a bogus bridge domain with the same name as VxlanBD.
-	bd := vtv.vppCache.NodeMap["k8s-master"].NodeBridgeDomains
+	bd := vtv.vppCache.NodeMap[nodeKey].NodeBridgeDomains
 	gomega.Expect(len(bd)).To(gomega.Equal(1))
 
 	bogusBd := telemetrymodel.NodeBridgeDomain{
 		Bd: telemetrymodel.BridgeDomain{
-			Name: vtv.vppCache.NodeMap["k8s-master"].NodeBridgeDomains[1].Bd.Name,
+			Name: vtv.vppCache.NodeMap[nodeKey].NodeBridgeDomains[1].Bd.Name,
 		},
 		BdMeta: telemetrymodel.BridgeDomainMeta{
 			BdID: 2,
 			BdID2Name: telemetrymodel.BdID2NameMapping{
-				2: vtv.vppCache.NodeMap["k8s-master"].NodeBridgeDomains[1].Bd.Name,
+				2: vtv.vppCache.NodeMap[nodeKey].NodeBridgeDomains[1].Bd.Name,
 			},
 		},
 	}
 	bd[2] = bogusBd
-	vtv.report.Clear()
 
+	vtv.report.Clear()
 	vtv.processor.ValidateL2Connectivity()
 	gomega.Expect(len(vtv.report.Data[api.GlobalMsg])).To(gomega.Equal(1))
-	gomega.Expect(len(vtv.report.Data["k8s-master"])).To(gomega.Equal(2))
+	gomega.Expect(len(vtv.report.Data[nodeKey])).To(gomega.Equal(2))
 
 	delete(bd, 2)
 
+	// --------------------------------------------------------------------
 	// INJECT FAULT: No Bridge Domain present on node;
 	// NOTE: This TC MUST be executed after the previous one, it depends on
 	// the same setup
 	delete(bd, 1)
 
 	vtv.report.Clear()
-
 	vtv.processor.ValidateL2Connectivity()
 	gomega.Expect(len(vtv.report.Data[api.GlobalMsg])).To(gomega.Equal(1))
-	gomega.Expect(len(vtv.report.Data["k8s-master"])).To(gomega.Equal(2))
+	gomega.Expect(len(vtv.report.Data[nodeKey])).To(gomega.Equal(2))
 
 	resetToInitialErrorFreeState()
 
 	// INJECT FAULT: Set node/k8s-master interface/5 vxlan_vni to 11
-	ifc := vtv.vppCache.NodeMap["k8s-master"].NodeInterfaces[5]
-	ifc.If.Vxlan.Vni = 11
-	vtv.vppCache.NodeMap["k8s-master"].NodeInterfaces[5] = ifc
-	vtv.report.Clear()
+	k, ifp := vtv.findFirstVxlanInterface(nodeKey)
+	gomega.Expect(ifp).To(gomega.Not(gomega.BeNil()))
+	ifp.If.Vxlan.Vni = 11
+	vtv.vppCache.NodeMap[nodeKey].NodeInterfaces[k] = *ifp
 
+	vtv.report.Clear()
 	vtv.processor.ValidateL2Connectivity()
 	gomega.Expect(len(vtv.report.Data[api.GlobalMsg])).To(gomega.Equal(1))
-	gomega.Expect(len(vtv.report.Data["k8s-master"])).To(gomega.Equal(1))
+	gomega.Expect(len(vtv.report.Data[nodeKey])).To(gomega.Equal(1))
 
 	// Restore data back to error free state
-	ifc = vtv.vppCache.NodeMap["k8s-master"].NodeInterfaces[5]
-	ifc.If.Vxlan.Vni = 10
-	vtv.vppCache.NodeMap["k8s-master"].NodeInterfaces[5] = ifc
+	ifp.If.Vxlan.Vni = 10
+	vtv.vppCache.NodeMap[nodeKey].NodeInterfaces[k] = *ifp
 
-	// INJECT FAULT: Set node/k8s-master interface/5 vxlan_dst IP address to 11
-	ifc = vtv.vppCache.NodeMap["k8s-master"].NodeInterfaces[5]
-	ifc.If.Vxlan.DstAddress = "192.168.16.5"
-	vtv.vppCache.NodeMap["k8s-master"].NodeInterfaces[5] = ifc
+	// -----------------------------------------------------------------
+	// INJECT FAULT: Set bogus destination IP address on node/k8s-master
+	// first found vxlan_interface
+	k, ifp = vtv.findFirstVxlanInterface(nodeKey)
+	gomega.Expect(ifp).To(gomega.Not(gomega.BeNil()))
+	dstIPAddr := ifp.If.Vxlan.DstAddress
+	ifp.If.Vxlan.DstAddress = "1.2.3.4"
+	vtv.vppCache.NodeMap[nodeKey].NodeInterfaces[k] = *ifp
+
 	vtv.report.Clear()
-
 	vtv.processor.ValidateL2Connectivity()
+
 	gomega.Expect(len(vtv.report.Data[api.GlobalMsg])).To(gomega.Equal(1))
-	gomega.Expect(len(vtv.report.Data["k8s-master"])).To(gomega.Equal(4))
-	gomega.Expect(len(vtv.report.Data["k8s-worker2"])).To(gomega.Equal(1))
+	gomega.Expect(len(vtv.report.Data[nodeKey])).To(gomega.Equal(4))
+	node, err := vtv.vppCache.RetrieveNodeByGigEIPAddr(dstIPAddr)
+	gomega.Expect(err).To(gomega.BeNil())
+	gomega.Expect(len(vtv.report.Data[node.Name])).To(gomega.Equal(1))
 
 	// Restore data back to error free state
-	ifc = vtv.vppCache.NodeMap["k8s-master"].NodeInterfaces[5]
-	ifc.If.Vxlan.DstAddress = "192.168.16.3"
-	vtv.vppCache.NodeMap["k8s-master"].NodeInterfaces[5] = ifc
+	ifp.If.Vxlan.DstAddress = dstIPAddr
+	vtv.vppCache.NodeMap[nodeKey].NodeInterfaces[k] = *ifp
+
+	// ----------------------------------------
+	// INJECT FAULT: Invalid BD interface index
+	nbd := vtv.vppCache.NodeMap[nodeKey].NodeBridgeDomains
+	gomega.Expect(len(nbd)).To(gomega.Equal(1))
+
+	for _, vxlanBd := range nbd {
+		// Create an invalid ifIndex for a BD interface (invalid key in the BdID2Name map)
+		keys := make([]uint32, 0)
+		for k := range vxlanBd.BdMeta.BdID2Name {
+			keys = append(keys, k)
+		}
+
+		bogusKey := keys[0] * 100
+		vxlanBd.BdMeta.BdID2Name[bogusKey] = vxlanBd.BdMeta.BdID2Name[keys[0]]
+		delete(vxlanBd.BdMeta.BdID2Name, keys[0])
+
+		// Perform test
+		vtv.report.Clear()
+		vtv.processor.ValidateL2Connectivity()
+
+		gomega.Expect(len(vtv.report.Data[api.GlobalMsg])).To(gomega.Equal(1))
+		gomega.Expect(len(vtv.report.Data[nodeKey])).To(gomega.Equal(4))
+
+		// Restore data back to error free state
+		vxlanBd.BdMeta.BdID2Name[keys[0]] = vxlanBd.BdMeta.BdID2Name[bogusKey]
+		delete(vxlanBd.BdMeta.BdID2Name, bogusKey)
+
+		break
+	}
+
+	// ----------------------------------------------------------------------
+	// INJECT FAULT: Duplicate BVI interface
+	nbd = vtv.vppCache.NodeMap[nodeKey].NodeBridgeDomains
+	for j, vxlanBd := range nbd {
+
+		// Make sure there are multiple BVI interfaces on the BD
+		var k int
+		for k = range vxlanBd.Bd.Interfaces {
+			if !vxlanBd.Bd.Interfaces[k].BVI {
+				vtv.vppCache.NodeMap[nodeKey].NodeBridgeDomains[j].Bd.Interfaces[k].BVI = true
+				break
+			}
+		}
+
+		// Perform test
+		vtv.report.Clear()
+		vtv.processor.ValidateL2Connectivity()
+
+		gomega.Expect(len(vtv.report.Data[api.GlobalMsg])).To(gomega.Equal(1))
+		gomega.Expect(len(vtv.report.Data[nodeKey])).To(gomega.Equal(5))
+
+		// Restore data back to error free state
+		vtv.vppCache.NodeMap[nodeKey].NodeBridgeDomains[j].Bd.Interfaces[k].BVI = false
+
+		break
+	}
+
+	// -----------------------------------------------------------
+	// INJECT FAULT: Invalid interface type in a non-BVI interface
+	k, ifp = vtv.findFirstVxlanInterface(nodeKey)
+	gomega.Expect(ifp).To(gomega.Not(gomega.BeNil()))
+	ifp.If.IfType = interfaces.InterfaceType_TAP_INTERFACE
+	vtv.vppCache.NodeMap[nodeKey].NodeInterfaces[k] = *ifp
+
+	// Perform test
 	vtv.report.Clear()
+	vtv.processor.ValidateL2Connectivity()
 
-	/*
-		nodevxlaninterface2.Vxlan.Vni = 11
-		nodeinterfaces2[4] = nodevxlaninterface2
-		vtv.vppCache.SetNodeInterfaces("k8s-worker1", nodeinterfaces2)
-		vtv.processor.ValidateL2Connectivity()
-		fmt.Println("Setting vxlan_vni back to normal...")
-		nodevxlaninterface2.Vxlan.Vni = 10
-		nodeinterfaces2[4] = nodevxlaninterface2
-		vtv.vppCache.SetNodeInterfaces("k8s-worker1", nodeinterfaces2)
-		vtv.processor.ValidateL2Connectivity()
-		node, _ = vtv.vppCache.RetrieveNode("k8s-worker1")
+	gomega.Expect(len(vtv.report.Data[api.GlobalMsg])).To(gomega.Equal(1))
+	gomega.Expect(len(vtv.report.Data[nodeKey])).To(gomega.Equal(4))
+	node, err = vtv.vppCache.RetrieveNodeByGigEIPAddr(ifp.If.Vxlan.DstAddress)
+	gomega.Expect(err).To(gomega.BeNil())
+	gomega.Expect(len(vtv.report.Data[node.Name])).To(gomega.Equal(1))
 
-		nodeinterface2.IfType = interfaces.InterfaceType_TAP_INTERFACE
-		nodeinterfaces2[3] = nodeinterface2
-		vtv.vppCache.SetNodeInterfaces("k8s-worker1", nodeinterfaces2)
-		fmt.Println("Expecting errors as bd has no loop interface.")
-		vtv.processor.ValidateL2Connectivity()
-		fmt.Println("Done expecting errors")
-		nodeinterface2.IfType = interfaces.InterfaceType_SOFTWARE_LOOPBACK
-		nodeinterfaces2[3] = nodeinterface2
-		vtv.vppCache.SetNodeInterfaces("k8s-worker1", nodeinterfaces2)
-		vtv.processor.ValidateL2Connectivity()
+	// Restore data back to error free state
+	ifp.If.IfType = interfaces.InterfaceType_VXLAN_TUNNEL
+	vtv.vppCache.NodeMap[nodeKey].NodeInterfaces[k] = *ifp
 
-		fmt.Println("Deleting node with ip 10 from gigE map" +
-			". Expecting errors for missing ip")
-		delete(vtv.vppCache.GigEIPMap, node.NodeInterfaces[4].Vxlan.DstAddress+api.SubnetMask)
-		vtv.processor.ValidateL2Connectivity()
-		fmt.Println("Done expecting errors")
-		node, _ = vtv.vppCache.RetrieveNode("k8s_master")
-		vtv.vppCache.GigEIPMap["10"+api.SubnetMask] = node
-		vtv.processor.ValidateL2Connectivity()
+	// ------------------------------------------------
+	// INJECT FAULT: Invalid node GigE IP Address index
+	vtv.vppCache.GigEIPMap = make(map[string]*telemetrymodel.Node, 0)
 
-		fmt.Println("Unmatching vxlan tunnel. Expecting error...")
+	// Perform test
+	vtv.report.Clear()
+	vtv.processor.ValidateL2Connectivity()
 
-		nodevxlaninterface1.Vxlan.DstAddress = "20"
-		nodeinterfaces[5] = nodevxlaninterface1
-		vtv.vppCache.SetNodeInterfaces("k8s_master", nodeinterfaces)
-		vtv.processor.ValidateL2Connectivity()
-		fmt.Println("Done expecting errors...")
-		nodevxlaninterface1.Vxlan.DstAddress = "11"
-		nodeinterfaces[5] = nodevxlaninterface1
-		vtv.vppCache.SetNodeInterfaces("k8s_master", nodeinterfaces)
-		vtv.processor.ValidateL2Connectivity()
+	gomega.Expect(len(vtv.report.Data[api.GlobalMsg])).To(gomega.Equal(1))
+	for _, n := range vtv.vppCache.RetrieveAllNodes() {
+		gomega.Expect(len(vtv.report.Data[n.Name])).To(gomega.Equal(6))
+	}
 
-		fmt.Println("Expecting error for mismatched index of bridge domain")
-		bdif2_2.SwIfIndex = 5
-		nodebd2 = telemetrymodel.NodeBridgeDomain{
-			[]telemetrymodel.BdInterface{bdif2_1, bdif2_2},
-			"vxlanBD",
-			true,
+	// Restore data back to error free state
+	resetToInitialErrorFreeState()
+
+	// -------------------------------------------------
+	// INJECT FAULT: Invalid node loop MAC Address index
+	vtv.vppCache.LoopMACMap = make(map[string]*telemetrymodel.Node, 0)
+
+	// Perform test
+	vtv.report.Clear()
+	vtv.processor.ValidateL2Connectivity()
+
+	gomega.Expect(len(vtv.report.Data[api.GlobalMsg])).To(gomega.Equal(1))
+	for _, n := range vtv.vppCache.RetrieveAllNodes() {
+		gomega.Expect(len(vtv.report.Data[n.Name])).To(gomega.Equal(3))
+	}
+
+	// Restore data back to error free state
+	resetToInitialErrorFreeState()
+
+	// -------------------------------------------------
+	// INJECT FAULT: Invalid entry in the GigE IP Address map
+	nl := vtv.vppCache.RetrieveAllNodes()
+	gomega.Expect(len(nl)).To(gomega.BeNumerically(">=", 2))
+	a0 := strings.Split(nl[0].IPAddr, "/")
+	a1 := strings.Split(nl[1].IPAddr, "/")
+	vtv.vppCache.GigEIPMap[a0[0]] = vtv.vppCache.GigEIPMap[a1[0]]
+
+	// Perform test
+	vtv.report.Clear()
+	vtv.processor.ValidateL2Connectivity()
+
+	gomega.Expect(len(vtv.report.Data[api.GlobalMsg])).To(gomega.Equal(1))
+	gomega.Expect(len(vtv.report.Data[nl[0].Name])).To(gomega.Equal(6))
+
+	// Restore data back to error free state
+	resetToInitialErrorFreeState()
+}
+
+func testValidateL2FibEntries(t *testing.T) {
+	nodeKey := "k8s-master"
+	resetToInitialErrorFreeState()
+
+	// -------------------------------------------
+	// INJECT FAULT: Wrong number of L2Fub entries
+	node, err := vtv.processor.VppCache.RetrieveNode(nodeKey)
+	gomega.Expect(err).To(gomega.BeNil())
+	bogusFibKey := "90:87:65:43:21"
+	node.NodeL2Fibs[bogusFibKey] = telemetrymodel.NodeL2FibEntry{
+		Fe: telemetrymodel.L2FibEntry{
+			BridgeDomainName:        "vxlanBD",
+			OutgoingIfName:          "vxlan10",
+			PhysAddress:             bogusFibKey,
+			StaticConfig:            true,
+			BridgedVirtualInterface: false,
+		},
+		FeMeta: telemetrymodel.L2FibEntryMeta{
+			BridgeDomainID:  1,
+			OutgoingIfIndex: 100,
+		},
+	}
+
+	// Perform test
+	vtv.report.Clear()
+	vtv.processor.ValidateL2FibEntries()
+
+	gomega.Expect(len(vtv.report.Data[api.GlobalMsg])).To(gomega.Equal(1))
+	gomega.Expect(len(vtv.report.Data[nodeKey])).To(gomega.Equal(2))
+
+	// Restore data back to error free state
+	delete(node.NodeL2Fibs, bogusFibKey)
+
+	// ------------------------------------
+	// INJECT FAULT: Missing loop interface
+	node, err = vtv.processor.VppCache.RetrieveNode(nodeKey)
+	gomega.Expect(err).To(gomega.BeNil())
+	for k, ifc := range node.NodeInterfaces {
+		if ifc.IfMeta.VppInternalName == "loop0" {
+			ifc.IfMeta.VppInternalName = "bogusName"
+			node.NodeInterfaces[k] = ifc
+			break
 		}
-		nodebdmap2 = make(map[int]telemetrymodel.NodeBridgeDomain)
-		nodebdmap2[1] = nodebd2
-		vtv.vppCache.SetNodeBridgeDomain("k8s-worker1", nodebdmap2)
-		vtv.processor.ValidateL2Connectivity()
-		fmt.Println("Done expecting errors...")
-		bdif2_2.SwIfIndex = 4
-		nodebd2 = telemetrymodel.NodeBridgeDomain{
-			[]telemetrymodel.BdInterface{bdif2_1, bdif2_2},
-			"vxlanBD",
-			true,
-		}
-		nodebdmap2 = make(map[int]telemetrymodel.NodeBridgeDomain)
-		nodebdmap2[1] = nodebd2
-		vtv.vppCache.SetNodeBridgeDomain("k8s-worker1", nodebdmap2)
-		vtv.processor.ValidateL2Connectivity()
+	}
 
-		fmt.Println("Adding extra node in place of existing one...")
-		vtv.vppCache.CreateNode(1, "extraNode", "54321", "54321")
-		node, _ = vtv.vppCache.RetrieveNode("extraNode")
-		vtv.vppCache.GigEIPMap["10/24"] = node
-		vtv.processor.ValidateL2Connectivity()
-		fmt.Println("Done expecting errors...")
-		node, _ = vtv.vppCache.RetrieveNode("k8s_master")
-		vtv.vppCache.GigEIPMap["10/24"] = node
-		vtv.vppCache.DeleteNode("extraNode")
-		vtv.processor.ValidateL2Connectivity()
-	*/
+	// Perform test
+	vtv.report.Clear()
+	vtv.processor.ValidateL2FibEntries()
+
+	gomega.Expect(len(vtv.report.Data[api.GlobalMsg])).To(gomega.Equal(1))
+	for _, n := range vtv.vppCache.RetrieveAllNodes() {
+		gomega.Expect(len(vtv.report.Data[n.Name])).To(gomega.Equal(2))
+	}
+
+	// Restore data back to error free state
+	for k, ifc := range node.NodeInterfaces {
+		if ifc.IfMeta.VppInternalName == "bogusName" {
+			ifc.IfMeta.VppInternalName = "loop0"
+			node.NodeInterfaces[k] = ifc
+			break
+		}
+	}
+
+}
+
+func (v *validatorTestVars) findFirstVxlanInterface(nodeKey string) (int, *telemetrymodel.NodeInterface) {
+	for k, ifc := range v.vppCache.NodeMap[nodeKey].NodeInterfaces {
+		if ifc.If.IfType == interfaces.InterfaceType_VXLAN_TUNNEL {
+			return k, &ifc
+		}
+	}
+	return -1, nil
 }
 
 /*
@@ -306,10 +438,10 @@ func testNodesDBValidateLoopIFAddresses(t *testing.T) {
 
 	node, err := vtv.vppCache.RetrieveNode("k8s_master")
 	gomega.Expect(err).To(gomega.BeNil())
-	gomega.Expect(node.IPAdr).To(gomega.Equal("10"))
+	gomega.Expect(node.IPAddr).To(gomega.Equal("10"))
 	gomega.Expect(node.Name).To(gomega.Equal("k8s_master"))
 	gomega.Expect(node.ID).To(gomega.Equal(uint32(1)))
-	gomega.Expect(node.ManIPAdr).To(gomega.Equal("10"))
+	gomega.Expect(node.ManIPAddr).To(gomega.Equal("10"))
 	nodeinterface1 := telemetrymodel.NodeInterface{
 		"loop0",
 		"loop0",
@@ -401,10 +533,10 @@ func testCacheValidateFibEntries(t *testing.T) {
 	vtv.vppCache.CreateNode(1, "k8s_master", "10", "10")
 	node, err := vtv.vppCache.RetrieveNode("k8s_master")
 	gomega.Expect(err).To(gomega.BeNil())
-	gomega.Expect(node.IPAdr).To(gomega.Equal("10"))
+	gomega.Expect(node.IPAddr).To(gomega.Equal("10"))
 	gomega.Expect(node.Name).To(gomega.Equal("k8s_master"))
 	gomega.Expect(node.ID).To(gomega.Equal(uint32(1)))
-	gomega.Expect(node.ManIPAdr).To(gomega.Equal("10"))
+	gomega.Expect(node.ManIPAddr).To(gomega.Equal("10"))
 	nodeinterface1 := telemetrymodel.NodeInterface{
 		"loop0",
 		"loop0",
@@ -470,7 +602,7 @@ func testCacheValidateFibEntries(t *testing.T) {
 		true,
 		"",
 		0,
-		telemetrymodel.Vxlan{node.IPAdr, "11",
+		telemetrymodel.Vxlan{node.IPAddr, "11",
 			10}, []string{}, telemetrymodel.Tap{},
 	}
 	nodeinterfaces[5] = nodevxlaninterface1
@@ -494,32 +626,19 @@ func testCacheValidateFibEntries(t *testing.T) {
 		true,
 		"",
 		0,
-		telemetrymodel.Vxlan{node.IPAdr, "10",
+		telemetrymodel.Vxlan{node.IPAddr, "10",
 			10}, []string{}, telemetrymodel.Tap{},
 	}
 	nodeinterfaces2[4] = nodevxlaninterface2
 	vtv.vppCache.SetNodeBridgeDomain("k8s-worker1", nodebdmap2)
 	vtv.vppCache.SetNodeInterfaces("k8s-worker1", nodeinterfaces2)
-	vtv.vppCache.GigEIPMap[node.IPAdr+api.SubnetMask] = node
+	vtv.vppCache.GigEIPMap[node.IPAddr+api.SubnetMask] = node
 	node, _ = vtv.vppCache.RetrieveNode("k8s_master")
-	vtv.vppCache.GigEIPMap[node.IPAdr+api.SubnetMask] = node
+	vtv.vppCache.GigEIPMap[node.IPAddr+api.SubnetMask] = node
 
 	vtv.processor.ValidateL2FibEntries()
 }
 */
-
-func populateK8sNodeDataInCache(cache *datastore.K8sDataStore) {
-	for _, node := range vtv.k8sNodeData {
-		cache.CreateK8sNode(node.Name, node.Pod_CIDR, node.Provider_ID, node.Addresses, node.NodeInfo)
-	}
-}
-
-func populateK8sPodDataInCache(cache *datastore.K8sDataStore) {
-	for _, pod := range vtv.k8sPodData {
-		cache.CreatePod(pod.Name, pod.Namespace, pod.Label,
-			pod.IpAddress, pod.HostIpAddress, []*podmodel.Pod_Container{})
-	}
-}
 
 func resetToInitialErrorFreeState() {
 	vtv.vppCache.ReinitializeCache()
@@ -554,7 +673,7 @@ func resetToInitialErrorFreeState() {
 		// Code replicated from ContivTelemetryCache.populateNodeMaps() -
 		// need to inject pod data into each node.
 		for _, pod := range vtv.k8sCache.RetrieveAllPods() {
-			if pod.HostIPAddress == node.ManIPAdr {
+			if pod.HostIPAddress == node.ManIPAddr {
 				node.PodMap[pod.Name] = pod
 			}
 		}

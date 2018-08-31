@@ -8,7 +8,7 @@ LDFLAGS = -s -w -X $(CNINFRA_AGENT).BuildVersion=$(VERSION) -X $(CNINFRA_AGENT).
 COVER_DIR ?= /tmp/
 
 # Build commands
-build: agent contiv-ksr contiv-crd contiv-cni contiv-stn contiv-init ldpreload-inject-tool
+build: agent contiv-ksr contiv-crd contiv-cni contiv-stn contiv-init
 
 # Run all
 all: lint build test install
@@ -43,11 +43,6 @@ contiv-init:
 	@echo "# building contiv-init"
 	cd cmd/contiv-init && go build -v -i -ldflags "${LDFLAGS}" -tags="${GO_BUILD_TAGS}"
 
-# Build contiv-init
-ldpreload-inject-tool:
-	@echo "# building ldpreload inject tool"
-	cd cmd/tools/ldpreload-label-injector && go build -v -i
-
 # Install commands
 install:
 	@echo "# installing commands"
@@ -57,7 +52,6 @@ install:
 	cd cmd/contiv-cni && go install -v -ldflags "${LDFLAGS}"
 	cd cmd/contiv-stn && go install -v -ldflags "${LDFLAGS}"
 	cd cmd/contiv-init && go install -v -ldflags "${LDFLAGS}"
-	cd cmd/tools/ldpreload-label-injector && go install -v -ldflags "${LDFLAGS}"
 
 # Clean commands
 clean:
@@ -68,7 +62,6 @@ clean:
 	rm -f cmd/contiv-crd/contiv-crd
 	rm -f cmd/contiv-stn/contiv-stn
 	rm -f cmd/contiv-init/contiv-init
-	rm -f cmd/tools/ldpreload-label-injector/ldpreload-label-injector
 
 # Run tests
 test:

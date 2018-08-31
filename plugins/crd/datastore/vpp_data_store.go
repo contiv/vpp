@@ -19,6 +19,7 @@ import (
 	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
 	"github.com/pkg/errors"
 	"sort"
+	"strings"
 	"sync"
 )
 
@@ -35,7 +36,7 @@ type VppDataStore struct {
 
 // CreateNode will add a node to the node cache with the given parameters,
 // making sure there are no duplicates.
-func (vds *VppDataStore) CreateNode(ID uint32, nodeName, IPAdr, ManIPAdr string) error {
+func (vds *VppDataStore) CreateNode(ID uint32, nodeName, IPAddr, ManIPAdr string) error {
 	vds.lock.Lock()
 	defer vds.lock.Unlock()
 
@@ -43,10 +44,12 @@ func (vds *VppDataStore) CreateNode(ID uint32, nodeName, IPAdr, ManIPAdr string)
 		return fmt.Errorf("node %s already exists", nodeName)
 	}
 
-	n := &telemetrymodel.Node{IPAdr: IPAdr, ManIPAdr: ManIPAdr, ID: ID, Name: nodeName}
+	n := &telemetrymodel.Node{IPAddr: IPAddr, ManIPAddr: ManIPAdr, ID: ID, Name: nodeName}
 	n.PodMap = make(map[string]*telemetrymodel.Pod)
 	vds.NodeMap[nodeName] = n
-	vds.GigEIPMap[IPAdr] = n
+
+	ipa := strings.Split(IPAddr, "/")
+	vds.GigEIPMap[ipa[0]] = n
 
 	return nil
 }
@@ -86,7 +89,7 @@ func (vds *VppDataStore) DeleteNode(nodeName string) error {
 	}
 
 	delete(vds.NodeMap, node.Name)
-	delete(vds.GigEIPMap, node.IPAdr)
+	delete(vds.GigEIPMap, node.IPAddr)
 
 	return nil
 }
@@ -121,9 +124,9 @@ func (vds *VppDataStore) UpdateNode(ID uint32, nodeName, IPAdr, ManIPAdr string)
 	if !ok {
 		return errors.Errorf("Node with name %+vds not found in vpp cache", nodeName)
 	}
-	node.IPAdr = IPAdr
+	node.IPAddr = IPAdr
 	node.ID = ID
-	node.ManIPAdr = ManIPAdr
+	node.ManIPAddr = ManIPAdr
 	return nil
 }
 
@@ -139,10 +142,9 @@ func (vds *VppDataStore) ClearCache() {
 		node.NodeLiveness = nil
 		node.NodeTelemetry = nil
 		node.NodeIPArp = nil
-		node.Report = []string{}
 	}
 	// Clear secondary index maps
-	vds.GigEIPMap = make(map[string]*telemetrymodel.Node)
+	// vds.GigEIPMap = make(map[string]*telemetrymodel.Node)
 	vds.LoopMACMap = make(map[string]*telemetrymodel.Node)
 	vds.LoopIPMap = make(map[string]*telemetrymodel.Node)
 	vds.HostIPMap = make(map[string]*telemetrymodel.Node)
@@ -289,11 +291,11 @@ func (vds *VppDataStore) SetSecondaryNodeIndices(node *telemetrymodel.Node) []st
 		return errReport
 	}
 
-	if nIP, ok := vds.HostIPMap[node.ManIPAdr]; ok {
+	if nIP, ok := vds.HostIPMap[node.ManIPAddr]; ok {
 		errReport = append(errReport,
-			fmt.Sprintf("duplicate Host IP Address %s, hosts %s, %s", node.ManIPAdr, nIP.Name, node.Name))
+			fmt.Sprintf("duplicate Host IP Address %s, hosts %s, %s", node.ManIPAddr, nIP.Name, node.Name))
 	} else {
-		vds.HostIPMap[node.ManIPAdr] = node
+		vds.HostIPMap[node.ManIPAddr] = node
 	}
 
 	for _, ipAddr := range loopIF.If.IPAddresses {
@@ -319,7 +321,7 @@ func (vds *VppDataStore) SetSecondaryNodeIndices(node *telemetrymodel.Node) []st
 			vds.LoopMACMap[loopIF.If.PhysAddress] = node
 		}
 	}
-	vds.GigEIPMap[node.IPAdr] = node
+
 	return errReport
 }
 
@@ -366,7 +368,7 @@ func GetNodeLoopIFInfo(node *telemetrymodel.Node) (*telemetrymodel.NodeInterface
 			return &ifs, nil
 		}
 	}
-	err := errors.Errorf("node %s does not have a loop interface", node.Name)
+	err := errors.Errorf("loop interface not found", node.Name)
 	return nil, err
 }
 

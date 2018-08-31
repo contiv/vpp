@@ -19,7 +19,8 @@ package externalversions
 import (
 	"fmt"
 
-	v1 "github.com/contiv/vpp/plugins/crd/pkg/apis/contivtelemetry/v1"
+	v1 "github.com/contiv/vpp/plugins/crd/pkg/apis/nodeconfig/v1"
+	telemetryv1 "github.com/contiv/vpp/plugins/crd/pkg/apis/telemetry/v1"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	cache "k8s.io/client-go/tools/cache"
 )
@@ -50,9 +51,13 @@ func (f *genericInformer) Lister() cache.GenericLister {
 // TODO extend this to unknown resources with a client pool
 func (f *sharedInformerFactory) ForResource(resource schema.GroupVersionResource) (GenericInformer, error) {
 	switch resource {
-	// Group=contivtelemetry.vpp, Version=v1
-	case v1.SchemeGroupVersion.WithResource("contivtelemetryreports"):
-		return &genericInformer{resource: resource.GroupResource(), informer: f.Contivtelemetry().V1().ContivTelemetryReports().Informer()}, nil
+	// Group=nodeconfig.contiv.vpp, Version=v1
+	case v1.SchemeGroupVersion.WithResource("nodeconfigs"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Nodeconfig().V1().NodeConfigs().Informer()}, nil
+
+		// Group=telemetry.contiv.vpp, Version=v1
+	case telemetryv1.SchemeGroupVersion.WithResource("telemetryreports"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Telemetry().V1().TelemetryReports().Informer()}, nil
 
 	}
 

@@ -92,9 +92,9 @@ const (
 // NewVppAdapter returns a new mock adapter.
 func NewVppAdapter() *VppAdapter {
 	a := &VppAdapter{
+		msgIDSeq:     1000,
 		msgIDsToName: make(map[uint16]string),
 		msgNameToIds: make(map[string]uint16),
-		msgIDSeq:     1000,
 		binAPITypes:  make(map[string]reflect.Type),
 	}
 	a.registerBinAPITypes()
@@ -186,8 +186,7 @@ func (a *VppAdapter) ReplyBytes(request MessageDTO, reply api.Message) ([]byte, 
 	if err != nil {
 		return nil, err
 	}
-	err = struc.Pack(buf, reply)
-	if err != nil {
+	if err = struc.Pack(buf, reply); err != nil {
 		return nil, err
 	}
 
@@ -245,7 +244,7 @@ func (a *VppAdapter) SendMsg(clientID uint32, data []byte) error {
 				Data:     data,
 			})
 			if finished {
-				a.callback(msgID, clientID, reply)
+				a.callback(msgID, reply)
 				return nil
 			}
 		}
@@ -276,7 +275,7 @@ func (a *VppAdapter) SendMsg(clientID uint32, data []byte) error {
 					struc.Pack(buf, &codec.VppOtherHeader{VlMsgID: msgID})
 				}
 				struc.Pack(buf, msg.Msg)
-				a.callback(msgID, context, buf.Bytes())
+				a.callback(msgID, buf.Bytes())
 			}
 
 			a.replies = a.replies[1:]
@@ -295,7 +294,7 @@ func (a *VppAdapter) SendMsg(clientID uint32, data []byte) error {
 		msgID := uint16(defaultReplyMsgID)
 		struc.Pack(buf, &codec.VppReplyHeader{VlMsgID: msgID, Context: clientID})
 		struc.Pack(buf, &defaultReply{})
-		a.callback(msgID, clientID, buf.Bytes())
+		a.callback(msgID, buf.Bytes())
 	}
 	return nil
 }

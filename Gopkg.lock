@@ -11,7 +11,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:3320b3be9b07621a48922afb37d8cfc2c86f0ebf04c5d7412425d7d8509b9940"
+  digest = "1:2853387463808eb072764fc86ad03fbd43114dba7187ada97c824d937a87dd9d"
   name = "git.fd.io/govpp.git"
   packages = [
     "adapter",
@@ -23,7 +23,7 @@
     "core",
   ]
   pruneopts = "UT"
-  revision = "892683bef86cacc2ccda2b4df2b079171bd92164"
+  revision = "6b350c65fe0ec845cecf58bfb41ffc63dc9c04f7"
   source = "github.com/FDio/govpp"
 
 [[projects]]
@@ -620,6 +620,14 @@
   version = "v0.3.6"
 
 [[projects]]
+  digest = "1:870d441fe217b8e689d7949fef6e43efbc787e50f200cb1e70dbca9204a1d6be"
+  name = "github.com/inconshreveable/mousetrap"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "76626ae9c91c4f2a10f34cad8ce83ea42c93bb75"
+  version = "v1.0"
+
+[[projects]]
   digest = "1:7868838a192c5568be2a349a02c695aeaa379e7f1912042b6ccd7b57bca70373"
   name = "github.com/influxdb/influxdb"
   packages = [
@@ -693,7 +701,7 @@
   revision = "c38d7aed2392ab17d956c3e9f4436e1eb280a28a"
 
 [[projects]]
-  digest = "1:15cf92f4dba8ac6abcf23a0e1dcbf4ae9a561a8bc6ccac4858c688ceb376be8b"
+  digest = "1:5347d5c4988edf0b4756c28f42e29a3f5e26508349fd985821105a740f2b5f20"
   name = "github.com/ligato/vpp-agent"
   packages = [
     "clientv1/linux",
@@ -773,7 +781,7 @@
     "plugins/vpp/srplugin/vppcalls",
   ]
   pruneopts = "UT"
-  revision = "f6b488fec003a94b36334d370f4ad530c375cfeb"
+  revision = "ca4d99264d286e4724c2120d8d8db813dd2c3a8b"
   source = "github.com/lukasmacko/vpp-agent"
 
 [[projects]]
@@ -1060,6 +1068,14 @@
   pruneopts = "UT"
   revision = "3e01752db0189b9157070a0e1668a620f9a85da2"
   version = "v1.0.6"
+
+[[projects]]
+  digest = "1:645cabccbb4fa8aab25a956cbcbdf6a6845ca736b2c64e197ca7cbb9d210b939"
+  name = "github.com/spf13/cobra"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "ef82de70bb3f60c65fb8eebacbb2d122ef517385"
+  version = "v0.0.3"
 
 [[projects]]
   digest = "1:dab83a1bbc7ad3d7a6ba1a1cc1760f25ac38cdf7d96a5cdd55cd915a4f5ceaf9"
@@ -1599,6 +1615,7 @@
     "github.com/containernetworking/cni/pkg/types",
     "github.com/containernetworking/cni/pkg/types/current",
     "github.com/containernetworking/cni/pkg/version",
+    "github.com/coreos/etcd/clientv3",
     "github.com/docker/distribution",
     "github.com/docker/docker/api",
     "github.com/docker/swarmkit",
@@ -1676,6 +1693,7 @@
     "github.com/prometheus/client_model/go",
     "github.com/safchain/ethtool",
     "github.com/sirupsen/logrus",
+    "github.com/spf13/cobra",
     "github.com/ugorji/go/codec",
     "github.com/unrolled/render",
     "github.com/vishvananda/netlink",
@@ -1683,6 +1701,7 @@
     "github.com/wadey/gocovmerge",
     "golang.org/x/exp/inotify",
     "golang.org/x/net/context",
+    "golang.org/x/net/html",
     "google.golang.org/grpc",
     "k8s.io/api/core/v1",
     "k8s.io/api/extensions/v1beta1",

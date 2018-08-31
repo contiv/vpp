@@ -72,3 +72,37 @@ type NodeConfigStatus struct {
 	State   string `json:"state,omitempty"`
 	Message string `json:"message,omitempty"`
 }
+
+// EqualsTo can be used to compare instances of InterfaceConfig.
+func (intfCfg *InterfaceConfig) EqualsTo(intfCfg2 *InterfaceConfig) bool {
+	return intfCfg.InterfaceName == intfCfg2.InterfaceName &&
+		intfCfg.UseDHCP == intfCfg2.UseDHCP &&
+		intfCfg.IP == intfCfg2.IP
+}
+
+// EqualsTo can be used to compare instances of NodeConfigSpec.
+func (nc *NodeConfigSpec) EqualsTo(nc2 *NodeConfigSpec) bool {
+	if !nc.MainVPPInterface.EqualsTo(&nc2.MainVPPInterface) {
+		return false
+	}
+	if len(nc.OtherVPPInterfaces) != len(nc2.OtherVPPInterfaces) {
+		return false
+	}
+	for _, otherIntf := range nc.OtherVPPInterfaces {
+		found := false
+		for _, otherIntf2 := range nc2.OtherVPPInterfaces {
+			if otherIntf.EqualsTo(&otherIntf2) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return false
+		}
+
+	}
+	return nc.NatExternalTraffic == nc2.NatExternalTraffic &&
+		nc.Gateway == nc2.Gateway &&
+		nc.StealInterface == nc2.StealInterface
+}
+

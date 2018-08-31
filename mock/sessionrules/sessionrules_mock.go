@@ -55,11 +55,10 @@ func NewMockSessionRules(log logging.Logger, tagPrefix string) *MockSessionRules
 	mock := &MockSessionRules{
 		Log:         log,
 		tagPrefix:   tagPrefix,
-		vppMock:     &govppmock.VppAdapter{},
+		vppMock:     govppmock.NewVppAdapter(),
 		localTable:  make(map[uint32]SessionRules),
 		globalTable: SessionRules{},
 	}
-	mock.vppMock.RegisterBinAPITypes(session.Types)
 	mock.vppMock.MockReplyHandler(mock.msgReplyHandler)
 	mock.vppMock.GetMsgID("session_rules_dump", "")
 	mock.vppMock.GetMsgID("session_rules_details", "")

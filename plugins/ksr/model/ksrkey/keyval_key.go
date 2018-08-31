@@ -32,13 +32,13 @@ const (
 
 // KeyPrefix returns the common prefix for all K8s items of a given data type.
 func KeyPrefix(keyType string) string {
-	return KsrK8sPrefix + "/" + keyType
+	return KsrK8sPrefix + "/" + keyType + "/"
 }
 
 // Key returns the key under which a configuration for a given K8s item
 // should be stored in the data-store.
 func Key(keyType string, name string, namespace string) string {
-	return KeyPrefix(keyType) + "/" + name + "/" + NamespaceID + "/" + namespace
+	return KeyPrefix(keyType) + name + "/" + NamespaceID + "/" + namespace
 }
 
 // ParseNameFromKey parses item name and namespace ids from the associated

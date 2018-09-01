@@ -360,7 +360,7 @@ func (v *Validator) ValidateL2FibEntries() {
 
 		if len(node.NodeL2Fibs) != len(nodeList) {
 			errCnt++
-			errString := fmt.Sprintf("incorrect number of L2 fib entries: have %d, expecting %d",
+			errString := fmt.Sprintf("incorrect number of L2Fib entries: have %d, expecting %d",
 				len(node.NodeL2Fibs), len(nodeList))
 			v.Report.AppendToNodeReport(node.Name, errString)
 			// continue
@@ -370,7 +370,7 @@ func (v *Validator) ValidateL2FibEntries() {
 		loopIf, err := datastore.GetNodeLoopIFInfo(node)
 		if err != nil {
 			errCnt++
-			errString := fmt.Sprintf("loop interface not found, skipping L2 FIB validation")
+			errString := fmt.Sprintf("loop interface not found, skipping L2Fib validation")
 			v.Report.AppendToNodeReport(node.Name, errString)
 			continue
 		}
@@ -391,13 +391,13 @@ func (v *Validator) ValidateL2FibEntries() {
 			}
 
 			if fib.Fe.PhysAddress == loopIf.If.PhysAddress {
-				fibHasLoopIF = true
-				fibEntryCount++
 				if n, err := v.VppCache.RetrieveNodeByLoopMacAddr(fib.Fe.PhysAddress); err == nil {
+					fibHasLoopIF = true
+					fibEntryCount++
 					delete(nodeFibMap, n.Name)
 				} else {
 					errCnt++
-					errString := fmt.Sprintf("validator internal error: inconsistent MadAddress index, MAC %s",
+					errString := fmt.Sprintf("L2Fib validator internal error: inconsistent MadAddress index, MAC %s",
 						fib.Fe.PhysAddress)
 					v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
 				}
@@ -407,16 +407,17 @@ func (v *Validator) ValidateL2FibEntries() {
 			intf, ok := node.NodeInterfaces[int(fib.FeMeta.OutgoingIfIndex)]
 			if !ok {
 				errCnt++
-				errString := fmt.Sprintf("interface for L2 fib entry '%s' not found; ifName %s, ifIndex %d",
+				errString := fmt.Sprintf("interface for L2Fib entry '%s' not found; ifName %s, ifIndex %d",
 					fib.Fe.PhysAddress, fib.Fe.OutgoingIfName, fib.FeMeta.OutgoingIfIndex)
 				v.Report.AppendToNodeReport(node.Name, errString)
 				continue
 
 			}
+
 			macNode, err := v.VppCache.RetrieveNodeByGigEIPAddr(intf.If.Vxlan.DstAddress)
 			if err != nil {
 				errCnt++
-				errString := fmt.Sprintf("gigE IP address %s does not exist in gigEIPMap",
+				errString := fmt.Sprintf("L2Fib validation error: gigE IP address %s does not exist in gigEIPMap",
 					intf.If.Vxlan.DstAddress)
 				v.Report.AppendToNodeReport(node.Name, errString)
 				continue
@@ -425,7 +426,7 @@ func (v *Validator) ValidateL2FibEntries() {
 			remoteLoopIF, err := datastore.GetNodeLoopIFInfo(macNode)
 			if err != nil {
 				errCnt++
-				errString := fmt.Sprintf("invalid L2 fib entry '%s':missing loop interface on remote node %s",
+				errString := fmt.Sprintf("invalid L2Fib entry '%s':missing loop interface on remote node %s",
 					fib.Fe.PhysAddress, macNode.Name)
 				v.Report.AppendToNodeReport(node.Name, errString)
 				continue
@@ -437,21 +438,21 @@ func (v *Validator) ValidateL2FibEntries() {
 					fibEntryCount++
 				} else {
 					errCnt++
-					v.Report.AppendToNodeReport(node.Name,
-						fmt.Sprintf("validator internal error: inconsistent MAC Address index, MAC %s",
-							fib.Fe.PhysAddress))
+					errString := fmt.Sprintf("L2Fib validator internal error: inconsistent MAC Address index, MAC %s",
+						fib.Fe.PhysAddress)
+					v.Report.AppendToNodeReport(node.Name, errString)
 				}
 				continue
 			} else {
 				errCnt++
-				errString := fmt.Sprintf("fib MAC %+v is different than actual MAC "+
-					"%+v", fib.Fe.PhysAddress, remoteLoopIF.If.PhysAddress)
+				errString := fmt.Sprintf("L2Fib entry MAC Address %s invalid, should be %s",
+					fib.Fe.PhysAddress, remoteLoopIF.If.PhysAddress)
 				v.Report.AppendToNodeReport(node.Name, errString)
 			}
 
 			if len(nodeFibMap) > 0 {
 				errCnt++
-				errString := fmt.Sprintf("missing Fib entries for node %s", node.Name)
+				errString := fmt.Sprintf("missing L2Fib entries for node %s", node.Name)
 				v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
 				for node := range nodeFibMap {
 					v.Report.AppendToNodeReport(node, node)
@@ -461,35 +462,34 @@ func (v *Validator) ValidateL2FibEntries() {
 
 		if !fibHasLoopIF {
 			errCnt++
-			errString := fmt.Sprintf("fib for node %s loop interface missing",
-				node.Name)
+			errString := fmt.Sprintf("L2Fib entry for the 'loop0' interface not found")
 			v.Report.AppendToNodeReport(node.Name, errString)
-			continue
 		}
 
 		if fibEntryCount != len(nodeList) {
 			errCnt++
-			errString := fmt.Sprintf("unexpected number of valid L2 fib entries: have %d, expecting %d",
+			errString := fmt.Sprintf("unexpected number of valid L2Fib entries: have %d, expecting %d",
 				fibEntryCount, len(nodeList))
 			v.Report.AppendToNodeReport(node.Name, errString)
 		}
+
 		delete(nodemap, node.Name)
 	}
 
 	if len(nodemap) > 0 {
 		for node := range nodemap {
 			errCnt++
-			errString := fmt.Sprintf("Error processing fib for node %s", node)
+			errString := fmt.Sprintf("Invalid or missing L2Fib entry for node %s", node)
 			v.Report.AppendToNodeReport(node, errString)
 		}
 
 	}
 
 	if errCnt == 0 {
-		v.Report.AppendToNodeReport(api.GlobalMsg, "L2 Fib validation: OK")
+		v.Report.AppendToNodeReport(api.GlobalMsg, "L2Fib validation: OK")
 	} else {
 		v.Report.AppendToNodeReport(api.GlobalMsg,
-			fmt.Sprintf("L2 Fib validation: %d errors found", errCnt))
+			fmt.Sprintf("L2Fib validation: %d errors found", errCnt))
 	}
 }
 

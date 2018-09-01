@@ -440,6 +440,23 @@ func testValidateL2FibEntries(t *testing.T) {
 
 	// Restore data back to error free state
 	node.NodeL2Fibs[key] = fibEntry
+
+	// -------------------------------------------------
+	// INJECT FAULT: Invalid entry in the Loop MAC Address map
+	vtv.vppCache.LoopMACMap = make(map[string]*telemetrymodel.Node, 0)
+
+	// Perform test
+	vtv.report.Clear()
+	vtv.l2Validator.ValidateL2FibEntries()
+
+	gomega.Expect(len(vtv.report.Data[api.GlobalMsg])).To(gomega.Equal(1))
+	for _, n := range vtv.vppCache.RetrieveAllNodes() {
+		gomega.Expect(len(vtv.report.Data[n.Name])).To(gomega.Equal(5))
+	}
+
+	// Restore data back to error free state
+	resetToInitialErrorFreeState()
+
 }
 
 func (v *l2ValidatorTestVars) findFirstVxlanInterface(nodeKey string) (int, *telemetrymodel.NodeInterface) {

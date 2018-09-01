@@ -46,7 +46,6 @@ func (v *Validator) Validate() {
 	v.ValidateK8sNodeInfo()
 	v.ValidatePodInfo()
 	v.ValidateTapToPod()
-	//v.ValidateStaticRoutes()
 }
 
 // ValidateArpTables validates the the entries of node ARP tables to
@@ -705,14 +704,6 @@ func ip2uint32(ipAddress string) uint32 {
 		//fmt.Printf("%d: num: 0x%x, ipu: 0x%x\n", i, num, ipu)
 	}
 	return ipu
-}
-
-func separateIPandMask(ipAddress string) (string, string) {
-	s := strings.Split(ipAddress, "/")
-	if len(s) == 2 {
-		return s[0], s[1]
-	}
-	return s[0], ""
 }
 
 func printS(errCnt int) string {

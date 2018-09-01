@@ -1,9 +1,22 @@
-package validator
+// Copyright (c) 2018 Cisco and/or its affiliates.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at:
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+
+package l2
 
 import (
-	"encoding/json"
 	"fmt"
-	nodeinfomodel "github.com/contiv/vpp/plugins/contiv/model/node"
 	"github.com/contiv/vpp/plugins/crd/api"
 	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
 	"github.com/contiv/vpp/plugins/crd/datastore"
@@ -16,12 +29,13 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"github.com/contiv/vpp/plugins/crd/validator/testdata"
 )
 
-type validatorTestVars struct {
-	log       *logrus.Logger
-	processor *Validator
-	logWriter *mockLogWriter
+type l2ValidatorTestVars struct {
+	log         *logrus.Logger
+	l2Validator *Validator
+	logWriter   *mockLogWriter
 
 	// Mock data
 	k8sNodeData []*nodemodel.Node
@@ -30,19 +44,6 @@ type validatorTestVars struct {
 	vppCache *datastore.VppDataStore
 	k8sCache *datastore.K8sDataStore
 	report   *datastore.SimpleReport
-}
-
-type nodeData struct {
-	ID       uint32
-	nodeName string
-	IPAdr    string
-	ManIPAdr string
-
-	liveness   *telemetrymodel.NodeLiveness
-	interfaces telemetrymodel.NodeInterfaces
-	bds        telemetrymodel.NodeBridgeDomains
-	l2FibTable telemetrymodel.NodeL2FibTable
-	arpTable   telemetrymodel.NodeIPArpTable
 }
 
 // mockLogWriter collects all error logs into a buffer for analysis
@@ -79,7 +80,7 @@ func (mlw *mockLogWriter) countErrors() int {
 	return cnt
 }
 
-var vtv validatorTestVars
+var vtv l2ValidatorTestVars
 
 func TestValidator(t *testing.T) {
 	gomega.RegisterTestingT(t)
@@ -95,10 +96,8 @@ func TestValidator(t *testing.T) {
 	vtv.report = datastore.NewSimpleReport(vtv.log)
 
 	// Initialize the validator
-	vtv.processor = &Validator{
-		Deps: Deps{
-			Log: vtv.log,
-		},
+	vtv.l2Validator = &Validator{
+		Log:      vtv.log,
 		VppCache: vtv.vppCache,
 		K8sCache: vtv.k8sCache,
 		Report:   vtv.report,
@@ -111,40 +110,37 @@ func TestValidator(t *testing.T) {
 	t.Run("testK8sNodeToNodeInfoMissingK8snValidation", testK8sNodeToNodeInfoMissingK8snValidation)
 	t.Run("testNodesDBValidateL2Connections", testNodesDBValidateL2Connections)
 	t.Run("testValidateL2FibEntries", testValidateL2FibEntries)
-	// t.Run("testNodesDBValidateLoopIFAddresses", testNodesDBValidateLoopIFAddresses)
-	// t.Run("testCacheValidateFibEntries", testCacheValidateFibEntries)
-
 }
 
 func testErrorFreeTopologyValidation(t *testing.T) {
 	resetToInitialErrorFreeState()
 
-	vtv.processor.Validate()
+	vtv.l2Validator.Validate()
 
-	gomega.Expect(len(vtv.report.Data[api.GlobalMsg])).To(gomega.Equal(5))
+	gomega.Expect(len(vtv.report.Data[api.GlobalMsg])).To(gomega.Equal(4))
 }
 
 func testK8sNodeToNodeInfoOkValidation(t *testing.T) {
 	resetToInitialErrorFreeState()
-	vtv.processor.ValidateK8sNodeInfo()
+	vtv.l2Validator.ValidateK8sNodeInfo()
 	gomega.Expect(len(vtv.report.Data)).To(gomega.Equal(0))
 }
 
 func testK8sNodeToNodeInfoMissingNiValidation(t *testing.T) {
 	resetToInitialErrorFreeState()
 	// INJECT FAULT:: missing vpp node
-	vtv.processor.VppCache.DeleteNode("k8s-master")
+	vtv.l2Validator.VppCache.DeleteNode("k8s-master")
 
-	vtv.processor.ValidateK8sNodeInfo()
+	vtv.l2Validator.ValidateK8sNodeInfo()
 	gomega.Expect(len(vtv.report.Data["k8s-master"])).To(gomega.Equal(1))
 }
 
 func testK8sNodeToNodeInfoMissingK8snValidation(t *testing.T) {
 	resetToInitialErrorFreeState()
 	// INJECT FAULT:: missing K8s node
-	vtv.processor.K8sCache.DeleteK8sNode("k8s-master")
+	vtv.l2Validator.K8sCache.DeleteK8sNode("k8s-master")
 
-	vtv.processor.ValidateK8sNodeInfo()
+	vtv.l2Validator.ValidateK8sNodeInfo()
 	gomega.Expect(len(vtv.report.Data["k8s-master"])).To(gomega.Equal(2))
 }
 
@@ -171,7 +167,7 @@ func testNodesDBValidateL2Connections(t *testing.T) {
 	bd[2] = bogusBd
 
 	vtv.report.Clear()
-	vtv.processor.ValidateL2Connectivity()
+	vtv.l2Validator.ValidateL2Connectivity()
 	gomega.Expect(len(vtv.report.Data[api.GlobalMsg])).To(gomega.Equal(1))
 	gomega.Expect(len(vtv.report.Data[nodeKey])).To(gomega.Equal(2))
 
@@ -184,7 +180,7 @@ func testNodesDBValidateL2Connections(t *testing.T) {
 	delete(bd, 1)
 
 	vtv.report.Clear()
-	vtv.processor.ValidateL2Connectivity()
+	vtv.l2Validator.ValidateL2Connectivity()
 	gomega.Expect(len(vtv.report.Data[api.GlobalMsg])).To(gomega.Equal(1))
 	gomega.Expect(len(vtv.report.Data[nodeKey])).To(gomega.Equal(2))
 
@@ -197,7 +193,7 @@ func testNodesDBValidateL2Connections(t *testing.T) {
 	vtv.vppCache.NodeMap[nodeKey].NodeInterfaces[k] = *ifp
 
 	vtv.report.Clear()
-	vtv.processor.ValidateL2Connectivity()
+	vtv.l2Validator.ValidateL2Connectivity()
 	gomega.Expect(len(vtv.report.Data[api.GlobalMsg])).To(gomega.Equal(1))
 	gomega.Expect(len(vtv.report.Data[nodeKey])).To(gomega.Equal(1))
 
@@ -215,7 +211,7 @@ func testNodesDBValidateL2Connections(t *testing.T) {
 	vtv.vppCache.NodeMap[nodeKey].NodeInterfaces[k] = *ifp
 
 	vtv.report.Clear()
-	vtv.processor.ValidateL2Connectivity()
+	vtv.l2Validator.ValidateL2Connectivity()
 
 	gomega.Expect(len(vtv.report.Data[api.GlobalMsg])).To(gomega.Equal(1))
 	gomega.Expect(len(vtv.report.Data[nodeKey])).To(gomega.Equal(4))
@@ -245,7 +241,7 @@ func testNodesDBValidateL2Connections(t *testing.T) {
 
 		// Perform test
 		vtv.report.Clear()
-		vtv.processor.ValidateL2Connectivity()
+		vtv.l2Validator.ValidateL2Connectivity()
 
 		gomega.Expect(len(vtv.report.Data[api.GlobalMsg])).To(gomega.Equal(1))
 		gomega.Expect(len(vtv.report.Data[nodeKey])).To(gomega.Equal(4))
@@ -273,7 +269,7 @@ func testNodesDBValidateL2Connections(t *testing.T) {
 
 		// Perform test
 		vtv.report.Clear()
-		vtv.processor.ValidateL2Connectivity()
+		vtv.l2Validator.ValidateL2Connectivity()
 
 		gomega.Expect(len(vtv.report.Data[api.GlobalMsg])).To(gomega.Equal(1))
 		gomega.Expect(len(vtv.report.Data[nodeKey])).To(gomega.Equal(5))
@@ -293,7 +289,7 @@ func testNodesDBValidateL2Connections(t *testing.T) {
 
 	// Perform test
 	vtv.report.Clear()
-	vtv.processor.ValidateL2Connectivity()
+	vtv.l2Validator.ValidateL2Connectivity()
 
 	gomega.Expect(len(vtv.report.Data[api.GlobalMsg])).To(gomega.Equal(1))
 	gomega.Expect(len(vtv.report.Data[nodeKey])).To(gomega.Equal(4))
@@ -311,7 +307,7 @@ func testNodesDBValidateL2Connections(t *testing.T) {
 
 	// Perform test
 	vtv.report.Clear()
-	vtv.processor.ValidateL2Connectivity()
+	vtv.l2Validator.ValidateL2Connectivity()
 
 	gomega.Expect(len(vtv.report.Data[api.GlobalMsg])).To(gomega.Equal(1))
 	for _, n := range vtv.vppCache.RetrieveAllNodes() {
@@ -327,7 +323,7 @@ func testNodesDBValidateL2Connections(t *testing.T) {
 
 	// Perform test
 	vtv.report.Clear()
-	vtv.processor.ValidateL2Connectivity()
+	vtv.l2Validator.ValidateL2Connectivity()
 
 	gomega.Expect(len(vtv.report.Data[api.GlobalMsg])).To(gomega.Equal(1))
 	for _, n := range vtv.vppCache.RetrieveAllNodes() {
@@ -347,7 +343,7 @@ func testNodesDBValidateL2Connections(t *testing.T) {
 
 	// Perform test
 	vtv.report.Clear()
-	vtv.processor.ValidateL2Connectivity()
+	vtv.l2Validator.ValidateL2Connectivity()
 
 	gomega.Expect(len(vtv.report.Data[api.GlobalMsg])).To(gomega.Equal(1))
 	gomega.Expect(len(vtv.report.Data[nl[0].Name])).To(gomega.Equal(6))
@@ -362,7 +358,7 @@ func testValidateL2FibEntries(t *testing.T) {
 
 	// -------------------------------------------
 	// INJECT FAULT: Wrong number of L2Fib entries
-	node, err := vtv.processor.VppCache.RetrieveNode(nodeKey)
+	node, err := vtv.l2Validator.VppCache.RetrieveNode(nodeKey)
 	gomega.Expect(err).To(gomega.BeNil())
 	bogusFibKey := "90:87:65:43:21"
 	node.NodeL2Fibs[bogusFibKey] = telemetrymodel.NodeL2FibEntry{
@@ -381,7 +377,7 @@ func testValidateL2FibEntries(t *testing.T) {
 
 	// Perform test
 	vtv.report.Clear()
-	vtv.processor.ValidateL2FibEntries()
+	vtv.l2Validator.ValidateL2FibEntries()
 
 	gomega.Expect(len(vtv.report.Data[api.GlobalMsg])).To(gomega.Equal(1))
 	gomega.Expect(len(vtv.report.Data[nodeKey])).To(gomega.Equal(2))
@@ -391,7 +387,7 @@ func testValidateL2FibEntries(t *testing.T) {
 
 	// ------------------------------------------------
 	// INJECT FAULT: Missing loop interface on the node
-	node, err = vtv.processor.VppCache.RetrieveNode(nodeKey)
+	node, err = vtv.l2Validator.VppCache.RetrieveNode(nodeKey)
 	gomega.Expect(err).To(gomega.BeNil())
 	for k, ifc := range node.NodeInterfaces {
 		if ifc.IfMeta.VppInternalName == "loop0" {
@@ -403,7 +399,7 @@ func testValidateL2FibEntries(t *testing.T) {
 
 	// Perform test
 	vtv.report.Clear()
-	vtv.processor.ValidateL2FibEntries()
+	vtv.l2Validator.ValidateL2FibEntries()
 
 	gomega.Expect(len(vtv.report.Data[api.GlobalMsg])).To(gomega.Equal(1))
 	for _, n := range vtv.vppCache.RetrieveAllNodes() {
@@ -421,7 +417,7 @@ func testValidateL2FibEntries(t *testing.T) {
 
 	// ------------------------------------------------
 	// INJECT FAULT: Missing loop interface L2Fib entry
-	node, err = vtv.processor.VppCache.RetrieveNode(nodeKey)
+	node, err = vtv.l2Validator.VppCache.RetrieveNode(nodeKey)
 	gomega.Expect(err).To(gomega.BeNil())
 
 	var key string
@@ -435,7 +431,7 @@ func testValidateL2FibEntries(t *testing.T) {
 
 	// Perform test
 	vtv.report.Clear()
-	vtv.processor.ValidateL2FibEntries()
+	vtv.l2Validator.ValidateL2FibEntries()
 
 	gomega.Expect(len(vtv.report.Data[api.GlobalMsg])).To(gomega.Equal(1))
 	//for _, n := range vtv.vppCache.RetrieveAllNodes() {
@@ -446,7 +442,7 @@ func testValidateL2FibEntries(t *testing.T) {
 	node.NodeL2Fibs[key] = fibEntry
 }
 
-func (v *validatorTestVars) findFirstVxlanInterface(nodeKey string) (int, *telemetrymodel.NodeInterface) {
+func (v *l2ValidatorTestVars) findFirstVxlanInterface(nodeKey string) (int, *telemetrymodel.NodeInterface) {
 	for k, ifc := range v.vppCache.NodeMap[nodeKey].NodeInterfaces {
 		if ifc.If.IfType == interfaces.InterfaceType_VXLAN_TUNNEL {
 			return k, &ifc
@@ -671,28 +667,28 @@ func resetToInitialErrorFreeState() {
 	vtv.report.Clear()
 	vtv.logWriter.clearLog()
 
-	if err := vtv.createNodeTestData(); err != nil {
+	if err := testdata.CreateNodeTestData(vtv.vppCache); err != nil {
 		vtv.log.SetOutput(os.Stdout)
 		vtv.log.Error(err)
 		gomega.Panic()
 	}
 
-	if err := vtv.createK8sPodTestData(); err != nil {
+	if err := testdata.CreateK8sPodTestData(vtv.k8sCache); err != nil {
 		vtv.log.SetOutput(os.Stdout)
 		vtv.log.Error(err)
 		gomega.Panic()
 	}
 
-	if err := vtv.createK8sNodeTestData(); err != nil {
+	if err := testdata.CreateK8sNodeTestData(vtv.k8sCache); err != nil {
 		vtv.log.SetOutput(os.Stdout)
 		vtv.log.Error(err)
 		gomega.Panic()
 	}
 
 	for _, node := range vtv.vppCache.RetrieveAllNodes() {
-		errReport := vtv.processor.VppCache.SetSecondaryNodeIndices(node)
+		errReport := vtv.l2Validator.VppCache.SetSecondaryNodeIndices(node)
 		for _, r := range errReport {
-			vtv.processor.Report.AppendToNodeReport(node.Name, r)
+			vtv.l2Validator.Report.AppendToNodeReport(node.Name, r)
 		}
 
 		// Code replicated from ContivTelemetryCache.populateNodeMaps() -
@@ -703,120 +699,4 @@ func resetToInitialErrorFreeState() {
 			}
 		}
 	}
-}
-
-// createNodeTestData creates a test vector that roughly corresponds to a 3-node
-// vagrant topology (1 master, 2 workers). The created topology is defect-free,
-// i.e. defect must be injected into the topology individually for each test
-// case.
-func (v *validatorTestVars) createNodeTestData() error {
-	rawData := getRawNodeTestData()
-
-	for node, data := range rawData {
-		ni := &nodeinfomodel.NodeInfo{}
-		if err := json.Unmarshal([]byte(data["nodeinfo"]), ni); err != nil {
-			return fmt.Errorf("failed to unmarshall node info")
-		}
-
-		nl := &telemetrymodel.NodeLiveness{}
-		if err := json.Unmarshal([]byte(data["liveness"]), nl); err != nil {
-			return fmt.Errorf("failed to unmarshall node liveness, err %s", err)
-		}
-
-		nifc := make(telemetrymodel.NodeInterfaces, 0)
-		if err := json.Unmarshal([]byte(data["interfaces"]), &nifc); err != nil {
-			return fmt.Errorf("failed to unmarshall node interfaces, err %s", err)
-		}
-
-		nbd := make(telemetrymodel.NodeBridgeDomains, 0)
-		if err := json.Unmarshal([]byte(data["bridgedomains"]), &nbd); err != nil {
-			return fmt.Errorf("failed to unmarshall node interfaces, err %s", err)
-		}
-
-		nodel2fib := make(telemetrymodel.NodeL2FibTable, 0)
-		if err := json.Unmarshal([]byte(data["l2fib"]), &nodel2fib); err != nil {
-			return fmt.Errorf("failed to unmarshall node interfaces, err %s", err)
-		}
-
-		narp := make(telemetrymodel.NodeIPArpTable, 0)
-		if err := json.Unmarshal([]byte(data["arps"]), &narp); err != nil {
-			return fmt.Errorf("failed to unmarshall node interfaces, err %s", err)
-		}
-
-		nr := make(telemetrymodel.NodeStaticRoutes, 0)
-		if err := json.Unmarshal([]byte(data["routes"]), &nr); err != nil {
-			return fmt.Errorf("failed to unmarshall node interfaces, err %s", err)
-		}
-
-		if node != ni.Name {
-			return fmt.Errorf("invalid data - TODO more precise error")
-		}
-
-		if err := vtv.vppCache.CreateNode(ni.Id, ni.Name, ni.IpAddress, ni.ManagementIpAddress); err != nil {
-			return fmt.Errorf("failed to create test data for node %s, err: %s", ni.Name, err)
-		}
-
-		if err := vtv.vppCache.SetNodeLiveness(ni.Name, nl); err != nil {
-			return fmt.Errorf("failed to set liveness for node %s, err: %s", ni.Name, err)
-		}
-
-		if err := vtv.vppCache.SetNodeInterfaces(ni.Name, nifc); err != nil {
-			return fmt.Errorf("failed to set interfaces for node %s, err: %s", ni.Name, err)
-		}
-
-		if err := vtv.vppCache.SetNodeBridgeDomain(ni.Name, nbd); err != nil {
-			return fmt.Errorf("failed to set bridge domains for node %s, err: %s", ni.Name, err)
-		}
-
-		if err := vtv.vppCache.SetNodeL2Fibs(ni.Name, nodel2fib); err != nil {
-			return fmt.Errorf("failed to set l2fib table for node %s, err: %s", ni.Name, err)
-		}
-
-		if err := vtv.vppCache.SetNodeIPARPs(ni.Name, narp); err != nil {
-			return fmt.Errorf("failed to set arp table for node %s, err: %s", ni.Name, err)
-		}
-
-		if err := vtv.vppCache.SetNodeStaticRoutes(ni.Name, nr); err != nil {
-			return fmt.Errorf("failed to set route table for node %s, err: %s", ni.Name, err)
-		}
-	}
-	return nil
-}
-
-func (v *validatorTestVars) createK8sPodTestData() error {
-	for _, rp := range getRawPodTestData() {
-		pod := &podmodel.Pod{
-			Label:     []*podmodel.Pod_Label{},
-			Container: []*podmodel.Pod_Container{},
-		}
-
-		if err := json.Unmarshal([]byte(rp), pod); err != nil {
-			return fmt.Errorf("failed to unmarshall pod data, err %s", err)
-		}
-
-		if err := v.k8sCache.CreatePod(pod.Name, pod.Namespace, pod.Label,
-			pod.IpAddress, pod.HostIpAddress, nil); err != nil {
-			return fmt.Errorf("failed to create test data for pod %s, err: %s", pod.Name, err)
-		}
-	}
-	return nil
-}
-
-func (v *validatorTestVars) createK8sNodeTestData() error {
-	for _, rp := range getRawK8sNodeTestData() {
-		node := &nodemodel.Node{
-			Addresses: []*nodemodel.NodeAddress{},
-			NodeInfo:  &nodemodel.NodeSystemInfo{},
-		}
-
-		if err := json.Unmarshal([]byte(rp), node); err != nil {
-			return fmt.Errorf("failed to unmarshall pod data, err %s", err)
-		}
-
-		if err := v.k8sCache.CreateK8sNode(node.Name, node.Pod_CIDR, node.Provider_ID,
-			node.Addresses, node.NodeInfo); err != nil {
-			return fmt.Errorf("failed to create test data for pod %s, err: %s", node.Name, err)
-		}
-	}
-	return nil
 }

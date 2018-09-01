@@ -38,7 +38,7 @@ type Deps struct {
 	L3Log logging.Logger
 }
 
-// Validate performes the validation of all layers of telemetry data
+// Validate performs the validation of all layers of telemetry data
 // collected from a Contiv cluster.
 func (v *Validator) Validate() {
 	l2Validator := &l2.Validator{

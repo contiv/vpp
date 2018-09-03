@@ -361,7 +361,7 @@ func testValidateL2FibEntries(t *testing.T) {
 	// INJECT FAULT: Wrong number of L2Fib entries
 	node, err := vtv.l2Validator.VppCache.RetrieveNode(vtv.nodeKey)
 	gomega.Expect(err).To(gomega.BeNil())
-	bdId, err := getVxlanBD(node)
+	bdID, err := getVxlanBD(node)
 	gomega.Expect(err).To(gomega.BeNil())
 
 	bogusFibKey1 := "90:87:65:43:21"
@@ -374,7 +374,7 @@ func testValidateL2FibEntries(t *testing.T) {
 			BridgedVirtualInterface: false,
 		},
 		FeMeta: telemetrymodel.L2FibEntryMeta{
-			BridgeDomainID:  uint32(bdId),
+			BridgeDomainID:  uint32(bdID),
 			OutgoingIfIndex: 100,
 		},
 	}
@@ -386,7 +386,7 @@ func testValidateL2FibEntries(t *testing.T) {
 			BridgeDomainName: "anotherBd",
 		},
 		FeMeta: telemetrymodel.L2FibEntryMeta{
-			BridgeDomainID: uint32(bdId) + 1,
+			BridgeDomainID: uint32(bdID) + 1,
 		},
 	}
 

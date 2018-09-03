@@ -36,6 +36,7 @@ type l2ValidatorTestVars struct {
 	log         *logrus.Logger
 	l2Validator *Validator
 	logWriter   *mockLogWriter
+	nodeKey     string
 
 	// Mock data
 	k8sNodeData []*nodemodel.Node
@@ -353,25 +354,51 @@ func testNodesDBValidateL2Connections(t *testing.T) {
 }
 
 func testValidateL2FibEntries(t *testing.T) {
-	nodeKey := "k8s-master"
+	vtv.nodeKey = "k8s-master"
 	resetToInitialErrorFreeState()
 
 	// -------------------------------------------
 	// INJECT FAULT: Wrong number of L2Fib entries
-	node, err := vtv.l2Validator.VppCache.RetrieveNode(nodeKey)
+	node, err := vtv.l2Validator.VppCache.RetrieveNode(vtv.nodeKey)
 	gomega.Expect(err).To(gomega.BeNil())
-	bogusFibKey := "90:87:65:43:21"
-	node.NodeL2Fibs[bogusFibKey] = telemetrymodel.NodeL2FibEntry{
+	bdId, err := getVxlanBD(node)
+	gomega.Expect(err).To(gomega.BeNil())
+
+	bogusFibKey1 := "90:87:65:43:21"
+	node.NodeL2Fibs[bogusFibKey1] = telemetrymodel.NodeL2FibEntry{
 		Fe: telemetrymodel.L2FibEntry{
 			BridgeDomainName:        "vxlanBD",
 			OutgoingIfName:          "vxlan10",
-			PhysAddress:             bogusFibKey,
+			PhysAddress:             bogusFibKey1,
 			StaticConfig:            true,
 			BridgedVirtualInterface: false,
 		},
 		FeMeta: telemetrymodel.L2FibEntryMeta{
-			BridgeDomainID:  1,
+			BridgeDomainID:  uint32(bdId),
 			OutgoingIfIndex: 100,
+		},
+	}
+
+	// Inject L2FIB entry for another BD  into L2FIB
+	bogusFibKey2 := "90:87:65:43:22"
+	node.NodeL2Fibs[bogusFibKey2] = telemetrymodel.NodeL2FibEntry{
+		Fe: telemetrymodel.L2FibEntry{
+			BridgeDomainName: "anotherBd",
+		},
+		FeMeta: telemetrymodel.L2FibEntryMeta{
+			BridgeDomainID: uint32(bdId) + 1,
+		},
+	}
+
+	// Inject non-static L2FIB entry into L2FIB
+	bogusFibKey3 := "90:87:65:43:23"
+	node.NodeL2Fibs[bogusFibKey3] = telemetrymodel.NodeL2FibEntry{
+		Fe: telemetrymodel.L2FibEntry{
+			BridgeDomainName: "vxlanBD",
+			StaticConfig:     false,
+		},
+		FeMeta: telemetrymodel.L2FibEntryMeta{
+			BridgeDomainID: 1,
 		},
 	}
 
@@ -379,15 +406,16 @@ func testValidateL2FibEntries(t *testing.T) {
 	vtv.report.Clear()
 	vtv.l2Validator.ValidateL2FibEntries()
 
-	gomega.Expect(len(vtv.report.Data[api.GlobalMsg])).To(gomega.Equal(1))
-	gomega.Expect(len(vtv.report.Data[nodeKey])).To(gomega.Equal(2))
+	checkDataReport(1, 2, 0)
 
 	// Restore data back to error free state
-	delete(node.NodeL2Fibs, bogusFibKey)
+	delete(node.NodeL2Fibs, bogusFibKey1)
+	delete(node.NodeL2Fibs, bogusFibKey2)
+	delete(node.NodeL2Fibs, bogusFibKey3)
 
-	// ------------------------------------------------
-	// INJECT FAULT: Missing loop interface on the node
-	node, err = vtv.l2Validator.VppCache.RetrieveNode(nodeKey)
+	// --------------------------------------------------
+	// INJECT FAULT: Missing loop interface on local node
+	node, err = vtv.l2Validator.VppCache.RetrieveNode(vtv.nodeKey)
 	gomega.Expect(err).To(gomega.BeNil())
 	for k, ifc := range node.NodeInterfaces {
 		if ifc.IfMeta.VppInternalName == "loop0" {
@@ -401,10 +429,7 @@ func testValidateL2FibEntries(t *testing.T) {
 	vtv.report.Clear()
 	vtv.l2Validator.ValidateL2FibEntries()
 
-	gomega.Expect(len(vtv.report.Data[api.GlobalMsg])).To(gomega.Equal(1))
-	for _, n := range vtv.vppCache.RetrieveAllNodes() {
-		gomega.Expect(len(vtv.report.Data[n.Name])).To(gomega.Equal(2))
-	}
+	checkDataReport(1, 1, 1)
 
 	// Restore data back to error free state
 	for k, ifc := range node.NodeInterfaces {
@@ -415,9 +440,29 @@ func testValidateL2FibEntries(t *testing.T) {
 		}
 	}
 
-	// ------------------------------------------------
-	// INJECT FAULT: Missing loop interface L2Fib entry
-	node, err = vtv.l2Validator.VppCache.RetrieveNode(nodeKey)
+	// ------------------------------------------------------------
+	// INJECT FAULT: Bad MAC address on local node's loop interface
+	node, err = vtv.l2Validator.VppCache.RetrieveNode(vtv.nodeKey)
+	gomega.Expect(err).To(gomega.BeNil())
+	loopIf, err := datastore.GetNodeLoopIFInfo(node)
+	gomega.Expect(err).To(gomega.BeNil())
+	prevMacAddr := loopIf.If.PhysAddress
+	loopIf.If.PhysAddress = "90:87:65:43:22"
+	node.NodeInterfaces[int(loopIf.IfMeta.SwIfIndex)] = *loopIf
+
+	// Perform test
+	vtv.report.Clear()
+	vtv.l2Validator.ValidateL2FibEntries()
+
+	checkDataReport(1, 1, 1)
+
+	// Restore data back to error free state
+	loopIf.If.PhysAddress = prevMacAddr
+	node.NodeInterfaces[int(loopIf.IfMeta.SwIfIndex)] = *loopIf
+
+	// ----------------------------------------------------
+	// INJECT FAULT: Missing L2Fib entry for the local node
+	node, err = vtv.l2Validator.VppCache.RetrieveNode(vtv.nodeKey)
 	gomega.Expect(err).To(gomega.BeNil())
 
 	var key string
@@ -433,15 +478,12 @@ func testValidateL2FibEntries(t *testing.T) {
 	vtv.report.Clear()
 	vtv.l2Validator.ValidateL2FibEntries()
 
-	gomega.Expect(len(vtv.report.Data[api.GlobalMsg])).To(gomega.Equal(1))
-	//for _, n := range vtv.vppCache.RetrieveAllNodes() {
-	//	gomega.Expect(len(vtv.report.Data[n.Name])).To(gomega.Equal(2))
-	//}
+	checkDataReport(1, 2, 0)
 
 	// Restore data back to error free state
 	node.NodeL2Fibs[key] = fibEntry
 
-	// -------------------------------------------------
+	// -------------------------------------------------------
 	// INJECT FAULT: Invalid entry in the Loop MAC Address map
 	vtv.vppCache.LoopMACMap = make(map[string]*telemetrymodel.Node, 0)
 
@@ -449,10 +491,44 @@ func testValidateL2FibEntries(t *testing.T) {
 	vtv.report.Clear()
 	vtv.l2Validator.ValidateL2FibEntries()
 
-	gomega.Expect(len(vtv.report.Data[api.GlobalMsg])).To(gomega.Equal(1))
-	for _, n := range vtv.vppCache.RetrieveAllNodes() {
-		gomega.Expect(len(vtv.report.Data[n.Name])).To(gomega.Equal(5))
+	checkDataReport(1, 4, 4)
+
+	// Restore data back to error free state
+	resetToInitialErrorFreeState()
+
+	// ---------------------------------------------------
+	// INJECT FAULT: Missing L2Fib entry for a remote node
+	for k, v := range vtv.vppCache.NodeMap[vtv.nodeKey].NodeL2Fibs {
+		if !v.Fe.BridgedVirtualInterface {
+			delete(vtv.vppCache.NodeMap[vtv.nodeKey].NodeL2Fibs, k)
+			break
+		}
 	}
+
+	// Perform test
+	vtv.report.Clear()
+	vtv.l2Validator.ValidateL2FibEntries()
+
+	checkDataReport(1, 1, 0)
+
+	// Restore data back to error free state
+	resetToInitialErrorFreeState()
+
+	// --------------------------------------------------------------------
+	// INJECT FAULT: Invalid VXLAN Destination IP address for a remote node
+	for k, v := range vtv.vppCache.NodeMap[vtv.nodeKey].NodeInterfaces {
+		if v.If.IfType == interfaces.InterfaceType_VXLAN_TUNNEL {
+			v.If.Vxlan.DstAddress = "1.2.3.4"
+			vtv.vppCache.NodeMap[vtv.nodeKey].NodeInterfaces[k] = v
+			break
+		}
+	}
+
+	// Perform test
+	vtv.report.Clear()
+	vtv.l2Validator.ValidateL2FibEntries()
+
+	checkDataReport(1, 3, 0)
 
 	// Restore data back to error free state
 	resetToInitialErrorFreeState()
@@ -506,4 +582,18 @@ func resetToInitialErrorFreeState() {
 			}
 		}
 	}
+}
+
+func checkDataReport(globalCnt int, nodeKeyCnt int, defaultCnt int) {
+	for k := range vtv.report.Data {
+		switch k {
+		case api.GlobalMsg:
+			gomega.Expect(len(vtv.report.Data[k])).To(gomega.Equal(globalCnt))
+		case vtv.nodeKey:
+			gomega.Expect(len(vtv.report.Data[k])).To(gomega.Equal(nodeKeyCnt))
+		default:
+			gomega.Expect(len(vtv.report.Data[k])).To(gomega.Equal(defaultCnt))
+		}
+	}
+
 }

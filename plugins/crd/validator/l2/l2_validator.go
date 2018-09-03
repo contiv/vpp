@@ -72,12 +72,14 @@ func (v *Validator) ValidateArpTables() {
 
 			arpIf, ok := node.NodeInterfaces[int(arpTableEntry.AeMeta.IfIndex)]
 			if !ok {
-				errString := fmt.Sprintf("ARP Table entry %+v: interface with ifIndex not found", arpTableEntry)
+				errString := fmt.Sprintf("invalid ARP entry <'%s'-'%s'>: bad ifIndex %d",
+					arpTableEntry.Ae.PhysAddress, arpTableEntry.Ae.IPAddress, arpTableEntry.AeMeta.IfIndex)
 				v.Report.AppendToNodeReport(node.Name, errString)
 				errCnt++
 				continue
 			}
 
+			// skip over ARP entries for all interfaces other than Vxlan BVI
 			if arpIf.If.IfType != interfaces.InterfaceType_SOFTWARE_LOOPBACK || arpIf.If.Name != "vxlanBVI" {
 				continue
 			}
@@ -85,7 +87,8 @@ func (v *Validator) ValidateArpTables() {
 			addressNotFound := false
 			macNode, err := v.VppCache.RetrieveNodeByLoopMacAddr(arpTableEntry.Ae.PhysAddress)
 			if err != nil {
-				errString := fmt.Sprintf("ARP Table entry %+v: no remote node for MAC Address", arpTableEntry)
+				errString := fmt.Sprintf("invalid ARP entry <'%s'-'%s'>: bad MAC Addess",
+					arpTableEntry.Ae.PhysAddress, arpTableEntry.Ae.IPAddress)
 				v.Report.AppendToNodeReport(node.Name, errString)
 				addressNotFound = true
 				errCnt++
@@ -93,7 +96,8 @@ func (v *Validator) ValidateArpTables() {
 
 			ipNode, err := v.VppCache.RetrieveNodeByLoopIPAddr(arpTableEntry.Ae.IPAddress + "/24")
 			if err != nil {
-				errString := fmt.Sprintf("ARP Table entry %+v: no remote node for IP Address", arpTableEntry)
+				errString := fmt.Sprintf("invalid ARP entry <'%s'-'%s'>: bad IP Addess",
+					arpTableEntry.Ae.PhysAddress, arpTableEntry.Ae.IPAddress)
 				v.Report.AppendToNodeReport(node.Name, errString)
 				addressNotFound = true
 				errCnt++
@@ -104,8 +108,8 @@ func (v *Validator) ValidateArpTables() {
 			}
 
 			if macNode.Name != ipNode.Name {
-				errString := fmt.Sprintf("ARP Table entry %+v: MAC -> node %s, IP -> nodes %s",
-					arpTableEntry, macNode.Name, ipNode.Name)
+				errString := fmt.Sprintf("invalid ARP entry <'%s'-'%s'>: MAC -> node %s, IP -> node %s",
+					arpTableEntry.Ae.PhysAddress, arpTableEntry.Ae.IPAddress, macNode.Name, ipNode.Name)
 				v.Report.AppendToNodeReport(node.Name, errString)
 				errCnt++
 			}
@@ -114,10 +118,12 @@ func (v *Validator) ValidateArpTables() {
 		}
 
 		for nodeName := range loopNodeMap {
-			v.Report.AppendToNodeReport(nodeName, fmt.Sprintf("ARP Table: No MAC entry  for node %s", node.Name))
 			errCnt++
+			errString := fmt.Sprintf("missing ARP entry for node %s", nodeName)
+			v.Report.AppendToNodeReport(node.Name, errString)
 		}
 	}
+
 	if errCnt == 0 {
 		v.Report.AppendToNodeReport(api.GlobalMsg, fmt.Sprintf("ARP Table Validation: OK"))
 	} else {
@@ -398,15 +404,13 @@ func (v *Validator) ValidateL2FibEntries() {
 						feKey, node.Name)
 					v.Report.AppendToNodeReport(node.Name, errString)
 				} else {
-					// Make sure that the L2Fib entry's MAC address is the same as
+					// check if the L2Fib entry's MAC address is the same as
 					// in the BVI interface on the local node
 					if feVal.Fe.PhysAddress != loopIf.If.PhysAddress {
 						errCnt++
 						errString := fmt.Sprintf("L2Fib BVI entry '%s' invalid - bad MAC address; "+
 							"have '%s', expecting '%s'", feKey, feVal.Fe.PhysAddress, loopIf.If.PhysAddress)
 						v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
-					} else {
-						// Entry is valid
 					}
 				}
 

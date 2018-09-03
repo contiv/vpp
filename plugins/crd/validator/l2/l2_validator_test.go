@@ -111,6 +111,7 @@ func TestValidator(t *testing.T) {
 	t.Run("testK8sNodeToNodeInfoMissingK8snValidation", testK8sNodeToNodeInfoMissingK8snValidation)
 	t.Run("testNodesDBValidateL2Connections", testNodesDBValidateL2Connections)
 	t.Run("testValidateL2FibEntries", testValidateL2FibEntries)
+	t.Run("testValidateArpEntries", testValidateArpEntries)
 }
 
 func testErrorFreeTopologyValidation(t *testing.T) {
@@ -533,6 +534,100 @@ func testValidateL2FibEntries(t *testing.T) {
 	// Restore data back to error free state
 	resetToInitialErrorFreeState()
 
+	// -------------------------------------
+	// INJECT FAULT: Vxlan BD does not exist
+	for k, v := range vtv.vppCache.NodeMap[vtv.nodeKey].NodeBridgeDomains {
+		if v.Bd.Name == "vxlanBD" {
+			v.Bd.Name = "anotherBdName"
+			vtv.vppCache.NodeMap[vtv.nodeKey].NodeBridgeDomains[k] = v
+			break
+		}
+	}
+
+	// Perform test
+	vtv.report.Clear()
+	vtv.l2Validator.ValidateL2FibEntries()
+
+	checkDataReport(1, 1, 0)
+
+	// Restore data back to error free state
+	resetToInitialErrorFreeState()
+}
+
+func testValidateArpEntries(t *testing.T) {
+	vtv.nodeKey = "k8s-master"
+	resetToInitialErrorFreeState()
+
+	// ----------------------------------------------
+	// INJECT FAULT: Invalid IfIndex in the ARP entry
+	for i, v := range vtv.vppCache.NodeMap[vtv.nodeKey].NodeIPArp {
+		v.AeMeta.IfIndex = v.AeMeta.IfIndex + 100
+		vtv.vppCache.NodeMap[vtv.nodeKey].NodeIPArp[i] = v
+
+		// Perform test
+		vtv.report.Clear()
+		vtv.l2Validator.ValidateArpTables()
+
+		checkDataReport(1, 2, 0)
+
+		// Restore data back to error free state
+		vtv.vppCache.NodeMap[vtv.nodeKey].NodeIPArp[i].AeMeta.IfIndex = v.AeMeta.IfIndex - 100
+		break
+	}
+
+	// --------------------------------------------------
+	// INJECT FAULT: Invalid MAC Address in the ARP entry
+	for i, v := range vtv.vppCache.NodeMap[vtv.nodeKey].NodeIPArp {
+		oldPhyAddress := v.Ae.PhysAddress
+		v.Ae.PhysAddress = "ff:ee:dd:cc:bb:aa"
+		vtv.vppCache.NodeMap[vtv.nodeKey].NodeIPArp[i] = v
+
+		// Perform test
+		vtv.report.Clear()
+		vtv.l2Validator.ValidateArpTables()
+
+		checkDataReport(1, 2, 0)
+
+		// Restore data back to error free state
+		vtv.vppCache.NodeMap[vtv.nodeKey].NodeIPArp[i].Ae.PhysAddress = oldPhyAddress
+		break
+	}
+
+	// -------------------------------------------------
+	// INJECT FAULT: Invalid IP Address in the ARP entry
+	for i, v := range vtv.vppCache.NodeMap[vtv.nodeKey].NodeIPArp {
+		oldIPAddress := v.Ae.IPAddress
+		v.Ae.IPAddress = "1.2.3.4"
+		vtv.vppCache.NodeMap[vtv.nodeKey].NodeIPArp[i] = v
+
+		// Perform test
+		vtv.report.Clear()
+		vtv.l2Validator.ValidateArpTables()
+
+		checkDataReport(1, 2, 0)
+
+		// Restore data back to error free state
+		vtv.vppCache.NodeMap[vtv.nodeKey].NodeIPArp[i].Ae.IPAddress = oldIPAddress
+		break
+	}
+
+	// ----------------------------------------------------------------
+	// INJECT FAULT: Inconsistent MAC and IP addresses in the ARP entry
+	for i, v := range vtv.vppCache.NodeMap[vtv.nodeKey].NodeIPArp {
+		oldIPAddress := v.Ae.IPAddress
+		v.Ae.IPAddress = vtv.vppCache.NodeMap[vtv.nodeKey].NodeIPArp[i + 1].Ae.IPAddress
+		vtv.vppCache.NodeMap[vtv.nodeKey].NodeIPArp[i] = v
+
+		// Perform test
+		vtv.report.Clear()
+		vtv.l2Validator.ValidateArpTables()
+
+		checkDataReport(1, 2, 0)
+
+		// Restore data back to error free state
+		vtv.vppCache.NodeMap[vtv.nodeKey].NodeIPArp[i].Ae.PhysAddress = oldIPAddress
+		break
+	}
 }
 
 func (v *l2ValidatorTestVars) findFirstVxlanInterface(nodeKey string) (int, *telemetrymodel.NodeInterface) {

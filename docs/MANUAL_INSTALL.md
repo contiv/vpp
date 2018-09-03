@@ -82,7 +82,7 @@ feature must be either disabled or memory limit must be defined for vswitch cont
 To disable huge pages, perform the following
 steps as root:
 * Using your favorite editor, disable huge pages in the kubelet configuration 
-  file (`/etc/systemd/system/kubelet.service.d/10-kubeadm.conf`):
+  file (`/etc/systemd/system/kubelet.service.d/10-kubeadm.conf` or `/etc/default/kubelet` for version 1.11+):
 ```
   Environment="KUBELET_EXTRA_ARGS=--feature-gates HugePages=false"
 ```

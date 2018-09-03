@@ -29,7 +29,7 @@ const (
 // KeyPrefix returns the key prefix used in the data-store to save
 // the current state of every known K8s node.
 func KeyPrefix() string {
-	return ksrkey.KsrK8sPrefix + "/" + NodeKeyword
+	return ksrkey.KeyPrefix(NodeKeyword)
 }
 
 // ParseNodeFromKey parses namespace id from the associated data-store key.
@@ -44,5 +44,5 @@ func ParseNodeFromKey(key string) (node string, err error) {
 // Key returns the key under which a configuration for the given
 // node should be stored in the data-store.
 func Key(node string) string {
-	return KeyPrefix() + "/" + node
+	return KeyPrefix() + node
 }

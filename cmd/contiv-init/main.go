@@ -165,7 +165,7 @@ func parseSTNConfig() (config *contiv.Config, nicToSteal string, useDHCP bool, e
 
 	// try to find node config and return STN interface name if defined
 	nodeName := os.Getenv(servicelabel.MicroserviceLabelEnvVar)
-	logger.Debugf("Looking for node '%s' specific config in ETCD", nodeName)
+	logger.Debugf("Looking for node '%s' specific config in ETCD/Bolt", nodeName)
 	if nc := loadNodeConfigFromCRD(nodeName); nc != nil {
 		// node configuration defined via CRD
 		nicToSteal, useDHCP = processNodeSpecificConfig(nc)

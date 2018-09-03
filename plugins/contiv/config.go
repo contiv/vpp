@@ -115,11 +115,12 @@ func LoadNodeConfigFromCRD(nodeName string, remoteDB, localDB KVBrokerFactory, l
 			}
 			if err != nil {
 				log.WithField("err", err).Warn("Failed to mirror node configuration from remote to local KV-store")
+				err = nil // ignore error
 			}
 		}
 	}
 
-	if nodeConfigProto == nil && localDB != nil {
+	if (remoteDB == nil || err != nil) && localDB != nil {
 		// try the local mirror of the kv-store
 		nodeConfigProto, err = loadNodeConfigFromKVStore(nodeName, localDB)
 		if err != nil {

@@ -105,4 +105,3 @@ func (nc *NodeConfigSpec) EqualsTo(nc2 *NodeConfigSpec) bool {
 		nc.Gateway == nc2.Gateway &&
 		nc.StealInterface == nc2.StealInterface
 }
-

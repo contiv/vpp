@@ -16,13 +16,13 @@
 package testdata
 
 import (
+	"encoding/json"
 	"fmt"
 	nodeinfomodel "github.com/contiv/vpp/plugins/contiv/model/node"
+	"github.com/contiv/vpp/plugins/crd/api"
+	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
 	nodemodel "github.com/contiv/vpp/plugins/ksr/model/node"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
-	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
-	"encoding/json"
-	"github.com/contiv/vpp/plugins/crd/api"
 )
 
 // createNodeTestData creates a test vector that roughly corresponds to a 3-node

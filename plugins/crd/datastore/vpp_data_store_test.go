@@ -476,18 +476,18 @@ func TestGetNodeLoopIFInfo(t *testing.T) {
 			Mtu:         1500,
 			Vrf:         0,
 			IPAddresses: []string{"1.2.3.4"},
-			Vxlan:       telemetrymodel.Vxlan{
+			Vxlan: telemetrymodel.Vxlan{
 				SrcAddress: "10.20.30.40",
 				DstAddress: "11.22.33.44",
-				Vni: 10,
+				Vni:        10,
 			},
-			Tap:         telemetrymodel.Tap{
+			Tap: telemetrymodel.Tap{
 				Version: 2,
 			},
 		},
 		IfMeta: telemetrymodel.InterfaceMeta{
 			VppInternalName: "loop0",
-			SwIfIndex: 10,
+			SwIfIndex:       10,
 		},
 	}
 	interfaces := make(map[int]telemetrymodel.NodeInterface)

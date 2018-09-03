@@ -38,7 +38,6 @@ import (
 	nodemodel "github.com/contiv/vpp/plugins/ksr/model/node"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 
-	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 
 	apiextcs "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
@@ -101,11 +100,6 @@ func (p *Plugin) Init() error {
 		return fmt.Errorf("failed to build kubernetes client config: %s", err)
 	}
 
-	k8sClient, err := kubernetes.NewForConfig(k8sClientConfig)
-	if err != nil {
-		return fmt.Errorf("failed to build kubernetes client: %s", err)
-	}
-
 	crdClient, err := crdClientSet.NewForConfig(k8sClientConfig)
 	if err != nil {
 		return fmt.Errorf("failed to build crd Client: %s", err)
@@ -120,7 +114,6 @@ func (p *Plugin) Init() error {
 		Deps: telemetry.Deps{
 			Log: p.Log.NewLogger("-telemetryController"),
 		},
-		K8sClient: k8sClient,
 		CrdClient: crdClient,
 		APIClient: apiclientset,
 	}
@@ -141,7 +134,9 @@ func (p *Plugin) Init() error {
 
 	p.processor = &validator.Validator{
 		Deps: validator.Deps{
-			Log: p.Log.NewLogger("-telemetryProcessor"),
+			Log:   p.Log.NewLogger("-telemetryProcessor"),
+			L2Log: p.Log.NewLogger("-telemetryProcessorL2"),
+			L3Log: p.Log.NewLogger("-telemetryProcessorL3"),
 		},
 		VppCache: p.cache.VppCache,
 		K8sCache: p.cache.K8sCache,
@@ -165,7 +160,6 @@ func (p *Plugin) Init() error {
 			Log:     p.Log.NewLogger("-nodeConfigController"),
 			Publish: p.Publish,
 		},
-		K8sClient: k8sClient,
 		CrdClient: crdClient,
 		APIClient: apiclientset,
 	}

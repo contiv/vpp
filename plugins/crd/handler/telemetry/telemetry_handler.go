@@ -37,6 +37,6 @@ func (h *Handler) ObjectDeleted(obj interface{}) {
 }
 
 // ObjectUpdated is called when a CRD object is updated
-func (h *Handler) ObjectUpdated(obj interface{}) {
+func (h *Handler) ObjectUpdated(oldObj, newObj interface{}) {
 	//fmt.Printf("Object updated with value: %v", obj)
 }

@@ -202,6 +202,7 @@ type IPRoute struct {
 	NextHopAddr string `json:"next_hop_addr"`
 	OutIface    string `json:"outgoing_interface"`
 	Weight      uint32 `json:"weight"`
+	ViaVRFID    uint32 `json:"via_vrf_id"`
 }
 
 // IPRouteMeta defines the IP Route VPP internal metadata

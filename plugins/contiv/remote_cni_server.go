@@ -969,10 +969,11 @@ func (s *remoteCNIserver) cleanupVswitchConnectivity() {
 // It also configures the VPP TCP stack for this container, in case it would be LD_PRELOAD-ed.
 func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest) (reply *cni.CNIReply, err error) {
 	var (
-		podIP     net.IP
-		persisted bool
-		txn       linuxclient.PutDSL
-		revertTxn linuxclient.DeleteDSL
+		podIP          net.IP
+		persisted      bool
+		txn            linuxclient.PutDSL
+		revertTxn      linuxclient.DeleteDSL
+		revertFirstTxn linuxclient.DeleteDSL
 	)
 
 	// do not connect any containers until the base vswitch config is successfully applied
@@ -997,6 +998,9 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 			if persisted {
 				s.deletePersistedPodConfig(podConfigToProto(config))
 				delete(s.configuredInThisRun, id)
+			}
+			if revertFirstTxn != nil {
+				revertFirstTxn.Send().ReceiveReply()
 			}
 			if revertTxn != nil {
 				revertTxn.Send().ReceiveReply()
@@ -1023,8 +1027,11 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 		return s.generateCniErrorReply(err)
 	}
 
+	// create a separate revert txn because the route must be deleted
+	// before its outgoing interface. Otherwise, it remains dangling.
+	revertFirstTxn = s.vppTxnFactory().Delete()
 	// prepare VPP-side of the POD-related configuration
-	err = s.configurePodVPPSide(request, podIP, config, txn, revertTxn)
+	err = s.configurePodVPPSide(request, podIP, config, txn, revertFirstTxn)
 	if err != nil {
 		s.Logger.Error(err)
 		return s.generateCniErrorReply(err)

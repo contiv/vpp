@@ -64,9 +64,9 @@ func PrintNodes() {
 		err = json.Unmarshal(buf, nodeInfo)
 		//fmt.Printf("NodeInfo: %+v\n", nodeInfo)
 		// Do whatever processing we need to do
-		bytes := http.GetNodeInfo(nodeInfo.ManagementIpAddress,"liveness")
+		bytes := http.GetNodeInfo(nodeInfo.ManagementIpAddress, "liveness")
 		var liveness telemetrymodel.NodeLiveness
-		err = json.Unmarshal(bytes,&liveness)
+		err = json.Unmarshal(bytes, &liveness)
 		if err != nil {
 			fmt.Println(err)
 			liveness.BuildDate = "Not Available"
@@ -123,9 +123,9 @@ func FindIPForNodeName(nodeName string) string {
 	db.Close()
 	return ""
 }
+
 //VppCliCmd will receive a nodeName and a vpp cli command and print it out to the console
 func VppCliCmd(nodeName string, vppclicmd string) {
-
 
 	fmt.Printf("vppcli %s %s\n", nodeName, vppclicmd)
 	ipAdr := FindIPForNodeName(nodeName)
@@ -134,8 +134,8 @@ func VppCliCmd(nodeName string, vppclicmd string) {
 		return
 	}
 	cmd := fmt.Sprintf("vpp/command")
-	body := fmt.Sprintf("{\"vppclicommand\":\"%s\"}",vppclicmd)
-	err := http.SetNodeInfo(ipAdr,cmd,body)
+	body := fmt.Sprintf("{\"vppclicommand\":\"%s\"}", vppclicmd)
+	err := http.SetNodeInfo(ipAdr, cmd, body)
 	if err != nil {
 		fmt.Println(err)
 	}

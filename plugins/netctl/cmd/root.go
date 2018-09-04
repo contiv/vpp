@@ -54,13 +54,13 @@ var cmdVppCLI = &cobra.Command{
 		nodeName := args[0]
 		if len(args) >= 2 {
 			vppCliCmd := ""
-			for _, str := range args[1:]  {
+			for _, str := range args[1:] {
 				vppCliCmd += str + " "
 			}
 			nodes.VppCliCmd(nodeName, vppCliCmd)
-		}else if nodeName == ""{
+		} else if nodeName == "" {
 			fmt.Println("Enter a node name for vppcli: vppcli <nodeName> <cli_cmd>")
-		}else {
+		} else {
 			fmt.Println("Enter a Vpp CLI Command...")
 		}
 	},

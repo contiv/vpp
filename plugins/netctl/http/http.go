@@ -62,7 +62,7 @@ func SetNodeInfo(ipAddr string, cmd string, body string) error {
 	}
 
 	url := fmt.Sprintf("http://%s:9999/%s", ipAddr, cmd)
-	res, err := client.Post(url,"application/json",bytes.NewBuffer([]byte(body)))
+	res, err := client.Post(url, "application/json", bytes.NewBuffer([]byte(body)))
 	if err != nil {
 		err := fmt.Errorf("SetNodeInfo: url: %s cleintGet Error: %s", url, err.Error())
 		return err

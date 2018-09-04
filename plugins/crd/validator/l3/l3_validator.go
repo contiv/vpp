@@ -35,17 +35,13 @@ type Validator struct {
 	Report   api.Report
 }
 
-// Validate performes the validation of L3 telemetry data collected from a
-// Contiv cluster.
-func (v *Validator) Validate() {
-	v.ValidateL3()
-}
+
 
 //Vrf is a type declaration to help simplify a map of maps
 type Vrf = map[string]telemetrymodel.NodeIPRoute
 
-//ValidateL3 will validate each nodes and pods l3 connectivity for any errors
-func (v *Validator) ValidateL3() {
+//Validate will validate each nodes and pods l3 connectivity for any errors
+func (v *Validator) Validate() {
 	nodeList := v.VppCache.RetrieveAllNodes()
 	numErrs := 0
 	routeMap := make(map[string]bool)

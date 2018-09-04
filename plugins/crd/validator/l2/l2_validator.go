@@ -604,14 +604,14 @@ func (v *Validator) ValidatePodInfo() {
 			case nodemodel.NodeAddress_NodeInternalIP:
 				if adr.Address != pod.HostIPAddress {
 					errCnt++
-					errString := fmt.Sprintf("pod %s: Host IP Addr '%s' does not match NodeInternalIP " +
+					errString := fmt.Sprintf("pod %s: Host IP Addr '%s' does not match NodeInternalIP "+
 						"'%s' in K8s database", pod.Name, pod.HostIPAddress, adr.Address)
 					v.Report.AppendToNodeReport(node.Name, errString)
 				}
 			case nodemodel.NodeAddress_NodeHostName:
 				if adr.Address != node.Name {
 					errCnt++
-					errString := fmt.Sprintf("pod %s: Node name %s does not match NodeHostName %s" +
+					errString := fmt.Sprintf("pod %s: Node name %s does not match NodeHostName %s"+
 						"in K8s database", pod.Name, node.Name, adr.Address)
 					v.Report.AppendToNodeReport(node.Name, errString)
 				}

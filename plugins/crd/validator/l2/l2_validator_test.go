@@ -736,7 +736,7 @@ func testValidatePodInfo(t *testing.T) {
 	vtv.report.Clear()
 	vtv.l2Validator.ValidatePodInfo()
 
-	checkDataReport(1, podCnt * 2, 0)
+	checkDataReport(1, podCnt*2, 0)
 
 	// Restore data back to error free state
 	resetToInitialErrorFreeState()

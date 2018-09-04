@@ -46,11 +46,32 @@ var cmdVppDump = &cobra.Command{
 	},
 }
 
+var cmdVppCLI = &cobra.Command{
+	Use:   "vppcli nodename ",
+	Short: "Print anything to the screen",
+	Args:  cobra.MinimumNArgs(1),
+	Run: func(cmd *cobra.Command, args []string) {
+		nodeName := args[0]
+		if len(args) >= 2 {
+			vppCliCmd := ""
+			for _, str := range args[1:]  {
+				vppCliCmd += str + " "
+			}
+			nodes.VppCliCmd(nodeName, vppCliCmd)
+		}else if nodeName == ""{
+			fmt.Println("Enter a node name for vppcli: vppcli <nodeName> <cli_cmd>")
+		}else {
+			fmt.Println("Enter a Vpp CLI Command...")
+		}
+	},
+}
+
 //Execute will execute the command netctlcd
 func Execute() {
 	var rootCmd = &cobra.Command{Use: "netctl"}
 	rootCmd.AddCommand(cmdNodes)
 	rootCmd.AddCommand(cmdVppDump)
+	rootCmd.AddCommand(cmdVppCLI)
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)
 		os.Exit(1)

@@ -20,6 +20,8 @@ import (
 	"encoding/json"
 	"fmt"
 	nodeinfomodel "github.com/contiv/vpp/plugins/contiv/model/node"
+	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
+	"github.com/contiv/vpp/plugins/netctl/http"
 	"github.com/coreos/etcd/clientv3"
 	"github.com/ligato/cn-infra/db/keyval/etcd"
 	"github.com/ligato/cn-infra/logging/logrus"
@@ -48,7 +50,7 @@ func PrintNodes() {
 		fmt.Printf("Error getting values")
 		return
 	}
-	fmt.Fprintf(w, "id\tname\t\tip_address\t\tmanagement_ip_address\n")
+	fmt.Fprintf(w, "id\tname\t\tip_address\t\tman_ip_addr\tbuild_date\t\t\tbuild_version\t\tstart_time\tstate\n")
 	w.Flush()
 	for {
 		kv, stop := itr.GetNext()
@@ -62,11 +64,24 @@ func PrintNodes() {
 		err = json.Unmarshal(buf, nodeInfo)
 		//fmt.Printf("NodeInfo: %+v\n", nodeInfo)
 		// Do whatever processing we need to do
-		fmt.Fprintf(w, "%+v\t%+v\t%+v\t%+v\n",
+		bytes := http.GetNodeInfo(nodeInfo.ManagementIpAddress,"liveness")
+		var liveness telemetrymodel.NodeLiveness
+		err = json.Unmarshal(bytes,&liveness)
+		if err != nil {
+			fmt.Println(err)
+			liveness.BuildDate = "Not Available"
+		}
+
+		fmt.Fprintf(w, "%+v\t%s\t%s\t%s\t%s\t%s\t%d\t%d\n",
 			nodeInfo.Id,
 			nodeInfo.Name,
 			nodeInfo.IpAddress,
-			nodeInfo.ManagementIpAddress)
+			nodeInfo.ManagementIpAddress,
+			liveness.BuildDate,
+			liveness.BuildVersion,
+			liveness.StartTime,
+			liveness.State)
+
 		w.Flush()
 	}
 	db.Close()
@@ -107,4 +122,22 @@ func FindIPForNodeName(nodeName string) string {
 	}
 	db.Close()
 	return ""
+}
+//VppCliCmd will receive a nodeName and a vpp cli command and print it out to the console
+func VppCliCmd(nodeName string, vppclicmd string) {
+
+
+	fmt.Printf("vppcli %s %s\n", nodeName, vppclicmd)
+	ipAdr := FindIPForNodeName(nodeName)
+	if ipAdr == "" {
+		fmt.Printf("Unknown node name %s", nodeName)
+		return
+	}
+	cmd := fmt.Sprintf("vpp/command")
+	body := fmt.Sprintf("{\"vppclicommand\":\"%s\"}",vppclicmd)
+	err := http.SetNodeInfo(ipAdr,cmd,body)
+	if err != nil {
+		fmt.Println(err)
+	}
+
 }

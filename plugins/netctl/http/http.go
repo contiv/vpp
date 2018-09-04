@@ -51,3 +51,27 @@ func GetNodeInfo(ipAddr string, cmd string) []byte {
 	}
 	return out.Bytes()
 }
+
+//SetNodeInfo will make an http json post request to get the vpp cli command output
+func SetNodeInfo(ipAddr string, cmd string, body string) error {
+	client := http.Client{
+		Transport:     nil,
+		CheckRedirect: nil,
+		Jar:           nil,
+		Timeout:       30000000,
+	}
+
+	url := fmt.Sprintf("http://%s:9999/%s", ipAddr, cmd)
+	res, err := client.Post(url,"application/json",bytes.NewBuffer([]byte(body)))
+	if err != nil {
+		err := fmt.Errorf("SetNodeInfo: url: %s cleintGet Error: %s", url, err.Error())
+		return err
+	} else if res.StatusCode < 200 || res.StatusCode > 299 {
+		err := fmt.Errorf("SetNodeInfo: url: %s HTTP res.Status: %s", url, res.Status)
+		return err
+	}
+	b, _ := ioutil.ReadAll(res.Body)
+	fmt.Println(string(b))
+	return nil
+
+}

@@ -112,6 +112,8 @@ func TestValidator(t *testing.T) {
 	t.Run("testNodesDBValidateL2Connections", testNodesDBValidateL2Connections)
 	t.Run("testValidateL2FibEntries", testValidateL2FibEntries)
 	t.Run("testValidateArpEntries", testValidateArpEntries)
+	t.Run("testValidatePodInfo", testValidatePodInfo)
+
 }
 
 func testErrorFreeTopologyValidation(t *testing.T) {
@@ -615,7 +617,7 @@ func testValidateArpEntries(t *testing.T) {
 	// INJECT FAULT: Inconsistent MAC and IP addresses in the ARP entry
 	for i, v := range vtv.vppCache.NodeMap[vtv.nodeKey].NodeIPArp {
 		oldIPAddress := v.Ae.IPAddress
-		v.Ae.IPAddress = vtv.vppCache.NodeMap[vtv.nodeKey].NodeIPArp[i + 1].Ae.IPAddress
+		v.Ae.IPAddress = vtv.vppCache.NodeMap[vtv.nodeKey].NodeIPArp[i+1].Ae.IPAddress
 		vtv.vppCache.NodeMap[vtv.nodeKey].NodeIPArp[i] = v
 
 		// Perform test
@@ -628,6 +630,116 @@ func testValidateArpEntries(t *testing.T) {
 		vtv.vppCache.NodeMap[vtv.nodeKey].NodeIPArp[i].Ae.PhysAddress = oldIPAddress
 		break
 	}
+}
+
+func testValidatePodInfo(t *testing.T) {
+	vtv.nodeKey = "k8s-master"
+	resetToInitialErrorFreeState()
+
+	// -------------------------------------------------------
+	// INJECT FAULT: Incorrect Host IP address in K8s pod data
+	for _, pod := range vtv.k8sCache.RetrieveAllPods() {
+		oldHostIPAddress := pod.HostIPAddress
+		vtv.k8sCache.UpdatePod(pod.Name, pod.Namespace, pod.Label, pod.IPAddress, "1.2.3.4", nil)
+
+		// Perform test
+		vtv.report.Clear()
+		vtv.l2Validator.ValidatePodInfo()
+
+		checkDataReport(2, 0, 0)
+
+		// Restore data back to error free state
+		vtv.k8sCache.UpdatePod(pod.Name, pod.Namespace, pod.Label, pod.IPAddress, oldHostIPAddress, nil)
+		break
+	}
+
+	// -----------------------------------------------
+	// INJECT FAULT: Pod missing from the host Pod map
+	nodeKeyHostIP := vtv.vppCache.NodeMap[vtv.nodeKey].ManIPAddr
+	for _, pod := range vtv.k8sCache.RetrieveAllPods() {
+		if pod.HostIPAddress == nodeKeyHostIP {
+			delete(vtv.vppCache.NodeMap[vtv.nodeKey].PodMap, pod.Name)
+			break
+		}
+	}
+
+	// Perform test
+	vtv.report.Clear()
+	vtv.l2Validator.ValidatePodInfo()
+
+	checkDataReport(1, 1, 0)
+
+	// Restore data back to error free state
+	resetToInitialErrorFreeState()
+
+	// ------------------------------------------------------------------
+	// INJECT FAULT: Pod in the host Pod map inconsistent with Pod in the
+	// K8s database
+	nodeKeyHostIP = vtv.vppCache.NodeMap[vtv.nodeKey].ManIPAddr
+	for _, pod := range vtv.k8sCache.RetrieveAllPods() {
+		if pod.HostIPAddress == nodeKeyHostIP {
+			vtv.vppCache.NodeMap[vtv.nodeKey].PodMap[pod.Name] = &telemetrymodel.Pod{}
+			break
+		}
+	}
+
+	// Perform test
+	vtv.report.Clear()
+	vtv.l2Validator.ValidatePodInfo()
+
+	checkDataReport(1, 1, 0)
+
+	// Restore data back to error free state
+	resetToInitialErrorFreeState()
+
+	// -----------------------------------------------------------
+	// INJECT FAULT: Pod's host node not in the K8s node database
+	podCnt := 0
+	for _, pod := range vtv.k8sCache.RetrieveAllPods() {
+		if pod.HostIPAddress == nodeKeyHostIP {
+			podCnt++
+		}
+	}
+	vtv.k8sCache.DeleteK8sNode(vtv.vppCache.NodeMap[vtv.nodeKey].Name)
+
+	// Perform test
+	vtv.report.Clear()
+	vtv.l2Validator.ValidatePodInfo()
+
+	checkDataReport(1, podCnt, 0)
+
+	// Restore data back to error free state
+	resetToInitialErrorFreeState()
+
+	// ---------------------------------------------------------------------
+	// INJECT FAULT: Pod's host IP address inconsistent with the node's host
+	// IP address in the K8s database
+	k8sNode, err := vtv.k8sCache.RetrieveK8sNode(vtv.vppCache.NodeMap[vtv.nodeKey].Name)
+	gomega.Expect(err).To(gomega.BeNil())
+
+	podCnt = 0
+	for _, pod := range vtv.k8sCache.RetrieveAllPods() {
+		if pod.HostIPAddress == nodeKeyHostIP {
+			podCnt++
+		}
+	}
+	for k, adr := range k8sNode.Addresses {
+		switch adr.Type {
+		case nodemodel.NodeAddress_NodeHostName:
+			k8sNode.Addresses[k].Address = "someHost"
+		case nodemodel.NodeAddress_NodeInternalIP:
+			k8sNode.Addresses[k].Address = "1.2.3.4"
+		}
+	}
+
+	// Perform test
+	vtv.report.Clear()
+	vtv.l2Validator.ValidatePodInfo()
+
+	checkDataReport(1, podCnt * 2, 0)
+
+	// Restore data back to error free state
+	resetToInitialErrorFreeState()
 }
 
 func (v *l2ValidatorTestVars) findFirstVxlanInterface(nodeKey string) (int, *telemetrymodel.NodeInterface) {

@@ -20,6 +20,7 @@ import (
 	"github.com/contiv/vpp/plugins/crd/api"
 	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
 	"github.com/contiv/vpp/plugins/crd/datastore"
+	nodemodel "github.com/contiv/vpp/plugins/ksr/model/node"
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/vpp-agent/plugins/vpp/model/interfaces"
 	"github.com/pkg/errors"
@@ -555,79 +556,78 @@ func (v *Validator) ValidateK8sNodeInfo() {
 	}
 }
 
-//ValidatePodInfo will check to see that each pod has a valid host ip address node and that the information correctly
-//correlates between the nodes and the pods.
+// ValidatePodInfo will check to see that each pod has a valid host ip address
+// node and that the information correctly correlates between the nodes and
+// the pods.
 func (v *Validator) ValidatePodInfo() {
-
+	errCnt := 0
 	podList := v.K8sCache.RetrieveAllPods()
-	podMap := make(map[string]bool)
 	for _, pod := range podList {
-		podMap[pod.Name] = true
-	}
-	for _, pod := range podList {
+		// Check if we have a node with the Host IP address that K8s specifies
+		// for the Pod
 		node, err := v.VppCache.RetrieveNodeByHostIPAddr(pod.HostIPAddress)
 		if err != nil {
-			v.Report.AppendToNodeReport(api.GlobalMsg, fmt.Sprintf("error finding node for Pod %s with host ip %s",
-				pod.Name, pod.HostIPAddress))
+			errCnt++
+			errString := fmt.Sprintf("node not found for Pod %s with Host IP %s - skipping Pod validation",
+				pod.Name, pod.HostIPAddress)
+			v.Report.AppendToNodeReport(api.GlobalMsg, errString)
 			continue
 		}
 
 		podPtr, ok := node.PodMap[pod.Name]
 		if !ok {
-			v.Report.AppendToNodeReport(node.Name, fmt.Sprintf("pod %s in node %s podMap not found",
-				pod.Name, node.Name))
+			errCnt++
+			v.Report.AppendToNodeReport(node.Name, fmt.Sprintf("pod %s's IP address (%s) points to node %s, "+
+				"but pod isnot present in node's podMap", pod.Name, pod.HostIPAddress, node.Name))
 			continue
 		}
 
 		if pod != podPtr {
-			errString := fmt.Sprintf("node podmap pod %+v is not the same as cache podmap pod %+v",
-				podPtr.Name, pod.Name)
+			errCnt++
+			errString := fmt.Sprintf("pod %s in node's podMap (%+v) is not the same as "+
+				"the pod in k8s cache (%+v)", podPtr.Name, podPtr, pod)
 			v.Report.AppendToNodeReport(node.Name, errString)
 			continue
 		}
 
 		k8snode, err := v.K8sCache.RetrieveK8sNode(node.Name)
 		if err != nil {
-			errString := fmt.Sprintf("cannot find k8snode in k8sNodeMap for node with name %+v",
-				node.Name)
+			errCnt++
+			errString := fmt.Sprintf("node '%s' hosting pod '%s' not in K8s database",
+				node.Name, pod.Name)
 			v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
 			continue
 		}
 
-		i := 0
 		for _, adr := range k8snode.Addresses {
-			if adr.Type == 3 {
+			switch adr.Type {
+			case nodemodel.NodeAddress_NodeInternalIP:
 				if adr.Address != pod.HostIPAddress {
-					errString := fmt.Sprintf("pod host ip %s does not match with k8snode ip %s",
-						pod.HostIPAddress, adr.Address)
+					errCnt++
+					errString := fmt.Sprintf("pod %s: Host IP Addr '%s' does not match NodeInternalIP " +
+						"'%s' in K8s database", pod.Name, pod.HostIPAddress, adr.Address)
 					v.Report.AppendToNodeReport(node.Name, errString)
-					continue
 				}
-				i++
-			}
-			if adr.Type == 1 {
+			case nodemodel.NodeAddress_NodeHostName:
 				if adr.Address != node.Name {
-					errString := fmt.Sprintf("pod host name %s does not match node name %s",
-						adr.Address, node.Name)
+					errCnt++
+					errString := fmt.Sprintf("pod %s: Node name %s does not match NodeHostName %s" +
+						"in K8s database", pod.Name, node.Name, adr.Address)
 					v.Report.AppendToNodeReport(node.Name, errString)
-					continue
 				}
-				i++
+			default:
+				errCnt++
+				errString := fmt.Sprintf("pod %s: unknown address type %+v", pod.Name, adr)
+				v.Report.AppendToNodeReport(node.Name, errString)
 			}
 		}
-		if i != 2 {
-			continue
-		}
-		delete(podMap, pod.Name)
 	}
 
-	if len(podMap) > 0 {
-		for p := range podMap {
-			v.Report.AppendToNodeReport(api.GlobalMsg, fmt.Sprintf("error processing pod %+v", p))
-		}
-
+	if errCnt == 0 {
+		v.Report.AppendToNodeReport(api.GlobalMsg, "Pod validation: OK")
 	} else {
-		v.Report.AppendToNodeReport(api.GlobalMsg, "success validating pod info.")
+		v.Report.AppendToNodeReport(api.GlobalMsg,
+			fmt.Sprintf("Pod validation: %d errors found", errCnt))
 	}
 }
 
@@ -647,6 +647,8 @@ func (v *Validator) ValidateTapToPod() {
 			continue
 		}
 
+		// Check if we have a node with the Host IP address that K8s specifies
+		// for the Pod
 		vppNode, err := v.VppCache.RetrieveNodeByHostIPAddr(pod.HostIPAddress)
 		if err != nil {
 			v.Report.LogErrAndAppendToNodeReport(api.GlobalMsg,

@@ -203,7 +203,7 @@ func TestAddDelVeth(t *testing.T) {
 	gomega.Expect(err).To(gomega.BeNil())
 	gomega.Expect(reply).NotTo(gomega.BeNil())
 
-	gomega.Expect(len(txns.PendingTxns)).To(gomega.BeEquivalentTo(1)) // not applied revert
+	gomega.Expect(len(txns.PendingTxns)).To(gomega.BeEquivalentTo(2)) // not applied revert
 	gomega.Expect(len(txns.CommittedTxns)).To(gomega.BeEquivalentTo(1))
 	// TODO add asserts for txns(one linux plugin txn and one default plugins txn) / currently applied config
 
@@ -256,7 +256,7 @@ func TestAddDelTap(t *testing.T) {
 	gomega.Expect(err).To(gomega.BeNil())
 	gomega.Expect(reply).NotTo(gomega.BeNil())
 
-	gomega.Expect(len(txns.PendingTxns)).To(gomega.BeEquivalentTo(1)) // not applied revert
+	gomega.Expect(len(txns.PendingTxns)).To(gomega.BeEquivalentTo(2)) // not applied revert
 	gomega.Expect(len(txns.CommittedTxns)).To(gomega.BeEquivalentTo(1))
 	// TODO add asserts for txns(one linux plugin txn and one default plugins txn) / currently applied config
 

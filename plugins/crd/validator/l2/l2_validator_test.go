@@ -28,6 +28,7 @@ import (
 	"github.com/ligato/vpp-agent/plugins/vpp/model/interfaces"
 	"github.com/onsi/gomega"
 	"os"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -121,13 +122,13 @@ func testErrorFreeTopologyValidation(t *testing.T) {
 
 	vtv.l2Validator.Validate()
 
-	gomega.Expect(len(vtv.report.Data[api.GlobalMsg])).To(gomega.Equal(4))
+	gomega.Expect(len(vtv.report.Data[api.GlobalMsg])).To(gomega.Equal(5))
 }
 
 func testK8sNodeToNodeInfoOkValidation(t *testing.T) {
 	resetToInitialErrorFreeState()
 	vtv.l2Validator.ValidateK8sNodeInfo()
-	gomega.Expect(len(vtv.report.Data)).To(gomega.Equal(0))
+	gomega.Expect(len(vtv.report.Data)).To(gomega.Equal(1))
 }
 
 func testK8sNodeToNodeInfoMissingNiValidation(t *testing.T) {
@@ -740,6 +741,27 @@ func testValidatePodInfo(t *testing.T) {
 
 	// Restore data back to error free state
 	resetToInitialErrorFreeState()
+
+	// -------------------------------------------------
+	// INJECT FAULT: Invalid data on pod's tap interface
+	for k, ifc := range vtv.vppCache.NodeMap[vtv.nodeKey].NodeInterfaces {
+		matched, err := regexp.Match("tap[1-9]", []byte(ifc.IfMeta.VppInternalName))
+		gomega.Expect(err).To(gomega.BeNil())
+		if matched {
+			ifc.IfMeta.VppInternalName = "anotherIfcName"
+			vtv.vppCache.NodeMap[vtv.nodeKey].NodeInterfaces[k] = ifc
+
+			// Perform test
+			vtv.report.Clear()
+			vtv.l2Validator.ValidatePodInfo()
+
+			checkDataReport(1, 1, 0)
+
+			// Restore data back to error free state
+			resetToInitialErrorFreeState()
+			break
+		}
+	}
 }
 
 func (v *l2ValidatorTestVars) findFirstVxlanInterface(nodeKey string) (int, *telemetrymodel.NodeInterface) {

@@ -47,8 +47,8 @@ var cmdVppDump = &cobra.Command{
 }
 
 var cmdVppCLI = &cobra.Command{
-	Use:   "vppcli nodename ",
-	Short: "Print anything to the screen",
+	Use:   "vppcli nodename vpp-cli-command ",
+	Short: "Execute VPP debug CLI command on the specified node and print out the result",
 	Args:  cobra.MinimumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		nodeName := args[0]

@@ -26,6 +26,7 @@ import (
 	"github.com/ligato/cn-infra/db/keyval/etcd"
 	"github.com/ligato/cn-infra/logging/logrus"
 	"os"
+	"regexp"
 	"text/tabwriter"
 	"time"
 )
@@ -128,16 +129,26 @@ func FindIPForNodeName(nodeName string) string {
 func VppCliCmd(nodeName string, vppclicmd string) {
 
 	fmt.Printf("vppcli %s %s\n", nodeName, vppclicmd)
-	ipAdr := FindIPForNodeName(nodeName)
-	if ipAdr == "" {
-		fmt.Printf("Unknown node name %s", nodeName)
-		return
+	re := regexp.MustCompile(`(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)(\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)){3}`)
+	if re.MatchString(nodeName) {
+		ipAdr := nodeName
+		cmd := fmt.Sprintf("vpp/command")
+		body := fmt.Sprintf("{\"vppclicommand\":\"%s\"}", vppclicmd)
+		err := http.SetNodeInfo(ipAdr, cmd, body)
+		if err != nil {
+			fmt.Println(err)
+		}
+	} else {
+		ipAdr := FindIPForNodeName(nodeName)
+		if ipAdr == "" {
+			fmt.Printf("Unknown node name %s", nodeName)
+			return
+		}
+		cmd := fmt.Sprintf("vpp/command")
+		body := fmt.Sprintf("{\"vppclicommand\":\"%s\"}", vppclicmd)
+		err := http.SetNodeInfo(ipAdr, cmd, body)
+		if err != nil {
+			fmt.Println(err)
+		}
 	}
-	cmd := fmt.Sprintf("vpp/command")
-	body := fmt.Sprintf("{\"vppclicommand\":\"%s\"}", vppclicmd)
-	err := http.SetNodeInfo(ipAdr, cmd, body)
-	if err != nil {
-		fmt.Println(err)
-	}
-
 }

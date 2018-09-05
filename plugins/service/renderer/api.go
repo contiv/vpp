@@ -66,7 +66,7 @@ import (
 //
 // Resync() is used to pass the current snapshot of all data provided
 // by the processor. Upon receipt, the renderer is supposed to make sure that
-// the renderered configuration matches the state of Kubernetes services and
+// the rendered configuration matches the state of Kubernetes services and
 // to resolve any discrepancies. Resync() is always called on the agent startup,
 // but may also be triggered during the runtime - in case a potential data loss
 // between the agent and the data store or the vswitch has been detected.

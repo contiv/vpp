@@ -66,6 +66,7 @@ var cmdVppCLI = &cobra.Command{
 	},
 }
 
+<<<<<<< HEAD
 var cmdNodeIPam = &cobra.Command{
 	Use: "ipam nodename",
 	Short:"Display table for node ipam",
@@ -95,14 +96,19 @@ var cmdPodInfo = &cobra.Command{
 	},
 }
 
+=======
+>>>>>>> upstream/master
 //Execute will execute the command netctlcd
 func Execute() {
 	var rootCmd = &cobra.Command{Use: "netctl"}
 	rootCmd.AddCommand(cmdNodes)
 	rootCmd.AddCommand(cmdVppDump)
 	rootCmd.AddCommand(cmdVppCLI)
+<<<<<<< HEAD
 	rootCmd.AddCommand(cmdNodeIPam)
 	rootCmd.AddCommand(cmdPodInfo)
+=======
+>>>>>>> upstream/master
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)
 		os.Exit(1)

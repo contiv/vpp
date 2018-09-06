@@ -20,9 +20,13 @@ import (
 	"encoding/json"
 	"fmt"
 	nodeinfomodel "github.com/contiv/vpp/plugins/contiv/model/node"
+<<<<<<< HEAD
 	k8snodeinfo "github.com/contiv/vpp/plugins/ksr/model/node"
 	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
 	"github.com/contiv/vpp/plugins/ksr/model/pod"
+=======
+	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
+>>>>>>> upstream/master
 	"github.com/contiv/vpp/plugins/netctl/http"
 	"github.com/coreos/etcd/clientv3"
 	"github.com/ligato/cn-infra/db/keyval/etcd"
@@ -128,14 +132,23 @@ func FindIPForNodeName(nodeName string) string {
 
 //VppCliCmd will receive a nodeName and a vpp cli command and print it out to the console
 func VppCliCmd(nodeName string, vppclicmd string) {
+<<<<<<< HEAD
 	fmt.Printf("vppcli %s %s\n", nodeName, vppclicmd)
 		ipAdr := ResolveNodeOrIP(nodeName)
+=======
+
+	fmt.Printf("vppcli %s %s\n", nodeName, vppclicmd)
+	re := regexp.MustCompile(`(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)(\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)){3}`)
+	if re.MatchString(nodeName) {
+		ipAdr := nodeName
+>>>>>>> upstream/master
 		cmd := fmt.Sprintf("vpp/command")
 		body := fmt.Sprintf("{\"vppclicommand\":\"%s\"}", vppclicmd)
 		err := http.SetNodeInfo(ipAdr, cmd, body)
 		if err != nil {
 			fmt.Println(err)
 		}
+<<<<<<< HEAD
 	}
 
 
@@ -262,3 +275,19 @@ func getK8sNode(nodeName string) *k8snodeinfo.Node {
 	return k8sInfo
 
 }
+=======
+	} else {
+		ipAdr := FindIPForNodeName(nodeName)
+		if ipAdr == "" {
+			fmt.Printf("Unknown node name %s", nodeName)
+			return
+		}
+		cmd := fmt.Sprintf("vpp/command")
+		body := fmt.Sprintf("{\"vppclicommand\":\"%s\"}", vppclicmd)
+		err := http.SetNodeInfo(ipAdr, cmd, body)
+		if err != nil {
+			fmt.Println(err)
+		}
+	}
+}
+>>>>>>> upstream/master

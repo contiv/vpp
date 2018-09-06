@@ -680,7 +680,7 @@ func getVxlanBD(node *telemetrymodel.Node) (int, error) {
 	return 0, fmt.Errorf("vxlanBD not found")
 }
 
-//Mask Length will tank in an int and return the bit mask for the number given
+//MaskLength2Mask will tank in an int and return the bit mask for the number given
 func MaskLength2Mask(ml int) uint32 {
 	var mask uint32
 	for i := 0; i < 32-ml; i++ {

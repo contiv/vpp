@@ -142,7 +142,7 @@ func VppCliCmd(nodeName string, vppclicmd string) {
 
 }
 
-//NodeIPamCMD prints out the ipam information of a specific node
+//NodeIPamCmdg prints out the ipam information of a specific node
 func NodeIPamCmd(nodeName string) {
 	fmt.Printf("nodeipam %s\n", nodeName)
 	w := tabwriter.NewWriter(os.Stdout, 0, 8, 4, '\t', 0)
@@ -219,7 +219,7 @@ func ResolveNodeOrIP(input string) (ipAdr string) {
 		return input
 	}
 	ip := FindIPForNodeName(input)
-	return ipg
+	return ip
 }
 
 func printTapInterfaces(podInfo *pod.Pod) []string {

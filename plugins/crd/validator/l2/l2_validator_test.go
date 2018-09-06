@@ -20,7 +20,7 @@ import (
 	"github.com/contiv/vpp/plugins/crd/api"
 	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
 	"github.com/contiv/vpp/plugins/crd/datastore"
-	"github.com/contiv/vpp/plugins/crd/validator/testdata"
+	"github.com/contiv/vpp/plugins/crd/testdata"
 	nodemodel "github.com/contiv/vpp/plugins/ksr/model/node"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	"github.com/ligato/cn-infra/logging"
@@ -28,6 +28,7 @@ import (
 	"github.com/ligato/vpp-agent/plugins/vpp/model/interfaces"
 	"github.com/onsi/gomega"
 	"os"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -121,13 +122,13 @@ func testErrorFreeTopologyValidation(t *testing.T) {
 
 	vtv.l2Validator.Validate()
 
-	gomega.Expect(len(vtv.report.Data[api.GlobalMsg])).To(gomega.Equal(4))
+	gomega.Expect(len(vtv.report.Data[api.GlobalMsg])).To(gomega.Equal(5))
 }
 
 func testK8sNodeToNodeInfoOkValidation(t *testing.T) {
 	resetToInitialErrorFreeState()
 	vtv.l2Validator.ValidateK8sNodeInfo()
-	gomega.Expect(len(vtv.report.Data)).To(gomega.Equal(0))
+	gomega.Expect(len(vtv.report.Data)).To(gomega.Equal(1))
 }
 
 func testK8sNodeToNodeInfoMissingNiValidation(t *testing.T) {
@@ -171,7 +172,7 @@ func testNodesDBValidateL2Connections(t *testing.T) {
 	bd[2] = bogusBd
 
 	vtv.report.Clear()
-	vtv.l2Validator.ValidateL2Connectivity()
+	vtv.l2Validator.ValidateBridgeDomains()
 	gomega.Expect(len(vtv.report.Data[api.GlobalMsg])).To(gomega.Equal(1))
 	gomega.Expect(len(vtv.report.Data[nodeKey])).To(gomega.Equal(2))
 
@@ -184,7 +185,7 @@ func testNodesDBValidateL2Connections(t *testing.T) {
 	delete(bd, 1)
 
 	vtv.report.Clear()
-	vtv.l2Validator.ValidateL2Connectivity()
+	vtv.l2Validator.ValidateBridgeDomains()
 	gomega.Expect(len(vtv.report.Data[api.GlobalMsg])).To(gomega.Equal(1))
 	gomega.Expect(len(vtv.report.Data[nodeKey])).To(gomega.Equal(2))
 
@@ -197,7 +198,7 @@ func testNodesDBValidateL2Connections(t *testing.T) {
 	vtv.vppCache.NodeMap[nodeKey].NodeInterfaces[k] = *ifp
 
 	vtv.report.Clear()
-	vtv.l2Validator.ValidateL2Connectivity()
+	vtv.l2Validator.ValidateBridgeDomains()
 	gomega.Expect(len(vtv.report.Data[api.GlobalMsg])).To(gomega.Equal(1))
 	gomega.Expect(len(vtv.report.Data[nodeKey])).To(gomega.Equal(1))
 
@@ -215,7 +216,7 @@ func testNodesDBValidateL2Connections(t *testing.T) {
 	vtv.vppCache.NodeMap[nodeKey].NodeInterfaces[k] = *ifp
 
 	vtv.report.Clear()
-	vtv.l2Validator.ValidateL2Connectivity()
+	vtv.l2Validator.ValidateBridgeDomains()
 
 	gomega.Expect(len(vtv.report.Data[api.GlobalMsg])).To(gomega.Equal(1))
 	gomega.Expect(len(vtv.report.Data[nodeKey])).To(gomega.Equal(4))
@@ -245,7 +246,7 @@ func testNodesDBValidateL2Connections(t *testing.T) {
 
 		// Perform test
 		vtv.report.Clear()
-		vtv.l2Validator.ValidateL2Connectivity()
+		vtv.l2Validator.ValidateBridgeDomains()
 
 		gomega.Expect(len(vtv.report.Data[api.GlobalMsg])).To(gomega.Equal(1))
 		gomega.Expect(len(vtv.report.Data[nodeKey])).To(gomega.Equal(4))
@@ -273,7 +274,7 @@ func testNodesDBValidateL2Connections(t *testing.T) {
 
 		// Perform test
 		vtv.report.Clear()
-		vtv.l2Validator.ValidateL2Connectivity()
+		vtv.l2Validator.ValidateBridgeDomains()
 
 		gomega.Expect(len(vtv.report.Data[api.GlobalMsg])).To(gomega.Equal(1))
 		gomega.Expect(len(vtv.report.Data[nodeKey])).To(gomega.Equal(5))
@@ -293,7 +294,7 @@ func testNodesDBValidateL2Connections(t *testing.T) {
 
 	// Perform test
 	vtv.report.Clear()
-	vtv.l2Validator.ValidateL2Connectivity()
+	vtv.l2Validator.ValidateBridgeDomains()
 
 	gomega.Expect(len(vtv.report.Data[api.GlobalMsg])).To(gomega.Equal(1))
 	gomega.Expect(len(vtv.report.Data[nodeKey])).To(gomega.Equal(4))
@@ -311,7 +312,7 @@ func testNodesDBValidateL2Connections(t *testing.T) {
 
 	// Perform test
 	vtv.report.Clear()
-	vtv.l2Validator.ValidateL2Connectivity()
+	vtv.l2Validator.ValidateBridgeDomains()
 
 	gomega.Expect(len(vtv.report.Data[api.GlobalMsg])).To(gomega.Equal(1))
 	for _, n := range vtv.vppCache.RetrieveAllNodes() {
@@ -327,7 +328,7 @@ func testNodesDBValidateL2Connections(t *testing.T) {
 
 	// Perform test
 	vtv.report.Clear()
-	vtv.l2Validator.ValidateL2Connectivity()
+	vtv.l2Validator.ValidateBridgeDomains()
 
 	gomega.Expect(len(vtv.report.Data[api.GlobalMsg])).To(gomega.Equal(1))
 	for _, n := range vtv.vppCache.RetrieveAllNodes() {
@@ -347,7 +348,7 @@ func testNodesDBValidateL2Connections(t *testing.T) {
 
 	// Perform test
 	vtv.report.Clear()
-	vtv.l2Validator.ValidateL2Connectivity()
+	vtv.l2Validator.ValidateBridgeDomains()
 
 	gomega.Expect(len(vtv.report.Data[api.GlobalMsg])).To(gomega.Equal(1))
 	gomega.Expect(len(vtv.report.Data[nl[0].Name])).To(gomega.Equal(6))
@@ -740,6 +741,27 @@ func testValidatePodInfo(t *testing.T) {
 
 	// Restore data back to error free state
 	resetToInitialErrorFreeState()
+
+	// -------------------------------------------------
+	// INJECT FAULT: Invalid data on pod's tap interface
+	for k, ifc := range vtv.vppCache.NodeMap[vtv.nodeKey].NodeInterfaces {
+		matched, err := regexp.Match("tap[1-9]", []byte(ifc.IfMeta.VppInternalName))
+		gomega.Expect(err).To(gomega.BeNil())
+		if matched {
+			ifc.IfMeta.VppInternalName = "anotherIfcName"
+			vtv.vppCache.NodeMap[vtv.nodeKey].NodeInterfaces[k] = ifc
+
+			// Perform test
+			vtv.report.Clear()
+			vtv.l2Validator.ValidatePodInfo()
+
+			checkDataReport(1, 1, 0)
+
+			// Restore data back to error free state
+			resetToInitialErrorFreeState()
+			break
+		}
+	}
 }
 
 func (v *l2ValidatorTestVars) findFirstVxlanInterface(nodeKey string) (int, *telemetrymodel.NodeInterface) {

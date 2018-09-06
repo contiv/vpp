@@ -142,7 +142,7 @@ func VppCliCmd(nodeName string, vppclicmd string) {
 
 }
 
-//NodeIPamCmdg prints out the ipam information of a specific node
+//NodeIPamCmd prints out the ipam information of a specific node
 func NodeIPamCmd(nodeName string) {
 	fmt.Printf("nodeipam %s\n", nodeName)
 	w := tabwriter.NewWriter(os.Stdout, 0, 8, 4, '\t', 0)

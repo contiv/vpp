@@ -142,7 +142,7 @@ func VppCliCmd(nodeName string, vppclicmd string) {
 
 }
 
-//NodeIPamCMD
+//NodeIPamCMD prints out the ipam information of a specific node
 func NodeIPamCmd(nodeName string) {
 	fmt.Printf("nodeipam %s\n", nodeName)
 	w := tabwriter.NewWriter(os.Stdout, 0, 8, 4, '\t', 0)
@@ -165,6 +165,7 @@ func NodeIPamCmd(nodeName string) {
 	w.Flush()
 }
 
+//PrintPodsPerNode will print out all of the non-local pods for a certain pods along with their tap interface ip address
 func PrintPodsPerNode(input string) {
 	hostIP := ResolveNodeOrIP(input)
 	cfg := &etcd.ClientConfig{
@@ -216,10 +217,9 @@ func ResolveNodeOrIP(input string) (ipAdr string) {
 	re := regexp.MustCompile(`(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)(\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)){3}`)
 	if re.MatchString(input) {
 		return input
-	} else {
-		ip := FindIPForNodeName(input)
-		return ip
 	}
+	ip := FindIPForNodeName(input)
+	return ipg
 }
 
 func printTapInterfaces(podInfo *pod.Pod) []string {

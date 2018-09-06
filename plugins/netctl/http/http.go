@@ -21,7 +21,10 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"time"
 )
+
+const defaultPort = ":9999"
 
 //GetNodeInfo will make an http request for the given command and return an indented slice of bytes.
 func GetNodeInfo(ipAddr string, cmd string) []byte {
@@ -29,9 +32,9 @@ func GetNodeInfo(ipAddr string, cmd string) []byte {
 		Transport:     nil,
 		CheckRedirect: nil,
 		Jar:           nil,
-		Timeout:       30000000,
+		Timeout:       10 * time.Second,
 	}
-	url := fmt.Sprintf("http://%s:9999/%s", ipAddr, cmd)
+	url := fmt.Sprintf("http://%s"+defaultPort+"/%s", ipAddr, cmd)
 	res, err := client.Get(url)
 	if err != nil {
 		err := fmt.Errorf("getNodeInfo: url: %s cleintGet Error: %s", url, err.Error())
@@ -50,4 +53,28 @@ func GetNodeInfo(ipAddr string, cmd string) []byte {
 		fmt.Printf(err.Error())
 	}
 	return out.Bytes()
+}
+
+//SetNodeInfo will make an http json post request to get the vpp cli command output
+func SetNodeInfo(ipAddr string, cmd string, body string) error {
+	client := http.Client{
+		Transport:     nil,
+		CheckRedirect: nil,
+		Jar:           nil,
+		Timeout:       10 * time.Second,
+	}
+
+	url := fmt.Sprintf("http://%s"+defaultPort+"/%s", ipAddr, cmd)
+	res, err := client.Post(url, "application/json", bytes.NewBuffer([]byte(body)))
+	if err != nil {
+		err := fmt.Errorf("SetNodeInfo: url: %s cleintGet Error: %s", url, err.Error())
+		return err
+	} else if res.StatusCode < 200 || res.StatusCode > 299 {
+		err := fmt.Errorf("SetNodeInfo: url: %s HTTP res.Status: %s", url, res.Status)
+		return err
+	}
+	b, _ := ioutil.ReadAll(res.Body)
+	fmt.Println(string(b))
+	return nil
+
 }

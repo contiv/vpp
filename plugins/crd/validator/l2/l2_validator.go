@@ -40,7 +40,7 @@ type Validator struct {
 // Contiv cluster.
 func (v *Validator) Validate() {
 	v.ValidateArpTables()
-	v.ValidateL2Connectivity()
+	v.ValidateBridgeDomains()
 	v.ValidateL2FibEntries()
 	v.ValidateK8sNodeInfo()
 	v.ValidatePodInfo()
@@ -122,19 +122,14 @@ func (v *Validator) ValidateArpTables() {
 		}
 	}
 
-	if errCnt == 0 {
-		v.Report.AppendToNodeReport(api.GlobalMsg, fmt.Sprintf("ARP Table Validation: OK"))
-	} else {
-		v.Report.AppendToNodeReport(api.GlobalMsg,
-			fmt.Sprintf("ARP Table Validation: %d error%s found", errCnt, printS(errCnt)))
-	}
+	v.addSummary(errCnt, "IP ARP")
 }
 
-//ValidateL2Connectivity makes sure that each node in the cache has the right
+//ValidateBridgeDomains makes sure that each node in the cache has the right
 // number of vxlan_tunnels for the number of nodes as well as checking that
 // each vxlan_tunnel points to a node that has a corresponding but opposite
 // tunnel itself.
-func (v *Validator) ValidateL2Connectivity() {
+func (v *Validator) ValidateBridgeDomains() {
 	errCnt := 0
 	nodeList := v.VppCache.RetrieveAllNodes()
 
@@ -194,6 +189,7 @@ validateNodeBD:
 			}
 
 			if bdIfc.BVI {
+				// check for duplicate BVIs (there must be only one BVI per BD)
 				if hasBviIfc {
 					errCnt++
 					errString := fmt.Sprintf("duplicate BVI, type %+v, BVI %s (ifIndex %d, ifName %s)",
@@ -337,12 +333,7 @@ validateNodeBD:
 		}
 	}
 
-	if errCnt == 0 {
-		v.Report.AppendToNodeReport(api.GlobalMsg, "L2 connectivity validation: OK")
-	} else {
-		v.Report.AppendToNodeReport(api.GlobalMsg,
-			fmt.Sprintf("L2 connectivity validation: %d errors found", errCnt))
-	}
+	v.addSummary(errCnt, "BD")
 }
 
 // ValidateL2FibEntries will validate that each nodes fib entries ip address
@@ -387,8 +378,8 @@ func (v *Validator) ValidateL2FibEntries() {
 				continue
 			}
 
+			// Skip over dynamic (not statically programmed) entries
 			if !feVal.Fe.StaticConfig {
-				// Skip over dynamic (not statically programmed) entries
 				continue
 			}
 
@@ -489,12 +480,14 @@ func (v *Validator) ValidateL2FibEntries() {
 			v.Report.AppendToNodeReport(node.Name, errString)
 		}
 
+		// Show all nodes for which there is no L2FIB entry
 		for remoteNodeName := range nodeFibMap {
 			errCnt++
 			errString := fmt.Sprintf("missing L2Fib entry for node %s", remoteNodeName)
 			v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
 		}
 
+		// Show all L2Fib entrie for which there is no node
 		for fibEntry := range fibNodeMap {
 			errCnt++
 			errString := fmt.Sprintf("dangling L2Fib entry %s - no node for entry found", fibEntry)
@@ -502,17 +495,12 @@ func (v *Validator) ValidateL2FibEntries() {
 		}
 	}
 
-	if errCnt == 0 {
-		v.Report.AppendToNodeReport(api.GlobalMsg, "L2Fib validation: OK")
-	} else {
-		v.Report.AppendToNodeReport(api.GlobalMsg,
-			fmt.Sprintf("L2Fib validation: %d errors found", errCnt))
-	}
+	v.addSummary(errCnt, "L2Fib")
 }
 
-// ValidateK8sNodeInfo will make sure that the cache has the same number
-// of k8s nodes and etcd nodes and that each node in one database has a
-// counterpart node in the other database.
+// ValidateK8sNodeInfo will make sure that K8s's view of nodes in the cluster
+// is consistent with Contiv's view of nodes in the cluster. Each node in K8s
+// database must have a counterpart node in the Contiv database and vice versa.
 func (v *Validator) ValidateK8sNodeInfo() {
 	errCnt := 0
 	nodeList := v.VppCache.RetrieveAllNodes()
@@ -556,17 +544,11 @@ func (v *Validator) ValidateK8sNodeInfo() {
 		}
 	}
 
-	if errCnt == 0 {
-		v.Report.AppendToNodeReport(api.GlobalMsg, "K8sNode validation: OK")
-	} else {
-		v.Report.AppendToNodeReport(api.GlobalMsg,
-			fmt.Sprintf("K8sNode validation: %d errors found", errCnt))
-	}
+	v.addSummary(errCnt, "K8sNode")
 }
 
-// ValidatePodInfo will check to see that each pod has a valid host ip address
-// node and that the information correctly correlates between the nodes and
-// the pods.
+// ValidatePodInfo will check  that each pod has a valid host ip address node
+// and that the information correctly correlates between the nodes and the pods.
 func (v *Validator) ValidatePodInfo() {
 	errCnt := 0
 	podList := v.K8sCache.RetrieveAllPods()
@@ -609,6 +591,8 @@ func (v *Validator) ValidatePodInfo() {
 			continue
 		}
 
+		// Make sure that K8s view of the Pod's host IP address and host name
+		// are consistent with Contiv's view
 		for _, adr := range k8sNode.Addresses {
 			switch adr.Type {
 			case nodemodel.NodeAddress_NodeInternalIP:
@@ -646,6 +630,8 @@ func (v *Validator) ValidatePodInfo() {
 			v.Report.AppendToNodeReport(k8sNode.Name, errString)
 		}
 
+		// Populate Pod's VPP interface data (IP addresses, interface name and
+		// ifIndex)
 		podMap[pod.Name] = vppNode.Name
 		bitmask := maskLength2Mask(i)
 		for _, intf := range vppNode.NodeInterfaces {
@@ -672,11 +658,15 @@ func (v *Validator) ValidatePodInfo() {
 		v.Report.AppendToNodeReport(nodeName, errString)
 	}
 
+	v.addSummary(errCnt, "K8sPod")
+}
+
+func (v *Validator) addSummary(errCnt int, kind string) {
 	if errCnt == 0 {
-		v.Report.AppendToNodeReport(api.GlobalMsg, "Pod validation: OK")
+		v.Report.AppendToNodeReport(api.GlobalMsg, fmt.Sprintf("%s validation: OK", kind))
 	} else {
 		v.Report.AppendToNodeReport(api.GlobalMsg,
-			fmt.Sprintf("Pod validation: %d errors found", errCnt))
+			fmt.Sprintf("%s validation: %d error%s found", kind, errCnt, printS(errCnt)))
 	}
 }
 
@@ -711,7 +701,7 @@ func ip2uint32(ipAddress string) uint32 {
 }
 
 func printS(errCnt int) string {
-	if errCnt > 0 {
+	if errCnt > 1 {
 		return "s"
 	}
 	return ""

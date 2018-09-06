@@ -198,7 +198,7 @@ func (ctc *ContivTelemetryCache) validateNodeInfo() {
 		ctc.Report.AppendToNodeReport(n.Name, "Report done.")
 	}
 	ctc.Report.Print()
-	ctc.ControllerReport.GenerateCRDReport()
+	// ctc.ControllerReport.GenerateCRDReport()
 }
 
 //Gathers a number of data points for every node in the Node List

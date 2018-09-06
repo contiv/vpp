@@ -68,6 +68,11 @@ func CreateNodeTestData(vppCache api.VppCache) error {
 			return fmt.Errorf("failed to unmarshall node interfaces, err %s", err)
 		}
 
+		nipe := telemetrymodel.IPamEntry{}
+		if err := json.Unmarshal([]byte(data["ipam"]), &nipe); err != nil {
+			return fmt.Errorf("failed to unmarshall node ipam, err %s", err)
+		}
+
 		if node != ni.Name {
 			return fmt.Errorf("invalid data - TODO more precise error")
 		}
@@ -98,6 +103,10 @@ func CreateNodeTestData(vppCache api.VppCache) error {
 
 		if err := vppCache.SetNodeStaticRoutes(ni.Name, nr); err != nil {
 			return fmt.Errorf("failed to set route table for node %s, err: %s", ni.Name, err)
+		}
+
+		if err := vppCache.SetNodeIPam(ni.Name, nipe); err != nil {
+			return fmt.Errorf("failed to set ipam for node %s, err: %s", ni.Name, err)
 		}
 	}
 	return nil

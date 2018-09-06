@@ -121,6 +121,9 @@ func testErrorFreeEndToEnd(t *testing.T) {
 }
 
 func testValidateRoutesToLocalPods(t *testing.T) {
+	vrfMap, err := vtv.l3Validator.createVrfMap(vtv.vppCache.NodeMap[vtv.nodeKey])
+	gomega.Expect(err).To(gomega.BeNil())
+
 	// ----------------------------------
 	// INJECT FAULT: Route to Pod missing
 	for _, pod := range vtv.k8sCache.RetrieveAllPods() {
@@ -135,10 +138,10 @@ func testValidateRoutesToLocalPods(t *testing.T) {
 				break
 			}
 		}
-
+		routeMap := make(map[string]bool)
 		// Perform test
 		vtv.report.Clear()
-		vtv.l3Validator.validateRoutesToLocalPods(vtv.vppCache.NodeMap[vtv.nodeKey])
+		vtv.l3Validator.validateVrf1PodRoutes(vtv.vppCache.NodeMap[vtv.nodeKey], vrfMap, routeMap)
 
 		checkDataReport(1, 1, 0)
 

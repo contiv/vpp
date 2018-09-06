@@ -43,6 +43,7 @@ func (v *Validator) Validate() {
 	nodeList := v.VppCache.RetrieveAllNodes()
 	numErrs := 0
 	routeMap := make(map[string]bool)
+
 	for _, node := range nodeList {
 
 		vrfMap, err := v.createVrfMap(node)
@@ -51,22 +52,22 @@ func (v *Validator) Validate() {
 		}
 
 		// Validate routes to local pods (they are all on vrf 1).
-		numErrs += v.validateVrf1PodRoutes(*node, vrfMap, routeMap)
+		numErrs += v.validateVrf1PodRoutes(node, vrfMap, routeMap)
 
 		// Validate the vrf1 route to the local loop interface
-		numErrs += v.validateRouteToLocalLoopInterface(*node, vrfMap, routeMap)
+		numErrs += v.validateRouteToLocalLoopInterface(node, vrfMap, routeMap)
 
 		// Validate local nodes gigE routes
-		numErrs += v.validateVrf0GigERoutes(*node, vrfMap, routeMap)
+		numErrs += v.validateVrf0GigERoutes(node, vrfMap, routeMap)
 
 		// Validate vrf 0 local routes
-		numErrs += v.validateVrf0LocalHostRoute(*node, vrfMap, routeMap)
+		numErrs += v.validateVrf0LocalHostRoute(node, vrfMap, routeMap)
 
 		// Validate vrf 1 default route
-		numErrs += v.validateVrf1DefaultRoute(*node, vrfMap, routeMap)
+		numErrs += v.validateVrf1DefaultRoute(node, vrfMap, routeMap)
 
 		// Validate routes to all remote nodes for vrf 1 and vrf 0
-		numErrs += v.validateRemoteNodeRoutes(*node, vrfMap, routeMap)
+		numErrs += v.validateRemoteNodeRoutes(node, vrfMap, routeMap)
 
 	}
 
@@ -102,7 +103,7 @@ func (v *Validator) createVrfMap(node *telemetrymodel.Node) (map[uint32]Vrf, err
 	return vrfMap, nil
 }
 
-func (v *Validator) validateVrf1PodRoutes(node telemetrymodel.Node, vrfMap map[uint32]Vrf,
+func (v *Validator) validateVrf1PodRoutes(node *telemetrymodel.Node, vrfMap map[uint32]Vrf,
 	routeMap map[string]bool) int {
 
 	numErrs := 0
@@ -191,7 +192,7 @@ func (v *Validator) validateVrf1PodRoutes(node telemetrymodel.Node, vrfMap map[u
 	return numErrs
 }
 
-func (v *Validator) validateVrf0GigERoutes(node telemetrymodel.Node, vrfMap map[uint32]Vrf,
+func (v *Validator) validateVrf0GigERoutes(node *telemetrymodel.Node, vrfMap map[uint32]Vrf,
 	routeMap map[string]bool) int {
 	numErrs := 0
 	//begin validation of gigE routes, beginning with local one
@@ -273,7 +274,7 @@ func (v *Validator) validateVrf0GigERoutes(node telemetrymodel.Node, vrfMap map[
 	return numErrs
 }
 
-func (v *Validator) validateRemoteNodeRoutes(node telemetrymodel.Node, vrfMap map[uint32]Vrf,
+func (v *Validator) validateRemoteNodeRoutes(node *telemetrymodel.Node, vrfMap map[uint32]Vrf,
 	routeMap map[string]bool) int {
 	//validate remote nodes connectivity to current node
 	numErrs := 0
@@ -360,7 +361,7 @@ func (v *Validator) validateRemoteNodeRoutes(node telemetrymodel.Node, vrfMap ma
 	return numErrs
 }
 
-func (v *Validator) validateVrf0LocalHostRoute(node telemetrymodel.Node, vrfMap map[uint32]Vrf,
+func (v *Validator) validateVrf0LocalHostRoute(node *telemetrymodel.Node, vrfMap map[uint32]Vrf,
 	routeMap map[string]bool) int {
 
 	//validate local route to host and that the interface is correct
@@ -397,7 +398,7 @@ func (v *Validator) validateVrf0LocalHostRoute(node telemetrymodel.Node, vrfMap 
 	return numErrs
 }
 
-func (v *Validator) validateVrf1DefaultRoute(node telemetrymodel.Node, vrfMap map[uint32]Vrf,
+func (v *Validator) validateVrf1DefaultRoute(node *telemetrymodel.Node, vrfMap map[uint32]Vrf,
 	routeMap map[string]bool) int {
 
 	numErrs := 0
@@ -419,11 +420,11 @@ func (v *Validator) validateVrf1DefaultRoute(node telemetrymodel.Node, vrfMap ma
 	return numErrs
 }
 
-func (v *Validator) validateRouteToLocalLoopInterface(node telemetrymodel.Node, vrfMap map[uint32]Vrf,
+func (v *Validator) validateRouteToLocalLoopInterface(node *telemetrymodel.Node, vrfMap map[uint32]Vrf,
 	routeMap map[string]bool) int {
 
 	numErrs := 0
-	loopIf, err := datastore.GetNodeLoopIFInfo(&node)
+	loopIf, err := datastore.GetNodeLoopIFInfo(node)
 	if err != nil {
 		v.Report.LogErrAndAppendToNodeReport(node.Name, err.Error())
 	}

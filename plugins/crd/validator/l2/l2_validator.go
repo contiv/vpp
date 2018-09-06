@@ -630,10 +630,12 @@ func (v *Validator) ValidatePodInfo() {
 			v.Report.AppendToNodeReport(k8sNode.Name, errString)
 		}
 
+		bitmask := MaskLength2Mask(i)
+
+
 		// Populate Pod's VPP interface data (IP addresses, interface name and
 		// ifIndex)
 		podMap[pod.Name] = vppNode.Name
-		bitmask := maskLength2Mask(i)
 		for _, intf := range vppNode.NodeInterfaces {
 			if strings.Contains(intf.IfMeta.VppInternalName, "tap") {
 				for _, ip := range intf.If.IPAddresses {
@@ -679,7 +681,7 @@ func getVxlanBD(node *telemetrymodel.Node) (int, error) {
 	return 0, fmt.Errorf("vxlanBD not found")
 }
 
-func maskLength2Mask(ml int) uint32 {
+func MaskLength2Mask(ml int) uint32 {
 	var mask uint32
 	for i := 0; i < 32-ml; i++ {
 		mask = mask << 1

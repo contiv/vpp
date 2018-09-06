@@ -632,7 +632,6 @@ func (v *Validator) ValidatePodInfo() {
 
 		bitmask := MaskLength2Mask(i)
 
-
 		// Populate Pod's VPP interface data (IP addresses, interface name and
 		// ifIndex)
 		podMap[pod.Name] = vppNode.Name

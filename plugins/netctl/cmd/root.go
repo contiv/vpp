@@ -66,11 +66,10 @@ var cmdVppCLI = &cobra.Command{
 	},
 }
 
-
 var cmdNodeIPam = &cobra.Command{
-	Use: "ipam nodename",
-	Short:"Display table for node ipam",
-	Args:cobra.MaximumNArgs(1),
+	Use:   "ipam nodename",
+	Short: "Display table for node ipam",
+	Args:  cobra.MaximumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		nodeName := args[0]
 		if len(args) < 1 {
@@ -82,9 +81,9 @@ var cmdNodeIPam = &cobra.Command{
 }
 
 var cmdPodInfo = &cobra.Command{
-	Use:"pods nodename",
-	Short:"Display pods for a given node",
-	Args:cobra.MaximumNArgs(1),
+	Use:   "pods nodename",
+	Short: "Display pods for a given node",
+	Args:  cobra.MaximumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		nodeName := args[0]
 		if len(args) < 1 {
@@ -95,7 +94,6 @@ var cmdPodInfo = &cobra.Command{
 
 	},
 }
-
 
 //Execute will execute the command netctlcd
 func Execute() {

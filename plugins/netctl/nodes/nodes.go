@@ -132,41 +132,40 @@ func VppCliCmd(nodeName string, vppclicmd string) {
 
 	fmt.Printf("vppcli %s %s\n", nodeName, vppclicmd)
 
-
-		ipAdr := ResolveNodeOrIP(nodeName)
-		cmd := fmt.Sprintf("vpp/command")
-		body := fmt.Sprintf("{\"vppclicommand\":\"%s\"}", vppclicmd)
-		err := http.SetNodeInfo(ipAdr, cmd, body)
-		if err != nil {
-			fmt.Println(err)
+	ipAdr := ResolveNodeOrIP(nodeName)
+	cmd := fmt.Sprintf("vpp/command")
+	body := fmt.Sprintf("{\"vppclicommand\":\"%s\"}", vppclicmd)
+	err := http.SetNodeInfo(ipAdr, cmd, body)
+	if err != nil {
+		fmt.Println(err)
 	}
 
 }
+
 //NodeIPamCMD
-func NodeIPamCmd(nodeName string){
-	fmt.Printf("nodeipam %s\n", nodeName,)
+func NodeIPamCmd(nodeName string) {
+	fmt.Printf("nodeipam %s\n", nodeName)
 	w := tabwriter.NewWriter(os.Stdout, 0, 8, 4, '\t', 0)
 
-		ip := ResolveNodeOrIP(nodeName)
-		fmt.Fprintf(w, "id\tname\tip_address\tpod_network_ip\tvpp_host_network\n")
-		b := http.GetNodeInfo(ip,"contiv/v1/ipam")
-		ipam := telemetrymodel.IPamEntry{}
-		err := json.Unmarshal(b,&ipam)
-		if err != nil {
-			fmt.Println(err)
-		}
-		fmt.Fprintf(w,"%d\t%s\t%s\t%s\t%s\n",
-			ipam.NodeID,
-			ipam.NodeName,
-			ipam.NodeIP,
-			ipam.PodNetwork,
-			ipam.VppHostNetwork)
+	ip := ResolveNodeOrIP(nodeName)
+	fmt.Fprintf(w, "id\tname\tip_address\tpod_network_ip\tvpp_host_network\n")
+	b := http.GetNodeInfo(ip, "contiv/v1/ipam")
+	ipam := telemetrymodel.IPamEntry{}
+	err := json.Unmarshal(b, &ipam)
+	if err != nil {
+		fmt.Println(err)
+	}
+	fmt.Fprintf(w, "%d\t%s\t%s\t%s\t%s\n",
+		ipam.NodeID,
+		ipam.NodeName,
+		ipam.NodeIP,
+		ipam.PodNetwork,
+		ipam.VppHostNetwork)
 
 	w.Flush()
-	}
+}
 
-
-func PrintPodsPerNode (input string){
+func PrintPodsPerNode(input string) {
 	hostIP := ResolveNodeOrIP(input)
 	cfg := &etcd.ClientConfig{
 		Config: &clientv3.Config{
@@ -196,17 +195,15 @@ func PrintPodsPerNode (input string){
 		buf := kv.GetValue()
 		podInfo := &pod.Pod{}
 		err = json.Unmarshal(buf, podInfo)
-		if podInfo.HostIpAddress!= hostIP  || podInfo.IpAddress==hostIP{
+		if podInfo.HostIpAddress != hostIP || podInfo.IpAddress == hostIP {
 			continue
 		}
 		ip := printTapInterfaces(podInfo)
 		fmt.Fprintf(w, "%s\t\t\t%s\t\t%s\t%s\n",
-			podInfo.Name,podInfo.IpAddress,podInfo.HostIpAddress,ip[0])
-		for _, str := range ip[1:]  {
-			fmt.Fprintf(w,"\t\t\t\t\t\t%s\n",str)
+			podInfo.Name, podInfo.IpAddress, podInfo.HostIpAddress, ip[0])
+		for _, str := range ip[1:] {
+			fmt.Fprintf(w, "\t\t\t\t\t\t%s\n", str)
 		}
-
-
 
 	}
 	w.Flush()
@@ -215,7 +212,7 @@ func PrintPodsPerNode (input string){
 
 //ResolveNodeOrIP will take in an input string which is either a node name or string and return the ip for the nodename or
 //simply return the ip
-func ResolveNodeOrIP(input string)(ipAdr string){
+func ResolveNodeOrIP(input string) (ipAdr string) {
 	re := regexp.MustCompile(`(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)(\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)){3}`)
 	if re.MatchString(input) {
 		return input
@@ -234,7 +231,7 @@ func printTapInterfaces(podInfo *pod.Pod) []string {
 	for _, intf := range intfs {
 		if intf.If.IfType == interfaces.InterfaceType_TAP_INTERFACE {
 			for _, ip := range intf.If.IPAddresses {
-				str = append(str,ip )
+				str = append(str, ip)
 			}
 		}
 
@@ -242,27 +239,25 @@ func printTapInterfaces(podInfo *pod.Pod) []string {
 	return str
 }
 
-func getK8sNode(nodeName string) *k8snodeinfo.Node{
-		cfg := &etcd.ClientConfig{
+func getK8sNode(nodeName string) *k8snodeinfo.Node {
+	cfg := &etcd.ClientConfig{
 		Config: &clientv3.Config{
-		Endpoints: []string{"127.0.0.1:32379"},
-	},
+			Endpoints: []string{"127.0.0.1:32379"},
+		},
 		OpTimeout: 1 * time.Second,
 	}
-		// Create connection to etcd.
-		db, err := etcd.NewEtcdConnectionWithBytes(*cfg, logrus.DefaultLogger())
-		if err != nil{
+	// Create connection to etcd.
+	db, err := etcd.NewEtcdConnectionWithBytes(*cfg, logrus.DefaultLogger())
+	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
-		b, found, _, err := db.GetValue("/vnf-agent/contiv-ksr/k8s/"+nodeName)
-		if err != nil || !found{
+	b, found, _, err := db.GetValue("/vnf-agent/contiv-ksr/k8s/" + nodeName)
+	if err != nil || !found {
 		fmt.Printf("Error getting values")
 		return nil
 	}
-		k8sInfo := &k8snodeinfo.Node{}
-		json.Unmarshal(b, k8sInfo)
-		return k8sInfo
-	}
-
-
+	k8sInfo := &k8snodeinfo.Node{}
+	json.Unmarshal(b, k8sInfo)
+	return k8sInfo
+}

@@ -671,7 +671,7 @@ func (v *Validator) ValidateTapToPod() {
 		if err != nil {
 			v.Report.AppendToNodeReport(k8sNode.Name, fmt.Sprintf("invalid Pod_CIDR %s", k8sNode.Pod_CIDR))
 		}
-		bitmask := maskLength2Mask(i)
+		bitmask := MaskLength2Mask(i)
 		for _, intf := range vppNode.NodeInterfaces {
 			if strings.Contains(intf.IfMeta.VppInternalName, "tap") {
 				for _, ip := range intf.If.IPAddresses {
@@ -706,7 +706,7 @@ func getVxlanBD(node *telemetrymodel.Node) (int, error) {
 	return 0, fmt.Errorf("vxlanBD not found")
 }
 
-func maskLength2Mask(ml int) uint32 {
+func MaskLength2Mask(ml int) uint32 {
 	var mask uint32
 	for i := 0; i < 32-ml; i++ {
 		mask = mask << 1

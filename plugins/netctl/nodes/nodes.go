@@ -20,11 +20,14 @@ import (
 	"encoding/json"
 	"fmt"
 	nodeinfomodel "github.com/contiv/vpp/plugins/contiv/model/node"
+	k8snodeinfo "github.com/contiv/vpp/plugins/ksr/model/node"
 	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
+	"github.com/contiv/vpp/plugins/ksr/model/pod"
 	"github.com/contiv/vpp/plugins/netctl/http"
 	"github.com/coreos/etcd/clientv3"
 	"github.com/ligato/cn-infra/db/keyval/etcd"
 	"github.com/ligato/cn-infra/logging/logrus"
+	"github.com/ligato/vpp-agent/plugins/vpp/model/interfaces"
 	"os"
 	"regexp"
 	"text/tabwriter"
@@ -59,8 +62,6 @@ func PrintNodes() {
 			break
 		}
 		buf := kv.GetValue()
-		//key := kv.GetKey()
-		//fmt.Printf("Key: %s, value: %s\n", key, string(buf))
 		nodeInfo := &nodeinfomodel.NodeInfo{}
 		err = json.Unmarshal(buf, nodeInfo)
 		//fmt.Printf("NodeInfo: %+v\n", nodeInfo)
@@ -127,23 +128,8 @@ func FindIPForNodeName(nodeName string) string {
 
 //VppCliCmd will receive a nodeName and a vpp cli command and print it out to the console
 func VppCliCmd(nodeName string, vppclicmd string) {
-
 	fmt.Printf("vppcli %s %s\n", nodeName, vppclicmd)
-	re := regexp.MustCompile(`(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)(\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)){3}`)
-	if re.MatchString(nodeName) {
-		ipAdr := nodeName
-		cmd := fmt.Sprintf("vpp/command")
-		body := fmt.Sprintf("{\"vppclicommand\":\"%s\"}", vppclicmd)
-		err := http.SetNodeInfo(ipAdr, cmd, body)
-		if err != nil {
-			fmt.Println(err)
-		}
-	} else {
-		ipAdr := FindIPForNodeName(nodeName)
-		if ipAdr == "" {
-			fmt.Printf("Unknown node name %s", nodeName)
-			return
-		}
+		ipAdr := ResolveNodeOrIP(nodeName)
 		cmd := fmt.Sprintf("vpp/command")
 		body := fmt.Sprintf("{\"vppclicommand\":\"%s\"}", vppclicmd)
 		err := http.SetNodeInfo(ipAdr, cmd, body)
@@ -151,4 +137,128 @@ func VppCliCmd(nodeName string, vppclicmd string) {
 			fmt.Println(err)
 		}
 	}
+
+
+//NodeIPamCMD
+func NodeIPamCmd (nodeName string){
+	fmt.Printf("nodeipam %s\n", nodeName,)
+	w := tabwriter.NewWriter(os.Stdout, 0, 8, 4, '\t', 0)
+
+		ip := ResolveNodeOrIP(nodeName)
+		fmt.Fprintf(w, "id\tname\tip_address\tpod_network_ip\tvpp_host_network\n")
+		b := http.GetNodeInfo(ip,"contiv/v1/ipam")
+		ipam := telemetrymodel.IPamEntry{}
+		err := json.Unmarshal(b,&ipam)
+		if err != nil {
+			fmt.Println(err)
+		}
+		fmt.Fprintf(w,"%d\t%s\t%s\t%s\t%s\n",
+			ipam.NodeID,
+			ipam.NodeName,
+			ipam.NodeIP,
+			ipam.PodNetwork,
+			ipam.VppHostNetwork)
+
+	w.Flush()
+	}
+
+
+func PrintPodsPerNode (input string){
+	hostIP := ResolveNodeOrIP(input)
+	cfg := &etcd.ClientConfig{
+		Config: &clientv3.Config{
+			Endpoints: []string{"127.0.0.1:32379"},
+		},
+		OpTimeout: 1 * time.Second,
+	}
+	w := tabwriter.NewWriter(os.Stdout, 0, 8, 6, '\t', 0)
+	// Create connection to etcd.
+	db, err := etcd.NewEtcdConnectionWithBytes(*cfg, logrus.DefaultLogger())
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+	itr, err := db.ListValues("/vnf-agent/contiv-ksr/k8s/pod/")
+	if err != nil {
+		fmt.Printf("Error getting values")
+		return
+	}
+	fmt.Fprintf(w, "name\t\t\tip_address\t\thost_ip_addr\ttap_ip\n")
+
+	for {
+		kv, stop := itr.GetNext()
+		if stop {
+			break
+		}
+		buf := kv.GetValue()
+		podInfo := &pod.Pod{}
+		err = json.Unmarshal(buf, podInfo)
+		if podInfo.HostIpAddress!= hostIP  || podInfo.IpAddress==hostIP{
+			continue
+		}
+		ip := printTapInterfaces(podInfo)
+		fmt.Fprintf(w, "%s\t\t\t%s\t\t%s\t%s\n",
+			podInfo.Name,podInfo.IpAddress,podInfo.HostIpAddress,ip[0])
+		for _, str := range ip[1:]  {
+			fmt.Fprintf(w,"\t\t\t\t\t\t%s\n",str)
+		}
+
+
+
+	}
+	w.Flush()
+	db.Close()
+}
+
+//ResolveNodeOrIP will take in an input string which is either a node name or string and return the ip for the nodename or
+//simply return the ip
+func ResolveNodeOrIP(input string)(ipAdr string){
+	re := regexp.MustCompile(`(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)(\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)){3}`)
+	if re.MatchString(input) {
+		return input
+	} else {
+		ip := FindIPForNodeName(input)
+		return ip
+	}
+}
+
+func printTapInterfaces(podInfo *pod.Pod) []string {
+	var str []string
+	cmd := fmt.Sprintf("vpp/dump/v1/interfaces")
+	b := http.GetNodeInfo(podInfo.HostIpAddress, cmd)
+	intfs := make(telemetrymodel.NodeInterfaces)
+	json.Unmarshal(b, &intfs)
+	for _, intf := range intfs {
+		if intf.If.IfType == interfaces.InterfaceType_TAP_INTERFACE {
+			for _, ip := range intf.If.IPAddresses {
+				str = append(str,ip )
+			}
+		}
+
+	}
+	return str
+}
+
+func getK8sNode(nodeName string) *k8snodeinfo.Node {
+	cfg := &etcd.ClientConfig{
+		Config: &clientv3.Config{
+			Endpoints: []string{"127.0.0.1:32379"},
+		},
+		OpTimeout: 1 * time.Second,
+	}
+	// Create connection to etcd.
+	db, err := etcd.NewEtcdConnectionWithBytes(*cfg, logrus.DefaultLogger())
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+	b,found,_, err := db.GetValue("/vnf-agent/contiv-ksr/k8s/"+nodeName)
+	if err != nil || !found {
+		fmt.Printf("Error getting values")
+		return nil
+	}
+	k8sInfo := &k8snodeinfo.Node{}
+	json.Unmarshal(b,k8sInfo)
+	return k8sInfo
+
 }

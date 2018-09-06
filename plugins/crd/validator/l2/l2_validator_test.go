@@ -20,7 +20,7 @@ import (
 	"github.com/contiv/vpp/plugins/crd/api"
 	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
 	"github.com/contiv/vpp/plugins/crd/datastore"
-	"github.com/contiv/vpp/plugins/crd/validator/testdata"
+	"github.com/contiv/vpp/plugins/crd/testdata"
 	nodemodel "github.com/contiv/vpp/plugins/ksr/model/node"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	"github.com/ligato/cn-infra/logging"

@@ -108,33 +108,35 @@ func (v *Validator) validateVrf1PodRoutes(node *telemetrymodel.Node, vrfMap map[
 
 	numErrs := 0
 	for _, pod := range node.PodMap {
+
+		// Skip over host network pods
 		if pod.IPAddress == node.ManIPAddr {
-			// Skip over host network pods
 			continue
 		}
 
 		// Validate routes to local Pods
-		lookUpRoute, ok := vrfMap[1][pod.IPAddress+"/32"]
+		lookUpRoute, ok := vrfMap[1][pod.IPAddress + "/32"]
 		if !ok {
-			errString := fmt.Sprintf("route for Pod %s with IP Address %s does not exist ",
+			numErrs++
+			errString := fmt.Sprintf("missing route for Pod '%s' with IP Address %s",
 				pod.Name, pod.IPAddress)
 			v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
 			continue
 		}
 
 		if lookUpRoute.Ipr.NextHopAddr != pod.IPAddress {
-			errString := fmt.Sprintf("Pod %s: next hop %s in route does not match the Pod IP Address %s",
+			numErrs++
+			errString := fmt.Sprintf("invalid route for Pod '%s' - bad next hop; have %s, expecting %s",
 				pod.Name, lookUpRoute.Ipr.NextHopAddr, pod.IPAddress)
 			v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
-			numErrs++
 			routeMap[lookUpRoute.Ipr.DstAddr] = false
 		}
 
 		if pod.VppSwIfIdx != lookUpRoute.IprMeta.OutgoingIfIdx {
+			numErrs++
 			errString := fmt.Sprintf("Pod interface index %d does not match static route interface index %d",
 				pod.VppSwIfIdx, lookUpRoute.IprMeta.OutgoingIfIdx)
 			v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
-			numErrs++
 			routeMap[lookUpRoute.Ipr.DstAddr] = false
 		}
 		if pod.VppIfName != lookUpRoute.Ipr.OutIface {
@@ -148,6 +150,7 @@ func (v *Validator) validateVrf1PodRoutes(node *telemetrymodel.Node, vrfMap map[
 		//make sure pod vpp interface route exists and is valid
 		podIfIProute, ok := vrfMap[1][pod.VppIfIPAddr]
 		if !ok {
+			numErrs++
 			errString := fmt.Sprintf("route for Pod %s with vppIfIP Address %s does not exist ",
 				pod.Name, pod.IPAddress)
 			v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
@@ -155,26 +158,26 @@ func (v *Validator) validateVrf1PodRoutes(node *telemetrymodel.Node, vrfMap map[
 		}
 
 		if podIfIProute.Ipr.NextHopAddr+"/32" != pod.VppIfIPAddr {
+			numErrs++
 			errString := fmt.Sprintf("Pod %s IP %s does not match with route %+v next hop IP %s",
 				pod.Name, pod.IPAddress, lookUpRoute, lookUpRoute.Ipr.NextHopAddr)
 			v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
-			numErrs++
 			routeMap[podIfIProute.Ipr.DstAddr] = false
 		}
 		if pod.VppSwIfIdx != podIfIProute.IprMeta.OutgoingIfIdx {
+			numErrs++
 			errString := fmt.Sprintf("Pod interface index %d does not match static route interface index %d",
 				pod.VppSwIfIdx, lookUpRoute.IprMeta.OutgoingIfIdx)
 			v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
-			numErrs++
 			routeMap[podIfIProute.Ipr.DstAddr] = false
 		}
 
 		if pod.VppIfName != lookUpRoute.Ipr.OutIface {
+			numErrs++
 			errString := fmt.Sprintf("Name of pod interface %s differs from route interface name %s",
 				pod.VppIfInternalName, lookUpRoute.Ipr.OutIface)
 
 			v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
-			numErrs++
 			routeMap[podIfIProute.Ipr.DstAddr] = false
 		}
 

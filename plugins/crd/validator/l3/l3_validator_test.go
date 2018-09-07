@@ -17,9 +17,10 @@ package l3
 
 import (
 	"fmt"
+	"github.com/contiv/vpp/plugins/crd/api"
 	"github.com/contiv/vpp/plugins/crd/datastore"
 	"github.com/contiv/vpp/plugins/crd/testdata"
-	"github.com/contiv/vpp/plugins/crd/api"
+	"github.com/contiv/vpp/plugins/crd/validator/l2"
 	nodemodel "github.com/contiv/vpp/plugins/ksr/model/node"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	"github.com/ligato/cn-infra/logging"
@@ -32,6 +33,7 @@ import (
 
 type l3ValidatorTestVars struct {
 	log         *logrus.Logger
+	l2Validator *l2.Validator
 	l3Validator *Validator
 	logWriter   *mockLogWriter
 	nodeKey     string
@@ -95,7 +97,14 @@ func TestValidator(t *testing.T) {
 	vtv.k8sCache = datastore.NewK8sDataStore()
 	vtv.report = datastore.NewSimpleReport(vtv.log)
 
-	// Initialize the validator
+	// Initialize the validators
+	vtv.l2Validator = &l2.Validator{
+		Log:      vtv.log,
+		VppCache: vtv.vppCache,
+		K8sCache: vtv.k8sCache,
+		Report:   vtv.report,
+	}
+
 	vtv.l3Validator = &Validator{
 		Log:      vtv.log,
 		VppCache: vtv.vppCache,
@@ -117,7 +126,7 @@ func testErrorFreeEndToEnd(t *testing.T) {
 	vtv.report.Clear()
 	vtv.l3Validator.Validate()
 
-	checkDataReport(1, 1, 0)
+	checkDataReport(1, 0, 0)
 }
 
 func testValidateRoutesToLocalPods(t *testing.T) {
@@ -132,24 +141,55 @@ func testValidateRoutesToLocalPods(t *testing.T) {
 		}
 
 		routes := vtv.vppCache.NodeMap[vtv.nodeKey].NodeStaticRoutes
-		for i, rte := range routes {
-			if rte.Ipr.DstAddr == pod.IPAddress {
-				vtv.vppCache.NodeMap[vtv.nodeKey].NodeStaticRoutes = append(routes[:i], routes[i+1:]...)
+		for _, rte := range routes {
+			if rte.Ipr.DstAddr == pod.IPAddress + "/32" {
+				delete(vrfMap[1], rte.Ipr.DstAddr)
 				break
 			}
 		}
-		routeMap := make(map[string]bool)
-		// Perform test
-		vtv.report.Clear()
-		vtv.l3Validator.validateVrf1PodRoutes(vtv.vppCache.NodeMap[vtv.nodeKey], vrfMap, routeMap)
-
-		checkDataReport(1, 1, 0)
-
-		// Restore data back to error free state
-		resetToInitialErrorFreeState()
-
 		break
 	}
+
+	routeMap := make(map[string]bool)
+	// Perform test
+	vtv.report.Clear()
+	numErrs := vtv.l3Validator.validateVrf1PodRoutes(vtv.vppCache.NodeMap[vtv.nodeKey], vrfMap, routeMap)
+
+	checkDataReport(0, 1, 0)
+	gomega.Expect(numErrs).To(gomega.Equal(1))
+
+	// Restore data back to error free state
+	vrfMap, err = vtv.l3Validator.createVrfMap(vtv.vppCache.NodeMap[vtv.nodeKey])
+
+	// -------------------------------------------------
+	// INJECT FAULT: Bad next hop in the route for a Pod
+	for _, pod := range vtv.k8sCache.RetrieveAllPods() {
+		if pod.IPAddress == pod.HostIPAddress {
+			continue
+		}
+
+		routes := vtv.vppCache.NodeMap[vtv.nodeKey].NodeStaticRoutes
+		for _, rte := range routes {
+			if rte.Ipr.DstAddr == pod.IPAddress + "/32" {
+				rte.Ipr.NextHopAddr = "1.2.3.4"
+				vrfMap[1][rte.Ipr.DstAddr] = rte
+				break
+			}
+		}
+		break
+	}
+
+	routeMap = make(map[string]bool)
+	// Perform test
+	vtv.report.Clear()
+	numErrs = vtv.l3Validator.validateVrf1PodRoutes(vtv.vppCache.NodeMap[vtv.nodeKey], vrfMap, routeMap)
+
+	checkDataReport(0, 1, 0)
+	gomega.Expect(numErrs).To(gomega.Equal(1))
+
+	// Restore data back to error free state
+	vrfMap, err = vtv.l3Validator.createVrfMap(vtv.vppCache.NodeMap[vtv.nodeKey])
+
 }
 
 func resetToInitialErrorFreeState() {
@@ -190,6 +230,10 @@ func resetToInitialErrorFreeState() {
 			}
 		}
 	}
+
+	// ValidatePodInfo() will initialize each node's pod structures that are
+	// required for L3 validation.
+	vtv.l2Validator.ValidatePodInfo()
 }
 
 func checkDataReport(globalCnt int, nodeKeyCnt int, defaultCnt int) {

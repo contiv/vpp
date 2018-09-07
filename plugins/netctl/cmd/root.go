@@ -66,12 +66,45 @@ var cmdVppCLI = &cobra.Command{
 	},
 }
 
+var cmdNodeIPam = &cobra.Command{
+	Use:   "ipam nodename",
+	Short: "Display table for node ipam",
+	Args:  cobra.MaximumNArgs(1),
+	Run: func(cmd *cobra.Command, args []string) {
+		nodeName := args[0]
+		if len(args) < 1 {
+			fmt.Println("\nEnter either a node name or an ip to display IPam information...")
+		} else {
+			nodes.NodeIPamCmd(nodeName)
+		}
+	},
+}
+
+var cmdPodInfo = &cobra.Command{
+	Use:   "pods nodename",
+	Short: "Display pods for a given node",
+	Args:  cobra.MaximumNArgs(1),
+	Run: func(cmd *cobra.Command, args []string) {
+		nodeName := args[0]
+		if len(args) < 1 {
+			fmt.Println("Enter a node name to display pod information")
+		} else {
+			nodes.PrintPodsPerNode(nodeName)
+		}
+
+	},
+}
+
 //Execute will execute the command netctlcd
 func Execute() {
 	var rootCmd = &cobra.Command{Use: "netctl"}
 	rootCmd.AddCommand(cmdNodes)
 	rootCmd.AddCommand(cmdVppDump)
 	rootCmd.AddCommand(cmdVppCLI)
+
+	rootCmd.AddCommand(cmdNodeIPam)
+	rootCmd.AddCommand(cmdPodInfo)
+
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)
 		os.Exit(1)

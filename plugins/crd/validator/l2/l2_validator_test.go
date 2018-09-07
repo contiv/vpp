@@ -824,5 +824,4 @@ func checkDataReport(globalCnt int, nodeKeyCnt int, defaultCnt int) {
 			gomega.Expect(len(vtv.report.Data[k])).To(gomega.Equal(defaultCnt))
 		}
 	}
-
 }

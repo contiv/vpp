@@ -22,7 +22,6 @@ import (
 	nodeinfomodel "github.com/contiv/vpp/plugins/contiv/model/node"
 
 	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
-	k8snodeinfo "github.com/contiv/vpp/plugins/ksr/model/node"
 	"github.com/contiv/vpp/plugins/ksr/model/pod"
 	"github.com/contiv/vpp/plugins/netctl/http"
 	"github.com/coreos/etcd/clientv3"
@@ -31,6 +30,8 @@ import (
 	"github.com/ligato/vpp-agent/plugins/vpp/model/interfaces"
 	"os"
 	"regexp"
+	"strconv"
+	"strings"
 	"text/tabwriter"
 	"time"
 )
@@ -199,18 +200,18 @@ func PrintPodsPerNode(input string) {
 		if podInfo.HostIpAddress != hostIP || podInfo.IpAddress == hostIP {
 			continue
 		}
-		ip, idx, tag := printTapInterfaces(podInfo)
-		fmt.Fprintf(w, "%s\t\t\t%s\t\t%s\t%s\t%d\t%s\n",
-			podInfo.Name,
-			podInfo.IpAddress,
-			podInfo.HostIpAddress,
-			ip[0],
-			idx,
-			tag)
-		for _, str := range ip[1:] {
-			fmt.Fprintf(w, "\t\t\t\t\t\t%s\n", str)
-		}
+		if ipAddress, ifIndex, tag, err := printTapInterfaces(podInfo); err == nil {
+			fmt.Fprintf(w, "%s\t\t\t%s\t\t%s\t%s\t%d\t%s\n",
+				podInfo.Name,
+				podInfo.IpAddress,
+				podInfo.HostIpAddress,
+				ipAddress,
+				ifIndex,
+				tag)
 
+		} else {
+			fmt.Printf("error %s\n", err)
+		}
 	}
 	w.Flush()
 	db.Close()
@@ -227,46 +228,98 @@ func ResolveNodeOrIP(input string) (ipAdr string) {
 	return ip
 }
 
-func printTapInterfaces(podInfo *pod.Pod) ([]string, uint32, string) {
-	var str []string
-	cmd := fmt.Sprintf("vpp/dump/v1/interfaces")
-	var idx uint32
-	var tag string
+func printTapInterfaces(podInfo *pod.Pod) (string, uint32, string, error) {
+	// Get interface information
+	cmd := "vpp/dump/v1/interfaces"
 	b := http.GetNodeInfo(podInfo.HostIpAddress, cmd)
 	intfs := make(telemetrymodel.NodeInterfaces)
-	json.Unmarshal(b, &intfs)
+	if err := json.Unmarshal(b, &intfs); err != nil {
+
+		return "", 0, "", fmt.Errorf("could not get pod's interface; pod %s, hostIPAddress %s, err %s",
+			podInfo.Name, podInfo.HostIpAddress, err)
+	}
+
+	// Get ipam information
+	cmd = "contiv/v1/ipam"
+	b = http.GetNodeInfo(podInfo.HostIpAddress, cmd)
+	ipam := telemetrymodel.IPamEntry{}
+	if err := json.Unmarshal(b, &ipam); err != nil {
+		return "", 0, "", fmt.Errorf("could not get ipam for host %s, err %s",
+			podInfo.HostIpAddress, err)
+	}
+
+	podIfIPAddress, podIfIPMask, err := getIPAddressAndMask(ipam.Config.PodIfIPCIDR)
+	if err != nil {
+		return "", 0, "", fmt.Errorf("invalid PodIfIPCIDR address %s, err %s",
+			podInfo.HostIpAddress, err)
+	}
+
+	podIfIPPrefix := podIfIPAddress &^ podIfIPMask
+	podAddr, err := ip2uint32(podInfo.IpAddress)
+	if err != nil {
+		return "", 0, "", fmt.Errorf("invalid podInfo.IpAddress %s, err %s",
+			podInfo.HostIpAddress, err)
+	}
+	podAddrSuffix := podAddr & podIfIPMask
+
 	for _, intf := range intfs {
 		if intf.If.IfType == interfaces.InterfaceType_TAP_INTERFACE {
 			for _, ip := range intf.If.IPAddresses {
-				str = append(str, ip)
-			}
-			idx = intf.IfMeta.SwIfIndex
-			tag = intf.IfMeta.Tag
-		}
+				ifIPAddr, iffIPMask, err := getIPAddressAndMask(ip)
+				if err != nil {
+					continue
+				}
+				if iffIPMask != 0 {
+					// TODO: do spme error handling
+					continue
+				}
 
+				ifIPAdrPrefix := ifIPAddr &^ podIfIPMask
+				ifIPAdrSuffix := ifIPAddr & podIfIPMask
+				if (podIfIPPrefix == ifIPAdrPrefix) && (ifIPAdrSuffix == podAddrSuffix) {
+					return ip, intf.IfMeta.SwIfIndex, intf.IfMeta.Tag, nil
+				}
+			}
+		}
 	}
-	return str, idx, tag
+
+	return "", 0, "", nil
 }
 
-func getK8sNode(nodeName string) *k8snodeinfo.Node {
-	cfg := &etcd.ClientConfig{
-		Config: &clientv3.Config{
-			Endpoints: []string{"127.0.0.1:32379"},
-		},
-		OpTimeout: 1 * time.Second,
+// maskLength2Mask will tank in an int and return the bit mask for the number given
+func maskLength2Mask(ml int) uint32 {
+	var mask uint32
+	for i := 0; i < 32-ml; i++ {
+		mask = mask << 1
+		mask++
 	}
-	// Create connection to etcd.
-	db, err := etcd.NewEtcdConnectionWithBytes(*cfg, logrus.DefaultLogger())
+	return mask
+}
+
+func ip2uint32(ipAddress string) (uint32, error) {
+	var ipu uint32
+	parts := strings.Split(ipAddress, ".")
+	for _, p := range parts {
+		// num, _ := strconv.ParseUint(p, 10, 32)
+		num, _ := strconv.Atoi(p)
+		ipu = (ipu << 8) + uint32(num)
+		//fmt.Printf("%d: num: 0x%x, ipu: 0x%x\n", i, num, ipu)
+	}
+	return ipu, nil
+}
+
+func getIPAddressAndMask(ip string) (uint32, uint32, error) {
+	addressParts := strings.Split(ip, "/")
+	maskLen, err := strconv.Atoi(addressParts[1])
 	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+		return 0, 0, fmt.Errorf("invalid mask")
 	}
-	b, found, _, err := db.GetValue("/vnf-agent/contiv-ksr/k8s/" + nodeName)
-	if err != nil || !found {
-		fmt.Printf("Error getting values")
-		return nil
+
+	address, err := ip2uint32(addressParts[0])
+	if err != nil {
+		return 0, 0, err
 	}
-	k8sInfo := &k8snodeinfo.Node{}
-	json.Unmarshal(b, k8sInfo)
-	return k8sInfo
+	mask := maskLength2Mask(maskLen)
+
+	return address, mask, nil
 }

@@ -43,6 +43,7 @@ func (v *Validator) Validate() {
 	nodeList := v.VppCache.RetrieveAllNodes()
 	numErrs := 0
 	routeMap := make(map[string]bool)
+
 	for _, node := range nodeList {
 
 		vrfMap, err := v.createVrfMap(node)
@@ -50,31 +51,33 @@ func (v *Validator) Validate() {
 			v.Report.LogErrAndAppendToNodeReport(node.Name, err.Error())
 		}
 
-		//function to validate vrf 1 pod routes, errors found are added to total error count.
-		numErrs += v.validateVrf1PodRoutes(*node, vrfMap, routeMap)
+		// Validate routes to local pods (they are all on vrf 1).
+		numErrs += v.validateVrf1PodRoutes(node, vrfMap, routeMap)
 
-		//function to validate vrf1 route to local loop interface, errors are found added to total error count.
-		numErrs += v.validateRouteToLocalLoopInterface(*node, vrfMap, routeMap)
+		// Validate the vrf1 route to the local loop interface
+		numErrs += v.validateRouteToLocalLoopInterface(node, vrfMap, routeMap)
 
-		//function to validate local nodes gigE routes, errors found are added to total error count.
-		numErrs += v.validateVrf0GigERoutes(*node, vrfMap, routeMap)
+		// Validate local nodes gigE routes
+		numErrs += v.validateVrf0GigERoutes(node, vrfMap, routeMap)
 
-		//function to validate vrf 0 local routes, errors found are added to total error count.
-		numErrs += v.validateVrf0LocalHostRoute(*node, vrfMap, routeMap)
+		// Validate vrf 0 local routes
+		numErrs += v.validateVrf0LocalHostRoute(node, vrfMap, routeMap)
 
-		//function to validate vrf 1 default route, errors found are added to total error count
-		numErrs += v.validateVrf1DefaultRoute(*node, vrfMap, routeMap)
+		// Validate vrf 1 default route
+		numErrs += v.validateVrf1DefaultRoute(node, vrfMap, routeMap)
 
-		//function to validate routes exist to all remote nodes for vrf 1 and 0, errors found are added total error count.
-		numErrs += v.validateRemoteNodeRoutes(*node, vrfMap, routeMap)
+		// Validate routes to all remote nodes for vrf 1 and vrf 0
+		numErrs += v.validateRemoteNodeRoutes(node, vrfMap, routeMap)
 
 	}
+
 	for routeIP, bl := range routeMap {
 		if !bl {
 			errString := fmt.Sprintf("Error validating L3 connectivity for route %s:", routeIP)
 			v.Report.AppendToNodeReport(api.GlobalMsg, errString)
 		}
 	}
+
 	if numErrs == 0 {
 		v.Report.AppendToNodeReport(api.GlobalMsg, "success validating l3 info.")
 	} else {
@@ -100,40 +103,47 @@ func (v *Validator) createVrfMap(node *telemetrymodel.Node) (map[uint32]Vrf, err
 	return vrfMap, nil
 }
 
-func (v *Validator) validateVrf1PodRoutes(node telemetrymodel.Node, vrfMap map[uint32]Vrf, routeMap map[string]bool) int {
+func (v *Validator) validateVrf1PodRoutes(node *telemetrymodel.Node, vrfMap map[uint32]Vrf,
+	routeMap map[string]bool) int {
+
 	numErrs := 0
 	for _, pod := range node.PodMap {
+
+		// Skip over host network pods
 		if pod.IPAddress == node.ManIPAddr {
-			// Skip over host network pods
 			continue
 		}
 
 		// Validate routes to local Pods
+		// Lookup the Pod route in VRF1; it must have mask length = 32
 		lookUpRoute, ok := vrfMap[1][pod.IPAddress+"/32"]
 		if !ok {
-			errString := fmt.Sprintf("route for Pod %s with IP Address %s does not exist ",
+			numErrs++
+			errString := fmt.Sprintf("missing route for Pod '%s' with IP Address %s",
 				pod.Name, pod.IPAddress)
 			v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
 			continue
 		}
 
+		// check that the next hop in the pod route is the pod's IP address
 		if lookUpRoute.Ipr.NextHopAddr != pod.IPAddress {
-			errString := fmt.Sprintf("Pod %s: next hop %s in route does not match the Pod IP Address %s",
+			numErrs++
+			errString := fmt.Sprintf("invalid route for Pod '%s' - bad next hop; have %s, expecting %s",
 				pod.Name, lookUpRoute.Ipr.NextHopAddr, pod.IPAddress)
 			v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
-			numErrs++
 			routeMap[lookUpRoute.Ipr.DstAddr] = false
 		}
 
 		if pod.VppSwIfIdx != lookUpRoute.IprMeta.OutgoingIfIdx {
+			numErrs++
 			errString := fmt.Sprintf("Pod interface index %d does not match static route interface index %d",
 				pod.VppSwIfIdx, lookUpRoute.IprMeta.OutgoingIfIdx)
 			v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
-			numErrs++
 			routeMap[lookUpRoute.Ipr.DstAddr] = false
 		}
 		if pod.VppIfName != lookUpRoute.Ipr.OutIface {
-			errString := fmt.Sprintf("Name of pod interface %s differs from route interface name %s", pod.VppIfInternalName, lookUpRoute.Ipr.OutIface)
+			errString := fmt.Sprintf("Name of pod interface %s differs from route interface name %s",
+				pod.VppIfInternalName, lookUpRoute.Ipr.OutIface)
 			v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
 			numErrs++
 			routeMap[lookUpRoute.Ipr.DstAddr] = false
@@ -142,6 +152,7 @@ func (v *Validator) validateVrf1PodRoutes(node telemetrymodel.Node, vrfMap map[u
 		//make sure pod vpp interface route exists and is valid
 		podIfIProute, ok := vrfMap[1][pod.VppIfIPAddr]
 		if !ok {
+			numErrs++
 			errString := fmt.Sprintf("route for Pod %s with vppIfIP Address %s does not exist ",
 				pod.Name, pod.IPAddress)
 			v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
@@ -149,24 +160,27 @@ func (v *Validator) validateVrf1PodRoutes(node telemetrymodel.Node, vrfMap map[u
 		}
 
 		if podIfIProute.Ipr.NextHopAddr+"/32" != pod.VppIfIPAddr {
-			errString := fmt.Sprintf("Pod %s IP %s does not match with route %+v next hop IP %s", pod.Name, pod.IPAddress, lookUpRoute, lookUpRoute.Ipr.NextHopAddr)
-			v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
 			numErrs++
+			errString := fmt.Sprintf("Pod %s IP %s does not match with route %+v next hop IP %s",
+				pod.Name, pod.IPAddress, lookUpRoute, lookUpRoute.Ipr.NextHopAddr)
+			v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
 			routeMap[podIfIProute.Ipr.DstAddr] = false
 		}
+
 		if pod.VppSwIfIdx != podIfIProute.IprMeta.OutgoingIfIdx {
-			errString := fmt.Sprintf("Pod interface index %d does not match static route interface index %d", pod.VppSwIfIdx, lookUpRoute.IprMeta.OutgoingIfIdx)
-			v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
 			numErrs++
+			errString := fmt.Sprintf("Pod interface index %d does not match static route interface index %d",
+				pod.VppSwIfIdx, lookUpRoute.IprMeta.OutgoingIfIdx)
+			v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
 			routeMap[podIfIProute.Ipr.DstAddr] = false
 		}
 
 		if pod.VppIfName != lookUpRoute.Ipr.OutIface {
+			numErrs++
 			errString := fmt.Sprintf("Name of pod interface %s differs from route interface name %s",
 				pod.VppIfInternalName, lookUpRoute.Ipr.OutIface)
 
 			v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
-			numErrs++
 			routeMap[podIfIProute.Ipr.DstAddr] = false
 		}
 
@@ -184,7 +198,8 @@ func (v *Validator) validateVrf1PodRoutes(node telemetrymodel.Node, vrfMap map[u
 	return numErrs
 }
 
-func (v *Validator) validateVrf0GigERoutes(node telemetrymodel.Node, vrfMap map[uint32]Vrf, routeMap map[string]bool) int {
+func (v *Validator) validateVrf0GigERoutes(node *telemetrymodel.Node, vrfMap map[uint32]Vrf,
+	routeMap map[string]bool) int {
 	numErrs := 0
 	//begin validation of gigE routes, beginning with local one
 	gigeRoute, ok := vrfMap[0][node.IPAddr]
@@ -200,8 +215,8 @@ func (v *Validator) validateVrf0GigERoutes(node telemetrymodel.Node, vrfMap map[
 		numErrs++
 	}
 	if !strings.Contains(gigeRoute.Ipr.OutIface, "GigabitEthernet") {
-		errString := fmt.Sprintf("route with dst IP %s had different out interface %s than expected GigabitEthernet0/8/0",
-			gigeRoute.Ipr.DstAddr, gigeRoute.Ipr.OutIface)
+		errString := fmt.Sprintf("route with dst IP %s had different out interface %s than "+
+			"expected GigabitEthernet0/8/0", gigeRoute.Ipr.DstAddr, gigeRoute.Ipr.OutIface)
 		v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
 		numErrs++
 	}
@@ -209,7 +224,8 @@ func (v *Validator) validateVrf0GigERoutes(node telemetrymodel.Node, vrfMap map[
 	//make sure interface index in route points to valid node interface
 	intf := node.NodeInterfaces[int(gigeRoute.IprMeta.OutgoingIfIdx)]
 	if intf.IfMeta.SwIfIndex != gigeRoute.IprMeta.OutgoingIfIdx {
-		errString := fmt.Sprintf("interface %s has different interface index %d than route with dst ip %s interface index %d",
+		errString := fmt.Sprintf("interface %s has different interface index %d than route "+
+			"with dst ip %s interface index %d",
 			intf.IfMeta.Tag, intf.IfMeta.SwIfIndex, gigeRoute.Ipr.DstAddr, gigeRoute.IprMeta.OutgoingIfIdx)
 		v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
 		numErrs++
@@ -248,13 +264,15 @@ func (v *Validator) validateVrf0GigERoutes(node telemetrymodel.Node, vrfMap map[
 		}
 
 		if !strings.Contains(route.Ipr.OutIface, "GigabitEthernet") {
-			errString := fmt.Sprintf("Route with dst IP %s has an out interface %s instead of GigabitEthernet0/8/0", otherNode.IPAddr, route.Ipr.OutIface)
+			errString := fmt.Sprintf("Route with dst IP %s has an out interface %s instead of"+
+				"GigabitEthernet0/8/0", otherNode.IPAddr, route.Ipr.OutIface)
 			v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
 			numErrs++
 		}
 
 		if route.IprMeta.OutgoingIfIdx != gigeRoute.IprMeta.OutgoingIfIdx {
-			errString := fmt.Sprintf("Route %s has an outgoing interface index of %d instead of %d", route.IprMeta.TableName, route.IprMeta.OutgoingIfIdx, gigeRoute.IprMeta.OutgoingIfIdx)
+			errString := fmt.Sprintf("Route %s has an outgoing interface index of %d instead of %d",
+				route.IprMeta.TableName, route.IprMeta.OutgoingIfIdx, gigeRoute.IprMeta.OutgoingIfIdx)
 			v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
 			numErrs++
 		}
@@ -262,7 +280,8 @@ func (v *Validator) validateVrf0GigERoutes(node telemetrymodel.Node, vrfMap map[
 	return numErrs
 }
 
-func (v *Validator) validateRemoteNodeRoutes(node telemetrymodel.Node, vrfMap map[uint32]Vrf, routeMap map[string]bool) int {
+func (v *Validator) validateRemoteNodeRoutes(node *telemetrymodel.Node, vrfMap map[uint32]Vrf,
+	routeMap map[string]bool) int {
 	//validate remote nodes connectivity to current node
 	numErrs := 0
 	nodeList := v.VppCache.RetrieveAllNodes()
@@ -274,7 +293,8 @@ func (v *Validator) validateRemoteNodeRoutes(node telemetrymodel.Node, vrfMap ma
 		podNwIP := othNode.NodeIPam.PodNetwork
 		route, ok := vrfMap[1][podNwIP]
 		if !ok {
-			errString := fmt.Sprintf("Route for pod network for node %s with ip %s not found", othNode.Name, podNwIP)
+			errString := fmt.Sprintf("Route for pod network for node %s with ip %s not found",
+				othNode.Name, podNwIP)
 			v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
 			numErrs++
 		}
@@ -283,8 +303,8 @@ func (v *Validator) validateRemoteNodeRoutes(node telemetrymodel.Node, vrfMap ma
 		for _, bd := range node.NodeBridgeDomains {
 			if bd.Bd.Name == "vxlanBD" {
 				if bd.BdMeta.BdID2Name[route.IprMeta.OutgoingIfIdx] != "vxlanBVI" {
-					errString := fmt.Sprintf("vxlanBD outgoing interface for ipr index %d for route with pod network ip %s is not vxlanBVI",
-						route.IprMeta.OutgoingIfIdx, podNwIP)
+					errString := fmt.Sprintf("vxlanBD outgoing interface for ipr index %d for route "+
+						"with pod network ip %s is not vxlanBVI", route.IprMeta.OutgoingIfIdx, podNwIP)
 					v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
 					numErrs++
 				}
@@ -313,7 +333,9 @@ func (v *Validator) validateRemoteNodeRoutes(node telemetrymodel.Node, vrfMap ma
 						}
 					}
 					if !matchingIPFound {
-						errString := fmt.Sprintf("no matching ip found in remote node %s interface %s to match current node %s route next hop %s", othNode.Name, intf.If.Name, node.Name, route.Ipr.NextHopAddr)
+						errString := fmt.Sprintf("no matching ip found in remote node %s interface "+
+							"%s to match current node %s route next hop %s",
+							othNode.Name, intf.If.Name, node.Name, route.Ipr.NextHopAddr)
 						v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
 					}
 				}
@@ -345,7 +367,9 @@ func (v *Validator) validateRemoteNodeRoutes(node telemetrymodel.Node, vrfMap ma
 	return numErrs
 }
 
-func (v *Validator) validateVrf0LocalHostRoute(node telemetrymodel.Node, vrfMap map[uint32]Vrf, routeMap map[string]bool) int {
+func (v *Validator) validateVrf0LocalHostRoute(node *telemetrymodel.Node, vrfMap map[uint32]Vrf,
+	routeMap map[string]bool) int {
+
 	//validate local route to host and that the interface is correct
 	numErrs := 0
 	localRoute, ok := vrfMap[0][node.ManIPAddr+"/32"]
@@ -357,7 +381,8 @@ func (v *Validator) validateVrf0LocalHostRoute(node telemetrymodel.Node, vrfMap 
 
 	tapIntf := node.NodeInterfaces[int(localRoute.IprMeta.OutgoingIfIdx)]
 	if tapIntf.IfMeta.Tag != "tap-vpp2" {
-		errString := fmt.Sprintf("node %s interface with idx %d from route with ip %s does not match tag tap-vpp2 instead is %s",
+		errString := fmt.Sprintf("node %s interface with idx %d from route with ip %s does not "+
+			"match tag tap-vpp2 instead is %s",
 			node.Name, localRoute.IprMeta.OutgoingIfIdx, localRoute.Ipr.DstAddr, tapIntf.IfMeta.Tag)
 		v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
 		numErrs++
@@ -379,7 +404,9 @@ func (v *Validator) validateVrf0LocalHostRoute(node telemetrymodel.Node, vrfMap 
 	return numErrs
 }
 
-func (v *Validator) validateVrf1DefaultRoute(node telemetrymodel.Node, vrfMap map[uint32]Vrf, routeMap map[string]bool) int {
+func (v *Validator) validateVrf1DefaultRoute(node *telemetrymodel.Node, vrfMap map[uint32]Vrf,
+	routeMap map[string]bool) int {
+
 	numErrs := 0
 	defaultRoute, ok := vrfMap[1]["0.0.0.0/0"]
 	if !ok {
@@ -390,8 +417,8 @@ func (v *Validator) validateVrf1DefaultRoute(node telemetrymodel.Node, vrfMap ma
 	}
 
 	if defaultRoute.IprMeta.OutgoingIfIdx != 0 {
-		errString := fmt.Sprintf("expeceted default route 0.0.0.0/0 to have outgoing interface index of 0, got %d",
-			defaultRoute.IprMeta.OutgoingIfIdx)
+		errString := fmt.Sprintf("expeceted default route 0.0.0.0/0 to have outgoing "+
+			"interface index of 0, got %d", defaultRoute.IprMeta.OutgoingIfIdx)
 		v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
 		numErrs++
 		//err index does not match vrf 0 index - mismatch
@@ -399,10 +426,11 @@ func (v *Validator) validateVrf1DefaultRoute(node telemetrymodel.Node, vrfMap ma
 	return numErrs
 }
 
-func (v *Validator) validateRouteToLocalLoopInterface(node telemetrymodel.Node, vrfMap map[uint32]Vrf, routeMap map[string]bool) int {
+func (v *Validator) validateRouteToLocalLoopInterface(node *telemetrymodel.Node, vrfMap map[uint32]Vrf,
+	routeMap map[string]bool) int {
 
 	numErrs := 0
-	loopIf, err := datastore.GetNodeLoopIFInfo(&node)
+	loopIf, err := datastore.GetNodeLoopIFInfo(node)
 	if err != nil {
 		v.Report.LogErrAndAppendToNodeReport(node.Name, err.Error())
 	}

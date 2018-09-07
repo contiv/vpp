@@ -552,6 +552,36 @@ func (v *Validator) ValidateK8sNodeInfo() {
 func (v *Validator) ValidatePodInfo() {
 	errCnt := 0
 	podList := v.K8sCache.RetrieveAllPods()
+
+	tapMap := make(map[string]map[uint32]telemetrymodel.NodeInterface, 0)
+	for _, node := range v.VppCache.RetrieveAllNodes() {
+		podIfIPCidrParts := strings.Split(node.NodeIPam.Config.PodIfIPCIDR, "/")
+		podIfMaskLen, err := strconv.Atoi(podIfIPCidrParts[1])
+		if err != nil {
+			errCnt++
+			errString := fmt.Sprintf("invalid IPAM PodIfIPCIDR %s", node.NodeIPam.Config.PodIfIPCIDR)
+			v.Report.AppendToNodeReport(node.Name, errString)
+			continue
+		}
+
+		podIfIPMask := maskLength2Mask(podIfMaskLen)
+		podIfIPPfx := ip2uint32(podIfIPCidrParts[0]) &^ podIfIPMask
+
+		for _, intf := range node.NodeInterfaces {
+			if strings.Contains(intf.IfMeta.VppInternalName, "tap") {
+				for _, ip := range intf.If.IPAddresses {
+					ipAddr := strings.Split(ip, "/")
+					tapIP := ip2uint32(ipAddr[0])
+
+					if tapIP&^podIfIPMask != podIfIPPfx {
+						continue
+					}
+					tapMap[node.Name][intf.IfMeta.SwIfIndex] = intf
+				}
+			}
+		}
+	}
+
 	podMap := make(map[string]string)
 
 	for _, pod := range podList {
@@ -621,32 +651,57 @@ func (v *Validator) ValidatePodInfo() {
 			continue
 		}
 
-		str := strings.Split(k8sNode.Pod_CIDR, "/")
-		mask := str[1]
-		i, err := strconv.Atoi(mask)
+		k8sPodIPAdrParts := strings.Split(k8sNode.Pod_CIDR, "/")
+		k8sMaskLen, err := strconv.Atoi(k8sPodIPAdrParts[1])
 		if err != nil {
 			errCnt++
 			errString := fmt.Sprintf("invalid Pod_CIDR %s", k8sNode.Pod_CIDR)
 			v.Report.AppendToNodeReport(k8sNode.Name, errString)
+			continue
 		}
+		k8sMask := maskLength2Mask(k8sMaskLen)
 
-		bitmask := MaskLength2Mask(i)
+		podIfIPCidrParts := strings.Split(vppNode.NodeIPam.Config.PodIfIPCIDR, "/")
+		podIfMaskLen, err := strconv.Atoi(podIfIPCidrParts[1])
+		if err != nil {
+			errCnt++
+			errString := fmt.Sprintf("invalid IPAM PodIfIPCIDR %s", vppNode.NodeIPam.Config.PodIfIPCIDR)
+			v.Report.AppendToNodeReport(k8sNode.Name, errString)
+			continue
+		}
+		podIfIPMask := maskLength2Mask(podIfMaskLen)
+
+		if k8sMask != podIfIPMask {
+			errCnt++
+			errString := fmt.Sprintf("IP address mask mismatch: K8s Pod CIDR: %s, Contiv PodIfIpCIDR %s",
+				k8sNode.Pod_CIDR, vppNode.NodeIPam.Config.PodIfIPCIDR)
+			v.Report.AppendToNodeReport(k8sNode.Name, errString)
+			continue
+		}
 
 		// Populate Pod's VPP interface data (IP addresses, interface name and
 		// ifIndex)
 		podMap[pod.Name] = vppNode.Name
+		podIfIPPfx := ip2uint32(podIfIPCidrParts[0]) &^ podIfIPMask
+		podIP := ip2uint32(pod.IPAddress)
+
 		for _, intf := range vppNode.NodeInterfaces {
 			if strings.Contains(intf.IfMeta.VppInternalName, "tap") {
 				for _, ip := range intf.If.IPAddresses {
+
 					ipAddr := strings.Split(ip, "/")
-					podIP := ip2uint32(pod.IPAddress)
 					tapIP := ip2uint32(ipAddr[0])
-					if (podIP & bitmask) == (tapIP & bitmask) {
+					if tapIP&^podIfIPMask != podIfIPPfx {
+						continue
+					}
+
+					if (podIP & k8sMask) == (tapIP & podIfIPMask) {
 						pod.VppIfIPAddr = ip
 						pod.VppIfInternalName = intf.IfMeta.VppInternalName
 						pod.VppIfName = intf.If.Name
 						pod.VppSwIfIdx = intf.IfMeta.SwIfIndex
 						delete(podMap, pod.Name)
+						delete(tapMap[vppNode.Name], intf.IfMeta.SwIfIndex)
 					}
 				}
 			}
@@ -659,7 +714,20 @@ func (v *Validator) ValidatePodInfo() {
 		v.Report.AppendToNodeReport(nodeName, errString)
 	}
 
+	for _, node := range v.VppCache.RetrieveAllNodes() {
+		for ifIdx, intf := range tapMap[node.Name] {
+			errCnt++
+			errString := fmt.Sprintf("dangling pod-facing tap interface '%s' (vppName '%s', ifIndex %d)",
+				intf.If.Name, intf.IfMeta.VppInternalName, ifIdx)
+			v.Report.AppendToNodeReport(node.Name, errString)
+		}
+	}
+
 	v.addSummary(errCnt, "K8sPod")
+}
+
+func (v *Validator) createTapMarkAndSweepDB() {
+
 }
 
 func (v *Validator) addSummary(errCnt int, kind string) {
@@ -680,8 +748,8 @@ func getVxlanBD(node *telemetrymodel.Node) (int, error) {
 	return 0, fmt.Errorf("vxlanBD not found")
 }
 
-//MaskLength2Mask will tank in an int and return the bit mask for the number given
-func MaskLength2Mask(ml int) uint32 {
+// maskLength2Mask will tank in an int and return the bit mask for the number given
+func maskLength2Mask(ml int) uint32 {
 	var mask uint32
 	for i := 0; i < 32-ml; i++ {
 		mask = mask << 1

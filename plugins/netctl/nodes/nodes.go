@@ -186,7 +186,7 @@ func PrintPodsPerNode(input string) {
 		fmt.Printf("Error getting values")
 		return
 	}
-	fmt.Fprintf(w, "name\t\t\tip_address\t\thost_ip_addr\ttap_ip\n")
+	fmt.Fprintf(w, "name\t\t\tip_address\t\thost_ip_addr\ttap_ip\toutgoing_idx\ttag\n")
 
 	for {
 		kv, stop := itr.GetNext()
@@ -199,9 +199,14 @@ func PrintPodsPerNode(input string) {
 		if podInfo.HostIpAddress != hostIP || podInfo.IpAddress == hostIP {
 			continue
 		}
-		ip := printTapInterfaces(podInfo)
-		fmt.Fprintf(w, "%s\t\t\t%s\t\t%s\t%s\n",
-			podInfo.Name, podInfo.IpAddress, podInfo.HostIpAddress, ip[0])
+		ip, idx, tag := printTapInterfaces(podInfo)
+		fmt.Fprintf(w, "%s\t\t\t%s\t\t%s\t%s\t%d\t%s\n",
+			podInfo.Name,
+			podInfo.IpAddress,
+			podInfo.HostIpAddress,
+			ip[0],
+			idx,
+			tag)
 		for _, str := range ip[1:] {
 			fmt.Fprintf(w, "\t\t\t\t\t\t%s\n", str)
 		}
@@ -222,9 +227,11 @@ func ResolveNodeOrIP(input string) (ipAdr string) {
 	return ip
 }
 
-func printTapInterfaces(podInfo *pod.Pod) []string {
+func printTapInterfaces(podInfo *pod.Pod) ([]string, uint32, string) {
 	var str []string
 	cmd := fmt.Sprintf("vpp/dump/v1/interfaces")
+	var idx uint32
+	var tag string
 	b := http.GetNodeInfo(podInfo.HostIpAddress, cmd)
 	intfs := make(telemetrymodel.NodeInterfaces)
 	json.Unmarshal(b, &intfs)
@@ -233,10 +240,12 @@ func printTapInterfaces(podInfo *pod.Pod) []string {
 			for _, ip := range intf.If.IPAddresses {
 				str = append(str, ip)
 			}
+			idx = intf.IfMeta.SwIfIndex
+			tag = intf.IfMeta.Tag
 		}
 
 	}
-	return str
+	return str, idx, tag
 }
 
 func getK8sNode(nodeName string) *k8snodeinfo.Node {

@@ -50,6 +50,8 @@ func (c *LinuxInterfaceConfigurator) Resync(nbIfs []*interfaces.LinuxInterfaces_
 		c.stopwatch.TimeLog("resync-linux-interfaces").LogTimeEntry(time.Since(t))
 	}(time.Now())
 
+	var errs []error
+
 	nsMgmtCtx := nsplugin.NewNamespaceMgmtCtx()
 
 	// Cache for interfaces modified later (interface name/link data)
@@ -63,7 +65,7 @@ func (c *LinuxInterfaceConfigurator) Resync(nbIfs []*interfaces.LinuxInterfaces_
 		// Find linux equivalent for every NB interface and register it
 		linkIf, err := c.findLinuxInterface(nbIf, nsMgmtCtx)
 		if err != nil {
-			return err
+			errs = append(errs, err)
 		}
 		if linkIf != nil {
 			// If interface was found, it will be compared and modified in the next step
@@ -76,7 +78,7 @@ func (c *LinuxInterfaceConfigurator) Resync(nbIfs []*interfaces.LinuxInterfaces_
 			// If not, configure it
 			c.log.Debugf("linux interface %s resync: interface not found and will be configured", nbIf.Name)
 			if err := c.ConfigureLinuxInterface(nbIf); err != nil {
-				return errors.Errorf("linux interface %s resync error: %v", nbIf.Name, err)
+				errs = append(errs, errors.Errorf("linux interface %s resync error: %v", nbIf.Name, err))
 			}
 		}
 	}
@@ -85,8 +87,8 @@ func (c *LinuxInterfaceConfigurator) Resync(nbIfs []*interfaces.LinuxInterfaces_
 	for linkName, linkDataPair := range linkMap {
 		linuxIf, err := c.reconstructIfConfig(linkDataPair.linuxIfData, linkDataPair.nbIfData.Namespace, linkName)
 		if err != nil {
-			return errors.Errorf("linux interface %s resync: failed to reconstruct interface configuration: %v",
-				linkName, err)
+			errs = append(errs, errors.Errorf("linux interface %s resync: failed to reconstruct interface configuration: %v",
+				linkName, err))
 		}
 
 		// For VETH, resolve peer
@@ -116,7 +118,7 @@ func (c *LinuxInterfaceConfigurator) Resync(nbIfs []*interfaces.LinuxInterfaces_
 		if c.isLinuxIfModified(linkDataPair.nbIfData, linuxIf) {
 			c.log.Debugf("linux interface %s resync: configuration changed, interface will be modified", linkName)
 			if err := c.ModifyLinuxInterface(linkDataPair.nbIfData, linuxIf); err != nil {
-				return errors.Errorf("linux interface %s resync error: %v", linkName, err)
+				errs = append(errs, errors.Errorf("linux interface %s resync error: %v", linkName, err))
 			}
 		} else {
 			c.log.Debugf("linux interface %s resync: data unchanged", linkName)
@@ -153,6 +155,13 @@ func (c *LinuxInterfaceConfigurator) Resync(nbIfs []*interfaces.LinuxInterfaces_
 	}
 
 	c.log.Info("Linux interface resync done")
+
+	if len(errs) > 0 {
+		for _,e := range errs {
+			c.log.Error(e)
+		}
+		return errors.Errorf("%v resync errors encountered", len(errs))
+	}
 
 	return nil
 }

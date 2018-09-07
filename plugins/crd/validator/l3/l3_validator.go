@@ -116,7 +116,7 @@ func (v *Validator) validateVrf1PodRoutes(node *telemetrymodel.Node, vrfMap map[
 
 		// Validate routes to local Pods
 		// Lookup the Pod route in VRF1; it must have mask length = 32
-		lookUpRoute, ok := vrfMap[1][pod.IPAddress + "/32"]
+		lookUpRoute, ok := vrfMap[1][pod.IPAddress+"/32"]
 		if !ok {
 			numErrs++
 			errString := fmt.Sprintf("missing route for Pod '%s' with IP Address %s",

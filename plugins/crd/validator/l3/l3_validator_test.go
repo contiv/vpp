@@ -142,7 +142,7 @@ func testValidateRoutesToLocalPods(t *testing.T) {
 
 		routes := vtv.vppCache.NodeMap[vtv.nodeKey].NodeStaticRoutes
 		for _, rte := range routes {
-			if rte.Ipr.DstAddr == pod.IPAddress + "/32" {
+			if rte.Ipr.DstAddr == pod.IPAddress+"/32" {
 				delete(vrfMap[1], rte.Ipr.DstAddr)
 				break
 			}
@@ -170,7 +170,7 @@ func testValidateRoutesToLocalPods(t *testing.T) {
 
 		routes := vtv.vppCache.NodeMap[vtv.nodeKey].NodeStaticRoutes
 		for _, rte := range routes {
-			if rte.Ipr.DstAddr == pod.IPAddress + "/32" {
+			if rte.Ipr.DstAddr == pod.IPAddress+"/32" {
 				rte.Ipr.NextHopAddr = "1.2.3.4"
 				vrfMap[1][rte.Ipr.DstAddr] = rte
 				break

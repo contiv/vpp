@@ -553,7 +553,6 @@ func (v *Validator) ValidatePodInfo() {
 	errCnt := 0
 	podList := v.K8sCache.RetrieveAllPods()
 
-
 	tapMap := make(map[string]map[uint32]telemetrymodel.NodeInterface, 0)
 	for _, node := range v.VppCache.RetrieveAllNodes() {
 		podIfIPCidrParts := strings.Split(node.NodeIPam.Config.PodIfIPCIDR, "/")
@@ -692,7 +691,7 @@ func (v *Validator) ValidatePodInfo() {
 
 					ipAddr := strings.Split(ip, "/")
 					tapIP := ip2uint32(ipAddr[0])
-					if tapIP &^ podIfIPMask != podIfIPPfx {
+					if tapIP&^podIfIPMask != podIfIPPfx {
 						continue
 					}
 
@@ -727,7 +726,9 @@ func (v *Validator) ValidatePodInfo() {
 	v.addSummary(errCnt, "K8sPod")
 }
 
-func (v *Validator)createTapMarkAndSweepDB()
+func (v *Validator) createTapMarkAndSweepDB() {
+
+}
 
 func (v *Validator) addSummary(errCnt int, kind string) {
 	if errCnt == 0 {

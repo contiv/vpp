@@ -621,14 +621,16 @@ func (v *Validator) ValidatePodInfo() {
 			continue
 		}
 
-		str := strings.Split(k8sNode.Pod_CIDR, "/")
-		mask := str[1]
-		i, err := strconv.Atoi(mask)
+		k8sPodIPAdrParts := strings.Split(k8sNode.Pod_CIDR, "/")
+		k8sMaskLen := k8sPodIPAdrParts[1]
+		i, err := strconv.Atoi(k8sMaskLen)
 		if err != nil {
 			errCnt++
 			errString := fmt.Sprintf("invalid Pod_CIDR %s", k8sNode.Pod_CIDR)
 			v.Report.AppendToNodeReport(k8sNode.Name, errString)
 		}
+
+		// ifCidrAdrParts := strings.Split(vppNode.NodeIPam.)
 
 		// Populate Pod's VPP interface data (IP addresses, interface name and
 		// ifIndex)

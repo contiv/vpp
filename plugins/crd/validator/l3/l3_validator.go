@@ -115,6 +115,7 @@ func (v *Validator) validateVrf1PodRoutes(node *telemetrymodel.Node, vrfMap map[
 		}
 
 		// Validate routes to local Pods
+		// Lookup the Pod route in VRF1; it must have mask length = 32
 		lookUpRoute, ok := vrfMap[1][pod.IPAddress + "/32"]
 		if !ok {
 			numErrs++
@@ -124,6 +125,7 @@ func (v *Validator) validateVrf1PodRoutes(node *telemetrymodel.Node, vrfMap map[
 			continue
 		}
 
+		// check that the next hop in the pod route is the pod's IP address
 		if lookUpRoute.Ipr.NextHopAddr != pod.IPAddress {
 			numErrs++
 			errString := fmt.Sprintf("invalid route for Pod '%s' - bad next hop; have %s, expecting %s",
@@ -164,6 +166,7 @@ func (v *Validator) validateVrf1PodRoutes(node *telemetrymodel.Node, vrfMap map[
 			v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
 			routeMap[podIfIProute.Ipr.DstAddr] = false
 		}
+
 		if pod.VppSwIfIdx != podIfIProute.IprMeta.OutgoingIfIdx {
 			numErrs++
 			errString := fmt.Sprintf("Pod interface index %d does not match static route interface index %d",

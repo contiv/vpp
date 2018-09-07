@@ -24,6 +24,7 @@ import (
 
 //DumpCmd will receive a nodeName and dumpType and finds the desired information from the dumpType for the node.
 func DumpCmd(nodeName string, dumpType string) {
+
 	if nodeName == "" || dumpType == "" {
 		helpText := http.Crawl("localhost:9999")
 		fmt.Printf("Command usage: netctl vppdump %s <cmd>:\n", nodeName)
@@ -34,7 +35,7 @@ func DumpCmd(nodeName string, dumpType string) {
 		return
 	}
 	fmt.Printf("vppdump %s %s\n", nodeName, dumpType)
-	ipAdr := nodes.FindIPForNodeName(nodeName)
+	ipAdr := nodes.ResolveNodeOrIP(nodeName)
 	if ipAdr == "" {
 		fmt.Printf("Unknown node name %s", nodeName)
 		return

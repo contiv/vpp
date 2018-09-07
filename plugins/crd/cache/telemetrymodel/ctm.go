@@ -153,6 +153,19 @@ type IPamEntry struct {
 	NodeIP         string `json:"nodeIP"`
 	PodNetwork     string `json:"podNetwork"`
 	VppHostNetwork string `json:"vppHostNetwork"`
+	Config         config `json:"config"`
+}
+
+type config struct {
+	PodIfIPCIDR             string `json:"podIfIPCIDR"`
+	PodSubnetCIRDR          string `json:"podSubnetCIRDR"`
+	PodNetworkPrefixLen     uint32 `json:"podNetworkPrefixLen"`
+	VppHostSubnetCIDR       string `json:"vppHostSubnetCIDR"`
+	VppHostNetworkPrefixLen uint32 `json:"vppHostNetworkPrefixLen"`
+	NodeInterconnectCIDR    string `json:"nodeInterconnectCIDR"`
+	NodeInterconnectDHCP    bool   `json:"nodeInterconnectDHCP"`
+	VxlanCIDR               string `json:"vxlanCIDR"`
+	ServiceCIDR             string `json:"serviceCIDR"`
 }
 
 // L2FibEntry defines the L2 FIB entry data set

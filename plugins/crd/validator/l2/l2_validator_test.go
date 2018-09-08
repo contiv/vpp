@@ -122,31 +122,37 @@ func testErrorFreeTopologyValidation(t *testing.T) {
 
 	vtv.l2Validator.Validate()
 
-	gomega.Expect(len(vtv.report.Data[api.GlobalMsg])).To(gomega.Equal(5))
+	checkDataReport(5, 0, 0)
 }
 
 func testK8sNodeToNodeInfoOkValidation(t *testing.T) {
 	resetToInitialErrorFreeState()
 	vtv.l2Validator.ValidateK8sNodeInfo()
-	gomega.Expect(len(vtv.report.Data)).To(gomega.Equal(1))
+
+	checkDataReport(1, 0, 0)
 }
 
 func testK8sNodeToNodeInfoMissingNiValidation(t *testing.T) {
+	vtv.nodeKey = "k8s-master"
 	resetToInitialErrorFreeState()
+
 	// INJECT FAULT:: missing vpp node
-	vtv.l2Validator.VppCache.DeleteNode("k8s-master")
+	vtv.l2Validator.VppCache.DeleteNode(vtv.nodeKey)
 
 	vtv.l2Validator.ValidateK8sNodeInfo()
-	gomega.Expect(len(vtv.report.Data["k8s-master"])).To(gomega.Equal(1))
+
+	checkDataReport(1, 1, 0)
 }
 
 func testK8sNodeToNodeInfoMissingK8snValidation(t *testing.T) {
+	vtv.nodeKey = "k8s-master"
 	resetToInitialErrorFreeState()
+
 	// INJECT FAULT:: missing K8s node
-	vtv.l2Validator.K8sCache.DeleteK8sNode("k8s-master")
+	vtv.l2Validator.K8sCache.DeleteK8sNode(vtv.nodeKey)
 
 	vtv.l2Validator.ValidateK8sNodeInfo()
-	gomega.Expect(len(vtv.report.Data["k8s-master"])).To(gomega.Equal(2))
+	checkDataReport(1, 2, 0)
 }
 
 func testNodesDBValidateL2Connections(t *testing.T) {
@@ -707,7 +713,7 @@ func testValidatePodInfo(t *testing.T) {
 	vtv.report.Clear()
 	vtv.l2Validator.ValidatePodInfo()
 
-	checkDataReport(1, podCnt, 0)
+	checkDataReport(1, podCnt+1, 0)
 
 	// Restore data back to error free state
 	resetToInitialErrorFreeState()
@@ -762,6 +768,64 @@ func testValidatePodInfo(t *testing.T) {
 			break
 		}
 	}
+
+	// ----------------------------------------------
+	// INJECT FAULT: Missing pod-facing tap interface
+	podIfIPAdr, podIfIPMask, err :=
+		ipv4CidrToAddressAndMask(vtv.vppCache.NodeMap[vtv.nodeKey].NodeIPam.Config.PodIfIPCIDR)
+	gomega.Expect(err).To(gomega.BeNil())
+
+ifcLoop:
+	for ifIdx, ifc := range vtv.vppCache.NodeMap[vtv.nodeKey].NodeInterfaces {
+		for _, ip := range ifc.If.IPAddresses {
+			ipAddr, _, err := ipv4CidrToAddressAndMask(ip)
+			gomega.Expect(err).To(gomega.BeNil())
+
+			if (podIfIPAdr &^ podIfIPMask) == (ipAddr &^ podIfIPMask) {
+				delete(vtv.vppCache.NodeMap[vtv.nodeKey].NodeInterfaces, ifIdx)
+				break ifcLoop
+			}
+		}
+	}
+
+	// Perform test
+	vtv.report.Clear()
+	vtv.l2Validator.ValidatePodInfo()
+
+	checkDataReport(1, 1, 0)
+
+	// Restore data back to error free state
+	resetToInitialErrorFreeState()
+
+	// --------------------------------------------------------
+	// INJECT FAULT: Bad ip address on pod-facing tap interface
+	podIfIPAdr, podIfIPMask, err =
+		ipv4CidrToAddressAndMask(vtv.vppCache.NodeMap[vtv.nodeKey].NodeIPam.Config.PodIfIPCIDR)
+	gomega.Expect(err).To(gomega.BeNil())
+
+ifcLoop1:
+	for ifIdx, ifc := range vtv.vppCache.NodeMap[vtv.nodeKey].NodeInterfaces {
+		for _, ip := range ifc.If.IPAddresses {
+			ipAddr, _, err := ipv4CidrToAddressAndMask(ip)
+			gomega.Expect(err).To(gomega.BeNil())
+
+			if (podIfIPAdr &^ podIfIPMask) == (ipAddr &^ podIfIPMask) {
+				ifc.If.IPAddresses = []string{"1.2.3.4"}
+				vtv.vppCache.NodeMap[vtv.nodeKey].NodeInterfaces[ifIdx] = ifc
+				break ifcLoop1
+			}
+		}
+	}
+
+	// Perform test
+	vtv.report.Clear()
+	vtv.l2Validator.ValidatePodInfo()
+
+	checkDataReport(1, 2, 0)
+
+	// Restore data back to error free state
+	resetToInitialErrorFreeState()
+
 }
 
 func (v *l2ValidatorTestVars) findFirstVxlanInterface(nodeKey string) (int, *telemetrymodel.NodeInterface) {

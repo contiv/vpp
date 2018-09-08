@@ -125,8 +125,8 @@ func (v *Validator) validateVrf1PodRoutes(node *telemetrymodel.Node, vrfMap map[
 			continue
 		}
 
-		// check that the next hop in the pod route is the pod's IP address
-		if lookUpRoute.Ipr.NextHopAddr != pod.IPAddress {
+		// Verify that the next hop in the pod route is the pod's IP address
+		if pod.IPAddress != lookUpRoute.Ipr.NextHopAddr {
 			numErrs++
 			errString := fmt.Sprintf("invalid route for Pod '%s' - bad next hop; have %s, expecting %s",
 				pod.Name, lookUpRoute.Ipr.NextHopAddr, pod.IPAddress)
@@ -134,22 +134,25 @@ func (v *Validator) validateVrf1PodRoutes(node *telemetrymodel.Node, vrfMap map[
 			routeMap[lookUpRoute.Ipr.DstAddr] = false
 		}
 
+		// Verify that the ifIndex in the pod route belongs to the pod's interface
 		if pod.VppSwIfIdx != lookUpRoute.IprMeta.OutgoingIfIdx {
 			numErrs++
-			errString := fmt.Sprintf("Pod interface index %d does not match static route interface index %d",
-				pod.VppSwIfIdx, lookUpRoute.IprMeta.OutgoingIfIdx)
+			errString := fmt.Sprintf("invalid route for Pod '%s' - bad swIfIndex; have %d, expecting %d",
+				pod.Name, lookUpRoute.IprMeta.OutgoingIfIdx, pod.VppSwIfIdx)
 			v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
-			routeMap[lookUpRoute.Ipr.DstAddr] = false
-		}
-		if pod.VppIfName != lookUpRoute.Ipr.OutIface {
-			errString := fmt.Sprintf("Name of pod interface %s differs from route interface name %s",
-				pod.VppIfInternalName, lookUpRoute.Ipr.OutIface)
-			v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
-			numErrs++
 			routeMap[lookUpRoute.Ipr.DstAddr] = false
 		}
 
-		//make sure pod vpp interface route exists and is valid
+		if pod.VppIfName != lookUpRoute.Ipr.OutIface {
+			numErrs++
+			errString := fmt.Sprintf("invalid route for Pod '%s' - bad interface name; have %s, expecting %s",
+				pod.Name, lookUpRoute.Ipr.OutIface, pod.VppIfInternalName)
+			v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
+			routeMap[lookUpRoute.Ipr.DstAddr] = false
+		}
+
+		// make sure pod that the route for the pod-facing tap interface in vpp
+		// exists and is valid
 		podIfIProute, ok := vrfMap[1][pod.VppIfIPAddr]
 		if !ok {
 			numErrs++
@@ -177,9 +180,8 @@ func (v *Validator) validateVrf1PodRoutes(node *telemetrymodel.Node, vrfMap map[
 
 		if pod.VppIfName != lookUpRoute.Ipr.OutIface {
 			numErrs++
-			errString := fmt.Sprintf("Name of pod interface %s differs from route interface name %s",
-				pod.VppIfInternalName, lookUpRoute.Ipr.OutIface)
-
+			errString := fmt.Sprintf("invalid route to vpp-tap for Pod '%s' - bad interface name; " +
+				"have %s, expecting %s", pod.Name, lookUpRoute.Ipr.OutIface, pod.VppIfInternalName,)
 			v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
 			routeMap[podIfIProute.Ipr.DstAddr] = false
 		}

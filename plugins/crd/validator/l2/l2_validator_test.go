@@ -826,6 +826,21 @@ ifcLoop1:
 	// Restore data back to error free state
 	resetToInitialErrorFreeState()
 
+	// --------------------------------------------------------
+	// INJECT FAULT: Bad ip address on pod-facing tap interface
+	ipam := vtv.vppCache.NodeMap[vtv.nodeKey].NodeIPam
+	oldPodIfIpCIDR := ipam.Config.PodIfIPCIDR
+	addrParts := strings.Split(oldPodIfIpCIDR, "/")
+	ipam.Config.PodIfIPCIDR = addrParts[0] + "/32"
+
+	// Perform test
+	vtv.report.Clear()
+	vtv.l2Validator.ValidatePodInfo()
+
+	checkDataReport(1, 1, 0)
+
+	// Restore data back to error free state
+	ipam.Config.PodIfIPCIDR = oldPodIfIpCIDR
 }
 
 func (v *l2ValidatorTestVars) findFirstVxlanInterface(nodeKey string) (int, *telemetrymodel.NodeInterface) {

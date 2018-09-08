@@ -161,8 +161,11 @@ func testValidateRoutesToLocalPods(t *testing.T) {
 	// Restore data back to error free state
 	vrfMap, err = vtv.l3Validator.createVrfMap(vtv.vppCache.NodeMap[vtv.nodeKey])
 
-	// -------------------------------------------------
-	// INJECT FAULT: Bad next hop in the route for a Pod
+	// ----------------------------------------------------
+	// INJECT FAULTS:
+	// - Bad next hop in the route for a Pod
+	// - Bad outgoing interface name in the route for a Pod
+	// - Bad outgoing swIfIndex in the route for a Pod
 	for _, pod := range vtv.k8sCache.RetrieveAllPods() {
 		if pod.IPAddress == pod.HostIPAddress {
 			continue
@@ -172,6 +175,8 @@ func testValidateRoutesToLocalPods(t *testing.T) {
 		for _, rte := range routes {
 			if rte.Ipr.DstAddr == pod.IPAddress+"/32" {
 				rte.Ipr.NextHopAddr = "1.2.3.4"
+				rte.IprMeta.OutgoingIfIdx = rte.IprMeta.OutgoingIfIdx + 1
+				rte.Ipr.OutIface = "someInterfaceName"
 				vrfMap[1][rte.Ipr.DstAddr] = rte
 				break
 			}
@@ -180,15 +185,17 @@ func testValidateRoutesToLocalPods(t *testing.T) {
 	}
 
 	routeMap = make(map[string]bool)
+
 	// Perform test
 	vtv.report.Clear()
 	numErrs = vtv.l3Validator.validateVrf1PodRoutes(vtv.vppCache.NodeMap[vtv.nodeKey], vrfMap, routeMap)
 
-	checkDataReport(0, 1, 0)
-	gomega.Expect(numErrs).To(gomega.Equal(1))
+	checkDataReport(0, 4, 0)
+	gomega.Expect(numErrs).To(gomega.Equal(4))
 
 	// Restore data back to error free state
 	vrfMap, err = vtv.l3Validator.createVrfMap(vtv.vppCache.NodeMap[vtv.nodeKey])
+
 
 }
 

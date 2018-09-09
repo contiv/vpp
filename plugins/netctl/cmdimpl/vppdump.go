@@ -60,4 +60,3 @@ func VppCliCmd(nodeName string, vppclicmd string) {
 	}
 
 }
-

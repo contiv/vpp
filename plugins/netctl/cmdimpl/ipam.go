@@ -17,11 +17,10 @@ package cmdimpl
 import (
 	"encoding/json"
 	"fmt"
-	"text/tabwriter"
-	"os"
-	"github.com/contiv/vpp/plugins/netctl/http"
 	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
-
+	"github.com/contiv/vpp/plugins/netctl/http"
+	"os"
+	"text/tabwriter"
 )
 
 //NodeIPamCmd prints out the ipam information of a specific node
@@ -46,6 +45,3 @@ func NodeIPamCmd(nodeName string) {
 
 	w.Flush()
 }
-
-
-

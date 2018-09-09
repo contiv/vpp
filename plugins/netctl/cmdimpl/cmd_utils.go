@@ -17,17 +17,17 @@
 package cmdimpl
 
 import (
-	"regexp"
-	"strings"
-	"strconv"
+	"encoding/json"
 	"fmt"
 	"github.com/contiv/vpp/plugins/contiv/model/node"
-	"encoding/json"
-	"github.com/ligato/cn-infra/db/keyval/etcd"
 	"github.com/coreos/etcd/clientv3"
-	"time"
+	"github.com/ligato/cn-infra/db/keyval/etcd"
 	"github.com/ligato/cn-infra/logging/logrus"
 	"os"
+	"regexp"
+	"strconv"
+	"strings"
+	"time"
 )
 
 // FindIPForNodeName will find an ip address that corresponds to the passed
@@ -117,4 +117,3 @@ func getIPAddressAndMask(ip string) (uint32, uint32, error) {
 
 	return address, mask, nil
 }
-

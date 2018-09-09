@@ -123,7 +123,7 @@ func (v *Validator) ValidateArpTables() {
 		}
 	}
 
-	v.AddSummary(errCnt, "IP ARP")
+	v.addSummary(errCnt, "IP ARP")
 }
 
 //ValidateBridgeDomains makes sure that each node in the cache has the right
@@ -334,7 +334,7 @@ validateNodeBD:
 		}
 	}
 
-	v.AddSummary(errCnt, "BD")
+	v.addSummary(errCnt, "BD")
 }
 
 // ValidateL2FibEntries will validate that each nodes fib entries ip address
@@ -496,7 +496,7 @@ func (v *Validator) ValidateL2FibEntries() {
 		}
 	}
 
-	v.AddSummary(errCnt, "L2Fib")
+	v.addSummary(errCnt, "L2Fib")
 }
 
 // ValidateK8sNodeInfo will make sure that K8s's view of nodes in the cluster
@@ -545,7 +545,7 @@ func (v *Validator) ValidateK8sNodeInfo() {
 		}
 	}
 
-	v.AddSummary(errCnt, "K8sNode")
+	v.addSummary(errCnt, "K8sNode")
 }
 
 // ValidatePodInfo will check  that each pod has a valid host ip address node
@@ -724,7 +724,7 @@ func (v *Validator) ValidatePodInfo() {
 		}
 	}
 
-	v.AddSummary(errCnt, "K8sPod")
+	v.addSummary(errCnt, "K8sPod")
 }
 
 // createTapMarkAndSweepDB creates a database (db) used to detect dangling
@@ -765,7 +765,7 @@ func (v *Validator) createTapMarkAndSweepDB() map[string]map[uint32]telemetrymod
 	return tapMap
 }
 
-func (v *Validator) AddSummary(errCnt int, kind string) {
+func (v *Validator) addSummary(errCnt int, kind string) {
 	if errCnt == 0 {
 		v.Report.AppendToNodeReport(api.GlobalMsg, fmt.Sprintf("%s validation: OK", kind))
 	} else {

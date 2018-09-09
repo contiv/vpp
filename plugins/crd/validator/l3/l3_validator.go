@@ -22,7 +22,6 @@ import (
 	"github.com/contiv/vpp/plugins/crd/datastore"
 	"github.com/ligato/cn-infra/logging"
 
-	"strconv"
 	"strings"
 )
 
@@ -475,27 +474,6 @@ func (v *Validator) validateRouteToLocalLoopInterface(node *telemetrymodel.Node,
 		}
 	}
 	return numErrs
-}
-
-func maskLength2Mask(ml int) uint32 {
-	var mask uint32
-	for i := 0; i < 32-ml; i++ {
-		mask = mask << 1
-		mask++
-	}
-	return mask
-}
-
-func ip2uint32(ipAddress string) uint32 {
-	var ipu uint32
-	parts := strings.Split(ipAddress, ".")
-	for _, p := range parts {
-		// num, _ := strconv.ParseUint(p, 10, 32)
-		num, _ := strconv.Atoi(p)
-		ipu = (ipu << 8) + uint32(num)
-		//fmt.Printf("%d: num: 0x%x, ipu: 0x%x\n", i, num, ipu)
-	}
-	return ipu
 }
 
 func separateIPandMask(ipAddress string) (string, string) {

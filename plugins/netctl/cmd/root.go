@@ -17,8 +17,7 @@ package cmd
 
 import (
 	"fmt"
-	"github.com/contiv/vpp/plugins/netctl/nodes"
-	"github.com/contiv/vpp/plugins/netctl/vppdump"
+	"github.com/contiv/vpp/plugins/netctl/cmdimpl"
 	"github.com/spf13/cobra"
 	"os"
 )
@@ -28,7 +27,7 @@ var cmdNodes = &cobra.Command{
 	Short: "Shows available nodes from contiv-ksr",
 	Args:  cobra.ExactArgs(0),
 	Run: func(cmd *cobra.Command, args []string) {
-		nodes.PrintNodes()
+		cmdimpl.PrintNodes()
 	},
 }
 var cmdVppDump = &cobra.Command{
@@ -39,9 +38,9 @@ var cmdVppDump = &cobra.Command{
 		nodeName := args[0]
 		if len(args) == 2 {
 			vppDumpType := args[1]
-			vppdump.DumpCmd(nodeName, vppDumpType)
+			cmdimpl.DumpCmd(nodeName, vppDumpType)
 		} else {
-			vppdump.DumpCmd(nodeName, "")
+			cmdimpl.DumpCmd(nodeName, "")
 		}
 	},
 }
@@ -57,7 +56,7 @@ var cmdVppCLI = &cobra.Command{
 			for _, str := range args[1:] {
 				vppCliCmd += str + " "
 			}
-			nodes.VppCliCmd(nodeName, vppCliCmd)
+			cmdimpl.VppCliCmd(nodeName, vppCliCmd)
 		} else if nodeName == "" {
 			fmt.Println("Enter a node name for vppcli: vppcli <nodeName> <cli_cmd>")
 		} else {
@@ -75,7 +74,7 @@ var cmdNodeIPam = &cobra.Command{
 		if len(args) < 1 {
 			fmt.Println("\nEnter either a node name or an ip to display IPam information...")
 		} else {
-			nodes.NodeIPamCmd(nodeName)
+			cmdimpl.NodeIPamCmd(nodeName)
 		}
 	},
 }
@@ -87,10 +86,10 @@ var cmdPodInfo = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 
 		if len(args) < 1 {
-			nodes.PrintAllPods()
+			cmdimpl.PrintAllPods()
 		} else {
 			nodeName := args[0]
-			nodes.PrintPodsPerNode(nodeName)
+			cmdimpl.PrintPodsPerNode(nodeName)
 		}
 
 	},

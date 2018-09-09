@@ -204,10 +204,10 @@ func testValidateRoutesToLocalPods(t *testing.T) {
 			continue
 		}
 
-		podIfIpAddr, podIfIPMask, err :=
+		podIfIPAddr, podIfIPMask, err :=
 			utils.Ipv4CidrToAddressAndMask(vtv.vppCache.NodeMap[vtv.nodeKey].NodeIPam.Config.PodIfIPCIDR)
 		gomega.Expect(err).To(gomega.BeNil())
-		podIfIpPrefix := podIfIpAddr &^ podIfIPMask
+		podIfIPPrefix := podIfIPAddr &^ podIfIPMask
 
 		routes := vtv.vppCache.NodeMap[vtv.nodeKey].NodeStaticRoutes
 		for _, rte := range routes {
@@ -215,7 +215,7 @@ func testValidateRoutesToLocalPods(t *testing.T) {
 			gomega.Expect(err).To(gomega.BeNil())
 
 			rteIfIPPrefix := rteIfIPAddr &^ podIfIPMask
-			if rteIfIPPrefix == podIfIpPrefix {
+			if rteIfIPPrefix == podIfIPPrefix {
 				delete(vrfMap[1], rte.Ipr.DstAddr)
 				break
 			}
@@ -244,10 +244,10 @@ func testValidateRoutesToLocalPods(t *testing.T) {
 			continue
 		}
 
-		podIfIpAddr, podIfIPMask, err :=
+		podIfIPAddr, podIfIPMask, err :=
 			utils.Ipv4CidrToAddressAndMask(vtv.vppCache.NodeMap[vtv.nodeKey].NodeIPam.Config.PodIfIPCIDR)
 		gomega.Expect(err).To(gomega.BeNil())
-		podIfIpPrefix := podIfIpAddr &^ podIfIPMask
+		podIfIPPrefix := podIfIPAddr &^ podIfIPMask
 
 		routes := vtv.vppCache.NodeMap[vtv.nodeKey].NodeStaticRoutes
 		for _, rte := range routes {
@@ -255,7 +255,7 @@ func testValidateRoutesToLocalPods(t *testing.T) {
 			gomega.Expect(err).To(gomega.BeNil())
 
 			rteIfIPPrefix := rteIfIPAddr &^ podIfIPMask
-			if rteIfIPPrefix == podIfIpPrefix {
+			if rteIfIPPrefix == podIfIPPrefix {
 				rte.Ipr.NextHopAddr = "1.2.3.4"
 				rte.IprMeta.OutgoingIfIdx = rte.IprMeta.OutgoingIfIdx + 1
 				rte.Ipr.OutIface = "someInterfaceName"

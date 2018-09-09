@@ -16,10 +16,10 @@
 package utils
 
 import (
-	"strings"
-	"regexp"
 	"fmt"
+	"regexp"
 	"strconv"
+	"strings"
 )
 
 // MaskLength2Mask will tank in an int and return the bit mask for the number given

@@ -21,6 +21,7 @@ import (
 	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
 	"github.com/contiv/vpp/plugins/crd/datastore"
 	"github.com/contiv/vpp/plugins/crd/testdata"
+	"github.com/contiv/vpp/plugins/crd/validator/utils"
 	nodemodel "github.com/contiv/vpp/plugins/ksr/model/node"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	"github.com/ligato/cn-infra/logging"
@@ -31,7 +32,6 @@ import (
 	"regexp"
 	"strings"
 	"testing"
-	"github.com/contiv/vpp/plugins/crd/validator/utils"
 )
 
 type l2ValidatorTestVars struct {
@@ -830,8 +830,8 @@ ifcLoop1:
 	// --------------------------------------------------------
 	// INJECT FAULT: Bad ip address on pod-facing tap interface
 	ipam := vtv.vppCache.NodeMap[vtv.nodeKey].NodeIPam
-	oldPodIfIpCIDR := ipam.Config.PodIfIPCIDR
-	addrParts := strings.Split(oldPodIfIpCIDR, "/")
+	oldPodIfIPCIDR := ipam.Config.PodIfIPCIDR
+	addrParts := strings.Split(oldPodIfIPCIDR, "/")
 	ipam.Config.PodIfIPCIDR = addrParts[0] + "/32"
 
 	// Perform test
@@ -841,7 +841,7 @@ ifcLoop1:
 	checkDataReport(1, 1, 0)
 
 	// Restore data back to error free state
-	ipam.Config.PodIfIPCIDR = oldPodIfIpCIDR
+	ipam.Config.PodIfIPCIDR = oldPodIfIPCIDR
 }
 
 func (v *l2ValidatorTestVars) findFirstVxlanInterface(nodeKey string) (int, *telemetrymodel.NodeInterface) {

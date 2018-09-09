@@ -21,6 +21,7 @@ import (
 	"github.com/contiv/vpp/plugins/crd/datastore"
 	"github.com/contiv/vpp/plugins/crd/testdata"
 	"github.com/contiv/vpp/plugins/crd/validator/l2"
+	"github.com/contiv/vpp/plugins/crd/validator/utils"
 	nodemodel "github.com/contiv/vpp/plugins/ksr/model/node"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	"github.com/ligato/cn-infra/logging"
@@ -190,13 +191,91 @@ func testValidateRoutesToLocalPods(t *testing.T) {
 	vtv.report.Clear()
 	numErrs = vtv.l3Validator.validateVrf1PodRoutes(vtv.vppCache.NodeMap[vtv.nodeKey], vrfMap, routeMap)
 
-	checkDataReport(0, 4, 0)
-	gomega.Expect(numErrs).To(gomega.Equal(4))
+	checkDataReport(0, 3, 0)
+	gomega.Expect(numErrs).To(gomega.Equal(3))
 
 	// Restore data back to error free state
 	vrfMap, err = vtv.l3Validator.createVrfMap(vtv.vppCache.NodeMap[vtv.nodeKey])
 
+	// ----------------------------------------------------------------
+	// INJECT FAULT: Route to vpp-side pod-facing tap interface missing
+	for _, pod := range vtv.k8sCache.RetrieveAllPods() {
+		if pod.IPAddress == pod.HostIPAddress {
+			continue
+		}
 
+		podIfIpAddr, podIfIPMask, err :=
+			utils.Ipv4CidrToAddressAndMask(vtv.vppCache.NodeMap[vtv.nodeKey].NodeIPam.Config.PodIfIPCIDR)
+		gomega.Expect(err).To(gomega.BeNil())
+		podIfIpPrefix := podIfIpAddr &^ podIfIPMask
+
+		routes := vtv.vppCache.NodeMap[vtv.nodeKey].NodeStaticRoutes
+		for _, rte := range routes {
+			rteIfIPAddr, _, err := utils.Ipv4CidrToAddressAndMask(rte.Ipr.DstAddr)
+			gomega.Expect(err).To(gomega.BeNil())
+
+			rteIfIPPrefix := rteIfIPAddr &^ podIfIPMask
+			if rteIfIPPrefix == podIfIpPrefix {
+				delete(vrfMap[1], rte.Ipr.DstAddr)
+				break
+			}
+		}
+		break
+	}
+
+	routeMap = make(map[string]bool)
+	// Perform test
+	vtv.report.Clear()
+	numErrs = vtv.l3Validator.validateVrf1PodRoutes(vtv.vppCache.NodeMap[vtv.nodeKey], vrfMap, routeMap)
+
+	checkDataReport(0, 1, 0)
+	gomega.Expect(numErrs).To(gomega.Equal(1))
+
+	// Restore data back to error free state
+	vrfMap, err = vtv.l3Validator.createVrfMap(vtv.vppCache.NodeMap[vtv.nodeKey])
+
+	// -----------------------------------------------------------------------
+	// INJECT FAULTS:
+	// - Bad next hop in the route to pod-facing tqp interface
+	// - Bad outgoing interface name in the route to pod-facing tqp interface
+	// - Bad outgoing swIfIndex in the route to pod-facing tqp interface
+	for _, pod := range vtv.k8sCache.RetrieveAllPods() {
+		if pod.IPAddress == pod.HostIPAddress {
+			continue
+		}
+
+		podIfIpAddr, podIfIPMask, err :=
+			utils.Ipv4CidrToAddressAndMask(vtv.vppCache.NodeMap[vtv.nodeKey].NodeIPam.Config.PodIfIPCIDR)
+		gomega.Expect(err).To(gomega.BeNil())
+		podIfIpPrefix := podIfIpAddr &^ podIfIPMask
+
+		routes := vtv.vppCache.NodeMap[vtv.nodeKey].NodeStaticRoutes
+		for _, rte := range routes {
+			rteIfIPAddr, _, err := utils.Ipv4CidrToAddressAndMask(rte.Ipr.DstAddr)
+			gomega.Expect(err).To(gomega.BeNil())
+
+			rteIfIPPrefix := rteIfIPAddr &^ podIfIPMask
+			if rteIfIPPrefix == podIfIpPrefix {
+				rte.Ipr.NextHopAddr = "1.2.3.4"
+				rte.IprMeta.OutgoingIfIdx = rte.IprMeta.OutgoingIfIdx + 1
+				rte.Ipr.OutIface = "someInterfaceName"
+				vrfMap[1][rte.Ipr.DstAddr] = rte
+				break
+			}
+		}
+		break
+	}
+
+	routeMap = make(map[string]bool)
+	// Perform test
+	vtv.report.Clear()
+	numErrs = vtv.l3Validator.validateVrf1PodRoutes(vtv.vppCache.NodeMap[vtv.nodeKey], vrfMap, routeMap)
+
+	checkDataReport(0, 3, 0)
+	gomega.Expect(numErrs).To(gomega.Equal(3))
+
+	// Restore data back to error free state
+	vrfMap, err = vtv.l3Validator.createVrfMap(vtv.vppCache.NodeMap[vtv.nodeKey])
 }
 
 func resetToInitialErrorFreeState() {

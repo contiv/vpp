@@ -156,13 +156,13 @@ func (v *Validator) validateVrf1PodRoutes(node *telemetrymodel.Node, vrfMap map[
 		podIfIProute, ok := vrfMap[1][pod.VppIfIPAddr]
 		if !ok {
 			numErrs++
-			errString := fmt.Sprintf("route for Pod %s with vppIfIP Address %s does not exist ",
-				pod.Name, pod.IPAddress)
+			errString := fmt.Sprintf("missing route for pod-facing tap if %s (%s) with IP Address %s (Pod %s)",
+				pod.VppIfName, pod.VppIfInternalName, pod.VppIfIPAddr, pod.Name)
 			v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
 			continue
 		}
 
-		if podIfIProute.Ipr.NextHopAddr+"/32" != pod.VppIfIPAddr {
+		if pod.VppIfIPAddr != podIfIProute.Ipr.NextHopAddr+"/32" {
 			numErrs++
 			errString := fmt.Sprintf("Pod %s IP %s does not match with route %+v next hop IP %s",
 				pod.Name, pod.IPAddress, lookUpRoute, lookUpRoute.Ipr.NextHopAddr)
@@ -178,10 +178,10 @@ func (v *Validator) validateVrf1PodRoutes(node *telemetrymodel.Node, vrfMap map[
 			routeMap[podIfIProute.Ipr.DstAddr] = false
 		}
 
-		if pod.VppIfName != lookUpRoute.Ipr.OutIface {
+		if pod.VppIfName != podIfIProute.Ipr.OutIface {
 			numErrs++
-			errString := fmt.Sprintf("invalid route to vpp-tap for Pod '%s' - bad interface name; " +
-				"have %s, expecting %s", pod.Name, lookUpRoute.Ipr.OutIface, pod.VppIfInternalName,)
+			errString := fmt.Sprintf("invalid route to vpp-tap for Pod '%s' - bad interface name; "+
+				"have %s, expecting %s", pod.Name, lookUpRoute.Ipr.OutIface, pod.VppIfInternalName)
 			v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
 			routeMap[podIfIProute.Ipr.DstAddr] = false
 		}

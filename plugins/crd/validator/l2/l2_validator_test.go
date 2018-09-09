@@ -31,6 +31,7 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"github.com/contiv/vpp/plugins/crd/validator/utils"
 )
 
 type l2ValidatorTestVars struct {
@@ -772,13 +773,13 @@ func testValidatePodInfo(t *testing.T) {
 	// ----------------------------------------------
 	// INJECT FAULT: Missing pod-facing tap interface
 	podIfIPAdr, podIfIPMask, err :=
-		ipv4CidrToAddressAndMask(vtv.vppCache.NodeMap[vtv.nodeKey].NodeIPam.Config.PodIfIPCIDR)
+		utils.Ipv4CidrToAddressAndMask(vtv.vppCache.NodeMap[vtv.nodeKey].NodeIPam.Config.PodIfIPCIDR)
 	gomega.Expect(err).To(gomega.BeNil())
 
 ifcLoop:
 	for ifIdx, ifc := range vtv.vppCache.NodeMap[vtv.nodeKey].NodeInterfaces {
 		for _, ip := range ifc.If.IPAddresses {
-			ipAddr, _, err := ipv4CidrToAddressAndMask(ip)
+			ipAddr, _, err := utils.Ipv4CidrToAddressAndMask(ip)
 			gomega.Expect(err).To(gomega.BeNil())
 
 			if (podIfIPAdr &^ podIfIPMask) == (ipAddr &^ podIfIPMask) {
@@ -800,13 +801,13 @@ ifcLoop:
 	// --------------------------------------------------------
 	// INJECT FAULT: Bad ip address on pod-facing tap interface
 	podIfIPAdr, podIfIPMask, err =
-		ipv4CidrToAddressAndMask(vtv.vppCache.NodeMap[vtv.nodeKey].NodeIPam.Config.PodIfIPCIDR)
+		utils.Ipv4CidrToAddressAndMask(vtv.vppCache.NodeMap[vtv.nodeKey].NodeIPam.Config.PodIfIPCIDR)
 	gomega.Expect(err).To(gomega.BeNil())
 
 ifcLoop1:
 	for ifIdx, ifc := range vtv.vppCache.NodeMap[vtv.nodeKey].NodeInterfaces {
 		for _, ip := range ifc.If.IPAddresses {
-			ipAddr, _, err := ipv4CidrToAddressAndMask(ip)
+			ipAddr, _, err := utils.Ipv4CidrToAddressAndMask(ip)
 			gomega.Expect(err).To(gomega.BeNil())
 
 			if (podIfIPAdr &^ podIfIPMask) == (ipAddr &^ podIfIPMask) {

@@ -82,13 +82,14 @@ var cmdNodeIPam = &cobra.Command{
 
 var cmdPodInfo = &cobra.Command{
 	Use:   "pods nodename",
-	Short: "Display non-local pods for a given node",
+	Short: "Display non-local pods for a given node or all if none is specified",
 	Args:  cobra.MaximumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		nodeName := args[0]
+
 		if len(args) < 1 {
-			fmt.Println("Enter a node name to display pod information")
+			nodes.PrintAllPods()
 		} else {
+			nodeName := args[0]
 			nodes.PrintPodsPerNode(nodeName)
 		}
 

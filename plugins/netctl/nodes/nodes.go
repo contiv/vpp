@@ -26,6 +26,7 @@ import (
 	"github.com/contiv/vpp/plugins/netctl/http"
 	"github.com/coreos/etcd/clientv3"
 	"github.com/ligato/cn-infra/db/keyval/etcd"
+	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/logging/logrus"
 	"github.com/ligato/vpp-agent/plugins/vpp/model/interfaces"
 	"os"
@@ -44,9 +45,11 @@ func PrintNodes() {
 		},
 		OpTimeout: 1 * time.Second,
 	}
+	logger := logrus.DefaultLogger()
+	logger.SetLevel(logging.FatalLevel)
 	w := tabwriter.NewWriter(os.Stdout, 0, 8, 4, '\t', 0)
 	// Create connection to etcd.
-	db, err := etcd.NewEtcdConnectionWithBytes(*cfg, logrus.DefaultLogger())
+	db, err := etcd.NewEtcdConnectionWithBytes(*cfg, logger)
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
@@ -175,9 +178,11 @@ func PrintPodsPerNode(input string) {
 		},
 		OpTimeout: 1 * time.Second,
 	}
-	w := tabwriter.NewWriter(os.Stdout, 0, 8, 6, '\t', 0)
+	logger := logrus.DefaultLogger()
+	logger.SetLevel(logging.FatalLevel)
+	w := tabwriter.NewWriter(os.Stdout, 0, 8, 0, '\t', 0)
 	// Create connection to etcd.
-	db, err := etcd.NewEtcdConnectionWithBytes(*cfg, logrus.DefaultLogger())
+	db, err := etcd.NewEtcdConnectionWithBytes(*cfg, logger)
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
@@ -187,7 +192,7 @@ func PrintPodsPerNode(input string) {
 		fmt.Printf("Error getting values")
 		return
 	}
-	fmt.Fprintf(w, "name\t\t\tip_address\t\thost_ip_addr\ttap_ip\toutgoing_idx\ttag\n")
+	fmt.Fprintf(w, "name\tip_address\thost_ip_addr\ttap_ip\toutgoing_idx\ttag\n")
 
 	for {
 		kv, stop := itr.GetNext()
@@ -201,7 +206,7 @@ func PrintPodsPerNode(input string) {
 			continue
 		}
 		if ipAddress, ifIndex, tag, err := printTapInterfaces(podInfo); err == nil {
-			fmt.Fprintf(w, "%s\t\t\t%s\t\t%s\t%s\t%d\t%s\n",
+			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%d\t%s\n",
 				podInfo.Name,
 				podInfo.IpAddress,
 				podInfo.HostIpAddress,
@@ -322,4 +327,40 @@ func getIPAddressAndMask(ip string) (uint32, uint32, error) {
 	mask := maskLength2Mask(maskLen)
 
 	return address, mask, nil
+}
+
+//PrintAllPods will print out all of the non local pods in a network in a table format.
+func PrintAllPods() {
+	cfg := &etcd.ClientConfig{
+		Config: &clientv3.Config{
+			Endpoints: []string{"127.0.0.1:32379"},
+		},
+		OpTimeout: 1 * time.Second,
+	}
+	// Create connection to etcd.
+	db, err := etcd.NewEtcdConnectionWithBytes(*cfg, logrus.DefaultLogger())
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+	itr, err := db.ListValues("/vnf-agent/contiv-ksr/allocatedIDs/")
+	if err != nil {
+		fmt.Printf("Error getting values")
+		return
+	}
+	for {
+		kv, stop := itr.GetNext()
+		if stop {
+			fmt.Println()
+			break
+		}
+		buf := kv.GetValue()
+		nodeInfo := &nodeinfomodel.NodeInfo{}
+		err = json.Unmarshal(buf, nodeInfo)
+		fmt.Println("\n" + nodeInfo.Name + ":")
+		fmt.Println("--------------")
+
+		PrintPodsPerNode(nodeInfo.ManagementIpAddress)
+	}
+	db.Close()
 }

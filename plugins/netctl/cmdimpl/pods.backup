@@ -47,7 +47,7 @@ type podGetter struct {
 // PrintAllPods will print out all of the non local pods in a network in
 // a table format.
 func PrintAllPods() {
-	w := getWriter("HOST-NAME")
+	w := getWriterAndPrintHeader("HOST-NAME\t")
 	pg := newPodGetter()
 	pg.printAllPods(w)
 	pg.db.Close()
@@ -57,7 +57,7 @@ func PrintAllPods() {
 //PrintPodsPerNode will print out all of the non-local pods for a certain
 // pods along with their tap interface ip address
 func PrintPodsPerNode(input string) {
-	w := getWriter("")
+	w := getWriterAndPrintHeader("")
 	pg := newPodGetter()
 	pg.printPodsPerNode(w, input, "")
 	pg.db.Close()
@@ -106,10 +106,8 @@ func (pg *podGetter) printAllPods(w *tabwriter.Writer) {
 		nodeInfo := &node.NodeInfo{}
 		err = json.Unmarshal(buf, nodeInfo)
 		fmt.Fprintf(w, "%s:\t\t\t\t\t\t\t\t\n", nodeInfo.Name)
-		fmt.Fprintf(w, "%s\t\t\t\t\t\t\t\t\n", strings.Repeat("-", len(nodeInfo.Name)+1))
 
 		pg.printPodsPerNode(w, nodeInfo.ManagementIpAddress, nodeInfo.Name)
-		fmt.Fprintln(w, "\t\t\t\t\t\t\t\t")
 	}
 }
 
@@ -121,8 +119,6 @@ func (pg *podGetter) printPodsPerNode(w *tabwriter.Writer, nodeNameOrIP string, 
 		fmt.Printf("Failed to get pods from etcd for node %s, err %s", nodeNameOrIP, err)
 		return
 	}
-
-	fmt.Fprintf(w, "POD-NAME\tNAMESPACE\tPOD-IP\tVPP-IP\tIF-IDX\tIF-NAME\tINTERNAL-IF-NAME\tHOST-IP\n")
 
 	for {
 		kv, stop := itr.GetNext()
@@ -137,7 +133,7 @@ func (pg *podGetter) printPodsPerNode(w *tabwriter.Writer, nodeNameOrIP string, 
 		}
 
 		if ipAddress, ifIndex, intName, name, err := pg.getTapInterfaces(podInfo); err == nil {
-			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%d\t%s\t%s\t%s\n",
+			fmt.Fprintf(w, "\t%s\t%s\t%s\t%s\t%d\t%s\t%s\t%s\n",
 				podInfo.Name,
 				podInfo.Namespace,
 				podInfo.IpAddress,
@@ -219,7 +215,11 @@ func (pg *podGetter) getTapInterfaces(podInfo *pod.Pod) (string, uint32, string,
 	return "", 0, "", "", nil
 }
 
-func getWriter(hostName string) *tabwriter.Writer {
+func getWriterAndPrintHeader(hostName string) *tabwriter.Writer {
+	hdr := fmt.Sprintf("%sPOD-NAME\tNAMESPACE\tPOD-IP\tVPP-IP\tIF-IDX\tIF-NAME\tINTERNAL-IF-NAME\tHOST-IP\n",
+		hostName)
+
 	w := tabwriter.NewWriter(os.Stdout, 0, 8, 2, ' ', 0)
+	fmt.Fprintf(w, hdr)
 	return w
 }

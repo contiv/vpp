@@ -87,7 +87,7 @@ var cmdPodInfo = &cobra.Command{
 	Short: "Display network information for pods connected to VPP on the given node. If node is omitted, " +
 		"pod data for all nodes is shown.",
 	Example: "netctl pods k8-master\nnetctl pods",
-	Args: cobra.MaximumNArgs(1),
+	Args:    cobra.MaximumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 
 		if len(args) < 1 {

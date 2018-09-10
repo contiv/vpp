@@ -154,7 +154,7 @@ func (pg *podGetter) printPodsPerNode(w *tabwriter.Writer, nodeNameOrIP string, 
 }
 
 func (pg *podGetter) getTapInterfaces(podInfo *pod.Pod) (string, uint32, string, string, error) {
-	// Get interface information
+	// If we haven't retrieved node info from the Agent yet, do it now
 	if pg.ndCache[podInfo.HostIpAddress] == nil {
 		// Get ipam data for the node where the pod is hosted
 		cmd := "contiv/v1/ipam"

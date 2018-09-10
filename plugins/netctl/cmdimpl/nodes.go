@@ -28,6 +28,7 @@ import (
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/logging/logrus"
 	"os"
+	"strings"
 	"text/tabwriter"
 	"time"
 )
@@ -42,7 +43,8 @@ func PrintNodes() {
 	}
 	logger := logrus.DefaultLogger()
 	logger.SetLevel(logging.FatalLevel)
-	w := tabwriter.NewWriter(os.Stdout, 0, 8, 4, '\t', 0)
+	w := tabwriter.NewWriter(os.Stdout, 0, 8, 2, ' ', 0)
+	// w := tabwriter.NewWriter(os.Stdout, 0, 8, 4, '\t', 0)
 	// Create connection to etcd.
 	db, err := etcd.NewEtcdConnectionWithBytes(*cfg, logger)
 	if err != nil {
@@ -54,8 +56,7 @@ func PrintNodes() {
 		fmt.Printf("Error getting values")
 		return
 	}
-	fmt.Fprintf(w, "id\tname\t\tip_address\t\tman_ip_addr\tbuild_date\t\t\tbuild_version\t\tstart_time\tstate\n")
-	w.Flush()
+	fmt.Fprintf(w, "ID\tNAME\tVPP-IP\tHOST-IP\tBUILD-DATE\tBUILD-VERSION\tSTART-TIME\tSTATE\n")
 	for {
 		kv, stop := itr.GetNext()
 		if stop {
@@ -74,16 +75,16 @@ func PrintNodes() {
 			liveness.BuildDate = "Not Available"
 		}
 
-		fmt.Fprintf(w, "%+v\t%s\t%s\t%s\t%s\t%s\t%s\t%d\n",
+		fmt.Fprintf(w, "%d\t%s\t%s\t%s\t%s\t%s\t%s\t%d\n",
 			nodeInfo.Id,
 			nodeInfo.Name,
-			nodeInfo.IpAddress,
+			strings.Split(nodeInfo.IpAddress, "/")[0],
 			nodeInfo.ManagementIpAddress,
 			liveness.BuildDate,
 			liveness.BuildVersion,
 			time.Unix(int64(liveness.StartTime), 0),
 			liveness.State)
-		w.Flush()
 	}
+	w.Flush()
 	db.Close()
 }

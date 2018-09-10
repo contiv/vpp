@@ -26,6 +26,7 @@ import (
 	"github.com/ligato/cn-infra/logging/logrus"
 	"github.com/ligato/vpp-agent/plugins/vpp/model/interfaces"
 	"os"
+	"strings"
 	"text/tabwriter"
 	"time"
 )
@@ -86,14 +87,14 @@ func newPodGetter() *podGetter {
 func (pg *podGetter) printPodsPerNode(input string) {
 	hostIP := resolveNodeOrIP(input)
 
-	w := tabwriter.NewWriter(os.Stdout, 0, 8, 0, '\t', 0)
-
 	itr, err := pg.db.ListValues("/vnf-agent/contiv-ksr/k8s/pod/")
 	if err != nil {
 		fmt.Printf("Error getting values")
 		return
 	}
-	fmt.Fprintf(w, "name\tip_address\thost_ip_addr\ttap_ip\toutgoing_idx\ttag\n")
+
+	w := tabwriter.NewWriter(os.Stdout, 0, 8, 2, ' ', 0)
+	fmt.Fprintf(w, "POD-NAME\tNAMESPACE\tPOD-IP\tVPP-IP\tIF-IDX\tIF-NAME\tINTERNAL-IF-NAME\tHOST-IP\n")
 
 	for {
 		kv, stop := itr.GetNext()
@@ -107,14 +108,16 @@ func (pg *podGetter) printPodsPerNode(input string) {
 			continue
 		}
 
-		if ipAddress, ifIndex, tag, err := pg.getTapInterfaces(podInfo); err == nil {
-			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%d\t%s\n",
+		if ipAddress, ifIndex, intName, name, err := pg.getTapInterfaces(podInfo); err == nil {
+			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%d\t%s\t%s\t%s\n",
 				podInfo.Name,
+				podInfo.Namespace,
 				podInfo.IpAddress,
-				podInfo.HostIpAddress,
-				ipAddress,
+				strings.Split(ipAddress, "/")[0],
 				ifIndex,
-				tag)
+				intName,
+				name,
+				podInfo.HostIpAddress)
 
 		} else {
 			fmt.Printf("error %s\n", err)
@@ -123,7 +126,7 @@ func (pg *podGetter) printPodsPerNode(input string) {
 	w.Flush()
 }
 
-func (pg *podGetter) getTapInterfaces(podInfo *pod.Pod) (string, uint32, string, error) {
+func (pg *podGetter) getTapInterfaces(podInfo *pod.Pod) (string, uint32, string, string, error) {
 	// Get interface information
 	if pg.ndCache[podInfo.HostIpAddress] == nil {
 		// Get ipam data for the node where the pod is hosted
@@ -131,7 +134,7 @@ func (pg *podGetter) getTapInterfaces(podInfo *pod.Pod) (string, uint32, string,
 		b := http.GetNodeInfo(podInfo.HostIpAddress, cmd)
 		ipam := &telemetrymodel.IPamEntry{}
 		if err := json.Unmarshal(b, ipam); err != nil {
-			return "", 0, "", fmt.Errorf("could not get ipam for host %s, err %s",
+			return "", 0, "", "", fmt.Errorf("could not get ipam for host %s, err %s",
 				podInfo.HostIpAddress, err)
 		}
 
@@ -140,7 +143,7 @@ func (pg *podGetter) getTapInterfaces(podInfo *pod.Pod) (string, uint32, string,
 		b = http.GetNodeInfo(podInfo.HostIpAddress, cmd)
 		intfs := make(telemetrymodel.NodeInterfaces)
 		if err := json.Unmarshal(b, &intfs); err != nil {
-			return "", 0, "", fmt.Errorf("could not get pod's interface; pod %s, hostIPAddress %s, err %s",
+			return "", 0, "", "", fmt.Errorf("could not get pod's interface; pod %s, hostIPAddress %s, err %s",
 				podInfo.Name, podInfo.HostIpAddress, err)
 		}
 
@@ -153,14 +156,14 @@ func (pg *podGetter) getTapInterfaces(podInfo *pod.Pod) (string, uint32, string,
 	// Determine the tap interface on VPP that connects the pod to the VPP
 	podIfIPAddress, podIfIPMask, err := getIPAddressAndMask(pg.ndCache[podInfo.HostIpAddress].ipam.Config.PodIfIPCIDR)
 	if err != nil {
-		return "", 0, "", fmt.Errorf("invalid PodIfIPCIDR address %s, err %s",
+		return "", 0, "", "", fmt.Errorf("invalid PodIfIPCIDR address %s, err %s",
 			podInfo.HostIpAddress, err)
 	}
 
 	podIfIPPrefix := podIfIPAddress &^ podIfIPMask
 	podAddr, err := ip2uint32(podInfo.IpAddress)
 	if err != nil {
-		return "", 0, "", fmt.Errorf("invalid podInfo.IpAddress %s, err %s",
+		return "", 0, "", "", fmt.Errorf("invalid podInfo.IpAddress %s, err %s",
 			podInfo.HostIpAddress, err)
 	}
 	podAddrSuffix := podAddr & podIfIPMask
@@ -180,13 +183,13 @@ func (pg *podGetter) getTapInterfaces(podInfo *pod.Pod) (string, uint32, string,
 				ifIPAdrPrefix := ifIPAddr &^ podIfIPMask
 				ifIPAdrSuffix := ifIPAddr & podIfIPMask
 				if (podIfIPPrefix == ifIPAdrPrefix) && (ifIPAdrSuffix == podAddrSuffix) {
-					return ip, intf.IfMeta.SwIfIndex, intf.IfMeta.Tag, nil
+					return ip, intf.IfMeta.SwIfIndex, intf.IfMeta.VppInternalName, intf.If.Name, nil
 				}
 			}
 		}
 	}
 
-	return "", 0, "", nil
+	return "", 0, "", "", nil
 }
 
 func (pg *podGetter) printAllPods() {

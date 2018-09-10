@@ -25,23 +25,25 @@ import (
 
 //NodeIPamCmd prints out the ipam information of a specific node
 func NodeIPamCmd(nodeName string) {
-	fmt.Printf("nodeipam %s\n", nodeName)
-	w := tabwriter.NewWriter(os.Stdout, 0, 8, 4, '\t', 0)
+	w := tabwriter.NewWriter(os.Stdout, 0, 8, 2, ' ', 0)
+	fmt.Fprintf(w, "ID\tNODE-NAME\tNODE-IP\tPOD-NET-IP\tVPP-HOST-IP\tPOD-IFIP-CIDR\tPOD-SUBNET-CIDR\n")
 
 	ip := resolveNodeOrIP(nodeName)
-	fmt.Fprintf(w, "id\tname\tip_address\tpod_network_ip\tvpp_host_network\n")
 	b := http.GetNodeInfo(ip, "contiv/v1/ipam")
 	ipam := telemetrymodel.IPamEntry{}
 	err := json.Unmarshal(b, &ipam)
 	if err != nil {
 		fmt.Println(err)
 	}
-	fmt.Fprintf(w, "%d\t%s\t%s\t%s\t%s\n",
+
+	fmt.Fprintf(w, "%d\t%s\t%s\t%s\t%s\t%s\t%s\n",
 		ipam.NodeID,
 		ipam.NodeName,
 		ipam.NodeIP,
 		ipam.PodNetwork,
-		ipam.VppHostNetwork)
+		ipam.VppHostNetwork,
+		ipam.Config.PodIfIPCIDR,
+		ipam.Config.PodSubnetCIRDR)
 
 	w.Flush()
 }

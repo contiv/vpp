@@ -24,16 +24,17 @@ import (
 
 var cmdNodes = &cobra.Command{
 	Use:   "nodes",
-	Short: "Shows available nodes from contiv-ksr",
+	Short: "Shows vswitch information for all nodes in the running Contiv cluster.",
 	Args:  cobra.ExactArgs(0),
 	Run: func(cmd *cobra.Command, args []string) {
 		cmdimpl.PrintNodes()
 	},
 }
 var cmdVppDump = &cobra.Command{
-	Use:   "vppdump nodename ",
-	Short: "Print anything to the screen",
-	Args:  cobra.MinimumNArgs(1),
+	Use:     "vppdump nodename ",
+	Short:   "Print anything to the screen",
+	Example: "netctl vppdump k8s-master",
+	Args:    cobra.MinimumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		nodeName := args[0]
 		if len(args) == 2 {
@@ -46,9 +47,10 @@ var cmdVppDump = &cobra.Command{
 }
 
 var cmdVppCLI = &cobra.Command{
-	Use:   "vppcli nodename vpp-cli-command ",
-	Short: "Execute VPP debug CLI command on the specified node and print out the result",
-	Args:  cobra.MinimumNArgs(1),
+	Use:     "vppcli nodename vpp-cli-command",
+	Short:   "Execute the specified VPP debug CLI command on the specified node.",
+	Example: "netctl vppcli k8s-master sh int addr",
+	Args:    cobra.MinimumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		nodeName := args[0]
 		if len(args) >= 2 {
@@ -66,9 +68,10 @@ var cmdVppCLI = &cobra.Command{
 }
 
 var cmdNodeIPam = &cobra.Command{
-	Use:   "ipam nodename",
-	Short: "Display table for node ipam",
-	Args:  cobra.MaximumNArgs(1),
+	Use:     "ipam <nodename>",
+	Short:   "Shows IPAM information for specified node.",
+	Example: "netctl ipam k8s-master",
+	Args:    cobra.MaximumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		nodeName := args[0]
 		if len(args) < 1 {
@@ -80,9 +83,11 @@ var cmdNodeIPam = &cobra.Command{
 }
 
 var cmdPodInfo = &cobra.Command{
-	Use:   "pods nodename",
-	Short: "Display non-local pods for a given node or all if none is specified",
-	Args:  cobra.MaximumNArgs(1),
+	Use: "pods nodename",
+	Short: "Display network information for pods connected to VPP on the given node. If node is omitted, " +
+		"pod data for all nodes is shown.",
+	Example: "netctl pods k8-master\nnetctl pods",
+	Args: cobra.MaximumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 
 		if len(args) < 1 {

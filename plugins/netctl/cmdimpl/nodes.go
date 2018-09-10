@@ -74,16 +74,15 @@ func PrintNodes() {
 			liveness.BuildDate = "Not Available"
 		}
 
-		fmt.Fprintf(w, "%+v\t%s\t%s\t%s\t%s\t%s\t%d\t%d\n",
+		fmt.Fprintf(w, "%+v\t%s\t%s\t%s\t%s\t%s\t%s\t%d\n",
 			nodeInfo.Id,
 			nodeInfo.Name,
 			nodeInfo.IpAddress,
 			nodeInfo.ManagementIpAddress,
 			liveness.BuildDate,
 			liveness.BuildVersion,
-			liveness.StartTime,
+			time.Unix(int64(liveness.StartTime), 0),
 			liveness.State)
-
 		w.Flush()
 	}
 	db.Close()

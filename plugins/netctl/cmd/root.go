@@ -73,10 +73,10 @@ var cmdNodeIPam = &cobra.Command{
 	Example: "netctl ipam k8s-master",
 	Args:    cobra.MaximumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		nodeName := args[0]
 		if len(args) < 1 {
-			fmt.Println("\nEnter either a node name or an ip to display IPam information...")
+			cmdimpl.PrintAllIpams()
 		} else {
+			nodeName := args[0]
 			cmdimpl.NodeIPamCmd(nodeName)
 		}
 	},

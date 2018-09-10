@@ -20,11 +20,10 @@ import (
 	"github.com/contiv/vpp/plugins/crd/api"
 	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
 	"github.com/contiv/vpp/plugins/crd/datastore"
+	"github.com/contiv/vpp/plugins/crd/validator/utils"
 	nodemodel "github.com/contiv/vpp/plugins/ksr/model/node"
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/vpp-agent/plugins/vpp/model/interfaces"
-	"strconv"
-	"strings"
 )
 
 // Validator is the implementation of the ContivTelemetryProcessor interface.
@@ -35,6 +34,8 @@ type Validator struct {
 	K8sCache api.K8sCache
 	Report   api.Report
 }
+
+type tapMap map[string]map[uint32]telemetrymodel.NodeInterface
 
 // Validate performes the validation of L2 telemetry data collected from a
 // Contiv cluster.
@@ -550,39 +551,15 @@ func (v *Validator) ValidateK8sNodeInfo() {
 // ValidatePodInfo will check  that each pod has a valid host ip address node
 // and that the information correctly correlates between the nodes and the pods.
 func (v *Validator) ValidatePodInfo() {
+	// Prepare the mark-and-sweep database for detection of dangling pod-facing
+	// tap interfaces
+	tapMap := v.createTapMarkAndSweepDB()
+
+	// Prepare the mark-and-sweep database for detection of dangling pods
+	podMap := make(map[string]string)
+
 	errCnt := 0
 	podList := v.K8sCache.RetrieveAllPods()
-
-	tapMap := make(map[string]map[uint32]telemetrymodel.NodeInterface, 0)
-	for _, node := range v.VppCache.RetrieveAllNodes() {
-		podIfIPCidrParts := strings.Split(node.NodeIPam.Config.PodIfIPCIDR, "/")
-		podIfMaskLen, err := strconv.Atoi(podIfIPCidrParts[1])
-		if err != nil {
-			errCnt++
-			errString := fmt.Sprintf("invalid IPAM PodIfIPCIDR %s", node.NodeIPam.Config.PodIfIPCIDR)
-			v.Report.AppendToNodeReport(node.Name, errString)
-			continue
-		}
-
-		podIfIPMask := maskLength2Mask(podIfMaskLen)
-		podIfIPPfx := ip2uint32(podIfIPCidrParts[0]) &^ podIfIPMask
-
-		for _, intf := range node.NodeInterfaces {
-			if strings.Contains(intf.IfMeta.VppInternalName, "tap") {
-				for _, ip := range intf.If.IPAddresses {
-					ipAddr := strings.Split(ip, "/")
-					tapIP := ip2uint32(ipAddr[0])
-
-					if tapIP&^podIfIPMask != podIfIPPfx {
-						continue
-					}
-					tapMap[node.Name][intf.IfMeta.SwIfIndex] = intf
-				}
-			}
-		}
-	}
-
-	podMap := make(map[string]string)
 
 	for _, pod := range podList {
 		// Check if we have a vppNode with the Host IP address that K8s specifies
@@ -596,6 +573,7 @@ func (v *Validator) ValidatePodInfo() {
 			continue
 		}
 
+		// A pod must be present in its node's pod database
 		podPtr, ok := vppNode.PodMap[pod.Name]
 		if !ok {
 			errCnt++
@@ -605,6 +583,7 @@ func (v *Validator) ValidatePodInfo() {
 		}
 
 		if pod != podPtr {
+			// There is a different pod under this pod's name in node's database...
 			errCnt++
 			errString := fmt.Sprintf("pod %s in node's podMap (%+v) is not the same as "+
 				"the pod in k8s cache (%+v)", podPtr.Name, podPtr, pod)
@@ -614,6 +593,8 @@ func (v *Validator) ValidatePodInfo() {
 
 		k8sNode, err := v.K8sCache.RetrieveK8sNode(vppNode.Name)
 		if err != nil {
+			// K8s does not know about the node where Contiv thinks that the
+			// pod is hosted
 			errCnt++
 			errString := fmt.Sprintf("vppNode '%s' hosting pod '%s' not in K8s database",
 				vppNode.Name, pod.Name)
@@ -651,29 +632,30 @@ func (v *Validator) ValidatePodInfo() {
 			continue
 		}
 
-		k8sPodIPAdrParts := strings.Split(k8sNode.Pod_CIDR, "/")
-		k8sMaskLen, err := strconv.Atoi(k8sPodIPAdrParts[1])
+		// Get K8s's view of the Pod's CIDR on this node
+		_, k8sMask, err := utils.Ipv4CidrToAddressAndMask(k8sNode.Pod_CIDR)
 		if err != nil {
 			errCnt++
 			errString := fmt.Sprintf("invalid Pod_CIDR %s", k8sNode.Pod_CIDR)
 			v.Report.AppendToNodeReport(k8sNode.Name, errString)
 			continue
 		}
-		k8sMask := maskLength2Mask(k8sMaskLen)
 
-		podIfIPCidrParts := strings.Split(vppNode.NodeIPam.Config.PodIfIPCIDR, "/")
-		podIfMaskLen, err := strconv.Atoi(podIfIPCidrParts[1])
+		// Get Contiv's view of the VPP's pod-facing tap intefce subnet CIDR
+		// on this node (PodIfIpCIDR)
+		podIfIPAddr, podIfIPMask, err := utils.Ipv4CidrToAddressAndMask(vppNode.NodeIPam.Config.PodIfIPCIDR)
 		if err != nil {
 			errCnt++
 			errString := fmt.Sprintf("invalid IPAM PodIfIPCIDR %s", vppNode.NodeIPam.Config.PodIfIPCIDR)
 			v.Report.AppendToNodeReport(k8sNode.Name, errString)
 			continue
 		}
-		podIfIPMask := maskLength2Mask(podIfMaskLen)
+		podIfIPPrefix := podIfIPAddr &^ podIfIPMask
 
+		// Make sure the VPP-side CIDR mask and K8s-side CIDR mask are the same
 		if k8sMask != podIfIPMask {
 			errCnt++
-			errString := fmt.Sprintf("IP address mask mismatch: K8s Pod CIDR: %s, Contiv PodIfIpCIDR %s",
+			errString := fmt.Sprintf("pod CIDR mask mismatch: K8s Pod CIDR: %s, Contiv PodIfIpCIDR %s",
 				k8sNode.Pod_CIDR, vppNode.NodeIPam.Config.PodIfIPCIDR)
 			v.Report.AppendToNodeReport(k8sNode.Name, errString)
 			continue
@@ -682,24 +664,43 @@ func (v *Validator) ValidatePodInfo() {
 		// Populate Pod's VPP interface data (IP addresses, interface name and
 		// ifIndex)
 		podMap[pod.Name] = vppNode.Name
-		podIfIPPfx := ip2uint32(podIfIPCidrParts[0]) &^ podIfIPMask
-		podIP := ip2uint32(pod.IPAddress)
+		podAddr, err := utils.Ipv4ToUint32(pod.IPAddress)
+		if err != nil {
+			errCnt++
+			errString := fmt.Sprintf("invalid pod IP address %s", pod.IPAddress)
+			v.Report.AppendToNodeReport(k8sNode.Name, errString)
+			continue
+		}
+		podAddrSuffix := podAddr & podIfIPMask
 
+		// Find the VPP tap interface for the pod. The interface must be on
+		// the PodIfIPCIDR subnet and the bottom part of its address must be
+		// the same as the bottom part of the pod's IP address.
 		for _, intf := range vppNode.NodeInterfaces {
-			if strings.Contains(intf.IfMeta.VppInternalName, "tap") {
+			if intf.If.IfType == interfaces.InterfaceType_TAP_INTERFACE {
 				for _, ip := range intf.If.IPAddresses {
-
-					ipAddr := strings.Split(ip, "/")
-					tapIP := ip2uint32(ipAddr[0])
-					if tapIP&^podIfIPMask != podIfIPPfx {
+					ifIPAddr, iffIPMask, err := utils.Ipv4CidrToAddressAndMask(ip)
+					if err != nil {
+						errCnt++
+						errString := fmt.Sprintf("bad IP address %s on pod-facing tap interface %s (%s)",
+							ip, intf.If.Name, intf.IfMeta.VppInternalName)
+						v.Report.AppendToNodeReport(k8sNode.Name, errString)
 						continue
 					}
 
-					if (podIP & k8sMask) == (tapIP & podIfIPMask) {
+					if iffIPMask != 0 {
+						continue
+					}
+
+					ifIPAdrPrefix := ifIPAddr &^ podIfIPMask
+					ifIPAdrSuffix := ifIPAddr & podIfIPMask
+					if (podIfIPPrefix == ifIPAdrPrefix) && (ifIPAdrSuffix == podAddrSuffix) {
 						pod.VppIfIPAddr = ip
 						pod.VppIfInternalName = intf.IfMeta.VppInternalName
 						pod.VppIfName = intf.If.Name
 						pod.VppSwIfIdx = intf.IfMeta.SwIfIndex
+
+						// Mark both the pod and the tap interface as valid
 						delete(podMap, pod.Name)
 						delete(tapMap[vppNode.Name], intf.IfMeta.SwIfIndex)
 					}
@@ -726,8 +727,42 @@ func (v *Validator) ValidatePodInfo() {
 	v.addSummary(errCnt, "K8sPod")
 }
 
-func (v *Validator) createTapMarkAndSweepDB() {
+// createTapMarkAndSweepDB creates a database (db) used to detect dangling
+// pod-facing tap interfaces. It contains a per-node set of pod-facing tap
+// interfaces. Only interfaces with at least one address in the PodIfIpCIDR
+// subnet are placed in this DB. The validation algorithm will remove each
+// valid tap interface from this DB, only leaving those for which a valid
+// pod could not be found
+func (v *Validator) createTapMarkAndSweepDB() map[string]map[uint32]telemetrymodel.NodeInterface {
+	tapMap := make(map[string]map[uint32]telemetrymodel.NodeInterface, 0)
 
+	for _, node := range v.VppCache.RetrieveAllNodes() {
+		tapMap[node.Name] = make(map[uint32]telemetrymodel.NodeInterface, 0)
+
+		podIfIPAddress, podIfIPMask, err := utils.Ipv4CidrToAddressAndMask(node.NodeIPam.Config.PodIfIPCIDR)
+		if err != nil {
+			// Do not report error - we catch it later in the validation phase
+			continue
+		}
+		podIfIPPrefix := podIfIPAddress &^ podIfIPMask
+
+		for _, intf := range node.NodeInterfaces {
+			if intf.If.IfType == interfaces.InterfaceType_TAP_INTERFACE {
+				for _, ip := range intf.If.IPAddresses {
+					ifIPAddr, ifIPMask, err := utils.Ipv4CidrToAddressAndMask(ip)
+					if (err != nil) || (ifIPMask != 0) {
+						continue
+					}
+
+					if podIfIPPrefix == (ifIPAddr &^ podIfIPMask) {
+						tapMap[node.Name][intf.IfMeta.SwIfIndex] = intf
+					}
+				}
+			}
+		}
+	}
+
+	return tapMap
 }
 
 func (v *Validator) addSummary(errCnt int, kind string) {
@@ -739,6 +774,13 @@ func (v *Validator) addSummary(errCnt int, kind string) {
 	}
 }
 
+func printS(errCnt int) string {
+	if errCnt > 0 {
+		return "s"
+	}
+	return ""
+}
+
 func getVxlanBD(node *telemetrymodel.Node) (int, error) {
 	for bdomainIdx, bdomain := range node.NodeBridgeDomains {
 		if bdomain.Bd.Name == "vxlanBD" {
@@ -746,33 +788,4 @@ func getVxlanBD(node *telemetrymodel.Node) (int, error) {
 		}
 	}
 	return 0, fmt.Errorf("vxlanBD not found")
-}
-
-// maskLength2Mask will tank in an int and return the bit mask for the number given
-func maskLength2Mask(ml int) uint32 {
-	var mask uint32
-	for i := 0; i < 32-ml; i++ {
-		mask = mask << 1
-		mask++
-	}
-	return mask
-}
-
-func ip2uint32(ipAddress string) uint32 {
-	var ipu uint32
-	parts := strings.Split(ipAddress, ".")
-	for _, p := range parts {
-		// num, _ := strconv.ParseUint(p, 10, 32)
-		num, _ := strconv.Atoi(p)
-		ipu = (ipu << 8) + uint32(num)
-		//fmt.Printf("%d: num: 0x%x, ipu: 0x%x\n", i, num, ipu)
-	}
-	return ipu
-}
-
-func printS(errCnt int) string {
-	if errCnt > 1 {
-		return "s"
-	}
-	return ""
 }

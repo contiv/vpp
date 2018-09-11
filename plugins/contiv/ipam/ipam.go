@@ -150,7 +150,7 @@ func (i *IPAM) NodeIPWithPrefix(nodeID uint32) (*net.IPNet, error) {
 	maskSize, _ := i.nodeInterconnectCIDR.Mask.Size()
 	hostIPNetwork := net.IPNet{
 		IP:   hostIP,
-		Mask: uint32ToIpv4Mask(((1 << uint(maskSize)) - 1) << (32 - uint8(maskSize))),
+		Mask: net.CIDRMask(maskSize, 32),
 	}
 	return &hostIPNetwork, nil
 }
@@ -174,7 +174,7 @@ func (i *IPAM) VxlanIPWithPrefix(nodeID uint32) (*net.IPNet, error) {
 	maskSize, _ := i.vxlanCIDR.Mask.Size()
 	vxlanNetwork := net.IPNet{
 		IP:   hostIP,
-		Mask: uint32ToIpv4Mask(((1 << uint(maskSize)) - 1) << (32 - uint8(maskSize))),
+		Mask: net.CIDRMask(maskSize, 32),
 	}
 	return &vxlanNetwork, nil
 }
@@ -304,7 +304,7 @@ func (i *IPAM) NextPodIP(podID string) (net.IP, error) {
 	prefixBits, totalBits := i.podNetworkIPPrefix.Mask.Size()
 	// get the maximum sequence ID available in the provided range; the last valid unicast IP is used as "NAT-loopback"
 	maxSeqID := (1 << uint(totalBits-prefixBits)) - 2
-	for j := last; j < maxSeqID; j++ { // zero ending IP is reserved for network => skip seqID=0
+	for j := last; j < maxSeqID; j++ {
 		ipForAssign, success := i.tryToAllocatePodIP(j, networkPrefix, podID)
 		if success {
 			i.lastAssigned = j
@@ -494,7 +494,7 @@ func applyNodeID(subnetIPPrefix net.IPNet, nodeID uint32, networkPrefixLen uint8
 	networkPrefixUint32 := subnetIPPartUint32 + (uint32(nodeIPPart) << (32 - networkPrefixLen))
 	networkIPPrefix = net.IPNet{
 		IP:   uint32ToIpv4(networkPrefixUint32),
-		Mask: uint32ToIpv4Mask(((1 << uint(networkPrefixLen)) - 1) << (32 - networkPrefixLen)),
+		Mask: net.CIDRMask(int(networkPrefixLen), 32),
 	}
 	return
 }

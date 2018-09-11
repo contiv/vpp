@@ -76,12 +76,16 @@ test:
 	go test ./plugins/policy/renderer/cache -tags="${GO_BUILD_TAGS}"
 	go test ./plugins/policy/renderer/acl -tags="${GO_BUILD_TAGS}"
 	go test ./plugins/policy/renderer/vpptcp -tags="${GO_BUILD_TAGS}"
-	go test ./plugins/service -tags="${GO_BUILD_TAGS}"
 	go test ./plugins/policy/cache -tags="${GO_BUILD_TAGS}"
 	go test ./plugins/policy/cache/namespaceidx -tags="${GO_BUILD_TAGS}"
 	go test ./plugins/policy/cache/podidx -tags="${GO_BUILD_TAGS}"
 	go test ./plugins/policy/cache/policyidx -tags="${GO_BUILD_TAGS}"
 	go test ./plugins/statscollector -tags="${GO_BUILD_TAGS}"
+	go test ./plugins/service -tags="${GO_BUILD_TAGS}"
+	go test ./plugins/crd/datastore -tags="${GO_BUILD_TAGS}"
+	go test ./plugins/crd/validator/l2 -tags="${GO_BUILD_TAGS}"
+	//go test ./plugins/crd/validator/l3 -tags="${GO_BUILD_TAGS}"
+	//go test ./plugins/crd/cache -tags="${GO_BUILD_TAGS}"
 
 # Run tests with race
 test-race:
@@ -96,12 +100,17 @@ test-race:
 	go test ./plugins/policy/renderer/cache -race -tags="${GO_BUILD_TAGS}"
 	go test ./plugins/policy/renderer/acl -race -tags="${GO_BUILD_TAGS}"
 	go test ./plugins/policy/renderer/vpptcp -race -tags="${GO_BUILD_TAGS}"
-	go test ./plugins/service -race -tags="${GO_BUILD_TAGS}"
 	go test ./plugins/policy/cache -race -tags="${GO_BUILD_TAGS}"
 	go test ./plugins/policy/cache/namespaceidx -race -tags="${GO_BUILD_TAGS}"
 	go test ./plugins/policy/cache/podidx -race -tags="${GO_BUILD_TAGS}"
 	go test ./plugins/policy/cache/policyidx -race -tags="${GO_BUILD_TAGS}"
 	go test ./plugins/statscollector -race -tags="${GO_BUILD_TAGS}"
+	go test ./plugins/service -race -tags="${GO_BUILD_TAGS}"
+	go test ./plugins/crd/datastore -tags="${GO_BUILD_TAGS}"
+	go test ./plugins/crd/validator/l2 -tags="${GO_BUILD_TAGS}"
+	//go test ./plugins/crd/validator/l3 -tags="${GO_BUILD_TAGS}"
+	//go test ./plugins/crd/cache -tags="${GO_BUILD_TAGS}"
+
 
 # Get coverage report tools
 get-covtools:
@@ -126,6 +135,11 @@ test-cover: get-covtools
 	go test -covermode=count -coverprofile=${COVER_DIR}cov_u14.out ./plugins/policy/cache/podidx -tags="${GO_BUILD_TAGS}"
 	go test -covermode=count -coverprofile=${COVER_DIR}cov_u15.out ./plugins/policy/cache/policyidx -tags="${GO_BUILD_TAGS}"
 	go test -covermode=count -coverprofile=${COVER_DIR}cov_u16.out ./plugins/statscollector -tags="${GO_BUILD_TAGS}"
+	go test -covermode=count -coverprofile=${COVER_DIR}cov_u17.out ./plugins/crd/datastore -tags="${GO_BUILD_TAGS}"
+	go test -covermode=count -coverprofile=${COVER_DIR}cov_u18.out ./plugins/crd/validator/l2 -tags="${GO_BUILD_TAGS}"
+	//go test -covermode=count -coverprofile=${COVER_DIR}cov_u19.out ./plugins/crd/validator/l3 -tags="${GO_BUILD_TAGS}"
+	//go test -covermode=count -coverprofile=${COVER_DIR}cov_u20.out ./plugins/crd/cache -tags="${GO_BUILD_TAGS}"
+
 	@echo "# merging coverage results"
 	gocovmerge \
 			${COVER_DIR}cov_u1.out \
@@ -144,6 +158,8 @@ test-cover: get-covtools
 			${COVER_DIR}cov_u14.out \
 			${COVER_DIR}cov_u15.out \
 			${COVER_DIR}cov_u16.out \
+			${COVER_DIR}cov_u17.out \
+			${COVER_DIR}cov_u18.out \
 		> ${COVER_DIR}coverage.out
 	@echo "# coverage data generated into ${COVER_DIR}coverage.out"
 
@@ -168,6 +184,8 @@ generate: get-generators
 	cd plugins/contiv/containeridx && go generate
 	cd plugins/ksr && go generate
 	cd cmd/contiv-stn && go generate
+	cd plugins/crd && go generate
+	cd cmd/contiv-crd/handler/nodeconfig && go generate
 
 # Get linter tools
 get-linters:

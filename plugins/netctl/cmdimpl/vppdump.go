@@ -13,16 +13,16 @@
 // limitations under the License.
 //
 
-package vppdump
+package cmdimpl
 
 import (
 	"fmt"
 	"github.com/contiv/vpp/plugins/netctl/http"
-	"github.com/contiv/vpp/plugins/netctl/nodes"
 	"strings"
 )
 
-//DumpCmd will receive a nodeName and dumpType and finds the desired information from the dumpType for the node.
+// DumpCmd will receive a nodeName and dumpType and finds the desired
+// information from the dumpType for the node.
 func DumpCmd(nodeName string, dumpType string) {
 
 	if nodeName == "" || dumpType == "" {
@@ -35,7 +35,7 @@ func DumpCmd(nodeName string, dumpType string) {
 		return
 	}
 	fmt.Printf("vppdump %s %s\n", nodeName, dumpType)
-	ipAdr := nodes.ResolveNodeOrIP(nodeName)
+	ipAdr := resolveNodeOrIP(nodeName)
 	if ipAdr == "" {
 		fmt.Printf("Unknown node name %s", nodeName)
 		return
@@ -43,4 +43,20 @@ func DumpCmd(nodeName string, dumpType string) {
 	cmd := fmt.Sprintf("vpp/dump/v1/%s", dumpType)
 	b := http.GetNodeInfo(ipAdr, cmd)
 	fmt.Printf("%s", b)
+}
+
+// VppCliCmd will receive a nodeName and a vpp cli command and print it out
+// to the console
+func VppCliCmd(nodeName string, vppclicmd string) {
+
+	fmt.Printf("vppcli %s %s\n", nodeName, vppclicmd)
+
+	ipAdr := resolveNodeOrIP(nodeName)
+	cmd := fmt.Sprintf("vpp/command")
+	body := fmt.Sprintf("{\"vppclicommand\":\"%s\"}", vppclicmd)
+	err := http.SetNodeInfo(ipAdr, cmd, body)
+	if err != nil {
+		fmt.Println(err)
+	}
+
 }

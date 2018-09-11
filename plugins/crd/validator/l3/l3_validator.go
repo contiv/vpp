@@ -22,7 +22,6 @@ import (
 	"github.com/contiv/vpp/plugins/crd/datastore"
 	"github.com/ligato/cn-infra/logging"
 
-	"strconv"
 	"strings"
 )
 
@@ -125,8 +124,8 @@ func (v *Validator) validateVrf1PodRoutes(node *telemetrymodel.Node, vrfMap map[
 			continue
 		}
 
-		// check that the next hop in the pod route is the pod's IP address
-		if lookUpRoute.Ipr.NextHopAddr != pod.IPAddress {
+		// Verify that the next hop in the pod route is the pod's IP address
+		if pod.IPAddress != lookUpRoute.Ipr.NextHopAddr {
 			numErrs++
 			errString := fmt.Sprintf("invalid route for Pod '%s' - bad next hop; have %s, expecting %s",
 				pod.Name, lookUpRoute.Ipr.NextHopAddr, pod.IPAddress)
@@ -134,32 +133,35 @@ func (v *Validator) validateVrf1PodRoutes(node *telemetrymodel.Node, vrfMap map[
 			routeMap[lookUpRoute.Ipr.DstAddr] = false
 		}
 
+		// Verify that the ifIndex in the pod route belongs to the pod's interface
 		if pod.VppSwIfIdx != lookUpRoute.IprMeta.OutgoingIfIdx {
 			numErrs++
-			errString := fmt.Sprintf("Pod interface index %d does not match static route interface index %d",
-				pod.VppSwIfIdx, lookUpRoute.IprMeta.OutgoingIfIdx)
+			errString := fmt.Sprintf("invalid route for Pod '%s' - bad swIfIndex; have %d, expecting %d",
+				pod.Name, lookUpRoute.IprMeta.OutgoingIfIdx, pod.VppSwIfIdx)
 			v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
-			routeMap[lookUpRoute.Ipr.DstAddr] = false
-		}
-		if pod.VppIfName != lookUpRoute.Ipr.OutIface {
-			errString := fmt.Sprintf("Name of pod interface %s differs from route interface name %s",
-				pod.VppIfInternalName, lookUpRoute.Ipr.OutIface)
-			v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
-			numErrs++
 			routeMap[lookUpRoute.Ipr.DstAddr] = false
 		}
 
-		//make sure pod vpp interface route exists and is valid
+		if pod.VppIfName != lookUpRoute.Ipr.OutIface {
+			numErrs++
+			errString := fmt.Sprintf("invalid route for Pod '%s' - bad interface name; have %s, expecting %s",
+				pod.Name, lookUpRoute.Ipr.OutIface, pod.VppIfInternalName)
+			v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
+			routeMap[lookUpRoute.Ipr.DstAddr] = false
+		}
+
+		// make sure pod that the route for the pod-facing tap interface in vpp
+		// exists and is valid
 		podIfIProute, ok := vrfMap[1][pod.VppIfIPAddr]
 		if !ok {
 			numErrs++
-			errString := fmt.Sprintf("route for Pod %s with vppIfIP Address %s does not exist ",
-				pod.Name, pod.IPAddress)
+			errString := fmt.Sprintf("missing route for pod-facing tap if %s (%s) with IP Address %s (Pod %s)",
+				pod.VppIfName, pod.VppIfInternalName, pod.VppIfIPAddr, pod.Name)
 			v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
 			continue
 		}
 
-		if podIfIProute.Ipr.NextHopAddr+"/32" != pod.VppIfIPAddr {
+		if pod.VppIfIPAddr != podIfIProute.Ipr.NextHopAddr+"/32" {
 			numErrs++
 			errString := fmt.Sprintf("Pod %s IP %s does not match with route %+v next hop IP %s",
 				pod.Name, pod.IPAddress, lookUpRoute, lookUpRoute.Ipr.NextHopAddr)
@@ -175,11 +177,10 @@ func (v *Validator) validateVrf1PodRoutes(node *telemetrymodel.Node, vrfMap map[
 			routeMap[podIfIProute.Ipr.DstAddr] = false
 		}
 
-		if pod.VppIfName != lookUpRoute.Ipr.OutIface {
+		if pod.VppIfName != podIfIProute.Ipr.OutIface {
 			numErrs++
-			errString := fmt.Sprintf("Name of pod interface %s differs from route interface name %s",
-				pod.VppIfInternalName, lookUpRoute.Ipr.OutIface)
-
+			errString := fmt.Sprintf("invalid route to vpp-tap for Pod '%s' - bad interface name; "+
+				"have %s, expecting %s", pod.Name, lookUpRoute.Ipr.OutIface, pod.VppIfInternalName)
 			v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
 			routeMap[podIfIProute.Ipr.DstAddr] = false
 		}
@@ -473,27 +474,6 @@ func (v *Validator) validateRouteToLocalLoopInterface(node *telemetrymodel.Node,
 		}
 	}
 	return numErrs
-}
-
-func maskLength2Mask(ml int) uint32 {
-	var mask uint32
-	for i := 0; i < 32-ml; i++ {
-		mask = mask << 1
-		mask++
-	}
-	return mask
-}
-
-func ip2uint32(ipAddress string) uint32 {
-	var ipu uint32
-	parts := strings.Split(ipAddress, ".")
-	for _, p := range parts {
-		// num, _ := strconv.ParseUint(p, 10, 32)
-		num, _ := strconv.Atoi(p)
-		ipu = (ipu << 8) + uint32(num)
-		//fmt.Printf("%d: num: 0x%x, ipu: 0x%x\n", i, num, ipu)
-	}
-	return ipu
 }
 
 func separateIPandMask(ipAddress string) (string, string) {

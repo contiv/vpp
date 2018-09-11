@@ -23,6 +23,7 @@ import (
 	"github.com/ligato/cn-infra/logging"
 
 	"strings"
+	"regexp"
 )
 
 // Validator is the implementation of the ContivTelemetryProcessor interface.
@@ -202,22 +203,33 @@ func (v *Validator) validateVrf1PodRoutes(node *telemetrymodel.Node, vrfMap map[
 func (v *Validator) validateVrf0GigERoutes(node *telemetrymodel.Node, vrfMap map[uint32]Vrf,
 	routeMap map[string]bool) int {
 	numErrs := 0
-	//begin validation of gigE routes, beginning with local one
+
+	// begin validation of gigE routes, beginning with local one
 	gigeRoute, ok := vrfMap[0][node.IPAddr]
 	if !ok {
-		errString := fmt.Sprintf("route with dst ip %s not found", node.IPAddr)
+		errString := fmt.Sprintf("missing route to local GigE interface (%s) - " +
+			"skipping validation of routes to VPP GigE interfaces for node %s", node.IPAddr, node.Name)
 		v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
 		numErrs++
+		return numErrs
 	}
+
 	if gigeRoute.Ipr.DstAddr != node.IPAddr {
-		errString := fmt.Sprintf("route %s has different dst ip %s than node %s ip %s",
-			gigeRoute.IprMeta.TableName, gigeRoute.Ipr.DstAddr, node.Name, node.IPAddr)
+		errString := fmt.Sprintf("invalid route to local VPP GigE; bad DstAddr, have %s, expecting %s",
+			gigeRoute.Ipr.DstAddr, node.IPAddr)
 		v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
 		numErrs++
 	}
-	if !strings.Contains(gigeRoute.Ipr.OutIface, "GigabitEthernet") {
-		errString := fmt.Sprintf("route with dst IP %s had different out interface %s than "+
-			"expected GigabitEthernet0/8/0", gigeRoute.Ipr.DstAddr, gigeRoute.Ipr.OutIface)
+
+	matched, err := regexp.Match(`GigabitEthernet[0-9]/[0-9]*/[0-9]`, []byte(gigeRoute.Ipr.OutIface))
+	if err != nil {
+		errString := fmt.Sprintf("failed to match route %s outgoing interface (ifName %s)",
+			gigeRoute.Ipr.DstAddr, gigeRoute.Ipr.OutIface)
+		v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
+		numErrs++
+	} else if !matched {
+		errString := fmt.Sprintf("invalid route to local VPP GigE %s; bad outgoing interface, " +
+			"have %s, expecting <GigabitEthernetX/Y/Z>", node.IPAddr, gigeRoute.Ipr.OutIface)
 		v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
 		numErrs++
 	}
@@ -225,9 +237,8 @@ func (v *Validator) validateVrf0GigERoutes(node *telemetrymodel.Node, vrfMap map
 	//make sure interface index in route points to valid node interface
 	intf := node.NodeInterfaces[int(gigeRoute.IprMeta.OutgoingIfIdx)]
 	if intf.IfMeta.SwIfIndex != gigeRoute.IprMeta.OutgoingIfIdx {
-		errString := fmt.Sprintf("interface %s has different interface index %d than route "+
-			"with dst ip %s interface index %d",
-			intf.IfMeta.Tag, intf.IfMeta.SwIfIndex, gigeRoute.Ipr.DstAddr, gigeRoute.IprMeta.OutgoingIfIdx)
+		errString := fmt.Sprintf("invalid route to local VPP GigE %s; bad ifIndex on outgoing interface, " +
+			"have %d, expecting %d", gigeRoute.Ipr.DstAddr, gigeRoute.IprMeta.OutgoingIfIdx, intf.IfMeta.SwIfIndex)
 		v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
 		numErrs++
 	}
@@ -272,8 +283,8 @@ func (v *Validator) validateVrf0GigERoutes(node *telemetrymodel.Node, vrfMap map
 		}
 
 		if route.IprMeta.OutgoingIfIdx != gigeRoute.IprMeta.OutgoingIfIdx {
-			errString := fmt.Sprintf("Route %s has an outgoing interface index of %d instead of %d",
-				route.IprMeta.TableName, route.IprMeta.OutgoingIfIdx, gigeRoute.IprMeta.OutgoingIfIdx)
+			errString := fmt.Sprintf("invalid route to remote VPP GigE %s; bad ifIndex, have %d, expecting %d",
+				route.Ipr.DstAddr, route.IprMeta.OutgoingIfIdx, gigeRoute.IprMeta.OutgoingIfIdx)
 			v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
 			numErrs++
 		}

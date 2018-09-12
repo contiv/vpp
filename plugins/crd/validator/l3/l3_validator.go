@@ -366,23 +366,29 @@ func (v *Validator) validateRemoteNodeRoutes(node *telemetrymodel.Node, vrfMap m
 			numErrs++
 		}
 
+		// Assume that the route will be valid. Each failed check flips
+		// the status
+		routeMap[1][route.Ipr.DstAddr] = routeValid
+
 		//look for vxlanBD, make sure the route outgoing interface idx points to vxlanBVI
 		for _, bd := range node.NodeBridgeDomains {
 			if bd.Bd.Name == "vxlanBD" {
 				if bd.BdMeta.BdID2Name[route.IprMeta.OutgoingIfIdx] != "vxlanBVI" {
+					numErrs++
+					routeMap[1][route.Ipr.DstAddr] = routeInvalid
 					errString := fmt.Sprintf("vxlanBD outgoing interface for ipr index %d for route "+
 						"with pod network ip %s is not vxlanBVI", route.IprMeta.OutgoingIfIdx, podNwIP)
 					v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
-					numErrs++
 				}
 			}
 			for _, intf := range bd.Bd.Interfaces {
 				if intf.Name == "vxlanBVI" {
 					if !intf.BVI {
+						numErrs++
+						routeMap[1][route.Ipr.DstAddr] = routeInvalid
 						errString := fmt.Sprintf("Bridge domain %s interface %s BVI is %+v, expected true",
 							bd.Bd.Name, intf.Name, intf.BVI)
 						v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
-						numErrs++
 					}
 				}
 			}
@@ -400,6 +406,8 @@ func (v *Validator) validateRemoteNodeRoutes(node *telemetrymodel.Node, vrfMap m
 						}
 					}
 					if !matchingIPFound {
+						numErrs++
+						routeMap[1][route.Ipr.DstAddr] = routeInvalid
 						errString := fmt.Sprintf("no matching ip found in remote node %s interface "+
 							"%s to match current node %s route next hop %s",
 							othNode.Name, intf.If.Name, node.Name, route.Ipr.NextHopAddr)
@@ -417,18 +425,27 @@ func (v *Validator) validateRemoteNodeRoutes(node *telemetrymodel.Node, vrfMap m
 			//err
 			numErrs++
 		}
-		//
+
+		// Assume that the route will be valid. Each failed check flips
+		// the status
+		routeMap[0][vrf0ToRemoteRoute.Ipr.DstAddr] = routeValid
+
 		if vrf0ToRemoteRoute.Ipr.DstAddr != othNode.ManIPAddr+"/32" {
+			//err wrong dest.
+			numErrs++
+			routeMap[0][vrf0ToRemoteRoute.Ipr.DstAddr] = routeInvalid
 			errString := fmt.Sprintf("vrf0 to remote route dst ip %s is different than node %s man ip %s",
 				vrf0ToRemoteRoute.Ipr.DstAddr, node.Name, node.ManIPAddr)
 			v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
-			//err wrong dest.
-			numErrs++
 		}
+
 		if vrf0ToRemoteRoute.Ipr.ViaVRFID != 1 {
 			//err expected id of via vrf to be 1
 			numErrs++
-
+			routeMap[0][vrf0ToRemoteRoute.Ipr.DstAddr] = routeInvalid
+			errString := fmt.Sprintf("invalid route %s - bad vrf id %d",
+				vrf0ToRemoteRoute.Ipr.DstAddr, vrf0ToRemoteRoute.Ipr.ViaVRFID)
+			v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
 		}
 	}
 	return numErrs
@@ -441,31 +458,39 @@ func (v *Validator) validateVrf0LocalHostRoute(node *telemetrymodel.Node, vrfMap
 	numErrs := 0
 	localRoute, ok := vrfMap[0][node.ManIPAddr+"/32"]
 	if !ok {
+		numErrs++
 		errString := fmt.Sprintf("missing route with dst IP %s for node %s", node.ManIPAddr+"/32", node.Name)
 		v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
-		numErrs++
 	}
+
+	// Assume that the route will be valid. Each failed check flips
+	// the status
+	routeMap[0][localRoute.Ipr.DstAddr] = routeValid
 
 	tapIntf := node.NodeInterfaces[int(localRoute.IprMeta.OutgoingIfIdx)]
 	if tapIntf.IfMeta.Tag != "tap-vpp2" {
+		numErrs++
+		routeMap[0][localRoute.Ipr.DstAddr] = routeInvalid
 		errString := fmt.Sprintf("node %s interface with idx %d from route with ip %s does not "+
 			"match tag tap-vpp2 instead is %s",
 			node.Name, localRoute.IprMeta.OutgoingIfIdx, localRoute.Ipr.DstAddr, tapIntf.IfMeta.Tag)
 		v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
-		numErrs++
-
 	}
+
 	if tapIntf.IfMeta.SwIfIndex != localRoute.IprMeta.OutgoingIfIdx {
+		//err mismatch indexes
+		numErrs++
+		routeMap[0][localRoute.Ipr.DstAddr] = routeInvalid
 		errString := fmt.Sprintf("tap interface index %d dot not match route outgoing index %d",
 			tapIntf.IfMeta.SwIfIndex, localRoute.IprMeta.OutgoingIfIdx)
 		v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
-		numErrs++
-		//err mismatch indexes
 	}
+
 	if localRoute.Ipr.NextHopAddr == "" {
+		numErrs++
+		routeMap[0][localRoute.Ipr.DstAddr] = routeInvalid
 		errString := fmt.Sprintf("local route with dst ip %s is missing a next hop ip", localRoute.Ipr.DstAddr)
 		v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
-		numErrs++
 	}
 
 	return numErrs
@@ -477,18 +502,23 @@ func (v *Validator) validateVrf1DefaultRoute(node *telemetrymodel.Node, vrfMap m
 	numErrs := 0
 	defaultRoute, ok := vrfMap[1]["0.0.0.0/0"]
 	if !ok {
+		//err default route is missing
+		numErrs++
 		errString := fmt.Sprintf("default route 0.0.0.0/0 missing for node %s", node.Name)
 		v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
-		numErrs++
-		//err default route is missing
 	}
 
+	// Assume that the route will be valid. Each failed check flips
+	// the status
+	routeMap[1][defaultRoute.Ipr.DstAddr] = routeValid
+
 	if defaultRoute.IprMeta.OutgoingIfIdx != 0 {
+		//err index does not match vrf 0 index - mismatch
+		numErrs++
+		routeMap[1][defaultRoute.Ipr.DstAddr] = routeInvalid
 		errString := fmt.Sprintf("expeceted default route 0.0.0.0/0 to have outgoing "+
 			"interface index of 0, got %d", defaultRoute.IprMeta.OutgoingIfIdx)
 		v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
-		numErrs++
-		//err index does not match vrf 0 index - mismatch
 	}
 	return numErrs
 }

@@ -29,7 +29,7 @@ import (
 	"time"
 )
 
-// PrintAllIpams prints out the ipam information for all the nodes
+// PrintAllIpams prints IPAM information from all nodes in the cluster
 func PrintAllIpams() {
 	etcdCfg := etcd.ClientConfig{
 		Config: &clientv3.Config{

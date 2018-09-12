@@ -128,14 +128,14 @@ func testErrorFreeEndToEnd(t *testing.T) {
 	vtv.report.Clear()
 	vtv.l3Validator.Validate()
 
-	checkDataReport(1, 0, 0)
+	checkDataReport(1, 2, 2)
 }
 
 func testValidateRoutesToLocalPods(t *testing.T) {
 	vrfMap, err := vtv.l3Validator.createVrfMap(vtv.vppCache.NodeMap[vtv.nodeKey])
 	gomega.Expect(err).To(gomega.BeNil())
 
-	routeMap := make(map[string]bool)
+	routeMap := vtv.l3Validator.createValidationMap(vrfMap)
 
 	// ----------------------------------
 	// INJECT FAULT: Route to Pod missing
@@ -187,7 +187,7 @@ func testValidateRoutesToLocalPods(t *testing.T) {
 		break
 	}
 
-	routeMap = make(map[string]bool)
+	routeMap = vtv.l3Validator.createValidationMap(vrfMap)
 
 	// Perform test
 	vtv.report.Clear()
@@ -225,7 +225,7 @@ func testValidateRoutesToLocalPods(t *testing.T) {
 		break
 	}
 
-	routeMap = make(map[string]bool)
+	routeMap = vtv.l3Validator.createValidationMap(vrfMap)
 	// Perform test
 	vtv.report.Clear()
 	numErrs = vtv.l3Validator.validateVrf1PodRoutes(vtv.vppCache.NodeMap[vtv.nodeKey], vrfMap, routeMap)
@@ -268,7 +268,7 @@ func testValidateRoutesToLocalPods(t *testing.T) {
 		break
 	}
 
-	routeMap = make(map[string]bool)
+	routeMap = vtv.l3Validator.createValidationMap(vrfMap)
 	// Perform test
 	vtv.report.Clear()
 	numErrs = vtv.l3Validator.validateVrf1PodRoutes(vtv.vppCache.NodeMap[vtv.nodeKey], vrfMap, routeMap)
@@ -284,7 +284,7 @@ func testValidateVrf0GigERoutes(t *testing.T) {
 	vrfMap, err := vtv.l3Validator.createVrfMap(vtv.vppCache.NodeMap[vtv.nodeKey])
 	gomega.Expect(err).To(gomega.BeNil())
 
-	routeMap := make(map[string]bool)
+	routeMap := vtv.l3Validator.createValidationMap(vrfMap)
 	resetToInitialErrorFreeState()
 
 	// --------------------------------------------------
@@ -342,11 +342,11 @@ func testValidateVrf0GigERoutes(t *testing.T) {
 	vtv.vppCache.NodeMap[vtv.nodeKey].NodeInterfaces[int(gigeRoute.IprMeta.OutgoingIfIdx)] = intf
 
 	// ------------------------------------------------------------------
-	// INJECT FAULTS: mismatched data on the route to local VPP GigE port
+	// INJECT FAULT: mismatched data on the route to local VPP GigE port
 	gigeRoute, ok = vrfMap[0][vtv.vppCache.NodeMap[vtv.nodeKey].IPAddr]
 	gomega.Expect(ok).To(gomega.BeTrue())
 
-	oldOutgoingIfIdx:= gigeRoute.IprMeta.OutgoingIfIdx
+	oldOutgoingIfIdx := gigeRoute.IprMeta.OutgoingIfIdx
 	gigeRoute.IprMeta.OutgoingIfIdx++
 	vrfMap[0][vtv.vppCache.NodeMap[vtv.nodeKey].IPAddr] = gigeRoute
 
@@ -354,12 +354,56 @@ func testValidateVrf0GigERoutes(t *testing.T) {
 	vtv.report.Clear()
 	numErrs = vtv.l3Validator.validateVrf0GigERoutes(vtv.vppCache.NodeMap[vtv.nodeKey], vrfMap, routeMap)
 
-	checkDataReport(0, 4, 0)
+	checkDataReport(0, 2, 1)
 	gomega.Expect(numErrs).To(gomega.Equal(4))
 
 	// Restore data back to error free state
 	gigeRoute.IprMeta.OutgoingIfIdx = oldOutgoingIfIdx
 	vrfMap[0][vtv.vppCache.NodeMap[vtv.nodeKey].IPAddr] = gigeRoute
+
+	// ------------------------------------------------------------------
+	// INJECT FAULT: missing route to local VPP GigE port (/32)
+	dstAddr := strings.Split(vtv.vppCache.NodeMap[vtv.nodeKey].IPAddr, "/")[0] + "/32"
+	delete(vrfMap[0], dstAddr)
+
+	// Perform test
+	vtv.report.Clear()
+	numErrs = vtv.l3Validator.validateVrf0GigERoutes(vtv.vppCache.NodeMap[vtv.nodeKey], vrfMap, routeMap)
+
+	checkDataReport(0, 1, 0)
+	gomega.Expect(numErrs).To(gomega.Equal(1))
+
+	// Restore data back to error free state
+	vrfMap, err = vtv.l3Validator.createVrfMap(vtv.vppCache.NodeMap[vtv.nodeKey])
+	gomega.Expect(err).To(gomega.BeNil())
+
+	// ------------------------------------------------------------------
+	// INJECT FAULTS: mismatched data on the route to local or remote node
+	// - Bad DstAddress
+	// - Bad outgoing interface name
+	dstAddr = strings.Split(vtv.vppCache.NodeMap[vtv.nodeKey].IPAddr, "/")[0] + "/32"
+	route, ok := vrfMap[0][dstAddr]
+	gomega.Expect(ok).To(gomega.BeTrue())
+
+	oldNextHop = gigeRoute.Ipr.DstAddr
+	route.Ipr.DstAddr = "1.2.3.4"
+
+	oldOutIface = route.Ipr.OutIface
+	route.Ipr.OutIface = "SomeInterfaceName"
+
+	vrfMap[0][dstAddr] = route
+
+	// Perform test
+	vtv.report.Clear()
+	numErrs = vtv.l3Validator.validateVrf0GigERoutes(vtv.vppCache.NodeMap[vtv.nodeKey], vrfMap, routeMap)
+
+	checkDataReport(0, 2, 0)
+	gomega.Expect(numErrs).To(gomega.Equal(2))
+
+	// Restore data back to error free state
+	route.Ipr.DstAddr = oldNextHop
+	route.Ipr.OutIface = oldOutIface
+	vrfMap[0][dstAddr] = route
 
 }
 

@@ -17,16 +17,6 @@ RUN wget -O go.tgz "https://golang.org/dl/go$GOLANG_VERSION.linux-amd64.tar.gz" 
  && tar -C /usr/local -xzf go.tgz \
  && rm go.tgz
 
-# install ETCD
-ENV ETCD_VER=v3.3.9
-ENV GOOGLE_URL=https://storage.googleapis.com/etcd
-ENV GITHUB_URL=https://github.com/coreos/etcd/releases/download
-ENV DOWNLOAD_URL=${GOOGLE_URL}
-
-RUN curl -L ${DOWNLOAD_URL}/${ETCD_VER}/etcd-${ETCD_VER}-linux-amd64.tar.gz -o /tmp/etcd-${ETCD_VER}-linux-amd64.tar.gz
-RUN tar xzvf /tmp/etcd-${ETCD_VER}-linux-amd64.tar.gz -C /tmp/etcd --strip-components=1
-RUN rm -f /tmp/etcd-${ETCD_VER}-linux-amd64.tar.gz
-
 # input arguments
 ARG VPP_REPO_URL
 ARG VPP_BRANCH_NAME

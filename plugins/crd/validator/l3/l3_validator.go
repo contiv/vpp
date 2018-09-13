@@ -164,7 +164,6 @@ func (v *Validator) validateVrf1PodRoutes(node *telemetrymodel.Node, vrfMap map[
 		numErrs += v.validateRoute(pod.IPAddress+"/32", 1, vrfMap, routeMap, node.Name,
 			pod.VppIfName, pod.VppSwIfIdx, pod.IPAddress)
 
-
 		// make sure pod that the route for the pod-facing tap interface in vpp
 		// exists and is valid
 		numErrs += v.validateRoute(pod.VppIfIPAddr, 1, vrfMap, routeMap, node.Name,
@@ -178,116 +177,40 @@ func (v *Validator) validateVrf0GigERoutes(node *telemetrymodel.Node, vrfMap map
 	routeMap map[uint32]map[string]int) int {
 	numErrs := 0
 
-	// begin validation of gigE routes, beginning with local one
-	gigeRoute, ok := vrfMap[0][node.IPAddr]
-	if !ok {
-		errString := fmt.Sprintf("missing route to local GigE interface (%s) - "+
-			"skipping validation of routes to VPP GigE interfaces for node %s", node.IPAddr, node.Name)
-		v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
-		numErrs++
-		return numErrs
-	}
-
-	// Assume that the route will be valid. Each failed check flips
-	// the status
-	routeMap[0][gigeRoute.Ipr.DstAddr] = routeValid
-
-	if gigeRoute.Ipr.DstAddr != node.IPAddr {
-		numErrs++
-		routeMap[0][gigeRoute.Ipr.DstAddr] = routeInvalid
-		errString := fmt.Sprintf("invalid route to VPP GigE subnet; bad DstAddr - have %s, expecting %s",
-			gigeRoute.Ipr.DstAddr, node.IPAddr)
-		v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
-	}
-
-	matched, err := regexp.Match(`GigabitEthernet[0-9]/[0-9]*/[0-9]`, []byte(gigeRoute.Ipr.OutIface))
-	if err != nil {
-		numErrs++
-		routeMap[0][gigeRoute.Ipr.DstAddr] = routeInvalid
-		errString := fmt.Sprintf("failed to match route %s outgoing interface (ifName %s)",
-			gigeRoute.Ipr.DstAddr, gigeRoute.Ipr.OutIface)
-		v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
-	} else if !matched {
-		numErrs++
-		routeMap[0][gigeRoute.Ipr.DstAddr] = routeInvalid
-		errString := fmt.Sprintf("invalid route to VPP GigE subnet %s; bad outgoing IfName - "+
-			"have %s, expecting <GigabitEthernetX/Y/Z>", node.IPAddr, gigeRoute.Ipr.OutIface)
-		v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
-	}
-
-	//make sure interface index in route points to valid node interface
-	intf := node.NodeInterfaces[int(gigeRoute.IprMeta.OutgoingIfIdx)]
-	if intf.IfMeta.SwIfIndex != gigeRoute.IprMeta.OutgoingIfIdx {
-		numErrs++
-		routeMap[0][gigeRoute.Ipr.DstAddr] = routeInvalid
-		errString := fmt.Sprintf("invalid route to VPP GigE subnet %s; bad ifIndex on outgoing interface - "+
-			"have %d, expecting %d", gigeRoute.Ipr.DstAddr, gigeRoute.IprMeta.OutgoingIfIdx, intf.IfMeta.SwIfIndex)
-		v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
-	}
-
-	gigEIPFound := false
-	for _, ip := range intf.If.IPAddresses {
-		if ip == node.IPAddr {
-			gigEIPFound = true
+	var gigEIfName string
+	var ifIdx int
+	var ifc telemetrymodel.NodeInterface
+	for ifIdx, ifc = range node.NodeInterfaces {
+		match, err := regexp.Match(`GigabitEthernet[0-9]/[0-9]*/[0-9]`, []byte(ifc.If.Name))
+		if err != nil {
+			numErrs++
+			errString := fmt.Sprintf("GigE interface lookup match error %s", err)
+			v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
+			return numErrs
+		}
+		if match {
+			gigEIfName = ifc.If.Name
+			break
 		}
 	}
 
-	if !gigEIPFound {
+	if gigEIfName == "" {
 		numErrs++
-		routeMap[0][gigeRoute.Ipr.DstAddr] = routeInvalid
-		errString := fmt.Sprintf("interface %s with index %d does not have a matching ip for dst ip %s",
-			intf.IfMeta.Tag, intf.IfMeta.SwIfIndex, gigeRoute.Ipr.DstAddr)
+		errString := fmt.Sprintf("GigE interface not found")
 		v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
+		return numErrs
 	}
+
+	// Validate the route to the local subnet
+	numErrs += v.validateRoute(node.IPAddr, 0, vrfMap, routeMap, node.Name, gigEIfName, uint32(ifIdx),
+		"0.0.0.0")
 
 	// Validate routes to all VPP nodes (remote and local) that are connected
 	// to the GigE subnet
 	nodeList := v.VppCache.RetrieveAllNodes()
 	for _, node := range nodeList {
 		dstIP, _ := separateIPandMask(node.IPAddr)
-		route, ok := vrfMap[0][dstIP+"/32"]
-		if !ok {
-			errString := fmt.Sprintf("missing route to node %s (DstIP %s/32)", node.Name, node.IPAddr)
-			v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
-			numErrs++
-			continue
-		}
-
-		// Assume that the route will be valid. Each failed check flips
-		// the status
-		routeMap[0][route.Ipr.DstAddr] = routeValid
-
-		ip, _ := separateIPandMask(route.Ipr.DstAddr)
-		if ip != route.Ipr.NextHopAddr {
-			numErrs++
-			routeMap[0][route.Ipr.DstAddr] = routeInvalid
-			errString := fmt.Sprintf("invalid route to node %s; bad NextHop - have %s, expecting %s",
-				node.Name, route.Ipr.NextHopAddr, node.IPAddr)
-			v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
-		}
-
-		matched, err := regexp.Match(`GigabitEthernet[0-9]/[0-9]*/[0-9]`, []byte(route.Ipr.OutIface))
-		if err != nil {
-			numErrs++
-			routeMap[0][route.Ipr.DstAddr] = routeInvalid
-			errString := fmt.Sprintf("failed to match route %s outgoing interface (ifName %s)",
-				gigeRoute.Ipr.DstAddr, gigeRoute.Ipr.OutIface)
-			v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
-		} else if !matched {
-			numErrs++
-			routeMap[0][route.Ipr.DstAddr] = routeInvalid
-			errString := fmt.Sprintf("invalid route to node %s; bad outgoing IfName - "+
-				"have %s, expecting <GigabitEthernetX/Y/Z>", node.IPAddr, gigeRoute.Ipr.OutIface)
-			v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
-		}
-
-		if route.IprMeta.OutgoingIfIdx != gigeRoute.IprMeta.OutgoingIfIdx {
-			numErrs++
-			routeMap[0][route.Ipr.DstAddr] = routeInvalid
-			errString := fmt.Sprintf("invalid route to node %s; bad ifIndex, have %d, expecting %d",
-				node.Name, route.IprMeta.OutgoingIfIdx, gigeRoute.IprMeta.OutgoingIfIdx)
-			v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
-		}
+		numErrs += v.validateRoute(dstIP+"/32", 0, vrfMap, routeMap, node.Name, gigEIfName, uint32(ifIdx), dstIP)
 	}
 
 	return numErrs
@@ -425,28 +348,8 @@ func (v *Validator) validateVrf0LocalHostRoute(node *telemetrymodel.Node, vrfMap
 func (v *Validator) validateVrf1DefaultRoute(node *telemetrymodel.Node, vrfMap map[uint32]Vrf,
 	routeMap map[uint32]map[string]int) int {
 
-	numErrs := 0
-	defaultRoute, ok := vrfMap[1]["0.0.0.0/0"]
-	if !ok {
-		//err default route is missing
-		numErrs++
-		errString := fmt.Sprintf("default route 0.0.0.0/0 missing for node %s", node.Name)
-		v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
-	}
-
-	// Assume that the route will be valid. Each failed check flips
-	// the status
-	routeMap[1][defaultRoute.Ipr.DstAddr] = routeValid
-
-	if defaultRoute.IprMeta.OutgoingIfIdx != 0 {
-		//err index does not match vrf 0 index - mismatch
-		numErrs++
-		routeMap[1][defaultRoute.Ipr.DstAddr] = routeInvalid
-		errString := fmt.Sprintf("expeceted default route 0.0.0.0/0 to have outgoing "+
-			"interface index of 0, got %d", defaultRoute.IprMeta.OutgoingIfIdx)
-		v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
-	}
-	return numErrs
+	return v.validateRoute("0.0.0.0/0", 1, vrfMap, routeMap, node.Name,
+		"", 0, "0.0.0.0")
 }
 
 func (v *Validator) validateRouteToLocalLoopInterface(node *telemetrymodel.Node, vrfMap map[uint32]Vrf,
@@ -481,44 +384,51 @@ func (v *Validator) validatePodSubnetCIDR(node *telemetrymodel.Node, vrfMap map[
 	return numErrs
 }
 
-func (v *Validator) validateRoute(rteId string, vrfId uint32, vrfMap VrfMap, rtMap RouteMap, nodeName string,
+func (v *Validator) validateRoute(rteID string, vrfID uint32, vrfMap VrfMap, rtMap RouteMap, nodeName string,
 	eOutIface string, eOutgoingIfIdx uint32, eNextHopAddr string) int {
 
 	numErrs := 0
 
-	route, ok := vrfMap[vrfId][rteId]
+	route, ok := vrfMap[vrfID][rteID]
 	if !ok {
 		numErrs++
-		errString := fmt.Sprintf("missing route to PodSubnet %s in VRF%d", rteId, vrfId)
+		errString := fmt.Sprintf("missing route to PodSubnet %s in VRF%d", rteID, vrfID)
 		v.Report.LogErrAndAppendToNodeReport(nodeName, errString)
 
 		return numErrs
 	}
 
-	rtMap[vrfId][route.Ipr.DstAddr] = routeValid
+	rtMap[vrfID][route.Ipr.DstAddr] = routeValid
 
-	if route.Ipr.OutIface != eOutIface {
+	matched, err := regexp.Match(eOutIface, []byte(route.Ipr.OutIface))
+	if err != nil {
 		numErrs++
-		rtMap[vrfId][route.Ipr.DstAddr] = routeInvalid
+		rtMap[vrfID][route.Ipr.DstAddr] = routeInvalid
+		errString := fmt.Sprintf("failed to match route %s outgoing interface (ifName %s) in VRF%d",
+			route.Ipr.DstAddr, route.Ipr.OutIface, vrfID)
+		v.Report.LogErrAndAppendToNodeReport(nodeName, errString)
+	} else if !matched {
+		numErrs++
+		rtMap[vrfID][route.Ipr.DstAddr] = routeInvalid
 		errString := fmt.Sprintf("invalid route %s in VRF%d; bad outgoing if - "+
-			"have '%s', expecting '%s'", route.Ipr.DstAddr, vrfId, route.Ipr.OutIface, eOutIface)
+			"have '%s', expecting '%s'", route.Ipr.DstAddr, vrfID, route.Ipr.OutIface, eOutIface)
 		v.Report.LogErrAndAppendToNodeReport(nodeName, errString)
 	}
 
 	if route.IprMeta.OutgoingIfIdx != eOutgoingIfIdx {
 		numErrs++
-		rtMap[vrfId][route.Ipr.DstAddr] = routeInvalid
+		rtMap[vrfID][route.Ipr.DstAddr] = routeInvalid
 		errString := fmt.Sprintf("invalid route %s in VRF%d; bad outgoing swIndex - "+
-			"have '%d', expecting '%d'", route.Ipr.DstAddr, vrfId, route.IprMeta.OutgoingIfIdx, eOutgoingIfIdx)
+			"have '%d', expecting '%d'", route.Ipr.DstAddr, vrfID, route.IprMeta.OutgoingIfIdx, eOutgoingIfIdx)
 		v.Report.LogErrAndAppendToNodeReport(nodeName, errString)
 	}
 
 	// eNextHop is empty if the next hop should not be validated
 	if (eNextHopAddr != "") && (route.Ipr.NextHopAddr != eNextHopAddr) {
 		numErrs++
-		rtMap[vrfId][route.Ipr.DstAddr] = routeInvalid
+		rtMap[vrfID][route.Ipr.DstAddr] = routeInvalid
 		errString := fmt.Sprintf("invalid route %s in VRF%d; bad nextHop -"+
-			"have '%s', expecting '%s", route.Ipr.DstAddr, vrfId, route.Ipr.NextHopAddr, eNextHopAddr)
+			"have '%s', expecting '%s", route.Ipr.DstAddr, vrfID, route.Ipr.NextHopAddr, eNextHopAddr)
 		v.Report.LogErrAndAppendToNodeReport(nodeName, errString)
 	}
 

@@ -163,7 +163,6 @@ func (v *Validator) validateVrf1PodRoutes(node *telemetrymodel.Node, vrfMap map[
 		numErrs += v.validateRoute(pod.IPAddress+"/32", 1, vrfMap, routeMap, node.Name,
 			pod.VppIfName, pod.VppSwIfIdx, pod.IPAddress)
 
-
 		// make sure pod that the route for the pod-facing tap interface in vpp
 		// exists and is valid
 		numErrs += v.validateRoute(pod.VppIfIPAddr, 1, vrfMap, routeMap, node.Name,
@@ -204,7 +203,6 @@ func (v *Validator) validateVrf0GigERoutes(node *telemetrymodel.Node, vrfMap map
 	// Validate the route to the local subnet
 	numErrs += v.validateRoute(node.IPAddr, 0, vrfMap, routeMap, node.Name, gigEIfName, uint32(ifIdx),
 		"0.0.0.0")
-
 
 	// Validate routes to all VPP nodes (remote and local) that are connected
 	// to the GigE subnet

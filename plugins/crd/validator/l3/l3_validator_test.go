@@ -330,8 +330,8 @@ func testValidateVrf0GigERoutes(t *testing.T) {
 	vtv.report.Clear()
 	numErrs = vtv.l3Validator.validateVrf0GigERoutes(vtv.vppCache.NodeMap[vtv.nodeKey], vrfMap, routeMap)
 
-	checkDataReport(0, 1, 0)
-	gomega.Expect(numErrs).To(gomega.Equal(1))
+	checkDataReport(0, 3, 1)
+	gomega.Expect(numErrs).To(gomega.Equal(5))
 
 	// Restore data back to error free state
 	gigeRoute.Ipr.DstAddr = oldNextHop

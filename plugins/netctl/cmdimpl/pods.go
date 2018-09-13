@@ -42,6 +42,7 @@ type podGetter struct {
 	ndCache    nodeDataCache
 	logger     logging.Logger
 	db         *etcd.BytesConnectionEtcd
+	pods       []*pod.Pod
 }
 
 // PrintAllPods will print out all of the non local pods in a network in
@@ -85,6 +86,27 @@ func newPodGetter() *podGetter {
 		os.Exit(1)
 	}
 
+	pg.pods = make([]*pod.Pod, 0)
+	itr, err := pg.db.ListValues("/vnf-agent/contiv-ksr/k8s/pod/")
+	if err != nil {
+		fmt.Printf("Failed to get pods from etcd, error %s", err)
+		os.Exit(2)
+	}
+
+	for {
+		kv, stop := itr.GetNext()
+		if stop {
+			break
+		}
+		buf := kv.GetValue()
+		podInfo := &pod.Pod{}
+		if err = json.Unmarshal(buf, podInfo); err != nil {
+			fmt.Printf("Failed to unmarshall pod, error %s", err)
+			continue
+		}
+		pg.pods = append(pg.pods, podInfo)
+	}
+
 	return pg
 }
 
@@ -116,22 +138,9 @@ func (pg *podGetter) printAllPods(w *tabwriter.Writer) {
 func (pg *podGetter) printPodsPerNode(w *tabwriter.Writer, nodeNameOrIP string, nodeName string) {
 	hostIP := resolveNodeOrIP(nodeNameOrIP)
 
-	itr, err := pg.db.ListValues("/vnf-agent/contiv-ksr/k8s/pod/")
-	if err != nil {
-		fmt.Printf("Failed to get pods from etcd for node %s, err %s", nodeNameOrIP, err)
-		return
-	}
-
 	fmt.Fprintf(w, "POD-NAME\tNAMESPACE\tPOD-IP\tVPP-IP\tIF-IDX\tIF-NAME\tINTERNAL-IF-NAME\tHOST-IP\n")
 
-	for {
-		kv, stop := itr.GetNext()
-		if stop {
-			break
-		}
-		buf := kv.GetValue()
-		podInfo := &pod.Pod{}
-		err = json.Unmarshal(buf, podInfo)
+	for _, podInfo := range pg.pods {
 		if podInfo.HostIpAddress != hostIP || podInfo.IpAddress == hostIP {
 			continue
 		}

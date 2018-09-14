@@ -231,12 +231,41 @@ func (v *Validator) validateRemoteNodeRoutes(node *telemetrymodel.Node, vrfMap V
 		return numErrs
 	}
 
-	// Validate routes for all *remote* nodes (i.e. skip over the local node)
+	// Validate VRF 0/1 routes to remote management interfaces and VRF1 routes
+	// to remote host networks
 	nodeList := v.VppCache.RetrieveAllNodes()
 	for _, othNode := range nodeList {
-		if othNode.Name == node.Name {
+		// find the other node's BVI interface
+		ifc, found, err := findInterface("vxlanBVI", othNode.NodeInterfaces)
+		if err != nil {
+			numErrs++
+			errString := fmt.Sprintf("failed to validate route %s VRF%d - "+
+				"failed lookup for vxlanBVI for node %s, error %s", othNode.ManIPAddr+"/32", 0, othNode.Name, err)
+			v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
 			continue
 		}
+
+		if !found {
+			numErrs++
+			errString := fmt.Sprintf("failed to validate route %s VRF%d - vxlanBVI for node %s not found",
+				othNode.ManIPAddr+"/32", 0, othNode.Name)
+			v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
+			continue
+		}
+
+		// KISS and assume for now that we only have a single IP address on
+		// the BVI interface
+		bviAddr := strings.Split(ifc.If.IPAddresses[0], "/")[0]
+
+		// The remaining validations should skip the local node
+		if othNode.Name == node.Name {
+			numErrs += v.validateRoute(othNode.NodeIPam.VppHostNetwork, 1, vrfMap, routeMap, node.Name,
+				"", 0, "0.0.0.0", 0)
+			continue
+		}
+
+		numErrs += v.validateRoute(othNode.NodeIPam.VppHostNetwork, 1, vrfMap, routeMap, node.Name,
+			"vxlanBVI", localVxlanBVI.IfMeta.SwIfIndex, bviAddr, 0)
 
 		podNwIP := othNode.NodeIPam.PodNetwork
 		route, ok := vrfMap[1][podNwIP]
@@ -306,27 +335,6 @@ func (v *Validator) validateRemoteNodeRoutes(node *telemetrymodel.Node, vrfMap V
 		// validate routes to Host IP addresses (Management IP addresses) on
 		// remote nodes in VRF0 (points to remote vxlanBVI IP addess, and going
 		// out through the local vxlanBVI)
-		ifc, found, err := findInterface("vxlanBVI", othNode.NodeInterfaces)
-		if err != nil {
-			numErrs++
-			errString := fmt.Sprintf("failed to validate route %s VRF%d - "+
-				"failed lookup for vxlanBVI for node %s, error %s", othNode.ManIPAddr+"/32", 0, othNode.Name, err)
-			v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
-			continue
-		}
-
-		if !found {
-			numErrs++
-			errString := fmt.Sprintf("failed to validate route %s VRF%d - vxlanBVI for node %s not found",
-				othNode.ManIPAddr+"/32", 0, othNode.Name)
-			v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
-			continue
-		}
-
-		// KISS and assume for now that we only have a single IP address on
-		// the BVI interface
-		bviAddr := strings.Split(ifc.If.IPAddresses[0], "/")[0]
-
 		numErrs += v.validateRoute(othNode.ManIPAddr+"/32", 1, vrfMap, routeMap, node.Name,
 			"vxlanBVI", localVxlanBVI.IfMeta.SwIfIndex, bviAddr, 0)
 	}
@@ -443,25 +451,7 @@ func (v *Validator) validateVppHostNetworkRoutes(node *telemetrymodel.Node, vrfM
 		"local0", 0, "0.0.0.0", 0)
 
 	numErrs += v.validateLocalVppHostNetworkRoute(node, vrfMap, routeMap)
-	/*
-		hostNetworkAddr, hostNetworkMask, err := utils.Ipv4CidrToAddressAndMask(node.NodeIPam.VppHostNetwork)
-		if err != nil {
-			numErrs++
-			errString := fmt.Sprintf("failed to valide route %s in both VRFs; bad CIDR format, err %s",
-				node.NodeIPam.VppHostNetwork, err)
-			v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
-			return numErrs
-		}
 
-		hostSubnetAddr, hostSubnetMask, err := utils.Ipv4CidrToAddressAndMask(node.NodeIPam.Config.VppHostSubnetCIDR)
-		if err != nil {
-			numErrs++
-			errString := fmt.Sprintf("failed to valide VppHostSubnetCIDR; have %s, err %s",
-				node.NodeIPam.Config.VppHostSubnetCIDR, err)
-			v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
-			return numErrs
-		}
-	*/
 	return numErrs
 }
 
@@ -511,12 +501,13 @@ func (v *Validator) validateLocalVppHostNetworkRoute(node *telemetrymodel.Node, 
 
 	if (ifHostNetMask != ipamHostNetMask) || (ifHostNetPrefix != ipamHostNetPrefix) {
 		numErrs++
-		errString := fmt.Sprintf("inconsisten ipam vppHostNetwork %s vs tap-vpp2 IP address %s",
+		errString := fmt.Sprintf("inconsistent ipam vppHostNetwork %s vs tap-vpp2 IP address %s",
 			node.NodeIPam.VppHostNetwork, ifc.If.IPAddresses[0])
 		v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
 		return numErrs
 	}
 
+	// Validate tap-vpp2 drop routes
 	drop1Addr := utils.AddressAndMaskToIPv4(ifHostNetAddr, ^uint32(0))
 	numErrs += v.validateRoute(drop1Addr, 0, vrfMap, routeMap, node.Name,
 		"", ifc.IfMeta.SwIfIndex, strings.Split(ifc.If.IPAddresses[0], "/")[0], 0)

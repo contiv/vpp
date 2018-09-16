@@ -246,8 +246,8 @@ func (v *Validator) validateRemoteNodeRoutes(node *telemetrymodel.Node, vrfMap V
 
 		if othNode.Name == node.Name {
 			// Validations performed on routes to the local node
-			// Validate the route to local vppHostNetwork subnet - goes
-			// through VRF0
+			// Validate the route to local vppHostNetwork subnet on VRF1 -
+			// goes through VRF0
 			numErrs += v.validateRoute(othNode.NodeIPam.VppHostNetwork, 1, vrfMap, routeMap, node.Name,
 				"", 0, "0.0.0.0", 0)
 			continue
@@ -279,7 +279,7 @@ func (v *Validator) validateRemoteNodeRoutes(node *telemetrymodel.Node, vrfMap V
 			"", 0, "0.0.0.0", 1)
 
 		// validate routes to Host IP addresses (Management IP addresses) on
-		// remote nodes in VRF0 (points to remote vxlanBVI IP addess, and going
+		// remote nodes in VRF1 (points to remote vxlanBVI IP addess, and going
 		// out through the local vxlanBVI)
 		numErrs += v.validateRoute(othNode.ManIPAddr+"/32", 1, vrfMap, routeMap, node.Name,
 			vxlanBviName, localVxlanBVI.IfMeta.SwIfIndex, bviAddr, 0)
@@ -352,7 +352,7 @@ func (v *Validator) validateRemoteNodeRoutes(node *telemetrymodel.Node, vrfMap V
 
 func (v *Validator) validateVrf0LocalHostRoute(node *telemetrymodel.Node, vrfMap VrfMap, routeMap RouteMap) int {
 
-	//validate local route to host and that the interface is correct
+	// validate local route to host and that the interface is correct
 	numErrs := 0
 	localRoute, ok := vrfMap[0][node.ManIPAddr+"/32"]
 	if !ok {
@@ -371,6 +371,7 @@ func (v *Validator) validateVrf0LocalHostRoute(node *telemetrymodel.Node, vrfMap
 	for _, arpEntry := range node.NodeIPArp {
 		if arpEntry.AeMeta.IfIndex == tapIntf.IfMeta.SwIfIndex {
 			nextHop = arpEntry.Ae.IPAddress
+
 			numErrs += v.validateRoute(nextHop+"/32", 0, vrfMap, routeMap, node.Name,
 				tap2HostName, tapIntf.IfMeta.SwIfIndex, nextHop, 0)
 			break
@@ -429,11 +430,32 @@ func (v *Validator) validateRouteToLocalVxlanBVI(node *telemetrymodel.Node, vrfM
 		return numErrs
 	}
 
-	//validateRouteToLocalNodeLoopInterface
+	// Validate the route to each of the vxlanBVI's IP addresses
 	for _, ip := range loopIf.If.IPAddresses {
+		// Validate route to vxlanBVI subnet
 		numErrs += v.validateRoute(ip, 1, vrfMap, routeMap, node.Name,
 			loopIf.IfMeta.Tag, loopIf.IfMeta.SwIfIndex, "0.0.0.0", 0)
+
+		vxlanBviAddr, vxlanBviMask, _ := utils.Ipv4CidrToAddressAndMask(ip)
+		bviIP := utils.AddressAndMaskToIPv4(vxlanBviAddr, ^uint32(0))
+		bviNextHop := fmt.Sprintf("%d.%d.%d.%d",
+			vxlanBviAddr>>24, (vxlanBviAddr>>16)&0xFF, (vxlanBviAddr>>8)&0xff, vxlanBviAddr&0xFF)
+
+		// Validate route to the local vxlanBVI interface
+		numErrs += v.validateRoute(bviIP, 1, vrfMap, routeMap, node.Name,
+			loopIf.IfMeta.Tag, loopIf.IfMeta.SwIfIndex, bviNextHop, 0)
+
+		// Validate local vxlanBVI drop routes
+
+		drop1Addr := utils.AddressAndMaskToIPv4(vxlanBviAddr &^ vxlanBviMask, ^uint32(0))
+		numErrs += v.validateRoute(drop1Addr, 1, vrfMap, routeMap, node.Name,
+			"", 0, "0.0.0.0", 0)
+
+		drop2Addr := utils.AddressAndMaskToIPv4(vxlanBviAddr | vxlanBviMask, ^uint32(0))
+		numErrs += v.validateRoute(drop2Addr, 1, vrfMap, routeMap, node.Name,
+			"", 0, "0.0.0.0", 0)
 	}
+
 	return numErrs
 }
 
@@ -465,7 +487,7 @@ func (v *Validator) validateVppHostNetworkRoutes(node *telemetrymodel.Node, vrfM
 func (v *Validator) validateLocalVppHostNetworkRoute(node *telemetrymodel.Node, vrfMap VrfMap, routeMap RouteMap) int {
 	numErrs := 0
 
-	ifc, err := findInterface(`tap-vpp2`, node.NodeInterfaces)
+	ifc, err := findInterface(tap2HostName, node.NodeInterfaces)
 	if err != nil {
 		numErrs++
 		errString := fmt.Sprintf("failed to validate route to tap-vpp2 - "+
@@ -537,6 +559,8 @@ func (v *Validator) validateRoute(rteID string, vrfID uint32, vrfMap VrfMap, rtM
 		return numErrs
 	}
 
+	// Assume at first that the route is valid. Any error found below will
+	// flip the route status to false
 	rtMap[vrfID][route.Ipr.DstAddr] = routeValid
 
 	matched, err := regexp.Match(eOutIface, []byte(route.Ipr.OutIface))
@@ -570,7 +594,7 @@ func (v *Validator) validateRoute(rteID string, vrfID uint32, vrfMap VrfMap, rtM
 		v.Report.LogErrAndAppendToNodeReport(nodeName, errString)
 	}
 
-	// eNextHop is empty if the next hop should not be validated
+	// eNextHopAddr is empty if the next hop should not be validated
 	if (eNextHopAddr != "") && (route.Ipr.NextHopAddr != eNextHopAddr) {
 		numErrs++
 		rtMap[vrfID][route.Ipr.DstAddr] = routeInvalid

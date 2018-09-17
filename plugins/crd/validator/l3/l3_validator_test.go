@@ -330,8 +330,8 @@ func testValidateVrf0GigERoutes(t *testing.T) {
 	vtv.report.Clear()
 	numErrs = vtv.l3Validator.validateVrf0GigERoutes(vtv.vppCache.NodeMap[vtv.nodeKey], vrfMap, routeMap)
 
-	checkDataReport(0, 3, 0)
-	gomega.Expect(numErrs).To(gomega.Equal(3))
+	checkDataReport(0, 5, 0)
+	gomega.Expect(numErrs).To(gomega.Equal(5))
 
 	// Restore data back to error free state
 	gigeRoute.Ipr.DstAddr = oldNextHop
@@ -354,8 +354,8 @@ func testValidateVrf0GigERoutes(t *testing.T) {
 	vtv.report.Clear()
 	numErrs = vtv.l3Validator.validateVrf0GigERoutes(vtv.vppCache.NodeMap[vtv.nodeKey], vrfMap, routeMap)
 
-	checkDataReport(0, 2, 1)
-	gomega.Expect(numErrs).To(gomega.Equal(4))
+	checkDataReport(0, 1, 0)
+	gomega.Expect(numErrs).To(gomega.Equal(1))
 
 	// Restore data back to error free state
 	gigeRoute.IprMeta.OutgoingIfIdx = oldOutgoingIfIdx
@@ -386,7 +386,7 @@ func testValidateVrf0GigERoutes(t *testing.T) {
 	gomega.Expect(ok).To(gomega.BeTrue())
 
 	oldNextHop = gigeRoute.Ipr.DstAddr
-	route.Ipr.DstAddr = "1.2.3.4"
+	route.Ipr.NextHopAddr = "1.2.3.4"
 
 	oldOutIface = route.Ipr.OutIface
 	route.Ipr.OutIface = "SomeInterfaceName"
@@ -401,7 +401,7 @@ func testValidateVrf0GigERoutes(t *testing.T) {
 	gomega.Expect(numErrs).To(gomega.Equal(2))
 
 	// Restore data back to error free state
-	route.Ipr.DstAddr = oldNextHop
+	route.Ipr.NextHopAddr = oldNextHop
 	route.Ipr.OutIface = oldOutIface
 	vrfMap[0][dstAddr] = route
 

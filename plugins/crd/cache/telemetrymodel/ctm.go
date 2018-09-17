@@ -210,6 +210,7 @@ type NodeIPRoute struct {
 
 // IPRoute defines the IP Route entry data set
 type IPRoute struct {
+	Type        uint32 `json:"type"`
 	VrfID       uint32 `json:"vrf_id"`
 	DstAddr     string `json:"dst_ip_addr"`
 	NextHopAddr string `json:"next_hop_addr"`

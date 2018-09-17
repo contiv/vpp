@@ -199,16 +199,7 @@ func (v *Validator) validateVrf0GigERoutes(node *telemetrymodel.Node, vrfMap Vrf
 	// Validate gigE interface drop routes
 	for _, ipAddr := range ifc.If.IPAddresses {
 		if ipAddr == node.IPAddr {
-			gigEIPAddr, giEIPMask, _ := utils.Ipv4CidrToAddressAndMask(ipAddr)
-
-			drop1Addr := utils.AddressAndMaskToIPv4(gigEIPAddr&^giEIPMask, ^uint32(0))
-			numErrs += v.validateRoute(drop1Addr, 0, vrfMap, routeMap, node.Name,
-				"", 0, "0.0.0.0", 0)
-
-			drop2Addr := utils.AddressAndMaskToIPv4(gigEIPAddr|giEIPMask, ^uint32(0))
-			numErrs += v.validateRoute(drop2Addr, 0, vrfMap, routeMap, node.Name,
-				"", 0, "0.0.0.0", 0)
-
+			numErrs += v.validatePhyNextHopRoutes(ipAddr, 0, vrfMap, routeMap, node.Name, ifc, 0)
 			break
 		}
 	}
@@ -216,8 +207,12 @@ func (v *Validator) validateVrf0GigERoutes(node *telemetrymodel.Node, vrfMap Vrf
 	// Validate routes to all VPP nodes (remote and local) that are connected
 	// to the GigE subnet
 	nodeList := v.VppCache.RetrieveAllNodes()
-	for _, node := range nodeList {
-		dstIP := strings.Split(node.IPAddr, "/")
+	for _, remoteNode := range nodeList {
+		if remoteNode == node {
+			continue
+		}
+
+		dstIP := strings.Split(remoteNode.IPAddr, "/")
 		numErrs += v.validateRoute(dstIP[0]+"/32", 0, vrfMap, routeMap, node.Name, ifc.If.Name,
 			uint32(ifc.IfMeta.SwIfIndex), dstIP[0], 0)
 	}
@@ -372,12 +367,14 @@ func (v *Validator) validateVrf0LocalHostRoute(node *telemetrymodel.Node, vrfMap
 		if arpEntry.AeMeta.IfIndex == tapIntf.IfMeta.SwIfIndex {
 			nextHop = arpEntry.Ae.IPAddress
 
+			// Validate the nexthop found in the local host route
 			numErrs += v.validateRoute(nextHop+"/32", 0, vrfMap, routeMap, node.Name,
 				tap2HostName, tapIntf.IfMeta.SwIfIndex, nextHop, 0)
 			break
 		}
 	}
 
+	// Validate the local host route itself
 	numErrs += v.validateRoute(node.ManIPAddr+"/32", 0, vrfMap, routeMap, node.Name,
 		tap2HostName, tapIntf.IfMeta.SwIfIndex, nextHop, 0)
 
@@ -436,24 +433,7 @@ func (v *Validator) validateRouteToLocalVxlanBVI(node *telemetrymodel.Node, vrfM
 		numErrs += v.validateRoute(ip, 1, vrfMap, routeMap, node.Name,
 			loopIf.IfMeta.Tag, loopIf.IfMeta.SwIfIndex, "0.0.0.0", 0)
 
-		vxlanBviAddr, vxlanBviMask, _ := utils.Ipv4CidrToAddressAndMask(ip)
-		bviIP := utils.AddressAndMaskToIPv4(vxlanBviAddr, ^uint32(0))
-		bviNextHop := fmt.Sprintf("%d.%d.%d.%d",
-			vxlanBviAddr>>24, (vxlanBviAddr>>16)&0xFF, (vxlanBviAddr>>8)&0xff, vxlanBviAddr&0xFF)
-
-		// Validate route to the local vxlanBVI interface
-		numErrs += v.validateRoute(bviIP, 1, vrfMap, routeMap, node.Name,
-			loopIf.IfMeta.Tag, loopIf.IfMeta.SwIfIndex, bviNextHop, 0)
-
-		// Validate local vxlanBVI drop routes
-
-		drop1Addr := utils.AddressAndMaskToIPv4(vxlanBviAddr &^ vxlanBviMask, ^uint32(0))
-		numErrs += v.validateRoute(drop1Addr, 1, vrfMap, routeMap, node.Name,
-			"", 0, "0.0.0.0", 0)
-
-		drop2Addr := utils.AddressAndMaskToIPv4(vxlanBviAddr | vxlanBviMask, ^uint32(0))
-		numErrs += v.validateRoute(drop2Addr, 1, vrfMap, routeMap, node.Name,
-			"", 0, "0.0.0.0", 0)
+		numErrs += v.validatePhyNextHopRoutes(ip, 1, vrfMap, routeMap, node.Name, loopIf, 0)
 	}
 
 	return numErrs
@@ -496,20 +476,6 @@ func (v *Validator) validateLocalVppHostNetworkRoute(node *telemetrymodel.Node, 
 		return numErrs
 	}
 
-	numErrs += v.validateRoute(ifc.If.IPAddresses[0], 0, vrfMap, routeMap, node.Name,
-		"", ifc.IfMeta.SwIfIndex, "0.0.0.0", 0)
-
-	// Make sure that the tap-vpp2 ip address is within the vppHostNetwork subnet
-	ifHostNetAddr, ifHostNetMask, err := utils.Ipv4CidrToAddressAndMask(ifc.If.IPAddresses[0])
-	if err != nil {
-		numErrs++
-		errString := fmt.Sprintf("tap-vpp2 IP address %s bad format; err %s",
-			ifc.If.IPAddresses[0], err)
-		v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
-		return numErrs
-	}
-	ifHostNetPrefix := ifHostNetAddr &^ ifHostNetMask
-
 	ipamHostNetAddr, ipamHostNetMask, err := utils.Ipv4CidrToAddressAndMask(node.NodeIPam.VppHostNetwork)
 	if err != nil {
 		numErrs++
@@ -520,26 +486,33 @@ func (v *Validator) validateLocalVppHostNetworkRoute(node *telemetrymodel.Node, 
 	}
 	ipamHostNetPrefix := ipamHostNetAddr &^ ipamHostNetMask
 
-	if (ifHostNetMask != ipamHostNetMask) || (ifHostNetPrefix != ipamHostNetPrefix) {
-		numErrs++
-		errString := fmt.Sprintf("inconsistent ipam vppHostNetwork %s vs tap-vpp2 IP address %s",
-			node.NodeIPam.VppHostNetwork, ifc.If.IPAddresses[0])
-		v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
-		return numErrs
+	for _, ipAddr := range ifc.If.IPAddresses {
+		// Validate host subnet route
+		numErrs += v.validateRoute(ipAddr, 0, vrfMap, routeMap, node.Name,
+			"", ifc.IfMeta.SwIfIndex, "0.0.0.0", 0)
+
+		// Validate tap-vpp2's drop routes (.0/32, .1/32 and .255/32)
+		numErrs += v.validatePhyNextHopRoutes(ipAddr, 0, vrfMap, routeMap, node.Name, ifc, 0)
+
+		// Make sure that the tap-vpp2 ip address is within the vppHostNetwork subnet
+		ifHostNetAddr, ifHostNetMask, err := utils.Ipv4CidrToAddressAndMask(ipAddr)
+		if err != nil {
+			numErrs++
+			errString := fmt.Sprintf("tap-vpp2 IP address %s bad format; err %s",
+				ifc.If.IPAddresses[0], err)
+			v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
+			continue
+		}
+		ifHostNetPrefix := ifHostNetAddr &^ ifHostNetMask
+
+		if (ifHostNetMask != ipamHostNetMask) || (ifHostNetPrefix != ipamHostNetPrefix) {
+			numErrs++
+			errString := fmt.Sprintf("inconsistent ipam vppHostNetwork %s vs tap-vpp2 IP address %s",
+				node.NodeIPam.VppHostNetwork, ifc.If.IPAddresses[0])
+			v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
+			continue
+		}
 	}
-
-	// Validate tap-vpp2 drop routes
-	drop1Addr := utils.AddressAndMaskToIPv4(ifHostNetAddr, ^uint32(0))
-	numErrs += v.validateRoute(drop1Addr, 0, vrfMap, routeMap, node.Name,
-		"", ifc.IfMeta.SwIfIndex, strings.Split(ifc.If.IPAddresses[0], "/")[0], 0)
-
-	drop2Addr := utils.AddressAndMaskToIPv4(ifHostNetPrefix, ^uint32(0))
-	numErrs += v.validateRoute(drop2Addr, 0, vrfMap, routeMap, node.Name,
-		"", 0, "0.0.0.0", 0)
-
-	drop3Addr := utils.AddressAndMaskToIPv4(ifHostNetPrefix+ifHostNetMask, ^uint32(0))
-	numErrs += v.validateRoute(drop3Addr, 0, vrfMap, routeMap, node.Name,
-		"", 0, "0.0.0.0", 0)
 
 	return numErrs
 }
@@ -602,6 +575,31 @@ func (v *Validator) validateRoute(rteID string, vrfID uint32, vrfMap VrfMap, rtM
 			"have '%s', expecting '%s", route.Ipr.DstAddr, vrfID, route.Ipr.NextHopAddr, eNextHopAddr)
 		v.Report.LogErrAndAppendToNodeReport(nodeName, errString)
 	}
+
+	return numErrs
+}
+
+func (v *Validator) validatePhyNextHopRoutes(rteID string, vrfID uint32, vrfMap VrfMap, rtMap RouteMap, nodeName string,
+	outIfc *telemetrymodel.NodeInterface, eViaVrf uint32) int {
+	numErrs := 0
+
+	rteAddr, rteMask, _ := utils.Ipv4CidrToAddressAndMask(rteID)
+
+	// Validate route to the local vxlanBVI interface
+	phyNextHopCidr := utils.AddressAndMaskToIPv4(rteAddr, ^uint32(0))
+	phyNextHopAddr := fmt.Sprintf("%d.%d.%d.%d",
+		rteAddr>>24, (rteAddr>>16)&0xFF, (rteAddr>>8)&0xff, rteAddr&0xFF)
+	numErrs += v.validateRoute(phyNextHopCidr, vrfID, vrfMap, rtMap, nodeName,
+		outIfc.IfMeta.Tag, outIfc.IfMeta.SwIfIndex, phyNextHopAddr, 0)
+
+	// Validate local vxlanBVI drop routes
+	drop1Addr := utils.AddressAndMaskToIPv4(rteAddr&^rteMask, ^uint32(0))
+	numErrs += v.validateRoute(drop1Addr, vrfID, vrfMap, rtMap, nodeName,
+		"", 0, "0.0.0.0", 0)
+
+	drop2Addr := utils.AddressAndMaskToIPv4(rteAddr|rteMask, ^uint32(0))
+	numErrs += v.validateRoute(drop2Addr, vrfID, vrfMap, rtMap, nodeName,
+		"", 0, "0.0.0.0", 0)
 
 	return numErrs
 }

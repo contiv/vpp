@@ -227,25 +227,25 @@ func (v *Validator) validateRemoteNodeRoutes(node *telemetrymodel.Node, vrfMap V
 	//validate remote nodes connectivity to current node
 	numErrs := 0
 
-	// Find local BVI - this will be the outgoing ifIndex for routes to
-	// remote nodes
+	// Find the local vxlanBVI - this will be the outgoing ifIndex for routes
+	// to remote nodes
 	localVxlanBVI, err := findInterface(vxlanBviName, node.NodeInterfaces)
 	if err != nil {
 		numErrs++
-		errString := fmt.Sprintf("local vxlanBVI lookup failed, error %s", err)
+		errString := fmt.Sprintf("local vxlanBVI lookup failed, error %s; "+
+			"unable to validate routes to remote nodes", err)
 		v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
 		return numErrs
 	}
 
-	// Validate VRF 0/1 routes to remote management interfaces and VRF1 routes
-	// to remote host networks
+	// Validate routes from VRF0 and VRF1 to local and remote Host IP addresses
+	// (Management IP addresses).
 	nodeList := v.VppCache.RetrieveAllNodes()
 	for _, othNode := range nodeList {
 
 		if othNode.Name == node.Name {
-			// Validations performed on routes to the local node
-			// Validate the route to local vppHostNetwork subnet on VRF1 -
-			// goes through VRF0
+			// Validate route from VRF1 to the vppHostNetwork subnet on the
+			// local node.
 			numErrs += v.validateRoute(othNode.NodeIPam.VppHostNetwork, 1, vrfMap, routeMap, node.Name,
 				"", 0, "0.0.0.0", 0, 1)
 			continue
@@ -262,86 +262,49 @@ func (v *Validator) validateRemoteNodeRoutes(node *telemetrymodel.Node, vrfMap V
 			continue
 		}
 
-		// KISS and assume for now that we only have a single IP address on
-		// the BVI interface
-		bviAddr := strings.Split(ifc.If.IPAddresses[0], "/")[0]
+		// Check if the nextHop on the route to the vppHostNetwork subnet on
+		// the remote node is one of the IP addresses configured on the remote
+		// node's vxlanBVI interface
+		bviAddr, err := checkIfRouteNextHopPointsToInterface(othNode.NodeIPam.VppHostNetwork, 1, vrfMap,
+			ifc, othNode.Name)
+		if err == nil {
+			// Validate route from VRF1 to the vppHostNetwork subnet on the remote
+			// node. The outgoing interface should be the local vxlanBVI interface
+			// (i.e. the path to the remote node should be through the vxlan tunnel).
+			numErrs += v.validateRoute(othNode.NodeIPam.VppHostNetwork, 1, vrfMap, routeMap, node.Name,
+				vxlanBviName, localVxlanBVI.IfMeta.SwIfIndex, bviAddr, 0, 0)
 
-		// Validate routes to remote vppHostNetwork subnets - goes remote
-		// vxlanBVI interfaces (i.e. vxlan tunnels)
-		numErrs += v.validateRoute(othNode.NodeIPam.VppHostNetwork, 1, vrfMap, routeMap, node.Name,
-			vxlanBviName, localVxlanBVI.IfMeta.SwIfIndex, bviAddr, 0, 0)
+			// Validate route from VRF0 to Host IP address (Management IP address)
+			// on a remote node. It should point to VRF1.
+			numErrs += v.validateRoute(othNode.ManIPAddr+"/32", 0, vrfMap, routeMap, node.Name,
+				"", 0, "0.0.0.0", 1, 1)
 
-		// validate routes to Host IP addresses (Management IP addresses) on
-		// remote nodes in VRF0 (points to VRF1)
-		numErrs += v.validateRoute(othNode.ManIPAddr+"/32", 0, vrfMap, routeMap, node.Name,
-			"", 0, "0.0.0.0", 1, 1)
-
-		// validate routes to Host IP addresses (Management IP addresses) on
-		// remote nodes in VRF1 (points to remote vxlanBVI IP addess, and going
-		// out through the local vxlanBVI)
-		numErrs += v.validateRoute(othNode.ManIPAddr+"/32", 1, vrfMap, routeMap, node.Name,
-			vxlanBviName, localVxlanBVI.IfMeta.SwIfIndex, bviAddr, 0, 0)
-
-		podNwIP := othNode.NodeIPam.PodNetwork
-		route, ok := vrfMap[1][podNwIP]
-		if !ok {
-			errString := fmt.Sprintf("Route for pod network for node %s with ip %s not found",
-				othNode.Name, podNwIP)
-			v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
+			// Validate route from VRF1 to Host IP address (Management IP address)
+			// on a remote node. Its next hop should be the IP address of the
+			// vxlanBVI interface on the remote node and its outgoing interface
+			// should be the local vxlanBVI interface.
+			numErrs += v.validateRoute(othNode.ManIPAddr+"/32", 1, vrfMap, routeMap, node.Name,
+				vxlanBviName, localVxlanBVI.IfMeta.SwIfIndex, bviAddr, 0, 0)
+		} else {
 			numErrs++
+			v.Report.LogErrAndAppendToNodeReport(node.Name, err.Error())
 		}
 
-		// Assume that the route will be valid. Each failed check flips
-		// the status
-		routeMap[1][route.Ipr.DstAddr] = routeValid
-
-		//look for vxlanBD, make sure the route outgoing interface idx points to vxlanBVI
-		for _, bd := range node.NodeBridgeDomains {
-			if bd.Bd.Name == "vxlanBD" {
-				if bd.BdMeta.BdID2Name[route.IprMeta.OutgoingIfIdx] != vxlanBviName {
-					numErrs++
-					routeMap[1][route.Ipr.DstAddr] = routeInvalid
-					errString := fmt.Sprintf("vxlanBD outgoing interface for ipr index %d for route "+
-						"with pod network ip %s is not vxlanBVI", route.IprMeta.OutgoingIfIdx, podNwIP)
-					v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
-				}
-			}
-			for _, intf := range bd.Bd.Interfaces {
-				if intf.Name == vxlanBviName {
-					if !intf.BVI {
-						numErrs++
-						routeMap[1][route.Ipr.DstAddr] = routeInvalid
-						errString := fmt.Sprintf("Bridge domain %s interface %s BVI is %+v, expected true",
-							bd.Bd.Name, intf.Name, intf.BVI)
-						v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
-					}
-				}
-			}
-		}
-
-		// Find the remote node vxlanBD, find the interface which the idx
-		// points to, make sure that one of the ip addresses is the same as
-		// the main node's route's next hop ip
-		for _, bd := range othNode.NodeBridgeDomains {
-			for id, name := range bd.BdMeta.BdID2Name {
-				if name == vxlanBviName {
-					intf := othNode.NodeInterfaces[int(id)]
-					matchingIPFound := false
-					for _, ip := range intf.If.IPAddresses {
-						if ip == route.Ipr.NextHopAddr+"/24" {
-							matchingIPFound = true
-						}
-					}
-					if !matchingIPFound {
-						numErrs++
-						routeMap[1][route.Ipr.DstAddr] = routeInvalid
-						errString := fmt.Sprintf("no matching ip found in remote node %s interface "+
-							"%s to match current node %s route next hop %s",
-							othNode.Name, intf.If.Name, node.Name, route.Ipr.NextHopAddr)
-						v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
-					}
-				}
-			}
+		// Check if the nextHop on the route to the PodNetwork subnet on
+		// the remote node is one of the IP addresses configured on the remote
+		// node's vxlanBVI interface
+		bviAddr, err = checkIfRouteNextHopPointsToInterface(othNode.NodeIPam.PodNetwork, 1, vrfMap,
+			ifc, othNode.Name)
+		if err == nil {
+			// Validate route from VRF1 to the PodNetwork subnet on the remote
+			// node. The outgoing interface should be the local vxlanBVI
+			// interface (i.e. the path to the remote node should be through
+			// the vxlan tunnel).
+			numErrs += v.validateRoute(othNode.NodeIPam.PodNetwork, 1, vrfMap, routeMap, node.Name,
+				vxlanBviName, localVxlanBVI.IfMeta.SwIfIndex, bviAddr, 0, 0)
+		} else {
+			numErrs++
+			v.Report.LogErrAndAppendToNodeReport(node.Name, err.Error())
 		}
 	}
 
@@ -651,6 +614,25 @@ func findInterface(name string, ifcs telemetrymodel.NodeInterfaces) (*telemetrym
 	}
 
 	return nil, fmt.Errorf("interface pattern %s not found", name)
+}
+
+func checkIfRouteNextHopPointsToInterface(rteID string, vrfID uint32, vrfMap VrfMap,
+	ifc *telemetrymodel.NodeInterface, nodeName string) (string, error) {
+
+	route, ok := vrfMap[vrfID][rteID]
+	if !ok {
+		return "", fmt.Errorf("missing route %s VRF%d", rteID, vrfID)
+	}
+
+	for _, ip := range ifc.If.IPAddresses {
+		bviAddr := strings.Split(ip, "/")[0]
+		if bviAddr == route.Ipr.NextHopAddr {
+			return bviAddr, nil
+		}
+	}
+
+	return "", fmt.Errorf("invalid route %s; nextHop Address %s not configured on node %s, if %s",
+		rteID, route.Ipr.NextHopAddr, nodeName, ifc.If.Name)
 }
 
 func printS(errCnt int) string {

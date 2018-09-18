@@ -97,27 +97,9 @@ func (v *Validator) Validate() {
 		// Validate podSubnetCIDR routes
 		numErrs += v.validateVppHostNetworkRoutes(node, vrfMap, routeMap)
 
-		for vIdx, vrf := range routeMap {
-			var notValidated, invalid, valid int
-
-			for _, rteStatus := range vrf {
-				switch rteStatus {
-				case routeNotValidated:
-					notValidated++
-				case routeInvalid:
-					invalid++
-				case routeValid:
-					valid++
-				}
-			}
-
-			report := fmt.Sprintf("Rte report VRF%d: total %d, notValidated %d, invalid: %d, valid:%d",
-				vIdx, len(vrf), notValidated, invalid, valid)
-			v.Report.AppendToNodeReport(node.Name, report)
-		}
-
-		fmt.Println(node.Name + ":")
-		printValidationMap(routeMap, vrfMap)
+		numErrs += v.checkUnvalidatedRoutes(routeMap, node.Name)
+		// fmt.Println(node.Name + ":")
+		// printValidationMap(routeMap, vrfMap)
 	}
 
 	if numErrs == 0 {
@@ -373,7 +355,7 @@ func (v *Validator) validateDefaultRoutes(node *telemetrymodel.Node, vrfMap VrfM
 	}
 
 	numErrs += v.validateRoute("0.0.0.0/0", 0, vrfMap, routeMap, node.Name,
-		"", ifc.IfMeta.SwIfIndex, nextHop, 0, 0)
+		ifc.If.Name, ifc.IfMeta.SwIfIndex, nextHop, 0, 0)
 
 	// Validate VRF0 boiler plate routes
 	numErrs += v.validateRoute("0.0.0.0/32", 0, vrfMap, routeMap, node.Name,
@@ -479,7 +461,7 @@ func (v *Validator) validateLocalVppHostNetworkRoute(node *telemetrymodel.Node, 
 	for _, ipAddr := range ifc.If.IPAddresses {
 		// Validate host subnet route
 		numErrs += v.validateRoute(ipAddr, 0, vrfMap, routeMap, node.Name,
-			"", ifc.IfMeta.SwIfIndex, "0.0.0.0", 0, 0)
+			ifc.If.Name, ifc.IfMeta.SwIfIndex, "0.0.0.0", 0, 0)
 
 		// Validate tap-vpp2's drop routes (.0/32, .1/32 and .255/32)
 		numErrs += v.validatePhyNextHopRoutes(ipAddr, 0, vrfMap, routeMap, node.Name, ifc, 0, 2)
@@ -526,14 +508,7 @@ func (v *Validator) validateRoute(rteID string, vrfID uint32, vrfMap VrfMap, rtM
 	// flip the route status to false
 	rtMap[vrfID][route.Ipr.DstAddr] = routeValid
 
-	matched, err := regexp.Match(eOutIface, []byte(route.Ipr.OutIface))
-	if err != nil {
-		numErrs++
-		rtMap[vrfID][route.Ipr.DstAddr] = routeInvalid
-		errString := fmt.Sprintf("failed to match route %s outgoing interface (ifName %s) in VRF%d",
-			route.Ipr.DstAddr, route.Ipr.OutIface, vrfID)
-		v.Report.LogErrAndAppendToNodeReport(nodeName, errString)
-	} else if !matched {
+	if eOutIface != route.Ipr.OutIface {
 		numErrs++
 		rtMap[vrfID][route.Ipr.DstAddr] = routeInvalid
 		errString := fmt.Sprintf("invalid route %s in VRF%d; bad outgoing if - "+
@@ -598,6 +573,50 @@ func (v *Validator) validatePhyNextHopRoutes(rteID string, vrfID uint32, vrfMap 
 	drop2Addr := utils.AddressAndMaskToIPv4(rteAddr|rteMask, ^uint32(0))
 	numErrs += v.validateRoute(drop2Addr, vrfID, vrfMap, rtMap, nodeName,
 		"", 0, "0.0.0.0", 0, eType)
+
+	return numErrs
+}
+
+func (v *Validator) checkUnvalidatedRoutes(routeMap RouteMap, nodeName string) int {
+	numErrs := 0
+	vrfIDs := make([]uint32, 0)
+	for vrfID := range routeMap {
+		vrfIDs = append(vrfIDs, vrfID)
+	}
+	sortkeys.Uint32s(vrfIDs)
+
+	reports := make([]string, 0)
+	for  _, vrfID := range vrfIDs {
+		vrf := routeMap[vrfID]
+
+		notValidated := 0
+		invalid := 0
+		valid := 0
+
+		for rteId, rteStatus := range vrf {
+			switch rteStatus {
+			case routeNotValidated:
+				numErrs++
+				v.Report.AppendToNodeReport(nodeName, fmt.Sprintf("unexpected route %s in VRF%d; " +
+					"route not validated", rteId, vrfID))
+				notValidated++
+			case routeInvalid:
+				invalid++
+			case routeValid:
+				valid++
+			}
+		}
+
+		// Stash the summary, we will print it after all unexpected routes in
+		// all VRFs have been printed
+		report := fmt.Sprintf("Rte report VRF%d: total %d, notValidated %d, invalid: %d, valid:%d",
+			vrfID, len(vrf), notValidated, invalid, valid)
+		reports = append(reports, report)
+	}
+
+	for _, r := range reports {
+		v.Report.AppendToNodeReport(nodeName,r)
+	}
 
 	return numErrs
 }

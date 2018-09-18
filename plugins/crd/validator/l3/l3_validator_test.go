@@ -128,7 +128,9 @@ func testErrorFreeEndToEnd(t *testing.T) {
 	vtv.report.Clear()
 	vtv.l3Validator.Validate()
 
-	checkDataReport(1, 2, 2)
+	// NOTE: Expect one error per node in L3 validation until we can validate
+	// static routes configured through Linux
+	checkDataReport(1, 3, 3)
 }
 
 func testValidateRoutesToLocalPods(t *testing.T) {
@@ -261,6 +263,8 @@ func testValidateRoutesToLocalPods(t *testing.T) {
 				rte.Ipr.NextHopAddr = "1.2.3.4"
 				rte.IprMeta.OutgoingIfIdx = rte.IprMeta.OutgoingIfIdx + 1
 				rte.Ipr.OutIface = "someInterfaceName"
+				rte.Ipr.Type = rte.Ipr.Type + 1
+				rte.Ipr.ViaVRFID = rte.Ipr.Type + 1
 				vrfMap[1][rte.Ipr.DstAddr] = rte
 				break
 			}
@@ -273,8 +277,8 @@ func testValidateRoutesToLocalPods(t *testing.T) {
 	vtv.report.Clear()
 	numErrs = vtv.l3Validator.validateVrf1PodRoutes(vtv.vppCache.NodeMap[vtv.nodeKey], vrfMap, routeMap)
 
-	checkDataReport(0, 3, 0)
-	gomega.Expect(numErrs).To(gomega.Equal(3))
+	checkDataReport(0, 5, 0)
+	gomega.Expect(numErrs).To(gomega.Equal(5))
 
 	// Restore data back to error free state
 	vrfMap, err = vtv.l3Validator.createVrfMap(vtv.vppCache.NodeMap[vtv.nodeKey])

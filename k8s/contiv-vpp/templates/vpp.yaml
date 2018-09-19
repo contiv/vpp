@@ -610,7 +610,13 @@ spec:
             limits:
           {{- end }}
             {{- if .Values.vswitch.defineMemoryLimits }}
+              {{- if .Values.vswitch.hugePages1giLimit }}
+              hugepages-1Gi: {{ .Values.vswitch.hugePages1giLimit }}
+              {{- else }}
+                {{- if .Values.vswitch.hugePages2miLimit }}
               hugepages-2Mi: {{ .Values.vswitch.hugePages2miLimit }}
+                {{- end }}
+              {{- end }}
               memory: {{ .Values.vswitch.memoryLimit }}
             {{- end }}
             {{- if .Values.vswitch.cpuLimit }}

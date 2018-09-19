@@ -283,6 +283,7 @@ func (vds *VppDataStore) SetSecondaryNodeIndices(node *telemetrymodel.Node) []st
 	vds.lock.Lock()
 	defer vds.lock.Unlock()
 
+	// Clear all the date before creating / recreating the maps
 	errReport := make([]string, 0)
 
 	loopIF, err := GetNodeLoopIFInfo(node)

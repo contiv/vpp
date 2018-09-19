@@ -70,6 +70,7 @@ type ContivTelemetryCache struct {
 	agentPort            string
 	validationInProgress bool
 	databaseVersion      uint32
+	dataChangeEvents     []interface{}
 }
 
 // Deps lists dependencies of PolicyCache.
@@ -106,6 +107,7 @@ func (ctc *ContivTelemetryCache) init() {
 	ctc.nodeResponseChannel = make(chan *NodeDTO)
 	ctc.dsUpdateChannel = make(chan interface{})
 	ctc.dtoList = make([]*NodeDTO, 0)
+	ctc.dataChangeEvents = make([]interface{}, 0)
 	ctc.ticker = time.NewTicker(ctc.collectionInterval)
 	ctc.databaseVersion = 0
 }
@@ -135,10 +137,12 @@ func (ctc *ContivTelemetryCache) nodeEventProcessor() {
 				return
 			}
 			ctc.Report.Clear()
+			ctc.processDataStoreUpdate()
 			ctc.startNodeInfoCollection()
 
 		case data, ok := <-ctc.nodeResponseChannel:
-			ctc.Log.Info("Received node response DTO, status: ", ok)
+			ctc.Log.Infof("Received node response DTO, sts: %v, DTOv: %d DBv: %d",
+				ok, data.version, ctc.databaseVersion)
 			if !ok {
 				return
 			}
@@ -149,10 +153,7 @@ func (ctc *ContivTelemetryCache) nodeEventProcessor() {
 			if !ok {
 				return
 			}
-			ctc.databaseVersion++
-			ctc.dtoList = ctc.dtoList[0:0]
-			ctc.processDataStoreUpdate(data)
-			ctc.startNodeInfoCollection()
+			ctc.dataChangeEvents = append(ctc.dataChangeEvents, data)
 		}
 	}
 }
@@ -162,6 +163,7 @@ func (ctc *ContivTelemetryCache) startNodeInfoCollection() {
 		ctc.Log.Info("Skipping data collection/validation - previous run still in progress")
 		return
 	}
+
 	nodelist := ctc.VppCache.RetrieveAllNodes()
 	if len(nodelist) == 0 {
 		return
@@ -302,6 +304,7 @@ func (ctc *ContivTelemetryCache) populateNodeMaps(node *telemetrymodel.Node) {
 		}
 	}
 
+	node.PodMap = make(map[string]*telemetrymodel.Pod, 0)
 	for _, pod := range ctc.K8sCache.RetrieveAllPods() {
 		if pod.HostIPAddress == node.ManIPAddr {
 			node.PodMap[pod.Name] = pod
@@ -389,23 +392,31 @@ func (ctc *ContivTelemetryCache) setNodeData() {
 	}
 }
 
-func (ctc *ContivTelemetryCache) processDataStoreUpdate(data interface{}) {
-	switch data.(type) {
+func (ctc *ContivTelemetryCache) processDataStoreUpdate() {
+	for len(ctc.dataChangeEvents) > 0 {
+		data := ctc.dataChangeEvents[0]
+		switch data.(type) {
 
-	case datasync.ResyncEvent:
-		resyncEv := data.(datasync.ResyncEvent)
-		ctc.Report.Clear()
-		ctc.resync(resyncEv)
+		case datasync.ResyncEvent:
+			resyncEv := data.(datasync.ResyncEvent)
+			ctc.Report.Clear()
+			ctc.resync(resyncEv)
 
-	case datasync.ChangeEvent:
-		dataChngEv := data.(datasync.ChangeEvent)
-		if err := ctc.update(dataChngEv); err != nil {
-			ctc.Log.Errorf("data update error, %s", err.Error())
-			ctc.Synced = false
-			// TODO: initiate resync at this point
+		case datasync.ChangeEvent:
+			dataChngEv := data.(datasync.ChangeEvent)
+			if err := ctc.update(dataChngEv); err != nil {
+				ctc.Log.Errorf("data update error, %s", err.Error())
+				ctc.Synced = false
+				// TODO: initiate resync at this point
+			}
+
+		default:
+			ctc.Log.Errorf("unknown type received, %s", reflect.TypeOf(data))
+			return
 		}
-
-	default:
-		ctc.Log.Errorf("unknown type received, %s", reflect.TypeOf(data))
+		ctc.dataChangeEvents = ctc.dataChangeEvents[1:]
 	}
+
+	ctc.databaseVersion++
+	ctc.dtoList = ctc.dtoList[0:0]
 }

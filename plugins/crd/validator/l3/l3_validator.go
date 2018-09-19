@@ -152,6 +152,7 @@ func (v *Validator) createValidationMap(vm map[uint32]Vrf) RouteMap {
 func (v *Validator) validateVrf1PodRoutes(node *telemetrymodel.Node, vrfMap VrfMap, routeMap RouteMap) int {
 
 	numErrs := 0
+	fmt.Printf("Node %s Podmap: %d\n", node.Name, len(node.PodMap))
 	for _, pod := range node.PodMap {
 
 		// Skip over host network pods

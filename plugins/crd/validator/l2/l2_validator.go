@@ -548,7 +548,7 @@ func (v *Validator) ValidateK8sNodeInfo() {
 	v.addSummary(errCnt, "K8sNode")
 }
 
-// ValidatePodInfo will check  that each pod has a valid host ip address node
+// ValidatePodInfo will check that each pod has a valid host ip address node
 // and that the information correctly correlates between the nodes and the pods.
 func (v *Validator) ValidatePodInfo() {
 	// Prepare the mark-and-sweep database for detection of dangling pod-facing
@@ -567,8 +567,8 @@ func (v *Validator) ValidatePodInfo() {
 		vppNode, err := v.VppCache.RetrieveNodeByHostIPAddr(pod.HostIPAddress)
 		if err != nil {
 			errCnt++
-			errString := fmt.Sprintf("vppNode not found for Pod %s with Host IP %s - skipping Pod validation",
-				pod.Name, pod.HostIPAddress)
+			errString := fmt.Sprintf("vppNode not found for Pod %s; IpAddr %s, Host IpAddr %s "+
+				"- skipping Pod validation", pod.Name, pod.IPAddress, pod.HostIPAddress)
 			v.Report.AppendToNodeReport(api.GlobalMsg, errString)
 			continue
 		}

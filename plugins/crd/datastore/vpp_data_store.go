@@ -79,13 +79,13 @@ func (vds *VppDataStore) DeleteNode(nodeName string) error {
 	vds.lock.Lock()
 	defer vds.lock.Unlock()
 
-	nodeId, err := strconv.Atoi(nodeName)
+	nodeID, err := strconv.Atoi(nodeName)
 	if err != nil {
 		return fmt.Errorf("invalid nodeId %s", nodeName)
 	}
 
 	for _, node := range vds.NodeMap {
-		if node.ID == uint32(nodeId) {
+		if node.ID == uint32(nodeID) {
 			for _, intf := range node.NodeInterfaces {
 				if intf.IfMeta.VppInternalName == "loop0" {
 					delete(vds.LoopMACMap, intf.If.PhysAddress)
@@ -177,12 +177,14 @@ func (vds *VppDataStore) ReinitializeCache() {
 	vds.NodeMap = make(map[string]*telemetrymodel.Node)
 }
 
+// DumpCache prints basic cache information to the console. The intended
+// use of this function is debugging.
 func (vds *VppDataStore) DumpCache() {
-	fmt.Printf("NodeMap: %+v\n\n", vds.NodeMap)
-	fmt.Printf("LoopMACMap: %+v\n\n", vds.LoopMACMap)
-	fmt.Printf("GigEIPMap: %+v\n\n", vds.GigEIPMap)
-	fmt.Printf("HostIPMap: %+v\n\n", vds.HostIPMap)
-	fmt.Printf("LoopIPMap: %+v\n\n", vds.LoopIPMap)
+	fmt.Printf("NodeMap: %+v\n", vds.NodeMap)
+	fmt.Printf("LoopMACMap: %+v\n", vds.LoopMACMap)
+	fmt.Printf("GigEIPMap: %+v\n", vds.GigEIPMap)
+	fmt.Printf("HostIPMap: %+v\n", vds.HostIPMap)
+	fmt.Printf("LoopIPMap: %+v\n", vds.LoopIPMap)
 }
 
 //NewVppDataStore returns a reference to a new Vpp data store

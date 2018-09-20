@@ -164,7 +164,6 @@ func (vds *VppDataStore) ClearCache() {
 	}
 
 	// Clear secondary index maps
-	// vds.GigEIPMap = make(map[string]*telemetrymodel.Node)
 	vds.LoopMACMap = make(map[string]*telemetrymodel.Node)
 	vds.LoopIPMap = make(map[string]*telemetrymodel.Node)
 	vds.HostIPMap = make(map[string]*telemetrymodel.Node)
@@ -187,7 +186,7 @@ func (vds *VppDataStore) DumpCache() {
 	fmt.Printf("LoopIPMap: %+v\n", vds.LoopIPMap)
 }
 
-//NewVppDataStore returns a reference to a new Vpp data store
+// NewVppDataStore returns a reference to a new Vpp data store
 func NewVppDataStore() (n *VppDataStore) {
 	return &VppDataStore{
 		lock:       &sync.Mutex{},
@@ -199,7 +198,7 @@ func NewVppDataStore() (n *VppDataStore) {
 	}
 }
 
-//SetNodeLiveness is a simple function to set a nodes liveness given its name.
+// SetNodeLiveness is a simple function to set a nodes liveness given its name.
 func (vds *VppDataStore) SetNodeLiveness(nodeName string, nLive *telemetrymodel.NodeLiveness) error {
 	vds.lock.Lock()
 	defer vds.lock.Unlock()
@@ -212,7 +211,7 @@ func (vds *VppDataStore) SetNodeLiveness(nodeName string, nLive *telemetrymodel.
 	return nil
 }
 
-//SetNodeInterfaces is a simple function to set a nodes interface given its name.
+// SetNodeInterfaces is a simple function to set a nodes interface given its name.
 func (vds *VppDataStore) SetNodeInterfaces(nodeName string, nInt map[int]telemetrymodel.NodeInterface) error {
 	vds.lock.Lock()
 	defer vds.lock.Unlock()
@@ -239,7 +238,7 @@ func (vds *VppDataStore) SetNodeStaticRoutes(nodeName string, nSrs []telemetrymo
 	return nil
 }
 
-//SetNodeBridgeDomain is a simple function to set a nodes bridge domain given its name.
+// SetNodeBridgeDomain is a simple function to set a nodes bridge domain given its name.
 func (vds *VppDataStore) SetNodeBridgeDomain(nodeName string, nBridge map[int]telemetrymodel.NodeBridgeDomain) error {
 	vds.lock.Lock()
 	defer vds.lock.Unlock()
@@ -252,7 +251,7 @@ func (vds *VppDataStore) SetNodeBridgeDomain(nodeName string, nBridge map[int]te
 	return nil
 }
 
-//SetNodeL2Fibs is a simple function to set a nodes l2 fibs given its name.
+// SetNodeL2Fibs is a simple function to set a nodes l2 fibs given its name.
 func (vds *VppDataStore) SetNodeL2Fibs(nodeName string, nL2F map[string]telemetrymodel.NodeL2FibEntry) error {
 	vds.lock.Lock()
 	defer vds.lock.Unlock()
@@ -265,7 +264,7 @@ func (vds *VppDataStore) SetNodeL2Fibs(nodeName string, nL2F map[string]telemetr
 	return nil
 }
 
-//SetNodeTelemetry is a simple function to set a nodes telemetry data given its name.
+// SetNodeTelemetry is a simple function to set a nodes telemetry data given its name.
 func (vds *VppDataStore) SetNodeTelemetry(nodeName string, nTele map[string]telemetrymodel.NodeTelemetry) error {
 	vds.lock.Lock()
 	defer vds.lock.Unlock()
@@ -278,7 +277,7 @@ func (vds *VppDataStore) SetNodeTelemetry(nodeName string, nTele map[string]tele
 	return nil
 }
 
-//SetNodeIPARPs is a simple function to set a nodes ip arp table given its name.
+// SetNodeIPARPs is a simple function to set a nodes ip arp table given its name.
 func (vds *VppDataStore) SetNodeIPARPs(nodeName string, nArps []telemetrymodel.NodeIPArpEntry) error {
 	vds.lock.Lock()
 	defer vds.lock.Unlock()
@@ -292,7 +291,7 @@ func (vds *VppDataStore) SetNodeIPARPs(nodeName string, nArps []telemetrymodel.N
 
 }
 
-//SetNodeIPam is a simple function to set the node with the given node name's ipam
+// SetNodeIPam is a simple function to set the node with the given node name's ipam
 func (vds *VppDataStore) SetNodeIPam(nodeName string, nIPam telemetrymodel.IPamEntry) error {
 	vds.lock.Lock()
 	defer vds.lock.Unlock()

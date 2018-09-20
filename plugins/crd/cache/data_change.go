@@ -47,7 +47,7 @@ func (pc *podChange) GetValueProto() proto.Message {
 }
 
 func (pc *podChange) AddRecord(ctc *ContivTelemetryCache, names []string, record proto.Message) error {
-	ctc.Log.Infof("Adding pod %s in namespace %s, podValue %+v", names[0], names[1], record)
+	ctc.Log.Infof("Adding K8s pod %s in namespace %s, podValue %+v", names[0], names[1], record)
 	if pod, ok := record.(*podmodel.Pod); ok {
 		return ctc.K8sCache.CreatePod(pod.Name, pod.Namespace, pod.Label, pod.IpAddress,
 			pod.HostIpAddress, pod.Container)
@@ -56,7 +56,7 @@ func (pc *podChange) AddRecord(ctc *ContivTelemetryCache, names []string, record
 }
 
 func (pc *podChange) UpdateRecord(ctc *ContivTelemetryCache, names []string, _, record proto.Message) error {
-	ctc.Log.Infof("Updating pod %s in namespace %s, prevPodValue %+v", names[0], names[1], record)
+	ctc.Log.Infof("Updating K8s pod %s in namespace %s, prevPodValue %+v", names[0], names[1], record)
 
 	if pod, ok := record.(*podmodel.Pod); ok {
 		return ctc.K8sCache.UpdatePod(pod.Name, pod.Namespace, pod.Label, pod.IpAddress,
@@ -66,7 +66,7 @@ func (pc *podChange) UpdateRecord(ctc *ContivTelemetryCache, names []string, _, 
 }
 
 func (pc *podChange) DeleteRecord(ctc *ContivTelemetryCache, names []string) error {
-	ctc.Log.Infof("Deleting pod %s in namespace %s", names[0], names[1])
+	ctc.Log.Infof("Deleting K8s pod %s in namespace %s", names[0], names[1])
 	return ctc.K8sCache.DeletePod(names[0])
 }
 
@@ -83,7 +83,7 @@ func (nc *nodeChange) GetValueProto() proto.Message {
 }
 
 func (nc *nodeChange) AddRecord(ctc *ContivTelemetryCache, names []string, record proto.Message) error {
-	ctc.Log.Infof("Adding node %s, nodeValue %+v", names[0], record)
+	ctc.Log.Infof("Adding K8s node %s, nodeValue %+v", names[0], record)
 
 	if node, ok := record.(*nodemodel.Node); ok {
 		return ctc.K8sCache.CreateK8sNode(node.Name, node.Pod_CIDR, node.Provider_ID, node.Addresses, node.NodeInfo)
@@ -92,7 +92,7 @@ func (nc *nodeChange) AddRecord(ctc *ContivTelemetryCache, names []string, recor
 }
 
 func (nc *nodeChange) UpdateRecord(ctc *ContivTelemetryCache, names []string, _, newRecord proto.Message) error {
-	ctc.Log.Infof("Updating node %s, nodeValue %+v", names[0], newRecord)
+	ctc.Log.Infof("Updating K8s node %s, nodeValue %+v", names[0], newRecord)
 
 	if node, ok := newRecord.(*nodemodel.Node); ok {
 		return ctc.K8sCache.UpdateK8sNode(node.Name, node.Pod_CIDR, node.Provider_ID, node.Addresses, node.NodeInfo)
@@ -101,7 +101,7 @@ func (nc *nodeChange) UpdateRecord(ctc *ContivTelemetryCache, names []string, _,
 }
 
 func (nc *nodeChange) DeleteRecord(ctc *ContivTelemetryCache, names []string) error {
-	ctc.Log.Infof("Deleting node %s", names[0])
+	ctc.Log.Infof("Deleting K8s node %s", names[0])
 	return ctc.K8sCache.DeleteK8sNode(names[0])
 }
 
@@ -121,7 +121,7 @@ func (nic *nodeInfoChange) GetValueProto() proto.Message {
 }
 
 func (nic *nodeInfoChange) AddRecord(ctc *ContivTelemetryCache, names []string, record proto.Message) error {
-	ctc.Log.Infof("Adding nodeLiveness %s, nodeValue %+v", names[0], record)
+	ctc.Log.Infof("Adding VPP node %s, nodeValue %+v", names[0], record)
 	if ni, ok := record.(*nodeinfomodel.NodeInfo); ok {
 		return ctc.VppCache.CreateNode(ni.Id, ni.Name, ni.IpAddress, ni.ManagementIpAddress)
 	}
@@ -129,7 +129,7 @@ func (nic *nodeInfoChange) AddRecord(ctc *ContivTelemetryCache, names []string, 
 }
 
 func (nic *nodeInfoChange) UpdateRecord(ctc *ContivTelemetryCache, names []string, _, newRecord proto.Message) error {
-	ctc.Log.Infof("Updating nodeLiveness %s, nodeInfoValue %+v", names[0], newRecord)
+	ctc.Log.Infof("Updating VPP node %s, nodeInfoValue %+v", names[0], newRecord)
 
 	if ni, ok := newRecord.(*nodeinfomodel.NodeInfo); ok {
 		return ctc.VppCache.UpdateNode(ni.Id, ni.Name, ni.IpAddress, ni.ManagementIpAddress)
@@ -138,7 +138,7 @@ func (nic *nodeInfoChange) UpdateRecord(ctc *ContivTelemetryCache, names []strin
 }
 
 func (nic *nodeInfoChange) DeleteRecord(ctc *ContivTelemetryCache, names []string) error {
-	ctc.Log.Infof("Deleting nodeLiveness %s", names[0])
+	ctc.Log.Infof("Deleting VPP node %s", names[0])
 	return ctc.VppCache.DeleteNode(names[0])
 }
 

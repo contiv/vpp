@@ -25,7 +25,9 @@ import (
 	"github.com/ligato/cn-infra/logging"
 	"io/ioutil"
 	"net/http"
+	"os"
 	"reflect"
+	"text/tabwriter"
 	"time"
 )
 
@@ -70,13 +72,16 @@ type ContivTelemetryCache struct {
 	agentPort            string
 	validationInProgress bool
 	databaseVersion      uint32
-	dataChangeEvents     []interface{}
+	dataChangeEvents     DcEventQueue
 }
 
 // Deps lists dependencies of PolicyCache.
 type Deps struct {
 	Log logging.Logger
 }
+
+// DcEventQueue defines the queue for data change events coming from Etcd.
+type DcEventQueue []interface{}
 
 // NodeDTO is the Data Transfer Object (DTO) for sending data received from
 // Contiv node Agent to the cache thread.
@@ -107,7 +112,7 @@ func (ctc *ContivTelemetryCache) init() {
 	ctc.nodeResponseChannel = make(chan *NodeDTO)
 	ctc.dsUpdateChannel = make(chan interface{})
 	ctc.dtoList = make([]*NodeDTO, 0)
-	ctc.dataChangeEvents = make([]interface{}, 0)
+	ctc.dataChangeEvents = make(DcEventQueue, 0)
 	ctc.ticker = time.NewTicker(ctc.collectionInterval)
 	ctc.databaseVersion = 0
 }
@@ -251,7 +256,7 @@ func (ctc *ContivTelemetryCache) getNodeInfo(client http.Client, node *telemetry
 
 	res, err := client.Get(ctc.getAgentURL(node.ManIPAddr, url))
 	if err != nil {
-		err := fmt.Errorf("getNodeInfo: url: %s cleintGet Error: %s", url, err.Error())
+		err := fmt.Errorf("getNodeInfo: url: %s clientGet Error: %s", url, err.Error())
 		ctc.Log.Error(err)
 		ctc.nodeResponseChannel <- &NodeDTO{node.Name, nil, err, version}
 		return
@@ -318,7 +323,7 @@ func (ctc *ContivTelemetryCache) getAgentURL(ipAddr string, url string) string {
 }
 
 // waitForValidationToFinish waits until the node cache has been cleared at
-// the end of data validation
+// the end of data validati
 func (ctc *ContivTelemetryCache) waitForValidationToFinish() int {
 	cycles := 0
 	for {
@@ -393,8 +398,7 @@ func (ctc *ContivTelemetryCache) setNodeData() {
 }
 
 func (ctc *ContivTelemetryCache) processDataStoreUpdate() {
-	for len(ctc.dataChangeEvents) > 0 {
-		data := ctc.dataChangeEvents[0]
+	for _, data := range ctc.dataChangeEvents {
 		switch data.(type) {
 
 		case datasync.ResyncEvent:
@@ -412,11 +416,19 @@ func (ctc *ContivTelemetryCache) processDataStoreUpdate() {
 
 		default:
 			ctc.Log.Errorf("unknown type received, %s", reflect.TypeOf(data))
-			return
+			continue
 		}
-		ctc.dataChangeEvents = ctc.dataChangeEvents[1:]
+		ctc.dataChangeEvents = make(DcEventQueue, 0)
 	}
 
 	ctc.databaseVersion++
 	ctc.dtoList = ctc.dtoList[0:0]
+}
+
+func (ctc *ContivTelemetryCache) dumpVppCache() {
+	w := tabwriter.NewWriter(os.Stdout, 8, 2, 2, ' ', 0)
+	for _, node := range ctc.VppCache.RetrieveAllNodes() {
+		fmt.Fprintf(w, "\t%s\t%s\t%s\t%s\n", node.Name, node.IPAddr, node.ManIPAddr, node.IPAddr)
+	}
+	w.Flush()
 }

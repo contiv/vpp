@@ -48,8 +48,10 @@ func (vds *VppDataStore) CreateNode(ID uint32, nodeName, IPAddr, ManIPAdr string
 	n.PodMap = make(map[string]*telemetrymodel.Pod)
 	vds.NodeMap[nodeName] = n
 
-	ipa := strings.Split(IPAddr, "/")
-	vds.GigEIPMap[ipa[0]] = n
+	if IPAddr != "" {
+		ipa := strings.Split(IPAddr, "/")
+		vds.GigEIPMap[ipa[0]] = n
+	}
 
 	return nil
 }
@@ -103,19 +105,21 @@ func (vds *VppDataStore) RetrieveAllNodes() []*telemetrymodel.Node {
 	for k := range vds.NodeMap {
 		str = append(str, k)
 	}
+
 	var nList []*telemetrymodel.Node
 	sort.Strings(str)
 	for _, v := range str {
 		n, _ := vds.retrieveNode(v)
 		nList = append(nList, n)
 	}
+
 	return nList
 }
 
 // UpdateNode handles updates of node data in the cache. If the node identified
 // by 'nodeName' exists, its data is updated and nil error is returned.
 // otherwise, an error is returned.
-func (vds *VppDataStore) UpdateNode(ID uint32, nodeName, IPAdr, ManIPAdr string) error {
+func (vds *VppDataStore) UpdateNode(ID uint32, nodeName, IPAddr, ManIPAdr string) error {
 	vds.lock.Lock()
 	defer vds.lock.Unlock()
 
@@ -124,9 +128,15 @@ func (vds *VppDataStore) UpdateNode(ID uint32, nodeName, IPAdr, ManIPAdr string)
 	if !ok {
 		return errors.Errorf("Node with name %+vds not found in vpp cache", nodeName)
 	}
-	node.IPAddr = IPAdr
+	node.IPAddr = IPAddr
 	node.ID = ID
 	node.ManIPAddr = ManIPAdr
+
+	if IPAddr != "" {
+		ipa := strings.Split(IPAddr, "/")
+		vds.GigEIPMap[ipa[0]] = node
+	}
+
 	return nil
 }
 
@@ -143,6 +153,7 @@ func (vds *VppDataStore) ClearCache() {
 		node.NodeTelemetry = nil
 		node.NodeIPArp = nil
 	}
+
 	// Clear secondary index maps
 	// vds.GigEIPMap = make(map[string]*telemetrymodel.Node)
 	vds.LoopMACMap = make(map[string]*telemetrymodel.Node)
@@ -155,6 +166,14 @@ func (vds *VppDataStore) ClearCache() {
 func (vds *VppDataStore) ReinitializeCache() {
 	vds.ClearCache()
 	vds.NodeMap = make(map[string]*telemetrymodel.Node)
+}
+
+func (vds *VppDataStore) DumpCache() {
+	fmt.Printf("NodeMap: %+v\n\n", vds.NodeMap)
+	fmt.Printf("LoopMACMap: %+v\n\n", vds.LoopMACMap)
+	fmt.Printf("GigEIPMap: %+v\n\n", vds.GigEIPMap)
+	fmt.Printf("HostIPMap: %+v\n\n", vds.HostIPMap)
+	fmt.Printf("LoopIPMap: %+v\n\n", vds.LoopIPMap)
 }
 
 //NewVppDataStore returns a reference to a new Vpp data store

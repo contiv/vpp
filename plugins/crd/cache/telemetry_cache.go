@@ -187,11 +187,11 @@ func (ctc *ContivTelemetryCache) collectNodeInfo(node *telemetrymodel.Node) {
 	ctc.collectAgentInfo(node)
 }
 
-// validateNodeInfo checks the consistency of the node data in the cache. It
+// validateCluster checks the consistency of the node data in the cache. It
 // checks the ARP tables, ... . Data inconsistencies may cause loss of
 // connectivity between nodes or pods. All sata inconsistencies found during
 // validation are reported to the CRD.
-func (ctc *ContivTelemetryCache) validateNodeInfo() {
+func (ctc *ContivTelemetryCache) validateCluster() {
 
 	nodelist := ctc.VppCache.RetrieveAllNodes()
 	for _, node := range nodelist {
@@ -201,9 +201,6 @@ func (ctc *ContivTelemetryCache) validateNodeInfo() {
 	ctc.Processor.Validate()
 	ctc.Report.SetTimeStamp(time.Now())
 
-	for _, n := range nodelist {
-		ctc.Report.AppendToNodeReport(n.Name, "Report done.")
-	}
 	ctc.Report.Print()
 	// ctc.ControllerReport.GenerateCRDReport()
 }
@@ -216,6 +213,7 @@ func (ctc *ContivTelemetryCache) collectAgentInfo(node *telemetrymodel.Node) {
 		Jar:           nil,
 		Timeout:       ctc.httpClientTimeout,
 	}
+	ctc.Report.SetPrefix("HTTP")
 
 	go ctc.getNodeInfo(client, node, livenessURL, &telemetrymodel.NodeLiveness{}, ctc.databaseVersion)
 
@@ -256,13 +254,9 @@ func (ctc *ContivTelemetryCache) getNodeInfo(client http.Client, node *telemetry
 
 	res, err := client.Get(ctc.getAgentURL(node.ManIPAddr, url))
 	if err != nil {
-		err := fmt.Errorf("getNodeInfo: url: %s clientGet Error: %s", url, err.Error())
-		ctc.Log.Error(err)
 		ctc.nodeResponseChannel <- &NodeDTO{node.Name, nil, err, version}
 		return
 	} else if res.StatusCode < 200 || res.StatusCode > 299 {
-		err := fmt.Errorf("getNodeInfo: url: %s HTTP res.Status: %s", url, res.Status)
-		ctc.Log.Error(err)
 		ctc.nodeResponseChannel <- &NodeDTO{node.Name, nil, err, version}
 		return
 	}
@@ -271,7 +265,7 @@ func (ctc *ContivTelemetryCache) getNodeInfo(client http.Client, node *telemetry
 	b = []byte(b)
 	err = json.Unmarshal(b, nodeInfo)
 	if err != nil {
-		errString := fmt.Sprintf("Error unmarshaling data for node %+v: %+v", node.Name, err)
+		errString := fmt.Sprintf("failed to unmarshal data for node %s, error %s", node.Name, err)
 		ctc.Report.AppendToNodeReport(node.Name, errString)
 	}
 	ctc.nodeResponseChannel <- &NodeDTO{node.Name, nodeInfo, err, version}
@@ -281,6 +275,7 @@ func (ctc *ContivTelemetryCache) getNodeInfo(client http.Client, node *telemetry
 // all of the information has been retrieved. It also checks to make sure
 // that there are no duplicate addresses within the map.
 func (ctc *ContivTelemetryCache) populateNodeMaps(node *telemetrymodel.Node) {
+	ctc.Report.SetPrefix("NODE-MAP")
 	errReport := ctc.VppCache.SetSecondaryNodeIndices(node)
 	for _, r := range errReport {
 		ctc.Report.AppendToNodeReport(node.Name, r)
@@ -288,7 +283,7 @@ func (ctc *ContivTelemetryCache) populateNodeMaps(node *telemetrymodel.Node) {
 
 	k8snode, err := ctc.K8sCache.RetrieveK8sNode(node.Name)
 	if err != nil {
-		errString := fmt.Sprintf("node %s discovered in Contiv, but not present in K8s", node.Name)
+		errString := fmt.Sprintf("VPP node %s present in Contiv, but not in K8s", node.Name)
 		ctc.Report.AppendToNodeReport(node.Name, errString)
 	} else {
 		for _, adr := range k8snode.Addresses {
@@ -345,7 +340,7 @@ func (ctc *ContivTelemetryCache) processNodeResponse(data *NodeDTO) {
 	}
 	if len(ctc.dtoList) == numDTOs*len(nodelist) {
 		ctc.setNodeData()
-		ctc.validateNodeInfo()
+		ctc.validateCluster()
 		ctc.dtoList = ctc.dtoList[0:0]
 		ctc.validationInProgress = false
 	}
@@ -358,8 +353,8 @@ func (ctc *ContivTelemetryCache) setNodeData() {
 		err := error(nil)
 
 		if data.err != nil {
-			err = fmt.Errorf("node %+v has nodeDTO %+v and http error %s", data.NodeName, data, data.err)
-			ctc.Report.LogErrAndAppendToNodeReport(data.NodeName, err.Error())
+			errString := fmt.Sprintf("node '%s', error '%s'", data.NodeName, data.err)
+			ctc.Report.AppendToNodeReport(data.NodeName, errString)
 			continue
 		}
 
@@ -392,7 +387,7 @@ func (ctc *ContivTelemetryCache) setNodeData() {
 			err = fmt.Errorf("node %+v has unknown data type: %+v", data.NodeName, data.NodeInfo)
 		}
 		if err != nil {
-			ctc.Report.LogErrAndAppendToNodeReport(data.NodeName, err.Error())
+			ctc.Report.AppendToNodeReport(data.NodeName, err.Error())
 		}
 	}
 }

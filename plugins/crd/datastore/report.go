@@ -30,6 +30,7 @@ type SimpleReport struct {
 	Data      telemetrymodel.Reports
 	Output    io.Writer
 	TimeStamp time.Time
+	Prefix    string
 }
 
 // NewSimpleReport creates a new SimpleReport instance
@@ -58,7 +59,7 @@ func (r *SimpleReport) AppendToNodeReport(nodeName string, errString string) {
 	if r.Data[nodeName] == nil {
 		r.Data[nodeName] = make([]string, 0)
 	}
-	r.Data[nodeName] = append(r.Data[nodeName], errString)
+	r.Data[nodeName] = append(r.Data[nodeName], fmt.Sprintf("%s: %s", r.Prefix, errString))
 }
 
 // Clear clears the status log
@@ -88,4 +89,8 @@ func (r *SimpleReport) SetTimeStamp(time time.Time) {
 //GetTimeStamp returns the reports time stamp.
 func (r *SimpleReport) GetTimeStamp() time.Time {
 	return r.TimeStamp
+}
+
+func (r *SimpleReport) SetPrefix(pfx string) {
+	r.Prefix = pfx
 }

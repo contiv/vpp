@@ -121,7 +121,7 @@ func (nic *nodeInfoChange) GetValueProto() proto.Message {
 }
 
 func (nic *nodeInfoChange) AddRecord(ctc *ContivTelemetryCache, names []string, record proto.Message) error {
-	ctc.Log.Infof("Adding VPP node %s, nodeValue %+v", names[0], record)
+	ctc.Log.Infof("Adding VPP node, names %+v, nodeValue %+v", names, record)
 	if ni, ok := record.(*nodeinfomodel.NodeInfo); ok {
 		return ctc.VppCache.CreateNode(ni.Id, ni.Name, ni.IpAddress, ni.ManagementIpAddress)
 	}
@@ -129,7 +129,7 @@ func (nic *nodeInfoChange) AddRecord(ctc *ContivTelemetryCache, names []string, 
 }
 
 func (nic *nodeInfoChange) UpdateRecord(ctc *ContivTelemetryCache, names []string, _, newRecord proto.Message) error {
-	ctc.Log.Infof("Updating VPP node %s, nodeInfoValue %+v", names[0], newRecord)
+	ctc.Log.Infof("Updating VPP node, names %+v, nodeInfoValue %+v", names, newRecord)
 
 	if ni, ok := newRecord.(*nodeinfomodel.NodeInfo); ok {
 		return ctc.VppCache.UpdateNode(ni.Id, ni.Name, ni.IpAddress, ni.ManagementIpAddress)
@@ -138,7 +138,7 @@ func (nic *nodeInfoChange) UpdateRecord(ctc *ContivTelemetryCache, names []strin
 }
 
 func (nic *nodeInfoChange) DeleteRecord(ctc *ContivTelemetryCache, names []string) error {
-	ctc.Log.Infof("Deleting VPP node %s", names[0])
+	ctc.Log.Infof("Deleting VPP node, names %+v", names)
 	return ctc.VppCache.DeleteNode(names[0])
 }
 

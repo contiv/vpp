@@ -19,6 +19,7 @@ import (
 	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
 	"github.com/pkg/errors"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 )
@@ -69,31 +70,39 @@ func (vds *VppDataStore) RetrieveNode(nodeName string) (n *telemetrymodel.Node, 
 	return nil, fmt.Errorf("node %s not found", nodeName)
 }
 
-// DeleteNode handles node deletions from the cache. If the node identified
-// by 'nodeName" is present in the cache, it is deleted and nil error is
-// returned; otherwise, an error is returned.
+// DeleteNode handles node deletions from the cache. The delete callback
+// actually hands off to us the node ID in a string format, so we have
+// to first find the node by its ID, not its name. If the nodeName parameter
+// is invalid, or it does not identify a node that is present in the cache,
+// we return an error.
 func (vds *VppDataStore) DeleteNode(nodeName string) error {
 	vds.lock.Lock()
 	defer vds.lock.Unlock()
 
-	node, ok := vds.retrieveNode(nodeName)
-	if !ok {
-		return fmt.Errorf("node %s does not exist", nodeName)
+	nodeId, err := strconv.Atoi(nodeName)
+	if err != nil {
+		return fmt.Errorf("invalid nodeId %s", nodeName)
 	}
 
-	for _, intf := range node.NodeInterfaces {
-		if intf.IfMeta.VppInternalName == "loop0" {
-			delete(vds.LoopMACMap, intf.If.PhysAddress)
-			for _, ip := range intf.If.IPAddresses {
-				delete(vds.LoopIPMap, ip)
+	for _, node := range vds.NodeMap {
+		if node.ID == uint32(nodeId) {
+			for _, intf := range node.NodeInterfaces {
+				if intf.IfMeta.VppInternalName == "loop0" {
+					delete(vds.LoopMACMap, intf.If.PhysAddress)
+					for _, ip := range intf.If.IPAddresses {
+						delete(vds.LoopIPMap, ip)
+					}
+				}
 			}
+
+			delete(vds.NodeMap, node.Name)
+			delete(vds.GigEIPMap, node.IPAddr)
+
+			return nil
 		}
 	}
 
-	delete(vds.NodeMap, node.Name)
-	delete(vds.GigEIPMap, node.IPAddr)
-
-	return nil
+	return fmt.Errorf("node %s does not exist", nodeName)
 }
 
 //RetrieveAllNodes returns an ordered slice of all nodes in a database organized by name.
@@ -307,7 +316,7 @@ func (vds *VppDataStore) SetSecondaryNodeIndices(node *telemetrymodel.Node) []st
 
 	loopIF, err := GetNodeLoopIFInfo(node)
 	if err != nil {
-		errReport = append(errReport, "node %s does not have a loop interface", node.Name)
+		errReport = append(errReport, fmt.Sprintf("node %s does not have a loop interface", node.Name))
 		return errReport
 	}
 

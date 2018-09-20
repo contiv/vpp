@@ -30,6 +30,7 @@ const (
 type Report interface {
 	LogErrAndAppendToNodeReport(nodeName string, errString string)
 	AppendToNodeReport(nodeName string, errString string)
+	SetPrefix(string)
 	SetTimeStamp(time time.Time)
 	GetTimeStamp() time.Time
 	Clear()

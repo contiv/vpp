@@ -628,15 +628,15 @@ func appendIfMissing(slice []string, s string) []string {
 func getIPAMConfig(config *Config) *Config {
 	_, contivNetwork, _ := net.ParseCIDR(config.IPAMConfig.ContivCIDR)
 	maskSize, _ := contivNetwork.Mask.Size()
-	subnetPrefixLength := 24 - maskSize
+	subnetPrefixLength := 23 - maskSize
 
 	podSubnetCIDR, _ := subnet(contivNetwork, 1, 0)
 	podNetworkPrefixLen := uint8(24)
 	vppHostSubnetCIDR, _ := subnet(contivNetwork, 1, 1)
 	vppHostNetworkPrefixLen := uint8(24)
-	nodeInterconnectCIDR, _ := subnet(contivNetwork, subnetPrefixLength, 253)
-	podIfIPCIDR, _ := subnet(contivNetwork, subnetPrefixLength, 254)
-	vxlanCIDR, _ := subnet(contivNetwork, subnetPrefixLength, 255)
+	nodeInterconnectCIDR, _ := subnet(contivNetwork, subnetPrefixLength, 125)
+	podIfIPCIDR, _ := subnet(contivNetwork, subnetPrefixLength, 126)
+	vxlanCIDR, _ := subnet(contivNetwork, subnetPrefixLength, 127)
 
 	config.IPAMConfig = ipam.Config{
 		PodIfIPCIDR:             podIfIPCIDR.String(),

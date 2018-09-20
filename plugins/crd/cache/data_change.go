@@ -122,7 +122,8 @@ func (nic *nodeInfoChange) GetValueProto() proto.Message {
 
 func (nic *nodeInfoChange) AddRecord(ctc *ContivTelemetryCache, names []string, record proto.Message) error {
 	ctc.Log.Infof("Adding VPP node, names %+v, nodeValue %+v", names, record)
-	if ni, ok := record.(*nodeinfomodel.NodeInfo); ok {
+
+  if ni, ok := record.(*nodeinfomodel.NodeInfo); ok {
 		return ctc.VppCache.CreateNode(ni.Id, ni.Name, ni.IpAddress, ni.ManagementIpAddress)
 	}
 	return fmt.Errorf("bad record type %s", reflect.TypeOf(record))

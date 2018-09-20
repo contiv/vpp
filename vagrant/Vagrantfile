@@ -423,7 +423,7 @@ VAGRANTFILE_API_VERSION = "2"
     config.vm.define "k8s-gateway" do |gw|
       gw.vm.hostname = "k8s-gateway"
       # Interface for K8s Cluster
-      gw.vm.network :private_network, ip: "10.0.251.254",  netmask: "255.255.254.0" virtualbox__intnet: "vpp"
+      gw.vm.network :private_network, ip: "10.1.1.254",  netmask: "255.255.254.0" virtualbox__intnet: "vpp"
       gw.vm.provider "virtualbox" do |v|
         v.customize ["modifyvm", :id, "--ioapic", "on"]
         v.memory = 256
@@ -446,7 +446,7 @@ VAGRANTFILE_API_VERSION = "2"
         # default router
         k8smaster.vm.provision "shell",
           run: "always",
-          inline: "route add default gw 10.0.251.254"
+          inline: "route add default gw 10.1.1.254"
         # delete default gw on eth0
         k8smaster.vm.provision "shell",
           run: "always",
@@ -489,7 +489,7 @@ VAGRANTFILE_API_VERSION = "2"
           # default router
           node.vm.provision "shell",
             run: "always",
-            inline: "route add default gw 10.0.251.254"
+            inline: "route add default gw 10.1.1.254"
           # delete default gw on eth0
           node.vm.provision "shell",
             run: "always",

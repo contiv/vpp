@@ -36,7 +36,7 @@ data:
     ServiceLocalEndpointWeight: 1
     DisableNATVirtualReassembly: true
     IPAMConfig:
-      ContivCIDR: 10.1.0.0/16
+      ContivCIDR: 10.1.0.0/15
       NodeInterconnectDHCP: False
   logs.conf: |
     default-level: debug

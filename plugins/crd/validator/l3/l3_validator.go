@@ -153,6 +153,7 @@ func (v *Validator) createValidationMap(vm map[uint32]Vrf) RouteMap {
 func (v *Validator) validateVrf1PodRoutes(node *telemetrymodel.Node, vrfMap VrfMap, routeMap RouteMap) int {
 
 	numErrs := 0
+	fmt.Printf("Node %s Podmap: %d\n", node.Name, len(node.PodMap))
 	for _, pod := range node.PodMap {
 
 		// Skip over host network pods
@@ -229,6 +230,7 @@ func (v *Validator) validateRemoteNodeRoutes(node *telemetrymodel.Node, vrfMap V
 		errString := fmt.Sprintf("local vxlanBVI lookup failed, error %s; "+
 			"unable to validate routes to remote nodes", err)
 		v.Report.AppendToNodeReport(node.Name, errString)
+
 		return numErrs
 	}
 

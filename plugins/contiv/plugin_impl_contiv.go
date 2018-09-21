@@ -626,7 +626,7 @@ func appendIfMissing(slice []string, s string) []string {
 
 // getIPAMConfig populates the Config struct with the calculated subnets
 func getIPAMConfig(config *Config) *Config {
-	_, contivNetwork, _ := net.ParseCIDR("10.1.0.0/14")
+	_, contivNetwork, _ := net.ParseCIDR(config.IPAMConfig.ContivCIDR)
 	maskSize, _ := contivNetwork.Mask.Size()
 	subnetPrefixLength := 23 - maskSize
 
@@ -660,7 +660,7 @@ func getIPAMConfig(config *Config) *Config {
 // num: given network number.
 //
 // Example: 10.1.0.0/16, with additional 8 bits and a network number of 5
-// result = 10.3.5.0/24
+// result = 10.1.5.0/24
 func subnet(base *net.IPNet, newBits int, num int) (*net.IPNet, error) {
 	ip := base.IP
 	mask := base.Mask

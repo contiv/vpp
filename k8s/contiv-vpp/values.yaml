@@ -14,7 +14,7 @@ contiv:
   serviceLocalEndpointWeight: 1
   disableNATVirtualReassembly: True
   ipamConfig:
-    contivCIDR: "10.1.0.0/15"
+    contivCIDR: "10.0.0.0/14"
     #serviceCIDR: "10.96.0.0/12"
   # example of node configuration for VPP interfaces
   #nodeConfig:

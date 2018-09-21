@@ -50,4 +50,5 @@ type VppCache interface {
 
 	ClearCache()
 	ReinitializeCache()
+	DumpCache()
 }

@@ -64,12 +64,13 @@ type RouteMap map[uint32]map[string]int
 func (v *Validator) Validate() {
 	nodeList := v.VppCache.RetrieveAllNodes()
 	numErrs := 0
+	v.Report.SetPrefix("L3-FIB")
 
 	for _, node := range nodeList {
 
 		vrfMap, err := v.createVrfMap(node)
 		if err != nil {
-			v.Report.LogErrAndAppendToNodeReport(node.Name, err.Error())
+			v.Report.AppendToNodeReport(node.Name, err.Error())
 		}
 		routeMap := v.createValidationMap(vrfMap)
 
@@ -103,9 +104,9 @@ func (v *Validator) Validate() {
 	}
 
 	if numErrs == 0 {
-		v.Report.AppendToNodeReport(api.GlobalMsg, "L3Fib validation: OK")
+		v.Report.AppendToNodeReport(api.GlobalMsg, "validation OK")
 	} else {
-		errString := fmt.Sprintf("L3Fib validation: %d error%s found", numErrs, printS(numErrs))
+		errString := fmt.Sprintf("%d error%s found", numErrs, printS(numErrs))
 		v.Report.AppendToNodeReport(api.GlobalMsg, errString)
 	}
 }
@@ -183,7 +184,7 @@ func (v *Validator) validateVrf0GigERoutes(node *telemetrymodel.Node, vrfMap Vrf
 	if err != nil {
 		numErrs++
 		errString := fmt.Sprintf("local GigE interface not found, error %s", err)
-		v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
+		v.Report.AppendToNodeReport(node.Name, errString)
 		return numErrs
 	}
 
@@ -228,7 +229,8 @@ func (v *Validator) validateRemoteNodeRoutes(node *telemetrymodel.Node, vrfMap V
 		numErrs++
 		errString := fmt.Sprintf("local vxlanBVI lookup failed, error %s; "+
 			"unable to validate routes to remote nodes", err)
-		v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
+		v.Report.AppendToNodeReport(node.Name, errString)
+
 		return numErrs
 	}
 
@@ -252,7 +254,7 @@ func (v *Validator) validateRemoteNodeRoutes(node *telemetrymodel.Node, vrfMap V
 			numErrs++
 			errString := fmt.Sprintf("failed to validate route %s VRF%d - "+
 				"failed lookup for vxlanBVI for node %s, error %s", othNode.ManIPAddr+"/32", 0, othNode.Name, err)
-			v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
+			v.Report.AppendToNodeReport(node.Name, errString)
 			continue
 		}
 
@@ -281,7 +283,7 @@ func (v *Validator) validateRemoteNodeRoutes(node *telemetrymodel.Node, vrfMap V
 				vxlanBviName, localVxlanBVI.IfMeta.SwIfIndex, bviAddr, 0, 0)
 		} else {
 			numErrs++
-			v.Report.LogErrAndAppendToNodeReport(node.Name, err.Error())
+			v.Report.AppendToNodeReport(node.Name, err.Error())
 		}
 
 		// Check if the nextHop on the route to the PodNetwork subnet on
@@ -298,7 +300,7 @@ func (v *Validator) validateRemoteNodeRoutes(node *telemetrymodel.Node, vrfMap V
 				vxlanBviName, localVxlanBVI.IfMeta.SwIfIndex, bviAddr, 0, 0)
 		} else {
 			numErrs++
-			v.Report.LogErrAndAppendToNodeReport(node.Name, err.Error())
+			v.Report.AppendToNodeReport(node.Name, err.Error())
 		}
 	}
 
@@ -316,7 +318,7 @@ func (v *Validator) validateVrf0LocalHostRoute(node *telemetrymodel.Node, vrfMap
 		numErrs++
 		errString := fmt.Sprintf("missing route with dst IP %s in VRF0 for node %s",
 			node.ManIPAddr+"/32", node.Name)
-		v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
+		v.Report.AppendToNodeReport(node.Name, errString)
 		return numErrs
 	}
 
@@ -358,7 +360,7 @@ func (v *Validator) validateDefaultRoutes(node *telemetrymodel.Node, vrfMap VrfM
 		numErrs++
 		errString := fmt.Sprintf("failed to validate route %s VRF%d - "+
 			"local GigE interface lookup match error %s", "0.0.0.0/0", 0, err)
-		v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
+		v.Report.AppendToNodeReport(node.Name, errString)
 		return numErrs
 	}
 
@@ -414,7 +416,7 @@ func (v *Validator) validateRouteToLocalVxlanBVI(node *telemetrymodel.Node, vrfM
 	loopIf, err := findInterface(vxlanBviName, node.NodeInterfaces)
 	if err != nil {
 		numErrs++
-		v.Report.LogErrAndAppendToNodeReport(node.Name, err.Error())
+		v.Report.AppendToNodeReport(node.Name, err.Error())
 		return numErrs
 	}
 
@@ -470,7 +472,7 @@ func (v *Validator) validateLocalVppHostNetworkRoute(node *telemetrymodel.Node, 
 		numErrs++
 		errString := fmt.Sprintf("failed to validate route to tap-vpp2 - "+
 			"failed lookup for tap-vpp2, err %s", err)
-		v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
+		v.Report.AppendToNodeReport(node.Name, errString)
 		return numErrs
 	}
 
@@ -479,7 +481,7 @@ func (v *Validator) validateLocalVppHostNetworkRoute(node *telemetrymodel.Node, 
 		numErrs++
 		errString := fmt.Sprintf("ipam vppHostNetwork %s bad format; err %s",
 			node.NodeIPam.VppHostNetwork, err)
-		v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
+		v.Report.AppendToNodeReport(node.Name, errString)
 		return numErrs
 	}
 	ipamHostNetPrefix := ipamHostNetAddr &^ ipamHostNetMask
@@ -498,7 +500,7 @@ func (v *Validator) validateLocalVppHostNetworkRoute(node *telemetrymodel.Node, 
 			numErrs++
 			errString := fmt.Sprintf("tap-vpp2 IP address %s bad format; err %s",
 				ifc.If.IPAddresses[0], err)
-			v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
+			v.Report.AppendToNodeReport(node.Name, errString)
 			continue
 		}
 		ifHostNetPrefix := ifHostNetAddr &^ ifHostNetMask
@@ -507,7 +509,7 @@ func (v *Validator) validateLocalVppHostNetworkRoute(node *telemetrymodel.Node, 
 			numErrs++
 			errString := fmt.Sprintf("inconsistent ipam vppHostNetwork %s vs tap-vpp2 IP address %s",
 				node.NodeIPam.VppHostNetwork, ifc.If.IPAddresses[0])
-			v.Report.LogErrAndAppendToNodeReport(node.Name, errString)
+			v.Report.AppendToNodeReport(node.Name, errString)
 			continue
 		}
 	}
@@ -525,7 +527,7 @@ func (v *Validator) validateRoute(rteID string, vrfID uint32, vrfMap VrfMap, rtM
 	if !ok {
 		numErrs++
 		errString := fmt.Sprintf("missing route %s in VRF%d", rteID, vrfID)
-		v.Report.LogErrAndAppendToNodeReport(nodeName, errString)
+		v.Report.AppendToNodeReport(nodeName, errString)
 
 		return numErrs
 	}
@@ -539,7 +541,7 @@ func (v *Validator) validateRoute(rteID string, vrfID uint32, vrfMap VrfMap, rtM
 		rtMap[vrfID][route.Ipr.DstAddr] = routeInvalid
 		errString := fmt.Sprintf("invalid route %s in VRF%d; bad outgoing if - "+
 			"have '%s', expecting '%s'", route.Ipr.DstAddr, vrfID, route.Ipr.OutIface, eOutIface)
-		v.Report.LogErrAndAppendToNodeReport(nodeName, errString)
+		v.Report.AppendToNodeReport(nodeName, errString)
 	}
 
 	if route.IprMeta.OutgoingIfIdx != eOutgoingIfIdx {
@@ -547,7 +549,7 @@ func (v *Validator) validateRoute(rteID string, vrfID uint32, vrfMap VrfMap, rtM
 		rtMap[vrfID][route.Ipr.DstAddr] = routeInvalid
 		errString := fmt.Sprintf("invalid route %s in VRF%d; bad outgoing swIndex - "+
 			"have '%d', expecting '%d'", route.Ipr.DstAddr, vrfID, route.IprMeta.OutgoingIfIdx, eOutgoingIfIdx)
-		v.Report.LogErrAndAppendToNodeReport(nodeName, errString)
+		v.Report.AppendToNodeReport(nodeName, errString)
 	}
 
 	if route.Ipr.ViaVRFID != eViaVrf {
@@ -555,7 +557,7 @@ func (v *Validator) validateRoute(rteID string, vrfID uint32, vrfMap VrfMap, rtM
 		rtMap[vrfID][route.Ipr.DstAddr] = routeInvalid
 		errString := fmt.Sprintf("invalid route %s in VRF%d; bad viaVrfID - "+
 			"have '%d', expecting '%d'", route.Ipr.DstAddr, vrfID, route.Ipr.ViaVRFID, eViaVrf)
-		v.Report.LogErrAndAppendToNodeReport(nodeName, errString)
+		v.Report.AppendToNodeReport(nodeName, errString)
 	}
 
 	if route.Ipr.Type != eType {
@@ -563,7 +565,7 @@ func (v *Validator) validateRoute(rteID string, vrfID uint32, vrfMap VrfMap, rtM
 		rtMap[vrfID][route.Ipr.DstAddr] = routeInvalid
 		errString := fmt.Sprintf("invalid route %s in VRF%d; bad Type - "+
 			"have '%d', expecting '%d'", route.Ipr.DstAddr, vrfID, route.Ipr.Type, eType)
-		v.Report.LogErrAndAppendToNodeReport(nodeName, errString)
+		v.Report.AppendToNodeReport(nodeName, errString)
 	}
 
 	// eNextHopAddr is empty if the next hop should not be validated
@@ -572,7 +574,7 @@ func (v *Validator) validateRoute(rteID string, vrfID uint32, vrfMap VrfMap, rtM
 		rtMap[vrfID][route.Ipr.DstAddr] = routeInvalid
 		errString := fmt.Sprintf("invalid route %s in VRF%d; bad nextHop -"+
 			"have '%s', expecting '%s", route.Ipr.DstAddr, vrfID, route.Ipr.NextHopAddr, eNextHopAddr)
-		v.Report.LogErrAndAppendToNodeReport(nodeName, errString)
+		v.Report.AppendToNodeReport(nodeName, errString)
 	}
 
 	return numErrs

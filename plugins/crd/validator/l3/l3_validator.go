@@ -37,7 +37,7 @@ const (
 
 	// VPP interface names
 	vxlanBviName  = "vxlanBVI"
-	gigENameMatch = `GigabitEthernet[0-9]/[0-9]*/[0-9]`
+	gigENameMatch = `GigabitEthernet[[:alnum:]]*/[[:alnum:]]*/[[:alnum:]]*`
 	tap2HostName  = "tap-vpp2"
 )
 
@@ -153,7 +153,6 @@ func (v *Validator) createValidationMap(vm map[uint32]Vrf) RouteMap {
 func (v *Validator) validateVrf1PodRoutes(node *telemetrymodel.Node, vrfMap VrfMap, routeMap RouteMap) int {
 
 	numErrs := 0
-	fmt.Printf("Node %s Podmap: %d\n", node.Name, len(node.PodMap))
 	for _, pod := range node.PodMap {
 
 		// Skip over host network pods

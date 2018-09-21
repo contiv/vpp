@@ -262,6 +262,7 @@ func (ctc *ContivTelemetryCache) getNodeInfo(client http.Client, node *telemetry
 		ctc.nodeResponseChannel <- &NodeDTO{node.Name, nil, err, version}
 		return
 	} else if res.StatusCode < 200 || res.StatusCode > 299 {
+		err := fmt.Errorf("HTTP Get error: url %s, Status: %s", url, res.Status)
 		ctc.nodeResponseChannel <- &NodeDTO{node.Name, nil, err, version}
 		return
 	}

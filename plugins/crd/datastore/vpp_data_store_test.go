@@ -63,7 +63,7 @@ func TestVppDataStore_DeleteNode(t *testing.T) {
 	gomega.Expect(err).To(gomega.BeNil())
 	gomega.Expect(node.IPAddr).To(gomega.Equal("10"))
 
-	err = db.DeleteNode("k8s_master")
+	err = db.DeleteNode("1")
 	gomega.Expect(err).To(gomega.BeNil())
 	node, err = db.RetrieveNode("k8s_master")
 	gomega.Expect(node).To(gomega.BeNil())

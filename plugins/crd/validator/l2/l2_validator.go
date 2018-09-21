@@ -426,7 +426,7 @@ func (v *Validator) ValidateL2FibEntries() {
 				if !ok {
 					errCnt++
 					errString := fmt.Sprintf("invalid L2Fib entry '%s': outgoing interface %s / ifIndex %d "+
-						"not dound ", feVal.Fe.PhysAddress, feVal.Fe.OutgoingIfName, feVal.FeMeta.OutgoingIfIndex)
+						"not found ", feVal.Fe.PhysAddress, feVal.Fe.OutgoingIfName, feVal.FeMeta.OutgoingIfIndex)
 					v.Report.AppendToNodeReport(node.Name, errString)
 					continue
 				}
@@ -478,7 +478,7 @@ func (v *Validator) ValidateL2FibEntries() {
 
 		if !fibHasLoopIF {
 			errCnt++
-			errString := fmt.Sprintf("L2Fib entry for inteface 'loop0' not found")
+			errString := fmt.Sprintf("L2Fib entry for interface 'loop0' not found")
 			v.Report.AppendToNodeReport(node.Name, errString)
 		}
 

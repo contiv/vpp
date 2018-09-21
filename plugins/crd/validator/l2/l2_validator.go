@@ -37,7 +37,7 @@ type Validator struct {
 
 type tapMap map[string]map[uint32]telemetrymodel.NodeInterface
 
-// Validate performes the validation of L2 telemetry data collected from a
+// Validate performs the validation of L2 telemetry data collected from a
 // Contiv cluster.
 func (v *Validator) Validate() {
 	v.ValidateArpTables()
@@ -47,10 +47,11 @@ func (v *Validator) Validate() {
 	v.ValidatePodInfo()
 }
 
-// ValidateArpTables validates the the entries of node ARP tables to
-// make sure that the number of entries is correct as well as making sure
-// that each entry's ip address and mac address correspond to the correct
-// node in the network.
+// ValidateArpTables validates statically configured entries in the ARP table
+// for both the local BVI interface as well as BVI interfaces on remote nodes.
+// The routine checks that each entry points to a valid interface. The routine
+// also detects stale entries in the ARP table (i.e. entries that do not point
+// to any active nodes in the cluster).
 func (v *Validator) ValidateArpTables() {
 	errCnt := 0
 	v.Report.SetPrefix("IP-ARP")
@@ -127,7 +128,7 @@ func (v *Validator) ValidateArpTables() {
 	v.addSummary(errCnt)
 }
 
-//ValidateBridgeDomains makes sure that each node in the cache has the right
+// ValidateBridgeDomains makes sure that each node in the cache has the right
 // number of vxlan_tunnels for the number of nodes as well as checking that
 // each vxlan_tunnel points to a node that has a corresponding but opposite
 // tunnel itself.
@@ -256,9 +257,9 @@ validateNodeBD:
 					continue
 				}
 
-				// For the vxlan interface (validInterfaces.e. the interface to a remote node),
+				// For the vxlan interface (i.e. the interface to a remote node),
 				// try to find the node with its GigE interface IP Address equal
-				// to the dst ip address in vxlan tunnel (validInterfaces.e. find the node to
+				// to the dst ip address in vxlan tunnel (i.e. find the node to
 				// which the tunnel is pointing). Then, ensure that on this remote
 				// node there is a a vxlan_tunnel that is points to our current
 				// node.
@@ -282,8 +283,8 @@ validateNodeBD:
 
 				if !matchingTunnelFound {
 					errCnt++
-					errString := fmt.Sprintf("missing the reverse VXLAN tunnel on remote node %s for VXLAN %s",
-						dstipNode.Name, nodeIfc.If.Name)
+					errString := fmt.Sprintf("VXLAN %s: missing reverse VXLAN tunnel on remote node %s",
+						nodeIfc.If.Name, dstipNode.Name)
 					v.Report.AppendToNodeReport(node.Name, errString)
 				}
 				validInterfaces++
@@ -333,8 +334,11 @@ validateNodeBD:
 	v.addSummary(errCnt)
 }
 
-// ValidateL2FibEntries will validate that each nodes fib entries ip address
-// point to the right loop interface and the mac addresses match
+// ValidateL2FibEntries validates statically configured L2 FIB entries for
+// remote nodes. It checks that each remote node has a statically configured
+// entry n the L2 FIB and that the entry points to a valid interface on the
+// remote node. It also detect dangling L2FIB entries (i.e. entries that do
+// not point to active remote nodes).
 func (v *Validator) ValidateL2FibEntries() {
 	errCnt := 0
 	v.Report.SetPrefix("L2-FIB")
@@ -345,7 +349,7 @@ func (v *Validator) ValidateL2FibEntries() {
 		vxLanBD, err := getVxlanBD(node)
 		if err != nil {
 			errCnt++
-			errString := fmt.Sprintf("%s - skipping L2Fib validation for node %s", err.Error(), node.Name)
+			errString := fmt.Sprintf("%s - skipped L2Fib validation for node %s", err.Error(), node.Name)
 			v.Report.AppendToNodeReport(node.Name, errString)
 			continue
 		}
@@ -395,7 +399,7 @@ func (v *Validator) ValidateL2FibEntries() {
 					// in the BVI interface on the local node
 					if feVal.Fe.PhysAddress != loopIf.If.PhysAddress {
 						errCnt++
-						errString := fmt.Sprintf("L2Fib BVI entry '%s' invalid - bad MAC address; "+
+						errString := fmt.Sprintf("invalid L2Fib BVI entry '%s'; bad MAC address - "+
 							"have '%s', expecting '%s'", feKey, feVal.Fe.PhysAddress, loopIf.If.PhysAddress)
 						v.Report.AppendToNodeReport(node.Name, errString)
 					}
@@ -421,8 +425,8 @@ func (v *Validator) ValidateL2FibEntries() {
 				intf, ok := node.NodeInterfaces[int(feVal.FeMeta.OutgoingIfIndex)]
 				if !ok {
 					errCnt++
-					errString := fmt.Sprintf("outgoing interface for L2Fib entry '%s' not found ifName %s, "+
-						"ifIndex %d", feVal.Fe.PhysAddress, feVal.Fe.OutgoingIfName, feVal.FeMeta.OutgoingIfIndex)
+					errString := fmt.Sprintf("invalid L2Fib entry '%s': outgoing interface %s / ifIndex %d "+
+						"not found ", feVal.Fe.PhysAddress, feVal.Fe.OutgoingIfName, feVal.FeMeta.OutgoingIfIndex)
 					v.Report.AppendToNodeReport(node.Name, errString)
 					continue
 				}
@@ -474,7 +478,7 @@ func (v *Validator) ValidateL2FibEntries() {
 
 		if !fibHasLoopIF {
 			errCnt++
-			errString := fmt.Sprintf("L2Fib entry for the 'loop0' interface not found")
+			errString := fmt.Sprintf("L2Fib entry for interface 'loop0' not found")
 			v.Report.AppendToNodeReport(node.Name, errString)
 		}
 

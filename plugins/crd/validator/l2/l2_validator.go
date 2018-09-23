@@ -570,8 +570,8 @@ func (v *Validator) ValidatePodInfo() {
 		vppNode, err := v.VppCache.RetrieveNodeByHostIPAddr(pod.HostIPAddress)
 		if err != nil {
 			errCnt++
-			errString := fmt.Sprintf("vppNode not found for Pod %s; IpAddr %s, Host IpAddr %s "+
-				"- skipping Pod validation", pod.Name, pod.IPAddress, pod.HostIPAddress)
+			errString := fmt.Sprintf("pod '%s': vppNode for pod not found - skipping Pod validation",
+				pod.Name)
 			v.Report.AppendToNodeReport(api.GlobalMsg, errString)
 			continue
 		}
@@ -580,7 +580,7 @@ func (v *Validator) ValidatePodInfo() {
 		podPtr, ok := vppNode.PodMap[pod.Name]
 		if !ok {
 			errCnt++
-			v.Report.AppendToNodeReport(vppNode.Name, fmt.Sprintf("pod %s's IP address (%s) points to node %s, "+
+			v.Report.AppendToNodeReport(vppNode.Name, fmt.Sprintf("pod '%s': IP address (%s) points to node %s, "+
 				"but pod is not present in node's podMap", pod.Name, pod.HostIPAddress, vppNode.Name))
 			continue
 		}
@@ -599,8 +599,8 @@ func (v *Validator) ValidatePodInfo() {
 			// K8s does not know about the node where Contiv thinks that the
 			// pod is hosted
 			errCnt++
-			errString := fmt.Sprintf("vppNode '%s' hosting pod '%s' not in K8s database",
-				vppNode.Name, pod.Name)
+			errString := fmt.Sprintf("pods'%s': vppNode '%s' hosting the pod not in K8s database",
+				pod.Name, vppNode.Name)
 			v.Report.AppendToNodeReport(vppNode.Name, errString)
 			continue
 		}
@@ -612,20 +612,20 @@ func (v *Validator) ValidatePodInfo() {
 			case nodemodel.NodeAddress_NodeInternalIP:
 				if adr.Address != pod.HostIPAddress {
 					errCnt++
-					errString := fmt.Sprintf("pod %s: Host IP Addr '%s' does not match NodeInternalIP "+
+					errString := fmt.Sprintf("pod '%s:' Host IP Addr '%s' does not match NodeInternalIP "+
 						"'%s' in K8s database", pod.Name, pod.HostIPAddress, adr.Address)
 					v.Report.AppendToNodeReport(vppNode.Name, errString)
 				}
 			case nodemodel.NodeAddress_NodeHostName:
 				if adr.Address != vppNode.Name {
 					errCnt++
-					errString := fmt.Sprintf("pod %s: Node name %s does not match NodeHostName %s"+
+					errString := fmt.Sprintf("pod '%s': Node name %s does not match NodeHostName %s"+
 						"in K8s database", pod.Name, vppNode.Name, adr.Address)
 					v.Report.AppendToNodeReport(vppNode.Name, errString)
 				}
 			default:
 				errCnt++
-				errString := fmt.Sprintf("pod %s: unknown address type %+v", pod.Name, adr)
+				errString := fmt.Sprintf("pod '%s:' unknown address type %+v", pod.Name, adr)
 				v.Report.AppendToNodeReport(vppNode.Name, errString)
 			}
 		}
@@ -639,7 +639,7 @@ func (v *Validator) ValidatePodInfo() {
 		_, k8sMask, err := utils.Ipv4CidrToAddressAndMask(k8sNode.Pod_CIDR)
 		if err != nil {
 			errCnt++
-			errString := fmt.Sprintf("invalid Pod_CIDR %s", k8sNode.Pod_CIDR)
+			errString := fmt.Sprintf("pod '%s': invalid Pod_CIDR %s", pod.Name, k8sNode.Pod_CIDR)
 			v.Report.AppendToNodeReport(k8sNode.Name, errString)
 			continue
 		}
@@ -649,7 +649,8 @@ func (v *Validator) ValidatePodInfo() {
 		podIfIPAddr, podIfIPMask, err := utils.Ipv4CidrToAddressAndMask(vppNode.NodeIPam.Config.PodIfIPCIDR)
 		if err != nil {
 			errCnt++
-			errString := fmt.Sprintf("invalid IPAM PodIfIPCIDR %s", vppNode.NodeIPam.Config.PodIfIPCIDR)
+			errString := fmt.Sprintf("pod '%s': invalid IPAM PodIfIPCIDR %s",
+				pod.Name, vppNode.NodeIPam.Config.PodIfIPCIDR)
 			v.Report.AppendToNodeReport(k8sNode.Name, errString)
 			continue
 		}
@@ -658,8 +659,8 @@ func (v *Validator) ValidatePodInfo() {
 		// Make sure the VPP-side CIDR mask and K8s-side CIDR mask are the same
 		if k8sMask != podIfIPMask {
 			errCnt++
-			errString := fmt.Sprintf("pod CIDR mask mismatch: K8s Pod CIDR: %s, Contiv PodIfIpCIDR %s",
-				k8sNode.Pod_CIDR, vppNode.NodeIPam.Config.PodIfIPCIDR)
+			errString := fmt.Sprintf("pod '%s': CIDR mask mismatch: K8s Pod CIDR: %s, Contiv PodIfIpCIDR %s",
+				pod.Name, k8sNode.Pod_CIDR, vppNode.NodeIPam.Config.PodIfIPCIDR)
 			v.Report.AppendToNodeReport(k8sNode.Name, errString)
 			continue
 		}
@@ -670,7 +671,8 @@ func (v *Validator) ValidatePodInfo() {
 		podAddr, err := utils.Ipv4ToUint32(pod.IPAddress)
 		if err != nil {
 			errCnt++
-			errString := fmt.Sprintf("invalid pod IP address %s", pod.IPAddress)
+			errString := fmt.Sprintf("pod'%s': invalid pod IP address '%s'",
+				pod.Name, pod.IPAddress)
 			v.Report.AppendToNodeReport(k8sNode.Name, errString)
 			continue
 		}
@@ -714,7 +716,7 @@ func (v *Validator) ValidatePodInfo() {
 
 	for podName, nodeName := range podMap {
 		errCnt++
-		errString := fmt.Sprintf("no valid VPP tap interface found for pod %s", podName)
+		errString := fmt.Sprintf("pod '%s': no valid VPP tap interface found for the pod", podName)
 		v.Report.AppendToNodeReport(nodeName, errString)
 	}
 

@@ -162,13 +162,26 @@ func (v *Validator) validateVrf1PodRoutes(node *telemetrymodel.Node, vrfMap VrfM
 
 		// Validate routes to local Pods
 		// Lookup the Pod route in VRF1; it must have mask length = 32
-		numErrs += v.validateRoute(pod.IPAddress+"/32", 1, vrfMap, routeMap, node.Name,
-			pod.VppIfName, pod.VppSwIfIdx, pod.IPAddress, 0, 0)
+		if pod.IPAddress != "" {
+			numErrs += v.validateRoute(pod.IPAddress+"/32", 1, vrfMap, routeMap, node.Name,
+				pod.VppIfName, pod.VppSwIfIdx, pod.IPAddress, 0, 0)
+		} else {
+			numErrs++
+			errString := fmt.Sprintf("pod '%s': IP Address empty, pod route validation skipped", pod.Name)
+			v.Report.AppendToNodeReport(node.Name, errString)
+		}
 
 		// make sure pod that the route for the pod-facing tap interface in vpp
 		// exists and is valid
-		numErrs += v.validateRoute(pod.VppIfIPAddr, 1, vrfMap, routeMap, node.Name,
-			pod.VppIfName, pod.VppSwIfIdx, strings.Split(pod.VppIfIPAddr, "/")[0], 0, 0)
+		if pod.VppIfIPAddr != "" {
+			numErrs += v.validateRoute(pod.VppIfIPAddr, 1, vrfMap, routeMap, node.Name,
+				pod.VppIfName, pod.VppSwIfIdx, strings.Split(pod.VppIfIPAddr, "/")[0], 0, 0)
+		} else {
+			numErrs++
+			errString := fmt.Sprintf("pod '%s': VppIfIPAddr empty, VppIfIPAddr route validation skipped",
+				pod.Name)
+			v.Report.AppendToNodeReport(node.Name, errString)
+		}
 	}
 
 	return numErrs
@@ -365,15 +378,10 @@ func (v *Validator) validateDefaultRoutes(node *telemetrymodel.Node, vrfMap VrfM
 
 	// Validate the default Gateway route; if we can find the ARP entry for
 	// the default Gateway, validate the route to it
-	var nextHop string
-	for _, arpEntry := range node.NodeIPArp {
-		if arpEntry.AeMeta.IfIndex == ifc.IfMeta.SwIfIndex {
-			nextHop = arpEntry.Ae.IPAddress
-			break
-		}
-	}
+	numErrs += v.validateGigEDefaultRteNextHop("0.0.0.0/0", 0, vrfMap, routeMap,
+		node, ifc)
 	numErrs += v.validateRoute("0.0.0.0/0", 0, vrfMap, routeMap, node.Name,
-		ifc.If.Name, ifc.IfMeta.SwIfIndex, nextHop, 0, 0)
+		ifc.If.Name, ifc.IfMeta.SwIfIndex, "", 0, 0)
 
 	// Validate VRF0 boiler plate routes
 	numErrs += v.validateRoute("0.0.0.0/32", 0, vrfMap, routeMap, node.Name,
@@ -604,6 +612,37 @@ func (v *Validator) validatePhyNextHopRoutes(rteID string, vrfID uint32, vrfMap 
 		"", 0, "0.0.0.0", 0, eType)
 
 	return numErrs
+}
+
+// validateGigEDefaultRteNextHop validates the next hop in the VRF0 default
+// route (if it's set). Two rules must be satisfied: the route to the next
+// hop must exist, and there must be an entry for the next hop in the ARP
+// table.
+func (v *Validator) validateGigEDefaultRteNextHop(rteID string, vrfID uint32, vrfMap VrfMap, rtMap RouteMap,
+	node *telemetrymodel.Node, outIfc *telemetrymodel.NodeInterface) int {
+	if defaultRte, ok := vrfMap[0]["0.0.0.0/0"]; ok {
+		if defaultRte, ok := vrfMap[0][defaultRte.Ipr.NextHopAddr]; ok {
+			numErrs := v.validateRoute(defaultRte.Ipr.NextHopAddr+"/32", 0, vrfMap, rtMap, node.Name,
+				outIfc.If.Name, outIfc.IfMeta.SwIfIndex, defaultRte.Ipr.NextHopAddr, 0, 0)
+
+			// Check that the next hop also has an ARP table entry
+			for _, arpEntry := range node.NodeIPArp {
+				if arpEntry.Ae.IPAddress == defaultRte.Ipr.NextHopAddr {
+					return numErrs
+				}
+			}
+
+			numErrs++
+			errString := fmt.Sprintf("invalid nextHop %s in default route 0.0.0.0/0 in VRF0 -"+
+				"no corresponding ARP entry", defaultRte.Ipr.NextHopAddr)
+			v.Report.AppendToNodeReport(node.Name, errString)
+			return numErrs
+		}
+	}
+
+	// Default route not found; do not increment error count, default route
+	// is validated at a later point in the workflow.
+	return 0
 }
 
 // checkUnvalidatedRoutes walks through the mark-and-sweep database and reports

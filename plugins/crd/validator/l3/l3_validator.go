@@ -620,7 +620,7 @@ func (v *Validator) validatePhyNextHopRoutes(rteID string, vrfID uint32, vrfMap 
 // table.
 func (v *Validator) validateGigEDefaultRteNextHop(rteID string, vrfID uint32, vrfMap VrfMap, rtMap RouteMap,
 	node *telemetrymodel.Node, outIfc *telemetrymodel.NodeInterface) int {
-		if defaultRte, ok := vrfMap[0]["0.0.0.0/0"]; ok {
+	if defaultRte, ok := vrfMap[0]["0.0.0.0/0"]; ok {
 		defaultRteID := defaultRte.Ipr.NextHopAddr + "/32"
 
 		if defaultRte, ok := vrfMap[0][defaultRteID]; ok {

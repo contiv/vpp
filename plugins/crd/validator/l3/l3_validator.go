@@ -620,10 +620,12 @@ func (v *Validator) validatePhyNextHopRoutes(rteID string, vrfID uint32, vrfMap 
 // table.
 func (v *Validator) validateGigEDefaultRteNextHop(rteID string, vrfID uint32, vrfMap VrfMap, rtMap RouteMap,
 	node *telemetrymodel.Node, outIfc *telemetrymodel.NodeInterface) int {
-	if defaultRte, ok := vrfMap[0]["0.0.0.0/0"]; ok {
-		if defaultRte, ok := vrfMap[0][defaultRte.Ipr.NextHopAddr]; ok {
-			numErrs := v.validateRoute(defaultRte.Ipr.NextHopAddr+"/32", 0, vrfMap, rtMap, node.Name,
-				outIfc.If.Name, outIfc.IfMeta.SwIfIndex, defaultRte.Ipr.NextHopAddr, 0, 0)
+		if defaultRte, ok := vrfMap[0]["0.0.0.0/0"]; ok {
+		defaultRteID := defaultRte.Ipr.NextHopAddr + "/32"
+
+		if defaultRte, ok := vrfMap[0][defaultRteID]; ok {
+			numErrs := v.validateRoute(defaultRteID, 0, vrfMap, rtMap, node.Name, outIfc.If.Name,
+				outIfc.IfMeta.SwIfIndex, defaultRte.Ipr.NextHopAddr, 0, 0)
 
 			// Check that the next hop also has an ARP table entry
 			for _, arpEntry := range node.NodeIPArp {

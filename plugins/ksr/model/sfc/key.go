@@ -16,6 +16,10 @@ package sfc
 
 // Key returns the key under which a given K8s pod is stored in the
 // data store.
-func Key(name string) string {
-	return "sfc-controller/v2/status/network-pod-to-node-map/" + name
+func Key(name string, namespace string) string {
+	return KeyPrefix() + name + "-" + "namespace" + "-" + namespace
+}
+
+func KeyPrefix() string {
+	return "sfc-controller/v2/status/network-pod-to-node-map/"
 }

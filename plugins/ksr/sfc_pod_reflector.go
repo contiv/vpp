@@ -38,7 +38,6 @@ type SfcPodReflector struct {
 // of k8s pods. The subscription does not become active until Start()
 // is called.
 func (spr *SfcPodReflector) Init(stopCh2 <-chan struct{}, wg *sync.WaitGroup) error {
-
 	sfcPodReflectorFuncs := ReflectorFunctions{
 		EventHdlrFunc: cache.ResourceEventHandlerFuncs{
 			AddFunc: func(obj interface{}) {
@@ -61,7 +60,15 @@ func (spr *SfcPodReflector) Init(stopCh2 <-chan struct{}, wg *sync.WaitGroup) er
 					reflect.TypeOf(k8sObj), k8sObj)
 				return nil, "", false
 			}
-			return valueToProto(k8sPod.Name, k8sPod.Spec.NodeName), sfc.Key(k8sPod.Name), true
+			labels := k8sPod.GetLabels()
+			if labels != nil {
+				for key, val := range labels {
+					if key == "sfc" && val == "true" {
+						return spr.valueToProto(k8sPod.Name, k8sPod.Spec.NodeName), sfc.Key(k8sPod.Name, k8sPod.Namespace), true
+					}
+				}
+			}
+			return nil, "", false
 		},
 	}
 
@@ -80,8 +87,8 @@ func (spr *SfcPodReflector) addPod(obj interface{}) {
 	if labels != nil {
 		for key, val := range labels {
 			if key == "sfc" && val == "true" {
-				sfcKey := sfc.Key(k8sPod.Name)
-				sfcValue := valueToProto(k8sPod.Name, k8sPod.Spec.NodeName)
+				sfcKey := sfc.Key(k8sPod.Name, k8sPod.Namespace)
+				sfcValue := spr.valueToProto(k8sPod.Name, k8sPod.Spec.NodeName)
 				spr.Log.WithField("sfc-pod", obj).Info("Adding sfc-pod")
 				spr.ksrAdd(sfcKey, sfcValue)
 			}
@@ -101,7 +108,7 @@ func (spr *SfcPodReflector) deletePod(obj interface{}) {
 	if labels != nil {
 		for key, val := range labels {
 			if key == "sfc" && val == "true" {
-				sfcKey := sfc.Key(k8sPod.Name)
+				sfcKey := sfc.Key(k8sPod.Name, k8sPod.Namespace)
 				spr.Log.WithField("sfc-pod", obj).Info("Deleting sfc-pod")
 				spr.ksrDelete(sfcKey)
 			}
@@ -140,25 +147,25 @@ func (spr *SfcPodReflector) updatePod(oldObj, newObj interface{}) {
 	}
 
 	if oldSfcLabelExist && newSfcLabelExist {
-		sfcKey := sfc.Key(newK8sPod.GetName())
-		oldSfcValue := valueToProto(oldK8sPod.GetName(), oldK8sPod.Spec.NodeName)
-		newSfcValue := valueToProto(newK8sPod.GetName(), newK8sPod.Spec.NodeName)
+		sfcKey := sfc.Key(newK8sPod.GetName(), newK8sPod.GetNamespace())
+		oldSfcValue := spr.valueToProto(oldK8sPod.Name, oldK8sPod.Spec.NodeName)
+		newSfcValue := spr.valueToProto(newK8sPod.Name, newK8sPod.Spec.NodeName)
 		spr.Log.WithField("new-sfc-pod", newSfcValue).Info("Updating new sfc-pod")
 		spr.ksrUpdate(sfcKey, oldSfcValue, newSfcValue)
 	} else if !oldSfcLabelExist && newSfcLabelExist {
-		sfcKey := sfc.Key(newK8sPod.GetName())
-		sfcValue := valueToProto(newK8sPod.GetName(), newK8sPod.Spec.NodeName)
+		sfcKey := sfc.Key(newK8sPod.Name, newK8sPod.GetNamespace())
+		sfcValue := spr.valueToProto(newK8sPod.Name, newK8sPod.Spec.NodeName)
 		spr.Log.WithField("new-sfc-pod", sfcValue).Info("Updating new sfc-pod")
 		spr.ksrAdd(sfcKey, sfcValue)
 	} else if oldSfcLabelExist && !newSfcLabelExist {
-		sfcKey := sfc.Key(oldK8sPod.GetName())
+		sfcKey := sfc.Key(oldK8sPod.Name, oldK8sPod.GetNamespace())
 		spr.ksrDelete(sfcKey)
 	}
 }
 
 // valueToProto returns the value of the sfc tree a given K8s pod is stored in the
 // data store.
-func valueToProto(name string, nodeName string) *sfc.Sfc {
+func (spr *SfcPodReflector) valueToProto(name string, nodeName string) *sfc.Sfc {
 	valueProto := &sfc.Sfc{}
 	valueProto.Vnf = name
 	valueProto.Node = nodeName

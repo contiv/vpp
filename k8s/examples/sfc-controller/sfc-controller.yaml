@@ -134,7 +134,7 @@ data:
                     ip_addresses:
                       - "10.0.1.1/24"
                     memif_parms:
-                      inter_vnf_conn: vswitch
+                      inter_pod_conn: vswitch
             - metadata:
                 name: vnf2
               spec:
@@ -143,9 +143,9 @@ data:
                   - name: port1
                     if_type: memif
                     ip_addresses:
-                      - "10.0.2.1/24"
+                      - "10.0.1.2/24"
                     memif_parms:
-                      inter_vnf_conn: vswitch
+                      inter_pod_conn: vswitch
           connections:
             - conn_type: l2pp
               network_node_overlay_name: inter_node_vxlan_mesh
@@ -166,7 +166,7 @@ data:
                     ip_addresses:
                       - "10.0.1.1/24"
                     memif_parms:
-                      inter_vnf_conn: vswitch
+                      inter_pod_conn: vswitch
             - metadata:
                 name: vnf4
               spec:
@@ -175,9 +175,9 @@ data:
                   - name: port1
                     if_type: memif
                     ip_addresses:
-                      - "10.0.2.1/24"
+                      - "10.0.1.2/24"
                     memif_parms:
-                      inter_vnf_conn: vswitch
+                      inter_pod_conn: vswitch
           connections:
             - conn_type: l2pp
               network_node_overlay_name: inter_node_vxlan_mesh

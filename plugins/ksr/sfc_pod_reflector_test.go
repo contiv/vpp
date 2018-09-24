@@ -346,7 +346,7 @@ func TestSfcPodReflector(t *testing.T) {
 	// to be updated during the test.
 	k8sPod1 := &sfcPodTestVars.sfcPodTestData[1]
 	protoPod1 := sfcPodTestVars.sfcPodReflector.valueToProto(k8sPod1.Name, k8sPod1.Spec.NodeName)
-	protoPod1.Vnf = "kube-dns-2"
+	protoPod1.Pod = "kube-dns-2"
 	sfcPodTestVars.mockKvBroker.Put(sfc.Key(k8sPod1.Name, k8sPod1.Namespace), protoPod1)
 
 	// Pre-populate the mock data store with "stale" data that is supposed to
@@ -411,7 +411,7 @@ func testAddDeleteSfcPod(t *testing.T) {
 	gomega.Expect(err).To(gomega.BeNil())
 	gomega.Expect(found).To(gomega.BeTrue())
 	gomega.Expect(protoPod).NotTo(gomega.BeNil())
-	gomega.Expect(protoPod.Vnf).To(gomega.Equal(k8sPod.Name))
+	gomega.Expect(protoPod.Pod).To(gomega.Equal(k8sPod.Name))
 	gomega.Expect(protoPod.Node).To(gomega.Equal(k8sPod.Spec.NodeName))
 
 	// Take a snapshot of counters

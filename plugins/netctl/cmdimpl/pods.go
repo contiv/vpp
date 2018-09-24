@@ -69,7 +69,7 @@ func newPodGetter() *podGetter {
 	pg := &podGetter{
 		etcdConfig: &etcd.ClientConfig{
 			Config: &clientv3.Config{
-				Endpoints: []string{"127.0.0.1:32379"},
+				Endpoints: []string{etcdLocation},
 			},
 			OpTimeout: 1 * time.Second,
 		},
@@ -166,17 +166,20 @@ func (pg *podGetter) getTapInterfaces(podInfo *pod.Pod) (string, uint32, string,
 	// If we haven't retrieved node info from the Agent yet, do it now
 	if pg.ndCache[podInfo.HostIpAddress] == nil {
 		// Get ipam data for the node where the pod is hosted
-		cmd := "contiv/v1/ipam"
-		b := http.GetNodeInfo(podInfo.HostIpAddress, cmd)
-		ipam := &telemetrymodel.IPamEntry{}
-		if err := json.Unmarshal(b, ipam); err != nil {
+		b, err := http.GetNodeInfo(podInfo.HostIpAddress, getIpamDataCmd)
+		if err != nil {
 			return "", 0, "", "", fmt.Errorf("failed to get ipam for node %s, err %s",
 				podInfo.HostIpAddress, err)
 		}
 
+		ipam := &telemetrymodel.IPamEntry{}
+		if err := json.Unmarshal(b, ipam); err != nil {
+			return "", 0, "", "", fmt.Errorf("failed to decode ipam for node %s, err %s",
+				podInfo.HostIpAddress, err)
+		}
+
 		// Get interfaces data for the node where the pod is hosted
-		cmd = "vpp/dump/v1/interfaces"
-		b = http.GetNodeInfo(podInfo.HostIpAddress, cmd)
+		b, err = http.GetNodeInfo(podInfo.HostIpAddress, getInterfaceDataCmd)
 		intfs := make(telemetrymodel.NodeInterfaces)
 		if err := json.Unmarshal(b, &intfs); err != nil {
 			return "", 0, "", "", fmt.Errorf("failed to get pod's interface; pod %s, hostIPAddress %s, err %s",

@@ -35,14 +35,21 @@ func DumpCmd(nodeName string, dumpType string) {
 		}
 		return
 	}
+
 	fmt.Printf("vppdump %s %s\n", nodeName, dumpType)
 	ipAdr := resolveNodeOrIP(nodeName)
 	if ipAdr == "" {
 		fmt.Printf("Unknown node name %s", nodeName)
 		return
 	}
+
 	cmd := fmt.Sprintf("vpp/dump/v1/%s", dumpType)
-	b := http.GetNodeInfo(ipAdr, cmd)
+	b, err := http.GetNodeInfo(ipAdr, cmd)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
 	fmt.Printf("%s", b)
 }
 

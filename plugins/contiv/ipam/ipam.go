@@ -82,6 +82,7 @@ type Config struct {
 	NodeInterconnectDHCP    bool   // if set to true DHCP is used to acquire IP for the main VPP interface (NodeInterconnectCIDR can be omitted in config)
 	VxlanCIDR               string // subnet used for for inter-node VXLAN
 	ServiceCIDR             string // subnet used by services
+	ContivCIDR              string // subnet from which all subnets (pod/node/vxlan) will be created
 }
 
 // New returns new IPAM module to be used on the node specified by the nodeID.

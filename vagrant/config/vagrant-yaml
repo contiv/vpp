@@ -7,7 +7,7 @@ if [ $DEP_SCENARIO = "nostn" ]; then
     - NodeName: \"k8s-master\"\
       MainVppInterface:\
         InterfaceName: \"GigabitEthernet0/8/0\"\
-      Gateway: \"192.168.16.100\"'
+      Gateway: \"10.1.1.254\"'
 
   worker_gw_config=''
 for i in `seq 1 $NUM_K8S_NODES`; do
@@ -15,7 +15,7 @@ worker_gw_config=$worker_gw_config'\
     - NodeName: \"k8s-worker'$i'\"\
       MainVppInterface:\
         InterfaceName: \"GigabitEthernet0/8/0\"\
-      Gateway: \"192.168.16.100\"'
+      Gateway: \"10.1.1.254\"'
 done
 
   sed -i "/logs.conf/i \

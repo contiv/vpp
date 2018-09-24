@@ -15,7 +15,6 @@
 package ksr
 
 import (
-	"fmt"
 	"reflect"
 	"sync"
 
@@ -42,7 +41,6 @@ func (pr *PodReflector) Init(stopCh2 <-chan struct{}, wg *sync.WaitGroup) error 
 	podReflectorFuncs := ReflectorFunctions{
 		EventHdlrFunc: cache.ResourceEventHandlerFuncs{
 			AddFunc: func(obj interface{}) {
-				fmt.Println("added something")
 				pr.addPod(obj)
 			},
 			DeleteFunc: func(obj interface{}) {

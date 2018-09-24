@@ -20,6 +20,7 @@ func Key(name string, namespace string) string {
 	return KeyPrefix() + name + "-" + "namespace" + "-" + namespace
 }
 
+// KeyPrefix returns the sfc-controller prefix for pods with sfc label.
 func KeyPrefix() string {
 	return "sfc-controller/v2/status/network-pod-to-node-map/"
 }

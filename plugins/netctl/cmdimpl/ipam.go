@@ -99,6 +99,6 @@ func nodeIpamCmd(w *tabwriter.Writer, nodeName string) {
 
 func getTabWriterAndPrintHeader() *tabwriter.Writer {
 	w := tabwriter.NewWriter(os.Stdout, 0, 8, 2, ' ', 0)
-	fmt.Fprintf(w, "ID\tNODE-NAME\tNODE-IP\tPOD-NET-IP\tVPP-HOST-IP\tPOD-IFIP-CIDR\tPOD-SUBNET-CIDR\n")
+	fmt.Fprintf(w, "ID\tNODE-NAME\tVPP-IP\tPOD-NET-IP\tVPP-2-HOST-IP\tPOD-IFIP-CIDR\tPOD-SUBNET-CIDR\n")
 	return w
 }

@@ -58,18 +58,19 @@ func PrintNodes() {
 		fmt.Printf("Error getting values")
 		return
 	}
-	fmt.Fprintf(w, "ID\tNAME\tVPP-IP\tHOST-IP\tSTART-TIME\tSTATE\tBUILD-VERSION\tBUILD-DATE\n")
+	fmt.Fprintf(w, "ID\tNODE-NAME\tVPP-IP\tHOST-IP\tSTART-TIME\tSTATE\tBUILD-VERSION\tBUILD-DATE\n")
 	for {
 		kv, stop := itr.GetNext()
 		if stop {
 			break
 		}
 
+		// Get nodeinfo
 		buf := kv.GetValue()
 		nodeInfo := &nodeinfomodel.NodeInfo{}
 		err = json.Unmarshal(buf, nodeInfo)
-		//fmt.Printf("NodeInfo: %+v\n", nodeInfo)
-		// Do whatever processing we need to do
+
+		// Get liveness data which contains image version / build time
 		bytes := http.GetNodeInfo(nodeInfo.ManagementIpAddress, "liveness")
 		var liveness telemetrymodel.NodeLiveness
 		err = json.Unmarshal(bytes, &liveness)

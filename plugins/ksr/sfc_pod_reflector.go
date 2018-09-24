@@ -167,7 +167,7 @@ func (spr *SfcPodReflector) updatePod(oldObj, newObj interface{}) {
 // data store.
 func (spr *SfcPodReflector) valueToProto(name string, nodeName string) *sfc.Sfc {
 	valueProto := &sfc.Sfc{}
-	valueProto.Vnf = name
+	valueProto.Pod = name
 	valueProto.Node = nodeName
 
 	return valueProto

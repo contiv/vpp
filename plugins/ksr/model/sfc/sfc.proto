@@ -22,7 +22,7 @@ package sfc;
 message Sfc {
 	// Name of the pod unique within the namespace.
 	// Cannot be updated.
-	string vnf = 1;
+	string pod = 1;
 
 	// Node the pod is deployed into into.
 	// Can be updated

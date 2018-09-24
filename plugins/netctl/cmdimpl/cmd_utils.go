@@ -22,6 +22,7 @@ import (
 	"github.com/contiv/vpp/plugins/contiv/model/node"
 	"github.com/coreos/etcd/clientv3"
 	"github.com/ligato/cn-infra/db/keyval/etcd"
+	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/logging/logrus"
 	"os"
 	"regexp"
@@ -40,14 +41,16 @@ func FindIPForNodeName(nodeName string) string {
 		OpTimeout: 1 * time.Second,
 	}
 	// Create connection to etcd.
-	db, err := etcd.NewEtcdConnectionWithBytes(*cfg, logrus.DefaultLogger())
+	logger := logrus.DefaultLogger()
+	logger.SetLevel(logging.FatalLevel)
+	db, err := etcd.NewEtcdConnectionWithBytes(*cfg, logger)
 	if err != nil {
-		fmt.Println(err)
+		fmt.Printf("Could not connect to Etcd to get IP address for node '%s', error '%s'\n", nodeName, err)
 		os.Exit(1)
 	}
 	itr, err := db.ListValues("/vnf-agent/contiv-ksr/allocatedIDs/")
 	if err != nil {
-		fmt.Printf("Error getting values")
+		fmt.Printf("Could not get node info from Etcd for node '%s'\n", nodeName)
 		return ""
 	}
 	for {

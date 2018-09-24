@@ -44,15 +44,7 @@ data:
     {{- end }}
     DisableNATVirtualReassembly: {{ .Values.contiv.disableNATVirtualReassembly }}
     IPAMConfig:
-      PodSubnetCIDR: {{ .Values.contiv.ipamConfig.podSubnetCIDR }}
-      PodNetworkPrefixLen: {{ .Values.contiv.ipamConfig.podNetworkPrefixLen }}
-      PodIfIPCIDR: {{ .Values.contiv.ipamConfig.podIfIPCIDR }}
-      VPPHostSubnetCIDR: {{ .Values.contiv.ipamConfig.vppHostSubnetCIDR }}
-      VPPHostNetworkPrefixLen: {{ .Values.contiv.ipamConfig.vppHostNetworkPrefixLen }}
-      {{- if .Values.contiv.ipamConfig.nodeInterconnectCIDR }}
-      NodeInterconnectCIDR: {{ .Values.contiv.ipamConfig.nodeInterconnectCIDR }}
-      {{- end }}
-      VxlanCIDR: {{ .Values.contiv.ipamConfig.vxlanCIDR }}
+      ContivCIDR: {{ .Values.contiv.ipamConfig.contivCIDR }}
       NodeInterconnectDHCP: {{ if .Values.contiv.ipamConfig.nodeInterconnectCIDR }}False{{ else }}True{{ end }}
       {{- if .Values.contiv.ipamConfig.serviceCIDR }}
       ServiceCIDR: {{ .Values.contiv.ipamConfig.serviceCIDR }}

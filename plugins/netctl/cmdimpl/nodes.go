@@ -33,6 +33,8 @@ import (
 	"time"
 )
 
+const timeLayout = "Mon Jan _2 15:04:05 2006"
+
 //PrintNodes will print out all of the cmdimpl in a network in a table format.
 func PrintNodes() {
 	cfg := &etcd.ClientConfig{
@@ -56,12 +58,13 @@ func PrintNodes() {
 		fmt.Printf("Error getting values")
 		return
 	}
-	fmt.Fprintf(w, "ID\tNAME\tVPP-IP\tHOST-IP\tBUILD-DATE\tBUILD-VERSION\tSTART-TIME\tSTATE\n")
+	fmt.Fprintf(w, "ID\tNAME\tVPP-IP\tHOST-IP\tSTART-TIME\tSTATE\tBUILD-VERSION\tBUILD-DATE\n")
 	for {
 		kv, stop := itr.GetNext()
 		if stop {
 			break
 		}
+
 		buf := kv.GetValue()
 		nodeInfo := &nodeinfomodel.NodeInfo{}
 		err = json.Unmarshal(buf, nodeInfo)
@@ -70,20 +73,27 @@ func PrintNodes() {
 		bytes := http.GetNodeInfo(nodeInfo.ManagementIpAddress, "liveness")
 		var liveness telemetrymodel.NodeLiveness
 		err = json.Unmarshal(bytes, &liveness)
+
 		if err != nil {
 			fmt.Println(err)
 			liveness.BuildDate = "Not Available"
 		}
 
-		fmt.Fprintf(w, "%d\t%s\t%s\t%s\t%s\t%s\t%s\t%d\n",
+		buildDate := liveness.BuildDate
+		bd, err1 := time.Parse("2006-01-02T15:04+00:00", buildDate)
+		if err1 == nil {
+			buildDate = bd.Format(timeLayout)
+		}
+
+		fmt.Fprintf(w, "%d\t%s\t%s\t%s\t%s\t%d\t%s\t%s\n",
 			nodeInfo.Id,
 			nodeInfo.Name,
 			strings.Split(nodeInfo.IpAddress, "/")[0],
 			nodeInfo.ManagementIpAddress,
-			liveness.BuildDate,
+			time.Unix(int64(liveness.StartTime), 0).Format(timeLayout),
+			liveness.State,
 			liveness.BuildVersion,
-			time.Unix(int64(liveness.StartTime), 0),
-			liveness.State)
+			buildDate)
 	}
 	w.Flush()
 	db.Close()

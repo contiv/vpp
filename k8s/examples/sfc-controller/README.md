@@ -27,6 +27,14 @@ To run the example, you will need to apply labels to your cluster's nodes. To do
 ./set-node-labels
 ```
 
+At this point we are ready to deploy the SFC-Controller: 
+```
+kubectl apply -f sfc-controller.yaml
+```
+
+Issue `kubectl get po -n kube-system` to verify that the sfc pod is up and running. Once ready proceed to 
+the scenario cases
+
 ### Scenario 1
 Deploy two L2PP service chains in two nodes. The four VNFs should be deployed on master and worker nodes. 
 First you need to create two K8s config Maps, common for all the VNFs. 

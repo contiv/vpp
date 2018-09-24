@@ -76,3 +76,22 @@ func Ipv4CidrToAddressAndMask(ip string) (uint32, uint32, error) {
 
 	return address, mask, nil
 }
+
+// AddressAndMaskToIPv4 converts an ipv4 address and a prefix (both uint32
+// values) into a string in format 'x.y.z.w/q'
+func AddressAndMaskToIPv4(address uint32, mask uint32) string {
+	return fmt.Sprintf("%d.%d.%d.%d/%d",
+		address>>24, (address>>16)&0xFF, (address>>8)&0xff, address&0xFF, getMaskLen(mask))
+}
+
+func getMaskLen(mask uint32) int {
+	maskLen := 0
+	for i := 0; i <= 32; i++ {
+		if (mask & 1) == 0 {
+			return maskLen
+		}
+		maskLen++
+		mask = mask >> 1
+	}
+	return maskLen
+}

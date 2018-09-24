@@ -50,13 +50,12 @@ func (c *LinuxInterfaceConfigurator) Resync(nbIfs []*interfaces.LinuxInterfaces_
 		c.stopwatch.TimeLog("resync-linux-interfaces").LogTimeEntry(time.Since(t))
 	}(time.Now())
 
-	var errs []error
-
 	nsMgmtCtx := nsplugin.NewNamespaceMgmtCtx()
 
 	// Cache for interfaces modified later (interface name/link data)
 	linkMap := make(map[string]*LinuxDataPair)
 
+	var errs []error
 	// Iterate over NB configuration. Look for interfaces with the same host name
 	for _, nbIf := range nbIfs {
 		c.handleOptionalHostIfName(nbIf)
@@ -95,6 +94,7 @@ func (c *LinuxInterfaceConfigurator) Resync(nbIfs []*interfaces.LinuxInterfaces_
 		if linkDataPair.nbIfData.Type == interfaces.LinuxInterfaces_VETH {
 			// Search registered config for peer
 			var found bool
+			c.mapMu.RLock()
 			for _, cachedIfCfg := range c.ifByName {
 				if cachedIfCfg.config != nil && cachedIfCfg.config.Type == interfaces.LinuxInterfaces_VETH {
 					if cachedIfCfg.config.Veth != nil && cachedIfCfg.config.Veth.PeerIfName == linuxIf.HostIfName {
@@ -105,6 +105,7 @@ func (c *LinuxInterfaceConfigurator) Resync(nbIfs []*interfaces.LinuxInterfaces_
 					}
 				}
 			}
+			c.mapMu.RUnlock()
 			if found {
 				c.log.Debugf("linux interface %s resync: found peer %s", linkName, linuxIf.Veth.PeerIfName)
 			} else {
@@ -128,7 +129,7 @@ func (c *LinuxInterfaceConfigurator) Resync(nbIfs []*interfaces.LinuxInterfaces_
 	// Register all interfaces in default namespace which were not already registered
 	linkList, err := netlink.LinkList()
 	if err != nil {
-		return errors.Errorf("linux interface resync error: failed to read interfaces: %v", err)
+		errs = append(errs, errors.Errorf("linux interface resync error: failed to read interfaces: %v", err))
 	}
 	for _, link := range linkList {
 		if link.Attrs() == nil {
@@ -154,14 +155,14 @@ func (c *LinuxInterfaceConfigurator) Resync(nbIfs []*interfaces.LinuxInterfaces_
 		}
 	}
 
-	c.log.Info("Linux interface resync done")
-
 	if len(errs) > 0 {
-		for _,e := range errs {
+		for _, e := range errs {
 			c.log.Error(e)
 		}
 		return errors.Errorf("%v resync errors encountered", len(errs))
 	}
+
+	c.log.Info("Linux interface resync done")
 
 	return nil
 }

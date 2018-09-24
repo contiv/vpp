@@ -42,6 +42,7 @@ type podGetter struct {
 	ndCache    nodeDataCache
 	logger     logging.Logger
 	db         *etcd.BytesConnectionEtcd
+	pods       []*pod.Pod
 }
 
 // PrintAllPods will print out all of the non local pods in a network in
@@ -68,7 +69,7 @@ func newPodGetter() *podGetter {
 	pg := &podGetter{
 		etcdConfig: &etcd.ClientConfig{
 			Config: &clientv3.Config{
-				Endpoints: []string{"127.0.0.1:32379"},
+				Endpoints: []string{etcdLocation},
 			},
 			OpTimeout: 1 * time.Second,
 		},
@@ -83,6 +84,27 @@ func newPodGetter() *podGetter {
 	if pg.db, err = etcd.NewEtcdConnectionWithBytes(*pg.etcdConfig, pg.logger); err != nil {
 		fmt.Println(err)
 		os.Exit(1)
+	}
+
+	pg.pods = make([]*pod.Pod, 0)
+	itr, err := pg.db.ListValues("/vnf-agent/contiv-ksr/k8s/pod/")
+	if err != nil {
+		fmt.Printf("Failed to get pods from etcd, error %s", err)
+		os.Exit(2)
+	}
+
+	for {
+		kv, stop := itr.GetNext()
+		if stop {
+			break
+		}
+		buf := kv.GetValue()
+		podInfo := &pod.Pod{}
+		if err = json.Unmarshal(buf, podInfo); err != nil {
+			fmt.Printf("Failed to unmarshall pod, error %s", err)
+			continue
+		}
+		pg.pods = append(pg.pods, podInfo)
 	}
 
 	return pg
@@ -116,22 +138,9 @@ func (pg *podGetter) printAllPods(w *tabwriter.Writer) {
 func (pg *podGetter) printPodsPerNode(w *tabwriter.Writer, nodeNameOrIP string, nodeName string) {
 	hostIP := resolveNodeOrIP(nodeNameOrIP)
 
-	itr, err := pg.db.ListValues("/vnf-agent/contiv-ksr/k8s/pod/")
-	if err != nil {
-		fmt.Printf("Failed to get pods from etcd for node %s, err %s", nodeNameOrIP, err)
-		return
-	}
-
 	fmt.Fprintf(w, "POD-NAME\tNAMESPACE\tPOD-IP\tVPP-IP\tIF-IDX\tIF-NAME\tINTERNAL-IF-NAME\tHOST-IP\n")
 
-	for {
-		kv, stop := itr.GetNext()
-		if stop {
-			break
-		}
-		buf := kv.GetValue()
-		podInfo := &pod.Pod{}
-		err = json.Unmarshal(buf, podInfo)
+	for _, podInfo := range pg.pods {
 		if podInfo.HostIpAddress != hostIP || podInfo.IpAddress == hostIP {
 			continue
 		}
@@ -157,17 +166,20 @@ func (pg *podGetter) getTapInterfaces(podInfo *pod.Pod) (string, uint32, string,
 	// If we haven't retrieved node info from the Agent yet, do it now
 	if pg.ndCache[podInfo.HostIpAddress] == nil {
 		// Get ipam data for the node where the pod is hosted
-		cmd := "contiv/v1/ipam"
-		b := http.GetNodeInfo(podInfo.HostIpAddress, cmd)
-		ipam := &telemetrymodel.IPamEntry{}
-		if err := json.Unmarshal(b, ipam); err != nil {
+		b, err := http.GetNodeInfo(podInfo.HostIpAddress, getIpamDataCmd)
+		if err != nil {
 			return "", 0, "", "", fmt.Errorf("failed to get ipam for node %s, err %s",
 				podInfo.HostIpAddress, err)
 		}
 
+		ipam := &telemetrymodel.IPamEntry{}
+		if err := json.Unmarshal(b, ipam); err != nil {
+			return "", 0, "", "", fmt.Errorf("failed to decode ipam for node %s, err %s",
+				podInfo.HostIpAddress, err)
+		}
+
 		// Get interfaces data for the node where the pod is hosted
-		cmd = "vpp/dump/v1/interfaces"
-		b = http.GetNodeInfo(podInfo.HostIpAddress, cmd)
+		b, err = http.GetNodeInfo(podInfo.HostIpAddress, getInterfaceDataCmd)
 		intfs := make(telemetrymodel.NodeInterfaces)
 		if err := json.Unmarshal(b, &intfs); err != nil {
 			return "", 0, "", "", fmt.Errorf("failed to get pod's interface; pod %s, hostIPAddress %s, err %s",

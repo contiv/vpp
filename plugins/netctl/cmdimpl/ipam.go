@@ -17,6 +17,11 @@ package cmdimpl
 import (
 	"encoding/json"
 	"fmt"
+	"os"
+	"strings"
+	"text/tabwriter"
+	"time"
+
 	"github.com/contiv/vpp/plugins/contiv/model/node"
 	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
 	"github.com/contiv/vpp/plugins/netctl/http"
@@ -24,16 +29,13 @@ import (
 	"github.com/ligato/cn-infra/db/keyval/etcd"
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/logging/logrus"
-	"os"
-	"text/tabwriter"
-	"time"
 )
 
-// PrintAllIpams prints IPAM information from all nodes in the cluster
+// PrintAllIpams prints IPAM information for all nodes
 func PrintAllIpams() {
 	etcdCfg := etcd.ClientConfig{
 		Config: &clientv3.Config{
-			Endpoints: []string{"127.0.0.1:32379"},
+			Endpoints: []string{etcdLocation},
 		},
 		OpTimeout: 1 * time.Second,
 	}
@@ -80,17 +82,37 @@ func NodeIPamCmd(nodeName string) {
 
 func nodeIpamCmd(w *tabwriter.Writer, nodeName string) {
 	ip := resolveNodeOrIP(nodeName)
-	b := http.GetNodeInfo(ip, "contiv/v1/ipam")
-	ipam := telemetrymodel.IPamEntry{}
-	err := json.Unmarshal(b, &ipam)
+
+	b, err := http.GetNodeInfo(ip, getIpamDataCmd)
 	if err != nil {
 		fmt.Println(err)
+		return
 	}
 
-	fmt.Fprintf(w, "%d\t%s\t%s\t%s\t%s\t%s\t%s\n",
+	ipam := telemetrymodel.IPamEntry{}
+	err = json.Unmarshal(b, &ipam)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	bviIP := "Not Available"
+	if b, err = http.GetNodeInfo(ip, getInterfaceDataCmd); err == nil {
+		intfs := make(telemetrymodel.NodeInterfaces)
+		if err := json.Unmarshal(b, &intfs); err == nil {
+			for _, ifc := range intfs {
+				if ifc.IfMeta.Tag == "vxlanBVI" {
+					bviIP = strings.Split(ifc.If.IPAddresses[0], "/")[0]
+				}
+			}
+		}
+	}
+
+	fmt.Fprintf(w, "%d\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
 		ipam.NodeID,
 		ipam.NodeName,
 		ipam.NodeIP,
+		bviIP,
 		ipam.PodNetwork,
 		ipam.VppHostNetwork,
 		ipam.Config.PodIfIPCIDR,
@@ -99,6 +121,6 @@ func nodeIpamCmd(w *tabwriter.Writer, nodeName string) {
 
 func getTabWriterAndPrintHeader() *tabwriter.Writer {
 	w := tabwriter.NewWriter(os.Stdout, 0, 8, 2, ' ', 0)
-	fmt.Fprintf(w, "ID\tNODE-NAME\tNODE-IP\tPOD-NET-IP\tVPP-HOST-IP\tPOD-IFIP-CIDR\tPOD-SUBNET-CIDR\n")
+	fmt.Fprintf(w, "ID\tNODE-NAME\tVPP-IP\tBVI-IP\tPOD-NET-IP\tVPP-2-HOST-IP\tPOD-IFIP-CIDR\tPOD-SUBNET-CIDR\n")
 	return w
 }

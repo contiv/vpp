@@ -20,6 +20,7 @@ import (
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	"github.com/golang/protobuf/proto"
 	"github.com/ligato/cn-infra/datasync"
+	"reflect"
 
 	"fmt"
 	"strings"
@@ -46,23 +47,27 @@ func (pc *podChange) GetValueProto() proto.Message {
 }
 
 func (pc *podChange) AddRecord(ctc *ContivTelemetryCache, names []string, record proto.Message) error {
-	ctc.Log.Infof("Adding pod %s in namespace %s, podValue %+v", names[0], names[1], record)
-	// TODO: ctc.CreatePod(names[0], names[1], podValue)
-	return nil
+	ctc.Log.Infof("Adding K8s pod %s in namespace %s, podValue %+v", names[0], names[1], record)
+	if pod, ok := record.(*podmodel.Pod); ok {
+		return ctc.K8sCache.CreatePod(pod.Name, pod.Namespace, pod.Label, pod.IpAddress,
+			pod.HostIpAddress, pod.Container)
+	}
+	return fmt.Errorf("bad record type %s", reflect.TypeOf(record))
 }
 
-func (pc *podChange) UpdateRecord(ctc *ContivTelemetryCache,
-	names []string, oldRecord proto.Message, newRecord proto.Message) error {
-	ctc.Log.Infof("Updating pod %s in namespace %s, podValue %+v, prevPodValue %+v",
-		names[0], names[1], oldRecord, newRecord)
-	// TODO: ctc.UpdatePod(names[0], names[1], prevPodValue, podValue)
-	return nil
+func (pc *podChange) UpdateRecord(ctc *ContivTelemetryCache, names []string, _, record proto.Message) error {
+	ctc.Log.Infof("Updating K8s pod %s in namespace %s, prevPodValue %+v", names[0], names[1], record)
+
+	if pod, ok := record.(*podmodel.Pod); ok {
+		return ctc.K8sCache.UpdatePod(pod.Name, pod.Namespace, pod.Label, pod.IpAddress,
+			pod.HostIpAddress, pod.Container)
+	}
+	return fmt.Errorf("bad record type %s", reflect.TypeOf(record))
 }
 
 func (pc *podChange) DeleteRecord(ctc *ContivTelemetryCache, names []string) error {
-	ctc.Log.Infof("Deleting pod %s in namespace %s", names[0], names[1])
-	// TODO: ctc.DeletePod(names[0], names[1])
-	return nil
+	ctc.Log.Infof("Deleting K8s pod %s in namespace %s", names[0], names[1])
+	return ctc.K8sCache.DeletePod(names[0])
 }
 
 // dataChangeProcessor implementation for K8s node data
@@ -78,22 +83,26 @@ func (nc *nodeChange) GetValueProto() proto.Message {
 }
 
 func (nc *nodeChange) AddRecord(ctc *ContivTelemetryCache, names []string, record proto.Message) error {
-	ctc.Log.Infof("Adding node %s, nodeValue %+v", names[0], record)
-	// TODO: ctc.CreateNode(names[0], podValue)
-	return nil
+	ctc.Log.Infof("Adding K8s node %s, nodeValue %+v", names[0], record)
+
+	if node, ok := record.(*nodemodel.Node); ok {
+		return ctc.K8sCache.CreateK8sNode(node.Name, node.Pod_CIDR, node.Provider_ID, node.Addresses, node.NodeInfo)
+	}
+	return fmt.Errorf("bad record type %s", reflect.TypeOf(record))
 }
 
-func (nc *nodeChange) UpdateRecord(ctc *ContivTelemetryCache,
-	names []string, oldRecord proto.Message, newRecord proto.Message) error {
-	ctc.Log.Infof("Updating node %s, nodeValue %+v, prevNodeValue %+v", names[0], oldRecord, newRecord)
-	// TODO: ctc.UpdatePod(names[0], prevPodValue, podValue)
-	return nil
+func (nc *nodeChange) UpdateRecord(ctc *ContivTelemetryCache, names []string, _, newRecord proto.Message) error {
+	ctc.Log.Infof("Updating K8s node %s, nodeValue %+v", names[0], newRecord)
+
+	if node, ok := newRecord.(*nodemodel.Node); ok {
+		return ctc.K8sCache.UpdateK8sNode(node.Name, node.Pod_CIDR, node.Provider_ID, node.Addresses, node.NodeInfo)
+	}
+	return fmt.Errorf("bad record type %s", reflect.TypeOf(newRecord))
 }
 
 func (nc *nodeChange) DeleteRecord(ctc *ContivTelemetryCache, names []string) error {
-	ctc.Log.Infof("Deleting node %s", names[0])
-	// TODO: ctc.DeletePod(names[0])
-	return nil
+	ctc.Log.Infof("Deleting K8s node %s", names[0])
+	return ctc.K8sCache.DeleteK8sNode(names[0])
 }
 
 // dataChangeProcessor implementation for nodeIndo data
@@ -112,27 +121,30 @@ func (nic *nodeInfoChange) GetValueProto() proto.Message {
 }
 
 func (nic *nodeInfoChange) AddRecord(ctc *ContivTelemetryCache, names []string, record proto.Message) error {
-	ctc.Log.Infof("Adding nodeLiveness %s, nodeValue %+v", names[0], record)
-	// TODO: return ctc.addNodeInfo(names[0], podValue)
-	return nil
+	ctc.Log.Infof("Adding VPP node, names %+v, nodeValue %+v", names, record)
+
+	if ni, ok := record.(*nodeinfomodel.NodeInfo); ok {
+		return ctc.VppCache.CreateNode(ni.Id, ni.Name, ni.IpAddress, ni.ManagementIpAddress)
+	}
+	return fmt.Errorf("bad record type %s", reflect.TypeOf(record))
 }
 
-func (nic *nodeInfoChange) UpdateRecord(ctc *ContivTelemetryCache,
-	names []string, oldRecord proto.Message, newRecord proto.Message) error {
-	ctc.Log.Infof("Updating nodeLiveness %s, nodeInfoValue %+v, prevNodeInfoValue %+v",
-		names[0], oldRecord, newRecord)
-	// TODO: return ctc.updateNodeInfonames[0], prevPodValue, podValue)
-	return nil
+func (nic *nodeInfoChange) UpdateRecord(ctc *ContivTelemetryCache, names []string, _, newRecord proto.Message) error {
+	ctc.Log.Infof("Updating VPP node, names %+v, nodeInfoValue %+v", names, newRecord)
+
+	if ni, ok := newRecord.(*nodeinfomodel.NodeInfo); ok {
+		return ctc.VppCache.UpdateNode(ni.Id, ni.Name, ni.IpAddress, ni.ManagementIpAddress)
+	}
+	return fmt.Errorf("bad record type %s", reflect.TypeOf(newRecord))
 }
 
 func (nic *nodeInfoChange) DeleteRecord(ctc *ContivTelemetryCache, names []string) error {
-	ctc.Log.Infof("Deleting nodeLiveness %s", names[0])
-	// TODO: return ctc.deleteNodeInfo(names[0])
-	return nil
+	ctc.Log.Infof("Deleting VPP node, names %+v", names)
+	return ctc.VppCache.DeleteNode(names[0])
 }
 
 // Update sends the update event passed as an argument to the ctc telemetryCache
-//// thread, where it processed in the function below (update). )
+// thread, where it is processed in the function below (update). )
 func (ctc *ContivTelemetryCache) Update(dataChngEv datasync.ChangeEvent) error {
 	ctc.dsUpdateChannel <- dataChngEv
 	return nil

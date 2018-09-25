@@ -154,7 +154,7 @@ func (k *K8sDataStore) RetrievePod(name string) (*telemetrymodel.Pod, error) {
 
 // UpdatePod updates the specified pod in the K8s cache. If the pod
 // is found, its data is updated; otherwise, an error is returned.
-func (k *K8sDataStore) UpdatePod(name string, namespace string, label []*telemetrymodel.PodLabel,
+func (k *K8sDataStore) UpdatePod(name string, namespace string, label []*pod2.Pod_Label,
 	IPAddress, hostIPAddress string, container []*pod2.Pod_Container) error {
 	k.lock.Lock()
 	defer k.lock.Unlock()
@@ -163,7 +163,13 @@ func (k *K8sDataStore) UpdatePod(name string, namespace string, label []*telemet
 	if err != nil {
 		return errors.Errorf("Cannot find pod %+v in k8s cache pod map", name)
 	}
-	pod.Label = label
+
+	labels := make([]*telemetrymodel.PodLabel, 0)
+	for _, l := range label {
+		labels = append(labels, &telemetrymodel.PodLabel{Key: l.Key, Value: l.Value})
+	}
+
+	pod.Label = labels
 	pod.Namespace = namespace
 	pod.IPAddress = IPAddress
 	pod.HostIPAddress = hostIPAddress

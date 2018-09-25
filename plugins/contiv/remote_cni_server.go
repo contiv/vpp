@@ -1408,17 +1408,6 @@ func (s *remoteCNIserver) deletePersistedPodConfig(config *container.Persisted) 
 	// collect keys to be removed from ETCD
 	var removedKeys []string
 
-	// POD interface configuration
-	removedKeys = append(removedKeys, vpp_intf.InterfaceKey(config.VppIfName))
-	if !s.useTAPInterfaces {
-		removedKeys = append(removedKeys,
-			linux_intf.InterfaceKey(config.Veth1Name),
-			linux_intf.InterfaceKey(config.Veth2Name),
-		)
-	} else {
-		removedKeys = append(removedKeys, linux_intf.InterfaceKey(config.PodTapName))
-	}
-
 	removedKeys = append(removedKeys, linux_l3.StaticRouteKey(config.PodLinkRouteName),
 		linux_l3.StaticRouteKey(config.PodDefaultRouteName),
 		linux_l3.StaticArpKey(config.PodARPEntryName))
@@ -1434,6 +1423,17 @@ func (s *remoteCNIserver) deletePersistedPodConfig(config *container.Persisted) 
 			vpp_l3.RouteKey(config.VppRouteVrf, config.VppRouteDest, config.VppRouteNextHop))
 	}
 	removedKeys = append(removedKeys, vpp_l3.ArpEntryKey(config.VppARPEntryInterface, config.VppARPEntryIP))
+
+	// POD interface configuration
+	if !s.useTAPInterfaces {
+		removedKeys = append(removedKeys,
+			linux_intf.InterfaceKey(config.Veth1Name),
+			linux_intf.InterfaceKey(config.Veth2Name),
+		)
+	} else {
+		removedKeys = append(removedKeys, linux_intf.InterfaceKey(config.PodTapName))
+	}
+	removedKeys = append(removedKeys, vpp_intf.InterfaceKey(config.VppIfName))
 
 	_, skip := s.configuredInThisRun[config.ID]
 

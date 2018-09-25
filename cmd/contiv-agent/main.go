@@ -121,6 +121,9 @@ func main() {
 	serviceDataSync := newKSRprefixSync("serviceDataSync")
 	policyDataSync := newKSRprefixSync("policyDataSync")
 
+	// disable status check for etcd
+	etcd.DefaultPlugin.StatusCheck = nil
+
 	watcher := &datasync.KVProtoWatchers{&kvdbproxy.DefaultPlugin, local.Get()}
 
 	var watchEventsMutex sync.Mutex

@@ -701,7 +701,7 @@
   revision = "c38d7aed2392ab17d956c3e9f4436e1eb280a28a"
 
 [[projects]]
-  digest = "1:26e929c65bedd8bf4e4a7fb7a64f3a727397df1a9f90970d616a02a0564a6cb0"
+  digest = "1:f52cb5d1177a6f877dd601a578be8f3293c7250ff7278dbe0c7fcd386a9418b2"
   name = "github.com/ligato/vpp-agent"
   packages = [
     "clientv1/linux",
@@ -781,7 +781,7 @@
     "plugins/vpp/srplugin/vppcalls",
   ]
   pruneopts = "UT"
-  revision = "bff74fdd7ab839a0bcfe22348995da964751ffa6"
+  revision = "b0fa4c968a685a2e8d26ca81af46a3504229088d"
 
 [[projects]]
   branch = "master"
@@ -1620,6 +1620,7 @@
     "github.com/docker/swarmkit",
     "github.com/ghodss/yaml",
     "github.com/gogo/protobuf/proto",
+    "github.com/gogo/protobuf/sortkeys",
     "github.com/golang/protobuf/proto",
     "github.com/google/cadvisor",
     "github.com/ligato/cn-infra/agent",

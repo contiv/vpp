@@ -554,7 +554,6 @@ subjects:
 - kind: ServiceAccount
   name: contiv-ksr
   namespace: kube-system
-<<<<<<< HEAD
 
 ---
 
@@ -662,5 +661,3 @@ subjects:
 - kind: ServiceAccount
   name: contiv-crd
   namespace: kube-system
-=======
->>>>>>> ipam

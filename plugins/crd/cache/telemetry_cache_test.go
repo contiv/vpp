@@ -63,7 +63,7 @@ func (ptv *cacheTestVars) startMockHTTPServer() {
 	go func() {
 		if err := ptv.srv.ListenAndServe(); err != nil {
 			// cannot panic, because this probably is an intentional close
-			ptv.log.Error("Httpserver: ListenAndServe() error: %s", err)
+			ptv.log.Errorf("Httpserver: ListenAndServe() error: %s", err)
 			gomega.Expect(err).To(gomega.BeNil())
 		}
 	}()

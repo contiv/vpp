@@ -33,7 +33,7 @@ func TestSimpleReport_AppendToNodeReport(t *testing.T) {
 	gomega.Expect(time).To(gomega.BeEquivalentTo(time2))
 
 	str := report.Data["nodeName"]
-	gomega.Expect(str[0]).To(gomega.BeEquivalentTo("ErrorString"))
+	gomega.Expect(str[0]).To(gomega.BeEquivalentTo(": ErrorString"))
 	report.Print()
 	report.Clear()
 	report.Print()

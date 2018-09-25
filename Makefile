@@ -109,7 +109,7 @@ test-race:
 	go test ./plugins/crd/datastore -tags="${GO_BUILD_TAGS}"
 	go test ./plugins/crd/validator/l2 -tags="${GO_BUILD_TAGS}"
 	#go test ./plugins/crd/validator/l3 -tags="${GO_BUILD_TAGS}"
-	#go test ./plugins/crd/cache -tags="${GO_BUILD_TAGS}"
+	go test ./plugins/crd/cache -tags="${GO_BUILD_TAGS}"
 
 
 # Get coverage report tools
@@ -138,7 +138,7 @@ test-cover: get-covtools
 	go test -covermode=count -coverprofile=${COVER_DIR}cov_u17.out ./plugins/crd/datastore -tags="${GO_BUILD_TAGS}"
 	go test -covermode=count -coverprofile=${COVER_DIR}cov_u18.out ./plugins/crd/validator/l2 -tags="${GO_BUILD_TAGS}"
 	#go test -covermode=count -coverprofile=${COVER_DIR}cov_u19.out ./plugins/crd/validator/l3 -tags="${GO_BUILD_TAGS}"
-	#go test -covermode=count -coverprofile=${COVER_DIR}cov_u20.out ./plugins/crd/cache -tags="${GO_BUILD_TAGS}"
+	go test -covermode=count -coverprofile=${COVER_DIR}cov_u20.out ./plugins/crd/cache -tags="${GO_BUILD_TAGS}"
 
 	@echo "# merging coverage results"
 	gocovmerge \

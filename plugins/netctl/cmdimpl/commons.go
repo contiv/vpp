@@ -12,28 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package api
-
-import (
-	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
-	"time"
-)
+package cmdimpl
 
 const (
-	// GlobalMsg defines the report bin where to put global (i.e.
-	// non-node-specific) status/error messages
-	GlobalMsg = "global"
+	getInterfaceDataCmd = "vpp/dump/v1/interfaces"
+	getIpamDataCmd      = "contiv/v1/ipam"
+	nodeInfoDataKey     = "/vnf-agent/contiv-ksr/allocatedIDs/"
+	etcdLocation        = "127.0.0.1:32379"
+	timeLayout          = "Mon Jan _2 15:04:05 2006"
 )
-
-// Report is the interface for collecting validation status/error messages
-// and for printing them out.
-type Report interface {
-	LogErrAndAppendToNodeReport(nodeName string, errString string)
-	AppendToNodeReport(nodeName string, errString string)
-	SetPrefix(string)
-	SetTimeStamp(time time.Time)
-	GetTimeStamp() time.Time
-	Clear()
-	Print()
-	RetrieveReport() telemetrymodel.Reports
-}

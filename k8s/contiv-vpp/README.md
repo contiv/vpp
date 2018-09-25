@@ -83,6 +83,7 @@ Parameter | Description | Default
 `contiv.nodeConfig.*` | List of node configs, see example section in values.yaml | `""`
 `contiv.vswitch.defineMemoryLimits` | define limits for vswitch container | `false`
 `contiv.vswitch.hugePages2miLimit` | limit of memory allocated by 2048Kb hugepages for vswitch container| `1024Mi`
+`contiv.vswitch.hugePages1giLimit` | limit of memory allocated by 1Gb hugepages for vswitch container| `""`
 `contiv.vswitch.memoryLimit` | memory limit for vswitch container | `1024Mi`
 `contiv.vswitch.enableCoreDumps` | enable core dumps of VPP into coreDumpsDir | `false`
 `contiv.vswitch.coreDumpsDir` | location of the VPP core dumps | `/var/contiv/dumps`

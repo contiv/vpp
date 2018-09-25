@@ -119,6 +119,9 @@ echo '{"storage-driver": "overlay2"}' > /etc/docker/daemon.json
 rm -rf /var/lib/docker/*
 systemctl start docker
 
+#explicitely set max number of concurrent ssh connections
+echo 'MaxStartups 20' >> /etc/ssh/sshd_config
+sudo service sshd restart
 
 if [ "$3" == "dev" ]; then 
   export GO_VERSION=1.10.3

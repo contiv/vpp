@@ -36,13 +36,7 @@ data:
     ServiceLocalEndpointWeight: 1
     DisableNATVirtualReassembly: true
     IPAMConfig:
-      PodSubnetCIDR: 10.1.0.0/16
-      PodNetworkPrefixLen: 24
-      PodIfIPCIDR: 10.2.1.0/24
-      VPPHostSubnetCIDR: 172.30.0.0/16
-      VPPHostNetworkPrefixLen: 24
-      NodeInterconnectCIDR: 192.168.16.0/24
-      VxlanCIDR: 192.168.30.0/24
+      ContivCIDR: 10.0.0.0/14
       NodeInterconnectDHCP: False
   logs.conf: |
     default-level: debug

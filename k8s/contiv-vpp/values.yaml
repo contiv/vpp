@@ -14,13 +14,7 @@ contiv:
   serviceLocalEndpointWeight: 1
   disableNATVirtualReassembly: True
   ipamConfig:
-    podSubnetCIDR: "10.1.0.0/16"
-    podNetworkPrefixLen: 24
-    podIfIPCIDR: 10.2.1.0/24
-    vppHostSubnetCIDR: "172.30.0.0/16"
-    vppHostNetworkPrefixLen: 24
-    vxlanCIDR: "192.168.30.0/24"
-    nodeInterconnectCIDR: "192.168.16.0/24"
+    contivCIDR: "10.0.0.0/14"
     #serviceCIDR: "10.96.0.0/12"
   # example of node configuration for VPP interfaces
   #nodeConfig:

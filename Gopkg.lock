@@ -687,7 +687,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:59546422dd6e9ffc25100457f732a5dd09cd976874799d4d2de20fa5f155ff9f"
+  digest = "1:5a216803afc05f3bf1bf6f565536f44fa76ab749d249c48daf5267981ffee343"
   name = "github.com/ligato/cn-infra"
   packages = [
     "agent",
@@ -711,6 +711,7 @@
     "logging/logmanager",
     "logging/logrus",
     "logging/measure",
+    "logging/measure/model/apitrace",
     "messaging",
     "rpc/grpc",
     "rpc/prometheus",
@@ -721,10 +722,10 @@
     "utils/safeclose",
   ]
   pruneopts = "UT"
-  revision = "c8ee4cbc97f40744188f3678f0dc74e0ca4b4602"
+  revision = "0b5bfe9b247de942c552e455faac7e00e8efcda1"
 
 [[projects]]
-  digest = "1:8893644e09fc7f06d1a37ebe991171824c186745efa04b1a0611013734993410"
+  digest = "1:7cb8dbf56b9f4c85db47f8d1811eff01b1085881f6e4924f7f89cdd1a1ee91c3"
   name = "github.com/ligato/vpp-agent"
   packages = [
     "clientv1/linux",
@@ -804,7 +805,7 @@
     "plugins/vpp/srplugin/vppcalls",
   ]
   pruneopts = "UT"
-  revision = "5567fa9965a50a63aa89dd262b717217518c0790"
+  revision = "6ea0a9d8259363da66c923e9fca5accdc31cb422"
 
 [[projects]]
   branch = "master"

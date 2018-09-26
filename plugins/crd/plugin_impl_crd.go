@@ -23,9 +23,6 @@ import (
 
 	"github.com/contiv/vpp/plugins/crd/api"
 	"github.com/contiv/vpp/plugins/crd/cache"
-	"github.com/contiv/vpp/plugins/crd/controller/nodeconfig"
-	"github.com/contiv/vpp/plugins/crd/controller/telemetry"
-	"github.com/contiv/vpp/plugins/crd/datastore"
 	"github.com/contiv/vpp/plugins/crd/validator"
 	"github.com/ligato/cn-infra/config"
 	"github.com/ligato/cn-infra/datasync"
@@ -122,15 +119,8 @@ func (p *Plugin) Init() error {
 	p.telemetryController.Log.SetLevel(logging.DebugLevel)
 
 	// This where we initialize all layers
-	p.cache = &cache.ContivTelemetryCache{
-		Deps: cache.Deps{
-			Log: p.Log.NewLogger("-telemetryCache"),
-		},
-		Synced:   false,
-		VppCache: datastore.NewVppDataStore(),
-		K8sCache: datastore.NewK8sDataStore(),
-		Report:   datastore.NewSimpleReport(p.Log.NewLogger("-report")),
-	}
+	p.cache = cache.NewTelemetryCache(p.Log)
+
 	p.cache.Log.SetLevel(logging.DebugLevel)
 	p.cache.Init()
 

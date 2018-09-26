@@ -20,7 +20,6 @@ package contiv
 import (
 	"context"
 	"fmt"
-	"math/big"
 	"net"
 
 	"strings"
@@ -33,7 +32,6 @@ import (
 
 	"github.com/contiv/vpp/plugins/contiv/containeridx"
 	"github.com/contiv/vpp/plugins/contiv/containeridx/model"
-	"github.com/contiv/vpp/plugins/contiv/ipam"
 	"github.com/contiv/vpp/plugins/contiv/model/cni"
 	"github.com/contiv/vpp/plugins/contiv/model/node"
 	"github.com/contiv/vpp/plugins/kvdbproxy"
@@ -429,7 +427,9 @@ func (plugin *Plugin) loadExternalConfig() error {
 	if !found {
 		return fmt.Errorf("External Contiv plugin configuration was not found")
 	}
+
 	plugin.Config = externalCfg
+	plugin.Config.ApplyIPAMConfig()
 	plugin.Config.ApplyDefaults()
 
 	return nil
@@ -592,101 +592,4 @@ func appendIfMissing(slice []string, s string) []string {
 		}
 	}
 	return append(slice, s)
-}
-
-// getIPAMConfig populates the Config struct with the calculated subnets
-func getIPAMConfig(config *Config) *Config {
-	_, contivNetwork, _ := net.ParseCIDR(config.IPAMConfig.ContivCIDR)
-	maskSize, _ := contivNetwork.Mask.Size()
-	subnetPrefixLength := 23 - maskSize
-
-	podSubnetCIDR, _ := subnet(contivNetwork, 2, 0)
-	podNetworkPrefixLen := uint8(25)
-	vppHostSubnetCIDR, _ := subnet(contivNetwork, 2, 1)
-	vppHostNetworkPrefixLen := uint8(25)
-	nodeInterconnectCIDR, _ := subnet(contivNetwork, subnetPrefixLength, 128)
-	podIfIPCIDR, _ := subnet(contivNetwork, subnetPrefixLength, 129)
-	vxlanCIDR, _ := subnet(contivNetwork, subnetPrefixLength, 130)
-
-	config.IPAMConfig = ipam.Config{
-		PodIfIPCIDR:             podIfIPCIDR.String(),
-		PodSubnetCIDR:           podSubnetCIDR.String(),
-		PodNetworkPrefixLen:     podNetworkPrefixLen,
-		VPPHostSubnetCIDR:       vppHostSubnetCIDR.String(),
-		VPPHostNetworkPrefixLen: vppHostNetworkPrefixLen,
-		VxlanCIDR:               vxlanCIDR.String(),
-	}
-
-	if config.IPAMConfig.NodeInterconnectDHCP != true {
-		config.IPAMConfig.NodeInterconnectCIDR = nodeInterconnectCIDR.String()
-	}
-
-	return config
-}
-
-// subnet takes a CIDR range and creates a subnet from it
-// base: parent CIDR range
-// newBits: number of additional prefix bits
-// num: given network number.
-//
-// Example: 10.1.0.0/16, with additional 8 bits and a network number of 5
-// result = 10.1.5.0/24
-func subnet(base *net.IPNet, newBits int, num int) (*net.IPNet, error) {
-	ip := base.IP
-	mask := base.Mask
-
-	baseLength, addressLength := mask.Size()
-	newPrefixLen := baseLength + newBits
-
-	// check if there is sufficient address space to extend the network prefix
-	if newPrefixLen > addressLength {
-		return nil, fmt.Errorf("not enought space to extend prefix of %d by %d", baseLength, newBits)
-	}
-
-	// calculate the maximum network number
-	maxNetNum := uint64(1<<uint64(newBits)) - 1
-	if uint64(num) > maxNetNum {
-		return nil, fmt.Errorf("prefix extension of %d does not accommodate a subnet numbered %d", newBits, num)
-	}
-
-	return &net.IPNet{
-		IP:   insertNetworkNumIntoIP(ip, num, newPrefixLen),
-		Mask: net.CIDRMask(newPrefixLen, addressLength),
-	}, nil
-}
-
-// ipToInt is simple utility function for conversion between IPv4/IPv6 and int.
-func ipToInt(ip net.IP) (*big.Int, int) {
-	val := &big.Int{}
-	val.SetBytes([]byte(ip))
-	if len(ip) == net.IPv4len {
-		return val, 32
-	} else if len(ip) == net.IPv6len {
-		return val, 128
-	} else {
-		return nil, 0
-	}
-}
-
-// intToIP is simple utility function for conversion between int and IPv4/IPv6.
-func intToIP(ipInt *big.Int, bits int) net.IP {
-	ipBytes := ipInt.Bytes()
-	val := make([]byte, bits/8)
-
-	// big.Int.Bytes() removes front zero padding.
-	// IP bytes packed at the end of the return array,
-	for i := 1; i <= len(ipBytes); i++ {
-		val[len(val)-i] = ipBytes[len(ipBytes)-i]
-	}
-
-	return net.IP(val)
-}
-
-func insertNetworkNumIntoIP(ip net.IP, num int, prefixLen int) net.IP {
-	ipInt, totalBits := ipToInt(ip)
-	bigNum := big.NewInt(int64(num))
-	bigNum.Lsh(bigNum, uint(totalBits-prefixLen))
-	ipInt.Or(ipInt, bigNum)
-
-	return intToIP(ipInt, totalBits)
 }

@@ -137,8 +137,9 @@ func (c *Controller) Init() error {
 	})
 	c.eventHandler = &nodeconfig.Handler{
 		Deps: nodeconfig.Deps{
-			Log:     c.Log,
-			Publish: c.Publish,
+			Log:                c.Log,
+			Publish:            c.Publish,
+			ControllerInformer: c.nodeConfigInformer,
 		},
 	}
 

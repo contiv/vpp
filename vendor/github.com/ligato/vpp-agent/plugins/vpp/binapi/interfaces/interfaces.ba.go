@@ -8,9 +8,9 @@ It is generated from this file:
 	interface.api.json
 
 It contains these VPP binary API objects:
-	45 messages
+	49 messages
 	3 types
-	22 services
+	24 services
 */
 package interfaces
 
@@ -26,7 +26,7 @@ var _ = bytes.NewBuffer
 /* Types */
 
 // VlibCounter represents the VPP binary API type 'vlib_counter'.
-// Generated from 'interface.api.json', line 1301:
+// Generated from 'interface.api.json', line 1403:
 //
 //            "vlib_counter",
 //            [
@@ -54,7 +54,7 @@ func (*VlibCounter) GetCrcString() string {
 }
 
 // VnetCombinedCounter represents the VPP binary API type 'vnet_combined_counter'.
-// Generated from 'interface.api.json', line 1315:
+// Generated from 'interface.api.json', line 1417:
 //
 //            "vnet_combined_counter",
 //            [
@@ -157,7 +157,7 @@ func (*VnetCombinedCounter) GetCrcString() string {
 }
 
 // VnetSimpleCounter represents the VPP binary API type 'vnet_simple_counter'.
-// Generated from 'interface.api.json', line 1389:
+// Generated from 'interface.api.json', line 1491:
 //
 //            "vnet_simple_counter",
 //            [
@@ -476,8 +476,91 @@ func NewSwInterfaceSetMtuReply() api.Message {
 	return &SwInterfaceSetMtuReply{}
 }
 
-// SwInterfaceEvent represents the VPP binary API message 'sw_interface_event'.
+// SwInterfaceSetIPDirectedBroadcast represents the VPP binary API message 'sw_interface_set_ip_directed_broadcast'.
 // Generated from 'interface.api.json', line 137:
+//
+//            "sw_interface_set_ip_directed_broadcast",
+//            [
+//                "u16",
+//                "_vl_msg_id"
+//            ],
+//            [
+//                "u32",
+//                "client_index"
+//            ],
+//            [
+//                "u32",
+//                "context"
+//            ],
+//            [
+//                "u32",
+//                "sw_if_index"
+//            ],
+//            [
+//                "u8",
+//                "enable"
+//            ],
+//            {
+//                "crc": "0xa36fadc0"
+//            }
+//
+type SwInterfaceSetIPDirectedBroadcast struct {
+	SwIfIndex uint32
+	Enable    uint8
+}
+
+func (*SwInterfaceSetIPDirectedBroadcast) GetMessageName() string {
+	return "sw_interface_set_ip_directed_broadcast"
+}
+func (*SwInterfaceSetIPDirectedBroadcast) GetCrcString() string {
+	return "a36fadc0"
+}
+func (*SwInterfaceSetIPDirectedBroadcast) GetMessageType() api.MessageType {
+	return api.RequestMessage
+}
+func NewSwInterfaceSetIPDirectedBroadcast() api.Message {
+	return &SwInterfaceSetIPDirectedBroadcast{}
+}
+
+// SwInterfaceSetIPDirectedBroadcastReply represents the VPP binary API message 'sw_interface_set_ip_directed_broadcast_reply'.
+// Generated from 'interface.api.json', line 163:
+//
+//            "sw_interface_set_ip_directed_broadcast_reply",
+//            [
+//                "u16",
+//                "_vl_msg_id"
+//            ],
+//            [
+//                "u32",
+//                "context"
+//            ],
+//            [
+//                "i32",
+//                "retval"
+//            ],
+//            {
+//                "crc": "0xe8d4e804"
+//            }
+//
+type SwInterfaceSetIPDirectedBroadcastReply struct {
+	Retval int32
+}
+
+func (*SwInterfaceSetIPDirectedBroadcastReply) GetMessageName() string {
+	return "sw_interface_set_ip_directed_broadcast_reply"
+}
+func (*SwInterfaceSetIPDirectedBroadcastReply) GetCrcString() string {
+	return "e8d4e804"
+}
+func (*SwInterfaceSetIPDirectedBroadcastReply) GetMessageType() api.MessageType {
+	return api.ReplyMessage
+}
+func NewSwInterfaceSetIPDirectedBroadcastReply() api.Message {
+	return &SwInterfaceSetIPDirectedBroadcastReply{}
+}
+
+// SwInterfaceEvent represents the VPP binary API message 'sw_interface_event'.
+// Generated from 'interface.api.json', line 181:
 //
 //            "sw_interface_event",
 //            [
@@ -534,7 +617,7 @@ func NewSwInterfaceEvent() api.Message {
 }
 
 // WantInterfaceEvents represents the VPP binary API message 'want_interface_events'.
-// Generated from 'interface.api.json', line 171:
+// Generated from 'interface.api.json', line 215:
 //
 //            "want_interface_events",
 //            [
@@ -580,7 +663,7 @@ func NewWantInterfaceEvents() api.Message {
 }
 
 // WantInterfaceEventsReply represents the VPP binary API message 'want_interface_events_reply'.
-// Generated from 'interface.api.json', line 197:
+// Generated from 'interface.api.json', line 241:
 //
 //            "want_interface_events_reply",
 //            [
@@ -617,7 +700,7 @@ func NewWantInterfaceEventsReply() api.Message {
 }
 
 // SwInterfaceDetails represents the VPP binary API message 'sw_interface_details'.
-// Generated from 'interface.api.json', line 215:
+// Generated from 'interface.api.json', line 259:
 //
 //            "sw_interface_details",
 //            [
@@ -810,7 +893,7 @@ func NewSwInterfaceDetails() api.Message {
 }
 
 // SwInterfaceDump represents the VPP binary API message 'sw_interface_dump'.
-// Generated from 'interface.api.json', line 359:
+// Generated from 'interface.api.json', line 403:
 //
 //            "sw_interface_dump",
 //            [
@@ -857,7 +940,7 @@ func NewSwInterfaceDump() api.Message {
 }
 
 // SwInterfaceAddDelAddress represents the VPP binary API message 'sw_interface_add_del_address'.
-// Generated from 'interface.api.json', line 386:
+// Generated from 'interface.api.json', line 430:
 //
 //            "sw_interface_add_del_address",
 //            [
@@ -924,7 +1007,7 @@ func NewSwInterfaceAddDelAddress() api.Message {
 }
 
 // SwInterfaceAddDelAddressReply represents the VPP binary API message 'sw_interface_add_del_address_reply'.
-// Generated from 'interface.api.json', line 429:
+// Generated from 'interface.api.json', line 473:
 //
 //            "sw_interface_add_del_address_reply",
 //            [
@@ -961,7 +1044,7 @@ func NewSwInterfaceAddDelAddressReply() api.Message {
 }
 
 // SwInterfaceSetTable represents the VPP binary API message 'sw_interface_set_table'.
-// Generated from 'interface.api.json', line 447:
+// Generated from 'interface.api.json', line 491:
 //
 //            "sw_interface_set_table",
 //            [
@@ -1012,7 +1095,7 @@ func NewSwInterfaceSetTable() api.Message {
 }
 
 // SwInterfaceSetTableReply represents the VPP binary API message 'sw_interface_set_table_reply'.
-// Generated from 'interface.api.json', line 477:
+// Generated from 'interface.api.json', line 521:
 //
 //            "sw_interface_set_table_reply",
 //            [
@@ -1049,7 +1132,7 @@ func NewSwInterfaceSetTableReply() api.Message {
 }
 
 // SwInterfaceGetTable represents the VPP binary API message 'sw_interface_get_table'.
-// Generated from 'interface.api.json', line 495:
+// Generated from 'interface.api.json', line 539:
 //
 //            "sw_interface_get_table",
 //            [
@@ -1095,7 +1178,7 @@ func NewSwInterfaceGetTable() api.Message {
 }
 
 // SwInterfaceGetTableReply represents the VPP binary API message 'sw_interface_get_table_reply'.
-// Generated from 'interface.api.json', line 521:
+// Generated from 'interface.api.json', line 565:
 //
 //            "sw_interface_get_table_reply",
 //            [
@@ -1137,7 +1220,7 @@ func NewSwInterfaceGetTableReply() api.Message {
 }
 
 // SwInterfaceSetUnnumbered represents the VPP binary API message 'sw_interface_set_unnumbered'.
-// Generated from 'interface.api.json', line 543:
+// Generated from 'interface.api.json', line 587:
 //
 //            "sw_interface_set_unnumbered",
 //            [
@@ -1188,7 +1271,7 @@ func NewSwInterfaceSetUnnumbered() api.Message {
 }
 
 // SwInterfaceSetUnnumberedReply represents the VPP binary API message 'sw_interface_set_unnumbered_reply'.
-// Generated from 'interface.api.json', line 573:
+// Generated from 'interface.api.json', line 617:
 //
 //            "sw_interface_set_unnumbered_reply",
 //            [
@@ -1225,7 +1308,7 @@ func NewSwInterfaceSetUnnumberedReply() api.Message {
 }
 
 // SwInterfaceClearStats represents the VPP binary API message 'sw_interface_clear_stats'.
-// Generated from 'interface.api.json', line 591:
+// Generated from 'interface.api.json', line 635:
 //
 //            "sw_interface_clear_stats",
 //            [
@@ -1266,7 +1349,7 @@ func NewSwInterfaceClearStats() api.Message {
 }
 
 // SwInterfaceClearStatsReply represents the VPP binary API message 'sw_interface_clear_stats_reply'.
-// Generated from 'interface.api.json', line 613:
+// Generated from 'interface.api.json', line 657:
 //
 //            "sw_interface_clear_stats_reply",
 //            [
@@ -1303,7 +1386,7 @@ func NewSwInterfaceClearStatsReply() api.Message {
 }
 
 // SwInterfaceTagAddDel represents the VPP binary API message 'sw_interface_tag_add_del'.
-// Generated from 'interface.api.json', line 631:
+// Generated from 'interface.api.json', line 675:
 //
 //            "sw_interface_tag_add_del",
 //            [
@@ -1355,7 +1438,7 @@ func NewSwInterfaceTagAddDel() api.Message {
 }
 
 // SwInterfaceTagAddDelReply represents the VPP binary API message 'sw_interface_tag_add_del_reply'.
-// Generated from 'interface.api.json', line 662:
+// Generated from 'interface.api.json', line 706:
 //
 //            "sw_interface_tag_add_del_reply",
 //            [
@@ -1392,7 +1475,7 @@ func NewSwInterfaceTagAddDelReply() api.Message {
 }
 
 // SwInterfaceSetMacAddress represents the VPP binary API message 'sw_interface_set_mac_address'.
-// Generated from 'interface.api.json', line 680:
+// Generated from 'interface.api.json', line 724:
 //
 //            "sw_interface_set_mac_address",
 //            [
@@ -1439,7 +1522,7 @@ func NewSwInterfaceSetMacAddress() api.Message {
 }
 
 // SwInterfaceSetMacAddressReply represents the VPP binary API message 'sw_interface_set_mac_address_reply'.
-// Generated from 'interface.api.json', line 707:
+// Generated from 'interface.api.json', line 751:
 //
 //            "sw_interface_set_mac_address_reply",
 //            [
@@ -1476,7 +1559,7 @@ func NewSwInterfaceSetMacAddressReply() api.Message {
 }
 
 // SwInterfaceGetMacAddress represents the VPP binary API message 'sw_interface_get_mac_address'.
-// Generated from 'interface.api.json', line 725:
+// Generated from 'interface.api.json', line 769:
 //
 //            "sw_interface_get_mac_address",
 //            [
@@ -1517,7 +1600,7 @@ func NewSwInterfaceGetMacAddress() api.Message {
 }
 
 // SwInterfaceGetMacAddressReply represents the VPP binary API message 'sw_interface_get_mac_address_reply'.
-// Generated from 'interface.api.json', line 747:
+// Generated from 'interface.api.json', line 791:
 //
 //            "sw_interface_get_mac_address_reply",
 //            [
@@ -1560,7 +1643,7 @@ func NewSwInterfaceGetMacAddressReply() api.Message {
 }
 
 // SwInterfaceSetRxMode represents the VPP binary API message 'sw_interface_set_rx_mode'.
-// Generated from 'interface.api.json', line 770:
+// Generated from 'interface.api.json', line 814:
 //
 //            "sw_interface_set_rx_mode",
 //            [
@@ -1616,7 +1699,7 @@ func NewSwInterfaceSetRxMode() api.Message {
 }
 
 // SwInterfaceSetRxModeReply represents the VPP binary API message 'sw_interface_set_rx_mode_reply'.
-// Generated from 'interface.api.json', line 804:
+// Generated from 'interface.api.json', line 848:
 //
 //            "sw_interface_set_rx_mode_reply",
 //            [
@@ -1652,8 +1735,101 @@ func NewSwInterfaceSetRxModeReply() api.Message {
 	return &SwInterfaceSetRxModeReply{}
 }
 
+// SwInterfaceSetRxPlacement represents the VPP binary API message 'sw_interface_set_rx_placement'.
+// Generated from 'interface.api.json', line 866:
+//
+//            "sw_interface_set_rx_placement",
+//            [
+//                "u16",
+//                "_vl_msg_id"
+//            ],
+//            [
+//                "u32",
+//                "client_index"
+//            ],
+//            [
+//                "u32",
+//                "context"
+//            ],
+//            [
+//                "u32",
+//                "sw_if_index"
+//            ],
+//            [
+//                "u32",
+//                "queue_id"
+//            ],
+//            [
+//                "u32",
+//                "worker_id"
+//            ],
+//            [
+//                "u8",
+//                "is_main"
+//            ],
+//            {
+//                "crc": "0x4ef4377d"
+//            }
+//
+type SwInterfaceSetRxPlacement struct {
+	SwIfIndex uint32
+	QueueID   uint32
+	WorkerID  uint32
+	IsMain    uint8
+}
+
+func (*SwInterfaceSetRxPlacement) GetMessageName() string {
+	return "sw_interface_set_rx_placement"
+}
+func (*SwInterfaceSetRxPlacement) GetCrcString() string {
+	return "4ef4377d"
+}
+func (*SwInterfaceSetRxPlacement) GetMessageType() api.MessageType {
+	return api.RequestMessage
+}
+func NewSwInterfaceSetRxPlacement() api.Message {
+	return &SwInterfaceSetRxPlacement{}
+}
+
+// SwInterfaceSetRxPlacementReply represents the VPP binary API message 'sw_interface_set_rx_placement_reply'.
+// Generated from 'interface.api.json', line 900:
+//
+//            "sw_interface_set_rx_placement_reply",
+//            [
+//                "u16",
+//                "_vl_msg_id"
+//            ],
+//            [
+//                "u32",
+//                "context"
+//            ],
+//            [
+//                "i32",
+//                "retval"
+//            ],
+//            {
+//                "crc": "0xe8d4e804"
+//            }
+//
+type SwInterfaceSetRxPlacementReply struct {
+	Retval int32
+}
+
+func (*SwInterfaceSetRxPlacementReply) GetMessageName() string {
+	return "sw_interface_set_rx_placement_reply"
+}
+func (*SwInterfaceSetRxPlacementReply) GetCrcString() string {
+	return "e8d4e804"
+}
+func (*SwInterfaceSetRxPlacementReply) GetMessageType() api.MessageType {
+	return api.ReplyMessage
+}
+func NewSwInterfaceSetRxPlacementReply() api.Message {
+	return &SwInterfaceSetRxPlacementReply{}
+}
+
 // InterfaceNameRenumber represents the VPP binary API message 'interface_name_renumber'.
-// Generated from 'interface.api.json', line 822:
+// Generated from 'interface.api.json', line 918:
 //
 //            "interface_name_renumber",
 //            [
@@ -1699,7 +1875,7 @@ func NewInterfaceNameRenumber() api.Message {
 }
 
 // InterfaceNameRenumberReply represents the VPP binary API message 'interface_name_renumber_reply'.
-// Generated from 'interface.api.json', line 848:
+// Generated from 'interface.api.json', line 944:
 //
 //            "interface_name_renumber_reply",
 //            [
@@ -1736,7 +1912,7 @@ func NewInterfaceNameRenumberReply() api.Message {
 }
 
 // CreateSubif represents the VPP binary API message 'create_subif'.
-// Generated from 'interface.api.json', line 866:
+// Generated from 'interface.api.json', line 962:
 //
 //            "create_subif",
 //            [
@@ -1832,7 +2008,7 @@ func NewCreateSubif() api.Message {
 }
 
 // CreateSubifReply represents the VPP binary API message 'create_subif_reply'.
-// Generated from 'interface.api.json', line 932:
+// Generated from 'interface.api.json', line 1028:
 //
 //            "create_subif_reply",
 //            [
@@ -1874,7 +2050,7 @@ func NewCreateSubifReply() api.Message {
 }
 
 // CreateVlanSubif represents the VPP binary API message 'create_vlan_subif'.
-// Generated from 'interface.api.json', line 954:
+// Generated from 'interface.api.json', line 1050:
 //
 //            "create_vlan_subif",
 //            [
@@ -1920,7 +2096,7 @@ func NewCreateVlanSubif() api.Message {
 }
 
 // CreateVlanSubifReply represents the VPP binary API message 'create_vlan_subif_reply'.
-// Generated from 'interface.api.json', line 980:
+// Generated from 'interface.api.json', line 1076:
 //
 //            "create_vlan_subif_reply",
 //            [
@@ -1962,7 +2138,7 @@ func NewCreateVlanSubifReply() api.Message {
 }
 
 // DeleteSubif represents the VPP binary API message 'delete_subif'.
-// Generated from 'interface.api.json', line 1002:
+// Generated from 'interface.api.json', line 1098:
 //
 //            "delete_subif",
 //            [
@@ -2003,7 +2179,7 @@ func NewDeleteSubif() api.Message {
 }
 
 // DeleteSubifReply represents the VPP binary API message 'delete_subif_reply'.
-// Generated from 'interface.api.json', line 1024:
+// Generated from 'interface.api.json', line 1120:
 //
 //            "delete_subif_reply",
 //            [
@@ -2040,7 +2216,7 @@ func NewDeleteSubifReply() api.Message {
 }
 
 // CreateLoopback represents the VPP binary API message 'create_loopback'.
-// Generated from 'interface.api.json', line 1042:
+// Generated from 'interface.api.json', line 1138:
 //
 //            "create_loopback",
 //            [
@@ -2082,7 +2258,7 @@ func NewCreateLoopback() api.Message {
 }
 
 // CreateLoopbackReply represents the VPP binary API message 'create_loopback_reply'.
-// Generated from 'interface.api.json', line 1065:
+// Generated from 'interface.api.json', line 1161:
 //
 //            "create_loopback_reply",
 //            [
@@ -2124,7 +2300,7 @@ func NewCreateLoopbackReply() api.Message {
 }
 
 // CreateLoopbackInstance represents the VPP binary API message 'create_loopback_instance'.
-// Generated from 'interface.api.json', line 1087:
+// Generated from 'interface.api.json', line 1183:
 //
 //            "create_loopback_instance",
 //            [
@@ -2176,7 +2352,7 @@ func NewCreateLoopbackInstance() api.Message {
 }
 
 // CreateLoopbackInstanceReply represents the VPP binary API message 'create_loopback_instance_reply'.
-// Generated from 'interface.api.json', line 1118:
+// Generated from 'interface.api.json', line 1214:
 //
 //            "create_loopback_instance_reply",
 //            [
@@ -2218,7 +2394,7 @@ func NewCreateLoopbackInstanceReply() api.Message {
 }
 
 // DeleteLoopback represents the VPP binary API message 'delete_loopback'.
-// Generated from 'interface.api.json', line 1140:
+// Generated from 'interface.api.json', line 1236:
 //
 //            "delete_loopback",
 //            [
@@ -2259,7 +2435,7 @@ func NewDeleteLoopback() api.Message {
 }
 
 // DeleteLoopbackReply represents the VPP binary API message 'delete_loopback_reply'.
-// Generated from 'interface.api.json', line 1162:
+// Generated from 'interface.api.json', line 1258:
 //
 //            "delete_loopback_reply",
 //            [
@@ -2296,7 +2472,7 @@ func NewDeleteLoopbackReply() api.Message {
 }
 
 // CollectDetailedInterfaceStats represents the VPP binary API message 'collect_detailed_interface_stats'.
-// Generated from 'interface.api.json', line 1180:
+// Generated from 'interface.api.json', line 1276:
 //
 //            "collect_detailed_interface_stats",
 //            [
@@ -2342,7 +2518,7 @@ func NewCollectDetailedInterfaceStats() api.Message {
 }
 
 // CollectDetailedInterfaceStatsReply represents the VPP binary API message 'collect_detailed_interface_stats_reply'.
-// Generated from 'interface.api.json', line 1206:
+// Generated from 'interface.api.json', line 1302:
 //
 //            "collect_detailed_interface_stats_reply",
 //            [
@@ -2396,9 +2572,11 @@ type Services interface {
 	SwInterfaceGetMacAddress(*SwInterfaceGetMacAddress) (*SwInterfaceGetMacAddressReply, error)
 	SwInterfaceGetTable(*SwInterfaceGetTable) (*SwInterfaceGetTableReply, error)
 	SwInterfaceSetFlags(*SwInterfaceSetFlags) (*SwInterfaceSetFlagsReply, error)
+	SwInterfaceSetIPDirectedBroadcast(*SwInterfaceSetIPDirectedBroadcast) (*SwInterfaceSetIPDirectedBroadcastReply, error)
 	SwInterfaceSetMacAddress(*SwInterfaceSetMacAddress) (*SwInterfaceSetMacAddressReply, error)
 	SwInterfaceSetMtu(*SwInterfaceSetMtu) (*SwInterfaceSetMtuReply, error)
 	SwInterfaceSetRxMode(*SwInterfaceSetRxMode) (*SwInterfaceSetRxModeReply, error)
+	SwInterfaceSetRxPlacement(*SwInterfaceSetRxPlacement) (*SwInterfaceSetRxPlacementReply, error)
 	SwInterfaceSetTable(*SwInterfaceSetTable) (*SwInterfaceSetTableReply, error)
 	SwInterfaceSetUnnumbered(*SwInterfaceSetUnnumbered) (*SwInterfaceSetUnnumberedReply, error)
 	SwInterfaceTagAddDel(*SwInterfaceTagAddDel) (*SwInterfaceTagAddDelReply, error)
@@ -2412,6 +2590,8 @@ func init() {
 	api.RegisterMessage((*HwInterfaceSetMtuReply)(nil), "interface.HwInterfaceSetMtuReply")
 	api.RegisterMessage((*SwInterfaceSetMtu)(nil), "interface.SwInterfaceSetMtu")
 	api.RegisterMessage((*SwInterfaceSetMtuReply)(nil), "interface.SwInterfaceSetMtuReply")
+	api.RegisterMessage((*SwInterfaceSetIPDirectedBroadcast)(nil), "interface.SwInterfaceSetIPDirectedBroadcast")
+	api.RegisterMessage((*SwInterfaceSetIPDirectedBroadcastReply)(nil), "interface.SwInterfaceSetIPDirectedBroadcastReply")
 	api.RegisterMessage((*SwInterfaceEvent)(nil), "interface.SwInterfaceEvent")
 	api.RegisterMessage((*WantInterfaceEvents)(nil), "interface.WantInterfaceEvents")
 	api.RegisterMessage((*WantInterfaceEventsReply)(nil), "interface.WantInterfaceEventsReply")
@@ -2435,6 +2615,8 @@ func init() {
 	api.RegisterMessage((*SwInterfaceGetMacAddressReply)(nil), "interface.SwInterfaceGetMacAddressReply")
 	api.RegisterMessage((*SwInterfaceSetRxMode)(nil), "interface.SwInterfaceSetRxMode")
 	api.RegisterMessage((*SwInterfaceSetRxModeReply)(nil), "interface.SwInterfaceSetRxModeReply")
+	api.RegisterMessage((*SwInterfaceSetRxPlacement)(nil), "interface.SwInterfaceSetRxPlacement")
+	api.RegisterMessage((*SwInterfaceSetRxPlacementReply)(nil), "interface.SwInterfaceSetRxPlacementReply")
 	api.RegisterMessage((*InterfaceNameRenumber)(nil), "interface.InterfaceNameRenumber")
 	api.RegisterMessage((*InterfaceNameRenumberReply)(nil), "interface.InterfaceNameRenumberReply")
 	api.RegisterMessage((*CreateSubif)(nil), "interface.CreateSubif")

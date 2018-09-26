@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//go:generate protoc -I ./model/cni --go_out=plugins=grpc:./model/cni ./model/cni/cni.proto
-//go:generate protoc -I ./model/node --go_out=plugins=grpc:./model/node ./model/node/node.proto
+//go:generate protoc -I ./model/cni --gogo_out=plugins=grpc:./model/cni ./model/cni/cni.proto
+//go:generate protoc -I ./model/node --gogo_out=plugins=grpc:./model/node ./model/node/node.proto
 
 package contiv
 

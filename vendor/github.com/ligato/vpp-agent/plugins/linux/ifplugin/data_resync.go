@@ -18,7 +18,6 @@ import (
 	"bytes"
 	"net"
 	"strconv"
-	"time"
 
 	"github.com/go-errors/errors"
 	"github.com/ligato/vpp-agent/plugins/linux/ifplugin/ifaceidx"
@@ -46,10 +45,6 @@ type LinuxDataPair struct {
 // 3. If interface exists, it is correlated and modified if needed.
 // Resync configures an initial set of interfaces. Existing Linux interfaces are registered and potentially re-configured.
 func (c *LinuxInterfaceConfigurator) Resync(nbIfs []*interfaces.LinuxInterfaces_Interface) error {
-	defer func(t time.Time) {
-		c.stopwatch.TimeLog("resync-linux-interfaces").LogTimeEntry(time.Since(t))
-	}(time.Now())
-
 	nsMgmtCtx := nsplugin.NewNamespaceMgmtCtx()
 
 	// Cache for interfaces modified later (interface name/link data)
@@ -138,11 +133,6 @@ func (c *LinuxInterfaceConfigurator) Resync(nbIfs []*interfaces.LinuxInterfaces_
 		attrs := link.Attrs()
 		_, _, found := c.ifIndexes.LookupIdx(attrs.Name)
 		if !found {
-			// If interface is veth, do not register it. Agent does not know where the other
-			// end is or if it even exists.
-			if link.Type() == veth {
-				continue
-			}
 			// Register interface with name (other parameters can be read if needed)
 			c.ifIndexes.RegisterName(attrs.Name, c.ifIdxSeq, &ifaceidx.IndexedLinuxInterface{
 				Index: uint32(attrs.Index),

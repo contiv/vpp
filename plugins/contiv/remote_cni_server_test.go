@@ -34,7 +34,7 @@ import (
 	"github.com/contiv/vpp/plugins/contiv/model/node"
 	nodeconfig "github.com/contiv/vpp/plugins/crd/pkg/apis/nodeconfig/v1"
 	"github.com/contiv/vpp/plugins/kvdbproxy"
-	"github.com/golang/protobuf/proto"
+	"github.com/gogo/protobuf/proto"
 
 	"github.com/ligato/cn-infra/logging/logrus"
 	"github.com/ligato/vpp-agent/idxvpp/nametoidx"

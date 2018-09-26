@@ -34,7 +34,8 @@ data:
     IPNeighborScanInterval: 1
     IPNeighborStaleThreshold: 4
     ServiceLocalEndpointWeight: 1
-    DisableNATVirtualReassembly: true
+    DisableNATVirtualReassembly: false
+
   logs.conf: |
     default-level: debug
     loggers:

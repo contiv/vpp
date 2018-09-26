@@ -101,11 +101,11 @@ func configureVpp(contivCfg *contiv.Config, stnData *stn.STNReply, useDHCP bool)
 	}
 	defer ch.Close()
 
-	ifVppHandler := if_vppcalls.NewIfVppHandler(ch, logger, nil)
+	ifVppHandler := if_vppcalls.NewIfVppHandler(ch, logger)
 
-	stnVppHandler := if_vppcalls.NewStnVppHandler(ch, nil, logger, nil)
+	stnVppHandler := if_vppcalls.NewStnVppHandler(ch, nil, logger)
 
-	routeHandler := l3_vppcalls.NewRouteVppHandler(ch, nil, logger, nil)
+	routeHandler := l3_vppcalls.NewRouteVppHandler(ch, nil, logger)
 
 	cfg := &vppCfgCtx{}
 
@@ -266,7 +266,7 @@ func configureVpp(contivCfg *contiv.Config, stnData *stn.STNReply, useDHCP bool)
 	}
 
 	// host-end TAP config
-	ifNetlinkHandler := if_linuxcalls.NewNetLinkHandler(nil)
+	ifNetlinkHandler := if_linuxcalls.NewNetLinkHandler(nil, nil, logger)
 	err = ifNetlinkHandler.AddInterfaceIP(contiv.TapHostEndName, &net.IPNet{IP: cfg.mainIP.IP, Mask: cfg.mainIP.Mask})
 	if err != nil {
 		logger.Errorf("Error by configuring host-end TAP interface IP: %v", err)
@@ -292,7 +292,7 @@ func configureVpp(contivCfg *contiv.Config, stnData *stn.STNReply, useDHCP bool)
 	}
 
 	// host routes
-	l3NetlinkHandler := l3_linuxcalls.NewNetLinkHandler(nil)
+	l3NetlinkHandler := l3_linuxcalls.NewNetLinkHandler(nil, nil, nil, nil, logger)
 	link, err := netlink.LinkByName(contiv.TapHostEndName)
 	if err != nil {
 		logger.Errorf("Unable to find link %s: %v", contiv.TapHostEndName, err)

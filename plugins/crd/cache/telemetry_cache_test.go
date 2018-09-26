@@ -51,6 +51,7 @@ type cacheTestVars struct {
 	nodeBridgeDomains map[int]telemetrymodel.NodeBridgeDomain
 	nodeL2Fibs        map[string]telemetrymodel.NodeL2FibEntry
 	nodeIPArps        []telemetrymodel.NodeIPArpEntry
+	nodeIPRoutes      []telemetrymodel.NodeIPRoute
 
 	report *datastore.SimpleReport
 }
@@ -63,7 +64,7 @@ func (ptv *cacheTestVars) startMockHTTPServer() {
 	go func() {
 		if err := ptv.srv.ListenAndServe(); err != nil {
 			// cannot panic, because this probably is an intentional close
-			ptv.log.Error("Httpserver: ListenAndServe() error: %s", err)
+			ptv.log.Errorf("Httpserver: ListenAndServe() error: %s", err.Error())
 			gomega.Expect(err).To(gomega.BeNil())
 		}
 	}()
@@ -95,6 +96,8 @@ func registerHTTPHandlers() {
 			data = ctv.nodeBridgeDomains
 		case arpURL:
 			data = ctv.nodeIPArps
+		case staticRouteURL:
+			data = ctv.nodeIPRoutes
 		default:
 			ctv.log.Error("unknown URL: ", r.URL)
 			w.WriteHeader(404)
@@ -137,8 +140,6 @@ func TestTelemetryCache(t *testing.T) {
 	ctv.log.SetLevel(logging.DebugLevel)
 	ctv.log.SetOutput(ctv.logWriter)
 
-	// Initialize mock-ticker channel
-	ctv.tickerChan = make(chan time.Time)
 	// Initialize report
 	ctv.report = datastore.NewSimpleReport(ctv.log)
 	// Suppress printing of output report to screen during testing
@@ -157,22 +158,26 @@ func TestTelemetryCache(t *testing.T) {
 	}
 
 	// Init the cache and the telemetryCache (the objects under test)
-	ctv.telemetryCache = &ContivTelemetryCache{
-		Deps: Deps{
-			Log: ctv.log,
-		},
-		Synced:   false,
-		VppCache: datastore.NewVppDataStore(),
-		K8sCache: datastore.NewK8sDataStore(),
-		Report:   ctv.report,
-	}
+	ctv.telemetryCache = NewTelemetryCache(logging.ForPlugin("tc-test"))
 	ctv.telemetryCache.Processor = &mockProcessor{}
-	ctv.telemetryCache.Init()
 
 	// Override default telemetryCache behavior
+	ctv.tickerChan = make(chan time.Time)
 	ctv.telemetryCache.ticker.Stop() // Do not periodically poll agents
-	ctv.telemetryCache.ticker = newMockTicker()
-	ctv.telemetryCache.agentPort = testAgentPort // Override agentPort
+	ctv.telemetryCache.ticker = &time.Ticker{C: ctv.tickerChan}
+
+	// Override agentPort
+	ctv.telemetryCache.agentPort = testAgentPort
+
+	// override default cache logger
+	ctv.telemetryCache.Log = ctv.log
+
+	ctv.report = datastore.NewSimpleReport(ctv.log)
+	ctv.report.Output = &nullWriter{}
+	ctv.telemetryCache.Report = ctv.report
+
+	// Run cache init
+	ctv.telemetryCache.Init()
 
 	// Init & populate the test data
 	testdata.CreateNodeTestData(ctv.telemetryCache.VppCache)
@@ -185,6 +190,7 @@ func TestTelemetryCache(t *testing.T) {
 	ctv.nodeIPArps = node.NodeIPArp
 	ctv.nodeL2Fibs = node.NodeL2Fibs
 	ctv.nodeLiveness = node.NodeLiveness
+	ctv.nodeIPRoutes = node.NodeStaticRoutes
 
 	// Do the testing
 	t.Run("collectAgentInfoNoError", testCollectAgentInfoNoError)
@@ -213,6 +219,7 @@ func testCollectAgentInfoNoError(t *testing.T) {
 	gomega.Expect(node.NodeBridgeDomains).To(gomega.BeEquivalentTo(ctv.nodeBridgeDomains))
 	gomega.Expect(node.NodeL2Fibs).To(gomega.BeEquivalentTo(ctv.nodeL2Fibs))
 	gomega.Expect(node.NodeIPArp).To(gomega.BeEquivalentTo(ctv.nodeIPArps))
+	gomega.Expect(node.NodeStaticRoutes).To(gomega.BeEquivalentTo(ctv.nodeIPRoutes))
 }
 
 func testCollectAgentInfoWithHTTPError(t *testing.T) {

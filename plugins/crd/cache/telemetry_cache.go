@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"github.com/contiv/vpp/plugins/crd/api"
 	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
+	"github.com/contiv/vpp/plugins/crd/datastore"
 	nodemodel "github.com/contiv/vpp/plugins/ksr/model/node"
 	"github.com/ligato/cn-infra/datasync"
 	"github.com/ligato/cn-infra/logging"
@@ -32,16 +33,18 @@ import (
 const (
 	// here goes different cache types
 	//Update this whenever a new DTO type is added.
-	numDTOs            = 7
-	agentPort          = ":9999"
-	livenessURL        = "/liveness"
-	interfaceURL       = "/vpp/dump/v1/interfaces"
-	bridgeDomainURL    = "/vpp/dump/v1/bd"
-	l2FibsURL          = "/vpp/dump/v1/fib"
-	telemetryURL       = "/telemetry"
-	ipamURL            = "/contiv/v1/ipam"
-	arpURL             = "/vpp/dump/v1/arps"
-	staticRouteURL     = "/vpp/dump/v1/routes"
+	numDTOs   = 7
+	agentPort = ":9999"
+
+	livenessURL     = "/liveness"
+	interfaceURL    = "/vpp/dump/v1/interfaces"
+	bridgeDomainURL = "/vpp/dump/v1/bd"
+	l2FibsURL       = "/vpp/dump/v1/fib"
+	telemetryURL    = "/telemetry"
+	ipamURL         = "/contiv/v1/ipam"
+	arpURL          = "/vpp/dump/v1/arps"
+	staticRouteURL  = "/vpp/dump/v1/routes"
+
 	clientTimeout      = 10 // HTTP client timeout, in seconds
 	collectionInterval = 1  // data collection interval, in minutes
 
@@ -71,6 +74,11 @@ type ContivTelemetryCache struct {
 	validationInProgress bool
 	databaseVersion      uint32
 	dataChangeEvents     DcEventQueue
+
+	nValidations uint32
+	nUpdates     uint32
+	nResyncs     uint32
+	nnResponses  uint32
 }
 
 // Deps lists dependencies of PolicyCache.
@@ -90,30 +98,36 @@ type NodeDTO struct {
 	version  uint32
 }
 
-// Init initializes policy cache.
-func (ctc *ContivTelemetryCache) Init() error {
-	ctc.init()
+// NewTelemetryCache returns a new instance of telemetry cache
+func NewTelemetryCache(p logging.PluginLogger) *ContivTelemetryCache {
+	return &ContivTelemetryCache{
+		Deps: Deps{
+			Log: p.NewLogger("-telemetryCache"),
+		},
+		Synced:   false,
+		VppCache: datastore.NewVppDataStore(),
+		K8sCache: datastore.NewK8sDataStore(),
+		Report:   datastore.NewSimpleReport(p.NewLogger("-report")),
 
-	// Start the telemetryCache
-	go ctc.nodeEventProcessor()
+		agentPort:            agentPort,
+		collectionInterval:   collectionInterval * time.Minute,
+		httpClientTimeout:    clientTimeout * time.Second,
+		validationInProgress: false,
 
-	ctc.Log.Infof("ContivTelemetryCache init done")
-	return nil
+		nodeResponseChannel: make(chan *NodeDTO),
+		dsUpdateChannel:     make(chan interface{}),
+		dtoList:             make([]*NodeDTO, 0),
+		dataChangeEvents:    make(DcEventQueue, 0),
+		ticker:              time.NewTicker(collectionInterval),
+		databaseVersion:     0,
+	}
 }
 
-// init initializes the Contiv Telemetry Cache (ctc)
-func (ctc *ContivTelemetryCache) init() {
-	ctc.agentPort = agentPort
-	ctc.collectionInterval = collectionInterval * time.Minute
-	ctc.httpClientTimeout = clientTimeout * time.Second
-	ctc.validationInProgress = false
-
-	ctc.nodeResponseChannel = make(chan *NodeDTO)
-	ctc.dsUpdateChannel = make(chan interface{})
-	ctc.dtoList = make([]*NodeDTO, 0)
-	ctc.dataChangeEvents = make(DcEventQueue, 0)
-	ctc.ticker = time.NewTicker(ctc.collectionInterval)
-	ctc.databaseVersion = 0
+// Init initializes policy cache.
+func (ctc *ContivTelemetryCache) Init() error {
+	go ctc.nodeEvenProcessor()
+	ctc.Log.Infof("ContivTelemetryCache init done")
+	return nil
 }
 
 // ClearCache clears all Contiv Telemetry cache data except for the
@@ -143,7 +157,7 @@ func (ctc *ContivTelemetryCache) ReinitializeCache() {
 //   the cluster is started.
 // - Collects all incoming real-time state from the cluster and starts the
 //   validation of the cluster state
-func (ctc *ContivTelemetryCache) nodeEventProcessor() {
+func (ctc *ContivTelemetryCache) nodeEvenProcessor() {
 	for {
 		select {
 		case _, ok := <-ctc.ticker.C:
@@ -151,6 +165,7 @@ func (ctc *ContivTelemetryCache) nodeEventProcessor() {
 			if !ok {
 				return
 			}
+			fmt.Println("Got ticker event")
 			ctc.Report.Clear()
 			ctc.processDataStoreUpdate()
 			ctc.startNodeInfoCollection()
@@ -205,8 +220,10 @@ func (ctc *ContivTelemetryCache) validateCluster() {
 	ctc.Processor.Validate()
 	ctc.Report.SetTimeStamp(time.Now())
 
+	ctc.nValidations++
+	fmt.Printf("validations: %d, resyncs: %d, updates: %d, responses: %d\n",
+		ctc.nValidations, ctc.nResyncs, ctc.nUpdates, ctc.nnResponses)
 	ctc.Report.Print()
-	// ctc.ControllerReport.GenerateCRDReport()
 }
 
 // Collect real-time node state (mainly VPP, but some Linux too) from the
@@ -323,14 +340,16 @@ func (ctc *ContivTelemetryCache) getAgentURL(ipAddr string, url string) string {
 	return "http://" + ipAddr + ctc.agentPort + url
 }
 
-// waitForValidationToFinish waits until the node cache has been cleared at
-// the end of data validati
+// waitForValidationToFinish waits until the the next hod validation finishes
 func (ctc *ContivTelemetryCache) waitForValidationToFinish() int {
 	cycles := 0
+	current := ctc.nValidations + 1
+
 	for {
-		if !ctc.validationInProgress {
+		if current == ctc.nValidations {
 			return cycles
 		}
+
 		time.Sleep(1 * time.Millisecond)
 		cycles++
 	}
@@ -340,10 +359,13 @@ func (ctc *ContivTelemetryCache) waitForValidationToFinish() int {
 // node has enough DTOs to fully process information. It then clears the
 // node DTO map after it is finished with it.
 func (ctc *ContivTelemetryCache) processNodeResponse(data *NodeDTO) {
+	ctc.nnResponses++
+
 	nodelist := ctc.VppCache.RetrieveAllNodes()
 	if data.version >= ctc.databaseVersion {
 		ctc.dtoList = append(ctc.dtoList, data)
 	}
+
 	if len(ctc.dtoList) == numDTOs*len(nodelist) {
 		ctc.setNodeData()
 		ctc.validateCluster()
@@ -410,11 +432,13 @@ func (ctc *ContivTelemetryCache) processDataStoreUpdate() {
 		switch data.(type) {
 
 		case datasync.ResyncEvent:
+			ctc.nResyncs++
 			resyncEv := data.(datasync.ResyncEvent)
 			ctc.Report.Clear()
 			ctc.resync(resyncEv)
 
 		case datasync.ChangeEvent:
+			ctc.nUpdates++
 			dataChngEv := data.(datasync.ChangeEvent)
 			if err := ctc.update(dataChngEv); err != nil {
 				ctc.Log.Errorf("data update error, %s", err.Error())

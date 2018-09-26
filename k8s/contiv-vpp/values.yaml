@@ -12,7 +12,7 @@ contiv:
   ipNeighborScanInterval: 1
   ipNeighborStaleThreshold: 4
   serviceLocalEndpointWeight: 1
-  disableNATVirtualReassembly: True
+  disableNATVirtualReassembly: False
   ipamConfig:
     contivCIDR: "10.0.0.0/14"
     #serviceCIDR: "10.96.0.0/12"

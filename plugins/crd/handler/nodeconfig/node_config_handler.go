@@ -14,7 +14,7 @@
  * // limitations under the License.
  */
 
-//go:generate protoc -I ./model --go_out=plugins=grpc:./model ./model/nodeconfig.proto
+//go:generate protoc -I ./model --gogo_out=plugins=grpc:./model ./model/nodeconfig.proto
 
 package nodeconfig
 
@@ -56,7 +56,7 @@ type Handler struct {
 	syncStopCh chan bool
 }
 
-// Deps defines dependencies for NodeConfig CRD Handleh.
+// Deps defines dependencies for NodeConfig CRD Handler.
 type Deps struct {
 	Log                logging.Logger
 	Publish            *kvdbsync.Plugin // KeyProtoValWriter does not define Delete

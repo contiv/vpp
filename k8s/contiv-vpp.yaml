@@ -268,10 +268,10 @@ spec:
         - -c
         - |
           set -eu
-          until /usr/local/bin/etcdctl --endpoints=127.0.0.1:$ETCDPORT get "/vnf-agent/contiv-ksr/status/crd" --prefix=true | grep -m 1 "1";
+          until /usr/local/bin/etcdctl --endpoints=127.0.0.1:$ETCDPORT get "/vnf-agent/contiv-ksr/k8s/nodeconfig/$HOSTNAME" --prefix=true | grep -m 1 "$HOSTNAME";
           do
-            echo waiting for crd status;
-            sleep 1;
+            echo waiting for crd node config;
+            sleep 1
           done
       # This init container extracts/copies VPP LD_PRELOAD libs and default VPP config to the host.
       - name: vpp-init

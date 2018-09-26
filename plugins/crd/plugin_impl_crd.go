@@ -19,7 +19,6 @@ package crd
 import (
 	"context"
 	"fmt"
-	"github.com/ligato/cn-infra/health/statuscheck/model/status"
 	"sync"
 
 	"github.com/contiv/vpp/plugins/crd/api"
@@ -28,7 +27,6 @@ import (
 	"github.com/contiv/vpp/plugins/crd/controller/telemetry"
 	"github.com/contiv/vpp/plugins/crd/datastore"
 	"github.com/contiv/vpp/plugins/crd/validator"
-	"github.com/contiv/vpp/plugins/ksr/model/ksrapi"
 	"github.com/ligato/cn-infra/config"
 	"github.com/ligato/cn-infra/datasync"
 	"github.com/ligato/cn-infra/datasync/kvdbsync"
@@ -193,16 +191,6 @@ func (p *Plugin) AfterInit() error {
 	go p.telemetryController.Run(p.ctx.Done())
 	go p.nodeConfigController.Run(p.ctx.Done())
 
-	// Inform ETCD that the CRD agent is ready
-	crdStatus := &status.AgentStatus{
-		State: 1,
-	}
-	crdStatusKey := ksrapi.Key("crd")
-	err := p.Publish.Put(crdStatusKey, crdStatus)
-	if err != nil {
-		p.Log.Errorf("Could not set ready state for CRD")
-		return err
-	}
 	return nil
 }
 

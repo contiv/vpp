@@ -17,11 +17,6 @@ package cmdimpl
 import (
 	"encoding/json"
 	"fmt"
-	"os"
-	"strings"
-	"text/tabwriter"
-	"time"
-
 	"github.com/contiv/vpp/plugins/contiv/model/node"
 	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
 	"github.com/contiv/vpp/plugins/netctl/http"
@@ -29,9 +24,13 @@ import (
 	"github.com/ligato/cn-infra/db/keyval/etcd"
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/logging/logrus"
+	"os"
+	"strings"
+	"text/tabwriter"
+	"time"
 )
 
-// PrintAllIpams prints IPAM information for all nodes
+// PrintAllIpams prints out the ipam information for all the nodes
 func PrintAllIpams() {
 	etcdCfg := etcd.ClientConfig{
 		Config: &clientv3.Config{

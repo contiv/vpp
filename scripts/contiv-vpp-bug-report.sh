@@ -218,6 +218,7 @@ VPP_COMMANDS["vpp-nat44-sessions.log"]="sh nat44 sessions detail"
 VPP_COMMANDS["vpp-acls.log"]="sh acl-plugin acl"
 VPP_COMMANDS["vpp-hardware-info.log"]="sh hardware-interfaces"
 VPP_COMMANDS["vpp-errors.log"]="sh errors"
+VPP_COMMANDS["vpp-logs.log"]="sh logging"
 
 declare -A LOCAL_COMMANDS
 LOCAL_COMMANDS["linux-ip-route.log"]="ip route"

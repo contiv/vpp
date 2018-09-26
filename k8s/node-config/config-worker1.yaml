@@ -1,8 +1,0 @@
-apiVersion: nodeconfig.contiv.vpp/v1
-kind: NodeConfig
-metadata:
-  name: k8s-worker1
-spec:
-  mainVPPInterface: 
-    interfaceName: "GigabitEthernet0/8/0"
-    ip: "192.168.16.2/24"

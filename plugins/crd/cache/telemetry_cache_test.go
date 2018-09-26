@@ -211,7 +211,6 @@ func testCollectAgentInfoNoError(t *testing.T) {
 	// Kick the telemetryCache to collect & validate data, give it an opportunity
 	// to run and wait for it to complete
 	ctv.tickerChan <- time.Time{}
-	time.Sleep(1 * time.Millisecond)
 	ctv.telemetryCache.waitForValidationToFinish()
 
 	gomega.Expect(node.NodeLiveness).To(gomega.BeEquivalentTo(ctv.nodeLiveness))
@@ -235,7 +234,6 @@ func testCollectAgentInfoWithHTTPError(t *testing.T) {
 	// to run and wait for it to complete
 	// ctv.tickerChan <- time.Time{}
 	ctv.tickerChan <- time.Time{}
-	time.Sleep(1 * time.Millisecond)
 	ctv.telemetryCache.waitForValidationToFinish()
 
 	gomega.Expect(grep(ctv.report.Data["k8s-master"], "404 Not Found")).To(gomega.Equal(numDTOs))
@@ -255,7 +253,6 @@ func testCollectAgentInfoWithTimeout(t *testing.T) {
 	// Kick the telemetryCache to collect & validate data, give it an opportunity
 	// to run and wait for it to complete
 	ctv.tickerChan <- time.Time{}
-	time.Sleep(1 * time.Millisecond)
 	ctv.telemetryCache.waitForValidationToFinish()
 
 	gomega.Expect(grep(ctv.report.Data["k8s-master"], "Timeout exceeded")).

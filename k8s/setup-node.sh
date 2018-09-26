@@ -88,6 +88,10 @@ unix {
 }
 nat {
    endpoint-dependent
+   max translations per user 10000
+}
+acl-plugin {
+   use tuple merge 0
 }
 api-trace {
     on

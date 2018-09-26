@@ -16,7 +16,7 @@ package ipam
 
 import "github.com/contiv/vpp/plugins/contiv/ipam/model"
 
-//go:generate protoc -I ./model --go_out=plugins=grpc:./model ./model/ipam.proto
+//go:generate protoc -I ./model --gogo_out=plugins=grpc:./model ./model/ipam.proto
 
 func (i *IPAM) loadAssignedIPs() error {
 	if i.broker == nil {

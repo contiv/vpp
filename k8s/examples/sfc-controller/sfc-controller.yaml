@@ -28,7 +28,7 @@ spec:
 
       containers:
       - name: contiv-sfc-controller
-        image: ciscolabs/dev_sfc_controller
+        image: ligato/prod_sfc_controller
         imagePullPolicy: IfNotPresent
         env:
         - name: HTTP_CONFIG
@@ -95,29 +95,29 @@ data:
           labels:
         spec:
           scope: system
-          network: 192.168.40.0/24  # allocate ip's from 192.168.30.200 to 192.168.30.205
+          network: 192.168.40.0/24
           start_range: 30
           end_range: 40
 
     network_nodes:
       - metadata:
-          name: k8s-master
+          name: ts1-host4
         spec:
           node_type: host
           interfaces:
-            - name: GigabitEthernet0/8/0
-              if_type: ethernet
-              ip_addresses:
-                - "192.168.16.2/24"
-      - metadata:
-          name: k8s-worker1
-        spec:
-          node_type: host
-          interfaces:
-            - name: GigabitEthernet0/8/0
+            - name: TenGigabitEthernet4/0/0
               if_type: ethernet
               ip_addresses:
                 - "192.168.16.1/24"
+      - metadata:
+          name: ts1-host1
+        spec:
+          node_type: host
+          interfaces:
+            - name: TenGigabitEthernet4/0/0
+              if_type: ethernet
+              ip_addresses:
+                - "192.168.16.2/24"
 
     network_services:
       - metadata:
@@ -133,8 +133,6 @@ data:
                     if_type: memif
                     ip_addresses:
                       - "10.0.1.1/24"
-                    memif_parms:
-                      inter_pod_conn: vswitch
             - metadata:
                 name: vnf2
               spec:
@@ -144,10 +142,9 @@ data:
                     if_type: memif
                     ip_addresses:
                       - "10.0.1.2/24"
-                    memif_parms:
-                      inter_pod_conn: vswitch
           connections:
             - conn_type: l2pp
+              conn_method: vswitch
               network_node_overlay_name: inter_node_vxlan_mesh
               pod_interfaces:
                 - vnf1/port1
@@ -165,8 +162,6 @@ data:
                     if_type: memif
                     ip_addresses:
                       - "10.0.1.1/24"
-                    memif_parms:
-                      inter_pod_conn: vswitch
             - metadata:
                 name: vnf4
               spec:
@@ -176,10 +171,9 @@ data:
                     if_type: memif
                     ip_addresses:
                       - "10.0.1.2/24"
-                    memif_parms:
-                      inter_pod_conn: vswitch
           connections:
             - conn_type: l2pp
+              conn_method: vswitch
               network_node_overlay_name: inter_node_vxlan_mesh
               pod_interfaces:
                 - vnf3/port1
@@ -198,5 +192,3 @@ data:
             loopback_ipam_pool_name: vxlan_tunnel_pool
             create_loopback_interface: true
             create_loopback_static_routes: true
-
----

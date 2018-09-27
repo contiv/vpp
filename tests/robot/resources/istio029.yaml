@@ -21,39 +21,39 @@ apiVersion: rbac.authorization.k8s.io/v1beta1
 metadata:
   name: istio-pilot-istio-system
 rules:
-- apiGroups: ["config.istio.io"]
-  resources: ["*"]
-  verbs: ["*"]
-- apiGroups: ["apiextensions.k8s.io"]
-  resources: ["customresourcedefinitions"]
-  verbs: ["*"]
-- apiGroups: ["istio.io"]
-  resources: ["istioconfigs", "istioconfigs.istio.io"]
-  verbs: ["*"]
-- apiGroups: ["extensions"]
-  resources: ["thirdpartyresources", "thirdpartyresources.extensions", "ingresses", "ingresses/status"]
-  verbs: ["*"]
-- apiGroups: [""]
-  resources: ["configmaps", "endpoints", "pods", "services"]
-  verbs: ["*"]
-- apiGroups: [""]
-  resources: ["namespaces", "nodes", "secrets"]
-  verbs: ["get", "list", "watch"]
-- apiGroups: ["admissionregistration.k8s.io"]
-  resources: ["externaladmissionhookconfigurations"]
-  verbs: ["create", "update", "delete"]
+  - apiGroups: ["config.istio.io"]
+    resources: ["*"]
+    verbs: ["*"]
+  - apiGroups: ["apiextensions.k8s.io"]
+    resources: ["customresourcedefinitions"]
+    verbs: ["*"]
+  - apiGroups: ["istio.io"]
+    resources: ["istioconfigs", "istioconfigs.istio.io"]
+    verbs: ["*"]
+  - apiGroups: ["extensions"]
+    resources: ["thirdpartyresources", "thirdpartyresources.extensions", "ingresses", "ingresses/status"]
+    verbs: ["*"]
+  - apiGroups: [""]
+    resources: ["configmaps", "endpoints", "pods", "services"]
+    verbs: ["*"]
+  - apiGroups: [""]
+    resources: ["namespaces", "nodes", "secrets"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["admissionregistration.k8s.io"]
+    resources: ["externaladmissionhookconfigurations"]
+    verbs: ["create", "update", "delete"]
 ---
 kind: ClusterRole
 apiVersion: rbac.authorization.k8s.io/v1beta1
 metadata:
   name: istio-initializer-istio-system
 rules:
-- apiGroups: ["*"]
-  resources: ["deployments", "statefulsets", "jobs", "cronjobs", "daemonsets", "replicasets", "replicationcontrollers"]
-  verbs: ["initialize", "patch", "watch", "list"]
-- apiGroups: ["*"]
-  resources: ["configmaps"]
-  verbs: ["get", "list", "watch"]
+  - apiGroups: ["*"]
+    resources: ["deployments", "statefulsets", "jobs", "cronjobs", "daemonsets", "replicasets", "replicationcontrollers"]
+    verbs: ["initialize", "patch", "watch", "list"]
+  - apiGroups: ["*"]
+    resources: ["configmaps"]
+    verbs: ["get", "list", "watch"]
 ---
 # Mixer CRD needs to watch and list CRDs
 # It also uses discovery API to discover Kinds of config.istio.io
@@ -63,27 +63,27 @@ apiVersion: rbac.authorization.k8s.io/v1beta1
 metadata:
   name: istio-mixer-istio-system
 rules:
-- apiGroups: ["config.istio.io"] # Istio CRD watcher
-  resources: ["*"]
-  verbs: ["get", "list", "watch"]
-- apiGroups: ["apiextensions.k8s.io"]
-  resources: ["customresourcedefinitions"]
-  verbs: ["get", "list", "watch"]
-- apiGroups: [""]
-  resources: ["configmaps", "endpoints", "pods", "services", "namespaces", "secrets"]
-  verbs: ["get", "list", "watch"]
+  - apiGroups: ["config.istio.io"] # Istio CRD watcher
+    resources: ["*"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["apiextensions.k8s.io"]
+    resources: ["customresourcedefinitions"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["configmaps", "endpoints", "pods", "services", "namespaces", "secrets"]
+    verbs: ["get", "list", "watch"]
 ---
 kind: ClusterRole
 apiVersion: rbac.authorization.k8s.io/v1beta1
 metadata:
   name: istio-ca-istio-system
 rules:
-- apiGroups: [""]
-  resources: ["secrets"]
-  verbs: ["create", "get", "watch", "list", "update"]
-- apiGroups: [""]
-  resources: ["serviceaccounts"]
-  verbs: ["get", "watch", "list"]
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["create", "get", "watch", "list", "update"]
+  - apiGroups: [""]
+    resources: ["serviceaccounts"]
+    verbs: ["get", "watch", "list"]
 ---
 # Permissions for the sidecar proxy.
 kind: ClusterRole
@@ -91,15 +91,15 @@ apiVersion: rbac.authorization.k8s.io/v1beta1
 metadata:
   name: istio-sidecar-istio-system
 rules:
-- apiGroups: ["istio.io"]
-  resources: ["istioconfigs"]
-  verbs: ["get", "watch", "list"]
-- apiGroups: ["extensions"]
-  resources: ["thirdpartyresources", "ingresses"]
-  verbs: ["get", "watch", "list", "update"]
-- apiGroups: [""]
-  resources: ["configmaps", "pods", "endpoints", "services"]
-  verbs: ["get", "watch", "list"]
+  - apiGroups: ["istio.io"]
+    resources: ["istioconfigs"]
+    verbs: ["get", "watch", "list"]
+  - apiGroups: ["extensions"]
+    resources: ["thirdpartyresources", "ingresses"]
+    verbs: ["get", "watch", "list", "update"]
+  - apiGroups: [""]
+    resources: ["configmaps", "pods", "endpoints", "services"]
+    verbs: ["get", "watch", "list"]
 ---
 # Grant permissions to the Pilot/discovery.
 kind: ClusterRoleBinding
@@ -107,9 +107,9 @@ apiVersion: rbac.authorization.k8s.io/v1beta1
 metadata:
   name: istio-pilot-admin-role-binding-istio-system
 subjects:
-- kind: ServiceAccount
-  name: istio-pilot-service-account
-  namespace: istio-system
+  - kind: ServiceAccount
+    name: istio-pilot-service-account
+    namespace: istio-system
 roleRef:
   kind: ClusterRole
   name: istio-pilot-istio-system
@@ -121,9 +121,9 @@ apiVersion: rbac.authorization.k8s.io/v1beta1
 metadata:
   name: istio-initializer-admin-role-binding-istio-system
 subjects:
-- kind: ServiceAccount
-  name: istio-initializer-service-account
-  namespace: istio-system
+  - kind: ServiceAccount
+    name: istio-initializer-service-account
+    namespace: istio-system
 roleRef:
   kind: ClusterRole
   name: istio-initializer-istio-system
@@ -135,9 +135,9 @@ apiVersion: rbac.authorization.k8s.io/v1beta1
 metadata:
   name: istio-ca-role-binding-istio-system
 subjects:
-- kind: ServiceAccount
-  name: istio-ca-service-account
-  namespace: istio-system
+  - kind: ServiceAccount
+    name: istio-ca-service-account
+    namespace: istio-system
 roleRef:
   kind: ClusterRole
   name: istio-ca-istio-system
@@ -149,9 +149,9 @@ apiVersion: rbac.authorization.k8s.io/v1beta1
 metadata:
   name: istio-ingress-admin-role-binding-istio-system
 subjects:
-- kind: ServiceAccount
-  name: istio-ingress-service-account
-  namespace: istio-system
+  - kind: ServiceAccount
+    name: istio-ingress-service-account
+    namespace: istio-system
 roleRef:
   kind: ClusterRole
   name: istio-pilot-istio-system
@@ -163,9 +163,9 @@ apiVersion: rbac.authorization.k8s.io/v1beta1
 metadata:
   name: istio-egress-admin-role-binding-istio-system
 subjects:
-- kind: ServiceAccount
-  name: istio-egress-service-account
-  namespace: istio-system
+  - kind: ServiceAccount
+    name: istio-egress-service-account
+    namespace: istio-system
 roleRef:
   kind: ClusterRole
   name: istio-pilot-istio-system
@@ -179,9 +179,9 @@ apiVersion: rbac.authorization.k8s.io/v1beta1
 metadata:
   name: istio-sidecar-role-binding-istio-system
 subjects:
-- kind: ServiceAccount
-  name: default
-  namespace: istio-system
+  - kind: ServiceAccount
+    name: default
+    namespace: istio-system
 roleRef:
   kind: ClusterRole
   name: istio-sidecar-istio-system
@@ -193,9 +193,9 @@ apiVersion: rbac.authorization.k8s.io/v1beta1
 metadata:
   name: istio-mixer-admin-role-binding-istio-system
 subjects:
-- kind: ServiceAccount
-  name: istio-mixer-service-account
-  namespace: istio-system
+  - kind: ServiceAccount
+    name: istio-mixer-service-account
+    namespace: istio-system
 roleRef:
   kind: ClusterRole
   name: istio-mixer-istio-system
@@ -219,19 +219,19 @@ metadata:
     istio: mixer
 spec:
   ports:
-  - name: tcp
-    port: 9091
-  - name: http-health
-    port: 9093
-  - name: configapi
-    port: 9094
-  - name: statsd-prom
-    port: 9102
-  - name: statsd-udp
-    port: 9125
-    protocol: UDP
-  - name: prometheus
-    port: 42422
+    - name: tcp
+      port: 9091
+    - name: http-health
+      port: 9093
+    - name: configapi
+      port: 9094
+    - name: statsd-prom
+      port: 9102
+    - name: statsd-udp
+      port: 9125
+      protocol: UDP
+    - name: prometheus
+      port: 42422
   selector:
     istio: mixer
 ---
@@ -257,37 +257,37 @@ spec:
     spec:
       serviceAccountName: istio-mixer-service-account
       containers:
-      - name: statsd-to-prometheus
-        image: prom/statsd-exporter
-        imagePullPolicy: IfNotPresent
-        ports:
-        - containerPort: 9102
-        - containerPort: 9125
+        - name: statsd-to-prometheus
+          image: prom/statsd-exporter
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 9102
+            - containerPort: 9125
           protocol: UDP
-        args:
-        - '-statsd.mapping-config=/etc/statsd/mapping.conf'
-        volumeMounts:
-        - name: config-volume
-          mountPath: /etc/statsd
-      - name: mixer
-        image: docker.io/istio/mixer:0.2.9
-        imagePullPolicy: IfNotPresent
-        ports:
-        - containerPort: 9091
-        - containerPort: 9094
-        - containerPort: 42422
-        args:
-          - --configStoreURL=fs:///etc/opt/mixer/configroot
-          - --configStore2URL=k8s://
-          - --configDefaultNamespace=istio-system
-          - --traceOutput=http://zipkin:9411/api/v1/spans
-          - --logtostderr
-          - -v
-          - "2"
+          args:
+            - '-statsd.mapping-config=/etc/statsd/mapping.conf'
+          volumeMounts:
+            - name: config-volume
+              mountPath: /etc/statsd
+        - name: mixer
+          image: docker.io/istio/mixer:0.2.9
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 9091
+            - containerPort: 9094
+            - containerPort: 42422
+          args:
+            - --configStoreURL=fs:///etc/opt/mixer/configroot
+            - --configStore2URL=k8s://
+            - --configDefaultNamespace=istio-system
+            - --traceOutput=http://zipkin:9411/api/v1/spans
+            - --logtostderr
+            - -v
+            - "2"
       volumes:
-      - name: config-volume
-        configMap:
-          name: istio-mixer
+        - name: config-volume
+          configMap:
+            name: istio-mixer
 ---
 # Mixer CRD definitions are generated using
 # mixs crd all
@@ -720,9 +720,9 @@ metadata:
 spec:
   match: "true" # If omitted match is true.
   actions:
-  - handler: handler.stdio
-    instances:
-    - accesslog.logentry
+    - handler: handler.stdio
+      instances:
+        - accesslog.logentry
 ---
 apiVersion: "config.istio.io/v1alpha2"
 kind: metric
@@ -823,71 +823,71 @@ metadata:
   namespace: istio-system
 spec:
   metrics:
-  - name: request_count
-    instance_name: requestcount.metric.istio-system
-    kind: COUNTER
-    label_names:
-    - source_service
-    - source_version
-    - destination_service
-    - destination_version
-    - response_code
-  - name: request_duration
-    instance_name: requestduration.metric.istio-system
-    kind: DISTRIBUTION
-    label_names:
-    - source_service
-    - source_version
-    - destination_service
-    - destination_version
-    - response_code
-    buckets:
-      explicit_buckets:
-        bounds: [0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10]
-  - name: request_size
-    instance_name: requestsize.metric.istio-system
-    kind: DISTRIBUTION
-    label_names:
-    - source_service
-    - source_version
-    - destination_service
-    - destination_version
-    - response_code
-    buckets:
-      exponentialBuckets:
-        numFiniteBuckets: 8
-        scale: 1
-        growthFactor: 10
-  - name: response_size
-    instance_name: responsesize.metric.istio-system
-    kind: DISTRIBUTION
-    label_names:
-    - source_service
-    - source_version
-    - destination_service
-    - destination_version
-    - response_code
-    buckets:
-      exponentialBuckets:
-        numFiniteBuckets: 8
-        scale: 1
-        growthFactor: 10
-  - name: tcp_bytes_sent
-    instance_name: tcpbytesent.metric.istio-system
-    kind: COUNTER
-    label_names:
-    - source_service
-    - source_version
-    - destination_service
-    - destination_version
-  - name: tcp_bytes_received
-    instance_name: tcpbytereceived.metric.istio-system
-    kind: COUNTER
-    label_names:
-    - source_service
-    - source_version
-    - destination_service
-    - destination_version
+    - name: request_count
+      instance_name: requestcount.metric.istio-system
+      kind: COUNTER
+      label_names:
+        - source_service
+        - source_version
+        - destination_service
+        - destination_version
+        - response_code
+    - name: request_duration
+      instance_name: requestduration.metric.istio-system
+      kind: DISTRIBUTION
+      label_names:
+        - source_service
+        - source_version
+        - destination_service
+        - destination_version
+        - response_code
+      buckets:
+        explicit_buckets:
+          bounds: [0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10]
+    - name: request_size
+      instance_name: requestsize.metric.istio-system
+      kind: DISTRIBUTION
+      label_names:
+        - source_service
+        - source_version
+        - destination_service
+        - destination_version
+        - response_code
+      buckets:
+        exponentialBuckets:
+          numFiniteBuckets: 8
+          scale: 1
+          growthFactor: 10
+    - name: response_size
+      instance_name: responsesize.metric.istio-system
+      kind: DISTRIBUTION
+      label_names:
+        - source_service
+        - source_version
+        - destination_service
+        - destination_version
+        - response_code
+      buckets:
+        exponentialBuckets:
+          numFiniteBuckets: 8
+          scale: 1
+          growthFactor: 10
+    - name: tcp_bytes_sent
+      instance_name: tcpbytesent.metric.istio-system
+      kind: COUNTER
+      label_names:
+        - source_service
+        - source_version
+        - destination_service
+        - destination_version
+    - name: tcp_bytes_received
+      instance_name: tcpbytereceived.metric.istio-system
+      kind: COUNTER
+      label_names:
+        - source_service
+        - source_version
+        - destination_service
+        - destination_version
 ---
 apiVersion: "config.istio.io/v1alpha2"
 kind: rule
@@ -898,12 +898,12 @@ metadata:
     istio-protocol: http
 spec:
   actions:
-  - handler: handler.prometheus
-    instances:
-    - requestcount.metric
-    - requestduration.metric
-    - requestsize.metric
-    - responsesize.metric
+    - handler: handler.prometheus
+      instances:
+        - requestcount.metric
+        - requestduration.metric
+        - requestsize.metric
+        - responsesize.metric
 ---
 apiVersion: "config.istio.io/v1alpha2"
 kind: rule
@@ -914,10 +914,10 @@ metadata:
     istio-protocol: tcp # needed so that mixer will only execute when context.protocol == TCP
 spec:
   actions:
-  - handler: handler.prometheus
-    instances:
-    - tcpbytesent.metric
-    - tcpbytereceived.metric
+    - handler: handler.prometheus
+      instances:
+        - tcpbytesent.metric
+        - tcpbytereceived.metric
 ---
 ################################
 # Istio configMap cluster-wide
@@ -1044,10 +1044,10 @@ metadata:
     istio: pilot
 spec:
   ports:
-  - port: 8080
-    name: http-discovery
-  - port: 443
-    name: http-admission-webhook
+    - port: 8080
+      name: http-discovery
+    - port: 443
+      name: http-admission-webhook
   selector:
     istio: pilot
 ---
@@ -1073,31 +1073,31 @@ spec:
     spec:
       serviceAccountName: istio-pilot-service-account
       containers:
-      - name: discovery
-        image: docker.io/istio/pilot:0.2.9
-        imagePullPolicy: IfNotPresent
-        args: ["discovery", "-v", "2", "--admission-service", "istio-pilot-external"]
-        ports:
-        - containerPort: 8080
-        - containerPort: 443
-        env:
-        - name: POD_NAME
-          valueFrom:
-            fieldRef:
-              apiVersion: v1
-              fieldPath: metadata.name
-        - name: POD_NAMESPACE
-          valueFrom:
-            fieldRef:
-              apiVersion: v1
-              fieldPath: metadata.namespace
-        volumeMounts:
-        - name: config-volume
-          mountPath: /etc/istio/config
+        - name: discovery
+          image: docker.io/istio/pilot:0.2.9
+          imagePullPolicy: IfNotPresent
+          args: ["discovery", "-v", "2", "--admission-service", "istio-pilot-external"]
+          ports:
+            - containerPort: 8080
+            - containerPort: 443
+          env:
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  apiVersion: v1
+                  fieldPath: metadata.name
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  apiVersion: v1
+                  fieldPath: metadata.namespace
+          volumeMounts:
+            - name: config-volume
+              mountPath: /etc/istio/config
       volumes:
-      - name: config-volume
-        configMap:
-          name: istio
+        - name: config-volume
+          configMap:
+            name: istio
 ---
 ################################
 # Istio ingress
@@ -1112,11 +1112,10 @@ metadata:
 spec:
   type: LoadBalancer
   ports:
-  - port: 80
-#   nodePort: 32000
-    name: http
-  - port: 443
-    name: https
+    - port: 80
+      name: http
+    - port: 443
+      name: https
   selector:
     istio: ingress
 ---
@@ -1142,46 +1141,46 @@ spec:
     spec:
       serviceAccountName: istio-ingress-service-account
       containers:
-      - name: istio-ingress
-        image: docker.io/istio/proxy_debug:0.2.9
-        args:
-        - proxy
-        - ingress
-        - -v
-        - "2"
-        - --discoveryAddress
-        - istio-pilot:8080
-        imagePullPolicy: IfNotPresent
-        ports:
-        - containerPort: 80
-        - containerPort: 443
-        env:
-        - name: POD_NAME
-          valueFrom:
-            fieldRef:
-              apiVersion: v1
-              fieldPath: metadata.name
+        - name: istio-ingress
+          image: docker.io/istio/proxy_debug:0.2.9
+          args:
+            - proxy
+            - ingress
+            - -v
+            - "2"
+            - --discoveryAddress
+            - istio-pilot:8080
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 80
+            - containerPort: 443
+          env:
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  apiVersion: v1
+                  fieldPath: metadata.name
         - name: POD_NAMESPACE
           valueFrom:
             fieldRef:
               apiVersion: v1
               fieldPath: metadata.namespace
-        volumeMounts:
-        - name: istio-certs
-          mountPath: /etc/certs
-          readOnly: true
-        - name: ingress-certs
-          mountPath: /etc/istio/ingress-certs
-          readOnly: true
+          volumeMounts:
+            - name: istio-certs
+              mountPath: /etc/certs
+              readOnly: true
+            - name: ingress-certs
+              mountPath: /etc/istio/ingress-certs
+              readOnly: true
       volumes:
-      - name: istio-certs
-        secret:
-          secretName: istio.default
-          optional: true
-      - name: ingress-certs
-        secret:
-          secretName: istio-ingress-certs
-          optional: true
+        - name: istio-certs
+          secret:
+            secretName: istio.default
+            optional: true
+        - name: ingress-certs
+          secret:
+            secretName: istio-ingress-certs
+            optional: true
 ---
 ################################
 # Istio egress
@@ -1193,7 +1192,7 @@ metadata:
   namespace: istio-system
 spec:
   ports:
-  - port: 80
+    - port: 80
   selector:
     istio: egress
 ---
@@ -1219,36 +1218,36 @@ spec:
     spec:
       serviceAccountName: istio-egress-service-account
       containers:
-      - name: proxy
-        image: docker.io/istio/proxy_debug:0.2.9
-        imagePullPolicy: IfNotPresent
-        args:
-        - proxy
-        - egress
-        - -v
-        - "2"
-        - --discoveryAddress
-        - istio-pilot:8080
-        env:
-        - name: POD_NAME
-          valueFrom:
-            fieldRef:
-              apiVersion: v1
-              fieldPath: metadata.name
-        - name: POD_NAMESPACE
-          valueFrom:
-            fieldRef:
-              apiVersion: v1
-              fieldPath: metadata.namespace
-        volumeMounts:
-        - name: istio-certs
-          mountPath: /etc/certs
-          readOnly: true
+        - name: proxy
+          image: docker.io/istio/proxy_debug:0.2.9
+          imagePullPolicy: IfNotPresent
+          args:
+            - proxy
+            - egress
+            - -v
+            - "2"
+            - --discoveryAddress
+            - istio-pilot:8080
+          env:
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  apiVersion: v1
+                  fieldPath: metadata.name
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  apiVersion: v1
+                  fieldPath: metadata.namespace
+          volumeMounts:
+            - name: istio-certs
+              mountPath: /etc/certs
+              readOnly: true
       volumes:
-      - name: istio-certs
-        secret:
-          secretName: istio.default
-          optional: true
+        - name: istio-certs
+          secret:
+            secretName: istio.default
+            optional: true
 ---
 ################################
 # Istio-CA cluster-wide
@@ -1261,7 +1260,6 @@ metadata:
   namespace: istio-system
 ---
 # Istio CA watching all namespaces
-apiVersion: v1
 kind: Deployment
 apiVersion: extensions/v1beta1
 metadata:
@@ -1278,12 +1276,12 @@ spec:
     spec:
       serviceAccountName: istio-ca-service-account
       containers:
-      - name: istio-ca
-        image: docker.io/istio/istio-ca:0.2.9
-        imagePullPolicy: IfNotPresent
-        command: ["/usr/local/bin/istio_ca"]
-        args:
-          - --grpc-port=8060
-          - --grpc-hostname=istio-ca
-          - --self-signed-ca=true
+        - name: istio-ca
+          image: docker.io/istio/istio-ca:0.2.9
+          imagePullPolicy: IfNotPresent
+          command: ["/usr/local/bin/istio_ca"]
+          args:
+            - --grpc-port=8060
+            - --grpc-hostname=istio-ca
+            - --self-signed-ca=true
 ---

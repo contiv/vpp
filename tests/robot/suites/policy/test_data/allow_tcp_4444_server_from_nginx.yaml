@@ -1,3 +1,4 @@
+---
 kind: NetworkPolicy
 apiVersion: networking.k8s.io/v1
 metadata:
@@ -9,10 +10,9 @@ spec:
       app: ubuntu-server
   ingress:
     - ports:
-      - protocol: TCP
-        port: 4444
+        - protocol: TCP
+          port: 4444
       from:
-      - podSelector:
-          matchLabels:
-            app: nginx
-
+        - podSelector:
+            matchLabels:
+              app: nginx

@@ -254,6 +254,17 @@ helm-yaml:
 helm-yaml-arm64:
 	helm template --set vswitch.image.tag=${TAG} --set cni.image.tag=${TAG} --set ksr.image.tag=${TAG} k8s/contiv-vpp -f k8s/contiv-vpp/values-arm64.yaml,k8s/contiv-vpp/values.yaml > k8s/contiv-vpp-arm64.yaml
 
+# Install yamllint
+get-yamllint:
+	pip install --user yamllint
+
+# Lint the yaml files
+yamllint: get-yamllint
+	@echo "=> linting the yaml files"
+	# NOTE: For now we skip the k8s/contiv-vpp directoy as the wackiness going on there with regards
+	# to variable substitution does not make yamllint happy at all.
+	yamllint -c .yamllint.yml $(shell git ls-files '*.yaml' '*.yml' | grep -v 'vendor/' | grep -v 'k8s/contiv-vpp')
+
 .PHONY: build all \
 	install clean test test-race \
 	get-covtools test-cover test-cover-html test-cover-xml \
@@ -263,4 +274,5 @@ helm-yaml-arm64:
 	get-dep dep-install \
 	docker-images docker-dev vagrant-images\
 	describe generate-manifest helm-package helm-yaml \
-	generate-manifest-arm64 helm-yaml-arm64
+	generate-manifest-arm64 helm-yaml-arm64 \
+	get-yamllint yamllint

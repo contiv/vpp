@@ -1,3 +1,4 @@
+---
 apiVersion: apps/v1beta2
 kind: Deployment
 metadata:
@@ -15,8 +16,8 @@ spec:
         role: frontend
     spec:
       containers:
-      - image: wrk
-        imagePullPolicy: IfNotPresent
-        name: wrk
-        command: ["bash"]
-        args: ["-c", "while true; do sleep 30; done;"]
+        - image: wrk
+          imagePullPolicy: IfNotPresent
+          name: wrk
+          command: ["bash"]
+          args: ["-c", "while true; do sleep 30; done;"]

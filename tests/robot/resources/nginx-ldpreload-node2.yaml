@@ -1,3 +1,4 @@
+---
 apiVersion: v1
 kind: Service
 metadata:
@@ -6,8 +7,8 @@ metadata:
     app: nginx
 spec:
   ports:
-  - name: http
-    port: 80
+    - name: http
+      port: 80
   selector:
     app: nginx
 ---
@@ -25,19 +26,19 @@ spec:
       nodeSelector:
         location: server_node
       containers:
-      - image: nginx
-        imagePullPolicy: IfNotPresent
-        name: nginx
-        ports:
+        - image: nginx
+          imagePullPolicy: IfNotPresent
+          name: nginx
+          ports:
         - containerPort: 80
-        securityContext:
-          privileged: true
-        env:
-          # ldpreload-related env vars
-          - name: VCL_APP_SCOPE_GLOBAL
-            value: ""
-          - name: VCL_APP_SCOPE_LOCAL
-            value: ""
-          # enable verbose VCL debugs, do not use for production
-          - name: VCL_DEBUG
-            value: "3"
+          securityContext:
+            privileged: true
+          env:
+            # ldpreload-related env vars
+            - name: VCL_APP_SCOPE_GLOBAL
+              value: ""
+            - name: VCL_APP_SCOPE_LOCAL
+              value: ""
+            # enable verbose VCL debugs, do not use for production
+            - name: VCL_DEBUG
+              value: "3"

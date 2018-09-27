@@ -1,3 +1,4 @@
+---
 apiVersion: apps/v1beta2
 kind: Deployment
 metadata:
@@ -15,8 +16,8 @@ spec:
         role: frontend
     spec:
       containers:
-      - image: trex
-        imagePullPolicy: IfNotPresent
-        name: trex
-        command: ["bash"]
-        args: ["-c", "while true; do sleep 30; done;"]
+        - image: trex
+          imagePullPolicy: IfNotPresent
+          name: trex
+          command: ["bash"]
+          args: ["-c", "while true; do sleep 30; done;"]

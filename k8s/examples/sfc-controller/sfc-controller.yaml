@@ -101,20 +101,20 @@ data:
 
     network_nodes:
       - metadata:
-          name: ts1-host4
+          name: k8s-master
         spec:
           node_type: host
           interfaces:
-            - name: TenGigabitEthernet4/0/0
+            - name: GigabitEthernet0/8/0
               if_type: ethernet
               ip_addresses:
                 - "192.168.16.1/24"
       - metadata:
-          name: ts1-host1
+          name: k8s-worker1
         spec:
           node_type: host
           interfaces:
-            - name: TenGigabitEthernet4/0/0
+            - name: GigabitEthernet0/8/0
               if_type: ethernet
               ip_addresses:
                 - "192.168.16.2/24"

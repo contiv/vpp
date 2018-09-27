@@ -89,8 +89,8 @@ type Deps struct {
 	HTTPHandlers rest.HTTPHandlers
 }
 
-// MgmtIPSepartor is a delimeter inserted between management IPs in nodeInfo structure
-const MgmtIPSepartator = ","
+// MgmtIPSeparator is a delimiter inserted between management IPs in nodeInfo structure
+const MgmtIPSeparator = ","
 
 // Config represents configuration for the Contiv plugin.
 // It can be injected or loaded from external config file. Injection has priority to external config. To use external
@@ -558,7 +558,7 @@ func (plugin *Plugin) handleKsrNodeChange(change datasync.ChangeEvent) error {
 		}
 	}
 	if len(internalIPs) > 0 {
-		ips := strings.Join(internalIPs, MgmtIPSepartator)
+		ips := strings.Join(internalIPs, MgmtIPSeparator)
 		plugin.Log.Info("Internal IP of the node is ", ips)
 		return plugin.nodeIDAllocator.updateManagementIP(ips)
 	}

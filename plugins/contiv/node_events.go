@@ -253,7 +253,7 @@ func (s *remoteCNIserver) addRoutesToNode(nodeInfo *node.NodeInfo) error {
 	s.Logger.Info("Adding PODs route: ", podsRoute)
 	s.Logger.Info("Adding host route: ", hostRoute)
 
-	mgmtIPs := strings.Split(nodeInfo.ManagementIpAddress, MgmtIPSepartator)
+	mgmtIPs := strings.Split(nodeInfo.ManagementIpAddress, MgmtIPSeparator)
 
 	for _, mIP := range mgmtIPs {
 		mgmtRoute1 := s.routeToOtherManagementIP(mIP, nextHop)
@@ -338,7 +338,7 @@ func (s *remoteCNIserver) deleteRoutesToNode(nodeInfo *node.NodeInfo) error {
 	s.Logger.Info("Deleting PODs route: ", podsRoute)
 	s.Logger.Info("Deleting host route: ", hostRoute)
 
-	mgmtIPs := strings.Split(nodeInfo.ManagementIpAddress, MgmtIPSepartator)
+	mgmtIPs := strings.Split(nodeInfo.ManagementIpAddress, MgmtIPSeparator)
 
 	for _, mIP := range mgmtIPs {
 		mgmtRoute1 := s.routeToOtherManagementIP(mIP, nextHop)

@@ -23,6 +23,8 @@ import (
 
 	"github.com/contiv/vpp/plugins/crd/api"
 	"github.com/contiv/vpp/plugins/crd/cache"
+	"github.com/contiv/vpp/plugins/crd/controller/nodeconfig"
+	"github.com/contiv/vpp/plugins/crd/controller/telemetry"
 	"github.com/contiv/vpp/plugins/crd/validator"
 	"github.com/ligato/cn-infra/config"
 	"github.com/ligato/cn-infra/datasync"

@@ -6,7 +6,7 @@ import (
 	nodeinfomodel "github.com/contiv/vpp/plugins/contiv/model/node"
 	"github.com/contiv/vpp/plugins/crd/api"
 	"github.com/contiv/vpp/plugins/crd/datastore"
-	"github.com/golang/protobuf/proto"
+	"github.com/gogo/protobuf/proto"
 	"github.com/ligato/cn-infra/datasync"
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/logging/logrus"

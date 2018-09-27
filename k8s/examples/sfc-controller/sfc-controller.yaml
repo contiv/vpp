@@ -1,0 +1,194 @@
+# This installs the contiv-ksr (Kubernetes State Reflector) on the master node in a Kubernetes cluster.
+apiVersion: extensions/v1beta1
+kind: DaemonSet
+metadata:
+  name: contiv-sfc-controller
+  namespace: kube-system
+  labels:
+    k8s-app: contiv-sfc-controller
+spec:
+  template:
+    metadata:
+      labels:
+        k8s-app: contiv-sfc-controller
+      annotations:
+        # Marks this pod as a critical add-on.
+        scheduler.alpha.kubernetes.io/critical-pod: ''
+    spec:
+      # Allow this pod to be rescheduled while the node is in "critical add-ons only" mode.
+      tolerations:
+      - key: node-role.kubernetes.io/master
+        effect: NoSchedule
+      - key: CriticalAddonsOnly
+        operator: Exists
+      # Only run this pod on the master.
+      nodeSelector:
+        node-role.kubernetes.io/master: ""
+      hostNetwork: true
+
+      containers:
+      - name: contiv-sfc-controller
+        image: ligato/prod_sfc_controller
+        imagePullPolicy: IfNotPresent
+        env:
+        - name: HTTP_CONFIG
+          value: "/etc/http/http.conf"
+        volumeMounts:
+        - name: sfc-cfg
+          mountPath: /opt/sfc-controller/dev
+        - name: sfc-http-cfg
+          mountPath: /etc/http
+        readinessProbe:
+          httpGet:
+            path: /readiness
+            port: 9192
+          periodSeconds: 1
+          initialDelaySeconds: 10
+        livenessProbe:
+          httpGet:
+            path: /liveness
+            port: 9192
+          periodSeconds: 1
+          initialDelaySeconds: 30
+
+      volumes:
+      # Used to connect to contiv-etcd.
+      - name: sfc-cfg
+        configMap:
+          name: contiv-sfc-config
+      - name: sfc-http-cfg
+        configMap:
+          name: contiv-sfc-http-cfg
+
+---
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: contiv-sfc-http-cfg
+  namespace: kube-system
+data:
+  http.conf: |
+    endpoint: 0.0.0.0:9192
+
+---
+
+# This config map contains ETCD configuration for connecting to the contiv-etcd defined above.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: contiv-sfc-config
+  namespace: kube-system
+data:
+  etcd.conf: |
+    insecure-transport: true
+    dial-timeout: 5000000000
+    endpoints:
+      - "127.0.0.1:32379"
+  sfc.conf: |
+    sfc_controller_config_version: 2
+    description: 2 vnf chains spanning 2 hosts, memif's and vxlan tunnels
+
+    ipam_pools:  # allocate internode vxlan mesh enpoints from a pool
+      - metadata:
+          name: vxlan_tunnel_pool
+          labels:
+        spec:
+          scope: system
+          network: 192.168.40.0/24
+          start_range: 30
+          end_range: 40
+
+    network_nodes:
+      - metadata:
+          name: ts1-host4
+        spec:
+          node_type: host
+          interfaces:
+            - name: TenGigabitEthernet4/0/0
+              if_type: ethernet
+              ip_addresses:
+                - "192.168.16.1/24"
+      - metadata:
+          name: ts1-host1
+        spec:
+          node_type: host
+          interfaces:
+            - name: TenGigabitEthernet4/0/0
+              if_type: ethernet
+              ip_addresses:
+                - "192.168.16.2/24"
+
+    network_services:
+      - metadata:
+          name: l2pp_service_chain1
+        spec:
+          network_pods:
+            - metadata:
+                name: vnf1
+              spec:
+                pod_type: vppcontainer
+                interfaces:
+                  - name: port1
+                    if_type: memif
+                    ip_addresses:
+                      - "10.0.1.1/24"
+            - metadata:
+                name: vnf2
+              spec:
+                pod_type: vppcontainer
+                interfaces:
+                  - name: port1
+                    if_type: memif
+                    ip_addresses:
+                      - "10.0.1.2/24"
+          connections:
+            - conn_type: l2pp
+              conn_method: vswitch
+              network_node_overlay_name: inter_node_vxlan_mesh
+              pod_interfaces:
+                - vnf1/port1
+                - vnf2/port1
+      - metadata:
+          name: l2pp_service_chain2
+        spec:
+          network_pods:
+            - metadata:
+                name: vnf3
+              spec:
+                pod_type: vppcontainer
+                interfaces:
+                  - name: port1
+                    if_type: memif
+                    ip_addresses:
+                      - "10.0.1.1/24"
+            - metadata:
+                name: vnf4
+              spec:
+                pod_type: vppcontainer
+                interfaces:
+                  - name: port1
+                    if_type: memif
+                    ip_addresses:
+                      - "10.0.1.2/24"
+          connections:
+            - conn_type: l2pp
+              conn_method: vswitch
+              network_node_overlay_name: inter_node_vxlan_mesh
+              pod_interfaces:
+                - vnf3/port1
+                - vnf4/port1
+
+    network_node_overlays:
+      - metadata:
+          name:
+            inter_node_vxlan_mesh
+        spec:
+          service_mesh_type: mesh
+          connection_type: vxlan
+          vxlan_mesh_parms:
+            vni_range_start: 5000
+            vni_range_end: 5999
+            loopback_ipam_pool_name: vxlan_tunnel_pool
+            create_loopback_interface: true
+            create_loopback_static_routes: true

@@ -87,8 +87,8 @@ func (cfg *Config) ApplyDefaults() {
 // ApplyIPAMConfig populates the Config struct with the calculated subnets
 func (cfg *Config) ApplyIPAMConfig() {
 	// set default ContivCIDR if not defined by user
-	if cfg.IPAMConfig.ContivCIDR == "" {
-		cfg.IPAMConfig.ContivCIDR = "10.0.0.0/14"
+	if &cfg.IPAMConfig.ContivCIDR == nil {
+		return
 	}
 	_, contivNetwork, _ := net.ParseCIDR(cfg.IPAMConfig.ContivCIDR)
 	maskSize, _ := contivNetwork.Mask.Size()

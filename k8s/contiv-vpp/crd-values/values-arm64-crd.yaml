@@ -1,0 +1,36 @@
+Arm64Platform: True
+
+# ETCD server to be used by Contiv
+etcd_arm64:
+  image:
+    repository: quay.io/coreos/etcd
+    tag: v3.3.5-arm64
+
+vswitch_arm64:
+  image:
+    repository: contivvpp/vswitch-arm64
+    # tag defaults to chart version
+    #tag:
+
+cni_arm64:
+  image:
+    repository: contivvpp/cni-arm64
+    # tag defaults to chart version
+    #tag:
+
+ksr_arm64:
+  image:
+    repository: contivvpp/ksr-arm64
+    # tag defaults to chart version
+    #tag:
+
+init_arm64:
+  image:
+    repository: arm64v8/busybox
+    tag: latest
+
+crd_arm64:
+  image:
+    repository: contivvpp/crd-arm64
+    # tag defaults to chart version
+    #tag:

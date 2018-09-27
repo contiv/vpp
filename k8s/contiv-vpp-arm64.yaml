@@ -35,6 +35,7 @@ data:
     IPNeighborStaleThreshold: 4
     ServiceLocalEndpointWeight: 1
     DisableNATVirtualReassembly: true
+    crdNodeConfigurationEnabled: false
   logs.conf: |
     default-level: debug
   grpc.conf: |

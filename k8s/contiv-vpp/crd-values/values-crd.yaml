@@ -13,15 +13,9 @@ contiv:
   ipNeighborStaleThreshold: 4
   serviceLocalEndpointWeight: 1
   disableNATVirtualReassembly: False
-  crdNodeConfigurationDisabled: True
+  crdNodeConfigurationDisabled: False
   ipamConfig:
-    podSubnetCIDR: 10.1.0.0/16
-    podNetworkPrefixLen: 24
-    podIfIPCIDR: 10.2.1.0/24
-    vppHostSubnetCIDR: 172.30.0.0/16
-    vppHostNetworkPrefixLen: 24
-    nodeInterconnectCIDR: 192.168.16.0/24
-    vxlanCIDR: 192.168.30.0/24
+    contivCIDR: 10.0.0.0/14
     nodeInterconnectDHCP: false
     #serviceCIDR: "10.96.0.0/12"
   # example of node configuration for VPP interfaces
@@ -102,6 +96,14 @@ cni:
 ksr:
   image:
     repository: contivvpp/ksr
+    # tag defaults to chart version
+    #tag:
+    pullPolicy: IfNotPresent
+  updateStrategy: RollingUpdate
+
+crd:
+  image:
+    repository: contivvpp/crd
     # tag defaults to chart version
     #tag:
     pullPolicy: IfNotPresent

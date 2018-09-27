@@ -53,6 +53,9 @@ import (
 	"github.com/ligato/vpp-agent/plugins/vpp"
 )
 
+// MgmtIPSeparator is a delimiter inserted between management IPs in nodeInfo structure
+const MgmtIPSeparator = ","
+
 // Plugin represents the instance of the Contiv network plugin, that transforms CNI requests received over
 // GRPC into configuration for the vswitch VPP in order to connect/disconnect a container into/from the network.
 type Plugin struct {
@@ -521,14 +524,18 @@ func (plugin *Plugin) handleKsrNodeChange(change datasync.ChangeEvent) error {
 		plugin.Log.Error(err)
 		return err
 	}
-	var internalIP string
+	var internalIPs []string
 	for i := range value.Addresses {
 		if value.Addresses[i].Type == protoNode.NodeAddress_NodeInternalIP {
-			internalIP = value.Addresses[i].Address
-			plugin.Log.Info("Internal IP of the node is ", internalIP)
-			return plugin.nodeIDAllocator.updateManagementIP(internalIP)
+			internalIPs = append(internalIPs, value.Addresses[i].Address)
 		}
 	}
+	if len(internalIPs) > 0 {
+		ips := strings.Join(internalIPs, MgmtIPSeparator)
+		plugin.Log.Info("Internal IP of the node is ", ips)
+		return plugin.nodeIDAllocator.updateManagementIP(ips)
+	}
+
 	plugin.Log.Warn("Internal IP of the node is missing in ETCD.")
 
 	return err

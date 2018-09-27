@@ -21,8 +21,9 @@ import (
 	"strings"
 )
 
-// DumpCmd will receive a nodeName and dumpType and finds the desired
-// information from the dumpType for the node.
+// DumpCmd executes the specified vpp dump operation on the specified node.
+// if not operation is specified, it finds the available operations on the
+// local node and prints them to the console.
 func DumpCmd(nodeName string, dumpType string) {
 
 	if nodeName == "" || dumpType == "" {
@@ -34,19 +35,26 @@ func DumpCmd(nodeName string, dumpType string) {
 		}
 		return
 	}
+
 	fmt.Printf("vppdump %s %s\n", nodeName, dumpType)
 	ipAdr := resolveNodeOrIP(nodeName)
 	if ipAdr == "" {
 		fmt.Printf("Unknown node name %s", nodeName)
 		return
 	}
+
 	cmd := fmt.Sprintf("vpp/dump/v1/%s", dumpType)
-	b := http.GetNodeInfo(ipAdr, cmd)
+	b, err := http.GetNodeInfo(ipAdr, cmd)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
 	fmt.Printf("%s", b)
 }
 
-// VppCliCmd will receive a nodeName and a vpp cli command and print it out
-// to the console
+// VppCliCmd sends a VPP debug CLI command to the specified node's VPP Agent
+// and prints the output of the command to console.
 func VppCliCmd(nodeName string, vppclicmd string) {
 
 	fmt.Printf("vppcli %s %s\n", nodeName, vppclicmd)
@@ -58,5 +66,4 @@ func VppCliCmd(nodeName string, vppclicmd string) {
 	if err != nil {
 		fmt.Println(err)
 	}
-
 }

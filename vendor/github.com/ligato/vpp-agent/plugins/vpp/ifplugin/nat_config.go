@@ -12,8 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//go:generate protoc --proto_path=../model/nat --gogo_out=../model/nat ../model/nat/nat.proto
-
 package ifplugin
 
 import (
@@ -23,8 +21,8 @@ import (
 
 	govppapi "git.fd.io/govpp.git/api"
 	"github.com/go-errors/errors"
+	"github.com/gogo/protobuf/proto"
 	"github.com/ligato/cn-infra/logging"
-	"github.com/ligato/cn-infra/logging/measure"
 	"github.com/ligato/cn-infra/utils/safeclose"
 	"github.com/ligato/vpp-agent/idxvpp"
 	"github.com/ligato/vpp-agent/idxvpp/nametoidx"
@@ -83,20 +81,12 @@ type NatConfigurator struct {
 
 	// VPP API handler
 	natHandler vppcalls.NatVppAPI
-
-	stopwatch *measure.Stopwatch
 }
 
 // Init NAT configurator
-func (c *NatConfigurator) Init(logger logging.PluginLogger, goVppMux govppmux.API, ifIndexes ifaceidx.SwIfIndex,
-	enableStopwatch bool) (err error) {
+func (c *NatConfigurator) Init(logger logging.PluginLogger, goVppMux govppmux.API, ifIndexes ifaceidx.SwIfIndex) (err error) {
 	// Logger
 	c.log = logger.NewLogger("-nat-conf")
-
-	// Configurator-wide stopwatch instance
-	if enableStopwatch {
-		c.stopwatch = measure.NewStopwatch("NAT-configurator", c.log)
-	}
 
 	// Mappings
 	c.ifIndexes = ifIndexes
@@ -118,8 +108,7 @@ func (c *NatConfigurator) Init(logger logging.PluginLogger, goVppMux govppmux.AP
 	}
 
 	// VPP API handler
-	c.natHandler = vppcalls.NewNatVppHandler(c.vppChan, c.vppDumpChan, c.ifIndexes,
-		c.log, c.stopwatch)
+	c.natHandler = vppcalls.NewNatVppHandler(c.vppChan, c.vppDumpChan, c.ifIndexes, c.log)
 
 	c.log.Info("NAT configurator initialized")
 
@@ -1038,7 +1027,7 @@ func (c *NatConfigurator) diffIdentity(oldMappings, newMappings []*nat.Nat44DNat
 // if no changes are needed
 func isVirtualReassModified(oldReass, newReass *nat.Nat44Global_VirtualReassembly) *nat.Nat44Global_VirtualReassembly {
 	// If new value is set while the old value does not exist, or it is different, return new value to configure
-	if newReass != nil && (oldReass == nil || *oldReass != *newReass) {
+	if newReass != nil && (oldReass == nil || !proto.Equal(oldReass, newReass)) {
 		return newReass
 	}
 	// If old value was set but new is not, return default

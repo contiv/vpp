@@ -7,7 +7,7 @@ import (
 
 	"github.com/contiv/vpp/plugins/contiv"
 	"github.com/contiv/vpp/plugins/contiv/containeridx"
-	"github.com/golang/protobuf/proto"
+	"github.com/gogo/protobuf/proto"
 	"github.com/ligato/cn-infra/datasync"
 	"github.com/ligato/cn-infra/infra"
 	prometheusplugin "github.com/ligato/cn-infra/rpc/prometheus"

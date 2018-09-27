@@ -12,14 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//go:generate protoc -I ./model/pod --go_out=plugins=grpc:./model/pod ./model/pod/pod.proto
-//go:generate protoc -I ./model/namespace --go_out=plugins=grpc:./model/namespace ./model/namespace/namespace.proto
-//go:generate protoc -I ./model/policy --go_out=plugins=grpc:./model/policy ./model/policy/policy.proto
-//go:generate protoc -I ./model/service --go_out=plugins=grpc:./model/service ./model/service/service.proto
-//go:generate protoc -I ./model/endpoints --go_out=plugins=grpc:./model/endpoints ./model/endpoints/endpoints.proto
-//go:generate protoc -I ./model/node --go_out=plugins=grpc:./model/node ./model/node/node.proto
-//go:generate protoc -I ./model/ksrapi --go_out=plugins=grpc:./model/ksrapi ./model/ksrapi/ksr_nb_api.proto
-//go:generate protoc -I ./model/sfc --go_out=plugins=grpc:./model/sfc ./model/sfc/sfc.proto
+//go:generate protoc -I ./model/pod --gogo_out=plugins=grpc:./model/pod ./model/pod/pod.proto
+//go:generate protoc -I ./model/namespace --gogo_out=plugins=grpc:./model/namespace ./model/namespace/namespace.proto
+//go:generate protoc -I ./model/policy --gogo_out=plugins=grpc:./model/policy ./model/policy/policy.proto
+//go:generate protoc -I ./model/service --gogo_out=plugins=grpc:./model/service ./model/service/service.proto
+//go:generate protoc -I ./model/endpoints --gogo_out=plugins=grpc:./model/endpoints ./model/endpoints/endpoints.proto
+//go:generate protoc -I ./model/node --gogo_out=plugins=grpc:./model/node ./model/node/node.proto
+//go:generate protoc -I ./model/ksrapi --gogo_out=plugins=grpc:./model/ksrapi ./model/ksrapi/ksr_nb_api.proto
+//go:generate protoc -I ./model/sfc --gogo_out=plugins=grpc:./model/sfc ./model/sfc/sfc.proto
 
 package ksr
 

@@ -30,7 +30,11 @@ unix {
     poll-sleep-usec 100
 }
 nat {
-    endpoint-dependent
+   endpoint-dependent
+   max translations per user 10000
+}
+acl-plugin {
+   use tuple merge 0
 }
 dpdk {
     dev 0000:00:03.0
@@ -74,7 +78,11 @@ unix {
     poll-sleep-usec 100
 }
 nat {
-    endpoint-dependent
+   endpoint-dependent
+   max translations per user 10000
+}
+acl-plugin {
+   use tuple merge 0
 }
 dpdk {
     dev 0000:00:04.0
@@ -108,6 +116,10 @@ unix {
 }
 nat {
     endpoint-dependent
+    max translations per user 10000
+}
+acl-plugin {
+    use tuple merge 0
 }
 dpdk {
     dev 0000:00:03.0

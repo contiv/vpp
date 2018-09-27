@@ -34,7 +34,7 @@ data:
     IPNeighborScanInterval: 1
     IPNeighborStaleThreshold: 4
     ServiceLocalEndpointWeight: 1
-    DisableNATVirtualReassembly: true
+    DisableNATVirtualReassembly: false
     IPAMConfig:
       PodSubnetCIDR: 10.1.0.0/16
       PodNetworkPrefixLen: 24

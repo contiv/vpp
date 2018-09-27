@@ -679,7 +679,7 @@ func (rndr *Renderer) idleNATSessionCleanup() {
 
 		rndr.Log.Debugf("NAT session cleanup started.")
 
-		natUsers := make([][]byte, 0)
+		natUsers := make([]*nat_api.Nat44UserDetails, 0)
 		delRules := make([]*nat_api.Nat44DelSession, 0)
 		var tcpCount uint64
 		var otherCount uint64
@@ -696,13 +696,14 @@ func (rndr *Renderer) idleNATSessionCleanup() {
 			if err != nil {
 				rndr.Log.Errorf("Error by dumping NAT users: %v", err)
 			}
-			natUsers = append(natUsers, msg.IPAddress)
+			natUsers = append(natUsers, msg)
 		}
 
 		// dump NAT sessions per user
 		for _, natUser := range natUsers {
 			req2 := &nat_api.Nat44UserSessionDump{
-				IPAddress: natUser,
+				IPAddress: natUser.IPAddress,
+				VrfID:     natUser.VrfID,
 			}
 			reqCtx2 := rndr.GoVPPChan.SendMultiRequest(req2)
 
@@ -731,6 +732,7 @@ func (rndr *Renderer) idleNATSessionCleanup() {
 							Address:  msg.InsideIPAddress,
 							Port:     msg.InsidePort,
 							Protocol: uint8(msg.Protocol),
+							VrfID:    natUser.VrfID,
 						}
 						if msg.ExtHostValid > 0 {
 							delRule.ExtHostValid = 1

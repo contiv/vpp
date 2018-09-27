@@ -20,30 +20,31 @@ import (
 	"fmt"
 	"github.com/contiv/vpp/plugins/crd/api"
 	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
+	"github.com/contiv/vpp/plugins/crd/datastore"
 	nodemodel "github.com/contiv/vpp/plugins/ksr/model/node"
 	"github.com/ligato/cn-infra/datasync"
 	"github.com/ligato/cn-infra/logging"
 	"io/ioutil"
 	"net/http"
-	"os"
 	"reflect"
-	"text/tabwriter"
 	"time"
 )
 
 const (
 	// here goes different cache types
 	//Update this whenever a new DTO type is added.
-	numDTOs            = 7
-	agentPort          = ":9999"
-	livenessURL        = "/liveness"
-	interfaceURL       = "/vpp/dump/v1/interfaces"
-	bridgeDomainURL    = "/vpp/dump/v1/bd"
-	l2FibsURL          = "/vpp/dump/v1/fib"
-	telemetryURL       = "/telemetry"
-	ipamURL            = "/contiv/v1/ipam"
-	arpURL             = "/vpp/dump/v1/arps"
-	staticRouteURL     = "/vpp/dump/v1/routes"
+	numDTOs   = 7
+	agentPort = ":9999"
+
+	livenessURL     = "/liveness"
+	interfaceURL    = "/vpp/dump/v1/interfaces"
+	bridgeDomainURL = "/vpp/dump/v1/bd"
+	l2FibsURL       = "/vpp/dump/v1/fib"
+	telemetryURL    = "/telemetry"
+	ipamURL         = "/contiv/v1/ipam"
+	arpURL          = "/vpp/dump/v1/arps"
+	staticRouteURL  = "/vpp/dump/v1/routes"
+
 	clientTimeout      = 10 // HTTP client timeout, in seconds
 	collectionInterval = 1  // data collection interval, in minutes
 
@@ -73,6 +74,11 @@ type ContivTelemetryCache struct {
 	validationInProgress bool
 	databaseVersion      uint32
 	dataChangeEvents     DcEventQueue
+
+	nValidations uint32
+	nUpdates     uint32
+	nResyncs     uint32
+	nnResponses  uint32
 }
 
 // Deps lists dependencies of PolicyCache.
@@ -92,32 +98,39 @@ type NodeDTO struct {
 	version  uint32
 }
 
+// NewTelemetryCache returns a new instance of telemetry cache
+func NewTelemetryCache(p logging.PluginLogger) *ContivTelemetryCache {
+	return &ContivTelemetryCache{
+		Deps: Deps{
+			Log: p.NewLogger("-telemetryCache"),
+		},
+		Synced:   false,
+		VppCache: datastore.NewVppDataStore(),
+		K8sCache: datastore.NewK8sDataStore(),
+		Report:   datastore.NewSimpleReport(p.NewLogger("-report")),
+
+		agentPort:            agentPort,
+		collectionInterval:   collectionInterval * time.Minute,
+		httpClientTimeout:    clientTimeout * time.Second,
+		validationInProgress: false,
+
+		nodeResponseChannel: make(chan *NodeDTO),
+		dsUpdateChannel:     make(chan interface{}),
+		dtoList:             make([]*NodeDTO, 0),
+		dataChangeEvents:    make(DcEventQueue, 0),
+		ticker:              time.NewTicker(collectionInterval),
+		databaseVersion:     0,
+	}
+}
+
 // Init initializes policy cache.
 func (ctc *ContivTelemetryCache) Init() error {
-	ctc.init()
-
-	// Start the telemetryCache
-	go ctc.nodeEventProcessor()
-
+	go ctc.nodeEvenProcessor()
 	ctc.Log.Infof("ContivTelemetryCache init done")
 	return nil
 }
 
-func (ctc *ContivTelemetryCache) init() {
-	ctc.agentPort = agentPort
-	ctc.collectionInterval = collectionInterval * time.Minute
-	ctc.httpClientTimeout = clientTimeout * time.Second
-	ctc.validationInProgress = false
-
-	ctc.nodeResponseChannel = make(chan *NodeDTO)
-	ctc.dsUpdateChannel = make(chan interface{})
-	ctc.dtoList = make([]*NodeDTO, 0)
-	ctc.dataChangeEvents = make(DcEventQueue, 0)
-	ctc.ticker = time.NewTicker(ctc.collectionInterval)
-	ctc.databaseVersion = 0
-}
-
-// ClearCache with clear all Contiv Telemetry cache data except for the
+// ClearCache clears all Contiv Telemetry cache data except for the
 // data discovered from etcd updates.
 func (ctc *ContivTelemetryCache) ClearCache() {
 	ctc.VppCache.ClearCache()
@@ -133,7 +146,18 @@ func (ctc *ContivTelemetryCache) ReinitializeCache() {
 	ctc.Report.Clear()
 }
 
-func (ctc *ContivTelemetryCache) nodeEventProcessor() {
+// nodeEventProcessor is the main processing loop for the Telemetry Cache.
+// It performs three tasks:
+// - Listens to data change and resync events from EtcdEtcd . It queues incoming
+//   events for further processing
+// - Performs periodic validations of the cluster. The validations are
+//   triggered by a timer. Upon receiving a validation trigger, the queued
+//   data change and resync events are processed, the VPP and K8s config state
+//   caches are updated and collection of real-time state from VPP Agents in
+//   the cluster is started.
+// - Collects all incoming real-time state from the cluster and starts the
+//   validation of the cluster state
+func (ctc *ContivTelemetryCache) nodeEvenProcessor() {
 	for {
 		select {
 		case _, ok := <-ctc.ticker.C:
@@ -141,6 +165,7 @@ func (ctc *ContivTelemetryCache) nodeEventProcessor() {
 			if !ok {
 				return
 			}
+			fmt.Println("Got ticker event")
 			ctc.Report.Clear()
 			ctc.processDataStoreUpdate()
 			ctc.startNodeInfoCollection()
@@ -177,20 +202,14 @@ func (ctc *ContivTelemetryCache) startNodeInfoCollection() {
 	ctc.ClearCache()
 	ctc.validationInProgress = true
 	for _, node := range nodelist {
-		ctc.collectNodeInfo(node)
+		ctc.collectAgentInfo(node)
 	}
 }
 
-// collectNodeInfo collects node data from all agents in the Contiv
-// cluster and puts it in the cache
-func (ctc *ContivTelemetryCache) collectNodeInfo(node *telemetrymodel.Node) {
-	ctc.collectAgentInfo(node)
-}
-
-// validateCluster checks the consistency of the node data in the cache. It
-// checks the ARP tables, ... . Data inconsistencies may cause loss of
-// connectivity between nodes or pods. All sata inconsistencies found during
-// validation are reported to the CRD.
+// validateCluster checks the consistency of data in various contiv data stores.
+// It correlates the configured (desired) cluster state from Etcd and with data
+// retrieved from Contiv vswitches running in the cluster (actual state) and
+// reports any errors that it finds.
 func (ctc *ContivTelemetryCache) validateCluster() {
 
 	nodelist := ctc.VppCache.RetrieveAllNodes()
@@ -201,11 +220,14 @@ func (ctc *ContivTelemetryCache) validateCluster() {
 	ctc.Processor.Validate()
 	ctc.Report.SetTimeStamp(time.Now())
 
+	ctc.nValidations++
+	fmt.Printf("validations: %d, resyncs: %d, updates: %d, responses: %d\n",
+		ctc.nValidations, ctc.nResyncs, ctc.nUpdates, ctc.nnResponses)
 	ctc.Report.Print()
-	// ctc.ControllerReport.GenerateCRDReport()
 }
 
-//Gathers a number of data points for every node in the Node List
+// Collect real-time node state (mainly VPP, but some Linux too) from the
+// specified node's VPP Agent.
 func (ctc *ContivTelemetryCache) collectAgentInfo(node *telemetrymodel.Node) {
 	client := http.Client{
 		Transport:     nil,
@@ -257,6 +279,7 @@ func (ctc *ContivTelemetryCache) getNodeInfo(client http.Client, node *telemetry
 		ctc.nodeResponseChannel <- &NodeDTO{node.Name, nil, err, version}
 		return
 	} else if res.StatusCode < 200 || res.StatusCode > 299 {
+		err := fmt.Errorf("HTTP Get error: url %s, Status: %s", url, res.Status)
 		ctc.nodeResponseChannel <- &NodeDTO{node.Name, nil, err, version}
 		return
 	}
@@ -317,14 +340,16 @@ func (ctc *ContivTelemetryCache) getAgentURL(ipAddr string, url string) string {
 	return "http://" + ipAddr + ctc.agentPort + url
 }
 
-// waitForValidationToFinish waits until the node cache has been cleared at
-// the end of data validati
+// waitForValidationToFinish waits until the the next hod validation finishes
 func (ctc *ContivTelemetryCache) waitForValidationToFinish() int {
 	cycles := 0
+	current := ctc.nValidations + 1
+
 	for {
-		if !ctc.validationInProgress {
+		if current == ctc.nValidations {
 			return cycles
 		}
+
 		time.Sleep(1 * time.Millisecond)
 		cycles++
 	}
@@ -334,10 +359,13 @@ func (ctc *ContivTelemetryCache) waitForValidationToFinish() int {
 // node has enough DTOs to fully process information. It then clears the
 // node DTO map after it is finished with it.
 func (ctc *ContivTelemetryCache) processNodeResponse(data *NodeDTO) {
+	ctc.nnResponses++
+
 	nodelist := ctc.VppCache.RetrieveAllNodes()
 	if data.version >= ctc.databaseVersion {
 		ctc.dtoList = append(ctc.dtoList, data)
 	}
+
 	if len(ctc.dtoList) == numDTOs*len(nodelist) {
 		ctc.setNodeData()
 		ctc.validateCluster()
@@ -392,16 +420,25 @@ func (ctc *ContivTelemetryCache) setNodeData() {
 	}
 }
 
+// processDataStoreUpdate processes all Etcd resync and data change events that
+// have been queued up since the last validation run. While collection of real-
+// time data from VPP Agents and cluster validation is going on, incoming resync
+// and data change events are queued up.
+// We also increment the DB version here - DB version number is used to eliminate
+// delayed responses from the network (i.e. responses to requests from previous
+// validation runs).
 func (ctc *ContivTelemetryCache) processDataStoreUpdate() {
 	for _, data := range ctc.dataChangeEvents {
 		switch data.(type) {
 
 		case datasync.ResyncEvent:
+			ctc.nResyncs++
 			resyncEv := data.(datasync.ResyncEvent)
 			ctc.Report.Clear()
 			ctc.resync(resyncEv)
 
 		case datasync.ChangeEvent:
+			ctc.nUpdates++
 			dataChngEv := data.(datasync.ChangeEvent)
 			if err := ctc.update(dataChngEv); err != nil {
 				ctc.Log.Errorf("data update error, %s", err.Error())
@@ -410,7 +447,7 @@ func (ctc *ContivTelemetryCache) processDataStoreUpdate() {
 			}
 
 		default:
-			ctc.Log.Errorf("unknown type received, %s", reflect.TypeOf(data))
+			ctc.Log.Errorf("unknown event type received, %s", reflect.TypeOf(data))
 			continue
 		}
 		ctc.dataChangeEvents = make(DcEventQueue, 0)
@@ -418,12 +455,4 @@ func (ctc *ContivTelemetryCache) processDataStoreUpdate() {
 
 	ctc.databaseVersion++
 	ctc.dtoList = ctc.dtoList[0:0]
-}
-
-func (ctc *ContivTelemetryCache) dumpVppCache() {
-	w := tabwriter.NewWriter(os.Stdout, 8, 2, 2, ' ', 0)
-	for _, node := range ctc.VppCache.RetrieveAllNodes() {
-		fmt.Fprintf(w, "\t%s\t%s\t%s\t%s\n", node.Name, node.IPAddr, node.ManIPAddr, node.IPAddr)
-	}
-	w.Flush()
 }

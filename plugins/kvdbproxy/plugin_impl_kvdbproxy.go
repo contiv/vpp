@@ -17,7 +17,7 @@ package kvdbproxy
 import (
 	"sync"
 
-	"github.com/golang/protobuf/proto"
+	"github.com/gogo/protobuf/proto"
 	"github.com/ligato/cn-infra/datasync"
 	"github.com/ligato/cn-infra/infra"
 	"github.com/ligato/cn-infra/utils/safeclose"

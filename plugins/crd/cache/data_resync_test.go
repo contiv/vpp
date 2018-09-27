@@ -1,16 +1,15 @@
 package cache
 
 import (
-	"github.com/golang/protobuf/proto"
-	"github.com/ligato/cn-infra/datasync"
-	"github.com/ligato/cn-infra/logging"
-	"github.com/ligato/cn-infra/logging/logrus"
-
 	"encoding/json"
 	"fmt"
 	nodeinfomodel "github.com/contiv/vpp/plugins/contiv/model/node"
 	"github.com/contiv/vpp/plugins/crd/api"
 	"github.com/contiv/vpp/plugins/crd/datastore"
+	"github.com/golang/protobuf/proto"
+	"github.com/ligato/cn-infra/datasync"
+	"github.com/ligato/cn-infra/logging"
+	"github.com/ligato/cn-infra/logging/logrus"
 	"github.com/onsi/gomega"
 	"strings"
 	"sync/atomic"
@@ -25,6 +24,7 @@ type dataResyncTestData struct {
 	processor       *mockProcessor
 	cache           *ContivTelemetryCache
 	report          *datastore.SimpleReport
+	tickerChan      chan time.Time
 	injectGetValErr bool
 }
 
@@ -153,22 +153,27 @@ func TestDataResync(t *testing.T) {
 	drd.log = logrus.DefaultLogger()
 	drd.log.SetLevel(logging.ErrorLevel)
 	drd.log.SetOutput(drd.logWriter)
-	drd.report = datastore.NewSimpleReport(drd.log)
-	drd.report.Output = &nullWriter{}
 
 	drd.processor = &mockProcessor{}
-	drd.cache = &ContivTelemetryCache{
-		Deps: Deps{
-			Log: drd.log,
-		},
-		Synced:   false,
-		VppCache: datastore.NewVppDataStore(),
-		K8sCache: datastore.NewK8sDataStore(),
-		Report:   drd.report,
-	}
-	drd.cache.Init()
+	drd.cache = NewTelemetryCache(logging.ForPlugin("dr-test"))
+
+	// Override default telemetryCache behavior
+	drd.cache.ticker.Stop() // Do not periodically poll agents
+	drd.tickerChan = make(chan time.Time)
+	drd.cache.ticker = &time.Ticker{C: drd.tickerChan}
+
 	drd.cache.Processor = drd.processor
 	drd.processor.retrieveCnt = 0
+
+	drd.report = datastore.NewSimpleReport(drd.log)
+	drd.report.Output = &nullWriter{}
+	drd.cache.Report = drd.report
+
+	// override default cache logger
+	drd.cache.Log = drd.log
+
+	drd.cache.Init()
+	time.Sleep(1 * time.Millisecond)
 
 	t.Run("testResyncNodeInfoOk", testResyncNodeInfoOk)
 	t.Run("testResyncNodeInfoBadKey", testResyncNodeInfoBadKey)
@@ -183,6 +188,9 @@ func testResyncNodeInfoOk(t *testing.T) {
 	drd.createNodeInfoOkTestData()
 
 	drd.cache.Resync(drd.resyncEv)
+
+	time.Sleep(1 * time.Millisecond)
+	drd.tickerChan <- time.Time{}
 	drd.processor.waitForValidate()
 
 	gomega.Expect(len(drd.cache.VppCache.RetrieveAllNodes())).To(gomega.Equal(3))

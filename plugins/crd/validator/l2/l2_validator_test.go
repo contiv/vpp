@@ -181,7 +181,7 @@ func testNodesDBValidateL2Connections(t *testing.T) {
 	vtv.report.Clear()
 	vtv.l2Validator.ValidateBridgeDomains()
 	gomega.Expect(len(vtv.report.Data[api.GlobalMsg])).To(gomega.Equal(1))
-	gomega.Expect(len(vtv.report.Data[nodeKey])).To(gomega.Equal(2))
+	gomega.Expect(len(vtv.report.Data[nodeKey])).To(gomega.Equal(1))
 
 	delete(bd, 2)
 
@@ -194,7 +194,7 @@ func testNodesDBValidateL2Connections(t *testing.T) {
 	vtv.report.Clear()
 	vtv.l2Validator.ValidateBridgeDomains()
 	gomega.Expect(len(vtv.report.Data[api.GlobalMsg])).To(gomega.Equal(1))
-	gomega.Expect(len(vtv.report.Data[nodeKey])).To(gomega.Equal(2))
+	gomega.Expect(len(vtv.report.Data[nodeKey])).To(gomega.Equal(1))
 
 	resetToInitialErrorFreeState()
 
@@ -226,7 +226,7 @@ func testNodesDBValidateL2Connections(t *testing.T) {
 	vtv.l2Validator.ValidateBridgeDomains()
 
 	gomega.Expect(len(vtv.report.Data[api.GlobalMsg])).To(gomega.Equal(1))
-	gomega.Expect(len(vtv.report.Data[nodeKey])).To(gomega.Equal(4))
+	gomega.Expect(len(vtv.report.Data[nodeKey])).To(gomega.Equal(3))
 	node, err := vtv.vppCache.RetrieveNodeByGigEIPAddr(dstIPAddr)
 	gomega.Expect(err).To(gomega.BeNil())
 	gomega.Expect(len(vtv.report.Data[node.Name])).To(gomega.Equal(1))
@@ -256,7 +256,7 @@ func testNodesDBValidateL2Connections(t *testing.T) {
 		vtv.l2Validator.ValidateBridgeDomains()
 
 		gomega.Expect(len(vtv.report.Data[api.GlobalMsg])).To(gomega.Equal(1))
-		gomega.Expect(len(vtv.report.Data[nodeKey])).To(gomega.Equal(4))
+		gomega.Expect(len(vtv.report.Data[nodeKey])).To(gomega.Equal(3))
 
 		// Restore data back to error free state
 		vxlanBd.BdMeta.BdID2Name[keys[0]] = vxlanBd.BdMeta.BdID2Name[bogusKey]
@@ -284,7 +284,7 @@ func testNodesDBValidateL2Connections(t *testing.T) {
 		vtv.l2Validator.ValidateBridgeDomains()
 
 		gomega.Expect(len(vtv.report.Data[api.GlobalMsg])).To(gomega.Equal(1))
-		gomega.Expect(len(vtv.report.Data[nodeKey])).To(gomega.Equal(5))
+		gomega.Expect(len(vtv.report.Data[nodeKey])).To(gomega.Equal(4))
 
 		// Restore data back to error free state
 		vtv.vppCache.NodeMap[nodeKey].NodeBridgeDomains[j].Bd.Interfaces[k].BVI = false
@@ -304,7 +304,7 @@ func testNodesDBValidateL2Connections(t *testing.T) {
 	vtv.l2Validator.ValidateBridgeDomains()
 
 	gomega.Expect(len(vtv.report.Data[api.GlobalMsg])).To(gomega.Equal(1))
-	gomega.Expect(len(vtv.report.Data[nodeKey])).To(gomega.Equal(4))
+	gomega.Expect(len(vtv.report.Data[nodeKey])).To(gomega.Equal(3))
 	node, err = vtv.vppCache.RetrieveNodeByGigEIPAddr(ifp.If.Vxlan.DstAddress)
 	gomega.Expect(err).To(gomega.BeNil())
 	gomega.Expect(len(vtv.report.Data[node.Name])).To(gomega.Equal(1))
@@ -323,7 +323,7 @@ func testNodesDBValidateL2Connections(t *testing.T) {
 
 	gomega.Expect(len(vtv.report.Data[api.GlobalMsg])).To(gomega.Equal(1))
 	for _, n := range vtv.vppCache.RetrieveAllNodes() {
-		gomega.Expect(len(vtv.report.Data[n.Name])).To(gomega.Equal(6))
+		gomega.Expect(len(vtv.report.Data[n.Name])).To(gomega.Equal(5))
 	}
 
 	// Restore data back to error free state
@@ -339,7 +339,7 @@ func testNodesDBValidateL2Connections(t *testing.T) {
 
 	gomega.Expect(len(vtv.report.Data[api.GlobalMsg])).To(gomega.Equal(1))
 	for _, n := range vtv.vppCache.RetrieveAllNodes() {
-		gomega.Expect(len(vtv.report.Data[n.Name])).To(gomega.Equal(3))
+		gomega.Expect(len(vtv.report.Data[n.Name])).To(gomega.Equal(2))
 	}
 
 	// Restore data back to error free state
@@ -358,7 +358,7 @@ func testNodesDBValidateL2Connections(t *testing.T) {
 	vtv.l2Validator.ValidateBridgeDomains()
 
 	gomega.Expect(len(vtv.report.Data[api.GlobalMsg])).To(gomega.Equal(1))
-	gomega.Expect(len(vtv.report.Data[nl[0].Name])).To(gomega.Equal(6))
+	gomega.Expect(len(vtv.report.Data[nl[0].Name])).To(gomega.Equal(5))
 
 	// Restore data back to error free state
 	resetToInitialErrorFreeState()
@@ -648,7 +648,7 @@ func testValidatePodInfo(t *testing.T) {
 	// INJECT FAULT: Incorrect Host IP address in K8s pod data
 	for _, pod := range vtv.k8sCache.RetrieveAllPods() {
 		oldHostIPAddress := pod.HostIPAddress
-		vtv.k8sCache.UpdatePod(pod.Name, pod.Namespace, pod.Label, pod.IPAddress, "1.2.3.4", nil)
+		vtv.k8sCache.UpdatePod(pod.Name, pod.Namespace, nil, pod.IPAddress, "1.2.3.4", nil)
 
 		// Perform test
 		vtv.report.Clear()
@@ -657,7 +657,7 @@ func testValidatePodInfo(t *testing.T) {
 		checkDataReport(2, 0, 0)
 
 		// Restore data back to error free state
-		vtv.k8sCache.UpdatePod(pod.Name, pod.Namespace, pod.Label, pod.IPAddress, oldHostIPAddress, nil)
+		vtv.k8sCache.UpdatePod(pod.Name, pod.Namespace, nil, pod.IPAddress, oldHostIPAddress, nil)
 		break
 	}
 

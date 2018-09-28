@@ -85,7 +85,7 @@ func PrintNodes() {
 		buildDate := "Not Available"
 		buildVersion := "Not Available"
 		var liveness telemetrymodel.NodeLiveness
-		if err = json.Unmarshal(bytes, &liveness); err != nil {
+		if err = json.Unmarshal(bytes, &liveness); err == nil {
 			buildVersion = liveness.BuildVersion
 			buildDate = liveness.BuildDate
 			bd, err1 := time.Parse("2006-01-02T15:04+00:00", buildDate)

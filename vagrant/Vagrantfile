@@ -153,6 +153,9 @@ vbox_provision_every_node = <<SCRIPT
 set -e
 set -x
 
+apt-get install -y linux-image-extra-virtual
+apt-get install -y linux-modules-extra-$(uname -r)
+
 #Load uio_pci_generic driver and setup the loading on each boot up
 installPCIUIO() {
    modprobe uio_pci_generic
@@ -226,7 +229,7 @@ sudo -E pip install --upgrade virtualenv
 # Pull images if not present
 if [ -f /vagrant/images.tar ]; then
     echo "Found saved images at /vagrant/images.tar"
-    docker load -i /vagrant/images.tar
+    sudo docker load -i /vagrant/images.tar
 else
   echo "Pulling contiv-vpp plugin images..."
   sudo -E /home/vagrant/gopath/src/github.com/contiv/vpp/k8s/pull-images.sh -b $6
@@ -253,7 +256,7 @@ if [ "$4" = "dev" ]; then
 
     if [ -f /vagrant/dev-contiv-vswitch.tar ]; then
         echo "Found saved dev image at /vagrant/dev-contiv-vswitch.tar"
-        docker load -i /vagrant/dev-contiv-vswitch.tar
+        sudo docker load -i /vagrant/dev-contiv-vswitch.tar
     else
         echo "vagrant" >> /home/vagrant/gopath/src/github.com/contiv/vpp/.dockerignore
         echo "Building development contivpp/vswitch image..."
@@ -335,7 +338,7 @@ echo Args passed: [[ $@ ]]
 # Load images if present
 if [ -f /vagrant/images.tar ]; then
     echo "Found saved images at /vagrant/images.tar"
-    docker load -i /vagrant/images.tar
+    sudo docker load -i /vagrant/images.tar
 fi
 
 source /vagrant/config/init
@@ -404,8 +407,8 @@ VAGRANTFILE_API_VERSION = "2"
         config.vbguest.auto_update = false
     end
     if node_os == "ubuntu" then
-        config.vm.box = "puppetlabs/ubuntu-16.04-64-nocm"
-        config.vm.box_version = "1.0.0"
+        config.vm.box = "ubuntu/bionic64"
+        config.vm.box_version = "20180927.0.0"
     else
         # Nothing for now, later add more OS
     end

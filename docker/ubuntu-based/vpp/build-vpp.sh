@@ -56,7 +56,7 @@ if [ "${SKIP_DEBUG_BUILD}" == "" ] || [ "${SKIP_DEBUG_BUILD}" -eq 0 ]; then
 	make vpp_configure_args_vpp='--disable-japi --disable-vom' build
 	# overwrite prod plugins with debug plugins
 	rm -rf /usr/lib/{vpp_plugins,vpp_api_test_plugins}
-	cp -r build-root/install-vpp_debug-native/vpp/lib64/{vpp_plugins,vpp_api_test_plugins} /usr/lib
+	#cp -r build-root/install-vpp_debug-native/vpp/lib64/{vpp_plugins,vpp_api_test_plugins} /usr/lib
 fi
 
 # do some cleanup

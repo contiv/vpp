@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//go:generate protoc -I ./model --go_out=plugins=grpc:./model ./model/container.proto
+//go:generate protoc -I ./model --gogo_out=plugins=grpc:./model ./model/container.proto
 
 package containeridx
 

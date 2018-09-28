@@ -38,12 +38,13 @@ required = [
     "k8s.io/code-generator/cmd/deepcopy-gen",
     "k8s.io/code-generator/cmd/defaulter-gen",
     "k8s.io/code-generator/cmd/informer-gen",
-    "k8s.io/code-generator/cmd/lister-gen"
+    "k8s.io/code-generator/cmd/lister-gen",
+    "github.com/gogo/protobuf/protoc-gen-gogo"
 ]
 
 [[constraint]]
   name = "github.com/ligato/vpp-agent"
-  revision = "b0fa4c968a685a2e8d26ca81af46a3504229088d"
+  revision = "6ea0a9d8259363da66c923e9fca5accdc31cb422"
 
 [[constraint]]
   name = "github.com/ligato/cn-infra"
@@ -80,7 +81,7 @@ required = [
 
 [[constraint]]
   name = "github.com/gogo/protobuf"
-  version = "0.5.0"
+  version = "1.1.1"
 
 [[constraint]]
   name = "github.com/docker/docker"

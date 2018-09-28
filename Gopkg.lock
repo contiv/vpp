@@ -444,17 +444,40 @@
   version = "v4.1.0"
 
 [[projects]]
-  digest = "1:9886f20fc7188af1fb9059c6b6b29da154f87a05986a84ab297a5b6a779f230f"
+  digest = "1:522998382a4827ca08e094d0206abd979e41fe86557101b20ab511531fda3332"
   name = "github.com/gogo/protobuf"
   packages = [
     "gogoproto",
+    "plugin/compare",
+    "plugin/defaultcheck",
+    "plugin/description",
+    "plugin/embedcheck",
+    "plugin/enumstringer",
+    "plugin/equal",
+    "plugin/face",
+    "plugin/gostring",
+    "plugin/marshalto",
+    "plugin/oneofcheck",
+    "plugin/populate",
+    "plugin/size",
+    "plugin/stringer",
+    "plugin/testgen",
+    "plugin/union",
+    "plugin/unmarshal",
     "proto",
+    "protoc-gen-gogo",
     "protoc-gen-gogo/descriptor",
+    "protoc-gen-gogo/generator",
+    "protoc-gen-gogo/generator/internal/remap",
+    "protoc-gen-gogo/grpc",
+    "protoc-gen-gogo/plugin",
     "sortkeys",
+    "vanity",
+    "vanity/command",
   ]
   pruneopts = "UT"
-  revision = "342cbe0a04158f6dcb03ca0079991a51a4248c02"
-  version = "v0.5"
+  revision = "636bf0302bc95575d69441b25a2603156ffdddf1"
+  version = "v1.1.1"
 
 [[projects]]
   branch = "master"
@@ -664,7 +687,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:37eed30b80ac7e0c5e06f335356b599b102191f7eecc9c79d5ff6b3b913e4529"
+  digest = "1:5a216803afc05f3bf1bf6f565536f44fa76ab749d249c48daf5267981ffee343"
   name = "github.com/ligato/cn-infra"
   packages = [
     "agent",
@@ -688,6 +711,7 @@
     "logging/logmanager",
     "logging/logrus",
     "logging/measure",
+    "logging/measure/model/apitrace",
     "messaging",
     "rpc/grpc",
     "rpc/prometheus",
@@ -698,10 +722,10 @@
     "utils/safeclose",
   ]
   pruneopts = "UT"
-  revision = "c38d7aed2392ab17d956c3e9f4436e1eb280a28a"
+  revision = "0b5bfe9b247de942c552e455faac7e00e8efcda1"
 
 [[projects]]
-  digest = "1:f52cb5d1177a6f877dd601a578be8f3293c7250ff7278dbe0c7fcd386a9418b2"
+  digest = "1:7cb8dbf56b9f4c85db47f8d1811eff01b1085881f6e4924f7f89cdd1a1ee91c3"
   name = "github.com/ligato/vpp-agent"
   packages = [
     "clientv1/linux",
@@ -781,7 +805,7 @@
     "plugins/vpp/srplugin/vppcalls",
   ]
   pruneopts = "UT"
-  revision = "b0fa4c968a685a2e8d26ca81af46a3504229088d"
+  revision = "6ea0a9d8259363da66c923e9fca5accdc31cb422"
 
 [[projects]]
   branch = "master"
@@ -1620,6 +1644,7 @@
     "github.com/docker/swarmkit",
     "github.com/ghodss/yaml",
     "github.com/gogo/protobuf/proto",
+    "github.com/gogo/protobuf/protoc-gen-gogo",
     "github.com/gogo/protobuf/sortkeys",
     "github.com/golang/protobuf/proto",
     "github.com/google/cadvisor",

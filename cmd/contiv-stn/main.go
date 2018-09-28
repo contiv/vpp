@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//go:generate protoc -I ./model/stn --go_out=plugins=grpc:./model/stn ./model/stn/stn.proto
+//go:generate protoc -I ./model/stn --gogo_out=plugins=grpc:./model/stn ./model/stn/stn.proto
 
 package main
 

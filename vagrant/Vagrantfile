@@ -124,7 +124,7 @@ echo 'MaxStartups 20' >> /etc/ssh/sshd_config
 sudo service sshd restart
 
 if [ "$3" == "dev" ]; then 
-  export GO_VERSION=1.10.3
+  export GO_VERSION=1.11
   echo "Downloading Go $GO_VERSION..."
   curl --silent https://storage.googleapis.com/golang/go$GO_VERSION.linux-amd64.tar.gz > /tmp/go.tar.gz
 
@@ -247,7 +247,7 @@ if [ "$4" = "dev" ]; then
     sudo -E apt-get install -y xorg \
                             openbox
     echo "Downloading and installing Goland..."
-    export GOLAND_VERSION=2018.1.5
+    export GOLAND_VERSION=2018.2.3
     curl -sL https://download.jetbrains.com/go/goland-$GOLAND_VERSION.tar.gz > /tmp/goland.tar.gz
     tar -xvzf /tmp/goland.tar.gz --directory /home/vagrant >/dev/null 2>&1
 

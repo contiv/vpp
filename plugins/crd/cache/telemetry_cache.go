@@ -118,7 +118,7 @@ func NewTelemetryCache(p logging.PluginLogger) *ContivTelemetryCache {
 		dsUpdateChannel:     make(chan interface{}),
 		dtoList:             make([]*NodeDTO, 0),
 		dataChangeEvents:    make(DcEventQueue, 0),
-		ticker:              time.NewTicker(collectionInterval),
+		ticker:              time.NewTicker(collectionInterval * time.Minute),
 		databaseVersion:     0,
 	}
 }

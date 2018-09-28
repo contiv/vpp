@@ -17,13 +17,14 @@ package l3
 
 import (
 	"fmt"
+	"os"
+	"text/tabwriter"
+
 	"github.com/contiv/vpp/plugins/crd/api"
 	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
 	"github.com/contiv/vpp/plugins/crd/validator/utils"
 	"github.com/gogo/protobuf/sortkeys"
 	"github.com/ligato/cn-infra/logging"
-	"os"
-	"text/tabwriter"
 
 	"regexp"
 	"strings"
@@ -64,6 +65,7 @@ type RouteMap map[uint32]map[string]int
 func (v *Validator) Validate() {
 	nodeList := v.VppCache.RetrieveAllNodes()
 	numErrs := 0
+
 	v.Report.SetPrefix("L3-FIB")
 
 	for _, node := range nodeList {
@@ -151,7 +153,6 @@ func (v *Validator) createValidationMap(vm map[uint32]Vrf) RouteMap {
 // be a route to the Pod's IP address and a route to the IP address on the
 // VPP side of the Pod's tapv2 link.
 func (v *Validator) validateVrf1PodRoutes(node *telemetrymodel.Node, vrfMap VrfMap, routeMap RouteMap) int {
-
 	numErrs := 0
 	for _, pod := range node.PodMap {
 
@@ -162,6 +163,7 @@ func (v *Validator) validateVrf1PodRoutes(node *telemetrymodel.Node, vrfMap VrfM
 
 		// Validate routes to local Pods
 		// Lookup the Pod route in VRF1; it must have mask length = 32
+
 		if pod.IPAddress != "" {
 			numErrs += v.validateRoute(pod.IPAddress+"/32", 1, vrfMap, routeMap, node.Name,
 				pod.VppIfName, pod.VppSwIfIdx, pod.IPAddress, 0, 0)

@@ -132,7 +132,7 @@ type remoteCNIserver struct {
 	podPostAddHook []PodActionHook
 
 	// node specific configuration
-	nodeConfig *OneNodeConfig
+	nodeConfig *NodeConfig
 
 	// other configuration
 	tcpChecksumOffloadDisabled bool
@@ -226,7 +226,7 @@ type vswitchConfig struct {
 // newRemoteCNIServer initializes a new remote CNI server instance.
 func newRemoteCNIServer(logger logging.Logger, vppTxnFactory func() linuxclient.DataChangeDSL, proxy kvdbproxy.Proxy,
 	configuredContainers *containeridx.ConfigIndex, govppChan api.Channel, index ifaceidx.SwIfIndex, dhcpIndex ifaceidx.DhcpIndex, agentLabel string,
-	config *Config, nodeConfig *OneNodeConfig, nodeID uint32, nodeExcludeIPs []net.IP, broker keyval.ProtoBroker, http rest.HTTPHandlers) (*remoteCNIserver, error) {
+	config *Config, nodeConfig *NodeConfig, nodeID uint32, nodeExcludeIPs []net.IP, broker keyval.ProtoBroker, http rest.HTTPHandlers) (*remoteCNIserver, error) {
 	ipam, err := ipam.New(logger, nodeID, agentLabel, &config.IPAMConfig, nodeExcludeIPs, broker, http)
 	if err != nil {
 		return nil, err
@@ -676,7 +676,7 @@ func (s *remoteCNIserver) applyDHCPdata(notif *ifaceidx.DHCPSettings) {
 }
 
 // configureOtherVPPInterfaces other interfaces that were configured in contiv plugin YAML configuration.
-func (s *remoteCNIserver) configureOtherVPPInterfaces(config *vswitchConfig, nodeConfig *OneNodeConfig) error {
+func (s *remoteCNIserver) configureOtherVPPInterfaces(config *vswitchConfig, nodeConfig *NodeConfig) error {
 
 	// match existing interfaces and configuration settings and create VPP configuration objects
 	interfaces := make(map[string]*vpp_intf.Interfaces_Interface)

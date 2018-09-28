@@ -53,7 +53,11 @@ if [ ${BUILDARCH} = "aarch64" ]; then
   echo "Using Images Arch: ${IMAGEARCH}"
 fi
 
-images="contivvpp/ksr${IMAGEARCH}:${IMAGE_TAG} contivvpp/cni${IMAGEARCH}:${IMAGE_TAG} contivvpp/stn${IMAGEARCH}:${IMAGE_TAG} contivvpp/vswitch${IMAGEARCH}:${IMAGE_TAG}"
+images="contivvpp/ksr${IMAGEARCH}:${IMAGE_TAG}"
+images="${images} contivvpp/cni${IMAGEARCH}:${IMAGE_TAG}"
+images="${images} contivvpp/stn${IMAGEARCH}:${IMAGE_TAG}"
+images="${images} contivvpp/vswitch${IMAGEARCH}:${IMAGE_TAG}"
+images="${images} contivvpp/crd${IMAGEARCH}:${IMAGE_TAG}"
 echo $images
 
 if [ -f ../vagrant/images.tar ]; then

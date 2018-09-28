@@ -35,15 +35,7 @@ data:
     IPNeighborStaleThreshold: 4
     ServiceLocalEndpointWeight: 1
     DisableNATVirtualReassembly: true
-    IPAMConfig:
-      PodSubnetCIDR: 10.1.0.0/16
-      PodNetworkPrefixLen: 24
-      PodIfIPCIDR: 10.2.1.0/24
-      VPPHostSubnetCIDR: 172.30.0.0/16
-      VPPHostNetworkPrefixLen: 24
-      NodeInterconnectCIDR: 192.168.16.0/24
-      VxlanCIDR: 192.168.30.0/24
-      NodeInterconnectDHCP: False
+    crdNodeConfigurationEnabled: false
   logs.conf: |
     default-level: debug
   grpc.conf: |
@@ -125,31 +117,31 @@ spec:
       hostNetwork: true
 
       containers:
-        - name: contiv-etcd
-          image: quay.io/coreos/etcd:v3.3.5-arm64
-          imagePullPolicy: IfNotPresent
-          env:
-            - name: CONTIV_ETCD_IP
-              valueFrom:
-                fieldRef:
-                  fieldPath: status.podIP
-            - name: ETCDCTL_API
-              value: "3"
-            - name: ETCD_UNSUPPORTED_ARCH
-              value: "arm64"
-          command:
-            - /bin/sh
-          args:
-            - -c
-            - /usr/local/bin/etcd --name=contiv-etcd --data-dir=/var/etcd/contiv-data
-              --advertise-client-urls=http://0.0.0.0:12379 --listen-client-urls=http://0.0.0.0:12379 --listen-peer-urls=http://0.0.0.0:12380
-          volumeMounts:
-            - name: var-etcd
-              mountPath: /var/etcd/
-      volumes:
+      - name: contiv-etcd
+        image: quay.io/coreos/etcd:v3.3.5-arm64
+        imagePullPolicy: IfNotPresent
+        env:
+        - name: CONTIV_ETCD_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        - name: ETCDCTL_API
+          value: "3"
+        - name: ETCD_UNSUPPORTED_ARCH
+          value: "arm64"
+        command:
+        - /bin/sh
+        args:
+        - -c
+        - /usr/local/bin/etcd --name=contiv-etcd --data-dir=/var/etcd/contiv-data
+          --advertise-client-urls=http://0.0.0.0:12379 --listen-client-urls=http://0.0.0.0:12379 --listen-peer-urls=http://0.0.0.0:12380
+        volumeMounts:
         - name: var-etcd
-          hostPath:
-             path: /var/etcd
+          mountPath: /var/etcd/
+      volumes:
+      - name: var-etcd
+        hostPath:
+          path: /var/etcd
 
 ---
 
@@ -251,22 +243,34 @@ spec:
         image: contivvpp/cni-arm64:latest
         imagePullPolicy: IfNotPresent
         env:
-          - name: SLEEP
-            value: "false"
+        - name: SLEEP
+          value: "false"
         volumeMounts:
-          - mountPath: /opt/cni/bin
-            name: cni-bin-dir
-          - mountPath: /etc/cni/net.d
-            name: cni-net-dir
-          - mountPath: /var/run/contiv
-            name: contiv-run
-      # This init container waits until etcd is started
-      - name: wait-foretcd
+        - mountPath: /opt/cni/bin
+          name: cni-bin-dir
+        - mountPath: /etc/cni/net.d
+          name: cni-net-dir
+        - mountPath: /var/run/contiv
+          name: contiv-run
+      # This init container waits until crd config has been completed
+      - name: wait-forcrdconfig
         env:
-          - name: ETCDPORT
-            value: "32379"
-        image: arm64v8/busybox:latest
-        command: ['sh', '-c', 'until nc -w 2 127.0.0.1:$ETCDPORT; do echo waiting for etcd; sleep 2; done;']
+        - name: ETCDPORT
+          value: "32379"
+        - name: ETCDCTL_API
+          value: "3"
+        image: quay.io/coreos/etcd:v3.1.10
+        command:
+        - /bin/sh
+        args:
+        - -c
+        - |
+          set -eu
+          until /usr/local/bin/etcdctl --endpoints=127.0.0.1:32379 get "/vnf-agent/contiv-ksr/k8s/nodeconfig/$HOSTNAME" --prefix=true | grep -m 1 "$HOSTNAME";
+          do
+            echo waiting for crd node config;
+            sleep 1
+          done
       # This init container extracts/copies VPP LD_PRELOAD libs and default VPP config to the host.
       - name: vpp-init
         image: contivvpp/vswitch-arm64:latest
@@ -295,126 +299,126 @@ spec:
         securityContext:
           privileged: true
         volumeMounts:
-          - name: usr-local-bin
-            mountPath: /host/usr/local/bin
-          - name: vpp-lib64
-            mountPath: /vpp-lib64/
-          - name: vpp-cfg
-            mountPath: /host/etc/vpp
-          - name: shm
-            mountPath: /dev/shm
-          - name: vpp-run
-            mountPath: /run/vpp
-          - name: contiv-run
-            mountPath: /var/run/contiv
+        - name: usr-local-bin
+          mountPath: /host/usr/local/bin
+        - name: vpp-lib64
+          mountPath: /vpp-lib64/
+        - name: vpp-cfg
+          mountPath: /host/etc/vpp
+        - name: shm
+          mountPath: /dev/shm
+        - name: vpp-run
+          mountPath: /run/vpp
+        - name: contiv-run
+          mountPath: /var/run/contiv
 
       containers:
-        # Runs contiv-vswitch container on each Kubernetes node.
-        # It contains the vSwitch VPP and its management agent.
-        - name: contiv-vswitch
-          image: contivvpp/vswitch-arm64:latest
-          imagePullPolicy: IfNotPresent
-          securityContext:
-            privileged: true
-          ports:
-            # readiness + liveness probe
-            - containerPort: 9999
-          readinessProbe:
-            httpGet:
-              path: /readiness
-              port: 9999
-            periodSeconds: 3
-            timeoutSeconds: 2
-            failureThreshold: 3
-            initialDelaySeconds: 15
-          livenessProbe:
-            httpGet:
-              path: /liveness
-              port: 9999
-            periodSeconds: 3
-            timeoutSeconds: 2
-            failureThreshold: 3
-            initialDelaySeconds: 60
-          env:
-            - name: MICROSERVICE_LABEL
-              valueFrom:
-                fieldRef:
-                  fieldPath: spec.nodeName
-            - name: ETCD_CONFIG
-              value: "/etc/etcd/etcd.conf"
-            - name: BOLT_CONFIG
-              value: "/etc/agent/bolt.conf"
-            - name: TELEMETRY_CONFIG
-              value: "/etc/agent/telemetry.conf"
-          volumeMounts:
-            - name: var-bolt
-              mountPath: /var/bolt
-            - name: etcd-cfg
-              mountPath: /etc/etcd
-            - name: vpp-cfg
-              mountPath: /etc/vpp
-            - name: shm
-              mountPath: /dev/shm
-            - name: dev
-              mountPath: /dev
-            - name: vpp-run
-              mountPath: /run/vpp
-            - name: contiv-run
-              mountPath: /var/run/contiv
-            - name: contiv-plugin-cfg
-              mountPath: /etc/agent
-            - name: govpp-plugin-cfg
-              mountPath: /etc/govpp
-      volumes:
-        # Used to connect to contiv-etcd.
-        - name: etcd-cfg
-          configMap:
-            name: contiv-etcd-cfg
-        # Used to install CNI.
-        - name: cni-bin-dir
-          hostPath:
-            path: /opt/cni/bin
-        - name: cni-net-dir
-          hostPath:
-            path: /etc/cni/net.d
-        # VPP startup config folder.
-        - name: vpp-cfg
-          hostPath:
-            path: /etc/vpp
-        # To install vppctl.
-        - name: usr-local-bin
-          hostPath:
-            path: /usr/local/bin
-        # LD_PRELOAD library.
-        - name: vpp-lib64
-          hostPath:
-            path: /tmp/ldpreload/vpp-lib64
-        # /dev mount is required for DPDK-managed NICs on VPP (/dev/uio0) and for shared memory communication with VPP (/dev/shm)
-        - name: dev
-          hostPath:
-            path: /dev
-        - name: shm
-          hostPath:
-            path: /dev/shm
-        # For CLI unix socket.
-        - name: vpp-run
-          hostPath:
-            path: /run/vpp
-        # For CNI / STN unix domain socket
-        - name: contiv-run
-          hostPath:
-            path: /var/run/contiv
-        # Used to configure contiv plugin.
-        - name: contiv-plugin-cfg
-          configMap:
-            name: contiv-agent-cfg
-        # Used to configure govpp plugin.
-        - name: govpp-plugin-cfg
-          configMap:
-            name: govpp-cfg
+      # Runs contiv-vswitch container on each Kubernetes node.
+      # It contains the vSwitch VPP and its management agent.
+      - name: contiv-vswitch
+        image: contivvpp/vswitch-arm64:latest
+        imagePullPolicy: IfNotPresent
+        securityContext:
+          privileged: true
+        ports:
+        # readiness + liveness probe
+        - containerPort: 9999
+        readinessProbe:
+          httpGet:
+            path: /readiness
+            port: 9999
+          periodSeconds: 3
+          timeoutSeconds: 2
+          failureThreshold: 3
+          initialDelaySeconds: 15
+        livenessProbe:
+          httpGet:
+            path: /liveness
+            port: 9999
+          periodSeconds: 3
+          timeoutSeconds: 2
+          failureThreshold: 3
+          initialDelaySeconds: 60
+        env:
+        - name: MICROSERVICE_LABEL
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+        - name: ETCD_CONFIG
+          value: "/etc/etcd/etcd.conf"
+        - name: BOLT_CONFIG
+          value: "/etc/agent/bolt.conf"
+        - name: TELEMETRY_CONFIG
+          value: "/etc/agent/telemetry.conf"
+        volumeMounts:
         - name: var-bolt
-          hostPath:
-            path: /var/bolt
+          mountPath: /var/bolt
+        - name: etcd-cfg
+          mountPath: /etc/etcd
+        - name: vpp-cfg
+          mountPath: /etc/vpp
+        - name: shm
+          mountPath: /dev/shm
+        - name: dev
+          mountPath: /dev
+        - name: vpp-run
+          mountPath: /run/vpp
+        - name: contiv-run
+          mountPath: /var/run/contiv
+        - name: contiv-plugin-cfg
+          mountPath: /etc/agent
+        - name: govpp-plugin-cfg
+          mountPath: /etc/govpp
+      volumes:
+      # Used to connect to contiv-etcd.
+      - name: etcd-cfg
+        configMap:
+          name: contiv-etcd-cfg
+      # Used to install CNI.
+      - name: cni-bin-dir
+        hostPath:
+          path: /opt/cni/bin
+      - name: cni-net-dir
+        hostPath:
+          path: /etc/cni/net.d
+      # VPP startup config folder.
+      - name: vpp-cfg
+        hostPath:
+          path: /etc/vpp
+      # To install vppctl.
+      - name: usr-local-bin
+        hostPath:
+          path: /usr/local/bin
+      # LD_PRELOAD library.
+      - name: vpp-lib64
+        hostPath:
+          path: /tmp/ldpreload/vpp-lib64
+      # /dev mount is required for DPDK-managed NICs on VPP (/dev/uio0) and for shared memory communication with VPP (/dev/shm)
+      - name: dev
+        hostPath:
+          path: /dev
+      - name: shm
+        hostPath:
+          path: /dev/shm
+      # For CLI unix socket.
+      - name: vpp-run
+        hostPath:
+          path: /run/vpp
+      # For CNI / STN unix domain socket
+      - name: contiv-run
+        hostPath:
+          path: /var/run/contiv
+      # Used to configure contiv plugin.
+      - name: contiv-plugin-cfg
+        configMap:
+          name: contiv-agent-cfg
+      # Used to configure govpp plugin.
+      - name: govpp-plugin-cfg
+        configMap:
+          name: govpp-cfg
+      - name: var-bolt
+        hostPath:
+          path: /var/bolt
 
 ---
 
@@ -453,49 +457,49 @@ spec:
       serviceAccountName: contiv-ksr
 
       initContainers:
-        # This init container waits until etcd is started
-        - name: wait-foretcd
-          env:
-          - name: ETCDPORT
-            value: "32379"
-          image: arm64v8/busybox:latest
-          command: ['sh', '-c', 'until nc -w 2 127.0.0.1:$ETCDPORT; do echo waiting for etcd; sleep 2; done;']
+      # This init container waits until etcd is started
+      - name: wait-foretcd
+        env:
+        - name: ETCDPORT
+          value: "32379"
+        image: arm64v8/busybox:latest
+        command: ['sh', '-c', 'until nc -w 2 127.0.0.1:$ETCDPORT; do echo waiting for etcd; sleep 2; done;']
 
       containers:
-        - name: contiv-ksr
-          image: contivvpp/ksr-arm64:latest
-          imagePullPolicy: IfNotPresent
-          env:
-            - name: ETCD_CONFIG
-              value: "/etc/etcd/etcd.conf"
-            - name: HTTP_CONFIG
-              value: "/etc/http/http.conf"
-          volumeMounts:
-            - name: etcd-cfg
-              mountPath: /etc/etcd
-            - name: http-cfg
-              mountPath: /etc/http
-          readinessProbe:
-            httpGet:
-              path: /readiness
-              port: 9191
-            periodSeconds: 1
-            initialDelaySeconds: 10
-          livenessProbe:
-            httpGet:
-              path: /liveness
-              port: 9191
-            periodSeconds: 1
-            initialDelaySeconds: 30
+      - name: contiv-ksr
+        image: contivvpp/ksr-arm64:latest
+        imagePullPolicy: IfNotPresent
+        env:
+        - name: ETCD_CONFIG
+          value: "/etc/etcd/etcd.conf"
+        - name: HTTP_CONFIG
+          value: "/etc/http/http.conf"
+        volumeMounts:
+        - name: etcd-cfg
+          mountPath: /etc/etcd
+        - name: http-cfg
+          mountPath: /etc/http
+        readinessProbe:
+          httpGet:
+            path: /readiness
+            port: 9191
+          periodSeconds: 1
+          initialDelaySeconds: 10
+        livenessProbe:
+          httpGet:
+            path: /liveness
+            port: 9191
+          periodSeconds: 1
+          initialDelaySeconds: 30
 
       volumes:
-        # Used to connect to contiv-etcd.
-        - name: etcd-cfg
-          configMap:
-            name: contiv-etcd-withcompact-cfg
-        - name: http-cfg
-          configMap:
-            name: contiv-ksr-http-cfg
+      # Used to connect to contiv-etcd.
+      - name: etcd-cfg
+        configMap:
+          name: contiv-etcd-withcompact-cfg
+      - name: http-cfg
+        configMap:
+          name: contiv-ksr-http-cfg
 
 ---
 
@@ -506,19 +510,19 @@ metadata:
   name: contiv-ksr
   namespace: kube-system
 rules:
-  - apiGroups:
-    - ""
-    - extensions
-    resources:
-      - pods
-      - namespaces
-      - networkpolicies
-      - services
-      - endpoints
-      - nodes
-    verbs:
-      - watch
-      - list
+- apiGroups:
+  - ""
+  - extensions
+  resources:
+  - pods
+  - namespaces
+  - networkpolicies
+  - services
+  - endpoints
+  - nodes
+  verbs:
+  - watch
+  - list
 
 ---
 
@@ -544,4 +548,3 @@ subjects:
 - kind: ServiceAccount
   name: contiv-ksr
   namespace: kube-system
-

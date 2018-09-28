@@ -22,10 +22,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ligato/cn-infra/config"
-	"github.com/ligato/cn-infra/db/keyval"
-	"github.com/ligato/cn-infra/db/keyval/etcd"
-	"github.com/ligato/cn-infra/db/keyval/kvproto"
 	"github.com/ligato/cn-infra/servicelabel"
 
 	"git.fd.io/govpp.git/api"
@@ -54,9 +50,8 @@ import (
 )
 
 const (
-	etcdConnectionRetries = 20               // number of retries to connect to ETCD once STN is configured
-	vppConnectTimeout     = 20 * time.Second // timeout for connection to VPP
-	dhcpConnectTimeout    = 20 * time.Second // timeout to wait for a DHCP offer after configuring DHCP on the interface
+	vppConnectTimeout  = 20 * time.Second // timeout for connection to VPP
+	dhcpConnectTimeout = 20 * time.Second // timeout to wait for a DHCP offer after configuring DHCP on the interface
 
 	tapHostEndMacAddr       = "00:00:00:00:00:02" // requirement of the VPP STN plugin
 	defaultRouteDestination = "0.0.0.0/0"         // destination IP address used for default routes on VPP
@@ -335,41 +330,13 @@ func configureVpp(contivCfg *contiv.Config, stnData *stn.STNReply, useDHCP bool)
 
 // persistVppConfig persists VPP configuration in ETCD.
 func persistVppConfig(contivCfg *contiv.Config, stnData *stn.STNReply, cfg *vppCfgCtx, useDHCP bool) error {
-	etcdConfig := &etcd.Config{}
-
-	// parse ETCD config file
-	err := config.ParseConfigFromYamlFile(*etcdCfgFile, etcdConfig)
+	// try to connect to ETCD db
+	protoDb, err := etcdConnect()
 	if err != nil {
-		logger.Errorf("Error by parsing config YAML file: %v", err)
 		return err
 	}
-
-	// prepare ETCD config
-	etcdCfg, err := etcd.ConfigToClient(etcdConfig)
-	if err != nil {
-		logger.Errorf("Error by constructing ETCD config: %v", err)
-		return err
-	}
-
-	// connect in retry loop
-	var conn *etcd.BytesConnectionEtcd
-	for i := 0; i < etcdConnectionRetries; i++ {
-		conn, err = etcd.NewEtcdConnectionWithBytes(*etcdCfg, logger)
-		if err != nil {
-			if i == etcdConnectionRetries-1 {
-				logger.Errorf("Error by connecting to ETCD: %v", err)
-				return err
-			}
-			logger.Debugf("ETCD connection retry n. %d", i+1)
-		} else {
-			// connected
-			break
-		}
-	}
-
-	protoDb := kvproto.NewProtoWrapperWithSerializer(conn, &keyval.SerializerJSON{})
-	pb := protoDb.NewBroker(servicelabel.GetDifferentAgentPrefix(os.Getenv(servicelabel.MicroserviceLabelEnvVar)))
 	defer protoDb.Close()
+	pb := protoDb.NewBroker(servicelabel.GetDifferentAgentPrefix(os.Getenv(servicelabel.MicroserviceLabelEnvVar)))
 
 	// persist interface config
 	ifCfg := &interfaces.Interfaces_Interface{

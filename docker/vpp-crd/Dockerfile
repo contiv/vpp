@@ -1,0 +1,16 @@
+FROM golang:1.9.3-alpine3.7 as builder
+
+# we want a static binary
+ENV CGO_ENABLED=0
+
+COPY . /go/src/github.com/contiv/vpp
+
+WORKDIR /go/src/github.com/contiv/vpp/cmd/contiv-crd
+
+RUN go build -ldflags '-s -w' -o /crd main.go
+
+FROM scratch
+
+COPY --from=builder /crd /crd
+
+ENTRYPOINT ["/crd"]

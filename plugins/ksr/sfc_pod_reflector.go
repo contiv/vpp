@@ -72,7 +72,7 @@ func (spr *SfcPodReflector) Init(stopCh2 <-chan struct{}, wg *sync.WaitGroup) er
 		},
 	}
 
-	return spr.ksrInit(stopCh2, wg, pod.KeyPrefix(), "pods", &coreV1.Pod{}, sfcPodReflectorFuncs)
+	return spr.ksrInit(stopCh2, wg, sfc.KeyPrefix(), "pods", &coreV1.Pod{}, sfcPodReflectorFuncs)
 }
 
 // addPod adds state data of a newly created K8s pod into the data store.

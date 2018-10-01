@@ -23,7 +23,6 @@ import (
 
 	"github.com/golang/protobuf/proto"
 
-	"github.com/contiv/vpp/plugins/ksr/model/pod"
 	"github.com/contiv/vpp/plugins/ksr/model/sfc"
 )
 

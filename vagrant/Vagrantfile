@@ -427,7 +427,7 @@ VAGRANTFILE_API_VERSION = "2"
     config.vm.define "k8s-gateway" do |gw|
       gw.vm.hostname = "k8s-gateway"
       # Interface for K8s Cluster
-      gw.vm.network :private_network, ip: "10.2.1.254",  netmask: "255.255.254.0" virtualbox__intnet: "vpp"
+      gw.vm.network :private_network, ip: "10.2.1.254",  netmask: "255.255.254.0", virtualbox__intnet: "vpp"
       gw.vm.provider "virtualbox" do |v|
         v.customize ["modifyvm", :id, "--ioapic", "on"]
         v.memory = 256

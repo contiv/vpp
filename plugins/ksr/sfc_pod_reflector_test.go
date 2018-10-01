@@ -27,7 +27,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 
-	"github.com/contiv/vpp/plugins/ksr/model/pod"
 	"github.com/contiv/vpp/plugins/ksr/model/sfc"
 
 	"github.com/ligato/cn-infra/logging"
@@ -352,7 +351,7 @@ func TestSfcPodReflector(t *testing.T) {
 	// Pre-populate the mock data store with "stale" data that is supposed to
 	// be deleted during the test.
 	k8sPod2 := &sfcPodTestVars.sfcPodTestData[2]
-	sfcPodTestVars.mockKvBroker.Put(pod.Key(k8sPod2.Name,
+	sfcPodTestVars.mockKvBroker.Put(sfc.Key(k8sPod2.Name,
 		k8sPod2.Namespace), sfcPodTestVars.sfcPodReflector.valueToProto(k8sPod2.Name, k8sPod2.Spec.NodeName))
 
 	statsBefore := *sfcPodTestVars.sfcPodReflector.GetStats()

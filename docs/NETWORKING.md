@@ -77,9 +77,10 @@ This section describes how Contiv/VPP control plane programs the VPP based on th
 events it receives from k8s. It is not necessarily needed to understand this section
 for basic operation of Contiv/VPP, but it can be very useful for debugging purposes.
 
-Contiv/VPP currently uses a single VRF to forward the traffic between PODs on a node,
-PODs on different nodes, host network stack and DPDK-managed dataplane interface. The forwarding
-between each of them is purely L3-based, even for case of communication
+Contiv/VPP currently uses two VRFs - one to connect PODs on all nodes and the other to connect host network stack
+and DPDK-managed dataplane interface. Routing between them enforces inter-node traffic to be sent in
+ VXLAN and allows to access PODs from host network stack. The forwarding
+among PODs is purely L3-based, even for case of communication
 between 2 PODs within the same node.
 
 #### DPDK-managed data interface
@@ -131,10 +132,10 @@ each 2 nodes within the cluster (full mesh).
 All VXLAN tunnels are terminated in one bridge domain on each VPP. The bridge domain
 has learning and flooding disabled, the l2fib of the bridge domain is filled in with 
 a static entry for each VXLAN tunnel. Each bridge domain has a BVI interface which
-interconnects the bridge domain with the main VRF (L3 forwarding). This interface needs
+interconnects the bridge domain with the POD VRF (L3 forwarding). This interface needs
 an unique IP address, which is assigned from the `VxlanCIDR` as describe above.
 
-The main VRF contains several static routes that point to the BVI IP addresses of other nodes.
+The POD VRF contains several static routes that point to the BVI IP addresses of other nodes.
 For each node, it is a route to PODSubnet and VppHostSubnet of the remote node, as well as a route
 to the management IP address of the remote node. For each of these routes, the next hop IP is the
 BVI interface IP of the remote node, which goes via the BVI interface of the local node.

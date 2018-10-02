@@ -4,11 +4,11 @@
  - version **18.10-rc0-505**
 
 ### Bug Fixes
- - support for more than one IP on the managemnt interface
+ - support for more than one IP on the management interface
  - concurrent map access fix in ligato/vpp-agent
  
 ### New Features
- - option for simplfied IPAM config (`ContivCIDR`)
+ - option for simplified IPAM config (`ContivCIDR`)
  - ability to define IPAM via CRD
  - cluster state validator
  - `netctl` command line tool

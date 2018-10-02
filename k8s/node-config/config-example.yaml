@@ -17,5 +17,5 @@ metadata:
   name: k8s-worker1
 spec:
   mainVPPInterface: 
-    interfaceName: "TenGigabitEthernet4/0/0""
+    interfaceName: "TenGigabitEthernet4/0/0"
     ip: "192.168.16.1/24"

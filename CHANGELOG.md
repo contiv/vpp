@@ -19,12 +19,15 @@
 ### Breaking Changes
  - due to new VPP version and some recent changes in the VPP NAT plugin, the following is the new default recommended VPP startup config for the NAT:
  ```
- nat {
-   endpoint-dependent
-   max translations per user 10000   
+nat {
+    endpoint-dependent
+    translation hash buckets 1048576
+    translation hash memory 268435456
+    user hash buckets 1024
+    max translations per user 10000
 }
  ```
-
+(for more details see [VPP NAT Documentation](https://wiki.fd.io/view/VPP/NAT#Startup_config).
 
 
 # Release v1.3.0 (18.9.2018)

@@ -394,6 +394,11 @@ To uninstall the network plugin itself, use `kubectl`:
 ```
 kubectl delete -f https://raw.githubusercontent.com/contiv/vpp/master/k8s/contiv-vpp.yaml
 ```
+In order to remove the persisted config, cleanup the bolt and etcd storage:
+```
+rm -rf /var/etcd/contiv-data
+rm -rf /var/bolt/bolt.db
+```
 
 ### Tearing down Kubernetes
 * First, drain the node and make sure that the node is empty before

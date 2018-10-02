@@ -1,0 +1,147 @@
+diff --git a/src/plugins/nat/in2out_ed.c b/src/plugins/nat/in2out_ed.c
+index adf0ff3..769cdec 100644
+--- a/src/plugins/nat/in2out_ed.c
++++ b/src/plugins/nat/in2out_ed.c
+@@ -256,7 +256,7 @@ slow_path_ed (snat_main_t * sm,
+ 	      snat_session_t ** sessionp,
+ 	      vlib_node_runtime_t * node, u32 next, u32 thread_index, f64 now)
+ {
+-  snat_session_t *s;
++  snat_session_t *s = 0;
+   snat_user_t *u;
+   snat_session_key_t key0, key1;
+   lb_nat_type_t lb = 0, is_sm = 0;
+@@ -302,7 +302,15 @@ slow_path_ed (snat_main_t * sm,
+ 	}
+     }
+   else
+-    is_sm = 1;
++    {
++      if (key0.as_u64 == key1.as_u64)
++        {
++          *sessionp = s;
++          return next;
++        }
++
++      is_sm = 1;
++    }
+ 
+   u = nat_user_get_or_create (sm, &key->l_addr, rx_fib_index, thread_index);
+   if (!u)
+@@ -607,6 +615,12 @@ icmp_match_in2out_ed (snat_main_t * sm, vlib_node_runtime_t * node,
+ 
+       if (PREDICT_FALSE (next == NAT_IN2OUT_ED_NEXT_DROP))
+ 	goto out;
++
++      if (!s)
++        {
++          dont_translate = 1;
++          goto out;
++        }
+     }
+   else
+     {
+@@ -1011,6 +1025,9 @@ nat44_ed_in2out_node_fn_inline (vlib_main_t * vm,
+ 
+ 		  if (PREDICT_FALSE (next0 == NAT_IN2OUT_ED_NEXT_DROP))
+ 		    goto trace00;
++
++                  if (PREDICT_FALSE (!s0))
++                    goto trace00;
+ 		}
+ 	      else
+ 		{
+@@ -1212,6 +1229,9 @@ nat44_ed_in2out_node_fn_inline (vlib_main_t * vm,
+ 
+ 		  if (PREDICT_FALSE (next1 == NAT_IN2OUT_ED_NEXT_DROP))
+ 		    goto trace01;
++
++                  if (PREDICT_FALSE (!s1))
++                    goto trace01;
+ 		}
+ 	      else
+ 		{
+@@ -1442,6 +1462,9 @@ nat44_ed_in2out_node_fn_inline (vlib_main_t * vm,
+ 
+ 		  if (PREDICT_FALSE (next0 == NAT_IN2OUT_ED_NEXT_DROP))
+ 		    goto trace0;
++
++                  if (PREDICT_FALSE (!s0))
++                    goto trace0;
+ 		}
+ 	      else
+ 		{
+@@ -1839,6 +1862,12 @@ nat44_ed_in2out_reass_node_fn_inline (vlib_main_t * vm,
+ 		  if (PREDICT_FALSE (next0 == NAT_IN2OUT_ED_NEXT_DROP))
+ 		    goto trace0;
+ 
++                  if (PREDICT_FALSE(!s0))
++                    {
++                      reass0->flags |= NAT_REASS_FLAG_ED_DONT_TRANSLATE;
++                      goto trace0;
++                    }
++
+ 		  reass0->sess_index = s0 - per_thread_data->sessions;
+ 		}
+ 	      else
+diff --git a/src/plugins/nat/out2in_ed.c b/src/plugins/nat/out2in_ed.c
+index dce6c56..b2dc597 100644
+--- a/src/plugins/nat/out2in_ed.c
++++ b/src/plugins/nat/out2in_ed.c
+@@ -533,6 +533,12 @@ icmp_match_out2in_ed (snat_main_t * sm, vlib_node_runtime_t * node,
+ 	  goto out;
+ 	}
+ 
++      if (PREDICT_FALSE(l_key.as_u64 == e_key.as_u64))
++        {
++          dont_translate = 1;
++          goto out;
++        }
++
+       /* Create session initiated by host from external network */
+       s = create_session_for_static_mapping_ed (sm, b, l_key, e_key, node,
+ 						thread_index, 0, 0,
+@@ -864,6 +870,9 @@ nat44_ed_out2in_node_fn_inline (vlib_main_t * vm,
+ 		      goto trace00;
+ 		    }
+ 
++                  if (PREDICT_FALSE(l_key0.as_u64 == e_key0.as_u64))
++                    goto trace00;
++
+ 		  /* Create session initiated by host from external network */
+ 		  s0 = create_session_for_static_mapping_ed (sm, b0, l_key0,
+ 							     e_key0, node,
+@@ -1082,6 +1091,9 @@ nat44_ed_out2in_node_fn_inline (vlib_main_t * vm,
+ 		      goto trace01;
+ 		    }
+ 
++                  if (PREDICT_FALSE(l_key1.as_u64 == e_key1.as_u64))
++                    goto trace01;
++
+ 		  /* Create session initiated by host from external network */
+ 		  s1 = create_session_for_static_mapping_ed (sm, b1, l_key1,
+ 							     e_key1, node,
+@@ -1333,6 +1345,9 @@ nat44_ed_out2in_node_fn_inline (vlib_main_t * vm,
+ 		      goto trace0;
+ 		    }
+ 
++                  if (PREDICT_FALSE(l_key0.as_u64 == e_key0.as_u64))
++                    goto trace0;
++
+ 		  /* Create session initiated by host from external network */
+ 		  s0 = create_session_for_static_mapping_ed (sm, b0, l_key0,
+ 							     e_key0, node,
+@@ -1674,6 +1689,12 @@ nat44_ed_out2in_reass_node_fn (vlib_main_t * vm,
+ 		      goto trace0;
+ 		    }
+ 
++                  if (PREDICT_FALSE(l_key0.as_u64 == e_key0.as_u64))
++                    {
++                      reass0->flags |= NAT_REASS_FLAG_ED_DONT_TRANSLATE;
++                      goto trace0;
++                    }
++
+ 		  /* Create session initiated by host from external network */
+ 		  s0 = create_session_for_static_mapping_ed (sm, b0, l_key0,
+ 							     e_key0, node,
+

@@ -630,7 +630,7 @@ func (rndr *Renderer) exportIdentityMappings() *nat.Nat44DNat_DNatConfig {
 		mainIfID := &nat.Nat44DNat_DNatConfig_IdentityMapping{
 			IpAddress: rndr.defaultIfIP.String(),
 			Protocol:  nat.Protocol_UDP, /* Address-only mappings are dumped with UDP as protocol */
-			VrfId:     rndr.Contiv.GetMainVrfID(),
+			VrfId:     rndr.Contiv.GetPodVrfID(),
 		}
 		idNat.IdMappings = append(idNat.IdMappings, vxlanID)
 		idNat.IdMappings = append(idNat.IdMappings, mainIfID)

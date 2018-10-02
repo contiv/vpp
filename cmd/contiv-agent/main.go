@@ -151,6 +151,7 @@ func main() {
 	vppRest := vpp_rest.NewPlugin(vpp_rest.UseDeps(func(deps *vpp_rest.Deps) {
 		deps.GoVppmux = &govppmux.DefaultPlugin
 		deps.VPP = vppPlugin
+		deps.Linux = linuxPlugin
 		deps.HTTPHandlers = &rest.DefaultPlugin
 	}))
 

@@ -1,4 +1,33 @@
-# Release v1.3 (18.9.2018)
+# Release v1.4.0 (future)
+
+### VPP
+ - version **18.10-rc0-505**
+
+### Bug Fixes
+ - support for more than one IP on the managemnt interface
+ - concurrent map access fix in ligato/vpp-agent
+ 
+### New Features
+ - option for simplfied IPAM config (`ContivCIDR`)
+ - ability to define IPAM via CRD
+ - cluster state validator
+ - `netctl` command line tool
+ 
+### Known Issues
+ - fragmentation issues in STN setup (STN is still experimental)
+
+### Breaking Changes
+ - due to new VPP version and some recent changes in the VPP NAT plugin, the following is the new default recommended VPP startup config for the NAT:
+ ```
+ nat {
+   endpoint-dependent
+   max translations per user 10000   
+}
+ ```
+
+
+
+# Release v1.3.0 (18.9.2018)
 
 ### VPP
  - version **18.04 stable** + Contiv bugfixes
@@ -11,7 +40,7 @@
 
 
 
-# Release v1.2 (5.9.2018)
+# Release v1.2.0 (5.9.2018)
 
 ### VPP
  - version **18.04 stable** + Contiv bugfixes
@@ -30,7 +59,7 @@
 
 
 
-# Release v1.1 (13.6.2018)
+# Release v1.1.0 (13.6.2018)
 
 ### VPP
  - version **18.01 stable** + Contiv bugfixes
@@ -51,7 +80,7 @@
 
 
 
-# Release v1.0 (18.5.2018)
+# Release v1.0.0 (18.5.2018)
 
 ### VPP
  - version **18.01 stable** + Contiv bugfixes

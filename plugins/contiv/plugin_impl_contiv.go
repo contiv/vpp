@@ -432,6 +432,7 @@ func (plugin *Plugin) loadExternalConfig() error {
 	}
 
 	plugin.Config = externalCfg
+	plugin.Log.Info("Contiv config: ", externalCfg)
 	plugin.Config.ApplyIPAMConfig()
 	plugin.Config.ApplyDefaults()
 

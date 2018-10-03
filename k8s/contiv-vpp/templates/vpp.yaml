@@ -70,19 +70,22 @@ data:
         InterfaceName: {{ .mainInterface.interfaceName }}
         {{- if .mainInterface.useDHCP }}
         UseDHCP: {{ .mainInterface.useDHCP }}
-        {{ else }}
+        {{- end -}}
+        {{- if .mainInterface.ip }}
         IP: {{ .mainInterface.ip }}
         {{- end -}}
       {{- if .natExternalTraffic }}
       NatExternalTraffic: {{ .natExternalTraffic }}
-      {{- end }} 
+      {{- end }}
+      {{- if .gateway }}
+      Gateway: {{ .gateway }}
+      {{- end -}}
       {{- if .otherInterfaces }}
       OtherVPPInterfaces:
       {{- range $iface := .otherInterfaces }}
         - InterfaceName: {{ $iface.interfaceName }}
           IP: {{ $iface.ip }}
       {{- end }}
-      Gateway: {{ .gateway }}
     {{- end }}
     {{- end }}
     {{- end }}
@@ -1026,6 +1029,8 @@ spec:
         env:
         - name: ETCD_CONFIG
           value: "/etc/etcd/etcd.conf"
+        - name: HTTP_CONFIG
+          value: "/etc/http/http.conf"
         volumeMounts:
         - name: etcd-cfg
           mountPath: /etc/etcd

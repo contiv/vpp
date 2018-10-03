@@ -199,6 +199,9 @@ dpdk {
 }
 nat {
    endpoint-dependent
+   translation hash buckets 1048576
+   translation hash memory 268435456
+   user hash buckets 1024
    max translations per user 10000
 }
 acl-plugin {
@@ -377,7 +380,7 @@ EOL
   if [ "#{crd_disabled}" = "false" ]; then
 
     # Deploy contiv-vpp networking with CRD
-    helm template --name vagrant -f "#{contiv_dir}"/k8s/contiv-vpp/crd-values/values-crd.yaml "#{contiv_dir}"/k8s/contiv-vpp > "#{contiv_dir}"/k8s/contiv-vpp/manifest.yaml
+    helm template --name vagrant --set vswitch.enableCoreDumps=true -f "#{contiv_dir}"/k8s/contiv-vpp/crd-values/values-crd.yaml "#{contiv_dir}"/k8s/contiv-vpp > "#{contiv_dir}"/k8s/contiv-vpp/manifest.yaml
     kubectl apply -f #{contiv_dir}/k8s/contiv-vpp/manifest.yaml
 
     # Wait until crd agent is ready
@@ -424,7 +427,7 @@ EOL
   else
     # Deploy contiv-vpp networking without CRD
     sed -i '/#serviceCIDR:/ r /tmp/nodeConfig.yaml' "#{contiv_dir}"/k8s/contiv-vpp/values.yaml
-    helm template --name vagrant -f "#{contiv_dir}"/k8s/contiv-vpp/values.yaml "#{contiv_dir}"/k8s/contiv-vpp > "#{contiv_dir}"/k8s/contiv-vpp/manifest.yaml
+    helm template --name vagrant --set vswitch.enableCoreDumps=true -f "#{contiv_dir}"/k8s/contiv-vpp/values.yaml "#{contiv_dir}"/k8s/contiv-vpp > "#{contiv_dir}"/k8s/contiv-vpp/manifest.yaml
     kubectl apply -f #{contiv_dir}/k8s/contiv-vpp/manifest.yaml
   fi
 

@@ -373,7 +373,7 @@ func (v *Validator) validateDefaultRoutes(node *telemetrymodel.Node, vrfMap VrfM
 	if err != nil {
 		numErrs++
 		errString := fmt.Sprintf("failed to validate route %s VRF%d - "+
-			"local GigE interface lookup match error %s", "0.0.0.0/0", 0, err)
+			"local GigE interface not found (error '%s')", "0.0.0.0/0", 0, err)
 		v.Report.AppendToNodeReport(node.Name, errString)
 		return numErrs
 	}

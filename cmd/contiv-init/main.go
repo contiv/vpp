@@ -36,22 +36,31 @@ import (
 
 	"github.com/contiv/vpp/cmd/contiv-stn/model/stn"
 	"github.com/contiv/vpp/plugins/contiv"
+	"github.com/ligato/cn-infra/config"
+	"github.com/ligato/cn-infra/db/keyval"
+	"github.com/ligato/cn-infra/db/keyval/bolt"
+	"github.com/ligato/cn-infra/db/keyval/etcd"
+	"github.com/ligato/cn-infra/db/keyval/kvproto"
 )
 
 const (
 	defaultContivCfgFile    = "/etc/agent/contiv.yaml"
 	defaultEtcdCfgFile      = "/etc/etcd/etcd.conf"
+	defaultBoltCfgFile      = "/etc/agent/bolt.conf"
 	defaultSupervisorSocket = "/run/supervisor.sock"
 	defaultStnServerSocket  = "/var/run/contiv/stn.sock"
 	defaultCNISocketFile    = "/var/run/contiv/cni.sock"
 
 	vppProcessName         = "vpp"
 	contivAgentProcessName = "contiv-agent"
+
+	etcdConnectionRetries = 20 // number of retries to connect to ETCD once STN is configured
 )
 
 var (
 	contivCfgFile    = flag.String("contiv-config", defaultContivCfgFile, "location of the contiv-agent config file")
 	etcdCfgFile      = flag.String("etcd-config", defaultEtcdCfgFile, "location of the ETCD config file")
+	boltCfgFile      = flag.String("bolt-config", defaultBoltCfgFile, "location of the Bolt config file")
 	supervisorSocket = flag.String("supervisor-socket", defaultSupervisorSocket, "management API socket file of the supervisor process")
 	stnServerSocket  = flag.String("stn-server-socket", defaultStnServerSocket, "socket file where STN GRPC server listens for connections")
 )
@@ -149,29 +158,23 @@ func parseSTNConfig() (config *contiv.Config, nicToSteal string, useDHCP bool, e
 		logger.Errorf("Error by unmarshalling YAML: %v", err)
 		return
 	}
-	if config.TAPInterfaceVersion == 0 {
-		config.TAPInterfaceVersion = 2 // default
-	}
+	config.ApplyDefaults()
 
-	// try to find node config and return STN interface name if found
+	// DHCP global config may be overwritten by node configuration
+	useDHCP = config.IPAMConfig.NodeInterconnectDHCP
+
+	// try to find node config and return STN interface name if defined
 	nodeName := os.Getenv(servicelabel.MicroserviceLabelEnvVar)
-	logger.Debugf("Looking for node '%s' specific config", nodeName)
-
-	if config.IPAMConfig.NodeInterconnectDHCP == true {
-		useDHCP = true
-	}
-
-	// look for node-specific config first
-	for _, nc := range config.NodeConfig {
-		if nc.NodeName == nodeName {
-			nicToSteal = nc.StealInterface
-			if nicToSteal != "" {
-				logger.Debugf("Found interface to be stolen: %s", nc.StealInterface)
-				if nc.MainVPPInterface.UseDHCP == true {
-					useDHCP = true
-				}
-			}
-			break
+	logger.Debugf("Looking for node '%s' specific config in ETCD/Bolt", nodeName)
+	if nc := loadNodeConfigFromCRD(nodeName); nc != nil {
+		// node configuration defined via CRD
+		nicToSteal, useDHCP = processNodeSpecificConfig(nc)
+	} else {
+		// node configuration not defined via CRD => search for node specific config inside
+		// the configuration file
+		logger.Debugf("Looking for node '%s' specific config inside the configuration file", nodeName)
+		if nc := config.GetNodeConfig(nodeName); nc != nil {
+			nicToSteal, useDHCP = processNodeSpecificConfig(nc)
 		}
 	}
 
@@ -193,6 +196,35 @@ func parseSTNConfig() (config *contiv.Config, nicToSteal string, useDHCP bool, e
 	return
 }
 
+// processNodeSpecificConfig processes STN-relevant attributes from node-specific
+// configuration section.
+func processNodeSpecificConfig(nodeConfig *contiv.NodeConfig) (nicToSteal string, useDHCP bool) {
+	nicToSteal = nodeConfig.StealInterface
+	if nicToSteal != "" {
+		logger.Debugf("Found interface to be stolen: %s", nodeConfig.StealInterface)
+		if nodeConfig.MainVPPInterface.UseDHCP == true {
+			useDHCP = true
+		}
+	}
+	return
+}
+
+// loadNodeConfigFromCRD loads node configuration defined via CRD, which was reflected
+// into a remote kv-store by contiv-crd and possibly mirrored into local kv-store by contiv-agent.
+func loadNodeConfigFromCRD(nodeName string) (nodeConfig *contiv.NodeConfig) {
+	// try to connect to ETCD db
+	etcdDB, err := etcdConnect()
+	if err == nil {
+		defer etcdDB.Close()
+	}
+	// try to open local Bolt db
+	boltDB, err := boltOpen()
+	if err == nil {
+		defer boltDB.Close()
+	}
+	return contiv.LoadNodeConfigFromCRD(nodeName, etcdDB, boltDB, logger)
+}
+
 // getFirstInterfaceName returns the name of the first non-virtual Linux interface
 func getFirstInterfaceName() string {
 	// list existing links
@@ -211,6 +243,66 @@ func getFirstInterfaceName() string {
 		}
 	}
 	return ""
+}
+
+// etcdConnect connects to ETCD db.
+func etcdConnect() (protoDb *kvproto.ProtoWrapper, err error) {
+	etcdConfig := &etcd.Config{}
+
+	// parse ETCD config file
+	err = config.ParseConfigFromYamlFile(*etcdCfgFile, etcdConfig)
+	if err != nil {
+		logger.Errorf("Error by parsing config YAML file: %v", err)
+		return nil, err
+	}
+
+	// prepare ETCD config
+	etcdCfg, err := etcd.ConfigToClient(etcdConfig)
+	if err != nil {
+		logger.Errorf("Error by constructing ETCD config: %v", err)
+		return nil, err
+	}
+
+	// connect in retry loop
+	var conn *etcd.BytesConnectionEtcd
+	for i := 0; i < etcdConnectionRetries; i++ {
+		conn, err = etcd.NewEtcdConnectionWithBytes(*etcdCfg, logger)
+		if err != nil {
+			if i == etcdConnectionRetries-1 {
+				logger.Errorf("Error by connecting to ETCD: %v", err)
+				return nil, err
+			}
+			logger.Debugf("ETCD connection retry n. %d", i+1)
+		} else {
+			// connected
+			break
+		}
+	}
+
+	protoDb = kvproto.NewProtoWrapper(conn, &keyval.SerializerJSON{})
+	return protoDb, nil
+}
+
+// boltOpen opens local Bolt db.
+func boltOpen() (protoDb *kvproto.ProtoWrapper, err error) {
+	boltConfig := &bolt.Config{}
+
+	// parse Bolt config file
+	err = config.ParseConfigFromYamlFile(*boltCfgFile, boltConfig)
+	if err != nil {
+		logger.Errorf("Error by parsing config YAML file: %v", err)
+		return nil, err
+	}
+
+	// create bolt client
+	client, err := bolt.NewClient(boltConfig)
+	if err != nil {
+		logger.Errorf("Error by creating Bolt client: %v", err)
+		return nil, err
+	}
+
+	protoDb = kvproto.NewProtoWrapper(client, &keyval.SerializerJSON{})
+	return protoDb, nil
 }
 
 func main() {

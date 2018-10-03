@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+//go:generate protoc -I ./model --go_out=plugins=grpc:./model ./model/crd.proto
+
 package crd
 
 import (
@@ -21,6 +23,8 @@ import (
 
 	"github.com/contiv/vpp/plugins/crd/api"
 	"github.com/contiv/vpp/plugins/crd/cache"
+	"github.com/contiv/vpp/plugins/crd/controller/nodeconfig"
+	"github.com/contiv/vpp/plugins/crd/controller/telemetry"
 	"github.com/contiv/vpp/plugins/crd/validator"
 	"github.com/ligato/cn-infra/config"
 	"github.com/ligato/cn-infra/datasync"
@@ -31,8 +35,6 @@ import (
 	"github.com/ligato/cn-infra/utils/safeclose"
 
 	nodeinfomodel "github.com/contiv/vpp/plugins/contiv/model/node"
-	"github.com/contiv/vpp/plugins/crd/controller/nodeconfig"
-	"github.com/contiv/vpp/plugins/crd/controller/telemetry"
 	crdClientSet "github.com/contiv/vpp/plugins/crd/pkg/client/clientset/versioned"
 	nodemodel "github.com/contiv/vpp/plugins/ksr/model/node"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
@@ -180,6 +182,7 @@ func (p *Plugin) AfterInit() error {
 	}
 	go p.telemetryController.Run(p.ctx.Done())
 	go p.nodeConfigController.Run(p.ctx.Done())
+
 	return nil
 }
 

@@ -32,6 +32,7 @@ import (
 	"github.com/contiv/vpp/plugins/contiv/containeridx"
 	"github.com/contiv/vpp/plugins/contiv/model/cni"
 	"github.com/contiv/vpp/plugins/contiv/model/node"
+	nodeconfig "github.com/contiv/vpp/plugins/crd/pkg/apis/nodeconfig/v1"
 	"github.com/contiv/vpp/plugins/kvdbproxy"
 	"github.com/gogo/protobuf/proto"
 
@@ -91,30 +92,34 @@ var (
 			VxlanCIDR:               "192.168.30.0/24",
 		},
 	}
-	nodeConfig = OneNodeConfig{
+	nodeConfig = NodeConfig{
 		NodeName: "test-node",
-		Gateway:  "192.168.1.100",
-		MainVPPInterface: InterfaceWithIP{
-			InterfaceName: "GigabitEthernet0/0/0/1",
-			IP:            "192.168.1.1/24",
-		},
-		OtherVPPInterfaces: []InterfaceWithIP{
-			{
-				InterfaceName: "GigabitEthernet0/0/0/10",
-				IP:            "192.168.1.10/24",
+		NodeConfigSpec: nodeconfig.NodeConfigSpec{
+			Gateway: "192.168.1.100",
+			MainVPPInterface: nodeconfig.InterfaceConfig{
+				InterfaceName: "GigabitEthernet0/0/0/1",
+				IP:            "192.168.1.1/24",
+			},
+			OtherVPPInterfaces: []nodeconfig.InterfaceConfig{
+				{
+					InterfaceName: "GigabitEthernet0/0/0/10",
+					IP:            "192.168.1.10/24",
+				},
 			},
 		},
 	}
-	nodeDHCPConfig = OneNodeConfig{
+	nodeDHCPConfig = NodeConfig{
 		NodeName: "test-node",
-		MainVPPInterface: InterfaceWithIP{
-			InterfaceName: "GigabitEthernet0/0/0/1",
-			UseDHCP:       true,
-		},
-		OtherVPPInterfaces: []InterfaceWithIP{
-			{
-				InterfaceName: "GigabitEthernet0/0/0/10",
-				IP:            "192.168.1.10/24",
+		NodeConfigSpec: nodeconfig.NodeConfigSpec{
+			MainVPPInterface: nodeconfig.InterfaceConfig{
+				InterfaceName: "GigabitEthernet0/0/0/1",
+				UseDHCP:       true,
+			},
+			OtherVPPInterfaces: []nodeconfig.InterfaceConfig{
+				{
+					InterfaceName: "GigabitEthernet0/0/0/10",
+					IP:            "192.168.1.10/24",
+				},
 			},
 		},
 	}
@@ -132,7 +137,7 @@ var (
 	}
 )
 
-func setupTestCNIServer(config *Config, nodeConfig *OneNodeConfig, existingInterfaces ...string) (*remoteCNIserver, *localclient.TxnTracker, *containeridx.ConfigIndex, *govpp.Connection) {
+func setupTestCNIServer(config *Config, nodeConfig *NodeConfig, existingInterfaces ...string) (*remoteCNIserver, *localclient.TxnTracker, *containeridx.ConfigIndex, *govpp.Connection) {
 	swIfIdx := swIfIndexMock()
 	// add existing interfaces into swIfIndex
 	for i, intf := range existingInterfaces {

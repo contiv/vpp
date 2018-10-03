@@ -24,7 +24,7 @@ CLEANUP="false"
 
 # list of images we are tagging & pushing
 IMAGES=()
-IMAGES_VPP=("cni" "ksr" "stn" "vswitch")
+IMAGES_VPP=("cni" "ksr" "stn" "crd" "vswitch")
 IMAGES_BIN=("vpp-binaries")
 
 IMAGEARCH=""

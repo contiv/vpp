@@ -26,13 +26,16 @@ import (
 
 	"git.fd.io/govpp.git/api"
 	"github.com/apparentlymart/go-cidr/cidr"
+
+	nodeconfig "github.com/contiv/vpp/plugins/crd/handler/nodeconfig/model"
+	protoNode "github.com/contiv/vpp/plugins/ksr/model/node"
+
 	"github.com/contiv/vpp/plugins/contiv/containeridx"
 	"github.com/contiv/vpp/plugins/contiv/containeridx/model"
-	"github.com/contiv/vpp/plugins/contiv/ipam"
 	"github.com/contiv/vpp/plugins/contiv/model/cni"
 	"github.com/contiv/vpp/plugins/contiv/model/node"
-	protoNode "github.com/contiv/vpp/plugins/ksr/model/node"
 	"github.com/contiv/vpp/plugins/kvdbproxy"
+
 	"github.com/ligato/cn-infra/datasync"
 	"github.com/ligato/cn-infra/datasync/resync"
 	"github.com/ligato/cn-infra/db/keyval"
@@ -43,11 +46,15 @@ import (
 	"github.com/ligato/cn-infra/rpc/rest"
 	"github.com/ligato/cn-infra/servicelabel"
 	"github.com/ligato/cn-infra/utils/safeclose"
+
 	"github.com/ligato/vpp-agent/clientv1/linux"
 	linuxlocalclient "github.com/ligato/vpp-agent/clientv1/linux/localclient"
 	"github.com/ligato/vpp-agent/plugins/govppmux"
 	"github.com/ligato/vpp-agent/plugins/vpp"
 )
+
+// MgmtIPSeparator is a delimiter inserted between management IPs in nodeInfo structure
+const MgmtIPSeparator = ","
 
 // Plugin represents the instance of the Contiv network plugin, that transforms CNI requests received over
 // GRPC into configuration for the vswitch VPP in order to connect/disconnect a container into/from the network.
@@ -62,15 +69,20 @@ type Plugin struct {
 	nodeIDsresyncChan chan datasync.ResyncEvent
 	nodeIDSchangeChan chan datasync.ChangeEvent
 	nodeIDwatchReg    datasync.WatchRegistration
-	watchReg          datasync.WatchRegistration
-	resyncCh          chan datasync.ResyncEvent
-	changeCh          chan datasync.ChangeEvent
+
+	nodeConfigResyncChan chan datasync.ResyncEvent
+	nodeConfigChangeChan chan datasync.ChangeEvent
+	nodeConfigWatchReg   datasync.WatchRegistration
+
+	watchReg datasync.WatchRegistration
+	resyncCh chan datasync.ResyncEvent
+	changeCh chan datasync.ChangeEvent
 
 	ctx           context.Context
 	ctxCancelFunc context.CancelFunc
 
 	Config        *Config
-	myNodeConfig  *OneNodeConfig
+	myNodeConfig  *NodeConfig
 	nodeIPWatcher chan string
 }
 
@@ -89,56 +101,6 @@ type Deps struct {
 	HTTPHandlers rest.HTTPHandlers
 }
 
-// MgmtIPSeparator is a delimiter inserted between management IPs in nodeInfo structure
-const MgmtIPSeparator = ","
-
-// Config represents configuration for the Contiv plugin.
-// It can be injected or loaded from external config file. Injection has priority to external config. To use external
-// config file, add `-contiv-config="<path to config>` argument when running the contiv-agent.
-type Config struct {
-	TCPChecksumOffloadDisabled  bool
-	TCPstackDisabled            bool
-	UseL2Interconnect           bool
-	UseTAPInterfaces            bool
-	TAPInterfaceVersion         uint8
-	TAPv2RxRingSize             uint16
-	TAPv2TxRingSize             uint16
-	MTUSize                     uint32
-	StealFirstNIC               bool
-	StealInterface              string
-	STNSocketFile               string
-	NatExternalTraffic          bool   // if enabled, traffic with cluster-outside destination is SNATed on node output (for all nodes)
-	CleanupIdleNATSessions      bool   // if enabled, the agent will periodically check for idle NAT sessions and delete inactive ones
-	TCPNATSessionTimeout        uint32 // NAT session timeout (in minutes) for TCP connections, used in case that CleanupIdleNATSessions is turned on
-	OtherNATSessionTimeout      uint32 // NAT session timeout (in minutes) for non-TCP connections, used in case that CleanupIdleNATSessions is turned on
-	ScanIPNeighbors             bool   // if enabled, periodically scans and probes IP neighbors to maintain the ARP table
-	IPNeighborScanInterval      uint8
-	IPNeighborStaleThreshold    uint8
-	MainVRFID                   uint32
-	PodVRFID                    uint32
-	ServiceLocalEndpointWeight  uint8
-	DisableNATVirtualReassembly bool // if true, NAT plugin will drop fragmented packets
-	IPAMConfig                  ipam.Config
-	NodeConfig                  []OneNodeConfig
-}
-
-// OneNodeConfig represents configuration for one node. It contains only settings specific to given node.
-type OneNodeConfig struct {
-	NodeName           string            // name of the node, should match withs the hostname
-	MainVPPInterface   InterfaceWithIP   // main VPP interface used for the inter-node connectivity
-	OtherVPPInterfaces []InterfaceWithIP // other interfaces on VPP, not necessarily used for inter-node connectivity
-	StealInterface     string            // interface to be stolen from the host stack and bound to VPP
-	Gateway            string            // IP address of the default gateway
-	NatExternalTraffic bool              // if enabled, traffic with cluster-outside destination is SNATed on node output
-}
-
-// InterfaceWithIP binds interface name with IP address for configuration purposes.
-type InterfaceWithIP struct {
-	InterfaceName string
-	IP            string
-	UseDHCP       bool
-}
-
 // Init initializes the Contiv plugin. Called automatically by plugin infra upon contiv-agent startup.
 func (plugin *Plugin) Init() error {
 	// init map with configured containers
@@ -151,7 +113,7 @@ func (plugin *Plugin) Init() error {
 		if err := plugin.loadExternalConfig(); err != nil {
 			return err
 		}
-		plugin.myNodeConfig = plugin.loadNodeSpecificConfig()
+		plugin.myNodeConfig = plugin.loadNodeConfig()
 	}
 
 	var err error
@@ -174,15 +136,27 @@ func (plugin *Plugin) Init() error {
 
 	plugin.nodeIDsresyncChan = make(chan datasync.ResyncEvent)
 	plugin.nodeIDSchangeChan = make(chan datasync.ChangeEvent)
+
+	plugin.nodeConfigResyncChan = make(chan datasync.ResyncEvent)
+	plugin.nodeConfigChangeChan = make(chan datasync.ChangeEvent)
+
 	plugin.resyncCh = make(chan datasync.ResyncEvent)
 	plugin.changeCh = make(chan datasync.ChangeEvent)
 
-	plugin.nodeIDwatchReg, err = plugin.Watcher.Watch("contiv-plugin-ids", plugin.nodeIDSchangeChan, plugin.nodeIDsresyncChan, node.AllocatedIDsKeyPrefix)
+	plugin.nodeIDwatchReg, err = plugin.Watcher.Watch("contiv-plugin-ids",
+		plugin.nodeIDSchangeChan, plugin.nodeIDsresyncChan, node.AllocatedIDsKeyPrefix)
 	if err != nil {
 		return err
 	}
 
-	plugin.watchReg, err = plugin.Watcher.Watch("contiv-plugin-node", plugin.changeCh, plugin.resyncCh, protoNode.KeyPrefix())
+	plugin.nodeConfigWatchReg, err = plugin.Watcher.Watch("contiv-plugin-node-config",
+		plugin.nodeConfigChangeChan, plugin.nodeConfigResyncChan, nodeconfig.Key(plugin.ServiceLabel.GetAgentLabel()))
+	if err != nil {
+		return err
+	}
+
+	plugin.watchReg, err = plugin.Watcher.Watch("contiv-plugin-node",
+		plugin.changeCh, plugin.resyncCh, protoNode.KeyPrefix())
 	if err != nil {
 		return err
 	}
@@ -216,6 +190,9 @@ func (plugin *Plugin) Init() error {
 	// start goroutine handling changes in nodes within the k8s cluster
 	go plugin.cniServer.handleNodeEvents(plugin.ctx, plugin.nodeIDsresyncChan, plugin.nodeIDSchangeChan)
 
+	// start goroutine handling changes in the configuration specific to this node
+	go plugin.cniServer.handleNodeConfigEvents(plugin.ctx, plugin.nodeConfigResyncChan, plugin.nodeConfigChangeChan)
+
 	return nil
 }
 
@@ -235,7 +212,7 @@ func (plugin *Plugin) Close() error {
 	plugin.ctxCancelFunc()
 	plugin.cniServer.close()
 	//plugin.nodeIDAllocator.releaseID()
-	_, err := safeclose.CloseAll(plugin.govppCh, plugin.nodeIDwatchReg, plugin.watchReg)
+	_, err := safeclose.CloseAll(plugin.govppCh, plugin.nodeIDwatchReg, plugin.nodeConfigWatchReg, plugin.watchReg)
 	return err
 }
 
@@ -453,29 +430,26 @@ func (plugin *Plugin) loadExternalConfig() error {
 	if !found {
 		return fmt.Errorf("External Contiv plugin configuration was not found")
 	}
+
 	plugin.Config = externalCfg
-
-	// use tap version 2 as default in case that TAPs are enabled
-	if plugin.Config.TAPInterfaceVersion == 0 {
-		plugin.Config.TAPInterfaceVersion = 2
-	}
-
-	// By default connections are equally distributed between service endpoints.
-	if plugin.Config.ServiceLocalEndpointWeight == 0 {
-		plugin.Config.ServiceLocalEndpointWeight = 1
-	}
+	plugin.Log.Info("Contiv config: ", externalCfg)
+	plugin.Config.ApplyIPAMConfig()
+	plugin.Config.ApplyDefaults()
 
 	return nil
 }
 
-// loadNodeSpecificConfig loads config specific for this node (given by its agent label).
-func (plugin *Plugin) loadNodeSpecificConfig() *OneNodeConfig {
-	for _, oneNodeConfig := range plugin.Config.NodeConfig {
-		if oneNodeConfig.NodeName == plugin.ServiceLabel.GetAgentLabel() {
-			return &oneNodeConfig
-		}
+// loadNodeConfig loads config specific for this node (given by its agent label).
+func (plugin *Plugin) loadNodeConfig() *NodeConfig {
+	myNodeName := plugin.ServiceLabel.GetAgentLabel()
+	// first try to get node config from CRD, reflected by contiv-crd into etcd
+	// and mirrored into Bolt by us
+	nodeConfig := LoadNodeConfigFromCRD(myNodeName, plugin.ETCD, plugin.Bolt, plugin.Log)
+	if nodeConfig != nil {
+		return nodeConfig
 	}
-	return nil
+	// try to find the node-specific configuration inside the config file
+	return plugin.Config.GetNodeConfig(myNodeName)
 }
 
 // getContainerConfig returns the configuration of the container associated with the given POD name.

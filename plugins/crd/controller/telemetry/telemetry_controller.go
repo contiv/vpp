@@ -21,7 +21,6 @@ import (
 
 	"k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
-	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/util/workqueue"
 
 	apiextv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
@@ -57,8 +56,7 @@ type Controller struct {
 	CrdClient *crdClientSet.Clientset
 	APIClient *apiextcs.Clientset
 
-	clientset kubernetes.Interface
-	queue     workqueue.RateLimitingInterface
+	queue workqueue.RateLimitingInterface
 	// Telemetry CRD specifics
 	telemetryInformer     informers.TelemetryReportInformer
 	telemetryReportLister listers.TelemetryReportLister
@@ -104,7 +102,7 @@ func (c *Controller) Init() error {
 		crdName)
 
 	if err != nil {
-		c.Log.Error("Error initializing CRD")
+		c.Log.Errorf("Error initializing CRD: %v", err)
 		return err
 	}
 

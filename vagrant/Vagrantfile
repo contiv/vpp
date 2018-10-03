@@ -326,7 +326,7 @@ source /home/vagrant/.profile
 # Initialize Kubernetes master
 split_k8s_version="$(cut -d "." -f 2 <<< '#{k8s_version}')"
 if [ $split_k8s_version = '11' ]; then
-  sed -i '1s/.*/KUBELET_EXTRA_ARGS=--node-ip='"$KUBE_MASTER_IP"' --feature-gates HugePages=false --resolv-conf=\/run\/systemd\/resolve\/resolv.conf/' /etc/default/kubelet
+  sed -i '1s/.*/KUBELET_EXTRA_ARGS=--node-ip='"$KUBE_MASTER_IP"' --feature-gates HugePages=false --resolv-conf=\\/run\\/systemd\\/resolve\\/resolv.conf/' /etc/default/kubelet
   systemctl daemon-reload
   systemctl restart kubelet
   echo "$(kubeadm init --token-ttl 0 --kubernetes-version=v"#{k8s_version}" --pod-network-cidr="10.0.0.0/8" --apiserver-advertise-address="${KUBE_MASTER_IP}" --token="${KUBEADM_TOKEN}")" >> /vagrant/config/cert
@@ -478,7 +478,7 @@ fi
 # Join the kubernetes cluster
 split_k8s_version="$(cut -d "." -f 2 <<< "'#{k8s_version}'")"
 if [ $split_k8s_version = '11' ]; then
-  sed -i '1s/.*/KUBELET_EXTRA_ARGS=--node-ip='"$KUBE_WORKER_IP"' --feature-gates HugePages=false/' /etc/default/kubelet
+  sed -i '1s/.*/KUBELET_EXTRA_ARGS=--resolv-conf=\\/run\\/systemd\\/resolve\\/resolv.conf --node-ip='"$KUBE_WORKER_IP"' --feature-gates HugePages=false/' /etc/default/kubelet
   systemctl daemon-reload
   systemctl restart kubelet
 else

@@ -5,12 +5,13 @@ ENV CGO_ENABLED=0
 
 COPY . /go/src/github.com/contiv/vpp
 
-WORKDIR /go/src/github.com/contiv/vpp/cmd/contiv-crd
+WORKDIR /go/src/github.com/contiv/vpp
 
-RUN go build -ldflags '-s -w' -o /crd main.go
+RUN make contiv-crd && make contiv-netctl
 
 FROM scratch
 
-COPY --from=builder /crd /crd
+COPY --from=builder /go/src/github.com/contiv/vpp/cmd/contiv-crd/contiv-crd /contiv-crd
+COPY --from=builder /go/src/github.com/contiv/vpp/cmd/contiv-netctl/contiv-netctl /contiv-netctl
 
-ENTRYPOINT ["/crd"]
+ENTRYPOINT ["/contiv-crd"]

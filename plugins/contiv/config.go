@@ -174,7 +174,7 @@ func LoadNodeConfigFromCRD(nodeName string, remoteDB, localDB KVBrokerFactory, l
 	}
 
 	nodeConfig := nodeConfigFromProto(nodeConfigProto)
-	log.Debug("Node configuration loaded from CRD")
+	log.Debug("Node configuration loaded from CRD: %v", nodeConfig)
 	return nodeConfig
 }
 

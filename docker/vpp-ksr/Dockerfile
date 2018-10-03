@@ -5,12 +5,12 @@ ENV CGO_ENABLED=0
 
 COPY . /go/src/github.com/contiv/vpp
 
-WORKDIR /go/src/github.com/contiv/vpp/cmd/contiv-ksr
+WORKDIR /go/src/github.com/contiv/vpp
 
-RUN go build -ldflags '-s -w' -o /ksr main.go
+RUN make contiv-ksr
 
 FROM scratch
 
-COPY --from=builder /ksr /ksr
+COPY --from=builder /go/src/github.com/contiv/vpp/cmd/contiv-ksr/contiv-ksr /contiv-ksr
 
-ENTRYPOINT ["/ksr"]
+ENTRYPOINT ["/contiv-ksr"]

@@ -399,7 +399,7 @@ metadata:
 spec:
   mainVPPInterface:
     interfaceName: "GigabitEthernet0/8/0"
-    gateway: "10.2.1.254"
+  gateway: "10.2.1.254"
 ---
 EOL
     counter=1;
@@ -414,7 +414,7 @@ metadata:
 spec:
   mainVPPInterface:
     interfaceName: "GigabitEthernet0/8/0"
-    gateway: "10.2.1.254"
+  gateway: "10.2.1.254"
 
 ---
 EOL

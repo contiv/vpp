@@ -70,19 +70,22 @@ data:
         InterfaceName: {{ .mainInterface.interfaceName }}
         {{- if .mainInterface.useDHCP }}
         UseDHCP: {{ .mainInterface.useDHCP }}
-        {{ else }}
+        {{- end -}}
+        {{- if .mainInterface.ip }}
         IP: {{ .mainInterface.ip }}
         {{- end -}}
       {{- if .natExternalTraffic }}
       NatExternalTraffic: {{ .natExternalTraffic }}
-      {{- end }} 
+      {{- end }}
+      {{- if .gateway }}
+      Gateway: {{ .gateway }}
+      {{- end -}}
       {{- if .otherInterfaces }}
       OtherVPPInterfaces:
       {{- range $iface := .otherInterfaces }}
         - InterfaceName: {{ $iface.interfaceName }}
           IP: {{ $iface.ip }}
       {{- end }}
-      Gateway: {{ .gateway }}
     {{- end }}
     {{- end }}
     {{- end }}
@@ -473,11 +476,23 @@ spec:
         - -c
         - |
           set -eu
+        {{- if .Values.etcd.secureTransport }}
+          until /usr/local/bin/etcdctl --endpoints=127.0.0.1:$ETCDPORT get "/vnf-agent/contiv-ksr/k8s/nodeconfig/$HOSTNAME" --prefix=true \
+          --cert=/var/contiv/etcd-secrets/{{ .Values.etcd.secrets.clientCert }} --key=/var/contiv/etcd-secrets/{{ .Values.etcd.secrets.clientKey }} --cacert=/var/contiv/etcd-secrets/{{ .Values.etcd.secrets.caCert }}| grep -m 1 "$HOSTNAME";
+        {{- else }}
           until /usr/local/bin/etcdctl --endpoints=127.0.0.1:$ETCDPORT get "/vnf-agent/contiv-ksr/k8s/nodeconfig/$HOSTNAME" --prefix=true | grep -m 1 "$HOSTNAME";
+        {{- end }}
           do
             echo waiting for crd node config;
             sleep 1
           done
+        {{- if .Values.etcd.secureTransport }}
+        volumeMounts:
+        - name: etcd-secrets
+          mountPath: /var/contiv/etcd-secrets
+          readOnly: true
+        {{- end }}
+
       {{- end }}
       # This init container extracts/copies VPP LD_PRELOAD libs and default VPP config to the host.
       - name: vpp-init
@@ -1014,6 +1029,8 @@ spec:
         env:
         - name: ETCD_CONFIG
           value: "/etc/etcd/etcd.conf"
+        - name: HTTP_CONFIG
+          value: "/etc/http/http.conf"
         volumeMounts:
         - name: etcd-cfg
           mountPath: /etc/etcd
@@ -1029,34 +1046,34 @@ spec:
           mountPath: /var/http
           readOnly: true
         {{- end }}
-      readinessProbe:
-        httpGet:
-          path: /readiness
-          port: 9090
-          {{- if .Values.http.enableServerCert }}
-          scheme: HTTPS
-          {{- end }}
-          {{- if .Values.http.enableBasicAuth }}
-          httpHeaders:
-            - name: Authorization
-              value: "Basic {{ .Values.http.basicAuth | b64enc }}"
-          {{- end }}
-        periodSeconds: 1
-        initialDelaySeconds: 10
-      livenessProbe:
-        httpGet:
-          path: /liveness
-          port: 9090
-          {{- if .Values.http.enableServerCert }}
-          scheme: HTTPS
-          {{- end }}
-          {{- if .Values.http.enableBasicAuth }}
-          httpHeaders:
-            - name: Authorization
-              value: "Basic {{ .Values.http.basicAuth | b64enc }}"
-          {{- end }}
-        periodSeconds: 1
-        initialDelaySeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /readiness
+            port: 9090
+            {{- if .Values.http.enableServerCert }}
+            scheme: HTTPS
+            {{- end }}
+            {{- if .Values.http.enableBasicAuth }}
+            httpHeaders:
+              - name: Authorization
+                value: "Basic {{ .Values.http.basicAuth | b64enc }}"
+            {{- end }}
+          periodSeconds: 1
+          initialDelaySeconds: 10
+        livenessProbe:
+          httpGet:
+            path: /liveness
+            port: 9090
+            {{- if .Values.http.enableServerCert }}
+            scheme: HTTPS
+            {{- end }}
+            {{- if .Values.http.enableBasicAuth }}
+            httpHeaders:
+              - name: Authorization
+                value: "Basic {{ .Values.http.basicAuth | b64enc }}"
+            {{- end }}
+          periodSeconds: 1
+          initialDelaySeconds: 30
       volumes:
         # Used to connect to contiv-etcd.
         - name: etcd-cfg

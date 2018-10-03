@@ -83,7 +83,7 @@ vswitch:
   memoryLimit: 1024Mi
   updateStrategy: RollingUpdate
   cpuLimit: 0
-  enableCoreDumps: false
+  enableCoreDumps: true
   coreDumpsDir: /var/contiv/dumps
 
 cni:

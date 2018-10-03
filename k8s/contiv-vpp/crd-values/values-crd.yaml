@@ -15,7 +15,7 @@ contiv:
   disableNATVirtualReassembly: False
   crdNodeConfigurationDisabled: False
   ipamConfig:
-    contivCIDR: 10.0.0.0/14
+    contivCIDR: 10.128.0.0/14
     nodeInterconnectDHCP: false
     #serviceCIDR: "10.96.0.0/12"
   # example of node configuration for VPP interfaces

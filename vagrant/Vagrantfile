@@ -377,6 +377,10 @@ EOL
     #----TODO----
   fi
 
+  if [ "#{image_tag}" != "latest" ]; then
+    sed -i -e "s/latest/#{image_tag}/" #{contiv_dir}/k8s/contiv-vpp/Chart.yaml
+  fi
+
   if [ "#{crd_disabled}" = "false" ]; then
 
     # Deploy contiv-vpp networking with CRD
@@ -429,11 +433,6 @@ EOL
     sed -i '/#serviceCIDR:/ r /tmp/nodeConfig.yaml' "#{contiv_dir}"/k8s/contiv-vpp/values.yaml
     helm template --name vagrant "#{contiv_dir}"/k8s/contiv-vpp > "#{contiv_dir}"/k8s/contiv-vpp/manifest.yaml
     kubectl apply -f #{contiv_dir}/k8s/contiv-vpp/manifest.yaml
-  fi
-
-  echo "Installing Pod Network..."
-  if [ "#{image_tag}" != "latest" ]; then
-    sed -i -e "s/latest/#{image_tag}/" #{contiv_dir}/k8s/contiv-vpp/Chart.yaml
   fi
 
   echo "Schedule Pods on master"

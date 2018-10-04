@@ -380,7 +380,7 @@ EOL
   if [ "#{crd_disabled}" = "false" ]; then
 
     # Deploy contiv-vpp networking with CRD
-    helm template --name vagrant --set vswitch.enableCoreDumps=true -f "#{contiv_dir}"/k8s/contiv-vpp/crd-values/values-crd.yaml "#{contiv_dir}"/k8s/contiv-vpp > "#{contiv_dir}"/k8s/contiv-vpp/manifest.yaml
+    helm template --name vagrant --set contiv.crdNodeConfigurationDisabled=false --set contiv.ipamConfig.contivCIDR=10.128.0.0/14 "#{contiv_dir}"/k8s/contiv-vpp > "#{contiv_dir}"/k8s/contiv-vpp/manifest.yaml
     kubectl apply -f #{contiv_dir}/k8s/contiv-vpp/manifest.yaml
 
     # Wait until crd agent is ready
@@ -427,7 +427,7 @@ EOL
   else
     # Deploy contiv-vpp networking without CRD
     sed -i '/#serviceCIDR:/ r /tmp/nodeConfig.yaml' "#{contiv_dir}"/k8s/contiv-vpp/values.yaml
-    helm template --name vagrant --set vswitch.enableCoreDumps=true -f "#{contiv_dir}"/k8s/contiv-vpp/values.yaml "#{contiv_dir}"/k8s/contiv-vpp > "#{contiv_dir}"/k8s/contiv-vpp/manifest.yaml
+    helm template --name vagrant "#{contiv_dir}"/k8s/contiv-vpp > "#{contiv_dir}"/k8s/contiv-vpp/manifest.yaml
     kubectl apply -f #{contiv_dir}/k8s/contiv-vpp/manifest.yaml
   fi
 

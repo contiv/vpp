@@ -224,6 +224,7 @@ func (ctc *ContivTelemetryCache) validateCluster() {
 	fmt.Printf("validations: %d, resyncs: %d, updates: %d, responses: %d\n",
 		ctc.nValidations, ctc.nResyncs, ctc.nUpdates, ctc.nnResponses)
 	ctc.Report.Print()
+	ctc.ControllerReport.GenerateCRDReport()
 }
 
 // Collect real-time node state (mainly VPP, but some Linux too) from the

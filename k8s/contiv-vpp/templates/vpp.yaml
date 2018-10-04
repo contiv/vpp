@@ -46,6 +46,9 @@ data:
     CRDNodeConfigurationDisabled: {{ .Values.contiv.crdNodeConfigurationDisabled }}
     IPAMConfig:
       NodeInterconnectDHCP: {{ .Values.contiv.ipamConfig.nodeInterconnectDHCP }}
+      {{- if .Values.contiv.ipamConfig.nodeInterconnectCIDR }}
+      NodeInterconnectCIDR: {{ .Values.contiv.ipamConfig.nodeInterconnectCIDR }}
+      {{- end }}
       {{- if .Values.contiv.ipamConfig.serviceCIDR }}
       ServiceCIDR: {{ .Values.contiv.ipamConfig.serviceCIDR }}
       {{- end }}
@@ -57,9 +60,6 @@ data:
       PodIfIPCIDR: {{ .Values.contiv.ipamConfig.podIfIPCIDR }}
       VPPHostSubnetCIDR: {{ .Values.contiv.ipamConfig.vppHostSubnetCIDR }}
       VPPHostNetworkPrefixLen: {{ .Values.contiv.ipamConfig.vppHostNetworkPrefixLen }}
-      {{- if .Values.contiv.ipamConfig.nodeInterconnectCIDR }}
-      NodeInterconnectCIDR: {{ .Values.contiv.ipamConfig.nodeInterconnectCIDR }}
-      {{- end }}
       VxlanCIDR: {{ .Values.contiv.ipamConfig.vxlanCIDR }}
       {{- end }}
     {{- if .Values.contiv.nodeConfig }}

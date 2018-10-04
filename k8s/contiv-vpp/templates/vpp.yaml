@@ -968,7 +968,7 @@ subjects:
 - kind: ServiceAccount
   name: contiv-ksr
   namespace: kube-system
-{{- if eq .Values.contiv.crdNodeConfigurationDisabled false }}
+
 ---
 
 # This installs the contiv-crd on the master node in a Kubernetes cluster.
@@ -1177,4 +1177,3 @@ data:
     client-basic-auth:
       - {{ .Values.http.basicAuth | quote }}
     {{- end }}
-{{- end }}

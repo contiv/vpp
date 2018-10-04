@@ -107,6 +107,14 @@ ksr:
     pullPolicy: IfNotPresent
   updateStrategy: RollingUpdate
 
+crd:
+  image:
+    repository: contivvpp/crd
+    # tag defaults to chart version
+    #tag:
+    pullPolicy: IfNotPresent
+  updateStrategy: RollingUpdate
+
 # GoVPP configuration
 # It contains time intervals used for VPP health probing (in nanoseconds).
 # After a health check probe is not recieved within the health-check-reply-timeout

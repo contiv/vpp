@@ -116,7 +116,7 @@ func (cfg *Config) ApplyIPAMConfig() {
 		VxlanCIDR:               vxlanCIDR.String(),
 	}
 
-	if cfg.IPAMConfig.NodeInterconnectDHCP != true {
+	if cfg.IPAMConfig.NodeInterconnectCIDR == "" && cfg.IPAMConfig.NodeInterconnectDHCP == false {
 		cfg.IPAMConfig.NodeInterconnectCIDR = nodeInterconnectCIDR.String()
 	}
 }

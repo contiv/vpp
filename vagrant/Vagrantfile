@@ -238,9 +238,6 @@ else
   if [ "#{dep_scenario}" = 'nostn' ]; then
     #shutdown interface
     ip link set enp0s8 down
-    cat <<EOL >> /etc/netplan/50-vagrant.yaml
-    enp0s8: {}
-EOL
   fi
 fi
 SCRIPT

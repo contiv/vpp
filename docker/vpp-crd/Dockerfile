@@ -11,7 +11,7 @@ WORKDIR /go/src/github.com/contiv/vpp
 
 RUN make contiv-crd && make contiv-netctl
 
-FROM scratch
+FROM alpine:3.7
 
 COPY --from=builder /go/src/github.com/contiv/vpp/cmd/contiv-crd/contiv-crd /contiv-crd
 COPY --from=builder /go/src/github.com/contiv/vpp/cmd/contiv-netctl/contiv-netctl /contiv-netctl

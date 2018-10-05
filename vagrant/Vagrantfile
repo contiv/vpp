@@ -88,11 +88,9 @@ sudo -E apt-get install -y apt-transport-https \
                   software-properties-common \
                   htop 
                    
-echo "Adding Kubernetes & Docker repos..."
+echo "Adding Kubernetes repos..."
 curl -fsSL https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo -E apt-key add -
-curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo -E apt-key add -
 sudo -E add-apt-repository "deb http://apt.kubernetes.io/ kubernetes-xenial main"
-sudo -E add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu xenial stable"
 
 echo "Updating apt lists..."
 sudo -E apt-get update -q
@@ -102,8 +100,8 @@ sudo -E apt-get install -qy kubelet=#{k8s_version}-00 \
                   kubectl=#{k8s_version}-00 \
                   kubeadm=#{k8s_version}-00
 
-echo "Installing Docker-CE..."
-sudo -E apt-get install -y docker-ce
+echo "Installing Docker..."
+sudo -E apt-get install -y docker.io
 
 #Setup the proxy if needed
 if [ "#{http_proxy}" != "" ] ; then

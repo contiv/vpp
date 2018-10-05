@@ -1,4 +1,4 @@
-# Release v1.4.0 (future)
+# Release v1.4.0 (5.10.2018)
 
 ### VPP
  - version **18.10-rc0-505**
@@ -11,7 +11,7 @@
  - option for simplified IPAM config (`ContivCIDR`)
  - ability to define IPAM via CRD
  - cluster state validator
- - `netctl` command line tool
+ - `contiv-netctl` command line tool
  
 ### Known Issues
  - fragmentation issues in STN setup (STN is still experimental)
@@ -27,7 +27,7 @@ nat {
     max translations per user 10000
 }
  ```
-(for more details see [VPP NAT Documentation](https://wiki.fd.io/view/VPP/NAT#Startup_config).
+(for more details see [VPP NAT Documentation](https://wiki.fd.io/view/VPP/NAT#Startup_config)).
 
 
 # Release v1.3.0 (18.9.2018)

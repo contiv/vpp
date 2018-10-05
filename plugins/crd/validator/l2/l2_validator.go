@@ -744,9 +744,16 @@ func (v *Validator) createTapMarkAndSweepDB() map[string]map[uint32]telemetrymod
 	for _, node := range v.VppCache.RetrieveAllNodes() {
 		tapMap[node.Name] = make(map[uint32]telemetrymodel.NodeInterface, 0)
 
+		if node.NodeIPam == nil {
+			v.Log.Infof("No IPAM data for node %s", node.Name)
+			v.Report.AppendToNodeReport(node.Name, "no IPAM data available")
+			continue
+		}
+
 		podIfIPAddress, podIfIPMask, err := utils.Ipv4CidrToAddressAndMask(node.NodeIPam.Config.PodIfIPCIDR)
 		if err != nil {
-			// Do not report error - we catch it later in the validation phase
+			errString := fmt.Sprintf("invalid PodIfIPCIDR - %s", node.NodeIPam.Config.PodIfIPCIDR)
+			v.Report.AppendToNodeReport(node.Name, errString)
 			continue
 		}
 		podIfIPPrefix := podIfIPAddress &^ podIfIPMask

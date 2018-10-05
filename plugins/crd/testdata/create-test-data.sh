@@ -21,6 +21,7 @@ Prerequisites are:
 - python (>= 2.7)
 - kubectl (install with \'kubeadm\')
 '
+set -euo pipefail
 
 usage() {
     echo "Usage: '${0##*/} [OPTION]...'"
@@ -52,6 +53,12 @@ do
         ;;
     esac
 done
+
+# check that etcd is installed
+command -v etcdctl >/dev/null 2>&1 || {
+    echo >&2 "'etcdctl' required but not found. Install with 'go get github.com/coreos/etcd/etcdctl'."
+    exit 1
+}
 
 ############################
 # Generate raw VPP dump data

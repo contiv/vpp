@@ -36,6 +36,14 @@ const (
 	testAgentPort  = ":8080"
 )
 
+type mockCRDReport struct {
+	rep *datastore.SimpleReport
+}
+
+func (mcr *mockCRDReport) GenerateCRDReport() {
+	mcr.rep.Print()
+}
+
 type cacheTestVars struct {
 	srv            *http.Server
 	injectError    int
@@ -125,12 +133,6 @@ func (ptv *cacheTestVars) shutdownMockHTTPServer() {
 	}
 }
 
-func newMockTicker() *time.Ticker {
-	return &time.Ticker{
-		C: ctv.tickerChan,
-	}
-}
-
 func TestTelemetryCache(t *testing.T) {
 	gomega.RegisterTestingT(t)
 
@@ -160,6 +162,7 @@ func TestTelemetryCache(t *testing.T) {
 	// Init the cache and the telemetryCache (the objects under test)
 	ctv.telemetryCache = NewTelemetryCache(logging.ForPlugin("tc-test"))
 	ctv.telemetryCache.Processor = &mockProcessor{}
+	ctv.telemetryCache.ControllerReport = &mockCRDReport{rep: ctv.report}
 
 	// Override default telemetryCache behavior
 	ctv.tickerChan = make(chan time.Time)

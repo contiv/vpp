@@ -131,7 +131,7 @@ func testErrorFreeEndToEnd(t *testing.T) {
 
 	// NOTE: Expect one error per node in L3 validation until we can validate
 	// static routes configured through Linux
-	checkDataReport(1, 3, 3)
+	checkDataReport(1, 4, 4)
 }
 
 func testValidateRoutesToLocalPods(t *testing.T) {

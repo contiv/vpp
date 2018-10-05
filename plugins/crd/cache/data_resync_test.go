@@ -154,8 +154,13 @@ func TestDataResync(t *testing.T) {
 	drd.log.SetLevel(logging.ErrorLevel)
 	drd.log.SetOutput(drd.logWriter)
 
+	drd.report = datastore.NewSimpleReport(drd.log)
+	drd.report.Output = &nullWriter{}
+
 	drd.processor = &mockProcessor{}
 	drd.cache = NewTelemetryCache(logging.ForPlugin("dr-test"))
+	drd.cache.Report = drd.report
+	drd.cache.ControllerReport = &mockCRDReport{rep: drd.report}
 
 	// Override default telemetryCache behavior
 	drd.cache.ticker.Stop() // Do not periodically poll agents
@@ -164,10 +169,6 @@ func TestDataResync(t *testing.T) {
 
 	drd.cache.Processor = drd.processor
 	drd.processor.retrieveCnt = 0
-
-	drd.report = datastore.NewSimpleReport(drd.log)
-	drd.report.Output = &nullWriter{}
-	drd.cache.Report = drd.report
 
 	// override default cache logger
 	drd.cache.Log = drd.log

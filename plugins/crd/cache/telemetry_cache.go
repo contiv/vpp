@@ -93,7 +93,7 @@ type DcEventQueue []interface{}
 // Contiv node Agent to the cache thread.
 type NodeDTO struct {
 	NodeName string
-	Url      string
+	URL      string
 	NodeInfo interface{}
 	err      error
 	version  uint32
@@ -176,7 +176,7 @@ func (ctc *ContivTelemetryCache) nodeEventProcessor() {
 				return
 			}
 			ctc.Log.Infof("Node response DTO from %s, url %s, DTOv: %d DBv: %d",
-				data.NodeName, data.Url, data.version, ctc.databaseVersion)
+				data.NodeName, data.URL, data.version, ctc.databaseVersion)
 			ctc.processNodeResponse(data)
 
 		case data, ok := <-ctc.dsUpdateChannel:
@@ -278,7 +278,7 @@ func (ctc *ContivTelemetryCache) getNodeInfo(client http.Client, node *telemetry
 
 	res, err := client.Get(ctc.getAgentURL(node.ManIPAddr, url))
 	if err != nil {
-		ctc.nodeResponseChannel <- &NodeDTO{node.Name, url,nil, err, version}
+		ctc.nodeResponseChannel <- &NodeDTO{node.Name, url, nil, err, version}
 		return
 	} else if res.StatusCode < 200 || res.StatusCode > 299 {
 		err := fmt.Errorf("HTTP Get error: url %s, Status: %s", url, res.Status)

@@ -201,6 +201,14 @@ spec:
             - name: ETCD_UNSUPPORTED_ARCH
               value: "arm64"
             {{- end }}
+            {{- if .Values.etcd.secureTransport }}
+            - name: ETCDCTL_CACERT
+              value: /var/contiv/etcd-secrets/{{ .Values.etcd.secrets.caCert }}
+            - name: ETCDCTL_CERT
+              value: /var/contiv/etcd-secrets/{{ .Values.etcd.secrets.clientCert }}
+            - name: ETCDCTL_KEY
+              value: /var/contiv/etcd-secrets/{{ .Values.etcd.secrets.clientKey }}
+            {{- end }}
           command:
             - /bin/sh
           args:
@@ -239,6 +247,10 @@ spec:
               path: {{ .Values.etcd.secrets.serverCert }}
             - key: serverKey
               path: {{ .Values.etcd.secrets.serverKey }}
+            - key: clientCert
+              path: {{ .Values.etcd.secrets.clientCert }}
+            - key: clientKey
+              path: {{ .Values.etcd.secrets.clientKey }}
           {{- end }}
       {{- end }}
 {{- if .Values.etcd.usePersistentVolume }}

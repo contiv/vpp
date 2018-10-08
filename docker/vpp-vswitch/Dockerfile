@@ -2,7 +2,7 @@
 # Update contiv/vpp-base version below if contiv/vpp-base-builder is changed
 FROM contiv/vpp-base-builder:b59bd659 as builder
 
-ENV GOLANG_VERSION 1.9.3
+ENV GOLANG_VERSION 1.11.1
 ENV GOPATH /root/go
 ENV PATH $PATH:/usr/local/go/bin:$GOPATH/bin
 

@@ -115,7 +115,7 @@ func TestValidator(t *testing.T) {
 
 	// Do the testing
 	t.Run("testErrorFreeEndToEnd", testErrorFreeEndToEnd)
-
+	t.Run("testMissingIPAM", testMissingIPAM)
 	t.Run("testValidateRoutesToLocalPods", testValidateRoutesToLocalPods)
 	t.Run("testValidateVrf0GigERoutes", testValidateVrf0GigERoutes)
 	t.Run("testValidateInterfaceLookup", testValidateInterfaceLookup)
@@ -134,7 +134,33 @@ func testErrorFreeEndToEnd(t *testing.T) {
 	checkDataReport(1, 4, 4)
 }
 
+func testMissingIPAM(t *testing.T) {
+	resetToInitialErrorFreeState()
+
+	// ----------------------------------------
+	// INJECT FAULT: MISSING IPAM on k8s-master
+	vtv.vppCache.NodeMap[vtv.nodeKey].NodeIPam = nil
+
+	// Perform test
+	vtv.report.Clear()
+	vtv.l3Validator.Validate()
+
+	// NOTE: Expect one error per node in L3 validation until we can validate
+	// static routes configured through Linux
+	checkDataReport(1, 16, 9)
+
+	vrfMap, err := vtv.l3Validator.createVrfMap(vtv.vppCache.NodeMap[vtv.nodeKey])
+	gomega.Expect(err).To(gomega.BeNil())
+
+	routeMap := vtv.l3Validator.createValidationMap(vrfMap)
+	numErrs := vtv.l3Validator.validateLocalVppHostNetworkRoute(vtv.vppCache.NodeMap[vtv.nodeKey], vrfMap, routeMap)
+	gomega.Expect(numErrs).To(gomega.Equal(1))
+}
+
+
 func testValidateRoutesToLocalPods(t *testing.T) {
+	resetToInitialErrorFreeState()
+
 	vrfMap, err := vtv.l3Validator.createVrfMap(vtv.vppCache.NodeMap[vtv.nodeKey])
 	gomega.Expect(err).To(gomega.BeNil())
 

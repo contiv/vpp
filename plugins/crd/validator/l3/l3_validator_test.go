@@ -147,7 +147,7 @@ func testMissingIPAM(t *testing.T) {
 
 	// NOTE: Expect one error per node in L3 validation until we can validate
 	// static routes configured through Linux
-	checkDataReport(1, 16, 9)
+	checkDataReport(1, 1, 9)
 
 	vrfMap, err := vtv.l3Validator.createVrfMap(vtv.vppCache.NodeMap[vtv.nodeKey])
 	gomega.Expect(err).To(gomega.BeNil())

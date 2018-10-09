@@ -80,6 +80,9 @@ data:
       {{- if .gateway }}
       Gateway: {{ .gateway }}
       {{- end -}}
+      {{- if .stealInterface }}
+      StealInterface: {{ .stealInterface }}
+      {{- end -}}
       {{- if .otherInterfaces }}
       OtherVPPInterfaces:
       {{- range $iface := .otherInterfaces }}

@@ -644,8 +644,16 @@ func (v *Validator) ValidatePodInfo() {
 			continue
 		}
 
-		// Get Contiv's view of the VPP's pod-facing tap intefce subnet CIDR
+		// Get Contiv's view of the VPP's pod-facing tap interface subnet CIDR
 		// on this node (PodIfIpCIDR)
+		if vppNode.NodeIPam == nil {
+			errCnt++
+			v.Log.Infof("No IPAM data for node %s", vppNode.Name)
+			errString := fmt.Sprintf("pod %s not validated - no IPAM data available for node", pod.Name)
+			v.Report.AppendToNodeReport(vppNode.Name, errString)
+			continue
+		}
+
 		podIfIPAddr, podIfIPMask, err := utils.Ipv4CidrToAddressAndMask(vppNode.NodeIPam.Config.PodIfIPCIDR)
 		if err != nil {
 			errCnt++

@@ -262,6 +262,14 @@ func (v *Validator) validateRemoteNodeRoutes(node *telemetrymodel.Node, vrfMap V
 	nodeList := v.VppCache.RetrieveAllNodes()
 	for _, othNode := range nodeList {
 
+		if othNode.NodeIPam == nil {
+			numErrs++
+			errString := fmt.Sprintf("missing IPAM for node %s - routes to the node not validated",
+				othNode.Name)
+			v.Report.AppendToNodeReport(node.Name, errString)
+			continue
+		}
+
 		if othNode.Name == node.Name {
 			// Validate route from VRF1 to the vppHostNetwork subnet on the
 			// local node.
@@ -455,6 +463,14 @@ func (v *Validator) validateRouteToLocalVxlanBVI(node *telemetrymodel.Node, vrfM
 func (v *Validator) validatePodSubnetCidrRoutes(node *telemetrymodel.Node, vrfMap VrfMap, routeMap RouteMap) int {
 	numErrs := 0
 
+	if node.NodeIPam == nil {
+		numErrs++
+		errString := fmt.Sprintf("missing IPAM for node %s - validatePodSubnetCidrRoutes not validated",
+			node.Name)
+		v.Report.AppendToNodeReport(node.Name, errString)
+		return numErrs
+	}
+
 	podSubnetCidrRte := node.NodeIPam.Config.PodSubnetCIRDR
 
 	numErrs += v.validateRoute(podSubnetCidrRte, 0, vrfMap, routeMap, node.Name,
@@ -469,6 +485,14 @@ func (v *Validator) validatePodSubnetCidrRoutes(node *telemetrymodel.Node, vrfMa
 // network
 func (v *Validator) validateVppHostNetworkRoutes(node *telemetrymodel.Node, vrfMap VrfMap, routeMap RouteMap) int {
 	numErrs := 0
+
+	if node.NodeIPam == nil {
+		numErrs++
+		errString := fmt.Sprintf("missing IPAM for node %s - routes to VppHostSubnetCIDR not validated",
+			node.Name)
+		v.Report.AppendToNodeReport(node.Name, errString)
+		return numErrs
+	}
 
 	numErrs += v.validateRoute(node.NodeIPam.Config.VppHostSubnetCIDR, 0, vrfMap, routeMap, node.Name,
 		"", maxIfIdx, "0.0.0.0", 1, 1)
@@ -490,6 +514,14 @@ func (v *Validator) validateLocalVppHostNetworkRoute(node *telemetrymodel.Node, 
 		numErrs++
 		errString := fmt.Sprintf("failed to validate route to tap-vpp2 - "+
 			"failed lookup for tap-vpp2, err %s", err)
+		v.Report.AppendToNodeReport(node.Name, errString)
+		return numErrs
+	}
+
+	if node.NodeIPam == nil {
+		numErrs++
+		errString := fmt.Sprintf("missing IPAM for node %s - route to VppHostNetwork not validated",
+			node.Name)
 		v.Report.AppendToNodeReport(node.Name, errString)
 		return numErrs
 	}

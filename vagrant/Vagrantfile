@@ -50,7 +50,7 @@ https_proxy = ENV['HTTPS_PROXY'] || ENV['https_proxy'] || ''
 k8s_version = ENV['K8S_VERSION']
 node_os = ENV['K8S_NODE_OS'] || 'ubuntu'
 node_os_release = ENV['K8S_NODE_OS_RELEASE'] || '18.04'
-node_cpus = ENV['K8S_NODE_CPUS'].to_i.to_i == 0 ? 4 : ENV['K8S_NODE_CPUS'].to_i
+node_cpus = ENV['K8S_NODE_CPUS'].to_i == 0 ? 4 : ENV['K8S_NODE_CPUS'].to_i
 node_memory = ENV['K8S_NODE_MEMORY'].to_i == 0 ? 4096 : ENV['K8S_NODE_MEMORY'].to_i
 num_nodes = ENV['K8S_NODES'].to_i == 0 ? 0 : ENV['K8S_NODES'].to_i
 master_cpus = ENV['K8S_MASTER_CPUS'].to_i == 0 ? 4 : ENV['K8S_MASTER_CPUS'].to_i

@@ -402,7 +402,7 @@ EOL
     chmod +x /tmp/contiv-stn.sh
     sudo /tmp/contiv-stn.sh
     # For use without CRD
-    stn_config="--set contiv.stealInterface=enp0s8 --set contiv.ipamConfig.nodeInterconnectDHCP=true"
+    stn_config="--set contiv.stealInterface=enp0s8"
 
     # Generate node config for use with CRD
     cat > #{contiv_dir}/k8s/node-config/crd.yaml <<EOL

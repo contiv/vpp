@@ -157,7 +157,6 @@ func testMissingIPAM(t *testing.T) {
 	gomega.Expect(numErrs).To(gomega.Equal(1))
 }
 
-
 func testValidateRoutesToLocalPods(t *testing.T) {
 	resetToInitialErrorFreeState()
 

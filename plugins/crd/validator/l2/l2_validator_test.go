@@ -139,7 +139,6 @@ func testMissingIPAMTopologyValidation(t *testing.T) {
 	checkDataReport(5, 2, 0)
 }
 
-
 func testK8sNodeToNodeInfoOkValidation(t *testing.T) {
 	resetToInitialErrorFreeState()
 	vtv.l2Validator.ValidateK8sNodeInfo()

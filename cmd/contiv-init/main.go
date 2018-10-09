@@ -161,7 +161,7 @@ func parseSTNConfig() (config *contiv.Config, nicToSteal string, useDHCP bool, e
 	config.ApplyDefaults()
 
 	// DHCP global config may be overwritten by node configuration
-	useDHCP = config.IPAMConfig.NodeInterconnectDHCP
+	globalUseDHCP := config.IPAMConfig.NodeInterconnectDHCP
 
 	// try to find node config and return STN interface name if defined
 	nodeName := os.Getenv(servicelabel.MicroserviceLabelEnvVar)
@@ -193,6 +193,7 @@ func parseSTNConfig() (config *contiv.Config, nicToSteal string, useDHCP bool, e
 		}
 	}
 
+	useDHCP = globalUseDHCP || useDHCP
 	return
 }
 

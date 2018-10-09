@@ -2,10 +2,6 @@
 
 set -euo pipefail
 
-VBoxManage dhcpserver remove --netname vpp || :
-echo "Creating VirtualBox DHCP server..."
-VBoxManage dhcpserver add --netname vpp --ip 10.2.0.1 --netmask 255.255.254.0 --lowerip 10.2.0.2 --upperip 10.2.1.254 --enable
-
 export K8S_NODE_OS=${K8S_NODE_OS:-ubuntu}
 export K8S_NODES=${K8S_NODES:-1}
 export K8S_NODE_OS_RELEASE=${K8S_NODE_OS_RELEASE:-18.04}
@@ -16,8 +12,12 @@ export K8S_VERSION=${K8S_VERSION:-"1.11.3"}
 export VAGRANT_DEFAULT_PROVIDER=${VAGRANT_DEFAULT_PROVIDER:-virtualbox}
 export CONTIV_IMAGE_TAG=${CONTIV_IMAGE_TAG:-latest}
 export GOLAND_VERSION=${GOLAND_VERSION:-2018.2.3}
-export GO_VERSION=${GO_VERSION:-1.11}
+export GO_VERSION=${GO_VERSION:-1.11.1}
 export HELM_VERSION=${HELM_VERSION:-2.9.1}
 export CRD_DISABLED=${CRD_DISABLED:-true}
+
+VBoxManage dhcpserver remove --netname vpp || :
+echo "Creating VirtualBox DHCP server..."
+VBoxManage dhcpserver add --netname vpp --ip 192.168.16.1 --netmask 255.255.255.0 --lowerip 192.168.16.2 --upperip 192.168.16.254 --enable
 
 vagrant up

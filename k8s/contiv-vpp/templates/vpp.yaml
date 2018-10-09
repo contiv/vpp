@@ -80,6 +80,9 @@ data:
       {{- if .gateway }}
       Gateway: {{ .gateway }}
       {{- end -}}
+      {{- if .stealInterface }}
+      StealInterface: {{ .stealInterface }}
+      {{- end -}}
       {{- if .otherInterfaces }}
       OtherVPPInterfaces:
       {{- range $iface := .otherInterfaces }}
@@ -201,6 +204,14 @@ spec:
             - name: ETCD_UNSUPPORTED_ARCH
               value: "arm64"
             {{- end }}
+            {{- if .Values.etcd.secureTransport }}
+            - name: ETCDCTL_CACERT
+              value: /var/contiv/etcd-secrets/{{ .Values.etcd.secrets.caCert }}
+            - name: ETCDCTL_CERT
+              value: /var/contiv/etcd-secrets/{{ .Values.etcd.secrets.clientCert }}
+            - name: ETCDCTL_KEY
+              value: /var/contiv/etcd-secrets/{{ .Values.etcd.secrets.clientKey }}
+            {{- end }}
           command:
             - /bin/sh
           args:
@@ -239,6 +250,10 @@ spec:
               path: {{ .Values.etcd.secrets.serverCert }}
             - key: serverKey
               path: {{ .Values.etcd.secrets.serverKey }}
+            - key: clientCert
+              path: {{ .Values.etcd.secrets.clientCert }}
+            - key: clientKey
+              path: {{ .Values.etcd.secrets.clientKey }}
           {{- end }}
       {{- end }}
 {{- if .Values.etcd.usePersistentVolume }}
@@ -1031,7 +1046,7 @@ spec:
         args:
         - -c
         - |
-          cp -f /contiv-netctl /host/usr/local/bin/contiv-netctl
+          cp -f /contiv-netctl /host/usr/local/bin/contiv-netctl || true
         volumeMounts:
           - name: usr-local-bin
             mountPath: /host/usr/local/bin

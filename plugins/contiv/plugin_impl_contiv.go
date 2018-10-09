@@ -560,13 +560,16 @@ func (plugin *Plugin) handleKsrNodeResync(it datasync.KeyValIterator) error {
 		}
 
 		if value.Name == plugin.ServiceLabel.GetAgentLabel() {
-			var internalIP string
+			var internalIPs []string
 			for i := range value.Addresses {
 				if value.Addresses[i].Type == protoNode.NodeAddress_NodeInternalIP {
-					internalIP = value.Addresses[i].Address
-					plugin.Log.Info("Internal IP of the node is ", internalIP)
-					return plugin.nodeIDAllocator.updateManagementIP(internalIP)
+					internalIPs = append(internalIPs, value.Addresses[i].Address)
 				}
+			}
+			if len(internalIPs) > 0 {
+				ips := strings.Join(internalIPs, MgmtIPSeparator)
+				plugin.Log.Info("Internal IP of the node is ", ips)
+				return plugin.nodeIDAllocator.updateManagementIP(ips)
 			}
 		}
 		plugin.Log.Debug("Internal IP of the node is not in ETCD yet.")

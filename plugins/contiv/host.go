@@ -518,7 +518,7 @@ func (s *remoteCNIserver) disableNatVirtualReassembly() error {
 func (s *remoteCNIserver) subscribeVnetFibCounters() error {
 
 	notifChan := make(chan api.Message, 1)
-	_, err := s.govppChan.SubscribeNotification(notifChan, stats.NewVnetIP4FibCounters())
+	_, err := s.govppChan.SubscribeNotification(notifChan, &stats.VnetIP4FibCounters{})
 
 	if err != nil {
 		s.Logger.Error("Error by subscribing to NewVnetIP4FibCounters:", err)

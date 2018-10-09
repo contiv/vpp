@@ -73,6 +73,12 @@ func (v *Validator) Validate() {
 
 	for _, node := range nodeList {
 
+		if node.NodeIPam == nil {
+			v.Log.Infof("No IPAM data for node %s", node.Name)
+			v.Report.AppendToNodeReport(node.Name, "no IPAM data available")
+			continue
+		}
+
 		vrfMap, err := v.createVrfMap(node)
 		if err != nil {
 			v.Report.AppendToNodeReport(node.Name, err.Error())

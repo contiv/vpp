@@ -1,4 +1,4 @@
-FROM golang:1.9.7-alpine3.8 as builder
+FROM golang:1.11.1-alpine3.8 as builder
 
 # we need the loopback binary from CNI
 # this binary can be obtained from the cni tarball
@@ -35,7 +35,7 @@ RUN export CGO_ENABLED=0 \
  && go build -ldflags '-s -w' -o /output/contiv-cni contiv_cni.go
 
 
-FROM alpine:3.7
+FROM alpine:3.8
 
 # set work directory
 WORKDIR /root/

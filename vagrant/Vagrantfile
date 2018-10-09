@@ -343,61 +343,14 @@ echo "Create folder to store kubernetes and network configuration"
 mkdir -p /home/vagrant/.kube
 sudo cp -i /etc/kubernetes/admin.conf /home/vagrant/.kube/config
 sudo chown vagrant:vagrant -R /home/vagrant/.kube
-sleep 5;
+sleep 2;
 
-applyVPPnetwork() {
-  ncpfx="contiv.nodeConfig"
-  nostn_config=""
-  stn_config=""
-
+applySTNScenario() {
   if [ "#{dep_scenario}" = "nostn" ]; then
-    cat > /tmp/nodeConfig.yaml <<EOL
-  nodeConfig:
-  - name: "k8s-master"
-    mainInterface:
-      interfaceName: "GigabitEthernet0/8/0"
-    gateway: "192.168.16.100"
-EOL
-    counter=1;
-    until ((counter > "#{num_nodes}"))
-    do
-      cat <<EOL >> /tmp/nodeConfig.yaml
-  - name: "k8s-worker$counter"
-    mainInterface:
-      interfaceName: "GigabitEthernet0/8/0"
-    gateway: "192.168.16.100"
-EOL
-    ((counter++))
-    done
-  else
-    curl -s https://raw.githubusercontent.com/contiv/vpp/master/k8s/stn-install.sh > /tmp/contiv-stn.sh
-    chmod +x /tmp/contiv-stn.sh
-    sudo /tmp/contiv-stn.sh
-    #----TODO----
-  fi
 
-  if [ "#{image_tag}" != "latest" ]; then
-    sed -i -e "s/latest/#{image_tag}/" #{contiv_dir}/k8s/contiv-vpp/Chart.yaml
-  fi
-
-  if [ "#{crd_disabled}" = "false" ]; then
-
-    # Deploy contiv-vpp networking with CRD
-    helm template --name vagrant --set contiv.crdNodeConfigurationDisabled=false --set contiv.ipamConfig.contivCIDR=10.128.0.0/14 "#{contiv_dir}"/k8s/contiv-vpp > "#{contiv_dir}"/k8s/contiv-vpp/manifest.yaml
-    kubectl apply -f #{contiv_dir}/k8s/contiv-vpp/manifest.yaml
-
-    # Wait until crd agent is ready
-    crd_ready="";
-    while [ "$crd_ready" != "1" ];
-    do
-      echo "Waiting for crd agent to come up...";
-      crd_ready=$(kubectl get daemonset contiv-crd -n kube-system --template={{.status.numberReady}});
-      sleep 5;
-    done;
-
-    # Generate and apply node config via CRD
+    # Generate node config for use with CRD
     cat > #{contiv_dir}/k8s/node-config/crd.yaml <<EOL
-# Configuration for node in the cluster
+# Configuration for node config in the cluster
 apiVersion: nodeconfig.contiv.vpp/v1
 kind: NodeConfig
 metadata:
@@ -406,13 +359,26 @@ spec:
   mainVPPInterface:
     interfaceName: "GigabitEthernet0/8/0"
   gateway: "10.130.1.254"
+
 ---
 EOL
+
+    # Generate node config for use without CRD
+    cat > /tmp/nodeConfig.yaml <<EOL
+  nodeConfig:
+  - name: "k8s-master"
+    mainInterface:
+      interfaceName: "GigabitEthernet0/8/0"
+    gateway: "192.168.16.100"
+EOL
+
     counter=1;
     until ((counter > "#{num_nodes}"))
     do
-    cat <<EOL >> #{contiv_dir}/k8s/node-config/crd.yaml
-# Configuration for node in the cluster
+
+       # Generate node config for use with CRD
+      cat <<EOL >> #{contiv_dir}/k8s/node-config/crd.yaml
+# Configuration for node config in the cluster
 apiVersion: nodeconfig.contiv.vpp/v1
 kind: NodeConfig
 metadata:
@@ -424,19 +390,94 @@ spec:
 
 ---
 EOL
+
+      # Generate node config for use without CRD
+      cat <<EOL >> /tmp/nodeConfig.yaml
+  - name: "k8s-worker$counter"
+    mainInterface:
+      interfaceName: "GigabitEthernet0/8/0"
+    gateway: "192.168.16.100"
+EOL
+
     ((counter++))
     done
-    kubectl apply -f #{contiv_dir}/k8s/node-config/crd.yaml
+  else
+    curl -s https://raw.githubusercontent.com/contiv/vpp/master/k8s/stn-install.sh > /tmp/contiv-stn.sh
+    chmod +x /tmp/contiv-stn.sh
+    sudo /tmp/contiv-stn.sh
+    # For use without CRD
+    stn_config="--set contiv.stealInterface=enp0s8"
+
+    # Generate node config for use with CRD
+    cat > #{contiv_dir}/k8s/node-config/crd.yaml <<EOL
+# Configuration for node config in the cluster
+apiVersion: nodeconfig.contiv.vpp/v1
+kind: NodeConfig
+metadata:
+  name: k8s-master
+spec:
+  mainVPPInterface:
+    interfaceName: "GigabitEthernet0/8/0"
+
+---
+EOL
+
+    counter=1;
+    until ((counter > "#{num_nodes}"))
+    do
+      # Generate node config for use with CRD
+      cat <<EOL >> #{contiv_dir}/k8s/node-config/crd.yaml
+# Configuration for node config in the cluster
+apiVersion: nodeconfig.contiv.vpp/v1
+kind: NodeConfig
+metadata:
+  name: k8s-worker$counter
+spec:
+  mainVPPInterface:
+    interfaceName: "GigabitEthernet0/8/0"
+
+---
+EOL
+
+      ((counter++))
+    done
+  fi
+}
+
+applyVPPnetwork() {
+  if [ "#{image_tag}" != "latest" ]; then
+    sed -i -e "s/latest/#{image_tag}/" #{contiv_dir}/k8s/contiv-vpp/Chart.yaml
+  fi
+
+  if [ "#{crd_disabled}" = "false" ]; then
+    # Deploy contiv-vpp networking with CRD
+    helm template --name vagrant $stn_config --set contiv.crdNodeConfigurationDisabled=false --set contiv.ipamConfig.contivCIDR=10.128.0.0/14 "#{contiv_dir}"/k8s/contiv-vpp > "#{contiv_dir}"/k8s/contiv-vpp/manifest.yaml
+    kubectl apply -f #{contiv_dir}/k8s/contiv-vpp/manifest.yaml
+
+    # Wait until crd agent is ready
+    crd_ready="";
+    while [ "$crd_ready" != "1" ];
+    do
+      echo "Waiting for crd agent to come up...";
+      crd_ready=$(kubectl get daemonset contiv-crd -n kube-system --template={{.status.numberReady}});
+      sleep 5;
+    done;
+
+      kubectl apply -f #{contiv_dir}/k8s/node-config/crd.yaml
   else
     # Deploy contiv-vpp networking without CRD
     sed -i '/#serviceCIDR:/ r /tmp/nodeConfig.yaml' "#{contiv_dir}"/k8s/contiv-vpp/values.yaml
-    helm template --name vagrant "#{contiv_dir}"/k8s/contiv-vpp > "#{contiv_dir}"/k8s/contiv-vpp/manifest.yaml
+    helm template --name vagrant $stn_config "#{contiv_dir}"/k8s/contiv-vpp > "#{contiv_dir}"/k8s/contiv-vpp/manifest.yaml
     kubectl apply -f #{contiv_dir}/k8s/contiv-vpp/manifest.yaml
   fi
 
   echo "Schedule Pods on master"
   kubectl taint nodes --all node-role.kubernetes.io/master-
 }
+
+stn_config=""
+export stn_config
+applySTNScenario
 
 export -f applyVPPnetwork
 su vagrant -c "bash -c applyVPPnetwork"
@@ -551,8 +592,12 @@ VAGRANTFILE_API_VERSION = "2"
     config.vm.define "k8s-gateway" do |gw|
       gw.vm.hostname = "k8s-gateway"
       # Interface for K8s Cluster
-      if crd_disabled == 'false'
-        gw.vm.network :private_network, ip: "10.130.1.254",  netmask: "255.255.254.0", virtualbox__intnet: "vpp"
+      if dep_scenario == 'nostn'
+        if crd_disabled == 'false'
+          gw.vm.network :private_network, ip: "10.130.1.254",  netmask: "255.255.254.0", virtualbox__intnet: "vpp"
+        else
+          gw.vm.network :private_network, ip: "192.168.16.100", virtualbox__intnet: "vpp"
+        end
       else
         gw.vm.network :private_network, ip: "192.168.16.100", virtualbox__intnet: "vpp"
       end
@@ -577,7 +622,7 @@ VAGRANTFILE_API_VERSION = "2"
         # default router
         k8smaster.vm.provision "shell",
           run: "always",
-          inline: "route add default gw 10.130.1.254"
+          inline: "route add default gw 192.168.16.100"
         # delete default gw on eth0
         k8smaster.vm.provision "shell",
           run: "always",
@@ -618,7 +663,7 @@ VAGRANTFILE_API_VERSION = "2"
           # default router
           node.vm.provision "shell",
             run: "always",
-            inline: "route add default gw 10.130.1.254"
+            inline: "route add default gw 192.168.16.100"
           # delete default gw on eth0
           node.vm.provision "shell",
             run: "always",

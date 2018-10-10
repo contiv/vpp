@@ -49,8 +49,12 @@ http_proxy = ENV['HTTP_PROXY'] || ENV['http_proxy'] || ''
 https_proxy = ENV['HTTPS_PROXY'] || ENV['https_proxy'] || ''
 k8s_version = ENV['K8S_VERSION']
 node_os = ENV['K8S_NODE_OS'] || 'ubuntu'
-node_os_release = ENV['K8S_NODE_OS_RELEASE'] || '16.04'
+node_os_release = ENV['K8S_NODE_OS_RELEASE'] || '18.04'
+node_cpus = ENV['K8S_NODE_CPUS'].to_i == 0 ? 4 : ENV['K8S_NODE_CPUS'].to_i
+node_memory = ENV['K8S_NODE_MEMORY'].to_i == 0 ? 4096 : ENV['K8S_NODE_MEMORY'].to_i
 num_nodes = ENV['K8S_NODES'].to_i == 0 ? 0 : ENV['K8S_NODES'].to_i
+master_cpus = ENV['K8S_MASTER_CPUS'].to_i == 0 ? 4 : ENV['K8S_MASTER_CPUS'].to_i
+master_memory = ENV['K8S_MASTER_MEMORY'].to_i == 0 ? 4096 : ENV['K8S_MASTER_MEMORY'].to_i
 dep_env = ENV['K8S_DEPLOYMENT_ENV']
 dep_scenario = ENV['K8S_DEPLOYMENT_SCENARIO']
 base_ip = ENV['K8S_IP_PREFIX'] || '10.20.0.'
@@ -86,8 +90,8 @@ sudo -E apt-get install -y apt-transport-https \
                   ca-certificates \
                   curl \
                   software-properties-common \
-                  htop 
-                   
+                  htop
+
 echo "Adding Kubernetes repos..."
 curl -fsSL https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo -E apt-key add -
 sudo -E add-apt-repository "deb http://apt.kubernetes.io/ kubernetes-xenial main"
@@ -631,8 +635,8 @@ VAGRANTFILE_API_VERSION = "2"
       k8smaster.vm.provider "virtualbox" do |v|
         v.customize ["modifyvm", :id, "--ioapic", "on"]
         #v.customize ["modifyvm", :id, "--vram", "128"]
-        v.memory = 4096
-        v.cpus = 4
+        v.memory = master_memory
+        v.cpus = master_cpus
       end
       k8smaster.vm.provision "shell" do |s|
         s.inline = provision_every_node
@@ -671,8 +675,8 @@ VAGRANTFILE_API_VERSION = "2"
 
         node.vm.provider "virtualbox" do |v|
           v.customize ["modifyvm", :id, "--ioapic", "on"]
-          v.memory = 4096
-          v.cpus = 4
+          v.memory = node_memory
+          v.cpus = node_cpus
         end
         node.vm.provision "shell" do |s|
           s.inline = provision_every_node

@@ -201,7 +201,7 @@ func TestResyncAndSingleService(t *testing.T) {
 		IP:       net.ParseIP(nodeIP),
 		Protocol: svc_renderer.UDP,
 		Port:     0,
-		VrfID:    podVrfID,
+		VrfID:    mainVrfID,
 	}
 	Expect(natPlugin.NumOfIdentityMappings()).To(Equal(2))
 	Expect(natPlugin.HasIdentityMapping(vxlanID)).To(BeTrue())
@@ -607,7 +607,7 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 		IP:       net.ParseIP(nodeIP),
 		Protocol: svc_renderer.UDP,
 		Port:     0,
-		VrfID:    podVrfID,
+		VrfID:    mainVrfID,
 	}
 	Expect(natPlugin.NumOfIdentityMappings()).To(Equal(2))
 	Expect(natPlugin.HasIdentityMapping(vxlanID)).To(BeTrue())
@@ -1358,7 +1358,7 @@ func TestWithOtherInterfaces(t *testing.T) {
 		IP:       net.ParseIP(otherIfIP),
 		Protocol: svc_renderer.UDP,
 		Port:     0,
-		VrfID:    podVrfID,
+		VrfID:    mainVrfID,
 	}
 	Expect(natPlugin.NumOfIdentityMappings()).To(Equal(2))
 	Expect(natPlugin.HasIdentityMapping(vxlanID)).To(BeTrue())
@@ -1574,7 +1574,7 @@ func TestServiceUpdates(t *testing.T) {
 		IP:       net.ParseIP(nodeIP),
 		Protocol: svc_renderer.UDP,
 		Port:     0,
-		VrfID:    podVrfID,
+		VrfID:    mainVrfID,
 	}
 	Expect(natPlugin.NumOfIdentityMappings()).To(Equal(2))
 	Expect(natPlugin.HasIdentityMapping(vxlanID)).To(BeTrue())
@@ -1939,7 +1939,7 @@ func TestWithSNATOnly(t *testing.T) {
 		IP:       net.ParseIP(nodeIP),
 		Protocol: svc_renderer.UDP,
 		Port:     0,
-		VrfID:    podVrfID,
+		VrfID:    mainVrfID,
 	}
 	Expect(natPlugin.NumOfIdentityMappings()).To(Equal(2))
 	Expect(natPlugin.HasIdentityMapping(vxlanID)).To(BeTrue())

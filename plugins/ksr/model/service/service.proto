@@ -122,13 +122,19 @@ message Service {
     // +optional
     repeated string external_ips = 7;
 
+    // A list of IP addresses set as ingress points for IP-based load-balancers
+    // (typically GCE, MetalLB or OpenStack load-balancers).
+    // Only applies to Service Type: LoadBalancer
+    // +optional
+    repeated string lb_ingress_ips = 8;
+
     // Supports "ClientIP" and "None". Used to maintain session affinity.
     // Enable client IP based session affinity.
     // Must be ClientIP or None.
     // Defaults to None.
     // More info: https://kubernetes.io/docs/concepts/services-networking/service/#virtual-ips-and-service-proxies
     // +optional
-    string session_affinity = 8;
+    string session_affinity = 9;
 
     // Only applies to Service Type: LoadBalancer
     // LoadBalancer will get created with the IP specified in this field.
@@ -137,7 +143,7 @@ message Service {
     // This field will be ignored if the cloud-provider does not support the
     // feature.
     // +optional
-    string loadbalancer_ip = 9;
+    string loadbalancer_ip = 10;
 
     // If specified and supported by the platform, this will restrict traffic
     // through the cloud-provider load-balancer will be restricted to the
@@ -145,7 +151,7 @@ message Service {
     // does not support the feature."
     // More info: https://kubernetes.io/docs/tasks/access-application-cluster/configure-cloud-provider-firewall/
     // +optional
-    repeated string loadbalancer_source_ranges = 10;
+    repeated string loadbalancer_source_ranges = 11;
 
     // externalTrafficPolicy denotes if this Service desires to route external
     // traffic to node-local or cluster-wide endpoints. "Local" preserves the
@@ -154,7 +160,7 @@ message Service {
     // "Cluster" obscures the client source IP and may cause a second hop to
     // another node, but should have good overall load-spreading.
     // +optional
-    string external_traffic_policy = 11;
+    string external_traffic_policy = 12;
 
     // healthCheckNodePort specifies the healthcheck nodePort for the service.
     // If not specified, HealthCheckNodePort is created by the service api
@@ -162,5 +168,5 @@ message Service {
     // value if specified by the client. Only effects when Type is set to
     // LoadBalancer and ExternalTrafficPolicy is set to Local.
     // +optional
-    int32 health_check_node_port = 12;
+    int32 health_check_node_port = 13;
 }

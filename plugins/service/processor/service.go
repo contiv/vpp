@@ -120,6 +120,20 @@ func (s *Service) Refresh() {
 		}
 	}
 
+	if s.meta.ServiceType == "LoadBalancer" {
+		for _, lbIngressIPStr := range s.meta.LbIngressIps {
+			lbIngressIP := net.ParseIP(lbIngressIPStr)
+			if lbIngressIP != nil {
+				s.contivSvc.ExternalIPs.Add(lbIngressIP)
+			} else {
+				s.sp.Log.WithFields(logging.Fields{
+					"service":     s.contivSvc.ID,
+					"LBIngressIP": lbIngressIPStr,
+				}).Warn("Failed to parse LB Ingress IP")
+			}
+		}
+	}
+
 	// Fill up the map of service ports.
 	for _, port := range s.meta.Port {
 		sp := &renderer.ServicePort{

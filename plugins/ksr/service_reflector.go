@@ -156,6 +156,9 @@ loop:
 	svcProto.ClusterIp = svc.Spec.ClusterIP
 	svcProto.ServiceType = string(svc.Spec.Type)
 	svcProto.ExternalIps = svc.Spec.ExternalIPs
+	for _, lbIngress := range svc.Status.LoadBalancer.Ingress {
+		svcProto.LbIngressIps = append(svcProto.LbIngressIps, lbIngress.IP)
+	}
 	svcProto.SessionAffinity = string(svc.Spec.SessionAffinity)
 	svcProto.LoadbalancerIp = svc.Spec.LoadBalancerIP
 	svcProto.LoadbalancerSourceRanges = svc.Spec.LoadBalancerSourceRanges

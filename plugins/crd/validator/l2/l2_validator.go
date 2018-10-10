@@ -59,6 +59,11 @@ func (v *Validator) ValidateArpTables() {
 
 	for _, node := range nodeList {
 
+		if node.NodeIPArp == nil {
+			v.Report.AppendToNodeReport(node.Name, "validation skipped - no IP-ARP data available")
+			continue
+		}
+
 		loopNodeMap := make(map[string]bool)
 		for _, n := range nodeList {
 			if n.Name != node.Name {
@@ -139,6 +144,11 @@ func (v *Validator) ValidateBridgeDomains() {
 
 validateNodeBD:
 	for _, node := range nodeList {
+		if node.NodeBridgeDomains == nil {
+			v.Report.AppendToNodeReport(node.Name, "validation skipped - no VXLAN-BD data available")
+			continue
+		}
+
 		nodeVxlanMap := make(map[string]bool)
 		for _, n := range nodeList {
 			nodeVxlanMap[n.Name] = true
@@ -345,6 +355,11 @@ func (v *Validator) ValidateL2FibEntries() {
 	nodeList := v.VppCache.RetrieveAllNodes()
 
 	for _, node := range nodeList {
+		if node.NodeL2Fibs == nil {
+			v.Report.AppendToNodeReport(node.Name, "validation skipped - no L2-FIB data available")
+			continue
+		}
+
 		fibHasLoopIF := false
 		vxLanBD, err := getVxlanBD(node)
 		if err != nil {

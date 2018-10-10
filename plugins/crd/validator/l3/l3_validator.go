@@ -75,7 +75,19 @@ func (v *Validator) Validate() {
 
 		if node.NodeIPam == nil {
 			v.Log.Infof("No IPAM data for node %s", node.Name)
-			v.Report.AppendToNodeReport(node.Name, "no IPAM data available")
+			v.Report.AppendToNodeReport(node.Name, "validation skipped - no IPAM data available")
+			continue
+		}
+
+		if node.NodeInterfaces == nil {
+			v.Log.Infof("validation aborted - no interfaces data available")
+			v.Report.AppendToNodeReport(node.Name, "validation skipped - no interface data available")
+			continue
+		}
+
+		if node.NodeStaticRoutes == nil {
+			v.Log.Infof("validation aborted - no route data available")
+			v.Report.AppendToNodeReport(node.Name, "validation skipped - no route data available")
 			continue
 		}
 

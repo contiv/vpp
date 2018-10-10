@@ -116,6 +116,8 @@ func TestValidator(t *testing.T) {
 	// Do the testing
 	t.Run("testErrorFreeEndToEnd", testErrorFreeEndToEnd)
 	t.Run("testMissingIPAM", testMissingIPAM)
+	t.Run("testMissingInterfaces", testMissingInterfaces)
+	t.Run("testMissingStaticRoutes", testMissingStaticRoutes)
 	t.Run("testValidateRoutesToLocalPods", testValidateRoutesToLocalPods)
 	t.Run("testValidateVrf0GigERoutes", testValidateVrf0GigERoutes)
 	t.Run("testValidateInterfaceLookup", testValidateInterfaceLookup)
@@ -145,8 +147,6 @@ func testMissingIPAM(t *testing.T) {
 	vtv.report.Clear()
 	vtv.l3Validator.Validate()
 
-	// NOTE: Expect one error per node in L3 validation until we can validate
-	// static routes configured through Linux
 	checkDataReport(1, 1, 9)
 
 	vrfMap, err := vtv.l3Validator.createVrfMap(vtv.vppCache.NodeMap[vtv.nodeKey])
@@ -155,6 +155,38 @@ func testMissingIPAM(t *testing.T) {
 	routeMap := vtv.l3Validator.createValidationMap(vrfMap)
 	numErrs := vtv.l3Validator.validateLocalVppHostNetworkRoute(vtv.vppCache.NodeMap[vtv.nodeKey], vrfMap, routeMap)
 	gomega.Expect(numErrs).To(gomega.Equal(1))
+}
+
+func testMissingInterfaces(t *testing.T) {
+	resetToInitialErrorFreeState()
+
+	// ----------------------------------------
+	// INJECT FAULT: MISSING IPAM on k8s-master
+	vtv.vppCache.NodeMap[vtv.nodeKey].NodeInterfaces = nil
+
+	// Perform test
+	vtv.report.Clear()
+	vtv.l3Validator.Validate()
+
+	// NOTE: Expect one error per node in L3 validation until we can validate
+	// static routes configured through Linux
+	checkDataReport(1, 1, 9)
+}
+
+func testMissingStaticRoutes(t *testing.T) {
+	resetToInitialErrorFreeState()
+
+	// ----------------------------------------
+	// INJECT FAULT: MISSING IPAM on k8s-master
+	vtv.vppCache.NodeMap[vtv.nodeKey].NodeStaticRoutes = nil
+
+	// Perform test
+	vtv.report.Clear()
+	vtv.l3Validator.Validate()
+
+	// NOTE: Expect one error per node in L3 validation until we can validate
+	// static routes configured through Linux
+	checkDataReport(1, 1, 4)
 }
 
 func testValidateRoutesToLocalPods(t *testing.T) {

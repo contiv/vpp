@@ -49,7 +49,7 @@ http_proxy = ENV['HTTP_PROXY'] || ENV['http_proxy'] || ''
 https_proxy = ENV['HTTPS_PROXY'] || ENV['https_proxy'] || ''
 k8s_version = ENV['K8S_VERSION']
 node_os = ENV['K8S_NODE_OS'] || 'ubuntu'
-node_os_release = ENV['K8S_NODE_OS_RELEASE'] || '18.04'
+node_os_release = ENV['K8S_NODE_OS_RELEASE'] || '16.04'
 node_cpus = ENV['K8S_NODE_CPUS'].to_i == 0 ? 4 : ENV['K8S_NODE_CPUS'].to_i
 node_memory = ENV['K8S_NODE_MEMORY'].to_i == 0 ? 4096 : ENV['K8S_NODE_MEMORY'].to_i
 num_nodes = ENV['K8S_NODES'].to_i == 0 ? 0 : ENV['K8S_NODES'].to_i
@@ -92,9 +92,15 @@ sudo -E apt-get install -y apt-transport-https \
                   software-properties-common \
                   htop
 
-echo "Adding Kubernetes repos..."
+echo "Adding Kubernetes repo..."
 curl -fsSL https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo -E apt-key add -
 sudo -E add-apt-repository "deb http://apt.kubernetes.io/ kubernetes-xenial main"
+
+if [ "#{node_os_release}" == "16.04" ] ; then
+  echo "Adding Docker repo..."
+  curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo -E apt-key add -
+  sudo -E add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu xenial stable"
+fi
 
 echo "Updating apt lists..."
 sudo -E apt-get update -q
@@ -105,7 +111,11 @@ sudo -E apt-get install -qy kubelet=#{k8s_version}-00 \
                   kubeadm=#{k8s_version}-00
 
 echo "Installing Docker..."
-sudo -E apt-get install -y docker.io
+if [ "#{node_os_release}" == "16.04" ] ; then
+  sudo -E apt-get install -y docker-ce
+else
+  sudo -E apt-get install -y docker.io
+fi
 
 #Setup the proxy if needed
 if [ "#{http_proxy}" != "" ] ; then
@@ -566,7 +576,7 @@ VAGRANTFILE_API_VERSION = "2"
         config.vm.box_version = "1.0.0"
       when "18.04"
         config.vm.box = "ubuntu/bionic64"
-        config.vm.box_version = "20180927.0.0"
+        config.vm.box_version = "20181008.0.0"
       else
         puts "Wrong node os release #{node_os_release} -- Aborting"
         abort

@@ -240,10 +240,12 @@ spec:
         # Marks this pod as a critical add-on.
         scheduler.alpha.kubernetes.io/critical-pod: ''
     spec:
-      # Allow this pod to be rescheduled while the node is in "critical add-ons only" mode.
       tolerations:
-      - key: node-role.kubernetes.io/master
-        effect: NoSchedule
+      # We need this to schedule on the master no matter what else is going on, so tolerate everything.
+      - key: ''
+        operator: Exists
+        effect: ''
+      # This likely isn't needed due to the above wildcard, but keep it in for now.
       - key: CriticalAddonsOnly
         operator: Exists
       hostNetwork: true
@@ -609,6 +611,20 @@ spec:
         image: arm64v8/busybox:latest
         command: ['sh', '-c', 'until nc -w 2 127.0.0.1:$ETCDPORT; do echo waiting for etcd; sleep 2; done;']
 
+      # This init container copies contiv-netctl tool to the host.
+      - name: netctl-init
+        image: contivvpp/crd-arm64:latest
+        imagePullPolicy: IfNotPresent
+        command:
+        - /bin/sh
+        args:
+        - -c
+        - |
+          cp -f /contiv-netctl /host/usr/local/bin/contiv-netctl || true
+        volumeMounts:
+          - name: usr-local-bin
+            mountPath: /host/usr/local/bin
+
       containers:
       - name: contiv-crd
         image: contivvpp/crd-arm64:latest
@@ -640,6 +656,9 @@ spec:
         - name: etcd-cfg
           configMap:
             name: contiv-etcd-withcompact-cfg
+        - name: usr-local-bin
+          hostPath:
+            path: /usr/local/bin
         - name: http-cfg
           configMap:
             name: contiv-crd-http-cfg

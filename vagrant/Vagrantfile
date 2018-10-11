@@ -337,8 +337,12 @@ source /home/vagrant/.profile
 # Based on kubernetes version, disable hugepages in Kubelet
 # Initialize Kubernetes master
 split_k8s_version="$(cut -d "." -f 2 <<< '#{k8s_version}')"
-if [ $split_k8s_version = '11' ]; then
-  sed -i '1s/.*/KUBELET_EXTRA_ARGS=--node-ip='"$KUBE_MASTER_IP"' --feature-gates HugePages=false --resolv-conf=\\/run\\/systemd\\/resolve\\/resolv.conf/' /etc/default/kubelet
+if [ $split_k8s_version = '11' ] || [ $split_k8s_version = '12' ] ; then
+  if [ "#{node_os_release}" == "16.04" ] ; then
+    sed -i '1s/.*/KUBELET_EXTRA_ARGS=--node-ip='"$KUBE_MASTER_IP"' --feature-gates HugePages=false/' /etc/default/kubelet
+  else
+    sed -i '1s/.*/KUBELET_EXTRA_ARGS=--node-ip='"$KUBE_MASTER_IP"' --feature-gates HugePages=false --resolv-conf=\\/run\\/systemd\\/resolve\\/resolv.conf/' /etc/default/kubelet
+  fi
   systemctl daemon-reload
   systemctl restart kubelet
   echo "$(kubeadm init --token-ttl 0 --kubernetes-version=v"#{k8s_version}" --pod-network-cidr="10.0.0.0/8" --apiserver-advertise-address="${KUBE_MASTER_IP}" --token="${KUBEADM_TOKEN}")" >> /vagrant/config/cert

@@ -1111,7 +1111,7 @@ spec:
         # Used to connect to contiv-etcd.
         - name: etcd-cfg
           configMap:
-            name: contiv-etcd-withcompact-cfg
+            name: contiv-etcd-cfg
         - name: usr-local-bin
           hostPath:
             path: /usr/local/bin

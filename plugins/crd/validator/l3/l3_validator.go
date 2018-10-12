@@ -483,7 +483,7 @@ func (v *Validator) validatePodSubnetCidrRoutes(node *telemetrymodel.Node, vrfMa
 		return numErrs
 	}
 
-	podSubnetCidrRte := node.NodeIPam.Config.PodSubnetCIRDR
+	podSubnetCidrRte := node.NodeIPam.Config.PodSubnetCIDR
 
 	numErrs += v.validateRoute(podSubnetCidrRte, 0, vrfMap, routeMap, node.Name,
 		"", maxIfIdx, "0.0.0.0", 1, 1)

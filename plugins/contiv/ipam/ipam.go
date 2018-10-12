@@ -22,7 +22,6 @@ import (
 
 	"github.com/ligato/cn-infra/db/keyval"
 	"github.com/ligato/cn-infra/logging"
-	"github.com/ligato/cn-infra/rpc/rest"
 	"sort"
 )
 
@@ -73,20 +72,20 @@ type podID = string
 
 // Config represents configuration of the IPAM module.
 type Config struct {
-	PodIfIPCIDR             string // subnet from which individual VPP-side POD interfaces networks are allocated, this is subnet for all PODS within 1 node.
-	PodSubnetCIDR           string // subnet from which individual POD networks are allocated, this is subnet for all PODs across all nodes
-	PodNetworkPrefixLen     uint8  // prefix length of subnet used for all PODs within 1 node (pod network = pod subnet for one 1 node)
-	VPPHostSubnetCIDR       string // subnet used across all nodes for VPP to host Linux stack interconnect
-	VPPHostNetworkPrefixLen uint8  // prefix length of subnet used for for VPP to host Linux stack interconnect within 1 node (VPPHost network = VPPHost subnet for one 1 node)
-	NodeInterconnectCIDR    string // subnet used for for inter-node connections
-	NodeInterconnectDHCP    bool   // if set to true DHCP is used to acquire IP for the main VPP interface (NodeInterconnectCIDR can be omitted in config)
-	VxlanCIDR               string // subnet used for for inter-node VXLAN
-	ServiceCIDR             string // subnet used by services
-	ContivCIDR              string // subnet from which all subnets (pod/node/vxlan) will be created
+	PodIfIPCIDR             string `json:"podIfIPCIDR"`             // subnet from which individual VPP-side POD interfaces networks are allocated, this is subnet for all PODS within 1 node.
+	PodSubnetCIDR           string `json:"podSubnetCIDR"`           // subnet from which individual POD networks are allocated, this is subnet for all PODs across all nodes
+	PodNetworkPrefixLen     uint8  `json:"podNetworkPrefixLen"`     // prefix length of subnet used for all PODs within 1 node (pod network = pod subnet for one 1 node)
+	VPPHostSubnetCIDR       string `json:"vppHostSubnetCIDR"`       // subnet used across all nodes for VPP to host Linux stack interconnect
+	VPPHostNetworkPrefixLen uint8  `json:"vppHostNetworkPrefixLen"` // prefix length of subnet used for for VPP to host Linux stack interconnect within 1 node (VPPHost network = VPPHost subnet for one 1 node)
+	NodeInterconnectCIDR    string `json:"nodeInterconnectCIDR"`    // subnet used for for inter-node connections
+	NodeInterconnectDHCP    bool   `json:"nodeInterconnectDHCP"`    // if set to true DHCP is used to acquire IP for the main VPP interface (NodeInterconnectCIDR can be omitted in config)
+	VxlanCIDR               string `json:"vxlanCIDR"`               // subnet used for for inter-node VXLAN
+	ServiceCIDR             string `json:"serviceCIDR"`             // subnet used by services
+	ContivCIDR              string `json:"contivCIDR"`              // subnet from which all subnets (pod/node/vxlan) will be created
 }
 
 // New returns new IPAM module to be used on the node specified by the nodeID.
-func New(logger logging.Logger, nodeID uint32, nodeName string, config *Config, nodeInterconnectExcludedIPs []net.IP, broker keyval.ProtoBroker, http rest.HTTPHandlers) (*IPAM, error) {
+func New(logger logging.Logger, nodeID uint32, nodeName string, config *Config, nodeInterconnectExcludedIPs []net.IP, broker keyval.ProtoBroker) (*IPAM, error) {
 	// create basic IPAM
 	ipam := &IPAM{
 		logger:       logger,
@@ -120,7 +119,6 @@ func New(logger logging.Logger, nodeID uint32, nodeName string, config *Config, 
 	}
 	logger.Infof("IPAM values loaded: %+v", ipam)
 
-	ipam.registerHandlers(http)
 	return ipam, nil
 }
 

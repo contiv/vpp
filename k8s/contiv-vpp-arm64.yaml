@@ -609,6 +609,20 @@ spec:
         image: arm64v8/busybox:latest
         command: ['sh', '-c', 'until nc -w 2 127.0.0.1:$ETCDPORT; do echo waiting for etcd; sleep 2; done;']
 
+      # This init container copies contiv-netctl tool to the host.
+      - name: netctl-init
+        image: contivvpp/crd-arm64:latest
+        imagePullPolicy: IfNotPresent
+        command:
+        - /bin/sh
+        args:
+        - -c
+        - |
+          cp -f /contiv-netctl /host/usr/local/bin/contiv-netctl || true
+        volumeMounts:
+          - name: usr-local-bin
+            mountPath: /host/usr/local/bin
+
       containers:
       - name: contiv-crd
         image: contivvpp/crd-arm64:latest
@@ -639,7 +653,10 @@ spec:
         # Used to connect to contiv-etcd.
         - name: etcd-cfg
           configMap:
-            name: contiv-etcd-withcompact-cfg
+            name: contiv-etcd-cfg
+        - name: usr-local-bin
+          hostPath:
+            path: /usr/local/bin
         - name: http-cfg
           configMap:
             name: contiv-crd-http-cfg

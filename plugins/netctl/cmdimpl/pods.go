@@ -127,8 +127,9 @@ func (pg *podGetter) printAllPods(w *tabwriter.Writer) {
 		buf := kv.GetValue()
 		nodeInfo := &node.NodeInfo{}
 		err = json.Unmarshal(buf, nodeInfo)
-		fmt.Fprintf(w, "%s:\t\t\t\t\t\t\t\t\n", nodeInfo.Name)
-		fmt.Fprintf(w, "%s\t\t\t\t\t\t\t\t\n", strings.Repeat("-", len(nodeInfo.Name)+1))
+		nodeId := fmt.Sprintf("%s (%s):", nodeInfo.Name, nodeInfo.ManagementIpAddress)
+		fmt.Fprintf(w, "%s\t\t\t\t\t\t\t\n", nodeId)
+		fmt.Fprintf(w, "%s\t\t\t\t\t\t\t\n", strings.Repeat("-", len(nodeId)))
 
 		pg.printPodsPerNode(w, nodeInfo.ManagementIpAddress, nodeInfo.Name)
 		fmt.Fprintln(w, "\t\t\t\t\t\t\t\t")
@@ -138,52 +139,58 @@ func (pg *podGetter) printAllPods(w *tabwriter.Writer) {
 func (pg *podGetter) printPodsPerNode(w *tabwriter.Writer, nodeNameOrIP string, nodeName string) {
 	hostIP := resolveNodeOrIP(nodeNameOrIP)
 
-	fmt.Fprintf(w, "POD-NAME\tNAMESPACE\tPOD-IP\tVPP-IP\tIF-IDX\tIF-NAME\tINTERNAL-IF-NAME\tHOST-IP\n")
+	fmt.Fprintf(w, "POD-NAME\tNAMESPACE\tPOD-IP\tVPP-IP\tIF-IDX\tIF-NAME\tINTERNAL-IF-NAME\n")
 
 	for _, podInfo := range pg.pods {
-		if podInfo.HostIpAddress != hostIP || podInfo.IpAddress == hostIP {
+		if podInfo.HostIpAddress != hostIP {
 			continue
-		}
-
-		if ipAddress, ifIndex, intName, name, err := pg.getTapInterfaces(podInfo); err == nil {
-			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%d\t%s\t%s\t%s\n",
+		} else if podInfo.IpAddress == hostIP {
+			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
+				podInfo.Name,
+				podInfo.Namespace,
+				podInfo.IpAddress,
+				"", "", "", "")
+		} else {
+			ipAddress, ifIndex, intName, name := pg.getTapInterfaceForPod(podInfo)
+			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%d\t%s\t%s\n",
 				podInfo.Name,
 				podInfo.Namespace,
 				podInfo.IpAddress,
 				strings.Split(ipAddress, "/")[0],
 				ifIndex,
 				intName,
-				name,
-				podInfo.HostIpAddress)
-
-		} else {
-			fmt.Printf("error %s\n", err)
+				name)
 		}
 	}
 }
 
-func (pg *podGetter) getTapInterfaces(podInfo *pod.Pod) (string, uint32, string, string, error) {
-	// If we haven't retrieved node info from the Agent yet, do it now
+func (pg *podGetter) getTapInterfaceForPod(podInfo *pod.Pod) (string, uint32, string, string) {
+	// when we see a pod from a given node for the first time, retrieve its
+	// IPAM and interface info
 	if pg.ndCache[podInfo.HostIpAddress] == nil {
+
 		// Get ipam data for the node where the pod is hosted
 		b, err := http.GetNodeInfo(podInfo.HostIpAddress, getIpamDataCmd)
 		if err != nil {
-			return "", 0, "", "", fmt.Errorf("failed to get ipam for node %s, err %s",
-				podInfo.HostIpAddress, err)
+			fmt.Printf("Host '%s', Pod '%s' - failed to get ipam, err %s\n",
+				podInfo.HostIpAddress, podInfo.Name, err)
+			return "N/A", 0, "N/A", "N/A"
 		}
 
 		ipam := &telemetrymodel.IPamEntry{}
 		if err := json.Unmarshal(b, ipam); err != nil {
-			return "", 0, "", "", fmt.Errorf("failed to decode ipam for node %s, err %s",
-				podInfo.HostIpAddress, err)
+			fmt.Printf("Host '%s', Pod '%s' - failed to decode ipam, err %s\n",
+				podInfo.HostIpAddress, podInfo.Name, err)
+			return "N/A", 0, "N/A", "N/A"
 		}
 
 		// Get interfaces data for the node where the pod is hosted
 		b, err = http.GetNodeInfo(podInfo.HostIpAddress, getInterfaceDataCmd)
 		intfs := make(telemetrymodel.NodeInterfaces)
 		if err := json.Unmarshal(b, &intfs); err != nil {
-			return "", 0, "", "", fmt.Errorf("failed to get pod's interface; pod %s, hostIPAddress %s, err %s",
-				podInfo.Name, podInfo.HostIpAddress, err)
+			fmt.Printf("Host '%s', Pod '%s' - failed to get pod's interface, err %s\n",
+				podInfo.HostIpAddress, podInfo.Name, err)
+			return "N/A", 0, "N/A", "N/A"
 		}
 
 		pg.ndCache[podInfo.HostIpAddress] = &nodeData{
@@ -193,19 +200,32 @@ func (pg *podGetter) getTapInterfaces(podInfo *pod.Pod) (string, uint32, string,
 	}
 
 	// Determine the tap interface on VPP that connects the pod to the VPP
+	podPfxLen := pg.ndCache[podInfo.HostIpAddress].ipam.Config.VppHostNetworkPrefixLen
+	podMask := maskLength2Mask(int(podPfxLen))
+
 	podIfIPAddress, podIfIPMask, err := getIPAddressAndMask(pg.ndCache[podInfo.HostIpAddress].ipam.Config.PodIfIPCIDR)
 	if err != nil {
-		return "", 0, "", "", fmt.Errorf("invalid PodIfIPCIDR address %s, err %s",
-			podInfo.HostIpAddress, err)
+		fmt.Printf("Host '%s', Pod '%s' - invalid PodIfIPCIDR address %s, err %s\n",
+			podInfo.HostIpAddress, podInfo.Name, pg.ndCache[podInfo.HostIpAddress].ipam.Config.PodIfIPCIDR, err)
+		return "N/A", 0, "N/A", "N/A"
 	}
 
-	podIfIPPrefix := podIfIPAddress &^ podIfIPMask
+	if podMask != podIfIPMask {
+		fmt.Printf("Host '%s', Pod '%s' - vppHostNetworkPrefixLen mismatch: "+
+			"PodIfIPCIDR '%s', podNetworkPrefixLen '%d'\n",
+			podInfo.HostIpAddress, podInfo.Name,
+			pg.ndCache[podInfo.HostIpAddress].ipam.Config.PodIfIPCIDR,
+			pg.ndCache[podInfo.HostIpAddress].ipam.Config.PodNetworkPrefixLen)
+	}
+
+	podIfIPPrefix := podIfIPAddress &^ podMask
 	podAddr, err := ip2uint32(podInfo.IpAddress)
 	if err != nil {
-		return "", 0, "", "", fmt.Errorf("invalid podInfo.IpAddress %s, err %s",
-			podInfo.HostIpAddress, err)
+		fmt.Printf("Host '%s', Pod '%s' - invalid podInfo.IpAddress %s, err %s",
+			podInfo.HostIpAddress, podInfo.Name, podInfo.IpAddress, err)
+		return "N/A", 0, "N/A", "N/A"
 	}
-	podAddrSuffix := podAddr & podIfIPMask
+	podAddrSuffix := podAddr & podMask
 
 	for _, intf := range pg.ndCache[podInfo.HostIpAddress].ifcs {
 		if intf.If.IfType == interfaces.InterfaceType_TAP_INTERFACE {
@@ -219,16 +239,16 @@ func (pg *podGetter) getTapInterfaces(podInfo *pod.Pod) (string, uint32, string,
 					continue
 				}
 
-				ifIPAdrPrefix := ifIPAddr &^ podIfIPMask
-				ifIPAdrSuffix := ifIPAddr & podIfIPMask
+				ifIPAdrPrefix := ifIPAddr &^ podMask
+				ifIPAdrSuffix := ifIPAddr & podMask
 				if (podIfIPPrefix == ifIPAdrPrefix) && (ifIPAdrSuffix == podAddrSuffix) {
-					return ip, intf.IfMeta.SwIfIndex, intf.IfMeta.VppInternalName, intf.If.Name, nil
+					return ip, intf.IfMeta.SwIfIndex, intf.IfMeta.VppInternalName, intf.If.Name
 				}
 			}
 		}
 	}
 
-	return "", 0, "", "", nil
+	return "N/A", 0, "N/A", "N/A"
 }
 
 func getWriter(hostName string) *tabwriter.Writer {

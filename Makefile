@@ -197,7 +197,7 @@ generate: get-generators
 # Get linter tools
 get-linters:
 	@echo " => installing linters"
-	go get -v github.com/golang/lint/golint
+	go get -v golang.org/x/lint/golint
 
 # Run code analysis
 lint:

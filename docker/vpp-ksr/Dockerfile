@@ -1,4 +1,4 @@
-FROM golang:1.11.1-alpine3.8 as builder
+FROM golang:1.10.4-alpine3.8 as builder
 
 # we want a static binary
 ENV CGO_ENABLED=0

@@ -62,6 +62,9 @@ func main() {
 		deps.SetName("ksrDataSync")
 	}))
 
+	// disable status check for etcd
+	etcd.DefaultPlugin.StatusCheck = nil
+
 	crd.DefaultPlugin.Watcher = ksrDataSync
 	crd.DefaultPlugin.Publish = ksrDataSync
 

@@ -240,12 +240,10 @@ spec:
         # Marks this pod as a critical add-on.
         scheduler.alpha.kubernetes.io/critical-pod: ''
     spec:
+      # Allow this pod to be rescheduled while the node is in "critical add-ons only" mode.
       tolerations:
-      # We need this to schedule on the master no matter what else is going on, so tolerate everything.
-      - key: ''
-        operator: Exists
-        effect: ''
-      # This likely isn't needed due to the above wildcard, but keep it in for now.
+      - key: node-role.kubernetes.io/master
+        effect: NoSchedule
       - key: CriticalAddonsOnly
         operator: Exists
       hostNetwork: true
@@ -655,7 +653,7 @@ spec:
         # Used to connect to contiv-etcd.
         - name: etcd-cfg
           configMap:
-            name: contiv-etcd-withcompact-cfg
+            name: contiv-etcd-cfg
         - name: usr-local-bin
           hostPath:
             path: /usr/local/bin

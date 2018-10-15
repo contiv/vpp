@@ -196,6 +196,8 @@ type remoteCNIserver struct {
 
 	// nodeIDChangeEvs is buffer where change events are stored until resync event is processed
 	nodeIDChangeEvs []datasync.ChangeEvent
+
+	http rest.HTTPHandlers
 }
 
 // vswitchConfig holds base vSwitch VPP configuration.
@@ -227,7 +229,8 @@ type vswitchConfig struct {
 func newRemoteCNIServer(logger logging.Logger, vppTxnFactory func() linuxclient.DataChangeDSL, proxy kvdbproxy.Proxy,
 	configuredContainers *containeridx.ConfigIndex, govppChan api.Channel, index ifaceidx.SwIfIndex, dhcpIndex ifaceidx.DhcpIndex, agentLabel string,
 	config *Config, nodeConfig *NodeConfig, nodeID uint32, nodeExcludeIPs []net.IP, broker keyval.ProtoBroker, http rest.HTTPHandlers) (*remoteCNIserver, error) {
-	ipam, err := ipam.New(logger, nodeID, agentLabel, &config.IPAMConfig, nodeExcludeIPs, broker, http)
+
+	ipam, err := ipam.New(logger, nodeID, agentLabel, &config.IPAMConfig, nodeExcludeIPs, broker)
 	if err != nil {
 		return nil, err
 	}
@@ -245,6 +248,7 @@ func newRemoteCNIServer(logger logging.Logger, vppTxnFactory func() linuxclient.
 		ipam:                 ipam,
 		nodeConfig:           nodeConfig,
 		config:               config,
+		http:                 http,
 		tcpChecksumOffloadDisabled: config.TCPChecksumOffloadDisabled,
 		useTAPInterfaces:           config.UseTAPInterfaces,
 		tapVersion:                 config.TAPInterfaceVersion,
@@ -260,6 +264,7 @@ func newRemoteCNIServer(logger logging.Logger, vppTxnFactory func() linuxclient.
 		server.defaultGw = net.ParseIP(nodeConfig.Gateway)
 	}
 	server.dhcpNotif = make(chan ifaceidx.DhcpIdxDto, 1)
+	server.registerHandlers()
 	return server, nil
 }
 

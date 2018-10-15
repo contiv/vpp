@@ -115,7 +115,7 @@ func nodeIpamCmd(w *tabwriter.Writer, nodeName string) {
 		ipam.PodNetwork,
 		ipam.VppHostNetwork,
 		ipam.Config.PodIfIPCIDR,
-		ipam.Config.PodSubnetCIRDR)
+		ipam.Config.PodSubnetCIDR)
 }
 
 func getTabWriterAndPrintHeader() *tabwriter.Writer {

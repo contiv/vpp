@@ -58,9 +58,6 @@ func main() {
 
 	ksr.DefaultPlugin.Publish = etcdDataSync
 
-	// disable status check for etcd
-	etcd.DefaultPlugin.StatusCheck = nil
-
 	contivKSR := &ContivKSR{
 		ServiceLabel: &servicelabel.DefaultPlugin,
 		HealthProbe:  &probe.DefaultPlugin,

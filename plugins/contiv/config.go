@@ -85,27 +85,37 @@ func (cfg *Config) ApplyDefaults() {
 }
 
 // ApplyIPAMConfig populates the Config struct with the calculated subnets
-func (cfg *Config) ApplyIPAMConfig() {
+func (cfg *Config) ApplyIPAMConfig() error {
+
 	// set default ContivCIDR if not defined by user
 	if cfg.IPAMConfig.ContivCIDR == "" {
-		return
+		return nil
 	}
+
+	// check if subnet is big enough to apply IPAM for subnets
 	_, contivNetwork, _ := net.ParseCIDR(cfg.IPAMConfig.ContivCIDR)
 	maskSize, _ := contivNetwork.Mask.Size()
-	subnetPrefixLength := 23 - maskSize
+	if maskSize > 14 {
+		return fmt.Errorf("ContivCIDR is not valid, netmask size must be 14-bits or less")
+	}
 
-	// podSubnetCIDR has a requriement of minimum 65K pod ip addresses
-	podSubnetCIDR, _ := subnet(contivNetwork, 2, 0)
+	// podSubnetCIDR has a requriement of minimum 65K pod ip addresses use /16 mask
+	podPrefixLength := 16 - maskSize
+	podSubnetCIDR, _ := subnet(contivNetwork, podPrefixLength, 0)
 	podNetworkPrefixLen := uint8(25)
 
-	// vppHostSubnetCIDR has a requriement of minimum 65K pod ip addresses
-	vppHostSubnetCIDR, _ := subnet(contivNetwork, 2, 1)
+	// vppHostSubnetCIDR has a requriement of minimum 65K pod ip addresses use /16 mask
+	vppHostSubnetCIDR, _ := subnet(contivNetwork, podPrefixLength, 1)
 	vppHostNetworkPrefixLen := uint8(25)
 
-	// use a /23 mask for the requirement of 500 nodes
-	nodeInterconnectCIDR, _ := subnet(contivNetwork, subnetPrefixLength, 256)
-	podIfIPCIDR, _ := subnet(contivNetwork, subnetPrefixLength, 257)
-	vxlanCIDR, _ := subnet(contivNetwork, subnetPrefixLength, 258)
+	// use a /23 mask for the requirement of 500 nodes, same for vxlanCIDR
+	nodePrefixLength := 23 - maskSize
+	nodeInterconnectCIDR, _ := subnet(contivNetwork, nodePrefixLength, 256)
+	vxlanCIDR, _ := subnet(contivNetwork, nodePrefixLength, 257)
+
+	// podIfIPCIDR uses a /25 network prefix length similar to vppHostNetworkPrefixLen
+	podIfSubnetPrefixLength := 25 - maskSize
+	podIfIPCIDR, _ := subnet(contivNetwork, podIfSubnetPrefixLength, 1032)
 
 	cfg.IPAMConfig = ipam.Config{
 		PodIfIPCIDR:             podIfIPCIDR.String(),
@@ -119,6 +129,8 @@ func (cfg *Config) ApplyIPAMConfig() {
 	if cfg.IPAMConfig.NodeInterconnectCIDR == "" && cfg.IPAMConfig.NodeInterconnectDHCP == false {
 		cfg.IPAMConfig.NodeInterconnectCIDR = nodeInterconnectCIDR.String()
 	}
+
+	return nil
 }
 
 // GetNodeConfig returns configuration specific to a given node, or nil if none was found.

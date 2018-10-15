@@ -336,6 +336,10 @@ source /home/vagrant/.profile
 
 # Based on kubernetes version, disable hugepages in Kubelet
 # Initialize Kubernetes master
+
+echo "Pulling k8s images..."
+echo "$(kubeadm config images pull --kubernetes-version=v"#{k8s_version}")"
+
 split_k8s_version="$(cut -d "." -f 2 <<< '#{k8s_version}')"
 if [ $split_k8s_version = '11' ] || [ $split_k8s_version = '12' ] ; then
   if [ "#{node_os_release}" == "16.04" ] ; then

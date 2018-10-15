@@ -31,55 +31,82 @@ import (
 	"time"
 )
 
-// FindIPForNodeName will find an ip address that corresponds to the passed
-// in nodeName
-func FindIPForNodeName(nodeName string) string {
-	cfg := &etcd.ClientConfig{
-		Config: &clientv3.Config{
-			Endpoints: []string{"127.0.0.1:32379"},
-		},
-		OpTimeout: 1 * time.Second,
-	}
-	// Create connection to etcd.
-	logger := logrus.DefaultLogger()
-	logger.SetLevel(logging.FatalLevel)
-	db, err := etcd.NewEtcdConnectionWithBytes(*cfg, logger)
-	if err != nil {
-		fmt.Printf("Could not connect to Etcd to get IP address for node '%s', error '%s'\n", nodeName, err)
-		os.Exit(1)
-	}
-	itr, err := db.ListValues("/vnf-agent/contiv-ksr/allocatedIDs/")
-	if err != nil {
-		fmt.Printf("Could not get node info from Etcd for node '%s'\n", nodeName)
-		return ""
-	}
-	for {
-		kv, stop := itr.GetNext()
-		if stop {
-			break
+type clusterNodeInfo map[string]*node.NodeInfo
+
+var (
+	nodeInfo    clusterNodeInfo = nil
+	bytesBroker *etcd.BytesConnectionEtcd = nil
+)
+
+func getEtcdBroker() *etcd.BytesConnectionEtcd {
+	if bytesBroker == nil {
+		etcdCfg := etcd.ClientConfig{
+			Config: &clientv3.Config{
+				Endpoints: []string{etcdLocation},
+			},
+			OpTimeout: 1 * time.Second,
 		}
-		buf := kv.GetValue()
-		//key := kv.GetKey()
-		//fmt.Printf("Key: %s, value: %s\n", key, string(buf))
-		nodeInfo := &node.NodeInfo{}
-		err = json.Unmarshal(buf, nodeInfo)
-		if nodeInfo.Name == nodeName {
-			return nodeInfo.ManagementIpAddress
+
+		logger := logrus.DefaultLogger()
+		logger.SetLevel(logging.ErrorLevel)
+
+		var err error
+		var db *etcd.BytesConnectionEtcd
+		if db, err = etcd.NewEtcdConnectionWithBytes(etcdCfg, logger); err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
+
+		bytesBroker = db
+	}
+
+	return bytesBroker
+}
+
+func getClusterNodeInfo() clusterNodeInfo {
+	if (nodeInfo == nil) || (len(nodeInfo) == 0) {
+		db := getEtcdBroker()
+
+		nodeInfo = make(clusterNodeInfo, 0)
+		itr, err := db.ListValues(nodeInfoDataKey)
+		if err != nil {
+			fmt.Println("Failed to discover nodes in Contiv cluster")
+			os.Exit(-1)
+		}
+
+		for {
+			kv, stop := itr.GetNext()
+			if stop {
+				break
+			}
+			buf := kv.GetValue()
+			ni := &node.NodeInfo{}
+			if err = json.Unmarshal(buf, ni); err != nil {
+				fmt.Printf("failed to decode node info for node %s, error %s\n", kv.GetKey(), err)
+				continue
+			}
+			nodeInfo[ni.Name] = ni
 		}
 	}
-	db.Close()
-	return ""
+
+	return nodeInfo
 }
 
 //resolveNodeOrIP will take in an input string which is either a node name
 // or string and return the ip for the nodename or simply return the ip
-func resolveNodeOrIP(input string) (ipAdr string) {
+func resolveNodeOrIP(nodeName string) (ipAdr string) {
 	re := regexp.MustCompile(`(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)(\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)){3}`)
-	if re.MatchString(input) {
-		return input
+	if re.MatchString(nodeName) {
+		return nodeName
 	}
-	ip := FindIPForNodeName(input)
-	return ip
+
+	for k, v := range getClusterNodeInfo() {
+		if k == nodeName {
+			return v.ManagementIpAddress
+		}
+	}
+
+	return ""
 }
 
 // maskLength2Mask will tank in an int and return the bit mask for the

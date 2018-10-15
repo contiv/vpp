@@ -621,19 +621,28 @@ func (rndr *Renderer) exportIdentityMappings() *nat.Nat44DNat_DNatConfig {
 	}
 
 	if rndr.defaultIfIP != nil {
+		/* identity NAT for the VXLAN tunnel - incoming packets */
 		vxlanID := &nat.Nat44DNat_DNatConfig_IdentityMapping{
 			IpAddress: rndr.defaultIfIP.String(),
 			Protocol:  nat.Protocol_UDP,
 			Port:      vxlanPort,
 			VrfId:     rndr.Contiv.GetMainVrfID(),
 		}
-		mainIfID := &nat.Nat44DNat_DNatConfig_IdentityMapping{
+		/* identity NAT for the VXLAN tunnel - outgoing packets */
+		mainIfID1 := &nat.Nat44DNat_DNatConfig_IdentityMapping{
 			IpAddress: rndr.defaultIfIP.String(),
 			Protocol:  nat.Protocol_UDP, /* Address-only mappings are dumped with UDP as protocol */
 			VrfId:     rndr.Contiv.GetPodVrfID(),
 		}
+		/* identity NAT for the STN (host-facing) traffic */
+		mainIfID2 := &nat.Nat44DNat_DNatConfig_IdentityMapping{
+			IpAddress: rndr.defaultIfIP.String(),
+			Protocol:  nat.Protocol_UDP, /* Address-only mappings are dumped with UDP as protocol */
+			VrfId:     rndr.Contiv.GetMainVrfID(),
+		}
 		idNat.IdMappings = append(idNat.IdMappings, vxlanID)
-		idNat.IdMappings = append(idNat.IdMappings, mainIfID)
+		idNat.IdMappings = append(idNat.IdMappings, mainIfID1)
+		idNat.IdMappings = append(idNat.IdMappings, mainIfID2)
 	}
 
 	return idNat

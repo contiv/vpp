@@ -19,14 +19,10 @@ package cmdimpl
 import (
 	"encoding/json"
 	"fmt"
-	nodeinfomodel "github.com/contiv/vpp/plugins/contiv/model/node"
+	"sort"
 
 	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
 	"github.com/contiv/vpp/plugins/netctl/http"
-	"github.com/coreos/etcd/clientv3"
-	"github.com/ligato/cn-infra/db/keyval/etcd"
-	"github.com/ligato/cn-infra/logging"
-	"github.com/ligato/cn-infra/logging/logrus"
 	"os"
 	"strings"
 	"text/tabwriter"
@@ -35,45 +31,17 @@ import (
 
 //PrintNodes will print out all of the cmdimpl in a network in a table format.
 func PrintNodes() {
-	cfg := &etcd.ClientConfig{
-		Config: &clientv3.Config{
-			Endpoints: []string{etcdLocation},
-		},
-		OpTimeout: 1 * time.Second,
+	nodes := make([]string, 0)
+	for k := range getClusterNodeInfo() {
+		nodes = append(nodes, k)
 	}
-	logger := logrus.DefaultLogger()
-	logger.SetLevel(logging.FatalLevel)
+	sort.Strings(nodes)
 
 	w := tabwriter.NewWriter(os.Stdout, 0, 8, 2, ' ', 0)
-
-	// Create connection to etcd.
-	db, err := etcd.NewEtcdConnectionWithBytes(*cfg, logger)
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-	}
-
-	itr, err := db.ListValues(nodeInfoDataKey)
-	if err != nil {
-		fmt.Printf("Error getting values")
-		return
-	}
-
 	fmt.Fprintf(w, "ID\tNODE-NAME\tVPP-IP\tHOST-IP\tSTART-TIME\tSTATE\tBUILD-VERSION\tBUILD-DATE\n")
-	for {
-		kv, stop := itr.GetNext()
-		if stop {
-			break
-		}
 
-		// Get nodeinfo
-		buf := kv.GetValue()
-		nodeInfo := &nodeinfomodel.NodeInfo{}
-		if err = json.Unmarshal(buf, nodeInfo); err != nil {
-			fmt.Printf("Could not decode nodeinfo for node ID %d, error %s\n", kv, err)
-			return
-		}
-
+	for _, n := range nodes {
+		nodeInfo := nodeInfo[n]
 		// Get liveness data which contains image version / build date
 		bytes, err := http.GetNodeInfo(nodeInfo.ManagementIpAddress, "liveness")
 		if err != nil {
@@ -106,5 +74,4 @@ func PrintNodes() {
 	}
 
 	w.Flush()
-	db.Close()
 }

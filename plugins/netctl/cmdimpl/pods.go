@@ -20,15 +20,11 @@ import (
 	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
 	"github.com/contiv/vpp/plugins/ksr/model/pod"
 	"github.com/contiv/vpp/plugins/netctl/http"
-	"github.com/coreos/etcd/clientv3"
 	"github.com/ligato/cn-infra/db/keyval/etcd"
-	"github.com/ligato/cn-infra/logging"
-	"github.com/ligato/cn-infra/logging/logrus"
 	"github.com/ligato/vpp-agent/plugins/vpp/model/interfaces"
 	"os"
 	"strings"
 	"text/tabwriter"
-	"time"
 )
 
 type nodeData struct {
@@ -38,11 +34,9 @@ type nodeData struct {
 type nodeDataCache map[string]*nodeData
 
 type podGetter struct {
-	etcdConfig *etcd.ClientConfig
-	ndCache    nodeDataCache
-	logger     logging.Logger
-	db         *etcd.BytesConnectionEtcd
-	pods       []*pod.Pod
+	ndCache nodeDataCache
+	db      *etcd.BytesConnectionEtcd
+	pods    []*pod.Pod
 }
 
 // PrintAllPods will print out all of the non local pods in a network in
@@ -67,23 +61,8 @@ func PrintPodsPerNode(input string) {
 
 func newPodGetter() *podGetter {
 	pg := &podGetter{
-		etcdConfig: &etcd.ClientConfig{
-			Config: &clientv3.Config{
-				Endpoints: []string{etcdLocation},
-			},
-			OpTimeout: 1 * time.Second,
-		},
 		ndCache: make(nodeDataCache, 0),
-		logger:  logrus.DefaultLogger(),
-	}
-
-	pg.logger.SetLevel(logging.ErrorLevel)
-
-	// Create connection to etcd.
-	var err error
-	if pg.db, err = etcd.NewEtcdConnectionWithBytes(*pg.etcdConfig, pg.logger); err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+		db:      getEtcdBroker(),
 	}
 
 	pg.pods = make([]*pod.Pod, 0)

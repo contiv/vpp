@@ -220,6 +220,14 @@
   version = "v1.1.1"
 
 [[projects]]
+  digest = "1:76dc72490af7174349349838f2fe118996381b31ea83243812a97e5a0fd5ed55"
+  name = "github.com/dgrijalva/jwt-go"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "06ea1031745cb8b3dab3f6a236daf2b0aa468b7e"
+  version = "v3.2.0"
+
+[[projects]]
   digest = "1:4a0cae8995053323c182bfdd0b8cafaf9eb36176741ebadb9e5045dc29aa2ea0"
   name = "github.com/docker/distribution"
   packages = [
@@ -687,7 +695,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:5a216803afc05f3bf1bf6f565536f44fa76ab749d249c48daf5267981ffee343"
+  digest = "1:c57c77c05e1d8234292c1ff21487464b5e80ed7f059069ca2a3c671d565fc620"
   name = "github.com/ligato/cn-infra"
   packages = [
     "agent",
@@ -716,16 +724,18 @@
     "rpc/grpc",
     "rpc/prometheus",
     "rpc/rest",
+    "rpc/rest/security",
+    "rpc/rest/security/model/access-security",
     "servicelabel",
     "utils/addrs",
     "utils/once",
     "utils/safeclose",
   ]
   pruneopts = "UT"
-  revision = "0b5bfe9b247de942c552e455faac7e00e8efcda1"
+  revision = "d988900fbcc23fd235cf6a47d403fe12857064e9"
 
 [[projects]]
-  digest = "1:de30ba9fc5813800220a4cb667c102264952b41d0940650634962b1b4e736d7b"
+  digest = "1:37998558809f67ac4a07e73b11c766112c6d66d7592cc0bef790afebc7bb958c"
   name = "github.com/ligato/vpp-agent"
   packages = [
     "clientv1/linux",
@@ -805,7 +815,7 @@
     "plugins/vpp/srplugin/vppcalls",
   ]
   pruneopts = "UT"
-  revision = "2d27802688cefb5dc48a2c77de2f97e94ee2f9fc"
+  revision = "304803473863d0503ebc4fc7bb01099559ccf0ec"
 
 [[projects]]
   branch = "master"

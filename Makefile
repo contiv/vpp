@@ -8,13 +8,13 @@ LDFLAGS = -s -w -X $(CNINFRA_AGENT).BuildVersion=$(VERSION) -X $(CNINFRA_AGENT).
 COVER_DIR ?= /tmp/
 
 # Build commands
-build: agent contiv-ksr contiv-crd contiv-cni contiv-stn contiv-init
+build: contiv-agent contiv-ksr contiv-crd contiv-cni contiv-stn contiv-init contiv-netctl
 
 # Run all
 all: lint build test install
 
 # Build agent
-agent:
+contiv-agent:
 	@echo "# building contiv-agent"
 	cd cmd/contiv-agent && go build -v -i -ldflags "${LDFLAGS}" -tags="${GO_BUILD_TAGS}"
 
@@ -43,6 +43,11 @@ contiv-init:
 	@echo "# building contiv-init"
 	cd cmd/contiv-init && go build -v -i -ldflags "${LDFLAGS}" -tags="${GO_BUILD_TAGS}"
 
+# Build contiv-netctl
+contiv-netctl:
+	@echo "# building contiv-init"
+	cd cmd/contiv-netctl && go build -v -i -ldflags "${LDFLAGS}" -tags="${GO_BUILD_TAGS}"
+
 # Install commands
 install:
 	@echo "# installing commands"
@@ -52,6 +57,7 @@ install:
 	cd cmd/contiv-cni && go install -v -ldflags "${LDFLAGS}"
 	cd cmd/contiv-stn && go install -v -ldflags "${LDFLAGS}"
 	cd cmd/contiv-init && go install -v -ldflags "${LDFLAGS}"
+	cd cmd/contiv-netctl && go install -v -ldflags "${LDFLAGS}"
 
 # Clean commands
 clean:
@@ -62,6 +68,7 @@ clean:
 	rm -f cmd/contiv-crd/contiv-crd
 	rm -f cmd/contiv-stn/contiv-stn
 	rm -f cmd/contiv-init/contiv-init
+	rm -f cmd/contiv-netctl/contiv-netctl
 
 # Run tests
 test:
@@ -76,12 +83,16 @@ test:
 	go test ./plugins/policy/renderer/cache -tags="${GO_BUILD_TAGS}"
 	go test ./plugins/policy/renderer/acl -tags="${GO_BUILD_TAGS}"
 	go test ./plugins/policy/renderer/vpptcp -tags="${GO_BUILD_TAGS}"
-	go test ./plugins/service -tags="${GO_BUILD_TAGS}"
 	go test ./plugins/policy/cache -tags="${GO_BUILD_TAGS}"
 	go test ./plugins/policy/cache/namespaceidx -tags="${GO_BUILD_TAGS}"
 	go test ./plugins/policy/cache/podidx -tags="${GO_BUILD_TAGS}"
 	go test ./plugins/policy/cache/policyidx -tags="${GO_BUILD_TAGS}"
 	go test ./plugins/statscollector -tags="${GO_BUILD_TAGS}"
+	go test ./plugins/service -tags="${GO_BUILD_TAGS}"
+	go test ./plugins/crd/datastore -tags="${GO_BUILD_TAGS}"
+	go test ./plugins/crd/validator/l2 -tags="${GO_BUILD_TAGS}"
+	go test ./plugins/crd/validator/l3 -tags="${GO_BUILD_TAGS}"
+	#go test ./plugins/crd/cache -tags="${GO_BUILD_TAGS}"
 
 # Run tests with race
 test-race:
@@ -96,12 +107,17 @@ test-race:
 	go test ./plugins/policy/renderer/cache -race -tags="${GO_BUILD_TAGS}"
 	go test ./plugins/policy/renderer/acl -race -tags="${GO_BUILD_TAGS}"
 	go test ./plugins/policy/renderer/vpptcp -race -tags="${GO_BUILD_TAGS}"
-	go test ./plugins/service -race -tags="${GO_BUILD_TAGS}"
 	go test ./plugins/policy/cache -race -tags="${GO_BUILD_TAGS}"
 	go test ./plugins/policy/cache/namespaceidx -race -tags="${GO_BUILD_TAGS}"
 	go test ./plugins/policy/cache/podidx -race -tags="${GO_BUILD_TAGS}"
 	go test ./plugins/policy/cache/policyidx -race -tags="${GO_BUILD_TAGS}"
 	go test ./plugins/statscollector -race -tags="${GO_BUILD_TAGS}"
+	go test ./plugins/service -race -tags="${GO_BUILD_TAGS}"
+	go test ./plugins/crd/datastore -tags="${GO_BUILD_TAGS}"
+	go test ./plugins/crd/validator/l2 -tags="${GO_BUILD_TAGS}"
+	go test ./plugins/crd/validator/l3 -tags="${GO_BUILD_TAGS}"
+	#go test ./plugins/crd/cache -tags="${GO_BUILD_TAGS}"
+
 
 # Get coverage report tools
 get-covtools:
@@ -126,6 +142,11 @@ test-cover: get-covtools
 	go test -covermode=count -coverprofile=${COVER_DIR}cov_u14.out ./plugins/policy/cache/podidx -tags="${GO_BUILD_TAGS}"
 	go test -covermode=count -coverprofile=${COVER_DIR}cov_u15.out ./plugins/policy/cache/policyidx -tags="${GO_BUILD_TAGS}"
 	go test -covermode=count -coverprofile=${COVER_DIR}cov_u16.out ./plugins/statscollector -tags="${GO_BUILD_TAGS}"
+	go test -covermode=count -coverprofile=${COVER_DIR}cov_u17.out ./plugins/crd/datastore -tags="${GO_BUILD_TAGS}"
+	go test -covermode=count -coverprofile=${COVER_DIR}cov_u18.out ./plugins/crd/validator/l2 -tags="${GO_BUILD_TAGS}"
+	go test -covermode=count -coverprofile=${COVER_DIR}cov_u19.out ./plugins/crd/validator/l3 -tags="${GO_BUILD_TAGS}"
+	#go test -covermode=count -coverprofile=${COVER_DIR}cov_u20.out ./plugins/crd/cache -tags="${GO_BUILD_TAGS}"
+
 	@echo "# merging coverage results"
 	gocovmerge \
 			${COVER_DIR}cov_u1.out \
@@ -144,6 +165,9 @@ test-cover: get-covtools
 			${COVER_DIR}cov_u14.out \
 			${COVER_DIR}cov_u15.out \
 			${COVER_DIR}cov_u16.out \
+			${COVER_DIR}cov_u17.out \
+			${COVER_DIR}cov_u18.out \
+			${COVER_DIR}cov_u19.out \
 		> ${COVER_DIR}coverage.out
 	@echo "# coverage data generated into ${COVER_DIR}coverage.out"
 
@@ -168,11 +192,12 @@ generate: get-generators
 	cd plugins/contiv/containeridx && go generate
 	cd plugins/ksr && go generate
 	cd cmd/contiv-stn && go generate
+	cd cmd/contiv-crd/handler/nodeconfig && go generate
 
 # Get linter tools
 get-linters:
 	@echo " => installing linters"
-	go get -v github.com/golang/lint/golint
+	go get -v golang.org/x/lint/golint
 
 # Run code analysis
 lint:

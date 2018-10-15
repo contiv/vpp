@@ -108,6 +108,7 @@ func TestValidator(t *testing.T) {
 
 	// Do the testing
 	t.Run("testErrorFreeTopologyValidation", testErrorFreeTopologyValidation)
+	t.Run("testMissingIPAMTopologyValidation", testMissingIPAMTopologyValidation)
 	t.Run("testK8sNodeToNodeInfoOkValidation", testK8sNodeToNodeInfoOkValidation)
 	t.Run("testK8sNodeToNodeInfoMissingNiValidation", testK8sNodeToNodeInfoMissingNiValidation)
 	t.Run("testK8sNodeToNodeInfoMissingK8snValidation", testK8sNodeToNodeInfoMissingK8snValidation)
@@ -124,6 +125,18 @@ func testErrorFreeTopologyValidation(t *testing.T) {
 	vtv.l2Validator.Validate()
 
 	checkDataReport(5, 0, 0)
+}
+
+func testMissingIPAMTopologyValidation(t *testing.T) {
+	vtv.nodeKey = "k8s-master"
+	resetToInitialErrorFreeState()
+
+	// INJECT FAULT: Missing IPAM on k8s-master
+	vtv.vppCache.NodeMap[vtv.nodeKey].NodeIPam = nil
+
+	vtv.l2Validator.Validate()
+
+	checkDataReport(5, 2, 0)
 }
 
 func testK8sNodeToNodeInfoOkValidation(t *testing.T) {

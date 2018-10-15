@@ -22,7 +22,6 @@ import (
 
 	"github.com/ligato/cn-infra/db/keyval"
 	"github.com/ligato/cn-infra/logging"
-	"github.com/ligato/cn-infra/rpc/rest"
 	"sort"
 )
 
@@ -73,19 +72,20 @@ type podID = string
 
 // Config represents configuration of the IPAM module.
 type Config struct {
-	PodIfIPCIDR             string // subnet from which individual VPP-side POD interfaces networks are allocated, this is subnet for all PODS within 1 node.
-	PodSubnetCIDR           string // subnet from which individual POD networks are allocated, this is subnet for all PODs across all nodes
-	PodNetworkPrefixLen     uint8  // prefix length of subnet used for all PODs within 1 node (pod network = pod subnet for one 1 node)
-	VPPHostSubnetCIDR       string // subnet used across all nodes for VPP to host Linux stack interconnect
-	VPPHostNetworkPrefixLen uint8  // prefix length of subnet used for for VPP to host Linux stack interconnect within 1 node (VPPHost network = VPPHost subnet for one 1 node)
-	NodeInterconnectCIDR    string // subnet used for for inter-node connections
-	NodeInterconnectDHCP    bool   // if set to true DHCP is used to acquire IP for the main VPP interface (NodeInterconnectCIDR can be omitted in config)
-	VxlanCIDR               string // subnet used for for inter-node VXLAN
-	ServiceCIDR             string // subnet used by services
+	PodIfIPCIDR             string `json:"podIfIPCIDR"`             // subnet from which individual VPP-side POD interfaces networks are allocated, this is subnet for all PODS within 1 node.
+	PodSubnetCIDR           string `json:"podSubnetCIDR"`           // subnet from which individual POD networks are allocated, this is subnet for all PODs across all nodes
+	PodNetworkPrefixLen     uint8  `json:"podNetworkPrefixLen"`     // prefix length of subnet used for all PODs within 1 node (pod network = pod subnet for one 1 node)
+	VPPHostSubnetCIDR       string `json:"vppHostSubnetCIDR"`       // subnet used across all nodes for VPP to host Linux stack interconnect
+	VPPHostNetworkPrefixLen uint8  `json:"vppHostNetworkPrefixLen"` // prefix length of subnet used for for VPP to host Linux stack interconnect within 1 node (VPPHost network = VPPHost subnet for one 1 node)
+	NodeInterconnectCIDR    string `json:"nodeInterconnectCIDR"`    // subnet used for for inter-node connections
+	NodeInterconnectDHCP    bool   `json:"nodeInterconnectDHCP"`    // if set to true DHCP is used to acquire IP for the main VPP interface (NodeInterconnectCIDR can be omitted in config)
+	VxlanCIDR               string `json:"vxlanCIDR"`               // subnet used for for inter-node VXLAN
+	ServiceCIDR             string `json:"serviceCIDR"`             // subnet used by services
+	ContivCIDR              string `json:"contivCIDR"`              // subnet from which all subnets (pod/node/vxlan) will be created
 }
 
 // New returns new IPAM module to be used on the node specified by the nodeID.
-func New(logger logging.Logger, nodeID uint32, nodeName string, config *Config, nodeInterconnectExcludedIPs []net.IP, broker keyval.ProtoBroker, http rest.HTTPHandlers) (*IPAM, error) {
+func New(logger logging.Logger, nodeID uint32, nodeName string, config *Config, nodeInterconnectExcludedIPs []net.IP, broker keyval.ProtoBroker) (*IPAM, error) {
 	// create basic IPAM
 	ipam := &IPAM{
 		logger:       logger,
@@ -119,7 +119,6 @@ func New(logger logging.Logger, nodeID uint32, nodeName string, config *Config, 
 	}
 	logger.Infof("IPAM values loaded: %+v", ipam)
 
-	ipam.registerHandlers(http)
 	return ipam, nil
 }
 
@@ -150,7 +149,7 @@ func (i *IPAM) NodeIPWithPrefix(nodeID uint32) (*net.IPNet, error) {
 	maskSize, _ := i.nodeInterconnectCIDR.Mask.Size()
 	hostIPNetwork := net.IPNet{
 		IP:   hostIP,
-		Mask: uint32ToIpv4Mask(((1 << uint(maskSize)) - 1) << (32 - uint8(maskSize))),
+		Mask: net.CIDRMask(maskSize, 32),
 	}
 	return &hostIPNetwork, nil
 }
@@ -174,7 +173,7 @@ func (i *IPAM) VxlanIPWithPrefix(nodeID uint32) (*net.IPNet, error) {
 	maskSize, _ := i.vxlanCIDR.Mask.Size()
 	vxlanNetwork := net.IPNet{
 		IP:   hostIP,
-		Mask: uint32ToIpv4Mask(((1 << uint(maskSize)) - 1) << (32 - uint8(maskSize))),
+		Mask: net.CIDRMask(maskSize, 32),
 	}
 	return &vxlanNetwork, nil
 }
@@ -304,7 +303,7 @@ func (i *IPAM) NextPodIP(podID string) (net.IP, error) {
 	prefixBits, totalBits := i.podNetworkIPPrefix.Mask.Size()
 	// get the maximum sequence ID available in the provided range; the last valid unicast IP is used as "NAT-loopback"
 	maxSeqID := (1 << uint(totalBits-prefixBits)) - 2
-	for j := last; j < maxSeqID; j++ { // zero ending IP is reserved for network => skip seqID=0
+	for j := last; j < maxSeqID; j++ {
 		ipForAssign, success := i.tryToAllocatePodIP(j, networkPrefix, podID)
 		if success {
 			i.lastAssigned = j
@@ -494,7 +493,7 @@ func applyNodeID(subnetIPPrefix net.IPNet, nodeID uint32, networkPrefixLen uint8
 	networkPrefixUint32 := subnetIPPartUint32 + (uint32(nodeIPPart) << (32 - networkPrefixLen))
 	networkIPPrefix = net.IPNet{
 		IP:   uint32ToIpv4(networkPrefixUint32),
-		Mask: uint32ToIpv4Mask(((1 << uint(networkPrefixLen)) - 1) << (32 - networkPrefixLen)),
+		Mask: net.CIDRMask(int(networkPrefixLen), 32),
 	}
 	return
 }

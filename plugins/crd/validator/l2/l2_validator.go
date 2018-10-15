@@ -59,6 +59,11 @@ func (v *Validator) ValidateArpTables() {
 
 	for _, node := range nodeList {
 
+		if node.NodeIPArp == nil {
+			v.Report.AppendToNodeReport(node.Name, "validation skipped - no IP-ARP data available")
+			continue
+		}
+
 		loopNodeMap := make(map[string]bool)
 		for _, n := range nodeList {
 			if n.Name != node.Name {
@@ -139,6 +144,11 @@ func (v *Validator) ValidateBridgeDomains() {
 
 validateNodeBD:
 	for _, node := range nodeList {
+		if node.NodeBridgeDomains == nil {
+			v.Report.AppendToNodeReport(node.Name, "validation skipped - no VXLAN-BD data available")
+			continue
+		}
+
 		nodeVxlanMap := make(map[string]bool)
 		for _, n := range nodeList {
 			nodeVxlanMap[n.Name] = true
@@ -345,6 +355,11 @@ func (v *Validator) ValidateL2FibEntries() {
 	nodeList := v.VppCache.RetrieveAllNodes()
 
 	for _, node := range nodeList {
+		if node.NodeL2Fibs == nil {
+			v.Report.AppendToNodeReport(node.Name, "validation skipped - no L2-FIB data available")
+			continue
+		}
+
 		fibHasLoopIF := false
 		vxLanBD, err := getVxlanBD(node)
 		if err != nil {
@@ -644,8 +659,16 @@ func (v *Validator) ValidatePodInfo() {
 			continue
 		}
 
-		// Get Contiv's view of the VPP's pod-facing tap intefce subnet CIDR
+		// Get Contiv's view of the VPP's pod-facing tap interface subnet CIDR
 		// on this node (PodIfIpCIDR)
+		if vppNode.NodeIPam == nil {
+			errCnt++
+			v.Log.Infof("No IPAM data for node %s", vppNode.Name)
+			errString := fmt.Sprintf("pod %s not validated - no IPAM data available for node", pod.Name)
+			v.Report.AppendToNodeReport(vppNode.Name, errString)
+			continue
+		}
+
 		podIfIPAddr, podIfIPMask, err := utils.Ipv4CidrToAddressAndMask(vppNode.NodeIPam.Config.PodIfIPCIDR)
 		if err != nil {
 			errCnt++
@@ -744,9 +767,16 @@ func (v *Validator) createTapMarkAndSweepDB() map[string]map[uint32]telemetrymod
 	for _, node := range v.VppCache.RetrieveAllNodes() {
 		tapMap[node.Name] = make(map[uint32]telemetrymodel.NodeInterface, 0)
 
+		if node.NodeIPam == nil {
+			v.Log.Infof("No IPAM data for node %s", node.Name)
+			v.Report.AppendToNodeReport(node.Name, "no IPAM data available")
+			continue
+		}
+
 		podIfIPAddress, podIfIPMask, err := utils.Ipv4CidrToAddressAndMask(node.NodeIPam.Config.PodIfIPCIDR)
 		if err != nil {
-			// Do not report error - we catch it later in the validation phase
+			errString := fmt.Sprintf("invalid PodIfIPCIDR - %s", node.NodeIPam.Config.PodIfIPCIDR)
+			v.Report.AppendToNodeReport(node.Name, errString)
 			continue
 		}
 		podIfIPPrefix := podIfIPAddress &^ podIfIPMask

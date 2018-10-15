@@ -1,0 +1,40 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: vnf2
+  namespace: default
+  labels:
+    sfc: "true"
+spec:
+  containers:
+    - name: "vnf2"
+      image: ligato/vpp-agent
+      imagePullPolicy: IfNotPresent
+      securityContext:
+        privileged: true
+      ports:
+        - containerPort: 5002
+      env:
+        - name: MICROSERVICE_LABEL
+          value: vnf2
+      volumeMounts:
+        - name: vpp-config
+          mountPath: /etc/vpp
+        - name: agent-config
+          mountPath: /opt/vpp-agent/dev
+        - name: memif-sockets
+          mountPath: /tmp
+  volumes:
+  - name: vpp-config
+    configMap:
+      name: vnf-vpp-cfg
+  - name: agent-config
+    configMap:
+      name: vnf-agent-cfg
+  - name: memif-sockets
+    hostPath:
+      path: /tmp
+  nodeSelector:
+    role: no-affinity
+
+---

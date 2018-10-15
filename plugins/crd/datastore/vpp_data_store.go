@@ -398,7 +398,7 @@ func GetNodeLoopIFInfo(node *telemetrymodel.Node) (*telemetrymodel.NodeInterface
 			return &ifs, nil
 		}
 	}
-	err := errors.Errorf("loop interface not found", node.Name)
+	err := errors.Errorf("loop interface not found %s", node.Name)
 	return nil, err
 }
 

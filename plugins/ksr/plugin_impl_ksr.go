@@ -19,6 +19,7 @@
 //go:generate protoc -I ./model/endpoints --gogo_out=plugins=grpc:./model/endpoints ./model/endpoints/endpoints.proto
 //go:generate protoc -I ./model/node --gogo_out=plugins=grpc:./model/node ./model/node/node.proto
 //go:generate protoc -I ./model/ksrapi --gogo_out=plugins=grpc:./model/ksrapi ./model/ksrapi/ksr_nb_api.proto
+//go:generate protoc -I ./model/sfc --gogo_out=plugins=grpc:./model/sfc ./model/sfc/sfc.proto
 
 package ksr
 
@@ -61,6 +62,7 @@ type Plugin struct {
 	serviceReflector   *ServiceReflector
 	endpointsReflector *EndpointsReflector
 	nodeReflector      *NodeReflector
+	sfcPodReflector    *SfcPodReflector
 
 	reflectorRegistry *ReflectorRegistry
 
@@ -104,6 +106,7 @@ const (
 	endpointsObjType = "Endpoints"
 	serviceObjType   = "Service"
 	nodeObjType      = "Node"
+	sfcPodObjType    = "SfcPod"
 )
 
 // Init builds K8s client-set based on the supplied kubeconfig and initializes
@@ -156,6 +159,16 @@ func (plugin *Plugin) Init() error {
 	err = plugin.podReflector.Init(plugin.stopCh, &plugin.wg)
 	if err != nil {
 		plugin.Log.WithField("rwErr", err).Error("Failed to initialize Pod reflector")
+		return err
+	}
+
+	plugin.sfcPodReflector = &SfcPodReflector{
+		Reflector: plugin.newReflector("-sfcPod", sfcPodObjType, broker),
+	}
+	//plugin.sfcPodReflector.Log.SetLevel(logging.DebugLevel)
+	err = plugin.sfcPodReflector.Init(plugin.stopCh, &plugin.wg)
+	if err != nil {
+		plugin.Log.WithField("rwErr", err).Error("Failed to initialize Sfc Pod reflector")
 		return err
 	}
 

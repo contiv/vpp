@@ -66,4 +66,7 @@ message Stats {
 
     // Statistics for the Node Reflector
     KsrStats nodeStats = 6;
+
+    // Statistics for the SfcPod Reflector
+    KsrStats sfcPodStats = 7;
 }

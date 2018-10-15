@@ -119,6 +119,8 @@ func (rr *ReflectorRegistry) getStats() *ksrapi.Stats {
 			stats.ServiceStats = r.GetStats()
 		case nodeObjType:
 			stats.NodeStats = r.GetStats()
+		case sfcPodObjType:
+			stats.SfcPodStats = r.GetStats()
 		default:
 			r.Log.WithField("ksrObjectType", r.objType).
 				Error("Plugin gauges sees unknown reflector object type")

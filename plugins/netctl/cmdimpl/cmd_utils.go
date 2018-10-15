@@ -107,6 +107,10 @@ func ip2uint32(ipAddress string) (uint32, error) {
 
 func getIPAddressAndMask(ip string) (uint32, uint32, error) {
 	addressParts := strings.Split(ip, "/")
+	if len(addressParts) != 2 {
+		return 0, 0, fmt.Errorf("invalid address")
+	}
+
 	maskLen, err := strconv.Atoi(addressParts[1])
 	if err != nil {
 		return 0, 0, fmt.Errorf("invalid mask")

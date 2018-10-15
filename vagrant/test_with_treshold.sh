@@ -20,7 +20,7 @@ TRESHOLD=5
 cmd() {
     if [ "$LOCAL" == true ]
     then
-        $1
+        sh -c "$1"
     else
         ssh "$USER"@"$MASTER" -F "$SSH_CONFIG_FILE" $1
     fi
@@ -75,6 +75,7 @@ do
     cmd "kubectl get po -n kube-system -o wide"
     cmd free
     cmd "free -m"
+    cmd "ps aux --sort -rss | head -10"
     cmd date
     echo ""
     status=`cat pytest_output_n$c | grep ==== | grep second | grep failed | cut -d " " -f 2`

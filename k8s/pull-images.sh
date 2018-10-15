@@ -49,3 +49,4 @@ docker pull contivvpp/vswitch${IMAGEARCH}:${IMAGE_TAG}
 docker pull contivvpp/ksr${IMAGEARCH}:${IMAGE_TAG}
 docker pull contivvpp/cni${IMAGEARCH}:${IMAGE_TAG}
 docker pull contivvpp/stn${IMAGEARCH}:${IMAGE_TAG}
+docker pull contivvpp/crd${IMAGEARCH}:${IMAGE_TAG}

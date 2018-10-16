@@ -182,18 +182,18 @@ func (pg *podGetter) getTapInterfaceForPod(podInfo *pod.Pod) (string, uint32, st
 	podPfxLen := pg.ndCache[podInfo.HostIpAddress].ipam.Config.VppHostNetworkPrefixLen
 	podMask := maskLength2Mask(int(podPfxLen))
 
-	podIPSubnet, podIPMask, err := getIPAddressAndMask(pg.ndCache[podInfo.HostIpAddress].ipam.Config.PodSubnetCIDR)
+	podNetwork, podIPMask, err := getIPAddressAndMask(pg.ndCache[podInfo.HostIpAddress].ipam.PodNetwork)
 	if err != nil {
-		fmt.Printf("Host '%s', Pod '%s' - invalid PodSubnetCIDR address %s, err %s\n",
-			podInfo.HostIpAddress, podInfo.Name, pg.ndCache[podInfo.HostIpAddress].ipam.Config.PodSubnetCIDR, err)
+		fmt.Printf("Host '%s', Pod '%s' - invalid PodNetwork address %s, err %s\n",
+			podInfo.HostIpAddress, podInfo.Name, pg.ndCache[podInfo.HostIpAddress].ipam.PodNetwork, err)
 		// Do not return - we can still continue if this error happens
 	}
 
 	if podMask != podIPMask {
 		fmt.Printf("Host '%s', Pod '%s' - vppHostNetworkPrefixLen mismatch: "+
-			"PodSubnetCIDR '%s', podNetworkPrefixLen '%d'\n",
+			"PodNetwork '%s', podNetworkPrefixLen '%d'\n",
 			podInfo.HostIpAddress, podInfo.Name,
-			pg.ndCache[podInfo.HostIpAddress].ipam.Config.PodSubnetCIDR,
+			pg.ndCache[podInfo.HostIpAddress].ipam.PodNetwork,
 			pg.ndCache[podInfo.HostIpAddress].ipam.Config.PodNetworkPrefixLen)
 		// Do not return - we can still continue if this error happens
 	}
@@ -224,10 +224,10 @@ func (pg *podGetter) getTapInterfaceForPod(podInfo *pod.Pod) (string, uint32, st
 
 	podAddrSuffix := podAddr & podMask
 
-	if podAddr&^podMask != podIPSubnet {
-		fmt.Printf("Host '%s', Pod '%s' - pod IP address %s not from PodSubnetCIDR %s\n",
+	if podAddr&^podMask != podNetwork {
+		fmt.Printf("Host '%s', Pod '%s' - pod IP address %s not from PodNetwork subnet %s\n",
 			podInfo.HostIpAddress, podInfo.Name, podInfo.IpAddress,
-			pg.ndCache[podInfo.HostIpAddress].ipam.Config.PodSubnetCIDR)
+			pg.ndCache[podInfo.HostIpAddress].ipam.PodNetwork)
 		// Do not return - we can still continue if this error happens
 	}
 

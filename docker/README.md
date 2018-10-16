@@ -42,5 +42,20 @@ To tag and push the devel vswitch image, execute:
 ./push-all.sh --dev-upload true
 ```
 
+To enable the multi-arch feature of the images tagged 'latest' in contiv/vpp official repo
+for x86_64(amd64) and arm64, install the manifest-tool first by:
+```
+./install-manifest-tool.sh
+```
+and push multi-arch manifest after docker login with approriate user:
+```
+./push-manifest.sh
+```
+To enable the multi-arch of dev-vswitch image, execute:
+```
+./push-manifest.sh --dev-upload true
+```
+
+
 To use the development image for testing with specific version of VPP, see
 [DEVIMAGE.md](DEVIMAGE.md).

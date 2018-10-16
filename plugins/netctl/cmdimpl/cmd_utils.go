@@ -36,6 +36,7 @@ type clusterNodeInfo map[string]*node.NodeInfo
 var (
 	nodeInfo    clusterNodeInfo
 	bytesBroker *etcd.BytesConnectionEtcd
+	ipAddrRe    = regexp.MustCompile(`(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)(\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)){3}`)
 )
 
 func getEtcdBroker() *etcd.BytesConnectionEtcd {
@@ -64,7 +65,7 @@ func getEtcdBroker() *etcd.BytesConnectionEtcd {
 }
 
 func getClusterNodeInfo() clusterNodeInfo {
-	if (nodeInfo == nil) || (len(nodeInfo) == 0) {
+	if len(nodeInfo) == 0 {
 		db := getEtcdBroker()
 
 		nodeInfo = make(clusterNodeInfo, 0)
@@ -95,8 +96,7 @@ func getClusterNodeInfo() clusterNodeInfo {
 //resolveNodeOrIP will take in an input string which is either a node name
 // or string and return the ip for the nodename or simply return the ip
 func resolveNodeOrIP(nodeName string) (ipAdr string) {
-	re := regexp.MustCompile(`(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)(\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)){3}`)
-	if re.MatchString(nodeName) {
+	if ipAddrRe.MatchString(nodeName) {
 		return nodeName
 	}
 

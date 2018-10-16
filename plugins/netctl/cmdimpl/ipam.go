@@ -27,7 +27,7 @@ import (
 
 // PrintAllIpams prints IPAM information for all nodes
 func PrintAllIpams() {
-	nodes := make([]string,0)
+	nodes := make([]string, 0)
 	for k := range getClusterNodeInfo() {
 		nodes = append(nodes, k)
 	}

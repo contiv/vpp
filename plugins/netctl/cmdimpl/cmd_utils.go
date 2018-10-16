@@ -34,8 +34,8 @@ import (
 type clusterNodeInfo map[string]*node.NodeInfo
 
 var (
-	nodeInfo    clusterNodeInfo = nil
-	bytesBroker *etcd.BytesConnectionEtcd = nil
+	nodeInfo    clusterNodeInfo
+	bytesBroker *etcd.BytesConnectionEtcd
 )
 
 func getEtcdBroker() *etcd.BytesConnectionEtcd {

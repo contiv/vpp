@@ -3,7 +3,7 @@ COMMIT  := $(shell git rev-parse HEAD)
 DATE    := $(shell date +'%Y-%m-%dT%H:%M%:z')
 
 CNINFRA_AGENT := github.com/contiv/vpp/vendor/github.com/ligato/cn-infra/agent
-LDFLAGS = -s -w -X $(CNINFRA_AGENT).BuildVersion=$(VERSION) -X $(CNINFRA_AGENT).CommitHash=$(VERSION) -X $(CNINFRA_AGENT).BuildDate=$(DATE)
+LDFLAGS = -s -w -X $(CNINFRA_AGENT).BuildVersion=$(VERSION) -X $(CNINFRA_AGENT).CommitHash=$(COMMIT) -X $(CNINFRA_AGENT).BuildDate=$(DATE)
 
 COVER_DIR ?= /tmp/
 

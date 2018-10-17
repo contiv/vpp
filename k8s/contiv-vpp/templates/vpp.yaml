@@ -477,6 +477,7 @@ spec:
         {{- else }}
         image: {{ .Values.init.image.repository }}:{{ .Values.init.image.tag }}
         {{- end }}
+        imagePullPolicy: IfNotPresent
         command: ['sh', '-c', 'until nc -w 2 127.0.0.1:$ETCDPORT; do echo waiting for etcd; sleep 2; done;']
       {{- else }}
       # This init container waits until crd node specific configuration has been applied
@@ -838,6 +839,7 @@ spec:
           {{- else }}
           image: {{ .Values.init.image.repository }}:{{ .Values.init.image.tag }}
           {{- end }}
+          imagePullPolicy: IfNotPresent
           command: ['sh', '-c', 'until nc -w 2 127.0.0.1:$ETCDPORT; do echo waiting for etcd; sleep 2; done;']
 
       containers:
@@ -1033,6 +1035,7 @@ spec:
         {{- else }}
         image: {{ .Values.init.image.repository }}:{{ .Values.init.image.tag }}
         {{- end }}
+        imagePullPolicy: IfNotPresent
         command: ['sh', '-c', 'until nc -w 2 127.0.0.1:$ETCDPORT; do echo waiting for etcd; sleep 2; done;']
 
       # This init container copies contiv-netctl tool to the host.

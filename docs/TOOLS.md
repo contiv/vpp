@@ -1,4 +1,6 @@
-# contiv-netctl
+# Configuration and Troubleshooting Tools
+
+## contiv-netctl
 
 `contiv-netctl` is a is a command line interface for querying the status
 of Contiv-VPP vswitches in aK8s cluster that usea the using Contiv-VPP
@@ -7,7 +9,7 @@ available commands, and provides common examples. `contiv-netctl` is
 installed on the K8s-master host during the installation of the
 Contiv-VPP CNI plugin.
 
-## Syntax
+### Syntax
 Use the following syntax to run `contiv-netctl` commands from your
 terminal window:
 
@@ -27,7 +29,7 @@ where operation, node, parameters, and flags are:
   supported - when specified, help test for the operation(s) is printed
   to stdout.
 
-## Operations
+### Operations
 
 The following table includes short descriptions and the general syntax
 for `contiv-netctl` operations:
@@ -41,7 +43,7 @@ Operation | Syntax | Description
 `vppcli` | `contiv-netctl vppcli NODE [vpp-dbg-cli-cmd] [-h]` | Execute the specified `[vpp-dbg-cli-cmd]` on the specified `NODE`
 `vppdump` |`contiv-netctl vppdump NODE [vpp-agent-resource] [-h]` | Get the specified `[vpp-agent-resource]` from VPP Agent on the specified `NODE`
 
-## Examples
+### Examples
 
 ```
 // Print out help.

@@ -34,7 +34,7 @@ for `contiv-netctl` operations:
 
 Operation | Syntax | Description
 ----------| -------|------------
-`help` | contiv-netctl help` | Prints out help about any command
+`help` | `contiv-netctl help` | Prints out help about any command
 `ipam` | `contiv-netctl ipam [NODE] [-h]` | Show ipam info for `[NODE]`, or for all nodes if `[NODE]` not specified
 `nodes` | `contiv-netctl nodes [-h]` | Show vswitch summary status info
 `pods` | `contiv-netctl pods [NODE] [-h]` | Show pods and their respective vpp-side interfaces for specified `[NODE]`, or for all nodes if `[NODE]` not specified

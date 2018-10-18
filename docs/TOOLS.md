@@ -21,13 +21,13 @@ where operation, node, parameters, and flags are:
 
 * `command`: specifies the query operation to be performed on one or
   more vswitches in the cluster
-* `node`: optional, specifies the node on which the query operation is
-  to be performed. For some query operations, if node is not specified,
+* `node`: optional, specifies the node where the query operation is
+  to be executed. For some query operations, if node is not specified,
   the operation is performed on all nodes.
 * `parameters`: optional, specifies parameters to the query operation
 * `flags`: Specifies optional flags. Currently, only the -h flag is
-  supported - when specified, help test for the operation(s) is printed
-  to stdout.
+  supported; when specified, help text for the specified operation(s) 
+  is printed to stdout.
 
 ### Operations
 

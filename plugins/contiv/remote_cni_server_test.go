@@ -47,6 +47,8 @@ import (
 	"github.com/ligato/cn-infra/datasync"
 	"github.com/ligato/cn-infra/datasync/syncbase"
 	"github.com/onsi/gomega"
+	"sync"
+	"time"
 )
 
 const (
@@ -89,6 +91,20 @@ var (
 			VPPHostSubnetCIDR:       "172.30.0.0/16",
 			VPPHostNetworkPrefixLen: 24,
 			NodeInterconnectCIDR:    "192.168.16.0/24",
+			VxlanCIDR:               "192.168.30.0/24",
+		},
+	}
+	configTapVxlanDHCP = Config{
+		TCPstackDisabled:    true,
+		UseTAPInterfaces:    true,
+		TAPInterfaceVersion: 2,
+		IPAMConfig: ipam.Config{
+			PodSubnetCIDR:           "10.1.0.0/16",
+			PodNetworkPrefixLen:     24,
+			PodIfIPCIDR:             "10.2.1.0/24",
+			VPPHostSubnetCIDR:       "172.30.0.0/16",
+			VPPHostNetworkPrefixLen: 24,
+			NodeInterconnectDHCP:    true,
 			VxlanCIDR:               "192.168.30.0/24",
 		},
 	}
@@ -446,6 +462,92 @@ func TestVeth1NameFromRequest(t *testing.T) {
 	gomega.Expect(hostIfName).To(gomega.BeEquivalentTo("eth0"))
 }
 
+func initServerForDHCPTesting() (*remoteCNIserver, *govpp.Connection, ifaceidx.DhcpIndexRW) {
+	swIfIdx := swIfIndexMock()
+
+	txns := localclient.NewTxnTracker(addIfsIntoTheIndex(swIfIdx))
+	configuredContainers := containeridx.NewConfigIndex(logrus.DefaultLogger(), "title", nil)
+
+	vppMockChan, vppMockConn := vppChanMock()
+
+	dhcpIndex := dhcpIndexMock()
+	server, err := newRemoteCNIServer(logrus.DefaultLogger(),
+		txns.NewLinuxDataChangeTxn,
+		kvdbproxy.NewKvdbsyncMock(),
+		configuredContainers,
+		vppMockChan,
+		swIfIdx,
+		dhcpIndex,
+		"testLabel",
+		&configTapVxlanDHCP,
+		&nodeDHCPConfig,
+		1,
+		nil,
+		nil,
+		nil)
+	server.test = true
+	gomega.Expect(err).To(gomega.BeNil())
+	return server, vppMockConn, dhcpIndex
+}
+
+func TestWithDHCPDelayedNotif(t *testing.T) {
+	gomega.RegisterTestingT(t)
+
+	var server *remoteCNIserver
+
+	server, conn, dhcpIndex := initServerForDHCPTesting()
+	defer conn.Disconnect()
+
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+	go func() {
+		err := server.resync()
+		gomega.Expect(err).To(gomega.BeNil())
+		wg.Done()
+	}()
+	time.Sleep(200 * time.Millisecond)
+	dhcpIndex.RegisterName(nodeDHCPConfig.MainVPPInterface.InterfaceName, 1, &ifaceidx.DHCPSettings{
+		IfName:    nodeDHCPConfig.MainVPPInterface.InterfaceName,
+		IPAddress: "1.1.1.1",
+		Mask:      uint32(24),
+	})
+	wg.Wait()
+	getIP := func() string {
+		ip, _ := server.GetNodeIP()
+		return ip.String()
+	}
+	gomega.Eventually(getIP).Should(gomega.BeEquivalentTo("1.1.1.1"))
+}
+
+func TestWithDHCPQuickNotif(t *testing.T) {
+	gomega.RegisterTestingT(t)
+
+	var server *remoteCNIserver
+
+	server, conn, dhcpIndex := initServerForDHCPTesting()
+	defer conn.Disconnect()
+
+	dhcpIndex.RegisterName(nodeDHCPConfig.MainVPPInterface.InterfaceName, 1, &ifaceidx.DHCPSettings{
+		IfName:    nodeDHCPConfig.MainVPPInterface.InterfaceName,
+		IPAddress: "1.1.1.1",
+		Mask:      uint32(24),
+	})
+
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+	go func() {
+		err := server.resync()
+		gomega.Expect(err).To(gomega.BeNil())
+		wg.Done()
+	}()
+	wg.Wait()
+	getIP := func() string {
+		ip, _ := server.GetNodeIP()
+		return ip.String()
+	}
+	gomega.Eventually(getIP).Should(gomega.BeEquivalentTo("1.1.1.1"))
+}
+
 func vppChanMock() (api.Channel, *govpp.Connection) {
 	vppMock := mock.NewVppAdapter()
 
@@ -549,7 +651,7 @@ func swIfIndexMock() ifaceidx.SwIfIndexRW {
 	return ifaceidx.NewSwIfIndex(mapping)
 }
 
-func dhcpIndexMock() ifaceidx.DhcpIndex {
+func dhcpIndexMock() ifaceidx.DhcpIndexRW {
 	mapping := nametoidx.NewNameToIdx(logrus.DefaultLogger(), "dhcpIf", ifaceidx.IndexDHCPMetadata)
 
 	return ifaceidx.NewDHCPIndex(mapping)

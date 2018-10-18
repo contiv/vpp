@@ -658,7 +658,9 @@ func (s *remoteCNIserver) handleDHCPNotifications(notifCh chan ifaceidx.DhcpIdxD
 				continue
 			}
 
+			s.Lock()
 			s.applyDHCPdata(notif.Metadata)
+			s.Unlock()
 
 		case <-s.ctx.Done():
 			return
@@ -674,14 +676,13 @@ func (s *remoteCNIserver) applyDHCPdata(notif *ifaceidx.DHCPSettings) {
 	ipAddr := fmt.Sprintf("%s/%d", notif.IPAddress, notif.Mask)
 	s.defaultGw = net.ParseIP(notif.RouterAddress)
 
-	s.Lock()
 	if s.nodeIP != "" && s.nodeIP != ipAddr {
 		s.Logger.Error("Update of Node IP address is not supported")
 	}
 	s.vswitchConnectivityConfigured = true
 	s.vswitchCond.Broadcast()
 	s.setNodeIP(ipAddr)
-	s.Unlock()
+
 	s.Logger.Info("DHCP event processed", notif)
 }
 

@@ -258,7 +258,7 @@ docker-images:
 	cd docker && ./build-all.sh -s
 	cd docker && ./push-all.sh -s
 
-docker-dev: agent contiv-init
+docker-dev: contiv-agent contiv-init
 	cd docker/development && ./build.sh
 
 vagrant-images:

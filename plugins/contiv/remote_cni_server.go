@@ -539,7 +539,10 @@ func (s *remoteCNIserver) configureMainVPPInterface(config *vswitchConfig, nicNa
 				// and ip address is already assigned
 				_, metadata, exists := s.dhcpIndex.LookupIdx(nicName)
 				if exists {
+					s.Logger.Infof("DHCP notification already recieved: %v", metadata)
 					s.applyDHCPdata(metadata)
+				} else {
+					s.Logger.Debugf("Waiting for DHCP notification. Existing DHCP events: %v", s.dhcpIndex.GetMapping().ListNames())
 				}
 			}
 			txn.VppInterface(nic)
@@ -666,6 +669,8 @@ func (s *remoteCNIserver) handleDHCPNotifications(notifCh chan ifaceidx.DhcpIdxD
 
 func (s *remoteCNIserver) applyDHCPdata(notif *ifaceidx.DHCPSettings) {
 
+	s.Logger.Debug("Processing DHCP event", notif)
+
 	ipAddr := fmt.Sprintf("%s/%d", notif.IPAddress, notif.Mask)
 	s.defaultGw = net.ParseIP(notif.RouterAddress)
 
@@ -677,7 +682,7 @@ func (s *remoteCNIserver) applyDHCPdata(notif *ifaceidx.DHCPSettings) {
 	s.vswitchCond.Broadcast()
 	s.setNodeIP(ipAddr)
 	s.Unlock()
-	s.Logger.Info("DHCP event", notif)
+	s.Logger.Info("DHCP event processed", notif)
 }
 
 // configureOtherVPPInterfaces other interfaces that were configured in contiv plugin YAML configuration.

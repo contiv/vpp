@@ -1,3 +1,20 @@
+# Release v1.5.0 (19.10.2018)
+
+### VPP
+ - version **v18.10-rc1~15-g347c523**
+
+### Bug Fixes
+ - race condition in DHCP notification handling
+ - added missing pull policy for init containers
+ - fixed issues in STN setup
+ - fixed some `contiv-netctl` and CRD issues
+ - minor IPAM fixes
+
+### New Features & Enhancements
+ - better handling of identity NAT on VPP
+ - k8s 1.12 compatibility
+
+
 # Release v1.4.0 (5.10.2018)
 
 ### VPP

@@ -176,7 +176,7 @@ func (plugin *Plugin) Init() error {
 		plugin.myNodeConfig,
 		nodeID,
 		plugin.excludedIPsFromNodeCIDR(),
-		plugin.Bolt.NewBroker(plugin.ServiceLabel.GetAgentPrefix()),
+		plugin.ETCD.NewBroker(plugin.ServiceLabel.GetAgentPrefix()),
 		plugin.HTTPHandlers)
 	if err != nil {
 		return fmt.Errorf("Can't create new remote CNI server due to error: %v ", err)

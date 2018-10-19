@@ -74,3 +74,54 @@ $ contiv-netctl vppdump k8s-master
 $ contiv-netctl vppdump k8s-master bd
 ```
 
+## Contiv -VPP Custom Resource Definitions (CRDs)
+
+A resource is an endpoint in the [Kubernetes API][1] that stores a
+collection of [API objects][2] of a certain kind. For example, the
+built-in pods resource contains a collection of Pod objects. A [custom
+resource][3] is an extension of the Kubernetes API that is not necessarily
+available on every Kubernetes cluster. In other words, it represents a
+customization of a particular Kubernetes installation.
+
+Contiv-VPP defines the following custom resources:
+* `nodeconfigs.nodeconfig.contiv.vpp`: used to configure Contiv-VPP
+   vswitch parameters, such as the VPP GigE interface IP address or the
+   vswitch Node ID.
+
+   To configure a node using the configuration CRD, first create a
+   manifest file, for example [here][4] or as shown below:
+   ```
+   # Configuration for node in the cluster
+   apiVersion: nodeconfig.contiv.vpp/v1
+   kind: NodeConfig
+   metadata:
+     name: k8s-master
+   spec:
+     mainVPPInterface:
+       interfaceName: "GigabitEthernet0/8/0"
+       ip: "192.168.16.1/24"
+   ```
+   and the use `kubectl` to apply the configuration:
+   ```
+   kubectl apply -f <configuration-file>
+   ```
+   You can also get the current cluster configration as follows:
+   ```
+   kubectl get nodeconfigs.nodeconfig.contiv.vpp -o json
+   ```
+
+* `telemetryreports.telemetry.contiv.vpp`: provides telemetry data from
+  all Contiv-VPP vswitches in the cluster. The telemetry data is
+  basically a dump of VPP state and a eport on the health of the
+  Contiv-VPP network provided by the network validator.
+
+  To print the telemetry data to stdout, type:
+  ```
+  $ kubectl get telemetryreports.telemetry.contiv.vpp -o json
+  ```
+
+
+[1]: https://kubernetes.io/docs/reference/using-api/api-overview/
+[2]: https://kubernetes.io/docs/concepts/overview/working-with-objects/kubernetes-objects/
+[3]: https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/custom-resources/
+[4]: https://github.com/contiv/vpp/blob/master/k8s/node-config/config-example.yaml

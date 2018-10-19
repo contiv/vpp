@@ -22,6 +22,8 @@
  - better handling of identity NAT on VPP
  - k8s 1.12 compatibility
 
+### Known Issues
+- the topology validator gives false positives for L3-FIB entries
 
 # Release v1.4.0 (5.10.2018)
 

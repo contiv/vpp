@@ -409,10 +409,9 @@ func (v *Validator) validateDefaultRoutes(node *telemetrymodel.Node, vrfMap VrfM
 
 	// Validate the default Gateway route; if we can find the ARP entry for
 	// the default Gateway, validate the route to it
-	numErrs += v.validateGigEDefaultRteNextHop("0.0.0.0/0", 0, vrfMap, routeMap,
-		node, ifc)
+	// numErrs += v.validateGigEDefaultRteNextHop("0.0.0.0/0", 0, vrfMap, routeMap, node, ifc)
 	numErrs += v.validateRoute("0.0.0.0/0", 0, vrfMap, routeMap, node.Name,
-		ifc.If.Name, ifc.IfMeta.SwIfIndex, "", 0, 0)
+		ifc.If.Name, maxIfIdx, "", 0, 2)
 
 	// Validate VRF0 boiler plate routes
 	numErrs += v.validateRoute("0.0.0.0/32", 0, vrfMap, routeMap, node.Name,
@@ -681,7 +680,7 @@ func (v *Validator) validateGigEDefaultRteNextHop(rteID string, vrfID uint32, vr
 
 		if defaultRte, ok := vrfMap[0][defaultRteID]; ok {
 			numErrs := v.validateRoute(defaultRteID, 0, vrfMap, rtMap, node.Name, outIfc.If.Name,
-				outIfc.IfMeta.SwIfIndex, defaultRte.Ipr.NextHopAddr, 0, 0)
+				maxIfIdx, defaultRte.Ipr.NextHopAddr, 0, 2)
 
 			// Check that the next hop also has an ARP table entry
 			for _, arpEntry := range node.NodeIPArp {

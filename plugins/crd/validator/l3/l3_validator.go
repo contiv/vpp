@@ -683,16 +683,16 @@ func (v *Validator) validateGigEDefaultRteNextHop(rteID string, vrfID uint32, vr
 				maxIfIdx, defaultRte.Ipr.NextHopAddr, 0, 2)
 
 			// Check that the next hop also has an ARP table entry
-			for _, arpEntry := range node.NodeIPArp {
-				if arpEntry.Ae.IPAddress == defaultRte.Ipr.NextHopAddr {
-					return numErrs
-				}
-			}
-
-			numErrs++
-			errString := fmt.Sprintf("invalid nextHop %s in default route 0.0.0.0/0 in VRF0 -"+
-				"no corresponding ARP entry", defaultRte.Ipr.NextHopAddr)
-			v.Report.AppendToNodeReport(node.Name, errString)
+			//for _, arpEntry := range node.NodeIPArp {
+			//	if arpEntry.Ae.IPAddress == defaultRte.Ipr.NextHopAddr {
+			//		return numErrs
+			//	}
+			//}
+			//
+			//numErrs++
+			//errString := fmt.Sprintf("invalid nextHop %s in default route 0.0.0.0/0 in VRF0 -"+
+			//	"no corresponding ARP entry", defaultRte.Ipr.NextHopAddr)
+			//v.Report.AppendToNodeReport(node.Name, errString)
 			return numErrs
 		}
 	}

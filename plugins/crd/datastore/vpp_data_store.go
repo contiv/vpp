@@ -237,7 +237,6 @@ func (vds *VppDataStore) SetLinuxInterfaces(nodeName string, nInt telemetrymodel
 	return nil
 }
 
-
 //SetNodeStaticRoutes is a simple function to set a nodes static routes given its name.
 func (vds *VppDataStore) SetNodeStaticRoutes(nodeName string, nSrs []telemetrymodel.NodeIPRoute) error {
 	vds.lock.Lock()

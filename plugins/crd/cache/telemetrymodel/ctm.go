@@ -95,14 +95,14 @@ type LinuxIf struct {
 }
 
 type LinuxIfMeta struct {
-	Index     uint32   `json:"index"`
-	Name      string   `json:"name"`
-	Alias     string   `json:"alias"`
-	OperState string   `json:"oper_state"`
-	Flags     string   `json:"flags"`
-	MacAddr   string   `json:"mac_addr"`
-	Mtu       uint32   `json:"mtu"`
-	Type      string   `json:"type"`
+	Index     uint32 `json:"index"`
+	Name      string `json:"name"`
+	Alias     string `json:"alias"`
+	OperState string `json:"oper_state"`
+	Flags     string `json:"flags"`
+	MacAddr   string `json:"mac_addr"`
+	Mtu       uint32 `json:"mtu"`
+	Type      string `json:"type"`
 }
 
 // Interface contains interface parameter data

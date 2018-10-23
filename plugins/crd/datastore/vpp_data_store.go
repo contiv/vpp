@@ -222,8 +222,21 @@ func (vds *VppDataStore) SetNodeInterfaces(nodeName string, nInt map[int]telemet
 	}
 	node.NodeInterfaces = nInt
 	return nil
-
 }
+
+// SetLinuxInterfaces is a simple function to set a nodes interface given its name.
+func (vds *VppDataStore) SetLinuxInterfaces(nodeName string, nInt telemetrymodel.LinuxInterfaces) error {
+	vds.lock.Lock()
+	defer vds.lock.Unlock()
+
+	node, ok := vds.retrieveNode(nodeName)
+	if !ok {
+		return fmt.Errorf("failed to set NodeInterfaces for node %s", nodeName)
+	}
+	node.LinuxInterfaces = nInt
+	return nil
+}
+
 
 //SetNodeStaticRoutes is a simple function to set a nodes static routes given its name.
 func (vds *VppDataStore) SetNodeStaticRoutes(nodeName string, nSrs []telemetrymodel.NodeIPRoute) error {

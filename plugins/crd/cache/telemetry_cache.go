@@ -33,17 +33,19 @@ import (
 const (
 	// here goes different cache types
 	//Update this whenever a new DTO type is added.
-	numDTOs   = 7
+	numDTOs   = 8
 	agentPort = ":9999"
 
-	livenessURL     = "/liveness"
-	interfaceURL    = "/vpp/dump/v1/interfaces"
-	bridgeDomainURL = "/vpp/dump/v1/bd"
-	l2FibsURL       = "/vpp/dump/v1/fib"
-	telemetryURL    = "/telemetry"
-	ipamURL         = "/contiv/v1/ipam"
-	arpURL          = "/vpp/dump/v1/arps"
-	staticRouteURL  = "/vpp/dump/v1/routes"
+	livenessURL       = "/liveness"
+	linuxInterfaceURL = "/linux/dump/v1/interfaces"
+	ipamURL           = "/contiv/v1/ipam"
+	telemetryURL      = "/telemetry"
+
+	nodeInterfaceURL = "/vpp/dump/v1/interfaces"
+	bridgeDomainURL  = "/vpp/dump/v1/bd"
+	l2FibsURL        = "/vpp/dump/v1/fib"
+	arpURL           = "/vpp/dump/v1/arps"
+	staticRouteURL   = "/vpp/dump/v1/routes"
 
 	clientTimeout      = 10 // HTTP client timeout, in seconds
 	collectionInterval = 1  // data collection interval, in minutes
@@ -242,7 +244,7 @@ func (ctc *ContivTelemetryCache) collectAgentInfo(node *telemetrymodel.Node) {
 	go ctc.getNodeInfo(client, node, livenessURL, &telemetrymodel.NodeLiveness{}, ctc.databaseVersion)
 
 	nodeInterfaces := make(telemetrymodel.NodeInterfaces, 0)
-	go ctc.getNodeInfo(client, node, interfaceURL, &nodeInterfaces, ctc.databaseVersion)
+	go ctc.getNodeInfo(client, node, nodeInterfaceURL, &nodeInterfaces, ctc.databaseVersion)
 
 	nodeBridgeDomains := make(telemetrymodel.NodeBridgeDomains, 0)
 	go ctc.getNodeInfo(client, node, bridgeDomainURL, &nodeBridgeDomains, ctc.databaseVersion)
@@ -263,6 +265,10 @@ func (ctc *ContivTelemetryCache) collectAgentInfo(node *telemetrymodel.Node) {
 
 	nodeipam := telemetrymodel.IPamEntry{}
 	go ctc.getNodeInfo(client, node, ipamURL, &nodeipam, ctc.databaseVersion)
+
+	linuxInterfaces := make(telemetrymodel.LinuxInterfaces, 0)
+	go ctc.getNodeInfo(client, node, linuxInterfaceURL, &linuxInterfaces, ctc.databaseVersion)
+
 }
 
 /* Here are the several functions that run as goroutines to collect information
@@ -413,6 +419,10 @@ func (ctc *ContivTelemetryCache) setNodeData() {
 		case *telemetrymodel.IPamEntry:
 			nipamDto := data.NodeInfo.(*telemetrymodel.IPamEntry)
 			err = ctc.VppCache.SetNodeIPam(data.NodeName, *nipamDto)
+		case *telemetrymodel.LinuxInterfaces:
+			liDto := data.NodeInfo.(*telemetrymodel.LinuxInterfaces)
+			err = ctc.VppCache.SetLinuxInterfaces(data.NodeName, *liDto)
+
 		default:
 			err = fmt.Errorf("node %+v has unknown data type: %+v", data.NodeName, data.NodeInfo)
 		}

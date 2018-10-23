@@ -111,15 +111,25 @@ Contiv-VPP defines the following custom resources:
    ```
 
 * `telemetryreports.telemetry.contiv.vpp`: provides telemetry data from
-  all Contiv-VPP vswitches in the cluster. The telemetry data is
-  basically a dump of VPP state and a eport on the health of the
-  Contiv-VPP network provided by the network validator.
+  all Contiv-VPP vswitches in the cluster. The telemetry data is basically
+  a dump of VPP state and a report on the health of the Contiv-VPP network
+  provided by the network validator.
 
   To print the telemetry data to stdout, type:
   ```
   $ kubectl get telemetryreports.telemetry.contiv.vpp -o json
   ```
+In order to use CRDs you need to:
 
+* In the vagrant world edit the value of export
+  CRD_DISABLED=${CRD_DISABLED:-true} to false found in this file:
+  https://github.com/contiv/vpp/blob/master/vagrant/defaults
+
+* In the manual setup use helm to generate the contiv-vpp.yaml with CRDs
+  enabled:
+  ```
+  $ helm template --name foo --set contiv.crdNodeConfigurationDisabled=false --set contiv.ipamConfig.contivCIDR=10.128.0.0/14 $cvpp_dir/k8s/contiv-vpp > $cvpp_dir/k8s/contiv-vpp/foo.yaml
+  ```
 
 [1]: https://kubernetes.io/docs/reference/using-api/api-overview/
 [2]: https://kubernetes.io/docs/concepts/overview/working-with-objects/kubernetes-objects/

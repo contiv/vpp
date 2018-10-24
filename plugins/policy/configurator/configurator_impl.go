@@ -69,12 +69,15 @@ type ContivPolicies []*ContivPolicy
 // for a performance optimization.
 type ProcessedPolicySet struct {
 	policies ContivPolicies // ordered
-	ingress  ContivRules
-	egress   ContivRules
+	ingress  *ContivRules
+	egress   *ContivRules
 }
 
-// ContivRules is a list of Contiv rules.
-type ContivRules []*renderer.ContivRule
+// ContivRules is a list of Contiv rules without duplicities.
+type ContivRules struct {
+	rules        []*renderer.ContivRule // rules in the original order
+	orderedRules []*renderer.ContivRule // ordered to test for duplicities
+}
 
 // PodIPAddresses is a map used to remember IP address for each configured pod.
 type PodIPAddresses map[podmodel.ID]*net.IPNet
@@ -137,8 +140,8 @@ func (pct *PolicyConfiguratorTxn) Commit() error {
 	rendererTxns := []renderer.Txn{}
 
 	for pod, unorderedPolicies := range pct.config {
-		var ingress ContivRules
-		var egress ContivRules
+		var ingress *ContivRules
+		var egress *ContivRules
 		var delPodConfig bool
 
 		// Get target pod configuration.
@@ -205,7 +208,7 @@ func (pct *PolicyConfiguratorTxn) Commit() error {
 
 		// Add rules into the transactions.
 		for _, rTxn := range rendererTxns {
-			rTxn.Render(pod, podIPNet, ingress.Copy(), egress.Copy(), delPodConfig)
+			rTxn.Render(pod, podIPNet, ingress.CopySlice(), egress.CopySlice(), delPodConfig)
 		}
 	}
 
@@ -247,8 +250,8 @@ type PeerPod struct {
 }
 
 // Generate a list of ingress or egress rules implementing a given list of policies.
-func (pct *PolicyConfiguratorTxn) generateRules(direction MatchType, policies ContivPolicies) ContivRules {
-	rules := ContivRules{}
+func (pct *PolicyConfiguratorTxn) generateRules(direction MatchType, policies ContivPolicies) *ContivRules {
+	rules := &ContivRules{}
 	hasPolicy := false
 	allAllowed := false
 
@@ -314,7 +317,7 @@ func (pct *PolicyConfiguratorTxn) generateRules(direction MatchType, policies Co
 						SrcPort:     0,
 						DestPort:    0,
 					}
-					rules = pct.appendRules(rules, ruleAny)
+					rules.Insert(ruleAny)
 					allAllowed = true
 				} else {
 					// = match by L4
@@ -331,7 +334,7 @@ func (pct *PolicyConfiguratorTxn) generateRules(direction MatchType, policies Co
 						} else {
 							rule.Protocol = renderer.UDP
 						}
-						rules = pct.appendRules(rules, rule)
+						rules.Insert(rule)
 					}
 				}
 			}
@@ -354,7 +357,7 @@ func (pct *PolicyConfiguratorTxn) generateRules(direction MatchType, policies Co
 					} else {
 						ruleAny.DestNetwork = peer.IPNet
 					}
-					rules = pct.appendRules(rules, ruleAny)
+					rules.Insert(ruleAny)
 				} else {
 					// Combine each port with the peer.
 					// = match by L3 & L4
@@ -376,7 +379,7 @@ func (pct *PolicyConfiguratorTxn) generateRules(direction MatchType, policies Co
 						} else {
 							rule.Protocol = renderer.UDP
 						}
-						rules = pct.appendRules(rules, rule)
+						rules.Insert(rule)
 					}
 				}
 			}
@@ -399,7 +402,7 @@ func (pct *PolicyConfiguratorTxn) generateRules(direction MatchType, policies Co
 					} else {
 						ruleAny.DestNetwork = subnet
 					}
-					rules = pct.appendRules(rules, ruleAny)
+					rules.Insert(ruleAny)
 				} else {
 					// Combine each port with the block.
 					// = match by L3 & L4
@@ -421,7 +424,7 @@ func (pct *PolicyConfiguratorTxn) generateRules(direction MatchType, policies Co
 						} else {
 							rule.Protocol = renderer.UDP
 						}
-						rules = pct.appendRules(rules, rule)
+						rules.Insert(rule)
 					}
 				}
 			}
@@ -440,7 +443,7 @@ func (pct *PolicyConfiguratorTxn) generateRules(direction MatchType, policies Co
 				SrcPort:     0,
 				DestPort:    0,
 			}
-			rules = pct.appendRules(rules, ruleAny)
+			rules.Insert(ruleAny)
 		}
 		// Deny the rest.
 		ruleNone := &renderer.ContivRule{
@@ -451,28 +454,9 @@ func (pct *PolicyConfiguratorTxn) generateRules(direction MatchType, policies Co
 			SrcPort:     0,
 			DestPort:    0,
 		}
-		rules = pct.appendRules(rules, ruleNone)
+		rules.Insert(ruleNone)
 	}
 
-	return rules
-}
-
-// Append rule into the list if it is not there already.
-func (pct *PolicyConfiguratorTxn) appendRule(rules []*renderer.ContivRule, newRule *renderer.ContivRule) []*renderer.ContivRule {
-	for _, rule := range rules {
-		if rule.Compare(newRule) == 0 {
-			pct.Log.WithField("rule", newRule).Debug("Skipping duplicate rule")
-			return rules
-		}
-	}
-	return append(rules, newRule)
-}
-
-// Append rules into the list. Skip those which are already there.
-func (pct *PolicyConfiguratorTxn) appendRules(rules []*renderer.ContivRule, newRules ...*renderer.ContivRule) []*renderer.ContivRule {
-	for _, newRule := range newRules {
-		rules = pct.appendRule(rules, newRule)
-	}
 	return rules
 }
 
@@ -519,14 +503,39 @@ func (cp ContivPolicies) Less(i, j int) bool {
 	return false
 }
 
-// Copy creates a deep copy of ContivRules.
-func (cr ContivRules) Copy() ContivRules {
-	crCopy := make(ContivRules, len(cr))
-	for idx, rule := range cr {
-		crCopy[idx] = &renderer.ContivRule{}
-		*(crCopy[idx]) = *rule
+// Insert inserts the rule into the list.
+// Returns *true* if the rule was inserted, *false* if the same rule is already
+// in the list.
+func (cr *ContivRules) Insert(rule *renderer.ContivRule) bool {
+	// get the index at which the rule should be inserted to keep the order
+	idx := sort.Search(len(cr.orderedRules),
+		func(i int) bool {
+			return rule.Compare(cr.orderedRules[i]) <= 0
+		})
+	if idx < len(cr.orderedRules) && rule.Compare(cr.orderedRules[idx]) == 0 {
+		return false
 	}
-	return crCopy
+
+	// allocate new entry at the right index
+	cr.orderedRules = append(cr.orderedRules, nil)
+	if idx < len(cr.orderedRules) {
+		copy(cr.orderedRules[idx+1:], cr.orderedRules[idx:])
+	}
+
+	// add entry into both internal lists
+	cr.orderedRules[idx] = rule
+	cr.rules = append(cr.rules, rule)
+	return true
+}
+
+// CopySlice returns a deep-copied slice of all rules (in the order as inserted).
+func (cr *ContivRules) CopySlice() []*renderer.ContivRule {
+	slice := make([]*renderer.ContivRule, len(cr.rules))
+	for idx, rule := range cr.rules {
+		slice[idx] = &renderer.ContivRule{}
+		*(slice[idx]) = *rule
+	}
+	return slice
 }
 
 // Copy creates a deep copy of PodIPAddresses.

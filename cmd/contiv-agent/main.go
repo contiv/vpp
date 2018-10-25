@@ -121,6 +121,9 @@ func main() {
 	serviceDataSync := newKSRprefixSync("serviceDataSync")
 	policyDataSync := newKSRprefixSync("policyDataSync")
 
+	// disable status check for etcd
+	etcd.DefaultPlugin.StatusCheck = nil
+
 	watcher := &datasync.KVProtoWatchers{&kvdbproxy.DefaultPlugin, local.Get()}
 
 	var watchEventsMutex sync.Mutex
@@ -148,6 +151,7 @@ func main() {
 	vppRest := vpp_rest.NewPlugin(vpp_rest.UseDeps(func(deps *vpp_rest.Deps) {
 		deps.GoVppmux = &govppmux.DefaultPlugin
 		deps.VPP = vppPlugin
+		deps.Linux = linuxPlugin
 		deps.HTTPHandlers = &rest.DefaultPlugin
 	}))
 

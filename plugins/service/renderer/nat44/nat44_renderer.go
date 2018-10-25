@@ -621,19 +621,28 @@ func (rndr *Renderer) exportIdentityMappings() *nat.Nat44DNat_DNatConfig {
 	}
 
 	if rndr.defaultIfIP != nil {
+		/* identity NAT for the VXLAN tunnel - incoming packets */
 		vxlanID := &nat.Nat44DNat_DNatConfig_IdentityMapping{
 			IpAddress: rndr.defaultIfIP.String(),
 			Protocol:  nat.Protocol_UDP,
 			Port:      vxlanPort,
 			VrfId:     rndr.Contiv.GetMainVrfID(),
 		}
-		mainIfID := &nat.Nat44DNat_DNatConfig_IdentityMapping{
+		/* identity NAT for the VXLAN tunnel - outgoing packets */
+		mainIfID1 := &nat.Nat44DNat_DNatConfig_IdentityMapping{
+			IpAddress: rndr.defaultIfIP.String(),
+			Protocol:  nat.Protocol_UDP, /* Address-only mappings are dumped with UDP as protocol */
+			VrfId:     rndr.Contiv.GetPodVrfID(),
+		}
+		/* identity NAT for the STN (host-facing) traffic */
+		mainIfID2 := &nat.Nat44DNat_DNatConfig_IdentityMapping{
 			IpAddress: rndr.defaultIfIP.String(),
 			Protocol:  nat.Protocol_UDP, /* Address-only mappings are dumped with UDP as protocol */
 			VrfId:     rndr.Contiv.GetMainVrfID(),
 		}
 		idNat.IdMappings = append(idNat.IdMappings, vxlanID)
-		idNat.IdMappings = append(idNat.IdMappings, mainIfID)
+		idNat.IdMappings = append(idNat.IdMappings, mainIfID1)
+		idNat.IdMappings = append(idNat.IdMappings, mainIfID2)
 	}
 
 	return idNat
@@ -679,7 +688,7 @@ func (rndr *Renderer) idleNATSessionCleanup() {
 
 		rndr.Log.Debugf("NAT session cleanup started.")
 
-		natUsers := make([][]byte, 0)
+		natUsers := make([]*nat_api.Nat44UserDetails, 0)
 		delRules := make([]*nat_api.Nat44DelSession, 0)
 		var tcpCount uint64
 		var otherCount uint64
@@ -696,13 +705,14 @@ func (rndr *Renderer) idleNATSessionCleanup() {
 			if err != nil {
 				rndr.Log.Errorf("Error by dumping NAT users: %v", err)
 			}
-			natUsers = append(natUsers, msg.IPAddress)
+			natUsers = append(natUsers, msg)
 		}
 
 		// dump NAT sessions per user
 		for _, natUser := range natUsers {
 			req2 := &nat_api.Nat44UserSessionDump{
-				IPAddress: natUser,
+				IPAddress: natUser.IPAddress,
+				VrfID:     natUser.VrfID,
 			}
 			reqCtx2 := rndr.GoVPPChan.SendMultiRequest(req2)
 
@@ -731,6 +741,7 @@ func (rndr *Renderer) idleNATSessionCleanup() {
 							Address:  msg.InsideIPAddress,
 							Port:     msg.InsidePort,
 							Protocol: uint8(msg.Protocol),
+							VrfID:    natUser.VrfID,
 						}
 						if msg.ExtHostValid > 0 {
 							delRule.ExtHostValid = 1

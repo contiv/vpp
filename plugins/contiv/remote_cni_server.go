@@ -132,7 +132,7 @@ type remoteCNIserver struct {
 	podPostAddHook []PodActionHook
 
 	// node specific configuration
-	nodeConfig *OneNodeConfig
+	nodeConfig *NodeConfig
 
 	// other configuration
 	tcpChecksumOffloadDisabled bool
@@ -196,6 +196,8 @@ type remoteCNIserver struct {
 
 	// nodeIDChangeEvs is buffer where change events are stored until resync event is processed
 	nodeIDChangeEvs []datasync.ChangeEvent
+
+	http rest.HTTPHandlers
 }
 
 // vswitchConfig holds base vSwitch VPP configuration.
@@ -226,8 +228,9 @@ type vswitchConfig struct {
 // newRemoteCNIServer initializes a new remote CNI server instance.
 func newRemoteCNIServer(logger logging.Logger, vppTxnFactory func() linuxclient.DataChangeDSL, proxy kvdbproxy.Proxy,
 	configuredContainers *containeridx.ConfigIndex, govppChan api.Channel, index ifaceidx.SwIfIndex, dhcpIndex ifaceidx.DhcpIndex, agentLabel string,
-	config *Config, nodeConfig *OneNodeConfig, nodeID uint32, nodeExcludeIPs []net.IP, broker keyval.ProtoBroker, http rest.HTTPHandlers) (*remoteCNIserver, error) {
-	ipam, err := ipam.New(logger, nodeID, agentLabel, &config.IPAMConfig, nodeExcludeIPs, broker, http)
+	config *Config, nodeConfig *NodeConfig, nodeID uint32, nodeExcludeIPs []net.IP, broker keyval.ProtoBroker, http rest.HTTPHandlers) (*remoteCNIserver, error) {
+
+	ipam, err := ipam.New(logger, nodeID, agentLabel, &config.IPAMConfig, nodeExcludeIPs, broker)
 	if err != nil {
 		return nil, err
 	}
@@ -245,6 +248,7 @@ func newRemoteCNIServer(logger logging.Logger, vppTxnFactory func() linuxclient.
 		ipam:                 ipam,
 		nodeConfig:           nodeConfig,
 		config:               config,
+		http:                 http,
 		tcpChecksumOffloadDisabled: config.TCPChecksumOffloadDisabled,
 		useTAPInterfaces:           config.UseTAPInterfaces,
 		tapVersion:                 config.TAPInterfaceVersion,
@@ -260,6 +264,7 @@ func newRemoteCNIServer(logger logging.Logger, vppTxnFactory func() linuxclient.
 		server.defaultGw = net.ParseIP(nodeConfig.Gateway)
 	}
 	server.dhcpNotif = make(chan ifaceidx.DhcpIdxDto, 1)
+	server.registerHandlers()
 	return server, nil
 }
 
@@ -534,7 +539,10 @@ func (s *remoteCNIserver) configureMainVPPInterface(config *vswitchConfig, nicNa
 				// and ip address is already assigned
 				_, metadata, exists := s.dhcpIndex.LookupIdx(nicName)
 				if exists {
+					s.Logger.Infof("DHCP notification already recieved: %v", metadata)
 					s.applyDHCPdata(metadata)
+				} else {
+					s.Logger.Debugf("Waiting for DHCP notification. Existing DHCP events: %v", s.dhcpIndex.GetMapping().ListNames())
 				}
 			}
 			txn.VppInterface(nic)
@@ -650,7 +658,9 @@ func (s *remoteCNIserver) handleDHCPNotifications(notifCh chan ifaceidx.DhcpIdxD
 				continue
 			}
 
+			s.Lock()
 			s.applyDHCPdata(notif.Metadata)
+			s.Unlock()
 
 		case <-s.ctx.Done():
 			return
@@ -661,22 +671,23 @@ func (s *remoteCNIserver) handleDHCPNotifications(notifCh chan ifaceidx.DhcpIdxD
 
 func (s *remoteCNIserver) applyDHCPdata(notif *ifaceidx.DHCPSettings) {
 
+	s.Logger.Debug("Processing DHCP event", notif)
+
 	ipAddr := fmt.Sprintf("%s/%d", notif.IPAddress, notif.Mask)
 	s.defaultGw = net.ParseIP(notif.RouterAddress)
 
-	s.Lock()
 	if s.nodeIP != "" && s.nodeIP != ipAddr {
 		s.Logger.Error("Update of Node IP address is not supported")
 	}
 	s.vswitchConnectivityConfigured = true
 	s.vswitchCond.Broadcast()
 	s.setNodeIP(ipAddr)
-	s.Unlock()
-	s.Logger.Info("DHCP event", notif)
+
+	s.Logger.Info("DHCP event processed", notif)
 }
 
 // configureOtherVPPInterfaces other interfaces that were configured in contiv plugin YAML configuration.
-func (s *remoteCNIserver) configureOtherVPPInterfaces(config *vswitchConfig, nodeConfig *OneNodeConfig) error {
+func (s *remoteCNIserver) configureOtherVPPInterfaces(config *vswitchConfig, nodeConfig *NodeConfig) error {
 
 	// match existing interfaces and configuration settings and create VPP configuration objects
 	interfaces := make(map[string]*vpp_intf.Interfaces_Interface)
@@ -1408,17 +1419,6 @@ func (s *remoteCNIserver) deletePersistedPodConfig(config *container.Persisted) 
 	// collect keys to be removed from ETCD
 	var removedKeys []string
 
-	// POD interface configuration
-	removedKeys = append(removedKeys, vpp_intf.InterfaceKey(config.VppIfName))
-	if !s.useTAPInterfaces {
-		removedKeys = append(removedKeys,
-			linux_intf.InterfaceKey(config.Veth1Name),
-			linux_intf.InterfaceKey(config.Veth2Name),
-		)
-	} else {
-		removedKeys = append(removedKeys, linux_intf.InterfaceKey(config.PodTapName))
-	}
-
 	removedKeys = append(removedKeys, linux_l3.StaticRouteKey(config.PodLinkRouteName),
 		linux_l3.StaticRouteKey(config.PodDefaultRouteName),
 		linux_l3.StaticArpKey(config.PodARPEntryName))
@@ -1434,6 +1434,17 @@ func (s *remoteCNIserver) deletePersistedPodConfig(config *container.Persisted) 
 			vpp_l3.RouteKey(config.VppRouteVrf, config.VppRouteDest, config.VppRouteNextHop))
 	}
 	removedKeys = append(removedKeys, vpp_l3.ArpEntryKey(config.VppARPEntryInterface, config.VppARPEntryIP))
+
+	// POD interface configuration
+	if !s.useTAPInterfaces {
+		removedKeys = append(removedKeys,
+			linux_intf.InterfaceKey(config.Veth1Name),
+			linux_intf.InterfaceKey(config.Veth2Name),
+		)
+	} else {
+		removedKeys = append(removedKeys, linux_intf.InterfaceKey(config.PodTapName))
+	}
+	removedKeys = append(removedKeys, vpp_intf.InterfaceKey(config.VppIfName))
 
 	_, skip := s.configuredInThisRun[config.ID]
 

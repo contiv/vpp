@@ -32,8 +32,9 @@ import (
 	"github.com/contiv/vpp/plugins/contiv/containeridx"
 	"github.com/contiv/vpp/plugins/contiv/model/cni"
 	"github.com/contiv/vpp/plugins/contiv/model/node"
+	nodeconfig "github.com/contiv/vpp/plugins/crd/pkg/apis/nodeconfig/v1"
 	"github.com/contiv/vpp/plugins/kvdbproxy"
-	"github.com/golang/protobuf/proto"
+	"github.com/gogo/protobuf/proto"
 
 	"github.com/ligato/cn-infra/logging/logrus"
 	"github.com/ligato/vpp-agent/idxvpp/nametoidx"
@@ -46,6 +47,8 @@ import (
 	"github.com/ligato/cn-infra/datasync"
 	"github.com/ligato/cn-infra/datasync/syncbase"
 	"github.com/onsi/gomega"
+	"sync"
+	"time"
 )
 
 const (
@@ -91,30 +94,48 @@ var (
 			VxlanCIDR:               "192.168.30.0/24",
 		},
 	}
-	nodeConfig = OneNodeConfig{
-		NodeName: "test-node",
-		Gateway:  "192.168.1.100",
-		MainVPPInterface: InterfaceWithIP{
-			InterfaceName: "GigabitEthernet0/0/0/1",
-			IP:            "192.168.1.1/24",
+	configTapVxlanDHCP = Config{
+		TCPstackDisabled:    true,
+		UseTAPInterfaces:    true,
+		TAPInterfaceVersion: 2,
+		IPAMConfig: ipam.Config{
+			PodSubnetCIDR:           "10.1.0.0/16",
+			PodNetworkPrefixLen:     24,
+			PodIfIPCIDR:             "10.2.1.0/24",
+			VPPHostSubnetCIDR:       "172.30.0.0/16",
+			VPPHostNetworkPrefixLen: 24,
+			NodeInterconnectDHCP:    true,
+			VxlanCIDR:               "192.168.30.0/24",
 		},
-		OtherVPPInterfaces: []InterfaceWithIP{
-			{
-				InterfaceName: "GigabitEthernet0/0/0/10",
-				IP:            "192.168.1.10/24",
+	}
+	nodeConfig = NodeConfig{
+		NodeName: "test-node",
+		NodeConfigSpec: nodeconfig.NodeConfigSpec{
+			Gateway: "192.168.1.100",
+			MainVPPInterface: nodeconfig.InterfaceConfig{
+				InterfaceName: "GigabitEthernet0/0/0/1",
+				IP:            "192.168.1.1/24",
+			},
+			OtherVPPInterfaces: []nodeconfig.InterfaceConfig{
+				{
+					InterfaceName: "GigabitEthernet0/0/0/10",
+					IP:            "192.168.1.10/24",
+				},
 			},
 		},
 	}
-	nodeDHCPConfig = OneNodeConfig{
+	nodeDHCPConfig = NodeConfig{
 		NodeName: "test-node",
-		MainVPPInterface: InterfaceWithIP{
-			InterfaceName: "GigabitEthernet0/0/0/1",
-			UseDHCP:       true,
-		},
-		OtherVPPInterfaces: []InterfaceWithIP{
-			{
-				InterfaceName: "GigabitEthernet0/0/0/10",
-				IP:            "192.168.1.10/24",
+		NodeConfigSpec: nodeconfig.NodeConfigSpec{
+			MainVPPInterface: nodeconfig.InterfaceConfig{
+				InterfaceName: "GigabitEthernet0/0/0/1",
+				UseDHCP:       true,
+			},
+			OtherVPPInterfaces: []nodeconfig.InterfaceConfig{
+				{
+					InterfaceName: "GigabitEthernet0/0/0/10",
+					IP:            "192.168.1.10/24",
+				},
 			},
 		},
 	}
@@ -124,9 +145,15 @@ var (
 		IpAddress:           "1.2.3.4/25",
 		ManagementIpAddress: "192.168.42.5",
 	}
+	nodeWith2mgmtIP = node.NodeInfo{
+		Id:                  6,
+		Name:                "node6",
+		IpAddress:           "1.2.3.6/25",
+		ManagementIpAddress: "10.10.76.79,10.10.76.161",
+	}
 )
 
-func setupTestCNIServer(config *Config, nodeConfig *OneNodeConfig, existingInterfaces ...string) (*remoteCNIserver, *localclient.TxnTracker, *containeridx.ConfigIndex, *govpp.Connection) {
+func setupTestCNIServer(config *Config, nodeConfig *NodeConfig, existingInterfaces ...string) (*remoteCNIserver, *localclient.TxnTracker, *containeridx.ConfigIndex, *govpp.Connection) {
 	swIfIdx := swIfIndexMock()
 	// add existing interfaces into swIfIndex
 	for i, intf := range existingInterfaces {
@@ -386,6 +413,33 @@ func TestNodeAddDelVXLAN(t *testing.T) {
 	gomega.Expect(err).To(gomega.BeNil())
 }
 
+func TestNodeAddDelNodeWithMultipleMgmtAddresses(t *testing.T) {
+	gomega.RegisterTestingT(t)
+
+	server, txns, _, conn := setupTestCNIServer(&configTapVxlanTCP, nil)
+	defer conn.Disconnect()
+
+	// exec resync to configure vswitch
+	err := server.resync()
+	gomega.Expect(err).To(gomega.BeNil())
+
+	err = server.nodeChangePropagateEvent(&nodeAddDelEvent{evType: datasync.Put, nodeInfo: &nodeWith2mgmtIP})
+	gomega.Expect(err).To(gomega.BeNil())
+
+	// check that the VXLAN tunnel config has been properly added
+	vxlanIf := interfaceInLatestRevs(txns.LatestRevisions, fmt.Sprintf("vxlan%d", nodeWith2mgmtIP.Id))
+	gomega.Expect(vxlanIf).ToNot(gomega.BeNil())
+	gomega.Expect(nodeWith2mgmtIP.IpAddress).To(gomega.ContainSubstring(vxlanIf.Vxlan.DstAddress))
+
+	// check routes to the other node pointing to VXLAN IP
+	nexthopIP, _ := server.ipam.VxlanIPAddress(nodeWith2mgmtIP.Id)
+	routes := routesViaInLatestRevs(txns.LatestRevisions, nexthopIP.String())
+	gomega.Expect(len(routes)).To(gomega.BeEquivalentTo(4))
+
+	err = server.nodeChangePropagateEvent(&nodeAddDelEvent{evType: datasync.Delete, nodeInfo: &nodeWith2mgmtIP})
+	gomega.Expect(err).To(gomega.BeNil())
+}
+
 func TestVeth1NameFromRequest(t *testing.T) {
 	gomega.RegisterTestingT(t)
 
@@ -406,6 +460,92 @@ func TestVeth1NameFromRequest(t *testing.T) {
 
 	hostIfName := server.veth1HostIfNameFromRequest(&req)
 	gomega.Expect(hostIfName).To(gomega.BeEquivalentTo("eth0"))
+}
+
+func initServerForDHCPTesting() (*remoteCNIserver, *govpp.Connection, ifaceidx.DhcpIndexRW) {
+	swIfIdx := swIfIndexMock()
+
+	txns := localclient.NewTxnTracker(addIfsIntoTheIndex(swIfIdx))
+	configuredContainers := containeridx.NewConfigIndex(logrus.DefaultLogger(), "title", nil)
+
+	vppMockChan, vppMockConn := vppChanMock()
+
+	dhcpIndex := dhcpIndexMock()
+	server, err := newRemoteCNIServer(logrus.DefaultLogger(),
+		txns.NewLinuxDataChangeTxn,
+		kvdbproxy.NewKvdbsyncMock(),
+		configuredContainers,
+		vppMockChan,
+		swIfIdx,
+		dhcpIndex,
+		"testLabel",
+		&configTapVxlanDHCP,
+		&nodeDHCPConfig,
+		1,
+		nil,
+		nil,
+		nil)
+	server.test = true
+	gomega.Expect(err).To(gomega.BeNil())
+	return server, vppMockConn, dhcpIndex
+}
+
+func TestWithDHCPDelayedNotif(t *testing.T) {
+	gomega.RegisterTestingT(t)
+
+	var server *remoteCNIserver
+
+	server, conn, dhcpIndex := initServerForDHCPTesting()
+	defer conn.Disconnect()
+
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+	go func() {
+		err := server.resync()
+		gomega.Expect(err).To(gomega.BeNil())
+		wg.Done()
+	}()
+	time.Sleep(200 * time.Millisecond)
+	dhcpIndex.RegisterName(nodeDHCPConfig.MainVPPInterface.InterfaceName, 1, &ifaceidx.DHCPSettings{
+		IfName:    nodeDHCPConfig.MainVPPInterface.InterfaceName,
+		IPAddress: "1.1.1.1",
+		Mask:      uint32(24),
+	})
+	wg.Wait()
+	getIP := func() string {
+		ip, _ := server.GetNodeIP()
+		return ip.String()
+	}
+	gomega.Eventually(getIP).Should(gomega.BeEquivalentTo("1.1.1.1"))
+}
+
+func TestWithDHCPQuickNotif(t *testing.T) {
+	gomega.RegisterTestingT(t)
+
+	var server *remoteCNIserver
+
+	server, conn, dhcpIndex := initServerForDHCPTesting()
+	defer conn.Disconnect()
+
+	dhcpIndex.RegisterName(nodeDHCPConfig.MainVPPInterface.InterfaceName, 1, &ifaceidx.DHCPSettings{
+		IfName:    nodeDHCPConfig.MainVPPInterface.InterfaceName,
+		IPAddress: "1.1.1.1",
+		Mask:      uint32(24),
+	})
+
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+	go func() {
+		err := server.resync()
+		gomega.Expect(err).To(gomega.BeNil())
+		wg.Done()
+	}()
+	wg.Wait()
+	getIP := func() string {
+		ip, _ := server.GetNodeIP()
+		return ip.String()
+	}
+	gomega.Eventually(getIP).Should(gomega.BeEquivalentTo("1.1.1.1"))
 }
 
 func vppChanMock() (api.Channel, *govpp.Connection) {
@@ -511,7 +651,7 @@ func swIfIndexMock() ifaceidx.SwIfIndexRW {
 	return ifaceidx.NewSwIfIndex(mapping)
 }
 
-func dhcpIndexMock() ifaceidx.DhcpIndex {
+func dhcpIndexMock() ifaceidx.DhcpIndexRW {
 	mapping := nametoidx.NewNameToIdx(logrus.DefaultLogger(), "dhcpIf", ifaceidx.IndexDHCPMetadata)
 
 	return ifaceidx.NewDHCPIndex(mapping)
@@ -548,7 +688,8 @@ func routesViaInLatestRevs(latestRevs *syncbase.PrevRevisions, nexthopIP string)
 
 // nodeAddDelEvent simulates addition of a k8s node into a cluster
 type nodeAddDelEvent struct {
-	evType datasync.Op
+	evType   datasync.Op
+	nodeInfo *node.NodeInfo
 }
 
 func (e *nodeAddDelEvent) Done(error) {}
@@ -563,11 +704,14 @@ func (e nodeAddDelEvent) GetKey() string {
 
 func (e nodeAddDelEvent) GetValue(value proto.Message) error {
 	if e.evType == datasync.Put {
+		if e.nodeInfo == nil {
+			e.nodeInfo = &otherNodeInfo
+		}
 		v := value.(*node.NodeInfo)
-		v.Id = otherNodeInfo.Id
-		v.Name = otherNodeInfo.Name
-		v.IpAddress = otherNodeInfo.IpAddress
-		v.ManagementIpAddress = otherNodeInfo.ManagementIpAddress
+		v.Id = e.nodeInfo.Id
+		v.Name = e.nodeInfo.Name
+		v.IpAddress = e.nodeInfo.IpAddress
+		v.ManagementIpAddress = e.nodeInfo.ManagementIpAddress
 	}
 	return nil
 }
@@ -576,11 +720,14 @@ func (e nodeAddDelEvent) GetPrevValue(prevValue proto.Message) (prevValueExist b
 	if e.evType == datasync.Put {
 		return false, nil
 	}
+	if e.nodeInfo == nil {
+		e.nodeInfo = &otherNodeInfo
+	}
 	v := prevValue.(*node.NodeInfo)
-	v.Id = otherNodeInfo.Id
-	v.Name = otherNodeInfo.Name
-	v.IpAddress = otherNodeInfo.IpAddress
-	v.ManagementIpAddress = otherNodeInfo.ManagementIpAddress
+	v.Id = e.nodeInfo.Id
+	v.Name = e.nodeInfo.Name
+	v.IpAddress = e.nodeInfo.IpAddress
+	v.ManagementIpAddress = e.nodeInfo.ManagementIpAddress
 	return true, nil
 }
 

@@ -53,7 +53,7 @@ type LinuxInterfaceStateUpdater struct {
 func (c *LinuxInterfaceStateUpdater) Init(ctx context.Context, logger logging.PluginLogger, ifIndexes ifaceidx.LinuxIfIndexRW,
 	stateChan chan *LinuxInterfaceStateNotification) error {
 	// Logger
-	c.log = logger.NewLogger("-if-state")
+	c.log = logger.NewLogger("if-state")
 
 	// Channels
 	c.ifStateChan = stateChan
@@ -75,7 +75,7 @@ func (c *LinuxInterfaceStateUpdater) Init(ctx context.Context, logger logging.Pl
 
 // Close watcher channel (state chan is closed in LinuxInterfaceConfigurator)
 func (c *LinuxInterfaceStateUpdater) Close() error {
-	if err := safeclose.Close(c.ifWatcherNotifCh, c.ifWatcherDoneCh); err != nil {
+	if err := safeclose.Close(c.ifWatcherNotifCh); err != nil {
 		return errors.Errorf("failed to safeclose linux interface state updater: %v", err)
 	}
 	return nil
@@ -116,7 +116,7 @@ func (c *LinuxInterfaceStateUpdater) watchLinuxInterfaces(ctx context.Context) {
 
 		case <-ctx.Done():
 			close(c.ifWatcherDoneCh)
-		    close(c.ifStateChan)
+			close(c.ifStateChan)
 			return
 		}
 	}

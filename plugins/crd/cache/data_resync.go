@@ -97,6 +97,8 @@ func (ctc *ContivTelemetryCache) parseAndCacheNodeInfoData(key string, evData da
 		return fmt.Errorf("could not parse node info data for key %s, error %s", key, err)
 	}
 
+	ctc.Log.Infof("parseAndCacheNodeInfoData: node %s, id: %d", nodeInfoValue.Name, nodeInfoValue.Id)
+
 	id, _ := strconv.Atoi(strings.Split(key, "/")[1])
 	if nodeInfoValue.Id != uint32(id) {
 		return fmt.Errorf("invalid key '%s' or node id '%d'", key, nodeInfoValue.Id)
@@ -128,8 +130,10 @@ func (ctc *ContivTelemetryCache) parseAndCachePodData(key string, evData datasyn
 		return fmt.Errorf("could not parse node info data for key %s, error %s", key, err)
 	}
 
-	ctc.Log.Infof("parseAndCachePodData: pod %s, namespace %s, value %+v", pod, namespace, podValue)
-	ctc.K8sCache.CreatePod(podValue.Name, podValue.Namespace, podValue.Label, podValue.IpAddress, podValue.HostIpAddress, podValue.Container)
+	ctc.Log.Infof("parseAndCachePodData: pod %s, namespace %s, value %+v",
+		pod, namespace, podValue)
+	ctc.K8sCache.CreatePod(podValue.Name, podValue.Namespace, podValue.Label, podValue.IpAddress,
+		podValue.HostIpAddress, podValue.Container)
 
 	return nil
 }
@@ -147,6 +151,7 @@ func (ctc *ContivTelemetryCache) parseAndCacheNodeData(key string, evData datasy
 	}
 
 	ctc.Log.Infof("parseAndCacheNodeData: node %s, value %+v", node, nodeValue)
-	ctc.K8sCache.CreateK8sNode(nodeValue.Name, nodeValue.Pod_CIDR, nodeValue.Provider_ID, nodeValue.Addresses, nodeValue.NodeInfo)
+	ctc.K8sCache.CreateK8sNode(nodeValue.Name, nodeValue.Pod_CIDR, nodeValue.Provider_ID,
+		nodeValue.Addresses, nodeValue.NodeInfo)
 	return nil
 }

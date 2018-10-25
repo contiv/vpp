@@ -48,24 +48,26 @@ DOCKERFILE=Dockerfile${DOCKERFILE_tag}
 
 
 CNIDEFAULTIMG="prod-contiv-cni":${TAG}
+CRDDEFAULTIMG="prod-contiv-crd":${TAG}
 KSRDEFAULTIMG="prod-contiv-ksr":${TAG}
 STNDEFAULTIMG="prod-contiv-stn":${TAG}
 
+
 CNIBUILDIMG="prod-contiv-cni"-${BUILDARCH}:${TAG}
+CRDBUILDIMG="prod-contiv-crd"-${BUILDARCH}:${TAG}
 KSRBUILDIMG="prod-contiv-ksr"-${BUILDARCH}:${TAG}
 STNBUILDIMG="prod-contiv-stn"-${BUILDARCH}:${TAG}
 
 
-
 docker build -t ${CNIBUILDIMG} ${DOCKER_BUILD_ARGS} --no-cache --force-rm -f docker/vpp-cni/${DOCKERFILE} .
+docker build -t ${CRDBUILDIMG} ${DOCKER_BUILD_ARGS} --no-cache --force-rm -f docker/vpp-crd/${DOCKERFILE} .
 docker build -t ${KSRBUILDIMG} ${DOCKER_BUILD_ARGS} --no-cache --force-rm -f docker/vpp-ksr/${DOCKERFILE} .
 docker build -t ${STNBUILDIMG} ${DOCKER_BUILD_ARGS} --no-cache --force-rm -f docker/vpp-stn/${DOCKERFILE} .
 
 
-
 if [ ${BUILDARCH} = "amd64" ] ; then
   docker tag  ${CNIBUILDIMG} ${CNIDEFAULTIMG}
+  docker tag  ${CRDBUILDIMG} ${CRDDEFAULTIMG}
   docker tag  ${KSRBUILDIMG} ${KSRDEFAULTIMG}
   docker tag  ${STNBUILDIMG} ${STNDEFAULTIMG}
 fi
-

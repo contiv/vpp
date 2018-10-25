@@ -27,32 +27,34 @@ import (
 const defaultPort = ":9999"
 
 //GetNodeInfo will make an http request for the given command and return an indented slice of bytes.
-func GetNodeInfo(ipAddr string, cmd string) []byte {
+func GetNodeInfo(ipAddr string, cmd string) ([]byte, error) {
 	client := http.Client{
 		Transport:     nil,
 		CheckRedirect: nil,
 		Jar:           nil,
 		Timeout:       10 * time.Second,
 	}
+
 	url := fmt.Sprintf("http://%s"+defaultPort+"/%s", ipAddr, cmd)
 	res, err := client.Get(url)
 	if err != nil {
 		err := fmt.Errorf("getNodeInfo: url: %s cleintGet Error: %s", url, err.Error())
 		fmt.Printf("http get error: %s ", err.Error())
-		return nil
+		return nil, err
 	} else if res.StatusCode < 200 || res.StatusCode > 299 {
 		err := fmt.Errorf("getNodeInfo: url: %s HTTP res.Status: %s", url, res.Status)
 		fmt.Printf("http get error: %s ", err.Error())
-		return nil
+		return nil, err
 	}
-	b, _ := ioutil.ReadAll(res.Body)
-	b = []byte(b)
+
+	b, err := ioutil.ReadAll(res.Body)
+	if err != nil {
+		return nil, err
+	}
+
 	var out bytes.Buffer
 	err = json.Indent(&out, b, "", "  ")
-	if err != nil {
-		fmt.Printf(err.Error())
-	}
-	return out.Bytes()
+	return out.Bytes(), err
 }
 
 //SetNodeInfo will make an http json post request to get the vpp cli command output

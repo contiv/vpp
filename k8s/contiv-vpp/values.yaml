@@ -12,40 +12,41 @@ contiv:
   ipNeighborScanInterval: 1
   ipNeighborStaleThreshold: 4
   serviceLocalEndpointWeight: 1
-  disableNATVirtualReassembly: True
+  disableNATVirtualReassembly: False
+  crdNodeConfigurationDisabled: True
   ipamConfig:
-    podSubnetCIDR: "10.1.0.0/16"
+    podSubnetCIDR: 10.1.0.0/16
     podNetworkPrefixLen: 24
     podIfIPCIDR: 10.2.1.0/24
-    vppHostSubnetCIDR: "172.30.0.0/16"
+    vppHostSubnetCIDR: 172.30.0.0/16
     vppHostNetworkPrefixLen: 24
-    vxlanCIDR: "192.168.30.0/24"
-    nodeInterconnectCIDR: "192.168.16.0/24"
+    nodeInterconnectCIDR: 192.168.16.0/24
+    vxlanCIDR: 192.168.30.0/24
+    nodeInterconnectDHCP: false
     #serviceCIDR: "10.96.0.0/12"
   # example of node configuration for VPP interfaces
-  #nodeConfig:
-  #  - name: "vm1"
-  #    mainInterface:
-  #      interfaceName: "GigabitEthernet0/4/0"
-  #      ip: 192.168.16.101/24
-  #    gateway: 192.168.1.1
-  #    otherInterfaces:
-  #      - interfaceName: "GigabitEthernet0/5/0"
-  #        ip: "1.2.3.4/24"
-  #      - interfaceName: "GigabitEthernet0/6/0"
-  #        ip: "2.3.4.5/24"
-  #  - name: "vm2"
-  #    useDHCPOnMainInt: False
-  #    mainInterface:
-  #      interfaceName: "GigabitEthernet0/9/0"
-  #      useDHCP: True
-  #    gateway: 192.168.1.1
-  #    otherInterfaces:
-  #      - interfaceName: "GigabitEthernet0/7/0"
-  #        ip: "3.4.5.6/24"
-  #      - interfaceName: "GigabitEthernet0/7/0"
-  #        ip: "5.6.7.8/24"
-
+  # nodeConfig:
+  # - name: "vm1"
+  #   mainInterface:
+  #     interfaceName: "GigabitEthernet0/4/0"
+  #     ip: 192.168.16.101/24
+  #   gateway: 192.168.1.1
+  #   otherInterfaces:
+  #     - interfaceName: "GigabitEthernet0/5/0"
+  #       ip: "1.2.3.4/24"
+  #     - interfaceName: "GigabitEthernet0/6/0"
+  #       ip: "2.3.4.5/24"
+  # - name: "vm2"
+  #   useDHCPOnMainInt: False
+  #   mainInterface:
+  #     interfaceName: "GigabitEthernet0/9/0"
+  #     useDHCP: True
+  #   gateway: 192.168.1.1
+  #   otherInterfaces:
+  #     - interfaceName: "GigabitEthernet0/7/0"
+  #       ip: "3.4.5.6/24"
+  #     - interfaceName: "GigabitEthernet0/7/0"
+  #       ip: "5.6.7.8/24"
 logs:
   defaultLevel: debug
 
@@ -88,7 +89,7 @@ vswitch:
   memoryLimit: 1024Mi
   updateStrategy: RollingUpdate
   cpuLimit: 0
-  enableCoreDumps: false
+  enableCoreDumps: true
   coreDumpsDir: /var/contiv/dumps
 
 cni:
@@ -101,6 +102,14 @@ cni:
 ksr:
   image:
     repository: contivvpp/ksr
+    # tag defaults to chart version
+    #tag:
+    pullPolicy: IfNotPresent
+  updateStrategy: RollingUpdate
+
+crd:
+  image:
+    repository: contivvpp/crd
     # tag defaults to chart version
     #tag:
     pullPolicy: IfNotPresent

@@ -21,13 +21,15 @@ import (
 	"github.com/ligato/cn-infra/datasync/kvdbsync"
 	"github.com/ligato/cn-infra/datasync/resync"
 	"github.com/ligato/cn-infra/db/keyval/etcd"
+	"github.com/ligato/cn-infra/health/probe"
 	"github.com/ligato/cn-infra/logging/logrus"
 	"github.com/ligato/cn-infra/servicelabel"
 )
 
 // ContivCRD is a custom resource to provide Contiv-VPP telemetry information.
 type ContivCRD struct {
-	CRD *crd.Plugin
+	HealthProbe *probe.Plugin
+	CRD         *crd.Plugin
 }
 
 func (c *ContivCRD) String() string {
@@ -60,11 +62,15 @@ func main() {
 		deps.SetName("ksrDataSync")
 	}))
 
+	// disable status check for etcd
+	etcd.DefaultPlugin.StatusCheck = nil
+
 	crd.DefaultPlugin.Watcher = ksrDataSync
 	crd.DefaultPlugin.Publish = ksrDataSync
 
 	ContivCRD := &ContivCRD{
-		CRD: &crd.DefaultPlugin,
+		HealthProbe: &probe.DefaultPlugin,
+		CRD:         &crd.DefaultPlugin,
 	}
 
 	a := agent.NewAgent(agent.AllPlugins(ContivCRD))

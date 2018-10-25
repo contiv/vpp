@@ -19,14 +19,10 @@ package cmdimpl
 import (
 	"encoding/json"
 	"fmt"
-	nodeinfomodel "github.com/contiv/vpp/plugins/contiv/model/node"
+	"sort"
 
 	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
 	"github.com/contiv/vpp/plugins/netctl/http"
-	"github.com/coreos/etcd/clientv3"
-	"github.com/ligato/cn-infra/db/keyval/etcd"
-	"github.com/ligato/cn-infra/logging"
-	"github.com/ligato/cn-infra/logging/logrus"
 	"os"
 	"strings"
 	"text/tabwriter"
@@ -35,56 +31,47 @@ import (
 
 //PrintNodes will print out all of the cmdimpl in a network in a table format.
 func PrintNodes() {
-	cfg := &etcd.ClientConfig{
-		Config: &clientv3.Config{
-			Endpoints: []string{"127.0.0.1:32379"},
-		},
-		OpTimeout: 1 * time.Second,
+	nodes := make([]string, 0)
+	for k := range getClusterNodeInfo() {
+		nodes = append(nodes, k)
 	}
-	logger := logrus.DefaultLogger()
-	logger.SetLevel(logging.FatalLevel)
+	sort.Strings(nodes)
+
 	w := tabwriter.NewWriter(os.Stdout, 0, 8, 2, ' ', 0)
-	// w := tabwriter.NewWriter(os.Stdout, 0, 8, 4, '\t', 0)
-	// Create connection to etcd.
-	db, err := etcd.NewEtcdConnectionWithBytes(*cfg, logger)
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-	}
-	itr, err := db.ListValues("/vnf-agent/contiv-ksr/allocatedIDs/")
-	if err != nil {
-		fmt.Printf("Error getting values")
-		return
-	}
-	fmt.Fprintf(w, "ID\tNAME\tVPP-IP\tHOST-IP\tBUILD-DATE\tBUILD-VERSION\tSTART-TIME\tSTATE\n")
-	for {
-		kv, stop := itr.GetNext()
-		if stop {
-			break
-		}
-		buf := kv.GetValue()
-		nodeInfo := &nodeinfomodel.NodeInfo{}
-		err = json.Unmarshal(buf, nodeInfo)
-		//fmt.Printf("NodeInfo: %+v\n", nodeInfo)
-		// Do whatever processing we need to do
-		bytes := http.GetNodeInfo(nodeInfo.ManagementIpAddress, "liveness")
-		var liveness telemetrymodel.NodeLiveness
-		err = json.Unmarshal(bytes, &liveness)
+	fmt.Fprintf(w, "ID\tNODE-NAME\tVPP-IP\tHOST-IP\tSTART-TIME\tSTATE\tBUILD-VERSION\tBUILD-DATE\n")
+
+	for _, n := range nodes {
+		nodeInfo := nodeInfo[n]
+		// Get liveness data which contains image version / build date
+		bytes, err := http.GetNodeInfo(nodeInfo.ManagementIpAddress, "liveness")
 		if err != nil {
-			fmt.Println(err)
-			liveness.BuildDate = "Not Available"
+			fmt.Printf("Could not get liveness data for node '%s'\n", nodeInfo.Name)
+			return
 		}
 
-		fmt.Fprintf(w, "%d\t%s\t%s\t%s\t%s\t%s\t%s\t%d\n",
+		// Reformat the image build date to the common format
+		buildDate := "Not Available"
+		buildVersion := "Not Available"
+		var liveness telemetrymodel.NodeLiveness
+		if err = json.Unmarshal(bytes, &liveness); err == nil {
+			buildVersion = liveness.BuildVersion
+			buildDate = liveness.BuildDate
+			bd, err1 := time.Parse("2006-01-02T15:04+00:00", buildDate)
+			if err1 == nil {
+				buildDate = bd.Format(timeLayout)
+			}
+		}
+
+		fmt.Fprintf(w, "%d\t%s\t%s\t%s\t%s\t%d\t%s\t%s\n",
 			nodeInfo.Id,
 			nodeInfo.Name,
 			strings.Split(nodeInfo.IpAddress, "/")[0],
 			nodeInfo.ManagementIpAddress,
-			liveness.BuildDate,
-			liveness.BuildVersion,
-			time.Unix(int64(liveness.StartTime), 0),
-			liveness.State)
+			time.Unix(int64(liveness.StartTime), 0).Format(timeLayout),
+			liveness.State,
+			buildVersion,
+			buildDate)
 	}
+
 	w.Flush()
-	db.Close()
 }

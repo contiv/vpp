@@ -34,8 +34,8 @@ type K8sCache interface {
 	CreatePod(name string, namespace string, label []*pod2.Pod_Label, IPAddress,
 		hostIPAdd string, container []*pod2.Pod_Container) error
 	RetrievePod(name string) (*telemetrymodel.Pod, error)
-	UpdatePod(name string, namespace string, label []*telemetrymodel.PodLabel,
-		IPAddress, hostIPAddress string, container []*pod2.Pod_Container) error
+	UpdatePod(name string, namespace string, label []*pod2.Pod_Label, IPAddress,
+		hostIPAddress string, container []*pod2.Pod_Container) error
 	DeletePod(name string) error
 
 	RetrieveAllPods() []*telemetrymodel.Pod

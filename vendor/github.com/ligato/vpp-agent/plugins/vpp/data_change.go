@@ -17,7 +17,7 @@ package vpp
 import (
 	"strings"
 
-	"github.com/golang/protobuf/proto"
+	"github.com/gogo/protobuf/proto"
 	"github.com/ligato/cn-infra/datasync"
 	"github.com/ligato/vpp-agent/plugins/vpp/model/acl"
 	"github.com/ligato/vpp-agent/plugins/vpp/model/bfd"
@@ -38,7 +38,10 @@ func (plugin *Plugin) changePropagateRequest(dataChng datasync.ChangeEvent, call
 	if strings.HasPrefix(key, interfaces.ErrorPrefix) || strings.HasPrefix(key, l2.BdErrPrefix) {
 		return false, nil
 	}
-	plugin.Log.Debug("Start processing change for key: ", key)
+
+	plugin.Log.WithField("revision", dataChng.GetRevision()).
+		Debugf("Processing change for key: %q", key)
+
 	if strings.HasPrefix(key, acl.Prefix) {
 		var value, prevValue acl.AccessLists_Acl
 		if err := dataChng.GetValue(&value); err != nil {

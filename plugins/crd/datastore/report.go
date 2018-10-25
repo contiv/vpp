@@ -30,6 +30,7 @@ type SimpleReport struct {
 	Data      telemetrymodel.Reports
 	Output    io.Writer
 	TimeStamp time.Time
+	Prefix    string
 }
 
 // NewSimpleReport creates a new SimpleReport instance
@@ -58,7 +59,7 @@ func (r *SimpleReport) AppendToNodeReport(nodeName string, errString string) {
 	if r.Data[nodeName] == nil {
 		r.Data[nodeName] = make([]string, 0)
 	}
-	r.Data[nodeName] = append(r.Data[nodeName], errString)
+	r.Data[nodeName] = append(r.Data[nodeName], fmt.Sprintf("%s: %s", r.Prefix, errString))
 }
 
 // Clear clears the status log
@@ -80,12 +81,19 @@ func (r *SimpleReport) Print() {
 	}
 }
 
-//SetTimeStamp sets the reports timestamp based on the time passed.
+// SetTimeStamp sets the reports timestamp based on the time passed.
 func (r *SimpleReport) SetTimeStamp(time time.Time) {
 	r.TimeStamp = time
 }
 
-//GetTimeStamp returns the reports time stamp.
+// GetTimeStamp returns the reports time stamp.
 func (r *SimpleReport) GetTimeStamp() time.Time {
 	return r.TimeStamp
+}
+
+// SetPrefix sets a prefix that will be henceforth prepended to each error
+// message, so that the source of the error can be easier identified. Each
+// validation routine should set it own prefix.
+func (r *SimpleReport) SetPrefix(pfx string) {
+	r.Prefix = pfx
 }

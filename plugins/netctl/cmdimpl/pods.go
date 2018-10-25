@@ -20,15 +20,11 @@ import (
 	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
 	"github.com/contiv/vpp/plugins/ksr/model/pod"
 	"github.com/contiv/vpp/plugins/netctl/http"
-	"github.com/coreos/etcd/clientv3"
 	"github.com/ligato/cn-infra/db/keyval/etcd"
-	"github.com/ligato/cn-infra/logging"
-	"github.com/ligato/cn-infra/logging/logrus"
 	"github.com/ligato/vpp-agent/plugins/vpp/model/interfaces"
 	"os"
 	"strings"
 	"text/tabwriter"
-	"time"
 )
 
 type nodeData struct {
@@ -38,11 +34,9 @@ type nodeData struct {
 type nodeDataCache map[string]*nodeData
 
 type podGetter struct {
-	etcdConfig *etcd.ClientConfig
-	ndCache    nodeDataCache
-	logger     logging.Logger
-	db         *etcd.BytesConnectionEtcd
-	pods       []*pod.Pod
+	ndCache nodeDataCache
+	db      *etcd.BytesConnectionEtcd
+	pods    []*pod.Pod
 }
 
 // PrintAllPods will print out all of the non local pods in a network in
@@ -67,23 +61,8 @@ func PrintPodsPerNode(input string) {
 
 func newPodGetter() *podGetter {
 	pg := &podGetter{
-		etcdConfig: &etcd.ClientConfig{
-			Config: &clientv3.Config{
-				Endpoints: []string{"127.0.0.1:32379"},
-			},
-			OpTimeout: 1 * time.Second,
-		},
 		ndCache: make(nodeDataCache, 0),
-		logger:  logrus.DefaultLogger(),
-	}
-
-	pg.logger.SetLevel(logging.ErrorLevel)
-
-	// Create connection to etcd.
-	var err error
-	if pg.db, err = etcd.NewEtcdConnectionWithBytes(*pg.etcdConfig, pg.logger); err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+		db:      getEtcdBroker(),
 	}
 
 	pg.pods = make([]*pod.Pod, 0)
@@ -127,8 +106,9 @@ func (pg *podGetter) printAllPods(w *tabwriter.Writer) {
 		buf := kv.GetValue()
 		nodeInfo := &node.NodeInfo{}
 		err = json.Unmarshal(buf, nodeInfo)
-		fmt.Fprintf(w, "%s:\t\t\t\t\t\t\t\t\n", nodeInfo.Name)
-		fmt.Fprintf(w, "%s\t\t\t\t\t\t\t\t\n", strings.Repeat("-", len(nodeInfo.Name)+1))
+		nodeID := fmt.Sprintf("%s (%s):", nodeInfo.Name, nodeInfo.ManagementIpAddress)
+		fmt.Fprintf(w, "%s\t\t\t\t\t\t\t\n", nodeID)
+		fmt.Fprintf(w, "%s\t\t\t\t\t\t\t\n", strings.Repeat("-", len(nodeID)))
 
 		pg.printPodsPerNode(w, nodeInfo.ManagementIpAddress, nodeInfo.Name)
 		fmt.Fprintln(w, "\t\t\t\t\t\t\t\t")
@@ -138,49 +118,58 @@ func (pg *podGetter) printAllPods(w *tabwriter.Writer) {
 func (pg *podGetter) printPodsPerNode(w *tabwriter.Writer, nodeNameOrIP string, nodeName string) {
 	hostIP := resolveNodeOrIP(nodeNameOrIP)
 
-	fmt.Fprintf(w, "POD-NAME\tNAMESPACE\tPOD-IP\tVPP-IP\tIF-IDX\tIF-NAME\tINTERNAL-IF-NAME\tHOST-IP\n")
+	fmt.Fprintf(w, "POD-NAME\tNAMESPACE\tPOD-IP\tVPP-IP\tIF-IDX\tIF-NAME\tINTERNAL-IF-NAME\n")
 
 	for _, podInfo := range pg.pods {
-		if podInfo.HostIpAddress != hostIP || podInfo.IpAddress == hostIP {
+		if podInfo.HostIpAddress != hostIP {
 			continue
-		}
-
-		if ipAddress, ifIndex, intName, name, err := pg.getTapInterfaces(podInfo); err == nil {
-			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%d\t%s\t%s\t%s\n",
+		} else if podInfo.IpAddress == hostIP {
+			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
+				podInfo.Name,
+				podInfo.Namespace,
+				podInfo.IpAddress,
+				"", "", "", "")
+		} else {
+			ipAddress, ifIndex, intName, name := pg.getTapInterfaceForPod(podInfo)
+			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%d\t%s\t%s\n",
 				podInfo.Name,
 				podInfo.Namespace,
 				podInfo.IpAddress,
 				strings.Split(ipAddress, "/")[0],
 				ifIndex,
 				intName,
-				name,
-				podInfo.HostIpAddress)
-
-		} else {
-			fmt.Printf("error %s\n", err)
+				name)
 		}
 	}
 }
 
-func (pg *podGetter) getTapInterfaces(podInfo *pod.Pod) (string, uint32, string, string, error) {
-	// If we haven't retrieved node info from the Agent yet, do it now
+func (pg *podGetter) getTapInterfaceForPod(podInfo *pod.Pod) (string, uint32, string, string) {
+	// when we see a pod from a given node for the first time, retrieve its
+	// IPAM and interface info
 	if pg.ndCache[podInfo.HostIpAddress] == nil {
+
 		// Get ipam data for the node where the pod is hosted
-		cmd := "contiv/v1/ipam"
-		b := http.GetNodeInfo(podInfo.HostIpAddress, cmd)
+		b, err := http.GetNodeInfo(podInfo.HostIpAddress, getIpamDataCmd)
+		if err != nil {
+			fmt.Printf("Host '%s', Pod '%s' - failed to get ipam, err %s\n",
+				podInfo.HostIpAddress, podInfo.Name, err)
+			return "N/A", 0, "N/A", "N/A"
+		}
+
 		ipam := &telemetrymodel.IPamEntry{}
 		if err := json.Unmarshal(b, ipam); err != nil {
-			return "", 0, "", "", fmt.Errorf("failed to get ipam for node %s, err %s",
-				podInfo.HostIpAddress, err)
+			fmt.Printf("Host '%s', Pod '%s' - failed to decode ipam, err %s\n",
+				podInfo.HostIpAddress, podInfo.Name, err)
+			return "N/A", 0, "N/A", "N/A"
 		}
 
 		// Get interfaces data for the node where the pod is hosted
-		cmd = "vpp/dump/v1/interfaces"
-		b = http.GetNodeInfo(podInfo.HostIpAddress, cmd)
+		b, err = http.GetNodeInfo(podInfo.HostIpAddress, getInterfaceDataCmd)
 		intfs := make(telemetrymodel.NodeInterfaces)
 		if err := json.Unmarshal(b, &intfs); err != nil {
-			return "", 0, "", "", fmt.Errorf("failed to get pod's interface; pod %s, hostIPAddress %s, err %s",
-				podInfo.Name, podInfo.HostIpAddress, err)
+			fmt.Printf("Host '%s', Pod '%s' - failed to get pod's interface, err %s\n",
+				podInfo.HostIpAddress, podInfo.Name, err)
+			return "N/A", 0, "N/A", "N/A"
 		}
 
 		pg.ndCache[podInfo.HostIpAddress] = &nodeData{
@@ -190,19 +179,57 @@ func (pg *podGetter) getTapInterfaces(podInfo *pod.Pod) (string, uint32, string,
 	}
 
 	// Determine the tap interface on VPP that connects the pod to the VPP
-	podIfIPAddress, podIfIPMask, err := getIPAddressAndMask(pg.ndCache[podInfo.HostIpAddress].ipam.Config.PodIfIPCIDR)
+	podPfxLen := pg.ndCache[podInfo.HostIpAddress].ipam.Config.VppHostNetworkPrefixLen
+	podMask := maskLength2Mask(int(podPfxLen))
+
+	podNetwork, podIPMask, err := getIPAddressAndMask(pg.ndCache[podInfo.HostIpAddress].ipam.PodNetwork)
 	if err != nil {
-		return "", 0, "", "", fmt.Errorf("invalid PodIfIPCIDR address %s, err %s",
-			podInfo.HostIpAddress, err)
+		fmt.Printf("Host '%s', Pod '%s' - invalid PodNetwork address %s, err %s\n",
+			podInfo.HostIpAddress, podInfo.Name, pg.ndCache[podInfo.HostIpAddress].ipam.PodNetwork, err)
+		// Do not return - we can still continue if this error happens
 	}
 
-	podIfIPPrefix := podIfIPAddress &^ podIfIPMask
+	if podMask != podIPMask {
+		fmt.Printf("Host '%s', Pod '%s' - vppHostNetworkPrefixLen mismatch: "+
+			"PodNetwork '%s', podNetworkPrefixLen '%d'\n",
+			podInfo.HostIpAddress, podInfo.Name,
+			pg.ndCache[podInfo.HostIpAddress].ipam.PodNetwork,
+			pg.ndCache[podInfo.HostIpAddress].ipam.Config.PodNetworkPrefixLen)
+		// Do not return - we can still continue if this error happens
+	}
+
+	podIfIPAddress, podIfIPMask, err := getIPAddressAndMask(pg.ndCache[podInfo.HostIpAddress].ipam.Config.PodIfIPCIDR)
+	if err != nil {
+		fmt.Printf("Host '%s', Pod '%s' - invalid PodIfIPCIDR address %s, err %s\n",
+			podInfo.HostIpAddress, podInfo.Name, pg.ndCache[podInfo.HostIpAddress].ipam.Config.PodIfIPCIDR, err)
+		return "N/A", 0, "N/A", "N/A"
+	}
+
+	if podMask != podIfIPMask {
+		fmt.Printf("Host '%s', Pod '%s' - vppHostNetworkPrefixLen mismatch: "+
+			"PodIfIPCIDR '%s', podNetworkPrefixLen '%d'\n",
+			podInfo.HostIpAddress, podInfo.Name,
+			pg.ndCache[podInfo.HostIpAddress].ipam.Config.PodIfIPCIDR,
+			pg.ndCache[podInfo.HostIpAddress].ipam.Config.PodNetworkPrefixLen)
+		// Do not return - we can still continue if this error happens
+	}
+
+	podIfIPPrefix := podIfIPAddress &^ podMask
 	podAddr, err := ip2uint32(podInfo.IpAddress)
 	if err != nil {
-		return "", 0, "", "", fmt.Errorf("invalid podInfo.IpAddress %s, err %s",
-			podInfo.HostIpAddress, err)
+		fmt.Printf("Host '%s', Pod '%s' - invalid podInfo.IpAddress %s, err %s",
+			podInfo.HostIpAddress, podInfo.Name, podInfo.IpAddress, err)
+		return "N/A", 0, "N/A", "N/A"
 	}
-	podAddrSuffix := podAddr & podIfIPMask
+
+	podAddrSuffix := podAddr & podMask
+
+	if podAddr&^podMask != podNetwork {
+		fmt.Printf("Host '%s', Pod '%s' - pod IP address %s not from PodNetwork subnet %s\n",
+			podInfo.HostIpAddress, podInfo.Name, podInfo.IpAddress,
+			pg.ndCache[podInfo.HostIpAddress].ipam.PodNetwork)
+		// Do not return - we can still continue if this error happens
+	}
 
 	for _, intf := range pg.ndCache[podInfo.HostIpAddress].ifcs {
 		if intf.If.IfType == interfaces.InterfaceType_TAP_INTERFACE {
@@ -216,16 +243,16 @@ func (pg *podGetter) getTapInterfaces(podInfo *pod.Pod) (string, uint32, string,
 					continue
 				}
 
-				ifIPAdrPrefix := ifIPAddr &^ podIfIPMask
-				ifIPAdrSuffix := ifIPAddr & podIfIPMask
+				ifIPAdrPrefix := ifIPAddr &^ podMask
+				ifIPAdrSuffix := ifIPAddr & podMask
 				if (podIfIPPrefix == ifIPAdrPrefix) && (ifIPAdrSuffix == podAddrSuffix) {
-					return ip, intf.IfMeta.SwIfIndex, intf.IfMeta.VppInternalName, intf.If.Name, nil
+					return ip, intf.IfMeta.SwIfIndex, intf.IfMeta.VppInternalName, intf.If.Name
 				}
 			}
 		}
 	}
 
-	return "", 0, "", "", nil
+	return "N/A", 0, "N/A", "N/A"
 }
 
 func getWriter(hostName string) *tabwriter.Writer {

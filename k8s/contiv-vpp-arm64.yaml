@@ -34,21 +34,27 @@ data:
     IPNeighborScanInterval: 1
     IPNeighborStaleThreshold: 4
     ServiceLocalEndpointWeight: 1
-    DisableNATVirtualReassembly: true
+    DisableNATVirtualReassembly: false
+    CRDNodeConfigurationDisabled: true
     IPAMConfig:
+      NodeInterconnectDHCP: false
+      NodeInterconnectCIDR: 192.168.16.0/24
       PodSubnetCIDR: 10.1.0.0/16
       PodNetworkPrefixLen: 24
       PodIfIPCIDR: 10.2.1.0/24
       VPPHostSubnetCIDR: 172.30.0.0/16
       VPPHostNetworkPrefixLen: 24
-      NodeInterconnectCIDR: 192.168.16.0/24
       VxlanCIDR: 192.168.30.0/24
-      NodeInterconnectDHCP: False
   logs.conf: |
     default-level: debug
+    loggers:
+      - name: statscollector
+        level: info
   grpc.conf: |
     network: unix
     endpoint: /var/run/contiv/cni.sock
+    force-socket-removal: true
+    permission: 700
   http.conf: |
     endpoint: 0.0.0.0:9999
   bolt.conf: |
@@ -234,10 +240,12 @@ spec:
         # Marks this pod as a critical add-on.
         scheduler.alpha.kubernetes.io/critical-pod: ''
     spec:
-      # Allow this pod to be rescheduled while the node is in "critical add-ons only" mode.
       tolerations:
-      - key: node-role.kubernetes.io/master
-        effect: NoSchedule
+      # We need this to schedule on the master no matter what else is going on, so tolerate everything.
+      - key: ''
+        operator: Exists
+        effect: ''
+      # This likely isn't needed due to the above wildcard, but keep it in for now.
       - key: CriticalAddonsOnly
         operator: Exists
       hostNetwork: true
@@ -266,6 +274,7 @@ spec:
           - name: ETCDPORT
             value: "32379"
         image: arm64v8/busybox:latest
+        imagePullPolicy: IfNotPresent
         command: ['sh', '-c', 'until nc -w 2 127.0.0.1:$ETCDPORT; do echo waiting for etcd; sleep 2; done;']
       # This init container extracts/copies VPP LD_PRELOAD libs and default VPP config to the host.
       - name: vpp-init
@@ -291,6 +300,10 @@ spec:
                ip link del vpp1
           fi
           cp -f /usr/local/bin/vppctl /host/usr/local/bin/vppctl
+          sysctl -w debug.exception-trace=1
+          sysctl -w kernel.core_pattern="/var/contiv/dumps/%e-%t"
+          ulimit -c unlimited
+          echo 2 > /proc/sys/fs/suid_dumpable
         resources: {}
         securityContext:
           privileged: true
@@ -307,6 +320,8 @@ spec:
             mountPath: /run/vpp
           - name: contiv-run
             mountPath: /var/run/contiv
+          - name: core-dumps
+            mountPath: /var/contiv/dumps
 
       containers:
         # Runs contiv-vswitch container on each Kubernetes node.
@@ -365,6 +380,9 @@ spec:
               mountPath: /etc/agent
             - name: govpp-plugin-cfg
               mountPath: /etc/govpp
+            - name: core-dumps
+              mountPath: /var/contiv/dumps
+
       volumes:
         # Used to connect to contiv-etcd.
         - name: etcd-cfg
@@ -412,6 +430,10 @@ spec:
         - name: govpp-plugin-cfg
           configMap:
             name: govpp-cfg
+        # Used for vswitch core dumps
+        - name: core-dumps
+          hostPath:
+            path: /var/contiv/dumps
         - name: var-bolt
           hostPath:
             path: /var/bolt
@@ -459,6 +481,7 @@ spec:
           - name: ETCDPORT
             value: "32379"
           image: arm64v8/busybox:latest
+          imagePullPolicy: IfNotPresent
           command: ['sh', '-c', 'until nc -w 2 127.0.0.1:$ETCDPORT; do echo waiting for etcd; sleep 2; done;']
 
       containers:
@@ -544,4 +567,157 @@ subjects:
 - kind: ServiceAccount
   name: contiv-ksr
   namespace: kube-system
+
+---
+
+# This installs the contiv-crd on the master node in a Kubernetes cluster.
+apiVersion: extensions/v1beta1
+kind: DaemonSet
+metadata:
+  name: contiv-crd
+  namespace: kube-system
+  labels:
+    k8s-app: contiv-crd
+spec:
+  updateStrategy:
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        k8s-app: contiv-crd
+      annotations:
+        # Marks this pod as a critical add-on.
+        scheduler.alpha.kubernetes.io/critical-pod: ''
+    spec:
+      tolerations:
+      # We need this to schedule on the master no matter what else is going on, so tolerate everything.
+      - key: ''
+        operator: Exists
+        effect: ''
+      # This likely isn't needed due to the above wildcard, but keep it in for now.
+      - key: CriticalAddonsOnly
+        operator: Exists
+      # Only run this pod on the master.
+      nodeSelector:
+        node-role.kubernetes.io/master: ""
+      hostNetwork: true
+      # This grants the required permissions to contiv-crd.
+      serviceAccountName: contiv-crd
+
+      initContainers:
+      # This init container waits until etcd is started
+      - name: wait-foretcd
+        env:
+        - name: ETCDPORT
+          value: "32379"
+        image: arm64v8/busybox:latest
+        imagePullPolicy: IfNotPresent
+        command: ['sh', '-c', 'until nc -w 2 127.0.0.1:$ETCDPORT; do echo waiting for etcd; sleep 2; done;']
+
+      # This init container copies contiv-netctl tool to the host.
+      - name: netctl-init
+        image: contivvpp/crd-arm64:latest
+        imagePullPolicy: IfNotPresent
+        command:
+        - /bin/sh
+        args:
+        - -c
+        - |
+          cp -f /contiv-netctl /host/usr/local/bin/contiv-netctl || true
+        volumeMounts:
+          - name: usr-local-bin
+            mountPath: /host/usr/local/bin
+
+      containers:
+      - name: contiv-crd
+        image: contivvpp/crd-arm64:latest
+        imagePullPolicy: IfNotPresent
+        env:
+        - name: ETCD_CONFIG
+          value: "/etc/etcd/etcd.conf"
+        - name: HTTP_CONFIG
+          value: "/etc/http/http.conf"
+        volumeMounts:
+        - name: etcd-cfg
+          mountPath: /etc/etcd
+        - name: http-cfg
+          mountPath: /etc/http
+        readinessProbe:
+          httpGet:
+            path: /readiness
+            port: 9090
+          periodSeconds: 1
+          initialDelaySeconds: 10
+        livenessProbe:
+          httpGet:
+            path: /liveness
+            port: 9090
+          periodSeconds: 1
+          initialDelaySeconds: 30
+      volumes:
+        # Used to connect to contiv-etcd.
+        - name: etcd-cfg
+          configMap:
+            name: contiv-etcd-cfg
+        - name: usr-local-bin
+          hostPath:
+            path: /usr/local/bin
+        - name: http-cfg
+          configMap:
+            name: contiv-crd-http-cfg
+---
+
+# This cluster role defines a set of permissions required for contiv-crd.
+apiVersion: rbac.authorization.k8s.io/v1beta1
+kind: ClusterRole
+metadata:
+  name: contiv-crd
+  namespace: kube-system
+rules:
+- apiGroups:
+  - apiextensions.k8s.io
+  - nodeconfig.contiv.vpp
+  - telemetry.contiv.vpp
+  resources:
+  - customresourcedefinitions
+  - telemetryreports
+  - nodeconfigs
+  verbs:
+  - "*"
+
+---
+
+# This defines a service account for contiv-crd.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: contiv-crd
+  namespace: kube-system
+
+---
+
+# This binds the contiv-crd cluster role with contiv-crd service account.
+apiVersion: rbac.authorization.k8s.io/v1beta1
+kind: ClusterRoleBinding
+metadata:
+  name: contiv-crd
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: contiv-crd
+subjects:
+- kind: ServiceAccount
+  name: contiv-crd
+  namespace: kube-system
+
+---
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: contiv-crd-http-cfg
+  namespace: kube-system
+data:
+  http.conf: |
+    endpoint: 0.0.0.0:9090
 

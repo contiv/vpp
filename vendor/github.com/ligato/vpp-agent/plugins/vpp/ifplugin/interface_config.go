@@ -12,9 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//go:generate protoc --proto_path=../model/interfaces --gogo_out=../model/interfaces ../model/interfaces/interfaces.proto
-//go:generate protoc --proto_path=../model/bfd --gogo_out=../model/bfd ../model/bfd/bfd.proto
-
 // Package ifplugin implements the Interface plugin that handles management
 // of VPP interfaces.
 package ifplugin
@@ -23,12 +20,11 @@ import (
 	"bytes"
 	"net"
 	"strings"
-	"time"
 
 	govppapi "git.fd.io/govpp.git/api"
 	"github.com/go-errors/errors"
+	"github.com/gogo/protobuf/proto"
 	"github.com/ligato/cn-infra/logging"
-	"github.com/ligato/cn-infra/logging/measure"
 	"github.com/ligato/cn-infra/utils/addrs"
 	"github.com/ligato/cn-infra/utils/safeclose"
 	"github.com/ligato/vpp-agent/idxvpp/nametoidx"
@@ -49,8 +45,6 @@ type InterfaceConfigurator struct {
 	log logging.Logger
 
 	linux interface{} // just flag if nil
-
-	stopwatch *measure.Stopwatch // timer used to measure and store time
 
 	swIfIndexes ifaceidx.SwIfIndexRW
 	dhcpIndexes ifaceidx.DhcpIndexRW
@@ -75,14 +69,9 @@ type InterfaceConfigurator struct {
 
 // Init members (channels...) and start go routines
 func (c *InterfaceConfigurator) Init(logger logging.PluginLogger, goVppMux govppmux.API, linux interface{},
-	notifChan chan govppapi.Message, defaultMtu uint32, enableStopwatch bool) (err error) {
+	notifChan chan govppapi.Message, defaultMtu uint32) (err error) {
 	// Logger
-	c.log = logger.NewLogger("-if-conf")
-
-	// Configurator-wide stopwatch instance
-	if enableStopwatch {
-		c.stopwatch = measure.NewStopwatch("Interface-configurator", c.log)
-	}
+	c.log = logger.NewLogger("if-conf")
 
 	// State notification channel
 	c.NotifChan = notifChan
@@ -96,7 +85,7 @@ func (c *InterfaceConfigurator) Init(logger logging.PluginLogger, goVppMux govpp
 	}
 
 	// VPP API handler
-	c.ifHandler = vppcalls.NewIfVppHandler(c.vppCh, c.log, c.stopwatch)
+	c.ifHandler = vppcalls.NewIfVppHandler(c.vppCh, c.log)
 
 	// Mappings
 	c.swIfIndexes = ifaceidx.NewSwIfIndex(nametoidx.NewNameToIdx(c.log, "sw_if_indexes", ifaceidx.IndexMetadata))
@@ -231,7 +220,7 @@ func (c *InterfaceConfigurator) ConfigureVPPInterface(iface *intf.Interfaces_Int
 		if !ok || ifData == nil {
 			return errors.Errorf("set rx-placement failed, no data available for interface index %d", ifIdx)
 		}
-		if err := c.ifHandler.SetRxPlacement(ifData.Meta.InternalName, iface.RxPlacementSettings); err != nil {
+		if err := c.ifHandler.SetRxPlacement(ifData.Meta.SwIfIndex, iface.RxPlacementSettings); err != nil {
 			return errors.Errorf("failed to set rx-placement for interface %s: %v", ifData.Interface.Name, err)
 		}
 	}
@@ -527,7 +516,7 @@ func (c *InterfaceConfigurator) modifyVPPInterface(newConfig, oldConfig *intf.In
 		if !ok || ifData == nil {
 			return errors.Errorf("set rx-placement for new config failed, no data available for interface index %d", ifIdx)
 		}
-		if err := c.ifHandler.SetRxPlacement(ifData.Meta.InternalName, newConfig.RxPlacementSettings); err != nil {
+		if err := c.ifHandler.SetRxPlacement(ifData.Meta.SwIfIndex, newConfig.RxPlacementSettings); err != nil {
 			return errors.Errorf("failed to set rx-placement for interface %s: %v", newConfig.Name, err)
 		}
 	}
@@ -639,7 +628,7 @@ func (c *InterfaceConfigurator) modifyRxModeForInterfaces(oldIntf, newIntf *intf
 	oldRx := oldIntf.RxModeSettings
 	newRx := newIntf.RxModeSettings
 
-	if oldRx == nil && newRx != nil || oldRx != nil && newRx == nil || *oldRx != *newRx {
+	if oldRx == nil && newRx != nil || oldRx != nil && newRx == nil || !proto.Equal(oldRx, newRx) {
 		// If new rx mode is nil, value is reset to default version (differs for interface types)
 		switch newIntf.Type {
 		case intf.InterfaceType_ETHERNET_CSMACD:
@@ -829,7 +818,6 @@ func (c *InterfaceConfigurator) ResolveDeletedLinuxInterface(ifName, hostIfName 
 
 // PropagateIfDetailsToStatus looks up all VPP interfaces
 func (c *InterfaceConfigurator) propagateIfDetailsToStatus() error {
-	start := time.Now()
 	req := &interfaces.SwInterfaceDump{}
 	reqCtx := c.vppCh.SendMultiRequest(req)
 
@@ -854,12 +842,6 @@ func (c *InterfaceConfigurator) propagateIfDetailsToStatus() error {
 
 		// Propagate interface state information to notification channel.
 		c.NotifChan <- msg
-	}
-
-	// SwInterfaceSetFlags time
-	if c.stopwatch != nil {
-		timeLog := measure.GetTimeLog(interfaces.SwInterfaceSetFlags{}, c.stopwatch)
-		timeLog.LogTimeEntry(time.Since(start))
 	}
 
 	return nil
@@ -947,7 +929,7 @@ func (c *InterfaceConfigurator) canMemifBeModifWithoutDelete(newConfig *intf.Int
 		return true
 	}
 
-	if *newConfig != *oldConfig {
+	if !proto.Equal(newConfig, oldConfig) {
 		c.log.Debug("Difference between new & old config causing recreation of memif")
 		return false
 	}
@@ -959,7 +941,7 @@ func (c *InterfaceConfigurator) canVxlanBeModifWithoutDelete(newConfig *intf.Int
 	if newConfig == nil || oldConfig == nil {
 		return true
 	}
-	if *newConfig != *oldConfig {
+	if !proto.Equal(newConfig, oldConfig) {
 		c.log.Debug("Difference between new & old config causing recreation of VxLAN")
 		return false
 	}
@@ -971,7 +953,7 @@ func (c *InterfaceConfigurator) canTapBeModifWithoutDelete(newConfig *intf.Inter
 	if newConfig == nil || oldConfig == nil {
 		return true
 	}
-	if *newConfig != *oldConfig {
+	if !proto.Equal(newConfig, oldConfig) {
 		c.log.Debug("Difference between new & old config causing recreation of tap")
 		return false
 	}

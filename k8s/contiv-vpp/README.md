@@ -71,7 +71,7 @@ Parameter | Description | Default
 `contiv.ipNeighborScanInterval`| IP neighbor scan interval in minutes | `1`
 `contiv.ipNeighborStaleThreshold`| Threshold in minutes for neighbor deletion | `4`
 `contiv.serviceLocalEndpointWeight` | load-balancing weight for locally deployed service endpoints | 1
-`contiv.disableNATVirtualReassembly` | Disable NAT virtual reassembly (drop fragmented packets) | `True`
+`contiv.disableNATVirtualReassembly` | Disable NAT virtual reassembly (drop fragmented packets) | `False`
 `contiv.ipamConfig.podSubnetCIDR` | Pod subnet CIDR | `10.1.0.0/16`
 `contiv.ipamConfig.podNetworkPrefixLen` | Pod network prefix length | `24`
 `contiv.ipamConfig.PodIfIPCIDR` | Subnet CIDR for VPP-side POD addresses | `10.2.1.0/24`
@@ -83,6 +83,7 @@ Parameter | Description | Default
 `contiv.nodeConfig.*` | List of node configs, see example section in values.yaml | `""`
 `contiv.vswitch.defineMemoryLimits` | define limits for vswitch container | `false`
 `contiv.vswitch.hugePages2miLimit` | limit of memory allocated by 2048Kb hugepages for vswitch container| `1024Mi`
+`contiv.vswitch.hugePages1giLimit` | limit of memory allocated by 1Gb hugepages for vswitch container| `""`
 `contiv.vswitch.memoryLimit` | memory limit for vswitch container | `1024Mi`
 `contiv.vswitch.enableCoreDumps` | enable core dumps of VPP into coreDumpsDir | `false`
 `contiv.vswitch.coreDumpsDir` | location of the VPP core dumps | `/var/contiv/dumps`

@@ -19,6 +19,7 @@ import (
 	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
 	"github.com/pkg/errors"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 )
@@ -48,8 +49,10 @@ func (vds *VppDataStore) CreateNode(ID uint32, nodeName, IPAddr, ManIPAdr string
 	n.PodMap = make(map[string]*telemetrymodel.Pod)
 	vds.NodeMap[nodeName] = n
 
-	ipa := strings.Split(IPAddr, "/")
-	vds.GigEIPMap[ipa[0]] = n
+	if IPAddr != "" {
+		ipa := strings.Split(IPAddr, "/")
+		vds.GigEIPMap[ipa[0]] = n
+	}
 
 	return nil
 }
@@ -67,31 +70,39 @@ func (vds *VppDataStore) RetrieveNode(nodeName string) (n *telemetrymodel.Node, 
 	return nil, fmt.Errorf("node %s not found", nodeName)
 }
 
-// DeleteNode handles node deletions from the cache. If the node identified
-// by 'nodeName" is present in the cache, it is deleted and nil error is
-// returned; otherwise, an error is returned.
+// DeleteNode handles node deletions from the cache. The delete callback
+// actually hands off to us the node ID in a string format, so we have
+// to first find the node by its ID, not its name. If the nodeName parameter
+// is invalid, or it does not identify a node that is present in the cache,
+// we return an error.
 func (vds *VppDataStore) DeleteNode(nodeName string) error {
 	vds.lock.Lock()
 	defer vds.lock.Unlock()
 
-	node, ok := vds.retrieveNode(nodeName)
-	if !ok {
-		return fmt.Errorf("node %s does not exist", nodeName)
+	nodeID, err := strconv.Atoi(nodeName)
+	if err != nil {
+		return fmt.Errorf("invalid nodeId %s", nodeName)
 	}
 
-	for _, intf := range node.NodeInterfaces {
-		if intf.IfMeta.VppInternalName == "loop0" {
-			delete(vds.LoopMACMap, intf.If.PhysAddress)
-			for _, ip := range intf.If.IPAddresses {
-				delete(vds.LoopIPMap, ip)
+	for _, node := range vds.NodeMap {
+		if node.ID == uint32(nodeID) {
+			for _, intf := range node.NodeInterfaces {
+				if intf.IfMeta.VppInternalName == "loop0" {
+					delete(vds.LoopMACMap, intf.If.PhysAddress)
+					for _, ip := range intf.If.IPAddresses {
+						delete(vds.LoopIPMap, ip)
+					}
+				}
 			}
+
+			delete(vds.NodeMap, node.Name)
+			delete(vds.GigEIPMap, node.IPAddr)
+
+			return nil
 		}
 	}
 
-	delete(vds.NodeMap, node.Name)
-	delete(vds.GigEIPMap, node.IPAddr)
-
-	return nil
+	return fmt.Errorf("node %s does not exist", nodeName)
 }
 
 //RetrieveAllNodes returns an ordered slice of all nodes in a database organized by name.
@@ -103,19 +114,21 @@ func (vds *VppDataStore) RetrieveAllNodes() []*telemetrymodel.Node {
 	for k := range vds.NodeMap {
 		str = append(str, k)
 	}
+
 	var nList []*telemetrymodel.Node
 	sort.Strings(str)
 	for _, v := range str {
 		n, _ := vds.retrieveNode(v)
 		nList = append(nList, n)
 	}
+
 	return nList
 }
 
 // UpdateNode handles updates of node data in the cache. If the node identified
 // by 'nodeName' exists, its data is updated and nil error is returned.
 // otherwise, an error is returned.
-func (vds *VppDataStore) UpdateNode(ID uint32, nodeName, IPAdr, ManIPAdr string) error {
+func (vds *VppDataStore) UpdateNode(ID uint32, nodeName, IPAddr, ManIPAdr string) error {
 	vds.lock.Lock()
 	defer vds.lock.Unlock()
 
@@ -124,9 +137,15 @@ func (vds *VppDataStore) UpdateNode(ID uint32, nodeName, IPAdr, ManIPAdr string)
 	if !ok {
 		return errors.Errorf("Node with name %+vds not found in vpp cache", nodeName)
 	}
-	node.IPAddr = IPAdr
+	node.IPAddr = IPAddr
 	node.ID = ID
 	node.ManIPAddr = ManIPAdr
+
+	if IPAddr != "" {
+		ipa := strings.Split(IPAddr, "/")
+		vds.GigEIPMap[ipa[0]] = node
+	}
+
 	return nil
 }
 
@@ -143,8 +162,8 @@ func (vds *VppDataStore) ClearCache() {
 		node.NodeTelemetry = nil
 		node.NodeIPArp = nil
 	}
+
 	// Clear secondary index maps
-	// vds.GigEIPMap = make(map[string]*telemetrymodel.Node)
 	vds.LoopMACMap = make(map[string]*telemetrymodel.Node)
 	vds.LoopIPMap = make(map[string]*telemetrymodel.Node)
 	vds.HostIPMap = make(map[string]*telemetrymodel.Node)
@@ -157,7 +176,17 @@ func (vds *VppDataStore) ReinitializeCache() {
 	vds.NodeMap = make(map[string]*telemetrymodel.Node)
 }
 
-//NewVppDataStore returns a reference to a new Vpp data store
+// DumpCache prints basic cache information to the console. The intended
+// use of this function is debugging.
+func (vds *VppDataStore) DumpCache() {
+	fmt.Printf("NodeMap: %+v\n", vds.NodeMap)
+	fmt.Printf("LoopMACMap: %+v\n", vds.LoopMACMap)
+	fmt.Printf("GigEIPMap: %+v\n", vds.GigEIPMap)
+	fmt.Printf("HostIPMap: %+v\n", vds.HostIPMap)
+	fmt.Printf("LoopIPMap: %+v\n", vds.LoopIPMap)
+}
+
+// NewVppDataStore returns a reference to a new Vpp data store
 func NewVppDataStore() (n *VppDataStore) {
 	return &VppDataStore{
 		lock:       &sync.Mutex{},
@@ -169,7 +198,7 @@ func NewVppDataStore() (n *VppDataStore) {
 	}
 }
 
-//SetNodeLiveness is a simple function to set a nodes liveness given its name.
+// SetNodeLiveness is a simple function to set a nodes liveness given its name.
 func (vds *VppDataStore) SetNodeLiveness(nodeName string, nLive *telemetrymodel.NodeLiveness) error {
 	vds.lock.Lock()
 	defer vds.lock.Unlock()
@@ -182,7 +211,7 @@ func (vds *VppDataStore) SetNodeLiveness(nodeName string, nLive *telemetrymodel.
 	return nil
 }
 
-//SetNodeInterfaces is a simple function to set a nodes interface given its name.
+// SetNodeInterfaces is a simple function to set a nodes interface given its name.
 func (vds *VppDataStore) SetNodeInterfaces(nodeName string, nInt map[int]telemetrymodel.NodeInterface) error {
 	vds.lock.Lock()
 	defer vds.lock.Unlock()
@@ -209,7 +238,7 @@ func (vds *VppDataStore) SetNodeStaticRoutes(nodeName string, nSrs []telemetrymo
 	return nil
 }
 
-//SetNodeBridgeDomain is a simple function to set a nodes bridge domain given its name.
+// SetNodeBridgeDomain is a simple function to set a nodes bridge domain given its name.
 func (vds *VppDataStore) SetNodeBridgeDomain(nodeName string, nBridge map[int]telemetrymodel.NodeBridgeDomain) error {
 	vds.lock.Lock()
 	defer vds.lock.Unlock()
@@ -222,7 +251,7 @@ func (vds *VppDataStore) SetNodeBridgeDomain(nodeName string, nBridge map[int]te
 	return nil
 }
 
-//SetNodeL2Fibs is a simple function to set a nodes l2 fibs given its name.
+// SetNodeL2Fibs is a simple function to set a nodes l2 fibs given its name.
 func (vds *VppDataStore) SetNodeL2Fibs(nodeName string, nL2F map[string]telemetrymodel.NodeL2FibEntry) error {
 	vds.lock.Lock()
 	defer vds.lock.Unlock()
@@ -235,7 +264,7 @@ func (vds *VppDataStore) SetNodeL2Fibs(nodeName string, nL2F map[string]telemetr
 	return nil
 }
 
-//SetNodeTelemetry is a simple function to set a nodes telemetry data given its name.
+// SetNodeTelemetry is a simple function to set a nodes telemetry data given its name.
 func (vds *VppDataStore) SetNodeTelemetry(nodeName string, nTele map[string]telemetrymodel.NodeTelemetry) error {
 	vds.lock.Lock()
 	defer vds.lock.Unlock()
@@ -248,7 +277,7 @@ func (vds *VppDataStore) SetNodeTelemetry(nodeName string, nTele map[string]tele
 	return nil
 }
 
-//SetNodeIPARPs is a simple function to set a nodes ip arp table given its name.
+// SetNodeIPARPs is a simple function to set a nodes ip arp table given its name.
 func (vds *VppDataStore) SetNodeIPARPs(nodeName string, nArps []telemetrymodel.NodeIPArpEntry) error {
 	vds.lock.Lock()
 	defer vds.lock.Unlock()
@@ -262,7 +291,7 @@ func (vds *VppDataStore) SetNodeIPARPs(nodeName string, nArps []telemetrymodel.N
 
 }
 
-//SetNodeIPam is a simple function to set the node with the given node name's ipam
+// SetNodeIPam is a simple function to set the node with the given node name's ipam
 func (vds *VppDataStore) SetNodeIPam(nodeName string, nIPam telemetrymodel.IPamEntry) error {
 	vds.lock.Lock()
 	defer vds.lock.Unlock()
@@ -283,11 +312,12 @@ func (vds *VppDataStore) SetSecondaryNodeIndices(node *telemetrymodel.Node) []st
 	vds.lock.Lock()
 	defer vds.lock.Unlock()
 
+	// Clear all the date before creating / recreating the maps
 	errReport := make([]string, 0)
 
 	loopIF, err := GetNodeLoopIFInfo(node)
 	if err != nil {
-		errReport = append(errReport, "node %s does not have a loop interface", node.Name)
+		errReport = append(errReport, fmt.Sprintf("node %s does not have a loop interface", node.Name))
 		return errReport
 	}
 
@@ -368,7 +398,7 @@ func GetNodeLoopIFInfo(node *telemetrymodel.Node) (*telemetrymodel.NodeInterface
 			return &ifs, nil
 		}
 	}
-	err := errors.Errorf("loop interface not found", node.Name)
+	err := errors.Errorf("loop interface not found %s", node.Name)
 	return nil, err
 }
 

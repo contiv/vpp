@@ -234,6 +234,14 @@ spec:
               mountPath: /var/contiv/etcd-secrets
               readOnly: true
             {{- end }}
+          livenessProbe:
+            exec:
+              command:
+              - /bin/sh
+              - -c
+              - etcdctl get --endpoints=127.0.0.1:{{ .Values.etcd.service.nodePort }} /
+            periodSeconds: 2
+            initialDelaySeconds: 20
       {{- if .Values.etcd.secureTransport }}
       volumes:
         - name: etcd-secrets

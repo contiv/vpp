@@ -54,7 +54,7 @@ logs:
 etcd:
   image:
     repository: quay.io/coreos/etcd
-    tag: v3.1.10
+    tag: v3.3.10
     pullPolicy: IfNotPresent
   service:
     #NodePort where contiv-etcd can be reached on any node.
@@ -150,5 +150,3 @@ init:
 bolt:
   debug: false
   dataDir: /var/bolt
-  persistentVolumeSize: 2Gi
-  usePersistentVolume: false

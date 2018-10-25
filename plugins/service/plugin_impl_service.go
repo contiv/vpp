@@ -21,7 +21,6 @@ import (
 	"github.com/ligato/cn-infra/datasync"
 	kvdbsync_local "github.com/ligato/cn-infra/datasync/kvdbsync/local"
 	"github.com/ligato/cn-infra/datasync/resync"
-	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/utils/safeclose"
 
 	"github.com/ligato/vpp-agent/clientv1/linux"
@@ -82,7 +81,6 @@ type Deps struct {
 // Init initializes the service plugin and starts watching ETCD for K8s configuration.
 func (p *Plugin) Init() error {
 	var err error
-	p.Log.SetLevel(logging.DebugLevel)
 
 	p.resyncChan = make(chan datasync.ResyncEvent)
 	p.changeChan = make(chan datasync.ChangeEvent)
@@ -100,7 +98,6 @@ func (p *Plugin) Init() error {
 			Contiv:       p.Contiv,
 		},
 	}
-	p.processor.Log.SetLevel(logging.DebugLevel)
 
 	p.nat44Renderer = &nat44.Renderer{
 		Deps: nat44.Deps{
@@ -115,7 +112,6 @@ func (p *Plugin) Init() error {
 			Stats:      p.Stats,
 		},
 	}
-	p.nat44Renderer.Log.SetLevel(logging.DebugLevel)
 
 	p.processor.Init()
 	p.nat44Renderer.Init(false)

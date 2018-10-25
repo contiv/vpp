@@ -140,8 +140,8 @@ func (pct *PolicyConfiguratorTxn) Commit() error {
 	rendererTxns := []renderer.Txn{}
 
 	for pod, unorderedPolicies := range pct.config {
-		var ingress *ContivRules
-		var egress *ContivRules
+		ingress := &ContivRules{}
+		egress := &ContivRules{}
 		var delPodConfig bool
 
 		// Get target pod configuration.

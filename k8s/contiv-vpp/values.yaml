@@ -150,5 +150,3 @@ init:
 bolt:
   debug: false
   dataDir: /var/bolt
-  persistentVolumeSize: 2Gi
-  usePersistentVolume: false

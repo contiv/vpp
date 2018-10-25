@@ -769,28 +769,9 @@ spec:
           hostPath:
             path: {{ .Values.vswitch.coreDumpsDir }}
         {{- end }}
-{{- if not .Values.bolt.usePersistentVolume }}
         - name: var-bolt
           hostPath:
             path: {{ .Values.bolt.dataDir }}
-        {{- else }}
-  volumeClaimTemplates:
-  - metadata:
-      name: var-bolt
-    spec:
-      accessModes:
-        - ReadWriteOnce
-      resources:
-        requests:
-          storage: {{ .Values.bolt.persistentVolumeSize }}
-    {{- if .Values.bolt.persistentVolumeStorageClass }}
-    {{- if (eq "-" .Values.bolt.persistentVolumeStorageClass) }}
-      storageClassName: ""
-    {{- else }}
-      storageClassName: "{{ .Values.bolt.persistentVolumeStorageClass }}"
-    {{- end }}
-    {{- end }}
-{{- end }}
 
 ---
 

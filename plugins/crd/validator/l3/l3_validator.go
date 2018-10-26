@@ -767,6 +767,8 @@ func getLinuxNextHopAndIfIP(lifcs telemetrymodel.LinuxInterfaces) (string, []str
 	return vppIfIP, nonVppIfIPRte
 }
 
+// getToHostIfNameAndIdx finds the name and ifIndex of the vpp <-> host stack
+// interface.
 func getToHostIfNameAndIdx(ifcs telemetrymodel.NodeInterfaces) (string, uint32, error) {
 
 	for _, v := range ifcs {

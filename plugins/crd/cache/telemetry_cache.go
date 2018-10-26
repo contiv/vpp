@@ -65,6 +65,7 @@ type ContivTelemetryCache struct {
 	Processor        api.ContivTelemetryProcessor
 	Report           api.Report
 	ControllerReport api.ContivTelemetryControllerReport
+	Verbose          bool
 
 	nodeResponseChannel  chan *NodeDTO
 	dsUpdateChannel      chan interface{}
@@ -102,7 +103,7 @@ type NodeDTO struct {
 }
 
 // NewTelemetryCache returns a new instance of telemetry cache
-func NewTelemetryCache(p logging.PluginLogger) *ContivTelemetryCache {
+func NewTelemetryCache(p logging.PluginLogger, verbose bool) *ContivTelemetryCache {
 	return &ContivTelemetryCache{
 		Deps: Deps{
 			Log: p.NewLogger("-telemetryCache"),
@@ -111,6 +112,7 @@ func NewTelemetryCache(p logging.PluginLogger) *ContivTelemetryCache {
 		VppCache: datastore.NewVppDataStore(),
 		K8sCache: datastore.NewK8sDataStore(),
 		Report:   datastore.NewSimpleReport(p.NewLogger("-report")),
+		Verbose:  verbose,
 
 		agentPort:            agentPort,
 		collectionInterval:   collectionInterval * time.Minute,
@@ -224,9 +226,12 @@ func (ctc *ContivTelemetryCache) validateCluster() {
 	ctc.Report.SetTimeStamp(time.Now())
 
 	ctc.nValidations++
-	fmt.Printf("validations: %d, resyncs: %d, updates: %d, responses: %d\n",
+	ctc.Log.Infof("validations: %d, resyncs: %d, updates: %d, responses: %d\n",
 		ctc.nValidations, ctc.nResyncs, ctc.nUpdates, ctc.nnResponses)
-	ctc.Report.Print()
+	if ctc.Verbose {
+		ctc.Report.Print()
+	}
+
 	ctc.ControllerReport.GenerateCRDReport()
 }
 

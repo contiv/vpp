@@ -750,7 +750,7 @@ func getLinuxNextHopAndIfIP(lifcs telemetrymodel.LinuxInterfaces) (string, []str
 	nonVppIfIPRte := make([]string, 0)
 
 	for _, ifc := range lifcs {
-		for _, ifCidr := range ifc.If.IpAddresses {
+		for _, ifCidr := range ifc.If.IPAddresses {
 			if v4CidrRe.Match([]byte(ifCidr)) {
 				ifSubnet := strings.Split(ifCidr, " ")[0]
 				ipAddr := strings.Split(ifSubnet, "/")[0]

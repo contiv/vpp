@@ -55,7 +55,7 @@ type NodeLiveness struct {
 	CommitHash   string `json:"commit_hash"`
 }
 
-// LinuxInterface defines an array of LinuxInterfaces
+// LinuxInterfaces defines an array of LinuxInterfaces
 type LinuxInterfaces []LinuxInterface
 
 // NodeInterfaces defines a map of NodeInterface
@@ -82,18 +82,20 @@ type NodeInterface struct {
 	IfMeta InterfaceMeta `json:"interface_meta"`
 }
 
-// Linux Interface contains data for linux interfaces on a node
+// LinuxInterface contains data for linux interfaces on a node
 type LinuxInterface struct {
 	If     LinuxIf     `json:"linux_interface"`
 	IfMeta LinuxIfMeta `json:"linux_interface_meta"`
 }
 
+// LinuxIf defines the data structure for Linux interface data
 type LinuxIf struct {
 	Name        string   `json:"name"`
-	IpAddresses []string `json:"ip_addresses"`
+	IPAddresses []string `json:"ip_addresses"`
 	HostIfName  string   `json:"host_if_name"`
 }
 
+// LinuxIfMeta defines the data structure for Linux interface metadata
 type LinuxIfMeta struct {
 	Index     uint32 `json:"index"`
 	Name      string `json:"name"`

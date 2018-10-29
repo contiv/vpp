@@ -2,7 +2,7 @@
 // to get telemetry information for every node
 package main
 
-// Flas are defined for the CRD executable as follows:
+// Flags are defined for the CRD executable as follows:
 // -config-dir			default "."
 // 						Location of the config files; can also be set via 'CONFIG_DIR' env variable.
 //

@@ -18,7 +18,6 @@ package crd
 
 import (
 	"context"
-	"flag"
 	"fmt"
 	"sync"
 
@@ -34,6 +33,7 @@ import (
 	"github.com/ligato/cn-infra/infra"
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/utils/safeclose"
+	"github.com/namsral/flag"
 
 	nodeinfomodel "github.com/contiv/vpp/plugins/contiv/model/node"
 	crdClientSet "github.com/contiv/vpp/plugins/crd/pkg/client/clientset/versioned"

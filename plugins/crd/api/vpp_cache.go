@@ -45,6 +45,7 @@ type VppCache interface {
 	SetNodeIPARPs(name string, nArps []telemetrymodel.NodeIPArpEntry) error
 	SetNodeStaticRoutes(nodeName string, nSrs []telemetrymodel.NodeIPRoute) error
 	SetNodeIPam(nodeName string, nIPam telemetrymodel.IPamEntry) error
+	SetLinuxInterfaces(nodeName string, nInt telemetrymodel.LinuxInterfaces) error
 
 	SetSecondaryNodeIndices(node *telemetrymodel.Node) []string
 

@@ -46,6 +46,9 @@ data:
     CRDNodeConfigurationDisabled: {{ .Values.contiv.crdNodeConfigurationDisabled }}
     IPAMConfig:
       NodeInterconnectDHCP: {{ .Values.contiv.ipamConfig.nodeInterconnectDHCP }}
+      {{- if .Values.contiv.ipamConfig.nodeInterconnectCIDR }}
+      NodeInterconnectCIDR: {{ .Values.contiv.ipamConfig.nodeInterconnectCIDR }}
+      {{- end }}
       {{- if .Values.contiv.ipamConfig.serviceCIDR }}
       ServiceCIDR: {{ .Values.contiv.ipamConfig.serviceCIDR }}
       {{- end }}
@@ -57,9 +60,6 @@ data:
       PodIfIPCIDR: {{ .Values.contiv.ipamConfig.podIfIPCIDR }}
       VPPHostSubnetCIDR: {{ .Values.contiv.ipamConfig.vppHostSubnetCIDR }}
       VPPHostNetworkPrefixLen: {{ .Values.contiv.ipamConfig.vppHostNetworkPrefixLen }}
-      {{- if .Values.contiv.ipamConfig.nodeInterconnectCIDR }}
-      NodeInterconnectCIDR: {{ .Values.contiv.ipamConfig.nodeInterconnectCIDR }}
-      {{- end }}
       VxlanCIDR: {{ .Values.contiv.ipamConfig.vxlanCIDR }}
       {{- end }}
     {{- if .Values.contiv.nodeConfig }}
@@ -79,6 +79,9 @@ data:
       {{- end }}
       {{- if .gateway }}
       Gateway: {{ .gateway }}
+      {{- end -}}
+      {{- if .stealInterface }}
+      StealInterface: {{ .stealInterface }}
       {{- end -}}
       {{- if .otherInterfaces }}
       OtherVPPInterfaces:
@@ -201,6 +204,14 @@ spec:
             - name: ETCD_UNSUPPORTED_ARCH
               value: "arm64"
             {{- end }}
+            {{- if .Values.etcd.secureTransport }}
+            - name: ETCDCTL_CACERT
+              value: /var/contiv/etcd-secrets/{{ .Values.etcd.secrets.caCert }}
+            - name: ETCDCTL_CERT
+              value: /var/contiv/etcd-secrets/{{ .Values.etcd.secrets.clientCert }}
+            - name: ETCDCTL_KEY
+              value: /var/contiv/etcd-secrets/{{ .Values.etcd.secrets.clientKey }}
+            {{- end }}
           command:
             - /bin/sh
           args:
@@ -223,6 +234,14 @@ spec:
               mountPath: /var/contiv/etcd-secrets
               readOnly: true
             {{- end }}
+          livenessProbe:
+            exec:
+              command:
+              - /bin/sh
+              - -c
+              - etcdctl get --endpoints=127.0.0.1:{{ .Values.etcd.service.nodePort }} /
+            periodSeconds: 2
+            initialDelaySeconds: 20
       {{- if .Values.etcd.secureTransport }}
       volumes:
         - name: etcd-secrets
@@ -239,6 +258,10 @@ spec:
               path: {{ .Values.etcd.secrets.serverCert }}
             - key: serverKey
               path: {{ .Values.etcd.secrets.serverKey }}
+            - key: clientCert
+              path: {{ .Values.etcd.secrets.clientCert }}
+            - key: clientKey
+              path: {{ .Values.etcd.secrets.clientKey }}
           {{- end }}
       {{- end }}
 {{- if .Values.etcd.usePersistentVolume }}
@@ -419,10 +442,12 @@ spec:
         # Marks this pod as a critical add-on.
         scheduler.alpha.kubernetes.io/critical-pod: ''
     spec:
-      # Allow this pod to be rescheduled while the node is in "critical add-ons only" mode.
       tolerations:
-      - key: node-role.kubernetes.io/master
-        effect: NoSchedule
+      # We need this to schedule on the master no matter what else is going on, so tolerate everything.
+      - key: ''
+        operator: Exists
+        effect: ''
+      # This likely isn't needed due to the above wildcard, but keep it in for now.
       - key: CriticalAddonsOnly
         operator: Exists
       hostNetwork: true
@@ -460,6 +485,7 @@ spec:
         {{- else }}
         image: {{ .Values.init.image.repository }}:{{ .Values.init.image.tag }}
         {{- end }}
+        imagePullPolicy: IfNotPresent
         command: ['sh', '-c', 'until nc -w 2 127.0.0.1:$ETCDPORT; do echo waiting for etcd; sleep 2; done;']
       {{- else }}
       # This init container waits until crd node specific configuration has been applied
@@ -751,28 +777,9 @@ spec:
           hostPath:
             path: {{ .Values.vswitch.coreDumpsDir }}
         {{- end }}
-{{- if not .Values.bolt.usePersistentVolume }}
         - name: var-bolt
           hostPath:
             path: {{ .Values.bolt.dataDir }}
-        {{- else }}
-  volumeClaimTemplates:
-  - metadata:
-      name: var-bolt
-    spec:
-      accessModes:
-        - ReadWriteOnce
-      resources:
-        requests:
-          storage: {{ .Values.bolt.persistentVolumeSize }}
-    {{- if .Values.bolt.persistentVolumeStorageClass }}
-    {{- if (eq "-" .Values.bolt.persistentVolumeStorageClass) }}
-      storageClassName: ""
-    {{- else }}
-      storageClassName: "{{ .Values.bolt.persistentVolumeStorageClass }}"
-    {{- end }}
-    {{- end }}
-{{- end }}
 
 ---
 
@@ -821,6 +828,7 @@ spec:
           {{- else }}
           image: {{ .Values.init.image.repository }}:{{ .Values.init.image.tag }}
           {{- end }}
+          imagePullPolicy: IfNotPresent
           command: ['sh', '-c', 'until nc -w 2 127.0.0.1:$ETCDPORT; do echo waiting for etcd; sleep 2; done;']
 
       containers:
@@ -968,7 +976,7 @@ subjects:
 - kind: ServiceAccount
   name: contiv-ksr
   namespace: kube-system
-{{- if eq .Values.contiv.crdNodeConfigurationDisabled false }}
+
 ---
 
 # This installs the contiv-crd on the master node in a Kubernetes cluster.
@@ -1016,7 +1024,26 @@ spec:
         {{- else }}
         image: {{ .Values.init.image.repository }}:{{ .Values.init.image.tag }}
         {{- end }}
+        imagePullPolicy: IfNotPresent
         command: ['sh', '-c', 'until nc -w 2 127.0.0.1:$ETCDPORT; do echo waiting for etcd; sleep 2; done;']
+
+      # This init container copies contiv-netctl tool to the host.
+      - name: netctl-init
+        {{- if .Values.Arm64Platform }}
+        image: {{ .Values.crd_arm64.image.repository }}:{{ default .Chart.Version .Values.crd.image.tag }}
+        {{- else }}
+        image: {{ .Values.crd.image.repository }}:{{ default .Chart.Version .Values.crd.image.tag }}
+        {{- end }}
+        imagePullPolicy: {{ .Values.crd.image.pullPolicy }}
+        command:
+        - /bin/sh
+        args:
+        - -c
+        - |
+          cp -f /contiv-netctl /host/usr/local/bin/contiv-netctl || true
+        volumeMounts:
+          - name: usr-local-bin
+            mountPath: /host/usr/local/bin
 
       containers:
       - name: contiv-crd
@@ -1078,7 +1105,10 @@ spec:
         # Used to connect to contiv-etcd.
         - name: etcd-cfg
           configMap:
-            name: contiv-etcd-withcompact-cfg
+            name: contiv-etcd-cfg
+        - name: usr-local-bin
+          hostPath:
+            path: /usr/local/bin
         - name: http-cfg
           configMap:
             name: contiv-crd-http-cfg
@@ -1177,4 +1207,3 @@ data:
     client-basic-auth:
       - {{ .Values.http.basicAuth | quote }}
     {{- end }}
-{{- end }}

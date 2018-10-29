@@ -196,6 +196,8 @@ type remoteCNIserver struct {
 
 	// nodeIDChangeEvs is buffer where change events are stored until resync event is processed
 	nodeIDChangeEvs []datasync.ChangeEvent
+
+	http rest.HTTPHandlers
 }
 
 // vswitchConfig holds base vSwitch VPP configuration.
@@ -227,7 +229,8 @@ type vswitchConfig struct {
 func newRemoteCNIServer(logger logging.Logger, vppTxnFactory func() linuxclient.DataChangeDSL, proxy kvdbproxy.Proxy,
 	configuredContainers *containeridx.ConfigIndex, govppChan api.Channel, index ifaceidx.SwIfIndex, dhcpIndex ifaceidx.DhcpIndex, agentLabel string,
 	config *Config, nodeConfig *NodeConfig, nodeID uint32, nodeExcludeIPs []net.IP, broker keyval.ProtoBroker, http rest.HTTPHandlers) (*remoteCNIserver, error) {
-	ipam, err := ipam.New(logger, nodeID, agentLabel, &config.IPAMConfig, nodeExcludeIPs, broker, http)
+
+	ipam, err := ipam.New(logger, nodeID, agentLabel, &config.IPAMConfig, nodeExcludeIPs, broker)
 	if err != nil {
 		return nil, err
 	}
@@ -245,6 +248,7 @@ func newRemoteCNIServer(logger logging.Logger, vppTxnFactory func() linuxclient.
 		ipam:                 ipam,
 		nodeConfig:           nodeConfig,
 		config:               config,
+		http:                 http,
 		tcpChecksumOffloadDisabled: config.TCPChecksumOffloadDisabled,
 		useTAPInterfaces:           config.UseTAPInterfaces,
 		tapVersion:                 config.TAPInterfaceVersion,
@@ -260,6 +264,7 @@ func newRemoteCNIServer(logger logging.Logger, vppTxnFactory func() linuxclient.
 		server.defaultGw = net.ParseIP(nodeConfig.Gateway)
 	}
 	server.dhcpNotif = make(chan ifaceidx.DhcpIdxDto, 1)
+	server.registerHandlers()
 	return server, nil
 }
 
@@ -534,7 +539,10 @@ func (s *remoteCNIserver) configureMainVPPInterface(config *vswitchConfig, nicNa
 				// and ip address is already assigned
 				_, metadata, exists := s.dhcpIndex.LookupIdx(nicName)
 				if exists {
+					s.Logger.Infof("DHCP notification already recieved: %v", metadata)
 					s.applyDHCPdata(metadata)
+				} else {
+					s.Logger.Debugf("Waiting for DHCP notification. Existing DHCP events: %v", s.dhcpIndex.GetMapping().ListNames())
 				}
 			}
 			txn.VppInterface(nic)
@@ -650,7 +658,9 @@ func (s *remoteCNIserver) handleDHCPNotifications(notifCh chan ifaceidx.DhcpIdxD
 				continue
 			}
 
+			s.Lock()
 			s.applyDHCPdata(notif.Metadata)
+			s.Unlock()
 
 		case <-s.ctx.Done():
 			return
@@ -661,18 +671,19 @@ func (s *remoteCNIserver) handleDHCPNotifications(notifCh chan ifaceidx.DhcpIdxD
 
 func (s *remoteCNIserver) applyDHCPdata(notif *ifaceidx.DHCPSettings) {
 
+	s.Logger.Debug("Processing DHCP event", notif)
+
 	ipAddr := fmt.Sprintf("%s/%d", notif.IPAddress, notif.Mask)
 	s.defaultGw = net.ParseIP(notif.RouterAddress)
 
-	s.Lock()
 	if s.nodeIP != "" && s.nodeIP != ipAddr {
 		s.Logger.Error("Update of Node IP address is not supported")
 	}
 	s.vswitchConnectivityConfigured = true
 	s.vswitchCond.Broadcast()
 	s.setNodeIP(ipAddr)
-	s.Unlock()
-	s.Logger.Info("DHCP event", notif)
+
+	s.Logger.Info("DHCP event processed", notif)
 }
 
 // configureOtherVPPInterfaces other interfaces that were configured in contiv plugin YAML configuration.

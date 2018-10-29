@@ -115,9 +115,12 @@ func TestValidator(t *testing.T) {
 
 	// Do the testing
 	t.Run("testErrorFreeEndToEnd", testErrorFreeEndToEnd)
-
+	t.Run("testMissingIPAM", testMissingIPAM)
+	t.Run("testMissingInterfaces", testMissingInterfaces)
+	t.Run("testMissingStaticRoutes", testMissingStaticRoutes)
 	t.Run("testValidateRoutesToLocalPods", testValidateRoutesToLocalPods)
 	t.Run("testValidateVrf0GigERoutes", testValidateVrf0GigERoutes)
+	t.Run("testValidateInterfaceLookup", testValidateInterfaceLookup)
 
 }
 
@@ -133,7 +136,62 @@ func testErrorFreeEndToEnd(t *testing.T) {
 	checkDataReport(1, 3, 3)
 }
 
+func testMissingIPAM(t *testing.T) {
+	resetToInitialErrorFreeState()
+
+	// ----------------------------------------
+	// INJECT FAULT: MISSING IPAM on k8s-master
+	vtv.vppCache.NodeMap[vtv.nodeKey].NodeIPam = nil
+
+	// Perform test
+	vtv.report.Clear()
+	vtv.l3Validator.Validate()
+
+	checkDataReport(1, 1, 8)
+
+	vrfMap, err := vtv.l3Validator.createVrfMap(vtv.vppCache.NodeMap[vtv.nodeKey])
+	gomega.Expect(err).To(gomega.BeNil())
+
+	routeMap := vtv.l3Validator.createValidationMap(vrfMap)
+	numErrs := vtv.l3Validator.validateLocalVppHostNetworkRoute(vtv.vppCache.NodeMap[vtv.nodeKey], vrfMap, routeMap)
+	gomega.Expect(numErrs).To(gomega.Equal(1))
+}
+
+func testMissingInterfaces(t *testing.T) {
+	resetToInitialErrorFreeState()
+
+	// ----------------------------------------
+	// INJECT FAULT: MISSING IPAM on k8s-master
+	vtv.vppCache.NodeMap[vtv.nodeKey].NodeInterfaces = nil
+
+	// Perform test
+	vtv.report.Clear()
+	vtv.l3Validator.Validate()
+
+	// NOTE: Expect one error per node in L3 validation until we can validate
+	// static routes configured through Linux
+	checkDataReport(1, 1, 8)
+}
+
+func testMissingStaticRoutes(t *testing.T) {
+	resetToInitialErrorFreeState()
+
+	// ----------------------------------------
+	// INJECT FAULT: MISSING IPAM on k8s-master
+	vtv.vppCache.NodeMap[vtv.nodeKey].NodeStaticRoutes = nil
+
+	// Perform test
+	vtv.report.Clear()
+	vtv.l3Validator.Validate()
+
+	// NOTE: Expect one error per node in L3 validation until we can validate
+	// static routes configured through Linux
+	checkDataReport(1, 1, 3)
+}
+
 func testValidateRoutesToLocalPods(t *testing.T) {
+	resetToInitialErrorFreeState()
+
 	vrfMap, err := vtv.l3Validator.createVrfMap(vtv.vppCache.NodeMap[vtv.nodeKey])
 	gomega.Expect(err).To(gomega.BeNil())
 
@@ -408,6 +466,66 @@ func testValidateVrf0GigERoutes(t *testing.T) {
 	route.Ipr.NextHopAddr = oldNextHop
 	route.Ipr.OutIface = oldOutIface
 	vrfMap[0][dstAddr] = route
+
+}
+
+func testValidateInterfaceLookup(t *testing.T) {
+	vrfMap, err := vtv.l3Validator.createVrfMap(vtv.vppCache.NodeMap[vtv.nodeKey])
+	gomega.Expect(err).To(gomega.BeNil())
+
+	routeMap := vtv.l3Validator.createValidationMap(vrfMap)
+	resetToInitialErrorFreeState()
+
+	// --------------------------------------------------
+	// INJECT FAULT:
+	// - Bad GigE interface name
+	gigeIfc, err := findInterface(gigENameMatch, vtv.vppCache.NodeMap[vtv.nodeKey].NodeInterfaces)
+	oldGigeIfName := gigeIfc.If.Name
+	gigeIfc.If.Name = "SomeInterface"
+	vtv.vppCache.NodeMap[vtv.nodeKey].NodeInterfaces[int(gigeIfc.IfMeta.SwIfIndex)] = *gigeIfc
+
+	numErrs := vtv.l3Validator.validateVrf0GigERoutes(vtv.vppCache.NodeMap[vtv.nodeKey], vrfMap, routeMap)
+	gomega.Expect(numErrs).To(gomega.Equal(1))
+
+	numErrs = vtv.l3Validator.validateDefaultRoutes(vtv.vppCache.NodeMap[vtv.nodeKey], vrfMap, routeMap)
+	gomega.Expect(numErrs).To(gomega.Equal(1))
+
+	// Restore data back to error free state
+	gigeIfc.If.Name = oldGigeIfName
+	vtv.vppCache.NodeMap[vtv.nodeKey].NodeInterfaces[int(gigeIfc.IfMeta.SwIfIndex)] = *gigeIfc
+
+	// --------------------------------------------------
+	// INJECT FAULT:
+	// - Bad vlxanBVI interface name
+	bviIfc, err := findInterface(vxlanBviName, vtv.vppCache.NodeMap[vtv.nodeKey].NodeInterfaces)
+	oldBviIfName := gigeIfc.If.Name
+	bviIfc.If.Name = "SomeInterface"
+	vtv.vppCache.NodeMap[vtv.nodeKey].NodeInterfaces[int(bviIfc.IfMeta.SwIfIndex)] = *bviIfc
+
+	numErrs = vtv.l3Validator.validateRouteToLocalVxlanBVI(vtv.vppCache.NodeMap[vtv.nodeKey], vrfMap, routeMap)
+	gomega.Expect(numErrs).To(gomega.Equal(1))
+
+	numErrs = vtv.l3Validator.validateRemoteNodeRoutes(vtv.vppCache.NodeMap[vtv.nodeKey], vrfMap, routeMap)
+	gomega.Expect(numErrs).To(gomega.Equal(1))
+
+	// Restore data back to error free state
+	bviIfc.If.Name = oldBviIfName
+	vtv.vppCache.NodeMap[vtv.nodeKey].NodeInterfaces[int(bviIfc.IfMeta.SwIfIndex)] = *bviIfc
+
+	// --------------------------------------------------
+	// INJECT FAULT:
+	// - Bad vlxanBVI interface name
+	tapIfc, err := findInterface(tap2HostName, vtv.vppCache.NodeMap[vtv.nodeKey].NodeInterfaces)
+	oldTapIfName := gigeIfc.If.Name
+	tapIfc.If.Name = "SomeInterface"
+	vtv.vppCache.NodeMap[vtv.nodeKey].NodeInterfaces[int(tapIfc.IfMeta.SwIfIndex)] = *tapIfc
+
+	numErrs = vtv.l3Validator.validateLocalVppHostNetworkRoute(vtv.vppCache.NodeMap[vtv.nodeKey], vrfMap, routeMap)
+	gomega.Expect(numErrs).To(gomega.Equal(1))
+
+	// Restore data back to error free state
+	tapIfc.If.Name = oldTapIfName
+	vtv.vppCache.NodeMap[vtv.nodeKey].NodeInterfaces[int(tapIfc.IfMeta.SwIfIndex)] = *tapIfc
 
 }
 

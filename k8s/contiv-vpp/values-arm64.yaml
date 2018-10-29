@@ -28,3 +28,9 @@ init_arm64:
   image:
     repository: arm64v8/busybox
     tag: latest
+
+crd_arm64:
+  image:
+    repository: contivvpp/crd-arm64
+    # tag defaults to chart version
+    #tag:

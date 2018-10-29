@@ -24,6 +24,8 @@ You can get started with Contiv-VPP in one of two ways:
   install Kubernetes with Contiv-VPP networking on one or more bare-metal
   of Arm64 platform.
 
+## Configuration & Troubleshooting
+Please refer to the [Contiv-VPP configuration and troubleshooting][7] document.
 
 ## Reporting Bugs
 In order to report a bug, please file an issue in GitHub. Please provide
@@ -57,3 +59,4 @@ that each dependency in the `Gopkg.toml` has a specific `version` defined
 [4]: https://github.com/golang/dep
 [5]: https://github.com/ligato
 [6]: docs/arm64/MANUAL_INSTALL_ARM64.md
+[7]: docs/TOOLS.md

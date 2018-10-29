@@ -1,4 +1,31 @@
-# Release v1.4.0 (future)
+# Release v1.5.1 (not released yet)
+
+### VPP
+
+### Bug Fixes
+
+### New Features & Enhancements
+
+# Release v1.5.0 (19.10.2018)
+
+### VPP
+ - version **v18.10-rc1~15-g347c523**
+
+### Bug Fixes
+ - race condition in DHCP notification handling
+ - added missing pull policy for init containers
+ - fixed issues in STN setup
+ - fixed some `contiv-netctl` and CRD issues
+ - minor IPAM fixes
+
+### New Features & Enhancements
+ - better handling of identity NAT on VPP
+ - k8s 1.12 compatibility
+
+### Known Issues
+- the topology validator gives false positives for L3-FIB entries
+
+# Release v1.4.0 (5.10.2018)
 
 ### VPP
  - version **18.10-rc0-505**
@@ -11,7 +38,7 @@
  - option for simplified IPAM config (`ContivCIDR`)
  - ability to define IPAM via CRD
  - cluster state validator
- - `netctl` command line tool
+ - `contiv-netctl` command line tool
  
 ### Known Issues
  - fragmentation issues in STN setup (STN is still experimental)
@@ -27,7 +54,7 @@ nat {
     max translations per user 10000
 }
  ```
-(for more details see [VPP NAT Documentation](https://wiki.fd.io/view/VPP/NAT#Startup_config).
+(for more details see [VPP NAT Documentation](https://wiki.fd.io/view/VPP/NAT#Startup_config)).
 
 
 # Release v1.3.0 (18.9.2018)

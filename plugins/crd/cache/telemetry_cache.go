@@ -93,6 +93,7 @@ type DcEventQueue []interface{}
 // Contiv node Agent to the cache thread.
 type NodeDTO struct {
 	NodeName string
+	URL      string
 	NodeInfo interface{}
 	err      error
 	version  uint32
@@ -125,7 +126,7 @@ func NewTelemetryCache(p logging.PluginLogger) *ContivTelemetryCache {
 
 // Init initializes policy cache.
 func (ctc *ContivTelemetryCache) Init() error {
-	go ctc.nodeEvenProcessor()
+	go ctc.nodeEventProcessor()
 	ctc.Log.Infof("ContivTelemetryCache init done")
 	return nil
 }
@@ -157,7 +158,7 @@ func (ctc *ContivTelemetryCache) ReinitializeCache() {
 //   the cluster is started.
 // - Collects all incoming real-time state from the cluster and starts the
 //   validation of the cluster state
-func (ctc *ContivTelemetryCache) nodeEvenProcessor() {
+func (ctc *ContivTelemetryCache) nodeEventProcessor() {
 	for {
 		select {
 		case _, ok := <-ctc.ticker.C:
@@ -165,21 +166,21 @@ func (ctc *ContivTelemetryCache) nodeEvenProcessor() {
 			if !ok {
 				return
 			}
-			fmt.Println("Got ticker event")
 			ctc.Report.Clear()
-			ctc.processDataStoreUpdate()
+			ctc.processQueuedDataStoreUpdates()
 			ctc.startNodeInfoCollection()
 
 		case data, ok := <-ctc.nodeResponseChannel:
-			ctc.Log.Infof("Received node response DTO, sts: %v, DTOv: %d DBv: %d",
-				ok, data.version, ctc.databaseVersion)
 			if !ok {
+				ctc.Log.Error("error getting node response DTO")
 				return
 			}
+			ctc.Log.Infof("Node response DTO from %s, url %s, DTOv: %d DBv: %d",
+				data.NodeName, data.URL, data.version, ctc.databaseVersion)
 			ctc.processNodeResponse(data)
 
 		case data, ok := <-ctc.dsUpdateChannel:
-			ctc.Log.Info("Received dsUpdate DTO, status: ", ok)
+			ctc.Log.Info("dsUpdate DTO, status: ", ok)
 			if !ok {
 				return
 			}
@@ -224,6 +225,7 @@ func (ctc *ContivTelemetryCache) validateCluster() {
 	fmt.Printf("validations: %d, resyncs: %d, updates: %d, responses: %d\n",
 		ctc.nValidations, ctc.nResyncs, ctc.nUpdates, ctc.nnResponses)
 	ctc.Report.Print()
+	ctc.ControllerReport.GenerateCRDReport()
 }
 
 // Collect real-time node state (mainly VPP, but some Linux too) from the
@@ -276,11 +278,11 @@ func (ctc *ContivTelemetryCache) getNodeInfo(client http.Client, node *telemetry
 
 	res, err := client.Get(ctc.getAgentURL(node.ManIPAddr, url))
 	if err != nil {
-		ctc.nodeResponseChannel <- &NodeDTO{node.Name, nil, err, version}
+		ctc.nodeResponseChannel <- &NodeDTO{node.Name, url, nil, err, version}
 		return
 	} else if res.StatusCode < 200 || res.StatusCode > 299 {
 		err := fmt.Errorf("HTTP Get error: url %s, Status: %s", url, res.Status)
-		ctc.nodeResponseChannel <- &NodeDTO{node.Name, nil, err, version}
+		ctc.nodeResponseChannel <- &NodeDTO{node.Name, url, nil, err, version}
 		return
 	}
 
@@ -291,7 +293,7 @@ func (ctc *ContivTelemetryCache) getNodeInfo(client http.Client, node *telemetry
 		errString := fmt.Sprintf("failed to unmarshal data for node %s, error %s", node.Name, err)
 		ctc.Report.AppendToNodeReport(node.Name, errString)
 	}
-	ctc.nodeResponseChannel <- &NodeDTO{node.Name, nodeInfo, err, version}
+	ctc.nodeResponseChannel <- &NodeDTO{node.Name, url, nodeInfo, err, version}
 }
 
 // populateNodeMaps populates many of needed node maps for processing once
@@ -420,14 +422,14 @@ func (ctc *ContivTelemetryCache) setNodeData() {
 	}
 }
 
-// processDataStoreUpdate processes all Etcd resync and data change events that
+// processQueuedDataStoreUpdates processes all Etcd resync and data change events that
 // have been queued up since the last validation run. While collection of real-
 // time data from VPP Agents and cluster validation is going on, incoming resync
 // and data change events are queued up.
 // We also increment the DB version here - DB version number is used to eliminate
 // delayed responses from the network (i.e. responses to requests from previous
 // validation runs).
-func (ctc *ContivTelemetryCache) processDataStoreUpdate() {
+func (ctc *ContivTelemetryCache) processQueuedDataStoreUpdates() {
 	for _, data := range ctc.dataChangeEvents {
 		switch data.(type) {
 

@@ -44,7 +44,7 @@ required = [
 
 [[constraint]]
   name = "github.com/ligato/vpp-agent"
-  revision = "2d27802688cefb5dc48a2c77de2f97e94ee2f9fc"
+  revision = "7d956e3ac82af02c24cfff9c22b93b57cd7c0a6c"
 
 [[constraint]]
   name = "github.com/ligato/cn-infra"

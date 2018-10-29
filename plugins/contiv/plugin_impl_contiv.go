@@ -564,14 +564,15 @@ func (plugin *Plugin) handleKsrNodeResync(it datasync.KeyValIterator) error {
 		}
 
 		if value.Name == plugin.ServiceLabel.GetAgentLabel() {
-			var internalIPs []string
+			var k8sIPs []string
 			for i := range value.Addresses {
-				if value.Addresses[i].Type == protoNode.NodeAddress_NodeInternalIP {
-					internalIPs = append(internalIPs, value.Addresses[i].Address)
+				if value.Addresses[i].Type == protoNode.NodeAddress_NodeInternalIP ||
+					value.Addresses[i].Type == protoNode.NodeAddress_NodeExternalIP {
+					k8sIPs = appendIfMissing(k8sIPs, value.Addresses[i].Address)
 				}
 			}
-			if len(internalIPs) > 0 {
-				ips := strings.Join(internalIPs, MgmtIPSeparator)
+			if len(k8sIPs) > 0 {
+				ips := strings.Join(k8sIPs, MgmtIPSeparator)
 				plugin.Log.Info("Internal IP of the node is ", ips)
 				return plugin.nodeIDAllocator.updateManagementIP(ips)
 			}

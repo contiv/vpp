@@ -234,6 +234,14 @@ spec:
               mountPath: /var/contiv/etcd-secrets
               readOnly: true
             {{- end }}
+          livenessProbe:
+            exec:
+              command:
+              - /bin/sh
+              - -c
+              - etcdctl get --endpoints=127.0.0.1:{{ .Values.etcd.service.nodePort }} /
+            periodSeconds: 2
+            initialDelaySeconds: 20
       {{- if .Values.etcd.secureTransport }}
       volumes:
         - name: etcd-secrets
@@ -769,28 +777,9 @@ spec:
           hostPath:
             path: {{ .Values.vswitch.coreDumpsDir }}
         {{- end }}
-{{- if not .Values.bolt.usePersistentVolume }}
         - name: var-bolt
           hostPath:
             path: {{ .Values.bolt.dataDir }}
-        {{- else }}
-  volumeClaimTemplates:
-  - metadata:
-      name: var-bolt
-    spec:
-      accessModes:
-        - ReadWriteOnce
-      resources:
-        requests:
-          storage: {{ .Values.bolt.persistentVolumeSize }}
-    {{- if .Values.bolt.persistentVolumeStorageClass }}
-    {{- if (eq "-" .Values.bolt.persistentVolumeStorageClass) }}
-      storageClassName: ""
-    {{- else }}
-      storageClassName: "{{ .Values.bolt.persistentVolumeStorageClass }}"
-    {{- end }}
-    {{- end }}
-{{- end }}
 
 ---
 

@@ -528,15 +528,16 @@ func (plugin *Plugin) handleKsrNodeChange(change datasync.ChangeEvent) error {
 		plugin.Log.Error(err)
 		return err
 	}
-	var internalIPs []string
+	var k8sIPs []string
 	for i := range value.Addresses {
-		if value.Addresses[i].Type == protoNode.NodeAddress_NodeInternalIP {
-			internalIPs = append(internalIPs, value.Addresses[i].Address)
+		if value.Addresses[i].Type == protoNode.NodeAddress_NodeInternalIP ||
+			value.Addresses[i].Type == protoNode.NodeAddress_NodeExternalIP {
+			k8sIPs = appendIfMissing(k8sIPs, value.Addresses[i].Address)
 		}
 	}
-	if len(internalIPs) > 0 {
-		ips := strings.Join(internalIPs, MgmtIPSeparator)
-		plugin.Log.Info("Internal IP of the node is ", ips)
+	if len(k8sIPs) > 0 {
+		ips := strings.Join(k8sIPs, MgmtIPSeparator)
+		plugin.Log.Info("Management IP of the node is ", ips)
 		return plugin.nodeIDAllocator.updateManagementIP(ips)
 	}
 

@@ -40,6 +40,7 @@ type Node struct {
 	NodeIPArp         []NodeIPArpEntry
 	NodeStaticRoutes  []NodeIPRoute
 	NodeIPam          *IPamEntry
+	LinuxInterfaces   []LinuxInterface
 	PodMap            map[string]*Pod
 }
 
@@ -54,6 +55,9 @@ type NodeLiveness struct {
 	CommitHash   string `json:"commit_hash"`
 }
 
+// LinuxInterfaces defines an array of LinuxInterfaces
+type LinuxInterfaces []LinuxInterface
+
 // NodeInterfaces defines a map of NodeInterface
 type NodeInterfaces map[int]NodeInterface
 
@@ -66,7 +70,7 @@ type NodeL2FibTable map[string]NodeL2FibEntry
 // NodeTelemetries defines a map of NodeTelemetry
 type NodeTelemetries map[string]NodeTelemetry
 
-// NodeIPArpTable defines an array of NodeIPArpEntry
+// NodeIPArpTable defines an array of NodeIPArpEntries
 type NodeIPArpTable []NodeIPArpEntry
 
 // NodeStaticRoutes defines an array of NodeIPRoute object
@@ -76,6 +80,31 @@ type NodeStaticRoutes []NodeIPRoute
 type NodeInterface struct {
 	If     Interface     `json:"interface"`
 	IfMeta InterfaceMeta `json:"interface_meta"`
+}
+
+// LinuxInterface contains data for linux interfaces on a node
+type LinuxInterface struct {
+	If     LinuxIf     `json:"linux_interface"`
+	IfMeta LinuxIfMeta `json:"linux_interface_meta"`
+}
+
+// LinuxIf defines the data structure for Linux interface data
+type LinuxIf struct {
+	Name        string   `json:"name"`
+	IPAddresses []string `json:"ip_addresses"`
+	HostIfName  string   `json:"host_if_name"`
+}
+
+// LinuxIfMeta defines the data structure for Linux interface metadata
+type LinuxIfMeta struct {
+	Index     uint32 `json:"index"`
+	Name      string `json:"name"`
+	Alias     string `json:"alias"`
+	OperState string `json:"oper_state"`
+	Flags     string `json:"flags"`
+	MacAddr   string `json:"mac_addr"`
+	Mtu       uint32 `json:"mtu"`
+	Type      string `json:"type"`
 }
 
 // Interface contains interface parameter data

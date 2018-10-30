@@ -124,6 +124,9 @@ func (cfg *Config) ApplyIPAMConfig() error {
 		VPPHostSubnetCIDR:       vppHostSubnetCIDR.String(),
 		VPPHostNetworkPrefixLen: vppHostNetworkPrefixLen,
 		VxlanCIDR:               vxlanCIDR.String(),
+		NodeInterconnectCIDR:    cfg.IPAMConfig.NodeInterconnectCIDR,
+		NodeInterconnectDHCP:    cfg.IPAMConfig.NodeInterconnectDHCP,
+		ContivCIDR:              cfg.IPAMConfig.ContivCIDR,
 	}
 
 	if cfg.IPAMConfig.NodeInterconnectCIDR == "" && cfg.IPAMConfig.NodeInterconnectDHCP == false {

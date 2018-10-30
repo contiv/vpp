@@ -274,6 +274,7 @@ spec:
           - name: ETCDPORT
             value: "32379"
         image: arm64v8/busybox:latest
+        imagePullPolicy: IfNotPresent
         command: ['sh', '-c', 'until nc -w 2 127.0.0.1:$ETCDPORT; do echo waiting for etcd; sleep 2; done;']
       # This init container extracts/copies VPP LD_PRELOAD libs and default VPP config to the host.
       - name: vpp-init
@@ -480,6 +481,7 @@ spec:
           - name: ETCDPORT
             value: "32379"
           image: arm64v8/busybox:latest
+          imagePullPolicy: IfNotPresent
           command: ['sh', '-c', 'until nc -w 2 127.0.0.1:$ETCDPORT; do echo waiting for etcd; sleep 2; done;']
 
       containers:
@@ -609,6 +611,7 @@ spec:
         - name: ETCDPORT
           value: "32379"
         image: arm64v8/busybox:latest
+        imagePullPolicy: IfNotPresent
         command: ['sh', '-c', 'until nc -w 2 127.0.0.1:$ETCDPORT; do echo waiting for etcd; sleep 2; done;']
 
       # This init container copies contiv-netctl tool to the host.

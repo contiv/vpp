@@ -132,7 +132,7 @@ spec:
 
       containers:
         - name: contiv-etcd
-          image: quay.io/coreos/etcd:v3.1.10
+          image: quay.io/coreos/etcd:v3.3.10
           imagePullPolicy: IfNotPresent
           env:
             - name: CONTIV_ETCD_IP
@@ -150,6 +150,14 @@ spec:
           volumeMounts:
             - name: var-etcd
               mountPath: /var/etcd/
+          livenessProbe:
+            exec:
+              command:
+              - /bin/sh
+              - -c
+              - etcdctl get --endpoints=127.0.0.1:32379 /
+            periodSeconds: 2
+            initialDelaySeconds: 20
       volumes:
         - name: var-etcd
           hostPath:
@@ -272,6 +280,7 @@ spec:
           - name: ETCDPORT
             value: "32379"
         image: busybox:latest
+        imagePullPolicy: IfNotPresent
         command: ['sh', '-c', 'until nc -w 2 127.0.0.1:$ETCDPORT; do echo waiting for etcd; sleep 2; done;']
       # This init container extracts/copies VPP LD_PRELOAD libs and default VPP config to the host.
       - name: vpp-init
@@ -478,6 +487,7 @@ spec:
           - name: ETCDPORT
             value: "32379"
           image: busybox:latest
+          imagePullPolicy: IfNotPresent
           command: ['sh', '-c', 'until nc -w 2 127.0.0.1:$ETCDPORT; do echo waiting for etcd; sleep 2; done;']
 
       containers:
@@ -607,6 +617,7 @@ spec:
         - name: ETCDPORT
           value: "32379"
         image: busybox:latest
+        imagePullPolicy: IfNotPresent
         command: ['sh', '-c', 'until nc -w 2 127.0.0.1:$ETCDPORT; do echo waiting for etcd; sleep 2; done;']
 
       # This init container copies contiv-netctl tool to the host.

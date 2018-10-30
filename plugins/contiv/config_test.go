@@ -60,6 +60,22 @@ func testApplyIPAM(t *testing.T) {
 		},
 	}
 
+	// Try with overridden NodeInterconnectCIDR
+	configData5 := &Config{
+		IPAMConfig: ipam.Config{
+			ContivCIDR:           "10.128.0.0/14",
+			NodeInterconnectCIDR: "192.168.16.0/24",
+		},
+	}
+
+	// Try with NodeInterconnectDHCP enabled
+	configData6 := &Config{
+		IPAMConfig: ipam.Config{
+			ContivCIDR:           "10.128.0.0/14",
+			NodeInterconnectDHCP: true,
+		},
+	}
+
 	err := configData1.ApplyIPAMConfig()
 	gomega.Expect(err).To(gomega.BeNil())
 
@@ -89,4 +105,23 @@ func testApplyIPAM(t *testing.T) {
 	gomega.Expect(configData4.IPAMConfig.NodeInterconnectCIDR).To(gomega.Equal("192.168.16.0/24"))
 	gomega.Expect(configData4.IPAMConfig.VxlanCIDR).To(gomega.Equal("192.168.30.0/24"))
 	gomega.Expect(configData4.IPAMConfig.PodIfIPCIDR).To(gomega.Equal("10.2.1.0/24"))
+
+	err = configData5.ApplyIPAMConfig()
+	gomega.Expect(err).To(gomega.BeNil())
+
+	gomega.Expect(configData5.IPAMConfig.PodSubnetCIDR).To(gomega.Equal("10.128.0.0/16"))
+	gomega.Expect(configData5.IPAMConfig.VPPHostSubnetCIDR).To(gomega.Equal("10.129.0.0/16"))
+	gomega.Expect(configData5.IPAMConfig.NodeInterconnectCIDR).To(gomega.Equal("192.168.16.0/24"))
+	gomega.Expect(configData5.IPAMConfig.VxlanCIDR).To(gomega.Equal("10.130.2.0/23"))
+	gomega.Expect(configData5.IPAMConfig.PodIfIPCIDR).To(gomega.Equal("10.130.4.0/25"))
+
+	err = configData6.ApplyIPAMConfig()
+	gomega.Expect(err).To(gomega.BeNil())
+
+	gomega.Expect(configData6.IPAMConfig.PodSubnetCIDR).To(gomega.Equal("10.128.0.0/16"))
+	gomega.Expect(configData6.IPAMConfig.VPPHostSubnetCIDR).To(gomega.Equal("10.129.0.0/16"))
+	gomega.Expect(configData6.IPAMConfig.NodeInterconnectCIDR).To(gomega.Equal(""))
+	gomega.Expect(configData6.IPAMConfig.NodeInterconnectDHCP).To(gomega.BeTrue())
+	gomega.Expect(configData6.IPAMConfig.VxlanCIDR).To(gomega.Equal("10.130.2.0/23"))
+	gomega.Expect(configData6.IPAMConfig.PodIfIPCIDR).To(gomega.Equal("10.130.4.0/25"))
 }

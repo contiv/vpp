@@ -20,15 +20,11 @@ import (
 	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
 	"github.com/contiv/vpp/plugins/ksr/model/pod"
 	"github.com/contiv/vpp/plugins/netctl/http"
-	"github.com/coreos/etcd/clientv3"
 	"github.com/ligato/cn-infra/db/keyval/etcd"
-	"github.com/ligato/cn-infra/logging"
-	"github.com/ligato/cn-infra/logging/logrus"
 	"github.com/ligato/vpp-agent/plugins/vpp/model/interfaces"
 	"os"
 	"strings"
 	"text/tabwriter"
-	"time"
 )
 
 type nodeData struct {
@@ -38,11 +34,9 @@ type nodeData struct {
 type nodeDataCache map[string]*nodeData
 
 type podGetter struct {
-	etcdConfig *etcd.ClientConfig
-	ndCache    nodeDataCache
-	logger     logging.Logger
-	db         *etcd.BytesConnectionEtcd
-	pods       []*pod.Pod
+	ndCache nodeDataCache
+	db      *etcd.BytesConnectionEtcd
+	pods    []*pod.Pod
 }
 
 // PrintAllPods will print out all of the non local pods in a network in
@@ -67,23 +61,8 @@ func PrintPodsPerNode(input string) {
 
 func newPodGetter() *podGetter {
 	pg := &podGetter{
-		etcdConfig: &etcd.ClientConfig{
-			Config: &clientv3.Config{
-				Endpoints: []string{etcdLocation},
-			},
-			OpTimeout: 1 * time.Second,
-		},
 		ndCache: make(nodeDataCache, 0),
-		logger:  logrus.DefaultLogger(),
-	}
-
-	pg.logger.SetLevel(logging.ErrorLevel)
-
-	// Create connection to etcd.
-	var err error
-	if pg.db, err = etcd.NewEtcdConnectionWithBytes(*pg.etcdConfig, pg.logger); err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+		db:      getEtcdBroker(),
 	}
 
 	pg.pods = make([]*pod.Pod, 0)
@@ -203,18 +182,18 @@ func (pg *podGetter) getTapInterfaceForPod(podInfo *pod.Pod) (string, uint32, st
 	podPfxLen := pg.ndCache[podInfo.HostIpAddress].ipam.Config.VppHostNetworkPrefixLen
 	podMask := maskLength2Mask(int(podPfxLen))
 
-	podIPSubnet, podIPMask, err := getIPAddressAndMask(pg.ndCache[podInfo.HostIpAddress].ipam.Config.PodSubnetCIDR)
+	podNetwork, podIPMask, err := getIPAddressAndMask(pg.ndCache[podInfo.HostIpAddress].ipam.PodNetwork)
 	if err != nil {
-		fmt.Printf("Host '%s', Pod '%s' - invalid PodSubnetCIDR address %s, err %s\n",
-			podInfo.HostIpAddress, podInfo.Name, pg.ndCache[podInfo.HostIpAddress].ipam.Config.PodSubnetCIDR, err)
+		fmt.Printf("Host '%s', Pod '%s' - invalid PodNetwork address %s, err %s\n",
+			podInfo.HostIpAddress, podInfo.Name, pg.ndCache[podInfo.HostIpAddress].ipam.PodNetwork, err)
 		// Do not return - we can still continue if this error happens
 	}
 
 	if podMask != podIPMask {
 		fmt.Printf("Host '%s', Pod '%s' - vppHostNetworkPrefixLen mismatch: "+
-			"PodSubnetCIDR '%s', podNetworkPrefixLen '%d'\n",
+			"PodNetwork '%s', podNetworkPrefixLen '%d'\n",
 			podInfo.HostIpAddress, podInfo.Name,
-			pg.ndCache[podInfo.HostIpAddress].ipam.Config.PodSubnetCIDR,
+			pg.ndCache[podInfo.HostIpAddress].ipam.PodNetwork,
 			pg.ndCache[podInfo.HostIpAddress].ipam.Config.PodNetworkPrefixLen)
 		// Do not return - we can still continue if this error happens
 	}
@@ -245,10 +224,10 @@ func (pg *podGetter) getTapInterfaceForPod(podInfo *pod.Pod) (string, uint32, st
 
 	podAddrSuffix := podAddr & podMask
 
-	if podAddr&^podMask != podIPSubnet {
-		fmt.Printf("Host '%s', Pod '%s' - pod IP address %s not from PodSubnetCIDR %s\n",
+	if podAddr&^podMask != podNetwork {
+		fmt.Printf("Host '%s', Pod '%s' - pod IP address %s not from PodNetwork subnet %s\n",
 			podInfo.HostIpAddress, podInfo.Name, podInfo.IpAddress,
-			pg.ndCache[podInfo.HostIpAddress].ipam.Config.PodSubnetCIDR)
+			pg.ndCache[podInfo.HostIpAddress].ipam.PodNetwork)
 		// Do not return - we can still continue if this error happens
 	}
 

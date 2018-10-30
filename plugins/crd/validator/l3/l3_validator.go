@@ -43,6 +43,13 @@ const (
 
 	// Outgoing interface index definitions
 	maxIfIdx = 0xFFFFFFFF
+
+	hostToVppIfName = "vpp1"
+	vppToHostIfName = "tap-vpp2"
+)
+
+var (
+	v4CidrRe = regexp.MustCompile(`(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)(\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)){3}/(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?).*`)
 )
 
 // Validator is the implementation of the ContivTelemetryProcessor interface.
@@ -63,6 +70,10 @@ type VrfMap map[uint32]Vrf
 // RouteMap defines the structure for keeping track of validated/valid/invalid
 // routes
 type RouteMap map[uint32]map[string]int
+
+// LinuxIfMap defines the structure for quick ip addresses lookups on linux
+// host stack.
+type LinuxIfMap map[string]string
 
 // Validate will validate each nodes and pods l3 connectivity for any errors
 func (v *Validator) Validate() {
@@ -121,6 +132,10 @@ func (v *Validator) Validate() {
 		// Validate podSubnetCIDR routes
 		numErrs += v.validateVppHostNetworkRoutes(node, vrfMap, routeMap)
 
+		// Validate routes to host stack interfaces
+		numErrs += v.validateRoutesToLinuxInterfaces(node, vrfMap, routeMap)
+
+		// This routine must be last - check whatever has been left
 		numErrs += v.checkUnvalidatedRoutes(routeMap, node.Name)
 		// fmt.Println(node.Name + ":")
 		// printValidationMap(routeMap, vrfMap)
@@ -409,10 +424,9 @@ func (v *Validator) validateDefaultRoutes(node *telemetrymodel.Node, vrfMap VrfM
 
 	// Validate the default Gateway route; if we can find the ARP entry for
 	// the default Gateway, validate the route to it
-	numErrs += v.validateGigEDefaultRteNextHop("0.0.0.0/0", 0, vrfMap, routeMap,
-		node, ifc)
+	// numErrs += v.validateGigEDefaultRteNextHop("0.0.0.0/0", 0, vrfMap, routeMap, node, ifc)
 	numErrs += v.validateRoute("0.0.0.0/0", 0, vrfMap, routeMap, node.Name,
-		ifc.If.Name, ifc.IfMeta.SwIfIndex, "", 0, 0)
+		ifc.If.Name, maxIfIdx, "", 0, 2)
 
 	// Validate VRF0 boiler plate routes
 	numErrs += v.validateRoute("0.0.0.0/32", 0, vrfMap, routeMap, node.Name,
@@ -681,19 +695,19 @@ func (v *Validator) validateGigEDefaultRteNextHop(rteID string, vrfID uint32, vr
 
 		if defaultRte, ok := vrfMap[0][defaultRteID]; ok {
 			numErrs := v.validateRoute(defaultRteID, 0, vrfMap, rtMap, node.Name, outIfc.If.Name,
-				outIfc.IfMeta.SwIfIndex, defaultRte.Ipr.NextHopAddr, 0, 0)
+				maxIfIdx, defaultRte.Ipr.NextHopAddr, 0, 2)
 
 			// Check that the next hop also has an ARP table entry
-			for _, arpEntry := range node.NodeIPArp {
-				if arpEntry.Ae.IPAddress == defaultRte.Ipr.NextHopAddr {
-					return numErrs
-				}
-			}
-
-			numErrs++
-			errString := fmt.Sprintf("invalid nextHop %s in default route 0.0.0.0/0 in VRF0 -"+
-				"no corresponding ARP entry", defaultRte.Ipr.NextHopAddr)
-			v.Report.AppendToNodeReport(node.Name, errString)
+			//for _, arpEntry := range node.NodeIPArp {
+			//	if arpEntry.Ae.IPAddress == defaultRte.Ipr.NextHopAddr {
+			//		return numErrs
+			//	}
+			//}
+			//
+			//numErrs++
+			//errString := fmt.Sprintf("invalid nextHop %s in default route 0.0.0.0/0 in VRF0 -"+
+			//	"no corresponding ARP entry", defaultRte.Ipr.NextHopAddr)
+			//v.Report.AppendToNodeReport(node.Name, errString)
 			return numErrs
 		}
 	}
@@ -701,6 +715,69 @@ func (v *Validator) validateGigEDefaultRteNextHop(rteID string, vrfID uint32, vr
 	// Default route not found; do not increment error count, default route
 	// is validated at a later point in the workflow.
 	return 0
+}
+
+// validateRoutesToLinuxInterfaces validates routes to interfaces/subnets
+// attached to teh host stack
+func (v *Validator) validateRoutesToLinuxInterfaces(node *telemetrymodel.Node, vrfMap VrfMap, rtMap RouteMap) int {
+	numErrs := 0
+
+	nhIP, linuxRtes := getLinuxNextHopAndIfIP(node.LinuxInterfaces)
+	linuxRteIfName, linuxRteIfIdx, err := getToHostIfNameAndIdx(node.NodeInterfaces)
+	if err != nil {
+		numErrs++
+		errString := fmt.Sprintf("can not validate routes to host; vpp interface to host stack not found")
+		v.Report.AppendToNodeReport(node.Name, errString)
+		return numErrs
+	}
+
+	for _, ifRteID := range linuxRtes {
+		if _, ok := vrfMap[0][ifRteID]; ok {
+			numErrs += v.validateRoute(ifRteID, 0, vrfMap, rtMap, node.Name, linuxRteIfName,
+				linuxRteIfIdx, nhIP, 0, 0)
+		}
+	}
+
+	return numErrs
+}
+
+// getLinuxNextHopAndIfIP divides the host stack interfaces into tow sets: one
+// set containing just the interface to vpp, the other set containing all other
+// interfaces. The IP address of the interface to vpp is used as the next hop
+// for routes to all subnets connected all other interfaces.
+func getLinuxNextHopAndIfIP(lifcs telemetrymodel.LinuxInterfaces) (string, []string) {
+	vppIfIP := ""
+	nonVppIfIPRte := make([]string, 0)
+
+	for _, ifc := range lifcs {
+		for _, ifCidr := range ifc.If.IPAddresses {
+			if v4CidrRe.Match([]byte(ifCidr)) {
+				ifSubnet := strings.Split(ifCidr, " ")[0]
+				ipAddr := strings.Split(ifSubnet, "/")[0]
+
+				if ifc.If.HostIfName == hostToVppIfName {
+					vppIfIP = ipAddr
+				} else {
+					nonVppIfIPRte = append(nonVppIfIPRte, fmt.Sprintf("%s/32", ipAddr))
+				}
+			}
+		}
+	}
+
+	return vppIfIP, nonVppIfIPRte
+}
+
+// getToHostIfNameAndIdx finds the name and ifIndex of the vpp <-> host stack
+// interface.
+func getToHostIfNameAndIdx(ifcs telemetrymodel.NodeInterfaces) (string, uint32, error) {
+
+	for _, v := range ifcs {
+		if v.If.Name == vppToHostIfName {
+			return v.If.Name, v.IfMeta.SwIfIndex, nil
+		}
+	}
+
+	return "", 0, fmt.Errorf("vpp host name not found")
 }
 
 // checkUnvalidatedRoutes walks through the mark-and-sweep database and reports

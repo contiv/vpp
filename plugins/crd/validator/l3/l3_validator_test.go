@@ -133,7 +133,7 @@ func testErrorFreeEndToEnd(t *testing.T) {
 
 	// NOTE: Expect one error per node in L3 validation until we can validate
 	// static routes configured through Linux
-	checkDataReport(1, 4, 4)
+	checkDataReport(1, 3, 3)
 }
 
 func testMissingIPAM(t *testing.T) {
@@ -147,7 +147,7 @@ func testMissingIPAM(t *testing.T) {
 	vtv.report.Clear()
 	vtv.l3Validator.Validate()
 
-	checkDataReport(1, 1, 9)
+	checkDataReport(1, 1, 8)
 
 	vrfMap, err := vtv.l3Validator.createVrfMap(vtv.vppCache.NodeMap[vtv.nodeKey])
 	gomega.Expect(err).To(gomega.BeNil())
@@ -170,7 +170,7 @@ func testMissingInterfaces(t *testing.T) {
 
 	// NOTE: Expect one error per node in L3 validation until we can validate
 	// static routes configured through Linux
-	checkDataReport(1, 1, 9)
+	checkDataReport(1, 1, 8)
 }
 
 func testMissingStaticRoutes(t *testing.T) {
@@ -186,7 +186,7 @@ func testMissingStaticRoutes(t *testing.T) {
 
 	// NOTE: Expect one error per node in L3 validation until we can validate
 	// static routes configured through Linux
-	checkDataReport(1, 1, 4)
+	checkDataReport(1, 1, 3)
 }
 
 func testValidateRoutesToLocalPods(t *testing.T) {

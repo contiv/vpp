@@ -41,7 +41,12 @@ type MockKeyVal struct {
 
 // MockChangeEvent implements ChangeEvent interface.
 type MockChangeEvent struct {
-	mds       *MockDataSync
+	mds *MockDataSync
+	wr  *MockProtoWatchResp
+}
+
+// MockProtoWatchResp implements ProtoWatchResp interface.
+type MockProtoWatchResp struct {
 	eventType datasync.Op
 	MockKeyVal
 	prevVal proto.Message
@@ -89,13 +94,15 @@ func (mds *MockDataSync) Put(key string, value proto.Message) datasync.ChangeEve
 	}
 	return &MockChangeEvent{
 		mds:       mds,
-		eventType: datasync.Put,
-		MockKeyVal: MockKeyVal{
-			key: key,
-			val: value,
-			rev: mds.data[key].rev,
+		wr: &MockProtoWatchResp{
+			eventType: datasync.Put,
+			MockKeyVal: MockKeyVal{
+				key: key,
+				val: value,
+				rev: mds.data[key].rev,
+			},
+			prevVal: prevValue,
 		},
-		prevVal: prevValue,
 	}
 }
 
@@ -110,11 +117,13 @@ func (mds *MockDataSync) Delete(key string) datasync.ChangeEvent {
 	delete(mds.data, key)
 	return &MockChangeEvent{
 		mds:       mds,
-		eventType: datasync.Delete,
-		MockKeyVal: MockKeyVal{
-			key: key,
-			rev: rev,
-			val: val,
+		wr: &MockProtoWatchResp{
+			eventType: datasync.Delete,
+			MockKeyVal: MockKeyVal{
+				key: key,
+				rev: rev,
+				val: val,
+			},
 		},
 	}
 }
@@ -172,17 +181,21 @@ func (mche *MockChangeEvent) Done(err error) {
 	}
 }
 
+func (mche *MockChangeEvent) GetChanges() []datasync.ProtoWatchResp {
+	return []datasync.ProtoWatchResp{mche.wr}
+}
+
 // GetChangeType returns either "Put" or "Delete".
-func (mche *MockChangeEvent) GetChangeType() datasync.Op {
-	return mche.eventType
+func (mpw *MockProtoWatchResp) GetChangeType() datasync.Op {
+	return mpw.eventType
 }
 
 // GetPrevValue returns the previous value.
-func (mche *MockChangeEvent) GetPrevValue(prevValue proto.Message) (prevValueExist bool, err error) {
-	if mche.prevVal == nil {
+func (mpw *MockProtoWatchResp) GetPrevValue(prevValue proto.Message) (prevValueExist bool, err error) {
+	if mpw.prevVal == nil {
 		return false, nil
 	}
-	tmp, err := proto.Marshal(mche.prevVal)
+	tmp, err := proto.Marshal(mpw.prevVal)
 	if err != nil {
 		return true, err
 	}

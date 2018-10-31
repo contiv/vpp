@@ -96,7 +96,7 @@ func registerHTTPHandlers() {
 		switch r.URL.Path {
 		case livenessURL:
 			data = ctv.nodeLiveness
-		case interfaceURL:
+		case nodeInterfaceURL:
 			data = ctv.nodeInterfaces
 		case l2FibsURL:
 			data = ctv.nodeL2Fibs

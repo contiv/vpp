@@ -168,6 +168,9 @@ func (s *remoteCNIserver) processChangeEvent(dataChngEv datasync.ProtoWatchResp)
 			// Note: the case where IP address is changed during runtime is not handled
 			if nodeInfo.IpAddress != "" && nodeInfo.ManagementIpAddress != "" {
 				s.Logger.Info("New node discovered: ", nodeInfo.Id)
+				//TODO: if there is a change in mgmt IPs and routes are already configured
+				// delte outdated routes
+
 				// add routes to the node
 				err = s.addRoutesToNode(nodeInfo)
 			} else {

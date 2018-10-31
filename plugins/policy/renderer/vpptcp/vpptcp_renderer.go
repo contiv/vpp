@@ -62,7 +62,6 @@ func (r *Renderer) Init() error {
 	r.cache = &cache.RendererCache{}
 	if r.LogFactory != nil {
 		r.cache.Log = r.LogFactory.NewLogger("-vpptcpCache")
-		r.cache.Log.SetLevel(logging.DebugLevel)
 	} else {
 		r.cache.Log = r.Log
 	}

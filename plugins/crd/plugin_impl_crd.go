@@ -33,6 +33,7 @@ import (
 	"github.com/ligato/cn-infra/infra"
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/utils/safeclose"
+	"github.com/namsral/flag"
 
 	nodeinfomodel "github.com/contiv/vpp/plugins/contiv/model/node"
 	crdClientSet "github.com/contiv/vpp/plugins/crd/pkg/client/clientset/versioned"
@@ -84,6 +85,9 @@ type Deps struct {
 	Publish *kvdbsync.Plugin // KeyProtoValWriter does not define Delete
 }
 
+var verbose = flag.Bool("verbose", false,
+	"output & logging verbosity; true = log debug, false = log error.")
+
 // Init initializes policy layers and caches and starts watching contiv-etcd for K8s configuration.
 func (p *Plugin) Init() error {
 	var err error
@@ -118,24 +122,27 @@ func (p *Plugin) Init() error {
 		CrdClient: crdClient,
 		APIClient: apiclientset,
 	}
-	p.telemetryController.Log.SetLevel(logging.DebugLevel)
 
 	// This where we initialize all layers
-	p.cache = cache.NewTelemetryCache(p.Log)
+	p.cache = cache.NewTelemetryCache(p.Log, *verbose)
 
-	p.cache.Log.SetLevel(logging.DebugLevel)
 	p.cache.Init()
+
+	validatorLog := p.Log.NewLogger("-telemetryProcessor")
+	l2ValidatorLog := p.Log.NewLogger("-telemetryProcessorL2")
+	l3ValidatorLog := p.Log.NewLogger("-telemetryProcessorL3")
 
 	p.processor = &validator.Validator{
 		Deps: validator.Deps{
-			Log:   p.Log.NewLogger("-telemetryProcessor"),
-			L2Log: p.Log.NewLogger("-telemetryProcessorL2"),
-			L3Log: p.Log.NewLogger("-telemetryProcessorL3"),
+			Log:   validatorLog,
+			L2Log: l2ValidatorLog,
+			L3Log: l3ValidatorLog,
 		},
 		VppCache: p.cache.VppCache,
 		K8sCache: p.cache.K8sCache,
 		Report:   p.cache.Report,
 	}
+
 	p.cache.Processor = p.processor
 
 	controllerReport := &telemetry.CRDReport{
@@ -157,11 +164,26 @@ func (p *Plugin) Init() error {
 		CrdClient: crdClient,
 		APIClient: apiclientset,
 	}
-	p.telemetryController.Log.SetLevel(logging.DebugLevel)
 
 	// Init and run the controllers
 	p.telemetryController.Init()
 	p.nodeConfigController.Init()
+
+	if *verbose {
+		p.telemetryController.Log.SetLevel(logging.DebugLevel)
+		p.cache.Log.SetLevel(logging.DebugLevel)
+
+		validatorLog.SetLevel(logging.DebugLevel)
+		l2ValidatorLog.SetLevel(logging.DebugLevel)
+		l3ValidatorLog.SetLevel(logging.DebugLevel)
+	} else {
+		p.telemetryController.Log.SetLevel(logging.ErrorLevel)
+		p.cache.Log.SetLevel(logging.ErrorLevel)
+
+		validatorLog.SetLevel(logging.ErrorLevel)
+		l2ValidatorLog.SetLevel(logging.ErrorLevel)
+		l3ValidatorLog.SetLevel(logging.ErrorLevel)
+	}
 
 	go p.watchEvents()
 	err = p.subscribeWatcher()

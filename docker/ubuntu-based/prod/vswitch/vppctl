@@ -24,14 +24,27 @@ fi
 # names. If we can't get the vswitch container by its name, try using Image
 # ID, which we get from listing docker images and looking for the latest
 # vswitch image.
+IFS=$'\n'
 if ! ID=$(get_vswitch_container_id "$IMAGE") || [ -z "$ID" ]
 then
     # Just grab the latest (by date) image for now. Will have to be replaced
     # later with grabbing an image with a specific tag.
-    if IMG=$(docker images --format '{{.CreatedAt}};{{.ID}};{{.Repository}}' | grep "$IMAGE" | sort -nr | head -n 1)
+    IMG=$(docker images --format '{{.CreatedAt}};{{.ID}};{{.Repository}}' | grep "$IMAGE" | sort -nr)
+    IMG_FOUND=""
+    for line in ${IMG}
+    do
+	if [ $(cut -d";" -f3 <<<${line}) = ${IMAGE} ]
+	then
+            IMG_FOUND=$(cut -d";" -f3 <<<${line})
+	    IMG=${line}
+	    break
+        fi
+    done
+
+    if [ -n ${IMG_FOUND} ]
     then
-        IFS=';' read -ra IMG_FIELDS <<< "$IMG"
-        if ! ID=$(get_vswitch_container_id "${IMG_FIELDS[1]}") || [ -z "$ID" ]
+	cID=$(cut -d";" -f2 <<<${IMG})
+	if ! ID=$(get_vswitch_container_id "${cID}" ) || [ -z "$ID" ]
         then
             echo "Error finding a running container derived from the $IMAGE image." >&2
             exit 1

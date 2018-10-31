@@ -22,7 +22,7 @@ import (
 	"net"
 
 	"github.com/contiv/vpp/plugins/contiv/model/node"
-	"github.com/golang/protobuf/proto"
+	"github.com/gogo/protobuf/proto"
 	"github.com/ligato/cn-infra/datasync"
 	"github.com/ligato/cn-infra/logging"
 	vpp_l2 "github.com/ligato/vpp-agent/plugins/vpp/model/l2"

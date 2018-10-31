@@ -22,7 +22,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/contiv/vpp/plugins/ksr/model/endpoints"
-	"github.com/golang/protobuf/proto"
+	"github.com/gogo/protobuf/proto"
 )
 
 // EndpointsReflector subscribes to K8s cluster to watch for changes

@@ -5,7 +5,7 @@
 Contiv/VPP is a Kubernetes network plugin that uses [FD.io VPP](https://fd.io/) 
 to provide network connectivity between PODs in a k8s cluster.
 It deploys itself as a set of system PODs in the `kube-system` namespace,
-some of them (`contiv-ksr`, `contiv-etcd`) on the master node, and some
+some of them (`contiv-ksr`, `contiv-crd`, `contiv-etcd`) on the master node, and some
 of them (`contiv-cni`, `contiv-vswitch`, `contiv-stn`) on each node in the cluster.
 
 Contiv/VPP is fully integrated with k8s via its components,
@@ -28,9 +28,10 @@ effective and scalable.
 ## Architecture
 
 Contiv/VPP consists of several components, each of them packed and shipped as
-a Docker container. Two of them deploy on Kubernetes master node only:
+a Docker container. Three of them deploy on Kubernetes master node only:
 
  - [Contiv KSR](#contiv-ksr-(kubernetes-state-reflector))
+ - [Contiv CRD + netctl](#contiv-crd-netctl)
  - [Contiv ETCD](#contiv-etcd)
 
 and the rest of them deploy on all nodes within the k8s cluster (including the master node):
@@ -53,6 +54,11 @@ Other Contiv components do not access the k8s API directly, they subscribe to
 Contiv ETCD instead. For more information on KSR, read the 
 [KSR Readme](../cmd/contiv-ksr/README.md).
 
+### Contiv CRD + netctl
+Contiv CRD handles k8s Custom Resource Definitions defined in k8s API and
+processes them into configuration in Contiv ETCD. Currently it covers 
+Contiv-specific configuration of individual nodes such as IP address and default
+gateway, etc. 
 
 ### Contiv ETCD
 Contiv/VPP uses its own instance of ETCD database for storage of k8s cluster-related data
@@ -105,3 +111,5 @@ when the interface will be "stolen" from the host network stack just before star
 the VPP and configured with the same IP address on VPP, as well as 
 on the host-VPP interconnect TAP interface, as it had in the host before it. 
 For more information on STN setup, read the [Single NIC Setup README](SINGLE_NIC_SETUP.md).
+
+[![Contiv/VPP Architecture](img/contiv-flow.png)](img/contiv-flow.svg)

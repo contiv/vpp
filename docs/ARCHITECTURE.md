@@ -57,8 +57,12 @@ Contiv ETCD instead. For more information on KSR, read the
 ### Contiv CRD + netctl
 Contiv CRD handles k8s Custom Resource Definitions defined in k8s API and
 processes them into configuration in Contiv ETCD. Currently it covers 
-Contiv-specific configuration of individual nodes such as IP address and default
-gateway, etc. 
+Contiv-specific configuration of individual k8s nodes such as IP address and default
+gateway, etc. Apart from this functionality, it also runs periodic validation
+of the topology, and exports the results as another CRD entry.
+The `contiv-netctl` tool which sits in the same Docker container can be used to
+explore runtime state of the cluster, such us current IPAM assignments,
+VPP state etc., or to execute a debug CLI on any of the VPPs in the cluster.
 
 ### Contiv ETCD
 Contiv/VPP uses its own instance of ETCD database for storage of k8s cluster-related data

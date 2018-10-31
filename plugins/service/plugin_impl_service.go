@@ -23,9 +23,8 @@ import (
 	"github.com/ligato/cn-infra/datasync/resync"
 	"github.com/ligato/cn-infra/utils/safeclose"
 
-	"github.com/ligato/vpp-agent/clientv1/linux"
-	"github.com/ligato/vpp-agent/clientv1/linux/localclient"
-	"github.com/ligato/vpp-agent/plugins/vpp"
+	"github.com/ligato/vpp-agent/clientv2/linux"
+	"github.com/ligato/vpp-agent/clientv2/linux/localclient"
 
 	"github.com/contiv/vpp/plugins/contiv"
 	"github.com/contiv/vpp/plugins/service/processor"
@@ -73,7 +72,6 @@ type Deps struct {
 	Resync       resync.Subscriber
 	Watcher      datasync.KeyValProtoWatcher /* prefixed for KSR-published K8s state data */
 	Contiv       contiv.API                  /* to get the Node IP and all interface names */
-	VPP          vpp.API                     /* interface indexes && IP addresses */
 	GoVPP        govppmux.API                /* used for direct NAT binary API calls */
 	Stats        statscollector.API          /* used for exporting the statistics */
 }
@@ -102,7 +100,6 @@ func (p *Plugin) Init() error {
 	p.nat44Renderer = &nat44.Renderer{
 		Deps: nat44.Deps{
 			Log:       p.Log.NewLogger("-nat44Renderer"),
-			VPP:       p.VPP,
 			Contiv:    p.Contiv,
 			GoVPPChan: goVppCh,
 			NATTxnFactory: func() linuxclient.DataChangeDSL {

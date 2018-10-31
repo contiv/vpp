@@ -22,12 +22,10 @@ import (
 
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/logging/logrus"
-	"github.com/ligato/vpp-agent/plugins/vpp/model/nat"
 
 	. "github.com/contiv/vpp/mock/contiv"
 	. "github.com/contiv/vpp/mock/datasync"
 	. "github.com/contiv/vpp/mock/natplugin"
-	. "github.com/contiv/vpp/mock/pluginvpp"
 	. "github.com/contiv/vpp/mock/servicelabel"
 
 	"github.com/contiv/vpp/mock/localclient"
@@ -137,11 +135,6 @@ func TestResyncAndSingleService(t *testing.T) {
 	// -> localclient
 	txnTracker := localclient.NewTxnTracker(natPlugin.ApplyTxn)
 
-	// -> default VPP plugins
-	vppPlugins := NewMockVppPlugin()
-	vppPlugins.SetNat44Global(&nat.Nat44Global{})
-	vppPlugins.SetNat44Dnat(&nat.Nat44DNat{})
-
 	// -> service label
 	serviceLabel := NewMockServiceLabel()
 	serviceLabel.SetAgentLabel(masterLabel)
@@ -162,7 +155,6 @@ func TestResyncAndSingleService(t *testing.T) {
 	renderer := &nat44.Renderer{
 		Deps: nat44.Deps{
 			Log:           logger,
-			VPP:           vppPlugins,
 			Contiv:        contiv,
 			NATTxnFactory: txnTracker.NewLinuxDataChangeTxn,
 			LatestRevs:    txnTracker.LatestRevisions,
@@ -493,11 +485,6 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 	// -> localclient
 	txnTracker := localclient.NewTxnTracker(natPlugin.ApplyTxn)
 
-	// -> default VPP plugins
-	vppPlugins := NewMockVppPlugin()
-	vppPlugins.SetNat44Global(&nat.Nat44Global{})
-	vppPlugins.SetNat44Dnat(&nat.Nat44DNat{})
-
 	// -> service label
 	serviceLabel := NewMockServiceLabel()
 	serviceLabel.SetAgentLabel(masterLabel)
@@ -518,9 +505,9 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 	renderer := &nat44.Renderer{
 		Deps: nat44.Deps{
 			Log:           logger,
-			VPP:           vppPlugins,
 			Contiv:        contiv,
 			NATTxnFactory: txnTracker.NewLinuxDataChangeTxn,
+			// TODO: resync txn factory
 			LatestRevs:    txnTracker.LatestRevisions,
 		},
 	}
@@ -1011,9 +998,6 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 	Expect(natPlugin.NumOfStaticMappings()).To(Equal(8))
 
 	// Simulate Resync.
-	// -> cache mocked VPP configuration
-	vppPlugins.SetNat44Global(natPlugin.DumpNat44Global())
-	vppPlugins.SetNat44Dnat(natPlugin.DumpNat44DNat())
 	// -> simulate restart of the service plugin components
 	processor = &svc_processor.ServiceProcessor{
 		Deps: svc_processor.Deps{
@@ -1025,13 +1009,13 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 	renderer = &nat44.Renderer{
 		Deps: nat44.Deps{
 			Log:           logger,
-			VPP:           vppPlugins,
 			Contiv:        contiv,
 			NATTxnFactory: txnTracker.NewLinuxDataChangeTxn,
 			LatestRevs:    txnTracker.LatestRevisions,
 		},
 	}
-	// -> let's simulate that during downtime the  service1 was removed
+	natPlugin.Reset() // TODO: remove once resync txn is supported
+	// -> let's simulate that during downtime the service1 was removed
 	datasync.Delete(svcmodel.Key(service1.Name, service1.Namespace))
 	// -> initialize and resync
 	Expect(processor.Init()).To(BeNil())
@@ -1064,9 +1048,7 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 	Expect(natPlugin.NumOfStaticMappings()).To(Equal(2))
 
 	// Simulate run-time resync.
-	// -> cache mocked VPP configuration
-	vppPlugins.SetNat44Global(natPlugin.DumpNat44Global())
-	vppPlugins.SetNat44Dnat(natPlugin.DumpNat44DNat())
+	natPlugin.Reset() // TODO: remove once resync txn is supported
 	// -> let's simulate that while the agent was out-of-sync, the service1 was re-added, while service2 was removed.
 	datasync.Put(svcmodel.Key(service1.Name, service1.Namespace), service1)
 	datasync.Delete(svcmodel.Key(service2.Name, service2.Namespace))
@@ -1131,12 +1113,6 @@ func TestWithVXLANButNoGateway(t *testing.T) {
 
 	// -> localclient
 	txnTracker := localclient.NewTxnTracker(natPlugin.ApplyTxn)
-
-	// -> default VPP plugins
-	vppPlugins := NewMockVppPlugin()
-	vppPlugins.SetNat44Global(&nat.Nat44Global{})
-	vppPlugins.SetNat44Dnat(&nat.Nat44DNat{})
-
 	// -> service label
 	serviceLabel := NewMockServiceLabel()
 	serviceLabel.SetAgentLabel(masterLabel)
@@ -1157,7 +1133,6 @@ func TestWithVXLANButNoGateway(t *testing.T) {
 	renderer := &nat44.Renderer{
 		Deps: nat44.Deps{
 			Log:           logger,
-			VPP:           vppPlugins,
 			Contiv:        contiv,
 			NATTxnFactory: txnTracker.NewLinuxDataChangeTxn,
 			LatestRevs:    txnTracker.LatestRevisions,
@@ -1222,11 +1197,6 @@ func TestWithoutVXLAN(t *testing.T) {
 	// -> localclient
 	txnTracker := localclient.NewTxnTracker(natPlugin.ApplyTxn)
 
-	// -> default VPP plugins
-	vppPlugins := NewMockVppPlugin()
-	vppPlugins.SetNat44Global(&nat.Nat44Global{})
-	vppPlugins.SetNat44Dnat(&nat.Nat44DNat{})
-
 	// -> service label
 	serviceLabel := NewMockServiceLabel()
 	serviceLabel.SetAgentLabel(masterLabel)
@@ -1247,7 +1217,6 @@ func TestWithoutVXLAN(t *testing.T) {
 	renderer := &nat44.Renderer{
 		Deps: nat44.Deps{
 			Log:           logger,
-			VPP:           vppPlugins,
 			Contiv:        contiv,
 			NATTxnFactory: txnTracker.NewLinuxDataChangeTxn,
 			LatestRevs:    txnTracker.LatestRevisions,
@@ -1313,13 +1282,6 @@ func TestWithOtherInterfaces(t *testing.T) {
 	// -> localclient
 	txnTracker := localclient.NewTxnTracker(natPlugin.ApplyTxn)
 
-	// -> default VPP plugins
-	vppPlugins := NewMockVppPlugin()
-	vppPlugins.AddInterface(OtherIfName, 1, otherIfIP+nodePrefix)
-	vppPlugins.AddInterface(OtherIfName2, 2, otherIfIP2+nodePrefix)
-	vppPlugins.SetNat44Global(&nat.Nat44Global{})
-	vppPlugins.SetNat44Dnat(&nat.Nat44DNat{})
-
 	// -> service label
 	serviceLabel := NewMockServiceLabel()
 	serviceLabel.SetAgentLabel(masterLabel)
@@ -1340,7 +1302,6 @@ func TestWithOtherInterfaces(t *testing.T) {
 	renderer := &nat44.Renderer{
 		Deps: nat44.Deps{
 			Log:           logger,
-			VPP:           vppPlugins,
 			Contiv:        contiv,
 			NATTxnFactory: txnTracker.NewLinuxDataChangeTxn,
 			LatestRevs:    txnTracker.LatestRevisions,
@@ -1432,11 +1393,6 @@ func TestServiceUpdates(t *testing.T) {
 	// -> localclient
 	txnTracker := localclient.NewTxnTracker(natPlugin.ApplyTxn)
 
-	// -> default VPP plugins
-	vppPlugins := NewMockVppPlugin()
-	vppPlugins.SetNat44Global(&nat.Nat44Global{})
-	vppPlugins.SetNat44Dnat(&nat.Nat44DNat{})
-
 	// -> service label
 	serviceLabel := NewMockServiceLabel()
 	serviceLabel.SetAgentLabel(masterLabel)
@@ -1457,7 +1413,6 @@ func TestServiceUpdates(t *testing.T) {
 	renderer := &nat44.Renderer{
 		Deps: nat44.Deps{
 			Log:           logger,
-			VPP:           vppPlugins,
 			Contiv:        contiv,
 			NATTxnFactory: txnTracker.NewLinuxDataChangeTxn,
 			LatestRevs:    txnTracker.LatestRevisions,
@@ -1854,11 +1809,6 @@ func TestWithSNATOnly(t *testing.T) {
 	// -> localclient
 	txnTracker := localclient.NewTxnTracker(natPlugin.ApplyTxn)
 
-	// -> default VPP plugins
-	vppPlugins := NewMockVppPlugin()
-	vppPlugins.SetNat44Global(&nat.Nat44Global{})
-	vppPlugins.SetNat44Dnat(&nat.Nat44DNat{})
-
 	// -> service label
 	serviceLabel := NewMockServiceLabel()
 	serviceLabel.SetAgentLabel(masterLabel)
@@ -1879,7 +1829,6 @@ func TestWithSNATOnly(t *testing.T) {
 	renderer := &nat44.Renderer{
 		Deps: nat44.Deps{
 			Log:           logger,
-			VPP:           vppPlugins,
 			Contiv:        contiv,
 			NATTxnFactory: txnTracker.NewLinuxDataChangeTxn,
 			LatestRevs:    txnTracker.LatestRevisions,

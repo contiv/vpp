@@ -95,7 +95,7 @@ func (lts *LocalTables) String() string {
 
 // Insert local table into the list.
 func (lts *LocalTables) Insert(table *ContivRuleTable) bool {
-	_, alreadyAdded := lts.byID[table.ID]
+	_, alreadyAdded := lts.byID[table.GetID()]
 	if alreadyAdded {
 		return false
 	}
@@ -111,7 +111,7 @@ func (lts *LocalTables) Insert(table *ContivRuleTable) bool {
 	}
 	lts.tables[tableIdx] = table
 	lts.numTables++
-	lts.byID[table.ID] = table
+	lts.byID[table.GetID()] = table
 	for pod := range table.Pods {
 		lts.UnassignPod(nil, pod)
 		lts.byPod[pod] = table
@@ -139,7 +139,7 @@ func (lts *LocalTables) RemoveByIdx(idx int) bool {
 		}
 		lts.numTables--
 		lts.tables[lts.numTables] = nil
-		delete(lts.byID, table.ID)
+		delete(lts.byID, table.GetID())
 		for pod := range table.Pods {
 			delete(lts.byPod, pod)
 		}

@@ -151,7 +151,7 @@ func (art *RendererTxn) Commit() error {
 			// removed local table
 			removedContivRules = origLocalTable.Rules[:origLocalTable.NumOfRules]
 		}
-		if origLocalTable != nil && newLocalTable != nil && origLocalTable.ID != newLocalTable.ID {
+		if origLocalTable != nil && newLocalTable != nil && origLocalTable.GetID() != newLocalTable.GetID() {
 			// changed table
 			removedContivRules, newContivRules = origLocalTable.DiffRules(newLocalTable)
 		}

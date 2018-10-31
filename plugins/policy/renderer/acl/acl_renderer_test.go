@@ -22,12 +22,11 @@ import (
 
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/logging/logrus"
-	vpp_acl "github.com/ligato/vpp-agent/plugins/vpp/model/acl"
+	vpp_acl "github.com/ligato/vpp-agent/plugins/vppv2/model/acl"
 
 	. "github.com/contiv/vpp/mock/aclengine"
 	. "github.com/contiv/vpp/mock/contiv"
 	"github.com/contiv/vpp/mock/localclient"
-	. "github.com/contiv/vpp/mock/pluginvpp"
 	"github.com/contiv/vpp/plugins/contiv"
 	"github.com/contiv/vpp/plugins/policy/renderer"
 	"github.com/contiv/vpp/plugins/policy/renderer/cache"
@@ -62,7 +61,7 @@ func verifyReflectiveACL(engine *MockACLEngine, contiv contiv.API, ifName string
 		return
 	}
 	gomega.Expect(acl).ToNot(gomega.BeNil())
-	gomega.Expect(acl.AclName).To(gomega.BeEquivalentTo(ACLNamePrefix + ReflectiveACLName))
+	gomega.Expect(acl.Name).To(gomega.BeEquivalentTo(ACLNamePrefix + ReflectiveACLName))
 	gomega.Expect(acl.Rules).To(gomega.HaveLen(1))
 	rule := acl.Rules[0]
 	gomega.Expect(acl.Interfaces).ToNot(gomega.BeNil())
@@ -72,11 +71,10 @@ func verifyReflectiveACL(engine *MockACLEngine, contiv contiv.API, ifName string
 	gomega.Expect(acl.Interfaces.Egress).To(gomega.HaveLen(0))
 
 	// rule to match all traffic
-	gomega.Expect(rule.AclAction).To(gomega.BeEquivalentTo(vpp_acl.AclAction_REFLECT))
-	gomega.Expect(rule.Match).ToNot(gomega.BeNil())
-	gomega.Expect(rule.Match.MacipRule).To(gomega.BeNil())
-	gomega.Expect(rule.Match.IpRule).ToNot(gomega.BeNil())
-	ipRule := rule.Match.IpRule
+	gomega.Expect(rule.Action).To(gomega.BeEquivalentTo(vpp_acl.Acl_Rule_REFLECT))
+	gomega.Expect(rule.MacipRule).To(gomega.BeNil())
+	gomega.Expect(rule.IpRule).ToNot(gomega.BeNil())
+	ipRule := rule.IpRule
 	gomega.Expect(ipRule.Ip).ToNot(gomega.BeNil())
 	gomega.Expect(ipRule.Ip.SourceNetwork).To(gomega.BeEmpty())
 	gomega.Expect(ipRule.Ip.DestinationNetwork).To(gomega.BeEmpty())
@@ -132,15 +130,11 @@ func TestEgressRulesOnePod(t *testing.T) {
 	// -> localclient
 	txnTracker := localclient.NewTxnTracker(aclEngine.ApplyTxn)
 
-	// -> default VPP plugins
-	vppPlugins := NewMockVppPlugin()
-
 	// Prepare ACL Renderer.
 	aclRenderer := &Renderer{
 		Deps: Deps{
 			Log:           logger,
 			Contiv:        contiv,
-			VPP:           vppPlugins,
 			ACLTxnFactory: txnTracker.NewLinuxDataChangeTxn,
 			LatestRevs:    txnTracker.LatestRevisions,
 		},
@@ -207,15 +201,11 @@ func TestIngressRulesOnePod(t *testing.T) {
 	// -> localclient
 	txnTracker := localclient.NewTxnTracker(aclEngine.ApplyTxn)
 
-	// -> default VPP plugins
-	vppPlugins := NewMockVppPlugin()
-
 	// Prepare ACL Renderer.
 	aclRenderer := &Renderer{
 		Deps: Deps{
 			Log:           logger,
 			Contiv:        contiv,
-			VPP:           vppPlugins,
 			ACLTxnFactory: txnTracker.NewLinuxDataChangeTxn,
 			LatestRevs:    txnTracker.LatestRevisions,
 		},
@@ -288,15 +278,11 @@ func TestEgressRulesTwoPods(t *testing.T) {
 	// -> localclient
 	txnTracker := localclient.NewTxnTracker(aclEngine.ApplyTxn)
 
-	// -> default VPP plugins
-	vppPlugins := NewMockVppPlugin()
-
 	// Prepare ACL Renderer.
 	aclRenderer := &Renderer{
 		Deps: Deps{
 			Log:           logger,
 			Contiv:        contiv,
-			VPP:           vppPlugins,
 			ACLTxnFactory: txnTracker.NewLinuxDataChangeTxn,
 			LatestRevs:    txnTracker.LatestRevisions,
 		},
@@ -402,15 +388,11 @@ func TestCombinedRules(t *testing.T) {
 	// -> localclient
 	txnTracker := localclient.NewTxnTracker(aclEngine.ApplyTxn)
 
-	// -> default VPP plugins
-	vppPlugins := NewMockVppPlugin()
-
 	// Prepare ACL Renderer.
 	aclRenderer := &Renderer{
 		Deps: Deps{
 			Log:           logger,
 			Contiv:        contiv,
-			VPP:           vppPlugins,
 			ACLTxnFactory: txnTracker.NewLinuxDataChangeTxn,
 			LatestRevs:    txnTracker.LatestRevisions,
 		},
@@ -560,16 +542,13 @@ func TestCombinedRulesWithResync(t *testing.T) {
 	// -> localclient
 	txnTracker := localclient.NewTxnTracker(aclEngine.ApplyTxn)
 
-	// -> default VPP plugins
-	vppPlugins := NewMockVppPlugin()
-
 	// Prepare ACL Renderer.
 	aclRenderer := &Renderer{
 		Deps: Deps{
 			Log:           logger,
 			Contiv:        contiv,
-			VPP:           vppPlugins,
 			ACLTxnFactory: txnTracker.NewLinuxDataChangeTxn,
+			// TODO: resync txn factory
 			LatestRevs:    txnTracker.LatestRevisions,
 		},
 	}
@@ -583,22 +562,19 @@ func TestCombinedRulesWithResync(t *testing.T) {
 	gomega.Expect(err).To(gomega.BeNil())
 	gomega.Expect(txnTracker.CommittedTxns).To(gomega.HaveLen(1))
 
-	// Dump ACLs and put them to mock vpp.
-	acls := aclEngine.DumpACLs()
-	vppPlugins.AddIPACL(acls...)
-
 	// Simulate restart of ACL Renderer.
 	txnTracker = localclient.NewTxnTracker(aclEngine.ApplyTxn)
 	aclRenderer = &Renderer{
 		Deps: Deps{
 			Log:           logger,
 			Contiv:        contiv,
-			VPP:           vppPlugins,
 			ACLTxnFactory: txnTracker.NewLinuxDataChangeTxn,
 			LatestRevs:    txnTracker.LatestRevisions,
 		},
 	}
 	aclRenderer.Init()
+
+	aclEngine.ClearACLs() // TODO: remove once resync txn is supported
 
 	// Execute second Renderer transaction (from non-empty state; change pod1 config).
 	txn = aclRenderer.NewTxn(true)
@@ -654,10 +630,7 @@ func TestCombinedRulesWithResync(t *testing.T) {
 
 	// Test run-time resync.
 
-	// Dump ACLs and put them to mock vpp.
-	acls = aclEngine.DumpACLs()
-	vppPlugins.ClearACLs()
-	vppPlugins.AddIPACL(acls...)
+	aclEngine.ClearACLs() // TODO: remove once resync txn is supported
 
 	// Re-sync back to the state after the first transaction.
 	txn = aclRenderer.NewTxn(true)
@@ -747,16 +720,13 @@ func TestCombinedRulesWithResyncAndRemovedPod(t *testing.T) {
 	// -> localclient
 	txnTracker := localclient.NewTxnTracker(aclEngine.ApplyTxn)
 
-	// -> default VPP plugins
-	vppPlugins := NewMockVppPlugin()
-
 	// Prepare ACL Renderer.
 	aclRenderer := &Renderer{
 		Deps: Deps{
 			Log:           logger,
 			Contiv:        contiv,
-			VPP:           vppPlugins,
 			ACLTxnFactory: txnTracker.NewLinuxDataChangeTxn,
+			// TODO: resync txn factory
 			LatestRevs:    txnTracker.LatestRevisions,
 		},
 	}
@@ -770,22 +740,19 @@ func TestCombinedRulesWithResyncAndRemovedPod(t *testing.T) {
 	gomega.Expect(err).To(gomega.BeNil())
 	gomega.Expect(txnTracker.CommittedTxns).To(gomega.HaveLen(1))
 
-	// Dump ACLs and put them to mock vpp.
-	acls := aclEngine.DumpACLs()
-	vppPlugins.AddIPACL(acls...)
-
 	// Simulate restart of ACL Renderer.
 	txnTracker = localclient.NewTxnTracker(aclEngine.ApplyTxn)
 	aclRenderer = &Renderer{
 		Deps: Deps{
 			Log:           logger,
 			Contiv:        contiv,
-			VPP:           vppPlugins,
 			ACLTxnFactory: txnTracker.NewLinuxDataChangeTxn,
 			LatestRevs:    txnTracker.LatestRevisions,
 		},
 	}
 	aclRenderer.Init()
+
+	aclEngine.ClearACLs() // TODO: remove once resync txn is supported
 
 	// Execute second Renderer transaction (from non-empty state; keep pod1 config & ***remove pod3***).
 	txn = aclRenderer.NewTxn(true)
@@ -842,10 +809,7 @@ func TestCombinedRulesWithResyncAndRemovedPod(t *testing.T) {
 
 	// Test run-time resync.
 
-	// Dump ACLs and put them to mock vpp.
-	acls = aclEngine.DumpACLs()
-	vppPlugins.ClearACLs()
-	vppPlugins.AddIPACL(acls...)
+	aclEngine.ClearACLs() // TODO: remove once resync txn is supported
 
 	// Re-sync back to the state after the first transaction.
 	txn = aclRenderer.NewTxn(true)
@@ -935,15 +899,11 @@ func TestCombinedRulesWithRemovedPods(t *testing.T) {
 	// -> localclient
 	txnTracker := localclient.NewTxnTracker(aclEngine.ApplyTxn)
 
-	// -> default VPP plugins
-	vppPlugins := NewMockVppPlugin()
-
 	// Prepare ACL Renderer.
 	aclRenderer := &Renderer{
 		Deps: Deps{
 			Log:           logger,
 			Contiv:        contiv,
-			VPP:           vppPlugins,
 			ACLTxnFactory: txnTracker.NewLinuxDataChangeTxn,
 			LatestRevs:    txnTracker.LatestRevisions,
 		},

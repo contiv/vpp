@@ -93,7 +93,7 @@ func (mds *MockDataSync) Put(key string, value proto.Message) datasync.ChangeEve
 		}
 	}
 	return &MockChangeEvent{
-		mds:       mds,
+		mds: mds,
 		wr: &MockProtoWatchResp{
 			eventType: datasync.Put,
 			MockKeyVal: MockKeyVal{
@@ -116,7 +116,7 @@ func (mds *MockDataSync) Delete(key string) datasync.ChangeEvent {
 	val := mds.data[key].val
 	delete(mds.data, key)
 	return &MockChangeEvent{
-		mds:       mds,
+		mds: mds,
 		wr: &MockProtoWatchResp{
 			eventType: datasync.Delete,
 			MockKeyVal: MockKeyVal{

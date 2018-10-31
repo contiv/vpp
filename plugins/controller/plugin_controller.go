@@ -18,14 +18,12 @@ import (
 	"github.com/ligato/cn-infra/health/statuscheck"
 	"github.com/ligato/cn-infra/infra"
 
-
 	scheduler "github.com/ligato/vpp-agent/plugins/kvscheduler/api"
 )
 
-
+// Controller ...
 type Controller struct {
 	Deps
-
 }
 
 // Deps lists dependencies of the Controller.
@@ -35,6 +33,7 @@ type Deps struct {
 	StatusCheck statuscheck.PluginStatusWriter
 }
 
+// Init ...
 func (p *Controller) Init() error {
 	return nil
 }

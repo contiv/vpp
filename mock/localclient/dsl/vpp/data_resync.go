@@ -1,17 +1,17 @@
 package vpp
 
 import (
-	"github.com/ligato/vpp-agent/clientv1/vpp"
+	"github.com/ligato/vpp-agent/clientv2/vpp"
 
 	"github.com/contiv/vpp/mock/localclient/dsl"
-	"github.com/ligato/vpp-agent/plugins/vpp/model/acl"
+	"github.com/ligato/vpp-agent/plugins/vppv2/model/acl"
 	"github.com/ligato/vpp-agent/plugins/vpp/model/bfd"
-	"github.com/ligato/vpp-agent/plugins/vpp/model/interfaces"
+	"github.com/ligato/vpp-agent/plugins/vppv2/model/interfaces"
 	"github.com/ligato/vpp-agent/plugins/vpp/model/ipsec"
-	"github.com/ligato/vpp-agent/plugins/vpp/model/l2"
-	"github.com/ligato/vpp-agent/plugins/vpp/model/l3"
+	"github.com/ligato/vpp-agent/plugins/vppv2/model/l2"
+	"github.com/ligato/vpp-agent/plugins/vppv2/model/l3"
 	"github.com/ligato/vpp-agent/plugins/vpp/model/l4"
-	"github.com/ligato/vpp-agent/plugins/vpp/model/nat"
+	"github.com/ligato/vpp-agent/plugins/vppv2/model/nat"
 	"github.com/ligato/vpp-agent/plugins/vpp/model/stn"
 )
 
@@ -26,7 +26,7 @@ func NewMockDataResyncDSL(commitFunc dsl.CommitFunc) *MockDataResyncDSL {
 }
 
 // Interface adds interface to the RESYNC request.
-func (d *MockDataResyncDSL) Interface(val *interfaces.Interfaces_Interface) vppclient.DataResyncDSL {
+func (d *MockDataResyncDSL) Interface(val *interfaces.Interface) vppclient.DataResyncDSL {
 	op := dsl.TxnOp{Key: interfaces.InterfaceKey(val.Name), Value: val}
 	d.Ops = append(d.Ops, op)
 	return d
@@ -57,58 +57,58 @@ func (d *MockDataResyncDSL) BfdEchoFunction(val *bfd.SingleHopBFD_EchoFunction) 
 }
 
 // BD adds VPP Bridge Domain to the mock RESYNC request.
-func (d *MockDataResyncDSL) BD(val *l2.BridgeDomains_BridgeDomain) vppclient.DataResyncDSL {
+func (d *MockDataResyncDSL) BD(val *l2.BridgeDomain) vppclient.DataResyncDSL {
 	op := dsl.TxnOp{Key: l2.BridgeDomainKey(val.Name), Value: val}
 	d.Ops = append(d.Ops, op)
 	return d
 }
 
 // BDFIB adds VPP L2 FIB to the mock RESYNC request.
-func (d *MockDataResyncDSL) BDFIB(val *l2.FibTable_FibEntry) vppclient.DataResyncDSL {
-	op := dsl.TxnOp{Key: l2.FibKey(val.BridgeDomain, val.PhysAddress), Value: val}
+func (d *MockDataResyncDSL) BDFIB(val *l2.FIBEntry) vppclient.DataResyncDSL {
+	op := dsl.TxnOp{Key: l2.FIBKey(val.BridgeDomain, val.PhysAddress), Value: val}
 	d.Ops = append(d.Ops, op)
 	return d
 }
 
 // XConnect adds VPP Cross Connect to the mock RESYNC request.
-func (d *MockDataResyncDSL) XConnect(val *l2.XConnectPairs_XConnectPair) vppclient.DataResyncDSL {
+func (d *MockDataResyncDSL) XConnect(val *l2.XConnectPair) vppclient.DataResyncDSL {
 	op := dsl.TxnOp{Key: l2.XConnectKey(val.ReceiveInterface), Value: val}
 	d.Ops = append(d.Ops, op)
 	return d
 }
 
 // StaticRoute adds VPP L3 Static Route to the mock RESYNC request.
-func (d *MockDataResyncDSL) StaticRoute(val *l3.StaticRoutes_Route) vppclient.DataResyncDSL {
-	key := l3.RouteKey(val.VrfId, val.DstIpAddr, val.NextHopAddr)
+func (d *MockDataResyncDSL) StaticRoute(val *l3.StaticRoute) vppclient.DataResyncDSL {
+	key := l3.RouteKey(val.VrfId, val.DstNetwork, val.NextHopAddr)
 	op := dsl.TxnOp{Key: key, Value: val}
 	d.Ops = append(d.Ops, op)
 	return d
 }
 
 // ACL adds VPP Access Control List to the mock RESYNC request.
-func (d *MockDataResyncDSL) ACL(val *acl.AccessLists_Acl) vppclient.DataResyncDSL {
-	op := dsl.TxnOp{Key: acl.Key(val.AclName), Value: val}
+func (d *MockDataResyncDSL) ACL(val *acl.Acl) vppclient.DataResyncDSL {
+	op := dsl.TxnOp{Key: acl.Key(val.Name), Value: val}
 	d.Ops = append(d.Ops, op)
 	return d
 }
 
 // Arp adds VPP L3 ARP to the RESYNC request.
-func (d *MockDataResyncDSL) Arp(val *l3.ArpTable_ArpEntry) vppclient.DataResyncDSL {
+func (d *MockDataResyncDSL) Arp(val *l3.ARPEntry) vppclient.DataResyncDSL {
 	op := dsl.TxnOp{Key: l3.ArpEntryKey(val.Interface, val.IpAddress), Value: val}
 	d.Ops = append(d.Ops, op)
 	return d
 }
 
-// ProxyArpInterfaces adds L3 proxy ARP interfaces to the RESYNC request.
-func (d *MockDataResyncDSL) ProxyArpInterfaces(val *l3.ProxyArpInterfaces_InterfaceList) vppclient.DataResyncDSL {
-	op := dsl.TxnOp{Key: l3.ProxyArpInterfaceKey(val.Label), Value: val}
+// ProxyArp adds L3 proxy ARP to the RESYNC request.
+func (d *MockDataResyncDSL) ProxyArp(val *l3.ProxyARP) vppclient.DataResyncDSL {
+	op := dsl.TxnOp{Key: l3.ProxyARPKey, Value: val}
 	d.Ops = append(d.Ops, op)
 	return d
 }
 
-// ProxyArpRanges adds L3 proxy ARP ranges to the RESYNC request.
-func (d *MockDataResyncDSL) ProxyArpRanges(val *l3.ProxyArpRanges_RangeList) vppclient.DataResyncDSL {
-	op := dsl.TxnOp{Key: l3.ProxyArpRangeKey(val.Label), Value: val}
+// IPScanNeighbor adds L3 IP Scan Neighbor to the RESYNC request.
+func (d *MockDataResyncDSL) IPScanNeighbor(val *l3.IPScanNeighbor) vppclient.DataResyncDSL {
+	op := dsl.TxnOp{Key: l3.IPScanNeighborKey, Value: val}
 	d.Ops = append(d.Ops, op)
 	return d
 }
@@ -136,14 +136,14 @@ func (d *MockDataResyncDSL) StnRule(val *stn.STN_Rule) vppclient.DataResyncDSL {
 
 // NAT44Global adds a request to RESYNC global configuration for NAT44
 func (d *MockDataResyncDSL) NAT44Global(val *nat.Nat44Global) vppclient.DataResyncDSL {
-	op := dsl.TxnOp{Key: nat.GlobalPrefix, Value: val}
+	op := dsl.TxnOp{Key: nat.GlobalNAT44Key, Value: val}
 	d.Ops = append(d.Ops, op)
 	return d
 }
 
-// NAT44DNat adds a request to RESYNC a new DNAT configuration
-func (d *MockDataResyncDSL) NAT44DNat(val *nat.Nat44DNat_DNatConfig) vppclient.DataResyncDSL {
-	op := dsl.TxnOp{Key: nat.DNatKey(val.Label), Value: val}
+// DNAT44 adds a request to RESYNC a new DNAT configuration
+func (d *MockDataResyncDSL) DNAT44(val *nat.DNat44) vppclient.DataResyncDSL {
+	op := dsl.TxnOp{Key: nat.DNAT44Key(val.Label), Value: val}
 	d.Ops = append(d.Ops, op)
 	return d
 }

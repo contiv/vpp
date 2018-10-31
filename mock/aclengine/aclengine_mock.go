@@ -30,7 +30,7 @@ import (
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	"github.com/contiv/vpp/plugins/policy/renderer"
 	"github.com/ligato/cn-infra/datasync/syncbase"
-	vpp_acl "github.com/ligato/vpp-agent/plugins/vpp/model/acl"
+	vpp_acl "github.com/ligato/vpp-agent/plugins/vppv2/model/acl"
 )
 
 // maxPortNum is the maximum possible port number.
@@ -89,15 +89,15 @@ type PodConfig struct {
 
 // ACLConfig stores currently installed ACLs.
 type ACLConfig struct {
-	byName  map[string]*vpp_acl.AccessLists_Acl
+	byName  map[string]*vpp_acl.Acl
 	byIf    map[string]*InterfaceACLs
 	changes int
 }
 
 // InterfaceACLs stores ACLs assigned to interface.
 type InterfaceACLs struct {
-	inbound  *vpp_acl.AccessLists_Acl
-	outbound *vpp_acl.AccessLists_Acl
+	inbound  *vpp_acl.Acl
+	outbound *vpp_acl.Acl
 }
 
 // NewMockACLEngine is a constructor for MockACLEngine.
@@ -113,9 +113,16 @@ func NewMockACLEngine(log logging.Logger, contiv contiv.API) *MockACLEngine {
 // NewACLConfig is a constructor for ACLConfig.
 func NewACLConfig() *ACLConfig {
 	return &ACLConfig{
-		byName: make(map[string]*vpp_acl.AccessLists_Acl),
+		byName: make(map[string]*vpp_acl.Acl),
 		byIf:   make(map[string]*InterfaceACLs),
 	}
+}
+
+// ClearACLs clears the list of configured ACLs.
+func (mae *MockACLEngine) ClearACLs() {
+	changes := mae.aclConfig.changes
+	mae.aclConfig = NewACLConfig()
+	mae.aclConfig.changes = changes
 }
 
 // RegisterPod registers a deployed pod.
@@ -141,8 +148,26 @@ func (mae *MockACLEngine) ApplyTxn(txn *localclient.Txn, latestRevs *syncbase.Pr
 	}
 
 	if txn.LinuxDataResyncTxn != nil {
-		return errors.New("linux resync txn is not supported")
+		/* Resync */
+
+		mae.ClearACLs()
+		for _, op := range txn.LinuxDataResyncTxn.Ops {
+			if !strings.HasPrefix(op.Key, vpp_acl.Prefix) {
+				return errors.New("non-ACL changed in txn")
+			}
+			acl, isACL := op.Value.(*vpp_acl.Acl)
+			if !isACL {
+				return errors.New("failed to cast ACL value")
+			}
+			err := mae.aclConfig.PutACL(acl)
+			if err != nil {
+				return err
+			}
+		}
+		return nil
 	}
+
+	/* Data change */
 
 	if txn.LinuxDataChangeTxn == nil {
 		return errors.New("linux data change txn is nil")
@@ -161,7 +186,7 @@ func (mae *MockACLEngine) ApplyTxn(txn *localclient.Txn, latestRevs *syncbase.Pr
 			if hasACL != foundRev {
 				return errors.New("modify vs create ACL operation mismatch")
 			}
-			acl, isACL := op.Value.(*vpp_acl.AccessLists_Acl)
+			acl, isACL := op.Value.(*vpp_acl.Acl)
 			if !isACL {
 				return errors.New("failed to cast ACL value")
 			}
@@ -186,7 +211,7 @@ func (mae *MockACLEngine) ApplyTxn(txn *localclient.Txn, latestRevs *syncbase.Pr
 }
 
 // DumpACLs returns all ACLs currently installed.
-func (mae *MockACLEngine) DumpACLs() (acls []*vpp_acl.AccessLists_Acl) {
+func (mae *MockACLEngine) DumpACLs() (acls []*vpp_acl.Acl) {
 	for _, acl := range mae.aclConfig.byName {
 		acls = append(acls, acl)
 	}
@@ -200,20 +225,20 @@ func (mae *MockACLEngine) GetNumOfACLs() int {
 
 // GetInboundACL returns ACL assigned on the inbound side of the given interface,
 // or nil if there is none.
-func (mae *MockACLEngine) GetInboundACL(ifName string) *vpp_acl.AccessLists_Acl {
+func (mae *MockACLEngine) GetInboundACL(ifName string) *vpp_acl.Acl {
 	acls := mae.aclConfig.GetACLs(ifName)
 	return acls.inbound
 }
 
 // GetOutboundACL returns ACL assigned on the outbound side of the given interface,
 // or nil if there is none.
-func (mae *MockACLEngine) GetOutboundACL(ifName string) *vpp_acl.AccessLists_Acl {
+func (mae *MockACLEngine) GetOutboundACL(ifName string) *vpp_acl.Acl {
 	acls := mae.aclConfig.GetACLs(ifName)
 	return acls.outbound
 }
 
 // GetACLByName returns ACL with the given name, or nil if there is none.
-func (mae *MockACLEngine) GetACLByName(aclName string) *vpp_acl.AccessLists_Acl {
+func (mae *MockACLEngine) GetACLByName(aclName string) *vpp_acl.Acl {
 	acl, has := mae.aclConfig.byName[aclName]
 	if !has {
 		return nil
@@ -458,7 +483,7 @@ func (mae *MockACLEngine) testConnection(srcIfName string, srcIP net.IP,
 	return ConnActionAllow
 }
 
-func (mae *MockACLEngine) evalACL(acl *vpp_acl.AccessLists_Acl, srcIP, dstIP net.IP,
+func (mae *MockACLEngine) evalACL(acl *vpp_acl.Acl, srcIP, dstIP net.IP,
 	protocol renderer.ProtocolType, dstPort uint16) ACLAction {
 
 	if acl == nil {
@@ -466,17 +491,17 @@ func (mae *MockACLEngine) evalACL(acl *vpp_acl.AccessLists_Acl, srcIP, dstIP net
 	}
 
 	for _, rule := range acl.Rules {
-		if rule.Match.MacipRule != nil {
+		if rule.MacipRule != nil {
 			// unsupported
 			mae.Log.WithField("acl", *acl).Error("MAC-IP rules are not supported")
 			return ACLActionFailure
 		}
-		if rule.Match.IpRule == nil {
+		if rule.IpRule == nil {
 			// invalid
 			mae.Log.WithField("acl", *acl).Error("Missing IP Rule")
 			return ACLActionFailure
 		}
-		ipRule := rule.Match.IpRule
+		ipRule := rule.IpRule
 		if ipRule.Icmp != nil || ipRule.Ip == nil {
 			// unsupported
 			mae.Log.WithField("acl", *acl).Error("Missing IP or found unsupported ICMP section")
@@ -592,14 +617,14 @@ func (mae *MockACLEngine) evalACL(acl *vpp_acl.AccessLists_Acl, srcIP, dstIP net
 		// Rule matches the packet!
 		mae.Log.WithFields(logging.Fields{
 			"rule": *rule,
-			"acl":  acl.AclName,
+			"acl":  acl.Name,
 		}).Debug("Connection matched by ACL rule")
-		switch rule.AclAction {
-		case vpp_acl.AclAction_DENY:
+		switch rule.Action {
+		case vpp_acl.Acl_Rule_DENY:
 			return ACLActionDeny
-		case vpp_acl.AclAction_PERMIT:
+		case vpp_acl.Acl_Rule_PERMIT:
 			return ACLActionPermit
-		case vpp_acl.AclAction_REFLECT:
+		case vpp_acl.Acl_Rule_REFLECT:
 			return ACLActionReflect
 		default:
 			return ACLActionFailure
@@ -626,10 +651,10 @@ func (ac *ACLConfig) DelACL(aclName string) error {
 	}
 	delete(ac.byName, aclName)
 	for _, aclCfg := range ac.byIf {
-		if aclCfg.inbound != nil && aclCfg.inbound.AclName == aclName {
+		if aclCfg.inbound != nil && aclCfg.inbound.Name == aclName {
 			aclCfg.inbound = nil
 		}
-		if aclCfg.outbound != nil && aclCfg.outbound.AclName == aclName {
+		if aclCfg.outbound != nil && aclCfg.outbound.Name == aclName {
 			aclCfg.outbound = nil
 		}
 	}
@@ -638,7 +663,7 @@ func (ac *ACLConfig) DelACL(aclName string) error {
 }
 
 // PutACL adds the given ACL.
-func (ac *ACLConfig) PutACL(acl *vpp_acl.AccessLists_Acl) error {
+func (ac *ACLConfig) PutACL(acl *vpp_acl.Acl) error {
 	if acl == nil {
 		return errors.New("ACL is nil")
 	}
@@ -646,13 +671,13 @@ func (ac *ACLConfig) PutACL(acl *vpp_acl.AccessLists_Acl) error {
 		(len(acl.Interfaces.Ingress) == 0 && len(acl.Interfaces.Egress) == 0) {
 		return errors.New("ACL with empty interfaces")
 	}
-	_, hasACL := ac.byName[acl.AclName]
+	_, hasACL := ac.byName[acl.Name]
 	if hasACL {
 		// del origin ACL first
-		ac.DelACL(acl.AclName)
+		ac.DelACL(acl.Name)
 		ac.changes--
 	}
-	ac.byName[acl.AclName] = acl
+	ac.byName[acl.Name] = acl
 	for _, ifName := range acl.Interfaces.Ingress {
 		if _, hasACLCfg := ac.byIf[ifName]; !hasACLCfg {
 			ac.byIf[ifName] = &InterfaceACLs{}

@@ -16,15 +16,8 @@ type API interface {
 	// associated with the given pod.
 	GetIfName(podNamespace string, podName string) (name string, exists bool)
 
-	// GetNsIndex returns the index of the VPP session namespace associated
-	// with the given pod.
-	GetNsIndex(podNamespace string, podName string) (nsIndex uint32, exists bool)
-
 	// GetPodByIf looks up podName and podNamespace that is associated with logical interface name.
 	GetPodByIf(ifname string) (podNamespace string, podName string, exists bool)
-
-	// GetPodByAppNsIndex looks up podName and podNamespace that is associated with the VPP application namespace.
-	GetPodByAppNsIndex(nsIndex uint32) (podNamespace string, podName string, exists bool)
 
 	// GetPodSubnet provides subnet used for allocating pod IP addresses across all nodes.
 	GetPodSubnet() *net.IPNet

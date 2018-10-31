@@ -172,13 +172,11 @@ func main() {
 	policyPlugin := policy.NewPlugin(policy.UseDeps(func(deps *policy.Deps) {
 		deps.Watcher = policyDataSync
 		deps.Contiv = contivPlugin
-		deps.VPP = vppPlugin
 	}))
 
 	servicePlugin := service.NewPlugin(service.UseDeps(func(deps *service.Deps) {
 		deps.Watcher = serviceDataSync
 		deps.Contiv = contivPlugin
-		deps.VPP = vppPlugin
 	}))
 
 	contivAgent := &ContivAgent{

@@ -27,7 +27,7 @@ import (
 	svcmodel "github.com/contiv/vpp/plugins/ksr/model/service"
 )
 
-func (sc *ServiceProcessor) propagateDataChangeEv(dataChngEv datasync.ChangeEvent) error {
+func (sc *ServiceProcessor) propagateDataChangeEv(dataChngEv datasync.ProtoWatchResp) error {
 	var diff bool
 	var err error
 	key := dataChngEv.GetKey()

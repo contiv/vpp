@@ -98,7 +98,13 @@ func (sp *ServiceProcessor) Update(dataChngEv datasync.ChangeEvent) error {
 	sp.Lock()
 	defer sp.Unlock()
 
-	return sp.propagateDataChangeEv(dataChngEv)
+	for _, dataChng := range dataChngEv.GetChanges() {
+		err := sp.propagateDataChangeEv(dataChngEv)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // Resync processes a datasync resync event associated with the state data

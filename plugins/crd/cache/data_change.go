@@ -154,7 +154,7 @@ func (ctc *ContivTelemetryCache) Update(dataChngEv datasync.ChangeEvent) error {
 // The change is applied into the cache and all subscribed watchers are
 // notified.
 // The function will forward any error returned by a watcher.
-func (ctc *ContivTelemetryCache) update(dataChngEv datasync.ChangeEvent) error {
+func (ctc *ContivTelemetryCache) update(dataChngEv datasync.ProtoWatchResp) error {
 	err := error(nil)
 	key := dataChngEv.GetKey()
 	var dcp dataChangeProcessor

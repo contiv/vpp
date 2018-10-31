@@ -42,7 +42,9 @@ func TestWatch(t *testing.T) {
 	// expect message to be received
 	plugin.Put("/abc/prefix/something", nil)
 	select {
-	case change := <-ch:
+	case changes := <-ch:
+		gomega.Expect(changes.GetChanges()).To(gomega.HaveLen(1))
+		change := changes.GetChanges()[0]
 		gomega.Expect(change.GetKey()).To(gomega.BeEquivalentTo("/abc/prefix/something"))
 		gomega.Expect(change.GetChangeType()).To(gomega.BeEquivalentTo(datasync.Put))
 	case <-time.After(100 * time.Millisecond):
@@ -66,7 +68,9 @@ func TestWatch(t *testing.T) {
 	plugin.AddIgnoreEntry("/abc/prefix/dfafdasfadfadf", datasync.Delete)
 	plugin.AddIgnoreEntry("/abc/prefix/adfasfgasf", datasync.Put)
 	select {
-	case change := <-ch:
+	case changes := <-ch:
+		gomega.Expect(changes.GetChanges()).To(gomega.HaveLen(1))
+		change := changes.GetChanges()[0]
 		gomega.Expect(change.GetKey()).To(gomega.BeEquivalentTo("/abc/prefix/something"))
 		gomega.Expect(change.GetChangeType()).To(gomega.BeEquivalentTo(datasync.Delete))
 	case <-time.After(100 * time.Millisecond):

@@ -70,32 +70,44 @@ func (r *regMock) Close() error {
 }
 
 type changeEventMock struct {
-	key        string
-	changeType datasync.Op
+	wr *protoWatchRespMock
 }
 
 func newChangeEventMock(key string, change datasync.Op) *changeEventMock {
-	return &changeEventMock{key: key, changeType: change}
+	return &changeEventMock{wr: newProtoWatchRespMock(key, change)}
 }
 
 func (ce *changeEventMock) Done(err error) {}
 
-func (ce *changeEventMock) GetValue(value proto.Message) error {
+func (ce *changeEventMock) GetChanges() []datasync.ProtoWatchResp {
+	return []datasync.ProtoWatchResp{ce.wr}
+}
+
+type protoWatchRespMock struct {
+	key        string
+	changeType datasync.Op
+}
+
+func newProtoWatchRespMock(key string, change datasync.Op) *protoWatchRespMock {
+	return &protoWatchRespMock{key: key, changeType: change}
+}
+
+func (pw *protoWatchRespMock) GetValue(value proto.Message) error {
 	return nil
 }
 
-func (ce *changeEventMock) GetKey() string {
-	return ce.key
+func (pw *protoWatchRespMock) GetKey() string {
+	return pw.key
 }
 
-func (ce *changeEventMock) GetPrevValue(value proto.Message) (prevExisted bool, err error) {
+func (pw *protoWatchRespMock) GetPrevValue(value proto.Message) (prevExisted bool, err error) {
 	return false, nil
 }
 
-func (ce *changeEventMock) GetRevision() int64 {
+func (pw *protoWatchRespMock) GetRevision() int64 {
 	return 0
 }
 
-func (ce *changeEventMock) GetChangeType() datasync.Op {
-	return ce.changeType
+func (pw *protoWatchRespMock) GetChangeType() datasync.Op {
+	return pw.changeType
 }

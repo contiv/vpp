@@ -50,9 +50,11 @@ func (pc *PolicyCache) Init() error {
 // notified.
 // The function will forward any error returned by a watcher.
 func (pc *PolicyCache) Update(dataChngEv datasync.ChangeEvent) error {
-	err := pc.changePropagateEvent(dataChngEv)
-	if err != nil {
-		return err
+	for _, dataChng := range dataChngEv.GetChanges() {
+		err := pc.changePropagateEvent(dataChng)
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil

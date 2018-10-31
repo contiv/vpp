@@ -195,7 +195,7 @@ type remoteCNIserver struct {
 	nodeIDResyncRev int64
 
 	// nodeIDChangeEvs is buffer where change events are stored until resync event is processed
-	nodeIDChangeEvs []datasync.ChangeEvent
+	nodeIDChangeEvs []datasync.ProtoWatchResp
 
 	http rest.HTTPHandlers
 }

@@ -442,10 +442,12 @@ func (ctc *ContivTelemetryCache) processQueuedDataStoreUpdates() {
 		case datasync.ChangeEvent:
 			ctc.nUpdates++
 			dataChngEv := data.(datasync.ChangeEvent)
-			if err := ctc.update(dataChngEv); err != nil {
-				ctc.Log.Errorf("data update error, %s", err.Error())
-				ctc.Synced = false
-				// TODO: initiate resync at this point
+			for _, dataChng := range dataChngEv.GetChanges() {
+				if err := ctc.update(dataChng); err != nil {
+					ctc.Log.Errorf("data update error, %s", err.Error())
+					ctc.Synced = false
+					// TODO: initiate resync at this point
+				}
 			}
 
 		default:

@@ -1,0 +1,13 @@
+{
+  "name": "${name}",
+  "type": 1,
+  "enabled": ${enabled},
+  "phys_address": "${mac}",
+  "veth": {
+    "peer_if_name": "${peer}"
+  },
+  "namespace": {
+      "microservice": "${namespace}",
+      "type": 4
+  }
+}

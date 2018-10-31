@@ -256,7 +256,7 @@ func TestConfigureVswitchDHCP(t *testing.T) {
 	err := server.resync()
 	gomega.Expect(err).To(gomega.BeNil())
 
-	gomega.Expect(len(txns.CommittedTxns)).To(gomega.BeEquivalentTo(4))
+	gomega.Expect(len(txns.CommittedTxns)).To(gomega.BeEquivalentTo(5))
 	// TODO add asserts for txns(one linux plugin txn and one default plugins txn) / currently applied config
 
 	// node IP is empty since DHCP reply have not been received
@@ -265,7 +265,7 @@ func TestConfigureVswitchDHCP(t *testing.T) {
 	gomega.Expect(server.GetHostInterconnectIfName()).ToNot(gomega.BeEmpty())
 
 	server.close()
-	gomega.Expect(len(txns.CommittedTxns)).To(gomega.BeEquivalentTo(5))
+	gomega.Expect(len(txns.CommittedTxns)).To(gomega.BeEquivalentTo(6))
 }
 
 func TestAddDelTap(t *testing.T) {
@@ -309,7 +309,7 @@ func TestConfigureVswitchVeth(t *testing.T) {
 	err := server.resync()
 	gomega.Expect(err).To(gomega.BeNil())
 
-	gomega.Expect(len(txns.CommittedTxns)).To(gomega.BeEquivalentTo(5))
+	gomega.Expect(len(txns.CommittedTxns)).To(gomega.BeEquivalentTo(6))
 	// TODO add asserts for txns(one linux plugin txn and one default plugins txn) / currently applied config
 
 	// check physical interface name
@@ -331,7 +331,7 @@ func TestConfigureVswitchVeth(t *testing.T) {
 	gomega.Expect(server.GetOtherPhysicalIfNames()).To(gomega.Equal([]string{"GigabitEthernet0/0/0/10"}))
 
 	server.close()
-	gomega.Expect(len(txns.CommittedTxns)).To(gomega.BeEquivalentTo(6))
+	gomega.Expect(len(txns.CommittedTxns)).To(gomega.BeEquivalentTo(7))
 }
 
 func TestConfigureVswitchTap(t *testing.T) {
@@ -344,7 +344,7 @@ func TestConfigureVswitchTap(t *testing.T) {
 	err := server.resync()
 	gomega.Expect(err).To(gomega.BeNil())
 
-	gomega.Expect(len(txns.CommittedTxns)).To(gomega.BeEquivalentTo(4))
+	gomega.Expect(len(txns.CommittedTxns)).To(gomega.BeEquivalentTo(5))
 	// TODO add asserts for txns(one linux plugin txn and one default plugins txn) / currently applied config
 
 	// node IP must not be empty
@@ -357,7 +357,7 @@ func TestConfigureVswitchTap(t *testing.T) {
 	gomega.Expect(server.GetVxlanBVIIfName()).ToNot(gomega.BeEmpty())
 
 	server.close()
-	gomega.Expect(len(txns.CommittedTxns)).To(gomega.BeEquivalentTo(5))
+	gomega.Expect(len(txns.CommittedTxns)).To(gomega.BeEquivalentTo(6))
 }
 
 func TestNodeAddDelL2(t *testing.T) {

@@ -99,7 +99,7 @@ func (sp *ServiceProcessor) Update(dataChngEv datasync.ChangeEvent) error {
 	defer sp.Unlock()
 
 	for _, dataChng := range dataChngEv.GetChanges() {
-		err := sp.propagateDataChangeEv(dataChngEv)
+		err := sp.propagateDataChangeEv(dataChng)
 		if err != nil {
 			return err
 		}

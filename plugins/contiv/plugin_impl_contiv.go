@@ -402,7 +402,7 @@ func (plugin *Plugin) GetPodVrfID() uint32 {
 }
 
 // handleResync handles resync events of the plugin. Called automatically by the plugin infra.
-func (plugin *Plugin) handleResync(resyncChan chan resync.StatusEvent) {
+func (plugin *Plugin) handleResync(resyncChan <-chan resync.StatusEvent) {
 	for {
 		select {
 		case ev := <-resyncChan:
@@ -486,11 +486,16 @@ func (plugin *Plugin) watchEvents() {
 			}
 		case changeEv := <-plugin.changeCh:
 			var err error
-			key := changeEv.GetKey()
-			if strings.HasPrefix(key, protoNode.KeyPrefix()) {
-				err = plugin.handleKsrNodeChange(changeEv)
-			} else {
-				plugin.Log.Warn("Change for unknown key %v received", key)
+			for _, dataChng := range changeEv.GetChanges() {
+				key := dataChng.GetKey()
+				if strings.HasPrefix(key, protoNode.KeyPrefix()) {
+					chngErr := plugin.handleKsrNodeChange(dataChng)
+					if chngErr != nil {
+						err = chngErr
+					}
+				} else {
+					plugin.Log.Warn("Change for unknown key %v received", key)
+				}
 			}
 			changeEv.Done(err)
 		case resyncEv := <-plugin.resyncCh:
@@ -512,7 +517,7 @@ func (plugin *Plugin) watchEvents() {
 // is stored by ksr. The aim is to extract node Internal IP - ip address
 // that k8s use to access node(management IP). This IP is used as an endpoint
 // for services where backends use host networking.
-func (plugin *Plugin) handleKsrNodeChange(change datasync.ChangeEvent) error {
+func (plugin *Plugin) handleKsrNodeChange(change datasync.ProtoWatchResp) error {
 	var err error
 	// look for our InternalIP skip the others
 	if change.GetKey() != protoNode.Key(plugin.ServiceLabel.GetAgentLabel()) {

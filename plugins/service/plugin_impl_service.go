@@ -195,7 +195,7 @@ func (p *Plugin) watchEvents() {
 	}
 }
 
-func (p *Plugin) handleResync(resyncChan chan resync.StatusEvent) {
+func (p *Plugin) handleResync(resyncChan <-chan resync.StatusEvent) {
 	// block until NodeIP is set
 	nodeIPWatcher := make(chan string, 1)
 	p.Contiv.WatchNodeIP(nodeIPWatcher)

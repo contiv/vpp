@@ -170,7 +170,7 @@ func (p *Plugin) processPodEvent(event containeridx.ChangeEvent) {
 // AfterInit subscribes for monitoring of changes in ContainerIndex
 func (p *Plugin) AfterInit() error {
 	// watch containerIDX and remove gauges of pods that have been deleted
-	return p.Contiv.GetContainerIndex().Watch(p.PluginName, func(event containeridx.ChangeEvent) {
+	return p.Contiv.GetContainerIndex().Watch(string(p.PluginName), func(event containeridx.ChangeEvent) {
 		p.processPodEvent(event)
 	})
 

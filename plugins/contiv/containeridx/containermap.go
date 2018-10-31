@@ -24,7 +24,6 @@ import (
 	"github.com/ligato/cn-infra/db/keyval"
 	"github.com/ligato/cn-infra/idxmap"
 	"github.com/ligato/cn-infra/idxmap/mem"
-	"github.com/ligato/cn-infra/infra"
 	"github.com/ligato/cn-infra/logging"
 )
 
@@ -54,7 +53,7 @@ type Reader interface {
 	ListAll() (containerIDs []string)
 
 	// Watch subscribe to monitor changes in ConfigIndex
-	Watch(subscriber infra.PluginName, callback func(ChangeEvent)) error
+	Watch(subscriber string, callback func(ChangeEvent)) error
 }
 
 // ChangeEvent represents a notification about change in ConfigIndex delivered to subscribers
@@ -146,7 +145,7 @@ func (ci *ConfigIndex) ListAll() (containerIDs []string) {
 }
 
 // Watch subscribe to monitor changes in ConfigIndex
-func (ci *ConfigIndex) Watch(subscriber infra.PluginName, callback func(ChangeEvent)) error {
+func (ci *ConfigIndex) Watch(subscriber string, callback func(ChangeEvent)) error {
 	return ci.mapping.Watch(subscriber, func(ev idxmap.NamedMappingGenericEvent) {
 		if cfg, ok := ev.Value.(*container.Persisted); ok {
 			callback(ChangeEvent{NamedMappingEvent: ev.NamedMappingEvent, Value: cfg})

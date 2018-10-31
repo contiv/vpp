@@ -190,9 +190,10 @@ generate: get-generators
 	@echo "# generating sources"
 	cd plugins/contiv && go generate
 	cd plugins/contiv/containeridx && go generate
+	cd plugins/contiv/ipam && go generate
 	cd plugins/ksr && go generate
 	cd cmd/contiv-stn && go generate
-	cd cmd/contiv-crd/handler/nodeconfig && go generate
+	cd plugins/crd/handler/nodeconfig && go generate
 
 # Get linter tools
 get-linters:

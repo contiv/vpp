@@ -233,7 +233,7 @@ func (p *Plugin) watchEvents() {
 	}
 }
 
-func (p *Plugin) handleResync(resyncChan chan resync.StatusEvent) {
+func (p *Plugin) handleResync(resyncChan <-chan resync.StatusEvent) {
 
 	for {
 		select {

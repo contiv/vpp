@@ -28,31 +28,32 @@ import (
 type MockContiv struct {
 	sync.Mutex
 
-	podIf                      map[podmodel.ID]string
-	podSubnet                  *net.IPNet
-	podNetwork                 *net.IPNet
-	hostIPs                    []net.IP
-	mainVrfId                  uint32
-	podVrfId                   uint32
-	tcpStackDisabled           bool
-	stnMode                    bool
-	natExternalTraffic         bool
-	cleanupIdleNATSessions     bool
-	tcpNATSessionTimeout       uint32
-	otherNATSessionTimeout     uint32
-	serviceLocalEndpointWeight uint8
-	natLoopbackIP              net.IP
-	nodeIP                     string
-	nodeIPsubs                 []chan string
-	podPreRemovalHooks         []contiv.PodActionHook
-	podPostAddHooks            []contiv.PodActionHook
-	mainPhysIf                 string
-	otherPhysIfs               []string
-	hostInterconnect           string
-	vxlanBVIIfName             string
-	defaultIfName              string
-	defaultIfIP                net.IP
-	containerIndex             *containeridx.ConfigIndex
+	podIf                       map[podmodel.ID]string
+	podSubnet                   *net.IPNet
+	podNetwork                  *net.IPNet
+	hostIPs                     []net.IP
+	mainVrfId                   uint32
+	podVrfId                    uint32
+	tcpStackDisabled            bool
+	stnMode                     bool
+	natExternalTraffic          bool
+	cleanupIdleNATSessions      bool
+	tcpNATSessionTimeout        uint32
+	otherNATSessionTimeout      uint32
+	disableNATVirtualReassembly bool
+	serviceLocalEndpointWeight  uint8
+	natLoopbackIP               net.IP
+	nodeIP                      string
+	nodeIPsubs                  []chan string
+	podPreRemovalHooks          []contiv.PodActionHook
+	podPostAddHooks             []contiv.PodActionHook
+	mainPhysIf                  string
+	otherPhysIfs                []string
+	hostInterconnect            string
+	vxlanBVIIfName              string
+	defaultIfName               string
+	defaultIfIP                 net.IP
+	containerIndex              *containeridx.ConfigIndex
 }
 
 // NewMockContiv is a constructor for MockContiv.
@@ -147,6 +148,12 @@ func (mc *MockContiv) SetNatExternalTraffic(natExternalTraffic bool) {
 // of locally deployed service endpoints is.
 func (mc *MockContiv) SetServiceLocalEndpointWeight(weight uint8) {
 	mc.serviceLocalEndpointWeight = weight
+}
+
+// SetNATVirtualReassembly allows to set flag denoting if the NAT Virtual reassembly
+// is disabled or not.
+func (mc *MockContiv) SetNATVirtualReassembly(disable bool) {
+	mc.disableNATVirtualReassembly = disable
 }
 
 // SetNatLoopbackIP allows to set what tests will assume the NAT loopback IP is.
@@ -296,6 +303,11 @@ func (mc *MockContiv) GetTCPNATSessionTimeout() uint32 {
 // GetOtherNATSessionTimeout returns NAT session timeout (in minutes) for non-TCP connections, used in case that CleanupIdleNATSessions is turned on.
 func (mc *MockContiv) GetOtherNATSessionTimeout() uint32 {
 	return mc.otherNATSessionTimeout
+}
+
+// DisableNATVirtualReassembly returns true if fragmented packets should be dropped by NAT.
+func (mc *MockContiv) DisableNATVirtualReassembly() bool {
+	return mc.disableNATVirtualReassembly
 }
 
 // GetPodSubnet provides subnet used for allocating pod IP addresses across all nodes.

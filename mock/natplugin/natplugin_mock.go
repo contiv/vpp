@@ -29,8 +29,8 @@ import (
 	"github.com/contiv/vpp/mock/localclient"
 
 	"github.com/contiv/vpp/plugins/service/renderer"
-	"github.com/ligato/vpp-agent/plugins/vppv2/model/nat"
 	"github.com/gogo/protobuf/proto"
+	"github.com/ligato/vpp-agent/plugins/vppv2/model/nat"
 )
 
 // MockNatPlugin simulates the VPP/NAT plugin.

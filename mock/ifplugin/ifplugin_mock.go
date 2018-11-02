@@ -14,10 +14,9 @@
 
 package pluginvpp
 
-import
-(
-	"github.com/ligato/cn-infra/logging/logrus"
+import (
 	"github.com/ligato/cn-infra/idxmap"
+	"github.com/ligato/cn-infra/logging/logrus"
 	"github.com/ligato/vpp-agent/plugins/vppv2/ifplugin/ifaceidx"
 )
 
@@ -29,14 +28,14 @@ type MockVppIfPlugin struct {
 // NewMockVppPlugin is a constructor for MockVppPlugin.
 func NewMockVppPlugin() *MockVppIfPlugin {
 	return &MockVppIfPlugin{
-		swIfIndexes: ifaceidx.NewIfaceIndex(logrus.DefaultLogger(),"sw_if_indexes"),
+		swIfIndexes: ifaceidx.NewIfaceIndex(logrus.DefaultLogger(), "sw_if_indexes"),
 	}
 }
 
 // AddInterface adds interface into the map of interfaces (returned by GetSwIfIndexes()).
 func (mvp *MockVppIfPlugin) AddInterface(ifName string, swIfIndex uint32, ip string) {
 	mvp.swIfIndexes.Put(ifName, ifaceidx.IfaceMetadata{
-		SwIfIndex: swIfIndex,
+		SwIfIndex:   swIfIndex,
 		IPAddresses: []string{ip},
 	})
 }

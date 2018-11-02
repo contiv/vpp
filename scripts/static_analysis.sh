@@ -12,10 +12,11 @@ function static_analysis() {
 
   local CMD=$(${TOOL} "${PWD}/cmd${SELECTOR}")
   local PLUGINS=$(${TOOL} "${PWD}/plugins${SELECTOR}")
+  local MOCK=$(${TOOL} "${PWD}/mock${SELECTOR}")
 
   local ALL="$CMD
 $PLUGINS
-$FLAVORS
+$MOCK
 $PKG
 "
 

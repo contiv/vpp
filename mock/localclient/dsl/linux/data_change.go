@@ -7,14 +7,14 @@ import (
 	"github.com/contiv/vpp/mock/localclient/dsl"
 	linux_intf "github.com/ligato/vpp-agent/plugins/linuxv2/model/interfaces"
 	linux_l3 "github.com/ligato/vpp-agent/plugins/linuxv2/model/l3"
-	vpp_acl "github.com/ligato/vpp-agent/plugins/vppv2/model/acl"
 	vpp_bfd "github.com/ligato/vpp-agent/plugins/vpp/model/bfd"
+	vpp_l4 "github.com/ligato/vpp-agent/plugins/vpp/model/l4"
+	vpp_stn "github.com/ligato/vpp-agent/plugins/vpp/model/stn"
+	vpp_acl "github.com/ligato/vpp-agent/plugins/vppv2/model/acl"
 	vpp_intf "github.com/ligato/vpp-agent/plugins/vppv2/model/interfaces"
 	vpp_l2 "github.com/ligato/vpp-agent/plugins/vppv2/model/l2"
 	vpp_l3 "github.com/ligato/vpp-agent/plugins/vppv2/model/l3"
-	vpp_l4 "github.com/ligato/vpp-agent/plugins/vpp/model/l4"
 	vpp_nat "github.com/ligato/vpp-agent/plugins/vppv2/model/nat"
-	vpp_stn "github.com/ligato/vpp-agent/plugins/vpp/model/stn"
 )
 
 // MockDataChangeDSL is mock for DataChangeDSL.

@@ -40,7 +40,7 @@ const (
 	verifyPodRetries    = 100                   // number of retries for verifying POD connectivity
 	verifyPodRetrySleep = 30 * time.Millisecond // sleep between attempts to verify POD connectivity
 
-	ipv4AddrAny = "0.0.0.0"
+	ipv4NetAny = "0.0.0.0/0"
 )
 
 // PodConfig groups applied configuration for a container
@@ -368,7 +368,7 @@ func (s *remoteCNIserver) podLinkRouteFromRequest(request *cni.CNIRequest, ifNam
 func (s *remoteCNIserver) podDefaultRouteFromRequest(request *cni.CNIRequest, ifName string) *linux_l3.LinuxStaticRoute {
 	return &linux_l3.LinuxStaticRoute{
 		OutgoingInterface: ifName,
-		DstNetwork:        ipv4AddrAny,
+		DstNetwork:        ipv4NetAny,
 		Scope:             linux_l3.LinuxStaticRoute_GLOBAL,
 		GwAddr:            s.ipam.PodGatewayIP().String(),
 	}

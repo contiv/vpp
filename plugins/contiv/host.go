@@ -67,7 +67,7 @@ func (s *remoteCNIserver) routeServicesFromHost(nextHopIP string) *linux_l3.Linu
 
 func (s *remoteCNIserver) defaultRoute(gwIP string, outIfName string) *vpp_l3.StaticRoute {
 	route := &vpp_l3.StaticRoute{
-		DstNetwork:        ipv4AddrAny,
+		DstNetwork:        ipv4NetAny,
 		NextHopAddr:       gwIP,
 		OutgoingInterface: outIfName,
 		VrfId:             s.GetMainVrfID(),
@@ -78,7 +78,7 @@ func (s *remoteCNIserver) defaultRoute(gwIP string, outIfName string) *vpp_l3.St
 func (s *remoteCNIserver) routesPodToMainVRF() (*vpp_l3.StaticRoute, *vpp_l3.StaticRoute) {
 	r1 := &vpp_l3.StaticRoute{
 		Type:       vpp_l3.StaticRoute_INTER_VRF,
-		DstNetwork: ipv4AddrAny,
+		DstNetwork: ipv4NetAny,
 		VrfId:      s.GetPodVrfID(),
 		ViaVrfId:   s.GetMainVrfID(),
 	}

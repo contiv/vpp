@@ -1355,7 +1355,7 @@ func (s *remoteCNIserver) deletePersistedPodConfig(config *container.Persisted) 
 	var removedKeys []string
 
 	removedKeys = append(removedKeys, linux_l3.StaticRouteKey(config.PodLinkRouteDest, config.PodLinkRouteInterface),
-		linux_l3.StaticRouteKey(ipv4AddrAny, config.PodDefaultRouteInterface),
+		linux_l3.StaticRouteKey(ipv4NetAny, config.PodDefaultRouteInterface),
 		linux_l3.StaticArpKey(config.PodARPEntryInterface, config.PodARPEntryIP))
 
 	// VPP-side configuration

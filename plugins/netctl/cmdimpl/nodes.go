@@ -17,22 +17,25 @@
 package cmdimpl
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"github.com/contiv/vpp/plugins/netctl/remote"
+	"github.com/ligato/cn-infra/db/keyval/etcd"
+	"io/ioutil"
 	"sort"
 
 	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
-	"github.com/contiv/vpp/plugins/netctl/http"
 	"os"
 	"strings"
 	"text/tabwriter"
 	"time"
 )
 
-//PrintNodes will print out all of the cmdimpl in a network in a table format.
-func PrintNodes() {
+// PrintNodes will print out all of the cmdimpl in a network in a table format.
+func PrintNodes(client *remote.HTTPClient, db *etcd.BytesConnectionEtcd) {
 	nodes := make([]string, 0)
-	for k := range getClusterNodeInfo() {
+	for k := range getClusterNodeInfo(db) {
 		nodes = append(nodes, k)
 	}
 	sort.Strings(nodes)
@@ -43,7 +46,7 @@ func PrintNodes() {
 	for _, n := range nodes {
 		nodeInfo := nodeInfo[n]
 		// Get liveness data which contains image version / build date
-		bytes, err := http.GetNodeInfo(nodeInfo.ManagementIpAddress, "liveness")
+		bytes, err := getNodeInfo(client, nodeInfo.ManagementIpAddress, "liveness")
 		if err != nil {
 			fmt.Printf("Could not get liveness data for node '%s'\n", nodeInfo.Name)
 			return
@@ -74,4 +77,44 @@ func PrintNodes() {
 	}
 
 	w.Flush()
+}
+
+// getNodeInfo will make an http request for the given command and return an indented slice of bytes.
+func getNodeInfo(client *remote.HTTPClient, base string, cmd string) ([]byte, error) {
+	res, err := client.Get(base, cmd)
+	if err != nil {
+		err := fmt.Errorf("getNodeInfo: url: %s Get Error: %s", cmd, err.Error())
+		fmt.Printf("http get error: %s ", err.Error())
+		return nil, err
+	} else if res.StatusCode < 200 || res.StatusCode > 299 {
+		err := fmt.Errorf("getNodeInfo: url: %s HTTP res.Status: %s", cmd, res.Status)
+		fmt.Printf("http get error: %s ", err.Error())
+		return nil, err
+	}
+
+	b, err := ioutil.ReadAll(res.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	var out bytes.Buffer
+	err = json.Indent(&out, b, "", "  ")
+	return out.Bytes(), err
+}
+
+// setNodeInfo will make an http json post request to get the vpp cli command output
+func setNodeInfo(client *remote.HTTPClient, base string, cmd string, body string) error {
+	res, err := client.Post(base, cmd, body)
+	if err != nil {
+		err := fmt.Errorf("setNodeInfo: url: %s Get Error: %s", cmd, err.Error())
+		return err
+	} else if res.StatusCode < 200 || res.StatusCode > 299 {
+		err := fmt.Errorf("setNodeInfo: url: %s HTTP res.Status: %s", cmd, res.Status)
+		return err
+	}
+
+	b, _ := ioutil.ReadAll(res.Body)
+	fmt.Println(string(b))
+	return nil
+
 }

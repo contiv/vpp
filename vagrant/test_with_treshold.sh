@@ -79,7 +79,7 @@ do
     cmd "free -m"
     cmd "df -h"
     cmd "ps aux --sort -rss | head -10"
-    cmd '''lsof | awk '{ print \$2 " " \$1; }' | uniq -c | sort -rn | head -20'''
+    cmd "lsof | awk \'{ print \$2 \" \" \$1; }\' | uniq -c | sort -rn | head -20"
     cmd date
     echo ""
     status=`cat pytest_output_n$c | grep ==== | grep second | grep failed | cut -d " " -f 2`

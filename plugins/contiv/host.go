@@ -15,13 +15,13 @@
 package contiv
 
 import (
+	"encoding/binary"
 	"fmt"
+	"git.fd.io/govpp.git/api"
+	"github.com/vishvananda/netlink"
 	"net"
 	"strconv"
 	"strings"
-	"encoding/binary"
-	"git.fd.io/govpp.git/api"
-	"github.com/vishvananda/netlink"
 
 	linux_intf "github.com/ligato/vpp-agent/plugins/linuxv2/model/interfaces"
 	linux_l3 "github.com/ligato/vpp-agent/plugins/linuxv2/model/l3"
@@ -67,7 +67,7 @@ func (s *remoteCNIserver) routeServicesFromHost(nextHopIP string) *linux_l3.Linu
 
 func (s *remoteCNIserver) defaultRoute(gwIP string, outIfName string) *vpp_l3.StaticRoute {
 	route := &vpp_l3.StaticRoute{
-		DstNetwork:       "0.0.0.0/0",
+		DstNetwork:        ipv4AddrAny,
 		NextHopAddr:       gwIP,
 		OutgoingInterface: outIfName,
 		VrfId:             s.GetMainVrfID(),
@@ -78,7 +78,7 @@ func (s *remoteCNIserver) defaultRoute(gwIP string, outIfName string) *vpp_l3.St
 func (s *remoteCNIserver) routesPodToMainVRF() (*vpp_l3.StaticRoute, *vpp_l3.StaticRoute) {
 	r1 := &vpp_l3.StaticRoute{
 		Type:       vpp_l3.StaticRoute_INTER_VRF,
-		DstNetwork: "0.0.0.0/0",
+		DstNetwork: ipv4AddrAny,
 		VrfId:      s.GetPodVrfID(),
 		ViaVrfId:   s.GetMainVrfID(),
 	}
@@ -218,9 +218,9 @@ func (s *remoteCNIserver) interconnectAfpacket() *vpp_intf.Interface {
 				HostIfName: vethVPPEndName,
 			},
 		},
-		Mtu:     s.config.MTUSize,
-		Enabled: true,
-		Vrf:     s.GetMainVrfID(),
+		Mtu:         s.config.MTUSize,
+		Enabled:     true,
+		Vrf:         s.GetMainVrfID(),
 		IpAddresses: []string{s.ipam.VEthVPPEndIP().String() + "/" + strconv.Itoa(size)},
 	}
 }
@@ -286,7 +286,7 @@ func (s *remoteCNIserver) vxlanBridgeDomain(bviInterface string) *vpp_l2.BridgeD
 		UnknownUnicastFlood: false,
 		Interfaces: []*vpp_l2.BridgeDomain_Interface{
 			{
-				Name: bviInterface,
+				Name:                    bviInterface,
 				BridgedVirtualInterface: true,
 				SplitHorizonGroup:       vxlanSplitHorizonGroup,
 			},
@@ -383,8 +383,8 @@ func (s *remoteCNIserver) routeToOtherHostNetworks(destNetwork *net.IPNet, nextH
 
 func (s *remoteCNIserver) computeVxlanToHost(hostID uint32, hostIP string) (*vpp_intf.Interface, error) {
 	return &vpp_intf.Interface{
-		Name:    fmt.Sprintf("vxlan%d", hostID),
-		Type:    vpp_intf.Interface_VXLAN_TUNNEL,
+		Name: fmt.Sprintf("vxlan%d", hostID),
+		Type: vpp_intf.Interface_VXLAN_TUNNEL,
 		Link: &vpp_intf.Interface_Vxlan{
 			Vxlan: &vpp_intf.Interface_VxlanLink{
 				SrcAddress: s.ipPrefixToAddress(s.nodeIP),
@@ -467,7 +467,6 @@ func (s *remoteCNIserver) getHostLinkIPs() ([]net.IP, error) {
 	}
 	return s.hostIPs, nil
 }
-
 
 func (s *remoteCNIserver) enableIPNeighborScan() error {
 	s.Logger.Info("Enabling IP neighbor scanning")

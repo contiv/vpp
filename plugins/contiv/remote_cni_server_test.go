@@ -19,12 +19,12 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
-	"testing"
 	"sync"
+	"testing"
 	"time"
 
-	"github.com/onsi/gomega"
 	"github.com/gogo/protobuf/proto"
+	"github.com/onsi/gomega"
 
 	"git.fd.io/govpp.git/adapter/mock"
 	govppmock "git.fd.io/govpp.git/adapter/mock"
@@ -33,11 +33,11 @@ import (
 	"git.fd.io/govpp.git/codec"
 	govpp "git.fd.io/govpp.git/core"
 
-	"github.com/ligato/cn-infra/logging/logrus"
-	"github.com/ligato/cn-infra/idxmap"
-	idxmap_mem "github.com/ligato/cn-infra/idxmap/mem"
 	"github.com/ligato/cn-infra/datasync"
 	"github.com/ligato/cn-infra/datasync/syncbase"
+	"github.com/ligato/cn-infra/idxmap"
+	idxmap_mem "github.com/ligato/cn-infra/idxmap/mem"
+	"github.com/ligato/cn-infra/logging/logrus"
 
 	interfaces_bin "github.com/ligato/vpp-agent/plugins/vpp/binapi/interfaces"
 	"github.com/ligato/vpp-agent/plugins/vppv2/ifplugin/ifaceidx"
@@ -46,11 +46,11 @@ import (
 
 	"github.com/contiv/vpp/mock/localclient"
 	"github.com/contiv/vpp/plugins/contiv/containeridx"
+	"github.com/contiv/vpp/plugins/contiv/ipam"
 	"github.com/contiv/vpp/plugins/contiv/model/cni"
 	"github.com/contiv/vpp/plugins/contiv/model/node"
 	nodeconfig "github.com/contiv/vpp/plugins/crd/pkg/apis/nodeconfig/v1"
 	"github.com/contiv/vpp/plugins/kvdbproxy"
-	"github.com/contiv/vpp/plugins/contiv/ipam"
 	"github.com/go-errors/errors"
 )
 
@@ -158,7 +158,7 @@ func setupTestCNIServer(config *Config, nodeConfig *NodeConfig, existingInterfac
 	swIfIdx := swIfIndexMock()
 	// add existing interfaces into swIfIndex
 	for i, intf := range existingInterfaces {
-		swIfIdx.Put(intf, ifaceidx.IfaceMetadata{SwIfIndex: uint32(i+1)})
+		swIfIdx.Put(intf, ifaceidx.IfaceMetadata{SwIfIndex: uint32(i + 1)})
 	}
 
 	txns := localclient.NewTxnTracker(addIfsIntoTheIndex(swIfIdx))

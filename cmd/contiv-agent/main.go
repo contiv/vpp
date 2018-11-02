@@ -34,14 +34,14 @@ import (
 	"github.com/ligato/cn-infra/servicelabel"
 
 	"github.com/ligato/vpp-agent/plugins/govppmux"
-	"github.com/ligato/vpp-agent/plugins/telemetry"
 	"github.com/ligato/vpp-agent/plugins/kvscheduler"
 	linux_ifplugin "github.com/ligato/vpp-agent/plugins/linuxv2/ifplugin"
 	linux_l3plugin "github.com/ligato/vpp-agent/plugins/linuxv2/l3plugin"
-	vpp_ifplugin "github.com/ligato/vpp-agent/plugins/vppv2/ifplugin"
-	vpp_natplugin "github.com/ligato/vpp-agent/plugins/vppv2/natplugin"
+	"github.com/ligato/vpp-agent/plugins/telemetry"
 	vpp_aclplugin "github.com/ligato/vpp-agent/plugins/vppv2/aclplugin"
+	vpp_ifplugin "github.com/ligato/vpp-agent/plugins/vppv2/ifplugin"
 	vpp_l3plugin "github.com/ligato/vpp-agent/plugins/vppv2/l3plugin"
+	vpp_natplugin "github.com/ligato/vpp-agent/plugins/vppv2/natplugin"
 
 	"github.com/contiv/vpp/plugins/contiv"
 	"github.com/contiv/vpp/plugins/ksr"
@@ -55,34 +55,34 @@ const defaultStartupTimeout = 45 * time.Second
 
 // ContivAgent manages vswitch in contiv/vpp solution
 type ContivAgent struct {
-	LogManager      *logmanager.Plugin
-	HTTP            *rest.Plugin
-	HealthProbe     *probe.Plugin
-	Prometheus      *prometheus.Plugin
+	LogManager  *logmanager.Plugin
+	HTTP        *rest.Plugin
+	HealthProbe *probe.Plugin
+	Prometheus  *prometheus.Plugin
 
 	ETCDDataSync    *kvdbsync.Plugin
 	NodeIDDataSync  *kvdbsync.Plugin
 	ServiceDataSync *kvdbsync.Plugin
 	PolicyDataSync  *kvdbsync.Plugin
 
-	KVScheduler     *kvscheduler.Scheduler
-	KVProxy         *kvdbproxy.Plugin
-	Stats           *statscollector.Plugin
+	KVScheduler *kvscheduler.Scheduler
+	KVProxy     *kvdbproxy.Plugin
+	Stats       *statscollector.Plugin
 
-	GoVPP            *govppmux.Plugin
-	LinuxIfPlugin    *linux_ifplugin.IfPlugin
-	LinuxL3Plugin    *linux_l3plugin.L3Plugin
-	VPPIfPlugin      *vpp_ifplugin.IfPlugin
-	VPPL3Plugin      *vpp_l3plugin.L3Plugin
-	VPPNATPlugin     *vpp_natplugin.NATPlugin
-	VPPACLPlugin     *vpp_aclplugin.ACLPlugin
+	GoVPP         *govppmux.Plugin
+	LinuxIfPlugin *linux_ifplugin.IfPlugin
+	LinuxL3Plugin *linux_l3plugin.L3Plugin
+	VPPIfPlugin   *vpp_ifplugin.IfPlugin
+	VPPL3Plugin   *vpp_l3plugin.L3Plugin
+	VPPNATPlugin  *vpp_natplugin.NATPlugin
+	VPPACLPlugin  *vpp_aclplugin.ACLPlugin
 
-	Telemetry        *telemetry.Plugin
-	GRPC             *grpc.Plugin
+	Telemetry *telemetry.Plugin
+	GRPC      *grpc.Plugin
 
-	Contiv           *contiv.Plugin
-	Policy           *policy.Plugin
-	Service          *service.Plugin
+	Contiv  *contiv.Plugin
+	Policy  *policy.Plugin
+	Service *service.Plugin
 }
 
 func (c *ContivAgent) String() string {

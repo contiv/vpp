@@ -508,7 +508,7 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 			Contiv:        contiv,
 			NATTxnFactory: txnTracker.NewLinuxDataChangeTxn,
 			// TODO: resync txn factory
-			LatestRevs:    txnTracker.LatestRevisions,
+			LatestRevs: txnTracker.LatestRevisions,
 		},
 	}
 

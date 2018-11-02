@@ -21,15 +21,15 @@ import (
 	"sync"
 	"time"
 
-	"golang.org/x/net/context"
-	"google.golang.org/grpc"
 	"git.fd.io/govpp.git/api"
 	"github.com/apparentlymart/go-cidr/cidr"
 	"github.com/gogo/protobuf/proto"
+	"golang.org/x/net/context"
+	"google.golang.org/grpc"
 
-	"github.com/ligato/cn-infra/idxmap"
 	"github.com/ligato/cn-infra/datasync"
 	"github.com/ligato/cn-infra/db/keyval"
+	"github.com/ligato/cn-infra/idxmap"
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/rpc/rest"
 
@@ -242,12 +242,12 @@ func newRemoteCNIServer(logger logging.Logger, vppTxnFactory func() linuxclient.
 		nodeConfig:           nodeConfig,
 		config:               config,
 		http:                 http,
-		useTAPInterfaces:           config.UseTAPInterfaces,
-		tapVersion:                 config.TAPInterfaceVersion,
-		tapV2RxRingSize:            config.TAPv2RxRingSize,
-		tapV2TxRingSize:            config.TAPv2TxRingSize,
-		useL2Interconnect:          config.UseL2Interconnect,
-		configuredInThisRun:        map[string]bool{},
+		useTAPInterfaces:     config.UseTAPInterfaces,
+		tapVersion:           config.TAPInterfaceVersion,
+		tapV2RxRingSize:      config.TAPv2RxRingSize,
+		tapV2TxRingSize:      config.TAPv2TxRingSize,
+		useL2Interconnect:    config.UseL2Interconnect,
+		configuredInThisRun:  map[string]bool{},
 	}
 	server.vswitchCond = sync.NewCond(&server.Mutex)
 	server.ctx, server.ctxCancelFunc = context.WithCancel(context.Background())
@@ -637,7 +637,6 @@ func (s *remoteCNIserver) handleDHCPNotification(notif idxmap.NamedMappingGeneri
 		s.Logger.Warn("received invalid DHCP notification")
 		return
 	}
-
 
 	if dhcpLease.InterfaceName != s.mainPhysicalIf {
 		s.Logger.Warn("DHCP notification for a non-main interface")

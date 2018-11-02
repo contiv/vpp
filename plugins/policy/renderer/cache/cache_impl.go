@@ -34,8 +34,8 @@ type RendererCache struct {
 	orientation Orientation
 
 	// tables
-	localTables       *LocalTables
-	globalTable       *ContivRuleTable
+	localTables *LocalTables
+	globalTable *ContivRuleTable
 
 	// last received pod configuration
 	config Config

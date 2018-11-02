@@ -30,8 +30,8 @@ import (
 	"github.com/contiv/vpp/plugins/contiv/containeridx/model"
 	"github.com/contiv/vpp/plugins/contiv/model/cni"
 	linux_intf "github.com/ligato/vpp-agent/plugins/linuxv2/model/interfaces"
-	linux_ns "github.com/ligato/vpp-agent/plugins/linuxv2/model/namespace"
 	linux_l3 "github.com/ligato/vpp-agent/plugins/linuxv2/model/l3"
+	linux_ns "github.com/ligato/vpp-agent/plugins/linuxv2/model/namespace"
 	vpp_intf "github.com/ligato/vpp-agent/plugins/vppv2/model/interfaces"
 	vpp_l3 "github.com/ligato/vpp-agent/plugins/vppv2/model/l3"
 )

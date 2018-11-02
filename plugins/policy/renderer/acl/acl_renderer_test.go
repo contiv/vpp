@@ -549,7 +549,7 @@ func TestCombinedRulesWithResync(t *testing.T) {
 			Contiv:        contiv,
 			ACLTxnFactory: txnTracker.NewLinuxDataChangeTxn,
 			// TODO: resync txn factory
-			LatestRevs:    txnTracker.LatestRevisions,
+			LatestRevs: txnTracker.LatestRevisions,
 		},
 	}
 	aclRenderer.Init()
@@ -727,7 +727,7 @@ func TestCombinedRulesWithResyncAndRemovedPod(t *testing.T) {
 			Contiv:        contiv,
 			ACLTxnFactory: txnTracker.NewLinuxDataChangeTxn,
 			// TODO: resync txn factory
-			LatestRevs:    txnTracker.LatestRevisions,
+			LatestRevs: txnTracker.LatestRevisions,
 		},
 	}
 	aclRenderer.Init()

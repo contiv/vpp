@@ -43,9 +43,6 @@ To use the development image for testing with specific version of VPP, see
   of interfaces and allocation of IP addresses.
 
   * Pod-to-VPP connectivity (top-level options)
-    - `TCPstackDisabled`: if the flag is set to `true`, neither VPP TCP stack nor STN is configured
-      and only VETHs or TAPs are used to connect Pods with VPP
-    - `TCPChecksumOffloadDisabled`: disable checksum offloading for eth0 of every deployed pod
     - `UseL2Interconnect`: use pure L2 node interconnect instead of VXLANs
     - `UseTAPInterfaces`: use TAP interfaces instead of VETHs for Pod-to-VPP and VPP-to-Host interconnection
     - `TAPInterfaceVersion`: select `1` to use the standard VPP TAP interface or `2`

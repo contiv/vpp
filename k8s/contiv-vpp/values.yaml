@@ -1,5 +1,4 @@
 contiv:
-  tcpStackDisabled: True
   useTAPInterfaces: True
   tapInterfaceVersion: 2
   stealFirstNIC: False

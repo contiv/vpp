@@ -359,6 +359,11 @@ func (rndr *Renderer) Resync(resyncEv *renderer.ResyncEventData) error {
 	rndr.natGlobalCfg = &nat.Nat44Global{
 		Forwarding: true,
 	}
+	if rndr.Contiv.DisableNATVirtualReassembly() {
+		rndr.natGlobalCfg.VirtualReassembly = &nat.VirtualReassembly{
+			DropFragments: true, // drop fragmented packets
+		}
+	}
 	// - address pool
 	if rndr.defaultIfIP != nil {
 		// Address for SNAT:

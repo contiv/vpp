@@ -20,7 +20,6 @@ metadata:
   namespace: kube-system
 data:
   contiv.yaml: |-
-    TCPstackDisabled: {{ .Values.contiv.tcpStackDisabled }}
     UseTAPInterfaces: {{ .Values.contiv.useTAPInterfaces }}
     TAPInterfaceVersion: {{ .Values.contiv.tapInterfaceVersion }}
     {{- if .Values.contiv.stealInterface }}

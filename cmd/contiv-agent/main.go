@@ -151,7 +151,7 @@ func main() {
 
 	// initialize Contiv plugins
 	contivPlugin := contiv.NewPlugin(contiv.UseDeps(func(deps *contiv.Deps) {
-		//deps.VPP = vppPlugin
+		deps.VPPIfPlugin = &vpp_ifplugin.DefaultPlugin
 		deps.Watcher = nodeIDDataSync
 	}))
 

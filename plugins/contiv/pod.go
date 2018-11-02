@@ -132,32 +132,6 @@ func podConfigToProto(cfg *PodConfig) *container.Persisted {
 	return persisted
 }
 
-// disableTCPChecksumOffload disables TCP checksum offload on the eth0 in the container
-func (s *remoteCNIserver) disableTCPChecksumOffload(request *cni.CNIRequest) error {
-	// parse PID from the network namespace
-	pid, err := s.getPIDFromNwNsPath(request.NetworkNamespace)
-	if err != nil {
-		return err
-	}
-
-	// execute the ethtool in the namespace of given PID
-	cmdStr := fmt.Sprintf("nsenter -t %d -n ethtool --offload eth0 rx off tx off", pid)
-	s.Logger.Infof("Executing CMD: %s", cmdStr)
-
-	cmdArr := strings.Split(cmdStr, " ")
-	cmd := exec.Command("nsenter", cmdArr[1:]...)
-
-	// check the output of the exec
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		s.Logger.Errorf("CMD exec returned error: %v", err)
-		return err
-	}
-	s.Logger.Infof("CMD output: %s", output)
-
-	return nil
-}
-
 func (s *remoteCNIserver) enableIPv6(request *cni.CNIRequest) error {
 	// parse PID from the network namespace
 	pid, err := s.getPIDFromNwNsPath(request.NetworkNamespace)
@@ -302,7 +276,7 @@ func (s *remoteCNIserver) veth2FromRequest(request *cni.CNIRequest) *linux_intf.
 	}
 }
 
-func (s *remoteCNIserver) afpacketFromRequest(request *cni.CNIRequest, podIP string, configureContainerProxy bool, containerProxyIP string) *vpp_intf.Interfaces_Interface {
+func (s *remoteCNIserver) afpacketFromRequest(request *cni.CNIRequest, podIP string) *vpp_intf.Interfaces_Interface {
 	af := &vpp_intf.Interfaces_Interface{
 		Name:    s.afpacketNameFromRequest(request),
 		Type:    vpp_intf.InterfaceType_AF_PACKET_INTERFACE,
@@ -315,13 +289,10 @@ func (s *remoteCNIserver) afpacketFromRequest(request *cni.CNIRequest, podIP str
 		IpAddresses: []string{s.ipAddrForPodVPPIf(podIP)},
 		PhysAddress: s.generateHwAddrForPodVPPIf(),
 	}
-	if configureContainerProxy {
-		af.ContainerIpAddress = containerProxyIP
-	}
 	return af
 }
 
-func (s *remoteCNIserver) tapFromRequest(request *cni.CNIRequest, podIP string, configureContainerProxy bool, containerProxyIP string) *vpp_intf.Interfaces_Interface {
+func (s *remoteCNIserver) tapFromRequest(request *cni.CNIRequest, podIP string) *vpp_intf.Interfaces_Interface {
 	tap := &vpp_intf.Interfaces_Interface{
 		Name:    s.tapNameFromRequest(request),
 		Type:    vpp_intf.InterfaceType_TAP_INTERFACE,
@@ -338,9 +309,6 @@ func (s *remoteCNIserver) tapFromRequest(request *cni.CNIRequest, podIP string, 
 		tap.Tap.Version = 2
 		tap.Tap.RxRingSize = uint32(s.tapV2RxRingSize)
 		tap.Tap.TxRingSize = uint32(s.tapV2TxRingSize)
-	}
-	if configureContainerProxy {
-		tap.ContainerIpAddress = containerProxyIP
 	}
 	return tap
 }

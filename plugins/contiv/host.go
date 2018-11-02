@@ -19,21 +19,17 @@ import (
 	"net"
 	"strconv"
 	"strings"
-
 	"encoding/binary"
 	"git.fd.io/govpp.git/api"
-	linux_intf "github.com/ligato/vpp-agent/plugins/linux/model/interfaces"
-	linux_l3 "github.com/ligato/vpp-agent/plugins/linux/model/l3"
-	"github.com/ligato/vpp-agent/plugins/vpp/binapi/ip"
-	"github.com/ligato/vpp-agent/plugins/vpp/binapi/nat"
+	"github.com/vishvananda/netlink"
+
+	linux_intf "github.com/ligato/vpp-agent/plugins/linuxv2/model/interfaces"
+	linux_l3 "github.com/ligato/vpp-agent/plugins/linuxv2/model/l3"
 	"github.com/ligato/vpp-agent/plugins/vpp/binapi/stats"
 	"github.com/ligato/vpp-agent/plugins/vpp/binapi/vpe"
-	vpp_intf "github.com/ligato/vpp-agent/plugins/vpp/model/interfaces"
-	vpp_l2 "github.com/ligato/vpp-agent/plugins/vpp/model/l2"
-	vpp_l3 "github.com/ligato/vpp-agent/plugins/vpp/model/l3"
-	vpp_l4 "github.com/ligato/vpp-agent/plugins/vpp/model/l4"
-
-	"github.com/vishvananda/netlink"
+	vpp_intf "github.com/ligato/vpp-agent/plugins/vppv2/model/interfaces"
+	vpp_l2 "github.com/ligato/vpp-agent/plugins/vppv2/model/l2"
+	vpp_l3 "github.com/ligato/vpp-agent/plugins/vppv2/model/l3"
 )
 
 const (
@@ -43,14 +39,8 @@ const (
 	vxlanBDName            = "vxlanBD"  // name of the VXLAN bridge domain
 )
 
-func (s *remoteCNIserver) l4Features(enable bool) *vpp_l4.L4Features {
-	return &vpp_l4.L4Features{
-		Enabled: enable,
-	}
-}
-
-func (s *remoteCNIserver) routePODsFromHost(nextHopIP string) *linux_l3.LinuxStaticRoutes_Route {
-	route := &linux_l3.LinuxStaticRoutes_Route{
+func (s *remoteCNIserver) routePODsFromHost(nextHopIP string) *linux_l3.LinuxStaticRoute {
+	route := &linux_l3.LinuxStaticRoute{
 		Name:        "pods-to-vpp",
 		Default:     false,
 		Namespace:   nil,
@@ -481,36 +471,20 @@ func (s *remoteCNIserver) getHostLinkIPs() ([]net.IP, error) {
 	return s.hostIPs, nil
 }
 
+
 func (s *remoteCNIserver) enableIPNeighborScan() error {
 	s.Logger.Info("Enabling IP neighbor scanning")
+	txn := s.vppTxnFactory().Put()
 
-	req := &ip.IPScanNeighborEnableDisable{
-		Mode:           1, // enable for IPv4
+	txn.IPScanNeighbor(&vpp_l3.IPScanNeighbor{
+		Mode:           vpp_l3.IPScanNeighbor_IPv4,
 		ScanInterval:   s.config.IPNeighborScanInterval,
 		StaleThreshold: s.config.IPNeighborStaleThreshold,
-	}
-	reply := &ip.IPScanNeighborEnableDisableReply{}
+	})
 
-	err := s.govppChan.SendRequest(req).ReceiveReply(reply)
-
+	err := txn.Send().ReceiveReply()
 	if err != nil {
 		s.Logger.Error("Error by enabling IP neighbor scanning:", err)
-	}
-	return err
-}
-
-func (s *remoteCNIserver) disableNatVirtualReassembly() error {
-	s.Logger.Infof("Disabling NAT virtual reassembly")
-
-	req := &nat.NatSetReass{
-		DropFrag: 1, // drop fragmented packets
-	}
-	reply := &nat.NatSetReassReply{}
-
-	err := s.govppChan.SendRequest(req).ReceiveReply(reply)
-
-	if err != nil {
-		s.Logger.Error("Error by disabling NAT virtual reassembly:", err)
 	}
 	return err
 }

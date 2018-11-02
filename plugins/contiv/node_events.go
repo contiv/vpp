@@ -25,8 +25,8 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/ligato/cn-infra/datasync"
 	"github.com/ligato/cn-infra/logging"
-	vpp_l2 "github.com/ligato/vpp-agent/plugins/vpp/model/l2"
-	vpp_l3 "github.com/ligato/vpp-agent/plugins/vpp/model/l3"
+	vpp_l2 "github.com/ligato/vpp-agent/plugins/vppv2/model/l2"
+	vpp_l3 "github.com/ligato/vpp-agent/plugins/vppv2/model/l3"
 )
 
 // handleNodeEvents handles changes in nodes within the k8s cluster (node add / delete) and
@@ -217,7 +217,7 @@ func (s *remoteCNIserver) addRoutesToNode(nodeInfo *node.NodeInfo) error {
 
 		// pass deep copy to local client since we are overwriting previously applied config
 		bd := proto.Clone(s.vxlanBD)
-		txn.BD(bd.(*vpp_l2.BridgeDomains_BridgeDomain))
+		txn.BD(bd.(*vpp_l2.BridgeDomain))
 
 		// static ARP entry
 		vxlanIP, err := s.ipam.VxlanIPAddress(nodeInfo.Id)
@@ -235,8 +235,8 @@ func (s *remoteCNIserver) addRoutesToNode(nodeInfo *node.NodeInfo) error {
 
 	// static routes
 	var (
-		podsRoute    *vpp_l3.StaticRoutes_Route
-		hostRoute    *vpp_l3.StaticRoutes_Route
+		podsRoute    *vpp_l3.StaticRoute
+		hostRoute    *vpp_l3.StaticRoute
 		vxlanNextHop net.IP
 		err          error
 		nextHop      string
@@ -320,8 +320,8 @@ func (s *remoteCNIserver) deleteRoutesToNode(nodeInfo *node.NodeInfo) error {
 
 	// static routes
 	var (
-		podsRoute    *vpp_l3.StaticRoutes_Route
-		hostRoute    *vpp_l3.StaticRoutes_Route
+		podsRoute    *vpp_l3.StaticRoute
+		hostRoute    *vpp_l3.StaticRoute
 		vxlanNextHop net.IP
 		err          error
 		nextHop      string
@@ -342,8 +342,8 @@ func (s *remoteCNIserver) deleteRoutesToNode(nodeInfo *node.NodeInfo) error {
 	if err != nil {
 		return err
 	}
-	txn.Delete().StaticRoute(podsRoute.VrfId, podsRoute.DstIpAddr, podsRoute.NextHopAddr)
-	txn.Delete().StaticRoute(hostRoute.VrfId, hostRoute.DstIpAddr, hostRoute.NextHopAddr)
+	txn.Delete().StaticRoute(podsRoute.VrfId, podsRoute.DstNetwork, podsRoute.NextHopAddr)
+	txn.Delete().StaticRoute(hostRoute.VrfId, hostRoute.DstNetwork, hostRoute.NextHopAddr)
 	s.Logger.Info("Deleting PODs route: ", podsRoute)
 	s.Logger.Info("Deleting host route: ", hostRoute)
 
@@ -371,7 +371,7 @@ func (s *remoteCNIserver) deleteRoutesToNode(nodeInfo *node.NodeInfo) error {
 		// pass deep copy to local client since we are overwriting previously applied config
 		bd := proto.Clone(s.vxlanBD)
 		// interface should be removed from BD after FIB entry tied to interface is deleted
-		txn.Put().BD(bd.(*vpp_l2.BridgeDomains_BridgeDomain))
+		txn.Put().BD(bd.(*vpp_l2.BridgeDomain))
 	}
 	err = txn.Send().ReceiveReply()
 	if err != nil {

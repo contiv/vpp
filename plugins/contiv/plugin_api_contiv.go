@@ -28,9 +28,6 @@ type API interface {
 	// GetContainerIndex exposes index of configured containers
 	GetContainerIndex() containeridx.Reader
 
-	// IsTCPstackDisabled returns true if the TCP stack is disabled and only VETHs/TAPs are configured
-	IsTCPstackDisabled() bool
-
 	// InSTNMode returns true if Contiv operates in the STN mode (single interface for each node).
 	InSTNMode() bool
 
@@ -49,6 +46,9 @@ type API interface {
 
 	// GetServiceLocalEndpointWeight returns the load-balancing weight assigned to locally deployed service endpoints.
 	GetServiceLocalEndpointWeight() uint8
+
+	// DisableNATVirtualReassembly returns true if fragmented packets should be dropped by NAT.
+	DisableNATVirtualReassembly() bool
 
 	// GetNatLoopbackIP returns the IP address of a virtual loopback, used to route traffic
 	// between clients and services via VPP even if the source and destination are the same

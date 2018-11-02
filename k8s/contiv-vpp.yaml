@@ -22,7 +22,6 @@ metadata:
   namespace: kube-system
 data:
   contiv.yaml: |-
-    TCPstackDisabled: true
     UseTAPInterfaces: true
     TAPInterfaceVersion: 2
     NatExternalTraffic: true

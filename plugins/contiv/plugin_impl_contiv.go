@@ -47,10 +47,10 @@ import (
 	"github.com/ligato/cn-infra/servicelabel"
 	"github.com/ligato/cn-infra/utils/safeclose"
 
-	"github.com/ligato/vpp-agent/clientv1/linux"
-	linuxlocalclient "github.com/ligato/vpp-agent/clientv1/linux/localclient"
+	"github.com/ligato/vpp-agent/clientv2/linux"
+	linuxlocalclient "github.com/ligato/vpp-agent/clientv2/linux/localclient"
 	"github.com/ligato/vpp-agent/plugins/govppmux"
-	"github.com/ligato/vpp-agent/plugins/vpp"
+	vpp_ifplugin "github.com/ligato/vpp-agent/plugins/vppv2/ifplugin"
 )
 
 // MgmtIPSeparator is a delimiter inserted between management IPs in nodeInfo structure
@@ -92,7 +92,7 @@ type Deps struct {
 	ServiceLabel servicelabel.ReaderAPI
 	GRPC         grpc.Server
 	Proxy        *kvdbproxy.Plugin
-	VPP          *vpp.Plugin
+	VPPIfPlugin  vpp_ifplugin.API
 	GoVPP        govppmux.API
 	Resync       resync.Subscriber
 	ETCD         *etcd.Plugin
@@ -169,8 +169,8 @@ func (plugin *Plugin) Init() error {
 		plugin.Proxy,
 		plugin.configuredContainers,
 		plugin.govppCh,
-		plugin.VPP.GetSwIfIndexes(),
-		plugin.VPP.GetDHCPIndices(),
+		plugin.VPPIfPlugin.GetInterfaceIndex(),
+		plugin.VPPIfPlugin.GetDHCPIndex(),
 		plugin.ServiceLabel.GetAgentLabel(),
 		plugin.Config,
 		plugin.myNodeConfig,
@@ -229,23 +229,6 @@ func (plugin *Plugin) GetPodByIf(ifname string) (podNamespace string, podName st
 	return config.PodNamespace, config.PodName, true
 }
 
-// GetPodByAppNsIndex looks up podName and podNamespace that is associated with the VPP application namespace.
-func (plugin *Plugin) GetPodByAppNsIndex(nsIndex uint32) (podNamespace string, podName string, exists bool) {
-	nsID, _, found := plugin.VPP.GetAppNsIndexes().LookupName(nsIndex)
-	if !found {
-		return "", "", false
-	}
-	ids := plugin.configuredContainers.LookupPodAppNs(nsID)
-	if len(ids) != 1 {
-		return "", "", false
-	}
-	config, found := plugin.configuredContainers.LookupContainer(ids[0])
-	if !found {
-		return "", "", false
-	}
-	return config.PodNamespace, config.PodName, true
-}
-
 // GetIfName looks up logical interface name that corresponds to the interface associated with the given POD name.
 func (plugin *Plugin) GetIfName(podNamespace string, podName string) (name string, exists bool) {
 	config := plugin.getContainerConfig(podNamespace, podName)
@@ -254,17 +237,6 @@ func (plugin *Plugin) GetIfName(podNamespace string, podName string) (name strin
 	}
 	plugin.Log.WithFields(logging.Fields{"podNamespace": podNamespace, "podName": podName}).Warn("No matching result found")
 	return "", false
-}
-
-// GetNsIndex returns the index of the VPP session namespace associated with the given POD name.
-func (plugin *Plugin) GetNsIndex(podNamespace string, podName string) (nsIndex uint32, exists bool) {
-	config := plugin.getContainerConfig(podNamespace, podName)
-	if config != nil {
-		nsIndex, _, exists = plugin.VPP.GetAppNsIndexes().LookupIdx(config.AppNamespaceID)
-		return nsIndex, exists
-	}
-	plugin.Log.WithFields(logging.Fields{"podNamespace": podNamespace, "podName": podName}).Warn("No matching result found")
-	return 0, false
 }
 
 // GetPodSubnet provides subnet used for allocating pod IP addresses across all nodes.
@@ -280,11 +252,6 @@ func (plugin *Plugin) GetPodNetwork() *net.IPNet {
 // GetContainerIndex returns the index of configured containers/pods
 func (plugin *Plugin) GetContainerIndex() containeridx.Reader {
 	return plugin.configuredContainers
-}
-
-// IsTCPstackDisabled returns true if the VPP TCP stack is disabled and only VETHs/TAPs are configured.
-func (plugin *Plugin) IsTCPstackDisabled() bool {
-	return plugin.Config.TCPstackDisabled
 }
 
 // InSTNMode returns true if Contiv operates in the STN mode (single interface for each node).
@@ -320,6 +287,11 @@ func (plugin *Plugin) GetOtherNATSessionTimeout() uint32 {
 // GetServiceLocalEndpointWeight returns the load-balancing weight assigned to locally deployed service endpoints.
 func (plugin *Plugin) GetServiceLocalEndpointWeight() uint8 {
 	return plugin.Config.ServiceLocalEndpointWeight
+}
+
+// DisableNATVirtualReassembly returns true if fragmented packets should be dropped by NAT.
+func (plugin *Plugin) DisableNATVirtualReassembly() bool {
+	return plugin.Config.DisableNATVirtualReassembly
 }
 
 // GetNatLoopbackIP returns the IP address of a virtual loopback, used to route traffic

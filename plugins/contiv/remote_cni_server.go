@@ -54,7 +54,8 @@ const (
 	resultErr              uint32 = 1
 	linuxIfMaxLen                 = 15
 	afPacketNamePrefix            = "afpacket"
-	tapNamePrefix                 = "tap"
+	vppTAPNamePrefix              = "vpp-tap-"
+	linuxTAPNamePrefix            = "linux-tap-"
 	podNameExtraArg               = "K8S_POD_NAME"
 	podNamespaceExtraArg          = "K8S_POD_NAMESPACE"
 	vethHostEndLogicalName        = "veth-vpp1"
@@ -1298,7 +1299,7 @@ func (s *remoteCNIserver) configurePodVPPSide(request *cni.CNIRequest, podIP net
 	// route to PodIP via AF_PACKET / TAP
 	config.VppRoute = s.vppRouteFromRequest(request, podIPCIDR)
 	txn.StaticRoute(config.VppRoute)
-	revertTxn.StaticRoute(config.VppRoute.VrfId, config.VppRoute.DstIpAddr, config.VppRoute.NextHopAddr)
+	revertTxn.StaticRoute(config.VppRoute.VrfId, config.VppRoute.DstNetwork, config.VppRoute.NextHopAddr)
 
 	// ARP entry for POD IP
 	config.VppARPEntry = s.vppArpEntry(config.VppIf.Name, podIP, s.hwAddrForContainer())
@@ -1331,12 +1332,12 @@ func (s *remoteCNIserver) persistPodConfig(config *PodConfig) error {
 	} else {
 		changes[linux_intf.InterfaceKey(config.PodTap.Name)] = config.PodTap
 	}
-	changes[linux_l3.StaticRouteKey(config.PodLinkRoute.Name)] = config.PodLinkRoute
-	changes[linux_l3.StaticRouteKey(config.PodDefaultRoute.Name)] = config.PodDefaultRoute
-	changes[linux_l3.StaticArpKey(config.PodARPEntry.Name)] = config.PodARPEntry
+	changes[linux_l3.StaticRouteKey(config.PodLinkRoute.DstNetwork, config.PodLinkRoute.OutgoingInterface)] = config.PodLinkRoute
+	changes[linux_l3.StaticRouteKey(config.PodDefaultRoute.DstNetwork, config.PodDefaultRoute.OutgoingInterface)] = config.PodDefaultRoute
+	changes[linux_l3.StaticArpKey(config.PodARPEntry.Interface, config.PodARPEntry.IpAddress)] = config.PodARPEntry
 
 	// VPP-side configuration
-	changes[vpp_l3.RouteKey(config.VppRoute.VrfId, config.VppRoute.DstIpAddr, config.VppRoute.NextHopAddr)] = config.VppRoute
+	changes[vpp_l3.RouteKey(config.VppRoute.VrfId, config.VppRoute.DstNetwork, config.VppRoute.NextHopAddr)] = config.VppRoute
 	changes[vpp_l3.ArpEntryKey(config.VppARPEntry.Interface, config.VppARPEntry.IpAddress)] = config.VppARPEntry
 
 	// persist the configuration
@@ -1354,9 +1355,9 @@ func (s *remoteCNIserver) deletePersistedPodConfig(config *container.Persisted) 
 	// collect keys to be removed from ETCD
 	var removedKeys []string
 
-	removedKeys = append(removedKeys, linux_l3.StaticRouteKey(config.PodLinkRouteName),
-		linux_l3.StaticRouteKey(config.PodDefaultRouteName),
-		linux_l3.StaticArpKey(config.PodARPEntryName))
+	removedKeys = append(removedKeys, linux_l3.StaticRouteKey(config.PodLinkRouteDest, config.PodLinkRouteInterface),
+		linux_l3.StaticRouteKey(ipv4AddrAny, config.PodDefaultRouteInterface),
+		linux_l3.StaticArpKey(config.PodARPEntryInterface, config.PodARPEntryIP))
 
 	// VPP-side configuration
 	removedKeys = append(removedKeys,

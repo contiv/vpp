@@ -41,25 +41,15 @@ message Persisted {
     // Nil if TAPs are not used
     string  PodTapName = 7;
 
-    // Loopback is interface name associated with the pod.
-    // Nil if VPP TCP stack is disabled.
-    string LoopbackName = 8;
-
-    // StnRule is name of STN rule used to "punt" any traffic via VETHs/TAPs with no match in VPP TCP stack.
-    // Nil if VPP TCP stack is disabled.
-    string StnRuleName = 9;
-
-    // AppNamespace is id of the application namespace associated with the pod.
-    // Nil if VPP TCP stack is disabled.
-    string AppNamespaceID = 10;
-
-    // VppARPEntryInterface is name of the Interface associated ARP entry configured in VPP to route traffic from VPP to pod.
+    // VppARPEntryInterface is name of the Interface associated with ARP entry configured in VPP to route traffic from VPP to pod.
     string VppARPEntryInterface = 11;
-    // VppARPEntryIP is IP associated ARP entry configured in VPP to route traffic from VPP to pod.
+    // VppARPEntryIP is IP associated with ARP entry configured in VPP to route traffic from VPP to pod.
     string VppARPEntryIP = 12;
 
-    // PodARPEntry is name of ARP entry configured in the pod to route traffic from pod to VPP.
-    string PodARPEntryName = 13;
+    // PodARPEntryInterface is name of the Interface associated with ARP entry configured in Linux to route traffic from pod to VPP.
+    string PodARPEntryInterface = 13;
+    // PodARPEntryIP is IP associated with ARP entry configured in Linux to route traffic from pod to VPP.
+    string PodARPEntryIP = 14;
 
     // VppRouteVrf is vrf of the route from VPP to the container
     uint32 VppRouteVrf = 15;
@@ -68,9 +58,12 @@ message Persisted {
     // VppRouteNextHop is next hop of the route from VPP to the container
     string VppRouteNextHop = 17;
 
-    // PodLinkRoute is name of the route from pod to the default gateway.
-    string PodLinkRouteName = 18;
-    // PodDefaultRoute is name of the default gateway for the pod.
-    string PodDefaultRouteName = 19;
+    // PodLinkRouteDest is destination of the route from container to default GW.
+    string PodLinkRouteDest = 18;
+    // PodLinkRouteNextHop is the name of the outgoing interface for the route from container to default GW.
+    string PodLinkRouteInterface = 19;
+
+    // PodDefaultRouteInterface is the name of the outgoing interface for pod's default route.
+    string PodDefaultRouteInterface = 20;
 
 }

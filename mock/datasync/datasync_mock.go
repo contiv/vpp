@@ -105,15 +105,15 @@ func (mds *MockDataSync) Delete(key string) datasync.ChangeEvent {
 	if _, found := mds.data[key]; !found {
 		return nil
 	}
-	rev := mds.data[key].rev
+	mds.data[key].rev++
 	val := mds.data[key].val
-	delete(mds.data, key)
+	mds.data[key].val = nil
 	return &MockChangeEvent{
 		mds:       mds,
 		eventType: datasync.Delete,
 		MockKeyVal: MockKeyVal{
 			key: key,
-			rev: rev,
+			rev: mds.data[key].rev,
 			val: val,
 		},
 	}
@@ -128,6 +128,9 @@ func (mds *MockDataSync) Resync(keyPrefix ...string) datasync.ResyncEvent {
 	}
 	// copy datastore
 	for key, data := range mds.data {
+		if data.val == nil {
+			continue
+		}
 		mre.data[key] = &ProtoData{
 			val: proto.Clone(data.val),
 			rev: data.rev,

@@ -161,7 +161,6 @@ func (p *Plugin) watchEvents() {
 			p.resyncLock.Lock()
 			p.resyncCounter++
 			p.pendingResync = resyncConfigEv
-			p.pendingChanges = []datasync.ChangeEvent{}
 			resyncConfigEv.Done(nil)
 			p.Log.WithField("config", resyncConfigEv).Info("Delaying RESYNC config")
 			p.resyncLock.Unlock()

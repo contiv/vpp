@@ -390,10 +390,11 @@ func (s *remoteCNIserver) configureVswitchConnectivity() error {
 // configureVswitchNICs configures vswitch NICs - main NIC for node interconnect
 // and other NICs optionally specified in the contiv plugin YAML configuration.
 func (s *remoteCNIserver) configureVswitchNICs(config *vswitchConfig) error {
-
+/*
 	if len(s.swIfIndex.ListAllInterfaces()) == 0 {
 		return fmt.Errorf("no VPP interfaces found in the swIfIndex map")
 	}
+*/
 	s.Logger.Info("Existing interfaces: ", s.swIfIndex.ListAllInterfaces())
 
 	// find name of the main VPP NIC interface

@@ -20,6 +20,7 @@ TRESHOLD=5
 cmd() {
     if [ "$LOCAL" == true ]
     then
+        echo "cmd: $1"
         sh -c "$1"
     else
         echo "cmd: $1"

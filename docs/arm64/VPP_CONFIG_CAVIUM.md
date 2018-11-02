@@ -200,16 +200,13 @@ nat {
     user hash buckets 1024
     max translations per user 10000
 }
-acl-plugin {
-    use tuple merge 0
-}
 dpdk {
     dev 0002:01:00.2 
     uio-driver vfio-pci
 }
 api-trace {
    on
-   nitems 500
+   nitems 5000
 }
 ```
 If assigning multiple NICs to VPP you will need to include each NIC's PCI address

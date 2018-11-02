@@ -14,6 +14,7 @@
 
 package containeridx
 
+/*
 import (
 	"testing"
 
@@ -25,7 +26,6 @@ import (
 	"github.com/contiv/vpp/plugins/contiv/containeridx/model"
 )
 
-/*
 func TestNewConfigIndex(t *testing.T) {
 	gomega.RegisterTestingT(t)
 

@@ -1,10 +1,19 @@
-# Release v1.5.1 (not released yet)
+# Release v1.5.1 (31.10.2018)
 
 ### VPP
+ - version **v18.10** (formal release)
 
 ### Bug Fixes
+ - fix nodePort issues after change of management IP address between restarts
+ - STN: Fix proxy ARP for /31 subnets
 
 ### New Features & Enhancements
+ - bump ETCD version to 3.3.10
+ - add new liveness probe for Contiv ETCD
+ - Policy Configurator: test for rule duplicity in O(log(n)) time
+ - remove persistent storage for IPAM (use ETCD instead)
+ - topology validator enhancements
+
 
 # Release v1.5.0 (19.10.2018)
 
@@ -24,6 +33,7 @@
 
 ### Known Issues
 - the topology validator gives false positives for L3-FIB entries
+
 
 # Release v1.4.0 (5.10.2018)
 

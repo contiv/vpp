@@ -728,6 +728,8 @@ func (s *remoteCNIserver) configureOtherVPPInterfaces(config *vswitchConfig, nod
 func (s *remoteCNIserver) configureVswitchHostConnectivity(config *vswitchConfig) error {
 	var err error
 	txn := s.vppTxnFactory().Put()
+	// txnNotPersisted applies the config of items that are not persisted
+	txnNotPersisted := s.vppTxnFactory().Put()
 
 	if s.stnIP == "" {
 		// execute only if STN has not already configured this
@@ -771,8 +773,10 @@ func (s *remoteCNIserver) configureVswitchHostConnectivity(config *vswitchConfig
 	}
 	for _, r := range config.routesToHost {
 		s.Logger.Debug("Adding route to host IP: ", r)
-		txn.StaticRoute(r)
+		txnNotPersisted.StaticRoute(r)
 	}
+	// do not persist routesToHost
+	config.routesToHost = nil
 
 	// configure the route from the host to PODs
 	if s.stnGw == "" {
@@ -816,7 +820,11 @@ func (s *remoteCNIserver) configureVswitchHostConnectivity(config *vswitchConfig
 
 	}
 
-	return nil
+	err = txnNotPersisted.Send().ReceiveReply()
+	if err != nil {
+		s.Logger.Error(err)
+	}
+	return err
 }
 
 // configureVswitchVxlanBridgeDomain configures bridge domain for the VXLAN tunnels.

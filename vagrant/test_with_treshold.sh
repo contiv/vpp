@@ -22,6 +22,7 @@ cmd() {
     then
         sh -c "$1"
     else
+        echo "cmd: $1"
         ssh "$USER"@"$MASTER" -F "$SSH_CONFIG_FILE" $1
     fi
 }

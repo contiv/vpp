@@ -209,8 +209,8 @@ func (s *remoteCNIserver) addRoutesToNode(nodeInfo *node.NodeInfo) error {
 		}
 		txn.VppInterface(vxlanIf)
 		s.Logger.WithFields(logging.Fields{
-			"srcIP":  vxlanIf.Vxlan.SrcAddress,
-			"destIP": vxlanIf.Vxlan.DstAddress}).Info("Configuring vxlan")
+			"srcIP":  vxlanIf.GetVxlan().SrcAddress,
+			"destIP": vxlanIf.GetVxlan().DstAddress}).Info("Configuring vxlan")
 
 		// add the VXLAN interface into the VXLAN bridge domain
 		s.addInterfaceToVxlanBD(s.vxlanBD, vxlanIf.Name)
@@ -298,8 +298,8 @@ func (s *remoteCNIserver) deleteRoutesToNode(nodeInfo *node.NodeInfo) error {
 		}
 		txn.Delete().VppInterface(vxlanIf.Name)
 		s.Logger.WithFields(logging.Fields{
-			"srcIP":  vxlanIf.Vxlan.SrcAddress,
-			"destIP": vxlanIf.Vxlan.DstAddress}).Info("Removing vxlan")
+			"srcIP":  vxlanIf.GetVxlan().SrcAddress,
+			"destIP": vxlanIf.GetVxlan().DstAddress}).Info("Removing vxlan")
 
 		// remove the VXLAN interface from the VXLAN bridge domain
 		s.removeInterfaceFromVxlanBD(s.vxlanBD, vxlanIf.Name)
@@ -351,12 +351,12 @@ func (s *remoteCNIserver) deleteRoutesToNode(nodeInfo *node.NodeInfo) error {
 
 	for _, mIP := range mgmtIPs {
 		mgmtRoute1 := s.routeToOtherManagementIP(mIP, nextHop)
-		txn.Delete().StaticRoute(mgmtRoute1.VrfId, mgmtRoute1.DstIpAddr, mgmtRoute1.NextHopAddr)
+		txn.Delete().StaticRoute(mgmtRoute1.VrfId, mgmtRoute1.DstNetwork, mgmtRoute1.NextHopAddr)
 		s.Logger.Info("Deleting managementIP route: ", mgmtRoute1)
 
 		if s.stnIP == "" {
 			mgmtRoute2 := s.routeToOtherManagementIPViaPodVRF(mIP)
-			txn.Delete().StaticRoute(mgmtRoute2.VrfId, mgmtRoute2.DstIpAddr, "")
+			txn.Delete().StaticRoute(mgmtRoute2.VrfId, mgmtRoute2.DstNetwork, "")
 			s.Logger.Info("Deleting managementIP route via POD VRF: ", mgmtRoute2)
 		}
 	}

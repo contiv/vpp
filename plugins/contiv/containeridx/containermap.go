@@ -154,9 +154,6 @@ func IndexFunction(data interface{}) map[string][]string {
 		if config.VppIfName != "" {
 			res[podRelatedIfsKey] = []string{config.VppIfName}
 		}
-		if config.LoopbackName != "" {
-			res[podRelatedIfsKey] = append(res[podRelatedIfsKey], config.LoopbackName)
-		}
 	}
 	return res
 }

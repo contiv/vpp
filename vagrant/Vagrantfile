@@ -224,20 +224,26 @@ EOF
 }
 
 createVPPconfig
-kernelModule=$(lsmod | grep vfio_pci | wc -l)
-if [[ $kernelModule -gt 0 ]]; then
-  echo "PCI VFIO driver is loaded"
-else
-  installPCIVFIO
-fi
 split_node_os_release="$(cut -d "." -f 1 <<< '#{node_os_release}')"
 if [ "$split_node_os_release" = '16' ]; then
+  kernelModule=$(lsmod | grep uio_pci_generic | wc -l)
+  if [[ $kernelModule -gt 0 ]]; then
+    echo "PCI UIO driver is loaded"
+  else
+    installPCIUIO
+  fi
   if [ "#{dep_scenario}" = 'nostn' ]; then
       #shutdown interface
       ip link set enp0s8 down
       echo "#auto enp0s8" >> /etc/network/interfaces
   fi
 else
+  kernelModule=$(lsmod | grep vfio_pci | wc -l)
+  if [[ $kernelModule -gt 0 ]]; then
+    echo "PCI VFIO driver is loaded"
+  else
+    installPCIVFIO
+  fi
   if [ "#{dep_scenario}" = 'nostn' ]; then
     #shutdown interface
     ip link set enp0s8 down

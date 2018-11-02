@@ -2,6 +2,8 @@ contiv:
   tcpStackDisabled: True
   useTAPInterfaces: True
   tapInterfaceVersion: 2
+  tapv2RxRingSize: 256
+  tapv2TxRingSize: 256
   stealFirstNIC: False
   natExternalTraffic: True
   mtuSize: 1450

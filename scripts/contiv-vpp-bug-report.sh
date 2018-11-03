@@ -229,7 +229,7 @@ LOCAL_COMMANDS["docker-ps.log"]="sudo docker ps"
 LOCAL_COMMANDS["core-dump.tar.xz"]="sudo test -d /var/contiv/dumps && sudo tar -Jc -C /var/contiv dumps"
 LOCAL_COMMANDS["cni.log"]="sudo cat /var/run/contiv/cni.log"
 LOCAL_COMMANDS["vpp.conf"]="cat /etc/vpp/contiv-vswitch.conf"
-LOCAL_COMMANDS["machine-status.log"]="free -h && df -h"
+LOCAL_COMMANDS["machine-status.log"]="free -h && df -h && lsof | awk '{ print \$2 \" \" \$1; }' | uniq -c | sort -rn | head -20"
 
 declare -A ETCD_COMMANDS
 ETCD_COMMANDS["etcd-tree.log"]="export ETCDCTL_API=3 && etcdctl --endpoints=127.0.0.1:32379 get / --prefix=true"

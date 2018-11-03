@@ -133,7 +133,6 @@ test-cover: get-covtools
 	go test -covermode=count -coverprofile=${COVER_DIR}cov_u7.out ./plugins/policy/configurator -tags="${GO_BUILD_TAGS}"
 	go test -covermode=count -coverprofile=${COVER_DIR}cov_u8.out ./plugins/policy/renderer/cache -tags="${GO_BUILD_TAGS}"
 	go test -covermode=count -coverprofile=${COVER_DIR}cov_u9.out ./plugins/policy/renderer/acl -tags="${GO_BUILD_TAGS}"
-	go test -covermode=count -coverprofile=${COVER_DIR}cov_u10.out ./plugins/policy/renderer/vpptcp -tags="${GO_BUILD_TAGS}"
 	go test -covermode=count -coverprofile=${COVER_DIR}cov_u11.out -coverpkg=./plugins/service/processor,./plugins/service/configurator ./plugins/service -tags="${GO_BUILD_TAGS}"
 	go test -covermode=count -coverprofile=${COVER_DIR}cov_u12.out ./plugins/policy/cache -tags="${GO_BUILD_TAGS}"
 	go test -covermode=count -coverprofile=${COVER_DIR}cov_u13.out ./plugins/policy/cache/namespaceidx -tags="${GO_BUILD_TAGS}"

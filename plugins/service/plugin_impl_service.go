@@ -19,7 +19,6 @@ import (
 	"sync"
 
 	"github.com/ligato/cn-infra/datasync"
-	kvdbsync_local "github.com/ligato/cn-infra/datasync/kvdbsync/local"
 	"github.com/ligato/cn-infra/datasync/resync"
 	"github.com/ligato/cn-infra/utils/safeclose"
 
@@ -105,8 +104,7 @@ func (p *Plugin) Init() error {
 			NATTxnFactory: func() linuxclient.DataChangeDSL {
 				return localclient.DataChangeRequest(p.String())
 			},
-			LatestRevs: kvdbsync_local.Get().LastRev(),
-			Stats:      p.Stats,
+			Stats: p.Stats,
 		},
 	}
 

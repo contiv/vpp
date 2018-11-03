@@ -80,6 +80,7 @@ func (rc *RendererCache) Init(orientation Orientation) {
 func (rc *RendererCache) Flush() {
 	rc.localTables = NewLocalTables(rc.Log)
 	rc.globalTable = NewContivRuleTable(Global)
+	rc.globalTable.GetID() // set cached id for UTs
 	rc.config = make(Config)
 }
 

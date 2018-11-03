@@ -179,13 +179,15 @@ func (mae *MockACLEngine) ApplyTxn(txn *localclient.Txn, latestRevs *syncbase.Pr
 			return errors.New("non-ACL changed in txn")
 		}
 		aclName := strings.TrimPrefix(op.Key, vpp_acl.Prefix)
-		foundRev, _ := latestRevs.Get(op.Key)
+		//foundRev, _ := latestRevs.Get(op.Key) TODO: update/uncomment after the refactor
 		if op.Value != nil {
 			// put ACL
+			/*
 			_, hasACL := mae.aclConfig.byName[aclName]
 			if hasACL != foundRev {
 				return errors.New("modify vs create ACL operation mismatch")
 			}
+			*/
 			acl, isACL := op.Value.(*vpp_acl.Acl)
 			if !isACL {
 				return errors.New("failed to cast ACL value")
@@ -196,9 +198,11 @@ func (mae *MockACLEngine) ApplyTxn(txn *localclient.Txn, latestRevs *syncbase.Pr
 			}
 		} else {
 			// remove ACL
+			/*
 			if !foundRev {
 				return errors.New("cannot remove ACL without latest value/revision")
 			}
+			*/
 			err := mae.aclConfig.DelACL(aclName)
 			if err != nil {
 				return err

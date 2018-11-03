@@ -157,7 +157,6 @@ func TestResyncAndSingleService(t *testing.T) {
 			Log:           logger,
 			Contiv:        contiv,
 			NATTxnFactory: txnTracker.NewLinuxDataChangeTxn,
-			LatestRevs:    txnTracker.LatestRevisions,
 		},
 	}
 
@@ -508,7 +507,6 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 			Contiv:        contiv,
 			NATTxnFactory: txnTracker.NewLinuxDataChangeTxn,
 			// TODO: resync txn factory
-			LatestRevs: txnTracker.LatestRevisions,
 		},
 	}
 
@@ -1011,7 +1009,6 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 			Log:           logger,
 			Contiv:        contiv,
 			NATTxnFactory: txnTracker.NewLinuxDataChangeTxn,
-			LatestRevs:    txnTracker.LatestRevisions,
 		},
 	}
 	natPlugin.Reset() // TODO: remove once resync txn is supported
@@ -1135,7 +1132,6 @@ func TestWithVXLANButNoGateway(t *testing.T) {
 			Log:           logger,
 			Contiv:        contiv,
 			NATTxnFactory: txnTracker.NewLinuxDataChangeTxn,
-			LatestRevs:    txnTracker.LatestRevisions,
 		},
 	}
 
@@ -1219,7 +1215,6 @@ func TestWithoutVXLAN(t *testing.T) {
 			Log:           logger,
 			Contiv:        contiv,
 			NATTxnFactory: txnTracker.NewLinuxDataChangeTxn,
-			LatestRevs:    txnTracker.LatestRevisions,
 		},
 	}
 
@@ -1304,7 +1299,6 @@ func TestWithOtherInterfaces(t *testing.T) {
 			Log:           logger,
 			Contiv:        contiv,
 			NATTxnFactory: txnTracker.NewLinuxDataChangeTxn,
-			LatestRevs:    txnTracker.LatestRevisions,
 		},
 	}
 
@@ -1415,7 +1409,6 @@ func TestServiceUpdates(t *testing.T) {
 			Log:           logger,
 			Contiv:        contiv,
 			NATTxnFactory: txnTracker.NewLinuxDataChangeTxn,
-			LatestRevs:    txnTracker.LatestRevisions,
 		},
 	}
 
@@ -1831,7 +1824,6 @@ func TestWithSNATOnly(t *testing.T) {
 			Log:           logger,
 			Contiv:        contiv,
 			NATTxnFactory: txnTracker.NewLinuxDataChangeTxn,
-			LatestRevs:    txnTracker.LatestRevisions,
 		},
 	}
 

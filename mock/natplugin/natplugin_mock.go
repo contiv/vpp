@@ -96,10 +96,6 @@ func (mnt *MockNatPlugin) ApplyTxn(txn *localclient.Txn, latestRevs *syncbase.Pr
 	}
 
 	if txn.LinuxDataResyncTxn != nil {
-		return errors.New("linux resync txn is not supported")
-	}
-
-	if txn.LinuxDataChangeTxn == nil {
 		/* Resync */
 
 		mnt.Reset()
@@ -150,21 +146,25 @@ func (mnt *MockNatPlugin) ApplyTxn(txn *localclient.Txn, latestRevs *syncbase.Pr
 
 	dataChange := txn.LinuxDataChangeTxn
 	for _, op := range dataChange.Ops {
-		foundRev, _ := latestRevs.Get(op.Key)
+		// foundRev, _ := latestRevs.Get(op.Key) TODO: uncomment/update after refactor
 		if op.Key == nat.GlobalNAT44Key {
 			if op.Value != nil {
 				// put global NAT config
+				/*
 				if mnt.defaultNat44Global != !foundRev {
 					return errors.New("modify vs create NAT44-global-config operation mismatch")
 				}
+				*/
 				if err := mnt.putGlobalConfig(op.Value); err != nil {
 					return err
 				}
 			} else {
 				// clean global config
+				/*
 				if !foundRev {
 					return errors.New("cannot remove global NAT config without latest value/revision")
 				}
+				*/
 				if mnt.defaultNat44Global {
 					return errors.New("cannot remove empty global NAT config")
 				}
@@ -179,9 +179,11 @@ func (mnt *MockNatPlugin) ApplyTxn(txn *localclient.Txn, latestRevs *syncbase.Pr
 					return errors.New("failed to cast DNAT config value")
 				}
 				prevDnatConfig, modify := mnt.nat44Dnat[dnatConfig.Label]
+				/*
 				if modify != foundRev {
 					return errors.New("modify vs create DNAT operation mismatch")
 				}
+				*/
 				if modify {
 					// remove old static mappings
 					oldSms, err := mnt.dnatToStaticMappings(prevDnatConfig)
@@ -217,9 +219,11 @@ func (mnt *MockNatPlugin) ApplyTxn(txn *localclient.Txn, latestRevs *syncbase.Pr
 
 			} else {
 				// remove DNAT configuration
+				/*
 				if !foundRev {
 					return errors.New("cannot remove DNAT without latest value/revision")
 				}
+				*/
 				label := strings.TrimPrefix(op.Key, nat.DNAT44Prefix)
 				if prevDnatConfig, hasDnat := mnt.nat44Dnat[label]; hasDnat {
 					oldSms, err := mnt.dnatToStaticMappings(prevDnatConfig)

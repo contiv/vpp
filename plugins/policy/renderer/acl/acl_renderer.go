@@ -21,7 +21,6 @@ import (
 
 	"github.com/gogo/protobuf/proto"
 
-	"github.com/ligato/cn-infra/datasync/syncbase"
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/vpp-agent/clientv2/linux"
 	vpp_acl "github.com/ligato/vpp-agent/plugins/vppv2/model/acl"
@@ -61,7 +60,6 @@ type Deps struct {
 	LogFactory    logging.LoggerFactory /* optional */
 	Contiv        contiv.API            /* for GetIfName() */
 	ACLTxnFactory func() (dsl linuxclient.DataChangeDSL)
-	LatestRevs    *syncbase.PrevRevisions
 }
 
 // RendererTxn represents a single transaction of Renderer.
@@ -286,7 +284,6 @@ func (art *RendererTxn) renderACL(table *cache.ContivRuleTable, isReflectiveACL 
 	} else {
 		acl.Name = ACLNamePrefix + table.GetID()
 	}
-	acl.Name = ACLNamePrefix + table.GetID()
 	acl.Interfaces = art.renderInterfaces(table.Pods, isReflectiveACL)
 
 	for i := 0; i < table.NumOfRules; i++ {

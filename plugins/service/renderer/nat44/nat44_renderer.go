@@ -18,11 +18,11 @@ package nat44
 
 import (
 	"net"
+	"sync/atomic"
 	"time"
 
 	"github.com/gogo/protobuf/proto"
 
-	"github.com/ligato/cn-infra/datasync/syncbase"
 	"github.com/ligato/cn-infra/logging"
 
 	"github.com/ligato/vpp-agent/clientv2/linux"
@@ -34,7 +34,6 @@ import (
 	govpp "git.fd.io/govpp.git/api"
 	"github.com/contiv/vpp/plugins/statscollector"
 	nat_api "github.com/ligato/vpp-agent/plugins/vpp/binapi/nat"
-	"sync/atomic"
 )
 
 const (
@@ -105,7 +104,6 @@ type Deps struct {
 	Log           logging.Logger
 	Contiv        contiv.API /* for GetNatLoopbackIP, GetServiceLocalEndpointWeight */
 	NATTxnFactory func() (dsl linuxclient.DataChangeDSL)
-	LatestRevs    *syncbase.PrevRevisions
 	GoVPPChan     govpp.Channel      /* used for direct NAT binary API calls */
 	Stats         statscollector.API /* used for exporting the statistics */
 }

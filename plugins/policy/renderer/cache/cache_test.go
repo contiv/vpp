@@ -170,8 +170,8 @@ func verifyGlobalTable(table *ContivRuleTable, expPtr, notExpPtr *ContivRuleTabl
 	if notExpPtr != nil {
 		gomega.Expect(table).ToNot(gomega.Equal(notExpPtr))
 	}
-	gomega.Expect(table.GetID()).To(gomega.BeEquivalentTo(GlobalTableID))
 	gomega.Expect(table.Type).To(gomega.Equal(Global))
+	gomega.Expect(table.GetID()).To(gomega.BeEquivalentTo(GlobalTableID))
 	verifyRules(table, rules)
 	gomega.Expect(table.Pods).To(gomega.BeEmpty())
 }

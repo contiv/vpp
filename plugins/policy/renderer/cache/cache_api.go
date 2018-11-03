@@ -222,6 +222,9 @@ type ContivRuleTable struct {
 	// Private can be used by renderer to store the configuration of the table
 	// in the format used by the destination network stack.
 	Private interface{}
+
+	// id is (cached) table identifier generated from table content by GetID.
+	id string
 }
 
 // NewContivRuleTable is a constructor for ContivRuleTable.
@@ -236,13 +239,19 @@ func NewContivRuleTable(tableType TableType) *ContivRuleTable {
 // GetID returns table ID that will be the same between tables of the same type
 // and with the same content, otherwise highly likely different.
 func (crt *ContivRuleTable) GetID() string {
-	if crt.Type == Global {
-		return GlobalTableID
+	if crt.id != "" {
+		// already calculated
+		return crt.id
 	}
-	h := fnv.New32a()
-	rulesAsString := fmt.Sprintf("%v", crt.Rules[:crt.NumOfRules])
-	h.Write([]byte(rulesAsString))
-	return fmt.Sprintf("%d", h.Sum32())
+	if crt.Type == Global {
+		crt.id = GlobalTableID
+	} else {
+		h := fnv.New64a()
+		rulesAsString := fmt.Sprintf("%v", crt.Rules[:crt.NumOfRules])
+		h.Write([]byte(rulesAsString))
+		crt.id = fmt.Sprintf("%x", h.Sum64())
+	}
+	return crt.id
 }
 
 // InsertRule inserts the rule into the table at the right order.

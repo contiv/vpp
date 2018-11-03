@@ -155,7 +155,6 @@ test-cover: get-covtools
 			${COVER_DIR}cov_u7.out \
 			${COVER_DIR}cov_u8.out \
 			${COVER_DIR}cov_u9.out \
-			${COVER_DIR}cov_u10.out \
 			${COVER_DIR}cov_u11.out \
 			${COVER_DIR}cov_u12.out \
 			${COVER_DIR}cov_u13.out \

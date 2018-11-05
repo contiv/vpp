@@ -41,6 +41,8 @@ type HTTPClientConfig struct {
 	Port string `json:"port"`
 	// Basic authorization for client
 	BasicAuth string `json:"basic-auth"`
+	// If https or http should be used
+	UseHTTPS bool `json:"use-https"`
 }
 
 // CreateHTTPClient uses environment variable HTTP_CONFIG or HTTP config file to establish connection
@@ -73,7 +75,16 @@ func CreateHTTPClient(configFile string) (*HTTPClient, error) {
 
 // Helper function to create url from config
 func (client *HTTPClient) createURL(base string, cmd string) string {
-	url := "http://" + base + ":" + client.Config.Port
+	// Use either http or https
+	url := "http://"
+	if client.Config.UseHTTPS {
+		url = "https://"
+	}
+
+	// Add port as suffix
+	url = url + base + ":" + client.Config.Port
+
+	// Append command
 	url = url + "/" + cmd
 	return url
 }

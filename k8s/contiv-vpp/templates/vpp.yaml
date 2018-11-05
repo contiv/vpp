@@ -1046,7 +1046,15 @@ spec:
         args:
         - -c
         - |
-          cp -f /contiv-netctl /host/usr/local/bin/contiv-netctl || true
+          echo '#!/bin/sh
+          kubectl get pods -n kube-system | \
+            grep contiv-crd | \
+            cut -d " " -f 1 | \
+            xargs -I{} kubectl exec -n kube-system {} \
+            /contiv-netctl "$@"' \
+          > /host/usr/local/bin/contiv-netctl || true
+
+          chmod +x /host/usr/local/bin/contiv-netctl || true
         volumeMounts:
           - name: usr-local-bin
             mountPath: /host/usr/local/bin
@@ -1220,3 +1228,4 @@ data:
     {{- if .Values.http.enableBasicAuth }}
     basic-auth: {{ .Values.http.basicAuth | quote }}
     {{- end }}
+    use-https: {{ .Values.http.enableServerCert }}

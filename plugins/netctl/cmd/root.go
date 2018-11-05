@@ -133,8 +133,8 @@ var cmdPodInfo = &cobra.Command{
 func Execute() {
 	var rootCmd = &cobra.Command{Use: "netctl"}
 
-	rootCmd.PersistentFlags().StringVar(&etcdConfig, "etcd-cfg", "/etc/etcd/etcd.conf", "path to etcd.conf config file")
-	rootCmd.PersistentFlags().StringVar(&httpConfig, "http-cfg", "/etc/http/http.conf", "path to http.conf config file")
+	rootCmd.PersistentFlags().StringVar(&etcdConfig, "etcd-cfg", "", "path to etcd.conf config file")
+	rootCmd.PersistentFlags().StringVar(&httpConfig, "http-cfg", "", "path to http.client.conf config file")
 
 	rootCmd.AddCommand(cmdNodes)
 	rootCmd.AddCommand(cmdVppDump)

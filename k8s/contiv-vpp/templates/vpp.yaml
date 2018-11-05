@@ -1064,6 +1064,8 @@ spec:
           value: "/etc/etcd/etcd.conf"
         - name: HTTP_CONFIG
           value: "/etc/http/http.conf"
+        - name: HTTP_CLIENT_CONFIG
+          value: "/etc/http/http.client.conf"
         volumeMounts:
         - name: etcd-cfg
           mountPath: /etc/etcd
@@ -1212,4 +1214,9 @@ data:
     {{- if .Values.http.enableBasicAuth }}
     client-basic-auth:
       - {{ .Values.http.basicAuth | quote }}
+    {{- end }}
+  http.client.conf: |
+    port: 9999
+    {{- if .Values.http.enableBasicAuth }}
+    basic-auth: {{ .Values.http.basicAuth | quote }}
     {{- end }}

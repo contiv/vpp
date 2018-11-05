@@ -17,13 +17,9 @@ package remote
 
 import (
 	"bytes"
-	"crypto/tls"
-	"crypto/x509"
 	"fmt"
 	"github.com/ligato/cn-infra/config"
-	"github.com/ligato/cn-infra/rpc/rest"
 	"golang.org/x/net/html"
-	"io/ioutil"
 	"net/http"
 	"os"
 	"strings"
@@ -32,18 +28,28 @@ import (
 
 // HTTPClient wraps http.Client with configured authorization and url base
 type HTTPClient struct {
-	http   *http.Client
-	config *rest.Config
-	base   string
+	// Config for this client
+	Config *HTTPClientConfig
+
+	http *http.Client
+	base string
+}
+
+// HTTPClientConfig is configuration for http client
+type HTTPClientConfig struct {
+	// Port on what targets are listening on
+	Port string `json:"port"`
+	// Basic authorization for client
+	BasicAuth string `json:"basic-auth"`
 }
 
 // CreateHTTPClient uses environment variable HTTP_CONFIG or HTTP config file to establish connection
 func CreateHTTPClient(configFile string) (*HTTPClient, error) {
 	if configFile == "" {
-		configFile = os.Getenv("HTTP_CONFIG")
+		configFile = os.Getenv("HTTP_CLIENT_CONFIG")
 	}
 
-	cfg := &rest.Config{}
+	cfg := &HTTPClientConfig{}
 	if configFile != "" {
 		if err := config.ParseConfigFromYamlFile(configFile, cfg); err != nil {
 			return nil, err
@@ -52,24 +58,6 @@ func CreateHTTPClient(configFile string) (*HTTPClient, error) {
 
 	transport := &http.Transport{}
 
-	if len(cfg.ClientCerts) > 0 {
-		// require client certificate
-		caCertPool := x509.NewCertPool()
-
-		for _, c := range cfg.ClientCerts {
-			caCert, err := ioutil.ReadFile(c)
-			if err != nil {
-				return nil, err
-			}
-			caCertPool.AppendCertsFromPEM(caCert)
-		}
-
-		transport.TLSClientConfig = &tls.Config{
-			ClientAuth: tls.RequireAndVerifyClientCert,
-			ClientCAs:  caCertPool,
-		}
-	}
-
 	http := &http.Client{
 		Transport:     transport,
 		Timeout:       10 * time.Second,
@@ -77,44 +65,34 @@ func CreateHTTPClient(configFile string) (*HTTPClient, error) {
 		Jar:           nil,
 	}
 
-	base := cfg.Endpoint + "/"
-
-	if cfg.UseHTTPS() {
-		base = "https://" + base
-	} else {
-		base = "http://" + base
-	}
-
 	return &HTTPClient{
+		Config: cfg,
 		http:   http,
-		config: cfg,
-		base:   base,
 	}, nil
+}
+
+// Helper function to create url from config
+func (client *HTTPClient) createURL(base string, cmd string) string {
+	url := "http://" + base + ":" + client.Config.Port
+	url = url + "/" + cmd
+	return url
 }
 
 // Get creates http get request prefixing cmd with base if needed and using correct authentication
 func (client *HTTPClient) Get(base string, cmd string) (*http.Response, error) {
-	url := base
-	if len(url) == 0 {
-		url = client.base
-	}
-	url += cmd
-
+	url := client.createURL(base, cmd)
 	req, err := http.NewRequest("GET", url, nil)
 
 	if err != nil {
 		return nil, err
 	}
 
-	if len(client.config.ClientBasicAuth) > 0 {
-		for _, u := range client.config.ClientBasicAuth {
-			fields := strings.Split(u, ":")
-			if len(fields) != 2 {
-				return nil, fmt.Errorf("invalid format of basic auth entry '%v' expected 'user:pass'", u)
-			}
-
-			req.SetBasicAuth(fields[0], fields[1])
+	if len(client.Config.BasicAuth) > 0 {
+		fields := strings.Split(client.Config.BasicAuth, ":")
+		if len(fields) != 2 {
+			return nil, fmt.Errorf("invalid format of basic auth entry '%v' expected 'user:pass'", client.Config.BasicAuth)
 		}
+		req.SetBasicAuth(fields[0], fields[1])
 	}
 
 	return client.http.Do(req)
@@ -122,12 +100,7 @@ func (client *HTTPClient) Get(base string, cmd string) (*http.Response, error) {
 
 // Post creates http post request prefixing cmd with base if needed and using correct authentication
 func (client *HTTPClient) Post(base string, cmd string, body string) (*http.Response, error) {
-	url := base
-	if len(url) == 0 {
-		url = client.base
-	}
-	url += cmd
-
+	url := client.createURL(base, cmd)
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer([]byte(body)))
 	req.Header.Set("Content-Type", "application/json")
 
@@ -135,15 +108,12 @@ func (client *HTTPClient) Post(base string, cmd string, body string) (*http.Resp
 		return nil, err
 	}
 
-	if len(client.config.ClientBasicAuth) > 0 {
-		for _, u := range client.config.ClientBasicAuth {
-			fields := strings.Split(u, ":")
-			if len(fields) != 2 {
-				return nil, fmt.Errorf("invalid format of basic auth entry '%v' expected 'user:pass'", u)
-			}
-
-			req.SetBasicAuth(fields[0], fields[1])
+	if len(client.Config.BasicAuth) > 0 {
+		fields := strings.Split(client.Config.BasicAuth, ":")
+		if len(fields) != 2 {
+			return nil, fmt.Errorf("invalid format of basic auth entry '%v' expected 'user:pass'", client.Config.BasicAuth)
 		}
+		req.SetBasicAuth(fields[0], fields[1])
 	}
 
 	return client.http.Do(req)

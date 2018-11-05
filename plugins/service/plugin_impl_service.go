@@ -165,7 +165,7 @@ func (p *Plugin) watchEvents() {
 			if p.resyncCounter == 0 || p.pendingResync != nil {
 				p.pendingChanges = append(p.pendingChanges, dataChngEv)
 				dataChngEv.Done(nil)
-				p.Log.WithField("key", dataChngEv.GetKey()).Info("Delaying data-change")
+				p.Log.WithField("keys", dataChangeEvKeys(dataChngEv)).Info("Delaying data-change")
 			} else {
 				err := p.processor.Update(dataChngEv)
 				dataChngEv.Done(err)
@@ -200,7 +200,7 @@ func (p *Plugin) handleResync(resyncChan <-chan resync.StatusEvent) {
 					err = p.processor.Resync(p.pendingResync)
 					for i := 0; err == nil && i < len(p.pendingChanges); i++ {
 						dataChngEv := p.pendingChanges[i]
-						p.Log.WithField("key", dataChngEv.GetKey()).Info("Applying delayed data-change")
+						p.Log.WithField("keys", dataChangeEvKeys(dataChngEv)).Info("Applying delayed data-change")
 						err = p.processor.Update(dataChngEv)
 					}
 					p.pendingResync = nil
@@ -226,4 +226,12 @@ func (p *Plugin) Close() error {
 	p.wg.Wait()
 	safeclose.CloseAll(p.watchConfigReg, p.resyncChan, p.changeChan)
 	return nil
+}
+
+// dataChangeEvKeys collects all keys included in a data change event.
+func dataChangeEvKeys(changeEv datasync.ChangeEvent) (keys []string) {
+	for _, change := range changeEv.GetChanges() {
+		keys = append(keys, change.GetKey())
+	}
+	return
 }

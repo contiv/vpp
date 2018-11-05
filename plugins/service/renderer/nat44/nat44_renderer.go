@@ -551,7 +551,7 @@ func (rndr *Renderer) exportDNATMappings(service *renderer.ContivService) []*nat
 				continue
 			}
 			mapping := &nat.Nat44DNat_DNatConfig_StaticMapping{}
-			mapping.TwiceNat = nat.TwiceNatMode_SELF
+			mapping.TwiceNat = nat.TwiceNatMode_ENABLED
 			mapping.ExternalIp = externalIP.String()
 			mapping.ExternalPort = uint32(port.Port)
 			switch port.Protocol {

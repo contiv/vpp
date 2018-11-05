@@ -34,6 +34,8 @@ import (
 	"github.com/ligato/cn-infra/rpc/rest"
 
 	"github.com/ligato/vpp-agent/clientv2/linux"
+	"github.com/ligato/vpp-agent/plugins/kvscheduler"
+	scheduler_api "github.com/ligato/vpp-agent/plugins/kvscheduler/api"
 	linux_intf "github.com/ligato/vpp-agent/plugins/linuxv2/model/interfaces"
 	linux_l3 "github.com/ligato/vpp-agent/plugins/linuxv2/model/l3"
 	"github.com/ligato/vpp-agent/plugins/vppv2/ifplugin/ifaceidx"
@@ -308,6 +310,15 @@ func (s *remoteCNIserver) Delete(ctx context.Context, request *cni.CNIRequest) (
 //  - veth pair to host IP stack + AF_PACKET on VPP side
 //  - default static route to the host via the veth pair
 func (s *remoteCNIserver) configureVswitchConnectivity() error {
+	if len(s.swIfIndex.ListAllInterfaces()) == 0 {
+		// TODO: temporary hack until we use proper resync transaction
+		resyncTxn := kvscheduler.DefaultPlugin.StartNBTransaction()
+		ctx := context.Background()
+		ctx = scheduler_api.WithDescription(ctx, "Empty resync transaction used to enforce refresh")
+		ctx = scheduler_api.WithFullResync(ctx)
+		resyncTxn.Commit(ctx)
+	}
+
 	txn := s.vppTxnFactory().Put()
 
 	s.Logger.Info("Applying base vSwitch config.")

@@ -101,6 +101,8 @@ data:
     loggers:
       - name: statscollector
         level: info
+      - name: vpp.if-state
+        level: info
   grpc.conf: |
     network: unix
     endpoint: /var/run/contiv/cni.sock

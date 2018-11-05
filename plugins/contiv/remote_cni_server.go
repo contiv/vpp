@@ -313,22 +313,6 @@ func (s *remoteCNIserver) configureVswitchConnectivity() error {
 	s.Logger.Info("Applying base vSwitch config.")
 	s.Logger.Info("Existing interfaces: ", s.swIfIndex.ListAllInterfaces())
 
-	// determine interface name that can be used to check whether vswitch connectivity is already configured
-	var expectedIfName string
-	if s.useTAPInterfaces {
-		expectedIfName = TapVPPEndLogicalName
-	} else {
-		expectedIfName = s.interconnectAfpacketName()
-	}
-	if s.UseSTN() {
-		// For STN case, do not rely on TAP interconnect, since it has been pre-configured by contiv-init.
-		// Let's relay on VXLAN BVI interface name. Note that this may not work in case that VXLANs are disabled.
-		expectedIfName = vxlanBVIInterfaceName
-		if s.config.UseL2Interconnect {
-			s.Logger.Warn("Unable to reliably determine whether VSwitch connectivity is configured, proceeeding with config.")
-		}
-	}
-
 	// prepare empty vswitch config struct to be filled in
 	config := &vswitchConfig{nics: []*vpp_intf.Interface{}}
 

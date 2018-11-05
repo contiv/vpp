@@ -287,7 +287,6 @@ func (s *remoteCNIserver) addRoutesToNode(nodeInfo *node.NodeInfo) error {
 // deleteRoutesToNode delete routes to the node specified by nodeID.
 func (s *remoteCNIserver) deleteRoutesToNode(nodeInfo *node.NodeInfo) error {
 	txn := s.vppTxnFactory()
-	txn2 := s.vppTxnFactory().Delete() // TODO: merge into 1 transaction after vpp-agent supports it
 	hostIP := s.otherHostIP(nodeInfo.Id, nodeInfo.IpAddress)
 
 	// VXLAN tunnel
@@ -315,7 +314,7 @@ func (s *remoteCNIserver) deleteRoutesToNode(nodeInfo *node.NodeInfo) error {
 
 		// static FIB
 		vxlanFib := s.vxlanFibEntry(vxlanArp.PhysAddress, vxlanIf.Name)
-		txn2.BDFIB(vxlanFib.BridgeDomain, vxlanFib.PhysAddress)
+		txn.Delete().BDFIB(vxlanFib.BridgeDomain, vxlanFib.PhysAddress)
 	}
 
 	// static routes
@@ -362,12 +361,6 @@ func (s *remoteCNIserver) deleteRoutesToNode(nodeInfo *node.NodeInfo) error {
 	}
 	// send the config transaction
 	if !s.useL2Interconnect {
-		// FIBs need to be removed before the VXLAN interface
-		err = txn2.Send().ReceiveReply()
-		if err != nil {
-			return fmt.Errorf("Can't configure VPP to remove FIB to node %v: %v ", nodeInfo.Id, err)
-		}
-
 		// pass deep copy to local client since we are overwriting previously applied config
 		bd := proto.Clone(s.vxlanBD)
 		// interface should be removed from BD after FIB entry tied to interface is deleted

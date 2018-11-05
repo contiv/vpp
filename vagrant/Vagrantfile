@@ -65,6 +65,7 @@ goland_version= ENV['GOLAND_VERSION']
 helm_version= ENV['HELM_VERSION']
 crd_disabled=ENV['CRD_DISABLED']
 contiv_dir="/home/vagrant/gopath/src/github.com/contiv/vpp"
+helm_extra_opts = ENV['HELM_EXTRA_OPTS'] || ''
 
 provision_every_node = <<SCRIPT
 set -e
@@ -466,7 +467,7 @@ applyVPPnetwork() {
 
   if [ "#{crd_disabled}" = "false" ]; then
     # Deploy contiv-vpp networking with CRD
-    helm template --name vagrant $stn_config --set contiv.crdNodeConfigurationDisabled=false --set contiv.ipamConfig.contivCIDR=10.128.0.0/14 --set contiv.ipamConfig.nodeInterconnectCIDR="" "#{contiv_dir}"/k8s/contiv-vpp > "#{contiv_dir}"/k8s/contiv-vpp/manifest.yaml
+    helm template #{helm_extra_opts} --name vagrant $stn_config --set contiv.crdNodeConfigurationDisabled=false --set contiv.ipamConfig.contivCIDR=10.128.0.0/14 --set contiv.ipamConfig.nodeInterconnectCIDR="" "#{contiv_dir}"/k8s/contiv-vpp > "#{contiv_dir}"/k8s/contiv-vpp/manifest.yaml
     kubectl apply -f #{contiv_dir}/k8s/contiv-vpp/manifest.yaml
 
     # Wait until crd agent is ready
@@ -482,7 +483,7 @@ applyVPPnetwork() {
   else
     # Deploy contiv-vpp networking without CRD
     sed -i '/#serviceCIDR:/ r /tmp/nodeConfig.yaml' "#{contiv_dir}"/k8s/contiv-vpp/values.yaml
-    helm template --name vagrant $stn_config "#{contiv_dir}"/k8s/contiv-vpp > "#{contiv_dir}"/k8s/contiv-vpp/manifest.yaml
+    helm template #{helm_extra_opts} --name vagrant $stn_config "#{contiv_dir}"/k8s/contiv-vpp > "#{contiv_dir}"/k8s/contiv-vpp/manifest.yaml
     kubectl apply -f #{contiv_dir}/k8s/contiv-vpp/manifest.yaml
   fi
 

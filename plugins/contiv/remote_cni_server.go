@@ -54,7 +54,8 @@ import (
 const (
 	resultOk               uint32 = 0
 	resultErr              uint32 = 1
-	linuxIfMaxLen                 = 15
+	linuxIfNameMaxLen             = 15
+	logicalIfNameMaxLen           = 63
 	afPacketNamePrefix            = "afpacket"
 	vppTAPNamePrefix              = "vpp-tap-"
 	linuxTAPNamePrefix            = "linux-tap-"

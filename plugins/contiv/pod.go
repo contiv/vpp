@@ -155,7 +155,7 @@ func (s *remoteCNIserver) getPIDFromNwNsPath(ns string) (int, error) {
 }
 
 func (s *remoteCNIserver) veth1NameFromRequest(request *cni.CNIRequest) string {
-	return request.InterfaceName + request.ContainerId
+	return trimInterfaceName(request.InterfaceName+request.ContainerId, logicalIfNameMaxLen)
 }
 
 func (s *remoteCNIserver) veth1HostIfNameFromRequest(request *cni.CNIRequest) string {
@@ -163,26 +163,23 @@ func (s *remoteCNIserver) veth1HostIfNameFromRequest(request *cni.CNIRequest) st
 }
 
 func (s *remoteCNIserver) veth2NameFromRequest(request *cni.CNIRequest) string {
-	return request.ContainerId
+	return trimInterfaceName(request.ContainerId, logicalIfNameMaxLen)
 }
 
 func (s *remoteCNIserver) veth2HostIfNameFromRequest(request *cni.CNIRequest) string {
-	if len(request.ContainerId) > linuxIfMaxLen {
-		return request.ContainerId[:linuxIfMaxLen]
-	}
-	return request.ContainerId
+	return trimInterfaceName(request.ContainerId, linuxIfNameMaxLen)
 }
 
 func (s *remoteCNIserver) afpacketNameFromRequest(request *cni.CNIRequest) string {
-	return afPacketNamePrefix + s.veth2NameFromRequest(request)
+	return trimInterfaceName(afPacketNamePrefix+s.veth2NameFromRequest(request), logicalIfNameMaxLen)
 }
 
 func (s *remoteCNIserver) vppTAPNameFromRequest(request *cni.CNIRequest) string {
-	return vppTAPNamePrefix + request.ContainerId
+	return trimInterfaceName(vppTAPNamePrefix+request.ContainerId, logicalIfNameMaxLen)
 }
 
 func (s *remoteCNIserver) linuxTAPNameFromRequest(request *cni.CNIRequest) string {
-	return linuxTAPNamePrefix + request.ContainerId
+	return trimInterfaceName(linuxTAPNamePrefix+request.ContainerId, logicalIfNameMaxLen)
 }
 
 func (s *remoteCNIserver) tapHostNameFromRequest(request *cni.CNIRequest) string {
@@ -190,7 +187,7 @@ func (s *remoteCNIserver) tapHostNameFromRequest(request *cni.CNIRequest) string
 }
 
 func (s *remoteCNIserver) loopbackNameFromRequest(request *cni.CNIRequest) string {
-	return "loop" + s.veth2NameFromRequest(request)
+	return trimInterfaceName("loop"+s.veth2NameFromRequest(request), logicalIfNameMaxLen)
 }
 
 func (s *remoteCNIserver) ipAddrForPodVPPIf(podIP string) string {
@@ -364,6 +361,13 @@ func (s *remoteCNIserver) podDefaultRouteFromRequest(request *cni.CNIRequest, if
 		Scope:             linux_l3.LinuxStaticRoute_GLOBAL,
 		GwAddr:            s.ipam.PodGatewayIP().String(),
 	}
+}
+
+func trimInterfaceName(name string, maxLen int) string {
+	if len(name) > maxLen {
+		return name[:maxLen]
+	}
+	return name
 }
 
 // ipv4ToUint32 is simple utility function for conversion between IPv4 and uint32.

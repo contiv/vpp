@@ -310,7 +310,7 @@ func (s *remoteCNIserver) Delete(ctx context.Context, request *cni.CNIRequest) (
 //  - veth pair to host IP stack + AF_PACKET on VPP side
 //  - default static route to the host via the veth pair
 func (s *remoteCNIserver) configureVswitchConnectivity() error {
-	if len(s.swIfIndex.ListAllInterfaces()) == 0 {
+	if len(s.swIfIndex.ListAllInterfaces()) == 0 && !s.test {
 		// TODO: temporary hack until we use proper resync transaction
 		resyncTxn := kvscheduler.DefaultPlugin.StartNBTransaction()
 		ctx := context.Background()

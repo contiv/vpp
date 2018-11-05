@@ -25,6 +25,8 @@ data:
     TCPstackDisabled: true
     UseTAPInterfaces: true
     TAPInterfaceVersion: 2
+    TAPv2RxRingSize: 256
+    TAPv2TxRingSize: 256
     NatExternalTraffic: true
     MTUSize: 1450
     CleanupIdleNATSessions: True
@@ -49,6 +51,8 @@ data:
     default-level: debug
     loggers:
       - name: statscollector
+        level: info
+      - name: vpp.if-state
         level: info
   grpc.conf: |
     network: unix
@@ -152,6 +156,14 @@ spec:
           volumeMounts:
             - name: var-etcd
               mountPath: /var/etcd/
+          livenessProbe:
+            exec:
+              command:
+              - /bin/sh
+              - -c
+              - etcdctl get --endpoints=127.0.0.1:32379 /
+            periodSeconds: 2
+            initialDelaySeconds: 20
       volumes:
         - name: var-etcd
           hostPath:

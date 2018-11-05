@@ -50,6 +50,9 @@ type ServiceProcessor struct {
 	frontendIfs renderer.Interfaces
 	backendIfs  renderer.Interfaces
 
+	/* a local copy of kubernetes state data */
+	k8sStateData map[string]datasync.LazyValueWithRev // key -> value, revision
+
 	sync.Mutex
 }
 
@@ -71,6 +74,7 @@ func (sp *ServiceProcessor) Init() error {
 	sp.reset()
 	sp.Contiv.RegisterPodPreRemovalHook(sp.processDeletingPod)
 	sp.Contiv.RegisterPodPostAddHook(sp.processNewPod)
+	sp.k8sStateData = make(map[string]datasync.LazyValueWithRev)
 	return nil
 }
 

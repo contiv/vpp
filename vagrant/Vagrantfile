@@ -217,12 +217,9 @@ nat {
    user hash buckets 1024
    max translations per user 10000
 }
-acl-plugin {
-   use tuple merge 0
-}
 api-trace {
    on
-   nitems 500
+   nitems 5000
 }
 EOF
 }
@@ -244,7 +241,7 @@ if [ "$split_node_os_release" = '16' ]; then
 else
   kernelModule=$(lsmod | grep vfio_pci | wc -l)
   if [[ $kernelModule -gt 0 ]]; then
-    echo "PCI UIO driver is loaded"
+    echo "PCI VFIO driver is loaded"
   else
     installPCIVFIO
   fi

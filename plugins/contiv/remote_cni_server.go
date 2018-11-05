@@ -851,9 +851,9 @@ func (s *remoteCNIserver) cleanupVswitchConnectivity() {
 // It also configures the VPP TCP stack for this container, in case it would be LD_PRELOAD-ed.
 func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest) (reply *cni.CNIReply, err error) {
 	var (
-		podIP          net.IP
-		persisted      bool
-		txn            linuxclient.PutDSL
+		podIP     net.IP
+		persisted bool
+		txn       linuxclient.PutDSL
 	)
 
 	// do not connect any containers until the base vswitch config is successfully applied

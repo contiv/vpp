@@ -169,13 +169,15 @@ func (ctc *ContivTelemetryCache) nodeEventProcessor() {
 			// TODO: update CRD to reflect the refactored vpp-agent
 			ctc.Log.Info("SKIPPING timer-triggered data collection & validation")
 			return
-			ctc.Log.Info("Timer-triggered data collection & validation, status:", ok)
-			if !ok {
-				return
-			}
-			ctc.Report.Clear()
-			ctc.processQueuedDataStoreUpdates()
-			ctc.startNodeInfoCollection()
+			/*
+				ctc.Log.Info("Timer-triggered data collection & validation, status:", ok)
+				if !ok {
+					return
+				}
+				ctc.Report.Clear()
+				ctc.processQueuedDataStoreUpdates()
+				ctc.startNodeInfoCollection()
+			*/
 
 		case data, ok := <-ctc.nodeResponseChannel:
 			if !ok {

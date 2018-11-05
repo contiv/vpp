@@ -33,6 +33,14 @@ func (sc *ServiceProcessor) propagateDataChangeEv(dataChngEv datasync.ProtoWatch
 	key := dataChngEv.GetKey()
 	sc.Log.Debug("Received CHANGE key ", key)
 
+	if prevRev, hasPrevRev := sc.k8sStateData[key]; hasPrevRev {
+		if prevRev.GetRevision() >= dataChngEv.GetRevision() {
+			sc.Log.Debugf("Ignoring already processed revision for key=%s", key)
+			return nil
+		}
+	}
+	sc.k8sStateData[key] = dataChngEv
+
 	// Process Node CHANGE event
 	if strings.HasPrefix(key, nodemodel.AllocatedIDsKeyPrefix) {
 		var value, prevValue nodemodel.NodeInfo

@@ -22,6 +22,10 @@ data:
   contiv.yaml: |-
     UseTAPInterfaces: {{ .Values.contiv.useTAPInterfaces }}
     TAPInterfaceVersion: {{ .Values.contiv.tapInterfaceVersion }}
+    {{- if eq (.Values.contiv.tapInterfaceVersion | int) 2 }}
+    TAPv2RxRingSize: {{ .Values.contiv.tapv2RxRingSize }}
+    TAPv2TxRingSize: {{ .Values.contiv.tapv2TxRingSize }}
+    {{- end }}
     {{- if .Values.contiv.stealInterface }}
     StealInterface: {{ .Values.contiv.stealInterface }}
     {{- end }}

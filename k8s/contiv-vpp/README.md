@@ -63,6 +63,8 @@ Parameter | Description | Default
 `contiv.mtuSize` | MTU Size | 1450
 `contiv.useTAPInterfaces` | Enable TAP interfaces | `True`
 `contiv.tapInterfaceVersion`| TAP interface version | 2
+`contiv.tapv2RxRingSize`| TAPv2 interface receive ring size | 256
+`contiv.tapv2TxRingSize`| TAPv2 interface transmit ring size | 256
 `contiv.stealInterface` | Enable Steal The NIC feature on the specified interface on each node | `""`
 `contiv.stealFirstNIC` | Enable Steal The NIC feature on the first interface on each node | `False`
 `contiv.natExternalTraffic`| NAT cluster-external traffic | `True`

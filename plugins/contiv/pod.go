@@ -19,13 +19,8 @@ import (
 	"math/rand"
 	"net"
 	"os/exec"
-	"runtime"
 	"strconv"
 	"strings"
-	"time"
-
-	"github.com/vishvananda/netlink"
-	"github.com/vishvananda/netns"
 
 	"github.com/contiv/vpp/plugins/contiv/containeridx/model"
 	"github.com/contiv/vpp/plugins/contiv/model/cni"
@@ -37,9 +32,6 @@ import (
 )
 
 const (
-	verifyPodRetries    = 100                   // number of retries for verifying POD connectivity
-	verifyPodRetrySleep = 30 * time.Millisecond // sleep between attempts to verify POD connectivity
-
 	ipv4NetAny = "0.0.0.0/0"
 )
 
@@ -390,72 +382,4 @@ func ipv4ToUint32(ip net.IP) (uint32, error) {
 // uint32ToIpv4 is simple utility function for conversion between IPv4 and uint32.
 func uint32ToIpv4(ip uint32) net.IP {
 	return net.IPv4(byte(ip>>24), byte(ip>>16), byte(ip>>8), byte(ip)).To4()
-}
-
-// verifyPodIP verifies that the specified namespace contains the interface with the specified IP address
-// and waits until it is actually configured, or returns an error after timeout.
-func (s *remoteCNIserver) verifyPodIP(nsPath string, ifName string, ip net.IP) error {
-	if s.test {
-		return nil
-	}
-
-	// Lock the OS Thread so we don't accidentally switch namespaces
-	runtime.LockOSThread()
-	defer runtime.UnlockOSThread()
-
-	origNs, err := netns.Get()
-	if err != nil {
-		s.Logger.Error("Error by getting current namespace", err)
-		return err
-	}
-	defer origNs.Close()
-
-	containerNs, err := netns.GetFromPath(nsPath)
-	if err != nil {
-		s.Logger.Error("Error by getting container namespace:", err)
-		return err
-	}
-	defer containerNs.Close()
-
-	err = netns.Set(containerNs)
-	if err != nil {
-		s.Logger.Error("Error by switching to container namespace:", err)
-		return err
-	}
-	defer netns.Set(origNs)
-
-	// loop until the interface can be found
-	var link netlink.Link
-	for i := 0; i < verifyPodRetries; i++ {
-		link, err = netlink.LinkByName(ifName)
-		if link != nil {
-			break
-		}
-		s.Logger.Debugf("Link %s not yet found in the namespace %s, waiting", ifName, nsPath)
-		time.Sleep(verifyPodRetrySleep)
-	}
-	if link == nil {
-		err := fmt.Errorf("cannot find the link %s in the namespace %s within %v", ifName, nsPath, verifyPodRetries*verifyPodRetrySleep)
-		s.Logger.Error(err)
-		return err
-	}
-
-	// loop until the interface IP can be found
-	for i := 0; i < verifyPodRetries; i++ {
-		addr, err := netlink.AddrList(link, netlink.FAMILY_V4)
-		if err == nil {
-			for _, a := range addr {
-				if a.IP.Equal(ip) {
-					s.Logger.Infof("IP address %s found on the %s interface in the namespace %s, check OK", ip, ifName, nsPath)
-					return nil
-				}
-			}
-		}
-		s.Logger.Debugf("IP address %s not yet found on the %s interface in the namespace %s, waiting", ip, ifName, nsPath)
-		time.Sleep(verifyPodRetrySleep)
-	}
-
-	err = fmt.Errorf("cannot find the IP address %s on the %s interface in the namespace %s within %v", ip, ifName, nsPath, verifyPodRetries*verifyPodRetrySleep)
-	s.Logger.Error(err)
-	return err
 }

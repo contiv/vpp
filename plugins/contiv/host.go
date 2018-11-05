@@ -30,6 +30,7 @@ import (
 	vpp_intf "github.com/ligato/vpp-agent/plugins/vppv2/model/interfaces"
 	vpp_l2 "github.com/ligato/vpp-agent/plugins/vppv2/model/l2"
 	vpp_l3 "github.com/ligato/vpp-agent/plugins/vppv2/model/l3"
+	"github.com/ligato/vpp-agent/clientv2/linux"
 )
 
 const (
@@ -468,21 +469,12 @@ func (s *remoteCNIserver) getHostLinkIPs() ([]net.IP, error) {
 	return s.hostIPs, nil
 }
 
-func (s *remoteCNIserver) enableIPNeighborScan() error {
-	s.Logger.Info("Enabling IP neighbor scanning")
-	txn := s.vppTxnFactory().Put()
-
+func (s *remoteCNIserver) enableIPNeighborScan(txn linuxclient.PutDSL) {
 	txn.IPScanNeighbor(&vpp_l3.IPScanNeighbor{
 		Mode:           vpp_l3.IPScanNeighbor_IPv4,
 		ScanInterval:   uint32(s.config.IPNeighborScanInterval),
 		StaleThreshold: uint32(s.config.IPNeighborStaleThreshold),
 	})
-
-	err := txn.Send().ReceiveReply()
-	if err != nil {
-		s.Logger.Error("Error by enabling IP neighbor scanning:", err)
-	}
-	return err
 }
 
 func (s *remoteCNIserver) subscribeVnetFibCounters() error {

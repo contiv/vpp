@@ -196,10 +196,6 @@ type remoteCNIserver struct {
 
 // vswitchConfig holds base vSwitch VPP configuration.
 type vswitchConfig struct {
-	// configured if set to true denotes that vswitch configuration is applied by resync of default plugins
-	// the local client txns are not executed only local variables are filled in order to provide correct values by getters
-	configured bool
-
 	nics         []*vpp_intf.Interface
 	defaultRoute *vpp_l3.StaticRoute
 
@@ -312,6 +308,7 @@ func (s *remoteCNIserver) Delete(ctx context.Context, request *cni.CNIRequest) (
 //  - veth pair to host IP stack + AF_PACKET on VPP side
 //  - default static route to the host via the veth pair
 func (s *remoteCNIserver) configureVswitchConnectivity() error {
+	txn := s.vppTxnFactory().Put()
 
 	s.Logger.Info("Applying base vSwitch config.")
 	s.Logger.Info("Existing interfaces: ", s.swIfIndex.ListAllInterfaces())
@@ -335,30 +332,20 @@ func (s *remoteCNIserver) configureVswitchConnectivity() error {
 	// prepare empty vswitch config struct to be filled in
 	config := &vswitchConfig{nics: []*vpp_intf.Interface{}}
 
-	// only apply the config if resync hasn't done it already
-	if _, found := s.swIfIndex.LookupByName(expectedIfName); found {
-		s.Logger.Info("VSwitch connectivity is considered configured, skipping...")
-		config.configured = true
-	}
-
 	// configure physical NIC
 	// NOTE that needs to be done as the first step, before adding any other interfaces to VPP to properly fnd the physical NIC name.
-	err := s.configureVswitchNICs(config)
+	err := s.configureVswitchNICs(config, txn)
 	if err != nil {
 		s.Logger.Error(err)
 		return err
 	}
 
 	// configure vswitch to host connectivity
-	err = s.configureVswitchHostConnectivity(config)
-	if err != nil {
-		s.Logger.Error(err)
-		return err
-	}
+	s.configureVswitchHostConnectivity(config, txn)
 
 	if !s.useL2Interconnect {
 		// configure VXLAN tunnel bridge domain
-		err = s.configureVswitchVxlanBridgeDomain(config)
+		err = s.configureVswitchVxlanBridgeDomain(config, txn)
 		if err != nil {
 			s.Logger.Error(err)
 			return err
@@ -366,7 +353,10 @@ func (s *remoteCNIserver) configureVswitchConnectivity() error {
 	}
 
 	// configure inter-VRF routing
-	err = s.configureVswitchVrfRoutes(config)
+	s.configureVswitchVrfRoutes(config, txn)
+
+	// execute the config transaction
+	err = txn.Send().ReceiveReply()
 	if err != nil {
 		s.Logger.Error(err)
 		return err
@@ -389,7 +379,7 @@ func (s *remoteCNIserver) configureVswitchConnectivity() error {
 
 // configureVswitchNICs configures vswitch NICs - main NIC for node interconnect
 // and other NICs optionally specified in the contiv plugin YAML configuration.
-func (s *remoteCNIserver) configureVswitchNICs(config *vswitchConfig) error {
+func (s *remoteCNIserver) configureVswitchNICs(config *vswitchConfig, txn linuxclient.PutDSL) error {
 	/*
 		if len(s.swIfIndex.ListAllInterfaces()) == 0 {
 			return fmt.Errorf("no VPP interfaces found in the swIfIndex map")
@@ -432,7 +422,7 @@ func (s *remoteCNIserver) configureVswitchNICs(config *vswitchConfig) error {
 	}
 
 	// configure the main VPP NIC interface
-	err := s.configureMainVPPInterface(config, nicName, nicIP, useDHCP)
+	err := s.configureMainVPPInterface(config, nicName, nicIP, useDHCP, txn)
 	if err != nil {
 		s.Logger.Error(err)
 		return err
@@ -441,16 +431,11 @@ func (s *remoteCNIserver) configureVswitchNICs(config *vswitchConfig) error {
 	// configure other interfaces that were configured in contiv plugin YAML configuration
 	if s.nodeConfig != nil && len(s.nodeConfig.OtherVPPInterfaces) > 0 {
 		s.Logger.Debug("Configuring VPP for additional interfaces")
-
-		err := s.configureOtherVPPInterfaces(config, s.nodeConfig)
-		if err != nil {
-			s.Logger.Error(err)
-			return err
-		}
+		s.configureOtherVPPInterfaces(config, s.nodeConfig, txn)
 	}
 
 	// enable IP neighbor scanning (to clean up old ARP entries)
-	s.enableIPNeighborScan()
+	s.enableIPNeighborScan(txn)
 
 	// subscribe to VnetFibCounters to get rid of the not wanted notifications and errors from GoVPP
 	// TODO: this is just a workaround until non-subscribed notifications are properly ignored by GoVPP
@@ -459,9 +444,8 @@ func (s *remoteCNIserver) configureVswitchNICs(config *vswitchConfig) error {
 }
 
 // configureMainVPPInterface configures the main NIC used for node interconnect on vswitch VPP.
-func (s *remoteCNIserver) configureMainVPPInterface(config *vswitchConfig, nicName string, nicIP string, useDHCP bool) error {
+func (s *remoteCNIserver) configureMainVPPInterface(config *vswitchConfig, nicName string, nicIP string, useDHCP bool, txn linuxclient.PutDSL) error {
 	var err error
-	txn := s.vppTxnFactory().Put()
 
 	if s.UseSTN() {
 		// get IP address of the STN interface
@@ -546,14 +530,6 @@ func (s *remoteCNIserver) configureMainVPPInterface(config *vswitchConfig, nicNa
 			txn.StaticRoute(config.defaultRoute)
 		}
 
-		// execute the config transaction
-		if !config.configured {
-			err = txn.Send().ReceiveReply()
-			if err != nil {
-				s.Logger.Error(err)
-				return err
-			}
-		}
 	} else {
 		s.mainPhysicalIf = nicName
 	}
@@ -669,7 +645,7 @@ func (s *remoteCNIserver) applyDHCPLease(lease *vpp_intf.DHCPLease) {
 }
 
 // configureOtherVPPInterfaces other interfaces that were configured in contiv plugin YAML configuration.
-func (s *remoteCNIserver) configureOtherVPPInterfaces(config *vswitchConfig, nodeConfig *NodeConfig) error {
+func (s *remoteCNIserver) configureOtherVPPInterfaces(config *vswitchConfig, nodeConfig *NodeConfig, txn linuxclient.PutDSL) {
 
 	// match existing interfaces and configuration settings and create VPP configuration objects
 	interfaces := make(map[string]*vpp_intf.Interface)
@@ -683,36 +659,17 @@ func (s *remoteCNIserver) configureOtherVPPInterfaces(config *vswitchConfig, nod
 
 	// configure the interfaces on VPP
 	if len(interfaces) > 0 {
-		// prepare the config transaction
-		txn := s.vppTxnFactory().Put()
-
 		// add individual interfaces
 		for _, intf := range interfaces {
 			txn.VppInterface(intf)
 			config.nics = append(config.nics, intf)
 			s.otherPhysicalIfs = append(s.otherPhysicalIfs, intf.Name)
 		}
-
-		if !config.configured {
-			// execute the config transaction
-			err := txn.Send().ReceiveReply()
-			if err != nil {
-				s.Logger.Error(err)
-				return err
-			}
-		}
 	}
-
-	return nil
 }
 
 // configureVswitchHostConnectivity configures vswitch VPP to Linux host interconnect.
-func (s *remoteCNIserver) configureVswitchHostConnectivity(config *vswitchConfig) error {
-	var err error
-	txn := s.vppTxnFactory().Put()
-	// txnNotPersisted applies the config of items that are not persisted
-	txnNotPersisted := s.vppTxnFactory().Put()
-
+func (s *remoteCNIserver) configureVswitchHostConnectivity(config *vswitchConfig, txn linuxclient.PutDSL) {
 	if s.stnIP == "" {
 		// execute only if STN has not already configured this
 
@@ -744,10 +701,12 @@ func (s *remoteCNIserver) configureVswitchHostConnectivity(config *vswitchConfig
 		}
 	}
 
+	// finalize AFPacket+VETH configuration
+	if !s.useTAPInterfaces {
+		txn.VppInterface(config.interconnectAF)
+	}
+
 	// configure the routes from VPP to host interfaces
-	//
-	// TODO: this is a temporary solution, should be removed once
-	// the main node IP address as seen by k8s is determined by k8s API
 	if s.stnIP == "" {
 		config.routesToHost = s.routesToHost(s.ipam.VEthHostEndIP().String())
 	} else {
@@ -755,7 +714,7 @@ func (s *remoteCNIserver) configureVswitchHostConnectivity(config *vswitchConfig
 	}
 	for _, r := range config.routesToHost {
 		s.Logger.Debug("Adding route to host IP: ", r)
-		txnNotPersisted.StaticRoute(r)
+		txn.StaticRoute(r)
 	}
 	// do not persist routesToHost
 	config.routesToHost = nil
@@ -775,40 +734,11 @@ func (s *remoteCNIserver) configureVswitchHostConnectivity(config *vswitchConfig
 		config.routeForServices = s.routeServicesFromHost(s.stnGw)
 	}
 	txn.LinuxRoute(config.routeForServices)
-
-	if !config.configured {
-		// execute the config transaction
-		err = txn.Send().ReceiveReply()
-		if err != nil {
-			s.Logger.Error(err)
-			return err
-		}
-
-		// finalize AFPacket+VETH configuration
-		if !s.useTAPInterfaces {
-			// AFPacket is intentionally configured in a txn different from the one that configures veth.
-			// Otherwise if the veth exists before the first transaction (i.e. vEth pair was not deleted after last run)
-			// configuring AfPacket might return an error since linux plugin deletes the existing veth and creates a new one.
-			err = s.vppTxnFactory().Put().VppInterface(config.interconnectAF).Send().ReceiveReply()
-			if err != nil {
-				s.Logger.Error(err)
-				return err
-			}
-		}
-
-	}
-
-	err = txnNotPersisted.Send().ReceiveReply()
-	if err != nil {
-		s.Logger.Error(err)
-	}
-	return err
 }
 
 // configureVswitchVxlanBridgeDomain configures bridge domain for the VXLAN tunnels.
-func (s *remoteCNIserver) configureVswitchVxlanBridgeDomain(config *vswitchConfig) error {
+func (s *remoteCNIserver) configureVswitchVxlanBridgeDomain(config *vswitchConfig, txn linuxclient.PutDSL) error {
 	var err error
-	txn := s.vppTxnFactory().Put()
 
 	// VXLAN BVI loopback
 	config.vxlanBVI, err = s.vxlanBVILoopback()
@@ -827,23 +757,11 @@ func (s *remoteCNIserver) configureVswitchVxlanBridgeDomain(config *vswitchConfi
 	// remember the VXLAN config - needs to be reconfigured with each new VXLAN (each new node)
 	s.vxlanBD = config.vxlanBD
 
-	// execute the config transaction
-	if !config.configured {
-		err = txn.Send().ReceiveReply()
-		if err != nil {
-			s.Logger.Error(err)
-			return err
-		}
-	}
-
 	return nil
 }
 
 // configureVswitchVrfRoutes configures inter-VRF routing
-func (s *remoteCNIserver) configureVswitchVrfRoutes(config *vswitchConfig) error {
-	var err error
-	txn := s.vppTxnFactory().Put()
-
+func (s *remoteCNIserver) configureVswitchVrfRoutes(config *vswitchConfig, txn linuxclient.PutDSL) {
 	// routes from main towards POD VRF: PodSubnet + VPPHostSubnet
 	vrfR1, vrfR2 := s.routesToPodVRF()
 	txn.StaticRoute(vrfR1)
@@ -861,26 +779,10 @@ func (s *remoteCNIserver) configureVswitchVrfRoutes(config *vswitchConfig) error
 	txn.StaticRoute(dropR2)
 
 	config.vrfRoutes = []*vpp_l3.StaticRoute{vrfR1, vrfR2, vrfR3, vrfR4, dropR1, dropR2}
-
-	// execute the config transaction
-	if !config.configured {
-		err = txn.Send().ReceiveReply()
-		if err != nil {
-			s.Logger.Error(err)
-			return err
-		}
-	}
-
-	return nil
 }
 
 // persistVswitchConfig persists vswitch configuration in ETCD
 func (s *remoteCNIserver) persistVswitchConfig(config *vswitchConfig) error {
-	if config.configured {
-		s.Logger.Info("Persisting of vswitch configuration is skipped")
-		return nil
-	}
-
 	var err error
 	changes := map[string]proto.Message{}
 
@@ -968,8 +870,6 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 		podIP          net.IP
 		persisted      bool
 		txn            linuxclient.PutDSL
-		revertTxn      linuxclient.DeleteDSL
-		revertFirstTxn linuxclient.DeleteDSL
 	)
 
 	// do not connect any containers until the base vswitch config is successfully applied
@@ -995,12 +895,7 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 				s.deletePersistedPodConfig(podConfigToProto(config))
 				delete(s.configuredInThisRun, id)
 			}
-			if revertFirstTxn != nil {
-				revertFirstTxn.Send().ReceiveReply()
-			}
-			if revertTxn != nil {
-				revertTxn.Send().ReceiveReply()
-			}
+			// XXX Reverting will be done automatically by KVScheduler
 			if podIP != nil {
 				s.ipam.ReleasePodIP(id)
 			}
@@ -1015,23 +910,15 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 	podIPCIDR := podIP.String() + "/32"
 
 	// prepare configuration for the POD interface
-	revertTxn = s.vppTxnFactory().Delete()
 	txn = s.vppTxnFactory().Put()
-	err = s.configurePodInterface(request, podIP, config, txn, revertTxn)
+	err = s.configurePodInterface(request, podIP, config, txn)
 	if err != nil {
 		s.Logger.Error(err)
 		return s.generateCniErrorReply(err)
 	}
 
-	// create a separate revert txn because the route must be deleted
-	// before its outgoing interface. Otherwise, it remains dangling.
-	revertFirstTxn = s.vppTxnFactory().Delete()
 	// prepare VPP-side of the POD-related configuration
-	err = s.configurePodVPPSide(request, podIP, config, txn, revertFirstTxn)
-	if err != nil {
-		s.Logger.Error(err)
-		return s.generateCniErrorReply(err)
-	}
+	s.configurePodVPPSide(request, podIP, config, txn)
 
 	// execute the config transaction
 	err = txn.Send().ReceiveReply()
@@ -1078,13 +965,6 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 			s.Logger.Error(err)
 			return s.generateCniErrorReply(err)
 		}
-	}
-
-	// verify that the POD has the allocated IP address configured / wait until it is actually configured
-	err = s.verifyPodIP(request.NetworkNamespace, request.InterfaceName, podIP)
-	if err != nil {
-		s.Logger.Error(err)
-		return s.generateCniErrorReply(err)
 	}
 
 	// prepare and send reply for the CNI request
@@ -1159,18 +1039,10 @@ func (s *remoteCNIserver) unconfigureContainerConnectivityWithoutLock(request *c
 	txn := s.vppTxnFactory().Delete()
 
 	// delete POD-related config on VPP
-	err = s.unconfigurePodVPPSide(config, txn)
-	if err != nil {
-		s.Logger.Error(err)
-		return s.generateCniErrorReply(err)
-	}
+	s.unconfigurePodVPPSide(config, txn)
 
 	// unconfigure POD interface
-	err = s.unconfigurePodInterface(request, config, txn)
-	if err != nil {
-		s.Logger.Error(err)
-		return s.generateCniErrorReply(err)
-	}
+	s.unconfigurePodInterface(request, config, txn)
 
 	// execute the config transaction
 	err = txn.Send().ReceiveReply()
@@ -1210,7 +1082,7 @@ func (s *remoteCNIserver) unconfigureContainerConnectivityWithoutLock(request *c
 // configurePodInterface prepares transaction <txn> to configure POD's
 // network interface and its routes + ARPs.
 func (s *remoteCNIserver) configurePodInterface(request *cni.CNIRequest, podIP net.IP, config *PodConfig,
-	txn linuxclient.PutDSL, revertTxn linuxclient.DeleteDSL) error {
+	txn linuxclient.PutDSL) error {
 
 	// this is necessary for the latest docker where ipv6 is disabled by default.
 	// OS assigns automatically ipv6 addr to a newly created TAP. We
@@ -1242,7 +1114,6 @@ func (s *remoteCNIserver) configurePodInterface(request *cni.CNIRequest, podIP n
 
 		// VPP-side of the TAP
 		txn.VppInterface(config.VppIf)
-		revertTxn.VppInterface(config.VppIf.Name)
 
 		// Linux-side of the TAP
 		txn.LinuxInterface(config.PodTap)
@@ -1255,7 +1126,6 @@ func (s *remoteCNIserver) configurePodInterface(request *cni.CNIRequest, podIP n
 		txn.LinuxInterface(config.Veth1).
 			LinuxInterface(config.Veth2).
 			VppInterface(config.VppIf)
-		revertTxn.VppInterface(config.VppIf.Name)
 		podIfName = config.Veth1.Name
 	}
 
@@ -1275,48 +1145,46 @@ func (s *remoteCNIserver) configurePodInterface(request *cni.CNIRequest, podIP n
 }
 
 // unconfigurePodInterface prepares transaction <txn> to unconfigure POD's network
-// interface.
+// interface and its routes + ARPs.
 func (s *remoteCNIserver) unconfigurePodInterface(request *cni.CNIRequest, config *container.Persisted,
-	txn linuxclient.DeleteDSL) error {
+	txn linuxclient.DeleteDSL) {
 
 	// delete VPP to POD interconnect interface
 	txn.VppInterface(config.VppIfName)
-	if !s.useTAPInterfaces {
+	if s.useTAPInterfaces {
+		txn.LinuxInterface(config.PodTapName)
+	} else {
 		txn.LinuxInterface(config.Veth1Name).
 			LinuxInterface(config.Veth2Name)
 	}
 
-	return nil
+	txn.LinuxRoute(config.PodLinkRouteDest, config.PodLinkRouteInterface)
+	txn.LinuxArpEntry(config.PodARPEntryInterface, config.PodARPEntryIP)
+	txn.LinuxRoute(ipv4NetAny, config.PodDefaultRouteInterface)
 }
 
 // configurePodVPPSide prepares transaction <txn> to configure vswitch VPP part
 // of the POD networking.
-func (s *remoteCNIserver) configurePodVPPSide(request *cni.CNIRequest, podIP net.IP, config *PodConfig,
-	txn linuxclient.PutDSL, revertTxn linuxclient.DeleteDSL) error {
+func (s *remoteCNIserver) configurePodVPPSide(request *cni.CNIRequest, podIP net.IP, config *PodConfig, txn linuxclient.PutDSL) {
 
 	podIPCIDR := podIP.String() + "/32"
 
 	// route to PodIP via AF_PACKET / TAP
 	config.VppRoute = s.vppRouteFromRequest(request, podIPCIDR)
 	txn.StaticRoute(config.VppRoute)
-	revertTxn.StaticRoute(config.VppRoute.VrfId, config.VppRoute.DstNetwork, config.VppRoute.NextHopAddr)
 
 	// ARP entry for POD IP
 	config.VppARPEntry = s.vppArpEntry(config.VppIf.Name, podIP, s.hwAddrForContainer())
 	txn.Arp(config.VppARPEntry)
-	revertTxn.Arp(config.VppARPEntry.Interface, config.VppARPEntry.IpAddress)
-
-	return nil
 }
 
 // unconfigurePodVPPSide prepares transaction <txn> to delete vswitch VPP part of the POD networking.
-func (s *remoteCNIserver) unconfigurePodVPPSide(config *container.Persisted, txn linuxclient.DeleteDSL) error {
+func (s *remoteCNIserver) unconfigurePodVPPSide(config *container.Persisted, txn linuxclient.DeleteDSL) {
 	// route to PodIP via AF_PACKET / TAP
 	txn.StaticRoute(config.VppRouteVrf, config.VppRouteDest, config.VppRouteNextHop)
 
 	// ARP entry for POD IP
 	txn.Arp(config.VppARPEntryInterface, config.VppARPEntryIP)
-	return nil
 }
 
 // deletePersistedPodConfig persists POD configuration into ETCD.

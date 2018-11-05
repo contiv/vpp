@@ -131,7 +131,6 @@ func main() {
 	vppPlugin := vpp.NewPlugin(
 		vpp.UseDeps(func(deps *vpp.Deps) {
 			deps.GoVppmux = &govppmux.DefaultPlugin
-			deps.Publish = etcdDataSync
 			deps.Watcher = watcher
 			deps.WatchEventsMutex = &watchEventsMutex
 		}),

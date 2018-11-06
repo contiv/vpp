@@ -472,6 +472,12 @@ func (s *remoteCNIserver) configureVswitchNICs(config *vswitchConfig) error {
 		s.disableNatVirtualReassembly()
 	}
 
+	// enable packet trace if requested (should be used for debugging only)
+	if s.config.EnablePacketTrace {
+		s.executeDebugCLI("trace add dpdk-input 100000")
+		s.executeDebugCLI("trace add virtio-input 100000")
+	}
+
 	return nil
 }
 

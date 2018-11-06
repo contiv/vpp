@@ -55,6 +55,7 @@ type Config struct {
 	PodVRFID                    uint32
 	ServiceLocalEndpointWeight  uint8
 	DisableNATVirtualReassembly bool // if true, NAT plugin will drop fragmented packets
+	EnablePacketTrace           bool
 	IPAMConfig                  ipam.Config
 	NodeConfig                  []NodeConfig
 }

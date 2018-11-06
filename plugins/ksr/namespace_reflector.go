@@ -18,7 +18,7 @@ import (
 	"reflect"
 	"sync"
 
-	"github.com/golang/protobuf/proto"
+	"github.com/gogo/protobuf/proto"
 
 	"github.com/contiv/vpp/plugins/ksr/model/namespace"
 	coreV1 "k8s.io/api/core/v1"

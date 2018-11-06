@@ -1,0 +1,62 @@
+@startuml
+participant "k8s Control Plane"
+participant Kubelet
+participant "Contiv CRD"
+participant "Contiv KSR"
+database "Contiv ETCD"
+participant "Contiv CNI"
+participant "Contiv VPP Agent"
+
+
+"k8s Control Plane" -> "Contiv CRD": add / update node config
+"Contiv CRD" -> "Contiv ETCD": add / update node config
+"k8s Control Plane" -> "Contiv KSR": add / update node info
+"Contiv KSR" -> "Contiv ETCD": add / update node info
+activate "Contiv VPP Agent"
+"Contiv ETCD" -> "Contiv VPP Agent": read / update node config & info
+"Contiv ETCD" -> "Contiv VPP Agent": read persisted VPP config
+"Contiv VPP Agent" -> "Contiv VPP Agent": configure / reconfigure VPP:\nVXLANs, routes, NAT
+"Contiv VPP Agent" -> "Contiv ETCD": persist VPP config
+deactivate "Contiv VPP Agent"
+
+|||
+
+"k8s Control Plane" -> Kubelet: add POD
+Kubelet -> "Contiv CNI": add container
+"Contiv CNI" -> "Contiv VPP Agent": add container
+activate "Contiv VPP Agent"
+"Contiv VPP Agent" -> "Contiv VPP Agent": configure VPP:\ninterface, routes, NAT, ACLs
+"Contiv VPP Agent" -> "Contiv ETCD": persist POD config
+"Contiv VPP Agent" --> "Contiv CNI": OK / error
+deactivate "Contiv VPP Agent"
+"Contiv CNI" --> "Kubelet": OK / error
+"Kubelet" --> "k8s Control Plane": OK / error
+
+
+|||
+
+"k8s Control Plane" -> "Contiv KSR": update service / policy
+"Contiv KSR" -> "Contiv ETCD": update service / policy
+"Contiv ETCD" -> "Contiv VPP Agent": update service / policy
+activate "Contiv VPP Agent"
+"Contiv VPP Agent" -> "Contiv VPP Agent": Reconfigure VPP:\nNAT, ACLs
+deactivate "Contiv VPP Agent"
+
+|||
+
+
+"Contiv CRD" -> "Contiv VPP Agent": dump VPP config
+activate "Contiv CRD"
+"Contiv VPP Agent" --> "Contiv CRD": VPP config
+"Contiv CRD" -> "Contiv CRD": validate config
+"Contiv CRD" -> "k8s Control Plane": export results
+deactivate "Contiv CRD"
+
+|||
+
+"Contiv netctl" -> "Contiv ETCD": dump cluster data
+"Contiv ETCD" --> "Contiv netctl": cluster data
+"Contiv netctl" -> "Contiv VPP Agent": dump VPP config
+"Contiv VPP Agent" --> "Contiv netctl": VPP config
+
+@enduml

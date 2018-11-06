@@ -19,7 +19,12 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
+	"sync"
 	"testing"
+	"time"
+
+	"github.com/gogo/protobuf/proto"
+	"github.com/onsi/gomega"
 
 	"git.fd.io/govpp.git/adapter/mock"
 	govppmock "git.fd.io/govpp.git/adapter/mock"
@@ -28,27 +33,25 @@ import (
 	"git.fd.io/govpp.git/codec"
 	govpp "git.fd.io/govpp.git/core"
 
+	"github.com/ligato/cn-infra/datasync"
+	"github.com/ligato/cn-infra/datasync/syncbase"
+	"github.com/ligato/cn-infra/idxmap"
+	idxmap_mem "github.com/ligato/cn-infra/idxmap/mem"
+	"github.com/ligato/cn-infra/logging/logrus"
+
+	interfaces_bin "github.com/ligato/vpp-agent/plugins/vpp/binapi/interfaces"
+	"github.com/ligato/vpp-agent/plugins/vppv2/ifplugin/ifaceidx"
+	vpp_intf "github.com/ligato/vpp-agent/plugins/vppv2/model/interfaces"
+	vpp_l3 "github.com/ligato/vpp-agent/plugins/vppv2/model/l3"
+
 	"github.com/contiv/vpp/mock/localclient"
 	"github.com/contiv/vpp/plugins/contiv/containeridx"
+	"github.com/contiv/vpp/plugins/contiv/ipam"
 	"github.com/contiv/vpp/plugins/contiv/model/cni"
 	"github.com/contiv/vpp/plugins/contiv/model/node"
 	nodeconfig "github.com/contiv/vpp/plugins/crd/pkg/apis/nodeconfig/v1"
 	"github.com/contiv/vpp/plugins/kvdbproxy"
-	"github.com/gogo/protobuf/proto"
-
-	"github.com/ligato/cn-infra/logging/logrus"
-	"github.com/ligato/vpp-agent/idxvpp/nametoidx"
-	interfaces_bin "github.com/ligato/vpp-agent/plugins/vpp/binapi/interfaces"
-	"github.com/ligato/vpp-agent/plugins/vpp/ifplugin/ifaceidx"
-	vpp_intf "github.com/ligato/vpp-agent/plugins/vpp/model/interfaces"
-	vpp_l3 "github.com/ligato/vpp-agent/plugins/vpp/model/l3"
-
-	"github.com/contiv/vpp/plugins/contiv/ipam"
-	"github.com/ligato/cn-infra/datasync"
-	"github.com/ligato/cn-infra/datasync/syncbase"
-	"github.com/onsi/gomega"
-	"sync"
-	"time"
+	"github.com/go-errors/errors"
 )
 
 const (
@@ -69,7 +72,6 @@ var req = cni.CNIRequest{
 
 var (
 	configVethL2NoTCP = Config{
-		TCPstackDisabled:  true,
 		UseL2Interconnect: true,
 		IPAMConfig: ipam.Config{
 			PodSubnetCIDR:           "10.1.0.0/16",
@@ -95,7 +97,6 @@ var (
 		},
 	}
 	configTapVxlanDHCP = Config{
-		TCPstackDisabled:    true,
 		UseTAPInterfaces:    true,
 		TAPInterfaceVersion: 2,
 		IPAMConfig: ipam.Config{
@@ -157,7 +158,7 @@ func setupTestCNIServer(config *Config, nodeConfig *NodeConfig, existingInterfac
 	swIfIdx := swIfIndexMock()
 	// add existing interfaces into swIfIndex
 	for i, intf := range existingInterfaces {
-		swIfIdx.RegisterName(intf, uint32(i+1), nil)
+		swIfIdx.Put(intf, ifaceidx.IfaceMetadata{SwIfIndex: uint32(i + 1)})
 	}
 
 	txns := localclient.NewTxnTracker(addIfsIntoTheIndex(swIfIdx))
@@ -230,7 +231,7 @@ func TestAddDelVeth(t *testing.T) {
 	gomega.Expect(err).To(gomega.BeNil())
 	gomega.Expect(reply).NotTo(gomega.BeNil())
 
-	gomega.Expect(len(txns.PendingTxns)).To(gomega.BeEquivalentTo(2)) // not applied revert
+	gomega.Expect(len(txns.PendingTxns)).To(gomega.BeEquivalentTo(0))
 	gomega.Expect(len(txns.CommittedTxns)).To(gomega.BeEquivalentTo(1))
 	// TODO add asserts for txns(one linux plugin txn and one default plugins txn) / currently applied config
 
@@ -256,7 +257,7 @@ func TestConfigureVswitchDHCP(t *testing.T) {
 	err := server.resync()
 	gomega.Expect(err).To(gomega.BeNil())
 
-	gomega.Expect(len(txns.CommittedTxns)).To(gomega.BeEquivalentTo(4))
+	gomega.Expect(len(txns.CommittedTxns)).To(gomega.BeEquivalentTo(1))
 	// TODO add asserts for txns(one linux plugin txn and one default plugins txn) / currently applied config
 
 	// node IP is empty since DHCP reply have not been received
@@ -265,7 +266,7 @@ func TestConfigureVswitchDHCP(t *testing.T) {
 	gomega.Expect(server.GetHostInterconnectIfName()).ToNot(gomega.BeEmpty())
 
 	server.close()
-	gomega.Expect(len(txns.CommittedTxns)).To(gomega.BeEquivalentTo(5))
+	gomega.Expect(len(txns.CommittedTxns)).To(gomega.BeEquivalentTo(2))
 }
 
 func TestAddDelTap(t *testing.T) {
@@ -283,7 +284,7 @@ func TestAddDelTap(t *testing.T) {
 	gomega.Expect(err).To(gomega.BeNil())
 	gomega.Expect(reply).NotTo(gomega.BeNil())
 
-	gomega.Expect(len(txns.PendingTxns)).To(gomega.BeEquivalentTo(2)) // not applied revert
+	gomega.Expect(len(txns.PendingTxns)).To(gomega.BeEquivalentTo(0))
 	gomega.Expect(len(txns.CommittedTxns)).To(gomega.BeEquivalentTo(1))
 	// TODO add asserts for txns(one linux plugin txn and one default plugins txn) / currently applied config
 
@@ -309,7 +310,7 @@ func TestConfigureVswitchVeth(t *testing.T) {
 	err := server.resync()
 	gomega.Expect(err).To(gomega.BeNil())
 
-	gomega.Expect(len(txns.CommittedTxns)).To(gomega.BeEquivalentTo(5))
+	gomega.Expect(len(txns.CommittedTxns)).To(gomega.BeEquivalentTo(1))
 	// TODO add asserts for txns(one linux plugin txn and one default plugins txn) / currently applied config
 
 	// check physical interface name
@@ -331,7 +332,7 @@ func TestConfigureVswitchVeth(t *testing.T) {
 	gomega.Expect(server.GetOtherPhysicalIfNames()).To(gomega.Equal([]string{"GigabitEthernet0/0/0/10"}))
 
 	server.close()
-	gomega.Expect(len(txns.CommittedTxns)).To(gomega.BeEquivalentTo(6))
+	gomega.Expect(len(txns.CommittedTxns)).To(gomega.BeEquivalentTo(2))
 }
 
 func TestConfigureVswitchTap(t *testing.T) {
@@ -344,7 +345,7 @@ func TestConfigureVswitchTap(t *testing.T) {
 	err := server.resync()
 	gomega.Expect(err).To(gomega.BeNil())
 
-	gomega.Expect(len(txns.CommittedTxns)).To(gomega.BeEquivalentTo(4))
+	gomega.Expect(len(txns.CommittedTxns)).To(gomega.BeEquivalentTo(1))
 	// TODO add asserts for txns(one linux plugin txn and one default plugins txn) / currently applied config
 
 	// node IP must not be empty
@@ -357,7 +358,7 @@ func TestConfigureVswitchTap(t *testing.T) {
 	gomega.Expect(server.GetVxlanBVIIfName()).ToNot(gomega.BeEmpty())
 
 	server.close()
-	gomega.Expect(len(txns.CommittedTxns)).To(gomega.BeEquivalentTo(5))
+	gomega.Expect(len(txns.CommittedTxns)).To(gomega.BeEquivalentTo(2))
 }
 
 func TestNodeAddDelL2(t *testing.T) {
@@ -402,7 +403,7 @@ func TestNodeAddDelVXLAN(t *testing.T) {
 	// check that the VXLAN tunnel config has been properly added
 	vxlanIf := interfaceInLatestRevs(txns.LatestRevisions, fmt.Sprintf("vxlan%d", otherNodeInfo.Id))
 	gomega.Expect(vxlanIf).ToNot(gomega.BeNil())
-	gomega.Expect(otherNodeInfo.IpAddress).To(gomega.ContainSubstring(vxlanIf.Vxlan.DstAddress))
+	gomega.Expect(otherNodeInfo.IpAddress).To(gomega.ContainSubstring(vxlanIf.GetVxlan().DstAddress))
 
 	// check routes to the other node pointing to VXLAN IP
 	nexthopIP, _ := server.ipam.VxlanIPAddress(otherNodeInfo.Id)
@@ -429,7 +430,7 @@ func TestNodeAddDelNodeWithMultipleMgmtAddresses(t *testing.T) {
 	// check that the VXLAN tunnel config has been properly added
 	vxlanIf := interfaceInLatestRevs(txns.LatestRevisions, fmt.Sprintf("vxlan%d", nodeWith2mgmtIP.Id))
 	gomega.Expect(vxlanIf).ToNot(gomega.BeNil())
-	gomega.Expect(nodeWith2mgmtIP.IpAddress).To(gomega.ContainSubstring(vxlanIf.Vxlan.DstAddress))
+	gomega.Expect(nodeWith2mgmtIP.IpAddress).To(gomega.ContainSubstring(vxlanIf.GetVxlan().DstAddress))
 
 	// check routes to the other node pointing to VXLAN IP
 	nexthopIP, _ := server.ipam.VxlanIPAddress(nodeWith2mgmtIP.Id)
@@ -462,7 +463,7 @@ func TestVeth1NameFromRequest(t *testing.T) {
 	gomega.Expect(hostIfName).To(gomega.BeEquivalentTo("eth0"))
 }
 
-func initServerForDHCPTesting() (*remoteCNIserver, *govpp.Connection, ifaceidx.DhcpIndexRW) {
+func initServerForDHCPTesting() (*remoteCNIserver, *govpp.Connection, idxmap.NamedMappingRW) {
 	swIfIdx := swIfIndexMock()
 
 	txns := localclient.NewTxnTracker(addIfsIntoTheIndex(swIfIdx))
@@ -506,10 +507,9 @@ func TestWithDHCPDelayedNotif(t *testing.T) {
 		wg.Done()
 	}()
 	time.Sleep(200 * time.Millisecond)
-	dhcpIndex.RegisterName(nodeDHCPConfig.MainVPPInterface.InterfaceName, 1, &ifaceidx.DHCPSettings{
-		IfName:    nodeDHCPConfig.MainVPPInterface.InterfaceName,
-		IPAddress: "1.1.1.1",
-		Mask:      uint32(24),
+	dhcpIndex.Put(nodeDHCPConfig.MainVPPInterface.InterfaceName, &vpp_intf.DHCPLease{
+		InterfaceName: nodeDHCPConfig.MainVPPInterface.InterfaceName,
+		HostIpAddress: "1.1.1.1/24",
 	})
 	wg.Wait()
 	getIP := func() string {
@@ -527,10 +527,9 @@ func TestWithDHCPQuickNotif(t *testing.T) {
 	server, conn, dhcpIndex := initServerForDHCPTesting()
 	defer conn.Disconnect()
 
-	dhcpIndex.RegisterName(nodeDHCPConfig.MainVPPInterface.InterfaceName, 1, &ifaceidx.DHCPSettings{
-		IfName:    nodeDHCPConfig.MainVPPInterface.InterfaceName,
-		IPAddress: "1.1.1.1",
-		Mask:      uint32(24),
+	dhcpIndex.Put(nodeDHCPConfig.MainVPPInterface.InterfaceName, &vpp_intf.DHCPLease{
+		InterfaceName: nodeDHCPConfig.MainVPPInterface.InterfaceName,
+		HostIpAddress: "1.1.1.1/24",
 	})
 
 	wg := sync.WaitGroup{}
@@ -622,7 +621,7 @@ func vppChanMock() (api.Channel, *govpp.Connection) {
 	return c, conn
 }
 
-func addIfsIntoTheIndex(mapping ifaceidx.SwIfIndexRW) func(txn *localclient.Txn, latestRevs *syncbase.PrevRevisions) error {
+func addIfsIntoTheIndex(mapping ifaceidx.IfaceMetadataIndexRW) func(txn *localclient.Txn, latestRevs *syncbase.PrevRevisions) error {
 	return func(txn *localclient.Txn, latestRevs *syncbase.PrevRevisions) error {
 		var cnt uint32 = 1
 		if txn.LinuxDataChangeTxn == nil {
@@ -631,37 +630,31 @@ func addIfsIntoTheIndex(mapping ifaceidx.SwIfIndexRW) func(txn *localclient.Txn,
 		}
 		for _, op := range txn.LinuxDataChangeTxn.Ops {
 			if op.Value != nil /* Put */ && strings.HasPrefix(op.Key, vpp_intf.Prefix) {
-				name, err := vpp_intf.ParseNameFromKey(op.Key)
-				if err != nil {
-					return err
+				name, isInterfaceKey := vpp_intf.ParseNameFromKey(op.Key)
+				if !isInterfaceKey {
+					return errors.New("failed to parse interface name from key")
 				}
-				if data, ok := (op.Value).(*vpp_intf.Interfaces_Interface); ok {
-					mapping.RegisterName(name, cnt, data)
-					cnt++
-				}
+				mapping.Put(name, ifaceidx.IfaceMetadata{SwIfIndex: cnt})
+				cnt++
 			}
 		}
 		return nil
 	}
 }
 
-func swIfIndexMock() ifaceidx.SwIfIndexRW {
-	mapping := nametoidx.NewNameToIdx(logrus.DefaultLogger(), "swIf", ifaceidx.IndexMetadata)
-
-	return ifaceidx.NewSwIfIndex(mapping)
+func swIfIndexMock() ifaceidx.IfaceMetadataIndexRW {
+	return ifaceidx.NewIfaceIndex(logrus.DefaultLogger(), "swIf")
 }
 
-func dhcpIndexMock() ifaceidx.DhcpIndexRW {
-	mapping := nametoidx.NewNameToIdx(logrus.DefaultLogger(), "dhcpIf", ifaceidx.IndexDHCPMetadata)
-
-	return ifaceidx.NewDHCPIndex(mapping)
+func dhcpIndexMock() idxmap.NamedMappingRW {
+	return idxmap_mem.NewNamedMapping(logrus.DefaultLogger(), "test-dhcp_indexes", nil)
 }
 
 // interfaceInLatestRevs returns interface of given name from the map of latest revisions
-func interfaceInLatestRevs(latestRevs *syncbase.PrevRevisions, ifName string) *vpp_intf.Interfaces_Interface {
+func interfaceInLatestRevs(latestRevs *syncbase.PrevRevisions, ifName string) *vpp_intf.Interface {
 	for _, key := range latestRevs.ListKeys() {
 		if strings.HasPrefix(key, vpp_intf.Prefix) && strings.HasSuffix(key, ifName) {
-			intf := &vpp_intf.Interfaces_Interface{}
+			intf := &vpp_intf.Interface{}
 			_, value := latestRevs.Get(key)
 			value.GetValue(intf)
 			return intf
@@ -671,12 +664,12 @@ func interfaceInLatestRevs(latestRevs *syncbase.PrevRevisions, ifName string) *v
 }
 
 // routesViaInLatestRevs returns routes pointing to privided next hop IP from the map of latest revisions
-func routesViaInLatestRevs(latestRevs *syncbase.PrevRevisions, nexthopIP string) []*vpp_l3.StaticRoutes_Route {
-	routes := make([]*vpp_l3.StaticRoutes_Route, 0)
+func routesViaInLatestRevs(latestRevs *syncbase.PrevRevisions, nexthopIP string) []*vpp_l3.StaticRoute {
+	routes := make([]*vpp_l3.StaticRoute, 0)
 
 	for _, key := range latestRevs.ListKeys() {
-		if strings.HasPrefix(key, vpp_l3.VrfPrefix) && strings.HasSuffix(key, nexthopIP) {
-			route := &vpp_l3.StaticRoutes_Route{}
+		if strings.HasPrefix(key, vpp_l3.RoutePrefix) && strings.HasSuffix(key, nexthopIP) {
+			route := &vpp_l3.StaticRoute{}
 			_, value := latestRevs.Get(key)
 			value.GetValue(route)
 			routes = append(routes, route)

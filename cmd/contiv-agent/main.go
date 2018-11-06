@@ -15,12 +15,9 @@
 package main
 
 import (
-	"github.com/contiv/vpp/plugins/contiv"
-	"github.com/contiv/vpp/plugins/ksr"
-	"github.com/contiv/vpp/plugins/kvdbproxy"
-	"github.com/contiv/vpp/plugins/policy"
-	"github.com/contiv/vpp/plugins/service"
-	"github.com/contiv/vpp/plugins/statscollector"
+	"os"
+	"time"
+
 	"github.com/ligato/cn-infra/agent"
 	"github.com/ligato/cn-infra/datasync"
 	"github.com/ligato/cn-infra/datasync/kvdbsync"
@@ -35,17 +32,23 @@ import (
 	"github.com/ligato/cn-infra/rpc/prometheus"
 	"github.com/ligato/cn-infra/rpc/rest"
 	"github.com/ligato/cn-infra/servicelabel"
-	"github.com/ligato/vpp-agent/clientv1/linux/localclient"
+
 	"github.com/ligato/vpp-agent/plugins/govppmux"
-	"github.com/ligato/vpp-agent/plugins/linux"
-	vpp_rest "github.com/ligato/vpp-agent/plugins/rest"
+	"github.com/ligato/vpp-agent/plugins/kvscheduler"
+	linux_ifplugin "github.com/ligato/vpp-agent/plugins/linuxv2/ifplugin"
+	linux_l3plugin "github.com/ligato/vpp-agent/plugins/linuxv2/l3plugin"
 	"github.com/ligato/vpp-agent/plugins/telemetry"
-	"github.com/ligato/vpp-agent/plugins/vpp"
-	"github.com/ligato/vpp-agent/plugins/vpp/model/acl"
-	"github.com/ligato/vpp-agent/plugins/vpp/model/nat"
-	"os"
-	"sync"
-	"time"
+	vpp_aclplugin "github.com/ligato/vpp-agent/plugins/vppv2/aclplugin"
+	vpp_ifplugin "github.com/ligato/vpp-agent/plugins/vppv2/ifplugin"
+	vpp_l3plugin "github.com/ligato/vpp-agent/plugins/vppv2/l3plugin"
+	vpp_natplugin "github.com/ligato/vpp-agent/plugins/vppv2/natplugin"
+
+	"github.com/contiv/vpp/plugins/contiv"
+	"github.com/contiv/vpp/plugins/ksr"
+	"github.com/contiv/vpp/plugins/kvdbproxy"
+	"github.com/contiv/vpp/plugins/policy"
+	"github.com/contiv/vpp/plugins/service"
+	"github.com/contiv/vpp/plugins/statscollector"
 )
 
 const defaultStartupTimeout = 45 * time.Second
@@ -62,19 +65,24 @@ type ContivAgent struct {
 	ServiceDataSync *kvdbsync.Plugin
 	PolicyDataSync  *kvdbsync.Plugin
 
-	KVProxy *kvdbproxy.Plugin
-	Stats   *statscollector.Plugin
+	KVScheduler *kvscheduler.Scheduler
+	KVProxy     *kvdbproxy.Plugin
+	Stats       *statscollector.Plugin
 
-	LinuxLocalClient *localclient.Plugin
-	GoVPP            *govppmux.Plugin
-	VPP              *vpp.Plugin
-	Linux            *linux.Plugin
-	VPPrest          *vpp_rest.Plugin
-	Telemetry        *telemetry.Plugin
-	GRPC             *grpc.Plugin
-	Contiv           *contiv.Plugin
-	Policy           *policy.Plugin
-	Service          *service.Plugin
+	GoVPP         *govppmux.Plugin
+	LinuxIfPlugin *linux_ifplugin.IfPlugin
+	LinuxL3Plugin *linux_l3plugin.L3Plugin
+	VPPIfPlugin   *vpp_ifplugin.IfPlugin
+	VPPL3Plugin   *vpp_l3plugin.L3Plugin
+	VPPNATPlugin  *vpp_natplugin.NATPlugin
+	VPPACLPlugin  *vpp_aclplugin.ACLPlugin
+
+	Telemetry *telemetry.Plugin
+	GRPC      *grpc.Plugin
+
+	Contiv  *contiv.Plugin
+	Policy  *policy.Plugin
+	Service *service.Plugin
 }
 
 func (c *ContivAgent) String() string {
@@ -98,10 +106,19 @@ func (c *ContivAgent) Close() error {
 }
 
 func main() {
+	// vpp-agent configuration data sync
+	etcdDataSync := kvdbsync.NewPlugin(kvdbsync.UseDeps(func(deps *kvdbsync.Deps) {
+		deps.KvPlugin = &etcd.DefaultPlugin
+		deps.ResyncOrch = &resync.DefaultPlugin
+	}))
 
+	kvdbproxy.DefaultPlugin.KVDB = etcdDataSync
+
+	etcd.DefaultPlugin.StatusCheck = nil // disable status check for etcd
+
+	// datasync of Kubernetes state data
 	ksrServicelabel := servicelabel.NewPlugin(servicelabel.UseLabel(ksr.MicroserviceLabel))
 	ksrServicelabel.SetName("ksrServiceLabel")
-
 	newKSRprefixSync := func(name string) *kvdbsync.Plugin {
 		return kvdbsync.NewPlugin(
 			kvdbsync.UseDeps(func(deps *kvdbsync.Deps) {
@@ -112,75 +129,45 @@ func main() {
 			}))
 	}
 
-	etcdDataSync := kvdbsync.NewPlugin(kvdbsync.UseDeps(func(deps *kvdbsync.Deps) {
-		deps.KvPlugin = &etcd.DefaultPlugin
-		deps.ResyncOrch = &resync.DefaultPlugin
-	}))
-
 	nodeIDDataSync := newKSRprefixSync("nodeIdDataSync")
 	serviceDataSync := newKSRprefixSync("serviceDataSync")
 	policyDataSync := newKSRprefixSync("policyDataSync")
 
-	// disable status check for etcd
-	etcd.DefaultPlugin.StatusCheck = nil
-
+	// set sources for VPP configuration
 	watcher := &datasync.KVProtoWatchers{&kvdbproxy.DefaultPlugin, local.Get()}
+	kvscheduler.DefaultPlugin.Watcher = watcher
 
-	var watchEventsMutex sync.Mutex
-
-	vppPlugin := vpp.NewPlugin(
-		vpp.UseDeps(func(deps *vpp.Deps) {
-			deps.GoVppmux = &govppmux.DefaultPlugin
-			deps.Publish = etcdDataSync
-			deps.Watcher = watcher
-			deps.WatchEventsMutex = &watchEventsMutex
-		}),
-	)
-
-	linuxPlugin := linux.NewPlugin(
-		linux.UseDeps(func(deps *linux.Deps) {
-			deps.VPP = vppPlugin
-			deps.Watcher = watcher
-			deps.WatchEventsMutex = &watchEventsMutex
-		}),
-	)
-
-	vppPlugin.Linux = linuxPlugin
-	vppPlugin.DisableResync(acl.Prefix, nat.GlobalPrefix, nat.DNatPrefix)
-
-	vppRest := vpp_rest.NewPlugin(vpp_rest.UseDeps(func(deps *vpp_rest.Deps) {
-		deps.GoVppmux = &govppmux.DefaultPlugin
-		deps.VPP = vppPlugin
-		deps.Linux = linuxPlugin
-		deps.HTTPHandlers = &rest.DefaultPlugin
-	}))
+	// initialize vpp-agent plugins
+	linux_ifplugin.DefaultPlugin.VppIfPlugin = &vpp_ifplugin.DefaultPlugin
+	vpp_ifplugin.DefaultPlugin.LinuxIfPlugin = &linux_ifplugin.DefaultPlugin
+	vpp_ifplugin.DefaultPlugin.PublishStatistics = &statscollector.DefaultPlugin
+	vpp_aclplugin.DefaultPlugin.IfPlugin = &vpp_ifplugin.DefaultPlugin
 
 	// we don't want to publish status to etcd
 	statuscheck.DefaultPlugin.Transport = nil
 
-	kvdbproxy.DefaultPlugin.KVDB = etcdDataSync
+	// initialize GRPC
 	grpc.DefaultPlugin.HTTP = &rest.DefaultPlugin
 
+	// initialize Contiv plugins
 	contivPlugin := contiv.NewPlugin(contiv.UseDeps(func(deps *contiv.Deps) {
-		deps.VPP = vppPlugin
+		deps.VPPIfPlugin = &vpp_ifplugin.DefaultPlugin
 		deps.Watcher = nodeIDDataSync
 	}))
 
 	statscollector.DefaultPlugin.Contiv = contivPlugin
-	vppPlugin.PublishStatistics = &statscollector.DefaultPlugin
 
 	policyPlugin := policy.NewPlugin(policy.UseDeps(func(deps *policy.Deps) {
 		deps.Watcher = policyDataSync
 		deps.Contiv = contivPlugin
-		deps.VPP = vppPlugin
 	}))
 
 	servicePlugin := service.NewPlugin(service.UseDeps(func(deps *service.Deps) {
 		deps.Watcher = serviceDataSync
 		deps.Contiv = contivPlugin
-		deps.VPP = vppPlugin
 	}))
 
+	// initialize the agent
 	contivAgent := &ContivAgent{
 		LogManager:      &logmanager.DefaultPlugin,
 		HTTP:            &rest.DefaultPlugin,
@@ -190,14 +177,19 @@ func main() {
 		NodeIDDataSync:  nodeIDDataSync,
 		ServiceDataSync: serviceDataSync,
 		PolicyDataSync:  policyDataSync,
-		GoVPP:           &govppmux.DefaultPlugin,
-		VPP:             vppPlugin,
-		VPPrest:         vppRest,
-		Telemetry:       &telemetry.DefaultPlugin,
-		Linux:           linuxPlugin,
+		KVScheduler:     &kvscheduler.DefaultPlugin,
 		KVProxy:         &kvdbproxy.DefaultPlugin,
-		Contiv:          contivPlugin,
 		Stats:           &statscollector.DefaultPlugin,
+		GoVPP:           &govppmux.DefaultPlugin,
+		LinuxIfPlugin:   &linux_ifplugin.DefaultPlugin,
+		LinuxL3Plugin:   &linux_l3plugin.DefaultPlugin,
+		VPPIfPlugin:     &vpp_ifplugin.DefaultPlugin,
+		VPPL3Plugin:     &vpp_l3plugin.DefaultPlugin,
+		VPPNATPlugin:    &vpp_natplugin.DefaultPlugin,
+		VPPACLPlugin:    &vpp_aclplugin.DefaultPlugin,
+		Telemetry:       &telemetry.DefaultPlugin,
+		GRPC:            &grpc.DefaultPlugin,
+		Contiv:          contivPlugin,
 		Policy:          policyPlugin,
 		Service:         servicePlugin,
 	}

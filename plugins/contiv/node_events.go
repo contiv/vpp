@@ -22,11 +22,11 @@ import (
 	"net"
 
 	"github.com/contiv/vpp/plugins/contiv/model/node"
-	"github.com/golang/protobuf/proto"
+	"github.com/gogo/protobuf/proto"
 	"github.com/ligato/cn-infra/datasync"
 	"github.com/ligato/cn-infra/logging"
-	vpp_l2 "github.com/ligato/vpp-agent/plugins/vpp/model/l2"
-	vpp_l3 "github.com/ligato/vpp-agent/plugins/vpp/model/l3"
+	vpp_l2 "github.com/ligato/vpp-agent/plugins/vppv2/model/l2"
+	vpp_l3 "github.com/ligato/vpp-agent/plugins/vppv2/model/l3"
 )
 
 // handleNodeEvents handles changes in nodes within the k8s cluster (node add / delete) and
@@ -41,7 +41,13 @@ func (s *remoteCNIserver) handleNodeEvents(ctx context.Context, resyncChan chan 
 			resyncEv.Done(nil)
 
 		case changeEv := <-changeChan:
-			err := s.nodeChangePropagateEvent(changeEv)
+			var err error
+			for _, dataChng := range changeEv.GetChanges() {
+				chngErr := s.nodeChangePropagateEvent(dataChng)
+				if chngErr != nil {
+					err = chngErr
+				}
+			}
 			changeEv.Done(err)
 
 		case <-ctx.Done():
@@ -114,7 +120,7 @@ func (s *remoteCNIserver) nodeResync(dataResyncEv datasync.ResyncEvent) error {
 
 // nodeChangePropagateEvent handles change in nodes within the k8s cluster (node add / delete)
 // and configures vswitch (routes to the other nodes) accordingly.
-func (s *remoteCNIserver) nodeChangePropagateEvent(dataChngEv datasync.ChangeEvent) error {
+func (s *remoteCNIserver) nodeChangePropagateEvent(dataChngEv datasync.ProtoWatchResp) error {
 
 	// do not handle other nodes until the base vswitch config is successfully applied
 	s.Lock()
@@ -132,7 +138,7 @@ func (s *remoteCNIserver) nodeChangePropagateEvent(dataChngEv datasync.ChangeEve
 	return s.processChangeEvent(dataChngEv)
 }
 
-func (s *remoteCNIserver) processChangeEvent(dataChngEv datasync.ChangeEvent) error {
+func (s *remoteCNIserver) processChangeEvent(dataChngEv datasync.ProtoWatchResp) error {
 	s.Logger.WithFields(logging.Fields{
 		"key": dataChngEv.GetKey(),
 		"rev": dataChngEv.GetRevision()}).Info("Processing change event")
@@ -162,6 +168,9 @@ func (s *remoteCNIserver) processChangeEvent(dataChngEv datasync.ChangeEvent) er
 			// Note: the case where IP address is changed during runtime is not handled
 			if nodeInfo.IpAddress != "" && nodeInfo.ManagementIpAddress != "" {
 				s.Logger.Info("New node discovered: ", nodeInfo.Id)
+				//TODO: if there is a change in mgmt IPs and routes are already configured
+				// delte outdated routes
+
 				// add routes to the node
 				err = s.addRoutesToNode(nodeInfo)
 			} else {
@@ -200,15 +209,15 @@ func (s *remoteCNIserver) addRoutesToNode(nodeInfo *node.NodeInfo) error {
 		}
 		txn.VppInterface(vxlanIf)
 		s.Logger.WithFields(logging.Fields{
-			"srcIP":  vxlanIf.Vxlan.SrcAddress,
-			"destIP": vxlanIf.Vxlan.DstAddress}).Info("Configuring vxlan")
+			"srcIP":  vxlanIf.GetVxlan().SrcAddress,
+			"destIP": vxlanIf.GetVxlan().DstAddress}).Info("Configuring vxlan")
 
 		// add the VXLAN interface into the VXLAN bridge domain
 		s.addInterfaceToVxlanBD(s.vxlanBD, vxlanIf.Name)
 
 		// pass deep copy to local client since we are overwriting previously applied config
 		bd := proto.Clone(s.vxlanBD)
-		txn.BD(bd.(*vpp_l2.BridgeDomains_BridgeDomain))
+		txn.BD(bd.(*vpp_l2.BridgeDomain))
 
 		// static ARP entry
 		vxlanIP, err := s.ipam.VxlanIPAddress(nodeInfo.Id)
@@ -226,8 +235,8 @@ func (s *remoteCNIserver) addRoutesToNode(nodeInfo *node.NodeInfo) error {
 
 	// static routes
 	var (
-		podsRoute    *vpp_l3.StaticRoutes_Route
-		hostRoute    *vpp_l3.StaticRoutes_Route
+		podsRoute    *vpp_l3.StaticRoute
+		hostRoute    *vpp_l3.StaticRoute
 		vxlanNextHop net.IP
 		err          error
 		nextHop      string
@@ -278,7 +287,6 @@ func (s *remoteCNIserver) addRoutesToNode(nodeInfo *node.NodeInfo) error {
 // deleteRoutesToNode delete routes to the node specified by nodeID.
 func (s *remoteCNIserver) deleteRoutesToNode(nodeInfo *node.NodeInfo) error {
 	txn := s.vppTxnFactory()
-	txn2 := s.vppTxnFactory().Delete() // TODO: merge into 1 transaction after vpp-agent supports it
 	hostIP := s.otherHostIP(nodeInfo.Id, nodeInfo.IpAddress)
 
 	// VXLAN tunnel
@@ -289,8 +297,8 @@ func (s *remoteCNIserver) deleteRoutesToNode(nodeInfo *node.NodeInfo) error {
 		}
 		txn.Delete().VppInterface(vxlanIf.Name)
 		s.Logger.WithFields(logging.Fields{
-			"srcIP":  vxlanIf.Vxlan.SrcAddress,
-			"destIP": vxlanIf.Vxlan.DstAddress}).Info("Removing vxlan")
+			"srcIP":  vxlanIf.GetVxlan().SrcAddress,
+			"destIP": vxlanIf.GetVxlan().DstAddress}).Info("Removing vxlan")
 
 		// remove the VXLAN interface from the VXLAN bridge domain
 		s.removeInterfaceFromVxlanBD(s.vxlanBD, vxlanIf.Name)
@@ -306,13 +314,13 @@ func (s *remoteCNIserver) deleteRoutesToNode(nodeInfo *node.NodeInfo) error {
 
 		// static FIB
 		vxlanFib := s.vxlanFibEntry(vxlanArp.PhysAddress, vxlanIf.Name)
-		txn2.BDFIB(vxlanFib.BridgeDomain, vxlanFib.PhysAddress)
+		txn.Delete().BDFIB(vxlanFib.BridgeDomain, vxlanFib.PhysAddress)
 	}
 
 	// static routes
 	var (
-		podsRoute    *vpp_l3.StaticRoutes_Route
-		hostRoute    *vpp_l3.StaticRoutes_Route
+		podsRoute    *vpp_l3.StaticRoute
+		hostRoute    *vpp_l3.StaticRoute
 		vxlanNextHop net.IP
 		err          error
 		nextHop      string
@@ -333,8 +341,8 @@ func (s *remoteCNIserver) deleteRoutesToNode(nodeInfo *node.NodeInfo) error {
 	if err != nil {
 		return err
 	}
-	txn.Delete().StaticRoute(podsRoute.VrfId, podsRoute.DstIpAddr, podsRoute.NextHopAddr)
-	txn.Delete().StaticRoute(hostRoute.VrfId, hostRoute.DstIpAddr, hostRoute.NextHopAddr)
+	txn.Delete().StaticRoute(podsRoute.VrfId, podsRoute.DstNetwork, podsRoute.NextHopAddr)
+	txn.Delete().StaticRoute(hostRoute.VrfId, hostRoute.DstNetwork, hostRoute.NextHopAddr)
 	s.Logger.Info("Deleting PODs route: ", podsRoute)
 	s.Logger.Info("Deleting host route: ", hostRoute)
 
@@ -342,27 +350,21 @@ func (s *remoteCNIserver) deleteRoutesToNode(nodeInfo *node.NodeInfo) error {
 
 	for _, mIP := range mgmtIPs {
 		mgmtRoute1 := s.routeToOtherManagementIP(mIP, nextHop)
-		txn.Delete().StaticRoute(mgmtRoute1.VrfId, mgmtRoute1.DstIpAddr, mgmtRoute1.NextHopAddr)
+		txn.Delete().StaticRoute(mgmtRoute1.VrfId, mgmtRoute1.DstNetwork, mgmtRoute1.NextHopAddr)
 		s.Logger.Info("Deleting managementIP route: ", mgmtRoute1)
 
 		if s.stnIP == "" {
 			mgmtRoute2 := s.routeToOtherManagementIPViaPodVRF(mIP)
-			txn.Delete().StaticRoute(mgmtRoute2.VrfId, mgmtRoute2.DstIpAddr, "")
+			txn.Delete().StaticRoute(mgmtRoute2.VrfId, mgmtRoute2.DstNetwork, "")
 			s.Logger.Info("Deleting managementIP route via POD VRF: ", mgmtRoute2)
 		}
 	}
 	// send the config transaction
 	if !s.useL2Interconnect {
-		// FIBs need to be removed before the VXLAN interface
-		err = txn2.Send().ReceiveReply()
-		if err != nil {
-			return fmt.Errorf("Can't configure VPP to remove FIB to node %v: %v ", nodeInfo.Id, err)
-		}
-
 		// pass deep copy to local client since we are overwriting previously applied config
 		bd := proto.Clone(s.vxlanBD)
 		// interface should be removed from BD after FIB entry tied to interface is deleted
-		txn.Put().BD(bd.(*vpp_l2.BridgeDomains_BridgeDomain))
+		txn.Put().BD(bd.(*vpp_l2.BridgeDomain))
 	}
 	err = txn.Send().ReceiveReply()
 	if err != nil {

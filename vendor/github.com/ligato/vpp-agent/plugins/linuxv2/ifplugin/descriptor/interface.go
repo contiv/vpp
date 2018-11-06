@@ -1,0 +1,917 @@
+// Copyright (c) 2018 Cisco and/or its affiliates.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at:
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package descriptor
+
+import (
+	"net"
+	"reflect"
+	"strconv"
+	"strings"
+
+	"github.com/go-errors/errors"
+	"github.com/gogo/protobuf/proto"
+	prototypes "github.com/gogo/protobuf/types"
+	"github.com/vishvananda/netlink"
+	"golang.org/x/sys/unix"
+
+	"github.com/ligato/cn-infra/idxmap"
+	"github.com/ligato/cn-infra/logging"
+	"github.com/ligato/cn-infra/logging/logrus"
+	"github.com/ligato/cn-infra/servicelabel"
+	"github.com/ligato/cn-infra/utils/addrs"
+	scheduler "github.com/ligato/vpp-agent/plugins/kvscheduler/api"
+
+	"github.com/ligato/vpp-agent/plugins/linuxv2/ifplugin/descriptor/adapter"
+	"github.com/ligato/vpp-agent/plugins/linuxv2/ifplugin/ifaceidx"
+	iflinuxcalls "github.com/ligato/vpp-agent/plugins/linuxv2/ifplugin/linuxcalls"
+	"github.com/ligato/vpp-agent/plugins/linuxv2/model/interfaces"
+	"github.com/ligato/vpp-agent/plugins/linuxv2/model/namespace"
+	"github.com/ligato/vpp-agent/plugins/linuxv2/nsplugin"
+	nsdescriptor "github.com/ligato/vpp-agent/plugins/linuxv2/nsplugin/descriptor"
+	nslinuxcalls "github.com/ligato/vpp-agent/plugins/linuxv2/nsplugin/linuxcalls"
+	vpp_ifaceidx "github.com/ligato/vpp-agent/plugins/vppv2/ifplugin/ifaceidx"
+	vpp_intf "github.com/ligato/vpp-agent/plugins/vppv2/model/interfaces"
+)
+
+const (
+	// InterfaceDescriptorName is the name of the descriptor for Linux interfaces.
+	InterfaceDescriptorName = "linux-interface"
+
+	// defaultEthernetMTU - expected when MTU is not specified in the config.
+	defaultEthernetMTU = 1500
+
+	// dependency labels
+	tapInterfaceDep = "vpp-tap-interface"
+	vethPeerDep     = "veth-peer"
+	microserviceDep = "microservice"
+
+	// suffix attached to logical names of duplicate VETH interfaces
+	vethDuplicateSuffix = "-DUPLICATE"
+
+	// suffix attached to logical names of VETH interfaces with peers not found by Dump
+	vethMissingPeerSuffix = "-MISSING_PEER"
+)
+
+// A list of non-retriable errors:
+var (
+	// ErrUnsupportedLinuxInterfaceType is returned for Linux interfaces of unknown type.
+	ErrUnsupportedLinuxInterfaceType = errors.New("unsupported Linux interface type")
+
+	// ErrInterfaceWithoutName is returned when Linux interface configuration has undefined
+	// Name attribute.
+	ErrInterfaceWithoutName = errors.New("Linux interface defined without logical name")
+
+	// ErrInterfaceWithoutType is returned when Linux interface configuration has undefined
+	// Type attribute.
+	ErrInterfaceWithoutType = errors.New("Linux interface defined without type")
+
+	// ErrNamespaceWithoutReference is returned when namespace is missing reference.
+	ErrInterfaceReferenceMismatch = errors.New("Linux interface reference does not match the interface type")
+
+	// ErrVETHWithoutPeer is returned when VETH interface is missing peer interface
+	// reference.
+	ErrVETHWithoutPeer = errors.New("VETH interface defined without peer reference")
+
+	// ErrTAPWithoutVPPReference is returned when TAP_TO_VPP interface is missing reference to VPP TAP.
+	ErrTAPWithoutVPPReference = errors.New("TAP_TO_VPP interface defined without reference to VPP TAP")
+
+	// ErrTAPRequiresVPPIfPlugin is returned when TAP_TO_VPP is supposed to be configured but VPP ifplugin
+	// is not loaded.
+	ErrTAPRequiresVPPIfPlugin = errors.New("TAP_TO_VPP interface requires VPP interface plugin to be loaded")
+
+	// ErrNamespaceWithoutReference is returned when namespace is missing reference.
+	ErrNamespaceWithoutReference = errors.New("namespace defined without name")
+)
+
+// InterfaceDescriptor teaches KVScheduler how to configure Linux interfaces.
+type InterfaceDescriptor struct {
+	log          logging.Logger
+	serviceLabel servicelabel.ReaderAPI
+	ifHandler    iflinuxcalls.NetlinkAPI
+	nsPlugin     nsplugin.API
+	vppIfPlugin  VPPIfPluginAPI
+	scheduler    scheduler.KVScheduler
+}
+
+// VPPIfPluginAPI is defined here to avoid import cycles.
+type VPPIfPluginAPI interface {
+	// GetInterfaceIndex gives read-only access to map with metadata of all configured
+	// VPP interfaces.
+	GetInterfaceIndex() vpp_ifaceidx.IfaceMetadataIndex
+}
+
+// NewInterfaceDescriptor creates a new instance of the Interface descriptor.
+func NewInterfaceDescriptor(
+	scheduler scheduler.KVScheduler, serviceLabel servicelabel.ReaderAPI, nsPlugin nsplugin.API,
+	vppIfPlugin VPPIfPluginAPI, ifHandler iflinuxcalls.NetlinkAPI, log logging.PluginLogger) *InterfaceDescriptor {
+
+	return &InterfaceDescriptor{
+		scheduler:    scheduler,
+		ifHandler:    ifHandler,
+		nsPlugin:     nsPlugin,
+		vppIfPlugin:  vppIfPlugin,
+		serviceLabel: serviceLabel,
+		log:          log.NewLogger("if-descriptor"),
+	}
+}
+
+// GetDescriptor returns descriptor suitable for registration (via adapter) with
+// the KVScheduler.
+func (d *InterfaceDescriptor) GetDescriptor() *adapter.InterfaceDescriptor {
+	return &adapter.InterfaceDescriptor{
+		Name:               InterfaceDescriptorName,
+		KeySelector:        d.IsInterfaceKey,
+		ValueTypeName:      proto.MessageName(&interfaces.LinuxInterface{}),
+		KeyLabel:           d.InterfaceNameFromKey,
+		ValueComparator:    d.EquivalentInterfaces,
+		NBKeyPrefix:        interfaces.InterfaceKeyPrefix,
+		WithMetadata:       true,
+		MetadataMapFactory: d.MetadataFactory,
+		Add:                d.Add,
+		Delete:             d.Delete,
+		Modify:             d.Modify,
+		ModifyWithRecreate: d.ModifyWithRecreate,
+		IsRetriableFailure: d.IsRetriableFailure,
+		Dependencies:       d.Dependencies,
+		DerivedValues:      d.DerivedValues,
+		Dump:               d.Dump,
+		DumpDependencies:   []string{nsdescriptor.MicroserviceDescriptorName},
+	}
+}
+
+// IsInterfaceKey returns true if the key is identifying Linux interface configuration.
+func (d *InterfaceDescriptor) IsInterfaceKey(key string) bool {
+	return strings.HasPrefix(key, interfaces.InterfaceKeyPrefix)
+}
+
+// InterfaceNameFromKey returns Linux interface name from the key.
+func (d *InterfaceDescriptor) InterfaceNameFromKey(key string) string {
+	return strings.TrimPrefix(key, interfaces.InterfaceKeyPrefix)
+}
+
+// EquivalentInterfaces is case-insensitive comparison function for
+// interfaces.LinuxInterface, also ignoring the order of assigned IP addresses.
+func (d *InterfaceDescriptor) EquivalentInterfaces(key string, oldIntf, newIntf *interfaces.LinuxInterface) bool {
+	// attributes compared as usually:
+	if oldIntf.Name != newIntf.Name || oldIntf.Type != newIntf.Type || oldIntf.Enabled != newIntf.Enabled ||
+		getHostIfName(oldIntf) != getHostIfName(newIntf) {
+		return false
+	}
+	if oldIntf.Type == interfaces.LinuxInterface_VETH && oldIntf.GetVeth().GetPeerIfName() != newIntf.GetVeth().GetPeerIfName() {
+		return false
+	}
+	if oldIntf.Type == interfaces.LinuxInterface_TAP_TO_VPP && oldIntf.GetTap().GetVppTapIfName() != newIntf.GetTap().GetVppTapIfName() {
+		return false
+	}
+	if !proto.Equal(oldIntf.Namespace, newIntf.Namespace) {
+		return false
+	}
+
+	// handle default MTU
+	if getInterfaceMTU(oldIntf) != getInterfaceMTU(newIntf) {
+		return false
+	}
+
+	// compare MAC addresses case-insensitively (also handle unspecified MAC address)
+	if newIntf.PhysAddress != "" &&
+		strings.ToLower(oldIntf.PhysAddress) != strings.ToLower(newIntf.PhysAddress) {
+		return false
+	}
+
+	// order-irrelevant comparison of IP addresses
+	oldIntfAddrs, err1 := addrs.StrAddrsToStruct(oldIntf.IpAddresses)
+	newIntfAddrs, err2 := addrs.StrAddrsToStruct(newIntf.IpAddresses)
+	if err1 != nil || err2 != nil {
+		// one or both of the configurations are invalid, compare lazily
+		return reflect.DeepEqual(oldIntf.IpAddresses, newIntf.IpAddresses)
+	}
+	obsolete, new := addrs.DiffAddr(oldIntfAddrs, newIntfAddrs)
+	return len(obsolete) == 0 && len(new) == 0
+}
+
+// MetadataFactory is a factory for index-map customized for Linux interfaces.
+func (d *InterfaceDescriptor) MetadataFactory() idxmap.NamedMappingRW {
+	return ifaceidx.NewLinuxIfIndex(logrus.DefaultLogger(), "linux-interface-index")
+}
+
+// IsRetriableFailure returns <false> for errors related to invalid configuration.
+func (d *InterfaceDescriptor) IsRetriableFailure(err error) bool {
+	nonRetriable := []error{
+		ErrUnsupportedLinuxInterfaceType,
+		ErrInterfaceWithoutName,
+		ErrInterfaceWithoutType,
+		ErrInterfaceReferenceMismatch,
+		ErrVETHWithoutPeer,
+		ErrTAPWithoutVPPReference,
+		ErrTAPRequiresVPPIfPlugin,
+		ErrNamespaceWithoutReference,
+	}
+	for _, nonRetriableErr := range nonRetriable {
+		if err == nonRetriableErr {
+			return false
+		}
+	}
+	return true
+}
+
+// Add creates VETH or configures TAP interface.
+func (d *InterfaceDescriptor) Add(key string, linuxIf *interfaces.LinuxInterface) (metadata *ifaceidx.LinuxIfMetadata, err error) {
+	// validate configuration first
+	err = d.validateInterfaceConfig(linuxIf)
+	if err != nil {
+		d.log.Error(err)
+		return nil, err
+	}
+
+	// create interface based on its type
+	switch linuxIf.Type {
+	case interfaces.LinuxInterface_VETH:
+		metadata, err = d.addVETH(key, linuxIf)
+	case interfaces.LinuxInterface_TAP_TO_VPP:
+		metadata, err = d.addTAPToVPP(key, linuxIf)
+	default:
+		return nil, ErrUnsupportedLinuxInterfaceType
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	// move to the namespace with the interface
+	nsCtx := nslinuxcalls.NewNamespaceMgmtCtx()
+	revert, err := d.nsPlugin.SwitchToNamespace(nsCtx, linuxIf.Namespace)
+	if err != nil {
+		d.log.Error(err)
+		return nil, err
+	}
+	defer revert()
+
+	// set interface up
+	hostName := getHostIfName(linuxIf)
+	if linuxIf.Enabled {
+		err = d.ifHandler.SetInterfaceUp(hostName)
+		if nil != err {
+			err = errors.Errorf("failed to set linux interface %s up: %v", linuxIf.Name, err)
+			d.log.Error(err)
+			return nil, err
+		}
+	}
+
+	// set interface MAC address
+	if linuxIf.PhysAddress != "" {
+		err = d.ifHandler.SetInterfaceMac(hostName, linuxIf.PhysAddress)
+		if err != nil {
+			err = errors.Errorf("failed to set MAC address %s to linux interface %s: %v",
+				linuxIf.PhysAddress, linuxIf.Name, err)
+			d.log.Error(err)
+			return nil, err
+		}
+	}
+
+	// set interface IP addresses
+	ipAddresses, err := addrs.StrAddrsToStruct(linuxIf.IpAddresses)
+	if err != nil {
+		err = errors.Errorf("failed to convert IP addresses %v for interface %s: %v",
+			linuxIf.IpAddresses, linuxIf.Name, err)
+		d.log.Error(err)
+		return nil, err
+	}
+	for _, ipAddress := range ipAddresses {
+		err = d.ifHandler.AddInterfaceIP(hostName, ipAddress)
+		if err != nil {
+			err = errors.Errorf("failed to add IP address %v to linux interface %s: %v",
+				ipAddress, linuxIf.Name, err)
+			d.log.Error(err)
+			return nil, err
+		}
+	}
+
+	// set interface MTU
+	if linuxIf.Mtu != 0 {
+		mtu := int(linuxIf.Mtu)
+		err = d.ifHandler.SetInterfaceMTU(hostName, mtu)
+		if err != nil {
+			err = errors.Errorf("failed to set MTU %d to linux interface %s: %v",
+				mtu, linuxIf.Name, err)
+			d.log.Error(err)
+			return nil, err
+		}
+	}
+
+	return metadata, nil
+}
+
+// Delete removes VETH or unconfigures TAP interface.
+func (d *InterfaceDescriptor) Delete(key string, linuxIf *interfaces.LinuxInterface, metadata *ifaceidx.LinuxIfMetadata) error {
+	// move to the namespace with the interface
+	nsCtx := nslinuxcalls.NewNamespaceMgmtCtx()
+	revert, err := d.nsPlugin.SwitchToNamespace(nsCtx, linuxIf.Namespace)
+	if err != nil {
+		d.log.Error(err)
+		return err
+	}
+	defer revert()
+
+	// unassign IP addresses
+	ipAddresses, err := addrs.StrAddrsToStruct(linuxIf.IpAddresses)
+	if err != nil {
+		err = errors.Errorf("failed to convert IP addresses %v for interface %s: %v",
+			linuxIf.IpAddresses, linuxIf.Name, err)
+		d.log.Error(err)
+		return err
+	}
+	for _, ipAddress := range ipAddresses {
+		err = d.ifHandler.DelInterfaceIP(getHostIfName(linuxIf), ipAddress)
+		if err != nil {
+			err = errors.Errorf("failed to remove IP address %v from linux interface %s: %v",
+				ipAddress, linuxIf.Name, err)
+			d.log.Error(err)
+			return err
+		}
+	}
+
+	switch linuxIf.Type {
+	case interfaces.LinuxInterface_VETH:
+		return d.deleteVETH(nsCtx, key, linuxIf, metadata)
+	case interfaces.LinuxInterface_TAP_TO_VPP:
+		return d.deleteAutoTAP(nsCtx, key, linuxIf, metadata)
+	}
+
+	err = ErrUnsupportedLinuxInterfaceType
+	d.log.Error(err)
+	return err
+}
+
+// Modify is able to change Type-unspecific attributes.
+func (d *InterfaceDescriptor) Modify(key string, oldLinuxIf, newLinuxIf *interfaces.LinuxInterface, oldMetadata *ifaceidx.LinuxIfMetadata) (newMetadata *ifaceidx.LinuxIfMetadata, err error) {
+	oldHostName := getHostIfName(oldLinuxIf)
+	newHostName := getHostIfName(newLinuxIf)
+
+	// validate the new configuration first
+	err = d.validateInterfaceConfig(newLinuxIf)
+	if err != nil {
+		d.log.Error(err)
+		return oldMetadata, err
+	}
+	// move to the namespace with the interface
+	nsCtx := nslinuxcalls.NewNamespaceMgmtCtx()
+	revert, err := d.nsPlugin.SwitchToNamespace(nsCtx, oldLinuxIf.Namespace)
+	if err != nil {
+		d.log.Error(err)
+		return nil, err
+	}
+	defer revert()
+
+	// update host name
+	if oldHostName != newHostName {
+		d.ifHandler.RenameInterface(oldHostName, newHostName)
+		if err != nil {
+			d.log.Error(err)
+			return nil, err
+		}
+	}
+
+	// update admin status
+	if oldLinuxIf.Enabled != newLinuxIf.Enabled {
+		if newLinuxIf.Enabled {
+			err = d.ifHandler.SetInterfaceUp(newHostName)
+			if nil != err {
+				err = errors.Errorf("failed to set linux interface %s UP: %v", newHostName, err)
+				d.log.Error(err)
+				return nil, err
+			}
+		} else {
+			err = d.ifHandler.SetInterfaceDown(newHostName)
+			if nil != err {
+				err = errors.Errorf("failed to set linux interface %s DOWN: %v", newHostName, err)
+				d.log.Error(err)
+				return nil, err
+			}
+		}
+	}
+
+	// update MAC address
+	if newLinuxIf.PhysAddress != "" && newLinuxIf.PhysAddress != oldLinuxIf.PhysAddress {
+		err := d.ifHandler.SetInterfaceMac(newLinuxIf.HostIfName, newLinuxIf.PhysAddress)
+		if err != nil {
+			err = errors.Errorf("failed to reconfigure MAC address for linux interface %s: %v",
+				newLinuxIf.Name, err)
+			d.log.Error(err)
+			return nil, err
+		}
+	}
+
+	// IP addresses
+	newAddrs, err := addrs.StrAddrsToStruct(newLinuxIf.IpAddresses)
+	if err != nil {
+		err = errors.Errorf("linux interface modify: failed to convert IP addresses for %s: %v",
+			newLinuxIf.Name, err)
+		d.log.Error(err)
+		return nil, err
+	}
+	oldAddrs, err := addrs.StrAddrsToStruct(oldLinuxIf.IpAddresses)
+	if err != nil {
+		err = errors.Errorf("linux interface modify: failed to convert IP addresses for %s: %v",
+			newLinuxIf.Name, err)
+		d.log.Error(err)
+		return nil, err
+	}
+	del, add := addrs.DiffAddr(newAddrs, oldAddrs)
+
+	for i := range del {
+		err := d.ifHandler.DelInterfaceIP(newLinuxIf.HostIfName, del[i])
+		if nil != err {
+			err = errors.Errorf("failed to remove IPv4 address from a Linux interface %s: %v",
+				newLinuxIf.Name, err)
+			d.log.Error(err)
+			return nil, err
+		}
+	}
+
+	for i := range add {
+		err := d.ifHandler.AddInterfaceIP(newLinuxIf.HostIfName, add[i])
+		if nil != err {
+			err = errors.Errorf("linux interface modify: failed to add IP addresses %s to %s: %v",
+				add[i], newLinuxIf.Name, err)
+			d.log.Error(err)
+			return nil, err
+		}
+	}
+
+	// MTU
+	if getInterfaceMTU(newLinuxIf) != getInterfaceMTU(oldLinuxIf) {
+		mtu := getInterfaceMTU(newLinuxIf)
+		err := d.ifHandler.SetInterfaceMTU(newLinuxIf.HostIfName, mtu)
+		if nil != err {
+			err = errors.Errorf("failed to reconfigure MTU for the linux interface %s: %v",
+				newLinuxIf.Name, err)
+			d.log.Error(err)
+			return nil, err
+		}
+	}
+
+	// update metadata
+	link, err := d.ifHandler.GetLinkByName(newHostName)
+	if err != nil {
+		d.log.Error(err)
+		return nil, err
+	}
+	oldMetadata.LinuxIfIndex = link.Attrs().Index
+	return oldMetadata, nil
+}
+
+// ModifyWithRecreate returns true if Type or Type-specific attributes are different.
+func (d *InterfaceDescriptor) ModifyWithRecreate(key string, oldLinuxIf, newLinuxIf *interfaces.LinuxInterface, metadata *ifaceidx.LinuxIfMetadata) bool {
+	if oldLinuxIf.Type != newLinuxIf.Type {
+		return true
+	}
+	if !proto.Equal(oldLinuxIf.Namespace, newLinuxIf.Namespace) {
+		// anything attached to the interface (ARPs, routes, ...) will be re-created as well
+		return true
+	}
+	switch oldLinuxIf.Type {
+	case interfaces.LinuxInterface_VETH:
+		return oldLinuxIf.GetVeth().GetPeerIfName() != newLinuxIf.GetVeth().GetPeerIfName()
+	case interfaces.LinuxInterface_TAP_TO_VPP:
+		return oldLinuxIf.GetTap().GetVppTapIfName() != newLinuxIf.GetTap().GetVppTapIfName()
+	}
+	return false
+}
+
+// Dependencies lists dependencies for a Linux interface.
+func (d *InterfaceDescriptor) Dependencies(key string, linuxIf *interfaces.LinuxInterface) []scheduler.Dependency {
+	var dependencies []scheduler.Dependency
+
+	if linuxIf.Type == interfaces.LinuxInterface_TAP_TO_VPP {
+		// dependency on VPP TAP
+		dependencies = append(dependencies, scheduler.Dependency{
+			Label: tapInterfaceDep,
+			Key:   vpp_intf.InterfaceKey(linuxIf.GetTap().GetVppTapIfName()),
+		})
+	}
+
+	// circular dependency between VETH ends
+	if linuxIf.Type == interfaces.LinuxInterface_VETH {
+		peerName := linuxIf.GetVeth().GetPeerIfName()
+		if peerName != "" {
+			dependencies = append(dependencies, scheduler.Dependency{
+				Label: vethPeerDep,
+				Key:   interfaces.InterfaceKey(peerName),
+			})
+		}
+	}
+
+	if linuxIf.Namespace != nil && linuxIf.Namespace.Type == namespace.LinuxNetNamespace_NETNS_REF_MICROSERVICE {
+		dependencies = append(dependencies, scheduler.Dependency{
+			Label: microserviceDep,
+			Key:   namespace.MicroserviceKey(linuxIf.Namespace.Reference),
+		})
+	}
+
+	return dependencies
+}
+
+// DerivedValues derives one empty value to represent interface state and also
+// one empty value for every IP address assigned to the interface.
+func (d *InterfaceDescriptor) DerivedValues(key string, linuxIf *interfaces.LinuxInterface) (derValues []scheduler.KeyValuePair) {
+	// interface state
+	derValues = append(derValues, scheduler.KeyValuePair{
+		Key:   interfaces.InterfaceStateKey(linuxIf.Name, linuxIf.Enabled),
+		Value: &prototypes.Empty{},
+	})
+	// IP addresses
+	for _, ipAddr := range linuxIf.IpAddresses {
+		derValues = append(derValues, scheduler.KeyValuePair{
+			Key:   interfaces.InterfaceAddressKey(linuxIf.Name, ipAddr),
+			Value: &prototypes.Empty{},
+		})
+	}
+	return derValues
+}
+
+// Dump returns all Linux interfaces managed by this agent, attached to the default namespace
+// or to one of the configured non-default namespaces.
+func (d *InterfaceDescriptor) Dump(correlate []adapter.InterfaceKVWithMetadata) ([]adapter.InterfaceKVWithMetadata, error) {
+	agentPrefix := d.serviceLabel.GetAgentPrefix()
+	nsCtx := nslinuxcalls.NewNamespaceMgmtCtx()
+	nsList := []*namespace.LinuxNetNamespace{nil}              // nil = default namespace, which always should be dumped
+	ifCfg := make(map[string]*interfaces.LinuxInterface)       // interface logical name -> interface config (as expected by correlate)
+	ifDump := make(map[string]adapter.InterfaceKVWithMetadata) // interface logical name -> interface dump
+	indexes := make(map[int]struct{})                          // already dumped interfaces by their Linux indexes
+
+	// process interfaces for correlation to get:
+	//  - the set of namespaces to dump
+	//  - mapping between interface and the destination namespace
+	// beware: the same namespace can have multiple different references (e.g. integration of Contiv with SFC)
+	for _, kv := range correlate {
+		nsListed := false
+		for _, ns := range nsList {
+			if proto.Equal(ns, kv.Value.Namespace) {
+				nsListed = true
+				break
+			}
+		}
+		if !nsListed {
+			nsList = append(nsList, kv.Value.Namespace)
+		}
+		ifCfg[kv.Value.Name] = kv.Value
+	}
+
+	// dump every namespace mentioned in the correlate
+	var (
+		err    error
+		revert func()
+	)
+	for _, nsRef := range nsList {
+		// switch to the namespace
+		if nsRef != nil {
+			revert, err = d.nsPlugin.SwitchToNamespace(nsCtx, nsRef)
+			if err != nil {
+				d.log.WithFields(logging.Fields{
+					"err":       err,
+					"namespace": nsRef,
+				}).Debug("Failed to dump namespace")
+				continue // continue with the next namespace
+			}
+		}
+
+		// get all links in the namespace
+		links, err := d.ifHandler.GetLinkList()
+		if err != nil {
+			// switch back to the default namespace before returning error
+			if nsRef != nil {
+				revert()
+			}
+			d.log.Error(err)
+			return nil, err
+		}
+
+		// dump every interface (at most once!) managed by this agent
+		for _, link := range links {
+			intf := &interfaces.LinuxInterface{
+				Namespace:   nsRef,
+				HostIfName:  link.Attrs().Name,
+				PhysAddress: link.Attrs().HardwareAddr.String(),
+				Mtu:         uint32(link.Attrs().MTU),
+			}
+
+			alias := link.Attrs().Alias
+			if !strings.HasPrefix(alias, agentPrefix) {
+				// skip interface not configured by this agent
+				continue
+			}
+			alias = strings.TrimPrefix(alias, agentPrefix)
+
+			// parse alias to obtain logical references
+			var vppTapIfName string
+			if link.Type() == (&netlink.Veth{}).Type() {
+				var vethPeerIfName string
+				intf.Type = interfaces.LinuxInterface_VETH
+				intf.Name, vethPeerIfName = parseVethAlias(alias)
+				intf.Link = &interfaces.LinuxInterface_Veth{
+					Veth: &interfaces.LinuxInterface_VethLink{PeerIfName: vethPeerIfName}}
+			} else if link.Type() == (&netlink.Tuntap{}).Type() || link.Type() == "tun" /* not defined in vishvananda */ {
+				intf.Type = interfaces.LinuxInterface_TAP_TO_VPP
+				intf.Name, vppTapIfName, _ = parseTapAlias(alias)
+				intf.Link = &interfaces.LinuxInterface_Tap{
+					Tap: &interfaces.LinuxInterface_TapLink{VppTapIfName: vppTapIfName}}
+			} else {
+				// unsupported interface type supposedly configured by agent => print warning
+				d.log.WithFields(logging.Fields{
+					"if-host-name": link.Attrs().Name,
+					"if-type":      link.Type(),
+					"namespace":    nsRef,
+				}).Warn("Managed interface of unsupported type")
+				continue
+			}
+
+			// skip interfaces with invalid aliases
+			if intf.Name == "" {
+				continue
+			}
+
+			// skip if this interface was already dumped and this is not the expected
+			// namespace from correlation - remember, the same namespace may have
+			// multiple different references
+			rewrite := false
+			if _, dumped := indexes[link.Attrs().Index]; dumped {
+				if expCfg, hasExpCfg := ifCfg[intf.Name]; hasExpCfg {
+					if proto.Equal(expCfg.Namespace, nsRef) {
+						rewrite = true
+					}
+				}
+				if !rewrite {
+					continue
+				}
+			}
+			indexes[link.Attrs().Index] = struct{}{}
+
+			// test for duplicity of VETH logical names
+			if intf.Type == interfaces.LinuxInterface_VETH {
+				if _, duplicate := ifDump[intf.Name]; duplicate && !rewrite {
+					// add suffix to the duplicate to make its logical name unique
+					// (and not configured by NB so that it will get removed)
+					dupIndex := 1
+					for intf2 := range ifDump {
+						if strings.HasPrefix(intf2, intf.Name+vethDuplicateSuffix) {
+							dupIndex++
+						}
+					}
+					intf.Name = intf.Name + vethDuplicateSuffix + strconv.Itoa(dupIndex)
+				}
+			}
+
+			// dump interface status
+			intf.Enabled, err = d.ifHandler.IsInterfaceEnabled(link.Attrs().Name)
+			if err != nil {
+				d.log.WithFields(logging.Fields{
+					"if-host-name": link.Attrs().Name,
+					"namespace":    nsRef,
+					"err":          err,
+				}).Warn("Failed to read interface status")
+			}
+
+			// dump assigned IP addresses
+			addressList, err := d.ifHandler.GetAddressList(link.Attrs().Name)
+			if err != nil {
+				d.log.WithFields(logging.Fields{
+					"if-host-name": link.Attrs().Name,
+					"namespace":    nsRef,
+					"err":          err,
+				}).Warn("Failed to read IP addresses")
+			}
+			for _, address := range addressList {
+				if address.Scope == unix.RT_SCOPE_LINK {
+					// ignore link-local IPv6 addresses
+					continue
+				}
+				mask, _ := address.Mask.Size()
+				addrStr := address.IP.String() + "/" + strconv.Itoa(mask)
+				intf.IpAddresses = append(intf.IpAddresses, addrStr)
+			}
+
+			// build key-value pair for the dumped interface
+			ifDump[intf.Name] = adapter.InterfaceKVWithMetadata{
+				Key:    interfaces.InterfaceKey(intf.Name),
+				Value:  intf,
+				Origin: scheduler.FromNB,
+				Metadata: &ifaceidx.LinuxIfMetadata{
+					LinuxIfIndex: link.Attrs().Index,
+					VPPTapName:   vppTapIfName,
+					Namespace:    nsRef,
+				},
+			}
+		}
+
+		// switch back to the default namespace
+		if nsRef != nil {
+			revert()
+		}
+	}
+
+	// first collect VETHs with duplicate logical names
+	var dump []adapter.InterfaceKVWithMetadata
+	for ifName, kv := range ifDump {
+		if kv.Value.Type == interfaces.LinuxInterface_VETH {
+			isDuplicate := strings.Contains(ifName, vethDuplicateSuffix)
+			// first interface dumped from the set of duplicate VETHs still
+			// does not have the vethDuplicateSuffix appended to the name
+			_, hasDuplicate := ifDump[ifName+vethDuplicateSuffix+"1"]
+			if hasDuplicate {
+				kv.Value.Name = ifName + vethDuplicateSuffix + "0"
+				kv.Key = interfaces.InterfaceKey(kv.Value.Name)
+			}
+			if isDuplicate || hasDuplicate {
+				// clear peer reference so that Delete removes the VETH-end
+				// as standalone
+				kv.Value.Link = &interfaces.LinuxInterface_Veth{}
+				delete(ifDump, ifName)
+				dump = append(dump, kv)
+			}
+		}
+	}
+
+	// next collect VETHs with missing peer
+	for ifName, kv := range ifDump {
+		if kv.Value.Type == interfaces.LinuxInterface_VETH {
+			peer, dumped := ifDump[kv.Value.GetVeth().GetPeerIfName()]
+			if !dumped || peer.Value.GetVeth().GetPeerIfName() != kv.Value.Name {
+				// append vethMissingPeerSuffix to the logical name so that VETH
+				// will get removed during resync
+				kv.Value.Name = ifName + vethMissingPeerSuffix
+				kv.Key = interfaces.InterfaceKey(kv.Value.Name)
+				// clear peer reference so that Delete removes the VETH-end
+				// as standalone
+				kv.Value.Link = &interfaces.LinuxInterface_Veth{}
+				delete(ifDump, ifName)
+				dump = append(dump, kv)
+			}
+		}
+	}
+
+	// finally collect AUTO-TAPs and valid VETHs
+	for _, kv := range ifDump {
+		dump = append(dump, kv)
+	}
+
+	d.log.Debugf("Dumping Linux interfaces: %v", dump)
+	return dump, nil
+}
+
+// setInterfaceNamespace moves linux interface from the current to the desired
+// namespace.
+func (d *InterfaceDescriptor) setInterfaceNamespace(ctx nslinuxcalls.NamespaceMgmtCtx, ifName string, namespace *namespace.LinuxNetNamespace) error {
+	// Get namespace handle.
+	ns, err := d.nsPlugin.GetNamespaceHandle(ctx, namespace)
+	if err != nil {
+		return err
+	}
+	defer ns.Close()
+
+	// Get the interface link handle.
+	link, err := d.ifHandler.GetLinkByName(ifName)
+	if err != nil {
+		return errors.Errorf("failed to get link for interface %s: %v", ifName, err)
+	}
+
+	// When interface moves from one namespace to another, it loses all its IP addresses, admin status
+	// and MTU configuration -- we need to remember the interface configuration before the move
+	// and re-configure the interface in the new namespace.
+	addresses, isIPv6, err := d.getInterfaceAddresses(link.Attrs().Name)
+	if err != nil {
+		return errors.Errorf("failed to get IP address list from interface %s: %v", link.Attrs().Name, err)
+	}
+	enabled, err := d.ifHandler.IsInterfaceEnabled(ifName)
+	if err != nil {
+		return errors.Errorf("failed to get admin status of the interface %s: %v", link.Attrs().Name, err)
+	}
+
+	// Move the interface into the namespace.
+	err = d.ifHandler.SetLinkNamespace(link, ns)
+	if err != nil {
+		return errors.Errorf("failed to set interface %s file descriptor: %v", link.Attrs().Name, err)
+	}
+
+	// Re-configure interface in its new namespace
+	revertNs, err := d.nsPlugin.SwitchToNamespace(ctx, namespace)
+	if err != nil {
+		return errors.Errorf("failed to switch namespace: %v", err)
+	}
+	defer revertNs()
+
+	if enabled {
+		// Re-enable interface
+		err = d.ifHandler.SetInterfaceUp(ifName)
+		if nil != err {
+			return errors.Errorf("failed to re-enable Linux interface `%s`: %v", ifName, err)
+		}
+	}
+
+	// Re-add IP addresses
+	for _, address := range addresses {
+		// Skip IPv6 link local address if there is no other IPv6 address
+		if !isIPv6 && address.IP.IsLinkLocalUnicast() {
+			continue
+		}
+		err = d.ifHandler.AddInterfaceIP(ifName, address)
+		if err != nil {
+			if err.Error() == "file exists" {
+				continue
+			}
+			return errors.Errorf("failed to re-assign IP address to a Linux interface `%s`: %v", ifName, err)
+		}
+	}
+
+	// Revert back the MTU config
+	err = d.ifHandler.SetInterfaceMTU(ifName, link.Attrs().MTU)
+	if nil != err {
+		return errors.Errorf("failed to re-assign MTU of a Linux interface `%s`: %v", ifName, err)
+	}
+
+	return nil
+}
+
+// getInterfaceAddresses returns a list of IP addresses assigned to the given linux interface.
+// <hasIPv6> is returned as true if a non link-local IPv6 address is among them.
+func (d *InterfaceDescriptor) getInterfaceAddresses(ifName string) (addresses []*net.IPNet, hasIPv6 bool, err error) {
+	// get all assigned IP addresses
+	ipAddrs, err := d.ifHandler.GetAddressList(ifName)
+	if err != nil {
+		return nil, false, err
+	}
+
+	// iterate over IP addresses to see if there is IPv6 among them
+	for _, ipAddr := range ipAddrs {
+		if ipAddr.IP.To4() == nil && !ipAddr.IP.IsLinkLocalUnicast() {
+			// IP address is version 6 and not a link local address
+			hasIPv6 = true
+		}
+		addresses = append(addresses, ipAddr.IPNet)
+	}
+	return addresses, hasIPv6, nil
+}
+
+// validateInterfaceConfig validates Linux interface configuration.
+func (d *InterfaceDescriptor) validateInterfaceConfig(linuxIf *interfaces.LinuxInterface) error {
+	if linuxIf.Name == "" {
+		return ErrInterfaceWithoutName
+	}
+	if linuxIf.Type == interfaces.LinuxInterface_UNDEFINED {
+		return ErrInterfaceWithoutType
+	}
+	if linuxIf.Type == interfaces.LinuxInterface_TAP_TO_VPP && d.vppIfPlugin == nil {
+		return ErrTAPRequiresVPPIfPlugin
+	}
+	if linuxIf.Namespace != nil &&
+		(linuxIf.Namespace.Type == namespace.LinuxNetNamespace_NETNS_REF_UNDEFINED ||
+			linuxIf.Namespace.Reference == "") {
+		return ErrNamespaceWithoutReference
+	}
+	switch linuxIf.Link.(type) {
+	case *interfaces.LinuxInterface_Tap:
+		if linuxIf.Type != interfaces.LinuxInterface_TAP_TO_VPP {
+			return ErrInterfaceReferenceMismatch
+		}
+		if linuxIf.GetTap().GetVppTapIfName() == "" {
+			return ErrTAPWithoutVPPReference
+		}
+	case *interfaces.LinuxInterface_Veth:
+		if linuxIf.Type != interfaces.LinuxInterface_VETH {
+			return ErrInterfaceReferenceMismatch
+		}
+		if linuxIf.GetVeth().GetPeerIfName() == "" {
+			return ErrVETHWithoutPeer
+		}
+	}
+	return nil
+}
+
+// getHostIfName returns the interface host name.
+func getHostIfName(linuxIf *interfaces.LinuxInterface) string {
+	hostIfName := linuxIf.HostIfName
+	if hostIfName == "" {
+		hostIfName = linuxIf.Name
+	}
+	return hostIfName
+}
+
+// getInterfaceMTU returns the interface MTU.
+func getInterfaceMTU(linuxIntf *interfaces.LinuxInterface) int {
+	mtu := int(linuxIntf.Mtu)
+	if mtu == 0 {
+		return defaultEthernetMTU
+	}
+	return mtu
+}

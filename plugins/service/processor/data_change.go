@@ -27,11 +27,19 @@ import (
 	svcmodel "github.com/contiv/vpp/plugins/ksr/model/service"
 )
 
-func (sc *ServiceProcessor) propagateDataChangeEv(dataChngEv datasync.ChangeEvent) error {
+func (sc *ServiceProcessor) propagateDataChangeEv(dataChngEv datasync.ProtoWatchResp) error {
 	var diff bool
 	var err error
 	key := dataChngEv.GetKey()
 	sc.Log.Debug("Received CHANGE key ", key)
+
+	if prevRev, hasPrevRev := sc.k8sStateData[key]; hasPrevRev {
+		if prevRev.GetRevision() >= dataChngEv.GetRevision() {
+			sc.Log.Debugf("Ignoring already processed revision for key=%s", key)
+			return nil
+		}
+	}
+	sc.k8sStateData[key] = dataChngEv
 
 	// Process Node CHANGE event
 	if strings.HasPrefix(key, nodemodel.AllocatedIDsKeyPrefix) {

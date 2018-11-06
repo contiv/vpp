@@ -25,7 +25,7 @@ import (
 )
 
 // changePropagateEvent propagates CHANGE in the K8s configuration into the Cache.
-func (pc *PolicyCache) changePropagateEvent(dataChngEv datasync.ChangeEvent) error {
+func (pc *PolicyCache) changePropagateEvent(dataChngEv datasync.ProtoWatchResp) error {
 	var err error
 	var diff bool
 	key := dataChngEv.GetKey()

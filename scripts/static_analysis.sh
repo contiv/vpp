@@ -15,7 +15,6 @@ function static_analysis() {
 
   local ALL="$CMD
 $PLUGINS
-$FLAVORS
 $PKG
 "
 

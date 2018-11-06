@@ -1,20 +1,20 @@
 package linux
 
 import (
-	"github.com/ligato/vpp-agent/clientv1/linux"
-	"github.com/ligato/vpp-agent/clientv1/vpp"
+	"github.com/ligato/vpp-agent/clientv2/linux"
+	"github.com/ligato/vpp-agent/clientv2/vpp"
 
 	"github.com/contiv/vpp/mock/localclient/dsl"
-	linux_intf "github.com/ligato/vpp-agent/plugins/linux/model/interfaces"
-	linux_l3 "github.com/ligato/vpp-agent/plugins/linux/model/l3"
-	vpp_acl "github.com/ligato/vpp-agent/plugins/vpp/model/acl"
+	linux_intf "github.com/ligato/vpp-agent/plugins/linuxv2/model/interfaces"
+	linux_l3 "github.com/ligato/vpp-agent/plugins/linuxv2/model/l3"
 	vpp_bfd "github.com/ligato/vpp-agent/plugins/vpp/model/bfd"
-	vpp_intf "github.com/ligato/vpp-agent/plugins/vpp/model/interfaces"
-	vpp_l2 "github.com/ligato/vpp-agent/plugins/vpp/model/l2"
-	vpp_l3 "github.com/ligato/vpp-agent/plugins/vpp/model/l3"
 	vpp_l4 "github.com/ligato/vpp-agent/plugins/vpp/model/l4"
-	vpp_nat "github.com/ligato/vpp-agent/plugins/vpp/model/nat"
 	vpp_stn "github.com/ligato/vpp-agent/plugins/vpp/model/stn"
+	vpp_acl "github.com/ligato/vpp-agent/plugins/vppv2/model/acl"
+	vpp_intf "github.com/ligato/vpp-agent/plugins/vppv2/model/interfaces"
+	vpp_l2 "github.com/ligato/vpp-agent/plugins/vppv2/model/l2"
+	vpp_l3 "github.com/ligato/vpp-agent/plugins/vppv2/model/l3"
+	vpp_nat "github.com/ligato/vpp-agent/plugins/vppv2/model/nat"
 )
 
 // MockDataChangeDSL is mock for DataChangeDSL.
@@ -56,7 +56,7 @@ func (d *MockDataChangeDSL) Send() vppclient.Reply {
 }
 
 // Interface adds a mock request to create or update VPP network interface.
-func (d *MockPutDSL) VppInterface(val *vpp_intf.Interfaces_Interface) linuxclient.PutDSL {
+func (d *MockPutDSL) VppInterface(val *vpp_intf.Interface) linuxclient.PutDSL {
 	op := dsl.TxnOp{Key: vpp_intf.InterfaceKey(val.Name), Value: val}
 	d.parent.Ops = append(d.parent.Ops, op)
 	return d
@@ -87,7 +87,7 @@ func (d *MockPutDSL) BfdEchoFunction(val *vpp_bfd.SingleHopBFD_EchoFunction) lin
 }
 
 // BD adds a mock request to create or update VPP Bridge Domain.
-func (d *MockPutDSL) BD(val *vpp_l2.BridgeDomains_BridgeDomain) linuxclient.PutDSL {
+func (d *MockPutDSL) BD(val *vpp_l2.BridgeDomain) linuxclient.PutDSL {
 	op := dsl.TxnOp{Key: vpp_l2.BridgeDomainKey(val.Name), Value: val}
 	d.parent.Ops = append(d.parent.Ops, op)
 	return d
@@ -95,35 +95,35 @@ func (d *MockPutDSL) BD(val *vpp_l2.BridgeDomains_BridgeDomain) linuxclient.PutD
 
 // BDFIB adds a mock request to create or update VPP L2 Forwarding Information
 // Base.
-func (d *MockPutDSL) BDFIB(val *vpp_l2.FibTable_FibEntry) linuxclient.PutDSL {
-	op := dsl.TxnOp{Key: vpp_l2.FibKey(val.BridgeDomain, val.PhysAddress), Value: val}
+func (d *MockPutDSL) BDFIB(val *vpp_l2.FIBEntry) linuxclient.PutDSL {
+	op := dsl.TxnOp{Key: vpp_l2.FIBKey(val.BridgeDomain, val.PhysAddress), Value: val}
 	d.parent.Ops = append(d.parent.Ops, op)
 	return d
 }
 
 // XConnect adds a mock request to create or update VPP Cross Connect.
-func (d *MockPutDSL) XConnect(val *vpp_l2.XConnectPairs_XConnectPair) linuxclient.PutDSL {
+func (d *MockPutDSL) XConnect(val *vpp_l2.XConnectPair) linuxclient.PutDSL {
 	op := dsl.TxnOp{Key: vpp_l2.XConnectKey(val.ReceiveInterface), Value: val}
 	d.parent.Ops = append(d.parent.Ops, op)
 	return d
 }
 
 // StaticRoute adds a mock request to create or update VPP L3 Static Route.
-func (d *MockPutDSL) StaticRoute(val *vpp_l3.StaticRoutes_Route) linuxclient.PutDSL {
-	op := dsl.TxnOp{Key: vpp_l3.RouteKey(val.VrfId, val.DstIpAddr, val.NextHopAddr), Value: val}
+func (d *MockPutDSL) StaticRoute(val *vpp_l3.StaticRoute) linuxclient.PutDSL {
+	op := dsl.TxnOp{Key: vpp_l3.RouteKey(val.VrfId, val.DstNetwork, val.NextHopAddr), Value: val}
 	d.parent.Ops = append(d.parent.Ops, op)
 	return d
 }
 
 // ACL adds a mock request to create or update VPP Access Control List.
-func (d *MockPutDSL) ACL(val *vpp_acl.AccessLists_Acl) linuxclient.PutDSL {
-	op := dsl.TxnOp{Key: vpp_acl.Key(val.AclName), Value: val}
+func (d *MockPutDSL) ACL(val *vpp_acl.Acl) linuxclient.PutDSL {
+	op := dsl.TxnOp{Key: vpp_acl.Key(val.Name), Value: val}
 	d.parent.Ops = append(d.parent.Ops, op)
 	return d
 }
 
 // Arp adds a request to create or update VPP L3 ARP.
-func (d *MockPutDSL) Arp(val *vpp_l3.ArpTable_ArpEntry) linuxclient.PutDSL {
+func (d *MockPutDSL) Arp(val *vpp_l3.ARPEntry) linuxclient.PutDSL {
 	op := dsl.TxnOp{Key: vpp_l3.ArpEntryKey(val.Interface, val.IpAddress), Value: val}
 	d.parent.Ops = append(d.parent.Ops, op)
 	return d
@@ -136,16 +136,16 @@ func (d *MockPutDSL) L4Features(val *vpp_l4.L4Features) linuxclient.PutDSL {
 	return d
 }
 
-// ProxyArpInterfaces adds a request to create or update VPP L3 proxy ARP interfaces
-func (d *MockPutDSL) ProxyArpInterfaces(val *vpp_l3.ProxyArpInterfaces_InterfaceList) linuxclient.PutDSL {
-	op := dsl.TxnOp{Key: vpp_l3.ProxyArpInterfaceKey(val.Label), Value: val}
+// ProxyArp adds a request to create or update VPP L3 proxy ARP.
+func (d *MockPutDSL) ProxyArp(val *vpp_l3.ProxyARP) linuxclient.PutDSL {
+	op := dsl.TxnOp{Key: vpp_l3.ProxyARPKey, Value: val}
 	d.parent.Ops = append(d.parent.Ops, op)
 	return d
 }
 
-// ProxyArpRanges adds a request to create or update VPP L3 proxy ARP ranges
-func (d *MockPutDSL) ProxyArpRanges(val *vpp_l3.ProxyArpRanges_RangeList) linuxclient.PutDSL {
-	op := dsl.TxnOp{Key: vpp_l3.ProxyArpRangeKey(val.Label), Value: val}
+// IPScanNeighbor adds L3 IP Scan Neighbor to the RESYNC request.
+func (d *MockPutDSL) IPScanNeighbor(val *vpp_l3.IPScanNeighbor) linuxclient.PutDSL {
+	op := dsl.TxnOp{Key: vpp_l3.IPScanNeighborKey, Value: val}
 	d.parent.Ops = append(d.parent.Ops, op)
 	return d
 }
@@ -166,33 +166,33 @@ func (d *MockPutDSL) StnRule(val *vpp_stn.STN_Rule) linuxclient.PutDSL {
 
 // NAT44Global adds a request to set global configuration for NAT44
 func (d *MockPutDSL) NAT44Global(val *vpp_nat.Nat44Global) linuxclient.PutDSL {
-	op := dsl.TxnOp{Key: vpp_nat.GlobalPrefix, Value: val}
+	op := dsl.TxnOp{Key: vpp_nat.GlobalNAT44Key, Value: val}
 	d.parent.Ops = append(d.parent.Ops, op)
 	return d
 }
 
-// NAT44DNat adds a request to create a new DNAT configuration
-func (d *MockPutDSL) NAT44DNat(val *vpp_nat.Nat44DNat_DNatConfig) linuxclient.PutDSL {
-	op := dsl.TxnOp{Key: vpp_nat.DNatKey(val.Label), Value: val}
+// DNAT44 adds a request to create a new DNAT configuration
+func (d *MockPutDSL) DNAT44(val *vpp_nat.DNat44) linuxclient.PutDSL {
+	op := dsl.TxnOp{Key: vpp_nat.DNAT44Key(val.Label), Value: val}
 	d.parent.Ops = append(d.parent.Ops, op)
 	return d
 }
 
 // LinuxInterface adds a mock request to create or update Linux network interface.
-func (d *MockPutDSL) LinuxInterface(val *linux_intf.LinuxInterfaces_Interface) linuxclient.PutDSL {
+func (d *MockPutDSL) LinuxInterface(val *linux_intf.LinuxInterface) linuxclient.PutDSL {
 	op := dsl.TxnOp{Key: linux_intf.InterfaceKey(val.Name), Value: val}
 	d.parent.Ops = append(d.parent.Ops, op)
 	return d
 }
 
-func (d *MockPutDSL) LinuxArpEntry(val *linux_l3.LinuxStaticArpEntries_ArpEntry) linuxclient.PutDSL {
-	op := dsl.TxnOp{Key: linux_l3.StaticArpKey(val.Name), Value: val}
+func (d *MockPutDSL) LinuxArpEntry(val *linux_l3.LinuxStaticARPEntry) linuxclient.PutDSL {
+	op := dsl.TxnOp{Key: linux_l3.StaticArpKey(val.Interface, val.IpAddress), Value: val}
 	d.parent.Ops = append(d.parent.Ops, op)
 	return d
 }
 
-func (d *MockPutDSL) LinuxRoute(val *linux_l3.LinuxStaticRoutes_Route) linuxclient.PutDSL {
-	op := dsl.TxnOp{Key: linux_l3.StaticRouteKey(val.Name), Value: val}
+func (d *MockPutDSL) LinuxRoute(val *linux_l3.LinuxStaticRoute) linuxclient.PutDSL {
+	op := dsl.TxnOp{Key: linux_l3.StaticRouteKey(val.DstNetwork, val.OutgoingInterface), Value: val}
 	d.parent.Ops = append(d.parent.Ops, op)
 	return d
 }
@@ -248,7 +248,7 @@ func (d *MockDeleteDSL) BD(bdName string) linuxclient.DeleteDSL {
 // BDFIB adds a mock request to delete an existing VPP L2 Forwarding Information
 // Base.
 func (d *MockDeleteDSL) BDFIB(bdName string, mac string) linuxclient.DeleteDSL {
-	op := dsl.TxnOp{Key: vpp_l2.FibKey(bdName, mac)}
+	op := dsl.TxnOp{Key: vpp_l2.FIBKey(bdName, mac)}
 	d.parent.Ops = append(d.parent.Ops, op)
 	return d
 }
@@ -288,16 +288,16 @@ func (d *MockDeleteDSL) Arp(ifaceName string, ipAddr string) linuxclient.DeleteD
 	return d
 }
 
-// ProxyArpInterfaces adds a request to create or update VPP L3 proxy ARP interfaces
-func (d *MockDeleteDSL) ProxyArpInterfaces(label string) linuxclient.DeleteDSL {
-	op := dsl.TxnOp{Key: vpp_l3.ProxyArpInterfaceKey(label)}
+// ProxyArp adds a request to delete an existing VPP L3 proxy ARP.
+func (d *MockDeleteDSL) ProxyArp() linuxclient.DeleteDSL {
+	op := dsl.TxnOp{Key: vpp_l3.ProxyARPKey}
 	d.parent.Ops = append(d.parent.Ops, op)
 	return d
 }
 
-// ProxyArpRanges adds a request to create or update VPP L3 proxy ARP ranges
-func (d *MockDeleteDSL) ProxyArpRanges(label string) linuxclient.DeleteDSL {
-	op := dsl.TxnOp{Key: vpp_l3.ProxyArpRangeKey(label)}
+// IPScanNeighbor adds a request to delete an existing VPP L3 IP Scan Neighbor.
+func (d *MockDeleteDSL) IPScanNeighbor() linuxclient.DeleteDSL {
+	op := dsl.TxnOp{Key: vpp_l3.IPScanNeighborKey}
 	d.parent.Ops = append(d.parent.Ops, op)
 	return d
 }
@@ -318,14 +318,14 @@ func (d *MockDeleteDSL) StnRule(ruleName string) linuxclient.DeleteDSL {
 
 // NAT44Global adds a request to remove global configuration for NAT44
 func (d *MockDeleteDSL) NAT44Global() linuxclient.DeleteDSL {
-	op := dsl.TxnOp{Key: vpp_nat.GlobalPrefix}
+	op := dsl.TxnOp{Key: vpp_nat.GlobalNAT44Key}
 	d.parent.Ops = append(d.parent.Ops, op)
 	return d
 }
 
-// NAT44DNat adds a request to delete a DNAT configuration identified by label
-func (d *MockDeleteDSL) NAT44DNat(label string) linuxclient.DeleteDSL {
-	op := dsl.TxnOp{Key: vpp_nat.DNatKey(label)}
+// DNAT44 adds a request to delete a DNAT configuration identified by label
+func (d *MockDeleteDSL) DNAT44(label string) linuxclient.DeleteDSL {
+	op := dsl.TxnOp{Key: vpp_nat.DNAT44Key(label)}
 	d.parent.Ops = append(d.parent.Ops, op)
 	return d
 }
@@ -338,14 +338,14 @@ func (d *MockDeleteDSL) LinuxInterface(ifName string) linuxclient.DeleteDSL {
 	return d
 }
 
-func (d *MockDeleteDSL) LinuxArpEntry(entryName string) linuxclient.DeleteDSL {
-	op := dsl.TxnOp{Key: linux_l3.StaticArpKey(entryName)}
+func (d *MockDeleteDSL) LinuxArpEntry(ifaceName string, ipAddr string) linuxclient.DeleteDSL {
+	op := dsl.TxnOp{Key: linux_l3.StaticArpKey(ifaceName, ipAddr)}
 	d.parent.Ops = append(d.parent.Ops, op)
 	return d
 }
 
-func (d *MockDeleteDSL) LinuxRoute(routeName string) linuxclient.DeleteDSL {
-	op := dsl.TxnOp{Key: linux_l3.StaticRouteKey(routeName)}
+func (d *MockDeleteDSL) LinuxRoute(dstAddr, outIfaceName string) linuxclient.DeleteDSL {
+	op := dsl.TxnOp{Key: linux_l3.StaticRouteKey(dstAddr, outIfaceName)}
 	d.parent.Ops = append(d.parent.Ops, op)
 	return d
 }

@@ -18,7 +18,7 @@ import (
 	"fmt"
 	"github.com/contiv/vpp/plugins/contiv/containeridx"
 	"github.com/ligato/cn-infra/idxmap"
-	"github.com/ligato/vpp-agent/plugins/vpp/model/interfaces"
+	"github.com/ligato/vpp-agent/plugins/vppv2/model/interfaces"
 	"github.com/onsi/gomega"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -108,7 +108,7 @@ func testPutWithWrongArgumentType(t *testing.T) {
 	key := interfaces.StatePrefix + "stat1"
 
 	// test with wrong argument type
-	stat := &interfaces.InterfacesState_Interface_Statistics{}
+	stat := &interfaces.InterfaceState_Statistics{}
 	testVars.plugin.Put(key, stat)
 }
 
@@ -117,7 +117,7 @@ func testPutNewPodEntry(t *testing.T) {
 	key := interfaces.StatePrefix + testIfPodName
 
 	// test with wrong argument type
-	stat := &interfaces.InterfacesState_Interface_Statistics{
+	stat := &interfaces.InterfaceState_Statistics{
 		InPackets:       1,
 		InBytes:         2,
 		OutPackets:      3,
@@ -132,7 +132,7 @@ func testPutNewPodEntry(t *testing.T) {
 		OutErrorPackets: 12,
 	}
 
-	ifState := &interfaces.InterfacesState_Interface{
+	ifState := &interfaces.InterfaceState{
 		Name:       testIfPodName,
 		Statistics: stat,
 	}
@@ -150,7 +150,7 @@ func testPutExistingPodEntry(t *testing.T) {
 	key := interfaces.StatePrefix + testIfPodName
 
 	// test with wrong argument type
-	stat := &interfaces.InterfacesState_Interface_Statistics{
+	stat := &interfaces.InterfaceState_Statistics{
 		InPackets:       21,
 		InBytes:         22,
 		OutPackets:      23,
@@ -165,7 +165,7 @@ func testPutExistingPodEntry(t *testing.T) {
 		OutErrorPackets: 32,
 	}
 
-	ifState := &interfaces.InterfacesState_Interface{
+	ifState := &interfaces.InterfaceState{
 		Name:       testIfPodName,
 		Statistics: stat,
 	}
@@ -184,7 +184,7 @@ func testPutNewContivEntry(t *testing.T) {
 	key := interfaces.StatePrefix + testCntvIfName
 
 	// test with wrong argument type
-	stat := &interfaces.InterfacesState_Interface_Statistics{
+	stat := &interfaces.InterfaceState_Statistics{
 		InPackets:       1,
 		InBytes:         2,
 		OutPackets:      3,
@@ -199,7 +199,7 @@ func testPutNewContivEntry(t *testing.T) {
 		OutErrorPackets: 12,
 	}
 
-	ifState := &interfaces.InterfacesState_Interface{
+	ifState := &interfaces.InterfaceState{
 		Name:       testCntvIfName,
 		Statistics: stat,
 	}
@@ -254,7 +254,7 @@ func testIsContivSystemInterface(t *testing.T) {
 	gomega.Expect(tf).To(gomega.BeFalse())
 }
 
-func checkEntry(stat *interfaces.InterfacesState_Interface_Statistics, entry *stats) {
+func checkEntry(stat *interfaces.InterfaceState_Statistics, entry *stats) {
 	_, exists := entry.metrics[inPacketsMetric]
 	gomega.Expect(exists).To(gomega.BeTrue())
 	_, exists = entry.metrics[outPacketsMetric]

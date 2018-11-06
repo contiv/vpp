@@ -33,17 +33,19 @@ import (
 const (
 	// here goes different cache types
 	//Update this whenever a new DTO type is added.
-	numDTOs   = 7
+	numDTOs   = 8
 	agentPort = ":9999"
 
-	livenessURL     = "/liveness"
-	interfaceURL    = "/vpp/dump/v1/interfaces"
-	bridgeDomainURL = "/vpp/dump/v1/bd"
-	l2FibsURL       = "/vpp/dump/v1/fib"
-	telemetryURL    = "/telemetry"
-	ipamURL         = "/contiv/v1/ipam"
-	arpURL          = "/vpp/dump/v1/arps"
-	staticRouteURL  = "/vpp/dump/v1/routes"
+	livenessURL       = "/liveness"
+	linuxInterfaceURL = "/linux/dump/v1/interfaces"
+	ipamURL           = "/contiv/v1/ipam"
+	telemetryURL      = "/telemetry"
+
+	nodeInterfaceURL = "/vpp/dump/v1/interfaces"
+	bridgeDomainURL  = "/vpp/dump/v1/bd"
+	l2FibsURL        = "/vpp/dump/v1/fib"
+	arpURL           = "/vpp/dump/v1/arps"
+	staticRouteURL   = "/vpp/dump/v1/routes"
 
 	clientTimeout      = 10 // HTTP client timeout, in seconds
 	collectionInterval = 1  // data collection interval, in minutes
@@ -63,6 +65,7 @@ type ContivTelemetryCache struct {
 	Processor        api.ContivTelemetryProcessor
 	Report           api.Report
 	ControllerReport api.ContivTelemetryControllerReport
+	Verbose          bool
 
 	nodeResponseChannel  chan *NodeDTO
 	dsUpdateChannel      chan interface{}
@@ -100,7 +103,7 @@ type NodeDTO struct {
 }
 
 // NewTelemetryCache returns a new instance of telemetry cache
-func NewTelemetryCache(p logging.PluginLogger) *ContivTelemetryCache {
+func NewTelemetryCache(p logging.PluginLogger, verbose bool) *ContivTelemetryCache {
 	return &ContivTelemetryCache{
 		Deps: Deps{
 			Log: p.NewLogger("-telemetryCache"),
@@ -109,6 +112,7 @@ func NewTelemetryCache(p logging.PluginLogger) *ContivTelemetryCache {
 		VppCache: datastore.NewVppDataStore(),
 		K8sCache: datastore.NewK8sDataStore(),
 		Report:   datastore.NewSimpleReport(p.NewLogger("-report")),
+		Verbose:  verbose,
 
 		agentPort:            agentPort,
 		collectionInterval:   collectionInterval * time.Minute,
@@ -161,14 +165,19 @@ func (ctc *ContivTelemetryCache) ReinitializeCache() {
 func (ctc *ContivTelemetryCache) nodeEventProcessor() {
 	for {
 		select {
-		case _, ok := <-ctc.ticker.C:
-			ctc.Log.Info("Timer-triggered data collection & validation, status:", ok)
-			if !ok {
-				return
-			}
-			ctc.Report.Clear()
-			ctc.processQueuedDataStoreUpdates()
-			ctc.startNodeInfoCollection()
+		case /*_, _ok := */ <-ctc.ticker.C:
+			// TODO: update CRD to reflect the refactored vpp-agent
+			ctc.Log.Info("SKIPPING timer-triggered data collection & validation")
+			return
+			/*
+				ctc.Log.Info("Timer-triggered data collection & validation, status:", ok)
+				if !ok {
+					return
+				}
+				ctc.Report.Clear()
+				ctc.processQueuedDataStoreUpdates()
+				ctc.startNodeInfoCollection()
+			*/
 
 		case data, ok := <-ctc.nodeResponseChannel:
 			if !ok {
@@ -222,9 +231,12 @@ func (ctc *ContivTelemetryCache) validateCluster() {
 	ctc.Report.SetTimeStamp(time.Now())
 
 	ctc.nValidations++
-	fmt.Printf("validations: %d, resyncs: %d, updates: %d, responses: %d\n",
+	ctc.Log.Infof("validations: %d, resyncs: %d, updates: %d, responses: %d\n",
 		ctc.nValidations, ctc.nResyncs, ctc.nUpdates, ctc.nnResponses)
-	ctc.Report.Print()
+	if ctc.Verbose {
+		ctc.Report.Print()
+	}
+
 	ctc.ControllerReport.GenerateCRDReport()
 }
 
@@ -242,7 +254,7 @@ func (ctc *ContivTelemetryCache) collectAgentInfo(node *telemetrymodel.Node) {
 	go ctc.getNodeInfo(client, node, livenessURL, &telemetrymodel.NodeLiveness{}, ctc.databaseVersion)
 
 	nodeInterfaces := make(telemetrymodel.NodeInterfaces, 0)
-	go ctc.getNodeInfo(client, node, interfaceURL, &nodeInterfaces, ctc.databaseVersion)
+	go ctc.getNodeInfo(client, node, nodeInterfaceURL, &nodeInterfaces, ctc.databaseVersion)
 
 	nodeBridgeDomains := make(telemetrymodel.NodeBridgeDomains, 0)
 	go ctc.getNodeInfo(client, node, bridgeDomainURL, &nodeBridgeDomains, ctc.databaseVersion)
@@ -263,6 +275,10 @@ func (ctc *ContivTelemetryCache) collectAgentInfo(node *telemetrymodel.Node) {
 
 	nodeipam := telemetrymodel.IPamEntry{}
 	go ctc.getNodeInfo(client, node, ipamURL, &nodeipam, ctc.databaseVersion)
+
+	linuxInterfaces := make(telemetrymodel.LinuxInterfaces, 0)
+	go ctc.getNodeInfo(client, node, linuxInterfaceURL, &linuxInterfaces, ctc.databaseVersion)
+
 }
 
 /* Here are the several functions that run as goroutines to collect information
@@ -413,6 +429,10 @@ func (ctc *ContivTelemetryCache) setNodeData() {
 		case *telemetrymodel.IPamEntry:
 			nipamDto := data.NodeInfo.(*telemetrymodel.IPamEntry)
 			err = ctc.VppCache.SetNodeIPam(data.NodeName, *nipamDto)
+		case *telemetrymodel.LinuxInterfaces:
+			liDto := data.NodeInfo.(*telemetrymodel.LinuxInterfaces)
+			err = ctc.VppCache.SetLinuxInterfaces(data.NodeName, *liDto)
+
 		default:
 			err = fmt.Errorf("node %+v has unknown data type: %+v", data.NodeName, data.NodeInfo)
 		}
@@ -442,10 +462,12 @@ func (ctc *ContivTelemetryCache) processQueuedDataStoreUpdates() {
 		case datasync.ChangeEvent:
 			ctc.nUpdates++
 			dataChngEv := data.(datasync.ChangeEvent)
-			if err := ctc.update(dataChngEv); err != nil {
-				ctc.Log.Errorf("data update error, %s", err.Error())
-				ctc.Synced = false
-				// TODO: initiate resync at this point
+			for _, dataChng := range dataChngEv.GetChanges() {
+				if err := ctc.update(dataChng); err != nil {
+					ctc.Log.Errorf("data update error, %s", err.Error())
+					ctc.Synced = false
+					// TODO: initiate resync at this point
+				}
 			}
 
 		default:

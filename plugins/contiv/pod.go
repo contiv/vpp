@@ -19,27 +19,20 @@ import (
 	"math/rand"
 	"net"
 	"os/exec"
-	"runtime"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/contiv/vpp/plugins/contiv/containeridx/model"
 	"github.com/contiv/vpp/plugins/contiv/model/cni"
-	linux_intf "github.com/ligato/vpp-agent/plugins/linux/model/interfaces"
-	linux_l3 "github.com/ligato/vpp-agent/plugins/linux/model/l3"
-	vpp_intf "github.com/ligato/vpp-agent/plugins/vpp/model/interfaces"
-	vpp_l3 "github.com/ligato/vpp-agent/plugins/vpp/model/l3"
-	vpp_l4 "github.com/ligato/vpp-agent/plugins/vpp/model/l4"
-	"github.com/ligato/vpp-agent/plugins/vpp/model/stn"
-
-	"github.com/vishvananda/netlink"
-	"github.com/vishvananda/netns"
+	linux_intf "github.com/ligato/vpp-agent/plugins/linuxv2/model/interfaces"
+	linux_l3 "github.com/ligato/vpp-agent/plugins/linuxv2/model/l3"
+	linux_ns "github.com/ligato/vpp-agent/plugins/linuxv2/model/namespace"
+	vpp_intf "github.com/ligato/vpp-agent/plugins/vppv2/model/interfaces"
+	vpp_l3 "github.com/ligato/vpp-agent/plugins/vppv2/model/l3"
 )
 
 const (
-	verifyPodRetries    = 100                   // number of retries for verifying POD connectivity
-	verifyPodRetrySleep = 30 * time.Millisecond // sleep between attempts to verify POD connectivity
+	ipv4NetAny = "0.0.0.0/0"
 )
 
 // PodConfig groups applied configuration for a container
@@ -52,34 +45,25 @@ type PodConfig struct {
 	PodNamespace string
 	// Veth1 one end end of veth pair that is in the given container namespace.
 	// Nil if TAPs are used instead.
-	Veth1 *linux_intf.LinuxInterfaces_Interface
+	Veth1 *linux_intf.LinuxInterface
 	// Veth2 is the other end of veth pair in the default namespace
 	// Nil if TAPs are used instead.
-	Veth2 *linux_intf.LinuxInterfaces_Interface
+	Veth2 *linux_intf.LinuxInterface
 	// VppIf is AF_PACKET/TAP interface connecting pod to VPP
-	VppIf *vpp_intf.Interfaces_Interface
+	VppIf *vpp_intf.Interface
 	// PodTap is the host end of the tap connecting pod to VPP
 	// Nil if TAPs are not used
-	PodTap *linux_intf.LinuxInterfaces_Interface
-	// Loopback interface associated with the pod.
-	// Nil if VPP TCP stack is disabled.
-	Loopback *vpp_intf.Interfaces_Interface
-	// StnRule is STN rule used to "punt" any traffic via VETHs/TAPs with no match in VPP TCP stack.
-	// Nil if VPP TCP stack is disabled.
-	StnRule *stn.STN_Rule
-	// AppNamespace is the application namespace associated with the pod.
-	// Nil if VPP TCP stack is disabled.
-	AppNamespace *vpp_l4.AppNamespaces_AppNamespace
+	PodTap *linux_intf.LinuxInterface
 	// VppARPEntry is ARP entry configured in VPP to route traffic from VPP to pod.
-	VppARPEntry *vpp_l3.ArpTable_ArpEntry
+	VppARPEntry *vpp_l3.ARPEntry
 	// PodARPEntry is ARP entry configured in the pod to route traffic from pod to VPP.
-	PodARPEntry *linux_l3.LinuxStaticArpEntries_ArpEntry
+	PodARPEntry *linux_l3.LinuxStaticARPEntry
 	// VppRoute is the route from VPP to the container
-	VppRoute *vpp_l3.StaticRoutes_Route
+	VppRoute *vpp_l3.StaticRoute
 	// PodLinkRoute is the route from pod to the default gateway.
-	PodLinkRoute *linux_l3.LinuxStaticRoutes_Route
+	PodLinkRoute *linux_l3.LinuxStaticRoute
 	// PodDefaultRoute is the default gateway for the pod.
-	PodDefaultRoute *linux_l3.LinuxStaticRoutes_Route
+	PodDefaultRoute *linux_l3.LinuxStaticRoute
 }
 
 // podConfigToProto transform config structure to structure that will be persisted
@@ -101,61 +85,28 @@ func podConfigToProto(cfg *PodConfig) *container.Persisted {
 	if cfg.PodTap != nil {
 		persisted.PodTapName = cfg.PodTap.Name
 	}
-	if cfg.Loopback != nil {
-		persisted.LoopbackName = cfg.Loopback.Name
-	}
-	if cfg.StnRule != nil {
-		persisted.StnRuleName = cfg.StnRule.RuleName
-	}
-	if cfg.AppNamespace != nil {
-		persisted.AppNamespaceID = cfg.AppNamespace.NamespaceId
-	}
 	if cfg.VppARPEntry != nil {
 		persisted.VppARPEntryIP = cfg.VppARPEntry.IpAddress
 		persisted.VppARPEntryInterface = cfg.VppARPEntry.Interface
 	}
 	if cfg.PodARPEntry != nil {
-		persisted.PodARPEntryName = cfg.PodARPEntry.Name
+		persisted.PodARPEntryInterface = cfg.PodARPEntry.Interface
+		persisted.PodARPEntryIP = cfg.PodARPEntry.IpAddress
 	}
 	if cfg.VppRoute != nil {
 		persisted.VppRouteVrf = cfg.VppRoute.VrfId
 		persisted.VppRouteNextHop = cfg.VppRoute.NextHopAddr
-		persisted.VppRouteDest = cfg.VppRoute.DstIpAddr
+		persisted.VppRouteDest = cfg.VppRoute.DstNetwork
 	}
 	if cfg.PodLinkRoute != nil {
-		persisted.PodLinkRouteName = cfg.PodLinkRoute.Name
+		persisted.PodLinkRouteDest = cfg.PodLinkRoute.DstNetwork
+		persisted.PodLinkRouteInterface = cfg.PodLinkRoute.OutgoingInterface
 	}
 	if cfg.PodDefaultRoute != nil {
-		persisted.PodDefaultRouteName = cfg.PodDefaultRoute.Name
+		persisted.PodDefaultRouteInterface = cfg.PodDefaultRoute.OutgoingInterface
 	}
 
 	return persisted
-}
-
-// disableTCPChecksumOffload disables TCP checksum offload on the eth0 in the container
-func (s *remoteCNIserver) disableTCPChecksumOffload(request *cni.CNIRequest) error {
-	// parse PID from the network namespace
-	pid, err := s.getPIDFromNwNsPath(request.NetworkNamespace)
-	if err != nil {
-		return err
-	}
-
-	// execute the ethtool in the namespace of given PID
-	cmdStr := fmt.Sprintf("nsenter -t %d -n ethtool --offload eth0 rx off tx off", pid)
-	s.Logger.Infof("Executing CMD: %s", cmdStr)
-
-	cmdArr := strings.Split(cmdStr, " ")
-	cmd := exec.Command("nsenter", cmdArr[1:]...)
-
-	// check the output of the exec
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		s.Logger.Errorf("CMD exec returned error: %v", err)
-		return err
-	}
-	s.Logger.Infof("CMD output: %s", output)
-
-	return nil
 }
 
 func (s *remoteCNIserver) enableIPv6(request *cni.CNIRequest) error {
@@ -204,7 +155,7 @@ func (s *remoteCNIserver) getPIDFromNwNsPath(ns string) (int, error) {
 }
 
 func (s *remoteCNIserver) veth1NameFromRequest(request *cni.CNIRequest) string {
-	return request.InterfaceName + request.ContainerId
+	return trimInterfaceName(request.InterfaceName+request.ContainerId, logicalIfNameMaxLen)
 }
 
 func (s *remoteCNIserver) veth1HostIfNameFromRequest(request *cni.CNIRequest) string {
@@ -212,29 +163,23 @@ func (s *remoteCNIserver) veth1HostIfNameFromRequest(request *cni.CNIRequest) st
 }
 
 func (s *remoteCNIserver) veth2NameFromRequest(request *cni.CNIRequest) string {
-	return request.ContainerId
+	return trimInterfaceName(request.ContainerId, logicalIfNameMaxLen)
 }
 
 func (s *remoteCNIserver) veth2HostIfNameFromRequest(request *cni.CNIRequest) string {
-	if len(request.ContainerId) > linuxIfMaxLen {
-		return request.ContainerId[:linuxIfMaxLen]
-	}
-	return request.ContainerId
+	return trimInterfaceName(request.ContainerId, linuxIfNameMaxLen)
 }
 
 func (s *remoteCNIserver) afpacketNameFromRequest(request *cni.CNIRequest) string {
-	return afPacketNamePrefix + s.veth2NameFromRequest(request)
+	return trimInterfaceName(afPacketNamePrefix+s.veth2NameFromRequest(request), logicalIfNameMaxLen)
 }
 
-func (s *remoteCNIserver) tapNameFromRequest(request *cni.CNIRequest) string {
-	return tapNamePrefix + s.tapTmpHostNameFromRequest(request)
+func (s *remoteCNIserver) vppTAPNameFromRequest(request *cni.CNIRequest) string {
+	return trimInterfaceName(vppTAPNamePrefix+request.ContainerId, logicalIfNameMaxLen)
 }
 
-func (s *remoteCNIserver) tapTmpHostNameFromRequest(request *cni.CNIRequest) string {
-	if len(request.ContainerId) > linuxIfMaxLen {
-		return request.ContainerId[:linuxIfMaxLen]
-	}
-	return request.ContainerId
+func (s *remoteCNIserver) linuxTAPNameFromRequest(request *cni.CNIRequest) string {
+	return trimInterfaceName(linuxTAPNamePrefix+request.ContainerId, logicalIfNameMaxLen)
 }
 
 func (s *remoteCNIserver) tapHostNameFromRequest(request *cni.CNIRequest) string {
@@ -242,7 +187,7 @@ func (s *remoteCNIserver) tapHostNameFromRequest(request *cni.CNIRequest) string
 }
 
 func (s *remoteCNIserver) loopbackNameFromRequest(request *cni.CNIRequest) string {
-	return "loop" + s.veth2NameFromRequest(request)
+	return trimInterfaceName("loop"+s.veth2NameFromRequest(request), logicalIfNameMaxLen)
 }
 
 func (s *remoteCNIserver) ipAddrForPodVPPIf(podIP string) string {
@@ -269,143 +214,124 @@ func (s *remoteCNIserver) generateHwAddrForPodVPPIf() string {
 	return hwAddr.String()
 }
 
-func (s *remoteCNIserver) veth1FromRequest(request *cni.CNIRequest, podIP string) *linux_intf.LinuxInterfaces_Interface {
-	return &linux_intf.LinuxInterfaces_Interface{
+func (s *remoteCNIserver) veth1FromRequest(request *cni.CNIRequest, podIP string) *linux_intf.LinuxInterface {
+	return &linux_intf.LinuxInterface{
 		Name:        s.veth1NameFromRequest(request),
-		Type:        linux_intf.LinuxInterfaces_VETH,
+		Type:        linux_intf.LinuxInterface_VETH,
 		Mtu:         s.config.MTUSize,
 		Enabled:     true,
 		HostIfName:  s.veth1HostIfNameFromRequest(request),
 		PhysAddress: s.hwAddrForContainer(),
-		Veth: &linux_intf.LinuxInterfaces_Interface_Veth{
-			PeerIfName: s.veth2NameFromRequest(request),
-		},
 		IpAddresses: []string{podIP},
-		Namespace: &linux_intf.LinuxInterfaces_Interface_Namespace{
-			Name:     request.ContainerId,
-			Type:     linux_intf.LinuxInterfaces_Interface_Namespace_FILE_REF_NS,
-			Filepath: request.NetworkNamespace,
+		Link: &linux_intf.LinuxInterface_Veth{
+			Veth: &linux_intf.LinuxInterface_VethLink{PeerIfName: s.veth2NameFromRequest(request)},
+		},
+		Namespace: &linux_ns.LinuxNetNamespace{
+			Type:      linux_ns.LinuxNetNamespace_NETNS_REF_FD,
+			Reference: request.NetworkNamespace,
 		},
 	}
 }
 
-func (s *remoteCNIserver) veth2FromRequest(request *cni.CNIRequest) *linux_intf.LinuxInterfaces_Interface {
-	return &linux_intf.LinuxInterfaces_Interface{
+func (s *remoteCNIserver) veth2FromRequest(request *cni.CNIRequest) *linux_intf.LinuxInterface {
+	return &linux_intf.LinuxInterface{
 		Name:       s.veth2NameFromRequest(request),
-		Type:       linux_intf.LinuxInterfaces_VETH,
+		Type:       linux_intf.LinuxInterface_VETH,
 		Mtu:        s.config.MTUSize,
 		Enabled:    true,
 		HostIfName: s.veth2HostIfNameFromRequest(request),
-		Veth: &linux_intf.LinuxInterfaces_Interface_Veth{
-			PeerIfName: s.veth1NameFromRequest(request),
+		Link: &linux_intf.LinuxInterface_Veth{
+			Veth: &linux_intf.LinuxInterface_VethLink{PeerIfName: s.veth1NameFromRequest(request)},
 		},
 	}
 }
 
-func (s *remoteCNIserver) afpacketFromRequest(request *cni.CNIRequest, podIP string, configureContainerProxy bool, containerProxyIP string) *vpp_intf.Interfaces_Interface {
-	af := &vpp_intf.Interfaces_Interface{
-		Name:    s.afpacketNameFromRequest(request),
-		Type:    vpp_intf.InterfaceType_AF_PACKET_INTERFACE,
-		Mtu:     s.config.MTUSize,
-		Enabled: true,
-		Vrf:     s.GetPodVrfID(),
-		Afpacket: &vpp_intf.Interfaces_Interface_Afpacket{
-			HostIfName: s.veth2HostIfNameFromRequest(request),
-		},
+func (s *remoteCNIserver) afpacketFromRequest(request *cni.CNIRequest, podIP string) *vpp_intf.Interface {
+	af := &vpp_intf.Interface{
+		Name:        s.afpacketNameFromRequest(request),
+		Type:        vpp_intf.Interface_AF_PACKET_INTERFACE,
+		Mtu:         s.config.MTUSize,
+		Enabled:     true,
+		Vrf:         s.GetPodVrfID(),
 		IpAddresses: []string{s.ipAddrForPodVPPIf(podIP)},
 		PhysAddress: s.generateHwAddrForPodVPPIf(),
-	}
-	if configureContainerProxy {
-		af.ContainerIpAddress = containerProxyIP
+		Link: &vpp_intf.Interface_Afpacket{
+			Afpacket: &vpp_intf.Interface_AfpacketLink{
+				HostIfName: s.veth2HostIfNameFromRequest(request),
+			},
+		},
 	}
 	return af
 }
 
-func (s *remoteCNIserver) tapFromRequest(request *cni.CNIRequest, podIP string, configureContainerProxy bool, containerProxyIP string) *vpp_intf.Interfaces_Interface {
-	tap := &vpp_intf.Interfaces_Interface{
-		Name:    s.tapNameFromRequest(request),
-		Type:    vpp_intf.InterfaceType_TAP_INTERFACE,
-		Mtu:     s.config.MTUSize,
-		Enabled: true,
-		Vrf:     s.GetPodVrfID(),
-		Tap: &vpp_intf.Interfaces_Interface_Tap{
-			HostIfName: s.tapTmpHostNameFromRequest(request),
-		},
+func (s *remoteCNIserver) tapFromRequest(request *cni.CNIRequest, podIP string) *vpp_intf.Interface {
+	tap := &vpp_intf.Interface{
+		Name:        s.vppTAPNameFromRequest(request),
+		Type:        vpp_intf.Interface_TAP_INTERFACE,
+		Mtu:         s.config.MTUSize,
+		Enabled:     true,
+		Vrf:         s.GetPodVrfID(),
 		IpAddresses: []string{s.ipAddrForPodVPPIf(podIP)},
 		PhysAddress: s.generateHwAddrForPodVPPIf(),
+		Link: &vpp_intf.Interface_Tap{
+			Tap: &vpp_intf.Interface_TapLink{},
+		},
 	}
 	if s.tapVersion == 2 {
-		tap.Tap.Version = 2
-		tap.Tap.RxRingSize = uint32(s.tapV2RxRingSize)
-		tap.Tap.TxRingSize = uint32(s.tapV2TxRingSize)
-	}
-	if configureContainerProxy {
-		tap.ContainerIpAddress = containerProxyIP
+		tap.GetTap().Version = 2
+		tap.GetTap().RxRingSize = uint32(s.tapV2RxRingSize)
+		tap.GetTap().TxRingSize = uint32(s.tapV2TxRingSize)
 	}
 	return tap
 }
 
-func (s *remoteCNIserver) podTAP(request *cni.CNIRequest, podIPNet *net.IPNet) *linux_intf.LinuxInterfaces_Interface {
-	return &linux_intf.LinuxInterfaces_Interface{
-		Name:    "pod-" + s.tapTmpHostNameFromRequest(request),
-		Type:    linux_intf.LinuxInterfaces_AUTO_TAP,
-		Mtu:     s.config.MTUSize,
-		Enabled: true,
-		Tap: &linux_intf.LinuxInterfaces_Interface_Tap{
-			TempIfName: s.tapTmpHostNameFromRequest(request),
-		},
-		HostIfName: s.tapHostNameFromRequest(request),
-		Namespace: &linux_intf.LinuxInterfaces_Interface_Namespace{
-			Name:     request.ContainerId,
-			Type:     linux_intf.LinuxInterfaces_Interface_Namespace_FILE_REF_NS,
-			Filepath: request.NetworkNamespace,
-		},
+func (s *remoteCNIserver) podTAP(request *cni.CNIRequest, podIPNet *net.IPNet) *linux_intf.LinuxInterface {
+	return &linux_intf.LinuxInterface{
+		Name:        s.linuxTAPNameFromRequest(request),
+		Type:        linux_intf.LinuxInterface_TAP_TO_VPP,
+		Mtu:         s.config.MTUSize,
+		Enabled:     true,
+		HostIfName:  s.tapHostNameFromRequest(request),
 		PhysAddress: s.hwAddrForContainer(),
 		IpAddresses: []string{podIPNet.String()},
+		Link: &linux_intf.LinuxInterface_Tap{
+			Tap: &linux_intf.LinuxInterface_TapLink{
+				VppTapIfName: s.vppTAPNameFromRequest(request),
+			},
+		},
+		Namespace: &linux_ns.LinuxNetNamespace{
+			Type:      linux_ns.LinuxNetNamespace_NETNS_REF_FD,
+			Reference: request.NetworkNamespace,
+		},
 	}
 }
 
-func (s *remoteCNIserver) loopbackFromRequest(request *cni.CNIRequest, loopIP string) *vpp_intf.Interfaces_Interface {
-	return &vpp_intf.Interfaces_Interface{
+func (s *remoteCNIserver) loopbackFromRequest(request *cni.CNIRequest, loopIP string) *vpp_intf.Interface {
+	return &vpp_intf.Interface{
 		Name:        s.loopbackNameFromRequest(request),
-		Type:        vpp_intf.InterfaceType_SOFTWARE_LOOPBACK,
+		Type:        vpp_intf.Interface_SOFTWARE_LOOPBACK,
 		Enabled:     true,
 		IpAddresses: []string{loopIP},
 		Vrf:         s.GetPodVrfID(),
 	}
 }
 
-func (s *remoteCNIserver) vppRouteFromRequest(request *cni.CNIRequest, podIP string) *vpp_l3.StaticRoutes_Route {
-	route := &vpp_l3.StaticRoutes_Route{
-		DstIpAddr: podIP,
-		VrfId:     s.GetPodVrfID(),
+func (s *remoteCNIserver) vppRouteFromRequest(request *cni.CNIRequest, podIP net.IP) *vpp_l3.StaticRoute {
+	route := &vpp_l3.StaticRoute{
+		DstNetwork:  podIP.String() + "/32",
+		NextHopAddr: podIP.String(),
+		VrfId:       s.GetPodVrfID(),
 	}
 	if s.useTAPInterfaces {
-		route.OutgoingInterface = s.tapNameFromRequest(request)
+		route.OutgoingInterface = s.vppTAPNameFromRequest(request)
 	} else {
 		route.OutgoingInterface = s.afpacketNameFromRequest(request)
 	}
 	return route
 }
 
-func (s *remoteCNIserver) stnRule(ipAddress net.IP, ifname string) *stn.STN_Rule {
-	return &stn.STN_Rule{
-		RuleName:  "rule-" + ifname,   //used as unique id for rules in etcd (managed by vpp-agent)
-		IpAddress: ipAddress.String(), //ipv4
-		Interface: ifname,
-	}
-}
-
-func (s *remoteCNIserver) appNamespaceFromRequest(request *cni.CNIRequest) *vpp_l4.AppNamespaces_AppNamespace {
-	return &vpp_l4.AppNamespaces_AppNamespace{
-		NamespaceId: request.ContainerId,
-		Secret:      42,
-		Interface:   s.loopbackNameFromRequest(request),
-	}
-}
-
-func (s *remoteCNIserver) vppArpEntry(podIfName string, podIP net.IP, macAddr string) *vpp_l3.ArpTable_ArpEntry {
-	return &vpp_l3.ArpTable_ArpEntry{
+func (s *remoteCNIserver) vppArpEntry(podIfName string, podIP net.IP, macAddr string) *vpp_l3.ARPEntry {
+	return &vpp_l3.ARPEntry{
 		Interface:   podIfName,
 		IpAddress:   podIP.String(),
 		PhysAddress: macAddr,
@@ -413,61 +339,36 @@ func (s *remoteCNIserver) vppArpEntry(podIfName string, podIP net.IP, macAddr st
 	}
 }
 
-func (s *remoteCNIserver) podArpEntry(request *cni.CNIRequest, ifName string, macAddr string) *linux_l3.LinuxStaticArpEntries_ArpEntry {
-	containerNs := &linux_l3.LinuxStaticArpEntries_ArpEntry_Namespace{
-		Name:     request.ContainerId,
-		Type:     linux_l3.LinuxStaticArpEntries_ArpEntry_Namespace_FILE_REF_NS,
-		Filepath: request.NetworkNamespace,
-	}
-	return &linux_l3.LinuxStaticArpEntries_ArpEntry{
-		Name:      request.ContainerId,
-		Namespace: containerNs,
+func (s *remoteCNIserver) podArpEntry(request *cni.CNIRequest, ifName string, macAddr string) *linux_l3.LinuxStaticARPEntry {
+	return &linux_l3.LinuxStaticARPEntry{
 		Interface: ifName,
-		IpFamily: &linux_l3.LinuxStaticArpEntries_ArpEntry_IpFamily{
-			Family: linux_l3.LinuxStaticArpEntries_ArpEntry_IpFamily_IPV4,
-		},
-		State: &linux_l3.LinuxStaticArpEntries_ArpEntry_NudState{
-			Type: linux_l3.LinuxStaticArpEntries_ArpEntry_NudState_PERMANENT,
-		},
-		IpAddr:    s.ipam.PodGatewayIP().String(),
+		IpAddress: s.ipam.PodGatewayIP().String(),
 		HwAddress: macAddr,
 	}
 }
 
-func (s *remoteCNIserver) podLinkRouteFromRequest(request *cni.CNIRequest, ifName string) *linux_l3.LinuxStaticRoutes_Route {
-	containerNs := &linux_l3.LinuxStaticRoutes_Route_Namespace{
-		Name:     request.ContainerId,
-		Type:     linux_l3.LinuxStaticRoutes_Route_Namespace_FILE_REF_NS,
-		Filepath: request.NetworkNamespace,
-	}
-	return &linux_l3.LinuxStaticRoutes_Route{
-		Name:      "LINK-" + request.ContainerId,
-		Default:   false,
-		Namespace: containerNs,
-		Interface: ifName,
-		Scope: &linux_l3.LinuxStaticRoutes_Route_Scope{
-			Type: linux_l3.LinuxStaticRoutes_Route_Scope_LINK,
-		},
-		DstIpAddr: s.ipam.PodGatewayIP().String() + "/32",
+func (s *remoteCNIserver) podLinkRouteFromRequest(request *cni.CNIRequest, ifName string) *linux_l3.LinuxStaticRoute {
+	return &linux_l3.LinuxStaticRoute{
+		OutgoingInterface: ifName,
+		Scope:             linux_l3.LinuxStaticRoute_LINK,
+		DstNetwork:        s.ipam.PodGatewayIP().String() + "/32",
 	}
 }
 
-func (s *remoteCNIserver) podDefaultRouteFromRequest(request *cni.CNIRequest, ifName string) *linux_l3.LinuxStaticRoutes_Route {
-	containerNs := &linux_l3.LinuxStaticRoutes_Route_Namespace{
-		Name:     request.ContainerId,
-		Type:     linux_l3.LinuxStaticRoutes_Route_Namespace_FILE_REF_NS,
-		Filepath: request.NetworkNamespace,
+func (s *remoteCNIserver) podDefaultRouteFromRequest(request *cni.CNIRequest, ifName string) *linux_l3.LinuxStaticRoute {
+	return &linux_l3.LinuxStaticRoute{
+		OutgoingInterface: ifName,
+		DstNetwork:        ipv4NetAny,
+		Scope:             linux_l3.LinuxStaticRoute_GLOBAL,
+		GwAddr:            s.ipam.PodGatewayIP().String(),
 	}
-	return &linux_l3.LinuxStaticRoutes_Route{
-		Name:      "DEFAULT-" + request.ContainerId,
-		Default:   true,
-		Namespace: containerNs,
-		Interface: ifName,
-		Scope: &linux_l3.LinuxStaticRoutes_Route_Scope{
-			Type: linux_l3.LinuxStaticRoutes_Route_Scope_GLOBAL,
-		},
-		GwAddr: s.ipam.PodGatewayIP().String(),
+}
+
+func trimInterfaceName(name string, maxLen int) string {
+	if len(name) > maxLen {
+		return name[:maxLen]
 	}
+	return name
 }
 
 // ipv4ToUint32 is simple utility function for conversion between IPv4 and uint32.
@@ -486,72 +387,4 @@ func ipv4ToUint32(ip net.IP) (uint32, error) {
 // uint32ToIpv4 is simple utility function for conversion between IPv4 and uint32.
 func uint32ToIpv4(ip uint32) net.IP {
 	return net.IPv4(byte(ip>>24), byte(ip>>16), byte(ip>>8), byte(ip)).To4()
-}
-
-// verifyPodIP verifies that the specified namespace contains the interface with the specified IP address
-// and waits until it is actually configured, or returns an error after timeout.
-func (s *remoteCNIserver) verifyPodIP(nsPath string, ifName string, ip net.IP) error {
-	if s.test {
-		return nil
-	}
-
-	// Lock the OS Thread so we don't accidentally switch namespaces
-	runtime.LockOSThread()
-	defer runtime.UnlockOSThread()
-
-	origNs, err := netns.Get()
-	if err != nil {
-		s.Logger.Error("Error by getting current namespace", err)
-		return err
-	}
-	defer origNs.Close()
-
-	containerNs, err := netns.GetFromPath(nsPath)
-	if err != nil {
-		s.Logger.Error("Error by getting container namespace:", err)
-		return err
-	}
-	defer containerNs.Close()
-
-	err = netns.Set(containerNs)
-	if err != nil {
-		s.Logger.Error("Error by switching to container namespace:", err)
-		return err
-	}
-	defer netns.Set(origNs)
-
-	// loop until the interface can be found
-	var link netlink.Link
-	for i := 0; i < verifyPodRetries; i++ {
-		link, err = netlink.LinkByName(ifName)
-		if link != nil {
-			break
-		}
-		s.Logger.Debugf("Link %s not yet found in the namespace %s, waiting", ifName, nsPath)
-		time.Sleep(verifyPodRetrySleep)
-	}
-	if link == nil {
-		err := fmt.Errorf("cannot find the link %s in the namespace %s within %v", ifName, nsPath, verifyPodRetries*verifyPodRetrySleep)
-		s.Logger.Error(err)
-		return err
-	}
-
-	// loop until the interface IP can be found
-	for i := 0; i < verifyPodRetries; i++ {
-		addr, err := netlink.AddrList(link, netlink.FAMILY_V4)
-		if err == nil {
-			for _, a := range addr {
-				if a.IP.Equal(ip) {
-					s.Logger.Infof("IP address %s found on the %s interface in the namespace %s, check OK", ip, ifName, nsPath)
-					return nil
-				}
-			}
-		}
-		s.Logger.Debugf("IP address %s not yet found on the %s interface in the namespace %s, waiting", ip, ifName, nsPath)
-		time.Sleep(verifyPodRetrySleep)
-	}
-
-	err = fmt.Errorf("cannot find the IP address %s on the %s interface in the namespace %s within %v", ip, ifName, nsPath, verifyPodRetries*verifyPodRetrySleep)
-	s.Logger.Error(err)
-	return err
 }

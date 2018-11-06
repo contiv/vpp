@@ -20,7 +20,7 @@
 // into the vswitch POD by a config map inside of the k8s deployment file of the contiv-VPP k8s networking plugin
 // (see contiv-agent-cfg ConfigMap in ../../k8s/contiv-vpp.yaml).
 //
-// Based on the configuration, the plugin can wire PODs in 3 different ways:
+// Based on the configuration, the plugin can wire PODs in 2 different ways:
 //
 //
 // 1. VETH-based pod-VPP connectivity (default)
@@ -90,53 +90,6 @@
 // |  +------------+   |
 // |                   |
 // +-------------------+
-//
-//
-// 3. VPP TCP stack based pod-VPP connectivity
-//
-// The PODs communicate with VPP via shared memory between VPP TCP stack and VCL library in PODs. To enable this,
-// the plugin needs to be configured with TCPstackDisabled: False in the plugin config file
-// and the POD needs to be deployed with ldpreload: "true" label. If the label is not specified for a POD,
-// the communication between the POD and the VPP falls back to the option 1 or 2.
-//
-// +-------------------------------------------------+
-// |   vSwitch VPP                                 host.go
-// |                             +--------------+    |       +--------------+
-// |                             |    VETH VPP  |____________|   VETH Host  |
-// |          routing            |              |    |       |              |
-// |                             +--------------+    |       +--------------+
-// |    +-------+       +-------+                    |
-// |    | LOOP1 |       | LOOPn |                    |
-// |    |       |  ...  |       |                    |
-// |    +-------+       +-------+                    |
-// |      ^                 ^                        |
-// |      |                 |                        |
-// |      v                 v                        |
-// |    +-----------------------+                    |
-// |    |    VPP TCP Stack      |                    |
-// |    +-----------------------+                    |
-// |      ^                                          |
-// |      |                                          |
-// +------|------------------------------------------+
-//        |
-//        |                 pod.go
-// +------|---------------+
-// |  NS1 v               |
-// |  +-----------------+ |
-// |  |  VCL            | |
-// |  | (LD_PRELOAD-ed) | |
-// |  +-----------------+ |
-// |          ^           |
-// |          |           |
-// |          v           |
-// |       +------+       |
-// |       | APP  |       |
-// |       +------+       |
-// +----------------------+
-//
-// Note: the picture above is simplified, each LD_PRELOAD-ed POD is actually wired also with the veth/tap (option 1/2),
-// for the non-TCP/UDP communications, or not LD_PRELOAD-ed applications.
-//
 //
 // Plugin Structure
 // ================

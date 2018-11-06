@@ -355,7 +355,7 @@ func convertContivRule(rule *renderer.ContivRule, global bool, nsIndex uint32, t
 // ImportSessionRules imports a list of session rules into a newly created
 // list of ContivRule tables, suitable for Resync with the cache.
 func ImportSessionRules(rules []*SessionRule, contiv contiv.API, log logging.Logger) (tables []*cache.ContivRuleTable) {
-	globalTable := cache.NewContivRuleTable(cache.GlobalTableID)
+	globalTable := cache.NewContivRuleTable(cache.Global)
 	localTables := make(map[podmodel.ID]*cache.ContivRuleTable)
 
 	for _, rule := range rules {
@@ -453,7 +453,7 @@ func ImportSessionRules(rules []*SessionRule, contiv contiv.API, log logging.Log
 			}
 			podID := podmodel.ID{Name: podName, Namespace: podNamespace}
 			if _, hasTable := localTables[podID]; !hasTable {
-				localTables[podID] = cache.NewContivRuleTable(podID.String())
+				localTables[podID] = cache.NewContivRuleTable(cache.Local)
 				localTables[podID].Pods.Add(podID)
 			}
 			localTables[podID].InsertRule(contivRule)

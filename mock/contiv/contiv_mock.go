@@ -28,32 +28,32 @@ import (
 type MockContiv struct {
 	sync.Mutex
 
-	podIf                      map[podmodel.ID]string
-	podAppNs                   map[podmodel.ID]uint32
-	podSubnet                  *net.IPNet
-	podNetwork                 *net.IPNet
-	hostIPs                    []net.IP
-	mainVrfId                  uint32
-	podVrfId                   uint32
-	tcpStackDisabled           bool
-	stnMode                    bool
-	natExternalTraffic         bool
-	cleanupIdleNATSessions     bool
-	tcpNATSessionTimeout       uint32
-	otherNATSessionTimeout     uint32
-	serviceLocalEndpointWeight uint8
-	natLoopbackIP              net.IP
-	nodeIP                     string
-	nodeIPsubs                 []chan string
-	podPreRemovalHooks         []contiv.PodActionHook
-	podPostAddHooks            []contiv.PodActionHook
-	mainPhysIf                 string
-	otherPhysIfs               []string
-	hostInterconnect           string
-	vxlanBVIIfName             string
-	defaultIfName              string
-	defaultIfIP                net.IP
-	containerIndex             *containeridx.ConfigIndex
+	podIf                       map[podmodel.ID]string
+	podSubnet                   *net.IPNet
+	podNetwork                  *net.IPNet
+	hostIPs                     []net.IP
+	mainVrfId                   uint32
+	podVrfId                    uint32
+	tcpStackDisabled            bool
+	stnMode                     bool
+	natExternalTraffic          bool
+	cleanupIdleNATSessions      bool
+	tcpNATSessionTimeout        uint32
+	otherNATSessionTimeout      uint32
+	disableNATVirtualReassembly bool
+	serviceLocalEndpointWeight  uint8
+	natLoopbackIP               net.IP
+	nodeIP                      string
+	nodeIPsubs                  []chan string
+	podPreRemovalHooks          []contiv.PodActionHook
+	podPostAddHooks             []contiv.PodActionHook
+	mainPhysIf                  string
+	otherPhysIfs                []string
+	hostInterconnect            string
+	vxlanBVIIfName              string
+	defaultIfName               string
+	defaultIfIP                 net.IP
+	containerIndex              *containeridx.ConfigIndex
 }
 
 // NewMockContiv is a constructor for MockContiv.
@@ -61,7 +61,6 @@ func NewMockContiv() *MockContiv {
 	ci := containeridx.NewConfigIndex(logrus.DefaultLogger(), "title", nil)
 	return &MockContiv{
 		podIf:                      make(map[podmodel.ID]string),
-		podAppNs:                   make(map[podmodel.ID]uint32),
 		containerIndex:             ci,
 		serviceLocalEndpointWeight: 1,
 	}
@@ -70,12 +69,6 @@ func NewMockContiv() *MockContiv {
 // SetPodIfName allows to create a fake association between a pod and an interface.
 func (mc *MockContiv) SetPodIfName(pod podmodel.ID, ifName string) {
 	mc.podIf[pod] = ifName
-}
-
-// SetPodAppNsIndex allows to create a fake association between a pod and a VPP
-// application namespace index.
-func (mc *MockContiv) SetPodAppNsIndex(pod podmodel.ID, nsIndex uint32) {
-	mc.podAppNs[pod] = nsIndex
 }
 
 // SetPodNetwork allows to set what tests will assume as the pod subnet
@@ -157,6 +150,12 @@ func (mc *MockContiv) SetServiceLocalEndpointWeight(weight uint8) {
 	mc.serviceLocalEndpointWeight = weight
 }
 
+// SetNATVirtualReassembly allows to set flag denoting if the NAT Virtual reassembly
+// is disabled or not.
+func (mc *MockContiv) SetNATVirtualReassembly(disable bool) {
+	mc.disableNATVirtualReassembly = disable
+}
+
 // SetNatLoopbackIP allows to set what tests will assume the NAT loopback IP is.
 func (mc *MockContiv) SetNatLoopbackIP(natLoopIP string) {
 	mc.natLoopbackIP = net.ParseIP(natLoopIP)
@@ -176,26 +175,10 @@ func (mc *MockContiv) GetIfName(podNamespace string, podName string) (name strin
 	return name, exists
 }
 
-// GetNsIndex returns pod's namespace index as set previously using SetPodNsIndex.
-func (mc *MockContiv) GetNsIndex(podNamespace string, podName string) (nsIndex uint32, exists bool) {
-	nsIndex, exists = mc.podAppNs[podmodel.ID{Name: podName, Namespace: podNamespace}]
-	return nsIndex, exists
-}
-
 // GetPodByIf looks up podName and podNamespace that is associated with logical interface name.
 func (mc *MockContiv) GetPodByIf(ifname string) (podNamespace string, podName string, exists bool) {
 	for podID, name := range mc.podIf {
 		if name == ifname {
-			return podID.Namespace, podID.Name, true
-		}
-	}
-	return "", "", false
-}
-
-// GetPodByAppNsIndex looks up podName and podNamespace that is associated with the VPP application namespace.
-func (mc *MockContiv) GetPodByAppNsIndex(nsIndex uint32) (podNamespace string, podName string, exists bool) {
-	for podID, index := range mc.podAppNs {
-		if index == nsIndex {
 			return podID.Namespace, podID.Name, true
 		}
 	}
@@ -320,6 +303,11 @@ func (mc *MockContiv) GetTCPNATSessionTimeout() uint32 {
 // GetOtherNATSessionTimeout returns NAT session timeout (in minutes) for non-TCP connections, used in case that CleanupIdleNATSessions is turned on.
 func (mc *MockContiv) GetOtherNATSessionTimeout() uint32 {
 	return mc.otherNATSessionTimeout
+}
+
+// DisableNATVirtualReassembly returns true if fragmented packets should be dropped by NAT.
+func (mc *MockContiv) DisableNATVirtualReassembly() bool {
+	return mc.disableNATVirtualReassembly
 }
 
 // GetPodSubnet provides subnet used for allocating pod IP addresses across all nodes.

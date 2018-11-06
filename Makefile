@@ -82,7 +82,6 @@ test:
 	go test ./plugins/policy/configurator -tags="${GO_BUILD_TAGS}"
 	go test ./plugins/policy/renderer/cache -tags="${GO_BUILD_TAGS}"
 	go test ./plugins/policy/renderer/acl -tags="${GO_BUILD_TAGS}"
-	go test ./plugins/policy/renderer/vpptcp -tags="${GO_BUILD_TAGS}"
 	go test ./plugins/policy/cache -tags="${GO_BUILD_TAGS}"
 	go test ./plugins/policy/cache/namespaceidx -tags="${GO_BUILD_TAGS}"
 	go test ./plugins/policy/cache/podidx -tags="${GO_BUILD_TAGS}"
@@ -106,7 +105,6 @@ test-race:
 	go test ./plugins/policy/configurator -race -tags="${GO_BUILD_TAGS}"
 	go test ./plugins/policy/renderer/cache -race -tags="${GO_BUILD_TAGS}"
 	go test ./plugins/policy/renderer/acl -race -tags="${GO_BUILD_TAGS}"
-	go test ./plugins/policy/renderer/vpptcp -race -tags="${GO_BUILD_TAGS}"
 	go test ./plugins/policy/cache -race -tags="${GO_BUILD_TAGS}"
 	go test ./plugins/policy/cache/namespaceidx -race -tags="${GO_BUILD_TAGS}"
 	go test ./plugins/policy/cache/podidx -race -tags="${GO_BUILD_TAGS}"
@@ -135,7 +133,6 @@ test-cover: get-covtools
 	go test -covermode=count -coverprofile=${COVER_DIR}cov_u7.out ./plugins/policy/configurator -tags="${GO_BUILD_TAGS}"
 	go test -covermode=count -coverprofile=${COVER_DIR}cov_u8.out ./plugins/policy/renderer/cache -tags="${GO_BUILD_TAGS}"
 	go test -covermode=count -coverprofile=${COVER_DIR}cov_u9.out ./plugins/policy/renderer/acl -tags="${GO_BUILD_TAGS}"
-	go test -covermode=count -coverprofile=${COVER_DIR}cov_u10.out ./plugins/policy/renderer/vpptcp -tags="${GO_BUILD_TAGS}"
 	go test -covermode=count -coverprofile=${COVER_DIR}cov_u11.out -coverpkg=./plugins/service/processor,./plugins/service/configurator ./plugins/service -tags="${GO_BUILD_TAGS}"
 	go test -covermode=count -coverprofile=${COVER_DIR}cov_u12.out ./plugins/policy/cache -tags="${GO_BUILD_TAGS}"
 	go test -covermode=count -coverprofile=${COVER_DIR}cov_u13.out ./plugins/policy/cache/namespaceidx -tags="${GO_BUILD_TAGS}"
@@ -158,7 +155,6 @@ test-cover: get-covtools
 			${COVER_DIR}cov_u7.out \
 			${COVER_DIR}cov_u8.out \
 			${COVER_DIR}cov_u9.out \
-			${COVER_DIR}cov_u10.out \
 			${COVER_DIR}cov_u11.out \
 			${COVER_DIR}cov_u12.out \
 			${COVER_DIR}cov_u13.out \
@@ -190,9 +186,10 @@ generate: get-generators
 	@echo "# generating sources"
 	cd plugins/contiv && go generate
 	cd plugins/contiv/containeridx && go generate
+	cd plugins/contiv/ipam && go generate
 	cd plugins/ksr && go generate
 	cd cmd/contiv-stn && go generate
-	cd cmd/contiv-crd/handler/nodeconfig && go generate
+	cd plugins/crd/handler/nodeconfig && go generate
 
 # Get linter tools
 get-linters:

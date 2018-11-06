@@ -14,6 +14,7 @@
 
 package containeridx
 
+/*
 import (
 	"testing"
 
@@ -163,3 +164,4 @@ func TestWatch(t *testing.T) {
 		t.FailNow()
 	}
 }
+*/

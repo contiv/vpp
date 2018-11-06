@@ -12,7 +12,7 @@ import (
 	"github.com/ligato/cn-infra/infra"
 	prometheusplugin "github.com/ligato/cn-infra/rpc/prometheus"
 	"github.com/ligato/cn-infra/servicelabel"
-	"github.com/ligato/vpp-agent/plugins/vpp/model/interfaces"
+	"github.com/ligato/vpp-agent/plugins/vppv2/model/interfaces"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
@@ -55,7 +55,7 @@ type Plugin struct {
 type stats struct {
 	podName      string
 	podNamespace string
-	data         *interfaces.InterfacesState_Interface
+	data         *interfaces.InterfaceState
 	metrics      map[string]prometheus.Gauge
 }
 
@@ -170,7 +170,7 @@ func (p *Plugin) processPodEvent(event containeridx.ChangeEvent) {
 // AfterInit subscribes for monitoring of changes in ContainerIndex
 func (p *Plugin) AfterInit() error {
 	// watch containerIDX and remove gauges of pods that have been deleted
-	return p.Contiv.GetContainerIndex().Watch(p.PluginName, func(event containeridx.ChangeEvent) {
+	return p.Contiv.GetContainerIndex().Watch(string(p.PluginName), func(event containeridx.ChangeEvent) {
 		p.processPodEvent(event)
 	})
 
@@ -209,7 +209,7 @@ func (p *Plugin) Put(key string, data proto.Message, opts ...datasync.PutOption)
 			entry *stats
 			found bool
 		)
-		if st, ok := data.(*interfaces.InterfacesState_Interface); ok {
+		if st, ok := data.(*interfaces.InterfaceState); ok {
 			entry, found = p.ifStats[key]
 			if found && entry.podName != "" {
 				// interface is associated with a pod and we're already streaming its statistics
@@ -249,7 +249,7 @@ func (p *Plugin) RegisterGaugeFunc(name string, help string, valueFunc func() fl
 	}
 }
 
-func (p *Plugin) addNewEntry(key string, data *interfaces.InterfacesState_Interface) (newEntry *stats, created bool) {
+func (p *Plugin) addNewEntry(key string, data *interfaces.InterfaceState) (newEntry *stats, created bool) {
 	var (
 		err            error
 		entry          *stats

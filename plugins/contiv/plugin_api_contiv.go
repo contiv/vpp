@@ -16,15 +16,8 @@ type API interface {
 	// associated with the given pod.
 	GetIfName(podNamespace string, podName string) (name string, exists bool)
 
-	// GetNsIndex returns the index of the VPP session namespace associated
-	// with the given pod.
-	GetNsIndex(podNamespace string, podName string) (nsIndex uint32, exists bool)
-
 	// GetPodByIf looks up podName and podNamespace that is associated with logical interface name.
 	GetPodByIf(ifname string) (podNamespace string, podName string, exists bool)
-
-	// GetPodByAppNsIndex looks up podName and podNamespace that is associated with the VPP application namespace.
-	GetPodByAppNsIndex(nsIndex uint32) (podNamespace string, podName string, exists bool)
 
 	// GetPodSubnet provides subnet used for allocating pod IP addresses across all nodes.
 	GetPodSubnet() *net.IPNet
@@ -34,9 +27,6 @@ type API interface {
 
 	// GetContainerIndex exposes index of configured containers
 	GetContainerIndex() containeridx.Reader
-
-	// IsTCPstackDisabled returns true if the TCP stack is disabled and only VETHs/TAPs are configured
-	IsTCPstackDisabled() bool
 
 	// InSTNMode returns true if Contiv operates in the STN mode (single interface for each node).
 	InSTNMode() bool
@@ -56,6 +46,9 @@ type API interface {
 
 	// GetServiceLocalEndpointWeight returns the load-balancing weight assigned to locally deployed service endpoints.
 	GetServiceLocalEndpointWeight() uint8
+
+	// DisableNATVirtualReassembly returns true if fragmented packets should be dropped by NAT.
+	DisableNATVirtualReassembly() bool
 
 	// GetNatLoopbackIP returns the IP address of a virtual loopback, used to route traffic
 	// between clients and services via VPP even if the source and destination are the same

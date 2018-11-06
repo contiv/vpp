@@ -33,8 +33,6 @@ import (
 // It can be injected or loaded from external config file. Injection has priority to external config. To use external
 // config file, add `-contiv-config="<path to config>` argument when running the contiv-agent.
 type Config struct {
-	TCPChecksumOffloadDisabled  bool
-	TCPstackDisabled            bool
 	UseL2Interconnect           bool
 	UseTAPInterfaces            bool
 	TAPInterfaceVersion         uint8

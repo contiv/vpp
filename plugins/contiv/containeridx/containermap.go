@@ -24,14 +24,12 @@ import (
 	"github.com/ligato/cn-infra/db/keyval"
 	"github.com/ligato/cn-infra/idxmap"
 	"github.com/ligato/cn-infra/idxmap/mem"
-	"github.com/ligato/cn-infra/infra"
 	"github.com/ligato/cn-infra/logging"
 )
 
 const podNameKey = "podNameKey"
 const podNamespaceKey = "podNamespaceKey"
 const podRelatedIfsKey = "podRelatedIfsKey"
-const podRelatedAppNsKey = "podRelatedAppNsKey"
 
 // Reader provides read API to ConfigIndex
 type Reader interface {
@@ -47,14 +45,11 @@ type Reader interface {
 	// LookupPodIf performs lookup based on secondary index podRelatedIfs.
 	LookupPodIf(ifname string) (containerIDs []string)
 
-	// LookupPodAppNs performs lookup based on secondary index podRelatedAppNs.
-	LookupPodAppNs(namespaceID string) (containerIDs []string)
-
 	// ListAll returns all registered names in the mapping.
 	ListAll() (containerIDs []string)
 
 	// Watch subscribe to monitor changes in ConfigIndex
-	Watch(subscriber infra.PluginName, callback func(ChangeEvent)) error
+	Watch(subscriber string, callback func(ChangeEvent)) error
 }
 
 // ChangeEvent represents a notification about change in ConfigIndex delivered to subscribers
@@ -135,18 +130,13 @@ func (ci *ConfigIndex) LookupPodIf(ifname string) (containerIDs []string) {
 	return ci.mapping.ListNames(podRelatedIfsKey, ifname)
 }
 
-// LookupPodAppNs performs lookup based on secondary index podRelatedNs.
-func (ci *ConfigIndex) LookupPodAppNs(namespaceID string) (containerIDs []string) {
-	return ci.mapping.ListNames(podRelatedAppNsKey, namespaceID)
-}
-
 // ListAll returns all registered names in the mapping.
 func (ci *ConfigIndex) ListAll() (containerIDs []string) {
 	return ci.mapping.ListAllNames()
 }
 
 // Watch subscribe to monitor changes in ConfigIndex
-func (ci *ConfigIndex) Watch(subscriber infra.PluginName, callback func(ChangeEvent)) error {
+func (ci *ConfigIndex) Watch(subscriber string, callback func(ChangeEvent)) error {
 	return ci.mapping.Watch(subscriber, func(ev idxmap.NamedMappingGenericEvent) {
 		if cfg, ok := ev.Value.(*container.Persisted); ok {
 			callback(ChangeEvent{NamedMappingEvent: ev.NamedMappingEvent, Value: cfg})
@@ -163,12 +153,6 @@ func IndexFunction(data interface{}) map[string][]string {
 		res[podNamespaceKey] = []string{config.PodNamespace}
 		if config.VppIfName != "" {
 			res[podRelatedIfsKey] = []string{config.VppIfName}
-		}
-		if config.LoopbackName != "" {
-			res[podRelatedIfsKey] = append(res[podRelatedIfsKey], config.LoopbackName)
-		}
-		if config.AppNamespaceID != "" {
-			res[podRelatedAppNsKey] = []string{config.AppNamespaceID}
 		}
 	}
 	return res

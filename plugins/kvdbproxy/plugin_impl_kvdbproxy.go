@@ -94,13 +94,15 @@ func (plugin *Plugin) Watch(resyncName string, changeChan chan datasync.ChangeEv
 			select {
 			case m := <-proxyChan:
 				plugin.Lock()
-				op, found := plugin.ignoreList[m.GetKey()]
-				if found && op == m.GetChangeType() {
-					plugin.Log.Infof("Change for %v is ignored", m.GetKey())
-					delete(plugin.ignoreList, m.GetKey())
-				} else if changeChan != nil {
-					plugin.Log.Infof("Change for %v is about to be applied", m.GetKey())
-					changeChan <- m
+				for _, dataChng := range m.GetChanges() {
+					op, found := plugin.ignoreList[dataChng.GetKey()]
+					if found && op == dataChng.GetChangeType() {
+						plugin.Log.Infof("Change for %v is ignored", dataChng.GetKey())
+						delete(plugin.ignoreList, dataChng.GetKey())
+					} else if changeChan != nil {
+						plugin.Log.Infof("Change for %v is about to be applied", dataChng.GetKey())
+						changeChan <- m
+					}
 				}
 				plugin.Unlock()
 			case <-plugin.closeChan:

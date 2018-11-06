@@ -33,7 +33,13 @@ func (s *remoteCNIserver) handleNodeConfigEvents(ctx context.Context, resyncChan
 			resyncEv.Done(err)
 
 		case changeEv := <-changeChan:
-			err := s.processNodeConfigChange(changeEv)
+			var err error
+			for _, dataChng := range changeEv.GetChanges() {
+				chngErr := s.processNodeConfigChange(dataChng)
+				if chngErr != nil {
+					err = chngErr
+				}
+			}
 			changeEv.Done(err)
 
 		case <-ctx.Done():
@@ -68,7 +74,7 @@ func (s *remoteCNIserver) processNodeConfigResync(dataResyncEv datasync.ResyncEv
 
 // processNodeConfigChange processes data change event carrying the node-specific
 // configuration.
-func (s *remoteCNIserver) processNodeConfigChange(dataChngEv datasync.ChangeEvent) error {
+func (s *remoteCNIserver) processNodeConfigChange(dataChngEv datasync.ProtoWatchResp) error {
 	var nodeConfigProto *nodeconfig.NodeConfig
 	if dataChngEv.GetChangeType() == datasync.Put {
 		nodeConfigProto = &nodeconfig.NodeConfig{}

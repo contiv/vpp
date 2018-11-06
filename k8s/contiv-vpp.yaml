@@ -22,9 +22,10 @@ metadata:
   namespace: kube-system
 data:
   contiv.yaml: |-
-    TCPstackDisabled: true
     UseTAPInterfaces: true
     TAPInterfaceVersion: 2
+    TAPv2RxRingSize: 256
+    TAPv2TxRingSize: 256
     NatExternalTraffic: true
     MTUSize: 1450
     CleanupIdleNATSessions: True

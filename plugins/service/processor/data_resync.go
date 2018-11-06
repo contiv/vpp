@@ -96,6 +96,7 @@ func (sc *ServiceProcessor) parseResyncEv(resyncEv datasync.ResyncEvent) *Resync
 				break
 			}
 			key := evData.GetKey()
+			sc.k8sStateData[key] = evData
 
 			// Parse node RESYNC event
 			if strings.HasPrefix(key, nodemodel.AllocatedIDsKeyPrefix) {

@@ -7,11 +7,11 @@ import (
 	"github.com/contiv/vpp/mock/localclient/dsl"
 	mocklinux "github.com/contiv/vpp/mock/localclient/dsl/linux"
 	mockvpp "github.com/contiv/vpp/mock/localclient/dsl/vpp"
-	"github.com/golang/protobuf/proto"
+	"github.com/gogo/protobuf/proto"
 	"github.com/ligato/cn-infra/datasync"
 	"github.com/ligato/cn-infra/datasync/syncbase"
-	"github.com/ligato/vpp-agent/clientv1/linux"
-	"github.com/ligato/vpp-agent/clientv1/vpp"
+	"github.com/ligato/vpp-agent/clientv2/linux"
+	"github.com/ligato/vpp-agent/clientv2/vpp"
 )
 
 // TxnTracker tracks all transactions executed or pending in the mock localclient.

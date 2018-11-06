@@ -19,7 +19,7 @@ import (
 	"sort"
 	"sync"
 
-	"github.com/golang/protobuf/proto"
+	"github.com/gogo/protobuf/proto"
 
 	coreV1 "k8s.io/api/core/v1"
 	coreV1Beta1 "k8s.io/api/extensions/v1beta1"

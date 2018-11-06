@@ -19,22 +19,17 @@ import (
 	"sync"
 
 	"github.com/ligato/cn-infra/datasync"
-	kvdbsync_local "github.com/ligato/cn-infra/datasync/kvdbsync/local"
 	"github.com/ligato/cn-infra/datasync/resync"
-	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/utils/safeclose"
 
-	"github.com/ligato/vpp-agent/clientv1/linux"
-	"github.com/ligato/vpp-agent/clientv1/linux/localclient"
-	"github.com/ligato/vpp-agent/plugins/govppmux"
-	"github.com/ligato/vpp-agent/plugins/vpp"
+	"github.com/ligato/vpp-agent/clientv2/linux"
+	"github.com/ligato/vpp-agent/clientv2/linux/localclient"
 
 	"github.com/contiv/vpp/plugins/contiv"
 	"github.com/contiv/vpp/plugins/policy/cache"
 	"github.com/contiv/vpp/plugins/policy/configurator"
 	"github.com/contiv/vpp/plugins/policy/processor"
 	"github.com/contiv/vpp/plugins/policy/renderer/acl"
-	"github.com/contiv/vpp/plugins/policy/renderer/vpptcp"
 
 	nsmodel "github.com/contiv/vpp/plugins/ksr/model/namespace"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
@@ -78,8 +73,6 @@ type Plugin struct {
 	// Policy Renderers: layer 4
 	//  -> ACL Renderer
 	aclRenderer *acl.Renderer
-	//  -> VPPTCP Renderer
-	vppTCPRenderer *vpptcp.Renderer
 	// New renderers should come here ...
 }
 
@@ -89,14 +82,14 @@ type Deps struct {
 	Resync  resync.Subscriber
 	Watcher datasync.KeyValProtoWatcher /* prefixed for KSR-published K8s state data */
 	Contiv  contiv.API                  /* for GetIfName() */
-	VPP     vpp.API                     /* for DumpACLs() */
-	GoVPP   govppmux.API                /* for VPPTCP Renderer */
+
+	// Note: L4 was removed from Contiv but may be re-added in the future
+	// GoVPP   govppmux.API                /* for VPPTCP Renderer */
 }
 
 // Init initializes policy layers and caches and starts watching ETCD for K8s configuration.
 func (p *Plugin) Init() error {
 	var err error
-	p.Log.SetLevel(logging.DebugLevel)
 
 	p.resyncChan = make(chan datasync.ResyncEvent)
 	p.changeChan = make(chan datasync.ChangeEvent)
@@ -107,7 +100,6 @@ func (p *Plugin) Init() error {
 			Log: p.Log.NewLogger("-policyCache"),
 		},
 	}
-	p.policyCache.Log.SetLevel(logging.DebugLevel)
 
 	p.configurator = &configurator.PolicyConfigurator{
 		Deps: configurator.Deps{
@@ -116,7 +108,6 @@ func (p *Plugin) Init() error {
 			Contiv: p.Contiv,
 		},
 	}
-	p.configurator.Log.SetLevel(logging.DebugLevel)
 
 	p.processor = &processor.PolicyProcessor{
 		Deps: processor.Deps{
@@ -126,22 +117,19 @@ func (p *Plugin) Init() error {
 			Configurator: p.configurator,
 		},
 	}
-	p.processor.Log.SetLevel(logging.DebugLevel)
 
 	p.aclRenderer = &acl.Renderer{
 		Deps: acl.Deps{
 			Log:        p.Log.NewLogger("-aclRenderer"),
 			LogFactory: p.Log,
 			Contiv:     p.Contiv,
-			VPP:        p.VPP,
 			ACLTxnFactory: func() linuxclient.DataChangeDSL {
 				return localclient.DataChangeRequest(p.String())
 			},
-			LatestRevs: kvdbsync_local.Get().LastRev(),
 		},
 	}
-	p.aclRenderer.Log.SetLevel(logging.DebugLevel)
 
+	/* Note: L4 was removed from Contiv but may be re-added in the future
 	const goVPPChanBufSize = 1 << 12
 	goVppCh, err := p.GoVPP.NewAPIChannelBuffered(goVPPChanBufSize, goVPPChanBufSize)
 	if err != nil {
@@ -156,22 +144,16 @@ func (p *Plugin) Init() error {
 			GoVPPChanBufSize: goVPPChanBufSize,
 		},
 	}
-	p.vppTCPRenderer.Log.SetLevel(logging.DebugLevel)
+	*/
 
 	// Initialize layers.
 	p.policyCache.Init()
 	p.processor.Init()
 	p.configurator.Init(false) // Do not render in parallel while we do lot of debugging.
 	p.aclRenderer.Init()
-	if !p.Contiv.IsTCPstackDisabled() {
-		p.vppTCPRenderer.Init()
-	}
 
 	// Register renderers.
 	p.configurator.RegisterRenderer(p.aclRenderer)
-	if !p.Contiv.IsTCPstackDisabled() {
-		p.configurator.RegisterRenderer(p.vppTCPRenderer)
-	}
 
 	p.ctx, p.cancel = context.WithCancel(context.Background())
 
@@ -242,7 +224,7 @@ func (p *Plugin) watchEvents() {
 	}
 }
 
-func (p *Plugin) handleResync(resyncChan chan resync.StatusEvent) {
+func (p *Plugin) handleResync(resyncChan <-chan resync.StatusEvent) {
 	// block until NodeIP is set
 	nodeIPWatcher := make(chan string, 1)
 	p.Contiv.WatchNodeIP(nodeIPWatcher)

@@ -18,7 +18,7 @@ import (
 	nodeinfomodel "github.com/contiv/vpp/plugins/contiv/model/node"
 	nodemodel "github.com/contiv/vpp/plugins/ksr/model/node"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
-	"github.com/golang/protobuf/proto"
+	"github.com/gogo/protobuf/proto"
 	"github.com/ligato/cn-infra/datasync"
 	"reflect"
 
@@ -154,7 +154,7 @@ func (ctc *ContivTelemetryCache) Update(dataChngEv datasync.ChangeEvent) error {
 // The change is applied into the cache and all subscribed watchers are
 // notified.
 // The function will forward any error returned by a watcher.
-func (ctc *ContivTelemetryCache) update(dataChngEv datasync.ChangeEvent) error {
+func (ctc *ContivTelemetryCache) update(dataChngEv datasync.ProtoWatchResp) error {
 	err := error(nil)
 	key := dataChngEv.GetKey()
 	var dcp dataChangeProcessor

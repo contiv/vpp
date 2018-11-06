@@ -28,24 +28,24 @@ import (
 	govpp "git.fd.io/govpp.git/core"
 
 	"github.com/ligato/vpp-agent/plugins/govppmux"
-	if_linuxcalls "github.com/ligato/vpp-agent/plugins/linux/ifplugin/linuxcalls"
-	l3_linuxcalls "github.com/ligato/vpp-agent/plugins/linux/l3plugin/linuxcalls"
-	if_vppcalls "github.com/ligato/vpp-agent/plugins/vpp/ifplugin/vppcalls"
-	l3_vppcalls "github.com/ligato/vpp-agent/plugins/vpp/l3plugin/vppcalls"
+	if_linuxcalls "github.com/ligato/vpp-agent/plugins/linuxv2/ifplugin/linuxcalls"
+	l3_linuxcalls "github.com/ligato/vpp-agent/plugins/linuxv2/l3plugin/linuxcalls"
+	if_vppcalls "github.com/ligato/vpp-agent/plugins/vppv2/ifplugin/vppcalls"
+	l3_vppcalls "github.com/ligato/vpp-agent/plugins/vppv2/l3plugin/vppcalls"
 
-	if_linux "github.com/ligato/vpp-agent/plugins/linux/model/interfaces"
-	l3_linux "github.com/ligato/vpp-agent/plugins/linux/model/l3"
-	"github.com/ligato/vpp-agent/plugins/vpp/model/interfaces"
-	"github.com/ligato/vpp-agent/plugins/vpp/model/l3"
-	stn_nb "github.com/ligato/vpp-agent/plugins/vpp/model/stn"
+	if_linux "github.com/ligato/vpp-agent/plugins/linuxv2/model/interfaces"
+	l3_linux "github.com/ligato/vpp-agent/plugins/linuxv2/model/l3"
+	"github.com/ligato/vpp-agent/plugins/vppv2/model/interfaces"
+	"github.com/ligato/vpp-agent/plugins/vppv2/model/l3"
+	//stn_nb "github.com/ligato/vpp-agent/plugins/vpp/model/stn"
 
 	"github.com/ligato/vpp-agent/plugins/vpp/binapi/dhcp"
 	if_binapi "github.com/ligato/vpp-agent/plugins/vpp/binapi/interfaces"
-	ip_binapi "github.com/ligato/vpp-agent/plugins/vpp/binapi/ip"
 
 	"github.com/apparentlymart/go-cidr/cidr"
 	"github.com/contiv/vpp/cmd/contiv-stn/model/stn"
 	"github.com/contiv/vpp/plugins/contiv"
+	"github.com/ligato/vpp-agent/plugins/vppv2/ifplugin/ifaceidx"
 	"github.com/vishvananda/netlink"
 )
 
@@ -102,10 +102,12 @@ func configureVpp(contivCfg *contiv.Config, stnData *stn.STNReply, useDHCP bool)
 	defer ch.Close()
 
 	ifVppHandler := if_vppcalls.NewIfVppHandler(ch, logger)
+	ifVppIdx := ifaceidx.NewIfaceIndex(logger, "sw-if-index")
 
-	stnVppHandler := if_vppcalls.NewStnVppHandler(ch, nil, logger)
+	// TODO: support STN in ifplugin v.2
+	//stnVppHandler := if_vppcalls.NewStnVppHandler(ch, nil, logger)
 
-	routeHandler := l3_vppcalls.NewRouteVppHandler(ch, nil, logger)
+	routeHandler := l3_vppcalls.NewRouteVppHandler(ch, ifVppIdx, logger)
 
 	cfg := &vppCfgCtx{}
 
@@ -115,6 +117,7 @@ func configureVpp(contivCfg *contiv.Config, stnData *stn.STNReply, useDHCP bool)
 		logger.Errorf("Error by listing HW interfaces: %v", err)
 		return nil, err
 	}
+	ifVppIdx.Put(cfg.mainIfName, ifaceidx.IfaceMetadata{SwIfIndex: cfg.mainIfIdx})
 
 	// interface tag
 	err = ifVppHandler.SetInterfaceTag(cfg.mainIfName, cfg.mainIfIdx)
@@ -179,7 +182,7 @@ func configureVpp(contivCfg *contiv.Config, stnData *stn.STNReply, useDHCP bool)
 			return nil, fmt.Errorf("IP address mismatch")
 		}
 	} else {
-		// static IP -based interface configuration
+		// static IP-based interface configuration
 
 		// interface IPs
 		for _, stnAddr := range stnData.IpAddresses {
@@ -208,13 +211,13 @@ func configureVpp(contivCfg *contiv.Config, stnData *stn.STNReply, useDHCP bool)
 			}
 			nextHopIP := net.ParseIP(stnRoute.NextHopIp).To4()
 
-			sRoute := &l3.StaticRoutes_Route{
-				DstIpAddr:         dstAddr.String(),
+			sRoute := &l3.StaticRoute{
+				DstNetwork:        dstAddr.String(),
 				NextHopAddr:       nextHopIP.String(),
 				OutgoingInterface: cfg.mainIfName,
 			}
 			logger.Debug("Configuring static route: ", sRoute)
-			err = routeHandler.VppAddRoute(ifVppHandler, sRoute, cfg.mainIfIdx)
+			err = routeHandler.VppAddRoute(sRoute)
 			if err != nil {
 				logger.Errorf("Error by configuring route: %v", err)
 				return nil, err
@@ -225,7 +228,7 @@ func configureVpp(contivCfg *contiv.Config, stnData *stn.STNReply, useDHCP bool)
 	// interconnect TAP
 	tapIdx, err := ifVppHandler.AddTapInterface(
 		contiv.TapVPPEndLogicalName,
-		&interfaces.Interfaces_Interface_Tap{
+		&interfaces.Interface_TapLink{
 			HostIfName: contiv.TapHostEndName,
 			Version:    uint32(contivCfg.TAPInterfaceVersion),
 		})
@@ -233,6 +236,7 @@ func configureVpp(contivCfg *contiv.Config, stnData *stn.STNReply, useDHCP bool)
 		logger.Errorf("Error by adding TAP interface: %v", err)
 		return nil, err
 	}
+	ifVppIdx.Put(contiv.TapVPPEndLogicalName, ifaceidx.IfaceMetadata{SwIfIndex: tapIdx})
 
 	err = ifVppHandler.SetInterfaceMac(tapIdx, contiv.HostInterconnectMAC)
 	if err != nil {
@@ -259,14 +263,16 @@ func configureVpp(contivCfg *contiv.Config, stnData *stn.STNReply, useDHCP bool)
 	}
 
 	// interconnect STN
+	/* TODO
 	stnVppHandler.AddStnRule(tapIdx, &cfg.mainIP.IP)
 	if err != nil {
 		logger.Errorf("Error by adding STN rule: %v", err)
 		return nil, err
 	}
+	*/
 
 	// host-end TAP config
-	ifNetlinkHandler := if_linuxcalls.NewNetLinkHandler(nil, nil, logger)
+	ifNetlinkHandler := if_linuxcalls.NewNetLinkHandler()
 	err = ifNetlinkHandler.AddInterfaceIP(contiv.TapHostEndName, &net.IPNet{IP: cfg.mainIP.IP, Mask: cfg.mainIP.Mask})
 	if err != nil {
 		logger.Errorf("Error by configuring host-end TAP interface IP: %v", err)
@@ -282,24 +288,35 @@ func configureVpp(contivCfg *contiv.Config, stnData *stn.STNReply, useDHCP bool)
 		logger.Errorf("Error by configuring host-end TAP interface MTU: %v", err)
 		return nil, err
 	}
+	err = ifNetlinkHandler.SetInterfaceAlias(contiv.TapHostEndName,
+		getAgentPrefix()+contiv.TapHostEndLogicalName+"/"+contiv.TapVPPEndLogicalName+"/"+contiv.TapHostEndName)
+	if err != nil {
+		logger.Errorf("Error by configuring host-end TAP interface alias: %v", err)
+		return nil, err
+	}
 
-	// TODO: do this using linuxcalls once supported in vpp-agent
+	// configure proxy-ARP
+	proxyARPHandler := l3_vppcalls.NewProxyArpVppHandler(ch, ifVppIdx, logger)
 	firstIP, lastIP := cidr.AddressRange(cfg.mainIPNet)
-
 	// If larger than a /31, remove network and broadcast addresses
 	// from address range.
 	if cidr.AddressCount(cfg.mainIPNet) > 2 {
 		firstIP = cidr.Inc(firstIP)
 		lastIP = cidr.Dec(lastIP)
 	}
-	err = enableArpProxy(ch, firstIP, lastIP, tapIdx)
+	err = proxyARPHandler.EnableProxyArpInterface(contiv.TapVPPEndLogicalName)
 	if err != nil {
-		logger.Errorf("Error by configuring proxy ARP: %v", err)
+		logger.Errorf("Error by configuring proxy ARP interface: %v", err)
+		return nil, err
+	}
+	err = proxyARPHandler.AddProxyArpRange(firstIP, lastIP)
+	if err != nil {
+		logger.Errorf("Error by configuring proxy ARP IP range: %v", err)
 		return nil, err
 	}
 
 	// host routes
-	l3NetlinkHandler := l3_linuxcalls.NewNetLinkHandler(nil, nil, nil, nil, logger)
+	l3NetlinkHandler := l3_linuxcalls.NewNetLinkHandler()
 	link, err := netlink.LinkByName(contiv.TapHostEndName)
 	if err != nil {
 		logger.Errorf("Unable to find link %s: %v", contiv.TapHostEndName, err)
@@ -320,7 +337,6 @@ func configureVpp(contivCfg *contiv.Config, stnData *stn.STNReply, useDHCP bool)
 		nextHopIP := net.ParseIP(stnRoute.NextHopIp)
 
 		err = l3NetlinkHandler.AddStaticRoute(
-			fmt.Sprintf("route-to-%s", dstAddr.String()),
 			&netlink.Route{
 				Dst:       dstAddr,
 				Gw:        nextHopIP,
@@ -343,42 +359,41 @@ func persistVppConfig(contivCfg *contiv.Config, stnData *stn.STNReply, cfg *vppC
 		return err
 	}
 	defer protoDb.Close()
-	pb := protoDb.NewBroker(servicelabel.GetDifferentAgentPrefix(os.Getenv(servicelabel.MicroserviceLabelEnvVar)))
+	pb := protoDb.NewBroker(getAgentPrefix())
 
 	// persist interface config
-	ifCfg := &interfaces.Interfaces_Interface{
+	ifCfg := &interfaces.Interface{
 		Name:    cfg.mainIfName,
-		Type:    interfaces.InterfaceType_ETHERNET_CSMACD,
+		Type:    interfaces.Interface_ETHERNET_CSMACD,
 		Enabled: true,
 		Mtu:     contivCfg.MTUSize,
 	}
 	for _, stnAddr := range stnData.IpAddresses {
 		ifCfg.IpAddresses = append(ifCfg.IpAddresses, stnAddr)
 	}
-	// TODO: re-enable after fixing of resync in vpp-agent
-	//if useDHCP {
-	//	ifCfg.SetDhcpClient = true
-	//}
+	if useDHCP {
+		ifCfg.SetDhcpClient = true
+	}
 	err = pb.Put(interfaces.InterfaceKey(ifCfg.Name), ifCfg)
 	if err != nil {
 		logger.Errorf("Error by persisting the main interface config: %v", err)
 		return err
 	}
 
-	// persist routes
+	// persist host routes mirrored to VPP
 	for _, stnRoute := range stnData.Routes {
 		if stnRoute.NextHopIp == "" {
 			continue // skip routes with no next hop IP (link-local)
 		}
-		r := &l3.StaticRoutes_Route{
-			DstIpAddr:         stnRoute.DestinationSubnet,
+		r := &l3.StaticRoute{
+			DstNetwork:        stnRoute.DestinationSubnet,
 			NextHopAddr:       stnRoute.NextHopIp,
 			OutgoingInterface: ifCfg.Name,
 		}
-		if r.DstIpAddr == "" {
-			r.DstIpAddr = defaultRouteDestination
+		if r.DstNetwork == "" {
+			r.DstNetwork = defaultRouteDestination
 		}
-		err = pb.Put(l3.RouteKey(r.VrfId, r.DstIpAddr, r.NextHopAddr), r)
+		err = pb.Put(l3.RouteKey(r.VrfId, r.DstNetwork, r.NextHopAddr), r)
 		if err != nil {
 			logger.Errorf("Error by persisting route config: %v", err)
 			return err
@@ -386,49 +401,61 @@ func persistVppConfig(contivCfg *contiv.Config, stnData *stn.STNReply, cfg *vppC
 	}
 
 	// host interconnect TAP
-	tap := &interfaces.Interfaces_Interface{
+	tap := &interfaces.Interface{
 		Name:    contiv.TapVPPEndLogicalName,
-		Type:    interfaces.InterfaceType_TAP_INTERFACE,
+		Type:    interfaces.Interface_TAP_INTERFACE,
 		Enabled: true,
 		Mtu:     contivCfg.MTUSize,
-		Tap: &interfaces.Interfaces_Interface_Tap{
-			HostIfName: contiv.TapHostEndName,
-			Version:    uint32(contivCfg.TAPInterfaceVersion),
+		Vrf:     contivCfg.MainVRFID,
+		Link: &interfaces.Interface_Tap{
+			Tap: &interfaces.Interface_TapLink{
+				HostIfName: contiv.TapHostEndName,
+				Version:    uint32(contivCfg.TAPInterfaceVersion),
+			},
 		},
 		PhysAddress: contiv.HostInterconnectMAC,
-		Unnumbered: &interfaces.Interfaces_Interface_Unnumbered{
+		Unnumbered: &interfaces.Interface_Unnumbered{
 			IsUnnumbered:    true,
 			InterfaceWithIp: cfg.mainIfName,
 		},
 	}
+
 	err = pb.Put(interfaces.InterfaceKey(tap.Name), tap)
 	if err != nil {
 		logger.Errorf("Error by persisting TAP interface config %v", err)
 		return err
 	}
 
-	// host interconnect STN
-	stnRule := &stn_nb.STN_Rule{
-		RuleName:  "VPP-host-STN",
-		Interface: contiv.TapVPPEndLogicalName,
-		IpAddress: cfg.mainIP.IP.String(),
-	}
-	err = pb.Put(stn_nb.Key(stnRule.RuleName), stnRule)
-	if err != nil {
-		logger.Errorf("Error by persisting STN interface config %v", err)
-		return err
-	}
+	// TODO: host interconnect STN
+	/*
+		stnRule := &stn_nb.STN_Rule{
+			RuleName:  "VPP-host-STN",
+			Interface: contiv.TapVPPEndLogicalName,
+			IpAddress: cfg.mainIP.IP.String(),
+		}
+		err = pb.Put(stn_nb.Key(stnRule.RuleName), stnRule)
+		if err != nil {
+			logger.Errorf("Error by persisting STN interface config %v", err)
+			return err
+		}
+	*/
 
 	// host-end TAP config
-	hostTap := &if_linux.LinuxInterfaces_Interface{
-		Name:        contiv.TapHostEndLogicalName,
-		HostIfName:  contiv.TapHostEndName,
-		Type:        if_linux.LinuxInterfaces_AUTO_TAP,
-		Enabled:     true,
+	hostTap := &if_linux.LinuxInterface{
+		Name: contiv.TapHostEndLogicalName,
+		Type: if_linux.LinuxInterface_TAP_TO_VPP,
+		Link: &if_linux.LinuxInterface_Tap{
+			Tap: &if_linux.LinuxInterface_TapLink{
+				VppTapIfName: contiv.TapVPPEndLogicalName,
+			},
+		},
 		Mtu:         contivCfg.MTUSize,
+		HostIfName:  contiv.TapHostEndName,
+		Enabled:     true,
 		PhysAddress: tapHostEndMacAddr,
 		IpAddresses: []string{cfg.mainIP.String()},
 	}
+
 	err = pb.Put(if_linux.InterfaceKey(hostTap.Name), hostTap)
 	if err != nil {
 		logger.Errorf("Error by persisting host-end TAP interface config %v", err)
@@ -440,23 +467,22 @@ func persistVppConfig(contivCfg *contiv.Config, stnData *stn.STNReply, cfg *vppC
 		if stnRoute.NextHopIp == "" {
 			continue // skip routes with no next hop IP (link-local)
 		}
-		route := &l3_linux.LinuxStaticRoutes_Route{
-			Name:      fmt.Sprintf("route-to-%s", stnRoute.DestinationSubnet),
-			DstIpAddr: stnRoute.DestinationSubnet,
-			GwAddr:    stnRoute.NextHopIp,
-			Interface: contiv.TapHostEndName, // in case of linux interface, this needs to be HostIfName
+		route := &l3_linux.LinuxStaticRoute{
+			DstNetwork:        stnRoute.DestinationSubnet,
+			GwAddr:            stnRoute.NextHopIp,
+			OutgoingInterface: contiv.TapHostEndLogicalName,
 		}
-		if route.DstIpAddr == "" {
-			route.Name = fmt.Sprintf("route-to-%s", defaultRouteDestination)
-			route.DstIpAddr = defaultRouteDestination
-			route.Default = true
+		if route.DstNetwork == "" {
+			route.DstNetwork = defaultRouteDestination
 		}
-		err = pb.Put(l3_linux.StaticRouteKey(route.Name), route)
+		err = pb.Put(l3_linux.StaticRouteKey(route.DstNetwork, route.OutgoingInterface), route)
 		if err != nil {
 			logger.Errorf("Error by persisting TAP interface config %v", err)
 			return err
 		}
 	}
+
+	// XXX Also don't forget about proxy ARP
 
 	return nil
 }
@@ -492,42 +518,6 @@ func findHwInterfaceIdx(ch api.Channel) (uint32, string, error) {
 		return 0, "", fmt.Errorf("no HW interface found")
 	}
 	return ifIdx, ifName, nil
-}
-
-// enableArpProxy enables ARP proxy on specified interface on VPP.
-func enableArpProxy(ch api.Channel, loAddr net.IP, hiAddr net.IP, ifIdx uint32) error {
-
-	logger.Debugf("Enabling ARP proxy for IP range %s - %s, ifIdx %d", loAddr.String(), hiAddr.String(), ifIdx)
-
-	// configure proxy arp pool
-	req := &ip_binapi.ProxyArpAddDel{
-		IsAdd: 1,
-		Proxy: ip_binapi.ProxyArp{
-			VrfID:      0,
-			LowAddress: []byte(loAddr.To4()),
-			HiAddress:  []byte(hiAddr.To4()),
-		},
-	}
-	reply := &ip_binapi.ProxyArpAddDelReply{}
-
-	err := ch.SendRequest(req).ReceiveReply(reply)
-	if err != nil {
-		return err
-	}
-
-	// enable proxy ARP on the interface
-	req2 := &ip_binapi.ProxyArpIntfcEnableDisable{
-		SwIfIndex:     ifIdx,
-		EnableDisable: 1,
-	}
-	reply2 := &ip_binapi.ProxyArpIntfcEnableDisableReply{}
-
-	err = ch.SendRequest(req2).ReceiveReply(reply2)
-	if err != nil {
-		return err
-	}
-
-	return nil
 }
 
 // configureDHCP configures DHCP on an interface on VPP. Returns Go channel where assigned IP will be delivered.
@@ -585,4 +575,8 @@ func handleDHCPNotifications(notifCh chan api.Message, dhcpIPChan chan string) {
 			}
 		}
 	}
+}
+
+func getAgentPrefix() string {
+	return servicelabel.GetDifferentAgentPrefix(os.Getenv(servicelabel.MicroserviceLabelEnvVar))
 }

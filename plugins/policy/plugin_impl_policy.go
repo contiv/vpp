@@ -21,7 +21,6 @@ import (
 	"github.com/ligato/cn-infra/datasync"
 	kvdbsync_local "github.com/ligato/cn-infra/datasync/kvdbsync/local"
 	"github.com/ligato/cn-infra/datasync/resync"
-	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/utils/safeclose"
 
 	"github.com/ligato/vpp-agent/clientv1/linux"
@@ -96,7 +95,6 @@ type Deps struct {
 // Init initializes policy layers and caches and starts watching ETCD for K8s configuration.
 func (p *Plugin) Init() error {
 	var err error
-	p.Log.SetLevel(logging.DebugLevel)
 
 	p.resyncChan = make(chan datasync.ResyncEvent)
 	p.changeChan = make(chan datasync.ChangeEvent)
@@ -107,7 +105,6 @@ func (p *Plugin) Init() error {
 			Log: p.Log.NewLogger("-policyCache"),
 		},
 	}
-	p.policyCache.Log.SetLevel(logging.DebugLevel)
 
 	p.configurator = &configurator.PolicyConfigurator{
 		Deps: configurator.Deps{
@@ -116,7 +113,6 @@ func (p *Plugin) Init() error {
 			Contiv: p.Contiv,
 		},
 	}
-	p.configurator.Log.SetLevel(logging.DebugLevel)
 
 	p.processor = &processor.PolicyProcessor{
 		Deps: processor.Deps{
@@ -126,7 +122,6 @@ func (p *Plugin) Init() error {
 			Configurator: p.configurator,
 		},
 	}
-	p.processor.Log.SetLevel(logging.DebugLevel)
 
 	p.aclRenderer = &acl.Renderer{
 		Deps: acl.Deps{
@@ -140,7 +135,6 @@ func (p *Plugin) Init() error {
 			LatestRevs: kvdbsync_local.Get().LastRev(),
 		},
 	}
-	p.aclRenderer.Log.SetLevel(logging.DebugLevel)
 
 	const goVPPChanBufSize = 1 << 12
 	goVppCh, err := p.GoVPP.NewAPIChannelBuffered(goVPPChanBufSize, goVPPChanBufSize)
@@ -156,7 +150,6 @@ func (p *Plugin) Init() error {
 			GoVPPChanBufSize: goVPPChanBufSize,
 		},
 	}
-	p.vppTCPRenderer.Log.SetLevel(logging.DebugLevel)
 
 	// Initialize layers.
 	p.policyCache.Init()

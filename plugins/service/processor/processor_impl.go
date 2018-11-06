@@ -50,6 +50,9 @@ type ServiceProcessor struct {
 	frontendIfs renderer.Interfaces
 	backendIfs  renderer.Interfaces
 
+	/* a local copy of kubernetes state data */
+	k8sStateData map[string]datasync.LazyValueWithRev // key -> value, revision
+
 	sync.Mutex
 }
 
@@ -71,6 +74,7 @@ func (sp *ServiceProcessor) Init() error {
 	sp.reset()
 	sp.Contiv.RegisterPodPreRemovalHook(sp.processDeletingPod)
 	sp.Contiv.RegisterPodPostAddHook(sp.processNewPod)
+	sp.k8sStateData = make(map[string]datasync.LazyValueWithRev)
 	return nil
 }
 
@@ -481,15 +485,19 @@ func (sp *ServiceProcessor) getNodeIPs() *renderer.IPAddresses {
 		}
 		addedNodeIPs[ipAddr] = struct{}{}
 		// Node management IP (K8s, host)
-		ipAddr = sp.trimIPAddrPrefix(node.ManagementIpAddress)
-		sp.Log.WithField("IPAddr", ipAddr).Debug("Node mgmt IP")
-		if _, duplicate := addedNodeIPs[ipAddr]; !duplicate {
-			nodeMgmtIP := net.ParseIP(ipAddr)
-			if nodeMgmtIP != nil {
-				nodeIPs.Add(nodeMgmtIP)
+		mgmtIPs := strings.Split(node.ManagementIpAddress, contiv.MgmtIPSeparator)
+		for _, mIP := range mgmtIPs {
+			ipAddr = sp.trimIPAddrPrefix(mIP)
+			sp.Log.WithField("IPAddr", ipAddr).Debug("Node mgmt IP")
+			if _, duplicate := addedNodeIPs[ipAddr]; !duplicate {
+				nodeMgmtIP := net.ParseIP(ipAddr)
+				if nodeMgmtIP != nil {
+					nodeIPs.Add(nodeMgmtIP)
+				}
 			}
+			addedNodeIPs[ipAddr] = struct{}{}
 		}
-		addedNodeIPs[ipAddr] = struct{}{}
+
 	}
 
 	return nodeIPs

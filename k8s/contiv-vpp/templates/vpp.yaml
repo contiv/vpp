@@ -23,6 +23,10 @@ data:
     TCPstackDisabled: {{ .Values.contiv.tcpStackDisabled }}
     UseTAPInterfaces: {{ .Values.contiv.useTAPInterfaces }}
     TAPInterfaceVersion: {{ .Values.contiv.tapInterfaceVersion }}
+    {{- if eq (.Values.contiv.tapInterfaceVersion | int) 2 }}
+    TAPv2RxRingSize: {{ .Values.contiv.tapv2RxRingSize }}
+    TAPv2TxRingSize: {{ .Values.contiv.tapv2TxRingSize }}
+    {{- end }}
     {{- if .Values.contiv.stealInterface }}
     StealInterface: {{ .Values.contiv.stealInterface }}
     {{- end }}
@@ -43,6 +47,7 @@ data:
     ServiceLocalEndpointWeight: {{ .Values.contiv.serviceLocalEndpointWeight }}
     {{- end }}
     DisableNATVirtualReassembly: {{ .Values.contiv.disableNATVirtualReassembly }}
+    EnablePacketTrace: {{ .Values.contiv.enablePacketTrace }}
     CRDNodeConfigurationDisabled: {{ .Values.contiv.crdNodeConfigurationDisabled }}
     IPAMConfig:
       NodeInterconnectDHCP: {{ .Values.contiv.ipamConfig.nodeInterconnectDHCP }}
@@ -96,6 +101,8 @@ data:
     default-level: {{ .Values.logs.defaultLevel }}
     loggers:
       - name: statscollector
+        level: info
+      - name: vpp.if-state
         level: info
   grpc.conf: |
     network: unix
@@ -234,6 +241,14 @@ spec:
               mountPath: /var/contiv/etcd-secrets
               readOnly: true
             {{- end }}
+          livenessProbe:
+            exec:
+              command:
+              - /bin/sh
+              - -c
+              - etcdctl get --endpoints=127.0.0.1:{{ .Values.etcd.service.nodePort }} /
+            periodSeconds: 2
+            initialDelaySeconds: 20
       {{- if .Values.etcd.secureTransport }}
       volumes:
         - name: etcd-secrets
@@ -769,28 +784,9 @@ spec:
           hostPath:
             path: {{ .Values.vswitch.coreDumpsDir }}
         {{- end }}
-{{- if not .Values.bolt.usePersistentVolume }}
         - name: var-bolt
           hostPath:
             path: {{ .Values.bolt.dataDir }}
-        {{- else }}
-  volumeClaimTemplates:
-  - metadata:
-      name: var-bolt
-    spec:
-      accessModes:
-        - ReadWriteOnce
-      resources:
-        requests:
-          storage: {{ .Values.bolt.persistentVolumeSize }}
-    {{- if .Values.bolt.persistentVolumeStorageClass }}
-    {{- if (eq "-" .Values.bolt.persistentVolumeStorageClass) }}
-      storageClassName: ""
-    {{- else }}
-      storageClassName: "{{ .Values.bolt.persistentVolumeStorageClass }}"
-    {{- end }}
-    {{- end }}
-{{- end }}
 
 ---
 

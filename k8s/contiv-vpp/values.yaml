@@ -2,6 +2,8 @@ contiv:
   tcpStackDisabled: True
   useTAPInterfaces: True
   tapInterfaceVersion: 2
+  tapv2RxRingSize: 256
+  tapv2TxRingSize: 256
   stealFirstNIC: False
   natExternalTraffic: True
   mtuSize: 1450
@@ -13,6 +15,7 @@ contiv:
   ipNeighborStaleThreshold: 4
   serviceLocalEndpointWeight: 1
   disableNATVirtualReassembly: False
+  enablePacketTrace: False
   crdNodeConfigurationDisabled: True
   ipamConfig:
     podSubnetCIDR: 10.1.0.0/16
@@ -54,7 +57,7 @@ logs:
 etcd:
   image:
     repository: quay.io/coreos/etcd
-    tag: v3.1.10
+    tag: v3.3.10
     pullPolicy: IfNotPresent
   service:
     #NodePort where contiv-etcd can be reached on any node.
@@ -150,5 +153,3 @@ init:
 bolt:
   debug: false
   dataDir: /var/bolt
-  persistentVolumeSize: 2Gi
-  usePersistentVolume: false

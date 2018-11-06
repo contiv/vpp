@@ -21,7 +21,6 @@ import (
 	"github.com/ligato/cn-infra/datasync"
 	kvdbsync_local "github.com/ligato/cn-infra/datasync/kvdbsync/local"
 	"github.com/ligato/cn-infra/datasync/resync"
-	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/utils/safeclose"
 
 	"github.com/ligato/vpp-agent/clientv1/linux"
@@ -82,7 +81,6 @@ type Deps struct {
 // Init initializes the service plugin and starts watching ETCD for K8s configuration.
 func (p *Plugin) Init() error {
 	var err error
-	p.Log.SetLevel(logging.DebugLevel)
 
 	p.resyncChan = make(chan datasync.ResyncEvent)
 	p.changeChan = make(chan datasync.ChangeEvent)
@@ -100,7 +98,6 @@ func (p *Plugin) Init() error {
 			Contiv:       p.Contiv,
 		},
 	}
-	p.processor.Log.SetLevel(logging.DebugLevel)
 
 	p.nat44Renderer = &nat44.Renderer{
 		Deps: nat44.Deps{
@@ -115,7 +112,6 @@ func (p *Plugin) Init() error {
 			Stats:      p.Stats,
 		},
 	}
-	p.nat44Renderer.Log.SetLevel(logging.DebugLevel)
 
 	p.processor.Init()
 	p.nat44Renderer.Init(false)
@@ -165,23 +161,16 @@ func (p *Plugin) watchEvents() {
 			p.resyncLock.Lock()
 			p.resyncCounter++
 			p.pendingResync = resyncConfigEv
-			p.pendingChanges = []datasync.ChangeEvent{}
 			resyncConfigEv.Done(nil)
 			p.Log.WithField("config", resyncConfigEv).Info("Delaying RESYNC config")
 			p.resyncLock.Unlock()
 
 		case dataChngEv := <-p.changeChan:
 			p.resyncLock.Lock()
-			if p.resyncCounter == 0 {
-				p.Log.WithField("config", dataChngEv).
-					Info("Ignoring data-change received before the first RESYNC")
-				p.resyncLock.Unlock()
-				break
-			}
-			if p.pendingResync != nil {
+			if p.resyncCounter == 0 || p.pendingResync != nil {
 				p.pendingChanges = append(p.pendingChanges, dataChngEv)
 				dataChngEv.Done(nil)
-				p.Log.WithField("config", dataChngEv).Info("Delaying data-change")
+				p.Log.WithField("key", dataChngEv.GetKey()).Info("Delaying data-change")
 			} else {
 				err := p.processor.Update(dataChngEv)
 				dataChngEv.Done(err)
@@ -216,7 +205,7 @@ func (p *Plugin) handleResync(resyncChan chan resync.StatusEvent) {
 					err = p.processor.Resync(p.pendingResync)
 					for i := 0; err == nil && i < len(p.pendingChanges); i++ {
 						dataChngEv := p.pendingChanges[i]
-						p.Log.WithField("config", dataChngEv).Info("Applying delayed data-change")
+						p.Log.WithField("key", dataChngEv.GetKey()).Info("Applying delayed data-change")
 						err = p.processor.Update(dataChngEv)
 					}
 					p.pendingResync = nil

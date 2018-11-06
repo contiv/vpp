@@ -285,7 +285,14 @@ func configureVpp(contivCfg *contiv.Config, stnData *stn.STNReply, useDHCP bool)
 
 	// TODO: do this using linuxcalls once supported in vpp-agent
 	firstIP, lastIP := cidr.AddressRange(cfg.mainIPNet)
-	err = enableArpProxy(ch, cidr.Inc(firstIP), cidr.Dec(lastIP), tapIdx)
+
+	// If larger than a /31, remove network and broadcast addresses
+	// from address range.
+	if cidr.AddressCount(cfg.mainIPNet) > 2 {
+		firstIP = cidr.Inc(firstIP)
+		lastIP = cidr.Dec(lastIP)
+	}
+	err = enableArpProxy(ch, firstIP, lastIP, tapIdx)
 	if err != nil {
 		logger.Errorf("Error by configuring proxy ARP: %v", err)
 		return nil, err

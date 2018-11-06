@@ -728,7 +728,7 @@
 
 [[projects]]
   branch = "dev"
-  digest = "1:b6e1d1db96933146348b5d78ac8235cda0c2ec6a283594d802f50b8646d7f6d2"
+  digest = "1:6c0e53cf441df29f059838bafb6a5813aa1e991006f3b5bc2c1d5142af2ff332"
   name = "github.com/ligato/vpp-agent"
   packages = [
     "clientv2/linux",
@@ -766,6 +766,7 @@
     "plugins/vpp/binapi/dhcp",
     "plugins/vpp/binapi/interfaces",
     "plugins/vpp/binapi/ip",
+    "plugins/vpp/binapi/l2",
     "plugins/vpp/binapi/memif",
     "plugins/vpp/binapi/nat",
     "plugins/vpp/binapi/session",
@@ -789,6 +790,10 @@
     "plugins/vppv2/ifplugin/descriptor/adapter",
     "plugins/vppv2/ifplugin/ifaceidx",
     "plugins/vppv2/ifplugin/vppcalls",
+    "plugins/vppv2/l2plugin",
+    "plugins/vppv2/l2plugin/descriptor",
+    "plugins/vppv2/l2plugin/descriptor/adapter",
+    "plugins/vppv2/l2plugin/vppcalls",
     "plugins/vppv2/l3plugin",
     "plugins/vppv2/l3plugin/descriptor",
     "plugins/vppv2/l3plugin/descriptor/adapter",
@@ -804,7 +809,7 @@
     "plugins/vppv2/natplugin/vppcalls",
   ]
   pruneopts = "UT"
-  revision = "571e544fc391e3e06e44732e4f961e3db886262f"
+  revision = "bf9281da0b3002fb8d2455e503edc64586ff5365"
 
 [[projects]]
   branch = "master"
@@ -1701,6 +1706,7 @@
     "github.com/ligato/vpp-agent/plugins/vppv2/ifplugin",
     "github.com/ligato/vpp-agent/plugins/vppv2/ifplugin/ifaceidx",
     "github.com/ligato/vpp-agent/plugins/vppv2/ifplugin/vppcalls",
+    "github.com/ligato/vpp-agent/plugins/vppv2/l2plugin",
     "github.com/ligato/vpp-agent/plugins/vppv2/l3plugin",
     "github.com/ligato/vpp-agent/plugins/vppv2/l3plugin/vppcalls",
     "github.com/ligato/vpp-agent/plugins/vppv2/model/acl",

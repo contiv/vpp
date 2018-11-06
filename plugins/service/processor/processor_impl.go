@@ -169,59 +169,6 @@ func (sp *ServiceProcessor) processNewPod(podNamespace string, podName string) e
 	return nil
 }
 
-func (sp *ServiceProcessor) processUpdatedPod(pod *podmodel.Pod) error {
-	sp.Log.WithFields(logging.Fields{
-		"pod": *pod,
-	}).Debug("ServiceProcessor - processUpdatedPod()")
-	podID := podmodel.ID{Name: pod.Name, Namespace: pod.Namespace}
-
-	if pod.IpAddress == "" {
-		return nil
-	}
-	podIPAddress := net.ParseIP(pod.IpAddress)
-	if podIPAddress == nil || !sp.Contiv.GetPodNetwork().Contains(podIPAddress) {
-		/* ignore pods deployed on other nodes */
-		return nil
-	}
-
-	localEp := sp.getLocalEndpoint(podID)
-	if localEp.ifName != "" {
-		/* already processed */
-		return nil
-	}
-	ifName, ifExists := sp.Contiv.GetIfName(podID.Namespace, podID.Name)
-	if !ifExists {
-		sp.Log.WithFields(logging.Fields{
-			"pod-ns":   podID.Namespace,
-			"pod-name": podID.Name,
-		}).Warn("Failed to get pod interface name")
-		return nil
-	}
-
-	localEp.ifName = ifName
-	if localEp.svcCount > 0 {
-		newBackendIfs := sp.backendIfs.Copy()
-		newBackendIfs.Add(ifName)
-		for _, renderer := range sp.renderers {
-			err := renderer.UpdateLocalBackendIfs(sp.backendIfs, newBackendIfs)
-			if err != nil {
-				return err
-			}
-		}
-		sp.backendIfs = newBackendIfs
-	}
-	newFrontendIfs := sp.frontendIfs.Copy()
-	newFrontendIfs.Add(ifName)
-	for _, renderer := range sp.renderers {
-		err := renderer.UpdateLocalFrontendIfs(sp.frontendIfs, newFrontendIfs)
-		if err != nil {
-			return err
-		}
-	}
-	sp.frontendIfs = newFrontendIfs
-	return nil
-}
-
 func (sp *ServiceProcessor) processDeletingPod(podNamespace string, podName string) error {
 	sp.Lock()
 	defer sp.Unlock()

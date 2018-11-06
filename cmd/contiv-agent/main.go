@@ -40,6 +40,7 @@ import (
 	"github.com/ligato/vpp-agent/plugins/telemetry"
 	vpp_aclplugin "github.com/ligato/vpp-agent/plugins/vppv2/aclplugin"
 	vpp_ifplugin "github.com/ligato/vpp-agent/plugins/vppv2/ifplugin"
+	vpp_l2plugin "github.com/ligato/vpp-agent/plugins/vppv2/l2plugin"
 	vpp_l3plugin "github.com/ligato/vpp-agent/plugins/vppv2/l3plugin"
 	vpp_natplugin "github.com/ligato/vpp-agent/plugins/vppv2/natplugin"
 
@@ -73,6 +74,7 @@ type ContivAgent struct {
 	LinuxIfPlugin *linux_ifplugin.IfPlugin
 	LinuxL3Plugin *linux_l3plugin.L3Plugin
 	VPPIfPlugin   *vpp_ifplugin.IfPlugin
+	VPPL2Plugin   *vpp_l2plugin.L2Plugin
 	VPPL3Plugin   *vpp_l3plugin.L3Plugin
 	VPPNATPlugin  *vpp_natplugin.NATPlugin
 	VPPACLPlugin  *vpp_aclplugin.ACLPlugin
@@ -184,6 +186,7 @@ func main() {
 		LinuxIfPlugin:   &linux_ifplugin.DefaultPlugin,
 		LinuxL3Plugin:   &linux_l3plugin.DefaultPlugin,
 		VPPIfPlugin:     &vpp_ifplugin.DefaultPlugin,
+		VPPL2Plugin:     &vpp_l2plugin.DefaultPlugin,
 		VPPL3Plugin:     &vpp_l3plugin.DefaultPlugin,
 		VPPNATPlugin:    &vpp_natplugin.DefaultPlugin,
 		VPPACLPlugin:    &vpp_aclplugin.DefaultPlugin,

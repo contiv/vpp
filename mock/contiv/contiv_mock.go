@@ -161,12 +161,30 @@ func (mc *MockContiv) SetNatLoopbackIP(natLoopIP string) {
 	mc.natLoopbackIP = net.ParseIP(natLoopIP)
 }
 
+// AddingPod allows to simulate event of adding pod - all registered post-add hooks
+// are called.
+func (mc *MockContiv) AddingPod(podID podmodel.ID) error {
+	var wasErr error
+	for _, hook := range mc.podPostAddHooks {
+		err := hook(podID.Namespace, podID.Name)
+		if err != nil {
+			wasErr = err
+		}
+	}
+	return wasErr
+}
+
 // DeletingPod allows to simulate event of deleting pod - all registered pre-removal hooks
 // are called.
-func (mc *MockContiv) DeletingPod(podID podmodel.ID) {
+func (mc *MockContiv) DeletingPod(podID podmodel.ID) error {
+	var wasErr error
 	for _, hook := range mc.podPreRemovalHooks {
-		hook(podID.Namespace, podID.Name)
+		err := hook(podID.Namespace, podID.Name)
+		if err != nil {
+			wasErr = err
+		}
 	}
+	return wasErr
 }
 
 // GetIfName returns pod's interface name as set previously using SetPodIfName.

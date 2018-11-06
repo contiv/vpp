@@ -1163,10 +1163,8 @@ func (s *remoteCNIserver) unconfigurePodInterface(request *cni.CNIRequest, confi
 // of the POD networking.
 func (s *remoteCNIserver) configurePodVPPSide(request *cni.CNIRequest, podIP net.IP, config *PodConfig, txn linuxclient.PutDSL) {
 
-	podIPCIDR := podIP.String() + "/32"
-
 	// route to PodIP via AF_PACKET / TAP
-	config.VppRoute = s.vppRouteFromRequest(request, podIPCIDR)
+	config.VppRoute = s.vppRouteFromRequest(request, podIP)
 	txn.StaticRoute(config.VppRoute)
 
 	// ARP entry for POD IP

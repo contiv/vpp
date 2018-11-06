@@ -33,7 +33,7 @@ import (
 
 const (
 	// ACLNamePrefix is used to tag ACLs created for the implementation of K8s policies.
-	ACLNamePrefix = "contiv/vpp-policy-"
+	ACLNamePrefix = "contiv-policy-"
 
 	// ReflectiveACLName is the name of the *reflective* ACL (full name prefixed with
 	// ACLNamePrefix). Reflective ACL is used to allow responses of accepted sessions

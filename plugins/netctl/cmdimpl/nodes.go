@@ -82,6 +82,7 @@ func PrintNodes(client *remote.HTTPClient, db *etcd.BytesConnectionEtcd) {
 // getNodeInfo will make an http request for the given command and return an indented slice of bytes.
 func getNodeInfo(client *remote.HTTPClient, base string, cmd string) ([]byte, error) {
 	res, err := client.Get(base, cmd)
+	defer res.Body.Close()
 	if err != nil {
 		err := fmt.Errorf("getNodeInfo: url: %s Get Error: %s", cmd, err.Error())
 		fmt.Printf("http get error: %s ", err.Error())
@@ -105,6 +106,7 @@ func getNodeInfo(client *remote.HTTPClient, base string, cmd string) ([]byte, er
 // setNodeInfo will make an http json post request to get the vpp cli command output
 func setNodeInfo(client *remote.HTTPClient, base string, cmd string, body string) error {
 	res, err := client.Post(base, cmd, body)
+	defer res.Body.Close()
 	if err != nil {
 		err := fmt.Errorf("setNodeInfo: url: %s Get Error: %s", cmd, err.Error())
 		return err

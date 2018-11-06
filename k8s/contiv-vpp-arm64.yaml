@@ -37,6 +37,7 @@ data:
     IPNeighborStaleThreshold: 4
     ServiceLocalEndpointWeight: 1
     DisableNATVirtualReassembly: false
+    EnablePacketTrace: false
     CRDNodeConfigurationDisabled: true
     IPAMConfig:
       NodeInterconnectDHCP: false

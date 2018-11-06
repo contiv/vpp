@@ -206,8 +206,8 @@ func (h *NatVppHandler) nat44StaticMappingDump() (entries stMappingMap, err erro
 
 		// Add mapping into the map.
 		mapping := &nat.DNat44_StaticMapping{
-			ExternalInterface: extIfaceName,
-			ExternalPort:      uint32(msg.ExternalPort),
+			ExternalInterface:  extIfaceName,
+			ExternalPort:       uint32(msg.ExternalPort),
 			ExternalIpFromPool: extIPFromPool,
 			LocalIps: []*nat.DNat44_StaticMapping_LocalIP{ // single-value
 				{

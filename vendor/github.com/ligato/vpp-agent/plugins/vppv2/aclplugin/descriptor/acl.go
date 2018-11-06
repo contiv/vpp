@@ -15,6 +15,8 @@
 package descriptor
 
 import (
+	"bytes"
+	"net"
 	"strings"
 
 	"github.com/gogo/protobuf/proto"
@@ -30,8 +32,6 @@ import (
 	"github.com/ligato/vpp-agent/plugins/vppv2/ifplugin"
 	ifdescriptor "github.com/ligato/vpp-agent/plugins/vppv2/ifplugin/descriptor"
 	"github.com/ligato/vpp-agent/plugins/vppv2/model/acl"
-	"net"
-	"bytes"
 )
 
 const (
@@ -109,35 +109,39 @@ func (d *ACLDescriptor) EquivalentACLs(key string, oldACL, newACL *acl.Acl) bool
 	return true
 }
 
+// equivalentACLRules compares two ACL rules, handling the cases of unspecified
+// source/destination networks.
 func (d *ACLDescriptor) equivalentACLRules(rule1, rule2 *acl.Acl_Rule) bool {
-	if rule1.Action != rule2.Action || !proto.Equal(rule1.MacipRule, rule2.MacipRule) {
+	// Action
+	if rule1.Action != rule2.Action {
+		return false
+	}
+
+	// MAC IP Rule
+	if !proto.Equal(rule1.MacipRule, rule2.MacipRule) {
 		return false
 	}
 
 	// IP Rule
-	if rule1.IpRule == nil || rule2.IpRule == nil {
-		return rule1.IpRule == rule2.IpRule
-	}
-	if !proto.Equal(rule1.IpRule.Icmp, rule2.IpRule.Icmp) ||
-		!proto.Equal(rule1.IpRule.Tcp, rule2.IpRule.Tcp) ||
-		!proto.Equal(rule1.IpRule.Udp, rule2.IpRule.Udp) {
+	ipRule1 := rule1.GetIpRule()
+	ipRule2 := rule2.GetIpRule()
+	if !proto.Equal(ipRule1.GetIcmp(), ipRule2.GetIcmp()) ||
+		!proto.Equal(ipRule1.GetTcp(), ipRule2.GetTcp()) ||
+		!proto.Equal(ipRule1.GetUdp(), ipRule2.GetUdp()) {
 		return false
 	}
-	if rule1.IpRule.Ip == nil || rule2.IpRule.Ip == nil {
-		return rule1.IpRule.Ip == rule2.IpRule.Ip
-	}
-	if !d.equivalentIpRuleNetworks(rule1.IpRule.Ip.SourceNetwork, rule2.IpRule.Ip.SourceNetwork) {
+	if !d.equivalentIPRuleNetworks(ipRule1.GetIp().GetSourceNetwork(), ipRule2.GetIp().GetSourceNetwork()) {
 		return false
 	}
-	if !d.equivalentIpRuleNetworks(rule1.IpRule.Ip.DestinationNetwork, rule2.IpRule.Ip.DestinationNetwork) {
+	if !d.equivalentIPRuleNetworks(ipRule1.GetIp().GetDestinationNetwork(), ipRule2.GetIp().GetDestinationNetwork()) {
 		return false
 	}
 	return true
 }
 
-// equivalentIpRuleNetworks compares two IP networks, taking into account the fact
-// that for ACL rules empty string is equivalent to address with all zeroes.
-func (d *ACLDescriptor) equivalentIpRuleNetworks(net1, net2 string) bool {
+// equivalentIPRuleNetworks compares two IP networks, taking into account the fact
+// that empty string is equivalent to address with all zeroes.
+func (d *ACLDescriptor) equivalentIPRuleNetworks(net1, net2 string) bool {
 	var (
 		ip1, ip2 net.IP
 		ipNet1, ipNet2 *net.IPNet

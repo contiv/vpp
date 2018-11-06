@@ -23,7 +23,6 @@ import (
 
 	nodemodel "github.com/contiv/vpp/plugins/contiv/model/node"
 	epmodel "github.com/contiv/vpp/plugins/ksr/model/endpoints"
-	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	svcmodel "github.com/contiv/vpp/plugins/ksr/model/service"
 )
 
@@ -64,26 +63,6 @@ func (sc *ServiceProcessor) propagateDataChangeEv(dataChngEv datasync.ProtoWatch
 			return sc.processUpdatedNode(&value)
 		}
 		return sc.processNewNode(&value)
-	}
-
-	// Process Pod CHANGE event
-	_, _, err = podmodel.ParsePodFromKey(key)
-	if err == nil {
-		var value, prevValue podmodel.Pod
-
-		if err = dataChngEv.GetValue(&value); err != nil {
-			return err
-		}
-
-		if diff, err = dataChngEv.GetPrevValue(&prevValue); err != nil {
-			return err
-		}
-
-		// Process notification about a new or updated pod.
-		if datasync.Delete != dataChngEv.GetChangeType() {
-			return sc.processUpdatedPod(&value)
-		}
-		return nil
 	}
 
 	// Process Endpoints CHANGE event

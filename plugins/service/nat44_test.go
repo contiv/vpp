@@ -246,6 +246,8 @@ func TestResyncAndSingleService(t *testing.T) {
 	Expect(natPlugin.HasIdentityMapping(mainIfID2)).To(BeTrue())
 
 	// Add pods.
+	Expect(contiv.AddingPod(pod1)).To(BeNil())
+	Expect(contiv.AddingPod(pod2)).To(BeNil())
 	dataChange2 := datasync.Put(podmodel.Key(pod1.Name, pod1.Namespace), pod1Model)
 	Expect(processor.Update(dataChange2)).To(BeNil())
 	dataChange3 := datasync.Put(podmodel.Key(pod2.Name, pod2.Namespace), pod2Model)
@@ -518,6 +520,9 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 	Expect(processor.Resync(resyncEv)).To(BeNil())
 
 	// Add pods.
+	Expect(contiv.AddingPod(pod1)).To(BeNil())
+	Expect(contiv.AddingPod(pod2)).To(BeNil())
+	Expect(contiv.AddingPod(pod3)).To(BeNil())
 	dataChange1 := datasync.Put(podmodel.Key(pod1.Name, pod1.Namespace), pod1Model)
 	Expect(processor.Update(dataChange1)).To(BeNil())
 	dataChange2 := datasync.Put(podmodel.Key(pod2.Name, pod2.Namespace), pod2Model)
@@ -1420,6 +1425,9 @@ func TestServiceUpdates(t *testing.T) {
 	Expect(processor.Resync(resyncEv)).To(BeNil())
 
 	// Add pods.
+	Expect(contiv.AddingPod(pod1)).To(BeNil())
+	Expect(contiv.AddingPod(pod2)).To(BeNil())
+	Expect(contiv.AddingPod(pod3)).To(BeNil())
 	dataChange1 := datasync.Put(podmodel.Key(pod1.Name, pod1.Namespace), pod1Model)
 	Expect(processor.Update(dataChange1)).To(BeNil())
 	dataChange2 := datasync.Put(podmodel.Key(pod2.Name, pod2.Namespace), pod2Model)
@@ -1567,7 +1575,7 @@ func TestServiceUpdates(t *testing.T) {
 	Expect(natPlugin.HasIdentityMapping(mainIfID2)).To(BeTrue())
 
 	// Remove pod2.
-	contiv.DeletingPod(pod2)
+	Expect(contiv.DeletingPod(pod2)).To(BeNil())
 
 	// Update endpoints accordingly (also add https port)
 	eps1 = &epmodel.Endpoints{
@@ -1746,7 +1754,7 @@ func TestServiceUpdates(t *testing.T) {
 	Expect(natPlugin.HasIdentityMapping(mainIfID2)).To(BeTrue())
 
 	// Remove all endpoints.
-	contiv.DeletingPod(pod1)
+	Expect(contiv.DeletingPod(pod1)).To(BeNil())
 	dataChange9 := datasync.Delete(epmodel.Key(eps1.Name, eps1.Namespace))
 	Expect(processor.Update(dataChange9)).To(BeNil())
 

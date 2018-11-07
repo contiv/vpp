@@ -1321,15 +1321,6 @@ func (s *remoteCNIserver) unconfigurePodInterface(request *cni.CNIRequest, confi
 	// delete VPP to POD interconnect interface
 	txn.VppInterface(config.VppIfName)
 
-	txn1 := s.vppTxnFactory().Delete()
-	txn1.LinuxRoute(config.PodDefaultRouteName)
-	txn1.LinuxRoute(config.PodLinkRouteName)
-	txn1.LinuxArpEntry(config.PodARPEntryName)
-	err := txn1.Send().ReceiveReply()
-	if err != nil {
-		s.Logger.Error(err)
-	}
-
 	if !s.useTAPInterfaces {
 		txn.LinuxInterface(config.Veth1Name).
 			LinuxInterface(config.Veth2Name)

@@ -19,7 +19,7 @@ import (
 	"github.com/contiv/vpp/plugins/contiv/model/node"
 	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
 	"github.com/contiv/vpp/plugins/ksr/model/pod"
-	"github.com/contiv/vpp/plugins/netctl/http"
+	"github.com/contiv/vpp/plugins/netctl/remote"
 	"github.com/ligato/cn-infra/db/keyval/etcd"
 	"github.com/ligato/vpp-agent/plugins/vpp/model/interfaces"
 	"os"
@@ -36,14 +36,15 @@ type nodeDataCache map[string]*nodeData
 type podGetter struct {
 	ndCache nodeDataCache
 	db      *etcd.BytesConnectionEtcd
+	client  *remote.HTTPClient
 	pods    []*pod.Pod
 }
 
 // PrintAllPods will print out all of the non local pods in a network in
 // a table format.
-func PrintAllPods() {
+func PrintAllPods(client *remote.HTTPClient, db *etcd.BytesConnectionEtcd) {
 	w := getWriter("HOST-NAME")
-	pg := newPodGetter()
+	pg := newPodGetter(client, db)
 	pg.printAllPods(w)
 	pg.db.Close()
 	w.Flush()
@@ -51,18 +52,19 @@ func PrintAllPods() {
 
 //PrintPodsPerNode will print out all of the non-local pods for a certain
 // pods along with their tap interface ip address
-func PrintPodsPerNode(input string) {
+func PrintPodsPerNode(client *remote.HTTPClient, db *etcd.BytesConnectionEtcd, input string) {
 	w := getWriter("")
-	pg := newPodGetter()
+	pg := newPodGetter(client, db)
 	pg.printPodsPerNode(w, input, "")
 	pg.db.Close()
 	w.Flush()
 }
 
-func newPodGetter() *podGetter {
+func newPodGetter(client *remote.HTTPClient, db *etcd.BytesConnectionEtcd) *podGetter {
 	pg := &podGetter{
 		ndCache: make(nodeDataCache, 0),
-		db:      getEtcdBroker(),
+		db:      db,
+		client:  client,
 	}
 
 	pg.pods = make([]*pod.Pod, 0)
@@ -116,7 +118,7 @@ func (pg *podGetter) printAllPods(w *tabwriter.Writer) {
 }
 
 func (pg *podGetter) printPodsPerNode(w *tabwriter.Writer, nodeNameOrIP string, nodeName string) {
-	hostIP := resolveNodeOrIP(nodeNameOrIP)
+	hostIP := resolveNodeOrIP(pg.db, nodeNameOrIP)
 
 	fmt.Fprintf(w, "POD-NAME\tNAMESPACE\tPOD-IP\tVPP-IP\tIF-IDX\tIF-NAME\tINTERNAL-IF-NAME\n")
 
@@ -149,7 +151,7 @@ func (pg *podGetter) getTapInterfaceForPod(podInfo *pod.Pod) (string, uint32, st
 	if pg.ndCache[podInfo.HostIpAddress] == nil {
 
 		// Get ipam data for the node where the pod is hosted
-		b, err := http.GetNodeInfo(podInfo.HostIpAddress, getIpamDataCmd)
+		b, err := getNodeInfo(pg.client, podInfo.HostIpAddress, getIpamDataCmd)
 		if err != nil {
 			fmt.Printf("Host '%s', Pod '%s' - failed to get ipam, err %s\n",
 				podInfo.HostIpAddress, podInfo.Name, err)
@@ -164,7 +166,7 @@ func (pg *podGetter) getTapInterfaceForPod(podInfo *pod.Pod) (string, uint32, st
 		}
 
 		// Get interfaces data for the node where the pod is hosted
-		b, err = http.GetNodeInfo(podInfo.HostIpAddress, getInterfaceDataCmd)
+		b, err = getNodeInfo(pg.client, podInfo.HostIpAddress, getInterfaceDataCmd)
 		intfs := make(telemetrymodel.NodeInterfaces)
 		if err := json.Unmarshal(b, &intfs); err != nil {
 			fmt.Printf("Host '%s', Pod '%s' - failed to get pod's interface, err %s\n",

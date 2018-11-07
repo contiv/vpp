@@ -36,6 +36,7 @@ data:
     IPNeighborStaleThreshold: 4
     ServiceLocalEndpointWeight: 1
     DisableNATVirtualReassembly: false
+    EnablePacketTrace: false
     CRDNodeConfigurationDisabled: true
     IPAMConfig:
       NodeInterconnectDHCP: false
@@ -50,6 +51,8 @@ data:
     default-level: debug
     loggers:
       - name: statscollector
+        level: info
+      - name: vpp.if-state
         level: info
   grpc.conf: |
     network: unix

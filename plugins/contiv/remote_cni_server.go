@@ -1342,7 +1342,6 @@ func (s *remoteCNIserver) unconfigurePodInterface(request *cni.CNIRequest, confi
 		err := txn2.Send().ReceiveReply()
 		if err != nil {
 			s.Logger.Error(err)
-			return err
 		}
 
 	}

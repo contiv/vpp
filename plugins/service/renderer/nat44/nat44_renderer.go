@@ -525,7 +525,7 @@ func (rndr *Renderer) exportServiceIPMappings(service *renderer.ContivService, m
 				continue
 			}
 			mapping := &nat.Nat44DNat_DNatConfig_StaticMapping{}
-			if ipType == externalIP {
+			if ipType == externalIP && service.TrafficPolicy == renderer.ClusterWide {
 				mapping.TwiceNat = nat.TwiceNatMode_ENABLED
 			} else {
 				mapping.TwiceNat = nat.TwiceNatMode_SELF

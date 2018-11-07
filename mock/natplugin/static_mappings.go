@@ -34,6 +34,7 @@ type StaticMapping struct {
 	ExternalPort uint16
 	Protocol     renderer.ProtocolType
 	Locals       []*Local
+	TwiceNAT     bool
 }
 
 // Local represents a single backend for VPP NAT mapping.
@@ -125,8 +126,8 @@ func (sm *StaticMapping) String() string {
 			locals += ", "
 		}
 	}
-	return fmt.Sprintf("StaticMapping <ExternalIP:%s ExternalPort:%d Protocol:%s, Locals:[%s]>",
-		sm.ExternalIP.String(), sm.ExternalPort, sm.Protocol.String(), locals)
+	return fmt.Sprintf("StaticMapping <ExternalIP:%s ExternalPort:%d Protocol:%s, Locals:[%s] TwiceNAT:[%t]>",
+		sm.ExternalIP.String(), sm.ExternalPort, sm.Protocol.String(), locals, sm.TwiceNAT)
 }
 
 // String converts local into a human-readable string.
@@ -141,6 +142,7 @@ func (sm *StaticMapping) Copy() *StaticMapping {
 		ExternalIP:   dupIP(sm.ExternalIP),
 		ExternalPort: sm.ExternalPort,
 		Protocol:     sm.Protocol,
+		TwiceNAT:     sm.TwiceNAT,
 	}
 	for _, local := range sm.Locals {
 		smCopy.Locals = append(smCopy.Locals, &Local{
@@ -157,7 +159,8 @@ func (sm *StaticMapping) Copy() *StaticMapping {
 func (sm *StaticMapping) Equals(sm2 *StaticMapping) bool {
 	if !sm.ExternalIP.Equal(sm2.ExternalIP) ||
 		sm.ExternalPort != sm2.ExternalPort ||
-		sm.Protocol != sm2.Protocol {
+		sm.Protocol != sm2.Protocol ||
+		sm.TwiceNAT != sm2.TwiceNAT {
 		return false
 	}
 	if len(sm.Locals) != len(sm2.Locals) {

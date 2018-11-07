@@ -16,13 +16,12 @@ package contiv
 
 import (
 	"fmt"
-	"math/rand"
+	"hash/fnv"
 	"net"
 	"os/exec"
 	"strconv"
 	"strings"
 
-	"github.com/contiv/vpp/plugins/contiv/containeridx/model"
 	"github.com/contiv/vpp/plugins/contiv/model/cni"
 	linux_intf "github.com/ligato/vpp-agent/plugins/linuxv2/model/interfaces"
 	linux_l3 "github.com/ligato/vpp-agent/plugins/linuxv2/model/l3"
@@ -35,78 +34,11 @@ const (
 	ipv4NetAny = "0.0.0.0/0"
 )
 
-// PodConfig groups applied configuration for a container
-type PodConfig struct {
-	// ID identifies the Pod
-	ID string
-	// PodName from the CNI request
-	PodName string
-	// PodNamespace from the CNI request
-	PodNamespace string
-	// Veth1 one end end of veth pair that is in the given container namespace.
-	// Nil if TAPs are used instead.
-	Veth1 *linux_intf.LinuxInterface
-	// Veth2 is the other end of veth pair in the default namespace
-	// Nil if TAPs are used instead.
-	Veth2 *linux_intf.LinuxInterface
-	// VppIf is AF_PACKET/TAP interface connecting pod to VPP
-	VppIf *vpp_intf.Interface
-	// PodTap is the host end of the tap connecting pod to VPP
-	// Nil if TAPs are not used
-	PodTap *linux_intf.LinuxInterface
-	// VppARPEntry is ARP entry configured in VPP to route traffic from VPP to pod.
-	VppARPEntry *vpp_l3.ARPEntry
-	// PodARPEntry is ARP entry configured in the pod to route traffic from pod to VPP.
-	PodARPEntry *linux_l3.LinuxStaticARPEntry
-	// VppRoute is the route from VPP to the container
-	VppRoute *vpp_l3.StaticRoute
-	// PodLinkRoute is the route from pod to the default gateway.
-	PodLinkRoute *linux_l3.LinuxStaticRoute
-	// PodDefaultRoute is the default gateway for the pod.
-	PodDefaultRoute *linux_l3.LinuxStaticRoute
-}
-
-// podConfigToProto transform config structure to structure that will be persisted
-// Beware: Intentionally not all data from config will be persisted, only necessary ones.
-func podConfigToProto(cfg *PodConfig) *container.Persisted {
-	persisted := &container.Persisted{}
-	persisted.ID = cfg.ID
-	persisted.PodName = cfg.PodName
-	persisted.PodNamespace = cfg.PodNamespace
-	if cfg.Veth1 != nil {
-		persisted.Veth1Name = cfg.Veth1.Name
-	}
-	if cfg.Veth2 != nil {
-		persisted.Veth2Name = cfg.Veth2.Name
-	}
-	if cfg.VppIf != nil {
-		persisted.VppIfName = cfg.VppIf.Name
-	}
-	if cfg.PodTap != nil {
-		persisted.PodTapName = cfg.PodTap.Name
-	}
-	if cfg.VppARPEntry != nil {
-		persisted.VppARPEntryIP = cfg.VppARPEntry.IpAddress
-		persisted.VppARPEntryInterface = cfg.VppARPEntry.Interface
-	}
-	if cfg.PodARPEntry != nil {
-		persisted.PodARPEntryInterface = cfg.PodARPEntry.Interface
-		persisted.PodARPEntryIP = cfg.PodARPEntry.IpAddress
-	}
-	if cfg.VppRoute != nil {
-		persisted.VppRouteVrf = cfg.VppRoute.VrfId
-		persisted.VppRouteNextHop = cfg.VppRoute.NextHopAddr
-		persisted.VppRouteDest = cfg.VppRoute.DstNetwork
-	}
-	if cfg.PodLinkRoute != nil {
-		persisted.PodLinkRouteDest = cfg.PodLinkRoute.DstNetwork
-		persisted.PodLinkRouteInterface = cfg.PodLinkRoute.OutgoingInterface
-	}
-	if cfg.PodDefaultRoute != nil {
-		persisted.PodDefaultRouteInterface = cfg.PodDefaultRoute.OutgoingInterface
-	}
-
-	return persisted
+type PodContainer struct {
+	PodName          string
+	PodNamespace     string
+	ContainerID      string
+	NetworkNamespace string
 }
 
 func (s *remoteCNIserver) enableIPv6(request *cni.CNIRequest) error {
@@ -206,12 +138,34 @@ func (s *remoteCNIserver) hwAddrForContainer() string {
 	return "00:00:00:00:00:02"
 }
 
-func (s *remoteCNIserver) generateHwAddrForPodVPPIf() string {
+// TODO: safer may be to use node ID + pod index
+func (s *remoteCNIserver) generateHwAddrForPodVPPIf(request *cni.CNIRequest) string {
 	hwAddr := make(net.HardwareAddr, 6)
-	rand.Read(hwAddr)
+	h := fnv.New32a()
+	h.Write([]byte(request.ContainerId))
+	hash := h.Sum32()
 	hwAddr[0] = 2
 	hwAddr[1] = 0xfe
+	for i := 0; i < 4; i++ {
+		hwAddr[i+2] = byte(hash & 0xff)
+		hash >>= 8
+	}
 	return hwAddr.String()
+}
+
+func (s *remoteCNIserver) podInterfaceNameFromRequest(request *cni.CNIRequest) (vppIfName, linuxIfName string) {
+	if s.config.UseTAPInterfaces {
+		return s.vppTAPNameFromRequest(request), s.linuxTAPNameFromRequest(request)
+	} else {
+		return s.afpacketNameFromRequest(request), s.veth1NameFromRequest(request)
+	}
+}
+
+func (s *remoteCNIserver) hostInterconnectIfName() string {
+	if s.config.UseTAPInterfaces {
+		return TapVPPEndLogicalName
+	}
+	return s.interconnectAfpacketName()
 }
 
 func (s *remoteCNIserver) veth1FromRequest(request *cni.CNIRequest, podIP string) *linux_intf.LinuxInterface {
@@ -254,7 +208,7 @@ func (s *remoteCNIserver) afpacketFromRequest(request *cni.CNIRequest, podIP str
 		Enabled:     true,
 		Vrf:         s.GetPodVrfID(),
 		IpAddresses: []string{s.ipAddrForPodVPPIf(podIP)},
-		PhysAddress: s.generateHwAddrForPodVPPIf(),
+		PhysAddress: s.generateHwAddrForPodVPPIf(request),
 		Link: &vpp_intf.Interface_Afpacket{
 			Afpacket: &vpp_intf.Interface_AfpacketLink{
 				HostIfName: s.veth2HostIfNameFromRequest(request),
@@ -272,15 +226,15 @@ func (s *remoteCNIserver) tapFromRequest(request *cni.CNIRequest, podIP string) 
 		Enabled:     true,
 		Vrf:         s.GetPodVrfID(),
 		IpAddresses: []string{s.ipAddrForPodVPPIf(podIP)},
-		PhysAddress: s.generateHwAddrForPodVPPIf(),
+		PhysAddress: s.generateHwAddrForPodVPPIf(request),
 		Link: &vpp_intf.Interface_Tap{
 			Tap: &vpp_intf.Interface_TapLink{},
 		},
 	}
-	if s.tapVersion == 2 {
+	if s.config.TAPInterfaceVersion == 2 {
 		tap.GetTap().Version = 2
-		tap.GetTap().RxRingSize = uint32(s.tapV2RxRingSize)
-		tap.GetTap().TxRingSize = uint32(s.tapV2TxRingSize)
+		tap.GetTap().RxRingSize = uint32(s.config.TAPv2RxRingSize)
+		tap.GetTap().TxRingSize = uint32(s.config.TAPv2TxRingSize)
 	}
 	return tap
 }
@@ -322,7 +276,7 @@ func (s *remoteCNIserver) vppRouteFromRequest(request *cni.CNIRequest, podIP net
 		NextHopAddr: podIP.String(),
 		VrfId:       s.GetPodVrfID(),
 	}
-	if s.useTAPInterfaces {
+	if s.config.UseTAPInterfaces {
 		route.OutgoingInterface = s.vppTAPNameFromRequest(request)
 	} else {
 		route.OutgoingInterface = s.afpacketNameFromRequest(request)

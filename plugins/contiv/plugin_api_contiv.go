@@ -2,8 +2,6 @@ package contiv
 
 import (
 	"net"
-
-	"github.com/contiv/vpp/plugins/contiv/containeridx"
 )
 
 // PodActionHook defines parameters and the return value of a callback triggered
@@ -24,9 +22,6 @@ type API interface {
 
 	// GetPodNetwork provides subnet used for allocating pod IP addresses on this host node.
 	GetPodNetwork() *net.IPNet
-
-	// GetContainerIndex exposes index of configured containers
-	GetContainerIndex() containeridx.Reader
 
 	// InSTNMode returns true if Contiv operates in the STN mode (single interface for each node).
 	InSTNMode() bool

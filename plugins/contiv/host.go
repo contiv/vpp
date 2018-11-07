@@ -47,7 +47,7 @@ func (s *remoteCNIserver) routePODsFromHost(nextHopIP string) *linux_l3.LinuxSta
 		DstNetwork:        s.ipam.PodSubnet().String(),
 		GwAddr:            nextHopIP,
 	}
-	if s.useTAPInterfaces {
+	if s.config.UseTAPInterfaces {
 		route.OutgoingInterface = TapHostEndLogicalName
 	}
 	return route
@@ -60,7 +60,7 @@ func (s *remoteCNIserver) routeServicesFromHost(nextHopIP string) *linux_l3.Linu
 		DstNetwork:        s.ipam.ServiceNetwork().String(),
 		GwAddr:            nextHopIP,
 	}
-	if s.useTAPInterfaces {
+	if s.config.UseTAPInterfaces {
 		route.OutgoingInterface = TapHostEndLogicalName
 	}
 	return route
@@ -129,7 +129,7 @@ func (s *remoteCNIserver) routesToHost(nextHopIP string) []*vpp_l3.StaticRoute {
 		routes = append(routes, &vpp_l3.StaticRoute{
 			DstNetwork:        fmt.Sprintf("%s/32", ip.String()),
 			NextHopAddr:       nextHopIP,
-			OutgoingInterface: s.hostInterconnectIfName,
+			OutgoingInterface: s.hostInterconnectIfName(),
 			VrfId:             s.GetMainVrfID(),
 		})
 	}
@@ -151,10 +151,10 @@ func (s *remoteCNIserver) interconnectTap() *vpp_intf.Interface {
 		IpAddresses: []string{s.ipam.VEthVPPEndIP().String() + "/" + strconv.Itoa(size)},
 		PhysAddress: HostInterconnectMAC,
 	}
-	if s.tapVersion == 2 {
+	if s.config.TAPInterfaceVersion == 2 {
 		tap.GetTap().Version = 2
-		tap.GetTap().RxRingSize = uint32(s.tapV2RxRingSize)
-		tap.GetTap().TxRingSize = uint32(s.tapV2TxRingSize)
+		tap.GetTap().RxRingSize = uint32(s.config.TAPv2RxRingSize)
+		tap.GetTap().TxRingSize = uint32(s.config.TAPv2TxRingSize)
 	}
 
 	return tap
@@ -278,8 +278,8 @@ func (s *remoteCNIserver) hwAddrForVXLAN(nodeID uint32) string {
 
 }
 
-func (s *remoteCNIserver) vxlanBridgeDomain(bviInterface string) *vpp_l2.BridgeDomain {
-	return &vpp_l2.BridgeDomain{
+func (s *remoteCNIserver) vxlanBridgeDomain() *vpp_l2.BridgeDomain {
+	bd := &vpp_l2.BridgeDomain{
 		Name:                vxlanBDName,
 		Learn:               false,
 		Forward:             true,
@@ -287,12 +287,19 @@ func (s *remoteCNIserver) vxlanBridgeDomain(bviInterface string) *vpp_l2.BridgeD
 		UnknownUnicastFlood: false,
 		Interfaces: []*vpp_l2.BridgeDomain_Interface{
 			{
-				Name:                    bviInterface,
+				Name:                    vxlanBVIInterfaceName,
 				BridgedVirtualInterface: true,
 				SplitHorizonGroup:       vxlanSplitHorizonGroup,
 			},
 		},
 	}
+	for nodeID := range s.otherNodeIDs {
+		bd.Interfaces = append(bd.Interfaces, &vpp_l2.BridgeDomain_Interface{
+			Name:              ifName,
+			SplitHorizonGroup: vxlanSplitHorizonGroup,
+		})
+	}
+	return bd
 }
 
 func (s *remoteCNIserver) vxlanArpEntry(nodeID uint32, hostIP string) *vpp_l3.ARPEntry {
@@ -350,7 +357,7 @@ func (s *remoteCNIserver) routeToOtherManagementIP(managementIP string, nextHopI
 		DstNetwork:  managementIP + "/32",
 		NextHopAddr: nextHopIP,
 	}
-	if s.useL2Interconnect {
+	if s.config.UseL2Interconnect {
 		r.VrfId = s.GetMainVrfID()
 	} else {
 		r.OutgoingInterface = vxlanBVIInterfaceName
@@ -373,7 +380,7 @@ func (s *remoteCNIserver) routeToOtherHostNetworks(destNetwork *net.IPNet, nextH
 		DstNetwork:  destNetwork.String(),
 		NextHopAddr: nextHopIP,
 	}
-	if s.useL2Interconnect {
+	if s.config.UseL2Interconnect {
 		r.VrfId = s.GetMainVrfID()
 	} else {
 		r.OutgoingInterface = vxlanBVIInterfaceName
@@ -382,38 +389,24 @@ func (s *remoteCNIserver) routeToOtherHostNetworks(destNetwork *net.IPNet, nextH
 	return r, nil
 }
 
-func (s *remoteCNIserver) computeVxlanToHost(hostID uint32, hostIP string) (*vpp_intf.Interface, error) {
+func (s *remoteCNIserver) vxlanIfName(otherNodeID uint32) string {
+	return fmt.Sprintf("vxlan%d", otherNodeID)
+}
+
+func (s *remoteCNIserver) computeVxlanToHost(otherNodeID uint32, otherNodeIP string) (*vpp_intf.Interface, error) {
 	return &vpp_intf.Interface{
-		Name: fmt.Sprintf("vxlan%d", hostID),
+		Name: s.vxlanIfName(otherNodeID),
 		Type: vpp_intf.Interface_VXLAN_TUNNEL,
 		Link: &vpp_intf.Interface_Vxlan{
 			Vxlan: &vpp_intf.Interface_VxlanLink{
 				SrcAddress: s.ipPrefixToAddress(s.nodeIP),
-				DstAddress: hostIP,
+				DstAddress: otherNodeIP,
 				Vni:        vxlanVNI,
 			},
 		},
 		Enabled: true,
 		Vrf:     s.GetMainVrfID(),
 	}, nil
-}
-
-func (s *remoteCNIserver) addInterfaceToVxlanBD(bd *vpp_l2.BridgeDomain, ifName string) {
-	bd.Interfaces = append(bd.Interfaces, &vpp_l2.BridgeDomain_Interface{
-		Name:              ifName,
-		SplitHorizonGroup: vxlanSplitHorizonGroup,
-	})
-}
-
-func (s *remoteCNIserver) removeInterfaceFromVxlanBD(bd *vpp_l2.BridgeDomain, ifName string) {
-	for i := range bd.Interfaces {
-		if bd.Interfaces[i].Name == ifName {
-			bd.Interfaces[i] = bd.Interfaces[len(bd.Interfaces)-1]
-			bd.Interfaces[len(bd.Interfaces)-1] = nil
-			bd.Interfaces = bd.Interfaces[:len(bd.Interfaces)-1]
-			break
-		}
-	}
 }
 
 func (s *remoteCNIserver) otherHostIP(hostID uint32, hostIPPrefix string) string {
@@ -469,7 +462,7 @@ func (s *remoteCNIserver) getHostLinkIPs() ([]net.IP, error) {
 	return s.hostIPs, nil
 }
 
-func (s *remoteCNIserver) enableIPNeighborScan(txn linuxclient.PutDSL) {
+func (s *remoteCNIserver) enableIPNeighborScan(txn linuxclient.DataResyncDSL) {
 	txn.IPScanNeighbor(&vpp_l3.IPScanNeighbor{
 		Mode:           vpp_l3.IPScanNeighbor_IPv4,
 		ScanInterval:   uint32(s.config.IPNeighborScanInterval),

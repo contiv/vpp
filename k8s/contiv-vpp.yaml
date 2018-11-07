@@ -393,6 +393,9 @@ spec:
               mountPath: /etc/govpp
             - name: core-dumps
               mountPath: /var/contiv/dumps
+          resources:
+            requests:
+              cpu: 250m
 
       volumes:
         # Used to connect to contiv-etcd.

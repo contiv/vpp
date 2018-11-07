@@ -363,6 +363,7 @@ func TestResyncAndSingleService(t *testing.T) {
 	Expect(natPlugin.HasStaticMapping(staticMapping1)).To(BeTrue())
 	staticMapping2 := staticMapping1.Copy()
 	staticMapping2.ExternalIP = net.ParseIP("20.20.20.20")
+	staticMapping2.TwiceNAT = true
 	Expect(natPlugin.HasStaticMapping(staticMapping2)).To(BeTrue())
 
 	// Change port number for pod2.
@@ -799,8 +800,10 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 	Expect(natPlugin.HasStaticMapping(staticMappingHTTPS)).To(BeTrue())
 	staticMappingHTTP2 := staticMappingHTTP.Copy()
 	staticMappingHTTP2.ExternalIP = net.ParseIP("20.20.20.20")
+	staticMappingHTTP2.TwiceNAT = true
 	staticMappingHTTPS2 := staticMappingHTTPS.Copy()
 	staticMappingHTTPS2.ExternalIP = net.ParseIP("20.20.20.20")
+	staticMappingHTTPS2.TwiceNAT = true
 	Expect(natPlugin.HasStaticMapping(staticMappingHTTP2)).To(BeTrue())
 	Expect(natPlugin.HasStaticMapping(staticMappingHTTPS2)).To(BeTrue())
 
@@ -1592,6 +1595,7 @@ func TestServiceUpdates(t *testing.T) {
 	Expect(natPlugin.HasStaticMapping(staticMappingHTTP)).To(BeTrue())
 	staticMappingHTTP2 := staticMappingHTTP.Copy()
 	staticMappingHTTP2.ExternalIP = net.ParseIP("20.20.20.20")
+	staticMappingHTTP2.TwiceNAT = true
 	Expect(natPlugin.HasStaticMapping(staticMappingHTTP2)).To(BeTrue())
 	Expect(natPlugin.NumOfStaticMappings()).To(Equal(2))
 
@@ -1718,6 +1722,7 @@ func TestServiceUpdates(t *testing.T) {
 	Expect(natPlugin.HasStaticMapping(staticMappingHTTP)).To(BeTrue())
 	staticMappingHTTP2 = staticMappingHTTP.Copy()
 	staticMappingHTTP2.ExternalIP = net.ParseIP("20.20.20.20")
+	staticMappingHTTP2.TwiceNAT = true
 	Expect(natPlugin.HasStaticMapping(staticMappingHTTP2)).To(BeTrue())
 	Expect(natPlugin.NumOfStaticMappings()).To(Equal(2))
 	Expect(natPlugin.NumOfIdentityMappings()).To(Equal(3))
@@ -1789,6 +1794,7 @@ func TestServiceUpdates(t *testing.T) {
 	Expect(natPlugin.HasStaticMapping(staticMappingHTTPS)).To(BeTrue())
 	staticMappingHTTPS2 := staticMappingHTTPS.Copy()
 	staticMappingHTTPS2.ExternalIP = net.ParseIP("20.20.20.20")
+	staticMappingHTTPS2.TwiceNAT = true
 	Expect(natPlugin.HasStaticMapping(staticMappingHTTP2)).To(BeTrue())
 	Expect(natPlugin.HasStaticMapping(staticMappingHTTPS2)).To(BeTrue())
 	Expect(natPlugin.NumOfStaticMappings()).To(Equal(4))

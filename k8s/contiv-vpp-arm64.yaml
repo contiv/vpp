@@ -395,6 +395,9 @@ spec:
               mountPath: /etc/govpp
             - name: core-dumps
               mountPath: /var/contiv/dumps
+          resources:
+            requests:
+              cpu: 250m
 
       volumes:
         # Used to connect to contiv-etcd.
@@ -636,7 +639,15 @@ spec:
         args:
         - -c
         - |
-          cp -f /contiv-netctl /host/usr/local/bin/contiv-netctl || true
+          echo '#!/bin/sh
+          kubectl get pods -n kube-system | \
+            grep contiv-crd | \
+            cut -d " " -f 1 | \
+            xargs -I{} kubectl exec -n kube-system {} \
+            /contiv-netctl "$@"' \
+          > /host/usr/local/bin/contiv-netctl || true
+
+          chmod +x /host/usr/local/bin/contiv-netctl || true
         volumeMounts:
           - name: usr-local-bin
             mountPath: /host/usr/local/bin
@@ -650,6 +661,8 @@ spec:
           value: "/etc/etcd/etcd.conf"
         - name: HTTP_CONFIG
           value: "/etc/http/http.conf"
+        - name: HTTP_CLIENT_CONFIG
+          value: "/etc/http/http.client.conf"
         volumeMounts:
         - name: etcd-cfg
           mountPath: /etc/etcd
@@ -733,4 +746,7 @@ metadata:
 data:
   http.conf: |
     endpoint: 0.0.0.0:9090
+  http.client.conf: |
+    port: 9999
+    use-https: false
 

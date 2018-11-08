@@ -679,10 +679,10 @@ spec:
             - name: core-dumps
               mountPath: {{ .Values.vswitch.coreDumpsDir }}
             {{- end }}
-          {{- if or .Values.vswitch.defineMemoryLimits .Values.vswitch.cpuLimit }}
           resources:
+            {{- if or .Values.vswitch.defineMemoryLimits .Values.vswitch.cpuLimit }}
             limits:
-          {{- end }}
+            {{- end }}
             {{- if .Values.vswitch.defineMemoryLimits }}
               {{- if .Values.vswitch.hugePages1giLimit }}
               hugepages-1Gi: {{ .Values.vswitch.hugePages1giLimit }}
@@ -695,8 +695,10 @@ spec:
             {{- end }}
             {{- if .Values.vswitch.cpuLimit }}
               cpu: {{ .Values.vswitch.cpuLimit }}
+            {{- end }}
+            {{- if .Values.vswitch.cpuRequest }}
             requests:
-              cpu: {{ .Values.vswitch.cpuLimit }}
+              cpu: {{ .Values.vswitch.cpuRequest }}
             {{- end }}
 
       volumes:

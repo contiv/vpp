@@ -13,15 +13,15 @@ usage() {
     echo
     echo "-i <iterations>  Mandatory, the number of iterations in the test."
     echo
-    echo "-l <label>       Optional, a label to print out with the result."
-    echo "                 Helpful when running multiple instances of this"
+    echo "-r <replicas>    Mandatory, number of lb-perf-test instances to"
+    echo "                 run in parallel"
     echo "                 at the same time."
     echo
 }
 
 LABEL=""
 
-while getopts "a:hi:l:" opt
+while getopts "a:hi:r:" opt
 do
     case "$opt" in
     a)  ADDRESS=$OPTARG
@@ -31,7 +31,7 @@ do
         ;;
     i)  ITERATIONS=$OPTARG
         ;;
-    l)  LABEL=$OPTARG
+    r)  REPLICAS=$OPTARG
         ;;
     *)
         # getopts will have already displayed a "illegal option" error.
@@ -56,29 +56,19 @@ then
     exit 1
 fi
 
-if [[ "$LABEL" != "" ]]
+if [[ -z ${REPLICAS+x} ]]
 then
-    echo "$LABEL" starting...
+    echo The number of replicas is not specified
+    usage
+    exit 1
 fi
 
-START_TIME=$(( $(date +%s%N)/1000000 ))
-
 COUNTER=0
-while [[ "$COUNTER" -lt "$ITERATIONS" ]]
+while [[ "$COUNTER" -lt "$REPLICAS" ]]
 do
     # echo Iteration "$COUNTER"
-    wget -O - "$ADDRESS"  > /dev/null 2>&1
+    ./lb-perf-test.sh -i "$ITERATIONS" -a "$ADDRESS" -l TEST-"$COUNTER" &
     let COUNTER=COUNTER+1
 done
 
-
-END_TIME=$(( $(date +%s%N)/1000000 ))
-DURATION=`expr "$END_TIME" - "$START_TIME"`
-
-if [[ "$LABEL" == "" ]]
-then
-    echo "$ITERATIONS" iterations took "$DURATION" milliseconds
-else
-    echo "$LABEL": "$ITERATIONS" iterations took "$DURATION" milliseconds
-
-fi
+echo Done

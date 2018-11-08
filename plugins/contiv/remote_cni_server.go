@@ -994,11 +994,12 @@ func (s *remoteCNIserver) cleanupVswitchConnectivity() {
 // It also configures the VPP TCP stack for this container, in case it would be LD_PRELOAD-ed.
 func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest) (reply *cni.CNIReply, err error) {
 	var (
-		podIP          net.IP
-		persisted      bool
-		txn            linuxclient.PutDSL
-		revertTxn      linuxclient.DeleteDSL
-		revertFirstTxn linuxclient.DeleteDSL
+		podIP           net.IP
+		persisted       bool
+		txn             linuxclient.PutDSL
+		revertTxn       linuxclient.DeleteDSL
+		revertFirstTxn  linuxclient.DeleteDSL
+		revertSecondTxn linuxclient.DeleteDSL
 	)
 
 	// do not connect any containers until the base vswitch config is successfully applied
@@ -1027,6 +1028,9 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 			if revertFirstTxn != nil {
 				revertFirstTxn.Send().ReceiveReply()
 			}
+			if revertSecondTxn != nil {
+				revertSecondTxn.Send().ReceiveReply()
+			}
 			if revertTxn != nil {
 				revertTxn.Send().ReceiveReply()
 			}
@@ -1045,8 +1049,9 @@ func (s *remoteCNIserver) configureContainerConnectivity(request *cni.CNIRequest
 
 	// prepare configuration for the POD interface
 	revertTxn = s.vppTxnFactory().Delete()
+	revertSecondTxn = s.vppTxnFactory().Delete()
 	txn = s.vppTxnFactory().Put()
-	err = s.configurePodInterface(request, podIP, config, txn, revertTxn)
+	err = s.configurePodInterface(request, podIP, config, txn, revertTxn, revertSecondTxn)
 	if err != nil {
 		s.Logger.Error(err)
 		return s.generateCniErrorReply(err)
@@ -1248,7 +1253,7 @@ func (s *remoteCNIserver) unconfigureContainerConnectivityWithoutLock(request *c
 // configurePodInterface prepares transaction <txn> to configure POD's
 // network interface and its routes + ARPs.
 func (s *remoteCNIserver) configurePodInterface(request *cni.CNIRequest, podIP net.IP, config *PodConfig,
-	txn linuxclient.PutDSL, revertTxn linuxclient.DeleteDSL) error {
+	txn linuxclient.PutDSL, revertTxn linuxclient.DeleteDSL, revertBefore linuxclient.DeleteDSL) error {
 
 	// this is necessary for the latest docker where ipv6 is disabled by default.
 	// OS assigns automatically ipv6 addr to a newly created TAP. We
@@ -1284,6 +1289,8 @@ func (s *remoteCNIserver) configurePodInterface(request *cni.CNIRequest, podIP n
 
 		// Linux-side of the TAP
 		txn.LinuxInterface(config.PodTap)
+		// Linux-side must be reverted before the VPP side
+		revertBefore.LinuxInterface(config.PodTap.Name)
 	} else {
 		// veth pair + AF_PACKET
 		config.Veth1 = s.veth1FromRequest(request, podIPCIDR)
@@ -1319,9 +1326,21 @@ func (s *remoteCNIserver) unconfigurePodInterface(request *cni.CNIRequest, confi
 
 	// delete VPP to POD interconnect interface
 	txn.VppInterface(config.VppIfName)
+
 	if !s.useTAPInterfaces {
 		txn.LinuxInterface(config.Veth1Name).
 			LinuxInterface(config.Veth2Name)
+	} else {
+		// TODO: use 'txn' instead of 'txn2' once simultaneous delete of AUTO-TAP + vpp TAP do not produce error
+		txn2 := s.vppTxnFactory().Delete()
+
+		txn2.LinuxInterface(config.PodTapName)
+		// TODO: remove once agent can handle simultaneous removal of auto tap + vpp tap
+		err := txn2.Send().ReceiveReply()
+		if err != nil {
+			s.Logger.Error(err)
+		}
+
 	}
 
 	return nil

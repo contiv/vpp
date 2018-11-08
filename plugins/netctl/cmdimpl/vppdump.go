@@ -17,34 +17,35 @@ package cmdimpl
 
 import (
 	"fmt"
-	"github.com/contiv/vpp/plugins/netctl/http"
+	"github.com/contiv/vpp/plugins/netctl/remote"
+	"github.com/ligato/cn-infra/db/keyval/etcd"
 	"strings"
 )
 
 // DumpCmd executes the specified vpp dump operation on the specified node.
 // if not operation is specified, it finds the available operations on the
 // local node and prints them to the console.
-func DumpCmd(nodeName string, dumpType string) {
+func DumpCmd(client *remote.HTTPClient, db *etcd.BytesConnectionEtcd, nodeName string, dumpType string) {
 
 	if nodeName == "" || dumpType == "" {
-		helpText := http.Crawl("localhost:9999")
+		helpText := client.Crawl("", "", "/"+getVppDumpCmd)
 		fmt.Printf("Command usage: netctl vppdump %s <cmd>:\n", nodeName)
 		for num, txt := range helpText {
-			txt = strings.TrimPrefix(txt, "/vpp/dump/v1/")
+			txt = strings.TrimPrefix(txt, "/"+getVppDumpCmd)
 			fmt.Printf("cmd %+v: %s\n", num, txt)
 		}
 		return
 	}
 
 	fmt.Printf("vppdump %s %s\n", nodeName, dumpType)
-	ipAdr := resolveNodeOrIP(nodeName)
+	ipAdr := resolveNodeOrIP(db, nodeName)
 	if ipAdr == "" {
 		fmt.Printf("Unknown node name %s", nodeName)
 		return
 	}
 
-	cmd := fmt.Sprintf("vpp/dump/v1/%s", dumpType)
-	b, err := http.GetNodeInfo(ipAdr, cmd)
+	cmd := fmt.Sprintf("%s/%s", getVppDumpCmd, dumpType)
+	b, err := getNodeInfo(client, ipAdr, cmd)
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -55,14 +56,14 @@ func DumpCmd(nodeName string, dumpType string) {
 
 // VppCliCmd sends a VPP debug CLI command to the specified node's VPP Agent
 // and prints the output of the command to console.
-func VppCliCmd(nodeName string, vppclicmd string) {
+func VppCliCmd(client *remote.HTTPClient, db *etcd.BytesConnectionEtcd, nodeName string, vppclicmd string) {
 
 	fmt.Printf("vppcli %s %s\n", nodeName, vppclicmd)
 
-	ipAdr := resolveNodeOrIP(nodeName)
+	ipAdr := resolveNodeOrIP(db, nodeName)
 	cmd := fmt.Sprintf("vpp/command")
 	body := fmt.Sprintf("{\"vppclicommand\":\"%s\"}", vppclicmd)
-	err := http.SetNodeInfo(ipAdr, cmd, body)
+	err := setNodeInfo(client, ipAdr, cmd, body)
 	if err != nil {
 		fmt.Println(err)
 	}

@@ -16,8 +16,8 @@ package cmdimpl
 
 const (
 	getInterfaceDataCmd = "vpp/dump/v1/interfaces"
+	getVppDumpCmd       = "vpp/dump/v1"
 	getIpamDataCmd      = "contiv/v1/ipam"
 	nodeInfoDataKey     = "/vnf-agent/contiv-ksr/allocatedIDs/"
-	etcdLocation        = "127.0.0.1:32379"
 	timeLayout          = "Mon Jan _2 15:04:05 2006"
 )

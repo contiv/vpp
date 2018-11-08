@@ -117,10 +117,14 @@ type ContivService struct {
 	// TrafficPolicy decides if traffic is routed cluster-wide or node-local only.
 	TrafficPolicy TrafficPolicyType
 
-	// ExternalIPs is a set of all IP addresses on which the service
-	// should be exposed on this node (aside from node IPs for NodePorts, which
+	// ClusterIPs is a set of all IP addresses on which the service
+	// should be exposed within the cluster (aside from node IPs for NodePorts, which
 	// are provided separately via the ServiceRendererAPI.UpdateNodePortServices()
 	// method).
+	ClusterIPs *IPAddresses
+
+	// ExternalIPs is a set of all IP addresses on which the service
+	// should be exposed outside of the cluster (e.g. external load-balancer IPs).
 	ExternalIPs *IPAddresses
 
 	// Ports is a map of all ports exposed for this service.
@@ -144,6 +148,7 @@ const (
 // NewContivService is a constructor for ContivService.
 func NewContivService() *ContivService {
 	return &ContivService{
+		ClusterIPs:  NewIPAddresses(),
 		ExternalIPs: NewIPAddresses(),
 		Ports:       make(map[string]*ServicePort),
 		Backends:    make(map[string][]*ServiceBackend),
@@ -152,6 +157,13 @@ func NewContivService() *ContivService {
 
 // String converts ContivService into a human-readable string.
 func (cs ContivService) String() string {
+	clusterIPs := ""
+	for idx, ip := range cs.ClusterIPs.list {
+		clusterIPs += ip.String()
+		if idx < len(cs.ClusterIPs.list)-1 {
+			clusterIPs += ", "
+		}
+	}
 	externalIPs := ""
 	for idx, ip := range cs.ExternalIPs.list {
 		externalIPs += ip.String()
@@ -175,8 +187,8 @@ func (cs ContivService) String() string {
 		}
 		idx++
 	}
-	return fmt.Sprintf("ContivService %s <Traffic-Policy:%s ExternalIPs:[%s] Backends:{%s}>",
-		cs.ID.String(), cs.TrafficPolicy.String(), externalIPs, allBackends)
+	return fmt.Sprintf("ContivService %s <Traffic-Policy:%s ClusterIPs:[%s] ExternalIPs:[%s] Backends:{%s}>",
+		cs.ID.String(), cs.TrafficPolicy.String(), clusterIPs, externalIPs, allBackends)
 }
 
 // String converts TrafficPolicyType into a human-readable string.

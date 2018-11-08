@@ -99,7 +99,7 @@ func (s *Service) Refresh() {
 	if s.meta.ClusterIp != "" && s.meta.ClusterIp != "None" {
 		clusterIP := net.ParseIP(s.meta.ClusterIp)
 		if clusterIP != nil {
-			s.contivSvc.ExternalIPs.Add(clusterIP)
+			s.contivSvc.ClusterIPs.Add(clusterIP)
 		} else {
 			s.sp.Log.WithFields(logging.Fields{
 				"service":   s.contivSvc.ID,

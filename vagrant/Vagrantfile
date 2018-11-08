@@ -48,6 +48,7 @@ end
 http_proxy = ENV['HTTP_PROXY'] || ENV['http_proxy'] || ''
 https_proxy = ENV['HTTPS_PROXY'] || ENV['https_proxy'] || ''
 k8s_version = ENV['K8S_VERSION']
+docker_version = ENV['DOCKER_VERSION']
 node_os = ENV['K8S_NODE_OS'] || 'ubuntu'
 node_os_release = ENV['K8S_NODE_OS_RELEASE'] || '16.04'
 node_cpus = ENV['K8S_NODE_CPUS'].to_i == 0 ? 4 : ENV['K8S_NODE_CPUS'].to_i
@@ -113,9 +114,9 @@ sudo -E apt-get install -qy kubelet=#{k8s_version}-00 \
 
 echo "Installing Docker..."
 if [ "#{node_os_release}" == "16.04" ] ; then
-  sudo -E apt-get install -y docker-ce
+  sudo -E apt-get install -y docker-ce=#{docker_version}~ubuntu
 else
-  sudo -E apt-get install -y docker.io
+  sudo -E apt-get install -y docker.io=18.06.1-0ubuntu1~18.04.1
 fi
 
 #Setup the proxy if needed

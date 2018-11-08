@@ -163,6 +163,9 @@ spec:
               - etcdctl get --endpoints=127.0.0.1:32379 /
             periodSeconds: 2
             initialDelaySeconds: 20
+          resources:
+            requests:
+              cpu: 100m
       volumes:
         - name: var-etcd
           hostPath:
@@ -393,6 +396,9 @@ spec:
               mountPath: /etc/govpp
             - name: core-dumps
               mountPath: /var/contiv/dumps
+          resources:
+            requests:
+              cpu: 250m
 
       volumes:
         # Used to connect to contiv-etcd.

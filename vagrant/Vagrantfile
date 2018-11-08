@@ -113,9 +113,9 @@ sudo -E apt-get install -qy kubelet=#{k8s_version}-00 \
 
 echo "Installing Docker..."
 if [ "#{node_os_release}" == "16.04" ] ; then
-  sudo -E apt-get install -y docker-ce
+  sudo -E apt-get install -y docker-ce=18.06.1~ce~3-0~ubuntu
 else
-  sudo -E apt-get install -y docker.io
+  sudo -E apt-get install -y docker.io=18.06.1-0ubuntu1~18.04.1
 fi
 
 #Setup the proxy if needed

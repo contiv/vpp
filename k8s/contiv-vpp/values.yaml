@@ -79,6 +79,8 @@ etcd:
     clientCert: client.pem
     clientKey: client-key.pem
   updateStrategy: RollingUpdate
+  cpuRequest: 100m
+  cpuLimit: 0
 
 vswitch:
   image:

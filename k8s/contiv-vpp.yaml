@@ -163,6 +163,9 @@ spec:
               - etcdctl get --endpoints=127.0.0.1:32379 /
             periodSeconds: 2
             initialDelaySeconds: 20
+          resources:
+            requests:
+              cpu: 100m
       volumes:
         - name: var-etcd
           hostPath:

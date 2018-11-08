@@ -249,6 +249,15 @@ spec:
               - etcdctl get --endpoints=127.0.0.1:{{ .Values.etcd.service.nodePort }} /
             periodSeconds: 2
             initialDelaySeconds: 20
+          resources:
+            {{- if .Values.etcd.cpuLimit }}
+            limits:
+              cpu: {{ .Values.etcd.cpuLimit }}
+            {{- end }}
+            {{- if .Values.etcd.cpuRequest }}
+            requests:
+              cpu: {{ .Values.etcd.cpuRequest }}
+            {{- end }}
       {{- if .Values.etcd.secureTransport }}
       volumes:
         - name: etcd-secrets

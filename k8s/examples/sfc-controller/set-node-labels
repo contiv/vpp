@@ -2,5 +2,5 @@
 
 echo "Schedule Pods on master"
 kubectl taint nodes --all node-role.kubernetes.io/master-
-kubectl label nodes k8s-master role=affinity
-kubectl label nodes k8s-worker1 role=no-affinity
+kubectl label nodes k8s-master role=affinity --overwrite=true
+kubectl label nodes k8s-worker1 role=no-affinity --overwrite=true

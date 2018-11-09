@@ -197,7 +197,8 @@ type remoteCNIserver struct {
 
 	// this node's main IP address and the default gateway
 	// - NOT reset by resync
-	nodeIP string // TODO: net.IP
+	nodeIP    net.IP
+	nodeIPNet *net.IPNet
 	defaultGw net.IP
 
 	// IP addresses of this node present in the host network namespace (Linux)
@@ -234,15 +235,11 @@ type remoteCNIserver struct {
 	// name of extra physical interfaces configured by the agent
 	otherPhysicalIfs []string
 
-	// IP address and gateway in the STN case
-	stnIP string // TODO: net.IP
-	stnGw string // TODO: net.IP
-
-	// default gateway IP address
-
+	// go routine management
 	ctx           context.Context
 	ctxCancelFunc context.CancelFunc
 
+	// REST interface
 	http rest.HTTPHandlers
 }
 
@@ -286,8 +283,6 @@ func (s *remoteCNIserver) reset() {
 	s.mainPhysicalIf = ""
 	s.hostIPs = []net.IP{}
 	s.otherPhysicalIfs = []string{}
-	s.stnIP = ""
-	s.stnGw = ""
 	s.otherNodes = make(map[uint32]*node.NodeInfo)
 	s.podByID = make(map[pod.ID]*Pod)
 	s.podByVPPIfName = make(map[string]*Pod)
@@ -320,7 +315,16 @@ func (s *remoteCNIserver) Resync(dataResyncEv datasync.ResyncEvent) error {
 		s.Logger.Error(err)
 	}
 
-	// TODO pods <-> vswitch
+	// pods <-> vswitch
+	err = s.podContainersResync(dataResyncEv)
+	if err != nil {
+		wasErr = err
+		s.Logger.Error(err)
+	}
+	for _, pod := range s.podByID {
+		config := s.podConnectivityConfig(pod)
+		txn_api.PutAll(txn, config)
+	}
 
 	// commit resync transaction
 	ctx := context.Background()
@@ -624,8 +628,16 @@ func (s *remoteCNIserver) configureVswitchConnectivity(txn txn_api.ResyncOperati
 func (s *remoteCNIserver) configureVswitchNICs(txn txn_api.ResyncOperations) error {
 	s.Logger.Info("Existing interfaces: ", s.swIfIndex.ListAllInterfaces())
 
+	// dump physical interfaces present on VPP
+	ifHandler := intf_vppcalls.NewIfVppHandler(s.govppChan, s.Logger)
+	nics, err := ifHandler.DumpInterfacesByType(vpp_intf.Interface_ETHERNET_CSMACD)
+	if err != nil {
+		s.Logger.Errorf("Failed to dump physical interfaces: %v", err)
+		return err
+	}
+
 	// configure the main VPP NIC interface
-	err := s.configureMainVPPInterface(txn)
+	err = s.configureMainVPPInterface(nics, txn)
 	if err != nil {
 		s.Logger.Error(err)
 		return err
@@ -634,14 +646,18 @@ func (s *remoteCNIserver) configureVswitchNICs(txn txn_api.ResyncOperations) err
 	// configure other interfaces that were configured in contiv plugin YAML configuration
 	if s.nodeConfig != nil && len(s.nodeConfig.OtherVPPInterfaces) > 0 {
 		s.Logger.Debug("Configuring VPP for additional interfaces")
-		s.configureOtherVPPInterfaces(txn)
+		err = s.configureOtherVPPInterfaces(nics, txn)
+		if err != nil {
+			s.Logger.Error(err)
+			return err
+		}
 	}
 
 	return nil
 }
 
 // configureMainVPPInterface configures the main NIC used for node interconnect on vswitch VPP.
-func (s *remoteCNIserver) configureMainVPPInterface(txn txn_api.ResyncOperations) error {
+func (s *remoteCNIserver) configureMainVPPInterface(nics map[uint32]*intf_vppcalls.InterfaceDetails, txn txn_api.ResyncOperations) error {
 	var err error
 
 	// 1. Determine the name of the main VPP NIC interface
@@ -655,12 +671,6 @@ func (s *remoteCNIserver) configureMainVPPInterface(txn txn_api.ResyncOperations
 
 	if nicName == "" {
 		// name not specified in config, use heuristic - select first non-virtual interface
-		ifHandler := intf_vppcalls.NewIfVppHandler(s.govppChan, s.Logger)
-		nics, err := ifHandler.DumpInterfacesByType(vpp_intf.Interface_ETHERNET_CSMACD)
-		if err != nil {
-			s.Logger.Errorf("Failed to dump physical interfaces: %v", err)
-			return err
-		}
 nextNIC:
 		for _, nic := range nics {
 			// exclude "other" (non-main) NICs
@@ -680,10 +690,17 @@ nextNIC:
 	// 2. Determine the node IP address, default gateway IP and whether to use DHCP
 
 	// 2.1 Non-STN case, read the configuration
-	nicIP := ""
+	var (
+		nicIP    net.IP
+		nicIPNet *net.IPNet
+	)
 	useDHCP := false
 	if s.nodeConfig != nil && s.nodeConfig.MainVPPInterface.IP != "" {
-		nicIP = s.nodeConfig.MainVPPInterface.IP
+		nicIP, nicIPNet, err = net.ParseCIDR(s.nodeConfig.MainVPPInterface.IP)
+		if err != nil {
+			s.Logger.Errorf("Failed to parse main interface IP address from the config: %v", err)
+			return err
+		}
 	} else if s.nodeConfig != nil && s.nodeConfig.MainVPPInterface.UseDHCP {
 		useDHCP = true
 	} else if s.ipam.NodeInterconnectDHCPEnabled() {
@@ -694,33 +711,32 @@ nextNIC:
 	// 2.2 STN case, IP address taken from the stolen interface
 	if s.UseSTN() {
 		// get IP address of the STN interface
-		var gwIP string
+		var gwIP net.IP
 		if s.nodeConfig != nil && s.nodeConfig.StealInterface != "" {
 			s.Logger.Infof("STN of the host interface %s requested.", s.nodeConfig.StealInterface)
-			nicIP, gwIP, err = s.getSTNInterfaceIP(s.nodeConfig.StealInterface)
+			nicIP, nicIPNet, gwIP, err = s.getSTNInterfaceIP(s.nodeConfig.StealInterface)
 		} else if s.config.StealInterface != "" {
 			s.Logger.Infof("STN of the interface %s requested.", s.config.StealInterface)
-			nicIP, gwIP, err = s.getSTNInterfaceIP(s.config.StealInterface)
+			nicIP, nicIPNet, gwIP, err = s.getSTNInterfaceIP(s.config.StealInterface)
 		} else {
 			s.Logger.Infof("STN of the first interface (%s) requested.", nicName)
-			nicIP, gwIP, err = s.getSTNInterfaceIP("")
+			nicIP, nicIPNet, gwIP, err = s.getSTNInterfaceIP("")
 		}
 
-		if err != nil || nicIP == "" {
+		if err != nil {
 			s.Logger.Errorf("Unable to get STN interface info: %v, disabling the interface.", err)
 			return err
 		}
 
-		s.stnIP = nicIP
-		s.stnGw = gwIP
+		s.defaultGw = gwIP
 	}
 
 	// 2.3 Set node IP address
 	if !s.UseSTN() && useDHCP {
 		// ip address will be assigned by DHCP server, not known yet
 		s.Logger.Infof("Configuring %v to use dhcp", nicName)
-	} else if nicIP != "" {
-		s.setNodeIP(nicIP)
+	} else if len(nicIP) > 0 {
+		s.setNodeIP(nicIP, nicIPNet)
 		s.Logger.Infof("Configuring %v to use %v", nicName, nicIP)
 	} else {
 		nodeIP, err := s.ipam.NodeIPWithPrefix(s.ipam.NodeID())
@@ -728,7 +744,7 @@ nextNIC:
 			s.Logger.Error("Unable to generate node IP address.")
 			return err
 		}
-		s.setNodeIP(nodeIP.String())
+		s.setNodeIP(nodeIP.IP, nodeIP)
 		s.Logger.Infof("Configuring %v to use %v", nicName, nodeIP.String())
 	}
 
@@ -738,7 +754,7 @@ nextNIC:
 		// configure the physical NIC
 		s.Logger.Info("Configuring physical NIC ", nicName)
 
-		nicKey, nic := s.physicalInterface(nicName, s.nodeIP)
+		nicKey, nic := s.physicalInterface(nicName, combineAddrWithNet(s.nodeIP, s.nodeIPNet))
 		if useDHCP {
 			// clear IP addresses
 			nic.IpAddresses = []string{}
@@ -746,16 +762,16 @@ nextNIC:
 			if s.resyncCounter == 1 {
 				// start watching dhcp notif
 				s.dhcpIndex.Watch("cniserver", s.handleDHCPNotification)
-			}
-			// do lookup to cover the case where dhcp was configured by resync
-			// and ip address is already assigned
-			dhcpData, exists := s.dhcpIndex.GetValue(nicName)
-			if exists {
-				dhcpLease := dhcpData.(*vpp_intf.DHCPLease)
-				s.Logger.Infof("DHCP notification already received: %v", dhcpLease)
-				s.applyDHCPLease(dhcpLease)
-			} else {
-				s.Logger.Debugf("Waiting for DHCP notification. Existing DHCP events: %v", s.dhcpIndex.ListAllNames())
+				// do lookup to cover the case where dhcp was configured by resync
+				// and ip address is already assigned
+				dhcpData, exists := s.dhcpIndex.GetValue(nicName)
+				if exists {
+					dhcpLease := dhcpData.(*vpp_intf.DHCPLease)
+					s.Logger.Infof("DHCP notification already received: %v", dhcpLease)
+					s.applyDHCPLease(dhcpLease)
+				} else {
+					s.Logger.Debugf("Waiting for DHCP notification. Existing DHCP events: %v", s.dhcpIndex.ListAllNames())
+				}
 			}
 		}
 		txn.Put(nicKey, nic)
@@ -763,15 +779,22 @@ nextNIC:
 	} else {
 		// configure loopback instead of the physical NIC
 		s.Logger.Debug("Physical NIC not found, configuring loopback instead.")
-		key, loopback := s.loopbackInterface(s.nodeIP)
+		key, loopback := s.loopbackInterface(combineAddrWithNet(s.nodeIP, s.nodeIPNet))
 		txn.Put(key, loopback)
 	}
 
 	// 4. Configure the default route
 
 	if nicName != "" && s.nodeConfig != nil && s.nodeConfig.Gateway != "" {
+		// TODO: what about s.defaultGw???
 		// configure the default gateway
-		key, defaultRoute := s.defaultRoute(s.nodeConfig.Gateway, nicName)
+		gateway := net.ParseIP(s.nodeConfig.Gateway)
+		if gateway == nil {
+			err := fmt.Errorf("failed to parse gateway IP address from the config (%s)",
+				s.nodeConfig.Gateway)
+			return err
+		}
+		key, defaultRoute := s.defaultRoute(gateway, nicName)
 		txn.Put(key, defaultRoute)
 	}
 
@@ -779,14 +802,20 @@ nextNIC:
 }
 
 // configureOtherVPPInterfaces configure all physical interfaces defined in the config but the main one.
-func (s *remoteCNIserver) configureOtherVPPInterfaces(txn txn_api.ResyncOperations) {
+func (s *remoteCNIserver) configureOtherVPPInterfaces(nics map[uint32]*intf_vppcalls.InterfaceDetails, txn txn_api.ResyncOperations) error {
 
 	// match existing interfaces and build configuration
 	interfaces := make(map[string]*vpp_intf.Interface)
-	for _, name := range s.swIfIndex.ListAllInterfaces() {
-		for _, intIP := range s.nodeConfig.OtherVPPInterfaces {
-			if intIP.InterfaceName == name {
-				key, iface := s.physicalInterface(name, intIP.IP)
+	for _, nic := range nics {
+		for _, ifaceCfg := range s.nodeConfig.OtherVPPInterfaces {
+			if ifaceCfg.InterfaceName == nic.Interface.Name {
+				ipAddr, ipNet, err := net.ParseCIDR(ifaceCfg.IP)
+				if err != nil {
+					err := fmt.Errorf("failed to parse IP address configured for interface %s: %v",
+						ifaceCfg.InterfaceName, err)
+					return err
+				}
+				key, iface := s.physicalInterface(nic.Interface.Name, combineAddrWithNet(ipAddr, ipNet))
 				interfaces[key] = iface
 			}
 		}
@@ -799,6 +828,8 @@ func (s *remoteCNIserver) configureOtherVPPInterfaces(txn txn_api.ResyncOperatio
 			s.otherPhysicalIfs = append(s.otherPhysicalIfs, iface.Name)
 		}
 	}
+
+	return nil
 }
 
 // configureVswitchHostConnectivity configures vswitch VPP to Linux host interconnect.
@@ -825,9 +856,9 @@ func (s *remoteCNIserver) configureVswitchHostConnectivity(txn txn_api.ResyncOpe
 	// configure the routes from VPP to host interfaces
 	var routesToHost map[string]*vpp_l3.StaticRoute
 	if !s.UseSTN() {
-		routesToHost = s.routesToHost(s.ipam.VEthHostEndIP().String())
+		routesToHost = s.routesToHost(s.ipam.VEthHostEndIP())
 	} else {
-		routesToHost = s.routesToHost(ipNetToAddress(s.stnIP))
+		routesToHost = s.routesToHost(s.nodeIP)
 	}
 	for key, route := range routesToHost {
 		s.Logger.Debug("Adding route to host IP: ", route)
@@ -836,19 +867,19 @@ func (s *remoteCNIserver) configureVswitchHostConnectivity(txn txn_api.ResyncOpe
 
 	// configure the route from the host to PODs
 	var routeToPods *linux_l3.LinuxStaticRoute
-	if s.stnGw == "" {
-		key, routeToPods = s.routePODsFromHost(s.ipam.VEthVPPEndIP().String())
+	if !s.UseSTN() {
+		key, routeToPods = s.routePODsFromHost(s.ipam.VEthVPPEndIP())
 	} else {
-		key, routeToPods = s.routePODsFromHost(s.stnGw)
+		key, routeToPods = s.routePODsFromHost(s.defaultGw)
 	}
 	txn.Put(key, routeToPods)
 
 	// route from the host to k8s service range from the host
 	var routeToServices *linux_l3.LinuxStaticRoute
-	if s.stnGw == "" {
-		key, routeToServices = s.routeServicesFromHost(s.ipam.VEthVPPEndIP().String())
+	if !s.UseSTN() {
+		key, routeToServices = s.routeServicesFromHost(s.ipam.VEthVPPEndIP())
 	} else {
-		key, routeToServices = s.routeServicesFromHost(s.stnGw)
+		key, routeToServices = s.routeServicesFromHost(s.defaultGw)
 	}
 	txn.Put(key, routeToServices)
 }
@@ -874,6 +905,14 @@ func (s *remoteCNIserver) configureVswitchVrfRoutes(txn txn_api.ResyncOperations
 	for key, route := range routes {
 		txn.Put(key, route)
 	}
+}
+
+// podContainersResync resynchronizes internal maps (s.podBy*) with the current
+// state of locally deployed pods based on Kubernetes state data and information
+// provided by Docker server.
+func (s *remoteCNIserver) podContainersResync(dataResyncEv datasync.ResyncEvent) error {
+	// TODO
+	return nil
 }
 
 /******* Cleanup *******/
@@ -909,7 +948,7 @@ func (s *remoteCNIserver) cleanupVswitchConnectivity() {
 /******* Main Interface IP Address *******/
 
 // getSTNInterfaceIP returns IP address of the interface before stealing it from the host stack.
-func (s *remoteCNIserver) getSTNInterfaceIP(ifName string) (ip string, gw string, err error) {
+func (s *remoteCNIserver) getSTNInterfaceIP(ifName string) (ipAddr net.IP, ipNet *net.IPNet, gw net.IP, err error) {
 	s.Logger.Debugf("Getting STN info for interface %s", ifName)
 
 	// connect to STN GRPC server
@@ -946,23 +985,30 @@ func (s *remoteCNIserver) getSTNInterfaceIP(ifName string) (ip string, gw string
 	if len(reply.IpAddresses) == 0 {
 		return
 	}
-	ip = reply.IpAddresses[0]
+	ipAddr, ipNet, err = net.ParseCIDR(reply.IpAddresses[0])
+	if err != nil {
+		s.Logger.Errorf("Failed to parse IP address returned by STN GRPC: %v", err)
+		return
+	}
 
 	// try to find the default gateway in the list of routes
 	for _, r := range reply.Routes {
 		if r.DestinationSubnet == "" || strings.HasPrefix(r.DestinationSubnet, "0.0.0.0") {
-			gw = r.NextHopIp
-			s.defaultGw = net.ParseIP(gw)
+			gw = net.ParseIP(r.NextHopIp)
+			if err != nil {
+				err = fmt.Errorf("failed to parse GW address returned by STN GRPC (%s)", r.NextHopIp)
+				return
+			}
+			break
 		}
 	}
-	if gw == "" {
+	if len(gw) == 0 {
 		// no default gateway in routes, calculate fake gateway address for route pointing to VPP
-		_, ipNet, _ := net.ParseCIDR(ip)
 		firstIP, lastIP := cidr.AddressRange(ipNet)
-		if cidr.Inc(firstIP).String() != ip {
-			gw = cidr.Inc(firstIP).String()
+		if !cidr.Inc(firstIP).Equal(ipAddr) {
+			gw = cidr.Inc(firstIP)
 		} else {
-			gw = cidr.Dec(lastIP).String()
+			gw = cidr.Dec(lastIP)
 		}
 	}
 
@@ -1007,23 +1053,30 @@ func (s *remoteCNIserver) applyDHCPLease(lease *vpp_intf.DHCPLease) {
 		s.Logger.Errorf("failed to parse DHCP route IP address: %v", err)
 	}
 
-	if s.nodeIP != "" && s.nodeIP != lease.HostIpAddress {
+	hostAddr, hostNet, err := net.ParseCIDR(lease.HostIpAddress)
+	if err != nil {
+		s.Logger.Errorf("failed to parse DHCP host IP address: %v", err)
+		return
+	}
+
+	if len(s.nodeIP) > 0 && !s.nodeIP.Equal(hostAddr) {
 		s.Logger.Error("Update of Node IP address is not supported")
 	}
 
-	s.setNodeIP(lease.HostIpAddress)
+	s.setNodeIP(hostAddr, hostNet)
 	s.Logger.Info("DHCP event processed", lease)
 }
 
 // setNodeIP updates nodeIP and propagate the change to subscribers.
 // The method must be called with acquired mutex guarding remoteCNI server.
-func (s *remoteCNIserver) setNodeIP(nodeIP string) error {
+func (s *remoteCNIserver) setNodeIP(nodeIP net.IP, nodeIPNet *net.IPNet) error {
 
 	s.nodeIP = nodeIP
+	s.nodeIPNet = nodeIPNet
 
 	for _, sub := range s.nodeIPsubscribers {
 		select {
-		case sub <- nodeIP:
+		case sub <- combineAddrWithNet(s.nodeIP, s.nodeIPNet).String(): // TODO use net.IPNet instead
 		default:
 			// skip subscribers who are not ready to receive notification
 		}
@@ -1065,7 +1118,7 @@ func (s *remoteCNIserver) GetVxlanBVIIfName() string {
 // GetHostInterconnectIfName returns the name of the TAP/AF_PACKET interface
 // interconnecting VPP with the host stack.
 func (s *remoteCNIserver) GetHostInterconnectIfName() string {
-	return s.hostInterconnectIfName()
+	return s.hostInterconnectVPPIfName()
 }
 
 // GetNodeIP returns the IP address of this node.
@@ -1073,16 +1126,7 @@ func (s *remoteCNIserver) GetNodeIP() (ip net.IP, network *net.IPNet) {
 	s.Lock()
 	defer s.Unlock()
 
-	if s.nodeIP == "" {
-		return nil, nil
-	}
-
-	nodeIP, nodeNet, err := net.ParseCIDR(s.nodeIP)
-	if err != nil {
-		return nil, nil
-	}
-
-	return nodeIP, nodeNet
+	return s.nodeIP, s.nodeIPNet
 }
 
 // GetHostIPs returns all IP addresses of this node present in the host network namespace (Linux).
@@ -1153,9 +1197,8 @@ func (s *remoteCNIserver) GetDefaultInterface() (ifName string, ifAddress net.IP
 
 	if s.defaultGw != nil {
 		if s.mainPhysicalIf != "" {
-			nodeIP, nodeNet, _ := net.ParseCIDR(s.nodeIP)
-			if nodeNet != nil && nodeNet.Contains(s.defaultGw) {
-				return s.mainPhysicalIf, nodeIP
+			if s.nodeIPNet != nil && s.nodeIPNet.Contains(s.defaultGw) {
+				return s.mainPhysicalIf, s.nodeIP
 			}
 		}
 		for _, physicalIf := range s.nodeConfig.OtherVPPInterfaces {

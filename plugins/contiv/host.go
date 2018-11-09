@@ -47,35 +47,35 @@ func (s *remoteCNIserver) enabledIPNeighborScan() (key string, config *vpp_l3.IP
 // physicalInterface returns configuration for physical interface - either the main interface
 // connecting node with the rest of the cluster or an extra physical interface requested
 // in the config file.
-func (s *remoteCNIserver) physicalInterface(name string, ipAddress string) (key string, config *vpp_intf.Interface) {
+func (s *remoteCNIserver) physicalInterface(name string, ipAddress *net.IPNet) (key string, config *vpp_intf.Interface) {
 	return vpp_intf.InterfaceKey(name),
 		&vpp_intf.Interface{
 			Name:        name,
 			Type:        vpp_intf.Interface_ETHERNET_CSMACD,
 			Enabled:     true,
 			Vrf:         s.GetMainVrfID(),
-			IpAddresses: []string{ipAddress},
+			IpAddresses: []string{ipAddress.String()},
 		}
 }
 
 // loopbackInterface returns configuration for loopback created when no physical interfaces
 // are configured.
-func (s *remoteCNIserver) loopbackInterface(ipAddress string) (key string, config *vpp_intf.Interface) {
+func (s *remoteCNIserver) loopbackInterface(ipAddress *net.IPNet) (key string, config *vpp_intf.Interface) {
 	return vpp_intf.InterfaceKey(loopbackNICLogicalName),
 		&vpp_intf.Interface{
 			Name:        loopbackNICLogicalName,
 			Type:        vpp_intf.Interface_SOFTWARE_LOOPBACK,
 			Enabled:     true,
 			Vrf:         s.GetMainVrfID(),
-			IpAddresses: []string{ipAddress},
+			IpAddresses: []string{ipAddress.String()},
 		}
 }
 
 // defaultRoute return configuration for default route connecting the node with the outside world.
-func (s *remoteCNIserver) defaultRoute(gwIP string, outIfName string) (key string, config *vpp_l3.StaticRoute) {
+func (s *remoteCNIserver) defaultRoute(gwIP net.IP, outIfName string) (key string, config *vpp_l3.StaticRoute) {
 	route := &vpp_l3.StaticRoute{
 		DstNetwork:        ipv4NetAny,
-		NextHopAddr:       gwIP,
+		NextHopAddr:       gwIP.String(),
 		OutgoingInterface: outIfName,
 		VrfId:             s.GetMainVrfID(),
 	}
@@ -199,7 +199,7 @@ func (s *remoteCNIserver) interconnectVethHost() (key string, config *linux_intf
 }
 
 // routesToHost return one route to configure on VPP for every host interface.
-func (s *remoteCNIserver) routesToHost(nextHopIP string) map[string]*vpp_l3.StaticRoute {
+func (s *remoteCNIserver) routesToHost(nextHopIP net.IP) map[string]*vpp_l3.StaticRoute {
 	routes := make(map[string]*vpp_l3.StaticRoute)
 	// list all IPs assigned to host interfaces
 	ips, err := s.getHostLinkIPs()
@@ -212,7 +212,7 @@ func (s *remoteCNIserver) routesToHost(nextHopIP string) map[string]*vpp_l3.Stat
 	for _, ip := range ips {
 		route := &vpp_l3.StaticRoute{
 			DstNetwork:        fmt.Sprintf("%s/32", ip.String()),
-			NextHopAddr:       nextHopIP,
+			NextHopAddr:       nextHopIP.String(),
 			OutgoingInterface: s.hostInterconnectVPPIfName(),
 			VrfId:             s.GetMainVrfID(),
 		}
@@ -225,12 +225,12 @@ func (s *remoteCNIserver) routesToHost(nextHopIP string) map[string]*vpp_l3.Stat
 
 // routePODsFromHost returns configuration for route for the host stack to direct
 // traffic destined to pods via VPP.
-func (s *remoteCNIserver) routePODsFromHost(nextHopIP string) (key string, config *linux_l3.LinuxStaticRoute) {
+func (s *remoteCNIserver) routePODsFromHost(nextHopIP net.IP) (key string, config *linux_l3.LinuxStaticRoute) {
 	route := &linux_l3.LinuxStaticRoute{
 		OutgoingInterface: hostInterconnectVETH1LogicalName,
 		Scope:             linux_l3.LinuxStaticRoute_GLOBAL,
 		DstNetwork:        s.ipam.PodSubnet().String(),
-		GwAddr:            nextHopIP,
+		GwAddr:            nextHopIP.String(),
 	}
 	if s.config.UseTAPInterfaces {
 		route.OutgoingInterface = HostInterconnectTAPinLinuxLogicalName
@@ -241,12 +241,12 @@ func (s *remoteCNIserver) routePODsFromHost(nextHopIP string) (key string, confi
 
 // routeServicesFromHost returns configuration for route for the host stack to direct
 // traffic destined to services via VPP.
-func (s *remoteCNIserver) routeServicesFromHost(nextHopIP string) (key string, config *linux_l3.LinuxStaticRoute) {
+func (s *remoteCNIserver) routeServicesFromHost(nextHopIP net.IP) (key string, config *linux_l3.LinuxStaticRoute) {
 	route := &linux_l3.LinuxStaticRoute{
 		OutgoingInterface: hostInterconnectVETH1LogicalName,
 		Scope:             linux_l3.LinuxStaticRoute_GLOBAL,
 		DstNetwork:        s.ipam.ServiceNetwork().String(),
-		GwAddr:            nextHopIP,
+		GwAddr:            nextHopIP.String(),
 	}
 	if s.config.UseTAPInterfaces {
 		route.OutgoingInterface = HostInterconnectTAPinLinuxLogicalName
@@ -396,7 +396,7 @@ func (s *remoteCNIserver) vxlanIfToOtherNode(otherNodeID uint32, otherNodeIP net
 		Type: vpp_intf.Interface_VXLAN_TUNNEL,
 		Link: &vpp_intf.Interface_Vxlan{
 			Vxlan: &vpp_intf.Interface_VxlanLink{
-				SrcAddress: ipNetToAddress(s.nodeIP),
+				SrcAddress: s.nodeIP.String(),
 				DstAddress: otherNodeIP.String(),
 				Vni:        vxlanVNI,
 			},

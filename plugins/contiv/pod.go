@@ -336,7 +336,7 @@ func (s *remoteCNIserver) ipAddrForPodVPPIf(pod *Pod) string {
 
 // generateHwAddrForPod generates hardware address for Pod interface on the VPP
 // side or on the host (Linux) side.
-// TODO: safer may be to use node ID + pod IP address index
+// TODO: Safer may be to use node ID + pod IP address index
 func (s *remoteCNIserver) hwAddrForPod(pod *Pod, vppSide bool) string {
 	hwAddr := make(net.HardwareAddr, 6)
 	h := fnv.New32a()

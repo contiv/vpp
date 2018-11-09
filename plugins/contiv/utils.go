@@ -160,11 +160,9 @@ func trimInterfaceName(ifName string, maxLen int) string {
 	return ifName
 }
 
-func ipNetToAddress(ip string) string {
-	if strings.Contains(ip, "/") {
-		return ip[:strings.Index(ip, "/")]
-	}
-	return ip
+// combineAddrWithNet combines provided IP address with the mask from the provided network.
+func combineAddrWithNet(addr net.IP, network *net.IPNet) *net.IPNet {
+	return &net.IPNet{IP: addr, Mask: network.Mask}
 }
 
 // ipv4ToUint32 is a simple utility function for conversion from IPv4 to uint32.

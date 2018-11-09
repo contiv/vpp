@@ -27,8 +27,8 @@ import (
 	vpp_intf "github.com/ligato/vpp-agent/plugins/vppv2/model/interfaces"
 	vpp_l3 "github.com/ligato/vpp-agent/plugins/vppv2/model/l3"
 
-	"github.com/contiv/vpp/plugins/ksr/model/pod"
 	txn_api "github.com/contiv/vpp/plugins/controller/txn"
+	"github.com/contiv/vpp/plugins/ksr/model/pod"
 )
 
 /********** Pod Configuration **********/
@@ -162,7 +162,6 @@ func (s *remoteCNIserver) podLinuxTAP(pod *Pod) (key string, config *linux_intf.
 	return key, tap
 }
 
-
 /********** AF-Packet + VETH interfaces **********/
 
 // podAFPacketName returns logical name of AF-Packet interface connecting VPP with a given Pod.
@@ -210,7 +209,7 @@ func (s *remoteCNIserver) podVeth1(pod *Pod) (key string, config *linux_intf.Lin
 			Reference: pod.NetworkNamespace,
 		},
 	}
-	key =  linux_intf.InterfaceKey(veth.Name)
+	key = linux_intf.InterfaceKey(veth.Name)
 	return key, veth
 }
 
@@ -227,7 +226,7 @@ func (s *remoteCNIserver) podVeth2(pod *Pod) (key string, config *linux_intf.Lin
 			Veth: &linux_intf.LinuxInterface_VethLink{PeerIfName: s.podVeth1Name(pod)},
 		},
 	}
-	key =  linux_intf.InterfaceKey(veth.Name)
+	key = linux_intf.InterfaceKey(veth.Name)
 	return key, veth
 }
 
@@ -288,7 +287,6 @@ func (s *remoteCNIserver) podToVPPDefaultRoute(pod *Pod) (key string, config *li
 	key = linux_l3.StaticRouteKey(route.DstNetwork, route.OutgoingInterface)
 	return key, route
 }
-
 
 /********** VSwitch ARPs and routes **********/
 

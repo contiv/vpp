@@ -33,7 +33,7 @@ import (
 
 // enabledIPNeighborScan returns configuration for enabled IP neighbor scanning
 // (used to clean up old ARP entries).
-func (s *remoteCNIserver) enabledIPNeighborScan() (key string, config *vpp_l3.IPScanNeighbor){
+func (s *remoteCNIserver) enabledIPNeighborScan() (key string, config *vpp_l3.IPScanNeighbor) {
 	return vpp_l3.IPScanNeighborKey,
 		&vpp_l3.IPScanNeighbor{
 			Mode:           vpp_l3.IPScanNeighbor_IPv4,
@@ -467,7 +467,7 @@ func (s *remoteCNIserver) otherNodeIP(otherNodeID uint32, otherNodeIPNet string)
 func (s *remoteCNIserver) routeToOtherNodePods(otherNodeID uint32, nextHopIP net.IP) (key string, config *vpp_l3.StaticRoute, err error) {
 	podNetwork, err := s.ipam.OtherNodePodNetwork(otherNodeID)
 	if err != nil {
-		return "",nil, fmt.Errorf("Failed to compute pod network for node ID %v, error: %v ", otherNodeID, err)
+		return "", nil, fmt.Errorf("Failed to compute pod network for node ID %v, error: %v ", otherNodeID, err)
 	}
 	key, config = s.routeToOtherNodeNetworks(podNetwork, nextHopIP)
 	return

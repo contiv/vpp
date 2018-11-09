@@ -208,6 +208,7 @@ func testPutNewContivEntry(t *testing.T) {
 	gomega.Expect(len(testVars.plugin.ifStats)).To(gomega.Equal(2))
 	checkEntry(stat, entry)
 }
+
 /*
 func testDeletePodEntry(t *testing.T) {
 	evt := containeridx.ChangeEvent{

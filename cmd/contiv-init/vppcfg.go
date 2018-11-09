@@ -33,13 +33,13 @@ import (
 	"github.com/ligato/vpp-agent/plugins/govppmux"
 	if_linuxcalls "github.com/ligato/vpp-agent/plugins/linuxv2/ifplugin/linuxcalls"
 	l3_linuxcalls "github.com/ligato/vpp-agent/plugins/linuxv2/l3plugin/linuxcalls"
+	"github.com/ligato/vpp-agent/plugins/vpp/binapi/dhcp"
+	if_binapi "github.com/ligato/vpp-agent/plugins/vpp/binapi/interfaces"
+	"github.com/ligato/vpp-agent/plugins/vppv2/ifplugin/ifaceidx"
 	if_vppcalls "github.com/ligato/vpp-agent/plugins/vppv2/ifplugin/vppcalls"
 	l3_vppcalls "github.com/ligato/vpp-agent/plugins/vppv2/l3plugin/vppcalls"
 	"github.com/ligato/vpp-agent/plugins/vppv2/model/interfaces"
 	"github.com/ligato/vpp-agent/plugins/vppv2/model/l3"
-	"github.com/ligato/vpp-agent/plugins/vppv2/ifplugin/ifaceidx"
-	"github.com/ligato/vpp-agent/plugins/vpp/binapi/dhcp"
-	if_binapi "github.com/ligato/vpp-agent/plugins/vpp/binapi/interfaces"
 
 	"github.com/contiv/vpp/cmd/contiv-stn/model/stn"
 	"github.com/contiv/vpp/plugins/contiv"
@@ -56,7 +56,7 @@ const (
 // configureVpp configures main interface and vpp-host interconnect based on provided STN information.
 func configureVpp(contivCfg *contiv.Config, stnData *stn.STNReply, useDHCP bool) error {
 	var (
-		err error
+		err        error
 		mainIfIdx  uint32
 		mainIfName string
 		mainIPNet  *net.IPNet
@@ -289,10 +289,10 @@ func configureVpp(contivCfg *contiv.Config, stnData *stn.STNReply, useDHCP bool)
 		return err
 	}
 	err = ifNetlinkHandler.SetInterfaceAlias(contiv.HostInterconnectTAPinLinuxHostName,
-		getAgentPrefix() +
-		contiv.HostInterconnectTAPinLinuxLogicalName + "/" +
-		contiv.HostInterconnectTAPinVPPLogicalName + "/" +
-		contiv.HostInterconnectTAPinLinuxHostName)
+		getAgentPrefix()+
+			contiv.HostInterconnectTAPinLinuxLogicalName+"/"+
+			contiv.HostInterconnectTAPinVPPLogicalName+"/"+
+			contiv.HostInterconnectTAPinLinuxHostName)
 	if err != nil {
 		logger.Errorf("Error by configuring host-end TAP interface alias: %v", err)
 		return err

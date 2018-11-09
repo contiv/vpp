@@ -15,11 +15,11 @@
 package contiv
 
 import (
+	"encoding/binary"
 	"fmt"
 	"net"
 	"strconv"
 	"strings"
-	"encoding/binary"
 
 	"git.fd.io/govpp.git/api"
 
@@ -28,7 +28,6 @@ import (
 
 	"github.com/contiv/vpp/plugins/contiv/model/cni"
 )
-
 
 // executeDebugCLI executes VPP CLI command
 func (s *remoteCNIserver) executeDebugCLI(cmd string) (string, error) {

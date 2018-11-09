@@ -17,8 +17,8 @@ package contiv
 import (
 	"context"
 	"fmt"
-	"strings"
 	"net"
+	"strings"
 	"time"
 
 	"github.com/gogo/protobuf/proto"
@@ -28,9 +28,9 @@ import (
 
 	scheduler_api "github.com/ligato/vpp-agent/plugins/kvscheduler/api"
 
-	k8sNode "github.com/contiv/vpp/plugins/ksr/model/node"
 	"github.com/contiv/vpp/plugins/contiv/model/node"
 	txn_api "github.com/contiv/vpp/plugins/controller/txn"
+	k8sNode "github.com/contiv/vpp/plugins/ksr/model/node"
 )
 
 /* Contiv Plugin */
@@ -171,8 +171,8 @@ func (s *remoteCNIserver) processOtherNodeChangeEvent(dataChngEv datasync.ProtoW
 
 	var (
 		nodeInfo, prevNodeInfo node.NodeInfo
-		modified bool
-		err error
+		modified               bool
+		err                    error
 	)
 
 	// parse node info

@@ -36,15 +36,15 @@ import (
 	"github.com/ligato/cn-infra/utils/safeclose"
 
 	"github.com/ligato/vpp-agent/plugins/govppmux"
-	vpp_ifplugin "github.com/ligato/vpp-agent/plugins/vppv2/ifplugin"
 	kvscheduler_api "github.com/ligato/vpp-agent/plugins/kvscheduler/api"
+	vpp_ifplugin "github.com/ligato/vpp-agent/plugins/vppv2/ifplugin"
 
-	nodeconfig "github.com/contiv/vpp/plugins/crd/handler/nodeconfig/model"
-	k8sNode "github.com/contiv/vpp/plugins/ksr/model/node"
-	k8sPod "github.com/contiv/vpp/plugins/ksr/model/pod"
 	"github.com/contiv/vpp/plugins/contiv/model/cni"
 	"github.com/contiv/vpp/plugins/contiv/model/node"
 	txn_api "github.com/contiv/vpp/plugins/controller/txn"
+	nodeconfig "github.com/contiv/vpp/plugins/crd/handler/nodeconfig/model"
+	k8sNode "github.com/contiv/vpp/plugins/ksr/model/node"
+	k8sPod "github.com/contiv/vpp/plugins/ksr/model/pod"
 )
 
 // MgmtIPSeparator is a delimiter inserted between management IPs in nodeInfo structure
@@ -72,8 +72,8 @@ type Plugin struct {
 	ctx           context.Context
 	ctxCancelFunc context.CancelFunc
 
-	Config        *Config
-	myNodeConfig  *NodeConfig
+	Config       *Config
+	myNodeConfig *NodeConfig
 
 	nodeIPWatcher chan string
 
@@ -359,7 +359,6 @@ func (p *Plugin) loadNodeConfig() *NodeConfig {
 	return p.Config.GetNodeConfig(myNodeName)
 }
 
-
 func (p *Plugin) watchEvents() {
 	for {
 		select {
@@ -395,7 +394,7 @@ func (p *Plugin) watchEvents() {
 			}
 
 			resyncEv.Done(err)
-			
+
 			// apply pending changes
 			for _, dataChngEv := range p.pendingChanges {
 				p.Log.WithField("keys", dataChangeEvKeys(dataChngEv)).Info("Applying delayed data-changes")

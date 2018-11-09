@@ -22,29 +22,29 @@ import (
 	"time"
 
 	"git.fd.io/govpp.git/api"
-	"golang.org/x/net/context"
 	"github.com/apparentlymart/go-cidr/cidr"
+	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 
+	"github.com/ligato/cn-infra/datasync"
+	"github.com/ligato/cn-infra/db/keyval"
 	"github.com/ligato/cn-infra/idxmap"
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/rpc/rest"
-	"github.com/ligato/cn-infra/datasync"
-	"github.com/ligato/cn-infra/db/keyval"
 
 	scheduler_api "github.com/ligato/vpp-agent/plugins/kvscheduler/api"
+	linux_l3 "github.com/ligato/vpp-agent/plugins/linuxv2/model/l3"
 	"github.com/ligato/vpp-agent/plugins/vppv2/ifplugin/ifaceidx"
+	intf_vppcalls "github.com/ligato/vpp-agent/plugins/vppv2/ifplugin/vppcalls"
 	vpp_intf "github.com/ligato/vpp-agent/plugins/vppv2/model/interfaces"
 	vpp_l3 "github.com/ligato/vpp-agent/plugins/vppv2/model/l3"
-	linux_l3 "github.com/ligato/vpp-agent/plugins/linuxv2/model/l3"
-	intf_vppcalls "github.com/ligato/vpp-agent/plugins/vppv2/ifplugin/vppcalls"
 
-	txn_api "github.com/contiv/vpp/plugins/controller/txn"
-	"github.com/contiv/vpp/plugins/ksr/model/pod"
+	stn_grpc "github.com/contiv/vpp/cmd/contiv-stn/model/stn"
 	"github.com/contiv/vpp/plugins/contiv/ipam"
 	"github.com/contiv/vpp/plugins/contiv/model/cni"
 	"github.com/contiv/vpp/plugins/contiv/model/node"
-	stn_grpc "github.com/contiv/vpp/cmd/contiv-stn/model/stn"
+	txn_api "github.com/contiv/vpp/plugins/controller/txn"
+	"github.com/contiv/vpp/plugins/ksr/model/pod"
 )
 
 /* Global constants */
@@ -53,10 +53,10 @@ const (
 	defaultSTNSocketFile = "/var/run/contiv/stn.sock"
 
 	// interface host name length limit in Linux
-	linuxIfNameMaxLen             = 15
+	linuxIfNameMaxLen = 15
 
 	// logical interface logical name length limit in the vpp-agent/ifplugin
-	logicalIfNameMaxLen           = 63
+	logicalIfNameMaxLen = 63
 
 	// any IPv4 address
 	ipv4NetAny = "0.0.0.0/0"
@@ -140,7 +140,6 @@ const (
 // prefix for the hardware address of host interconnects
 var hostInterconnectHwAddrPrefix = []byte{0x34, 0x3c}
 
-
 /* VXLANs */
 const (
 	// VXLAN Network Identifier (or VXLAN Segment ID)
@@ -157,7 +156,6 @@ const (
 
 	// name of the VXLAN bridge domain
 	vxlanBDName = "vxlanBD"
-
 )
 
 // prefix for the hardware address of VXLAN interfaces
@@ -192,7 +190,7 @@ type remoteCNIserver struct {
 	agentLabel string
 
 	// node IDs
-	nodeID uint32 // this node ID
+	nodeID     uint32                    // this node ID
 	otherNodes map[uint32]*node.NodeInfo // other node ID -> node info
 
 	// this node's main IP address and the default gateway
@@ -671,7 +669,7 @@ func (s *remoteCNIserver) configureMainVPPInterface(nics map[uint32]*intf_vppcal
 
 	if nicName == "" {
 		// name not specified in config, use heuristic - select first non-virtual interface
-nextNIC:
+	nextNIC:
 		for _, nic := range nics {
 			// exclude "other" (non-main) NICs
 			for _, otherNIC := range s.nodeConfig.OtherVPPInterfaces {

@@ -92,9 +92,8 @@ func (s *remoteCNIserver) podConnectivityConfig(pod *Pod) (config txn_api.KeyVal
 func (s *remoteCNIserver) podInterfaceName(pod *Pod) (vppIfName, linuxIfName string) {
 	if s.config.UseTAPInterfaces {
 		return s.podVPPSideTAPName(pod), s.podLinuxSideTAPName(pod)
-	} else {
-		return s.podAFPacketName(pod), s.podVeth1Name(pod)
 	}
+	return s.podAFPacketName(pod), s.podVeth1Name(pod)
 }
 
 /********** TAP interface **********/

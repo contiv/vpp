@@ -14,6 +14,7 @@
 
 package contiv
 
+/*
 import (
 	"context"
 	"fmt"
@@ -45,12 +46,10 @@ import (
 	vpp_l3 "github.com/ligato/vpp-agent/plugins/vppv2/model/l3"
 
 	"github.com/contiv/vpp/mock/localclient"
-	"github.com/contiv/vpp/plugins/contiv/containeridx"
 	"github.com/contiv/vpp/plugins/contiv/ipam"
 	"github.com/contiv/vpp/plugins/contiv/model/cni"
 	"github.com/contiv/vpp/plugins/contiv/model/node"
 	nodeconfig "github.com/contiv/vpp/plugins/crd/pkg/apis/nodeconfig/v1"
-	"github.com/contiv/vpp/plugins/kvdbproxy"
 	"github.com/go-errors/errors"
 )
 
@@ -629,7 +628,7 @@ func addIfsIntoTheIndex(mapping ifaceidx.IfaceMetadataIndexRW) func(txn *localcl
 			return nil
 		}
 		for _, op := range txn.LinuxDataChangeTxn.Ops {
-			if op.Value != nil /* Put */ && strings.HasPrefix(op.Key, vpp_intf.Prefix) {
+			if op.Value != nil && strings.HasPrefix(op.Key, vpp_intf.Prefix) {
 				name, isInterfaceKey := vpp_intf.ParseNameFromKey(op.Key)
 				if !isInterfaceKey {
 					return errors.New("failed to parse interface name from key")
@@ -728,3 +727,4 @@ func (e nodeAddDelEvent) GetRevision() int64 {
 	// return revision should be bigger than resync Rev in order to apply the change
 	return 1
 }
+*/

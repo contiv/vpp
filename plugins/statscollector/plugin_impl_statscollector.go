@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/contiv/vpp/plugins/contiv"
-	"github.com/contiv/vpp/plugins/contiv/containeridx"
 	"github.com/gogo/protobuf/proto"
 	"github.com/ligato/cn-infra/datasync"
 	"github.com/ligato/cn-infra/infra"
@@ -129,6 +128,7 @@ func (p *Plugin) Init() error {
 	return nil
 }
 
+/*
 // processPodEvent processes pod delete events; it removes the deleted pod's
 // stats entry from the stats set reported to Prometheus.
 func (p *Plugin) processPodEvent(event containeridx.ChangeEvent) {
@@ -169,16 +169,13 @@ func (p *Plugin) processPodEvent(event containeridx.ChangeEvent) {
 
 // AfterInit subscribes for monitoring of changes in ContainerIndex
 func (p *Plugin) AfterInit() error {
-	/* TODO:
 	// watch containerIDX and remove gauges of pods that have been deleted
 	return p.Contiv.GetContainerIndex().Watch(string(p.PluginName), func(event containeridx.ChangeEvent) {
 		p.processPodEvent(event)
 	})
-	*/
-
 	return nil
-
 }
+*/
 
 // Close cleans up the plugin resources
 func (p *Plugin) Close() error {

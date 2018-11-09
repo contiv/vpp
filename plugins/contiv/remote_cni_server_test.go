@@ -379,7 +379,7 @@ func TestNodeAddDelL2(t *testing.T) {
 	gomega.Expect(vxlanIf).To(gomega.BeNil())
 
 	// check routes to the other node pointing to node IP
-	nexthopIP := server.ipPrefixToAddress(otherNodeInfo.IpAddress)
+	nexthopIP := ipNetToAddress(otherNodeInfo.IpAddress)
 	routes := routesViaInLatestRevs(txns.LatestRevisions, nexthopIP)
 	gomega.Expect(len(routes)).To(gomega.BeEquivalentTo(3))
 

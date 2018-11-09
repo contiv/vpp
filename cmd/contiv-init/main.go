@@ -350,17 +350,9 @@ func main() {
 		}
 
 		// configure connectivity on VPP
-		vppCfg, err := configureVpp(contivCfg, stnData, useDHCP)
+		err := configureVpp(contivCfg, stnData, useDHCP)
 		if err != nil {
 			logger.Errorf("Error by configuring VPP: %v", err)
-			client.StopProcess(vppProcessName, false)
-			os.Exit(-1)
-		}
-
-		// persist VPP config in ETCD
-		err = persistVppConfig(contivCfg, stnData, vppCfg, useDHCP)
-		if err != nil {
-			logger.Errorf("Error by persisting VPP config in ETCD: %v", err)
 			client.StopProcess(vppProcessName, false)
 			os.Exit(-1)
 		}

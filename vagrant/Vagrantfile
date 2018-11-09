@@ -220,7 +220,7 @@ nat {
 }
 api-trace {
    on
-   nitems 5000
+   nitems 500
 }
 EOF
 }

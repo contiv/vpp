@@ -36,12 +36,15 @@ nat {
     user hash buckets 1024
     max translations per user 10000
 }
+acl-plugin {
+   use tuple merge 0
+}
 dpdk {
     dev 0000:00:03.0
 }
 api-trace {
    on
-   nitems 5000
+   nitems 500
 }
 ```
 #### Multi-NIC configuration
@@ -84,12 +87,15 @@ nat {
     user hash buckets 1024
     max translations per user 10000
 }
+acl-plugin {
+   use tuple merge 0
+}
 dpdk {
     dev 0000:00:04.0
 }
 api-trace {
    on
-   nitems 5000
+   nitems 500
 }
 ```
 If assigning multiple NICs to VPP you will need to include each NIC's PCI address
@@ -121,13 +127,16 @@ nat {
     user hash buckets 1024
     max translations per user 10000
 }
+acl-plugin {
+    use tuple merge 0
+}
 dpdk {
     dev 0000:00:03.0
     dev 0000:00:04.0
 }
 api-trace {
    on
-   nitems 5000
+   nitems 500
 }
 ```
 

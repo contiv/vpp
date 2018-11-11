@@ -24,6 +24,7 @@ import (
 
 	"git.fd.io/govpp.git/api"
 	"github.com/apparentlymart/go-cidr/cidr"
+	"github.com/fsouza/go-dockerclient"
 
 	"github.com/ligato/cn-infra/datasync"
 	"github.com/ligato/cn-infra/datasync/resync"
@@ -38,6 +39,8 @@ import (
 	"github.com/ligato/vpp-agent/plugins/govppmux"
 	kvscheduler_api "github.com/ligato/vpp-agent/plugins/kvscheduler/api"
 	vpp_ifplugin "github.com/ligato/vpp-agent/plugins/vppv2/ifplugin"
+	intf_vppcalls "github.com/ligato/vpp-agent/plugins/vppv2/ifplugin/vppcalls"
+	vpp_intf "github.com/ligato/vpp-agent/plugins/vppv2/model/interfaces"
 
 	"github.com/contiv/vpp/plugins/contiv/model/cni"
 	"github.com/contiv/vpp/plugins/contiv/model/node"
@@ -127,18 +130,18 @@ func (p *Plugin) Init() error {
 	}
 	p.Log.Infof("ID of the node is %v", nodeID)
 
+	// initialize and start nodeConfig CRD watcher
 	p.nodeConfigResyncChan = make(chan datasync.ResyncEvent)
 	p.nodeConfigChangeChan = make(chan datasync.ChangeEvent)
-
-	p.resyncCh = make(chan datasync.ResyncEvent)
-	p.changeCh = make(chan datasync.ChangeEvent)
-
 	p.nodeConfigWatchReg, err = p.Watcher.Watch("contiv-plugin-node-config",
 		p.nodeConfigChangeChan, p.nodeConfigResyncChan, nodeconfig.Key(p.ServiceLabel.GetAgentLabel()))
 	if err != nil {
 		return err
 	}
 
+	// initialize and start kubernetes state data watcher
+	p.resyncCh = make(chan datasync.ResyncEvent)
+	p.changeCh = make(chan datasync.ChangeEvent)
 	p.k8sStateData = make(map[string]datasync.KeyVal)
 	p.watchReg, err = p.Watcher.Watch("contiv-plugin-k8s-state",
 		p.changeCh, p.resyncCh, node.AllocatedIDsKeyPrefix, k8sNode.KeyPrefix(), k8sPod.KeyPrefix())
@@ -146,10 +149,23 @@ func (p *Plugin) Init() error {
 		return err
 	}
 
+	// connect to Docker server
+	dockerClient, err := docker.NewClientFromEnv()
+	if err != nil {
+		return err
+	}
+	p.Log.Infof("Using docker client endpoint: %+v\n", dockerClient.Endpoint())
+
 	// start the GRPC server handling the CNI requests
 	p.cniServer, err = newRemoteCNIServer(p.Log,
 		func() txn_api.Transaction {
 			return txn_api.NewTransaction(p.KVScheduler)
+		},
+		dockerClient,
+		func() (ifaces map[uint32]*intf_vppcalls.InterfaceDetails, err error) {
+			ifHandler := intf_vppcalls.NewIfVppHandler(p.govppCh, p.Log)
+			ifaces, err = ifHandler.DumpInterfacesByType(vpp_intf.Interface_ETHERNET_CSMACD)
+			return
 		},
 		p.govppCh,
 		p.VPPIfPlugin.GetInterfaceIndex(),

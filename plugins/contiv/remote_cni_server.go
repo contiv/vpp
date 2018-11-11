@@ -25,6 +25,7 @@ import (
 	"github.com/apparentlymart/go-cidr/cidr"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
+	"github.com/fsouza/go-dockerclient"
 
 	"github.com/ligato/cn-infra/datasync"
 	"github.com/ligato/cn-infra/db/keyval"
@@ -44,7 +45,7 @@ import (
 	"github.com/contiv/vpp/plugins/contiv/model/cni"
 	"github.com/contiv/vpp/plugins/contiv/model/node"
 	txn_api "github.com/contiv/vpp/plugins/controller/txn"
-	"github.com/contiv/vpp/plugins/ksr/model/pod"
+	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 )
 
 /* Global constants */
@@ -77,6 +78,13 @@ const (
 
 /* Pod connectivity */
 const (
+	// label attached to the sandbox container of every pod
+	k8sLabelForSandboxContainer = "io.kubernetes.docker.type=podsandbox"
+
+	// labels attached to (not only sandbox) container to identify the pod it belongs to
+	k8sLabelForPodName = "io.kubernetes.pod.name"
+	k8sLabelForPodNamespace = "io.kubernetes.pod.namespace"
+
 	// interface host name as required by Kubernetes for every pod
 	podInterfaceHostName = "eth0" // required by Kubernetes
 
@@ -171,6 +179,12 @@ type remoteCNIserver struct {
 	// transaction factory
 	txnFactory func() txn_api.Transaction
 
+	// dumping of ethernet interfaces
+	ethernetIfsDump EthernetIfacesDumpClb
+
+	// docker client
+	dockerClient DockerClient
+
 	// GoVPP channel for direct binary API calls (if needed)
 	govppChan api.Channel
 
@@ -218,7 +232,7 @@ type remoteCNIserver struct {
 	nodeConfig *NodeConfig
 
 	// pod run-time attributes
-	podByID        map[pod.ID]*Pod
+	podByID        map[podmodel.ID]*Pod
 	podByVPPIfName map[string]*Pod
 
 	// the variables ensures that add/del requests are processed only after the server
@@ -241,11 +255,25 @@ type remoteCNIserver struct {
 	http rest.HTTPHandlers
 }
 
+// DockerClient requires API of a Docker client needed by the remote CNI server.
+type DockerClient interface {
+	// Ping pings the docker server.
+	Ping() error
+	// ListContainers returns a slice of containers matching the given criteria.
+	ListContainers(opts docker.ListContainersOptions) ([]docker.APIContainers, error)
+	// InspectContainer returns information about a container by its ID.
+	InspectContainer(id string) (*docker.Container, error)
+}
+
+// EthernetIfacesDumpClb is callback for dumping physical interfaces on VPP.
+type EthernetIfacesDumpClb func() (ifaces map[uint32]*intf_vppcalls.InterfaceDetails, err error)
+
 /******* Constructor *******/
 
 // newRemoteCNIServer initializes a new remote CNI server instance.
-func newRemoteCNIServer(logger logging.Logger, txnFactory func() txn_api.Transaction,
-	govppChan api.Channel, index ifaceidx.IfaceMetadataIndex, dhcpIndex idxmap.NamedMapping, agentLabel string,
+func newRemoteCNIServer(logger logging.Logger, txnFactory func() txn_api.Transaction, dockerClient DockerClient,
+	ethernetIfsDump EthernetIfacesDumpClb, govppChan api.Channel,
+	swIfIndex ifaceidx.IfaceMetadataIndex, dhcpIndex idxmap.NamedMapping, agentLabel string,
 	config *Config, nodeConfig *NodeConfig, nodeID uint32, nodeExcludeIPs []net.IP, broker keyval.ProtoBroker, http rest.HTTPHandlers) (*remoteCNIserver, error) {
 
 	ipam, err := ipam.New(logger, nodeID, agentLabel, &config.IPAMConfig, nodeExcludeIPs, broker)
@@ -254,37 +282,24 @@ func newRemoteCNIServer(logger logging.Logger, txnFactory func() txn_api.Transac
 	}
 
 	server := &remoteCNIserver{
-		Logger:     logger,
-		txnFactory: txnFactory,
-		govppChan:  govppChan,
-		swIfIndex:  index,
-		dhcpIndex:  dhcpIndex,
-		agentLabel: agentLabel,
-		nodeID:     nodeID,
-		ipam:       ipam,
-		nodeConfig: nodeConfig,
-		config:     config,
-		http:       http,
+		Logger:          logger,
+		txnFactory:      txnFactory,
+		ethernetIfsDump: ethernetIfsDump,
+		dockerClient:    dockerClient,
+		govppChan:       govppChan,
+		swIfIndex:       swIfIndex,
+		dhcpIndex:       dhcpIndex,
+		agentLabel:      agentLabel,
+		nodeID:          nodeID,
+		ipam:            ipam,
+		nodeConfig:      nodeConfig,
+		config:          config,
+		http:            http,
 	}
-	server.reset()
 	server.inSyncCond = sync.NewCond(&server.Mutex)
 	server.ctx, server.ctxCancelFunc = context.WithCancel(context.Background())
-	if nodeConfig != nil && nodeConfig.Gateway != "" {
-		server.defaultGw = net.ParseIP(nodeConfig.Gateway)
-	}
 	server.registerHandlers()
 	return server, nil
-}
-
-// reset resets the CNI server to pre-resync state.
-func (s *remoteCNIserver) reset() {
-	s.mainPhysicalIf = ""
-	s.hostIPs = []net.IP{}
-	s.otherPhysicalIfs = []string{}
-	s.otherNodes = make(map[uint32]*node.NodeInfo)
-	s.podByID = make(map[pod.ID]*Pod)
-	s.podByVPPIfName = make(map[string]*Pod)
-	s.inSync = false
 }
 
 /******* Events *******/
@@ -295,12 +310,18 @@ func (s *remoteCNIserver) Resync(dataResyncEv datasync.ResyncEvent) error {
 	defer s.Unlock()
 	s.resyncCounter++
 
-	s.reset()
+	var wasErr error
 	txn := s.txnFactory()
 
+	// ipam
+	err := s.ipam.Resync(dataResyncEv)
+	if err != nil {
+		wasErr = err
+		s.Logger.Error(err)
+	}
+
 	// node <-> host, host -> pods
-	var wasErr error
-	err := s.configureVswitchConnectivity(txn)
+	err = s.configureVswitchConnectivity(txn)
 	if err != nil {
 		wasErr = err
 		s.Logger.Error(err)
@@ -314,7 +335,7 @@ func (s *remoteCNIserver) Resync(dataResyncEv datasync.ResyncEvent) error {
 	}
 
 	// pods <-> vswitch
-	err = s.podContainersResync(dataResyncEv)
+	err = s.podStateResync(dataResyncEv)
 	if err != nil {
 		wasErr = err
 		s.Logger.Error(err)
@@ -338,6 +359,7 @@ func (s *remoteCNIserver) Resync(dataResyncEv datasync.ResyncEvent) error {
 	s.inSync = true
 	s.inSyncCond.Broadcast()
 
+	s.Logger.Infof("Remote CNI Server state after RESYNC: %+v", s)
 	return wasErr
 }
 
@@ -373,7 +395,7 @@ func (s *remoteCNIserver) Add(ctx context.Context, request *cni.CNIRequest) (*cn
 
 	var err error
 	extraArgs := parseCniExtraArgs(request.ExtraArguments)
-	podID := pod.ID{
+	podID := podmodel.ID{
 		Name:      extraArgs[podNameExtraArg],
 		Namespace: extraArgs[podNamespaceExtraArg],
 	}
@@ -408,14 +430,14 @@ func (s *remoteCNIserver) Add(ctx context.Context, request *cni.CNIRequest) (*cn
 	defer func() {
 		if err != nil {
 			if pod.IPAddress != nil {
-				s.ipam.ReleasePodIP(pod.ContainerID)
+				s.ipam.ReleasePodIP(podID)
 			}
 		}
 	}()
 
 	// 4. Assign an IP address for this POD
 
-	pod.IPAddress, err = s.ipam.NextPodIP(pod.ContainerID)
+	pod.IPAddress, err = s.ipam.NextPodIP(podID)
 	if err != nil {
 		err = fmt.Errorf("failed to allocate new IP address for pod %v: %v", pod.ID, err)
 		s.Logger.Error(err)
@@ -496,7 +518,7 @@ func (s *remoteCNIserver) Delete(ctx context.Context, request *cni.CNIRequest) (
 	// 1. Check that the pod was indeed configured and obtain the configuration
 
 	extraArgs := parseCniExtraArgs(request.ExtraArguments)
-	podID := pod.ID{
+	podID := podmodel.ID{
 		Name:      extraArgs[podNameExtraArg],
 		Namespace: extraArgs[podNamespaceExtraArg],
 	}
@@ -566,7 +588,7 @@ func (s *remoteCNIserver) DeletePod(pod *Pod, obsoletePod bool) error {
 
 	// 4. Release IP address of the POD
 
-	err = s.ipam.ReleasePodIP(pod.ContainerID)
+	err = s.ipam.ReleasePodIP(pod.ID)
 	if err != nil {
 		wasErr = err
 		if !obsoletePod {
@@ -779,21 +801,23 @@ func (s *remoteCNIserver) configureMainVPPInterface(nics map[uint32]*intf_vppcal
 		s.Logger.Debug("Physical NIC not found, configuring loopback instead.")
 		key, loopback := s.loopbackInterface(combineAddrWithNet(s.nodeIP, s.nodeIPNet))
 		txn.Put(key, loopback)
+		s.mainPhysicalIf = ""
 	}
 
 	// 4. Configure the default route
 
-	if nicName != "" && s.nodeConfig != nil && s.nodeConfig.Gateway != "" {
-		// TODO: what about s.defaultGw???
-		// configure the default gateway
-		gateway := net.ParseIP(s.nodeConfig.Gateway)
-		if gateway == nil {
-			err := fmt.Errorf("failed to parse gateway IP address from the config (%s)",
-				s.nodeConfig.Gateway)
-			return err
+	if !s.UseSTN() && !useDHCP {
+		if s.mainPhysicalIf != "" && s.nodeConfig != nil && s.nodeConfig.Gateway != "" {
+			// configure default gateway from the config file
+			s.defaultGw = net.ParseIP(s.nodeConfig.Gateway)
+			if s.defaultGw == nil {
+				err = fmt.Errorf("failed to parse gateway IP address from the config (%s)",
+					s.nodeConfig.Gateway)
+				return err
+			}
+			key, defaultRoute := s.defaultRoute(s.defaultGw, nicName)
+			txn.Put(key, defaultRoute)
 		}
-		key, defaultRoute := s.defaultRoute(gateway, nicName)
-		txn.Put(key, defaultRoute)
 	}
 
 	return nil
@@ -801,6 +825,7 @@ func (s *remoteCNIserver) configureMainVPPInterface(nics map[uint32]*intf_vppcal
 
 // configureOtherVPPInterfaces configure all physical interfaces defined in the config but the main one.
 func (s *remoteCNIserver) configureOtherVPPInterfaces(nics map[uint32]*intf_vppcalls.InterfaceDetails, txn txn_api.ResyncOperations) error {
+	s.otherPhysicalIfs = []string{}
 
 	// match existing interfaces and build configuration
 	interfaces := make(map[string]*vpp_intf.Interface)
@@ -905,12 +930,117 @@ func (s *remoteCNIserver) configureVswitchVrfRoutes(txn txn_api.ResyncOperations
 	}
 }
 
-// podContainersResync resynchronizes internal maps (s.podBy*) with the current
+// podStateResync resynchronizes internal maps (s.podBy*) with the current
 // state of locally deployed pods based on Kubernetes state data and information
 // provided by Docker server.
-func (s *remoteCNIserver) podContainersResync(dataResyncEv datasync.ResyncEvent) error {
-	// TODO
+func (s *remoteCNIserver) podStateResync(dataResyncEv datasync.ResyncEvent) error {
+	// use docker client to obtain the set of running pods
+	runningPods, err := s.listRunningPods()
+	if err != nil {
+		s.Logger.Error(err)
+		return err
+	}
+
+	// reset internal maps with pods only after we have successfully obtained
+	// information from the docker server
+	s.podByID = make(map[podmodel.ID]*Pod)
+	s.podByVPPIfName = make(map[string]*Pod)
+
+	// iterate over state data of all locally deployed pods
+	data := dataResyncEv.GetValues()
+	for prefix, it := range data {
+		if prefix == podmodel.KeyPrefix() {
+			for {
+				kv, stop := it.GetNext()
+				if stop {
+					break
+				}
+
+				// parse Pod state data
+				podData := &podmodel.Pod{}
+				err := kv.GetValue(podData)
+				if err != nil {
+					// treat as warning
+					s.Logger.Warnf("Failed to parse pod state data: %v", err)
+					continue
+				}
+
+				// ignore pods deployed on other nodes or without IP address
+				podIPAddress := net.ParseIP(podData.IpAddress)
+				if podIPAddress == nil || !s.ipam.PodNetwork().Contains(podIPAddress) {
+					return nil
+				}
+
+				// ignore pods which are not actually running
+				podID := podmodel.ID{Name: podData.Name, Namespace: podData.Namespace}
+				pod, isRunning := runningPods[podID]
+				if !isRunning {
+					s.Logger.Warnf("Pod %v is not in the RUNNING state, skipping.", podID)
+					continue
+				}
+
+				// fill the pod parameters not provided by listRunningPods
+				pod.VPPIfName, pod.LinuxIfName = s.podInterfaceName(pod)
+				pod.IPAddress = podIPAddress
+
+				// store pod configuration
+				s.podByID[pod.ID] = pod
+				s.podByVPPIfName[pod.VPPIfName] = pod
+			}
+		}
+	}
 	return nil
+}
+
+// listRunningPods uses Docker client to talk to the Docker server in order to list
+// all locally running pods.
+func (s *remoteCNIserver) listRunningPods() (pods map[podmodel.ID]*Pod, err error) {
+	pods = make(map[podmodel.ID]*Pod)
+	if err := s.dockerClient.Ping(); err != nil {
+		return pods, fmt.Errorf("docker server is not available: %v", err)
+	}
+
+	// list all sandbox containers
+	listOpts := docker.ListContainersOptions{
+		All:     true,
+		Filters: map[string][]string{
+			"label": {k8sLabelForSandboxContainer},
+		},
+	}
+	containers, err := s.dockerClient.ListContainers(listOpts)
+	if err != nil {
+		return pods, fmt.Errorf("failed to list sandbox containers: %v", err)
+	}
+
+	// inspect every sandbox to re-construct the pod metadata
+	for _, container := range containers {
+		// read pod identifier from labels
+		podName, hasPodName := container.Labels[k8sLabelForPodName]
+		podNamespace, hasPodNamespace := container.Labels[k8sLabelForPodNamespace]
+		podID := podmodel.ID{Name: podName, Namespace: podNamespace}
+		if !hasPodName || !hasPodNamespace {
+			s.Logger.Warnf("Sandbox container '%s' is missing pod identification\n",
+				container.ID)
+			continue
+		}
+		// inspect every sandbox container to obtain the PID, which is used in the network
+		// namespace reference
+		details, err := s.dockerClient.InspectContainer(container.ID)
+		if err != nil {
+			s.Logger.Warnf("Failed to inspect sandbox container '%s': %v\n",
+				container.ID, err)
+			continue
+		}
+		// add pod into the set of running pods
+		pods[podID] = &Pod{
+			ID:               podID,
+			ContainerID:      container.ID,
+			NetworkNamespace: fmt.Sprintf("/proc/%d/ns/net", details.State.Pid),
+			// IPAddress and interface are filled by podStateResync
+		}
+	}
+
+	return pods, nil
 }
 
 /******* Cleanup *******/
@@ -1152,7 +1282,7 @@ func (s *remoteCNIserver) GetIfName(podNamespace string, podName string) (name s
 	s.Lock()
 	defer s.Unlock()
 
-	pod, found := s.podByID[pod.ID{Name: podName, Namespace: podNamespace}]
+	pod, found := s.podByID[podmodel.ID{Name: podName, Namespace: podNamespace}]
 	if !found {
 		return "", false
 	}
@@ -1212,7 +1342,8 @@ func (s *remoteCNIserver) GetDefaultInterface() (ifName string, ifAddress net.IP
 
 // UseSTN returns true if the cluster was configured to be deployed in the STN mode.
 func (s *remoteCNIserver) UseSTN() bool {
-	return s.config.StealFirstNIC || s.config.StealInterface != "" || (s.nodeConfig != nil && s.nodeConfig.StealInterface != "")
+	return s.config.StealFirstNIC || s.config.StealInterface != "" ||
+		(s.nodeConfig != nil && s.nodeConfig.StealInterface != "")
 }
 
 // GetMainVrfID returns the ID of the main network connectivity VRF.

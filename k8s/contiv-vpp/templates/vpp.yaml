@@ -678,6 +678,8 @@ spec:
             - name: core-dumps
               mountPath: {{ .Values.vswitch.coreDumpsDir }}
             {{- end }}
+            - name: docker-socket
+              mountPath: /var/run/docker.sock
           {{- if or .Values.vswitch.defineMemoryLimits .Values.vswitch.cpuLimit }}
           resources:
             limits:
@@ -786,7 +788,9 @@ spec:
         - name: var-bolt
           hostPath:
             path: {{ .Values.bolt.dataDir }}
-
+        - name: docker-socket
+          hostPath:
+            path: /var/run/docker.sock
 ---
 
 # This installs the contiv-ksr (Kubernetes State Reflector) on the master node in a Kubernetes cluster.

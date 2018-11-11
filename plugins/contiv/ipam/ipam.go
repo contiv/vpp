@@ -19,10 +19,13 @@ import (
 	"fmt"
 	"net"
 	"sync"
+	"sort"
 
+	"github.com/ligato/cn-infra/datasync"
 	"github.com/ligato/cn-infra/db/keyval"
 	"github.com/ligato/cn-infra/logging"
-	"sort"
+
+	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 )
 
 const (
@@ -46,7 +49,7 @@ type IPAM struct {
 	podNetworkIPPrefix  net.IPNet        // IPv4 subnet prefix for all PODs on the node (given by nodeID), podSubnetIPPrefix + nodeID ==<computation>==> podNetworkIPPrefix
 	podNetworkGatewayIP net.IP           // gateway IP address for PODs on the node (given by nodeID)
 	podIfIPCIDR         net.IPNet        // IPv4 subnet from which individual VPP-side POD interfaces networks are allocated, this is subnet for all PODS within 1 node.
-	assignedPodIPs      map[uintIP]podID // pool of assigned POD IP addresses
+	assignedPodIPs      map[uintIP]podmodel.ID // pool of assigned POD IP addresses
 
 	// VSwitch related variables
 	vppHostSubnetIPPrefix  net.IPNet // IPv4 subnet used across all nodes for VPP to host Linux stack interconnect
@@ -68,7 +71,6 @@ type IPAM struct {
 }
 
 type uintIP = uint32
-type podID = string
 
 // Config represents configuration of the IPAM module.
 type Config struct {
@@ -120,6 +122,59 @@ func New(logger logging.Logger, nodeID uint32, nodeName string, config *Config, 
 	logger.Infof("IPAM values loaded: %+v", ipam)
 
 	return ipam, nil
+}
+
+func (i *IPAM) Resync(dataResyncEv datasync.ResyncEvent) (err error) {
+	networkPrefix, err := ipv4ToUint32(i.podNetworkIPPrefix.IP)
+	if err != nil {
+		return err
+	}
+
+	// reset internal state
+	i.lastAssigned = 1
+	i.assignedPodIPs = make(map[uintIP]podmodel.ID)
+
+	// iterate over pod state data
+	data := dataResyncEv.GetValues()
+	for prefix, it := range data {
+		if prefix == podmodel.KeyPrefix() {
+			for {
+				kv, stop := it.GetNext()
+				if stop {
+					break
+				}
+
+				// parse Pod state data
+				podData := &podmodel.Pod{}
+				err := kv.GetValue(podData)
+				if err != nil {
+					// treat as warning
+					i.logger.Warnf("Failed to parse pod state data: %v", err)
+					continue
+				}
+
+				// ignore pods deployed on other nodes or without IP address
+				podIPAddress := net.ParseIP(podData.IpAddress)
+				if podIPAddress == nil || !i.podNetworkIPPrefix.Contains(podIPAddress) {
+					return nil
+				}
+
+				// register address as already allocated
+				addrIndex, _ := ipv4ToUint32(podIPAddress)
+				podID := podmodel.ID{Name: podData.Name, Namespace: podData.Namespace}
+				i.assignedPodIPs[addrIndex] = podID
+
+				diff := int(addrIndex - networkPrefix)
+				if i.lastAssigned < diff {
+					i.lastAssigned = diff
+				}
+			}
+		}
+	}
+
+	i.logger.Infof("IPAM state after RESYNC: (assignedPodIPs=%+v, lastAssigned=%v)",
+		i.assignedPodIPs, i.lastAssigned)
+	return err
 }
 
 // NodeInterconnectDHCPEnabled returns true if DHCP should be configured on the main
@@ -283,13 +338,9 @@ func (i *IPAM) NodeID() uint32 {
 }
 
 // NextPodIP returns next available POD IP address and remembers that this IP is meant to be used for the POD with the id <podID>.
-func (i *IPAM) NextPodIP(podID string) (net.IP, error) {
+func (i *IPAM) NextPodIP(podID podmodel.ID) (net.IP, error) {
 	i.mutex.Lock()
 	defer i.mutex.Unlock()
-
-	if len(podID) == 0 { // zero byte length <=> zero character size
-		return nil, fmt.Errorf("Pod ID can't be empty because it is used to release the assigned IP address")
-	}
 
 	// get network prefix as uint32
 	networkPrefix, err := ipv4ToUint32(i.podNetworkIPPrefix.IP)
@@ -320,22 +371,17 @@ func (i *IPAM) NextPodIP(podID string) (net.IP, error) {
 		}
 	}
 
-	return nil, fmt.Errorf("No IP address is free for assignment. All IP addresses for pod network %v are already assigned", i.podNetworkIPPrefix)
+	return nil, fmt.Errorf("no IP address is free for assignment", i.podNetworkIPPrefix)
 }
 
 // tryToAllocatePodIP checks whether the IP at the given index is available.
-func (i *IPAM) tryToAllocatePodIP(index int, networkPrefix uint32, podID string) (assignedIP net.IP, success bool) {
+func (i *IPAM) tryToAllocatePodIP(index int, networkPrefix uint32, podID podmodel.ID) (assignedIP net.IP, success bool) {
 	if index == podGatewaySeqID {
 		return nil, false // gateway IP address can't be assigned as pod
 	}
 	ip := networkPrefix + uint32(index)
 	if _, found := i.assignedPodIPs[ip]; found {
 		return nil, false // ignore already assigned IP addresses
-	}
-	err := i.saveAssignedIP(ip, podID)
-	if err != nil {
-		i.logger.Error(err)
-		return nil, false
 	}
 
 	i.assignedPodIPs[ip] = podID
@@ -348,23 +394,14 @@ func (i *IPAM) tryToAllocatePodIP(index int, networkPrefix uint32, podID string)
 }
 
 // ReleasePodIP releases the pod IP address remembered for POD id string, so that it can be reused by the next PODs.
-func (i *IPAM) ReleasePodIP(podID string) error {
+func (i *IPAM) ReleasePodIP(podID podmodel.ID) error {
 	i.mutex.Lock()
 	defer i.mutex.Unlock()
-
-	if len(podID) == 0 {
-		i.logger.Warn("Ignoring pod IP releasing for pod ID that is empty string (possible echoes from restart?)")
-		return nil
-	}
 
 	ip, err := i.findIP(podID)
 	if err != nil {
 		i.logger.Warnf("Unable to find pod(%v) IP: %v", podID, err)
 		return nil
-	}
-	err = i.deleteAssignedIP(podID)
-	if err != nil {
-		return err
 	}
 	delete(i.assignedPodIPs, ip)
 
@@ -385,8 +422,8 @@ func initializePodsIPAM(ipam *IPAM, config *Config, nodeID uint32) (err error) {
 		return
 	}
 	ipam.podNetworkGatewayIP = uint32ToIpv4(podNetworkPrefixUint32 + podGatewaySeqID)
-	ipam.assignedPodIPs = make(map[uintIP]podID)
-	return ipam.loadAssignedIPs()
+	ipam.assignedPodIPs = make(map[uintIP]podmodel.ID)
+	return nil
 }
 
 // initializeVPPHostIPAM initializes VPP-host interconnect -related variables of IPAM.
@@ -503,7 +540,7 @@ func (i *IPAM) logAssignedPodIPPool() {
 	if i.logger.GetLevel() <= logging.DebugLevel { // log only if debug level or more verbose
 		var buffer bytes.Buffer
 		for uintIP, podID := range i.assignedPodIPs {
-			buffer.WriteString(" # " + uint32ToIpv4(uintIP).String() + ":" + podID)
+			buffer.WriteString(" # " + uint32ToIpv4(uintIP).String() + ":" + podID.String())
 		}
 		i.logger.Debugf("Actual pool of assigned pod IP addresses: %v", buffer.String())
 	}
@@ -564,7 +601,7 @@ func (i *IPAM) computeVxlanIPAddress(nodeID uint32) (net.IP, error) {
 }
 
 // findIP finds assigned IP address (in uint form) for given POD id or returns an error if no entry is found.
-func (i *IPAM) findIP(podID string) (uintIP, error) {
+func (i *IPAM) findIP(podID podmodel.ID) (uintIP, error) {
 	for ip, curPodID := range i.assignedPodIPs {
 		if curPodID == podID {
 			return ip, nil

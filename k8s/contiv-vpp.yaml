@@ -392,6 +392,8 @@ spec:
               mountPath: /etc/govpp
             - name: core-dumps
               mountPath: /var/contiv/dumps
+            - name: docker-socket
+              mountPath: /var/run/docker.sock
 
       volumes:
         # Used to connect to contiv-etcd.
@@ -447,6 +449,9 @@ spec:
         - name: var-bolt
           hostPath:
             path: /var/bolt
+        - name: docker-socket
+          hostPath:
+            path: /var/run/docker.sock
 
 ---
 

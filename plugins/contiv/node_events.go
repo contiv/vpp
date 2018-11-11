@@ -92,6 +92,8 @@ func (p *Plugin) updateThisNodeMgmtIPs(nodeChange datasync.KeyVal) error {
 
 // otherNodesResync re-synchronizes connectivity to other nodes.
 func (s *remoteCNIserver) otherNodesResync(dataResyncEv datasync.ResyncEvent, txn txn_api.ResyncOperations) error {
+	// reset the internal map of other node IDs
+	s.otherNodes = make(map[uint32]*node.NodeInfo)
 
 	// collect other node IDs and configuration for connectivity with each of them
 	data := dataResyncEv.GetValues()

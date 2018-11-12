@@ -50,7 +50,6 @@ import (
 	nodeconfig "github.com/contiv/vpp/plugins/crd/handler/nodeconfig/model"
 	k8sNode "github.com/contiv/vpp/plugins/ksr/model/node"
 	k8sPod "github.com/contiv/vpp/plugins/ksr/model/pod"
-	"github.com/unrolled/render"
 )
 
 // MgmtIPSeparator is a delimiter inserted between management IPs in nodeInfo structure
@@ -200,9 +199,9 @@ func (p *Plugin) Init() error {
 
 // AfterInit registers Resync REST handler.
 func (p *Plugin) AfterInit() error {
-	if plugin.HTTPHandlers != nil && plugin.Resync != nil {
+	if p.HTTPHandlers != nil && p.Resync != nil {
 		path := "/doresync"
-		plugin.HTTPHandlers.RegisterHTTPHandler(path, p.resyncReqHandler, "POST")
+		p.HTTPHandlers.RegisterHTTPHandler(path, p.resyncReqHandler, "POST")
 	}
 	return nil
 }
@@ -468,8 +467,8 @@ func (p *Plugin) processChangeEv(changeEv datasync.ChangeEvent) {
 // resyncReqHandler is here temporarily to test run-time resync.
 func (p *Plugin) resyncReqHandler(formatter *render.Render) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
-		plugin.Log.Info("Triggering run-time resync")
-		plugin.Resync.DoResync()
+		p.Log.Info("Triggering run-time resync")
+		p.Resync.DoResync()
 		formatter.JSON(w, http.StatusOK, "Resync has started...")
 	}
 }

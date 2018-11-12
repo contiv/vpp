@@ -45,7 +45,9 @@ func (vds *VppDataStore) CreateNode(ID uint32, nodeName, IPAddr, ManIPAdr string
 		return fmt.Errorf("node %s already exists", nodeName)
 	}
 
-	n := &telemetrymodel.Node{IPAddr: IPAddr, ManIPAddr: ManIPAdr, ID: ID, Name: nodeName}
+	n := &telemetrymodel.Node{
+		NodeInfo: &telemetrymodel.NodeInfo{IPAddr: IPAddr, ManIPAddr: ManIPAdr, ID: ID, Name: nodeName},
+	}
 	n.PodMap = make(map[string]*telemetrymodel.Pod)
 	vds.NodeMap[nodeName] = n
 

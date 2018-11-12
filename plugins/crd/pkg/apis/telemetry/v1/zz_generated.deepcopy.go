@@ -105,10 +105,8 @@ func (in *TelemetryReportStatus) DeepCopyInto(out *TelemetryReportStatus) {
 	*out = *in
 	if in.Nodes != nil {
 		in, out := &in.Nodes, &out.Nodes
-		*out = make([]telemetrymodel.Node, len(*in))
-		for i := range *in {
-			(*in)[i].DeepCopyInto(&(*out)[i])
-		}
+		*out = make([]telemetrymodel.NodeInfo, len(*in))
+		copy(*out, *in)
 	}
 	if in.Reports != nil {
 		in, out := &in.Reports, &out.Reports

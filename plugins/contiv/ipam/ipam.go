@@ -371,7 +371,7 @@ func (i *IPAM) NextPodIP(podID podmodel.ID) (net.IP, error) {
 		}
 	}
 
-	return nil, fmt.Errorf("no IP address is free for assignment", i.podNetworkIPPrefix)
+	return nil, fmt.Errorf("no IP address is free for allocation in the subnet %v", i.podNetworkIPPrefix)
 }
 
 // tryToAllocatePodIP checks whether the IP at the given index is available.

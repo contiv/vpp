@@ -860,7 +860,7 @@ ifcLoop1:
 	vtv.report.Clear()
 	vtv.l2Validator.ValidatePodInfo()
 
-	checkDataReport(1, 2, 0)
+	checkDataReport(1, 4, 0)
 
 	// Restore data back to error free state
 	ipam.Config.PodIfIPCIDR = oldPodIfIPCIDR

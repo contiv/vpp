@@ -158,7 +158,7 @@ func TestDataResync(t *testing.T) {
 	drd.report.Output = &nullWriter{}
 
 	drd.processor = &mockProcessor{}
-	drd.cache = NewTelemetryCache(logging.ForPlugin("dr-test"))
+	drd.cache = NewTelemetryCache(logging.ForPlugin("dr-test"), true)
 	drd.cache.Report = drd.report
 	drd.cache.ControllerReport = &mockCRDReport{rep: drd.report}
 

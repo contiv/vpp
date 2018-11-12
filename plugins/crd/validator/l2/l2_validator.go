@@ -650,15 +650,6 @@ func (v *Validator) ValidatePodInfo() {
 			continue
 		}
 
-		// Get K8s's view of the Pod's CIDR on this node
-		_, k8sMask, err := utils.Ipv4CidrToAddressAndMask(k8sNode.Pod_CIDR)
-		if err != nil {
-			errCnt++
-			errString := fmt.Sprintf("pod '%s': invalid Pod_CIDR %s", pod.Name, k8sNode.Pod_CIDR)
-			v.Report.AppendToNodeReport(k8sNode.Name, errString)
-			continue
-		}
-
 		// Get Contiv's view of the VPP's pod-facing tap interface subnet CIDR
 		// on this node (PodIfIpCIDR)
 		if vppNode.NodeIPam == nil {
@@ -678,15 +669,6 @@ func (v *Validator) ValidatePodInfo() {
 			continue
 		}
 		podIfIPPrefix := podIfIPAddr &^ podIfIPMask
-
-		// Make sure the VPP-side CIDR mask and K8s-side CIDR mask are the same
-		if k8sMask != podIfIPMask {
-			errCnt++
-			errString := fmt.Sprintf("pod '%s': CIDR mask mismatch: K8s Pod CIDR: %s, Contiv PodIfIpCIDR %s",
-				pod.Name, k8sNode.Pod_CIDR, vppNode.NodeIPam.Config.PodIfIPCIDR)
-			v.Report.AppendToNodeReport(k8sNode.Name, errString)
-			continue
-		}
 
 		// Populate Pod's VPP interface data (IP addresses, interface name and
 		// ifIndex)
@@ -733,6 +715,26 @@ func (v *Validator) ValidatePodInfo() {
 						delete(tapMap[vppNode.Name], intf.IfMeta.SwIfIndex)
 					}
 				}
+			}
+		}
+
+		if len(k8sNode.Pod_CIDR) > 0 {
+			// Get K8s's view of the Pod's CIDR on this node
+			_, k8sMask, err := utils.Ipv4CidrToAddressAndMask(k8sNode.Pod_CIDR)
+			if err != nil {
+				errCnt++
+				errString := fmt.Sprintf("pod '%s': invalid Pod_CIDR %s", pod.Name, k8sNode.Pod_CIDR)
+				v.Report.AppendToNodeReport(k8sNode.Name, errString)
+				continue
+			}
+
+			// Make sure the VPP-side CIDR mask and K8s-side CIDR mask are the same
+			if k8sMask != podIfIPMask {
+				errCnt++
+				errString := fmt.Sprintf("pod '%s': CIDR mask mismatch: K8s Pod CIDR: %s, Contiv PodIfIpCIDR %s",
+					pod.Name, k8sNode.Pod_CIDR, vppNode.NodeIPam.Config.PodIfIPCIDR)
+				v.Report.AppendToNodeReport(k8sNode.Name, errString)
+				continue
 			}
 		}
 	}

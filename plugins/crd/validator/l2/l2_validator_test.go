@@ -120,6 +120,7 @@ func TestValidator(t *testing.T) {
 }
 
 func testErrorFreeTopologyValidation(t *testing.T) {
+	gomega.RegisterTestingT(t)
 	resetToInitialErrorFreeState()
 
 	vtv.l2Validator.Validate()
@@ -128,6 +129,7 @@ func testErrorFreeTopologyValidation(t *testing.T) {
 }
 
 func testMissingIPAMTopologyValidation(t *testing.T) {
+	gomega.RegisterTestingT(t)
 	vtv.nodeKey = "k8s-master"
 	resetToInitialErrorFreeState()
 
@@ -140,6 +142,7 @@ func testMissingIPAMTopologyValidation(t *testing.T) {
 }
 
 func testK8sNodeToNodeInfoOkValidation(t *testing.T) {
+	gomega.RegisterTestingT(t)
 	resetToInitialErrorFreeState()
 	vtv.l2Validator.ValidateK8sNodeInfo()
 
@@ -147,6 +150,7 @@ func testK8sNodeToNodeInfoOkValidation(t *testing.T) {
 }
 
 func testK8sNodeToNodeInfoMissingNiValidation(t *testing.T) {
+	gomega.RegisterTestingT(t)
 	vtv.nodeKey = "k8s-master"
 	resetToInitialErrorFreeState()
 
@@ -159,6 +163,7 @@ func testK8sNodeToNodeInfoMissingNiValidation(t *testing.T) {
 }
 
 func testK8sNodeToNodeInfoMissingK8snValidation(t *testing.T) {
+	gomega.RegisterTestingT(t)
 	vtv.nodeKey = "k8s-master"
 	resetToInitialErrorFreeState()
 
@@ -170,6 +175,7 @@ func testK8sNodeToNodeInfoMissingK8snValidation(t *testing.T) {
 }
 
 func testNodesDBValidateL2Connections(t *testing.T) {
+	gomega.RegisterTestingT(t)
 	nodeKey := "k8s-master"
 	resetToInitialErrorFreeState()
 
@@ -378,6 +384,7 @@ func testNodesDBValidateL2Connections(t *testing.T) {
 }
 
 func testValidateL2FibEntries(t *testing.T) {
+	gomega.RegisterTestingT(t)
 	vtv.nodeKey = "k8s-master"
 	resetToInitialErrorFreeState()
 
@@ -578,6 +585,7 @@ func testValidateL2FibEntries(t *testing.T) {
 }
 
 func testValidateArpEntries(t *testing.T) {
+	gomega.RegisterTestingT(t)
 	vtv.nodeKey = "k8s-master"
 	resetToInitialErrorFreeState()
 
@@ -654,6 +662,7 @@ func testValidateArpEntries(t *testing.T) {
 }
 
 func testValidatePodInfo(t *testing.T) {
+	gomega.RegisterTestingT(t)
 	vtv.nodeKey = "k8s-master"
 	resetToInitialErrorFreeState()
 
@@ -851,7 +860,7 @@ ifcLoop1:
 	vtv.report.Clear()
 	vtv.l2Validator.ValidatePodInfo()
 
-	checkDataReport(1, 2, 0)
+	checkDataReport(1, 4, 0)
 
 	// Restore data back to error free state
 	ipam.Config.PodIfIPCIDR = oldPodIfIPCIDR

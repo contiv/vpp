@@ -101,31 +101,31 @@ func (cfg *Config) ApplyIPAMConfig() error {
 	// podSubnetCIDR has a requriement of minimum 65K pod ip addresses use /16 mask
 	podPrefixLength := 16 - maskSize
 	podSubnetCIDR, _ := subnet(contivNetwork, podPrefixLength, 0)
-	podNetworkPrefixLen := uint8(25)
+	podSubnetOneNodePrefixLen := uint8(25)
 
 	// vppHostSubnetCIDR has a requriement of minimum 65K pod ip addresses use /16 mask
 	vppHostSubnetCIDR, _ := subnet(contivNetwork, podPrefixLength, 1)
-	vppHostNetworkPrefixLen := uint8(25)
+	vppHostSubnetOneNodePrefixLen := uint8(25)
 
 	// use a /23 mask for the requirement of 500 nodes, same for vxlanCIDR
 	nodePrefixLength := 23 - maskSize
 	nodeInterconnectCIDR, _ := subnet(contivNetwork, nodePrefixLength, 256)
 	vxlanCIDR, _ := subnet(contivNetwork, nodePrefixLength, 257)
 
-	// podIfIPCIDR uses a /25 network prefix length similar to vppHostNetworkPrefixLen
+	// podVPPSubnetCIDR uses a /25 network prefix length similar to vppHostSubnetOneNodePrefixLen
 	podIfSubnetPrefixLength := 25 - maskSize
-	podIfIPCIDR, _ := subnet(contivNetwork, podIfSubnetPrefixLength, 1032)
+	podVPPSubnetCIDR, _ := subnet(contivNetwork, podIfSubnetPrefixLength, 1032)
 
 	cfg.IPAMConfig = ipam.Config{
-		PodIfIPCIDR:             podIfIPCIDR.String(),
-		PodSubnetCIDR:           podSubnetCIDR.String(),
-		PodNetworkPrefixLen:     podNetworkPrefixLen,
-		VPPHostSubnetCIDR:       vppHostSubnetCIDR.String(),
-		VPPHostNetworkPrefixLen: vppHostNetworkPrefixLen,
-		VxlanCIDR:               vxlanCIDR.String(),
-		NodeInterconnectCIDR:    cfg.IPAMConfig.NodeInterconnectCIDR,
-		NodeInterconnectDHCP:    cfg.IPAMConfig.NodeInterconnectDHCP,
-		ContivCIDR:              cfg.IPAMConfig.ContivCIDR,
+		PodVPPSubnetCIDR:              podVPPSubnetCIDR.String(),
+		PodSubnetCIDR:                 podSubnetCIDR.String(),
+		PodSubnetOneNodePrefixLen:     podSubnetOneNodePrefixLen,
+		VPPHostSubnetCIDR:             vppHostSubnetCIDR.String(),
+		VPPHostSubnetOneNodePrefixLen: vppHostSubnetOneNodePrefixLen,
+		VxlanCIDR:                     vxlanCIDR.String(),
+		NodeInterconnectCIDR:          cfg.IPAMConfig.NodeInterconnectCIDR,
+		NodeInterconnectDHCP:          cfg.IPAMConfig.NodeInterconnectDHCP,
+		ContivCIDR:                    cfg.IPAMConfig.ContivCIDR,
 	}
 
 	if cfg.IPAMConfig.NodeInterconnectCIDR == "" && cfg.IPAMConfig.NodeInterconnectDHCP == false {

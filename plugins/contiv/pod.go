@@ -31,7 +31,7 @@ import (
 	"github.com/contiv/vpp/plugins/ksr/model/pod"
 )
 
-/********** Pod Configuration **********/
+/****************************** Pod Configuration ******************************/
 
 // Pod contains all attributes of a k8s Pod that are needed to configure connectivity.
 type Pod struct {
@@ -96,7 +96,7 @@ func (s *remoteCNIserver) podInterfaceName(pod *Pod) (vppIfName, linuxIfName str
 	return s.podAFPacketName(pod), s.podVeth1Name(pod)
 }
 
-/********** TAP interface **********/
+/******************************** TAP interface ********************************/
 
 // podVPPSideTAPName returns logical name of the TAP interface on VPP connected to a given pod.
 func (s *remoteCNIserver) podVPPSideTAPName(pod *Pod) string {
@@ -161,7 +161,7 @@ func (s *remoteCNIserver) podLinuxTAP(pod *Pod) (key string, config *linux_intf.
 	return key, tap
 }
 
-/********** AF-Packet + VETH interfaces **********/
+/************************* AF-Packet + VETH interfaces *************************/
 
 // podAFPacketName returns logical name of AF-Packet interface connecting VPP with a given Pod.
 func (s *remoteCNIserver) podAFPacketName(pod *Pod) string {
@@ -248,7 +248,7 @@ func (s *remoteCNIserver) podAfPacket(pod *Pod) (key string, config *vpp_intf.In
 	return key, afpacket
 }
 
-/********** Pod ARPs and routes **********/
+/***************************** Pod ARPs and routes *****************************/
 
 // podToVPPArpEntry returns configuration for ARP entry resolving hardware address
 // for pod gateway IP from VPP.
@@ -287,7 +287,7 @@ func (s *remoteCNIserver) podToVPPDefaultRoute(pod *Pod) (key string, config *li
 	return key, route
 }
 
-/********** VSwitch ARPs and routes **********/
+/*************************** VSwitch ARPs and routes ***************************/
 
 // vppToPodArpEntry return configuration for ARP entry used in VPP to resolve
 // hardware address from the IP address of the given pod.
@@ -316,14 +316,14 @@ func (s *remoteCNIserver) vppToPodRoute(pod *Pod) (key string, config *vpp_l3.St
 	return key, route
 }
 
-/********** Address generators **********/
+/**************************** Address generators ******************************/
 
 // ipAddrForPodVPPIf returns the IP address of the interface connecting pod on the VPP side.
 func (s *remoteCNIserver) ipAddrForPodVPPIf(pod *Pod) string {
-	tapPrefix, _ := ipv4ToUint32(*s.ipam.VPPIfIPPrefix())
+	tapPrefix, _ := ipv4ToUint32(*s.ipam.PodVPPSubnet())
 
 	podAddr, _ := ipv4ToUint32(pod.IPAddress)
-	podMask, _ := ipv4ToUint32(net.IP(s.ipam.PodNetwork().Mask))
+	podMask, _ := ipv4ToUint32(net.IP(s.ipam.PodSubnetThisNode().Mask))
 	podSuffix := podAddr &^ podMask
 
 	tapAddress := uint32ToIpv4(tapPrefix + podSuffix)
@@ -351,7 +351,7 @@ func (s *remoteCNIserver) hwAddrForPod(pod *Pod, vppSide bool) string {
 	return hwAddr.String()
 }
 
-/********** IPv6 **********/
+/************************************ IPv6 ************************************/
 
 // enableIPv6 enables IPv6 in the destination pod.
 func (s *remoteCNIserver) enableIPv6(pod *Pod) error {

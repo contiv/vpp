@@ -209,7 +209,7 @@ are a special case; they share their respective interfaces and IP addresses with
 the host. For proxying to work properly it is therefore required for services
 with backends running on the host to also **include the node management IP**
 within the `--pod-network-cidr` subnet. For example, with the default
-`PodSubnetCIDR=10.1.0.0/16` and `PodIfIPCIDR=10.2.1.0/24`, the subnet
+`PodSubnetCIDR=10.1.0.0/16` and `PodVPPSubnetCIDR=10.2.1.0/24`, the subnet
 `10.3.0.0/16` could be allocated for the management network and
 `--pod-network-cidr` could be defined as `10.0.0.0/8`, so as to include IP
 addresses of all pods in all network namespaces:

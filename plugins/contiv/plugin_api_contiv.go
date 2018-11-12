@@ -20,8 +20,8 @@ type API interface {
 	// GetPodSubnet provides subnet used for allocating pod IP addresses across all nodes.
 	GetPodSubnet() *net.IPNet
 
-	// GetPodNetwork provides subnet used for allocating pod IP addresses on this host node.
-	GetPodNetwork() *net.IPNet
+	// GetPodSubnetThisNode provides subnet used for allocating pod IP addresses on this host node.
+	GetPodSubnetThisNode() *net.IPNet
 
 	// InSTNMode returns true if Contiv operates in the STN mode (single interface for each node).
 	InSTNMode() bool
@@ -60,7 +60,7 @@ type API interface {
 
 	// WatchNodeIP adds given channel to the list of subscribers that are notified upon change
 	// of nodeIP address. If the channel is not ready to receive notification, the notification is dropped.
-	WatchNodeIP(subscriber chan string)
+	WatchNodeIP(subscriber chan *net.IPNet)
 
 	// GetMainPhysicalIfName returns name of the "main" interface - i.e. physical interface connecting
 	// the node with the rest of the cluster.

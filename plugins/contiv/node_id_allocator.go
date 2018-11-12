@@ -20,11 +20,13 @@ import (
 	"sort"
 	"sync"
 
+	"bytes"
 	"github.com/contiv/vpp/plugins/contiv/model/node"
 	"github.com/contiv/vpp/plugins/ksr"
 	"github.com/ligato/cn-infra/db/keyval"
 	"github.com/ligato/cn-infra/db/keyval/etcd"
 	"github.com/ligato/cn-infra/servicelabel"
+	"net"
 	"strconv"
 	"strings"
 )
@@ -53,14 +55,14 @@ type idAllocator struct {
 	ID        uint32
 
 	nodeName string
-	nodeIP   string
+	nodeIP   *net.IPNet
 
 	// ip used by k8s to access node
 	managementIP string
 }
 
 // newIDAllocator creates new instance of idAllocator
-func newIDAllocator(etcd *etcd.Plugin, nodeName string, nodeIP string) *idAllocator {
+func newIDAllocator(etcd *etcd.Plugin, nodeName string, nodeIP *net.IPNet) *idAllocator {
 	return &idAllocator{
 		etcd:     etcd,
 		broker:   etcd.NewBroker(servicelabel.GetDifferentAgentPrefix(ksr.MicroserviceLabel)),
@@ -118,7 +120,7 @@ func (ia *idAllocator) getID() (id uint32, err error) {
 	return ia.ID, nil
 }
 
-func (ia *idAllocator) updateIP(newIP string) error {
+func (ia *idAllocator) updateIP(newIP *net.IPNet) error {
 	return ia.updateEtcdEntry(newIP, ia.managementIP)
 }
 
@@ -126,7 +128,7 @@ func (ia *idAllocator) updateManagementIP(newMgmtIP string) error {
 	return ia.updateEtcdEntry(ia.nodeIP, newMgmtIP)
 }
 
-func (ia *idAllocator) updateEtcdEntry(newIP string, newManagementIP string) error {
+func (ia *idAllocator) updateEtcdEntry(newIP *net.IPNet, newManagementIP string) error {
 	// make sure that ID is allocated
 	_, err := ia.getID()
 	if err != nil {
@@ -135,7 +137,15 @@ func (ia *idAllocator) updateEtcdEntry(newIP string, newManagementIP string) err
 
 	ia.Lock()
 	defer ia.Unlock()
-	if ia.nodeIP == newIP && ia.managementIP == newManagementIP {
+
+	// check if anything has actually changed
+	var equalNodeIP bool
+	if ia.nodeIP == nil || newIP == nil {
+		equalNodeIP = ia.nodeIP == newIP
+	} else {
+		equalNodeIP = ia.nodeIP.IP.Equal(newIP.IP) && bytes.Equal(ia.nodeIP.Mask, newIP.Mask)
+	}
+	if equalNodeIP && ia.managementIP == newManagementIP {
 		return nil
 	}
 
@@ -145,7 +155,7 @@ func (ia *idAllocator) updateEtcdEntry(newIP string, newManagementIP string) err
 	value := &node.NodeInfo{
 		Id:                  ia.ID,
 		Name:                ia.nodeName,
-		IpAddress:           ia.nodeIP,
+		IpAddress:           ipNetToString(ia.nodeIP),
 		ManagementIpAddress: ia.managementIP,
 	}
 	err = ia.broker.Put(createKey(ia.ID), value)
@@ -176,7 +186,7 @@ func (ia *idAllocator) writeIfNotExists(id uint32) (succeeded bool, err error) {
 	value := &node.NodeInfo{
 		Id:        id,
 		Name:      ia.nodeName,
-		IpAddress: ia.nodeIP,
+		IpAddress: ia.nodeIP.String(),
 	}
 
 	encoded, err := json.Marshal(value)

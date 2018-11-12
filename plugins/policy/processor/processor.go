@@ -362,7 +362,7 @@ func (pp *PolicyProcessor) filterHostPods(pods []podmodel.ID) []podmodel.ID {
 		hadIP        bool
 		hostPods     []podmodel.ID
 	)
-	hostNetwork := pp.Contiv.GetPodNetwork()
+	hostNetwork := pp.Contiv.GetPodSubnetThisNode()
 
 	for _, podID := range pods {
 		found, podData := pp.Cache.LookupPod(podID)

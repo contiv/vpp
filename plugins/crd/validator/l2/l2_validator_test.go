@@ -786,7 +786,7 @@ func testValidatePodInfo(t *testing.T) {
 	// ----------------------------------------------
 	// INJECT FAULT: Missing pod-facing tap interface
 	podIfIPAdr, podIfIPMask, err :=
-		utils.Ipv4CidrToAddressAndMask(vtv.vppCache.NodeMap[vtv.nodeKey].NodeIPam.Config.PodIfIPCIDR)
+		utils.Ipv4CidrToAddressAndMask(vtv.vppCache.NodeMap[vtv.nodeKey].NodeIPam.Config.PodVPPSubnetCIDR)
 	gomega.Expect(err).To(gomega.BeNil())
 
 ifcLoop:
@@ -814,7 +814,7 @@ ifcLoop:
 	// --------------------------------------------------------
 	// INJECT FAULT: Bad ip address on pod-facing tap interface
 	podIfIPAdr, podIfIPMask, err =
-		utils.Ipv4CidrToAddressAndMask(vtv.vppCache.NodeMap[vtv.nodeKey].NodeIPam.Config.PodIfIPCIDR)
+		utils.Ipv4CidrToAddressAndMask(vtv.vppCache.NodeMap[vtv.nodeKey].NodeIPam.Config.PodVPPSubnetCIDR)
 	gomega.Expect(err).To(gomega.BeNil())
 
 ifcLoop1:
@@ -843,9 +843,9 @@ ifcLoop1:
 	// --------------------------------------------------------
 	// INJECT FAULT: Bad ip address on pod-facing tap interface
 	ipam := vtv.vppCache.NodeMap[vtv.nodeKey].NodeIPam
-	oldPodIfIPCIDR := ipam.Config.PodIfIPCIDR
-	addrParts := strings.Split(oldPodIfIPCIDR, "/")
-	ipam.Config.PodIfIPCIDR = addrParts[0] + "/32"
+	oldPodVPPSubnetCIDR := ipam.Config.PodVPPSubnetCIDR
+	addrParts := strings.Split(oldPodVPPSubnetCIDR, "/")
+	ipam.Config.PodVPPSubnetCIDR = addrParts[0] + "/32"
 
 	// Perform test
 	vtv.report.Clear()
@@ -854,7 +854,7 @@ ifcLoop1:
 	checkDataReport(1, 2, 0)
 
 	// Restore data back to error free state
-	ipam.Config.PodIfIPCIDR = oldPodIfIPCIDR
+	ipam.Config.PodVPPSubnetCIDR = oldPodVPPSubnetCIDR
 }
 
 func (v *l2ValidatorTestVars) findFirstVxlanInterface(nodeKey string) (int, *telemetrymodel.NodeInterface) {

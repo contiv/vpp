@@ -18,10 +18,10 @@ contiv:
   crdNodeConfigurationDisabled: True
   ipamConfig:
     podSubnetCIDR: 10.1.0.0/16
-    podNetworkPrefixLen: 24
-    podIfIPCIDR: 10.2.1.0/24
+    podSubnetOneNodePrefixLen: 24
+    podVPPSubnetCIDR: 10.2.1.0/24
     vppHostSubnetCIDR: 172.30.0.0/16
-    vppHostNetworkPrefixLen: 24
+    vppHostSubnetOneNodePrefixLen: 24
     nodeInterconnectCIDR: 192.168.16.0/24
     vxlanCIDR: 192.168.30.0/24
     nodeInterconnectDHCP: false

@@ -81,9 +81,9 @@ func nodeIpamCmd(client *remote.HTTPClient, db *etcd.BytesConnectionEtcd, w *tab
 		ipam.NodeName,
 		ipam.NodeIP,
 		bviIP,
-		ipam.PodNetwork,
+		ipam.PodSubnetThisNode,
 		ipam.VppHostNetwork,
-		ipam.Config.PodIfIPCIDR,
+		ipam.Config.PodVPPSubnetCIDR,
 		ipam.Config.PodSubnetCIDR)
 }
 

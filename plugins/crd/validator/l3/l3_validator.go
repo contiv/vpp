@@ -344,17 +344,17 @@ func (v *Validator) validateRemoteNodeRoutes(node *telemetrymodel.Node, vrfMap V
 			v.Report.AppendToNodeReport(node.Name, err.Error())
 		}
 
-		// Check if the nextHop on the route to the PodNetwork subnet on
+		// Check if the nextHop on the route to the PodSubnetThisNode subnet on
 		// the remote node is one of the IP addresses configured on the remote
 		// node's vxlanBVI interface
-		bviAddr, err = checkIfRouteNextHopPointsToInterface(othNode.NodeIPam.PodNetwork, 1, vrfMap,
+		bviAddr, err = checkIfRouteNextHopPointsToInterface(othNode.NodeIPam.PodSubnetThisNode, 1, vrfMap,
 			ifc, othNode.Name)
 		if err == nil {
-			// Validate route from VRF1 to the PodNetwork subnet on the remote
+			// Validate route from VRF1 to the PodSubnetThisNode subnet on the remote
 			// node. The outgoing interface should be the local vxlanBVI
 			// interface (i.e. the path to the remote node should be through
 			// the vxlan tunnel).
-			numErrs += v.validateRoute(othNode.NodeIPam.PodNetwork, 1, vrfMap, routeMap, node.Name,
+			numErrs += v.validateRoute(othNode.NodeIPam.PodSubnetThisNode, 1, vrfMap, routeMap, node.Name,
 				vxlanBviName, localVxlanBVI.IfMeta.SwIfIndex, bviAddr, 0, 0)
 		} else {
 			numErrs++

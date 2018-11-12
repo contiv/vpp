@@ -6,17 +6,17 @@
 // calculation and assignment itself, the cluster IPAM is therefore distributed between all nodes.
 //
 // The package calculates and assigns the following IP addresses:
-// 		- node-local POD network and individual POD IPs (based on PodSubnetCIDR, PodNetworkPrefixLen and node ID)
-//		- IP subnet for the VPP-to-host Linux stack interconnect (based on VPPHostSubnetCIDR, VPPHostNetworkPrefixLen and node ID)
+// 		- node-local POD network and individual POD IPs (based on PodSubnetCIDR, PodSubnetOneNodePrefixLen and node ID)
+//		- IP subnet for the VPP-to-host Linux stack interconnect (based on VPPHostSubnetCIDR, VPPHostSubnetOneNodePrefixLen and node ID)
 //		- IP address of the physical interface used for node interconnect (based on NodeInterconnectCIDR and node ID)
 //
 // Example:
 //
 //	    IPAMConfig:
 //		  PodSubnetCIDR: "10.1.0.0/16"
-//		  PodNetworkPrefixLen: 24
+//		  PodSubnetOneNodePrefixLen: 24
 //		  VPPHostSubnetCIDR: "172.30.0.0/16"
-//		  VPPHostNetworkPrefixLen: 24
+//		  VPPHostSubnetOneNodePrefixLen: 24
 //		  NodeInterconnectCIDR: "192.168.16.0/24"
 //
 //		Assigned node ID: 5

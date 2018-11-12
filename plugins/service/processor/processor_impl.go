@@ -509,7 +509,7 @@ func (sp *ServiceProcessor) processResyncEvent(resyncEv *ResyncEventData) error 
 			continue
 		}
 		podIPAddress := net.ParseIP(pod.IpAddress)
-		if podIPAddress == nil || !sp.Contiv.GetPodNetwork().Contains(podIPAddress) {
+		if podIPAddress == nil || !sp.Contiv.GetPodSubnetThisNode().Contains(podIPAddress) {
 			continue
 		}
 

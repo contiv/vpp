@@ -60,10 +60,10 @@ data:
       ContivCIDR: {{ .Values.contiv.ipamConfig.contivCIDR }}
       {{ else }}
       PodSubnetCIDR: {{ .Values.contiv.ipamConfig.podSubnetCIDR }}
-      PodNetworkPrefixLen: {{ .Values.contiv.ipamConfig.podNetworkPrefixLen }}
-      PodIfIPCIDR: {{ .Values.contiv.ipamConfig.podIfIPCIDR }}
+      PodSubnetOneNodePrefixLen: {{ .Values.contiv.ipamConfig.podSubnetOneNodePrefixLen }}
+      PodVPPSubnetCIDR: {{ .Values.contiv.ipamConfig.podVPPSubnetCIDR }}
       VPPHostSubnetCIDR: {{ .Values.contiv.ipamConfig.vppHostSubnetCIDR }}
-      VPPHostNetworkPrefixLen: {{ .Values.contiv.ipamConfig.vppHostNetworkPrefixLen }}
+      VPPHostSubnetOneNodePrefixLen: {{ .Values.contiv.ipamConfig.vppHostSubnetOneNodePrefixLen }}
       VxlanCIDR: {{ .Values.contiv.ipamConfig.vxlanCIDR }}
       {{- end }}
     {{- if .Values.contiv.nodeConfig }}

@@ -177,25 +177,25 @@ type NodeL2FibEntry struct {
 
 //IPamEntry holds unmarchalled ipam JSON data
 type IPamEntry struct {
-	NodeID         uint32 `json:"nodeId"`
-	NodeName       string `json:"nodeName"`
-	NodeIP         string `json:"nodeIP"`
-	PodNetwork     string `json:"podNetwork"`
-	VppHostNetwork string `json:"vppHostNetwork"`
-	Config         config `json:"config"`
+	NodeID            uint32 `json:"nodeId"`
+	NodeName          string `json:"nodeName"`
+	NodeIP            string `json:"nodeIP"`
+	PodSubnetThisNode string `json:"podNetwork"`
+	VppHostNetwork    string `json:"vppHostNetwork"`
+	Config            config `json:"config"`
 }
 
 type config struct {
-	PodIfIPCIDR             string `json:"podIfIPCIDR"`
-	PodSubnetCIDR           string `json:"podSubnetCIDR"`
-	PodNetworkPrefixLen     uint32 `json:"podNetworkPrefixLen"`
-	VppHostSubnetCIDR       string `json:"vppHostSubnetCIDR"`
-	VppHostNetworkPrefixLen uint32 `json:"vppHostNetworkPrefixLen"`
-	NodeInterconnectCIDR    string `json:"nodeInterconnectCIDR"`
-	NodeInterconnectDHCP    bool   `json:"nodeInterconnectDHCP"`
-	VxlanCIDR               string `json:"vxlanCIDR"`
-	ServiceCIDR             string `json:"serviceCIDR"`
-	ContivCIDR              string `json:"contivCIDR"`
+	PodVPPSubnetCIDR              string `json:"podVPPSubnetCIDR"`
+	PodSubnetCIDR                 string `json:"podSubnetCIDR"`
+	PodSubnetOneNodePrefixLen     uint32 `json:"podSubnetOneNodePrefixLen"`
+	VppHostSubnetCIDR             string `json:"vppHostSubnetCIDR"`
+	VppHostSubnetOneNodePrefixLen uint32 `json:"vppHostSubnetOneNodePrefixLen"`
+	NodeInterconnectCIDR          string `json:"nodeInterconnectCIDR"`
+	NodeInterconnectDHCP          bool   `json:"nodeInterconnectDHCP"`
+	VxlanCIDR                     string `json:"vxlanCIDR"`
+	ServiceCIDR                   string `json:"serviceCIDR"`
+	ContivCIDR                    string `json:"contivCIDR"`
 }
 
 // L2FibEntry defines the L2 FIB entry data set

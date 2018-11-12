@@ -161,7 +161,18 @@ func trimInterfaceName(ifName string, maxLen int) string {
 
 // combineAddrWithNet combines provided IP address with the mask from the provided network.
 func combineAddrWithNet(addr net.IP, network *net.IPNet) *net.IPNet {
+	if len(addr) == 0 {
+		return nil
+	}
 	return &net.IPNet{IP: addr, Mask: network.Mask}
+}
+
+// ipNetToString convert IP network to string, also handling <nil> pointer.
+func ipNetToString(ipNet *net.IPNet) string {
+	if ipNet == nil {
+		return ""
+	}
+	return ipNet.String()
 }
 
 // ipv4ToUint32 is a simple utility function for conversion from IPv4 to uint32.

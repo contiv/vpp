@@ -29,46 +29,54 @@ import (
 	vpp_l3 "github.com/ligato/vpp-agent/plugins/vppv2/model/l3"
 )
 
-/********** Global vswitch configuration **********/
+/*********************** Global vswitch configuration *************************/
 
 // enabledIPNeighborScan returns configuration for enabled IP neighbor scanning
 // (used to clean up old ARP entries).
 func (s *remoteCNIserver) enabledIPNeighborScan() (key string, config *vpp_l3.IPScanNeighbor) {
-	return vpp_l3.IPScanNeighborKey,
-		&vpp_l3.IPScanNeighbor{
-			Mode:           vpp_l3.IPScanNeighbor_IPv4,
-			ScanInterval:   uint32(s.config.IPNeighborScanInterval),
-			StaleThreshold: uint32(s.config.IPNeighborStaleThreshold),
-		}
+	config = &vpp_l3.IPScanNeighbor{
+		Mode:           vpp_l3.IPScanNeighbor_IPv4,
+		ScanInterval:   uint32(s.config.IPNeighborScanInterval),
+		StaleThreshold: uint32(s.config.IPNeighborStaleThreshold),
+	}
+	key = vpp_l3.IPScanNeighborKey
+	return key, config
 }
 
-/********** NICs **********/
+/************************************ NICs ************************************/
 
 // physicalInterface returns configuration for physical interface - either the main interface
 // connecting node with the rest of the cluster or an extra physical interface requested
 // in the config file.
 func (s *remoteCNIserver) physicalInterface(name string, ipAddress *net.IPNet) (key string, config *vpp_intf.Interface) {
-	return vpp_intf.InterfaceKey(name),
-		&vpp_intf.Interface{
-			Name:        name,
-			Type:        vpp_intf.Interface_ETHERNET_CSMACD,
-			Enabled:     true,
-			Vrf:         s.GetMainVrfID(),
-			IpAddresses: []string{ipAddress.String()},
-		}
+	iface := &vpp_intf.Interface{
+		Name:    name,
+		Type:    vpp_intf.Interface_ETHERNET_CSMACD,
+		Enabled: true,
+		Vrf:     s.GetMainVrfID(),
+	}
+	if ipAddress != nil {
+		iface.IpAddresses = []string{ipNetToString(ipAddress)}
+	}
+	key = vpp_intf.InterfaceKey(name)
+	return key, iface
 }
 
 // loopbackInterface returns configuration for loopback created when no physical interfaces
 // are configured.
 func (s *remoteCNIserver) loopbackInterface(ipAddress *net.IPNet) (key string, config *vpp_intf.Interface) {
-	return vpp_intf.InterfaceKey(loopbackNICLogicalName),
-		&vpp_intf.Interface{
-			Name:        loopbackNICLogicalName,
-			Type:        vpp_intf.Interface_SOFTWARE_LOOPBACK,
-			Enabled:     true,
-			Vrf:         s.GetMainVrfID(),
-			IpAddresses: []string{ipAddress.String()},
-		}
+	iface := &vpp_intf.Interface{
+		Name:        loopbackNICLogicalName,
+		Type:        vpp_intf.Interface_SOFTWARE_LOOPBACK,
+		Enabled:     true,
+		Vrf:         s.GetMainVrfID(),
+		IpAddresses: []string{ipAddress.String()},
+	}
+	if ipAddress != nil {
+		iface.IpAddresses = []string{ipNetToString(ipAddress)}
+	}
+	key = vpp_intf.InterfaceKey(loopbackNICLogicalName)
+	return key, iface
 }
 
 // defaultRoute return configuration for default route connecting the node with the outside world.
@@ -83,7 +91,7 @@ func (s *remoteCNIserver) defaultRoute(gwIP net.IP, outIfName string) (key strin
 	return key, route
 }
 
-/********** VPP <-> Host connectivity **********/
+/************************** VPP <-> Host connectivity **************************/
 
 // hostInterconnectVPPIfName returns the logical name of the VPP-host interconnect
 // interface on the VPP side.
@@ -97,7 +105,7 @@ func (s *remoteCNIserver) hostInterconnectVPPIfName() string {
 // interconnectTapVPP returns configuration for the VPP-side of the TAP interface
 // connecting VPP with the host stack.
 func (s *remoteCNIserver) interconnectTapVPP() (key string, config *vpp_intf.Interface) {
-	size, _ := s.ipam.VPPHostNetwork().Mask.Size()
+	size, _ := s.ipam.HostInterconnectSubnetThisNode().Mask.Size()
 	tap := &vpp_intf.Interface{
 		Name:    HostInterconnectTAPinVPPLogicalName,
 		Type:    vpp_intf.Interface_TAP_INTERFACE,
@@ -107,8 +115,8 @@ func (s *remoteCNIserver) interconnectTapVPP() (key string, config *vpp_intf.Int
 		Link: &vpp_intf.Interface_Tap{
 			Tap: &vpp_intf.Interface_TapLink{},
 		},
-		IpAddresses: []string{s.ipam.VEthVPPEndIP().String() + "/" + strconv.Itoa(size)},
-		PhysAddress: hwAddrForNodeInterface(s.ipam.NodeID(), hostInterconnectHwAddrPrefix),
+		IpAddresses: []string{s.ipam.HostInterconnectIPInVPP().String() + "/" + strconv.Itoa(size)},
+		PhysAddress: hwAddrForNodeInterface(s.nodeID, hostInterconnectHwAddrPrefix),
 	}
 	if s.config.TAPInterfaceVersion == 2 {
 		tap.GetTap().Version = 2
@@ -122,7 +130,7 @@ func (s *remoteCNIserver) interconnectTapVPP() (key string, config *vpp_intf.Int
 // interconnectTapHost returns configuration for the Host-side of the TAP interface
 // connecting VPP with the host stack.
 func (s *remoteCNIserver) interconnectTapHost() (key string, config *linux_intf.LinuxInterface) {
-	size, _ := s.ipam.VPPHostNetwork().Mask.Size()
+	size, _ := s.ipam.HostInterconnectSubnetThisNode().Mask.Size()
 	tap := &linux_intf.LinuxInterface{
 		Name: HostInterconnectTAPinLinuxLogicalName,
 		Type: linux_intf.LinuxInterface_TAP_TO_VPP,
@@ -134,7 +142,7 @@ func (s *remoteCNIserver) interconnectTapHost() (key string, config *linux_intf.
 		Mtu:         s.config.MTUSize,
 		HostIfName:  HostInterconnectTAPinLinuxHostName,
 		Enabled:     true,
-		IpAddresses: []string{s.ipam.VEthHostEndIP().String() + "/" + strconv.Itoa(size)},
+		IpAddresses: []string{s.ipam.HostInterconnectIPInLinux().String() + "/" + strconv.Itoa(size)},
 	}
 	key = linux_intf.InterfaceKey(tap.Name)
 	return key, tap
@@ -143,7 +151,7 @@ func (s *remoteCNIserver) interconnectTapHost() (key string, config *linux_intf.
 // interconnectAfpacket returns configuration for the AF-Packet interface attached
 // to interconnectVethVpp (see below)
 func (s *remoteCNIserver) interconnectAfpacket() (key string, config *vpp_intf.Interface) {
-	size, _ := s.ipam.VPPHostNetwork().Mask.Size()
+	size, _ := s.ipam.HostInterconnectSubnetThisNode().Mask.Size()
 	afpacket := &vpp_intf.Interface{
 		Name: hostInterconnectAFPacketLogicalName,
 		Type: vpp_intf.Interface_AF_PACKET_INTERFACE,
@@ -155,8 +163,8 @@ func (s *remoteCNIserver) interconnectAfpacket() (key string, config *vpp_intf.I
 		Mtu:         s.config.MTUSize,
 		Enabled:     true,
 		Vrf:         s.GetMainVrfID(),
-		IpAddresses: []string{s.ipam.VEthVPPEndIP().String() + "/" + strconv.Itoa(size)},
-		PhysAddress: hwAddrForNodeInterface(s.ipam.NodeID(), hostInterconnectHwAddrPrefix),
+		IpAddresses: []string{s.ipam.HostInterconnectIPInVPP().String() + "/" + strconv.Itoa(size)},
+		PhysAddress: hwAddrForNodeInterface(s.nodeID, hostInterconnectHwAddrPrefix),
 	}
 	key = vpp_intf.InterfaceKey(afpacket.Name)
 	return key, config
@@ -182,7 +190,7 @@ func (s *remoteCNIserver) interconnectVethVpp() (key string, config *linux_intf.
 // interconnectVethHost returns configuration for host-side of the VETH pipe connecting
 // vswitch with the host stack.
 func (s *remoteCNIserver) interconnectVethHost() (key string, config *linux_intf.LinuxInterface) {
-	size, _ := s.ipam.VPPHostNetwork().Mask.Size()
+	size, _ := s.ipam.HostInterconnectSubnetThisNode().Mask.Size()
 	veth := &linux_intf.LinuxInterface{
 		Name: hostInterconnectVETH1LogicalName,
 		Type: linux_intf.LinuxInterface_VETH,
@@ -192,7 +200,7 @@ func (s *remoteCNIserver) interconnectVethHost() (key string, config *linux_intf
 		Mtu:         s.config.MTUSize,
 		Enabled:     true,
 		HostIfName:  hostInterconnectVETH1HostName,
-		IpAddresses: []string{s.ipam.VEthHostEndIP().String() + "/" + strconv.Itoa(size)},
+		IpAddresses: []string{s.ipam.HostInterconnectIPInLinux().String() + "/" + strconv.Itoa(size)},
 	}
 	key = linux_intf.InterfaceKey(veth.Name)
 	return key, veth
@@ -229,7 +237,7 @@ func (s *remoteCNIserver) routePODsFromHost(nextHopIP net.IP) (key string, confi
 	route := &linux_l3.LinuxStaticRoute{
 		OutgoingInterface: hostInterconnectVETH1LogicalName,
 		Scope:             linux_l3.LinuxStaticRoute_GLOBAL,
-		DstNetwork:        s.ipam.PodSubnet().String(),
+		DstNetwork:        s.ipam.PodSubnetAllNodes().String(),
 		GwAddr:            nextHopIP.String(),
 	}
 	if s.config.UseTAPInterfaces {
@@ -255,7 +263,7 @@ func (s *remoteCNIserver) routeServicesFromHost(nextHopIP net.IP) (key string, c
 	return key, route
 }
 
-/********** VRFs **********/
+/************************************ VRFs ************************************/
 
 // routesPodToMainVRF returns non-drop routes from Pod VRF to Main VRF.
 func (s *remoteCNIserver) routesPodToMainVRF() map[string]*vpp_l3.StaticRoute {
@@ -274,7 +282,7 @@ func (s *remoteCNIserver) routesPodToMainVRF() map[string]*vpp_l3.StaticRoute {
 	// host network (all nodes) routed from Pod VRF via Main VRF
 	r2 := &vpp_l3.StaticRoute{
 		Type:       vpp_l3.StaticRoute_INTER_VRF,
-		DstNetwork: s.ipam.VPPHostNetwork().String(),
+		DstNetwork: s.ipam.HostInterconnectSubnetThisNode().String(),
 		VrfId:      s.GetPodVrfID(),
 		ViaVrfId:   s.GetMainVrfID(),
 	}
@@ -290,7 +298,7 @@ func (s *remoteCNIserver) routesMainToPodVRF() map[string]*vpp_l3.StaticRoute {
 	// pod subnet (all nodes) routed from Main VRF via Pod VRF (to go via VXLANs)
 	r1 := &vpp_l3.StaticRoute{
 		Type:       vpp_l3.StaticRoute_INTER_VRF,
-		DstNetwork: s.ipam.PodSubnet().String(),
+		DstNetwork: s.ipam.PodSubnetAllNodes().String(),
 		VrfId:      s.GetMainVrfID(),
 		ViaVrfId:   s.GetPodVrfID(),
 	}
@@ -300,7 +308,7 @@ func (s *remoteCNIserver) routesMainToPodVRF() map[string]*vpp_l3.StaticRoute {
 	// host network (all nodes) routed from Main VRF via Pod VRF (to go via VXLANs)
 	r2 := &vpp_l3.StaticRoute{
 		Type:       vpp_l3.StaticRoute_INTER_VRF,
-		DstNetwork: s.ipam.VPPHostSubnet().String(),
+		DstNetwork: s.ipam.HostInterconnectSubnetAllNodes().String(),
 		VrfId:      s.GetMainVrfID(),
 		ViaVrfId:   s.GetPodVrfID(),
 	}
@@ -314,12 +322,12 @@ func (s *remoteCNIserver) dropRoutesIntoPodVRF() map[string]*vpp_l3.StaticRoute 
 	routes := make(map[string]*vpp_l3.StaticRoute)
 
 	// drop packets destined to pods no longer deployed
-	r1 := s.dropRoute(s.GetPodVrfID(), s.ipam.PodSubnet())
+	r1 := s.dropRoute(s.GetPodVrfID(), s.ipam.PodSubnetAllNodes())
 	r1Key := vpp_l3.RouteKey(r1.VrfId, r1.DstNetwork, r1.NextHopAddr)
 	routes[r1Key] = r1
 
 	// drop packets destined to nodes no longer deployed
-	r2 := s.dropRoute(s.GetPodVrfID(), s.ipam.VPPHostSubnet())
+	r2 := s.dropRoute(s.GetPodVrfID(), s.ipam.HostInterconnectSubnetAllNodes())
 	r2Key := vpp_l3.RouteKey(r2.VrfId, r2.DstNetwork, r2.NextHopAddr)
 	routes[r2Key] = r2
 
@@ -335,12 +343,12 @@ func (s *remoteCNIserver) dropRoute(vrfID uint32, dstAddr *net.IPNet) *vpp_l3.St
 	}
 }
 
-/********** Bridge Domain with VXLANs **********/
+/************************** Bridge Domain with VXLANs **************************/
 
 // vxlanBVILoopback returns configuration of the loopback interfaces acting as BVI
 // for the bridge domain with VXLAN interfaces.
 func (s *remoteCNIserver) vxlanBVILoopback() (key string, config *vpp_intf.Interface, err error) {
-	vxlanIP, err := s.ipam.VxlanIPWithPrefix(s.ipam.NodeID())
+	vxlanIP, vxlanIPNet, err := s.ipam.VxlanIPAddress(s.nodeID)
 	if err != nil {
 		return "", nil, err
 	}
@@ -348,8 +356,8 @@ func (s *remoteCNIserver) vxlanBVILoopback() (key string, config *vpp_intf.Inter
 		Name:        vxlanBVIInterfaceName,
 		Type:        vpp_intf.Interface_SOFTWARE_LOOPBACK,
 		Enabled:     true,
-		IpAddresses: []string{vxlanIP.String()},
-		PhysAddress: hwAddrForNodeInterface(s.ipam.NodeID(), vxlanBVIHwAddrPrefix),
+		IpAddresses: []string{ipNetToString(combineAddrWithNet(vxlanIP, vxlanIPNet))},
+		PhysAddress: hwAddrForNodeInterface(s.nodeID, vxlanBVIHwAddrPrefix),
 		Vrf:         s.GetPodVrfID(),
 	}
 	key = vpp_intf.InterfaceKey(vxlan.Name)
@@ -452,7 +460,7 @@ func (s *remoteCNIserver) otherNodeIP(otherNodeID uint32, otherNodeIPNet string)
 	}
 
 	// otherNodeIPNet not defined, determine based on otherNodeID
-	nodeIP, err := s.ipam.NodeIPAddress(otherNodeID)
+	nodeIP, _, err := s.ipam.NodeIPAddress(otherNodeID)
 	if err != nil {
 		err := fmt.Errorf("Failed to get Node IP address for node ID %v, error: %v ",
 			otherNodeID, err)
@@ -465,7 +473,7 @@ func (s *remoteCNIserver) otherNodeIP(otherNodeID uint32, otherNodeIPNet string)
 // routeToOtherNodePods returns configuration for route applied to traffic destined
 // to pods of another node.
 func (s *remoteCNIserver) routeToOtherNodePods(otherNodeID uint32, nextHopIP net.IP) (key string, config *vpp_l3.StaticRoute, err error) {
-	podNetwork, err := s.ipam.OtherNodePodNetwork(otherNodeID)
+	podNetwork, err := s.ipam.PodSubnetOtherNode(otherNodeID)
 	if err != nil {
 		return "", nil, fmt.Errorf("Failed to compute pod network for node ID %v, error: %v ", otherNodeID, err)
 	}
@@ -476,7 +484,7 @@ func (s *remoteCNIserver) routeToOtherNodePods(otherNodeID uint32, nextHopIP net
 // routeToOtherNodeHostStack returns configuration for route applied to traffic destined
 // to the host stack of another node.
 func (s *remoteCNIserver) routeToOtherNodeHostStack(otherNodeID uint32, nextHopIP net.IP) (key string, config *vpp_l3.StaticRoute, err error) {
-	hostNetwork, err := s.ipam.OtherNodeVPPHostNetwork(otherNodeID)
+	hostNetwork, err := s.ipam.HostInterconnectSubnetOtherNode(otherNodeID)
 	if err != nil {
 		return "", nil, fmt.Errorf("Can't compute vswitch network for host ID %v, error: %v ", otherNodeID, err)
 	}
@@ -531,7 +539,7 @@ func (s *remoteCNIserver) routeToOtherNodeManagementIPViaPodVRF(managementIP net
 	return key, route
 }
 
-/********** Host IP addresses **********/
+/****************************** Host IP addresses ******************************/
 
 func (s *remoteCNIserver) getHostLinkIPs() ([]net.IP, error) {
 	if s.hostIPs != nil {

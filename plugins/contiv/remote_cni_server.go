@@ -23,12 +23,11 @@ import (
 
 	"git.fd.io/govpp.git/api"
 	"github.com/apparentlymart/go-cidr/cidr"
+	"github.com/fsouza/go-dockerclient"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
-	"github.com/fsouza/go-dockerclient"
 
 	"github.com/ligato/cn-infra/datasync"
-	"github.com/ligato/cn-infra/db/keyval"
 	"github.com/ligato/cn-infra/idxmap"
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/rpc/rest"
@@ -82,7 +81,7 @@ const (
 	k8sLabelForSandboxContainer = "io.kubernetes.docker.type=podsandbox"
 
 	// labels attached to (not only sandbox) container to identify the pod it belongs to
-	k8sLabelForPodName = "io.kubernetes.pod.name"
+	k8sLabelForPodName      = "io.kubernetes.pod.name"
 	k8sLabelForPodNamespace = "io.kubernetes.pod.namespace"
 
 	// interface host name as required by Kubernetes for every pod
@@ -217,7 +216,7 @@ type remoteCNIserver struct {
 	hostIPs []net.IP
 
 	// nodeIPsubscribers is a slice of channels that are notified when nodeIP is changed
-	nodeIPsubscribers []chan string
+	nodeIPsubscribers []chan *net.IPNet
 
 	// global config
 	config *Config
@@ -268,15 +267,15 @@ type DockerClient interface {
 // EthernetIfacesDumpClb is callback for dumping physical interfaces on VPP.
 type EthernetIfacesDumpClb func() (ifaces map[uint32]*intf_vppcalls.InterfaceDetails, err error)
 
-/******* Constructor *******/
+/********************************* Constructor *********************************/
 
 // newRemoteCNIServer initializes a new remote CNI server instance.
 func newRemoteCNIServer(logger logging.Logger, txnFactory func() txn_api.Transaction, dockerClient DockerClient,
 	ethernetIfsDump EthernetIfacesDumpClb, govppChan api.Channel,
 	swIfIndex ifaceidx.IfaceMetadataIndex, dhcpIndex idxmap.NamedMapping, agentLabel string,
-	config *Config, nodeConfig *NodeConfig, nodeID uint32, nodeExcludeIPs []net.IP, broker keyval.ProtoBroker, http rest.HTTPHandlers) (*remoteCNIserver, error) {
+	config *Config, nodeConfig *NodeConfig, nodeID uint32, nodeExcludeIPs []net.IP, http rest.HTTPHandlers) (*remoteCNIserver, error) {
 
-	ipam, err := ipam.New(logger, nodeID, agentLabel, &config.IPAMConfig, nodeExcludeIPs, broker)
+	ipam, err := ipam.New(logger, nodeID, agentLabel, &config.IPAMConfig, nodeExcludeIPs)
 	if err != nil {
 		return nil, err
 	}
@@ -302,7 +301,7 @@ func newRemoteCNIServer(logger logging.Logger, txnFactory func() txn_api.Transac
 	return server, nil
 }
 
-/******* Events *******/
+/********************************* Events **************************************/
 
 // Resync re-synchronizes configuration based on Kubernetes state data.
 func (s *remoteCNIserver) Resync(dataResyncEv datasync.ResyncEvent) error {
@@ -437,7 +436,7 @@ func (s *remoteCNIserver) Add(ctx context.Context, request *cni.CNIRequest) (*cn
 
 	// 4. Assign an IP address for this POD
 
-	pod.IPAddress, err = s.ipam.NextPodIP(podID)
+	pod.IPAddress, err = s.ipam.AllocatePodIP(podID)
 	if err != nil {
 		err = fmt.Errorf("failed to allocate new IP address for pod %v: %v", pod.ID, err)
 		s.Logger.Error(err)
@@ -599,7 +598,7 @@ func (s *remoteCNIserver) DeletePod(pod *Pod, obsoletePod bool) error {
 	return wasErr
 }
 
-/******* Resync *******/
+/********************************* Resync *************************************/
 
 // configureVswitchConnectivity configures base vSwitch VPP connectivity.
 // Namely, it configures:
@@ -759,12 +758,12 @@ func (s *remoteCNIserver) configureMainVPPInterface(nics map[uint32]*intf_vppcal
 		s.setNodeIP(nicIP, nicIPNet)
 		s.Logger.Infof("Configuring %v to use %v", nicName, nicIP)
 	} else {
-		nodeIP, err := s.ipam.NodeIPWithPrefix(s.ipam.NodeID())
+		nodeIP, nodeIPNet, err := s.ipam.NodeIPAddress(s.nodeID)
 		if err != nil {
 			s.Logger.Error("Unable to generate node IP address.")
 			return err
 		}
-		s.setNodeIP(nodeIP.IP, nodeIP)
+		s.setNodeIP(nodeIP, nodeIPNet)
 		s.Logger.Infof("Configuring %v to use %v", nicName, nodeIP.String())
 	}
 
@@ -879,7 +878,7 @@ func (s *remoteCNIserver) configureVswitchHostConnectivity(txn txn_api.ResyncOpe
 	// configure the routes from VPP to host interfaces
 	var routesToHost map[string]*vpp_l3.StaticRoute
 	if !s.UseSTN() {
-		routesToHost = s.routesToHost(s.ipam.VEthHostEndIP())
+		routesToHost = s.routesToHost(s.ipam.HostInterconnectIPInLinux())
 	} else {
 		routesToHost = s.routesToHost(s.nodeIP)
 	}
@@ -891,7 +890,7 @@ func (s *remoteCNIserver) configureVswitchHostConnectivity(txn txn_api.ResyncOpe
 	// configure the route from the host to PODs
 	var routeToPods *linux_l3.LinuxStaticRoute
 	if !s.UseSTN() {
-		key, routeToPods = s.routePODsFromHost(s.ipam.VEthVPPEndIP())
+		key, routeToPods = s.routePODsFromHost(s.ipam.HostInterconnectIPInVPP())
 	} else {
 		key, routeToPods = s.routePODsFromHost(s.defaultGw)
 	}
@@ -900,7 +899,7 @@ func (s *remoteCNIserver) configureVswitchHostConnectivity(txn txn_api.ResyncOpe
 	// route from the host to k8s service range from the host
 	var routeToServices *linux_l3.LinuxStaticRoute
 	if !s.UseSTN() {
-		key, routeToServices = s.routeServicesFromHost(s.ipam.VEthVPPEndIP())
+		key, routeToServices = s.routeServicesFromHost(s.ipam.HostInterconnectIPInVPP())
 	} else {
 		key, routeToServices = s.routeServicesFromHost(s.defaultGw)
 	}
@@ -967,7 +966,7 @@ func (s *remoteCNIserver) podStateResync(dataResyncEv datasync.ResyncEvent) erro
 
 				// ignore pods deployed on other nodes or without IP address
 				podIPAddress := net.ParseIP(podData.IpAddress)
-				if podIPAddress == nil || !s.ipam.PodNetwork().Contains(podIPAddress) {
+				if podIPAddress == nil || !s.ipam.PodSubnetThisNode().Contains(podIPAddress) {
 					return nil
 				}
 
@@ -1002,7 +1001,7 @@ func (s *remoteCNIserver) listRunningPods() (pods map[podmodel.ID]*Pod, err erro
 
 	// list all sandbox containers
 	listOpts := docker.ListContainersOptions{
-		All:     true,
+		All: true,
 		Filters: map[string][]string{
 			"label": {k8sLabelForSandboxContainer},
 		},
@@ -1043,7 +1042,7 @@ func (s *remoteCNIserver) listRunningPods() (pods map[podmodel.ID]*Pod, err erro
 	return pods, nil
 }
 
-/******* Cleanup *******/
+/********************************** Cleanup ***********************************/
 
 // cleanupVswitchConnectivity cleans up base vSwitch VPP connectivity
 // configuration in the host IP stack.
@@ -1073,7 +1072,7 @@ func (s *remoteCNIserver) cleanupVswitchConnectivity() {
 	}
 }
 
-/******* Main Interface IP Address *******/
+/************************** Main Interface IP Address **************************/
 
 // getSTNInterfaceIP returns IP address of the interface before stealing it from the host stack.
 func (s *remoteCNIserver) getSTNInterfaceIP(ifName string) (ipAddr net.IP, ipNet *net.IPNet, gw net.IP, err error) {
@@ -1176,15 +1175,23 @@ func (s *remoteCNIserver) applyDHCPLease(lease *vpp_intf.DHCPLease) {
 	s.Logger.Debug("Processing DHCP event", lease)
 
 	var err error
-	s.defaultGw, _, err = net.ParseCIDR(lease.RouterIpAddress)
-	if err != nil {
-		s.Logger.Errorf("failed to parse DHCP route IP address: %v", err)
+	if lease.RouterIpAddress != "" {
+		s.defaultGw, _, err = net.ParseCIDR(lease.RouterIpAddress)
+		if err != nil {
+			s.Logger.Errorf("failed to parse DHCP route IP address: %v", err)
+		}
 	}
 
-	hostAddr, hostNet, err := net.ParseCIDR(lease.HostIpAddress)
-	if err != nil {
-		s.Logger.Errorf("failed to parse DHCP host IP address: %v", err)
-		return
+	var (
+		hostAddr net.IP
+		hostNet  *net.IPNet
+	)
+	if lease.HostIpAddress != "" {
+		hostAddr, hostNet, err = net.ParseCIDR(lease.HostIpAddress)
+		if err != nil {
+			s.Logger.Errorf("failed to parse DHCP host IP address: %v", err)
+			return
+		}
 	}
 
 	if len(s.nodeIP) > 0 && !s.nodeIP.Equal(hostAddr) {
@@ -1199,12 +1206,17 @@ func (s *remoteCNIserver) applyDHCPLease(lease *vpp_intf.DHCPLease) {
 // The method must be called with acquired mutex guarding remoteCNI server.
 func (s *remoteCNIserver) setNodeIP(nodeIP net.IP, nodeIPNet *net.IPNet) error {
 
+	if s.nodeIP.Equal(nodeIP) {
+		// nothing has really changed
+		return nil
+	}
+
 	s.nodeIP = nodeIP
 	s.nodeIPNet = nodeIPNet
 
 	for _, sub := range s.nodeIPsubscribers {
 		select {
-		case sub <- combineAddrWithNet(s.nodeIP, s.nodeIPNet).String(): // TODO use net.IPNet instead
+		case sub <- combineAddrWithNet(s.nodeIP, s.nodeIPNet):
 		default:
 			// skip subscribers who are not ready to receive notification
 		}
@@ -1213,7 +1225,7 @@ func (s *remoteCNIserver) setNodeIP(nodeIP net.IP, nodeIPNet *net.IPNet) error {
 	return nil
 }
 
-/******* Remote CNI Server API *******/
+/**************************** Remote CNI Server API ****************************/
 
 // GetMainPhysicalIfName returns name of the "main" interface - i.e. physical interface connecting
 // the node with the rest of the cluster.
@@ -1291,7 +1303,7 @@ func (s *remoteCNIserver) GetIfName(podNamespace string, podName string) (name s
 
 // WatchNodeIP adds given channel to the list of subscribers that are notified upon change
 // of nodeIP address. If the channel is not ready to receive notification, the notification is dropped.
-func (s *remoteCNIserver) WatchNodeIP(subscriber chan string) {
+func (s *remoteCNIserver) WatchNodeIP(subscriber chan *net.IPNet) {
 	s.Lock()
 	defer s.Unlock()
 

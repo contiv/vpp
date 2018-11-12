@@ -116,7 +116,7 @@ func (s *remoteCNIserver) otherNodesResync(dataResyncEv datasync.ResyncEvent, tx
 				nodeID := nodeInfo.Id
 
 				// ignore for this node
-				if nodeID == s.ipam.NodeID() {
+				if nodeID == s.nodeID {
 					continue
 				}
 
@@ -297,7 +297,7 @@ func (s *remoteCNIserver) nodeConnectivityConfig(nodeInfo *node.NodeInfo) (confi
 		config[key] = vxlanIf
 
 		// ARP entry for the IP address on the opposite side
-		vxlanIP, err := s.ipam.VxlanIPAddress(nodeInfo.Id)
+		vxlanIP, _, err := s.ipam.VxlanIPAddress(nodeInfo.Id)
 		if err != nil {
 			s.Logger.Error(err)
 			return config, err
@@ -337,7 +337,7 @@ func (s *remoteCNIserver) routesToNode(nodeInfo *node.NodeInfo) (config txn_api.
 		nextHop = nodeIP
 	} else {
 		// route traffic destined to the other node via VXLANs
-		vxlanNextHop, err := s.ipam.VxlanIPAddress(nodeInfo.Id)
+		vxlanNextHop, _, err := s.ipam.VxlanIPAddress(nodeInfo.Id)
 		if err != nil {
 			s.Logger.Error(err)
 			return config, err

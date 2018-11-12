@@ -441,10 +441,9 @@ func (mnt *MockNatPlugin) AddressPoolSize() int {
 }
 
 // PoolContainsAddress checks if the given address is in the NAT address pool.
-func (mnt *MockNatPlugin) PoolContainsAddress(addr string) bool {
-	addrIP := net.ParseIP(addr)
+func (mnt *MockNatPlugin) PoolContainsAddress(addr net.IP) bool {
 	for _, address := range mnt.addressPool {
-		if address.Equal(addrIP) {
+		if address.Equal(addr) {
 			return true
 		}
 	}

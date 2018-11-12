@@ -35,6 +35,7 @@ import (
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	policymodel "github.com/contiv/vpp/plugins/ksr/model/policy"
 	"github.com/ligato/cn-infra/infra"
+	"net"
 )
 
 // Plugin watches configuration of K8s resources (as reflected by KSR into ETCD)
@@ -226,7 +227,7 @@ func (p *Plugin) watchEvents() {
 
 func (p *Plugin) handleResync(resyncChan <-chan resync.StatusEvent) {
 	// block until NodeIP is set
-	nodeIPWatcher := make(chan string, 1)
+	nodeIPWatcher := make(chan *net.IPNet, 1)
 	p.Contiv.WatchNodeIP(nodeIPWatcher)
 	nodeIP, nodeNet := p.Contiv.GetNodeIP()
 	if nodeIP == nil || nodeNet == nil {

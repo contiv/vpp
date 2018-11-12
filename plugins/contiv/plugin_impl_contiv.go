@@ -78,7 +78,7 @@ type Plugin struct {
 	Config       *Config
 	myNodeConfig *NodeConfig
 
-	nodeIPWatcher chan string
+	nodeIPWatcher chan *net.IPNet
 
 	// synchronization between resync and data change events
 	resyncCounter  uint
@@ -119,9 +119,13 @@ func (p *Plugin) Init() error {
 	}
 
 	// init node ID allocator
-	nodeIP := ""
+	var nodeIP *net.IPNet
 	if p.myNodeConfig != nil {
-		nodeIP = p.myNodeConfig.MainVPPInterface.IP
+		addr, network, err := net.ParseCIDR(p.myNodeConfig.MainVPPInterface.IP)
+		if err != nil {
+			return fmt.Errorf("Failed to parse main interface IP address from the config: %v ", err)
+		}
+		nodeIP = combineAddrWithNet(addr, network)
 	}
 	p.nodeIDAllocator = newIDAllocator(p.ETCD, p.ServiceLabel.GetAgentLabel(), nodeIP)
 	nodeID, err := p.nodeIDAllocator.getID()
@@ -175,14 +179,13 @@ func (p *Plugin) Init() error {
 		p.myNodeConfig,
 		nodeID,
 		p.excludedIPsFromNodeCIDR(),
-		p.ETCD.NewBroker(p.ServiceLabel.GetAgentPrefix()),
 		p.HTTPHandlers)
 	if err != nil {
 		return fmt.Errorf("Can't create new remote CNI server due to error: %v ", err)
 	}
 	cni.RegisterRemoteCNIServer(p.GRPC.GetServer(), p.cniServer)
 
-	p.nodeIPWatcher = make(chan string, 1)
+	p.nodeIPWatcher = make(chan *net.IPNet, 1)
 	go p.watchEvents()
 	p.cniServer.WatchNodeIP(p.nodeIPWatcher)
 
@@ -213,12 +216,12 @@ func (p *Plugin) GetIfName(podNamespace string, podName string) (name string, ex
 
 // GetPodSubnet provides subnet used for allocating pod IP addresses across all nodes.
 func (p *Plugin) GetPodSubnet() *net.IPNet {
-	return p.cniServer.ipam.PodSubnet()
+	return p.cniServer.ipam.PodSubnetAllNodes()
 }
 
-// GetPodNetwork provides subnet used for allocating pod IP addresses on this node.
-func (p *Plugin) GetPodNetwork() *net.IPNet {
-	return p.cniServer.ipam.PodNetwork()
+// GetPodSubnetThisNode provides subnet used for allocating pod IP addresses on this node.
+func (p *Plugin) GetPodSubnetThisNode() *net.IPNet {
+	return p.cniServer.ipam.PodSubnetThisNode()
 }
 
 // InSTNMode returns true if Contiv operates in the STN mode (single interface for each node).
@@ -266,7 +269,7 @@ func (p *Plugin) DisableNATVirtualReassembly() bool {
 // IP addresses and would otherwise be routed locally.
 func (p *Plugin) GetNatLoopbackIP() net.IP {
 	// Last unicast IP from the pod subnet is used as NAT-loopback.
-	podNet := p.cniServer.ipam.PodNetwork()
+	podNet := p.cniServer.ipam.PodSubnetThisNode()
 	_, broadcastIP := cidr.AddressRange(podNet)
 	return cidr.Dec(broadcastIP)
 }
@@ -283,7 +286,7 @@ func (p *Plugin) GetHostIPs() []net.IP {
 
 // WatchNodeIP adds given channel to the list of subscribers that are notified upon change
 // of nodeIP address. If the channel is not ready to receive notification, the notification is dropped.
-func (p *Plugin) WatchNodeIP(subscriber chan string) {
+func (p *Plugin) WatchNodeIP(subscriber chan *net.IPNet) {
 	p.cniServer.WatchNodeIP(subscriber)
 }
 
@@ -379,7 +382,7 @@ func (p *Plugin) watchEvents() {
 	for {
 		select {
 		case newIP := <-p.nodeIPWatcher:
-			if newIP != "" {
+			if newIP != nil {
 				err := p.nodeIDAllocator.updateIP(newIP)
 				if err != nil {
 					p.Log.Error(err)

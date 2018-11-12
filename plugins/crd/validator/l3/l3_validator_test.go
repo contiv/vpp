@@ -267,7 +267,7 @@ func testValidateRoutesToLocalPods(t *testing.T) {
 		}
 
 		podIfIPAddr, podIfIPMask, err :=
-			utils.Ipv4CidrToAddressAndMask(vtv.vppCache.NodeMap[vtv.nodeKey].NodeIPam.Config.PodIfIPCIDR)
+			utils.Ipv4CidrToAddressAndMask(vtv.vppCache.NodeMap[vtv.nodeKey].NodeIPam.Config.PodVPPSubnetCIDR)
 		gomega.Expect(err).To(gomega.BeNil())
 		podIfIPPrefix := podIfIPAddr &^ podIfIPMask
 
@@ -307,7 +307,7 @@ func testValidateRoutesToLocalPods(t *testing.T) {
 		}
 
 		podIfIPAddr, podIfIPMask, err :=
-			utils.Ipv4CidrToAddressAndMask(vtv.vppCache.NodeMap[vtv.nodeKey].NodeIPam.Config.PodIfIPCIDR)
+			utils.Ipv4CidrToAddressAndMask(vtv.vppCache.NodeMap[vtv.nodeKey].NodeIPam.Config.PodVPPSubnetCIDR)
 		gomega.Expect(err).To(gomega.BeNil())
 		podIfIPPrefix := podIfIPAddr &^ podIfIPMask
 

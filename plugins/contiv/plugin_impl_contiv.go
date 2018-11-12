@@ -21,10 +21,12 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"net/http"
 
 	"git.fd.io/govpp.git/api"
 	"github.com/apparentlymart/go-cidr/cidr"
 	"github.com/fsouza/go-dockerclient"
+	"github.com/unrolled/render"
 
 	"github.com/ligato/cn-infra/datasync"
 	"github.com/ligato/cn-infra/datasync/resync"
@@ -48,6 +50,7 @@ import (
 	nodeconfig "github.com/contiv/vpp/plugins/crd/handler/nodeconfig/model"
 	k8sNode "github.com/contiv/vpp/plugins/ksr/model/node"
 	k8sPod "github.com/contiv/vpp/plugins/ksr/model/pod"
+	"github.com/unrolled/render"
 )
 
 // MgmtIPSeparator is a delimiter inserted between management IPs in nodeInfo structure
@@ -94,7 +97,7 @@ type Deps struct {
 	GRPC         grpc.Server
 	VPPIfPlugin  vpp_ifplugin.API
 	GoVPP        govppmux.API
-	Resync       resync.Subscriber
+	Resync       *resync.Plugin
 	ETCD         *etcd.Plugin
 	Bolt         keyval.KvProtoPlugin
 	Watcher      datasync.KeyValProtoWatcher
@@ -192,6 +195,15 @@ func (p *Plugin) Init() error {
 	// start goroutine handling changes in the configuration specific to this node
 	go p.cniServer.handleNodeConfigEvents(p.ctx, p.nodeConfigResyncChan, p.nodeConfigChangeChan)
 
+	return nil
+}
+
+// AfterInit registers Resync REST handler.
+func (p *Plugin) AfterInit() error {
+	if plugin.HTTPHandlers != nil && plugin.Resync != nil {
+		path := "/doresync"
+		plugin.HTTPHandlers.RegisterHTTPHandler(path, p.resyncReqHandler, "POST")
+	}
 	return nil
 }
 
@@ -451,6 +463,15 @@ func (p *Plugin) processChangeEv(changeEv datasync.ChangeEvent) {
 		}
 	}
 	changeEv.Done(err)
+}
+
+// resyncReqHandler is here temporarily to test run-time resync.
+func (p *Plugin) resyncReqHandler(formatter *render.Render) http.HandlerFunc {
+	return func(w http.ResponseWriter, req *http.Request) {
+		plugin.Log.Info("Triggering run-time resync")
+		plugin.Resync.DoResync()
+		formatter.JSON(w, http.StatusOK, "Resync has started...")
+	}
 }
 
 func (p *Plugin) excludedIPsFromNodeCIDR() []net.IP {

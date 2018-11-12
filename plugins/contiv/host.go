@@ -20,6 +20,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/apparentlymart/go-cidr/cidr"
 	"github.com/vishvananda/netlink"
 
 	linux_intf "github.com/ligato/vpp-agent/plugins/linuxv2/model/interfaces"
@@ -48,15 +49,15 @@ func (s *remoteCNIserver) enabledIPNeighborScan() (key string, config *vpp_l3.IP
 // physicalInterface returns configuration for physical interface - either the main interface
 // connecting node with the rest of the cluster or an extra physical interface requested
 // in the config file.
-func (s *remoteCNIserver) physicalInterface(name string, ipAddress *net.IPNet) (key string, config *vpp_intf.Interface) {
+func (s *remoteCNIserver) physicalInterface(name string, ips []ipWithNetwork) (key string, config *vpp_intf.Interface) {
 	iface := &vpp_intf.Interface{
 		Name:    name,
 		Type:    vpp_intf.Interface_ETHERNET_CSMACD,
 		Enabled: true,
 		Vrf:     s.GetMainVrfID(),
 	}
-	if ipAddress != nil {
-		iface.IpAddresses = []string{ipNetToString(ipAddress)}
+	for _, ip := range ips {
+		iface.IpAddresses = append(iface.IpAddresses, ipNetToString(combineAddrWithNet(ip.address, ip.network)))
 	}
 	key = vpp_intf.InterfaceKey(name)
 	return key, iface
@@ -64,16 +65,15 @@ func (s *remoteCNIserver) physicalInterface(name string, ipAddress *net.IPNet) (
 
 // loopbackInterface returns configuration for loopback created when no physical interfaces
 // are configured.
-func (s *remoteCNIserver) loopbackInterface(ipAddress *net.IPNet) (key string, config *vpp_intf.Interface) {
+func (s *remoteCNIserver) loopbackInterface(ips []ipWithNetwork) (key string, config *vpp_intf.Interface) {
 	iface := &vpp_intf.Interface{
-		Name:        loopbackNICLogicalName,
-		Type:        vpp_intf.Interface_SOFTWARE_LOOPBACK,
-		Enabled:     true,
-		Vrf:         s.GetMainVrfID(),
-		IpAddresses: []string{ipAddress.String()},
+		Name:    loopbackNICLogicalName,
+		Type:    vpp_intf.Interface_SOFTWARE_LOOPBACK,
+		Enabled: true,
+		Vrf:     s.GetMainVrfID(),
 	}
-	if ipAddress != nil {
-		iface.IpAddresses = []string{ipNetToString(ipAddress)}
+	for _, ip := range ips {
+		iface.IpAddresses = append(iface.IpAddresses, ipNetToString(combineAddrWithNet(ip.address, ip.network)))
 	}
 	key = vpp_intf.InterfaceKey(loopbackNICLogicalName)
 	return key, iface
@@ -102,6 +102,15 @@ func (s *remoteCNIserver) hostInterconnectVPPIfName() string {
 	return hostInterconnectAFPacketLogicalName
 }
 
+// hostInterconnectLinuxIfName returns the logical name of the VPP-host interconnect
+// interface on the Linux side.
+func (s *remoteCNIserver) hostInterconnectLinuxIfName() string {
+	if s.config.UseTAPInterfaces {
+		return HostInterconnectTAPinLinuxLogicalName
+	}
+	return hostInterconnectVETH1LogicalName
+}
+
 // interconnectTapVPP returns configuration for the VPP-side of the TAP interface
 // connecting VPP with the host stack.
 func (s *remoteCNIserver) interconnectTapVPP() (key string, config *vpp_intf.Interface) {
@@ -115,8 +124,16 @@ func (s *remoteCNIserver) interconnectTapVPP() (key string, config *vpp_intf.Int
 		Link: &vpp_intf.Interface_Tap{
 			Tap: &vpp_intf.Interface_TapLink{},
 		},
-		IpAddresses: []string{s.ipam.HostInterconnectIPInVPP().String() + "/" + strconv.Itoa(size)},
 		PhysAddress: hwAddrForNodeInterface(s.nodeID, hostInterconnectHwAddrPrefix),
+	}
+	if s.UseSTN() {
+		tap.Unnumbered = &vpp_intf.Interface_Unnumbered{
+			IsUnnumbered:    true,
+			InterfaceWithIp: s.mainPhysicalIf,
+		}
+	} else {
+		tap.IpAddresses = []string{s.ipam.HostInterconnectIPInVPP().String() + "/" + strconv.Itoa(size)}
+
 	}
 	if s.config.TAPInterfaceVersion == 2 {
 		tap.GetTap().Version = 2
@@ -139,10 +156,16 @@ func (s *remoteCNIserver) interconnectTapHost() (key string, config *linux_intf.
 				VppTapIfName: HostInterconnectTAPinVPPLogicalName,
 			},
 		},
-		Mtu:         s.config.MTUSize,
-		HostIfName:  HostInterconnectTAPinLinuxHostName,
-		Enabled:     true,
-		IpAddresses: []string{s.ipam.HostInterconnectIPInLinux().String() + "/" + strconv.Itoa(size)},
+		Mtu:        s.config.MTUSize,
+		HostIfName: HostInterconnectTAPinLinuxHostName,
+		Enabled:    true,
+	}
+	if s.UseSTN() {
+		if len(s.nodeIP) > 0 {
+			tap.IpAddresses = []string{combineAddrWithNet(s.nodeIP, s.nodeIPNet).String()}
+		}
+	} else {
+		tap.IpAddresses = []string{s.ipam.HostInterconnectIPInLinux().String() + "/" + strconv.Itoa(size)}
 	}
 	key = linux_intf.InterfaceKey(tap.Name)
 	return key, tap
@@ -262,6 +285,81 @@ func (s *remoteCNIserver) routeServicesFromHost(nextHopIP net.IP) (key string, c
 	key = linux_l3.StaticRouteKey(route.DstNetwork, route.OutgoingInterface)
 	return key, route
 }
+
+/************************************ STN *************************************/
+
+// proxyArpForSTNGateway configures proxy ARP used in the STN case to let VPP to answer
+// to ARP requests coming from the host stack.
+func (s *remoteCNIserver) proxyArpForSTNGateway() (key string, config *vpp_l3.ProxyARP) {
+	firstIP, lastIP := cidr.AddressRange(s.nodeIPNet)
+
+	// If larger than a /31, remove network and broadcast addresses
+	// from address range.
+	if cidr.AddressCount(s.nodeIPNet) > 2 {
+		firstIP = cidr.Inc(firstIP)
+		lastIP = cidr.Dec(lastIP)
+	}
+
+	proxyarp := &vpp_l3.ProxyARP{
+		Interfaces: []*vpp_l3.ProxyARP_Interface{
+			{Name: s.hostInterconnectVPPIfName()},
+		},
+		Ranges: []*vpp_l3.ProxyARP_Range{
+			{
+				FirstIpAddr: firstIP.String(),
+				LastIpAddr:  lastIP.String(),
+			},
+		},
+	}
+	key = vpp_l3.ProxyARPKey
+	return key, proxyarp
+}
+
+// stnRoutesForVPP returns VPP routes mirroring Host routes that were associated
+// with the stolen interface.
+func (s *remoteCNIserver) stnRoutesForVPP() map[string]*vpp_l3.StaticRoute {
+	routes := make(map[string]*vpp_l3.StaticRoute)
+
+	for _, stnRoute := range s.stnRoutes {
+		route := &vpp_l3.StaticRoute{
+			DstNetwork:        stnRoute.DestinationSubnet,
+			NextHopAddr:       stnRoute.NextHopIp,
+			OutgoingInterface: s.mainPhysicalIf,
+			VrfId:             s.GetMainVrfID(),
+		}
+		key := vpp_l3.RouteKey(route.VrfId, route.DstNetwork, route.NextHopAddr)
+		routes[key] = route
+	}
+
+	return routes
+}
+
+// stnRoutesForHost returns configuration of routes that were associated
+// with the stolen interface, now updated to route via host-interconnect.
+func (s *remoteCNIserver) stnRoutesForHost() map[string]*linux_l3.LinuxStaticRoute {
+	routes := make(map[string]*linux_l3.LinuxStaticRoute)
+
+	for _, stnRoute := range s.stnRoutes {
+		if stnRoute.NextHopIp == "" {
+			continue // skip routes with no next hop IP (link-local)
+		}
+		route := &linux_l3.LinuxStaticRoute{
+			DstNetwork:        stnRoute.DestinationSubnet,
+			GwAddr:            stnRoute.NextHopIp,
+			Scope:             linux_l3.LinuxStaticRoute_GLOBAL,
+			OutgoingInterface: s.hostInterconnectLinuxIfName(),
+		}
+		if route.DstNetwork == "" {
+			route.DstNetwork = ipv4NetAny
+		}
+		key := linux_l3.StaticRouteKey(route.DstNetwork, route.OutgoingInterface)
+		routes[key] = route
+	}
+
+	return routes
+}
+
+// TODO: STN rule
 
 /************************************ VRFs ************************************/
 

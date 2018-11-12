@@ -160,13 +160,12 @@ func parseSTNConfig() (config *contiv.Config, nicToSteal string, useDHCP bool, e
 	}
 	config.ApplyDefaults()
 
-	// DHCP global config may be overwritten by node configuration
-	globalUseDHCP := config.IPAMConfig.NodeInterconnectDHCP
-
-	// try to find node config and return STN interface name if defined
+	// try to find node-specific config and return STN interface name if defined
+	var nodeSpecificConfig bool
 	nodeName := os.Getenv(servicelabel.MicroserviceLabelEnvVar)
 	logger.Debugf("Looking for node '%s' specific config in ETCD/Bolt", nodeName)
 	if nc := loadNodeConfigFromCRD(nodeName); nc != nil {
+		nodeSpecificConfig = true
 		// node configuration defined via CRD
 		nicToSteal, useDHCP = processNodeSpecificConfig(nc)
 	} else {
@@ -174,26 +173,29 @@ func parseSTNConfig() (config *contiv.Config, nicToSteal string, useDHCP bool, e
 		// the configuration file
 		logger.Debugf("Looking for node '%s' specific config inside the configuration file", nodeName)
 		if nc := config.GetNodeConfig(nodeName); nc != nil {
+			nodeSpecificConfig = true
 			nicToSteal, useDHCP = processNodeSpecificConfig(nc)
 		}
 	}
 
-	// global config - interface name
-	if nicToSteal == "" && config.StealInterface != "" {
-		nicToSteal = config.StealInterface
-		logger.Debugf("Found interface to be stolen: %s", nicToSteal)
-	}
-
-	// global config - first interface
-	if nicToSteal == "" && config.StealFirstNIC {
-		// the first NIC will be stolen
-		nicToSteal = getFirstInterfaceName()
-		if nicToSteal != "" {
-			logger.Infof("No specific NIC to steal specified, stealing the first one: %s", nicToSteal)
+	// global configuration
+	if !nodeSpecificConfig {
+		useDHCP = config.IPAMConfig.NodeInterconnectDHCP
+		// try STN interface name defined for all nodes
+		if config.StealInterface != "" {
+			nicToSteal = config.StealInterface
+			logger.Debugf("Found interface to be stolen: %s", nicToSteal)
+		}
+		// the first interface is the last option to consider
+		if nicToSteal == "" && config.StealFirstNIC {
+			// the first NIC will be stolen
+			nicToSteal = getFirstInterfaceName()
+			if nicToSteal != "" {
+				logger.Infof("No specific NIC to steal specified, stealing the first one: %s", nicToSteal)
+			}
 		}
 	}
 
-	useDHCP = globalUseDHCP || useDHCP
 	return
 }
 

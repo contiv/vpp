@@ -191,7 +191,9 @@ type remoteCNIserver struct {
 	swIfIndex ifaceidx.IfaceMetadataIndex
 
 	// VPP dhcp index map
-	dhcpIndex idxmap.NamedMapping
+	dhcpIndex    idxmap.NamedMapping
+	watchingDHCP bool // true if dhcpIndex is being watched
+	useDHCP      bool // whether DHCP is disabled by the latest config (can be changed via CRD)
 
 	// IPAM module used by the CNI server
 	ipam *ipam.IPAM
@@ -250,6 +252,9 @@ type remoteCNIserver struct {
 	ctx           context.Context
 	ctxCancelFunc context.CancelFunc
 
+	// routes going via stolen interface
+	stnRoutes []*stn_grpc.STNReply_Route
+
 	// REST interface
 	http rest.HTTPHandlers
 }
@@ -266,6 +271,12 @@ type DockerClient interface {
 
 // EthernetIfacesDumpClb is callback for dumping physical interfaces on VPP.
 type EthernetIfacesDumpClb func() (ifaces map[uint32]*intf_vppcalls.InterfaceDetails, err error)
+
+// ipWithNetwork groups IP address with the network.
+type ipWithNetwork struct {
+	address net.IP
+	network *net.IPNet
+}
 
 /********************************* Constructor *********************************/
 
@@ -622,6 +633,11 @@ func (s *remoteCNIserver) configureVswitchConnectivity(txn txn_api.ResyncOperati
 	// configure vswitch to host connectivity
 	s.configureVswitchHostConnectivity(txn)
 
+	if s.UseSTN() {
+		// configure STN connectivity
+		s.configureSTNConnectivity(txn)
+	}
+
 	// configure inter-VRF routing
 	s.configureVswitchVrfRoutes(txn)
 
@@ -648,8 +664,7 @@ func (s *remoteCNIserver) configureVswitchNICs(txn txn_api.ResyncOperations) err
 	s.Logger.Info("Existing interfaces: ", s.swIfIndex.ListAllInterfaces())
 
 	// dump physical interfaces present on VPP
-	ifHandler := intf_vppcalls.NewIfVppHandler(s.govppChan, s.Logger)
-	nics, err := ifHandler.DumpInterfacesByType(vpp_intf.Interface_ETHERNET_CSMACD)
+	nics, err := s.ethernetIfsDump()
 	if err != nil {
 		s.Logger.Errorf("Failed to dump physical interfaces: %v", err)
 		return err
@@ -708,61 +723,55 @@ func (s *remoteCNIserver) configureMainVPPInterface(nics map[uint32]*intf_vppcal
 
 	// 2. Determine the node IP address, default gateway IP and whether to use DHCP
 
-	// 2.1 Non-STN case, read the configuration
-	var (
-		nicIP    net.IP
-		nicIPNet *net.IPNet
-	)
-	useDHCP := false
+	// 2.1 Read the configuration
+	var nicIPs []ipWithNetwork
+	s.useDHCP = false
 	if s.nodeConfig != nil && s.nodeConfig.MainVPPInterface.IP != "" {
-		nicIP, nicIPNet, err = net.ParseCIDR(s.nodeConfig.MainVPPInterface.IP)
+		nicIP, nicIPNet, err := net.ParseCIDR(s.nodeConfig.MainVPPInterface.IP)
 		if err != nil {
 			s.Logger.Errorf("Failed to parse main interface IP address from the config: %v", err)
 			return err
 		}
+		nicIPs = append(nicIPs, ipWithNetwork{address: nicIP, network: nicIPNet})
 	} else if s.nodeConfig != nil && s.nodeConfig.MainVPPInterface.UseDHCP {
-		useDHCP = true
+		s.useDHCP = true
 	} else if s.ipam.NodeInterconnectDHCPEnabled() {
 		// inherit DHCP from global setting
-		useDHCP = true
+		s.useDHCP = true
 	}
 
 	// 2.2 STN case, IP address taken from the stolen interface
 	if s.UseSTN() {
-		// get IP address of the STN interface
-		var gwIP net.IP
+		// determine name of the stolen interface
+		var stolenIface string
 		if s.nodeConfig != nil && s.nodeConfig.StealInterface != "" {
-			s.Logger.Infof("STN of the host interface %s requested.", s.nodeConfig.StealInterface)
-			nicIP, nicIPNet, gwIP, err = s.getSTNInterfaceIP(s.nodeConfig.StealInterface)
+			stolenIface = s.nodeConfig.StealInterface
 		} else if s.config.StealInterface != "" {
-			s.Logger.Infof("STN of the interface %s requested.", s.config.StealInterface)
-			nicIP, nicIPNet, gwIP, err = s.getSTNInterfaceIP(s.config.StealInterface)
-		} else {
-			s.Logger.Infof("STN of the first interface (%s) requested.", nicName)
-			nicIP, nicIPNet, gwIP, err = s.getSTNInterfaceIP("")
-		}
+			stolenIface = s.config.StealInterface
+		} // else go with the first stolen interface
 
+		// obtain STN interface configuration
+		nicIPs, s.defaultGw, s.stnRoutes, err = s.getStolenInterfaceConfig(stolenIface)
 		if err != nil {
 			s.Logger.Errorf("Unable to get STN interface info: %v, disabling the interface.", err)
 			return err
 		}
-
-		s.defaultGw = gwIP
 	}
 
 	// 2.3 Set node IP address
-	if !s.UseSTN() && useDHCP {
+	if !s.UseSTN() && s.useDHCP {
 		// ip address will be assigned by DHCP server, not known yet
 		s.Logger.Infof("Configuring %v to use dhcp", nicName)
-	} else if len(nicIP) > 0 {
-		s.setNodeIP(nicIP, nicIPNet)
-		s.Logger.Infof("Configuring %v to use %v", nicName, nicIP)
+	} else if len(nicIPs) > 0 {
+		s.setNodeIP(nicIPs[0].address, nicIPs[0].network)
+		s.Logger.Infof("Configuring %v to use %v", nicName, nicIPs[0].address)
 	} else {
 		nodeIP, nodeIPNet, err := s.ipam.NodeIPAddress(s.nodeID)
 		if err != nil {
 			s.Logger.Error("Unable to generate node IP address.")
 			return err
 		}
+		nicIPs = append(nicIPs, ipWithNetwork{address: nodeIP, network: nodeIPNet})
 		s.setNodeIP(nodeIP, nodeIPNet)
 		s.Logger.Infof("Configuring %v to use %v", nicName, nodeIP.String())
 	}
@@ -773,24 +782,25 @@ func (s *remoteCNIserver) configureMainVPPInterface(nics map[uint32]*intf_vppcal
 		// configure the physical NIC
 		s.Logger.Info("Configuring physical NIC ", nicName)
 
-		nicKey, nic := s.physicalInterface(nicName, combineAddrWithNet(s.nodeIP, s.nodeIPNet))
-		if useDHCP {
+		nicKey, nic := s.physicalInterface(nicName, nicIPs)
+		if s.useDHCP {
 			// clear IP addresses
 			nic.IpAddresses = []string{}
 			nic.SetDhcpClient = true
-			if s.resyncCounter == 1 {
+			if !s.watchingDHCP {
 				// start watching dhcp notif
 				s.dhcpIndex.Watch("cniserver", s.handleDHCPNotification)
-				// do lookup to cover the case where dhcp was configured by resync
-				// and ip address is already assigned
-				dhcpData, exists := s.dhcpIndex.GetValue(nicName)
-				if exists {
-					dhcpLease := dhcpData.(*vpp_intf.DHCPLease)
-					s.Logger.Infof("DHCP notification already received: %v", dhcpLease)
-					s.applyDHCPLease(dhcpLease)
-				} else {
-					s.Logger.Debugf("Waiting for DHCP notification. Existing DHCP events: %v", s.dhcpIndex.ListAllNames())
-				}
+				s.watchingDHCP = true
+			}
+			// do lookup to cover the case where dhcp was configured by resync
+			// and ip address is already assigned
+			dhcpData, exists := s.dhcpIndex.GetValue(nicName)
+			if exists {
+				dhcpLease := dhcpData.(*vpp_intf.DHCPLease)
+				s.Logger.Infof("DHCP notification already received: %v", dhcpLease)
+				s.applyDHCPLease(dhcpLease)
+			} else {
+				s.Logger.Debugf("Waiting for DHCP notification. Existing DHCP events: %v", s.dhcpIndex.ListAllNames())
 			}
 		}
 		txn.Put(nicKey, nic)
@@ -798,14 +808,14 @@ func (s *remoteCNIserver) configureMainVPPInterface(nics map[uint32]*intf_vppcal
 	} else {
 		// configure loopback instead of the physical NIC
 		s.Logger.Debug("Physical NIC not found, configuring loopback instead.")
-		key, loopback := s.loopbackInterface(combineAddrWithNet(s.nodeIP, s.nodeIPNet))
+		key, loopback := s.loopbackInterface(nicIPs)
 		txn.Put(key, loopback)
 		s.mainPhysicalIf = ""
 	}
 
-	// 4. Configure the default route
+	// 4. For 2NICs non-DHCP case, configure the default route from the configuration
 
-	if !s.UseSTN() && !useDHCP {
+	if !s.UseSTN() && !s.useDHCP {
 		if s.mainPhysicalIf != "" && s.nodeConfig != nil && s.nodeConfig.Gateway != "" {
 			// configure default gateway from the config file
 			s.defaultGw = net.ParseIP(s.nodeConfig.Gateway)
@@ -837,7 +847,9 @@ func (s *remoteCNIserver) configureOtherVPPInterfaces(nics map[uint32]*intf_vppc
 						ifaceCfg.InterfaceName, err)
 					return err
 				}
-				key, iface := s.physicalInterface(nic.Interface.Name, combineAddrWithNet(ipAddr, ipNet))
+				key, iface := s.physicalInterface(nic.Interface.Name, []ipWithNetwork{
+					{address: ipAddr, network: ipNet},
+				})
 				interfaces[key] = iface
 			}
 		}
@@ -858,7 +870,7 @@ func (s *remoteCNIserver) configureOtherVPPInterfaces(nics map[uint32]*intf_vppc
 func (s *remoteCNIserver) configureVswitchHostConnectivity(txn txn_api.ResyncOperations) {
 	var key string
 
-	// configure interfaces to between VPP and the host network stack
+	// configure interfaces between VPP and the host network stack
 	if s.config.UseTAPInterfaces {
 		// TAP interface
 		key, vppTAP := s.interconnectTapVPP()
@@ -875,7 +887,7 @@ func (s *remoteCNIserver) configureVswitchHostConnectivity(txn txn_api.ResyncOpe
 		txn.Put(key, vethVPP)
 	}
 
-	// configure the routes from VPP to host interfaces
+	// configure routes from VPP to the host
 	var routesToHost map[string]*vpp_l3.StaticRoute
 	if !s.UseSTN() {
 		routesToHost = s.routesToHost(s.ipam.HostInterconnectIPInLinux())
@@ -883,7 +895,6 @@ func (s *remoteCNIserver) configureVswitchHostConnectivity(txn txn_api.ResyncOpe
 		routesToHost = s.routesToHost(s.nodeIP)
 	}
 	for key, route := range routesToHost {
-		s.Logger.Debug("Adding route to host IP: ", route)
 		txn.Put(key, route)
 	}
 
@@ -904,6 +915,25 @@ func (s *remoteCNIserver) configureVswitchHostConnectivity(txn txn_api.ResyncOpe
 		key, routeToServices = s.routeServicesFromHost(s.defaultGw)
 	}
 	txn.Put(key, routeToServices)
+}
+
+// configureSTNConnectivity configures vswitch VPP to operate in the STN mode.
+func (s *remoteCNIserver) configureSTNConnectivity(txn txn_api.ResyncOperations) {
+	// proxy ARP for ARP requests from the host
+	key, proxyarp := s.proxyArpForSTNGateway()
+	txn.Put(key, proxyarp)
+
+	// STN routes
+	stnRoutesVPP := s.stnRoutesForVPP()
+	for key, route := range stnRoutesVPP {
+		txn.Put(key, route)
+	}
+	stnRoutesHost := s.stnRoutesForHost()
+	for key, route := range stnRoutesHost {
+		txn.Put(key, route)
+	}
+
+	// TODO: STN rule
 }
 
 // configureVswitchVrfRoutes configures inter-VRF routing
@@ -1074,9 +1104,14 @@ func (s *remoteCNIserver) cleanupVswitchConnectivity() {
 
 /************************** Main Interface IP Address **************************/
 
-// getSTNInterfaceIP returns IP address of the interface before stealing it from the host stack.
-func (s *remoteCNIserver) getSTNInterfaceIP(ifName string) (ipAddr net.IP, ipNet *net.IPNet, gw net.IP, err error) {
-	s.Logger.Debugf("Getting STN info for interface %s", ifName)
+// getStolenInterfaceConfig returns IP addresses and routes associated with the main
+// interface before it was stolen from the host stack.
+func (s *remoteCNIserver) getStolenInterfaceConfig(ifName string) (ipNets []ipWithNetwork, gw net.IP, routes []*stn_grpc.STNReply_Route, err error) {
+	if ifName == "" {
+		s.Logger.Debug("Getting STN info for the first stolen interface")
+	} else {
+		s.Logger.Debugf("Getting STN info for interface %s", ifName)
+	}
 
 	// connect to STN GRPC server
 	if s.config.STNSocketFile == "" {
@@ -1105,17 +1140,17 @@ func (s *remoteCNIserver) getSTNInterfaceIP(ifName string) (ipAddr net.IP, ipNet
 		s.Logger.Errorf("Error by executing STN GRPC: %v", err)
 		return
 	}
-
 	s.Logger.Debugf("STN GRPC reply: %v", reply)
 
-	// STN IP address
-	if len(reply.IpAddresses) == 0 {
-		return
-	}
-	ipAddr, ipNet, err = net.ParseCIDR(reply.IpAddresses[0])
-	if err != nil {
-		s.Logger.Errorf("Failed to parse IP address returned by STN GRPC: %v", err)
-		return
+	// parse STN IP addresses
+	for _, address := range reply.IpAddresses {
+		ipNet := ipWithNetwork{}
+		ipNet.address, ipNet.network, err = net.ParseCIDR(address)
+		if err != nil {
+			s.Logger.Errorf("Failed to parse IP address returned by STN GRPC: %v", err)
+			return
+		}
+		ipNets = append(ipNets, ipNet)
 	}
 
 	// try to find the default gateway in the list of routes
@@ -1129,16 +1164,18 @@ func (s *remoteCNIserver) getSTNInterfaceIP(ifName string) (ipAddr net.IP, ipNet
 			break
 		}
 	}
-	if len(gw) == 0 {
+	if len(gw) == 0 && len(ipNets) > 0 {
 		// no default gateway in routes, calculate fake gateway address for route pointing to VPP
-		firstIP, lastIP := cidr.AddressRange(ipNet)
-		if !cidr.Inc(firstIP).Equal(ipAddr) {
+		firstIP, lastIP := cidr.AddressRange(ipNets[0].network)
+		if !cidr.Inc(firstIP).Equal(ipNets[0].address) {
 			gw = cidr.Inc(firstIP)
 		} else {
 			gw = cidr.Dec(lastIP)
 		}
 	}
 
+	// return routes without any processing
+	routes = reply.Routes
 	return
 }
 
@@ -1173,6 +1210,10 @@ func (s *remoteCNIserver) handleDHCPNotification(notif idxmap.NamedMappingGeneri
 // The method must be called with acquired mutex guarding remoteCNI server.
 func (s *remoteCNIserver) applyDHCPLease(lease *vpp_intf.DHCPLease) {
 	s.Logger.Debug("Processing DHCP event", lease)
+
+	if !s.useDHCP {
+		s.Logger.Debug("Ignoring DHCP event, dynamic IP address assignment is disabled")
+	}
 
 	var err error
 	if lease.RouterIpAddress != "" {

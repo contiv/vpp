@@ -731,8 +731,8 @@ func (v *Validator) ValidatePodInfo() {
 			// Make sure the VPP-side CIDR mask and K8s-side CIDR mask are the same
 			if k8sMask != podIfIPMask {
 				errCnt++
-				errString := fmt.Sprintf("pod '%s': CIDR mask mismatch: K8s Pod CIDR: %s, Contiv PodIfIpCIDR %s",
-					pod.Name, k8sNode.Pod_CIDR, vppNode.NodeIPam.Config.PodIfIPCIDR)
+				errString := fmt.Sprintf("pod '%s': CIDR mask mismatch: K8s Pod CIDR: %s, Contiv PodVPPSubnetCIDR %s",
+					pod.Name, k8sNode.Pod_CIDR, vppNode.NodeIPam.Config.PodVPPSubnetCIDR)
 				v.Report.AppendToNodeReport(k8sNode.Name, errString)
 				continue
 			}

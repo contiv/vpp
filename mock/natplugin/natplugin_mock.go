@@ -314,7 +314,7 @@ func (mnt *MockNatPlugin) dnatToStaticMappings(dnat *nat.DNat44) (*StaticMapping
 		sm := &StaticMapping{}
 
 		// fields set to a constant value
-		if staticMapping.ExternalPort != 0 && staticMapping.TwiceNat == nat.TwiceNatMode_DISABLED {
+		if staticMapping.ExternalPort != 0 && staticMapping.TwiceNat == nat.DNat44_StaticMapping_DISABLED {
 			return nil, errors.New("self-twice-NAT/twice-NAT not enabled for static mapping")
 		}
 		if staticMapping.ExternalInterface != "" {
@@ -345,7 +345,7 @@ func (mnt *MockNatPlugin) dnatToStaticMappings(dnat *nat.DNat44) (*StaticMapping
 		sm.ExternalPort = uint16(staticMapping.ExternalPort)
 
 		// twice NAT
-		if staticMapping.TwiceNat == nat.TwiceNatMode_ENABLED {
+		if staticMapping.TwiceNat == nat.DNat44_StaticMapping_ENABLED {
 			sm.TwiceNAT = true
 		}
 

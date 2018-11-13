@@ -114,7 +114,7 @@ func TestResyncAndSingleService(t *testing.T) {
 	RegisterTestingT(t)
 	logger := logrus.DefaultLogger()
 	logger.SetLevel(logging.DebugLevel)
-	logger.Debug("TestSomething")
+	logger.Debug("TestResyncAndSingleService")
 
 	// Prepare mocks.
 	//  -> Contiv plugin
@@ -1795,7 +1795,7 @@ func TestWithSNATOnly(t *testing.T) {
 	RegisterTestingT(t)
 	logger := logrus.DefaultLogger()
 	logger.SetLevel(logging.DebugLevel)
-	logger.Debug("TestSomething")
+	logger.Debug("TestWithSNATOnly")
 
 	// Prepare mocks.
 	//  -> Contiv plugin
@@ -1964,7 +1964,7 @@ func TestLocalServicePolicy(t *testing.T) {
 	RegisterTestingT(t)
 	logger := logrus.DefaultLogger()
 	logger.SetLevel(logging.DebugLevel)
-	logger.Debug("TestSomething")
+	logger.Debug("TestLocalServicePolicy")
 
 	// Prepare mocks.
 	//  -> Contiv plugin
@@ -1973,29 +1973,24 @@ func TestLocalServicePolicy(t *testing.T) {
 	const localEndpointWeight uint8 = 1
 	contiv.SetServiceLocalEndpointWeight(localEndpointWeight)
 	contiv.SetSTNMode(false)
-	contiv.SetNodeIP(nodeIP + nodePrefix)
-	contiv.SetDefaultInterface(mainIfName, net.ParseIP(nodeIP))
+	contiv.SetNodeIP(nodeIP)
+	contiv.SetDefaultInterface(mainIfName, nodeIP.IP)
 	contiv.SetMainPhysicalIfName(mainIfName)
 	contiv.SetVxlanBVIIfName(vxlanIfName)
 	contiv.SetHostInterconnectIfName(hostInterIfName)
-	contiv.SetPodNetwork(podNetwork)
+	contiv.SetPodSubnet(podNetwork)
 	contiv.SetNatLoopbackIP(natLoopbackIP)
 	contiv.SetPodIfName(pod1, pod1If)
 	contiv.SetPodIfName(pod2, pod2If)
 	contiv.SetMainVrfID(mainVrfID)
 	contiv.SetPodVrfID(podVrfID)
-	contiv.SetHostIPs([]net.IP{net.ParseIP(nodeIP), net.ParseIP(mgmtIP)})
+	contiv.SetHostIPs([]net.IP{nodeIP.IP, mgmtIP})
 
 	// -> NAT plugin
 	natPlugin := NewMockNatPlugin(logger)
 
 	// -> localclient
 	txnTracker := localclient.NewTxnTracker(natPlugin.ApplyTxn)
-
-	// -> default VPP plugins
-	vppPlugins := NewMockVppPlugin()
-	vppPlugins.SetNat44Global(&nat.Nat44Global{})
-	vppPlugins.SetNat44Dnat(&nat.Nat44DNat{})
 
 	// -> service label
 	serviceLabel := NewMockServiceLabel()
@@ -2017,10 +2012,8 @@ func TestLocalServicePolicy(t *testing.T) {
 	renderer := &nat44.Renderer{
 		Deps: nat44.Deps{
 			Log:           logger,
-			VPP:           vppPlugins,
 			Contiv:        contiv,
 			NATTxnFactory: txnTracker.NewLinuxDataChangeTxn,
-			LatestRevs:    txnTracker.LatestRevisions,
 		},
 	}
 
@@ -2035,7 +2028,7 @@ func TestLocalServicePolicy(t *testing.T) {
 	Expect(natPlugin.IsForwardingEnabled()).To(BeTrue())
 
 	Expect(natPlugin.AddressPoolSize()).To(Equal(1))
-	Expect(natPlugin.PoolContainsAddress(nodeIP)).To(BeTrue())
+	Expect(natPlugin.PoolContainsAddress(nodeIP.IP)).To(BeTrue())
 	Expect(natPlugin.TwiceNatPoolSize()).To(Equal(1))
 	Expect(natPlugin.TwiceNatPoolContainsAddress(natLoopbackIP)).To(BeTrue())
 
@@ -2047,19 +2040,19 @@ func TestLocalServicePolicy(t *testing.T) {
 	Expect(natPlugin.NumOfStaticMappings()).To(Equal(0))
 
 	vxlanID := &IdentityMapping{
-		IP:       net.ParseIP(nodeIP),
+		IP:       nodeIP.IP,
 		Protocol: svc_renderer.UDP,
 		Port:     4789,
 		VrfID:    mainVrfID,
 	}
 	mainIfID1 := &IdentityMapping{
-		IP:       net.ParseIP(nodeIP),
+		IP:       nodeIP.IP,
 		Protocol: svc_renderer.UDP,
 		Port:     0,
 		VrfID:    mainVrfID,
 	}
 	mainIfID2 := &IdentityMapping{
-		IP:       net.ParseIP(nodeIP),
+		IP:       nodeIP.IP,
 		Protocol: svc_renderer.UDP,
 		Port:     0,
 		VrfID:    podVrfID,
@@ -2094,7 +2087,7 @@ func TestLocalServicePolicy(t *testing.T) {
 	Expect(natPlugin.IsForwardingEnabled()).To(BeTrue())
 
 	Expect(natPlugin.AddressPoolSize()).To(Equal(1))
-	Expect(natPlugin.PoolContainsAddress(nodeIP)).To(BeTrue())
+	Expect(natPlugin.PoolContainsAddress(nodeIP.IP)).To(BeTrue())
 	Expect(natPlugin.TwiceNatPoolSize()).To(Equal(1))
 	Expect(natPlugin.TwiceNatPoolContainsAddress(natLoopbackIP)).To(BeTrue())
 
@@ -2118,7 +2111,7 @@ func TestLocalServicePolicy(t *testing.T) {
 	// First check what should not have changed.
 	Expect(natPlugin.IsForwardingEnabled()).To(BeTrue())
 	Expect(natPlugin.AddressPoolSize()).To(Equal(1))
-	Expect(natPlugin.PoolContainsAddress(nodeIP)).To(BeTrue())
+	Expect(natPlugin.PoolContainsAddress(nodeIP.IP)).To(BeTrue())
 	Expect(natPlugin.TwiceNatPoolSize()).To(Equal(1))
 	Expect(natPlugin.TwiceNatPoolContainsAddress(natLoopbackIP)).To(BeTrue())
 	Expect(natPlugin.NumOfStaticMappings()).To(Equal(0))
@@ -2143,7 +2136,7 @@ func TestLocalServicePolicy(t *testing.T) {
 			{
 				Addresses: []*epmodel.EndpointSubset_EndpointAddress{
 					{
-						Ip:       pod1IP,
+						Ip:       pod1IP.String(),
 						NodeName: masterLabel,
 						TargetRef: &epmodel.ObjectReference{
 							Kind:      "Pod",
@@ -2152,7 +2145,7 @@ func TestLocalServicePolicy(t *testing.T) {
 						},
 					},
 					{
-						Ip:       pod2IP,
+						Ip:       pod2IP.String(),
 						NodeName: masterLabel,
 						TargetRef: &epmodel.ObjectReference{
 							Kind:      "Pod",
@@ -2161,7 +2154,7 @@ func TestLocalServicePolicy(t *testing.T) {
 						},
 					},
 					{
-						Ip:       pod3IP,
+						Ip:       pod3IP.String(),
 						NodeName: workerLabel,
 						TargetRef: &epmodel.ObjectReference{
 							Kind:      "Pod",
@@ -2187,7 +2180,7 @@ func TestLocalServicePolicy(t *testing.T) {
 	// First check what should not have changed.
 	Expect(natPlugin.IsForwardingEnabled()).To(BeTrue())
 	Expect(natPlugin.AddressPoolSize()).To(Equal(1))
-	Expect(natPlugin.PoolContainsAddress(nodeIP)).To(BeTrue())
+	Expect(natPlugin.PoolContainsAddress(nodeIP.IP)).To(BeTrue())
 	Expect(natPlugin.TwiceNatPoolSize()).To(Equal(1))
 	Expect(natPlugin.TwiceNatPoolContainsAddress(natLoopbackIP)).To(BeTrue())
 	Expect(natPlugin.NumOfIdentityMappings()).To(Equal(3))
@@ -2212,13 +2205,13 @@ func TestLocalServicePolicy(t *testing.T) {
 		Locals: []*Local{
 			{
 				VrfID:       podVrfID,
-				IP:          net.ParseIP(pod1IP),
+				IP:          pod1IP,
 				Port:        8080,
 				Probability: localEndpointWeight,
 			},
 			{
 				VrfID:       podVrfID,
-				IP:          net.ParseIP(pod2IP),
+				IP:          pod2IP,
 				Port:        8080,
 				Probability: localEndpointWeight,
 			},
@@ -2238,7 +2231,7 @@ func TestLocalServicePolicy(t *testing.T) {
 	// NAT configuration without the service.
 	Expect(natPlugin.IsForwardingEnabled()).To(BeTrue())
 	Expect(natPlugin.AddressPoolSize()).To(Equal(1))
-	Expect(natPlugin.PoolContainsAddress(nodeIP)).To(BeTrue())
+	Expect(natPlugin.PoolContainsAddress(nodeIP.IP)).To(BeTrue())
 	Expect(natPlugin.TwiceNatPoolSize()).To(Equal(1))
 	Expect(natPlugin.TwiceNatPoolContainsAddress(natLoopbackIP)).To(BeTrue())
 	Expect(natPlugin.NumOfStaticMappings()).To(Equal(0))

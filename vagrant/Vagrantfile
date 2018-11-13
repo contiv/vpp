@@ -649,7 +649,7 @@ VAGRANTFILE_API_VERSION = "2"
           run: "always",
           inline: "eval `route -n | awk '{ if ($8 ==\"enp0s3\" && $2 != \"0.0.0.0\") print \"route del default gw \" $2; }'`"
       else
-        k8smaster.vm.network :private_network, type: "dhcp", auto_config: false, virtualbox__intnet: "vpp"
+        k8smaster.vm.network :private_network, auto_config: false, virtualbox__intnet: "vpp"
         k8smaster.vm.network :private_network, ip: k8smaster_ip, virtualbox__intnet: "true"
       end
 
@@ -690,7 +690,7 @@ VAGRANTFILE_API_VERSION = "2"
             run: "always",
             inline: "eval `route -n | awk '{ if ($8 ==\"enp0s3\" && $2 != \"0.0.0.0\") print \"route del default gw \" $2; }'`"
         else
-          node.vm.network :private_network, type: "dhcp", auto_config: false, virtualbox__intnet: "vpp"
+          node.vm.network :private_network, auto_config: false, virtualbox__intnet: "vpp"
           node.vm.network :private_network, ip: node_addr, virtualbox__intnet: "true"
         end
 

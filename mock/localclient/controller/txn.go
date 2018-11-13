@@ -39,7 +39,11 @@ func (m *mockControllerTxn) Commit(ctx context.Context) error {
 	}
 	for key, value := range m.values {
 		fmt.Printf("    - key: %s\n", key)
-		fmt.Printf("      value: %s\n", value.String())
+		valueStr := "<nil>"
+		if value != nil {
+			valueStr = value.String()
+		}
+		fmt.Printf("      value: %s\n", valueStr)
 	}
 	return m.commitFunc(m.values, isResync)
 }

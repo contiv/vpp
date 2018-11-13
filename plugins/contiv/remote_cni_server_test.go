@@ -198,7 +198,7 @@ func TestBasicStuff(t *testing.T) {
 		InterfaceName:    "eth0",
 		ExtraArguments:   "K8S_POD_NAMESPACE=" + pod1Namespace + ";K8S_POD_NAME=" + pod1Name,
 	}
-	pod1ID := k8sPod.ID{Name: pod1Ns, Namespace: pod1Namespace}
+	pod1ID := k8sPod.ID{Name: pod1Name, Namespace: pod1Namespace}
 	reply, err := server.Add(context.Background(), cniReq)
 	Expect(err).To(BeNil())
 	Expect(reply).ToNot(BeNil())

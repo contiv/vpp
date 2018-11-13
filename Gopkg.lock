@@ -1633,7 +1633,6 @@
   analyzer-version = 1
   input-imports = [
     "git.fd.io/govpp.git/adapter/mock",
-    "git.fd.io/govpp.git/adapter/mock/binapi",
     "git.fd.io/govpp.git/api",
     "git.fd.io/govpp.git/codec",
     "git.fd.io/govpp.git/core",
@@ -1642,10 +1641,10 @@
     "github.com/containernetworking/cni/pkg/types",
     "github.com/containernetworking/cni/pkg/types/current",
     "github.com/containernetworking/cni/pkg/version",
-    "github.com/coreos/etcd/clientv3",
     "github.com/docker/distribution",
     "github.com/docker/docker/api",
     "github.com/docker/swarmkit",
+    "github.com/fsouza/go-dockerclient",
     "github.com/ghodss/yaml",
     "github.com/go-errors/errors",
     "github.com/gogo/protobuf/proto",

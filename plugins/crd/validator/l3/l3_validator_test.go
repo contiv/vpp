@@ -125,6 +125,7 @@ func TestValidator(t *testing.T) {
 }
 
 func testErrorFreeEndToEnd(t *testing.T) {
+	gomega.RegisterTestingT(t)
 	resetToInitialErrorFreeState()
 
 	// Perform test
@@ -137,6 +138,7 @@ func testErrorFreeEndToEnd(t *testing.T) {
 }
 
 func testMissingIPAM(t *testing.T) {
+	gomega.RegisterTestingT(t)
 	resetToInitialErrorFreeState()
 
 	// ----------------------------------------
@@ -158,6 +160,7 @@ func testMissingIPAM(t *testing.T) {
 }
 
 func testMissingInterfaces(t *testing.T) {
+	gomega.RegisterTestingT(t)
 	resetToInitialErrorFreeState()
 
 	// ----------------------------------------
@@ -174,6 +177,7 @@ func testMissingInterfaces(t *testing.T) {
 }
 
 func testMissingStaticRoutes(t *testing.T) {
+	gomega.RegisterTestingT(t)
 	resetToInitialErrorFreeState()
 
 	// ----------------------------------------
@@ -190,6 +194,7 @@ func testMissingStaticRoutes(t *testing.T) {
 }
 
 func testValidateRoutesToLocalPods(t *testing.T) {
+	gomega.RegisterTestingT(t)
 	resetToInitialErrorFreeState()
 
 	vrfMap, err := vtv.l3Validator.createVrfMap(vtv.vppCache.NodeMap[vtv.nodeKey])
@@ -343,6 +348,7 @@ func testValidateRoutesToLocalPods(t *testing.T) {
 }
 
 func testValidateVrf0GigERoutes(t *testing.T) {
+	gomega.RegisterTestingT(t)
 	vrfMap, err := vtv.l3Validator.createVrfMap(vtv.vppCache.NodeMap[vtv.nodeKey])
 	gomega.Expect(err).To(gomega.BeNil())
 
@@ -470,6 +476,7 @@ func testValidateVrf0GigERoutes(t *testing.T) {
 }
 
 func testValidateInterfaceLookup(t *testing.T) {
+	gomega.RegisterTestingT(t)
 	vrfMap, err := vtv.l3Validator.createVrfMap(vtv.vppCache.NodeMap[vtv.nodeKey])
 	gomega.Expect(err).To(gomega.BeNil())
 

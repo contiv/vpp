@@ -303,7 +303,8 @@ func (ctc *ContivTelemetryCache) getNodeInfo(client http.Client, node *telemetry
 	}
 
 	b, _ := ioutil.ReadAll(res.Body)
-	b = []byte(b)
+	defer res.Body.Close()
+
 	err = json.Unmarshal(b, nodeInfo)
 	if err != nil {
 		errString := fmt.Sprintf("failed to unmarshal data for node %s, error %s", node.Name, err)

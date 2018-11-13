@@ -314,8 +314,8 @@ func (mnt *MockNatPlugin) dnatToStaticMappings(dnat *nat.DNat44) (*StaticMapping
 		sm := &StaticMapping{}
 
 		// fields set to a constant value
-		if staticMapping.ExternalPort != 0 && staticMapping.TwiceNat != nat.DNat44_StaticMapping_SELF {
-			return nil, errors.New("self-twice-NAT not enabled for static mapping")
+		if staticMapping.ExternalPort != 0 && staticMapping.TwiceNat == nat.TwiceNatMode_DISABLED {
+			return nil, errors.New("self-twice-NAT/twice-NAT not enabled for static mapping")
 		}
 		if staticMapping.ExternalInterface != "" {
 			return nil, errors.New("static mapping with external interface is not expected")
@@ -343,6 +343,11 @@ func (mnt *MockNatPlugin) dnatToStaticMappings(dnat *nat.DNat44) (*StaticMapping
 			return nil, errors.New("invalid external port number")
 		}
 		sm.ExternalPort = uint16(staticMapping.ExternalPort)
+
+		// twice NAT
+		if staticMapping.TwiceNat == nat.TwiceNatMode_ENABLED {
+			sm.TwiceNAT = true
+		}
 
 		// locals
 		for _, local := range staticMapping.LocalIps {

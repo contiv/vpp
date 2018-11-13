@@ -24,14 +24,19 @@ import (
 //Reports is the per node array of report lines generated from validate()
 type Reports map[string][]string
 
+//NodeInfo is struct to hold some basic information of a kubernetes node.
+type NodeInfo struct {
+	ID        uint32
+	IPAddr    string
+	ManIPAddr string
+	Name      string
+}
+
 //Node is a struct to hold all relevant information of a kubernetes node.
 //It is populated with various information such as the interfaces and L2Fibs
 //as well as the name and IP Addresses.
 type Node struct {
-	ID                uint32
-	IPAddr            string
-	ManIPAddr         string
-	Name              string
+	*NodeInfo
 	NodeLiveness      *NodeLiveness
 	NodeInterfaces    map[int]NodeInterface
 	NodeBridgeDomains map[int]NodeBridgeDomain

@@ -36,6 +36,9 @@ nat {
     user hash buckets 1024
     max translations per user 10000
 }
+acl-plugin {
+   use tuple merge 0
+}
 dpdk {
     dev 0000:00:03.0
 }
@@ -84,6 +87,9 @@ nat {
     user hash buckets 1024
     max translations per user 10000
 }
+acl-plugin {
+   use tuple merge 0
+}
 dpdk {
     dev 0000:00:04.0
 }
@@ -120,6 +126,9 @@ nat {
     translation hash memory 268435456
     user hash buckets 1024
     max translations per user 10000
+}
+acl-plugin {
+    use tuple merge 0
 }
 dpdk {
     dev 0000:00:03.0

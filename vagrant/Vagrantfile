@@ -48,6 +48,7 @@ end
 http_proxy = ENV['HTTP_PROXY'] || ENV['http_proxy'] || ''
 https_proxy = ENV['HTTPS_PROXY'] || ENV['https_proxy'] || ''
 k8s_version = ENV['K8S_VERSION']
+docker_version = ENV['DOCKER_VERSION']
 node_os = ENV['K8S_NODE_OS'] || 'ubuntu'
 node_os_release = ENV['K8S_NODE_OS_RELEASE'] || '16.04'
 node_cpus = ENV['K8S_NODE_CPUS'].to_i == 0 ? 4 : ENV['K8S_NODE_CPUS'].to_i
@@ -113,9 +114,9 @@ sudo -E apt-get install -qy kubelet=#{k8s_version}-00 \
 
 echo "Installing Docker..."
 if [ "#{node_os_release}" == "16.04" ] ; then
-  sudo -E apt-get install -y docker-ce
+  sudo -E apt-get install -y docker-ce=#{docker_version}~ubuntu
 else
-  sudo -E apt-get install -y docker.io
+  sudo -E apt-get install -y docker.io=18.06.1-0ubuntu1~18.04.1
 fi
 
 #Setup the proxy if needed
@@ -648,7 +649,7 @@ VAGRANTFILE_API_VERSION = "2"
           run: "always",
           inline: "eval `route -n | awk '{ if ($8 ==\"enp0s3\" && $2 != \"0.0.0.0\") print \"route del default gw \" $2; }'`"
       else
-        k8smaster.vm.network :private_network, type: "dhcp", auto_config: false, virtualbox__intnet: "vpp"
+        k8smaster.vm.network :private_network, auto_config: false, virtualbox__intnet: "vpp"
         k8smaster.vm.network :private_network, ip: k8smaster_ip, virtualbox__intnet: "true"
       end
 
@@ -689,7 +690,7 @@ VAGRANTFILE_API_VERSION = "2"
             run: "always",
             inline: "eval `route -n | awk '{ if ($8 ==\"enp0s3\" && $2 != \"0.0.0.0\") print \"route del default gw \" $2; }'`"
         else
-          node.vm.network :private_network, type: "dhcp", auto_config: false, virtualbox__intnet: "vpp"
+          node.vm.network :private_network, auto_config: false, virtualbox__intnet: "vpp"
           node.vm.network :private_network, ip: node_addr, virtualbox__intnet: "true"
         end
 

@@ -22,18 +22,22 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"strings"
+	"time"
 
 	"git.fd.io/govpp.git/api"
 	"github.com/apparentlymart/go-cidr/cidr"
 	"github.com/fsouza/go-dockerclient"
 	"github.com/unrolled/render"
+	"github.com/vishvananda/netlink"
+	"google.golang.org/grpc"
 
 	"github.com/ligato/cn-infra/datasync"
 	"github.com/ligato/cn-infra/datasync/resync"
 	"github.com/ligato/cn-infra/db/keyval"
 	"github.com/ligato/cn-infra/db/keyval/etcd"
 	"github.com/ligato/cn-infra/infra"
-	"github.com/ligato/cn-infra/rpc/grpc"
+	grpcplugin "github.com/ligato/cn-infra/rpc/grpc"
 	"github.com/ligato/cn-infra/rpc/rest"
 	"github.com/ligato/cn-infra/servicelabel"
 	"github.com/ligato/cn-infra/utils/safeclose"
@@ -44,10 +48,10 @@ import (
 	intf_vppcalls "github.com/ligato/vpp-agent/plugins/vppv2/ifplugin/vppcalls"
 	vpp_intf "github.com/ligato/vpp-agent/plugins/vppv2/model/interfaces"
 
+	stn_grpc "github.com/contiv/vpp/cmd/contiv-stn/model/stn"
 	"github.com/contiv/vpp/plugins/contiv/model/cni"
 	"github.com/contiv/vpp/plugins/contiv/model/node"
 	txn_api "github.com/contiv/vpp/plugins/controller/txn"
-	nodeconfig "github.com/contiv/vpp/plugins/crd/handler/nodeconfig/model"
 	k8sNode "github.com/contiv/vpp/plugins/ksr/model/node"
 	k8sPod "github.com/contiv/vpp/plugins/ksr/model/pod"
 )
@@ -63,11 +67,6 @@ type Plugin struct {
 
 	cniServer       *remoteCNIserver
 	nodeIDAllocator *idAllocator
-
-	// CRD config watching
-	nodeConfigResyncChan chan datasync.ResyncEvent
-	nodeConfigChangeChan chan datasync.ChangeEvent
-	nodeConfigWatchReg   datasync.WatchRegistration
 
 	// kubernetes state data watching
 	watchReg datasync.WatchRegistration
@@ -93,7 +92,7 @@ type Deps struct {
 	infra.PluginDeps
 	ServiceLabel servicelabel.ReaderAPI
 	KVScheduler  kvscheduler_api.KVScheduler
-	GRPC         grpc.Server
+	GRPC         grpcplugin.Server
 	VPPIfPlugin  vpp_ifplugin.API
 	GoVPP        govppmux.API
 	Resync       *resync.Plugin
@@ -103,7 +102,7 @@ type Deps struct {
 	HTTPHandlers rest.HTTPHandlers
 }
 
-// Init initializes the Contiv p. Called automatically by plugin infra upon contiv-agent startup.
+// Init initializes the Contiv plugin. Called automatically by plugin infra upon contiv-agent startup.
 func (p *Plugin) Init() error {
 	// load config file
 	p.ctx, p.ctxCancelFunc = context.WithCancel(context.Background())
@@ -114,6 +113,7 @@ func (p *Plugin) Init() error {
 		p.myNodeConfig = p.loadNodeConfig()
 	}
 
+	// create GoVPP channel
 	var err error
 	p.govppCh, err = p.GoVPP.NewAPIChannel()
 	if err != nil {
@@ -136,21 +136,12 @@ func (p *Plugin) Init() error {
 	}
 	p.Log.Infof("ID of the node is %v", nodeID)
 
-	// initialize and start nodeConfig CRD watcher
-	p.nodeConfigResyncChan = make(chan datasync.ResyncEvent)
-	p.nodeConfigChangeChan = make(chan datasync.ChangeEvent)
-	p.nodeConfigWatchReg, err = p.Watcher.Watch("contiv-plugin-node-config",
-		p.nodeConfigChangeChan, p.nodeConfigResyncChan, nodeconfig.Key(p.ServiceLabel.GetAgentLabel()))
-	if err != nil {
-		return err
-	}
-
 	// initialize and start kubernetes state data watcher
 	p.resyncCh = make(chan datasync.ResyncEvent)
 	p.changeCh = make(chan datasync.ChangeEvent)
 	p.k8sStateData = make(map[string]datasync.KeyVal)
 	p.watchReg, err = p.Watcher.Watch("contiv-plugin-k8s-state",
-		p.changeCh, p.resyncCh, node.AllocatedIDsKeyPrefix, k8sNode.KeyPrefix(), k8sPod.KeyPrefix())
+		p.changeCh, p.resyncCh, node.AllocatedIDsKeyPrefix, k8sNode.KeyPrefix(), k8sPod.KeyPrefix()) // + CRD later
 	if err != nil {
 		return err
 	}
@@ -163,25 +154,28 @@ func (p *Plugin) Init() error {
 	p.Log.Infof("Using docker client endpoint: %+v\n", dockerClient.Endpoint())
 
 	// start the GRPC server handling the CNI requests
-	p.cniServer, err = newRemoteCNIServer(p.Log,
-		func() txn_api.Transaction {
-			return txn_api.NewTransaction(p.KVScheduler)
-		},
-		dockerClient,
-		func() (ifaces map[uint32]*intf_vppcalls.InterfaceDetails, err error) {
-			ifHandler := intf_vppcalls.NewIfVppHandler(p.govppCh, p.Log)
-			ifaces, err = ifHandler.DumpInterfacesByType(vpp_intf.Interface_ETHERNET_CSMACD)
-			return
-		},
-		p.govppCh,
-		p.VPPIfPlugin.GetInterfaceIndex(),
-		p.VPPIfPlugin.GetDHCPIndex(),
-		p.ServiceLabel.GetAgentLabel(),
-		p.Config,
-		p.myNodeConfig,
-		nodeID,
-		p.excludedIPsFromNodeCIDR(),
-		p.HTTPHandlers)
+	p.cniServer, err = newRemoteCNIServer(
+		&remoteCNIserverArgs{
+			Logger: p.Log,
+			nodeID: nodeID,
+			txnFactory: func() txn_api.Transaction {
+				return txn_api.NewTransaction(p.KVScheduler)
+			},
+			ethernetIfsDump: func() (ifaces map[uint32]*intf_vppcalls.InterfaceDetails, err error) {
+				ifHandler := intf_vppcalls.NewIfVppHandler(p.govppCh, p.Log)
+				return ifHandler.DumpInterfacesByType(vpp_intf.Interface_ETHERNET_CSMACD)
+			},
+			getStolenInterfaceInfo:      p.getStolenInterfaceInfo,
+			hostLinkIPsDump:             p.getHostLinkIPs,
+			dockerClient:                dockerClient,
+			govppChan:                   p.govppCh,
+			dhcpIndex:                   p.VPPIfPlugin.GetDHCPIndex(),
+			agentLabel:                  p.ServiceLabel.GetAgentLabel(),
+			nodeConfig:                  p.myNodeConfig,
+			config:                      p.Config,
+			nodeInterconnectExcludedIPs: p.excludedIPsFromNodeCIDR(),
+			http:                        p.HTTPHandlers,
+		})
 	if err != nil {
 		return fmt.Errorf("Can't create new remote CNI server due to error: %v ", err)
 	}
@@ -190,9 +184,6 @@ func (p *Plugin) Init() error {
 	p.nodeIPWatcher = make(chan *net.IPNet, 1)
 	go p.watchEvents()
 	p.cniServer.WatchNodeIP(p.nodeIPWatcher)
-
-	// start goroutine handling changes in the configuration specific to this node
-	go p.cniServer.handleNodeConfigEvents(p.ctx, p.nodeConfigResyncChan, p.nodeConfigChangeChan)
 
 	return nil
 }
@@ -211,7 +202,7 @@ func (p *Plugin) Close() error {
 	p.ctxCancelFunc()
 	p.cniServer.Close()
 	//p.nodeIDAllocator.releaseID()
-	_, err := safeclose.CloseAll(p.govppCh, p.nodeConfigWatchReg, p.watchReg)
+	_, err := safeclose.CloseAll(p.govppCh, p.watchReg)
 	return err
 }
 
@@ -389,6 +380,32 @@ func (p *Plugin) loadNodeConfig() *NodeConfig {
 	return p.Config.GetNodeConfig(myNodeName)
 }
 
+func (p *Plugin) getStolenInterfaceInfo(ifName string) (reply *stn_grpc.STNReply, err error) {
+	// connect to STN GRPC server
+	if p.Config.STNSocketFile == "" {
+		p.Config.STNSocketFile = defaultSTNSocketFile
+	}
+	conn, err := grpc.Dial(
+		p.Config.STNSocketFile,
+		grpc.WithInsecure(),
+		grpc.WithDialer(
+			func(addr string, timeout time.Duration) (net.Conn, error) {
+				return net.DialTimeout("unix", addr, timeout)
+			}),
+	)
+	if err != nil {
+		p.Log.Errorf("Unable to connect to STN GRPC: %v", err)
+		return
+	}
+	defer conn.Close()
+	c := stn_grpc.NewSTNClient(conn)
+
+	// request info about the stolen interface
+	return c.StolenInterfaceInfo(context.Background(), &stn_grpc.STNRequest{
+		InterfaceName: ifName,
+	})
+}
+
 func (p *Plugin) watchEvents() {
 	for {
 		select {
@@ -489,7 +506,31 @@ func (p *Plugin) excludedIPsFromNodeCIDR() []net.IP {
 		res = append(res, net.ParseIP(ip))
 	}
 	return res
+}
 
+func (p *Plugin) getHostLinkIPs() (hostIPs []net.IP, err error) {
+	links, err := netlink.LinkList()
+	if err != nil {
+		p.Log.Error("Unable to list host links:", err)
+		return hostIPs, err
+	}
+
+	for _, l := range links {
+		if !strings.HasPrefix(l.Attrs().Name, "lo") && !strings.HasPrefix(l.Attrs().Name, "docker") &&
+			!strings.HasPrefix(l.Attrs().Name, "virbr") && !strings.HasPrefix(l.Attrs().Name, "vpp") {
+			// not a virtual interface, list its IP addresses
+			addrList, err := netlink.AddrList(l, netlink.FAMILY_V4)
+			if err != nil {
+				p.Log.Error("Unable to list link IPs:", err)
+				return hostIPs, err
+			}
+			// return all IPs
+			for _, addr := range addrList {
+				hostIPs = append(hostIPs, addr.IP)
+			}
+		}
+	}
+	return hostIPs, nil
 }
 
 // dataChangeEvKeys collects all keys included in a data change event.

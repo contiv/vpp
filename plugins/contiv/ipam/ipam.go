@@ -87,13 +87,12 @@ type Config struct {
 }
 
 // New returns new IPAM module to be used on the node specified by the nodeID.
-func New(logger logging.Logger, nodeID uint32, nodeName string, config *Config, nodeInterconnectExcludedIPs []net.IP) (*IPAM, error) {
+func New(logger logging.Logger, nodeID uint32, config *Config, nodeInterconnectExcludedIPs []net.IP) (*IPAM, error) {
 	// create basic IPAM
 	ipam := &IPAM{
 		logger:            logger,
 		nodeID:            nodeID,
 		lastPodIPAssigned: 1,
-		nodeName:          nodeName,
 		config:            config,
 	}
 

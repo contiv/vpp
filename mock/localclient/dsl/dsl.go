@@ -6,27 +6,28 @@ import (
 	"github.com/gogo/protobuf/proto"
 )
 
-//CommonMockDSL holds common data for all mocked DSLs
+// CommonMockDSL holds common data for all mocked DSLs
 type CommonMockDSL struct {
-	// List of transaction operations in the order as they were called.
-	Ops []TxnOp
+	// A map of changes executed in the transaction.
+	// nil value represents delete
+	Values map[string]proto.Message
 
 	// CommitFunc is function called from inside DSL to trigger commit processing(applying TxnOp-s retrieved by DSL,...)
 	// in TxnTracker
 	CommitFunc CommitFunc
 }
 
-// TxnOp stores all information about a transaction operation.
-type TxnOp struct {
-	// Key under which the value is stored or from which the value was removed.
-	Key string
-	// Value stored under the key or nil if it was deleted.
-	Value proto.Message /* nil if deleted */
+// NewCommonMockDSL is a constructor for CommonMockDSL
+func NewCommonMockDSL(commitFunc CommitFunc) CommonMockDSL {
+	return CommonMockDSL{
+		CommitFunc: commitFunc,
+		Values:     make(map[string]proto.Message),
+	}
 }
 
 // CommitFunc is function called from inside DSL to trigger commit processing(applying TxnOp-s retrieved by DSL,...)
 // in TxnTracker
-type CommitFunc = func(Ops []TxnOp) error
+type CommitFunc = func(values map[string]proto.Message) error
 
 // Reply interface allows to wait for a reply to previously called Send() and
 // extract the result from it (success/error).

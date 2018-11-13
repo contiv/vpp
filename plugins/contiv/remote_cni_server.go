@@ -25,7 +25,6 @@ import (
 	"github.com/apparentlymart/go-cidr/cidr"
 	"github.com/fsouza/go-dockerclient"
 	"golang.org/x/net/context"
-	"google.golang.org/grpc"
 
 	"github.com/ligato/cn-infra/datasync"
 	"github.com/ligato/cn-infra/idxmap"
@@ -34,7 +33,6 @@ import (
 
 	scheduler_api "github.com/ligato/vpp-agent/plugins/kvscheduler/api"
 	linux_l3 "github.com/ligato/vpp-agent/plugins/linuxv2/model/l3"
-	"github.com/ligato/vpp-agent/plugins/vppv2/ifplugin/ifaceidx"
 	intf_vppcalls "github.com/ligato/vpp-agent/plugins/vppv2/ifplugin/vppcalls"
 	vpp_intf "github.com/ligato/vpp-agent/plugins/vppv2/model/interfaces"
 	vpp_l3 "github.com/ligato/vpp-agent/plugins/vppv2/model/l3"
@@ -170,28 +168,20 @@ var vxlanBVIHwAddrPrefix = []byte{0x12, 0x2b}
 
 // remoteCNIserver represents the remote CNI server instance.
 // It accepts the requests from the contiv-CNI (acting as a GRPC-client) and configures
-// the networking between VPP and Kuernetes Pods.
+// the networking between VPP and Kubernetes Pods.
 type remoteCNIserver struct {
-	logging.Logger
 	sync.Mutex
 
-	// transaction factory
-	txnFactory func() txn_api.Transaction
+	// input arguments
+	*remoteCNIserverArgs
 
-	// dumping of ethernet interfaces
-	ethernetIfsDump EthernetIfacesDumpClb
+	// these variables ensure that pod add/del requests are processed only after the server
+	// was first resynced
+	inSync        bool
+	inSyncCond    *sync.Cond
+	resyncCounter int
 
-	// docker client
-	dockerClient DockerClient
-
-	// GoVPP channel for direct binary API calls (if needed)
-	govppChan api.Channel
-
-	// VPP interface index map
-	swIfIndex ifaceidx.IfaceMetadataIndex
-
-	// VPP dhcp index map
-	dhcpIndex    idxmap.NamedMapping
+	// DHCP watching
 	watchingDHCP bool // true if dhcpIndex is being watched
 	useDHCP      bool // whether DHCP is disabled by the latest config (can be changed via CRD)
 
@@ -201,15 +191,10 @@ type remoteCNIserver struct {
 	// set to true when running unit tests
 	test bool
 
-	// agent microservice label
-	agentLabel string
-
-	// node IDs
-	nodeID     uint32                    // this node ID
-	otherNodes map[uint32]*node.NodeInfo // other node ID -> node info
+	// other node ID -> node info
+	otherNodes map[uint32]*node.NodeInfo
 
 	// this node's main IP address and the default gateway
-	// - NOT reset by resync
 	nodeIP    net.IP
 	nodeIPNet *net.IPNet
 	defaultGw net.IP
@@ -220,27 +205,15 @@ type remoteCNIserver struct {
 	// nodeIPsubscribers is a slice of channels that are notified when nodeIP is changed
 	nodeIPsubscribers []chan *net.IPNet
 
-	// global config
-	config *Config
-
 	// podPreRemovalHooks is a slice of callbacks called before a pod removal
 	podPreRemovalHooks []PodActionHook
 
 	// podPostAddHooks is a slice of callbacks called once pod is added
 	podPostAddHook []PodActionHook
 
-	// node specific configuration
-	nodeConfig *NodeConfig
-
 	// pod run-time attributes
 	podByID        map[podmodel.ID]*Pod
 	podByVPPIfName map[string]*Pod
-
-	// the variables ensures that add/del requests are processed only after the server
-	// was first resynced
-	inSync        bool
-	inSyncCond    *sync.Cond
-	resyncCounter int
 
 	// name of the main physical interface
 	mainPhysicalIf string
@@ -248,14 +221,51 @@ type remoteCNIserver struct {
 	// name of extra physical interfaces configured by the agent
 	otherPhysicalIfs []string
 
-	// go routine management
-	ctx           context.Context
-	ctxCancelFunc context.CancelFunc
-
 	// routes going via stolen interface
 	stnRoutes []*stn_grpc.STNReply_Route
+}
 
-	// REST interface
+// remoteCNIserverArgs groups input arguments of the Remote CNI Server.
+type remoteCNIserverArgs struct {
+	logging.Logger
+
+	// node IDs
+	nodeID uint32
+
+	// transaction factory
+	txnFactory func() txn_api.Transaction
+
+	// dumping of ethernet interfaces
+	ethernetIfsDump EthernetIfacesDumpClb
+
+	// callback to receive information about a stolen interface
+	getStolenInterfaceInfo StolenInterfaceInfoClb
+
+	// dumping of host IPs
+	hostLinkIPsDump HostLinkIPsDumpClb
+
+	// docker client
+	dockerClient DockerClient
+
+	// GoVPP channel for direct binary API calls (not needed for UTs)
+	govppChan api.Channel
+
+	// VPP DHCP index map
+	dhcpIndex idxmap.NamedMapping
+
+	// agent microservice label
+	agentLabel string
+
+	// node specific configuration
+	nodeConfig *NodeConfig
+
+	// global config
+	config *Config
+
+	// a set of IP addresses from node CIDR to not use for allocation
+	nodeInterconnectExcludedIPs []net.IP
+
+	// REST interface (not needed for UTs)
 	http rest.HTTPHandlers
 }
 
@@ -272,6 +282,13 @@ type DockerClient interface {
 // EthernetIfacesDumpClb is callback for dumping physical interfaces on VPP.
 type EthernetIfacesDumpClb func() (ifaces map[uint32]*intf_vppcalls.InterfaceDetails, err error)
 
+// StolenInterfaceInfoClb is callback for receiving information about a stolen interface.
+type StolenInterfaceInfoClb func(ifName string) (reply *stn_grpc.STNReply, err error)
+
+// HostLinkIPsDumpClb is callback for dumping all IP addresses assigned to interfaces
+// in the host stack.
+type HostLinkIPsDumpClb func() ([]net.IP, error)
+
 // ipWithNetwork groups IP address with the network.
 type ipWithNetwork struct {
 	address net.IP
@@ -281,33 +298,13 @@ type ipWithNetwork struct {
 /********************************* Constructor *********************************/
 
 // newRemoteCNIServer initializes a new remote CNI server instance.
-func newRemoteCNIServer(logger logging.Logger, txnFactory func() txn_api.Transaction, dockerClient DockerClient,
-	ethernetIfsDump EthernetIfacesDumpClb, govppChan api.Channel,
-	swIfIndex ifaceidx.IfaceMetadataIndex, dhcpIndex idxmap.NamedMapping, agentLabel string,
-	config *Config, nodeConfig *NodeConfig, nodeID uint32, nodeExcludeIPs []net.IP, http rest.HTTPHandlers) (*remoteCNIserver, error) {
-
-	ipam, err := ipam.New(logger, nodeID, agentLabel, &config.IPAMConfig, nodeExcludeIPs)
+func newRemoteCNIServer(args *remoteCNIserverArgs) (*remoteCNIserver, error) {
+	ipam, err := ipam.New(args.Logger, args.nodeID, &args.config.IPAMConfig, args.nodeInterconnectExcludedIPs)
 	if err != nil {
 		return nil, err
 	}
-
-	server := &remoteCNIserver{
-		Logger:          logger,
-		txnFactory:      txnFactory,
-		ethernetIfsDump: ethernetIfsDump,
-		dockerClient:    dockerClient,
-		govppChan:       govppChan,
-		swIfIndex:       swIfIndex,
-		dhcpIndex:       dhcpIndex,
-		agentLabel:      agentLabel,
-		nodeID:          nodeID,
-		ipam:            ipam,
-		nodeConfig:      nodeConfig,
-		config:          config,
-		http:            http,
-	}
+	server := &remoteCNIserver{remoteCNIserverArgs: args, ipam: ipam}
 	server.inSyncCond = sync.NewCond(&server.Mutex)
-	server.ctx, server.ctxCancelFunc = context.WithCancel(context.Background())
 	server.registerHandlers()
 	return server, nil
 }
@@ -319,6 +316,7 @@ func (s *remoteCNIserver) Resync(dataResyncEv datasync.ResyncEvent) error {
 	s.Lock()
 	defer s.Unlock()
 	s.resyncCounter++
+	s.Info("Starting RESYNC no. %d", s.resyncCounter)
 
 	var wasErr error
 	txn := s.txnFactory()
@@ -384,7 +382,6 @@ func (s *remoteCNIserver) Update(dataChng datasync.ProtoWatchResp) error {
 // Close is called by the plugin infra when the CNI server needs to be stopped.
 func (s *remoteCNIserver) Close() {
 	s.cleanupVswitchConnectivity()
-	s.ctxCancelFunc()
 }
 
 // Add handles CNI Add request, connects a Pod container to the network.
@@ -396,8 +393,6 @@ func (s *remoteCNIserver) Add(ctx context.Context, request *cni.CNIRequest) (*cn
 	s.Lock()
 	for !s.inSync {
 		s.inSyncCond.Wait()
-		// TODO: with controller, we may even refuse to configure pods until
-		// DHCP granted node IP address, but it has its own risks
 	}
 	defer s.Unlock()
 
@@ -631,7 +626,11 @@ func (s *remoteCNIserver) configureVswitchConnectivity(txn txn_api.ResyncOperati
 	}
 
 	// configure vswitch to host connectivity
-	s.configureVswitchHostConnectivity(txn)
+	err = s.configureVswitchHostConnectivity(txn)
+	if err != nil {
+		s.Logger.Error(err)
+		return err
+	}
 
 	if s.UseSTN() {
 		// configure STN connectivity
@@ -647,10 +646,12 @@ func (s *remoteCNIserver) configureVswitchConnectivity(txn txn_api.ResyncOperati
 
 	// subscribe to VnetFibCounters to get rid of the not wanted notifications and errors from GoVPP
 	// TODO: this is just a workaround until non-subscribed notifications are properly ignored by GoVPP
-	s.subscribeVnetFibCounters()
+	if !s.test {
+		s.subscribeVnetFibCounters()
+	}
 
 	// enable packet trace if requested (should be used for debugging only)
-	if s.config.EnablePacketTrace {
+	if !s.test && s.config.EnablePacketTrace {
 		s.executeDebugCLI("trace add dpdk-input 100000")
 		s.executeDebugCLI("trace add virtio-input 100000")
 	}
@@ -661,14 +662,13 @@ func (s *remoteCNIserver) configureVswitchConnectivity(txn txn_api.ResyncOperati
 // configureVswitchNICs configures vswitch NICs - main NIC for node interconnect
 // and other NICs optionally specified in the contiv plugin YAML configuration.
 func (s *remoteCNIserver) configureVswitchNICs(txn txn_api.ResyncOperations) error {
-	s.Logger.Info("Existing interfaces: ", s.swIfIndex.ListAllInterfaces())
-
 	// dump physical interfaces present on VPP
 	nics, err := s.ethernetIfsDump()
 	if err != nil {
 		s.Logger.Errorf("Failed to dump physical interfaces: %v", err)
 		return err
 	}
+	s.Logger.Infof("Existing interfaces: %v", nics)
 
 	// configure the main VPP NIC interface
 	err = s.configureMainVPPInterface(nics, txn)
@@ -867,8 +867,14 @@ func (s *remoteCNIserver) configureOtherVPPInterfaces(nics map[uint32]*intf_vppc
 }
 
 // configureVswitchHostConnectivity configures vswitch VPP to Linux host interconnect.
-func (s *remoteCNIserver) configureVswitchHostConnectivity(txn txn_api.ResyncOperations) {
+func (s *remoteCNIserver) configureVswitchHostConnectivity(txn txn_api.ResyncOperations) (err error) {
 	var key string
+
+	// list all IPs assigned to host interfaces
+	s.hostIPs, err = s.hostLinkIPsDump()
+	if err != nil {
+		return err
+	}
 
 	// configure interfaces between VPP and the host network stack
 	if s.config.UseTAPInterfaces {
@@ -915,6 +921,8 @@ func (s *remoteCNIserver) configureVswitchHostConnectivity(txn txn_api.ResyncOpe
 		key, routeToServices = s.routeServicesFromHost(s.defaultGw)
 	}
 	txn.Put(key, routeToServices)
+
+	return nil
 }
 
 // configureSTNConnectivity configures vswitch VPP to operate in the STN mode.
@@ -1113,29 +1121,8 @@ func (s *remoteCNIserver) getStolenInterfaceConfig(ifName string) (ipNets []ipWi
 		s.Logger.Debugf("Getting STN info for interface %s", ifName)
 	}
 
-	// connect to STN GRPC server
-	if s.config.STNSocketFile == "" {
-		s.config.STNSocketFile = defaultSTNSocketFile
-	}
-	conn, err := grpc.Dial(
-		s.config.STNSocketFile,
-		grpc.WithInsecure(),
-		grpc.WithDialer(
-			func(addr string, timeout time.Duration) (net.Conn, error) {
-				return net.DialTimeout("unix", addr, timeout)
-			}),
-	)
-	if err != nil {
-		s.Logger.Errorf("Unable to connect to STN GRPC: %v", err)
-		return
-	}
-	defer conn.Close()
-	c := stn_grpc.NewSTNClient(conn)
-
 	// request info about the stolen interface
-	reply, err := c.StolenInterfaceInfo(context.Background(), &stn_grpc.STNRequest{
-		InterfaceName: ifName,
-	})
+	reply, err := s.getStolenInterfaceInfo(ifName)
 	if err != nil {
 		s.Logger.Errorf("Error by executing STN GRPC: %v", err)
 		return

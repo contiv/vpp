@@ -18,10 +18,8 @@ import (
 	"fmt"
 	"net"
 	"strconv"
-	"strings"
 
 	"github.com/apparentlymart/go-cidr/cidr"
-	"github.com/vishvananda/netlink"
 
 	linux_intf "github.com/ligato/vpp-agent/plugins/linuxv2/model/interfaces"
 	linux_l3 "github.com/ligato/vpp-agent/plugins/linuxv2/model/l3"
@@ -232,15 +230,9 @@ func (s *remoteCNIserver) interconnectVethHost() (key string, config *linux_intf
 // routesToHost return one route to configure on VPP for every host interface.
 func (s *remoteCNIserver) routesToHost(nextHopIP net.IP) map[string]*vpp_l3.StaticRoute {
 	routes := make(map[string]*vpp_l3.StaticRoute)
-	// list all IPs assigned to host interfaces
-	ips, err := s.getHostLinkIPs()
-	if err != nil {
-		s.Logger.Errorf("Error by listing host IPs: %v", err)
-		return nil
-	}
 
 	// generate a /32 static route from VPP for each of the host's IPs
-	for _, ip := range ips {
+	for _, ip := range s.hostIPs {
 		route := &vpp_l3.StaticRoute{
 			DstNetwork:        fmt.Sprintf("%s/32", ip.String()),
 			NextHopAddr:       nextHopIP.String(),
@@ -635,36 +627,4 @@ func (s *remoteCNIserver) routeToOtherNodeManagementIPViaPodVRF(managementIP net
 	}
 	key = vpp_l3.RouteKey(route.VrfId, route.DstNetwork, route.NextHopAddr)
 	return key, route
-}
-
-/****************************** Host IP addresses ******************************/
-
-func (s *remoteCNIserver) getHostLinkIPs() ([]net.IP, error) {
-	if s.hostIPs != nil {
-		return s.hostIPs, nil
-	}
-
-	links, err := netlink.LinkList()
-	if err != nil {
-		s.Logger.Error("Unable to list host links:", err)
-		return nil, err
-	}
-
-	s.hostIPs = make([]net.IP, 0)
-	for _, l := range links {
-		if !strings.HasPrefix(l.Attrs().Name, "lo") && !strings.HasPrefix(l.Attrs().Name, "docker") &&
-			!strings.HasPrefix(l.Attrs().Name, "virbr") && !strings.HasPrefix(l.Attrs().Name, "vpp") {
-			// not a virtual interface, list its IP addresses
-			addrList, err := netlink.AddrList(l, netlink.FAMILY_V4)
-			if err != nil {
-				s.Logger.Error("Unable to list link IPs:", err)
-				return nil, err
-			}
-			// return all IPs
-			for _, addr := range addrList {
-				s.hostIPs = append(s.hostIPs, addr.IP)
-			}
-		}
-	}
-	return s.hostIPs, nil
 }

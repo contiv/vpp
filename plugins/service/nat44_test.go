@@ -2103,6 +2103,8 @@ func TestLocalServicePolicy(t *testing.T) {
 	Expect(natPlugin.HasIdentityMapping(mainIfID2)).To(BeTrue())
 
 	// Add pods.
+	Expect(contiv.AddingPod(pod1)).To(BeNil())
+	Expect(contiv.AddingPod(pod2)).To(BeNil())
 	dataChange2 := datasync.Put(podmodel.Key(pod1.Name, pod1.Namespace), pod1Model)
 	Expect(processor.Update(dataChange2)).To(BeNil())
 	dataChange3 := datasync.Put(podmodel.Key(pod2.Name, pod2.Namespace), pod2Model)

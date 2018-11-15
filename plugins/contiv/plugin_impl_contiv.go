@@ -427,12 +427,15 @@ func (p *Plugin) watchEvents() {
 		case resyncEv := <-p.resyncCh:
 			var err error
 			p.resyncCounter++
-			resyncErr := p.thisNodeResync(resyncEv)
+			resyncEventData := ParseResyncEvent(resyncEv, p.k8sStateData)
+			p.Log.Infof("Resync event: %s", resyncEventData.String())
+
+			resyncErr := p.thisNodeResync(resyncEventData)
 			if resyncErr != nil {
 				err = resyncErr
 			}
 
-			resyncErr = p.cniServer.Resync(resyncEv)
+			resyncErr = p.cniServer.Resync(resyncEventData)
 			if resyncErr != nil {
 				err = resyncErr
 			}

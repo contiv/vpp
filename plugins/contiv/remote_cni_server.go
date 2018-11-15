@@ -369,7 +369,7 @@ func (s *remoteCNIserver) String() string {
 /********************************* Events **************************************/
 
 // Resync re-synchronizes configuration based on Kubernetes state data.
-func (s *remoteCNIserver) Resync(dataResyncEv datasync.ResyncEvent) error {
+func (s *remoteCNIserver) Resync(resyncEv *ResyncEventData) error {
 	s.Lock()
 	defer s.Unlock()
 	s.resyncCounter++
@@ -384,7 +384,7 @@ func (s *remoteCNIserver) Resync(dataResyncEv datasync.ResyncEvent) error {
 		// to a local pod without the agent knowing about it. Also there is a risk
 		// of a race condition - resync triggered shortly after Add/DelPod may work
 		// with K8s state data that do not yet reflect the freshly added/removed pod.
-		err := s.ipam.Resync(dataResyncEv)
+		err := s.ipam.Resync(resyncEv.Pods)
 		if err != nil {
 			wasErr = err
 			s.Logger.Error(err)
@@ -399,7 +399,7 @@ func (s *remoteCNIserver) Resync(dataResyncEv datasync.ResyncEvent) error {
 	}
 
 	// node <-> node
-	err = s.otherNodesResync(dataResyncEv, txn)
+	err = s.otherNodesResync(resyncEv, txn)
 	if err != nil {
 		wasErr = err
 		s.Logger.Error(err)
@@ -411,7 +411,7 @@ func (s *remoteCNIserver) Resync(dataResyncEv datasync.ResyncEvent) error {
 		// will not be added/deleted without the agent knowing about it. Also there
 		// is a risk of a race condition - resync triggered shortly after Add/DelPod
 		// may work with K8s state data that do not yet reflect the freshly added/removed pod.
-		err = s.podStateResync(dataResyncEv)
+		err = s.podStateResync(resyncEv)
 		if err != nil {
 			wasErr = err
 			s.Logger.Error(err)
@@ -1031,7 +1031,7 @@ func (s *remoteCNIserver) configureVswitchVrfRoutes(txn txn_api.ResyncOperations
 // podStateResync resynchronizes internal maps (s.podBy*) with the current
 // state of locally deployed pods based on Kubernetes state data and information
 // provided by Docker server.
-func (s *remoteCNIserver) podStateResync(dataResyncEv datasync.ResyncEvent) error {
+func (s *remoteCNIserver) podStateResync(resyncEv *ResyncEventData) error {
 	// use docker client to obtain the set of running pods
 	runningPods, err := s.listRunningPods()
 	if err != nil {
@@ -1045,47 +1045,28 @@ func (s *remoteCNIserver) podStateResync(dataResyncEv datasync.ResyncEvent) erro
 	s.podByVPPIfName = make(map[string]*Pod)
 
 	// iterate over state data of all locally deployed pods
-	data := dataResyncEv.GetValues()
-	for prefix, it := range data {
-		if prefix == podmodel.KeyPrefix() {
-			for {
-				kv, stop := it.GetNext()
-				if stop {
-					break
-				}
-
-				// parse Pod state data
-				podData := &podmodel.Pod{}
-				err := kv.GetValue(podData)
-				if err != nil {
-					// treat as warning
-					s.Logger.Warnf("Failed to parse pod state data: %v", err)
-					continue
-				}
-
-				// ignore pods deployed on other nodes or without IP address
-				podIPAddress := net.ParseIP(podData.IpAddress)
-				if podIPAddress == nil || !s.ipam.PodSubnetThisNode().Contains(podIPAddress) {
-					return nil
-				}
-
-				// ignore pods which are not actually running
-				podID := podmodel.ID{Name: podData.Name, Namespace: podData.Namespace}
-				pod, isRunning := runningPods[podID]
-				if !isRunning {
-					s.Logger.Warnf("Pod %v is not in the RUNNING state, skipping.", podID)
-					continue
-				}
-
-				// fill the pod parameters not provided by listRunningPods
-				pod.VPPIfName, pod.LinuxIfName = s.podInterfaceName(pod)
-				pod.IPAddress = podIPAddress
-
-				// store pod configuration
-				s.podByID[pod.ID] = pod
-				s.podByVPPIfName[pod.VPPIfName] = pod
-			}
+	for _, podData := range resyncEv.Pods {
+		// ignore pods deployed on other nodes or without IP address
+		podIPAddress := net.ParseIP(podData.IpAddress)
+		if podIPAddress == nil || !s.ipam.PodSubnetThisNode().Contains(podIPAddress) {
+			continue
 		}
+
+		// ignore pods which are not actually running
+		podID := podmodel.ID{Name: podData.Name, Namespace: podData.Namespace}
+		pod, isRunning := runningPods[podID]
+		if !isRunning {
+			s.Logger.Warnf("Pod %v is not in the RUNNING state, skipping.", podID)
+			continue
+		}
+
+		// fill the pod parameters not provided by listRunningPods
+		pod.VPPIfName, pod.LinuxIfName = s.podInterfaceName(pod)
+		pod.IPAddress = podIPAddress
+
+		// store pod configuration
+		s.podByID[pod.ID] = pod
+		s.podByVPPIfName[pod.VPPIfName] = pod
 	}
 	return nil
 }

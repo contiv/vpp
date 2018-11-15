@@ -188,7 +188,7 @@ func TestBasicStuff(t *testing.T) {
 
 	// resync against empty K8s state data
 	resyncEv := datasync.Resync(keyPrefixes...)
-	err = server.Resync(resyncEv)
+	err = server.Resync(ParseResyncEvent(resyncEv, nil))
 	Expect(err).To(BeNil())
 	txnCount++
 	Expect(txnTracker.PendingTxns).To(HaveLen(0))
@@ -275,7 +275,7 @@ func TestBasicStuff(t *testing.T) {
 
 	// resync now with the IP from DHCP, new pod and the other node
 	resyncEv = datasync.Resync(keyPrefixes...)
-	err = server.Resync(resyncEv)
+	err = server.Resync(ParseResyncEvent(resyncEv, nil))
 	Expect(err).To(BeNil())
 	txnCount++
 	Expect(txnTracker.PendingTxns).To(HaveLen(0))
@@ -289,7 +289,7 @@ func TestBasicStuff(t *testing.T) {
 	Expect(err).To(BeNil())
 	// resync
 	resyncEv = datasync.Resync(keyPrefixes...)
-	err = server.Resync(resyncEv)
+	err = server.Resync(ParseResyncEvent(resyncEv, nil))
 	Expect(err).To(BeNil())
 	txnCount++
 	Expect(txnTracker.PendingTxns).To(HaveLen(0))
@@ -326,7 +326,7 @@ func TestBasicStuff(t *testing.T) {
 	fmt.Println("Resync just before Close ---------------------------------")
 
 	resyncEv = datasync.Resync(keyPrefixes...)
-	err = server.Resync(resyncEv)
+	err = server.Resync(ParseResyncEvent(resyncEv, nil))
 	Expect(err).To(BeNil())
 	txnCount++
 	Expect(txnTracker.PendingTxns).To(HaveLen(0))

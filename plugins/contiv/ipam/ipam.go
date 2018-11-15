@@ -21,7 +21,6 @@ import (
 	"sort"
 	"sync"
 
-	"github.com/ligato/cn-infra/datasync"
 	"github.com/ligato/cn-infra/logging"
 
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
@@ -124,7 +123,7 @@ func New(logger logging.Logger, nodeID uint32, config *Config, nodeInterconnectE
 
 // Resync resynchronizes IPAM against Kubernetes state data.
 // A set of already allocated pod IPs is updated.
-func (i *IPAM) Resync(dataResyncEv datasync.ResyncEvent) (err error) {
+func (i *IPAM) Resync(pods []*podmodel.Pod) (err error) {
 	networkPrefix, err := ipv4ToUint32(i.podSubnetThisNode.IP)
 	if err != nil {
 		return err
@@ -135,40 +134,21 @@ func (i *IPAM) Resync(dataResyncEv datasync.ResyncEvent) (err error) {
 	i.assignedPodIPs = make(map[uintIP]podmodel.ID)
 
 	// iterate over pod state data
-	data := dataResyncEv.GetValues()
-	for prefix, it := range data {
-		if prefix == podmodel.KeyPrefix() {
-			for {
-				kv, stop := it.GetNext()
-				if stop {
-					break
-				}
+	for _, podData := range pods {
+		// ignore pods deployed on other nodes or without IP address
+		podIPAddress := net.ParseIP(podData.IpAddress)
+		if podIPAddress == nil || !i.podSubnetThisNode.Contains(podIPAddress) {
+			continue
+		}
 
-				// parse Pod state data
-				podData := &podmodel.Pod{}
-				err := kv.GetValue(podData)
-				if err != nil {
-					// treat as warning
-					i.logger.Warnf("Failed to parse pod state data: %v", err)
-					continue
-				}
+		// register address as already allocated
+		addrIndex, _ := ipv4ToUint32(podIPAddress)
+		podID := podmodel.ID{Name: podData.Name, Namespace: podData.Namespace}
+		i.assignedPodIPs[addrIndex] = podID
 
-				// ignore pods deployed on other nodes or without IP address
-				podIPAddress := net.ParseIP(podData.IpAddress)
-				if podIPAddress == nil || !i.podSubnetThisNode.Contains(podIPAddress) {
-					return nil
-				}
-
-				// register address as already allocated
-				addrIndex, _ := ipv4ToUint32(podIPAddress)
-				podID := podmodel.ID{Name: podData.Name, Namespace: podData.Namespace}
-				i.assignedPodIPs[addrIndex] = podID
-
-				diff := int(addrIndex - networkPrefix)
-				if i.lastPodIPAssigned < diff {
-					i.lastPodIPAssigned = diff
-				}
-			}
+		diff := int(addrIndex - networkPrefix)
+		if i.lastPodIPAssigned < diff {
+			i.lastPodIPAssigned = diff
 		}
 	}
 

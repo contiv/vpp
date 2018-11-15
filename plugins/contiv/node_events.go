@@ -36,20 +36,10 @@ import (
 /* Contiv Plugin */
 
 // thisNodeResync publishes update of this node IPs for other nodes based on resync data.
-func (p *Plugin) thisNodeResync(resyncEv datasync.ResyncEvent) error {
-	data := resyncEv.GetValues()
-
-	for _, it := range data {
-		for {
-			kv, stop := it.GetNext()
-			if stop {
-				break
-			}
-			p.k8sStateData[kv.GetKey()] = kv
-
-			if kv.GetKey() == k8sNode.Key(p.ServiceLabel.GetAgentLabel()) {
-				return p.updateThisNodeMgmtIPs(kv)
-			}
+func (p *Plugin) thisNodeResync(resyncEv *ResyncEventData) error {
+	for _, node := range resyncEv.Nodes {
+		if node.GetName() == p.ServiceLabel.GetAgentLabel() {
+			return p.updateThisNodeMgmtIPs(node)
 		}
 	}
 	return nil
@@ -58,24 +48,23 @@ func (p *Plugin) thisNodeResync(resyncEv datasync.ResyncEvent) error {
 // processThisNodeChangeEvent publishes update of this node IPs for other nodes to know.
 func (p *Plugin) processThisNodeChangeEvent(dataChng datasync.ProtoWatchResp) error {
 	if dataChng.GetKey() == k8sNode.Key(p.ServiceLabel.GetAgentLabel()) {
-		return p.updateThisNodeMgmtIPs(dataChng)
+		node := &k8sNode.Node{}
+		err := dataChng.GetValue(node)
+		if err != nil {
+			return err
+		}
+		return p.updateThisNodeMgmtIPs(node)
 	}
 	return nil
 }
 
 // updateThisNodeMgmtIPs publishes update of this node IPs for other nodes to know.
-func (p *Plugin) updateThisNodeMgmtIPs(nodeChange datasync.KeyVal) error {
-	value := &k8sNode.Node{}
-	err := nodeChange.GetValue(value)
-	if err != nil {
-		return err
-	}
-
+func (p *Plugin) updateThisNodeMgmtIPs(node *k8sNode.Node) error {
 	var k8sIPs []string
-	for i := range value.Addresses {
-		if value.Addresses[i].Type == k8sNode.NodeAddress_NodeInternalIP ||
-			value.Addresses[i].Type == k8sNode.NodeAddress_NodeExternalIP {
-			k8sIPs = appendIfMissing(k8sIPs, value.Addresses[i].Address)
+	for i := range node.Addresses {
+		if node.Addresses[i].Type == k8sNode.NodeAddress_NodeInternalIP ||
+			node.Addresses[i].Type == k8sNode.NodeAddress_NodeExternalIP {
+			k8sIPs = appendIfMissing(k8sIPs, node.Addresses[i].Address)
 		}
 	}
 	if len(k8sIPs) > 0 {
@@ -91,54 +80,36 @@ func (p *Plugin) updateThisNodeMgmtIPs(nodeChange datasync.KeyVal) error {
 /* Remote CNI Server */
 
 // otherNodesResync re-synchronizes connectivity to other nodes.
-func (s *remoteCNIserver) otherNodesResync(dataResyncEv datasync.ResyncEvent, txn txn_api.ResyncOperations) error {
+func (s *remoteCNIserver) otherNodesResync(resyncEv *ResyncEventData, txn txn_api.ResyncOperations) error {
 	// reset the internal map of other node IDs
 	s.otherNodes = make(map[uint32]*node.NodeInfo)
 
 	// collect other node IDs and configuration for connectivity with each of them
-	data := dataResyncEv.GetValues()
-	for prefix, it := range data {
-		if prefix == node.AllocatedIDsKeyPrefix {
-			for {
-				kv, stop := it.GetNext()
-				if stop {
-					break
-				}
+	for _, nodeInfo := range resyncEv.NodeInfo {
+		nodeID := nodeInfo.Id
 
-				nodeInfo := &node.NodeInfo{}
-				err := kv.GetValue(nodeInfo)
-				if err != nil {
-					// treat as warning
-					s.Logger.Warnf("Failed to parse node information: %v", err)
-					continue
-				}
+		// ignore for this node
+		if nodeID == s.nodeID {
+			continue
+		}
 
-				nodeID := nodeInfo.Id
-
-				// ignore for this node
-				if nodeID == s.nodeID {
-					continue
-				}
-
-				// collect configuration for node connectivity
-				if nodeHasIPAddress(nodeInfo) {
-					// add node info into the internal map
-					s.otherNodes[nodeID] = nodeInfo
-					// generate configuration
-					nodeConnectConfig, err := s.nodeConnectivityConfig(nodeInfo)
-					if err != nil {
-						// treat as warning
-						s.Logger.Warnf("Failed to configure connectivity to node ID=%d: %v",
-							nodeInfo.Id, err)
-						continue
-					}
-					for key, value := range nodeConnectConfig {
-						txn.Put(key, value)
-					}
-				} else {
-					s.Logger.Infof("Ip address or management IP of node %v is not known yet.", nodeID)
-				}
+		// collect configuration for node connectivity
+		if nodeHasIPAddress(nodeInfo) {
+			// add node info into the internal map
+			s.otherNodes[nodeID] = nodeInfo
+			// generate configuration
+			nodeConnectConfig, err := s.nodeConnectivityConfig(nodeInfo)
+			if err != nil {
+				// treat as warning
+				s.Logger.Warnf("Failed to configure connectivity to node ID=%d: %v",
+					nodeInfo.Id, err)
+				continue
 			}
+			for key, value := range nodeConnectConfig {
+				txn.Put(key, value)
+			}
+		} else {
+			s.Logger.Infof("Ip address or management IP of node %v is not known yet.", nodeID)
 		}
 	}
 

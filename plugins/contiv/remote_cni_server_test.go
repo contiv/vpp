@@ -24,7 +24,6 @@ import (
 	idxmap_mem "github.com/ligato/cn-infra/idxmap/mem"
 	"github.com/ligato/cn-infra/logging/logrus"
 
-	intf_vppcalls "github.com/ligato/vpp-agent/plugins/vppv2/ifplugin/vppcalls"
 	vpp_intf "github.com/ligato/vpp-agent/plugins/vppv2/model/interfaces"
 
 	. "github.com/contiv/vpp/mock/datasync"
@@ -58,17 +57,19 @@ const (
 	hostIP1 = "10.3.1.10"
 	hostIP2 = "10.0.2.15"
 
-	pod1Container = "pod1-container-ID"
-	pod1PID       = 124
-	pod1Ns        = "/proc/124/ns/net"
-	pod1Name      = "pod1"
-	pod1Namespace = "default"
+	pod1Container        = "<pod1-container-ID>"
+	pod1ContainerUpdated = "<pod1-container-ID-updated>"
+	pod1PID              = 124
+	pod1Ns               = "/proc/124/ns/net"
+	pod1Name             = "pod1"
+	pod1Namespace        = "default"
 
 	// node 2
-	node2       = "node2"
-	node2ID     = 2
-	node2IP     = "10.10.10.200/24"
-	node2MgmtIP = "10.10.10.200/24"
+	node2Name          = "node2"
+	node2ID            = 2
+	node2IP            = "10.10.10.200/24"
+	node2MgmtIP        = "10.50.50.50"
+	node2MgmtIPUpdated = "10.70.70.70"
 )
 
 var (
@@ -79,6 +80,7 @@ var (
 	nodeDHCPConfig = &NodeConfig{
 		NodeName: node1,
 		NodeConfigSpec: nodeconfig.NodeConfigSpec{
+			StealInterface: "eth0",
 			MainVPPInterface: nodeconfig.InterfaceConfig{
 				InterfaceName: Gbe8,
 				UseDHCP:       true,
@@ -105,24 +107,39 @@ var (
 			VxlanCIDR:                     "192.168.30.0/24",
 		},
 	}
+
+	/*
+		configVethL2NoTCP = &Config{
+			UseL2Interconnect: true,
+			IPAMConfig: ipam.Config{
+				PodSubnetCIDR:                 "10.1.0.0/16",
+				PodSubnetOneNodePrefixLen:     24,
+				PodVPPSubnetCIDR:              "10.2.1.0/24",
+				VPPHostSubnetCIDR:             "172.30.0.0/16",
+				VPPHostSubnetOneNodePrefixLen: 24,
+				NodeInterconnectCIDR:          "192.168.16.0/24",
+				VxlanCIDR:                     "192.168.30.0/24",
+			},
+		}
+	*/
 )
 
 func TestBasicStuff(t *testing.T) {
 	RegisterTestingT(t)
+	var txnCount int
 
 	// DHCP
 	dhcpIndexes := idxmap_mem.NewNamedMapping(logrus.DefaultLogger(), "test-dhcp_indexes", nil)
-	dhcpIndexes.Put(Gbe8, &vpp_intf.DHCPLease{InterfaceName: Gbe8, HostIpAddress: Gbe8IP, RouterIpAddress: GwIPWithPrefix})
 
 	// NICs
-	ethernetsIfaces := map[uint32]string{
+	physicalIfaces := map[uint32]string{
 		1: Gbe8,
 		2: Gbe9,
 	}
 
 	// STN
 	stnReply := &stn_grpc.STNReply{
-		IpAddresses: []string{Gbe8},
+		IpAddresses: []string{Gbe8IP},
 		Routes: []*stn_grpc.STNReply_Route{
 			{
 				DestinationSubnet: "20.20.20.0/24",
@@ -143,11 +160,13 @@ func TestBasicStuff(t *testing.T) {
 
 	// Remote CNI Server init
 	args := &remoteCNIserverArgs{
-		Logger:                 logrus.DefaultLogger(),
-		nodeID:                 node1ID,
-		txnFactory:             txnTracker.NewControllerTxn,
-		ethernetIfsDump:        ethernetIfacesDump(ethernetsIfaces),
-		getStolenInterfaceInfo: stolenInterfaceInfo("GigabitEthernet0/8/0", stnReply),
+		Logger:     logrus.DefaultLogger(),
+		nodeID:     node1ID,
+		txnFactory: txnTracker.NewControllerTxn,
+		physicalIfsDump: func() (map[uint32]string, error) {
+			return physicalIfaces, nil
+		},
+		getStolenInterfaceInfo: stolenInterfaceInfo("eth0", stnReply),
 		hostLinkIPsDump: func() ([]net.IP, error) {
 			return hostIPs, nil
 		},
@@ -171,23 +190,44 @@ func TestBasicStuff(t *testing.T) {
 	resyncEv := datasync.Resync(keyPrefixes...)
 	err = server.Resync(resyncEv)
 	Expect(err).To(BeNil())
+	txnCount++
 	Expect(txnTracker.PendingTxns).To(HaveLen(0))
-	Expect(txnTracker.CommittedTxns).To(HaveLen(1))
+	Expect(txnTracker.CommittedTxns).To(HaveLen(txnCount))
+
+	// simulate DHCP event
+	dhcpIndexes.Put(Gbe8, &vpp_intf.DHCPLease{InterfaceName: Gbe8, HostIpAddress: Gbe8IP, RouterIpAddress: GwIPWithPrefix})
 
 	fmt.Println("Add another node -----------------------------------------")
 
 	// add another node
 	node2 := &node.NodeInfo{
-		Name:                node2,
+		Name:                node2Name,
 		Id:                  node2ID,
 		IpAddress:           node2IP,
 		ManagementIpAddress: node2MgmtIP,
 	}
-	dataChange1 := datasync.Put(nodeIDKey(node2ID), node2)
-	err = server.Update(dataChange1.GetChanges()[0])
+	dataChange := datasync.Put(nodeIDKey(node2ID), node2)
+	err = server.Update(dataChange.GetChanges()[0])
 	Expect(err).To(BeNil())
+	txnCount++
 	Expect(txnTracker.PendingTxns).To(HaveLen(0))
-	Expect(txnTracker.CommittedTxns).To(HaveLen(2))
+	Expect(txnTracker.CommittedTxns).To(HaveLen(txnCount))
+
+	fmt.Println("Other node Mgmt IP update --------------------------------")
+
+	// add another node
+	node2Update := &node.NodeInfo{
+		Name:                node2Name,
+		Id:                  node2ID,
+		IpAddress:           node2IP,
+		ManagementIpAddress: node2MgmtIPUpdated,
+	}
+	dataChange = datasync.Put(nodeIDKey(node2ID), node2Update)
+	err = server.Update(dataChange.GetChanges()[0])
+	Expect(err).To(BeNil())
+	txnCount++
+	Expect(txnTracker.PendingTxns).To(HaveLen(0))
+	Expect(txnTracker.CommittedTxns).To(HaveLen(txnCount))
 
 	fmt.Println("Add pod --------------------------------------------------")
 
@@ -201,32 +241,59 @@ func TestBasicStuff(t *testing.T) {
 	pod1ID := k8sPod.ID{Name: pod1Name, Namespace: pod1Namespace}
 	reply, err := server.Add(context.Background(), cniReq)
 	Expect(err).To(BeNil())
+	txnCount++
 	Expect(reply).ToNot(BeNil())
 	Expect(txnTracker.PendingTxns).To(HaveLen(0))
-	Expect(txnTracker.CommittedTxns).To(HaveLen(3))
+	Expect(txnTracker.CommittedTxns).To(HaveLen(txnCount))
+
+	fmt.Println("Add pod (updated, prev. is obsolete) ---------------------")
+
+	// add pod
+	cniReq.ContainerId = pod1ContainerUpdated
+	reply, err = server.Add(context.Background(), cniReq)
+	Expect(err).To(BeNil())
+	txnCount += 2 // also removing obsolete config
+	Expect(reply).ToNot(BeNil())
+	Expect(txnTracker.PendingTxns).To(HaveLen(0))
+	Expect(txnTracker.CommittedTxns).To(HaveLen(txnCount))
 
 	// register the new pod with the mocks
 	pod1IP := podIPFromCNIReply(reply)
 	Expect(pod1IP).ToNot(BeNil())
-	dockerClient.AddPod(pod1ID, pod1Container, pod1PID)
-	dataChange2 := datasync.Put(k8sPod.Key(pod1Name, pod1Namespace), &k8sPod.Pod{
+	dockerClient.AddPod(pod1ID, pod1ContainerUpdated, pod1PID)
+	dataChange = datasync.Put(k8sPod.Key(pod1Name, pod1Namespace), &k8sPod.Pod{
 		Namespace: pod1Namespace,
 		Name:      pod1Name,
 		IpAddress: pod1IP.String(),
 	})
-	err = server.Update(dataChange2.GetChanges()[0]) // NOOP
+	err = server.Update(dataChange.GetChanges()[0]) // NOOP
 	Expect(err).To(BeNil())
 	Expect(txnTracker.PendingTxns).To(HaveLen(0))
-	Expect(txnTracker.CommittedTxns).To(HaveLen(3))
+	Expect(txnTracker.CommittedTxns).To(HaveLen(txnCount))
 
 	fmt.Println("Resync with non-empty K8s state --------------------------")
 
-	// resync now with the pod and the other node
+	// resync now with the IP from DHCP, new pod and the other node
 	resyncEv = datasync.Resync(keyPrefixes...)
 	err = server.Resync(resyncEv)
 	Expect(err).To(BeNil())
+	txnCount++
 	Expect(txnTracker.PendingTxns).To(HaveLen(0))
-	Expect(txnTracker.CommittedTxns).To(HaveLen(4))
+	Expect(txnTracker.CommittedTxns).To(HaveLen(txnCount))
+
+	fmt.Println("Restart (without node IP) --------------------------------")
+
+	// restart
+	server, err = newRemoteCNIServer(args)
+	server.test = true
+	Expect(err).To(BeNil())
+	// resync
+	resyncEv = datasync.Resync(keyPrefixes...)
+	err = server.Resync(resyncEv)
+	Expect(err).To(BeNil())
+	txnCount++
+	Expect(txnTracker.PendingTxns).To(HaveLen(0))
+	Expect(txnTracker.CommittedTxns).To(HaveLen(txnCount))
 
 	fmt.Println("Delete pod -----------------------------------------------")
 
@@ -234,45 +301,43 @@ func TestBasicStuff(t *testing.T) {
 	reply, err = server.Delete(context.Background(), cniReq)
 	Expect(err).To(BeNil())
 	Expect(reply).ToNot(BeNil())
+	txnCount++
 	Expect(txnTracker.PendingTxns).To(HaveLen(0))
-	Expect(txnTracker.CommittedTxns).To(HaveLen(5))
+	Expect(txnTracker.CommittedTxns).To(HaveLen(txnCount))
 
 	// un-register the pod from the mocks
 	dockerClient.DelPod(pod1ID)
-	dataChange3 := datasync.Delete(k8sPod.Key(pod1Name, pod1Namespace))
-	err = server.Update(dataChange3.GetChanges()[0]) // NOOP
+	dataChange = datasync.Delete(k8sPod.Key(pod1Name, pod1Namespace))
+	err = server.Update(dataChange.GetChanges()[0]) // NOOP
 	Expect(err).To(BeNil())
 	Expect(txnTracker.PendingTxns).To(HaveLen(0))
-	Expect(txnTracker.CommittedTxns).To(HaveLen(5))
+	Expect(txnTracker.CommittedTxns).To(HaveLen(txnCount))
 
 	fmt.Println("Delete node ----------------------------------------------")
 
 	// delete the other node
-	dataChange4 := datasync.Delete(nodeIDKey(node2ID))
-	err = server.Update(dataChange4.GetChanges()[0])
+	dataChange = datasync.Delete(nodeIDKey(node2ID))
+	err = server.Update(dataChange.GetChanges()[0])
 	Expect(err).To(BeNil())
+	txnCount++
 	Expect(txnTracker.PendingTxns).To(HaveLen(0))
-	Expect(txnTracker.CommittedTxns).To(HaveLen(6))
+	Expect(txnTracker.CommittedTxns).To(HaveLen(txnCount))
+
+	fmt.Println("Resync just before Close ---------------------------------")
+
+	resyncEv = datasync.Resync(keyPrefixes...)
+	err = server.Resync(resyncEv)
+	Expect(err).To(BeNil())
+	txnCount++
+	Expect(txnTracker.PendingTxns).To(HaveLen(0))
+	Expect(txnTracker.CommittedTxns).To(HaveLen(txnCount))
+
+	fmt.Println("Close ----------------------------------------------------")
 
 	server.Close()
-}
-
-// ethernetIfacesDump is a factory for EthernetIfacesDumpClb.
-func ethernetIfacesDump(ifaces map[uint32]string) EthernetIfacesDumpClb {
-	return func() (dump map[uint32]*intf_vppcalls.InterfaceDetails, err error) {
-		dump = make(map[uint32]*intf_vppcalls.InterfaceDetails)
-		for idx, name := range ifaces {
-			dump[idx] = &intf_vppcalls.InterfaceDetails{
-				Meta: &intf_vppcalls.InterfaceMeta{
-					SwIfIndex: idx,
-				},
-				Interface: &vpp_intf.Interface{
-					Name: name,
-				},
-			}
-		}
-		return dump, nil
-	}
+	txnCount++
+	Expect(txnTracker.PendingTxns).To(HaveLen(0))
+	Expect(txnTracker.CommittedTxns).To(HaveLen(txnCount))
 }
 
 // stolenInterfaceInfo is a factory for StolenInterfaceInfoClb

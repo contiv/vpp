@@ -33,7 +33,6 @@ import (
 
 	scheduler_api "github.com/ligato/vpp-agent/plugins/kvscheduler/api"
 	linux_l3 "github.com/ligato/vpp-agent/plugins/linuxv2/model/l3"
-	intf_vppcalls "github.com/ligato/vpp-agent/plugins/vppv2/ifplugin/vppcalls"
 	vpp_intf "github.com/ligato/vpp-agent/plugins/vppv2/model/interfaces"
 	vpp_l3 "github.com/ligato/vpp-agent/plugins/vppv2/model/l3"
 
@@ -87,6 +86,12 @@ const (
 
 	// prefix for logical name of AF-Packet interface (VPP) connecting a pod
 	podAFPacketLogicalNamePrefix = "afpacket"
+
+	// prefix for logical name of VETH1 interface (pod namespace) connecting a pod
+	podVETH1LogicalNamePrefix = "veth1-"
+
+	// prefix for logical name of VETH2 interface (vswitch namespace) connecting a pod
+	podVETH2LogicalNamePrefix = "veth2-"
 
 	// prefix for logical name of the VPP-TAP interface connecting a pod
 	podVPPSideTAPLogicalNamePrefix = "vpp-tap-"
@@ -235,8 +240,8 @@ type remoteCNIserverArgs struct {
 	// transaction factory
 	txnFactory func() txn_api.Transaction
 
-	// dumping of ethernet interfaces
-	ethernetIfsDump EthernetIfacesDumpClb
+	// dumping of physical interfaces
+	physicalIfsDump PhysicalIfacesDumpClb
 
 	// callback to receive information about a stolen interface
 	getStolenInterfaceInfo StolenInterfaceInfoClb
@@ -279,8 +284,8 @@ type DockerClient interface {
 	InspectContainer(id string) (*docker.Container, error)
 }
 
-// EthernetIfacesDumpClb is callback for dumping physical interfaces on VPP.
-type EthernetIfacesDumpClb func() (ifaces map[uint32]*intf_vppcalls.InterfaceDetails, err error)
+// PhysicalIfacesDumpClb is callback for dumping physical interfaces on VPP.
+type PhysicalIfacesDumpClb func() (ifaces map[uint32]string, err error) // interface index -> interface name
 
 // StolenInterfaceInfoClb is callback for receiving information about a stolen interface.
 type StolenInterfaceInfoClb func(ifName string) (reply *stn_grpc.STNReply, err error)
@@ -309,6 +314,58 @@ func newRemoteCNIServer(args *remoteCNIserverArgs) (*remoteCNIserver, error) {
 	return server, nil
 }
 
+/********************************** Stringer **********************************/
+
+// String returns human-readable string representation of RemoteCNIServer state (not args).
+func (s *remoteCNIserver) String() string {
+	// other nodes
+	otherNodes := "{"
+	first := true
+	for nodeID, nodeInfo := range s.otherNodes {
+		if !first {
+			otherNodes += ", "
+		}
+		first = false
+		otherNodes += fmt.Sprintf("%d: %+v", nodeID, *nodeInfo)
+	}
+	otherNodes += "}"
+
+	// pods by ID
+	podsByID := "{"
+	first = true
+	for podID, pod := range s.podByID {
+		if !first {
+			podsByID += ", "
+		}
+		first = false
+		podsByID += fmt.Sprintf("%s: %s", podID.String(), pod.String())
+	}
+	podsByID += "}"
+
+	// pods by VPP interface name
+	podByVPPIfName := "{"
+	first = true
+	for vppIfName, pod := range s.podByVPPIfName {
+		if !first {
+			podByVPPIfName += ", "
+		}
+		first = false
+		podByVPPIfName += fmt.Sprintf("%s: %s", vppIfName, pod.String())
+	}
+	podByVPPIfName += "}"
+
+	return fmt.Sprintf("<inSync: %t, resyncCounter: %d, useDHCP: %t, watchingDHCP: %t, "+
+		"mainPhysicalIf: %s, otherPhysicalIfs: %v, "+
+		"nodeIP: %s, nodeIPNet: %s, defaultGw: %s, hostIPs: %v, "+
+		"podByID: %s, podByVppIfName: %s, "+
+		"otherNodes: %s, stnRoutes: %v",
+		s.inSync, s.resyncCounter, s.useDHCP, s.watchingDHCP,
+		s.mainPhysicalIf, s.otherPhysicalIfs,
+		s.nodeIP.String(), ipNetToString(s.nodeIPNet), s.defaultGw.String(), s.hostIPs,
+		podsByID, podByVPPIfName,
+		otherNodes, s.stnRoutes)
+}
+
 /********************************* Events **************************************/
 
 // Resync re-synchronizes configuration based on Kubernetes state data.
@@ -316,7 +373,7 @@ func (s *remoteCNIserver) Resync(dataResyncEv datasync.ResyncEvent) error {
 	s.Lock()
 	defer s.Unlock()
 	s.resyncCounter++
-	s.Info("Starting RESYNC no. %d", s.resyncCounter)
+	s.Infof("Starting RESYNC no. %d", s.resyncCounter)
 
 	var wasErr error
 	txn := s.txnFactory()
@@ -379,7 +436,7 @@ func (s *remoteCNIserver) Resync(dataResyncEv datasync.ResyncEvent) error {
 	s.inSync = true
 	s.inSyncCond.Broadcast()
 
-	s.Logger.Infof("Remote CNI Server state after RESYNC: %+v", s)
+	s.Logger.Infof("Remote CNI Server state after RESYNC: %s", s.String())
 	return wasErr
 }
 
@@ -628,8 +685,6 @@ func (s *remoteCNIserver) DeletePod(pod *Pod, obsoletePod bool) error {
 //  - inter-VRF routing
 //  - IP neighbor scanning
 func (s *remoteCNIserver) configureVswitchConnectivity(txn txn_api.ResyncOperations) error {
-	s.Logger.Info("Applying base vSwitch config.")
-
 	// configure physical NIC
 	err := s.configureVswitchNICs(txn)
 	if err != nil {
@@ -675,7 +730,7 @@ func (s *remoteCNIserver) configureVswitchConnectivity(txn txn_api.ResyncOperati
 // and other NICs optionally specified in the contiv plugin YAML configuration.
 func (s *remoteCNIserver) configureVswitchNICs(txn txn_api.ResyncOperations) error {
 	// dump physical interfaces present on VPP
-	nics, err := s.ethernetIfsDump()
+	nics, err := s.physicalIfsDump()
 	if err != nil {
 		s.Logger.Errorf("Failed to dump physical interfaces: %v", err)
 		return err
@@ -703,7 +758,7 @@ func (s *remoteCNIserver) configureVswitchNICs(txn txn_api.ResyncOperations) err
 }
 
 // configureMainVPPInterface configures the main NIC used for node interconnect on vswitch VPP.
-func (s *remoteCNIserver) configureMainVPPInterface(nics map[uint32]*intf_vppcalls.InterfaceDetails, txn txn_api.ResyncOperations) error {
+func (s *remoteCNIserver) configureMainVPPInterface(physicalIfaces map[uint32]string, txn txn_api.ResyncOperations) error {
 	var err error
 
 	// 1. Determine the name of the main VPP NIC interface
@@ -718,19 +773,23 @@ func (s *remoteCNIserver) configureMainVPPInterface(nics map[uint32]*intf_vppcal
 	if nicName == "" {
 		// name not specified in config, use heuristic - select first non-virtual interface
 	nextNIC:
-		for _, nic := range nics {
+		for _, physicalIface := range physicalIfaces {
 			// exclude "other" (non-main) NICs
 			for _, otherNIC := range s.nodeConfig.OtherVPPInterfaces {
-				if otherNIC.InterfaceName == nic.Interface.Name {
+				if otherNIC.InterfaceName == physicalIface {
 					continue nextNIC
 				}
 			}
 
 			// we have the main NIC
-			nicName = nic.Interface.Name
+			nicName = physicalIface
 			s.Logger.Debugf("Physical NIC not taken from nodeConfig, but heuristic was used: %v ", nicName)
 			break
 		}
+	}
+
+	if nicName != "" {
+		s.Logger.Info("Configuring physical NIC ", nicName)
 	}
 
 	// 2. Determine the node IP address, default gateway IP and whether to use DHCP
@@ -771,9 +830,9 @@ func (s *remoteCNIserver) configureMainVPPInterface(nics map[uint32]*intf_vppcal
 	}
 
 	// 2.3 Set node IP address
-	if !s.UseSTN() && s.useDHCP {
+	if s.useDHCP { // TODO: DHCP will not be set and waited for by contiv-init
 		// ip address will be assigned by DHCP server, not known yet
-		s.Logger.Infof("Configuring %v to use dhcp", nicName)
+		s.Logger.Infof("Configuring %v to use DHCP", nicName)
 	} else if len(nicIPs) > 0 {
 		s.setNodeIP(nicIPs[0].address, nicIPs[0].network)
 		s.Logger.Infof("Configuring %v to use %v", nicName, nicIPs[0].address)
@@ -792,8 +851,6 @@ func (s *remoteCNIserver) configureMainVPPInterface(nics map[uint32]*intf_vppcal
 
 	if nicName != "" {
 		// configure the physical NIC
-		s.Logger.Info("Configuring physical NIC ", nicName)
-
 		nicKey, nic := s.physicalInterface(nicName, nicIPs)
 		if s.useDHCP {
 			// clear IP addresses
@@ -835,21 +892,21 @@ func (s *remoteCNIserver) configureMainVPPInterface(nics map[uint32]*intf_vppcal
 }
 
 // configureOtherVPPInterfaces configure all physical interfaces defined in the config but the main one.
-func (s *remoteCNIserver) configureOtherVPPInterfaces(nics map[uint32]*intf_vppcalls.InterfaceDetails, txn txn_api.ResyncOperations) error {
+func (s *remoteCNIserver) configureOtherVPPInterfaces(physicalIfaces map[uint32]string, txn txn_api.ResyncOperations) error {
 	s.otherPhysicalIfs = []string{}
 
 	// match existing interfaces and build configuration
 	interfaces := make(map[string]*vpp_intf.Interface)
-	for _, nic := range nics {
+	for _, physicalIface := range physicalIfaces {
 		for _, ifaceCfg := range s.nodeConfig.OtherVPPInterfaces {
-			if ifaceCfg.InterfaceName == nic.Interface.Name {
+			if ifaceCfg.InterfaceName == physicalIface {
 				ipAddr, ipNet, err := net.ParseCIDR(ifaceCfg.IP)
 				if err != nil {
 					err := fmt.Errorf("failed to parse IP address configured for interface %s: %v",
 						ifaceCfg.InterfaceName, err)
 					return err
 				}
-				key, iface := s.physicalInterface(nic.Interface.Name, []ipWithNetwork{
+				key, iface := s.physicalInterface(physicalIface, []ipWithNetwork{
 					{address: ipAddr, network: ipNet},
 				})
 				interfaces[key] = iface
@@ -930,8 +987,10 @@ func (s *remoteCNIserver) configureVswitchHostConnectivity(txn txn_api.ResyncOpe
 // configureSTNConnectivity configures vswitch VPP to operate in the STN mode.
 func (s *remoteCNIserver) configureSTNConnectivity(txn txn_api.ResyncOperations) {
 	// proxy ARP for ARP requests from the host
-	key, proxyarp := s.proxyArpForSTNGateway()
-	txn.Put(key, proxyarp)
+	if len(s.nodeIP) > 0 {
+		key, proxyarp := s.proxyArpForSTNGateway()
+		txn.Put(key, proxyarp)
+	}
 
 	// STN routes
 	stnRoutesVPP := s.stnRoutesForVPP()
@@ -1198,10 +1257,8 @@ func (s *remoteCNIserver) handleDHCPNotification(notif idxmap.NamedMappingGeneri
 // applyDHCPLease updates defaultGw and node IP based on received DHCP lease.
 // The method must be called with acquired mutex guarding remoteCNI server.
 func (s *remoteCNIserver) applyDHCPLease(lease *vpp_intf.DHCPLease) {
-	s.Logger.Debug("Processing DHCP event", lease)
-
 	if !s.useDHCP {
-		s.Logger.Debug("Ignoring DHCP event, dynamic IP address assignment is disabled")
+		s.Logger.Info("Ignoring DHCP event, dynamic IP address assignment is disabled")
 	}
 
 	var err error
@@ -1229,7 +1286,7 @@ func (s *remoteCNIserver) applyDHCPLease(lease *vpp_intf.DHCPLease) {
 	}
 
 	s.setNodeIP(hostAddr, hostNet)
-	s.Logger.Info("DHCP event processed", lease)
+	s.Logger.Infof("DHCP event processed: %+v", lease)
 }
 
 // setNodeIP updates nodeIP and propagate the change to subscribers.

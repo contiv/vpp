@@ -3,6 +3,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	"sort"
 
 	"github.com/gogo/protobuf/proto"
 
@@ -37,11 +38,19 @@ func (m *mockControllerTxn) Commit(ctx context.Context) error {
 		description = fmt.Sprintf(" (%s)", description)
 	}
 	if isResync {
-		fmt.Println("RESYNC transaction%s:", description)
+		fmt.Printf("RESYNC transaction%s:\n", description)
 	} else {
-		fmt.Println("UPDATE transaction%s:", description)
+		fmt.Printf("UPDATE transaction%s:\n", description)
 	}
-	for key, value := range m.values {
+
+	// print key-value pairs sorted by keys
+	var sortedKeys []string
+	for key := range m.values {
+		sortedKeys = append(sortedKeys, key)
+	}
+	sort.Strings(sortedKeys)
+	for _, key := range sortedKeys {
+		value := m.values[key]
 		fmt.Printf("    - key: %s\n", key)
 		valueStr := "<nil>"
 		if value != nil {
@@ -49,6 +58,7 @@ func (m *mockControllerTxn) Commit(ctx context.Context) error {
 		}
 		fmt.Printf("      value: %s\n", valueStr)
 	}
+
 	return m.commitFunc(m.values, isResync)
 }
 

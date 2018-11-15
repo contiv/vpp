@@ -43,6 +43,12 @@ type Pod struct {
 	IPAddress        net.IP
 }
 
+// String returns human-readable string representation of pod metadata.
+func (p *Pod) String() string {
+	return fmt.Sprintf("Pod <ID:%v, Container:%s, Ns:%s, VPPIfName:%s, LinuxIfName:%s, IPAddress:%v>",
+		p.ID, p.ContainerID, p.NetworkNamespace, p.VPPIfName, p.LinuxIfName, p.IPAddress)
+}
+
 // podConnectivityConfig returns configuration for VPP<->Pod connectivity.
 func (s *remoteCNIserver) podConnectivityConfig(pod *Pod) (config txn_api.KeyValuePairs) {
 	config = make(txn_api.KeyValuePairs)
@@ -170,13 +176,13 @@ func (s *remoteCNIserver) podAFPacketName(pod *Pod) string {
 
 // podVeth1Name returns logical name of the VETH interface in the namespace of the given pod.
 func (s *remoteCNIserver) podVeth1Name(pod *Pod) string {
-	return trimInterfaceName(podInterfaceHostName+pod.ContainerID, logicalIfNameMaxLen)
+	return trimInterfaceName(podVETH1LogicalNamePrefix+pod.ContainerID, logicalIfNameMaxLen)
 }
 
 // podVeth1Name returns logical name of the VETH interface in the default namespace
 // connecting the given pod.
 func (s *remoteCNIserver) podVeth2Name(pod *Pod) string {
-	return trimInterfaceName(pod.ContainerID, logicalIfNameMaxLen)
+	return trimInterfaceName(podVETH2LogicalNamePrefix+pod.ContainerID, logicalIfNameMaxLen)
 }
 
 // podVeth2HostIfName returns host name of the VETH interface in the default namespace

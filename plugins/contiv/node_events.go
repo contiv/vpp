@@ -121,7 +121,6 @@ func (s *remoteCNIserver) otherNodesResync(dataResyncEv datasync.ResyncEvent, tx
 				}
 
 				// collect configuration for node connectivity
-				s.Logger.Info("Other node discovered: ", nodeID)
 				if nodeHasIPAddress(nodeInfo) {
 					// add node info into the internal map
 					s.otherNodes[nodeID] = nodeInfo
@@ -173,6 +172,7 @@ func (s *remoteCNIserver) processOtherNodeChangeEvent(dataChngEv datasync.ProtoW
 
 	var (
 		nodeInfo, prevNodeInfo node.NodeInfo
+		otherNodeID            uint32
 		modified               bool
 		err                    error
 	)
@@ -187,8 +187,15 @@ func (s *remoteCNIserver) processOtherNodeChangeEvent(dataChngEv datasync.ProtoW
 		return err
 	}
 
+	// read the other node ID
+	if datasync.Delete == dataChngEv.GetChangeType() {
+		otherNodeID = prevNodeInfo.Id
+	} else {
+		otherNodeID = nodeInfo.Id
+	}
+
 	// skip nodeInfo of this node
-	if nodeInfo.Id == uint32(s.nodeID) {
+	if otherNodeID == uint32(s.nodeID) {
 		return nil
 	}
 
@@ -199,9 +206,9 @@ func (s *remoteCNIserver) processOtherNodeChangeEvent(dataChngEv datasync.ProtoW
 
 	// update internal map with node info
 	if nodeHasIPAddress(&nodeInfo) {
-		s.otherNodes[nodeInfo.Id] = &nodeInfo
+		s.otherNodes[otherNodeID] = &nodeInfo
 	} else {
-		delete(s.otherNodes, nodeInfo.Id)
+		delete(s.otherNodes, otherNodeID)
 	}
 
 	// re-configure based on node IP changes
@@ -215,7 +222,7 @@ func (s *remoteCNIserver) processOtherNodeChangeEvent(dataChngEv datasync.ProtoW
 			connectivity, err := s.nodeConnectivityConfig(&prevNodeInfo)
 			if err != nil {
 				err := fmt.Errorf("failed to generate config for connectivity to node ID=%d: %v",
-					nodeInfo.Id, err)
+					otherNodeID, err)
 				s.Logger.Error(err)
 				return err
 			}
@@ -227,7 +234,7 @@ func (s *remoteCNIserver) processOtherNodeChangeEvent(dataChngEv datasync.ProtoW
 			if err != nil {
 				// treat as warning
 				s.Logger.Warnf("Failed to generate config for obsolete routes for node ID=%d: %v",
-					nodeInfo.Id, err)
+					otherNodeID, err)
 			} else {
 				txn_api.DeleteAll(txn, routes)
 			}
@@ -242,7 +249,7 @@ func (s *remoteCNIserver) processOtherNodeChangeEvent(dataChngEv datasync.ProtoW
 			connectivity, err := s.nodeConnectivityConfig(&nodeInfo)
 			if err != nil {
 				err := fmt.Errorf("failed to generate config for connectivity to node ID=%d: %v",
-					nodeInfo.Id, err)
+					otherNodeID, err)
 				s.Logger.Error(err)
 				return err
 			}
@@ -253,7 +260,7 @@ func (s *remoteCNIserver) processOtherNodeChangeEvent(dataChngEv datasync.ProtoW
 			routes, err := s.routesToNode(&nodeInfo)
 			if err != nil {
 				err := fmt.Errorf("failed to generate config for obsolete routes for node ID=%d: %v",
-					nodeInfo.Id, err)
+					otherNodeID, err)
 				s.Logger.Error(err)
 				return err
 			}
@@ -263,7 +270,7 @@ func (s *remoteCNIserver) processOtherNodeChangeEvent(dataChngEv datasync.ProtoW
 	}
 
 	// update BD if node was newly connected or disconnected
-	if nodeHasIPAddress(&prevNodeInfo) != nodeHasIPAddress(&nodeInfo) {
+	if !s.config.UseL2Interconnect && nodeHasIPAddress(&prevNodeInfo) != nodeHasIPAddress(&nodeInfo) {
 		key, bd := s.vxlanBridgeDomain()
 		txn.Put(key, bd)
 	}
@@ -271,10 +278,10 @@ func (s *remoteCNIserver) processOtherNodeChangeEvent(dataChngEv datasync.ProtoW
 	// commit transaction
 	ctx := context.Background()
 	ctx = scheduler_api.WithRetry(ctx, time.Second, true)
-	ctx = scheduler_api.WithDescription(ctx, fmt.Sprintf("%s Node ID=%d", operationName, nodeInfo.Id))
+	ctx = scheduler_api.WithDescription(ctx, fmt.Sprintf("%s Node ID=%d", operationName, otherNodeID))
 	err = txn.Commit(ctx)
 	if err != nil {
-		err := fmt.Errorf("Failed to configure connectivity to the node %v: %v ", nodeInfo.Id, err)
+		err := fmt.Errorf("Failed to configure connectivity to the node %v: %v ", otherNodeID, err)
 		s.Logger.Error(err)
 		return err
 	}
@@ -286,7 +293,7 @@ func (s *remoteCNIserver) nodeConnectivityConfig(nodeInfo *node.NodeInfo) (confi
 	config = make(txn_api.KeyValuePairs)
 
 	// configuration for VXLAN tunnel
-	if !s.config.UseL2Interconnect {
+	if !s.config.UseL2Interconnect && len(s.nodeIP) > 0 {
 		// VXLAN interface
 		nodeIP, err := s.otherNodeIP(nodeInfo.Id, nodeInfo.IpAddress)
 		if err != nil {

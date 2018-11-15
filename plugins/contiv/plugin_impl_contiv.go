@@ -161,10 +161,7 @@ func (p *Plugin) Init() error {
 			txnFactory: func() txn_api.Transaction {
 				return txn_api.NewTransaction(p.KVScheduler)
 			},
-			ethernetIfsDump: func() (ifaces map[uint32]*intf_vppcalls.InterfaceDetails, err error) {
-				ifHandler := intf_vppcalls.NewIfVppHandler(p.govppCh, p.Log)
-				return ifHandler.DumpInterfacesByType(vpp_intf.Interface_ETHERNET_CSMACD)
-			},
+			physicalIfsDump:             p.dumpPhysicalInterfaces,
 			getStolenInterfaceInfo:      p.getStolenInterfaceInfo,
 			hostLinkIPsDump:             p.getHostLinkIPs,
 			dockerClient:                dockerClient,
@@ -508,6 +505,26 @@ func (p *Plugin) excludedIPsFromNodeCIDR() []net.IP {
 	return res
 }
 
+// dumpPhysicalInterfaces dumps physical interfaces present on VPP.
+func (p *Plugin) dumpPhysicalInterfaces() (ifaces map[uint32]string, err error) {
+	ifaces = make(map[uint32]string)
+	ifHandler := intf_vppcalls.NewIfVppHandler(p.govppCh, p.Log)
+
+	// TODO: when supported dump also VMXNET3 interfaces (?)
+
+	dump, err := ifHandler.DumpInterfacesByType(vpp_intf.Interface_ETHERNET_CSMACD)
+	if err != nil {
+		return ifaces, err
+	}
+
+	for ifIdx, iface := range dump {
+		ifaces[ifIdx] = iface.Interface.Name
+	}
+	return ifaces, err
+}
+
+// getHostLinkIPs returns all IP addresses assigned to physical interfaces in the host
+// network stack.
 func (p *Plugin) getHostLinkIPs() (hostIPs []net.IP, err error) {
 	links, err := netlink.LinkList()
 	if err != nil {

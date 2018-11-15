@@ -188,7 +188,7 @@ func (s *remoteCNIserver) interconnectAfpacket() (key string, config *vpp_intf.I
 		PhysAddress: hwAddrForNodeInterface(s.nodeID, hostInterconnectHwAddrPrefix),
 	}
 	key = vpp_intf.InterfaceKey(afpacket.Name)
-	return key, config
+	return key, afpacket
 }
 
 // interconnectVethVpp returns configuration for VPP-side of the VETH pipe connecting
@@ -470,11 +470,13 @@ func (s *remoteCNIserver) vxlanBridgeDomain() (key string, config *vpp_l2.Bridge
 			},
 		},
 	}
-	for otherNodeID := range s.otherNodes {
-		bd.Interfaces = append(bd.Interfaces, &vpp_l2.BridgeDomain_Interface{
-			Name:              s.nameForVxlanToOtherNode(otherNodeID),
-			SplitHorizonGroup: vxlanSplitHorizonGroup,
-		})
+	if len(s.nodeIP) > 0 {
+		for otherNodeID := range s.otherNodes {
+			bd.Interfaces = append(bd.Interfaces, &vpp_l2.BridgeDomain_Interface{
+				Name:              s.nameForVxlanToOtherNode(otherNodeID),
+				SplitHorizonGroup: vxlanSplitHorizonGroup,
+			})
+		}
 	}
 	key = vpp_l2.BridgeDomainKey(bd.Name)
 	return key, bd
@@ -595,7 +597,7 @@ func (s *remoteCNIserver) routeToOtherNodeNetworks(destNetwork *net.IPNet, nextH
 		route.VrfId = s.GetPodVrfID()
 	}
 	key = vpp_l3.RouteKey(route.VrfId, route.DstNetwork, route.NextHopAddr)
-	return key, config
+	return key, route
 }
 
 // routeToOtherNodeManagementIP returns configuration for route applied to traffic destined

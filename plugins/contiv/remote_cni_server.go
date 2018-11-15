@@ -322,14 +322,20 @@ func (s *remoteCNIserver) Resync(dataResyncEv datasync.ResyncEvent) error {
 	txn := s.txnFactory()
 
 	// ipam
-	err := s.ipam.Resync(dataResyncEv)
-	if err != nil {
-		wasErr = err
-		s.Logger.Error(err)
+	if s.resyncCounter == 1 {
+		// No need to run resync for IPAM in run-time - IP address will not be allocated
+		// to a local pod without the agent knowing about it. Also there is a risk
+		// of a race condition - resync triggered shortly after Add/DelPod may work
+		// with K8s state data that do not yet reflect the freshly added/removed pod.
+		err := s.ipam.Resync(dataResyncEv)
+		if err != nil {
+			wasErr = err
+			s.Logger.Error(err)
+		}
 	}
 
 	// node <-> host, host -> pods
-	err = s.configureVswitchConnectivity(txn)
+	err := s.configureVswitchConnectivity(txn)
 	if err != nil {
 		wasErr = err
 		s.Logger.Error(err)
@@ -343,10 +349,16 @@ func (s *remoteCNIserver) Resync(dataResyncEv datasync.ResyncEvent) error {
 	}
 
 	// pods <-> vswitch
-	err = s.podStateResync(dataResyncEv)
-	if err != nil {
-		wasErr = err
-		s.Logger.Error(err)
+	if s.resyncCounter == 1 {
+		// No need to resync the state of running pods in run-time - local pod
+		// will not be added/deleted without the agent knowing about it. Also there
+		// is a risk of a race condition - resync triggered shortly after Add/DelPod
+		// may work with K8s state data that do not yet reflect the freshly added/removed pod.
+		err = s.podStateResync(dataResyncEv)
+		if err != nil {
+			wasErr = err
+			s.Logger.Error(err)
+		}
 	}
 	for _, pod := range s.podByID {
 		config := s.podConnectivityConfig(pod)
@@ -791,16 +803,6 @@ func (s *remoteCNIserver) configureMainVPPInterface(nics map[uint32]*intf_vppcal
 				// start watching dhcp notif
 				s.dhcpIndex.Watch("cniserver", s.handleDHCPNotification)
 				s.watchingDHCP = true
-			}
-			// do lookup to cover the case where dhcp was configured by resync
-			// and ip address is already assigned
-			dhcpData, exists := s.dhcpIndex.GetValue(nicName)
-			if exists {
-				dhcpLease := dhcpData.(*vpp_intf.DHCPLease)
-				s.Logger.Infof("DHCP notification already received: %v", dhcpLease)
-				s.applyDHCPLease(dhcpLease)
-			} else {
-				s.Logger.Debugf("Waiting for DHCP notification. Existing DHCP events: %v", s.dhcpIndex.ListAllNames())
 			}
 		}
 		txn.Put(nicKey, nic)

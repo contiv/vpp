@@ -32,10 +32,14 @@ func NewMockControllerTxn(commitFunc CommitFunc) txn.Transaction {
 // Commit applies the requested transaction changes.
 func (m *mockControllerTxn) Commit(ctx context.Context) error {
 	isResync := scheduler_api.IsFullResync(ctx)
+	description, withDescription := scheduler_api.IsWithDescription(ctx)
+	if withDescription {
+		description = fmt.Sprintf(" (%s)", description)
+	}
 	if isResync {
-		fmt.Println("RESYNC transaction:")
+		fmt.Println("RESYNC transaction%s:", description)
 	} else {
-		fmt.Println("UPDATE transaction:")
+		fmt.Println("UPDATE transaction%s:", description)
 	}
 	for key, value := range m.values {
 		fmt.Printf("    - key: %s\n", key)

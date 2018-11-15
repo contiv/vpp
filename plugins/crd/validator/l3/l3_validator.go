@@ -240,7 +240,7 @@ func (v *Validator) validateVrf0GigERoutes(node *telemetrymodel.Node, vrfMap Vrf
 
 	// Validate the route to the GigE subnet
 	numErrs += v.validateRoute(node.IPAddr, 0, vrfMap, routeMap, node.Name, ifc.If.Name,
-		uint32(ifc.IfMeta.SwIfIndex), "0.0.0.0", 0, 0)
+		ifc.IfMeta.SwIfIndex, "0.0.0.0", 0, 0)
 
 	// Validate gigE interface drop routes
 	for _, ipAddr := range ifc.If.IPAddresses {
@@ -261,7 +261,7 @@ func (v *Validator) validateVrf0GigERoutes(node *telemetrymodel.Node, vrfMap Vrf
 
 		dstIP := strings.Split(remoteNode.IPAddr, "/")
 		numErrs += v.validateRoute(dstIP[0]+"/32", 0, vrfMap, routeMap, node.Name, ifc.If.Name,
-			uint32(ifc.IfMeta.SwIfIndex), dstIP[0], 0, 0)
+			ifc.IfMeta.SwIfIndex, dstIP[0], 0, 0)
 	}
 
 	return numErrs
@@ -426,7 +426,7 @@ func (v *Validator) validateDefaultRoutes(node *telemetrymodel.Node, vrfMap VrfM
 	// the default Gateway, validate the route to it
 	// numErrs += v.validateGigEDefaultRteNextHop("0.0.0.0/0", 0, vrfMap, routeMap, node, ifc)
 	numErrs += v.validateRoute("0.0.0.0/0", 0, vrfMap, routeMap, node.Name,
-		ifc.If.Name, maxIfIdx, "", 0, 2)
+		ifc.If.Name, ifc.IfMeta.SwIfIndex, "", 0, 0)
 
 	// Validate VRF0 boiler plate routes
 	numErrs += v.validateRoute("0.0.0.0/32", 0, vrfMap, routeMap, node.Name,
@@ -802,10 +802,15 @@ func (v *Validator) checkUnvalidatedRoutes(routeMap RouteMap, nodeName string) i
 		for rteID, rteStatus := range vrf {
 			switch rteStatus {
 			case routeNotValidated:
+				notValidated++
+				if strings.HasSuffix(rteID, "/32") {
+					v.Log.Warnf("skipping validation of route %s in VRF%d; route ends with /32", rteID, vrfID)
+					continue
+				}
+
 				numErrs++
 				v.Report.AppendToNodeReport(nodeName, fmt.Sprintf("unexpected route %s in VRF%d; "+
 					"route not validated", rteID, vrfID))
-				notValidated++
 			case routeInvalid:
 				invalid++
 			case routeValid:

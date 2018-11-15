@@ -218,6 +218,9 @@ nat {
    user hash buckets 1024
    max translations per user 10000
 }
+acl-plugin {
+   use tuple merge 0
+}
 api-trace {
    on
    nitems 5000
@@ -572,6 +575,8 @@ iptables-restore </etc/iptables-rules-v4.conf
 EOF
 
 chmod +x /etc/network/if-pre-up.d/iptables-restore
+sudo /sbin/ifdown enp0s8 && sudo /sbin/ifup enp0s8
+
 SCRIPT
 
 VAGRANTFILE_API_VERSION = "2"
@@ -617,7 +622,7 @@ VAGRANTFILE_API_VERSION = "2"
         if crd_disabled == 'false'
           gw.vm.network :private_network, ip: "10.130.1.254",  netmask: "255.255.254.0", virtualbox__intnet: "vpp"
         else
-          gw.vm.network :private_network, ip: "192.168.16.100", virtualbox__intnet: "vpp"
+          gw.vm.network :private_network, ip: "192.168.16.100", netmask: "255.255.255.0", virtualbox__intnet: "vpp"
         end
       else
         gw.vm.network :private_network, ip: "192.168.16.100", virtualbox__intnet: "vpp"

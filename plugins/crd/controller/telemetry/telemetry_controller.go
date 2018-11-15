@@ -16,6 +16,7 @@ package telemetry
 
 import (
 	"fmt"
+	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
 	"reflect"
 	"time"
 
@@ -286,6 +287,16 @@ func telemetryReportValidation() *apiextv1beta1.CustomResourceValidation {
 	return validation
 }
 
+// appendIfMissing is utility function to append to list only if it do not contains the data already
+func appendIfMissing(slice []telemetrymodel.NodeInfo, i telemetrymodel.NodeInfo) []telemetrymodel.NodeInfo {
+	for _, ele := range slice {
+		if ele == i {
+			return slice
+		}
+	}
+	return append(slice, i)
+}
+
 //GenerateCRDReport updates the CRD status in Kubernetes with the current status from the sfc-controller
 func (cr *CRDReport) GenerateCRDReport() {
 	// Fetch crdContivTelemetry from K8s cache
@@ -327,7 +338,7 @@ func (cr *CRDReport) GenerateCRDReport() {
 	crdTelemetryReportCopy := crdTelemetryReport.DeepCopy()
 
 	for _, node := range cr.VppCache.RetrieveAllNodes() {
-		crdTelemetryReportCopy.Status.Nodes = append(crdTelemetryReportCopy.Status.Nodes, *node)
+		crdTelemetryReportCopy.Status.Nodes = appendIfMissing(crdTelemetryReportCopy.Status.Nodes, *node.NodeInfo)
 	}
 
 	crdTelemetryReportCopy.Status.Reports = cr.Report.RetrieveReport().DeepCopy()
@@ -341,15 +352,13 @@ func (cr *CRDReport) GenerateCRDReport() {
 		cr.Log.Debug("Create '%s' namespace '%s, and value: %v", name, namespace, crdTelemetryReportCopy)
 		_, err = tc.CrdClient.TelemetryV1().TelemetryReports(namespace).Create(crdTelemetryReportCopy)
 		if err != nil {
-			cr.Log.Errorf("Could not create '%s'  err: %v, namespace '%s', and value: %v",
-				name, err, namespace, crdTelemetryReportCopy)
+			cr.Log.Errorf("Could not create '%s'  err: %v, namespace '%s'", name, err, namespace)
 		}
 	} else {
 		cr.Log.Debug("Update '%s' namespace '%s, and value: %v", name, namespace, crdTelemetryReportCopy)
 		_, err := tc.CrdClient.TelemetryV1().TelemetryReports(namespace).Update(crdTelemetryReportCopy)
 		if err != nil {
-			cr.Log.Errorf("Could not update '%s'  err: %v, namespace '%s', and value: %v",
-				name, err, namespace, crdTelemetryReportCopy)
+			cr.Log.Errorf("Could not update '%s'  err: %v, namespace '%s'", name, err, namespace)
 		}
 	}
 }

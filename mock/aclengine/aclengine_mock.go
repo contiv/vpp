@@ -151,11 +151,11 @@ func (mae *MockACLEngine) ApplyTxn(txn *localclient.Txn, latestRevs *syncbase.Pr
 		/* Resync */
 
 		mae.ClearACLs()
-		for _, op := range txn.LinuxDataResyncTxn.Ops {
-			if !strings.HasPrefix(op.Key, vpp_acl.Prefix) {
+		for key, value := range txn.LinuxDataResyncTxn.Values {
+			if !strings.HasPrefix(key, vpp_acl.Prefix) {
 				return errors.New("non-ACL changed in txn")
 			}
-			acl, isACL := op.Value.(*vpp_acl.Acl)
+			acl, isACL := value.(*vpp_acl.Acl)
 			if !isACL {
 				return errors.New("failed to cast ACL value")
 			}
@@ -174,13 +174,13 @@ func (mae *MockACLEngine) ApplyTxn(txn *localclient.Txn, latestRevs *syncbase.Pr
 	}
 
 	dataChange := txn.LinuxDataChangeTxn
-	for _, op := range dataChange.Ops {
-		if !strings.HasPrefix(op.Key, vpp_acl.Prefix) {
+	for key, value := range dataChange.Values {
+		if !strings.HasPrefix(key, vpp_acl.Prefix) {
 			return errors.New("non-ACL changed in txn")
 		}
-		aclName := strings.TrimPrefix(op.Key, vpp_acl.Prefix)
+		aclName := strings.TrimPrefix(key, vpp_acl.Prefix)
 		//foundRev, _ := latestRevs.Get(op.Key) TODO: update/uncomment after the refactor
-		if op.Value != nil {
+		if value != nil {
 			// put ACL
 			/*
 				_, hasACL := mae.aclConfig.byName[aclName]
@@ -188,7 +188,7 @@ func (mae *MockACLEngine) ApplyTxn(txn *localclient.Txn, latestRevs *syncbase.Pr
 					return errors.New("modify vs create ACL operation mismatch")
 				}
 			*/
-			acl, isACL := op.Value.(*vpp_acl.Acl)
+			acl, isACL := value.(*vpp_acl.Acl)
 			if !isACL {
 				return errors.New("failed to cast ACL value")
 			}

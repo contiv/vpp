@@ -15,7 +15,6 @@
 package contiv
 
 import (
-	"github.com/contiv/vpp/plugins/kvdbproxy"
 	"github.com/ligato/cn-infra/config"
 	"github.com/ligato/cn-infra/datasync/resync"
 	"github.com/ligato/cn-infra/db/keyval/bolt"
@@ -25,6 +24,7 @@ import (
 	"github.com/ligato/cn-infra/rpc/rest"
 	"github.com/ligato/cn-infra/servicelabel"
 	"github.com/ligato/vpp-agent/plugins/govppmux"
+	"github.com/ligato/vpp-agent/plugins/kvscheduler"
 )
 
 const (
@@ -44,10 +44,10 @@ func NewPlugin(opts ...Option) *Plugin {
 
 	p.PluginName = "contiv"
 	p.ServiceLabel = &servicelabel.DefaultPlugin
+	p.KVScheduler = &kvscheduler.DefaultPlugin
 	p.Resync = &resync.DefaultPlugin
 	p.GoVPP = &govppmux.DefaultPlugin
 	p.GRPC = &grpc.DefaultPlugin
-	p.Proxy = &kvdbproxy.DefaultPlugin
 	p.ETCD = &etcd.DefaultPlugin
 	p.Bolt = &bolt.DefaultPlugin
 	p.HTTPHandlers = &rest.DefaultPlugin

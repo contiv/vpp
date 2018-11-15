@@ -24,14 +24,19 @@ import (
 //Reports is the per node array of report lines generated from validate()
 type Reports map[string][]string
 
+//NodeInfo is struct to hold some basic information of a kubernetes node.
+type NodeInfo struct {
+	ID        uint32
+	IPAddr    string
+	ManIPAddr string
+	Name      string
+}
+
 //Node is a struct to hold all relevant information of a kubernetes node.
 //It is populated with various information such as the interfaces and L2Fibs
 //as well as the name and IP Addresses.
 type Node struct {
-	ID                uint32
-	IPAddr            string
-	ManIPAddr         string
-	Name              string
+	*NodeInfo
 	NodeLiveness      *NodeLiveness
 	NodeInterfaces    map[int]NodeInterface
 	NodeBridgeDomains map[int]NodeBridgeDomain
@@ -177,25 +182,25 @@ type NodeL2FibEntry struct {
 
 //IPamEntry holds unmarchalled ipam JSON data
 type IPamEntry struct {
-	NodeID         uint32 `json:"nodeId"`
-	NodeName       string `json:"nodeName"`
-	NodeIP         string `json:"nodeIP"`
-	PodNetwork     string `json:"podNetwork"`
-	VppHostNetwork string `json:"vppHostNetwork"`
-	Config         config `json:"config"`
+	NodeID            uint32 `json:"nodeId"`
+	NodeName          string `json:"nodeName"`
+	NodeIP            string `json:"nodeIP"`
+	PodSubnetThisNode string `json:"podNetwork"`
+	VppHostNetwork    string `json:"vppHostNetwork"`
+	Config            config `json:"config"`
 }
 
 type config struct {
-	PodIfIPCIDR             string `json:"podIfIPCIDR"`
-	PodSubnetCIDR           string `json:"podSubnetCIDR"`
-	PodNetworkPrefixLen     uint32 `json:"podNetworkPrefixLen"`
-	VppHostSubnetCIDR       string `json:"vppHostSubnetCIDR"`
-	VppHostNetworkPrefixLen uint32 `json:"vppHostNetworkPrefixLen"`
-	NodeInterconnectCIDR    string `json:"nodeInterconnectCIDR"`
-	NodeInterconnectDHCP    bool   `json:"nodeInterconnectDHCP"`
-	VxlanCIDR               string `json:"vxlanCIDR"`
-	ServiceCIDR             string `json:"serviceCIDR"`
-	ContivCIDR              string `json:"contivCIDR"`
+	PodVPPSubnetCIDR              string `json:"podVPPSubnetCIDR"`
+	PodSubnetCIDR                 string `json:"podSubnetCIDR"`
+	PodSubnetOneNodePrefixLen     uint32 `json:"podSubnetOneNodePrefixLen"`
+	VppHostSubnetCIDR             string `json:"vppHostSubnetCIDR"`
+	VppHostSubnetOneNodePrefixLen uint32 `json:"vppHostSubnetOneNodePrefixLen"`
+	NodeInterconnectCIDR          string `json:"nodeInterconnectCIDR"`
+	NodeInterconnectDHCP          bool   `json:"nodeInterconnectDHCP"`
+	VxlanCIDR                     string `json:"vxlanCIDR"`
+	ServiceCIDR                   string `json:"serviceCIDR"`
+	ContivCIDR                    string `json:"contivCIDR"`
 }
 
 // L2FibEntry defines the L2 FIB entry data set

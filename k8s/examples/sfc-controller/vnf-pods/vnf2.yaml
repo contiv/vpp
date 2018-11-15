@@ -23,7 +23,7 @@ spec:
         - name: agent-config
           mountPath: /opt/vpp-agent/dev
         - name: memif-sockets
-          mountPath: /tmp
+          mountPath: /var/run/contiv
   volumes:
   - name: vpp-config
     configMap:
@@ -33,7 +33,7 @@ spec:
       name: vnf-agent-cfg
   - name: memif-sockets
     hostPath:
-      path: /tmp
+      path: /var/run/contiv
   nodeSelector:
     role: no-affinity
 

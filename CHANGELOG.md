@@ -1,3 +1,24 @@
+# Release v2.1.0 (not released yet)
+
+### VPP
+
+### Bug Fixes
+
+### New Features & Enhancements
+
+
+# Release v2.0.0 (9.11.2018)
+
+### VPP
+ - version **v18.10** (formal release)
+
+### Bug Fixes
+ - properly handle change events in service processor before the first resync
+ - close opened fd on unsuccessful switch to network ns
+
+### New Features & Enhancements
+ - netctl supports clusters where etcd & rest is secured
+
 # Release v1.5.1 (31.10.2018)
 
 ### VPP

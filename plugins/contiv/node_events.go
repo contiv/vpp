@@ -17,358 +17,351 @@ package contiv
 import (
 	"context"
 	"fmt"
-	"strings"
-
 	"net"
+	"strings"
+	"time"
 
-	"github.com/contiv/vpp/plugins/contiv/model/node"
 	"github.com/gogo/protobuf/proto"
+
 	"github.com/ligato/cn-infra/datasync"
 	"github.com/ligato/cn-infra/logging"
-	vpp_l2 "github.com/ligato/vpp-agent/plugins/vppv2/model/l2"
-	vpp_l3 "github.com/ligato/vpp-agent/plugins/vppv2/model/l3"
+
+	scheduler_api "github.com/ligato/vpp-agent/plugins/kvscheduler/api"
+
+	"github.com/contiv/vpp/plugins/contiv/model/node"
+	txn_api "github.com/contiv/vpp/plugins/controller/txn"
+	k8sNode "github.com/contiv/vpp/plugins/ksr/model/node"
 )
 
-// handleNodeEvents handles changes in nodes within the k8s cluster (node add / delete) and
-// adjusts the vswitch config (routes to the other nodes) accordingly.
-func (s *remoteCNIserver) handleNodeEvents(ctx context.Context, resyncChan chan datasync.ResyncEvent, changeChan chan datasync.ChangeEvent) {
-	for {
-		select {
+/* Contiv Plugin */
 
-		case resyncEv := <-resyncChan:
-			// resync needs to return done immediately, to not block resync of the remote cni server
-			go s.nodeResync(resyncEv)
-			resyncEv.Done(nil)
-
-		case changeEv := <-changeChan:
-			var err error
-			for _, dataChng := range changeEv.GetChanges() {
-				chngErr := s.nodeChangePropagateEvent(dataChng)
-				if chngErr != nil {
-					err = chngErr
-				}
-			}
-			changeEv.Done(err)
-
-		case <-ctx.Done():
-			return
+// thisNodeResync publishes update of this node IPs for other nodes based on resync data.
+func (p *Plugin) thisNodeResync(resyncEv *ResyncEventData) error {
+	for _, node := range resyncEv.Nodes {
+		if node.GetName() == p.ServiceLabel.GetAgentLabel() {
+			return p.updateThisNodeMgmtIPs(node)
 		}
 	}
+	return nil
 }
 
-// nodeResync processes all nodes data and configures vswitch (routes to the other nodes) accordingly.
-func (s *remoteCNIserver) nodeResync(dataResyncEv datasync.ResyncEvent) error {
-
-	// do not handle other nodes until the base vswitch config is successfully applied
-	s.Lock()
-	for !s.vswitchConnectivityConfigured {
-		s.vswitchCond.Wait()
+// processThisNodeChangeEvent publishes update of this node IPs for other nodes to know.
+func (p *Plugin) processThisNodeChangeEvent(dataChng datasync.ProtoWatchResp) error {
+	if dataChng.GetKey() == k8sNode.Key(p.ServiceLabel.GetAgentLabel()) {
+		node := &k8sNode.Node{}
+		err := dataChng.GetValue(node)
+		if err != nil {
+			return err
+		}
+		return p.updateThisNodeMgmtIPs(node)
 	}
-	defer s.Unlock()
+	return nil
+}
 
-	// TODO: implement proper resync (handle deleted routes as well)
+// updateThisNodeMgmtIPs publishes update of this node IPs for other nodes to know.
+func (p *Plugin) updateThisNodeMgmtIPs(node *k8sNode.Node) error {
+	var k8sIPs []string
+	for i := range node.Addresses {
+		if node.Addresses[i].Type == k8sNode.NodeAddress_NodeInternalIP ||
+			node.Addresses[i].Type == k8sNode.NodeAddress_NodeExternalIP {
+			k8sIPs = appendIfMissing(k8sIPs, node.Addresses[i].Address)
+		}
+	}
+	if len(k8sIPs) > 0 {
+		ips := strings.Join(k8sIPs, MgmtIPSeparator)
+		p.Log.Info("Management IPs of the node are ", ips)
+		return p.nodeIDAllocator.updateManagementIP(ips)
+	}
 
-	var err error
-	data := dataResyncEv.GetValues()
+	p.Log.Debug("Management IPs of the node are not in ETCD yet.")
+	return nil
+}
 
-	for prefix, it := range data {
-		if prefix == node.AllocatedIDsKeyPrefix {
-			for {
-				kv, stop := it.GetNext()
-				if stop {
-					break
-				}
-				rev := kv.GetRevision()
-				if rev > s.nodeIDResyncRev {
-					s.nodeIDResyncRev = rev
-				}
+/* Remote CNI Server */
 
-				nodeInfo := &node.NodeInfo{}
-				err = kv.GetValue(nodeInfo)
-				if err != nil {
-					return err
-				}
+// otherNodesResync re-synchronizes connectivity to other nodes.
+func (s *remoteCNIserver) otherNodesResync(resyncEv *ResyncEventData, txn txn_api.ResyncOperations) error {
+	// reset the internal map of other node IDs
+	s.otherNodes = make(map[uint32]*node.NodeInfo)
 
-				nodeID := nodeInfo.Id
+	// collect other node IDs and configuration for connectivity with each of them
+	for _, nodeInfo := range resyncEv.NodeInfo {
+		nodeID := nodeInfo.Id
 
-				if nodeID != s.ipam.NodeID() {
-					s.Logger.Info("Other node discovered: ", nodeID)
-					if nodeInfo.IpAddress != "" && nodeInfo.ManagementIpAddress != "" {
-						// add routes to the node
-						err = s.addRoutesToNode(nodeInfo)
-					} else {
-						s.Logger.Infof("Ip address or management IP of node %v is not known yet.", nodeID)
-					}
-				}
+		// ignore for this node
+		if nodeID == s.nodeID {
+			continue
+		}
+
+		// collect configuration for node connectivity
+		if nodeHasIPAddress(nodeInfo) {
+			// add node info into the internal map
+			s.otherNodes[nodeID] = nodeInfo
+			// generate configuration
+			nodeConnectConfig, err := s.nodeConnectivityConfig(nodeInfo)
+			if err != nil {
+				// treat as warning
+				s.Logger.Warnf("Failed to configure connectivity to node ID=%d: %v",
+					nodeInfo.Id, err)
+				continue
 			}
+			for key, value := range nodeConnectConfig {
+				txn.Put(key, value)
+			}
+		} else {
+			s.Logger.Infof("Ip address or management IP of node %v is not known yet.", nodeID)
 		}
 	}
 
-	s.Logger.WithField("nodeResyncRev", s.nodeIDResyncRev).
-		Infof("%v buffered nodeID change event found", len(s.nodeIDChangeEvs))
-	for _, ev := range s.nodeIDChangeEvs {
-		err = s.processChangeEvent(ev)
+	// bridge domain with VXLAN interfaces
+	if !s.config.UseL2Interconnect {
+		// bridge domain
+		key, bd := s.vxlanBridgeDomain()
+		txn.Put(key, bd)
+
+		// BVI interface
+		key, vxlanBVI, err := s.vxlanBVILoopback()
 		if err != nil {
 			s.Logger.Error(err)
+			return err
 		}
+		txn.Put(key, vxlanBVI)
 	}
-	err = nil
-	s.nodeIDChangeEvs = nil
-
-	return err
+	return nil
 }
 
-// nodeChangePropagateEvent handles change in nodes within the k8s cluster (node add / delete)
-// and configures vswitch (routes to the other nodes) accordingly.
-func (s *remoteCNIserver) nodeChangePropagateEvent(dataChngEv datasync.ProtoWatchResp) error {
-
-	// do not handle other nodes until the base vswitch config is successfully applied
-	s.Lock()
-	defer s.Unlock()
-
-	if !s.vswitchConnectivityConfigured {
-		// resync event must be processed first, cache the event
-		s.nodeIDChangeEvs = append(s.nodeIDChangeEvs, dataChngEv)
-		s.Logger.WithFields(logging.Fields{
-			"key": dataChngEv.GetKey(),
-			"rev": dataChngEv.GetRevision()}).Info("NodeId change event buffered")
+// processOtherNodeChangeEvent reacts to a changed node.
+func (s *remoteCNIserver) processOtherNodeChangeEvent(dataChngEv datasync.ProtoWatchResp) error {
+	// process only NodeInfo key-values
+	key := dataChngEv.GetKey()
+	if !strings.HasPrefix(key, node.AllocatedIDsKeyPrefix) {
 		return nil
 	}
-
-	return s.processChangeEvent(dataChngEv)
-}
-
-func (s *remoteCNIserver) processChangeEvent(dataChngEv datasync.ProtoWatchResp) error {
 	s.Logger.WithFields(logging.Fields{
 		"key": dataChngEv.GetKey(),
 		"rev": dataChngEv.GetRevision()}).Info("Processing change event")
-	key := dataChngEv.GetKey()
-	var err error
 
-	if strings.HasPrefix(key, node.AllocatedIDsKeyPrefix) {
-		rev := dataChngEv.GetRevision()
-		if rev <= s.nodeIDResyncRev {
-			s.Logger.Info("Node id change event was generated before resync, skipping")
-			return nil
-		}
+	var (
+		nodeInfo, prevNodeInfo node.NodeInfo
+		otherNodeID            uint32
+		modified               bool
+		err                    error
+	)
 
-		nodeInfo := &node.NodeInfo{}
-		err = dataChngEv.GetValue(nodeInfo)
-		if err != nil {
-			return err
-		}
+	// parse node info
+	if err = dataChngEv.GetValue(&nodeInfo); err != nil {
+		return err
+	}
 
-		// skip nodeInfo of this node
-		if nodeInfo.Id == uint32(s.nodeID) {
-			return nil
-		}
+	// get previous value
+	if modified, err = dataChngEv.GetPrevValue(&prevNodeInfo); err != nil {
+		return err
+	}
 
-		if dataChngEv.GetChangeType() == datasync.Put {
+	// read the other node ID
+	if datasync.Delete == dataChngEv.GetChangeType() {
+		otherNodeID = prevNodeInfo.Id
+	} else {
+		otherNodeID = nodeInfo.Id
+	}
 
-			// Note: the case where IP address is changed during runtime is not handled
-			if nodeInfo.IpAddress != "" && nodeInfo.ManagementIpAddress != "" {
-				s.Logger.Info("New node discovered: ", nodeInfo.Id)
-				//TODO: if there is a change in mgmt IPs and routes are already configured
-				// delte outdated routes
+	// skip nodeInfo of this node
+	if otherNodeID == uint32(s.nodeID) {
+		return nil
+	}
 
-				// add routes to the node
-				err = s.addRoutesToNode(nodeInfo)
-			} else {
-				s.Logger.Infof("IP address or management IP of node %v is not known yet.", nodeInfo.Id)
-			}
-		} else {
-			prevNodeInfo := &node.NodeInfo{}
-			_, err := dataChngEv.GetPrevValue(prevNodeInfo)
+	// skip if nothing has really changed
+	if modified && proto.Equal(&nodeInfo, &prevNodeInfo) {
+		return nil
+	}
+
+	// update internal map with node info
+	if nodeHasIPAddress(&nodeInfo) {
+		s.otherNodes[otherNodeID] = &nodeInfo
+	} else {
+		delete(s.otherNodes, otherNodeID)
+	}
+
+	// re-configure based on node IP changes
+	txn := s.txnFactory()
+	var operationName string
+
+	// remove obsolete configuration
+	if nodeHasIPAddress(&prevNodeInfo) {
+		if !nodeHasIPAddress(&nodeInfo) {
+			// un-configure connectivity completely
+			connectivity, err := s.nodeConnectivityConfig(&prevNodeInfo)
 			if err != nil {
+				err := fmt.Errorf("failed to generate config for connectivity to node ID=%d: %v",
+					otherNodeID, err)
+				s.Logger.Error(err)
 				return err
 			}
-
-			s.Logger.Info("Node removed: ", prevNodeInfo.Id)
-
-			// delete routes to the node
-			err = s.deleteRoutesToNode(prevNodeInfo)
+			txn_api.DeleteAll(txn, connectivity)
+			operationName = "Disconnect"
+		} else {
+			// remove obsolete routes
+			routes, err := s.routesToNode(&prevNodeInfo)
+			if err != nil {
+				// treat as warning
+				s.Logger.Warnf("Failed to generate config for obsolete routes for node ID=%d: %v",
+					otherNodeID, err)
+			} else {
+				txn_api.DeleteAll(txn, routes)
+			}
+			// operation is "Update"
 		}
-	} else {
-		return fmt.Errorf("Unknown key %v", key)
 	}
 
-	return err
-}
-
-// addRoutesToNode add routes to the node specified by nodeID.
-func (s *remoteCNIserver) addRoutesToNode(nodeInfo *node.NodeInfo) error {
-
-	txn := s.vppTxnFactory().Put()
-	hostIP := s.otherHostIP(nodeInfo.Id, nodeInfo.IpAddress)
-
-	// VXLAN tunnel
-	if !s.useL2Interconnect {
-		vxlanIf, err := s.computeVxlanToHost(nodeInfo.Id, hostIP)
-		if err != nil {
-			return err
+	// add new configuration
+	if nodeHasIPAddress(&nodeInfo) {
+		if !nodeHasIPAddress(&prevNodeInfo) {
+			// configure connectivity completely
+			connectivity, err := s.nodeConnectivityConfig(&nodeInfo)
+			if err != nil {
+				err := fmt.Errorf("failed to generate config for connectivity to node ID=%d: %v",
+					otherNodeID, err)
+				s.Logger.Error(err)
+				return err
+			}
+			txn_api.PutAll(txn, connectivity)
+			operationName = "Connect"
+		} else {
+			// just add updated routes
+			routes, err := s.routesToNode(&nodeInfo)
+			if err != nil {
+				err := fmt.Errorf("failed to generate config for obsolete routes for node ID=%d: %v",
+					otherNodeID, err)
+				s.Logger.Error(err)
+				return err
+			}
+			txn_api.PutAll(txn, routes)
+			operationName = "Update"
 		}
-		txn.VppInterface(vxlanIf)
-		s.Logger.WithFields(logging.Fields{
-			"srcIP":  vxlanIf.GetVxlan().SrcAddress,
-			"destIP": vxlanIf.GetVxlan().DstAddress}).Info("Configuring vxlan")
-
-		// add the VXLAN interface into the VXLAN bridge domain
-		s.addInterfaceToVxlanBD(s.vxlanBD, vxlanIf.Name)
-
-		// pass deep copy to local client since we are overwriting previously applied config
-		bd := proto.Clone(s.vxlanBD)
-		txn.BD(bd.(*vpp_l2.BridgeDomain))
-
-		// static ARP entry
-		vxlanIP, err := s.ipam.VxlanIPAddress(nodeInfo.Id)
-		if err != nil {
-			s.Logger.Error(err)
-			return err
-		}
-		vxlanArp := s.vxlanArpEntry(nodeInfo.Id, vxlanIP.String())
-		txn.Arp(vxlanArp)
-
-		// static FIB
-		vxlanFib := s.vxlanFibEntry(vxlanArp.PhysAddress, vxlanIf.Name)
-		txn.BDFIB(vxlanFib)
 	}
 
-	// static routes
-	var (
-		podsRoute    *vpp_l3.StaticRoute
-		hostRoute    *vpp_l3.StaticRoute
-		vxlanNextHop net.IP
-		err          error
-		nextHop      string
-	)
-	if s.useL2Interconnect {
-		// static route directly to other node IP
-		podsRoute, hostRoute, err = s.computeRoutesToHost(nodeInfo.Id, hostIP)
-		nextHop = hostIP
-	} else {
-		// static route to other node VXLAN BVI
-		vxlanNextHop, err = s.ipam.VxlanIPAddress(nodeInfo.Id)
-		if err != nil {
-			return err
-		}
-		nextHop = vxlanNextHop.String()
-		podsRoute, hostRoute, err = s.computeRoutesToHost(nodeInfo.Id, nextHop)
+	// update BD if node was newly connected or disconnected
+	if !s.config.UseL2Interconnect && nodeHasIPAddress(&prevNodeInfo) != nodeHasIPAddress(&nodeInfo) {
+		key, bd := s.vxlanBridgeDomain()
+		txn.Put(key, bd)
 	}
+
+	// commit transaction
+	ctx := context.Background()
+	ctx = scheduler_api.WithRetry(ctx, time.Second, true)
+	ctx = scheduler_api.WithDescription(ctx, fmt.Sprintf("%s Node ID=%d", operationName, otherNodeID))
+	err = txn.Commit(ctx)
 	if err != nil {
+		err := fmt.Errorf("Failed to configure connectivity to the node %v: %v ", otherNodeID, err)
+		s.Logger.Error(err)
 		return err
-	}
-	txn.StaticRoute(podsRoute)
-	txn.StaticRoute(hostRoute)
-	s.Logger.Info("Adding PODs route: ", podsRoute)
-	s.Logger.Info("Adding host route: ", hostRoute)
-
-	mgmtIPs := strings.Split(nodeInfo.ManagementIpAddress, MgmtIPSeparator)
-
-	for _, mIP := range mgmtIPs {
-		mgmtRoute1 := s.routeToOtherManagementIP(mIP, nextHop)
-		txn.StaticRoute(mgmtRoute1)
-		s.Logger.Info("Adding managementIP route: ", mgmtRoute1)
-
-		if s.stnIP == "" {
-			mgmtRoute2 := s.routeToOtherManagementIPViaPodVRF(mIP)
-			txn.StaticRoute(mgmtRoute2)
-			s.Logger.Info("Adding managementIP route via POD VRF: ", mgmtRoute2)
-		}
-	}
-
-	// send the config transaction
-	err = txn.Send().ReceiveReply()
-	if err != nil {
-		return fmt.Errorf("Can't configure VPP to add routes to node %v: %v ", nodeInfo.Id, err)
 	}
 	return nil
 }
 
-// deleteRoutesToNode delete routes to the node specified by nodeID.
-func (s *remoteCNIserver) deleteRoutesToNode(nodeInfo *node.NodeInfo) error {
-	txn := s.vppTxnFactory()
-	hostIP := s.otherHostIP(nodeInfo.Id, nodeInfo.IpAddress)
+// nodeConnectivityConfig return configuration used to connect this node with the given other node.
+func (s *remoteCNIserver) nodeConnectivityConfig(nodeInfo *node.NodeInfo) (config txn_api.KeyValuePairs, err error) {
+	config = make(txn_api.KeyValuePairs)
 
-	// VXLAN tunnel
-	if !s.useL2Interconnect {
-		vxlanIf, err := s.computeVxlanToHost(nodeInfo.Id, hostIP)
-		if err != nil {
-			return err
-		}
-		txn.Delete().VppInterface(vxlanIf.Name)
-		s.Logger.WithFields(logging.Fields{
-			"srcIP":  vxlanIf.GetVxlan().SrcAddress,
-			"destIP": vxlanIf.GetVxlan().DstAddress}).Info("Removing vxlan")
-
-		// remove the VXLAN interface from the VXLAN bridge domain
-		s.removeInterfaceFromVxlanBD(s.vxlanBD, vxlanIf.Name)
-
-		// static ARP entry
-		vxlanIP, err := s.ipam.VxlanIPAddress(nodeInfo.Id)
+	// configuration for VXLAN tunnel
+	if !s.config.UseL2Interconnect && len(s.nodeIP) > 0 {
+		// VXLAN interface
+		nodeIP, err := s.otherNodeIP(nodeInfo.Id, nodeInfo.IpAddress)
 		if err != nil {
 			s.Logger.Error(err)
-			return err
+			return config, err
 		}
-		vxlanArp := s.vxlanArpEntry(nodeInfo.Id, vxlanIP.String())
-		txn.Delete().Arp(vxlanArp.Interface, vxlanArp.IpAddress)
+		key, vxlanIf := s.vxlanIfToOtherNode(nodeInfo.Id, nodeIP)
+		config[key] = vxlanIf
 
-		// static FIB
-		vxlanFib := s.vxlanFibEntry(vxlanArp.PhysAddress, vxlanIf.Name)
-		txn.Delete().BDFIB(vxlanFib.BridgeDomain, vxlanFib.PhysAddress)
-	}
-
-	// static routes
-	var (
-		podsRoute    *vpp_l3.StaticRoute
-		hostRoute    *vpp_l3.StaticRoute
-		vxlanNextHop net.IP
-		err          error
-		nextHop      string
-	)
-	if s.useL2Interconnect {
-		// static route directly to other node IP
-		podsRoute, hostRoute, err = s.computeRoutesToHost(nodeInfo.Id, hostIP)
-		nextHop = hostIP
-	} else {
-		// static route to other node VXLAN BVI
-		vxlanNextHop, err = s.ipam.VxlanIPAddress(nodeInfo.Id)
+		// ARP entry for the IP address on the opposite side
+		vxlanIP, _, err := s.ipam.VxlanIPAddress(nodeInfo.Id)
 		if err != nil {
-			return err
+			s.Logger.Error(err)
+			return config, err
 		}
-		nextHop = vxlanNextHop.String()
-		podsRoute, hostRoute, err = s.computeRoutesToHost(nodeInfo.Id, nextHop)
-	}
-	if err != nil {
-		return err
-	}
-	txn.Delete().StaticRoute(podsRoute.VrfId, podsRoute.DstNetwork, podsRoute.NextHopAddr)
-	txn.Delete().StaticRoute(hostRoute.VrfId, hostRoute.DstNetwork, hostRoute.NextHopAddr)
-	s.Logger.Info("Deleting PODs route: ", podsRoute)
-	s.Logger.Info("Deleting host route: ", hostRoute)
+		key, vxlanArp := s.vxlanArpEntry(nodeInfo.Id, vxlanIP)
+		config[key] = vxlanArp
 
+		// L2 FIB for the hardware address on the opposite side
+		key, vxlanFib := s.vxlanFibEntry(nodeInfo.Id)
+		config[key] = vxlanFib
+	}
+
+	// collect configuration for L3 routes
+	routes, err := s.routesToNode(nodeInfo)
+	if err != nil {
+		return config, err
+	}
+	for key, route := range routes {
+		config[key] = route
+	}
+
+	return config, nil
+}
+
+// routesToNode returns configuration of routes used for routing traffic destined to the given other node.
+func (s *remoteCNIserver) routesToNode(nodeInfo *node.NodeInfo) (config txn_api.KeyValuePairs, err error) {
+	config = make(txn_api.KeyValuePairs)
+
+	var nextHop net.IP
+	if s.config.UseL2Interconnect {
+		// route traffic destined to the other node directly
+		nodeIP, err := s.otherNodeIP(nodeInfo.Id, nodeInfo.IpAddress)
+		if err != nil {
+			s.Logger.Error(err)
+			return config, err
+		}
+		nextHop = nodeIP
+	} else {
+		// route traffic destined to the other node via VXLANs
+		vxlanNextHop, _, err := s.ipam.VxlanIPAddress(nodeInfo.Id)
+		if err != nil {
+			s.Logger.Error(err)
+			return config, err
+		}
+		nextHop = vxlanNextHop
+	}
+
+	// route to pods of the other node
+	key, routeToPods, err := s.routeToOtherNodePods(nodeInfo.Id, nextHop)
+	if err != nil {
+		s.Logger.Error(err)
+		return config, err
+	}
+	config[key] = routeToPods
+
+	// route to the host stack of the other node
+	key, routeToHostStack, err := s.routeToOtherNodeHostStack(nodeInfo.Id, nextHop)
+	if err != nil {
+		s.Logger.Error(err)
+		return config, err
+	}
+	config[key] = routeToHostStack
+
+	// route to management IPs of the other node
 	mgmtIPs := strings.Split(nodeInfo.ManagementIpAddress, MgmtIPSeparator)
+	for _, address := range mgmtIPs {
+		mgmtIP := net.ParseIP(address)
+		if mgmtIP == nil {
+			s.Logger.Warnf("Failed to parse management route '%s', skipping route configuration...",
+				address)
+		}
 
-	for _, mIP := range mgmtIPs {
-		mgmtRoute1 := s.routeToOtherManagementIP(mIP, nextHop)
-		txn.Delete().StaticRoute(mgmtRoute1.VrfId, mgmtRoute1.DstNetwork, mgmtRoute1.NextHopAddr)
-		s.Logger.Info("Deleting managementIP route: ", mgmtRoute1)
+		// route management IP address towards the destination node
+		key, mgmtRoute1 := s.routeToOtherNodeManagementIP(mgmtIP, nextHop)
+		config[key] = mgmtRoute1
 
-		if s.stnIP == "" {
-			mgmtRoute2 := s.routeToOtherManagementIPViaPodVRF(mIP)
-			txn.Delete().StaticRoute(mgmtRoute2.VrfId, mgmtRoute2.DstNetwork, "")
-			s.Logger.Info("Deleting managementIP route via POD VRF: ", mgmtRoute2)
+		// inter-VRF route for the management IP address
+		if !s.UseSTN() {
+			key, mgmtRoute2 := s.routeToOtherNodeManagementIPViaPodVRF(mgmtIP)
+			config[key] = mgmtRoute2
 		}
 	}
-	// send the config transaction
-	if !s.useL2Interconnect {
-		// pass deep copy to local client since we are overwriting previously applied config
-		bd := proto.Clone(s.vxlanBD)
-		// interface should be removed from BD after FIB entry tied to interface is deleted
-		txn.Put().BD(bd.(*vpp_l2.BridgeDomain))
-	}
-	err = txn.Send().ReceiveReply()
-	if err != nil {
-		return fmt.Errorf("Can't configure VPP to remove routes to node %v: %v ", nodeInfo.Id, err)
-	}
-	return nil
+	return config, nil
+}
+
+// nodeHasIPAddress returns true if the given node has at least one IP address assigned.
+func nodeHasIPAddress(node *node.NodeInfo) bool {
+	return node.IpAddress != "" || node.ManagementIpAddress != ""
 }

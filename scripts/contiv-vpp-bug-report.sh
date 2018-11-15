@@ -229,6 +229,8 @@ LOCAL_COMMANDS["docker-ps.log"]="sudo docker ps"
 LOCAL_COMMANDS["core-dump.tar.xz"]="sudo test -d /var/contiv/dumps && sudo tar -Jc -C /var/contiv dumps"
 LOCAL_COMMANDS["cni.log"]="sudo cat /var/run/contiv/cni.log"
 LOCAL_COMMANDS["vpp.conf"]="cat /etc/vpp/contiv-vswitch.conf"
+LOCAL_COMMANDS["syslog.log"]="sudo cat /var/log/syslog"
+LOCAL_COMMANDS["machine-status.log"]="free -h && df -h && lsof | awk '{ print \$2 \" \" \$1; }' | uniq -c | sort -rn | head -20"
 
 declare -A ETCD_COMMANDS
 ETCD_COMMANDS["etcd-tree.log"]="export ETCDCTL_API=3 && etcdctl --endpoints=127.0.0.1:32379 get / --prefix=true"
@@ -236,6 +238,7 @@ ETCD_COMMANDS["etcd-tree.log"]="export ETCDCTL_API=3 && etcdctl --endpoints=127.
 declare -A K8S_COMMANDS
 K8S_COMMANDS["k8s-vpp-config-maps.yaml"]="describe configmaps -n kube-system contiv-agent-cfg"
 K8S_COMMANDS["k8s-nodes.txt"]="get nodes -o wide"
+K8S_COMMANDS["k8s-nodes-describe.txt"]="describe nodes"
 K8S_COMMANDS["k8s-node-addresses.txt"]="get nodes --no-headers -o=custom-columns=A:.spec.externalID,B:.status.addresses[*].address"
 K8S_COMMANDS["k8s-pods.txt"]="get pods -o wide --all-namespaces"
 K8S_COMMANDS["k8s-pods-describe.txt"]="describe pods --all-namespaces"

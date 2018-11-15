@@ -1,14 +1,14 @@
 # Manual Installation
 This document describes how to use [kubeadm][1] to manually install Kubernetes
-with Contiv-VPP networking on one or more bare metal or VM hosts. 
+with Contiv-VPP networking on one or more bare metal or VM hosts.
 
 ## Preparing your hosts
 
 ### Host-specific configurations
 - **VmWare VMs**: the vmxnet3 driver is required on each interface that will
-  be used by VPP. Please see [here][13] for instructions how to install the 
+  be used by VPP. Please see [here][13] for instructions how to install the
   vmxnet3 driver on VmWare Fusion.
-  
+
 ### Setting up Network Adapter(s)
 #### Setting up DPDK
 DPDK setup must be completed **on each node** as follows:
@@ -26,8 +26,8 @@ DPDK setup must be completed **on each node** as follows:
   ```
 
   Please note that this driver needs to be loaded upon each server bootup,
-  so you may want to add `uio_pci_generic` into the `/etc/modules` file, 
-  or a file in the `/etc/modules-load.d/` directory. For example, the 
+  so you may want to add `uio_pci_generic` into the `/etc/modules` file,
+  or a file in the `/etc/modules-load.d/` directory. For example, the
   `/etc/modules` file could look as follows:
   ```
   # /etc/modules: kernel modules to load at boot time.
@@ -63,7 +63,7 @@ Finally, you need to set up the vswitch to use the network adapters:
 You can perform the above steps using the [node setup script][17].
 
 ## Installing Kubernetes with Contiv-vpp CNI plugin
-After the nodes you will be using in your K8s cluster are prepared, you can 
+After the nodes you will be using in your K8s cluster are prepared, you can
 install the cluster using [kubeadm][1].
 
 ### (1/4) Installing Kubeadm on your hosts
@@ -72,7 +72,7 @@ existing installation,  you should do a `apt-get update && apt-get upgrade`
 or `yum update` to get the latest version of kubeadm.
 
 On each host with multiple NICs where the NIC that will be used for Kubernetes
-management traffic is not the one pointed to by the default route out of the 
+management traffic is not the one pointed to by the default route out of the
 host, a [custom management network][12] for Kubernetes must be configured.
 
 #### Using Kubernetes 1.10 and above
@@ -81,7 +81,7 @@ feature must be either disabled or memory limit must be defined for vswitch cont
 
 To disable huge pages, perform the following
 steps as root:
-* Using your favorite editor, disable huge pages in the kubelet configuration 
+* Using your favorite editor, disable huge pages in the kubelet configuration
   file (`/etc/systemd/system/kubelet.service.d/10-kubeadm.conf` or `/etc/default/kubelet` for version 1.11+):
 ```
   Environment="KUBELET_EXTRA_ARGS=--feature-gates HugePages=false"
@@ -119,15 +119,15 @@ kubeadm init --token-ttl 0 --pod-network-cidr=10.1.0.0/16 --apiserver-advertise-
 ```
 **Note:** The CIDR specified with the flag `--pod-network-cidr` is used by
 kube-proxy, and it **must include** the `PodSubnetCIDR` from the `IPAMConfig`
-section in the Contiv-vpp config map in Contiv-vpp's deployment file 
+section in the Contiv-vpp config map in Contiv-vpp's deployment file
 ([contiv-vpp.yaml](../k8s/contiv-vpp.yaml)). Pods in the host network namespace
 are a special case; they share their respective interfaces and IP addresses with
 the host. For proxying to work properly it is therefore required for services
-with backends running on the host to also **include the node management IP** 
-within the `--pod-network-cidr` subnet. For example, with the default 
-`PodSubnetCIDR=10.1.0.0/16` and `PodIfIPCIDR=10.2.1.0/24`, the subnet 
-`10.3.0.0/16` could be allocated for the management network and 
-`--pod-network-cidr` could be defined as `10.0.0.0/8`, so as to include IP 
+with backends running on the host to also **include the node management IP**
+within the `--pod-network-cidr` subnet. For example, with the default
+`PodSubnetCIDR=10.1.0.0/16` and `PodVPPSubnetCIDR=10.2.1.0/24`, the subnet
+`10.3.0.0/16` could be allocated for the management network and
+`--pod-network-cidr` could be defined as `10.0.0.0/8`, so as to include IP
 addresses of all pods in all network namespaces:
 ```
 kubeadm init --token-ttl 0 --pod-network-cidr=10.0.0.0/8 --apiserver-advertise-address=10.3.1.1
@@ -155,20 +155,20 @@ bash <(curl -s https://raw.githubusercontent.com/contiv/vpp/master/k8s/pull-imag
 
 Install the Contiv-VPP network for your cluster as follows:
 
-- If you do not use the STN feature, install Contiv-vpp as follows: 
+- If you do not use the STN feature, install Contiv-vpp as follows:
   ```
   kubectl apply -f https://raw.githubusercontent.com/contiv/vpp/master/k8s/contiv-vpp.yaml
   ```
-  
+
 - If you use the STN feature, download the `contiv-vpp.yaml` file:
   ```
   wget https://raw.githubusercontent.com/contiv/vpp/master/k8s/contiv-vpp.yaml
   ```
-  Then edit the STN configuration as described [here][16]. Finally, create 
+  Then edit the STN configuration as described [here][16]. Finally, create
   the Contiv-vpp deployment from the edited file:
   ```
   kubectl apply -f ./contiv-vpp.yaml
-  ``` 
+  ```
 
 Beware contiv-etcd data is persisted in `/var/etcd` by default. It has to be cleaned up manually after `kubeadm reset`.
 Otherwise outdated data will be loaded by a subsequent deployment.

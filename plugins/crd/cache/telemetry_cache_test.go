@@ -160,7 +160,7 @@ func TestTelemetryCache(t *testing.T) {
 	}
 
 	// Init the cache and the telemetryCache (the objects under test)
-	ctv.telemetryCache = NewTelemetryCache(logging.ForPlugin("tc-test"))
+	ctv.telemetryCache = NewTelemetryCache(logging.ForPlugin("tc-test"), true)
 	ctv.telemetryCache.Processor = &mockProcessor{}
 	ctv.telemetryCache.ControllerReport = &mockCRDReport{rep: ctv.report}
 

@@ -28,12 +28,12 @@ const (
 )
 
 type ipamData struct {
-	NodeID         uint32       `json:"nodeId"`
-	NodeName       string       `json:"nodeName"`
-	NodeIP         string       `json:"nodeIP"`
-	PodNetwork     string       `json:"podNetwork"`
-	VppHostNetwork string       `json:"vppHostNetwork"`
-	Config         *ipam.Config `json:"config"`
+	NodeID            uint32       `json:"nodeId"`
+	NodeName          string       `json:"nodeName"`
+	NodeIP            string       `json:"nodeIP"`
+	PodSubnetThisNode string       `json:"podNetwork"`
+	VppHostNetwork    string       `json:"vppHostNetwork"`
+	Config            *ipam.Config `json:"config"`
 }
 
 func (s *remoteCNIserver) registerHandlers() {
@@ -57,12 +57,12 @@ func (s *remoteCNIserver) ipamGetHandler(formatter *render.Render) http.HandlerF
 		}
 
 		formatter.JSON(w, http.StatusOK, ipamData{
-			NodeID:         s.nodeID,
-			NodeName:       s.agentLabel,
-			NodeIP:         nodeIP.String(),
-			PodNetwork:     s.ipam.PodNetwork().String(),
-			VppHostNetwork: s.ipam.VPPHostNetwork().String(),
-			Config:         &s.config.IPAMConfig,
+			NodeID:            s.nodeID,
+			NodeName:          s.agentLabel,
+			NodeIP:            nodeIP.String(),
+			PodSubnetThisNode: s.ipam.PodSubnetThisNode().String(),
+			VppHostNetwork:    s.ipam.HostInterconnectSubnetThisNode().String(),
+			Config:            &s.config.IPAMConfig,
 		})
 	}
 }

@@ -20,54 +20,22 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/contiv/vpp/plugins/contiv/model/node"
-	"github.com/coreos/etcd/clientv3"
 	"github.com/ligato/cn-infra/db/keyval/etcd"
-	"github.com/ligato/cn-infra/logging"
-	"github.com/ligato/cn-infra/logging/logrus"
 	"os"
 	"regexp"
 	"strconv"
 	"strings"
-	"time"
 )
 
 type clusterNodeInfo map[string]*node.NodeInfo
 
 var (
-	nodeInfo    clusterNodeInfo
-	bytesBroker *etcd.BytesConnectionEtcd
-	ipAddrRe    = regexp.MustCompile(`(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)(\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)){3}`)
+	nodeInfo clusterNodeInfo
+	ipAddrRe = regexp.MustCompile(`(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)(\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)){3}`)
 )
 
-func getEtcdBroker() *etcd.BytesConnectionEtcd {
-	if bytesBroker == nil {
-		etcdCfg := etcd.ClientConfig{
-			Config: &clientv3.Config{
-				Endpoints: []string{etcdLocation},
-			},
-			OpTimeout: 1 * time.Second,
-		}
-
-		logger := logrus.DefaultLogger()
-		logger.SetLevel(logging.ErrorLevel)
-
-		var err error
-		var db *etcd.BytesConnectionEtcd
-		if db, err = etcd.NewEtcdConnectionWithBytes(etcdCfg, logger); err != nil {
-			fmt.Println(err)
-			os.Exit(1)
-		}
-
-		bytesBroker = db
-	}
-
-	return bytesBroker
-}
-
-func getClusterNodeInfo() clusterNodeInfo {
+func getClusterNodeInfo(db *etcd.BytesConnectionEtcd) clusterNodeInfo {
 	if len(nodeInfo) == 0 {
-		db := getEtcdBroker()
-
 		nodeInfo = make(clusterNodeInfo, 0)
 		itr, err := db.ListValues(nodeInfoDataKey)
 		if err != nil {
@@ -95,12 +63,12 @@ func getClusterNodeInfo() clusterNodeInfo {
 
 //resolveNodeOrIP will take in an input string which is either a node name
 // or string and return the ip for the nodename or simply return the ip
-func resolveNodeOrIP(nodeName string) (ipAdr string) {
+func resolveNodeOrIP(db *etcd.BytesConnectionEtcd, nodeName string) (ipAdr string) {
 	if ipAddrRe.MatchString(nodeName) {
 		return nodeName
 	}
 
-	for k, v := range getClusterNodeInfo() {
+	for k, v := range getClusterNodeInfo(db) {
 		if k == nodeName {
 			return v.ManagementIpAddress
 		}

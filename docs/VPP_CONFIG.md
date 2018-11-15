@@ -44,7 +44,7 @@ dpdk {
 }
 api-trace {
    on
-   nitems 500
+   nitems 5000
 }
 ```
 #### Multi-NIC configuration
@@ -95,7 +95,7 @@ dpdk {
 }
 api-trace {
    on
-   nitems 500
+   nitems 5000
 }
 ```
 If assigning multiple NICs to VPP you will need to include each NIC's PCI address
@@ -136,7 +136,7 @@ dpdk {
 }
 api-trace {
    on
-   nitems 500
+   nitems 5000
 }
 ```
 

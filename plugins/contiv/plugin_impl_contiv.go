@@ -21,36 +21,39 @@ import (
 	"context"
 	"fmt"
 	"net"
-
+	"net/http"
 	"strings"
+	"time"
 
 	"git.fd.io/govpp.git/api"
 	"github.com/apparentlymart/go-cidr/cidr"
-
-	nodeconfig "github.com/contiv/vpp/plugins/crd/handler/nodeconfig/model"
-	protoNode "github.com/contiv/vpp/plugins/ksr/model/node"
-
-	"github.com/contiv/vpp/plugins/contiv/containeridx"
-	"github.com/contiv/vpp/plugins/contiv/containeridx/model"
-	"github.com/contiv/vpp/plugins/contiv/model/cni"
-	"github.com/contiv/vpp/plugins/contiv/model/node"
-	"github.com/contiv/vpp/plugins/kvdbproxy"
+	"github.com/fsouza/go-dockerclient"
+	"github.com/unrolled/render"
+	"github.com/vishvananda/netlink"
+	"google.golang.org/grpc"
 
 	"github.com/ligato/cn-infra/datasync"
 	"github.com/ligato/cn-infra/datasync/resync"
 	"github.com/ligato/cn-infra/db/keyval"
 	"github.com/ligato/cn-infra/db/keyval/etcd"
 	"github.com/ligato/cn-infra/infra"
-	"github.com/ligato/cn-infra/logging"
-	"github.com/ligato/cn-infra/rpc/grpc"
+	grpcplugin "github.com/ligato/cn-infra/rpc/grpc"
 	"github.com/ligato/cn-infra/rpc/rest"
 	"github.com/ligato/cn-infra/servicelabel"
 	"github.com/ligato/cn-infra/utils/safeclose"
 
-	"github.com/ligato/vpp-agent/clientv2/linux"
-	linuxlocalclient "github.com/ligato/vpp-agent/clientv2/linux/localclient"
 	"github.com/ligato/vpp-agent/plugins/govppmux"
+	kvscheduler_api "github.com/ligato/vpp-agent/plugins/kvscheduler/api"
 	vpp_ifplugin "github.com/ligato/vpp-agent/plugins/vppv2/ifplugin"
+	intf_vppcalls "github.com/ligato/vpp-agent/plugins/vppv2/ifplugin/vppcalls"
+	vpp_intf "github.com/ligato/vpp-agent/plugins/vppv2/model/interfaces"
+
+	stn_grpc "github.com/contiv/vpp/cmd/contiv-stn/model/stn"
+	"github.com/contiv/vpp/plugins/contiv/model/cni"
+	"github.com/contiv/vpp/plugins/contiv/model/node"
+	txn_api "github.com/contiv/vpp/plugins/controller/txn"
+	k8sNode "github.com/contiv/vpp/plugins/ksr/model/node"
+	k8sPod "github.com/contiv/vpp/plugins/ksr/model/pod"
 )
 
 // MgmtIPSeparator is a delimiter inserted between management IPs in nodeInfo structure
@@ -62,18 +65,10 @@ type Plugin struct {
 	Deps
 	govppCh api.Channel
 
-	configuredContainers *containeridx.ConfigIndex
-	cniServer            *remoteCNIserver
+	cniServer       *remoteCNIserver
+	nodeIDAllocator *idAllocator
 
-	nodeIDAllocator   *idAllocator
-	nodeIDsresyncChan chan datasync.ResyncEvent
-	nodeIDSchangeChan chan datasync.ChangeEvent
-	nodeIDwatchReg    datasync.WatchRegistration
-
-	nodeConfigResyncChan chan datasync.ResyncEvent
-	nodeConfigChangeChan chan datasync.ChangeEvent
-	nodeConfigWatchReg   datasync.WatchRegistration
-
+	// kubernetes state data watching
 	watchReg datasync.WatchRegistration
 	resyncCh chan datasync.ResyncEvent
 	changeCh chan datasync.ChangeEvent
@@ -81,20 +76,26 @@ type Plugin struct {
 	ctx           context.Context
 	ctxCancelFunc context.CancelFunc
 
-	Config        *Config
-	myNodeConfig  *NodeConfig
-	nodeIPWatcher chan string
+	Config       *Config
+	myNodeConfig *NodeConfig
+
+	nodeIPWatcher chan *net.IPNet
+
+	// synchronization between resync and data change events
+	resyncCounter  uint
+	k8sStateData   map[string]datasync.KeyVal // key -> value, revision
+	pendingChanges []datasync.ChangeEvent
 }
 
-// Deps groups the dependencies of the Plugin.
+// Deps groups the dependencies of the p.
 type Deps struct {
 	infra.PluginDeps
 	ServiceLabel servicelabel.ReaderAPI
-	GRPC         grpc.Server
-	Proxy        *kvdbproxy.Plugin
+	KVScheduler  kvscheduler_api.KVScheduler
+	GRPC         grpcplugin.Server
 	VPPIfPlugin  vpp_ifplugin.API
 	GoVPP        govppmux.API
-	Resync       resync.Subscriber
+	Resync       *resync.Plugin
 	ETCD         *etcd.Plugin
 	Bolt         keyval.KvProtoPlugin
 	Watcher      datasync.KeyValProtoWatcher
@@ -102,300 +103,249 @@ type Deps struct {
 }
 
 // Init initializes the Contiv plugin. Called automatically by plugin infra upon contiv-agent startup.
-func (plugin *Plugin) Init() error {
-	// init map with configured containers
-	plugin.configuredContainers = containeridx.NewConfigIndex(plugin.Log, "containers",
-		plugin.ETCD.NewBroker(plugin.ServiceLabel.GetAgentPrefix()))
-
+func (p *Plugin) Init() error {
 	// load config file
-	plugin.ctx, plugin.ctxCancelFunc = context.WithCancel(context.Background())
-	if plugin.Config == nil {
-		if err := plugin.loadExternalConfig(); err != nil {
+	p.ctx, p.ctxCancelFunc = context.WithCancel(context.Background())
+	if p.Config == nil {
+		if err := p.loadExternalConfig(); err != nil {
 			return err
 		}
-		plugin.myNodeConfig = plugin.loadNodeConfig()
+		p.myNodeConfig = p.loadNodeConfig()
 	}
 
+	// create GoVPP channel
 	var err error
-	plugin.govppCh, err = plugin.GoVPP.NewAPIChannel()
+	p.govppCh, err = p.GoVPP.NewAPIChannel()
 	if err != nil {
 		return err
 	}
 
 	// init node ID allocator
-	nodeIP := ""
-	if plugin.myNodeConfig != nil {
-		nodeIP = plugin.myNodeConfig.MainVPPInterface.IP
+	var nodeIP *net.IPNet
+	if p.myNodeConfig != nil {
+		addr, network, err := net.ParseCIDR(p.myNodeConfig.MainVPPInterface.IP)
+		if err != nil {
+			return fmt.Errorf("Failed to parse main interface IP address from the config: %v ", err)
+		}
+		nodeIP = combineAddrWithNet(addr, network)
 	}
-	plugin.nodeIDAllocator = newIDAllocator(plugin.ETCD, plugin.ServiceLabel.GetAgentLabel(), nodeIP)
-	nodeID, err := plugin.nodeIDAllocator.getID()
+	p.nodeIDAllocator = newIDAllocator(p.ETCD, p.ServiceLabel.GetAgentLabel(), nodeIP)
+	nodeID, err := p.nodeIDAllocator.getID()
 	if err != nil {
 		return err
 	}
-	plugin.Log.Infof("ID of the node is %v", nodeID)
+	p.Log.Infof("ID of the node is %v", nodeID)
 
-	plugin.nodeIDsresyncChan = make(chan datasync.ResyncEvent)
-	plugin.nodeIDSchangeChan = make(chan datasync.ChangeEvent)
-
-	plugin.nodeConfigResyncChan = make(chan datasync.ResyncEvent)
-	plugin.nodeConfigChangeChan = make(chan datasync.ChangeEvent)
-
-	plugin.resyncCh = make(chan datasync.ResyncEvent)
-	plugin.changeCh = make(chan datasync.ChangeEvent)
-
-	plugin.nodeIDwatchReg, err = plugin.Watcher.Watch("contiv-plugin-ids",
-		plugin.nodeIDSchangeChan, plugin.nodeIDsresyncChan, node.AllocatedIDsKeyPrefix)
-	if err != nil {
-		return err
-	}
-
-	plugin.nodeConfigWatchReg, err = plugin.Watcher.Watch("contiv-plugin-node-config",
-		plugin.nodeConfigChangeChan, plugin.nodeConfigResyncChan, nodeconfig.Key(plugin.ServiceLabel.GetAgentLabel()))
+	// initialize and start kubernetes state data watcher
+	p.resyncCh = make(chan datasync.ResyncEvent)
+	p.changeCh = make(chan datasync.ChangeEvent)
+	p.k8sStateData = make(map[string]datasync.KeyVal)
+	p.watchReg, err = p.Watcher.Watch("contiv-plugin-k8s-state",
+		p.changeCh, p.resyncCh, node.AllocatedIDsKeyPrefix, k8sNode.KeyPrefix(), k8sPod.KeyPrefix()) // + CRD later
 	if err != nil {
 		return err
 	}
 
-	plugin.watchReg, err = plugin.Watcher.Watch("contiv-plugin-node",
-		plugin.changeCh, plugin.resyncCh, protoNode.KeyPrefix())
+	// connect to Docker server
+	dockerClient, err := docker.NewClientFromEnv()
 	if err != nil {
 		return err
 	}
+	p.Log.Infof("Using docker client endpoint: %+v\n", dockerClient.Endpoint())
 
 	// start the GRPC server handling the CNI requests
-	plugin.cniServer, err = newRemoteCNIServer(plugin.Log,
-		func() linuxclient.DataChangeDSL {
-			return linuxlocalclient.DataChangeRequest(plugin.String())
-		},
-		plugin.Proxy,
-		plugin.configuredContainers,
-		plugin.govppCh,
-		plugin.VPPIfPlugin.GetInterfaceIndex(),
-		plugin.VPPIfPlugin.GetDHCPIndex(),
-		plugin.ServiceLabel.GetAgentLabel(),
-		plugin.Config,
-		plugin.myNodeConfig,
-		nodeID,
-		plugin.excludedIPsFromNodeCIDR(),
-		plugin.ETCD.NewBroker(plugin.ServiceLabel.GetAgentPrefix()),
-		plugin.HTTPHandlers)
+	p.cniServer, err = newRemoteCNIServer(
+		&remoteCNIserverArgs{
+			Logger: p.Log,
+			nodeID: nodeID,
+			txnFactory: func() txn_api.Transaction {
+				return txn_api.NewTransaction(p.KVScheduler)
+			},
+			physicalIfsDump:             p.dumpPhysicalInterfaces,
+			getStolenInterfaceInfo:      p.getStolenInterfaceInfo,
+			hostLinkIPsDump:             p.getHostLinkIPs,
+			dockerClient:                dockerClient,
+			govppChan:                   p.govppCh,
+			dhcpIndex:                   p.VPPIfPlugin.GetDHCPIndex(),
+			agentLabel:                  p.ServiceLabel.GetAgentLabel(),
+			nodeConfig:                  p.myNodeConfig,
+			config:                      p.Config,
+			nodeInterconnectExcludedIPs: p.excludedIPsFromNodeCIDR(),
+			http:                        p.HTTPHandlers,
+		})
 	if err != nil {
 		return fmt.Errorf("Can't create new remote CNI server due to error: %v ", err)
 	}
-	cni.RegisterRemoteCNIServer(plugin.GRPC.GetServer(), plugin.cniServer)
+	cni.RegisterRemoteCNIServer(p.GRPC.GetServer(), p.cniServer)
 
-	plugin.nodeIPWatcher = make(chan string, 1)
-	go plugin.watchEvents()
-	plugin.cniServer.WatchNodeIP(plugin.nodeIPWatcher)
-
-	// start goroutine handling changes in nodes within the k8s cluster
-	go plugin.cniServer.handleNodeEvents(plugin.ctx, plugin.nodeIDsresyncChan, plugin.nodeIDSchangeChan)
-
-	// start goroutine handling changes in the configuration specific to this node
-	go plugin.cniServer.handleNodeConfigEvents(plugin.ctx, plugin.nodeConfigResyncChan, plugin.nodeConfigChangeChan)
+	p.nodeIPWatcher = make(chan *net.IPNet, 1)
+	go p.watchEvents()
+	p.cniServer.WatchNodeIP(p.nodeIPWatcher)
 
 	return nil
 }
 
-// AfterInit is called by the plugin infra after Init of all plugins is finished.
-// It registers to the ResyncOrchestrator. The registration is done in this phase
-// in order to trigger the resync for this plugin once the resync of VPP plugins is finished.
-func (plugin *Plugin) AfterInit() error {
-	if plugin.Resync != nil {
-		reg := plugin.Resync.Register(string(plugin.PluginName))
-		go plugin.handleResync(reg.StatusChan())
+// AfterInit registers Resync REST handler.
+func (p *Plugin) AfterInit() error {
+	if p.HTTPHandlers != nil && p.Resync != nil {
+		path := "/doresync"
+		p.HTTPHandlers.RegisterHTTPHandler(path, p.resyncReqHandler, "POST")
 	}
 	return nil
 }
 
-// Close is called by the plugin infra upon agent cleanup. It cleans up the resources allocated by the plugin.
-func (plugin *Plugin) Close() error {
-	plugin.ctxCancelFunc()
-	plugin.cniServer.close()
-	//plugin.nodeIDAllocator.releaseID()
-	_, err := safeclose.CloseAll(plugin.govppCh, plugin.nodeIDwatchReg, plugin.nodeConfigWatchReg, plugin.watchReg)
+// Close is called by the plugin infra upon agent cleanup. It cleans up the resources allocated by the p.
+func (p *Plugin) Close() error {
+	p.ctxCancelFunc()
+	p.cniServer.Close()
+	//p.nodeIDAllocator.releaseID()
+	_, err := safeclose.CloseAll(p.govppCh, p.watchReg)
 	return err
 }
 
 // GetPodByIf looks up podName and podNamespace that is associated with logical interface name.
-func (plugin *Plugin) GetPodByIf(ifname string) (podNamespace string, podName string, exists bool) {
-	ids := plugin.configuredContainers.LookupPodIf(ifname)
-	if len(ids) != 1 {
-		return "", "", false
-	}
-	config, found := plugin.configuredContainers.LookupContainer(ids[0])
-	if !found {
-		return "", "", false
-	}
-	return config.PodNamespace, config.PodName, true
+func (p *Plugin) GetPodByIf(ifname string) (podNamespace string, podName string, exists bool) {
+	return p.cniServer.GetPodByIf(ifname)
 }
 
 // GetIfName looks up logical interface name that corresponds to the interface associated with the given POD name.
-func (plugin *Plugin) GetIfName(podNamespace string, podName string) (name string, exists bool) {
-	config := plugin.getContainerConfig(podNamespace, podName)
-	if config != nil && config.VppIfName != "" {
-		return config.VppIfName, true
-	}
-	plugin.Log.WithFields(logging.Fields{"podNamespace": podNamespace, "podName": podName}).Warn("No matching result found")
-	return "", false
+func (p *Plugin) GetIfName(podNamespace string, podName string) (name string, exists bool) {
+	return p.cniServer.GetIfName(podNamespace, podName)
 }
 
 // GetPodSubnet provides subnet used for allocating pod IP addresses across all nodes.
-func (plugin *Plugin) GetPodSubnet() *net.IPNet {
-	return plugin.cniServer.ipam.PodSubnet()
+func (p *Plugin) GetPodSubnet() *net.IPNet {
+	return p.cniServer.ipam.PodSubnetAllNodes()
 }
 
-// GetPodNetwork provides subnet used for allocating pod IP addresses on this node.
-func (plugin *Plugin) GetPodNetwork() *net.IPNet {
-	return plugin.cniServer.ipam.PodNetwork()
-}
-
-// GetContainerIndex returns the index of configured containers/pods
-func (plugin *Plugin) GetContainerIndex() containeridx.Reader {
-	return plugin.configuredContainers
+// GetPodSubnetThisNode provides subnet used for allocating pod IP addresses on this node.
+func (p *Plugin) GetPodSubnetThisNode() *net.IPNet {
+	return p.cniServer.ipam.PodSubnetThisNode()
 }
 
 // InSTNMode returns true if Contiv operates in the STN mode (single interface for each node).
-func (plugin *Plugin) InSTNMode() bool {
-	return plugin.cniServer.UseSTN()
+func (p *Plugin) InSTNMode() bool {
+	return p.cniServer.UseSTN()
 }
 
 // NatExternalTraffic returns true if traffic with cluster-outside destination should be S-NATed
 // with node IP before being sent out from the node.
-func (plugin *Plugin) NatExternalTraffic() bool {
-	if plugin.Config.NatExternalTraffic ||
-		(plugin.myNodeConfig != nil && plugin.myNodeConfig.NatExternalTraffic) {
+func (p *Plugin) NatExternalTraffic() bool {
+	if p.Config.NatExternalTraffic ||
+		(p.myNodeConfig != nil && p.myNodeConfig.NatExternalTraffic) {
 		return true
 	}
 	return false
 }
 
 // CleanupIdleNATSessions returns true if cleanup of idle NAT sessions is enabled.
-func (plugin *Plugin) CleanupIdleNATSessions() bool {
-	return plugin.Config.CleanupIdleNATSessions
+func (p *Plugin) CleanupIdleNATSessions() bool {
+	return p.Config.CleanupIdleNATSessions
 }
 
 // GetTCPNATSessionTimeout returns NAT session timeout (in minutes) for TCP connections, used in case that CleanupIdleNATSessions is turned on.
-func (plugin *Plugin) GetTCPNATSessionTimeout() uint32 {
-	return plugin.Config.TCPNATSessionTimeout
+func (p *Plugin) GetTCPNATSessionTimeout() uint32 {
+	return p.Config.TCPNATSessionTimeout
 }
 
 // GetOtherNATSessionTimeout returns NAT session timeout (in minutes) for non-TCP connections, used in case that CleanupIdleNATSessions is turned on.
-func (plugin *Plugin) GetOtherNATSessionTimeout() uint32 {
-	return plugin.Config.OtherNATSessionTimeout
+func (p *Plugin) GetOtherNATSessionTimeout() uint32 {
+	return p.Config.OtherNATSessionTimeout
 }
 
 // GetServiceLocalEndpointWeight returns the load-balancing weight assigned to locally deployed service endpoints.
-func (plugin *Plugin) GetServiceLocalEndpointWeight() uint8 {
-	return plugin.Config.ServiceLocalEndpointWeight
+func (p *Plugin) GetServiceLocalEndpointWeight() uint8 {
+	return p.Config.ServiceLocalEndpointWeight
 }
 
 // DisableNATVirtualReassembly returns true if fragmented packets should be dropped by NAT.
-func (plugin *Plugin) DisableNATVirtualReassembly() bool {
-	return plugin.Config.DisableNATVirtualReassembly
+func (p *Plugin) DisableNATVirtualReassembly() bool {
+	return p.Config.DisableNATVirtualReassembly
 }
 
 // GetNatLoopbackIP returns the IP address of a virtual loopback, used to route traffic
 // between clients and services via VPP even if the source and destination are the same
 // IP addresses and would otherwise be routed locally.
-func (plugin *Plugin) GetNatLoopbackIP() net.IP {
+func (p *Plugin) GetNatLoopbackIP() net.IP {
 	// Last unicast IP from the pod subnet is used as NAT-loopback.
-	podNet := plugin.cniServer.ipam.PodNetwork()
+	podNet := p.cniServer.ipam.PodSubnetThisNode()
 	_, broadcastIP := cidr.AddressRange(podNet)
 	return cidr.Dec(broadcastIP)
 }
 
 // GetNodeIP returns the IP address of this node.
-func (plugin *Plugin) GetNodeIP() (ip net.IP, network *net.IPNet) {
-	return plugin.cniServer.GetNodeIP()
+func (p *Plugin) GetNodeIP() (ip net.IP, network *net.IPNet) {
+	return p.cniServer.GetNodeIP()
 }
 
 // GetHostIPs returns all IP addresses of this node present in the host network namespace (Linux).
-func (plugin *Plugin) GetHostIPs() []net.IP {
-	return plugin.cniServer.GetHostIPs()
+func (p *Plugin) GetHostIPs() []net.IP {
+	return p.cniServer.GetHostIPs()
 }
 
 // WatchNodeIP adds given channel to the list of subscribers that are notified upon change
 // of nodeIP address. If the channel is not ready to receive notification, the notification is dropped.
-func (plugin *Plugin) WatchNodeIP(subscriber chan string) {
-	plugin.cniServer.WatchNodeIP(subscriber)
+func (p *Plugin) WatchNodeIP(subscriber chan *net.IPNet) {
+	p.cniServer.WatchNodeIP(subscriber)
 }
 
 // GetMainPhysicalIfName returns name of the "main" interface - i.e. physical interface connecting
 // the node with the rest of the cluster.
-func (plugin *Plugin) GetMainPhysicalIfName() string {
-	return plugin.cniServer.GetMainPhysicalIfName()
+func (p *Plugin) GetMainPhysicalIfName() string {
+	return p.cniServer.GetMainPhysicalIfName()
 }
 
 // GetOtherPhysicalIfNames returns a slice of names of all physical interfaces configured additionally
 // to the main interface.
-func (plugin *Plugin) GetOtherPhysicalIfNames() []string {
-	return plugin.cniServer.GetOtherPhysicalIfNames()
+func (p *Plugin) GetOtherPhysicalIfNames() []string {
+	return p.cniServer.GetOtherPhysicalIfNames()
 }
 
 // GetHostInterconnectIfName returns the name of the TAP/AF_PACKET interface
 // interconnecting VPP with the host stack.
-func (plugin *Plugin) GetHostInterconnectIfName() string {
-	return plugin.cniServer.GetHostInterconnectIfName()
+func (p *Plugin) GetHostInterconnectIfName() string {
+	return p.cniServer.GetHostInterconnectIfName()
 }
 
 // GetVxlanBVIIfName returns the name of an BVI interface facing towards VXLAN tunnels to other hosts.
 // Returns an empty string if VXLAN is not used (in L2 interconnect mode).
-func (plugin *Plugin) GetVxlanBVIIfName() string {
-	return plugin.cniServer.GetVxlanBVIIfName()
+func (p *Plugin) GetVxlanBVIIfName() string {
+	return p.cniServer.GetVxlanBVIIfName()
 }
 
 // GetDefaultInterface returns the name and the IP address of the interface
 // used by the default route to send packets out from VPP towards the default gateway.
 // If the default GW is not configured, the function returns zero values.
-func (plugin *Plugin) GetDefaultInterface() (ifName string, ifAddress net.IP) {
-	return plugin.cniServer.GetDefaultInterface()
+func (p *Plugin) GetDefaultInterface() (ifName string, ifAddress net.IP) {
+	return p.cniServer.GetDefaultInterface()
 }
 
 // RegisterPodPreRemovalHook allows to register callback that will be run for each
 // pod immediately before its removal.
-func (plugin *Plugin) RegisterPodPreRemovalHook(hook PodActionHook) {
-	plugin.cniServer.RegisterPodPreRemovalHook(hook)
+func (p *Plugin) RegisterPodPreRemovalHook(hook PodActionHook) {
+	p.cniServer.RegisterPodPreRemovalHook(hook)
 }
 
 // RegisterPodPostAddHook allows to register callback that will be run for each
 // pod once it is added and before the CNI reply is sent.
-func (plugin *Plugin) RegisterPodPostAddHook(hook PodActionHook) {
-	plugin.cniServer.RegisterPodPostAddHook(hook)
+func (p *Plugin) RegisterPodPostAddHook(hook PodActionHook) {
+	p.cniServer.RegisterPodPostAddHook(hook)
 }
 
 // GetMainVrfID returns the ID of the main network connectivity VRF.
-func (plugin *Plugin) GetMainVrfID() uint32 {
-	return plugin.cniServer.GetMainVrfID()
+func (p *Plugin) GetMainVrfID() uint32 {
+	return p.cniServer.GetMainVrfID()
 }
 
 // GetPodVrfID returns the ID of the POD VRF.
-func (plugin *Plugin) GetPodVrfID() uint32 {
-	return plugin.cniServer.GetPodVrfID()
-}
-
-// handleResync handles resync events of the plugin. Called automatically by the plugin infra.
-func (plugin *Plugin) handleResync(resyncChan <-chan resync.StatusEvent) {
-	for {
-		select {
-		case ev := <-resyncChan:
-			status := ev.ResyncStatus()
-			if status == resync.Started {
-				err := plugin.cniServer.resync()
-				if err != nil {
-					plugin.Log.Error(err)
-				}
-			}
-			ev.Ack()
-		case <-plugin.ctx.Done():
-			return
-		}
-	}
+func (p *Plugin) GetPodVrfID() uint32 {
+	return p.cniServer.GetPodVrfID()
 }
 
 // loadExternalConfig attempts to load external configuration from a YAML file.
-func (plugin *Plugin) loadExternalConfig() error {
+func (p *Plugin) loadExternalConfig() error {
 	externalCfg := &Config{}
-	found, err := plugin.Cfg.LoadValue(externalCfg) // It tries to lookup `PluginName + "-config"` in the executable arguments.
+	found, err := p.Cfg.LoadValue(externalCfg) // It tries to lookup `PluginName + "-config"` in the executable arguments.
 	if err != nil {
 		return fmt.Errorf("External Contiv plugin configuration could not load or other problem happened: %v", err)
 	}
@@ -403,168 +353,149 @@ func (plugin *Plugin) loadExternalConfig() error {
 		return fmt.Errorf("External Contiv plugin configuration was not found")
 	}
 
-	plugin.Config = externalCfg
-	plugin.Log.Info("Contiv config: ", externalCfg)
-	err = plugin.Config.ApplyIPAMConfig()
+	p.Config = externalCfg
+	p.Log.Info("Contiv config: ", externalCfg)
+	err = p.Config.ApplyIPAMConfig()
 	if err != nil {
 		return err
 	}
-	plugin.Config.ApplyDefaults()
+	p.Config.ApplyDefaults()
 
 	return nil
 }
 
 // loadNodeConfig loads config specific for this node (given by its agent label).
-func (plugin *Plugin) loadNodeConfig() *NodeConfig {
-	myNodeName := plugin.ServiceLabel.GetAgentLabel()
+func (p *Plugin) loadNodeConfig() *NodeConfig {
+	myNodeName := p.ServiceLabel.GetAgentLabel()
 	// first try to get node config from CRD, reflected by contiv-crd into etcd
 	// and mirrored into Bolt by us
-	nodeConfig := LoadNodeConfigFromCRD(myNodeName, plugin.ETCD, plugin.Bolt, plugin.Log)
+	nodeConfig := LoadNodeConfigFromCRD(myNodeName, p.ETCD, p.Bolt, p.Log)
 	if nodeConfig != nil {
 		return nodeConfig
 	}
 	// try to find the node-specific configuration inside the config file
-	return plugin.Config.GetNodeConfig(myNodeName)
+	return p.Config.GetNodeConfig(myNodeName)
 }
 
-// getContainerConfig returns the configuration of the container associated with the given POD name.
-func (plugin *Plugin) getContainerConfig(podNamespace string, podName string) *container.Persisted {
-	podNamesMatch := plugin.configuredContainers.LookupPodName(podName)
-	podNamespacesMatch := plugin.configuredContainers.LookupPodNamespace(podNamespace)
-
-	for _, pod1 := range podNamespacesMatch {
-		for _, pod2 := range podNamesMatch {
-			if pod1 == pod2 {
-				data, found := plugin.configuredContainers.LookupContainer(pod1)
-				if found {
-					return data
-				}
-			}
-		}
+func (p *Plugin) getStolenInterfaceInfo(ifName string) (reply *stn_grpc.STNReply, err error) {
+	// connect to STN GRPC server
+	if p.Config.STNSocketFile == "" {
+		p.Config.STNSocketFile = defaultSTNSocketFile
 	}
+	conn, err := grpc.Dial(
+		p.Config.STNSocketFile,
+		grpc.WithInsecure(),
+		grpc.WithDialer(
+			func(addr string, timeout time.Duration) (net.Conn, error) {
+				return net.DialTimeout("unix", addr, timeout)
+			}),
+	)
+	if err != nil {
+		p.Log.Errorf("Unable to connect to STN GRPC: %v", err)
+		return
+	}
+	defer conn.Close()
+	c := stn_grpc.NewSTNClient(conn)
 
-	return nil
+	// request info about the stolen interface
+	return c.StolenInterfaceInfo(context.Background(), &stn_grpc.STNRequest{
+		InterfaceName: ifName,
+	})
 }
 
-func (plugin *Plugin) watchEvents() {
+func (p *Plugin) watchEvents() {
 	for {
 		select {
-		case newIP := <-plugin.nodeIPWatcher:
-			if newIP != "" {
-				err := plugin.nodeIDAllocator.updateIP(newIP)
+		case newIP := <-p.nodeIPWatcher:
+			if newIP != nil {
+				err := p.nodeIDAllocator.updateIP(newIP)
 				if err != nil {
-					plugin.Log.Error(err)
+					p.Log.Error(err)
 				}
 			}
-		case changeEv := <-plugin.changeCh:
-			var err error
-			for _, dataChng := range changeEv.GetChanges() {
-				key := dataChng.GetKey()
-				if strings.HasPrefix(key, protoNode.KeyPrefix()) {
-					chngErr := plugin.handleKsrNodeChange(dataChng)
-					if chngErr != nil {
-						err = chngErr
-					}
-				} else {
-					plugin.Log.Warn("Change for unknown key %v received", key)
-				}
-			}
-			changeEv.Done(err)
-		case resyncEv := <-plugin.resyncCh:
-			var err error
-			data := resyncEv.GetValues()
 
-			for prefix, it := range data {
-				if prefix == protoNode.KeyPrefix() {
-					err = plugin.handleKsrNodeResync(it)
-				}
+		case changeEv := <-p.changeCh:
+			// delay processing of changes before the first resync
+			if p.resyncCounter == 0 {
+				p.pendingChanges = append(p.pendingChanges, changeEv)
+				p.Log.WithField("keys", dataChangeEvKeys(changeEv)).Info("Delaying data-change")
+				changeEv.Done(nil)
+			} else {
+				p.processChangeEv(changeEv)
 			}
+
+		case resyncEv := <-p.resyncCh:
+			var err error
+			p.resyncCounter++
+			resyncEventData := ParseResyncEvent(resyncEv, p.k8sStateData)
+			p.Log.Infof("Resync event: %s", resyncEventData.String())
+
+			resyncErr := p.thisNodeResync(resyncEventData)
+			if resyncErr != nil {
+				err = resyncErr
+			}
+
+			resyncErr = p.cniServer.Resync(resyncEventData)
+			if resyncErr != nil {
+				err = resyncErr
+			}
+
 			resyncEv.Done(err)
-		case <-plugin.ctx.Done():
-		}
-	}
-}
 
-// handleKsrNodeChange handles change event for the prefix where node data
-// is stored by ksr. The aim is to extract node Internal IP - ip address
-// that k8s use to access node(management IP). This IP is used as an endpoint
-// for services where backends use host networking.
-func (plugin *Plugin) handleKsrNodeChange(change datasync.ProtoWatchResp) error {
-	var err error
-	// look for our InternalIP skip the others
-	if change.GetKey() != protoNode.Key(plugin.ServiceLabel.GetAgentLabel()) {
-		return nil
-	}
-	if change.GetChangeType() == datasync.Delete {
-		plugin.Log.Warn("Unexpected delete for node data received")
-		return nil
-	}
-	value := &protoNode.Node{}
-	err = change.GetValue(value)
-	if err != nil {
-		plugin.Log.Error(err)
-		return err
-	}
-	var k8sIPs []string
-	for i := range value.Addresses {
-		if value.Addresses[i].Type == protoNode.NodeAddress_NodeInternalIP ||
-			value.Addresses[i].Type == protoNode.NodeAddress_NodeExternalIP {
-			k8sIPs = appendIfMissing(k8sIPs, value.Addresses[i].Address)
-		}
-	}
-	if len(k8sIPs) > 0 {
-		ips := strings.Join(k8sIPs, MgmtIPSeparator)
-		plugin.Log.Info("Management IP of the node is ", ips)
-		return plugin.nodeIDAllocator.updateManagementIP(ips)
-	}
-
-	plugin.Log.Warn("Internal IP of the node is missing in ETCD.")
-
-	return err
-}
-
-// handleKsrNodeResync handles resync event for the prefix where node data
-// is stored by ksr. The aim is to extract node Internal IP - ip address
-// that k8s use to access node(management IP). This IP is used as an endpoint
-// for services where backends use host networking.
-func (plugin *Plugin) handleKsrNodeResync(it datasync.KeyValIterator) error {
-	var err error
-	for {
-		kv, stop := it.GetNext()
-		if stop {
-			break
-		}
-		value := &protoNode.Node{}
-		err = kv.GetValue(value)
-		if err != nil {
-			return err
-		}
-
-		if value.Name == plugin.ServiceLabel.GetAgentLabel() {
-			var k8sIPs []string
-			for i := range value.Addresses {
-				if value.Addresses[i].Type == protoNode.NodeAddress_NodeInternalIP ||
-					value.Addresses[i].Type == protoNode.NodeAddress_NodeExternalIP {
-					k8sIPs = appendIfMissing(k8sIPs, value.Addresses[i].Address)
-				}
+			// apply pending changes
+			for _, dataChngEv := range p.pendingChanges {
+				p.Log.WithField("keys", dataChangeEvKeys(dataChngEv)).Info("Applying delayed data-changes")
+				p.processChangeEv(dataChngEv)
 			}
-			if len(k8sIPs) > 0 {
-				ips := strings.Join(k8sIPs, MgmtIPSeparator)
-				plugin.Log.Info("Internal IP of the node is ", ips)
-				return plugin.nodeIDAllocator.updateManagementIP(ips)
+			p.pendingChanges = []datasync.ChangeEvent{}
+
+		case <-p.ctx.Done():
+		}
+	}
+}
+
+func (p *Plugin) processChangeEv(changeEv datasync.ChangeEvent) {
+	var err error
+	for _, dataChng := range changeEv.GetChanges() {
+		key := dataChng.GetKey()
+		p.Log.Debug("Received CHANGE key ", key)
+
+		if prevRev, hasPrevRev := p.k8sStateData[key]; hasPrevRev {
+			if prevRev.GetRevision() >= dataChng.GetRevision() {
+				p.Log.Debugf("Ignoring already processed revision for key=%s", key)
+				continue
 			}
 		}
-		plugin.Log.Debug("Internal IP of the node is not in ETCD yet.")
+		p.k8sStateData[key] = dataChng
+
+		updateErr := p.processThisNodeChangeEvent(dataChng)
+		if updateErr != nil {
+			err = updateErr
+		}
+
+		updateErr = p.cniServer.Update(dataChng)
+		if updateErr != nil {
+			err = updateErr
+		}
 	}
-	return err
+	changeEv.Done(err)
 }
 
-func (plugin *Plugin) excludedIPsFromNodeCIDR() []net.IP {
-	if plugin.Config == nil {
+// resyncReqHandler is here temporarily to test run-time resync.
+func (p *Plugin) resyncReqHandler(formatter *render.Render) http.HandlerFunc {
+	return func(w http.ResponseWriter, req *http.Request) {
+		p.Log.Info("Triggering run-time resync")
+		p.Resync.DoResync()
+		formatter.JSON(w, http.StatusOK, "Resync has started...")
+	}
+}
+
+func (p *Plugin) excludedIPsFromNodeCIDR() []net.IP {
+	if p.Config == nil {
 		return nil
 	}
 	var excludedIPs []string
-	for _, oneNodeConfig := range plugin.Config.NodeConfig {
+	for _, oneNodeConfig := range p.Config.NodeConfig {
 		if oneNodeConfig.Gateway == "" {
 			continue
 		}
@@ -575,7 +506,59 @@ func (plugin *Plugin) excludedIPsFromNodeCIDR() []net.IP {
 		res = append(res, net.ParseIP(ip))
 	}
 	return res
+}
 
+// dumpPhysicalInterfaces dumps physical interfaces present on VPP.
+func (p *Plugin) dumpPhysicalInterfaces() (ifaces map[uint32]string, err error) {
+	ifaces = make(map[uint32]string)
+	ifHandler := intf_vppcalls.NewIfVppHandler(p.govppCh, p.Log)
+
+	// TODO: when supported dump also VMXNET3 interfaces (?)
+
+	dump, err := ifHandler.DumpInterfacesByType(vpp_intf.Interface_ETHERNET_CSMACD)
+	if err != nil {
+		return ifaces, err
+	}
+
+	for ifIdx, iface := range dump {
+		ifaces[ifIdx] = iface.Interface.Name
+	}
+	return ifaces, err
+}
+
+// getHostLinkIPs returns all IP addresses assigned to physical interfaces in the host
+// network stack.
+func (p *Plugin) getHostLinkIPs() (hostIPs []net.IP, err error) {
+	links, err := netlink.LinkList()
+	if err != nil {
+		p.Log.Error("Unable to list host links:", err)
+		return hostIPs, err
+	}
+
+	for _, l := range links {
+		if !strings.HasPrefix(l.Attrs().Name, "lo") && !strings.HasPrefix(l.Attrs().Name, "docker") &&
+			!strings.HasPrefix(l.Attrs().Name, "virbr") && !strings.HasPrefix(l.Attrs().Name, "vpp") {
+			// not a virtual interface, list its IP addresses
+			addrList, err := netlink.AddrList(l, netlink.FAMILY_V4)
+			if err != nil {
+				p.Log.Error("Unable to list link IPs:", err)
+				return hostIPs, err
+			}
+			// return all IPs
+			for _, addr := range addrList {
+				hostIPs = append(hostIPs, addr.IP)
+			}
+		}
+	}
+	return hostIPs, nil
+}
+
+// dataChangeEvKeys collects all keys included in a data change event.
+func dataChangeEvKeys(changeEv datasync.ChangeEvent) (keys []string) {
+	for _, change := range changeEv.GetChanges() {
+		keys = append(keys, change.GetKey())
+	}
+	return
 }
 
 func appendIfMissing(slice []string, s string) []string {

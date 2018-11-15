@@ -49,15 +49,6 @@ const (
 	OtherIfName2    = "GbE3"
 	vxlanIfName     = "VXLAN-BVI"
 	hostInterIfName = "VPP-Host"
-	nodeIP          = "192.168.16.10"
-	mgmtIP          = "172.30.1.1"
-	otherIfIP       = "192.168.17.10"
-	otherIfIP2      = "192.168.18.10"
-	nodePrefix      = "/24"
-
-	// worker
-	workerIP     = "192.168.16.20"
-	workerMgmtIP = "172.30.1.2"
 
 	podNetwork    = "10.1.0.0/16"
 	natLoopbackIP = "10.1.255.254"
@@ -69,13 +60,23 @@ const (
 )
 
 var (
+	// master
+	nodeIP = ipNet("192.168.16.10/24")
+	mgmtIP = net.ParseIP("172.30.1.1")
+
+	// workers
+	workerIP     = ipNet("192.168.16.20/24")
+	otherIfIP    = net.ParseIP("192.168.17.10")
+	workerMgmtIP = net.ParseIP("172.30.1.2")
+
+	// pods
 	pod1 = podmodel.ID{Name: "pod1", Namespace: namespace1}
 	pod2 = podmodel.ID{Name: "pod2", Namespace: namespace1}
 	pod3 = podmodel.ID{Name: "pod3", Namespace: namespace2}
 
-	pod1IP = "10.1.1.3"
-	pod2IP = "10.1.1.4"
-	pod3IP = "10.2.1.1"
+	pod1IP = net.ParseIP("10.1.1.3")
+	pod2IP = net.ParseIP("10.1.1.4")
+	pod3IP = net.ParseIP("10.2.1.1")
 
 	pod1If = "master-tap1"
 	pod2If = "master-tap2"
@@ -83,19 +84,19 @@ var (
 	pod1Model = &podmodel.Pod{
 		Name:      pod1.Name,
 		Namespace: pod1.Namespace,
-		IpAddress: pod1IP,
+		IpAddress: pod1IP.String(),
 	}
 
 	pod2Model = &podmodel.Pod{
 		Name:      pod2.Name,
 		Namespace: pod2.Namespace,
-		IpAddress: pod2IP,
+		IpAddress: pod2IP.String(),
 	}
 
 	pod3Model = &podmodel.Pod{
 		Name:      pod3.Name,
 		Namespace: pod3.Namespace,
-		IpAddress: pod3IP,
+		IpAddress: pod3IP.String(),
 	}
 )
 
@@ -103,11 +104,17 @@ var (
 	keyPrefixes = []string{epmodel.KeyPrefix(), podmodel.KeyPrefix(), svcmodel.KeyPrefix(), nodemodel.AllocatedIDsKeyPrefix}
 )
 
+func ipNet(address string) *net.IPNet {
+	ip, network, _ := net.ParseCIDR(address)
+	network.IP = ip
+	return network
+}
+
 func TestResyncAndSingleService(t *testing.T) {
 	RegisterTestingT(t)
 	logger := logrus.DefaultLogger()
 	logger.SetLevel(logging.DebugLevel)
-	logger.Debug("TestSomething")
+	logger.Debug("TestResyncAndSingleService")
 
 	// Prepare mocks.
 	//  -> Contiv plugin
@@ -116,18 +123,18 @@ func TestResyncAndSingleService(t *testing.T) {
 	const localEndpointWeight uint8 = 1
 	contiv.SetServiceLocalEndpointWeight(localEndpointWeight)
 	contiv.SetSTNMode(false)
-	contiv.SetNodeIP(nodeIP + nodePrefix)
-	contiv.SetDefaultInterface(mainIfName, net.ParseIP(nodeIP))
+	contiv.SetNodeIP(nodeIP)
+	contiv.SetDefaultInterface(mainIfName, nodeIP.IP)
 	contiv.SetMainPhysicalIfName(mainIfName)
 	contiv.SetVxlanBVIIfName(vxlanIfName)
 	contiv.SetHostInterconnectIfName(hostInterIfName)
-	contiv.SetPodNetwork(podNetwork)
+	contiv.SetPodSubnet(podNetwork)
 	contiv.SetNatLoopbackIP(natLoopbackIP)
 	contiv.SetPodIfName(pod1, pod1If)
 	contiv.SetPodIfName(pod2, pod2If)
 	contiv.SetMainVrfID(mainVrfID)
 	contiv.SetPodVrfID(podVrfID)
-	contiv.SetHostIPs([]net.IP{net.ParseIP(nodeIP), net.ParseIP(mgmtIP)})
+	contiv.SetHostIPs([]net.IP{nodeIP.IP, mgmtIP})
 
 	// -> NAT plugin
 	natPlugin := NewMockNatPlugin(logger)
@@ -171,7 +178,7 @@ func TestResyncAndSingleService(t *testing.T) {
 	Expect(natPlugin.IsForwardingEnabled()).To(BeTrue())
 
 	Expect(natPlugin.AddressPoolSize()).To(Equal(1))
-	Expect(natPlugin.PoolContainsAddress(nodeIP)).To(BeTrue())
+	Expect(natPlugin.PoolContainsAddress(nodeIP.IP)).To(BeTrue())
 	Expect(natPlugin.TwiceNatPoolSize()).To(Equal(1))
 	Expect(natPlugin.TwiceNatPoolContainsAddress(natLoopbackIP)).To(BeTrue())
 
@@ -183,19 +190,19 @@ func TestResyncAndSingleService(t *testing.T) {
 	Expect(natPlugin.NumOfStaticMappings()).To(Equal(0))
 
 	vxlanID := &IdentityMapping{
-		IP:       net.ParseIP(nodeIP),
+		IP:       nodeIP.IP,
 		Protocol: svc_renderer.UDP,
 		Port:     4789,
 		VrfID:    mainVrfID,
 	}
 	mainIfID1 := &IdentityMapping{
-		IP:       net.ParseIP(nodeIP),
+		IP:       nodeIP.IP,
 		Protocol: svc_renderer.UDP,
 		Port:     0,
 		VrfID:    mainVrfID,
 	}
 	mainIfID2 := &IdentityMapping{
-		IP:       net.ParseIP(nodeIP),
+		IP:       nodeIP.IP,
 		Protocol: svc_renderer.UDP,
 		Port:     0,
 		VrfID:    podVrfID,
@@ -230,7 +237,7 @@ func TestResyncAndSingleService(t *testing.T) {
 	Expect(natPlugin.IsForwardingEnabled()).To(BeTrue())
 
 	Expect(natPlugin.AddressPoolSize()).To(Equal(1))
-	Expect(natPlugin.PoolContainsAddress(nodeIP)).To(BeTrue())
+	Expect(natPlugin.PoolContainsAddress(nodeIP.IP)).To(BeTrue())
 	Expect(natPlugin.TwiceNatPoolSize()).To(Equal(1))
 	Expect(natPlugin.TwiceNatPoolContainsAddress(natLoopbackIP)).To(BeTrue())
 
@@ -256,7 +263,7 @@ func TestResyncAndSingleService(t *testing.T) {
 	// First check what should not have changed.
 	Expect(natPlugin.IsForwardingEnabled()).To(BeTrue())
 	Expect(natPlugin.AddressPoolSize()).To(Equal(1))
-	Expect(natPlugin.PoolContainsAddress(nodeIP)).To(BeTrue())
+	Expect(natPlugin.PoolContainsAddress(nodeIP.IP)).To(BeTrue())
 	Expect(natPlugin.TwiceNatPoolSize()).To(Equal(1))
 	Expect(natPlugin.TwiceNatPoolContainsAddress(natLoopbackIP)).To(BeTrue())
 	Expect(natPlugin.NumOfStaticMappings()).To(Equal(0))
@@ -281,7 +288,7 @@ func TestResyncAndSingleService(t *testing.T) {
 			{
 				Addresses: []*epmodel.EndpointSubset_EndpointAddress{
 					{
-						Ip:       pod1IP,
+						Ip:       pod1IP.String(),
 						NodeName: masterLabel,
 						TargetRef: &epmodel.ObjectReference{
 							Kind:      "Pod",
@@ -290,7 +297,7 @@ func TestResyncAndSingleService(t *testing.T) {
 						},
 					},
 					{
-						Ip:       pod2IP,
+						Ip:       pod2IP.String(),
 						NodeName: masterLabel,
 						TargetRef: &epmodel.ObjectReference{
 							Kind:      "Pod",
@@ -316,7 +323,7 @@ func TestResyncAndSingleService(t *testing.T) {
 	// First check what should not have changed.
 	Expect(natPlugin.IsForwardingEnabled()).To(BeTrue())
 	Expect(natPlugin.AddressPoolSize()).To(Equal(1))
-	Expect(natPlugin.PoolContainsAddress(nodeIP)).To(BeTrue())
+	Expect(natPlugin.PoolContainsAddress(nodeIP.IP)).To(BeTrue())
 	Expect(natPlugin.TwiceNatPoolSize()).To(Equal(1))
 	Expect(natPlugin.TwiceNatPoolContainsAddress(natLoopbackIP)).To(BeTrue())
 	Expect(natPlugin.NumOfIdentityMappings()).To(Equal(3))
@@ -341,13 +348,13 @@ func TestResyncAndSingleService(t *testing.T) {
 		Locals: []*Local{
 			{
 				VrfID:       podVrfID,
-				IP:          net.ParseIP(pod1IP),
+				IP:          pod1IP,
 				Port:        8080,
 				Probability: localEndpointWeight,
 			},
 			{
 				VrfID:       podVrfID,
-				IP:          net.ParseIP(pod2IP),
+				IP:          pod2IP,
 				Port:        8080,
 				Probability: localEndpointWeight,
 			},
@@ -356,6 +363,7 @@ func TestResyncAndSingleService(t *testing.T) {
 	Expect(natPlugin.HasStaticMapping(staticMapping1)).To(BeTrue())
 	staticMapping2 := staticMapping1.Copy()
 	staticMapping2.ExternalIP = net.ParseIP("20.20.20.20")
+	staticMapping2.TwiceNAT = true
 	Expect(natPlugin.HasStaticMapping(staticMapping2)).To(BeTrue())
 
 	// Change port number for pod2.
@@ -366,7 +374,7 @@ func TestResyncAndSingleService(t *testing.T) {
 			{
 				Addresses: []*epmodel.EndpointSubset_EndpointAddress{
 					{
-						Ip:       pod1IP,
+						Ip:       pod1IP.String(),
 						NodeName: masterLabel,
 						TargetRef: &epmodel.ObjectReference{
 							Kind:      "Pod",
@@ -386,7 +394,7 @@ func TestResyncAndSingleService(t *testing.T) {
 			{
 				Addresses: []*epmodel.EndpointSubset_EndpointAddress{
 					{
-						Ip:       pod2IP,
+						Ip:       pod2IP.String(),
 						NodeName: masterLabel,
 						TargetRef: &epmodel.ObjectReference{
 							Kind:      "Pod",
@@ -412,7 +420,7 @@ func TestResyncAndSingleService(t *testing.T) {
 	// First check what should not have changed.
 	Expect(natPlugin.IsForwardingEnabled()).To(BeTrue())
 	Expect(natPlugin.AddressPoolSize()).To(Equal(1))
-	Expect(natPlugin.PoolContainsAddress(nodeIP)).To(BeTrue())
+	Expect(natPlugin.PoolContainsAddress(nodeIP.IP)).To(BeTrue())
 	Expect(natPlugin.TwiceNatPoolSize()).To(Equal(1))
 	Expect(natPlugin.TwiceNatPoolContainsAddress(natLoopbackIP)).To(BeTrue())
 	Expect(natPlugin.NumOfIdentityMappings()).To(Equal(3))
@@ -434,7 +442,7 @@ func TestResyncAndSingleService(t *testing.T) {
 	// NAT configuration without the service.
 	Expect(natPlugin.IsForwardingEnabled()).To(BeTrue())
 	Expect(natPlugin.AddressPoolSize()).To(Equal(1))
-	Expect(natPlugin.PoolContainsAddress(nodeIP)).To(BeTrue())
+	Expect(natPlugin.PoolContainsAddress(nodeIP.IP)).To(BeTrue())
 	Expect(natPlugin.TwiceNatPoolSize()).To(Equal(1))
 	Expect(natPlugin.TwiceNatPoolContainsAddress(natLoopbackIP)).To(BeTrue())
 	Expect(natPlugin.NumOfStaticMappings()).To(Equal(0))
@@ -467,18 +475,18 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 	const localEndpointWeight uint8 = 2
 	contiv.SetServiceLocalEndpointWeight(localEndpointWeight)
 	contiv.SetSTNMode(false)
-	contiv.SetNodeIP(nodeIP + nodePrefix)
-	contiv.SetDefaultInterface(mainIfName, net.ParseIP(nodeIP))
+	contiv.SetNodeIP(nodeIP)
+	contiv.SetDefaultInterface(mainIfName, nodeIP.IP)
 	contiv.SetMainPhysicalIfName(mainIfName)
 	contiv.SetVxlanBVIIfName(vxlanIfName)
 	contiv.SetHostInterconnectIfName(hostInterIfName)
-	contiv.SetPodNetwork(podNetwork)
+	contiv.SetPodSubnet(podNetwork)
 	contiv.SetNatLoopbackIP(natLoopbackIP)
 	contiv.SetPodIfName(pod1, pod1If)
 	contiv.SetPodIfName(pod2, pod2If)
 	contiv.SetMainVrfID(mainVrfID)
 	contiv.SetPodVrfID(podVrfID)
-	contiv.SetHostIPs([]net.IP{net.ParseIP(nodeIP), net.ParseIP(mgmtIP)})
+	contiv.SetHostIPs([]net.IP{nodeIP.IP, mgmtIP})
 
 	// -> NAT plugin
 	natPlugin := NewMockNatPlugin(logger)
@@ -586,7 +594,7 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 	Expect(natPlugin.IsForwardingEnabled()).To(BeTrue())
 
 	Expect(natPlugin.AddressPoolSize()).To(Equal(1))
-	Expect(natPlugin.PoolContainsAddress(nodeIP)).To(BeTrue())
+	Expect(natPlugin.PoolContainsAddress(nodeIP.IP)).To(BeTrue())
 	Expect(natPlugin.TwiceNatPoolSize()).To(Equal(1))
 	Expect(natPlugin.TwiceNatPoolContainsAddress(natLoopbackIP)).To(BeTrue())
 
@@ -600,19 +608,19 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 	Expect(natPlugin.NumOfStaticMappings()).To(Equal(0))
 
 	vxlanID := &IdentityMapping{
-		IP:       net.ParseIP(nodeIP),
+		IP:       nodeIP.IP,
 		Protocol: svc_renderer.UDP,
 		Port:     4789,
 		VrfID:    mainVrfID,
 	}
 	mainIfID1 := &IdentityMapping{
-		IP:       net.ParseIP(nodeIP),
+		IP:       nodeIP.IP,
 		Protocol: svc_renderer.UDP,
 		Port:     0,
 		VrfID:    mainVrfID,
 	}
 	mainIfID2 := &IdentityMapping{
-		IP:       net.ParseIP(nodeIP),
+		IP:       nodeIP.IP,
 		Protocol: svc_renderer.UDP,
 		Port:     0,
 		VrfID:    podVrfID,
@@ -630,7 +638,7 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 			{
 				Addresses: []*epmodel.EndpointSubset_EndpointAddress{
 					{
-						Ip:       pod1IP,
+						Ip:       pod1IP.String(),
 						NodeName: masterLabel,
 						TargetRef: &epmodel.ObjectReference{
 							Kind:      "Pod",
@@ -639,7 +647,7 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 						},
 					},
 					{
-						Ip:       pod2IP,
+						Ip:       pod2IP.String(),
 						NodeName: masterLabel,
 						TargetRef: &epmodel.ObjectReference{
 							Kind:      "Pod",
@@ -671,7 +679,7 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 			{
 				Addresses: []*epmodel.EndpointSubset_EndpointAddress{
 					{
-						Ip:       pod1IP,
+						Ip:       pod1IP.String(),
 						NodeName: masterLabel,
 						TargetRef: &epmodel.ObjectReference{
 							Kind:      "Pod",
@@ -696,7 +704,7 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 			{
 				Addresses: []*epmodel.EndpointSubset_EndpointAddress{
 					{
-						Ip:       pod3IP,
+						Ip:       pod3IP.String(),
 						NodeName: workerLabel,
 						TargetRef: &epmodel.ObjectReference{
 							Kind:      "Pod",
@@ -729,7 +737,7 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 	// First check what should not have changed.
 	Expect(natPlugin.IsForwardingEnabled()).To(BeTrue())
 	Expect(natPlugin.AddressPoolSize()).To(Equal(1))
-	Expect(natPlugin.PoolContainsAddress(nodeIP)).To(BeTrue())
+	Expect(natPlugin.PoolContainsAddress(nodeIP.IP)).To(BeTrue())
 	Expect(natPlugin.TwiceNatPoolSize()).To(Equal(1))
 	Expect(natPlugin.TwiceNatPoolContainsAddress(natLoopbackIP)).To(BeTrue())
 	Expect(natPlugin.NumOfIdentityMappings()).To(Equal(3))
@@ -754,13 +762,13 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 		Locals: []*Local{
 			{
 				VrfID:       podVrfID,
-				IP:          net.ParseIP(pod1IP),
+				IP:          pod1IP,
 				Port:        8080,
 				Probability: localEndpointWeight,
 			},
 			{
 				VrfID:       podVrfID,
-				IP:          net.ParseIP(pod2IP),
+				IP:          pod2IP,
 				Port:        8080,
 				Probability: localEndpointWeight,
 			},
@@ -773,13 +781,13 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 		Locals: []*Local{
 			{
 				VrfID:       podVrfID,
-				IP:          net.ParseIP(pod1IP),
+				IP:          pod1IP,
 				Port:        8443,
 				Probability: localEndpointWeight,
 			},
 			{
 				VrfID:       podVrfID,
-				IP:          net.ParseIP(pod2IP),
+				IP:          pod2IP,
 				Port:        8443,
 				Probability: localEndpointWeight,
 			},
@@ -789,8 +797,10 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 	Expect(natPlugin.HasStaticMapping(staticMappingHTTPS)).To(BeTrue())
 	staticMappingHTTP2 := staticMappingHTTP.Copy()
 	staticMappingHTTP2.ExternalIP = net.ParseIP("20.20.20.20")
+	staticMappingHTTP2.TwiceNAT = true
 	staticMappingHTTPS2 := staticMappingHTTPS.Copy()
 	staticMappingHTTPS2.ExternalIP = net.ParseIP("20.20.20.20")
+	staticMappingHTTPS2.TwiceNAT = true
 	Expect(natPlugin.HasStaticMapping(staticMappingHTTP2)).To(BeTrue())
 	Expect(natPlugin.HasStaticMapping(staticMappingHTTPS2)).To(BeTrue())
 
@@ -802,13 +812,13 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 		Locals: []*Local{
 			{
 				VrfID:       podVrfID,
-				IP:          net.ParseIP(pod1IP),
+				IP:          pod1IP,
 				Port:        10053,
 				Probability: localEndpointWeight,
 			},
 			{
 				VrfID:       podVrfID,
-				IP:          net.ParseIP(pod3IP),
+				IP:          pod3IP,
 				Port:        53,
 				Probability: 1,
 			},
@@ -821,13 +831,13 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 		Locals: []*Local{
 			{
 				VrfID:       podVrfID,
-				IP:          net.ParseIP(pod1IP),
+				IP:          pod1IP,
 				Port:        10053,
 				Probability: localEndpointWeight,
 			},
 			{
 				VrfID:       podVrfID,
-				IP:          net.ParseIP(pod3IP),
+				IP:          pod3IP,
 				Port:        53,
 				Probability: 1,
 			},
@@ -843,8 +853,8 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 	masterNode := &nodemodel.NodeInfo{
 		Id:                  1,
 		Name:                masterLabel,
-		IpAddress:           nodeIP + nodePrefix,
-		ManagementIpAddress: mgmtIP,
+		IpAddress:           nodeIP.String(),
+		ManagementIpAddress: mgmtIP.String(),
 	}
 
 	dataChange8 := datasync.Put(nodemodel.AllocatedIDsKeyPrefix+strconv.FormatUint(uint64(masterNode.Id), 10), masterNode)
@@ -853,7 +863,7 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 	// First check what should not have changed.
 	Expect(natPlugin.IsForwardingEnabled()).To(BeTrue())
 	Expect(natPlugin.AddressPoolSize()).To(Equal(1))
-	Expect(natPlugin.PoolContainsAddress(nodeIP)).To(BeTrue())
+	Expect(natPlugin.PoolContainsAddress(nodeIP.IP)).To(BeTrue())
 	Expect(natPlugin.TwiceNatPoolSize()).To(Equal(1))
 	Expect(natPlugin.TwiceNatPoolContainsAddress(natLoopbackIP)).To(BeTrue())
 	Expect(natPlugin.NumOfIdentityMappings()).To(Equal(3))
@@ -875,38 +885,38 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 
 	// New static mappings for the https nodeport.
 	staticMappingHTTPSNodeIP := &StaticMapping{
-		ExternalIP:   net.ParseIP(nodeIP),
+		ExternalIP:   nodeIP.IP,
 		ExternalPort: 30443,
 		Protocol:     svc_renderer.TCP,
 		Locals: []*Local{
 			{
 				VrfID:       podVrfID,
-				IP:          net.ParseIP(pod1IP),
+				IP:          pod1IP,
 				Port:        8443,
 				Probability: localEndpointWeight,
 			},
 			{
 				VrfID:       podVrfID,
-				IP:          net.ParseIP(pod2IP),
+				IP:          pod2IP,
 				Port:        8443,
 				Probability: localEndpointWeight,
 			},
 		},
 	}
 	staticMappingHTTPSNodeMgmtIP := &StaticMapping{
-		ExternalIP:   net.ParseIP(mgmtIP),
+		ExternalIP:   mgmtIP,
 		ExternalPort: 30443,
 		Protocol:     svc_renderer.TCP,
 		Locals: []*Local{
 			{
 				VrfID:       podVrfID,
-				IP:          net.ParseIP(pod1IP),
+				IP:          pod1IP,
 				Port:        8443,
 				Probability: localEndpointWeight,
 			},
 			{
 				VrfID:       podVrfID,
-				IP:          net.ParseIP(pod2IP),
+				IP:          pod2IP,
 				Port:        8443,
 				Probability: localEndpointWeight,
 			},
@@ -921,8 +931,8 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 	workerNode := &nodemodel.NodeInfo{
 		Id:                  2,
 		Name:                workerLabel,
-		IpAddress:           workerIP + nodePrefix,
-		ManagementIpAddress: workerMgmtIP,
+		IpAddress:           workerIP.String(),
+		ManagementIpAddress: workerMgmtIP.String(),
 	}
 
 	dataChange9 := datasync.Put(nodemodel.AllocatedIDsKeyPrefix+strconv.FormatUint(uint64(workerNode.Id), 10), workerNode)
@@ -931,7 +941,7 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 	// First check what should not have changed.
 	Expect(natPlugin.IsForwardingEnabled()).To(BeTrue())
 	Expect(natPlugin.AddressPoolSize()).To(Equal(1))
-	Expect(natPlugin.PoolContainsAddress(nodeIP)).To(BeTrue())
+	Expect(natPlugin.PoolContainsAddress(nodeIP.IP)).To(BeTrue())
 	Expect(natPlugin.TwiceNatPoolSize()).To(Equal(1))
 	Expect(natPlugin.TwiceNatPoolContainsAddress(natLoopbackIP)).To(BeTrue())
 	Expect(natPlugin.NumOfIdentityMappings()).To(Equal(3))
@@ -955,9 +965,9 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 
 	// New static mappings for the https nodeport - worker.
 	staticMappingHTTPSWorkerNodeIP := staticMappingHTTPSNodeIP.Copy()
-	staticMappingHTTPSWorkerNodeIP.ExternalIP = net.ParseIP(workerIP)
+	staticMappingHTTPSWorkerNodeIP.ExternalIP = workerIP.IP
 	staticMappingHTTPSWorkerNodeMgmtIP := staticMappingHTTPSNodeMgmtIP.Copy()
-	staticMappingHTTPSWorkerNodeMgmtIP.ExternalIP = net.ParseIP(workerMgmtIP)
+	staticMappingHTTPSWorkerNodeMgmtIP.ExternalIP = workerMgmtIP
 	Expect(natPlugin.HasStaticMapping(staticMappingHTTPSWorkerNodeIP)).To(BeTrue())
 	Expect(natPlugin.HasStaticMapping(staticMappingHTTPSWorkerNodeMgmtIP)).To(BeTrue())
 	Expect(natPlugin.NumOfStaticMappings()).To(Equal(10))
@@ -966,7 +976,7 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 	workerNode = &nodemodel.NodeInfo{
 		Id:                  2,
 		Name:                workerLabel,
-		IpAddress:           workerIP + nodePrefix,
+		IpAddress:           workerIP.String(),
 		ManagementIpAddress: "", /* removed */
 	}
 
@@ -1030,7 +1040,7 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 	Expect(natPlugin.IsForwardingEnabled()).To(BeTrue())
 
 	Expect(natPlugin.AddressPoolSize()).To(Equal(1))
-	Expect(natPlugin.PoolContainsAddress(nodeIP)).To(BeTrue())
+	Expect(natPlugin.PoolContainsAddress(nodeIP.IP)).To(BeTrue())
 	Expect(natPlugin.TwiceNatPoolSize()).To(Equal(1))
 	Expect(natPlugin.TwiceNatPoolContainsAddress(natLoopbackIP)).To(BeTrue())
 
@@ -1060,7 +1070,7 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 	// Check NAT configuration.
 	Expect(natPlugin.IsForwardingEnabled()).To(BeTrue())
 	Expect(natPlugin.AddressPoolSize()).To(Equal(1))
-	Expect(natPlugin.PoolContainsAddress(nodeIP)).To(BeTrue())
+	Expect(natPlugin.PoolContainsAddress(nodeIP.IP)).To(BeTrue())
 	Expect(natPlugin.TwiceNatPoolSize()).To(Equal(1))
 	Expect(natPlugin.TwiceNatPoolContainsAddress(natLoopbackIP)).To(BeTrue())
 	Expect(natPlugin.NumOfIdentityMappings()).To(Equal(3))
@@ -1098,17 +1108,17 @@ func TestWithVXLANButNoGateway(t *testing.T) {
 	contiv := NewMockContiv()
 	contiv.SetNatExternalTraffic(true)
 	contiv.SetSTNMode(false)
-	contiv.SetNodeIP(nodeIP + nodePrefix)
+	contiv.SetNodeIP(nodeIP)
 	contiv.SetMainPhysicalIfName(mainIfName)
 	contiv.SetVxlanBVIIfName(vxlanIfName)
 	contiv.SetHostInterconnectIfName(hostInterIfName)
-	contiv.SetPodNetwork(podNetwork)
+	contiv.SetPodSubnet(podNetwork)
 	contiv.SetNatLoopbackIP(natLoopbackIP)
 	contiv.SetPodIfName(pod1, pod1If)
 	contiv.SetPodIfName(pod2, pod2If)
 	contiv.SetMainVrfID(mainVrfID)
 	contiv.SetPodVrfID(podVrfID)
-	contiv.SetHostIPs([]net.IP{net.ParseIP(nodeIP), net.ParseIP(mgmtIP)})
+	contiv.SetHostIPs([]net.IP{nodeIP.IP, mgmtIP})
 
 	// -> NAT plugin
 	natPlugin := NewMockNatPlugin(logger)
@@ -1151,7 +1161,7 @@ func TestWithVXLANButNoGateway(t *testing.T) {
 	// Check that SNAT is NOT configured.
 	Expect(natPlugin.IsForwardingEnabled()).To(BeTrue())
 
-	Expect(natPlugin.PoolContainsAddress(nodeIP)).To(BeFalse())
+	Expect(natPlugin.PoolContainsAddress(nodeIP.IP)).To(BeFalse())
 	Expect(natPlugin.AddressPoolSize()).To(Equal(0))
 	Expect(natPlugin.TwiceNatPoolSize()).To(Equal(1))
 	Expect(natPlugin.TwiceNatPoolContainsAddress(natLoopbackIP)).To(BeTrue())
@@ -1180,17 +1190,17 @@ func TestWithoutVXLAN(t *testing.T) {
 	contiv := NewMockContiv()
 	contiv.SetNatExternalTraffic(true)
 	contiv.SetSTNMode(false)
-	contiv.SetNodeIP(nodeIP + nodePrefix)
-	contiv.SetDefaultInterface(mainIfName, net.ParseIP(nodeIP))
+	contiv.SetNodeIP(nodeIP)
+	contiv.SetDefaultInterface(mainIfName, nodeIP.IP)
 	contiv.SetMainPhysicalIfName(mainIfName)
 	contiv.SetHostInterconnectIfName(hostInterIfName)
-	contiv.SetPodNetwork(podNetwork)
+	contiv.SetPodSubnet(podNetwork)
 	contiv.SetNatLoopbackIP(natLoopbackIP)
 	contiv.SetPodIfName(pod1, pod1If)
 	contiv.SetPodIfName(pod2, pod2If)
 	contiv.SetMainVrfID(mainVrfID)
 	contiv.SetPodVrfID(podVrfID)
-	contiv.SetHostIPs([]net.IP{net.ParseIP(nodeIP), net.ParseIP(mgmtIP)})
+	contiv.SetHostIPs([]net.IP{nodeIP.IP, mgmtIP})
 
 	// -> NAT plugin
 	natPlugin := NewMockNatPlugin(logger)
@@ -1234,7 +1244,7 @@ func TestWithoutVXLAN(t *testing.T) {
 	// Check that SNAT is NOT configured.
 	Expect(natPlugin.IsForwardingEnabled()).To(BeTrue())
 
-	Expect(natPlugin.PoolContainsAddress(nodeIP)).To(BeFalse())
+	Expect(natPlugin.PoolContainsAddress(nodeIP.IP)).To(BeFalse())
 	Expect(natPlugin.AddressPoolSize()).To(Equal(0))
 	Expect(natPlugin.TwiceNatPoolSize()).To(Equal(1))
 	Expect(natPlugin.TwiceNatPoolContainsAddress(natLoopbackIP)).To(BeTrue())
@@ -1262,19 +1272,19 @@ func TestWithOtherInterfaces(t *testing.T) {
 	contiv := NewMockContiv()
 	contiv.SetNatExternalTraffic(true)
 	contiv.SetSTNMode(false)
-	contiv.SetNodeIP(nodeIP + nodePrefix)
-	contiv.SetDefaultInterface(OtherIfName, net.ParseIP(otherIfIP))
+	contiv.SetNodeIP(nodeIP)
+	contiv.SetDefaultInterface(OtherIfName, otherIfIP)
 	contiv.SetMainPhysicalIfName(mainIfName)
 	contiv.SetOtherPhysicalIfNames([]string{OtherIfName, OtherIfName2})
 	contiv.SetVxlanBVIIfName(vxlanIfName)
 	contiv.SetHostInterconnectIfName(hostInterIfName)
-	contiv.SetPodNetwork(podNetwork)
+	contiv.SetPodSubnet(podNetwork)
 	contiv.SetNatLoopbackIP(natLoopbackIP)
 	contiv.SetPodIfName(pod1, pod1If)
 	contiv.SetPodIfName(pod2, pod2If)
 	contiv.SetMainVrfID(mainVrfID)
 	contiv.SetPodVrfID(podVrfID)
-	contiv.SetHostIPs([]net.IP{net.ParseIP(nodeIP), net.ParseIP(mgmtIP)})
+	contiv.SetHostIPs([]net.IP{nodeIP.IP, mgmtIP})
 
 	// -> NAT plugin
 	natPlugin := NewMockNatPlugin(logger)
@@ -1333,19 +1343,19 @@ func TestWithOtherInterfaces(t *testing.T) {
 	Expect(natPlugin.NumOfStaticMappings()).To(Equal(0))
 
 	vxlanID := &IdentityMapping{
-		IP:       net.ParseIP(otherIfIP),
+		IP:       otherIfIP,
 		Protocol: svc_renderer.UDP,
 		Port:     4789,
 		VrfID:    mainVrfID,
 	}
 	mainIfID1 := &IdentityMapping{
-		IP:       net.ParseIP(otherIfIP),
+		IP:       otherIfIP,
 		Protocol: svc_renderer.UDP,
 		Port:     0,
 		VrfID:    mainVrfID,
 	}
 	mainIfID2 := &IdentityMapping{
-		IP:       net.ParseIP(otherIfIP),
+		IP:       otherIfIP,
 		Protocol: svc_renderer.UDP,
 		Port:     0,
 		VrfID:    podVrfID,
@@ -1373,18 +1383,18 @@ func TestServiceUpdates(t *testing.T) {
 	const localEndpointWeight uint8 = 4
 	contiv.SetServiceLocalEndpointWeight(localEndpointWeight)
 	contiv.SetSTNMode(false)
-	contiv.SetNodeIP(nodeIP + nodePrefix)
-	contiv.SetDefaultInterface(mainIfName, net.ParseIP(nodeIP))
+	contiv.SetNodeIP(nodeIP)
+	contiv.SetDefaultInterface(mainIfName, nodeIP.IP)
 	contiv.SetMainPhysicalIfName(mainIfName)
 	contiv.SetVxlanBVIIfName(vxlanIfName)
 	contiv.SetHostInterconnectIfName(hostInterIfName)
-	contiv.SetPodNetwork(podNetwork)
+	contiv.SetPodSubnet(podNetwork)
 	contiv.SetNatLoopbackIP(natLoopbackIP)
 	contiv.SetPodIfName(pod1, pod1If)
 	contiv.SetPodIfName(pod2, pod2If)
 	contiv.SetMainVrfID(mainVrfID)
 	contiv.SetPodVrfID(podVrfID)
-	contiv.SetHostIPs([]net.IP{net.ParseIP(nodeIP), net.ParseIP(mgmtIP)})
+	contiv.SetHostIPs([]net.IP{nodeIP.IP, mgmtIP})
 
 	// -> NAT plugin
 	natPlugin := NewMockNatPlugin(logger)
@@ -1464,7 +1474,7 @@ func TestServiceUpdates(t *testing.T) {
 			{
 				Addresses: []*epmodel.EndpointSubset_EndpointAddress{
 					{
-						Ip:       pod1IP,
+						Ip:       pod1IP.String(),
 						NodeName: masterLabel,
 						TargetRef: &epmodel.ObjectReference{
 							Kind:      "Pod",
@@ -1473,7 +1483,7 @@ func TestServiceUpdates(t *testing.T) {
 						},
 					},
 					{
-						Ip:       pod2IP,
+						Ip:       pod2IP.String(),
 						NodeName: masterLabel,
 						TargetRef: &epmodel.ObjectReference{
 							Kind:      "Pod",
@@ -1482,7 +1492,7 @@ func TestServiceUpdates(t *testing.T) {
 						},
 					},
 					{
-						Ip:       pod3IP,
+						Ip:       pod3IP.String(),
 						NodeName: workerLabel,
 						TargetRef: &epmodel.ObjectReference{
 							Kind:      "Pod",
@@ -1509,7 +1519,7 @@ func TestServiceUpdates(t *testing.T) {
 	Expect(natPlugin.IsForwardingEnabled()).To(BeTrue())
 
 	Expect(natPlugin.AddressPoolSize()).To(Equal(1))
-	Expect(natPlugin.PoolContainsAddress(nodeIP)).To(BeTrue())
+	Expect(natPlugin.PoolContainsAddress(nodeIP.IP)).To(BeTrue())
 	Expect(natPlugin.TwiceNatPoolSize()).To(Equal(1))
 	Expect(natPlugin.TwiceNatPoolContainsAddress(natLoopbackIP)).To(BeTrue())
 
@@ -1527,19 +1537,19 @@ func TestServiceUpdates(t *testing.T) {
 		Locals: []*Local{
 			{
 				VrfID:       podVrfID,
-				IP:          net.ParseIP(pod1IP),
+				IP:          pod1IP,
 				Port:        8080,
 				Probability: localEndpointWeight,
 			},
 			{
 				VrfID:       podVrfID,
-				IP:          net.ParseIP(pod2IP),
+				IP:          pod2IP,
 				Port:        8080,
 				Probability: localEndpointWeight,
 			},
 			{
 				VrfID:       podVrfID,
-				IP:          net.ParseIP(pod3IP),
+				IP:          pod3IP,
 				Port:        8080,
 				Probability: 1,
 			},
@@ -1548,23 +1558,24 @@ func TestServiceUpdates(t *testing.T) {
 	Expect(natPlugin.HasStaticMapping(staticMappingHTTP)).To(BeTrue())
 	staticMappingHTTP2 := staticMappingHTTP.Copy()
 	staticMappingHTTP2.ExternalIP = net.ParseIP("20.20.20.20")
+	staticMappingHTTP2.TwiceNAT = true
 	Expect(natPlugin.HasStaticMapping(staticMappingHTTP2)).To(BeTrue())
 	Expect(natPlugin.NumOfStaticMappings()).To(Equal(2))
 
 	vxlanID := &IdentityMapping{
-		IP:       net.ParseIP(nodeIP),
+		IP:       nodeIP.IP,
 		Protocol: svc_renderer.UDP,
 		Port:     4789,
 		VrfID:    mainVrfID,
 	}
 	mainIfID1 := &IdentityMapping{
-		IP:       net.ParseIP(nodeIP),
+		IP:       nodeIP.IP,
 		Protocol: svc_renderer.UDP,
 		Port:     0,
 		VrfID:    mainVrfID,
 	}
 	mainIfID2 := &IdentityMapping{
-		IP:       net.ParseIP(nodeIP),
+		IP:       nodeIP.IP,
 		Protocol: svc_renderer.UDP,
 		Port:     0,
 		VrfID:    podVrfID,
@@ -1585,7 +1596,7 @@ func TestServiceUpdates(t *testing.T) {
 			{
 				Addresses: []*epmodel.EndpointSubset_EndpointAddress{
 					{
-						Ip:       pod1IP,
+						Ip:       pod1IP.String(),
 						NodeName: masterLabel,
 						TargetRef: &epmodel.ObjectReference{
 							Kind:      "Pod",
@@ -1610,7 +1621,7 @@ func TestServiceUpdates(t *testing.T) {
 			{
 				Addresses: []*epmodel.EndpointSubset_EndpointAddress{
 					{
-						Ip:       pod3IP,
+						Ip:       pod3IP.String(),
 						NodeName: workerLabel,
 						TargetRef: &epmodel.ObjectReference{
 							Kind:      "Pod",
@@ -1642,7 +1653,7 @@ func TestServiceUpdates(t *testing.T) {
 	Expect(natPlugin.IsForwardingEnabled()).To(BeTrue())
 
 	Expect(natPlugin.AddressPoolSize()).To(Equal(1))
-	Expect(natPlugin.PoolContainsAddress(nodeIP)).To(BeTrue())
+	Expect(natPlugin.PoolContainsAddress(nodeIP.IP)).To(BeTrue())
 	Expect(natPlugin.TwiceNatPoolSize()).To(Equal(1))
 	Expect(natPlugin.TwiceNatPoolContainsAddress(natLoopbackIP)).To(BeTrue())
 
@@ -1659,13 +1670,13 @@ func TestServiceUpdates(t *testing.T) {
 		Locals: []*Local{
 			{
 				VrfID:       podVrfID,
-				IP:          net.ParseIP(pod1IP),
+				IP:          pod1IP,
 				Port:        8080,
 				Probability: localEndpointWeight,
 			},
 			{
 				VrfID:       podVrfID,
-				IP:          net.ParseIP(pod3IP),
+				IP:          pod3IP,
 				Port:        8080,
 				Probability: 1,
 			},
@@ -1674,6 +1685,7 @@ func TestServiceUpdates(t *testing.T) {
 	Expect(natPlugin.HasStaticMapping(staticMappingHTTP)).To(BeTrue())
 	staticMappingHTTP2 = staticMappingHTTP.Copy()
 	staticMappingHTTP2.ExternalIP = net.ParseIP("20.20.20.20")
+	staticMappingHTTP2.TwiceNAT = true
 	Expect(natPlugin.HasStaticMapping(staticMappingHTTP2)).To(BeTrue())
 	Expect(natPlugin.NumOfStaticMappings()).To(Equal(2))
 	Expect(natPlugin.NumOfIdentityMappings()).To(Equal(3))
@@ -1712,7 +1724,7 @@ func TestServiceUpdates(t *testing.T) {
 	Expect(natPlugin.IsForwardingEnabled()).To(BeTrue())
 
 	Expect(natPlugin.AddressPoolSize()).To(Equal(1))
-	Expect(natPlugin.PoolContainsAddress(nodeIP)).To(BeTrue())
+	Expect(natPlugin.PoolContainsAddress(nodeIP.IP)).To(BeTrue())
 	Expect(natPlugin.TwiceNatPoolSize()).To(Equal(1))
 	Expect(natPlugin.TwiceNatPoolContainsAddress(natLoopbackIP)).To(BeTrue())
 
@@ -1729,13 +1741,13 @@ func TestServiceUpdates(t *testing.T) {
 		Locals: []*Local{
 			{
 				VrfID:       podVrfID,
-				IP:          net.ParseIP(pod1IP),
+				IP:          pod1IP,
 				Port:        8443,
 				Probability: localEndpointWeight,
 			},
 			{
 				VrfID:       podVrfID,
-				IP:          net.ParseIP(pod3IP),
+				IP:          pod3IP,
 				Port:        443,
 				Probability: 1,
 			},
@@ -1745,6 +1757,7 @@ func TestServiceUpdates(t *testing.T) {
 	Expect(natPlugin.HasStaticMapping(staticMappingHTTPS)).To(BeTrue())
 	staticMappingHTTPS2 := staticMappingHTTPS.Copy()
 	staticMappingHTTPS2.ExternalIP = net.ParseIP("20.20.20.20")
+	staticMappingHTTPS2.TwiceNAT = true
 	Expect(natPlugin.HasStaticMapping(staticMappingHTTP2)).To(BeTrue())
 	Expect(natPlugin.HasStaticMapping(staticMappingHTTPS2)).To(BeTrue())
 	Expect(natPlugin.NumOfStaticMappings()).To(Equal(4))
@@ -1762,7 +1775,7 @@ func TestServiceUpdates(t *testing.T) {
 	Expect(natPlugin.IsForwardingEnabled()).To(BeTrue())
 
 	Expect(natPlugin.AddressPoolSize()).To(Equal(1))
-	Expect(natPlugin.PoolContainsAddress(nodeIP)).To(BeTrue())
+	Expect(natPlugin.PoolContainsAddress(nodeIP.IP)).To(BeTrue())
 	Expect(natPlugin.TwiceNatPoolSize()).To(Equal(1))
 	Expect(natPlugin.TwiceNatPoolContainsAddress(natLoopbackIP)).To(BeTrue())
 
@@ -1782,7 +1795,7 @@ func TestWithSNATOnly(t *testing.T) {
 	RegisterTestingT(t)
 	logger := logrus.DefaultLogger()
 	logger.SetLevel(logging.DebugLevel)
-	logger.Debug("TestSomething")
+	logger.Debug("TestWithSNATOnly")
 
 	// Prepare mocks.
 	//  -> Contiv plugin
@@ -1791,18 +1804,18 @@ func TestWithSNATOnly(t *testing.T) {
 	const localEndpointWeight uint8 = 1
 	contiv.SetServiceLocalEndpointWeight(localEndpointWeight)
 	contiv.SetSTNMode(false)
-	contiv.SetNodeIP(nodeIP + nodePrefix)
-	contiv.SetDefaultInterface(mainIfName, net.ParseIP(nodeIP))
+	contiv.SetNodeIP(nodeIP)
+	contiv.SetDefaultInterface(mainIfName, nodeIP.IP)
 	contiv.SetMainPhysicalIfName(mainIfName)
 	contiv.SetVxlanBVIIfName(vxlanIfName)
 	contiv.SetHostInterconnectIfName(hostInterIfName)
-	contiv.SetPodNetwork(podNetwork)
+	contiv.SetPodSubnet(podNetwork)
 	contiv.SetNatLoopbackIP(natLoopbackIP)
 	contiv.SetPodIfName(pod1, pod1If)
 	contiv.SetPodIfName(pod2, pod2If)
 	contiv.SetMainVrfID(mainVrfID)
 	contiv.SetPodVrfID(podVrfID)
-	contiv.SetHostIPs([]net.IP{net.ParseIP(nodeIP), net.ParseIP(mgmtIP)})
+	contiv.SetHostIPs([]net.IP{nodeIP.IP, mgmtIP})
 
 	// -> NAT plugin
 	natPlugin := NewMockNatPlugin(logger)
@@ -1872,7 +1885,7 @@ func TestWithSNATOnly(t *testing.T) {
 			{
 				Addresses: []*epmodel.EndpointSubset_EndpointAddress{
 					{
-						Ip:       pod1IP,
+						Ip:       pod1IP.String(),
 						NodeName: masterLabel,
 						TargetRef: &epmodel.ObjectReference{
 							Kind:      "Pod",
@@ -1881,7 +1894,7 @@ func TestWithSNATOnly(t *testing.T) {
 						},
 					},
 					{
-						Ip:       pod2IP,
+						Ip:       pod2IP.String(),
 						NodeName: masterLabel,
 						TargetRef: &epmodel.ObjectReference{
 							Kind:      "Pod",
@@ -1911,7 +1924,7 @@ func TestWithSNATOnly(t *testing.T) {
 	Expect(natPlugin.IsForwardingEnabled()).To(BeTrue())
 
 	Expect(natPlugin.AddressPoolSize()).To(Equal(1))
-	Expect(natPlugin.PoolContainsAddress(nodeIP)).To(BeTrue())
+	Expect(natPlugin.PoolContainsAddress(nodeIP.IP)).To(BeTrue())
 	Expect(natPlugin.TwiceNatPoolSize()).To(Equal(0))
 
 	Expect(natPlugin.NumOfIfsWithFeatures()).To(Equal(1))
@@ -1920,19 +1933,19 @@ func TestWithSNATOnly(t *testing.T) {
 	Expect(natPlugin.NumOfStaticMappings()).To(Equal(0))
 
 	vxlanID := &IdentityMapping{
-		IP:       net.ParseIP(nodeIP),
+		IP:       nodeIP.IP,
 		Protocol: svc_renderer.UDP,
 		Port:     4789,
 		VrfID:    mainVrfID,
 	}
 	mainIfID1 := &IdentityMapping{
-		IP:       net.ParseIP(nodeIP),
+		IP:       nodeIP.IP,
 		Protocol: svc_renderer.UDP,
 		Port:     0,
 		VrfID:    mainVrfID,
 	}
 	mainIfID2 := &IdentityMapping{
-		IP:       net.ParseIP(nodeIP),
+		IP:       nodeIP.IP,
 		Protocol: svc_renderer.UDP,
 		Port:     0,
 		VrfID:    podVrfID,
@@ -1941,6 +1954,299 @@ func TestWithSNATOnly(t *testing.T) {
 	Expect(natPlugin.HasIdentityMapping(vxlanID)).To(BeTrue())
 	Expect(natPlugin.HasIdentityMapping(mainIfID1)).To(BeTrue())
 	Expect(natPlugin.HasIdentityMapping(mainIfID2)).To(BeTrue())
+
+	// Cleanup
+	Expect(processor.Close()).To(BeNil())
+	Expect(renderer.Close()).To(BeNil())
+}
+
+func TestLocalServicePolicy(t *testing.T) {
+	RegisterTestingT(t)
+	logger := logrus.DefaultLogger()
+	logger.SetLevel(logging.DebugLevel)
+	logger.Debug("TestLocalServicePolicy")
+
+	// Prepare mocks.
+	//  -> Contiv plugin
+	contiv := NewMockContiv()
+	contiv.SetNatExternalTraffic(true)
+	const localEndpointWeight uint8 = 1
+	contiv.SetServiceLocalEndpointWeight(localEndpointWeight)
+	contiv.SetSTNMode(false)
+	contiv.SetNodeIP(nodeIP)
+	contiv.SetDefaultInterface(mainIfName, nodeIP.IP)
+	contiv.SetMainPhysicalIfName(mainIfName)
+	contiv.SetVxlanBVIIfName(vxlanIfName)
+	contiv.SetHostInterconnectIfName(hostInterIfName)
+	contiv.SetPodSubnet(podNetwork)
+	contiv.SetNatLoopbackIP(natLoopbackIP)
+	contiv.SetPodIfName(pod1, pod1If)
+	contiv.SetPodIfName(pod2, pod2If)
+	contiv.SetMainVrfID(mainVrfID)
+	contiv.SetPodVrfID(podVrfID)
+	contiv.SetHostIPs([]net.IP{nodeIP.IP, mgmtIP})
+
+	// -> NAT plugin
+	natPlugin := NewMockNatPlugin(logger)
+
+	// -> localclient
+	txnTracker := localclient.NewTxnTracker(natPlugin.ApplyTxn)
+
+	// -> service label
+	serviceLabel := NewMockServiceLabel()
+	serviceLabel.SetAgentLabel(masterLabel)
+
+	// -> datasync
+	datasync := NewMockDataSync()
+
+	// Prepare processor.
+	processor := &svc_processor.ServiceProcessor{
+		Deps: svc_processor.Deps{
+			Log:          logger,
+			ServiceLabel: serviceLabel,
+			Contiv:       contiv,
+		},
+	}
+
+	// Prepare NAT44 Renderer.
+	renderer := &nat44.Renderer{
+		Deps: nat44.Deps{
+			Log:           logger,
+			Contiv:        contiv,
+			NATTxnFactory: txnTracker.NewLinuxDataChangeTxn,
+		},
+	}
+
+	Expect(processor.Init()).To(BeNil())
+	Expect(renderer.Init(false)).To(BeNil())
+	Expect(processor.RegisterRenderer(renderer)).To(BeNil())
+
+	// Test resync with empty VPP configuration.
+	resyncEv := datasync.Resync(keyPrefixes...)
+	Expect(processor.Resync(resyncEv)).To(BeNil())
+
+	Expect(natPlugin.IsForwardingEnabled()).To(BeTrue())
+
+	Expect(natPlugin.AddressPoolSize()).To(Equal(1))
+	Expect(natPlugin.PoolContainsAddress(nodeIP.IP)).To(BeTrue())
+	Expect(natPlugin.TwiceNatPoolSize()).To(Equal(1))
+	Expect(natPlugin.TwiceNatPoolContainsAddress(natLoopbackIP)).To(BeTrue())
+
+	Expect(natPlugin.NumOfIfsWithFeatures()).To(Equal(3))
+	Expect(natPlugin.GetInterfaceFeatures(mainIfName)).To(Equal(NewNatFeatures(OUTPUT_OUT)))
+	Expect(natPlugin.GetInterfaceFeatures(vxlanIfName)).To(Equal(NewNatFeatures(IN, OUT)))
+	Expect(natPlugin.GetInterfaceFeatures(hostInterIfName)).To(Equal(NewNatFeatures(IN, OUT)))
+
+	Expect(natPlugin.NumOfStaticMappings()).To(Equal(0))
+
+	vxlanID := &IdentityMapping{
+		IP:       nodeIP.IP,
+		Protocol: svc_renderer.UDP,
+		Port:     4789,
+		VrfID:    mainVrfID,
+	}
+	mainIfID1 := &IdentityMapping{
+		IP:       nodeIP.IP,
+		Protocol: svc_renderer.UDP,
+		Port:     0,
+		VrfID:    mainVrfID,
+	}
+	mainIfID2 := &IdentityMapping{
+		IP:       nodeIP.IP,
+		Protocol: svc_renderer.UDP,
+		Port:     0,
+		VrfID:    podVrfID,
+	}
+	Expect(natPlugin.NumOfIdentityMappings()).To(Equal(3))
+	Expect(natPlugin.HasIdentityMapping(vxlanID)).To(BeTrue())
+	Expect(natPlugin.HasIdentityMapping(mainIfID1)).To(BeTrue())
+	Expect(natPlugin.HasIdentityMapping(mainIfID2)).To(BeTrue())
+
+	// Add service metadata.
+	service1 := &svcmodel.Service{
+		Name:                  "service1",
+		Namespace:             namespace1,
+		ServiceType:           "ClusterIP",
+		ExternalTrafficPolicy: "Local",
+		ClusterIp:             "10.96.0.1",
+		ExternalIps:           []string{"20.20.20.20"},
+		Port: []*svcmodel.Service_ServicePort{
+			{
+				Name:     "http",
+				Protocol: "TCP",
+				Port:     80,
+				NodePort: 0,
+			},
+		},
+	}
+
+	dataChange1 := datasync.Put(svcmodel.Key(service1.Name, service1.Namespace), service1)
+	Expect(processor.Update(dataChange1)).To(BeNil())
+
+	// No change in the NAT configuration.
+	Expect(natPlugin.IsForwardingEnabled()).To(BeTrue())
+
+	Expect(natPlugin.AddressPoolSize()).To(Equal(1))
+	Expect(natPlugin.PoolContainsAddress(nodeIP.IP)).To(BeTrue())
+	Expect(natPlugin.TwiceNatPoolSize()).To(Equal(1))
+	Expect(natPlugin.TwiceNatPoolContainsAddress(natLoopbackIP)).To(BeTrue())
+
+	Expect(natPlugin.NumOfIfsWithFeatures()).To(Equal(3))
+	Expect(natPlugin.GetInterfaceFeatures(mainIfName)).To(Equal(NewNatFeatures(OUTPUT_OUT)))
+	Expect(natPlugin.GetInterfaceFeatures(vxlanIfName)).To(Equal(NewNatFeatures(IN, OUT)))
+	Expect(natPlugin.GetInterfaceFeatures(hostInterIfName)).To(Equal(NewNatFeatures(IN, OUT)))
+
+	Expect(natPlugin.NumOfStaticMappings()).To(Equal(0))
+	Expect(natPlugin.NumOfIdentityMappings()).To(Equal(3))
+	Expect(natPlugin.HasIdentityMapping(vxlanID)).To(BeTrue())
+	Expect(natPlugin.HasIdentityMapping(mainIfID1)).To(BeTrue())
+	Expect(natPlugin.HasIdentityMapping(mainIfID2)).To(BeTrue())
+
+	// Add pods.
+	Expect(contiv.AddingPod(pod1)).To(BeNil())
+	Expect(contiv.AddingPod(pod2)).To(BeNil())
+	dataChange2 := datasync.Put(podmodel.Key(pod1.Name, pod1.Namespace), pod1Model)
+	Expect(processor.Update(dataChange2)).To(BeNil())
+	dataChange3 := datasync.Put(podmodel.Key(pod2.Name, pod2.Namespace), pod2Model)
+	Expect(processor.Update(dataChange3)).To(BeNil())
+
+	// First check what should not have changed.
+	Expect(natPlugin.IsForwardingEnabled()).To(BeTrue())
+	Expect(natPlugin.AddressPoolSize()).To(Equal(1))
+	Expect(natPlugin.PoolContainsAddress(nodeIP.IP)).To(BeTrue())
+	Expect(natPlugin.TwiceNatPoolSize()).To(Equal(1))
+	Expect(natPlugin.TwiceNatPoolContainsAddress(natLoopbackIP)).To(BeTrue())
+	Expect(natPlugin.NumOfStaticMappings()).To(Equal(0))
+	Expect(natPlugin.NumOfIdentityMappings()).To(Equal(3))
+	Expect(natPlugin.HasIdentityMapping(vxlanID)).To(BeTrue())
+	Expect(natPlugin.HasIdentityMapping(mainIfID1)).To(BeTrue())
+	Expect(natPlugin.HasIdentityMapping(mainIfID2)).To(BeTrue())
+
+	// Interface attaching pods should have NAT/OUT enabled.
+	Expect(natPlugin.NumOfIfsWithFeatures()).To(Equal(5))
+	Expect(natPlugin.GetInterfaceFeatures(mainIfName)).To(Equal(NewNatFeatures(OUTPUT_OUT)))
+	Expect(natPlugin.GetInterfaceFeatures(vxlanIfName)).To(Equal(NewNatFeatures(IN, OUT)))
+	Expect(natPlugin.GetInterfaceFeatures(hostInterIfName)).To(Equal(NewNatFeatures(IN, OUT)))
+	Expect(natPlugin.GetInterfaceFeatures(pod1If)).To(Equal(NewNatFeatures(OUT)))
+	Expect(natPlugin.GetInterfaceFeatures(pod2If)).To(Equal(NewNatFeatures(OUT)))
+
+	// Add endpoints.
+	eps1 := &epmodel.Endpoints{
+		Name:      "service1",
+		Namespace: namespace1,
+		EndpointSubsets: []*epmodel.EndpointSubset{
+			{
+				Addresses: []*epmodel.EndpointSubset_EndpointAddress{
+					{
+						Ip:       pod1IP.String(),
+						NodeName: masterLabel,
+						TargetRef: &epmodel.ObjectReference{
+							Kind:      "Pod",
+							Namespace: pod1.Namespace,
+							Name:      pod1.Name,
+						},
+					},
+					{
+						Ip:       pod2IP.String(),
+						NodeName: masterLabel,
+						TargetRef: &epmodel.ObjectReference{
+							Kind:      "Pod",
+							Namespace: pod2.Namespace,
+							Name:      pod2.Name,
+						},
+					},
+					{
+						Ip:       pod3IP.String(),
+						NodeName: workerLabel,
+						TargetRef: &epmodel.ObjectReference{
+							Kind:      "Pod",
+							Namespace: pod3.Namespace,
+							Name:      pod3.Name,
+						},
+					},
+				},
+				Ports: []*epmodel.EndpointSubset_EndpointPort{
+					{
+						Name:     "http",
+						Port:     8080,
+						Protocol: "TCP",
+					},
+				},
+			},
+		},
+	}
+
+	dataChange4 := datasync.Put(epmodel.Key(eps1.Name, eps1.Namespace), eps1)
+	Expect(processor.Update(dataChange4)).To(BeNil())
+
+	// First check what should not have changed.
+	Expect(natPlugin.IsForwardingEnabled()).To(BeTrue())
+	Expect(natPlugin.AddressPoolSize()).To(Equal(1))
+	Expect(natPlugin.PoolContainsAddress(nodeIP.IP)).To(BeTrue())
+	Expect(natPlugin.TwiceNatPoolSize()).To(Equal(1))
+	Expect(natPlugin.TwiceNatPoolContainsAddress(natLoopbackIP)).To(BeTrue())
+	Expect(natPlugin.NumOfIdentityMappings()).To(Equal(3))
+	Expect(natPlugin.HasIdentityMapping(vxlanID)).To(BeTrue())
+	Expect(natPlugin.HasIdentityMapping(mainIfID1)).To(BeTrue())
+	Expect(natPlugin.HasIdentityMapping(mainIfID2)).To(BeTrue())
+
+	// New interfaces with enabled NAT features.
+	Expect(natPlugin.NumOfIfsWithFeatures()).To(Equal(5))
+	Expect(natPlugin.GetInterfaceFeatures(mainIfName)).To(Equal(NewNatFeatures(OUTPUT_OUT)))
+	Expect(natPlugin.GetInterfaceFeatures(vxlanIfName)).To(Equal(NewNatFeatures(IN, OUT)))
+	Expect(natPlugin.GetInterfaceFeatures(hostInterIfName)).To(Equal(NewNatFeatures(IN, OUT)))
+	Expect(natPlugin.GetInterfaceFeatures(pod1If)).To(Equal(NewNatFeatures(IN, OUT)))
+	Expect(natPlugin.GetInterfaceFeatures(pod2If)).To(Equal(NewNatFeatures(IN, OUT)))
+
+	// New static mappings.
+	Expect(natPlugin.NumOfStaticMappings()).To(Equal(2))
+	staticMapping1 := &StaticMapping{
+		ExternalIP:   net.ParseIP("10.96.0.1"),
+		ExternalPort: 80,
+		Protocol:     svc_renderer.TCP,
+		Locals: []*Local{
+			{
+				VrfID:       podVrfID,
+				IP:          pod1IP,
+				Port:        8080,
+				Probability: localEndpointWeight,
+			},
+			{
+				VrfID:       podVrfID,
+				IP:          pod2IP,
+				Port:        8080,
+				Probability: localEndpointWeight,
+			},
+			// no pod3 - deployed on the worker node
+		},
+	}
+	Expect(natPlugin.HasStaticMapping(staticMapping1)).To(BeTrue())
+	staticMapping2 := staticMapping1.Copy()
+	staticMapping2.ExternalIP = net.ParseIP("20.20.20.20")
+	staticMapping2.TwiceNAT = false // local service policy
+	Expect(natPlugin.HasStaticMapping(staticMapping2)).To(BeTrue())
+
+	// Finally remove the service.
+	dataChange6 := datasync.Delete(svcmodel.Key(service1.Name, service1.Namespace))
+	Expect(processor.Update(dataChange6)).To(BeNil())
+
+	// NAT configuration without the service.
+	Expect(natPlugin.IsForwardingEnabled()).To(BeTrue())
+	Expect(natPlugin.AddressPoolSize()).To(Equal(1))
+	Expect(natPlugin.PoolContainsAddress(nodeIP.IP)).To(BeTrue())
+	Expect(natPlugin.TwiceNatPoolSize()).To(Equal(1))
+	Expect(natPlugin.TwiceNatPoolContainsAddress(natLoopbackIP)).To(BeTrue())
+	Expect(natPlugin.NumOfStaticMappings()).To(Equal(0))
+	Expect(natPlugin.NumOfIdentityMappings()).To(Equal(3))
+	Expect(natPlugin.HasIdentityMapping(vxlanID)).To(BeTrue())
+	Expect(natPlugin.HasIdentityMapping(mainIfID1)).To(BeTrue())
+	Expect(natPlugin.HasIdentityMapping(mainIfID2)).To(BeTrue())
+	Expect(natPlugin.NumOfIfsWithFeatures()).To(Equal(5))
+	Expect(natPlugin.GetInterfaceFeatures(mainIfName)).To(Equal(NewNatFeatures(OUTPUT_OUT)))
+	Expect(natPlugin.GetInterfaceFeatures(vxlanIfName)).To(Equal(NewNatFeatures(IN, OUT)))
+	Expect(natPlugin.GetInterfaceFeatures(hostInterIfName)).To(Equal(NewNatFeatures(IN, OUT)))
+	Expect(natPlugin.GetInterfaceFeatures(pod1If)).To(Equal(NewNatFeatures(OUT)))
+	Expect(natPlugin.GetInterfaceFeatures(pod2If)).To(Equal(NewNatFeatures(OUT)))
 
 	// Cleanup
 	Expect(processor.Close()).To(BeNil())

@@ -125,18 +125,18 @@ func TestValidator(t *testing.T) {
 }
 
 func testErrorFreeEndToEnd(t *testing.T) {
+	gomega.RegisterTestingT(t)
 	resetToInitialErrorFreeState()
 
 	// Perform test
 	vtv.report.Clear()
 	vtv.l3Validator.Validate()
 
-	// NOTE: Expect one error per node in L3 validation until we can validate
-	// static routes configured through Linux
-	checkDataReport(1, 3, 3)
+	checkDataReport(1, 4, 4)
 }
 
 func testMissingIPAM(t *testing.T) {
+	gomega.RegisterTestingT(t)
 	resetToInitialErrorFreeState()
 
 	// ----------------------------------------
@@ -147,7 +147,7 @@ func testMissingIPAM(t *testing.T) {
 	vtv.report.Clear()
 	vtv.l3Validator.Validate()
 
-	checkDataReport(1, 1, 8)
+	checkDataReport(1, 1, 7)
 
 	vrfMap, err := vtv.l3Validator.createVrfMap(vtv.vppCache.NodeMap[vtv.nodeKey])
 	gomega.Expect(err).To(gomega.BeNil())
@@ -158,6 +158,7 @@ func testMissingIPAM(t *testing.T) {
 }
 
 func testMissingInterfaces(t *testing.T) {
+	gomega.RegisterTestingT(t)
 	resetToInitialErrorFreeState()
 
 	// ----------------------------------------
@@ -170,10 +171,11 @@ func testMissingInterfaces(t *testing.T) {
 
 	// NOTE: Expect one error per node in L3 validation until we can validate
 	// static routes configured through Linux
-	checkDataReport(1, 1, 8)
+	checkDataReport(1, 1, 7)
 }
 
 func testMissingStaticRoutes(t *testing.T) {
+	gomega.RegisterTestingT(t)
 	resetToInitialErrorFreeState()
 
 	// ----------------------------------------
@@ -186,10 +188,11 @@ func testMissingStaticRoutes(t *testing.T) {
 
 	// NOTE: Expect one error per node in L3 validation until we can validate
 	// static routes configured through Linux
-	checkDataReport(1, 1, 3)
+	checkDataReport(1, 1, 4)
 }
 
 func testValidateRoutesToLocalPods(t *testing.T) {
+	gomega.RegisterTestingT(t)
 	resetToInitialErrorFreeState()
 
 	vrfMap, err := vtv.l3Validator.createVrfMap(vtv.vppCache.NodeMap[vtv.nodeKey])
@@ -267,7 +270,7 @@ func testValidateRoutesToLocalPods(t *testing.T) {
 		}
 
 		podIfIPAddr, podIfIPMask, err :=
-			utils.Ipv4CidrToAddressAndMask(vtv.vppCache.NodeMap[vtv.nodeKey].NodeIPam.Config.PodIfIPCIDR)
+			utils.Ipv4CidrToAddressAndMask(vtv.vppCache.NodeMap[vtv.nodeKey].NodeIPam.Config.PodVPPSubnetCIDR)
 		gomega.Expect(err).To(gomega.BeNil())
 		podIfIPPrefix := podIfIPAddr &^ podIfIPMask
 
@@ -307,7 +310,7 @@ func testValidateRoutesToLocalPods(t *testing.T) {
 		}
 
 		podIfIPAddr, podIfIPMask, err :=
-			utils.Ipv4CidrToAddressAndMask(vtv.vppCache.NodeMap[vtv.nodeKey].NodeIPam.Config.PodIfIPCIDR)
+			utils.Ipv4CidrToAddressAndMask(vtv.vppCache.NodeMap[vtv.nodeKey].NodeIPam.Config.PodVPPSubnetCIDR)
 		gomega.Expect(err).To(gomega.BeNil())
 		podIfIPPrefix := podIfIPAddr &^ podIfIPMask
 
@@ -343,6 +346,7 @@ func testValidateRoutesToLocalPods(t *testing.T) {
 }
 
 func testValidateVrf0GigERoutes(t *testing.T) {
+	gomega.RegisterTestingT(t)
 	vrfMap, err := vtv.l3Validator.createVrfMap(vtv.vppCache.NodeMap[vtv.nodeKey])
 	gomega.Expect(err).To(gomega.BeNil())
 
@@ -470,6 +474,7 @@ func testValidateVrf0GigERoutes(t *testing.T) {
 }
 
 func testValidateInterfaceLookup(t *testing.T) {
+	gomega.RegisterTestingT(t)
 	vrfMap, err := vtv.l3Validator.createVrfMap(vtv.vppCache.NodeMap[vtv.nodeKey])
 	gomega.Expect(err).To(gomega.BeNil())
 

@@ -76,8 +76,6 @@ test:
 	go test ./cmd/contiv-cni -tags="${GO_BUILD_TAGS}"
 	go test ./plugins/contiv -tags="${GO_BUILD_TAGS}"
 	go test ./plugins/contiv/ipam -tags="${GO_BUILD_TAGS}"
-	go test ./plugins/contiv/containeridx -tags="${GO_BUILD_TAGS}"
-	go test ./plugins/kvdbproxy -tags="${GO_BUILD_TAGS}"
 	go test ./plugins/ksr -tags="${GO_BUILD_TAGS}"
 	go test ./plugins/policy/configurator -tags="${GO_BUILD_TAGS}"
 	go test ./plugins/policy/renderer/cache -tags="${GO_BUILD_TAGS}"
@@ -99,8 +97,6 @@ test-race:
 	go test ./cmd/contiv-cni -race -tags="${GO_BUILD_TAGS}"
 	go test ./plugins/contiv -race -tags="${GO_BUILD_TAGS}"
 	go test ./plugins/contiv/ipam -race -tags="${GO_BUILD_TAGS}"
-	go test ./plugins/contiv/containeridx -race -tags="${GO_BUILD_TAGS}"
-	go test ./plugins/kvdbproxy -race -tags="${GO_BUILD_TAGS}"
 	go test ./plugins/ksr -race -tags="${GO_BUILD_TAGS}"
 	go test ./plugins/policy/configurator -race -tags="${GO_BUILD_TAGS}"
 	go test ./plugins/policy/renderer/cache -race -tags="${GO_BUILD_TAGS}"
@@ -127,8 +123,6 @@ test-cover: get-covtools
 	go test -covermode=count -coverprofile=${COVER_DIR}cov_u1.out ./cmd/contiv-cni -tags="${GO_BUILD_TAGS}"
 	go test -covermode=count -coverprofile=${COVER_DIR}cov_u2.out ./plugins/contiv -tags="${GO_BUILD_TAGS}"
 	go test -covermode=count -coverprofile=${COVER_DIR}cov_u3.out ./plugins/contiv/ipam -tags="${GO_BUILD_TAGS}"
-	go test -covermode=count -coverprofile=${COVER_DIR}cov_u4.out ./plugins/contiv/containeridx -tags="${GO_BUILD_TAGS}"
-	go test -covermode=count -coverprofile=${COVER_DIR}cov_u5.out ./plugins/kvdbproxy -tags="${GO_BUILD_TAGS}"
 	go test -covermode=count -coverprofile=${COVER_DIR}cov_u6.out ./plugins/ksr -tags="${GO_BUILD_TAGS}"
 	go test -covermode=count -coverprofile=${COVER_DIR}cov_u7.out ./plugins/policy/configurator -tags="${GO_BUILD_TAGS}"
 	go test -covermode=count -coverprofile=${COVER_DIR}cov_u8.out ./plugins/policy/renderer/cache -tags="${GO_BUILD_TAGS}"
@@ -149,8 +143,6 @@ test-cover: get-covtools
 			${COVER_DIR}cov_u1.out \
 			${COVER_DIR}cov_u2.out \
 			${COVER_DIR}cov_u3.out \
-			${COVER_DIR}cov_u4.out \
-			${COVER_DIR}cov_u5.out \
 			${COVER_DIR}cov_u6.out \
 			${COVER_DIR}cov_u7.out \
 			${COVER_DIR}cov_u8.out \
@@ -185,7 +177,6 @@ get-generators:
 generate: get-generators
 	@echo "# generating sources"
 	cd plugins/contiv && go generate
-	cd plugins/contiv/containeridx && go generate
 	cd plugins/contiv/ipam && go generate
 	cd plugins/ksr && go generate
 	cd cmd/contiv-stn && go generate

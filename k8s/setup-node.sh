@@ -98,7 +98,7 @@ acl-plugin {
 }
 api-trace {
     on
-    nitems 500
+    nitems 5000
 }
 dpdk {
    dev $pciAddr

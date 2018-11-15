@@ -48,6 +48,7 @@ end
 http_proxy = ENV['HTTP_PROXY'] || ENV['http_proxy'] || ''
 https_proxy = ENV['HTTPS_PROXY'] || ENV['https_proxy'] || ''
 k8s_version = ENV['K8S_VERSION']
+docker_version = ENV['DOCKER_VERSION']
 node_os = ENV['K8S_NODE_OS'] || 'ubuntu'
 node_os_release = ENV['K8S_NODE_OS_RELEASE'] || '16.04'
 node_cpus = ENV['K8S_NODE_CPUS'].to_i == 0 ? 4 : ENV['K8S_NODE_CPUS'].to_i
@@ -65,6 +66,7 @@ goland_version= ENV['GOLAND_VERSION']
 helm_version= ENV['HELM_VERSION']
 crd_disabled=ENV['CRD_DISABLED']
 contiv_dir="/home/vagrant/gopath/src/github.com/contiv/vpp"
+helm_extra_opts = ENV['HELM_EXTRA_OPTS'] || ''
 
 provision_every_node = <<SCRIPT
 set -e
@@ -112,9 +114,9 @@ sudo -E apt-get install -qy kubelet=#{k8s_version}-00 \
 
 echo "Installing Docker..."
 if [ "#{node_os_release}" == "16.04" ] ; then
-  sudo -E apt-get install -y docker-ce
+  sudo -E apt-get install -y docker-ce=#{docker_version}~ubuntu
 else
-  sudo -E apt-get install -y docker.io
+  sudo -E apt-get install -y docker.io=18.06.1-0ubuntu1~18.04.1
 fi
 
 #Setup the proxy if needed
@@ -221,7 +223,7 @@ acl-plugin {
 }
 api-trace {
    on
-   nitems 500
+   nitems 5000
 }
 EOF
 }
@@ -243,7 +245,7 @@ if [ "$split_node_os_release" = '16' ]; then
 else
   kernelModule=$(lsmod | grep vfio_pci | wc -l)
   if [[ $kernelModule -gt 0 ]]; then
-    echo "PCI UIO driver is loaded"
+    echo "PCI VFIO driver is loaded"
   else
     installPCIVFIO
   fi
@@ -469,7 +471,7 @@ applyVPPnetwork() {
 
   if [ "#{crd_disabled}" = "false" ]; then
     # Deploy contiv-vpp networking with CRD
-    helm template --name vagrant $stn_config --set contiv.crdNodeConfigurationDisabled=false --set contiv.ipamConfig.contivCIDR=10.128.0.0/14 --set contiv.ipamConfig.nodeInterconnectCIDR="" "#{contiv_dir}"/k8s/contiv-vpp > "#{contiv_dir}"/k8s/contiv-vpp/manifest.yaml
+    helm template #{helm_extra_opts} --name vagrant $stn_config --set contiv.crdNodeConfigurationDisabled=false --set contiv.ipamConfig.contivCIDR=10.128.0.0/14 --set contiv.ipamConfig.nodeInterconnectCIDR="" "#{contiv_dir}"/k8s/contiv-vpp > "#{contiv_dir}"/k8s/contiv-vpp/manifest.yaml
     kubectl apply -f #{contiv_dir}/k8s/contiv-vpp/manifest.yaml
 
     # Wait until crd agent is ready
@@ -485,7 +487,7 @@ applyVPPnetwork() {
   else
     # Deploy contiv-vpp networking without CRD
     sed -i '/#serviceCIDR:/ r /tmp/nodeConfig.yaml' "#{contiv_dir}"/k8s/contiv-vpp/values.yaml
-    helm template --name vagrant $stn_config "#{contiv_dir}"/k8s/contiv-vpp > "#{contiv_dir}"/k8s/contiv-vpp/manifest.yaml
+    helm template #{helm_extra_opts} --name vagrant $stn_config "#{contiv_dir}"/k8s/contiv-vpp > "#{contiv_dir}"/k8s/contiv-vpp/manifest.yaml
     kubectl apply -f #{contiv_dir}/k8s/contiv-vpp/manifest.yaml
   fi
 
@@ -573,6 +575,8 @@ iptables-restore </etc/iptables-rules-v4.conf
 EOF
 
 chmod +x /etc/network/if-pre-up.d/iptables-restore
+sudo /sbin/ifdown enp0s8 && sudo /sbin/ifup enp0s8
+
 SCRIPT
 
 VAGRANTFILE_API_VERSION = "2"
@@ -618,7 +622,7 @@ VAGRANTFILE_API_VERSION = "2"
         if crd_disabled == 'false'
           gw.vm.network :private_network, ip: "10.130.1.254",  netmask: "255.255.254.0", virtualbox__intnet: "vpp"
         else
-          gw.vm.network :private_network, ip: "192.168.16.100", virtualbox__intnet: "vpp"
+          gw.vm.network :private_network, ip: "192.168.16.100", netmask: "255.255.255.0", virtualbox__intnet: "vpp"
         end
       else
         gw.vm.network :private_network, ip: "192.168.16.100", virtualbox__intnet: "vpp"
@@ -650,7 +654,7 @@ VAGRANTFILE_API_VERSION = "2"
           run: "always",
           inline: "eval `route -n | awk '{ if ($8 ==\"enp0s3\" && $2 != \"0.0.0.0\") print \"route del default gw \" $2; }'`"
       else
-        k8smaster.vm.network :private_network, type: "dhcp", auto_config: false, virtualbox__intnet: "vpp"
+        k8smaster.vm.network :private_network, auto_config: false, virtualbox__intnet: "vpp"
         k8smaster.vm.network :private_network, ip: k8smaster_ip, virtualbox__intnet: "true"
       end
 
@@ -691,7 +695,7 @@ VAGRANTFILE_API_VERSION = "2"
             run: "always",
             inline: "eval `route -n | awk '{ if ($8 ==\"enp0s3\" && $2 != \"0.0.0.0\") print \"route del default gw \" $2; }'`"
         else
-          node.vm.network :private_network, type: "dhcp", auto_config: false, virtualbox__intnet: "vpp"
+          node.vm.network :private_network, auto_config: false, virtualbox__intnet: "vpp"
           node.vm.network :private_network, ip: node_addr, virtualbox__intnet: "true"
         end
 

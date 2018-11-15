@@ -15,132 +15,106 @@
 package contiv
 
 import (
-	"encoding/binary"
 	"fmt"
-	"git.fd.io/govpp.git/api"
-	"github.com/vishvananda/netlink"
 	"net"
 	"strconv"
-	"strings"
 
-	"github.com/ligato/vpp-agent/clientv2/linux"
+	"github.com/apparentlymart/go-cidr/cidr"
+
 	linux_intf "github.com/ligato/vpp-agent/plugins/linuxv2/model/interfaces"
 	linux_l3 "github.com/ligato/vpp-agent/plugins/linuxv2/model/l3"
-	"github.com/ligato/vpp-agent/plugins/vpp/binapi/stats"
-	"github.com/ligato/vpp-agent/plugins/vpp/binapi/vpe"
 	vpp_intf "github.com/ligato/vpp-agent/plugins/vppv2/model/interfaces"
 	vpp_l2 "github.com/ligato/vpp-agent/plugins/vppv2/model/l2"
 	vpp_l3 "github.com/ligato/vpp-agent/plugins/vppv2/model/l3"
 )
 
-const (
-	vxlanVNI               = 10         // VXLAN Network Identifier (or VXLAN Segment ID)
-	vxlanSplitHorizonGroup = 1          // As VXLAN tunnels are added to a BD, they must be configured with the same and non-zero Split Horizon Group (SHG) number. Otherwise, flood packet may loop among servers with the same VXLAN segment because VXLAN tunnels are fully meshed among servers.
-	vxlanBVIInterfaceName  = "vxlanBVI" // name of the VXLAN BVI interface.
-	vxlanBDName            = "vxlanBD"  // name of the VXLAN bridge domain
-)
+/*********************** Global vswitch configuration *************************/
 
-func (s *remoteCNIserver) routePODsFromHost(nextHopIP string) *linux_l3.LinuxStaticRoute {
-	route := &linux_l3.LinuxStaticRoute{
-		OutgoingInterface: vethHostEndLogicalName,
-		Scope:             linux_l3.LinuxStaticRoute_GLOBAL,
-		DstNetwork:        s.ipam.PodSubnet().String(),
-		GwAddr:            nextHopIP,
+// enabledIPNeighborScan returns configuration for enabled IP neighbor scanning
+// (used to clean up old ARP entries).
+func (s *remoteCNIserver) enabledIPNeighborScan() (key string, config *vpp_l3.IPScanNeighbor) {
+	config = &vpp_l3.IPScanNeighbor{
+		Mode:           vpp_l3.IPScanNeighbor_IPv4,
+		ScanInterval:   uint32(s.config.IPNeighborScanInterval),
+		StaleThreshold: uint32(s.config.IPNeighborStaleThreshold),
 	}
-	if s.useTAPInterfaces {
-		route.OutgoingInterface = TapHostEndLogicalName
-	}
-	return route
+	key = vpp_l3.IPScanNeighborKey
+	return key, config
 }
 
-func (s *remoteCNIserver) routeServicesFromHost(nextHopIP string) *linux_l3.LinuxStaticRoute {
-	route := &linux_l3.LinuxStaticRoute{
-		OutgoingInterface: vethHostEndLogicalName,
-		Scope:             linux_l3.LinuxStaticRoute_GLOBAL,
-		DstNetwork:        s.ipam.ServiceNetwork().String(),
-		GwAddr:            nextHopIP,
+/************************************ NICs ************************************/
+
+// physicalInterface returns configuration for physical interface - either the main interface
+// connecting node with the rest of the cluster or an extra physical interface requested
+// in the config file.
+func (s *remoteCNIserver) physicalInterface(name string, ips []ipWithNetwork) (key string, config *vpp_intf.Interface) {
+	iface := &vpp_intf.Interface{
+		Name:    name,
+		Type:    vpp_intf.Interface_ETHERNET_CSMACD,
+		Enabled: true,
+		Vrf:     s.GetMainVrfID(),
 	}
-	if s.useTAPInterfaces {
-		route.OutgoingInterface = TapHostEndLogicalName
+	for _, ip := range ips {
+		iface.IpAddresses = append(iface.IpAddresses, ipNetToString(combineAddrWithNet(ip.address, ip.network)))
 	}
-	return route
+	key = vpp_intf.InterfaceKey(name)
+	return key, iface
 }
 
-func (s *remoteCNIserver) defaultRoute(gwIP string, outIfName string) *vpp_l3.StaticRoute {
+// loopbackInterface returns configuration for loopback created when no physical interfaces
+// are configured.
+func (s *remoteCNIserver) loopbackInterface(ips []ipWithNetwork) (key string, config *vpp_intf.Interface) {
+	iface := &vpp_intf.Interface{
+		Name:    loopbackNICLogicalName,
+		Type:    vpp_intf.Interface_SOFTWARE_LOOPBACK,
+		Enabled: true,
+		Vrf:     s.GetMainVrfID(),
+	}
+	for _, ip := range ips {
+		iface.IpAddresses = append(iface.IpAddresses, ipNetToString(combineAddrWithNet(ip.address, ip.network)))
+	}
+	key = vpp_intf.InterfaceKey(loopbackNICLogicalName)
+	return key, iface
+}
+
+// defaultRoute return configuration for default route connecting the node with the outside world.
+func (s *remoteCNIserver) defaultRoute(gwIP net.IP, outIfName string) (key string, config *vpp_l3.StaticRoute) {
 	route := &vpp_l3.StaticRoute{
 		DstNetwork:        ipv4NetAny,
-		NextHopAddr:       gwIP,
+		NextHopAddr:       gwIP.String(),
 		OutgoingInterface: outIfName,
 		VrfId:             s.GetMainVrfID(),
 	}
-	return route
+	key = vpp_l3.RouteKey(route.VrfId, route.DstNetwork, route.NextHopAddr)
+	return key, route
 }
 
-func (s *remoteCNIserver) routesPodToMainVRF() (*vpp_l3.StaticRoute, *vpp_l3.StaticRoute) {
-	r1 := &vpp_l3.StaticRoute{
-		Type:       vpp_l3.StaticRoute_INTER_VRF,
-		DstNetwork: ipv4NetAny,
-		VrfId:      s.GetPodVrfID(),
-		ViaVrfId:   s.GetMainVrfID(),
+/************************** VPP <-> Host connectivity **************************/
+
+// hostInterconnectVPPIfName returns the logical name of the VPP-host interconnect
+// interface on the VPP side.
+func (s *remoteCNIserver) hostInterconnectVPPIfName() string {
+	if s.config.UseTAPInterfaces {
+		return HostInterconnectTAPinVPPLogicalName
 	}
-	r2 := &vpp_l3.StaticRoute{
-		Type:       vpp_l3.StaticRoute_INTER_VRF,
-		DstNetwork: s.ipam.VPPHostNetwork().String(),
-		VrfId:      s.GetPodVrfID(),
-		ViaVrfId:   s.GetMainVrfID(),
-	}
-	return r1, r2
+	return hostInterconnectAFPacketLogicalName
 }
 
-func (s *remoteCNIserver) routesToPodVRF() (*vpp_l3.StaticRoute, *vpp_l3.StaticRoute) {
-	r1 := &vpp_l3.StaticRoute{
-		Type:       vpp_l3.StaticRoute_INTER_VRF,
-		DstNetwork: s.ipam.PodSubnet().String(),
-		VrfId:      s.GetMainVrfID(),
-		ViaVrfId:   s.GetPodVrfID(),
+// hostInterconnectLinuxIfName returns the logical name of the VPP-host interconnect
+// interface on the Linux side.
+func (s *remoteCNIserver) hostInterconnectLinuxIfName() string {
+	if s.config.UseTAPInterfaces {
+		return HostInterconnectTAPinLinuxLogicalName
 	}
-	r2 := &vpp_l3.StaticRoute{
-		Type:       vpp_l3.StaticRoute_INTER_VRF,
-		DstNetwork: s.ipam.VPPHostSubnet().String(),
-		VrfId:      s.GetMainVrfID(),
-		ViaVrfId:   s.GetPodVrfID(),
-	}
-	return r1, r2
+	return hostInterconnectVETH1LogicalName
 }
 
-func (s *remoteCNIserver) dropRoutesIntoPodVRF() (*vpp_l3.StaticRoute, *vpp_l3.StaticRoute) {
-	r1 := s.dropRoute(s.GetPodVrfID(), s.ipam.PodSubnet())
-
-	r2 := s.dropRoute(s.GetPodVrfID(), s.ipam.VPPHostSubnet())
-	return r1, r2
-}
-
-func (s *remoteCNIserver) routesToHost(nextHopIP string) []*vpp_l3.StaticRoute {
-	// list all IPs assigned to host interfaces
-	ips, err := s.getHostLinkIPs()
-	if err != nil {
-		s.Logger.Errorf("Error by listing host IPs: %v", err)
-		return nil
-	}
-
-	// generate a /32 static route from VPP for each of the host's IPs
-	routes := make([]*vpp_l3.StaticRoute, 0)
-	for _, ip := range ips {
-		routes = append(routes, &vpp_l3.StaticRoute{
-			DstNetwork:        fmt.Sprintf("%s/32", ip.String()),
-			NextHopAddr:       nextHopIP,
-			OutgoingInterface: s.hostInterconnectIfName,
-			VrfId:             s.GetMainVrfID(),
-		})
-	}
-
-	return routes
-}
-
-func (s *remoteCNIserver) interconnectTap() *vpp_intf.Interface {
-	size, _ := s.ipam.VPPHostNetwork().Mask.Size()
+// interconnectTapVPP returns configuration for the VPP-side of the TAP interface
+// connecting VPP with the host stack.
+func (s *remoteCNIserver) interconnectTapVPP() (key string, config *vpp_intf.Interface) {
+	size, _ := s.ipam.HostInterconnectSubnetThisNode().Mask.Size()
 	tap := &vpp_intf.Interface{
-		Name:    TapVPPEndLogicalName,
+		Name:    HostInterconnectTAPinVPPLogicalName,
 		Type:    vpp_intf.Interface_TAP_INTERFACE,
 		Mtu:     s.config.MTUSize,
 		Enabled: true,
@@ -148,138 +122,341 @@ func (s *remoteCNIserver) interconnectTap() *vpp_intf.Interface {
 		Link: &vpp_intf.Interface_Tap{
 			Tap: &vpp_intf.Interface_TapLink{},
 		},
-		IpAddresses: []string{s.ipam.VEthVPPEndIP().String() + "/" + strconv.Itoa(size)},
-		PhysAddress: HostInterconnectMAC,
+		PhysAddress: hwAddrForNodeInterface(s.nodeID, hostInterconnectHwAddrPrefix),
 	}
-	if s.tapVersion == 2 {
-		tap.GetTap().Version = 2
-		tap.GetTap().RxRingSize = uint32(s.tapV2RxRingSize)
-		tap.GetTap().TxRingSize = uint32(s.tapV2TxRingSize)
-	}
+	if s.UseSTN() {
+		tap.Unnumbered = &vpp_intf.Interface_Unnumbered{
+			IsUnnumbered:    true,
+			InterfaceWithIp: s.mainPhysicalIf,
+		}
+	} else {
+		tap.IpAddresses = []string{s.ipam.HostInterconnectIPInVPP().String() + "/" + strconv.Itoa(size)}
 
-	return tap
+	}
+	if s.config.TAPInterfaceVersion == 2 {
+		tap.GetTap().Version = 2
+		tap.GetTap().RxRingSize = uint32(s.config.TAPv2RxRingSize)
+		tap.GetTap().TxRingSize = uint32(s.config.TAPv2TxRingSize)
+	}
+	key = vpp_intf.InterfaceKey(tap.Name)
+	return key, tap
 }
 
-func (s *remoteCNIserver) interconnectTapHost() *linux_intf.LinuxInterface {
-	size, _ := s.ipam.VPPHostNetwork().Mask.Size()
-	return &linux_intf.LinuxInterface{
-		Name: TapHostEndLogicalName,
+// interconnectTapHost returns configuration for the Host-side of the TAP interface
+// connecting VPP with the host stack.
+func (s *remoteCNIserver) interconnectTapHost() (key string, config *linux_intf.LinuxInterface) {
+	size, _ := s.ipam.HostInterconnectSubnetThisNode().Mask.Size()
+	tap := &linux_intf.LinuxInterface{
+		Name: HostInterconnectTAPinLinuxLogicalName,
 		Type: linux_intf.LinuxInterface_TAP_TO_VPP,
 		Link: &linux_intf.LinuxInterface_Tap{
 			Tap: &linux_intf.LinuxInterface_TapLink{
-				VppTapIfName: TapVPPEndLogicalName,
+				VppTapIfName: HostInterconnectTAPinVPPLogicalName,
 			},
 		},
-		Mtu:         s.config.MTUSize,
-		HostIfName:  TapHostEndName,
-		Enabled:     true,
-		IpAddresses: []string{s.ipam.VEthHostEndIP().String() + "/" + strconv.Itoa(size)},
-	}
-}
-
-func (s *remoteCNIserver) interconnectVethHost() *linux_intf.LinuxInterface {
-	size, _ := s.ipam.VPPHostNetwork().Mask.Size()
-	return &linux_intf.LinuxInterface{
-		Name: vethHostEndLogicalName,
-		Type: linux_intf.LinuxInterface_VETH,
-		Link: &linux_intf.LinuxInterface_Veth{
-			Veth: &linux_intf.LinuxInterface_VethLink{PeerIfName: vethVPPEndLogicalName},
-		},
-		Mtu:         s.config.MTUSize,
-		Enabled:     true,
-		HostIfName:  vethHostEndName,
-		IpAddresses: []string{s.ipam.VEthHostEndIP().String() + "/" + strconv.Itoa(size)},
-	}
-}
-
-func (s *remoteCNIserver) interconnectVethVpp() *linux_intf.LinuxInterface {
-	return &linux_intf.LinuxInterface{
-		Name: vethVPPEndLogicalName,
-		Type: linux_intf.LinuxInterface_VETH,
-		Link: &linux_intf.LinuxInterface_Veth{
-			Veth: &linux_intf.LinuxInterface_VethLink{PeerIfName: vethHostEndLogicalName},
-		},
 		Mtu:        s.config.MTUSize,
+		HostIfName: HostInterconnectTAPinLinuxHostName,
 		Enabled:    true,
-		HostIfName: vethVPPEndName,
 	}
+	if s.UseSTN() {
+		if len(s.nodeIP) > 0 {
+			tap.IpAddresses = []string{combineAddrWithNet(s.nodeIP, s.nodeIPNet).String()}
+		}
+	} else {
+		tap.IpAddresses = []string{s.ipam.HostInterconnectIPInLinux().String() + "/" + strconv.Itoa(size)}
+	}
+	key = linux_intf.InterfaceKey(tap.Name)
+	return key, tap
 }
 
-func (s *remoteCNIserver) interconnectAfpacketName() string {
-	return afPacketNamePrefix + "-" + vethVPPEndName
-}
-
-func (s *remoteCNIserver) interconnectAfpacket() *vpp_intf.Interface {
-	size, _ := s.ipam.VPPHostNetwork().Mask.Size()
-	return &vpp_intf.Interface{
-		Name: s.interconnectAfpacketName(),
+// interconnectAfpacket returns configuration for the AF-Packet interface attached
+// to interconnectVethVpp (see below)
+func (s *remoteCNIserver) interconnectAfpacket() (key string, config *vpp_intf.Interface) {
+	size, _ := s.ipam.HostInterconnectSubnetThisNode().Mask.Size()
+	afpacket := &vpp_intf.Interface{
+		Name: hostInterconnectAFPacketLogicalName,
 		Type: vpp_intf.Interface_AF_PACKET_INTERFACE,
 		Link: &vpp_intf.Interface_Afpacket{
 			Afpacket: &vpp_intf.Interface_AfpacketLink{
-				HostIfName: vethVPPEndName,
+				HostIfName: hostInterconnectVETH2HostName,
 			},
 		},
 		Mtu:         s.config.MTUSize,
 		Enabled:     true,
 		Vrf:         s.GetMainVrfID(),
-		IpAddresses: []string{s.ipam.VEthVPPEndIP().String() + "/" + strconv.Itoa(size)},
+		IpAddresses: []string{s.ipam.HostInterconnectIPInVPP().String() + "/" + strconv.Itoa(size)},
+		PhysAddress: hwAddrForNodeInterface(s.nodeID, hostInterconnectHwAddrPrefix),
 	}
+	key = vpp_intf.InterfaceKey(afpacket.Name)
+	return key, afpacket
 }
 
-func (s *remoteCNIserver) physicalInterface(name string, ipAddress string) *vpp_intf.Interface {
-	return &vpp_intf.Interface{
-		Name:        name,
-		Type:        vpp_intf.Interface_ETHERNET_CSMACD,
+// interconnectVethVpp returns configuration for VPP-side of the VETH pipe connecting
+// vswitch with the host stack.
+func (s *remoteCNIserver) interconnectVethVpp() (key string, config *linux_intf.LinuxInterface) {
+	veth := &linux_intf.LinuxInterface{
+		Name: hostInterconnectVETH2LogicalName,
+		Type: linux_intf.LinuxInterface_VETH,
+		Link: &linux_intf.LinuxInterface_Veth{
+			Veth: &linux_intf.LinuxInterface_VethLink{PeerIfName: hostInterconnectVETH1LogicalName},
+		},
+		Mtu:        s.config.MTUSize,
+		Enabled:    true,
+		HostIfName: hostInterconnectVETH2HostName,
+	}
+	key = linux_intf.InterfaceKey(veth.Name)
+	return key, veth
+}
+
+// interconnectVethHost returns configuration for host-side of the VETH pipe connecting
+// vswitch with the host stack.
+func (s *remoteCNIserver) interconnectVethHost() (key string, config *linux_intf.LinuxInterface) {
+	size, _ := s.ipam.HostInterconnectSubnetThisNode().Mask.Size()
+	veth := &linux_intf.LinuxInterface{
+		Name: hostInterconnectVETH1LogicalName,
+		Type: linux_intf.LinuxInterface_VETH,
+		Link: &linux_intf.LinuxInterface_Veth{
+			Veth: &linux_intf.LinuxInterface_VethLink{PeerIfName: hostInterconnectVETH2LogicalName},
+		},
+		Mtu:         s.config.MTUSize,
 		Enabled:     true,
-		Vrf:         s.GetMainVrfID(),
-		IpAddresses: []string{ipAddress},
+		HostIfName:  hostInterconnectVETH1HostName,
+		IpAddresses: []string{s.ipam.HostInterconnectIPInLinux().String() + "/" + strconv.Itoa(size)},
+	}
+	key = linux_intf.InterfaceKey(veth.Name)
+	return key, veth
+}
+
+// routesToHost return one route to configure on VPP for every host interface.
+func (s *remoteCNIserver) routesToHost(nextHopIP net.IP) map[string]*vpp_l3.StaticRoute {
+	routes := make(map[string]*vpp_l3.StaticRoute)
+
+	// generate a /32 static route from VPP for each of the host's IPs
+	for _, ip := range s.hostIPs {
+		route := &vpp_l3.StaticRoute{
+			DstNetwork:        fmt.Sprintf("%s/32", ip.String()),
+			NextHopAddr:       nextHopIP.String(),
+			OutgoingInterface: s.hostInterconnectVPPIfName(),
+			VrfId:             s.GetMainVrfID(),
+		}
+		key := vpp_l3.RouteKey(route.VrfId, route.DstNetwork, route.NextHopAddr)
+		routes[key] = route
+	}
+
+	return routes
+}
+
+// routePODsFromHost returns configuration for route for the host stack to direct
+// traffic destined to pods via VPP.
+func (s *remoteCNIserver) routePODsFromHost(nextHopIP net.IP) (key string, config *linux_l3.LinuxStaticRoute) {
+	route := &linux_l3.LinuxStaticRoute{
+		OutgoingInterface: hostInterconnectVETH1LogicalName,
+		Scope:             linux_l3.LinuxStaticRoute_GLOBAL,
+		DstNetwork:        s.ipam.PodSubnetAllNodes().String(),
+		GwAddr:            nextHopIP.String(),
+	}
+	if s.config.UseTAPInterfaces {
+		route.OutgoingInterface = HostInterconnectTAPinLinuxLogicalName
+	}
+	key = linux_l3.StaticRouteKey(route.DstNetwork, route.OutgoingInterface)
+	return key, route
+}
+
+// routeServicesFromHost returns configuration for route for the host stack to direct
+// traffic destined to services via VPP.
+func (s *remoteCNIserver) routeServicesFromHost(nextHopIP net.IP) (key string, config *linux_l3.LinuxStaticRoute) {
+	route := &linux_l3.LinuxStaticRoute{
+		OutgoingInterface: hostInterconnectVETH1LogicalName,
+		Scope:             linux_l3.LinuxStaticRoute_GLOBAL,
+		DstNetwork:        s.ipam.ServiceNetwork().String(),
+		GwAddr:            nextHopIP.String(),
+	}
+	if s.config.UseTAPInterfaces {
+		route.OutgoingInterface = HostInterconnectTAPinLinuxLogicalName
+	}
+	key = linux_l3.StaticRouteKey(route.DstNetwork, route.OutgoingInterface)
+	return key, route
+}
+
+/************************************ STN *************************************/
+
+// proxyArpForSTNGateway configures proxy ARP used in the STN case to let VPP to answer
+// to ARP requests coming from the host stack.
+func (s *remoteCNIserver) proxyArpForSTNGateway() (key string, config *vpp_l3.ProxyARP) {
+	firstIP, lastIP := cidr.AddressRange(s.nodeIPNet)
+
+	// If larger than a /31, remove network and broadcast addresses
+	// from address range.
+	if cidr.AddressCount(s.nodeIPNet) > 2 {
+		firstIP = cidr.Inc(firstIP)
+		lastIP = cidr.Dec(lastIP)
+	}
+
+	proxyarp := &vpp_l3.ProxyARP{
+		Interfaces: []*vpp_l3.ProxyARP_Interface{
+			{Name: s.hostInterconnectVPPIfName()},
+		},
+		Ranges: []*vpp_l3.ProxyARP_Range{
+			{
+				FirstIpAddr: firstIP.String(),
+				LastIpAddr:  lastIP.String(),
+			},
+		},
+	}
+	key = vpp_l3.ProxyARPKey
+	return key, proxyarp
+}
+
+// stnRoutesForVPP returns VPP routes mirroring Host routes that were associated
+// with the stolen interface.
+func (s *remoteCNIserver) stnRoutesForVPP() map[string]*vpp_l3.StaticRoute {
+	routes := make(map[string]*vpp_l3.StaticRoute)
+
+	for _, stnRoute := range s.stnRoutes {
+		route := &vpp_l3.StaticRoute{
+			DstNetwork:        stnRoute.DestinationSubnet,
+			NextHopAddr:       stnRoute.NextHopIp,
+			OutgoingInterface: s.mainPhysicalIf,
+			VrfId:             s.GetMainVrfID(),
+		}
+		key := vpp_l3.RouteKey(route.VrfId, route.DstNetwork, route.NextHopAddr)
+		routes[key] = route
+	}
+
+	return routes
+}
+
+// stnRoutesForHost returns configuration of routes that were associated
+// with the stolen interface, now updated to route via host-interconnect.
+func (s *remoteCNIserver) stnRoutesForHost() map[string]*linux_l3.LinuxStaticRoute {
+	routes := make(map[string]*linux_l3.LinuxStaticRoute)
+
+	for _, stnRoute := range s.stnRoutes {
+		if stnRoute.NextHopIp == "" {
+			continue // skip routes with no next hop IP (link-local)
+		}
+		route := &linux_l3.LinuxStaticRoute{
+			DstNetwork:        stnRoute.DestinationSubnet,
+			GwAddr:            stnRoute.NextHopIp,
+			Scope:             linux_l3.LinuxStaticRoute_GLOBAL,
+			OutgoingInterface: s.hostInterconnectLinuxIfName(),
+		}
+		if route.DstNetwork == "" {
+			route.DstNetwork = ipv4NetAny
+		}
+		key := linux_l3.StaticRouteKey(route.DstNetwork, route.OutgoingInterface)
+		routes[key] = route
+	}
+
+	return routes
+}
+
+// TODO: STN rule
+
+/************************************ VRFs ************************************/
+
+// routesPodToMainVRF returns non-drop routes from Pod VRF to Main VRF.
+func (s *remoteCNIserver) routesPodToMainVRF() map[string]*vpp_l3.StaticRoute {
+	routes := make(map[string]*vpp_l3.StaticRoute)
+
+	// by default to go from Pod VRF via Main VRF
+	r1 := &vpp_l3.StaticRoute{
+		Type:       vpp_l3.StaticRoute_INTER_VRF,
+		DstNetwork: ipv4NetAny,
+		VrfId:      s.GetPodVrfID(),
+		ViaVrfId:   s.GetMainVrfID(),
+	}
+	r1Key := vpp_l3.RouteKey(r1.VrfId, r1.DstNetwork, r1.NextHopAddr)
+	routes[r1Key] = r1
+
+	// host network (all nodes) routed from Pod VRF via Main VRF
+	r2 := &vpp_l3.StaticRoute{
+		Type:       vpp_l3.StaticRoute_INTER_VRF,
+		DstNetwork: s.ipam.HostInterconnectSubnetThisNode().String(),
+		VrfId:      s.GetPodVrfID(),
+		ViaVrfId:   s.GetMainVrfID(),
+	}
+	r2Key := vpp_l3.RouteKey(r2.VrfId, r2.DstNetwork, r2.NextHopAddr)
+	routes[r2Key] = r2
+	return routes
+}
+
+// routesMainToPodVRF returns non-drop routes from Main VRF to Pod VRF.
+func (s *remoteCNIserver) routesMainToPodVRF() map[string]*vpp_l3.StaticRoute {
+	routes := make(map[string]*vpp_l3.StaticRoute)
+
+	// pod subnet (all nodes) routed from Main VRF via Pod VRF (to go via VXLANs)
+	r1 := &vpp_l3.StaticRoute{
+		Type:       vpp_l3.StaticRoute_INTER_VRF,
+		DstNetwork: s.ipam.PodSubnetAllNodes().String(),
+		VrfId:      s.GetMainVrfID(),
+		ViaVrfId:   s.GetPodVrfID(),
+	}
+	r1Key := vpp_l3.RouteKey(r1.VrfId, r1.DstNetwork, r1.NextHopAddr)
+	routes[r1Key] = r1
+
+	// host network (all nodes) routed from Main VRF via Pod VRF (to go via VXLANs)
+	r2 := &vpp_l3.StaticRoute{
+		Type:       vpp_l3.StaticRoute_INTER_VRF,
+		DstNetwork: s.ipam.HostInterconnectSubnetAllNodes().String(),
+		VrfId:      s.GetMainVrfID(),
+		ViaVrfId:   s.GetPodVrfID(),
+	}
+	r2Key := vpp_l3.RouteKey(r2.VrfId, r2.DstNetwork, r2.NextHopAddr)
+	routes[r2Key] = r2
+	return routes
+}
+
+// dropRoutesIntoPodVRF returns drop routes for Pod VRF.
+func (s *remoteCNIserver) dropRoutesIntoPodVRF() map[string]*vpp_l3.StaticRoute {
+	routes := make(map[string]*vpp_l3.StaticRoute)
+
+	// drop packets destined to pods no longer deployed
+	r1 := s.dropRoute(s.GetPodVrfID(), s.ipam.PodSubnetAllNodes())
+	r1Key := vpp_l3.RouteKey(r1.VrfId, r1.DstNetwork, r1.NextHopAddr)
+	routes[r1Key] = r1
+
+	// drop packets destined to nodes no longer deployed
+	r2 := s.dropRoute(s.GetPodVrfID(), s.ipam.HostInterconnectSubnetAllNodes())
+	r2Key := vpp_l3.RouteKey(r2.VrfId, r2.DstNetwork, r2.NextHopAddr)
+	routes[r2Key] = r2
+
+	return routes
+}
+
+// dropRoute is a helper method to construct drop route.
+func (s *remoteCNIserver) dropRoute(vrfID uint32, dstAddr *net.IPNet) *vpp_l3.StaticRoute {
+	return &vpp_l3.StaticRoute{
+		Type:       vpp_l3.StaticRoute_DROP,
+		DstNetwork: dstAddr.String(),
+		VrfId:      vrfID,
 	}
 }
 
-func (s *remoteCNIserver) physicalInterfaceLoopback(ipAddress string) *vpp_intf.Interface {
-	return &vpp_intf.Interface{
-		Name:        "loopbackNIC",
-		Type:        vpp_intf.Interface_SOFTWARE_LOOPBACK,
-		Enabled:     true,
-		Vrf:         s.GetMainVrfID(),
-		IpAddresses: []string{ipAddress},
-	}
-}
+/************************** Bridge Domain with VXLANs **************************/
 
-func (s *remoteCNIserver) vxlanBVILoopback() (*vpp_intf.Interface, error) {
-	vxlanIP, err := s.ipam.VxlanIPWithPrefix(s.ipam.NodeID())
+// vxlanBVILoopback returns configuration of the loopback interfaces acting as BVI
+// for the bridge domain with VXLAN interfaces.
+func (s *remoteCNIserver) vxlanBVILoopback() (key string, config *vpp_intf.Interface, err error) {
+	vxlanIP, vxlanIPNet, err := s.ipam.VxlanIPAddress(s.nodeID)
 	if err != nil {
-		return nil, err
+		return "", nil, err
 	}
-	return &vpp_intf.Interface{
+	vxlan := &vpp_intf.Interface{
 		Name:        vxlanBVIInterfaceName,
 		Type:        vpp_intf.Interface_SOFTWARE_LOOPBACK,
 		Enabled:     true,
-		IpAddresses: []string{vxlanIP.String()},
-		PhysAddress: s.hwAddrForVXLAN(s.ipam.NodeID()),
+		IpAddresses: []string{ipNetToString(combineAddrWithNet(vxlanIP, vxlanIPNet))},
+		PhysAddress: hwAddrForNodeInterface(s.nodeID, vxlanBVIHwAddrPrefix),
 		Vrf:         s.GetPodVrfID(),
-	}, nil
-}
-
-func (s *remoteCNIserver) hwAddrForVXLAN(nodeID uint32) string {
-	if nodeID < 256 {
-		// generate backward compatible MAC address
-		return fmt.Sprintf("1a:2b:3c:4d:5e:%02x", nodeID)
 	}
-	// the first octet is intentionally different from the one above
-	// in order to ensure unique IP foreach nodeID
-
-	res := []byte{0x12, 0x2b, 0, 0, 0, 0}
-
-	// the first two bytes are constant, the last four are equal to nodeID
-	binary.BigEndian.PutUint32(res[2:], nodeID)
-
-	return net.HardwareAddr(res).String()
-
+	key = vpp_intf.InterfaceKey(vxlan.Name)
+	return key, vxlan, nil
 }
 
-func (s *remoteCNIserver) vxlanBridgeDomain(bviInterface string) *vpp_l2.BridgeDomain {
-	return &vpp_l2.BridgeDomain{
+// vxlanBridgeDomain returns configuration for the bridge domain with VXLAN interfaces.
+func (s *remoteCNIserver) vxlanBridgeDomain() (key string, config *vpp_l2.BridgeDomain) {
+	bd := &vpp_l2.BridgeDomain{
 		Name:                vxlanBDName,
 		Learn:               false,
 		Forward:             true,
@@ -287,239 +464,169 @@ func (s *remoteCNIserver) vxlanBridgeDomain(bviInterface string) *vpp_l2.BridgeD
 		UnknownUnicastFlood: false,
 		Interfaces: []*vpp_l2.BridgeDomain_Interface{
 			{
-				Name:                    bviInterface,
+				Name:                    vxlanBVIInterfaceName,
 				BridgedVirtualInterface: true,
 				SplitHorizonGroup:       vxlanSplitHorizonGroup,
 			},
 		},
 	}
+	if len(s.nodeIP) > 0 {
+		for otherNodeID := range s.otherNodes {
+			bd.Interfaces = append(bd.Interfaces, &vpp_l2.BridgeDomain_Interface{
+				Name:              s.nameForVxlanToOtherNode(otherNodeID),
+				SplitHorizonGroup: vxlanSplitHorizonGroup,
+			})
+		}
+	}
+	key = vpp_l2.BridgeDomainKey(bd.Name)
+	return key, bd
 }
 
-func (s *remoteCNIserver) vxlanArpEntry(nodeID uint32, hostIP string) *vpp_l3.ARPEntry {
-	return &vpp_l3.ARPEntry{
-		Interface:   vxlanBVIInterfaceName,
-		IpAddress:   hostIP,
-		PhysAddress: s.hwAddrForVXLAN(nodeID),
-		Static:      true,
-	}
+// nameForVxlanToOtherNode returns logical name to use for VXLAN interface
+// connecting this node with the given other node.
+func (s *remoteCNIserver) nameForVxlanToOtherNode(otherNodeID uint32) string {
+	return fmt.Sprintf("vxlan%d", otherNodeID)
 }
 
-func (s *remoteCNIserver) vxlanFibEntry(macAddr string, outIfName string) *vpp_l2.FIBEntry {
-	return &vpp_l2.FIBEntry{
-		BridgeDomain:            vxlanBDName,
-		PhysAddress:             macAddr,
-		OutgoingInterface:       outIfName,
-		StaticConfig:            true,
-		BridgedVirtualInterface: false,
-		Action:                  vpp_l2.FIBEntry_FORWARD,
-	}
-}
-
-func (s *remoteCNIserver) computeRoutesToHost(hostID uint32, nextHopIP string) (podsRoute *vpp_l3.StaticRoute, hostRoute *vpp_l3.StaticRoute, err error) {
-	podsRoute, err = s.routeToOtherHostPods(hostID, nextHopIP)
-	if err != nil {
-		err = fmt.Errorf("Can't construct route to pods of host %v: %v ", hostID, err)
-		return
-	}
-	hostRoute, err = s.routeToOtherHostStack(hostID, nextHopIP)
-	if err != nil {
-		err = fmt.Errorf("Can't construct route to host %v: %v ", hostID, err)
-		return
-	}
-	return
-}
-
-func (s *remoteCNIserver) routeToOtherHostPods(hostID uint32, nextHopIP string) (*vpp_l3.StaticRoute, error) {
-	podNetwork, err := s.ipam.OtherNodePodNetwork(hostID)
-	if err != nil {
-		return nil, fmt.Errorf("Can't compute pod network for host ID %v, error: %v ", hostID, err)
-	}
-	return s.routeToOtherHostNetworks(podNetwork, nextHopIP)
-}
-
-func (s *remoteCNIserver) routeToOtherHostStack(hostID uint32, nextHopIP string) (*vpp_l3.StaticRoute, error) {
-	hostNw, err := s.ipam.OtherNodeVPPHostNetwork(hostID)
-	if err != nil {
-		return nil, fmt.Errorf("Can't compute vswitch network for host ID %v, error: %v ", hostID, err)
-	}
-	return s.routeToOtherHostNetworks(hostNw, nextHopIP)
-}
-
-func (s *remoteCNIserver) routeToOtherManagementIP(managementIP string, nextHopIP string) *vpp_l3.StaticRoute {
-	r := &vpp_l3.StaticRoute{
-		DstNetwork:  managementIP + "/32",
-		NextHopAddr: nextHopIP,
-	}
-	if s.useL2Interconnect {
-		r.VrfId = s.GetMainVrfID()
-	} else {
-		r.OutgoingInterface = vxlanBVIInterfaceName
-		r.VrfId = s.GetPodVrfID()
-	}
-	return r
-}
-
-func (s *remoteCNIserver) routeToOtherManagementIPViaPodVRF(managementIP string) *vpp_l3.StaticRoute {
-	return &vpp_l3.StaticRoute{
-		Type:       vpp_l3.StaticRoute_INTER_VRF,
-		DstNetwork: managementIP + "/32",
-		VrfId:      s.GetMainVrfID(),
-		ViaVrfId:   s.GetPodVrfID(),
-	}
-}
-
-func (s *remoteCNIserver) routeToOtherHostNetworks(destNetwork *net.IPNet, nextHopIP string) (*vpp_l3.StaticRoute, error) {
-	r := &vpp_l3.StaticRoute{
-		DstNetwork:  destNetwork.String(),
-		NextHopAddr: nextHopIP,
-	}
-	if s.useL2Interconnect {
-		r.VrfId = s.GetMainVrfID()
-	} else {
-		r.OutgoingInterface = vxlanBVIInterfaceName
-		r.VrfId = s.GetPodVrfID()
-	}
-	return r, nil
-}
-
-func (s *remoteCNIserver) computeVxlanToHost(hostID uint32, hostIP string) (*vpp_intf.Interface, error) {
-	return &vpp_intf.Interface{
-		Name: fmt.Sprintf("vxlan%d", hostID),
+// vxlanIfToOtherNode returns configuration for VXLAN interface connecting this node
+// with the given other node.
+func (s *remoteCNIserver) vxlanIfToOtherNode(otherNodeID uint32, otherNodeIP net.IP) (key string, config *vpp_intf.Interface) {
+	vxlan := &vpp_intf.Interface{
+		Name: s.nameForVxlanToOtherNode(otherNodeID),
 		Type: vpp_intf.Interface_VXLAN_TUNNEL,
 		Link: &vpp_intf.Interface_Vxlan{
 			Vxlan: &vpp_intf.Interface_VxlanLink{
-				SrcAddress: s.ipPrefixToAddress(s.nodeIP),
-				DstAddress: hostIP,
+				SrcAddress: s.nodeIP.String(),
+				DstAddress: otherNodeIP.String(),
 				Vni:        vxlanVNI,
 			},
 		},
 		Enabled: true,
 		Vrf:     s.GetMainVrfID(),
-	}, nil
+	}
+	key = vpp_intf.InterfaceKey(vxlan.Name)
+	return key, vxlan
 }
 
-func (s *remoteCNIserver) addInterfaceToVxlanBD(bd *vpp_l2.BridgeDomain, ifName string) {
-	bd.Interfaces = append(bd.Interfaces, &vpp_l2.BridgeDomain_Interface{
-		Name:              ifName,
-		SplitHorizonGroup: vxlanSplitHorizonGroup,
-	})
+// vxlanArpEntry returns configuration for ARP entry resolving hardware address
+// of the VXLAN BVI interface of another node.
+func (s *remoteCNIserver) vxlanArpEntry(otherNodeID uint32, vxlanIP net.IP) (key string, config *vpp_l3.ARPEntry) {
+	arp := &vpp_l3.ARPEntry{
+		Interface:   vxlanBVIInterfaceName,
+		IpAddress:   vxlanIP.String(),
+		PhysAddress: hwAddrForNodeInterface(otherNodeID, vxlanBVIHwAddrPrefix),
+		Static:      true,
+	}
+	key = vpp_l3.ArpEntryKey(arp.Interface, arp.IpAddress)
+	return key, arp
 }
 
-func (s *remoteCNIserver) removeInterfaceFromVxlanBD(bd *vpp_l2.BridgeDomain, ifName string) {
-	for i := range bd.Interfaces {
-		if bd.Interfaces[i].Name == ifName {
-			bd.Interfaces[i] = bd.Interfaces[len(bd.Interfaces)-1]
-			bd.Interfaces[len(bd.Interfaces)-1] = nil
-			bd.Interfaces = bd.Interfaces[:len(bd.Interfaces)-1]
-			break
+// vxlanFibEntry returns configuration for L2 FIB used inside the bridge domain with VXLANs
+// to route traffic destinated to the given other node through the right VXLAN interface.
+func (s *remoteCNIserver) vxlanFibEntry(otherNodeID uint32) (key string, config *vpp_l2.FIBEntry) {
+	fib := &vpp_l2.FIBEntry{
+		BridgeDomain:            vxlanBDName,
+		PhysAddress:             hwAddrForNodeInterface(otherNodeID, vxlanBVIHwAddrPrefix),
+		OutgoingInterface:       s.nameForVxlanToOtherNode(otherNodeID),
+		StaticConfig:            true,
+		BridgedVirtualInterface: false,
+		Action:                  vpp_l2.FIBEntry_FORWARD,
+	}
+	key = vpp_l2.FIBKey(fib.BridgeDomain, fib.PhysAddress)
+	return key, fib
+}
+
+// otherNodeIP calculates the IP address of the given other node or just trims the mask
+// from the provided one.
+func (s *remoteCNIserver) otherNodeIP(otherNodeID uint32, otherNodeIPNet string) (net.IP, error) {
+	if otherNodeIPNet != "" {
+		// otherNodeIPNet defined, just remove the mask
+		nodeIP, _, err := net.ParseCIDR(otherNodeIPNet)
+		if err != nil {
+			err := fmt.Errorf("Failed to parse Node IP address for node ID %v: %v",
+				otherNodeID, err)
+			s.Logger.Error(err)
+			return nodeIP, err
 		}
-	}
-}
-
-func (s *remoteCNIserver) otherHostIP(hostID uint32, hostIPPrefix string) string {
-	// determine next hop IP - either use provided one, or calculate based on hostIPPrefix
-	if hostIPPrefix != "" {
-		// hostIPPrefix defined, just trim prefix length
-		return s.ipPrefixToAddress(hostIPPrefix)
+		return nodeIP, nil
 	}
 
-	// hostIPPrefix not defined, determine based on hostID
-	nodeIP, err := s.ipam.NodeIPAddress(hostID)
+	// otherNodeIPNet not defined, determine based on otherNodeID
+	nodeIP, _, err := s.ipam.NodeIPAddress(otherNodeID)
 	if err != nil {
-		s.Logger.Errorf("Can't get Host IP address for host ID %v, error: %v ", hostID, err)
-		return ""
+		err := fmt.Errorf("Failed to get Node IP address for node ID %v, error: %v ",
+			otherNodeID, err)
+		s.Logger.Error(err)
+		return nodeIP, err
 	}
-	return nodeIP.String()
+	return nodeIP, nil
 }
 
-func (s *remoteCNIserver) ipPrefixToAddress(ip string) string {
-	if strings.Contains(ip, "/") {
-		return ip[:strings.Index(ip, "/")]
-	}
-	return ip
-}
-
-func (s *remoteCNIserver) getHostLinkIPs() ([]net.IP, error) {
-	if s.hostIPs != nil {
-		return s.hostIPs, nil
-	}
-
-	links, err := netlink.LinkList()
+// routeToOtherNodePods returns configuration for route applied to traffic destined
+// to pods of another node.
+func (s *remoteCNIserver) routeToOtherNodePods(otherNodeID uint32, nextHopIP net.IP) (key string, config *vpp_l3.StaticRoute, err error) {
+	podNetwork, err := s.ipam.PodSubnetOtherNode(otherNodeID)
 	if err != nil {
-		s.Logger.Error("Unable to list host links:", err)
-		return nil, err
+		return "", nil, fmt.Errorf("Failed to compute pod network for node ID %v, error: %v ", otherNodeID, err)
 	}
-
-	s.hostIPs = make([]net.IP, 0)
-	for _, l := range links {
-		if !strings.HasPrefix(l.Attrs().Name, "lo") && !strings.HasPrefix(l.Attrs().Name, "docker") &&
-			!strings.HasPrefix(l.Attrs().Name, "virbr") && !strings.HasPrefix(l.Attrs().Name, "vpp") {
-			// not a virtual interface, list its IP addresses
-			addrList, err := netlink.AddrList(l, netlink.FAMILY_V4)
-			if err != nil {
-				s.Logger.Error("Unable to list link IPs:", err)
-				return nil, err
-			}
-			// return all IPs
-			for _, addr := range addrList {
-				s.hostIPs = append(s.hostIPs, addr.IP)
-			}
-		}
-	}
-	return s.hostIPs, nil
+	key, config = s.routeToOtherNodeNetworks(podNetwork, nextHopIP)
+	return
 }
 
-func (s *remoteCNIserver) enableIPNeighborScan(txn linuxclient.PutDSL) {
-	txn.IPScanNeighbor(&vpp_l3.IPScanNeighbor{
-		Mode:           vpp_l3.IPScanNeighbor_IPv4,
-		ScanInterval:   uint32(s.config.IPNeighborScanInterval),
-		StaleThreshold: uint32(s.config.IPNeighborStaleThreshold),
-	})
-}
-
-func (s *remoteCNIserver) subscribeVnetFibCounters() error {
-
-	notifChan := make(chan api.Message, 1)
-	_, err := s.govppChan.SubscribeNotification(notifChan, &stats.VnetIP4FibCounters{})
-
+// routeToOtherNodeHostStack returns configuration for route applied to traffic destined
+// to the host stack of another node.
+func (s *remoteCNIserver) routeToOtherNodeHostStack(otherNodeID uint32, nextHopIP net.IP) (key string, config *vpp_l3.StaticRoute, err error) {
+	hostNetwork, err := s.ipam.HostInterconnectSubnetOtherNode(otherNodeID)
 	if err != nil {
-		s.Logger.Error("Error by subscribing to NewVnetIP4FibCounters:", err)
+		return "", nil, fmt.Errorf("Can't compute vswitch network for host ID %v, error: %v ", otherNodeID, err)
 	}
-
-	// read from the notif channel in a go routine to not block once the channel is full
-	go func() {
-		for {
-			<-notifChan
-		}
-	}()
-
-	return err
+	key, config = s.routeToOtherNodeNetworks(hostNetwork, nextHopIP)
+	return
 }
 
-func (s *remoteCNIserver) executeDebugCLI(cmd string) (string, error) {
-	s.Logger.Infof("Executing debug CLI: %s", cmd)
-
-	req := &vpe.CliInband{
-		Cmd: []byte(cmd),
+// routeToOtherNodeNetworks is a helper function to build route for traffic destined to another node.
+func (s *remoteCNIserver) routeToOtherNodeNetworks(destNetwork *net.IPNet, nextHopIP net.IP) (key string, config *vpp_l3.StaticRoute) {
+	route := &vpp_l3.StaticRoute{
+		DstNetwork:  destNetwork.String(),
+		NextHopAddr: nextHopIP.String(),
 	}
-	reply := &vpe.CliInbandReply{}
-
-	err := s.govppChan.SendRequest(req).ReceiveReply(reply)
-
-	if err != nil {
-		s.Logger.Error("Error by executing debug CLI:", err)
-		return "", err
+	if s.config.UseL2Interconnect {
+		route.VrfId = s.GetMainVrfID()
+	} else {
+		route.OutgoingInterface = vxlanBVIInterfaceName
+		route.VrfId = s.GetPodVrfID()
 	}
-	return string(reply.Reply), err
+	key = vpp_l3.RouteKey(route.VrfId, route.DstNetwork, route.NextHopAddr)
+	return key, route
 }
 
-func (s *remoteCNIserver) dropRoute(vrfID uint32, dstAddr *net.IPNet) *vpp_l3.StaticRoute {
-	s.Logger.Infof("Adding drop route in VRF %d to %s", vrfID, dstAddr)
-
-	return &vpp_l3.StaticRoute{
-		Type:       vpp_l3.StaticRoute_DROP,
-		DstNetwork: dstAddr.String(),
-		VrfId:      vrfID,
+// routeToOtherNodeManagementIP returns configuration for route applied to traffic destined
+// to a management IP of another node.
+func (s *remoteCNIserver) routeToOtherNodeManagementIP(managementIP, nextHopIP net.IP) (key string, config *vpp_l3.StaticRoute) {
+	route := &vpp_l3.StaticRoute{
+		DstNetwork:  managementIP.String() + "/32",
+		NextHopAddr: nextHopIP.String(),
 	}
+	if s.config.UseL2Interconnect {
+		route.VrfId = s.GetMainVrfID()
+	} else {
+		route.OutgoingInterface = vxlanBVIInterfaceName
+		route.VrfId = s.GetPodVrfID()
+	}
+	key = vpp_l3.RouteKey(route.VrfId, route.DstNetwork, route.NextHopAddr)
+	return key, route
+}
 
+// routeToOtherNodeManagementIPViaPodVRF returns configuration for route used
+// in Main VRF to direct traffic destined to management IP of another node
+// to go via Pod VRF (and then further via VXLANs).
+func (s *remoteCNIserver) routeToOtherNodeManagementIPViaPodVRF(managementIP net.IP) (key string, config *vpp_l3.StaticRoute) {
+	route := &vpp_l3.StaticRoute{
+		Type:       vpp_l3.StaticRoute_INTER_VRF,
+		DstNetwork: managementIP.String() + "/32",
+		VrfId:      s.GetMainVrfID(),
+		ViaVrfId:   s.GetPodVrfID(),
+	}
+	key = vpp_l3.RouteKey(route.VrfId, route.DstNetwork, route.NextHopAddr)
+	return key, route
 }

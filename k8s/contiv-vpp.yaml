@@ -36,20 +36,23 @@ data:
     IPNeighborStaleThreshold: 4
     ServiceLocalEndpointWeight: 1
     DisableNATVirtualReassembly: false
+    EnablePacketTrace: false
     CRDNodeConfigurationDisabled: true
     IPAMConfig:
       NodeInterconnectDHCP: false
       NodeInterconnectCIDR: 192.168.16.0/24
       PodSubnetCIDR: 10.1.0.0/16
-      PodNetworkPrefixLen: 24
-      PodIfIPCIDR: 10.2.1.0/24
+      PodSubnetOneNodePrefixLen: 24
+      PodVPPSubnetCIDR: 10.2.1.0/24
       VPPHostSubnetCIDR: 172.30.0.0/16
-      VPPHostNetworkPrefixLen: 24
+      VPPHostSubnetOneNodePrefixLen: 24
       VxlanCIDR: 192.168.30.0/24
   logs.conf: |
     default-level: debug
     loggers:
       - name: statscollector
+        level: info
+      - name: vpp.if-state
         level: info
   grpc.conf: |
     network: unix
@@ -159,6 +162,9 @@ spec:
               - etcdctl get --endpoints=127.0.0.1:32379 /
             periodSeconds: 2
             initialDelaySeconds: 20
+          resources:
+            requests:
+              cpu: 100m
       volumes:
         - name: var-etcd
           hostPath:
@@ -389,6 +395,11 @@ spec:
               mountPath: /etc/govpp
             - name: core-dumps
               mountPath: /var/contiv/dumps
+            - name: docker-socket
+              mountPath: /var/run/docker.sock
+          resources:
+            requests:
+              cpu: 250m
 
       volumes:
         # Used to connect to contiv-etcd.
@@ -444,6 +455,9 @@ spec:
         - name: var-bolt
           hostPath:
             path: /var/bolt
+        - name: docker-socket
+          hostPath:
+            path: /var/run/docker.sock
 
 ---
 
@@ -630,7 +644,15 @@ spec:
         args:
         - -c
         - |
-          cp -f /contiv-netctl /host/usr/local/bin/contiv-netctl || true
+          echo '#!/bin/sh
+          kubectl get pods -n kube-system | \
+            grep contiv-crd | \
+            cut -d " " -f 1 | \
+            xargs -I{} kubectl exec -n kube-system {} \
+            /contiv-netctl "$@"' \
+          > /host/usr/local/bin/contiv-netctl || true
+
+          chmod +x /host/usr/local/bin/contiv-netctl || true
         volumeMounts:
           - name: usr-local-bin
             mountPath: /host/usr/local/bin
@@ -644,6 +666,8 @@ spec:
           value: "/etc/etcd/etcd.conf"
         - name: HTTP_CONFIG
           value: "/etc/http/http.conf"
+        - name: HTTP_CLIENT_CONFIG
+          value: "/etc/http/http.client.conf"
         volumeMounts:
         - name: etcd-cfg
           mountPath: /etc/etcd
@@ -727,4 +751,7 @@ metadata:
 data:
   http.conf: |
     endpoint: 0.0.0.0:9090
+  http.client.conf: |
+    port: 9999
+    use-https: false
 

@@ -18,7 +18,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
-	"github.com/contiv/vpp/plugins/netctl/http"
+	"github.com/contiv/vpp/plugins/netctl/remote"
+	"github.com/ligato/cn-infra/db/keyval/etcd"
 	"os"
 	"sort"
 	"strings"
@@ -26,31 +27,31 @@ import (
 )
 
 // PrintAllIpams prints IPAM information for all nodes
-func PrintAllIpams() {
+func PrintAllIpams(client *remote.HTTPClient, db *etcd.BytesConnectionEtcd) {
 	nodes := make([]string, 0)
-	for k := range getClusterNodeInfo() {
+	for k := range getClusterNodeInfo(db) {
 		nodes = append(nodes, k)
 	}
 	sort.Strings(nodes)
 
 	w := getTabWriterAndPrintHeader()
 	for _, n := range nodes {
-		nodeIpamCmd(w, n)
+		nodeIpamCmd(client, db, w, n)
 	}
 	w.Flush()
 }
 
-//NodeIPamCmd prints out the ipam information of a specific node
-func NodeIPamCmd(nodeName string) {
+// NodeIPamCmd prints out the ipam information of a specific node
+func NodeIPamCmd(client *remote.HTTPClient, db *etcd.BytesConnectionEtcd, nodeName string) {
 	w := getTabWriterAndPrintHeader()
-	nodeIpamCmd(w, nodeName)
+	nodeIpamCmd(client, db, w, nodeName)
 	w.Flush()
 }
 
-func nodeIpamCmd(w *tabwriter.Writer, nodeName string) {
-	ip := resolveNodeOrIP(nodeName)
+func nodeIpamCmd(client *remote.HTTPClient, db *etcd.BytesConnectionEtcd, w *tabwriter.Writer, nodeName string) {
+	ip := resolveNodeOrIP(db, nodeName)
 
-	b, err := http.GetNodeInfo(ip, getIpamDataCmd)
+	b, err := getNodeInfo(client, ip, getIpamDataCmd)
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -64,7 +65,7 @@ func nodeIpamCmd(w *tabwriter.Writer, nodeName string) {
 	}
 
 	bviIP := "Not Available"
-	if b, err = http.GetNodeInfo(ip, getInterfaceDataCmd); err == nil {
+	if b, err = getNodeInfo(client, ip, getInterfaceDataCmd); err == nil {
 		intfs := make(telemetrymodel.NodeInterfaces)
 		if err := json.Unmarshal(b, &intfs); err == nil {
 			for _, ifc := range intfs {
@@ -80,9 +81,9 @@ func nodeIpamCmd(w *tabwriter.Writer, nodeName string) {
 		ipam.NodeName,
 		ipam.NodeIP,
 		bviIP,
-		ipam.PodNetwork,
+		ipam.PodSubnetThisNode,
 		ipam.VppHostNetwork,
-		ipam.Config.PodIfIPCIDR,
+		ipam.Config.PodVPPSubnetCIDR,
 		ipam.Config.PodSubnetCIDR)
 }
 

@@ -19,9 +19,7 @@ import (
 	"sync"
 
 	"github.com/contiv/vpp/plugins/contiv"
-	"github.com/contiv/vpp/plugins/contiv/containeridx"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
-	"github.com/ligato/cn-infra/logging/logrus"
 )
 
 // MockContiv is a mock for the Contiv Plugin.
@@ -30,7 +28,7 @@ type MockContiv struct {
 
 	podIf                       map[podmodel.ID]string
 	podSubnet                   *net.IPNet
-	podNetwork                  *net.IPNet
+	podSubnetThisNode           *net.IPNet
 	hostIPs                     []net.IP
 	mainVrfId                   uint32
 	podVrfId                    uint32
@@ -43,8 +41,8 @@ type MockContiv struct {
 	disableNATVirtualReassembly bool
 	serviceLocalEndpointWeight  uint8
 	natLoopbackIP               net.IP
-	nodeIP                      string
-	nodeIPsubs                  []chan string
+	nodeIP                      *net.IPNet
+	nodeIPsubs                  []chan *net.IPNet
 	podPreRemovalHooks          []contiv.PodActionHook
 	podPostAddHooks             []contiv.PodActionHook
 	mainPhysIf                  string
@@ -53,15 +51,12 @@ type MockContiv struct {
 	vxlanBVIIfName              string
 	defaultIfName               string
 	defaultIfIP                 net.IP
-	containerIndex              *containeridx.ConfigIndex
 }
 
 // NewMockContiv is a constructor for MockContiv.
 func NewMockContiv() *MockContiv {
-	ci := containeridx.NewConfigIndex(logrus.DefaultLogger(), "title", nil)
 	return &MockContiv{
 		podIf:                      make(map[podmodel.ID]string),
-		containerIndex:             ci,
 		serviceLocalEndpointWeight: 1,
 	}
 }
@@ -71,16 +66,11 @@ func (mc *MockContiv) SetPodIfName(pod podmodel.ID, ifName string) {
 	mc.podIf[pod] = ifName
 }
 
-// SetPodNetwork allows to set what tests will assume as the pod subnet
-// for the current host node.
-func (mc *MockContiv) SetPodNetwork(podNetwork string) {
-	_, mc.podSubnet, _ = net.ParseCIDR(podNetwork)
-	_, mc.podNetwork, _ = net.ParseCIDR(podNetwork)
-}
-
-// SetContainerIndex allows to set index that contains configured containers
-func (mc *MockContiv) SetContainerIndex(ci *containeridx.ConfigIndex) {
-	mc.containerIndex = ci
+// SetPodNetwork allows to set what tests will assume the pod subnet is
+// (same for this node as for the entire cluster for simplicity).
+func (mc *MockContiv) SetPodSubnet(podSubnet string) {
+	_, mc.podSubnet, _ = net.ParseCIDR(podSubnet)
+	_, mc.podSubnetThisNode, _ = net.ParseCIDR(podSubnet)
 }
 
 // SetTCPStackDisabled allows to set flag denoting if the tcpStack is disabled or not.
@@ -94,7 +84,7 @@ func (mc *MockContiv) SetSTNMode(stnMode bool) {
 }
 
 // SetNodeIP allows to set what tests will assume the node IP is.
-func (mc *MockContiv) SetNodeIP(nodeIP string) {
+func (mc *MockContiv) SetNodeIP(nodeIP *net.IPNet) {
 	mc.Lock()
 	defer mc.Unlock()
 
@@ -203,14 +193,9 @@ func (mc *MockContiv) GetPodByIf(ifname string) (podNamespace string, podName st
 	return "", "", false
 }
 
-// GetContainerIndex returns the index of configured containers/pods
-func (mc *MockContiv) GetContainerIndex() containeridx.Reader {
-	return mc.containerIndex
-}
-
-// GetPodNetwork returns static subnet constant that should represent pod subnet for current host node
-func (mc *MockContiv) GetPodNetwork() (podNetwork *net.IPNet) {
-	return mc.podNetwork
+// GetPodSubnetThisNode returns static subnet constant that should represent pod subnet for current host node
+func (mc *MockContiv) GetPodSubnetThisNode() (podNetwork *net.IPNet) {
+	return mc.podSubnetThisNode
 }
 
 // IsTCPstackDisabled returns true if the tcp stack is disabled and only veths are configured
@@ -246,13 +231,19 @@ func (mc *MockContiv) GetNodeIP() (net.IP, *net.IPNet) {
 	mc.Lock()
 	defer mc.Unlock()
 
-	nodeIP, nodeNet, _ := net.ParseCIDR(mc.nodeIP)
-	return nodeIP, nodeNet
+	if mc.nodeIP == nil {
+		return net.IP{}, nil
+	}
+
+	return mc.nodeIP.IP, &net.IPNet{
+		IP:   mc.nodeIP.IP.Mask(mc.nodeIP.Mask),
+		Mask: mc.nodeIP.Mask,
+	}
 }
 
 // WatchNodeIP adds given channel to the list of subscribers that are notified upon change
 // of nodeIP address. If the channel is not ready to receive notification, the notification is dropped.
-func (mc *MockContiv) WatchNodeIP(subscriber chan string) {
+func (mc *MockContiv) WatchNodeIP(subscriber chan *net.IPNet) {
 	mc.Lock()
 	defer mc.Unlock()
 

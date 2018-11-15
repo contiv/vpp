@@ -46,6 +46,7 @@ data:
     ServiceLocalEndpointWeight: {{ .Values.contiv.serviceLocalEndpointWeight }}
     {{- end }}
     DisableNATVirtualReassembly: {{ .Values.contiv.disableNATVirtualReassembly }}
+    EnablePacketTrace: {{ .Values.contiv.enablePacketTrace }}
     CRDNodeConfigurationDisabled: {{ .Values.contiv.crdNodeConfigurationDisabled }}
     IPAMConfig:
       NodeInterconnectDHCP: {{ .Values.contiv.ipamConfig.nodeInterconnectDHCP }}
@@ -59,10 +60,10 @@ data:
       ContivCIDR: {{ .Values.contiv.ipamConfig.contivCIDR }}
       {{ else }}
       PodSubnetCIDR: {{ .Values.contiv.ipamConfig.podSubnetCIDR }}
-      PodNetworkPrefixLen: {{ .Values.contiv.ipamConfig.podNetworkPrefixLen }}
-      PodIfIPCIDR: {{ .Values.contiv.ipamConfig.podIfIPCIDR }}
+      PodSubnetOneNodePrefixLen: {{ .Values.contiv.ipamConfig.podSubnetOneNodePrefixLen }}
+      PodVPPSubnetCIDR: {{ .Values.contiv.ipamConfig.podVPPSubnetCIDR }}
       VPPHostSubnetCIDR: {{ .Values.contiv.ipamConfig.vppHostSubnetCIDR }}
-      VPPHostNetworkPrefixLen: {{ .Values.contiv.ipamConfig.vppHostNetworkPrefixLen }}
+      VPPHostSubnetOneNodePrefixLen: {{ .Values.contiv.ipamConfig.vppHostSubnetOneNodePrefixLen }}
       VxlanCIDR: {{ .Values.contiv.ipamConfig.vxlanCIDR }}
       {{- end }}
     {{- if .Values.contiv.nodeConfig }}
@@ -99,6 +100,8 @@ data:
     default-level: {{ .Values.logs.defaultLevel }}
     loggers:
       - name: statscollector
+        level: info
+      - name: vpp.if-state
         level: info
   grpc.conf: |
     network: unix
@@ -245,6 +248,15 @@ spec:
               - etcdctl get --endpoints=127.0.0.1:{{ .Values.etcd.service.nodePort }} /
             periodSeconds: 2
             initialDelaySeconds: 20
+          resources:
+            {{- if .Values.etcd.cpuLimit }}
+            limits:
+              cpu: {{ .Values.etcd.cpuLimit }}
+            {{- end }}
+            {{- if .Values.etcd.cpuRequest }}
+            requests:
+              cpu: {{ .Values.etcd.cpuRequest }}
+            {{- end }}
       {{- if .Values.etcd.secureTransport }}
       volumes:
         - name: etcd-secrets
@@ -675,10 +687,12 @@ spec:
             - name: core-dumps
               mountPath: {{ .Values.vswitch.coreDumpsDir }}
             {{- end }}
-          {{- if or .Values.vswitch.defineMemoryLimits .Values.vswitch.cpuLimit }}
+            - name: docker-socket
+              mountPath: /var/run/docker.sock
           resources:
+            {{- if or .Values.vswitch.defineMemoryLimits .Values.vswitch.cpuLimit }}
             limits:
-          {{- end }}
+            {{- end }}
             {{- if .Values.vswitch.defineMemoryLimits }}
               {{- if .Values.vswitch.hugePages1giLimit }}
               hugepages-1Gi: {{ .Values.vswitch.hugePages1giLimit }}
@@ -691,8 +705,10 @@ spec:
             {{- end }}
             {{- if .Values.vswitch.cpuLimit }}
               cpu: {{ .Values.vswitch.cpuLimit }}
+            {{- end }}
+            {{- if .Values.vswitch.cpuRequest }}
             requests:
-              cpu: {{ .Values.vswitch.cpuLimit }}
+              cpu: {{ .Values.vswitch.cpuRequest }}
             {{- end }}
 
       volumes:
@@ -783,7 +799,9 @@ spec:
         - name: var-bolt
           hostPath:
             path: {{ .Values.bolt.dataDir }}
-
+        - name: docker-socket
+          hostPath:
+            path: /var/run/docker.sock
 ---
 
 # This installs the contiv-ksr (Kubernetes State Reflector) on the master node in a Kubernetes cluster.
@@ -1043,7 +1061,15 @@ spec:
         args:
         - -c
         - |
-          cp -f /contiv-netctl /host/usr/local/bin/contiv-netctl || true
+          echo '#!/bin/sh
+          kubectl get pods -n kube-system | \
+            grep contiv-crd | \
+            cut -d " " -f 1 | \
+            xargs -I{} kubectl exec -n kube-system {} \
+            /contiv-netctl "$@"' \
+          > /host/usr/local/bin/contiv-netctl || true
+
+          chmod +x /host/usr/local/bin/contiv-netctl || true
         volumeMounts:
           - name: usr-local-bin
             mountPath: /host/usr/local/bin
@@ -1061,6 +1087,8 @@ spec:
           value: "/etc/etcd/etcd.conf"
         - name: HTTP_CONFIG
           value: "/etc/http/http.conf"
+        - name: HTTP_CLIENT_CONFIG
+          value: "/etc/http/http.client.conf"
         volumeMounts:
         - name: etcd-cfg
           mountPath: /etc/etcd
@@ -1210,3 +1238,9 @@ data:
     client-basic-auth:
       - {{ .Values.http.basicAuth | quote }}
     {{- end }}
+  http.client.conf: |
+    port: 9999
+    {{- if .Values.http.enableBasicAuth }}
+    basic-auth: {{ .Values.http.basicAuth | quote }}
+    {{- end }}
+    use-https: {{ .Values.http.enableServerCert }}

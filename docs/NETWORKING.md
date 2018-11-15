@@ -26,14 +26,14 @@ in the `IPAMConfig` section of the [Contiv/VPP deployment YAML](../k8s/contiv-vp
 from this range. The size of this range (default `/16`) dictates upper limit of 
 POD count for the entire k8s cluster (default 65536 PODs).
 
-- **PodNetworkPrefixLen** (default `24`): per-node dedicated podSubnet range. 
+- **PodSubnetOneNodePrefixLen** (default `24`): per-node dedicated podSubnet range. 
 From the allocatable range defined in `PodSubnetCIDR`, this value will dictate the 
 allocation for each node. With the default value (`24`) this indicates that each node 
 has a `/24` slice of the `PodSubnetCIDR`. The Node ID is used to address the node. 
-In case of `PodSubnetCIDR = 10.1.0.0/16`, `PodNetworkPrefixLen = 24` and `NodeID = 5`,
+In case of `PodSubnetCIDR = 10.1.0.0/16`, `PodSubnetOneNodePrefixLen = 24` and `NodeID = 5`,
 the resulting POD subnet for the node would be `10.1.5.0/24`.
 
-- **PodIfIPCIDR** (default `10.2.1.0/24`): VPP-internal addresses used to put
+- **PodVPPSubnetCIDR** (default `10.2.1.0/24`): VPP-internal addresses used to put
 the VPP interfaces facing towards the PODs into L3 mode. This IP range will be reused 
 on each node, thereby it is never externally addressable outside of the node itself.
 The only requirement is that this subnet should not collide with any other IPAM subnet.
@@ -41,12 +41,12 @@ The only requirement is that this subnet should not collide with any other IPAM 
 - **VPPHostSubnetCIDR** (default `172.30.0.0/16`): used for addressing 
 the interconnect of the VPP with the Linux network stack within the same node. 
 Since this subnet needs to  be unique on each node, the Node ID is used to determine 
-the actual subnet used on the node with the combination of `VPPHostNetworkPrefixLen`, 
-similarly as for the `PodSubnetCIDR` and `PodNetworkPrefixLen`.
+the actual subnet used on the node with the combination of `VPPHostSubnetOneNodePrefixLen`, 
+similarly as for the `PodSubnetCIDR` and `PodSubnetOneNodePrefixLen`.
 
-- **VPPHostNetworkPrefixLen** (default `24`): used to calculate the subnet 
+- **VPPHostSubnetOneNodePrefixLen** (default `24`): used to calculate the subnet 
 for addressing the interconnect of VPP with the Linux network stack within the same node.
-With `VPPHostSubnetCIDR = 172.30.0.0/16`, `VPPHostNetworkPrefixLen = 24` and
+With `VPPHostSubnetCIDR = 172.30.0.0/16`, `VPPHostSubnetOneNodePrefixLen = 24` and
 `NodeID = 5` the resulting subnet for the node would be `172.30.5.0/24`.
 
 - **NodeInterconnectCIDR** (default `192.168.16.0/24`): range for the addresses 

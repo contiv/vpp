@@ -104,8 +104,7 @@ func (ctc *ContivTelemetryCache) parseAndCacheNodeInfoData(key string, evData da
 		return fmt.Errorf("invalid key '%s' or node id '%d'", key, nodeInfoValue.Id)
 	}
 
-	if nodeInfoValue.Id == 0 || nodeInfoValue.Name == "" ||
-		nodeInfoValue.IpAddress == "" || nodeInfoValue.ManagementIpAddress == "" {
+	if nodeInfoValue.Id == 0 || nodeInfoValue.Name == "" || nodeInfoValue.IpAddress == "" {
 		return fmt.Errorf("invalid nodeInfo data: '%+v'", nodeInfoValue)
 	}
 

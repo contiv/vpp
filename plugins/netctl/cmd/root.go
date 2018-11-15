@@ -18,18 +18,48 @@ package cmd
 import (
 	"fmt"
 	"github.com/contiv/vpp/plugins/netctl/cmdimpl"
+	"github.com/contiv/vpp/plugins/netctl/remote"
+	"github.com/ligato/cn-infra/db/keyval/etcd"
 	"github.com/spf13/cobra"
 	"os"
 )
+
+var (
+	etcdConfig string
+	httpConfig string
+)
+
+func getClient() (client *remote.HTTPClient) {
+	client, err := remote.CreateHTTPClient(httpConfig)
+
+	if err != nil {
+		fmt.Printf("Error: %v", err)
+		os.Exit(1)
+	}
+
+	return client
+}
+
+func getDb() (db *etcd.BytesConnectionEtcd) {
+	db, err := remote.CreateEtcdClient(etcdConfig)
+
+	if err != nil {
+		fmt.Printf("Error: %v", err)
+		os.Exit(1)
+	}
+
+	return db
+}
 
 var cmdNodes = &cobra.Command{
 	Use:   "nodes",
 	Short: "Shows vswitch information for all nodes in the running Contiv cluster.",
 	Args:  cobra.ExactArgs(0),
 	Run: func(cmd *cobra.Command, args []string) {
-		cmdimpl.PrintNodes()
+		cmdimpl.PrintNodes(getClient(), getDb())
 	},
 }
+
 var cmdVppDump = &cobra.Command{
 	Use:     "vppdump nodename ",
 	Short:   "Print anything to the screen",
@@ -37,12 +67,12 @@ var cmdVppDump = &cobra.Command{
 	Args:    cobra.MinimumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		nodeName := args[0]
+		vppDumpType := ""
 		if len(args) == 2 {
-			vppDumpType := args[1]
-			cmdimpl.DumpCmd(nodeName, vppDumpType)
-		} else {
-			cmdimpl.DumpCmd(nodeName, "")
+			vppDumpType = args[1]
 		}
+
+		cmdimpl.DumpCmd(getClient(), getDb(), nodeName, vppDumpType)
 	},
 }
 
@@ -58,7 +88,7 @@ var cmdVppCLI = &cobra.Command{
 			for _, str := range args[1:] {
 				vppCliCmd += str + " "
 			}
-			cmdimpl.VppCliCmd(nodeName, vppCliCmd)
+			cmdimpl.VppCliCmd(getClient(), getDb(), nodeName, vppCliCmd)
 		} else if nodeName == "" {
 			fmt.Println("Enter a node name for vppcli: vppcli <nodeName> <cli_cmd>")
 		} else {
@@ -74,10 +104,10 @@ var cmdNodeIPam = &cobra.Command{
 	Args:    cobra.MaximumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		if len(args) < 1 {
-			cmdimpl.PrintAllIpams()
+			cmdimpl.PrintAllIpams(getClient(), getDb())
 		} else {
 			nodeName := args[0]
-			cmdimpl.NodeIPamCmd(nodeName)
+			cmdimpl.NodeIPamCmd(getClient(), getDb(), nodeName)
 		}
 	},
 }
@@ -89,12 +119,11 @@ var cmdPodInfo = &cobra.Command{
 	Example: "netctl pods k8-master\nnetctl pods",
 	Args:    cobra.MaximumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-
 		if len(args) < 1 {
-			cmdimpl.PrintAllPods()
+			cmdimpl.PrintAllPods(getClient(), getDb())
 		} else {
 			nodeName := args[0]
-			cmdimpl.PrintPodsPerNode(nodeName)
+			cmdimpl.PrintPodsPerNode(getClient(), getDb(), nodeName)
 		}
 
 	},
@@ -103,6 +132,10 @@ var cmdPodInfo = &cobra.Command{
 //Execute will execute the command netctlcd
 func Execute() {
 	var rootCmd = &cobra.Command{Use: "netctl"}
+
+	rootCmd.PersistentFlags().StringVar(&etcdConfig, "etcd-cfg", "", "path to etcd.conf config file")
+	rootCmd.PersistentFlags().StringVar(&httpConfig, "http-cfg", "", "path to http.client.conf config file")
+
 	rootCmd.AddCommand(cmdNodes)
 	rootCmd.AddCommand(cmdVppDump)
 	rootCmd.AddCommand(cmdVppCLI)

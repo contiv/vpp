@@ -74,10 +74,10 @@ Parameter | Description | Default
 `contiv.serviceLocalEndpointWeight` | load-balancing weight for locally deployed service endpoints | 1
 `contiv.disableNATVirtualReassembly` | Disable NAT virtual reassembly (drop fragmented packets) | `False`
 `contiv.ipamConfig.podSubnetCIDR` | Pod subnet CIDR | `10.1.0.0/16`
-`contiv.ipamConfig.podNetworkPrefixLen` | Pod network prefix length | `24`
-`contiv.ipamConfig.PodIfIPCIDR` | Subnet CIDR for VPP-side POD addresses | `10.2.1.0/24`
+`contiv.ipamConfig.podSubnetOneNodePrefixLen` | Pod network prefix length | `24`
+`contiv.ipamConfig.PodVPPSubnetCIDR` | Subnet CIDR for VPP-side POD addresses | `10.2.1.0/24`
 `contiv.ipamConfig.vppHostSubnetCIDR` | VPP host subnet CIDR | `172.30.0.0/16`
-`contiv.ipamConfig.vppHostNetworkPrefixLen` | VPP host network prefix length | `24`
+`contiv.ipamConfig.vppHostSubnetOneNodePrefixLen` | VPP host network prefix length | `24`
 `contiv.ipamConfig.vxlanCIDR` | VXLAN CIDR | `192.168.30.0/24`
 `contiv.ipamConfig.nodeInterconnectCIDR` | Node interconnect CIDR, uses DHCP if empty | `""`
 `contiv.ipamConfig.serviceCIDR` | Service CIDR | `""`

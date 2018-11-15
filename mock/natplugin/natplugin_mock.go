@@ -99,16 +99,16 @@ func (mnt *MockNatPlugin) ApplyTxn(txn *localclient.Txn, latestRevs *syncbase.Pr
 		/* Resync */
 
 		mnt.Reset()
-		for _, op := range txn.LinuxDataChangeTxn.Ops {
-			if op.Key == nat.GlobalNAT44Key {
+		for key, value := range txn.LinuxDataChangeTxn.Values {
+			if key == nat.GlobalNAT44Key {
 				// put global NAT config
-				if err := mnt.putGlobalConfig(op.Value); err != nil {
+				if err := mnt.putGlobalConfig(value); err != nil {
 					return err
 				}
 
-			} else if strings.HasPrefix(op.Key, nat.DNAT44Prefix) {
+			} else if strings.HasPrefix(key, nat.DNAT44Prefix) {
 				// put DNAT config
-				dnatConfig, isDnatConfig := op.Value.(*nat.DNat44)
+				dnatConfig, isDnatConfig := value.(*nat.DNat44)
 				if !isDnatConfig {
 					return errors.New("failed to cast DNAT config value")
 				}
@@ -145,17 +145,17 @@ func (mnt *MockNatPlugin) ApplyTxn(txn *localclient.Txn, latestRevs *syncbase.Pr
 	}
 
 	dataChange := txn.LinuxDataChangeTxn
-	for _, op := range dataChange.Ops {
+	for key, value := range dataChange.Values {
 		// foundRev, _ := latestRevs.Get(op.Key) TODO: uncomment/update after refactor
-		if op.Key == nat.GlobalNAT44Key {
-			if op.Value != nil {
+		if key == nat.GlobalNAT44Key {
+			if value != nil {
 				// put global NAT config
 				/*
 					if mnt.defaultNat44Global != !foundRev {
 						return errors.New("modify vs create NAT44-global-config operation mismatch")
 					}
 				*/
-				if err := mnt.putGlobalConfig(op.Value); err != nil {
+				if err := mnt.putGlobalConfig(value); err != nil {
 					return err
 				}
 			} else {
@@ -171,10 +171,10 @@ func (mnt *MockNatPlugin) ApplyTxn(txn *localclient.Txn, latestRevs *syncbase.Pr
 				mnt.resetNat44Global()
 			}
 
-		} else if strings.HasPrefix(op.Key, nat.DNAT44Prefix) {
-			if op.Value != nil {
+		} else if strings.HasPrefix(key, nat.DNAT44Prefix) {
+			if value != nil {
 				// put DNAT config
-				dnatConfig, isDnatConfig := op.Value.(*nat.DNat44)
+				dnatConfig, isDnatConfig := value.(*nat.DNat44)
 				if !isDnatConfig {
 					return errors.New("failed to cast DNAT config value")
 				}
@@ -224,7 +224,7 @@ func (mnt *MockNatPlugin) ApplyTxn(txn *localclient.Txn, latestRevs *syncbase.Pr
 						return errors.New("cannot remove DNAT without latest value/revision")
 					}
 				*/
-				label := strings.TrimPrefix(op.Key, nat.DNAT44Prefix)
+				label := strings.TrimPrefix(key, nat.DNAT44Prefix)
 				if prevDnatConfig, hasDnat := mnt.nat44Dnat[label]; hasDnat {
 					oldSms, err := mnt.dnatToStaticMappings(prevDnatConfig)
 					if err != nil {
@@ -314,8 +314,8 @@ func (mnt *MockNatPlugin) dnatToStaticMappings(dnat *nat.DNat44) (*StaticMapping
 		sm := &StaticMapping{}
 
 		// fields set to a constant value
-		if staticMapping.ExternalPort != 0 && staticMapping.TwiceNat != nat.DNat44_StaticMapping_SELF {
-			return nil, errors.New("self-twice-NAT not enabled for static mapping")
+		if staticMapping.ExternalPort != 0 && staticMapping.TwiceNat == nat.DNat44_StaticMapping_DISABLED {
+			return nil, errors.New("self-twice-NAT/twice-NAT not enabled for static mapping")
 		}
 		if staticMapping.ExternalInterface != "" {
 			return nil, errors.New("static mapping with external interface is not expected")
@@ -343,6 +343,11 @@ func (mnt *MockNatPlugin) dnatToStaticMappings(dnat *nat.DNat44) (*StaticMapping
 			return nil, errors.New("invalid external port number")
 		}
 		sm.ExternalPort = uint16(staticMapping.ExternalPort)
+
+		// twice NAT
+		if staticMapping.TwiceNat == nat.DNat44_StaticMapping_ENABLED {
+			sm.TwiceNAT = true
+		}
 
 		// locals
 		for _, local := range staticMapping.LocalIps {
@@ -441,10 +446,9 @@ func (mnt *MockNatPlugin) AddressPoolSize() int {
 }
 
 // PoolContainsAddress checks if the given address is in the NAT address pool.
-func (mnt *MockNatPlugin) PoolContainsAddress(addr string) bool {
-	addrIP := net.ParseIP(addr)
+func (mnt *MockNatPlugin) PoolContainsAddress(addr net.IP) bool {
 	for _, address := range mnt.addressPool {
-		if address.Equal(addrIP) {
+		if address.Equal(addr) {
 			return true
 		}
 	}

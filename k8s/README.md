@@ -59,11 +59,11 @@ To use the development image for testing with specific version of VPP, see
 
   * IPAM (section `IPAMConfig`)
     - `PodSubnetCIDR`: subnet used for all pods across all nodes
-    - `PodIfIPCIDR`: subnet CIDR for VPP-side POD addresses
-    - `PodNetworkPrefixLen`: subnet prefix length used for all pods of 1 k8s node
+    - `PodVPPSubnetCIDR`: subnet CIDR for VPP-side POD addresses
+    - `PodSubnetOneNodePrefixLen`: subnet prefix length used for all pods of 1 k8s node
       (pod network = pod subnet for one k8s node);
     - `VPPHostSubnetCIDR`: subnet used in each node for VPP-to-host connectivity;
-    - `VPPHostNetworkPrefixLen`: prefix length of the subnet used for VPP-to-host connectivity
+    - `VPPHostSubnetOneNodePrefixLen`: prefix length of the subnet used for VPP-to-host connectivity
       on 1 k8s node (VPPHost network = VPPHost subnet for one k8s node)
     - `NodeInterconnectCIDR`: subnet used for main interfaces of all nodes
     - `NodeInterconnectDHCP`: use DHCP to acquire IP for all nodes by default

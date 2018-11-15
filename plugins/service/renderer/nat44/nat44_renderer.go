@@ -49,6 +49,15 @@ const (
 	defaultIdleOtherTimeout = 5 * time.Minute // inactive timeout for other NAT sessions
 )
 
+// serviceIPType represents type of IP address where the service is accessible: node / cluster / external
+type serviceIPType int
+
+const (
+	nodeIP serviceIPType = iota
+	clusterIP
+	externalIP
+)
+
 var (
 	tcpNatSessionCount          uint64
 	otherNatSessionCount        uint64
@@ -427,75 +436,43 @@ func (rndr *Renderer) exportDNATMappings(service *renderer.ContivService) []*nat
 
 	// Export NAT mappings for NodePort services.
 	if service.HasNodePort() {
-		for _, nodeIP := range rndr.nodeIPs.List() {
-			var externalIPFromPool bool
-			if nodeIP.To4() != nil {
-				nodeIP = nodeIP.To4()
-			}
-			if rndr.defaultIfIP != nil && rndr.defaultIfIP.Equal(nodeIP) {
-				externalIPFromPool = true
-			}
-			// Add one mapping for each port.
-			for portName, port := range service.Ports {
-				if port.NodePort == 0 {
-					continue
-				}
-				mapping := &nat.DNat44_StaticMapping{}
-				mapping.TwiceNat = nat.DNat44_StaticMapping_SELF
-				mapping.ExternalIp = nodeIP.String()
-				mapping.ExternalIpFromPool = externalIPFromPool
-				mapping.ExternalPort = uint32(port.NodePort)
-				switch port.Protocol {
-				case renderer.TCP:
-					mapping.Protocol = nat.DNat44_TCP
-				case renderer.UDP:
-					mapping.Protocol = nat.DNat44_UDP
-				}
-				for _, backend := range service.Backends[portName] {
-					if service.TrafficPolicy != renderer.ClusterWide && !backend.Local {
-						// Do not NAT+LB remote backends.
-						continue
-					}
-					local := &nat.DNat44_StaticMapping_LocalIP{
-						LocalIp:   backend.IP.String(),
-						LocalPort: uint32(backend.Port),
-					}
-					if backend.Local {
-						local.Probability = uint32(rndr.Contiv.GetServiceLocalEndpointWeight())
-					} else {
-						local.Probability = 1
-					}
-					if rndr.isNodeLocalIP(backend.IP) {
-						local.VrfId = rndr.Contiv.GetMainVrfID()
-					} else {
-						local.VrfId = rndr.Contiv.GetPodVrfID()
-					}
-					mapping.LocalIps = append(mapping.LocalIps, local)
-				}
-				if len(mapping.LocalIps) == 0 {
-					continue
-				}
-				if len(mapping.LocalIps) == 1 {
-					// For single backend we use "0" to represent the probability
-					// (not really configured).
-					mapping.LocalIps[0].Probability = 0
-				}
-				mappings = append(mappings, mapping)
-			}
-		}
+		mappings = append(mappings, rndr.exportServiceIPMappings(service, rndr.nodeIPs, nodeIP)...)
 	}
 
-	// Export NAT mappings for external IPs.
-	for _, externalIP := range service.ExternalIPs.List() {
+	// Export NAT mappings for cluster & external IPs.
+	mappings = append(mappings, rndr.exportServiceIPMappings(service, service.ClusterIPs, clusterIP)...)
+	mappings = append(mappings, rndr.exportServiceIPMappings(service, service.ExternalIPs, externalIP)...)
+
+	return mappings
+}
+
+// exportServiceIPMappings exports the corresponding list of D-NAT mappings from a list of service IPs of the given service.
+func (rndr *Renderer) exportServiceIPMappings(service *renderer.ContivService,
+	serviceIPs *renderer.IPAddresses, ipType serviceIPType) (mappings []*nat.DNat44_StaticMapping) {
+
+	for _, ip := range serviceIPs.List() {
+		if ip.To4() != nil {
+			ip = ip.To4()
+		}
 		// Add one mapping for each port.
 		for portName, port := range service.Ports {
-			if port.Port == 0 {
+			if ipType == nodeIP && port.NodePort == 0 {
+				continue
+			} else if ipType != nodeIP && port.Port == 0 {
 				continue
 			}
 			mapping := &nat.DNat44_StaticMapping{}
-			mapping.TwiceNat = nat.DNat44_StaticMapping_SELF
-			mapping.ExternalIp = externalIP.String()
-			mapping.ExternalPort = uint32(port.Port)
+			if ipType == externalIP && service.TrafficPolicy == renderer.ClusterWide {
+				mapping.TwiceNat = nat.DNat44_StaticMapping_ENABLED
+			} else {
+				mapping.TwiceNat = nat.DNat44_StaticMapping_SELF
+			}
+			mapping.ExternalIp = ip.String()
+			if ipType == nodeIP {
+				mapping.ExternalPort = uint32(port.NodePort)
+			} else {
+				mapping.ExternalPort = uint32(port.Port)
+			}
 			switch port.Protocol {
 			case renderer.TCP:
 				mapping.Protocol = nat.DNat44_TCP
@@ -534,7 +511,6 @@ func (rndr *Renderer) exportDNATMappings(service *renderer.ContivService) []*nat
 			mappings = append(mappings, mapping)
 		}
 	}
-
 	return mappings
 }
 

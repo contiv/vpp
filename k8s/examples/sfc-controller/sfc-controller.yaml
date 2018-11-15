@@ -89,6 +89,9 @@ data:
     sfc_controller_config_version: 2
     description: 2 vnf chains spanning 2 hosts, memif's and vxlan tunnels
 
+    system_parameters:
+      memif_directory: "/var/run/contiv"
+
     ipam_pools:  # allocate internode vxlan mesh enpoints from a pool
       - metadata:
           name: vxlan_tunnel_pool
@@ -106,6 +109,7 @@ data:
           node_type: host
           interfaces:
             - name: GigabitEthernet0/8/0
+              bypass_renderer: true
               if_type: ethernet
               ip_addresses:
                 - "192.168.16.1/24"
@@ -115,6 +119,7 @@ data:
           node_type: host
           interfaces:
             - name: GigabitEthernet0/8/0
+              bypass_renderer: true
               if_type: ethernet
               ip_addresses:
                 - "192.168.16.2/24"

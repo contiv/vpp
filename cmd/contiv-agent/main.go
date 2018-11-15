@@ -46,7 +46,6 @@ import (
 
 	"github.com/contiv/vpp/plugins/contiv"
 	"github.com/contiv/vpp/plugins/ksr"
-	"github.com/contiv/vpp/plugins/kvdbproxy"
 	"github.com/contiv/vpp/plugins/policy"
 	"github.com/contiv/vpp/plugins/service"
 	"github.com/contiv/vpp/plugins/statscollector"
@@ -61,13 +60,11 @@ type ContivAgent struct {
 	HealthProbe *probe.Plugin
 	Prometheus  *prometheus.Plugin
 
-	ETCDDataSync    *kvdbsync.Plugin
-	NodeIDDataSync  *kvdbsync.Plugin
+	ContivDataSync  *kvdbsync.Plugin
 	ServiceDataSync *kvdbsync.Plugin
 	PolicyDataSync  *kvdbsync.Plugin
 
 	KVScheduler *kvscheduler.Scheduler
-	KVProxy     *kvdbproxy.Plugin
 	Stats       *statscollector.Plugin
 
 	GoVPP         *govppmux.Plugin
@@ -108,15 +105,8 @@ func (c *ContivAgent) Close() error {
 }
 
 func main() {
-	// vpp-agent configuration data sync
-	etcdDataSync := kvdbsync.NewPlugin(kvdbsync.UseDeps(func(deps *kvdbsync.Deps) {
-		deps.KvPlugin = &etcd.DefaultPlugin
-		deps.ResyncOrch = &resync.DefaultPlugin
-	}))
-
-	kvdbproxy.DefaultPlugin.KVDB = etcdDataSync
-
-	etcd.DefaultPlugin.StatusCheck = nil // disable status check for etcd
+	// disable status check for etcd
+	etcd.DefaultPlugin.StatusCheck = nil
 
 	// datasync of Kubernetes state data
 	ksrServicelabel := servicelabel.NewPlugin(servicelabel.UseLabel(ksr.MicroserviceLabel))
@@ -131,12 +121,12 @@ func main() {
 			}))
 	}
 
-	nodeIDDataSync := newKSRprefixSync("nodeIdDataSync")
+	contivDataSync := newKSRprefixSync("contivDataSync")
 	serviceDataSync := newKSRprefixSync("serviceDataSync")
 	policyDataSync := newKSRprefixSync("policyDataSync")
 
 	// set sources for VPP configuration
-	watcher := &datasync.KVProtoWatchers{&kvdbproxy.DefaultPlugin, local.Get()}
+	watcher := &datasync.KVProtoWatchers{local.Get()}
 	kvscheduler.DefaultPlugin.Watcher = watcher
 
 	// initialize vpp-agent plugins
@@ -154,7 +144,7 @@ func main() {
 	// initialize Contiv plugins
 	contivPlugin := contiv.NewPlugin(contiv.UseDeps(func(deps *contiv.Deps) {
 		deps.VPPIfPlugin = &vpp_ifplugin.DefaultPlugin
-		deps.Watcher = nodeIDDataSync
+		deps.Watcher = contivDataSync
 	}))
 
 	statscollector.DefaultPlugin.Contiv = contivPlugin
@@ -175,12 +165,10 @@ func main() {
 		HTTP:            &rest.DefaultPlugin,
 		HealthProbe:     &probe.DefaultPlugin,
 		Prometheus:      &prometheus.DefaultPlugin,
-		ETCDDataSync:    etcdDataSync,
-		NodeIDDataSync:  nodeIDDataSync,
+		ContivDataSync:  contivDataSync,
 		ServiceDataSync: serviceDataSync,
 		PolicyDataSync:  policyDataSync,
 		KVScheduler:     &kvscheduler.DefaultPlugin,
-		KVProxy:         &kvdbproxy.DefaultPlugin,
 		Stats:           &statscollector.DefaultPlugin,
 		GoVPP:           &govppmux.DefaultPlugin,
 		LinuxIfPlugin:   &linux_ifplugin.DefaultPlugin,

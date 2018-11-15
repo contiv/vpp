@@ -650,17 +650,8 @@ func (v *Validator) ValidatePodInfo() {
 			continue
 		}
 
-		// Get K8s's view of the Pod's CIDR on this node
-		_, k8sMask, err := utils.Ipv4CidrToAddressAndMask(k8sNode.Pod_CIDR)
-		if err != nil {
-			errCnt++
-			errString := fmt.Sprintf("pod '%s': invalid Pod_CIDR %s", pod.Name, k8sNode.Pod_CIDR)
-			v.Report.AppendToNodeReport(k8sNode.Name, errString)
-			continue
-		}
-
 		// Get Contiv's view of the VPP's pod-facing tap interface subnet CIDR
-		// on this node (PodIfIpCIDR)
+		// on this node (PodVPPSubnetCIDR)
 		if vppNode.NodeIPam == nil {
 			errCnt++
 			v.Log.Infof("No IPAM data for node %s", vppNode.Name)
@@ -669,24 +660,15 @@ func (v *Validator) ValidatePodInfo() {
 			continue
 		}
 
-		podIfIPAddr, podIfIPMask, err := utils.Ipv4CidrToAddressAndMask(vppNode.NodeIPam.Config.PodIfIPCIDR)
+		podIfIPAddr, podIfIPMask, err := utils.Ipv4CidrToAddressAndMask(vppNode.NodeIPam.Config.PodVPPSubnetCIDR)
 		if err != nil {
 			errCnt++
-			errString := fmt.Sprintf("pod '%s': invalid IPAM PodIfIPCIDR %s",
-				pod.Name, vppNode.NodeIPam.Config.PodIfIPCIDR)
+			errString := fmt.Sprintf("pod '%s': invalid IPAM PodVPPSubnetCIDR %s",
+				pod.Name, vppNode.NodeIPam.Config.PodVPPSubnetCIDR)
 			v.Report.AppendToNodeReport(k8sNode.Name, errString)
 			continue
 		}
 		podIfIPPrefix := podIfIPAddr &^ podIfIPMask
-
-		// Make sure the VPP-side CIDR mask and K8s-side CIDR mask are the same
-		if k8sMask != podIfIPMask {
-			errCnt++
-			errString := fmt.Sprintf("pod '%s': CIDR mask mismatch: K8s Pod CIDR: %s, Contiv PodIfIpCIDR %s",
-				pod.Name, k8sNode.Pod_CIDR, vppNode.NodeIPam.Config.PodIfIPCIDR)
-			v.Report.AppendToNodeReport(k8sNode.Name, errString)
-			continue
-		}
 
 		// Populate Pod's VPP interface data (IP addresses, interface name and
 		// ifIndex)
@@ -702,7 +684,7 @@ func (v *Validator) ValidatePodInfo() {
 		podAddrSuffix := podAddr & podIfIPMask
 
 		// Find the VPP tap interface for the pod. The interface must be on
-		// the PodIfIPCIDR subnet and the bottom part of its address must be
+		// the PodVPPSubnetCIDR subnet and the bottom part of its address must be
 		// the same as the bottom part of the pod's IP address.
 		for _, intf := range vppNode.NodeInterfaces {
 			if intf.If.IfType == interfaces.InterfaceType_TAP_INTERFACE {
@@ -735,6 +717,26 @@ func (v *Validator) ValidatePodInfo() {
 				}
 			}
 		}
+
+		if len(k8sNode.Pod_CIDR) > 0 {
+			// Get K8s's view of the Pod's CIDR on this node
+			_, k8sMask, err := utils.Ipv4CidrToAddressAndMask(k8sNode.Pod_CIDR)
+			if err != nil {
+				errCnt++
+				errString := fmt.Sprintf("pod '%s': invalid Pod_CIDR %s", pod.Name, k8sNode.Pod_CIDR)
+				v.Report.AppendToNodeReport(k8sNode.Name, errString)
+				continue
+			}
+
+			// Make sure the VPP-side CIDR mask and K8s-side CIDR mask are the same
+			if k8sMask != podIfIPMask {
+				errCnt++
+				errString := fmt.Sprintf("pod '%s': CIDR mask mismatch: K8s Pod CIDR: %s, Contiv PodVPPSubnetCIDR %s",
+					pod.Name, k8sNode.Pod_CIDR, vppNode.NodeIPam.Config.PodVPPSubnetCIDR)
+				v.Report.AppendToNodeReport(k8sNode.Name, errString)
+				continue
+			}
+		}
 	}
 
 	for podName, nodeName := range podMap {
@@ -757,7 +759,7 @@ func (v *Validator) ValidatePodInfo() {
 
 // createTapMarkAndSweepDB creates a database (db) used to detect dangling
 // pod-facing tap interfaces. It contains a per-node set of pod-facing tap
-// interfaces. Only interfaces with at least one address in the PodIfIpCIDR
+// interfaces. Only interfaces with at least one address in the PodVPPSubnetCIDR
 // subnet are placed in this DB. The validation algorithm will remove each
 // valid tap interface from this DB, only leaving those for which a valid
 // pod could not be found
@@ -773,9 +775,9 @@ func (v *Validator) createTapMarkAndSweepDB() map[string]map[uint32]telemetrymod
 			continue
 		}
 
-		podIfIPAddress, podIfIPMask, err := utils.Ipv4CidrToAddressAndMask(node.NodeIPam.Config.PodIfIPCIDR)
+		podIfIPAddress, podIfIPMask, err := utils.Ipv4CidrToAddressAndMask(node.NodeIPam.Config.PodVPPSubnetCIDR)
 		if err != nil {
-			errString := fmt.Sprintf("invalid PodIfIPCIDR - %s", node.NodeIPam.Config.PodIfIPCIDR)
+			errString := fmt.Sprintf("invalid PodVPPSubnetCIDR - %s", node.NodeIPam.Config.PodVPPSubnetCIDR)
 			v.Report.AppendToNodeReport(node.Name, errString)
 			continue
 		}

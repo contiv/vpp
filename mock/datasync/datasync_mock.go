@@ -122,8 +122,9 @@ func (mds *MockDataSync) Delete(key string) datasync.ChangeEvent {
 			MockKeyVal: MockKeyVal{
 				key: key,
 				rev: mds.data[key].rev,
-				val: val,
+				val: nil,
 			},
+			prevVal: val,
 		},
 	}
 }
@@ -158,6 +159,9 @@ func (mds *MockDataSync) AnyError() error {
 
 // GetValue returns the associated value.
 func (mkv *MockKeyVal) GetValue(value proto.Message) error {
+	if mkv.val == nil {
+		return nil
+	}
 	tmp, err := proto.Marshal(mkv.val)
 	if err != nil {
 		return err

@@ -209,7 +209,7 @@ dpdk {
 }
 api-trace {
    on
-   nitems 500
+   nitems 5000
 }
 ```
 If assigning multiple NICs to VPP you will need to include each NIC's PCI address
@@ -246,7 +246,7 @@ following stanza to the VPP startup config file:
 ```
 api-trace {
     on
-    nitems 500
+    nitems 5000
 }
 ```
 You can set the size of the trace buffer with the <nitems> attribute. 

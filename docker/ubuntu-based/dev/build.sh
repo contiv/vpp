@@ -28,7 +28,6 @@ if [ ${BUILDARCH} = "aarch64" ] ; then
   BUILDARCH="arm64"
 fi
 
-
 if [ ${BUILDARCH} = "x86_64" ] ; then
   BUILDARCH="amd64"
 fi
@@ -39,15 +38,15 @@ DOCKERFILE=Dockerfile${DOCKERFILETAG}
 # all the source files without the need of cloning them:
 cd ../../../
 
-# execute the build
-if [ -z "${VPP_COMMIT_ID}" ]
+# determine extra vpp version based args
+VPP_COMMIT_VERSION="latest"
+if [ -n "${VPP_COMMIT_ID}" ]
 then
-    # no specific VPP commit ID
-    docker build -f docker/ubuntu-based/dev/${DOCKERFILE} -t dev-contiv-vswitch-${BUILDARCH}:${TAG} --build-arg VPP_IMAGE=dev-contiv-vpp-${BUILDARCH}:latest ${DOCKER_BUILD_ARGS} .
-else
-    # specific VPP commit ID
-    docker build -f docker/ubuntu-based/dev/${DOCKERFILE} -t dev-contiv-vswitch-${BUILDARCH}:${TAG} --build-arg VPP_IMAGE=dev-contiv-vpp-${BUILDARCH}:${VPP_COMMIT_ID} ${DOCKER_BUILD_ARGS} .
+  VPP_COMMIT_VERSION="${VPP_COMMIT_ID}"
 fi
+
+# execute the build
+docker build -f docker/ubuntu-based/dev/${DOCKERFILE} -t dev-contiv-vswitch-${BUILDARCH}:${TAG} --build-arg VPP_IMAGE=dev-contiv-vpp-${BUILDARCH}:${VPP_COMMIT_VERSION} ${DOCKER_BUILD_ARGS} .
 
 VPP=$(docker run --rm dev-contiv-vswitch-${BUILDARCH}:${TAG} bash -c "cd \$VPP_DIR && git rev-parse --short HEAD")
 docker tag dev-contiv-vswitch-${BUILDARCH}:${TAG} dev-contiv-vswitch-${BUILDARCH}:${TAG}-${VPP}

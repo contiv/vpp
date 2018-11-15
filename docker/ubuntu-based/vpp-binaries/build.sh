@@ -21,12 +21,10 @@ TAG=${1-latest}
 
 DOCKERFILE_tag=""
 BUILDARCH=`uname -m`
-IMAGEARCH=""
 
 if [ ${BUILDARCH} = "aarch64" ] ; then
   DOCKERFILE_tag=".arm64"
   BUILDARCH="arm64"
-  IMAGEARCH="-arm64"
 fi
 
 if [ ${BUILDARCH} = "x86_64" ] ; then
@@ -35,14 +33,21 @@ fi
 
 DOCKERFILE=Dockerfile${DOCKERFILE_tag}
 
+# determine extra vpp version based args
+VPP_COMMIT_VERSION="latest"
+if [ -n "${VPP_COMMIT_ID}" ]
+then
+  VPP_COMMIT_VERSION="${VPP_COMMIT_ID:0:7}"
+fi
+
 # extract the binaries from the development image into the "binaries/" folder
-./extract.sh dev-contiv-vswitch${IMAGEARCH}:${TAG}
+./extract.sh dev-contiv-vswitch-${BUILDARCH}:${TAG}
 
 # build the production images
-docker build -t prod-contiv-vpp-binaries-${BUILDARCH}:${VPP_COMMIT_ID:0:7} ${DOCKER_BUILD_ARGS} -f ${DOCKERFILE} .
+docker build -t prod-contiv-vpp-binaries-${BUILDARCH}:${VPP_COMMIT_VERSION} ${DOCKER_BUILD_ARGS} -f ${DOCKERFILE} .
 
 if [ ${BUILDARCH} = "amd64" ] ; then
-  docker tag prod-contiv-vpp-binaries-${BUILDARCH}:${VPP_COMMIT_ID:0:7} prod-contiv-vpp-binaries:${VPP_COMMIT_ID:0:7}
+  docker tag prod-contiv-vpp-binaries-${BUILDARCH}:${VPP_COMMIT_VERSION} prod-contiv-vpp-binaries:${VPP_COMMIT_VERSION}
 fi
 
 # delete the extracted binaries

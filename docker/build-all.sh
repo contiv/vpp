@@ -24,7 +24,7 @@ source ../vpp.env
 # default values for build args
 export DOCKER_BUILD_ARGS=""
 export SKIP_DEBUG_BUILD=0
-
+export SKIP_DOCKER_CACHE=0
 
 # override defaults from arguments
 while [ "$1" != "" ]; do
@@ -43,12 +43,20 @@ while [ "$1" != "" ]; do
             export SKIP_DEBUG_BUILD=1
             echo "Using SKIP_DEBUG_BUILD=1"
             ;;
+        -n | --no-cache )
+            export SKIP_DOCKER_CACHE=1
+            echo "Using SKIP_DOCKER_CACHE=1"
+            ;;
         * )
             echo "Invalid parameter: "$1
             exit 1
     esac
     shift
 done
+
+if [ ${SKIP_DOCKER_CACHE} = 1 ]; then
+  export DOCKER_BUILD_ARGS="--no-cache=true --force-rm=true $DOCKER_BUILD_ARGS"
+fi
 
 # builds all Ubuntu -based images
 cd ubuntu-based

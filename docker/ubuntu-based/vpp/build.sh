@@ -30,10 +30,7 @@ if [ ${BUILDARCH} = "x86_64" ] ; then
   BUILDARCH="amd64"
 fi
 
-
 DOCKERFILE=Dockerfile${DOCKERFILETAG}
-#ALL_ARCH = amd64 arm64
-
 
 # execute the build
 if [ -z "${VPP_COMMIT_ID}" ]
@@ -44,7 +41,7 @@ then
         --build-arg VPP_REPO_URL=${VPP_REPO_URL} \
         --build-arg VPP_BRANCH_NAME=${VPP_BRANCH_NAME} \
         --build-arg SKIP_DEBUG_BUILD=${SKIP_DEBUG_BUILD} \
-        ${DOCKER_BUILD_ARGS} --force-rm=true .
+        ${DOCKER_BUILD_ARGS} .
     if [ ${BUILDARCH} = "amd64" ] ; then
        docker tag  dev-contiv-vpp-${BUILDARCH}:latest dev-contiv-vpp:latest
     fi
@@ -56,7 +53,7 @@ else
         --build-arg VPP_BRANCH_NAME=${VPP_BRANCH_NAME} \
         --build-arg VPP_COMMIT_ID=${VPP_COMMIT_ID} \
         --build-arg SKIP_DEBUG_BUILD=${SKIP_DEBUG_BUILD} \
-        ${DOCKER_BUILD_ARGS} --force-rm=true .
+        ${DOCKER_BUILD_ARGS} .
     if [ ${BUILDARCH} = "amd64" ] ; then
        docker tag  dev-contiv-vpp-${BUILDARCH}:${VPP_COMMIT_ID} dev-contiv-vpp:${VPP_COMMIT_ID}
     fi

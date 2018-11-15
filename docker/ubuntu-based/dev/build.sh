@@ -33,10 +33,7 @@ if [ ${BUILDARCH} = "x86_64" ] ; then
   BUILDARCH="amd64"
 fi
 
-
 DOCKERFILE=Dockerfile${DOCKERFILETAG}
-#ALL_ARCH = amd64 arm64
-
 
 # the build needs to be executed from the github repository root, so that we can add
 # all the source files without the need of cloning them:
@@ -46,10 +43,10 @@ cd ../../../
 if [ -z "${VPP_COMMIT_ID}" ]
 then
     # no specific VPP commit ID
-    docker build -f docker/ubuntu-based/dev/${DOCKERFILE} -t dev-contiv-vswitch-${BUILDARCH}:${TAG} --build-arg VPP_IMAGE=dev-contiv-vpp-${BUILDARCH}:latest ${DOCKER_BUILD_ARGS} --force-rm=true .
+    docker build -f docker/ubuntu-based/dev/${DOCKERFILE} -t dev-contiv-vswitch-${BUILDARCH}:${TAG} --build-arg VPP_IMAGE=dev-contiv-vpp-${BUILDARCH}:latest ${DOCKER_BUILD_ARGS} .
 else
     # specific VPP commit ID
-    docker build -f docker/ubuntu-based/dev/${DOCKERFILE} -t dev-contiv-vswitch-${BUILDARCH}:${TAG} --build-arg VPP_IMAGE=dev-contiv-vpp-${BUILDARCH}:${VPP_COMMIT_ID} ${DOCKER_BUILD_ARGS} --force-rm=true .
+    docker build -f docker/ubuntu-based/dev/${DOCKERFILE} -t dev-contiv-vswitch-${BUILDARCH}:${TAG} --build-arg VPP_IMAGE=dev-contiv-vpp-${BUILDARCH}:${VPP_COMMIT_ID} ${DOCKER_BUILD_ARGS} .
 fi
 
 VPP=$(docker run --rm dev-contiv-vswitch-${BUILDARCH}:${TAG} bash -c "cd \$VPP_DIR && git rev-parse --short HEAD")

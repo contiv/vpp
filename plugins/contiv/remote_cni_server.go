@@ -1114,6 +1114,10 @@ func (s *remoteCNIserver) listRunningPods() (pods map[podmodel.ID]*Pod, err erro
 				container.ID, err)
 			continue
 		}
+		// ignore bare (without process) sandbox containers
+		if details.State.Pid == 0 {
+			continue
+		}
 		// add pod into the set of running pods
 		pods[podID] = &Pod{
 			ID:               podID,
@@ -1121,6 +1125,7 @@ func (s *remoteCNIserver) listRunningPods() (pods map[podmodel.ID]*Pod, err erro
 			NetworkNamespace: fmt.Sprintf("/proc/%d/ns/net", details.State.Pid),
 			// IPAddress and interface are filled by podStateResync
 		}
+		s.Logger.Debugf("Found running Pod: %+v", pods[podID])
 	}
 
 	return pods, nil
@@ -1131,21 +1136,19 @@ func (s *remoteCNIserver) listRunningPods() (pods map[podmodel.ID]*Pod, err erro
 // cleanupVswitchConnectivity cleans up base vSwitch VPP connectivity
 // configuration in the host IP stack.
 func (s *remoteCNIserver) cleanupVswitchConnectivity() {
+	if s.config.UseTAPInterfaces {
+		// everything configured in the host will disappear automatically
+		return
+	}
+
 	// prepare the config transaction
 	txn := s.txnFactory()
 
-	// un-configure VPP-host interconnect interfaces
-	if s.config.UseTAPInterfaces {
-		key, _ := s.interconnectTapVPP()
-		txn.Delete(key)
-		key, _ = s.interconnectTapHost()
-		txn.Delete(key)
-	} else {
-		key, _ := s.interconnectVethHost()
-		txn.Delete(key)
-		key, _ = s.interconnectVethVpp()
-		txn.Delete(key)
-	}
+	// un-configure VETHs
+	key, _ := s.interconnectVethHost()
+	txn.Delete(key)
+	key, _ = s.interconnectVethVpp()
+	txn.Delete(key)
 
 	// execute the config transaction
 	ctx := context.Background()

@@ -41,13 +41,13 @@ then
 fi
 
 # extract the binaries from the development image into the "binaries/" folder
-./extract.sh dev-contiv-vswitch-${BUILDARCH}:${TAG}
+./extract.sh contivvpp/dev-vswitch-${BUILDARCH}:${TAG}
 
 # build the production images
-docker build -t prod-contiv-vpp-binaries-${BUILDARCH}:${VPP_COMMIT_VERSION} ${DOCKER_BUILD_ARGS} -f ${DOCKERFILE} .
+docker build -t contivvpp/vpp-binaries-${BUILDARCH}:${VPP_COMMIT_VERSION} ${DOCKER_BUILD_ARGS} -f ${DOCKERFILE} .
 
 if [ ${BUILDARCH} = "amd64" ] ; then
-  docker tag prod-contiv-vpp-binaries-${BUILDARCH}:${VPP_COMMIT_VERSION} prod-contiv-vpp-binaries:${VPP_COMMIT_VERSION}
+  docker tag contivvpp/vpp-binaries-${BUILDARCH}:${VPP_COMMIT_VERSION} contivvpp/vpp-binaries:${VPP_COMMIT_VERSION}
 fi
 
 # delete the extracted binaries

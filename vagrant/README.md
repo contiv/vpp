@@ -98,7 +98,7 @@ From a suspended state, or after a reboot of the host machine, the cluster
 can be brought up by running the vagrant-up script.
 
 
-### Building and deploying the dev-contiv-vswitch image (optional)
+### Building and deploying the contivvpp/dev-vswitch image (optional)
 If you chose the deployment with the development environment follow the
 instructions to build a modified contivvpp/vswitch image.
 

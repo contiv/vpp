@@ -41,7 +41,7 @@ then
 fi
 
 # execute the build
-docker build -t dev-contiv-vpp-${BUILDARCH}:${VPP_COMMIT_VERSION} \
+docker build -t contivvpp/vpp-${BUILDARCH}:${VPP_COMMIT_VERSION} \
 	-f ${DOCKERFILE} \
 	--build-arg VPP_REPO_URL=${VPP_REPO_URL} \
 	--build-arg VPP_BRANCH_NAME=${VPP_BRANCH_NAME} \
@@ -50,5 +50,5 @@ docker build -t dev-contiv-vpp-${BUILDARCH}:${VPP_COMMIT_VERSION} \
 	${DOCKER_BUILD_ARGS} .
 
 if [ ${BUILDARCH} = "amd64" ] ; then
-   docker tag dev-contiv-vpp-${BUILDARCH}:${VPP_COMMIT_VERSION} dev-contiv-vpp:${VPP_COMMIT_VERSION}
+   docker tag contivvpp/vpp-${BUILDARCH}:${VPP_COMMIT_VERSION} contivvpp/vpp:${VPP_COMMIT_VERSION}
 fi

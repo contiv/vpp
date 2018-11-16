@@ -46,12 +46,12 @@ then
 fi
 
 # execute the build
-docker build -f docker/ubuntu-based/dev/${DOCKERFILE} -t dev-contiv-vswitch-${BUILDARCH}:${TAG} --build-arg VPP_IMAGE=dev-contiv-vpp-${BUILDARCH}:${VPP_COMMIT_VERSION} ${DOCKER_BUILD_ARGS} .
+docker build -f docker/ubuntu-based/dev/${DOCKERFILE} -t contivvpp/dev-vswitch-${BUILDARCH}:${TAG} --build-arg VPP_IMAGE=contivvpp/vpp-${BUILDARCH}:${VPP_COMMIT_VERSION} ${DOCKER_BUILD_ARGS} .
 
-VPP=$(docker run --rm dev-contiv-vswitch-${BUILDARCH}:${TAG} bash -c "cd \$VPP_DIR && git rev-parse --short HEAD")
-docker tag dev-contiv-vswitch-${BUILDARCH}:${TAG} dev-contiv-vswitch-${BUILDARCH}:${TAG}-${VPP}
+VPP=$(docker run --rm contivvpp/dev-vswitch-${BUILDARCH}:${TAG} bash -c "cd \$VPP_DIR && git rev-parse --short HEAD")
+docker tag contivvpp/dev-vswitch-${BUILDARCH}:${TAG} contivvpp/dev-vswitch-${BUILDARCH}:${TAG}-${VPP}
 
 if [ ${BUILDARCH} = "amd64" ] ; then
-   docker tag dev-contiv-vswitch-${BUILDARCH}:${TAG} dev-contiv-vswitch:${TAG}
-   docker tag dev-contiv-vswitch:${TAG} dev-contiv-vswitch:${TAG}-${VPP}
+   docker tag contivvpp/dev-vswitch-${BUILDARCH}:${TAG} contivvpp/dev-vswitch:${TAG}
+   docker tag contivvpp/dev-vswitch:${TAG} contivvpp/dev-vswitch:${TAG}-${VPP}
 fi

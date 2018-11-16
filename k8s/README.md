@@ -12,10 +12,10 @@ kubectl apply -f contiv-vpp.yaml
 # undeploy
 kubectl delete -f contiv-vpp.yaml
 ```
-Optionally you can edit `contiv-vpp.yaml` to deploy the dev-contiv-vswitch image, built
+Optionally you can edit `contiv-vpp.yaml` to deploy the contivvpp/dev-vswitch image, built
 in local environment with `../docker/build-all.sh`.
 ```
-sed -i "s@image: contivvpp/vswitch@image: dev-contiv-vswitch:<your image version>@g" ./contiv-vpp.yaml
+sed -i "s@image: contivvpp/vswitch@image: contivvpp/dev-vswitch:<your image version>@g" ./contiv-vpp.yaml
 ```
 
 This manifest can be generated and updated from the contiv-vpp helm chart:
@@ -26,7 +26,7 @@ make generate-manifest
 And optionally, a new manifest can be generated with different configuration values than the defaults in contiv-vpp/values.yaml:
 ```
 helm template --name contiv-vpp contiv-vpp \
-  --set vswitch.image.repository=dev-contiv-vswitch \
+  --set vswitch.image.repository=contivvpp/dev-vswitch \
   --set vswitch.image.tag=<your image version> > dev-contiv-vpp.yaml
 ```
 

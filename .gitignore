@@ -10,6 +10,5 @@ cmd/contiv-crd/contiv-crd
 cmd/contiv-netctl/contiv-netctl
 cmd/tools/ldpreload-label-injector/ldpreload-label-injector
 vagrant/images.tar
-vagrant/dev-contiv-vswitch.tar
 .vagrant
 .vagrant-state

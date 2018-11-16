@@ -34,13 +34,13 @@ fi
 DOCKERFILE=Dockerfile${DOCKERFILE_tag}
 
 # extract the binaries from the development image into the "binaries/" folder
-./extract.sh dev-contiv-vswitch-${BUILDARCH}:${TAG}
+./extract.sh contivvpp/dev-vswitch-${BUILDARCH}:${TAG}
 
 # build the production images
-docker build -t prod-contiv-vswitch-${BUILDARCH}:${TAG} ${DOCKER_BUILD_ARGS} -f vswitch/${DOCKERFILE} .
+docker build -t contivvpp/vswitch-${BUILDARCH}:${TAG} ${DOCKER_BUILD_ARGS} -f vswitch/${DOCKERFILE} .
 
 if [ ${BUILDARCH} = "amd64" ] ; then
-  docker tag prod-contiv-vswitch-${BUILDARCH}:${TAG} prod-contiv-vswitch:${TAG}
+  docker tag contivvpp/vswitch-${BUILDARCH}:${TAG} contivvpp/vswitch:${TAG}
 fi
 
 # delete the extracted binaries

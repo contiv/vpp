@@ -15,6 +15,7 @@
 package descriptor
 
 import (
+	"fmt"
 	"net"
 	"strings"
 
@@ -30,7 +31,7 @@ import (
 	"github.com/ligato/vpp-agent/plugins/linuxv2/l3plugin/descriptor/adapter"
 	l3linuxcalls "github.com/ligato/vpp-agent/plugins/linuxv2/l3plugin/linuxcalls"
 	ifmodel "github.com/ligato/vpp-agent/plugins/linuxv2/model/interfaces"
-	"github.com/ligato/vpp-agent/plugins/linuxv2/model/l3"
+	l3 "github.com/ligato/vpp-agent/plugins/linuxv2/model/l3"
 	"github.com/ligato/vpp-agent/plugins/linuxv2/nsplugin"
 	nslinuxcalls "github.com/ligato/vpp-agent/plugins/linuxv2/nsplugin/linuxcalls"
 )
@@ -92,7 +93,7 @@ func (d *ARPDescriptor) GetDescriptor() *adapter.ARPDescriptor {
 	return &adapter.ARPDescriptor{
 		Name:               ARPDescriptorName,
 		KeySelector:        d.IsARPKey,
-		ValueTypeName:      proto.MessageName(&l3.LinuxStaticARPEntry{}),
+		ValueTypeName:      proto.MessageName(&l3.StaticARPEntry{}),
 		ValueComparator:    d.EquivalentARPs,
 		NBKeyPrefix:        l3.StaticArpKeyPrefix,
 		Add:                d.Add,
@@ -111,7 +112,7 @@ func (d *ARPDescriptor) IsARPKey(key string) bool {
 }
 
 // EquivalentARPs is case-insensitive comparison function for l3.LinuxStaticARPEntry.
-func (d *ARPDescriptor) EquivalentARPs(key string, oldArp, NewArp *l3.LinuxStaticARPEntry) bool {
+func (d *ARPDescriptor) EquivalentARPs(key string, oldArp, NewArp *l3.StaticARPEntry) bool {
 	// interfaces compared as usually:
 	if oldArp.Interface != NewArp.Interface {
 		return false
@@ -144,24 +145,24 @@ func (d *ARPDescriptor) IsRetriableFailure(err error) bool {
 }
 
 // Add creates ARP entry.
-func (d *ARPDescriptor) Add(key string, arp *l3.LinuxStaticARPEntry) (metadata interface{}, err error) {
+func (d *ARPDescriptor) Add(key string, arp *l3.StaticARPEntry) (metadata interface{}, err error) {
 	err = d.updateARPEntry(arp, "add", d.l3Handler.SetARPEntry)
 	return nil, err
 }
 
 // Delete removes ARP entry.
-func (d *ARPDescriptor) Delete(key string, arp *l3.LinuxStaticARPEntry, metadata interface{}) error {
+func (d *ARPDescriptor) Delete(key string, arp *l3.StaticARPEntry, metadata interface{}) error {
 	return d.updateARPEntry(arp, "delete", d.l3Handler.DelARPEntry)
 }
 
 // Modify is able to change MAC address of the ARP entry.
-func (d *ARPDescriptor) Modify(key string, oldARP, newARP *l3.LinuxStaticARPEntry, oldMetadata interface{}) (newMetadata interface{}, err error) {
+func (d *ARPDescriptor) Modify(key string, oldARP, newARP *l3.StaticARPEntry, oldMetadata interface{}) (newMetadata interface{}, err error) {
 	err = d.updateARPEntry(newARP, "modify", d.l3Handler.SetARPEntry)
 	return nil, err
 }
 
 // updateARPEntry adds, modifies or deletes an ARP entry.
-func (d *ARPDescriptor) updateARPEntry(arp *l3.LinuxStaticARPEntry, actionName string, actionClb func(arpEntry *netlink.Neigh) error) error {
+func (d *ARPDescriptor) updateARPEntry(arp *l3.StaticARPEntry, actionName string, actionClb func(arpEntry *netlink.Neigh) error) error {
 	var err error
 
 	// validate the configuration first
@@ -245,7 +246,7 @@ func (d *ARPDescriptor) updateARPEntry(arp *l3.LinuxStaticARPEntry, actionName s
 }
 
 // Dependencies lists dependencies for a Linux ARP entry.
-func (d *ARPDescriptor) Dependencies(key string, arp *l3.LinuxStaticARPEntry) []scheduler.Dependency {
+func (d *ARPDescriptor) Dependencies(key string, arp *l3.StaticARPEntry) []scheduler.Dependency {
 	// the associated interface must exist and be UP
 	if arp.Interface != "" {
 		return []scheduler.Dependency{
@@ -302,7 +303,7 @@ func (d *ARPDescriptor) Dump(correlate []adapter.ARPKVWithMetadata) ([]adapter.A
 
 			dump = append(dump, adapter.ARPKVWithMetadata{
 				Key: l3.StaticArpKey(ifName, ipAddr),
-				Value: &l3.LinuxStaticARPEntry{
+				Value: &l3.StaticARPEntry{
 					Interface: ifName,
 					IpAddress: ipAddr,
 					HwAddress: hwAddr,
@@ -311,6 +312,12 @@ func (d *ARPDescriptor) Dump(correlate []adapter.ARPKVWithMetadata) ([]adapter.A
 			})
 		}
 	}
-	d.log.Debugf("Dumping Linux ARPs: %v", dump)
+
+	var dumpList string
+	for _, d := range dump {
+		dumpList += fmt.Sprintf("\n - %+v", d)
+	}
+	d.log.Debugf("Dumping %d Linux ARPs: %v", len(dump), dumpList)
+
 	return dump, nil
 }

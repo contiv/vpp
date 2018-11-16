@@ -32,9 +32,9 @@ import (
 	"github.com/ligato/cn-infra/rpc/rest"
 
 	scheduler_api "github.com/ligato/vpp-agent/plugins/kvscheduler/api"
-	linux_l3 "github.com/ligato/vpp-agent/plugins/linuxv2/model/l3"
-	vpp_intf "github.com/ligato/vpp-agent/plugins/vppv2/model/interfaces"
-	vpp_l3 "github.com/ligato/vpp-agent/plugins/vppv2/model/l3"
+	"github.com/ligato/vpp-agent/plugins/linuxv2/model/l3"
+	"github.com/ligato/vpp-agent/plugins/vppv2/model/interfaces"
+	"github.com/ligato/vpp-agent/plugins/vppv2/model/l3"
 
 	stn_grpc "github.com/contiv/vpp/cmd/contiv-stn/model/stn"
 	"github.com/contiv/vpp/plugins/contiv/ipam"
@@ -898,7 +898,7 @@ func (s *remoteCNIserver) configureOtherVPPInterfaces(physicalIfaces map[uint32]
 	s.otherPhysicalIfs = []string{}
 
 	// match existing interfaces and build configuration
-	interfaces := make(map[string]*vpp_intf.Interface)
+	interfaces := make(map[string]*interfaces.Interface)
 	for _, physicalIface := range physicalIfaces {
 		for _, ifaceCfg := range s.nodeConfig.OtherVPPInterfaces {
 			if ifaceCfg.InterfaceName == physicalIface {
@@ -955,7 +955,7 @@ func (s *remoteCNIserver) configureVswitchHostConnectivity(txn txn_api.ResyncOpe
 	}
 
 	// configure routes from VPP to the host
-	var routesToHost map[string]*vpp_l3.StaticRoute
+	var routesToHost map[string]*l3.StaticRoute
 	if !s.UseSTN() {
 		routesToHost = s.routesToHost(s.ipam.HostInterconnectIPInLinux())
 	} else {
@@ -966,7 +966,7 @@ func (s *remoteCNIserver) configureVswitchHostConnectivity(txn txn_api.ResyncOpe
 	}
 
 	// configure the route from the host to PODs
-	var routeToPods *linux_l3.LinuxStaticRoute
+	var routeToPods *linux_l3.StaticRoute
 	if !s.UseSTN() {
 		key, routeToPods = s.routePODsFromHost(s.ipam.HostInterconnectIPInVPP())
 	} else {
@@ -975,7 +975,7 @@ func (s *remoteCNIserver) configureVswitchHostConnectivity(txn txn_api.ResyncOpe
 	txn.Put(key, routeToPods)
 
 	// route from the host to k8s service range from the host
-	var routeToServices *linux_l3.LinuxStaticRoute
+	var routeToServices *linux_l3.StaticRoute
 	if !s.UseSTN() {
 		key, routeToServices = s.routeServicesFromHost(s.ipam.HostInterconnectIPInVPP())
 	} else {
@@ -988,8 +988,12 @@ func (s *remoteCNIserver) configureVswitchHostConnectivity(txn txn_api.ResyncOpe
 
 // configureSTNConnectivity configures vswitch VPP to operate in the STN mode.
 func (s *remoteCNIserver) configureSTNConnectivity(txn txn_api.ResyncOperations) {
-	// proxy ARP for ARP requests from the host
 	if len(s.nodeIP) > 0 {
+		// STN rule
+		key, stnrule := s.stnRule()
+		txn.Put(key, stnrule)
+
+		// proxy ARP for ARP requests from the host
 		key, proxyarp := s.proxyArpForSTNGateway()
 		txn.Put(key, proxyarp)
 	}
@@ -1003,8 +1007,6 @@ func (s *remoteCNIserver) configureSTNConnectivity(txn txn_api.ResyncOperations)
 	for key, route := range stnRoutesHost {
 		txn.Put(key, route)
 	}
-
-	// TODO: STN rule
 }
 
 // configureVswitchVrfRoutes configures inter-VRF routing
@@ -1221,7 +1223,7 @@ func (s *remoteCNIserver) handleDHCPNotification(notif idxmap.NamedMappingGeneri
 		return
 	}
 
-	dhcpLease, isDHCPLease := notif.Value.(*vpp_intf.DHCPLease)
+	dhcpLease, isDHCPLease := notif.Value.(*interfaces.DHCPLease)
 	if !isDHCPLease {
 		s.Logger.Warn("received invalid DHCP notification")
 		return
@@ -1239,7 +1241,7 @@ func (s *remoteCNIserver) handleDHCPNotification(notif idxmap.NamedMappingGeneri
 
 // applyDHCPLease updates defaultGw and node IP based on received DHCP lease.
 // The method must be called with acquired mutex guarding remoteCNI server.
-func (s *remoteCNIserver) applyDHCPLease(lease *vpp_intf.DHCPLease) {
+func (s *remoteCNIserver) applyDHCPLease(lease *interfaces.DHCPLease) {
 	if !s.useDHCP {
 		s.Logger.Info("Ignoring DHCP event, dynamic IP address assignment is disabled")
 	}

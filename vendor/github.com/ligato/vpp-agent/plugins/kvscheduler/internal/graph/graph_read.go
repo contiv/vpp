@@ -17,6 +17,7 @@ package graph
 import (
 	"fmt"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/ligato/cn-infra/idxmap"
@@ -147,6 +148,18 @@ func (graph *graphR) GetSnapshot(time time.Time) (nodes []*RecordedNode) {
 	return nodes
 }
 
+// GetKeys returns sorted keys.
+func (graph *graphR) GetKeys() []string {
+	var keys []string
+	for key := range graph.nodes {
+		keys = append(keys, key)
+	}
+	sort.Slice(keys, func(i, j int) bool {
+		return keys[i] < keys[j]
+	})
+	return keys
+}
+
 // Dump returns a human-readable string representation of the current graph
 // content for debugging purposes.
 func (graph *graphR) Dump() string {
@@ -159,18 +172,37 @@ func (graph *graphR) Dump() string {
 		return keys[i] < keys[j]
 	})
 
-	var str string
-	for _, key := range keys {
+	var buf strings.Builder
+	graphInfo := fmt.Sprintf("%d nodes", len(keys))
+	buf.WriteString("+======================================================================================================================+\n")
+	buf.WriteString(fmt.Sprintf("| GRAPH DUMP %105s |\n", graphInfo))
+	buf.WriteString("+======================================================================================================================+\n")
+
+	for i, key := range keys {
 		node := graph.nodes[key]
-		str += fmt.Sprintf("- key: %s\n", key)
-		str += fmt.Sprintf("  label: %s\n", node.GetLabel())
-		str += fmt.Sprintf("  value: %s\n", utils.ProtoToString(node.GetValue()))
-		str += fmt.Sprintf("  flags: %v\n", prettyPrintFlags(node.flags))
-		str += fmt.Sprintf("  targets: %v\n", prettyPrintTargets(node.targets))
-		str += fmt.Sprintf("  sources: %v\n", prettyPrintSources(node.sources))
-		str += fmt.Sprintf("  metadata-fields: %v\n", graph.getMetadataFields(node))
+
+		buf.WriteString(fmt.Sprintf("| Key: %111q |\n", key))
+		if label := node.GetLabel(); label != key {
+			buf.WriteString(fmt.Sprintf("| Label: %109s |\n", label))
+		}
+		buf.WriteString(fmt.Sprintf("| Value: %109s |\n", utils.ProtoToString(node.GetValue())))
+		buf.WriteString(fmt.Sprintf("| Flags: %109v |\n", prettyPrintFlags(node.flags)))
+		if len(node.targets) > 0 {
+			buf.WriteString(fmt.Sprintf("| Targets: %107v |\n", prettyPrintTargets(node.targets)))
+		}
+		if len(node.sources) > 0 {
+			buf.WriteString(fmt.Sprintf("| Sources: %107v |\n", prettyPrintSources(node.sources)))
+		}
+		if metadata := graph.getMetadataFields(node); len(metadata) > 0 {
+			buf.WriteString(fmt.Sprintf("| Metadata: %106v |\n", metadata))
+		}
+		if i+1 != len(keys) {
+			buf.WriteString("+----------------------------------------------------------------------------------------------------------------------+\n")
+		}
 	}
-	return str
+	buf.WriteString("+----------------------------------------------------------------------------------------------------------------------+\n")
+
+	return buf.String()
 }
 
 // Release releases the graph handle (both Read() & Write() should end with

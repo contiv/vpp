@@ -15,6 +15,7 @@
 package descriptor
 
 import (
+	"fmt"
 	"net"
 	"strings"
 
@@ -58,6 +59,9 @@ func (d *ProxyArpDescriptor) GetDescriptor() *adapter.ProxyARPDescriptor {
 		Name: ProxyArpDescriptorName,
 		KeySelector: func(key string) bool {
 			return key == l3.ProxyARPKey
+		},
+		KeyLabel: func(key string) string {
+			return "Global ProxyARP"
 		},
 		ValueTypeName:      proto.MessageName(&l3.ProxyARP{}),
 		ValueComparator:    d.EquivalentProxyArps,
@@ -165,8 +169,11 @@ func (d *ProxyArpDescriptor) IsRetriableFailure(err error) bool {
 	return false
 }
 
-// Dump dumps VPP Proxy ARP.
-func (d *ProxyArpDescriptor) Dump(correlate []adapter.ProxyARPKVWithMetadata) (dumps []adapter.ProxyARPKVWithMetadata, err error) {
+// Dump retrieves VPP Proxy ARP configuration.
+func (d *ProxyArpDescriptor) Dump(correlate []adapter.ProxyARPKVWithMetadata) (
+	dump []adapter.ProxyARPKVWithMetadata, err error) {
+
+	// Retrieve VPP configuration
 	rangesDetails, err := d.proxyArpHandler.DumpProxyArpRanges()
 	if err != nil {
 		return nil, err
@@ -177,7 +184,6 @@ func (d *ProxyArpDescriptor) Dump(correlate []adapter.ProxyARPKVWithMetadata) (d
 	}
 
 	proxyArp := &l3.ProxyARP{}
-
 	for _, rangeDetail := range rangesDetails {
 		proxyArp.Ranges = append(proxyArp.Ranges, rangeDetail.Range)
 	}
@@ -185,13 +191,19 @@ func (d *ProxyArpDescriptor) Dump(correlate []adapter.ProxyARPKVWithMetadata) (d
 		proxyArp.Interfaces = append(proxyArp.Interfaces, ifaceDetail.Interface)
 	}
 
-	dumps = []adapter.ProxyARPKVWithMetadata{{
+	dump = append(dump, adapter.ProxyARPKVWithMetadata{
 		Key:    l3.ProxyARPKey,
 		Value:  proxyArp,
 		Origin: scheduler.UnknownOrigin,
-	}}
-	d.log.Debugf("Dumped ProxyARP:\n%+v", dumps)
-	return dumps, nil
+	})
+
+	var dumpList string
+	for _, d := range dump {
+		dumpList += fmt.Sprintf("\n - %+v", d)
+	}
+	d.log.Debugf("Dumping %d ProxyARP: %s", len(dump), dumpList)
+
+	return dump, nil
 }
 
 // Remove IP mask if set

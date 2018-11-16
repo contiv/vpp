@@ -15,7 +15,6 @@
 package l3
 
 import (
-	"fmt"
 	"net"
 	"strconv"
 	"strings"
@@ -39,7 +38,7 @@ const (
 
 const (
 	// ProxyARPKey is the key for proxy ARP configuration.
-	ProxyARPKey = "vpp/config/v2/proxyarp"
+	ProxyARPKey = "vpp/config/v2/proxyarp/global"
 
 	proxyARPInterfacePrefix   = "vpp/proxyarp/interface/"
 	proxyARPInterfaceTemplate = proxyARPInterfacePrefix + "{iface}"
@@ -90,7 +89,7 @@ func RouteKey(vrf uint32, dstNet string, nextHopAddr string) string {
 }
 
 // ParseRouteKey parses VRF label and route address from a route key.
-func ParseRouteKey(key string) (isRouteKey bool, vrfIndex string, dstNetAddr string, dstNetMask int, nextHopAddr string) {
+func ParseRouteKey(key string) (vrfIndex string, dstNetAddr string, dstNetMask int, nextHopAddr string, isRouteKey bool) {
 	if routeKey := strings.TrimPrefix(key, RoutePrefix); routeKey != key {
 		keyParts := strings.Split(routeKey, "/")
 		if len(keyParts) >= 7 &&
@@ -98,30 +97,36 @@ func ParseRouteKey(key string) (isRouteKey bool, vrfIndex string, dstNetAddr str
 			keyParts[2] == "dst" &&
 			keyParts[5] == "gw" {
 			if mask, err := strconv.Atoi(keyParts[4]); err == nil {
-				return true, keyParts[1], keyParts[3], mask, keyParts[6]
+				return keyParts[1], keyParts[3], mask, keyParts[6], true
 			}
 		}
 	}
-	return false, "", "", 0, ""
+	return "", "", 0, "", false
 }
 
 // ArpEntryKey returns the key to store ARP entry
 func ArpEntryKey(iface, ipAddr string) string {
 	key := arpKeyTemplate
+	if iface == "" {
+		iface = InvalidKeyPart
+	}
+	if net.ParseIP(ipAddr) == nil {
+		ipAddr = InvalidKeyPart
+	}
 	key = strings.Replace(key, "{if}", iface, 1)
 	key = strings.Replace(key, "{ip}", ipAddr, 1)
 	return key
 }
 
 // ParseArpKey parses ARP entry from a key
-func ParseArpKey(key string) (iface string, ipAddr string, err error) {
+func ParseArpKey(key string) (iface string, ipAddr string, isArpKey bool) {
 	if arpSuffix := strings.TrimPrefix(key, ArpPrefix); arpSuffix != key {
 		arpComps := strings.Split(arpSuffix, "/")
 		if len(arpComps) == 2 {
-			return arpComps[0], arpComps[1], nil
+			return arpComps[0], arpComps[1], true
 		}
 	}
-	return "", "", fmt.Errorf("invalid ARP key")
+	return "", "", false
 }
 
 // ProxyARPInterfaceKey returns the key used to represent binding for interface with enabled proxy ARP.

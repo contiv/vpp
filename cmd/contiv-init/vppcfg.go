@@ -40,6 +40,8 @@ import (
 	l3_vppcalls "github.com/ligato/vpp-agent/plugins/vppv2/l3plugin/vppcalls"
 	"github.com/ligato/vpp-agent/plugins/vppv2/model/interfaces"
 	"github.com/ligato/vpp-agent/plugins/vppv2/model/l3"
+	stnmodel "github.com/ligato/vpp-agent/plugins/vppv2/model/stn"
+	stn_vppcalls "github.com/ligato/vpp-agent/plugins/vppv2/stnplugin/vppcalls"
 
 	"github.com/contiv/vpp/cmd/contiv-stn/model/stn"
 	"github.com/contiv/vpp/plugins/contiv"
@@ -99,8 +101,7 @@ func configureVpp(contivCfg *contiv.Config, stnData *stn.STNReply, useDHCP bool)
 	ifVppHandler := if_vppcalls.NewIfVppHandler(ch, logger)
 	ifVppIdx := ifaceidx.NewIfaceIndex(logger, "sw-if-index")
 
-	// TODO: support STN in ifplugin v.2
-	//stnVppHandler := if_vppcalls.NewStnVppHandler(ch, nil, logger)
+	stnVppHandler := stn_vppcalls.NewStnVppHandler(ch, ifVppIdx, logger)
 
 	routeHandler := l3_vppcalls.NewRouteVppHandler(ch, ifVppIdx, logger)
 
@@ -221,7 +222,7 @@ func configureVpp(contivCfg *contiv.Config, stnData *stn.STNReply, useDHCP bool)
 	// interconnect TAP (AF-Packet + VETH not supported in the STN mode)
 	tapIdx, err := ifVppHandler.AddTapInterface(
 		contiv.HostInterconnectTAPinVPPLogicalName,
-		&interfaces.Interface_TapLink{
+		&interfaces.TapLink{
 			HostIfName: contiv.HostInterconnectTAPinLinuxHostName,
 			Version:    uint32(contivCfg.TAPInterfaceVersion),
 		})
@@ -260,13 +261,14 @@ func configureVpp(contivCfg *contiv.Config, stnData *stn.STNReply, useDHCP bool)
 	}
 
 	// interconnect STN
-	/* TODO: not supported by v2 vpp-agent yet
-	stnVppHandler.AddStnRule(tapIdx, &mainIP.IP)
+	stnVppHandler.AddSTNRule(&stnmodel.Rule{
+		IpAddress: mainIP.IP.String(),
+		Interface: contiv.HostInterconnectTAPinVPPLogicalName,
+	})
 	if err != nil {
 		logger.Errorf("Error by adding STN rule: %v", err)
-		return nil, err
+		return err
 	}
-	*/
 
 	// host-end TAP config
 	ifNetlinkHandler := if_linuxcalls.NewNetLinkHandler()

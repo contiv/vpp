@@ -46,7 +46,13 @@ func NewTransaction(kvScheduler scheduler_api.KVScheduler) Transaction {
 func (txn *kvSchedulerTxn) Commit(ctx context.Context) error {
 	schedTxn := txn.kvScheduler.StartNBTransaction()
 	for key, value := range txn.values {
-		schedTxn.SetValue(key, &lazyValue{value: value})
+		if value != nil {
+			// put
+			schedTxn.SetValue(key, &lazyValue{value: value})
+		} else {
+			// delete
+			schedTxn.SetValue(key, nil)
+		}
 	}
 	kvErrors, txnError := schedTxn.Commit(ctx)
 	if txnError != nil || len(kvErrors) > 0 {

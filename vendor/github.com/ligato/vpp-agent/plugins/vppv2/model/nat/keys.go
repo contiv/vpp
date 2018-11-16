@@ -16,12 +16,10 @@ package nat
 
 import (
 	"strings"
-	"net"
 )
 
+/* NAT44 */
 const (
-	/* NAT44 */
-
 	// PrefixNAT44 is a key prefix used in NB DB to store configuration for NAT44.
 	PrefixNAT44 = "vpp/config/v2/nat44/"
 
@@ -30,9 +28,10 @@ const (
 
 	// DNAT44Prefix is a key prefix used in NB DB to store DNAT-44 configuration.
 	DNAT44Prefix = PrefixNAT44 + "dnat/"
+)
 
-	/* NAT44 interface */
-
+/* NAT44 interface */
+const (
 	// interfaceNAT44KeyPrefix is a common prefix for (derived) keys each representing
 	// NAT44 configuration for a single interface.
 	interfaceNAT44KeyPrefix = "vpp/nat44/interface/"
@@ -42,14 +41,8 @@ const (
 	interfaceNAT44KeyTemplate = interfaceNAT44KeyPrefix + "{iface}/feature/{feature}"
 
 	// NAT interface features
-	inFeature = "in"
+	inFeature  = "in"
 	outFeature = "out"
-
-	/* NAT44 address pool */
-
-	// addressNAT44KeyPrefix is a common prefix for (derived) keys representing
-	// addresses from NAT44 address pool.
-	addressNAT44KeyPrefix = "vpp/nat44/address/"
 )
 
 const (
@@ -101,18 +94,4 @@ func ParseInterfaceNAT44Key(key string) (iface string, isInside bool, isInterfac
 		}
 	}
 	return "", false, false
-}
-
-/* NAT44 address pool */
-
-// AddressNAT44Key returns (derived) key representing address from NAT44 address
-// pool.
-func AddressNAT44Key(address string) string {
-	ipAddr := net.ParseIP(address)
-	if ipAddr == nil {
-		address = InvalidKeyPart
-	} else {
-		address = ipAddr.String()
-	}
-	return addressNAT44KeyPrefix + address
 }

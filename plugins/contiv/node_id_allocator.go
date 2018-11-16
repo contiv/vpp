@@ -186,7 +186,7 @@ func (ia *idAllocator) writeIfNotExists(id uint32) (succeeded bool, err error) {
 	value := &node.NodeInfo{
 		Id:        id,
 		Name:      ia.nodeName,
-		IpAddress: ia.nodeIP.String(),
+		IpAddress: ipNetToString(ia.nodeIP),
 	}
 
 	encoded, err := json.Marshal(value)

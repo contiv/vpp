@@ -121,15 +121,7 @@ func (p *Plugin) Init() error {
 	}
 
 	// init node ID allocator
-	var nodeIP *net.IPNet
-	if p.myNodeConfig != nil {
-		addr, network, err := net.ParseCIDR(p.myNodeConfig.MainVPPInterface.IP)
-		if err != nil {
-			return fmt.Errorf("Failed to parse main interface IP address from the config: %v ", err)
-		}
-		nodeIP = combineAddrWithNet(addr, network)
-	}
-	p.nodeIDAllocator = newIDAllocator(p.ETCD, p.ServiceLabel.GetAgentLabel(), nodeIP)
+	p.nodeIDAllocator = newIDAllocator(p.ETCD, p.ServiceLabel.GetAgentLabel(), nil)
 	nodeID, err := p.nodeIDAllocator.getID()
 	if err != nil {
 		return err
@@ -354,7 +346,7 @@ func (p *Plugin) loadExternalConfig() error {
 	}
 
 	p.Config = externalCfg
-	p.Log.Info("Contiv config: ", externalCfg)
+	p.Log.Infof("Contiv config: %+v", externalCfg)
 	err = p.Config.ApplyIPAMConfig()
 	if err != nil {
 		return err

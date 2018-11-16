@@ -775,9 +775,11 @@ func (s *remoteCNIserver) configureMainVPPInterface(physicalIfaces map[uint32]st
 	nextNIC:
 		for _, physicalIface := range physicalIfaces {
 			// exclude "other" (non-main) NICs
-			for _, otherNIC := range s.nodeConfig.OtherVPPInterfaces {
-				if otherNIC.InterfaceName == physicalIface {
-					continue nextNIC
+			if s.nodeConfig != nil {
+				for _, otherNIC := range s.nodeConfig.OtherVPPInterfaces {
+					if otherNIC.InterfaceName == physicalIface {
+						continue nextNIC
+					}
 				}
 			}
 

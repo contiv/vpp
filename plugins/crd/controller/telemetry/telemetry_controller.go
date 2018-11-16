@@ -57,6 +57,8 @@ type Controller struct {
 	CrdClient *crdClientSet.Clientset
 	APIClient *apiextcs.Clientset
 
+	CollectionInterval time.Duration
+
 	queue workqueue.RateLimitingInterface
 	// Telemetry CRD specifics
 	telemetryInformer     informers.TelemetryReportInformer
@@ -328,7 +330,7 @@ func (cr *CRDReport) GenerateCRDReport() {
 				APIVersion: v1.CRDGroupVersion,
 			},
 			Spec: v1.TelemetryReportSpec{
-				ReportPollingPeriodSeconds: 10,
+				ReportPollingPeriodSeconds: uint32(cr.Ctlr.CollectionInterval.Seconds()),
 			},
 		}
 
@@ -336,6 +338,7 @@ func (cr *CRDReport) GenerateCRDReport() {
 	}
 
 	crdTelemetryReportCopy := crdTelemetryReport.DeepCopy()
+	crdTelemetryReportCopy.Status.UpdatedAt = time.Now().String()
 
 	for _, node := range cr.VppCache.RetrieveAllNodes() {
 		crdTelemetryReportCopy.Status.Nodes = appendIfMissing(crdTelemetryReportCopy.Status.Nodes, *node.NodeInfo)

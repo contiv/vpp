@@ -335,7 +335,7 @@ func TestBasicStuff(t *testing.T) {
 	fmt.Println("Close ----------------------------------------------------")
 
 	server.Close()
-	txnCount++
+	// txnCount remains unchanged - nothing needs to be cleaned up for TAPs
 	Expect(txnTracker.PendingTxns).To(HaveLen(0))
 	Expect(txnTracker.CommittedTxns).To(HaveLen(txnCount))
 }

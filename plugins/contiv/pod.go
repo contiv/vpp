@@ -21,11 +21,11 @@ import (
 	"os/exec"
 	"strings"
 
-	linux_intf "github.com/ligato/vpp-agent/plugins/linuxv2/model/interfaces"
-	linux_l3 "github.com/ligato/vpp-agent/plugins/linuxv2/model/l3"
-	linux_ns "github.com/ligato/vpp-agent/plugins/linuxv2/model/namespace"
-	vpp_intf "github.com/ligato/vpp-agent/plugins/vppv2/model/interfaces"
-	vpp_l3 "github.com/ligato/vpp-agent/plugins/vppv2/model/l3"
+	"github.com/ligato/vpp-agent/plugins/linuxv2/model/interfaces"
+	"github.com/ligato/vpp-agent/plugins/linuxv2/model/l3"
+	"github.com/ligato/vpp-agent/plugins/linuxv2/model/namespace"
+	"github.com/ligato/vpp-agent/plugins/vppv2/model/interfaces"
+	"github.com/ligato/vpp-agent/plugins/vppv2/model/l3"
 
 	txn_api "github.com/contiv/vpp/plugins/controller/txn"
 	"github.com/contiv/vpp/plugins/ksr/model/pod"
@@ -116,17 +116,17 @@ func (s *remoteCNIserver) podLinuxSideTAPName(pod *Pod) string {
 
 // podVPPTap returns the configuration for TAP interface on the VPP side
 // connecting a given Pod.
-func (s *remoteCNIserver) podVPPTap(pod *Pod) (key string, config *vpp_intf.Interface) {
-	tap := &vpp_intf.Interface{
+func (s *remoteCNIserver) podVPPTap(pod *Pod) (key string, config *interfaces.Interface) {
+	tap := &interfaces.Interface{
 		Name:        s.podVPPSideTAPName(pod),
-		Type:        vpp_intf.Interface_TAP_INTERFACE,
+		Type:        interfaces.Interface_TAP,
 		Mtu:         s.config.MTUSize,
 		Enabled:     true,
 		Vrf:         s.GetPodVrfID(),
 		IpAddresses: []string{s.ipAddrForPodVPPIf(pod)},
 		PhysAddress: s.hwAddrForPod(pod, true),
-		Link: &vpp_intf.Interface_Tap{
-			Tap: &vpp_intf.Interface_TapLink{},
+		Link: &interfaces.Interface_Tap{
+			Tap: &interfaces.TapLink{},
 		},
 	}
 	if s.config.TAPInterfaceVersion == 2 {
@@ -134,36 +134,36 @@ func (s *remoteCNIserver) podVPPTap(pod *Pod) (key string, config *vpp_intf.Inte
 		tap.GetTap().RxRingSize = uint32(s.config.TAPv2RxRingSize)
 		tap.GetTap().TxRingSize = uint32(s.config.TAPv2TxRingSize)
 	}
-	key = vpp_intf.InterfaceKey(tap.Name)
+	key = interfaces.InterfaceKey(tap.Name)
 	return key, tap
 }
 
 // podLinuxTAP returns the configuration for TAP interface on the Linux side
 // connecting a given Pod to VPP.
-func (s *remoteCNIserver) podLinuxTAP(pod *Pod) (key string, config *linux_intf.LinuxInterface) {
+func (s *remoteCNIserver) podLinuxTAP(pod *Pod) (key string, config *linux_interfaces.Interface) {
 	podIPNet := &net.IPNet{
 		IP:   pod.IPAddress,
 		Mask: net.CIDRMask(net.IPv4len*8, net.IPv4len*8),
 	}
-	tap := &linux_intf.LinuxInterface{
+	tap := &linux_interfaces.Interface{
 		Name:        s.podLinuxSideTAPName(pod),
-		Type:        linux_intf.LinuxInterface_TAP_TO_VPP,
+		Type:        linux_interfaces.Interface_TAP_TO_VPP,
 		Mtu:         s.config.MTUSize,
 		Enabled:     true,
 		HostIfName:  podInterfaceHostName,
 		PhysAddress: s.hwAddrForPod(pod, false),
 		IpAddresses: []string{podIPNet.String()},
-		Link: &linux_intf.LinuxInterface_Tap{
-			Tap: &linux_intf.LinuxInterface_TapLink{
+		Link: &linux_interfaces.Interface_Tap{
+			Tap: &linux_interfaces.TapLink{
 				VppTapIfName: s.podVPPSideTAPName(pod),
 			},
 		},
-		Namespace: &linux_ns.LinuxNetNamespace{
-			Type:      linux_ns.LinuxNetNamespace_NETNS_REF_FD,
+		Namespace: &linux_namespace.NetNamespace{
+			Type:      linux_namespace.NetNamespace_NETNS_REF_FD,
 			Reference: pod.NetworkNamespace,
 		},
 	}
-	key = linux_intf.InterfaceKey(tap.Name)
+	key = linux_interfaces.InterfaceKey(tap.Name)
 	return key, tap
 }
 
@@ -193,64 +193,64 @@ func (s *remoteCNIserver) podVeth2HostIfName(pod *Pod) string {
 
 // podVeth1 returns the configuration for pod-side of the VETH interface
 // connecting the given pod with VPP.
-func (s *remoteCNIserver) podVeth1(pod *Pod) (key string, config *linux_intf.LinuxInterface) {
+func (s *remoteCNIserver) podVeth1(pod *Pod) (key string, config *linux_interfaces.Interface) {
 	podIPNet := &net.IPNet{
 		IP:   pod.IPAddress,
 		Mask: net.CIDRMask(net.IPv4len*8, net.IPv4len*8),
 	}
-	veth := &linux_intf.LinuxInterface{
+	veth := &linux_interfaces.Interface{
 		Name:        s.podVeth1Name(pod),
-		Type:        linux_intf.LinuxInterface_VETH,
+		Type:        linux_interfaces.Interface_VETH,
 		Mtu:         s.config.MTUSize,
 		Enabled:     true,
 		HostIfName:  podInterfaceHostName,
 		PhysAddress: s.hwAddrForPod(pod, false),
 		IpAddresses: []string{podIPNet.String()},
-		Link: &linux_intf.LinuxInterface_Veth{
-			Veth: &linux_intf.LinuxInterface_VethLink{PeerIfName: s.podVeth2Name(pod)},
+		Link: &linux_interfaces.Interface_Veth{
+			Veth: &linux_interfaces.VethLink{PeerIfName: s.podVeth2Name(pod)},
 		},
-		Namespace: &linux_ns.LinuxNetNamespace{
-			Type:      linux_ns.LinuxNetNamespace_NETNS_REF_FD,
+		Namespace: &linux_namespace.NetNamespace{
+			Type:      linux_namespace.NetNamespace_NETNS_REF_FD,
 			Reference: pod.NetworkNamespace,
 		},
 	}
-	key = linux_intf.InterfaceKey(veth.Name)
+	key = linux_interfaces.InterfaceKey(veth.Name)
 	return key, veth
 }
 
 // podVeth2 returns the configuration for vswitch-side of the VETH interface
 // connecting the given pod with VPP.
-func (s *remoteCNIserver) podVeth2(pod *Pod) (key string, config *linux_intf.LinuxInterface) {
-	veth := &linux_intf.LinuxInterface{
+func (s *remoteCNIserver) podVeth2(pod *Pod) (key string, config *linux_interfaces.Interface) {
+	veth := &linux_interfaces.Interface{
 		Name:       s.podVeth2Name(pod),
-		Type:       linux_intf.LinuxInterface_VETH,
+		Type:       linux_interfaces.Interface_VETH,
 		Mtu:        s.config.MTUSize,
 		Enabled:    true,
 		HostIfName: s.podVeth2HostIfName(pod),
-		Link: &linux_intf.LinuxInterface_Veth{
-			Veth: &linux_intf.LinuxInterface_VethLink{PeerIfName: s.podVeth1Name(pod)},
+		Link: &linux_interfaces.Interface_Veth{
+			Veth: &linux_interfaces.VethLink{PeerIfName: s.podVeth1Name(pod)},
 		},
 	}
-	key = linux_intf.InterfaceKey(veth.Name)
+	key = linux_interfaces.InterfaceKey(veth.Name)
 	return key, veth
 }
 
-func (s *remoteCNIserver) podAfPacket(pod *Pod) (key string, config *vpp_intf.Interface) {
-	afpacket := &vpp_intf.Interface{
+func (s *remoteCNIserver) podAfPacket(pod *Pod) (key string, config *interfaces.Interface) {
+	afpacket := &interfaces.Interface{
 		Name:        s.podAFPacketName(pod),
-		Type:        vpp_intf.Interface_AF_PACKET_INTERFACE,
+		Type:        interfaces.Interface_AF_PACKET,
 		Mtu:         s.config.MTUSize,
 		Enabled:     true,
 		Vrf:         s.GetPodVrfID(),
 		IpAddresses: []string{s.ipAddrForPodVPPIf(pod)},
 		PhysAddress: s.hwAddrForPod(pod, true),
-		Link: &vpp_intf.Interface_Afpacket{
-			Afpacket: &vpp_intf.Interface_AfpacketLink{
+		Link: &interfaces.Interface_Afpacket{
+			Afpacket: &interfaces.AfpacketLink{
 				HostIfName: s.podVeth2HostIfName(pod),
 			},
 		},
 	}
-	key = vpp_intf.InterfaceKey(afpacket.Name)
+	key = interfaces.InterfaceKey(afpacket.Name)
 	return key, afpacket
 }
 
@@ -258,8 +258,8 @@ func (s *remoteCNIserver) podAfPacket(pod *Pod) (key string, config *vpp_intf.In
 
 // podToVPPArpEntry returns configuration for ARP entry resolving hardware address
 // for pod gateway IP from VPP.
-func (s *remoteCNIserver) podToVPPArpEntry(pod *Pod) (key string, config *linux_l3.LinuxStaticARPEntry) {
-	arp := &linux_l3.LinuxStaticARPEntry{
+func (s *remoteCNIserver) podToVPPArpEntry(pod *Pod) (key string, config *linux_l3.StaticARPEntry) {
+	arp := &linux_l3.StaticARPEntry{
 		Interface: pod.LinuxIfName,
 		IpAddress: s.ipam.PodGatewayIP().String(),
 		HwAddress: s.hwAddrForPod(pod, true),
@@ -271,10 +271,10 @@ func (s *remoteCNIserver) podToVPPArpEntry(pod *Pod) (key string, config *linux_
 // podToVPPLinkRoute returns configuration for route that puts pod's default GW behind
 // the interface connecting pod with VPP (even though the GW IP does not fall into
 // the pod IP address network).
-func (s *remoteCNIserver) podToVPPLinkRoute(pod *Pod) (key string, config *linux_l3.LinuxStaticRoute) {
-	route := &linux_l3.LinuxStaticRoute{
+func (s *remoteCNIserver) podToVPPLinkRoute(pod *Pod) (key string, config *linux_l3.StaticRoute) {
+	route := &linux_l3.StaticRoute{
 		OutgoingInterface: pod.LinuxIfName,
-		Scope:             linux_l3.LinuxStaticRoute_LINK,
+		Scope:             linux_l3.StaticRoute_LINK,
 		DstNetwork:        s.ipam.PodGatewayIP().String() + "/32",
 	}
 	key = linux_l3.StaticRouteKey(route.DstNetwork, route.OutgoingInterface)
@@ -282,11 +282,11 @@ func (s *remoteCNIserver) podToVPPLinkRoute(pod *Pod) (key string, config *linux
 }
 
 // podToVPPLinkRoute returns configuration for the default route of the given pod.
-func (s *remoteCNIserver) podToVPPDefaultRoute(pod *Pod) (key string, config *linux_l3.LinuxStaticRoute) {
-	route := &linux_l3.LinuxStaticRoute{
+func (s *remoteCNIserver) podToVPPDefaultRoute(pod *Pod) (key string, config *linux_l3.StaticRoute) {
+	route := &linux_l3.StaticRoute{
 		OutgoingInterface: pod.LinuxIfName,
 		DstNetwork:        ipv4NetAny,
-		Scope:             linux_l3.LinuxStaticRoute_GLOBAL,
+		Scope:             linux_l3.StaticRoute_GLOBAL,
 		GwAddr:            s.ipam.PodGatewayIP().String(),
 	}
 	key = linux_l3.StaticRouteKey(route.DstNetwork, route.OutgoingInterface)
@@ -297,28 +297,28 @@ func (s *remoteCNIserver) podToVPPDefaultRoute(pod *Pod) (key string, config *li
 
 // vppToPodArpEntry return configuration for ARP entry used in VPP to resolve
 // hardware address from the IP address of the given pod.
-func (s *remoteCNIserver) vppToPodArpEntry(pod *Pod) (key string, config *vpp_l3.ARPEntry) {
-	arp := &vpp_l3.ARPEntry{
+func (s *remoteCNIserver) vppToPodArpEntry(pod *Pod) (key string, config *l3.ARPEntry) {
+	arp := &l3.ARPEntry{
 		Interface:   pod.VPPIfName,
 		IpAddress:   pod.IPAddress.String(),
 		PhysAddress: s.hwAddrForPod(pod, false),
 		Static:      true,
 	}
-	key = vpp_l3.ArpEntryKey(arp.Interface, arp.IpAddress)
+	key = l3.ArpEntryKey(arp.Interface, arp.IpAddress)
 	return key, arp
 }
 
 // vppToPodRoute return configuration for route used in VPP to direct traffic destinated
 // to the IP address of the given pod.
-func (s *remoteCNIserver) vppToPodRoute(pod *Pod) (key string, config *vpp_l3.StaticRoute) {
+func (s *remoteCNIserver) vppToPodRoute(pod *Pod) (key string, config *l3.StaticRoute) {
 	podVPPIfName, _ := s.podInterfaceName(pod)
-	route := &vpp_l3.StaticRoute{
+	route := &l3.StaticRoute{
 		OutgoingInterface: podVPPIfName,
 		DstNetwork:        pod.IPAddress.String() + "/32",
 		NextHopAddr:       pod.IPAddress.String(),
 		VrfId:             s.GetPodVrfID(),
 	}
-	key = vpp_l3.RouteKey(route.VrfId, route.DstNetwork, route.NextHopAddr)
+	key = l3.RouteKey(route.VrfId, route.DstNetwork, route.NextHopAddr)
 	return key, route
 }
 

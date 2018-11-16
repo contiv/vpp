@@ -15,7 +15,11 @@
 package contiv
 
 import (
+	"context"
+	"fmt"
 	"net"
+	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/go-errors/errors"
@@ -24,22 +28,18 @@ import (
 	idxmap_mem "github.com/ligato/cn-infra/idxmap/mem"
 	"github.com/ligato/cn-infra/logging/logrus"
 
-	vpp_intf "github.com/ligato/vpp-agent/plugins/vppv2/model/interfaces"
+	"github.com/ligato/vpp-agent/plugins/vppv2/model/interfaces"
 
 	. "github.com/contiv/vpp/mock/datasync"
 	. "github.com/contiv/vpp/mock/dockerclient"
 	"github.com/contiv/vpp/mock/localclient"
 
-	"context"
-	"fmt"
 	stn_grpc "github.com/contiv/vpp/cmd/contiv-stn/model/stn"
 	"github.com/contiv/vpp/plugins/contiv/ipam"
 	"github.com/contiv/vpp/plugins/contiv/model/cni"
 	"github.com/contiv/vpp/plugins/contiv/model/node"
 	nodeconfig "github.com/contiv/vpp/plugins/crd/pkg/apis/nodeconfig/v1"
 	k8sPod "github.com/contiv/vpp/plugins/ksr/model/pod"
-	"strconv"
-	"strings"
 )
 
 const (
@@ -195,7 +195,7 @@ func TestBasicStuff(t *testing.T) {
 	Expect(txnTracker.CommittedTxns).To(HaveLen(txnCount))
 
 	// simulate DHCP event
-	dhcpIndexes.Put(Gbe8, &vpp_intf.DHCPLease{InterfaceName: Gbe8, HostIpAddress: Gbe8IP, RouterIpAddress: GwIPWithPrefix})
+	dhcpIndexes.Put(Gbe8, &interfaces.DHCPLease{InterfaceName: Gbe8, HostIpAddress: Gbe8IP, RouterIpAddress: GwIPWithPrefix})
 
 	fmt.Println("Add another node -----------------------------------------")
 

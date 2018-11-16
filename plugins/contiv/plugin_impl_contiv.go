@@ -46,7 +46,7 @@ import (
 	kvscheduler_api "github.com/ligato/vpp-agent/plugins/kvscheduler/api"
 	vpp_ifplugin "github.com/ligato/vpp-agent/plugins/vppv2/ifplugin"
 	intf_vppcalls "github.com/ligato/vpp-agent/plugins/vppv2/ifplugin/vppcalls"
-	vpp_intf "github.com/ligato/vpp-agent/plugins/vppv2/model/interfaces"
+	"github.com/ligato/vpp-agent/plugins/vppv2/model/interfaces"
 
 	stn_grpc "github.com/contiv/vpp/cmd/contiv-stn/model/stn"
 	"github.com/contiv/vpp/plugins/contiv/model/cni"
@@ -507,7 +507,7 @@ func (p *Plugin) dumpPhysicalInterfaces() (ifaces map[uint32]string, err error) 
 
 	// TODO: when supported dump also VMXNET3 interfaces (?)
 
-	dump, err := ifHandler.DumpInterfacesByType(vpp_intf.Interface_ETHERNET_CSMACD)
+	dump, err := ifHandler.DumpInterfacesByType(interfaces.Interface_DPDK)
 	if err != nil {
 		return ifaces, err
 	}

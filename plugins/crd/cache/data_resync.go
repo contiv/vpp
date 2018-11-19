@@ -17,7 +17,7 @@ package cache
 import (
 	"github.com/ligato/cn-infra/datasync"
 
-	nodeinfomodel "github.com/contiv/vpp/plugins/contiv/model/node"
+	nodeinfomodel "github.com/contiv/vpp/plugins/contiv/model/nodeinfo"
 	nodemodel "github.com/contiv/vpp/plugins/ksr/model/node"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 

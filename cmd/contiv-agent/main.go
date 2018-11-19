@@ -15,6 +15,7 @@
 package main
 
 import (
+	"github.com/gogo/protobuf/proto"
 	"os"
 	"time"
 
@@ -23,9 +24,11 @@ import (
 	"github.com/ligato/cn-infra/datasync/kvdbsync"
 	"github.com/ligato/cn-infra/datasync/kvdbsync/local"
 	"github.com/ligato/cn-infra/datasync/resync"
+	"github.com/ligato/cn-infra/db/keyval/bolt"
 	"github.com/ligato/cn-infra/db/keyval/etcd"
 	"github.com/ligato/cn-infra/health/probe"
 	"github.com/ligato/cn-infra/health/statuscheck"
+	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/logging/logmanager"
 	"github.com/ligato/cn-infra/logging/logrus"
 	"github.com/ligato/cn-infra/rpc/grpc"
@@ -37,6 +40,7 @@ import (
 	"github.com/ligato/vpp-agent/plugins/kvscheduler"
 	linux_ifplugin "github.com/ligato/vpp-agent/plugins/linuxv2/ifplugin"
 	linux_l3plugin "github.com/ligato/vpp-agent/plugins/linuxv2/l3plugin"
+	linux_nsplugin "github.com/ligato/vpp-agent/plugins/linuxv2/nsplugin"
 	"github.com/ligato/vpp-agent/plugins/telemetry"
 	vpp_aclplugin "github.com/ligato/vpp-agent/plugins/vppv2/aclplugin"
 	vpp_ifplugin "github.com/ligato/vpp-agent/plugins/vppv2/ifplugin"
@@ -45,10 +49,16 @@ import (
 	vpp_natplugin "github.com/ligato/vpp-agent/plugins/vppv2/natplugin"
 
 	"github.com/contiv/vpp/plugins/contiv"
+	"github.com/contiv/vpp/plugins/controller"
+	controller_api "github.com/contiv/vpp/plugins/controller/api"
 	"github.com/contiv/vpp/plugins/ksr"
 	"github.com/contiv/vpp/plugins/policy"
 	"github.com/contiv/vpp/plugins/service"
 	"github.com/contiv/vpp/plugins/statscollector"
+
+	"github.com/contiv/vpp/plugins/contiv/model/nodeinfo"
+	"github.com/contiv/vpp/plugins/ksr/model/node"
+	"github.com/contiv/vpp/plugins/ksr/model/pod"
 )
 
 const defaultStartupTimeout = 45 * time.Second
@@ -79,9 +89,10 @@ type ContivAgent struct {
 	Telemetry *telemetry.Plugin
 	GRPC      *grpc.Plugin
 
-	Contiv  *contiv.Plugin
-	Policy  *policy.Plugin
-	Service *service.Plugin
+	Controller *controller.Controller
+	Contiv     *contiv.Plugin
+	Policy     *policy.Plugin
+	Service    *service.Plugin
 }
 
 func (c *ContivAgent) String() string {
@@ -95,7 +106,7 @@ func (c *ContivAgent) Init() error {
 
 // AfterInit triggers the first resync.
 func (c *ContivAgent) AfterInit() error {
-	resync.DefaultPlugin.DoResync()
+	resync.DefaultPlugin.DoResync() // TODO: remove resync orch
 	return nil
 }
 
@@ -134,6 +145,7 @@ func main() {
 	vpp_ifplugin.DefaultPlugin.LinuxIfPlugin = &linux_ifplugin.DefaultPlugin
 	vpp_ifplugin.DefaultPlugin.PublishStatistics = &statscollector.DefaultPlugin
 	vpp_aclplugin.DefaultPlugin.IfPlugin = &vpp_ifplugin.DefaultPlugin
+	linux_nsplugin.DefaultPlugin.Log.SetLevel(logging.InfoLevel)
 
 	// we don't want to publish status to etcd
 	statuscheck.DefaultPlugin.Transport = nil
@@ -142,6 +154,29 @@ func main() {
 	grpc.DefaultPlugin.HTTP = &rest.DefaultPlugin
 
 	// initialize Contiv plugins
+	controller := controller.NewPlugin(controller.UseDeps(func(deps *controller.Deps) {
+		deps.LocalDB = &bolt.DefaultPlugin
+		deps.RemoteDB = &etcd.DefaultPlugin
+		deps.DBResources = []controller_api.DBResource{
+			{
+				Name:             "NodeInfo",
+				ProtoMessageName: proto.MessageName((*nodeinfo.NodeInfo)(nil)),
+				KeyPrefix:        ksrServicelabel.GetAgentPrefix() + nodeinfo.AllocatedIDsKeyPrefix,
+			},
+			{
+				Name:             "Node",
+				ProtoMessageName: proto.MessageName((*node.Node)(nil)),
+				KeyPrefix:        ksrServicelabel.GetAgentPrefix() + node.KeyPrefix(),
+			},
+			{
+				Name:             "Pod",
+				ProtoMessageName: proto.MessageName((*pod.Pod)(nil)),
+				KeyPrefix:        ksrServicelabel.GetAgentPrefix() + pod.KeyPrefix(),
+			},
+			// TODO ...
+		}
+	}))
+
 	contivPlugin := contiv.NewPlugin(contiv.UseDeps(func(deps *contiv.Deps) {
 		deps.VPPIfPlugin = &vpp_ifplugin.DefaultPlugin
 		deps.Watcher = contivDataSync
@@ -180,6 +215,7 @@ func main() {
 		VPPACLPlugin:    &vpp_aclplugin.DefaultPlugin,
 		Telemetry:       &telemetry.DefaultPlugin,
 		GRPC:            &grpc.DefaultPlugin,
+		Controller:      controller,
 		Contiv:          contivPlugin,
 		Policy:          policyPlugin,
 		Service:         servicePlugin,

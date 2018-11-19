@@ -18,7 +18,7 @@ package testdata
 import (
 	"encoding/json"
 	"fmt"
-	nodeinfomodel "github.com/contiv/vpp/plugins/contiv/model/node"
+	nodeinfomodel "github.com/contiv/vpp/plugins/contiv/model/nodeinfo"
 	"github.com/contiv/vpp/plugins/crd/api"
 	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
 	nodemodel "github.com/contiv/vpp/plugins/ksr/model/node"

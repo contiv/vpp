@@ -37,7 +37,7 @@ import (
 	stn_grpc "github.com/contiv/vpp/cmd/contiv-stn/model/stn"
 	"github.com/contiv/vpp/plugins/contiv/ipam"
 	"github.com/contiv/vpp/plugins/contiv/model/cni"
-	"github.com/contiv/vpp/plugins/contiv/model/node"
+	"github.com/contiv/vpp/plugins/contiv/model/nodeinfo"
 	nodeconfig "github.com/contiv/vpp/plugins/crd/pkg/apis/nodeconfig/v1"
 	k8sPod "github.com/contiv/vpp/plugins/ksr/model/pod"
 )
@@ -73,7 +73,7 @@ const (
 )
 
 var (
-	keyPrefixes = []string{node.AllocatedIDsKeyPrefix, k8sPod.KeyPrefix()}
+	keyPrefixes = []string{nodeinfo.AllocatedIDsKeyPrefix, k8sPod.KeyPrefix()}
 
 	hostIPs = []net.IP{net.ParseIP(hostIP1), net.ParseIP(hostIP2)}
 
@@ -200,7 +200,7 @@ func TestBasicStuff(t *testing.T) {
 	fmt.Println("Add another node -----------------------------------------")
 
 	// add another node
-	node2 := &node.NodeInfo{
+	node2 := &nodeinfo.NodeInfo{
 		Name:                node2Name,
 		Id:                  node2ID,
 		IpAddress:           node2IP,
@@ -216,7 +216,7 @@ func TestBasicStuff(t *testing.T) {
 	fmt.Println("Other node Mgmt IP update --------------------------------")
 
 	// add another node
-	node2Update := &node.NodeInfo{
+	node2Update := &nodeinfo.NodeInfo{
 		Name:                node2Name,
 		Id:                  node2ID,
 		IpAddress:           node2IP,
@@ -352,7 +352,7 @@ func stolenInterfaceInfo(expInterface string, reply *stn_grpc.STNReply) StolenIn
 
 func nodeIDKey(index int) string {
 	str := strconv.FormatUint(uint64(index), 10)
-	return node.AllocatedIDsKeyPrefix + str
+	return nodeinfo.AllocatedIDsKeyPrefix + str
 }
 
 func podIPFromCNIReply(reply *cni.CNIReply) net.IP {
@@ -398,7 +398,7 @@ import (
 	"github.com/contiv/vpp/mock/localclient"
 	"github.com/contiv/vpp/plugins/contiv/ipam"
 	"github.com/contiv/vpp/plugins/contiv/model/cni"
-	"github.com/contiv/vpp/plugins/contiv/model/node"
+	"github.com/contiv/vpp/plugins/contiv/model/nodeinfo"
 	nodeconfig "github.com/contiv/vpp/plugins/crd/pkg/apis/nodeconfig/v1"
 	"github.com/go-errors/errors"
 )
@@ -489,13 +489,13 @@ var (
 			},
 		},
 	}
-	otherNodeInfo = node.NodeInfo{
+	otherNodeInfo = nodeinfo.NodeInfo{
 		Id:                  5,
 		Name:                "node5",
 		IpAddress:           "1.2.3.4/25",
 		ManagementIpAddress: "192.168.42.5",
 	}
-	nodeWith2mgmtIP = node.NodeInfo{
+	nodeWith2mgmtIP = nodeinfo.NodeInfo{
 		Id:                  6,
 		Name:                "node6",
 		IpAddress:           "1.2.3.6/25",
@@ -1031,7 +1031,7 @@ func routesViaInLatestRevs(latestRevs *syncbase.PrevRevisions, nexthopIP string)
 // nodeAddDelEvent simulates addition of a k8s node into a cluster
 type nodeAddDelEvent struct {
 	evType   datasync.Op
-	nodeInfo *node.NodeInfo
+	nodeInfo *nodeinfo.NodeInfo
 }
 
 func (e *nodeAddDelEvent) Done(error) {}
@@ -1041,7 +1041,7 @@ func (e nodeAddDelEvent) GetChangeType() datasync.Op {
 }
 
 func (e nodeAddDelEvent) GetKey() string {
-	return node.AllocatedIDsKeyPrefix
+	return nodeinfo.AllocatedIDsKeyPrefix
 }
 
 func (e nodeAddDelEvent) GetValue(value proto.Message) error {
@@ -1049,7 +1049,7 @@ func (e nodeAddDelEvent) GetValue(value proto.Message) error {
 		if e.nodeInfo == nil {
 			e.nodeInfo = &otherNodeInfo
 		}
-		v := value.(*node.NodeInfo)
+		v := value.(*nodeinfo.NodeInfo)
 		v.Id = e.nodeInfo.Id
 		v.Name = e.nodeInfo.Name
 		v.IpAddress = e.nodeInfo.IpAddress
@@ -1065,7 +1065,7 @@ func (e nodeAddDelEvent) GetPrevValue(prevValue proto.Message) (prevValueExist b
 	if e.nodeInfo == nil {
 		e.nodeInfo = &otherNodeInfo
 	}
-	v := prevValue.(*node.NodeInfo)
+	v := prevValue.(*nodeinfo.NodeInfo)
 	v.Id = e.nodeInfo.Id
 	v.Name = e.nodeInfo.Name
 	v.IpAddress = e.nodeInfo.IpAddress

@@ -21,7 +21,7 @@ import (
 	"sync"
 
 	"bytes"
-	"github.com/contiv/vpp/plugins/contiv/model/node"
+	"github.com/contiv/vpp/plugins/contiv/model/nodeinfo"
 	"github.com/contiv/vpp/plugins/ksr"
 	"github.com/ligato/cn-infra/db/keyval"
 	"github.com/ligato/cn-infra/db/keyval/etcd"
@@ -152,7 +152,7 @@ func (ia *idAllocator) updateEtcdEntry(newIP *net.IPNet, newManagementIP string)
 	ia.nodeIP = newIP
 	ia.managementIP = newManagementIP
 
-	value := &node.NodeInfo{
+	value := &nodeinfo.NodeInfo{
 		Id:                  ia.ID,
 		Name:                ia.nodeName,
 		IpAddress:           ipNetToString(ia.nodeIP),
@@ -183,7 +183,7 @@ func (ia *idAllocator) releaseID() error {
 
 func (ia *idAllocator) writeIfNotExists(id uint32) (succeeded bool, err error) {
 
-	value := &node.NodeInfo{
+	value := &nodeinfo.NodeInfo{
 		Id:        id,
 		Name:      ia.nodeName,
 		IpAddress: ipNetToString(ia.nodeIP),
@@ -202,15 +202,15 @@ func (ia *idAllocator) writeIfNotExists(id uint32) (succeeded bool, err error) {
 
 // findExistingEntry lists all allocated entries and checks if the etcd contains ID assigned
 // to the serviceLabel
-func (ia *idAllocator) findExistingEntry(broker keyval.ProtoBroker) (id *node.NodeInfo, err error) {
-	var existingEntry *node.NodeInfo
-	it, err := broker.ListValues(node.AllocatedIDsKeyPrefix)
+func (ia *idAllocator) findExistingEntry(broker keyval.ProtoBroker) (id *nodeinfo.NodeInfo, err error) {
+	var existingEntry *nodeinfo.NodeInfo
+	it, err := broker.ListValues(nodeinfo.AllocatedIDsKeyPrefix)
 	if err != nil {
 		return nil, err
 	}
 
 	for {
-		item := &node.NodeInfo{}
+		item := &nodeinfo.NodeInfo{}
 		kv, stop := it.GetNext()
 
 		if stop {
@@ -248,7 +248,7 @@ func findFirstAvailableIndex(ids []int) int {
 
 // listAllIDs returns slice that contains allocated ids i.e.: ids assigned to a node
 func listAllIDs(broker keyval.ProtoBroker) (ids []int, err error) {
-	it, err := broker.ListKeys(node.AllocatedIDsKeyPrefix)
+	it, err := broker.ListKeys(nodeinfo.AllocatedIDsKeyPrefix)
 	if err != nil {
 		return nil, err
 	}
@@ -272,8 +272,8 @@ func listAllIDs(broker keyval.ProtoBroker) (ids []int, err error) {
 }
 
 func extractIndexFromKey(key string) (int, error) {
-	if strings.HasPrefix(key, node.AllocatedIDsKeyPrefix) {
-		return strconv.Atoi(strings.Replace(key, node.AllocatedIDsKeyPrefix, "", 1))
+	if strings.HasPrefix(key, nodeinfo.AllocatedIDsKeyPrefix) {
+		return strconv.Atoi(strings.Replace(key, nodeinfo.AllocatedIDsKeyPrefix, "", 1))
 
 	}
 	return 0, errInvalidKey
@@ -281,5 +281,5 @@ func extractIndexFromKey(key string) (int, error) {
 
 func createKey(index uint32) string {
 	str := strconv.FormatUint(uint64(index), 10)
-	return node.AllocatedIDsKeyPrefix + str
+	return nodeinfo.AllocatedIDsKeyPrefix + str
 }

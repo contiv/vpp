@@ -33,7 +33,7 @@ import (
 	svc_renderer "github.com/contiv/vpp/plugins/service/renderer"
 	"github.com/contiv/vpp/plugins/service/renderer/nat44"
 
-	nodemodel "github.com/contiv/vpp/plugins/contiv/model/node"
+	"github.com/contiv/vpp/plugins/contiv/model/nodeinfo"
 	epmodel "github.com/contiv/vpp/plugins/ksr/model/endpoints"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	svcmodel "github.com/contiv/vpp/plugins/ksr/model/service"
@@ -101,7 +101,7 @@ var (
 )
 
 var (
-	keyPrefixes = []string{epmodel.KeyPrefix(), podmodel.KeyPrefix(), svcmodel.KeyPrefix(), nodemodel.AllocatedIDsKeyPrefix}
+	keyPrefixes = []string{epmodel.KeyPrefix(), podmodel.KeyPrefix(), svcmodel.KeyPrefix(), nodeinfo.AllocatedIDsKeyPrefix}
 )
 
 func ipNet(address string) *net.IPNet {
@@ -850,14 +850,14 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 	Expect(natPlugin.NumOfStaticMappings()).To(Equal(6))
 
 	// Propagate NodeIP and Node Mgmt IP of the master.
-	masterNode := &nodemodel.NodeInfo{
+	masterNode := &nodeinfo.NodeInfo{
 		Id:                  1,
 		Name:                masterLabel,
 		IpAddress:           nodeIP.String(),
 		ManagementIpAddress: mgmtIP.String(),
 	}
 
-	dataChange8 := datasync.Put(nodemodel.AllocatedIDsKeyPrefix+strconv.FormatUint(uint64(masterNode.Id), 10), masterNode)
+	dataChange8 := datasync.Put(nodeinfo.AllocatedIDsKeyPrefix+strconv.FormatUint(uint64(masterNode.Id), 10), masterNode)
 	Expect(processor.Update(dataChange8)).To(BeNil())
 
 	// First check what should not have changed.
@@ -928,14 +928,14 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 	Expect(natPlugin.NumOfStaticMappings()).To(Equal(8))
 
 	// Propagate NodeIP and Node Mgmt IP of the worker.
-	workerNode := &nodemodel.NodeInfo{
+	workerNode := &nodeinfo.NodeInfo{
 		Id:                  2,
 		Name:                workerLabel,
 		IpAddress:           workerIP.String(),
 		ManagementIpAddress: workerMgmtIP.String(),
 	}
 
-	dataChange9 := datasync.Put(nodemodel.AllocatedIDsKeyPrefix+strconv.FormatUint(uint64(workerNode.Id), 10), workerNode)
+	dataChange9 := datasync.Put(nodeinfo.AllocatedIDsKeyPrefix+strconv.FormatUint(uint64(workerNode.Id), 10), workerNode)
 	Expect(processor.Update(dataChange9)).To(BeNil())
 
 	// First check what should not have changed.
@@ -973,14 +973,14 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 	Expect(natPlugin.NumOfStaticMappings()).To(Equal(10))
 
 	// Remove worker mgmt IP.
-	workerNode = &nodemodel.NodeInfo{
+	workerNode = &nodeinfo.NodeInfo{
 		Id:                  2,
 		Name:                workerLabel,
 		IpAddress:           workerIP.String(),
 		ManagementIpAddress: "", /* removed */
 	}
 
-	dataChange10 := datasync.Put(nodemodel.AllocatedIDsKeyPrefix+strconv.FormatUint(uint64(workerNode.Id), 10), workerNode)
+	dataChange10 := datasync.Put(nodeinfo.AllocatedIDsKeyPrefix+strconv.FormatUint(uint64(workerNode.Id), 10), workerNode)
 	Expect(processor.Update(dataChange10)).To(BeNil())
 
 	// Check that the static mapping for worker mgmt IP was removed.
@@ -996,7 +996,7 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 	Expect(natPlugin.NumOfStaticMappings()).To(Equal(9))
 
 	// Remove worker node completely.
-	dataChange11 := datasync.Delete(nodemodel.AllocatedIDsKeyPrefix + strconv.FormatUint(uint64(workerNode.Id), 10))
+	dataChange11 := datasync.Delete(nodeinfo.AllocatedIDsKeyPrefix + strconv.FormatUint(uint64(workerNode.Id), 10))
 	Expect(processor.Update(dataChange11)).To(BeNil())
 
 	// Check that the static mapping for worker IP was removed.

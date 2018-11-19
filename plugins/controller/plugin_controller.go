@@ -15,9 +15,13 @@
 package controller
 
 import (
+	"github.com/ligato/cn-infra/db/keyval"
 	"github.com/ligato/cn-infra/health/statuscheck"
 	"github.com/ligato/cn-infra/infra"
+	"github.com/ligato/cn-infra/rpc/rest"
+	"github.com/ligato/cn-infra/servicelabel"
 
+	"github.com/contiv/vpp/plugins/controller/api"
 	scheduler "github.com/ligato/vpp-agent/plugins/kvscheduler/api"
 )
 
@@ -29,8 +33,17 @@ type Controller struct {
 // Deps lists dependencies of the Controller.
 type Deps struct {
 	infra.PluginDeps
-	Scheduler   scheduler.KVScheduler
-	StatusCheck statuscheck.PluginStatusWriter
+
+	Scheduler    scheduler.KVScheduler
+	StatusCheck  statuscheck.PluginStatusWriter
+	ServiceLabel servicelabel.ReaderAPI
+	HTTPHandlers rest.HTTPHandlers
+
+	EventHandlers []api.EventHandler
+
+	LocalDB     keyval.KvProtoPlugin
+	RemoteDB    keyval.KvProtoPlugin
+	DBResources []api.DBResource
 }
 
 // Init ...

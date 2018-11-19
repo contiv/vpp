@@ -22,7 +22,7 @@ import (
 
 	"github.com/ligato/cn-infra/datasync"
 
-	"github.com/contiv/vpp/plugins/contiv/model/node"
+	"github.com/contiv/vpp/plugins/contiv/model/nodeinfo"
 	k8sNode "github.com/contiv/vpp/plugins/ksr/model/node"
 	k8sPod "github.com/contiv/vpp/plugins/ksr/model/pod"
 )
@@ -30,7 +30,7 @@ import (
 // ResyncEventData is a snapshot of the Kubernetes state data
 // (the subset used by Contiv plugin).
 type ResyncEventData struct {
-	NodeInfo map[int]*node.NodeInfo
+	NodeInfo map[int]*nodeinfo.NodeInfo
 	Pods     []*k8sPod.Pod
 	Nodes    []*k8sNode.Node
 }
@@ -38,7 +38,7 @@ type ResyncEventData struct {
 // NewResyncEventData creates an empty instance of ResyncEventData.
 func NewResyncEventData() *ResyncEventData {
 	return &ResyncEventData{
-		NodeInfo: make(map[int]*node.NodeInfo),
+		NodeInfo: make(map[int]*nodeinfo.NodeInfo),
 		Pods:     []*k8sPod.Pod{},
 		Nodes:    []*k8sNode.Node{},
 	}
@@ -84,8 +84,8 @@ func ParseResyncEvent(resyncEv datasync.ResyncEvent, revs map[string]datasync.Ke
 			}
 
 			// Parse nodeinfo RESYNC event
-			if strings.HasPrefix(key, node.AllocatedIDsKeyPrefix) {
-				value := &node.NodeInfo{}
+			if strings.HasPrefix(key, nodeinfo.AllocatedIDsKeyPrefix) {
+				value := &nodeinfo.NodeInfo{}
 				err := evData.GetValue(value)
 				if err == nil {
 					event.NodeInfo[int(value.Id)] = value

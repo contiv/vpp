@@ -16,7 +16,7 @@ package cmdimpl
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/contiv/vpp/plugins/contiv/model/node"
+	"github.com/contiv/vpp/plugins/contiv/model/nodeinfo"
 	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
 	"github.com/contiv/vpp/plugins/ksr/model/pod"
 	"github.com/contiv/vpp/plugins/netctl/remote"
@@ -106,7 +106,7 @@ func (pg *podGetter) printAllPods(w *tabwriter.Writer) {
 			break
 		}
 		buf := kv.GetValue()
-		nodeInfo := &node.NodeInfo{}
+		nodeInfo := &nodeinfo.NodeInfo{}
 		err = json.Unmarshal(buf, nodeInfo)
 		nodeID := fmt.Sprintf("%s (%s):", nodeInfo.Name, nodeInfo.ManagementIpAddress)
 		fmt.Fprintf(w, "%s\t\t\t\t\t\t\t\n", nodeID)

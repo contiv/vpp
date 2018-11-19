@@ -528,7 +528,7 @@ periodically cleaning up inactive NAT sessions.
 [pod-model]: http://github.com/contiv/vpp/blob/master/plugins/ksr/model/pod/pod.proto
 [svc-model]: https://github.com/contiv/vpp/blob/master/plugins/ksr/model/service/service.proto
 [eps-model]: https://github.com/contiv/vpp/blob/master/plugins/ksr/model/endpoints/endpoints.proto
-[node-info-model]: https://github.com/contiv/vpp/blob/master/plugins/contiv/model/node/node.proto
+[node-info-model]: https://github.com/contiv/vpp/blob/master/plugins/contiv/model/nodeinfo/nodeinfo.proto
 [contiv-cni-conflist]: https://github.com/contiv/vpp/blob/master/docker/vpp-cni/10-contiv-vpp.conflist
 [contiv-plugin]: http://github.com/contiv/vpp/tree/master/plugins/contiv
 [local-client]: http://github.com/ligato/vpp-agent/tree/pantheon-dev/clientv1

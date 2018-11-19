@@ -1,4 +1,4 @@
-// Copyright (c) 2017 Cisco and/or its affiliates.
+// Copyright (c) 2018 Cisco and/or its affiliates.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,20 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-syntax = "proto3";
+package nodeinfo
 
-package node;
-
-// NodeInfo represents a node in the k8s cluster.
-// It records an unique node ID to identify the node within the cluster.
-// ID determines IPAM for the given node.
-message NodeInfo {
-
-    uint32 id = 1;
-
-    string name = 2;
-
-    string ip_address = 3;
-
-    string management_ip_address = 4;
-}
+// AllocatedIDsKeyPrefix is a key prefix used in ETCD to store information
+// about node ID and its IP addresses.
+const AllocatedIDsKeyPrefix = "allocatedIDs/"

@@ -35,7 +35,7 @@ import (
 	"github.com/ligato/cn-infra/utils/safeclose"
 	"github.com/namsral/flag"
 
-	nodeinfomodel "github.com/contiv/vpp/plugins/contiv/model/node"
+	nodeinfomodel "github.com/contiv/vpp/plugins/contiv/model/nodeinfo"
 	crdClientSet "github.com/contiv/vpp/plugins/crd/pkg/client/clientset/versioned"
 	nodemodel "github.com/contiv/vpp/plugins/ksr/model/node"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"

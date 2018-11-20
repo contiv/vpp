@@ -40,6 +40,11 @@ then
   VPP_COMMIT_VERSION="${VPP_COMMIT_ID}"
 fi
 
+# build vpp
+cd ../vpp
+./build.sh ${TAG}
+cd -
+
 # extract the binaries from the development image into the "binaries/" folder
 ./extract.sh contivvpp/vpp-${BUILDARCH}:${VPP_COMMIT_VERSION}
 

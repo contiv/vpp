@@ -23,11 +23,8 @@ set -e
 # obtain the current git tag for tagging the Docker images
 TAG=`git describe --tags`
 
-cd vpp
-./build.sh
-
 # build vpp-binaries image
-cd ../vpp-binaries
+cd vpp-binaries
 ./build.sh ${TAG}
 
 # build development image

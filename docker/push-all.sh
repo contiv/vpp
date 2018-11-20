@@ -16,6 +16,9 @@
 # fail in case of error
 set -e
 
+# source VPP commit ID and repo URL
+source ../vpp.env
+
 # default values for "branch name" and "skip upload"
 BRANCH_NAME="master"
 SKIP_UPLOAD="false"
@@ -87,7 +90,7 @@ fi
 # obtain the current git tag for tagging the Docker images
 export TAG=`git describe --tags`
 echo "exported TAG=$TAG"
-export VPP=$(docker run --rm contivvpp/vpp-binaries-${BUILDARCH}:${VPP_COMMIT_VERSION} bash -c "cat \$VPP_BUILD_DIR/.version")
+export VPP="${VPP_COMMIT_VERSION}"
 echo "exported VPP=$VPP"
 
 # tag and push each image

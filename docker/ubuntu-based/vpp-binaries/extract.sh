@@ -30,9 +30,8 @@ mkdir -p binaries
 # extract VPP binaries
 docker exec ${CID} /bin/bash -c 'mkdir -p /root/vpp &&
   cp /opt/vpp-agent/dev/vpp/build-root/*.deb /root/vpp/ &&
-  cp /opt/vpp-agent/dev/vpp/build-root/.version /root/vpp/ &&
   cd /root/vpp/ &&
-  tar -zcvf /root/vpp.tar.gz * .version'
+  tar -zcvf /root/vpp.tar.gz *'
 
 docker cp ${CID}:/root/vpp.tar.gz binaries/
 

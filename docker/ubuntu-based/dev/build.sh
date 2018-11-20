@@ -53,7 +53,7 @@ then
   VPP_BUILD_ARGS="--build-arg VPP_INSTALL_PKG=true"
 fi
 
-VPP=$(docker run --rm contivvpp/vpp-binaries-${BUILDARCH}:${VPP_COMMIT_VERSION} bash -c "cat \$VPP_BUILD_DIR/.version")
+VPP="${VPP_COMMIT_VERSION}"
 
 # check if build is really necessary
 function validate_docker_tag() {

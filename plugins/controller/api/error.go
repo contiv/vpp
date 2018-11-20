@@ -23,37 +23,47 @@ import (
 
 /********************************* Fatal Error ********************************/
 
-// FatalError
+// FatalError tells Controller to abort the event loop and stop the agent
+// as soon as possible.
 type FatalError struct {
 	origErr error
 }
 
+// NewFatalError is the constructor for FatalError.
 func NewFatalError(origErr error) error {
 	return &FatalError{origErr: origErr}
 }
 
+// Error delegates the call to the underlying error.
 func (e *FatalError) Error() string {
 	return e.origErr.Error()
 }
 
+// GetOriginalError returns the underlying error.
 func (e *FatalError) GetOriginalError() error {
 	return e.origErr
 }
 
 /****************************** Abort Event Error *****************************/
 
+// AbortEventError tells controller to abort the processing of the event
+// (and for Update/RevertOnFailure to revert the changes). The agent does not have
+// to restart but resync should be performed as soon as possible.
 type AbortEventError struct {
 	origErr error
 }
 
+// NewAbortEventError is the constructor for the AbortEventError.
 func NewAbortEventError(origErr error) error {
 	return &AbortEventError{origErr: origErr}
 }
 
+// Error delegates the call to the underlying error.
 func (e *AbortEventError) Error() string {
 	return e.origErr.Error()
 }
 
+// GetOriginalError returns the underlying error.
 func (e *AbortEventError) GetOriginalError() error {
 	return e.origErr
 }

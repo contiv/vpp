@@ -30,7 +30,7 @@ var DefaultPlugin = *NewPlugin()
 func NewPlugin(opts ...Option) *Controller {
 	p := &Controller{}
 
-	p.PluginName = "contiv-controller"
+	p.PluginName = "controller"
 	p.StatusCheck = &statuscheck.DefaultPlugin
 	p.Scheduler = &kvscheduler.DefaultPlugin
 	p.HTTPHandlers = &rest.DefaultPlugin

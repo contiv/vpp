@@ -68,6 +68,7 @@ data:
   telemetry.conf: |
     polling-interval: 30000000000
     disabled: true
+TODO: controller
 
 ---
 
@@ -225,6 +226,8 @@ data:
     auto-compact: 600000000000
     endpoints:
       - "127.0.0.1:32379"
+    allow-delayed-start: true
+    reconnect-interval: 2000000000
 
 ---
 

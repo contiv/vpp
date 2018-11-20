@@ -14,6 +14,9 @@
 
 package nodeinfo
 
+// Keyword defines the keyword identifying NodeInfo data.
+const Keyword = "nodeinfo"
+
 // AllocatedIDsKeyPrefix is a key prefix used in ETCD to store information
 // about node ID and its IP addresses.
 const AllocatedIDsKeyPrefix = "allocatedIDs/"

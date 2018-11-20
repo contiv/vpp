@@ -686,6 +686,8 @@ spec:
               mountPath: /etc/agent
             - name: govpp-plugin-cfg
               mountPath: /etc/govpp
+            - name: tmp
+              mountPath: /tmp
             {{- if .Values.vswitch.enableCoreDumps }}
             - name: core-dumps
               mountPath: {{ .Values.vswitch.coreDumpsDir }}
@@ -797,6 +799,11 @@ spec:
           hostPath:
             path: {{ .Values.vswitch.coreDumpsDir }}
         {{- end }}
+        # /tmp in the vswitch container
+        - name: tmp
+          hostPath:
+            path: /tmp/contiv-vswitch
+        # persisted bolt data
         - name: var-bolt
           hostPath:
             path: {{ .Values.bolt.dataDir }}

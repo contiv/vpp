@@ -33,11 +33,22 @@ fi
 
 DOCKERFILE=Dockerfile${DOCKERFILE_tag}
 
-# extract the binaries from the development image into the "binaries/" folder
-./extract.sh contivvpp/dev-vswitch-${BUILDARCH}:${TAG}
+# check if build is really necessary
+function validate_docker_tag() {
+  out=$(curl --silent -lSL https://index.docker.io/v1/repositories/$1/tags/$2)
+  if [ "${SKIP_DEBUG_BUILD}" -eq 1 ] && [ "${out}" = "[]" ]; then
+    docker pull $1:$2
+    echo "true"
+  fi
+}
 
-# build the production images
-docker build -t contivvpp/vswitch-${BUILDARCH}:${TAG} ${DOCKER_BUILD_ARGS} -f vswitch/${DOCKERFILE} .
+if [ -z $(validate_docker_tag contivvpp/vswitch-${BUILDARCH} ${TAG}) ]; then
+  # extract the binaries from the development image into the "binaries/" folder
+  ./extract.sh contivvpp/dev-vswitch-${BUILDARCH}:${TAG}
+
+  # build the production images
+  docker build -t contivvpp/vswitch-${BUILDARCH}:${TAG} ${DOCKER_BUILD_ARGS} -f vswitch/${DOCKERFILE} .
+fi
 
 if [ ${BUILDARCH} = "amd64" ] ; then
   docker tag contivvpp/vswitch-${BUILDARCH}:${TAG} contivvpp/vswitch:${TAG}

@@ -40,16 +40,27 @@ then
   VPP_COMMIT_VERSION="${VPP_COMMIT_ID}"
 fi
 
-# build vpp
-cd ../vpp
-./build.sh ${TAG}
-cd -
+# check if build is really necessary
+function validate_docker_tag() {
+  out=$(curl --silent -lSL https://index.docker.io/v1/repositories/$1/tags/$2)
+  if [ "${SKIP_DEBUG_BUILD}" -eq 1 ] && [ "${out}" = "[]" ]; then
+    docker pull $1:$2
+    echo "true"
+  fi
+}
 
-# extract the binaries from the development image into the "binaries/" folder
-./extract.sh contivvpp/vpp-${BUILDARCH}:${VPP_COMMIT_VERSION}
+if [ -z $(validate_docker_tag contivvpp/vpp-binaries-${BUILDARCH} ${VPP_COMMIT_VERSION}) ]; then
+  # build vpp
+  cd ../vpp
+  ./build.sh ${TAG}
+  cd -
 
-# build the production images
-docker build -t contivvpp/vpp-binaries-${BUILDARCH}:${VPP_COMMIT_VERSION} ${DOCKER_BUILD_ARGS} -f ${DOCKERFILE} .
+  # extract the binaries from the development image into the "binaries/" folder
+  ./extract.sh contivvpp/vpp-${BUILDARCH}:${VPP_COMMIT_VERSION}
+
+  # build the production images
+  docker build -t contivvpp/vpp-binaries-${BUILDARCH}:${VPP_COMMIT_VERSION} ${DOCKER_BUILD_ARGS} -f ${DOCKERFILE} .
+fi
 
 if [ ${BUILDARCH} = "amd64" ] ; then
   docker tag contivvpp/vpp-binaries-${BUILDARCH}:${VPP_COMMIT_VERSION} contivvpp/vpp-binaries:${VPP_COMMIT_VERSION}

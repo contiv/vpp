@@ -55,16 +55,27 @@ fi
 
 VPP=$(docker run --rm contivvpp/vpp-binaries-${BUILDARCH}:${VPP_COMMIT_VERSION} bash -c "cat \$VPP_BUILD_DIR/.version")
 
-# execute the build
-# use no cache and force rm because docker cannot handle dynamic FROM and so trying to use cache is useless
-docker build --no-cache=true --force-rm=true -f docker/ubuntu-based/dev/${DOCKERFILE} -t contivvpp/dev-vswitch-${BUILDARCH}:${TAG} \
-  --build-arg VPP_IMAGE=${VPP_IMAGE}-${BUILDARCH}:${VPP_COMMIT_VERSION} \
-  ${VPP_BUILD_ARGS} \
-  ${DOCKER_BUILD_ARGS} .
+# check if build is really necessary
+function validate_docker_tag() {
+  out=$(curl --silent -lSL https://index.docker.io/v1/repositories/$1/tags/$2)
+  if [ "${SKIP_DEBUG_BUILD}" -eq 1 ] && [ "${out}" = "[]" ]; then
+    docker pull $1:$2
+    echo "true"
+  fi
+}
 
-docker tag contivvpp/dev-vswitch-${BUILDARCH}:${TAG} contivvpp/dev-vswitch-${BUILDARCH}:${TAG}-${VPP}
+if [ -z $(validate_docker_tag contivvpp/dev-vswitch-${BUILDARCH} ${TAG}-${VPP}) ]; then
+  # execute the build
+  # use no cache and force rm because docker cannot handle dynamic FROM and so trying to use cache is useless
+  docker build --no-cache=true --force-rm=true -f docker/ubuntu-based/dev/${DOCKERFILE} -t contivvpp/dev-vswitch-${BUILDARCH}:${TAG}-${VPP} \
+  --build-arg VPP_IMAGE=${VPP_IMAGE}-${BUILDARCH}:${VPP_COMMIT_VERSION} \
+    ${VPP_BUILD_ARGS} \
+    ${DOCKER_BUILD_ARGS} .
+fi
+
+docker tag contivvpp/dev-vswitch-${BUILDARCH}:${TAG}-${VPP} contivvpp/dev-vswitch-${BUILDARCH}:${TAG}
 
 if [ ${BUILDARCH} = "amd64" ] ; then
-   docker tag contivvpp/dev-vswitch-${BUILDARCH}:${TAG} contivvpp/dev-vswitch:${TAG}
-   docker tag contivvpp/dev-vswitch:${TAG} contivvpp/dev-vswitch:${TAG}-${VPP}
+   docker tag contivvpp/dev-vswitch-${BUILDARCH}:${TAG}-${VPP} contivvpp/dev-vswitch:${TAG}-${VPP}
+   docker tag contivvpp/dev-vswitch:${TAG}-${VPP} contivvpp/dev-vswitch:${TAG}
 fi

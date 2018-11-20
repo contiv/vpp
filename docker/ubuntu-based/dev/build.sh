@@ -45,10 +45,23 @@ then
   VPP_COMMIT_VERSION="${VPP_COMMIT_ID}"
 fi
 
-# execute the build
-docker build -f docker/ubuntu-based/dev/${DOCKERFILE} -t contivvpp/dev-vswitch-${BUILDARCH}:${TAG} --build-arg VPP_IMAGE=contivvpp/vpp-${BUILDARCH}:${VPP_COMMIT_VERSION} ${DOCKER_BUILD_ARGS} .
+VPP_IMAGE="contivvpp/vpp"
+VPP_BUILD_ARGS=""
+if [ "${SKIP_DEBUG_BUILD}" -eq 1 ]
+then
+  VPP_IMAGE="$VPP_IMAGE-binaries"
+  VPP_BUILD_ARGS="--build-arg VPP_INSTALL_PKG=true"
+fi
 
-VPP=$(docker run --rm contivvpp/dev-vswitch-${BUILDARCH}:${TAG} bash -c "cd \$VPP_DIR && git rev-parse --short HEAD")
+VPP=$(docker run --rm contivvpp/vpp-binaries-${BUILDARCH}:${VPP_COMMIT_VERSION} bash -c "cat \$VPP_BUILD_DIR/.version")
+
+# execute the build
+# use no cache and force rm because docker cannot handle dynamic FROM and so trying to use cache is useless
+docker build --no-cache=true --force-rm=true -f docker/ubuntu-based/dev/${DOCKERFILE} -t contivvpp/dev-vswitch-${BUILDARCH}:${TAG} \
+  --build-arg VPP_IMAGE=${VPP_IMAGE}-${BUILDARCH}:${VPP_COMMIT_VERSION} \
+  ${VPP_BUILD_ARGS} \
+  ${DOCKER_BUILD_ARGS} .
+
 docker tag contivvpp/dev-vswitch-${BUILDARCH}:${TAG} contivvpp/dev-vswitch-${BUILDARCH}:${TAG}-${VPP}
 
 if [ ${BUILDARCH} = "amd64" ] ; then

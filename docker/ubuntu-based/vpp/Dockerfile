@@ -30,6 +30,7 @@ WORKDIR /root/
 
 # Path to VPP ws root directory
 ENV VPP_DIR /opt/vpp-agent/dev/vpp
+ENV VPP_BUILD_DIR $VPP_DIR/build-root
 ENV VPP_BIN_DIR $VPP_DIR/build-root/install-vpp_debug-native/vpp/bin
 ENV VPP_LIB_DIR $VPP_DIR/build-root/install-vpp_debug-native/vpp/lib64
 ENV VPP_BIN $VPP_BIN_DIR/vpp

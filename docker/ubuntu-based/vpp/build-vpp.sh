@@ -50,6 +50,8 @@ rm -rf .ccache \
 rm *java*.deb
 dpkg -i vpp_*.deb vpp-dev_*.deb vpp-lib_*.deb vpp-plugins_*.deb vpp-dbg_*.deb
 
+echo $(git rev-parse --short HEAD) > ${VPP_BUILD_DIR}/.version
+
 # run the debug build too unless the SKIP_DEBUG_BUILD env var is set to non-0 value
 if [ "${SKIP_DEBUG_BUILD}" == "" ] || [ "${SKIP_DEBUG_BUILD}" -eq 0 ]; then
 	cd ${VPP_DIR}

@@ -37,11 +37,11 @@ DOCKERFILE=Dockerfile${DOCKERFILE_tag}
 VPP_COMMIT_VERSION="latest"
 if [ -n "${VPP_COMMIT_ID}" ]
 then
-  VPP_COMMIT_VERSION="${VPP_COMMIT_ID:0:7}"
+  VPP_COMMIT_VERSION="${VPP_COMMIT_ID}"
 fi
 
 # extract the binaries from the development image into the "binaries/" folder
-./extract.sh contivvpp/dev-vswitch-${BUILDARCH}:${TAG}
+./extract.sh contivvpp/vpp-${BUILDARCH}:${VPP_COMMIT_VERSION}
 
 # build the production images
 docker build -t contivvpp/vpp-binaries-${BUILDARCH}:${VPP_COMMIT_VERSION} ${DOCKER_BUILD_ARGS} -f ${DOCKERFILE} .

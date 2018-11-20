@@ -26,12 +26,12 @@ TAG=`git describe --tags`
 cd vpp
 ./build.sh
 
-# build development image
-cd ../dev
-./build.sh ${TAG}
-
 # build vpp-binaries image
 cd ../vpp-binaries
+./build.sh ${TAG}
+
+# build development image
+cd ../dev
 ./build.sh ${TAG}
 
 # build production images

@@ -74,7 +74,7 @@ done
 # obtain the current git tag for tagging the Docker images
 export TAG=`git describe --tags`
 echo "exported TAG=$TAG"
-export VPP=$(docker run --rm contivvpp/dev-vswitch${RUNARCH}:$TAG bash -c "cd \$VPP_DIR && git rev-parse --short HEAD")
+export VPP=$(docker run --rm contivvpp/vpp-binaries-${BUILDARCH}:${VPP_COMMIT_VERSION} bash -c "cat \$VPP_BUILD_DIR/.version")
 echo "exported VPP=$VPP"
 
 # tag and push each image

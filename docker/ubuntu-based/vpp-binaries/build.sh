@@ -49,7 +49,7 @@ function validate_docker_tag() {
   fi
 }
 
-if [ -z $(validate_docker_tag contivvpp/vpp-binaries-${BUILDARCH} ${VPP_COMMIT_VERSION}) ]; then
+if [ -z "$(validate_docker_tag contivvpp/vpp-binaries-${BUILDARCH} ${VPP_COMMIT_VERSION})" ]; then
   # build vpp
   cd ../vpp
   ./build.sh ${TAG}

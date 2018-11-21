@@ -18,17 +18,21 @@ import (
 	"fmt"
 	"log"
 
+	//"github.com/go-errors/errors"
 	"github.com/gogo/protobuf/proto"
 
 	"github.com/ligato/cn-infra/agent"
+	"github.com/ligato/cn-infra/datasync"
+	"github.com/ligato/cn-infra/datasync/kvdbsync/local"
 	"github.com/ligato/cn-infra/db/keyval/bolt"
 	"github.com/ligato/cn-infra/db/keyval/etcd"
 	"github.com/ligato/cn-infra/servicelabel"
 
-	plugin "github.com/contiv/vpp/plugins/controller"
-	"github.com/contiv/vpp/plugins/controller/api"
+	"github.com/ligato/vpp-agent/plugins/kvscheduler"
 
 	"github.com/contiv/vpp/plugins/contiv/model/nodeinfo"
+	plugin "github.com/contiv/vpp/plugins/controller"
+	"github.com/contiv/vpp/plugins/controller/api"
 	nodeconfig "github.com/contiv/vpp/plugins/crd/handler/nodeconfig/model"
 	"github.com/contiv/vpp/plugins/ksr"
 	epmodel "github.com/contiv/vpp/plugins/ksr/model/endpoints"
@@ -44,8 +48,14 @@ import (
 */
 
 func main() {
+	// disable status check for etcd - Controller monitors its status now
+	etcd.DefaultPlugin.StatusCheck = nil
+
 	ksrServicelabel := servicelabel.NewPlugin(servicelabel.UseLabel(ksr.MicroserviceLabel))
 	ksrServicelabel.SetName("ksrServiceLabel")
+
+	watcher := &datasync.KVProtoWatchers{local.Get()}
+	kvscheduler.DefaultPlugin.Watcher = watcher
 
 	controller := plugin.NewPlugin(plugin.UseDeps(func(deps *plugin.Deps) {
 		deps.LocalDB = &bolt.DefaultPlugin
@@ -131,14 +141,19 @@ func (p *ExamplePlugin) Close() error {
 	return nil
 }
 
+var totalHandlers int
+
 // ExampleEventHandler is a mock event handler.
 type ExampleEventHandler struct {
-	name string
+	name          string
+	id            int
+	updateCounter int
 }
 
 // NewExampleEventHandler is the constructor for ExampleEventHandler.
 func NewExampleEventHandler(name string) api.EventHandler {
-	return &ExampleEventHandler{name: name}
+	totalHandlers++
+	return &ExampleEventHandler{name: name, id: totalHandlers - 1}
 }
 
 // String identifies the handler for the Controller and in the logs.
@@ -158,7 +173,7 @@ func (h *ExampleEventHandler) HandlesEvent(event api.Event) bool {
 // For startup resync, resyncCount is 1. Higher counter values identify
 // run-time resync.
 func (h *ExampleEventHandler) Resync(event api.Event, txn api.ResyncOperations, kubeStateData api.KubeStateData, resyncCount int) error {
-	fmt.Printf("Handler %s received Resync no. %d for event %s\n", h.String(), resyncCount, event.GetName())
+	fmt.Printf("Handler '%s' received Resync no. %d for event '%s'\n", h.String(), resyncCount, event.GetName())
 	return nil
 }
 
@@ -167,7 +182,15 @@ func (h *ExampleEventHandler) Resync(event api.Event, txn api.ResyncOperations, 
 // <changeDescription> should be human-readable description of changes that
 // have to be performed (via txn or internally) - can be empty.
 func (h *ExampleEventHandler) Update(event api.Event, txn api.UpdateOperations) (changeDescription string, err error) {
-	fmt.Printf("Handler %s received Update for event %s\n", h.String(), event.GetName())
+	fmt.Printf("Handler '%s' received Update for event '%s'\n", h.String(), event.GetName())
+	h.updateCounter++
+	/*
+		if h.updateCounter % totalHandlers == h.id  {
+			err := errors.New("Update has failed")
+			return "", err
+		}
+	*/
+	txn.Delete("random-key")
 	return fmt.Sprintf("handler %s has changed nothing", h.String()), nil
 }
 
@@ -175,6 +198,6 @@ func (h *ExampleEventHandler) Update(event api.Event, txn api.UpdateOperations) 
 // itself, not in VPP/Linux network stack) for a RevertOnFailure event that
 // has failed in the processing.
 func (h *ExampleEventHandler) Revert(event api.Event) error {
-	fmt.Printf("Handler %s received Revert for event %s\n", h.String(), event.GetName())
+	fmt.Printf("Handler '%s' received Revert for event '%s'\n", h.String(), event.GetName())
 	return nil
 }

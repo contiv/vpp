@@ -122,7 +122,7 @@ func (c *ContivAgent) Close() error {
 }
 
 func main() {
-	// disable status check for etcd
+	// disable status check for etcd - Controller monitors the etcd status now
 	etcd.DefaultPlugin.StatusCheck = nil
 
 	// datasync of Kubernetes state data

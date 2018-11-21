@@ -19,8 +19,6 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
-	"strconv"
-	"strings"
 	"sync"
 	"time"
 
@@ -150,7 +148,7 @@ type Deps struct {
 	Scheduler    scheduler.KVScheduler
 	StatusCheck  statuscheck.PluginStatusWriter
 	ServiceLabel servicelabel.ReaderAPI
-	HTTPHandlers rest.HTTPHandlers // TODO: REST for event history and to trigger resync
+	HTTPHandlers rest.HTTPHandlers
 
 	EventHandlers []api.EventHandler
 
@@ -192,10 +190,11 @@ type EventRecord struct {
 
 // EventHandlingRecord is a record of an event being handled by a given handler.
 type EventHandlingRecord struct {
-	Handler string
-	Revert  bool
-	Change  string // change description for update events
-	Error   error  // nil if none
+	Handler  string
+	Revert   bool
+	Change   string // change description for update events
+	Error    error  // nil if none
+	ErrorStr string // string representation of the error (if any)
 }
 
 var (
@@ -249,6 +248,9 @@ func (c *Controller) Init() error {
 	// resync when timeout expires
 	c.wg.Add(1)
 	go c.signalStartupResyncCheck()
+
+	// register REST API handlers
+	c.registerHandlers()
 	return nil
 }
 
@@ -433,13 +435,13 @@ func (c *Controller) processEvent(event api.Event) error {
 	eventHandlers = filterHandlersForEvent(event, eventHandlers)
 
 	// 5. prepare record of the event for the history
-	c.evSeqNum++
 	evRecord := &EventRecord{
 		SeqNum:      c.evSeqNum,
 		Name:        event.GetName(),
 		Description: event.String(),
 		Method:      event.Method(),
 	}
+	c.evSeqNum++
 
 	// 6. print information about the new event
 	c.printNewEvent(evRecord, eventHandlers)
@@ -457,7 +459,10 @@ func (c *Controller) processEvent(event api.Event) error {
 		handler := eventHandlers[idx]
 
 		// execute Update/Resync
-		var change string
+		var (
+			change string
+			errStr string
+		)
 		if isUpdate {
 			change, err = handler.Update(event, txn)
 			if change != "" {
@@ -467,15 +472,17 @@ func (c *Controller) processEvent(event api.Event) error {
 			err = handler.Resync(event, txn, c.kubeStateData, c.resyncCount)
 		}
 		if err != nil {
+			errStr = err.Error()
 			wasErr = err
 		}
 
 		// record operation
 		evRecord.Handlers = append(evRecord.Handlers, &EventHandlingRecord{
-			Handler: handler.String(),
-			Revert:  false,
-			Change:  change,
-			Error:   err,
+			Handler:  handler.String(),
+			Revert:   false,
+			Change:   change,
+			Error:    err,
+			ErrorStr: errStr,
 		})
 
 		// check if error allows to continue
@@ -585,17 +592,20 @@ func (c *Controller) processEvent(event api.Event) error {
 
 		// revert already executed changes
 		for idx = idx - 1; idx >= 0; idx-- {
+			var errStr string
 			handler := eventHandlers[idx]
 			err := handler.Revert(event)
 			if err != nil {
+				errStr = err.Error()
 				wasErr = err
 			}
 
 			// record Revert operation
 			evRecord.Handlers = append(evRecord.Handlers, &EventHandlingRecord{
-				Handler: handler.String(),
-				Revert:  true,
-				Error:   err,
+				Handler:  handler.String(),
+				Revert:   true,
+				Error:    err,
+				ErrorStr: errStr,
 			})
 
 			// check if error allows to continue
@@ -626,6 +636,7 @@ func (c *Controller) processEvent(event api.Event) error {
 	if wasErr != nil && !fatalErr && !c.healingScheduled {
 		c.wg.Add(1)
 		go c.scheduleHealing(wasErr)
+		c.healingScheduled = true
 	}
 
 	return wasErr
@@ -672,70 +683,6 @@ func (c *Controller) scheduleHealing(afterErr error) {
 	}
 }
 
-// printNewEvent prints a banner into stdout about a newly received event.
-func (c *Controller) printNewEvent(eventRec *EventRecord, handlers []api.EventHandler) {
-	border := strings.Repeat(">", 100)
-	evDescLns := strings.Split(eventRec.Description, "\n")
-	fmt.Println(border)
-	fmt.Printf("*   NEW EVENT: %-70s %10s *\n", evDescLns[0], eventSeqNumToStr(eventRec.SeqNum))
-	for i := 1; i < len(evDescLns); i++ {
-		fmt.Printf("*              %-83s *\n", evDescLns[i])
-	}
-	if len(handlers) > 0 {
-		fmt.Printf("*   EVENT HANDLERS: %-78s *\n", evHandlersToStr(handlers))
-	}
-	fmt.Println(border)
-}
-
-// printNewEvent prints a banner into stdout about a finalized event.
-func (c *Controller) printFinalizedEvent(eventRec *EventRecord) {
-	var (
-		handledBy  []string
-		revertedBy []string
-		hasErrors  bool
-	)
-	for _, handlerRec := range eventRec.Handlers {
-		if handlerRec.Error != nil {
-			hasErrors = true
-		}
-		if handlerRec.Revert {
-			revertedBy = append(revertedBy, handlerRec.Handler)
-		} else {
-			handledBy = append(handledBy, handlerRec.Handler)
-		}
-	}
-
-	border := strings.Repeat("<", 100)
-	evDesc := strings.Split(eventRec.Description, "\n")[0]
-
-	fmt.Println(border)
-	fmt.Printf("*   FINALIZED EVENT: %-60s %10s *\n", evDesc, eventSeqNumToStr(eventRec.SeqNum))
-	if len(handledBy) > 0 {
-		fmt.Printf("*   HANDLED BY: %-78s *\n", strings.Join(handledBy, ", "))
-	}
-	if hasErrors {
-		fmt.Printf("*   %-90s *\n", "ERRORS:")
-		for _, handlerRec := range eventRec.Handlers {
-			if handlerRec.Error == nil {
-				continue
-			}
-			var withRevert string
-			if handlerRec.Revert {
-				withRevert = " (REVERT)"
-			}
-			errorDesc := fmt.Sprintf("%s%s: %s", handlerRec.Handler, withRevert, handlerRec.Error)
-			fmt.Printf("*              %-80s *\n", errorDesc)
-		}
-	}
-	if len(revertedBy) > 0 {
-		fmt.Printf("*   REVERTED BY: %-78s *\n", strings.Join(revertedBy, ", "))
-	}
-	if eventRec.TxnError != nil {
-		fmt.Printf("*   TRANSACTION ERROR: %-78v *\n", eventRec.TxnError)
-	}
-	fmt.Println(border)
-}
-
 // mergeLazyValIntoProto merges content of lazy value into a proto message.
 func (c *Controller) mergeLazyValIntoProto(key string, value datasync.LazyValue, msg proto.Message) datasync.LazyValue {
 	var err error
@@ -760,29 +707,4 @@ func (c *Controller) mergeLazyValIntoProto(key string, value datasync.LazyValue,
 	}
 	proto.Merge(merge, protoVal)
 	return output
-}
-
-// filterHandlersForEvent returns only those handlers that are actually interested in the event.
-func filterHandlersForEvent(event api.Event, handlers []api.EventHandler) []api.EventHandler {
-	var filteredHandlers []api.EventHandler
-	for _, handler := range handlers {
-		if handler.HandlesEvent(event) {
-			filteredHandlers = append(filteredHandlers, handler)
-		}
-	}
-	return filteredHandlers
-}
-
-// evHandlersToStr returns a string representing a list of event handlers.
-func evHandlersToStr(handlers []api.EventHandler) string {
-	var handlerStr []string
-	for _, handler := range handlers {
-		handlerStr = append(handlerStr, handler.String())
-	}
-	return strings.Join(handlerStr, ", ")
-}
-
-// eventSeqNumToStr returns string representing event sequence number.
-func eventSeqNumToStr(seqNum uint64) string {
-	return "#" + strconv.FormatUint(seqNum, 10)
 }

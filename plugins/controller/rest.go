@@ -18,8 +18,6 @@ import (
 	"net/http"
 
 	"github.com/unrolled/render"
-
-	"github.com/ligato/cn-infra/rpc/rest"
 )
 
 const (
@@ -40,7 +38,7 @@ type errorString struct {
 }
 
 // registerHandlers registers all supported REST APIs.
-func (c *Controller) registerHandlers(http rest.HTTPHandlers) {
+func (c *Controller) registerHandlers() {
 	if c.HTTPHandlers == nil {
 		c.Log.Warn("No http handler provided, skipping registration of Controller REST handlers")
 		return

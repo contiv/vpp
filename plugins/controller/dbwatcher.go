@@ -126,6 +126,10 @@ func newDBWatcher(args *dbWatcherArgs) *dbWatcher {
 	watcher.extKeyPrefixes = append(watcher.extKeyPrefixes, args.agentPrefix+vppConfigKeyPrefix)
 	watcher.extKeyPrefixes = append(watcher.extKeyPrefixes, args.agentPrefix+linuxConfigKeyPrefix)
 
+	// start DB watching
+	watcher.wg.Add(1)
+	go watcher.watchDB()
+
 	// trigger periodic remoteDB probing after the first connection has been established
 	args.remoteDB.OnConnect(watcher.onFirstConnect)
 
@@ -171,6 +175,7 @@ func (w *dbWatcher) onFirstConnect() error {
 // of the connection to remoteDB.
 func (w *dbWatcher) periodicRemoteDBProbing() {
 	defer w.wg.Done()
+	w.probeRemoteDB()
 
 	for {
 		select {
@@ -233,17 +238,19 @@ func (w *dbWatcher) requestResync(local bool) error {
 func (w *dbWatcher) watchDB() {
 	defer w.wg.Done()
 
-	select {
-	case <-w.ctx.Done():
-		return
+	for {
+		select {
+		case <-w.ctx.Done():
+			return
 
-	case local := <-w.resyncReqs:
-		w.runResync(local)
-		return
+		case local := <-w.resyncReqs:
+			w.runResync(local)
+			continue
 
-	case change := <-w.remoteChangeCh:
-		w.processChange(change)
-		return
+		case change := <-w.remoteChangeCh:
+			w.processChange(change)
+			continue
+		}
 	}
 }
 
@@ -309,6 +316,7 @@ func (w *dbWatcher) runResync(local bool) {
 // The method assumes that dbWatcher is in the locked state.
 func (w *dbWatcher) runResyncFromLocalDB() {
 	event := &api.DBResync{
+		Local:          true,
 		KubeState:      make(api.KubeStateData),
 		ExternalConfig: make(api.ExternalConfig),
 	}
@@ -469,6 +477,7 @@ func (w *dbWatcher) processChange(change datasync.ProtoWatchResp) {
 
 	// ignore if dbWatcher is expecting resync
 	if w.ignoreChangesUntilResync {
+		w.log.Debugf("Ignoring change for key: %v (waiting for resync)", key)
 		return
 	}
 

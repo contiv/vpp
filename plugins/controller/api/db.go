@@ -16,6 +16,7 @@ package api
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/gogo/protobuf/proto"
@@ -52,6 +53,7 @@ type DBResource struct {
 // DBResync is a Resync Event that carries snapshot of the database for all watched
 // Kubernetes resources and the external configuration (for vpp-agent).
 type DBResync struct {
+	Local          bool // against local DB?
 	KubeState      KubeStateData
 	ExternalConfig ExternalConfig
 }
@@ -76,10 +78,26 @@ func (ev *DBResync) GetName() string {
 // String describes DBResync event.
 func (ev *DBResync) String() string {
 	str := ev.GetName()
+	if ev.Local {
+		str += " (Local DB)"
+	} else {
+		str += " (Remote DB)"
+	}
+
+	// order resources alphabetically
+	var resources []string
+	for resource := range ev.KubeState {
+		resources = append(resources, resource)
+	}
+	sort.Strings(resources)
 
 	// describe Kubernetes state
-	for resource, data := range ev.KubeState {
-		var strPerResource []string
+	for _, resource := range resources {
+		var (
+			withColon     string
+			resourceItems []string
+		)
+		data := ev.KubeState[resource]
 		for key, value := range data {
 			var valueStr string
 			valWithName, hasName := value.(withName)
@@ -93,10 +111,17 @@ func (ev *DBResync) String() string {
 			if hasName && hasNamespace {
 				valueStr = valWithNamespace.GetNamespace() + "/" + valWithName.GetName()
 			}
-			strPerResource = append(strPerResource, valueStr)
+			resourceItems = append(resourceItems, valueStr)
 		}
-		str += fmt.Sprintf("\n* %dx %s: %s",
-			len(data), resource, strings.Join(strPerResource, ", "))
+		sort.Strings(resourceItems)
+		if len(resourceItems) > 0 {
+			withColon = ":"
+		}
+		str += fmt.Sprintf("\n* %dx %s%s",
+			len(data), resource, withColon)
+		for _, resourceItem := range resourceItems {
+			str += "\n    - " + resourceItem
+		}
 	}
 
 	// describe external config if there is any
@@ -104,6 +129,7 @@ func (ev *DBResync) String() string {
 	for key := range ev.ExternalConfig {
 		externalKeys = append(externalKeys, key)
 	}
+	sort.Strings(externalKeys)
 	if len(externalKeys) > 0 {
 		str += fmt.Sprintf("\n* %dx external config items: %s",
 			len(externalKeys), strings.Join(externalKeys, ", "))
@@ -143,7 +169,8 @@ func (ev *KubeStateChange) String() string {
 		"* resource: %s\n"+
 		"* key: %s\n"+
 		"* prev-value: %s\n"+
-		"* new-value: %s", ev.GetName(), ev.Resource, ev.Key, ev.PrevValue.String(), ev.NewValue.String())
+		"* new-value: %s", ev.GetName(), ev.Resource, ev.Key,
+		protoToString(ev.PrevValue), protoToString(ev.NewValue))
 }
 
 // Method is Update.
@@ -166,6 +193,14 @@ func (ev *KubeStateChange) Done(error) {
 	return
 }
 
+// protoToString converts proto message to string
+func protoToString(msg proto.Message) string {
+	if msg == nil {
+		return "<nil>"
+	}
+	return msg.String()
+}
+
 /*************************** External Config Change ***************************/
 
 // ExternalConfigChange is an Update event that represents change for one key
@@ -181,7 +216,9 @@ func (ev *ExternalConfigChange) GetName() string {
 
 // String describes ExternalConfigChange event.
 func (ev *ExternalConfigChange) String() string {
-	return fmt.Sprintf("%s (key: %s)", ev.GetName(), ev.Change.GetKey())
+	return fmt.Sprintf("%s\n"+
+		"* key: %s\n"+
+		"* revision: %d", ev.GetName(), ev.Change.GetKey(), ev.Change.GetRevision())
 }
 
 // Method is Update.

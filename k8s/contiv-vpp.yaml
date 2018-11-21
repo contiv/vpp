@@ -71,8 +71,6 @@ data:
   controller.conf: |
     delay-local-resync: 5000000000
 
-TODO: controller
-
 ---
 
 apiVersion: v1

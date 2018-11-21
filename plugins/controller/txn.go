@@ -31,10 +31,10 @@ type kvSchedulerTxn struct {
 	kvScheduler scheduler_api.KVScheduler
 
 	// values set via Put or Delete
-	values  api.KeyValuePairs
+	values api.KeyValuePairs
 
 	// injected by Controller to merge external with internal configuration
-	merged  map[string]datasync.LazyValue
+	merged map[string]datasync.LazyValue
 }
 
 // lazyValue implements datasync.LazyValue interface.

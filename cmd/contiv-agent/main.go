@@ -58,13 +58,13 @@ import (
 	"github.com/contiv/vpp/plugins/statscollector"
 
 	"github.com/contiv/vpp/plugins/contiv/model/nodeinfo"
+	nodeconfig "github.com/contiv/vpp/plugins/crd/handler/nodeconfig/model"
 	epmodel "github.com/contiv/vpp/plugins/ksr/model/endpoints"
 	nsmodel "github.com/contiv/vpp/plugins/ksr/model/namespace"
 	nodemodel "github.com/contiv/vpp/plugins/ksr/model/node"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	policymodel "github.com/contiv/vpp/plugins/ksr/model/policy"
 	svcmodel "github.com/contiv/vpp/plugins/ksr/model/service"
-	nodeconfig "github.com/contiv/vpp/plugins/crd/handler/nodeconfig/model"
 )
 
 const defaultStartupTimeout = 45 * time.Second

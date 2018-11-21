@@ -132,8 +132,8 @@ type Controller struct {
 	startupResyncCheck chan struct{}
 	healingScheduled   bool
 
-	resyncCount  int
-	evSeqNum     uint64
+	resyncCount int
+	evSeqNum    uint64
 
 	historyLock  sync.Mutex
 	eventHistory []*EventRecord
@@ -252,7 +252,7 @@ func (c *Controller) Init() error {
 	return nil
 }
 
-// Init starts DB watcher and registers plugin with the status check.
+// AfterInit starts DB watcher and registers plugin with the status check.
 func (c *Controller) AfterInit() error {
 	// start DB watcher
 	c.dbWatcher = newDBWatcher(&dbWatcherArgs{

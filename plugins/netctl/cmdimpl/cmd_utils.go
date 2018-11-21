@@ -19,7 +19,7 @@ package cmdimpl
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/contiv/vpp/plugins/contiv/model/node"
+	"github.com/contiv/vpp/plugins/contiv/model/nodeinfo"
 	"github.com/ligato/cn-infra/db/keyval/etcd"
 	"os"
 	"regexp"
@@ -27,7 +27,7 @@ import (
 	"strings"
 )
 
-type clusterNodeInfo map[string]*node.NodeInfo
+type clusterNodeInfo map[string]*nodeinfo.NodeInfo
 
 var (
 	nodeInfo clusterNodeInfo
@@ -49,7 +49,7 @@ func getClusterNodeInfo(db *etcd.BytesConnectionEtcd) clusterNodeInfo {
 				break
 			}
 			buf := kv.GetValue()
-			ni := &node.NodeInfo{}
+			ni := &nodeinfo.NodeInfo{}
 			if err = json.Unmarshal(buf, ni); err != nil {
 				fmt.Printf("failed to decode node info for node %s, error %s\n", kv.GetKey(), err)
 				continue

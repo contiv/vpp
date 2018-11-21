@@ -21,7 +21,7 @@ import (
 	"strconv"
 	"strings"
 
-	nodemodel "github.com/contiv/vpp/plugins/contiv/model/node"
+	"github.com/contiv/vpp/plugins/contiv/model/nodeinfo"
 	epmodel "github.com/contiv/vpp/plugins/ksr/model/endpoints"
 	svcmodel "github.com/contiv/vpp/plugins/ksr/model/service"
 )
@@ -41,8 +41,8 @@ func (sc *ServiceProcessor) propagateDataChangeEv(dataChngEv datasync.ProtoWatch
 	sc.k8sStateData[key] = dataChngEv
 
 	// Process Node CHANGE event
-	if strings.HasPrefix(key, nodemodel.AllocatedIDsKeyPrefix) {
-		var value, prevValue nodemodel.NodeInfo
+	if strings.HasPrefix(key, nodeinfo.AllocatedIDsKeyPrefix) {
+		var value, prevValue nodeinfo.NodeInfo
 
 		if err = dataChngEv.GetValue(&value); err != nil {
 			return err
@@ -53,7 +53,7 @@ func (sc *ServiceProcessor) propagateDataChangeEv(dataChngEv datasync.ProtoWatch
 		}
 
 		if datasync.Delete == dataChngEv.GetChangeType() {
-			nodeIDStr := strings.TrimPrefix(key, nodemodel.AllocatedIDsKeyPrefix)
+			nodeIDStr := strings.TrimPrefix(key, nodeinfo.AllocatedIDsKeyPrefix)
 			nodeID, err := strconv.Atoi(nodeIDStr)
 			if err != nil {
 				return err

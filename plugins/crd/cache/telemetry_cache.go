@@ -39,7 +39,6 @@ const (
 	livenessURL       = "/liveness"
 	linuxInterfaceURL = "/linux/dump/v1/interfaces"
 	ipamURL           = "/contiv/v1/ipam"
-	telemetryURL      = "/telemetry"
 
 	nodeInterfaceURL = "/vpp/dump/v1/interfaces"
 	bridgeDomainURL  = "/vpp/dump/v1/bd"
@@ -47,9 +46,7 @@ const (
 	arpURL           = "/vpp/dump/v1/arps"
 	staticRouteURL   = "/vpp/dump/v1/routes"
 
-	clientTimeout      = 10 // HTTP client timeout, in seconds
-	collectionInterval = 1  // data collection interval, in minutes
-
+	clientTimeout = 10 // HTTP client timeout, in seconds
 )
 
 // ContivTelemetryCache is used for a in-memory storage of K8s State data
@@ -103,7 +100,7 @@ type NodeDTO struct {
 }
 
 // NewTelemetryCache returns a new instance of telemetry cache
-func NewTelemetryCache(p logging.PluginLogger, verbose bool) *ContivTelemetryCache {
+func NewTelemetryCache(p logging.PluginLogger, collectionInterval time.Duration, verbose bool) *ContivTelemetryCache {
 	return &ContivTelemetryCache{
 		Deps: Deps{
 			Log: p.NewLogger("-telemetryCache"),
@@ -115,7 +112,7 @@ func NewTelemetryCache(p logging.PluginLogger, verbose bool) *ContivTelemetryCac
 		Verbose:  verbose,
 
 		agentPort:            agentPort,
-		collectionInterval:   collectionInterval * time.Minute,
+		collectionInterval:   collectionInterval,
 		httpClientTimeout:    clientTimeout * time.Second,
 		validationInProgress: false,
 
@@ -123,7 +120,7 @@ func NewTelemetryCache(p logging.PluginLogger, verbose bool) *ContivTelemetryCac
 		dsUpdateChannel:     make(chan interface{}),
 		dtoList:             make([]*NodeDTO, 0),
 		dataChangeEvents:    make(DcEventQueue, 0),
-		ticker:              time.NewTicker(collectionInterval * time.Minute),
+		ticker:              time.NewTicker(collectionInterval),
 		databaseVersion:     0,
 	}
 }

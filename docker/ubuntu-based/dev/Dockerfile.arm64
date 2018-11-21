@@ -1,8 +1,30 @@
 ARG VPP_IMAGE
 FROM ${VPP_IMAGE}
 
+# install deps
+RUN apt-get update && apt-get install -y \
+ make \
+ wget \
+ git \
+ gcc
+
+# install vpp
+WORKDIR $VPP_BUILD_DIR
+ARG VPP_INSTALL_PKG
+RUN if [ -n "$VPP_INSTALL_PKG" ]; then \
+ apt-get install -y ./*.deb; \
+ fi
+
 # copy source files to the container
 COPY / /root/go/src/github.com/contiv/vpp
+
+# install Go
+ENV GOLANG_VERSION 1.10.4
+RUN if [ -n "$VPP_INSTALL_PKG" ]; then \
+ wget -O go.tgz "https://golang.org/dl/go$GOLANG_VERSION.linux-arm64.tar.gz" \
+ && tar -C /usr/local -xzf go.tgz \
+ && rm go.tgz; \
+ fi
 
 # set env. variables required for go build
 ENV GOROOT /usr/local/go

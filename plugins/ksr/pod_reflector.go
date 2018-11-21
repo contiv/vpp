@@ -106,7 +106,7 @@ func (pr *PodReflector) updatePod(oldObj, newObj interface{}) {
 		return
 	}
 
-	pr.Log.WithFields(map[string]interface{}{"pod-old": oldK8sPod, "pod-new": newK8sPod}).
+	pr.Log.WithFields(map[string]interface{}{"name": newK8sPod.Name, "namespace": newK8sPod.Namespace}).
 		Info("Pod updated")
 
 	key := pod.Key(newK8sPod.GetName(), newK8sPod.GetNamespace())

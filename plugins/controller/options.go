@@ -15,8 +15,12 @@
 package controller
 
 import (
+	"github.com/ligato/cn-infra/config"
 	"github.com/ligato/cn-infra/health/statuscheck"
 	"github.com/ligato/cn-infra/logging"
+	"github.com/ligato/cn-infra/rpc/rest"
+	"github.com/ligato/cn-infra/servicelabel"
+
 	"github.com/ligato/vpp-agent/plugins/kvscheduler"
 )
 
@@ -27,9 +31,11 @@ var DefaultPlugin = *NewPlugin()
 func NewPlugin(opts ...Option) *Controller {
 	p := &Controller{}
 
-	p.PluginName = "contiv-controller"
+	p.PluginName = "controller"
 	p.StatusCheck = &statuscheck.DefaultPlugin
 	p.Scheduler = &kvscheduler.DefaultPlugin
+	p.HTTPHandlers = &rest.DefaultPlugin
+	p.ServiceLabel = &servicelabel.DefaultPlugin
 
 	for _, o := range opts {
 		o(p)
@@ -37,6 +43,9 @@ func NewPlugin(opts ...Option) *Controller {
 
 	if p.Log == nil {
 		p.Log = logging.ForPlugin(p.String())
+	}
+	if p.Cfg == nil {
+		p.Cfg = config.ForPlugin(p.String())
 	}
 
 	return p

@@ -13,7 +13,7 @@
 // limitations under the License.
 
 //go:generate protoc -I ./model/cni --gogo_out=plugins=grpc:./model/cni ./model/cni/cni.proto
-//go:generate protoc -I ./model/node --gogo_out=plugins=grpc:./model/node ./model/node/node.proto
+//go:generate protoc -I ./model/nodeinfo --gogo_out=plugins=grpc:./model/nodeinfo ./model/nodeinfo/nodeinfo.proto
 
 package contiv
 
@@ -50,7 +50,7 @@ import (
 
 	stn_grpc "github.com/contiv/vpp/cmd/contiv-stn/model/stn"
 	"github.com/contiv/vpp/plugins/contiv/model/cni"
-	"github.com/contiv/vpp/plugins/contiv/model/node"
+	"github.com/contiv/vpp/plugins/contiv/model/nodeinfo"
 	txn_api "github.com/contiv/vpp/plugins/controller/txn"
 	k8sNode "github.com/contiv/vpp/plugins/ksr/model/node"
 	k8sPod "github.com/contiv/vpp/plugins/ksr/model/pod"
@@ -133,7 +133,7 @@ func (p *Plugin) Init() error {
 	p.changeCh = make(chan datasync.ChangeEvent)
 	p.k8sStateData = make(map[string]datasync.KeyVal)
 	p.watchReg, err = p.Watcher.Watch("contiv-plugin-k8s-state",
-		p.changeCh, p.resyncCh, node.AllocatedIDsKeyPrefix, k8sNode.KeyPrefix(), k8sPod.KeyPrefix()) // + CRD later
+		p.changeCh, p.resyncCh, nodeinfo.AllocatedIDsKeyPrefix, k8sNode.KeyPrefix(), k8sPod.KeyPrefix()) // + CRD later
 	if err != nil {
 		return err
 	}

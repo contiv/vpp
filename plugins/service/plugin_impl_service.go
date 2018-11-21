@@ -16,6 +16,7 @@ package service
 
 import (
 	"context"
+	"net"
 	"sync"
 
 	"github.com/ligato/cn-infra/datasync"
@@ -29,7 +30,7 @@ import (
 	"github.com/contiv/vpp/plugins/service/processor"
 	"github.com/contiv/vpp/plugins/service/renderer/nat44"
 
-	"github.com/contiv/vpp/plugins/contiv/model/node"
+	"github.com/contiv/vpp/plugins/contiv/model/nodeinfo"
 	epmodel "github.com/contiv/vpp/plugins/ksr/model/endpoints"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	svcmodel "github.com/contiv/vpp/plugins/ksr/model/service"
@@ -37,7 +38,6 @@ import (
 	"github.com/ligato/cn-infra/infra"
 	"github.com/ligato/cn-infra/servicelabel"
 	"github.com/ligato/vpp-agent/plugins/govppmux"
-	"net"
 )
 
 // Plugin watches configuration of K8s resources (as reflected by KSR into ETCD)
@@ -143,7 +143,7 @@ func (p *Plugin) AfterInit() error {
 func (p *Plugin) subscribeWatcher() (err error) {
 	p.watchConfigReg, err = p.Watcher.
 		Watch("K8s services", p.changeChan, p.resyncChan,
-			epmodel.KeyPrefix(), podmodel.KeyPrefix(), svcmodel.KeyPrefix(), node.AllocatedIDsKeyPrefix)
+			epmodel.KeyPrefix(), podmodel.KeyPrefix(), svcmodel.KeyPrefix(), nodeinfo.AllocatedIDsKeyPrefix)
 	return err
 }
 

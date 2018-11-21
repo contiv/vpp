@@ -15,7 +15,7 @@
 package cache
 
 import (
-	nodeinfomodel "github.com/contiv/vpp/plugins/contiv/model/node"
+	nodeinfomodel "github.com/contiv/vpp/plugins/contiv/model/nodeinfo"
 	nodemodel "github.com/contiv/vpp/plugins/ksr/model/node"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	"github.com/gogo/protobuf/proto"

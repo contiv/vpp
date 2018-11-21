@@ -21,7 +21,7 @@ import (
 	coreV1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/tools/cache"
 
-	nodeID "github.com/contiv/vpp/plugins/contiv/model/node"
+	"github.com/contiv/vpp/plugins/contiv/model/nodeinfo"
 	"github.com/contiv/vpp/plugins/ksr/model/node"
 	"github.com/gogo/protobuf/proto"
 	"github.com/ligato/cn-infra/datasync"
@@ -190,7 +190,7 @@ func getNodeInfo(kni coreV1.NodeSystemInfo) *node.NodeSystemInfo {
 // deleteNodeIDForName removes nodeID allocated for defined name. The aim of the function is to
 // cleanup nodeID when a node is removed for a cluster.
 func (nr *NodeReflector) deleteNodeIDForName(name string) error {
-	it, err := nr.Broker.ListValues(nodeID.AllocatedIDsKeyPrefix)
+	it, err := nr.Broker.ListValues(nodeinfo.AllocatedIDsKeyPrefix)
 	if err != nil {
 		return err
 	}
@@ -203,7 +203,7 @@ func (nr *NodeReflector) deleteNodeIDForName(name string) error {
 			break
 		}
 
-		val := &nodeID.NodeInfo{}
+		val := &nodeinfo.NodeInfo{}
 		err := kv.GetValue(val)
 		if err != nil {
 			return err

@@ -16,7 +16,6 @@ package ksr
 
 import (
 	"fmt"
-	"reflect"
 	"sync"
 	"time"
 
@@ -188,7 +187,7 @@ func (r *Reflector) markAndSweep(dsItems DsItems, oc K8sToProtoConverter) error 
 		if ok {
 			dsProtoObj, exists := dsItems[key]
 			if exists {
-				if !reflect.DeepEqual(k8sProtoObj, dsProtoObj) {
+				if !proto.Equal(k8sProtoObj.(proto.Message), dsProtoObj.(proto.Message)) {
 					// Object exists in the data store, but it changed in the
 					// K8s cache; overwrite the data store
 					err := r.Broker.Put(key, k8sProtoObj.(proto.Message))
@@ -341,7 +340,7 @@ func (r *Reflector) ksrAdd(key string, item proto.Message) {
 // ksrUpdate updates an item to the Etcd data store. This function must be
 // called with dsMutex locked, since it manipulates the dsSynced flag.
 func (r *Reflector) ksrUpdate(key string, itemOld, itemNew proto.Message) {
-	if !reflect.DeepEqual(itemOld, itemNew) {
+	if !proto.Equal(itemOld, itemNew) {
 
 		r.Log.WithField("key", key).Debugf("%s: updating item in data store", r.objType)
 

@@ -54,6 +54,8 @@ data:
         level: info
       - name: vpp.if-state
         level: info
+      - name: linux.arp-conf
+        level: info
   grpc.conf: |
     network: unix
     endpoint: /var/run/contiv/cni.sock
@@ -68,6 +70,8 @@ data:
   telemetry.conf: |
     polling-interval: 30000000000
     disabled: true
+  controller.conf: |
+    delay-local-resync: 5000000000
 
 ---
 
@@ -225,6 +229,8 @@ data:
     auto-compact: 600000000000
     endpoints:
       - "127.0.0.1:32379"
+    allow-delayed-start: true
+    reconnect-interval: 2000000000
 
 ---
 
@@ -393,6 +399,8 @@ spec:
               mountPath: /etc/agent
             - name: govpp-plugin-cfg
               mountPath: /etc/govpp
+            - name: tmp
+              mountPath: /tmp
             - name: core-dumps
               mountPath: /var/contiv/dumps
             - name: docker-socket
@@ -452,6 +460,11 @@ spec:
         - name: core-dumps
           hostPath:
             path: /var/contiv/dumps
+        # /tmp in the vswitch container
+        - name: tmp
+          hostPath:
+            path: /tmp/contiv-vswitch
+        # persisted bolt data
         - name: var-bolt
           hostPath:
             path: /var/bolt

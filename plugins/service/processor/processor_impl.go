@@ -25,7 +25,7 @@ import (
 	"github.com/ligato/cn-infra/servicelabel"
 
 	"github.com/contiv/vpp/plugins/contiv"
-	nodemodel "github.com/contiv/vpp/plugins/contiv/model/node"
+	"github.com/contiv/vpp/plugins/contiv/model/nodeinfo"
 	epmodel "github.com/contiv/vpp/plugins/ksr/model/endpoints"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	svcmodel "github.com/contiv/vpp/plugins/ksr/model/service"
@@ -40,7 +40,7 @@ type ServiceProcessor struct {
 	renderers []renderer.ServiceRendererAPI
 
 	/* nodes */
-	nodes map[int]*nodemodel.NodeInfo
+	nodes map[int]*nodeinfo.NodeInfo
 
 	/* internal maps */
 	services map[svcmodel.ID]*Service
@@ -85,7 +85,7 @@ func (sp *ServiceProcessor) AfterInit() error {
 
 // reset clears the state of the processor.
 func (sp *ServiceProcessor) reset() error {
-	sp.nodes = make(map[int]*nodemodel.NodeInfo)
+	sp.nodes = make(map[int]*nodeinfo.NodeInfo)
 	sp.services = make(map[svcmodel.ID]*Service)
 	sp.localEps = make(map[podmodel.ID]*LocalEndpoint)
 	sp.frontendIfs = renderer.NewInterfaces()
@@ -281,7 +281,7 @@ func (sp *ServiceProcessor) processDeletedService(serviceID svcmodel.ID) error {
 	return sp.renderService(svc, oldContivSvc, oldBackends)
 }
 
-func (sp *ServiceProcessor) processNewNode(node *nodemodel.NodeInfo) error {
+func (sp *ServiceProcessor) processNewNode(node *nodeinfo.NodeInfo) error {
 	sp.Log.WithFields(logging.Fields{
 		"node": *node,
 	}).Debug("ServiceProcessor - processNewNode()")
@@ -290,7 +290,7 @@ func (sp *ServiceProcessor) processNewNode(node *nodemodel.NodeInfo) error {
 	return sp.renderNodePorts()
 }
 
-func (sp *ServiceProcessor) processUpdatedNode(node *nodemodel.NodeInfo) error {
+func (sp *ServiceProcessor) processUpdatedNode(node *nodeinfo.NodeInfo) error {
 	sp.Log.WithFields(logging.Fields{
 		"node": *node,
 	}).Debug("ServiceProcessor - processUpdatedNode()")

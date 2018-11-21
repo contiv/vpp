@@ -39,7 +39,7 @@ import (
 	stn_grpc "github.com/contiv/vpp/cmd/contiv-stn/model/stn"
 	"github.com/contiv/vpp/plugins/contiv/ipam"
 	"github.com/contiv/vpp/plugins/contiv/model/cni"
-	"github.com/contiv/vpp/plugins/contiv/model/node"
+	"github.com/contiv/vpp/plugins/contiv/model/nodeinfo"
 	txn_api "github.com/contiv/vpp/plugins/controller/txn"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 )
@@ -197,7 +197,7 @@ type remoteCNIserver struct {
 	test bool
 
 	// other node ID -> node info
-	otherNodes map[uint32]*node.NodeInfo
+	otherNodes map[uint32]*nodeinfo.NodeInfo
 
 	// this node's main IP address and the default gateway
 	nodeIP    net.IP

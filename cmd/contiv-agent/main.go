@@ -18,14 +18,18 @@ import (
 	"os"
 	"time"
 
+	"github.com/gogo/protobuf/proto"
+
 	"github.com/ligato/cn-infra/agent"
 	"github.com/ligato/cn-infra/datasync"
 	"github.com/ligato/cn-infra/datasync/kvdbsync"
 	"github.com/ligato/cn-infra/datasync/kvdbsync/local"
 	"github.com/ligato/cn-infra/datasync/resync"
+	"github.com/ligato/cn-infra/db/keyval/bolt"
 	"github.com/ligato/cn-infra/db/keyval/etcd"
 	"github.com/ligato/cn-infra/health/probe"
 	"github.com/ligato/cn-infra/health/statuscheck"
+	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/logging/logmanager"
 	"github.com/ligato/cn-infra/logging/logrus"
 	"github.com/ligato/cn-infra/rpc/grpc"
@@ -37,6 +41,7 @@ import (
 	"github.com/ligato/vpp-agent/plugins/kvscheduler"
 	linux_ifplugin "github.com/ligato/vpp-agent/plugins/linuxv2/ifplugin"
 	linux_l3plugin "github.com/ligato/vpp-agent/plugins/linuxv2/l3plugin"
+	linux_nsplugin "github.com/ligato/vpp-agent/plugins/linuxv2/nsplugin"
 	"github.com/ligato/vpp-agent/plugins/telemetry"
 	vpp_aclplugin "github.com/ligato/vpp-agent/plugins/vppv2/aclplugin"
 	vpp_ifplugin "github.com/ligato/vpp-agent/plugins/vppv2/ifplugin"
@@ -45,10 +50,21 @@ import (
 	vpp_natplugin "github.com/ligato/vpp-agent/plugins/vppv2/natplugin"
 
 	"github.com/contiv/vpp/plugins/contiv"
+	"github.com/contiv/vpp/plugins/controller"
+	controller_api "github.com/contiv/vpp/plugins/controller/api"
 	"github.com/contiv/vpp/plugins/ksr"
 	"github.com/contiv/vpp/plugins/policy"
 	"github.com/contiv/vpp/plugins/service"
 	"github.com/contiv/vpp/plugins/statscollector"
+
+	"github.com/contiv/vpp/plugins/contiv/model/nodeinfo"
+	nodeconfig "github.com/contiv/vpp/plugins/crd/handler/nodeconfig/model"
+	epmodel "github.com/contiv/vpp/plugins/ksr/model/endpoints"
+	nsmodel "github.com/contiv/vpp/plugins/ksr/model/namespace"
+	nodemodel "github.com/contiv/vpp/plugins/ksr/model/node"
+	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
+	policymodel "github.com/contiv/vpp/plugins/ksr/model/policy"
+	svcmodel "github.com/contiv/vpp/plugins/ksr/model/service"
 )
 
 const defaultStartupTimeout = 45 * time.Second
@@ -79,9 +95,10 @@ type ContivAgent struct {
 	Telemetry *telemetry.Plugin
 	GRPC      *grpc.Plugin
 
-	Contiv  *contiv.Plugin
-	Policy  *policy.Plugin
-	Service *service.Plugin
+	Controller *controller.Controller
+	Contiv     *contiv.Plugin
+	Policy     *policy.Plugin
+	Service    *service.Plugin
 }
 
 func (c *ContivAgent) String() string {
@@ -95,7 +112,7 @@ func (c *ContivAgent) Init() error {
 
 // AfterInit triggers the first resync.
 func (c *ContivAgent) AfterInit() error {
-	resync.DefaultPlugin.DoResync()
+	resync.DefaultPlugin.DoResync() // TODO: remove ResyncOrch bullshitter
 	return nil
 }
 
@@ -105,7 +122,7 @@ func (c *ContivAgent) Close() error {
 }
 
 func main() {
-	// disable status check for etcd
+	// disable status check for etcd - Controller monitors the etcd status now
 	etcd.DefaultPlugin.StatusCheck = nil
 
 	// datasync of Kubernetes state data
@@ -134,6 +151,7 @@ func main() {
 	vpp_ifplugin.DefaultPlugin.LinuxIfPlugin = &linux_ifplugin.DefaultPlugin
 	vpp_ifplugin.DefaultPlugin.PublishStatistics = &statscollector.DefaultPlugin
 	vpp_aclplugin.DefaultPlugin.IfPlugin = &vpp_ifplugin.DefaultPlugin
+	linux_nsplugin.DefaultPlugin.Log.SetLevel(logging.InfoLevel)
 
 	// we don't want to publish status to etcd
 	statuscheck.DefaultPlugin.Transport = nil
@@ -142,6 +160,54 @@ func main() {
 	grpc.DefaultPlugin.HTTP = &rest.DefaultPlugin
 
 	// initialize Contiv plugins
+	controller := controller.NewPlugin(controller.UseDeps(func(deps *controller.Deps) {
+		deps.LocalDB = &bolt.DefaultPlugin
+		deps.RemoteDB = &etcd.DefaultPlugin
+		deps.DBResources = []*controller_api.DBResource{
+			{
+				Keyword:          nodeinfo.Keyword,
+				ProtoMessageName: proto.MessageName((*nodeinfo.NodeInfo)(nil)),
+				KeyPrefix:        ksrServicelabel.GetAgentPrefix() + nodeinfo.AllocatedIDsKeyPrefix,
+			},
+			{
+				Keyword:          nodeconfig.Keyword,
+				ProtoMessageName: proto.MessageName((*nodeconfig.NodeConfig)(nil)),
+				KeyPrefix:        ksrServicelabel.GetAgentPrefix() + nodeconfig.KeyPrefix(),
+			},
+			{
+				Keyword:          nodemodel.NodeKeyword,
+				ProtoMessageName: proto.MessageName((*nodemodel.Node)(nil)),
+				KeyPrefix:        ksrServicelabel.GetAgentPrefix() + nodemodel.KeyPrefix(),
+			},
+			{
+				Keyword:          podmodel.PodKeyword,
+				ProtoMessageName: proto.MessageName((*podmodel.Pod)(nil)),
+				KeyPrefix:        ksrServicelabel.GetAgentPrefix() + podmodel.KeyPrefix(),
+			},
+			{
+				Keyword:          nsmodel.NamespaceKeyword,
+				ProtoMessageName: proto.MessageName((*nsmodel.Namespace)(nil)),
+				KeyPrefix:        ksrServicelabel.GetAgentPrefix() + nsmodel.KeyPrefix(),
+			},
+			{
+				Keyword:          policymodel.PolicyKeyword,
+				ProtoMessageName: proto.MessageName((*policymodel.Policy)(nil)),
+				KeyPrefix:        ksrServicelabel.GetAgentPrefix() + policymodel.KeyPrefix(),
+			},
+			{
+				Keyword:          svcmodel.ServiceKeyword,
+				ProtoMessageName: proto.MessageName((*svcmodel.Service)(nil)),
+				KeyPrefix:        ksrServicelabel.GetAgentPrefix() + svcmodel.KeyPrefix(),
+			},
+			{
+				Keyword:          epmodel.EndpointsKeyword,
+				ProtoMessageName: proto.MessageName((*epmodel.Endpoints)(nil)),
+				KeyPrefix:        ksrServicelabel.GetAgentPrefix() + epmodel.KeyPrefix(),
+			},
+		}
+		// TODO event handlers
+	}))
+
 	contivPlugin := contiv.NewPlugin(contiv.UseDeps(func(deps *contiv.Deps) {
 		deps.VPPIfPlugin = &vpp_ifplugin.DefaultPlugin
 		deps.Watcher = contivDataSync
@@ -180,6 +246,7 @@ func main() {
 		VPPACLPlugin:    &vpp_aclplugin.DefaultPlugin,
 		Telemetry:       &telemetry.DefaultPlugin,
 		GRPC:            &grpc.DefaultPlugin,
+		Controller:      controller,
 		Contiv:          contivPlugin,
 		Policy:          policyPlugin,
 		Service:         servicePlugin,

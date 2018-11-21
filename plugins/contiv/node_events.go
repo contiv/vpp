@@ -28,7 +28,7 @@ import (
 
 	scheduler_api "github.com/ligato/vpp-agent/plugins/kvscheduler/api"
 
-	"github.com/contiv/vpp/plugins/contiv/model/node"
+	"github.com/contiv/vpp/plugins/contiv/model/nodeinfo"
 	txn_api "github.com/contiv/vpp/plugins/controller/txn"
 	k8sNode "github.com/contiv/vpp/plugins/ksr/model/node"
 )
@@ -82,7 +82,7 @@ func (p *Plugin) updateThisNodeMgmtIPs(node *k8sNode.Node) error {
 // otherNodesResync re-synchronizes connectivity to other nodes.
 func (s *remoteCNIserver) otherNodesResync(resyncEv *ResyncEventData, txn txn_api.ResyncOperations) error {
 	// reset the internal map of other node IDs
-	s.otherNodes = make(map[uint32]*node.NodeInfo)
+	s.otherNodes = make(map[uint32]*nodeinfo.NodeInfo)
 
 	// collect other node IDs and configuration for connectivity with each of them
 	for _, nodeInfo := range resyncEv.NodeInfo {
@@ -134,7 +134,7 @@ func (s *remoteCNIserver) otherNodesResync(resyncEv *ResyncEventData, txn txn_ap
 func (s *remoteCNIserver) processOtherNodeChangeEvent(dataChngEv datasync.ProtoWatchResp) error {
 	// process only NodeInfo key-values
 	key := dataChngEv.GetKey()
-	if !strings.HasPrefix(key, node.AllocatedIDsKeyPrefix) {
+	if !strings.HasPrefix(key, nodeinfo.AllocatedIDsKeyPrefix) {
 		return nil
 	}
 	s.Logger.WithFields(logging.Fields{
@@ -142,7 +142,7 @@ func (s *remoteCNIserver) processOtherNodeChangeEvent(dataChngEv datasync.ProtoW
 		"rev": dataChngEv.GetRevision()}).Info("Processing change event")
 
 	var (
-		nodeInfo, prevNodeInfo node.NodeInfo
+		nodeInfo, prevNodeInfo nodeinfo.NodeInfo
 		otherNodeID            uint32
 		modified               bool
 		err                    error
@@ -260,7 +260,7 @@ func (s *remoteCNIserver) processOtherNodeChangeEvent(dataChngEv datasync.ProtoW
 }
 
 // nodeConnectivityConfig return configuration used to connect this node with the given other node.
-func (s *remoteCNIserver) nodeConnectivityConfig(nodeInfo *node.NodeInfo) (config txn_api.KeyValuePairs, err error) {
+func (s *remoteCNIserver) nodeConnectivityConfig(nodeInfo *nodeinfo.NodeInfo) (config txn_api.KeyValuePairs, err error) {
 	config = make(txn_api.KeyValuePairs)
 
 	// configuration for VXLAN tunnel
@@ -301,7 +301,7 @@ func (s *remoteCNIserver) nodeConnectivityConfig(nodeInfo *node.NodeInfo) (confi
 }
 
 // routesToNode returns configuration of routes used for routing traffic destined to the given other node.
-func (s *remoteCNIserver) routesToNode(nodeInfo *node.NodeInfo) (config txn_api.KeyValuePairs, err error) {
+func (s *remoteCNIserver) routesToNode(nodeInfo *nodeinfo.NodeInfo) (config txn_api.KeyValuePairs, err error) {
 	config = make(txn_api.KeyValuePairs)
 
 	var nextHop net.IP
@@ -362,6 +362,6 @@ func (s *remoteCNIserver) routesToNode(nodeInfo *node.NodeInfo) (config txn_api.
 }
 
 // nodeHasIPAddress returns true if the given node has at least one IP address assigned.
-func nodeHasIPAddress(node *node.NodeInfo) bool {
+func nodeHasIPAddress(node *nodeinfo.NodeInfo) bool {
 	return node.IpAddress != "" || node.ManagementIpAddress != ""
 }

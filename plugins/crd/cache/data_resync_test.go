@@ -3,7 +3,7 @@ package cache
 import (
 	"encoding/json"
 	"fmt"
-	nodeinfomodel "github.com/contiv/vpp/plugins/contiv/model/node"
+	nodeinfomodel "github.com/contiv/vpp/plugins/contiv/model/nodeinfo"
 	"github.com/contiv/vpp/plugins/crd/api"
 	"github.com/contiv/vpp/plugins/crd/datastore"
 	"github.com/gogo/protobuf/proto"

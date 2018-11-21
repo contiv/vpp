@@ -23,7 +23,7 @@ import (
 	"github.com/ligato/cn-infra/datasync"
 	"github.com/ligato/cn-infra/logging"
 
-	nodemodel "github.com/contiv/vpp/plugins/contiv/model/node"
+	"github.com/contiv/vpp/plugins/contiv/model/nodeinfo"
 	epmodel "github.com/contiv/vpp/plugins/ksr/model/endpoints"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	svcmodel "github.com/contiv/vpp/plugins/ksr/model/service"
@@ -32,7 +32,7 @@ import (
 // ResyncEventData wraps an entire state of K8s services that should be reflected
 // into VPP.
 type ResyncEventData struct {
-	Nodes     map[int]*nodemodel.NodeInfo
+	Nodes     map[int]*nodeinfo.NodeInfo
 	Pods      []*podmodel.Pod
 	Endpoints []*epmodel.Endpoints
 	Services  []*svcmodel.Service
@@ -41,7 +41,7 @@ type ResyncEventData struct {
 // NewResyncEventData creates an empty instance of ResyncEventData.
 func NewResyncEventData() *ResyncEventData {
 	return &ResyncEventData{
-		Nodes:     make(map[int]*nodemodel.NodeInfo),
+		Nodes:     make(map[int]*nodeinfo.NodeInfo),
 		Pods:      []*podmodel.Pod{},
 		Endpoints: []*epmodel.Endpoints{},
 		Services:  []*svcmodel.Service{},
@@ -99,8 +99,8 @@ func (sc *ServiceProcessor) parseResyncEv(resyncEv datasync.ResyncEvent) *Resync
 			sc.k8sStateData[key] = evData
 
 			// Parse node RESYNC event
-			if strings.HasPrefix(key, nodemodel.AllocatedIDsKeyPrefix) {
-				value := &nodemodel.NodeInfo{}
+			if strings.HasPrefix(key, nodeinfo.AllocatedIDsKeyPrefix) {
+				value := &nodeinfo.NodeInfo{}
 				err := evData.GetValue(value)
 				if err == nil {
 					event.Nodes[int(value.Id)] = value

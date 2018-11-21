@@ -15,6 +15,3 @@
 
 # leave only contivvpp images tagged as latest
 docker images | grep contivvpp | grep -v latest | awk '{print $3}' | xargs docker rmi
-
-# delete all build-only images
-docker images | grep 'prod-contiv-\|dev-contiv-' | awk '{print $3}' | xargs docker rmi

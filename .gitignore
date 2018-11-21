@@ -11,6 +11,5 @@ cmd/contiv-netctl/contiv-netctl
 cmd/tools/ldpreload-label-injector/ldpreload-label-injector
 plugins/controller/example/example
 vagrant/images.tar
-vagrant/dev-contiv-vswitch.tar
 .vagrant
 .vagrant-state

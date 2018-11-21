@@ -47,22 +47,22 @@ DOCKERFILE=Dockerfile${DOCKERFILE_tag}
 #ALL_ARCH = amd64 arm64
 
 
-CNIDEFAULTIMG="prod-contiv-cni":${TAG}
-CRDDEFAULTIMG="prod-contiv-crd":${TAG}
-KSRDEFAULTIMG="prod-contiv-ksr":${TAG}
-STNDEFAULTIMG="prod-contiv-stn":${TAG}
+CNIDEFAULTIMG="contivvpp/cni":${TAG}
+CRDDEFAULTIMG="contivvpp/crd":${TAG}
+KSRDEFAULTIMG="contivvpp/ksr":${TAG}
+STNDEFAULTIMG="contivvpp/stn":${TAG}
 
 
-CNIBUILDIMG="prod-contiv-cni"-${BUILDARCH}:${TAG}
-CRDBUILDIMG="prod-contiv-crd"-${BUILDARCH}:${TAG}
-KSRBUILDIMG="prod-contiv-ksr"-${BUILDARCH}:${TAG}
-STNBUILDIMG="prod-contiv-stn"-${BUILDARCH}:${TAG}
+CNIBUILDIMG="contivvpp/cni"-${BUILDARCH}:${TAG}
+CRDBUILDIMG="contivvpp/crd"-${BUILDARCH}:${TAG}
+KSRBUILDIMG="contivvpp/ksr"-${BUILDARCH}:${TAG}
+STNBUILDIMG="contivvpp/stn"-${BUILDARCH}:${TAG}
 
 
-docker build -t ${CNIBUILDIMG} ${DOCKER_BUILD_ARGS} --no-cache --force-rm -f docker/vpp-cni/${DOCKERFILE} .
-docker build -t ${CRDBUILDIMG} ${DOCKER_BUILD_ARGS} --no-cache --force-rm -f docker/vpp-crd/${DOCKERFILE} .
-docker build -t ${KSRBUILDIMG} ${DOCKER_BUILD_ARGS} --no-cache --force-rm -f docker/vpp-ksr/${DOCKERFILE} .
-docker build -t ${STNBUILDIMG} ${DOCKER_BUILD_ARGS} --no-cache --force-rm -f docker/vpp-stn/${DOCKERFILE} .
+docker build -t ${CNIBUILDIMG} ${DOCKER_BUILD_ARGS} -f docker/vpp-cni/${DOCKERFILE} .
+docker build -t ${CRDBUILDIMG} ${DOCKER_BUILD_ARGS} -f docker/vpp-crd/${DOCKERFILE} .
+docker build -t ${KSRBUILDIMG} ${DOCKER_BUILD_ARGS} -f docker/vpp-ksr/${DOCKERFILE} .
+docker build -t ${STNBUILDIMG} ${DOCKER_BUILD_ARGS} -f docker/vpp-stn/${DOCKERFILE} .
 
 
 if [ ${BUILDARCH} = "amd64" ] ; then

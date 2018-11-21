@@ -21,12 +21,10 @@ TAG=${1-latest}
 
 DOCKERFILE_tag=""
 BUILDARCH=`uname -m`
-IMAGEARCH=""
 
 if [ ${BUILDARCH} = "aarch64" ] ; then
   DOCKERFILE_tag=".arm64"
   BUILDARCH="arm64"
-  IMAGEARCH="-arm64"
 fi
 
 if [ ${BUILDARCH} = "x86_64" ] ; then
@@ -34,16 +32,26 @@ if [ ${BUILDARCH} = "x86_64" ] ; then
 fi
 
 DOCKERFILE=Dockerfile${DOCKERFILE_tag}
-#ALL_ARCH = amd64 arm64
 
-# extract the binaries from the development image into the "binaries/" folder
-./extract.sh dev-contiv-vswitch${IMAGEARCH}:${TAG}
+# check if build is really necessary
+function validate_docker_tag() {
+  out=$(curl --silent -lSL https://index.docker.io/v1/repositories/$1/tags/$2)
+  if [ "${SKIP_DEBUG_BUILD}" -eq 1 ] && [ "${out}" = "[]" ]; then
+    docker pull $1:$2
+    echo "true"
+  fi
+}
 
-# build the production images
-docker build -t prod-contiv-vswitch-${BUILDARCH}:${TAG} ${DOCKER_BUILD_ARGS} --no-cache --force-rm=true -f vswitch/${DOCKERFILE} .
+if [ -z $(validate_docker_tag contivvpp/vswitch-${BUILDARCH} ${TAG}) ]; then
+  # extract the binaries from the development image into the "binaries/" folder
+  ./extract.sh contivvpp/dev-vswitch-${BUILDARCH}:${TAG}
+
+  # build the production images
+  docker build -t contivvpp/vswitch-${BUILDARCH}:${TAG} ${DOCKER_BUILD_ARGS} -f vswitch/${DOCKERFILE} .
+fi
 
 if [ ${BUILDARCH} = "amd64" ] ; then
-  docker tag prod-contiv-vswitch-${BUILDARCH}:${TAG} prod-contiv-vswitch:${TAG}
+  docker tag contivvpp/vswitch-${BUILDARCH}:${TAG} contivvpp/vswitch:${TAG}
 fi
 
 # delete the extracted binaries

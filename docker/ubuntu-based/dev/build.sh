@@ -28,34 +28,54 @@ if [ ${BUILDARCH} = "aarch64" ] ; then
   BUILDARCH="arm64"
 fi
 
-
 if [ ${BUILDARCH} = "x86_64" ] ; then
   BUILDARCH="amd64"
 fi
 
-
 DOCKERFILE=Dockerfile${DOCKERFILETAG}
-#ALL_ARCH = amd64 arm64
-
 
 # the build needs to be executed from the github repository root, so that we can add
 # all the source files without the need of cloning them:
 cd ../../../
 
-# execute the build
-if [ -z "${VPP_COMMIT_ID}" ]
+# determine extra vpp version based args
+VPP_COMMIT_VERSION="latest"
+if [ -n "${VPP_COMMIT_ID}" ]
 then
-    # no specific VPP commit ID
-    docker build -f docker/ubuntu-based/dev/${DOCKERFILE} -t dev-contiv-vswitch-${BUILDARCH}:${TAG} --build-arg VPP_IMAGE=dev-contiv-vpp-${BUILDARCH}:latest ${DOCKER_BUILD_ARGS} --force-rm=true .
-else
-    # specific VPP commit ID
-    docker build -f docker/ubuntu-based/dev/${DOCKERFILE} -t dev-contiv-vswitch-${BUILDARCH}:${TAG} --build-arg VPP_IMAGE=dev-contiv-vpp-${BUILDARCH}:${VPP_COMMIT_ID} ${DOCKER_BUILD_ARGS} --force-rm=true .
+  VPP_COMMIT_VERSION="${VPP_COMMIT_ID}"
 fi
 
-VPP=$(docker run --rm dev-contiv-vswitch-${BUILDARCH}:${TAG} bash -c "cd \$VPP_DIR && git rev-parse --short HEAD")
-docker tag dev-contiv-vswitch-${BUILDARCH}:${TAG} dev-contiv-vswitch-${BUILDARCH}:${TAG}-${VPP}
+VPP_IMAGE="contivvpp/vpp"
+VPP_BUILD_ARGS=""
+if [ "${SKIP_DEBUG_BUILD}" -eq 1 ]
+then
+  VPP_IMAGE="$VPP_IMAGE-binaries"
+  VPP_BUILD_ARGS="--build-arg VPP_INSTALL_PKG=true"
+fi
+
+VPP="${VPP_COMMIT_VERSION}"
+
+# check if build is really necessary
+function validate_docker_tag() {
+  out=$(curl --silent -lSL https://index.docker.io/v1/repositories/$1/tags/$2)
+  if [ "${SKIP_DEBUG_BUILD}" -eq 1 ] && [ "${out}" = "[]" ]; then
+    docker pull $1:$2
+    echo "true"
+  fi
+}
+
+if [ -z $(validate_docker_tag contivvpp/dev-vswitch-${BUILDARCH} ${TAG}-${VPP}) ]; then
+  # execute the build
+  # use no cache and force rm because docker cannot handle dynamic FROM and so trying to use cache is useless
+  docker build --no-cache=true --force-rm=true -f docker/ubuntu-based/dev/${DOCKERFILE} -t contivvpp/dev-vswitch-${BUILDARCH}:${TAG}-${VPP} \
+  --build-arg VPP_IMAGE=${VPP_IMAGE}-${BUILDARCH}:${VPP_COMMIT_VERSION} \
+    ${VPP_BUILD_ARGS} \
+    ${DOCKER_BUILD_ARGS} .
+fi
+
+docker tag contivvpp/dev-vswitch-${BUILDARCH}:${TAG}-${VPP} contivvpp/dev-vswitch-${BUILDARCH}:${TAG}
 
 if [ ${BUILDARCH} = "amd64" ] ; then
-   docker tag dev-contiv-vswitch-${BUILDARCH}:${TAG} dev-contiv-vswitch:${TAG}
-   docker tag dev-contiv-vswitch:${TAG} dev-contiv-vswitch:${TAG}-${VPP}
+   docker tag contivvpp/dev-vswitch-${BUILDARCH}:${TAG}-${VPP} contivvpp/dev-vswitch:${TAG}-${VPP}
+   docker tag contivvpp/dev-vswitch:${TAG}-${VPP} contivvpp/dev-vswitch:${TAG}
 fi

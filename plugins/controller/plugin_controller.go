@@ -208,8 +208,8 @@ var (
 func (c *Controller) Init() error {
 	// initialize attributes
 	c.ctx, c.cancel = context.WithCancel(context.Background())
-	c.eventQueue = make(chan api.Event)
-	c.startupResyncCheck = make(chan struct{})
+	c.eventQueue = make(chan api.Event, 1000)
+	c.startupResyncCheck = make(chan struct{}, 1)
 	c.internalConfig = make(api.KeyValuePairs)
 	for i := len(c.EventHandlers) - 1; i >= 0; i-- {
 		c.revEventHandlers = append(c.revEventHandlers, c.EventHandlers[i])

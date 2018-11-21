@@ -111,7 +111,7 @@ func newDBWatcher(args *dbWatcherArgs) *dbWatcher {
 		dbWatcherArgs:  args,
 		resyncReqs:     make(chan bool, 10),
 		localBroker:    args.localDB.NewBroker(args.agentPrefix),
-		remoteChangeCh: make(chan datasync.ProtoWatchResp, 100),
+		remoteChangeCh: make(chan datasync.ProtoWatchResp, 1000),
 		processedVals:  make(map[string]datasync.KeyVal),
 	}
 	watcher.ignoreChangesUntilResync = true

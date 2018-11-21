@@ -16,6 +16,9 @@
 # fail in case of error
 set -e
 
+# source VPP commit ID and repo URL
+source ../vpp.env
+
 # default values for "branch name" and "skip upload"
 BRANCH_NAME="master"
 SKIP_UPLOAD="false"
@@ -24,7 +27,7 @@ CLEANUP="false"
 
 # list of images we are tagging & pushing
 IMAGES=()
-IMAGES_VPP=("cni" "ksr" "stn" "crd" "vswitch")
+IMAGES_VPP=("cni" "ksr" "stn" "crd" "vswitch" "dev-vswitch")
 IMAGES_BIN=("vpp-binaries")
 
 IMAGEARCH=""
@@ -71,180 +74,63 @@ while [ "$1" != "" ]; do
     shift
 done
 
+BRANCH_TAG="${BRANCH_NAME}"
+BRANCH_ADV_TAG="${BRANCH_TAG}"
+if [ "${BRANCH_NAME}" == "master" ]; then
+  BRANCH_TAG="latest"
+  BRANCH_ADV_TAG=""
+fi
+
+VPP_COMMIT_VERSION="latest"
+if [ -n "${VPP_COMMIT_ID}" ]
+then
+  VPP_COMMIT_VERSION="${VPP_COMMIT_ID}"
+fi
+
 # obtain the current git tag for tagging the Docker images
 export TAG=`git describe --tags`
 echo "exported TAG=$TAG"
-export VPP=$(docker run --rm dev-contiv-vswitch${RUNARCH}:$TAG bash -c "cd \$VPP_DIR && git rev-parse --short HEAD")
+export VPP="${VPP_COMMIT_VERSION}"
 echo "exported VPP=$VPP"
 
 # tag and push each image
-for IMAGE in "${IMAGES[@]}"
-do
-    if [ "${BRANCH_NAME}" == "master" ]
-    then
-        # master branch - tag with the git tag + "latest"
-        echo "Tagging as contivvpp/${IMAGE}:${TAG} + contivvpp/${IMAGE}:latest"
-        docker tag prod-contiv-${IMAGE}${IMAGEARCH}:${TAG} contivvpp/${IMAGE}${IMAGEARCH}:${TAG}
-        docker tag prod-contiv-${IMAGE}${IMAGEARCH}:${TAG} contivvpp/${IMAGE}${IMAGEARCH}:latest
- 
-        if [ ${BUILDARCH} = "amd64" ] ; then
-            echo "Tagging as contivvpp/${IMAGE}${IMAGEARCH}:${TAG} + contivvpp/${IMAGE}${IMAGEARCH}:latest as default"
-            docker tag prod-contiv-${IMAGE}${IMAGEARCH}:${TAG} contivvpp/${IMAGE}:${TAG}
-            docker tag prod-contiv-${IMAGE}${IMAGEARCH}:${TAG} contivvpp/${IMAGE}:latest
-        fi
-
-        # push the images
-        if [ "${SKIP_UPLOAD}" != "true" ]
-        then
-            docker push contivvpp/${IMAGE}${IMAGEARCH}:${TAG}
-            docker push contivvpp/${IMAGE}${IMAGEARCH}:latest
-            if [ ${BUILDARCH} = "amd64" ] ; then
-                docker push contivvpp/${IMAGE}:${TAG}
-                docker push contivvpp/${IMAGE}:latest
-            fi
-        fi
-    else
-        # other branch - tag with the branch name
-        echo "Tagging as contivvpp/${IMAGE}${IMAGEARCH}:${BRANCH_NAME}-${TAG} + contivvpp/${IMAGE}${IMAGEARCH}:${BRANCH_NAME}"
-        docker tag prod-contiv-${IMAGE}${IMAGEARCH}:${TAG} contivvpp/${IMAGE}${IMAGEARCH}:${BRANCH_NAME}
-        docker tag prod-contiv-${IMAGE}${IMAGEARCH}:${TAG} contivvpp/${IMAGE}${IMAGEARCH}:${BRANCH_NAME}-${TAG}
-        if [ ${BUILDARCH} = "amd64" ] ; then
-            echo "Tagging as contivvpp/${IMAGE}${IMAGEARCH}:${BRANCH_NAME}-${TAG} + contivvpp/${IMAGE}${IMAGEARCH}:${BRANCH_NAME} as default"
-            docker tag prod-contiv-${IMAGE}${IMAGEARCH}:${TAG} contivvpp/${IMAGE}:${BRANCH_NAME}
-            docker tag prod-contiv-${IMAGE}${IMAGEARCH}:${TAG} contivvpp/${IMAGE}:${BRANCH_NAME}-${TAG}
-        fi
-
-        # push the images
-        if [ "${SKIP_UPLOAD}" != "true" ]
-        then
-            docker push contivvpp/${IMAGE}${IMAGEARCH}:${BRANCH_NAME}-${TAG}
-            docker push contivvpp/${IMAGE}${IMAGEARCH}:${BRANCH_NAME}
-            if [ ${BUILDARCH} = "amd64" ] ; then
-                docker push contivvpp/${IMAGE}:${BRANCH_NAME}-${TAG}
-                docker push contivvpp/${IMAGE}:${BRANCH_NAME}
-            fi
-        fi
-    fi
-done
-
 for IMAGE in "${IMAGES_VPP[@]}"
 do
-    if [ "${BRANCH_NAME}" == "master" ]
-    then
-        # master branch - tag with the git tag + "latest"
-        echo "Tagging as contivvpp/${IMAGE}${IMAGEARCH}:${TAG}-${VPP} + contivvpp/${IMAGE}${IMAGEARCH}:latest"
-        docker tag prod-contiv-${IMAGE}${IMAGEARCH}:${TAG} contivvpp/${IMAGE}${IMAGEARCH}:${TAG}-${VPP}
-        docker tag prod-contiv-${IMAGE}${IMAGEARCH}:${TAG} contivvpp/${IMAGE}${IMAGEARCH}:latest
+	if [ "${DEV_UPLOAD}" != "true" ] && [ "$IMAGE" == dev* ]; then
+		continue
+	fi
 
-        if [ ${BUILDARCH} = "amd64" ] ; then
-            echo "Tagging as contivvpp/${IMAGE}${IMAGEARCH}:${TAG}-${VPP} + contivvpp/${IMAGE}${IMAGEARCH}:latest as default"
-            docker tag prod-contiv-${IMAGE}${IMAGEARCH}:${TAG} contivvpp/${IMAGE}:${TAG}-${VPP}
-            docker tag prod-contiv-${IMAGE}${IMAGEARCH}:${TAG} contivvpp/${IMAGE}:latest
-        fi
+	docker tag contivvpp/${IMAGE}${IMAGEARCH}:${TAG} contivvpp/${IMAGE}${IMAGEARCH}:${BRANCH_TAG}
+	docker tag contivvpp/${IMAGE}${IMAGEARCH}:${TAG} contivvpp/${IMAGE}${IMAGEARCH}:${BRANCH_ADV_TAG}${TAG}-${VPP}
 
-        # push the images
-        if [ "${SKIP_UPLOAD}" != "true" ]
-        then
-            docker push contivvpp/${IMAGE}${IMAGEARCH}:${TAG}-${VPP}
-            docker push contivvpp/${IMAGE}${IMAGEARCH}:latest
-            if [ ${BUILDARCH} = "amd64" ] ; then
-                docker push contivvpp/${IMAGE}:${TAG}-${VPP}
-                docker push contivvpp/${IMAGE}:latest
-            fi
-        fi
-    else
-        # other branch - tag with the branch name
-        echo "Tagging as contivvpp/${IMAGE}${IMAGEARCH}:${BRANCH_NAME}-${TAG}-${VPP} + contivvpp/${IMAGE}${IMAGEARCH}:${BRANCH_NAME}"
-        docker tag prod-contiv-${IMAGE}${IMAGEARCH}:${TAG} contivvpp/${IMAGE}${IMAGEARCH}:${BRANCH_NAME}
-        docker tag prod-contiv-${IMAGE}${IMAGEARCH}:${TAG} contivvpp/${IMAGE}${IMAGEARCH}:${BRANCH_NAME}-${TAG}-${VPP}
+	if [ ${BUILDARCH} = "amd64" ] ; then
+		docker tag contivvpp/${IMAGE}${IMAGEARCH}:${BRANCH_TAG} contivvpp/${IMAGE}:${BRANCH_TAG}
+		docker tag contivvpp/${IMAGE}${IMAGEARCH}:${BRANCH_ADV_TAG}${TAG}-${VPP} contivvpp/${IMAGE}:${BRANCH_ADV_TAG}${TAG}-${VPP}
+	fi
 
-        if [ ${BUILDARCH} = "amd64" ] ; then
-            echo "Tagging as contivvpp/${IMAGE}${IMAGEARCH}:${BRANCH_NAME}-${TAG}-${VPP} + contivvpp/${IMAGE}${IMAGEARCH}:${BRANCH_NAME} as default"
-            docker tag prod-contiv-${IMAGE}${IMAGEARCH}:${TAG} contivvpp/${IMAGE}:${BRANCH_NAME}
-            docker tag prod-contiv-${IMAGE}${IMAGEARCH}:${TAG} contivvpp/${IMAGE}:${BRANCH_NAME}-${TAG}-${VPP}
-        fi
-        # push the images
-        if [ "${SKIP_UPLOAD}" != "true" ]
-        then
-            docker push contivvpp/${IMAGE}${IMAGEARCH}:${BRANCH_NAME}
-            docker push contivvpp/${IMAGE}${IMAGEARCH}:${BRANCH_NAME}-${TAG}-${VPP}
-            if [ ${BUILDARCH} = "amd64" ] ; then
-                docker push contivvpp/${IMAGE}:${BRANCH_NAME}
-                docker push contivvpp/${IMAGE}:${BRANCH_NAME}-${TAG}-${VPP}
-            fi
-        fi
-    fi
+	# push the images
+	if [ "${SKIP_UPLOAD}" != "true" ]
+	then
+		docker push contivvpp/${IMAGE}${IMAGEARCH}:${BRANCH_TAG}
+		docker push contivvpp/${IMAGE}${IMAGEARCH}:${BRANCH_ADV_TAG}${TAG}-${VPP}
+		if [ ${BUILDARCH} = "amd64" ] ; then
+			docker push contivvpp/${IMAGE}:${BRANCH_TAG}
+			docker push contivvpp/${IMAGE}:${BRANCH_ADV_TAG}${TAG}-${VPP}
+		fi
+	fi
 done
 
 for IMAGE in "${IMAGES_BIN[@]}"
 do
-    if [ "${BRANCH_NAME}" == "master" ]
-    then
-        # master branch - tag with the vpp tag
-        echo "Tagging as contivvpp/${IMAGE}${IMAGEARCH}:${VPP}"
-        docker tag prod-contiv-${IMAGE}${IMAGEARCH}:${VPP} contivvpp/${IMAGE}${IMAGEARCH}:${VPP}
+    if [ "${BRANCH_NAME}" != "master" ] || [ "${SKIP_UPLOAD}" == "true" ]; then
+		continue
+	fi
 
-        if [ ${BUILDARCH} = "amd64" ] ; then
-            echo "Tagging as contivvpp/${IMAGE}${IMAGEARCH}:${VPP}"
-            docker tag prod-contiv-${IMAGE}${IMAGEARCH}:${VPP} contivvpp/${IMAGE}:${VPP}
-        fi
-
-        # push the images
-        if [ "${SKIP_UPLOAD}" != "true" ]
-        then
-            docker push contivvpp/${IMAGE}${IMAGEARCH}:${VPP}
-            if [ ${BUILDARCH} = "amd64" ] ; then
-                docker push contivvpp/${IMAGE}:${VPP}
-            fi
-        fi
-    fi
+	docker push contivvpp/${IMAGE}${IMAGEARCH}:${VPP}
+	if [ ${BUILDARCH} = "amd64" ] ; then
+		docker push contivvpp/${IMAGE}:${VPP}
+	fi
 done
-
-if [ "${DEV_UPLOAD}" == "true" ]
-then
-    if [ "${BRANCH_NAME}" == "master" ]
-    then
-        # master branch - tag with the git tag + "latest"
-        echo "Tagging as contivvpp/dev-vswitch${IMAGEARCH}:${TAG}-${VPP} + contivvpp/dev-vswitch${IMAGEARCH}:latest"
-        docker tag dev-contiv-vswitch${IMAGEARCH}:${TAG} contivvpp/dev-vswitch${IMAGEARCH}:${TAG}-${VPP}
-        docker tag dev-contiv-vswitch${IMAGEARCH}:${TAG} contivvpp/dev-vswitch${IMAGEARCH}:latest
-        if [ ${BUILDARCH} = "amd64" ] ; then
-            docker tag dev-contiv-vswitch${IMAGEARCH}:${TAG} contivvpp/dev-vswitch:${TAG}-${VPP}
-            docker tag dev-contiv-vswitch${IMAGEARCH}:${TAG} contivvpp/dev-vswitch:latest
-        fi
-
-        # push the images
-        if [ "${SKIP_UPLOAD}" != "true" ]
-        then
-            docker push contivvpp/dev-vswitch${IMAGEARCH}:${TAG}-${VPP}
-            docker push contivvpp/dev-vswitch${IMAGEARCH}:latest
-            if [ ${BUILDARCH} = "amd64" ] ; then
-                docker push contivvpp/dev-vswitch:${TAG}-${VPP}
-                docker push contivvpp/dev-vswitch:latest
-            fi
-        fi
-    else
-        # other branch - tag with the branch name
-        echo "Tagging as contivvpp/dev-vswitch${IMAGEARCH}:${BRANCH_NAME}-${TAG}-${VPP} + contivvpp/dev-vswitch${IMAGEARCH}:${BRANCH_NAME}"
-        docker tag dev-contiv-vswitch${IMAGEARCH}:${TAG} contivvpp/dev-vswitch${IMAGEARCH}:${BRANCH_NAME}
-        docker tag dev-contiv-vswitch${IMAGEARCH}:${TAG} contivvpp/dev-vswitch${IMAGEARCH}:${BRANCH_NAME}-${TAG}-${VPP}
-        if [ ${BUILDARCH} = "amd64" ] ; then
-            docker tag dev-contiv-vswitch${IMAGEARCH}:${TAG} contivvpp/dev-vswitch:${BRANCH_NAME}
-            docker tag dev-contiv-vswitch${IMAGEARCH}:${TAG} contivvpp/dev-vswitch:${BRANCH_NAME}-${TAG}-${VPP}
-        fi
-
-        # push the images
-        if [ "${SKIP_UPLOAD}" != "true" ]
-        then
-            docker push contivvpp/dev-vswitch${IMAGEARCH}:${BRANCH_NAME}
-            docker push contivvpp/dev-vswitch${IMAGEARCH}:${BRANCH_NAME}-${TAG}-${VPP}
-            if [ ${BUILDARCH} = "amd64" ] ; then
-                docker push contivvpp/dev-vswitch:${BRANCH_NAME}
-                docker push contivvpp/dev-vswitch:${BRANCH_NAME}-${TAG}-${VPP}
-            fi
-        fi
-    fi
-fi
 
 if [ "${CLEANUP}" == "true" ]
 then

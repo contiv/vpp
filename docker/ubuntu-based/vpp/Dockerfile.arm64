@@ -12,7 +12,7 @@ RUN apt-get update \
  && mkdir -p /opt/vpp-agent/dev/vpp /opt/vpp-agent/plugin
 
 # install Go
-ENV GOLANG_VERSION 1.9.3
+ENV GOLANG_VERSION 1.10.4
 RUN wget -O go.tgz "https://golang.org/dl/go$GOLANG_VERSION.linux-arm64.tar.gz" \
  && tar -C /usr/local -xzf go.tgz \
  && rm go.tgz
@@ -30,6 +30,7 @@ WORKDIR /root/
 
 # Path to VPP ws root directory
 ENV VPP_DIR /opt/vpp-agent/dev/vpp
+ENV VPP_BUILD_DIR $VPP_DIR/build-root
 ENV VPP_BIN_DIR $VPP_DIR/build-root/install-vpp_debug-native/vpp/bin
 ENV VPP_LIB_DIR $VPP_DIR/build-root/install-vpp_debug-native/vpp/lib64
 ENV VPP_BIN $VPP_BIN_DIR/vpp

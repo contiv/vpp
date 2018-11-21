@@ -16,7 +16,7 @@ locally built container image. After that, you can proceed with
 
 ### Using the development container for builds
 
-The development container (dev-contiv-vswitch) is a full-fledged build & test
+The development container (contivvpp/dev-vswitch) is a full-fledged build & test
 environment for developing Contiv VPP Agent Go code. If you do not have the 
 build environment/tools installed on your host, you can use the development 
 container to run your builds. You can run your IDE on the host by sharing the
@@ -30,7 +30,7 @@ For example, if the contiv-vpp source code is located in the `src/` folder
 under your Go path root folder on your host, the command to start the
 development container will be:
 ```
-docker run -v $GOPATH/src/github.com/contiv/vpp/:/root/go/src/github.com/contiv/vpp/ -it --name dev-contiv --rm dev-contiv-vswitch bash
+docker run -v $GOPATH/src/github.com/contiv/vpp/:/root/go/src/github.com/contiv/vpp/ -it --name dev-contiv --rm contivvpp/dev-vswitch bash
 ```
 
 You can either download the development container from Dockerhub, or build it 

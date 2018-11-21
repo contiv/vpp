@@ -15,6 +15,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 
 	"github.com/gogo/protobuf/proto"
@@ -27,15 +28,15 @@ import (
 	plugin "github.com/contiv/vpp/plugins/controller"
 	"github.com/contiv/vpp/plugins/controller/api"
 
-	"github.com/contiv/vpp/plugins/ksr"
 	"github.com/contiv/vpp/plugins/contiv/model/nodeinfo"
+	nodeconfig "github.com/contiv/vpp/plugins/crd/handler/nodeconfig/model"
+	"github.com/contiv/vpp/plugins/ksr"
 	epmodel "github.com/contiv/vpp/plugins/ksr/model/endpoints"
 	nsmodel "github.com/contiv/vpp/plugins/ksr/model/namespace"
 	nodemodel "github.com/contiv/vpp/plugins/ksr/model/node"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	policymodel "github.com/contiv/vpp/plugins/ksr/model/policy"
 	svcmodel "github.com/contiv/vpp/plugins/ksr/model/service"
-	"fmt"
 )
 
 /*
@@ -49,11 +50,16 @@ func main() {
 	controller := plugin.NewPlugin(plugin.UseDeps(func(deps *plugin.Deps) {
 		deps.LocalDB = &bolt.DefaultPlugin
 		deps.RemoteDB = &etcd.DefaultPlugin
-		deps.DBResources = []api.DBResource{
+		deps.DBResources = []*api.DBResource{
 			{
 				Keyword:          nodeinfo.Keyword,
 				ProtoMessageName: proto.MessageName((*nodeinfo.NodeInfo)(nil)),
 				KeyPrefix:        ksrServicelabel.GetAgentPrefix() + nodeinfo.AllocatedIDsKeyPrefix,
+			},
+			{
+				Keyword:          nodeconfig.Keyword,
+				ProtoMessageName: proto.MessageName((*nodeconfig.NodeConfig)(nil)),
+				KeyPrefix:        ksrServicelabel.GetAgentPrefix() + nodeconfig.KeyPrefix(),
 			},
 			{
 				Keyword:          nodemodel.NodeKeyword,
@@ -107,7 +113,7 @@ func main() {
 
 // ExamplePlugin is the main plugin in this example.
 type ExamplePlugin struct {
-	Controller   *plugin.Controller
+	Controller *plugin.Controller
 }
 
 // String returns plugin name

@@ -68,6 +68,9 @@ data:
   telemetry.conf: |
     polling-interval: 30000000000
     disabled: true
+  controller.conf: |
+    delay-local-resync: 5000000000
+
 TODO: controller
 
 ---

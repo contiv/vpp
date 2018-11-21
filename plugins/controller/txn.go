@@ -20,6 +20,8 @@ import (
 
 	"github.com/gogo/protobuf/proto"
 
+	"github.com/ligato/cn-infra/datasync"
+
 	"github.com/contiv/vpp/plugins/controller/api"
 	scheduler_api "github.com/ligato/vpp-agent/plugins/kvscheduler/api"
 )
@@ -27,7 +29,12 @@ import (
 // kvSchedulerTxn implements Transaction interface for KVScheduler.
 type kvSchedulerTxn struct {
 	kvScheduler scheduler_api.KVScheduler
-	values      api.KeyValuePairs
+
+	// values set via Put or Delete
+	values  api.KeyValuePairs
+
+	// injected by Controller to merge external with internal configuration
+	merged  map[string]datasync.LazyValue
 }
 
 // lazyValue implements datasync.LazyValue interface.
@@ -36,10 +43,11 @@ type lazyValue struct {
 }
 
 // newTransaction creates new transaction to be executed via KVScheduler.
-func newTransaction(kvScheduler scheduler_api.KVScheduler) api.Transaction {
+func newTransaction(kvScheduler scheduler_api.KVScheduler) *kvSchedulerTxn {
 	return &kvSchedulerTxn{
 		kvScheduler: kvScheduler,
 		values:      make(api.KeyValuePairs),
+		merged:      make(map[string]datasync.LazyValue),
 	}
 }
 
@@ -54,6 +62,9 @@ func (txn *kvSchedulerTxn) Commit(ctx context.Context) error {
 			// delete
 			schedTxn.SetValue(key, nil)
 		}
+	}
+	for key, lazyVal := range txn.merged {
+		schedTxn.SetValue(key, lazyVal)
 	}
 	kvErrors, txnError := schedTxn.Commit(ctx)
 	if txnError != nil || len(kvErrors) > 0 {

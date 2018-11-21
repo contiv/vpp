@@ -64,6 +64,7 @@ import (
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	policymodel "github.com/contiv/vpp/plugins/ksr/model/policy"
 	svcmodel "github.com/contiv/vpp/plugins/ksr/model/service"
+	nodeconfig "github.com/contiv/vpp/plugins/crd/handler/nodeconfig/model"
 )
 
 const defaultStartupTimeout = 45 * time.Second
@@ -167,6 +168,11 @@ func main() {
 				Keyword:          nodeinfo.Keyword,
 				ProtoMessageName: proto.MessageName((*nodeinfo.NodeInfo)(nil)),
 				KeyPrefix:        ksrServicelabel.GetAgentPrefix() + nodeinfo.AllocatedIDsKeyPrefix,
+			},
+			{
+				Keyword:          nodeconfig.Keyword,
+				ProtoMessageName: proto.MessageName((*nodeconfig.NodeConfig)(nil)),
+				KeyPrefix:        ksrServicelabel.GetAgentPrefix() + nodeconfig.KeyPrefix(),
 			},
 			{
 				Keyword:          nodemodel.NodeKeyword,

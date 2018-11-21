@@ -18,15 +18,15 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"strings"
 	"sync"
 	"time"
-	"strings"
 
 	"github.com/gogo/protobuf/proto"
 
+	"github.com/ligato/cn-infra/datasync"
 	"github.com/ligato/cn-infra/db/keyval"
 	"github.com/ligato/cn-infra/logging"
-	"github.com/ligato/cn-infra/datasync"
 
 	"github.com/contiv/vpp/plugins/controller/api"
 )
@@ -62,6 +62,8 @@ type dbWatcher struct {
 	remoteIsConnected bool
 	resyncCount       int
 	resyncReqs        chan bool // true if this is localDB-fallback resync
+
+	ignoreChangesUntilResync bool
 
 	keyPrefixes    []string
 	extKeyPrefixes []string
@@ -111,8 +113,8 @@ func newDBWatcher(args *dbWatcherArgs) *dbWatcher {
 		localBroker:    args.localDB.NewBroker(args.agentPrefix),
 		remoteChangeCh: make(chan datasync.ProtoWatchResp, 100),
 		processedVals:  make(map[string]datasync.KeyVal),
-
 	}
+	watcher.ignoreChangesUntilResync = true
 	watcher.ctx, watcher.cancel = context.WithCancel(context.Background())
 
 	// collect key prefixes to watch
@@ -121,8 +123,8 @@ func newDBWatcher(args *dbWatcherArgs) *dbWatcher {
 		watcher.keyPrefixes = append(watcher.keyPrefixes, resource.KeyPrefix)
 	}
 	//  -> external configuration:
-	watcher.extKeyPrefixes = append(watcher.extKeyPrefixes, args.agentPrefix + vppConfigKeyPrefix)
-	watcher.extKeyPrefixes = append(watcher.extKeyPrefixes, args.agentPrefix + linuxConfigKeyPrefix)
+	watcher.extKeyPrefixes = append(watcher.extKeyPrefixes, args.agentPrefix+vppConfigKeyPrefix)
+	watcher.extKeyPrefixes = append(watcher.extKeyPrefixes, args.agentPrefix+linuxConfigKeyPrefix)
 
 	// trigger periodic remoteDB probing after the first connection has been established
 	args.remoteDB.OnConnect(watcher.onFirstConnect)
@@ -189,6 +191,7 @@ func (w *dbWatcher) probeRemoteDB() {
 	if _, _, err := w.remoteBroker.GetValue(healthCheckProbeKey, nil); err != nil {
 		if w.remoteIsConnected == true {
 			w.remoteIsConnected = false
+			w.stopWatching()
 			w.log.Warn("Lost connection to Remote DB")
 		}
 		return
@@ -197,6 +200,9 @@ func (w *dbWatcher) probeRemoteDB() {
 	if !w.remoteIsConnected {
 		w.remoteIsConnected = true
 		w.log.Info("Connection to Remote DB was (re-)established")
+
+		// first resync, then changes
+		w.ignoreChangesUntilResync = true
 
 		// restart watching (can be broken)
 		w.restartWatching()
@@ -244,7 +250,6 @@ func (w *dbWatcher) watchDB() {
 // restartWatching (re)starts watching for changes in remote DB.
 // The method assumes that dbWatcher is in the locked state.
 func (w *dbWatcher) restartWatching() {
-	w.stopWatching()
 	w.remoteWatchCloseCh = make(chan string)
 	w.remoteWatcher.Watch(w.onRemoteDBChange, w.remoteWatchCloseCh,
 		append(w.keyPrefixes, w.extKeyPrefixes...)...)
@@ -333,6 +338,8 @@ func (w *dbWatcher) runResyncFromRemoteDB() {
 			if err := w.requestResync(false); err != nil {
 				w.log.Errorf("Even queue for resync requests is broken: %v", err)
 			}
+		} else {
+			w.ignoreChangesUntilResync = false
 		}
 	}()
 
@@ -341,8 +348,6 @@ func (w *dbWatcher) runResyncFromRemoteDB() {
 		ExternalConfig: make(api.ExternalConfig),
 	}
 	processedVals := make(map[string]datasync.KeyVal)
-
-	// TODO: handle changes newer than resync that were already processed
 
 	// load Kubernetes state from remote DB
 	err = w.loadKubeStateForResync(w.remoteBroker, event, processedVals)
@@ -462,6 +467,11 @@ func (w *dbWatcher) processChange(change datasync.ProtoWatchResp) {
 	defer w.Unlock()
 	key := change.GetKey()
 
+	// ignore if dbWatcher is expecting resync
+	if w.ignoreChangesUntilResync {
+		return
+	}
+
 	// check if this revision was already processed
 	prevRev, hasPrevRev := w.processedVals[key]
 	if hasPrevRev {
@@ -498,22 +508,24 @@ func (w *dbWatcher) processChange(change datasync.ProtoWatchResp) {
 			}
 
 			// try to deserialize the previous value
-			var (
-				err      error
-				withPrev bool
-			)
+			var err error
 			if hasPrevRev {
-				// prioritize previous value known to dbwatcher
-				withPrev = true
+				// prioritize previous value known to dbwatcher over the one from the event
 				err = prevRev.GetValue(resourcePrevVal)
-			} else {
-				withPrev, err = change.GetPrevValue(resourcePrevVal)
 			}
 			if err != nil {
 				w.log.Warnf("Failed to de-serialize previous value for key: %s", key)
 			}
-			if !withPrev || err != nil {
+			if !hasPrevRev || err != nil {
 				resourcePrevVal = nil
+			}
+
+			if resourceNewVal == nil && resourcePrevVal == nil {
+				// Delete that has been already processed - after resync, the revisions
+				// of deleted keys are not known, so the revision check above will not
+				// cause the change to be ignored.
+				w.log.Debugf("Ignoring already processed Delete for key=%s", key)
+				return
 			}
 		}
 	}

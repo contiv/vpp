@@ -42,7 +42,7 @@ function validate_docker_tag() {
   fi
 }
 
-if [ -z $(validate_docker_tag contivvpp/vswitch-${BUILDARCH} ${TAG}) ]; then
+if [ -z "$(validate_docker_tag contivvpp/vswitch-${BUILDARCH} ${TAG})" ]; then
   # extract the binaries from the development image into the "binaries/" folder
   ./extract.sh contivvpp/dev-vswitch-${BUILDARCH}:${TAG}
 

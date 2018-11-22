@@ -29,6 +29,7 @@ import (
 	"github.com/ligato/cn-infra/logging"
 
 	"github.com/contiv/vpp/plugins/controller/api"
+	"github.com/contiv/vpp/plugins/dbresources"
 )
 
 const (
@@ -92,8 +93,6 @@ type dbWatcherArgs struct {
 	localDB  keyval.KvProtoPlugin
 	remoteDB keyval.KvProtoPlugin
 
-	resources []*api.DBResource
-
 	delayLocalResync        time.Duration
 	remoteDBProbingInterval time.Duration
 }
@@ -110,7 +109,7 @@ func newDBWatcher(args *dbWatcherArgs) *dbWatcher {
 	watcher := &dbWatcher{
 		dbWatcherArgs:  args,
 		resyncReqs:     make(chan bool, 10),
-		localBroker:    args.localDB.NewBroker(args.agentPrefix),
+		localBroker:    args.localDB.NewBroker(""),
 		remoteChangeCh: make(chan datasync.ProtoWatchResp, 1000),
 		processedVals:  make(map[string]datasync.KeyVal),
 	}
@@ -119,7 +118,7 @@ func newDBWatcher(args *dbWatcherArgs) *dbWatcher {
 
 	// collect key prefixes to watch
 	//  -> resources:
-	for _, resource := range args.resources {
+	for _, resource := range dbresources.GetDBResources() {
 		watcher.keyPrefixes = append(watcher.keyPrefixes, resource.KeyPrefix)
 	}
 	//  -> external configuration:
@@ -323,9 +322,15 @@ func (w *dbWatcher) runResyncFromLocalDB() {
 
 	// mirroring of external configuration into the local DB is not supported yet
 	// - load only resources
-	err := w.loadKubeStateForResync(w.localBroker, event, nil)
+	event, values, err := LoadKubeStateForResync(w.localBroker, w.log)
 	if err != nil {
 		w.log.Errorf("Resync from local DB has failed: %v", err)
+		return
+	}
+	if len(values) == 0 {
+		// abort local resync if local DB is empty - most likely it was cleared
+		// or not yet used
+		w.log.Error("Local DB is empty - aborting resync")
 		return
 	}
 
@@ -351,14 +356,12 @@ func (w *dbWatcher) runResyncFromRemoteDB() {
 		}
 	}()
 
-	event := &api.DBResync{
-		KubeState:      make(api.KubeStateData),
-		ExternalConfig: make(api.ExternalConfig),
-	}
-	processedVals := make(map[string]datasync.KeyVal)
-
 	// load Kubernetes state from remote DB
-	err = w.loadKubeStateForResync(w.remoteBroker, event, processedVals)
+	var (
+		event  *api.DBResync
+		values map[string]datasync.KeyVal
+	)
+	event, values, err = LoadKubeStateForResync(w.remoteBroker, w.log)
 	if err != nil {
 		return
 	}
@@ -377,7 +380,7 @@ func (w *dbWatcher) runResyncFromRemoteDB() {
 			}
 
 			// record value for revision comparisons
-			processedVals[kv.GetKey()] = kv
+			values[kv.GetKey()] = kv
 
 			// add key-value pair into the event
 			event.ExternalConfig[kv.GetKey()] = kv
@@ -385,34 +388,10 @@ func (w *dbWatcher) runResyncFromRemoteDB() {
 		iterator.Close()
 	}
 
-	// resync local DB:
-	//   1. read keys currently stored in local DB, remove the obsolete ones
-	var keyIterator keyval.ProtoKeyIterator
-	keyIterator, err = w.localBroker.ListKeys("")
+	// resync local DB
+	err = ResyncDatabase(w.localBroker, event)
 	if err != nil {
 		return
-	}
-	for {
-		key, _, stop := keyIterator.GetNext()
-		if stop {
-			break
-		}
-		if _, inRemote := processedVals[key]; !inRemote {
-			_, err = w.localBroker.Delete(key)
-			if err != nil {
-				return
-			}
-		}
-	}
-	keyIterator.Close()
-	//   2. update values present in the remote DB (external configuration is not supported yet)
-	for _, kvs := range event.KubeState {
-		for key, value := range kvs {
-			err = w.localBroker.Put(key, value)
-			if err != nil {
-				return
-			}
-		}
 	}
 
 	// send resync event
@@ -422,51 +401,7 @@ func (w *dbWatcher) runResyncFromRemoteDB() {
 	}
 
 	// now that the resync succeeded, update the map with last processed revisions
-	w.processedVals = processedVals
-}
-
-// loadKubeStateForResync is a helper method shared between runResyncFromLocalDB and
-// runResyncFromRemoteDB, used to load Kubernetes state from given DB for resync.
-// <event> and <values> are output parameters, both optional.
-func (w *dbWatcher) loadKubeStateForResync(broker keyval.ProtoBroker, event *api.DBResync,
-	values map[string]datasync.KeyVal) error {
-
-	for _, resource := range w.resources {
-		event.KubeState[resource.Keyword] = make(api.KeyValuePairs)
-		iterator, err := broker.ListValues(resource.KeyPrefix)
-		if err != nil {
-			return err
-		}
-		for {
-			kv, stop := iterator.GetNext()
-			if stop {
-				break
-			}
-
-			// un-marshall the value
-			valueType := proto.MessageType(resource.ProtoMessageName)
-			if valueType == nil {
-				w.log.Warnf("Failed to instantiate proto message for resource: %s", resource.Keyword)
-				continue
-			}
-			value := reflect.New(valueType.Elem()).Interface().(proto.Message)
-			err := kv.GetValue(value)
-			if err != nil {
-				w.log.Warnf("Failed to de-serialize value for key: %s", kv.GetKey())
-				continue
-			}
-
-			// add key-value pair into the output arguments
-			if values != nil {
-				values[kv.GetKey()] = kv
-			}
-			if event != nil {
-				event.KubeState[resource.Keyword][kv.GetKey()] = value
-			}
-		}
-		iterator.Close()
-	}
-	return nil
+	w.processedVals = values
 }
 
 // processChange processes change received from remote DB.
@@ -574,14 +509,14 @@ func (w *dbWatcher) processChange(change datasync.ProtoWatchResp) {
 	}
 }
 
-// getResourceByKey tries to find metadata for resource with the given nil.
+// getResourceByKey tries to find metadata for resource with the given key.
 // Return nil if the key belongs to external configuration.
 func (w *dbWatcher) getResourceByKey(key string) *api.DBResource {
 	if strings.HasPrefix(key, w.agentPrefix) {
 		// this is external config
 		return nil
 	}
-	for _, resource := range w.resources {
+	for _, resource := range dbresources.GetDBResources() {
 		if strings.HasPrefix(key, resource.KeyPrefix) {
 			return resource
 		}
@@ -594,4 +529,91 @@ func (w *dbWatcher) close() {
 	w.cancel()
 	w.wg.Wait()
 	w.stopWatching()
+}
+
+// LoadKubeStateForResync loads Kubernetes state from given DB for resync.
+// Loaded key-value pairs are returned both as a map and a resync event.
+// Broker should not be prefixed.
+func LoadKubeStateForResync(broker keyval.ProtoBroker, log logging.Logger) (event *api.DBResync, values map[string]datasync.KeyVal, err error) {
+	// init output arguments
+	event = &api.DBResync{
+		KubeState:      make(api.KubeStateData),
+		ExternalConfig: make(api.ExternalConfig),
+	}
+	values = make(map[string]datasync.KeyVal)
+
+	for _, resource := range dbresources.GetDBResources() {
+		event.KubeState[resource.Keyword] = make(api.KeyValuePairs)
+		iterator, err := broker.ListValues(resource.KeyPrefix)
+		if err != nil {
+			return event, values, err
+		}
+		for {
+			kv, stop := iterator.GetNext()
+			if stop {
+				break
+			}
+
+			// un-marshall the value
+			valueType := proto.MessageType(resource.ProtoMessageName)
+			if valueType == nil {
+				log.Warnf("Failed to instantiate proto message for resource: %s", resource.Keyword)
+				continue
+			}
+			value := reflect.New(valueType.Elem()).Interface().(proto.Message)
+			err := kv.GetValue(value)
+			if err != nil {
+				log.Warnf("Failed to de-serialize value for key: %s", kv.GetKey())
+				continue
+			}
+
+			// add key-value pair into the output arguments
+			if values != nil {
+				values[kv.GetKey()] = kv
+			}
+			if event != nil {
+				event.KubeState[resource.Keyword][kv.GetKey()] = value
+			}
+		}
+		iterator.Close()
+	}
+	return event, values, nil
+}
+
+// ResyncDatabase updates database content to reflect the resync event.
+// External configuration is not supported yet.
+// Broker should not be prefixed.
+func ResyncDatabase(broker keyval.ProtoBroker, event *api.DBResync) error {
+	keys := make(map[string]struct{})
+
+	// update database with values present in the resync event
+	for _, kvs := range event.KubeState {
+		for key, value := range kvs {
+			keys[key] = struct{}{}
+			err := broker.Put(key, value)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	// read keys currently stored in DB, remove the obsolete ones
+	keyIterator, err := broker.ListKeys("")
+	if err != nil {
+		return err
+	}
+	for {
+		key, _, stop := keyIterator.GetNext()
+		if stop {
+			break
+		}
+		if _, inEvent := keys[key]; !inEvent {
+			_, err = broker.Delete(key)
+			if err != nil {
+				return err
+			}
+		}
+	}
+	keyIterator.Close()
+	return nil
 }

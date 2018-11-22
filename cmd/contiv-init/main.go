@@ -36,6 +36,7 @@ import (
 
 	"github.com/contiv/vpp/cmd/contiv-stn/model/stn"
 	"github.com/contiv/vpp/plugins/contiv"
+	"github.com/contiv/vpp/plugins/controller"
 	"github.com/ligato/cn-infra/config"
 	"github.com/ligato/cn-infra/db/keyval"
 	"github.com/ligato/cn-infra/db/keyval/bolt"
@@ -54,7 +55,7 @@ const (
 	vppProcessName         = "vpp"
 	contivAgentProcessName = "contiv-agent"
 
-	etcdConnectionRetries = 20 // number of retries to connect to ETCD once STN is configured
+	etcdConnectionRetries = 20 // number of retries to connect to ETCD
 )
 
 var (
@@ -142,7 +143,7 @@ func stnGrpcConnect() (*grpc.ClientConn, error) {
 
 // parseSTNConfig parses the config file and looks up for STN configuration.
 // In case that STN was requested for this node, returns the interface to be stolen and optionally its name on VPP.
-func parseSTNConfig() (config *contiv.Config, nicToSteal string, useDHCP bool, err error) {
+func parseSTNConfig() (nicToSteal string, useDHCP bool, err error) {
 
 	// read config YAML
 	yamlFile, err := ioutil.ReadFile(*contivCfgFile)
@@ -152,7 +153,7 @@ func parseSTNConfig() (config *contiv.Config, nicToSteal string, useDHCP bool, e
 	}
 
 	// unmarshal the YAML
-	config = &contiv.Config{}
+	config := &contiv.Config{}
 	err = yaml.Unmarshal(yamlFile, config)
 	if err != nil {
 		logger.Errorf("Error by unmarshalling YAML: %v", err)
@@ -308,13 +309,42 @@ func boltOpen() (protoDb *kvproto.ProtoWrapper, err error) {
 	return protoDb, nil
 }
 
+// resyncBoltAgainstEtcd re-synchronizes Bolt against Etcd so that when agent
+// starts without connectivity, it will execute local resync against relatively
+// up-to-date data.
+func resyncBoltAgainstEtcd() error {
+	// try to connect to ETCD db
+	etcdDB, err := etcdConnect()
+	if err == nil {
+		defer etcdDB.Close()
+	} else {
+		// etcd is not available, skip
+		return nil
+	}
+
+	// try to open local Bolt db
+	boltDB, err := boltOpen()
+	if err == nil {
+		defer boltDB.Close()
+	} else {
+		return err
+	}
+
+	// re-synchronize bolt against etcd
+	resyncEv, _, err := controller.LoadKubeStateForResync(etcdDB.NewBroker(""), logger)
+	if err != nil {
+		return err
+	}
+	return controller.ResyncDatabase(boltDB.NewBroker(""), resyncEv)
+}
+
 func main() {
 	flag.Parse()
 
 	logger.Debugf("Starting contiv-init process")
 
 	// check whether STN is required and get NIC name
-	contivCfg, nicToSteal, useDHCP, err := parseSTNConfig()
+	nicToSteal, useDHCP, err := parseSTNConfig()
 	if err != nil {
 		logger.Errorf("Error by parsing STN config: %v", err)
 		os.Exit(-1)
@@ -322,12 +352,30 @@ func main() {
 
 	var stnData *stn.STNReply
 	if nicToSteal != "" {
+
+		// TODO:
+		//   1. if etcd is available, allocate/retrieve ID from there.
+		//   2. [DONE, below] if etcd is available, resync bolt against etcd
+		//   3. if etcd is not available, check that node ID is in bolt
+
+		// if etcd is available, resync bolt against etcd
+		err := resyncBoltAgainstEtcd()
+		if err != nil {
+			logger.Errorf("Error by re-synchronizing Bolt DB: %v", err)
+			os.Exit(-1)
+		}
+
 		// steal the NIC
 		stnData, err = stealNIC(nicToSteal, useDHCP)
 		if err != nil {
 			logger.Warnf("Error by stealing the NIC %s: %v", nicToSteal, err)
 			// do not fail of STN was not successful
 			nicToSteal = ""
+		}
+		// Check if the STN Daemon has been initialized
+		if stnData == nil {
+			logger.Errorf("STN configured in vswitch, but STN Daemon not initialized")
+			os.Exit(-1)
 		}
 	} else {
 		logger.Debug("STN not requested")
@@ -342,22 +390,6 @@ func main() {
 	if err != nil {
 		logger.Errorf("Error by starting VPP process: %v", err)
 		os.Exit(-1)
-	}
-
-	if nicToSteal != "" {
-		// Check if the STN Daemon has been initialized
-		if stnData == nil {
-			logger.Errorf("STN configured in vswitch, but STN Daemon not initialized")
-			os.Exit(-1)
-		}
-
-		// configure connectivity on VPP
-		err := configureVpp(contivCfg, stnData, useDHCP)
-		if err != nil {
-			logger.Errorf("Error by configuring VPP: %v", err)
-			client.StopProcess(vppProcessName, false)
-			os.Exit(-1)
-		}
 	}
 
 	// start contiv-agent

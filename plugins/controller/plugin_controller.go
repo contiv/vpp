@@ -152,9 +152,8 @@ type Deps struct {
 
 	EventHandlers []api.EventHandler
 
-	LocalDB     keyval.KvProtoPlugin
-	RemoteDB    keyval.KvProtoPlugin
-	DBResources []*api.DBResource
+	LocalDB  keyval.KvProtoPlugin
+	RemoteDB keyval.KvProtoPlugin
 }
 
 // Config holds the Controller configuration.
@@ -263,7 +262,6 @@ func (c *Controller) AfterInit() error {
 		eventLoop:               c,
 		localDB:                 c.LocalDB,
 		remoteDB:                c.RemoteDB,
-		resources:               c.DBResources,
 		delayLocalResync:        c.config.DelayLocalResync,
 		remoteDBProbingInterval: c.config.RemoteDBProbingInterval,
 	})

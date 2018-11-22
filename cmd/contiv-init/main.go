@@ -42,6 +42,7 @@ import (
 	"github.com/ligato/cn-infra/db/keyval/bolt"
 	"github.com/ligato/cn-infra/db/keyval/etcd"
 	"github.com/ligato/cn-infra/db/keyval/kvproto"
+	"github.com/contiv/vpp/plugins/contiv/model/nodeinfo"
 )
 
 const (
@@ -249,8 +250,25 @@ func getFirstInterfaceName() string {
 	return ""
 }
 
+// etcdWithAtomicPut augments ProtoWrapper with atomic Put operation.
+type etcdWithAtomicPut struct {
+	*kvproto.ProtoWrapper
+	conn *etcd.BytesConnectionEtcd
+}
+
+// PutIfNotExists implements the atomic Put operation.
+func (etcd *etcdWithAtomicPut) PutIfNotExists(key string, value []byte) (succeeded bool, err error) {
+	return etcd.conn.PutIfNotExists(key, value)
+}
+
+// OnConnect immediately calls the callback - etcdConnect() returns etcd client
+// in the connected state (or as nil).
+func (etcd *etcdWithAtomicPut) OnConnect(callback func() error) {
+	callback()
+}
+
 // etcdConnect connects to ETCD db.
-func etcdConnect() (protoDb *kvproto.ProtoWrapper, err error) {
+func etcdConnect() (etcdConn contiv.DB, err error) {
 	etcdConfig := &etcd.Config{}
 
 	// parse ETCD config file
@@ -283,8 +301,12 @@ func etcdConnect() (protoDb *kvproto.ProtoWrapper, err error) {
 		}
 	}
 
-	protoDb = kvproto.NewProtoWrapper(conn, &keyval.SerializerJSON{})
-	return protoDb, nil
+	protoDb := kvproto.NewProtoWrapper(conn, &keyval.SerializerJSON{})
+	etcdConn = &etcdWithAtomicPut{
+		ProtoWrapper: protoDb,
+		conn:         conn,
+	}
+	return etcdConn, nil
 }
 
 // boltOpen opens local Bolt db.
@@ -309,17 +331,25 @@ func boltOpen() (protoDb *kvproto.ProtoWrapper, err error) {
 	return protoDb, nil
 }
 
-// resyncBoltAgainstEtcd re-synchronizes Bolt against Etcd so that when agent
-// starts without connectivity, it will execute local resync against relatively
-// up-to-date data.
-func resyncBoltAgainstEtcd() error {
+// prepareForLocalResync re-synchronizes Bolt against Etcd for STN case,
+// so that when agent starts without connectivity, it will execute local resync
+// against relatively up-to-date data that contains at least node ID.
+// Steps:
+//   1. if etcd is available, allocate/retrieve node ID from there
+//   2. if etcd is available, resync bolt against etcd
+//   3. check that node ID is in bolt
+func prepareForLocalResync() error {
+	var (
+		withEtcd bool
+		err error
+	)
+	nodeName := os.Getenv(servicelabel.MicroserviceLabelEnvVar)
+
 	// try to connect to ETCD db
 	etcdDB, err := etcdConnect()
 	if err == nil {
+		withEtcd = true
 		defer etcdDB.Close()
-	} else {
-		// etcd is not available, skip
-		return nil
 	}
 
 	// try to open local Bolt db
@@ -330,12 +360,44 @@ func resyncBoltAgainstEtcd() error {
 		return err
 	}
 
-	// re-synchronize bolt against etcd
-	resyncEv, _, err := controller.LoadKubeStateForResync(etcdDB.NewBroker(""), logger)
+	// if etcd is available, allocate/retrieve ID from there
+	if withEtcd {
+		// try to obtain snapshot of Kubernetes state data
+		resyncEv, _, err := controller.LoadKubeStateForResync(etcdDB.NewBroker(""), logger)
+		if err != nil {
+			return err
+		}
+
+		// allocate or retrieve ID from etcd
+		kubeState := resyncEv.KubeState
+		nodeIDAllocator := contiv.NewIDAllocator(etcdDB, nodeName, nil)
+		nodeIDAllocator.Resync(kubeState)
+		id, err := nodeIDAllocator.GetOrAllocateNodeID()
+		if err == nil {
+			// update kube state to handle newly allocated ID
+			kubeState[nodeinfo.Keyword][nodeinfo.Key(id, false)] = &nodeinfo.NodeInfo{
+				Id:   id,
+				Name: nodeName,
+				// IP addresses will be updated in Bolt later by the agent
+			}
+		}
+
+		// resync bolt against etcd
+		err = controller.ResyncDatabase(boltDB.NewBroker(""), kubeState)
+		if err != nil {
+			return err
+		}
+	}
+
+	// check that node ID is in bolt
+	resyncEv, _, err := controller.LoadKubeStateForResync(boltDB.NewBroker(""), logger)
 	if err != nil {
 		return err
 	}
-	return controller.ResyncDatabase(boltDB.NewBroker(""), resyncEv)
+	nodeIDAllocator := contiv.NewIDAllocator(nil, nodeName, nil)
+	nodeIDAllocator.Resync(resyncEv.KubeState)
+	_, err = nodeIDAllocator.GetOrAllocateNodeID()
+	return err
 }
 
 func main() {
@@ -352,19 +414,12 @@ func main() {
 
 	var stnData *stn.STNReply
 	if nicToSteal != "" {
-
-		// TODO:
-		//   1. if etcd is available, allocate/retrieve ID from there.
-		//   2. [DONE, below] if etcd is available, resync bolt against etcd
-		//   3. if etcd is not available, check that node ID is in bolt
-
-		// if etcd is available, resync bolt against etcd
-		err := resyncBoltAgainstEtcd()
+		// prepare for local resync
+		err := prepareForLocalResync()
 		if err != nil {
-			logger.Errorf("Error by re-synchronizing Bolt DB: %v", err)
+			logger.Errorf("Failed to prepare for local resync: %v", err)
 			os.Exit(-1)
 		}
-
 		// steal the NIC
 		stnData, err = stealNIC(nicToSteal, useDHCP)
 		if err != nil {

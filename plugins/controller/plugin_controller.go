@@ -380,7 +380,7 @@ func (c *Controller) processEvent(event api.Event) error {
 
 	// 1. prepare for resync
 	if event.Method() == api.Resync {
-		c.resyncCount++
+		c.resyncCount++ // first resync has resyncCount == 1
 		if dbResync, isDBResync := event.(*api.DBResync); isDBResync {
 			c.kubeStateData = dbResync.KubeState
 			c.externalConfig = dbResync.ExternalConfig
@@ -410,7 +410,7 @@ func (c *Controller) processEvent(event api.Event) error {
 			c.kubeStateData[ksChange.Resource][ksChange.Key] = ksChange.NewValue
 		}
 		if extChangeEv, isExtChangeEv := event.(*api.ExternalConfigChange); isExtChangeEv {
-			c.externalConfig[extChangeEv.Change.GetKey()] = extChangeEv.Change
+			c.externalConfig[extChangeEv.Key] = extChangeEv.Value
 		}
 	}
 
@@ -500,15 +500,15 @@ func (c *Controller) processEvent(event api.Event) error {
 			var extChangeKey string
 			if extChangeEv, isExtChangeEv := event.(*api.ExternalConfigChange); isExtChangeEv {
 				// merge external config change with txn or with cached internal config
-				extChangeKey = extChangeEv.Change.GetKey()
+				extChangeKey = extChangeEv.Key
 				txnVal, hasTxnVal := txn.values[extChangeKey]
 				cachedVal, hasCachedVal := c.internalConfig[extChangeKey]
 				if hasTxnVal {
-					txn.merged[extChangeKey] = c.mergeLazyValIntoProto(extChangeKey, extChangeEv.Change, txnVal)
+					txn.merged[extChangeKey] = c.mergeLazyValIntoProto(extChangeKey, extChangeEv.Value, txnVal)
 				} else if hasCachedVal {
-					txn.merged[extChangeKey] = c.mergeLazyValIntoProto(extChangeKey, extChangeEv.Change, cachedVal)
+					txn.merged[extChangeKey] = c.mergeLazyValIntoProto(extChangeKey, extChangeEv.Value, cachedVal)
 				} else {
-					txn.merged[extChangeKey] = extChangeEv.Change
+					txn.merged[extChangeKey] = extChangeEv.Value
 				}
 			}
 

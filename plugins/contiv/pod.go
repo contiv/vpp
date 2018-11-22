@@ -27,7 +27,7 @@ import (
 	"github.com/ligato/vpp-agent/plugins/vppv2/model/interfaces"
 	"github.com/ligato/vpp-agent/plugins/vppv2/model/l3"
 
-	txn_api "github.com/contiv/vpp/plugins/controller/txn"
+	controller "github.com/contiv/vpp/plugins/controller/api"
 	"github.com/contiv/vpp/plugins/ksr/model/pod"
 )
 
@@ -50,8 +50,8 @@ func (p *Pod) String() string {
 }
 
 // podConnectivityConfig returns configuration for VPP<->Pod connectivity.
-func (s *remoteCNIserver) podConnectivityConfig(pod *Pod) (config txn_api.KeyValuePairs) {
-	config = make(txn_api.KeyValuePairs)
+func (s *remoteCNIserver) podConnectivityConfig(pod *Pod) (config controller.KeyValuePairs) {
+	config = make(controller.KeyValuePairs)
 	pod.VPPIfName, pod.LinuxIfName = s.podInterfaceName(pod)
 
 	// create VPP to POD interconnect interface

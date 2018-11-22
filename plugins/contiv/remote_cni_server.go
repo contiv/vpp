@@ -26,7 +26,6 @@ import (
 	"github.com/fsouza/go-dockerclient"
 	"golang.org/x/net/context"
 
-	"github.com/ligato/cn-infra/datasync"
 	"github.com/ligato/cn-infra/idxmap"
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/rpc/rest"
@@ -40,6 +39,7 @@ import (
 	"github.com/contiv/vpp/plugins/contiv/ipam"
 	"github.com/contiv/vpp/plugins/contiv/model/cni"
 	"github.com/contiv/vpp/plugins/contiv/model/nodeinfo"
+	controller "github.com/contiv/vpp/plugins/controller/api"
 	txn_api "github.com/contiv/vpp/plugins/controller/txn"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 )
@@ -180,12 +180,6 @@ type remoteCNIserver struct {
 	// input arguments
 	*remoteCNIserverArgs
 
-	// these variables ensure that pod add/del requests are processed only after the server
-	// was first resynced
-	inSync        bool
-	inSyncCond    *sync.Cond
-	resyncCounter int
-
 	// DHCP watching
 	watchingDHCP bool // true if dhcpIndex is being watched
 	useDHCP      bool // whether DHCP is disabled by the latest config (can be changed via CRD)
@@ -309,7 +303,6 @@ func newRemoteCNIServer(args *remoteCNIserverArgs) (*remoteCNIserver, error) {
 		return nil, err
 	}
 	server := &remoteCNIserver{remoteCNIserverArgs: args, ipam: ipam}
-	server.inSyncCond = sync.NewCond(&server.Mutex)
 	server.registerHandlers()
 	return server, nil
 }
@@ -354,12 +347,12 @@ func (s *remoteCNIserver) String() string {
 	}
 	podByVPPIfName += "}"
 
-	return fmt.Sprintf("<inSync: %t, resyncCounter: %d, useDHCP: %t, watchingDHCP: %t, "+
+	return fmt.Sprintf("<useDHCP: %t, watchingDHCP: %t, "+
 		"mainPhysicalIf: %s, otherPhysicalIfs: %v, "+
 		"nodeIP: %s, nodeIPNet: %s, defaultGw: %s, hostIPs: %v, "+
 		"podByID: %s, podByVppIfName: %s, "+
 		"otherNodes: %s, stnRoutes: %v",
-		s.inSync, s.resyncCounter, s.useDHCP, s.watchingDHCP,
+		s.useDHCP, s.watchingDHCP,
 		s.mainPhysicalIf, s.otherPhysicalIfs,
 		s.nodeIP.String(), ipNetToString(s.nodeIPNet), s.defaultGw.String(), s.hostIPs,
 		podsByID, podByVPPIfName,
@@ -369,22 +362,18 @@ func (s *remoteCNIserver) String() string {
 /********************************* Events **************************************/
 
 // Resync re-synchronizes configuration based on Kubernetes state data.
-func (s *remoteCNIserver) Resync(resyncEv *ResyncEventData) error {
+func (s *remoteCNIserver) Resync(kubeStateData controller.KubeStateData, resyncCount int, txn controller.ResyncOperations) error {
+	var wasErr error
 	s.Lock()
 	defer s.Unlock()
-	s.resyncCounter++
-	s.Infof("Starting RESYNC no. %d", s.resyncCounter)
-
-	var wasErr error
-	txn := s.txnFactory()
 
 	// ipam
-	if s.resyncCounter == 1 {
+	if resyncCount == 1 {
 		// No need to run resync for IPAM in run-time - IP address will not be allocated
 		// to a local pod without the agent knowing about it. Also there is a risk
 		// of a race condition - resync triggered shortly after Add/DelPod may work
 		// with K8s state data that do not yet reflect the freshly added/removed pod.
-		err := s.ipam.Resync(resyncEv.Pods)
+		err := s.ipam.Resync(kubeStateData)
 		if err != nil {
 			wasErr = err
 			s.Logger.Error(err)
@@ -399,19 +388,19 @@ func (s *remoteCNIserver) Resync(resyncEv *ResyncEventData) error {
 	}
 
 	// node <-> node
-	err = s.otherNodesResync(resyncEv, txn)
+	err = s.otherNodesResync(kubeStateData, txn)
 	if err != nil {
 		wasErr = err
 		s.Logger.Error(err)
 	}
 
 	// pods <-> vswitch
-	if s.resyncCounter == 1 {
+	if resyncCount == 1 {
 		// No need to resync the state of running pods in run-time - local pod
 		// will not be added/deleted without the agent knowing about it. Also there
 		// is a risk of a race condition - resync triggered shortly after Add/DelPod
 		// may work with K8s state data that do not yet reflect the freshly added/removed pod.
-		err = s.podStateResync(resyncEv)
+		err = s.podStateResync(kubeStateData)
 		if err != nil {
 			wasErr = err
 			s.Logger.Error(err)
@@ -419,33 +408,19 @@ func (s *remoteCNIserver) Resync(resyncEv *ResyncEventData) error {
 	}
 	for _, pod := range s.podByID {
 		config := s.podConnectivityConfig(pod)
-		txn_api.PutAll(txn, config)
+		controller.PutAll(txn, config)
 	}
-
-	// commit resync transaction
-	ctx := context.Background()
-	ctx = scheduler_api.WithRetry(ctx, time.Second, true)
-	ctx = scheduler_api.WithFullResync(ctx)
-	ctx = scheduler_api.WithDescription(ctx, fmt.Sprintf("Remote CNI server resync no. %d", s.resyncCounter))
-	err = txn.Commit(ctx)
-	if err != nil {
-		wasErr = fmt.Errorf("failed to resync vswitch configuration: %v ", err)
-	}
-
-	// set the state to configured and broadcast
-	s.inSync = true
-	s.inSyncCond.Broadcast()
 
 	s.Logger.Infof("Remote CNI Server state after RESYNC: %s", s.String())
 	return wasErr
 }
 
 // Update updates configuration based on a change in the Kubernetes state data.
-func (s *remoteCNIserver) Update(dataChng datasync.ProtoWatchResp) error {
+func (s *remoteCNIserver) Update(event *controller.KubeStateChange, txn controller.UpdateOperations) (change string, err error) {
 	s.Lock()
 	defer s.Unlock()
 
-	return s.processOtherNodeChangeEvent(dataChng)
+	return s.processOtherNodeChangeEvent(event, txn)
 }
 
 // Close is called by the plugin infra when the CNI server needs to be stopped.
@@ -456,13 +431,7 @@ func (s *remoteCNIserver) Close() {
 // Add handles CNI Add request, connects a Pod container to the network.
 func (s *remoteCNIserver) Add(ctx context.Context, request *cni.CNIRequest) (*cni.CNIReply, error) {
 	s.Info("Add request received ", *request)
-
-	// 0. Wait for the CNI server to be in-sync
-
 	s.Lock()
-	for !s.inSync {
-		s.inSyncCond.Wait()
-	}
 	defer s.Unlock()
 
 	// 1. Check if the pod has an obsolete container connected to vswitch to be removed first
@@ -539,7 +508,7 @@ func (s *remoteCNIserver) Add(ctx context.Context, request *cni.CNIRequest) (*cn
 	// build transaction
 	txn := s.txnFactory()
 	config := s.podConnectivityConfig(pod)
-	txn_api.PutAll(txn, config)
+	controller.PutAll(txn, config)
 
 	// execute the config transaction
 	txnCtx := context.Background()
@@ -580,13 +549,7 @@ func (s *remoteCNIserver) Add(ctx context.Context, request *cni.CNIRequest) (*cn
 // Delete handles CNI Delete request, disconnects a Pod container from the network.
 func (s *remoteCNIserver) Delete(ctx context.Context, request *cni.CNIRequest) (*cni.CNIReply, error) {
 	s.Info("Delete request received ", *request)
-
-	// 0. Wait for the CNI server to be in-sync
-
 	s.Lock()
-	for !s.inSync {
-		s.inSyncCond.Wait()
-	}
 	defer s.Unlock()
 
 	// 1. Check that the pod was indeed configured and obtain the configuration
@@ -640,7 +603,7 @@ func (s *remoteCNIserver) DeletePod(pod *Pod, obsoletePod bool) error {
 	// build transaction
 	txn := s.txnFactory()
 	config := s.podConnectivityConfig(pod)
-	txn_api.DeleteAll(txn, config)
+	controller.DeleteAll(txn, config)
 
 	// execute the config transaction
 	txnCtx := context.Background()
@@ -684,7 +647,7 @@ func (s *remoteCNIserver) DeletePod(pod *Pod, obsoletePod bool) error {
 //  - one route in the host stack to direct traffic destined to services via VPP
 //  - inter-VRF routing
 //  - IP neighbor scanning
-func (s *remoteCNIserver) configureVswitchConnectivity(txn txn_api.ResyncOperations) error {
+func (s *remoteCNIserver) configureVswitchConnectivity(txn controller.ResyncOperations) error {
 	// configure physical NIC
 	err := s.configureVswitchNICs(txn)
 	if err != nil {
@@ -728,7 +691,7 @@ func (s *remoteCNIserver) configureVswitchConnectivity(txn txn_api.ResyncOperati
 
 // configureVswitchNICs configures vswitch NICs - main NIC for node interconnect
 // and other NICs optionally specified in the contiv plugin YAML configuration.
-func (s *remoteCNIserver) configureVswitchNICs(txn txn_api.ResyncOperations) error {
+func (s *remoteCNIserver) configureVswitchNICs(txn controller.ResyncOperations) error {
 	// dump physical interfaces present on VPP
 	nics, err := s.physicalIfsDump()
 	if err != nil {
@@ -758,7 +721,7 @@ func (s *remoteCNIserver) configureVswitchNICs(txn txn_api.ResyncOperations) err
 }
 
 // configureMainVPPInterface configures the main NIC used for node interconnect on vswitch VPP.
-func (s *remoteCNIserver) configureMainVPPInterface(physicalIfaces map[uint32]string, txn txn_api.ResyncOperations) error {
+func (s *remoteCNIserver) configureMainVPPInterface(physicalIfaces map[uint32]string, txn controller.ResyncOperations) error {
 	var err error
 
 	// 1. Determine the name of the main VPP NIC interface
@@ -894,7 +857,7 @@ func (s *remoteCNIserver) configureMainVPPInterface(physicalIfaces map[uint32]st
 }
 
 // configureOtherVPPInterfaces configure all physical interfaces defined in the config but the main one.
-func (s *remoteCNIserver) configureOtherVPPInterfaces(physicalIfaces map[uint32]string, txn txn_api.ResyncOperations) error {
+func (s *remoteCNIserver) configureOtherVPPInterfaces(physicalIfaces map[uint32]string, txn controller.ResyncOperations) error {
 	s.otherPhysicalIfs = []string{}
 
 	// match existing interfaces and build configuration
@@ -928,7 +891,7 @@ func (s *remoteCNIserver) configureOtherVPPInterfaces(physicalIfaces map[uint32]
 }
 
 // configureVswitchHostConnectivity configures vswitch VPP to Linux host interconnect.
-func (s *remoteCNIserver) configureVswitchHostConnectivity(txn txn_api.ResyncOperations) (err error) {
+func (s *remoteCNIserver) configureVswitchHostConnectivity(txn controller.ResyncOperations) (err error) {
 	var key string
 
 	// list all IPs assigned to host interfaces
@@ -987,7 +950,7 @@ func (s *remoteCNIserver) configureVswitchHostConnectivity(txn txn_api.ResyncOpe
 }
 
 // configureSTNConnectivity configures vswitch VPP to operate in the STN mode.
-func (s *remoteCNIserver) configureSTNConnectivity(txn txn_api.ResyncOperations) {
+func (s *remoteCNIserver) configureSTNConnectivity(txn controller.ResyncOperations) {
 	if len(s.nodeIP) > 0 {
 		// STN rule
 		key, stnrule := s.stnRule()
@@ -1010,7 +973,7 @@ func (s *remoteCNIserver) configureSTNConnectivity(txn txn_api.ResyncOperations)
 }
 
 // configureVswitchVrfRoutes configures inter-VRF routing
-func (s *remoteCNIserver) configureVswitchVrfRoutes(txn txn_api.ResyncOperations) {
+func (s *remoteCNIserver) configureVswitchVrfRoutes(txn controller.ResyncOperations) {
 	// routes from main towards POD VRF: PodSubnet + VPPHostSubnet
 	routes := s.routesMainToPodVRF()
 	for key, route := range routes {
@@ -1035,7 +998,7 @@ func (s *remoteCNIserver) configureVswitchVrfRoutes(txn txn_api.ResyncOperations
 // podStateResync resynchronizes internal maps (s.podBy*) with the current
 // state of locally deployed pods based on Kubernetes state data and information
 // provided by Docker server.
-func (s *remoteCNIserver) podStateResync(resyncEv *ResyncEventData) error {
+func (s *remoteCNIserver) podStateResync(kubeStateData controller.KubeStateData) error {
 	// use docker client to obtain the set of running pods
 	runningPods, err := s.listRunningPods()
 	if err != nil {
@@ -1049,29 +1012,35 @@ func (s *remoteCNIserver) podStateResync(resyncEv *ResyncEventData) error {
 	s.podByVPPIfName = make(map[string]*Pod)
 
 	// iterate over state data of all locally deployed pods
-	for _, podData := range resyncEv.Pods {
-		// ignore pods deployed on other nodes or without IP address
-		podIPAddress := net.ParseIP(podData.IpAddress)
-		if podIPAddress == nil || !s.ipam.PodSubnetThisNode().Contains(podIPAddress) {
-			continue
+	for resource, data := range kubeStateData {
+		if resource == podmodel.PodKeyword {
+			for _, podProto := range data {
+				podData := podProto.(*podmodel.Pod)
+				// ignore pods deployed on other nodes or without IP address
+				podIPAddress := net.ParseIP(podData.IpAddress)
+				if podIPAddress == nil || !s.ipam.PodSubnetThisNode().Contains(podIPAddress) {
+					continue
+				}
+
+				// ignore pods which are not actually running
+				podID := podmodel.ID{Name: podData.Name, Namespace: podData.Namespace}
+				pod, isRunning := runningPods[podID]
+				if !isRunning {
+					s.Logger.Warnf("Pod %v is not in the RUNNING state, skipping.", podID)
+					continue
+				}
+
+				// fill the pod parameters not provided by listRunningPods
+				pod.VPPIfName, pod.LinuxIfName = s.podInterfaceName(pod)
+				pod.IPAddress = podIPAddress
+
+				// store pod configuration
+				s.podByID[pod.ID] = pod
+				s.podByVPPIfName[pod.VPPIfName] = pod
+			}
 		}
-
-		// ignore pods which are not actually running
-		podID := podmodel.ID{Name: podData.Name, Namespace: podData.Namespace}
-		pod, isRunning := runningPods[podID]
-		if !isRunning {
-			s.Logger.Warnf("Pod %v is not in the RUNNING state, skipping.", podID)
-			continue
-		}
-
-		// fill the pod parameters not provided by listRunningPods
-		pod.VPPIfName, pod.LinuxIfName = s.podInterfaceName(pod)
-		pod.IPAddress = podIPAddress
-
-		// store pod configuration
-		s.podByID[pod.ID] = pod
-		s.podByVPPIfName[pod.VPPIfName] = pod
 	}
+
 	return nil
 }
 

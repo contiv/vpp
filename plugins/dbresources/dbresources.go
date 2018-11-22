@@ -17,12 +17,9 @@ package dbresources
 import (
 	"github.com/gogo/protobuf/proto"
 
-	"github.com/ligato/cn-infra/servicelabel"
-
 	"github.com/contiv/vpp/plugins/contiv/model/nodeinfo"
 	controller_api "github.com/contiv/vpp/plugins/controller/api"
 	nodeconfig "github.com/contiv/vpp/plugins/crd/handler/nodeconfig/model"
-	"github.com/contiv/vpp/plugins/ksr"
 	epmodel "github.com/contiv/vpp/plugins/ksr/model/endpoints"
 	nsmodel "github.com/contiv/vpp/plugins/ksr/model/namespace"
 	nodemodel "github.com/contiv/vpp/plugins/ksr/model/node"
@@ -32,49 +29,48 @@ import (
 )
 
 // GetDBResources returns metadata for all DB resources currently used by Contiv.
+// Resources must be stored in DB under KSR key prefix!
 func GetDBResources() []*controller_api.DBResource {
-	ksrPrefix := servicelabel.GetAllAgentsPrefix() + ksr.MicroserviceLabel + "/"
-
 	return []*controller_api.DBResource{
 		{
 			Keyword:          nodeinfo.Keyword,
 			ProtoMessageName: proto.MessageName((*nodeinfo.NodeInfo)(nil)),
-			KeyPrefix:        ksrPrefix + nodeinfo.AllocatedIDsKeyPrefix,
+			KeyPrefix:        nodeinfo.AllocatedIDsKeyPrefix,
 		},
 		{
 			Keyword:          nodeconfig.Keyword,
 			ProtoMessageName: proto.MessageName((*nodeconfig.NodeConfig)(nil)),
-			KeyPrefix:        ksrPrefix + nodeconfig.KeyPrefix(),
+			KeyPrefix:        nodeconfig.KeyPrefix(),
 		},
 		{
 			Keyword:          nodemodel.NodeKeyword,
 			ProtoMessageName: proto.MessageName((*nodemodel.Node)(nil)),
-			KeyPrefix:        ksrPrefix + nodemodel.KeyPrefix(),
+			KeyPrefix:        nodemodel.KeyPrefix(),
 		},
 		{
 			Keyword:          podmodel.PodKeyword,
 			ProtoMessageName: proto.MessageName((*podmodel.Pod)(nil)),
-			KeyPrefix:        ksrPrefix + podmodel.KeyPrefix(),
+			KeyPrefix:        podmodel.KeyPrefix(),
 		},
 		{
 			Keyword:          nsmodel.NamespaceKeyword,
 			ProtoMessageName: proto.MessageName((*nsmodel.Namespace)(nil)),
-			KeyPrefix:        ksrPrefix + nsmodel.KeyPrefix(),
+			KeyPrefix:        nsmodel.KeyPrefix(),
 		},
 		{
 			Keyword:          policymodel.PolicyKeyword,
 			ProtoMessageName: proto.MessageName((*policymodel.Policy)(nil)),
-			KeyPrefix:        ksrPrefix + policymodel.KeyPrefix(),
+			KeyPrefix:        policymodel.KeyPrefix(),
 		},
 		{
 			Keyword:          svcmodel.ServiceKeyword,
 			ProtoMessageName: proto.MessageName((*svcmodel.Service)(nil)),
-			KeyPrefix:        ksrPrefix + svcmodel.KeyPrefix(),
+			KeyPrefix:        svcmodel.KeyPrefix(),
 		},
 		{
 			Keyword:          epmodel.EndpointsKeyword,
 			ProtoMessageName: proto.MessageName((*epmodel.Endpoints)(nil)),
-			KeyPrefix:        ksrPrefix + epmodel.KeyPrefix(),
+			KeyPrefix:        epmodel.KeyPrefix(),
 		},
 	}
 }

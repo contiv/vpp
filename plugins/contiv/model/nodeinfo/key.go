@@ -14,9 +14,30 @@
 
 package nodeinfo
 
+import (
+	"strconv"
+
+	"github.com/ligato/cn-infra/servicelabel"
+
+	"github.com/contiv/vpp/plugins/ksr"
+)
+
 // Keyword defines the keyword identifying NodeInfo data.
 const Keyword = "nodeinfo"
 
 // AllocatedIDsKeyPrefix is a key prefix used in ETCD to store information
 // about node ID and its IP addresses.
 const AllocatedIDsKeyPrefix = "allocatedIDs/"
+
+// Key returns the key under which NodeInfo data for a node with the given ID
+// should be stored in the data-store.
+func Key(index uint32, full bool) string {
+	var key string
+	if full {
+		key = servicelabel.GetDifferentAgentPrefix(ksr.MicroserviceLabel)
+	}
+	key += AllocatedIDsKeyPrefix
+	key += strconv.FormatUint(uint64(index), 10)
+	return key
+}
+

@@ -27,20 +27,22 @@ import (
 	"github.com/ligato/cn-infra/datasync"
 	"github.com/ligato/cn-infra/db/keyval"
 	"github.com/ligato/cn-infra/logging"
+	"github.com/ligato/cn-infra/servicelabel"
 
 	"github.com/contiv/vpp/plugins/controller/api"
 	"github.com/contiv/vpp/plugins/dbresources"
+	"github.com/contiv/vpp/plugins/ksr"
+	"github.com/hashicorp/consul/command/event"
 )
 
 const (
-	// key prefix used to store VPP configuration for ligato/vpp-agent.
-	vppConfigKeyPrefix = "vpp/config/v2/"
-
-	// key prefix used to store Linux network configuration for ligato/vpp-agent.
-	linuxConfigKeyPrefix = "linux/config/v2/"
-
 	// healthCheckProbeKey is a key used to probe Etcd state
 	healthCheckProbeKey = "/probe-etcd-connection"
+)
+
+var (
+	// prefix under which all k8s resources are stored in DB
+	ksrPrefix = servicelabel.GetDifferentAgentPrefix(ksr.MicroserviceLabel)
 )
 
 // dbWatcher watches remote database for changes. Resync and data change events
@@ -66,9 +68,6 @@ type dbWatcher struct {
 
 	ignoreChangesUntilResync bool
 
-	keyPrefixes    []string
-	extKeyPrefixes []string
-
 	remoteBroker  keyval.ProtoBroker
 	remoteWatcher keyval.ProtoWatcher
 	localBroker   keyval.ProtoBroker
@@ -76,7 +75,7 @@ type dbWatcher struct {
 	remoteChangeCh     chan datasync.ProtoWatchResp
 	remoteWatchCloseCh chan string
 
-	processedVals map[string]datasync.KeyVal // key -> value, revision
+	processedVals map[string]datasync.KeyVal // key (full, with prefix) -> value, revision
 
 	wg     sync.WaitGroup
 	ctx    context.Context
@@ -115,15 +114,6 @@ func newDBWatcher(args *dbWatcherArgs) *dbWatcher {
 	}
 	watcher.ignoreChangesUntilResync = true
 	watcher.ctx, watcher.cancel = context.WithCancel(context.Background())
-
-	// collect key prefixes to watch
-	//  -> resources:
-	for _, resource := range dbresources.GetDBResources() {
-		watcher.keyPrefixes = append(watcher.keyPrefixes, resource.KeyPrefix)
-	}
-	//  -> external configuration:
-	watcher.extKeyPrefixes = append(watcher.extKeyPrefixes, args.agentPrefix+vppConfigKeyPrefix)
-	watcher.extKeyPrefixes = append(watcher.extKeyPrefixes, args.agentPrefix+linuxConfigKeyPrefix)
 
 	// start DB watching
 	watcher.wg.Add(1)
@@ -258,7 +248,8 @@ func (w *dbWatcher) watchDB() {
 func (w *dbWatcher) restartWatching() {
 	w.remoteWatchCloseCh = make(chan string)
 	w.remoteWatcher.Watch(w.onRemoteDBChange, w.remoteWatchCloseCh,
-		append(w.keyPrefixes, w.extKeyPrefixes...)...)
+		servicelabel.GetDifferentAgentPrefix(ksr.MicroserviceLabel), // resources
+		w.agentPrefix) // external configuration
 }
 
 // stopWatching stops watching of remote DB.
@@ -314,12 +305,6 @@ func (w *dbWatcher) runResync(local bool) {
 // In case of an error, another (local) resync is NOT requested.
 // The method assumes that dbWatcher is in the locked state.
 func (w *dbWatcher) runResyncFromLocalDB() {
-	event := &api.DBResync{
-		Local:          true,
-		KubeState:      make(api.KubeStateData),
-		ExternalConfig: make(api.ExternalConfig),
-	}
-
 	// mirroring of external configuration into the local DB is not supported yet
 	// - load only resources
 	event, values, err := LoadKubeStateForResync(w.localBroker, w.log)
@@ -333,6 +318,7 @@ func (w *dbWatcher) runResyncFromLocalDB() {
 		w.log.Error("Local DB is empty - aborting resync")
 		return
 	}
+	event.Local = true
 
 	// send the event
 	err = w.eventLoop.PushEvent(event)
@@ -367,29 +353,28 @@ func (w *dbWatcher) runResyncFromRemoteDB() {
 	}
 
 	// load external configuration
-	for _, keyPrefix := range w.extKeyPrefixes {
-		var iterator keyval.ProtoKeyValIterator
-		iterator, err = w.remoteBroker.ListValues(keyPrefix)
-		if err != nil {
-			return
-		}
-		for {
-			kv, stop := iterator.GetNext()
-			if stop {
-				break
-			}
-
-			// record value for revision comparisons
-			values[kv.GetKey()] = kv
-
-			// add key-value pair into the event
-			event.ExternalConfig[kv.GetKey()] = kv
-		}
-		iterator.Close()
+	var iterator keyval.ProtoKeyValIterator
+	iterator, err = w.remoteBroker.ListValues(w.agentPrefix)
+	if err != nil {
+		return
 	}
+	for {
+		kv, stop := iterator.GetNext()
+		if stop {
+			break
+		}
+
+		// record value for revision comparisons
+		values[kv.GetKey()] = kv
+
+		// add key-value pair into the event
+		key := strings.TrimPrefix(kv.GetKey(), w.agentPrefix)
+		event.ExternalConfig[key] = kv
+	}
+	iterator.Close()
 
 	// resync local DB
-	err = ResyncDatabase(w.localBroker, event)
+	err = ResyncDatabase(w.localBroker, event.KubeState)
 	if err != nil {
 		return
 	}
@@ -427,7 +412,13 @@ func (w *dbWatcher) processChange(change datasync.ProtoWatchResp) {
 	w.processedVals[key] = change
 
 	// check if this is resource or and an external configuration
-	resourceMeta := w.getResourceByKey(key)
+	resourceMeta, externalCfg := w.getResourceByKey(key)
+	if resourceMeta == nil && !externalCfg {
+		w.log.Debugf("Ignoring unhandled DB resource for key=%s", key)
+		return
+	}
+
+	// unamrshall resource value
 	var (
 		resourceNewVal, resourcePrevVal proto.Message
 	)
@@ -489,6 +480,7 @@ func (w *dbWatcher) processChange(change datasync.ProtoWatchResp) {
 	// finally send event about the change
 	var event api.Event
 	if resourceMeta != nil {
+		key = strings.TrimPrefix(key, servicelabel.GetDifferentAgentPrefix(ksr.MicroserviceLabel))
 		event = &api.KubeStateChange{
 			Key:       key,
 			Resource:  resourceMeta.Keyword,
@@ -496,8 +488,11 @@ func (w *dbWatcher) processChange(change datasync.ProtoWatchResp) {
 			NewValue:  resourceNewVal,
 		}
 	} else {
+		key = strings.TrimPrefix(key, w.agentPrefix)
 		event = &api.ExternalConfigChange{
-			Change: change,
+			Key:      key,
+			Revision: change,
+			Value:    change,
 		}
 	}
 	err := w.eventLoop.PushEvent(event)
@@ -511,17 +506,18 @@ func (w *dbWatcher) processChange(change datasync.ProtoWatchResp) {
 
 // getResourceByKey tries to find metadata for resource with the given key.
 // Return nil if the key belongs to external configuration.
-func (w *dbWatcher) getResourceByKey(key string) *api.DBResource {
+func (w *dbWatcher) getResourceByKey(key string) (resource *api.DBResource, externalConfig bool) {
 	if strings.HasPrefix(key, w.agentPrefix) {
 		// this is external config
-		return nil
+		return nil, true
 	}
+	key = strings.TrimPrefix(key, servicelabel.GetDifferentAgentPrefix(ksr.MicroserviceLabel))
 	for _, resource := range dbresources.GetDBResources() {
 		if strings.HasPrefix(key, resource.KeyPrefix) {
-			return resource
+			return resource, false
 		}
 	}
-	return nil
+	return nil, false // unhandled resource
 }
 
 // close stops watching of the database.
@@ -542,9 +538,10 @@ func LoadKubeStateForResync(broker keyval.ProtoBroker, log logging.Logger) (even
 	}
 	values = make(map[string]datasync.KeyVal)
 
+	// load values resource by resource
 	for _, resource := range dbresources.GetDBResources() {
 		event.KubeState[resource.Keyword] = make(api.KeyValuePairs)
-		iterator, err := broker.ListValues(resource.KeyPrefix)
+		iterator, err := broker.ListValues(ksrPrefix + resource.KeyPrefix)
 		if err != nil {
 			return event, values, err
 		}
@@ -572,7 +569,8 @@ func LoadKubeStateForResync(broker keyval.ProtoBroker, log logging.Logger) (even
 				values[kv.GetKey()] = kv
 			}
 			if event != nil {
-				event.KubeState[resource.Keyword][kv.GetKey()] = value
+				key := strings.TrimPrefix(kv.GetKey(), ksrPrefix)
+				event.KubeState[resource.Keyword][key] = value
 			}
 		}
 		iterator.Close()
@@ -580,17 +578,17 @@ func LoadKubeStateForResync(broker keyval.ProtoBroker, log logging.Logger) (even
 	return event, values, nil
 }
 
-// ResyncDatabase updates database content to reflect the resync event.
+// ResyncDatabase updates database content to reflect the given Kubernetes state data.
 // External configuration is not supported yet.
 // Broker should not be prefixed.
-func ResyncDatabase(broker keyval.ProtoBroker, event *api.DBResync) error {
+func ResyncDatabase(broker keyval.ProtoBroker, kubeStateData api.KubeStateData) error {
 	keys := make(map[string]struct{})
 
 	// update database with values present in the resync event
-	for _, kvs := range event.KubeState {
+	for _, kvs := range kubeStateData {
 		for key, value := range kvs {
-			keys[key] = struct{}{}
-			err := broker.Put(key, value)
+			keys[ksrPrefix + key] = struct{}{}
+			err := broker.Put(ksrPrefix + key, value)
 			if err != nil {
 				return err
 			}

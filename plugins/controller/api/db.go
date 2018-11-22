@@ -206,7 +206,9 @@ func protoToString(msg proto.Message) string {
 // ExternalConfigChange is an Update event that represents change for one key
 // from the external configuration (for vpp-agent).
 type ExternalConfigChange struct {
-	Change datasync.ProtoWatchResp
+	Key      string
+	Revision datasync.WithRevision
+	Value    datasync.LazyValue
 }
 
 // GetName returns name of the ExternalConfigChange event.
@@ -218,7 +220,7 @@ func (ev *ExternalConfigChange) GetName() string {
 func (ev *ExternalConfigChange) String() string {
 	return fmt.Sprintf("%s\n"+
 		"* key: %s\n"+
-		"* revision: %d", ev.GetName(), ev.Change.GetKey(), ev.Change.GetRevision())
+		"* revision: %d", ev.GetName(), ev.Key, ev.Revision.GetRevision())
 }
 
 // Method is Update.

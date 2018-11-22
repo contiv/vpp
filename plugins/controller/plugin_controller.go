@@ -37,13 +37,14 @@ import (
 )
 
 const (
-	// by default, dbwatcher waits one second for connection to remoteDB
-	// to establish before falling back to local DB resync
-	defaultDelayLocalResync = time.Second
+	// by default, dbwatcher waits 5 seconds for connection to remoteDB
+	// to be established before falling back to local DB resync
+	// (but only if local DB is not empty)
+	defaultDelayLocalResync = 5 * time.Second
 
 	// by default, Controller will report error to status check if it does not
-	// receive startup DBResync event within the first minute of runtime
-	defaultStartupResyncDeadline = 1 * time.Minute
+	// receive startup DBResync event within the first 30secs of runtime
+	defaultStartupResyncDeadline = 30 * time.Second
 
 	// by default, remote DB connection is probed every 3 seconds (with one GetValue)
 	defaultRemoteDBProbingInterval = 3 * time.Second
@@ -54,16 +55,16 @@ const (
 	// by default, retry is executed just 1sec after the failed operation
 	defaultDelayRetry = time.Second
 
-	// by default, retry delay grows exponentially with each failed attempt.
+	// by default, retry delay grows exponentially with each failed attempt
 	defaultEnableExpBackoffRetry = true
 
 	// by default, periodic healing is disabled
 	defaultEnablePeriodicHealing = false
 
-	// by default, when enabled, periodic healing will run once every minute.
+	// by default, when enabled, periodic healing will run once every minute
 	defaultPeriodicHealingInterval = time.Minute
 
-	// by default, healing resync will start 5 seconds after a failed event processing.
+	// by default, healing resync will start 5 seconds after a failed event processing
 	defaultDelayAfterErrorHealing = 5 * time.Second
 )
 

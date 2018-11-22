@@ -1100,7 +1100,7 @@ spec:
         - name: HTTP_CLIENT_CONFIG
           value: "/etc/http/http.client.conf"
         - name: CONTIV_CRD_INTERVAL
-          value: {{ .Values.crd.pollingInterval }}
+          value: {{ .Values.crd.pollingInterval | quote }}
         volumeMounts:
         - name: etcd-cfg
           mountPath: /etc/etcd

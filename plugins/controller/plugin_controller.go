@@ -21,6 +21,8 @@ import (
 	"reflect"
 	"sync"
 	"time"
+	"runtime"
+	"bytes"
 
 	"github.com/gogo/protobuf/proto"
 
@@ -37,6 +39,9 @@ import (
 )
 
 const (
+	// how many events can be buffered at most
+	eventQueueSize = 1000
+
 	// by default, dbwatcher waits 5 seconds for connection to remoteDB
 	// to be established before falling back to local DB resync
 	// (but only if local DB is not empty)
@@ -125,14 +130,16 @@ type Controller struct {
 	externalConfig api.ExternalConfig
 	internalConfig api.KeyValuePairs
 
+	evLoopGID          string // ID of the go routine running the event loop
 	revEventHandlers   []api.EventHandler
+	delayedEvents      []api.Event  // events delayed until after the first resync
 	eventQueue         chan api.Event
-	delayedEvents      []api.Event
+	prioEventQueue     chan api.Event // events sent from within the event loop are prioritized
 	startupResyncCheck chan struct{}
-	healingScheduled   bool
 
-	resyncCount int
-	evSeqNum    uint64
+	healingScheduled bool
+	resyncCount      int
+	evSeqNum         uint64
 
 	historyLock  sync.Mutex
 	eventHistory []*EventRecord
@@ -208,7 +215,8 @@ var (
 func (c *Controller) Init() error {
 	// initialize attributes
 	c.ctx, c.cancel = context.WithCancel(context.Background())
-	c.eventQueue = make(chan api.Event, 1000)
+	c.eventQueue = make(chan api.Event, eventQueueSize)
+	c.prioEventQueue = make(chan api.Event, eventQueueSize)
 	c.startupResyncCheck = make(chan struct{}, 1)
 	c.internalConfig = make(api.KeyValuePairs)
 	for i := len(c.EventHandlers) - 1; i >= 0; i-- {
@@ -271,6 +279,23 @@ func (c *Controller) AfterInit() error {
 
 // PushEvent adds the given event into the queue for processing.
 func (c *Controller) PushEvent(event api.Event) error {
+	callerGID := getGID()
+	if callerGID == c.evLoopGID {
+		// events sent from within the event loop should not be blocking and will
+		// be prioritized
+		if event.IsBlocking() {
+			panic("deadlock detected - blocking event sent from within the event loop")
+		}
+		select {
+		case <-c.ctx.Done():
+			return ErrClosedController
+		case c.prioEventQueue <- event:
+			return nil
+		default:
+			return ErrEventQueueFull
+		}
+	}
+
 	select {
 	case <-c.ctx.Done():
 		return ErrClosedController
@@ -315,43 +340,25 @@ func (c *Controller) periodicHealing() {
 // eventLoop implements the main event loop for Contiv.
 func (c *Controller) eventLoop() {
 	defer c.wg.Done()
+	c.evLoopGID = getGID()
+
 
 	for {
 		select {
 		case <-c.ctx.Done():
 			return
 
-		case event := <-c.eventQueue:
-			// handle startup resync
-			if c.resyncCount == 0 {
-				// DBResync must be the first event to process
-				if _, isDBResync := event.(*api.DBResync); isDBResync {
-					// once the startup resync is received,
-					// periodic resync - if enabled - can be started
-					if c.config.EnablePeriodicHealing {
-						c.wg.Add(1)
-						go c.periodicHealing()
-					}
-				} else {
-					// events received before the first DBResync will be replayed afterwards
-					c.delayedEvents = append(c.delayedEvents, event)
-					continue // wait until DBResync
-				}
+		case event := <-c.prioEventQueue:
+			exit := c.receiveEvent(event, true)
+			if exit {
+				return
 			}
 
-			// process the received event + all the delayed events
-			events := append([]api.Event{event}, c.delayedEvents...)
-			for _, event := range events {
-				err := c.processEvent(event)
-				if err != nil {
-					if _, fatalErr := err.(*api.FatalError); fatalErr {
-						// fatal error -> let the Kubernetes to restart the agent
-						c.StatusCheck.ReportStateChange(c.PluginName, statuscheck.Error, err)
-						return
-					}
-				}
+		case event := <-c.eventQueue:
+			exit := c.receiveEvent(event, false)
+			if exit {
+				return
 			}
-			c.delayedEvents = []api.Event{}
 
 		case <-c.startupResyncCheck:
 			// check that startup resync was performed
@@ -363,6 +370,53 @@ func (c *Controller) eventLoop() {
 			}
 		}
 	}
+}
+
+// receiveEvent receives event from the event queue.
+func (c *Controller) receiveEvent(event api.Event, prioritized bool) (exitLoop bool ){
+	// handle startup resync
+	if c.resyncCount == 0 {
+		// DBResync must be the first event to process
+		if _, isDBResync := event.(*api.DBResync); isDBResync {
+			// once the startup resync is received,
+			// periodic resync - if enabled - can be started
+			if c.config.EnablePeriodicHealing {
+				c.wg.Add(1)
+				go c.periodicHealing()
+			}
+		} else {
+			// events received before the first DBResync will be replayed afterwards
+			c.delayedEvents = append(c.delayedEvents, event)
+			return false // wait until DBResync
+		}
+	}
+
+	// process the received event + all the delayed events
+	events := append([]api.Event{event}, c.delayedEvents...)
+	for len(events) > 0 {
+		// check if there is any event of higher priority
+		if !prioritized {
+			select {
+			case prioEvent := <-c.prioEventQueue:
+				events = append([]api.Event{prioEvent}, events...)
+			default:
+				// NOOP
+			}
+		}
+		// pop and process the first event
+		event = events[0]
+		events = events[1:]
+		err := c.processEvent(event)
+		if err != nil {
+			if _, fatalErr := err.(*api.FatalError); fatalErr {
+				// fatal error -> let the Kubernetes to restart the agent
+				c.StatusCheck.ReportStateChange(c.PluginName, statuscheck.Error, err)
+				return true
+			}
+		}
+	}
+	c.delayedEvents = []api.Event{}
+	return false
 }
 
 // processEvent processes the next event.
@@ -706,4 +760,17 @@ func (c *Controller) mergeLazyValIntoProto(key string, value datasync.LazyValue,
 	}
 	proto.Merge(merge, protoVal)
 	return output
+}
+
+// getGID returns the current go routine ID as string.
+func getGID() string {
+	goroutineLabel := []byte("goroutine ")
+	b := make([]byte, 64)
+	b = b[:runtime.Stack(b, false)]
+	if !bytes.HasPrefix(b, goroutineLabel) {
+		return "unknown"
+	}
+	b = bytes.TrimPrefix(b, goroutineLabel )
+	b = b[:bytes.IndexByte(b, ' ')]
+	return string(b)
 }

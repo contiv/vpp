@@ -19,15 +19,18 @@ package acl
 import (
 	"github.com/onsi/gomega"
 	"testing"
+	"context"
 
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/logging/logrus"
 	vpp_acl "github.com/ligato/vpp-agent/plugins/vppv2/model/acl"
+	scheduler "github.com/ligato/vpp-agent/plugins/kvscheduler/api"
 
 	. "github.com/contiv/vpp/mock/aclengine"
 	. "github.com/contiv/vpp/mock/contiv"
 	"github.com/contiv/vpp/mock/localclient"
 	"github.com/contiv/vpp/plugins/contiv"
+	controller "github.com/contiv/vpp/plugins/controller/api"
 	"github.com/contiv/vpp/plugins/policy/renderer"
 	"github.com/contiv/vpp/plugins/policy/renderer/cache"
 	. "github.com/contiv/vpp/plugins/policy/renderer/testdata"
@@ -44,6 +47,37 @@ const (
 	somePort   = 500       /* some port number to use as the source port */
 	somePort2  = 600       /* some port number to use as the source port */
 )
+
+var (
+	isResync bool
+	vppTxn  controller.Transaction
+)
+
+func commitTxn() error {
+	ctx := context.Background()
+	if isResync {
+		ctx = scheduler.WithFullResync(ctx)
+	}
+	err := vppTxn.Commit(ctx)
+	vppTxn = nil
+	return err
+}
+
+func resyncTxnFactory(txnTracker *localclient.TxnTracker) func() controller.ResyncOperations {
+	return func() controller.ResyncOperations {
+		vppTxn = txnTracker.NewControllerTxn(true)
+		isResync = true
+		return vppTxn
+	}
+}
+
+func updateTxnFactory(txnTracker *localclient.TxnTracker) func() controller.UpdateOperations {
+	return func() controller.UpdateOperations {
+		vppTxn = txnTracker.NewControllerTxn(false)
+		isResync = false
+		return vppTxn
+	}
+}
 
 func verifyReflectiveACL(engine *MockACLEngine, contiv contiv.API, ifName string, onOutputIfs bool, expectedToHave bool) {
 	ifs := []string{}
@@ -133,9 +167,10 @@ func TestEgressRulesOnePod(t *testing.T) {
 	// Prepare ACL Renderer.
 	aclRenderer := &Renderer{
 		Deps: Deps{
-			Log:           logger,
-			Contiv:        contiv,
-			ACLTxnFactory: txnTracker.NewLinuxDataChangeTxn,
+			Log:              logger,
+			Contiv:           contiv,
+			ResyncTxnFactory: resyncTxnFactory(txnTracker),
+			UpdateTxnFactory: updateTxnFactory(txnTracker),
 		},
 	}
 	aclRenderer.Init()
@@ -143,6 +178,7 @@ func TestEgressRulesOnePod(t *testing.T) {
 	// Execute Renderer transaction.
 	err := aclRenderer.NewTxn(true).Render(Pod1, GetOneHostSubnet(Pod1IP), ingress, egress, false).Commit()
 	gomega.Expect(err).To(gomega.BeNil())
+	gomega.Expect(commitTxn()).To(gomega.BeNil())
 	gomega.Expect(txnTracker.CommittedTxns).To(gomega.HaveLen(1))
 
 	// Test ACLs.
@@ -168,6 +204,7 @@ func TestEgressRulesOnePod(t *testing.T) {
 	// Try to execute the same change again.
 	err = aclRenderer.NewTxn(false).Render(Pod1, GetOneHostSubnet(Pod1IP), ingress, egress, false).Commit()
 	gomega.Expect(err).To(gomega.BeNil())
+	gomega.Expect(commitTxn()).To(gomega.BeNil())
 
 	// Verify that the change had no further effect.
 	gomega.Expect(txnTracker.PendingTxns).To(gomega.HaveLen(0))
@@ -205,7 +242,8 @@ func TestIngressRulesOnePod(t *testing.T) {
 		Deps: Deps{
 			Log:           logger,
 			Contiv:        contiv,
-			ACLTxnFactory: txnTracker.NewLinuxDataChangeTxn,
+			ResyncTxnFactory: resyncTxnFactory(txnTracker),
+			UpdateTxnFactory: updateTxnFactory(txnTracker),
 		},
 	}
 	aclRenderer.Init()
@@ -213,6 +251,7 @@ func TestIngressRulesOnePod(t *testing.T) {
 	// Execute Renderer transaction.
 	err := aclRenderer.NewTxn(true).Render(Pod1, GetOneHostSubnet(Pod1IP), ingress, egress, false).Commit()
 	gomega.Expect(err).To(gomega.BeNil())
+	gomega.Expect(commitTxn()).To(gomega.BeNil())
 	gomega.Expect(txnTracker.CommittedTxns).To(gomega.HaveLen(1))
 
 	// Test ACLs.
@@ -242,6 +281,7 @@ func TestIngressRulesOnePod(t *testing.T) {
 	// Try to execute the same change again.
 	err = aclRenderer.NewTxn(false).Render(Pod1, GetOneHostSubnet(Pod1IP), ingress, egress, false).Commit()
 	gomega.Expect(err).To(gomega.BeNil())
+	gomega.Expect(commitTxn()).To(gomega.BeNil())
 
 	// Verify that the change had no further effect.
 	gomega.Expect(txnTracker.PendingTxns).To(gomega.HaveLen(0))
@@ -281,7 +321,8 @@ func TestEgressRulesTwoPods(t *testing.T) {
 		Deps: Deps{
 			Log:           logger,
 			Contiv:        contiv,
-			ACLTxnFactory: txnTracker.NewLinuxDataChangeTxn,
+			ResyncTxnFactory: resyncTxnFactory(txnTracker),
+			UpdateTxnFactory: updateTxnFactory(txnTracker),
 		},
 	}
 	aclRenderer.Init()
@@ -292,6 +333,7 @@ func TestEgressRulesTwoPods(t *testing.T) {
 	txn.Render(Pod2, GetOneHostSubnet(Pod2IP), ingress, egress, false)
 	err := txn.Commit()
 	gomega.Expect(err).To(gomega.BeNil())
+	gomega.Expect(commitTxn()).To(gomega.BeNil())
 	gomega.Expect(txnTracker.CommittedTxns).To(gomega.HaveLen(1))
 
 	// Test ACLs.
@@ -334,6 +376,7 @@ func TestEgressRulesTwoPods(t *testing.T) {
 	// Remove pod2 - pod1 should still have the same local table.
 	err = aclRenderer.NewTxn(false).Render(Pod2, GetOneHostSubnet(Pod2IP), []*renderer.ContivRule{}, []*renderer.ContivRule{}, true).Commit()
 	gomega.Expect(err).To(gomega.BeNil())
+	gomega.Expect(commitTxn()).To(gomega.BeNil())
 	gomega.Expect(txnTracker.CommittedTxns).To(gomega.HaveLen(2))
 
 	// Test ACLs.
@@ -390,7 +433,8 @@ func TestCombinedRules(t *testing.T) {
 		Deps: Deps{
 			Log:           logger,
 			Contiv:        contiv,
-			ACLTxnFactory: txnTracker.NewLinuxDataChangeTxn,
+			ResyncTxnFactory: resyncTxnFactory(txnTracker),
+			UpdateTxnFactory: updateTxnFactory(txnTracker),
 		},
 	}
 	aclRenderer.Init()
@@ -401,6 +445,7 @@ func TestCombinedRules(t *testing.T) {
 	txn.Render(Pod3, pod3Cfg.PodIP, pod3Cfg.Ingress, pod3Cfg.Egress, false)
 	err := txn.Commit()
 	gomega.Expect(err).To(gomega.BeNil())
+	gomega.Expect(commitTxn()).To(gomega.BeNil())
 	gomega.Expect(txnTracker.CommittedTxns).To(gomega.HaveLen(1))
 
 	// Test ACLs.
@@ -451,6 +496,7 @@ func TestCombinedRules(t *testing.T) {
 	txn.Render(Pod1, pod1Txn2Cfg.PodIP, pod1Txn2Cfg.Ingress, pod1Txn2Cfg.Egress, false)
 	err = txn.Commit()
 	gomega.Expect(err).To(gomega.BeNil())
+	gomega.Expect(commitTxn()).To(gomega.BeNil())
 	gomega.Expect(txnTracker.CommittedTxns).To(gomega.HaveLen(2))
 
 	// Test ACLs.
@@ -543,8 +589,8 @@ func TestCombinedRulesWithResync(t *testing.T) {
 		Deps: Deps{
 			Log:           logger,
 			Contiv:        contiv,
-			ACLTxnFactory: txnTracker.NewLinuxDataChangeTxn,
-			// TODO: resync txn factory
+			ResyncTxnFactory: resyncTxnFactory(txnTracker),
+			UpdateTxnFactory: updateTxnFactory(txnTracker),
 		},
 	}
 	aclRenderer.Init()
@@ -555,6 +601,7 @@ func TestCombinedRulesWithResync(t *testing.T) {
 	txn.Render(Pod3, pod3Cfg.PodIP, pod3Cfg.Ingress, pod3Cfg.Egress, false)
 	err := txn.Commit()
 	gomega.Expect(err).To(gomega.BeNil())
+	gomega.Expect(commitTxn()).To(gomega.BeNil())
 	gomega.Expect(txnTracker.CommittedTxns).To(gomega.HaveLen(1))
 
 	// Simulate restart of ACL Renderer.
@@ -563,12 +610,19 @@ func TestCombinedRulesWithResync(t *testing.T) {
 		Deps: Deps{
 			Log:           logger,
 			Contiv:        contiv,
-			ACLTxnFactory: txnTracker.NewLinuxDataChangeTxn,
+			ResyncTxnFactory: func() controller.ResyncOperations {
+				vppTxn = txnTracker.NewControllerTxn(true)
+				isResync = true
+				return vppTxn
+			},
+			UpdateTxnFactory: func() controller.UpdateOperations {
+				vppTxn = txnTracker.NewControllerTxn(false)
+				isResync = false
+				return vppTxn
+			},
 		},
 	}
 	aclRenderer.Init()
-
-	aclEngine.ClearACLs() // TODO: remove once resync txn is supported
 
 	// Execute second Renderer transaction (from non-empty state; change pod1 config).
 	txn = aclRenderer.NewTxn(true)
@@ -576,6 +630,7 @@ func TestCombinedRulesWithResync(t *testing.T) {
 	txn.Render(Pod3, pod3Cfg.PodIP, pod3Cfg.Ingress, pod3Cfg.Egress, false)
 	err = txn.Commit()
 	gomega.Expect(err).To(gomega.BeNil())
+	gomega.Expect(commitTxn()).To(gomega.BeNil())
 	gomega.Expect(txnTracker.PendingTxns).To(gomega.HaveLen(0))
 	gomega.Expect(txnTracker.CommittedTxns).To(gomega.HaveLen(1))
 
@@ -624,14 +679,13 @@ func TestCombinedRulesWithResync(t *testing.T) {
 
 	// Test run-time resync.
 
-	aclEngine.ClearACLs() // TODO: remove once resync txn is supported
-
 	// Re-sync back to the state after the first transaction.
 	txn = aclRenderer.NewTxn(true)
 	txn.Render(Pod1, pod1Txn1Cfg.PodIP, pod1Txn1Cfg.Ingress, pod1Txn1Cfg.Egress, false)
 	txn.Render(Pod3, pod3Cfg.PodIP, pod3Cfg.Ingress, pod3Cfg.Egress, false)
 	err = txn.Commit()
 	gomega.Expect(err).To(gomega.BeNil())
+	gomega.Expect(commitTxn()).To(gomega.BeNil())
 	gomega.Expect(txnTracker.CommittedTxns).To(gomega.HaveLen(2))
 
 	// Test ACLs.
@@ -719,8 +773,8 @@ func TestCombinedRulesWithResyncAndRemovedPod(t *testing.T) {
 		Deps: Deps{
 			Log:           logger,
 			Contiv:        contiv,
-			ACLTxnFactory: txnTracker.NewLinuxDataChangeTxn,
-			// TODO: resync txn factory
+			ResyncTxnFactory: resyncTxnFactory(txnTracker),
+			UpdateTxnFactory: updateTxnFactory(txnTracker),
 		},
 	}
 	aclRenderer.Init()
@@ -731,6 +785,7 @@ func TestCombinedRulesWithResyncAndRemovedPod(t *testing.T) {
 	txn.Render(Pod3, pod3Cfg.PodIP, pod3Cfg.Ingress, pod3Cfg.Egress, false)
 	err := txn.Commit()
 	gomega.Expect(err).To(gomega.BeNil())
+	gomega.Expect(commitTxn()).To(gomega.BeNil())
 	gomega.Expect(txnTracker.CommittedTxns).To(gomega.HaveLen(1))
 
 	// Simulate restart of ACL Renderer.
@@ -739,18 +794,18 @@ func TestCombinedRulesWithResyncAndRemovedPod(t *testing.T) {
 		Deps: Deps{
 			Log:           logger,
 			Contiv:        contiv,
-			ACLTxnFactory: txnTracker.NewLinuxDataChangeTxn,
+			ResyncTxnFactory: resyncTxnFactory(txnTracker),
+			UpdateTxnFactory: updateTxnFactory(txnTracker),
 		},
 	}
 	aclRenderer.Init()
-
-	aclEngine.ClearACLs() // TODO: remove once resync txn is supported
 
 	// Execute second Renderer transaction (from non-empty state; keep pod1 config & ***remove pod3***).
 	txn = aclRenderer.NewTxn(true)
 	txn.Render(Pod1, pod1Cfg.PodIP, pod1Cfg.Ingress, pod1Cfg.Egress, false)
 	err = txn.Commit()
 	gomega.Expect(err).To(gomega.BeNil())
+	gomega.Expect(commitTxn()).To(gomega.BeNil())
 	gomega.Expect(txnTracker.PendingTxns).To(gomega.HaveLen(0))
 	gomega.Expect(txnTracker.CommittedTxns).To(gomega.HaveLen(1))
 
@@ -801,14 +856,13 @@ func TestCombinedRulesWithResyncAndRemovedPod(t *testing.T) {
 
 	// Test run-time resync.
 
-	aclEngine.ClearACLs() // TODO: remove once resync txn is supported
-
 	// Re-sync back to the state after the first transaction.
 	txn = aclRenderer.NewTxn(true)
 	txn.Render(Pod1, pod1Cfg.PodIP, pod1Cfg.Ingress, pod1Cfg.Egress, false)
 	txn.Render(Pod3, pod3Cfg.PodIP, pod3Cfg.Ingress, pod3Cfg.Egress, false)
 	err = txn.Commit()
 	gomega.Expect(err).To(gomega.BeNil())
+	gomega.Expect(commitTxn()).To(gomega.BeNil())
 	gomega.Expect(txnTracker.CommittedTxns).To(gomega.HaveLen(2))
 
 	// Test ACLs.
@@ -896,7 +950,8 @@ func TestCombinedRulesWithRemovedPods(t *testing.T) {
 		Deps: Deps{
 			Log:           logger,
 			Contiv:        contiv,
-			ACLTxnFactory: txnTracker.NewLinuxDataChangeTxn,
+			ResyncTxnFactory: resyncTxnFactory(txnTracker),
+			UpdateTxnFactory: updateTxnFactory(txnTracker),
 		},
 	}
 	aclRenderer.Init()
@@ -907,6 +962,7 @@ func TestCombinedRulesWithRemovedPods(t *testing.T) {
 	txn.Render(Pod3, pod3Cfg.PodIP, pod3Cfg.Ingress, pod3Cfg.Egress, false)
 	err := txn.Commit()
 	gomega.Expect(err).To(gomega.BeNil())
+	gomega.Expect(commitTxn()).To(gomega.BeNil())
 	gomega.Expect(txnTracker.CommittedTxns).To(gomega.HaveLen(1))
 
 	// Execute second Renderer transaction (keep pod1 config & ***remove pod3***).
@@ -915,6 +971,7 @@ func TestCombinedRulesWithRemovedPods(t *testing.T) {
 	txn.Render(Pod3, pod3Cfg.PodIP, []*renderer.ContivRule{}, []*renderer.ContivRule{}, true)
 	err = txn.Commit()
 	gomega.Expect(err).To(gomega.BeNil())
+	gomega.Expect(commitTxn()).To(gomega.BeNil())
 	gomega.Expect(txnTracker.PendingTxns).To(gomega.HaveLen(0))
 	gomega.Expect(txnTracker.CommittedTxns).To(gomega.HaveLen(2))
 
@@ -968,6 +1025,7 @@ func TestCombinedRulesWithRemovedPods(t *testing.T) {
 	txn.Render(Pod1, pod1Cfg.PodIP, []*renderer.ContivRule{}, []*renderer.ContivRule{}, true)
 	err = txn.Commit()
 	gomega.Expect(err).To(gomega.BeNil())
+	gomega.Expect(commitTxn()).To(gomega.BeNil())
 	gomega.Expect(txnTracker.PendingTxns).To(gomega.HaveLen(0))
 	gomega.Expect(txnTracker.CommittedTxns).To(gomega.HaveLen(3))
 

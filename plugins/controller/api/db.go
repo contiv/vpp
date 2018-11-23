@@ -58,6 +58,14 @@ type DBResync struct {
 	ExternalConfig ExternalConfig
 }
 
+// NewDBResync is a constructor for DBResync
+func NewDBResync() *DBResync {
+	return &DBResync{
+		KubeState:      make(KubeStateData),
+		ExternalConfig: make(ExternalConfig),
+	}
+}
+
 // withName is implemented by Kubernetes resources that have a name.
 type withName interface {
 	// GetName is implemented by resources with Name.
@@ -142,6 +150,11 @@ func (ev *DBResync) Method() EventMethodType {
 	return Resync
 }
 
+// IsBlocking returns false.
+func (ev *DBResync) IsBlocking() bool {
+	return false
+}
+
 // Done is NOOP.
 func (ev *DBResync) Done(error) {
 	return
@@ -186,6 +199,11 @@ func (ev *KubeStateChange) TransactionType() UpdateTransactionType {
 // Direction is forward.
 func (ev *KubeStateChange) Direction() UpdateDirectionType {
 	return Forward
+}
+
+// IsBlocking returns false.
+func (ev *KubeStateChange) IsBlocking() bool {
+	return false
 }
 
 // Done is NOOP.
@@ -236,6 +254,11 @@ func (ev *ExternalConfigChange) TransactionType() UpdateTransactionType {
 // Direction is Forward.
 func (ev *ExternalConfigChange) Direction() UpdateDirectionType {
 	return Forward
+}
+
+// IsBlocking returns false.
+func (ev *ExternalConfigChange) IsBlocking() bool {
+	return false
 }
 
 // Done is NOOP.

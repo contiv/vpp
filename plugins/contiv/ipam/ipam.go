@@ -135,26 +135,22 @@ func (i *IPAM) Resync(kubeStateData controller.KubeStateData) (err error) {
 	i.assignedPodIPs = make(map[uintIP]podmodel.ID)
 
 	// iterate over pod state data
-	for resource, data := range kubeStateData {
-		if resource == podmodel.PodKeyword {
-			for _, podProto := range data {
-				pod := podProto.(*podmodel.Pod)
-				// ignore pods deployed on other nodes or without IP address
-				podIPAddress := net.ParseIP(pod.IpAddress)
-				if podIPAddress == nil || !i.podSubnetThisNode.Contains(podIPAddress) {
-					continue
-				}
+	for _, podProto:= range kubeStateData[podmodel.PodKeyword] {
+		pod := podProto.(*podmodel.Pod)
+		// ignore pods deployed on other nodes or without IP address
+		podIPAddress := net.ParseIP(pod.IpAddress)
+		if podIPAddress == nil || !i.podSubnetThisNode.Contains(podIPAddress) {
+			continue
+		}
 
-				// register address as already allocated
-				addrIndex, _ := ipv4ToUint32(podIPAddress)
-				podID := podmodel.ID{Name: pod.Name, Namespace: pod.Namespace}
-				i.assignedPodIPs[addrIndex] = podID
+		// register address as already allocated
+		addrIndex, _ := ipv4ToUint32(podIPAddress)
+		podID := podmodel.ID{Name: pod.Name, Namespace: pod.Namespace}
+		i.assignedPodIPs[addrIndex] = podID
 
-				diff := int(addrIndex - networkPrefix)
-				if i.lastPodIPAssigned < diff {
-					i.lastPodIPAssigned = diff
-				}
-			}
+		diff := int(addrIndex - networkPrefix)
+		if i.lastPodIPAssigned < diff {
+			i.lastPodIPAssigned = diff
 		}
 	}
 

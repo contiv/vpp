@@ -17,13 +17,10 @@
 package cache
 
 import (
-	"github.com/ligato/cn-infra/datasync"
-
+	controller "github.com/contiv/vpp/plugins/controller/api"
 	namespacemodel "github.com/contiv/vpp/plugins/ksr/model/namespace"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	policymodel "github.com/contiv/vpp/plugins/ksr/model/policy"
-
-	"github.com/ligato/cn-infra/logging"
 )
 
 // DataResyncEvent wraps an entire state of K8s that should be reflected into VPP.
@@ -42,75 +39,42 @@ func NewDataResyncEvent() *DataResyncEvent {
 	}
 }
 
-// resyncParseEvent parses K8s configuration RESYNC event for use by the Config Processor.
-func (pc *PolicyCache) resyncParseEvent(resyncEv datasync.ResyncEvent) *DataResyncEvent {
-	var numNs int
-	var numPolicy int
-	var numPod int
+// resyncParseEvent parses K8s configuration RESYNC event for use by PolicyCacheWatcher.
+func (pc *PolicyCache) resyncParseEvent(kubeStateData controller.KubeStateData) *DataResyncEvent {
+	var (
+		numNs int
+		numPolicy int
+		numPod int
+	)
 
 	event := NewDataResyncEvent()
+	pc.reset()
 
-	for key, resyncData := range resyncEv.GetValues() {
-		pc.Log.Debug("Received RESYNC key ", key)
-
-		for {
-			evData, stop := resyncData.GetNext()
-
-			if stop {
-				break
-			}
-			key := evData.GetKey()
-
-			// Parse policy RESYNC event
-			_, _, err := policymodel.ParsePolicyFromKey(key)
-			if err == nil {
-				value := &policymodel.Policy{}
-				err := evData.GetValue(value)
-				if err == nil {
-					event.Policies = append(event.Policies, value)
-					policyID := policymodel.GetID(value).String()
-					pc.configuredPolicies.RegisterPolicy(policyID, value)
-					numPolicy++
-				}
-				continue
-			}
-
-			// Parse pod RESYNC event
-			_, _, err = podmodel.ParsePodFromKey(key)
-			if err == nil {
-				value := &podmodel.Pod{}
-				err := evData.GetValue(value)
-				if err == nil {
-					event.Pods = append(event.Pods, value)
-					podID := podmodel.GetID(value).String()
-					pc.configuredPods.RegisterPod(podID, value)
-					numPod++
-				}
-				continue
-			}
-
-			// Parse namespace RESYNC event
-			_, err = namespacemodel.ParseNamespaceFromKey(key)
-			if err == nil {
-				value := &namespacemodel.Namespace{}
-				err = evData.GetValue(value)
-				if err == nil {
-					event.Namespaces = append(event.Namespaces, value)
-					namespaceID := namespacemodel.GetID(value).String()
-					pc.configuredNamespaces.RegisterNamespace(namespaceID, value)
-					numNs++
-				}
-				continue
-			}
-		}
+	// collect pods
+	for _, podProto:= range kubeStateData[podmodel.PodKeyword] {
+		pod := podProto.(*podmodel.Pod)
+		event.Pods = append(event.Pods, pod)
+		podID := podmodel.GetID(pod).String()
+		pc.configuredPods.RegisterPod(podID, pod)
+		numPod++
 	}
 
-	pc.Log.WithFields(logging.Fields{
-		"num-policies": numPolicy,
-		"num-pods":     numPod,
-		"num-ns":       numNs,
-	}).Debug("Parsed RESYNC event")
+	// collect namespaces
+	for _, nsProto:= range kubeStateData[namespacemodel.NamespaceKeyword] {
+		namespace := nsProto.(*namespacemodel.Namespace)
+		event.Namespaces = append(event.Namespaces, namespace)
+		namespaceID := namespacemodel.GetID(namespace).String()
+		pc.configuredNamespaces.RegisterNamespace(namespaceID, namespace)
+		numNs++
+	}
 
+	// collect policies
+	for _, policyProto:= range kubeStateData[policymodel.PolicyKeyword] {
+		policy := policyProto.(*policymodel.Policy)
+		event.Policies = append(event.Policies, policy)
+		policyID := policymodel.GetID(policy).String()
+		pc.configuredPolicies.RegisterPolicy(policyID, policy)
+		numPolicy++
+	}
 	return event
-
 }

@@ -40,7 +40,6 @@ import (
 	"github.com/contiv/vpp/plugins/contiv/model/cni"
 	"github.com/contiv/vpp/plugins/contiv/model/nodeinfo"
 	controller "github.com/contiv/vpp/plugins/controller/api"
-	txn_api "github.com/contiv/vpp/plugins/controller/txn"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 )
 
@@ -231,8 +230,8 @@ type remoteCNIserverArgs struct {
 	// node IDs
 	nodeID uint32
 
-	// transaction factory
-	txnFactory func() txn_api.Transaction
+	// transaction factory - TODO: remove once all events are implemented
+	txnFactory func() controller.Transaction
 
 	// dumping of physical interfaces
 	physicalIfsDump PhysicalIfacesDumpClb
@@ -1012,33 +1011,29 @@ func (s *remoteCNIserver) podStateResync(kubeStateData controller.KubeStateData)
 	s.podByVPPIfName = make(map[string]*Pod)
 
 	// iterate over state data of all locally deployed pods
-	for resource, data := range kubeStateData {
-		if resource == podmodel.PodKeyword {
-			for _, podProto := range data {
-				podData := podProto.(*podmodel.Pod)
-				// ignore pods deployed on other nodes or without IP address
-				podIPAddress := net.ParseIP(podData.IpAddress)
-				if podIPAddress == nil || !s.ipam.PodSubnetThisNode().Contains(podIPAddress) {
-					continue
-				}
-
-				// ignore pods which are not actually running
-				podID := podmodel.ID{Name: podData.Name, Namespace: podData.Namespace}
-				pod, isRunning := runningPods[podID]
-				if !isRunning {
-					s.Logger.Warnf("Pod %v is not in the RUNNING state, skipping.", podID)
-					continue
-				}
-
-				// fill the pod parameters not provided by listRunningPods
-				pod.VPPIfName, pod.LinuxIfName = s.podInterfaceName(pod)
-				pod.IPAddress = podIPAddress
-
-				// store pod configuration
-				s.podByID[pod.ID] = pod
-				s.podByVPPIfName[pod.VPPIfName] = pod
-			}
+	for _, podProto := range kubeStateData[podmodel.PodKeyword] {
+		podData := podProto.(*podmodel.Pod)
+		// ignore pods deployed on other nodes or without IP address
+		podIPAddress := net.ParseIP(podData.IpAddress)
+		if podIPAddress == nil || !s.ipam.PodSubnetThisNode().Contains(podIPAddress) {
+			continue
 		}
+
+		// ignore pods which are not actually running
+		podID := podmodel.ID{Name: podData.Name, Namespace: podData.Namespace}
+		pod, isRunning := runningPods[podID]
+		if !isRunning {
+			s.Logger.Warnf("Pod %v is not in the RUNNING state, skipping.", podID)
+			continue
+		}
+
+		// fill the pod parameters not provided by listRunningPods
+		pod.VPPIfName, pod.LinuxIfName = s.podInterfaceName(pod)
+		pod.IPAddress = podIPAddress
+
+		// store pod configuration
+		s.podByID[pod.ID] = pod
+		s.podByVPPIfName[pod.VPPIfName] = pod
 	}
 
 	return nil

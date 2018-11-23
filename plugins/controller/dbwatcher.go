@@ -32,7 +32,6 @@ import (
 	"github.com/contiv/vpp/plugins/controller/api"
 	"github.com/contiv/vpp/plugins/dbresources"
 	"github.com/contiv/vpp/plugins/ksr"
-	"github.com/hashicorp/consul/command/event"
 )
 
 const (
@@ -532,10 +531,7 @@ func (w *dbWatcher) close() {
 // Broker should not be prefixed.
 func LoadKubeStateForResync(broker keyval.ProtoBroker, log logging.Logger) (event *api.DBResync, values map[string]datasync.KeyVal, err error) {
 	// init output arguments
-	event = &api.DBResync{
-		KubeState:      make(api.KubeStateData),
-		ExternalConfig: make(api.ExternalConfig),
-	}
+	event = api.NewDBResync()
 	values = make(map[string]datasync.KeyVal)
 
 	// load values resource by resource

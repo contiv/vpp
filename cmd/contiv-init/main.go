@@ -375,7 +375,7 @@ func prepareForLocalResync() error {
 		id, err := nodeIDAllocator.GetOrAllocateNodeID()
 		if err == nil {
 			// update kube state to handle newly allocated ID
-			kubeState[nodeinfo.Keyword][nodeinfo.Key(id, false)] = &nodeinfo.NodeInfo{
+			kubeState[nodeinfo.Keyword][nodeinfo.Key(id)] = &nodeinfo.NodeInfo{
 				Id:   id,
 				Name: nodeName,
 				// IP addresses will be updated in Bolt later by the agent

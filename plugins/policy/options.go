@@ -15,7 +15,6 @@
 package policy
 
 import (
-	"github.com/ligato/cn-infra/datasync/resync"
 	"github.com/ligato/cn-infra/logging"
 )
 
@@ -24,7 +23,6 @@ func NewPlugin(opts ...Option) *Plugin {
 	p := &Plugin{}
 
 	p.PluginName = "policy"
-	p.Resync = &resync.DefaultPlugin
 
 	for _, o := range opts {
 		o(p)

@@ -189,7 +189,7 @@ func (ia *nodeIDAllocator) ReleaseID() error {
 	}
 
 	broker := ia.newBroker()
-	_, err := broker.Delete(nodeinfo.Key(ia.nodeID, false))
+	_, err := broker.Delete(nodeinfo.Key(ia.nodeID))
 	if err == nil {
 		ia.allocated = false
 	}
@@ -249,7 +249,7 @@ func (ia *nodeIDAllocator) updateDBEntry(newIP *net.IPNet, newManagementIP strin
 		ManagementIpAddress: ia.nodeMgmtIP,
 	}
 	broker := ia.newBroker()
-	return broker.Put(nodeinfo.Key(ia.nodeID, false), value)
+	return broker.Put(nodeinfo.Key(ia.nodeID), value)
 }
 
 // writeIfNotExists tries to allocate given ID for this node.
@@ -264,7 +264,8 @@ func (ia *nodeIDAllocator) writeIfNotExists(id uint32) (succeeded bool, err erro
 	if err != nil {
 		return false, err
 	}
-	return ia.db.PutIfNotExists(nodeinfo.Key(id, true), encoded)
+	ksrPrefix := servicelabel.GetDifferentAgentPrefix(ksr.MicroserviceLabel)
+	return ia.db.PutIfNotExists(ksrPrefix + nodeinfo.Key(id), encoded)
 }
 
 // onDBConnect is triggered once connection to DB is available.

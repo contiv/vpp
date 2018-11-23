@@ -15,7 +15,7 @@ import (
 	mockcontroller "github.com/contiv/vpp/mock/localclient/controller"
 	mocklinux "github.com/contiv/vpp/mock/localclient/dsl/linux"
 	mockvpp "github.com/contiv/vpp/mock/localclient/dsl/vpp"
-	controller_txn "github.com/contiv/vpp/plugins/controller/txn"
+	controller "github.com/contiv/vpp/plugins/controller/api"
 )
 
 // TxnTracker tracks all transactions executed or pending in the mock localclient.
@@ -127,24 +127,25 @@ func (t *TxnTracker) applyDataResyncTxnOps(values map[string]proto.Message) {
 
 // NewControllerTxn is a factory for Controller's transaction.
 // It also implements adapter between localclient and Controller transactions.
-func (t *TxnTracker) NewControllerTxn() controller_txn.Transaction {
+func (t *TxnTracker) NewControllerTxn(isResync bool) controller.Transaction {
 	txn := &Txn{}
+	if isResync {
+		dsl := mocklinux.NewMockDataResyncDSL(nil)
+		txn.LinuxDataResyncTxn = dsl
+	} else {
+		dsl := mocklinux.NewMockDataChangeDSL(nil)
+		txn.LinuxDataChangeTxn = dsl
+	}
 	controllerTxn := mockcontroller.NewMockControllerTxn(
-		func(values map[string]proto.Message, isResync bool) error {
+		func(values map[string]proto.Message) error {
 			// convert Controller txn into localclient txn
 			if isResync {
-				dsl := mocklinux.NewMockDataResyncDSL(nil)
-				dsl.Values = values
-				txn.LinuxDataResyncTxn = dsl
+				txn.LinuxDataResyncTxn.Values = values
 				return t.commit(txn, t.applyDataResyncTxnOps, values)
 			}
-			dsl := mocklinux.NewMockDataChangeDSL(nil)
-			dsl.Values = values
-			txn.LinuxDataChangeTxn = dsl
+			txn.LinuxDataChangeTxn.Values = values
 			return t.commit(txn, t.applyDataChangeTxnOps, values)
 		})
-	// leaving txn empty as it is not possible to tell whether the transaction
-	// is data change or resync before the commit
 	t.PendingTxns[txn] = struct{}{}
 	return controllerTxn
 }

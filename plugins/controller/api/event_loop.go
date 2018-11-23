@@ -34,6 +34,10 @@ type Event interface {
 	// change).
 	Method() EventMethodType
 
+	// IsBlocking should return true if any producer of this event ever waits
+	// for the event result (sent using the method Done()).
+	IsBlocking() bool
+
 	// Done is used to mark the event as processed.
 	// A specific Event implementation may use this method for example to deliver
 	// the return value back to the send of the event.

@@ -30,9 +30,6 @@ import (
 	"github.com/vishvananda/netlink"
 	"google.golang.org/grpc"
 
-	"github.com/ligato/cn-infra/datasync"
-	"github.com/ligato/cn-infra/datasync/resync"
-	"github.com/ligato/cn-infra/db/keyval"
 	"github.com/ligato/cn-infra/db/keyval/etcd"
 	"github.com/ligato/cn-infra/infra"
 	grpcplugin "github.com/ligato/cn-infra/rpc/grpc"
@@ -50,7 +47,7 @@ import (
 	"github.com/contiv/vpp/plugins/contiv/model/cni"
 	"github.com/contiv/vpp/plugins/contiv/model/nodeinfo"
 	controller "github.com/contiv/vpp/plugins/controller/api"
-	txn_api "github.com/contiv/vpp/plugins/controller/txn"
+	tmp_txn "github.com/contiv/vpp/plugins/controller/txn"
 	"github.com/contiv/vpp/plugins/ksr/model/node"
 	nodeconfig "github.com/contiv/vpp/plugins/crd/handler/nodeconfig/model"
 )
@@ -86,16 +83,13 @@ type Deps struct {
 	GRPC         grpcplugin.Server
 	VPPIfPlugin  vpp_ifplugin.API
 	GoVPP        govppmux.API
-	Resync       *resync.Plugin
 	ETCD         *etcd.Plugin
-	Bolt         keyval.KvProtoPlugin
-	Watcher      datasync.KeyValProtoWatcher
 	HTTPHandlers rest.HTTPHandlers
 }
 
 /********************************** Events ************************************/
 
-// Init does very little. Full initialization is trigger by the first resync.
+// Init does very little. Full initialization is triggered by the first resync.
 func (p *Plugin) Init() error {
 	// load config file
 	p.ctx, p.ctxCancelFunc = context.WithCancel(context.Background())
@@ -134,7 +128,7 @@ func (p *Plugin) HandlesEvent(event controller.Event) bool {
 		switch ksChange.Resource {
 		case nodeinfo.Keyword:
 			// only interested in NodeInfo of other nodes
-			return ksChange.Key != nodeinfo.Key(p.nodeID, false)
+			return ksChange.Key != nodeinfo.Key(p.nodeID)
 		case nodeconfig.Keyword:
 			// only interested in NodeConfig for this node
 			return ksChange.Key == nodeconfig.Key(p.ServiceLabel.GetAgentLabel())
@@ -178,8 +172,8 @@ func (p *Plugin) Resync(event controller.Event, txn controller.ResyncOperations,
 			&remoteCNIserverArgs{
 				Logger: p.Log,
 				nodeID: p.nodeID,
-				txnFactory: func() txn_api.Transaction {
-					return txn_api.NewTransaction(p.KVScheduler)
+				txnFactory: func() controller.Transaction {
+					return tmp_txn.NewTransaction(p.KVScheduler)
 				},
 				physicalIfsDump:             p.dumpPhysicalInterfaces,
 				getStolenInterfaceInfo:      p.getStolenInterfaceInfo,
@@ -216,10 +210,7 @@ func (p *Plugin) Resync(event controller.Event, txn controller.ResyncOperations,
 	return err
 }
 
-// Update is called by Controller to handle event that can be reacted to by
-// an incremental change.
-// <changeDescription> should be human-readable description of changes that
-// have to be performed (via txn or internally) - can be empty.
+// Update is called for KubeStateChange.
 func (p *Plugin) Update(event controller.Event, txn controller.UpdateOperations) (changeDescription string, err error) {
 	kubeStateChange := event.(*controller.KubeStateChange)
 

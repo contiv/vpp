@@ -49,6 +49,7 @@ import (
 
 	"github.com/contiv/vpp/plugins/contiv"
 	"github.com/contiv/vpp/plugins/controller"
+	controller_api "github.com/contiv/vpp/plugins/controller/api"
 	"github.com/contiv/vpp/plugins/ksr"
 	"github.com/contiv/vpp/plugins/policy"
 	"github.com/contiv/vpp/plugins/service"
@@ -148,27 +149,29 @@ func main() {
 	grpc.DefaultPlugin.HTTP = &rest.DefaultPlugin
 
 	// initialize Contiv plugins
-	controller := controller.NewPlugin(controller.UseDeps(func(deps *controller.Deps) {
-		deps.LocalDB = &bolt.DefaultPlugin
-		deps.RemoteDB = &etcd.DefaultPlugin
-		// TODO event handlers
-	}))
-
 	contivPlugin := contiv.NewPlugin(contiv.UseDeps(func(deps *contiv.Deps) {
 		deps.VPPIfPlugin = &vpp_ifplugin.DefaultPlugin
-		deps.Watcher = contivDataSync
 	}))
 
 	statscollector.DefaultPlugin.Contiv = contivPlugin
 
 	policyPlugin := policy.NewPlugin(policy.UseDeps(func(deps *policy.Deps) {
-		deps.Watcher = policyDataSync
 		deps.Contiv = contivPlugin
 	}))
 
 	servicePlugin := service.NewPlugin(service.UseDeps(func(deps *service.Deps) {
 		deps.Watcher = serviceDataSync
 		deps.Contiv = contivPlugin
+	}))
+
+	controller := controller.NewPlugin(controller.UseDeps(func(deps *controller.Deps) {
+		deps.LocalDB = &bolt.DefaultPlugin
+		deps.RemoteDB = &etcd.DefaultPlugin
+		deps.EventHandlers = []controller_api.EventHandler{
+			contivPlugin,
+			policyPlugin,
+			//servicePlugin,
+		}
 	}))
 
 	// initialize the agent

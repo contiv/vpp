@@ -30,14 +30,10 @@ import (
 
 // thisNodeResync publishes update of this node IPs for other nodes based on resync data.
 func (p *Plugin) thisNodeResync(kubeStateData controller.KubeStateData, txn controller.ResyncOperations) error {
-	for resource, data := range kubeStateData {
-		if resource == nodemodel.NodeKeyword {
-			for _, value := range data {
-				node := value.(*nodemodel.Node)
-				if node.GetName() == p.ServiceLabel.GetAgentLabel() {
-					return p.updateThisNodeMgmtIPs(node)
-				}
-			}
+	for _, value := range kubeStateData[nodemodel.NodeKeyword] {
+		node := value.(*nodemodel.Node)
+		if node.GetName() == p.ServiceLabel.GetAgentLabel() {
+			return p.updateThisNodeMgmtIPs(node)
 		}
 	}
 	return nil
@@ -78,37 +74,32 @@ func (s *remoteCNIserver) otherNodesResync(kubeStateData controller.KubeStateDat
 	s.otherNodes = make(map[uint32]*nodeinfo.NodeInfo)
 
 	// collect other node IDs and configuration for connectivity with each of them
-	// iterate over pod state data
-	for resource, data := range kubeStateData {
-		if resource == nodeinfo.Keyword {
-			for _, nodeInfoProto := range data {
-				nodeInfo := nodeInfoProto.(*nodeinfo.NodeInfo)
-				nodeID := nodeInfo.Id
+	for _, nodeInfoProto := range kubeStateData[nodeinfo.Keyword ] {
+		nodeInfo := nodeInfoProto.(*nodeinfo.NodeInfo)
+		nodeID := nodeInfo.Id
 
-				// ignore for this node
-				if nodeID == s.nodeID {
-					continue
-				}
+		// ignore for this node
+		if nodeID == s.nodeID {
+			continue
+		}
 
-				// collect configuration for node connectivity
-				if nodeHasIPAddress(nodeInfo) {
-					// add node info into the internal map
-					s.otherNodes[nodeID] = nodeInfo
-					// generate configuration
-					nodeConnectConfig, err := s.nodeConnectivityConfig(nodeInfo)
-					if err != nil {
-						// treat as warning
-						s.Logger.Warnf("Failed to configure connectivity to node ID=%d: %v",
-							nodeInfo.Id, err)
-						continue
-					}
-					for key, value := range nodeConnectConfig {
-						txn.Put(key, value)
-					}
-				} else {
-					s.Logger.Infof("Ip address or management IP of node %v is not known yet.", nodeID)
-				}
+		// collect configuration for node connectivity
+		if nodeHasIPAddress(nodeInfo) {
+			// add node info into the internal map
+			s.otherNodes[nodeID] = nodeInfo
+			// generate configuration
+			nodeConnectConfig, err := s.nodeConnectivityConfig(nodeInfo)
+			if err != nil {
+				// treat as warning
+				s.Logger.Warnf("Failed to configure connectivity to node ID=%d: %v",
+					nodeInfo.Id, err)
+				continue
 			}
+			for key, value := range nodeConnectConfig {
+				txn.Put(key, value)
+			}
+		} else {
+			s.Logger.Infof("Ip address or management IP of node %v is not known yet.", nodeID)
 		}
 	}
 

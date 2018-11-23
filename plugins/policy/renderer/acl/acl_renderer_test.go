@@ -17,14 +17,14 @@
 package acl
 
 import (
+	"context"
 	"github.com/onsi/gomega"
 	"testing"
-	"context"
 
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/logging/logrus"
-	vpp_acl "github.com/ligato/vpp-agent/plugins/vppv2/model/acl"
 	scheduler "github.com/ligato/vpp-agent/plugins/kvscheduler/api"
+	vpp_acl "github.com/ligato/vpp-agent/plugins/vppv2/model/acl"
 
 	. "github.com/contiv/vpp/mock/aclengine"
 	. "github.com/contiv/vpp/mock/contiv"
@@ -48,9 +48,10 @@ const (
 	somePort2  = 600       /* some port number to use as the source port */
 )
 
+// ongoing transaction
 var (
 	isResync bool
-	vppTxn  controller.Transaction
+	vppTxn   controller.Transaction
 )
 
 func commitTxn() error {
@@ -65,6 +66,9 @@ func commitTxn() error {
 
 func resyncTxnFactory(txnTracker *localclient.TxnTracker) func() controller.ResyncOperations {
 	return func() controller.ResyncOperations {
+		if vppTxn != nil {
+			return vppTxn
+		}
 		vppTxn = txnTracker.NewControllerTxn(true)
 		isResync = true
 		return vppTxn
@@ -73,6 +77,9 @@ func resyncTxnFactory(txnTracker *localclient.TxnTracker) func() controller.Resy
 
 func updateTxnFactory(txnTracker *localclient.TxnTracker) func() controller.UpdateOperations {
 	return func() controller.UpdateOperations {
+		if vppTxn != nil {
+			return vppTxn
+		}
 		vppTxn = txnTracker.NewControllerTxn(false)
 		isResync = false
 		return vppTxn
@@ -240,8 +247,8 @@ func TestIngressRulesOnePod(t *testing.T) {
 	// Prepare ACL Renderer.
 	aclRenderer := &Renderer{
 		Deps: Deps{
-			Log:           logger,
-			Contiv:        contiv,
+			Log:              logger,
+			Contiv:           contiv,
 			ResyncTxnFactory: resyncTxnFactory(txnTracker),
 			UpdateTxnFactory: updateTxnFactory(txnTracker),
 		},
@@ -319,8 +326,8 @@ func TestEgressRulesTwoPods(t *testing.T) {
 	// Prepare ACL Renderer.
 	aclRenderer := &Renderer{
 		Deps: Deps{
-			Log:           logger,
-			Contiv:        contiv,
+			Log:              logger,
+			Contiv:           contiv,
 			ResyncTxnFactory: resyncTxnFactory(txnTracker),
 			UpdateTxnFactory: updateTxnFactory(txnTracker),
 		},
@@ -431,8 +438,8 @@ func TestCombinedRules(t *testing.T) {
 	// Prepare ACL Renderer.
 	aclRenderer := &Renderer{
 		Deps: Deps{
-			Log:           logger,
-			Contiv:        contiv,
+			Log:              logger,
+			Contiv:           contiv,
 			ResyncTxnFactory: resyncTxnFactory(txnTracker),
 			UpdateTxnFactory: updateTxnFactory(txnTracker),
 		},
@@ -587,8 +594,8 @@ func TestCombinedRulesWithResync(t *testing.T) {
 	// Prepare ACL Renderer.
 	aclRenderer := &Renderer{
 		Deps: Deps{
-			Log:           logger,
-			Contiv:        contiv,
+			Log:              logger,
+			Contiv:           contiv,
 			ResyncTxnFactory: resyncTxnFactory(txnTracker),
 			UpdateTxnFactory: updateTxnFactory(txnTracker),
 		},
@@ -608,8 +615,8 @@ func TestCombinedRulesWithResync(t *testing.T) {
 	txnTracker = localclient.NewTxnTracker(aclEngine.ApplyTxn)
 	aclRenderer = &Renderer{
 		Deps: Deps{
-			Log:           logger,
-			Contiv:        contiv,
+			Log:    logger,
+			Contiv: contiv,
 			ResyncTxnFactory: func() controller.ResyncOperations {
 				vppTxn = txnTracker.NewControllerTxn(true)
 				isResync = true
@@ -771,8 +778,8 @@ func TestCombinedRulesWithResyncAndRemovedPod(t *testing.T) {
 	// Prepare ACL Renderer.
 	aclRenderer := &Renderer{
 		Deps: Deps{
-			Log:           logger,
-			Contiv:        contiv,
+			Log:              logger,
+			Contiv:           contiv,
 			ResyncTxnFactory: resyncTxnFactory(txnTracker),
 			UpdateTxnFactory: updateTxnFactory(txnTracker),
 		},
@@ -792,8 +799,8 @@ func TestCombinedRulesWithResyncAndRemovedPod(t *testing.T) {
 	txnTracker = localclient.NewTxnTracker(aclEngine.ApplyTxn)
 	aclRenderer = &Renderer{
 		Deps: Deps{
-			Log:           logger,
-			Contiv:        contiv,
+			Log:              logger,
+			Contiv:           contiv,
 			ResyncTxnFactory: resyncTxnFactory(txnTracker),
 			UpdateTxnFactory: updateTxnFactory(txnTracker),
 		},
@@ -948,8 +955,8 @@ func TestCombinedRulesWithRemovedPods(t *testing.T) {
 	// Prepare ACL Renderer.
 	aclRenderer := &Renderer{
 		Deps: Deps{
-			Log:           logger,
-			Contiv:        contiv,
+			Log:              logger,
+			Contiv:           contiv,
 			ResyncTxnFactory: resyncTxnFactory(txnTracker),
 			UpdateTxnFactory: updateTxnFactory(txnTracker),
 		},

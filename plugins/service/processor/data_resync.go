@@ -18,12 +18,9 @@ package processor
 
 import (
 	"fmt"
-	"strings"
-
-	"github.com/ligato/cn-infra/datasync"
-	"github.com/ligato/cn-infra/logging"
 
 	"github.com/contiv/vpp/plugins/contiv/model/nodeinfo"
+	controller "github.com/contiv/vpp/plugins/controller/api"
 	epmodel "github.com/contiv/vpp/plugins/ksr/model/endpoints"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	svcmodel "github.com/contiv/vpp/plugins/ksr/model/service"
@@ -75,84 +72,31 @@ func (red ResyncEventData) String() string {
 		red.Nodes, pods, endpoints, services)
 }
 
-func (sc *ServiceProcessor) parseResyncEv(resyncEv datasync.ResyncEvent) *ResyncEventData {
-	var (
-		numNodes int
-		numPod   int
-		numEps   int
-		numSvc   int
-		err      error
-	)
-
+func (sc *ServiceProcessor) parseResyncEv(kubeStateData controller.KubeStateData) *ResyncEventData {
 	event := NewResyncEventData()
 
-	for key, resyncData := range resyncEv.GetValues() {
-		sc.Log.Debug("Received RESYNC key ", key)
-
-		for {
-			evData, stop := resyncData.GetNext()
-
-			if stop {
-				break
-			}
-			key := evData.GetKey()
-			sc.k8sStateData[key] = evData
-
-			// Parse node RESYNC event
-			if strings.HasPrefix(key, nodeinfo.AllocatedIDsKeyPrefix) {
-				value := &nodeinfo.NodeInfo{}
-				err := evData.GetValue(value)
-				if err == nil {
-					event.Nodes[int(value.Id)] = value
-					numNodes++
-				}
-				continue
-			}
-
-			// Parse pod RESYNC event
-			_, _, err = podmodel.ParsePodFromKey(key)
-			if err == nil {
-				value := &podmodel.Pod{}
-				err := evData.GetValue(value)
-				if err == nil {
-					event.Pods = append(event.Pods, value)
-					numPod++
-				}
-				continue
-			}
-
-			// Parse endpoints RESYNC event
-			_, _, err = epmodel.ParseEndpointsFromKey(key)
-			if err == nil {
-				value := &epmodel.Endpoints{}
-				err := evData.GetValue(value)
-				if err == nil {
-					event.Endpoints = append(event.Endpoints, value)
-					numEps++
-				}
-				continue
-			}
-
-			// Parse service RESYNC event
-			_, _, err = svcmodel.ParseServiceFromKey(key)
-			if err == nil {
-				value := &svcmodel.Service{}
-				err := evData.GetValue(value)
-				if err == nil {
-					event.Services = append(event.Services, value)
-					numSvc++
-				}
-				continue
-			}
-		}
+	// collect pods
+	for _, podProto := range kubeStateData[podmodel.PodKeyword] {
+		pod := podProto.(*podmodel.Pod)
+		event.Pods = append(event.Pods, pod)
 	}
 
-	sc.Log.WithFields(logging.Fields{
-		"num-nodes":     numNodes,
-		"num-pods":      numPod,
-		"num-endpoints": numEps,
-		"num-services":  numSvc,
-	}).Debug("Parsed RESYNC event")
+	// collect node info
+	for _, nodeInfoProto := range kubeStateData[nodeinfo.Keyword] {
+		nodeInfo := nodeInfoProto.(*nodeinfo.NodeInfo)
+		event.Nodes[int(nodeInfo.Id)] = nodeInfo
+	}
 
+	// collect endpoints
+	for _, epProto := range kubeStateData[epmodel.EndpointsKeyword] {
+		endpoints := epProto.(*epmodel.Endpoints)
+		event.Endpoints = append(event.Endpoints, endpoints)
+	}
+
+	// collect services
+	for _, svcProto := range kubeStateData[svcmodel.ServiceKeyword] {
+		service := svcProto.(*svcmodel.Service)
+		event.Services = append(event.Services, service)
+	}
 	return event
 }

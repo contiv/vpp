@@ -41,40 +41,31 @@ func NewDataResyncEvent() *DataResyncEvent {
 
 // resyncParseEvent parses K8s configuration RESYNC event for use by PolicyCacheWatcher.
 func (pc *PolicyCache) resyncParseEvent(kubeStateData controller.KubeStateData) *DataResyncEvent {
-	var (
-		numNs int
-		numPolicy int
-		numPod int
-	)
-
 	event := NewDataResyncEvent()
 	pc.reset()
 
 	// collect pods
-	for _, podProto:= range kubeStateData[podmodel.PodKeyword] {
+	for _, podProto := range kubeStateData[podmodel.PodKeyword] {
 		pod := podProto.(*podmodel.Pod)
 		event.Pods = append(event.Pods, pod)
 		podID := podmodel.GetID(pod).String()
 		pc.configuredPods.RegisterPod(podID, pod)
-		numPod++
 	}
 
 	// collect namespaces
-	for _, nsProto:= range kubeStateData[namespacemodel.NamespaceKeyword] {
+	for _, nsProto := range kubeStateData[namespacemodel.NamespaceKeyword] {
 		namespace := nsProto.(*namespacemodel.Namespace)
 		event.Namespaces = append(event.Namespaces, namespace)
 		namespaceID := namespacemodel.GetID(namespace).String()
 		pc.configuredNamespaces.RegisterNamespace(namespaceID, namespace)
-		numNs++
 	}
 
 	// collect policies
-	for _, policyProto:= range kubeStateData[policymodel.PolicyKeyword] {
+	for _, policyProto := range kubeStateData[policymodel.PolicyKeyword] {
 		policy := policyProto.(*policymodel.Policy)
 		event.Policies = append(event.Policies, policy)
 		policyID := policymodel.GetID(policy).String()
 		pc.configuredPolicies.RegisterPolicy(policyID, policy)
-		numPolicy++
 	}
 	return event
 }

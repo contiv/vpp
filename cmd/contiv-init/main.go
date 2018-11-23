@@ -36,13 +36,13 @@ import (
 
 	"github.com/contiv/vpp/cmd/contiv-stn/model/stn"
 	"github.com/contiv/vpp/plugins/contiv"
+	"github.com/contiv/vpp/plugins/contiv/model/nodeinfo"
 	"github.com/contiv/vpp/plugins/controller"
 	"github.com/ligato/cn-infra/config"
 	"github.com/ligato/cn-infra/db/keyval"
 	"github.com/ligato/cn-infra/db/keyval/bolt"
 	"github.com/ligato/cn-infra/db/keyval/etcd"
 	"github.com/ligato/cn-infra/db/keyval/kvproto"
-	"github.com/contiv/vpp/plugins/contiv/model/nodeinfo"
 )
 
 const (
@@ -341,7 +341,7 @@ func boltOpen() (protoDb *kvproto.ProtoWrapper, err error) {
 func prepareForLocalResync() error {
 	var (
 		withEtcd bool
-		err error
+		err      error
 	)
 	nodeName := os.Getenv(servicelabel.MicroserviceLabelEnvVar)
 

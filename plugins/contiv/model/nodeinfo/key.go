@@ -30,4 +30,3 @@ const AllocatedIDsKeyPrefix = "allocatedIDs/"
 func Key(index uint32) string {
 	return AllocatedIDsKeyPrefix + strconv.FormatUint(uint64(index), 10)
 }
-

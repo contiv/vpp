@@ -135,7 +135,7 @@ func (i *IPAM) Resync(kubeStateData controller.KubeStateData) (err error) {
 	i.assignedPodIPs = make(map[uintIP]podmodel.ID)
 
 	// iterate over pod state data
-	for _, podProto:= range kubeStateData[podmodel.PodKeyword] {
+	for _, podProto := range kubeStateData[podmodel.PodKeyword] {
 		pod := podProto.(*podmodel.Pod)
 		// ignore pods deployed on other nodes or without IP address
 		podIPAddress := net.ParseIP(pod.IpAddress)

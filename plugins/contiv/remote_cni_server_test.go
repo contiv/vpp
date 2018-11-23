@@ -28,18 +28,18 @@ import (
 	idxmap_mem "github.com/ligato/cn-infra/idxmap/mem"
 	"github.com/ligato/cn-infra/logging/logrus"
 
-	"github.com/ligato/vpp-agent/plugins/vppv2/model/interfaces"
 	scheduler "github.com/ligato/vpp-agent/plugins/kvscheduler/api"
+	"github.com/ligato/vpp-agent/plugins/vppv2/model/interfaces"
 
 	. "github.com/contiv/vpp/mock/datasync"
 	. "github.com/contiv/vpp/mock/dockerclient"
 	"github.com/contiv/vpp/mock/localclient"
 
 	stn_grpc "github.com/contiv/vpp/cmd/contiv-stn/model/stn"
-	controller "github.com/contiv/vpp/plugins/controller/api"
 	"github.com/contiv/vpp/plugins/contiv/ipam"
 	"github.com/contiv/vpp/plugins/contiv/model/cni"
 	"github.com/contiv/vpp/plugins/contiv/model/nodeinfo"
+	controller "github.com/contiv/vpp/plugins/controller/api"
 	nodeconfig "github.com/contiv/vpp/plugins/crd/pkg/apis/nodeconfig/v1"
 	k8sPod "github.com/contiv/vpp/plugins/ksr/model/pod"
 )
@@ -162,8 +162,8 @@ func TestBasicStuff(t *testing.T) {
 
 	// Remote CNI Server init
 	args := &remoteCNIserverArgs{
-		Logger:     logrus.DefaultLogger(),
-		nodeID:     node1ID,
+		Logger: logrus.DefaultLogger(),
+		nodeID: node1ID,
 		txnFactory: func() controller.Transaction {
 			return txnTracker.NewControllerTxn(false)
 		},

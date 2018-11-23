@@ -74,7 +74,7 @@ func (s *remoteCNIserver) otherNodesResync(kubeStateData controller.KubeStateDat
 	s.otherNodes = make(map[uint32]*nodeinfo.NodeInfo)
 
 	// collect other node IDs and configuration for connectivity with each of them
-	for _, nodeInfoProto := range kubeStateData[nodeinfo.Keyword ] {
+	for _, nodeInfoProto := range kubeStateData[nodeinfo.Keyword] {
 		nodeInfo := nodeInfoProto.(*nodeinfo.NodeInfo)
 		nodeID := nodeInfo.Id
 

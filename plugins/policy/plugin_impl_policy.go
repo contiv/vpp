@@ -19,13 +19,13 @@ import (
 
 	"github.com/contiv/vpp/plugins/contiv"
 	controller "github.com/contiv/vpp/plugins/controller/api"
+	"github.com/contiv/vpp/plugins/ksr/model/namespace"
+	"github.com/contiv/vpp/plugins/ksr/model/pod"
+	"github.com/contiv/vpp/plugins/ksr/model/policy"
 	"github.com/contiv/vpp/plugins/policy/cache"
 	"github.com/contiv/vpp/plugins/policy/configurator"
 	"github.com/contiv/vpp/plugins/policy/processor"
 	"github.com/contiv/vpp/plugins/policy/renderer/acl"
-	"github.com/contiv/vpp/plugins/ksr/model/namespace"
-	"github.com/contiv/vpp/plugins/ksr/model/pod"
-	"github.com/contiv/vpp/plugins/ksr/model/policy"
 )
 
 // Plugin watches configuration of K8s resources (as reflected by KSR into ETCD)
@@ -35,8 +35,9 @@ type Plugin struct {
 	Deps
 
 	// ongoing transaction
-	resyncTxn controller.ResyncOperations
-	updateTxn controller.UpdateOperations
+	resyncTxn  controller.ResyncOperations
+	updateTxn  controller.UpdateOperations
+	withChange bool
 
 	// Policy Plugin consists of multiple layers.
 	// The plugin itself is layer 1.
@@ -59,7 +60,7 @@ type Plugin struct {
 // Deps defines dependencies of policy plugin.
 type Deps struct {
 	infra.PluginDeps
-	Contiv contiv.API  /* for GetIfName() */
+	Contiv contiv.API /* for GetIfName() */
 
 	// Note: L4 was removed from Contiv but may be re-added in the future
 	// GoVPP   govppmux.API  /* for VPPTCP Renderer */
@@ -97,6 +98,7 @@ func (p *Plugin) Init() error {
 			LogFactory: p.Log,
 			Contiv:     p.Contiv,
 			UpdateTxnFactory: func() controller.UpdateOperations {
+				p.withChange = true
 				return p.updateTxn
 			},
 			ResyncTxnFactory: func() controller.ResyncOperations {
@@ -172,11 +174,21 @@ func (p *Plugin) Resync(event controller.Event, txn controller.ResyncOperations,
 func (p *Plugin) Update(event controller.Event, txn controller.UpdateOperations) (changeDescription string, err error) {
 	p.resyncTxn = nil
 	p.updateTxn = txn
+	p.withChange = false
 	kubeStateChange := event.(*controller.KubeStateChange)
-	return "refresh policies", p.policyCache.Update(kubeStateChange)
+	err = p.policyCache.Update(kubeStateChange)
+	if p.withChange {
+		changeDescription = "refresh policies"
+	}
+	return changeDescription, err
 }
 
 // Revert does nothing here - plugin handles only BestEffort events.
 func (p *Plugin) Revert(event controller.Event) error {
+	return nil
+}
+
+// Close is NOOP.
+func (p *Plugin) Close() error {
 	return nil
 }

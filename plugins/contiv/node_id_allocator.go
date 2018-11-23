@@ -15,21 +15,21 @@
 package contiv
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
-	"sort"
-	"sync"
-	"bytes"
 	"net"
+	"sort"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/ligato/cn-infra/db/keyval"
 	"github.com/ligato/cn-infra/servicelabel"
 
 	"github.com/contiv/vpp/plugins/contiv/model/nodeinfo"
-	"github.com/contiv/vpp/plugins/ksr"
 	controller "github.com/contiv/vpp/plugins/controller/api"
+	"github.com/contiv/vpp/plugins/ksr"
 )
 
 const (
@@ -82,7 +82,7 @@ type DB interface {
 type nodeIDAllocator struct {
 	sync.Mutex
 	inSync bool
-	
+
 	db            DB
 	dbIsConnected bool
 
@@ -95,13 +95,13 @@ type nodeIDAllocator struct {
 }
 
 // NewIDAllocator creates new instance of nodeIDAllocator
-func NewIDAllocator(db DB, nodeName string, nodeIP *net.IPNet) *nodeIDAllocator {
+func NewIDAllocator(db DB, nodeName string, nodeIP *net.IPNet) NodeIDAllocator {
 	allocator := &nodeIDAllocator{
 		db:       db,
 		nodeName: nodeName,
 		nodeIP:   nodeIP,
 	}
-	if db!= nil {
+	if db != nil {
 		db.OnConnect(allocator.onDBConnect)
 	}
 	return allocator
@@ -265,7 +265,7 @@ func (ia *nodeIDAllocator) writeIfNotExists(id uint32) (succeeded bool, err erro
 		return false, err
 	}
 	ksrPrefix := servicelabel.GetDifferentAgentPrefix(ksr.MicroserviceLabel)
-	return ia.db.PutIfNotExists(ksrPrefix + nodeinfo.Key(id), encoded)
+	return ia.db.PutIfNotExists(ksrPrefix+nodeinfo.Key(id), encoded)
 }
 
 // onDBConnect is triggered once connection to DB is available.

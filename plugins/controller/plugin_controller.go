@@ -15,14 +15,14 @@
 package controller
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"reflect"
+	"runtime"
 	"sync"
 	"time"
-	"runtime"
-	"bytes"
 
 	"github.com/gogo/protobuf/proto"
 
@@ -132,7 +132,7 @@ type Controller struct {
 
 	evLoopGID          string // ID of the go routine running the event loop
 	revEventHandlers   []api.EventHandler
-	delayedEvents      []api.Event  // events delayed until after the first resync
+	delayedEvents      []api.Event // events delayed until after the first resync
 	eventQueue         chan api.Event
 	prioEventQueue     chan api.Event // events sent from within the event loop are prioritized
 	startupResyncCheck chan struct{}
@@ -342,7 +342,6 @@ func (c *Controller) eventLoop() {
 	defer c.wg.Done()
 	c.evLoopGID = getGID()
 
-
 	for {
 		select {
 		case <-c.ctx.Done():
@@ -373,7 +372,7 @@ func (c *Controller) eventLoop() {
 }
 
 // receiveEvent receives event from the event queue.
-func (c *Controller) receiveEvent(event api.Event, prioritized bool) (exitLoop bool ){
+func (c *Controller) receiveEvent(event api.Event, prioritized bool) (exitLoop bool) {
 	// handle startup resync
 	if c.resyncCount == 0 {
 		// DBResync must be the first event to process
@@ -770,7 +769,7 @@ func getGID() string {
 	if !bytes.HasPrefix(b, goroutineLabel) {
 		return "unknown"
 	}
-	b = bytes.TrimPrefix(b, goroutineLabel )
+	b = bytes.TrimPrefix(b, goroutineLabel)
 	b = b[:bytes.IndexByte(b, ' ')]
 	return string(b)
 }

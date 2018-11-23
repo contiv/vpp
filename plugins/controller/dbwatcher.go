@@ -583,8 +583,8 @@ func ResyncDatabase(broker keyval.ProtoBroker, kubeStateData api.KubeStateData) 
 	// update database with values present in the resync event
 	for _, kvs := range kubeStateData {
 		for key, value := range kvs {
-			keys[ksrPrefix + key] = struct{}{}
-			err := broker.Put(ksrPrefix + key, value)
+			keys[ksrPrefix+key] = struct{}{}
+			err := broker.Put(ksrPrefix+key, value)
 			if err != nil {
 				return err
 			}

@@ -18,6 +18,7 @@ import (
 	"net"
 	"sync"
 
+	controller "github.com/contiv/vpp/plugins/controller/api"
 	"github.com/contiv/vpp/plugins/contiv"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 )
@@ -153,10 +154,10 @@ func (mc *MockContiv) SetNatLoopbackIP(natLoopIP string) {
 
 // AddingPod allows to simulate event of adding pod - all registered post-add hooks
 // are called.
-func (mc *MockContiv) AddingPod(podID podmodel.ID) error {
+func (mc *MockContiv) AddingPod(podID podmodel.ID, txn controller.UpdateOperations) error {
 	var wasErr error
 	for _, hook := range mc.podPostAddHooks {
-		err := hook(podID.Namespace, podID.Name)
+		err := hook(podID.Namespace, podID.Name, txn)
 		if err != nil {
 			wasErr = err
 		}
@@ -166,10 +167,10 @@ func (mc *MockContiv) AddingPod(podID podmodel.ID) error {
 
 // DeletingPod allows to simulate event of deleting pod - all registered pre-removal hooks
 // are called.
-func (mc *MockContiv) DeletingPod(podID podmodel.ID) error {
+func (mc *MockContiv) DeletingPod(podID podmodel.ID, txn controller.UpdateOperations) error {
 	var wasErr error
 	for _, hook := range mc.podPreRemovalHooks {
-		err := hook(podID.Namespace, podID.Name)
+		err := hook(podID.Namespace, podID.Name, txn)
 		if err != nil {
 			wasErr = err
 		}

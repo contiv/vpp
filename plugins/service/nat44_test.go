@@ -15,13 +15,17 @@
 package service
 
 import (
-	. "github.com/onsi/gomega"
+	"context"
 	"net"
 	"strconv"
 	"testing"
 
+	. "github.com/onsi/gomega"
+
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/logging/logrus"
+
+	scheduler "github.com/ligato/vpp-agent/plugins/kvscheduler/api"
 
 	. "github.com/contiv/vpp/mock/contiv"
 	. "github.com/contiv/vpp/mock/datasync"
@@ -29,6 +33,7 @@ import (
 	. "github.com/contiv/vpp/mock/servicelabel"
 
 	"github.com/contiv/vpp/mock/localclient"
+	controller "github.com/contiv/vpp/plugins/controller/api"
 	svc_processor "github.com/contiv/vpp/plugins/service/processor"
 	svc_renderer "github.com/contiv/vpp/plugins/service/renderer"
 	"github.com/contiv/vpp/plugins/service/renderer/nat44"
@@ -104,11 +109,59 @@ var (
 	keyPrefixes = []string{epmodel.KeyPrefix(), podmodel.KeyPrefix(), svcmodel.KeyPrefix(), nodeinfo.AllocatedIDsKeyPrefix}
 )
 
+// ongoing transaction
+var (
+	isResync bool
+	vppTxn   controller.Transaction
+	changes  string
+)
+
+func commitTxn() error {
+	ctx := context.Background()
+	if isResync {
+		ctx = scheduler.WithFullResync(ctx)
+	}
+	err := vppTxn.Commit(ctx)
+	vppTxn = nil
+	changes = ""
+	return err
+}
+
+func resyncTxnFactory(txnTracker *localclient.TxnTracker) func() controller.ResyncOperations {
+	return func() controller.ResyncOperations {
+		if vppTxn != nil {
+			return vppTxn
+		}
+		vppTxn = txnTracker.NewControllerTxn(true)
+		isResync = true
+		return vppTxn
+	}
+}
+
+func updateTxnFactory(txnTracker *localclient.TxnTracker) func(change string) controller.UpdateOperations {
+	return func(change string) controller.UpdateOperations {
+		if change != "" {
+			if changes != "" {
+				changes += ", "
+			}
+			changes += change
+		}
+		if vppTxn != nil {
+			return vppTxn
+		}
+		vppTxn = txnTracker.NewControllerTxn(false)
+		isResync = false
+		return vppTxn
+	}
+}
+
 func ipNet(address string) *net.IPNet {
 	ip, network, _ := net.ParseCIDR(address)
 	network.IP = ip
 	return network
 }
+
+// TODO: (just) Resync without node IP
 
 func TestResyncAndSingleService(t *testing.T) {
 	RegisterTestingT(t)
@@ -163,7 +216,8 @@ func TestResyncAndSingleService(t *testing.T) {
 		Deps: nat44.Deps{
 			Log:           logger,
 			Contiv:        contiv,
-			NATTxnFactory: txnTracker.NewLinuxDataChangeTxn,
+			ResyncTxnFactory: resyncTxnFactory(txnTracker),
+			UpdateTxnFactory: updateTxnFactory(txnTracker),
 		},
 	}
 
@@ -172,8 +226,9 @@ func TestResyncAndSingleService(t *testing.T) {
 	Expect(processor.RegisterRenderer(renderer)).To(BeNil())
 
 	// Test resync with empty VPP configuration.
-	resyncEv := datasync.Resync(keyPrefixes...)
-	Expect(processor.Resync(resyncEv)).To(BeNil())
+	resyncEv, _ := datasync.ResyncEvent(keyPrefixes...)
+	Expect(processor.Resync(resyncEv.KubeState)).To(BeNil())
+	Expect(commitTxn()).To(BeNil())
 
 	Expect(natPlugin.IsForwardingEnabled()).To(BeTrue())
 
@@ -230,8 +285,9 @@ func TestResyncAndSingleService(t *testing.T) {
 		},
 	}
 
-	dataChange1 := datasync.Put(svcmodel.Key(service1.Name, service1.Namespace), service1)
+	dataChange1 := datasync.PutEvent(svcmodel.Key(service1.Name, service1.Namespace), service1)
 	Expect(processor.Update(dataChange1)).To(BeNil())
+	Expect(commitTxn()).To(BeNil())
 
 	// No change in the NAT configuration.
 	Expect(natPlugin.IsForwardingEnabled()).To(BeTrue())
@@ -253,12 +309,14 @@ func TestResyncAndSingleService(t *testing.T) {
 	Expect(natPlugin.HasIdentityMapping(mainIfID2)).To(BeTrue())
 
 	// Add pods.
-	Expect(contiv.AddingPod(pod1)).To(BeNil())
-	Expect(contiv.AddingPod(pod2)).To(BeNil())
-	dataChange2 := datasync.Put(podmodel.Key(pod1.Name, pod1.Namespace), pod1Model)
-	Expect(processor.Update(dataChange2)).To(BeNil())
-	dataChange3 := datasync.Put(podmodel.Key(pod2.Name, pod2.Namespace), pod2Model)
-	Expect(processor.Update(dataChange3)).To(BeNil())
+	txn := updateTxnFactory(txnTracker)("connect pod1")
+	Expect(contiv.AddingPod(pod1, txn)).To(BeNil())
+	Expect(commitTxn()).To(BeNil())
+	txn = updateTxnFactory(txnTracker)("connect pod2")
+	Expect(contiv.AddingPod(pod2, txn)).To(BeNil())
+	Expect(commitTxn()).To(BeNil())
+	datasync.Put(podmodel.Key(pod1.Name, pod1.Namespace), pod1Model)
+	datasync.Put(podmodel.Key(pod2.Name, pod2.Namespace), pod2Model)
 
 	// First check what should not have changed.
 	Expect(natPlugin.IsForwardingEnabled()).To(BeTrue())
@@ -317,8 +375,9 @@ func TestResyncAndSingleService(t *testing.T) {
 		},
 	}
 
-	dataChange4 := datasync.Put(epmodel.Key(eps1.Name, eps1.Namespace), eps1)
+	dataChange4 := datasync.PutEvent(epmodel.Key(eps1.Name, eps1.Namespace), eps1)
 	Expect(processor.Update(dataChange4)).To(BeNil())
+	Expect(commitTxn()).To(BeNil())
 
 	// First check what should not have changed.
 	Expect(natPlugin.IsForwardingEnabled()).To(BeTrue())
@@ -414,8 +473,9 @@ func TestResyncAndSingleService(t *testing.T) {
 		},
 	}
 
-	dataChange5 := datasync.Put(epmodel.Key(eps2.Name, eps2.Namespace), eps2)
+	dataChange5 := datasync.PutEvent(epmodel.Key(eps2.Name, eps2.Namespace), eps2)
 	Expect(processor.Update(dataChange5)).To(BeNil())
+	Expect(commitTxn()).To(BeNil())
 
 	// First check what should not have changed.
 	Expect(natPlugin.IsForwardingEnabled()).To(BeTrue())
@@ -436,8 +496,9 @@ func TestResyncAndSingleService(t *testing.T) {
 	Expect(natPlugin.HasStaticMapping(staticMapping2)).To(BeTrue())
 
 	// Finally remove the service.
-	dataChange6 := datasync.Delete(svcmodel.Key(service1.Name, service1.Namespace))
+	dataChange6 := datasync.DeleteEvent(svcmodel.Key(service1.Name, service1.Namespace))
 	Expect(processor.Update(dataChange6)).To(BeNil())
+	Expect(commitTxn()).To(BeNil())
 
 	// NAT configuration without the service.
 	Expect(natPlugin.IsForwardingEnabled()).To(BeTrue())
@@ -1026,7 +1087,6 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 			NATTxnFactory: txnTracker.NewLinuxDataChangeTxn,
 		},
 	}
-	natPlugin.Reset() // TODO: remove once resync txn is supported
 	// -> let's simulate that during downtime the service1 was removed
 	datasync.Delete(svcmodel.Key(service1.Name, service1.Namespace))
 	// -> initialize and resync
@@ -1060,7 +1120,6 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 	Expect(natPlugin.NumOfStaticMappings()).To(Equal(2))
 
 	// Simulate run-time resync.
-	natPlugin.Reset() // TODO: remove once resync txn is supported
 	// -> let's simulate that while the agent was out-of-sync, the service1 was re-added, while service2 was removed.
 	datasync.Put(svcmodel.Key(service1.Name, service1.Namespace), service1)
 	datasync.Delete(svcmodel.Key(service2.Name, service2.Namespace))

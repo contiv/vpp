@@ -467,13 +467,15 @@ func (s *remoteCNIserver) Add(ctx context.Context, request *cni.CNIRequest) (*cn
 		// VPPIfName & LinuxIfName are filled by podConnectivityConfig
 	}
 
-	// 3. Schedule revert for pod IP allocation in case of an error
+	// 3. Schedule revert
 
 	defer func() {
 		if err != nil {
 			if pod.IPAddress != nil {
 				s.ipam.ReleasePodIP(podID)
 			}
+			delete(s.podByID, pod.ID)
+			delete(s.podByVPPIfName, pod.VPPIfName)
 		}
 	}()
 
@@ -502,14 +504,32 @@ func (s *remoteCNIserver) Add(ctx context.Context, request *cni.CNIRequest) (*cn
 		}
 	}
 
-	// 6. Configure VPP <-> Pod connectivity
+	// 6. Prepare configuration for VPP <-> Pod connectivity
 
-	// build transaction
 	txn := s.txnFactory()
 	config := s.podConnectivityConfig(pod)
 	controller.PutAll(txn, config)
 
-	// execute the config transaction
+	// 7. Store pod attributes for queries issued by other plugins.
+
+	s.podByID[pod.ID] = pod
+	s.podByVPPIfName[pod.VPPIfName] = pod
+
+	// 8. Run all registered post add hooks in the unlocked state.
+
+	s.Unlock() // must be run in unlocked state, single event loop will help to avoid this
+	for _, hook := range s.podPostAddHook {
+		err = hook(pod.ID.Namespace, pod.ID.Name, txn)
+		if err != nil {
+			// treat error as warning
+			s.Logger.WithField("err", err).Warn("Pod post add hook has failed")
+			err = nil
+		}
+	}
+	s.Lock()
+
+	// 9. Execute the config transaction
+
 	txnCtx := context.Background()
 	txnCtx = scheduler_api.WithRetry(txnCtx, time.Second, true)
 	txnCtx = scheduler_api.WithRevert(txnCtx)
@@ -521,25 +541,7 @@ func (s *remoteCNIserver) Add(ctx context.Context, request *cni.CNIRequest) (*cn
 		return generateCniErrorReply(err)
 	}
 
-	// 7. Store pod attributes for queries issued by other plugins.
-
-	s.podByID[pod.ID] = pod
-	s.podByVPPIfName[pod.VPPIfName] = pod
-
-	// 8. Run all registered post add hooks in the unlocked state.
-
-	s.Unlock() // must be run in unlocked state, single event loop will help to avoid this
-	for _, hook := range s.podPostAddHook {
-		err = hook(pod.ID.Namespace, pod.ID.Name)
-		if err != nil {
-			// treat error as warning
-			s.Logger.WithField("err", err).Warn("Pod post add hook has failed")
-			err = nil
-		}
-	}
-	s.Lock()
-
-	// 9. prepare and send reply for the CNI request
+	// 9. Prepare and send reply for the CNI request
 
 	reply := generateCniReply(request, pod.IPAddress, s.ipam.PodGatewayIP())
 	return reply, err
@@ -583,12 +585,12 @@ func (s *remoteCNIserver) Delete(ctx context.Context, request *cni.CNIRequest) (
 // The function assumes that the CNI server is already in the locked state.
 func (s *remoteCNIserver) DeletePod(pod *Pod, obsoletePod bool) error {
 	var err, wasErr error
+	txn := s.txnFactory()
 
 	// 1. Run all registered pre-removal hooks
-
 	s.Unlock() // must be run in unlocked state, single event loop will help to avoid this
 	for _, hook := range s.podPreRemovalHooks {
-		err := hook(pod.ID.Namespace, pod.ID.Name)
+		err := hook(pod.ID.Namespace, pod.ID.Name, txn)
 		if err != nil {
 			// treat error as warning
 			s.Logger.WithField("err", err).Warn("Pod pre-removal hook has failed")
@@ -599,8 +601,7 @@ func (s *remoteCNIserver) DeletePod(pod *Pod, obsoletePod bool) error {
 
 	// 2. Un-configure VPP <-> Pod connectivity
 
-	// build transaction
-	txn := s.txnFactory()
+	// add configuration for pod connectivity into the transaction
 	config := s.podConnectivityConfig(pod)
 	controller.DeleteAll(txn, config)
 

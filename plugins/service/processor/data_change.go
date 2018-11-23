@@ -17,95 +17,47 @@
 package processor
 
 import (
-	"github.com/ligato/cn-infra/datasync"
-	"strconv"
-	"strings"
-
 	"github.com/contiv/vpp/plugins/contiv/model/nodeinfo"
+	controller "github.com/contiv/vpp/plugins/controller/api"
 	epmodel "github.com/contiv/vpp/plugins/ksr/model/endpoints"
 	svcmodel "github.com/contiv/vpp/plugins/ksr/model/service"
 )
 
-func (sc *ServiceProcessor) propagateDataChangeEv(dataChngEv datasync.ProtoWatchResp) error {
-	var diff bool
-	var err error
-	key := dataChngEv.GetKey()
-	sc.Log.Debug("Received CHANGE key ", key)
-
-	if prevRev, hasPrevRev := sc.k8sStateData[key]; hasPrevRev {
-		if prevRev.GetRevision() >= dataChngEv.GetRevision() {
-			sc.Log.Debugf("Ignoring already processed revision for key=%s", key)
-			return nil
-		}
-	}
-	sc.k8sStateData[key] = dataChngEv
-
-	// Process Node CHANGE event
-	if strings.HasPrefix(key, nodeinfo.AllocatedIDsKeyPrefix) {
-		var value, prevValue nodeinfo.NodeInfo
-
-		if err = dataChngEv.GetValue(&value); err != nil {
-			return err
-		}
-
-		if diff, err = dataChngEv.GetPrevValue(&prevValue); err != nil {
-			return err
-		}
-
-		if datasync.Delete == dataChngEv.GetChangeType() {
-			nodeIDStr := strings.TrimPrefix(key, nodeinfo.AllocatedIDsKeyPrefix)
-			nodeID, err := strconv.Atoi(nodeIDStr)
-			if err != nil {
-				return err
+// propagateDataChangeEv propagates CHANGE in the K8s configuration into the Processor.
+func (sc *ServiceProcessor) propagateDataChangeEv(event *controller.KubeStateChange) error {
+	switch event.Resource {
+	case nodeinfo.Keyword:
+		if event.NewValue != nil {
+			nodeInfo := event.NewValue.(*nodeinfo.NodeInfo)
+			if event.PrevValue == nil {
+				return sc.processNewNode(nodeInfo)
 			}
-			return sc.processDeletedNode(nodeID)
-		} else if diff {
-			return sc.processUpdatedNode(&value)
+			return sc.processUpdatedNode(nodeInfo)
 		}
-		return sc.processNewNode(&value)
+		nodeInfo := event.PrevValue.(*nodeinfo.NodeInfo)
+		return sc.processDeletedNode(int(nodeInfo.Id))
+
+	case epmodel.EndpointsKeyword:
+		if event.NewValue != nil {
+			endpoints := event.NewValue.(*epmodel.Endpoints)
+			if event.PrevValue == nil {
+				return sc.processNewEndpoints(endpoints)
+			}
+			return sc.processUpdatedEndpoints(endpoints)
+		}
+		endpoints := event.PrevValue.(*epmodel.Endpoints)
+		return sc.processDeletedEndpoints(epmodel.GetID(endpoints))
+
+	case svcmodel.ServiceKeyword:
+		if event.NewValue != nil {
+			service := event.NewValue.(*svcmodel.Service)
+			if event.PrevValue == nil {
+				return sc.processNewService(service)
+			}
+			return sc.processUpdatedService(service)
+		}
+		service := event.PrevValue.(*svcmodel.Service)
+		return sc.processDeletedService(svcmodel.GetID(service))
 	}
-
-	// Process Endpoints CHANGE event
-	epsName, epsNs, err := epmodel.ParseEndpointsFromKey(key)
-	if err == nil {
-		var value, prevValue epmodel.Endpoints
-
-		if err = dataChngEv.GetValue(&value); err != nil {
-			return err
-		}
-
-		if diff, err = dataChngEv.GetPrevValue(&prevValue); err != nil {
-			return err
-		}
-
-		if datasync.Delete == dataChngEv.GetChangeType() {
-			return sc.processDeletedEndpoints(epmodel.ID{Name: epsName, Namespace: epsNs})
-		} else if diff {
-			return sc.processUpdatedEndpoints(&value)
-		}
-		return sc.processNewEndpoints(&value)
-	}
-
-	// Process Service CHANGE event
-	svcName, svcNs, err := svcmodel.ParseServiceFromKey(key)
-	if err == nil {
-		var value, prevValue svcmodel.Service
-
-		if err = dataChngEv.GetValue(&value); err != nil {
-			return err
-		}
-
-		if diff, err = dataChngEv.GetPrevValue(&prevValue); err != nil {
-			return err
-		}
-
-		if datasync.Delete == dataChngEv.GetChangeType() {
-			return sc.processDeletedService(svcmodel.ID{Name: svcName, Namespace: svcNs})
-		} else if diff {
-			return sc.processUpdatedService(&value)
-		}
-		return sc.processNewService(&value)
-	}
-
 	return nil
 }

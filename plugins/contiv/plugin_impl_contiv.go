@@ -48,8 +48,8 @@ import (
 	"github.com/contiv/vpp/plugins/contiv/model/nodeinfo"
 	controller "github.com/contiv/vpp/plugins/controller/api"
 	tmp_txn "github.com/contiv/vpp/plugins/controller/txn"
-	"github.com/contiv/vpp/plugins/ksr/model/node"
 	nodeconfig "github.com/contiv/vpp/plugins/crd/handler/nodeconfig/model"
+	"github.com/contiv/vpp/plugins/ksr/model/node"
 )
 
 // MgmtIPSeparator is a delimiter inserted between management IPs in nodeInfo structure

@@ -99,7 +99,7 @@ func (mnt *MockNatPlugin) ApplyTxn(txn *localclient.Txn, latestRevs *syncbase.Pr
 		/* Resync */
 
 		mnt.Reset()
-		for key, value := range txn.LinuxDataChangeTxn.Values {
+		for key, value := range txn.LinuxDataResyncTxn.Values {
 			if key == nat.GlobalNAT44Key {
 				// put global NAT config
 				if err := mnt.putGlobalConfig(value); err != nil {

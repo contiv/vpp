@@ -218,7 +218,7 @@ func TestBasicStuff(t *testing.T) {
 	change, err := server.Update(event, txn)
 	Expect(err).To(BeNil())
 	Expect(change).To(Equal("connect node ID=2"))
-	err = commitTransaction(txn, true)
+	err = commitTransaction(txn, false)
 	Expect(err).To(BeNil())
 	txnCount++
 	Expect(txnTracker.PendingTxns).To(HaveLen(0))
@@ -238,7 +238,7 @@ func TestBasicStuff(t *testing.T) {
 	change, err = server.Update(event, txn)
 	Expect(err).To(BeNil())
 	Expect(change).To(Equal("update node ID=2"))
-	err = commitTransaction(txn, true)
+	err = commitTransaction(txn, false)
 	Expect(err).To(BeNil())
 	txnCount++
 	Expect(txnTracker.PendingTxns).To(HaveLen(0))
@@ -301,6 +301,7 @@ func TestBasicStuff(t *testing.T) {
 	server, err = newRemoteCNIServer(args)
 	server.test = true
 	Expect(err).To(BeNil())
+	datasync.RestartResyncCount()
 	// resync
 	resyncEv, resyncCount = datasync.ResyncEvent(keyPrefixes...)
 	txn = txnTracker.NewControllerTxn(true)
@@ -330,11 +331,11 @@ func TestBasicStuff(t *testing.T) {
 
 	// delete the other node
 	event = datasync.DeleteEvent(nodeIDKey(node2ID))
-	txn = txnTracker.NewControllerTxn(true)
+	txn = txnTracker.NewControllerTxn(false)
 	change, err = server.Update(event, txn)
 	Expect(err).To(BeNil())
 	Expect(change).To(Equal("disconnect node ID=2"))
-	err = commitTransaction(txn, true)
+	err = commitTransaction(txn, false)
 	Expect(err).To(BeNil())
 	txnCount++
 	Expect(txnTracker.PendingTxns).To(HaveLen(0))

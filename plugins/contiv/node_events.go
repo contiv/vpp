@@ -137,7 +137,7 @@ func (s *remoteCNIserver) processOtherNodeChangeEvent(event *controller.KubeStat
 		nodeInfo = event.NewValue.(*nodeinfo.NodeInfo)
 	}
 	if event.PrevValue != nil {
-		prevNodeInfo = event.NewValue.(*nodeinfo.NodeInfo)
+		prevNodeInfo = event.PrevValue.(*nodeinfo.NodeInfo)
 	}
 
 	// read the other node ID

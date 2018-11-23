@@ -55,6 +55,9 @@ var (
 )
 
 func commitTxn() error {
+	if vppTxn == nil {
+		return nil
+	}
 	ctx := context.Background()
 	if isResync {
 		ctx = scheduler.WithFullResync(ctx)

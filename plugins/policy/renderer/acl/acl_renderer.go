@@ -129,7 +129,6 @@ func (art *RendererTxn) Commit() error {
 		globalTable      *cache.ContivRuleTable
 		hasReflectiveACL bool
 	)
-	txn := art.renderer.UpdateTxnFactory()
 
 	if art.renderer.cache.GetGlobalTable().NumOfRules != 0 ||
 		len(art.renderer.cache.GetIsolatedPods()) > 0 {
@@ -142,6 +141,7 @@ func (art *RendererTxn) Commit() error {
 		// Still need to commit the configuration updates from the transaction.
 		return art.cacheTxn.Commit()
 	}
+	txn := art.renderer.UpdateTxnFactory()
 
 	// First render local tables.
 	for _, change := range changes {

@@ -15,11 +15,11 @@
 package datasync
 
 import (
+	controller "github.com/contiv/vpp/plugins/controller/api"
+	"github.com/contiv/vpp/plugins/dbresources"
 	"github.com/gogo/protobuf/proto"
 	"github.com/ligato/cn-infra/datasync"
 	"strings"
-	controller "github.com/contiv/vpp/plugins/controller/api"
-	"github.com/contiv/vpp/plugins/dbresources"
 )
 
 // MockDataSync can be used to generate datasync events from provided data.
@@ -76,6 +76,12 @@ func NewMockDataSync() *MockDataSync {
 	return &MockDataSync{
 		data: make(map[string]*ProtoData),
 	}
+}
+
+// RestartResyncCount is called after simulated restart to reset the resync counter
+// (next resync will be startup).
+func (mds *MockDataSync) RestartResyncCount() {
+	mds.resyncCount = 0
 }
 
 // Put allows to put a new value under the given key and to get the corresponding

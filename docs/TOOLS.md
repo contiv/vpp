@@ -2,9 +2,9 @@
 
 ## contiv-netctl
 
-`contiv-netctl` is a is a command line interface for querying the status
-of Contiv-VPP vswitches in aK8s cluster that usea the using Contiv-VPP
-CNI plugin. This overview covers contv-netctl syntax, describes the
+`contiv-netctl` is a command line interface for querying the status
+of Contiv-VPP vswitches in a K8s cluster that is using Contiv-VPP
+CNI plugin. This overview covers contiv-netctl syntax, describes the
 available commands, and provides common examples. `contiv-netctl` is
 installed on the K8s-master host during the installation of the
 Contiv-VPP CNI plugin.

@@ -114,7 +114,11 @@ func (pc *PolicyConfigurator) NewTxn(resync bool) Txn {
 		configurator:   pc,
 		resync:         resync,
 		config:         make(map[podmodel.ID]ContivPolicies),
-		podIPAddresses: pc.podIPAddresses.Copy(),
+	}
+	if resync {
+		txn.podIPAddresses = make(PodIPAddresses)
+	} else {
+		txn.podIPAddresses = pc.podIPAddresses.Copy()
 	}
 	return txn
 }

@@ -205,8 +205,9 @@ func (art *RendererTxn) Commit() error {
 func (art *RendererTxn) commitResync() error {
 	txn := art.renderer.ResyncTxnFactory()
 
-	// clear the cache first
+	// reset the cache and the renderer internal state first
 	art.renderer.cache.Flush()
+	art.renderer.podInterfaces = make(PodInterfaces)
 
 	// after the flush, changes == all newly created
 	changes := art.cacheTxn.GetChanges()

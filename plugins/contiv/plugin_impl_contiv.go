@@ -23,6 +23,7 @@ import (
 	"net"
 	"strings"
 	"time"
+	"sync"
 
 	"git.fd.io/govpp.git/api"
 	"github.com/apparentlymart/go-cidr/cidr"
@@ -73,6 +74,10 @@ type Plugin struct {
 	myNodeConfig *NodeConfig
 
 	nodeIPWatcher chan *net.IPNet
+
+	// temporary
+	afterStartupResync bool
+	startupResyncCond  *sync.Cond
 }
 
 // Deps groups the dependencies of the p.
@@ -91,6 +96,8 @@ type Deps struct {
 
 // Init does very little. Full initialization is triggered by the first resync.
 func (p *Plugin) Init() error {
+	p.startupResyncCond = &sync.Cond{L: &sync.Mutex{}}
+
 	// load config file
 	p.ctx, p.ctxCancelFunc = context.WithCancel(context.Background())
 	if p.Config == nil {
@@ -115,6 +122,9 @@ func (p *Plugin) Init() error {
 
 	// init node ID allocator without requesting node ID just yet
 	p.nodeIDAllocator = NewIDAllocator(p.ETCD, p.ServiceLabel.GetAgentLabel(), nil)
+
+	// register to serve pod add/del requests
+	cni.RegisterRemoteCNIServer(p.GRPC.GetServer(), p)
 
 	return nil
 }
@@ -190,7 +200,6 @@ func (p *Plugin) Resync(event controller.Event, txn controller.ResyncOperations,
 		if err != nil {
 			return fmt.Errorf("Can't create new remote CNI server due to error: %v ", err)
 		}
-		cni.RegisterRemoteCNIServer(p.GRPC.GetServer(), p.cniServer)
 
 		p.nodeIPWatcher = make(chan *net.IPNet, 1)
 		go p.watchNodeIPChanges()
@@ -205,6 +214,11 @@ func (p *Plugin) Resync(event controller.Event, txn controller.ResyncOperations,
 	resyncErr = p.cniServer.Resync(kubeStateData, resyncCount, txn)
 	if resyncErr != nil {
 		err = resyncErr
+	}
+
+	if resyncCount == 1 {
+		p.afterStartupResync = true
+		p.startupResyncCond.Signal()
 	}
 
 	return err
@@ -230,6 +244,26 @@ func (p *Plugin) Update(event controller.Event, txn controller.UpdateOperations)
 // Revert does nothing here - plugin handles only BestEffort events.
 func (p *Plugin) Revert(event controller.Event) error {
 	return nil
+}
+
+// Add handles CNI Add request, connects a Pod container to the network.
+func (p *Plugin) Add(ctx context.Context, request *cni.CNIRequest) (*cni.CNIReply, error) {
+	p.startupResyncCond.L.Lock()
+	for !p.afterStartupResync {
+		p.startupResyncCond.Wait()
+	}
+	p.startupResyncCond.L.Unlock()
+	return p.cniServer.Add(ctx, request)
+}
+
+// Delete handles CNI Delete request, disconnects a Pod container from the network.
+func (p *Plugin) Delete(ctx context.Context, request *cni.CNIRequest) (*cni.CNIReply, error) {
+	p.startupResyncCond.L.Lock()
+	for !p.afterStartupResync {
+		p.startupResyncCond.Wait()
+	}
+	p.startupResyncCond.L.Unlock()
+	return p.cniServer.Delete(ctx, request)
 }
 
 // watchNodeIPChanges watches for changes of this node IP address.

@@ -94,20 +94,6 @@ func (p *Plugin) Init() error {
 	p.processor.Init()
 	p.nat44Renderer.Init(false)
 
-	// add/del pod events (temporary)
-	p.Contiv.RegisterPodPreRemovalHook(
-		func(podNamespace string, podName string, txn controller.UpdateOperations) error {
-			p.updateTxn = txn
-			p.resyncTxn = nil
-			return p.processor.ProcessDeletingPod(podNamespace, podName)
-		})
-	p.Contiv.RegisterPodPostAddHook(
-		func(podNamespace string, podName string, txn controller.UpdateOperations) error {
-			p.updateTxn = txn
-			p.resyncTxn = nil
-			return p.processor.ProcessNewPod(podNamespace, podName)
-		})
-
 	// Register renderers.
 	p.processor.RegisterRenderer(p.nat44Renderer)
 	return nil
@@ -151,6 +137,23 @@ func (p *Plugin) HandlesEvent(event controller.Event) bool {
 // run-time resync.
 func (p *Plugin) Resync(event controller.Event, txn controller.ResyncOperations,
 	kubeStateData controller.KubeStateData, resyncCount int) error {
+
+	if resyncCount == 1 {
+		// startup resync
+		// register for add/del pod events (temporary solution)
+		p.Contiv.RegisterPodPreRemovalHook(
+			func(podNamespace string, podName string, txn controller.UpdateOperations) error {
+				p.updateTxn = txn
+				p.resyncTxn = nil
+				return p.processor.ProcessDeletingPod(podNamespace, podName)
+			})
+		p.Contiv.RegisterPodPostAddHook(
+			func(podNamespace string, podName string, txn controller.UpdateOperations) error {
+				p.updateTxn = txn
+				p.resyncTxn = nil
+				return p.processor.ProcessNewPod(podNamespace, podName)
+			})
+	}
 
 	p.resyncTxn = txn
 	p.updateTxn = nil

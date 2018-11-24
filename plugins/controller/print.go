@@ -24,23 +24,36 @@ import (
 
 // printNewEvent prints a banner into stdout about a newly received event.
 func (c *Controller) printNewEvent(eventRec *EventRecord, handlers []api.EventHandler) {
-	border := strings.Repeat(">", 130)
+	var buf strings.Builder
+
+	border := strings.Repeat(">", 130) + "\n"
+	buf.WriteString(border)
+
 	evDescLns := strings.Split(eventRec.Description, "\n")
 	evDescLns = splitLongLines(evDescLns, 110, 6)
-	fmt.Println(border)
-	fmt.Printf("*   NEW EVENT: %-102s %10s *\n", evDescLns[0], eventSeqNumToStr(eventRec.SeqNum))
+	headline := "NEW EVENT"
+	if eventRec.IsFollowUp {
+		headline += fmt.Sprintf(" (follow-up to %s)", eventSeqNumToStr(eventRec.FollowUpTo))
+	}
+	headline += ": "
+	buf.WriteString(fmt.Sprintf("*   %-113s %10s *\n",
+		headline + evDescLns[0], eventSeqNumToStr(eventRec.SeqNum)))
 	for i := 1; i < len(evDescLns); i++ {
-		fmt.Printf("*              %-113s *\n", evDescLns[i])
+		buf.WriteString(fmt.Sprintf("*              %-113s *\n", evDescLns[i]))
 	}
+
 	if len(handlers) > 0 {
-		fmt.Printf("*   EVENT HANDLERS: %-108s *\n", evHandlersToStr(handlers))
+		buf.WriteString(fmt.Sprintf("*   EVENT HANDLERS: %-108s *\n", evHandlersToStr(handlers)))
 	}
-	fmt.Println(border)
+
+	buf.WriteString(border)
+	fmt.Printf(buf.String())
 }
 
 // printNewEvent prints a banner into stdout about a finalized event.
 func (c *Controller) printFinalizedEvent(eventRec *EventRecord) {
 	var (
+		buf        strings.Builder
 		handledBy  []string
 		revertedBy []string
 		hasErrors  bool
@@ -56,16 +69,20 @@ func (c *Controller) printFinalizedEvent(eventRec *EventRecord) {
 		}
 	}
 
-	border := strings.Repeat("<", 130)
-	evDesc := strings.Split(eventRec.Description, "\n")[0]
+	border := strings.Repeat("<", 130) + "\n"
+	buf.WriteString(border)
 
-	fmt.Println(border)
-	fmt.Printf("*   FINALIZED EVENT: %-96s %10s *\n", evDesc, eventSeqNumToStr(eventRec.SeqNum))
+	evDesc := strings.Split(eventRec.Description, "\n")[0]
+	buf.WriteString(fmt.Sprintf("*   FINALIZED EVENT: %-96s %10s *\n",
+		evDesc, eventSeqNumToStr(eventRec.SeqNum)))
+
 	if len(handledBy) > 0 {
-		fmt.Printf("*   HANDLED BY: %-112s *\n", strings.Join(handledBy, ", "))
+		buf.WriteString(fmt.Sprintf("*   HANDLED BY: %-112s *\n",
+			strings.Join(handledBy, ", ")))
 	}
+
 	if hasErrors {
-		fmt.Printf("*   %-124s *\n", "ERRORS:")
+		buf.WriteString(fmt.Sprintf("*   %-124s *\n", "ERRORS:"))
 		for _, handlerRec := range eventRec.Handlers {
 			if handlerRec.Error == nil {
 				continue
@@ -74,17 +91,24 @@ func (c *Controller) printFinalizedEvent(eventRec *EventRecord) {
 			if handlerRec.Revert {
 				withRevert = " (REVERT)"
 			}
-			errorDesc := fmt.Sprintf("%s%s: %s", handlerRec.Handler, withRevert, handlerRec.Error)
-			fmt.Printf("*       * %-118s *\n", errorDesc)
+			errorDesc := fmt.Sprintf("%s%s: %s",
+				handlerRec.Handler, withRevert, handlerRec.Error)
+			buf.WriteString(fmt.Sprintf("*       * %-118s *\n", errorDesc))
 		}
 	}
+
 	if len(revertedBy) > 0 {
-		fmt.Printf("*   REVERTED BY: %-111s *\n", strings.Join(revertedBy, ", "))
+		buf.WriteString(fmt.Sprintf("*   REVERTED BY: %-111s *\n",
+			strings.Join(revertedBy, ", ")))
 	}
+
 	if eventRec.TxnError != nil {
-		fmt.Printf("*   TRANSACTION ERROR: %-105v *\n", eventRec.TxnError)
+		buf.WriteString(fmt.Sprintf("*   TRANSACTION ERROR: %-105v *\n",
+			eventRec.TxnError))
 	}
-	fmt.Println(border)
+
+	buf.WriteString(border)
+	fmt.Printf(buf.String())
 }
 
 // filterHandlersForEvent returns only those handlers that are actually interested in the event.

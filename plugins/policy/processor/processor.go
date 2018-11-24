@@ -145,6 +145,15 @@ func (pp *PolicyProcessor) Process(resync bool, pods []podmodel.ID) error {
 // Resync processes the RESYNC event by re-calculating the policies for all
 // known pods.
 func (pp *PolicyProcessor) Resync(data *cache.DataResyncEvent) error {
+	// resync the map pod->IP first
+	pp.podIPAddressMap = make(map[podmodel.ID]net.IP)
+	for _, pod := range data.Pods {
+		if pod.IpAddress == "" {
+			continue
+		}
+		pp.podIPAddressMap[podmodel.GetID(pod)] = net.ParseIP(pod.IpAddress)
+	}
+
 	return pp.Process(true, pp.Cache.ListAllPods())
 }
 
@@ -193,9 +202,7 @@ func (pp *PolicyProcessor) DelPod(podID podmodel.ID, pod *podmodel.Pod) error {
 	err := pp.Process(false, pods)
 
 	// Remove remembered pod IP address.
-	if _, hadIP := pp.podIPAddressMap[podID]; hadIP {
-		delete(pp.podIPAddressMap, podID)
-	}
+	delete(pp.podIPAddressMap, podID)
 
 	return err
 }

@@ -21,7 +21,6 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/ligato/cn-infra/datasync"
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/servicelabel"
 
@@ -36,6 +35,7 @@ import (
 
 // ServiceProcessor implements ServiceProcessorAPI.
 type ServiceProcessor struct {
+	sync.Mutex
 	Deps
 
 	renderers []renderer.ServiceRendererAPI
@@ -50,11 +50,6 @@ type ServiceProcessor struct {
 	/* local frontend and backend interfaces */
 	frontendIfs renderer.Interfaces
 	backendIfs  renderer.Interfaces
-
-	/* a local copy of kubernetes state data */
-	k8sStateData map[string]datasync.KeyVal // key -> value, revision
-
-	sync.Mutex
 }
 
 // Deps lists dependencies of ServiceProcessor.
@@ -73,7 +68,6 @@ type LocalEndpoint struct {
 // Init initializes service processor.
 func (sp *ServiceProcessor) Init() error {
 	sp.reset()
-	sp.k8sStateData = make(map[string]datasync.KeyVal)
 	return nil
 }
 

@@ -132,9 +132,9 @@ type Controller struct {
 
 	evLoopGID          string // ID of the go routine running the event loop
 	revEventHandlers   []api.EventHandler
-	delayedEvents      []api.Event // events delayed until after the first resync
-	eventQueue         chan api.Event
-	prioEventQueue     chan api.Event // events sent from within the event loop are prioritized
+	delayedEvents      []*QueuedEvent // events delayed until after the first resync
+	eventQueue         chan *QueuedEvent
+	followUpEventQueue chan *QueuedEvent // events sent from within the event loop
 	startupResyncCheck chan struct{}
 
 	healingScheduled bool
@@ -188,6 +188,8 @@ type Config struct {
 // available via REST interface.
 type EventRecord struct {
 	SeqNum      uint64
+	IsFollowUp  bool
+	FollowUpTo  uint64
 	Name        string
 	Description string
 	Method      api.EventMethodType
@@ -204,6 +206,13 @@ type EventHandlingRecord struct {
 	ErrorStr string // string representation of the error (if any)
 }
 
+// QueuedEvent wraps event for the event queue.
+type QueuedEvent struct {
+	event           api.Event
+	isFollowUp      bool
+	followUpToEvent uint64 // event sequence number
+}
+
 var (
 	// ErrClosedController is returned when Controller is used when it is already closed.
 	ErrClosedController = errors.New("controller was closed")
@@ -215,8 +224,8 @@ var (
 func (c *Controller) Init() error {
 	// initialize attributes
 	c.ctx, c.cancel = context.WithCancel(context.Background())
-	c.eventQueue = make(chan api.Event, eventQueueSize)
-	c.prioEventQueue = make(chan api.Event, eventQueueSize)
+	c.eventQueue = make(chan *QueuedEvent, eventQueueSize)
+	c.followUpEventQueue = make(chan *QueuedEvent, eventQueueSize)
 	c.startupResyncCheck = make(chan struct{}, 1)
 	c.internalConfig = make(api.KeyValuePairs)
 	for i := len(c.EventHandlers) - 1; i >= 0; i-- {
@@ -281,15 +290,18 @@ func (c *Controller) AfterInit() error {
 func (c *Controller) PushEvent(event api.Event) error {
 	callerGID := getGID()
 	if callerGID == c.evLoopGID {
-		// events sent from within the event loop should not be blocking and will
-		// be prioritized
+		// follow up events (sent from within the event loop) should not be blocking
+		// and will be prioritized (won't be overtaken by non-follow-up events)
 		if event.IsBlocking() {
 			panic("deadlock detected - blocking event sent from within the event loop")
 		}
 		select {
 		case <-c.ctx.Done():
 			return ErrClosedController
-		case c.prioEventQueue <- event:
+		case c.followUpEventQueue <- &QueuedEvent{
+			event: event,
+			isFollowUp: true,
+			followUpToEvent: c.evSeqNum-1}:
 			return nil
 		default:
 			return ErrEventQueueFull
@@ -299,7 +311,7 @@ func (c *Controller) PushEvent(event api.Event) error {
 	select {
 	case <-c.ctx.Done():
 		return ErrClosedController
-	case c.eventQueue <- event:
+	case c.eventQueue <- &QueuedEvent{event: event}:
 		return nil
 	default:
 		return ErrEventQueueFull
@@ -347,14 +359,14 @@ func (c *Controller) eventLoop() {
 		case <-c.ctx.Done():
 			return
 
-		case event := <-c.prioEventQueue:
-			exit := c.receiveEvent(event, true)
+		case event := <-c.followUpEventQueue:
+			exit := c.receiveEvent(event)
 			if exit {
 				return
 			}
 
 		case event := <-c.eventQueue:
-			exit := c.receiveEvent(event, false)
+			exit := c.receiveEvent(event)
 			if exit {
 				return
 			}
@@ -372,11 +384,11 @@ func (c *Controller) eventLoop() {
 }
 
 // receiveEvent receives event from the event queue.
-func (c *Controller) receiveEvent(event api.Event, prioritized bool) (exitLoop bool) {
+func (c *Controller) receiveEvent(qe *QueuedEvent) (exitLoop bool) {
 	// handle startup resync
 	if c.resyncCount == 0 {
 		// DBResync must be the first event to process
-		if _, isDBResync := event.(*api.DBResync); isDBResync {
+		if _, isDBResync := qe.event.(*api.DBResync); isDBResync {
 			// once the startup resync is received,
 			// periodic resync - if enabled - can be started
 			if c.config.EnablePeriodicHealing {
@@ -385,25 +397,25 @@ func (c *Controller) receiveEvent(event api.Event, prioritized bool) (exitLoop b
 			}
 		} else {
 			// events received before the first DBResync will be replayed afterwards
-			c.delayedEvents = append(c.delayedEvents, event)
+			c.delayedEvents = append(c.delayedEvents, qe)
 			return false // wait until DBResync
 		}
 	}
 
 	// process the received event + all the delayed events
-	events := append([]api.Event{event}, c.delayedEvents...)
+	events := append([]*QueuedEvent{qe}, c.delayedEvents...)
 	for len(events) > 0 {
-		// check if there is any event of higher priority
-		if !prioritized {
+		// check if there is any follow-up event
+		if !qe.isFollowUp {
 			select {
-			case prioEvent := <-c.prioEventQueue:
-				events = append([]api.Event{prioEvent}, events...)
+			case followUpEvent := <-c.followUpEventQueue:
+				events = append([]*QueuedEvent{followUpEvent}, events...)
 			default:
 				// NOOP
 			}
 		}
 		// pop and process the first event
-		event = events[0]
+		event := events[0]
 		events = events[1:]
 		err := c.processEvent(event)
 		if err != nil {
@@ -414,12 +426,12 @@ func (c *Controller) receiveEvent(event api.Event, prioritized bool) (exitLoop b
 			}
 		}
 	}
-	c.delayedEvents = []api.Event{}
+	c.delayedEvents = []*QueuedEvent{}
 	return false
 }
 
 // processEvent processes the next event.
-func (c *Controller) processEvent(event api.Event) error {
+func (c *Controller) processEvent(qe *QueuedEvent) error {
 	var (
 		wasErr          error
 		isUpdate        bool
@@ -430,6 +442,7 @@ func (c *Controller) processEvent(event api.Event) error {
 		updateEvent     api.UpdateEvent
 		eventHandlers   []api.EventHandler
 	)
+	event := qe.event
 
 	// 1. prepare for resync
 	if event.Method() == api.Resync {
@@ -489,6 +502,8 @@ func (c *Controller) processEvent(event api.Event) error {
 	// 5. prepare record of the event for the history
 	evRecord := &EventRecord{
 		SeqNum:      c.evSeqNum,
+		IsFollowUp:  qe.isFollowUp,
+		FollowUpTo:  qe.followUpToEvent,
 		Name:        event.GetName(),
 		Description: event.String(),
 		Method:      event.Method(),
@@ -611,9 +626,9 @@ func (c *Controller) processEvent(event api.Event) error {
 		}
 		if !isUpdate {
 			if periodicHealing {
-				ctx = scheduler.WithFullResync(ctx)
-			} else {
 				ctx = scheduler.WithDownstreamResync(ctx)
+			} else {
+				ctx = scheduler.WithFullResync(ctx)
 			}
 		}
 

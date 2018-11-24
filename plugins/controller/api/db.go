@@ -100,6 +100,7 @@ func (ev *DBResync) String() string {
 	sort.Strings(resources)
 
 	// describe Kubernetes state
+	empty := true
 	for _, resource := range resources {
 		var (
 			withColon     string
@@ -121,10 +122,11 @@ func (ev *DBResync) String() string {
 			}
 			resourceItems = append(resourceItems, valueStr)
 		}
-		sort.Strings(resourceItems)
-		if len(resourceItems) > 0 {
-			withColon = ":"
+		if len(resourceItems) == 0 {
+			continue
 		}
+		empty = false
+		sort.Strings(resourceItems)
 		str += fmt.Sprintf("\n* %dx %s%s",
 			len(data), resource, withColon)
 		for _, resourceItem := range resourceItems {
@@ -139,8 +141,14 @@ func (ev *DBResync) String() string {
 	}
 	sort.Strings(externalKeys)
 	if len(externalKeys) > 0 {
+		empty = false
 		str += fmt.Sprintf("\n* %dx external config items: %s",
 			len(externalKeys), strings.Join(externalKeys, ", "))
+	}
+
+	// handle empty DB
+	if empty {
+		str += " - empty dataset"
 	}
 	return str
 }

@@ -413,7 +413,7 @@ func (w *dbWatcher) processChange(change datasync.ProtoWatchResp) {
 	// check if this is resource or and an external configuration
 	resourceMeta, externalCfg := w.getResourceByKey(key)
 	if resourceMeta == nil && !externalCfg {
-		w.log.Debugf("Ignoring unhandled DB resource for key=%s", key)
+		// unhandled DB resource
 		return
 	}
 

@@ -119,6 +119,7 @@ crd:
     #tag:
     pullPolicy: IfNotPresent
   updateStrategy: RollingUpdate
+  pollingInterval: 1 # in minutes, 0 to disable
 
 # GoVPP configuration
 # It contains time intervals used for VPP health probing (in nanoseconds).

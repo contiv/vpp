@@ -512,7 +512,11 @@ spec:
           value: "32379"
         - name: ETCDCTL_API
           value: "3"
-        image: quay.io/coreos/etcd:v3.1.10
+        {{- if .Values.Arm64Platform }}
+        image: {{ .Values.etcd_arm64.image.repository }}:{{ .Values.etcd_arm64.image.tag }}
+        {{- else }}
+        image: {{ .Values.etcd.image.repository }}:{{ .Values.etcd.image.tag }}
+        {{- end }}
         command:
         - /bin/sh
         args:
@@ -1098,6 +1102,8 @@ spec:
           value: "/etc/http/http.conf"
         - name: HTTP_CLIENT_CONFIG
           value: "/etc/http/http.client.conf"
+        - name: CONTIV_CRD_INTERVAL
+          value: {{ .Values.crd.pollingInterval | quote }}
         volumeMounts:
         - name: etcd-cfg
           mountPath: /etc/etcd

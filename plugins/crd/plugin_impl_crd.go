@@ -32,6 +32,8 @@ import (
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/utils/safeclose"
 	"github.com/namsral/flag"
+	"os"
+	"strconv"
 	"sync"
 	"time"
 
@@ -117,6 +119,10 @@ func (p *Plugin) Init() error {
 
 	// Time interval for periodic report collection
 	collectionInterval := 1 * time.Minute
+	configuredInterval, err := strconv.Atoi(os.Getenv("CONTIV_CRD_INTERVAL"))
+	if err == nil {
+		collectionInterval = time.Duration(configuredInterval) * time.Minute
+	}
 
 	p.telemetryController = &telemetry.Controller{
 		CollectionInterval: collectionInterval,

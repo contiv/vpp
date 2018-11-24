@@ -681,6 +681,8 @@ spec:
           value: "/etc/http/http.conf"
         - name: HTTP_CLIENT_CONFIG
           value: "/etc/http/http.client.conf"
+        - name: CONTIV_CRD_INTERVAL
+          value: "1"
         volumeMounts:
         - name: etcd-cfg
           mountPath: /etc/etcd

@@ -101,6 +101,12 @@ type NodeDTO struct {
 
 // NewTelemetryCache returns a new instance of telemetry cache
 func NewTelemetryCache(p logging.PluginLogger, collectionInterval time.Duration, verbose bool) *ContivTelemetryCache {
+	ticker := time.NewTicker(collectionInterval)
+	if collectionInterval <= 0 {
+		// If we have 0 collection interval, just stop ticker
+		ticker.Stop()
+	}
+
 	return &ContivTelemetryCache{
 		Deps: Deps{
 			Log: p.NewLogger("-telemetryCache"),
@@ -120,7 +126,7 @@ func NewTelemetryCache(p logging.PluginLogger, collectionInterval time.Duration,
 		dsUpdateChannel:     make(chan interface{}),
 		dtoList:             make([]*NodeDTO, 0),
 		dataChangeEvents:    make(DcEventQueue, 0),
-		ticker:              time.NewTicker(collectionInterval),
+		ticker:              ticker,
 		databaseVersion:     0,
 	}
 }

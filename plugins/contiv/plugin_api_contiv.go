@@ -2,11 +2,13 @@ package contiv
 
 import (
 	"net"
+
+	controller "github.com/contiv/vpp/plugins/controller/api"
 )
 
 // PodActionHook defines parameters and the return value of a callback triggered
 // during an event associated with a pod.
-type PodActionHook func(podNamespace string, podName string) error
+type PodActionHook func(podNamespace string, podName string, txn controller.UpdateOperations) error
 
 // API for other plugins to query network-related information.
 type API interface {

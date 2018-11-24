@@ -23,6 +23,7 @@ import (
 
 	"github.com/ligato/cn-infra/logging"
 
+	controller "github.com/contiv/vpp/plugins/controller/api"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 )
 
@@ -123,7 +124,7 @@ func New(logger logging.Logger, nodeID uint32, config *Config, nodeInterconnectE
 
 // Resync resynchronizes IPAM against Kubernetes state data.
 // A set of already allocated pod IPs is updated.
-func (i *IPAM) Resync(pods []*podmodel.Pod) (err error) {
+func (i *IPAM) Resync(kubeStateData controller.KubeStateData) (err error) {
 	networkPrefix, err := ipv4ToUint32(i.podSubnetThisNode.IP)
 	if err != nil {
 		return err
@@ -134,16 +135,17 @@ func (i *IPAM) Resync(pods []*podmodel.Pod) (err error) {
 	i.assignedPodIPs = make(map[uintIP]podmodel.ID)
 
 	// iterate over pod state data
-	for _, podData := range pods {
+	for _, podProto := range kubeStateData[podmodel.PodKeyword] {
+		pod := podProto.(*podmodel.Pod)
 		// ignore pods deployed on other nodes or without IP address
-		podIPAddress := net.ParseIP(podData.IpAddress)
+		podIPAddress := net.ParseIP(pod.IpAddress)
 		if podIPAddress == nil || !i.podSubnetThisNode.Contains(podIPAddress) {
 			continue
 		}
 
 		// register address as already allocated
 		addrIndex, _ := ipv4ToUint32(podIPAddress)
-		podID := podmodel.ID{Name: podData.Name, Namespace: podData.Namespace}
+		podID := podmodel.ID{Name: pod.Name, Namespace: pod.Namespace}
 		i.assignedPodIPs[addrIndex] = podID
 
 		diff := int(addrIndex - networkPrefix)

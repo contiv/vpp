@@ -20,7 +20,7 @@ type mockControllerTxn struct {
 
 // CommitFunc is function called from the mock to trigger transaction processing
 // in TxnTracker.
-type CommitFunc = func(values map[string]proto.Message, isResync bool) error
+type CommitFunc = func(values map[string]proto.Message) error
 
 // NewMockControllerTxn is a constructor for mock Controller Txn.
 func NewMockControllerTxn(commitFunc CommitFunc) txn.Transaction {
@@ -59,7 +59,7 @@ func (m *mockControllerTxn) Commit(ctx context.Context) error {
 		fmt.Printf("      value: %s\n", valueStr)
 	}
 
-	return m.commitFunc(m.values, isResync)
+	return m.commitFunc(m.values)
 }
 
 // Put add request to the transaction to add or modify a value.

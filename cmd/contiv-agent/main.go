@@ -18,11 +18,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/gogo/protobuf/proto"
-
 	"github.com/ligato/cn-infra/agent"
 	"github.com/ligato/cn-infra/datasync"
-	"github.com/ligato/cn-infra/datasync/kvdbsync"
 	"github.com/ligato/cn-infra/datasync/kvdbsync/local"
 	"github.com/ligato/cn-infra/datasync/resync"
 	"github.com/ligato/cn-infra/db/keyval/bolt"
@@ -35,7 +32,6 @@ import (
 	"github.com/ligato/cn-infra/rpc/grpc"
 	"github.com/ligato/cn-infra/rpc/prometheus"
 	"github.com/ligato/cn-infra/rpc/rest"
-	"github.com/ligato/cn-infra/servicelabel"
 
 	"github.com/ligato/vpp-agent/plugins/govppmux"
 	"github.com/ligato/vpp-agent/plugins/kvscheduler"
@@ -52,19 +48,9 @@ import (
 	"github.com/contiv/vpp/plugins/contiv"
 	"github.com/contiv/vpp/plugins/controller"
 	controller_api "github.com/contiv/vpp/plugins/controller/api"
-	"github.com/contiv/vpp/plugins/ksr"
 	"github.com/contiv/vpp/plugins/policy"
 	"github.com/contiv/vpp/plugins/service"
 	"github.com/contiv/vpp/plugins/statscollector"
-
-	"github.com/contiv/vpp/plugins/contiv/model/nodeinfo"
-	nodeconfig "github.com/contiv/vpp/plugins/crd/handler/nodeconfig/model"
-	epmodel "github.com/contiv/vpp/plugins/ksr/model/endpoints"
-	nsmodel "github.com/contiv/vpp/plugins/ksr/model/namespace"
-	nodemodel "github.com/contiv/vpp/plugins/ksr/model/node"
-	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
-	policymodel "github.com/contiv/vpp/plugins/ksr/model/policy"
-	svcmodel "github.com/contiv/vpp/plugins/ksr/model/service"
 )
 
 const defaultStartupTimeout = 45 * time.Second
@@ -75,10 +61,6 @@ type ContivAgent struct {
 	HTTP        *rest.Plugin
 	HealthProbe *probe.Plugin
 	Prometheus  *prometheus.Plugin
-
-	ContivDataSync  *kvdbsync.Plugin
-	ServiceDataSync *kvdbsync.Plugin
-	PolicyDataSync  *kvdbsync.Plugin
 
 	KVScheduler *kvscheduler.Scheduler
 	Stats       *statscollector.Plugin
@@ -125,26 +107,9 @@ func main() {
 	// disable status check for etcd - Controller monitors the etcd status now
 	etcd.DefaultPlugin.StatusCheck = nil
 
-	// datasync of Kubernetes state data
-	ksrServicelabel := servicelabel.NewPlugin(servicelabel.UseLabel(ksr.MicroserviceLabel))
-	ksrServicelabel.SetName("ksrServiceLabel")
-	newKSRprefixSync := func(name string) *kvdbsync.Plugin {
-		return kvdbsync.NewPlugin(
-			kvdbsync.UseDeps(func(deps *kvdbsync.Deps) {
-				deps.KvPlugin = &etcd.DefaultPlugin
-				deps.ResyncOrch = &resync.DefaultPlugin
-				deps.ServiceLabel = ksrServicelabel
-				deps.SetName(name)
-			}))
-	}
-
-	contivDataSync := newKSRprefixSync("contivDataSync")
-	serviceDataSync := newKSRprefixSync("serviceDataSync")
-	policyDataSync := newKSRprefixSync("policyDataSync")
-
 	// set sources for VPP configuration
 	watcher := &datasync.KVProtoWatchers{local.Get()}
-	kvscheduler.DefaultPlugin.Watcher = watcher
+	kvscheduler.DefaultPlugin.Watcher = watcher // not really used at the moment
 
 	// initialize vpp-agent plugins
 	linux_ifplugin.DefaultPlugin.VppIfPlugin = &vpp_ifplugin.DefaultPlugin
@@ -160,96 +125,52 @@ func main() {
 	grpc.DefaultPlugin.HTTP = &rest.DefaultPlugin
 
 	// initialize Contiv plugins
-	controller := controller.NewPlugin(controller.UseDeps(func(deps *controller.Deps) {
-		deps.LocalDB = &bolt.DefaultPlugin
-		deps.RemoteDB = &etcd.DefaultPlugin
-		deps.DBResources = []*controller_api.DBResource{
-			{
-				Keyword:          nodeinfo.Keyword,
-				ProtoMessageName: proto.MessageName((*nodeinfo.NodeInfo)(nil)),
-				KeyPrefix:        ksrServicelabel.GetAgentPrefix() + nodeinfo.AllocatedIDsKeyPrefix,
-			},
-			{
-				Keyword:          nodeconfig.Keyword,
-				ProtoMessageName: proto.MessageName((*nodeconfig.NodeConfig)(nil)),
-				KeyPrefix:        ksrServicelabel.GetAgentPrefix() + nodeconfig.KeyPrefix(),
-			},
-			{
-				Keyword:          nodemodel.NodeKeyword,
-				ProtoMessageName: proto.MessageName((*nodemodel.Node)(nil)),
-				KeyPrefix:        ksrServicelabel.GetAgentPrefix() + nodemodel.KeyPrefix(),
-			},
-			{
-				Keyword:          podmodel.PodKeyword,
-				ProtoMessageName: proto.MessageName((*podmodel.Pod)(nil)),
-				KeyPrefix:        ksrServicelabel.GetAgentPrefix() + podmodel.KeyPrefix(),
-			},
-			{
-				Keyword:          nsmodel.NamespaceKeyword,
-				ProtoMessageName: proto.MessageName((*nsmodel.Namespace)(nil)),
-				KeyPrefix:        ksrServicelabel.GetAgentPrefix() + nsmodel.KeyPrefix(),
-			},
-			{
-				Keyword:          policymodel.PolicyKeyword,
-				ProtoMessageName: proto.MessageName((*policymodel.Policy)(nil)),
-				KeyPrefix:        ksrServicelabel.GetAgentPrefix() + policymodel.KeyPrefix(),
-			},
-			{
-				Keyword:          svcmodel.ServiceKeyword,
-				ProtoMessageName: proto.MessageName((*svcmodel.Service)(nil)),
-				KeyPrefix:        ksrServicelabel.GetAgentPrefix() + svcmodel.KeyPrefix(),
-			},
-			{
-				Keyword:          epmodel.EndpointsKeyword,
-				ProtoMessageName: proto.MessageName((*epmodel.Endpoints)(nil)),
-				KeyPrefix:        ksrServicelabel.GetAgentPrefix() + epmodel.KeyPrefix(),
-			},
-		}
-		// TODO event handlers
-	}))
-
 	contivPlugin := contiv.NewPlugin(contiv.UseDeps(func(deps *contiv.Deps) {
 		deps.VPPIfPlugin = &vpp_ifplugin.DefaultPlugin
-		deps.Watcher = contivDataSync
 	}))
 
 	statscollector.DefaultPlugin.Contiv = contivPlugin
 
 	policyPlugin := policy.NewPlugin(policy.UseDeps(func(deps *policy.Deps) {
-		deps.Watcher = policyDataSync
 		deps.Contiv = contivPlugin
 	}))
 
 	servicePlugin := service.NewPlugin(service.UseDeps(func(deps *service.Deps) {
-		deps.Watcher = serviceDataSync
 		deps.Contiv = contivPlugin
+	}))
+
+	controller := controller.NewPlugin(controller.UseDeps(func(deps *controller.Deps) {
+		deps.LocalDB = &bolt.DefaultPlugin
+		deps.RemoteDB = &etcd.DefaultPlugin
+		deps.EventHandlers = []controller_api.EventHandler{
+			contivPlugin,
+			servicePlugin,
+			policyPlugin,
+		}
 	}))
 
 	// initialize the agent
 	contivAgent := &ContivAgent{
-		LogManager:      &logmanager.DefaultPlugin,
-		HTTP:            &rest.DefaultPlugin,
-		HealthProbe:     &probe.DefaultPlugin,
-		Prometheus:      &prometheus.DefaultPlugin,
-		ContivDataSync:  contivDataSync,
-		ServiceDataSync: serviceDataSync,
-		PolicyDataSync:  policyDataSync,
-		KVScheduler:     &kvscheduler.DefaultPlugin,
-		Stats:           &statscollector.DefaultPlugin,
-		GoVPP:           &govppmux.DefaultPlugin,
-		LinuxIfPlugin:   &linux_ifplugin.DefaultPlugin,
-		LinuxL3Plugin:   &linux_l3plugin.DefaultPlugin,
-		VPPIfPlugin:     &vpp_ifplugin.DefaultPlugin,
-		VPPL2Plugin:     &vpp_l2plugin.DefaultPlugin,
-		VPPL3Plugin:     &vpp_l3plugin.DefaultPlugin,
-		VPPNATPlugin:    &vpp_natplugin.DefaultPlugin,
-		VPPACLPlugin:    &vpp_aclplugin.DefaultPlugin,
-		Telemetry:       &telemetry.DefaultPlugin,
-		GRPC:            &grpc.DefaultPlugin,
-		Controller:      controller,
-		Contiv:          contivPlugin,
-		Policy:          policyPlugin,
-		Service:         servicePlugin,
+		LogManager:    &logmanager.DefaultPlugin,
+		HTTP:          &rest.DefaultPlugin,
+		HealthProbe:   &probe.DefaultPlugin,
+		Prometheus:    &prometheus.DefaultPlugin,
+		KVScheduler:   &kvscheduler.DefaultPlugin,
+		Stats:         &statscollector.DefaultPlugin,
+		GoVPP:         &govppmux.DefaultPlugin,
+		LinuxIfPlugin: &linux_ifplugin.DefaultPlugin,
+		LinuxL3Plugin: &linux_l3plugin.DefaultPlugin,
+		VPPIfPlugin:   &vpp_ifplugin.DefaultPlugin,
+		VPPL2Plugin:   &vpp_l2plugin.DefaultPlugin,
+		VPPL3Plugin:   &vpp_l3plugin.DefaultPlugin,
+		VPPNATPlugin:  &vpp_natplugin.DefaultPlugin,
+		VPPACLPlugin:  &vpp_aclplugin.DefaultPlugin,
+		Telemetry:     &telemetry.DefaultPlugin,
+		GRPC:          &grpc.DefaultPlugin,
+		Controller:    controller,
+		Contiv:        contivPlugin,
+		Policy:        policyPlugin,
+		Service:       servicePlugin,
 	}
 
 	a := agent.NewAgent(agent.AllPlugins(contivAgent), agent.StartTimeout(getStartupTimeout()))

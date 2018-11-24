@@ -15,10 +15,12 @@
 package controller
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"reflect"
+	"runtime"
 	"sync"
 	"time"
 
@@ -37,13 +39,17 @@ import (
 )
 
 const (
-	// by default, dbwatcher waits one second for connection to remoteDB
-	// to establish before falling back to local DB resync
-	defaultDelayLocalResync = time.Second
+	// how many events can be buffered at most
+	eventQueueSize = 1000
+
+	// by default, dbwatcher waits 5 seconds for connection to remoteDB
+	// to be established before falling back to local DB resync
+	// (but only if local DB is not empty)
+	defaultDelayLocalResync = 5 * time.Second
 
 	// by default, Controller will report error to status check if it does not
-	// receive startup DBResync event within the first minute of runtime
-	defaultStartupResyncDeadline = 1 * time.Minute
+	// receive startup DBResync event within the first 30secs of runtime
+	defaultStartupResyncDeadline = 30 * time.Second
 
 	// by default, remote DB connection is probed every 3 seconds (with one GetValue)
 	defaultRemoteDBProbingInterval = 3 * time.Second
@@ -54,16 +60,16 @@ const (
 	// by default, retry is executed just 1sec after the failed operation
 	defaultDelayRetry = time.Second
 
-	// by default, retry delay grows exponentially with each failed attempt.
+	// by default, retry delay grows exponentially with each failed attempt
 	defaultEnableExpBackoffRetry = true
 
 	// by default, periodic healing is disabled
 	defaultEnablePeriodicHealing = false
 
-	// by default, when enabled, periodic healing will run once every minute.
+	// by default, when enabled, periodic healing will run once every minute
 	defaultPeriodicHealingInterval = time.Minute
 
-	// by default, healing resync will start 5 seconds after a failed event processing.
+	// by default, healing resync will start 5 seconds after a failed event processing
 	defaultDelayAfterErrorHealing = 5 * time.Second
 )
 
@@ -124,14 +130,16 @@ type Controller struct {
 	externalConfig api.ExternalConfig
 	internalConfig api.KeyValuePairs
 
+	evLoopGID          string // ID of the go routine running the event loop
 	revEventHandlers   []api.EventHandler
-	eventQueue         chan api.Event
-	delayedEvents      []api.Event
+	delayedEvents      []*QueuedEvent // events delayed until after the first resync
+	eventQueue         chan *QueuedEvent
+	followUpEventQueue chan *QueuedEvent // events sent from within the event loop
 	startupResyncCheck chan struct{}
-	healingScheduled   bool
 
-	resyncCount int
-	evSeqNum    uint64
+	healingScheduled bool
+	resyncCount      int
+	evSeqNum         uint64
 
 	historyLock  sync.Mutex
 	eventHistory []*EventRecord
@@ -152,9 +160,8 @@ type Deps struct {
 
 	EventHandlers []api.EventHandler
 
-	LocalDB     keyval.KvProtoPlugin
-	RemoteDB    keyval.KvProtoPlugin
-	DBResources []*api.DBResource
+	LocalDB  keyval.KvProtoPlugin
+	RemoteDB keyval.KvProtoPlugin
 }
 
 // Config holds the Controller configuration.
@@ -181,6 +188,8 @@ type Config struct {
 // available via REST interface.
 type EventRecord struct {
 	SeqNum      uint64
+	IsFollowUp  bool
+	FollowUpTo  uint64
 	Name        string
 	Description string
 	Method      api.EventMethodType
@@ -197,6 +206,13 @@ type EventHandlingRecord struct {
 	ErrorStr string // string representation of the error (if any)
 }
 
+// QueuedEvent wraps event for the event queue.
+type QueuedEvent struct {
+	event           api.Event
+	isFollowUp      bool
+	followUpToEvent uint64 // event sequence number
+}
+
 var (
 	// ErrClosedController is returned when Controller is used when it is already closed.
 	ErrClosedController = errors.New("controller was closed")
@@ -208,7 +224,8 @@ var (
 func (c *Controller) Init() error {
 	// initialize attributes
 	c.ctx, c.cancel = context.WithCancel(context.Background())
-	c.eventQueue = make(chan api.Event, 1000)
+	c.eventQueue = make(chan *QueuedEvent, eventQueueSize)
+	c.followUpEventQueue = make(chan *QueuedEvent, eventQueueSize)
 	c.startupResyncCheck = make(chan struct{}, 1)
 	c.internalConfig = make(api.KeyValuePairs)
 	for i := len(c.EventHandlers) - 1; i >= 0; i-- {
@@ -263,7 +280,6 @@ func (c *Controller) AfterInit() error {
 		eventLoop:               c,
 		localDB:                 c.LocalDB,
 		remoteDB:                c.RemoteDB,
-		resources:               c.DBResources,
 		delayLocalResync:        c.config.DelayLocalResync,
 		remoteDBProbingInterval: c.config.RemoteDBProbingInterval,
 	})
@@ -272,10 +288,30 @@ func (c *Controller) AfterInit() error {
 
 // PushEvent adds the given event into the queue for processing.
 func (c *Controller) PushEvent(event api.Event) error {
+	callerGID := getGID()
+	if callerGID == c.evLoopGID {
+		// follow up events (sent from within the event loop) should not be blocking
+		// and will be prioritized (won't be overtaken by non-follow-up events)
+		if event.IsBlocking() {
+			panic("deadlock detected - blocking event sent from within the event loop")
+		}
+		select {
+		case <-c.ctx.Done():
+			return ErrClosedController
+		case c.followUpEventQueue <- &QueuedEvent{
+			event:           event,
+			isFollowUp:      true,
+			followUpToEvent: c.evSeqNum - 1}:
+			return nil
+		default:
+			return ErrEventQueueFull
+		}
+	}
+
 	select {
 	case <-c.ctx.Done():
 		return ErrClosedController
-	case c.eventQueue <- event:
+	case c.eventQueue <- &QueuedEvent{event: event}:
 		return nil
 	default:
 		return ErrEventQueueFull
@@ -316,43 +352,24 @@ func (c *Controller) periodicHealing() {
 // eventLoop implements the main event loop for Contiv.
 func (c *Controller) eventLoop() {
 	defer c.wg.Done()
+	c.evLoopGID = getGID()
 
 	for {
 		select {
 		case <-c.ctx.Done():
 			return
 
-		case event := <-c.eventQueue:
-			// handle startup resync
-			if c.resyncCount == 0 {
-				// DBResync must be the first event to process
-				if _, isDBResync := event.(*api.DBResync); isDBResync {
-					// once the startup resync is received,
-					// periodic resync - if enabled - can be started
-					if c.config.EnablePeriodicHealing {
-						c.wg.Add(1)
-						go c.periodicHealing()
-					}
-				} else {
-					// events received before the first DBResync will be replayed afterwards
-					c.delayedEvents = append(c.delayedEvents, event)
-					continue // wait until DBResync
-				}
+		case event := <-c.followUpEventQueue:
+			exit := c.receiveEvent(event)
+			if exit {
+				return
 			}
 
-			// process the received event + all the delayed events
-			events := append([]api.Event{event}, c.delayedEvents...)
-			for _, event := range events {
-				err := c.processEvent(event)
-				if err != nil {
-					if _, fatalErr := err.(*api.FatalError); fatalErr {
-						// fatal error -> let the Kubernetes to restart the agent
-						c.StatusCheck.ReportStateChange(c.PluginName, statuscheck.Error, err)
-						return
-					}
-				}
+		case event := <-c.eventQueue:
+			exit := c.receiveEvent(event)
+			if exit {
+				return
 			}
-			c.delayedEvents = []api.Event{}
 
 		case <-c.startupResyncCheck:
 			// check that startup resync was performed
@@ -366,8 +383,55 @@ func (c *Controller) eventLoop() {
 	}
 }
 
+// receiveEvent receives event from the event queue.
+func (c *Controller) receiveEvent(qe *QueuedEvent) (exitLoop bool) {
+	// handle startup resync
+	if c.resyncCount == 0 {
+		// DBResync must be the first event to process
+		if _, isDBResync := qe.event.(*api.DBResync); isDBResync {
+			// once the startup resync is received,
+			// periodic resync - if enabled - can be started
+			if c.config.EnablePeriodicHealing {
+				c.wg.Add(1)
+				go c.periodicHealing()
+			}
+		} else {
+			// events received before the first DBResync will be replayed afterwards
+			c.delayedEvents = append(c.delayedEvents, qe)
+			return false // wait until DBResync
+		}
+	}
+
+	// process the received event + all the delayed events
+	events := append([]*QueuedEvent{qe}, c.delayedEvents...)
+	for len(events) > 0 {
+		// check if there is any follow-up event
+		if !qe.isFollowUp {
+			select {
+			case followUpEvent := <-c.followUpEventQueue:
+				events = append([]*QueuedEvent{followUpEvent}, events...)
+			default:
+				// NOOP
+			}
+		}
+		// pop and process the first event
+		event := events[0]
+		events = events[1:]
+		err := c.processEvent(event)
+		if err != nil {
+			if _, fatalErr := err.(*api.FatalError); fatalErr {
+				// fatal error -> let the Kubernetes to restart the agent
+				c.StatusCheck.ReportStateChange(c.PluginName, statuscheck.Error, err)
+				return true
+			}
+		}
+	}
+	c.delayedEvents = []*QueuedEvent{}
+	return false
+}
+
 // processEvent processes the next event.
-func (c *Controller) processEvent(event api.Event) error {
+func (c *Controller) processEvent(qe *QueuedEvent) error {
 	var (
 		wasErr          error
 		isUpdate        bool
@@ -378,10 +442,11 @@ func (c *Controller) processEvent(event api.Event) error {
 		updateEvent     api.UpdateEvent
 		eventHandlers   []api.EventHandler
 	)
+	event := qe.event
 
 	// 1. prepare for resync
 	if event.Method() == api.Resync {
-		c.resyncCount++
+		c.resyncCount++ // first resync has resyncCount == 1
 		if dbResync, isDBResync := event.(*api.DBResync); isDBResync {
 			c.kubeStateData = dbResync.KubeState
 			c.externalConfig = dbResync.ExternalConfig
@@ -411,7 +476,7 @@ func (c *Controller) processEvent(event api.Event) error {
 			c.kubeStateData[ksChange.Resource][ksChange.Key] = ksChange.NewValue
 		}
 		if extChangeEv, isExtChangeEv := event.(*api.ExternalConfigChange); isExtChangeEv {
-			c.externalConfig[extChangeEv.Change.GetKey()] = extChangeEv.Change
+			c.externalConfig[extChangeEv.Key] = extChangeEv.Value
 		}
 	}
 
@@ -437,6 +502,8 @@ func (c *Controller) processEvent(event api.Event) error {
 	// 5. prepare record of the event for the history
 	evRecord := &EventRecord{
 		SeqNum:      c.evSeqNum,
+		IsFollowUp:  qe.isFollowUp,
+		FollowUpTo:  qe.followUpToEvent,
 		Name:        event.GetName(),
 		Description: event.String(),
 		Method:      event.Method(),
@@ -501,15 +568,15 @@ func (c *Controller) processEvent(event api.Event) error {
 			var extChangeKey string
 			if extChangeEv, isExtChangeEv := event.(*api.ExternalConfigChange); isExtChangeEv {
 				// merge external config change with txn or with cached internal config
-				extChangeKey = extChangeEv.Change.GetKey()
+				extChangeKey = extChangeEv.Key
 				txnVal, hasTxnVal := txn.values[extChangeKey]
 				cachedVal, hasCachedVal := c.internalConfig[extChangeKey]
 				if hasTxnVal {
-					txn.merged[extChangeKey] = c.mergeLazyValIntoProto(extChangeKey, extChangeEv.Change, txnVal)
+					txn.merged[extChangeKey] = c.mergeLazyValIntoProto(extChangeKey, extChangeEv.Value, txnVal)
 				} else if hasCachedVal {
-					txn.merged[extChangeKey] = c.mergeLazyValIntoProto(extChangeKey, extChangeEv.Change, cachedVal)
+					txn.merged[extChangeKey] = c.mergeLazyValIntoProto(extChangeKey, extChangeEv.Value, cachedVal)
 				} else {
-					txn.merged[extChangeKey] = extChangeEv.Change
+					txn.merged[extChangeKey] = extChangeEv.Value
 				}
 			}
 
@@ -559,9 +626,9 @@ func (c *Controller) processEvent(event api.Event) error {
 		}
 		if !isUpdate {
 			if periodicHealing {
-				ctx = scheduler.WithFullResync(ctx)
-			} else {
 				ctx = scheduler.WithDownstreamResync(ctx)
+			} else {
+				ctx = scheduler.WithFullResync(ctx)
 			}
 		}
 
@@ -707,4 +774,17 @@ func (c *Controller) mergeLazyValIntoProto(key string, value datasync.LazyValue,
 	}
 	proto.Merge(merge, protoVal)
 	return output
+}
+
+// getGID returns the current go routine ID as string.
+func getGID() string {
+	goroutineLabel := []byte("goroutine ")
+	b := make([]byte, 64)
+	b = b[:runtime.Stack(b, false)]
+	if !bytes.HasPrefix(b, goroutineLabel) {
+		return "unknown"
+	}
+	b = bytes.TrimPrefix(b, goroutineLabel)
+	b = b[:bytes.IndexByte(b, ' ')]
+	return string(b)
 }

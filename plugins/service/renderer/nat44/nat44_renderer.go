@@ -17,23 +17,23 @@
 package nat44
 
 import (
+	"fmt"
 	"net"
 	"sync/atomic"
 	"time"
 
+	govpp "git.fd.io/govpp.git/api"
 	"github.com/gogo/protobuf/proto"
 
 	"github.com/ligato/cn-infra/logging"
 
-	"github.com/ligato/vpp-agent/clientv2/linux"
+	nat_api "github.com/ligato/vpp-agent/plugins/vpp/binapi/nat"
 	"github.com/ligato/vpp-agent/plugins/vppv2/model/nat"
 
 	"github.com/contiv/vpp/plugins/contiv"
+	controller "github.com/contiv/vpp/plugins/controller/api"
 	"github.com/contiv/vpp/plugins/service/renderer"
-
-	govpp "git.fd.io/govpp.git/api"
 	"github.com/contiv/vpp/plugins/statscollector"
-	nat_api "github.com/ligato/vpp-agent/plugins/vpp/binapi/nat"
 )
 
 const (
@@ -110,11 +110,12 @@ type Renderer struct {
 
 // Deps lists dependencies of the Renderer.
 type Deps struct {
-	Log           logging.Logger
-	Contiv        contiv.API /* for GetNatLoopbackIP, GetServiceLocalEndpointWeight */
-	NATTxnFactory func() (dsl linuxclient.DataChangeDSL)
-	GoVPPChan     govpp.Channel      /* used for direct NAT binary API calls */
-	Stats         statscollector.API /* used for exporting the statistics */
+	Log              logging.Logger
+	Contiv           contiv.API /* for GetNatLoopbackIP, GetServiceLocalEndpointWeight */
+	UpdateTxnFactory func(change string) (txn controller.UpdateOperations)
+	ResyncTxnFactory func() (txn controller.ResyncOperations)
+	GoVPPChan        govpp.Channel      /* used for direct NAT binary API calls */
+	Stats            statscollector.API /* used for exporting the statistics */
 }
 
 // Init initializes the renderer.
@@ -140,18 +141,11 @@ func (rndr *Renderer) AddService(service *renderer.ContivService) error {
 	if rndr.snatOnly {
 		return nil
 	}
+
 	dnat := rndr.contivServiceToDNat(service)
-	rndr.Log.WithFields(logging.Fields{
-		"service": service,
-		"DNAT":    dnat,
-	}).Debug("Nat44Renderer - AddService()")
-
-	// Configure DNAT via ligato/vpp-agent.
-	dsl := rndr.NATTxnFactory()
-	putDsl := dsl.Put()
-	putDsl.DNAT44(dnat)
-
-	return dsl.Send().ReceiveReply()
+	txn := rndr.UpdateTxnFactory(fmt.Sprintf("add service '%v'", service.ID))
+	txn.Put(nat.DNAT44Key(dnat.Label), dnat)
+	return nil
 }
 
 // UpdateService updates destination-NAT rules for a changed service.
@@ -160,18 +154,9 @@ func (rndr *Renderer) UpdateService(oldService, newService *renderer.ContivServi
 		return nil
 	}
 	newDNAT := rndr.contivServiceToDNat(newService)
-	rndr.Log.WithFields(logging.Fields{
-		"oldService": oldService,
-		"newService": newService,
-		"newDNAT":    newDNAT,
-	}).Debug("Nat44Renderer - UpdateService()")
-
-	// Update DNAT via ligato/vpp-agent.
-	dsl := rndr.NATTxnFactory()
-	putDsl := dsl.Put()
-	putDsl.DNAT44(newDNAT)
-
-	return dsl.Send().ReceiveReply()
+	txn := rndr.UpdateTxnFactory(fmt.Sprintf("update service '%v'", newService.ID))
+	txn.Put(nat.DNAT44Key(newDNAT.Label), newDNAT)
+	return nil
 }
 
 // DeleteService removes destination-NAT configuration associated with a freshly
@@ -180,16 +165,10 @@ func (rndr *Renderer) DeleteService(service *renderer.ContivService) error {
 	if rndr.snatOnly {
 		return nil
 	}
-	rndr.Log.WithFields(logging.Fields{
-		"service": service,
-	}).Debug("Nat44Renderer - DeleteService()")
 
-	// Delete DNAT via ligato/vpp-agent.
-	dsl := rndr.NATTxnFactory()
-	deleteDsl := dsl.Delete()
-	deleteDsl.DNAT44(service.ID.String())
-
-	return dsl.Send().ReceiveReply()
+	txn := rndr.UpdateTxnFactory(fmt.Sprintf("delete service '%v'", service.ID))
+	txn.Delete(nat.DNAT44Key(service.ID.String()))
+	return nil
 }
 
 // UpdateNodePortServices updates configuration of nodeport services to reflect
@@ -200,29 +179,15 @@ func (rndr *Renderer) UpdateNodePortServices(nodeIPs *renderer.IPAddresses,
 	if rndr.snatOnly {
 		return nil
 	}
-	rndr.Log.WithFields(logging.Fields{
-		"nodeIPs":    nodeIPs,
-		"npServices": npServices,
-	}).Debug("Nat44Renderer - UpdateNodePortServices()")
-
 	// Update cached internal node IPs.
 	rndr.nodeIPs = nodeIPs
 
 	// Update DNAT of all node-port services via ligato/vpp-agent.
-	dsl := rndr.NATTxnFactory()
-	putDsl := dsl.Put()
-
+	txn := rndr.UpdateTxnFactory("update nodeport services")
 	for _, npService := range npServices {
 		newDNAT := rndr.contivServiceToDNat(npService)
-		putDsl.DNAT44(newDNAT)
+		txn.Put(nat.DNAT44Key(newDNAT.Label), newDNAT)
 	}
-
-	err := dsl.Send().ReceiveReply()
-	if err != nil {
-		rndr.Log.Error(err)
-		return err
-	}
-
 	return nil
 }
 
@@ -232,10 +197,6 @@ func (rndr *Renderer) UpdateLocalFrontendIfs(oldIfNames, newIfNames renderer.Int
 	if rndr.snatOnly {
 		return nil
 	}
-	rndr.Log.WithFields(logging.Fields{
-		"oldIfNames": oldIfNames,
-		"newIfNames": newIfNames,
-	}).Debug("Nat44Renderer - UpdateLocalFrontendIfs()")
 
 	// Re-build the list of interfaces with enabled NAT features.
 	rndr.natGlobalCfg = proto.Clone(rndr.natGlobalCfg).(*nat.Nat44Global)
@@ -264,11 +225,9 @@ func (rndr *Renderer) UpdateLocalFrontendIfs(oldIfNames, newIfNames renderer.Int
 	rndr.natGlobalCfg.NatInterfaces = newNatIfs
 
 	// Update global NAT config via ligato/vpp-agent.
-	dsl := rndr.NATTxnFactory()
-	putDsl := dsl.Put()
-	putDsl.NAT44Global(rndr.natGlobalCfg)
-
-	return dsl.Send().ReceiveReply()
+	txn := rndr.UpdateTxnFactory("update frontends")
+	txn.Put(nat.GlobalNAT44Key, rndr.natGlobalCfg)
+	return nil
 }
 
 // UpdateLocalBackendIfs enables in2out VPP/NAT feature for interfaces connecting
@@ -277,10 +236,6 @@ func (rndr *Renderer) UpdateLocalBackendIfs(oldIfNames, newIfNames renderer.Inte
 	if rndr.snatOnly {
 		return nil
 	}
-	rndr.Log.WithFields(logging.Fields{
-		"oldIfNames": oldIfNames,
-		"newIfNames": newIfNames,
-	}).Debug("Nat44Renderer - UpdateLocalBackendIfs()")
 
 	// Re-build the list of interfaces with enabled NAT features.
 	rndr.natGlobalCfg = proto.Clone(rndr.natGlobalCfg).(*nat.Nat44Global)
@@ -304,22 +259,15 @@ func (rndr *Renderer) UpdateLocalBackendIfs(oldIfNames, newIfNames renderer.Inte
 	rndr.natGlobalCfg.NatInterfaces = newNatIfs
 
 	// Update global NAT config via ligato/vpp-agent.
-	dsl := rndr.NATTxnFactory()
-	putDsl := dsl.Put()
-	putDsl.NAT44Global(rndr.natGlobalCfg)
-
-	return dsl.Send().ReceiveReply()
+	txn := rndr.UpdateTxnFactory("update backends")
+	txn.Put(nat.GlobalNAT44Key, rndr.natGlobalCfg)
+	return nil
 }
 
 // Resync completely replaces the current NAT configuration with the provided
 // full state of K8s services.
 func (rndr *Renderer) Resync(resyncEv *renderer.ResyncEventData) error {
-	rndr.Log.WithFields(logging.Fields{
-		"resyncEv": resyncEv,
-	}).Debug("Nat44Renderer - Resync()")
-
-	dsl := rndr.NATTxnFactory()
-	putDsl := dsl.Put()
+	txn := rndr.ResyncTxnFactory()
 
 	// In case the renderer is supposed to configure only the dynamic source-NAT,
 	// just pretend there are no services, frontends and backends to be configured.
@@ -358,9 +306,10 @@ func (rndr *Renderer) Resync(resyncEv *renderer.ResyncEventData) error {
 	// Resync DNAT configuration.
 	for _, service := range resyncEv.Services {
 		dnat := rndr.contivServiceToDNat(service)
-		putDsl.DNAT44(dnat)
+		txn.Put(nat.DNAT44Key(dnat.Label), dnat)
 	}
-	putDsl.DNAT44(rndr.exportIdentityMappings())
+	dnat := rndr.exportIdentityMappings()
+	txn.Put(nat.DNAT44Key(dnat.Label), dnat)
 
 	// Re-build the global NAT config.
 	rndr.natGlobalCfg = &nat.Nat44Global{
@@ -417,9 +366,8 @@ func (rndr *Renderer) Resync(resyncEv *renderer.ResyncEventData) error {
 			})
 	}
 	// - add to the transaction
-	putDsl.NAT44Global(rndr.natGlobalCfg)
-
-	return dsl.Send().ReceiveReply()
+	txn.Put(nat.GlobalNAT44Key, rndr.natGlobalCfg)
+	return nil
 }
 
 // contivServiceToDNat returns DNAT configuration corresponding to a given service.

@@ -16,8 +16,6 @@ package contiv
 
 import (
 	"github.com/ligato/cn-infra/config"
-	"github.com/ligato/cn-infra/datasync/resync"
-	"github.com/ligato/cn-infra/db/keyval/bolt"
 	"github.com/ligato/cn-infra/db/keyval/etcd"
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/rpc/grpc"
@@ -45,11 +43,9 @@ func NewPlugin(opts ...Option) *Plugin {
 	p.PluginName = "contiv"
 	p.ServiceLabel = &servicelabel.DefaultPlugin
 	p.KVScheduler = &kvscheduler.DefaultPlugin
-	p.Resync = &resync.DefaultPlugin
 	p.GoVPP = &govppmux.DefaultPlugin
 	p.GRPC = &grpc.DefaultPlugin
 	p.ETCD = &etcd.DefaultPlugin
-	p.Bolt = &bolt.DefaultPlugin
 	p.HTTPHandlers = &rest.DefaultPlugin
 
 	for _, o := range opts {

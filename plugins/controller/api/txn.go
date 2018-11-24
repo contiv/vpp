@@ -50,7 +50,7 @@ type UpdateOperations interface {
 
 // PutAll is a helper function to prepare Put for multiple key-value pairs into
 // a single transaction.
-func PutAll(txn Transaction, values KeyValuePairs) {
+func PutAll(txn ResyncOperations, values KeyValuePairs) {
 	for key, value := range values {
 		txn.Put(key, value)
 	}
@@ -58,7 +58,7 @@ func PutAll(txn Transaction, values KeyValuePairs) {
 
 // DeleteAll is a helper function to prepare Delete for multiple key-value pairs into
 // a single transaction.
-func DeleteAll(txn Transaction, values KeyValuePairs) {
+func DeleteAll(txn UpdateOperations, values KeyValuePairs) {
 	for key := range values {
 		txn.Delete(key)
 	}

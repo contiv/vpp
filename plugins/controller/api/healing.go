@@ -56,6 +56,11 @@ func (ev *HealingResync) Method() EventMethodType {
 	return Resync
 }
 
+// IsBlocking returns false.
+func (ev *HealingResync) IsBlocking() bool {
+	return false
+}
+
 // Done is NOOP.
 func (ev *HealingResync) Done(error) {
 	return

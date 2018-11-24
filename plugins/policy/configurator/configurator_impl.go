@@ -110,11 +110,15 @@ func (pc *PolicyConfigurator) Close() error {
 // transaction are left unchanged.
 func (pc *PolicyConfigurator) NewTxn(resync bool) Txn {
 	txn := &PolicyConfiguratorTxn{
-		Log:            pc.Log,
-		configurator:   pc,
-		resync:         resync,
-		config:         make(map[podmodel.ID]ContivPolicies),
-		podIPAddresses: pc.podIPAddresses.Copy(),
+		Log:          pc.Log,
+		configurator: pc,
+		resync:       resync,
+		config:       make(map[podmodel.ID]ContivPolicies),
+	}
+	if resync {
+		txn.podIPAddresses = make(PodIPAddresses)
+	} else {
+		txn.podIPAddresses = pc.podIPAddresses.Copy()
 	}
 	return txn
 }

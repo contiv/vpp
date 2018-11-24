@@ -14,9 +14,19 @@
 
 package nodeinfo
 
+import (
+	"strconv"
+)
+
 // Keyword defines the keyword identifying NodeInfo data.
 const Keyword = "nodeinfo"
 
 // AllocatedIDsKeyPrefix is a key prefix used in ETCD to store information
 // about node ID and its IP addresses.
 const AllocatedIDsKeyPrefix = "allocatedIDs/"
+
+// Key returns the key under which NodeInfo data for a node with the given ID
+// should be stored in the data-store.
+func Key(index uint32) string {
+	return AllocatedIDsKeyPrefix + strconv.FormatUint(uint64(index), 10)
+}

@@ -19,22 +19,23 @@ package processor
 import (
 	"net"
 	"strings"
+	"sync"
 
-	"github.com/ligato/cn-infra/datasync"
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/servicelabel"
 
 	"github.com/contiv/vpp/plugins/contiv"
 	"github.com/contiv/vpp/plugins/contiv/model/nodeinfo"
+	controller "github.com/contiv/vpp/plugins/controller/api"
 	epmodel "github.com/contiv/vpp/plugins/ksr/model/endpoints"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	svcmodel "github.com/contiv/vpp/plugins/ksr/model/service"
 	"github.com/contiv/vpp/plugins/service/renderer"
-	"sync"
 )
 
 // ServiceProcessor implements ServiceProcessorAPI.
 type ServiceProcessor struct {
+	sync.Mutex
 	Deps
 
 	renderers []renderer.ServiceRendererAPI
@@ -49,11 +50,6 @@ type ServiceProcessor struct {
 	/* local frontend and backend interfaces */
 	frontendIfs renderer.Interfaces
 	backendIfs  renderer.Interfaces
-
-	/* a local copy of kubernetes state data */
-	k8sStateData map[string]datasync.KeyVal // key -> value, revision
-
-	sync.Mutex
 }
 
 // Deps lists dependencies of ServiceProcessor.
@@ -72,9 +68,6 @@ type LocalEndpoint struct {
 // Init initializes service processor.
 func (sp *ServiceProcessor) Init() error {
 	sp.reset()
-	sp.Contiv.RegisterPodPreRemovalHook(sp.processDeletingPod)
-	sp.Contiv.RegisterPodPostAddHook(sp.processNewPod)
-	sp.k8sStateData = make(map[string]datasync.KeyVal)
 	return nil
 }
 
@@ -98,17 +91,10 @@ func (sp *ServiceProcessor) reset() error {
 // The data change is stored into the cache and all registered renderers
 // are notified about any changes related to services that need to be
 // reflected in the underlying network stack(s).
-func (sp *ServiceProcessor) Update(dataChngEv datasync.ChangeEvent) error {
+func (sp *ServiceProcessor) Update(event *controller.KubeStateChange) error {
 	sp.Lock()
 	defer sp.Unlock()
-
-	for _, dataChng := range dataChngEv.GetChanges() {
-		err := sp.propagateDataChangeEv(dataChng)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
+	return sp.propagateDataChangeEv(event)
 }
 
 // Resync processes a datasync resync event associated with the state data
@@ -116,11 +102,11 @@ func (sp *ServiceProcessor) Update(dataChngEv datasync.ChangeEvent) error {
 // The cache content is fully replaced and all registered renderers
 // receive a full snapshot of Contiv Services at the present state to be
 // (re)installed.
-func (sp *ServiceProcessor) Resync(resyncEv datasync.ResyncEvent) error {
+func (sp *ServiceProcessor) Resync(kubeStateData controller.KubeStateData) error {
 	sp.Lock()
 	defer sp.Unlock()
 
-	resyncEvData := sp.parseResyncEv(resyncEv)
+	resyncEvData := sp.parseResyncEv(kubeStateData)
 	return sp.processResyncEvent(resyncEvData)
 }
 
@@ -134,7 +120,8 @@ func (sp *ServiceProcessor) RegisterRenderer(renderer renderer.ServiceRendererAP
 	return nil
 }
 
-func (sp *ServiceProcessor) processNewPod(podNamespace string, podName string) error {
+// ProcessNewPod is called when connectivity to pod is being established.
+func (sp *ServiceProcessor) ProcessNewPod(podNamespace string, podName string) error {
 	sp.Lock()
 	defer sp.Unlock()
 
@@ -169,7 +156,8 @@ func (sp *ServiceProcessor) processNewPod(podNamespace string, podName string) e
 	return nil
 }
 
-func (sp *ServiceProcessor) processDeletingPod(podNamespace string, podName string) error {
+// ProcessDeletingPod is called during pod removal.
+func (sp *ServiceProcessor) ProcessDeletingPod(podNamespace string, podName string) error {
 	sp.Lock()
 	defer sp.Unlock()
 

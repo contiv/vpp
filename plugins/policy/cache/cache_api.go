@@ -17,8 +17,7 @@
 package cache
 
 import (
-	"github.com/ligato/cn-infra/datasync"
-
+	controller "github.com/contiv/vpp/plugins/controller/api"
 	nsmodel "github.com/contiv/vpp/plugins/ksr/model/namespace"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	policymodel "github.com/contiv/vpp/plugins/ksr/model/policy"
@@ -33,17 +32,17 @@ import (
 // for watching using Watch() API.
 // The cache provides various fast lookup methods (e.g. by the label selector).
 type PolicyCacheAPI interface {
-	// Update processes a datasync change event associated with K8s State data.
-	// The change is applied into the cache and all subscribed watchers are
-	// notified.
-	// The function will forward any error returned by a watcher.
-	Update(dataChngEv datasync.ChangeEvent) error
-
-	// Resync processes a datasync resync event associated with K8s State data.
+	// Resync processes a K8s state data resync event.
 	// The cache content is full replaced with the received data and all
 	// subscribed watchers are notified.
 	// The function will forward any error returned by a watcher.
-	Resync(resyncEv datasync.ResyncEvent) error
+	Resync(kubeStateData controller.KubeStateData) error
+
+	// Update processes a K8s state data change event.
+	// The change is applied into the cache and all subscribed watchers are
+	// notified.
+	// The function will forward any error returned by a watcher.
+	Update(kubeStateChange *controller.KubeStateChange) error
 
 	// Watch subscribes a new watcher.
 	Watch(watcher PolicyCacheWatcher) error

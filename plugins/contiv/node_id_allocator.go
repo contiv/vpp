@@ -15,20 +15,21 @@
 package contiv
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
-	"sort"
-	"sync"
-
-	"bytes"
-	"github.com/contiv/vpp/plugins/contiv/model/nodeinfo"
-	"github.com/contiv/vpp/plugins/ksr"
-	"github.com/ligato/cn-infra/db/keyval"
-	"github.com/ligato/cn-infra/db/keyval/etcd"
-	"github.com/ligato/cn-infra/servicelabel"
 	"net"
+	"sort"
 	"strconv"
 	"strings"
+	"sync"
+
+	"github.com/ligato/cn-infra/db/keyval"
+	"github.com/ligato/cn-infra/servicelabel"
+
+	"github.com/contiv/vpp/plugins/contiv/model/nodeinfo"
+	controller "github.com/contiv/vpp/plugins/controller/api"
+	"github.com/contiv/vpp/plugins/ksr"
 )
 
 const (
@@ -36,74 +37,124 @@ const (
 )
 
 var (
+	errOutOfSync          = fmt.Errorf("resync must be called first")
+	errNoConnection       = fmt.Errorf("database is not connected")
 	errInvalidKey         = fmt.Errorf("invalid key for nodeID")
 	errUnableToAllocateID = fmt.Errorf("unable to allocate unique id for node (max attempt limit reached)")
 	errNoIDallocated      = fmt.Errorf("there is no ID allocated for the node")
 )
 
-// idAllocator manages allocation/deallocation of unique number identifying a node in the k8s cluster.
-// Retrieved identifier is used as input of IPAM module for the node.
-// (AllocatedID is represented by an entry in ETCD. The process of allocation leverages etcd transaction
-// to atomically check if the key exists and if not, a new key-value pair representing
-// the allocation is inserted)
-type idAllocator struct {
-	sync.Mutex
-	etcd   *etcd.Plugin
-	broker keyval.ProtoBroker
+// NodeIDAllocator describes interface of the allocator for node IDs.
+type NodeIDAllocator interface {
+	// Resync re-synchronizes the node allocator against a snapshot of Kubernetes state data.
+	// Should be called with startup resync before accessing any other method.
+	Resync(kubeState controller.KubeStateData)
 
-	allocated bool
-	ID        uint32
+	// GetOrAllocateNodeID allocates or returns already allocated unique number for the given node.
+	// Beware: Resync() has to be called first.
+	GetOrAllocateNodeID() (id uint32, err error)
 
-	nodeName string
-	nodeIP   *net.IPNet
+	// ReleaseID returns allocated ID back to the pool.
+	ReleaseID() error
 
-	// ip used by k8s to access node
-	managementIP string
+	// UpdateIP informs allocator about a change of the node main IP address.
+	// The allocator will publish this change to other nodes.
+	UpdateIP(newIP *net.IPNet) error
+
+	// UpdateManagementIP informs allocator about a change of a node management IP address.
+	// The allocator will publish this change to other nodes.
+	// TODO: get rid of management IP
+	UpdateManagementIP(newMgmtIP string) error
 }
 
-// newIDAllocator creates new instance of idAllocator
-func newIDAllocator(etcd *etcd.Plugin, nodeName string, nodeIP *net.IPNet) *idAllocator {
-	return &idAllocator{
-		etcd:     etcd,
-		broker:   etcd.NewBroker(servicelabel.GetDifferentAgentPrefix(ksr.MicroserviceLabel)),
+// DB lists methods used by NodeIDAllocator for database access.
+type DB interface {
+	OnConnect(callback func() error)
+	NewBroker(prefix string) keyval.ProtoBroker
+	PutIfNotExists(key string, value []byte) (succeeded bool, err error)
+	Close() error
+}
+
+// nodeIDAllocator manages (de)allocation of unique number identifying a node in
+// the k8s cluster.
+// The process of allocation leverages atomic Put operation.
+// TODO: better description
+type nodeIDAllocator struct {
+	sync.Mutex
+	inSync bool
+
+	db            DB
+	dbIsConnected bool
+
+	allocated bool
+	nodeID    uint32
+
+	nodeName   string
+	nodeIP     *net.IPNet
+	nodeMgmtIP string
+}
+
+// NewIDAllocator creates new instance of nodeIDAllocator
+func NewIDAllocator(db DB, nodeName string, nodeIP *net.IPNet) NodeIDAllocator {
+	allocator := &nodeIDAllocator{
+		db:       db,
 		nodeName: nodeName,
 		nodeIP:   nodeIP,
 	}
+	if db != nil {
+		db.OnConnect(allocator.onDBConnect)
+	}
+	return allocator
 }
 
-// getID returns unique number for the given node
-func (ia *idAllocator) getID() (id uint32, err error) {
+// Resync re-synchronizes the node allocator against a snapshot of Kubernetes state data.
+// Should be called with startup resync before accessing any other method.
+func (ia *nodeIDAllocator) Resync(kubeState controller.KubeStateData) {
 	ia.Lock()
 	defer ia.Unlock()
 
+	ia.allocated = false
+	for _, value := range kubeState[nodeinfo.Keyword] {
+		info := value.(*nodeinfo.NodeInfo)
+		if info.Name == ia.nodeName {
+			ia.allocated = true
+			ia.nodeID = info.Id
+		}
+	}
+	ia.inSync = true
+}
+
+// GetOrAllocateNodeID allocates or returns already allocated unique number for the given node.
+// Beware: Resync() has to be called first.
+func (ia *nodeIDAllocator) GetOrAllocateNodeID() (id uint32, err error) {
+	ia.Lock()
+	defer ia.Unlock()
+
+	if ia.inSync == false {
+		return 0, errOutOfSync
+	}
+
 	if ia.allocated {
-		return ia.ID, nil
+		return ia.nodeID, nil
 	}
 
-	// check if there is already assign ID for the serviceLabel
-	existingEntry, err := ia.findExistingEntry(ia.broker)
-	if err != nil {
-		return 0, err
-	}
-
-	if existingEntry != nil {
-		ia.allocated = true
-		ia.ID = existingEntry.Id
-		return ia.ID, nil
+	if !ia.dbIsConnected {
+		return 0, errNoConnection
 	}
 
 	attempts := 0
+	broker := ia.newBroker()
 	for {
-		ids, err := listAllIDs(ia.broker)
+		ids, err := listAllIDs(broker)
 		if err != nil {
 			return 0, err
 		}
 		sort.Ints(ids)
 
 		attempts++
-		ia.ID = uint32(findFirstAvailableIndex(ids))
+		ia.nodeID = uint32(findFirstAvailableIndex(ids))
 
-		succ, err := ia.writeIfNotExists(ia.ID)
+		succ, err := ia.writeIfNotExists(ia.nodeID)
 		if err != nil {
 			return 0, err
 		}
@@ -117,20 +168,52 @@ func (ia *idAllocator) getID() (id uint32, err error) {
 		}
 	}
 
-	return ia.ID, nil
+	return ia.nodeID, nil
 }
 
-func (ia *idAllocator) updateIP(newIP *net.IPNet) error {
-	return ia.updateEtcdEntry(newIP, ia.managementIP)
+// ReleaseID returns allocated ID back to the pool.
+func (ia *nodeIDAllocator) ReleaseID() error {
+	ia.Lock()
+	defer ia.Unlock()
+
+	if ia.inSync == false {
+		return errOutOfSync
+	}
+
+	if !ia.allocated {
+		return errNoIDallocated
+	}
+
+	if !ia.dbIsConnected {
+		return errNoConnection
+	}
+
+	broker := ia.newBroker()
+	_, err := broker.Delete(nodeinfo.Key(ia.nodeID))
+	if err == nil {
+		ia.allocated = false
+	}
+
+	return err
 }
 
-func (ia *idAllocator) updateManagementIP(newMgmtIP string) error {
-	return ia.updateEtcdEntry(ia.nodeIP, newMgmtIP)
+// UpdateIP informs allocator about a change of the node main IP address.
+// The allocator will publish this change to other nodes.
+func (ia *nodeIDAllocator) UpdateIP(newIP *net.IPNet) error {
+	return ia.updateDBEntry(newIP, ia.nodeMgmtIP)
 }
 
-func (ia *idAllocator) updateEtcdEntry(newIP *net.IPNet, newManagementIP string) error {
+// UpdateManagementIP informs allocator about a change of a node management IP address.
+// The allocator will publish this change to other nodes.
+// TODO: get rid of management IP
+func (ia *nodeIDAllocator) UpdateManagementIP(newMgmtIP string) error {
+	return ia.updateDBEntry(ia.nodeIP, newMgmtIP)
+}
+
+// updateDBEntry updates the key-value entry that represents this node ID.
+func (ia *nodeIDAllocator) updateDBEntry(newIP *net.IPNet, newManagementIP string) error {
 	// make sure that ID is allocated
-	_, err := ia.getID()
+	_, err := ia.GetOrAllocateNodeID()
 	if err != nil {
 		return err
 	}
@@ -145,98 +228,63 @@ func (ia *idAllocator) updateEtcdEntry(newIP *net.IPNet, newManagementIP string)
 	} else {
 		equalNodeIP = ia.nodeIP.IP.Equal(newIP.IP) && bytes.Equal(ia.nodeIP.Mask, newIP.Mask)
 	}
-	if equalNodeIP && ia.managementIP == newManagementIP {
+	if equalNodeIP && ia.nodeMgmtIP == newManagementIP {
 		return nil
 	}
 
-	ia.nodeIP = newIP
-	ia.managementIP = newManagementIP
+	// db connection is required to update the entry
+	if !ia.dbIsConnected {
+		return errNoConnection
+	}
 
+	// update internal state
+	ia.nodeIP = newIP
+	ia.nodeMgmtIP = newManagementIP
+
+	// update DB entry representing this node
 	value := &nodeinfo.NodeInfo{
-		Id:                  ia.ID,
+		Id:                  ia.nodeID,
 		Name:                ia.nodeName,
 		IpAddress:           ipNetToString(ia.nodeIP),
-		ManagementIpAddress: ia.managementIP,
+		ManagementIpAddress: ia.nodeMgmtIP,
 	}
-	err = ia.broker.Put(createKey(ia.ID), value)
-
-	return err
-
+	broker := ia.newBroker()
+	return broker.Put(nodeinfo.Key(ia.nodeID), value)
 }
 
-// releaseID returns allocated ID back to the pool
-func (ia *idAllocator) releaseID() error {
-	ia.Lock()
-	defer ia.Unlock()
-
-	if !ia.allocated {
-		return errNoIDallocated
-	}
-
-	_, err := ia.broker.Delete(createKey(ia.ID))
-	if err == nil {
-		ia.allocated = false
-	}
-
-	return err
-}
-
-func (ia *idAllocator) writeIfNotExists(id uint32) (succeeded bool, err error) {
-
+// writeIfNotExists tries to allocate given ID for this node.
+func (ia *nodeIDAllocator) writeIfNotExists(id uint32) (succeeded bool, err error) {
 	value := &nodeinfo.NodeInfo{
-		Id:        id,
-		Name:      ia.nodeName,
-		IpAddress: ipNetToString(ia.nodeIP),
+		Id:                  id,
+		Name:                ia.nodeName,
+		IpAddress:           ipNetToString(ia.nodeIP),
+		ManagementIpAddress: ia.nodeMgmtIP,
 	}
-
 	encoded, err := json.Marshal(value)
 	if err != nil {
 		return false, err
 	}
-
-	succeeded, err = ia.etcd.PutIfNotExists(servicelabel.GetDifferentAgentPrefix(ksr.MicroserviceLabel)+createKey(id), encoded)
-
-	return succeeded, err
-
+	ksrPrefix := servicelabel.GetDifferentAgentPrefix(ksr.MicroserviceLabel)
+	return ia.db.PutIfNotExists(ksrPrefix+nodeinfo.Key(id), encoded)
 }
 
-// findExistingEntry lists all allocated entries and checks if the etcd contains ID assigned
-// to the serviceLabel
-func (ia *idAllocator) findExistingEntry(broker keyval.ProtoBroker) (id *nodeinfo.NodeInfo, err error) {
-	var existingEntry *nodeinfo.NodeInfo
-	it, err := broker.ListValues(nodeinfo.AllocatedIDsKeyPrefix)
-	if err != nil {
-		return nil, err
-	}
-
-	for {
-		item := &nodeinfo.NodeInfo{}
-		kv, stop := it.GetNext()
-
-		if stop {
-			break
-		}
-
-		err := kv.GetValue(item)
-		if err != nil {
-			return nil, err
-		}
-
-		if item.Name == ia.nodeName {
-			existingEntry = item
-			break
-		}
-	}
-
-	return existingEntry, nil
-
+// onDBConnect is triggered once connection to DB is available.
+func (ia *nodeIDAllocator) onDBConnect() error {
+	ia.Lock()
+	ia.Unlock()
+	ia.dbIsConnected = true
+	return nil
 }
 
-// findFirstAvailableIndex returns the smallest int that is not assigned to a node
+// newBroker creates a new broker for DB access.
+func (ia *nodeIDAllocator) newBroker() keyval.ProtoBroker {
+	return ia.db.NewBroker(servicelabel.GetDifferentAgentPrefix(ksr.MicroserviceLabel))
+}
+
+// findFirstAvailableIndex returns the smallest int that is not assigned to any node.
 func findFirstAvailableIndex(ids []int) int {
 	res := 1
 	for _, v := range ids {
-
 		if res == v {
 			res++
 		} else {
@@ -246,7 +294,7 @@ func findFirstAvailableIndex(ids []int) int {
 	return res
 }
 
-// listAllIDs returns slice that contains allocated ids i.e.: ids assigned to a node
+// listAllIDs returns a slice of already allocated node IDs.
 func listAllIDs(broker keyval.ProtoBroker) (ids []int, err error) {
 	it, err := broker.ListKeys(nodeinfo.AllocatedIDsKeyPrefix)
 	if err != nil {
@@ -254,9 +302,7 @@ func listAllIDs(broker keyval.ProtoBroker) (ids []int, err error) {
 	}
 
 	for {
-
 		key, _, stop := it.GetNext()
-
 		if stop {
 			break
 		}
@@ -277,9 +323,4 @@ func extractIndexFromKey(key string) (int, error) {
 
 	}
 	return 0, errInvalidKey
-}
-
-func createKey(index uint32) string {
-	str := strconv.FormatUint(uint64(index), 10)
-	return nodeinfo.AllocatedIDsKeyPrefix + str
 }

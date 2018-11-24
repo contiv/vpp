@@ -15,13 +15,17 @@
 package service
 
 import (
-	. "github.com/onsi/gomega"
+	"context"
 	"net"
 	"strconv"
 	"testing"
 
+	. "github.com/onsi/gomega"
+
 	"github.com/ligato/cn-infra/logging"
 	"github.com/ligato/cn-infra/logging/logrus"
+
+	scheduler "github.com/ligato/vpp-agent/plugins/kvscheduler/api"
 
 	. "github.com/contiv/vpp/mock/contiv"
 	. "github.com/contiv/vpp/mock/datasync"
@@ -29,6 +33,7 @@ import (
 	. "github.com/contiv/vpp/mock/servicelabel"
 
 	"github.com/contiv/vpp/mock/localclient"
+	controller "github.com/contiv/vpp/plugins/controller/api"
 	svc_processor "github.com/contiv/vpp/plugins/service/processor"
 	svc_renderer "github.com/contiv/vpp/plugins/service/renderer"
 	"github.com/contiv/vpp/plugins/service/renderer/nat44"
@@ -104,6 +109,67 @@ var (
 	keyPrefixes = []string{epmodel.KeyPrefix(), podmodel.KeyPrefix(), svcmodel.KeyPrefix(), nodeinfo.AllocatedIDsKeyPrefix}
 )
 
+// ongoing transaction
+var (
+	isResync bool
+	vppTxn   controller.Transaction
+	changes  string
+)
+
+func commitTxn() error {
+	if vppTxn == nil {
+		return nil
+	}
+	ctx := context.Background()
+	if isResync {
+		ctx = scheduler.WithFullResync(ctx)
+	}
+	err := vppTxn.Commit(ctx)
+	vppTxn = nil
+	changes = ""
+	return err
+}
+
+func resyncTxnFactory(txnTracker *localclient.TxnTracker) func() controller.ResyncOperations {
+	return func() controller.ResyncOperations {
+		if vppTxn != nil {
+			return vppTxn
+		}
+		vppTxn = txnTracker.NewControllerTxn(true)
+		isResync = true
+		return vppTxn
+	}
+}
+
+func updateTxnFactory(txnTracker *localclient.TxnTracker) func(change string) controller.UpdateOperations {
+	return func(change string) controller.UpdateOperations {
+		if change != "" {
+			if changes != "" {
+				changes += ", "
+			}
+			changes += change
+		}
+		if vppTxn != nil {
+			return vppTxn
+		}
+		vppTxn = txnTracker.NewControllerTxn(false)
+		isResync = false
+		return vppTxn
+	}
+}
+
+var (
+	svcProcessor *svc_processor.ServiceProcessor
+)
+
+func podPreRemovalHook(podNamespace string, podName string, _ controller.UpdateOperations) error {
+	return svcProcessor.ProcessDeletingPod(podNamespace, podName)
+}
+
+func podPostAddHook(podNamespace string, podName string, _ controller.UpdateOperations) error {
+	return svcProcessor.ProcessNewPod(podNamespace, podName)
+}
+
 func ipNet(address string) *net.IPNet {
 	ip, network, _ := net.ParseCIDR(address)
 	network.IP = ip
@@ -135,6 +201,8 @@ func TestResyncAndSingleService(t *testing.T) {
 	contiv.SetMainVrfID(mainVrfID)
 	contiv.SetPodVrfID(podVrfID)
 	contiv.SetHostIPs([]net.IP{nodeIP.IP, mgmtIP})
+	contiv.RegisterPodPreRemovalHook(podPreRemovalHook)
+	contiv.RegisterPodPostAddHook(podPostAddHook)
 
 	// -> NAT plugin
 	natPlugin := NewMockNatPlugin(logger)
@@ -150,7 +218,7 @@ func TestResyncAndSingleService(t *testing.T) {
 	datasync := NewMockDataSync()
 
 	// Prepare processor.
-	processor := &svc_processor.ServiceProcessor{
+	svcProcessor = &svc_processor.ServiceProcessor{
 		Deps: svc_processor.Deps{
 			Log:          logger,
 			ServiceLabel: serviceLabel,
@@ -161,19 +229,21 @@ func TestResyncAndSingleService(t *testing.T) {
 	// Prepare NAT44 Renderer.
 	renderer := &nat44.Renderer{
 		Deps: nat44.Deps{
-			Log:           logger,
-			Contiv:        contiv,
-			NATTxnFactory: txnTracker.NewLinuxDataChangeTxn,
+			Log:              logger,
+			Contiv:           contiv,
+			ResyncTxnFactory: resyncTxnFactory(txnTracker),
+			UpdateTxnFactory: updateTxnFactory(txnTracker),
 		},
 	}
 
-	Expect(processor.Init()).To(BeNil())
+	Expect(svcProcessor.Init()).To(BeNil())
 	Expect(renderer.Init(false)).To(BeNil())
-	Expect(processor.RegisterRenderer(renderer)).To(BeNil())
+	Expect(svcProcessor.RegisterRenderer(renderer)).To(BeNil())
 
 	// Test resync with empty VPP configuration.
-	resyncEv := datasync.Resync(keyPrefixes...)
-	Expect(processor.Resync(resyncEv)).To(BeNil())
+	resyncEv, _ := datasync.ResyncEvent(keyPrefixes...)
+	Expect(svcProcessor.Resync(resyncEv.KubeState)).To(BeNil())
+	Expect(commitTxn()).To(BeNil())
 
 	Expect(natPlugin.IsForwardingEnabled()).To(BeTrue())
 
@@ -230,8 +300,9 @@ func TestResyncAndSingleService(t *testing.T) {
 		},
 	}
 
-	dataChange1 := datasync.Put(svcmodel.Key(service1.Name, service1.Namespace), service1)
-	Expect(processor.Update(dataChange1)).To(BeNil())
+	dataChange1 := datasync.PutEvent(svcmodel.Key(service1.Name, service1.Namespace), service1)
+	Expect(svcProcessor.Update(dataChange1)).To(BeNil())
+	Expect(commitTxn()).To(BeNil())
 
 	// No change in the NAT configuration.
 	Expect(natPlugin.IsForwardingEnabled()).To(BeTrue())
@@ -253,12 +324,12 @@ func TestResyncAndSingleService(t *testing.T) {
 	Expect(natPlugin.HasIdentityMapping(mainIfID2)).To(BeTrue())
 
 	// Add pods.
-	Expect(contiv.AddingPod(pod1)).To(BeNil())
-	Expect(contiv.AddingPod(pod2)).To(BeNil())
-	dataChange2 := datasync.Put(podmodel.Key(pod1.Name, pod1.Namespace), pod1Model)
-	Expect(processor.Update(dataChange2)).To(BeNil())
-	dataChange3 := datasync.Put(podmodel.Key(pod2.Name, pod2.Namespace), pod2Model)
-	Expect(processor.Update(dataChange3)).To(BeNil())
+	Expect(contiv.AddingPod(pod1, nil)).To(BeNil())
+	Expect(commitTxn()).To(BeNil())
+	Expect(contiv.AddingPod(pod2, nil)).To(BeNil())
+	Expect(commitTxn()).To(BeNil())
+	datasync.Put(podmodel.Key(pod1.Name, pod1.Namespace), pod1Model)
+	datasync.Put(podmodel.Key(pod2.Name, pod2.Namespace), pod2Model)
 
 	// First check what should not have changed.
 	Expect(natPlugin.IsForwardingEnabled()).To(BeTrue())
@@ -317,8 +388,9 @@ func TestResyncAndSingleService(t *testing.T) {
 		},
 	}
 
-	dataChange4 := datasync.Put(epmodel.Key(eps1.Name, eps1.Namespace), eps1)
-	Expect(processor.Update(dataChange4)).To(BeNil())
+	dataChange4 := datasync.PutEvent(epmodel.Key(eps1.Name, eps1.Namespace), eps1)
+	Expect(svcProcessor.Update(dataChange4)).To(BeNil())
+	Expect(commitTxn()).To(BeNil())
 
 	// First check what should not have changed.
 	Expect(natPlugin.IsForwardingEnabled()).To(BeTrue())
@@ -414,8 +486,9 @@ func TestResyncAndSingleService(t *testing.T) {
 		},
 	}
 
-	dataChange5 := datasync.Put(epmodel.Key(eps2.Name, eps2.Namespace), eps2)
-	Expect(processor.Update(dataChange5)).To(BeNil())
+	dataChange5 := datasync.PutEvent(epmodel.Key(eps2.Name, eps2.Namespace), eps2)
+	Expect(svcProcessor.Update(dataChange5)).To(BeNil())
+	Expect(commitTxn()).To(BeNil())
 
 	// First check what should not have changed.
 	Expect(natPlugin.IsForwardingEnabled()).To(BeTrue())
@@ -436,8 +509,9 @@ func TestResyncAndSingleService(t *testing.T) {
 	Expect(natPlugin.HasStaticMapping(staticMapping2)).To(BeTrue())
 
 	// Finally remove the service.
-	dataChange6 := datasync.Delete(svcmodel.Key(service1.Name, service1.Namespace))
-	Expect(processor.Update(dataChange6)).To(BeNil())
+	dataChange6 := datasync.DeleteEvent(svcmodel.Key(service1.Name, service1.Namespace))
+	Expect(svcProcessor.Update(dataChange6)).To(BeNil())
+	Expect(commitTxn()).To(BeNil())
 
 	// NAT configuration without the service.
 	Expect(natPlugin.IsForwardingEnabled()).To(BeTrue())
@@ -458,7 +532,7 @@ func TestResyncAndSingleService(t *testing.T) {
 	Expect(natPlugin.GetInterfaceFeatures(pod2If)).To(Equal(NewNatFeatures(OUT)))
 
 	// Cleanup
-	Expect(processor.Close()).To(BeNil())
+	Expect(svcProcessor.Close()).To(BeNil())
 	Expect(renderer.Close()).To(BeNil())
 }
 
@@ -487,6 +561,8 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 	contiv.SetMainVrfID(mainVrfID)
 	contiv.SetPodVrfID(podVrfID)
 	contiv.SetHostIPs([]net.IP{nodeIP.IP, mgmtIP})
+	contiv.RegisterPodPreRemovalHook(podPreRemovalHook)
+	contiv.RegisterPodPostAddHook(podPostAddHook)
 
 	// -> NAT plugin
 	natPlugin := NewMockNatPlugin(logger)
@@ -502,7 +578,7 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 	datasync := NewMockDataSync()
 
 	// Prepare processor.
-	processor := &svc_processor.ServiceProcessor{
+	svcProcessor = &svc_processor.ServiceProcessor{
 		Deps: svc_processor.Deps{
 			Log:          logger,
 			ServiceLabel: serviceLabel,
@@ -513,30 +589,31 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 	// Prepare NAT44 Renderer.
 	renderer := &nat44.Renderer{
 		Deps: nat44.Deps{
-			Log:           logger,
-			Contiv:        contiv,
-			NATTxnFactory: txnTracker.NewLinuxDataChangeTxn,
-			// TODO: resync txn factory
+			Log:              logger,
+			Contiv:           contiv,
+			ResyncTxnFactory: resyncTxnFactory(txnTracker),
+			UpdateTxnFactory: updateTxnFactory(txnTracker),
 		},
 	}
 
 	// Initialize and resync.
-	Expect(processor.Init()).To(BeNil())
+	Expect(svcProcessor.Init()).To(BeNil())
 	Expect(renderer.Init(false)).To(BeNil())
-	Expect(processor.RegisterRenderer(renderer)).To(BeNil())
-	resyncEv := datasync.Resync(keyPrefixes...)
-	Expect(processor.Resync(resyncEv)).To(BeNil())
+	Expect(svcProcessor.RegisterRenderer(renderer)).To(BeNil())
+	resyncEv, _ := datasync.ResyncEvent(keyPrefixes...)
+	Expect(svcProcessor.Resync(resyncEv.KubeState)).To(BeNil())
+	Expect(commitTxn()).To(BeNil())
 
 	// Add pods.
-	Expect(contiv.AddingPod(pod1)).To(BeNil())
-	Expect(contiv.AddingPod(pod2)).To(BeNil())
-	Expect(contiv.AddingPod(pod3)).To(BeNil())
-	dataChange1 := datasync.Put(podmodel.Key(pod1.Name, pod1.Namespace), pod1Model)
-	Expect(processor.Update(dataChange1)).To(BeNil())
-	dataChange2 := datasync.Put(podmodel.Key(pod2.Name, pod2.Namespace), pod2Model)
-	Expect(processor.Update(dataChange2)).To(BeNil())
-	dataChange3 := datasync.Put(podmodel.Key(pod3.Name, pod3.Namespace), pod3Model)
-	Expect(processor.Update(dataChange3)).To(BeNil())
+	Expect(contiv.AddingPod(pod1, nil)).To(BeNil())
+	Expect(commitTxn()).To(BeNil())
+	Expect(contiv.AddingPod(pod2, nil)).To(BeNil())
+	Expect(commitTxn()).To(BeNil())
+	Expect(contiv.AddingPod(pod3, nil)).To(BeNil())
+	Expect(commitTxn()).To(BeNil())
+	datasync.Put(podmodel.Key(pod1.Name, pod1.Namespace), pod1Model)
+	datasync.Put(podmodel.Key(pod2.Name, pod2.Namespace), pod2Model)
+	datasync.Put(podmodel.Key(pod3.Name, pod3.Namespace), pod3Model)
 
 	// Service1: http + https with nodePort.
 	service1 := &svcmodel.Service{
@@ -585,10 +662,12 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 		},
 	}
 
-	dataChange4 := datasync.Put(svcmodel.Key(service1.Name, service1.Namespace), service1)
-	Expect(processor.Update(dataChange4)).To(BeNil())
-	dataChange5 := datasync.Put(svcmodel.Key(service2.Name, service2.Namespace), service2)
-	Expect(processor.Update(dataChange5)).To(BeNil())
+	dataChange4 := datasync.PutEvent(svcmodel.Key(service1.Name, service1.Namespace), service1)
+	Expect(svcProcessor.Update(dataChange4)).To(BeNil())
+	Expect(commitTxn()).To(BeNil())
+	dataChange5 := datasync.PutEvent(svcmodel.Key(service2.Name, service2.Namespace), service2)
+	Expect(svcProcessor.Update(dataChange5)).To(BeNil())
+	Expect(commitTxn()).To(BeNil())
 
 	// Check NAT configuration.
 	Expect(natPlugin.IsForwardingEnabled()).To(BeTrue())
@@ -729,10 +808,12 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 		},
 	}
 
-	dataChange6 := datasync.Put(epmodel.Key(eps1.Name, eps1.Namespace), eps1)
-	Expect(processor.Update(dataChange6)).To(BeNil())
-	dataChange7 := datasync.Put(epmodel.Key(eps2.Name, eps2.Namespace), eps2)
-	Expect(processor.Update(dataChange7)).To(BeNil())
+	dataChange6 := datasync.PutEvent(epmodel.Key(eps1.Name, eps1.Namespace), eps1)
+	Expect(svcProcessor.Update(dataChange6)).To(BeNil())
+	Expect(commitTxn()).To(BeNil())
+	dataChange7 := datasync.PutEvent(epmodel.Key(eps2.Name, eps2.Namespace), eps2)
+	Expect(svcProcessor.Update(dataChange7)).To(BeNil())
+	Expect(commitTxn()).To(BeNil())
 
 	// First check what should not have changed.
 	Expect(natPlugin.IsForwardingEnabled()).To(BeTrue())
@@ -857,8 +938,9 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 		ManagementIpAddress: mgmtIP.String(),
 	}
 
-	dataChange8 := datasync.Put(nodeinfo.AllocatedIDsKeyPrefix+strconv.FormatUint(uint64(masterNode.Id), 10), masterNode)
-	Expect(processor.Update(dataChange8)).To(BeNil())
+	dataChange8 := datasync.PutEvent(nodeinfo.AllocatedIDsKeyPrefix+strconv.FormatUint(uint64(masterNode.Id), 10), masterNode)
+	Expect(svcProcessor.Update(dataChange8)).To(BeNil())
+	Expect(commitTxn()).To(BeNil())
 
 	// First check what should not have changed.
 	Expect(natPlugin.IsForwardingEnabled()).To(BeTrue())
@@ -935,8 +1017,9 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 		ManagementIpAddress: workerMgmtIP.String(),
 	}
 
-	dataChange9 := datasync.Put(nodeinfo.AllocatedIDsKeyPrefix+strconv.FormatUint(uint64(workerNode.Id), 10), workerNode)
-	Expect(processor.Update(dataChange9)).To(BeNil())
+	dataChange9 := datasync.PutEvent(nodeinfo.AllocatedIDsKeyPrefix+strconv.FormatUint(uint64(workerNode.Id), 10), workerNode)
+	Expect(svcProcessor.Update(dataChange9)).To(BeNil())
+	Expect(commitTxn()).To(BeNil())
 
 	// First check what should not have changed.
 	Expect(natPlugin.IsForwardingEnabled()).To(BeTrue())
@@ -980,8 +1063,9 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 		ManagementIpAddress: "", /* removed */
 	}
 
-	dataChange10 := datasync.Put(nodeinfo.AllocatedIDsKeyPrefix+strconv.FormatUint(uint64(workerNode.Id), 10), workerNode)
-	Expect(processor.Update(dataChange10)).To(BeNil())
+	dataChange10 := datasync.PutEvent(nodeinfo.AllocatedIDsKeyPrefix+strconv.FormatUint(uint64(workerNode.Id), 10), workerNode)
+	Expect(svcProcessor.Update(dataChange10)).To(BeNil())
+	Expect(commitTxn()).To(BeNil())
 
 	// Check that the static mapping for worker mgmt IP was removed.
 	Expect(natPlugin.HasStaticMapping(staticMappingHTTP)).To(BeTrue())
@@ -996,8 +1080,9 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 	Expect(natPlugin.NumOfStaticMappings()).To(Equal(9))
 
 	// Remove worker node completely.
-	dataChange11 := datasync.Delete(nodeinfo.AllocatedIDsKeyPrefix + strconv.FormatUint(uint64(workerNode.Id), 10))
-	Expect(processor.Update(dataChange11)).To(BeNil())
+	dataChange11 := datasync.DeleteEvent(nodeinfo.AllocatedIDsKeyPrefix + strconv.FormatUint(uint64(workerNode.Id), 10))
+	Expect(svcProcessor.Update(dataChange11)).To(BeNil())
+	Expect(commitTxn()).To(BeNil())
 
 	// Check that the static mapping for worker IP was removed.
 	Expect(natPlugin.HasStaticMapping(staticMappingHTTP)).To(BeTrue())
@@ -1012,7 +1097,7 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 
 	// Simulate Resync.
 	// -> simulate restart of the service plugin components
-	processor = &svc_processor.ServiceProcessor{
+	svcProcessor = &svc_processor.ServiceProcessor{
 		Deps: svc_processor.Deps{
 			Log:          logger,
 			ServiceLabel: serviceLabel,
@@ -1021,20 +1106,21 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 	}
 	renderer = &nat44.Renderer{
 		Deps: nat44.Deps{
-			Log:           logger,
-			Contiv:        contiv,
-			NATTxnFactory: txnTracker.NewLinuxDataChangeTxn,
+			Log:              logger,
+			Contiv:           contiv,
+			ResyncTxnFactory: resyncTxnFactory(txnTracker),
+			UpdateTxnFactory: updateTxnFactory(txnTracker),
 		},
 	}
-	natPlugin.Reset() // TODO: remove once resync txn is supported
 	// -> let's simulate that during downtime the service1 was removed
 	datasync.Delete(svcmodel.Key(service1.Name, service1.Namespace))
 	// -> initialize and resync
-	Expect(processor.Init()).To(BeNil())
+	Expect(svcProcessor.Init()).To(BeNil())
 	Expect(renderer.Init(false)).To(BeNil())
-	Expect(processor.RegisterRenderer(renderer)).To(BeNil())
-	resyncEv2 := datasync.Resync(keyPrefixes...)
-	Expect(processor.Resync(resyncEv2)).To(BeNil())
+	Expect(svcProcessor.RegisterRenderer(renderer)).To(BeNil())
+	resyncEv2, _ := datasync.ResyncEvent(keyPrefixes...)
+	Expect(svcProcessor.Resync(resyncEv2.KubeState)).To(BeNil())
+	Expect(commitTxn()).To(BeNil())
 
 	// Check NAT configuration.
 	Expect(natPlugin.IsForwardingEnabled()).To(BeTrue())
@@ -1060,12 +1146,12 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 	Expect(natPlugin.NumOfStaticMappings()).To(Equal(2))
 
 	// Simulate run-time resync.
-	natPlugin.Reset() // TODO: remove once resync txn is supported
 	// -> let's simulate that while the agent was out-of-sync, the service1 was re-added, while service2 was removed.
 	datasync.Put(svcmodel.Key(service1.Name, service1.Namespace), service1)
 	datasync.Delete(svcmodel.Key(service2.Name, service2.Namespace))
-	resyncEv3 := datasync.Resync(keyPrefixes...)
-	Expect(processor.Resync(resyncEv3)).To(BeNil())
+	resyncEv3, _ := datasync.ResyncEvent(keyPrefixes...)
+	Expect(svcProcessor.Resync(resyncEv3.KubeState)).To(BeNil())
+	Expect(commitTxn()).To(BeNil())
 
 	// Check NAT configuration.
 	Expect(natPlugin.IsForwardingEnabled()).To(BeTrue())
@@ -1093,7 +1179,7 @@ func TestMultipleServicesWithMultiplePortsAndResync(t *testing.T) {
 	Expect(natPlugin.NumOfStaticMappings()).To(Equal(6))
 
 	// Cleanup
-	Expect(processor.Close()).To(BeNil())
+	Expect(svcProcessor.Close()).To(BeNil())
 	Expect(renderer.Close()).To(BeNil())
 }
 
@@ -1119,6 +1205,8 @@ func TestWithVXLANButNoGateway(t *testing.T) {
 	contiv.SetMainVrfID(mainVrfID)
 	contiv.SetPodVrfID(podVrfID)
 	contiv.SetHostIPs([]net.IP{nodeIP.IP, mgmtIP})
+	contiv.RegisterPodPreRemovalHook(podPreRemovalHook)
+	contiv.RegisterPodPostAddHook(podPostAddHook)
 
 	// -> NAT plugin
 	natPlugin := NewMockNatPlugin(logger)
@@ -1133,7 +1221,7 @@ func TestWithVXLANButNoGateway(t *testing.T) {
 	datasync := NewMockDataSync()
 
 	// Prepare processor.
-	processor := &svc_processor.ServiceProcessor{
+	svcProcessor = &svc_processor.ServiceProcessor{
 		Deps: svc_processor.Deps{
 			Log:          logger,
 			ServiceLabel: serviceLabel,
@@ -1144,19 +1232,21 @@ func TestWithVXLANButNoGateway(t *testing.T) {
 	// Prepare NAT44 Renderer.
 	renderer := &nat44.Renderer{
 		Deps: nat44.Deps{
-			Log:           logger,
-			Contiv:        contiv,
-			NATTxnFactory: txnTracker.NewLinuxDataChangeTxn,
+			Log:              logger,
+			Contiv:           contiv,
+			ResyncTxnFactory: resyncTxnFactory(txnTracker),
+			UpdateTxnFactory: updateTxnFactory(txnTracker),
 		},
 	}
 
-	Expect(processor.Init()).To(BeNil())
+	Expect(svcProcessor.Init()).To(BeNil())
 	Expect(renderer.Init(false)).To(BeNil())
-	Expect(processor.RegisterRenderer(renderer)).To(BeNil())
+	Expect(svcProcessor.RegisterRenderer(renderer)).To(BeNil())
 
 	// Resync from empty VPP.
-	resyncEv := datasync.Resync(keyPrefixes...)
-	Expect(processor.Resync(resyncEv)).To(BeNil())
+	resyncEv, _ := datasync.ResyncEvent(keyPrefixes...)
+	Expect(svcProcessor.Resync(resyncEv.KubeState)).To(BeNil())
+	Expect(commitTxn()).To(BeNil())
 
 	// Check that SNAT is NOT configured.
 	Expect(natPlugin.IsForwardingEnabled()).To(BeTrue())
@@ -1175,7 +1265,7 @@ func TestWithVXLANButNoGateway(t *testing.T) {
 	Expect(natPlugin.NumOfIdentityMappings()).To(Equal(0))
 
 	// Cleanup
-	Expect(processor.Close()).To(BeNil())
+	Expect(svcProcessor.Close()).To(BeNil())
 	Expect(renderer.Close()).To(BeNil())
 }
 
@@ -1201,6 +1291,8 @@ func TestWithoutVXLAN(t *testing.T) {
 	contiv.SetMainVrfID(mainVrfID)
 	contiv.SetPodVrfID(podVrfID)
 	contiv.SetHostIPs([]net.IP{nodeIP.IP, mgmtIP})
+	contiv.RegisterPodPreRemovalHook(podPreRemovalHook)
+	contiv.RegisterPodPostAddHook(podPostAddHook)
 
 	// -> NAT plugin
 	natPlugin := NewMockNatPlugin(logger)
@@ -1216,7 +1308,7 @@ func TestWithoutVXLAN(t *testing.T) {
 	datasync := NewMockDataSync()
 
 	// Prepare processor.
-	processor := &svc_processor.ServiceProcessor{
+	svcProcessor = &svc_processor.ServiceProcessor{
 		Deps: svc_processor.Deps{
 			Log:          logger,
 			ServiceLabel: serviceLabel,
@@ -1227,19 +1319,21 @@ func TestWithoutVXLAN(t *testing.T) {
 	// Prepare NAT44 Renderer.
 	renderer := &nat44.Renderer{
 		Deps: nat44.Deps{
-			Log:           logger,
-			Contiv:        contiv,
-			NATTxnFactory: txnTracker.NewLinuxDataChangeTxn,
+			Log:              logger,
+			Contiv:           contiv,
+			ResyncTxnFactory: resyncTxnFactory(txnTracker),
+			UpdateTxnFactory: updateTxnFactory(txnTracker),
 		},
 	}
 
-	Expect(processor.Init()).To(BeNil())
+	Expect(svcProcessor.Init()).To(BeNil())
 	Expect(renderer.Init(false)).To(BeNil())
-	Expect(processor.RegisterRenderer(renderer)).To(BeNil())
+	Expect(svcProcessor.RegisterRenderer(renderer)).To(BeNil())
 
 	// Resync from empty VPP.
-	resyncEv := datasync.Resync(keyPrefixes...)
-	Expect(processor.Resync(resyncEv)).To(BeNil())
+	resyncEv, _ := datasync.ResyncEvent(keyPrefixes...)
+	Expect(svcProcessor.Resync(resyncEv.KubeState)).To(BeNil())
+	Expect(commitTxn()).To(BeNil())
 
 	// Check that SNAT is NOT configured.
 	Expect(natPlugin.IsForwardingEnabled()).To(BeTrue())
@@ -1257,7 +1351,7 @@ func TestWithoutVXLAN(t *testing.T) {
 	Expect(natPlugin.NumOfIdentityMappings()).To(Equal(0))
 
 	// Cleanup
-	Expect(processor.Close()).To(BeNil())
+	Expect(svcProcessor.Close()).To(BeNil())
 	Expect(renderer.Close()).To(BeNil())
 }
 
@@ -1285,6 +1379,8 @@ func TestWithOtherInterfaces(t *testing.T) {
 	contiv.SetMainVrfID(mainVrfID)
 	contiv.SetPodVrfID(podVrfID)
 	contiv.SetHostIPs([]net.IP{nodeIP.IP, mgmtIP})
+	contiv.RegisterPodPreRemovalHook(podPreRemovalHook)
+	contiv.RegisterPodPostAddHook(podPostAddHook)
 
 	// -> NAT plugin
 	natPlugin := NewMockNatPlugin(logger)
@@ -1300,7 +1396,7 @@ func TestWithOtherInterfaces(t *testing.T) {
 	datasync := NewMockDataSync()
 
 	// Prepare processor.
-	processor := &svc_processor.ServiceProcessor{
+	svcProcessor = &svc_processor.ServiceProcessor{
 		Deps: svc_processor.Deps{
 			Log:          logger,
 			ServiceLabel: serviceLabel,
@@ -1311,19 +1407,21 @@ func TestWithOtherInterfaces(t *testing.T) {
 	// Prepare NAT44 Renderer.
 	renderer := &nat44.Renderer{
 		Deps: nat44.Deps{
-			Log:           logger,
-			Contiv:        contiv,
-			NATTxnFactory: txnTracker.NewLinuxDataChangeTxn,
+			Log:              logger,
+			Contiv:           contiv,
+			ResyncTxnFactory: resyncTxnFactory(txnTracker),
+			UpdateTxnFactory: updateTxnFactory(txnTracker),
 		},
 	}
 
-	Expect(processor.Init()).To(BeNil())
+	Expect(svcProcessor.Init()).To(BeNil())
 	Expect(renderer.Init(false)).To(BeNil())
-	Expect(processor.RegisterRenderer(renderer)).To(BeNil())
+	Expect(svcProcessor.RegisterRenderer(renderer)).To(BeNil())
 
 	// Resync from empty VPP.
-	resyncEv := datasync.Resync(keyPrefixes...)
-	Expect(processor.Resync(resyncEv)).To(BeNil())
+	resyncEv, _ := datasync.ResyncEvent(keyPrefixes...)
+	Expect(svcProcessor.Resync(resyncEv.KubeState)).To(BeNil())
+	Expect(commitTxn()).To(BeNil())
 
 	// Check that SNAT is configured.
 	Expect(natPlugin.IsForwardingEnabled()).To(BeTrue())
@@ -1366,7 +1464,93 @@ func TestWithOtherInterfaces(t *testing.T) {
 	Expect(natPlugin.HasIdentityMapping(mainIfID2)).To(BeTrue())
 
 	// Cleanup
-	Expect(processor.Close()).To(BeNil())
+	Expect(svcProcessor.Close()).To(BeNil())
+	Expect(renderer.Close()).To(BeNil())
+}
+
+func TestWithoutNodeIP(t *testing.T) {
+	RegisterTestingT(t)
+	logger := logrus.DefaultLogger()
+	logger.SetLevel(logging.DebugLevel)
+	logger.Debug("TestWithoutNodeIP")
+
+	// Prepare mocks.
+	//  -> Contiv plugin
+	contiv := NewMockContiv()
+	contiv.SetNatExternalTraffic(true)
+	contiv.SetSTNMode(false)
+	contiv.SetMainPhysicalIfName(mainIfName)
+	contiv.SetVxlanBVIIfName(vxlanIfName)
+	contiv.SetHostInterconnectIfName(hostInterIfName)
+	contiv.SetPodSubnet(podNetwork)
+	contiv.SetNatLoopbackIP(natLoopbackIP)
+	contiv.SetPodIfName(pod1, pod1If)
+	contiv.SetPodIfName(pod2, pod2If)
+	contiv.SetMainVrfID(mainVrfID)
+	contiv.SetPodVrfID(podVrfID)
+	contiv.SetHostIPs([]net.IP{nodeIP.IP, mgmtIP})
+	contiv.RegisterPodPreRemovalHook(podPreRemovalHook)
+	contiv.RegisterPodPostAddHook(podPostAddHook)
+
+	// -> NAT plugin
+	natPlugin := NewMockNatPlugin(logger)
+
+	// -> localclient
+	txnTracker := localclient.NewTxnTracker(natPlugin.ApplyTxn)
+
+	// -> service label
+	serviceLabel := NewMockServiceLabel()
+	serviceLabel.SetAgentLabel(masterLabel)
+
+	// -> datasync
+	datasync := NewMockDataSync()
+
+	// Prepare processor.
+	svcProcessor = &svc_processor.ServiceProcessor{
+		Deps: svc_processor.Deps{
+			Log:          logger,
+			ServiceLabel: serviceLabel,
+			Contiv:       contiv,
+		},
+	}
+
+	// Prepare NAT44 Renderer.
+	renderer := &nat44.Renderer{
+		Deps: nat44.Deps{
+			Log:              logger,
+			Contiv:           contiv,
+			ResyncTxnFactory: resyncTxnFactory(txnTracker),
+			UpdateTxnFactory: updateTxnFactory(txnTracker),
+		},
+	}
+
+	Expect(svcProcessor.Init()).To(BeNil())
+	Expect(renderer.Init(false)).To(BeNil())
+	Expect(svcProcessor.RegisterRenderer(renderer)).To(BeNil())
+
+	// Resync from empty VPP.
+	resyncEv, _ := datasync.ResyncEvent(keyPrefixes...)
+	Expect(svcProcessor.Resync(resyncEv.KubeState)).To(BeNil())
+	Expect(commitTxn()).To(BeNil())
+
+	// Check that SNAT is NOT configured.
+	Expect(natPlugin.IsForwardingEnabled()).To(BeTrue())
+
+	Expect(natPlugin.PoolContainsAddress(nodeIP.IP)).To(BeFalse())
+	Expect(natPlugin.AddressPoolSize()).To(Equal(0))
+	Expect(natPlugin.TwiceNatPoolSize()).To(Equal(1))
+	Expect(natPlugin.TwiceNatPoolContainsAddress(natLoopbackIP)).To(BeTrue())
+
+	Expect(natPlugin.NumOfIfsWithFeatures()).To(Equal(3))
+	Expect(natPlugin.GetInterfaceFeatures(mainIfName)).To(Equal(NewNatFeatures(OUT)))
+	Expect(natPlugin.GetInterfaceFeatures(vxlanIfName)).To(Equal(NewNatFeatures(IN, OUT)))
+	Expect(natPlugin.GetInterfaceFeatures(hostInterIfName)).To(Equal(NewNatFeatures(IN, OUT)))
+
+	Expect(natPlugin.NumOfStaticMappings()).To(Equal(0))
+	Expect(natPlugin.NumOfIdentityMappings()).To(Equal(0))
+
+	// Cleanup
+	Expect(svcProcessor.Close()).To(BeNil())
 	Expect(renderer.Close()).To(BeNil())
 }
 
@@ -1395,6 +1579,8 @@ func TestServiceUpdates(t *testing.T) {
 	contiv.SetMainVrfID(mainVrfID)
 	contiv.SetPodVrfID(podVrfID)
 	contiv.SetHostIPs([]net.IP{nodeIP.IP, mgmtIP})
+	contiv.RegisterPodPreRemovalHook(podPreRemovalHook)
+	contiv.RegisterPodPostAddHook(podPostAddHook)
 
 	// -> NAT plugin
 	natPlugin := NewMockNatPlugin(logger)
@@ -1410,7 +1596,7 @@ func TestServiceUpdates(t *testing.T) {
 	datasync := NewMockDataSync()
 
 	// Prepare processor.
-	processor := &svc_processor.ServiceProcessor{
+	svcProcessor = &svc_processor.ServiceProcessor{
 		Deps: svc_processor.Deps{
 			Log:          logger,
 			ServiceLabel: serviceLabel,
@@ -1421,29 +1607,31 @@ func TestServiceUpdates(t *testing.T) {
 	// Prepare NAT44 Renderer.
 	renderer := &nat44.Renderer{
 		Deps: nat44.Deps{
-			Log:           logger,
-			Contiv:        contiv,
-			NATTxnFactory: txnTracker.NewLinuxDataChangeTxn,
+			Log:              logger,
+			Contiv:           contiv,
+			ResyncTxnFactory: resyncTxnFactory(txnTracker),
+			UpdateTxnFactory: updateTxnFactory(txnTracker),
 		},
 	}
 
 	// Initialize and resync.
-	Expect(processor.Init()).To(BeNil())
+	Expect(svcProcessor.Init()).To(BeNil())
 	Expect(renderer.Init(false)).To(BeNil())
-	Expect(processor.RegisterRenderer(renderer)).To(BeNil())
-	resyncEv := datasync.Resync(keyPrefixes...)
-	Expect(processor.Resync(resyncEv)).To(BeNil())
+	Expect(svcProcessor.RegisterRenderer(renderer)).To(BeNil())
+	resyncEv, _ := datasync.ResyncEvent(keyPrefixes...)
+	Expect(svcProcessor.Resync(resyncEv.KubeState)).To(BeNil())
+	Expect(commitTxn()).To(BeNil())
 
 	// Add pods.
-	Expect(contiv.AddingPod(pod1)).To(BeNil())
-	Expect(contiv.AddingPod(pod2)).To(BeNil())
-	Expect(contiv.AddingPod(pod3)).To(BeNil())
-	dataChange1 := datasync.Put(podmodel.Key(pod1.Name, pod1.Namespace), pod1Model)
-	Expect(processor.Update(dataChange1)).To(BeNil())
-	dataChange2 := datasync.Put(podmodel.Key(pod2.Name, pod2.Namespace), pod2Model)
-	Expect(processor.Update(dataChange2)).To(BeNil())
-	dataChange3 := datasync.Put(podmodel.Key(pod3.Name, pod3.Namespace), pod3Model)
-	Expect(processor.Update(dataChange3)).To(BeNil())
+	Expect(contiv.AddingPod(pod1, nil)).To(BeNil())
+	Expect(commitTxn()).To(BeNil())
+	Expect(contiv.AddingPod(pod2, nil)).To(BeNil())
+	Expect(commitTxn()).To(BeNil())
+	Expect(contiv.AddingPod(pod3, nil)).To(BeNil())
+	Expect(commitTxn()).To(BeNil())
+	datasync.Put(podmodel.Key(pod1.Name, pod1.Namespace), pod1Model)
+	datasync.Put(podmodel.Key(pod2.Name, pod2.Namespace), pod2Model)
+	datasync.Put(podmodel.Key(pod3.Name, pod3.Namespace), pod3Model)
 
 	// Service1: http only (not https yet).
 	service1 := &svcmodel.Service{
@@ -1463,8 +1651,9 @@ func TestServiceUpdates(t *testing.T) {
 		},
 	}
 
-	dataChange4 := datasync.Put(svcmodel.Key(service1.Name, service1.Namespace), service1)
-	Expect(processor.Update(dataChange4)).To(BeNil())
+	dataChange4 := datasync.PutEvent(svcmodel.Key(service1.Name, service1.Namespace), service1)
+	Expect(svcProcessor.Update(dataChange4)).To(BeNil())
+	Expect(commitTxn()).To(BeNil())
 
 	// Add endpoints.
 	eps1 := &epmodel.Endpoints{
@@ -1512,8 +1701,9 @@ func TestServiceUpdates(t *testing.T) {
 		},
 	}
 
-	dataChange5 := datasync.Put(epmodel.Key(eps1.Name, eps1.Namespace), eps1)
-	Expect(processor.Update(dataChange5)).To(BeNil())
+	dataChange5 := datasync.PutEvent(epmodel.Key(eps1.Name, eps1.Namespace), eps1)
+	Expect(svcProcessor.Update(dataChange5)).To(BeNil())
+	Expect(commitTxn()).To(BeNil())
 
 	// Check NAT configuration.
 	Expect(natPlugin.IsForwardingEnabled()).To(BeTrue())
@@ -1586,7 +1776,8 @@ func TestServiceUpdates(t *testing.T) {
 	Expect(natPlugin.HasIdentityMapping(mainIfID2)).To(BeTrue())
 
 	// Remove pod2.
-	Expect(contiv.DeletingPod(pod2)).To(BeNil())
+	Expect(contiv.DeletingPod(pod2, nil)).To(BeNil())
+	Expect(commitTxn()).To(BeNil())
 
 	// Update endpoints accordingly (also add https port)
 	eps1 = &epmodel.Endpoints{
@@ -1646,8 +1837,9 @@ func TestServiceUpdates(t *testing.T) {
 		},
 	}
 
-	dataChange7 := datasync.Put(epmodel.Key(eps1.Name, eps1.Namespace), eps1)
-	Expect(processor.Update(dataChange7)).To(BeNil())
+	dataChange7 := datasync.PutEvent(epmodel.Key(eps1.Name, eps1.Namespace), eps1)
+	Expect(svcProcessor.Update(dataChange7)).To(BeNil())
+	Expect(commitTxn()).To(BeNil())
 
 	// Check NAT configuration.
 	Expect(natPlugin.IsForwardingEnabled()).To(BeTrue())
@@ -1717,8 +1909,9 @@ func TestServiceUpdates(t *testing.T) {
 		},
 	}
 
-	dataChange8 := datasync.Put(svcmodel.Key(service1.Name, service1.Namespace), service1)
-	Expect(processor.Update(dataChange8)).To(BeNil())
+	dataChange8 := datasync.PutEvent(svcmodel.Key(service1.Name, service1.Namespace), service1)
+	Expect(svcProcessor.Update(dataChange8)).To(BeNil())
+	Expect(commitTxn()).To(BeNil())
 
 	// Check NAT configuration.
 	Expect(natPlugin.IsForwardingEnabled()).To(BeTrue())
@@ -1767,9 +1960,11 @@ func TestServiceUpdates(t *testing.T) {
 	Expect(natPlugin.HasIdentityMapping(mainIfID2)).To(BeTrue())
 
 	// Remove all endpoints.
-	Expect(contiv.DeletingPod(pod1)).To(BeNil())
-	dataChange9 := datasync.Delete(epmodel.Key(eps1.Name, eps1.Namespace))
-	Expect(processor.Update(dataChange9)).To(BeNil())
+	Expect(contiv.DeletingPod(pod1, nil)).To(BeNil())
+	Expect(commitTxn()).To(BeNil())
+	dataChange9 := datasync.DeleteEvent(epmodel.Key(eps1.Name, eps1.Namespace))
+	Expect(svcProcessor.Update(dataChange9)).To(BeNil())
+	Expect(commitTxn()).To(BeNil())
 
 	// Check NAT configuration.
 	Expect(natPlugin.IsForwardingEnabled()).To(BeTrue())
@@ -1816,6 +2011,8 @@ func TestWithSNATOnly(t *testing.T) {
 	contiv.SetMainVrfID(mainVrfID)
 	contiv.SetPodVrfID(podVrfID)
 	contiv.SetHostIPs([]net.IP{nodeIP.IP, mgmtIP})
+	contiv.RegisterPodPreRemovalHook(podPreRemovalHook)
+	contiv.RegisterPodPostAddHook(podPostAddHook)
 
 	// -> NAT plugin
 	natPlugin := NewMockNatPlugin(logger)
@@ -1831,7 +2028,7 @@ func TestWithSNATOnly(t *testing.T) {
 	datasync := NewMockDataSync()
 
 	// Prepare processor.
-	processor := &svc_processor.ServiceProcessor{
+	svcProcessor = &svc_processor.ServiceProcessor{
 		Deps: svc_processor.Deps{
 			Log:          logger,
 			ServiceLabel: serviceLabel,
@@ -1842,15 +2039,16 @@ func TestWithSNATOnly(t *testing.T) {
 	// Prepare NAT44 Renderer.
 	renderer := &nat44.Renderer{
 		Deps: nat44.Deps{
-			Log:           logger,
-			Contiv:        contiv,
-			NATTxnFactory: txnTracker.NewLinuxDataChangeTxn,
+			Log:              logger,
+			Contiv:           contiv,
+			ResyncTxnFactory: resyncTxnFactory(txnTracker),
+			UpdateTxnFactory: updateTxnFactory(txnTracker),
 		},
 	}
 
-	Expect(processor.Init()).To(BeNil())
+	Expect(svcProcessor.Init()).To(BeNil())
 	Expect(renderer.Init(true)).To(BeNil())
-	Expect(processor.RegisterRenderer(renderer)).To(BeNil())
+	Expect(svcProcessor.RegisterRenderer(renderer)).To(BeNil())
 
 	// Prepare configuration before resync.
 
@@ -1916,8 +2114,9 @@ func TestWithSNATOnly(t *testing.T) {
 	datasync.Put(epmodel.Key(eps1.Name, eps1.Namespace), eps1)
 
 	// Resync.
-	resyncEv := datasync.Resync(keyPrefixes...)
-	Expect(processor.Resync(resyncEv)).To(BeNil())
+	resyncEv, _ := datasync.ResyncEvent(keyPrefixes...)
+	Expect(svcProcessor.Resync(resyncEv.KubeState)).To(BeNil())
+	Expect(commitTxn()).To(BeNil())
 
 	// Check that SNAT is configured, but service-related configuration
 	// was ignored.
@@ -1956,7 +2155,7 @@ func TestWithSNATOnly(t *testing.T) {
 	Expect(natPlugin.HasIdentityMapping(mainIfID2)).To(BeTrue())
 
 	// Cleanup
-	Expect(processor.Close()).To(BeNil())
+	Expect(svcProcessor.Close()).To(BeNil())
 	Expect(renderer.Close()).To(BeNil())
 }
 
@@ -1985,6 +2184,8 @@ func TestLocalServicePolicy(t *testing.T) {
 	contiv.SetMainVrfID(mainVrfID)
 	contiv.SetPodVrfID(podVrfID)
 	contiv.SetHostIPs([]net.IP{nodeIP.IP, mgmtIP})
+	contiv.RegisterPodPreRemovalHook(podPreRemovalHook)
+	contiv.RegisterPodPostAddHook(podPostAddHook)
 
 	// -> NAT plugin
 	natPlugin := NewMockNatPlugin(logger)
@@ -2000,7 +2201,7 @@ func TestLocalServicePolicy(t *testing.T) {
 	datasync := NewMockDataSync()
 
 	// Prepare processor.
-	processor := &svc_processor.ServiceProcessor{
+	svcProcessor = &svc_processor.ServiceProcessor{
 		Deps: svc_processor.Deps{
 			Log:          logger,
 			ServiceLabel: serviceLabel,
@@ -2011,19 +2212,21 @@ func TestLocalServicePolicy(t *testing.T) {
 	// Prepare NAT44 Renderer.
 	renderer := &nat44.Renderer{
 		Deps: nat44.Deps{
-			Log:           logger,
-			Contiv:        contiv,
-			NATTxnFactory: txnTracker.NewLinuxDataChangeTxn,
+			Log:              logger,
+			Contiv:           contiv,
+			ResyncTxnFactory: resyncTxnFactory(txnTracker),
+			UpdateTxnFactory: updateTxnFactory(txnTracker),
 		},
 	}
 
-	Expect(processor.Init()).To(BeNil())
+	Expect(svcProcessor.Init()).To(BeNil())
 	Expect(renderer.Init(false)).To(BeNil())
-	Expect(processor.RegisterRenderer(renderer)).To(BeNil())
+	Expect(svcProcessor.RegisterRenderer(renderer)).To(BeNil())
 
 	// Test resync with empty VPP configuration.
-	resyncEv := datasync.Resync(keyPrefixes...)
-	Expect(processor.Resync(resyncEv)).To(BeNil())
+	resyncEv, _ := datasync.ResyncEvent(keyPrefixes...)
+	Expect(svcProcessor.Resync(resyncEv.KubeState)).To(BeNil())
+	Expect(commitTxn()).To(BeNil())
 
 	Expect(natPlugin.IsForwardingEnabled()).To(BeTrue())
 
@@ -2080,8 +2283,9 @@ func TestLocalServicePolicy(t *testing.T) {
 		},
 	}
 
-	dataChange1 := datasync.Put(svcmodel.Key(service1.Name, service1.Namespace), service1)
-	Expect(processor.Update(dataChange1)).To(BeNil())
+	dataChange1 := datasync.PutEvent(svcmodel.Key(service1.Name, service1.Namespace), service1)
+	Expect(svcProcessor.Update(dataChange1)).To(BeNil())
+	Expect(commitTxn()).To(BeNil())
 
 	// No change in the NAT configuration.
 	Expect(natPlugin.IsForwardingEnabled()).To(BeTrue())
@@ -2103,12 +2307,12 @@ func TestLocalServicePolicy(t *testing.T) {
 	Expect(natPlugin.HasIdentityMapping(mainIfID2)).To(BeTrue())
 
 	// Add pods.
-	Expect(contiv.AddingPod(pod1)).To(BeNil())
-	Expect(contiv.AddingPod(pod2)).To(BeNil())
-	dataChange2 := datasync.Put(podmodel.Key(pod1.Name, pod1.Namespace), pod1Model)
-	Expect(processor.Update(dataChange2)).To(BeNil())
-	dataChange3 := datasync.Put(podmodel.Key(pod2.Name, pod2.Namespace), pod2Model)
-	Expect(processor.Update(dataChange3)).To(BeNil())
+	Expect(contiv.AddingPod(pod1, nil)).To(BeNil())
+	Expect(commitTxn()).To(BeNil())
+	Expect(contiv.AddingPod(pod2, nil)).To(BeNil())
+	Expect(commitTxn()).To(BeNil())
+	datasync.Put(podmodel.Key(pod1.Name, pod1.Namespace), pod1Model)
+	datasync.Put(podmodel.Key(pod2.Name, pod2.Namespace), pod2Model)
 
 	// First check what should not have changed.
 	Expect(natPlugin.IsForwardingEnabled()).To(BeTrue())
@@ -2176,8 +2380,9 @@ func TestLocalServicePolicy(t *testing.T) {
 		},
 	}
 
-	dataChange4 := datasync.Put(epmodel.Key(eps1.Name, eps1.Namespace), eps1)
-	Expect(processor.Update(dataChange4)).To(BeNil())
+	dataChange4 := datasync.PutEvent(epmodel.Key(eps1.Name, eps1.Namespace), eps1)
+	Expect(svcProcessor.Update(dataChange4)).To(BeNil())
+	Expect(commitTxn()).To(BeNil())
 
 	// First check what should not have changed.
 	Expect(natPlugin.IsForwardingEnabled()).To(BeTrue())
@@ -2227,8 +2432,9 @@ func TestLocalServicePolicy(t *testing.T) {
 	Expect(natPlugin.HasStaticMapping(staticMapping2)).To(BeTrue())
 
 	// Finally remove the service.
-	dataChange6 := datasync.Delete(svcmodel.Key(service1.Name, service1.Namespace))
-	Expect(processor.Update(dataChange6)).To(BeNil())
+	dataChange6 := datasync.DeleteEvent(svcmodel.Key(service1.Name, service1.Namespace))
+	Expect(svcProcessor.Update(dataChange6)).To(BeNil())
+	Expect(commitTxn()).To(BeNil())
 
 	// NAT configuration without the service.
 	Expect(natPlugin.IsForwardingEnabled()).To(BeTrue())
@@ -2249,6 +2455,6 @@ func TestLocalServicePolicy(t *testing.T) {
 	Expect(natPlugin.GetInterfaceFeatures(pod2If)).To(Equal(NewNatFeatures(OUT)))
 
 	// Cleanup
-	Expect(processor.Close()).To(BeNil())
+	Expect(svcProcessor.Close()).To(BeNil())
 	Expect(renderer.Close()).To(BeNil())
 }

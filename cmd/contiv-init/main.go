@@ -36,6 +36,8 @@ import (
 
 	"github.com/contiv/vpp/cmd/contiv-stn/model/stn"
 	"github.com/contiv/vpp/plugins/contiv"
+	"github.com/contiv/vpp/plugins/contiv/model/nodeinfo"
+	"github.com/contiv/vpp/plugins/controller"
 	"github.com/ligato/cn-infra/config"
 	"github.com/ligato/cn-infra/db/keyval"
 	"github.com/ligato/cn-infra/db/keyval/bolt"
@@ -54,7 +56,7 @@ const (
 	vppProcessName         = "vpp"
 	contivAgentProcessName = "contiv-agent"
 
-	etcdConnectionRetries = 20 // number of retries to connect to ETCD once STN is configured
+	etcdConnectionRetries = 20 // number of retries to connect to ETCD
 )
 
 var (
@@ -142,7 +144,7 @@ func stnGrpcConnect() (*grpc.ClientConn, error) {
 
 // parseSTNConfig parses the config file and looks up for STN configuration.
 // In case that STN was requested for this node, returns the interface to be stolen and optionally its name on VPP.
-func parseSTNConfig() (config *contiv.Config, nicToSteal string, useDHCP bool, err error) {
+func parseSTNConfig() (nicToSteal string, useDHCP bool, err error) {
 
 	// read config YAML
 	yamlFile, err := ioutil.ReadFile(*contivCfgFile)
@@ -152,7 +154,7 @@ func parseSTNConfig() (config *contiv.Config, nicToSteal string, useDHCP bool, e
 	}
 
 	// unmarshal the YAML
-	config = &contiv.Config{}
+	config := &contiv.Config{}
 	err = yaml.Unmarshal(yamlFile, config)
 	if err != nil {
 		logger.Errorf("Error by unmarshalling YAML: %v", err)
@@ -248,8 +250,25 @@ func getFirstInterfaceName() string {
 	return ""
 }
 
+// etcdWithAtomicPut augments ProtoWrapper with atomic Put operation.
+type etcdWithAtomicPut struct {
+	*kvproto.ProtoWrapper
+	conn *etcd.BytesConnectionEtcd
+}
+
+// PutIfNotExists implements the atomic Put operation.
+func (etcd *etcdWithAtomicPut) PutIfNotExists(key string, value []byte) (succeeded bool, err error) {
+	return etcd.conn.PutIfNotExists(key, value)
+}
+
+// OnConnect immediately calls the callback - etcdConnect() returns etcd client
+// in the connected state (or as nil).
+func (etcd *etcdWithAtomicPut) OnConnect(callback func() error) {
+	callback()
+}
+
 // etcdConnect connects to ETCD db.
-func etcdConnect() (protoDb *kvproto.ProtoWrapper, err error) {
+func etcdConnect() (etcdConn contiv.DB, err error) {
 	etcdConfig := &etcd.Config{}
 
 	// parse ETCD config file
@@ -282,8 +301,12 @@ func etcdConnect() (protoDb *kvproto.ProtoWrapper, err error) {
 		}
 	}
 
-	protoDb = kvproto.NewProtoWrapper(conn, &keyval.SerializerJSON{})
-	return protoDb, nil
+	protoDb := kvproto.NewProtoWrapper(conn, &keyval.SerializerJSON{})
+	etcdConn = &etcdWithAtomicPut{
+		ProtoWrapper: protoDb,
+		conn:         conn,
+	}
+	return etcdConn, nil
 }
 
 // boltOpen opens local Bolt db.
@@ -308,13 +331,82 @@ func boltOpen() (protoDb *kvproto.ProtoWrapper, err error) {
 	return protoDb, nil
 }
 
+// prepareForLocalResync re-synchronizes Bolt against Etcd for STN case,
+// so that when agent starts without connectivity, it will execute local resync
+// against relatively up-to-date data that contains at least node ID.
+// Steps:
+//   1. if etcd is available, allocate/retrieve node ID from there
+//   2. if etcd is available, resync bolt against etcd
+//   3. check that node ID is in bolt
+func prepareForLocalResync() error {
+	var (
+		withEtcd bool
+		err      error
+	)
+	nodeName := os.Getenv(servicelabel.MicroserviceLabelEnvVar)
+
+	// try to connect to ETCD db
+	etcdDB, err := etcdConnect()
+	if err == nil {
+		withEtcd = true
+		defer etcdDB.Close()
+	}
+
+	// try to open local Bolt db
+	boltDB, err := boltOpen()
+	if err == nil {
+		defer boltDB.Close()
+	} else {
+		return err
+	}
+
+	// if etcd is available, allocate/retrieve ID from there
+	if withEtcd {
+		// try to obtain snapshot of Kubernetes state data
+		resyncEv, _, err := controller.LoadKubeStateForResync(etcdDB.NewBroker(""), logger)
+		if err != nil {
+			return err
+		}
+
+		// allocate or retrieve ID from etcd
+		kubeState := resyncEv.KubeState
+		nodeIDAllocator := contiv.NewIDAllocator(etcdDB, nodeName, nil)
+		nodeIDAllocator.Resync(kubeState)
+		id, err := nodeIDAllocator.GetOrAllocateNodeID()
+		if err == nil {
+			// update kube state to handle newly allocated ID
+			kubeState[nodeinfo.Keyword][nodeinfo.Key(id)] = &nodeinfo.NodeInfo{
+				Id:   id,
+				Name: nodeName,
+				// IP addresses will be updated in Bolt later by the agent
+			}
+		}
+
+		// resync bolt against etcd
+		err = controller.ResyncDatabase(boltDB.NewBroker(""), kubeState)
+		if err != nil {
+			return err
+		}
+	}
+
+	// check that node ID is in bolt
+	resyncEv, _, err := controller.LoadKubeStateForResync(boltDB.NewBroker(""), logger)
+	if err != nil {
+		return err
+	}
+	nodeIDAllocator := contiv.NewIDAllocator(nil, nodeName, nil)
+	nodeIDAllocator.Resync(resyncEv.KubeState)
+	_, err = nodeIDAllocator.GetOrAllocateNodeID()
+	return err
+}
+
 func main() {
 	flag.Parse()
 
 	logger.Debugf("Starting contiv-init process")
 
 	// check whether STN is required and get NIC name
-	contivCfg, nicToSteal, useDHCP, err := parseSTNConfig()
+	nicToSteal, useDHCP, err := parseSTNConfig()
 	if err != nil {
 		logger.Errorf("Error by parsing STN config: %v", err)
 		os.Exit(-1)
@@ -322,12 +414,23 @@ func main() {
 
 	var stnData *stn.STNReply
 	if nicToSteal != "" {
+		// prepare for local resync
+		err := prepareForLocalResync()
+		if err != nil {
+			logger.Errorf("Failed to prepare for local resync: %v", err)
+			os.Exit(-1)
+		}
 		// steal the NIC
 		stnData, err = stealNIC(nicToSteal, useDHCP)
 		if err != nil {
 			logger.Warnf("Error by stealing the NIC %s: %v", nicToSteal, err)
 			// do not fail of STN was not successful
 			nicToSteal = ""
+		}
+		// Check if the STN Daemon has been initialized
+		if stnData == nil {
+			logger.Errorf("STN configured in vswitch, but STN Daemon not initialized")
+			os.Exit(-1)
 		}
 	} else {
 		logger.Debug("STN not requested")
@@ -342,22 +445,6 @@ func main() {
 	if err != nil {
 		logger.Errorf("Error by starting VPP process: %v", err)
 		os.Exit(-1)
-	}
-
-	if nicToSteal != "" {
-		// Check if the STN Daemon has been initialized
-		if stnData == nil {
-			logger.Errorf("STN configured in vswitch, but STN Daemon not initialized")
-			os.Exit(-1)
-		}
-
-		// configure connectivity on VPP
-		err := configureVpp(contivCfg, stnData, useDHCP)
-		if err != nil {
-			logger.Errorf("Error by configuring VPP: %v", err)
-			client.StopProcess(vppProcessName, false)
-			os.Exit(-1)
-		}
 	}
 
 	// start contiv-agent

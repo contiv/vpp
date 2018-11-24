@@ -1,8 +1,7 @@
 package policycache
 
 import (
-	"github.com/ligato/cn-infra/datasync"
-
+	controller "github.com/contiv/vpp/plugins/controller/api"
 	nsmodel "github.com/contiv/vpp/plugins/ksr/model/namespace"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	policymodel "github.com/contiv/vpp/plugins/ksr/model/policy"
@@ -36,12 +35,12 @@ func (mpc *MockPolicyCache) AddPodConfig(id podmodel.ID, ipAddr string, labels .
 }
 
 // Update is not implemented by the mock.
-func (mpc *MockPolicyCache) Update(dataChngEv datasync.ChangeEvent) error {
+func (mpc *MockPolicyCache) Update(kubeStateChange *controller.KubeStateChange) error {
 	return nil
 }
 
 // Resync is not implemented by the mock.
-func (mpc *MockPolicyCache) Resync(resyncEv datasync.ResyncEvent) error {
+func (mpc *MockPolicyCache) Resync(kubeStateData controller.KubeStateData) error {
 	return nil
 }
 

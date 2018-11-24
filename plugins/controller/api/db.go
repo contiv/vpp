@@ -58,6 +58,14 @@ type DBResync struct {
 	ExternalConfig ExternalConfig
 }
 
+// NewDBResync is a constructor for DBResync
+func NewDBResync() *DBResync {
+	return &DBResync{
+		KubeState:      make(KubeStateData),
+		ExternalConfig: make(ExternalConfig),
+	}
+}
+
 // withName is implemented by Kubernetes resources that have a name.
 type withName interface {
 	// GetName is implemented by resources with Name.
@@ -92,6 +100,7 @@ func (ev *DBResync) String() string {
 	sort.Strings(resources)
 
 	// describe Kubernetes state
+	empty := true
 	for _, resource := range resources {
 		var (
 			withColon     string
@@ -113,10 +122,11 @@ func (ev *DBResync) String() string {
 			}
 			resourceItems = append(resourceItems, valueStr)
 		}
-		sort.Strings(resourceItems)
-		if len(resourceItems) > 0 {
-			withColon = ":"
+		if len(resourceItems) == 0 {
+			continue
 		}
+		empty = false
+		sort.Strings(resourceItems)
 		str += fmt.Sprintf("\n* %dx %s%s",
 			len(data), resource, withColon)
 		for _, resourceItem := range resourceItems {
@@ -131,8 +141,14 @@ func (ev *DBResync) String() string {
 	}
 	sort.Strings(externalKeys)
 	if len(externalKeys) > 0 {
+		empty = false
 		str += fmt.Sprintf("\n* %dx external config items: %s",
 			len(externalKeys), strings.Join(externalKeys, ", "))
+	}
+
+	// handle empty DB
+	if empty {
+		str += " - empty dataset"
 	}
 	return str
 }
@@ -140,6 +156,11 @@ func (ev *DBResync) String() string {
 // Method is Resync.
 func (ev *DBResync) Method() EventMethodType {
 	return Resync
+}
+
+// IsBlocking returns false.
+func (ev *DBResync) IsBlocking() bool {
+	return false
 }
 
 // Done is NOOP.
@@ -188,6 +209,11 @@ func (ev *KubeStateChange) Direction() UpdateDirectionType {
 	return Forward
 }
 
+// IsBlocking returns false.
+func (ev *KubeStateChange) IsBlocking() bool {
+	return false
+}
+
 // Done is NOOP.
 func (ev *KubeStateChange) Done(error) {
 	return
@@ -206,7 +232,9 @@ func protoToString(msg proto.Message) string {
 // ExternalConfigChange is an Update event that represents change for one key
 // from the external configuration (for vpp-agent).
 type ExternalConfigChange struct {
-	Change datasync.ProtoWatchResp
+	Key      string
+	Revision datasync.WithRevision
+	Value    datasync.LazyValue
 }
 
 // GetName returns name of the ExternalConfigChange event.
@@ -218,7 +246,7 @@ func (ev *ExternalConfigChange) GetName() string {
 func (ev *ExternalConfigChange) String() string {
 	return fmt.Sprintf("%s\n"+
 		"* key: %s\n"+
-		"* revision: %d", ev.GetName(), ev.Change.GetKey(), ev.Change.GetRevision())
+		"* revision: %d", ev.GetName(), ev.Key, ev.Revision.GetRevision())
 }
 
 // Method is Update.
@@ -234,6 +262,11 @@ func (ev *ExternalConfigChange) TransactionType() UpdateTransactionType {
 // Direction is Forward.
 func (ev *ExternalConfigChange) Direction() UpdateDirectionType {
 	return Forward
+}
+
+// IsBlocking returns false.
+func (ev *ExternalConfigChange) IsBlocking() bool {
+	return false
 }
 
 // Done is NOOP.

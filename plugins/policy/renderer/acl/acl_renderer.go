@@ -22,10 +22,10 @@ import (
 	"github.com/gogo/protobuf/proto"
 
 	"github.com/ligato/cn-infra/logging"
-	"github.com/ligato/vpp-agent/clientv2/linux"
 	vpp_acl "github.com/ligato/vpp-agent/plugins/vppv2/model/acl"
 
 	"github.com/contiv/vpp/plugins/contiv"
+	controller "github.com/contiv/vpp/plugins/controller/api"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	"github.com/contiv/vpp/plugins/policy/renderer"
 	"github.com/contiv/vpp/plugins/policy/renderer/cache"
@@ -56,10 +56,11 @@ type Renderer struct {
 
 // Deps lists dependencies of Renderer.
 type Deps struct {
-	Log           logging.Logger
-	LogFactory    logging.LoggerFactory /* optional */
-	Contiv        contiv.API            /* for GetIfName() */
-	ACLTxnFactory func() (dsl linuxclient.DataChangeDSL)
+	Log              logging.Logger
+	LogFactory       logging.LoggerFactory /* optional */
+	Contiv           contiv.API            /* for GetIfName() */
+	UpdateTxnFactory func() (txn controller.UpdateOperations)
+	ResyncTxnFactory func() (txn controller.ResyncOperations)
 }
 
 // RendererTxn represents a single transaction of Renderer.
@@ -120,34 +121,27 @@ func (art *RendererTxn) Render(pod podmodel.ID, podIP *net.IPNet, ingress []*ren
 // calculated using RendererCache and applied as one transaction via the
 // localclient.
 func (art *RendererTxn) Commit() error {
+	if art.resync {
+		return art.commitResync()
+	}
+
 	var (
 		globalTable      *cache.ContivRuleTable
 		hasReflectiveACL bool
-		err              error
 	)
 
-	if art.resync {
-		// -> clear the cache
-		art.renderer.cache.Flush()
-	} else {
-		if art.renderer.cache.GetGlobalTable().NumOfRules != 0 ||
-			len(art.renderer.cache.GetIsolatedPods()) > 0 {
-			hasReflectiveACL = true
-		}
+	if art.renderer.cache.GetGlobalTable().NumOfRules != 0 ||
+		len(art.renderer.cache.GetIsolatedPods()) > 0 {
+		hasReflectiveACL = true
 	}
 
 	// Get the minimalistic diff to be rendered.
 	changes := art.cacheTxn.GetChanges()
-	if !art.resync && len(changes) == 0 {
-		art.renderer.Log.Debug("No changes to be rendered in the transaction")
+	if len(changes) == 0 {
 		// Still need to commit the configuration updates from the transaction.
 		return art.cacheTxn.Commit()
 	}
-
-	// Render ACLs and propagate changes via localclient.
-	dsl := art.renderer.ACLTxnFactory()
-	putDsl := dsl.Put()
-	deleteDsl := dsl.Delete()
+	txn := art.renderer.UpdateTxnFactory()
 
 	// First render local tables.
 	for _, change := range changes {
@@ -159,30 +153,17 @@ func (art *RendererTxn) Commit() error {
 		if len(change.PreviousPods) == 0 {
 			// New ACL
 			acl := art.renderACL(change.Table, false)
-			putDsl.ACL(acl)
-			art.renderer.Log.WithFields(logging.Fields{
-				"table": change.Table,
-				"acl":   acl,
-			}).Debug("Put new ACL")
+			txn.Put(vpp_acl.Key(acl.Name), acl)
 		} else if len(change.Table.Pods) != 0 {
 			// Changed interfaces
 			aclPrivCopy := proto.Clone(change.Table.Private.(*vpp_acl.Acl))
 			acl := aclPrivCopy.(*vpp_acl.Acl)
 			acl.Interfaces = art.renderInterfaces(change.Table.Pods, false)
-			putDsl.ACL(acl)
-			art.renderer.Log.WithFields(logging.Fields{
-				"table":    change.Table,
-				"prevPods": change.PreviousPods,
-				"acl":      acl,
-			}).Debug("Put updated ACL")
+			txn.Put(vpp_acl.Key(acl.Name), acl)
 		} else {
 			// Removed ACL
 			acl := change.Table.Private.(*vpp_acl.Acl)
-			deleteDsl.ACL(acl.Name)
-			art.renderer.Log.WithFields(logging.Fields{
-				"table": change.Table,
-				"acl":   acl,
-			}).Debug("Removed ACL")
+			txn.Delete(vpp_acl.Key(acl.Name))
 		}
 	}
 
@@ -192,49 +173,64 @@ func (art *RendererTxn) Commit() error {
 		globalACL := art.renderACL(globalTable, false)
 		if globalTable.NumOfRules == 0 {
 			// Remove empty global table.
-			deleteDsl.ACL(globalACL.Name)
+			txn.Delete(vpp_acl.Key(globalACL.Name))
 			gtAddedOrDeleted = true
-			art.renderer.Log.WithFields(logging.Fields{
-				"table": globalTable,
-				"acl":   globalACL,
-			}).Debug("Removed Global ACL")
 		} else {
 			// Update content of the global table.
 			globalACL.Interfaces.Egress = art.getNodeOutputInterfaces()
-			putDsl.ACL(globalACL)
+			txn.Put(vpp_acl.Key(globalACL.Name), globalACL)
 			if art.renderer.cache.GetGlobalTable().NumOfRules == 0 {
 				gtAddedOrDeleted = true
 			}
-			art.renderer.Log.WithFields(logging.Fields{
-				"table": globalTable,
-				"acl":   globalACL,
-			}).Debug("Put Global ACL")
 		}
 	}
 
 	// Render the reflective ACL
-	if art.resync || gtAddedOrDeleted ||
-		!art.cacheTxn.GetIsolatedPods().Equals(art.renderer.cache.GetIsolatedPods()) {
+	if gtAddedOrDeleted || !art.cacheTxn.GetIsolatedPods().Equals(art.renderer.cache.GetIsolatedPods()) {
 		reflectiveACL := art.reflectiveACL()
 		if len(reflectiveACL.Interfaces.Ingress) == 0 {
 			if hasReflectiveACL {
-				deleteDsl.ACL(reflectiveACL.Name)
-				art.renderer.Log.Debug("Removed Reflective ACL")
+				txn.Delete(vpp_acl.Key(reflectiveACL.Name))
 			}
 		} else {
-			putDsl.ACL(reflectiveACL)
-			art.renderer.Log.WithFields(logging.Fields{
-				"acl": reflectiveACL,
-			}).Debug("Put Reflective ACL")
+			txn.Put(vpp_acl.Key(reflectiveACL.Name), reflectiveACL)
 		}
 	}
 
-	err = dsl.Send().ReceiveReply()
-	if err != nil {
-		return err
+	// Save changes into the cache.
+	return art.cacheTxn.Commit()
+}
+
+// commitResync commits full ACL configuration for re-synchronization.
+func (art *RendererTxn) commitResync() error {
+	txn := art.renderer.ResyncTxnFactory()
+
+	// reset the cache and the renderer internal state first
+	art.renderer.cache.Flush()
+	art.renderer.podInterfaces = make(PodInterfaces)
+
+	// after the flush, changes == all newly created
+	changes := art.cacheTxn.GetChanges()
+	for _, change := range changes {
+		if change.Table.Type == cache.Global {
+			// global table
+			globalACL := art.renderACL(change.Table, false)
+			globalACL.Interfaces.Egress = art.getNodeOutputInterfaces()
+			txn.Put(vpp_acl.Key(globalACL.Name), globalACL)
+		} else {
+			// local table
+			localACL := art.renderACL(change.Table, false)
+			txn.Put(vpp_acl.Key(localACL.Name), localACL)
+		}
 	}
 
-	// Save changes into the cache.
+	// reflective ACL at last
+	reflectiveACL := art.reflectiveACL()
+	if len(reflectiveACL.Interfaces.Ingress) != 0 {
+		txn.Put(vpp_acl.Key(reflectiveACL.Name), reflectiveACL)
+	}
+
+	// save changes into the cache.
 	return art.cacheTxn.Commit()
 }
 

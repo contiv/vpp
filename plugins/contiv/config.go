@@ -158,20 +158,6 @@ func LoadNodeConfigFromCRD(nodeName string, remoteDB, localDB KVBrokerFactory, l
 		if err != nil {
 			log.WithField("err", err).Warn("Failed to read node configuration from remote KV-store")
 		}
-		if err == nil {
-			// mirror the config into the local kv-store
-			// TODO: remove once all kubernetes state data are reflected into local KV-store by the Aggregator
-			boltBroker := localDB.NewBroker(servicelabel.GetDifferentAgentPrefix(ksr.MicroserviceLabel))
-			if nodeConfigProto != nil {
-				err = boltBroker.Put(nodeconfig.Key(nodeName), nodeConfigProto)
-			} else {
-				_, err = boltBroker.Delete(nodeconfig.Key(nodeName))
-			}
-			if err != nil {
-				log.WithField("err", err).Warn("Failed to mirror node configuration from remote to local KV-store")
-				err = nil // ignore error
-			}
-		}
 	}
 
 	if (remoteDB == nil || err != nil) && localDB != nil {

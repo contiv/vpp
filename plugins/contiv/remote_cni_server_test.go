@@ -28,6 +28,7 @@ import (
 	idxmap_mem "github.com/ligato/cn-infra/idxmap/mem"
 	"github.com/ligato/cn-infra/logging/logrus"
 
+	scheduler "github.com/ligato/vpp-agent/plugins/kvscheduler/api"
 	"github.com/ligato/vpp-agent/plugins/vppv2/model/interfaces"
 
 	. "github.com/contiv/vpp/mock/datasync"
@@ -38,6 +39,7 @@ import (
 	"github.com/contiv/vpp/plugins/contiv/ipam"
 	"github.com/contiv/vpp/plugins/contiv/model/cni"
 	"github.com/contiv/vpp/plugins/contiv/model/nodeinfo"
+	controller "github.com/contiv/vpp/plugins/controller/api"
 	nodeconfig "github.com/contiv/vpp/plugins/crd/pkg/apis/nodeconfig/v1"
 	k8sPod "github.com/contiv/vpp/plugins/ksr/model/pod"
 )
@@ -160,9 +162,11 @@ func TestBasicStuff(t *testing.T) {
 
 	// Remote CNI Server init
 	args := &remoteCNIserverArgs{
-		Logger:     logrus.DefaultLogger(),
-		nodeID:     node1ID,
-		txnFactory: txnTracker.NewControllerTxn,
+		Logger: logrus.DefaultLogger(),
+		nodeID: node1ID,
+		txnFactory: func() controller.Transaction {
+			return txnTracker.NewControllerTxn(false)
+		},
 		physicalIfsDump: func() (map[uint32]string, error) {
 			return physicalIfaces, nil
 		},
@@ -187,8 +191,11 @@ func TestBasicStuff(t *testing.T) {
 	fmt.Println("Resync against empty K8s state ---------------------------")
 
 	// resync against empty K8s state data
-	resyncEv := datasync.Resync(keyPrefixes...)
-	err = server.Resync(ParseResyncEvent(resyncEv, nil))
+	resyncEv, resyncCount := datasync.ResyncEvent(keyPrefixes...)
+	txn := txnTracker.NewControllerTxn(true)
+	err = server.Resync(resyncEv.KubeState, resyncCount, txn)
+	Expect(err).To(BeNil())
+	err = commitTransaction(txn, true)
 	Expect(err).To(BeNil())
 	txnCount++
 	Expect(txnTracker.PendingTxns).To(HaveLen(0))
@@ -206,8 +213,12 @@ func TestBasicStuff(t *testing.T) {
 		IpAddress:           node2IP,
 		ManagementIpAddress: node2MgmtIP,
 	}
-	dataChange := datasync.Put(nodeIDKey(node2ID), node2)
-	err = server.Update(dataChange.GetChanges()[0])
+	event := datasync.PutEvent(nodeIDKey(node2ID), node2)
+	txn = txnTracker.NewControllerTxn(false)
+	change, err := server.Update(event, txn)
+	Expect(err).To(BeNil())
+	Expect(change).To(Equal("connect node ID=2"))
+	err = commitTransaction(txn, false)
 	Expect(err).To(BeNil())
 	txnCount++
 	Expect(txnTracker.PendingTxns).To(HaveLen(0))
@@ -215,15 +226,19 @@ func TestBasicStuff(t *testing.T) {
 
 	fmt.Println("Other node Mgmt IP update --------------------------------")
 
-	// add another node
+	// update another node
 	node2Update := &nodeinfo.NodeInfo{
 		Name:                node2Name,
 		Id:                  node2ID,
 		IpAddress:           node2IP,
 		ManagementIpAddress: node2MgmtIPUpdated,
 	}
-	dataChange = datasync.Put(nodeIDKey(node2ID), node2Update)
-	err = server.Update(dataChange.GetChanges()[0])
+	event = datasync.PutEvent(nodeIDKey(node2ID), node2Update)
+	txn = txnTracker.NewControllerTxn(false)
+	change, err = server.Update(event, txn)
+	Expect(err).To(BeNil())
+	Expect(change).To(Equal("update node ID=2"))
+	err = commitTransaction(txn, false)
 	Expect(err).To(BeNil())
 	txnCount++
 	Expect(txnTracker.PendingTxns).To(HaveLen(0))
@@ -261,21 +276,20 @@ func TestBasicStuff(t *testing.T) {
 	pod1IP := podIPFromCNIReply(reply)
 	Expect(pod1IP).ToNot(BeNil())
 	dockerClient.AddPod(pod1ID, pod1ContainerUpdated, pod1PID)
-	dataChange = datasync.Put(k8sPod.Key(pod1Name, pod1Namespace), &k8sPod.Pod{
+	datasync.Put(k8sPod.Key(pod1Name, pod1Namespace), &k8sPod.Pod{
 		Namespace: pod1Namespace,
 		Name:      pod1Name,
 		IpAddress: pod1IP.String(),
 	})
-	err = server.Update(dataChange.GetChanges()[0]) // NOOP
-	Expect(err).To(BeNil())
-	Expect(txnTracker.PendingTxns).To(HaveLen(0))
-	Expect(txnTracker.CommittedTxns).To(HaveLen(txnCount))
 
 	fmt.Println("Resync with non-empty K8s state --------------------------")
 
 	// resync now with the IP from DHCP, new pod and the other node
-	resyncEv = datasync.Resync(keyPrefixes...)
-	err = server.Resync(ParseResyncEvent(resyncEv, nil))
+	resyncEv, resyncCount = datasync.ResyncEvent(keyPrefixes...)
+	txn = txnTracker.NewControllerTxn(true)
+	err = server.Resync(resyncEv.KubeState, resyncCount, txn)
+	Expect(err).To(BeNil())
+	err = commitTransaction(txn, true)
 	Expect(err).To(BeNil())
 	txnCount++
 	Expect(txnTracker.PendingTxns).To(HaveLen(0))
@@ -287,9 +301,13 @@ func TestBasicStuff(t *testing.T) {
 	server, err = newRemoteCNIServer(args)
 	server.test = true
 	Expect(err).To(BeNil())
+	datasync.RestartResyncCount()
 	// resync
-	resyncEv = datasync.Resync(keyPrefixes...)
-	err = server.Resync(ParseResyncEvent(resyncEv, nil))
+	resyncEv, resyncCount = datasync.ResyncEvent(keyPrefixes...)
+	txn = txnTracker.NewControllerTxn(true)
+	err = server.Resync(resyncEv.KubeState, resyncCount, txn)
+	Expect(err).To(BeNil())
+	err = commitTransaction(txn, true)
 	Expect(err).To(BeNil())
 	txnCount++
 	Expect(txnTracker.PendingTxns).To(HaveLen(0))
@@ -307,17 +325,17 @@ func TestBasicStuff(t *testing.T) {
 
 	// un-register the pod from the mocks
 	dockerClient.DelPod(pod1ID)
-	dataChange = datasync.Delete(k8sPod.Key(pod1Name, pod1Namespace))
-	err = server.Update(dataChange.GetChanges()[0]) // NOOP
-	Expect(err).To(BeNil())
-	Expect(txnTracker.PendingTxns).To(HaveLen(0))
-	Expect(txnTracker.CommittedTxns).To(HaveLen(txnCount))
+	datasync.Delete(k8sPod.Key(pod1Name, pod1Namespace))
 
 	fmt.Println("Delete node ----------------------------------------------")
 
 	// delete the other node
-	dataChange = datasync.Delete(nodeIDKey(node2ID))
-	err = server.Update(dataChange.GetChanges()[0])
+	event = datasync.DeleteEvent(nodeIDKey(node2ID))
+	txn = txnTracker.NewControllerTxn(false)
+	change, err = server.Update(event, txn)
+	Expect(err).To(BeNil())
+	Expect(change).To(Equal("disconnect node ID=2"))
+	err = commitTransaction(txn, false)
 	Expect(err).To(BeNil())
 	txnCount++
 	Expect(txnTracker.PendingTxns).To(HaveLen(0))
@@ -325,8 +343,11 @@ func TestBasicStuff(t *testing.T) {
 
 	fmt.Println("Resync just before Close ---------------------------------")
 
-	resyncEv = datasync.Resync(keyPrefixes...)
-	err = server.Resync(ParseResyncEvent(resyncEv, nil))
+	resyncEv, resyncCount = datasync.ResyncEvent(keyPrefixes...)
+	txn = txnTracker.NewControllerTxn(true)
+	err = server.Resync(resyncEv.KubeState, resyncCount, txn)
+	Expect(err).To(BeNil())
+	err = commitTransaction(txn, true)
 	Expect(err).To(BeNil())
 	txnCount++
 	Expect(txnTracker.PendingTxns).To(HaveLen(0))
@@ -338,6 +359,14 @@ func TestBasicStuff(t *testing.T) {
 	// txnCount remains unchanged - nothing needs to be cleaned up for TAPs
 	Expect(txnTracker.PendingTxns).To(HaveLen(0))
 	Expect(txnTracker.CommittedTxns).To(HaveLen(txnCount))
+}
+
+func commitTransaction(txn controller.Transaction, isResync bool) error {
+	ctx := context.Background()
+	if isResync {
+		ctx = scheduler.WithFullResync(ctx)
+	}
+	return txn.Commit(ctx)
 }
 
 // stolenInterfaceInfo is a factory for StolenInterfaceInfoClb

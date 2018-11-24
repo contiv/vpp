@@ -15,27 +15,17 @@
 package policy
 
 import (
-	"context"
-	"sync"
-
-	"github.com/ligato/cn-infra/datasync"
-	"github.com/ligato/cn-infra/datasync/resync"
-	"github.com/ligato/cn-infra/utils/safeclose"
-
-	"github.com/ligato/vpp-agent/clientv2/linux"
-	"github.com/ligato/vpp-agent/clientv2/linux/localclient"
+	"github.com/ligato/cn-infra/infra"
 
 	"github.com/contiv/vpp/plugins/contiv"
+	controller "github.com/contiv/vpp/plugins/controller/api"
+	"github.com/contiv/vpp/plugins/ksr/model/namespace"
+	"github.com/contiv/vpp/plugins/ksr/model/pod"
+	"github.com/contiv/vpp/plugins/ksr/model/policy"
 	"github.com/contiv/vpp/plugins/policy/cache"
 	"github.com/contiv/vpp/plugins/policy/configurator"
 	"github.com/contiv/vpp/plugins/policy/processor"
 	"github.com/contiv/vpp/plugins/policy/renderer/acl"
-
-	nsmodel "github.com/contiv/vpp/plugins/ksr/model/namespace"
-	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
-	policymodel "github.com/contiv/vpp/plugins/ksr/model/policy"
-	"github.com/ligato/cn-infra/infra"
-	"net"
 )
 
 // Plugin watches configuration of K8s resources (as reflected by KSR into ETCD)
@@ -44,20 +34,10 @@ import (
 type Plugin struct {
 	Deps
 
-	resyncChan chan datasync.ResyncEvent
-	changeChan chan datasync.ChangeEvent
-
-	watchConfigReg datasync.WatchRegistration
-
-	resyncLock sync.Mutex
-	ctx        context.Context
-	cancel     context.CancelFunc
-	wg         sync.WaitGroup
-
-	// delay resync until the contiv plugin has been re-synchronized.
-	resyncCounter  uint
-	pendingResync  datasync.ResyncEvent
-	pendingChanges []datasync.ChangeEvent
+	// ongoing transaction
+	resyncTxn  controller.ResyncOperations
+	updateTxn  controller.UpdateOperations
+	withChange bool
 
 	// Policy Plugin consists of multiple layers.
 	// The plugin itself is layer 1.
@@ -80,21 +60,14 @@ type Plugin struct {
 // Deps defines dependencies of policy plugin.
 type Deps struct {
 	infra.PluginDeps
-	Resync  resync.Subscriber
-	Watcher datasync.KeyValProtoWatcher /* prefixed for KSR-published K8s state data */
-	Contiv  contiv.API                  /* for GetIfName() */
+	Contiv contiv.API /* for GetIfName() */
 
 	// Note: L4 was removed from Contiv but may be re-added in the future
-	// GoVPP   govppmux.API                /* for VPPTCP Renderer */
+	// GoVPP   govppmux.API  /* for VPPTCP Renderer */
 }
 
 // Init initializes policy layers and caches and starts watching ETCD for K8s configuration.
 func (p *Plugin) Init() error {
-	var err error
-
-	p.resyncChan = make(chan datasync.ResyncEvent)
-	p.changeChan = make(chan datasync.ChangeEvent)
-
 	// Inject dependencies between layers.
 	p.policyCache = &cache.PolicyCache{
 		Deps: cache.Deps{
@@ -124,8 +97,12 @@ func (p *Plugin) Init() error {
 			Log:        p.Log.NewLogger("-aclRenderer"),
 			LogFactory: p.Log,
 			Contiv:     p.Contiv,
-			ACLTxnFactory: func() linuxclient.DataChangeDSL {
-				return localclient.DataChangeRequest(p.String())
+			UpdateTxnFactory: func() controller.UpdateOperations {
+				p.withChange = true
+				return p.updateTxn
+			},
+			ResyncTxnFactory: func() controller.ResyncOperations {
+				return p.resyncTxn
 			},
 		},
 	}
@@ -155,119 +132,63 @@ func (p *Plugin) Init() error {
 
 	// Register renderers.
 	p.configurator.RegisterRenderer(p.aclRenderer)
-
-	p.ctx, p.cancel = context.WithCancel(context.Background())
-
-	go p.watchEvents()
-	err = p.subscribeWatcher()
-	if err != nil {
-		return err
-	}
-
 	return nil
 }
 
-// AfterInit registers to the ResyncOrchestrator. The registration is done in this phase
-// in order to ensure that the resync for this plugin is triggered only after
-// resync of the Contiv plugin has finished.
-func (p *Plugin) AfterInit() error {
-	if p.Resync != nil {
-		reg := p.Resync.Register(string(p.PluginName))
-		go p.handleResync(reg.StatusChan())
+// HandlesEvent selects DBResync and KubeStateChange for specific resources to handle.
+func (p *Plugin) HandlesEvent(event controller.Event) bool {
+	if event.Method() == controller.Resync {
+		return true
 	}
+	if ksChange, isKSChange := event.(*controller.KubeStateChange); isKSChange {
+		switch ksChange.Resource {
+		case namespace.NamespaceKeyword:
+			return true
+		case pod.PodKeyword:
+			return true
+		case policy.PolicyKeyword:
+			return true
+		default:
+			// unhandled Kubernetes state change
+			return false
+		}
+	}
+
+	// unhandled event
+	return false
+}
+
+// Resync is called by Controller to handle event that requires full
+// re-synchronization.
+// For startup resync, resyncCount is 1. Higher counter values identify
+// run-time resync.
+func (p *Plugin) Resync(event controller.Event, txn controller.ResyncOperations,
+	kubeStateData controller.KubeStateData, resyncCount int) error {
+
+	p.resyncTxn = txn
+	p.updateTxn = nil
+	return p.policyCache.Resync(kubeStateData)
+}
+
+// Update is called for KubeStateChange.
+func (p *Plugin) Update(event controller.Event, txn controller.UpdateOperations) (changeDescription string, err error) {
+	p.resyncTxn = nil
+	p.updateTxn = txn
+	p.withChange = false
+	kubeStateChange := event.(*controller.KubeStateChange)
+	err = p.policyCache.Update(kubeStateChange)
+	if p.withChange {
+		changeDescription = "refresh policies"
+	}
+	return changeDescription, err
+}
+
+// Revert does nothing here - plugin handles only BestEffort events.
+func (p *Plugin) Revert(event controller.Event) error {
 	return nil
 }
 
-func (p *Plugin) subscribeWatcher() (err error) {
-	p.watchConfigReg, err = p.Watcher.
-		Watch("K8s policies", p.changeChan, p.resyncChan,
-			nsmodel.KeyPrefix(), podmodel.KeyPrefix(), policymodel.KeyPrefix())
-	return err
-}
-
-func (p *Plugin) watchEvents() {
-	p.wg.Add(1)
-	defer p.wg.Done()
-
-	for {
-		select {
-		case resyncConfigEv := <-p.resyncChan:
-			p.resyncLock.Lock()
-			p.resyncCounter++
-			p.pendingResync = resyncConfigEv
-			p.pendingChanges = []datasync.ChangeEvent{}
-			resyncConfigEv.Done(nil)
-			p.Log.WithField("config", resyncConfigEv).Info("Delaying RESYNC config")
-			p.resyncLock.Unlock()
-
-		case dataChngEv := <-p.changeChan:
-			p.resyncLock.Lock()
-			if p.resyncCounter == 0 {
-				p.Log.WithField("config", dataChngEv).
-					Info("Ignoring data-change received before the first RESYNC")
-				p.resyncLock.Unlock()
-				break
-			}
-			if p.pendingResync != nil {
-				p.pendingChanges = append(p.pendingChanges, dataChngEv)
-				dataChngEv.Done(nil)
-				p.Log.WithField("config", dataChngEv).Info("Delaying data-change")
-			} else {
-				err := p.policyCache.Update(dataChngEv)
-				dataChngEv.Done(err)
-			}
-			p.resyncLock.Unlock()
-
-		case <-p.ctx.Done():
-			p.Log.Debug("Stop watching events")
-			return
-		}
-	}
-}
-
-func (p *Plugin) handleResync(resyncChan <-chan resync.StatusEvent) {
-	// block until NodeIP is set
-	nodeIPWatcher := make(chan *net.IPNet, 1)
-	p.Contiv.WatchNodeIP(nodeIPWatcher)
-	nodeIP, nodeNet := p.Contiv.GetNodeIP()
-	if nodeIP == nil || nodeNet == nil {
-		<-nodeIPWatcher
-	}
-
-	for {
-		select {
-		case ev := <-resyncChan:
-			var err error
-			status := ev.ResyncStatus()
-			if status == resync.Started {
-				p.resyncLock.Lock()
-				if p.pendingResync != nil {
-					p.Log.WithField("config", p.pendingResync).Info("Applying delayed RESYNC config")
-					err = p.policyCache.Resync(p.pendingResync)
-					for i := 0; err == nil && i < len(p.pendingChanges); i++ {
-						dataChngEv := p.pendingChanges[i]
-						p.Log.WithField("config", dataChngEv).Info("Applying delayed data-change")
-						err = p.policyCache.Update(dataChngEv)
-					}
-					p.pendingResync = nil
-					p.pendingChanges = []datasync.ChangeEvent{}
-				}
-				p.resyncLock.Unlock()
-			}
-			if err != nil {
-				p.Log.Error(err)
-			}
-			ev.Ack()
-		case <-p.ctx.Done():
-			return
-		}
-	}
-}
-
-// Close stops the processor and watching.
+// Close is NOOP.
 func (p *Plugin) Close() error {
-	p.cancel()
-	p.wg.Wait()
-	safeclose.CloseAll(p.watchConfigReg, p.resyncChan, p.changeChan)
 	return nil
 }

@@ -37,7 +37,7 @@ func (c *Controller) printNewEvent(eventRec *EventRecord, handlers []api.EventHa
 	}
 	headline += ": "
 	buf.WriteString(fmt.Sprintf("*   %-113s %10s *\n",
-		headline + evDescLns[0], eventSeqNumToStr(eventRec.SeqNum)))
+		headline+evDescLns[0], eventSeqNumToStr(eventRec.SeqNum)))
 	for i := 1; i < len(evDescLns); i++ {
 		buf.WriteString(fmt.Sprintf("*              %-113s *\n", evDescLns[i]))
 	}

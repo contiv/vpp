@@ -299,9 +299,9 @@ func (c *Controller) PushEvent(event api.Event) error {
 		case <-c.ctx.Done():
 			return ErrClosedController
 		case c.followUpEventQueue <- &QueuedEvent{
-			event: event,
-			isFollowUp: true,
-			followUpToEvent: c.evSeqNum-1}:
+			event:           event,
+			isFollowUp:      true,
+			followUpToEvent: c.evSeqNum - 1}:
 			return nil
 		default:
 			return ErrEventQueueFull

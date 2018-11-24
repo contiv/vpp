@@ -22,8 +22,8 @@ import (
 	"fmt"
 	"net"
 	"strings"
-	"time"
 	"sync"
+	"time"
 
 	"git.fd.io/govpp.git/api"
 	"github.com/apparentlymart/go-cidr/cidr"

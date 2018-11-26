@@ -315,6 +315,11 @@ func (s *remoteCNIserver) afpacketFromRequest(request *cni.CNIRequest, podIP str
 		IpAddresses: []string{s.ipAddrForPodVPPIf(podIP)},
 		PhysAddress: s.generateHwAddrForPodVPPIf(),
 	}
+	if s.GetInterfaceRxMode() != vpp_intf.RxModeType_POLLING {
+		af.RxModeSettings = &vpp_intf.Interfaces_Interface_RxModeSettings{
+			RxMode: s.GetInterfaceRxMode(),
+		}
+	}
 	if configureContainerProxy {
 		af.ContainerIpAddress = containerProxyIP
 	}
@@ -338,6 +343,11 @@ func (s *remoteCNIserver) tapFromRequest(request *cni.CNIRequest, podIP string, 
 		tap.Tap.Version = 2
 		tap.Tap.RxRingSize = uint32(s.tapV2RxRingSize)
 		tap.Tap.TxRingSize = uint32(s.tapV2TxRingSize)
+	}
+	if s.GetInterfaceRxMode() != vpp_intf.RxModeType_POLLING {
+		tap.RxModeSettings = &vpp_intf.Interfaces_Interface_RxModeSettings{
+			RxMode: s.GetInterfaceRxMode(),
+		}
 	}
 	if configureContainerProxy {
 		tap.ContainerIpAddress = containerProxyIP

@@ -27,7 +27,7 @@ import (
 	"github.com/ligato/cn-infra/servicelabel"
 	"github.com/ligato/vpp-agent/plugins/govppmux"
 
-	"github.com/contiv/vpp/plugins/contiv/model/nodeinfo"
+	"github.com/contiv/vpp/plugins/nodesync"
 	epmodel "github.com/contiv/vpp/plugins/ksr/model/endpoints"
 	svcmodel "github.com/contiv/vpp/plugins/ksr/model/service"
 )
@@ -53,6 +53,7 @@ type Deps struct {
 	infra.PluginDeps
 	ServiceLabel servicelabel.ReaderAPI
 	Contiv       contiv.API         /* to get the Node IP and all interface names */
+	NodeSync     nodesync.API       /* to get the list of all node IPs for nodePort services */
 	GoVPP        govppmux.API       /* used for direct NAT binary API calls */
 	Stats        statscollector.API /* used for exporting the statistics */
 }

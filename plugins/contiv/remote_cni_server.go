@@ -38,9 +38,9 @@ import (
 	stn_grpc "github.com/contiv/vpp/cmd/contiv-stn/model/stn"
 	"github.com/contiv/vpp/plugins/contiv/ipam"
 	"github.com/contiv/vpp/plugins/contiv/model/cni"
-	"github.com/contiv/vpp/plugins/contiv/model/nodeinfo"
 	controller "github.com/contiv/vpp/plugins/controller/api"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
+	"github.com/contiv/vpp/plugins/nodesync"
 )
 
 /* Global constants */
@@ -189,9 +189,6 @@ type remoteCNIserver struct {
 	// set to true when running unit tests
 	test bool
 
-	// other node ID -> node info
-	otherNodes map[uint32]*nodeinfo.NodeInfo
-
 	// this node's main IP address and the default gateway
 	nodeIP    net.IP
 	nodeIPNet *net.IPNet
@@ -199,9 +196,6 @@ type remoteCNIserver struct {
 
 	// IP addresses of this node present in the host network namespace (Linux)
 	hostIPs []net.IP
-
-	// nodeIPsubscribers is a slice of channels that are notified when nodeIP is changed
-	nodeIPsubscribers []chan *net.IPNet
 
 	// podPreRemovalHooks is a slice of callbacks called before a pod removal
 	podPreRemovalHooks []PodActionHook
@@ -227,8 +221,8 @@ type remoteCNIserver struct {
 type remoteCNIserverArgs struct {
 	logging.Logger
 
-	// node IDs
-	nodeID uint32
+	// node synchronization
+	nodeSync nodesync.API
 
 	// transaction factory - TODO: remove once all events are implemented
 	txnFactory func() controller.Transaction
@@ -297,7 +291,7 @@ type ipWithNetwork struct {
 
 // newRemoteCNIServer initializes a new remote CNI server instance.
 func newRemoteCNIServer(args *remoteCNIserverArgs) (*remoteCNIserver, error) {
-	ipam, err := ipam.New(args.Logger, args.nodeID, &args.config.IPAMConfig, args.nodeInterconnectExcludedIPs)
+	ipam, err := ipam.New(args.Logger, args.nodeSync.GetNodeID(), &args.config.IPAMConfig, args.nodeInterconnectExcludedIPs)
 	if err != nil {
 		return nil, err
 	}
@@ -310,21 +304,9 @@ func newRemoteCNIServer(args *remoteCNIserverArgs) (*remoteCNIserver, error) {
 
 // String returns human-readable string representation of RemoteCNIServer state (not args).
 func (s *remoteCNIserver) String() string {
-	// other nodes
-	otherNodes := "{"
-	first := true
-	for nodeID, nodeInfo := range s.otherNodes {
-		if !first {
-			otherNodes += ", "
-		}
-		first = false
-		otherNodes += fmt.Sprintf("%d: %+v", nodeID, *nodeInfo)
-	}
-	otherNodes += "}"
-
 	// pods by ID
 	podsByID := "{"
-	first = true
+	first := true
 	for podID, pod := range s.podByID {
 		if !first {
 			podsByID += ", "
@@ -349,13 +331,11 @@ func (s *remoteCNIserver) String() string {
 	return fmt.Sprintf("<useDHCP: %t, watchingDHCP: %t, "+
 		"mainPhysicalIf: %s, otherPhysicalIfs: %v, "+
 		"nodeIP: %s, nodeIPNet: %s, defaultGw: %s, hostIPs: %v, "+
-		"podByID: %s, podByVppIfName: %s, "+
-		"otherNodes: %s, stnRoutes: %v",
+		"podByID: %s, podByVppIfName: %s, stnRoutes: %v",
 		s.useDHCP, s.watchingDHCP,
 		s.mainPhysicalIf, s.otherPhysicalIfs,
 		s.nodeIP.String(), ipNetToString(s.nodeIPNet), s.defaultGw.String(), s.hostIPs,
-		podsByID, podByVPPIfName,
-		otherNodes, s.stnRoutes)
+		podsByID, podByVPPIfName, s.stnRoutes)
 }
 
 /********************************* Events **************************************/
@@ -387,7 +367,7 @@ func (s *remoteCNIserver) Resync(kubeStateData controller.KubeStateData, resyncC
 	}
 
 	// node <-> node
-	err = s.otherNodesResync(kubeStateData, txn)
+	err = s.otherNodesResync(txn)
 	if err != nil {
 		wasErr = err
 		s.Logger.Error(err)
@@ -415,11 +395,11 @@ func (s *remoteCNIserver) Resync(kubeStateData controller.KubeStateData, resyncC
 }
 
 // Update updates configuration based on a change in the Kubernetes state data.
-func (s *remoteCNIserver) Update(event *controller.KubeStateChange, txn controller.UpdateOperations) (change string, err error) {
+func (s *remoteCNIserver) Update(otherNodeUpdate *nodesync.OtherNodeUpdate, txn controller.UpdateOperations) (change string, err error) {
 	s.Lock()
 	defer s.Unlock()
 
-	return s.processOtherNodeChangeEvent(event, txn)
+	return s.processOtherNodeUpdateEvent(otherNodeUpdate, txn)
 }
 
 // Close is called by the plugin infra when the CNI server needs to be stopped.
@@ -802,7 +782,7 @@ func (s *remoteCNIserver) configureMainVPPInterface(physicalIfaces map[uint32]st
 		s.setNodeIP(nicIPs[0].address, nicIPs[0].network)
 		s.Logger.Infof("Configuring %v to use %v", nicName, nicIPs[0].address)
 	} else {
-		nodeIP, nodeIPNet, err := s.ipam.NodeIPAddress(s.nodeID)
+		nodeIP, nodeIPNet, err := s.ipam.NodeIPAddress(s.nodeSync.GetNodeID())
 		if err != nil {
 			s.Logger.Error("Unable to generate node IP address.")
 			return err
@@ -1254,14 +1234,6 @@ func (s *remoteCNIserver) setNodeIP(nodeIP net.IP, nodeIPNet *net.IPNet) error {
 	s.nodeIP = nodeIP
 	s.nodeIPNet = nodeIPNet
 
-	for _, sub := range s.nodeIPsubscribers {
-		select {
-		case sub <- combineAddrWithNet(s.nodeIP, s.nodeIPNet):
-		default:
-			// skip subscribers who are not ready to receive notification
-		}
-	}
-
 	return nil
 }
 
@@ -1339,15 +1311,6 @@ func (s *remoteCNIserver) GetIfName(podNamespace string, podName string) (name s
 		return "", false
 	}
 	return pod.VPPIfName, true
-}
-
-// WatchNodeIP adds given channel to the list of subscribers that are notified upon change
-// of nodeIP address. If the channel is not ready to receive notification, the notification is dropped.
-func (s *remoteCNIserver) WatchNodeIP(subscriber chan *net.IPNet) {
-	s.Lock()
-	defer s.Unlock()
-
-	s.nodeIPsubscribers = append(s.nodeIPsubscribers, subscriber)
 }
 
 // RegisterPodPreRemovalHook allows to register callback that will be run for each

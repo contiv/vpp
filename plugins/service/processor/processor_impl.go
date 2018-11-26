@@ -412,7 +412,6 @@ func (sp *ServiceProcessor) renderNodePorts() error {
 // without duplicities.
 func (sp *ServiceProcessor) getNodeIPs() *renderer.IPAddresses {
 	nodeIPs := renderer.NewIPAddresses()
-	addedNodeIPs := map[string]struct{}{}
 
 	for _, node := range sp.nodes {
 		// Node IP (VPP)

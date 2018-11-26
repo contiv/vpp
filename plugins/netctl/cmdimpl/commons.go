@@ -18,6 +18,5 @@ const (
 	getInterfaceDataCmd = "vpp/dump/v1/interfaces"
 	getVppDumpCmd       = "vpp/dump/v1"
 	getIpamDataCmd      = "contiv/v1/ipam"
-	nodeInfoDataKey     = "/vnf-agent/contiv-ksr/allocatedIDs/"
 	timeLayout          = "Mon Jan _2 15:04:05 2006"
 )

@@ -38,7 +38,6 @@ import (
 	stn_grpc "github.com/contiv/vpp/cmd/contiv-stn/model/stn"
 	"github.com/contiv/vpp/plugins/contiv/ipam"
 	"github.com/contiv/vpp/plugins/contiv/model/cni"
-	"github.com/contiv/vpp/plugins/contiv/model/nodeinfo"
 	controller "github.com/contiv/vpp/plugins/controller/api"
 	nodeconfig "github.com/contiv/vpp/plugins/crd/pkg/apis/nodeconfig/v1"
 	k8sPod "github.com/contiv/vpp/plugins/ksr/model/pod"
@@ -75,7 +74,7 @@ const (
 )
 
 var (
-	keyPrefixes = []string{nodeinfo.AllocatedIDsKeyPrefix, k8sPod.KeyPrefix()}
+	keyPrefixes = []string{k8sPod.KeyPrefix()}
 
 	hostIPs = []net.IP{net.ParseIP(hostIP1), net.ParseIP(hostIP2)}
 
@@ -163,7 +162,7 @@ func TestBasicStuff(t *testing.T) {
 	// Remote CNI Server init
 	args := &remoteCNIserverArgs{
 		Logger: logrus.DefaultLogger(),
-		nodeID: node1ID,
+		nodeID: node1ID, // TODO: mock nodesync
 		txnFactory: func() controller.Transaction {
 			return txnTracker.NewControllerTxn(false)
 		},

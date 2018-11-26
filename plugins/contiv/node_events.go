@@ -17,89 +17,33 @@ package contiv
 import (
 	"fmt"
 	"net"
-	"strings"
 
-	"github.com/gogo/protobuf/proto"
-
-	"github.com/contiv/vpp/plugins/contiv/model/nodeinfo"
 	controller "github.com/contiv/vpp/plugins/controller/api"
-	nodemodel "github.com/contiv/vpp/plugins/ksr/model/node"
+	"github.com/contiv/vpp/plugins/nodesync"
 )
 
-/* Contiv Plugin */
-
-// thisNodeResync publishes update of this node IPs for other nodes based on resync data.
-func (p *Plugin) thisNodeResync(kubeStateData controller.KubeStateData, txn controller.ResyncOperations) error {
-	for _, value := range kubeStateData[nodemodel.NodeKeyword] {
-		node := value.(*nodemodel.Node)
-		if node.GetName() == p.ServiceLabel.GetAgentLabel() {
-			return p.updateThisNodeMgmtIPs(node)
-		}
-	}
-	return nil
-}
-
-// processThisNodeChangeEvent publishes update of this node IPs for other nodes to know.
-func (p *Plugin) processThisNodeChangeEvent(event *controller.KubeStateChange) error {
-	if event.Resource == nodemodel.NodeKeyword {
-		return p.updateThisNodeMgmtIPs(event.NewValue.(*nodemodel.Node))
-	}
-	return nil
-}
-
-// updateThisNodeMgmtIPs publishes update of this node IPs for other nodes to know.
-func (p *Plugin) updateThisNodeMgmtIPs(node *nodemodel.Node) error {
-	var k8sIPs []string
-	for i := range node.Addresses {
-		if node.Addresses[i].Type == nodemodel.NodeAddress_NodeInternalIP ||
-			node.Addresses[i].Type == nodemodel.NodeAddress_NodeExternalIP {
-			k8sIPs = appendIfMissing(k8sIPs, node.Addresses[i].Address)
-		}
-	}
-	if len(k8sIPs) > 0 {
-		ips := strings.Join(k8sIPs, MgmtIPSeparator)
-		p.Log.Info("Management IPs of the node are ", ips)
-		return p.nodeIDAllocator.UpdateManagementIP(ips)
-	}
-
-	p.Log.Debug("Management IPs of the node are not in ETCD yet.")
-	return nil
-}
-
-/* Remote CNI Server */
-
 // otherNodesResync re-synchronizes connectivity to other nodes.
-func (s *remoteCNIserver) otherNodesResync(kubeStateData controller.KubeStateData, txn controller.ResyncOperations) error {
-	// reset the internal map of other node IDs
-	s.otherNodes = make(map[uint32]*nodeinfo.NodeInfo)
-
+func (s *remoteCNIserver) otherNodesResync(txn controller.ResyncOperations) error {
 	// collect other node IDs and configuration for connectivity with each of them
-	for _, nodeInfoProto := range kubeStateData[nodeinfo.Keyword] {
-		nodeInfo := nodeInfoProto.(*nodeinfo.NodeInfo)
-		nodeID := nodeInfo.Id
-
+	for _, node := range s.nodeSync.GetAllNodes() {
 		// ignore for this node
-		if nodeID == s.nodeID {
+		if node.Name == s.agentLabel {
 			continue
 		}
 
 		// collect configuration for node connectivity
-		if nodeHasIPAddress(nodeInfo) {
-			// add node info into the internal map
-			s.otherNodes[nodeID] = nodeInfo
+		if nodeHasIPAddress(node) {
 			// generate configuration
-			nodeConnectConfig, err := s.nodeConnectivityConfig(nodeInfo)
+			nodeConnectConfig, err := s.nodeConnectivityConfig(node)
 			if err != nil {
 				// treat as warning
 				s.Logger.Warnf("Failed to configure connectivity to node ID=%d: %v",
-					nodeInfo.Id, err)
+					node.ID, err)
 				continue
 			}
 			for key, value := range nodeConnectConfig {
 				txn.Put(key, value)
 			}
-		} else {
-			s.Logger.Infof("Ip address or management IP of node %v is not known yet.", nodeID)
 		}
 	}
 
@@ -120,53 +64,24 @@ func (s *remoteCNIserver) otherNodesResync(kubeStateData controller.KubeStateDat
 	return nil
 }
 
-// processOtherNodeChangeEvent reacts to a changed nodeinfo of another node.
-func (s *remoteCNIserver) processOtherNodeChangeEvent(event *controller.KubeStateChange, txn controller.UpdateOperations) (change string, err error) {
-	// process only NodeInfo key-values
-	if event.Resource != nodeinfo.Keyword {
-		return "", nil
-	}
-
-	var (
-		nodeInfo, prevNodeInfo *nodeinfo.NodeInfo
-		otherNodeID            uint32
-	)
-
-	// cast proto messages
-	if event.NewValue != nil {
-		nodeInfo = event.NewValue.(*nodeinfo.NodeInfo)
-	}
-	if event.PrevValue != nil {
-		prevNodeInfo = event.PrevValue.(*nodeinfo.NodeInfo)
-	}
-
+// processOtherNodeUpdateEvent reacts to an update of another node.
+func (s *remoteCNIserver) processOtherNodeUpdateEvent(nodeUpdate *nodesync.OtherNodeUpdate, txn controller.UpdateOperations) (change string, err error) {
 	// read the other node ID
-	if nodeInfo != nil {
-		otherNodeID = nodeInfo.Id
+	var otherNodeID uint32
+	if nodeUpdate.NewState != nil {
+		otherNodeID = nodeUpdate.NewState.ID
 	} else {
-		otherNodeID = prevNodeInfo.Id
-	}
-
-	// skip if nothing has really changed
-	if proto.Equal(nodeInfo, prevNodeInfo) {
-		return change, nil
-	}
-
-	// update internal map with node info
-	if nodeHasIPAddress(nodeInfo) {
-		s.otherNodes[otherNodeID] = nodeInfo
-	} else {
-		delete(s.otherNodes, otherNodeID)
+		otherNodeID = nodeUpdate.PrevState.ID
 	}
 
 	// re-configure based on node IP changes
 	var operationName string
 
 	// remove obsolete configuration
-	if nodeHasIPAddress(prevNodeInfo) {
-		if !nodeHasIPAddress(nodeInfo) {
+	if nodeHasIPAddress(nodeUpdate.PrevState) {
+		if !nodeHasIPAddress(nodeUpdate.NewState) {
 			// un-configure connectivity completely
-			connectivity, err := s.nodeConnectivityConfig(prevNodeInfo)
+			connectivity, err := s.nodeConnectivityConfig(nodeUpdate.PrevState)
 			if err != nil {
 				err := fmt.Errorf("failed to generate config for connectivity to node ID=%d: %v",
 					otherNodeID, err)
@@ -177,7 +92,7 @@ func (s *remoteCNIserver) processOtherNodeChangeEvent(event *controller.KubeStat
 			operationName = "disconnect"
 		} else {
 			// remove obsolete routes
-			routes, err := s.routesToNode(prevNodeInfo)
+			routes, err := s.routesToNode(nodeUpdate.PrevState)
 			if err != nil {
 				// treat as warning
 				s.Logger.Warnf("Failed to generate config for obsolete routes for node ID=%d: %v",
@@ -190,10 +105,10 @@ func (s *remoteCNIserver) processOtherNodeChangeEvent(event *controller.KubeStat
 	}
 
 	// add new configuration
-	if nodeHasIPAddress(nodeInfo) {
-		if !nodeHasIPAddress(prevNodeInfo) {
+	if nodeHasIPAddress(nodeUpdate.NewState) {
+		if !nodeHasIPAddress(nodeUpdate.PrevState) {
 			// configure connectivity completely
-			connectivity, err := s.nodeConnectivityConfig(nodeInfo)
+			connectivity, err := s.nodeConnectivityConfig(nodeUpdate.NewState)
 			if err != nil {
 				err := fmt.Errorf("failed to generate config for connectivity to node ID=%d: %v",
 					otherNodeID, err)
@@ -204,7 +119,7 @@ func (s *remoteCNIserver) processOtherNodeChangeEvent(event *controller.KubeStat
 			operationName = "connect"
 		} else {
 			// just add updated routes
-			routes, err := s.routesToNode(nodeInfo)
+			routes, err := s.routesToNode(nodeUpdate.NewState)
 			if err != nil {
 				err := fmt.Errorf("failed to generate config for obsolete routes for node ID=%d: %v",
 					otherNodeID, err)
@@ -217,7 +132,9 @@ func (s *remoteCNIserver) processOtherNodeChangeEvent(event *controller.KubeStat
 	}
 
 	// update BD if node was newly connected or disconnected
-	if !s.config.UseL2Interconnect && nodeHasIPAddress(prevNodeInfo) != nodeHasIPAddress(nodeInfo) {
+	if !s.config.UseL2Interconnect && 
+		nodeHasIPAddress(nodeUpdate.PrevState) != nodeHasIPAddress(nodeUpdate.NewState) {
+			
 		key, bd := s.vxlanBridgeDomain()
 		txn.Put(key, bd)
 	}
@@ -227,36 +144,42 @@ func (s *remoteCNIserver) processOtherNodeChangeEvent(event *controller.KubeStat
 }
 
 // nodeConnectivityConfig return configuration used to connect this node with the given other node.
-func (s *remoteCNIserver) nodeConnectivityConfig(nodeInfo *nodeinfo.NodeInfo) (config controller.KeyValuePairs, err error) {
+func (s *remoteCNIserver) nodeConnectivityConfig(node *nodesync.Node) (config controller.KeyValuePairs, err error) {
 	config = make(controller.KeyValuePairs)
 
 	// configuration for VXLAN tunnel
 	if !s.config.UseL2Interconnect && len(s.nodeIP) > 0 {
 		// VXLAN interface
-		nodeIP, err := s.otherNodeIP(nodeInfo.Id, nodeInfo.IpAddress)
-		if err != nil {
-			s.Logger.Error(err)
-			return config, err
+		var nodeIP net.IP
+		if len(node.VppIPAddresses) > 0 {
+			nodeIP = node.VppIPAddresses[0].Address
+		} else {
+			var err error
+			nodeIP, err = s.otherNodeIP(node.ID)
+			if err != nil {
+				s.Logger.Error(err)
+				return config, err
+			}
 		}
-		key, vxlanIf := s.vxlanIfToOtherNode(nodeInfo.Id, nodeIP)
+		key, vxlanIf := s.vxlanIfToOtherNode(node.ID, nodeIP)
 		config[key] = vxlanIf
 
 		// ARP entry for the IP address on the opposite side
-		vxlanIP, _, err := s.ipam.VxlanIPAddress(nodeInfo.Id)
+		vxlanIP, _, err := s.ipam.VxlanIPAddress(node.ID)
 		if err != nil {
 			s.Logger.Error(err)
 			return config, err
 		}
-		key, vxlanArp := s.vxlanArpEntry(nodeInfo.Id, vxlanIP)
+		key, vxlanArp := s.vxlanArpEntry(node.ID, vxlanIP)
 		config[key] = vxlanArp
 
 		// L2 FIB for the hardware address on the opposite side
-		key, vxlanFib := s.vxlanFibEntry(nodeInfo.Id)
+		key, vxlanFib := s.vxlanFibEntry(node.ID)
 		config[key] = vxlanFib
 	}
 
 	// collect configuration for L3 routes
-	routes, err := s.routesToNode(nodeInfo)
+	routes, err := s.routesToNode(node)
 	if err != nil {
 		return config, err
 	}
@@ -268,21 +191,25 @@ func (s *remoteCNIserver) nodeConnectivityConfig(nodeInfo *nodeinfo.NodeInfo) (c
 }
 
 // routesToNode returns configuration of routes used for routing traffic destined to the given other node.
-func (s *remoteCNIserver) routesToNode(nodeInfo *nodeinfo.NodeInfo) (config controller.KeyValuePairs, err error) {
+func (s *remoteCNIserver) routesToNode(node *nodesync.Node) (config controller.KeyValuePairs, err error) {
 	config = make(controller.KeyValuePairs)
 
 	var nextHop net.IP
 	if s.config.UseL2Interconnect {
 		// route traffic destined to the other node directly
-		nodeIP, err := s.otherNodeIP(nodeInfo.Id, nodeInfo.IpAddress)
-		if err != nil {
-			s.Logger.Error(err)
-			return config, err
+		if len(node.VppIPAddresses) > 0 {
+			nextHop = node.VppIPAddresses[0].Address
+		} else {
+			var err error
+			nextHop, err = s.otherNodeIP(node.ID)
+			if err != nil {
+				s.Logger.Error(err)
+				return config, err
+			}
 		}
-		nextHop = nodeIP
 	} else {
 		// route traffic destined to the other node via VXLANs
-		vxlanNextHop, _, err := s.ipam.VxlanIPAddress(nodeInfo.Id)
+		vxlanNextHop, _, err := s.ipam.VxlanIPAddress(node.ID)
 		if err != nil {
 			s.Logger.Error(err)
 			return config, err
@@ -291,7 +218,7 @@ func (s *remoteCNIserver) routesToNode(nodeInfo *nodeinfo.NodeInfo) (config cont
 	}
 
 	// route to pods of the other node
-	key, routeToPods, err := s.routeToOtherNodePods(nodeInfo.Id, nextHop)
+	key, routeToPods, err := s.routeToOtherNodePods(node.ID, nextHop)
 	if err != nil {
 		s.Logger.Error(err)
 		return config, err
@@ -299,7 +226,7 @@ func (s *remoteCNIserver) routesToNode(nodeInfo *nodeinfo.NodeInfo) (config cont
 	config[key] = routeToPods
 
 	// route to the host stack of the other node
-	key, routeToHostStack, err := s.routeToOtherNodeHostStack(nodeInfo.Id, nextHop)
+	key, routeToHostStack, err := s.routeToOtherNodeHostStack(node.ID, nextHop)
 	if err != nil {
 		s.Logger.Error(err)
 		return config, err
@@ -307,14 +234,7 @@ func (s *remoteCNIserver) routesToNode(nodeInfo *nodeinfo.NodeInfo) (config cont
 	config[key] = routeToHostStack
 
 	// route to management IPs of the other node
-	mgmtIPs := strings.Split(nodeInfo.ManagementIpAddress, MgmtIPSeparator)
-	for _, address := range mgmtIPs {
-		mgmtIP := net.ParseIP(address)
-		if mgmtIP == nil {
-			s.Logger.Warnf("Failed to parse management route '%s', skipping route configuration...",
-				address)
-		}
-
+	for _, mgmtIP := range node.MgmtIPAddresses {
 		// route management IP address towards the destination node
 		key, mgmtRoute1 := s.routeToOtherNodeManagementIP(mgmtIP, nextHop)
 		config[key] = mgmtRoute1
@@ -329,6 +249,6 @@ func (s *remoteCNIserver) routesToNode(nodeInfo *nodeinfo.NodeInfo) (config cont
 }
 
 // nodeHasIPAddress returns true if the given node has at least one IP address assigned.
-func nodeHasIPAddress(node *nodeinfo.NodeInfo) bool {
-	return node != nil && (node.IpAddress != "" || node.ManagementIpAddress != "")
+func nodeHasIPAddress(node *nodesync.Node) bool {
+	return node != nil && len(node.VppIPAddresses) > 0 && len(node.MgmtIPAddresses) > 0
 }

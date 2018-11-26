@@ -50,8 +50,8 @@ type NodeSync struct {
 	Deps
 	dbIsConnected bool
 
-	nodes    map[string]*Node // node name -> node info
-	thisNode *Node            // used for quick access to this node info
+	nodes    Nodes // node name -> node info
+	thisNode *Node // used for quick access to this node info
 }
 
 // Deps lists dependencies of NodeSync.
@@ -85,13 +85,14 @@ const allocationErrPrefix = "unable to allocate node ID: %v"
 // errors thrown by NodeSync (not all of them):
 var (
 	errMissingDep         = fmt.Errorf("missing mandatory dependency")
+	errWithoutDB          = fmt.Errorf(allocationErrPrefix, "database is not provided")
 	errNoConnection       = fmt.Errorf(allocationErrPrefix, "database is not connected")
 	errAllocLimitExceeded = fmt.Errorf(allocationErrPrefix, "max. attempt limit reached")
 )
 
 // Init checks the dependencies.
 func (ns *NodeSync) Init() error {
-	if ns.DB == nil {
+	if ns.ServiceLabel == nil {
 		return errMissingDep
 	}
 	return nil
@@ -117,7 +118,7 @@ func (ns *NodeSync) PublishNodeIPs(addresses []*IPWithNetwork, version IPVersion
 	// keep addresses of the other IP version intact
 	for _, addr := range ns.thisNode.VppIPAddresses {
 		var addrVersion IPVersion
-		if addr.address.To4() != nil {
+		if addr.Address.To4() != nil {
 			addrVersion = IPv4
 		} else {
 			addrVersion = IPv6
@@ -155,8 +156,8 @@ func (ns *NodeSync) PublishNodeIPs(addresses []*IPWithNetwork, version IPVersion
 // Methods should not be called before the startup resync.
 // The method should be called only from within the main event loop (not thread
 // safe) and not before the startup resync.
-func (ns *NodeSync) GetAllNodes() map[string]*Node {
-	nodes := make(map[string]*Node)
+func (ns *NodeSync) GetAllNodes() Nodes {
+	nodes := make(Nodes)
 	for _, node := range ns.nodes {
 		if node.ID == 0 {
 			continue
@@ -198,7 +199,7 @@ func (ns *NodeSync) Resync(event controller.Event, txn controller.ResyncOperatio
 	var err error
 
 	// refresh the internal view of node states
-	ns.nodes = make(map[string]*Node)
+	ns.nodes = make(Nodes)
 
 	// collect IDs and VPP IP addresses
 	for _, vppNodeProto := range kubeStateData[vppnode.Keyword] {
@@ -236,6 +237,8 @@ func (ns *NodeSync) Resync(event controller.Event, txn controller.ResyncOperatio
 		}
 	}
 
+	ns.Log.Infof("ID of the node is %v", ns.thisNode.ID)
+	ns.Log.Infof("NodeSync after resync: %s", ns.nodes.String())
 	return nil
 }
 
@@ -268,7 +271,7 @@ func (ns *NodeSync) nodeVPPAddresses(vppNode *vppnode.VppNode) (addresses []*IPW
 	vppIPs := append(vppNode.IpAddresses, vppNode.IpAddress) // backward compatibility
 	for _, vppIPStr := range vppIPs {
 		vppIP := &IPWithNetwork{}
-		vppIP.address, vppIP.network, err = net.ParseCIDR(vppIPStr)
+		vppIP.Address, vppIP.Network, err = net.ParseCIDR(vppIPStr)
 		if err != nil {
 			ns.Log.Warnf("Failed to parse IP address '%s' of the node '%s': %v",
 				vppIPStr, vppNode.Name, err)
@@ -287,6 +290,10 @@ func (ns *NodeSync) onDBConnect() error {
 
 // allocateID tries to allocate ID for this node
 func (ns *NodeSync) allocateID() error {
+	if ns.DB == nil {
+		return errWithoutDB
+	}
+
 	ns.dbIsConnected = false
 	ns.DB.OnConnect(ns.onDBConnect)
 	if !ns.dbIsConnected {
@@ -460,7 +467,7 @@ func nodeToProto(node *Node) *vppnode.VppNode {
 		Name: node.Name,
 	}
 	for _, vppIP := range node.VppIPAddresses {
-		vppIPNet := &net.IPNet{IP: vppIP.address, Mask: vppIP.network.Mask}
+		vppIPNet := &net.IPNet{IP: vppIP.Address, Mask: vppIP.Network.Mask}
 		vppNode.IpAddresses = append(vppNode.IpAddresses, vppIPNet.String())
 	}
 
@@ -509,7 +516,7 @@ func equalAddrsWithNetworks(addrs1, addrs2 []*IPWithNetwork) bool {
 	for _, addr1 := range addrs1 {
 		found := false
 		for _, addr2 := range addrs2 {
-			if addr1.address.Equal(addr2.address) {
+			if addr1.Address.Equal(addr2.Address) {
 				found = true
 				break
 			}

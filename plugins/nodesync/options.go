@@ -17,6 +17,7 @@ package nodesync
 import (
 	"github.com/ligato/cn-infra/db/keyval/etcd"
 	"github.com/ligato/cn-infra/logging"
+	"github.com/ligato/cn-infra/servicelabel"
 )
 
 // DefaultPlugin is a default instance of NodeSync.
@@ -28,6 +29,7 @@ func NewPlugin(opts ...Option) *NodeSync {
 
 	p.PluginName = "nodesync"
 	p.DB = &etcd.DefaultPlugin
+	p.ServiceLabel = &servicelabel.DefaultPlugin
 
 	for _, o := range opts {
 		o(p)

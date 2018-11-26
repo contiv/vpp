@@ -123,7 +123,7 @@ func (s *remoteCNIserver) interconnectTapVPP() (key string, config *interfaces.I
 		Link: &interfaces.Interface_Tap{
 			Tap: &interfaces.TapLink{},
 		},
-		PhysAddress: hwAddrForNodeInterface(s.nodeID, hostInterconnectHwAddrPrefix),
+		PhysAddress: hwAddrForNodeInterface(s.nodeSync.GetNodeID(), hostInterconnectHwAddrPrefix),
 	}
 	if s.UseSTN() {
 		tap.Unnumbered = &interfaces.Interface_Unnumbered{
@@ -185,7 +185,7 @@ func (s *remoteCNIserver) interconnectAfpacket() (key string, config *interfaces
 		Enabled:     true,
 		Vrf:         s.GetMainVrfID(),
 		IpAddresses: []string{s.ipam.HostInterconnectIPInVPP().String() + "/" + strconv.Itoa(size)},
-		PhysAddress: hwAddrForNodeInterface(s.nodeID, hostInterconnectHwAddrPrefix),
+		PhysAddress: hwAddrForNodeInterface(s.nodeSync.GetNodeID(), hostInterconnectHwAddrPrefix),
 	}
 	key = interfaces.InterfaceKey(afpacket.Name)
 	return key, afpacket
@@ -448,7 +448,7 @@ func (s *remoteCNIserver) dropRoute(vrfID uint32, dstAddr *net.IPNet) *l3.Static
 // vxlanBVILoopback returns configuration of the loopback interfaces acting as BVI
 // for the bridge domain with VXLAN interfaces.
 func (s *remoteCNIserver) vxlanBVILoopback() (key string, config *interfaces.Interface, err error) {
-	vxlanIP, vxlanIPNet, err := s.ipam.VxlanIPAddress(s.nodeID)
+	vxlanIP, vxlanIPNet, err := s.ipam.VxlanIPAddress(s.nodeSync.GetNodeID())
 	if err != nil {
 		return "", nil, err
 	}
@@ -457,7 +457,7 @@ func (s *remoteCNIserver) vxlanBVILoopback() (key string, config *interfaces.Int
 		Type:        interfaces.Interface_SOFTWARE_LOOPBACK,
 		Enabled:     true,
 		IpAddresses: []string{ipNetToString(combineAddrWithNet(vxlanIP, vxlanIPNet))},
-		PhysAddress: hwAddrForNodeInterface(s.nodeID, vxlanBVIHwAddrPrefix),
+		PhysAddress: hwAddrForNodeInterface(s.nodeSync.GetNodeID(), vxlanBVIHwAddrPrefix),
 		Vrf:         s.GetPodVrfID(),
 	}
 	key = interfaces.InterfaceKey(vxlan.Name)
@@ -546,22 +546,8 @@ func (s *remoteCNIserver) vxlanFibEntry(otherNodeID uint32) (key string, config 
 	return key, fib
 }
 
-// otherNodeIP calculates the IP address of the given other node or just trims the mask
-// from the provided one.
-func (s *remoteCNIserver) otherNodeIP(otherNodeID uint32, otherNodeIPNet string) (net.IP, error) {
-	if otherNodeIPNet != "" {
-		// otherNodeIPNet defined, just remove the mask
-		nodeIP, _, err := net.ParseCIDR(otherNodeIPNet)
-		if err != nil {
-			err := fmt.Errorf("Failed to parse Node IP address for node ID %v: %v",
-				otherNodeID, err)
-			s.Logger.Error(err)
-			return nodeIP, err
-		}
-		return nodeIP, nil
-	}
-
-	// otherNodeIPNet not defined, determine based on otherNodeID
+// otherNodeIP calculates the (statically selected) IP address of the given other node
+func (s *remoteCNIserver) otherNodeIP(otherNodeID uint32) (net.IP, error) {
 	nodeIP, _, err := s.ipam.NodeIPAddress(otherNodeID)
 	if err != nil {
 		err := fmt.Errorf("Failed to get Node IP address for node ID %v, error: %v ",

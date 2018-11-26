@@ -43,7 +43,6 @@ type MockContiv struct {
 	serviceLocalEndpointWeight  uint8
 	natLoopbackIP               net.IP
 	nodeIP                      *net.IPNet
-	nodeIPsubs                  []chan *net.IPNet
 	podPreRemovalHooks          []contiv.PodActionHook
 	podPostAddHooks             []contiv.PodActionHook
 	mainPhysIf                  string
@@ -90,14 +89,6 @@ func (mc *MockContiv) SetNodeIP(nodeIP *net.IPNet) {
 	defer mc.Unlock()
 
 	mc.nodeIP = nodeIP
-
-	for _, sub := range mc.nodeIPsubs {
-		select {
-		case sub <- nodeIP:
-		default:
-			// skip subscribers who are not ready to receive notification
-		}
-	}
 }
 
 // SetMainPhysicalIfName allows to set what tests will assume the name of the main
@@ -240,15 +231,6 @@ func (mc *MockContiv) GetNodeIP() (net.IP, *net.IPNet) {
 		IP:   mc.nodeIP.IP.Mask(mc.nodeIP.Mask),
 		Mask: mc.nodeIP.Mask,
 	}
-}
-
-// WatchNodeIP adds given channel to the list of subscribers that are notified upon change
-// of nodeIP address. If the channel is not ready to receive notification, the notification is dropped.
-func (mc *MockContiv) WatchNodeIP(subscriber chan *net.IPNet) {
-	mc.Lock()
-	defer mc.Unlock()
-
-	mc.nodeIPsubs = append(mc.nodeIPsubs, subscriber)
 }
 
 // GetMainPhysicalIfName returns name of the "main" interface - i.e. physical interface connecting

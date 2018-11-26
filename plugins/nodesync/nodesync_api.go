@@ -37,7 +37,7 @@ type API interface {
 	// GetAllNodes returns information about all nodes in the cluster.
 	// The method should be called only from within the main event loop (not thread
 	// safe) and not before the startup resync.
-	GetAllNodes() map[string]*Node // node name -> node info
+	GetAllNodes() Nodes // node name -> node info
 }
 
 // Node represents a single node in the cluster.
@@ -48,10 +48,13 @@ type Node struct {
 	MgmtIPAddresses []net.IP
 }
 
+// Nodes is a map of node-name -> Node info.
+type Nodes map[string]*Node
+
 // IPWithNetwork encapsulates IP address with the network address.
 type IPWithNetwork struct {
-	address net.IP
-	network *net.IPNet
+	Address net.IP
+	Network *net.IPNet
 }
 
 // IPVersion is either v4 or v6.
@@ -71,6 +74,21 @@ func (n *Node) String() string {
 	}
 	return fmt.Sprintf("<ID: %d, Name: %s, VPP-IPs: %v, Mgmt-IPs: %v",
 		n.ID, n.Name, n.VppIPAddresses, n.MgmtIPAddresses)
+}
+
+// String returns a string representation of nodes.
+func (ns Nodes) String() string {
+	str := "{"
+	first := true
+	for nodeName, node := range ns {
+		if !first {
+			str += ", "
+		}
+		first = false
+		str += fmt.Sprintf("%s: %s", nodeName, node.String())
+	}
+	str += "}"
+	return str
 }
 
 // OtherNodeUpdate is an Update event that represents change in the status

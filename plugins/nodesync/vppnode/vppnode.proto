@@ -1,0 +1,42 @@
+// Copyright (c) 2017 Cisco and/or its affiliates.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at:
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package vppnode;
+
+// VppNode represents a node in the k8s cluster with container networking
+// based on VPP vswitch.
+// The key attribute is the integer attribute <id>, a cluster-wide unique
+// identifier starting from 1 and re-using free entries, used primarily to dissect
+// cluster IP ranges to obtain subnets suitable for address allocation
+// for endpoints inside the given node.
+// <name> is the node identifier as used by Kubernetes.
+// <ip_addresses> is a list of IP addresses assigned to the node in the VPP network
+// stack. As opposed to node management IP addresses, which are assigned to host
+// interfaces, these IP addresses are not known to Kubernetes. For compatibility
+// with older Contiv versions, <ip_address> should be appended to <ip_addresses>
+// to get all the VPP node IP addresses.
+message VppNode {
+    uint32 id = 1;
+    string name = 2;
+
+    string ip_address = 3; // OBSOLETE, kept for backward-compatibility
+
+    // removed management_ip_address (read from ksr/model/node instead)
+    reserved 4;
+    reserved "management_ip_address";
+
+    repeated string ip_addresses = 5; // node IP addresses in VPP
+}

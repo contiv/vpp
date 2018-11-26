@@ -167,7 +167,7 @@
   version = "v0.6.0"
 
 [[projects]]
-  digest = "1:85fce1e2e3ec72eecab2a2fd8fb85d7a825f0d5cd841652fe0ad980bbe22dd4a"
+  digest = "1:7ae4616edd396840ccc1506d287211ef883d3e93604dde0c9d1dd5721bb449d5"
   name = "github.com/coreos/etcd"
   packages = [
     "auth/authpb",
@@ -180,8 +180,8 @@
     "pkg/types",
   ]
   pruneopts = "UT"
-  revision = "fca8add78a9d926166eb739b8e4a124434025ba3"
-  version = "v3.3.9"
+  revision = "27fc7e2296f506182f58ce846e48f36b34fe6842"
+  version = "v3.3.10"
 
 [[projects]]
   digest = "1:85968a9e07d94b5f3d15993b9884ab5fcc41c8b7b6418df8b6a3baa387bb8d68"
@@ -695,7 +695,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:c57c77c05e1d8234292c1ff21487464b5e80ed7f059069ca2a3c671d565fc620"
+  digest = "1:83946d2afbc48b86cdc5b79c125cc7a445eb8581b0d9a319a56e8ed80556bff0"
   name = "github.com/ligato/cn-infra"
   packages = [
     "agent",
@@ -732,10 +732,10 @@
     "utils/safeclose",
   ]
   pruneopts = "UT"
-  revision = "d988900fbcc23fd235cf6a47d403fe12857064e9"
+  revision = "d14944d428eb692263280ef68100affa3449c0b7"
 
 [[projects]]
-  digest = "1:b52f5d7d216cd101c4cf19ae86d47d36450caff6fe61b5e0e2e5607c7665707d"
+  digest = "1:19b5359a038d03caef910e044c7304dd0fc1f25add95be06d6d85a5ac2346c26"
   name = "github.com/ligato/vpp-agent"
   packages = [
     "clientv1/linux",
@@ -816,7 +816,7 @@
     "plugins/vpp/srplugin/vppcalls",
   ]
   pruneopts = "UT"
-  revision = "9947082f8453de39d20fd5380aee8b1112a07fe9"
+  revision = "8a458c1d1007b7d73509d5232a5d633e532838d8"
 
 [[projects]]
   branch = "master"
@@ -1649,7 +1649,6 @@
     "github.com/containernetworking/cni/pkg/types",
     "github.com/containernetworking/cni/pkg/types/current",
     "github.com/containernetworking/cni/pkg/version",
-    "github.com/coreos/etcd/clientv3",
     "github.com/docker/distribution",
     "github.com/docker/docker/api",
     "github.com/docker/swarmkit",

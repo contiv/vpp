@@ -21,6 +21,7 @@ import (
 
 	"github.com/apparentlymart/go-cidr/cidr"
 
+	"github.com/contiv/vpp/plugins/nodesync"
 	"github.com/ligato/vpp-agent/plugins/linuxv2/model/interfaces"
 	"github.com/ligato/vpp-agent/plugins/linuxv2/model/l3"
 	"github.com/ligato/vpp-agent/plugins/vppv2/model/interfaces"
@@ -48,7 +49,7 @@ func (s *remoteCNIserver) enabledIPNeighborScan() (key string, config *l3.IPScan
 // physicalInterface returns configuration for physical interface - either the main interface
 // connecting node with the rest of the cluster or an extra physical interface requested
 // in the config file.
-func (s *remoteCNIserver) physicalInterface(name string, ips []ipWithNetwork) (key string, config *interfaces.Interface) {
+func (s *remoteCNIserver) physicalInterface(name string, ips []*nodesync.IPWithNetwork) (key string, config *interfaces.Interface) {
 	iface := &interfaces.Interface{
 		Name:    name,
 		Type:    interfaces.Interface_DPDK,
@@ -56,7 +57,7 @@ func (s *remoteCNIserver) physicalInterface(name string, ips []ipWithNetwork) (k
 		Vrf:     s.GetMainVrfID(),
 	}
 	for _, ip := range ips {
-		iface.IpAddresses = append(iface.IpAddresses, ipNetToString(combineAddrWithNet(ip.address, ip.network)))
+		iface.IpAddresses = append(iface.IpAddresses, ipNetToString(combineAddrWithNet(ip.Address, ip.Network)))
 	}
 	key = interfaces.InterfaceKey(name)
 	return key, iface
@@ -64,7 +65,7 @@ func (s *remoteCNIserver) physicalInterface(name string, ips []ipWithNetwork) (k
 
 // loopbackInterface returns configuration for loopback created when no physical interfaces
 // are configured.
-func (s *remoteCNIserver) loopbackInterface(ips []ipWithNetwork) (key string, config *interfaces.Interface) {
+func (s *remoteCNIserver) loopbackInterface(ips []*nodesync.IPWithNetwork) (key string, config *interfaces.Interface) {
 	iface := &interfaces.Interface{
 		Name:    loopbackNICLogicalName,
 		Type:    interfaces.Interface_SOFTWARE_LOOPBACK,
@@ -72,7 +73,7 @@ func (s *remoteCNIserver) loopbackInterface(ips []ipWithNetwork) (key string, co
 		Vrf:     s.GetMainVrfID(),
 	}
 	for _, ip := range ips {
-		iface.IpAddresses = append(iface.IpAddresses, ipNetToString(combineAddrWithNet(ip.address, ip.network)))
+		iface.IpAddresses = append(iface.IpAddresses, ipNetToString(combineAddrWithNet(ip.Address, ip.Network)))
 	}
 	key = interfaces.InterfaceKey(loopbackNICLogicalName)
 	return key, iface

@@ -280,6 +280,9 @@ func (ns *NodeSync) nodeVPPAddresses(vppNode *vppnode.VppNode) (addresses []*IPW
 	var err error
 	vppIPs := append(vppNode.IpAddresses, vppNode.IpAddress) // backward compatibility
 	for _, vppIPStr := range vppIPs {
+		if vppIPStr == "" {
+			continue
+		}
 		vppIP := &IPWithNetwork{}
 		vppIP.Address, vppIP.Network, err = net.ParseCIDR(vppIPStr)
 		if err != nil {

@@ -73,6 +73,7 @@ func (p *Plugin) Init() error {
 			Log:          p.Log.NewLogger("-serviceProcessor"),
 			ServiceLabel: p.ServiceLabel,
 			Contiv:       p.Contiv,
+			NodeSync:     p.NodeSync,
 		},
 	}
 

@@ -71,8 +71,18 @@ func (n *Node) String() string {
 	if n == nil {
 		return "<nil>"
 	}
+	vppIPs := "{"
+	first := true
+	for _, vppIP := range n.VppIPAddresses {
+		if !first {
+			vppIPs += ", "
+		}
+		first = false
+		vppIPs += fmt.Sprintf("(%s, %s)", vppIP.Address.String(), vppIP.Network.String())
+	}
+	vppIPs += "}"
 	return fmt.Sprintf("<ID: %d, Name: %s, VPP-IPs: %v, Mgmt-IPs: %v",
-		n.ID, n.Name, n.VppIPAddresses, n.MgmtIPAddresses)
+		n.ID, n.Name, vppIPs, n.MgmtIPAddresses)
 }
 
 // String returns a string representation of nodes.

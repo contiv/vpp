@@ -634,6 +634,7 @@ func (c *Controller) processEvent(qe *QueuedEvent) error {
 
 		// commit transaction to vpp-agent
 		err := txn.Commit(ctx)
+		c.Log.Debugf("Transaction commit result: err=%v", err)
 		evRecord.TxnError = err
 		if err != nil {
 			wasErr = err

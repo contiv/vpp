@@ -1,4 +1,4 @@
-// Copyright (c) 2017 Cisco and/or its affiliates.
+// Copyright (c) 2018 Cisco and/or its affiliates.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,20 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-syntax = "proto3";
+package eventloop
 
-package nodeinfo;
+import (
+	controller "github.com/contiv/vpp/plugins/controller/api"
+)
 
-// NodeInfo represents a node in the k8s cluster.
-// It records a unique node ID to identify the node within the cluster.
-// ID determines IPAM for the given node.
-message NodeInfo {
+// MockEventLoop is a mock implementation of the main event loop.
+type MockEventLoop struct {
+	EventQueue []controller.Event
+}
 
-    uint32 id = 1;
-
-    string name = 2;
-
-    string ip_address = 3;
-
-    string management_ip_address = 4;
+// PushEvent adds the given event into the mock event queue.
+func (m *MockEventLoop) PushEvent(event controller.Event) error {
+	m.EventQueue = append(m.EventQueue, event)
+	return nil
 }

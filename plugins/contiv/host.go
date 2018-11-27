@@ -21,6 +21,7 @@ import (
 
 	"github.com/apparentlymart/go-cidr/cidr"
 
+	"github.com/contiv/vpp/plugins/nodesync"
 	"github.com/ligato/vpp-agent/plugins/linuxv2/model/interfaces"
 	"github.com/ligato/vpp-agent/plugins/linuxv2/model/l3"
 	"github.com/ligato/vpp-agent/plugins/vppv2/model/interfaces"
@@ -48,7 +49,7 @@ func (s *remoteCNIserver) enabledIPNeighborScan() (key string, config *l3.IPScan
 // physicalInterface returns configuration for physical interface - either the main interface
 // connecting node with the rest of the cluster or an extra physical interface requested
 // in the config file.
-func (s *remoteCNIserver) physicalInterface(name string, ips []ipWithNetwork) (key string, config *interfaces.Interface) {
+func (s *remoteCNIserver) physicalInterface(name string, ips []*nodesync.IPWithNetwork) (key string, config *interfaces.Interface) {
 	iface := &interfaces.Interface{
 		Name:    name,
 		Type:    interfaces.Interface_DPDK,
@@ -56,7 +57,7 @@ func (s *remoteCNIserver) physicalInterface(name string, ips []ipWithNetwork) (k
 		Vrf:     s.GetMainVrfID(),
 	}
 	for _, ip := range ips {
-		iface.IpAddresses = append(iface.IpAddresses, ipNetToString(combineAddrWithNet(ip.address, ip.network)))
+		iface.IpAddresses = append(iface.IpAddresses, ipNetToString(combineAddrWithNet(ip.Address, ip.Network)))
 	}
 	key = interfaces.InterfaceKey(name)
 	return key, iface
@@ -64,7 +65,7 @@ func (s *remoteCNIserver) physicalInterface(name string, ips []ipWithNetwork) (k
 
 // loopbackInterface returns configuration for loopback created when no physical interfaces
 // are configured.
-func (s *remoteCNIserver) loopbackInterface(ips []ipWithNetwork) (key string, config *interfaces.Interface) {
+func (s *remoteCNIserver) loopbackInterface(ips []*nodesync.IPWithNetwork) (key string, config *interfaces.Interface) {
 	iface := &interfaces.Interface{
 		Name:    loopbackNICLogicalName,
 		Type:    interfaces.Interface_SOFTWARE_LOOPBACK,
@@ -72,7 +73,7 @@ func (s *remoteCNIserver) loopbackInterface(ips []ipWithNetwork) (key string, co
 		Vrf:     s.GetMainVrfID(),
 	}
 	for _, ip := range ips {
-		iface.IpAddresses = append(iface.IpAddresses, ipNetToString(combineAddrWithNet(ip.address, ip.network)))
+		iface.IpAddresses = append(iface.IpAddresses, ipNetToString(combineAddrWithNet(ip.Address, ip.Network)))
 	}
 	key = interfaces.InterfaceKey(loopbackNICLogicalName)
 	return key, iface
@@ -123,7 +124,7 @@ func (s *remoteCNIserver) interconnectTapVPP() (key string, config *interfaces.I
 		Link: &interfaces.Interface_Tap{
 			Tap: &interfaces.TapLink{},
 		},
-		PhysAddress: hwAddrForNodeInterface(s.nodeID, hostInterconnectHwAddrPrefix),
+		PhysAddress: hwAddrForNodeInterface(s.nodeSync.GetNodeID(), hostInterconnectHwAddrPrefix),
 	}
 	if s.UseSTN() {
 		tap.Unnumbered = &interfaces.Interface_Unnumbered{
@@ -185,7 +186,7 @@ func (s *remoteCNIserver) interconnectAfpacket() (key string, config *interfaces
 		Enabled:     true,
 		Vrf:         s.GetMainVrfID(),
 		IpAddresses: []string{s.ipam.HostInterconnectIPInVPP().String() + "/" + strconv.Itoa(size)},
-		PhysAddress: hwAddrForNodeInterface(s.nodeID, hostInterconnectHwAddrPrefix),
+		PhysAddress: hwAddrForNodeInterface(s.nodeSync.GetNodeID(), hostInterconnectHwAddrPrefix),
 	}
 	key = interfaces.InterfaceKey(afpacket.Name)
 	return key, afpacket
@@ -448,7 +449,7 @@ func (s *remoteCNIserver) dropRoute(vrfID uint32, dstAddr *net.IPNet) *l3.Static
 // vxlanBVILoopback returns configuration of the loopback interfaces acting as BVI
 // for the bridge domain with VXLAN interfaces.
 func (s *remoteCNIserver) vxlanBVILoopback() (key string, config *interfaces.Interface, err error) {
-	vxlanIP, vxlanIPNet, err := s.ipam.VxlanIPAddress(s.nodeID)
+	vxlanIP, vxlanIPNet, err := s.ipam.VxlanIPAddress(s.nodeSync.GetNodeID())
 	if err != nil {
 		return "", nil, err
 	}
@@ -457,7 +458,7 @@ func (s *remoteCNIserver) vxlanBVILoopback() (key string, config *interfaces.Int
 		Type:        interfaces.Interface_SOFTWARE_LOOPBACK,
 		Enabled:     true,
 		IpAddresses: []string{ipNetToString(combineAddrWithNet(vxlanIP, vxlanIPNet))},
-		PhysAddress: hwAddrForNodeInterface(s.nodeID, vxlanBVIHwAddrPrefix),
+		PhysAddress: hwAddrForNodeInterface(s.nodeSync.GetNodeID(), vxlanBVIHwAddrPrefix),
 		Vrf:         s.GetPodVrfID(),
 	}
 	key = interfaces.InterfaceKey(vxlan.Name)
@@ -481,9 +482,16 @@ func (s *remoteCNIserver) vxlanBridgeDomain() (key string, config *l2.BridgeDoma
 		},
 	}
 	if len(s.nodeIP) > 0 {
-		for otherNodeID := range s.otherNodes {
+		for _, node := range s.nodeSync.GetAllNodes() {
+			if node.Name == s.agentLabel {
+				// skip this node
+				continue
+			}
+			if !nodeHasIPAddress(node) {
+				// skip node without IP address
+			}
 			bd.Interfaces = append(bd.Interfaces, &l2.BridgeDomain_Interface{
-				Name:              s.nameForVxlanToOtherNode(otherNodeID),
+				Name:              s.nameForVxlanToOtherNode(node.ID),
 				SplitHorizonGroup: vxlanSplitHorizonGroup,
 			})
 		}
@@ -546,22 +554,8 @@ func (s *remoteCNIserver) vxlanFibEntry(otherNodeID uint32) (key string, config 
 	return key, fib
 }
 
-// otherNodeIP calculates the IP address of the given other node or just trims the mask
-// from the provided one.
-func (s *remoteCNIserver) otherNodeIP(otherNodeID uint32, otherNodeIPNet string) (net.IP, error) {
-	if otherNodeIPNet != "" {
-		// otherNodeIPNet defined, just remove the mask
-		nodeIP, _, err := net.ParseCIDR(otherNodeIPNet)
-		if err != nil {
-			err := fmt.Errorf("Failed to parse Node IP address for node ID %v: %v",
-				otherNodeID, err)
-			s.Logger.Error(err)
-			return nodeIP, err
-		}
-		return nodeIP, nil
-	}
-
-	// otherNodeIPNet not defined, determine based on otherNodeID
+// otherNodeIP calculates the (statically selected) IP address of the given other node
+func (s *remoteCNIserver) otherNodeIP(otherNodeID uint32) (net.IP, error) {
 	nodeIP, _, err := s.ipam.NodeIPAddress(otherNodeID)
 	if err != nil {
 		err := fmt.Errorf("Failed to get Node IP address for node ID %v, error: %v ",

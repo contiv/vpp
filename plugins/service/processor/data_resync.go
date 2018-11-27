@@ -19,7 +19,6 @@ package processor
 import (
 	"fmt"
 
-	"github.com/contiv/vpp/plugins/contiv/model/nodeinfo"
 	controller "github.com/contiv/vpp/plugins/controller/api"
 	epmodel "github.com/contiv/vpp/plugins/ksr/model/endpoints"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
@@ -29,7 +28,6 @@ import (
 // ResyncEventData wraps an entire state of K8s services that should be reflected
 // into VPP.
 type ResyncEventData struct {
-	Nodes     map[int]*nodeinfo.NodeInfo
 	Pods      []*podmodel.Pod
 	Endpoints []*epmodel.Endpoints
 	Services  []*svcmodel.Service
@@ -38,7 +36,6 @@ type ResyncEventData struct {
 // NewResyncEventData creates an empty instance of ResyncEventData.
 func NewResyncEventData() *ResyncEventData {
 	return &ResyncEventData{
-		Nodes:     make(map[int]*nodeinfo.NodeInfo),
 		Pods:      []*podmodel.Pod{},
 		Endpoints: []*epmodel.Endpoints{},
 		Services:  []*svcmodel.Service{},
@@ -68,8 +65,8 @@ func (red ResyncEventData) String() string {
 			services += ", "
 		}
 	}
-	return fmt.Sprintf("ResyncEventData <Nodes:%v Pods:[%s] Endpoint:[%s] Services:[%s]>",
-		red.Nodes, pods, endpoints, services)
+	return fmt.Sprintf("ResyncEventData <Pods:[%s] Endpoint:[%s] Services:[%s]>",
+		pods, endpoints, services)
 }
 
 func (sc *ServiceProcessor) parseResyncEv(kubeStateData controller.KubeStateData) *ResyncEventData {
@@ -79,12 +76,6 @@ func (sc *ServiceProcessor) parseResyncEv(kubeStateData controller.KubeStateData
 	for _, podProto := range kubeStateData[podmodel.PodKeyword] {
 		pod := podProto.(*podmodel.Pod)
 		event.Pods = append(event.Pods, pod)
-	}
-
-	// collect node info
-	for _, nodeInfoProto := range kubeStateData[nodeinfo.Keyword] {
-		nodeInfo := nodeInfoProto.(*nodeinfo.NodeInfo)
-		event.Nodes[int(nodeInfo.Id)] = nodeInfo
 	}
 
 	// collect endpoints

@@ -57,7 +57,7 @@ func (s *remoteCNIserver) ipamGetHandler(formatter *render.Render) http.HandlerF
 		}
 
 		formatter.JSON(w, http.StatusOK, ipamData{
-			NodeID:            s.nodeID,
+			NodeID:            s.nodeSync.GetNodeID(),
 			NodeName:          s.agentLabel,
 			NodeIP:            nodeIP.String(),
 			PodSubnetThisNode: s.ipam.PodSubnetThisNode().String(),

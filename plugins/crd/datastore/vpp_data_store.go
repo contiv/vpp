@@ -37,7 +37,7 @@ type VppDataStore struct {
 
 // CreateNode will add a node to the node cache with the given parameters,
 // making sure there are no duplicates.
-func (vds *VppDataStore) CreateNode(ID uint32, nodeName, IPAddr, ManIPAdr string) error {
+func (vds *VppDataStore) CreateNode(ID uint32, nodeName, IPAddr string) error {
 	vds.lock.Lock()
 	defer vds.lock.Unlock()
 
@@ -46,7 +46,7 @@ func (vds *VppDataStore) CreateNode(ID uint32, nodeName, IPAddr, ManIPAdr string
 	}
 
 	n := &telemetrymodel.Node{
-		NodeInfo: &telemetrymodel.NodeInfo{IPAddr: IPAddr, ManIPAddr: ManIPAdr, ID: ID, Name: nodeName},
+		NodeInfo: &telemetrymodel.NodeInfo{IPAddr: IPAddr, ID: ID, Name: nodeName},
 	}
 	n.PodMap = make(map[string]*telemetrymodel.Pod)
 	vds.NodeMap[nodeName] = n
@@ -130,7 +130,7 @@ func (vds *VppDataStore) RetrieveAllNodes() []*telemetrymodel.Node {
 // UpdateNode handles updates of node data in the cache. If the node identified
 // by 'nodeName' exists, its data is updated and nil error is returned.
 // otherwise, an error is returned.
-func (vds *VppDataStore) UpdateNode(ID uint32, nodeName, IPAddr, ManIPAdr string) error {
+func (vds *VppDataStore) UpdateNode(ID uint32, nodeName, IPAddr string) error {
 	vds.lock.Lock()
 	defer vds.lock.Unlock()
 
@@ -141,7 +141,6 @@ func (vds *VppDataStore) UpdateNode(ID uint32, nodeName, IPAddr, ManIPAdr string
 	}
 	node.IPAddr = IPAddr
 	node.ID = ID
-	node.ManIPAddr = ManIPAdr
 
 	if IPAddr != "" {
 		ipa := strings.Split(IPAddr, "/")
@@ -339,7 +338,9 @@ func (vds *VppDataStore) SetSecondaryNodeIndices(node *telemetrymodel.Node) []st
 		errReport = append(errReport,
 			fmt.Sprintf("duplicate Host IP Address %s, hosts %s, %s", node.ManIPAddr, nIP.Name, node.Name))
 	} else {
-		vds.HostIPMap[node.ManIPAddr] = node
+		if node.ManIPAddr != "" {
+			vds.HostIPMap[node.ManIPAddr] = node
+		}
 	}
 
 	for _, ipAddr := range loopIF.If.IPAddresses {

@@ -12,10 +12,9 @@ type rawNodeTestData map[string]map[string]string
 func getRawNodeTestData() rawNodeTestData {
 	return rawNodeTestData{
 		"k8s-worker2": {
-			"nodeinfo": `{
+			"vppnode": `{
 				"id": 3,
 				"ip_address": "192.168.16.3/24",
-				"management_ip_address": "10.20.0.11",
 				"name": "k8s-worker2"
 			}`,
 			"liveness": `{
@@ -1342,10 +1341,9 @@ func getRawNodeTestData() rawNodeTestData {
 ]`,
 		},
 		"k8s-master": {
-			"nodeinfo": `{
+			"vppnode": `{
 				"id": 1,
 				"ip_address": "192.168.16.1/24",
-				"management_ip_address": "10.20.0.2",
 				"name": "k8s-master"
 			}`,
 			"liveness": `{
@@ -2842,10 +2840,9 @@ func getRawNodeTestData() rawNodeTestData {
 ]`,
 		},
 		"k8s-worker1": {
-			"nodeinfo": `{
+			"vppnode": `{
 				"id": 2,
 				"ip_address": "192.168.16.2/24",
-				"management_ip_address": "10.20.0.10",
 				"name": "k8s-worker1"
 			}`,
 			"liveness": `{

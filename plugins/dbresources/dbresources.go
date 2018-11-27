@@ -17,7 +17,6 @@ package dbresources
 import (
 	"github.com/gogo/protobuf/proto"
 
-	"github.com/contiv/vpp/plugins/contiv/model/nodeinfo"
 	controller_api "github.com/contiv/vpp/plugins/controller/api"
 	nodeconfig "github.com/contiv/vpp/plugins/crd/handler/nodeconfig/model"
 	epmodel "github.com/contiv/vpp/plugins/ksr/model/endpoints"
@@ -26,6 +25,7 @@ import (
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	policymodel "github.com/contiv/vpp/plugins/ksr/model/policy"
 	svcmodel "github.com/contiv/vpp/plugins/ksr/model/service"
+	"github.com/contiv/vpp/plugins/nodesync/vppnode"
 )
 
 // GetDBResources returns metadata for all DB resources currently used by Contiv.
@@ -33,9 +33,9 @@ import (
 func GetDBResources() []*controller_api.DBResource {
 	return []*controller_api.DBResource{
 		{
-			Keyword:          nodeinfo.Keyword,
-			ProtoMessageName: proto.MessageName((*nodeinfo.NodeInfo)(nil)),
-			KeyPrefix:        nodeinfo.AllocatedIDsKeyPrefix,
+			Keyword:          vppnode.Keyword,
+			ProtoMessageName: proto.MessageName((*vppnode.VppNode)(nil)),
+			KeyPrefix:        vppnode.KeyPrefix,
 		},
 		{
 			Keyword:          nodeconfig.Keyword,

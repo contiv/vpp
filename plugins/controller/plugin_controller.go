@@ -536,7 +536,7 @@ func (c *Controller) processEvent(qe *QueuedEvent) error {
 				changes[handler.String()] = change
 			}
 		} else {
-			err = handler.Resync(event, txn, c.kubeStateData, c.resyncCount)
+			err = handler.Resync(event, c.kubeStateData, c.resyncCount, txn)
 		}
 		if err != nil {
 			errStr = err.Error()
@@ -634,6 +634,7 @@ func (c *Controller) processEvent(qe *QueuedEvent) error {
 
 		// commit transaction to vpp-agent
 		err := txn.Commit(ctx)
+		c.Log.Debugf("Transaction commit result: err=%v", err)
 		evRecord.TxnError = err
 		if err != nil {
 			wasErr = err

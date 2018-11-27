@@ -28,7 +28,7 @@ type Reports map[string][]string
 type NodeInfo struct {
 	ID        uint32
 	IPAddr    string
-	ManIPAddr string
+	ManIPAddr string // correlated with Kubernetes node model in ContivTelemetryCache.populateNodeMaps()
 	Name      string
 }
 

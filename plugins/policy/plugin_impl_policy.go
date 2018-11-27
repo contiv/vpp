@@ -162,8 +162,8 @@ func (p *Plugin) HandlesEvent(event controller.Event) bool {
 // re-synchronization.
 // For startup resync, resyncCount is 1. Higher counter values identify
 // run-time resync.
-func (p *Plugin) Resync(event controller.Event, txn controller.ResyncOperations,
-	kubeStateData controller.KubeStateData, resyncCount int) error {
+func (p *Plugin) Resync(event controller.Event, kubeStateData controller.KubeStateData,
+	resyncCount int, txn controller.ResyncOperations) error {
 
 	p.resyncTxn = txn
 	p.updateTxn = nil

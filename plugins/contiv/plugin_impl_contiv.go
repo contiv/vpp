@@ -13,7 +13,6 @@
 // limitations under the License.
 
 //go:generate protoc -I ./model/cni --gogo_out=plugins=grpc:./model/cni ./model/cni/cni.proto
-//go:generate protoc -I ./model/nodeinfo --gogo_out=plugins=grpc:./model/nodeinfo ./model/nodeinfo/nodeinfo.proto
 
 package contiv
 
@@ -46,11 +45,10 @@ import (
 
 	stn_grpc "github.com/contiv/vpp/cmd/contiv-stn/model/stn"
 	"github.com/contiv/vpp/plugins/contiv/model/cni"
-	"github.com/contiv/vpp/plugins/contiv/model/nodeinfo"
 	controller "github.com/contiv/vpp/plugins/controller/api"
 	tmp_txn "github.com/contiv/vpp/plugins/controller/txn"
 	nodeconfig "github.com/contiv/vpp/plugins/crd/handler/nodeconfig/model"
-	"github.com/contiv/vpp/plugins/ksr/model/node"
+	"github.com/contiv/vpp/plugins/nodesync"
 )
 
 // MgmtIPSeparator is a delimiter inserted between management IPs in nodeInfo structure
@@ -62,18 +60,11 @@ type Plugin struct {
 	Deps
 	govppCh api.Channel
 
-	nodeID          uint32
-	cniServer       *remoteCNIserver
-	nodeIDAllocator NodeIDAllocator
-	dockerClient    *docker.Client
-
-	ctx           context.Context
-	ctxCancelFunc context.CancelFunc
+	cniServer    *remoteCNIserver
+	dockerClient *docker.Client
 
 	Config       *Config
 	myNodeConfig *NodeConfig
-
-	nodeIPWatcher chan *net.IPNet
 
 	// temporary
 	afterStartupResync bool
@@ -83,8 +74,10 @@ type Plugin struct {
 // Deps groups the dependencies of the p.
 type Deps struct {
 	infra.PluginDeps
+	EventLoop    controller.EventLoop
 	ServiceLabel servicelabel.ReaderAPI
 	KVScheduler  kvscheduler_api.KVScheduler
+	NodeSync     nodesync.API
 	GRPC         grpcplugin.Server
 	VPPIfPlugin  vpp_ifplugin.API
 	GoVPP        govppmux.API
@@ -99,7 +92,6 @@ func (p *Plugin) Init() error {
 	p.startupResyncCond = &sync.Cond{L: &sync.Mutex{}}
 
 	// load config file
-	p.ctx, p.ctxCancelFunc = context.WithCancel(context.Background())
 	if p.Config == nil {
 		if err := p.loadExternalConfig(); err != nil {
 			return err
@@ -120,35 +112,20 @@ func (p *Plugin) Init() error {
 	}
 	p.Log.Infof("Using docker client endpoint: %+v\n", p.dockerClient.Endpoint())
 
-	// init node ID allocator without requesting node ID just yet
-	p.nodeIDAllocator = NewIDAllocator(p.ETCD, p.ServiceLabel.GetAgentLabel(), nil)
-
 	// register to serve pod add/del requests
 	cni.RegisterRemoteCNIServer(p.GRPC.GetServer(), p)
-
 	return nil
 }
 
-// HandlesEvent selects DBResync and KubeStateChange for specific resources to handle.
+// HandlesEvent selects:
+//   - any Resync event (extra action for NodeIPv4Change)
+//   - NodeUpdate for other nodes
 func (p *Plugin) HandlesEvent(event controller.Event) bool {
 	if event.Method() == controller.Resync {
 		return true
 	}
-	if ksChange, isKSChange := event.(*controller.KubeStateChange); isKSChange {
-		switch ksChange.Resource {
-		case nodeinfo.Keyword:
-			// only interested in NodeInfo of other nodes
-			return ksChange.Key != nodeinfo.Key(p.nodeID)
-		case nodeconfig.Keyword:
-			// only interested in NodeConfig for this node
-			return ksChange.Key == nodeconfig.Key(p.ServiceLabel.GetAgentLabel())
-		case node.NodeKeyword:
-			// only interested in Node data of this node
-			return ksChange.Key == node.Key(p.ServiceLabel.GetAgentLabel())
-		default:
-			// unhandled Kubernetes state change
-			return false
-		}
+	if nodeUpdate, isNodeUpdate := event.(*nodesync.NodeUpdate); isNodeUpdate {
+		return nodeUpdate.NodeName != p.ServiceLabel.GetAgentLabel()
 	}
 
 	// unhandled event
@@ -159,8 +136,8 @@ func (p *Plugin) HandlesEvent(event controller.Event) bool {
 // re-synchronization.
 // For startup resync, resyncCount is 1. Higher counter values identify
 // run-time resync.
-func (p *Plugin) Resync(event controller.Event, txn controller.ResyncOperations,
-	kubeStateData controller.KubeStateData, resyncCount int) error {
+func (p *Plugin) Resync(event controller.Event, kubeStateData controller.KubeStateData,
+	resyncCount int, txn controller.ResyncOperations) error {
 
 	var err error
 	if resyncCount == 1 {
@@ -169,19 +146,12 @@ func (p *Plugin) Resync(event controller.Event, txn controller.ResyncOperations,
 		// load configuration specific to this node
 		p.myNodeConfig = p.loadNodeConfig(kubeStateData)
 
-		// init node ID allocator
-		p.nodeIDAllocator.Resync(kubeStateData)
-		p.nodeID, err = p.nodeIDAllocator.GetOrAllocateNodeID()
-		if err != nil {
-			return controller.NewFatalError(err)
-		}
-		p.Log.Infof("ID of the node is %v", p.nodeID)
-
 		// start the GRPC server handling the CNI requests
 		p.cniServer, err = newRemoteCNIServer(
 			&remoteCNIserverArgs{
-				Logger: p.Log,
-				nodeID: p.nodeID,
+				Logger:    p.Log,
+				eventLoop: p.EventLoop,
+				nodeSync:  p.NodeSync,
 				txnFactory: func() controller.Transaction {
 					return tmp_txn.NewTransaction(p.KVScheduler)
 				},
@@ -200,18 +170,9 @@ func (p *Plugin) Resync(event controller.Event, txn controller.ResyncOperations,
 		if err != nil {
 			return fmt.Errorf("Can't create new remote CNI server due to error: %v ", err)
 		}
-
-		p.nodeIPWatcher = make(chan *net.IPNet, 1)
-		go p.watchNodeIPChanges()
-		p.cniServer.WatchNodeIP(p.nodeIPWatcher)
 	}
 
-	resyncErr := p.thisNodeResync(kubeStateData, txn)
-	if resyncErr != nil {
-		err = resyncErr
-	}
-
-	resyncErr = p.cniServer.Resync(kubeStateData, resyncCount, txn)
+	resyncErr := p.cniServer.Resync(event, kubeStateData, resyncCount, txn)
 	if resyncErr != nil {
 		err = resyncErr
 	}
@@ -224,21 +185,10 @@ func (p *Plugin) Resync(event controller.Event, txn controller.ResyncOperations,
 	return err
 }
 
-// Update is called for KubeStateChange.
+// Update is called for NodeUpdate.
 func (p *Plugin) Update(event controller.Event, txn controller.UpdateOperations) (changeDescription string, err error) {
-	kubeStateChange := event.(*controller.KubeStateChange)
-
-	updateErr := p.processThisNodeChangeEvent(kubeStateChange)
-	if updateErr != nil {
-		err = updateErr
-	}
-
-	changeDescription, updateErr = p.cniServer.Update(kubeStateChange, txn)
-	if updateErr != nil {
-		err = updateErr
-	}
-
-	return
+	nodeUpdate := event.(*nodesync.NodeUpdate)
+	return p.cniServer.Update(nodeUpdate, txn)
 }
 
 // Revert does nothing here - plugin handles only BestEffort events.
@@ -266,29 +216,10 @@ func (p *Plugin) Delete(ctx context.Context, request *cni.CNIRequest) (*cni.CNIR
 	return p.cniServer.Delete(ctx, request)
 }
 
-// watchNodeIPChanges watches for changes of this node IP address.
-func (p *Plugin) watchNodeIPChanges() {
-	for {
-		select {
-		case newIP := <-p.nodeIPWatcher:
-			if newIP != nil {
-				err := p.nodeIDAllocator.UpdateIP(newIP)
-				if err != nil {
-					p.Log.Error(err)
-				}
-			}
-
-		case <-p.ctx.Done():
-		}
-	}
-}
-
 // Close is called by the plugin infra upon agent cleanup.
 // It cleans up the resources allocated by the plugin.
 func (p *Plugin) Close() error {
-	p.ctxCancelFunc()
 	p.cniServer.Close()
-	//p.nodeIDAllocator.releaseID()
 	_, err := safeclose.CloseAll(p.govppCh)
 	return err
 }
@@ -373,12 +304,6 @@ func (p *Plugin) GetNodeIP() (ip net.IP, network *net.IPNet) {
 // GetHostIPs returns all IP addresses of this node present in the host network namespace (Linux).
 func (p *Plugin) GetHostIPs() []net.IP {
 	return p.cniServer.GetHostIPs()
-}
-
-// WatchNodeIP adds given channel to the list of subscribers that are notified upon change
-// of nodeIP address. If the channel is not ready to receive notification, the notification is dropped.
-func (p *Plugin) WatchNodeIP(subscriber chan *net.IPNet) {
-	p.cniServer.WatchNodeIP(subscriber)
 }
 
 // GetMainPhysicalIfName returns name of the "main" interface - i.e. physical interface connecting

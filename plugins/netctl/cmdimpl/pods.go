@@ -16,15 +16,20 @@ package cmdimpl
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/contiv/vpp/plugins/contiv/model/nodeinfo"
-	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
-	"github.com/contiv/vpp/plugins/ksr/model/pod"
-	"github.com/contiv/vpp/plugins/netctl/remote"
-	"github.com/ligato/cn-infra/db/keyval/etcd"
-	"github.com/ligato/vpp-agent/plugins/vpp/model/interfaces"
 	"os"
 	"strings"
 	"text/tabwriter"
+
+	"github.com/ligato/cn-infra/db/keyval/etcd"
+	"github.com/ligato/cn-infra/servicelabel"
+
+	"github.com/ligato/vpp-agent/plugins/vpp/model/interfaces"
+
+	"github.com/contiv/vpp/plugins/crd/cache/telemetrymodel"
+	"github.com/contiv/vpp/plugins/ksr"
+	"github.com/contiv/vpp/plugins/ksr/model/node"
+	"github.com/contiv/vpp/plugins/ksr/model/pod"
+	"github.com/contiv/vpp/plugins/netctl/remote"
 )
 
 type nodeData struct {
@@ -92,8 +97,8 @@ func newPodGetter(client *remote.HTTPClient, db *etcd.BytesConnectionEtcd) *podG
 }
 
 func (pg *podGetter) printAllPods(w *tabwriter.Writer) {
-
-	itr, err := pg.db.ListValues("/vnf-agent/contiv-ksr/allocatedIDs/")
+	ksrPrefix := servicelabel.GetDifferentAgentPrefix(ksr.MicroserviceLabel)
+	itr, err := pg.db.ListValues(ksrPrefix + node.KeyPrefix())
 	if err != nil {
 		fmt.Printf("Error getting values")
 		return
@@ -106,13 +111,20 @@ func (pg *podGetter) printAllPods(w *tabwriter.Writer) {
 			break
 		}
 		buf := kv.GetValue()
-		nodeInfo := &nodeinfo.NodeInfo{}
+		nodeInfo := &node.Node{}
 		err = json.Unmarshal(buf, nodeInfo)
-		nodeID := fmt.Sprintf("%s (%s):", nodeInfo.Name, nodeInfo.ManagementIpAddress)
+		var mgmtAddr string
+		for _, address := range nodeInfo.Addresses {
+			if address.Type == node.NodeAddress_NodeExternalIP {
+				mgmtAddr = address.Address
+				break
+			}
+		}
+		nodeID := fmt.Sprintf("%s (%s):", nodeInfo.Name, mgmtAddr)
 		fmt.Fprintf(w, "%s\t\t\t\t\t\t\t\n", nodeID)
 		fmt.Fprintf(w, "%s\t\t\t\t\t\t\t\n", strings.Repeat("-", len(nodeID)))
 
-		pg.printPodsPerNode(w, nodeInfo.ManagementIpAddress, nodeInfo.Name)
+		pg.printPodsPerNode(w, mgmtAddr, nodeInfo.Name)
 		fmt.Fprintln(w, "\t\t\t\t\t\t\t\t")
 	}
 }

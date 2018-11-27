@@ -21,7 +21,6 @@ import (
 	"github.com/ligato/cn-infra/agent"
 	"github.com/ligato/cn-infra/datasync"
 	"github.com/ligato/cn-infra/datasync/kvdbsync/local"
-	"github.com/ligato/cn-infra/datasync/resync"
 	"github.com/ligato/cn-infra/db/keyval/bolt"
 	"github.com/ligato/cn-infra/db/keyval/etcd"
 	"github.com/ligato/cn-infra/health/probe"
@@ -48,6 +47,7 @@ import (
 	"github.com/contiv/vpp/plugins/contiv"
 	"github.com/contiv/vpp/plugins/controller"
 	controller_api "github.com/contiv/vpp/plugins/controller/api"
+	"github.com/contiv/vpp/plugins/nodesync"
 	"github.com/contiv/vpp/plugins/policy"
 	"github.com/contiv/vpp/plugins/service"
 	"github.com/contiv/vpp/plugins/statscollector"
@@ -78,6 +78,7 @@ type ContivAgent struct {
 	GRPC      *grpc.Plugin
 
 	Controller *controller.Controller
+	NodeSync   *nodesync.NodeSync
 	Contiv     *contiv.Plugin
 	Policy     *policy.Plugin
 	Service    *service.Plugin
@@ -89,12 +90,6 @@ func (c *ContivAgent) String() string {
 
 // Init is called in startup phase. Method added in order to implement Plugin interface.
 func (c *ContivAgent) Init() error {
-	return nil
-}
-
-// AfterInit triggers the first resync.
-func (c *ContivAgent) AfterInit() error {
-	resync.DefaultPlugin.DoResync() // TODO: remove ResyncOrch bullshitter
 	return nil
 }
 
@@ -125,8 +120,11 @@ func main() {
 	grpc.DefaultPlugin.HTTP = &rest.DefaultPlugin
 
 	// initialize Contiv plugins
+	nodeSyncPlugin := &nodesync.DefaultPlugin
+
 	contivPlugin := contiv.NewPlugin(contiv.UseDeps(func(deps *contiv.Deps) {
 		deps.VPPIfPlugin = &vpp_ifplugin.DefaultPlugin
+		deps.NodeSync = nodeSyncPlugin
 	}))
 
 	statscollector.DefaultPlugin.Contiv = contivPlugin
@@ -137,17 +135,22 @@ func main() {
 
 	servicePlugin := service.NewPlugin(service.UseDeps(func(deps *service.Deps) {
 		deps.Contiv = contivPlugin
+		deps.NodeSync = nodeSyncPlugin
 	}))
 
 	controller := controller.NewPlugin(controller.UseDeps(func(deps *controller.Deps) {
 		deps.LocalDB = &bolt.DefaultPlugin
 		deps.RemoteDB = &etcd.DefaultPlugin
 		deps.EventHandlers = []controller_api.EventHandler{
+			nodeSyncPlugin,
 			contivPlugin,
 			servicePlugin,
 			policyPlugin,
 		}
 	}))
+
+	nodeSyncPlugin.EventLoop = controller
+	contivPlugin.EventLoop = controller
 
 	// initialize the agent
 	contivAgent := &ContivAgent{
@@ -168,6 +171,7 @@ func main() {
 		Telemetry:     &telemetry.DefaultPlugin,
 		GRPC:          &grpc.DefaultPlugin,
 		Controller:    controller,
+		NodeSync:      nodeSyncPlugin,
 		Contiv:        contivPlugin,
 		Policy:        policyPlugin,
 		Service:       servicePlugin,

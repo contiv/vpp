@@ -27,9 +27,9 @@ import (
 	"github.com/ligato/cn-infra/servicelabel"
 	"github.com/ligato/vpp-agent/plugins/govppmux"
 
-	"github.com/contiv/vpp/plugins/contiv/model/nodeinfo"
 	epmodel "github.com/contiv/vpp/plugins/ksr/model/endpoints"
 	svcmodel "github.com/contiv/vpp/plugins/ksr/model/service"
+	"github.com/contiv/vpp/plugins/nodesync"
 )
 
 // Plugin watches configuration of K8s resources (as reflected by KSR into ETCD)
@@ -53,6 +53,7 @@ type Deps struct {
 	infra.PluginDeps
 	ServiceLabel servicelabel.ReaderAPI
 	Contiv       contiv.API         /* to get the Node IP and all interface names */
+	NodeSync     nodesync.API       /* to get the list of all node IPs for nodePort services */
 	GoVPP        govppmux.API       /* used for direct NAT binary API calls */
 	Stats        statscollector.API /* used for exporting the statistics */
 }
@@ -72,6 +73,7 @@ func (p *Plugin) Init() error {
 			Log:          p.Log.NewLogger("-serviceProcessor"),
 			ServiceLabel: p.ServiceLabel,
 			Contiv:       p.Contiv,
+			NodeSync:     p.NodeSync,
 		},
 	}
 
@@ -108,15 +110,16 @@ func (p *Plugin) AfterInit() error {
 	return nil
 }
 
-// HandlesEvent selects DBResync and KubeStateChange for specific resources to handle.
+// HandlesEvent selects:
+//  - any resync event
+//  - KubeStateChange for service-related data
+//  - NodeUpdate event
 func (p *Plugin) HandlesEvent(event controller.Event) bool {
 	if event.Method() == controller.Resync {
 		return true
 	}
 	if ksChange, isKSChange := event.(*controller.KubeStateChange); isKSChange {
 		switch ksChange.Resource {
-		case nodeinfo.Keyword:
-			return true
 		case epmodel.EndpointsKeyword:
 			return true
 		case svcmodel.ServiceKeyword:
@@ -125,6 +128,9 @@ func (p *Plugin) HandlesEvent(event controller.Event) bool {
 			// unhandled Kubernetes state change
 			return false
 		}
+	}
+	if _, isNodeUpdate := event.(*nodesync.NodeUpdate); isNodeUpdate {
+		return true
 	}
 
 	// unhandled event
@@ -135,8 +141,8 @@ func (p *Plugin) HandlesEvent(event controller.Event) bool {
 // re-synchronization.
 // For startup resync, resyncCount is 1. Higher counter values identify
 // run-time resync.
-func (p *Plugin) Resync(event controller.Event, txn controller.ResyncOperations,
-	kubeStateData controller.KubeStateData, resyncCount int) error {
+func (p *Plugin) Resync(event controller.Event, kubeStateData controller.KubeStateData,
+	resyncCount int, txn controller.ResyncOperations) error {
 
 	if resyncCount == 1 {
 		// startup resync
@@ -165,8 +171,7 @@ func (p *Plugin) Update(event controller.Event, txn controller.UpdateOperations)
 	p.resyncTxn = nil
 	p.updateTxn = txn
 	p.changes = []string{}
-	kubeStateChange := event.(*controller.KubeStateChange)
-	err = p.processor.Update(kubeStateChange)
+	err = p.processor.Update(event)
 	changeDescription = strings.Join(p.changes, ", ")
 	return changeDescription, err
 }

@@ -37,10 +37,10 @@ import (
 	"sync"
 	"time"
 
-	nodeinfomodel "github.com/contiv/vpp/plugins/contiv/model/nodeinfo"
 	crdClientSet "github.com/contiv/vpp/plugins/crd/pkg/client/clientset/versioned"
 	nodemodel "github.com/contiv/vpp/plugins/ksr/model/node"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
+	vppnodemodel "github.com/contiv/vpp/plugins/nodesync/vppnode"
 
 	"k8s.io/client-go/tools/clientcmd"
 
@@ -221,7 +221,7 @@ func (p *Plugin) AfterInit() error {
 func (p *Plugin) subscribeWatcher() (err error) {
 	p.watchConfigReg, err = p.Watcher.
 		Watch("ContivTelemetry Resources", p.changeChan, p.resyncChan,
-			podmodel.KeyPrefix(), nodemodel.KeyPrefix(), nodeinfomodel.AllocatedIDsKeyPrefix)
+			podmodel.KeyPrefix(), nodemodel.KeyPrefix(), vppnodemodel.KeyPrefix)
 	return err
 }
 

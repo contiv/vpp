@@ -36,8 +36,9 @@ import (
 
 	"github.com/contiv/vpp/cmd/contiv-stn/model/stn"
 	"github.com/contiv/vpp/plugins/contiv"
-	"github.com/contiv/vpp/plugins/contiv/model/nodeinfo"
 	"github.com/contiv/vpp/plugins/controller"
+	"github.com/contiv/vpp/plugins/nodesync"
+	"github.com/contiv/vpp/plugins/nodesync/vppnode"
 	"github.com/ligato/cn-infra/config"
 	"github.com/ligato/cn-infra/db/keyval"
 	"github.com/ligato/cn-infra/db/keyval/bolt"
@@ -268,7 +269,7 @@ func (etcd *etcdWithAtomicPut) OnConnect(callback func() error) {
 }
 
 // etcdConnect connects to ETCD db.
-func etcdConnect() (etcdConn contiv.DB, err error) {
+func etcdConnect() (etcdConn nodesync.ClusterWideDB, err error) {
 	etcdConfig := &etcd.Config{}
 
 	// parse ETCD config file
@@ -344,6 +345,7 @@ func prepareForLocalResync() error {
 		err      error
 	)
 	nodeName := os.Getenv(servicelabel.MicroserviceLabelEnvVar)
+	servicelabel.DefaultPlugin.MicroserviceLabel = nodeName
 
 	// try to connect to ETCD db
 	etcdDB, err := etcdConnect()
@@ -369,16 +371,19 @@ func prepareForLocalResync() error {
 		}
 
 		// allocate or retrieve ID from etcd
+		nodeSync := nodesync.NewPlugin()
+		nodeSync.DB = etcdDB
+		nodeSync.Init()
 		kubeState := resyncEv.KubeState
-		nodeIDAllocator := contiv.NewIDAllocator(etcdDB, nodeName, nil)
-		nodeIDAllocator.Resync(kubeState)
-		id, err := nodeIDAllocator.GetOrAllocateNodeID()
+		err = nodeSync.Resync(resyncEv, kubeState, 1, nil)
 		if err == nil {
 			// update kube state to handle newly allocated ID
-			kubeState[nodeinfo.Keyword][nodeinfo.Key(id)] = &nodeinfo.NodeInfo{
-				Id:   id,
-				Name: nodeName,
-				// IP addresses will be updated in Bolt later by the agent
+			nodeID := nodeSync.GetNodeID()
+			if _, hadID := kubeState[vppnode.Keyword][vppnode.Key(nodeID)]; !hadID {
+				kubeState[vppnode.Keyword][vppnode.Key(nodeID)] = &vppnode.VppNode{
+					Id:   nodeID,
+					Name: nodeName,
+				}
 			}
 		}
 
@@ -394,9 +399,10 @@ func prepareForLocalResync() error {
 	if err != nil {
 		return err
 	}
-	nodeIDAllocator := contiv.NewIDAllocator(nil, nodeName, nil)
-	nodeIDAllocator.Resync(resyncEv.KubeState)
-	_, err = nodeIDAllocator.GetOrAllocateNodeID()
+	nodeSync := nodesync.NewPlugin()
+	nodeSync.DB = nil
+	nodeSync.Init()
+	err = nodeSync.Resync(resyncEv, resyncEv.KubeState, 1, nil)
 	return err
 }
 

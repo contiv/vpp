@@ -1,6 +1,7 @@
 package contiv
 
 import (
+	"fmt"
 	"net"
 
 	controller "github.com/contiv/vpp/plugins/controller/api"
@@ -53,16 +54,10 @@ type API interface {
 	GetNatLoopbackIP() net.IP
 
 	// GetNodeIP returns the IP+network address of this node.
-	// With DHCP the node IP may get assigned later or change in the runtime, therefore it is preferred
-	// to watch for node IP via WatchNodeIP().
 	GetNodeIP() (ip net.IP, network *net.IPNet)
 
 	// GetHostIPs returns all IP addresses of this node present in the host network namespace (Linux).
 	GetHostIPs() []net.IP
-
-	// WatchNodeIP adds given channel to the list of subscribers that are notified upon change
-	// of nodeIP address. If the channel is not ready to receive notification, the notification is dropped.
-	WatchNodeIP(subscriber chan *net.IPNet)
 
 	// GetMainPhysicalIfName returns name of the "main" interface - i.e. physical interface connecting
 	// the node with the rest of the cluster.
@@ -98,4 +93,40 @@ type API interface {
 
 	// GetPodVrfID returns the ID of the POD VRF.
 	GetPodVrfID() uint32
+}
+
+// NodeIPv4Change is triggered when DHCP-assigned IPv4 address of the node changes.
+type NodeIPv4Change struct {
+	NodeIP    net.IP
+	NodeIPNet *net.IPNet
+	DefaultGw net.IP
+}
+
+// GetName returns name of the NodeIPv4Change event.
+func (ev *NodeIPv4Change) GetName() string {
+	return "Node IP(v4) Change"
+}
+
+// String describes NodeIPv4Change event.
+func (ev *NodeIPv4Change) String() string {
+	return fmt.Sprintf("%s\n"+
+		"* IP: %s\n"+
+		"* IP-net: %s\n"+
+		"* GW: %s",
+		ev.GetName(), ev.NodeIP.String(), ev.NodeIPNet.String(), ev.DefaultGw.String())
+}
+
+// Method is Resync.
+func (ev *NodeIPv4Change) Method() controller.EventMethodType {
+	return controller.Resync
+}
+
+// IsBlocking returns false.
+func (ev *NodeIPv4Change) IsBlocking() bool {
+	return false
+}
+
+// Done is NOOP.
+func (ev *NodeIPv4Change) Done(error) {
+	return
 }

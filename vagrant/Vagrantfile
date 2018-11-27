@@ -220,6 +220,8 @@ nat {
    max translations per user 10000
 }
 acl-plugin {
+   hash lookup heap size 512M
+   hash lookup hash memory 512M
    use tuple merge 0
 }
 api-trace {
